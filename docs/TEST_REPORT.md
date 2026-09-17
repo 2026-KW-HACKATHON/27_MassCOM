@@ -48,5 +48,6 @@
 | 시각 | 커밋 | 명령 | 환경 | 결과 | 재현 |
 | --- | --- | --- | --- | --- | --- |
 | 2026-09-18 KST | 작업 트리 | `bash tests/bootstrap/verify_bootstrap_test.sh` | macOS, Bash | 첫 실행 RED: 검증기 없음 | 검증기 추가 전 실행 |
-| 2026-09-18 KST | 작업 트리 | `bash tests/bootstrap/verify_bootstrap_test.sh` | macOS, Bash | PASS: 저장소 계약·36 ID·상태·음성 fixture | 같은 명령 재실행 |
-| 2026-09-18 KST | 작업 트리 | `bash tests/bootstrap/check_secrets_test.sh` | macOS, Bash | PASS: 안전 fixture 허용·비어 있지 않은 토큰 거절 | 같은 명령 재실행 |
+| 2026-09-18 KST | 작업 트리 | `bash tests/bootstrap/verify_bootstrap_test.sh` | macOS, Bash | PASS: 저장소 계약·36 ID·상태·누락 fixture | 같은 명령 재실행 |
+| 2026-09-18 KST | 작업 트리 | `bash tests/bootstrap/check_secrets_test.sh` | macOS, Bash | PASS: 안전 fixture 허용·토큰·자격증명 URL·API 키 URL·EVM 키 형태 거절 | 같은 명령 재실행 |
+| 2026-09-18 KST | `92d8029` | GitHub Actions `bootstrap-contract` | `ubuntu-latest` | PASS, 4초 | PR #2 Actions run `35282893247` |
