@@ -20,6 +20,7 @@ android/app/build/
 .cache/
 .tmp/
 .omx/
+.sites-runtime/
 
 # IDE and operating system
 .DS_Store

@@ -1,0 +1,32 @@
+{
+  "checked_at": "2026-09-18T08:37:00+09:00",
+  "score": 94,
+  "threshold": 90,
+  "verdict": "pass",
+  "category_match": true,
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 900,
+      "artifact": "project-portal-desktop.png"
+    },
+    {
+      "width": 500,
+      "height": 844,
+      "artifact": "project-portal-mobile.png"
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "artifact": "interactive-browser-inspection"
+    }
+  ],
+  "automated_accessibility": {
+    "html_validate": "PASS",
+    "axe_core": "PASS: 0 violations",
+    "repository_contrast_and_semantics_regression": "PASS"
+  },
+  "differences": [],
+  "suggestions": [],
+  "reasoning": "Desktop and mobile layouts preserve Korean word boundaries, keep status metadata readable, expose semantic content to assistive technology, and avoid horizontal overflow in the inspected viewports."
+}

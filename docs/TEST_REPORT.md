@@ -51,3 +51,6 @@
 | 2026-09-18 KST | 작업 트리 | `bash tests/bootstrap/verify_bootstrap_test.sh` | macOS, Bash | PASS: 저장소 계약·36 ID·상태·누락 fixture | 같은 명령 재실행 |
 | 2026-09-18 KST | 작업 트리 | `bash tests/bootstrap/check_secrets_test.sh` | macOS, Bash | PASS: 안전 fixture 허용·토큰·자격증명 URL·API 키 URL·EVM 키 형태 거절 | 같은 명령 재실행 |
 | 2026-09-18 KST | `92d8029` | GitHub Actions `bootstrap-contract` | `ubuntu-latest` | PASS, 4초 | PR #2 Actions run `35282893247` |
+| 2026-09-18 KST | `5688a5d` | `bash tests/site/check_site_accessibility_test.sh` | macOS, Node | PASS: 대비·ARIA 실패 fixture 거절 | 같은 명령 재실행 |
+| 2026-09-18 KST | `5688a5d` | `bash tests/site/verify_project_site_test.sh` | macOS, Bash | PASS: 포털 구조·상태·README 진입점 | 같은 명령 재실행 |
+| 2026-09-18 KST | `5688a5d` | `html-validate` / axe-core | headless Chrome | PASS: HTML 오류 0, 접근성 위반 0 | PR #6 설명과 evidence 참조 |

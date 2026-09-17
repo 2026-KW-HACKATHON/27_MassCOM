@@ -6,7 +6,7 @@
 | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 중간 | 논리의 연결성 | 30 | `RQ-001`~`RQ-006` | [#1](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/1) | [#2](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/2) | `docs/PRD.md`, `README.md` | 핵심 흐름 시험 `NOT_RUN` | 인터뷰·행동 자료 없음 | 3분 원고 생성 전 | `IN_PROGRESS` |
 | 중간 | 실현 & 상용화 가능성 | 20 | `RQ-007`~`RQ-015` | 기능 Issue 생성 전 | 생성 전 | `packages/domain/spec/INVARIANTS.md` | `W01`~`W09`, `M01`~`M08` 모두 `NOT_RUN` | 기기·점주·비용 자료 없음 | 시연 증거 생성 전 | `PLANNED` |
-| 중간 | 기획 문서의 재현 가능성 | 20 | `RQ-016`~`RQ-018` | [#1](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/1) | [#2](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/2) | `README.md`, `.env.example`, `docs/TEST_REPORT.md` | 부트스트랩·비밀 검사 `PASS` | 외부 HTTPS `NOT_RUN` | 실행 화면 생성 전 | `IN_PROGRESS` |
+| 중간 | 기획 문서의 재현 가능성 | 20 | `RQ-016`~`RQ-018` | [#1](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/1), [#5](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/5) | [#2](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/2), [#6](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/6) | `README.md`, `.env.example`, `docs/index.html`, `docs/TEST_REPORT.md` | 부트스트랩·비밀·포털·접근성 검사 `PASS` | 외부 HTTPS `NOT_RUN` | `docs/evidence/project-portal-*.png`, 공개 URL 없음 | `IN_PROGRESS` |
 | 중간 | 창의성 & 차별성 | 20 | `RQ-001`, `RQ-005` | 기능 Issue 생성 전 | 생성 전 | `docs/PRD.md` | 추천·도감 시험 `NOT_RUN` | 다음 점포 탐색 자료 없음 | 비교 슬라이드 생성 전 | `PLANNED` |
 | 중간 | 발표 | 10 | `RQ-019` | 발표 Issue 생성 전 | 생성 전 | `docs/COMPETITION.md` | 리허설 `NOT_RUN` | 실제 화면 없음 | 3분 원고·시연 순서 생성 전 | `PLANNED` |
 | 최종 | 실현 & 상용화 가능성 | 30 | `RQ-007`~`RQ-015` | 기능·운영 Issue 생성 전 | 생성 전 | `docs/BLOCKERS.md`, 배포 코드 없음 | `W01`~`O02` 관련 시험 `NOT_RUN` | 파일럿·실비 자료 없음 | 5분 시연 자료 생성 전 | `PLANNED` |

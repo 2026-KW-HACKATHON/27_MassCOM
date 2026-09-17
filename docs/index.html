@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="월계1동 음식점 탐색·이용 인증·마스코트 수집 서비스의 개발 현황과 검증 증거를 한눈에 보는 프로젝트 포털"
+    >
+    <meta name="theme-color" content="#12303d">
+    <title>월계 마스코트 · 프로젝트 포털</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312303d'/%3E%3Cpath d='M44 13a20 20 0 1 0 7 33A22 22 0 1 1 44 13Z' fill='%23d9ecff'/%3E%3Cpath d='M13 47c10-8 18-8 38-4' fill='none' stroke='%235ca6d6' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E"
+    >
+    <link rel="stylesheet" href="assets/project.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
+
+    <header class="site-header">
+      <a class="brand" href="#overview" aria-label="월계 마스코트 프로젝트 포털 처음으로">
+        <span class="brand-mark" aria-hidden="true">月</span>
+        <span>월계 마스코트</span>
+      </a>
+      <nav aria-label="주요 메뉴">
+        <a href="#flow">서비스 흐름</a>
+        <a href="#architecture">구조</a>
+        <a href="#evidence">증거</a>
+        <a href="#decisions">결정</a>
+      </nav>
+      <span class="header-state"><span aria-hidden="true"></span> Phase 0 merged</span>
+    </header>
+
+    <main id="main-content">
+      <section class="overview" id="overview" aria-labelledby="overview-title">
+        <div class="overview-copy">
+          <p class="context">월계1동 지역 상권 · Android 출시 목표</p>
+          <h1 id="overview-title">가게를 발견하고,<br>방문을 수집한다.</h1>
+          <p class="lede">
+            음식점 탐색과 점주 확인, QR 방문 인증을 하나의 흐름으로 연결합니다.
+            지갑은 선택 기능이며, NFT를 받지 않아도 방문 도감을 계속 사용할 수 있습니다.
+          </p>
+          <div class="overview-actions">
+            <a class="primary-action" href="#flow">전체 흐름 보기</a>
+            <a
+              class="text-action"
+              href="https://github.com/2026-KW-HACKATHON/27_MassCOM"
+              rel="noreferrer"
+            >GitHub 저장소</a>
+          </div>
+        </div>
+
+        <aside class="truth-board" aria-labelledby="truth-title">
+          <div class="truth-heading">
+            <h2 id="truth-title">지금 사실인 것</h2>
+            <span>2026-09-18 KST</span>
+          </div>
+          <dl>
+            <div>
+              <dt>저장소 기준선</dt>
+              <dd><span class="status status-verified">VERIFIED</span></dd>
+            </div>
+            <div>
+              <dt>제품 기능</dt>
+              <dd><span class="status status-planned">PLANNED</span></dd>
+            </div>
+            <div>
+              <dt>제품 시험 36개</dt>
+              <dd><span class="status status-not-run">NOT_RUN</span></dd>
+            </div>
+            <div>
+              <dt>공개 데모</dt>
+              <dd><span class="status status-blocked">BLOCKED</span></dd>
+            </div>
+          </dl>
+          <p>완료 주장은 코드·명령·환경·결과가 함께 있을 때만 바뀝니다.</p>
+        </aside>
+      </section>
+
+      <section class="status-legend" aria-label="프로젝트 상태 기준">
+        <span><b>PLANNED</b> 아직 착수 전</span>
+        <span><b>IN_PROGRESS</b> 브랜치 작업 중</span>
+        <span><b>IMPLEMENTED</b> 코드 존재</span>
+        <span><b>VERIFIED</b> 근거로 검증</span>
+        <span><b>BLOCKED</b> 외부 조건 필요</span>
+      </section>
+
+      <section class="section route-section" id="flow" aria-labelledby="flow-title">
+        <div class="section-heading">
+          <div>
+            <p>사용자 여정</p>
+            <h2 id="flow-title">지갑보다 가게가 먼저입니다.</h2>
+          </div>
+          <p>
+            사용자는 방문과 도감을 먼저 경험하고, 실제 NFT를 원할 때만 외부 지갑을 연결합니다.
+          </p>
+        </div>
+
+        <ol class="route" aria-label="핵심 서비스 흐름 9단계">
+          <li><span>1</span><strong>음식점 탐색</strong><small>지갑 없이 시작</small></li>
+          <li><span>2</span><strong>점주 확인</strong><small>자기 점포 권한</small></li>
+          <li><span>3</span><strong>QR 인증</strong><small>일회용·중복 방지</small></li>
+          <li><span>4</span><strong>보상권</strong><small>DB에 한 번만</small></li>
+          <li><span>5</span><strong>외부 지갑</strong><small>선택적 연결</small></li>
+          <li><span>6</span><strong>주소 서명</strong><small>자산 권한 없음</small></li>
+          <li><span>7</span><strong>NFT 발행</strong><small>기존 체인 사용</small></li>
+          <li><span>8</span><strong>도감</strong><small>앱 수집품과 구분</small></li>
+          <li><span>9</span><strong>다음 가게</strong><small>지역 탐색 반복</small></li>
+        </ol>
+      </section>
+
+      <section class="section architecture-section" id="architecture" aria-labelledby="architecture-title">
+        <div class="section-heading compact">
+          <div>
+            <p>역할 분리</p>
+            <h2 id="architecture-title">사용자 자산을 맡지 않는 구조</h2>
+          </div>
+          <p>현실 이용은 DB에, 발행된 NFT 소유 기록은 기존 블록체인에 남깁니다.</p>
+        </div>
+
+        <div class="architecture-map">
+          <div class="architecture-lane lane-client">
+            <h3>사람이 쓰는 화면</h3>
+            <div class="node primary-node">Android 앱<small>탐색 · QR · 도감</small></div>
+            <div class="node">점주·직원 웹<small>이용 확인 · QR 발급</small></div>
+            <div class="node wallet-node">외부 지갑 앱<small>주소 확인 서명만</small></div>
+          </div>
+          <div class="architecture-lane lane-cloud">
+            <h3>서비스가 책임지는 것</h3>
+            <div class="node primary-node">HTTPS API<small>권한 · nonce · 보상 판단</small></div>
+            <div class="node">PostgreSQL<small>방문 · 보상권 · Outbox</small></div>
+            <div class="node">발행 Worker<small>재시도 · 거래 대조</small></div>
+          </div>
+          <div class="architecture-lane lane-public">
+            <h3>공개되는 기록</h3>
+            <div class="node chain-node">기존 블록체인<small>계약 · 수령인 · token ID</small></div>
+            <div class="privacy-note">
+              <strong>올리지 않는 정보</strong>
+              <span>실명, 이메일, 주문번호, 정확한 식사 시각, 개인키, 복구 문구</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section evidence-section" id="evidence" aria-labelledby="evidence-title">
+        <div class="section-heading compact">
+          <div>
+            <p>검증 현황</p>
+            <h2 id="evidence-title">통과한 것과 안 한 것을 나눕니다.</h2>
+          </div>
+          <p>저장소 기준선 통과를 제품 기능 통과로 확대 해석하지 않습니다.</p>
+        </div>
+
+        <div class="evidence-grid">
+          <article class="evidence-primary">
+            <span class="evidence-number">main</span>
+            <h3>검증된 기준선</h3>
+            <p>Phase 0 기준선과 상태 동기화가 각각 CI를 통과해 main에 반영됐습니다.</p>
+            <div class="evidence-links">
+              <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/2" rel="noreferrer">PR #2</a>
+              <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/4" rel="noreferrer">PR #4</a>
+            </div>
+          </article>
+          <article>
+            <span class="evidence-number">36</span>
+            <h3>제품 시험</h3>
+            <p>QR·보상·지갑·민팅·계약·삭제·Android·운영 시험은 아직 모두 NOT_RUN입니다.</p>
+            <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_REPORT.md" rel="noreferrer">시험 원장 보기</a>
+          </article>
+          <article>
+            <span class="evidence-number">0</span>
+            <h3>허위 실적</h3>
+            <p>협약 점포, Play 승인, 매출 증가, 현장 검증을 실제 증거 없이 표시하지 않습니다.</p>
+            <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/STATUS.md" rel="noreferrer">현재 상태 보기</a>
+          </article>
+        </div>
+
+        <div class="test-groups" role="group" aria-label="36개 필수 시험 분류">
+          <span><b>Q 5</b> QR·권한</span>
+          <span><b>R 3</b> 보상 규칙</span>
+          <span><b>W 9</b> 외부 지갑</span>
+          <span><b>M 8</b> 발행·복구</span>
+          <span><b>C 4</b> NFT 계약</span>
+          <span><b>D 3</b> 탈퇴·정보</span>
+          <span><b>A 2</b> Android</span>
+          <span><b>O 2</b> 운영 장애</span>
+        </div>
+      </section>
+
+      <section class="section evaluation-section" id="evaluation" aria-labelledby="evaluation-title">
+        <div class="section-heading compact">
+          <div>
+            <p>대회 평가 연결</p>
+            <h2 id="evaluation-title">점수보다 증거를 먼저 쌓습니다.</h2>
+          </div>
+          <a class="text-action" href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/EVALUATION_MAP.md" rel="noreferrer">전체 대응표</a>
+        </div>
+        <div class="score-map">
+          <div class="score-column">
+            <h3>중간 평가</h3>
+            <p><span style="--score: 30%">논리의 연결성</span><b>30</b></p>
+            <p><span style="--score: 20%">실현·상용화</span><b>20</b></p>
+            <p><span style="--score: 20%">기획 재현성</span><b>20</b></p>
+            <p><span style="--score: 20%">창의·차별성</span><b>20</b></p>
+            <p><span style="--score: 10%">발표</span><b>10</b></p>
+          </div>
+          <div class="score-column">
+            <h3>최종 평가</h3>
+            <p><span style="--score: 30%">실현·상용화</span><b>30</b></p>
+            <p><span style="--score: 20%">구현·기술력</span><b>20</b></p>
+            <p><span style="--score: 20%">지역 적합성</span><b>20</b></p>
+            <p><span style="--score: 20%">창의·차별성</span><b>20</b></p>
+            <p><span style="--score: 5%">참여도</span><b>5</b></p>
+            <p><span style="--score: 5%">발표</span><b>5</b></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section decision-section" id="decisions" aria-labelledby="decisions-title">
+        <div class="decision-intro">
+          <p>다음 구현 게이트</p>
+          <h2 id="decisions-title">코드를 쓰기 전에 다섯 가지를 확정합니다.</h2>
+          <p>제안은 승인 기록이 되지 않습니다. 값이 확정되면 각각 Issue와 PR로 구현합니다.</p>
+          <a class="primary-action light" href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/DECISIONS.md" rel="noreferrer">결정 원문 열기</a>
+        </div>
+        <ol class="decision-list">
+          <li><span>D-004</span><strong>고정형 보상</strong><small>PROPOSED</small></li>
+          <li><span>D-005</span><strong>초기 양도 제한</strong><small>PROPOSED</small></li>
+          <li><span>D-006</span><strong>방문·기간 규칙</strong><small>PROPOSED</small></li>
+          <li><span>D-007</span><strong>RN · Base · Reown</strong><small>PROPOSED</small></li>
+          <li><span>D-008</span><strong>AWS 배포 설계</strong><small>PROPOSED</small></li>
+        </ol>
+      </section>
+
+      <section class="section documents-section" id="documents" aria-labelledby="documents-title">
+        <div class="section-heading compact">
+          <div>
+            <p>재현 가능한 문서</p>
+            <h2 id="documents-title">주장마다 근거 위치가 있습니다.</h2>
+          </div>
+          <p>긴 원문을 반복하지 않고, 필요한 판단과 실행 기록으로 바로 이동합니다.</p>
+        </div>
+        <div class="document-list">
+          <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/PRD.md" rel="noreferrer"><strong>제품 요구사항</strong><span>RQ-001~RQ-021</span></a>
+          <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/DECISIONS.md" rel="noreferrer"><strong>결정 기록</strong><span>승인·제안·외부 확인</span></a>
+          <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_REPORT.md" rel="noreferrer"><strong>테스트 원장</strong><span>36개 ID와 실행 근거</span></a>
+          <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/EVALUATION_MAP.md" rel="noreferrer"><strong>평가 대응</strong><span>Issue·PR·코드·실증 연결</span></a>
+          <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/COMPETITION.md" rel="noreferrer"><strong>대회 규칙</strong><span>페이지별 조치와 상태</span></a>
+          <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF.md" rel="noreferrer"><strong>인수인계</strong><span>중복 작업 방지</span></a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>월계 마스코트(가칭) · 실제 코드와 검증 결과에 맞춰 갱신되는 프로젝트 포털</p>
+      <a href="#overview">맨 위로</a>
+    </footer>
+  </body>
+</html>
