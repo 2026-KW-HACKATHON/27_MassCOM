@@ -18,3 +18,7 @@ jobs:
         run: bash tests/bootstrap/check_secrets_test.sh
       - name: Verify repository contract
         run: bash tests/bootstrap/verify_bootstrap_test.sh
+      - name: Verify project portal
+        run: bash tests/site/check_site_accessibility_test.sh
+      - name: Verify project portal structure
+        run: bash tests/site/verify_project_site_test.sh

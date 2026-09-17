@@ -37,6 +37,8 @@
 - 커밋은 의도 중심 제목과 필요한 Lore trailer를 사용한다.
 - 현재 부트스트랩 검증: `bash tests/bootstrap/verify_bootstrap_test.sh`
 - 현재 비밀 검사: `bash tests/bootstrap/check_secrets_test.sh`
+- 현재 프로젝트 포털 검사: `bash tests/site/verify_project_site_test.sh`
+- 현재 포털 접근성 검사: `bash tests/site/check_site_accessibility_test.sh`
 - v3 19절 ID를 바꾸거나 재번호화하지 않는다.
 - 결과는 `PASS / FAIL / BLOCKED / NOT_RUN`과 명령·커밋·환경·재현법으로 남긴다.
 - 같은 환경 원인이 두 번 반복되면 로그와 최소 재현을 남기고 BLOCKER로 분리한다.
