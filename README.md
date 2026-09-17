@@ -35,7 +35,7 @@ python3 -m http.server 4173 --directory docs
 | 영역 | 상태 | 증거 또는 다음 조건 |
 | --- | --- | --- |
 | 저장소·문서·CI 기준선 | `VERIFIED` | PR #2·#4 merge, GitHub Actions PASS |
-| 프로젝트 포털 | `IN_PROGRESS` | Issue #5, `feat/project-portal` |
+| 프로젝트 포털 | `VERIFIED` | PR #6, CI PASS, 접근성·반응형 증거 저장 |
 | Android 고객 앱 | `PLANNED` | D-007 기술 선택 승인 필요 |
 | 점주·직원 웹 | `PLANNED` | 권한·QR 요구사항만 정의 |
 | API·PostgreSQL·Worker | `PLANNED` | D-006·D-008 결정 필요 |

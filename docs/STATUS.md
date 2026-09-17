@@ -8,6 +8,7 @@
 - 마스터 프롬프트, v3, 개회식 PDF 규칙·평가표 대조
 - `chore/project-bootstrap` 브랜치에서 Phase 0 README·지침·근거·평가·요구·결정·시험 문서와 검증 구조 구현
 - PR #2 GitHub Actions PASS 후 merge commit `003ae6c`로 `main` 통합, Issue #1 종료
+- 프로젝트 포털·요약 README 구현, PR #6 GitHub Actions PASS, 데스크톱·모바일·접근성 검증 완료
 
 ## GitHub
 
@@ -22,6 +23,7 @@
 | Issue | `#1 CLOSED` |
 | PR | `#2 MERGED` |
 | merge | `003ae6c7a5d4a9aec8b8678778186bf79dc0d867` |
+| 프로젝트 포털 | `#6`, CI PASS, 공개 배포 미실행 |
 
 ## 검증
 
@@ -29,6 +31,9 @@
 - 비밀 검사 회귀 테스트: 빈 값 허용, 토큰·자격증명 URL·API 키 URL·EVM 키 형태 거절 PASS
 - 독립 AI 코드 리뷰: 수정 후 HIGH/MEDIUM 문제 0건. 사람의 필수 리뷰를 대신하지 않음
 - GitHub Actions `bootstrap-contract`: PASS, Ubuntu runner 4초
+- 프로젝트 포털 회귀·의미 구조·대비 검사: PASS
+- `html-validate`: PASS, axe-core: 0 violations
+- 데스크톱 1440×900·모바일 500×844 증거와 390×844 추가 점검: PASS
 - v3 필수 36개: 모두 `NOT_RUN`
 - Android·외부 지갑·PostgreSQL·컨트랙트·외부 HTTPS: `NOT_RUN`
 
@@ -36,6 +41,7 @@
 
 - D-004~D-008 제품·기술 결정 승인 필요
 - 저장소 public 전환, 유료 클라우드, 테스트넷 자격증명·외부 전송, Play 제출은 별도 승인 필요
+- private 저장소의 GitHub Pages 지원 여부와 공개 배포 승인 미확정
 - 실제 팀원 역할·기여·리뷰 기록 없음
 - 별도 공식 제출 형식·최신 공지 미확인
 

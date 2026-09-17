@@ -15,6 +15,7 @@
 | D-009 | 저장소 | `2026-KW-HACKATHON/27_MassCOM`, 기본 브랜치 `main` | `USER_CONFIRMED` | 운영진 조직 저장소와 현재 작업 디렉터리 일치 |
 | D-010 | 저장소 공개 | 심사 전 public 전환 | `BLOCKED` | 대회 규칙상 필요하나 가시성 변경은 명시 승인 대상 |
 | D-011 | Play·법률·공급업체 | 실제 기능·계정·약관 기준 재확인 | `EXTERNAL_CHECK_REQUIRED` | 개인 계정 승인·사업자 불필요를 보장하지 않음 |
+| D-012 | 프로젝트 포털 공개 | GitHub Pages 또는 승인된 정적 호스팅 | `BLOCKED` | private 조직 저장소 지원 확인과 공개 배포 승인이 필요 |
 
 ## 승인 응답 형식
 
