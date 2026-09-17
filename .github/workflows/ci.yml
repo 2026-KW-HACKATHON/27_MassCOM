@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Scan repository for committed secrets
+        run: bash tests/bootstrap/check_secrets_test.sh
+      - name: Verify repository contract
+        run: bash tests/bootstrap/verify_bootstrap_test.sh
