@@ -1,0 +1,33 @@
+name: 기능 작업
+description: 요구사항과 검증 기준이 있는 기능 작업
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 목적
+      description: 해결할 사용자·지역 문제와 요구사항 ID를 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 수용 기준
+      description: 관찰 가능한 완료 조건과 관련 테스트 ID를 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: 보안·정책 경계
+      description: 지갑, 개인정보, DB, 체인, 승인 영향과 범위 밖을 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 검증 증거
+      description: 실행할 명령, 환경, 기기 또는 수동 확인을 적습니다.
+    validations:
+      required: true

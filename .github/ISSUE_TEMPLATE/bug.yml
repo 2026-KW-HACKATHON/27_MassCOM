@@ -1,0 +1,32 @@
+name: 버그
+description: 재현 가능한 결함 또는 안전 불변조건 위반
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: 관찰 결과
+      description: 실제 결과와 로그 위치를 적고 비밀·개인정보는 제거합니다.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 재현 방법
+      description: 코드 SHA, 환경, 명령, 기기·지갑 버전을 적습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 결과
+    validations:
+      required: true
+  - type: textarea
+    id: regression
+    attributes:
+      label: 회귀 테스트
+      description: 실패를 고정할 테스트 ID 또는 새 테스트를 적습니다.
+    validations:
+      required: true

@@ -1,0 +1,32 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies and build outputs
+node_modules/
+dist/
+build/
+coverage/
+.expo/
+.gradle/
+android/.cxx/
+android/app/build/
+
+# Logs and runtime state
+*.log
+.cache/
+.tmp/
+.omx/
+
+# IDE and operating system
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local evidence containing device or user data
+artifacts/private/
+test-results/private/
