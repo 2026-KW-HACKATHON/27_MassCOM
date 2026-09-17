@@ -39,7 +39,7 @@
 
 ## 미완료·BLOCKER
 
-- D-004~D-008 제품·기술 결정 승인 필요
+- D-004~D-008 승인 완료, Phase 1 구현 Issue 생성 필요
 - 저장소 public 전환, 유료 클라우드, 테스트넷 자격증명·외부 전송, Play 제출은 별도 승인 필요
 - private 저장소의 GitHub Pages 지원 여부와 공개 배포 승인 미확정
 - 실제 팀원 역할·기여·리뷰 기록 없음
@@ -47,4 +47,4 @@
 
 ## 승인된 다음 작업
 
-`docs/DECISIONS.md`의 D-004~D-008을 한 번에 확정한 뒤 Issue를 만들고 Phase 1 외부 지갑 연결 실험 브랜치를 시작합니다.
+Phase 1 외부 지갑 연결 실험 Issue를 만들고 `feat/wallet-link` 브랜치에서 RN+Expo development build와 최소 검증 API를 구현합니다.
