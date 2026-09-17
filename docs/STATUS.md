@@ -18,8 +18,9 @@
 | 기본 브랜치 | `main` |
 | 기준 커밋 | `304d860aa218fe53627b65b90c8b5c935c381f1c` |
 | 작업 브랜치 | `chore/project-bootstrap` |
+| 작업 커밋 | `ea9e7b6 Establish a verifiable hackathon development baseline` |
 | Issue | `#1 chore: bootstrap project docs and development workflow` |
-| PR | 생성 전 |
+| PR | `#2 chore: bootstrap project docs and development workflow` |
 | merge | 미실행 |
 
 ## 검증
