@@ -36,11 +36,11 @@ python3 -m http.server 4173 --directory docs
 | --- | --- | --- |
 | 저장소·문서·CI 기준선 | `VERIFIED` | PR #2·#4 merge, GitHub Actions PASS |
 | 프로젝트 포털 | `VERIFIED` | PR #6, CI PASS, 접근성·반응형 증거 저장 |
-| Android 고객 앱 | `PLANNED` | D-007 기술 선택 승인 필요 |
+| Android 고객 앱 | `PLANNED` | D-007 승인, Phase 1 Issue 착수 예정 |
 | 점주·직원 웹 | `PLANNED` | 권한·QR 요구사항만 정의 |
-| API·PostgreSQL·Worker | `PLANNED` | D-006·D-008 결정 필요 |
+| API·PostgreSQL·Worker | `PLANNED` | D-006·D-008 승인, 구현 전 |
 | 외부 지갑 주소 확인 | `PLANNED` | 실제 SDK·기기 검증 전 |
-| NFT 계약·발행 | `PLANNED` | D-004·D-005 결정 필요 |
+| NFT 계약·발행 | `PLANNED` | D-004·D-005 승인, Phase 3 전 |
 | 외부 HTTPS·Play 제출 | `BLOCKED` | 계정·비용·정책·명시 승인 필요 |
 
 상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
@@ -69,13 +69,13 @@ Android 앱 ─┐
 
 | 항목 | v3 권장안 | 현재 상태 |
 | --- | --- | --- |
-| 고객 앱 | React Native + TypeScript + Expo development build | `PROPOSED` |
-| 지갑 연결 | Reown AppKit 외부 지갑만, MetaMask 1차 실기 | `PROPOSED` |
-| 체인 | Base Sepolia → 별도 승인 후 Base mainnet | `PROPOSED` |
-| 서버·DB | Node.js LTS + TypeScript + PostgreSQL | `PROPOSED` |
-| 배포 | AWS 서울 리전 + Docker Compose + Nginx | `PROPOSED` |
+| 고객 앱 | React Native + TypeScript + Expo development build | `USER_CONFIRMED` |
+| 지갑 연결 | Reown AppKit 외부 지갑만, MetaMask 1차 실기 | `USER_CONFIRMED` |
+| 체인 | Base Sepolia → 별도 승인 후 Base mainnet | `USER_CONFIRMED` |
+| 서버·DB | Node.js LTS + TypeScript + PostgreSQL | `USER_CONFIRMED` |
+| 배포 | AWS 서울 리전 + Docker Compose + Nginx | `USER_CONFIRMED` |
 
-제안값은 [결정 기록](docs/DECISIONS.md)의 D-004~D-008 승인 전까지 제품 코드로 확정하지 않습니다.
+D-004~D-008은 2026-09-18 승인됐습니다. 유료 자원 생성·메인넷·공개 배포는 이 승인에 포함되지 않습니다.
 
 ## 설치·검증
 
