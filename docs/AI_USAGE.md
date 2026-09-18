@@ -9,6 +9,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-18 | Codex 독립 리뷰 역할 | Phase 0 변경 검토 | 평가 추적성, 비밀 검사, 상태 일관성 검토 | 수정 후 HIGH/MEDIUM 문제 0건, 로컬 검증 재실행 PASS | 사람 리뷰를 대신하지 않음 |
 | 2026-09-18 | Codex | 프로젝트 포털과 README 정보 구조 | `docs/index.html`, `docs/assets/project.css`, README 요약·진입점, 사이트·접근성 검증 | `docs/evidence/project-portal-{desktop,mobile}.png`, `project-portal-visual-verdict.json`, html-validate PASS, axe 0 violations | 독립 AI 재검토 PASS, 사람 PR 검토 대기 |
 | 2026-09-18 | Codex + 공식 문서 조사·독립 리뷰 에이전트 | Phase 1 Android 외부 지갑 주소 확인 | Expo/Reown session allowlist, SIWE API·AccountResolver, 테스트·문서 | API 15 + 모바일 11 tests, Expo doctor 21/21, Android 16 APK 설치·실행, PR #10 CI PASS, 독립 HIGH/MEDIUM 0건 | 사람 PR 검토 미실행 |
+| 2026-09-18 | Codex | 실제 Android 기기 검증 | SM-S928N debug APK 빌드·설치, Metro 연결, 홈 복귀·콜드 스타트, MetaMask 설치 상태 확인 | 앱 화면·프로세스·logcat·APK 해시 증거 저장, W06은 자격증명·사용자 지갑 부족으로 BLOCKED | 지갑 생성·서명·사람 검토 미실행 |
 
 ## 팀 설명 체크리스트
 

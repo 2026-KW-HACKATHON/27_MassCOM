@@ -1,0 +1,46 @@
+{
+  "checked_at": "2026-09-18T14:00:29+09:00",
+  "source_branch": "test/23-android-device",
+  "base_commit": "158067cf349d69bf7e1fdb3fa11e2dbcff8d7c0c",
+  "environment": {
+    "host": "macOS",
+    "node": "25.9.0",
+    "java": "OpenJDK 21.0.5",
+    "device": "Samsung SM-S928N",
+    "android": "Android 16, API 36",
+    "display": "1080x2340",
+    "connection": "USB debugging with adb reverse for ports 3000 and 8081"
+  },
+  "commands": [
+    "ANDROID_HOME=/Users/choi/Library/Android/sdk ANDROID_SDK_ROOT=/Users/choi/Library/Android/sdk ./android/gradlew -p android assembleDebug --no-daemon",
+    "adb install -r apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk",
+    "adb reverse tcp:3000 tcp:3000",
+    "adb reverse tcp:8081 tcp:8081",
+    "CI=1 npx expo start --dev-client --host localhost --port 8081",
+    "adb shell am start -a android.intent.action.VIEW -d masscom-dev://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081"
+  ],
+  "results": {
+    "gradle": "PASS: 816 tasks, BUILD SUCCESSFUL",
+    "install": "PASS: streamed install",
+    "metro_bundle": "PASS: 2185 modules",
+    "render": "PASS: configuration-required screen rendered without fatal errors",
+    "warm_return": "PASS: home transition and app return kept the same process and screen state",
+    "cold_start": "PASS: process restart through the development-client URL opened MainActivity and rendered the same screen",
+    "metamask": "PASS: official Play package io.metamask 8.11.0 installed and first-run screen opened; no wallet was created or imported",
+    "wallet_connection": "BLOCKED: Reown project ID and a user-controlled initialized wallet are not available"
+  },
+  "diagnostics": {
+    "invalid_harness_attempt": "Adding android.intent.category.BROWSABLE manually reproduced an expo-dev-launcher 57.0.20 categories.addAll NullPointerException.",
+    "resolution": "The standard development-client launch intent omits the manually injected category and cold-started successfully.",
+    "product_failure": false
+  },
+  "apk": {
+    "path": "apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk",
+    "committed": false,
+    "bytes": 280592801,
+    "sha256": "dee4c0a87abdb6e4d98d73de395c30d875bf11ed0af995803aa8c9388be0047b",
+    "package": "com.anonymous.masscommobile",
+    "package_note": "This local development identifier is not the approved release package ID."
+  },
+  "screenshot": "docs/evidence/android-physical-device-config.png"
+}

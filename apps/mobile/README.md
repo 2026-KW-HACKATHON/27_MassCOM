@@ -8,7 +8,9 @@ Expo SDK 57 development build에서 Reown AppKit 외부 지갑을 연결하고, 
 - 이메일·소셜·내장 지갑·구매·스왑 UI: 명시적으로 비활성화
 - 거래·approve·permit 요청: 앱 메서드 경계에서 거절
 - Android 16 / arm64 / 16KB AVD debug APK 빌드·설치·실행: `VERIFIED`
-- 실제 Reown project ID·MetaMask 연결·서명·앱 복귀: `BLOCKED`
+- Samsung SM-S928N / Android 16 debug APK 설치·Metro 실행·홈 복귀·콜드 스타트: `VERIFIED`
+- MetaMask 8.11.0 설치·첫 화면 실행: `VERIFIED` — 지갑 생성·가져오기는 수행하지 않음
+- 실제 Reown project ID·MetaMask 연결·서명·지갑 복귀: `BLOCKED`
 - 출시 package ID·AAB·Play 제출: `NOT_RUN`
 
 ## 로컬 준비

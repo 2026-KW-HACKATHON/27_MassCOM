@@ -42,11 +42,20 @@ GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLO
 - TypeScript·ESLint·Android Metro export: PASS
 - Android debug APK: 빌드·설치·실행 PASS
 
+## 실제 Android 기기 결과
+
+- Samsung SM-S928N, Android 16(API 36), 1080×2340에서 현재 `main@158067c` 기반 debug APK 빌드·설치 PASS
+- USB `adb reverse`로만 Metro 8081·API 3000을 연결하고 2,185개 모듈 번들·설정 필요 화면 렌더링 PASS
+- 홈 전환 후 같은 프로세스 복귀와 프로세스 종료 후 development-client URL 콜드 스타트 PASS
+- 공식 Play 패키지 `io.metamask` 8.11.0 설치·첫 화면 실행 PASS
+- 지갑 생성·가져오기·이용약관 동의·개인키·복구 문구 처리는 수행하지 않음
+- 증거: [`android-physical-device.json`](evidence/android-physical-device.json), [`android-physical-device-config.png`](evidence/android-physical-device-config.png)
+
 ## 실기 BLOCKER
 
 - Reown Dashboard project ID가 없어 실제 AppKit wallet modal은 열지 않음
-- MetaMask가 설치된 실제 Android 기기 시험 미실행
-- 지갑 미설치·사용자 거절·외부 앱 복귀·주소 변경 실기 미실행
+- MetaMask 앱은 설치됐지만 사용자가 초기화한 지갑이 없어 WalletConnect 세션은 시작하지 않음
+- 지갑 미설치·사용자 거절·외부 앱 복귀·주소 변경 실기는 Reown project ID와 사용자 지갑 준비 후 수행
 - release package ID·AAB·App Link·Play 트랙 미확정
 
 ## 공식 근거
