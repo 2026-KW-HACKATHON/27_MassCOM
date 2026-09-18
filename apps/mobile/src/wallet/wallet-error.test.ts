@@ -30,4 +30,8 @@ test('does not treat other provider failures as user cancellation', () => {
   assert.equal(isWalletUserRejection({ code: '5000', message: 'Invalid code type.' }), false);
   assert.equal(isWalletUserRejection('User rejected the request.'), false);
   assert.equal(isReownChainSwitchRejection(new Error('Unrecognized chain.')), false);
+  assert.equal(
+    isReownChainSwitchRejection(Object.assign(new Error('Chain is not supported'), { code: 4902 })),
+    false,
+  );
 });
