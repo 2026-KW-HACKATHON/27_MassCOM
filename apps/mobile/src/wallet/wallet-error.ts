@@ -3,6 +3,17 @@ type ProviderErrorShape = {
   message?: unknown;
 };
 
+const userRejectionCodes = new Set([4001, 5000, 5001, 5002, 5003]);
+
+export function isReownChainSwitchRejection(error: unknown): boolean {
+  // AppKit Ethers Adapter 2.0.6 rewrites a provider "user rejected" error to this exact message.
+  return (
+    error instanceof Error &&
+    error.message === 'Chain is not supported' &&
+    (error as Error & ProviderErrorShape).code === undefined
+  );
+}
+
 export function isWalletUserRejection(error: unknown): boolean {
   if (hasUserRejectionCode(error)) return true;
 
@@ -27,6 +38,7 @@ function hasUserRejectionCode(value: unknown): boolean {
     typeof value === 'object' &&
     value !== null &&
     'code' in value &&
-    (value as ProviderErrorShape).code === 4001
+    typeof (value as ProviderErrorShape).code === 'number' &&
+    userRejectionCodes.has((value as ProviderErrorShape).code as number)
   );
 }

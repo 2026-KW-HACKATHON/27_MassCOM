@@ -6,7 +6,7 @@ import { AppState, ScrollView, StyleSheet, Text, View, useColorScheme } from 're
 import { colors } from '@/theme/colors';
 import { baseSepolia } from '@/wallet/base-sepolia';
 import { WalletApiClient, WalletApiError } from '@/wallet/wallet-api';
-import { isWalletUserRejection } from '@/wallet/wallet-error';
+import { isReownChainSwitchRejection, isWalletUserRejection } from '@/wallet/wallet-error';
 import { buildPersonalSignRequest, safeWalletRequest } from '@/wallet/wallet-method-policy';
 import type { AvailableWalletRuntimeConfig } from '@/wallet/wallet-runtime-config';
 import { readApprovedEvmAccount } from '@/wallet/wallet-session';
@@ -103,7 +103,7 @@ export function WalletLinkScreen({ config }: Props) {
         setPhase('connected');
         setMessage('Base Sepolia 전환을 요청했습니다. 지갑의 현재 체인을 확인해 주세요.');
       } catch (error) {
-        const errorMessage = messageFor(error);
+        const errorMessage = messageFor(error, 'reown-chain-switch');
         setPhase(errorMessage.cancelled ? 'cancelled' : 'error');
         setMessage(errorMessage.text);
       }
@@ -245,8 +245,14 @@ function parseChainId(value: string | undefined): number | undefined {
   return Number(segment.startsWith('0x') ? Number.parseInt(segment, 16) : segment);
 }
 
-function messageFor(error: unknown): { cancelled: boolean; text: string } {
-  if (isWalletUserRejection(error)) {
+function messageFor(
+  error: unknown,
+  context: 'default' | 'reown-chain-switch' = 'default',
+): { cancelled: boolean; text: string } {
+  if (
+    isWalletUserRejection(error) ||
+    (context === 'reown-chain-switch' && isReownChainSwitchRejection(error))
+  ) {
     return { cancelled: true, text: '지갑 연결 또는 서명을 취소했습니다. 방문 기록과 받을 수집품은 유지됩니다.' };
   }
   if (error instanceof WalletApiError) {
