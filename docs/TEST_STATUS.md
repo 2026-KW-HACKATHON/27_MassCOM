@@ -53,5 +53,6 @@
 | 2026-09-18 KST | `a9aacb6` | `npm run test:postgres --prefix apps/api` | PostgreSQL 18 Alpine·Docker 27.3.1 | PASS 1/1 | `_test` 전용 `TEST_DATABASE_URL`을 실제 PostgreSQL에 지정 |
 | 2026-09-18 KST | `a9aacb6` | API typecheck·build·production audit | TypeScript 6·npm | PASS, production 취약점 0 | package scripts 재실행 |
 | 2026-09-18 KST | `4066b95` | GitHub Actions 전체 CI | Ubuntu·Node 24.10.0·PostgreSQL 18 | PASS, 2분 3초 | PR #14 run `35299748690` |
+| 2026-09-18 KST | `a27d0d0` | GitHub Actions 전체 CI | Ubuntu·Node 24.10.0·PostgreSQL 18 | PASS, 2분 1초 | main run `35300158651` |
 
 Phase 2 카탈로그 통합 테스트는 v3의 Q01~R03을 직접 검증하지 않으므로 36개 ID의 상태는 변경하지 않습니다.
