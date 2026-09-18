@@ -10,7 +10,7 @@ if [[ ! -x "$checker" ]]; then
   exit 1
 fi
 
-"$checker" \
+LC_ALL=C "$checker" \
   "Phase 1 외부 지갑 주소 확인 흐름 구현" \
   "외부 지갑 연결과 SIWE 서버 검증을 추가하고 실제 테스트 결과를 기록합니다."
 
