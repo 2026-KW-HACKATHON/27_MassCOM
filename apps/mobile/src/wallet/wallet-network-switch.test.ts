@@ -10,12 +10,14 @@ test('Reown Ethers adapter switches to Base Sepolia without requesting add-chain
     args: { method: string; params?: unknown[] };
     chainId?: string;
   }[] = [];
+  let requestError: Error | undefined;
 
   const provider = {
     on() {},
     off() {},
     async request(args: { method: string; params?: unknown[] }, chainId?: string) {
       requests.push({ args, chainId });
+      if (requestError) throw requestError;
       return null;
     },
   };
@@ -42,4 +44,18 @@ test('Reown Ethers adapter switches to Base Sepolia without requesting add-chain
     },
   ]);
   assert.equal(requests.some(({ args }) => args.method === 'wallet_addEthereumChain'), false);
+
+  requests.length = 0;
+  requestError = Object.assign(new Error('User rejected the request.'), { code: 4001 });
+  await assert.rejects(
+    adapter.switchNetwork(baseSepolia),
+    (error: unknown) => error instanceof Error && error.message === 'Chain is not supported',
+  );
+  assert.deepEqual(requests.map(({ args }) => args.method), ['wallet_switchEthereumChain']);
+
+  requests.length = 0;
+  const unsupportedChain = Object.assign(new Error('Unrecognized chain.'), { code: 4902 });
+  requestError = unsupportedChain;
+  await assert.rejects(adapter.switchNetwork(baseSepolia), (error: unknown) => error === unsupportedChain);
+  assert.deepEqual(requests.map(({ args }) => args.method), ['wallet_switchEthereumChain']);
 });
