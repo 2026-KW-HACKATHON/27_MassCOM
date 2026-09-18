@@ -4,9 +4,15 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 verifier="$repo_root/scripts/verify-bootstrap.sh"
+workflow="$repo_root/.github/workflows/ci.yml"
 
 if [[ ! -x "$verifier" ]]; then
   echo "expected executable verifier at $verifier" >&2
+  exit 1
+fi
+
+if ! grep -Fq 'bash scripts/check-secrets.sh' "$workflow"; then
+  echo "CI must scan the checked-out repository, not only test the scanner" >&2
   exit 1
 fi
 

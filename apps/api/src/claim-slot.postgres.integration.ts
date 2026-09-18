@@ -5,7 +5,10 @@ import { test } from 'node:test';
 import { Pool } from 'pg';
 
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
+import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { runMigrations } from './postgres/migrate.js';
+import { createApiServer } from './server.js';
+import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 test('one-person claim slots keep only hashes, reissue in place, and consume once under concurrency', async (t) => {
   const connectionString = process.env.TEST_DATABASE_URL;
@@ -42,6 +45,9 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
     'token-2-abcdefghijklmnopqrstuvwxyz012345',
     'token-3-abcdefghijklmnopqrstuvwxyz012345',
     'token-4-abcdefghijklmnopqrstuvwxyz012345',
+    'token-5-abcdefghijklmnopqrstuvwxyz012345',
+    'token-6-abcdefghijklmnopqrstuvwxyz012345',
+    'token-7-abcdefghijklmnopqrstuvwxyz012345',
   ];
   const ids = [
     '00000000-0000-4000-8000-000000000001',
@@ -205,6 +211,79 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
     [expiring.claimSlotId],
   );
   assert.equal(expired.rows[0]!.status, 'EXPIRED');
+
+  const apiServer = createApiServer(
+    new WalletChallengeService({
+      store: new InMemoryChallengeStore(),
+      domain: 'api.masscom.local',
+      uri: 'https://api.masscom.local/wallet/verify',
+      chainId: 84532,
+      ttlMs: 5 * 60 * 1000,
+    }),
+    () => 'staff-a',
+    undefined,
+    new PostgresMerchantAccessControl(pool),
+    service,
+  );
+  await new Promise<void>((resolve) => apiServer.listen(0, '127.0.0.1', resolve));
+  t.after(async () => {
+    if (!apiServer.listening) return;
+    await new Promise<void>((resolve, reject) =>
+      apiServer.close((error) => (error ? reject(error) : resolve())),
+    );
+  });
+  const apiAddress = apiServer.address();
+  if (!apiAddress || typeof apiAddress === 'string') {
+    throw new Error('claim slot integration server did not bind a TCP port');
+  }
+  const apiBaseUrl = `http://127.0.0.1:${apiAddress.port}`;
+  const issueResponse = await fetch(`${apiBaseUrl}/merchant/merchants/merchant-a/claim-slots`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      customerAccountId: 'customer-http',
+      merchantReference: 'demo-order-http',
+    }),
+  });
+  assert.equal(issueResponse.status, 201);
+  const issuedOverHttp = (await issueResponse.json()) as {
+    claimSlotId: string;
+    tokenVersion: number;
+  };
+  const httpReissueRace = await Promise.all(
+    Array.from({ length: 2 }, () =>
+      fetch(
+        `${apiBaseUrl}/merchant/merchants/merchant-a/claim-slots/${issuedOverHttp.claimSlotId}/reissue`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ expectedTokenVersion: issuedOverHttp.tokenVersion }),
+        },
+      ),
+    ),
+  );
+  assert.deepEqual(
+    httpReissueRace.map((response) => response.status).sort(),
+    [200, 409],
+  );
+  const successfulHttpReissue = httpReissueRace.find((response) => response.status === 200);
+  const rejectedHttpReissue = httpReissueRace.find((response) => response.status === 409);
+  assert.ok(successfulHttpReissue);
+  const successfulHttpBody = (await successfulHttpReissue.json()) as {
+    claimSlotId: string;
+    token: string;
+    tokenVersion: number;
+    expiresAt: string;
+  };
+  assert.equal(successfulHttpBody.claimSlotId, issuedOverHttp.claimSlotId);
+  assert.match(successfulHttpBody.token, /^token-[67]-/);
+  assert.equal(successfulHttpBody.tokenVersion, 2);
+  assert.equal(successfulHttpBody.expiresAt, '2026-09-18T03:30:00.000Z');
+  assert.ok(rejectedHttpReissue);
+  assert.deepEqual(await rejectedHttpReissue.json(), { code: 'CLAIM_SLOT_NOT_REISSUABLE' });
+  await new Promise<void>((resolve, reject) =>
+    apiServer.close((error) => (error ? reject(error) : resolve())),
+  );
 
   await pool.query(
     `UPDATE merchant_members

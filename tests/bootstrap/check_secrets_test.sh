@@ -13,7 +13,13 @@ fi
 fixture_root="$(mktemp -d)"
 trap 'rm -rf "$fixture_root"' EXIT
 
-printf '%s\n' 'API_TOKEN=' 'ordinary documentation' > "$fixture_root/safe.txt"
+printf '%s\n' \
+  'API_TOKEN=' \
+  'ordinary documentation' \
+  'const token = input.token;' \
+  'token_hash = $1' \
+  "referenceHmacSecret: 'test-reference-hmac-secret-32-bytes'" \
+  > "$fixture_root/safe.txt"
 "$scanner" "$fixture_root"
 
 printf '%s\n' 'API_TOKEN=example-nonempty-value' > "$fixture_root/leaked.env"

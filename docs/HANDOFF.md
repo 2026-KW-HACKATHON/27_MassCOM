@@ -14,6 +14,8 @@
 - QR token은 SHA-256, 점포 주문 참조는 점포 범위 HMAC-SHA-256만 저장
 - 발급·버전 잠금 재발급·본문 preview·대상 계정 단일 소비 API 구현
 - 같은 `tokenVersion` 동시 재발급 2요청 중 성공 1건·충돌 1건 검증
+- 실제 HTTP 라우트와 PostgreSQL을 결합한 동시 재발급에서 `200` 1건·`409` 1건 검증
+- CI가 스캐너 회귀 테스트뿐 아니라 현재 checkout 전체 비밀값 검사도 수행하도록 보강
 - 동일 token 20개 동시 소비 성공 1건과 만료 경합 최종 상태 1개 검증
 - Q02·Q03을 `PASS`로 갱신하고 방문 이벤트가 없는 Q01은 `NOT_RUN` 유지
 
@@ -42,6 +44,8 @@
 - 동일 token 동시 20요청에서 소비 성공 1건 `PASS`
 - 정확한 만료 시각 동시 20요청에서 `EXPIRED` 최종 상태 1개 `PASS`
 - 재발급 후 이전 token 거절·slot 수 1 유지·동시 재발급 1건만 성공 `PASS`
+- 실제 HTTP + PostgreSQL 동시 재발급 응답 `200` 1건·`409` 1건 `PASS`
+- 실제 저장소 비밀값 스캔과 스캐너 회귀 테스트 `PASS`
 - API typecheck·build·production audit `PASS`
 
 ## 현재 열린 PR

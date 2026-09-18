@@ -116,7 +116,7 @@ Phase 2 점포 카탈로그, 점포별 권한, QR 수령 슬롯 검증은 실제
 
 ```bash
 export DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_dev'
-export MERCHANT_REFERENCE_HMAC_SECRET='<32바이트 이상의 로컬 시험용 비밀값>'
+read -s MERCHANT_REFERENCE_HMAC_SECRET && export MERCHANT_REFERENCE_HMAC_SECRET
 read -s PGPASSWORD && export PGPASSWORD
 npm run db:migrate --prefix apps/api
 export TEST_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_test'

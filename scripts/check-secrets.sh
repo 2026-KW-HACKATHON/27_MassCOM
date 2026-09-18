@@ -16,7 +16,8 @@ while IFS= read -r -d '' candidate; do
     continue
   fi
 
-  if grep -Eqi '(gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN (RSA |OPENSSH |EC )?PRIVATE KEY-----|[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|PRIVATE_KEY)[A-Z0-9_]*[[:space:]]*=[[:space:]]*[^[:space:]#]|[A-Za-z][A-Za-z0-9+.-]*://[^/@[:space:]]+:[^/@[:space:]]+@|[?&](api[_-]?key|token|secret|password)=[^&[:space:]#]+|(MINTER|DEPLOYER|WALLET)[A-Z0-9_]*KEY[A-Z0-9_]*[[:space:]]*=[[:space:]]*0x[0-9a-f]{64})' "$candidate"; then
+  if grep -Eq '(gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN (RSA |OPENSSH |EC )?PRIVATE KEY-----|[A-Z0-9_]*(SECRET|TOKEN|PASSWORD|PRIVATE_KEY)[A-Z0-9_]*[[:space:]]*=[[:space:]]*[^[:space:]#]|(MINTER|DEPLOYER|WALLET)[A-Z0-9_]*KEY[A-Z0-9_]*[[:space:]]*=[[:space:]]*0x[0-9a-f]{64})' "$candidate" ||
+    grep -Eqi '([A-Za-z][A-Za-z0-9+.-]*://[^/@[:space:]]+:[^/@[:space:]]+@|[?&](api[_-]?key|token|secret|password)=[^&[:space:]#]+)' "$candidate"; then
     echo "possible secret in ${candidate#"$scan_root"/}" >&2
     finding_count=$((finding_count + 1))
   fi
