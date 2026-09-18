@@ -2,71 +2,69 @@
 
 마지막 갱신 시각: 2026-09-18 KST
 
-기준 브랜치: `docs/15-phase2-catalog-merge-state`
+기준 브랜치: `feat/17-merchant-access`
 
-통합 기준 커밋 SHA: `a27d0d010dbc07e17d74573f12313a27e1c72126` + merge 상태 문서 작업 트리
+통합 기준 커밋 SHA: `main@240dad291e3dbb2f671ee36e130c13f21edd02e0`, 기능 코드 `1549938`
 
 ## 이번 세션에서 완료한 것
 
 - GitHub `main`, 로그인 주체, remote, 최근 merge, 열린 Issue/PR, CI를 재확인
-- Phase 2 재개 결정을 D-015로 기록
-- `GET /merchants` 공개 API 경계 구현
-- PostgreSQL `merchants`·`campaigns`·`campaign_goals` migration 구현
-- 활성 점포와 공개·현재 캠페인만 반환하고 정원 마감을 구분하는 repository 구현
-- `PROJECT_STATE.md`·`TEST_STATUS.md`를 세션 복원 정본으로 전환
-- PR #14 merge, Issue #13 종료, main CI run `35300158651` PASS 확인
+- 최신 main `240dad2`, 열린 Issue·PR, main CI run `35300586559` PASS 재확인
+- PostgreSQL `merchant_members` migration과 `OWNER`·`STAFF` 권한 경계 구현
+- 점주 context API에서 다른 점포·무소속·철회 계정을 같은 403으로 거절
+- 권한을 매 요청 조회해 같은 서버 세션에서도 철회를 즉시 반영
+- Q05 PostgreSQL 18 통합 시험을 `PASS`로 갱신
 
 ## 생성한 Issue
 
-- #13 `feat: 지갑 없이 조회 가능한 점포·캠페인 API 구현`
-- #15 `문서: Phase 2 점포 카탈로그 merge 상태 기록`
+- #17 `feat: 점포별 점주·직원 권한 경계 구현`
 
 ## 생성한 브랜치
 
-- `feat/merchant-catalog`
-- `docs/15-phase2-catalog-merge-state`
+- `feat/17-merchant-access`
 
 ## 생성한 PR
 
-- #14 `feat: 지갑 없이 조회하는 점포·캠페인 API 구현`(merge 완료)
+- #18 `feat: 점포별 점주·직원 권한 경계 구현`(열림)
 
 ## merge된 PR
 
 - #14, merge commit `a27d0d0`
+- #16, merge commit `240dad2`
 
 ## 실행한 테스트
 
-- API 단위 테스트 16/16 `PASS`
-- PostgreSQL 18 Alpine 실제 통합 테스트 1/1 `PASS`(로컬 Docker·main CI run `35300158651`)
-- migration 두 번 연속 실행 `PASS`
-- API typecheck·build·production audit `PASS`
-- bootstrap 정본 누락 회귀 테스트 `PASS`
+- API 단위 테스트 19/19 `PASS`
+- PostgreSQL 18 Alpine 실제 통합 테스트 2/2 `PASS`(카탈로그·Q05)
+- 다른 점포·무소속·철회 계정 조회와 `CONFIRM_VISIT` 권한 거절 `PASS`
+- 같은 서버 세션에서 멤버십 철회 즉시 반영 `PASS`
+- API typecheck·build `PASS`
 
 ## 현재 열린 PR
 
-- 없음. Issue #15의 상태 문서 PR 생성 전
+- #18, CI 확인 중
 
 ## 현재 작업 중인 기능
 
-- Issue #15 merge 상태 문서 동기화
+- Issue #17 점포별 점주·직원 권한 경계
 
 ## BLOCKER
 
 - 실제 Reown·MetaMask 실기는 project ID·설치 지갑 부족
 - 외부 HTTPS·유료 AWS·공개 배포는 별도 승인 필요
-- Phase 2 카탈로그 자체에는 현재 blocker 없음
+- Phase 2 권한 API 자체에는 현재 blocker 없음
 
 ## 사용자 승인이 필요한 사항
 
-- 현재 PR 범위에는 없음
+- PR #18 범위에는 없음
 - 저장소 공개·유료 자원·테스트넷 전송·Play 배포·대회 제출은 계속 승인 필요
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. `git status`와 Issue #15/열린 PR을 확인
-2. 상태 문서 PR이 없으면 문서 회귀 후 커밋·push·한글 PR 생성
-3. CI PASS와 필수 리뷰 조건을 확인한 뒤 merge
-4. 다음 기능은 별도 Issue로 점포별 점주·직원 권한(Q05)을 시작
+1. PR #18의 최신 CI와 리뷰 조건 확인
+2. CI PASS 후 PR #18 merge, Issue #17 종료 확인
+3. main merge SHA와 CI run을 상태 문서에 동기화
+4. 다음 기능은 별도 Issue로 일회용 QR 발급·재발급 경계(Q01~Q03)를 시작
 
 ## 실행 명령
 
@@ -84,6 +82,7 @@ PostgreSQL 통합은 실제 DB에 `TEST_DATABASE_URL`을 지정하고 `npm run t
 ## 주의사항
 
 - 실제 협약 점포 seed를 만들지 말고 테스트 fixture는 `demo: true`로 유지
-- Q01~Q05·R01~R03은 이번 카탈로그 PR로 PASS 처리하지 않음
+- Q05만 실제 PostgreSQL 증거로 PASS이며 Q01~Q04·R01~R03은 계속 NOT_RUN
+- Google 로그인과 점주 웹을 구현했다고 표시하지 않음
 - Phase 1 외부 지갑 실기를 완료로 과장하지 않음
 - 개인 private mirror는 사용자가 나중에 요청할 때만 생성

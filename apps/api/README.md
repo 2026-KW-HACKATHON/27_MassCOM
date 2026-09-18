@@ -1,6 +1,6 @@
 # MassCOM API
 
-ERC-4361(SIWE) 주소 확인과 Phase 2 공개 점포·캠페인 카탈로그를 제공하는 Node.js API입니다.
+ERC-4361(SIWE) 주소 확인, Phase 2 공개 점포·캠페인 카탈로그, 점포별 점주·직원 권한 경계를 제공하는 Node.js API입니다.
 
 ## 실행
 
@@ -22,6 +22,7 @@ npm run start:local
 
 - `GET /health`
 - `GET /merchants`: 로그인·지갑 없이 활성 점포와 공개 중인 현재 캠페인 조회
+- `GET /merchant/merchants/:merchantId/context`: 서버가 확인한 계정의 활성 점포 멤버십과 허용 권한 조회
 - `POST /wallet/challenges`
 - `POST /wallet/verify`
 
@@ -44,6 +45,6 @@ DATABASE_URL="$TEST_DATABASE_URL" npm run db:migrate
 npm run test:postgres
 ```
 
-통합 테스트는 테이블을 비우므로 DB 이름이 `_test`로 끝나는 전용 데이터베이스만 허용합니다. PostgreSQL 18에서 migration, 활성/중단 점포, 공개/비공개 캠페인, 현재/미래 기간, 정원 마감 상태를 확인합니다.
+통합 테스트는 테이블을 비우므로 DB 이름이 `_test`로 끝나는 전용 데이터베이스만 허용합니다. PostgreSQL 18에서 migration, 활성/중단 점포, 공개/비공개 캠페인, 현재/미래 기간, 정원 마감 상태와 Q05 점포 권한을 확인합니다. 점포 권한은 캐시하지 않고 매 요청 조회하므로 같은 서버 세션에서도 철회가 즉시 반영됩니다.
 
 지갑 challenge는 아직 메모리 구현이므로 프로세스 재시작 시 사라집니다. PostgreSQL 원자 소비는 별도 후속 PR 범위입니다.

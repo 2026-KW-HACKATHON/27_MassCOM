@@ -8,7 +8,7 @@
 | Q02 | PostgreSQL 동시성 | NOT_RUN | QR 만료와 수령 경쟁 | 하나의 최종 상태 | QR 미구현 |
 | Q03 | API 통합 | NOT_RUN | QR 재발급 후 이전 코드 사용 | 이전 코드는 거절, 권리 추가 없음 | QR 미구현 |
 | Q04 | API 통합 | NOT_RUN | 단체 일부만 수령 | 사람별 결과 독립, 다른 슬롯 유지 | 단체 슬롯 미구현 |
-| Q05 | 권한 통합 | NOT_RUN | 다른 점포 직원·다른 사용자 접근 | 조회·변경 모두 거절 | 점포 멤버십 미구현 |
+| Q05 | 권한 통합 | PASS | 다른 점포 직원·다른 사용자 접근 | 조회·변경 모두 거절 | PostgreSQL 18에서 다른 점포·무소속·철회 계정 조회 403, `CONFIRM_VISIT` 권한 거절, 철회 즉시 반영 |
 | R01 | PostgreSQL 동시성 | NOT_RUN | 한국 날짜 경계·동시 방문 평가 | 한국 날짜당 진행 최대 1회 | D-006 승인, 방문 미구현 |
 | R02 | PostgreSQL 동시성 | NOT_RUN | 마지막 캠페인 자리 동시 등록 | 약속한 공급 상한 초과 없음 | 등록·예약 미구현 |
 | R03 | 도메인·DB | NOT_RUN | 같은 목표 반복 평가 | 보상권 하나 | 보상 평가 미구현 |
@@ -54,5 +54,8 @@
 | 2026-09-18 KST | `a9aacb6` | API typecheck·build·production audit | TypeScript 6·npm | PASS, production 취약점 0 | package scripts 재실행 |
 | 2026-09-18 KST | `4066b95` | GitHub Actions 전체 CI | Ubuntu·Node 24.10.0·PostgreSQL 18 | PASS, 2분 3초 | PR #14 run `35299748690` |
 | 2026-09-18 KST | `a27d0d0` | GitHub Actions 전체 CI | Ubuntu·Node 24.10.0·PostgreSQL 18 | PASS, 2분 1초 | main run `35300158651` |
+| 2026-09-18 KST | `1549938` | `npm test --prefix apps/api` | macOS·Node 25.9.0 | PASS 19/19 | 같은 명령 재실행 |
+| 2026-09-18 KST | `1549938` | `npm run test:postgres --prefix apps/api` | PostgreSQL 18 Alpine·Docker 27.3.1 | PASS 2/2, Q05 포함 | `_test` 전용 `TEST_DATABASE_URL` 지정 |
+| 2026-09-18 KST | `1549938` | API typecheck·build | TypeScript 6·npm | PASS | package scripts 재실행 |
 
-Phase 2 카탈로그 통합 테스트는 v3의 Q01~R03을 직접 검증하지 않으므로 36개 ID의 상태는 변경하지 않습니다.
+Phase 2 카탈로그 통합 테스트는 Q01~Q04·R01~R03을 직접 검증하지 않습니다. 점포 멤버십 통합은 Q05의 다른 점포·무소속·철회 계정 읽기와 `CONFIRM_VISIT` 권한을 실제 PostgreSQL에서 거절해 Q05만 `PASS`로 변경했습니다.

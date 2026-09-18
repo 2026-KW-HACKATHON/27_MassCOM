@@ -8,11 +8,11 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 브랜치 | `docs/15-phase2-catalog-merge-state` |
-| 현재 통합 기준 | `main@a27d0d010dbc07e17d74573f12313a27e1c72126`, CI run `35300158651` PASS |
-| 최근 merge | PR #14, `a27d0d0` |
-| 현재 열린 Issue | #15 Phase 2 카탈로그 merge 상태 기록 |
-| 현재 열린 PR | 없음 |
+| 현재 작업 브랜치 | `feat/17-merchant-access` |
+| 현재 통합 기준 | `main@240dad291e3dbb2f671ee36e130c13f21edd02e0`, CI run `35300586559` PASS |
+| 최근 merge | PR #16, `240dad2` |
+| 현재 열린 Issue | #17 점포별 점주·직원 권한 경계 구현 |
+| 현재 열린 PR | #18 점포별 점주·직원 권한 경계 구현 |
 
 ## Phase 상태
 
@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | Phase 0 저장소·개발 기반 | `VERIFIED` | PR #2·#4·#6·#8, CI PASS |
 | Phase 1 외부 지갑 연결 | `IMPLEMENTED` | PR #10·#12, API 15개와 모바일 11개 자동화 PASS |
-| Phase 2 지역 상권 핵심 기능 | `IN_PROGRESS` | 점포·캠페인 카탈로그 merge 완료, 점주·직원 권한 미착수 |
+| Phase 2 지역 상권 핵심 기능 | `IN_PROGRESS` | 점포·캠페인 카탈로그 merge 완료, 점주·직원 권한 PR #18 진행 중 |
 | Phase 3 NFT | `PLANNED` | 계약·Worker·테스트넷 미착수 |
 | Phase 4 출시 기반 | `PLANNED` | 외부 HTTPS·AAB·탈퇴·복원 미착수 |
 | Phase 5 대회 검증·발표 | `PLANNED` | 현장 검증·영상·제출 버전 미착수 |
@@ -37,14 +37,16 @@
 - 로그인·지갑 없이 조회하는 `GET /merchants`
 - PostgreSQL `merchants`·`campaigns`·`campaign_goals` migration
 - 활성 점포와 공개·현재 캠페인만 반환하는 실제 PostgreSQL 통합 테스트
+- PostgreSQL `merchant_members` migration과 점포별 `OWNER`·`STAFF` 권한 경계
+- 다른 점포·무소속·철회 계정 거절과 철회 즉시 반영 Q05 통합 테스트
 
 ### 진행 중
 
-- Issue #15에서 PR #14 merge 상태와 main CI 증거 문서 동기화
+- Issue #17·PR #18에서 점포별 권한 구현과 CI 검증
 
 ### 미구현
 
-- 점주·직원 권한, 주문·일회용 QR, 방문·보상권, 도감·추천
+- 점주·직원 웹, 주문·일회용 QR, 방문·보상권, 도감·추천
 - PostgreSQL 지갑 challenge 영속화
 - NFT 계약·발행 Worker·Outbox·체인 이벤트 수집
 - 계정 삭제·개인정보·백업 복원·Android release AAB
@@ -57,9 +59,9 @@
 
 ## 검증·배포 상태
 
-- API 단위 테스트: `PASS` 16개
-- PostgreSQL 18 카탈로그 통합 테스트: `PASS` 1개(로컬 Docker·main CI run `35300158651`)
-- v3 필수 36개: W02·W03·W09 `PASS`, 나머지 33개 `NOT_RUN`
+- API 단위 테스트: `PASS` 19개
+- PostgreSQL 18 통합 테스트: `PASS` 2개(카탈로그·Q05, 로컬 Docker; PR #18 CI 확인 중)
+- v3 필수 36개: W02·W03·W09·Q05 `PASS`, 나머지 32개 `NOT_RUN`
 - Android: debug APK 빌드·Android 16 16KB AVD 설치·설정 화면 실행 `PASS`
 - 외부 지갑 실기: `BLOCKED`
 - 공개 HTTPS·GitHub Pages·Play: 미배포
