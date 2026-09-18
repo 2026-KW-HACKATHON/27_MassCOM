@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
 
+import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
 import {
   InMemoryChallengeStore,
   WalletChallengeError,
@@ -13,6 +14,7 @@ import {
   type MerchantAccessControl,
 } from './merchant-access.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
+import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 
@@ -27,6 +29,7 @@ export function createApiServer(
   resolveAccountId: AccountResolver,
   merchantCatalog?: MerchantCatalog,
   merchantAccess?: MerchantAccessControl,
+  claimSlots?: ClaimSlotService,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -63,6 +66,88 @@ export function createApiServer(
         return;
       }
 
+      if (
+        request.method === 'POST' &&
+        /^\/merchant\/merchants\/[^/]+\/claim-slots$/.test(request.url ?? '')
+      ) {
+        if (!merchantAccess) {
+          throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        const merchantId = decodeURIComponent(request.url!.split('/')[3]!);
+        await merchantAccess.requirePermission({
+          accountId,
+          merchantId,
+          permission: 'CONFIRM_VISIT',
+        });
+        if (!claimSlots) {
+          throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+        }
+        const body = await readJson(request);
+        const issued = await claimSlots.issue({
+          merchantId,
+          customerAccountId: requireString(body, 'customerAccountId'),
+          merchantReference: requireString(body, 'merchantReference'),
+          createdByAccountId: accountId,
+        });
+        sendJson(response, 201, issued);
+        return;
+      }
+
+      const reissueMatch = request.url?.match(
+        /^\/merchant\/merchants\/([^/]+)\/claim-slots\/([^/]+)\/reissue$/,
+      );
+      if (request.method === 'POST' && reissueMatch) {
+        if (!merchantAccess) {
+          throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+        }
+        if (!claimSlots) {
+          throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        const merchantId = decodeURIComponent(reissueMatch[1]!);
+        await merchantAccess.requirePermission({
+          accountId,
+          merchantId,
+          permission: 'CONFIRM_VISIT',
+        });
+        const issued = await claimSlots.reissue({
+          merchantId,
+          claimSlotId: decodeURIComponent(reissueMatch[2]!),
+          requestedByAccountId: accountId,
+        });
+        sendJson(response, 200, issued);
+        return;
+      }
+
+      if (request.method === 'POST' && request.url === '/claim-slots/redeem') {
+        if (!claimSlots) {
+          throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        const redeemed = await claimSlots.redeem({
+          accountId,
+          token: requireString(body, 'token'),
+        });
+        sendJson(response, 200, redeemed);
+        return;
+      }
+
+      if (request.method === 'POST' && request.url === '/claim-slots/preview') {
+        if (!claimSlots) {
+          throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        const preview = await claimSlots.preview({
+          accountId,
+          token: requireString(body, 'token'),
+        });
+        sendJson(response, 200, preview);
+        return;
+      }
+
       if (request.method === 'POST' && request.url === '/wallet/challenges') {
         const accountId = await resolveAccountId(request);
         const body = await readJson(request);
@@ -91,6 +176,10 @@ export function createApiServer(
 
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
+      if (error instanceof ClaimSlotError) {
+        sendJson(response, statusForClaimSlot(error.code), { code: error.code });
+        return;
+      }
       if (error instanceof MerchantAccessError) {
         sendJson(response, 403, { code: error.code });
         return;
@@ -182,6 +271,11 @@ function statusFor(code: string): number {
   return 400;
 }
 
+function statusForClaimSlot(code: string): number {
+  if (code === 'CLAIM_TOKEN_EXPIRED') return 410;
+  return 409;
+}
+
 function setCommonHeaders(response: ServerResponse): void {
   response.setHeader('cache-control', 'no-store');
   response.setHeader('content-type', 'application/json; charset=utf-8');
@@ -211,6 +305,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     : undefined;
   const merchantCatalog = pool ? new PostgresMerchantCatalog(pool) : undefined;
   const merchantAccess = pool ? new PostgresMerchantAccessControl(pool) : undefined;
+  const claimSlots = pool ? new PostgresClaimSlotService(pool) : undefined;
   const accountResolver: AccountResolver =
     process.env.ALLOW_INSECURE_DEMO_ACCOUNT === 'true'
       ? developmentHeaderAccountResolver
@@ -218,11 +313,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           throw new WalletChallengeError('ACCOUNT_AUTH_NOT_CONFIGURED');
         };
 
-  createApiServer(configuredService(), accountResolver, merchantCatalog, merchantAccess).listen(
-    port,
-    '127.0.0.1',
-    () => {
-      console.log(`wallet API listening on http://127.0.0.1:${port}`);
-    },
-  );
+  createApiServer(
+    configuredService(),
+    accountResolver,
+    merchantCatalog,
+    merchantAccess,
+    claimSlots,
+  ).listen(port, '127.0.0.1', () => {
+    console.log(`wallet API listening on http://127.0.0.1:${port}`);
+  });
 }
