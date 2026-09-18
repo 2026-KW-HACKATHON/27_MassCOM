@@ -8,7 +8,12 @@ import {
   WalletChallengeError,
   WalletChallengeService,
 } from './wallet-challenge-service.js';
+import {
+  MerchantAccessError,
+  type MerchantAccessControl,
+} from './merchant-access.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
+import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -21,6 +26,7 @@ export function createApiServer(
   service: WalletChallengeService,
   resolveAccountId: AccountResolver,
   merchantCatalog?: MerchantCatalog,
+  merchantAccess?: MerchantAccessControl,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -36,6 +42,24 @@ export function createApiServer(
           throw new RequestError(503, 'MERCHANT_CATALOG_NOT_CONFIGURED');
         }
         sendJson(response, 200, { merchants: await merchantCatalog.listPublicMerchants() });
+        return;
+      }
+
+      if (
+        request.method === 'GET' &&
+        /^\/merchant\/merchants\/[^/]+\/context$/.test(request.url ?? '')
+      ) {
+        if (!merchantAccess) {
+          throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        const merchantId = decodeURIComponent(request.url!.split('/')[3]!);
+        const grant = await merchantAccess.requirePermission({
+          accountId,
+          merchantId,
+          permission: 'VIEW_MERCHANT',
+        });
+        sendJson(response, 200, grant);
         return;
       }
 
@@ -67,6 +91,10 @@ export function createApiServer(
 
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
+      if (error instanceof MerchantAccessError) {
+        sendJson(response, 403, { code: error.code });
+        return;
+      }
       if (error instanceof WalletChallengeError) {
         sendJson(response, statusFor(error.code), { code: error.code });
         return;
@@ -178,9 +206,11 @@ function configuredService(): WalletChallengeService {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.env.PORT ?? 3000);
-  const merchantCatalog = process.env.DATABASE_URL
-    ? new PostgresMerchantCatalog(new Pool({ connectionString: process.env.DATABASE_URL }))
+  const pool = process.env.DATABASE_URL
+    ? new Pool({ connectionString: process.env.DATABASE_URL })
     : undefined;
+  const merchantCatalog = pool ? new PostgresMerchantCatalog(pool) : undefined;
+  const merchantAccess = pool ? new PostgresMerchantAccessControl(pool) : undefined;
   const accountResolver: AccountResolver =
     process.env.ALLOW_INSECURE_DEMO_ACCOUNT === 'true'
       ? developmentHeaderAccountResolver
@@ -188,7 +218,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           throw new WalletChallengeError('ACCOUNT_AUTH_NOT_CONFIGURED');
         };
 
-  createApiServer(configuredService(), accountResolver, merchantCatalog).listen(port, '127.0.0.1', () => {
-    console.log(`wallet API listening on http://127.0.0.1:${port}`);
-  });
+  createApiServer(configuredService(), accountResolver, merchantCatalog, merchantAccess).listen(
+    port,
+    '127.0.0.1',
+    () => {
+      console.log(`wallet API listening on http://127.0.0.1:${port}`);
+    },
+  );
 }
