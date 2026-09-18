@@ -37,7 +37,7 @@ GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLO
 ## 자동화 결과
 
 - API: 15개 PASS — challenge, 실제 서명 복구, replay, 만료 경계, 안전한 SIWE 설정, domain/message 변조, 주소 변경, spoof 불가 account resolver·계정 경계
-- 앱 순수 로직: 11개 PASS — 허용 메서드 allowlist, 거래/typed-data 거절, 환경 경계, API 오류 보존
+- 앱 순수 로직: 18개 PASS — 허용 메서드 allowlist, 거래/typed-data 거절, 환경 경계, API 오류 보존, WalletConnect 초기 이벤트 경쟁·세션 체인·거절 응답 회귀
 - `expo-doctor`: 21/21 PASS
 - TypeScript·ESLint·Android Metro export: PASS
 - Android debug APK: 빌드·설치·실행 PASS
@@ -49,13 +49,17 @@ GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLO
 - 홈 전환 후 같은 프로세스 복귀와 프로세스 종료 후 development-client URL 콜드 스타트 PASS
 - 공식 Play 패키지 `io.metamask` 8.11.0 설치·첫 화면 실행 PASS
 - 지갑 생성·가져오기·이용약관 동의·개인키·복구 문구 처리는 수행하지 않음
-- 증거: [`android-physical-device.json`](evidence/android-physical-device.json), [`android-physical-device-config.png`](evidence/android-physical-device-config.png)
+- Reown wallet modal에서 MetaMask 연결 승인 후 `CONNECTED / CHECK_REQUIRED / UNVERIFIED` 표시 PASS
+- 사용자 승인으로 Base Sepolia 네트워크를 추가·전환하고 `CONNECTED / BASE_SEPOLIA / UNVERIFIED` 표시 PASS
+- MetaMask가 `로그인 요청`과 읽을 수 있는 주소 확인 문구만 표시했으며 송금·approve·permit 요청 없음
+- 서명 승인 후 서버가 계정·주소·도메인·체인·nonce·만료·원문을 검증하고 앱이 `VERIFIED` 표시 PASS
+- 프로세스 종료 후 세션은 `CONNECTED / BASE_SEPOLIA`로 복원되고 주소 확인은 `UNVERIFIED`로 안전하게 초기화 PASS
+- 증거: [`android-physical-device.json`](evidence/android-physical-device.json), [`android-wallet-connection.json`](evidence/android-wallet-connection.json)
 
-## 실기 BLOCKER
+## 남은 실기
 
-- Reown Dashboard project ID가 없어 실제 AppKit wallet modal은 열지 않음
-- MetaMask 앱은 설치됐지만 사용자가 초기화한 지갑이 없어 WalletConnect 세션은 시작하지 않음
-- 지갑 미설치·사용자 거절·외부 앱 복귀·주소 변경 실기는 Reown project ID와 사용자 지갑 준비 후 수행
+- Reown project ID·사용자 지갑 부재 blocker는 해소됨
+- 수정 후 사용자 거절 안내 실기 재확인, 지갑 미설치·복귀 실패·주소 변경·미지원 지갑은 `NOT_RUN`
 - release package ID·AAB·App Link·Play 트랙 미확정
 
 ## 공식 근거

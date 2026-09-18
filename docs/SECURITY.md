@@ -35,7 +35,8 @@
 - 모바일: high/critical 0건, moderate 14건. 현재 Expo SDK 57/Router/config-plugin 전이 의존성으로, npm의 제안은 Expo 46 또는 Router 5로 잘못된 major downgrade를 요구해 적용하지 않았습니다.
 - `tsx`의 Windows 개발 서버 관련 esbuild low advisory는 production 제외 검사에서 사라지며 현재 macOS/CI 실행 경로와 무관합니다.
 - Reown AppKit은 패키지 메타데이터상 별도 LICENSE.md를 참조하므로 공개 전 upstream Community License 조건을 다시 확인합니다.
+- AppKit 2.0.6의 연결 초기 체인 이벤트 경쟁을 피하기 위해 `@walletconnect/universal-provider` 2.23.5를 override로 고정했습니다. 버전 변경 전 실제 MetaMask 연결 회귀를 다시 수행합니다.
 
 ## 미검증
 
-실제 Android 기기에서 MetaMask 앱 설치·첫 화면 실행까지만 확인했습니다. Reown gateway, WalletConnect 세션, 외부 지갑 서명·복귀, Android App Link, release 서명, AAB 16KB 호환, 외부 HTTPS는 아직 검증되지 않았습니다. PostgreSQL 방문·보상권 원자 트랜잭션은 검증했지만 방문 취소·도감 조회·Android QR 카메라는 아직 `NOT_RUN`입니다.
+실제 Android 기기에서 Reown gateway, WalletConnect 세션, Base Sepolia 전환, 읽을 수 있는 `personal_sign`, 서버 서명 복구와 콜드 재시작 세션 복원을 확인했습니다. 주소 변경·미지원 지갑·지갑 미설치, Android App Link, release 서명, AAB 16KB 호환, 외부 HTTPS는 아직 검증되지 않았습니다. PostgreSQL 방문·보상권 원자 트랜잭션은 검증했지만 방문 취소·도감 조회·Android QR 카메라는 아직 `NOT_RUN`입니다.

@@ -2,7 +2,7 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-> 현재 상태: 저장소 기준선 `VERIFIED` · Phase 1 지갑 코드 `IMPLEMENTED` · Phase 2 방문·보상 기반 `IN_PROGRESS` · 필수 시험 9 `PASS` / 1 `BLOCKED` / 26 `NOT_RUN`
+> 현재 상태: 저장소 기준선 `VERIFIED` · Phase 1 핵심 지갑 흐름 `VERIFIED` · Phase 2 방문·보상 기반 `IN_PROGRESS` · 필수 시험 10 `PASS` / 26 `NOT_RUN`
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](docs/index.html)
 
@@ -14,8 +14,9 @@
 - [제품 요구사항](docs/PRD.md): RQ-001~RQ-021
 - [결정 기록](docs/DECISIONS.md): 승인·제안·외부 확인 구분
 - [테스트 원장](docs/TEST_STATUS.md): v3 19절의 36개 ID와 실행 근거
-- [Phase 1 지갑 연결](docs/PHASE1_WALLET_LINK.md): Android·Reown·SIWE 구현과 실기 BLOCKER
+- [Phase 1 지갑 연결](docs/PHASE1_WALLET_LINK.md): Android·Reown·SIWE 구현과 실제 MetaMask 검증
 - [실제 Android 기기 증거](docs/evidence/android-physical-device.json): 빌드·설치·실행·복귀·MetaMask 준비 상태
+- [실제 지갑 흐름 증거](docs/evidence/android-wallet-connection.json): 연결·체인 전환·서명·서버 확인·복원 결과
 - [보안 경계](docs/SECURITY.md): 허용 메서드·nonce·의존성 위험
 - [평가 대응표](docs/EVALUATION_MAP.md): 요구사항·Issue·PR·코드·시험·실증·발표 연결
 
@@ -49,7 +50,7 @@ python3 -m http.server 4173 --directory docs
 | PostgreSQL | `IN_PROGRESS` | 점포·캠페인·멤버십·claim slot·방문·보상권 migration 구현, 지갑 challenge 영속화는 후속 |
 | Worker | `PLANNED` | Phase 3 전 |
 | Reown 외부 지갑 코드 | `IMPLEMENTED` | AppKit 2.0.6, 외부 지갑 전용 기능 플래그·메서드 allowlist |
-| MetaMask 실기 | `BLOCKED` | 공식 앱 8.11.0 설치·첫 화면 실행 완료, Reown project ID와 사용자가 초기화한 지갑 필요 |
+| MetaMask 실기 | `VERIFIED` | 공식 앱 8.11.0에서 연결·Base Sepolia 전환·`personal_sign`·서버 `VERIFIED`·콜드 재시작 PASS; 주소 변경·미설치 등 남은 예외는 `NOT_RUN` |
 | NFT 계약·발행 | `PLANNED` | D-004·D-005 승인, Phase 3 전 |
 | 외부 HTTPS·Play 제출 | `BLOCKED` | 계정·비용·정책·명시 승인 필요 |
 
@@ -135,7 +136,7 @@ npm run test:postgres --prefix apps/api
 - 정적 프로젝트 포털: 로컬 검증 중, 공개 URL 없음
 - Android debug APK: Android 16 16KB AVD와 Samsung SM-S928N 실기기에서 빌드·설치·실행·홈 복귀·콜드 스타트 검증, 저장소에는 미포함
 - Android AAB·release package ID·App Link: `NOT_RUN`
-- 실제 Reown·MetaMask 연결: MetaMask 8.11.0은 설치했지만 project ID와 사용자가 초기화한 지갑이 없어 `BLOCKED`
+- 실제 Reown·MetaMask 연결: MetaMask 8.11.0에서 연결·Base Sepolia 전환·주소 확인 서명·서버 검증·콜드 재시작 `PASS`; W04·W05·W06 전체 예외 묶음은 `NOT_RUN`
 - 테스트넷 계약: 배포 전
 - 메인넷·Google Play·대회 제출: 명시 승인 전 실행 금지
 - 저장소: 현재 `PRIVATE`; 심사 시점 public 요구는 [대회 규칙](docs/COMPETITION.md)에 기록
