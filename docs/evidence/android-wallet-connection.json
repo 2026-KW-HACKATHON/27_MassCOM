@@ -6,7 +6,13 @@
   "latest_retest": {
     "checked_at": "2026-09-18T16:58:50+09:00",
     "source_branch": "fix/31-wallet-rejection-event",
-    "implementation_commit": "a4dc155b4db96bd93a68d2affb3c464739fb83cc"
+    "implementation_commit": "a24013a14d12c88ea4d6c010403921654ae79d05"
+  },
+  "automated_hardening": {
+    "checked_at": "2026-09-18T17:13:27+09:00",
+    "source_branch": "fix/31-wallet-rejection-event",
+    "implementation_commit": "a4dc155b4db96bd93a68d2affb3c464739fb83cc",
+    "result": "PASS: 21/21 mobile tests plus typecheck and lint; AppKit near-miss events and stale USER_REJECTED re-entry are guarded"
   },
   "environment": {
     "host": "macOS",
