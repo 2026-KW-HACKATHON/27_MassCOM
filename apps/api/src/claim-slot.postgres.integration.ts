@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import { test } from 'node:test';
 
 import { Pool } from 'pg';
@@ -30,6 +31,11 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
      VALUES ('merchant-a', 'staff-a', 'STAFF', 'ACTIVE')`,
   );
 
+  assert.throws(
+    () => new PostgresClaimSlotService(pool, { referenceHmacSecret: 'too-short' }),
+    /referenceHmacSecret must be at least 32 bytes/,
+  );
+
   let currentTime = new Date('2026-09-18T03:00:00.000Z');
   const tokens = [
     'token-1-abcdefghijklmnopqrstuvwxyz012345',
@@ -48,6 +54,7 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
     nextToken: () => tokens.shift()!,
     nextId: () => ids.shift()!,
     ttlMs: 15 * 60 * 1000,
+    referenceHmacSecret: 'test-reference-hmac-secret-32-bytes',
   });
 
   const first = await service.issue({
@@ -59,6 +66,7 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
   assert.deepEqual(first, {
     claimSlotId: '00000000-0000-4000-8000-000000000001',
     token: 'token-1-abcdefghijklmnopqrstuvwxyz012345',
+    tokenVersion: 1,
     expiresAt: '2026-09-18T03:15:00.000Z',
   });
 
@@ -76,7 +84,12 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
   );
   assert.equal(stored.rows.length, 1);
   assert.equal(stored.rows[0]!.token_hash.length, 64);
-  assert.equal(stored.rows[0]!.merchant_reference_hash.length, 64);
+  assert.equal(
+    stored.rows[0]!.merchant_reference_hash,
+    createHmac('sha256', 'test-reference-hmac-secret-32-bytes')
+      .update('merchant-a\0demo-order-1')
+      .digest('hex'),
+  );
   assert.doesNotMatch(JSON.stringify(stored.rows[0]), /token-1|demo-order-1/);
   assert.equal(stored.rows[0]!.token_version, 1);
 
@@ -90,18 +103,38 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
     { code: 'CLAIM_SLOT_ALREADY_EXISTS' },
   );
 
-  const reissued = await service.reissue({
-    merchantId: 'merchant-a',
-    claimSlotId: first.claimSlotId,
-    requestedByAccountId: 'staff-a',
-  });
-  assert.deepEqual(reissued, {
-    claimSlotId: first.claimSlotId,
-    token: 'token-2-abcdefghijklmnopqrstuvwxyz012345',
-    expiresAt: '2026-09-18T03:15:00.000Z',
-  });
-  const slotCount = await pool.query<{ count: string }>('SELECT count(*) FROM claim_slots');
+  const reissueRace = await Promise.allSettled(
+    Array.from({ length: 2 }, () =>
+      service.reissue({
+        merchantId: 'merchant-a',
+        claimSlotId: first.claimSlotId,
+        expectedTokenVersion: first.tokenVersion,
+        requestedByAccountId: 'staff-a',
+      }),
+    ),
+  );
+  assert.equal(reissueRace.filter((result) => result.status === 'fulfilled').length, 1);
+  assert.equal(reissueRace.filter((result) => result.status === 'rejected').length, 1);
+  const rejectedReissue = reissueRace.find((result) => result.status === 'rejected');
+  assert.equal(rejectedReissue?.status, 'rejected');
+  if (rejectedReissue?.status === 'rejected') {
+    assert.equal(rejectedReissue.reason.code, 'CLAIM_SLOT_NOT_REISSUABLE');
+  }
+  const successfulReissue = reissueRace.find((result) => result.status === 'fulfilled');
+  assert.equal(successfulReissue?.status, 'fulfilled');
+  if (successfulReissue?.status !== 'fulfilled') {
+    throw new Error('one reissue request must succeed');
+  }
+  const reissued = successfulReissue.value;
+  assert.equal(reissued.claimSlotId, first.claimSlotId);
+  assert.equal(reissued.tokenVersion, 2);
+  assert.match(reissued.token, /^token-[23]-/);
+  assert.equal(reissued.expiresAt, '2026-09-18T03:15:00.000Z');
+  const slotCount = await pool.query<{ count: string; token_version: number }>(
+    'SELECT count(*)::text AS count, max(token_version)::integer AS token_version FROM claim_slots',
+  );
   assert.equal(slotCount.rows[0]!.count, '1');
+  assert.equal(slotCount.rows[0]!.token_version, 2);
 
   await assert.rejects(
     service.redeem({ accountId: 'customer-1', token: first.token }),

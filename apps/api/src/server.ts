@@ -111,9 +111,11 @@ export function createApiServer(
           merchantId,
           permission: 'CONFIRM_VISIT',
         });
+        const body = await readJson(request);
         const issued = await claimSlots.reissue({
           merchantId,
           claimSlotId: decodeURIComponent(reissueMatch[2]!),
+          expectedTokenVersion: requirePositiveInteger(body, 'expectedTokenVersion'),
           requestedByAccountId: accountId,
         });
         sendJson(response, 200, issued);
@@ -261,6 +263,14 @@ function requireNumber(body: Record<string, unknown>, field: string): number {
   return value;
 }
 
+function requirePositiveInteger(body: Record<string, unknown>, field: string): number {
+  const value = requireNumber(body, field);
+  if (value <= 0) {
+    throw new RequestError(400, 'INVALID_REQUEST');
+  }
+  return value;
+}
+
 function statusFor(code: string): number {
   if (code === 'ACCOUNT_AUTH_NOT_CONFIGURED') return 503;
   if (code === 'ACCOUNT_REQUIRED' || code === 'SIGNER_MISMATCH') return 401;
@@ -305,7 +315,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     : undefined;
   const merchantCatalog = pool ? new PostgresMerchantCatalog(pool) : undefined;
   const merchantAccess = pool ? new PostgresMerchantAccessControl(pool) : undefined;
-  const claimSlots = pool ? new PostgresClaimSlotService(pool) : undefined;
+  const claimSlots =
+    pool && process.env.MERCHANT_REFERENCE_HMAC_SECRET
+      ? new PostgresClaimSlotService(pool, {
+          referenceHmacSecret: process.env.MERCHANT_REFERENCE_HMAC_SECRET,
+        })
+      : undefined;
   const accountResolver: AccountResolver =
     process.env.ALLOW_INSECURE_DEMO_ACCOUNT === 'true'
       ? developmentHeaderAccountResolver

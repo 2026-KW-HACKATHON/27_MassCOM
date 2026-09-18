@@ -31,12 +31,13 @@ type ClaimSlotFixture = {
     customerAccountId: string;
     merchantReference: string;
     createdByAccountId: string;
-  }): Promise<{ claimSlotId: string; token: string; expiresAt: string }>;
+  }): Promise<{ claimSlotId: string; token: string; tokenVersion: number; expiresAt: string }>;
   reissue(input: {
     merchantId: string;
     claimSlotId: string;
+    expectedTokenVersion: number;
     requestedByAccountId: string;
-  }): Promise<{ claimSlotId: string; token: string; expiresAt: string }>;
+  }): Promise<{ claimSlotId: string; token: string; tokenVersion: number; expiresAt: string }>;
   redeem(input: {
     accountId: string;
     token: string;
@@ -221,6 +222,7 @@ test('issues a one-time claim token after merchant permission succeeds', async (
       issue: async () => ({
         claimSlotId: 'claim-slot-1',
         token: 'claim-token-returned-once',
+        tokenVersion: 1,
         expiresAt: '2026-09-18T03:30:00.000Z',
       }),
     }),
@@ -238,11 +240,13 @@ test('issues a one-time claim token after merchant permission succeeds', async (
   assert.deepEqual(await response.json(), {
     claimSlotId: 'claim-slot-1',
     token: 'claim-token-returned-once',
+    tokenVersion: 1,
     expiresAt: '2026-09-18T03:30:00.000Z',
   });
 });
 
-test('reissues a token for the same claim slot after merchant permission succeeds', async (t) => {
+test('reissues the expected token version for the same claim slot', async (t) => {
+  let receivedExpectedTokenVersion: number | undefined;
   const baseUrl = await startFixture(
     t,
     () => 'merchant-owner-1',
@@ -255,22 +259,32 @@ test('reissues a token for the same claim slot after merchant permission succeed
       }),
     },
     claimSlotFixture({
-      reissue: async ({ claimSlotId }) => ({
-        claimSlotId,
-        token: 'replacement-claim-token',
-        expiresAt: '2026-09-18T03:45:00.000Z',
-      }),
+      reissue: async ({ claimSlotId, expectedTokenVersion }) => {
+        receivedExpectedTokenVersion = expectedTokenVersion;
+        return {
+          claimSlotId,
+          token: 'replacement-claim-token',
+          tokenVersion: 2,
+          expiresAt: '2026-09-18T03:45:00.000Z',
+        };
+      },
     }),
   );
   const response = await fetch(
     `${baseUrl}/merchant/merchants/merchant-visible/claim-slots/claim-slot-1/reissue`,
-    { method: 'POST' },
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ expectedTokenVersion: 1 }),
+    },
   );
 
   assert.equal(response.status, 200);
+  assert.equal(receivedExpectedTokenVersion, 1);
   assert.deepEqual(await response.json(), {
     claimSlotId: 'claim-slot-1',
     token: 'replacement-claim-token',
+    tokenVersion: 2,
     expiresAt: '2026-09-18T03:45:00.000Z',
   });
 });
@@ -363,6 +377,7 @@ test('maps claim slot conflicts and expiration without exposing stored data', as
       code: 'CLAIM_SLOT_NOT_REISSUABLE' as const,
       expectedStatus: 409,
       url: '/merchant/merchants/merchant-visible/claim-slots/claim-slot-1/reissue',
+      body: { expectedTokenVersion: 1 },
     },
     {
       code: 'CLAIM_TOKEN_UNAVAILABLE' as const,

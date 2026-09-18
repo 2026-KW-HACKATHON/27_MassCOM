@@ -1,6 +1,7 @@
 export type IssuedClaimSlot = {
   claimSlotId: string;
   token: string;
+  tokenVersion: number;
   expiresAt: string;
 };
 
@@ -27,6 +28,7 @@ export interface ClaimSlotService {
   reissue(input: {
     merchantId: string;
     claimSlotId: string;
+    expectedTokenVersion: number;
     requestedByAccountId: string;
   }): Promise<IssuedClaimSlot>;
   preview(input: { accountId: string; token: string }): Promise<ClaimSlotPreview>;

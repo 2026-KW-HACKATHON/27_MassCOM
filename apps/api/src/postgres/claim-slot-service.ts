@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 
 import type { Pool } from 'pg';
 
@@ -16,7 +16,11 @@ type ClaimSlotServiceOptions = {
   nextToken: () => string;
   nextId: () => string;
   ttlMs: number;
+  referenceHmacSecret: string;
 };
+
+type ClaimSlotServiceOverrides = Partial<Omit<ClaimSlotServiceOptions, 'referenceHmacSecret'>> &
+  Pick<ClaimSlotServiceOptions, 'referenceHmacSecret'>;
 
 type ClaimSlotRow = {
   id: string;
@@ -35,21 +39,30 @@ type AccessAndDuplicateRow = {
   duplicate: boolean;
 };
 
+type IssuedClaimSlotRow = {
+  id: string;
+  token_version: number;
+};
+
 const defaultOptions: ClaimSlotServiceOptions = {
   now: () => new Date(),
   nextToken: () => randomBytes(32).toString('base64url'),
   nextId: () => randomUUID(),
   ttlMs: 15 * 60 * 1000,
+  referenceHmacSecret: '',
 };
 
 export class PostgresClaimSlotService implements ClaimSlotService {
   constructor(
     private readonly pool: Pool,
-    options: Partial<ClaimSlotServiceOptions> = {},
+    options: ClaimSlotServiceOverrides,
   ) {
     this.options = { ...defaultOptions, ...options };
     if (!Number.isSafeInteger(this.options.ttlMs) || this.options.ttlMs <= 0) {
       throw new Error('claim slot ttlMs must be a positive safe integer');
+    }
+    if (Buffer.byteLength(this.options.referenceHmacSecret, 'utf8') < 32) {
+      throw new Error('claim slot referenceHmacSecret must be at least 32 bytes');
     }
   }
 
@@ -61,7 +74,11 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     merchantReference: string;
     createdByAccountId: string;
   }): Promise<IssuedClaimSlot> {
-    const referenceHash = hashValue(input.merchantReference);
+    const referenceHash = hashMerchantReference(
+      this.options.referenceHmacSecret,
+      input.merchantId,
+      input.merchantReference,
+    );
     const access = await this.pool.query<AccessAndDuplicateRow>(
       `SELECT
          EXISTS (
@@ -92,7 +109,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     const token = this.options.nextToken();
     const claimSlotId = this.options.nextId();
     try {
-      const inserted = await this.pool.query<{ id: string }>(
+      const inserted = await this.pool.query<IssuedClaimSlotRow>(
         `INSERT INTO claim_slots (
            id,
            merchant_id,
@@ -110,7 +127,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
          WHERE merchant_id = $2
            AND account_id = $5
            AND status = 'ACTIVE'
-         RETURNING id`,
+         RETURNING id, token_version`,
         [
           claimSlotId,
           input.merchantId,
@@ -135,12 +152,18 @@ export class PostgresClaimSlotService implements ClaimSlotService {
       throw error;
     }
 
-    return { claimSlotId, token, expiresAt: expiresAt.toISOString() };
+    return {
+      claimSlotId,
+      token,
+      tokenVersion: 1,
+      expiresAt: expiresAt.toISOString(),
+    };
   }
 
   async reissue(input: {
     merchantId: string;
     claimSlotId: string;
+    expectedTokenVersion: number;
     requestedByAccountId: string;
   }): Promise<IssuedClaimSlot> {
     const requestedAt = this.options.now();
@@ -148,7 +171,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     const token = this.options.nextToken();
     let updated;
     try {
-      updated = await this.pool.query<{ id: string }>(
+      updated = await this.pool.query<IssuedClaimSlotRow>(
         `UPDATE claim_slots AS slot
          SET token_hash = $1,
              token_version = token_version + 1,
@@ -157,6 +180,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
          WHERE slot.id = $4
            AND slot.merchant_id = $5
            AND slot.status = 'ISSUED'
+           AND slot.token_version = $7
            AND EXISTS (
              SELECT 1
              FROM merchant_members AS member
@@ -164,7 +188,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
                AND member.account_id = $6
                AND member.status = 'ACTIVE'
            )
-         RETURNING slot.id`,
+         RETURNING slot.id, slot.token_version`,
         [
           hashValue(token),
           expiresAt,
@@ -172,6 +196,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
           input.claimSlotId,
           input.merchantId,
           input.requestedByAccountId,
+          input.expectedTokenVersion,
         ],
       );
     } catch (error) {
@@ -195,7 +220,12 @@ export class PostgresClaimSlotService implements ClaimSlotService {
       throw new ClaimSlotError('CLAIM_SLOT_NOT_REISSUABLE');
     }
 
-    return { claimSlotId: input.claimSlotId, token, expiresAt: expiresAt.toISOString() };
+    return {
+      claimSlotId: input.claimSlotId,
+      token,
+      tokenVersion: updated.rows[0]!.token_version,
+      expiresAt: expiresAt.toISOString(),
+    };
   }
 
   async preview(input: {
@@ -254,6 +284,18 @@ export class PostgresClaimSlotService implements ClaimSlotService {
 
 function hashValue(value: string): Buffer {
   return createHash('sha256').update(value, 'utf8').digest();
+}
+
+function hashMerchantReference(
+  secret: string,
+  merchantId: string,
+  merchantReference: string,
+): Buffer {
+  return createHmac('sha256', secret)
+    .update(merchantId, 'utf8')
+    .update('\0')
+    .update(merchantReference, 'utf8')
+    .digest();
 }
 
 function isPostgresConstraint(error: unknown, constraint: string): boolean {
