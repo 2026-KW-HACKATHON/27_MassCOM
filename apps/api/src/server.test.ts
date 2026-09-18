@@ -8,13 +8,27 @@ import {
   developmentHeaderAccountResolver,
   type AccountResolver,
 } from './server.js';
+import { MerchantAccessError } from './merchant-access.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
+
+type MerchantAccessFixture = {
+  requirePermission(input: {
+    accountId: string;
+    merchantId: string;
+    permission: 'VIEW_MERCHANT' | 'CONFIRM_VISIT';
+  }): Promise<{
+    merchantId: string;
+    role: 'OWNER' | 'STAFF';
+    permissions: readonly ('VIEW_MERCHANT' | 'CONFIRM_VISIT')[];
+  }>;
+};
 
 async function startFixture(
   t: TestContext,
   resolveAccountId: AccountResolver = developmentHeaderAccountResolver,
   merchantCatalog?: MerchantCatalog,
+  merchantAccess?: MerchantAccessFixture,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -25,7 +39,7 @@ async function startFixture(
     nonce: () => 'abc12345def67890',
     challengeId: () => 'challenge-http-1',
   });
-  const server = createApiServer(service, resolveAccountId, merchantCatalog);
+  const server = createApiServer(service, resolveAccountId, merchantCatalog, merchantAccess);
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))));
@@ -75,6 +89,46 @@ test('lists public merchants without requiring login or a wallet', async (t) => 
 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { merchants: [merchant] });
+});
+
+test('reports unavailable instead of bypassing an unconfigured merchant access boundary', async (t) => {
+  const baseUrl = await startFixture(t);
+  const response = await fetch(`${baseUrl}/merchant/merchants/merchant-visible/context`, {
+    headers: { 'x-account-id': 'merchant-owner-1' },
+  });
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { code: 'MERCHANT_ACCESS_NOT_CONFIGURED' });
+});
+
+test('returns only the authenticated member merchant context', async (t) => {
+  const baseUrl = await startFixture(t, () => 'merchant-staff-1', undefined, {
+    requirePermission: async ({ merchantId }) => ({
+      merchantId,
+      role: 'STAFF',
+      permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT'],
+    }),
+  });
+  const response = await fetch(`${baseUrl}/merchant/merchants/merchant-visible/context`);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    merchantId: 'merchant-visible',
+    role: 'STAFF',
+    permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT'],
+  });
+});
+
+test('returns a generic forbidden response when merchant access is denied', async (t) => {
+  const baseUrl = await startFixture(t, () => 'unrelated-user', undefined, {
+    requirePermission: async () => {
+      throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    },
+  });
+  const response = await fetch(`${baseUrl}/merchant/merchants/merchant-visible/context`);
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { code: 'MERCHANT_ACCESS_DENIED' });
 });
 
 test('requires an authenticated account boundary for wallet challenges', async (t) => {
