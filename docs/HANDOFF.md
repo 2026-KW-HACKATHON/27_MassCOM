@@ -2,36 +2,35 @@
 
 마지막 갱신 시각: 2026-09-18 KST
 
-기준 브랜치: `test/25-wallet-device`
+기준 브랜치: `main`
 
-통합 기준 커밋 SHA: `main@f85234f9d7d69d920fb5e942a5706b6d1611945f`, main CI run `35309692169` PASS
+통합 기준 커밋 SHA: `main@bdeade463fa26406c70cd44beeba02151a6c4134`, main CI run `35319672490` PASS
 
 ## 이번 세션에서 완료한 것
 
-- PR #24 merge `f85234f`, Issue #23 종료, main CI run `35309692169` PASS 확인
-- Issue #25와 `test/25-wallet-device` 생성
+- PR #26 merge `782fef6`, Issue #25 종료, main CI run `35317894775` PASS 확인
+- PR #28 merge `bdeade4`, Issue #27 종료, main CI run `35319672490` PASS 확인
 - Reown project ID와 사용자가 준비·잠금 해제한 MetaMask로 WalletConnect 연결 승인
 - 승인된 Mainnet 세션을 `CONNECTED / CHECK_REQUIRED`로 표시하고 Base Sepolia 전환 경로 복구
 - MetaMask에 사용자 승인으로 Base Sepolia 공개 네트워크를 추가하고 체인 승인
 - 읽을 수 있는 `personal_sign`만 요청해 서버 주소 확인 `VERIFIED`
 - 프로세스 종료 후 세션은 복원되고 주소 확인은 `UNVERIFIED`로 초기화됨을 확인
 - UniversalProvider 2.21.10 초기 체인 이벤트 경쟁을 재현하고 2.23.5 override 회귀 테스트 추가
-- WalletConnect JSON 문자열형 code 4001 사용자 거절 정규화 자동화 추가
-- 코드 커밋 `ecba181` 생성
+- EIP-1193 `4001`, WalletConnect `5000`~`5003`, Reown 체인 전환 거절 변환을 취소 상태로 정규화
+- SDK 체인 전환 성공·4001 변환·4902 전파에서 `wallet_addEthereumChain` 미요청 특성화 테스트 추가
+- Claude Code와 Astra high 독립 검증 후 HIGH·MEDIUM 0건 확인
 
-## 생성한 Issue
+## 종료한 Issue
 
 - #25 `test: 실제 MetaMask 연결과 주소 확인 서명을 검증한다`
+- #27 `fix: 지갑 연결 거절을 취소 상태로 정규화한다`
 
-## 생성한 브랜치
+## 통합한 작업 브랜치
 
 - `test/25-wallet-device`
+- `fix/27-wallet-connection-rejection`
 
-## 현재 열린 PR
-
-- #26 `fix: 실제 지갑 연결과 주소 확인 흐름을 안정화한다`
-
-## merge된 PR
+## Phase 1에서 merge된 PR
 
 - #14, merge commit `a27d0d0`
 - #16, merge commit `240dad2`
@@ -39,6 +38,8 @@
 - #20, merge commit `c2f3076`
 - #22, merge commit `158067c`
 - #24, merge commit `f85234f`
+- #26, merge commit `782fef6`
+- #28, merge commit `bdeade4`
 
 ## 실행한 테스트
 
@@ -50,16 +51,19 @@
 - 읽을 수 있는 `personal_sign`과 서버 주소 확인 `VERIFIED` `PASS`
 - 프로세스 종료 뒤 WalletConnect 세션 복원 `PASS`
 - 서명 거절 실제 응답 code 4001 관측, 수정 회귀 자동화 `PASS`; 수정 후 실기 재확인은 MetaMask 자동 잠금으로 대기
+- WalletConnect 연결 거절 5000~5003과 Reown 체인 전환 거절 변환 자동화 `PASS`
+- PR #28 최신 HEAD 모바일 19/19·typecheck·secret scan, Astra high 재검증 `PASS`
 
-## 현재 작업 중인 기능
+## 현재 Phase 1 상태
 
-- Issue #25 실기 증거·상태 문서 반영과 수정 후 거절 안내 재확인
+- 핵심 흐름 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED`→콜드 재시작은 `VERIFIED`
+- W04 주소 변경, W05 미지원 지갑, W06 미설치·거절·복귀 실패 전체 묶음은 `NOT_RUN`
 
 ## BLOCKER
 
 - 외부 HTTPS·유료 AWS·공개 배포는 별도 승인 필요
 - GitHub Pages는 현재 꺼져 있고 private 저장소의 조직 요금제·공개 정책 확인 및 공개 승인 필요
-- 수정 후 MetaMask 거절 안내 재확인에는 사용자의 지갑 잠금 해제가 필요
+- 수정 후 MetaMask 거절 안내 실기 재확인에는 사용자의 지갑 잠금 해제가 필요
 
 ## 사용자 승인이 필요한 사항
 
@@ -68,10 +72,10 @@
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. 사용자가 MetaMask를 잠금 해제하면 수정 후 서명 거절 안내를 실제 기기에서 한 번 재확인
-2. PR #26 CI·리뷰를 확인하고 필요한 수정만 추가
-3. 필수 검사가 PASS하면 PR #26을 merge하고 Issue #25 종료
-4. Phase 1 잔여 W04 주소 변경·W05 미지원 지갑·W06 미설치/복귀 실패는 실행 환경을 갖춘 별도 증거로 남김
+1. 사용자가 MetaMask를 잠금 해제하면 수정 후 연결·체인 전환·서명 거절 안내를 실제 기기에서 재확인
+2. Phase 1 잔여 W04 주소 변경·W05 미지원 지갑·W06 미설치/복귀 실패를 실행 환경별 별도 증거로 남김
+3. 실제로 실행하지 않은 예외 시험은 계속 `NOT_RUN`으로 유지
+4. Phase 2 이상, 공개 배포, Play 제출은 새 사용자 승인 없이 진행하지 않음
 
 ## 실행 명령
 

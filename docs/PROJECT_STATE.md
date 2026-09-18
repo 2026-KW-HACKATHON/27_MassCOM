@@ -8,11 +8,11 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 브랜치 | `test/25-wallet-device` |
-| 현재 통합 기준 | `main@f85234f9d7d69d920fb5e942a5706b6d1611945f`, CI run `35309692169` PASS |
-| 최근 merge | PR #24, `f85234f` |
-| 현재 열린 Issue | #25 실제 MetaMask 연결과 주소 확인 서명 검증 |
-| 현재 열린 PR | #26 실제 지갑 연결·주소 확인 안정화 |
+| 현재 작업 기준 | `main` |
+| 현재 통합 기준 | `main@bdeade463fa26406c70cd44beeba02151a6c4134`, CI run `35319672490` PASS |
+| 최근 기능 merge | PR #28, `bdeade4` |
+| Phase 1 종료 Issue | #25 실제 지갑 검증, #27 거절 정규화 |
+| Phase 1 merge PR | #26 실제 지갑 안정화, #28 거절 처리 보완 |
 
 ## Phase 상태
 
@@ -51,10 +51,12 @@
 - 실제 MetaMask WalletConnect 연결·Base Sepolia 승인·읽을 수 있는 `personal_sign`·서버 주소 확인 `VERIFIED`
 - 콜드 재시작에서 지갑 세션 복원과 주소 확인 상태의 안전한 `UNVERIFIED` 초기화
 - UniversalProvider 2.23.5 override와 초기 체인 이벤트 경쟁 회귀 테스트
+- EIP-1193 4001·WalletConnect 5000~5003·Reown 체인 전환 거절의 취소 상태 정규화
+- Reown 체인 전환 성공·4001 변환·4902 전파와 add-chain 미요청 특성화 테스트
 
 ### 진행 중
 
-- Issue #25에서 수정 후 사용자 거절 안내 실기 재확인과 PR·CI·merge 준비
+- W04 주소 변경·W05 미지원 지갑·W06 미설치/거절/복귀 실패 실제 기기 예외 검증
 
 ### 미구현
 
