@@ -27,9 +27,10 @@
 | PR | `#2 MERGED` |
 | merge | `003ae6c7a5d4a9aec8b8678778186bf79dc0d867` |
 | 프로젝트 포털 | `#6`, CI PASS, 공개 배포 미실행 |
-| Phase 1 Issue | `#9 feat: build the Phase 1 external-wallet verification slice` |
-| Phase 1 브랜치 | `feat/wallet-link` |
-| Phase 1 PR | `#10 Phase 1 외부 지갑 주소 확인 흐름 구현`, CI PASS |
+| Phase 1 Issue | `#9 CLOSED` |
+| Phase 1 브랜치 | `feat/wallet-link`, merge 완료 |
+| Phase 1 PR | `#10 MERGED`, CI PASS |
+| Phase 1 merge | `80bf53bcd0a4f8b7b9faa8083f823bfcde4fd6d1` |
 
 ## 검증
 
@@ -58,4 +59,4 @@
 
 ## 승인된 다음 작업
 
-Phase 1 PR을 CI·리뷰 후 merge하고 이번 실행을 종료합니다. 실제 Reown project ID·지갑 환경이 없어 실기는 BLOCKED로 유지하며 Phase 2는 시작하지 않습니다.
+Phase 1 코드·문서·자동화·Android debug 설치 증거가 main에 통합됐습니다. 실제 Reown project ID·지갑 환경이 없어 실기는 BLOCKED로 유지하며, 사용자 요청에 따라 Phase 2는 시작하지 않았습니다.

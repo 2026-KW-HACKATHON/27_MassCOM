@@ -1,5 +1,7 @@
 # Phase 1 외부 지갑 주소 확인
 
+GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLOSED · PR [#10](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/10) MERGED · merge `80bf53b`
+
 ## 구현 범위
 
 - Expo SDK 57 + React Native 0.86.3 + Expo Router development build

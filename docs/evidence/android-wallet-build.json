@@ -1,6 +1,7 @@
 {
   "checked_at": "2026-09-18T09:24:00+09:00",
   "source_branch": "feat/wallet-link",
+  "integration_commit": "80bf53bcd0a4f8b7b9faa8083f823bfcde4fd6d1",
   "environment": {
     "host": "macOS",
     "node": "25.9.0 local; CI pinned to 24.10.0",
