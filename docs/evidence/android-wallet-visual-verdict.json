@@ -1,0 +1,12 @@
+{
+  "checked_at": "2026-09-18T09:25:00+09:00",
+  "score": 93,
+  "threshold": 90,
+  "verdict": "pass",
+  "category_match": true,
+  "device": "Small_Phone AVD, Android 16, 720x1280 screenshot",
+  "artifact": "android-wallet-config-required.png",
+  "differences": [],
+  "suggestions": [],
+  "reasoning": "The development build clearly separates the missing-configuration BLOCKED state, explains that visit data remains available, lists only non-secret public configuration, and keeps the primary security boundary readable at the tested viewport."
+}

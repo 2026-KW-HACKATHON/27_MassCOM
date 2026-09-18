@@ -15,5 +15,16 @@
 
 - 대회 규칙은 운영진 자료를 따릅니다.
 - 제품 결정은 최신 사용자 승인 기록을 따릅니다.
-- v3의 고정 보상·양도 제한·RN·Base·Reown·AWS는 승인 전 `PROPOSED`입니다.
+- v3의 고정 보상·양도 제한·RN·Base·Reown·AWS는 2026-09-18 D-004~D-008로 `USER_CONFIRMED`됐습니다.
 - 구현 완료는 문서가 아니라 실제 코드와 실행 결과로만 판정합니다.
+
+## Phase 1 공식 기술 근거
+
+| 근거 | 확인일 | 적용 내용 |
+| --- | --- | --- |
+| [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/) | 2026-09-18 | Expo 57·React Native 0.86, development build |
+| [Reown AppKit RN 설치](https://docs.reown.com/appkit/react-native/core/installation) | 2026-09-18 | 필수 패키지·polyfill 순서·Ethers adapter |
+| [Reown 옵션](https://docs.reown.com/appkit/react-native/core/options) | 2026-09-18 | socials·swaps·onramp 비활성화 |
+| [ERC-4361](https://eips.ethereum.org/EIPS/eip-4361) | 2026-09-18 | SIWE 메시지 필드·nonce·만료·ASCII statement |
+| [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) | 2026-09-18 | provider 요청·오류·계정/체인 변경 |
+| [Base 연결 정보](https://docs.base.org/get-started/connect-to-base) | 2026-09-18 | Base Sepolia chain ID 84532·RPC·explorer |

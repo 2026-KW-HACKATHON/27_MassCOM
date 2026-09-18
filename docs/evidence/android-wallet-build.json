@@ -1,0 +1,41 @@
+{
+  "checked_at": "2026-09-18T09:24:00+09:00",
+  "source_branch": "feat/wallet-link",
+  "environment": {
+    "host": "macOS",
+    "node": "25.9.0 local; CI pinned to 24.10.0",
+    "java": "Temurin 21.0.5",
+    "android": "compileSdk 36, targetSdk 36, buildTools 36.0.0, NDK 27.1.12297006",
+    "emulator": "Small_Phone, Android 16, arm64-v8a, 16KB page-size system image"
+  },
+  "versions": {
+    "expo": "57.0.23",
+    "react_native": "0.86.3",
+    "expo_dev_client": "57.0.19",
+    "reown_appkit_react_native": "2.0.6",
+    "reown_appkit_ethers_react_native": "2.0.6",
+    "walletconnect_react_native_compat": "2.25.0"
+  },
+  "commands": [
+    "npx expo export --platform android --output-dir dist",
+    "npx expo prebuild --clean --platform android --no-install",
+    "ANDROID_HOME=/Users/choi/Library/Android/sdk ANDROID_SDK_ROOT=/Users/choi/Library/Android/sdk ./gradlew assembleDebug",
+    "adb install -r android/app/build/outputs/apk/debug/app-debug.apk",
+    "npx expo start --dev-client --host localhost"
+  ],
+  "results": {
+    "expo_doctor": "PASS: 21/21 checks",
+    "android_bundle": "PASS with upstream package-export warnings",
+    "gradle": "PASS after setting Android SDK path; 816 tasks",
+    "install": "PASS",
+    "launch": "PASS: configuration-required screen rendered",
+    "real_external_wallet": "BLOCKED: Reown project ID and installed wallet not provided"
+  },
+  "apk": {
+    "path": "apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk",
+    "committed": false,
+    "bytes": 280593505,
+    "sha256": "cdc4b338e61dfb6fff60681a465d1993c4719684b63f833dd64ead3e2e9638b0",
+    "package_note": "Local prebuild generated com.anonymous.masscommobile; this is not an approved release package ID."
+  }
+}

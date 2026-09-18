@@ -1,0 +1,25 @@
+{
+  "name": "@masscom/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "audit:ci": "npm audit --omit=dev --audit-level=high",
+    "build": "tsc -p tsconfig.json",
+    "start": "tsx src/server.ts",
+    "test": "tsx --test src/**/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "ethers": "6.17.0",
+    "siwe": "3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "tsx": "4.21.0",
+    "typescript": "6.0.3"
+  }
+}

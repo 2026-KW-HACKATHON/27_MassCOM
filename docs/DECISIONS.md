@@ -16,6 +16,8 @@
 | D-010 | 저장소 공개 | 심사 전 public 전환 | `BLOCKED` | 대회 규칙상 필요하나 가시성 변경은 명시 승인 대상 |
 | D-011 | Play·법률·공급업체 | 실제 기능·계정·약관 기준 재확인 | `EXTERNAL_CHECK_REQUIRED` | 개인 계정 승인·사업자 불필요를 보장하지 않음 |
 | D-012 | 프로젝트 포털 공개 | GitHub Pages 또는 승인된 정적 호스팅 | `BLOCKED` | private 조직 저장소 지원 확인과 공개 배포 승인이 필요 |
+| D-013 | 개인 GitHub 복제 | `choijunhuk` 계정의 private mirror | `USER_CONFIRMED` | 나중에 진행; 조직 저장소 private 코드의 public 복제 금지 |
+| D-014 | 이번 실행 범위 | Phase 1 완료까지만 진행 | `USER_CONFIRMED` | Phase 2 점포·QR·보상권 구현은 시작하지 않음 |
 
 ## 2026-09-18 승인 범위
 

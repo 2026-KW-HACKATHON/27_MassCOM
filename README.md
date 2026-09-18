@@ -2,7 +2,7 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-> 현재 상태: 저장소 기준선 `VERIFIED` · 제품 기능 `PLANNED` · 제품 시험 36개 `NOT_RUN` · 공개 데모 `BLOCKED`
+> 현재 상태: 저장소 기준선 `VERIFIED` · Phase 1 지갑 코드 `IMPLEMENTED` · 필수 시험 3 `PASS` / 33 `NOT_RUN` · 실제 외부 지갑 `BLOCKED`
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](docs/index.html)
 
@@ -14,6 +14,8 @@
 - [제품 요구사항](docs/PRD.md): RQ-001~RQ-021
 - [결정 기록](docs/DECISIONS.md): 승인·제안·외부 확인 구분
 - [테스트 원장](docs/TEST_REPORT.md): v3 19절의 36개 ID와 실행 근거
+- [Phase 1 지갑 연결](docs/PHASE1_WALLET_LINK.md): Android·Reown·SIWE 구현과 실기 BLOCKER
+- [보안 경계](docs/SECURITY.md): 허용 메서드·nonce·의존성 위험
 - [평가 대응표](docs/EVALUATION_MAP.md): 요구사항·Issue·PR·코드·시험·실증·발표 연결
 
 ### 포털 로컬 미리보기
@@ -36,10 +38,12 @@ python3 -m http.server 4173 --directory docs
 | --- | --- | --- |
 | 저장소·문서·CI 기준선 | `VERIFIED` | PR #2·#4 merge, GitHub Actions PASS |
 | 프로젝트 포털 | `VERIFIED` | PR #6, CI PASS, 접근성·반응형 증거 저장 |
-| Android 고객 앱 | `PLANNED` | D-007 승인, Phase 1 Issue 착수 예정 |
+| Android 고객 앱 | `IMPLEMENTED` | Expo 57 dev-client, Android 16 AVD APK 설치·실행 |
 | 점주·직원 웹 | `PLANNED` | 권한·QR 요구사항만 정의 |
-| API·PostgreSQL·Worker | `PLANNED` | D-006·D-008 승인, 구현 전 |
-| 외부 지갑 주소 확인 | `PLANNED` | 실제 SDK·기기 검증 전 |
+| 주소 확인 API | `IMPLEMENTED` | ERC-4361 challenge·실제 서명 복구·nonce 소비 15 tests PASS |
+| PostgreSQL·Worker | `PLANNED` | 현재 메모리 challenge store, Phase 2 교체 |
+| Reown 외부 지갑 코드 | `IMPLEMENTED` | AppKit 2.0.6, 외부 지갑 전용 기능 플래그·메서드 allowlist |
+| MetaMask 실기 | `BLOCKED` | Reown project ID와 실제 설치 지갑 없음 |
 | NFT 계약·발행 | `PLANNED` | D-004·D-005 승인, Phase 3 전 |
 | 외부 HTTPS·Play 제출 | `BLOCKED` | 계정·비용·정책·명시 승인 필요 |
 
@@ -63,7 +67,7 @@ Android 앱 ─┐
                     └─ 외부 지갑 주소 확인 서명
 ```
 
-현재 실제 구조는 문서·도메인 불변조건·검증 스크립트·정적 포털입니다. 승인 후 실행 코드가 생길 때 `apps/mobile`, `apps/merchant-web`, `apps/api`, `apps/worker`, `contracts`, `migrations`, `infra`를 추가합니다.
+현재 `apps/mobile`과 `apps/api`가 구현됐습니다. `apps/merchant-web`, `apps/worker`, `contracts`, `migrations`, `infra`는 후속 Phase에서 실제 실행 코드와 함께 추가합니다.
 
 ## 기술 선택 상태
 
@@ -79,23 +83,39 @@ D-004~D-008은 2026-09-18 승인됐습니다. 유료 자원 생성·메인넷·�
 
 ## 설치·검증
 
-현재 Phase 0 검증에는 추가 패키지가 필요하지 않습니다.
+저장소 기준선 검사는 추가 패키지가 필요하지 않습니다.
 
 ```bash
 git clone https://github.com/2026-KW-HACKATHON/27_MassCOM.git
 cd 27_MassCOM
 bash tests/bootstrap/check_secrets_test.sh
+bash tests/bootstrap/check_pr_korean_test.sh
 bash tests/bootstrap/verify_bootstrap_test.sh
 bash tests/site/check_site_accessibility_test.sh
 bash tests/site/verify_project_site_test.sh
 ```
 
-환경 변수의 역할은 [`.env.example`](.env.example)에만 기록합니다. 앱·API·DB·Android 빌드 명령은 실제 코드와 lockfile이 추가된 뒤 갱신합니다.
+Phase 1 앱과 API 검증:
+
+```bash
+npm ci --prefix apps/api
+npm test --prefix apps/api
+npm run typecheck --prefix apps/api
+npm ci --prefix apps/mobile
+npm test --prefix apps/mobile
+npm run typecheck --prefix apps/mobile
+npm run lint --prefix apps/mobile
+npm run export:android --prefix apps/mobile
+```
+
+상세 development build 절차와 환경 변수는 [`apps/mobile/README.md`](apps/mobile/README.md), [`apps/api/README.md`](apps/api/README.md)를 따릅니다.
 
 ## 데모·배포·출시
 
 - 정적 프로젝트 포털: 로컬 검증 중, 공개 URL 없음
-- Android APK/AAB: 준비 전
+- Android debug APK: 빌드·Android 16 16KB AVD 설치·실행 검증, 저장소에는 미포함
+- Android AAB·release package ID·App Link: `NOT_RUN`
+- 실제 Reown·MetaMask 연결: project ID·실기 환경 부족으로 `BLOCKED`
 - 테스트넷 계약: 배포 전
 - 메인넷·Google Play·대회 제출: 명시 승인 전 실행 금지
 - 저장소: 현재 `PRIVATE`; 심사 시점 public 요구는 [대회 규칙](docs/COMPETITION.md)에 기록

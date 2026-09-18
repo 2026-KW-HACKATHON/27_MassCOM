@@ -14,11 +14,42 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Node.js 설정
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.10.0'
+          cache: npm
+          cache-dependency-path: |
+            apps/api/package-lock.json
+            apps/mobile/package-lock.json
       - name: Scan repository for committed secrets
         run: bash tests/bootstrap/check_secrets_test.sh
+      - name: PR 한국어 작성 확인
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"
       - name: Verify repository contract
         run: bash tests/bootstrap/verify_bootstrap_test.sh
       - name: Verify project portal
         run: bash tests/site/check_site_accessibility_test.sh
       - name: Verify project portal structure
         run: bash tests/site/verify_project_site_test.sh
+      - name: 앱·API 의존성 설치
+        run: |
+          npm ci --prefix apps/api
+          npm ci --prefix apps/mobile
+      - name: 지갑 검증 API 테스트·타입검사·빌드
+        run: |
+          npm test --prefix apps/api
+          npm run typecheck --prefix apps/api
+          npm run build --prefix apps/api
+          npm run audit:ci --prefix apps/api
+      - name: Android 앱 테스트·정적검사·번들
+        run: |
+          npm test --prefix apps/mobile
+          npm run typecheck --prefix apps/mobile
+          npm run lint --prefix apps/mobile
+          npm run export:android --prefix apps/mobile
+          npm run audit:ci --prefix apps/mobile
