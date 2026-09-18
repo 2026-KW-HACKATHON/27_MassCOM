@@ -1,11 +1,15 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { pathToFileURL } from 'node:url';
 
+import { Pool } from 'pg';
+
 import {
   InMemoryChallengeStore,
   WalletChallengeError,
   WalletChallengeService,
 } from './wallet-challenge-service.js';
+import type { MerchantCatalog } from './merchant-catalog.js';
+import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -13,9 +17,10 @@ export type AccountResolver = (request: IncomingMessage) => string | Promise<str
 
 export const developmentHeaderAccountResolver: AccountResolver = requireAccountId;
 
-export function createWalletApiServer(
+export function createApiServer(
   service: WalletChallengeService,
   resolveAccountId: AccountResolver,
+  merchantCatalog?: MerchantCatalog,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -23,6 +28,14 @@ export function createWalletApiServer(
     try {
       if (request.method === 'GET' && request.url === '/health') {
         sendJson(response, 200, { status: 'ok' });
+        return;
+      }
+
+      if (request.method === 'GET' && request.url === '/merchants') {
+        if (!merchantCatalog) {
+          throw new RequestError(503, 'MERCHANT_CATALOG_NOT_CONFIGURED');
+        }
+        sendJson(response, 200, { merchants: await merchantCatalog.listPublicMerchants() });
         return;
       }
 
@@ -63,7 +76,7 @@ export function createWalletApiServer(
         return;
       }
 
-      console.error('unhandled wallet API error', error);
+      console.error('unhandled API error', error);
       sendJson(response, 500, { code: 'INTERNAL_ERROR' });
     }
   });
@@ -165,6 +178,9 @@ function configuredService(): WalletChallengeService {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.env.PORT ?? 3000);
+  const merchantCatalog = process.env.DATABASE_URL
+    ? new PostgresMerchantCatalog(new Pool({ connectionString: process.env.DATABASE_URL }))
+    : undefined;
   const accountResolver: AccountResolver =
     process.env.ALLOW_INSECURE_DEMO_ACCOUNT === 'true'
       ? developmentHeaderAccountResolver
@@ -172,7 +188,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           throw new WalletChallengeError('ACCOUNT_AUTH_NOT_CONFIGURED');
         };
 
-  createWalletApiServer(configuredService(), accountResolver).listen(port, '127.0.0.1', () => {
+  createApiServer(configuredService(), accountResolver, merchantCatalog).listen(port, '127.0.0.1', () => {
     console.log(`wallet API listening on http://127.0.0.1:${port}`);
   });
 }

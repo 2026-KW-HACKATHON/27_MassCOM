@@ -11,6 +11,20 @@ permissions:
 jobs:
   bootstrap-contract:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:650d7a867dc5336eff67802a1417fcc801821d73d824c608e80afbde792fe6e1
+        env:
+          POSTGRES_DB: masscom_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d masscom_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -40,9 +54,15 @@ jobs:
         run: |
           npm ci --prefix apps/api
           npm ci --prefix apps/mobile
-      - name: 지갑 검증 API 테스트·타입검사·빌드
+      - name: API·PostgreSQL 테스트·타입검사·빌드
+        env:
+          DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
+          TEST_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
+          PGPASSWORD: postgres
         run: |
+          npm run db:migrate --prefix apps/api
           npm test --prefix apps/api
+          npm run test:postgres --prefix apps/api
           npm run typecheck --prefix apps/api
           npm run build --prefix apps/api
           npm run audit:ci --prefix apps/api

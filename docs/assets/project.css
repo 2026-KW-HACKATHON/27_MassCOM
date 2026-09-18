@@ -316,6 +316,11 @@ h1 {
   color: #245976;
 }
 
+.status-in-progress {
+  background: #fff1d6;
+  color: #754b00;
+}
+
 .status-blocked {
   background: #fce4da;
   color: #9a371d;

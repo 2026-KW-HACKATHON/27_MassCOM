@@ -2,7 +2,7 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-> 현재 상태: 저장소 기준선 `VERIFIED` · Phase 1 지갑 코드 `IMPLEMENTED` · 필수 시험 3 `PASS` / 33 `NOT_RUN` · 실제 외부 지갑 `BLOCKED`
+> 현재 상태: 저장소 기준선 `VERIFIED` · Phase 1 지갑 코드 `IMPLEMENTED` · Phase 2 점포 카탈로그 `IN_PROGRESS` · 필수 시험 3 `PASS` / 33 `NOT_RUN`
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](docs/index.html)
 
@@ -10,10 +10,10 @@
 
 - [프로젝트 포털](docs/index.html): 흐름·아키텍처·평가 증거·결정 상태를 시각적으로 탐색
 - [포털 시각 검증](docs/evidence/project-portal-visual-verdict.json): 데스크톱·모바일 뷰포트와 접근성 결과
-- [현재 상태](docs/STATUS.md): 실제 완료·미완료·BLOCKER
+- [현재 상태](docs/PROJECT_STATE.md): 실제 완료·미완료·BLOCKER
 - [제품 요구사항](docs/PRD.md): RQ-001~RQ-021
 - [결정 기록](docs/DECISIONS.md): 승인·제안·외부 확인 구분
-- [테스트 원장](docs/TEST_REPORT.md): v3 19절의 36개 ID와 실행 근거
+- [테스트 원장](docs/TEST_STATUS.md): v3 19절의 36개 ID와 실행 근거
 - [Phase 1 지갑 연결](docs/PHASE1_WALLET_LINK.md): Android·Reown·SIWE 구현과 실기 BLOCKER
 - [보안 경계](docs/SECURITY.md): 허용 메서드·nonce·의존성 위험
 - [평가 대응표](docs/EVALUATION_MAP.md): 요구사항·Issue·PR·코드·시험·실증·발표 연결
@@ -39,9 +39,11 @@ python3 -m http.server 4173 --directory docs
 | 저장소·문서·CI 기준선 | `VERIFIED` | PR #2·#4 merge, GitHub Actions PASS |
 | 프로젝트 포털 | `VERIFIED` | PR #6, CI PASS, 접근성·반응형 증거 저장 |
 | Android 고객 앱 | `IMPLEMENTED` | Expo 57 dev-client, Android 16 AVD APK 설치·실행 |
+| 공개 점포·캠페인 API | `IN_PROGRESS` | Issue #13·PR #14, 로컬 PostgreSQL 18과 원격 CI run `35299748690` PASS |
 | 점주·직원 웹 | `PLANNED` | 권한·QR 요구사항만 정의 |
 | 주소 확인 API | `IMPLEMENTED` | ERC-4361 challenge·실제 서명 복구·nonce 소비 15 tests PASS |
-| PostgreSQL·Worker | `PLANNED` | 현재 메모리 challenge store, Phase 2 교체 |
+| PostgreSQL | `IN_PROGRESS` | 점포·캠페인 migration과 공개 조회 구현, 지갑 challenge는 아직 메모리 |
+| Worker | `PLANNED` | Phase 3 전 |
 | Reown 외부 지갑 코드 | `IMPLEMENTED` | AppKit 2.0.6, 외부 지갑 전용 기능 플래그·메서드 allowlist |
 | MetaMask 실기 | `BLOCKED` | Reown project ID와 실제 설치 지갑 없음 |
 | NFT 계약·발행 | `PLANNED` | D-004·D-005 승인, Phase 3 전 |
@@ -67,7 +69,7 @@ Android 앱 ─┐
                     └─ 외부 지갑 주소 확인 서명
 ```
 
-현재 `apps/mobile`과 `apps/api`가 구현됐습니다. `apps/merchant-web`, `apps/worker`, `contracts`, `migrations`, `infra`는 후속 Phase에서 실제 실행 코드와 함께 추가합니다.
+현재 `apps/mobile`, `apps/api`, `apps/api/migrations`가 구현됐습니다. `apps/merchant-web`, `apps/worker`, `contracts`, `infra`는 후속 Phase에서 실제 실행 코드와 함께 추가합니다.
 
 ## 기술 선택 상태
 
@@ -107,6 +109,19 @@ npm run typecheck --prefix apps/mobile
 npm run lint --prefix apps/mobile
 npm run export:android --prefix apps/mobile
 ```
+
+Phase 2 점포 카탈로그는 실제 PostgreSQL 연결이 필요합니다.
+
+```bash
+export DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_dev'
+read -s PGPASSWORD && export PGPASSWORD
+npm run db:migrate --prefix apps/api
+export TEST_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_test'
+DATABASE_URL="$TEST_DATABASE_URL" npm run db:migrate --prefix apps/api
+npm run test:postgres --prefix apps/api
+```
+
+통합 테스트는 테이블을 비우므로 DB 이름이 `_test`로 끝나는 전용 데이터베이스만 허용합니다. `GET /merchants`는 로그인·지갑 없이 활성 점포와 공개 중인 현재 캠페인만 반환합니다. 저장소에는 실제 협약 점포 seed를 넣지 않으며 테스트 fixture는 `demo: true`로 구분합니다.
 
 상세 development build 절차와 환경 변수는 [`apps/mobile/README.md`](apps/mobile/README.md), [`apps/api/README.md`](apps/api/README.md)를 따릅니다.
 

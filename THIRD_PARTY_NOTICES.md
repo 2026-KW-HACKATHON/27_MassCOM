@@ -9,6 +9,8 @@
 | WalletConnect React Native compat | 2.25.0 | [upstream](https://github.com/WalletConnect/walletconnect-monorepo), LICENSE.md | React Native WalletConnect polyfill |
 | SIWE | 3.0.0 | [SpruceID SIWE](https://github.com/spruceid/siwe), MIT | ERC-4361 메시지 생성·파싱·검증 |
 | ethers | 6.17.0 | [ethers.js](https://github.com/ethers-io/ethers.js), MIT | 서명 복구·주소 정규화 |
+| node-postgres (`pg`) | 8.23.0 | [node-postgres](https://github.com/brianc/node-postgres), MIT | PostgreSQL 연결·parameterized query·migration 실행 |
+| PostgreSQL | 18 Alpine(개발·CI) | [PostgreSQL](https://www.postgresql.org/), PostgreSQL License | 점포·캠페인 영속 저장과 실제 통합 테스트 |
 
 Expo 기본 템플릿의 개발 아이콘·스플래시 자산이 현재 `apps/mobile/assets`에 남아 있습니다. 출시 브랜딩 자산이 아니며 Expo MIT License 범위에서 사용합니다.
 
