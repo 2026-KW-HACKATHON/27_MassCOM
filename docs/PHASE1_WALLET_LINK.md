@@ -57,12 +57,13 @@ GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLO
 - 서명 승인 후 서버가 계정·주소·도메인·체인·nonce·만료·원문을 검증하고 앱이 `VERIFIED` 표시 PASS
 - 프로세스 종료 후 세션은 `CONNECTED / BASE_SEPOLIA`로 복원되고 주소 확인은 `UNVERIFIED`로 안전하게 초기화 PASS
 - 실제 서명 거절 후 `CONNECTED / BASE_SEPOLIA / UNVERIFIED`와 방문 기록·받을 수집품 보존 안내 표시 PASS
+- 실제 연결 승인 거절 후 Android 뒤로가기로 앱에 복귀했을 때 `NOT_CONNECTED / CHECK_REQUIRED / UNVERIFIED`와 같은 보존 안내 표시 PASS
 - 증거: [`android-physical-device.json`](evidence/android-physical-device.json), [`android-wallet-connection.json`](evidence/android-wallet-connection.json)
 
 ## 남은 실기
 
 - Reown project ID·사용자 지갑 부재 blocker는 해소됨
-- 연결 승인 화면 거절의 수정 후 앱 자동 복귀 실기 재확인, 지갑 미설치·복귀 실패·주소 변경·미지원 지갑은 `NOT_RUN`
+- MetaMask 거절 후 자동 딥링크 복귀, 지갑 미설치·복귀 실패·주소 변경·미지원 지갑은 `NOT_RUN`
 - release package ID·AAB·App Link·Play 트랙 미확정
 
 ## 공식 근거
