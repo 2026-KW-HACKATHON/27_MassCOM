@@ -2,7 +2,7 @@
 
 GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLOSED · PR [#10](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/10) MERGED · merge `80bf53b`
 
-실제 지갑 후속: Issue [#25](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/25) · PR [#26](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/26)
+실제 지갑 후속: Issue [#25](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/25) · PR [#26](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/26) · 연결 거절 Issue [#31](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/31) · PR [#32](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/32)
 
 ## 구현 범위
 
@@ -39,7 +39,7 @@ GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLO
 ## 자동화 결과
 
 - API: 15개 PASS — challenge, 실제 서명 복구, replay, 만료 경계, 안전한 SIWE 설정, domain/message 변조, 주소 변경, spoof 불가 account resolver·계정 경계
-- 앱 순수 로직: 19개 PASS — 허용 메서드 allowlist, 거래/typed-data 거절, 환경 경계, API 오류 보존, WalletConnect 초기 이벤트 경쟁·세션 체인·거절 응답 회귀
+- 앱 순수 로직: 20개 PASS — 허용 메서드 allowlist, 거래/typed-data 거절, 환경 경계, API 오류 보존, WalletConnect 초기 이벤트 경쟁·세션 체인·거절 응답과 Reown `USER_REJECTED` 이벤트 회귀
 - `expo-doctor`: 21/21 PASS
 - TypeScript·ESLint·Android Metro export: PASS
 - Android debug APK: 빌드·설치·실행 PASS
@@ -56,12 +56,13 @@ GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLO
 - MetaMask가 `로그인 요청`과 읽을 수 있는 주소 확인 문구만 표시했으며 송금·approve·permit 요청 없음
 - 서명 승인 후 서버가 계정·주소·도메인·체인·nonce·만료·원문을 검증하고 앱이 `VERIFIED` 표시 PASS
 - 프로세스 종료 후 세션은 `CONNECTED / BASE_SEPOLIA`로 복원되고 주소 확인은 `UNVERIFIED`로 안전하게 초기화 PASS
+- 실제 서명 거절 후 `CONNECTED / BASE_SEPOLIA / UNVERIFIED`와 방문 기록·받을 수집품 보존 안내 표시 PASS
 - 증거: [`android-physical-device.json`](evidence/android-physical-device.json), [`android-wallet-connection.json`](evidence/android-wallet-connection.json)
 
 ## 남은 실기
 
 - Reown project ID·사용자 지갑 부재 blocker는 해소됨
-- 수정 후 사용자 거절 안내 실기 재확인, 지갑 미설치·복귀 실패·주소 변경·미지원 지갑은 `NOT_RUN`
+- 연결 승인 화면 거절의 수정 후 앱 자동 복귀 실기 재확인, 지갑 미설치·복귀 실패·주소 변경·미지원 지갑은 `NOT_RUN`
 - release package ID·AAB·App Link·Play 트랙 미확정
 
 ## 공식 근거

@@ -17,7 +17,7 @@
 | W03 | 서명 검증 | PASS | 만료·사용한 nonce 재사용 | 거절 | 5분 만료·단일 소비·replay 409 PASS |
 | W04 | Android·지갑 | NOT_RUN | 서명 도중 지갑 주소 변경 | 기존 원문·확인 상태 무효 | 자동화 PASS, MetaMask 실기 NOT_RUN |
 | W05 | Android·지갑 | NOT_RUN | 지원하지 않는 스마트 지갑 | 무검증 우회 없이 설명·거절 | 실기 미수행 |
-| W06 | Android 실기 | NOT_RUN | 지갑 미설치·서명 거절·복귀 실패 | 안내와 재시도, 보상권 유지 | 연결·지갑 복귀·콜드 재시작 PASS. 실제 서명 거절 응답 형식으로 취소 정규화 자동화 PASS; 수정 후 실기 재확인, 지갑 미설치·복귀 실패는 NOT_RUN |
+| W06 | Android 실기 | NOT_RUN | 지갑 미설치·서명 거절·복귀 실패 | 안내와 재시도, 보상권 유지 | 연결·지갑 복귀·콜드 재시작 PASS. 실제 서명 거절 후 앱 보존 안내 PASS. 연결 거절 `USER_REJECTED` 자동화 PASS이나 수정 후 실기 재확인 대기; 지갑 미설치·복귀 실패는 NOT_RUN |
 | W07 | DB·Worker | NOT_RUN | 주소 연결 해제와 전송 경쟁 | 고정 수령인·명확한 작업 상태 | Worker 미구현 |
 | W08 | 배포 빌드 검사 | NOT_RUN | SDK 구매·스왑·내장 지갑 기본값 | 배포 빌드에 해당 진입점 없음 | 개발 코드 경계 PASS, 배포 빌드 NOT_RUN |
 | W09 | 요청 경계 | PASS | 예기치 않은 송금·approve 요청 | 앱 요청 경계에서 거절 | allowlist 외 요청 provider 호출 전 거절 PASS |
@@ -65,5 +65,6 @@
 | 2026-09-18 KST | `158067c` | debug APK 빌드·설치·Metro 실행·홈 복귀·콜드 스타트 | Samsung SM-S928N·Android 16·MetaMask 8.11.0 | 앱 실기 부분 PASS, W06 BLOCKED | `docs/evidence/android-physical-device.json`과 스크린샷; 지갑 생성·서명 미수행 |
 | 2026-09-18 KST | PR #26 HEAD | 모바일 19개·typecheck·lint·Expo doctor·Android export·실제 MetaMask 흐름 | Samsung SM-S928N·Android 16·MetaMask 8.11.0·Base Sepolia | 자동화 PASS, 연결·체인 승인·`personal_sign`·서버 `VERIFIED`·콜드 재시작 PASS, W01 PASS | `docs/evidence/android-wallet-connection.json`; 주소·서명·세션 토픽·기기 일련번호 미기록 |
 | 2026-09-18 KST | `bdeade4`, main CI `35319672490` | 모바일 19개·API 25개·PostgreSQL 통합·typecheck·lint·Android export·비밀 검사 | GitHub Actions Ubuntu·PostgreSQL 18 | PASS, Claude·Astra 검토 지적 반영 | PR #26·#28 merge; W04·W05·W06 잔여 실기는 `NOT_RUN` 유지 |
+| 2026-09-18 KST | `a24013a`, PR #32 CI `35321649502` | 모바일 20개·typecheck·lint·실제 MetaMask 서명 거절·연결 거절 이벤트 관측 | Samsung SM-S928N·Android 16·MetaMask 8.11.0, GitHub Actions Ubuntu | 자동화·서명 거절 실기 PASS; 연결 거절 수정 후 실기 재확인은 MetaMask 자동 잠금으로 대기 | Issue #31·PR #32; `docs/evidence/android-wallet-connection.json` |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R03은 각각 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04·R02는 계속 `NOT_RUN`입니다.

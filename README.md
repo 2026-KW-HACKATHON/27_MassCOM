@@ -136,7 +136,7 @@ npm run test:postgres --prefix apps/api
 - 정적 프로젝트 포털: 로컬 검증 중, 공개 URL 없음
 - Android debug APK: Android 16 16KB AVD와 Samsung SM-S928N 실기기에서 빌드·설치·실행·홈 복귀·콜드 스타트 검증, 저장소에는 미포함
 - Android AAB·release package ID·App Link: `NOT_RUN`
-- 실제 Reown·MetaMask 연결: MetaMask 8.11.0에서 연결·Base Sepolia 전환·주소 확인 서명·서버 검증·콜드 재시작 `PASS`; W04·W05·W06 전체 예외 묶음은 `NOT_RUN`
+- 실제 Reown·MetaMask 연결: MetaMask 8.11.0에서 연결·Base Sepolia 전환·주소 확인 서명·서버 검증·콜드 재시작·서명 거절 보존 안내 `PASS`; 연결 거절 수정 후 복귀와 W04·W05·W06 전체 예외 묶음은 `NOT_RUN`
 - 테스트넷 계약: 배포 전
 - 메인넷·Google Play·대회 제출: 명시 승인 전 실행 금지
 - 저장소: 현재 `PRIVATE`; 심사 시점 public 요구는 [대회 규칙](docs/COMPETITION.md)에 기록
