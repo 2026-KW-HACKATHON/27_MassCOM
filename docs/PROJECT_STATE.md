@@ -8,18 +8,18 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 브랜치 | `test/23-android-device` |
-| 현재 통합 기준 | `main@158067cf349d69bf7e1fdb3fa11e2dbcff8d7c0c`, CI run `35306108718` PASS |
-| 최근 merge | PR #22, `158067c` |
-| 현재 열린 Issue | #23 실제 Android 기기 Phase 1 검증 |
-| 현재 열린 PR | #24 실제 Android 기기 Phase 1 검증 증거 |
+| 현재 작업 브랜치 | `test/25-wallet-device` |
+| 현재 통합 기준 | `main@f85234f9d7d69d920fb5e942a5706b6d1611945f`, CI run `35309692169` PASS |
+| 최근 merge | PR #24, `f85234f` |
+| 현재 열린 Issue | #25 실제 MetaMask 연결과 주소 확인 서명 검증 |
+| 현재 열린 PR | #26 실제 지갑 연결·주소 확인 안정화 |
 
 ## Phase 상태
 
 | Phase | 상태 | 실제 근거 |
 | --- | --- | --- |
 | Phase 0 저장소·개발 기반 | `VERIFIED` | PR #2·#4·#6·#8, CI PASS |
-| Phase 1 외부 지갑 연결 | `IMPLEMENTED` | PR #10·#12, API 15개와 모바일 11개 자동화 PASS, 실제 Android debug 실행 PASS |
+| Phase 1 외부 지갑 연결 | `IN_PROGRESS` | API 15개·모바일 19개 자동화 PASS, 실제 Android·MetaMask 연결·Base Sepolia·서명·서버 확인·콜드 재시작 PASS; W04·W05·W06 잔여 실기 |
 | Phase 2 지역 상권 핵심 기능 | `IN_PROGRESS` | 카탈로그·점포 권한·일회용 QR·방문·고정 보상권 merge 완료 |
 | Phase 3 NFT | `PLANNED` | 계약·Worker·테스트넷 미착수 |
 | Phase 4 출시 기반 | `PLANNED` | 외부 HTTPS·AAB·탈퇴·복원 미착수 |
@@ -48,10 +48,13 @@
 - PR #22 merge `158067c`와 main CI run `35306108718` PASS
 - Samsung SM-S928N 실제 기기의 debug APK 설치·Metro 실행·홈 복귀·콜드 스타트
 - 공식 MetaMask 8.11.0 설치·첫 화면 실행(지갑 생성·가져오기 미수행)
+- 실제 MetaMask WalletConnect 연결·Base Sepolia 승인·읽을 수 있는 `personal_sign`·서버 주소 확인 `VERIFIED`
+- 콜드 재시작에서 지갑 세션 복원과 주소 확인 상태의 안전한 `UNVERIFIED` 초기화
+- UniversalProvider 2.23.5 override와 초기 체인 이벤트 경쟁 회귀 테스트
 
 ### 진행 중
 
-- Issue #23에서 실제 Android 기기 검증 증거와 상태 문서 정합성 반영
+- Issue #25에서 수정 후 사용자 거절 안내 실기 재확인과 PR·CI·merge 준비
 
 ### 미구현
 
@@ -62,7 +65,6 @@
 
 ### BLOCKED
 
-- 실제 Reown·MetaMask 연결·서명: Reown project ID와 사용자가 초기화한 지갑 필요
 - 외부 HTTPS·유료 AWS 자원: 비용·계정 승인 필요
 - 저장소/포털 공개, Google Play 배포, 대회 제출: 명시 승인 필요
 
@@ -70,9 +72,9 @@
 
 - API 단위 테스트: `PASS` 25개
 - PostgreSQL 18 통합 테스트: `PASS` 4개(카탈로그·Q01~Q03·Q05·R01·R03, 로컬 Docker와 main CI)
-- v3 필수 36개: W02·W03·W09·Q01·Q02·Q03·Q05·R01·R03 `PASS`, W06 `BLOCKED`, 나머지 26개 `NOT_RUN`
-- Android: debug APK 빌드·Android 16 16KB AVD와 Samsung SM-S928N 설치·설정 화면·복귀 `PASS`
-- 외부 지갑 연결·서명 실기: `BLOCKED`
+- v3 필수 36개: W01·W02·W03·W09·Q01·Q02·Q03·Q05·R01·R03 `PASS`, 나머지 26개 `NOT_RUN`
+- Android: debug APK 빌드·Android 16 16KB AVD와 Samsung SM-S928N 설치·실행·복귀 `PASS`
+- 외부 지갑 핵심 흐름: MetaMask 연결·Base Sepolia·주소 확인 서명·서버 검증·콜드 재시작 `PASS`; 주소 변경·미지원/미설치 지갑 등은 `NOT_RUN`
 - 공개 HTTPS·GitHub Pages·Play: 미배포
 - NFT·테스트넷: 계약·전송 모두 미실행
 

@@ -1,0 +1,47 @@
+{
+  "checked_at": "2026-09-18T15:34:21+09:00",
+  "source_branch": "test/25-wallet-device",
+  "implementation_commit": "ecba181",
+  "base_commit": "f85234f9d7d69d920fb5e942a5706b6d1611945f",
+  "environment": {
+    "host": "macOS",
+    "device": "Samsung SM-S928N",
+    "android": "Android 16, API 36",
+    "wallet": "MetaMask 8.11.0",
+    "chain": "Base Sepolia, eip155:84532",
+    "transport": "USB debugging with adb reverse for local API 3000 and Metro 8081"
+  },
+  "dependencies": {
+    "appkit": "@reown/appkit-react-native 2.0.6",
+    "walletconnect_provider": "@walletconnect/universal-provider 2.23.5 override"
+  },
+  "results": {
+    "wallet_connection": "PASS: MetaMask connection approval created one acknowledged WalletConnect session",
+    "wrong_chain_visibility": "PASS: an approved Ethereum Mainnet account was shown as CONNECTED and CHECK_REQUIRED instead of NOT_CONNECTED",
+    "base_sepolia_setup": "PASS: Base Sepolia was added through the MetaMask settings UI with user authorization; the app did not request wallet_addEthereumChain",
+    "chain_switch": "PASS: MetaMask approved Base Sepolia and the app showed CONNECTED, BASE_SEPOLIA, UNVERIFIED",
+    "sign_request_boundary": "PASS: MetaMask displayed a readable login message on Base Sepolia; no transaction, approve, permit, swap, purchase, or asset movement request appeared",
+    "server_verification": "PASS: the app showed VERIFIED after personal_sign and server-side account, address, domain, chain, nonce, expiry, original-message, and recovered-signer checks",
+    "cold_restart": "PASS: the WalletConnect session restored as CONNECTED and BASE_SEPOLIA while address verification safely reset to UNVERIFIED",
+    "sign_rejection": "PARTIAL: the real wallet returned code 4001; the observed JSON-wrapped error now has an automated regression test, but the fixed user-facing message still needs one unlocked-device rerun",
+    "wallet_missing": "NOT_RUN",
+    "address_change": "NOT_RUN",
+    "unsupported_wallet": "NOT_RUN"
+  },
+  "automated_verification": {
+    "mobile_tests": "PASS: 19/19",
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "expo_doctor": "PASS: 21/21",
+    "android_export": "PASS: 2216 modules, 6.3 MB Hermes bundle",
+    "audit_high_threshold": "PASS: no high or critical advisories; 14 moderate and 1 low remain"
+  },
+  "privacy": {
+    "wallet_address_recorded": false,
+    "signature_recorded": false,
+    "session_topic_recorded": false,
+    "project_id_recorded": false,
+    "device_serial_recorded": false,
+    "seed_or_private_key_accessed": false
+  }
+}

@@ -38,6 +38,9 @@
     "tsx": "^4.21.0",
     "typescript": "~6.0.3"
   },
+  "overrides": {
+    "@walletconnect/universal-provider": "2.23.5"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",

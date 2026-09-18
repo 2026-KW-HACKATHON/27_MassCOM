@@ -12,12 +12,12 @@
 | R01 | PostgreSQL 동시성 | PASS | 한국 날짜 경계·동시 방문 평가 | 한국 날짜당 진행 최대 1회 | `14:59:59.999Z`와 `15:00:00Z` 경계가 서로 다른 KST 날짜, 같은 날짜 추가 방문은 진행도 미증가 |
 | R02 | PostgreSQL 동시성 | NOT_RUN | 마지막 캠페인 자리 동시 등록 | 약속한 공급 상한 초과 없음 | 등록·예약 미구현 |
 | R03 | 도메인·DB | PASS | 같은 목표 반복 평가 | 보상권 하나 | 첫/3/5회 목표만 생성, `(계정, 캠페인, 목표)` 고유 제약과 반복 평가에서 총 3건 유지 |
-| W01 | 지갑·API | NOT_RUN | 연결만 승인하고 서명 생략 | 미검증 주소, 민팅 불가 | API 거절 PASS, 실제 지갑 실기 NOT_RUN |
+| W01 | 지갑·API | PASS | 연결만 승인하고 서명 생략 | 미검증 주소, 민팅 불가 | MetaMask 연결 뒤 앱이 `CONNECTED / UNVERIFIED`를 표시했고 주소 확인 전에는 발행 상태가 없음; API 미검증 주소 거절 자동화 PASS |
 | W02 | 서명 검증 | PASS | 다른 계정·도메인·체인의 서명 | 거절 | Node HTTP·ethers 실제 서명 PASS |
 | W03 | 서명 검증 | PASS | 만료·사용한 nonce 재사용 | 거절 | 5분 만료·단일 소비·replay 409 PASS |
 | W04 | Android·지갑 | NOT_RUN | 서명 도중 지갑 주소 변경 | 기존 원문·확인 상태 무효 | 자동화 PASS, MetaMask 실기 NOT_RUN |
 | W05 | Android·지갑 | NOT_RUN | 지원하지 않는 스마트 지갑 | 무검증 우회 없이 설명·거절 | 실기 미수행 |
-| W06 | Android 실기 | BLOCKED | 지갑 미설치·서명 거절·복귀 실패 | 안내와 재시도, 보상권 유지 | SM-S928N 설치·설정 화면·홈 복귀·콜드 스타트 PASS, MetaMask 설치 완료; Reown project ID와 초기화된 사용자 지갑 부재로 지갑 시나리오 BLOCKED |
+| W06 | Android 실기 | NOT_RUN | 지갑 미설치·서명 거절·복귀 실패 | 안내와 재시도, 보상권 유지 | 연결·지갑 복귀·콜드 재시작 PASS. 실제 서명 거절 응답 형식으로 취소 정규화 자동화 PASS; 수정 후 실기 재확인, 지갑 미설치·복귀 실패는 NOT_RUN |
 | W07 | DB·Worker | NOT_RUN | 주소 연결 해제와 전송 경쟁 | 고정 수령인·명확한 작업 상태 | Worker 미구현 |
 | W08 | 배포 빌드 검사 | NOT_RUN | SDK 구매·스왑·내장 지갑 기본값 | 배포 빌드에 해당 진입점 없음 | 개발 코드 경계 PASS, 배포 빌드 NOT_RUN |
 | W09 | 요청 경계 | PASS | 예기치 않은 송금·approve 요청 | 앱 요청 경계에서 거절 | allowlist 외 요청 provider 호출 전 거절 PASS |
@@ -63,5 +63,6 @@
 | 2026-09-18 KST | `6823119` | API 25개·PostgreSQL 3개·typecheck·build·production audit | Node 25.9.0·PostgreSQL 18 Alpine | PASS, production 취약점 0 | HMAC 저장과 `tokenVersion` 동시 재발급 회귀 포함 |
 | 2026-09-18 KST | `3eb9e5a` | API 25개·PostgreSQL 4개·Q01·R01·R03·typecheck·build·production audit | Node 25.9.0·PostgreSQL 18 Alpine | PASS, production 취약점 0 | 슬롯·방문·보상권 원자 처리와 캠페인 부재 전체 롤백 포함 |
 | 2026-09-18 KST | `158067c` | debug APK 빌드·설치·Metro 실행·홈 복귀·콜드 스타트 | Samsung SM-S928N·Android 16·MetaMask 8.11.0 | 앱 실기 부분 PASS, W06 BLOCKED | `docs/evidence/android-physical-device.json`과 스크린샷; 지갑 생성·서명 미수행 |
+| 2026-09-18 KST | PR #26 HEAD | 모바일 19개·typecheck·lint·Expo doctor·Android export·실제 MetaMask 흐름 | Samsung SM-S928N·Android 16·MetaMask 8.11.0·Base Sepolia | 자동화 PASS, 연결·체인 승인·`personal_sign`·서버 `VERIFIED`·콜드 재시작 PASS, W01 PASS | `docs/evidence/android-wallet-connection.json`; 주소·서명·세션 토픽·기기 일련번호 미기록 |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R03은 각각 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04·R02는 계속 `NOT_RUN`입니다.

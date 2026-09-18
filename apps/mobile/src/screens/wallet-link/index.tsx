@@ -6,8 +6,10 @@ import { AppState, ScrollView, StyleSheet, Text, View, useColorScheme } from 're
 import { colors } from '@/theme/colors';
 import { baseSepolia } from '@/wallet/base-sepolia';
 import { WalletApiClient, WalletApiError } from '@/wallet/wallet-api';
+import { isWalletUserRejection } from '@/wallet/wallet-error';
 import { buildPersonalSignRequest, safeWalletRequest } from '@/wallet/wallet-method-policy';
 import type { AvailableWalletRuntimeConfig } from '@/wallet/wallet-runtime-config';
+import { readApprovedEvmAccount } from '@/wallet/wallet-session';
 
 type Props = {
   config: AvailableWalletRuntimeConfig;
@@ -25,7 +27,7 @@ type Phase =
 
 export function WalletLinkScreen({ config }: Props) {
   useColorScheme();
-  const { address, chainId, isConnected } = useAccount();
+  const { address, chainId } = useAccount();
   const { provider } = useProvider();
   const { open, disconnect, switchNetwork } = useAppKit();
   const api = useMemo(
@@ -36,15 +38,23 @@ export function WalletLinkScreen({ config }: Props) {
   const [phase, setPhase] = useState<Phase>('connected');
   const [verifiedAddress, setVerifiedAddress] = useState<string>();
   const [message, setMessage] = useState('지갑 연결과 주소 확인 서명은 서로 다른 단계입니다.');
+  const approvedAccount = readApprovedEvmAccount(provider, config.chainId);
+  const connectedAddress = address ?? approvedAccount?.address;
+  const currentChainId = address ? parseChainId(chainId) : approvedAccount?.chainId;
+  const hasWalletSession = Boolean(provider && connectedAddress);
 
   useEffect(() => {
-    if (previousAddress.current && address && previousAddress.current !== address) {
+    if (
+      previousAddress.current &&
+      connectedAddress &&
+      previousAddress.current !== connectedAddress
+    ) {
       setVerifiedAddress(undefined);
       setPhase('error');
       setMessage('지갑 주소가 변경되어 기존 확인 상태를 지웠습니다. 새 주소로 다시 서명해 주세요.');
     }
-    previousAddress.current = address;
-  }, [address]);
+    previousAddress.current = connectedAddress;
+  }, [connectedAddress]);
 
   useEffect(() => {
     if (!provider) return;
@@ -67,7 +77,6 @@ export function WalletLinkScreen({ config }: Props) {
   }, [provider, verifiedAddress]);
 
   const busy = ['requesting-challenge', 'awaiting-signature', 'verifying'].includes(phase);
-  const currentChainId = parseChainId(chainId);
 
   async function openWalletSelector() {
     try {
@@ -80,7 +89,7 @@ export function WalletLinkScreen({ config }: Props) {
   }
 
   async function verifyAddress() {
-    if (!provider || !address) {
+    if (!provider || !connectedAddress) {
       setPhase('error');
       setMessage('먼저 외부 지갑을 연결해 주세요.');
       return;
@@ -105,13 +114,13 @@ export function WalletLinkScreen({ config }: Props) {
       setVerifiedAddress(undefined);
       setPhase('requesting-challenge');
       setMessage('서버에서 일회용 주소 확인 문구를 받고 있습니다.');
-      const challenge = await api.createChallenge(address);
+      const challenge = await api.createChallenge(connectedAddress);
 
       setPhase('awaiting-signature');
       setMessage('지갑에서 읽을 수 있는 주소 확인 문구만 서명해 주세요.');
       const signature = await safeWalletRequest<string>(
         provider,
-        buildPersonalSignRequest(challenge.message, address),
+        buildPersonalSignRequest(challenge.message, connectedAddress),
       );
 
       const accounts = await safeWalletRequest<string[]>(provider, { method: 'eth_accounts' });
@@ -159,10 +168,10 @@ export function WalletLinkScreen({ config }: Props) {
       </View>
 
       <View style={styles.card}>
-        <StatusRow label="연결" value={isConnected ? 'CONNECTED' : 'NOT_CONNECTED'} />
+        <StatusRow label="연결" value={hasWalletSession ? 'CONNECTED' : 'NOT_CONNECTED'} />
         <StatusRow label="체인" value={currentChainId === 84532 ? 'BASE_SEPOLIA' : 'CHECK_REQUIRED'} />
         <StatusRow label="주소 확인" value={verifiedAddress ? 'VERIFIED' : 'UNVERIFIED'} />
-        {address ? <Text selectable style={styles.address}>{address}</Text> : null}
+        {connectedAddress ? <Text selectable style={styles.address}>{connectedAddress}</Text> : null}
       </View>
 
       <View style={[styles.message, phase === 'error' || phase === 'cancelled' ? styles.messageError : null]}>
@@ -170,12 +179,20 @@ export function WalletLinkScreen({ config }: Props) {
       </View>
 
       <View style={styles.actions}>
-        {!isConnected ? (
+        {!hasWalletSession ? (
           <NativeButton label="외부 지갑 연결" onPress={openWalletSelector} />
         ) : (
           <>
             <NativeButton
-              label={busy ? '확인 중…' : verifiedAddress ? '새로 확인하기' : '주소 확인 서명'}
+              label={
+                busy
+                  ? '확인 중…'
+                  : currentChainId !== config.chainId
+                    ? 'Base Sepolia로 전환'
+                    : verifiedAddress
+                      ? '새로 확인하기'
+                      : '주소 확인 서명'
+              }
               onPress={busy ? undefined : verifyAddress}
             />
             <NativeButton label="연결 해제" variant="outlined" onPress={busy ? undefined : disconnectWallet} />
@@ -229,7 +246,7 @@ function parseChainId(value: string | undefined): number | undefined {
 }
 
 function messageFor(error: unknown): { cancelled: boolean; text: string } {
-  if (isProviderRejection(error)) {
+  if (isWalletUserRejection(error)) {
     return { cancelled: true, text: '지갑 연결 또는 서명을 취소했습니다. 방문 기록과 받을 수집품은 유지됩니다.' };
   }
   if (error instanceof WalletApiError) {
@@ -242,10 +259,6 @@ function messageFor(error: unknown): { cancelled: boolean; text: string } {
     return { cancelled: false, text: messages[error.code] ?? `서버 확인 실패: ${error.code}` };
   }
   return { cancelled: false, text: '지갑 또는 네트워크 오류가 발생했습니다. 연결 상태를 확인하고 다시 시도해 주세요.' };
-}
-
-function isProviderRejection(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 4001;
 }
 
 const styles = StyleSheet.create({
