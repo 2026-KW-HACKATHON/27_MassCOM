@@ -59,3 +59,4 @@
 | 2026-09-18 KST | `6ec754b` | `expo-doctor` / Android export / Gradle assembleDebug | Expo 57, SDK 36, JDK 21 | PASS: doctor 21/21, bundle, debug APK | `docs/evidence/android-wallet-build.json` |
 | 2026-09-18 KST | `6ec754b` | `adb install -r .../app-debug.apk` 및 dev-client 실행 | Android 16, arm64, 16KB AVD | PASS: APK 설치, 설정 BLOCKED 화면 렌더 | `docs/evidence/android-wallet-config-required.png` |
 | 2026-09-18 KST | `94a2e20` | GitHub Actions `bootstrap-contract` | Ubuntu, Node 24.10.0 | PASS: clean npm ci·API·Android bundle·high audit, 1분 45초 | PR #10 Actions run `35293006696` |
+| 2026-09-18 KST | `dc87855` | GitHub Actions `bootstrap-contract` | Ubuntu, Node 24.10.0 | PASS: 최종 HEAD clean install·API·Android bundle, 1분 28초 | PR #10 Actions run `35293207033` |
