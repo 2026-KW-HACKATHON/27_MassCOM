@@ -6,7 +6,7 @@
 
 통합 기준 커밋 SHA: `main@9c5ad0ef63a5ee918a84f71efa45e88d6576d104`, main CI run `35320255132` PASS
 
-현재 작업: `fix/31-wallet-rejection-event@95a46e9c7bee09efbae97fc6d92712ee9715059e`, PR #32 OPEN
+현재 작업: `fix/31-wallet-rejection-event@a4dc155`, PR #32 OPEN
 
 ## 이번 세션에서 완료한 것
 
@@ -47,7 +47,7 @@
 
 ## 실행한 테스트
 
-- 모바일 테스트 20/20, typecheck, lint `PASS`
+- 모바일 테스트 21/21, typecheck, lint `PASS`
 - Expo doctor 21/21, Android export 2,216 modules `PASS`
 - npm audit high 기준 `PASS`; 기존 moderate 14·low 1 유지
 - MetaMask 8.11.0 WalletConnect 연결 `PASS`
@@ -58,7 +58,7 @@
 - 연결 승인 거절의 Reown `USER_REJECTED` 관측과 회귀 자동화 `PASS`; 수정 후 앱 자동 복귀 실기는 MetaMask 자동 잠금으로 대기
 - WalletConnect 연결 거절 5000~5003과 Reown 체인 전환 거절 변환 자동화 `PASS`
 - PR #28 최신 HEAD 모바일 19/19·typecheck·secret scan, Astra high 재검증 `PASS`
-- PR #32 HEAD `a24013a` 모바일 20/20·typecheck·lint와 CI run `35321649502` `PASS`
+- PR #32 HEAD `a4dc155` 모바일 21/21·typecheck·lint `PASS`; 최신 CI 확인 대기
 
 ## 현재 Phase 1 상태
 

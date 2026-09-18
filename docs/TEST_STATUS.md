@@ -65,6 +65,6 @@
 | 2026-09-18 KST | `158067c` | debug APK 빌드·설치·Metro 실행·홈 복귀·콜드 스타트 | Samsung SM-S928N·Android 16·MetaMask 8.11.0 | 앱 실기 부분 PASS, W06 BLOCKED | `docs/evidence/android-physical-device.json`과 스크린샷; 지갑 생성·서명 미수행 |
 | 2026-09-18 KST | PR #26 HEAD | 모바일 19개·typecheck·lint·Expo doctor·Android export·실제 MetaMask 흐름 | Samsung SM-S928N·Android 16·MetaMask 8.11.0·Base Sepolia | 자동화 PASS, 연결·체인 승인·`personal_sign`·서버 `VERIFIED`·콜드 재시작 PASS, W01 PASS | `docs/evidence/android-wallet-connection.json`; 주소·서명·세션 토픽·기기 일련번호 미기록 |
 | 2026-09-18 KST | `bdeade4`, main CI `35319672490` | 모바일 19개·API 25개·PostgreSQL 통합·typecheck·lint·Android export·비밀 검사 | GitHub Actions Ubuntu·PostgreSQL 18 | PASS, Claude·Astra 검토 지적 반영 | PR #26·#28 merge; W04·W05·W06 잔여 실기는 `NOT_RUN` 유지 |
-| 2026-09-18 KST | `a24013a`, PR #32 CI `35321649502` | 모바일 20개·typecheck·lint·실제 MetaMask 서명 거절·연결 거절 이벤트 관측 | Samsung SM-S928N·Android 16·MetaMask 8.11.0, GitHub Actions Ubuntu | 자동화·서명 거절 실기 PASS; 연결 거절 수정 후 실기 재확인은 MetaMask 자동 잠금으로 대기 | Issue #31·PR #32; `docs/evidence/android-wallet-connection.json` |
+| 2026-09-18 KST | `a4dc155`, PR #32 | 모바일 21개·typecheck·lint·실제 MetaMask 서명 거절·연결 거절 이벤트 관측 | Samsung SM-S928N·Android 16·MetaMask 8.11.0, macOS | 자동화·서명 거절 실기 PASS; 연결 거절 수정 후 실기 재확인은 MetaMask 자동 잠금으로 대기 | Issue #31·PR #32; `docs/evidence/android-wallet-connection.json` |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R03은 각각 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04·R02는 계속 `NOT_RUN`입니다.

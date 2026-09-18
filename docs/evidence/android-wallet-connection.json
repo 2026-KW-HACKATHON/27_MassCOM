@@ -6,7 +6,7 @@
   "latest_retest": {
     "checked_at": "2026-09-18T16:58:50+09:00",
     "source_branch": "fix/31-wallet-rejection-event",
-    "implementation_commit": "a24013a14d12c88ea4d6c010403921654ae79d05"
+    "implementation_commit": "a4dc155b4db96bd93a68d2affb3c464739fb83cc"
   },
   "environment": {
     "host": "macOS",
@@ -35,7 +35,7 @@
     "unsupported_wallet": "NOT_RUN"
   },
   "automated_verification": {
-    "mobile_tests": "PASS: 20/20",
+    "mobile_tests": "PASS: 21/21",
     "typecheck": "PASS",
     "lint": "PASS",
     "expo_doctor": "PASS: 21/21",
