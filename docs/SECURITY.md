@@ -39,4 +39,4 @@
 
 ## 미검증
 
-실제 Android 기기에서 Reown gateway, WalletConnect 세션, Base Sepolia 전환, 읽을 수 있는 `personal_sign`, 서버 서명 복구와 콜드 재시작 세션 복원을 확인했습니다. 주소 변경·미지원 지갑·지갑 미설치, Android App Link, release 서명, AAB 16KB 호환, 외부 HTTPS는 아직 검증되지 않았습니다. PostgreSQL 방문·보상권 원자 트랜잭션은 검증했지만 방문 취소·도감 조회·Android QR 카메라는 아직 `NOT_RUN`입니다.
+실제 Android 기기에서 Reown gateway, WalletConnect 세션, Base Sepolia 전환, 읽을 수 있는 `personal_sign`, 서버 서명 복구와 콜드 재시작 세션 복원을 확인했습니다. Base Sepolia 등록은 앱 RPC가 아니라 MetaMask 설정 UI에서 사용자가 직접 승인했으며, 앱의 체인 전환 경로는 `wallet_switchEthereumChain`만 요청합니다. `wallet_addEthereumChain`은 세션 제안과 앱 허용 목록에서 제외되고 SDK 특성화 테스트에서도 요청되지 않는지 확인합니다. 주소 변경·미지원 지갑·지갑 미설치, Android App Link, release 서명, AAB 16KB 호환, 외부 HTTPS는 아직 검증되지 않았습니다. PostgreSQL 방문·보상권 원자 트랜잭션은 검증했지만 방문 취소·도감 조회·Android QR 카메라는 아직 `NOT_RUN`입니다.

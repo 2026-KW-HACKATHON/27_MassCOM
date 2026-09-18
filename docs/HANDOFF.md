@@ -42,7 +42,7 @@
 
 ## 실행한 테스트
 
-- 모바일 테스트 18/18, typecheck, lint `PASS`
+- 모바일 테스트 19/19, typecheck, lint `PASS`
 - Expo doctor 21/21, Android export 2,216 modules `PASS`
 - npm audit high 기준 `PASS`; 기존 moderate 14·low 1 유지
 - MetaMask 8.11.0 WalletConnect 연결 `PASS`

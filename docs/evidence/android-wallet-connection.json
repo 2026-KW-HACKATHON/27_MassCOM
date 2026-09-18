@@ -18,7 +18,7 @@
   "results": {
     "wallet_connection": "PASS: MetaMask connection approval created one acknowledged WalletConnect session",
     "wrong_chain_visibility": "PASS: an approved Ethereum Mainnet account was shown as CONNECTED and CHECK_REQUIRED instead of NOT_CONNECTED",
-    "base_sepolia_setup": "PASS: user-authorized Base Sepolia public network configuration was added to MetaMask",
+    "base_sepolia_setup": "PASS: Base Sepolia was added through the MetaMask settings UI with user authorization; the app did not request wallet_addEthereumChain",
     "chain_switch": "PASS: MetaMask approved Base Sepolia and the app showed CONNECTED, BASE_SEPOLIA, UNVERIFIED",
     "sign_request_boundary": "PASS: MetaMask displayed a readable login message on Base Sepolia; no transaction, approve, permit, swap, purchase, or asset movement request appeared",
     "server_verification": "PASS: the app showed VERIFIED after personal_sign and server-side account, address, domain, chain, nonce, expiry, original-message, and recovered-signer checks",
@@ -29,7 +29,7 @@
     "unsupported_wallet": "NOT_RUN"
   },
   "automated_verification": {
-    "mobile_tests": "PASS: 18/18",
+    "mobile_tests": "PASS: 19/19",
     "typecheck": "PASS",
     "lint": "PASS",
     "expo_doctor": "PASS: 21/21",

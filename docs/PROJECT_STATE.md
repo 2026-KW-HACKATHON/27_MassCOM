@@ -19,7 +19,7 @@
 | Phase | 상태 | 실제 근거 |
 | --- | --- | --- |
 | Phase 0 저장소·개발 기반 | `VERIFIED` | PR #2·#4·#6·#8, CI PASS |
-| Phase 1 외부 지갑 연결 | `IN_PROGRESS` | API 15개·모바일 18개 자동화 PASS, 실제 Android·MetaMask 연결·Base Sepolia·서명·서버 확인·콜드 재시작 PASS; W04·W05·W06 잔여 실기 |
+| Phase 1 외부 지갑 연결 | `IN_PROGRESS` | API 15개·모바일 19개 자동화 PASS, 실제 Android·MetaMask 연결·Base Sepolia·서명·서버 확인·콜드 재시작 PASS; W04·W05·W06 잔여 실기 |
 | Phase 2 지역 상권 핵심 기능 | `IN_PROGRESS` | 카탈로그·점포 권한·일회용 QR·방문·고정 보상권 merge 완료 |
 | Phase 3 NFT | `PLANNED` | 계약·Worker·테스트넷 미착수 |
 | Phase 4 출시 기반 | `PLANNED` | 외부 HTTPS·AAB·탈퇴·복원 미착수 |
