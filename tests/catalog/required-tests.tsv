@@ -7,15 +7,15 @@ Q05	authorization	NOT_RUN	다른 점포 직원·다른 사용자 접근	조회·
 R01	postgres-concurrency	NOT_RUN	한국 날짜 경계·동시 방문 평가	정한 일별 규칙대로 최대 1회	정책 미승인
 R02	postgres-concurrency	NOT_RUN	마지막 캠페인 자리 동시 등록	약속한 공급 상한 초과 없음	미구현
 R03	domain-db	NOT_RUN	같은 목표 반복 평가	보상권 하나	미구현
-W01	wallet-api	NOT_RUN	연결만 승인하고 서명 생략	미검증 주소, 민팅 불가	미구현
-W02	signature	NOT_RUN	다른 계정·도메인·체인의 서명	거절	미구현
-W03	signature	NOT_RUN	만료·사용한 nonce 재사용	거절	미구현
-W04	android-wallet	NOT_RUN	서명 도중 지갑 주소 변경	기존 원문·확인 상태 무효	미구현
+W01	wallet-api	NOT_RUN	연결만 승인하고 서명 생략	미검증 주소, 민팅 불가	API 자동화 부분 PASS; 실제 지갑 NOT_RUN
+W02	signature	PASS	다른 계정·도메인·체인의 서명	거절	API 실제 ethers 서명·HTTP 계정 경계 PASS
+W03	signature	PASS	만료·사용한 nonce 재사용	거절	5분 만료·nonce replay PASS
+W04	android-wallet	NOT_RUN	서명 도중 지갑 주소 변경	기존 원문·확인 상태 무효	서버·앱 로직 부분 PASS; 실제 지갑 NOT_RUN
 W05	android-wallet	NOT_RUN	지원하지 않는 스마트 지갑	무검증 우회 없이 설명·거절	미구현
 W06	android-device	NOT_RUN	지갑 미설치·서명 거절·복귀 실패	안내와 재시도, 보상권 유지	미구현
 W07	db-worker	NOT_RUN	주소 연결 해제와 전송 경쟁	고정 수령인·명확한 작업 상태	미구현
 W08	release-inspection	NOT_RUN	SDK 구매·스왑·내장 지갑 기본값	배포 빌드에 해당 진입점 없음	스택 미승인
-W09	request-boundary	NOT_RUN	예기치 않은 송금·approve 요청	앱 요청 경계에서 거절	미구현
+W09	request-boundary	PASS	예기치 않은 송금·approve 요청	앱 요청 경계에서 거절	allowlist·provider 미호출 회귀 PASS
 M01	worker-chain	NOT_RUN	같은 발급 버튼·Worker 중복 실행	온체인 NFT 하나	미구현
 M02	worker-chain	NOT_RUN	전송 직후 응답 유실	기존 발행 조회, 새 보상 키 금지	미구현
 M03	worker-chain	NOT_RUN	Worker 재시작·nonce 경합	순번 충돌·중복 효과 없음	미구현

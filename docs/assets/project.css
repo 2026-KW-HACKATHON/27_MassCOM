@@ -311,6 +311,11 @@ h1 {
   color: #435e68;
 }
 
+.status-implemented {
+  background: #d9ecff;
+  color: #245976;
+}
+
 .status-blocked {
   background: #fce4da;
   color: #9a371d;

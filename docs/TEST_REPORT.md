@@ -14,15 +14,15 @@
 | R01 | PostgreSQL 동시성 | NOT_RUN | 한국 날짜 경계·동시 방문 평가 | 정한 일별 규칙대로 최대 1회 | 정책 미승인 |
 | R02 | PostgreSQL 동시성 | NOT_RUN | 마지막 캠페인 자리 동시 등록 | 약속한 공급 상한 초과 없음 | 미구현 |
 | R03 | 도메인·DB | NOT_RUN | 같은 목표 반복 평가 | 보상권 하나 | 미구현 |
-| W01 | 지갑·API | NOT_RUN | 연결만 승인하고 서명 생략 | 미검증 주소, 민팅 불가 | 미구현 |
-| W02 | 서명 검증 | NOT_RUN | 다른 계정·도메인·체인의 서명 | 거절 | 미구현 |
-| W03 | 서명 검증 | NOT_RUN | 만료·사용한 nonce 재사용 | 거절 | 미구현 |
-| W04 | Android·지갑 | NOT_RUN | 서명 도중 지갑 주소 변경 | 기존 원문·확인 상태 무효 | 미구현 |
+| W01 | 지갑·API | NOT_RUN | 연결만 승인하고 서명 생략 | 미검증 주소, 민팅 불가 | API `SIGNATURE_REQUIRED` PASS; 실제 외부 지갑 연결 후 생략 실기 NOT_RUN |
+| W02 | 서명 검증 | PASS | 다른 계정·도메인·체인의 서명 | 거절 | Node HTTP·ethers 실제 서명: account/domain/message/chain 거절 PASS |
+| W03 | 서명 검증 | PASS | 만료·사용한 nonce 재사용 | 거절 | 5분 만료·성공 nonce 단일 소비·replay 409 PASS |
+| W04 | Android·지갑 | NOT_RUN | 서명 도중 지갑 주소 변경 | 기존 원문·확인 상태 무효 | 서버·앱 주소 변경 무효화 로직 PASS; 실제 MetaMask 전환 NOT_RUN |
 | W05 | Android·지갑 | NOT_RUN | 지원하지 않는 스마트 지갑 | 무검증 우회 없이 설명·거절 | 미구현 |
 | W06 | Android 실기 | NOT_RUN | 지갑 미설치·서명 거절·복귀 실패 | 안내와 재시도, 보상권 유지 | 미구현 |
 | W07 | DB·Worker | NOT_RUN | 주소 연결 해제와 전송 경쟁 | 고정 수령인·명확한 작업 상태 | 미구현 |
 | W08 | 배포 빌드 검사 | NOT_RUN | SDK 구매·스왑·내장 지갑 기본값 | 배포 빌드에 해당 진입점 없음 | 스택 미승인 |
-| W09 | 요청 경계 | NOT_RUN | 예기치 않은 송금·approve 요청 | 앱 요청 경계에서 거절 | 미구현 |
+| W09 | 요청 경계 | PASS | 예기치 않은 송금·approve 요청 | 앱 요청 경계에서 거절 | allowlist 5개 외 transaction·typed-data·batch call 거절, provider 미호출 PASS |
 | M01 | Worker·체인 | NOT_RUN | 같은 발급 버튼·Worker 중복 실행 | 온체인 NFT 하나 | 미구현 |
 | M02 | Worker·체인 | NOT_RUN | 전송 직후 응답 유실 | 기존 발행 조회, 새 보상 키 금지 | 미구현 |
 | M03 | Worker·체인 | NOT_RUN | Worker 재시작·nonce 경합 | 순번 충돌·중복 효과 없음 | 미구현 |
@@ -39,7 +39,7 @@
 | D02 | Android·API | NOT_RUN | 계정 전환·캐시 복구 | 이전 사용자 데이터 미노출 | 미구현 |
 | D03 | 정적·통합 검사 | NOT_RUN | 로그·분석·메타데이터 검사 | 개인키·QR·개인 식별자 누출 없음 | 미구현 |
 | A01 | Android 실기 | NOT_RUN | 카메라 권한 거절·오프라인 | 수동 코드·정확한 상태 표시 | 미구현 |
-| A02 | Android 릴리스 | NOT_RUN | 실제 AAB·16KB·앱 링크 | 설치·실행·복귀 정상 | 미구현 |
+| A02 | Android 릴리스 | NOT_RUN | 실제 AAB·16KB·앱 링크 | 설치·실행·복귀 정상 | Android 16 16KB AVD debug APK 빌드·설치·실행 부분 PASS; AAB·App Link NOT_RUN |
 | O01 | 환경 권한 | NOT_RUN | 시연 권리로 운영 API 접근 | 환경 경계에서 거절 | 미구현 |
 | O02 | 장애·복원 | NOT_RUN | RPC·민터 잔액·DB 장애 | 보상권 보존·중지·복구 절차 동작 | 미구현 |
 
@@ -54,3 +54,7 @@
 | 2026-09-18 KST | `5688a5d` | `bash tests/site/check_site_accessibility_test.sh` | macOS, Node | PASS: 대비·ARIA 실패 fixture 거절 | 같은 명령 재실행 |
 | 2026-09-18 KST | `5688a5d` | `bash tests/site/verify_project_site_test.sh` | macOS, Bash | PASS: 포털 구조·상태·README 진입점 | 같은 명령 재실행 |
 | 2026-09-18 KST | `5688a5d` | `html-validate` / axe-core | headless Chrome | PASS: HTML 오류 0, 접근성 위반 0 | PR #6 설명과 evidence 참조 |
+| 2026-09-18 KST | 작업 트리 | `npm test --prefix apps/api` | Node 25.9.0, ethers 6.17.0 | PASS: 15개 SIWE·HTTP 테스트 | `apps/api/src/*.test.ts` |
+| 2026-09-18 KST | 작업 트리 | `npm test --prefix apps/mobile` | Node 25.9.0 | PASS: 11개 지갑 경계·환경·API client 테스트 | `apps/mobile/src/wallet/*.test.ts` |
+| 2026-09-18 KST | 작업 트리 | `expo-doctor` / Android export / Gradle assembleDebug | Expo 57, SDK 36, JDK 21 | PASS: doctor 21/21, bundle, debug APK | `docs/evidence/android-wallet-build.json` |
+| 2026-09-18 KST | 작업 트리 | `adb install -r .../app-debug.apk` 및 dev-client 실행 | Android 16, arm64, 16KB AVD | PASS: APK 설치, 설정 BLOCKED 화면 렌더 | `docs/evidence/android-wallet-config-required.png` |
