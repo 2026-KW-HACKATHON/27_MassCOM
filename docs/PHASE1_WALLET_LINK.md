@@ -39,7 +39,7 @@ GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLO
 ## 자동화 결과
 
 - API: 15개 PASS — challenge, 실제 서명 복구, replay, 만료 경계, 안전한 SIWE 설정, domain/message 변조, 주소 변경, spoof 불가 account resolver·계정 경계
-- 앱 순수 로직: 18개 PASS — 허용 메서드 allowlist, 거래/typed-data 거절, 환경 경계, API 오류 보존, WalletConnect 초기 이벤트 경쟁·세션 체인·거절 응답 회귀
+- 앱 순수 로직: 19개 PASS — 허용 메서드 allowlist, 거래/typed-data 거절, 환경 경계, API 오류 보존, WalletConnect 초기 이벤트 경쟁·세션 체인·거절 응답 회귀
 - `expo-doctor`: 21/21 PASS
 - TypeScript·ESLint·Android Metro export: PASS
 - Android debug APK: 빌드·설치·실행 PASS

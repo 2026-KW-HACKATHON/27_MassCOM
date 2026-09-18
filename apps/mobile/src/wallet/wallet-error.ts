@@ -3,6 +3,8 @@ type ProviderErrorShape = {
   message?: unknown;
 };
 
+const userRejectionCodes = new Set([4001, 5000, 5001, 5002, 5003]);
+
 export function isWalletUserRejection(error: unknown): boolean {
   if (hasUserRejectionCode(error)) return true;
 
@@ -27,6 +29,7 @@ function hasUserRejectionCode(value: unknown): boolean {
     typeof value === 'object' &&
     value !== null &&
     'code' in value &&
-    (value as ProviderErrorShape).code === 4001
+    typeof (value as ProviderErrorShape).code === 'number' &&
+    userRejectionCodes.has((value as ProviderErrorShape).code as number)
   );
 }
