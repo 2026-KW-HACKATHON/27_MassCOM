@@ -24,6 +24,20 @@ test('recognizes WalletConnect rejection JSON wrapped in an Error message', () =
   );
 });
 
+test('recognizes the Reown USER_REJECTED event emitted after a connection decline', () => {
+  assert.equal(
+    isWalletUserRejection({
+      data: {
+        type: 'track',
+        event: 'USER_REJECTED',
+        properties: { message: 'User rejected methods.' },
+      },
+      timestamp: 1,
+    }),
+    true,
+  );
+});
+
 test('does not treat other provider failures as user cancellation', () => {
   assert.equal(isWalletUserRejection(new Error('{"code":-32000,"message":"Invalid chainId"}')), false);
   assert.equal(isWalletUserRejection({ code: 5100, message: 'Unsupported chains.' }), false);

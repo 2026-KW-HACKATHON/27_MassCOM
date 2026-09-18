@@ -3,6 +3,10 @@ type ProviderErrorShape = {
   message?: unknown;
 };
 
+type AppKitEventShape = {
+  data?: unknown;
+};
+
 const userRejectionCodes = new Set([4001, 5000, 5001, 5002, 5003]);
 
 export function isReownChainSwitchRejection(error: unknown): boolean {
@@ -15,7 +19,7 @@ export function isReownChainSwitchRejection(error: unknown): boolean {
 }
 
 export function isWalletUserRejection(error: unknown): boolean {
-  if (hasUserRejectionCode(error)) return true;
+  if (hasUserRejectionCode(error) || hasAppKitUserRejectionEvent(error)) return true;
 
   const serialized =
     error instanceof Error
@@ -31,6 +35,18 @@ export function isWalletUserRejection(error: unknown): boolean {
   } catch {
     return false;
   }
+}
+
+function hasAppKitUserRejectionEvent(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || !('data' in value)) return false;
+
+  const data = (value as AppKitEventShape).data;
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'event' in data &&
+    (data as { event?: unknown }).event === 'USER_REJECTED'
+  );
 }
 
 function hasUserRejectionCode(value: unknown): boolean {

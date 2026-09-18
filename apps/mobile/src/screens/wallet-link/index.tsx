@@ -1,6 +1,11 @@
 import { Button, Host } from '@expo/ui';
-import { useAccount, useAppKit, useProvider } from '@reown/appkit-react-native';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useAccount,
+  useAppKit,
+  useAppKitEventSubscription,
+  useProvider,
+} from '@reown/appkit-react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
 import { colors } from '@/theme/colors';
@@ -25,11 +30,14 @@ type Phase =
   | 'cancelled'
   | 'error';
 
+const walletCancellationMessage =
+  '지갑 연결 또는 서명을 취소했습니다. 방문 기록과 받을 수집품은 유지됩니다.';
+
 export function WalletLinkScreen({ config }: Props) {
   useColorScheme();
   const { address, chainId } = useAccount();
   const { provider } = useProvider();
-  const { open, disconnect, switchNetwork } = useAppKit();
+  const { open, close, disconnect, switchNetwork } = useAppKit();
   const api = useMemo(
     () => new WalletApiClient({ apiUrl: config.apiUrl, accountId: config.accountId }),
     [config.accountId, config.apiUrl],
@@ -42,6 +50,19 @@ export function WalletLinkScreen({ config }: Props) {
   const connectedAddress = address ?? approvedAccount?.address;
   const currentChainId = address ? parseChainId(chainId) : approvedAccount?.chainId;
   const hasWalletSession = Boolean(provider && connectedAddress);
+  const handleAppKitUserRejection = useCallback(
+    (event: unknown) => {
+      if (!isWalletUserRejection(event)) return;
+
+      void close();
+      setVerifiedAddress(undefined);
+      setPhase('cancelled');
+      setMessage(walletCancellationMessage);
+    },
+    [close],
+  );
+
+  useAppKitEventSubscription('USER_REJECTED', handleAppKitUserRejection);
 
   useEffect(() => {
     if (
@@ -253,7 +274,7 @@ function messageFor(
     isWalletUserRejection(error) ||
     (context === 'reown-chain-switch' && isReownChainSwitchRejection(error))
   ) {
-    return { cancelled: true, text: '지갑 연결 또는 서명을 취소했습니다. 방문 기록과 받을 수집품은 유지됩니다.' };
+    return { cancelled: true, text: walletCancellationMessage };
   }
   if (error instanceof WalletApiError) {
     const messages: Record<string, string> = {
