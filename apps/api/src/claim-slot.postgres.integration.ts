@@ -33,6 +33,21 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
     `INSERT INTO merchant_members (merchant_id, account_id, role, status)
      VALUES ('merchant-a', 'staff-a', 'STAFF', 'ACTIVE')`,
   );
+  await pool.query(
+    `INSERT INTO campaigns
+       (id, merchant_id, title, starts_at, ends_at, status, is_public, enrollment_capacity)
+     VALUES (
+       'campaign-a', 'merchant-a', '가을 방문 도감',
+       '2026-09-01T00:00:00Z', '2026-10-31T23:59:59Z', 'ACTIVE', true, 100
+     )`,
+  );
+  await pool.query(
+    `INSERT INTO campaign_goals (campaign_id, target_visit_count, display_name)
+     VALUES
+       ('campaign-a', 1, '첫 방문 마스코트'),
+       ('campaign-a', 3, '세 번째 방문 마스코트'),
+       ('campaign-a', 5, '다섯 번째 방문 마스코트')`,
+  );
 
   assert.throws(
     () => new PostgresClaimSlotService(pool, { referenceHmacSecret: 'too-short' }),

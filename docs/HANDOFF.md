@@ -2,77 +2,73 @@
 
 마지막 갱신 시각: 2026-09-18 KST
 
-기준 브랜치: `feat/19-one-time-claim-slot`
+기준 브랜치: `feat/21-visit-rewards`
 
-통합 기준 커밋 SHA: `main@e242c996b996dd01fa9b798c0376caedd4e8ed31`, 기능 코드 `6823119`
+통합 기준 커밋 SHA: `main@c2f3076fbb7257fbfb77ed69edff3b3fef8ac84b`, 기능 코드 `3eb9e5a`
 
 ## 이번 세션에서 완료한 것
 
-- GitHub `main`, 로그인 주체, remote, 최근 merge, 열린 Issue/PR, CI를 재확인
-- PR #18 merge `e242c99`, Issue #17 종료, main CI run `35302502498` PASS 확인
-- PostgreSQL `claim_slots` migration과 1인용 수령 슬롯 구현
-- QR token은 SHA-256, 점포 주문 참조는 점포 범위 HMAC-SHA-256만 저장
-- 발급·버전 잠금 재발급·본문 preview·대상 계정 단일 소비 API 구현
-- 같은 `tokenVersion` 동시 재발급 2요청 중 성공 1건·충돌 1건 검증
-- 실제 HTTP 라우트와 PostgreSQL을 결합한 동시 재발급에서 `200` 1건·`409` 1건 검증
-- CI가 스캐너 회귀 테스트뿐 아니라 현재 checkout 전체 비밀값 검사도 수행하도록 보강
-- 동일 token 20개 동시 소비 성공 1건과 만료 경합 최종 상태 1개 검증
-- Q02·Q03을 `PASS`로 갱신하고 방문 이벤트가 없는 Q01은 `NOT_RUN` 유지
+- PR #20 merge `c2f3076`, Issue #19 종료, main CI run `35304829656` PASS 확인
+- PR #20 리뷰의 주문 참조 HMAC·동시 재발급·실제 비밀값 스캔·API 환경 예시를 모두 수정
+- Issue #21과 `feat/21-visit-rewards` 생성
+- PostgreSQL `visit_events`·`reward_entitlements` migration 구현
+- claim slot 소비·방문 이벤트·한국 날짜 진행도·첫/3/5회 고정 보상권을 한 트랜잭션으로 처리
+- 같은 QR 20개 동시 요청에서 슬롯·방문·첫 보상권 효과 각 1건 검증
+- `Asia/Seoul` 날짜 경계와 같은 날짜 중복 방문의 진행도 미증가 검증
+- 같은 계정·캠페인·목표 보상권 중복 방지와 캠페인 부재 시 전체 롤백 검증
+- Q01·R01·R03을 실제 PostgreSQL 근거로 `PASS` 갱신
 
 ## 생성한 Issue
 
-- #19 `feat: 1인용 일회용 QR 슬롯 발급·재발급 기반 구현`
+- #21 `feat: 방문 이벤트와 고정 보상권을 원자적으로 확정`
 
 ## 생성한 브랜치
 
-- `feat/19-one-time-claim-slot`
+- `feat/21-visit-rewards`
 
-## 생성한 PR
+## 현재 열린 PR
 
-- #20 `feat: 1인용 일회용 QR 슬롯 기반 구현`(열림)
+- #22 `feat: 방문 이벤트와 고정 보상권을 원자적으로 확정`
 
 ## merge된 PR
 
 - #14, merge commit `a27d0d0`
 - #16, merge commit `240dad2`
 - #18, merge commit `e242c99`
+- #20, merge commit `c2f3076`
 
 ## 실행한 테스트
 
 - API 단위 테스트 25/25 `PASS`
-- PostgreSQL 18 Alpine 실제 통합 테스트 3/3 `PASS`
-- 동일 token 동시 20요청에서 소비 성공 1건 `PASS`
-- 정확한 만료 시각 동시 20요청에서 `EXPIRED` 최종 상태 1개 `PASS`
-- 재발급 후 이전 token 거절·slot 수 1 유지·동시 재발급 1건만 성공 `PASS`
-- 실제 HTTP + PostgreSQL 동시 재발급 응답 `200` 1건·`409` 1건 `PASS`
-- 실제 저장소 비밀값 스캔과 스캐너 회귀 테스트 `PASS`
+- PostgreSQL 18 Alpine 실제 통합 테스트 4/4 `PASS`
+- Q01 동일 token 동시 20요청에서 claim·방문·보상 성공 1건 `PASS`
+- R01 UTC `14:59:59.999`/`15:00:00` KST 날짜 경계와 일일 진행 최대 1회 `PASS`
+- R03 첫/3/5회 보상권 각각 한 건, 반복 평가 후 총 3건 유지 `PASS`
+- 활성 캠페인 부재 시 claim slot `ISSUED` 유지·방문/보상 미생성 `PASS`
 - API typecheck·build·production audit `PASS`
-
-## 현재 열린 PR
-
-- #20, CI 확인 중
 
 ## 현재 작업 중인 기능
 
-- Issue #19 1인용 일회용 QR 슬롯 기반
+- Issue #21 방문 이벤트·고정 보상권 원자 처리
 
 ## BLOCKER
 
 - 실제 Reown·MetaMask 실기는 project ID·설치 지갑 부족
 - 외부 HTTPS·유료 AWS·공개 배포는 별도 승인 필요
-- Phase 2 claim slot API 자체에는 현재 blocker 없음
+- GitHub Pages는 현재 꺼져 있고 private 저장소의 조직 요금제·공개 정책 확인 및 공개 승인 필요
+- Issue #21 구현 자체에는 현재 blocker 없음
 
 ## 사용자 승인이 필요한 사항
 
-- PR #20 범위에는 없음
-- 저장소 공개·유료 자원·테스트넷 전송·Play 배포·대회 제출은 계속 승인 필요
+- Issue #21 범위에는 없음
+- 저장소/포털 공개·유료 자원·테스트넷 전송·Play 배포·대회 제출은 계속 승인 필요
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. PR #20의 최신 CI와 보안 리뷰 결과 확인
-2. CI PASS 후 PR #20 merge, Issue #19 종료 확인
-3. main merge SHA와 CI run을 다음 기능 문서에 반영
-4. 다음 기능은 별도 Issue로 claim slot 소비와 방문 이벤트·보상 평가를 한 트랜잭션으로 연결(Q01·R01·R03)
+1. PR #22 원격 CI와 독립 보안·동시성 리뷰 확인
+2. CI PASS와 HIGH/MEDIUM 0 확인 후 merge
+3. 다음 독립 기능은 방문 도감/앱 수집품 조회 또는 방문 취소·오입력 처리
+4. 프로젝트 포털 원격 호스팅은 별도 Issue/PR로 배포 준비 후 실제 공개만 승인 대기
 
 ## 실행 명령
 
@@ -80,18 +76,19 @@
 npm test --prefix apps/api
 npm run typecheck --prefix apps/api
 npm run build --prefix apps/api
+bash scripts/check-secrets.sh
 bash tests/bootstrap/check_secrets_test.sh
 bash tests/bootstrap/check_pr_korean_test.sh
 bash tests/bootstrap/verify_bootstrap_test.sh
 ```
 
-PostgreSQL 통합은 실제 DB에 `TEST_DATABASE_URL`을 지정하고 `npm run test:postgres --prefix apps/api`를 실행합니다.
+PostgreSQL 통합은 DB 이름이 `_test`로 끝나는 전용 `TEST_DATABASE_URL`을 지정하고 `npm run test:postgres --prefix apps/api`를 실행합니다.
 
 ## 주의사항
 
 - 실제 협약 점포 seed를 만들지 말고 테스트 fixture는 `demo: true`로 유지
-- Q02·Q03·Q05는 실제 PostgreSQL 증거로 PASS이며 Q01·Q04·R01~R03은 계속 NOT_RUN
-- token·점포 주문 참조 원문을 DB나 로그에 남기지 않고 운영 HMAC 비밀값을 저장소에 커밋하지 않음
-- Google 로그인과 점주 웹을 구현했다고 표시하지 않음
+- Q01·Q02·Q03·Q05·R01·R03은 실제 PostgreSQL 증거로 PASS이며 Q04·R02는 계속 NOT_RUN
+- 정확한 식사 시각은 서비스 DB 감사 자료일 뿐 온체인·IPFS·공개 메타데이터에 넣지 않음
+- 방문 취소·도감 조회·Android QR 카메라를 구현 완료로 표시하지 않음
 - Phase 1 외부 지갑 실기를 완료로 과장하지 않음
 - 개인 private mirror는 사용자가 나중에 요청할 때만 생성

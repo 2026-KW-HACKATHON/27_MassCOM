@@ -25,6 +25,9 @@
 - token preview는 URL이 아닌 JSON 본문으로 받고 슬롯 상태를 변경하지 않습니다.
 - 재발급은 클라이언트가 본 `tokenVersion`이 현재 버전과 같을 때만 같은 슬롯의 token hash를 교체하므로 동시 요청 한 건만 성공하며 이전 token을 즉시 무효화합니다.
 - 소비와 만료 판정은 조건부 `UPDATE ... RETURNING` 한 문장에서 처리해 동시 성공을 한 건으로 제한합니다.
+- 유효 수령은 슬롯 소비·방문 이벤트·고정 보상권 평가를 한 PostgreSQL 트랜잭션으로 처리합니다.
+- 진행 일자는 DB에서 `Asia/Seoul`로 계산하고 계정·점포·한국 날짜별 진행 증가를 고유 제약으로 한 번만 허용합니다.
+- 계정·캠페인별 트랜잭션 잠금과 `(계정, 캠페인, 목표)` 고유 제약을 함께 사용해 첫/3/5회 보상권 중복을 막습니다.
 
 ## 의존성 검사
 
@@ -35,4 +38,4 @@
 
 ## 미검증
 
-실제 Reown gateway, 외부 지갑 앱, Android App Link, release 서명, AAB 16KB 호환, 외부 HTTPS는 아직 검증되지 않았습니다. PostgreSQL claim slot 동시성은 검증했지만 방문·보상권 원자 트랜잭션은 아직 `NOT_RUN`입니다.
+실제 Reown gateway, 외부 지갑 앱, Android App Link, release 서명, AAB 16KB 호환, 외부 HTTPS는 아직 검증되지 않았습니다. PostgreSQL 방문·보상권 원자 트랜잭션은 검증했지만 방문 취소·도감 조회·Android QR 카메라는 아직 `NOT_RUN`입니다.

@@ -2,7 +2,7 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-> 현재 상태: 저장소 기준선 `VERIFIED` · Phase 1 지갑 코드 `IMPLEMENTED` · Phase 2 일회용 QR 기반 `IN_PROGRESS` · 필수 시험 6 `PASS` / 30 `NOT_RUN`
+> 현재 상태: 저장소 기준선 `VERIFIED` · Phase 1 지갑 코드 `IMPLEMENTED` · Phase 2 방문·보상 기반 `IN_PROGRESS` · 필수 시험 9 `PASS` / 27 `NOT_RUN`
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](docs/index.html)
 
@@ -42,9 +42,10 @@ python3 -m http.server 4173 --directory docs
 | 공개 점포·캠페인 API | `IMPLEMENTED` | PR #14 merge `a27d0d0`, main CI run `35300158651` PASS |
 | 점주·직원 권한 API | `IMPLEMENTED` | PR #18 merge `e242c99`, main CI run `35302502498` PASS |
 | 일회용 QR 슬롯 API | `IMPLEMENTED` | PR #20, 원문 미저장·버전 잠금 재발급·preview·단일 소비 기반 |
+| 방문·고정 보상권 | `IMPLEMENTED` | PR #22, QR 소비·KST 일일 진행·첫/3/5회 보상권을 한 DB 트랜잭션으로 처리 |
 | 점주·직원 웹 | `PLANNED` | 권한·QR API만 구현, 화면은 미구현 |
 | 주소 확인 API | `IMPLEMENTED` | ERC-4361 challenge·실제 서명 복구·nonce 소비 15 tests PASS |
-| PostgreSQL | `IN_PROGRESS` | 점포·캠페인·멤버십·claim slot migration 구현, 방문·보상권과 지갑 challenge 영속화는 후속 |
+| PostgreSQL | `IN_PROGRESS` | 점포·캠페인·멤버십·claim slot·방문·보상권 migration 구현, 지갑 challenge 영속화는 후속 |
 | Worker | `PLANNED` | Phase 3 전 |
 | Reown 외부 지갑 코드 | `IMPLEMENTED` | AppKit 2.0.6, 외부 지갑 전용 기능 플래그·메서드 allowlist |
 | MetaMask 실기 | `BLOCKED` | Reown project ID와 실제 설치 지갑 없음 |
@@ -112,7 +113,7 @@ npm run lint --prefix apps/mobile
 npm run export:android --prefix apps/mobile
 ```
 
-Phase 2 점포 카탈로그, 점포별 권한, QR 수령 슬롯 검증은 실제 PostgreSQL 연결이 필요합니다.
+Phase 2 점포 카탈로그, 점포별 권한, QR 수령 슬롯, 방문·보상권 검증은 실제 PostgreSQL 연결이 필요합니다.
 
 ```bash
 export DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_dev'
@@ -124,7 +125,7 @@ DATABASE_URL="$TEST_DATABASE_URL" npm run db:migrate --prefix apps/api
 npm run test:postgres --prefix apps/api
 ```
 
-통합 테스트는 테이블을 비우므로 DB 이름이 `_test`로 끝나는 전용 데이터베이스만 허용합니다. `GET /merchants`는 로그인·지갑 없이 활성 점포와 공개 중인 현재 캠페인만 반환합니다. 점주용 API는 활성 점포 멤버십을 매 요청 확인합니다. QR token은 SHA-256, 주문 참조는 점포 범위 HMAC-SHA-256만 저장합니다. 재발급은 직전 `tokenVersion`을 조건으로 한 요청만 성공시키며 preview·동시 소비는 같은 claim slot에서 처리합니다. 저장소에는 실제 협약 점포 seed를 넣지 않으며 테스트 fixture는 `demo: true`로 구분합니다.
+통합 테스트는 테이블을 비우므로 DB 이름이 `_test`로 끝나는 전용 데이터베이스만 허용합니다. `GET /merchants`는 로그인·지갑 없이 활성 점포와 공개 중인 현재 캠페인만 반환합니다. 점주용 API는 활성 점포 멤버십을 매 요청 확인합니다. QR token은 SHA-256, 주문 참조는 점포 범위 HMAC-SHA-256만 저장합니다. 재발급은 직전 `tokenVersion`을 조건으로 한 요청만 성공시킵니다. 수령 POST는 슬롯 소비·방문 이벤트·한국 날짜 진행도·첫/3/5회 보상권을 한 트랜잭션으로 처리합니다. 저장소에는 실제 협약 점포 seed를 넣지 않으며 테스트 fixture는 `demo: true`로 구분합니다.
 
 상세 development build 절차와 환경 변수는 [`apps/mobile/README.md`](apps/mobile/README.md), [`apps/api/README.md`](apps/api/README.md)를 따릅니다.
 

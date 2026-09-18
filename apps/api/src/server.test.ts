@@ -8,7 +8,11 @@ import {
   developmentHeaderAccountResolver,
   type AccountResolver,
 } from './server.js';
-import { ClaimSlotError, type ClaimSlotErrorCode } from './claim-slot-service.js';
+import {
+  ClaimSlotError,
+  type ClaimSlotErrorCode,
+  type RedeemedClaimSlot,
+} from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
@@ -41,7 +45,7 @@ type ClaimSlotFixture = {
   redeem(input: {
     accountId: string;
     token: string;
-  }): Promise<{ claimSlotId: string; merchantId: string; status: 'CLAIMED' }>;
+  }): Promise<RedeemedClaimSlot>;
   preview(input: {
     accountId: string;
     token: string;
@@ -300,6 +304,22 @@ test('redeems a claim token only for the authenticated customer account', async 
         claimSlotId: 'claim-slot-1',
         merchantId: 'merchant-visible',
         status: 'CLAIMED',
+        visit: {
+          visitEventId: 'visit-event-1',
+          campaignId: 'campaign-visible',
+          businessDate: '2026-09-18',
+          verificationLevel: 'MERCHANT_CONFIRMED',
+          progressCounted: true,
+          progressVisitCount: 1,
+        },
+        grantedRewards: [
+          {
+            entitlementId: 'entitlement-1',
+            targetVisitCount: 1,
+            status: 'GRANTED',
+            claimExpiresAt: '2026-12-17T03:00:00.000Z',
+          },
+        ],
       }),
     }),
   );
@@ -314,6 +334,22 @@ test('redeems a claim token only for the authenticated customer account', async 
     claimSlotId: 'claim-slot-1',
     merchantId: 'merchant-visible',
     status: 'CLAIMED',
+    visit: {
+      visitEventId: 'visit-event-1',
+      campaignId: 'campaign-visible',
+      businessDate: '2026-09-18',
+      verificationLevel: 'MERCHANT_CONFIRMED',
+      progressCounted: true,
+      progressVisitCount: 1,
+    },
+    grantedRewards: [
+      {
+        entitlementId: 'entitlement-1',
+        targetVisitCount: 1,
+        status: 'GRANTED',
+        claimExpiresAt: '2026-12-17T03:00:00.000Z',
+      },
+    ],
   });
 });
 
@@ -390,6 +426,12 @@ test('maps claim slot conflicts and expiration without exposing stored data', as
       expectedStatus: 410,
       url: '/claim-slots/redeem',
       body: { token: 'expired-token' },
+    },
+    {
+      code: 'CLAIM_CAMPAIGN_UNAVAILABLE' as const,
+      expectedStatus: 409,
+      url: '/claim-slots/redeem',
+      body: { token: 'campaign-unavailable-token' },
     },
   ];
 
