@@ -9,10 +9,10 @@
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
 | 현재 작업 브랜치 | `feat/merchant-catalog` |
-| 현재 기능 커밋 | `a9aacb6` + 상태 문서 작업 트리 |
+| 현재 기능 기준 | `4066b95`, PR #14 CI run `35299748690` PASS + 증거 문서 작업 트리 |
 | 최근 merge | PR #12, `b634eee` |
 | 현재 열린 Issue | #13 점포·캠페인 공개 API |
-| 현재 열린 PR | 없음 |
+| 현재 열린 PR | #14 점포·캠페인 공개 API, CI PASS |
 
 ## Phase 상태
 
@@ -57,7 +57,7 @@
 ## 검증·배포 상태
 
 - API 단위 테스트: `PASS` 16개
-- PostgreSQL 18 카탈로그 통합 테스트: `PASS` 1개(로컬 Docker), 원격 CI pending
+- PostgreSQL 18 카탈로그 통합 테스트: `PASS` 1개(로컬 Docker·PR #14 CI run `35299748690`)
 - v3 필수 36개: W02·W03·W09 `PASS`, 나머지 33개 `NOT_RUN`
 - Android: debug APK 빌드·Android 16 16KB AVD 설치·설정 화면 실행 `PASS`
 - 외부 지갑 실기: `BLOCKED`

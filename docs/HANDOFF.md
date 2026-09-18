@@ -4,7 +4,7 @@
 
 기준 브랜치: `feat/merchant-catalog`
 
-기능 기준 커밋 SHA: `a9aacb6` + 상태 문서 작업 트리
+기능 기준 커밋 SHA: `4066b95` + CI 증거 문서 작업 트리
 
 ## 이번 세션에서 완료한 것
 
@@ -25,7 +25,7 @@
 
 ## 생성한 PR
 
-- 아직 없음
+- #14 `feat: 지갑 없이 조회하는 점포·캠페인 API 구현`
 
 ## merge된 PR
 
@@ -35,14 +35,14 @@
 ## 실행한 테스트
 
 - API 단위 테스트 16/16 `PASS`
-- PostgreSQL 18 Alpine 실제 통합 테스트 1/1 `PASS`(로컬 Docker), 원격 CI pending
+- PostgreSQL 18 Alpine 실제 통합 테스트 1/1 `PASS`(로컬 Docker·PR #14 CI run `35299748690`)
 - migration 두 번 연속 실행 `PASS`
 - API typecheck·build·production audit `PASS`
 - bootstrap 정본 누락 회귀 테스트 `PASS`
 
 ## 현재 열린 PR
 
-- 없음
+- #14, 전체 CI PASS, merge 전 최종 증거 문서 반영 중
 
 ## 현재 작업 중인 기능
 

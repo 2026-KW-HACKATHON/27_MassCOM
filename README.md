@@ -39,7 +39,7 @@ python3 -m http.server 4173 --directory docs
 | 저장소·문서·CI 기준선 | `VERIFIED` | PR #2·#4 merge, GitHub Actions PASS |
 | 프로젝트 포털 | `VERIFIED` | PR #6, CI PASS, 접근성·반응형 증거 저장 |
 | Android 고객 앱 | `IMPLEMENTED` | Expo 57 dev-client, Android 16 AVD APK 설치·실행 |
-| 공개 점포·캠페인 API | `IN_PROGRESS` | Issue #13, 로컬 PostgreSQL 18 통합 PASS·원격 CI pending |
+| 공개 점포·캠페인 API | `IN_PROGRESS` | Issue #13·PR #14, 로컬 PostgreSQL 18과 원격 CI run `35299748690` PASS |
 | 점주·직원 웹 | `PLANNED` | 권한·QR 요구사항만 정의 |
 | 주소 확인 API | `IMPLEMENTED` | ERC-4361 challenge·실제 서명 복구·nonce 소비 15 tests PASS |
 | PostgreSQL | `IN_PROGRESS` | 점포·캠페인 migration과 공개 조회 구현, 지갑 challenge는 아직 메모리 |
