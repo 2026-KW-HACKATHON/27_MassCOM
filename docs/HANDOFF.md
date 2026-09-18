@@ -2,9 +2,9 @@
 
 마지막 갱신 시각: 2026-09-18 KST
 
-기준 브랜치: `feat/merchant-catalog`
+기준 브랜치: `docs/15-phase2-catalog-merge-state`
 
-기능 기준 커밋 SHA: `4066b95` + CI 증거 문서 작업 트리
+통합 기준 커밋 SHA: `a27d0d010dbc07e17d74573f12313a27e1c72126` + merge 상태 문서 작업 트리
 
 ## 이번 세션에서 완료한 것
 
@@ -14,39 +14,41 @@
 - PostgreSQL `merchants`·`campaigns`·`campaign_goals` migration 구현
 - 활성 점포와 공개·현재 캠페인만 반환하고 정원 마감을 구분하는 repository 구현
 - `PROJECT_STATE.md`·`TEST_STATUS.md`를 세션 복원 정본으로 전환
+- PR #14 merge, Issue #13 종료, main CI run `35300158651` PASS 확인
 
 ## 생성한 Issue
 
 - #13 `feat: 지갑 없이 조회 가능한 점포·캠페인 API 구현`
+- #15 `문서: Phase 2 점포 카탈로그 merge 상태 기록`
 
 ## 생성한 브랜치
 
 - `feat/merchant-catalog`
+- `docs/15-phase2-catalog-merge-state`
 
 ## 생성한 PR
 
-- #14 `feat: 지갑 없이 조회하는 점포·캠페인 API 구현`
+- #14 `feat: 지갑 없이 조회하는 점포·캠페인 API 구현`(merge 완료)
 
 ## merge된 PR
 
-- 이번 세션 없음
-- 최근 merge: #12, `b634eee`
+- #14, merge commit `a27d0d0`
 
 ## 실행한 테스트
 
 - API 단위 테스트 16/16 `PASS`
-- PostgreSQL 18 Alpine 실제 통합 테스트 1/1 `PASS`(로컬 Docker·PR #14 CI run `35299748690`)
+- PostgreSQL 18 Alpine 실제 통합 테스트 1/1 `PASS`(로컬 Docker·main CI run `35300158651`)
 - migration 두 번 연속 실행 `PASS`
 - API typecheck·build·production audit `PASS`
 - bootstrap 정본 누락 회귀 테스트 `PASS`
 
 ## 현재 열린 PR
 
-- #14, 전체 CI PASS, merge 전 최종 증거 문서 반영 중
+- 없음. Issue #15의 상태 문서 PR 생성 전
 
 ## 현재 작업 중인 기능
 
-- Issue #13 점포·캠페인 공개 카탈로그 PR 준비
+- Issue #15 merge 상태 문서 동기화
 
 ## BLOCKER
 
@@ -61,10 +63,10 @@
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. `git status`와 Issue #13/열린 PR을 확인
-2. PR이 없으면 전체 회귀 후 커밋·push·한글 PR 생성
+1. `git status`와 Issue #15/열린 PR을 확인
+2. 상태 문서 PR이 없으면 문서 회귀 후 커밋·push·한글 PR 생성
 3. CI PASS와 필수 리뷰 조건을 확인한 뒤 merge
-4. merge 상태를 `PROJECT_STATE.md`와 이 문서에 동기화
+4. 다음 기능은 별도 Issue로 점포별 점주·직원 권한(Q05)을 시작
 
 ## 실행 명령
 
