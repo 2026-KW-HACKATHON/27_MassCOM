@@ -38,4 +38,4 @@
 
 ## 미검증
 
-실제 Reown gateway, 외부 지갑 앱, Android App Link, release 서명, AAB 16KB 호환, 외부 HTTPS는 아직 검증되지 않았습니다. PostgreSQL 방문·보상권 원자 트랜잭션은 검증했지만 방문 취소·도감 조회·Android QR 카메라는 아직 `NOT_RUN`입니다.
+실제 Android 기기에서 MetaMask 앱 설치·첫 화면 실행까지만 확인했습니다. Reown gateway, WalletConnect 세션, 외부 지갑 서명·복귀, Android App Link, release 서명, AAB 16KB 호환, 외부 HTTPS는 아직 검증되지 않았습니다. PostgreSQL 방문·보상권 원자 트랜잭션은 검증했지만 방문 취소·도감 조회·Android QR 카메라는 아직 `NOT_RUN`입니다.
