@@ -4,15 +4,17 @@ import { test, type TestContext } from 'node:test';
 import { Wallet } from 'ethers';
 
 import {
-  createWalletApiServer,
+  createApiServer,
   developmentHeaderAccountResolver,
   type AccountResolver,
 } from './server.js';
+import type { MerchantCatalog } from './merchant-catalog.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 async function startFixture(
   t: TestContext,
   resolveAccountId: AccountResolver = developmentHeaderAccountResolver,
+  merchantCatalog?: MerchantCatalog,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -23,7 +25,7 @@ async function startFixture(
     nonce: () => 'abc12345def67890',
     challengeId: () => 'challenge-http-1',
   });
-  const server = createWalletApiServer(service, resolveAccountId);
+  const server = createApiServer(service, resolveAccountId, merchantCatalog);
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))));
@@ -42,6 +44,37 @@ test('serves health without exposing wallet data', async (t) => {
 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { status: 'ok' });
+});
+
+test('lists public merchants without requiring login or a wallet', async (t) => {
+  const merchant = {
+    id: 'merchant-demo-noodle',
+    name: '데모 국수집',
+    story: '실제 협약 점포가 아닌 개발용 예시입니다.',
+    roadAddress: '서울 노원구 데모로 1',
+    minimumSpendWon: 10_000,
+    campaign: {
+      id: 'campaign-demo-autumn',
+      title: '가을 방문 도감',
+      startsAt: '2026-09-01T00:00:00.000Z',
+      endsAt: '2026-10-31T23:59:59.000Z',
+      enrollmentStatus: 'OPEN',
+      rewardGoals: [
+        { targetVisitCount: 1, displayName: '첫 방문 마스코트' },
+        { targetVisitCount: 3, displayName: '세 번째 방문 마스코트' },
+        { targetVisitCount: 5, displayName: '다섯 번째 방문 마스코트' },
+      ],
+    },
+    demo: true,
+  } as const;
+  const baseUrl = await startFixture(t, developmentHeaderAccountResolver, {
+    listPublicMerchants: async () => [merchant],
+  });
+
+  const response = await fetch(`${baseUrl}/merchants`);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { merchants: [merchant] });
 });
 
 test('requires an authenticated account boundary for wallet challenges', async (t) => {

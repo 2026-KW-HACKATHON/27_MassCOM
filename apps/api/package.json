@@ -9,16 +9,22 @@
   "scripts": {
     "audit:ci": "npm audit --omit=dev --audit-level=high",
     "build": "tsc -p tsconfig.json",
+    "db:migrate": "tsx src/postgres/migrate-command.ts",
+    "db:migrate:local": "tsx --env-file=.env src/postgres/migrate-command.ts",
     "start": "tsx src/server.ts",
+    "start:local": "tsx --env-file=.env src/server.ts",
     "test": "tsx --test src/**/*.test.ts",
+    "test:postgres": "tsx --test src/**/*.postgres.integration.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "ethers": "6.17.0",
+    "pg": "8.23.0",
     "siwe": "3.0.0"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
+    "@types/pg": "8.18.0",
     "tsx": "4.21.0",
     "typescript": "6.0.3"
   }
