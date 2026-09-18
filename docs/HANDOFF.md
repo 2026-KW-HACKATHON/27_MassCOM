@@ -4,7 +4,9 @@
 
 기준 브랜치: `main`
 
-통합 기준 커밋 SHA: `main@bdeade463fa26406c70cd44beeba02151a6c4134`, main CI run `35319672490` PASS
+통합 기준 커밋 SHA: `main@9c5ad0ef63a5ee918a84f71efa45e88d6576d104`, main CI run `35320255132` PASS
+
+현재 작업: `fix/31-wallet-rejection-event`, PR #32 OPEN
 
 ## 이번 세션에서 완료한 것
 
@@ -17,6 +19,8 @@
 - 프로세스 종료 후 세션은 복원되고 주소 확인은 `UNVERIFIED`로 초기화됨을 확인
 - UniversalProvider 2.21.10 초기 체인 이벤트 경쟁을 재현하고 2.23.5 override 회귀 테스트 추가
 - EIP-1193 `4001`, WalletConnect `5000`~`5003`, Reown 체인 전환 거절 변환을 취소 상태로 정규화
+- 실제 서명 거절 뒤 앱이 `UNVERIFIED`와 방문 기록·받을 수집품 보존 안내로 복귀함을 확인
+- Reown 연결 거절 `USER_REJECTED` 이벤트를 앱 취소 상태로 반영하는 Issue #31·PR #32 작성
 - SDK 체인 전환 성공·4001 변환·4902 전파에서 `wallet_addEthereumChain` 미요청 특성화 테스트 추가
 - Claude Code와 Astra high 독립 검증 후 HIGH·MEDIUM 0건 확인
 
@@ -43,16 +47,19 @@
 
 ## 실행한 테스트
 
-- 모바일 테스트 19/19, typecheck, lint `PASS`
+- 모바일 테스트 21/21, typecheck, lint `PASS`
 - Expo doctor 21/21, Android export 2,216 modules `PASS`
 - npm audit high 기준 `PASS`; 기존 moderate 14·low 1 유지
 - MetaMask 8.11.0 WalletConnect 연결 `PASS`
 - Base Sepolia 네트워크 추가·승인·앱 복귀 `PASS`
 - 읽을 수 있는 `personal_sign`과 서버 주소 확인 `VERIFIED` `PASS`
 - 프로세스 종료 뒤 WalletConnect 세션 복원 `PASS`
-- 서명 거절 실제 응답 code 4001 관측, 수정 회귀 자동화 `PASS`; 수정 후 실기 재확인은 MetaMask 자동 잠금으로 대기
+- 서명 거절 실제 응답 code 4001 관측, 수정 회귀 자동화와 수정 후 실기 안내 `PASS`
+- 연결 승인 거절의 Reown `USER_REJECTED` 관측과 회귀 자동화 `PASS`
+- 연결 승인 거절 후 Android 뒤로가기로 앱에 복귀해 `NOT_CONNECTED / CHECK_REQUIRED / UNVERIFIED`와 보존 안내 표시 `PASS`; 자동 딥링크 복귀는 관측되지 않음
 - WalletConnect 연결 거절 5000~5003과 Reown 체인 전환 거절 변환 자동화 `PASS`
 - PR #28 최신 HEAD 모바일 19/19·typecheck·secret scan, Astra high 재검증 `PASS`
+- PR #32 최신 HEAD 모바일 21/21·typecheck·lint `PASS`; 최신 CI 확인 대기
 
 ## 현재 Phase 1 상태
 
@@ -63,7 +70,7 @@
 
 - 외부 HTTPS·유료 AWS·공개 배포는 별도 승인 필요
 - GitHub Pages는 현재 꺼져 있고 private 저장소의 조직 요금제·공개 정책 확인 및 공개 승인 필요
-- 수정 후 MetaMask 거절 안내 실기 재확인에는 사용자의 지갑 잠금 해제가 필요
+- MetaMask 거절 뒤 자동 딥링크 복귀는 관측되지 않았으며 수동 Android 뒤로가기는 PASS
 
 ## 사용자 승인이 필요한 사항
 
@@ -72,8 +79,8 @@
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. 사용자가 MetaMask를 잠금 해제하면 수정 후 연결·체인 전환·서명 거절 안내를 실제 기기에서 재확인
-2. Phase 1 잔여 W04 주소 변경·W05 미지원 지갑·W06 미설치/복귀 실패를 실행 환경별 별도 증거로 남김
+1. Phase 1 잔여 W04 주소 변경·W05 미지원 지갑·W06 지갑 미설치/자동 복귀 실패를 실행 환경별 별도 증거로 남김
+2. 실제 지갑 실기는 비밀번호·복구 문구·개인키를 공유하거나 기록하지 않고 사용자가 직접 잠금만 해제
 3. 실제로 실행하지 않은 예외 시험은 계속 `NOT_RUN`으로 유지
 4. Phase 2 이상, 공개 배포, Play 제출은 새 사용자 승인 없이 진행하지 않음
 

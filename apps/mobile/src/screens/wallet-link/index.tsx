@@ -1,12 +1,21 @@
 import { Button, Host } from '@expo/ui';
-import { useAccount, useAppKit, useProvider } from '@reown/appkit-react-native';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useAccount,
+  useAppKit,
+  useAppKitEventSubscription,
+  useProvider,
+} from '@reown/appkit-react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
 import { colors } from '@/theme/colors';
 import { baseSepolia } from '@/wallet/base-sepolia';
 import { WalletApiClient, WalletApiError } from '@/wallet/wallet-api';
-import { isReownChainSwitchRejection, isWalletUserRejection } from '@/wallet/wallet-error';
+import {
+  isAppKitUserRejectionEvent,
+  isReownChainSwitchRejection,
+  isWalletUserRejection,
+} from '@/wallet/wallet-error';
 import { buildPersonalSignRequest, safeWalletRequest } from '@/wallet/wallet-method-policy';
 import type { AvailableWalletRuntimeConfig } from '@/wallet/wallet-runtime-config';
 import { readApprovedEvmAccount } from '@/wallet/wallet-session';
@@ -25,16 +34,20 @@ type Phase =
   | 'cancelled'
   | 'error';
 
+const walletCancellationMessage =
+  '지갑 연결 또는 서명을 취소했습니다. 방문 기록과 받을 수집품은 유지됩니다.';
+
 export function WalletLinkScreen({ config }: Props) {
   useColorScheme();
   const { address, chainId } = useAccount();
   const { provider } = useProvider();
-  const { open, disconnect, switchNetwork } = useAppKit();
+  const { open, close, disconnect, switchNetwork } = useAppKit();
   const api = useMemo(
     () => new WalletApiClient({ apiUrl: config.apiUrl, accountId: config.accountId }),
     [config.accountId, config.apiUrl],
   );
   const previousAddress = useRef<string | undefined>(address);
+  const awaitingWalletConnectionDecision = useRef(false);
   const [phase, setPhase] = useState<Phase>('connected');
   const [verifiedAddress, setVerifiedAddress] = useState<string>();
   const [message, setMessage] = useState('지갑 연결과 주소 확인 서명은 서로 다른 단계입니다.');
@@ -42,6 +55,31 @@ export function WalletLinkScreen({ config }: Props) {
   const connectedAddress = address ?? approvedAccount?.address;
   const currentChainId = address ? parseChainId(chainId) : approvedAccount?.chainId;
   const hasWalletSession = Boolean(provider && connectedAddress);
+  const handleAppKitUserRejection = useCallback(
+    (event: unknown) => {
+      if (
+        !awaitingWalletConnectionDecision.current ||
+        !isAppKitUserRejectionEvent(event)
+      ) {
+        return;
+      }
+
+      awaitingWalletConnectionDecision.current = false;
+      void close().catch(() => undefined);
+      setVerifiedAddress(undefined);
+      setPhase('cancelled');
+      setMessage(walletCancellationMessage);
+    },
+    [close],
+  );
+
+  useAppKitEventSubscription('USER_REJECTED', handleAppKitUserRejection);
+
+  useEffect(() => {
+    if (hasWalletSession) {
+      awaitingWalletConnectionDecision.current = false;
+    }
+  }, [hasWalletSession]);
 
   useEffect(() => {
     if (
@@ -79,8 +117,10 @@ export function WalletLinkScreen({ config }: Props) {
   const busy = ['requesting-challenge', 'awaiting-signature', 'verifying'].includes(phase);
 
   async function openWalletSelector() {
+    awaitingWalletConnectionDecision.current = false;
     try {
       await open({ view: 'Connect' });
+      awaitingWalletConnectionDecision.current = true;
     } catch (error) {
       const errorMessage = messageFor(error);
       setPhase(errorMessage.cancelled ? 'cancelled' : 'error');
@@ -253,7 +293,7 @@ function messageFor(
     isWalletUserRejection(error) ||
     (context === 'reown-chain-switch' && isReownChainSwitchRejection(error))
   ) {
-    return { cancelled: true, text: '지갑 연결 또는 서명을 취소했습니다. 방문 기록과 받을 수집품은 유지됩니다.' };
+    return { cancelled: true, text: walletCancellationMessage };
   }
   if (error instanceof WalletApiError) {
     const messages: Record<string, string> = {

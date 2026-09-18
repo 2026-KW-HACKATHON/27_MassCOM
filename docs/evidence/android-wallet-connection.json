@@ -3,6 +3,24 @@
   "source_branch": "test/25-wallet-device",
   "implementation_commit": "ecba181",
   "base_commit": "f85234f9d7d69d920fb5e942a5706b6d1611945f",
+  "latest_retest": {
+    "checked_at": "2026-09-18T16:58:50+09:00",
+    "source_branch": "fix/31-wallet-rejection-event",
+    "implementation_commit": "a24013a14d12c88ea4d6c010403921654ae79d05"
+  },
+  "automated_hardening": {
+    "checked_at": "2026-09-18T17:13:27+09:00",
+    "source_branch": "fix/31-wallet-rejection-event",
+    "implementation_commit": "a4dc155b4db96bd93a68d2affb3c464739fb83cc",
+    "result": "PASS: 21/21 mobile tests plus typecheck and lint; AppKit near-miss events and stale USER_REJECTED re-entry are guarded"
+  },
+  "latest_connection_rejection_retest": {
+    "checked_at": "2026-09-18T17:14:50+09:00",
+    "source_branch": "fix/31-wallet-rejection-event",
+    "implementation_commit": "a4dc155b4db96bd93a68d2affb3c464739fb83cc",
+    "result": "PASS: MetaMask connection decline emitted USER_REJECTED; after Android system back the app showed NOT_CONNECTED, CHECK_REQUIRED, UNVERIFIED and the Korean preservation message",
+    "return_mode": "manual Android system back; automatic wallet-to-app deep-link return was not observed"
+  },
   "environment": {
     "host": "macOS",
     "device": "Samsung SM-S928N",
@@ -23,13 +41,15 @@
     "sign_request_boundary": "PASS: MetaMask displayed a readable login message on Base Sepolia; no transaction, approve, permit, swap, purchase, or asset movement request appeared",
     "server_verification": "PASS: the app showed VERIFIED after personal_sign and server-side account, address, domain, chain, nonce, expiry, original-message, and recovered-signer checks",
     "cold_restart": "PASS: the WalletConnect session restored as CONNECTED and BASE_SEPOLIA while address verification safely reset to UNVERIFIED",
-    "sign_rejection": "PARTIAL: the real wallet returned code 4001; the observed JSON-wrapped error now has an automated regression test, but the fixed user-facing message still needs one unlocked-device rerun",
+    "sign_rejection": "PASS: MetaMask returned code 4001; the app returned to CONNECTED, BASE_SEPOLIA, UNVERIFIED and displayed the Korean cancellation message stating that visit records and receivable collectibles remain",
+    "connection_rejection": "PASS: the post-fix MetaMask rejection produced Reown USER_REJECTED; after manual Android system back the app closed the modal and showed the Korean preservation message without creating a wallet session",
+    "automatic_wallet_return": "NOT_RUN: MetaMask stayed in the foreground after decline; automatic deep-link return was not observed",
     "wallet_missing": "NOT_RUN",
     "address_change": "NOT_RUN",
     "unsupported_wallet": "NOT_RUN"
   },
   "automated_verification": {
-    "mobile_tests": "PASS: 19/19",
+    "mobile_tests": "PASS: 21/21",
     "typecheck": "PASS",
     "lint": "PASS",
     "expo_doctor": "PASS: 21/21",
