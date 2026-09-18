@@ -30,7 +30,7 @@
         <a href="#evidence">증거</a>
         <a href="#decisions">결정</a>
       </nav>
-      <span class="header-state"><span aria-hidden="true"></span> Phase 1 구현 중</span>
+      <span class="header-state"><span aria-hidden="true"></span> Phase 2 구현 중</span>
     </header>
 
     <main id="main-content">
@@ -63,8 +63,8 @@
               <dd><span class="status status-verified">VERIFIED</span></dd>
             </div>
             <div>
-              <dt>제품 기능</dt>
-              <dd><span class="status status-planned">PLANNED</span></dd>
+              <dt>점포 카탈로그</dt>
+              <dd><span class="status status-in-progress">IN_PROGRESS</span></dd>
             </div>
             <div>
               <dt>Phase 1 지갑 코드</dt>
@@ -161,23 +161,23 @@
           <article class="evidence-primary">
             <span class="evidence-number">main</span>
             <h3>검증된 기준선</h3>
-            <p>Phase 0 기준선과 상태 동기화가 각각 CI를 통과해 main에 반영됐습니다.</p>
+            <p>Phase 0 기준선과 Phase 1 지갑 코드가 CI를 통과해 main에 반영됐습니다.</p>
             <div class="evidence-links">
               <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/2" rel="noreferrer">PR #2</a>
-              <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/4" rel="noreferrer">PR #4</a>
+              <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/10" rel="noreferrer">PR #10</a>
             </div>
           </article>
           <article>
             <span class="evidence-number">36</span>
             <h3>제품 시험</h3>
-            <p>W02·W03·W09 자동화는 PASS입니다. 실제 외부 지갑·QR·민팅·계약·복원 시험은 아직 NOT_RUN입니다.</p>
-            <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_REPORT.md" rel="noreferrer">시험 원장 보기</a>
+            <p>W02·W03·W09와 로컬 PostgreSQL 카탈로그 통합은 PASS이고 원격 CI는 pending입니다. 실제 외부 지갑·QR·민팅·계약·복원은 아직 NOT_RUN입니다.</p>
+            <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md" rel="noreferrer">시험 원장 보기</a>
           </article>
           <article>
             <span class="evidence-number">0</span>
             <h3>허위 실적</h3>
             <p>협약 점포, Play 승인, 매출 증가, 현장 검증을 실제 증거 없이 표시하지 않습니다.</p>
-            <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/STATUS.md" rel="noreferrer">현재 상태 보기</a>
+            <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/PROJECT_STATE.md" rel="noreferrer">현재 상태 보기</a>
           </article>
         </div>
 
@@ -249,7 +249,7 @@
         <div class="document-list">
           <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/PRD.md" rel="noreferrer"><strong>제품 요구사항</strong><span>RQ-001~RQ-021</span></a>
           <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/DECISIONS.md" rel="noreferrer"><strong>결정 기록</strong><span>승인·제안·외부 확인</span></a>
-          <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_REPORT.md" rel="noreferrer"><strong>테스트 원장</strong><span>36개 ID와 실행 근거</span></a>
+          <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md" rel="noreferrer"><strong>테스트 원장</strong><span>36개 ID와 실행 근거</span></a>
           <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/EVALUATION_MAP.md" rel="noreferrer"><strong>평가 대응</strong><span>Issue·PR·코드·실증 연결</span></a>
           <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/COMPETITION.md" rel="noreferrer"><strong>대회 규칙</strong><span>페이지별 조치와 상태</span></a>
           <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF.md" rel="noreferrer"><strong>인수인계</strong><span>중복 작업 방지</span></a>

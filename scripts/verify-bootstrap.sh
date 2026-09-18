@@ -20,6 +20,8 @@ required_files=(
   docs/EVALUATION_MAP.md
   docs/PRD.md
   docs/DECISIONS.md
+  docs/PROJECT_STATE.md
+  docs/TEST_STATUS.md
   docs/STATUS.md
   docs/TEST_REPORT.md
   docs/AI_USAGE.md
@@ -45,7 +47,7 @@ entry_count="$(awk -F '\t' 'NR > 1 && $1 != "" { count++ } END { print count + 0
 for test_id in $expected_ids; do
   id_count="$(awk -F '\t' -v id="$test_id" 'NR > 1 && $1 == id { count++ } END { print count + 0 }' "$catalog")"
   [[ "$id_count" -eq 1 ]] || fail "expected test ID $test_id exactly once, found $id_count"
-  grep -q "| $test_id |" "$repo_root/docs/TEST_REPORT.md" || fail "TEST_REPORT is missing $test_id"
+  grep -q "| $test_id |" "$repo_root/docs/TEST_STATUS.md" || fail "TEST_STATUS is missing $test_id"
 done
 
 invalid_statuses="$(awk -F '\t' 'NR > 1 && $3 !~ /^(PASS|FAIL|BLOCKED|NOT_RUN)$/ { print $1 ":" $3 }' "$catalog")"

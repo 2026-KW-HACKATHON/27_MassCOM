@@ -1,16 +1,16 @@
 # 평가 항목 증거 연결
 
-현재는 부트스트랩 단계이므로 존재하지 않는 PR·실증·발표 증거를 만들지 않습니다. `생성 전`, `없음`, `NOT_RUN`도 현재 상태를 추적하기 위한 명시적 값입니다.
+현재는 Phase 2 점포 카탈로그를 구현 중입니다. 존재하지 않는 PR·실증·발표 증거를 만들지 않으며 `생성 전`, `없음`, `NOT_RUN`도 현재 상태를 추적하는 값입니다.
 
 | 단계 | 항목 | 배점 | 요구사항 | Issue | PR | 코드·문서 | 테스트 | 실증 | 발표 자료 | 상태 |
 | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
-| 중간 | 논리의 연결성 | 30 | `RQ-001`~`RQ-006` | [#1](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/1) | [#2](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/2) | `docs/PRD.md`, `README.md` | 핵심 흐름 시험 `NOT_RUN` | 인터뷰·행동 자료 없음 | 3분 원고 생성 전 | `IN_PROGRESS` |
+| 중간 | 논리의 연결성 | 30 | `RQ-001`~`RQ-006` | [#13](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/13) | PR 생성 전 | `docs/PRD.md`, `apps/api/src/merchant-catalog.ts`, PostgreSQL migration | 카탈로그 API·로컬 PostgreSQL 통합 `PASS`, 원격 CI pending | 인터뷰·행동 자료 없음 | 3분 원고 생성 전 | `IN_PROGRESS` |
 | 중간 | 실현 & 상용화 가능성 | 20 | `RQ-007`~`RQ-015` | [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) | [#10](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/10) | `apps/mobile`, `apps/api`, `docs/PHASE1_WALLET_LINK.md` | W02·W03·W09 `PASS`, 나머지 관련 시험 `NOT_RUN` | Android 16 AVD APK 증거, 실제 지갑 없음 | 설정 BLOCKED 화면 증거 | `IMPLEMENTED` |
-| 중간 | 기획 문서의 재현 가능성 | 20 | `RQ-016`~`RQ-018` | [#1](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/1), [#5](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/5) | [#2](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/2), [#6](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/6) | `README.md`, `.env.example`, `docs/index.html`, `docs/TEST_REPORT.md` | 부트스트랩·비밀·포털·접근성 검사 `PASS` | 외부 HTTPS `NOT_RUN` | `docs/evidence/project-portal-*.png`, 공개 URL 없음 | `IN_PROGRESS` |
+| 중간 | 기획 문서의 재현 가능성 | 20 | `RQ-016`~`RQ-018` | [#1](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/1), [#13](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/13) | [#2](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/2), PR 생성 전 | `README.md`, `.env.example`, `docs/PROJECT_STATE.md`, `docs/TEST_STATUS.md` | 부트스트랩·API·로컬 PostgreSQL 통합 `PASS`, 원격 CI pending | 외부 HTTPS `NOT_RUN` | 로컬 포털, 공개 URL 없음 | `IN_PROGRESS` |
 | 중간 | 창의성 & 차별성 | 20 | `RQ-001`, `RQ-005` | 기능 Issue 생성 전 | 생성 전 | `docs/PRD.md` | 추천·도감 시험 `NOT_RUN` | 다음 점포 탐색 자료 없음 | 비교 슬라이드 생성 전 | `PLANNED` |
 | 중간 | 발표 | 10 | `RQ-019` | 발표 Issue 생성 전 | 생성 전 | `docs/COMPETITION.md` | 리허설 `NOT_RUN` | 실제 화면 없음 | 3분 원고·시연 순서 생성 전 | `PLANNED` |
 | 최종 | 실현 & 상용화 가능성 | 30 | `RQ-007`~`RQ-015` | 기능·운영 Issue 생성 전 | 생성 전 | `docs/BLOCKERS.md`, 배포 코드 없음 | `W01`~`O02` 관련 시험 `NOT_RUN` | 파일럿·실비 자료 없음 | 5분 시연 자료 생성 전 | `PLANNED` |
-| 최종 | 구현 완성도 & 기술력 | 20 | `RQ-002`~`RQ-018` | 기능 Issue 생성 전 | 생성 전 | 앱·API·계약·Worker 코드 없음 | 36개 제품 시험 모두 `NOT_RUN` | 실제 기기·체인 증거 없음 | 기술 설명 자료 생성 전 | `PLANNED` |
+| 최종 | 구현 완성도 & 기술력 | 20 | `RQ-002`~`RQ-018` | [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9), [#13](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/13) | [#10](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/10), PR 생성 전 | Android·지갑 API·점포 카탈로그 코드, 계약·Worker 없음 | W02·W03·W09 `PASS`, 로컬 PostgreSQL 카탈로그 통합 `PASS`, 원격 CI pending | Android AVD 증거, 실제 지갑·체인 없음 | 기술 설명 자료 생성 전 | `IN_PROGRESS` |
 | 최종 | 지역 문제 적합성 | 20 | `RQ-001`, `RQ-005`, `RQ-020` | 현장 검증 Issue 생성 전 | 생성 전 | `docs/PRD.md` | 현장 수용 기준 `NOT_RUN` | 허락받은 인터뷰·관찰 없음 | 지역 문제 슬라이드 생성 전 | `PLANNED` |
 | 최종 | 창의성 & 차별성 | 20 | `RQ-005`, `RQ-006` | 기능 Issue 생성 전 | 생성 전 | 방문 도감·NFT 분리 요구만 존재 | 비교 검증 `NOT_RUN` | 비교 사용자 자료 없음 | 차별성 슬라이드 생성 전 | `PLANNED` |
 | 최종 | 참여도 | 5 | `RQ-021` | [#1](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/1) | [#2](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/2) | `docs/AI_USAGE.md`, Git 이력 | 설명 가능성 점검 `NOT_RUN` | 팀원별 실제 기록 없음 | 역할 설명 자료 생성 전 | `IN_PROGRESS` |

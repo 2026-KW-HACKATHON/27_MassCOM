@@ -1,6 +1,6 @@
-# 지갑 주소 확인 API
+# MassCOM API
 
-ERC-4361(SIWE) 메시지를 발급하고 Base Sepolia 주소 서명을 검증하는 Phase 1 최소 API입니다.
+ERC-4361(SIWE) 주소 확인과 Phase 2 공개 점포·캠페인 카탈로그를 제공하는 Node.js API입니다.
 
 ## 실행
 
@@ -10,14 +10,18 @@ npm test
 npm run typecheck
 npm run build
 cp .env.example .env
-npm start
+npm run db:migrate:local
+npm run start:local
 ```
 
 로컬 앱 연동 시험에서만 `ALLOW_INSECURE_DEMO_ACCOUNT=true`로 바꿀 수 있습니다. 기본값 `false`에서는 실제 account resolver가 없으므로 wallet POST 요청을 `503 ACCOUNT_AUTH_NOT_CONFIGURED`로 거절합니다.
 
+`GET /merchants`를 사용하려면 `DATABASE_URL`을 실제 PostgreSQL에 지정한 뒤 migration을 실행합니다. 운영 seed는 제공하지 않으며 테스트의 가상 점포만 `demo: true`로 사용합니다.
+
 ## 엔드포인트
 
 - `GET /health`
+- `GET /merchants`: 로그인·지갑 없이 활성 점포와 공개 중인 현재 캠페인 조회
 - `POST /wallet/challenges`
 - `POST /wallet/verify`
 
@@ -31,4 +35,15 @@ npm start
 - 실제 secp256k1 서명 복구 주소
 - 성공 nonce 단일 소비와 동시 검증 claim
 
-현재 저장소는 메모리 구현이므로 프로세스 재시작 시 challenge가 사라집니다. PostgreSQL 원자 소비는 Phase 2 작업입니다.
+## PostgreSQL 검증
+
+```bash
+read -s PGPASSWORD && export PGPASSWORD
+export TEST_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_test'
+DATABASE_URL="$TEST_DATABASE_URL" npm run db:migrate
+npm run test:postgres
+```
+
+통합 테스트는 테이블을 비우므로 DB 이름이 `_test`로 끝나는 전용 데이터베이스만 허용합니다. PostgreSQL 18에서 migration, 활성/중단 점포, 공개/비공개 캠페인, 현재/미래 기간, 정원 마감 상태를 확인합니다.
+
+지갑 challenge는 아직 메모리 구현이므로 프로세스 재시작 시 사라집니다. PostgreSQL 원자 소비는 별도 후속 PR 범위입니다.

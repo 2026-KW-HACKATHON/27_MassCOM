@@ -25,7 +25,7 @@ cp "$repo_root/scripts/check-secrets.sh" "$fixture_root/scripts/check-secrets.sh
 cp "$repo_root/tests/bootstrap/check_secrets_test.sh" "$fixture_root/tests/bootstrap/check_secrets_test.sh"
 cp "$repo_root/tests/catalog/required-tests.tsv" "$fixture_root/tests/catalog/required-tests.tsv"
 
-for document in SOURCE_INDEX COMPETITION EVALUATION_MAP PRD DECISIONS STATUS TEST_REPORT AI_USAGE; do
+for document in SOURCE_INDEX COMPETITION EVALUATION_MAP PRD DECISIONS PROJECT_STATE TEST_STATUS STATUS TEST_REPORT AI_USAGE; do
   cp "$repo_root/docs/$document.md" "$fixture_root/docs/$document.md"
 done
 
@@ -37,10 +37,18 @@ if "$verifier" "$fixture_root" >/dev/null 2>&1; then
 fi
 
 cp "$repo_root/docs/AI_USAGE.md" "$fixture_root/docs/AI_USAGE.md"
-rm "$fixture_root/docs/STATUS.md"
+rm "$fixture_root/docs/PROJECT_STATE.md"
 
 if "$verifier" "$fixture_root" >/dev/null 2>&1; then
-  echo "verifier accepted a bootstrap missing docs/STATUS.md" >&2
+  echo "verifier accepted a bootstrap missing docs/PROJECT_STATE.md" >&2
+  exit 1
+fi
+
+cp "$repo_root/docs/PROJECT_STATE.md" "$fixture_root/docs/PROJECT_STATE.md"
+rm "$fixture_root/docs/TEST_STATUS.md"
+
+if "$verifier" "$fixture_root" >/dev/null 2>&1; then
+  echo "verifier accepted a bootstrap missing docs/TEST_STATUS.md" >&2
   exit 1
 fi
 

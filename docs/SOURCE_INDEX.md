@@ -28,3 +28,10 @@
 | [ERC-4361](https://eips.ethereum.org/EIPS/eip-4361) | 2026-09-18 | SIWE 메시지 필드·nonce·만료·ASCII statement |
 | [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) | 2026-09-18 | provider 요청·오류·계정/체인 변경 |
 | [Base 연결 정보](https://docs.base.org/get-started/connect-to-base) | 2026-09-18 | Base Sepolia chain ID 84532·RPC·explorer |
+
+## Phase 2 PostgreSQL 근거
+
+| 근거 | 확인일 | 적용 내용 |
+| --- | --- | --- |
+| [PostgreSQL 18 문서](https://www.postgresql.org/docs/18/) | 2026-09-18 | 제약·부분 인덱스·트랜잭션 migration·통합 시험 |
+| [node-postgres](https://node-postgres.com/) | 2026-09-18 | Pool·parameterized query·환경 기반 연결 |
