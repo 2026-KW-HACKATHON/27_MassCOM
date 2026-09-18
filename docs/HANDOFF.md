@@ -4,7 +4,9 @@
 
 기준 브랜치: `main`
 
-통합 기준 커밋 SHA: `main@bdeade463fa26406c70cd44beeba02151a6c4134`, main CI run `35319672490` PASS
+통합 기준 커밋 SHA: `main@9c5ad0ef63a5ee918a84f71efa45e88d6576d104`, main CI run `35320255132` PASS
+
+현재 작업: `fix/31-wallet-rejection-event@95a46e9c7bee09efbae97fc6d92712ee9715059e`, PR #32 OPEN
 
 ## 이번 세션에서 완료한 것
 

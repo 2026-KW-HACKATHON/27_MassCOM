@@ -8,9 +8,9 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 기준 | `main` |
-| 현재 통합 기준 | `main@bdeade463fa26406c70cd44beeba02151a6c4134`, CI run `35319672490` PASS |
-| 최근 기능 merge | PR #28, `bdeade4` |
+| 현재 작업 기준 | `fix/31-wallet-rejection-event@95a46e9`, PR #32 OPEN |
+| 현재 통합 기준 | `main@9c5ad0ef63a5ee918a84f71efa45e88d6576d104`, CI run `35320255132` PASS |
+| 최근 merge | PR #30, `9c5ad0e` |
 | Phase 1 종료 Issue | #25 실제 지갑 검증, #27 거절 정규화 |
 | Phase 1 merge PR | #26 실제 지갑 안정화, #28 거절 처리 보완 |
 

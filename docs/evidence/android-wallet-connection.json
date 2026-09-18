@@ -29,7 +29,7 @@
     "server_verification": "PASS: the app showed VERIFIED after personal_sign and server-side account, address, domain, chain, nonce, expiry, original-message, and recovered-signer checks",
     "cold_restart": "PASS: the WalletConnect session restored as CONNECTED and BASE_SEPOLIA while address verification safely reset to UNVERIFIED",
     "sign_rejection": "PASS: MetaMask returned code 4001; the app returned to CONNECTED, BASE_SEPOLIA, UNVERIFIED and displayed the Korean cancellation message stating that visit records and receivable collectibles remain",
-    "connection_rejection": "PARTIAL: MetaMask connection rejection produced Reown USER_REJECTED and the default Connection declined modal; automated event handling is PASS, but the post-fix physical-device rerun is pending because MetaMask auto-locked",
+    "connection_rejection": "NOT_RUN: the pre-fix MetaMask rejection produced Reown USER_REJECTED and the default Connection declined modal, and automated event classification is PASS; the post-fix physical-device rerun is pending because MetaMask auto-locked",
     "wallet_missing": "NOT_RUN",
     "address_change": "NOT_RUN",
     "unsupported_wallet": "NOT_RUN"
