@@ -36,8 +36,10 @@ jobs:
           cache-dependency-path: |
             apps/api/package-lock.json
             apps/mobile/package-lock.json
-      - name: Scan repository for committed secrets
-        run: bash tests/bootstrap/check_secrets_test.sh
+      - name: 저장소 비밀값 검사
+        run: |
+          bash scripts/check-secrets.sh
+          bash tests/bootstrap/check_secrets_test.sh
       - name: PR 한국어 작성 확인
         if: github.event_name == 'pull_request'
         env:

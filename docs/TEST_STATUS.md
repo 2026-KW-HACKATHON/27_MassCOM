@@ -4,9 +4,9 @@
 
 | ID | 구분 | 상태 | 시나리오 | 통과 조건 | 증거 |
 | --- | --- | --- | --- | --- | --- |
-| Q01 | PostgreSQL 동시성 | NOT_RUN | 같은 QR 동시 20요청 | 수령·방문 인정 1회 | QR 미구현 |
-| Q02 | PostgreSQL 동시성 | NOT_RUN | QR 만료와 수령 경쟁 | 하나의 최종 상태 | QR 미구현 |
-| Q03 | API 통합 | NOT_RUN | QR 재발급 후 이전 코드 사용 | 이전 코드는 거절, 권리 추가 없음 | QR 미구현 |
+| Q01 | PostgreSQL 동시성 | NOT_RUN | 같은 QR 동시 20요청 | 수령·방문 인정 1회 | claim slot 소비 1회 PASS, 방문 이벤트 미구현 |
+| Q02 | PostgreSQL 동시성 | PASS | QR 만료와 수령 경쟁 | 하나의 최종 상태 | 정확한 만료 시각 동시 20요청에서 `EXPIRED` 한 번 확정, 나머지 거절 |
+| Q03 | API 통합 | PASS | QR 재발급 후 이전 코드 사용 | 이전 코드는 거절, 권리 추가 없음 | 같은 slot token 교체, 이전 token 거절, slot 수 1 유지, 실제 HTTP+PostgreSQL 동일 버전 동시 재발급 2요청 중 `200` 1건·`409` 1건 |
 | Q04 | API 통합 | NOT_RUN | 단체 일부만 수령 | 사람별 결과 독립, 다른 슬롯 유지 | 단체 슬롯 미구현 |
 | Q05 | 권한 통합 | PASS | 다른 점포 직원·다른 사용자 접근 | 조회·변경 모두 거절 | PostgreSQL 18에서 다른 점포·무소속·철회 계정 조회 403, `CONFIRM_VISIT` 권한 거절, 철회 즉시 반영 |
 | R01 | PostgreSQL 동시성 | NOT_RUN | 한국 날짜 경계·동시 방문 평가 | 한국 날짜당 진행 최대 1회 | D-006 승인, 방문 미구현 |
@@ -57,5 +57,9 @@
 | 2026-09-18 KST | `1549938` | `npm test --prefix apps/api` | macOS·Node 25.9.0 | PASS 19/19 | 같은 명령 재실행 |
 | 2026-09-18 KST | `1549938` | `npm run test:postgres --prefix apps/api` | PostgreSQL 18 Alpine·Docker 27.3.1 | PASS 2/2, Q05 포함 | `_test` 전용 `TEST_DATABASE_URL` 지정 |
 | 2026-09-18 KST | `1549938` | API typecheck·build | TypeScript 6·npm | PASS | package scripts 재실행 |
+| 2026-09-18 KST | `7442cff` | `npm test --prefix apps/api` | macOS·Node 25.9.0 | PASS 25/25 | 같은 명령 재실행 |
+| 2026-09-18 KST | `7442cff` | `npm run test:postgres --prefix apps/api` | PostgreSQL 18 Alpine·Docker 27.3.1 | PASS 3/3, Q02·Q03 포함 | `_test` 전용 `TEST_DATABASE_URL` 지정 |
+| 2026-09-18 KST | `7442cff` | 동일 token 소비·만료 경합 각 20요청 | PostgreSQL 18 Alpine | PASS | claim slot 통합 시험 재실행 |
+| 2026-09-18 KST | `6823119` | API 25개·PostgreSQL 3개·typecheck·build·production audit | Node 25.9.0·PostgreSQL 18 Alpine | PASS, production 취약점 0 | HMAC 저장과 `tokenVersion` 동시 재발급 회귀 포함 |
 
 Phase 2 카탈로그 통합 테스트는 Q01~Q04·R01~R03을 직접 검증하지 않습니다. 점포 멤버십 통합은 Q05의 다른 점포·무소속·철회 계정 읽기와 `CONFIRM_VISIT` 권한을 실제 PostgreSQL에서 거절해 Q05만 `PASS`로 변경했습니다.

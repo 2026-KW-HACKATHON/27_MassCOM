@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
 
+import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
 import {
   InMemoryChallengeStore,
   WalletChallengeError,
@@ -13,6 +14,7 @@ import {
   type MerchantAccessControl,
 } from './merchant-access.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
+import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 
@@ -27,6 +29,7 @@ export function createApiServer(
   resolveAccountId: AccountResolver,
   merchantCatalog?: MerchantCatalog,
   merchantAccess?: MerchantAccessControl,
+  claimSlots?: ClaimSlotService,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -63,6 +66,90 @@ export function createApiServer(
         return;
       }
 
+      if (
+        request.method === 'POST' &&
+        /^\/merchant\/merchants\/[^/]+\/claim-slots$/.test(request.url ?? '')
+      ) {
+        if (!merchantAccess) {
+          throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        const merchantId = decodeURIComponent(request.url!.split('/')[3]!);
+        await merchantAccess.requirePermission({
+          accountId,
+          merchantId,
+          permission: 'CONFIRM_VISIT',
+        });
+        if (!claimSlots) {
+          throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+        }
+        const body = await readJson(request);
+        const issued = await claimSlots.issue({
+          merchantId,
+          customerAccountId: requireString(body, 'customerAccountId'),
+          merchantReference: requireString(body, 'merchantReference'),
+          createdByAccountId: accountId,
+        });
+        sendJson(response, 201, issued);
+        return;
+      }
+
+      const reissueMatch = request.url?.match(
+        /^\/merchant\/merchants\/([^/]+)\/claim-slots\/([^/]+)\/reissue$/,
+      );
+      if (request.method === 'POST' && reissueMatch) {
+        if (!merchantAccess) {
+          throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+        }
+        if (!claimSlots) {
+          throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        const merchantId = decodeURIComponent(reissueMatch[1]!);
+        await merchantAccess.requirePermission({
+          accountId,
+          merchantId,
+          permission: 'CONFIRM_VISIT',
+        });
+        const body = await readJson(request);
+        const issued = await claimSlots.reissue({
+          merchantId,
+          claimSlotId: decodeURIComponent(reissueMatch[2]!),
+          expectedTokenVersion: requirePositiveInteger(body, 'expectedTokenVersion'),
+          requestedByAccountId: accountId,
+        });
+        sendJson(response, 200, issued);
+        return;
+      }
+
+      if (request.method === 'POST' && request.url === '/claim-slots/redeem') {
+        if (!claimSlots) {
+          throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        const redeemed = await claimSlots.redeem({
+          accountId,
+          token: requireString(body, 'token'),
+        });
+        sendJson(response, 200, redeemed);
+        return;
+      }
+
+      if (request.method === 'POST' && request.url === '/claim-slots/preview') {
+        if (!claimSlots) {
+          throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        const preview = await claimSlots.preview({
+          accountId,
+          token: requireString(body, 'token'),
+        });
+        sendJson(response, 200, preview);
+        return;
+      }
+
       if (request.method === 'POST' && request.url === '/wallet/challenges') {
         const accountId = await resolveAccountId(request);
         const body = await readJson(request);
@@ -91,6 +178,10 @@ export function createApiServer(
 
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
+      if (error instanceof ClaimSlotError) {
+        sendJson(response, statusForClaimSlot(error.code), { code: error.code });
+        return;
+      }
       if (error instanceof MerchantAccessError) {
         sendJson(response, 403, { code: error.code });
         return;
@@ -172,6 +263,14 @@ function requireNumber(body: Record<string, unknown>, field: string): number {
   return value;
 }
 
+function requirePositiveInteger(body: Record<string, unknown>, field: string): number {
+  const value = requireNumber(body, field);
+  if (value <= 0) {
+    throw new RequestError(400, 'INVALID_REQUEST');
+  }
+  return value;
+}
+
 function statusFor(code: string): number {
   if (code === 'ACCOUNT_AUTH_NOT_CONFIGURED') return 503;
   if (code === 'ACCOUNT_REQUIRED' || code === 'SIGNER_MISMATCH') return 401;
@@ -180,6 +279,11 @@ function statusFor(code: string): number {
   if (code === 'SIGNATURE_EXPIRED') return 410;
   if (code === 'NONCE_ALREADY_USED' || code === 'NONCE_IN_PROGRESS') return 409;
   return 400;
+}
+
+function statusForClaimSlot(code: string): number {
+  if (code === 'CLAIM_TOKEN_EXPIRED') return 410;
+  return 409;
 }
 
 function setCommonHeaders(response: ServerResponse): void {
@@ -211,6 +315,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     : undefined;
   const merchantCatalog = pool ? new PostgresMerchantCatalog(pool) : undefined;
   const merchantAccess = pool ? new PostgresMerchantAccessControl(pool) : undefined;
+  const claimSlots =
+    pool && process.env.MERCHANT_REFERENCE_HMAC_SECRET
+      ? new PostgresClaimSlotService(pool, {
+          referenceHmacSecret: process.env.MERCHANT_REFERENCE_HMAC_SECRET,
+        })
+      : undefined;
   const accountResolver: AccountResolver =
     process.env.ALLOW_INSECURE_DEMO_ACCOUNT === 'true'
       ? developmentHeaderAccountResolver
@@ -218,11 +328,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           throw new WalletChallengeError('ACCOUNT_AUTH_NOT_CONFIGURED');
         };
 
-  createApiServer(configuredService(), accountResolver, merchantCatalog, merchantAccess).listen(
-    port,
-    '127.0.0.1',
-    () => {
-      console.log(`wallet API listening on http://127.0.0.1:${port}`);
-    },
-  );
+  createApiServer(
+    configuredService(),
+    accountResolver,
+    merchantCatalog,
+    merchantAccess,
+    claimSlots,
+  ).listen(port, '127.0.0.1', () => {
+    console.log(`wallet API listening on http://127.0.0.1:${port}`);
+  });
 }

@@ -17,6 +17,15 @@
 - 기본 서버는 account resolver가 없으면 wallet POST를 `503`으로 거절합니다. `x-account-id`는 loopback 서버에서 `ALLOW_INSECURE_DEMO_ACCOUNT=true`를 명시한 개발 모드에만 사용합니다.
 - 메모리 challenge store는 재시작 복구·다중 인스턴스 원자성을 제공하지 않습니다.
 
+## 점포 권한·QR
+
+- 점주·직원 권한은 점포별 활성 멤버십을 매 요청 PostgreSQL에서 확인합니다.
+- QR token 원문은 저장하지 않고 SHA-256 hash만 저장합니다.
+- 추측 가능한 점포 주문 참조는 점포 ID를 포함한 HMAC-SHA-256만 저장하며, 32바이트 이상 서버 비밀값을 환경 변수로 주입합니다.
+- token preview는 URL이 아닌 JSON 본문으로 받고 슬롯 상태를 변경하지 않습니다.
+- 재발급은 클라이언트가 본 `tokenVersion`이 현재 버전과 같을 때만 같은 슬롯의 token hash를 교체하므로 동시 요청 한 건만 성공하며 이전 token을 즉시 무효화합니다.
+- 소비와 만료 판정은 조건부 `UPDATE ... RETURNING` 한 문장에서 처리해 동시 성공을 한 건으로 제한합니다.
+
 ## 의존성 검사
 
 - API production 의존성: `npm audit --omit=dev` 취약점 0건
@@ -26,4 +35,4 @@
 
 ## 미검증
 
-실제 Reown gateway, 외부 지갑 앱, Android App Link, release 서명, AAB 16KB 호환, 외부 HTTPS, PostgreSQL 동시성은 아직 검증되지 않았습니다.
+실제 Reown gateway, 외부 지갑 앱, Android App Link, release 서명, AAB 16KB 호환, 외부 HTTPS는 아직 검증되지 않았습니다. PostgreSQL claim slot 동시성은 검증했지만 방문·보상권 원자 트랜잭션은 아직 `NOT_RUN`입니다.

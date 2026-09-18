@@ -8,6 +8,7 @@ import {
   developmentHeaderAccountResolver,
   type AccountResolver,
 } from './server.js';
+import { ClaimSlotError, type ClaimSlotErrorCode } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
@@ -24,11 +25,58 @@ type MerchantAccessFixture = {
   }>;
 };
 
+type ClaimSlotFixture = {
+  issue(input: {
+    merchantId: string;
+    customerAccountId: string;
+    merchantReference: string;
+    createdByAccountId: string;
+  }): Promise<{ claimSlotId: string; token: string; tokenVersion: number; expiresAt: string }>;
+  reissue(input: {
+    merchantId: string;
+    claimSlotId: string;
+    expectedTokenVersion: number;
+    requestedByAccountId: string;
+  }): Promise<{ claimSlotId: string; token: string; tokenVersion: number; expiresAt: string }>;
+  redeem(input: {
+    accountId: string;
+    token: string;
+  }): Promise<{ claimSlotId: string; merchantId: string; status: 'CLAIMED' }>;
+  preview(input: {
+    accountId: string;
+    token: string;
+  }): Promise<{
+    claimSlotId: string;
+    merchantId: string;
+    expiresAt: string;
+    status: 'AVAILABLE' | 'EXPIRED';
+  }>;
+};
+
+function claimSlotFixture(overrides: Partial<ClaimSlotFixture>): ClaimSlotFixture {
+  return {
+    issue: async () => {
+      throw new Error('unexpected claim slot issue call');
+    },
+    reissue: async () => {
+      throw new Error('unexpected claim slot reissue call');
+    },
+    redeem: async () => {
+      throw new Error('unexpected claim slot redeem call');
+    },
+    preview: async () => {
+      throw new Error('unexpected claim slot preview call');
+    },
+    ...overrides,
+  };
+}
+
 async function startFixture(
   t: TestContext,
   resolveAccountId: AccountResolver = developmentHeaderAccountResolver,
   merchantCatalog?: MerchantCatalog,
   merchantAccess?: MerchantAccessFixture,
+  claimSlots?: ClaimSlotFixture,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -39,7 +87,13 @@ async function startFixture(
     nonce: () => 'abc12345def67890',
     challengeId: () => 'challenge-http-1',
   });
-  const server = createApiServer(service, resolveAccountId, merchantCatalog, merchantAccess);
+  const server = createApiServer(
+    service,
+    resolveAccountId,
+    merchantCatalog,
+    merchantAccess,
+    claimSlots,
+  );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))));
@@ -129,6 +183,226 @@ test('returns a generic forbidden response when merchant access is denied', asyn
 
   assert.equal(response.status, 403);
   assert.deepEqual(await response.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+});
+
+test('does not issue claim slots when the claim service is unconfigured', async (t) => {
+  const baseUrl = await startFixture(t, () => 'merchant-staff-1', undefined, {
+    requirePermission: async ({ merchantId }) => ({
+      merchantId,
+      role: 'STAFF',
+      permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT'],
+    }),
+  });
+  const response = await fetch(`${baseUrl}/merchant/merchants/merchant-visible/claim-slots`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      customerAccountId: 'customer-1',
+      merchantReference: 'demo-order-1',
+    }),
+  });
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { code: 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED' });
+});
+
+test('issues a one-time claim token after merchant permission succeeds', async (t) => {
+  const baseUrl = await startFixture(
+    t,
+    () => 'merchant-staff-1',
+    undefined,
+    {
+      requirePermission: async ({ merchantId }) => ({
+        merchantId,
+        role: 'STAFF',
+        permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT'],
+      }),
+    },
+    claimSlotFixture({
+      issue: async () => ({
+        claimSlotId: 'claim-slot-1',
+        token: 'claim-token-returned-once',
+        tokenVersion: 1,
+        expiresAt: '2026-09-18T03:30:00.000Z',
+      }),
+    }),
+  );
+  const response = await fetch(`${baseUrl}/merchant/merchants/merchant-visible/claim-slots`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      customerAccountId: 'customer-1',
+      merchantReference: 'demo-order-1',
+    }),
+  });
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(await response.json(), {
+    claimSlotId: 'claim-slot-1',
+    token: 'claim-token-returned-once',
+    tokenVersion: 1,
+    expiresAt: '2026-09-18T03:30:00.000Z',
+  });
+});
+
+test('reissues the expected token version for the same claim slot', async (t) => {
+  let receivedExpectedTokenVersion: number | undefined;
+  const baseUrl = await startFixture(
+    t,
+    () => 'merchant-owner-1',
+    undefined,
+    {
+      requirePermission: async ({ merchantId }) => ({
+        merchantId,
+        role: 'OWNER',
+        permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT'],
+      }),
+    },
+    claimSlotFixture({
+      reissue: async ({ claimSlotId, expectedTokenVersion }) => {
+        receivedExpectedTokenVersion = expectedTokenVersion;
+        return {
+          claimSlotId,
+          token: 'replacement-claim-token',
+          tokenVersion: 2,
+          expiresAt: '2026-09-18T03:45:00.000Z',
+        };
+      },
+    }),
+  );
+  const response = await fetch(
+    `${baseUrl}/merchant/merchants/merchant-visible/claim-slots/claim-slot-1/reissue`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ expectedTokenVersion: 1 }),
+    },
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(receivedExpectedTokenVersion, 1);
+  assert.deepEqual(await response.json(), {
+    claimSlotId: 'claim-slot-1',
+    token: 'replacement-claim-token',
+    tokenVersion: 2,
+    expiresAt: '2026-09-18T03:45:00.000Z',
+  });
+});
+
+test('redeems a claim token only for the authenticated customer account', async (t) => {
+  const baseUrl = await startFixture(
+    t,
+    () => 'customer-1',
+    undefined,
+    undefined,
+    claimSlotFixture({
+      redeem: async () => ({
+        claimSlotId: 'claim-slot-1',
+        merchantId: 'merchant-visible',
+        status: 'CLAIMED',
+      }),
+    }),
+  );
+  const response = await fetch(`${baseUrl}/claim-slots/redeem`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ token: 'claim-token-returned-once' }),
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    claimSlotId: 'claim-slot-1',
+    merchantId: 'merchant-visible',
+    status: 'CLAIMED',
+  });
+});
+
+test('previews a claim token without consuming it or putting the token in the URL', async (t) => {
+  const baseUrl = await startFixture(
+    t,
+    () => 'customer-1',
+    undefined,
+    undefined,
+    claimSlotFixture({
+      preview: async () => ({
+        claimSlotId: 'claim-slot-1',
+        merchantId: 'merchant-visible',
+        expiresAt: '2026-09-18T03:30:00.000Z',
+        status: 'AVAILABLE',
+      }),
+    }),
+  );
+  const response = await fetch(`${baseUrl}/claim-slots/preview`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ token: 'claim-token-kept-in-body' }),
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    claimSlotId: 'claim-slot-1',
+    merchantId: 'merchant-visible',
+    expiresAt: '2026-09-18T03:30:00.000Z',
+    status: 'AVAILABLE',
+  });
+});
+
+test('maps claim slot conflicts and expiration without exposing stored data', async (t) => {
+  let failure: ClaimSlotErrorCode = 'CLAIM_SLOT_ALREADY_EXISTS';
+  const fail = async () => {
+    throw new ClaimSlotError(failure);
+  };
+  const baseUrl = await startFixture(
+    t,
+    () => 'account-1',
+    undefined,
+    {
+      requirePermission: async ({ merchantId }) => ({
+        merchantId,
+        role: 'STAFF',
+        permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT'],
+      }),
+    },
+    { issue: fail, reissue: fail, redeem: fail, preview: fail },
+  );
+
+  const cases = [
+    {
+      code: 'CLAIM_SLOT_ALREADY_EXISTS' as const,
+      expectedStatus: 409,
+      url: '/merchant/merchants/merchant-visible/claim-slots',
+      body: { customerAccountId: 'customer-1', merchantReference: 'demo-order-1' },
+    },
+    {
+      code: 'CLAIM_SLOT_NOT_REISSUABLE' as const,
+      expectedStatus: 409,
+      url: '/merchant/merchants/merchant-visible/claim-slots/claim-slot-1/reissue',
+      body: { expectedTokenVersion: 1 },
+    },
+    {
+      code: 'CLAIM_TOKEN_UNAVAILABLE' as const,
+      expectedStatus: 409,
+      url: '/claim-slots/redeem',
+      body: { token: 'unavailable-token' },
+    },
+    {
+      code: 'CLAIM_TOKEN_EXPIRED' as const,
+      expectedStatus: 410,
+      url: '/claim-slots/redeem',
+      body: { token: 'expired-token' },
+    },
+  ];
+
+  for (const scenario of cases) {
+    failure = scenario.code;
+    const response = await fetch(`${baseUrl}${scenario.url}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      ...(scenario.body ? { body: JSON.stringify(scenario.body) } : {}),
+    });
+    assert.equal(response.status, scenario.expectedStatus, scenario.code);
+    assert.deepEqual(await response.json(), { code: scenario.code });
+  }
 });
 
 test('requires an authenticated account boundary for wallet challenges', async (t) => {
