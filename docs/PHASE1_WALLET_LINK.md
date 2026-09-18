@@ -2,6 +2,8 @@
 
 GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLOSED · PR [#10](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/10) MERGED · merge `80bf53b`
 
+실제 지갑 후속: Issue [#25](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/25) · PR [#26](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/26)
+
 ## 구현 범위
 
 - Expo SDK 57 + React Native 0.86.3 + Expo Router development build
