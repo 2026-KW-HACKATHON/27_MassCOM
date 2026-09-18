@@ -54,7 +54,8 @@
 | 2026-09-18 KST | `5688a5d` | `bash tests/site/check_site_accessibility_test.sh` | macOS, Node | PASS: 대비·ARIA 실패 fixture 거절 | 같은 명령 재실행 |
 | 2026-09-18 KST | `5688a5d` | `bash tests/site/verify_project_site_test.sh` | macOS, Bash | PASS: 포털 구조·상태·README 진입점 | 같은 명령 재실행 |
 | 2026-09-18 KST | `5688a5d` | `html-validate` / axe-core | headless Chrome | PASS: HTML 오류 0, 접근성 위반 0 | PR #6 설명과 evidence 참조 |
-| 2026-09-18 KST | 작업 트리 | `npm test --prefix apps/api` | Node 25.9.0, ethers 6.17.0 | PASS: 15개 SIWE·HTTP 테스트 | `apps/api/src/*.test.ts` |
-| 2026-09-18 KST | 작업 트리 | `npm test --prefix apps/mobile` | Node 25.9.0 | PASS: 11개 지갑 경계·환경·API client 테스트 | `apps/mobile/src/wallet/*.test.ts` |
-| 2026-09-18 KST | 작업 트리 | `expo-doctor` / Android export / Gradle assembleDebug | Expo 57, SDK 36, JDK 21 | PASS: doctor 21/21, bundle, debug APK | `docs/evidence/android-wallet-build.json` |
-| 2026-09-18 KST | 작업 트리 | `adb install -r .../app-debug.apk` 및 dev-client 실행 | Android 16, arm64, 16KB AVD | PASS: APK 설치, 설정 BLOCKED 화면 렌더 | `docs/evidence/android-wallet-config-required.png` |
+| 2026-09-18 KST | `6ec754b` | `npm test --prefix apps/api` | Node 25.9.0, ethers 6.17.0 | PASS: 15개 SIWE·HTTP 테스트 | `apps/api/src/*.test.ts` |
+| 2026-09-18 KST | `6ec754b` | `npm test --prefix apps/mobile` | Node 25.9.0 | PASS: 11개 지갑 경계·환경·API client 테스트 | `apps/mobile/src/wallet/*.test.ts` |
+| 2026-09-18 KST | `6ec754b` | `expo-doctor` / Android export / Gradle assembleDebug | Expo 57, SDK 36, JDK 21 | PASS: doctor 21/21, bundle, debug APK | `docs/evidence/android-wallet-build.json` |
+| 2026-09-18 KST | `6ec754b` | `adb install -r .../app-debug.apk` 및 dev-client 실행 | Android 16, arm64, 16KB AVD | PASS: APK 설치, 설정 BLOCKED 화면 렌더 | `docs/evidence/android-wallet-config-required.png` |
+| 2026-09-18 KST | `94a2e20` | GitHub Actions `bootstrap-contract` | Ubuntu, Node 24.10.0 | PASS: clean npm ci·API·Android bundle·high audit, 1분 45초 | PR #10 Actions run `35293006696` |

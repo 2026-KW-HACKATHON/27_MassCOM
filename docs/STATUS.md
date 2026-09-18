@@ -29,6 +29,7 @@
 | 프로젝트 포털 | `#6`, CI PASS, 공개 배포 미실행 |
 | Phase 1 Issue | `#9 feat: build the Phase 1 external-wallet verification slice` |
 | Phase 1 브랜치 | `feat/wallet-link` |
+| Phase 1 PR | `#10 Phase 1 외부 지갑 주소 확인 흐름 구현`, CI PASS |
 
 ## 검증
 
@@ -41,6 +42,7 @@
 - 데스크톱 1440×900·모바일 500×844 증거와 390×844 추가 점검: PASS
 - API 15 tests, 모바일 지갑 경계 11 tests, typecheck·lint·Android bundle: PASS
 - Expo doctor 21/21, Gradle debug APK, ADB 설치·실행: PASS
+- GitHub Actions PR #10 깨끗한 Ubuntu 설치·API·Android bundle: PASS, 1분 45초
 - v3 필수 36개: W02·W03·W09 `PASS`, 나머지 33개 `NOT_RUN`
 - 실제 Reown·MetaMask, PostgreSQL, 컨트랙트, 외부 HTTPS: `NOT_RUN` 또는 `BLOCKED`
 
