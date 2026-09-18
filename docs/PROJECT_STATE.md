@@ -12,7 +12,7 @@
 | 현재 통합 기준 | `main@158067cf349d69bf7e1fdb3fa11e2dbcff8d7c0c`, CI run `35306108718` PASS |
 | 최근 merge | PR #22, `158067c` |
 | 현재 열린 Issue | #23 실제 Android 기기 Phase 1 검증 |
-| 현재 열린 PR | 생성 전 |
+| 현재 열린 PR | #24 실제 Android 기기 Phase 1 검증 증거 |
 
 ## Phase 상태
 
