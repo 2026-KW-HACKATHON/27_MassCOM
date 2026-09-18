@@ -12,7 +12,7 @@
 | 현재 통합 기준 | `main@c2f3076fbb7257fbfb77ed69edff3b3fef8ac84b`, CI run `35304829656` PASS |
 | 최근 merge | PR #20, `c2f3076` |
 | 현재 열린 Issue | #21 방문 이벤트와 고정 보상권 원자 처리 |
-| 현재 열린 PR | 생성 전 |
+| 현재 열린 PR | #22 방문 이벤트와 고정 보상권 원자 처리 |
 
 ## Phase 상태
 
@@ -48,7 +48,7 @@
 
 ### 진행 중
 
-- Issue #21에서 방문·보상권 원자 처리와 CI 검증
+- Issue #21·PR #22에서 방문·보상권 원자 처리와 CI 검증
 
 ### 미구현
 
@@ -66,7 +66,7 @@
 ## 검증·배포 상태
 
 - API 단위 테스트: `PASS` 25개
-- PostgreSQL 18 통합 테스트: `PASS` 4개(카탈로그·Q01~Q03·Q05·R01·R03, 로컬 Docker; PR CI 전)
+- PostgreSQL 18 통합 테스트: `PASS` 4개(카탈로그·Q01~Q03·Q05·R01·R03, 로컬 Docker; PR #22 CI 진행 중)
 - v3 필수 36개: W02·W03·W09·Q01·Q02·Q03·Q05·R01·R03 `PASS`, 나머지 27개 `NOT_RUN`
 - Android: debug APK 빌드·Android 16 16KB AVD 설치·설정 화면 실행 `PASS`
 - 외부 지갑 실기: `BLOCKED`
