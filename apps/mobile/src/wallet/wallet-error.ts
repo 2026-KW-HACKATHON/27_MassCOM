@@ -19,7 +19,7 @@ export function isReownChainSwitchRejection(error: unknown): boolean {
 }
 
 export function isWalletUserRejection(error: unknown): boolean {
-  if (hasUserRejectionCode(error) || hasAppKitUserRejectionEvent(error)) return true;
+  if (hasUserRejectionCode(error) || isAppKitUserRejectionEvent(error)) return true;
 
   const serialized =
     error instanceof Error
@@ -37,13 +37,15 @@ export function isWalletUserRejection(error: unknown): boolean {
   }
 }
 
-function hasAppKitUserRejectionEvent(value: unknown): boolean {
+export function isAppKitUserRejectionEvent(value: unknown): boolean {
   if (typeof value !== 'object' || value === null || !('data' in value)) return false;
 
   const data = (value as AppKitEventShape).data;
   return (
     typeof data === 'object' &&
     data !== null &&
+    'type' in data &&
+    (data as { type?: unknown }).type === 'track' &&
     'event' in data &&
     (data as { event?: unknown }).event === 'USER_REJECTED'
   );

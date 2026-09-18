@@ -11,7 +11,11 @@ import { AppState, ScrollView, StyleSheet, Text, View, useColorScheme } from 're
 import { colors } from '@/theme/colors';
 import { baseSepolia } from '@/wallet/base-sepolia';
 import { WalletApiClient, WalletApiError } from '@/wallet/wallet-api';
-import { isReownChainSwitchRejection, isWalletUserRejection } from '@/wallet/wallet-error';
+import {
+  isAppKitUserRejectionEvent,
+  isReownChainSwitchRejection,
+  isWalletUserRejection,
+} from '@/wallet/wallet-error';
 import { buildPersonalSignRequest, safeWalletRequest } from '@/wallet/wallet-method-policy';
 import type { AvailableWalletRuntimeConfig } from '@/wallet/wallet-runtime-config';
 import { readApprovedEvmAccount } from '@/wallet/wallet-session';
@@ -43,6 +47,7 @@ export function WalletLinkScreen({ config }: Props) {
     [config.accountId, config.apiUrl],
   );
   const previousAddress = useRef<string | undefined>(address);
+  const awaitingWalletConnectionDecision = useRef(false);
   const [phase, setPhase] = useState<Phase>('connected');
   const [verifiedAddress, setVerifiedAddress] = useState<string>();
   const [message, setMessage] = useState('지갑 연결과 주소 확인 서명은 서로 다른 단계입니다.');
@@ -52,9 +57,15 @@ export function WalletLinkScreen({ config }: Props) {
   const hasWalletSession = Boolean(provider && connectedAddress);
   const handleAppKitUserRejection = useCallback(
     (event: unknown) => {
-      if (!isWalletUserRejection(event)) return;
+      if (
+        !awaitingWalletConnectionDecision.current ||
+        !isAppKitUserRejectionEvent(event)
+      ) {
+        return;
+      }
 
-      void close();
+      awaitingWalletConnectionDecision.current = false;
+      void close().catch(() => undefined);
       setVerifiedAddress(undefined);
       setPhase('cancelled');
       setMessage(walletCancellationMessage);
@@ -63,6 +74,12 @@ export function WalletLinkScreen({ config }: Props) {
   );
 
   useAppKitEventSubscription('USER_REJECTED', handleAppKitUserRejection);
+
+  useEffect(() => {
+    if (hasWalletSession) {
+      awaitingWalletConnectionDecision.current = false;
+    }
+  }, [hasWalletSession]);
 
   useEffect(() => {
     if (
@@ -100,8 +117,10 @@ export function WalletLinkScreen({ config }: Props) {
   const busy = ['requesting-challenge', 'awaiting-signature', 'verifying'].includes(phase);
 
   async function openWalletSelector() {
+    awaitingWalletConnectionDecision.current = false;
     try {
       await open({ view: 'Connect' });
+      awaitingWalletConnectionDecision.current = true;
     } catch (error) {
       const errorMessage = messageFor(error);
       setPhase(errorMessage.cancelled ? 'cancelled' : 'error');

@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isReownChainSwitchRejection, isWalletUserRejection } from './wallet-error';
+import {
+  isAppKitUserRejectionEvent,
+  isReownChainSwitchRejection,
+  isWalletUserRejection,
+} from './wallet-error';
 
 test('recognizes EIP-1193 and WalletConnect user-rejection objects', () => {
   const rejectionCodes = [4001, 5000, 5001, 5002, 5003];
@@ -25,16 +29,27 @@ test('recognizes WalletConnect rejection JSON wrapped in an Error message', () =
 });
 
 test('recognizes the Reown USER_REJECTED event emitted after a connection decline', () => {
+  const event = {
+    data: {
+      type: 'track',
+      event: 'USER_REJECTED',
+      properties: { message: 'User rejected methods.' },
+    },
+    timestamp: 1,
+  };
+
+  assert.equal(isAppKitUserRejectionEvent(event), true);
+  assert.equal(isWalletUserRejection(event), true);
+});
+
+test('does not treat near-miss AppKit events as a connection rejection', () => {
   assert.equal(
-    isWalletUserRejection({
-      data: {
-        type: 'track',
-        event: 'USER_REJECTED',
-        properties: { message: 'User rejected methods.' },
-      },
-      timestamp: 1,
-    }),
-    true,
+    isAppKitUserRejectionEvent({ data: { type: 'track', event: 'CONNECT_ERROR' }, timestamp: 2 }),
+    false,
+  );
+  assert.equal(
+    isAppKitUserRejectionEvent({ data: { event: 'USER_REJECTED' }, timestamp: 3 }),
+    false,
   );
 });
 
