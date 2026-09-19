@@ -38,6 +38,14 @@ export function isWalletUserRejection(error: unknown): boolean {
 }
 
 export function isAppKitUserRejectionEvent(value: unknown): boolean {
+  return isAppKitTrackEvent(value, 'USER_REJECTED');
+}
+
+export function isAppKitGetWalletEvent(value: unknown): boolean {
+  return isAppKitTrackEvent(value, 'GET_WALLET');
+}
+
+function isAppKitTrackEvent(value: unknown, eventName: string): boolean {
   if (typeof value !== 'object' || value === null || !('data' in value)) return false;
 
   const data = (value as AppKitEventShape).data;
@@ -47,7 +55,7 @@ export function isAppKitUserRejectionEvent(value: unknown): boolean {
     'type' in data &&
     (data as { type?: unknown }).type === 'track' &&
     'event' in data &&
-    (data as { event?: unknown }).event === 'USER_REJECTED'
+    (data as { event?: unknown }).event === eventName
   );
 }
 
