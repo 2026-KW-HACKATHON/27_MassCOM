@@ -123,6 +123,7 @@ export class MintWorker {
       }
 
       const attemptId = await this.repository.markPrepared(item, workerId);
+      await heartbeat.assertHealthy();
       let transactionHash: string;
       try {
         transactionHash = (await this.gateway.submitMint(item)).transactionHash;
@@ -148,6 +149,19 @@ export class MintWorker {
         const confirmed = await this.gateway.confirmMint(item, transactionHash);
         await this.repository.finalize(item, workerId, attemptId, confirmed);
       } catch (error) {
+        if (error instanceof MintEventMismatchError && error.code === 'MINT_TRANSACTION_REVERTED') {
+          try {
+            const recovered = await this.gateway.findMintByRewardKey(item);
+            await heartbeat.assertHealthy();
+            if (recovered) {
+              await this.repository.finalize(item, workerId, attemptId, recovered);
+              return true;
+            }
+          } catch (lookupError) {
+            await this.handleChainError(item, workerId, lookupError);
+            return true;
+          }
+        }
         await this.handleChainError(item, workerId, error);
       }
       return true;
@@ -163,7 +177,7 @@ export class MintWorker {
     const intervalMs = Math.max(10, Math.floor(this.leaseMs / 3));
     let pending = Promise.resolve();
     let failure: unknown;
-    const timer = setInterval(() => {
+    const renew = () => {
       pending = pending.then(async () => {
         try {
           await this.repository.renewLease(item, workerId, this.leaseMs);
@@ -171,9 +185,11 @@ export class MintWorker {
           failure ??= error;
         }
       });
-    }, intervalMs);
+    };
+    const timer = setInterval(renew, intervalMs);
     timer.unref();
     const assertHealthy = async () => {
+      renew();
       await pending;
       if (failure) throw failure;
     };

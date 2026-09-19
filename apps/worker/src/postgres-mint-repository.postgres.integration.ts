@@ -124,6 +124,31 @@ test('M03 M06 lease race, retry, finalization, and repeated event ingestion stay
   });
 });
 
+test('lease renewal rejects an account-deletion cancellation instead of silently continuing', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const repository = new PostgresMintRepository(pool);
+  const item = await repository.leaseNext('worker-delete-race', 30_000);
+  assert.ok(item);
+  await repository.markPrepared(item, 'worker-delete-race');
+  await pool.query(
+    `UPDATE mint_jobs SET status = 'CANCELLED' WHERE id = $1`,
+    [item.jobId],
+  );
+  await pool.query(
+    `UPDATE outbox_events
+     SET status = 'PUBLISHED', lease_owner = NULL, lease_expires_at = NULL
+     WHERE id = $1`,
+    [item.outboxId],
+  );
+
+  await assert.rejects(
+    repository.renewLease(item, 'worker-delete-race', 30_000),
+    /MINT_JOB_LEASE_LOST/,
+  );
+});
+
 async function seedWorkerFixture(pool: Pool): Promise<void> {
   await pool.query(
     'TRUNCATE nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',

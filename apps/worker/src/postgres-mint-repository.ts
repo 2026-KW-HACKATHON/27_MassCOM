@@ -129,14 +129,25 @@ export class PostgresMintRepository implements MintWorkRepository {
     if (updated.rowCount === 1) return;
 
     const current = (
-      await this.pool.query<{ status: string; lease_owner: string | null }>(
-        `SELECT status, lease_owner
-         FROM outbox_events
-         WHERE id = $1 AND aggregate_id = $2`,
+      await this.pool.query<{
+        status: string;
+        lease_owner: string | null;
+        job_status: string;
+      }>(
+        `SELECT outbox.status, outbox.lease_owner, job.status AS job_status
+         FROM outbox_events AS outbox
+         JOIN mint_jobs AS job ON job.id = outbox.aggregate_id
+         WHERE outbox.id = $1 AND outbox.aggregate_id = $2`,
         [item.outboxId, item.jobId],
       )
     ).rows[0];
-    if (current && current.status !== 'LEASED') return;
+    if (
+      current &&
+      current.status !== 'LEASED' &&
+      ['FINALIZED', 'RETRYABLE', 'MANUAL_REVIEW'].includes(current.job_status)
+    ) {
+      return;
+    }
     throw new Error('MINT_JOB_LEASE_LOST');
   }
 

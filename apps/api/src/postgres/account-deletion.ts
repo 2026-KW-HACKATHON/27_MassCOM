@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
@@ -8,6 +8,7 @@ import {
   type AccountDeletionService,
   type AccountDeletionStatus,
 } from '../account-deletion.js';
+import { PostgresAccountLifecycle } from './account-lifecycle.js';
 
 type Options = {
   hmacSecret: string;
@@ -15,6 +16,11 @@ type Options = {
   nextRequestId: () => string;
   now: () => Date;
 };
+
+type ServiceOptions = Pick<Options, 'hmacSecret' | 'policyVersion'> &
+  Partial<typeof defaultOptions> & {
+    accountLifecycle?: PostgresAccountLifecycle;
+  };
 
 type RequestRow = {
   id: string;
@@ -34,10 +40,11 @@ const defaultOptions = {
 
 export class PostgresAccountDeletionService implements AccountDeletionService {
   private readonly options: Options;
+  private readonly accountLifecycle: PostgresAccountLifecycle;
 
   constructor(
     private readonly pool: Pool,
-    options: Pick<Options, 'hmacSecret' | 'policyVersion'> & Partial<typeof defaultOptions>,
+    options: ServiceOptions,
   ) {
     this.options = { ...defaultOptions, ...options };
     if (Buffer.byteLength(this.options.hmacSecret) < 32) {
@@ -46,6 +53,9 @@ export class PostgresAccountDeletionService implements AccountDeletionService {
     if (!this.options.policyVersion.trim()) {
       throw new Error('account deletion policy version is required');
     }
+    this.accountLifecycle =
+      options.accountLifecycle ??
+      new PostgresAccountLifecycle({ hmacSecret: this.options.hmacSecret });
   }
 
   async requestDeletion(input: {
@@ -57,17 +67,13 @@ export class PostgresAccountDeletionService implements AccountDeletionService {
       throw new AccountDeletionError('DELETION_CONFIRMATION_REQUIRED');
     }
 
-    const referenceHash = createHmac('sha256', this.options.hmacSecret)
-      .update(input.accountId)
-      .digest();
+    const referenceHash = this.accountLifecycle.referenceHash(input.accountId);
     const deletedAlias = `deleted:${referenceHash.toString('hex')}`;
     const now = this.options.now();
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
-        referenceHash.toString('hex'),
-      ]);
+      await this.accountLifecycle.lockForDeletion(client, input.accountId);
 
       const existing = await findRequest(client, referenceHash);
       if (existing) {
@@ -76,7 +82,7 @@ export class PostgresAccountDeletionService implements AccountDeletionService {
         return mapResult(reconciled, true);
       }
 
-      const counts = await mintCounts(client, input.accountId);
+      const counts = await mintCounts(client, input.accountId, now);
       await cancelUnsentMintJobs(client, input.accountId, now);
       await pseudonymizeAccount(client, input.accountId, deletedAlias, now);
 
@@ -119,6 +125,7 @@ export class PostgresAccountDeletionService implements AccountDeletionService {
 async function mintCounts(
   client: PoolClient,
   accountId: string,
+  now: Date,
 ): Promise<{
   cancelledMintJobs: number;
   pendingMintJobs: number;
@@ -135,18 +142,30 @@ async function mintCounts(
            WHERE status IN ('QUEUED', 'PREPARED', 'RETRYABLE', 'PAUSED', 'MANUAL_REVIEW')
              AND transaction_hash IS NULL
              AND last_error_code IS DISTINCT FROM 'MINT_SUBMISSION_RESPONSE_LOST'
+             AND NOT EXISTS (
+               SELECT 1 FROM outbox_events AS outbox
+               WHERE outbox.aggregate_id = mint_jobs.id
+                 AND outbox.status = 'LEASED'
+                 AND outbox.lease_expires_at > $2
+             )
          )::integer AS cancelled_mint_jobs,
          count(*) FILTER (
            WHERE status NOT IN ('FINALIZED', 'CANCELLED')
              AND (
                transaction_hash IS NOT NULL
                OR last_error_code = 'MINT_SUBMISSION_RESPONSE_LOST'
+               OR EXISTS (
+                 SELECT 1 FROM outbox_events AS outbox
+                 WHERE outbox.aggregate_id = mint_jobs.id
+                   AND outbox.status = 'LEASED'
+                   AND outbox.lease_expires_at > $2
+               )
              )
          )::integer AS pending_mint_jobs,
          count(*) FILTER (WHERE status = 'FINALIZED')::integer AS retained_finalized_nfts
        FROM mint_jobs
        WHERE account_id = $1`,
-      [accountId],
+      [accountId, now],
     )
   ).rows[0]!;
   return {
@@ -168,6 +187,12 @@ async function cancelUnsentMintJobs(
        AND status IN ('QUEUED', 'PREPARED', 'RETRYABLE', 'PAUSED', 'MANUAL_REVIEW')
        AND transaction_hash IS NULL
        AND last_error_code IS DISTINCT FROM 'MINT_SUBMISSION_RESPONSE_LOST'
+       AND NOT EXISTS (
+         SELECT 1 FROM outbox_events AS outbox
+         WHERE outbox.aggregate_id = mint_jobs.id
+           AND outbox.status = 'LEASED'
+           AND outbox.lease_expires_at > $1
+       )
      RETURNING entitlement_id`,
     [now, accountId],
   );
@@ -271,12 +296,18 @@ async function reconcileExistingRequest(
              AND (
                transaction_hash IS NOT NULL
                OR last_error_code = 'MINT_SUBMISSION_RESPONSE_LOST'
+               OR EXISTS (
+                 SELECT 1 FROM outbox_events AS outbox
+                 WHERE outbox.aggregate_id = mint_jobs.id
+                   AND outbox.status = 'LEASED'
+                   AND outbox.lease_expires_at > $2
+               )
              )
          )::integer AS pending,
          count(*) FILTER (WHERE status = 'FINALIZED')::integer AS finalized
        FROM mint_jobs
        WHERE account_id = $1`,
-      [request.deleted_account_alias],
+      [request.deleted_account_alias, now],
     )
   ).rows[0]!;
   const status: AccountDeletionStatus = counts.pending > 0

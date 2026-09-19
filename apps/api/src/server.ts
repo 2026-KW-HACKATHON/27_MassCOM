@@ -26,6 +26,7 @@ import {
 } from './recommendation-service.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
+import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
@@ -330,7 +331,9 @@ export function createApiServer(
         return;
       }
 
-      console.error('unhandled API error');
+      console.error('unhandled API error', {
+        name: error instanceof Error ? error.name : 'UnknownError',
+      });
       sendJson(response, 500, { code: 'INTERNAL_ERROR' });
     }
   });
@@ -427,12 +430,14 @@ function statusFor(code: string): number {
   if (code === 'SIGNATURE_EXPIRED') return 410;
   if (code === 'NONCE_ALREADY_USED' || code === 'NONCE_IN_PROGRESS') return 409;
   if (code === 'WALLET_BINDING_NOT_FOUND') return 404;
+  if (code === 'ACCOUNT_DELETED') return 410;
   if (code === 'WALLET_ADDRESS_IN_USE' || code === 'WALLET_BINDING_CHANGED') return 409;
   return 400;
 }
 
 function statusForClaimSlot(code: string): number {
   if (code === 'CLAIM_TOKEN_EXPIRED') return 410;
+  if (code === 'ACCOUNT_DELETED') return 410;
   return 409;
 }
 
@@ -441,6 +446,7 @@ function statusForMintRequest(code: string): number {
     return 404;
   }
   if (code === 'CONSENT_REQUIRED' || code === 'IDEMPOTENCY_KEY_REQUIRED') return 400;
+  if (code === 'ACCOUNT_DELETED') return 410;
   return 409;
 }
 
@@ -478,25 +484,35 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const recommendations = pool
     ? new RecommendationService(new PostgresRecommendationSource(pool))
     : undefined;
+  const accountDeletionHmacSecret = process.env.ACCOUNT_DELETION_HMAC_SECRET;
+  const accountLifecycle =
+    pool && accountDeletionHmacSecret
+      ? new PostgresAccountLifecycle({ hmacSecret: accountDeletionHmacSecret })
+      : undefined;
   const bindingStore = pool
-    ? new PostgresWalletBindingStore(pool)
+    ? new PostgresWalletBindingStore(pool, {
+        ...(accountLifecycle ? { accountLifecycle } : {}),
+      })
     : new InMemoryWalletBindingStore();
   const mintRequests = pool
     ? new PostgresMintRequestService(pool, {
         supportedConsentVersion: process.env.NFT_MINT_CONSENT_VERSION ?? 'nft-mint-v1',
+        ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;
   const accountDeletions =
-    pool && process.env.ACCOUNT_DELETION_HMAC_SECRET
+    pool && accountDeletionHmacSecret
       ? new PostgresAccountDeletionService(pool, {
-          hmacSecret: process.env.ACCOUNT_DELETION_HMAC_SECRET,
+          hmacSecret: accountDeletionHmacSecret,
           policyVersion: process.env.ACCOUNT_DELETION_POLICY_VERSION ?? 'account-deletion-v1',
+          ...(accountLifecycle ? { accountLifecycle } : {}),
         })
       : undefined;
   const claimSlots =
     pool && process.env.MERCHANT_REFERENCE_HMAC_SECRET
       ? new PostgresClaimSlotService(pool, {
           referenceHmacSecret: process.env.MERCHANT_REFERENCE_HMAC_SECRET,
+          ...(accountLifecycle ? { accountLifecycle } : {}),
         })
       : undefined;
   const accountResolver: AccountResolver =

@@ -2,7 +2,8 @@ type DemoEnvironment = Partial<
   Record<
     | 'EXPO_PUBLIC_DEMO_ACCOUNT_ID'
     | 'EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID'
-    | 'EXPO_PUBLIC_DEMO_MERCHANT_ID',
+    | 'EXPO_PUBLIC_DEMO_MERCHANT_ID'
+    | 'EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION',
     string
   >
 >;
@@ -13,6 +14,7 @@ export type DemoRuntimeConfig = {
     accountId: string;
     merchantId: string;
   };
+  allowInsecureDemoReauthentication: boolean;
 };
 
 export function getDemoRuntimeConfig(environment: DemoEnvironment): DemoRuntimeConfig {
@@ -26,6 +28,8 @@ export function getDemoRuntimeConfig(environment: DemoEnvironment): DemoRuntimeC
       merchantAccountId && merchantId
         ? { accountId: merchantAccountId, merchantId }
         : undefined,
+    allowInsecureDemoReauthentication:
+      environment.EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION === 'true',
   };
 }
 
@@ -33,6 +37,8 @@ export const demoRuntimeConfig = getDemoRuntimeConfig({
   EXPO_PUBLIC_DEMO_ACCOUNT_ID: process.env.EXPO_PUBLIC_DEMO_ACCOUNT_ID,
   EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID: process.env.EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID,
   EXPO_PUBLIC_DEMO_MERCHANT_ID: process.env.EXPO_PUBLIC_DEMO_MERCHANT_ID,
+  EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION:
+    process.env.EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION,
 });
 
 function trimmed(value: string | undefined): string | undefined {

@@ -16,7 +16,7 @@ export default function SettingsRoute() {
       key={demoRuntimeConfig.customerAccountId}
       apiUrl={publicApiConfig.apiUrl}
       accountId={demoRuntimeConfig.customerAccountId}
-      allowInsecureDemoReauthentication
+      allowInsecureDemoReauthentication={demoRuntimeConfig.allowInsecureDemoReauthentication}
     />
   );
 }
