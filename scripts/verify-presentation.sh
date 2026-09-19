@@ -60,7 +60,7 @@ for (const status of ['PASS', 'BLOCKED', 'NOT_RUN']) {
     throw new Error(`presentation is missing current ${status} total`);
   }
 }
-for (const evidencePath of manifest.androidEvidence) {
+for (const evidencePath of [...manifest.androidEvidence, ...(manifest.securityEvidence ?? [])]) {
   if (!fs.existsSync(path.join(repoRoot, evidencePath))) {
     throw new Error(`submission evidence path does not exist: ${evidencePath}`);
   }
