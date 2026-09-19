@@ -396,13 +396,14 @@ export class PostgresMintRepository implements MintWorkRepository {
     try {
       await client.query('BEGIN');
       await requireLease(client, jobId, workerId, now);
-      const attemptCount =
-        (
-          await client.query<{ attempt_count: number }>(
-            'SELECT attempt_count FROM mint_jobs WHERE id = $1 FOR UPDATE',
-            [jobId],
-          )
-        ).rows[0]?.attempt_count ?? 0;
+      const job = (
+        await client.query<{ attempt_count: number }>(
+          'SELECT attempt_count FROM mint_jobs WHERE id = $1 FOR UPDATE',
+          [jobId],
+        )
+      ).rows[0];
+      if (!job) throw new Error('MINT_JOB_NOT_FOUND');
+      const attemptCount = job.attempt_count;
       if (attemptCount >= this.options.maxAttempts) {
         // Only submission attempts count, so waiting for finality or an RPC outage never lands here.
         await closeForManualReview(client, jobId, 'RETRY_LIMIT_EXCEEDED', now);
