@@ -12,5 +12,5 @@ export default function RecommendationsRoute() {
     return <DemoConfigurationRequired title="다음 가게 추천 설정이 필요합니다." missing={missing} />;
   }
 
-  return <RecommendationsScreen apiUrl={publicApiConfig.apiUrl} accountId={demoRuntimeConfig.customerAccountId} />;
+  return <RecommendationsScreen key={demoRuntimeConfig.customerAccountId} apiUrl={publicApiConfig.apiUrl} accountId={demoRuntimeConfig.customerAccountId} />;
 }

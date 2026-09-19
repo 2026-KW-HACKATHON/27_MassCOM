@@ -82,6 +82,12 @@ export class InMemoryChallengeStore {
     record.status = 'used';
   }
 
+  deleteByAccount(accountId: string): void {
+    for (const [challengeId, record] of this.#records) {
+      if (record.accountId === accountId) this.#records.delete(challengeId);
+    }
+  }
+
   #required(challengeId: string): ChallengeRecord {
     const record = this.#records.get(challengeId);
     if (!record) {
@@ -289,6 +295,10 @@ export class WalletChallengeService {
 
   getActiveBinding(accountId: string): Promise<VerifiedWalletBinding | undefined> {
     return this.#bindingStore.getActive(accountId);
+  }
+
+  forgetAccount(accountId: string): void {
+    this.#store.deleteByAccount(accountId);
   }
 }
 

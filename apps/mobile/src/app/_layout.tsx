@@ -19,6 +19,7 @@ function Routes() {
       <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
       <Stack.Screen name="recommendations" options={{ title: '다음 가게 추천' }} />
       <Stack.Screen name="wallet" options={{ title: '외부 지갑 연결' }} />
+      <Stack.Screen name="settings" options={{ title: '계정·개인정보' }} />
     </Stack>
   );
 }

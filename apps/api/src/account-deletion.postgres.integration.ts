@@ -1,0 +1,299 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+
+import { Pool } from 'pg';
+
+import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
+
+test('D01 concurrent deletion cancels only unsent mint work and pseudonymizes the account', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedDeletionFixture(pool);
+
+  const service = new PostgresAccountDeletionService(pool, {
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+    nextRequestId: () => '90000000-0000-4000-8000-000000000001',
+    now: () => new Date('2026-09-19T15:00:00.000Z'),
+    policyVersion: 'account-deletion-v1',
+  });
+
+  const requests = await Promise.all(
+    Array.from({ length: 10 }, () =>
+      service.requestDeletion({
+        accountId: 'delete-me',
+        confirmation: 'DELETE MY ACCOUNT',
+      }),
+    ),
+  );
+  assert.equal(new Set(requests.map((request) => request.requestId)).size, 1);
+  assert.equal(requests.filter((request) => request.replayed === false).length, 1);
+  assert.equal(requests.filter((request) => request.replayed === true).length, 9);
+  assert.deepEqual(
+    requests.map(({ status, cancelledMintJobs, pendingMintJobs, retainedFinalizedNfts }) => ({
+      status,
+      cancelledMintJobs,
+      pendingMintJobs,
+      retainedFinalizedNfts,
+    })),
+    Array.from({ length: 10 }, () => ({
+      status: 'WAITING_FOR_MINT_FINALITY',
+      cancelledMintJobs: 1,
+      pendingMintJobs: 1,
+      retainedFinalizedNfts: 1,
+    })),
+  );
+
+  const state = await pool.query<{
+    raw_account_references: number;
+    disconnected_bindings: number;
+    queued_status: string;
+    queued_entitlement_status: string;
+    queued_outbox_status: string;
+    submitted_status: string;
+    finalized_status: string;
+    deletion_hash_bytes: number;
+    deleted_alias: string;
+  }>(
+    `SELECT
+       (
+         (SELECT count(*) FROM merchant_members WHERE account_id = 'delete-me') +
+         (SELECT count(*) FROM claim_slots WHERE customer_account_id = 'delete-me' OR created_by_account_id = 'delete-me') +
+         (SELECT count(*) FROM visit_events WHERE customer_account_id = 'delete-me') +
+         (SELECT count(*) FROM reward_entitlements WHERE customer_account_id = 'delete-me') +
+         (SELECT count(*) FROM wallet_bindings WHERE account_id = 'delete-me') +
+         (SELECT count(*) FROM mint_jobs WHERE account_id = 'delete-me')
+       )::integer AS raw_account_references,
+       (SELECT count(*)::integer FROM wallet_bindings WHERE status = 'DISCONNECTED') AS disconnected_bindings,
+       (SELECT status FROM mint_jobs WHERE id = '40000000-0000-4000-8004-000000000001') AS queued_status,
+       (SELECT status FROM reward_entitlements WHERE id = '20000000-0000-4000-8004-000000000001') AS queued_entitlement_status,
+       (SELECT status FROM outbox_events WHERE aggregate_id = '40000000-0000-4000-8004-000000000001') AS queued_outbox_status,
+       (SELECT status FROM mint_jobs WHERE id = '40000000-0000-4000-8004-000000000002') AS submitted_status,
+       (SELECT status FROM mint_jobs WHERE id = '40000000-0000-4000-8004-000000000003') AS finalized_status,
+       (SELECT octet_length(account_reference_hash) FROM account_deletion_requests) AS deletion_hash_bytes,
+       (SELECT deleted_account_alias FROM account_deletion_requests) AS deleted_alias`,
+  );
+  assert.equal(state.rows[0]?.raw_account_references, 0);
+  assert.equal(state.rows[0]?.disconnected_bindings, 3);
+  assert.equal(state.rows[0]?.queued_status, 'CANCELLED');
+  assert.equal(state.rows[0]?.queued_entitlement_status, 'CANCELED');
+  assert.equal(state.rows[0]?.queued_outbox_status, 'PUBLISHED');
+  assert.equal(state.rows[0]?.submitted_status, 'SUBMITTED');
+  assert.equal(state.rows[0]?.finalized_status, 'FINALIZED');
+  assert.equal(state.rows[0]?.deletion_hash_bytes, 32);
+  assert.match(state.rows[0]!.deleted_alias, /^deleted:[0-9a-f]{64}$/);
+  assert.equal(JSON.stringify(state.rows[0]).includes('delete-me'), false);
+
+  await pool.query(
+    `UPDATE mint_jobs
+     SET status = 'FINALIZED', finalized_at = '2026-09-19T15:05:00Z', updated_at = '2026-09-19T15:05:00Z'
+     WHERE id = '40000000-0000-4000-8004-000000000002'`,
+  );
+  const completed = await service.requestDeletion({
+    accountId: 'delete-me',
+    confirmation: 'DELETE MY ACCOUNT',
+  });
+  assert.equal(completed.status, 'COMPLETED');
+  assert.equal(completed.replayed, true);
+  assert.equal(completed.completedAt, '2026-09-19T15:00:00.000Z');
+});
+
+test('D01 preserves a retryable job when submission outcome is unknown', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedDeletionFixture(pool);
+  await pool.query(
+    `UPDATE mint_jobs
+     SET status = 'RETRYABLE', last_error_code = 'MINT_SUBMISSION_RESPONSE_LOST'
+     WHERE id = '40000000-0000-4000-8004-000000000001'`,
+  );
+  const service = new PostgresAccountDeletionService(pool, {
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+    nextRequestId: () => '90000000-0000-4000-8000-000000000002',
+    now: () => new Date('2026-09-19T15:00:00.000Z'),
+    policyVersion: 'account-deletion-v1',
+  });
+
+  const result = await service.requestDeletion({
+    accountId: 'delete-me',
+    confirmation: 'DELETE MY ACCOUNT',
+  });
+
+  assert.equal(result.status, 'WAITING_FOR_MINT_FINALITY');
+  assert.equal(result.cancelledMintJobs, 0);
+  assert.equal(result.pendingMintJobs, 2);
+  const unknown = await pool.query<{ status: string; outbox_status: string }>(
+    `SELECT job.status, outbox.status AS outbox_status
+     FROM mint_jobs AS job
+     JOIN outbox_events AS outbox ON outbox.aggregate_id = job.id
+     WHERE job.id = '40000000-0000-4000-8004-000000000001'`,
+  );
+  assert.deepEqual(unknown.rows[0], {
+    status: 'RETRYABLE',
+    outbox_status: 'PENDING',
+  });
+});
+
+async function seedDeletionFixture(pool: Pool): Promise<void> {
+  await pool.query(
+    'TRUNCATE account_deletion_requests, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
+  );
+  await pool.query(
+    `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
+     VALUES ('merchant-delete', '삭제 시험 식당', '삭제 시험용입니다.', '서울 노원구 데모로 12', 10000, 'ACTIVE', true)`,
+  );
+  await pool.query(
+    `INSERT INTO merchant_members (merchant_id, account_id, role, status)
+     VALUES ('merchant-delete', 'delete-me', 'STAFF', 'ACTIVE')`,
+  );
+  await pool.query(
+    `INSERT INTO campaigns (
+       id, merchant_id, title, starts_at, ends_at, status, is_public, enrollment_capacity
+     ) VALUES (
+       'campaign-delete', 'merchant-delete', '삭제 도감', '2026-09-01T00:00:00Z',
+       '2026-10-31T23:59:59Z', 'ACTIVE', true, 10
+     )`,
+  );
+  await pool.query(
+    `INSERT INTO campaign_goals (campaign_id, target_visit_count, display_name)
+     VALUES
+       ('campaign-delete', 1, '삭제 1회'),
+       ('campaign-delete', 3, '삭제 3회'),
+       ('campaign-delete', 5, '삭제 5회')`,
+  );
+  await pool.query(
+    `INSERT INTO nft_series (
+       id, campaign_id, target_visit_count, chain_id, contract_address,
+       contract_address_normalized, series_key, max_ever_minted, status
+     ) VALUES
+       ('series-delete-1', 'campaign-delete', 1, 31337,
+        '0x7000000000000000000000000000000000000007',
+        '0x7000000000000000000000000000000000000007', decode(repeat('41', 32), 'hex'), 10, 'ACTIVE'),
+       ('series-delete-3', 'campaign-delete', 3, 31337,
+        '0x7000000000000000000000000000000000000007',
+        '0x7000000000000000000000000000000000000007', decode(repeat('43', 32), 'hex'), 10, 'ACTIVE'),
+       ('series-delete-5', 'campaign-delete', 5, 31337,
+        '0x7000000000000000000000000000000000000007',
+        '0x7000000000000000000000000000000000000007', decode(repeat('45', 32), 'hex'), 10, 'ACTIVE')`,
+  );
+
+  for (let index = 1; index <= 3; index++) {
+    const suffix = String(index).padStart(12, '0');
+    const target = ([1, 3, 5] as const)[index - 1]!;
+    const timestamp = `2026-09-1${index}T03:00:00Z`;
+    await pool.query(
+      `INSERT INTO claim_slots (
+         id, merchant_id, customer_account_id, merchant_reference_hash,
+         created_by_account_id, token_hash, status, expires_at, claimed_at, created_at, updated_at
+       ) VALUES (
+         $1, 'merchant-delete', 'delete-me', decode(repeat($2, 32), 'hex'),
+         'delete-me', decode(repeat($3, 32), 'hex'), 'CLAIMED',
+         $4::timestamptz + interval '15 minutes', $4, $4::timestamptz - interval '5 minutes', $4
+       )`,
+      [
+        `00000000-0000-4000-8004-${suffix}`,
+        String(index).repeat(2),
+        String(index + 3).repeat(2),
+        timestamp,
+      ],
+    );
+    await pool.query(
+      `INSERT INTO visit_events (
+         id, claim_slot_id, merchant_id, campaign_id, customer_account_id,
+         occurred_at, business_date, verification_level, status, progress_counted
+       ) VALUES (
+         $1, $2, 'merchant-delete', 'campaign-delete', 'delete-me',
+         $3::timestamptz, ($3::timestamptz)::date, 'MERCHANT_CONFIRMED', 'VALID', true
+       )`,
+      [`10000000-0000-4000-8004-${suffix}`, `00000000-0000-4000-8004-${suffix}`, timestamp],
+    );
+    await pool.query(
+      `INSERT INTO reward_entitlements (
+         id, customer_account_id, campaign_id, target_visit_count, source_visit_event_id,
+         status, policy_version, earned_at, claim_expires_at
+       ) VALUES (
+         $1, 'delete-me', 'campaign-delete', $2, $3, $4, 'fixed-1', $5,
+         $5::timestamptz + interval '90 days'
+       )`,
+      [
+        `20000000-0000-4000-8004-${suffix}`,
+        target,
+        `10000000-0000-4000-8004-${suffix}`,
+        index === 3 ? 'FULFILLED' : 'MINT_REQUESTED',
+        timestamp,
+      ],
+    );
+    await pool.query(
+      `INSERT INTO wallet_bindings (
+         id, account_id, address_checksum, address_normalized, chain_id,
+         binding_version, status, verified_at, disconnected_at, created_at, updated_at
+       ) VALUES ($1, 'delete-me', $2, $2, 31337, $3, $4, $5, $6, $5, $5)`,
+      [
+        `30000000-0000-4000-8004-${suffix}`,
+        `0x${String(index).repeat(40)}`,
+        index,
+        index === 3 ? 'VERIFIED' : 'DISCONNECTED',
+        timestamp,
+        index === 3 ? null : timestamp,
+      ],
+    );
+    const status = index === 1 ? 'QUEUED' : index === 2 ? 'SUBMITTED' : 'FINALIZED';
+    const transactionHash = index === 1 ? null : `0x${String(index + 6).repeat(64)}`;
+    await pool.query(
+      `INSERT INTO mint_jobs (
+         id, entitlement_id, account_id, nft_series_id, reward_key,
+         wallet_binding_id, binding_version, recipient_address,
+         recipient_address_normalized, chain_id, contract_address,
+         contract_address_normalized, series_key, consent_version,
+         idempotency_key, request_fingerprint, status, transaction_hash,
+         token_id, finalized_at, created_at, updated_at
+       ) VALUES (
+         $1, $2, 'delete-me', $3, decode(repeat($4, 32), 'hex'),
+         $5, $6, $7, $7, 31337,
+         '0x7000000000000000000000000000000000000007',
+         '0x7000000000000000000000000000000000000007', decode(repeat($8, 32), 'hex'),
+         'nft-mint-v1', $9, decode(repeat($10, 32), 'hex'), $11, $12,
+         $13::numeric, $14, $15, $15
+       )`,
+      [
+        `40000000-0000-4000-8004-${suffix}`,
+        `20000000-0000-4000-8004-${suffix}`,
+        `series-delete-${target}`,
+        String(index + 1).repeat(2),
+        `30000000-0000-4000-8004-${suffix}`,
+        index,
+        `0x${String(index).repeat(40)}`,
+        String(40 + target),
+        `delete-idempotency-${index}`,
+        String(index + 4).repeat(2),
+        status,
+        transactionHash,
+        index === 3 ? '1' : null,
+        index === 3 ? timestamp : null,
+        timestamp,
+      ],
+    );
+    await pool.query(
+      `INSERT INTO outbox_events (
+         id, aggregate_type, aggregate_id, event_type, payload, status,
+         available_at, created_at, updated_at
+       ) VALUES ($1, 'MINT_JOB', $2, 'MINT_REQUESTED', $3, $4, $5, $5, $5)`,
+      [
+        `50000000-0000-4000-8004-${suffix}`,
+        `40000000-0000-4000-8004-${suffix}`,
+        { jobId: `40000000-0000-4000-8004-${suffix}` },
+        index === 3 ? 'PUBLISHED' : 'PENDING',
+        timestamp,
+      ],
+    );
+  }
+}
+
+function requiredTestDatabaseUrl(): string {
+  const value = process.env.TEST_DATABASE_URL;
+  if (!value) throw new Error('TEST_DATABASE_URL is required for PostgreSQL integration tests');
+  const databaseName = decodeURIComponent(new URL(value).pathname.slice(1));
+  if (!databaseName.endsWith('_test')) {
+    throw new Error('TEST_DATABASE_URL must point to a dedicated database ending in _test');
+  }
+  return value;
+}

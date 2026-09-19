@@ -6,7 +6,8 @@ export type MintJobStatus =
   | 'FINALIZED'
   | 'RETRYABLE'
   | 'PAUSED'
-  | 'MANUAL_REVIEW';
+  | 'MANUAL_REVIEW'
+  | 'CANCELLED';
 
 export type MintJobView = {
   jobId: string;

@@ -71,7 +71,7 @@ export type CollectionSnapshot = {
 
 export type MintJobResponse = {
   jobId: string;
-  status: 'QUEUED' | 'PREPARED' | 'SUBMITTED' | 'CONFIRMING' | 'FINALIZED' | 'RETRYABLE' | 'PAUSED' | 'MANUAL_REVIEW';
+  status: 'QUEUED' | 'PREPARED' | 'SUBMITTED' | 'CONFIRMING' | 'FINALIZED' | 'RETRYABLE' | 'PAUSED' | 'MANUAL_REVIEW' | 'CANCELLED';
   chainId: number;
   recipient: string;
   nft: null | { contractAddress: string; tokenId: string };
@@ -405,7 +405,7 @@ function isNftStatus(value: unknown): value is CollectionSnapshot['collectibles'
 }
 
 function isMintJobStatus(value: unknown): value is MintJobResponse['status'] {
-  return value === 'QUEUED' || value === 'PREPARED' || value === 'SUBMITTED' || value === 'CONFIRMING' || value === 'FINALIZED' || value === 'RETRYABLE' || value === 'PAUSED' || value === 'MANUAL_REVIEW';
+  return value === 'QUEUED' || value === 'PREPARED' || value === 'SUBMITTED' || value === 'CONFIRMING' || value === 'FINALIZED' || value === 'RETRYABLE' || value === 'PAUSED' || value === 'MANUAL_REVIEW' || value === 'CANCELLED';
 }
 
 function isNftAsset(value: unknown): value is { chainId: number; contractAddress: string; tokenId: string } {

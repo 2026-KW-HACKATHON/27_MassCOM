@@ -37,6 +37,7 @@ type CollectibleRow = {
     | 'RETRYABLE'
     | 'PAUSED'
     | 'MANUAL_REVIEW'
+    | 'CANCELLED'
     | null;
   recipient_address: string | null;
   asset_chain_id: number | null;

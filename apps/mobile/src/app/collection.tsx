@@ -12,5 +12,5 @@ export default function CollectionRoute() {
     return <DemoConfigurationRequired title="방문 도감 설정이 필요합니다." missing={missing} />;
   }
 
-  return <CollectionScreen apiUrl={publicApiConfig.apiUrl} accountId={demoRuntimeConfig.customerAccountId} />;
+  return <CollectionScreen key={demoRuntimeConfig.customerAccountId} apiUrl={publicApiConfig.apiUrl} accountId={demoRuntimeConfig.customerAccountId} />;
 }
