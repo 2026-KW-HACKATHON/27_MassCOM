@@ -61,7 +61,7 @@
 
 - 필수 36개: `26 PASS / 2 BLOCKED / 8 NOT_RUN`
 - API 단위: `35/35 PASS`; PostgreSQL: `14/14 PASS`
-- Worker 단위: `8/8 PASS`; PostgreSQL: `5/5 PASS`; Anvil W07/M01~M08: `PASS`
+- Worker 단위: `8/8 PASS`; PostgreSQL: `6/6 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `48/48 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`

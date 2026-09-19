@@ -199,6 +199,62 @@ test('markSubmitted cannot revive a cancelled prepared job', async (t) => {
   assert.equal(state.rows[0]?.status, 'CANCELLED');
 });
 
+test('retry delay doubles per submission attempt and the attempt cap closes the job for manual review', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  let now = new Date('2026-09-19T04:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+    retryDelayMs: 1_000,
+    maxRetryDelayMs: 3_000,
+    maxAttempts: 3,
+  });
+  const readState = async (jobId: string) =>
+    (
+      await pool.query<{ job_status: string; code: string; outbox_status: string; delay_ms: number }>(
+        `SELECT job.status AS job_status, job.last_error_code AS code, outbox.status AS outbox_status,
+                (extract(epoch FROM outbox.available_at - $2::timestamptz) * 1000)::integer AS delay_ms
+         FROM mint_jobs AS job JOIN outbox_events AS outbox ON outbox.aggregate_id = job.id
+         WHERE job.id = $1`,
+        [jobId, now],
+      )
+    ).rows[0];
+
+  // A failure before any submission does not consume an attempt and keeps the base delay.
+  const first = await repository.leaseNext('worker-retry', 30_000);
+  assert.ok(first);
+  await repository.releaseRetryable(first.jobId, 'worker-retry', 'MINT_EVENT_LOOKUP_FAILED');
+  assert.deepEqual(await readState(first.jobId), {
+    job_status: 'RETRYABLE',
+    code: 'MINT_EVENT_LOOKUP_FAILED',
+    outbox_status: 'PENDING',
+    delay_ms: 1_000,
+  });
+
+  for (const expectedDelayMs of [2_000, 3_000]) {
+    now = new Date(now.getTime() + 60_000);
+    const item = await repository.leaseNext('worker-retry', 30_000);
+    assert.equal(item?.jobId, first.jobId);
+    await repository.markPrepared(item!, 'worker-retry');
+    await repository.releaseRetryable(first.jobId, 'worker-retry', 'RPC_TIMEOUT');
+    assert.equal((await readState(first.jobId))?.delay_ms, expectedDelayMs);
+  }
+
+  now = new Date(now.getTime() + 60_000);
+  const last = await repository.leaseNext('worker-retry', 30_000);
+  assert.equal(last?.jobId, first.jobId);
+  await repository.markPrepared(last!, 'worker-retry');
+  await repository.releaseRetryable(first.jobId, 'worker-retry', 'RPC_TIMEOUT');
+  const closed = await readState(first.jobId);
+  assert.equal(closed?.job_status, 'MANUAL_REVIEW');
+  assert.equal(closed?.code, 'RETRY_LIMIT_EXCEEDED');
+  assert.equal(closed?.outbox_status, 'PUBLISHED');
+
+  now = new Date(now.getTime() + 3_600_000);
+  assert.equal(await repository.leaseNext('worker-retry', 30_000), undefined);
+});
+
 test('event scan start reads the cursor with a reorg margin and deployment floor', async (t) => {
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
