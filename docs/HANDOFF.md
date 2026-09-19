@@ -4,9 +4,9 @@
 
 기준 브랜치: `main`
 
-검증 기준 커밋 SHA: `main@ab641872504743aed5d853dfe7be4a69e1c199c4`, main CI run `35421201914` PASS
+검증 기준 커밋 SHA: `main@e613922580cd880ba0aad16009275cc95943a353`, main CI run `35422920875` PASS
 
-현재 작업: `test/40-wallet-address-change@9081efd`, Issue #40·#41 OPEN, PR #42 OPEN
+현재 작업: Phase 1 지갑 핵심·W06 PASS, W04·W05 외부 환경 BLOCKED; 열린 Issue·PR·구현 브랜치 없음
 
 ## 이번 세션에서 완료한 것
 
@@ -54,6 +54,7 @@
 - #34, merge commit `1ca9301`
 - #36, merge commit `cdd7d53` (W06 FAIL·B-009 상태 기록)
 - #38, merge commit `ab64187` (pending proposal 취소·W06 PASS)
+- #42, merge commit `e613922` (W04·W05 blocker 경계 기록)
 
 ## 실행한 테스트
 
