@@ -168,6 +168,11 @@ test('W07 M01-M08 finalize once and reject an unconfirmed reorg event on Anvil',
     getAddress(await contract.getFunction('ownerOf').staticCall(3n)),
     recipients[2],
   );
+  await recoverRetryableJob(
+    pool,
+    workerA,
+    '40000000-0000-4000-8001-000000000003',
+  );
 
   for (let index = 0; index < rewardKeys.length; index++) {
     assert.equal(
@@ -366,6 +371,38 @@ async function seedAnvilJobs(
 async function waitFor(transaction: ContractTransactionResponse): Promise<void> {
   const receipt = await transaction.wait();
   if (!receipt || receipt.status !== 1) throw new Error('local contract transaction failed');
+}
+
+async function recoverRetryableJob(
+  pool: Pool,
+  worker: MintWorker,
+  jobId: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const state = (
+      await pool.query<{ status: string; last_error_code: string | null }>(
+        `SELECT status, last_error_code
+         FROM mint_jobs
+         WHERE id = $1`,
+        [jobId],
+      )
+    ).rows[0];
+    if (state?.status === 'FINALIZED') return;
+    assert.equal(state?.status, 'RETRYABLE');
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+    await worker.runOnce(`anvil-recovery-${attempt + 1}`);
+  }
+  const remaining = (
+    await pool.query<{ status: string; last_error_code: string | null }>(
+      `SELECT status, last_error_code
+       FROM mint_jobs
+       WHERE id = $1`,
+      [jobId],
+    )
+  ).rows[0];
+  assert.fail(
+    `mint job did not recover: ${remaining?.status ?? 'missing'}:${remaining?.last_error_code ?? 'none'}`,
+  );
 }
 
 function requiredTestDatabaseUrl(): string {
