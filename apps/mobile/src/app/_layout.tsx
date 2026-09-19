@@ -12,7 +12,9 @@ function Routes() {
         headerBackButtonDisplayMode: 'minimal',
       }}
     >
-      <Stack.Screen name="index" options={{ title: '외부 지갑 연결' }} />
+      <Stack.Screen name="index" options={{ title: '월계 맛길' }} />
+      <Stack.Screen name="merchants/[merchantId]" options={{ title: '음식점 상세' }} />
+      <Stack.Screen name="wallet" options={{ title: '외부 지갑 연결' }} />
     </Stack>
   );
 }

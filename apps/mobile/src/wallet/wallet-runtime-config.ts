@@ -1,3 +1,5 @@
+import { normalizePublicApiUrl } from '@/config/public-api';
+
 const requiredEnvironmentKeys = [
   'EXPO_PUBLIC_REOWN_PROJECT_ID',
   'EXPO_PUBLIC_API_URL',
@@ -42,8 +44,7 @@ export function getWalletRuntimeConfig(environment: Environment): WalletRuntimeC
     return { available: false, missing };
   }
 
-  const apiUrl = environment.EXPO_PUBLIC_API_URL!.trim().replace(/\/$/, '');
-  assertSafeApiUrl(apiUrl);
+  const apiUrl = normalizePublicApiUrl(environment.EXPO_PUBLIC_API_URL!.trim());
 
   return {
     available: true,
@@ -80,12 +81,4 @@ export function getWalletRuntimeConfig(environment: Environment): WalletRuntimeC
       },
     },
   };
-}
-
-function assertSafeApiUrl(value: string): void {
-  const url = new URL(value);
-  const loopbackHosts = new Set(['127.0.0.1', 'localhost', '10.0.2.2']);
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopbackHosts.has(url.hostname))) {
-    throw new Error('EXPO_PUBLIC_API_URL must use HTTPS outside approved local development hosts');
-  }
 }

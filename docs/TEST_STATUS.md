@@ -69,5 +69,6 @@
 | 2026-09-19 KST | `1dba58f`, PR #34 | 모바일 22개·typecheck·lint·미설치 Trust Wallet·Google Play 이동·수동 앱 복귀·제안 만료 대기 | Samsung SM-S928N·Android 16, macOS | 즉시 UI PASS, 지연 `Uncaught Proposal expired`로 W06 FAIL; 같은 원인 2회 이상 재현 후 중단 | Issue #33·#35, `docs/evidence/android-wallet-missing.json` |
 | 2026-09-19 KST | `bff7c68`, PR #38 | clean npm ci patch 적용·모바일 24개·typecheck·lint·Android export·미설치 SafePal·6분 만료 회귀 | Samsung SM-S928N·Android 16, macOS | W06 PASS; 추가 `Proposal expired`·`Uncaught`·자산 요청 없음 | Issue #35, `docs/evidence/android-wallet-missing.json` |
 | 2026-09-19 KST | `dbab97f`, Issue #40 | Account 1 VERIFIED·disconnect·Account 2 재연결 UNVERIFIED·MetaMask 연결 관리 확인 | Samsung SM-S928N·Android 16·MetaMask 8.11.0 | 계정별 검증 격리 PASS, 정확한 동일 세션 주소 변경은 BLOCKED | `docs/evidence/android-wallet-address-change.json` |
+| 2026-09-19 KST | `935e6d5`, PR #45 | 모바일 32개·typecheck·lint·Android export·목록→상세→선택적 지갑·콜드 재시작 | Samsung SM-S928N·Android 16·PostgreSQL 18 DEMO 3곳 | PASS, 외부 HTTPS `NOT_RUN` | `docs/evidence/android-merchant-discovery.json`; 실제 협약 점포·지갑 주소·기기 일련번호 미기록 |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R03은 각각 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04·R02는 계속 `NOT_RUN`입니다.

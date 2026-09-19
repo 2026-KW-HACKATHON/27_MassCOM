@@ -1,11 +1,10 @@
-import { WalletConfigurationRequired } from '@/screens/wallet-link/configuration-required';
-import { WalletLinkScreen } from '@/screens/wallet-link';
-import { walletRuntimeConfig } from '@/wallet/appkit';
+import { publicApiConfig } from '@/config/public-api-runtime';
+import { MerchantApiConfigurationRequired, MerchantListScreen } from '@/screens/merchant-list';
 
-export default function WalletLinkRoute() {
-  if (!walletRuntimeConfig.available) {
-    return <WalletConfigurationRequired missing={walletRuntimeConfig.missing} />;
+export default function MerchantListRoute() {
+  if (!publicApiConfig.available) {
+    return <MerchantApiConfigurationRequired />;
   }
 
-  return <WalletLinkScreen config={walletRuntimeConfig} />;
+  return <MerchantListScreen apiUrl={publicApiConfig.apiUrl} />;
 }
