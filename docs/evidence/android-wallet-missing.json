@@ -3,6 +3,13 @@
   "source_branch": "test/33-wallet-missing-return",
   "implementation_commit": "1dba58fa6eab45f1e743b3e669fe6a6a6de77baf",
   "base_commit": "e34f3d52016be8ba7ab68af5925d6829e4da48e7",
+  "latest_fix_retest": {
+    "checked_at": "2026-09-19T13:19:28+09:00",
+    "source_branch": "fix/35-wallet-proposal-cancel",
+    "implementation_commit": "bff7c68",
+    "wallet_under_test": "SafePal not installed",
+    "result": "PASS: Google Play handoff and Korean recovery UI completed immediately; the same app and Metro process remained free of delayed Proposal expired and unhandled promise errors for six minutes"
+  },
   "environment": {
     "host": "macOS",
     "device": "Samsung SM-S928N",
@@ -12,17 +19,17 @@
     "transport": "USB debugging with adb reverse for local API 3000 and Metro 8081"
   },
   "results": {
-    "overall_w06": "FAIL: immediate missing-wallet recovery passed, but the pending WalletConnect proposal later expired as an unhandled promise rejection",
+    "overall_w06": "PASS: missing-wallet recovery, pending proposal cancellation and the post-expiry observation window completed without delayed or unhandled errors",
     "wallet_absence": "PASS: the selected Trust Wallet package was not installed",
     "appkit_guidance": "PASS: AppKit showed App not installed and a Get action",
     "store_handoff": "PASS: Get opened the official Google Play listing without installing the wallet",
     "manual_return": "PASS: two Android system-back actions returned from the Play listing to the app",
     "app_recovery": "PASS: the AppKit modal was closed and the app showed NOT_CONNECTED, CHECK_REQUIRED, UNVERIFIED and a Korean retry/preservation message",
     "automatic_return": "NOT_RUN: automatic Play-to-app return was not observed; the test intentionally used Android system back",
-    "proposal_expiry": "FAIL: after the pending pairing lifetime elapsed, the development client logged Uncaught (in promise) Error: Proposal expired; reproduced more than twice and split to Issue #35"
+    "proposal_expiry": "PASS: the patched AppKit expired the current proposal ID immediately, consumed the pending rejection before modal close and produced no delayed or unhandled expiry during a six-minute observation"
   },
   "automated_verification": {
-    "mobile_tests": "PASS: 22/22",
+    "mobile_tests": "PASS: 24/24",
     "typecheck": "PASS",
     "lint": "PASS"
   },

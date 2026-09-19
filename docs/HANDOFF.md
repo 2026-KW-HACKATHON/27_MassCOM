@@ -6,7 +6,7 @@
 
 검증 기준 커밋 SHA: `main@cdd7d532a812f18936f5914aadf4ebba55929a9a`, main CI run `35418821772` PASS
 
-현재 작업: Issue #35 OPEN, 구현 브랜치 없음; 내부 SDK 패치·큰 업그레이드 승인 대기
+현재 작업: `fix/35-wallet-proposal-cancel@bff7c68`, Issue #35 OPEN, PR #38 OPEN
 
 ## 이번 세션에서 완료한 것
 
@@ -56,7 +56,7 @@
 
 ## 실행한 테스트
 
-- 모바일 테스트 22/22, typecheck, lint `PASS`
+- 모바일 테스트 24/24, typecheck, lint `PASS`
 - Expo doctor 21/21, Android export 2,216 modules `PASS`
 - npm audit high 기준 `PASS`; 기존 moderate 14·low 1 유지
 - MetaMask 8.11.0 WalletConnect 연결 `PASS`
@@ -74,14 +74,14 @@
 ## 현재 Phase 1 상태
 
 - 핵심 흐름 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED`→콜드 재시작은 `VERIFIED`
-- W06 즉시 UX는 PASS이나 지연 `Proposal expired` 미처리로 전체 `FAIL`; W04 주소 변경과 W05 미지원 스마트지갑은 `NOT_RUN`
+- W06 미설치 지갑·거절·복귀·pending proposal 취소와 6분 지연 회귀 `PASS`; W04 주소 변경과 W05 미지원 스마트지갑은 `NOT_RUN`
 
 ## BLOCKER
 
 - 외부 HTTPS·유료 AWS·공개 배포는 별도 승인 필요
 - GitHub Pages는 현재 꺼져 있고 private 저장소의 조직 요금제·공개 정책 확인 및 공개 승인 필요
 - MetaMask 거절 뒤 자동 딥링크 복귀는 관측되지 않았으며 수동 Android 뒤로가기는 PASS
-- Reown 2.0.6 미설치 지갑 제안을 취소하는 공개 API가 없어 약 5분 뒤 `Uncaught Proposal expired`; Issue #35
+- Reown 2.0.6 공개 API 부재는 승인된 patch-package 최소 패치로 해소 중; upstream stable 제공 시 제거
 
 ## 사용자 승인이 필요한 사항
 
@@ -90,7 +90,7 @@
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. Issue #35에서 공개 API만으로 pending proposal을 취소할 수 있는지 Reown upstream 근거를 확인하고, 내부 패치·큰 SDK 변경은 승인 없이 하지 않음
+1. PR #38 CI·merge와 main CI를 확인하고 Issue #35를 종료
 2. Phase 1 잔여 W04 주소 변경·W05 미지원 스마트지갑을 준비된 안전한 환경에서 별도 증거로 남김
 3. 실제 지갑 실기는 비밀번호·복구 문구·개인키를 공유하거나 기록하지 않고 사용자가 직접 잠금만 해제
 4. 실제로 실행하지 않은 예외 시험은 계속 `NOT_RUN`으로 유지
@@ -119,6 +119,6 @@ PostgreSQL 통합은 DB 이름이 `_test`로 끝나는 전용 `TEST_DATABASE_URL
 - Q01·Q02·Q03·Q05·R01·R03은 실제 PostgreSQL 증거로 PASS이며 Q04·R02는 계속 NOT_RUN
 - 정확한 식사 시각은 서비스 DB 감사 자료일 뿐 온체인·IPFS·공개 메타데이터에 넣지 않음
 - 방문 취소·도감 조회·Android QR 카메라를 구현 완료로 표시하지 않음
-- Phase 1 핵심 외부 지갑 흐름 PASS, W06 FAIL, 잔여 W04·W05 NOT_RUN을 구분함
+- Phase 1 핵심 외부 지갑 흐름·W06 PASS와 잔여 W04·W05 NOT_RUN을 구분함
 - 실제 Android 기기 일련번호·개인 앱 목록·지갑 비밀은 저장소에 기록하지 않음
 - 개인 private mirror는 사용자가 나중에 요청할 때만 생성

@@ -6,6 +6,7 @@
 | --- | --- | --- | --- |
 | Expo / React Native | Expo 57.0.23 / RN 0.86.3 | [Expo](https://github.com/expo/expo), MIT | Android 앱·Router·development build·native UI |
 | Reown AppKit React Native | 2.0.6 | [upstream](https://github.com/reown-com/appkit-react-native), package metadata의 LICENSE.md 및 Community License 확인 필요 | 외부 지갑 연결 UI·provider |
+| patch-package | 8.0.1 | [upstream](https://github.com/ds300/patch-package), MIT | Reown 2.0.6 최소 호환 패치의 clean install 재적용 |
 | WalletConnect React Native compat | 2.25.0 | [upstream](https://github.com/WalletConnect/walletconnect-monorepo), LICENSE.md | React Native WalletConnect polyfill |
 | SIWE | 3.0.0 | [SpruceID SIWE](https://github.com/spruceid/siwe), MIT | ERC-4361 메시지 생성·파싱·검증 |
 | ethers | 6.17.0 | [ethers.js](https://github.com/ethers-io/ethers.js), MIT | 서명 복구·주소 정규화 |
@@ -13,6 +14,8 @@
 | PostgreSQL | 18 Alpine(개발·CI) | [PostgreSQL](https://www.postgresql.org/), PostgreSQL License | 점포·캠페인 영속 저장과 실제 통합 테스트 |
 
 Expo 기본 템플릿의 개발 아이콘·스플래시 자산이 현재 `apps/mobile/assets`에 남아 있습니다. 출시 브랜딩 자산이 아니며 Expo MIT License 범위에서 사용합니다.
+
+Reown 수정 범위와 upstream 교체 조건은 [`docs/REOWN_PATCH.md`](docs/REOWN_PATCH.md)에 기록합니다. 원본 패키지 전체를 저장소에 복제하지 않고 `apps/mobile/patches/@reown+appkit-react-native+2.0.6.patch` diff만 보관합니다.
 
 GitHub Actions의 공식 `actions/checkout`은 CI에서 커밋 SHA로 고정해 사용합니다. 향후 외부 자산이나 코드를 추가할 때 아래 정보를 함께 기록합니다.
 

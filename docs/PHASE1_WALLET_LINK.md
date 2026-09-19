@@ -64,7 +64,7 @@ GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLO
 ## 남은 실기
 
 - Reown project ID·사용자 지갑 부재 blocker는 해소됨
-- W06은 미설치 지갑의 즉시 안내·스토어 복귀는 PASS이나 남은 WalletConnect 제안이 만료되며 미처리 Promise가 발생해 `FAIL`·Issue #35
+- W06은 미설치 SafePal의 스토어 복귀·pending proposal 즉시 취소·6분 지연 오류 부재까지 `PASS`; 패치 세부사항은 [`REOWN_PATCH.md`](REOWN_PATCH.md)
 - 주소 변경·미지원 스마트지갑은 `NOT_RUN`
 - release package ID·AAB·App Link·Play 트랙 미확정
 

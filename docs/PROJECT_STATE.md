@@ -8,7 +8,7 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 기준 | Issue #35 OPEN, 구현 브랜치 없음; 내부 SDK 패치·큰 업그레이드 승인 대기 |
+| 현재 작업 기준 | `fix/35-wallet-proposal-cancel@bff7c68`, Issue #35 OPEN, PR #38 OPEN |
 | 현재 검증 기준 | `main@cdd7d532a812f18936f5914aadf4ebba55929a9a`, CI run `35418821772` PASS |
 | 최근 기능·상태 merge | PR #34 `1ca9301`, PR #36 `cdd7d53` |
 | Phase 1 종료 Issue | #25 실제 지갑 검증, #27·#31 거절 처리, #33 미설치 지갑 실기 |
@@ -19,7 +19,7 @@
 | Phase | 상태 | 실제 근거 |
 | --- | --- | --- |
 | Phase 0 저장소·개발 기반 | `VERIFIED` | PR #2·#4·#6·#8, CI PASS |
-| Phase 1 외부 지갑 연결 | `IN_PROGRESS` | API 15개·모바일 22개 자동화 PASS, 핵심 흐름 PASS; 미설치 지갑의 지연 제안 만료로 W06 FAIL, W04·W05 NOT_RUN |
+| Phase 1 외부 지갑 연결 | `IN_PROGRESS` | API 15개·모바일 24개 자동화 PASS, 핵심 흐름·W06 실제 Android PASS; W04·W05 NOT_RUN |
 | Phase 2 지역 상권 핵심 기능 | `IN_PROGRESS` | 카탈로그·점포 권한·일회용 QR·방문·고정 보상권 merge 완료 |
 | Phase 3 NFT | `PLANNED` | 계약·Worker·테스트넷 미착수 |
 | Phase 4 출시 기반 | `PLANNED` | 외부 HTTPS·AAB·탈퇴·복원 미착수 |
@@ -58,7 +58,6 @@
 
 ### 진행 중
 
-- W06 미설치 지갑 pending proposal 만료 오류 Issue #35
 - W04 주소 변경·W05 미지원 스마트지갑 실제 기기 예외 검증
 
 ### 미구현
@@ -77,9 +76,9 @@
 
 - API 단위 테스트: `PASS` 25개
 - PostgreSQL 18 통합 테스트: `PASS` 4개(카탈로그·Q01~Q03·Q05·R01·R03, 로컬 Docker와 main CI)
-- v3 필수 36개: W01·W02·W03·W09·Q01·Q02·Q03·Q05·R01·R03 `PASS`, W06 `FAIL`, 나머지 25개 `NOT_RUN`
+- v3 필수 36개: W01·W02·W03·W06·W09·Q01·Q02·Q03·Q05·R01·R03 `PASS`, 나머지 25개 `NOT_RUN`
 - Android: debug APK 빌드·Android 16 16KB AVD와 Samsung SM-S928N 설치·실행·복귀 `PASS`
-- 외부 지갑 핵심 흐름: MetaMask 연결·Base Sepolia·주소 확인·거절 복귀 `PASS`; 미설치 Trust Wallet 즉시 UI는 PASS이나 지연 만료로 W06 `FAIL`; W04·W05 `NOT_RUN`
+- 외부 지갑 핵심 흐름: MetaMask 연결·Base Sepolia·주소 확인·거절 복귀와 미설치 SafePal·pending proposal 취소·6분 지연 회귀 `PASS`; W04·W05 `NOT_RUN`
 - 공개 HTTPS·GitHub Pages·Play: 미배포
 - NFT·테스트넷: 계약·전송 모두 미실행
 
