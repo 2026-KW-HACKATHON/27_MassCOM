@@ -15,8 +15,8 @@
 | W01 | 지갑·API | PASS | 연결만 승인하고 서명 생략 | 미검증 주소, 민팅 불가 | MetaMask 연결 뒤 앱이 `CONNECTED / UNVERIFIED`를 표시했고 주소 확인 전에는 발행 상태가 없음; API 미검증 주소 거절 자동화 PASS |
 | W02 | 서명 검증 | PASS | 다른 계정·도메인·체인의 서명 | 거절 | Node HTTP·ethers 실제 서명 PASS |
 | W03 | 서명 검증 | PASS | 만료·사용한 nonce 재사용 | 거절 | 5분 만료·단일 소비·replay 409 PASS |
-| W04 | Android·지갑 | NOT_RUN | 서명 도중 지갑 주소 변경 | 기존 원문·확인 상태 무효 | 자동화 PASS, MetaMask 실기 NOT_RUN |
-| W05 | Android·지갑 | NOT_RUN | 지원하지 않는 스마트 지갑 | 무검증 우회 없이 설명·거절 | 실기 미수행 |
+| W04 | Android·지갑 | BLOCKED | 서명 도중 지갑 주소 변경 | 기존 원문·확인 상태 무효 | mismatch 자동화와 Account 1 VERIFIED → Account 2 재연결 UNVERIFIED 격리 PASS. MetaMask 8.11.0은 같은 세션 계정 편집을 제공하지 않아 정확한 서명 중 변경 실기 BLOCKED |
+| W05 | Android·지갑 | BLOCKED | 지원하지 않는 스마트 지갑 | 무검증 우회 없이 설명·거절 | 준비된 지갑은 EOA뿐이며 새 지갑 생성·복구 문구 접근 없이 사용할 실제 스마트 지갑 환경 없음 |
 | W06 | Android 실기 | PASS | 지갑 미설치·서명 거절·복귀 실패 | 안내와 재시도, 보상권 유지 | 서명·연결 거절 PASS. 미설치 SafePal → Google Play → 수동 앱 복귀·한국어 안내·pending proposal 취소 후 6분 지연 오류 없음 |
 | W07 | DB·Worker | NOT_RUN | 주소 연결 해제와 전송 경쟁 | 고정 수령인·명확한 작업 상태 | Worker 미구현 |
 | W08 | 배포 빌드 검사 | NOT_RUN | SDK 구매·스왑·내장 지갑 기본값 | 배포 빌드에 해당 진입점 없음 | 개발 코드 경계 PASS, 배포 빌드 NOT_RUN |
@@ -68,5 +68,6 @@
 | 2026-09-18 KST | `a4dc155`, PR #32 | 모바일 21개·typecheck·lint·실제 MetaMask 서명·연결 거절 | Samsung SM-S928N·Android 16·MetaMask 8.11.0, macOS | 자동화·서명 거절 PASS; 연결 거절 후 수동 앱 복귀와 보존 안내 PASS, 자동 딥링크 복귀 NOT_RUN | Issue #31·PR #32; `docs/evidence/android-wallet-connection.json` |
 | 2026-09-19 KST | `1dba58f`, PR #34 | 모바일 22개·typecheck·lint·미설치 Trust Wallet·Google Play 이동·수동 앱 복귀·제안 만료 대기 | Samsung SM-S928N·Android 16, macOS | 즉시 UI PASS, 지연 `Uncaught Proposal expired`로 W06 FAIL; 같은 원인 2회 이상 재현 후 중단 | Issue #33·#35, `docs/evidence/android-wallet-missing.json` |
 | 2026-09-19 KST | `bff7c68`, PR #38 | clean npm ci patch 적용·모바일 24개·typecheck·lint·Android export·미설치 SafePal·6분 만료 회귀 | Samsung SM-S928N·Android 16, macOS | W06 PASS; 추가 `Proposal expired`·`Uncaught`·자산 요청 없음 | Issue #35, `docs/evidence/android-wallet-missing.json` |
+| 2026-09-19 KST | `dbab97f`, Issue #40 | Account 1 VERIFIED·disconnect·Account 2 재연결 UNVERIFIED·MetaMask 연결 관리 확인 | Samsung SM-S928N·Android 16·MetaMask 8.11.0 | 계정별 검증 격리 PASS, 정확한 동일 세션 주소 변경은 BLOCKED | `docs/evidence/android-wallet-address-change.json` |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R03은 각각 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04·R02는 계속 `NOT_RUN`입니다.

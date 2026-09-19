@@ -65,7 +65,8 @@ GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLO
 
 - Reown project ID·사용자 지갑 부재 blocker는 해소됨
 - W06은 미설치 SafePal의 스토어 복귀·pending proposal 즉시 취소·6분 지연 오류 부재까지 `PASS`; 패치 세부사항은 [`REOWN_PATCH.md`](REOWN_PATCH.md)
-- 주소 변경·미지원 스마트지갑은 `NOT_RUN`
+- Account 1 검증이 Account 2 재연결에 승계되지 않는 것은 PASS이나 MetaMask가 같은 WalletConnect 세션 계정 편집을 제공하지 않아 정확한 W04 서명 중 변경은 `BLOCKED`
+- 복구 문구 없이 준비된 미지원 스마트 지갑 환경이 없어 W05는 `BLOCKED`
 - release package ID·AAB·App Link·Play 트랙 미확정
 
 ## 공식 근거

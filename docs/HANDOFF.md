@@ -6,7 +6,7 @@
 
 검증 기준 커밋 SHA: `main@ab641872504743aed5d853dfe7be4a69e1c199c4`, main CI run `35421201914` PASS
 
-현재 작업: Phase 1 지갑 핵심·W06 검증 완료, 열린 Issue·PR·구현 브랜치 없음
+현재 작업: `test/40-wallet-address-change@9081efd`, Issue #40·#41 OPEN, PR #42 OPEN
 
 ## 이번 세션에서 완료한 것
 
@@ -75,7 +75,7 @@
 ## 현재 Phase 1 상태
 
 - 핵심 흐름 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED`→콜드 재시작은 `VERIFIED`
-- W06 미설치 지갑·거절·복귀·pending proposal 취소와 6분 지연 회귀 `PASS`; W04 주소 변경과 W05 미지원 스마트지갑은 `NOT_RUN`
+- W06 `PASS`; Account 1 VERIFIED가 Account 2 재연결에 승계되지 않는 격리 PASS; MetaMask 동일 세션 변경 W04와 실제 미지원 스마트지갑 W05는 `BLOCKED`
 
 ## BLOCKER
 
@@ -91,9 +91,9 @@
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. Phase 1 잔여 W04 주소 변경·W05 미지원 스마트지갑을 준비된 안전한 환경에서 별도 증거로 남김
-2. 실제 지갑 실기는 비밀번호·복구 문구·개인키를 공유하거나 기록하지 않고 사용자가 직접 잠금만 해제
-3. 실제로 실행하지 않은 예외 시험은 계속 `NOT_RUN`으로 유지
+1. W04·W05 외부 환경 blocker를 Issue #40·#41과 B-010·B-011로 유지
+2. MetaMask가 세션 계정 편집을 지원하거나 복구 문구 없이 준비된 실제 스마트 지갑이 제공될 때만 실기를 재개
+3. 실제 지갑 실기는 비밀번호·복구 문구·개인키를 공유하거나 기록하지 않음
 4. Phase 2 이상, 공개 배포, Play 제출은 새 사용자 승인 없이 진행하지 않음
 
 ## 실행 명령
@@ -119,6 +119,6 @@ PostgreSQL 통합은 DB 이름이 `_test`로 끝나는 전용 `TEST_DATABASE_URL
 - Q01·Q02·Q03·Q05·R01·R03은 실제 PostgreSQL 증거로 PASS이며 Q04·R02는 계속 NOT_RUN
 - 정확한 식사 시각은 서비스 DB 감사 자료일 뿐 온체인·IPFS·공개 메타데이터에 넣지 않음
 - 방문 취소·도감 조회·Android QR 카메라를 구현 완료로 표시하지 않음
-- Phase 1 핵심 외부 지갑 흐름·W06 PASS와 잔여 W04·W05 NOT_RUN을 구분함
+- Phase 1 핵심 외부 지갑 흐름·W06 PASS와 W04·W05 BLOCKED를 구분함
 - 실제 Android 기기 일련번호·개인 앱 목록·지갑 비밀은 저장소에 기록하지 않음
 - 개인 private mirror는 사용자가 나중에 요청할 때만 생성

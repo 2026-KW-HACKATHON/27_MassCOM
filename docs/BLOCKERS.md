@@ -11,3 +11,5 @@
 | B-007 | Android release package ID 미확정 | release AAB·App Link·Play 준비 불가 | 출시 식별자 결정 | `BLOCKED` |
 | B-008 | Expo Router/config-plugin 전이 의존성 moderate advisory 14건 | release 보안 검토 미완료 | Expo 호환 비파괴 upstream 수정 확인·업그레이드 | `BLOCKED` |
 | B-009 | Reown 2.0.6 미설치 지갑 연결 제안을 취소하는 공개 API 부재 | 스토어 복귀 뒤 pending proposal 만료가 미처리 Promise 발생 | 승인된 patch-package 최소 패치와 PR #38 실기 회귀 | `RESOLVED` |
+| B-010 | MetaMask 8.11.0 WalletConnect 세션 계정 편집 경로 부재 | W04 정확한 서명 중 주소 변경 Android 실기 불가 | 같은 세션의 계정 변경을 지원하는 지갑 또는 MetaMask 지원 추가 | `BLOCKED` |
+| B-011 | 복구 문구 없이 준비된 실제 미지원 스마트 지갑 없음 | W05 Android 실기 불가 | 자산·비밀정보가 없는 테스트 전용 스마트 지갑 제공 | `BLOCKED` |
