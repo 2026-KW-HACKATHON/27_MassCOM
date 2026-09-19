@@ -28,6 +28,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: true
       - name: Node.js 설정
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
@@ -52,6 +54,13 @@ jobs:
         run: bash tests/site/check_site_accessibility_test.sh
       - name: Verify project portal structure
         run: bash tests/site/verify_project_site_test.sh
+      - name: NFT 계약 포맷·빌드·테스트
+        run: |
+          ./scripts/forge.sh --version | grep -q 'forge Version: 1.8.3'
+          ./scripts/forge.sh fmt --check
+          ./scripts/forge.sh build
+          ./scripts/forge.sh test -vvv
+          ./scripts/forge.sh lint
       - name: 앱·API 의존성 설치
         run: |
           npm ci --prefix apps/api

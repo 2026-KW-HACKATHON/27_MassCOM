@@ -24,6 +24,10 @@ android/app/build/
 
 # IDE and operating system
 .DS_Store
+contracts/.cache/
+contracts/cache/
+contracts/out/
+contracts/broadcast/
 .idea/
 .vscode/
 *.swp
