@@ -10,3 +10,4 @@
 | B-006 | Reown Dashboard project ID·초기화된 사용자 지갑 없음 | AppKit modal·WalletConnect 연결·서명·지갑 복귀 실기 불가 | 2026-09-18 사용자 제공 project ID와 사용자가 준비·잠금 해제한 MetaMask로 실기 | `RESOLVED` |
 | B-007 | Android release package ID 미확정 | release AAB·App Link·Play 준비 불가 | 출시 식별자 결정 | `BLOCKED` |
 | B-008 | Expo Router/config-plugin 전이 의존성 moderate advisory 14건 | release 보안 검토 미완료 | Expo 호환 비파괴 upstream 수정 확인·업그레이드 | `BLOCKED` |
+| B-009 | Reown 2.0.6 미설치 지갑 연결 제안을 취소하는 공개 API 부재 | 스토어 복귀 뒤 pending proposal 만료가 미처리 Promise 발생 | Issue #35에서 upstream 공개 취소 경로 또는 호환되는 안정 버전 확인 | `BLOCKED` |

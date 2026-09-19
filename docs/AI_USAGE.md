@@ -14,7 +14,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-18 | Claude Code·Astra high | PR #26 독립 검증과 PR #28 재검증 | WalletConnect 5000~5003, Reown 4001 코드 소실, 4902 오탐, SDK add-chain 미요청, 문서 상태 점검 | Claude HIGH 0·MEDIUM 1 발견, Astra 수정 후 HIGH 0·MEDIUM 0·MERGE; 모바일 19/19·typecheck·secret scan PASS | 읽기 전용 검토이며 팀원 기여로 계산하지 않음; Claude는 테스트 재실행 없이 소스·CI 근거 검토, Astra는 자동화 재실행 |
 | 2026-09-18 | Codex | 실제 거절 흐름 재검증과 Reown 이벤트 연동 | 서명 거절 UI 확인, 연결 거절 `USER_REJECTED` 재현, 앱 취소 상태 구독·stale 재통지 가드와 회귀 테스트 | 실제 서명 거절 안내와 연결 거절 후 수동 앱 복귀 안내 PASS, 모바일 21/21·typecheck·lint PASS; 자동 딥링크 복귀는 NOT_RUN | 사용자는 지갑 잠금만 해제하며 비밀번호·복구 문구·개인키는 공유·기록하지 않음 |
 | 2026-09-18 | Claude Code·Astra high | PR #32 독립 읽기 전용 검증 | Reown 이벤트 형태·구독 정리·동기 재통지·상태 경계·증거 상태 검토 | 최종 HIGH·MEDIUM 0; Claude MEDIUM 1과 Astra LOW 증거 시각 문제를 코드·문서로 보완 | 사람 리뷰와 실제 지갑 실기를 대체하지 않음 |
-| 2026-09-19 | Codex | 미설치 지갑 W06 실기와 복귀 안내 | Reown `GET_WALLET` 판별, 한국어 재시도·보존 안내, Android 증거·상태 문서 | TDD RED 확인, 모바일 22/22·typecheck·lint PASS, Trust Wallet 미설치·Google Play·수동 앱 복귀 PASS | 별도 고성능 리뷰어 없이 실제 기기·자동화·CI로 검증; 지갑 설치·비밀 접근 없음 |
+| 2026-09-19 | Codex | 미설치 지갑 W06 실기와 복귀 안내 | Reown `GET_WALLET` 판별, 한국어 재시도·보존 안내, Android 증거·상태 문서 | TDD RED 확인, 모바일 22/22·typecheck·lint PASS, 즉시 UI PASS 후 지연 `Proposal expired` 재현으로 W06 FAIL·Issue #35 | 별도 고성능 리뷰어 없이 실제 기기·자동화·CI로 검증; 지갑 설치·비밀 접근 없음 |
 
 ## 팀 설명 체크리스트
 

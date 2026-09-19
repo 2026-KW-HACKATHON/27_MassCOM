@@ -44,7 +44,7 @@
     "sign_rejection": "PASS: MetaMask returned code 4001; the app returned to CONNECTED, BASE_SEPOLIA, UNVERIFIED and displayed the Korean cancellation message stating that visit records and receivable collectibles remain",
     "connection_rejection": "PASS: the post-fix MetaMask rejection produced Reown USER_REJECTED; after manual Android system back the app closed the modal and showed the Korean preservation message without creating a wallet session",
     "automatic_wallet_return": "NOT_RUN: MetaMask stayed in the foreground after decline; automatic deep-link return was not observed",
-    "wallet_missing": "PASS: an uninstalled Trust Wallet showed App not installed, opened its Google Play listing, and returned manually to a Korean retry/preservation message without creating a wallet session",
+    "wallet_missing": "FAIL: immediate App not installed, Google Play handoff, manual return and Korean recovery UI passed, but the pending WalletConnect proposal later expired as an unhandled promise rejection; tracked in Issue #35",
     "address_change": "NOT_RUN",
     "unsupported_wallet": "NOT_RUN"
   },
