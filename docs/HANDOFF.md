@@ -6,7 +6,7 @@
 
 검증 기준: PR #58 merge `7da97b6`, main CI `35455903163` PASS
 
-현재 작업: Issue #59 chain cursor 재시작 범위와 reorg margin 구현
+현재 작업: Issue #59 PR #60 병합 대기(npm audit endpoint 503), Issue #61 재시도 상한 PR 검토
 
 ## 이번 작업에서 완료한 것
 
@@ -20,6 +20,8 @@
 - PR #57 merge `9794c70`, PR·main CI PASS, Issue #56 종료
 - cursor가 없으면 배포 기준 블록, 있으면 `next_block - margin`을 사용하는 PostgreSQL read path
 - 빠른 cursor 범위에 이벤트가 없으면 배포 기준 블록까지 fallback하는 Anvil 복구
+- cursor 조회 실패의 재시도 오류 분류, ethers 요청 cache로 인한 Anvil 간헐 30초 대기 원인 제거
+- Issue #61 Worker 재시도 지수 backoff와 전송 시도 상한 뒤 `MANUAL_REVIEW` 전환
 
 - PR #53 merge `62196f0`, main CI `35450443943` PASS, Issue #52 종료
 - 브라우저 발표 페이지와 데스크톱·390px 시각 검증
@@ -52,7 +54,7 @@
 ## 최신 검증
 
 - API `35/35`, API PostgreSQL `14/14`
-- Worker `8/8`, Worker PostgreSQL `5/5`, Anvil `W07 M01~M08 PASS`
+- Worker `8/8`, Worker PostgreSQL `6/6`, Anvil `W07 M01~M08 PASS`
 - 모바일 `48/48`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - secret scan·bootstrap·portal accessibility/structure PASS
@@ -68,10 +70,9 @@
 
 ## 재개 시 할 일
 
-1. Worker retry 상한·지수 backoff·dead-letter 또는 `MANUAL_REVIEW` 전환 추가
-2. SIWE challenge 공유 저장소와 운영 세션 저장 정책 결정
-3. Expo 호환 업데이트로 모바일 moderate advisory 14건을 재평가
-4. 외부 HTTPS·Base Sepolia·release AAB·Google Play·공개/최종 제출은 별도 승인 뒤 진행
+1. SIWE challenge 공유 저장소와 운영 세션 저장 정책 결정
+2. Expo 호환 업데이트로 모바일 moderate advisory 14건을 재평가
+3. 외부 HTTPS·Base Sepolia·release AAB·Google Play·공개/최종 제출은 별도 승인 뒤 진행
 
 ## 재현 명령
 

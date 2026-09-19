@@ -29,4 +29,6 @@ npm run start:once
 
 Worker는 user private key·recovery phrase를 사용하지 않습니다. 로컬 시험은 Anvil unlocked account만 사용하며 Base Sepolia 전용 시험 키는 별도 승인·주입 방식이 정해질 때까지 `BLOCKED`입니다.
 
+재시도 지연은 전송 시도마다 두 배(기본 1초, 최대 5분)로 늘고, 전송 시도가 5회에 도달한 작업은 `MANUAL_REVIEW`(`RETRY_LIMIT_EXCEEDED`)로 닫혀 다시 임대되지 않습니다. 전송 전 단계의 완결성 대기와 RPC 조회 실패는 시도 횟수를 늘리지 않습니다.
+
 `CHAIN_REORG_MARGIN`은 1 이상의 블록 수이며 기본값은 12입니다. 현재 entrypoint는 로컬 Anvil 전용이므로 공개 체인 운영 전에는 해당 체인의 finality 정책과 RPC 조회 한도에 맞춰 다시 결정해야 합니다.
