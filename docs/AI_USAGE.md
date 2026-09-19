@@ -16,6 +16,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-18 | Claude Code·Astra high | PR #32 독립 읽기 전용 검증 | Reown 이벤트 형태·구독 정리·동기 재통지·상태 경계·증거 상태 검토 | 최종 HIGH·MEDIUM 0; Claude MEDIUM 1과 Astra LOW 증거 시각 문제를 코드·문서로 보완 | 사람 리뷰와 실제 지갑 실기를 대체하지 않음 |
 | 2026-09-19 | Codex | 미설치 지갑 W06 실기·proposal 취소 패치 | Reown `GET_WALLET` 판별, 한국어 안내, proposal ID 즉시 종료·pending rejection 소비·pairing 정리 | TDD RED, 모바일 24/24·clean npm ci·typecheck·lint·Android export PASS, SafePal 복귀 후 6분 지연 오류 없음 | 사용자 승인 범위의 최소 SDK 패치; 별도 고성능 리뷰어·지갑 설치·비밀 접근 없음 |
 | 2026-09-19 | Codex | W04 계정 변경 실기와 W05 환경 확인 | MetaMask Account 1/2 연결·검증 격리, 연결 관리·스마트 지갑 준비 상태 확인 | Account 1 VERIFIED → Account 2 재연결 UNVERIFIED PASS; 동일 세션 변경·실제 스마트 지갑은 BLOCKED | 사용자가 계정 2를 준비했고 Codex는 주소·서명·복구 문구를 기록하지 않음 |
+| 2026-09-19 | Codex | Phase 2 음식점 탐색·상세 | 공용 API 설정 분리, 응답 검증, Android 목록·상세·선택적 지갑 라우트, 테스트·문서 | TDD RED 후 모바일 32/32·typecheck·lint·Android export·Samsung 실기 PASS | AI 구현·검증으로 기록하며 사람 기여나 실제 협약 점포 실적으로 표시하지 않음 |
 
 ## 팀 설명 체크리스트
 

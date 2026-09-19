@@ -1,0 +1,64 @@
+{
+  "recordedAt": "2026-09-19 KST",
+  "branch": "feat/44-customer-discovery",
+  "commit": "935e6d5",
+  "environment": {
+    "device": "Samsung SM-S928N",
+    "os": "Android 16",
+    "app": "Expo development build",
+    "api": "loopback through adb reverse",
+    "database": "PostgreSQL 18 Alpine local test database"
+  },
+  "dataBoundary": {
+    "merchantCount": 3,
+    "demoOnly": true,
+    "realPartnerClaimed": false
+  },
+  "checks": [
+    {
+      "id": "merchant-list",
+      "status": "PASS",
+      "observed": "Wallet-free landing route rendered three public demo merchants with OPEN/FULL and DEMO labels."
+    },
+    {
+      "id": "merchant-detail",
+      "status": "PASS",
+      "observed": "Tapped a merchant and observed address, minimum spend, campaign period, enrollment status, and 1/3/5 fixed goals."
+    },
+    {
+      "id": "wallet-optional-route",
+      "status": "PASS",
+      "observed": "Scrolled through the detail and opened the existing external-wallet route as an optional action."
+    },
+    {
+      "id": "cold-restart",
+      "status": "PASS",
+      "observed": "Force-stopped and relaunched the development build; the merchant list rendered without the initial development deep-link warning."
+    },
+    {
+      "id": "external-https",
+      "status": "NOT_RUN",
+      "observed": "No public deployment or paid cloud resource was authorized for this PR."
+    }
+  ],
+  "visualVerdict": {
+    "status": "PASS",
+    "criticalFindings": 0,
+    "majorFindings": 0,
+    "notes": [
+      "Primary hierarchy and Korean copy remained readable at the connected device's large display scale.",
+      "Demo and enrollment labels were visible without opening a detail.",
+      "The floating gear is the Expo development-client overlay and is not part of a release build."
+    ]
+  },
+  "screenshots": [
+    "docs/evidence/android-merchant-list.png",
+    "docs/evidence/android-merchant-detail.png"
+  ],
+  "privacy": {
+    "walletAddressRecorded": false,
+    "signatureRecorded": false,
+    "deviceSerialRecorded": false,
+    "qrTokenRecorded": false
+  }
+}

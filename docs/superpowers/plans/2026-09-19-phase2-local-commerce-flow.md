@@ -37,14 +37,15 @@
 - Consumes: `GET /merchants`
 - Produces: `MerchantApiClient.listMerchants(signal?)`, typed `PublicMerchant`, merchant list/detail routes
 
-- [ ] Write parser/client tests for valid response, invalid response, HTTP error, and abort.
-- [ ] Run mobile tests and confirm RED.
-- [ ] Implement the minimum typed client and parser.
-- [ ] Build list loading/error/empty/content states and pull-to-refresh.
-- [ ] Build detail campaign, capacity, demo, condition, and first/3/5 reward presentation.
-- [ ] Move the Phase 1 wallet UI to `/wallet` as an optional action.
-- [ ] Run mobile tests, typecheck, lint, Android export, and update docs.
-- [ ] Commit, push, create Korean PR, wait for CI, merge.
+- [x] Write parser/client tests for valid response, invalid response, HTTP error, and abort.
+- [x] Run mobile tests and confirm RED.
+- [x] Implement the minimum typed client and parser.
+- [x] Build list loading/error/empty/content states and pull-to-refresh.
+- [x] Build detail campaign, capacity, demo, condition, and first/3/5 reward presentation.
+- [x] Move the Phase 1 wallet UI to `/wallet` as an optional action.
+- [x] Run mobile tests, typecheck, lint, Android export, and update docs.
+- [x] Commit, push, and create Korean PR #45.
+- [ ] Wait for CI and required review, then merge.
 
 ### Task 2: Merchant claim, customer redemption, and collection
 
@@ -85,4 +86,3 @@
 - [ ] Record PASS/FAIL/BLOCKED/NOT_RUN evidence without secrets.
 - [ ] Update evaluation and final Phase 2 handoff in the same functional PR.
 - [ ] Commit, push, create Korean PR, wait for CI, merge, verify main CI.
-

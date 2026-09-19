@@ -20,6 +20,7 @@
 | D-014 | 이번 실행 범위 | Phase 1 완료까지만 진행 | `USER_CONFIRMED` | Phase 2 점포·QR·보상권 구현은 시작하지 않음 |
 | D-015 | 후속 실행 범위 | 현재 저장소에서 다음 미완료 Phase부터 개발 재개 | `USER_CONFIRMED` | 2026-09-18 새 요청이 D-014의 세션 범위만 대체, Phase 2 Issue #13 착수 |
 | D-016 | 세션 복원 정본 | `PROJECT_STATE.md`·`TEST_STATUS.md`를 정본으로 유지 | `USER_CONFIRMED` | 새 요청의 명시 파일명, 기존 `STATUS.md`·`TEST_REPORT.md`는 호환 안내만 유지 |
+| D-017 | Phase 2 PR 수 | 기능 흐름 기준 최대 3개, 상태 전용 PR 금지 | `USER_CONFIRMED` | 2026-09-19 사용자가 과도한 PR 분할을 피하도록 요청; 탐색, 수령·도감, 추천·최종검증으로 통합 |
 
 ## 2026-09-18 승인 범위
 
