@@ -24,7 +24,7 @@ TEST_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_restore_test' \
   npm run test:postgres --prefix apps/api
 ```
 
-복원 DB 이름은 반드시 `_test`로 끝나야 하며 운영 DB에 통합 시험을 실행하지 않습니다. 복원 뒤 `chain_cursors.next_block` 이전부터 안전 여유를 두고 이벤트를 재수집하고, 각 mint job의 reward key를 체인에서 먼저 확인합니다. 기존 NFT를 찾으면 새 발행 키나 새 거래를 만들지 않습니다.
+복원 DB 이름은 반드시 `_test`로 끝나야 하며 운영 DB에 통합 시험을 실행하지 않습니다. 복원 뒤 `max(CHAIN_FROM_BLOCK, chain_cursors.next_block - CHAIN_REORG_MARGIN)`부터 먼저 이벤트를 재수집하고, 각 mint job의 reward key를 체인에서 확인합니다. 빠른 범위에서 못 찾으면 `CHAIN_FROM_BLOCK`까지 fallback하며, 기존 NFT를 찾으면 새 발행 키나 새 거래를 만들지 않습니다.
 
 ## 장애별 중지 기준
 

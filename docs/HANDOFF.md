@@ -4,9 +4,9 @@
 
 기준 브랜치: `main`
 
-검증 기준: PR #57 merge `9794c70`, main CI `35455419805` PASS
+검증 기준: PR #58 merge `7da97b6`, main CI `35455903163` PASS
 
-현재 작업: 사용자 요청에 따라 중지. 새 기능 작업 없음.
+현재 작업: Issue #59 chain cursor 재시작 범위와 reorg margin 구현
 
 ## 이번 작업에서 완료한 것
 
@@ -18,6 +18,8 @@
 - duplicate revert reward-key 복구, secret/presentation/DEMO/한글 PR gate 보강
 - merge 완료 worktree 2개, local branch 11개, remote branch 8개 정리
 - PR #57 merge `9794c70`, PR·main CI PASS, Issue #56 종료
+- cursor가 없으면 배포 기준 블록, 있으면 `next_block - margin`을 사용하는 PostgreSQL read path
+- 빠른 cursor 범위에 이벤트가 없으면 배포 기준 블록까지 fallback하는 Anvil 복구
 
 - PR #53 merge `62196f0`, main CI `35450443943` PASS, Issue #52 종료
 - 브라우저 발표 페이지와 데스크톱·390px 시각 검증
@@ -50,7 +52,7 @@
 ## 최신 검증
 
 - API `35/35`, API PostgreSQL `14/14`
-- Worker `8/8`, Worker PostgreSQL `4/4`, Anvil `W07 M01~M08 PASS`
+- Worker `8/8`, Worker PostgreSQL `5/5`, Anvil `W07 M01~M08 PASS`
 - 모바일 `48/48`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - secret scan·bootstrap·portal accessibility/structure PASS
@@ -66,11 +68,10 @@
 
 ## 재개 시 할 일
 
-1. 운영 배포를 시작하기 전에 `chain_cursors` read path와 reorg margin을 구현·검증
-2. Worker retry 상한·지수 backoff·dead-letter 또는 `MANUAL_REVIEW` 전환 추가
-3. SIWE challenge 공유 저장소와 운영 세션 저장 정책 결정
-4. Expo 호환 업데이트로 모바일 moderate advisory 14건을 재평가
-5. 외부 HTTPS·Base Sepolia·release AAB·Google Play·공개/최종 제출은 별도 승인 뒤 진행
+1. Worker retry 상한·지수 backoff·dead-letter 또는 `MANUAL_REVIEW` 전환 추가
+2. SIWE challenge 공유 저장소와 운영 세션 저장 정책 결정
+3. Expo 호환 업데이트로 모바일 moderate advisory 14건을 재평가
+4. 외부 HTTPS·Base Sepolia·release AAB·Google Play·공개/최종 제출은 별도 승인 뒤 진행
 
 ## 재현 명령
 

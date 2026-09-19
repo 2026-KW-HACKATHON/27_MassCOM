@@ -29,7 +29,8 @@ for evidence in \
   android-recommendations.json \
   phase3-worker-anvil-android.json \
   account-deletion-privacy.json \
-  security-audit-issue-56.json; do
+  security-audit-issue-56.json \
+  chain-cursor-recovery.json; do
   cp "$repo_root/docs/evidence/$evidence" "$fixture_root/docs/evidence/$evidence"
 done
 

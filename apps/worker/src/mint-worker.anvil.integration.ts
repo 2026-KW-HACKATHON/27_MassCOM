@@ -138,7 +138,24 @@ test('W07 M01-M08 finalize once and reject an unconfirmed reorg event on Anvil',
   const externallySubmitted = await minterContract
     .getFunction('mintWithRewardKey')
     .send(recipients[1], seriesKey, rewardKeys[1]);
-  await waitFor(externallySubmitted);
+  const externallySubmittedReceipt = await externallySubmitted.wait();
+  assert.equal(externallySubmittedReceipt?.status, 1);
+  assert.ok(externallySubmittedReceipt);
+  const fallbackGateway = new EthersMintChainGateway({
+    rpcUrl,
+    chainId: 31337,
+    contractAddress,
+    minterAddress,
+    confirmations: 1,
+    fromBlock: externallySubmittedReceipt.blockNumber + 1,
+    fallbackFromBlock: 0,
+  });
+  const recoveredFromFallback = await fallbackGateway.findMintByRewardKey({
+    ...validationItem,
+    rewardKey: rewardKeys[1]!,
+    recipient: recipients[1],
+  });
+  assert.equal(recoveredFromFallback?.transactionHash, externallySubmitted.hash.toLowerCase());
   await assert.rejects(
     gateway.confirmMint(
       {
@@ -151,22 +168,45 @@ test('W07 M01-M08 finalize once and reject an unconfirmed reorg event on Anvil',
     (error: unknown) =>
       error instanceof MintEventMismatchError && error.code === 'MINT_EVENT_MISMATCH',
   );
+  // Defer job 2 so job 3 finalizes first and the cursor moves past job 2's existing event.
+  const deferredJobId = '40000000-0000-4000-8001-000000000002';
+  await pool.query(
+    `UPDATE outbox_events SET available_at = now() + interval '1 hour' WHERE aggregate_id = $1`,
+    [deferredJobId],
+  );
   assert.equal(await workerA.runOnce('anvil-worker-a'), true);
   assert.equal(
-    getAddress(await contract.getFunction('ownerOf').staticCall(2n)),
-    recipients[1],
+    getAddress(await contract.getFunction('ownerOf').staticCall(3n)),
+    recipients[2],
+  );
+  await pool.query(
+    `UPDATE outbox_events SET available_at = now() - interval '1 minute' WHERE aggregate_id = $1`,
+    [deferredJobId],
   );
 
-  const repositoryB = new PostgresMintRepository(pool);
-  const workerB = new MintWorker(repositoryB, gateway);
+  // Restart: the scan start comes from the stored cursor and lies after job 2's event.
+  const restartedRepository = new PostgresMintRepository(pool, { chainFromBlock: 0, reorgMargin: 1 });
+  const scanFromBlock = await restartedRepository.getEventScanStart(31337, contractAddress);
+  assert.ok(scanFromBlock > externallySubmittedReceipt.blockNumber);
+  const restartedGateway = new EthersMintChainGateway({
+    rpcUrl,
+    chainId: 31337,
+    contractAddress,
+    minterAddress,
+    confirmations: 1,
+    fromBlock: scanFromBlock,
+    fallbackFromBlock: 0,
+  });
+  const restartedWorkerA = new MintWorker(restartedRepository, restartedGateway);
+  const workerB = new MintWorker(new PostgresMintRepository(pool), restartedGateway);
   const leaseRace = await Promise.all([
-    workerA.runOnce('anvil-worker-a'),
+    restartedWorkerA.runOnce('anvil-worker-a'),
     workerB.runOnce('anvil-worker-b'),
   ]);
   assert.deepEqual([...leaseRace].sort(), [false, true]);
   assert.equal(
-    getAddress(await contract.getFunction('ownerOf').staticCall(3n)),
-    recipients[2],
+    getAddress(await contract.getFunction('ownerOf').staticCall(2n)),
+    recipients[1],
   );
   await recoverRetryableJob(
     pool,
@@ -248,7 +288,7 @@ async function seedAnvilJobs(
   rewardKeys: readonly string[],
 ): Promise<void> {
   await pool.query(
-    'TRUNCATE nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
+    'TRUNCATE chain_cursors, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
   );
   await pool.query(
     `INSERT INTO merchants

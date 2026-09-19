@@ -1,0 +1,22 @@
+{
+  "recordedAt": "2026-09-20 KST",
+  "branch": "feat/59-chain-cursor-read",
+  "issue": 59,
+  "scope": "Local Anvil and PostgreSQL chain cursor restart range",
+  "automated": {
+    "workerPostgres": "PASS 5/5",
+    "workerAnvil": "PASS W07 and M01-M08"
+  },
+  "observed": [
+    "A missing cursor starts at CHAIN_FROM_BLOCK.",
+    "An existing cursor starts at max(CHAIN_FROM_BLOCK, next_block - CHAIN_REORG_MARGIN).",
+    "A cursor range newer than the target reward event falls back to CHAIN_FROM_BLOCK without submitting a new mint.",
+    "A scan range newer than the current chain head is treated as empty instead of issuing an invalid RPC range."
+  ],
+  "notClaimed": [
+    "Base Sepolia finality policy",
+    "production RPC range compatibility",
+    "mainnet indexing",
+    "external deployment"
+  ]
+}

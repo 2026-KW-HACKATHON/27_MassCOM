@@ -73,8 +73,11 @@ export class MintEventMismatchError extends Error {
 }
 
 export class RetryableChainError extends Error {
-  constructor(readonly code: string) {
-    super(code);
+  constructor(
+    readonly code: string,
+    options?: ErrorOptions,
+  ) {
+    super(code, options);
     this.name = 'RetryableChainError';
   }
 }
