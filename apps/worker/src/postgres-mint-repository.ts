@@ -4,6 +4,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import {
   MintEventMismatchError,
+  RetryableChainError,
   type ChainMintResult,
   type MintWorkItem,
   type MintWorkRepository,
@@ -72,19 +73,25 @@ export class PostgresMintRepository implements MintWorkRepository {
   }
 
   async getEventScanStart(chainId: number, contractAddress: string): Promise<number> {
-    const row = (
-      await this.pool.query<{ scan_from_block: string }>(
-        `SELECT greatest($3::bigint, next_block - $4::bigint)::text AS scan_from_block
-         FROM chain_cursors
-         WHERE chain_id = $1 AND contract_address_normalized = $2`,
-        [
-          chainId,
-          contractAddress.toLowerCase(),
-          this.options.chainFromBlock,
-          this.options.reorgMargin,
-        ],
-      )
-    ).rows[0];
+    let row: { scan_from_block: string } | undefined;
+    try {
+      row = (
+        await this.pool.query<{ scan_from_block: string }>(
+          `SELECT greatest($3::bigint, next_block - $4::bigint)::text AS scan_from_block
+           FROM chain_cursors
+           WHERE chain_id = $1 AND contract_address_normalized = $2`,
+          [
+            chainId,
+            contractAddress.toLowerCase(),
+            this.options.chainFromBlock,
+            this.options.reorgMargin,
+          ],
+        )
+      ).rows[0];
+    } catch (error) {
+      // Fail closed: an unreadable cursor must never look like "nothing minted yet".
+      throw new RetryableChainError('CHAIN_CURSOR_READ_FAILED', { cause: error });
+    }
     if (!row) return this.options.chainFromBlock;
     const scanFromBlock = Number(row.scan_from_block);
     if (!Number.isSafeInteger(scanFromBlock) || scanFromBlock < 0) {

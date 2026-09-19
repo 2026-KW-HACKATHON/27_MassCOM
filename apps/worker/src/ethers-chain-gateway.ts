@@ -46,7 +46,12 @@ export class EthersMintChainGateway implements MintChainGateway {
   private readonly contractInterface = new Interface(abi);
 
   constructor(private readonly options: GatewayOptions) {
-    this.provider = new JsonRpcProvider(options.rpcUrl, options.chainId, { staticNetwork: true });
+    // cacheTimeout -1: a block number cached for 250ms can predate a just-mined receipt, and
+    // waitForTransaction then waits for a next block that an automining chain never produces.
+    this.provider = new JsonRpcProvider(options.rpcUrl, options.chainId, {
+      staticNetwork: true,
+      cacheTimeout: -1,
+    });
     this.contractAddress = getAddress(options.contractAddress);
     this.minterAddress = getAddress(options.minterAddress);
     this.contract = new Contract(this.contractAddress, abi, this.provider);
@@ -146,8 +151,8 @@ export class EthersMintChainGateway implements MintChainGateway {
         topics: [topicHash, item.rewardKey],
       });
       return logs.at(-1);
-    } catch {
-      throw new RetryableChainError('MINT_EVENT_LOOKUP_FAILED');
+    } catch (error) {
+      throw new RetryableChainError('MINT_EVENT_LOOKUP_FAILED', { cause: error });
     }
   }
 
