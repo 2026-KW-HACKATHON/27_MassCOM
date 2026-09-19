@@ -87,7 +87,7 @@ export class PostgresMintRepository implements MintWorkRepository {
                (outbox.status = 'PENDING' AND outbox.available_at <= $1)
                OR (outbox.status = 'LEASED' AND outbox.lease_expires_at <= $1)
              )
-             AND job.status NOT IN ('FINALIZED', 'PAUSED', 'MANUAL_REVIEW')
+             AND job.status NOT IN ('FINALIZED', 'PAUSED', 'MANUAL_REVIEW', 'CANCELLED')
            ORDER BY outbox.available_at, outbox.created_at, outbox.id
            FOR UPDATE OF outbox, job SKIP LOCKED
            LIMIT 1`,

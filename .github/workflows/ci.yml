@@ -43,6 +43,8 @@ jobs:
         run: |
           bash scripts/check-secrets.sh
           bash tests/bootstrap/check_secrets_test.sh
+          bash scripts/check-privacy.sh
+          bash tests/bootstrap/check_privacy_test.sh
       - name: PR 한국어 작성 확인
         if: github.event_name == 'pull_request'
         env:

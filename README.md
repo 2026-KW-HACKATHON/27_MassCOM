@@ -2,7 +2,7 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-> 현재 상태: Phase 0~2 핵심 흐름 `VERIFIED` · Phase 3 계약→Outbox→Worker→Android 도감 로컬 `VERIFIED` · 필수 시험 24 `PASS` / 2 `BLOCKED` / 10 `NOT_RUN`
+> 현재 상태: Phase 0~3 로컬 핵심 흐름 `VERIFIED` · Phase 4 계정 삭제·개인정보 gate `IN_PROGRESS` · 필수 시험 26 `PASS` / 2 `BLOCKED` / 8 `NOT_RUN`
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](docs/index.html)
 
@@ -24,6 +24,8 @@
 - [다음 가게 추천 Android 증거](docs/evidence/android-recommendations.json): 미방문 우선·이유 공개·정원 제외·상세 복귀
 - [NFT 계약 로컬 증거](docs/evidence/foundry-contract-local.json): C01~C04·상한·reward key·영구 잠금·Anvil 발행
 - [Phase 3 발행·복구 증거](docs/evidence/phase3-worker-anvil-android.json): W07·M01~M08·Android 접수/완료·재발행 없는 복구
+- [계정 삭제·개인정보 증거](docs/evidence/account-deletion-privacy.json): D01·D03·Android 삭제 안내와 운영 경계
+- [출시 준비 체크리스트](docs/RELEASE_READINESS.md): AAB·서명·16KB·App Links·Data safety·폐쇄 테스트
 - [보안 경계](docs/SECURITY.md): 허용 메서드·nonce·의존성 위험
 - [평가 대응표](docs/EVALUATION_MAP.md): 요구사항·Issue·PR·코드·시험·실증·발표 연결
 
@@ -64,6 +66,7 @@ python3 -m http.server 4173 --directory docs
 | Reown 외부 지갑 코드 | `IMPLEMENTED` | AppKit 2.0.6, 외부 지갑 전용 기능 플래그·메서드 allowlist |
 | 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름·W06 PASS; W04 동일 세션 주소 전환과 W05 미지원 스마트지갑은 준비된 외부 환경 부재로 `BLOCKED` |
 | NFT 발행 전체 흐름 | `VERIFIED` | Local Anvil에서 Android 접수→Worker→이벤트 대조→등록 완료와 기존 token #1 복구 PASS; Base Sepolia는 `BLOCKED` |
+| 계정 삭제·개인정보 | `IN_PROGRESS` | PR #53, D01·D03 로컬 PASS, Android 삭제 전 공개 장부 안내·DEMO 요청 PASS; 운영 재인증·외부 삭제 HTTPS·D02는 미완료 |
 | 외부 HTTPS·Play 제출 | `BLOCKED` | 계정·비용·정책·명시 승인 필요 |
 
 상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
@@ -125,6 +128,8 @@ npm test --prefix apps/mobile
 npm run typecheck --prefix apps/mobile
 npm run lint --prefix apps/mobile
 npm run export:android --prefix apps/mobile
+bash scripts/check-privacy.sh
+bash tests/bootstrap/check_privacy_test.sh
 ```
 
 Phase 3 계약·Worker 검증:
@@ -169,6 +174,7 @@ npm run test:postgres --prefix apps/api
 - NFT 발행 요청: 클라이언트 주소·series 입력을 무시하고 검증된 binding/version에서 수령인을 고정해 보상권·job·Outbox 원자 저장
 - NFT 발행 Worker: Local Anvil에서 중복 Worker·응답 유실·설정 오류·이벤트 불일치·확정 전 재조직·DB 복구를 검증하고 Android가 접수/확인 중/등록 완료를 구분
 - Android AAB·release package ID·App Link: `NOT_RUN`
+- 계정 삭제: 앱 내부 Local DEMO와 PostgreSQL 미전송 취소·제출 거래 보존·비식별화 PASS; 외부 HTTPS 삭제 URL·운영 재인증은 `BLOCKED`
 - 실제 Reown 지갑 흐름: MetaMask 핵심·W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `BLOCKED`
 - 테스트넷 계약: 배포 전
 - 메인넷·Google Play·대회 제출: 명시 승인 전 실행 금지

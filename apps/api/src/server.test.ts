@@ -3,10 +3,12 @@ import { test, type TestContext } from 'node:test';
 
 import { Wallet } from 'ethers';
 
+import type { AccountDeletionService } from './account-deletion.js';
 import {
   createApiServer,
   developmentHeaderAccountResolver,
   type AccountResolver,
+  type ReauthenticationGuard,
 } from './server.js';
 import {
   ClaimSlotError,
@@ -138,6 +140,8 @@ async function startFixture(
   collection?: CollectionFixture,
   recommendations?: RecommendationFixture,
   mintRequests?: MintRequestService,
+  accountDeletions?: AccountDeletionService,
+  requireReauthentication?: ReauthenticationGuard,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -157,6 +161,8 @@ async function startFixture(
     collection,
     recommendations,
     mintRequests,
+    accountDeletions,
+    requireReauthentication,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -845,4 +851,72 @@ test('disconnects only the authenticated wallet binding version', async (t) => {
 
   const active = await fetch(`${baseUrl}/wallets/active-binding`);
   assert.deepEqual(await active.json(), { binding: null });
+});
+
+test('D01 requires reauthentication, requests deletion, and invalidates wallet challenges', async (t) => {
+  let received: Parameters<AccountDeletionService['requestDeletion']>[0] | undefined;
+  let reauthenticatedAccount: string | undefined;
+  const result = {
+    requestId: '90000000-0000-4000-8000-000000000001',
+    status: 'WAITING_FOR_MINT_FINALITY' as const,
+    requestedAt: '2026-09-19T15:00:00.000Z',
+    completedAt: null,
+    cancelledMintJobs: 1,
+    pendingMintJobs: 1,
+    retainedFinalizedNfts: 1,
+    replayed: false,
+  };
+  const baseUrl = await startFixture(
+    t,
+    () => 'customer-delete',
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {
+      requestDeletion: async (input) => {
+        received = input;
+        return result;
+      },
+    },
+    async (accountId) => {
+      reauthenticatedAccount = accountId;
+    },
+  );
+  const wallet = Wallet.createRandom();
+  const challengeResponse = await fetch(`${baseUrl}/wallet/challenges`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ address: wallet.address, chainId: 84532 }),
+  });
+  const challenge = (await challengeResponse.json()) as { challengeId: string; message: string };
+
+  const response = await fetch(`${baseUrl}/account-deletion-requests`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ confirmation: 'DELETE MY ACCOUNT' }),
+  });
+
+  assert.equal(response.status, 202);
+  assert.deepEqual(await response.json(), result);
+  assert.equal(reauthenticatedAccount, 'customer-delete');
+  assert.deepEqual(received, {
+    accountId: 'customer-delete',
+    confirmation: 'DELETE MY ACCOUNT',
+  });
+
+  const invalidated = await fetch(`${baseUrl}/wallet/verify`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      challengeId: challenge.challengeId,
+      message: challenge.message,
+      signature: 'invalid-but-nonempty',
+      currentAddress: wallet.address,
+    }),
+  });
+  assert.equal(invalidated.status, 404);
+  assert.deepEqual(await invalidated.json(), { code: 'CHALLENGE_NOT_FOUND' });
 });

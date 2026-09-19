@@ -67,6 +67,11 @@ export function MerchantListScreen({ apiUrl }: Props) {
                 <Text style={styles.secondaryActionText}>외부 지갑 연결</Text>
               </Pressable>
             </Link>
+            <Link href="/settings" asChild>
+              <Pressable accessibilityRole="button" style={styles.secondaryAction}>
+                <Text style={styles.secondaryActionText}>계정 설정</Text>
+              </Pressable>
+            </Link>
             <View style={styles.privacyNote}>
               <Text style={styles.privacyNoteText}>탐색에는 지갑 불필요</Text>
             </View>
@@ -204,7 +209,7 @@ const styles = StyleSheet.create({
   routeMarkerText: { color: colors.onPrimaryContainer, fontSize: 12, fontWeight: '800', letterSpacing: 0.7 },
   title: { color: colors.label, fontSize: 34, fontWeight: '900', lineHeight: 42, letterSpacing: -0.8 },
   intro: { color: colors.secondaryLabel, fontSize: 16, lineHeight: 25 },
-  quickActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  quickActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
   primaryActions: { flexDirection: 'row', gap: 10 },
   primaryActionLink: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, borderRadius: 14, backgroundColor: colors.primary },
   primaryActionLinkText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },
@@ -219,7 +224,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   secondaryActionText: { color: colors.primary, fontSize: 14, fontWeight: '800' },
-  privacyNote: { flex: 1 },
+  privacyNote: { width: '100%' },
   privacyNoteText: { color: colors.secondaryLabel, fontSize: 12, lineHeight: 18 },
   sectionHeading: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 16 },
   sectionEyebrow: { color: colors.primary, fontSize: 14, fontWeight: '800' },

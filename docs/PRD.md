@@ -30,6 +30,8 @@
 | RQ-020 | 현장 검증 | 허락받은 점주·이용자 자료만 실적으로 기록 | `PLANNED` |
 | RQ-021 | 기여 추적 | 실제 사람·AI 역할을 Issue·PR·커밋과 연결 | `IN_PROGRESS` |
 
+계정 삭제·개인정보·출시 경계의 상세 수용 기준은 [PRIVACY_DELETION.md](PRIVACY_DELETION.md)와 [RELEASE_READINESS.md](RELEASE_READINESS.md)에 연결합니다. 앱 내부 Local DEMO 삭제는 구현됐지만 운영 재인증·외부 HTTPS 삭제 경로·서명 AAB·Play 제출은 완료로 간주하지 않습니다.
+
 ## 범위 밖
 
 자체 체인·코인, 서비스 내장 지갑, 자산 송금, NFT 거래·교환 중개, 무작위 NFT, 유료 기능, 포인트 환전, 공개 Party Match는 자동으로 추가하지 않습니다.

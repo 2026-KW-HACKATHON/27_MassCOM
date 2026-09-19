@@ -2,13 +2,22 @@
 
 마지막 갱신 시각: 2026-09-19 KST
 
-기준 브랜치: `feat/phase3-mint-worker`
+기준 브랜치: `feat/phase4-release-readiness`
 
 검증 기준 커밋: `7ca3c72`·`d4597cd`
 
-현재 작업: PR #51 Phase 3 Worker·Anvil·Android 상태 CI·리뷰·merge
+현재 작업: PR #53 Phase 4 계정 삭제·개인정보·출시 준비 CI·리뷰·merge
 
 ## 이번 작업에서 완료한 것
+
+- PR #51 merge `36065ab`, main CI `35448436859` PASS, Issue #48 종료
+- 계정 삭제 ledger와 `CANCELLED` mint 상태 migration 추가
+- 동시 삭제 요청 HMAC 잠금·원 account ID 비식별화·지갑 연결 해제·challenge 제거
+- 미전송 mint job만 취소하고 제출/확정 NFT는 결과 대조 자료와 함께 보존
+- Android 계정·개인정보 화면과 삭제 전 공개 블록체인·외부 지갑 불변 안내
+- 민감 console 인자·미검토 analytics SDK privacy gate와 CI 연결
+- Google Play 계정 삭제·폐쇄 테스트·16KB·App Links·package 등록 공식 근거 재확인
+- privacy/deletion, release readiness, backup/restore runbook 작성
 
 - `0006_mint_attempts_chain_events.sql`로 mint attempt·chain event·NFT asset·cursor 저장 구조 추가
 - Outbox `SKIP LOCKED` lease, 장기 체인 확인 중 heartbeat, 만료 lease 복구, retry/manual-review/finalize 상태 전이 구현
@@ -24,12 +33,12 @@
 
 ## 최신 검증
 
-- API `34/34`, API PostgreSQL `8/8`
+- API `35/35`, API PostgreSQL `10/10`
 - Worker `6/6`, Worker PostgreSQL `1/1`, Anvil `W07 M01~M08 PASS`
-- 모바일 `45/45`, typecheck·lint·Android export PASS
+- 모바일 `48/48`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - secret scan·bootstrap·portal accessibility/structure PASS
-- 필수 36개 `24 PASS / 2 BLOCKED / 10 NOT_RUN`
+- 필수 36개 `26 PASS / 2 BLOCKED / 8 NOT_RUN`
 
 ## 보존해야 할 경계
 
@@ -41,10 +50,9 @@
 
 ## 다음 실행 순서
 
-1. PR #51 CI·필수 리뷰 확인, 실패 시 같은 브랜치에서 수정
-2. 통과 후 merge하고 main CI 확인
-3. Issue #48을 실제 merge 근거와 함께 닫기
-4. 이후 Phase 4는 외부 HTTPS·개인정보·탈퇴·release AAB 중 승인 없이 가능한 로컬 준비부터 별도 Issue/PR로 진행
+1. PR #53 CI·필수 리뷰 확인, 실패 시 같은 브랜치에서 수정
+2. 통과 후 merge·main CI 확인·Issue #52 종료
+3. 운영 재인증·외부 HTTPS 삭제 URL·release package/AAB는 승인·외부 조건 전 BLOCKED 유지
 
 ## 재현 명령
 

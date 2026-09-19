@@ -3,6 +3,10 @@ import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
 
+import {
+  AccountDeletionError,
+  type AccountDeletionService,
+} from './account-deletion.js';
 import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
 import type { CollectionReader } from './collection.js';
 import {
@@ -21,6 +25,7 @@ import {
   type RecommendationReader,
 } from './recommendation-service.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
+import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
@@ -32,8 +37,20 @@ import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-bi
 const MAX_BODY_BYTES = 64 * 1024;
 
 export type AccountResolver = (request: IncomingMessage) => string | Promise<string>;
+export type ReauthenticationGuard = (
+  accountId: string,
+  request: IncomingMessage,
+) => void | Promise<void>;
 
 export const developmentHeaderAccountResolver: AccountResolver = requireAccountId;
+export const developmentHeaderReauthenticationGuard: ReauthenticationGuard = (
+  _accountId,
+  request,
+) => {
+  if (request.headers['x-demo-reauthenticated'] !== 'true') {
+    throw new AccountDeletionError('REAUTHENTICATION_REQUIRED');
+  }
+};
 
 export function createApiServer(
   service: WalletChallengeService,
@@ -44,6 +61,8 @@ export function createApiServer(
   collection?: CollectionReader,
   recommendations?: RecommendationReader,
   mintRequests?: MintRequestService,
+  accountDeletions?: AccountDeletionService,
+  requireReauthentication?: ReauthenticationGuard,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -265,6 +284,25 @@ export function createApiServer(
         return;
       }
 
+      if (request.method === 'POST' && request.url === '/account-deletion-requests') {
+        if (!accountDeletions) {
+          throw new RequestError(503, 'ACCOUNT_DELETION_NOT_CONFIGURED');
+        }
+        if (!requireReauthentication) {
+          throw new RequestError(503, 'REAUTHENTICATION_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        await requireReauthentication(accountId, request);
+        const body = await readJson(request);
+        const result = await accountDeletions.requestDeletion({
+          accountId,
+          confirmation: requireString(body, 'confirmation'),
+        });
+        service.forgetAccount(accountId);
+        sendJson(response, 202, result);
+        return;
+      }
+
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
       if (error instanceof ClaimSlotError) {
@@ -283,12 +321,16 @@ export function createApiServer(
         sendJson(response, statusForMintRequest(error.code), { code: error.code });
         return;
       }
+      if (error instanceof AccountDeletionError) {
+        sendJson(response, statusForAccountDeletion(error.code), { code: error.code });
+        return;
+      }
       if (error instanceof RequestError) {
         sendJson(response, error.status, { code: error.code });
         return;
       }
 
-      console.error('unhandled API error', error);
+      console.error('unhandled API error');
       sendJson(response, 500, { code: 'INTERNAL_ERROR' });
     }
   });
@@ -362,6 +404,12 @@ function requirePositiveInteger(body: Record<string, unknown>, field: string): n
     throw new RequestError(400, 'INVALID_REQUEST');
   }
   return value;
+}
+
+function statusForAccountDeletion(code: string): number {
+  if (code === 'REAUTHENTICATION_REQUIRED') return 401;
+  if (code === 'ACCOUNT_REQUIRED') return 401;
+  return 400;
 }
 
 function requireHeader(request: IncomingMessage, name: string): string {
@@ -438,6 +486,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         supportedConsentVersion: process.env.NFT_MINT_CONSENT_VERSION ?? 'nft-mint-v1',
       })
     : undefined;
+  const accountDeletions =
+    pool && process.env.ACCOUNT_DELETION_HMAC_SECRET
+      ? new PostgresAccountDeletionService(pool, {
+          hmacSecret: process.env.ACCOUNT_DELETION_HMAC_SECRET,
+          policyVersion: process.env.ACCOUNT_DELETION_POLICY_VERSION ?? 'account-deletion-v1',
+        })
+      : undefined;
   const claimSlots =
     pool && process.env.MERCHANT_REFERENCE_HMAC_SECRET
       ? new PostgresClaimSlotService(pool, {
@@ -450,6 +505,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       : () => {
           throw new WalletChallengeError('ACCOUNT_AUTH_NOT_CONFIGURED');
         };
+  const reauthenticationGuard: ReauthenticationGuard | undefined =
+    process.env.ALLOW_INSECURE_DEMO_ACCOUNT === 'true'
+      ? developmentHeaderReauthenticationGuard
+      : undefined;
 
   createApiServer(
     configuredService(bindingStore),
@@ -460,6 +519,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     collection,
     recommendations,
     mintRequests,
+    accountDeletions,
+    reauthenticationGuard,
   ).listen(port, '127.0.0.1', () => {
     console.log(`wallet API listening on http://127.0.0.1:${port}`);
   });
