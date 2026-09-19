@@ -11,6 +11,7 @@
 ## 이번 작업에서 완료한 것
 
 - Claude CLI 전체 감사와 독립 code-reviewer·architect `REQUEST CHANGES/BLOCK` 수신
+- 수정 후 Claude `APPROVE`, 독립 code-reviewer 새 CRITICAL/HIGH 없음 확인
 - 활성 Worker lease 삭제 경쟁과 account lifecycle lock 부재 재현·수정
 - 삭제 tombstone 뒤 wallet/claim/redeem/mint write 거절과 동시 deletion/mint 수렴 시험
 - 테스트 카탈로그 36개 상태 정본 동기화·CI ID별 diff
@@ -47,8 +48,8 @@
 
 ## 최신 검증
 
-- API `35/35`, API PostgreSQL `13/13`
-- Worker `8/8`, Worker PostgreSQL `2/2`, Anvil `W07 M01~M08 PASS`
+- API `35/35`, API PostgreSQL `14/14`
+- Worker `8/8`, Worker PostgreSQL `4/4`, Anvil `W07 M01~M08 PASS`
 - 모바일 `48/48`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - secret scan·bootstrap·portal accessibility/structure PASS

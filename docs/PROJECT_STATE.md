@@ -9,7 +9,7 @@
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
 | 현재 작업 | `fix/56-account-lifecycle-audit`, Claude·독립 리뷰 HIGH 보완 |
-| 현재 검증 기준 | API 35·PostgreSQL 13·Worker 8/PG 2·모바일 48·Foundry 8/fuzz128·Anvil PASS |
+| 현재 검증 기준 | API 35·PostgreSQL 14·Worker 8/PG 4·모바일 48·Foundry 8/fuzz128·Anvil PASS |
 | 최근 main 기준선 | PR #55 merge `8b244b2`, main CI run `35451429441` PASS |
 
 ## Phase 상태
@@ -59,8 +59,8 @@
 ## 검증 상태
 
 - 필수 36개: `26 PASS / 2 BLOCKED / 8 NOT_RUN`
-- API 단위: `35/35 PASS`; PostgreSQL: `13/13 PASS`
-- Worker 단위: `8/8 PASS`; PostgreSQL: `2/2 PASS`; Anvil W07/M01~M08: `PASS`
+- API 단위: `35/35 PASS`; PostgreSQL: `14/14 PASS`
+- Worker 단위: `8/8 PASS`; PostgreSQL: `4/4 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `48/48 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`

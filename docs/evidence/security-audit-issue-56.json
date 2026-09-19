@@ -1,0 +1,38 @@
+{
+  "recordedAt": "2026-09-20 KST",
+  "branch": "fix/56-account-lifecycle-audit",
+  "baselineCommit": "8b244b2",
+  "codeCommit": "bcc97b4",
+  "scope": "Issue #56 account lifecycle, mint lease, test ledger, and repository security audit remediation",
+  "reviews": {
+    "claudeInitial": "REQUEST_CHANGES: 3 HIGH",
+    "claudeFollowUp": "APPROVE (static review)",
+    "independentCodeReview": "COMMENT: no remaining CRITICAL or HIGH"
+  },
+  "automated": {
+    "apiUnit": "PASS 35/35",
+    "apiPostgres": "PASS 14/14",
+    "apiTypecheck": "PASS",
+    "workerUnit": "PASS 8/8",
+    "workerPostgres": "PASS 4/4",
+    "workerTypecheck": "PASS",
+    "workerAnvil": "PASS W07 and M01-M08",
+    "foundry": "PASS 8/8 with fuzz 128, fmt, and build",
+    "mobile": "PASS 48/48, typecheck, lint, and Android export",
+    "repositoryGates": "PASS secret, privacy, bootstrap, Korean PR, portal, presentation",
+    "dependencyAudit": "PASS high/critical: API 0, Worker 0, Mobile 0; Mobile moderate 14 documented"
+  },
+  "observed": [
+    "Account deletion and wallet, claim issue/reissue/redeem, and mint request writes share the same HMAC advisory lock and tombstone gate.",
+    "An actively leased PREPARED mint remains pending during deletion, and the worker rechecks lease ownership before submission.",
+    "Expired leases cannot be renewed, and a cancelled PREPARED job cannot return to SUBMITTED.",
+    "The 36 required test IDs are compared one by one between the catalog and TEST_STATUS."
+  ],
+  "notClaimed": [
+    "external HTTPS deployment",
+    "Base Sepolia deployment",
+    "mainnet mint",
+    "Google Play approval",
+    "public repository or competition submission"
+  ]
+}
