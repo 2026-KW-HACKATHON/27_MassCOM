@@ -1,0 +1,36 @@
+{
+  "checkedAt": "2026-09-20 KST",
+  "score": 95,
+  "threshold": 90,
+  "verdict": "pass",
+  "briefMatch": true,
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 900,
+      "artifact": "presentation-desktop.png",
+      "observation": "Seven evidence-first scenes read as a presentation rather than a dashboard."
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "artifact": "presentation-mobile.png",
+      "documentScrollWidth": 375,
+      "observation": "No horizontal overflow; scenes become a continuous readable document."
+    }
+  ],
+  "accessibility": {
+    "semanticAndContrastCheck": "PASS",
+    "keyboardSkipLink": "PRESENT",
+    "reducedMotion": "SUPPORTED"
+  },
+  "truthBoundary": {
+    "passBlockedNotRunVisible": true,
+    "fieldValidationMarkedNotRun": true,
+    "unsupportedRevenueOrPlayClaim": false
+  },
+  "remaining": [
+    "Presentation timing and live projector readability are NOT_RUN.",
+    "Field validation, video recording, public hosting, and final submission are NOT_RUN."
+  ]
+}

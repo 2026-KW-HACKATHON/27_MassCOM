@@ -2,13 +2,17 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-> 현재 상태: Phase 0~3 로컬 핵심 흐름 `VERIFIED` · Phase 4 계정 삭제·개인정보 gate `IN_PROGRESS` · 필수 시험 26 `PASS` / 2 `BLOCKED` / 8 `NOT_RUN`
+> 현재 상태: Phase 0~3 로컬 핵심 흐름 `VERIFIED` · Phase 4 출시 기반과 Phase 5 발표·증거 준비 `IN_PROGRESS` · 필수 시험 26 `PASS` / 2 `BLOCKED` / 8 `NOT_RUN`
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](docs/index.html)
 
 ## 한눈에 보기
 
 - [프로젝트 포털](docs/index.html): 흐름·아키텍처·평가 증거·결정 상태를 시각적으로 탐색
+- [발표·시연 페이지](docs/presentation.html): 3분·5분 발표 장면과 실제/미실행 증거 경계
+- [현장 검증 빈 기록지](docs/FIELD_VALIDATION.md): 동의·과업·결과를 미리 채우지 않은 양식
+- [제출 체크리스트](docs/SUBMISSION_CHECKLIST.md): 승인 전 공개·태그·제출 금지 경계
+- [제출 증거 manifest](docs/SUBMISSION_EVIDENCE.json): main 기준선·CI·PR·스크린샷·BLOCKED/NOT_RUN 기계 판독 기록
 - [포털 시각 검증](docs/evidence/project-portal-visual-verdict.json): 데스크톱·모바일 뷰포트와 접근성 결과
 - [현재 상태](docs/PROJECT_STATE.md): 실제 완료·미완료·BLOCKER
 - [제품 요구사항](docs/PRD.md): RQ-001~RQ-021
