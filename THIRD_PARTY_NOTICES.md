@@ -13,6 +13,14 @@
 | node-postgres (`pg`) | 8.23.0 | [node-postgres](https://github.com/brianc/node-postgres), MIT | PostgreSQL 연결·parameterized query·migration 실행 |
 | PostgreSQL | 18 Alpine(개발·CI) | [PostgreSQL](https://www.postgresql.org/), PostgreSQL License | 점포·캠페인 영속 저장과 실제 통합 테스트 |
 
+## Phase 3 NFT 계약 의존성
+
+| 이름 | 버전 | 출처·라이선스 | 사용 범위 |
+| --- | --- | --- | --- |
+| Foundry | 1.8.3, Docker digest `sha256:2e428727…a46ce9e7` | [foundry-rs/foundry](https://github.com/foundry-rs/foundry), Apache-2.0 / MIT | Solidity 포맷·컴파일·단위/fuzz 테스트·로컬 Anvil |
+| OpenZeppelin Contracts | 5.7.0, commit `cab19933` | [OpenZeppelin/openzeppelin-contracts](https://github.com/OpenZeppelin/openzeppelin-contracts), MIT | ERC-721·AccessControl·Pausable·Strings |
+| forge-std | 1.16.2, commit `bf647bd6` | [foundry-rs/forge-std](https://github.com/foundry-rs/forge-std), Apache-2.0 / MIT | Foundry 테스트·배포 script 기반 |
+
 Expo 기본 템플릿의 개발 아이콘·스플래시 자산이 현재 `apps/mobile/assets`에 남아 있습니다. 출시 브랜딩 자산이 아니며 Expo MIT License 범위에서 사용합니다.
 
 Reown 수정 범위와 upstream 교체 조건은 [`docs/REOWN_PATCH.md`](docs/REOWN_PATCH.md)에 기록합니다. 원본 패키지 전체를 저장소에 복제하지 않고 `apps/mobile/patches/@reown+appkit-react-native+2.0.6.patch` diff만 보관합니다.

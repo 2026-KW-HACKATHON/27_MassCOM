@@ -23,7 +23,14 @@ while IFS= read -r -d '' candidate; do
   fi
 done < <(
   find "$scan_root" \
-    -type d \( -name .git -o -name node_modules -o -name dist -o -name build -o -name coverage \) -prune \
+    -type d \( \
+      -name .git -o \
+      -name node_modules -o \
+      -name dist -o \
+      -name build -o \
+      -name coverage -o \
+      -path "$scan_root/contracts/lib" \
+    \) -prune \
     -o -type f -print0
 )
 
