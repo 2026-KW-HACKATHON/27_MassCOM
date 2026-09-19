@@ -10,6 +10,7 @@
     "FAIL": 0
   },
   "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53],
+  "pendingPullRequest": 55,
   "mainCiRuns": [35424531021, 35425582837, 35426622394, 35444126068, 35445281598, 35448436859, 35450443943],
   "androidEvidence": [
     "docs/evidence/android-merchant-discovery.json",

@@ -6,7 +6,7 @@
 
 검증 기준 커밋: `7ca3c72`·`d4597cd`
 
-현재 작업: Issue #54 Phase 5 발표·시연·평가 증거 통합 PR 준비
+현재 작업: PR #55 Phase 5 발표·시연·평가 증거 CI·리뷰·merge
 
 ## 이번 작업에서 완료한 것
 
@@ -57,9 +57,8 @@
 
 ## 다음 실행 순서
 
-1. Issue #54의 발표 페이지·증거 manifest 최종 회귀 후 한글 PR 하나 생성
-2. PR CI·필수 리뷰 확인, 통과 후 merge·main CI 확인·Issue #54 종료
-3. 실제 현장·영상·공개 전환·release tag·최종 제출은 승인 전 NOT_RUN 유지
+1. PR #55 CI·필수 리뷰 확인, 통과 후 merge·main CI 확인·Issue #54 종료
+2. 실제 현장·영상·공개 전환·release tag·최종 제출은 승인 전 NOT_RUN 유지
 
 ## 재현 명령
 
