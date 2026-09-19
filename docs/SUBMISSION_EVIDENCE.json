@@ -1,6 +1,6 @@
 {
   "recordedAt": "2026-09-20 KST",
-  "baselineCommit": "62196f0e7fc7d0290b980e943226b584b971c597",
+  "baselineCommit": "8b244b2968c6a7a6df6803e2fd5daa280cd59af7",
   "repositoryVisibility": "PRIVATE",
   "requiredTests": {
     "total": 36,
@@ -9,9 +9,8 @@
     "NOT_RUN": 8,
     "FAIL": 0
   },
-  "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53],
-  "pendingPullRequest": 55,
-  "mainCiRuns": [35424531021, 35425582837, 35426622394, 35444126068, 35445281598, 35448436859, 35450443943],
+  "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53, 55],
+  "mainCiRuns": [35424531021, 35425582837, 35426622394, 35444126068, 35445281598, 35448436859, 35450443943, 35451429441],
   "androidEvidence": [
     "docs/evidence/android-merchant-discovery.json",
     "docs/evidence/android-claim-collection.json",

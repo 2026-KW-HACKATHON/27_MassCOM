@@ -1,14 +1,21 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-19 KST
+마지막 갱신 시각: 2026-09-20 KST
 
-기준 브랜치: `feat/phase5-demo-evidence`
+기준 브랜치: `fix/56-account-lifecycle-audit`
 
-검증 기준 커밋: `7ca3c72`·`d4597cd`
+검증 기준: Issue #56 보안 감사 보완 branch
 
-현재 작업: PR #55 Phase 5 발표·시연·평가 증거 CI·리뷰·merge
+현재 작업: Issue #56 전체 코드·보안 감사 HIGH 보완과 재검토
 
 ## 이번 작업에서 완료한 것
+
+- Claude CLI 전체 감사와 독립 code-reviewer·architect `REQUEST CHANGES/BLOCK` 수신
+- 활성 Worker lease 삭제 경쟁과 account lifecycle lock 부재 재현·수정
+- 삭제 tombstone 뒤 wallet/claim/redeem/mint write 거절과 동시 deletion/mint 수렴 시험
+- 테스트 카탈로그 36개 상태 정본 동기화·CI ID별 diff
+- duplicate revert reward-key 복구, secret/presentation/DEMO/한글 PR gate 보강
+- merge 완료 worktree 2개, local branch 11개, remote branch 8개 정리
 
 - PR #53 merge `62196f0`, main CI `35450443943` PASS, Issue #52 종료
 - 브라우저 발표 페이지와 데스크톱·390px 시각 검증
@@ -40,8 +47,8 @@
 
 ## 최신 검증
 
-- API `35/35`, API PostgreSQL `10/10`
-- Worker `6/6`, Worker PostgreSQL `1/1`, Anvil `W07 M01~M08 PASS`
+- API `35/35`, API PostgreSQL `13/13`
+- Worker `8/8`, Worker PostgreSQL `2/2`, Anvil `W07 M01~M08 PASS`
 - 모바일 `48/48`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - secret scan·bootstrap·portal accessibility/structure PASS
@@ -57,8 +64,9 @@
 
 ## 다음 실행 순서
 
-1. PR #55 CI·필수 리뷰 확인, 통과 후 merge·main CI 확인·Issue #54 종료
-2. 실제 현장·영상·공개 전환·release tag·최종 제출은 승인 전 NOT_RUN 유지
+1. Issue #56 전체 회귀와 독립 재리뷰
+2. 한글 PR 하나로 push·CI·merge·main CI 확인 후 Issue #56 종료
+3. 남은 MEDIUM은 운영 배포 전 별도 승인·Issue로 처리
 
 ## 재현 명령
 

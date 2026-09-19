@@ -1,6 +1,6 @@
 # 프로젝트 상태
 
-마지막 갱신 시각: 2026-09-19 KST
+마지막 갱신 시각: 2026-09-20 KST
 
 ## 기준선
 
@@ -8,9 +8,9 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 | `feat/phase5-demo-evidence`, PR #55 CI·리뷰·merge |
-| 현재 검증 기준 | API 35·PostgreSQL 10·모바일 48·D01/D03·Samsung 삭제 안내 Local DEMO PASS |
-| 최근 main 기준선 | PR #51 merge `36065ab`, main CI run `35448436859` PASS |
+| 현재 작업 | `fix/56-account-lifecycle-audit`, Claude·독립 리뷰 HIGH 보완 |
+| 현재 검증 기준 | API 35·PostgreSQL 13·Worker 8/PG 2·모바일 48·Foundry 8/fuzz128·Anvil PASS |
+| 최근 main 기준선 | PR #55 merge `8b244b2`, main CI run `35451429441` PASS |
 
 ## Phase 상태
 
@@ -42,6 +42,9 @@
 - Samsung Android 16 계정 설정·공개 장부 안내·Local DEMO 삭제 요청
 - 다운로드 없이 여는 발표 페이지, 3분·5분 원고, 실제 시연/실패 대체 runbook
 - 결과를 미리 채우지 않은 현장 검증 기록지와 제출 증거 manifest·허위 주장 gate
+- 삭제·wallet·claim·redeem·mint request 공통 account lifecycle lock과 삭제 tombstone write 차단
+- 활성 Worker lease 삭제 보호, submit 직전 lease 재검사, duplicate revert reward-key 복구
+- 36개 테스트 catalog/ledger ID별 상태 동기화와 강화된 secret·PR·presentation gate
 
 ## 미완료
 
@@ -56,8 +59,8 @@
 ## 검증 상태
 
 - 필수 36개: `26 PASS / 2 BLOCKED / 8 NOT_RUN`
-- API 단위: `35/35 PASS`; PostgreSQL: `10/10 PASS`
-- Worker 단위: `6/6 PASS`; PostgreSQL: `1/1 PASS`; Anvil W07/M01~M08: `PASS`
+- API 단위: `35/35 PASS`; PostgreSQL: `13/13 PASS`
+- Worker 단위: `8/8 PASS`; PostgreSQL: `2/2 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `48/48 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`

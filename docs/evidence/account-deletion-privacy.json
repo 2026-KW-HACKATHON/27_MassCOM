@@ -6,15 +6,17 @@
   "scope": "Local account deletion, privacy logging gate, and Android disclosure",
   "automated": {
     "apiUnit": "PASS 35/35",
-    "apiPostgres": "PASS 10/10",
+    "apiPostgres": "PASS 13/13",
     "mobileUnit": "PASS 48/48",
+    "workerUnit": "PASS 8/8",
+    "workerPostgres": "PASS 2/2",
     "mobileTypecheckLintExport": "PASS",
     "privacyScan": "PASS",
     "secretScan": "PASS"
   },
   "D01": {
     "status": "PASS",
-    "observed": "Ten concurrent requests converged to one deletion request; one unsent job was cancelled, submitted and response-lost jobs stayed pending, one finalized NFT stayed preserved, and the original account ID had zero remaining references."
+    "observed": "Ten concurrent requests converged to one deletion request; active leases, submitted and response-lost jobs stayed pending; tombstones rejected new wallet/claim/redeem/mint writes; concurrent deletion/mint left zero original references or active jobs."
   },
   "D02": {
     "status": "NOT_RUN",
