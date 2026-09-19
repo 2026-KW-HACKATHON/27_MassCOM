@@ -6,7 +6,7 @@
 
 통합 기준 커밋 SHA: `main@1ca93010523c918588a40967bc6d3d460def8b8a`, main CI run `35418431281` PASS
 
-현재 작업: `docs/35-wallet-proposal-expiry-blocker`, Issue #35 OPEN, PR 생성 전
+현재 작업: `docs/35-wallet-proposal-expiry-blocker@7ad9d20`, Issue #35 OPEN, PR #36 OPEN
 
 ## 이번 세션에서 완료한 것
 

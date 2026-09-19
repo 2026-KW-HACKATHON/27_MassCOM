@@ -8,7 +8,7 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 기준 | `docs/35-wallet-proposal-expiry-blocker`, Issue #35 OPEN |
+| 현재 작업 기준 | `docs/35-wallet-proposal-expiry-blocker@7ad9d20`, Issue #35 OPEN, PR #36 OPEN |
 | 현재 통합 기준 | `main@1ca93010523c918588a40967bc6d3d460def8b8a`, CI run `35418431281` PASS |
 | 최근 merge | PR #34, `1ca9301` |
 | Phase 1 종료 Issue | #25 실제 지갑 검증, #27·#31 거절 처리, #33 미설치 지갑 실기 |
