@@ -1,0 +1,311 @@
+diff --git a/node_modules/@reown/appkit-react-native/lib/commonjs/AppKit.js b/node_modules/@reown/appkit-react-native/lib/commonjs/AppKit.js
+index 50334a4..80bd91d 100644
+--- a/node_modules/@reown/appkit-react-native/lib/commonjs/AppKit.js
++++ b/node_modules/@reown/appkit-react-native/lib/commonjs/AppKit.js
+@@ -87,7 +87,9 @@ class AppKit {
+         });
+       }
+     } catch (error) {
+-      _appkitCoreReactNative.LogController.sendError(error, 'AppKit.ts', 'connect');
++      if (!_appkitCommonReactNative.ErrorUtil.isProposalExpiredError(error)) {
++        _appkitCoreReactNative.LogController.sendError(error, 'AppKit.ts', 'connect');
++      }
+       throw error;
+     }
+   }
+@@ -161,6 +163,23 @@ class AppKit {
+     }
+   }
+ 
++  async cancelPendingConnection() {
++    const pendingConnection = _appkitCoreReactNative.WcController.state.wcPromise;
++    try {
++      if (this.walletConnectConnector) {
++        const provider = this.walletConnectConnector.getProvider();
++        const proposals = provider.client.proposal.getAll();
++        proposals.forEach(proposal => provider.client.core.expirer.set(proposal.id, 0));
++        await pendingConnection?.catch(() => undefined);
++        await provider.cleanupPendingPairings({
++          deletePairings: true
++        });
++      }
++    } finally {
++      _appkitCoreReactNative.WcController.resetState();
++    }
++  }
++
+   /**
+    * Returns the provider for a given namespace.
+    * @param namespace - The namespace to get the provider for.
+diff --git a/node_modules/@reown/appkit-react-native/lib/commonjs/hooks/useAppKit.js b/node_modules/@reown/appkit-react-native/lib/commonjs/hooks/useAppKit.js
+index 885ae6b..c5c47e3 100644
+--- a/node_modules/@reown/appkit-react-native/lib/commonjs/hooks/useAppKit.js
++++ b/node_modules/@reown/appkit-react-native/lib/commonjs/hooks/useAppKit.js
+@@ -55,6 +55,7 @@ const useAppKit = () => {
+       open: context.appKit.open.bind(context.appKit),
+       close: context.appKit.close.bind(context.appKit),
+       disconnect: namespace => context.appKit.disconnect.bind(context.appKit)(namespace),
++      cancelPendingConnection: context.appKit.cancelPendingConnection.bind(context.appKit),
+       switchNetwork: context.appKit.switchNetwork.bind(context.appKit)
+     };
+   }, [context.appKit]);
+diff --git a/node_modules/@reown/appkit-react-native/lib/commonjs/partials/w3m-connecting-mobile/index.js b/node_modules/@reown/appkit-react-native/lib/commonjs/partials/w3m-connecting-mobile/index.js
+index 2748875..27da609 100644
+--- a/node_modules/@reown/appkit-react-native/lib/commonjs/partials/w3m-connecting-mobile/index.js
++++ b/node_modules/@reown/appkit-react-native/lib/commonjs/partials/w3m-connecting-mobile/index.js
+@@ -104,10 +104,10 @@ function ConnectingMobile({
+         });
+       }
+     } catch (error) {
+-      _appkitCoreReactNative.LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
+       if (error.message.includes(_appkitCoreReactNative.ConstantsUtil.LINKING_ERROR)) {
+         setErrorType('not_installed');
+       } else {
++        _appkitCoreReactNative.LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
+         setErrorType('default');
+       }
+     }
+diff --git a/node_modules/@reown/appkit-react-native/lib/commonjs/views/w3m-connecting-view/index.js b/node_modules/@reown/appkit-react-native/lib/commonjs/views/w3m-connecting-view/index.js
+index 0c3f525..66a6257 100644
+--- a/node_modules/@reown/appkit-react-native/lib/commonjs/views/w3m-connecting-view/index.js
++++ b/node_modules/@reown/appkit-react-native/lib/commonjs/views/w3m-connecting-view/index.js
+@@ -56,11 +56,11 @@ function ConnectingView() {
+         await connectPromise;
+       }
+     } catch (error) {
+-      _appkitCoreReactNative.LogController.sendError(error, 'ConnectingView.tsx', 'initializeConnection');
+       _appkitCoreReactNative.WcController.setWcError(true);
+       const isUserRejected = _appkitCommonReactNative.ErrorUtil.isUserRejectedRequestError(error);
+       const isProposalExpired = _appkitCommonReactNative.ErrorUtil.isProposalExpiredError(error);
+       if (!isProposalExpired) {
++        _appkitCoreReactNative.LogController.sendError(error, 'ConnectingView.tsx', 'initializeConnection');
+         _appkitCoreReactNative.SnackController.showError(isUserRejected ? 'User rejected the request' : 'Something went wrong');
+       }
+       _appkitCoreReactNative.EventsController.sendEvent({
+diff --git a/node_modules/@reown/appkit-react-native/lib/module/AppKit.js b/node_modules/@reown/appkit-react-native/lib/module/AppKit.js
+index c8ba1ac..fd80eae 100644
+--- a/node_modules/@reown/appkit-react-native/lib/module/AppKit.js
++++ b/node_modules/@reown/appkit-react-native/lib/module/AppKit.js
+@@ -2,7 +2,7 @@
+ 
+ import { subscribeKey } from 'valtio/utils';
+ import { EventsController, ModalController, ConnectionsController, OptionsController, RouterController, TransactionsController, StorageUtil, ThemeController, WcController, SwapController, OnRampController, CoreHelperUtil, SendController, BlockchainApiController, WalletUtil, LogController } from '@reown/appkit-core-react-native';
+-import { ConstantsUtil } from '@reown/appkit-common-react-native';
++import { ConstantsUtil, ErrorUtil } from '@reown/appkit-common-react-native';
+ import { WalletConnectConnector } from './connectors/WalletConnectConnector';
+ import { WcHelpersUtil } from './utils/HelpersUtil';
+ import { NetworkUtil } from './utils/NetworkUtil';
+@@ -82,7 +82,9 @@ export class AppKit {
+         });
+       }
+     } catch (error) {
+-      LogController.sendError(error, 'AppKit.ts', 'connect');
++      if (!ErrorUtil.isProposalExpiredError(error)) {
++        LogController.sendError(error, 'AppKit.ts', 'connect');
++      }
+       throw error;
+     }
+   }
+@@ -156,6 +158,23 @@ export class AppKit {
+     }
+   }
+ 
++  async cancelPendingConnection() {
++    const pendingConnection = WcController.state.wcPromise;
++    try {
++      if (this.walletConnectConnector) {
++        const provider = this.walletConnectConnector.getProvider();
++        const proposals = provider.client.proposal.getAll();
++        proposals.forEach(proposal => provider.client.core.expirer.set(proposal.id, 0));
++        await pendingConnection?.catch(() => undefined);
++        await provider.cleanupPendingPairings({
++          deletePairings: true
++        });
++      }
++    } finally {
++      WcController.resetState();
++    }
++  }
++
+   /**
+    * Returns the provider for a given namespace.
+    * @param namespace - The namespace to get the provider for.
+diff --git a/node_modules/@reown/appkit-react-native/lib/module/hooks/useAppKit.js b/node_modules/@reown/appkit-react-native/lib/module/hooks/useAppKit.js
+index 84276dd..a690a5e 100644
+--- a/node_modules/@reown/appkit-react-native/lib/module/hooks/useAppKit.js
++++ b/node_modules/@reown/appkit-react-native/lib/module/hooks/useAppKit.js
+@@ -52,6 +52,7 @@ export const useAppKit = () => {
+       open: context.appKit.open.bind(context.appKit),
+       close: context.appKit.close.bind(context.appKit),
+       disconnect: namespace => context.appKit.disconnect.bind(context.appKit)(namespace),
++      cancelPendingConnection: context.appKit.cancelPendingConnection.bind(context.appKit),
+       switchNetwork: context.appKit.switchNetwork.bind(context.appKit)
+     };
+   }, [context.appKit]);
+diff --git a/node_modules/@reown/appkit-react-native/lib/module/partials/w3m-connecting-mobile/index.js b/node_modules/@reown/appkit-react-native/lib/module/partials/w3m-connecting-mobile/index.js
+index 8a0e69b..74965a7 100644
+--- a/node_modules/@reown/appkit-react-native/lib/module/partials/w3m-connecting-mobile/index.js
++++ b/node_modules/@reown/appkit-react-native/lib/module/partials/w3m-connecting-mobile/index.js
+@@ -99,10 +99,10 @@ export function ConnectingMobile({
+         });
+       }
+     } catch (error) {
+-      LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
+       if (error.message.includes(ConstantsUtil.LINKING_ERROR)) {
+         setErrorType('not_installed');
+       } else {
++        LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
+         setErrorType('default');
+       }
+     }
+diff --git a/node_modules/@reown/appkit-react-native/lib/module/views/w3m-connecting-view/index.js b/node_modules/@reown/appkit-react-native/lib/module/views/w3m-connecting-view/index.js
+index 5064883..80dc9b9 100644
+--- a/node_modules/@reown/appkit-react-native/lib/module/views/w3m-connecting-view/index.js
++++ b/node_modules/@reown/appkit-react-native/lib/module/views/w3m-connecting-view/index.js
+@@ -52,11 +52,11 @@ export function ConnectingView() {
+         await connectPromise;
+       }
+     } catch (error) {
+-      LogController.sendError(error, 'ConnectingView.tsx', 'initializeConnection');
+       WcController.setWcError(true);
+       const isUserRejected = ErrorUtil.isUserRejectedRequestError(error);
+       const isProposalExpired = ErrorUtil.isProposalExpiredError(error);
+       if (!isProposalExpired) {
++        LogController.sendError(error, 'ConnectingView.tsx', 'initializeConnection');
+         SnackController.showError(isUserRejected ? 'User rejected the request' : 'Something went wrong');
+       }
+       EventsController.sendEvent({
+diff --git a/node_modules/@reown/appkit-react-native/lib/typescript/AppKit.d.ts b/node_modules/@reown/appkit-react-native/lib/typescript/AppKit.d.ts
+index 7f2e457..4f4a314 100644
+--- a/node_modules/@reown/appkit-react-native/lib/typescript/AppKit.d.ts
++++ b/node_modules/@reown/appkit-react-native/lib/typescript/AppKit.d.ts
+@@ -23,6 +23,7 @@ export declare class AppKit {
+      * @param isInternal - Whether the disconnect is internal (i.e. from the AppKit) or external (i.e. from wallet side).
+      */
+     disconnect(namespace?: ChainNamespace, isInternal?: boolean): Promise<void>;
++    cancelPendingConnection(): Promise<void>;
+     /**
+      * Returns the provider for a given namespace.
+      * @param namespace - The namespace to get the provider for.
+diff --git a/node_modules/@reown/appkit-react-native/lib/typescript/hooks/useAppKit.d.ts b/node_modules/@reown/appkit-react-native/lib/typescript/hooks/useAppKit.d.ts
+index ca52704..d9dceb5 100644
+--- a/node_modules/@reown/appkit-react-native/lib/typescript/hooks/useAppKit.d.ts
++++ b/node_modules/@reown/appkit-react-native/lib/typescript/hooks/useAppKit.d.ts
+@@ -10,6 +10,8 @@ interface UseAppKitReturn {
+     close: AppKit['close'];
+     /** Function to disconnect the wallet, optionally scoped to a specific namespace */
+     disconnect: (namespace?: ChainNamespace) => void;
++    /** Function to cancel the current WalletConnect proposal before a session exists */
++    cancelPendingConnection: AppKit['cancelPendingConnection'];
+     /** Function to switch to a different network */
+     switchNetwork: AppKit['switchNetwork'];
+ }
+diff --git a/node_modules/@reown/appkit-react-native/src/AppKit.ts b/node_modules/@reown/appkit-react-native/src/AppKit.ts
+index 97d7cba..1b865f5 100644
+--- a/node_modules/@reown/appkit-react-native/src/AppKit.ts
++++ b/node_modules/@reown/appkit-react-native/src/AppKit.ts
+@@ -1,4 +1,5 @@
+ import { subscribeKey } from 'valtio/utils';
++import type UniversalProvider from '@walletconnect/universal-provider';
+ import {
+   EventsController,
+   ModalController,
+@@ -36,7 +37,8 @@ import {
+   type AppKitOpenOptions,
+   ConstantsUtil,
+   type Connection,
+-  type WcWallet
++  type WcWallet,
++  ErrorUtil
+ } from '@reown/appkit-common-react-native';
+ 
+ import { WalletConnectConnector } from './connectors/WalletConnectConnector';
+@@ -152,7 +154,9 @@ export class AppKit {
+         });
+       }
+     } catch (error) {
+-      LogController.sendError(error, 'AppKit.ts', 'connect');
++      if (!ErrorUtil.isProposalExpiredError(error)) {
++        LogController.sendError(error, 'AppKit.ts', 'connect');
++      }
+       throw error;
+     }
+   }
+@@ -242,6 +246,22 @@ export class AppKit {
+     }
+   }
+ 
++  async cancelPendingConnection(): Promise<void> {
++    const pendingConnection = WcController.state.wcPromise;
++
++    try {
++      if (this.walletConnectConnector) {
++        const provider = this.walletConnectConnector.getProvider() as UniversalProvider;
++        const proposals = provider.client.proposal.getAll();
++        proposals.forEach(proposal => provider.client.core.expirer.set(proposal.id, 0));
++        await pendingConnection?.catch(() => undefined);
++        await provider.cleanupPendingPairings({ deletePairings: true });
++      }
++    } finally {
++      WcController.resetState();
++    }
++  }
++
+   /**
+    * Returns the provider for a given namespace.
+    * @param namespace - The namespace to get the provider for.
+diff --git a/node_modules/@reown/appkit-react-native/src/hooks/useAppKit.ts b/node_modules/@reown/appkit-react-native/src/hooks/useAppKit.ts
+index 2dff2dc..a21dc72 100644
+--- a/node_modules/@reown/appkit-react-native/src/hooks/useAppKit.ts
++++ b/node_modules/@reown/appkit-react-native/src/hooks/useAppKit.ts
+@@ -14,6 +14,8 @@ interface UseAppKitReturn {
+   close: AppKit['close'];
+   /** Function to disconnect the wallet, optionally scoped to a specific namespace */
+   disconnect: (namespace?: ChainNamespace) => void;
++  /** Function to cancel the current WalletConnect proposal before a session exists */
++  cancelPendingConnection: AppKit['cancelPendingConnection'];
+   /** Function to switch to a different network */
+   switchNetwork: AppKit['switchNetwork'];
+ }
+@@ -66,6 +68,7 @@ export const useAppKit = (): UseAppKitReturn => {
+       close: context.appKit.close.bind(context.appKit),
+       disconnect: (namespace?: ChainNamespace) =>
+         context.appKit!.disconnect.bind(context.appKit!)(namespace),
++      cancelPendingConnection: context.appKit.cancelPendingConnection.bind(context.appKit),
+       switchNetwork: context.appKit.switchNetwork.bind(context.appKit)
+     };
+   }, [context.appKit]);
+diff --git a/node_modules/@reown/appkit-react-native/src/partials/w3m-connecting-mobile/index.tsx b/node_modules/@reown/appkit-react-native/src/partials/w3m-connecting-mobile/index.tsx
+index a74b096..7e73738 100644
+--- a/node_modules/@reown/appkit-react-native/src/partials/w3m-connecting-mobile/index.tsx
++++ b/node_modules/@reown/appkit-react-native/src/partials/w3m-connecting-mobile/index.tsx
+@@ -106,10 +106,10 @@ export function ConnectingMobile({ onRetry, onCopyUri, isInstalled }: Props) {
+         });
+       }
+     } catch (error: any) {
+-      LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
+       if (error.message.includes(ConstantsUtil.LINKING_ERROR)) {
+         setErrorType('not_installed');
+       } else {
++        LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
+         setErrorType('default');
+       }
+     }
+diff --git a/node_modules/@reown/appkit-react-native/src/views/w3m-connecting-view/index.tsx b/node_modules/@reown/appkit-react-native/src/views/w3m-connecting-view/index.tsx
+index a6e5cc1..dbe1d84 100644
+--- a/node_modules/@reown/appkit-react-native/src/views/w3m-connecting-view/index.tsx
++++ b/node_modules/@reown/appkit-react-native/src/views/w3m-connecting-view/index.tsx
+@@ -54,12 +54,12 @@ export function ConnectingView() {
+         await connectPromise;
+       }
+     } catch (error) {
+-      LogController.sendError(error, 'ConnectingView.tsx', 'initializeConnection');
+       WcController.setWcError(true);
+ 
+       const isUserRejected = ErrorUtil.isUserRejectedRequestError(error);
+       const isProposalExpired = ErrorUtil.isProposalExpiredError(error);
+       if (!isProposalExpired) {
++        LogController.sendError(error, 'ConnectingView.tsx', 'initializeConnection');
+         SnackController.showError(
+           isUserRejected ? 'User rejected the request' : 'Something went wrong'
+         );

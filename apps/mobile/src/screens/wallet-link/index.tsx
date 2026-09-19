@@ -17,6 +17,7 @@ import {
   isReownChainSwitchRejection,
   isWalletUserRejection,
 } from '@/wallet/wallet-error';
+import { cleanupPendingWalletConnection } from '@/wallet/wallet-lifecycle';
 import { buildPersonalSignRequest, safeWalletRequest } from '@/wallet/wallet-method-policy';
 import type { AvailableWalletRuntimeConfig } from '@/wallet/wallet-runtime-config';
 import { readApprovedEvmAccount } from '@/wallet/wallet-session';
@@ -44,7 +45,7 @@ export function WalletLinkScreen({ config }: Props) {
   useColorScheme();
   const { address, chainId } = useAccount();
   const { provider } = useProvider();
-  const { open, close, disconnect, switchNetwork } = useAppKit();
+  const { open, close, disconnect, switchNetwork, cancelPendingConnection } = useAppKit();
   const api = useMemo(
     () => new WalletApiClient({ apiUrl: config.apiUrl, accountId: config.accountId }),
     [config.accountId, config.apiUrl],
@@ -85,12 +86,12 @@ export function WalletLinkScreen({ config }: Props) {
       }
 
       awaitingWalletConnectionDecision.current = false;
-      void close().catch(() => undefined);
+      void cleanupPendingWalletConnection({ cancelPendingConnection, close });
       setVerifiedAddress(undefined);
       setPhase('error');
       setMessage(walletMissingMessage);
     },
-    [close],
+    [cancelPendingConnection, close],
   );
 
   useAppKitEventSubscription('GET_WALLET', handleAppKitGetWallet);
