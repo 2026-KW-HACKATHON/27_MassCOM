@@ -14,7 +14,7 @@ test('verified wallet bindings version address changes and reject cross-account 
   const pool = new Pool({ connectionString });
   t.after(() => pool.end());
   await runMigrations(pool);
-  await pool.query('TRUNCATE wallet_bindings CASCADE');
+  await pool.query('TRUNCATE wallet_bindings, wallet_challenges CASCADE');
 
   let now = new Date('2026-09-19T00:00:00.000Z');
   const ids = [
