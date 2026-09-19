@@ -2,13 +2,20 @@
 
 마지막 갱신 시각: 2026-09-19 KST
 
-기준 브랜치: `feat/phase4-release-readiness`
+기준 브랜치: `feat/phase5-demo-evidence`
 
 검증 기준 커밋: `7ca3c72`·`d4597cd`
 
-현재 작업: PR #53 Phase 4 계정 삭제·개인정보·출시 준비 CI·리뷰·merge
+현재 작업: PR #55 Phase 5 발표·시연·평가 증거 CI·리뷰·merge
 
 ## 이번 작업에서 완료한 것
+
+- PR #53 merge `62196f0`, main CI `35450443943` PASS, Issue #52 종료
+- 브라우저 발표 페이지와 데스크톱·390px 시각 검증
+- 3분·5분 발표 원고, Android 시연·장애 대체 runbook
+- 결과를 채우지 않은 점주·이용자 현장 검증 기록지
+- main SHA·PR·CI·36개 테스트·BLOCKED/NOT_RUN 제출 증거 manifest
+- 허위 매출·협약·Play 승인 문구와 NOT_RUN 은폐를 막는 CI verifier
 
 - PR #51 merge `36065ab`, main CI `35448436859` PASS, Issue #48 종료
 - 계정 삭제 ledger와 `CANCELLED` mint 상태 migration 추가
@@ -50,9 +57,8 @@
 
 ## 다음 실행 순서
 
-1. PR #53 CI·필수 리뷰 확인, 실패 시 같은 브랜치에서 수정
-2. 통과 후 merge·main CI 확인·Issue #52 종료
-3. 운영 재인증·외부 HTTPS 삭제 URL·release package/AAB는 승인·외부 조건 전 BLOCKED 유지
+1. PR #55 CI·필수 리뷰 확인, 통과 후 merge·main CI 확인·Issue #54 종료
+2. 실제 현장·영상·공개 전환·release tag·최종 제출은 승인 전 NOT_RUN 유지
 
 ## 재현 명령
 

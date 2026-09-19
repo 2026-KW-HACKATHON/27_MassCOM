@@ -1,0 +1,44 @@
+{
+  "recordedAt": "2026-09-20 KST",
+  "baselineCommit": "62196f0e7fc7d0290b980e943226b584b971c597",
+  "repositoryVisibility": "PRIVATE",
+  "requiredTests": {
+    "total": 36,
+    "PASS": 26,
+    "BLOCKED": 2,
+    "NOT_RUN": 8,
+    "FAIL": 0
+  },
+  "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53],
+  "pendingPullRequest": 55,
+  "mainCiRuns": [35424531021, 35425582837, 35426622394, 35444126068, 35445281598, 35448436859, 35450443943],
+  "androidEvidence": [
+    "docs/evidence/android-merchant-discovery.json",
+    "docs/evidence/android-claim-collection.json",
+    "docs/evidence/android-recommendations.json",
+    "docs/evidence/phase3-worker-anvil-android.json",
+    "docs/evidence/account-deletion-privacy.json"
+  ],
+  "blocked": [
+    "repository public conversion",
+    "external HTTPS and production reauthentication",
+    "Base Sepolia dedicated deployer and gas",
+    "release package ID and signed AAB",
+    "Google Play and competition submission"
+  ],
+  "notRun": [
+    "field merchant and user validation",
+    "camera permission and offline acceptance",
+    "real account switching and OS backup restore",
+    "signed AAB, 16KB release, and App Links",
+    "production authorization and outage drill",
+    "presentation rehearsal and final video"
+  ],
+  "truthBoundary": {
+    "partnerStoresClaimed": 0,
+    "fieldParticipantsClaimed": 0,
+    "revenueIncreaseClaimed": false,
+    "playApprovalClaimed": false,
+    "publicDemoClaimed": false
+  }
+}

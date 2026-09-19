@@ -8,7 +8,7 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 | `feat/phase4-release-readiness`, PR #53 CI·리뷰·merge |
+| 현재 작업 | `feat/phase5-demo-evidence`, PR #55 CI·리뷰·merge |
 | 현재 검증 기준 | API 35·PostgreSQL 10·모바일 48·D01/D03·Samsung 삭제 안내 Local DEMO PASS |
 | 최근 main 기준선 | PR #51 merge `36065ab`, main CI run `35448436859` PASS |
 
@@ -21,7 +21,7 @@
 | Phase 2 지역 상권 핵심 기능 | `VERIFIED` | loopback DEMO 탐색→점주 발급→고객 수령→도감→추천→상세 순환 PASS |
 | Phase 3 NFT | `VERIFIED` | Local Anvil 계약→원자 job/Outbox→Worker→이벤트 대조→Android 등록 완료·복구 PASS; Base Sepolia `BLOCKED` |
 | Phase 4 출시 기반 | `IN_PROGRESS` | 계정 삭제·HMAC 비식별화·privacy gate·출시 체크리스트·Android DEMO PASS; 외부 HTTPS·운영 재인증·release AAB 미완료 |
-| Phase 5 대회 검증·발표 | `PLANNED` | 현장 검증·영상·제출 버전 미착수 |
+| Phase 5 대회 검증·발표 | `IN_PROGRESS` | 발표 웹·3/5분 원고·시연 runbook·빈 현장 기록지·증거 manifest 구현; 현장·리허설·영상·제출은 NOT_RUN |
 | Phase 6 후속 기능 | `PLANNED` | 별도 승인 전 미착수 |
 
 ## 구현·검증 완료
@@ -40,6 +40,8 @@
 - 계정 삭제 동시 10요청 수렴, 미전송 mint 취소, 제출/확정 보존, 원 account ID 비식별화 D01
 - 민감 로그 인자·미검토 analytics SDK CI 차단과 raw API error 로그 제거 D03
 - Samsung Android 16 계정 설정·공개 장부 안내·Local DEMO 삭제 요청
+- 다운로드 없이 여는 발표 페이지, 3분·5분 원고, 실제 시연/실패 대체 runbook
+- 결과를 미리 채우지 않은 현장 검증 기록지와 제출 증거 manifest·허위 주장 gate
 
 ## 미완료
 
@@ -49,6 +51,7 @@
 - 배포 빌드의 SDK 진입점 W08, 실제 운영 계정 전환·캐시 복원 D02
 - release AAB·16KB·App Link A02, 운영 권한·장애 복원 O01~O02
 - 외부 HTTPS·Base Sepolia·운영 signer·mainnet·Google Play·공개 데모
+- 실제 현장 참여·발표 리허설·영상 촬영·저장소 공개·대회 최종 제출
 
 ## 검증 상태
 
