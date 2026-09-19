@@ -6,7 +6,7 @@
 
 검증 기준 커밋 SHA: `main@ab641872504743aed5d853dfe7be4a69e1c199c4`, main CI run `35421201914` PASS
 
-현재 작업: `test/40-wallet-address-change`, Issue #40·#41 OPEN, 상태 문서 PR 생성 전
+현재 작업: `test/40-wallet-address-change@9081efd`, Issue #40·#41 OPEN, PR #42 OPEN
 
 ## 이번 세션에서 완료한 것
 

@@ -8,7 +8,7 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 기준 | `test/40-wallet-address-change`, Issue #40·#41 OPEN, 상태 문서 PR 생성 전 |
+| 현재 작업 기준 | `test/40-wallet-address-change@9081efd`, Issue #40·#41 OPEN, PR #42 OPEN |
 | 현재 검증 기준 | `main@ab641872504743aed5d853dfe7be4a69e1c199c4`, CI run `35421201914` PASS |
 | 최근 기능·상태 merge | PR #38 `ab64187` |
 | Phase 1 종료 Issue | #25 실제 지갑 검증, #27·#31 거절 처리, #33 미설치 지갑 실기 |
