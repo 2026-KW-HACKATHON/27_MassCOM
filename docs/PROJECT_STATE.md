@@ -8,9 +8,9 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 | `fix/56-account-lifecycle-audit`, Claude·독립 리뷰 HIGH 보완 |
+| 현재 작업 | Issue #56 완료 후 사용자 요청으로 중지 |
 | 현재 검증 기준 | API 35·PostgreSQL 14·Worker 8/PG 4·모바일 48·Foundry 8/fuzz128·Anvil PASS |
-| 최근 main 기준선 | PR #55 merge `8b244b2`, main CI run `35451429441` PASS |
+| 최근 main 기준선 | PR #57 merge `9794c70`, main CI run `35455419805` PASS |
 
 ## Phase 상태
 

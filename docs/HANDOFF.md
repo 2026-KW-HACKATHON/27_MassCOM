@@ -2,11 +2,11 @@
 
 마지막 갱신 시각: 2026-09-20 KST
 
-기준 브랜치: `fix/56-account-lifecycle-audit`
+기준 브랜치: `main`
 
-검증 기준: Issue #56 보안 감사 보완 branch
+검증 기준: PR #57 merge `9794c70`, main CI `35455419805` PASS
 
-현재 작업: Issue #56 전체 코드·보안 감사 HIGH 보완과 재검토
+현재 작업: 사용자 요청에 따라 중지. 새 기능 작업 없음.
 
 ## 이번 작업에서 완료한 것
 
@@ -17,6 +17,7 @@
 - 테스트 카탈로그 36개 상태 정본 동기화·CI ID별 diff
 - duplicate revert reward-key 복구, secret/presentation/DEMO/한글 PR gate 보강
 - merge 완료 worktree 2개, local branch 11개, remote branch 8개 정리
+- PR #57 merge `9794c70`, PR·main CI PASS, Issue #56 종료
 
 - PR #53 merge `62196f0`, main CI `35450443943` PASS, Issue #52 종료
 - 브라우저 발표 페이지와 데스크톱·390px 시각 검증
@@ -63,11 +64,13 @@
 - mainnet, 사용자 자산 이동, 유료 자원, 공개 전환, Play 배포, 대회 제출은 별도 승인 전 실행하지 않는다.
 - 앱 수집품과 실제 NFT를 계속 분리하고, NFT 수를 매출 증가로 표현하지 않는다.
 
-## 다음 실행 순서
+## 재개 시 할 일
 
-1. Issue #56 전체 회귀와 독립 재리뷰
-2. 한글 PR 하나로 push·CI·merge·main CI 확인 후 Issue #56 종료
-3. 남은 MEDIUM은 운영 배포 전 별도 승인·Issue로 처리
+1. 운영 배포를 시작하기 전에 `chain_cursors` read path와 reorg margin을 구현·검증
+2. Worker retry 상한·지수 backoff·dead-letter 또는 `MANUAL_REVIEW` 전환 추가
+3. SIWE challenge 공유 저장소와 운영 세션 저장 정책 결정
+4. Expo 호환 업데이트로 모바일 moderate advisory 14건을 재평가
+5. 외부 HTTPS·Base Sepolia·release AAB·Google Play·공개/최종 제출은 별도 승인 뒤 진행
 
 ## 재현 명령
 
