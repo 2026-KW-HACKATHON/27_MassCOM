@@ -8,9 +8,9 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 기준 | `fix/35-wallet-proposal-cancel@bff7c68`, Issue #35 OPEN, PR #38 OPEN |
-| 현재 검증 기준 | `main@cdd7d532a812f18936f5914aadf4ebba55929a9a`, CI run `35418821772` PASS |
-| 최근 기능·상태 merge | PR #34 `1ca9301`, PR #36 `cdd7d53` |
+| 현재 작업 기준 | Phase 1 지갑 핵심·W06 검증 완료, 열린 Issue·PR·구현 브랜치 없음 |
+| 현재 검증 기준 | `main@ab641872504743aed5d853dfe7be4a69e1c199c4`, CI run `35421201914` PASS |
+| 최근 기능·상태 merge | PR #38 `ab64187` |
 | Phase 1 종료 Issue | #25 실제 지갑 검증, #27·#31 거절 처리, #33 미설치 지갑 실기 |
 | Phase 1 merge PR | #26 실제 지갑 안정화, #28·#32 거절 처리, #34 미설치 지갑 안내 |
 
