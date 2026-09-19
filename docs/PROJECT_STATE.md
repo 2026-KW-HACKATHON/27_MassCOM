@@ -8,7 +8,7 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 | `feat/phase3-mint-worker`, Issue #48의 마지막 Phase 3 PR 준비 |
+| 현재 작업 | `feat/phase3-mint-worker`, PR #51 CI·리뷰·merge |
 | 현재 검증 기준 | `7ca3c72`·`d4597cd`, Worker/Anvil/Android 발행·복구 전체 로컬 PASS |
 | 최근 main 기준선 | PR #50 merge `4984841`; main CI 결과는 최종 PR 전에 재확인 |
 

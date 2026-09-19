@@ -6,7 +6,7 @@
 
 검증 기준 커밋: `7ca3c72`·`d4597cd`
 
-현재 작업: Issue #48 마지막 Phase 3 Worker·Anvil·Android 상태 PR의 문서·CI·merge
+현재 작업: PR #51 Phase 3 Worker·Anvil·Android 상태 CI·리뷰·merge
 
 ## 이번 작업에서 완료한 것
 
@@ -41,11 +41,10 @@
 
 ## 다음 실행 순서
 
-1. 문서 커밋 후 branch push, 한글 PR 생성
-2. PR CI·필수 리뷰 확인, 실패 시 같은 브랜치에서 수정
-3. 통과 후 merge하고 main CI 확인
-4. Issue #48을 실제 merge 근거와 함께 닫기
-5. 이후 Phase 4는 외부 HTTPS·개인정보·탈퇴·release AAB 중 승인 없이 가능한 로컬 준비부터 별도 Issue/PR로 진행
+1. PR #51 CI·필수 리뷰 확인, 실패 시 같은 브랜치에서 수정
+2. 통과 후 merge하고 main CI 확인
+3. Issue #48을 실제 merge 근거와 함께 닫기
+4. 이후 Phase 4는 외부 HTTPS·개인정보·탈퇴·release AAB 중 승인 없이 가능한 로컬 준비부터 별도 Issue/PR로 진행
 
 ## 재현 명령
 
