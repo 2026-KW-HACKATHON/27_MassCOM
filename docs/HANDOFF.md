@@ -4,9 +4,9 @@
 
 기준 브랜치: `main`
 
-통합 기준 커밋 SHA: `main@1ca93010523c918588a40967bc6d3d460def8b8a`, main CI run `35418431281` PASS
+검증 기준 커밋 SHA: `main@cdd7d532a812f18936f5914aadf4ebba55929a9a`, main CI run `35418821772` PASS
 
-현재 작업: `docs/35-wallet-proposal-expiry-blocker@7ad9d20`, Issue #35 OPEN, PR #36 OPEN
+현재 작업: Issue #35 OPEN, 구현 브랜치 없음; 내부 SDK 패치·큰 업그레이드 승인 대기
 
 ## 이번 세션에서 완료한 것
 
@@ -52,6 +52,7 @@
 - #30, merge commit `9c5ad0e`
 - #32, merge commit `e34f3d5`
 - #34, merge commit `1ca9301`
+- #36, merge commit `cdd7d53` (W06 FAIL·B-009 상태 기록)
 
 ## 실행한 테스트
 
