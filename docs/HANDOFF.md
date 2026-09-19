@@ -2,11 +2,11 @@
 
 마지막 갱신 시각: 2026-09-19 KST
 
-기준 브랜치: `feat/phase3-nft-contract`
+기준 브랜치: `feat/phase3-mint-outbox`
 
-검증 기준 커밋 SHA: `e6aae59`, PR #49 CI 대기
+검증 기준 커밋 SHA: `14e6eab`, PR #50 CI 대기
 
-현재 작업: Phase 3 첫 묶음 NFT 계약 PR #49; Issue #48 유지
+현재 작업: Phase 3 두 번째 묶음 wallet binding·mint request·Outbox PR #50; Issue #48 유지
 
 ## 이번 세션에서 완료한 것
 
@@ -16,6 +16,11 @@
 - C01~C04 Foundry 8/8·fuzz 128 PASS
 - private key 없는 Anvil unlocked 계정으로 chain 31337 배포·시리즈·mint·owner·locked·이벤트 PASS
 - Issue #48과 PR #49 생성, API 31개·모바일 43개 회귀 PASS
+- PR #49 merge `25cf801`, main CI run `35444126068` PASS
+- SIWE 성공 주소를 버전된 PostgreSQL wallet binding으로 영속화
+- mint request가 보상권·고정 수령인 job·Outbox를 원자 생성하고 동일 요청 20개를 job 하나로 수렴
+- 주소 변경 뒤 기존 job의 recipient·binding version 유지 PASS
+- PR #50 생성, API 34개·PostgreSQL 8개·모바일 44개·Android export PASS
 - 과도한 PR 분할을 피하도록 Phase 2를 3개 기능 PR로 고정하고 상태 전용 PR을 금지
 - 공개 API 설정을 Reown 지갑 설정과 분리해 지갑 없이 `/` 음식점 목록 사용
 - `GET /merchants` 응답 런타임 검증과 loading/error/empty/content/refresh 상태 구현
@@ -115,9 +120,9 @@
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. PR #49 CI·리뷰를 확인하고 통과하면 merge한 뒤 main CI 확인
-2. 두 번째 Phase 3 PR에서 wallet binding·mint request·Outbox 원자 저장 구현
-3. 세 번째 Phase 3 PR에서 Worker·이벤트 대조·Android 상태 구현
+1. PR #50 CI·리뷰를 확인하고 통과하면 merge한 뒤 main CI 확인
+2. 마지막 Phase 3 PR에서 Worker·이벤트 대조·복구·Android 상태 구현
+3. W07·M01~M08·M07의 전체 효과를 로컬 Anvil에서 최종 판정
 4. Base Sepolia는 전용 시험 배포자·gas가 준비되기 전 B-012 BLOCKED 유지
 5. 운영 키·메인넷·유료 자원·공개/Play/제출은 실행하지 않음
 

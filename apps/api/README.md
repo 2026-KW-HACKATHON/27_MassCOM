@@ -1,6 +1,6 @@
 # MassCOM API
 
-ERC-4361(SIWE) 주소 확인, Phase 2 공개 점포·캠페인 카탈로그, 점포별 점주·직원 권한, 1인용 일회용 코드, 방문·고정 보상권·도감·설명 가능한 추천을 제공하는 Node.js API입니다.
+ERC-4361(SIWE) 주소 확인, Phase 2 공개 점포·캠페인·방문·도감·추천, Phase 3 wallet binding·mint job·Outbox를 제공하는 Node.js API입니다.
 
 ## 실행
 
@@ -31,6 +31,10 @@ npm run start:local
 - `POST /claim-slots/redeem`: 로그인한 대상 계정이 token을 한 번 소비하고 방문·한국 날짜 진행도·고정 보상권을 원자 확정
 - `POST /wallet/challenges`
 - `POST /wallet/verify`
+- `GET /wallets/active-binding`: 서버가 확인한 현재 binding ID·version·주소 조회
+- `DELETE /wallets/:id/binding`: 본문의 정확한 `bindingVersion`만 연결 해제
+- `POST /entitlements/:id/mint`: `Idempotency-Key`와 binding/version/동의만 받아 고정 수령인 job·Outbox 원자 생성
+- `GET /mint-jobs/:id`: 해당 계정 소유 작업의 고정 수령인·체인·상태 조회
 
 두 POST 요청의 계정은 서버 `AccountResolver`가 결정합니다. `x-account-id`는 loopback 서버의 명시적 insecure demo 모드에서만 읽으며 실제 로그인 인증을 대신하지 않습니다.
 
@@ -53,4 +57,4 @@ npm run test:postgres
 
 통합 테스트는 테이블을 비우므로 DB 이름이 `_test`로 끝나는 전용 데이터베이스만 허용합니다. PostgreSQL 18에서 카탈로그, Q01~Q03·Q05와 R01·R03을 확인합니다. QR token은 SHA-256, 점포 주문 참조는 점포 ID를 함께 넣은 HMAC-SHA-256만 저장하며 token 원문은 발급·재발급 응답에서 한 번만 반환합니다. 재발급은 `tokenVersion` 낙관적 잠금으로 같은 버전의 동시 요청 중 한 건만 성공합니다. preview는 상태를 바꾸지 않으며, redeem은 슬롯·방문·보상권 중 일부만 성공하면 전체를 롤백합니다.
 
-지갑 challenge는 아직 메모리 구현이므로 프로세스 재시작 시 사라집니다. PostgreSQL 원자 소비는 별도 후속 PR 범위입니다.
+지갑 challenge 원문·nonce claim은 아직 메모리 구현이므로 프로세스 재시작 시 사라집니다. 성공한 주소 연결과 mint job·Outbox는 PostgreSQL에 남습니다. Worker 전송·체인 이벤트 대조는 다음 Phase 3 PR 범위입니다.

@@ -50,7 +50,7 @@
 - [x] Start Anvil with chain ID 31337, deploy using test accounts, mint one token, and verify owner/locked/event without recording private keys.
 - [x] Add Foundry to CI and update license/source records.
 - [x] Commit, push, and create Korean PR #49.
-- [ ] Wait for CI/review, merge, and verify main CI.
+- [x] Wait for CI/review, merge PR #49, and verify main CI run `35444126068`.
 
 ### Task 2: Persistent wallet binding and atomic mint request Outbox
 
@@ -68,15 +68,16 @@
 - Produces: `POST /entitlements/:entitlementId/mint` with headers `Idempotency-Key` and body `{ walletBindingId, bindingVersion, consentVersion }`.
 - Produces: `GET /mint-jobs/:jobId` owner-scoped result.
 
-- [ ] Write failing PostgreSQL tests that a successful verification creates or versions one active binding and disconnect never changes an existing job recipient.
-- [ ] Write failing W07/M01/M07 tests for same idempotency key replay, different-body conflict, concurrent requests, binding version mismatch, and address change after request.
-- [ ] Add migration constraints: one job per entitlement, unique reward key, unique account+idempotency key, Outbox/job same transaction.
-- [ ] Implement binding persistence behind a `WalletBindingStore` interface while retaining the in-memory challenge store.
-- [ ] Implement mint request transaction that locks the entitlement, verifies owner/status/expiry/binding/chain, creates a random reward key, job, and Outbox, then sets `MINT_REQUESTED`.
-- [ ] Add API routes and Korean recovery error codes without accepting recipient/series/reward key from the client.
-- [ ] Run API unit, PostgreSQL integration, typecheck, build, secret scan, and existing regression.
-- [ ] Update docs/evidence in the same functional PR.
-- [ ] Commit, push, create a Korean PR, wait for CI/review, merge, and verify main CI.
+- [x] Write failing PostgreSQL tests that a successful verification creates or versions one active binding and disconnect never changes an existing job recipient.
+- [x] Write failing W07/M01/M07 tests for same idempotency key replay, different-body conflict, concurrent requests, binding version mismatch, and address change after request.
+- [x] Add migration constraints: one job per entitlement, unique reward key, unique account+idempotency key, Outbox/job same transaction.
+- [x] Implement binding persistence behind a `WalletBindingStore` interface while retaining the in-memory challenge store.
+- [x] Implement mint request transaction that locks the entitlement, verifies owner/status/expiry/binding/chain, creates a random reward key, job, and Outbox, then sets `MINT_REQUESTED`.
+- [x] Add API routes and Korean recovery error codes without accepting recipient/series/reward key from the client.
+- [x] Run API unit, PostgreSQL integration, typecheck, build, secret scan, and existing regression.
+- [x] Update docs/evidence in the same functional PR.
+- [x] Commit, push, and create Korean PR #50.
+- [ ] Wait for CI/review, merge, and verify main CI.
 
 ### Task 3: Worker, Anvil event verification, recovery, and Android status
 

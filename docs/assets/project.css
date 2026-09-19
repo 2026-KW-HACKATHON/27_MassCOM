@@ -781,7 +781,7 @@ footer p {
   }
 
   .header-state::after {
-    content: "P3 계약";
+    content: "P3 Outbox";
     font-size: 0.72rem;
     white-space: nowrap;
   }
