@@ -83,10 +83,10 @@
 
 **Files:**
 - Create: `apps/worker/package.json`
-- Create: `apps/worker/src/worker.ts`
+- Create: `apps/worker/src/mint-worker.ts`
 - Create: `apps/worker/src/postgres-mint-repository.ts`
 - Create: `apps/worker/src/ethers-chain-gateway.ts`
-- Create: `apps/worker/src/mint-event.ts`
+- Create: `apps/worker/src/run-worker.ts`
 - Create: `apps/worker/src/**/*.test.ts`
 - Create: `apps/worker/src/**/*.postgres.integration.ts`
 - Create: `apps/api/migrations/0006_mint_attempts_chain_events.sql`
@@ -99,16 +99,16 @@
 - Produces: `PREPARED → SUBMITTED → CONFIRMING → FINALIZED` or `RETRYABLE / PAUSED / MANUAL_REVIEW`.
 - Produces: collection NFT states `NOT_REQUESTED / QUEUED / CONFIRMING / FINALIZED / REVIEW_REQUIRED`.
 
-- [ ] Write failing M01/M03 tests for duplicate delivery, two-worker lease race, and restart after lease expiry.
-- [ ] Write failing M02 tests that submission-response loss checks transaction/reward key before any new transaction.
-- [ ] Write failing M04/M05 tests for wrong chain, wrong contract code/address, wrong recipient, wrong series, and wrong reward key event.
-- [ ] Write failing M06/M08 tests for repeated log ingestion, cursor rewind, and restored DB reconciling an already-used on-chain reward key.
-- [ ] Implement PostgreSQL lease, attempts, assets, events, and cursor repositories with unique constraints.
-- [ ] Implement ethers gateway that validates chain/contract before sign/send and verifies `MascotMinted` after receipt.
-- [ ] Run real Anvil contract integration for one finalized mint and every M01~M08 recovery path that can be locally simulated.
-- [ ] Extend collection API/mobile UI to distinguish queued, confirming, finalized, and review-required without changing app collectible state.
-- [ ] Run Worker/API/mobile tests, PostgreSQL integration, Foundry, typecheck, lint, Android export, secret scan, and portal checks.
-- [ ] Exercise Android mint-request/state polling against local API/Anvil without asking the user wallet to send a transaction.
-- [ ] Record Base Sepolia as `BLOCKED` if no funded dedicated test deployer is available; never substitute an operational/user key.
-- [ ] Update final Phase 3 handoff/evaluation/test ledger in the same PR.
+- [x] Write failing M01/M03 tests for duplicate delivery, two-worker lease race, and restart after lease expiry.
+- [x] Write failing M02 tests that submission-response loss checks transaction/reward key before any new transaction.
+- [x] Write failing M04/M05 tests for wrong chain, wrong contract code/address, wrong recipient, wrong series, and wrong reward key event.
+- [x] Write failing M06/M08 tests for repeated log ingestion, pre-finality reorg, and restored DB reconciling an already-used on-chain reward key.
+- [x] Implement PostgreSQL lease, attempts, assets, events, and cursor repositories with unique constraints.
+- [x] Implement ethers gateway that validates chain/contract before sign/send and verifies `MascotMinted` after receipt.
+- [x] Run real Anvil contract integration for one finalized mint and every M01~M08 recovery path that can be locally simulated.
+- [x] Extend collection API/mobile UI to distinguish queued, confirming, finalized, and review-required without changing app collectible state.
+- [x] Run Worker/API/mobile tests, PostgreSQL integration, Foundry, typecheck, lint, Android export, secret scan, and portal checks.
+- [x] Exercise Android mint-request/state polling against local API/Anvil without asking the user wallet to send a transaction.
+- [x] Record Base Sepolia as `BLOCKED` if no funded dedicated test deployer is available; never substitute an operational/user key.
+- [x] Update final Phase 3 handoff/evaluation/test ledger in the same PR.
 - [ ] Commit, push, create a Korean PR, wait for CI/review, merge, verify main CI, and close the Phase 3 umbrella Issue.

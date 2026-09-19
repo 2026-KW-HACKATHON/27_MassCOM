@@ -125,7 +125,10 @@ test('parses collection states while keeping app collectibles and NFT state sepa
         targetVisitCount: 1,
         displayName: '첫 밥상 잎새',
         appCollectibleStatus: 'COLLECTED',
+        mintJobId: null,
+        recipient: null,
         nftStatus: 'NOT_REQUESTED',
+        nft: null,
       },
     ],
   };
@@ -140,6 +143,44 @@ test('parses collection states while keeping app collectibles and NFT state sepa
   });
 
   assert.deepEqual(await client.getCollection(), payload);
+});
+
+test('requests minting with binding and consent only, never a client recipient or series', async () => {
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    accountId: 'customer-1',
+    fetcher: async (input, init) => {
+      assert.equal(input, 'https://api.example.test/entitlements/entitlement-1/mint');
+      assert.equal(new Headers(init?.headers).get('idempotency-key'), 'mint-request-1');
+      assert.deepEqual(JSON.parse(String(init?.body)), {
+        walletBindingId: 'binding-1',
+        bindingVersion: 2,
+        consentVersion: 'nft-mint-v1',
+      });
+      return Response.json(
+        {
+          jobId: 'job-1',
+          status: 'QUEUED',
+          chainId: 84532,
+          recipient: '0x4000000000000000000000000000000000000004',
+          nft: null,
+          replayed: false,
+        },
+        { status: 202 },
+      );
+    },
+  });
+
+  const result = await client.requestMint({
+    entitlementId: 'entitlement-1',
+    walletBindingId: 'binding-1',
+    bindingVersion: 2,
+    consentVersion: 'nft-mint-v1',
+    idempotencyKey: 'mint-request-1',
+  });
+
+  assert.equal(result.status, 'QUEUED');
+  assert.equal(result.replayed, false);
 });
 
 test('rejects malformed collection data', async () => {

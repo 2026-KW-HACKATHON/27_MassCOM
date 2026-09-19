@@ -19,7 +19,7 @@ export type ActiveWalletBindingResponse = {
     bindingId: string;
     bindingVersion: number;
     address: string;
-    chainId: 84532;
+    chainId: number;
     verifiedAt: string;
   };
 };

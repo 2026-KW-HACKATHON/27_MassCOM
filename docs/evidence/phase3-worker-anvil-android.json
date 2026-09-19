@@ -1,0 +1,64 @@
+{
+  "recordedAt": "2026-09-19 KST",
+  "branch": "feat/phase3-mint-worker",
+  "codeCommits": ["7ca3c72", "d4597cd"],
+  "scope": "Local Anvil Worker finalization, recovery, and Android collection state",
+  "environment": {
+    "database": "PostgreSQL 18 Alpine dedicated masscom_test database",
+    "chain": "Local Anvil chain 31337 through pinned Foundry 1.8.3 image",
+    "contract": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+    "recipient": "0x90F79bf6EB2c4f870365E785982E1f101E93b906 (Anvil public test account)",
+    "device": "Samsung SM-S928N, Android 16",
+    "api": "loopback through adb reverse",
+    "walletSecretUsed": false,
+    "operationalKeyUsed": false
+  },
+  "automated": {
+    "apiUnit": "PASS 34/34",
+    "apiPostgres": "PASS 8/8",
+    "workerUnit": "PASS 6/6 including lease heartbeat and ownership-loss stop",
+    "workerPostgres": "PASS 1/1",
+    "workerAnvil": "PASS 1/1 covering W07, M01-M05, M07-M08",
+    "mobileUnit": "PASS 45/45",
+    "foundry": "PASS 8/8 plus fuzz 128",
+    "typecheckBuildLintExport": "PASS",
+    "secretAndPortalChecks": "PASS"
+  },
+  "requiredTestIds": {
+    "W07": "PASS - the wallet binding was disconnected before Worker execution, but the frozen recipient was minted",
+    "M01": "PASS - two workers raced and exactly one lease produced one NFT effect",
+    "M02": "PASS - a pre-existing reward key was recovered without another submission",
+    "M03": "PASS - lease race and expired lease recovery were idempotent",
+    "M04": "PASS - wrong RPC chain, missing contract code, and missing MINTER role were rejected before submission",
+    "M05": "PASS - a mined transaction with a different recipient event was rejected",
+    "M06": "PASS - repeated event ingestion preserved one chain event/asset; a confirmations=2 event was rejected before finality and disappeared after Anvil snapshot revert",
+    "M07": "PASS - disconnecting or changing the current wallet did not change the fixed job recipient",
+    "M08": "PASS - from a simulated restored pre-mint DB state, the existing on-chain reward key restored final state without reminting"
+  },
+  "physicalAndroidFlow": {
+    "requestConfirmation": "PASS - full public test address, Local Anvil chain, transfer restriction, service-paid gas, and public ledger notice shown before request",
+    "queued": "PASS - app collectible stayed collected while actual NFT showed NFT 접수 and actual NFT count remained zero",
+    "finalized": "PASS - polling changed the card to 등록 완료 only after event reconciliation and showed chain, contract, and token #1",
+    "recovery": "PASS - resetting only local asset/event rows and rerunning Worker restored the same token #1",
+    "chainObservation": {
+      "tokenByRewardKey": "1",
+      "owner": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+      "locked": true,
+      "databaseAssets": 1,
+      "databaseEvents": 1,
+      "databaseSubmissionAttemptsDuringRecovery": 0,
+      "pendingOutbox": 0
+    }
+  },
+  "screenshots": [
+    "docs/evidence/screenshots/android-nft-confirm.png",
+    "docs/evidence/screenshots/android-nft-queued.png",
+    "docs/evidence/screenshots/android-nft-finalized.png"
+  ],
+  "boundaries": {
+    "baseSepolia": "BLOCKED - no dedicated funded test deployer",
+    "mainnet": "NOT_RUN",
+    "productionSigner": "NOT_RUN",
+    "publicDeployment": "NOT_RUN"
+  }
+}

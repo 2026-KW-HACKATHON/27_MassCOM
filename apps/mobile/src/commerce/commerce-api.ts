@@ -58,8 +58,23 @@ export type CollectionSnapshot = {
     targetVisitCount: 1 | 3 | 5;
     displayName: string;
     appCollectibleStatus: 'COLLECTED';
-    nftStatus: 'NOT_REQUESTED' | 'REQUESTED' | 'FULFILLED';
+    mintJobId: string | null;
+    recipient: string | null;
+    nftStatus: 'NOT_REQUESTED' | 'QUEUED' | 'CONFIRMING' | 'FINALIZED' | 'REVIEW_REQUIRED';
+    nft: null | {
+      chainId: number;
+      contractAddress: string;
+      tokenId: string;
+    };
   }[];
+};
+
+export type MintJobResponse = {
+  jobId: string;
+  status: 'QUEUED' | 'PREPARED' | 'SUBMITTED' | 'CONFIRMING' | 'FINALIZED' | 'RETRYABLE' | 'PAUSED' | 'MANUAL_REVIEW';
+  chainId: number;
+  recipient: string;
+  nft: null | { contractAddress: string; tokenId: string };
 };
 
 type Options = {
@@ -153,6 +168,33 @@ export function createCommerceApiClient(options: Options) {
 
     async getCollection(): Promise<CollectionSnapshot> {
       return parseCollection(await request('/collection'));
+    },
+
+    async requestMint(input: {
+      entitlementId: string;
+      walletBindingId: string;
+      bindingVersion: number;
+      consentVersion: string;
+      idempotencyKey: string;
+    }): Promise<MintJobResponse & { replayed: boolean }> {
+      return parseMintRequest(
+        await request(`/entitlements/${encodeURIComponent(input.entitlementId)}/mint`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'idempotency-key': input.idempotencyKey,
+          },
+          body: JSON.stringify({
+            walletBindingId: input.walletBindingId,
+            bindingVersion: input.bindingVersion,
+            consentVersion: input.consentVersion,
+          }),
+        }),
+      );
+    },
+
+    async getMintJob(jobId: string): Promise<MintJobResponse> {
+      return parseMintJob(await request(`/mint-jobs/${encodeURIComponent(jobId)}`));
     },
   };
 }
@@ -310,9 +352,10 @@ function parseCollectible(value: unknown): CollectionSnapshot['collectibles'][nu
     !isGoal(value.targetVisitCount) ||
     !isString(value.displayName) ||
     value.appCollectibleStatus !== 'COLLECTED' ||
-    (value.nftStatus !== 'NOT_REQUESTED' &&
-      value.nftStatus !== 'REQUESTED' &&
-      value.nftStatus !== 'FULFILLED')
+    (value.mintJobId !== null && !isString(value.mintJobId)) ||
+    (value.recipient !== null && !isString(value.recipient)) ||
+    !isNftStatus(value.nftStatus) ||
+    (value.nft !== null && !isNftAsset(value.nft))
   ) {
     throw invalidResponse('도감');
   }
@@ -325,8 +368,48 @@ function parseCollectible(value: unknown): CollectionSnapshot['collectibles'][nu
     targetVisitCount: value.targetVisitCount,
     displayName: value.displayName,
     appCollectibleStatus: 'COLLECTED',
+    mintJobId: value.mintJobId,
+    recipient: value.recipient,
     nftStatus: value.nftStatus,
+    nft: value.nft,
   };
+}
+
+function parseMintRequest(value: unknown): MintJobResponse & { replayed: boolean } {
+  if (!isRecord(value) || typeof value.replayed !== 'boolean') throw invalidResponse('NFT 접수');
+  return { ...parseMintJob(value), replayed: value.replayed };
+}
+
+function parseMintJob(value: unknown): MintJobResponse {
+  if (
+    !isRecord(value) ||
+    !isString(value.jobId) ||
+    !isMintJobStatus(value.status) ||
+    !isPositiveInteger(value.chainId) ||
+    !isString(value.recipient) ||
+    (value.nft !== null && !isNftAsset(value.nft))
+  ) {
+    throw invalidResponse('NFT 작업');
+  }
+  return {
+    jobId: value.jobId,
+    status: value.status,
+    chainId: value.chainId,
+    recipient: value.recipient,
+    nft: value.nft,
+  };
+}
+
+function isNftStatus(value: unknown): value is CollectionSnapshot['collectibles'][number]['nftStatus'] {
+  return value === 'NOT_REQUESTED' || value === 'QUEUED' || value === 'CONFIRMING' || value === 'FINALIZED' || value === 'REVIEW_REQUIRED';
+}
+
+function isMintJobStatus(value: unknown): value is MintJobResponse['status'] {
+  return value === 'QUEUED' || value === 'PREPARED' || value === 'SUBMITTED' || value === 'CONFIRMING' || value === 'FINALIZED' || value === 'RETRYABLE' || value === 'PAUSED' || value === 'MANUAL_REVIEW';
+}
+
+function isNftAsset(value: unknown): value is { chainId: number; contractAddress: string; tokenId: string } {
+  return isRecord(value) && isPositiveInteger(value.chainId) && isString(value.contractAddress) && isString(value.tokenId);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

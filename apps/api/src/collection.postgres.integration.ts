@@ -20,7 +20,7 @@ test('collection separates valid visits, app collectibles, and NFT state without
   t.after(() => pool.end());
   await runMigrations(pool);
   await pool.query(
-    'TRUNCATE reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
+    'TRUNCATE nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
   );
   await pool.query(
     `INSERT INTO merchants
@@ -81,7 +81,94 @@ test('collection separates valid visits, app collectibles, and NFT state without
         '2026-09-19T03:00:00Z', '2026-12-18T03:00:00Z'),
        ('20000000-0000-4000-8000-000000000003', 'customer-1', 'campaign-a', 5,
         '10000000-0000-4000-8000-000000000001', 'FULFILLED', 'fixed-1',
-        '2026-09-19T03:00:00Z', '2026-12-18T03:00:00Z')`,
+       '2026-09-19T03:00:00Z', '2026-12-18T03:00:00Z')`,
+  );
+  await pool.query(
+    `INSERT INTO wallet_bindings (
+       id, account_id, address_checksum, address_normalized, chain_id,
+       binding_version, status, verified_at, created_at, updated_at
+     ) VALUES (
+       '30000000-0000-4000-8000-000000000001', 'customer-1',
+       '0x4000000000000000000000000000000000000004',
+       '0x4000000000000000000000000000000000000004',
+       84532, 1, 'VERIFIED', '2026-09-19T03:00:00Z',
+       '2026-09-19T03:00:00Z', '2026-09-19T03:00:00Z'
+     )`,
+  );
+  await pool.query(
+    `INSERT INTO nft_series (
+       id, campaign_id, target_visit_count, chain_id, contract_address,
+       contract_address_normalized, series_key, max_ever_minted, status
+     ) VALUES
+       ('series-goal-3', 'campaign-a', 3, 84532,
+        '0x7000000000000000000000000000000000000007',
+        '0x7000000000000000000000000000000000000007',
+        decode(repeat('33', 32), 'hex'), 10, 'ACTIVE'),
+       ('series-goal-5', 'campaign-a', 5, 84532,
+        '0x7000000000000000000000000000000000000007',
+        '0x7000000000000000000000000000000000000007',
+        decode(repeat('55', 32), 'hex'), 10, 'ACTIVE')`,
+  );
+  await pool.query(
+    `INSERT INTO mint_jobs (
+       id, entitlement_id, account_id, nft_series_id, reward_key,
+       wallet_binding_id, binding_version, recipient_address,
+       recipient_address_normalized, chain_id, contract_address,
+       contract_address_normalized, series_key, consent_version,
+       idempotency_key, request_fingerprint, status, transaction_hash,
+       token_id, finalized_at, created_at, updated_at
+     ) VALUES
+       ('40000000-0000-4000-8000-000000000002',
+        '20000000-0000-4000-8000-000000000002', 'customer-1', 'series-goal-3',
+        decode(repeat('43', 32), 'hex'), '30000000-0000-4000-8000-000000000001', 1,
+        '0x4000000000000000000000000000000000000004',
+        '0x4000000000000000000000000000000000000004',
+        84532, '0x7000000000000000000000000000000000000007',
+        '0x7000000000000000000000000000000000000007',
+        decode(repeat('33', 32), 'hex'), 'nft-mint-v1', 'collection-job-3',
+        decode(repeat('63', 32), 'hex'), 'CONFIRMING', '0x${'73'.repeat(32)}',
+        NULL, NULL, '2026-09-19T03:00:00Z', '2026-09-19T03:00:00Z'),
+       ('40000000-0000-4000-8000-000000000003',
+        '20000000-0000-4000-8000-000000000003', 'customer-1', 'series-goal-5',
+        decode(repeat('45', 32), 'hex'), '30000000-0000-4000-8000-000000000001', 1,
+        '0x4000000000000000000000000000000000000004',
+        '0x4000000000000000000000000000000000000004',
+        84532, '0x7000000000000000000000000000000000000007',
+        '0x7000000000000000000000000000000000000007',
+        decode(repeat('55', 32), 'hex'), 'nft-mint-v1', 'collection-job-5',
+        decode(repeat('65', 32), 'hex'), 'FINALIZED', '0x${'75'.repeat(32)}',
+        5, '2026-09-19T03:05:00Z', '2026-09-19T03:00:00Z', '2026-09-19T03:05:00Z')`,
+  );
+  await pool.query(
+    `INSERT INTO chain_events (
+       id, chain_id, contract_address_normalized, transaction_hash, log_index,
+       block_number, block_hash, reward_key, series_key,
+       recipient_address_normalized, token_id, status, observed_at, finalized_at
+     ) VALUES (
+       '70000000-0000-4000-8000-000000000003', 84532,
+       '0x7000000000000000000000000000000000000007',
+       '0x${'75'.repeat(32)}', 2, 100, '0x${'85'.repeat(32)}',
+       decode(repeat('45', 32), 'hex'), decode(repeat('55', 32), 'hex'),
+       '0x4000000000000000000000000000000000000004', 5,
+       'FINALIZED', '2026-09-19T03:05:00Z', '2026-09-19T03:05:00Z'
+     )`,
+  );
+  await pool.query(
+    `INSERT INTO nft_assets (
+       id, mint_job_id, chain_event_id, chain_id, contract_address,
+       contract_address_normalized, token_id, reward_key, recipient_address,
+       recipient_address_normalized, finalized_at
+     ) VALUES (
+       '80000000-0000-4000-8000-000000000003',
+       '40000000-0000-4000-8000-000000000003',
+       '70000000-0000-4000-8000-000000000003', 84532,
+       '0x7000000000000000000000000000000000000007',
+       '0x7000000000000000000000000000000000000007', 5,
+       decode(repeat('45', 32), 'hex'),
+       '0x4000000000000000000000000000000000000004',
+       '0x4000000000000000000000000000000000000004',
+       '2026-09-19T03:05:00Z'
+     )`,
   );
 
   const result = await new PostgresCollectionReader(pool).getCollection('customer-1');
@@ -109,7 +196,14 @@ test('collection separates valid visits, app collectibles, and NFT state without
         targetVisitCount: 5,
         displayName: '다섯 번째 방문 마스코트',
         appCollectibleStatus: 'COLLECTED',
-        nftStatus: 'FULFILLED',
+        mintJobId: '40000000-0000-4000-8000-000000000003',
+        recipient: '0x4000000000000000000000000000000000000004',
+        nftStatus: 'FINALIZED',
+        nft: {
+          chainId: 84532,
+          contractAddress: '0x7000000000000000000000000000000000000007',
+          tokenId: '5',
+        },
       },
       {
         entitlementId: '20000000-0000-4000-8000-000000000002',
@@ -120,7 +214,10 @@ test('collection separates valid visits, app collectibles, and NFT state without
         targetVisitCount: 3,
         displayName: '세 번째 방문 마스코트',
         appCollectibleStatus: 'COLLECTED',
-        nftStatus: 'REQUESTED',
+        mintJobId: '40000000-0000-4000-8000-000000000002',
+        recipient: '0x4000000000000000000000000000000000000004',
+        nftStatus: 'CONFIRMING',
+        nft: null,
       },
       {
         entitlementId: '20000000-0000-4000-8000-000000000001',
@@ -131,9 +228,15 @@ test('collection separates valid visits, app collectibles, and NFT state without
         targetVisitCount: 1,
         displayName: '첫 방문 마스코트',
         appCollectibleStatus: 'COLLECTED',
+        mintJobId: null,
+        recipient: null,
         nftStatus: 'NOT_REQUESTED',
+        nft: null,
       },
     ],
   });
-  assert.doesNotMatch(JSON.stringify(result), /occurredAt|token|merchantReference/);
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /occurredAt|merchantReference|claimToken|"token"\s*:/,
+  );
 });

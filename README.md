@@ -2,7 +2,7 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-> 현재 상태: Phase 0~2 핵심 흐름 `VERIFIED` · Phase 3 양도 제한 NFT 계약 로컬 `VERIFIED`·발행 API/Worker `IN_PROGRESS` · 필수 시험 15 `PASS` / 2 `BLOCKED` / 19 `NOT_RUN`
+> 현재 상태: Phase 0~2 핵심 흐름 `VERIFIED` · Phase 3 계약→Outbox→Worker→Android 도감 로컬 `VERIFIED` · 필수 시험 24 `PASS` / 2 `BLOCKED` / 10 `NOT_RUN`
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](docs/index.html)
 
@@ -23,6 +23,7 @@
 - [방문 수령·도감 Android 증거](docs/evidence/android-claim-collection.json): 점주 권한·1회 코드·고객 수령·상태 분리
 - [다음 가게 추천 Android 증거](docs/evidence/android-recommendations.json): 미방문 우선·이유 공개·정원 제외·상세 복귀
 - [NFT 계약 로컬 증거](docs/evidence/foundry-contract-local.json): C01~C04·상한·reward key·영구 잠금·Anvil 발행
+- [Phase 3 발행·복구 증거](docs/evidence/phase3-worker-anvil-android.json): W07·M01~M08·Android 접수/완료·재발행 없는 복구
 - [보안 경계](docs/SECURITY.md): 허용 메서드·nonce·의존성 위험
 - [평가 대응표](docs/EVALUATION_MAP.md): 요구사항·Issue·PR·코드·시험·실증·발표 연결
 
@@ -59,10 +60,10 @@ python3 -m http.server 4173 --directory docs
 | PostgreSQL | `IN_PROGRESS` | 점포·캠페인·멤버십·claim slot·방문·보상권 migration 구현, 지갑 challenge 영속화는 후속 |
 | NFT 계약 | `VERIFIED` | PR #49, Foundry 8/8·fuzz 128·Anvil 31337 실제 1개 발행; Base Sepolia `NOT_RUN` |
 | wallet binding·mint job·Outbox | `IMPLEMENTED` | PR #50, SIWE 영속화·동시 20요청 job/Outbox 하나·고정 수령인 PostgreSQL 통합 PASS |
-| Worker | `IN_PROGRESS` | 계약·Outbox 완료, 체인 전송·이벤트 대조는 다음 Phase 3 PR |
+| Worker | `VERIFIED` | PR #51, PostgreSQL lease heartbeat·시도·이벤트·자산, 체인 설정 사전 검사, receipt/event/state 대조, 응답 유실·lease·재조직 전 확정 복구를 로컬 Anvil에서 검증 |
 | Reown 외부 지갑 코드 | `IMPLEMENTED` | AppKit 2.0.6, 외부 지갑 전용 기능 플래그·메서드 allowlist |
 | 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름·W06 PASS; W04 동일 세션 주소 전환과 W05 미지원 스마트지갑은 준비된 외부 환경 부재로 `BLOCKED` |
-| NFT 발행 전체 흐름 | `IN_PROGRESS` | 계약 C01~C04 PASS, API·Worker·Base Sepolia 미완료 |
+| NFT 발행 전체 흐름 | `VERIFIED` | Local Anvil에서 Android 접수→Worker→이벤트 대조→등록 완료와 기존 token #1 복구 PASS; Base Sepolia는 `BLOCKED` |
 | 외부 HTTPS·Play 제출 | `BLOCKED` | 계정·비용·정책·명시 승인 필요 |
 
 상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
@@ -85,7 +86,7 @@ Android 앱 ─┐
                     └─ 외부 지갑 주소 확인 서명
 ```
 
-현재 `apps/mobile`, `apps/api`, `apps/api/migrations`가 구현됐습니다. `apps/merchant-web`, `apps/worker`, `contracts`, `infra`는 후속 Phase에서 실제 실행 코드와 함께 추가합니다.
+현재 `apps/mobile`, `apps/api`, `apps/worker`, `apps/api/migrations`, `contracts`가 구현됐습니다. 별도 점주 웹과 운영 `infra`는 후속 Phase에서 실제 실행 코드와 함께 추가합니다.
 
 ## 기술 선택 상태
 
@@ -126,6 +127,21 @@ npm run lint --prefix apps/mobile
 npm run export:android --prefix apps/mobile
 ```
 
+Phase 3 계약·Worker 검증:
+
+```bash
+./scripts/forge.sh fmt --check
+./scripts/forge.sh build
+./scripts/forge.sh test -vvv
+./scripts/forge.sh lint
+npm ci --prefix apps/worker
+npm test --prefix apps/worker
+npm run typecheck --prefix apps/worker
+TEST_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_test' npm run test:postgres --prefix apps/worker
+```
+
+`npm run test:anvil --prefix apps/worker`는 별도 로컬 Anvil과 `_test` 데이터베이스가 필요합니다. Worker 실행 entrypoint는 `CHAIN_ID=31337`과 `ALLOW_UNLOCKED_LOCAL_MINTER=true`를 동시에 요구해 운영 키나 공개 체인에 사용할 수 없도록 제한했습니다.
+
 Phase 2 점포 카탈로그, 점포별 권한, QR 수령 슬롯, 방문·보상권 검증은 실제 PostgreSQL 연결이 필요합니다.
 
 ```bash
@@ -151,6 +167,7 @@ npm run test:postgres --prefix apps/api
 - Android 다음 가게: 미방문·다음 고정 보상 이유를 표시하고 기존 상세 탐색으로 복귀하는 순환 검증
 - NFT 계약: 고정 Docker Foundry로 C01~C04와 로컬 Anvil 발행 검증; 테스트넷·메인넷으로 표현하지 않음
 - NFT 발행 요청: 클라이언트 주소·series 입력을 무시하고 검증된 binding/version에서 수령인을 고정해 보상권·job·Outbox 원자 저장
+- NFT 발행 Worker: Local Anvil에서 중복 Worker·응답 유실·설정 오류·이벤트 불일치·확정 전 재조직·DB 복구를 검증하고 Android가 접수/확인 중/등록 완료를 구분
 - Android AAB·release package ID·App Link: `NOT_RUN`
 - 실제 Reown 지갑 흐름: MetaMask 핵심·W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `BLOCKED`
 - 테스트넷 계약: 배포 전

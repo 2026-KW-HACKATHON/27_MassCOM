@@ -18,7 +18,14 @@ export type CollectionCollectible = {
   targetVisitCount: 1 | 3 | 5;
   displayName: string;
   appCollectibleStatus: 'COLLECTED';
-  nftStatus: 'NOT_REQUESTED' | 'REQUESTED' | 'FULFILLED';
+  mintJobId: string | null;
+  recipient: string | null;
+  nftStatus: 'NOT_REQUESTED' | 'QUEUED' | 'CONFIRMING' | 'FINALIZED' | 'REVIEW_REQUIRED';
+  nft: null | {
+    chainId: number;
+    contractAddress: string;
+    tokenId: string;
+  };
 };
 
 export type CollectionSnapshot = {

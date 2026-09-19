@@ -83,7 +83,10 @@ type CollectionFixture = {
       targetVisitCount: 1 | 3 | 5;
       displayName: string;
       appCollectibleStatus: 'COLLECTED';
-      nftStatus: 'NOT_REQUESTED' | 'REQUESTED' | 'FULFILLED';
+      mintJobId: string | null;
+      recipient: string | null;
+      nftStatus: 'NOT_REQUESTED' | 'QUEUED' | 'CONFIRMING' | 'FINALIZED' | 'REVIEW_REQUIRED';
+      nft: null | { chainId: number; contractAddress: string; tokenId: string };
     }[];
   }>;
 };
@@ -465,7 +468,10 @@ test('returns an authenticated collection without exposing claim tokens or exact
         targetVisitCount: 1 as const,
         displayName: '첫 방문 마스코트',
         appCollectibleStatus: 'COLLECTED' as const,
+        mintJobId: null,
+        recipient: null,
         nftStatus: 'NOT_REQUESTED' as const,
+        nft: null,
       },
     ],
   };

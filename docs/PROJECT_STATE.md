@@ -8,91 +8,62 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 기준 | Phase 3 mint request·Outbox PR #50; Issue #48 마지막 Worker PR 남음 |
-| 현재 검증 기준 | `feat/phase3-mint-outbox@14e6eab`, API 34개·PostgreSQL 8개·모바일 44개·Foundry 8개 PASS |
-| 최근 main 기준선 | PR #49 merge `25cf801`, main CI run `35444126068` PASS |
-| Phase 1 종료 Issue | #25 실제 지갑 검증, #27·#31 거절 처리, #33 미설치 지갑 실기 |
-| Phase 1 merge PR | #26 실제 지갑 안정화, #28·#32 거절 처리, #34 미설치 지갑 안내 |
+| 현재 작업 | `feat/phase3-mint-worker`, PR #51 CI·리뷰·merge |
+| 현재 검증 기준 | `7ca3c72`·`d4597cd`, Worker/Anvil/Android 발행·복구 전체 로컬 PASS |
+| 최근 main 기준선 | PR #50 merge `4984841`; main CI 결과는 최종 PR 전에 재확인 |
 
 ## Phase 상태
 
 | Phase | 상태 | 실제 근거 |
 | --- | --- | --- |
-| Phase 0 저장소·개발 기반 | `VERIFIED` | PR #2·#4·#6·#8, CI PASS |
-| Phase 1 외부 지갑 연결 | `IN_PROGRESS` | API 15개·모바일 24개 자동화 PASS, 핵심 흐름·W06 PASS; W04·W05 외부 지갑 환경 `BLOCKED` |
-| Phase 2 지역 상권 핵심 기능 | `VERIFIED` | loopback DEMO에서 탐색→점주 발급→고객 수령→도감→이유가 보이는 추천→상세 순환 PASS; 카메라 QR·외부 HTTPS는 별도 |
-| Phase 3 NFT | `IN_PROGRESS` | 계약·wallet binding·mint job·Outbox 구현, C01~C04와 원자 저장 PASS; Worker·Base Sepolia 미완료 |
-| Phase 4 출시 기반 | `PLANNED` | 외부 HTTPS·AAB·탈퇴·복원 미착수 |
+| Phase 0 저장소·개발 기반 | `VERIFIED` | README·프로젝트 포털·한국어 PR 검사·CI |
+| Phase 1 외부 지갑 연결 | `IN_PROGRESS` | MetaMask 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED`, W06 PASS; W04·W05 외부 환경 `BLOCKED` |
+| Phase 2 지역 상권 핵심 기능 | `VERIFIED` | loopback DEMO 탐색→점주 발급→고객 수령→도감→추천→상세 순환 PASS |
+| Phase 3 NFT | `VERIFIED` | Local Anvil 계약→원자 job/Outbox→Worker→이벤트 대조→Android 등록 완료·복구 PASS; Base Sepolia `BLOCKED` |
+| Phase 4 출시 기반 | `PLANNED` | 외부 HTTPS·계정 삭제·개인정보·release AAB·운영 복원 미착수 |
 | Phase 5 대회 검증·발표 | `PLANNED` | 현장 검증·영상·제출 버전 미착수 |
 | Phase 6 후속 기능 | `PLANNED` | 별도 승인 전 미착수 |
 
-## 기능 상태
+## 구현·검증 완료
 
-### 구현 완료
+- Expo Android 앱, Reown 외부 지갑 전용 연결, 금지 RPC 메서드 차단
+- ERC-4361 주소 확인, nonce 단일 소비, 버전된 PostgreSQL wallet binding
+- 공개 음식점·캠페인, 점포별 OWNER/STAFF 권한, 1인 일회용 방문 코드
+- QR slot 소비·방문·KST 일일 진행·첫/3/5회 고정 보상권 원자 처리
+- 방문·앱 수집품·실제 NFT를 분리한 도감과 이유가 보이는 다음 가게 추천
+- OpenZeppelin ERC-721/ERC-5192 계약의 역할·누적 상한·reward key·영구 잠금
+- 보상권·고정 수령인 mint job·Outbox 원자 생성과 동일 요청 20개 수렴
+- Worker의 `SKIP LOCKED` lease·heartbeat, 제출 attempt, 체인 이벤트, NFT 자산, cursor 저장
+- 전송 전 chain/contract/MINTER 검사와 receipt·계약·수령인·series·reward key·owner·locked 대조
+- 응답 유실, 두 Worker 경쟁, lease 만료, 이벤트 반복, 확정 전 재조직, DB 자산 복구
+- Samsung Android 16에서 NFT 공개 안내→접수→등록 완료와 기존 token #1 재전송 없는 복구
 
-- 저장소 문서·CI·한국어 PR 검사와 프로젝트 포털
-- Expo Android development build 기준선
-- Reown 외부 지갑 전용 설정과 금지 RPC 메서드 차단
-- ERC-4361 challenge·서명 복구·nonce 단일 소비 API
-- 로그인·지갑 없이 조회하는 `GET /merchants`
-- PostgreSQL `merchants`·`campaigns`·`campaign_goals` migration
-- 활성 점포와 공개·현재 캠페인만 반환하는 실제 PostgreSQL 통합 테스트
-- Reown 설정과 분리된 공개 API 설정, 런타임 응답 검증, 지갑 없는 음식점 목록·상세
-- Samsung Android 16에서 DEMO 3곳 목록·상세·고정 보상 조건·선택적 지갑 이동
-- 점주 STAFF 권한→1인 코드 발급·재발급→고객 preview/redeem→도감 Android 흐름
-- 계정별 `GET /collection`, 방문·앱 수집품·NFT 상태 분리와 정확한 식사 시각 제외
-- 정원 마감 제외·미방문 우선·다음 고정 보상 설명·한국 날짜별 순위 회전 추천
-- OpenZeppelin 기반 ERC-721/ERC-5192 계약, 역할 분리·누적 상한·reward key·영구 잠금
-- Foundry 8/8·fuzz 128과 Anvil chain 31337 배포·시리즈·NFT 1개 발행
-- SIWE wallet binding 영속화·버전 변경·주소 중복 방지
-- 보상권·고정 수령인 mint job·Outbox 한 트랜잭션, 동일 요청 20개 job 하나
-- PostgreSQL `merchant_members` migration과 점포별 `OWNER`·`STAFF` 권한 경계
-- 다른 점포·무소속·철회 계정 거절과 철회 즉시 반영 Q05 통합 테스트
-- PostgreSQL `claim_slots` migration과 token SHA-256·주문 참조 HMAC-SHA-256 저장
-- 1인용 슬롯 발급·버전 잠금 재발급·preview·동시 단일 소비, Q02·Q03 통합 테스트
-- PR #20 merge와 main CI run `35304829656` PASS
-- PostgreSQL `visit_events`·`reward_entitlements` migration
-- 슬롯 소비·방문 이벤트·KST 일일 진행도·첫/3/5회 보상권 원자 트랜잭션
-- Q01·R01·R03 실제 PostgreSQL 동시성·경계·중복 평가 통합 테스트
-- PR #22 merge `158067c`와 main CI run `35306108718` PASS
-- Samsung SM-S928N 실제 기기의 debug APK 설치·Metro 실행·홈 복귀·콜드 스타트
-- 공식 MetaMask 8.11.0 설치·첫 화면 실행(지갑 생성·가져오기 미수행)
-- 실제 MetaMask WalletConnect 연결·Base Sepolia 승인·읽을 수 있는 `personal_sign`·서버 주소 확인 `VERIFIED`
-- 콜드 재시작에서 지갑 세션 복원과 주소 확인 상태의 안전한 `UNVERIFIED` 초기화
-- UniversalProvider 2.23.5 override와 초기 체인 이벤트 경쟁 회귀 테스트
-- EIP-1193 4001·WalletConnect 5000~5003·Reown 체인 전환 거절의 취소 상태 정규화
-- Reown 체인 전환 성공·4001 변환·4902 전파와 add-chain 미요청 특성화 테스트
-- Reown 연결 거절 `USER_REJECTED` 이벤트를 앱의 `UNVERIFIED` 취소 상태와 보존 안내로 연결
-- Reown `GET_WALLET` 스토어 이동을 미설치 지갑 상태로 연결하고 앱 자체 한국어 재시도·보존 안내 표시
+## 미완료
 
-### 진행 중
+- Android 카메라 QR·수동 코드 대체 입력·오프라인 A01
+- 단체 QR Q04, 캠페인 마지막 자리 등록 R02
+- W04 동일 세션 서명 중 주소 변경, W05 미지원 스마트 지갑 실기
+- 배포 빌드의 SDK 진입점 W08, 탈퇴·계정 전환·전 범위 개인정보 D01~D03
+- release AAB·16KB·App Link A02, 운영 권한·장애 복원 O01~O02
+- 외부 HTTPS·Base Sepolia·운영 signer·mainnet·Google Play·공개 데모
 
-- PR #50 CI·리뷰·merge와 main CI 확인
-- Worker lease·체인 전송·receipt/event 대조·Android 상태
-- W04 MetaMask 동일 세션 주소 변경·W05 미지원 스마트지갑 실제 환경 blocker
+## 검증 상태
 
-### 미구현
+- 필수 36개: `24 PASS / 2 BLOCKED / 10 NOT_RUN`
+- API 단위: `34/34 PASS`; PostgreSQL: `8/8 PASS`
+- Worker 단위: `6/6 PASS`; PostgreSQL: `1/1 PASS`; Anvil W07/M01~M08: `PASS`
+- 모바일: `45/45 PASS`; typecheck·lint·Android export `PASS`
+- Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
+- 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`
+- production dependency audit: API·Worker high 이상 0; 모바일 high 이상 0, Expo 전이 moderate 14건은 B-008
 
-- Android 카메라 QR, 방문 취소·오입력, 단체 QR, 추천
-- PostgreSQL 지갑 challenge 영속화
-- NFT 계약·발행 Worker·Outbox·체인 이벤트 수집
-- 계정 삭제·개인정보·백업 복원·Android release AAB
+## BLOCKED
 
-### BLOCKED
+- B-002 저장소 공개 전환과 심사 public 준비: 명시 승인 필요
+- B-003 외부 HTTPS·유료 클라우드: 비용·계정 승인 필요
+- B-004/B-007 Google Play 정책·release package ID: 공식 확인과 결정 필요
+- B-008 Expo 전이 moderate advisory: 호환되는 upstream 수정 필요
+- B-010/B-011 W04·W05용 실제 지갑 환경 부재
+- B-012 Base Sepolia 전용 배포자·faucet gas 부재
 
-- 외부 HTTPS·유료 AWS 자원: 비용·계정 승인 필요
-- 저장소/포털 공개, Google Play 배포, 대회 제출: 명시 승인 필요
-
-## 검증·배포 상태
-
-- Foundry 계약 테스트: `PASS` 8개, fuzz 128 runs, C01~C04 `PASS`
-- API 단위 테스트: `PASS` 34개
-- PostgreSQL 18 통합 테스트: `PASS` 8개(기존 6개 + wallet binding·mint request/Outbox)
-- v3 필수 36개: W01·W02·W03·W06·W09·Q01·Q02·Q03·Q05·R01·R03·C01·C02·C03·C04 `PASS`, W04·W05 `BLOCKED`, 나머지 19개 `NOT_RUN`
-- 모바일 단위 테스트: `PASS` 44개, typecheck·lint·Android export `PASS`
-- Android: 음식점 탐색→점주 권한→1회 코드→고객 수령→도감→추천→상세 `PASS`; 카메라 QR `NOT_RUN`
-- 외부 지갑 핵심 흐름·W06 `PASS`; Account 1/2 재연결 검증 격리 PASS; MetaMask 동일 세션 주소 변경과 미지원 스마트지갑 실기는 `BLOCKED`
-- 공개 HTTPS·GitHub Pages·Play: 미배포
-- NFT: 로컬 Anvil 계약·발행 PASS, Base Sepolia·Worker·외부 RPC `BLOCKED/NOT_RUN`
-
-상세 실행 근거는 [TEST_STATUS.md](TEST_STATUS.md), 차단 사유는 [BLOCKERS.md](BLOCKERS.md), 다음 세션 명령은 [HANDOFF.md](HANDOFF.md)를 기준으로 합니다.
+상세 실행 근거는 [TEST_STATUS.md](TEST_STATUS.md), Phase 3 증거는 [phase3-worker-anvil-android.json](evidence/phase3-worker-anvil-android.json), 차단 사유는 [BLOCKERS.md](BLOCKERS.md), 다음 세션 상태는 [HANDOFF.md](HANDOFF.md)를 기준으로 합니다.

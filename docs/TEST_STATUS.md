@@ -18,17 +18,17 @@
 | W04 | Android·지갑 | BLOCKED | 서명 도중 지갑 주소 변경 | 기존 원문·확인 상태 무효 | mismatch 자동화와 Account 1 VERIFIED → Account 2 재연결 UNVERIFIED 격리 PASS. MetaMask 8.11.0은 같은 세션 계정 편집을 제공하지 않아 정확한 서명 중 변경 실기 BLOCKED |
 | W05 | Android·지갑 | BLOCKED | 지원하지 않는 스마트 지갑 | 무검증 우회 없이 설명·거절 | 준비된 지갑은 EOA뿐이며 새 지갑 생성·복구 문구 접근 없이 사용할 실제 스마트 지갑 환경 없음 |
 | W06 | Android 실기 | PASS | 지갑 미설치·서명 거절·복귀 실패 | 안내와 재시도, 보상권 유지 | 서명·연결 거절 PASS. 미설치 SafePal → Google Play → 수동 앱 복귀·한국어 안내·pending proposal 취소 후 6분 지연 오류 없음 |
-| W07 | DB·Worker | NOT_RUN | 주소 연결 해제와 전송 경쟁 | 고정 수령인·명확한 작업 상태 | Worker 미구현 |
+| W07 | DB·Worker | PASS | 주소 연결 해제와 전송 경쟁 | 고정 수령인·명확한 작업 상태 | job 생성 뒤 binding을 `DISCONNECTED`로 바꿔도 Local Anvil NFT owner가 요청 시 고정 수령인과 일치 |
 | W08 | 배포 빌드 검사 | NOT_RUN | SDK 구매·스왑·내장 지갑 기본값 | 배포 빌드에 해당 진입점 없음 | 개발 코드 경계 PASS, 배포 빌드 NOT_RUN |
 | W09 | 요청 경계 | PASS | 예기치 않은 송금·approve 요청 | 앱 요청 경계에서 거절 | allowlist 외 요청 provider 호출 전 거절 PASS |
-| M01 | Worker·체인 | NOT_RUN | 같은 발급 버튼·Worker 중복 실행 | 온체인 NFT 하나 | 미구현 |
-| M02 | Worker·체인 | NOT_RUN | 전송 직후 응답 유실 | 기존 발행 조회, 새 보상 키 금지 | 미구현 |
-| M03 | Worker·체인 | NOT_RUN | Worker 재시작·nonce 경합 | 순번 충돌·중복 효과 없음 | 미구현 |
-| M04 | 설정 검증 | NOT_RUN | 잘못된 체인·계약 설정 | 전송 전에 차단 | 미구현 |
-| M05 | 이벤트 검증 | NOT_RUN | receipt 성공이지만 다른 이벤트 | 완료 처리 거절 | 미구현 |
-| M06 | 인덱서·체인 | NOT_RUN | 이벤트 반복 수집·재조직 | 중복 없음, 확정 전 되돌림 가능 | 미구현 |
-| M07 | DB·Worker | NOT_RUN | 민팅 도중 프로필 지갑 변경 | 이미 고정한 수령인 유지 | 미구현 |
-| M08 | 복원 | NOT_RUN | DB 백업 복원 후 재처리 | 기존 NFT를 다시 발행하지 않음 | 미구현 |
+| M01 | Worker·체인 | PASS | 같은 발급 버튼·Worker 중복 실행 | 온체인 NFT 하나 | 두 Worker 동시 lease에서 한 작업만 실행, 세 job의 reward key별 token 하나·DB asset 하나 |
+| M02 | Worker·체인 | PASS | 전송 직후 응답 유실 | 기존 발행 조회, 새 보상 키 금지 | 외부 선발행 뒤 Worker가 `tokenByRewardKey`와 이벤트를 찾아 제출 attempt 없이 복구 |
+| M03 | Worker·체인 | PASS | Worker 재시작·nonce 경합 | 순번 충돌·중복 효과 없음 | `SKIP LOCKED` lease 경쟁 한 명만 성공, 만료 lease 재획득과 attempt 고유 제약 PASS |
+| M04 | 설정 검증 | PASS | 잘못된 체인·계약 설정 | 전송 전에 차단 | 실제 Anvil에서 RPC chain 불일치·contract code 없음·MINTER role 없음 모두 submit 전 거절 |
+| M05 | 이벤트 검증 | PASS | receipt 성공이지만 다른 이벤트 | 완료 처리 거절 | 실제 성공 receipt의 recipient를 job과 다르게 대조해 `MINT_EVENT_MISMATCH` 거절 |
+| M06 | 인덱서·체인 | PASS | 이벤트 반복 수집·재조직 | 중복 없음, 확정 전 되돌림 가능 | 동일 이벤트 반복 finalize가 event/asset 하나 유지; confirmations=2에서 미확정 이벤트 거절 후 Anvil snapshot revert에서 미발행으로 복귀 |
+| M07 | DB·Worker | PASS | 민팅 도중 프로필 지갑 변경 | 이미 고정한 수령인 유지 | binding 해제/새 버전과 무관하게 job recipient·실제 owner 동일 |
+| M08 | 복원 | PASS | DB 백업 복원 후 재처리 | 기존 NFT를 다시 발행하지 않음 | 로컬 asset/event 행 제거 뒤 기존 reward key/token #1을 조회해 attempt 0으로 자산·이벤트 복원 |
 | C01 | Foundry 계약 | PASS | 비민터 발행·민터 권한 상승 | 계약에서 거절 | 비민터 mint와 MINTER의 admin grant 모두 `AccessControlUnauthorizedAccount` |
 | C02 | Foundry 속성 | PASS | 누적 상한 경계·중복 발행 키 | 상한·일회성 유지 | cap+1·중복 rewardKey 거절, 128회 fuzz에서 `everMinted ≤ maxEverMinted` |
 | C03 | Foundry 계약 | PASS | 모든 전송·우회 경로 | 잠긴 NFT는 이전 불가 | approve·setApprovalForAll·transferFrom·safeTransferFrom 2종과 내부 `_update` 거절 |
@@ -74,5 +74,6 @@
 | 2026-09-19 KST | `0af854a`, PR #47 | API 31개·PostgreSQL 6개·모바일 43개·Android export·추천 순서/이유/정원 제외→상세 | Samsung SM-S928N·Android 16·PostgreSQL 18 loopback DEMO | PASS, 현장 사용자 행동·외부 HTTPS `NOT_RUN` | `docs/evidence/android-recommendations.json`; 미방문 2·방문 1·정원 마감 1 DEMO fixture |
 | 2026-09-19 KST | `e6aae59`, PR #49 | Foundry fmt·build·lint·8 tests·128 fuzz, Anvil deploy→series→mint→owner/locked/event | Foundry 1.8.3 Docker·Solidity 0.8.24·Anvil chain 31337 | C01~C04 PASS, Base Sepolia `BLOCKED` | `docs/evidence/foundry-contract-local.json`; private key·mnemonic 미기록 |
 | 2026-09-19 KST | `14e6eab`, PR #50 | API 34개·PostgreSQL 8개·모바일 44개·동일 mint request 20개·binding 주소 변경 | PostgreSQL 18 Alpine·Node·Expo | 원자 job/Outbox·replay 19·수령인 고정 PASS; W07·M01·M07 전체는 Worker 전까지 `NOT_RUN` | `docs/evidence/mint-request-outbox.json`; reward key API/Outbox 미노출 |
+| 2026-09-19 KST | `7ca3c72`·`d4597cd`, PR #51 | Worker 6개·Worker PostgreSQL 1개·Anvil W07/M01~M08·API 34개·API PostgreSQL 8개·모바일 45개·Foundry 8개/fuzz128·Android export·secret/portal | Node 25.9.0·PostgreSQL 18 Alpine·Foundry 1.8.3·Anvil 31337·Samsung SM-S928N Android 16 | PASS; Android 접수→등록 완료와 기존 token #1 attempt 0 복구, 30ms lease heartbeat·소유권 상실 전송 차단 PASS, Base Sepolia `BLOCKED` | `docs/evidence/phase3-worker-anvil-android.json`; 공개 Anvil 시험 주소만 기록, private key·mnemonic 미기록 |
 
-Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R03은 각각 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04·R02는 계속 `NOT_RUN`입니다.
+Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R03은 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04·R02는 계속 `NOT_RUN`입니다. Phase 3의 W07·M01~M08은 로컬 Anvil·PostgreSQL·실기기 증거이며 Base Sepolia나 운영 배포 성공을 뜻하지 않습니다.
