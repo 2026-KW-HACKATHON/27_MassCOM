@@ -281,7 +281,11 @@ export class WalletChallengeService {
       // Once the binding exists the nonce must never return to pending, or the same signature replays.
       if (bindingRecorded) throw error;
       // A challenge removed mid-verify (expiry purge, account deletion) must not mask the real failure.
-      await this.#store.release(record.challengeId).catch(() => undefined);
+      await this.#store.release(record.challengeId).catch((releaseError: unknown) => {
+        console.error('wallet challenge release failed', {
+          name: releaseError instanceof Error ? releaseError.name : 'UnknownError',
+        });
+      });
       if (error instanceof WalletChallengeError) {
         throw error;
       }
