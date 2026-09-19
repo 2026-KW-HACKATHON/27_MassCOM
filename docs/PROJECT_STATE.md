@@ -1,6 +1,6 @@
 # 프로젝트 상태
 
-마지막 갱신 시각: 2026-09-18 KST
+마지막 갱신 시각: 2026-09-19 KST
 
 ## 기준선
 
@@ -8,9 +8,9 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 기준 | `fix/31-wallet-rejection-event`, PR #32 OPEN |
-| 현재 통합 기준 | `main@9c5ad0ef63a5ee918a84f71efa45e88d6576d104`, CI run `35320255132` PASS |
-| 최근 merge | PR #30, `9c5ad0e` |
+| 현재 작업 기준 | `test/33-wallet-missing-return@1dba58f`, PR #34 OPEN |
+| 현재 통합 기준 | `main@e34f3d52016be8ba7ab68af5925d6829e4da48e7`, CI run `35323830141` PASS |
+| 최근 merge | PR #32, `e34f3d5` |
 | Phase 1 종료 Issue | #25 실제 지갑 검증, #27 거절 정규화 |
 | Phase 1 merge PR | #26 실제 지갑 안정화, #28 거절 처리 보완 |
 
@@ -19,7 +19,7 @@
 | Phase | 상태 | 실제 근거 |
 | --- | --- | --- |
 | Phase 0 저장소·개발 기반 | `VERIFIED` | PR #2·#4·#6·#8, CI PASS |
-| Phase 1 외부 지갑 연결 | `IN_PROGRESS` | API 15개·모바일 21개 자동화 PASS, 실제 Android·MetaMask 연결·Base Sepolia·서명·서버 확인·콜드 재시작·서명/연결 거절 안내 PASS; W04·W05·W06 잔여 실기 |
+| Phase 1 외부 지갑 연결 | `IN_PROGRESS` | API 15개·모바일 22개 자동화 PASS, 실제 연결·서명·거절·미설치 지갑 복귀 W06 PASS; W04·W05 잔여 실기 |
 | Phase 2 지역 상권 핵심 기능 | `IN_PROGRESS` | 카탈로그·점포 권한·일회용 QR·방문·고정 보상권 merge 완료 |
 | Phase 3 NFT | `PLANNED` | 계약·Worker·테스트넷 미착수 |
 | Phase 4 출시 기반 | `PLANNED` | 외부 HTTPS·AAB·탈퇴·복원 미착수 |
@@ -54,10 +54,11 @@
 - EIP-1193 4001·WalletConnect 5000~5003·Reown 체인 전환 거절의 취소 상태 정규화
 - Reown 체인 전환 성공·4001 변환·4902 전파와 add-chain 미요청 특성화 테스트
 - Reown 연결 거절 `USER_REJECTED` 이벤트를 앱의 `UNVERIFIED` 취소 상태와 보존 안내로 연결
+- Reown `GET_WALLET` 스토어 이동을 미설치 지갑 상태로 연결하고 앱 자체 한국어 재시도·보존 안내 표시
 
 ### 진행 중
 
-- W04 주소 변경·W05 미지원 지갑·W06 미설치/거절/복귀 실패 실제 기기 예외 검증
+- W04 주소 변경·W05 미지원 스마트지갑 실제 기기 예외 검증
 
 ### 미구현
 
@@ -75,9 +76,9 @@
 
 - API 단위 테스트: `PASS` 25개
 - PostgreSQL 18 통합 테스트: `PASS` 4개(카탈로그·Q01~Q03·Q05·R01·R03, 로컬 Docker와 main CI)
-- v3 필수 36개: W01·W02·W03·W09·Q01·Q02·Q03·Q05·R01·R03 `PASS`, 나머지 26개 `NOT_RUN`
+- v3 필수 36개: W01·W02·W03·W06·W09·Q01·Q02·Q03·Q05·R01·R03 `PASS`, 나머지 25개 `NOT_RUN`
 - Android: debug APK 빌드·Android 16 16KB AVD와 Samsung SM-S928N 설치·실행·복귀 `PASS`
-- 외부 지갑 핵심 흐름: MetaMask 연결·Base Sepolia·주소 확인 서명·서버 검증·콜드 재시작 `PASS`; 주소 변경·미지원/미설치 지갑 등은 `NOT_RUN`
+- 외부 지갑 핵심 흐름: MetaMask 연결·Base Sepolia·주소 확인·거절 복귀와 Trust Wallet 미설치·스토어 복귀 안내 `PASS`; 주소 변경·미지원 스마트지갑은 `NOT_RUN`
 - 공개 HTTPS·GitHub Pages·Play: 미배포
 - NFT·테스트넷: 계약·전송 모두 미실행
 

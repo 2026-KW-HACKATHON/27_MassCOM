@@ -1,12 +1,12 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-18 KST
+마지막 갱신 시각: 2026-09-19 KST
 
 기준 브랜치: `main`
 
-통합 기준 커밋 SHA: `main@9c5ad0ef63a5ee918a84f71efa45e88d6576d104`, main CI run `35320255132` PASS
+통합 기준 커밋 SHA: `main@e34f3d52016be8ba7ab68af5925d6829e4da48e7`, main CI run `35323830141` PASS
 
-현재 작업: `fix/31-wallet-rejection-event`, PR #32 OPEN
+현재 작업: `test/33-wallet-missing-return@1dba58f`, PR #34 OPEN
 
 ## 이번 세션에서 완료한 것
 
@@ -23,16 +23,19 @@
 - Reown 연결 거절 `USER_REJECTED` 이벤트를 앱 취소 상태로 반영하는 Issue #31·PR #32 작성
 - SDK 체인 전환 성공·4001 변환·4902 전파에서 `wallet_addEthereumChain` 미요청 특성화 테스트 추가
 - Claude Code와 Astra high 독립 검증 후 HIGH·MEDIUM 0건 확인
+- Trust Wallet 미설치·Google Play 이동·수동 앱 복귀를 실기 검증하고 앱 자체 한국어 재시도·보존 안내 추가
 
 ## 종료한 Issue
 
 - #25 `test: 실제 MetaMask 연결과 주소 확인 서명을 검증한다`
 - #27 `fix: 지갑 연결 거절을 취소 상태로 정규화한다`
+- #31 `fix: 지갑 연결 거절 이벤트를 앱 취소 상태에 반영한다`
 
 ## 통합한 작업 브랜치
 
 - `test/25-wallet-device`
 - `fix/27-wallet-connection-rejection`
+- `fix/31-wallet-rejection-event`
 
 ## Phase 1에서 merge된 PR
 
@@ -44,10 +47,12 @@
 - #24, merge commit `f85234f`
 - #26, merge commit `782fef6`
 - #28, merge commit `bdeade4`
+- #30, merge commit `9c5ad0e`
+- #32, merge commit `e34f3d5`
 
 ## 실행한 테스트
 
-- 모바일 테스트 21/21, typecheck, lint `PASS`
+- 모바일 테스트 22/22, typecheck, lint `PASS`
 - Expo doctor 21/21, Android export 2,216 modules `PASS`
 - npm audit high 기준 `PASS`; 기존 moderate 14·low 1 유지
 - MetaMask 8.11.0 WalletConnect 연결 `PASS`
@@ -59,12 +64,13 @@
 - 연결 승인 거절 후 Android 뒤로가기로 앱에 복귀해 `NOT_CONNECTED / CHECK_REQUIRED / UNVERIFIED`와 보존 안내 표시 `PASS`; 자동 딥링크 복귀는 관측되지 않음
 - WalletConnect 연결 거절 5000~5003과 Reown 체인 전환 거절 변환 자동화 `PASS`
 - PR #28 최신 HEAD 모바일 19/19·typecheck·secret scan, Astra high 재검증 `PASS`
-- PR #32 최신 HEAD 모바일 21/21·typecheck·lint `PASS`; 최신 CI 확인 대기
+- PR #32 merge `e34f3d5`, main CI run `35323830141` `PASS`
+- 미설치 Trust Wallet → Google Play → 수동 앱 복귀 → 한국어 재시도·보존 안내 `PASS`
 
 ## 현재 Phase 1 상태
 
 - 핵심 흐름 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED`→콜드 재시작은 `VERIFIED`
-- W04 주소 변경, W05 미지원 지갑, W06 미설치·거절·복귀 실패 전체 묶음은 `NOT_RUN`
+- W06 미설치·거절·복귀 실패 묶음 `PASS`; W04 주소 변경과 W05 미지원 스마트지갑은 `NOT_RUN`
 
 ## BLOCKER
 
@@ -79,7 +85,7 @@
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. Phase 1 잔여 W04 주소 변경·W05 미지원 지갑·W06 지갑 미설치/자동 복귀 실패를 실행 환경별 별도 증거로 남김
+1. Phase 1 잔여 W04 주소 변경·W05 미지원 스마트지갑을 준비된 안전한 환경에서 별도 증거로 남김
 2. 실제 지갑 실기는 비밀번호·복구 문구·개인키를 공유하거나 기록하지 않고 사용자가 직접 잠금만 해제
 3. 실제로 실행하지 않은 예외 시험은 계속 `NOT_RUN`으로 유지
 4. Phase 2 이상, 공개 배포, Play 제출은 새 사용자 승인 없이 진행하지 않음
@@ -107,6 +113,6 @@ PostgreSQL 통합은 DB 이름이 `_test`로 끝나는 전용 `TEST_DATABASE_URL
 - Q01·Q02·Q03·Q05·R01·R03은 실제 PostgreSQL 증거로 PASS이며 Q04·R02는 계속 NOT_RUN
 - 정확한 식사 시각은 서비스 DB 감사 자료일 뿐 온체인·IPFS·공개 메타데이터에 넣지 않음
 - 방문 취소·도감 조회·Android QR 카메라를 구현 완료로 표시하지 않음
-- Phase 1 핵심 외부 지갑 흐름과 잔여 W04·W05·W06 예외를 구분함
+- Phase 1 핵심 외부 지갑 흐름·W06 실기 PASS와 잔여 W04·W05 예외를 구분함
 - 실제 Android 기기 일련번호·개인 앱 목록·지갑 비밀은 저장소에 기록하지 않음
 - 개인 private mirror는 사용자가 나중에 요청할 때만 생성
