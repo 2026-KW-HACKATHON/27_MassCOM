@@ -20,6 +20,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-19 | Codex | Phase 2 점주 발급·고객 수령·도감 | 도감 read model, 권한·발급·preview/redeem·도감 Android 화면, 테스트·문서 | TDD RED 후 API 27/27·PostgreSQL 5/5·모바일 40/40·Samsung 전체 흐름·중복 409 PASS | 로컬 진단에 노출된 DEMO token은 즉시 재발급 폐기; 저장소·사람 기여·운영 실적으로 기록하지 않음 |
 | 2026-09-19 | Codex | Phase 2 설명 가능한 추천·최종 통합 | 추천 정책·PostgreSQL 후보·Android 이유 화면·상세 복귀·문서/포털 | TDD RED 후 API 31/31·PostgreSQL 6/6·모바일 43/43·Android 추천 실기 PASS | 실제 점주·이용자 행동이나 매출 효과로 확대 해석하지 않음 |
 | 2026-09-19 | Codex | Phase 3 양도 제한 NFT 계약 | Solidity 계약·Foundry/Anvil wrapper·C01~C04·CI·문서 | TDD RED 후 Foundry 8/8·fuzz 128·Anvil deploy/mint/locked/event PASS | 전문 감사·Base Sepolia·메인넷으로 표시하지 않음; private key·mnemonic 미사용 |
+| 2026-09-19 | Codex | Phase 3 wallet binding·mint request·Outbox | migration·SIWE 영속화·idempotency·고정 수령인 job·API/client·문서 | TDD RED 후 API 34/34·PostgreSQL 8/8·동시 20요청·주소 변경·Android export PASS | Worker·온체인 완료로 확대하지 않고 W07/M01/M07은 NOT_RUN 유지 |
 
 ## 팀 설명 체크리스트
 

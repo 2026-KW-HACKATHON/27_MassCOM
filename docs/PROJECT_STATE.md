@@ -8,9 +8,9 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 기준 | Phase 3 계약 PR #49; Issue #48 아래 계약, Outbox, Worker 3개 기능 PR로 통합 |
-| 현재 검증 기준 | `feat/phase3-nft-contract@e6aae59`, Foundry 8개·fuzz 128·Anvil 31337 실제 발행 PASS |
-| 최근 main 기준선 | PR #47 merge `0236842`, main CI run `35426622394` PASS |
+| 현재 작업 기준 | Phase 3 mint request·Outbox PR #50; Issue #48 마지막 Worker PR 남음 |
+| 현재 검증 기준 | `feat/phase3-mint-outbox@14e6eab`, API 34개·PostgreSQL 8개·모바일 44개·Foundry 8개 PASS |
+| 최근 main 기준선 | PR #49 merge `25cf801`, main CI run `35444126068` PASS |
 | Phase 1 종료 Issue | #25 실제 지갑 검증, #27·#31 거절 처리, #33 미설치 지갑 실기 |
 | Phase 1 merge PR | #26 실제 지갑 안정화, #28·#32 거절 처리, #34 미설치 지갑 안내 |
 
@@ -21,7 +21,7 @@
 | Phase 0 저장소·개발 기반 | `VERIFIED` | PR #2·#4·#6·#8, CI PASS |
 | Phase 1 외부 지갑 연결 | `IN_PROGRESS` | API 15개·모바일 24개 자동화 PASS, 핵심 흐름·W06 PASS; W04·W05 외부 지갑 환경 `BLOCKED` |
 | Phase 2 지역 상권 핵심 기능 | `VERIFIED` | loopback DEMO에서 탐색→점주 발급→고객 수령→도감→이유가 보이는 추천→상세 순환 PASS; 카메라 QR·외부 HTTPS는 별도 |
-| Phase 3 NFT | `IN_PROGRESS` | 양도 제한 계약 C01~C04·로컬 Anvil 발행 PASS; Outbox·Worker·Base Sepolia 미완료 |
+| Phase 3 NFT | `IN_PROGRESS` | 계약·wallet binding·mint job·Outbox 구현, C01~C04와 원자 저장 PASS; Worker·Base Sepolia 미완료 |
 | Phase 4 출시 기반 | `PLANNED` | 외부 HTTPS·AAB·탈퇴·복원 미착수 |
 | Phase 5 대회 검증·발표 | `PLANNED` | 현장 검증·영상·제출 버전 미착수 |
 | Phase 6 후속 기능 | `PLANNED` | 별도 승인 전 미착수 |
@@ -44,6 +44,8 @@
 - 정원 마감 제외·미방문 우선·다음 고정 보상 설명·한국 날짜별 순위 회전 추천
 - OpenZeppelin 기반 ERC-721/ERC-5192 계약, 역할 분리·누적 상한·reward key·영구 잠금
 - Foundry 8/8·fuzz 128과 Anvil chain 31337 배포·시리즈·NFT 1개 발행
+- SIWE wallet binding 영속화·버전 변경·주소 중복 방지
+- 보상권·고정 수령인 mint job·Outbox 한 트랜잭션, 동일 요청 20개 job 하나
 - PostgreSQL `merchant_members` migration과 점포별 `OWNER`·`STAFF` 권한 경계
 - 다른 점포·무소속·철회 계정 거절과 철회 즉시 반영 Q05 통합 테스트
 - PostgreSQL `claim_slots` migration과 token SHA-256·주문 참조 HMAC-SHA-256 저장
@@ -65,8 +67,8 @@
 
 ### 진행 중
 
-- PR #49 CI·리뷰·merge와 main CI 확인
-- 지갑 연결 영속화·발행 요청·Outbox와 Worker·체인 대조
+- PR #50 CI·리뷰·merge와 main CI 확인
+- Worker lease·체인 전송·receipt/event 대조·Android 상태
 - W04 MetaMask 동일 세션 주소 변경·W05 미지원 스마트지갑 실제 환경 blocker
 
 ### 미구현
@@ -84,10 +86,10 @@
 ## 검증·배포 상태
 
 - Foundry 계약 테스트: `PASS` 8개, fuzz 128 runs, C01~C04 `PASS`
-- API 단위 테스트: `PASS` 31개
-- PostgreSQL 18 통합 테스트: `PASS` 6개(카탈로그·도감·추천·Q01~Q03·Q05·R01·R03, 로컬 Docker)
+- API 단위 테스트: `PASS` 34개
+- PostgreSQL 18 통합 테스트: `PASS` 8개(기존 6개 + wallet binding·mint request/Outbox)
 - v3 필수 36개: W01·W02·W03·W06·W09·Q01·Q02·Q03·Q05·R01·R03·C01·C02·C03·C04 `PASS`, W04·W05 `BLOCKED`, 나머지 19개 `NOT_RUN`
-- 모바일 단위 테스트: `PASS` 43개, typecheck·lint·Android export `PASS`
+- 모바일 단위 테스트: `PASS` 44개, typecheck·lint·Android export `PASS`
 - Android: 음식점 탐색→점주 권한→1회 코드→고객 수령→도감→추천→상세 `PASS`; 카메라 QR `NOT_RUN`
 - 외부 지갑 핵심 흐름·W06 `PASS`; Account 1/2 재연결 검증 격리 PASS; MetaMask 동일 세션 주소 변경과 미지원 스마트지갑 실기는 `BLOCKED`
 - 공개 HTTPS·GitHub Pages·Play: 미배포

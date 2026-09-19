@@ -15,6 +15,11 @@ import {
 } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
+import type {
+  MintJobView,
+  MintRequestResult,
+  MintRequestService,
+} from './mint-request-service.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 type MerchantAccessFixture = {
@@ -129,6 +134,7 @@ async function startFixture(
   claimSlots?: ClaimSlotFixture,
   collection?: CollectionFixture,
   recommendations?: RecommendationFixture,
+  mintRequests?: MintRequestService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -147,6 +153,7 @@ async function startFixture(
     claimSlots,
     collection,
     recommendations,
+    mintRequests,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -658,8 +665,29 @@ test('issues and verifies a signed wallet challenge through HTTP', async (t) => 
   });
 
   assert.equal(verifyResponse.status, 200);
-  const verification = (await verifyResponse.json()) as { verifiedAddress: string };
+  const verification = (await verifyResponse.json()) as {
+    verifiedAddress: string;
+    walletBindingId: string;
+    bindingVersion: number;
+    verifiedAt: string;
+  };
   assert.equal(verification.verifiedAddress, wallet.address);
+  assert.equal(typeof verification.walletBindingId, 'string');
+  assert.equal(verification.bindingVersion, 1);
+
+  const activeBindingResponse = await fetch(`${baseUrl}/wallets/active-binding`, {
+    headers: { 'x-account-id': 'user-http-1' },
+  });
+  assert.equal(activeBindingResponse.status, 200);
+  assert.deepEqual(await activeBindingResponse.json(), {
+    binding: {
+      bindingId: verification.walletBindingId,
+      bindingVersion: 1,
+      address: wallet.address,
+      chainId: 84532,
+      verifiedAt: verification.verifiedAt,
+    },
+  });
 
   const replayResponse = await fetch(`${baseUrl}/wallet/verify`, {
     method: 'POST',
@@ -673,4 +701,142 @@ test('issues and verifies a signed wallet challenge through HTTP', async (t) => 
   });
   assert.equal(replayResponse.status, 409);
   assert.deepEqual(await replayResponse.json(), { code: 'NONCE_ALREADY_USED' });
+});
+
+test('accepts a mint request without trusting recipient or series fields from the client', async (t) => {
+  let received:
+    | Parameters<MintRequestService['requestMint']>[0]
+    | undefined;
+  const result: MintRequestResult = {
+    jobId: 'mint-job-1',
+    status: 'QUEUED',
+    chainId: 84532,
+    recipient: '0x4000000000000000000000000000000000000004',
+    nft: null,
+    replayed: false,
+  };
+  const mintRequests: MintRequestService = {
+    requestMint: async (input) => {
+      received = input;
+      return result;
+    },
+    getMintJob: async () => {
+      throw new Error('unexpected get mint job call');
+    },
+  };
+  const baseUrl = await startFixture(
+    t,
+    () => 'customer-1',
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    mintRequests,
+  );
+
+  const response = await fetch(
+    `${baseUrl}/entitlements/20000000-0000-4000-8000-000000000001/mint`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'idempotency-key': 'mint-request-1',
+      },
+      body: JSON.stringify({
+        walletBindingId: '30000000-0000-4000-8000-000000000001',
+        bindingVersion: 1,
+        consentVersion: 'nft-mint-v1',
+        recipient: '0x5000000000000000000000000000000000000005',
+        seriesId: 'client-controlled-series',
+        rewardKey: 'client-controlled-key',
+      }),
+    },
+  );
+
+  assert.equal(response.status, 202);
+  assert.deepEqual(await response.json(), result);
+  assert.deepEqual(received, {
+    accountId: 'customer-1',
+    entitlementId: '20000000-0000-4000-8000-000000000001',
+    walletBindingId: '30000000-0000-4000-8000-000000000001',
+    bindingVersion: 1,
+    consentVersion: 'nft-mint-v1',
+    idempotencyKey: 'mint-request-1',
+  });
+});
+
+test('returns only the authenticated owner mint job', async (t) => {
+  const view: MintJobView = {
+    jobId: 'mint-job-1',
+    status: 'QUEUED',
+    chainId: 84532,
+    recipient: '0x4000000000000000000000000000000000000004',
+    walletBindingId: 'wallet-binding-1',
+    bindingVersion: 1,
+    nft: null,
+  };
+  let received: Parameters<MintRequestService['getMintJob']>[0] | undefined;
+  const baseUrl = await startFixture(
+    t,
+    () => 'customer-1',
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {
+      requestMint: async () => {
+        throw new Error('unexpected request mint call');
+      },
+      getMintJob: async (input) => {
+        received = input;
+        return view;
+      },
+    },
+  );
+
+  const response = await fetch(`${baseUrl}/mint-jobs/mint-job-1`);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), view);
+  assert.deepEqual(received, { accountId: 'customer-1', jobId: 'mint-job-1' });
+});
+
+test('disconnects only the authenticated wallet binding version', async (t) => {
+  const baseUrl = await startFixture(t, () => 'customer-1');
+  const wallet = Wallet.createRandom();
+  const challengeResponse = await fetch(`${baseUrl}/wallet/challenges`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ address: wallet.address, chainId: 84532 }),
+  });
+  const challenge = (await challengeResponse.json()) as { challengeId: string; message: string };
+  const signature = await wallet.signMessage(challenge.message);
+  const verificationResponse = await fetch(`${baseUrl}/wallet/verify`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      challengeId: challenge.challengeId,
+      message: challenge.message,
+      signature,
+      currentAddress: wallet.address,
+    }),
+  });
+  const binding = (await verificationResponse.json()) as {
+    walletBindingId: string;
+    bindingVersion: number;
+  };
+
+  const response = await fetch(`${baseUrl}/wallets/${binding.walletBindingId}/binding`, {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ bindingVersion: binding.bindingVersion }),
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { status: 'DISCONNECTED' });
+
+  const active = await fetch(`${baseUrl}/wallets/active-binding`);
+  assert.deepEqual(await active.json(), { binding: null });
 });

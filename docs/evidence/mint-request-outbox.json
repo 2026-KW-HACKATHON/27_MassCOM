@@ -1,0 +1,63 @@
+{
+  "recordedAt": "2026-09-19 KST",
+  "branch": "feat/phase3-mint-outbox",
+  "commit": "14e6eab",
+  "environment": {
+    "database": "PostgreSQL 18 Alpine dedicated _test database",
+    "api": "Node.js 25.9.0 local tests",
+    "mobile": "Expo SDK 57 static regression"
+  },
+  "automated": {
+    "apiUnit": "PASS 34/34",
+    "postgresIntegration": "PASS 8/8",
+    "mobileUnit": "PASS 44/44",
+    "apiTypecheckBuild": "PASS",
+    "mobileTypecheckLintExport": "PASS",
+    "foundry": "PASS 8/8 + fuzz 128",
+    "secretScan": "PASS"
+  },
+  "checks": [
+    {
+      "id": "wallet-binding-version",
+      "status": "PASS",
+      "observed": "Same verified address reused one binding/version; address change created version 2 and disconnected version 1."
+    },
+    {
+      "id": "wallet-address-uniqueness",
+      "status": "PASS",
+      "observed": "Concurrent attempts by two accounts to activate the same address produced one success and one WALLET_ADDRESS_IN_USE."
+    },
+    {
+      "id": "siwe-persistence",
+      "status": "PASS",
+      "observed": "A real ethers signature verification persisted the returned binding ID/version in PostgreSQL."
+    },
+    {
+      "id": "mint-request-concurrency",
+      "status": "PASS",
+      "observed": "Twenty identical requests created one mint job, one Outbox event, one MINT_REQUESTED entitlement, and nineteen replays."
+    },
+    {
+      "id": "recipient-freeze",
+      "status": "PASS",
+      "observed": "After binding version 2 selected a different address, the existing job kept version 1 and its original recipient."
+    },
+    {
+      "id": "capacity-and-conflicts",
+      "status": "PASS",
+      "observed": "Different-body idempotency reuse, stale binding version, second job for one entitlement, and cap exhaustion were rejected."
+    }
+  ],
+  "requiredTestIds": {
+    "W07": "NOT_RUN - no Worker transmission race yet",
+    "M01": "NOT_RUN - no on-chain Worker effect yet",
+    "M07": "NOT_RUN - fixed DB recipient proven, on-chain mint not run"
+  },
+  "privacy": {
+    "rewardKeyInApiResponse": false,
+    "rewardKeyInOutboxPayload": false,
+    "userPrivateKeyRecorded": false,
+    "clientControlsRecipient": false,
+    "clientControlsSeries": false
+  }
+}

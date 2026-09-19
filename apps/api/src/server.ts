@@ -15,6 +15,7 @@ import {
   type MerchantAccessControl,
 } from './merchant-access.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
+import { MintRequestError, type MintRequestService } from './mint-request-service.js';
 import {
   RecommendationService,
   type RecommendationReader,
@@ -23,7 +24,10 @@ import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
+import { PostgresMintRequestService } from './postgres/mint-request-service.js';
 import { PostgresRecommendationSource } from './postgres/recommendation.js';
+import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
+import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-binding.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -39,6 +43,7 @@ export function createApiServer(
   claimSlots?: ClaimSlotService,
   collection?: CollectionReader,
   recommendations?: RecommendationReader,
+  mintRequests?: MintRequestService,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -205,6 +210,61 @@ export function createApiServer(
         return;
       }
 
+      if (request.method === 'GET' && request.url === '/wallets/active-binding') {
+        const accountId = await resolveAccountId(request);
+        sendJson(response, 200, { binding: (await service.getActiveBinding(accountId)) ?? null });
+        return;
+      }
+
+      const disconnectWalletMatch = request.url?.match(/^\/wallets\/([^/]+)\/binding$/);
+      if (request.method === 'DELETE' && disconnectWalletMatch) {
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        await service.disconnectBinding({
+          accountId,
+          bindingId: decodeURIComponent(disconnectWalletMatch[1]!),
+          bindingVersion: requirePositiveInteger(body, 'bindingVersion'),
+        });
+        sendJson(response, 200, { status: 'DISCONNECTED' });
+        return;
+      }
+
+      const mintRequestMatch = request.url?.match(/^\/entitlements\/([^/]+)\/mint$/);
+      if (request.method === 'POST' && mintRequestMatch) {
+        if (!mintRequests) {
+          throw new RequestError(503, 'MINT_REQUEST_SERVICE_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        const result = await mintRequests.requestMint({
+          accountId,
+          entitlementId: decodeURIComponent(mintRequestMatch[1]!),
+          walletBindingId: requireString(body, 'walletBindingId'),
+          bindingVersion: requirePositiveInteger(body, 'bindingVersion'),
+          consentVersion: requireString(body, 'consentVersion'),
+          idempotencyKey: requireHeader(request, 'idempotency-key'),
+        });
+        sendJson(response, 202, result);
+        return;
+      }
+
+      const mintJobMatch = request.url?.match(/^\/mint-jobs\/([^/]+)$/);
+      if (request.method === 'GET' && mintJobMatch) {
+        if (!mintRequests) {
+          throw new RequestError(503, 'MINT_REQUEST_SERVICE_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        sendJson(
+          response,
+          200,
+          await mintRequests.getMintJob({
+            accountId,
+            jobId: decodeURIComponent(mintJobMatch[1]!),
+          }),
+        );
+        return;
+      }
+
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
       if (error instanceof ClaimSlotError) {
@@ -217,6 +277,10 @@ export function createApiServer(
       }
       if (error instanceof WalletChallengeError) {
         sendJson(response, statusFor(error.code), { code: error.code });
+        return;
+      }
+      if (error instanceof MintRequestError) {
+        sendJson(response, statusForMintRequest(error.code), { code: error.code });
         return;
       }
       if (error instanceof RequestError) {
@@ -300,6 +364,13 @@ function requirePositiveInteger(body: Record<string, unknown>, field: string): n
   return value;
 }
 
+function requireHeader(request: IncomingMessage, name: string): string {
+  const value = request.headers[name];
+  const selected = Array.isArray(value) ? value[0] : value;
+  if (!selected?.trim()) throw new RequestError(400, 'IDEMPOTENCY_KEY_REQUIRED');
+  return selected;
+}
+
 function statusFor(code: string): number {
   if (code === 'ACCOUNT_AUTH_NOT_CONFIGURED') return 503;
   if (code === 'ACCOUNT_REQUIRED' || code === 'SIGNER_MISMATCH') return 401;
@@ -307,11 +378,21 @@ function statusFor(code: string): number {
   if (code === 'CHALLENGE_NOT_FOUND') return 404;
   if (code === 'SIGNATURE_EXPIRED') return 410;
   if (code === 'NONCE_ALREADY_USED' || code === 'NONCE_IN_PROGRESS') return 409;
+  if (code === 'WALLET_BINDING_NOT_FOUND') return 404;
+  if (code === 'WALLET_ADDRESS_IN_USE' || code === 'WALLET_BINDING_CHANGED') return 409;
   return 400;
 }
 
 function statusForClaimSlot(code: string): number {
   if (code === 'CLAIM_TOKEN_EXPIRED') return 410;
+  return 409;
+}
+
+function statusForMintRequest(code: string): number {
+  if (code === 'ENTITLEMENT_NOT_FOUND' || code === 'WALLET_BINDING_NOT_FOUND' || code === 'MINT_JOB_NOT_FOUND') {
+    return 404;
+  }
+  if (code === 'CONSENT_REQUIRED' || code === 'IDEMPOTENCY_KEY_REQUIRED') return 400;
   return 409;
 }
 
@@ -326,7 +407,7 @@ function sendJson(response: ServerResponse, status: number, body: object): void 
   response.end(JSON.stringify(body));
 }
 
-function configuredService(): WalletChallengeService {
+function configuredService(bindingStore: WalletBindingStore): WalletChallengeService {
   const chainId = Number(process.env.WALLET_CHAIN_ID ?? '84532');
   return new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -334,6 +415,7 @@ function configuredService(): WalletChallengeService {
     uri: process.env.SIWE_URI ?? 'https://api.masscom.local/wallet/verify',
     chainId,
     ttlMs: Number(process.env.WALLET_CHALLENGE_TTL_MS ?? 5 * 60 * 1000),
+    bindingStore,
   });
 }
 
@@ -347,6 +429,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const collection = pool ? new PostgresCollectionReader(pool) : undefined;
   const recommendations = pool
     ? new RecommendationService(new PostgresRecommendationSource(pool))
+    : undefined;
+  const bindingStore = pool
+    ? new PostgresWalletBindingStore(pool)
+    : new InMemoryWalletBindingStore();
+  const mintRequests = pool
+    ? new PostgresMintRequestService(pool, {
+        supportedConsentVersion: process.env.NFT_MINT_CONSENT_VERSION ?? 'nft-mint-v1',
+      })
     : undefined;
   const claimSlots =
     pool && process.env.MERCHANT_REFERENCE_HMAC_SECRET
@@ -362,13 +452,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         };
 
   createApiServer(
-    configuredService(),
+    configuredService(bindingStore),
     accountResolver,
     merchantCatalog,
     merchantAccess,
     claimSlots,
     collection,
     recommendations,
+    mintRequests,
   ).listen(port, '127.0.0.1', () => {
     console.log(`wallet API listening on http://127.0.0.1:${port}`);
   });

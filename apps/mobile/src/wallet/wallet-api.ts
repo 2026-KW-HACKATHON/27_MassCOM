@@ -9,7 +9,19 @@ export type WalletChallengeResponse = {
 export type WalletVerificationResponse = {
   verifiedAddress: string;
   walletLinkVersion: string;
+  walletBindingId: string;
+  bindingVersion: number;
   verifiedAt: string;
+};
+
+export type ActiveWalletBindingResponse = {
+  binding: null | {
+    bindingId: string;
+    bindingVersion: number;
+    address: string;
+    chainId: 84532;
+    verifiedAt: string;
+  };
 };
 
 type VerifyChallengeInput = {
@@ -54,14 +66,35 @@ export class WalletApiClient {
     return this.#post('/wallet/verify', input);
   }
 
+  getActiveBinding(): Promise<ActiveWalletBindingResponse> {
+    return this.#request('/wallets/active-binding');
+  }
+
+  disconnectBinding(bindingId: string, bindingVersion: number): Promise<{ status: 'DISCONNECTED' }> {
+    return this.#request(`/wallets/${encodeURIComponent(bindingId)}/binding`, {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ bindingVersion }),
+    });
+  }
+
   async #post<T>(path: string, body: object): Promise<T> {
-    const response = await this.#fetcher(`${this.#apiUrl}${path}`, {
+    return this.#request(path, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-account-id': this.#accountId,
       },
       body: JSON.stringify(body),
+    });
+  }
+
+  async #request<T>(path: string, init?: RequestInit): Promise<T> {
+    const response = await this.#fetcher(`${this.#apiUrl}${path}`, {
+      ...init,
+      headers: {
+        'x-account-id': this.#accountId,
+        ...init?.headers,
+      },
     });
 
     const payload = (await response.json()) as T | { code?: string };
