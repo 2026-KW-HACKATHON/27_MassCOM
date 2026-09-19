@@ -3,7 +3,14 @@ import { test } from 'node:test';
 
 import { Pool } from 'pg';
 
+import { ClaimSlotError } from './claim-slot-service.js';
+import { MintRequestError } from './mint-request-service.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
+import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
+import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
+import { PostgresMintRequestService } from './postgres/mint-request-service.js';
+import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
+import { WalletBindingError } from './wallet-binding.js';
 
 test('D01 concurrent deletion cancels only unsent mint work and pseudonymizes the account', async (t) => {
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
@@ -131,6 +138,248 @@ test('D01 preserves a retryable job when submission outcome is unknown', async (
     status: 'RETRYABLE',
     outbox_status: 'PENDING',
   });
+});
+
+test('D01 keeps an actively leased prepared job pending instead of cancelling it', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedDeletionFixture(pool);
+  await pool.query(
+    `UPDATE mint_jobs
+     SET status = 'PREPARED', updated_at = '2026-09-19T14:59:00Z'
+     WHERE id = '40000000-0000-4000-8004-000000000001'`,
+  );
+  await pool.query(
+    `UPDATE outbox_events
+     SET status = 'LEASED', lease_owner = 'active-worker',
+         lease_expires_at = '2026-09-19T15:05:00Z', updated_at = '2026-09-19T14:59:00Z'
+     WHERE aggregate_id = '40000000-0000-4000-8004-000000000001'`,
+  );
+  const service = new PostgresAccountDeletionService(pool, {
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+    nextRequestId: () => '90000000-0000-4000-8000-000000000003',
+    now: () => new Date('2026-09-19T15:00:00.000Z'),
+    policyVersion: 'account-deletion-v1',
+  });
+
+  const result = await service.requestDeletion({
+    accountId: 'delete-me',
+    confirmation: 'DELETE MY ACCOUNT',
+  });
+
+  assert.equal(result.status, 'WAITING_FOR_MINT_FINALITY');
+  assert.equal(result.cancelledMintJobs, 0);
+  assert.equal(result.pendingMintJobs, 2);
+  const leased = await pool.query<{ job_status: string; outbox_status: string; lease_owner: string }>(
+    `SELECT job.status AS job_status, outbox.status AS outbox_status, outbox.lease_owner
+     FROM mint_jobs AS job
+     JOIN outbox_events AS outbox ON outbox.aggregate_id = job.id
+     WHERE job.id = '40000000-0000-4000-8004-000000000001'`,
+  );
+  assert.deepEqual(leased.rows[0], {
+    job_status: 'PREPARED',
+    outbox_status: 'LEASED',
+    lease_owner: 'active-worker',
+  });
+});
+
+test('deleted account tombstone rejects wallet, claim, redeem, and mint writes', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedDeletionFixture(pool);
+  const accountLifecycle = new PostgresAccountLifecycle({
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+  });
+  const deletion = new PostgresAccountDeletionService(pool, {
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+    accountLifecycle,
+    nextRequestId: () => '90000000-0000-4000-8000-000000000004',
+    now: () => new Date('2026-09-19T15:00:00.000Z'),
+    policyVersion: 'account-deletion-v1',
+  });
+  await deletion.requestDeletion({
+    accountId: 'delete-me',
+    confirmation: 'DELETE MY ACCOUNT',
+  });
+
+  const walletBindings = new PostgresWalletBindingStore(pool, { accountLifecycle });
+  await assert.rejects(
+    walletBindings.recordVerified({
+      accountId: 'delete-me',
+      address: '0x9000000000000000000000000000000000000009',
+      chainId: 31337,
+    }),
+    (error: unknown) => error instanceof WalletBindingError && error.code === 'ACCOUNT_DELETED',
+  );
+
+  const claimSlots = new PostgresClaimSlotService(pool, {
+    referenceHmacSecret: 'test-only-reference-secret-at-least-32-bytes',
+    accountLifecycle,
+  });
+  await assert.rejects(
+    claimSlots.issue({
+      merchantId: 'merchant-delete',
+      customerAccountId: 'customer-other',
+      merchantReference: 'deleted-customer-order',
+      createdByAccountId: 'delete-me',
+    }),
+    (error: unknown) => error instanceof ClaimSlotError && error.code === 'ACCOUNT_DELETED',
+  );
+  await assert.rejects(
+    claimSlots.reissue({
+      merchantId: 'merchant-delete',
+      claimSlotId: '00000000-0000-4000-8004-000000000001',
+      expectedTokenVersion: 1,
+      requestedByAccountId: 'delete-me',
+    }),
+    (error: unknown) => error instanceof ClaimSlotError && error.code === 'ACCOUNT_DELETED',
+  );
+  await assert.rejects(
+    claimSlots.redeem({ accountId: 'delete-me', token: 'deleted-token' }),
+    (error: unknown) => error instanceof ClaimSlotError && error.code === 'ACCOUNT_DELETED',
+  );
+
+  const mintRequests = new PostgresMintRequestService(pool, {
+    supportedConsentVersion: 'nft-mint-v1',
+    accountLifecycle,
+  });
+  await assert.rejects(
+    mintRequests.requestMint({
+      accountId: 'delete-me',
+      entitlementId: '20000000-0000-4000-8004-000000000001',
+      walletBindingId: '30000000-0000-4000-8004-000000000003',
+      bindingVersion: 3,
+      consentVersion: 'nft-mint-v1',
+      idempotencyKey: 'deleted-account-mint',
+    }),
+    (error: unknown) => error instanceof MintRequestError && error.code === 'ACCOUNT_DELETED',
+  );
+});
+
+test('concurrent deletion and mint request leave no active work under the original account', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedDeletionFixture(pool);
+  await pool.query('TRUNCATE nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs CASCADE');
+  await pool.query(
+    `DELETE FROM reward_entitlements
+     WHERE id <> '20000000-0000-4000-8004-000000000001'`,
+  );
+  await pool.query(
+    `UPDATE reward_entitlements
+     SET status = 'GRANTED'
+     WHERE id = '20000000-0000-4000-8004-000000000001'`,
+  );
+  const accountLifecycle = new PostgresAccountLifecycle({
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+  });
+  const deletion = new PostgresAccountDeletionService(pool, {
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+    accountLifecycle,
+    nextRequestId: () => '90000000-0000-4000-8000-000000000005',
+    now: () => new Date('2026-09-19T15:00:00.000Z'),
+    policyVersion: 'account-deletion-v1',
+  });
+  const mintRequests = new PostgresMintRequestService(pool, {
+    supportedConsentVersion: 'nft-mint-v1',
+    accountLifecycle,
+    now: () => new Date('2026-09-19T15:00:00.000Z'),
+    nextJobId: () => '40000000-0000-4000-8005-000000000001',
+    nextOutboxId: () => '50000000-0000-4000-8005-000000000001',
+    nextRewardKey: () => Buffer.from('77'.repeat(32), 'hex'),
+  });
+
+  const [deletionResult, mintResult] = await Promise.allSettled([
+    deletion.requestDeletion({
+      accountId: 'delete-me',
+      confirmation: 'DELETE MY ACCOUNT',
+    }),
+    mintRequests.requestMint({
+      accountId: 'delete-me',
+      entitlementId: '20000000-0000-4000-8004-000000000001',
+      walletBindingId: '30000000-0000-4000-8004-000000000003',
+      bindingVersion: 3,
+      consentVersion: 'nft-mint-v1',
+      idempotencyKey: 'deletion-race-mint',
+    }),
+  ]);
+
+  assert.equal(deletionResult.status, 'fulfilled');
+  if (mintResult.status === 'rejected') {
+    assert.ok(
+      mintResult.reason instanceof MintRequestError &&
+        ['ACCOUNT_DELETED', 'ENTITLEMENT_NOT_FOUND'].includes(mintResult.reason.code),
+    );
+  }
+  const state = await pool.query<{
+    raw_references: number;
+    active_jobs: number;
+    pending_outbox: number;
+  }>(
+    `SELECT
+       (
+         (SELECT count(*) FROM reward_entitlements WHERE customer_account_id = 'delete-me') +
+         (SELECT count(*) FROM wallet_bindings WHERE account_id = 'delete-me') +
+         (SELECT count(*) FROM mint_jobs WHERE account_id = 'delete-me')
+       )::integer AS raw_references,
+       (SELECT count(*)::integer FROM mint_jobs WHERE status NOT IN ('CANCELLED', 'FINALIZED')) AS active_jobs,
+       (SELECT count(*)::integer FROM outbox_events WHERE status IN ('PENDING', 'LEASED')) AS pending_outbox`,
+  );
+  assert.deepEqual(state.rows[0], {
+    raw_references: 0,
+    active_jobs: 0,
+    pending_outbox: 0,
+  });
+});
+
+test('concurrent staff deletion and claim issue leave no original creator reference', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedDeletionFixture(pool);
+  const accountLifecycle = new PostgresAccountLifecycle({
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+  });
+  const deletion = new PostgresAccountDeletionService(pool, {
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+    accountLifecycle,
+    nextRequestId: () => '90000000-0000-4000-8000-000000000006',
+    now: () => new Date('2026-09-19T15:00:00.000Z'),
+    policyVersion: 'account-deletion-v1',
+  });
+  const claimSlots = new PostgresClaimSlotService(pool, {
+    referenceHmacSecret: 'test-only-reference-secret-at-least-32-bytes',
+    accountLifecycle,
+    now: () => new Date('2026-09-19T15:00:00.000Z'),
+    nextToken: () => 'creator-race-token-abcdefghijklmnopqrstuvwxyz',
+    nextId: () => '00000000-0000-4000-8006-000000000001',
+  });
+
+  const [deletionResult, issueResult] = await Promise.allSettled([
+    deletion.requestDeletion({
+      accountId: 'delete-me',
+      confirmation: 'DELETE MY ACCOUNT',
+    }),
+    claimSlots.issue({
+      merchantId: 'merchant-delete',
+      customerAccountId: 'customer-other',
+      merchantReference: 'creator-deletion-race',
+      createdByAccountId: 'delete-me',
+    }),
+  ]);
+
+  assert.equal(deletionResult.status, 'fulfilled');
+  if (issueResult.status === 'rejected') {
+    assert.ok(
+      (issueResult.reason instanceof ClaimSlotError && issueResult.reason.code === 'ACCOUNT_DELETED') ||
+        issueResult.reason?.code === 'MERCHANT_ACCESS_DENIED',
+    );
+  }
+  const remaining = await pool.query<{ raw_creators: number; raw_members: number }>(
+    `SELECT
+       (SELECT count(*)::integer FROM claim_slots WHERE created_by_account_id = 'delete-me') AS raw_creators,
+       (SELECT count(*)::integer FROM merchant_members WHERE account_id = 'delete-me') AS raw_members`,
+  );
+  assert.deepEqual(remaining.rows[0], { raw_creators: 0, raw_members: 0 });
 });
 
 async function seedDeletionFixture(pool: Pool): Promise<void> {

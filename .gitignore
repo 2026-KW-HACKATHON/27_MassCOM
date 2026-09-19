@@ -20,6 +20,8 @@ android/app/build/
 .cache/
 .tmp/
 .omx/
+.omc/
+.serena/
 .sites-runtime/
 
 # IDE and operating system

@@ -54,7 +54,8 @@ export type ClaimSlotErrorCode =
   | 'CLAIM_SLOT_NOT_REISSUABLE'
   | 'CLAIM_TOKEN_UNAVAILABLE'
   | 'CLAIM_TOKEN_EXPIRED'
-  | 'CLAIM_CAMPAIGN_UNAVAILABLE';
+  | 'CLAIM_CAMPAIGN_UNAVAILABLE'
+  | 'ACCOUNT_DELETED';
 
 export class ClaimSlotError extends Error {
   constructor(readonly code: ClaimSlotErrorCode) {

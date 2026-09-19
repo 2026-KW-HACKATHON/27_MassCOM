@@ -10,6 +10,10 @@ import {
   type RedeemedClaimSlot,
 } from '../claim-slot-service.js';
 import { MerchantAccessError } from '../merchant-access.js';
+import {
+  AccountLifecycleError,
+  type PostgresAccountLifecycle,
+} from './account-lifecycle.js';
 
 type ClaimSlotServiceOptions = {
   now: () => Date;
@@ -20,6 +24,7 @@ type ClaimSlotServiceOptions = {
   ttlMs: number;
   rewardClaimTtlMs: number;
   referenceHmacSecret: string;
+  accountLifecycle?: PostgresAccountLifecycle;
 };
 
 type ClaimSlotServiceOverrides = Partial<Omit<ClaimSlotServiceOptions, 'referenceHmacSecret'>> &
@@ -115,37 +120,44 @@ export class PostgresClaimSlotService implements ClaimSlotService {
       input.merchantId,
       input.merchantReference,
     );
-    const access = await this.pool.query<AccessAndDuplicateRow>(
-      `SELECT
-         EXISTS (
-           SELECT 1
-           FROM merchant_members
-           WHERE merchant_id = $1
-             AND account_id = $2
-             AND status = 'ACTIVE'
-         ) AS authorized,
-         EXISTS (
-           SELECT 1
-           FROM claim_slots
-           WHERE merchant_id = $1
-             AND customer_account_id = $3
-             AND merchant_reference_hash = $4
-         ) AS duplicate`,
-      [input.merchantId, input.createdByAccountId, input.customerAccountId, referenceHash],
-    );
-    if (!access.rows[0]?.authorized) {
-      throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
-    }
-    if (access.rows[0].duplicate) {
-      throw new ClaimSlotError('CLAIM_SLOT_ALREADY_EXISTS');
-    }
-
     const issuedAt = this.options.now();
     const expiresAt = new Date(issuedAt.getTime() + this.options.ttlMs);
-    const token = this.options.nextToken();
-    const claimSlotId = this.options.nextId();
+    let issued: IssuedClaimSlot | undefined;
+    const client = await this.pool.connect();
     try {
-      const inserted = await this.pool.query<IssuedClaimSlotRow>(
+      await client.query('BEGIN');
+      await this.options.accountLifecycle?.assertAllActive(client, [
+        input.createdByAccountId,
+        input.customerAccountId,
+      ]);
+      const access = await client.query<AccessAndDuplicateRow>(
+        `SELECT
+           EXISTS (
+             SELECT 1
+             FROM merchant_members
+             WHERE merchant_id = $1
+               AND account_id = $2
+               AND status = 'ACTIVE'
+           ) AS authorized,
+           EXISTS (
+             SELECT 1
+             FROM claim_slots
+             WHERE merchant_id = $1
+               AND customer_account_id = $3
+               AND merchant_reference_hash = $4
+           ) AS duplicate`,
+        [input.merchantId, input.createdByAccountId, input.customerAccountId, referenceHash],
+      );
+      if (!access.rows[0]?.authorized) {
+        throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+      }
+      if (access.rows[0].duplicate) {
+        throw new ClaimSlotError('CLAIM_SLOT_ALREADY_EXISTS');
+      }
+
+      const token = this.options.nextToken();
+      const claimSlotId = this.options.nextId();
+      const inserted = await client.query<IssuedClaimSlotRow>(
         `INSERT INTO claim_slots (
            id,
            merchant_id,
@@ -178,7 +190,18 @@ export class PostgresClaimSlotService implements ClaimSlotService {
       if (inserted.rowCount !== 1) {
         throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
       }
+      issued = {
+        claimSlotId,
+        token,
+        tokenVersion: 1,
+        expiresAt: expiresAt.toISOString(),
+      };
+      await client.query('COMMIT');
     } catch (error) {
+      await client.query('ROLLBACK');
+      if (error instanceof AccountLifecycleError) {
+        throw new ClaimSlotError('ACCOUNT_DELETED');
+      }
       if (isPostgresConstraint(error, 'claim_slots_unique_reference')) {
         throw new ClaimSlotError('CLAIM_SLOT_ALREADY_EXISTS');
       }
@@ -186,14 +209,12 @@ export class PostgresClaimSlotService implements ClaimSlotService {
         throw new ClaimSlotError('CLAIM_TOKEN_UNAVAILABLE');
       }
       throw error;
+    } finally {
+      client.release();
     }
 
-    return {
-      claimSlotId,
-      token,
-      tokenVersion: 1,
-      expiresAt: expiresAt.toISOString(),
-    };
+    if (!issued) throw new Error('claim slot issue completed without a result');
+    return issued;
   }
 
   async reissue(input: {
@@ -204,10 +225,13 @@ export class PostgresClaimSlotService implements ClaimSlotService {
   }): Promise<IssuedClaimSlot> {
     const requestedAt = this.options.now();
     const expiresAt = new Date(requestedAt.getTime() + this.options.ttlMs);
-    const token = this.options.nextToken();
-    let updated;
+    const client = await this.pool.connect();
+    let issued: IssuedClaimSlot | undefined;
     try {
-      updated = await this.pool.query<IssuedClaimSlotRow>(
+      await client.query('BEGIN');
+      await this.options.accountLifecycle?.assertActive(client, input.requestedByAccountId);
+      const token = this.options.nextToken();
+      const updated = await client.query<IssuedClaimSlotRow>(
         `UPDATE claim_slots AS slot
          SET token_hash = $1,
              token_version = token_version + 1,
@@ -235,33 +259,42 @@ export class PostgresClaimSlotService implements ClaimSlotService {
           input.expectedTokenVersion,
         ],
       );
+      if (updated.rowCount !== 1) {
+        const membership = await client.query(
+          `SELECT 1
+           FROM merchant_members
+           WHERE merchant_id = $1
+             AND account_id = $2
+             AND status = 'ACTIVE'`,
+          [input.merchantId, input.requestedByAccountId],
+        );
+        if (membership.rowCount !== 1) {
+          throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+        }
+        throw new ClaimSlotError('CLAIM_SLOT_NOT_REISSUABLE');
+      }
+      issued = {
+        claimSlotId: input.claimSlotId,
+        token,
+        tokenVersion: updated.rows[0]!.token_version,
+        expiresAt: expiresAt.toISOString(),
+      };
+      await client.query('COMMIT');
     } catch (error) {
+      await client.query('ROLLBACK');
+      if (error instanceof AccountLifecycleError) {
+        throw new ClaimSlotError('ACCOUNT_DELETED');
+      }
       if (isPostgresConstraint(error, 'claim_slots_unique_token')) {
         throw new ClaimSlotError('CLAIM_TOKEN_UNAVAILABLE');
       }
       throw error;
-    }
-    if (updated.rowCount !== 1) {
-      const membership = await this.pool.query(
-        `SELECT 1
-         FROM merchant_members
-         WHERE merchant_id = $1
-           AND account_id = $2
-           AND status = 'ACTIVE'`,
-        [input.merchantId, input.requestedByAccountId],
-      );
-      if (membership.rowCount !== 1) {
-        throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
-      }
-      throw new ClaimSlotError('CLAIM_SLOT_NOT_REISSUABLE');
+    } finally {
+      client.release();
     }
 
-    return {
-      claimSlotId: input.claimSlotId,
-      token,
-      tokenVersion: updated.rows[0]!.token_version,
-      expiresAt: expiresAt.toISOString(),
-    };
+    if (!issued) throw new Error('claim slot reissue completed without a result');
+    return issued;
   }
 
   async preview(input: {
@@ -298,6 +331,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     try {
       await client.query('BEGIN');
       transactionActive = true;
+      await this.options.accountLifecycle?.assertActive(client, input.accountId);
       const result = await client.query<ClaimSlotRow>(
         `UPDATE claim_slots
          SET status = CASE WHEN expires_at <= $3 THEN 'EXPIRED' ELSE 'CLAIMED' END,
@@ -488,6 +522,9 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     } catch (error) {
       if (transactionActive) {
         await client.query('ROLLBACK');
+      }
+      if (error instanceof AccountLifecycleError) {
+        throw new ClaimSlotError('ACCOUNT_DELETED');
       }
       throw error;
     } finally {

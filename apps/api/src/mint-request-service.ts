@@ -53,6 +53,7 @@ export type MintRequestErrorCode =
   | 'IDEMPOTENCY_CONFLICT'
   | 'MINT_PENDING'
   | 'CAPACITY_UNAVAILABLE'
+  | 'ACCOUNT_DELETED'
   | 'MINT_JOB_NOT_FOUND';
 
 export class MintRequestError extends Error {

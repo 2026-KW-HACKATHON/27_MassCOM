@@ -23,6 +23,14 @@ cp "$repo_root/docs/index.html" "$fixture_root/docs/index.html"
 cp "$repo_root/docs/assets/presentation.css" "$fixture_root/docs/assets/presentation.css"
 cp "$repo_root/docs/SUBMISSION_EVIDENCE.json" "$fixture_root/docs/SUBMISSION_EVIDENCE.json"
 cp "$repo_root/docs/TEST_STATUS.md" "$fixture_root/docs/TEST_STATUS.md"
+for evidence in \
+  android-merchant-discovery.json \
+  android-claim-collection.json \
+  android-recommendations.json \
+  phase3-worker-anvil-android.json \
+  account-deletion-privacy.json; do
+  cp "$repo_root/docs/evidence/$evidence" "$fixture_root/docs/evidence/$evidence"
+done
 
 sed '/data-evidence-state="NOT_RUN"/d' "$repo_root/docs/presentation.html" \
   > "$fixture_root/docs/presentation.html"

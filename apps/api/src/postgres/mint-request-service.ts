@@ -9,6 +9,10 @@ import {
   type MintRequestResult,
   type MintRequestService,
 } from '../mint-request-service.js';
+import {
+  AccountLifecycleError,
+  type PostgresAccountLifecycle,
+} from './account-lifecycle.js';
 
 type ServiceOptions = {
   now: () => Date;
@@ -19,7 +23,9 @@ type ServiceOptions = {
 };
 
 type ServiceOverrides = Partial<Omit<ServiceOptions, 'supportedConsentVersion'>> &
-  Pick<ServiceOptions, 'supportedConsentVersion'>;
+  Pick<ServiceOptions, 'supportedConsentVersion'> & {
+    accountLifecycle?: PostgresAccountLifecycle;
+  };
 
 type ExistingJobRow = {
   id: string;
@@ -60,12 +66,14 @@ const defaultOptions: Omit<ServiceOptions, 'supportedConsentVersion'> = {
 
 export class PostgresMintRequestService implements MintRequestService {
   private readonly options: ServiceOptions;
+  private readonly accountLifecycle: PostgresAccountLifecycle | undefined;
 
   constructor(
     private readonly pool: Pool,
     options: ServiceOverrides,
   ) {
     this.options = { ...defaultOptions, ...options };
+    this.accountLifecycle = options.accountLifecycle;
     if (!this.options.supportedConsentVersion.trim()) {
       throw new Error('supportedConsentVersion is required');
     }
@@ -87,6 +95,7 @@ export class PostgresMintRequestService implements MintRequestService {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      await this.accountLifecycle?.assertActive(client, input.accountId);
       await lockIdempotencyKey(client, input.accountId, input.idempotencyKey);
 
       const existing = await findIdempotentJob(
@@ -226,6 +235,9 @@ export class PostgresMintRequestService implements MintRequestService {
       return requestResult(inserted, false);
     } catch (error) {
       await client.query('ROLLBACK');
+      if (error instanceof AccountLifecycleError) {
+        throw new MintRequestError('ACCOUNT_DELETED');
+      }
       throw error;
     } finally {
       client.release();

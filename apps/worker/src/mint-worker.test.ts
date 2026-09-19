@@ -37,10 +37,16 @@ const result: ChainMintResult = {
   chainId: work.chainId,
 };
 
+function workCalls(repository: FakeRepository): string[] {
+  return repository.calls.filter((call) => call !== 'renewed');
+}
+
 class FakeRepository implements MintWorkRepository {
   leased = false;
   calls: string[] = [];
   renewError?: Error;
+  failRenewAt?: number;
+  renewCount = 0;
 
   async leaseNext(): Promise<MintWorkItem | undefined> {
     this.calls.push('lease');
@@ -72,7 +78,10 @@ class FakeRepository implements MintWorkRepository {
 
   async renewLease(): Promise<void> {
     this.calls.push('renewed');
-    if (this.renewError) throw this.renewError;
+    this.renewCount += 1;
+    if (this.renewError || this.renewCount === this.failRenewAt) {
+      throw this.renewError ?? new Error('MINT_JOB_LEASE_LOST');
+    }
   }
 }
 
@@ -110,7 +119,7 @@ test('submits and finalizes one leased mint job', async () => {
   const worker = new MintWorker(repository, gateway);
 
   assert.equal(await worker.runOnce('worker-1'), true);
-  assert.deepEqual(repository.calls, [
+  assert.deepEqual(workCalls(repository), [
     'lease',
     'prepared',
     `submitted:${result.transactionHash}`,
@@ -135,7 +144,7 @@ test('M02 recovers an unknown submission from the existing reward key without re
   assert.equal(await worker.runOnce('worker-1'), true);
   assert.deepEqual(gateway.calls, ['validate', 'find', 'submit', 'find']);
   assert.equal(gateway.calls.filter((call) => call === 'submit').length, 1);
-  assert.equal(repository.calls.at(-1), 'finalized:1');
+  assert.equal(workCalls(repository).at(-1), 'finalized:1');
 });
 
 test('M04 pauses before submission when chain or contract configuration is wrong', async () => {
@@ -147,7 +156,7 @@ test('M04 pauses before submission when chain or contract configuration is wrong
   const worker = new MintWorker(repository, gateway);
 
   assert.equal(await worker.runOnce('worker-1'), true);
-  assert.deepEqual(repository.calls, ['lease', 'review:CHAIN_OR_CONTRACT_MISMATCH']);
+  assert.deepEqual(workCalls(repository), ['lease', 'review:CHAIN_OR_CONTRACT_MISMATCH']);
   assert.deepEqual(gateway.calls, []);
 });
 
@@ -158,8 +167,26 @@ test('M05 rejects a successful receipt whose mint event does not match the job',
   const worker = new MintWorker(repository, gateway);
 
   assert.equal(await worker.runOnce('worker-1'), true);
-  assert.equal(repository.calls.at(-1), 'review:MINT_EVENT_MISMATCH');
+  assert.equal(workCalls(repository).at(-1), 'review:MINT_EVENT_MISMATCH');
   assert.equal(repository.calls.some((call) => call.startsWith('finalized:')), false);
+});
+
+test('recovers an existing reward key when a duplicate submitted transaction reverts', async () => {
+  const repository = new FakeRepository();
+  const gateway = new FakeGateway();
+  gateway.confirmError = new MintEventMismatchError('MINT_TRANSACTION_REVERTED');
+  let lookupCount = 0;
+  gateway.findMintByRewardKey = async () => {
+    gateway.calls.push('find');
+    lookupCount += 1;
+    return lookupCount === 2 ? result : undefined;
+  };
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.deepEqual(gateway.calls, ['validate', 'find', 'submit', 'confirm', 'find']);
+  assert.equal(workCalls(repository).at(-1), 'finalized:1');
+  assert.equal(workCalls(repository).some((call) => call.startsWith('review:')), false);
 });
 
 test('renews a short lease while chain confirmation is still running', async () => {
@@ -174,7 +201,7 @@ test('renews a short lease while chain confirmation is still running', async () 
 
   assert.equal(await worker.runOnce('worker-1'), true);
   assert.ok(repository.calls.filter((call) => call === 'renewed').length >= 2);
-  assert.equal(repository.calls.at(-1), 'finalized:1');
+  assert.equal(workCalls(repository).at(-1), 'finalized:1');
 });
 
 test('does not submit after the lease heartbeat loses ownership', async () => {
@@ -189,5 +216,16 @@ test('does not submit after the lease heartbeat loses ownership', async () => {
   const worker = new MintWorker(repository, gateway, 30);
 
   await assert.rejects(worker.runOnce('worker-1'), /MINT_JOB_LEASE_LOST/);
+  assert.equal(gateway.calls.includes('submit'), false);
+});
+
+test('rechecks lease ownership after preparing and before submitting', async () => {
+  const repository = new FakeRepository();
+  repository.failRenewAt = 3;
+  const gateway = new FakeGateway();
+  const worker = new MintWorker(repository, gateway, 30_000);
+
+  await assert.rejects(worker.runOnce('worker-1'), /MINT_JOB_LEASE_LOST/);
+  assert.equal(repository.calls.includes('prepared'), true);
   assert.equal(gateway.calls.includes('submit'), false);
 });

@@ -8,6 +8,10 @@ import {
   type VerifiedWalletBinding,
   type WalletBindingStore,
 } from '../wallet-binding.js';
+import {
+  AccountLifecycleError,
+  type PostgresAccountLifecycle,
+} from './account-lifecycle.js';
 
 type WalletBindingRow = {
   id: string;
@@ -25,6 +29,7 @@ export class PostgresWalletBindingStore implements WalletBindingStore {
     private readonly options: {
       now?: () => Date;
       nextId?: () => string;
+      accountLifecycle?: PostgresAccountLifecycle;
     } = {},
   ) {}
 
@@ -40,6 +45,7 @@ export class PostgresWalletBindingStore implements WalletBindingStore {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      await this.options.accountLifecycle?.assertActive(client, input.accountId);
       await lockWalletBindings(client);
 
       const activeForAccount = (
@@ -122,6 +128,9 @@ export class PostgresWalletBindingStore implements WalletBindingStore {
       return mapBinding(inserted);
     } catch (error) {
       await client.query('ROLLBACK');
+      if (error instanceof AccountLifecycleError) {
+        throw new WalletBindingError('ACCOUNT_DELETED');
+      }
       throw error;
     } finally {
       client.release();

@@ -24,4 +24,14 @@ if "$checker" "외부 지갑 연결 구현" "Adds wallet verification flow." >/d
   exit 1
 fi
 
+if "$checker" "가 feat: add wallet link" "외부 지갑 연결과 서버 검증을 구현합니다." >/dev/null 2>&1; then
+  echo "Korean PR checker accepted a token Korean title" >&2
+  exit 1
+fi
+
+if "$checker" "외부 지갑 연결 구현" "설명" >/dev/null 2>&1; then
+  echo "Korean PR checker accepted an insufficient Korean body" >&2
+  exit 1
+fi
+
 echo "Korean PR language regression tests passed"

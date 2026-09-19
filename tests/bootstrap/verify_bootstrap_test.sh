@@ -58,4 +58,13 @@ if "$verifier" "$fixture_root" >/dev/null 2>&1; then
   exit 1
 fi
 
+cp "$repo_root/docs/TEST_STATUS.md" "$fixture_root/docs/TEST_STATUS.md"
+awk -F '\t' 'BEGIN { OFS="\t" } $1 == "W02" { $3 = "NOT_RUN" } { print }' \
+  "$repo_root/tests/catalog/required-tests.tsv" > "$fixture_root/tests/catalog/required-tests.tsv"
+
+if "$verifier" "$fixture_root" >/dev/null 2>&1; then
+  echo "verifier accepted catalog and TEST_STATUS status divergence" >&2
+  exit 1
+fi
+
 echo "bootstrap verification regression tests passed"

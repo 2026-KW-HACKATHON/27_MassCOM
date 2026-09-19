@@ -124,6 +124,81 @@ test('M03 M06 lease race, retry, finalization, and repeated event ingestion stay
   });
 });
 
+test('lease renewal rejects an account-deletion cancellation instead of silently continuing', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const repository = new PostgresMintRepository(pool);
+  const item = await repository.leaseNext('worker-delete-race', 30_000);
+  assert.ok(item);
+  await repository.markPrepared(item, 'worker-delete-race');
+  await pool.query(
+    `UPDATE mint_jobs SET status = 'CANCELLED' WHERE id = $1`,
+    [item.jobId],
+  );
+  await pool.query(
+    `UPDATE outbox_events
+     SET status = 'PUBLISHED', lease_owner = NULL, lease_expires_at = NULL
+     WHERE id = $1`,
+    [item.outboxId],
+  );
+
+  await assert.rejects(
+    repository.renewLease(item, 'worker-delete-race', 30_000),
+    /MINT_JOB_LEASE_LOST/,
+  );
+});
+
+test('lease renewal rejects an already expired lease', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  let now = new Date('2026-09-19T04:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+  });
+  const item = await repository.leaseNext('worker-expired-lease', 30_000);
+  assert.ok(item);
+
+  now = new Date('2026-09-19T04:00:30.001Z');
+
+  await assert.rejects(
+    repository.renewLease(item, 'worker-expired-lease', 30_000),
+    /MINT_JOB_LEASE_LOST/,
+  );
+});
+
+test('markSubmitted cannot revive a cancelled prepared job', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const now = new Date('2026-09-19T04:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+    nextAttemptId: () => '60000000-0000-4000-8000-000000000002',
+  });
+  const item = await repository.leaseNext('worker-cancelled-submit', 30_000);
+  assert.ok(item);
+  const attemptId = await repository.markPrepared(item, 'worker-cancelled-submit');
+  await pool.query(`UPDATE mint_jobs SET status = 'CANCELLED' WHERE id = $1`, [item.jobId]);
+
+  await assert.rejects(
+    repository.markSubmitted(
+      item.jobId,
+      'worker-cancelled-submit',
+      attemptId,
+      `0x${'aa'.repeat(32)}`,
+    ),
+    /MINT_JOB_STATE_CONFLICT/,
+  );
+
+  const state = await pool.query<{ status: string }>(
+    `SELECT status FROM mint_jobs WHERE id = $1`,
+    [item.jobId],
+  );
+  assert.equal(state.rows[0]?.status, 'CANCELLED');
+});
+
 async function seedWorkerFixture(pool: Pool): Promise<void> {
   await pool.query(
     'TRUNCATE nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',

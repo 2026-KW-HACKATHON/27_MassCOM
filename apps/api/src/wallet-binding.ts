@@ -28,7 +28,8 @@ export interface WalletBindingStore {
 export type WalletBindingErrorCode =
   | 'WALLET_ADDRESS_IN_USE'
   | 'WALLET_BINDING_NOT_FOUND'
-  | 'WALLET_BINDING_CHANGED';
+  | 'WALLET_BINDING_CHANGED'
+  | 'ACCOUNT_DELETED';
 
 export class WalletBindingError extends Error {
   constructor(readonly code: WalletBindingErrorCode) {

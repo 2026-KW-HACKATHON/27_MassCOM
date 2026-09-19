@@ -53,4 +53,12 @@ if "$scanner" "$fixture_root" >/dev/null 2>&1; then
   exit 1
 fi
 
+rm "$fixture_root/minter.env"
+printf '%s\n' "const apiToken = 'example-nonempty-value';" > "$fixture_root/camel-case.ts"
+
+if "$scanner" "$fixture_root" >/dev/null 2>&1; then
+  echo "secret scanner accepted a camelCase token literal" >&2
+  exit 1
+fi
+
 echo "secret scanning regression tests passed"

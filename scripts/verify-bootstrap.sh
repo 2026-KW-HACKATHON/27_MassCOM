@@ -48,6 +48,20 @@ for test_id in $expected_ids; do
   id_count="$(awk -F '\t' -v id="$test_id" 'NR > 1 && $1 == id { count++ } END { print count + 0 }' "$catalog")"
   [[ "$id_count" -eq 1 ]] || fail "expected test ID $test_id exactly once, found $id_count"
   grep -q "| $test_id |" "$repo_root/docs/TEST_STATUS.md" || fail "TEST_STATUS is missing $test_id"
+  catalog_status="$(awk -F '\t' -v id="$test_id" 'NR > 1 && $1 == id { print $3 }' "$catalog")"
+  ledger_status="$(awk -F '|' -v id="$test_id" '
+    {
+      key = $2
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+      if (key == id) {
+        status = $4
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", status)
+        print status
+      }
+    }
+  ' "$repo_root/docs/TEST_STATUS.md")"
+  [[ "$catalog_status" == "$ledger_status" ]] ||
+    fail "status mismatch for $test_id: catalog=$catalog_status TEST_STATUS=$ledger_status"
 done
 
 invalid_statuses="$(awk -F '\t' 'NR > 1 && $3 !~ /^(PASS|FAIL|BLOCKED|NOT_RUN)$/ { print $1 ":" $3 }' "$catalog")"
@@ -57,4 +71,4 @@ if grep -E '^[[:space:]]*[^#]*(SECRET|PRIVATE_KEY|PASSWORD|TOKEN)[A-Z0-9_]*=[^[:
   fail ".env.example contains a non-empty secret-like value"
 fi
 
-echo "bootstrap contract verified: required docs present, 36 test IDs preserved, statuses valid"
+echo "bootstrap contract verified: required docs present, 36 test IDs and statuses synchronized"
