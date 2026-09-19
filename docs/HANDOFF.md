@@ -4,7 +4,7 @@
 
 기준 브랜치: `main`
 
-검증 기준: PR #57 merge `9794c70`, main CI `35455419805` PASS
+검증 기준: PR #58 merge `7da97b6`, main CI `35455903163` PASS
 
 현재 작업: Issue #59 chain cursor 재시작 범위와 reorg margin 구현
 
@@ -52,7 +52,7 @@
 ## 최신 검증
 
 - API `35/35`, API PostgreSQL `14/14`
-- Worker `8/8`, Worker PostgreSQL `4/4`, Anvil `W07 M01~M08 PASS`
+- Worker `8/8`, Worker PostgreSQL `5/5`, Anvil `W07 M01~M08 PASS`
 - 모바일 `48/48`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - secret scan·bootstrap·portal accessibility/structure PASS
