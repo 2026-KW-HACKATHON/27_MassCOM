@@ -220,6 +220,7 @@ async function pseudonymizeAccount(
   deletedAlias: string,
   now: Date,
 ): Promise<void> {
+  await client.query('DELETE FROM wallet_challenges WHERE account_id = $1', [accountId]);
   await client.query(
     `INSERT INTO merchant_members (
        merchant_id, account_id, role, status, granted_at, revoked_at, updated_at

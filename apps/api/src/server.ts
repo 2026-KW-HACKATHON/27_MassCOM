@@ -13,6 +13,7 @@ import {
   InMemoryChallengeStore,
   WalletChallengeError,
   WalletChallengeService,
+  type ChallengeStore,
 } from './wallet-challenge-service.js';
 import {
   MerchantAccessError,
@@ -32,6 +33,7 @@ import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 import { PostgresMintRequestService } from './postgres/mint-request-service.js';
 import { PostgresRecommendationSource } from './postgres/recommendation.js';
+import { PostgresChallengeStore } from './postgres/wallet-challenge-store.js';
 import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
 import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-binding.js';
 
@@ -299,7 +301,7 @@ export function createApiServer(
           accountId,
           confirmation: requireString(body, 'confirmation'),
         });
-        service.forgetAccount(accountId);
+        await service.forgetAccount(accountId);
         sendJson(response, 202, result);
         return;
       }
@@ -461,10 +463,13 @@ function sendJson(response: ServerResponse, status: number, body: object): void 
   response.end(JSON.stringify(body));
 }
 
-function configuredService(bindingStore: WalletBindingStore): WalletChallengeService {
+function configuredService(
+  bindingStore: WalletBindingStore,
+  challengeStore: ChallengeStore,
+): WalletChallengeService {
   const chainId = Number(process.env.WALLET_CHAIN_ID ?? '84532');
   return new WalletChallengeService({
-    store: new InMemoryChallengeStore(),
+    store: challengeStore,
     domain: process.env.SIWE_DOMAIN ?? 'api.masscom.local',
     uri: process.env.SIWE_URI ?? 'https://api.masscom.local/wallet/verify',
     chainId,
@@ -494,6 +499,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : new InMemoryWalletBindingStore();
+  const challengeStore: ChallengeStore = pool
+    ? new PostgresChallengeStore(pool)
+    : new InMemoryChallengeStore();
   const mintRequests = pool
     ? new PostgresMintRequestService(pool, {
         supportedConsentVersion: process.env.NFT_MINT_CONSENT_VERSION ?? 'nft-mint-v1',
@@ -527,7 +535,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       : undefined;
 
   createApiServer(
-    configuredService(bindingStore),
+    configuredService(bindingStore, challengeStore),
     accountResolver,
     merchantCatalog,
     merchantAccess,

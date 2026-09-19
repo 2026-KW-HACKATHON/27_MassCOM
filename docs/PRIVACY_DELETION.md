@@ -19,7 +19,7 @@
 1. 원 account ID를 별도 32바이트 HMAC으로 잠그고 동일 요청을 하나로 수렴시킵니다.
 2. 미전송 `QUEUED / PREPARED / RETRYABLE / PAUSED` mint job을 `CANCELLED`로 바꿉니다.
 3. 연결된 보상권은 `CANCELED`, Outbox는 `PUBLISHED`로 닫습니다.
-4. 지갑 binding을 모두 `DISCONNECTED`로 바꾸고 메모리 challenge를 제거합니다.
+4. 지갑 binding을 모두 `DISCONNECTED`로 바꾸고 해당 계정의 SIWE challenge(`wallet_challenges` 또는 DEMO 메모리 저장소)를 제거합니다.
 5. 점주 권한을 철회하고 customer/staff account ID를 `deleted:<HMAC>` 별칭으로 교체합니다.
 6. 제출·확정 mint job, chain event, NFT asset, 수령 주소는 중복 방지와 공개 장부 대조를 위해 보존합니다.
 

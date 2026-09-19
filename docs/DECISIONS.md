@@ -22,6 +22,7 @@
 | D-016 | 세션 복원 정본 | `PROJECT_STATE.md`·`TEST_STATUS.md`를 정본으로 유지 | `USER_CONFIRMED` | 새 요청의 명시 파일명, 기존 `STATUS.md`·`TEST_REPORT.md`는 호환 안내만 유지 |
 | D-017 | Phase 2 PR 수 | 기능 흐름 기준 최대 3개, 상태 전용 PR 금지 | `USER_CONFIRMED` | 2026-09-19 사용자가 과도한 PR 분할을 피하도록 요청; 탐색, 수령·도감, 추천·최종검증으로 통합 |
 | D-018 | 후속 전체 개발 | 승인된 v3 순서대로 Phase 3 이후 로컬 구현·검증 계속 | `USER_CONFIRMED` | 2026-09-19 사용자 ‘페이지 쭉쭉 전부다’; 운영 키·메인넷·유료 자원·공개/Play/제출 승인 경계는 유지 |
+| D-019 | SIWE challenge 저장 방식 | `DATABASE_URL`이 있으면 PostgreSQL `wallet_challenges`, 없으면 DEMO 메모리 저장소 | `USER_CONFIRMED` | 2026-09-20 사용자 ‘다 승인할께’; 제안된 PostgreSQL 공유 저장소 범위에 한정하며 운영 키·메인넷·유료 자원·공개/Play/제출 승인 경계는 유지. 같은 응답에서 Codex 미사용을 명시 |
 
 ## 2026-09-18 승인 범위
 

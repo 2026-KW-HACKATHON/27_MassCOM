@@ -149,7 +149,7 @@ test('W07 M01 M07 mint request atomically freezes recipient and replays one job'
 
 async function seedMintFixture(pool: Pool): Promise<void> {
   await pool.query(
-    'TRUNCATE outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
+    'TRUNCATE wallet_challenges, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
   );
   await pool.query(
     `INSERT INTO merchants

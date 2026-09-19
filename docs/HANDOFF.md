@@ -4,9 +4,9 @@
 
 기준 브랜치: `main`
 
-검증 기준: PR #64 merge `695210c`
+검증 기준: PR #65 merge `4c4d744`, main CI PASS
 
-현재 작업: Expo 호환 patch 적용과 B-008 재평가 PR
+현재 작업: Issue #66 SIWE challenge PostgreSQL 저장소 PR
 
 ## 이번 작업에서 완료한 것
 
@@ -23,6 +23,7 @@
 - cursor 조회 실패의 재시도 오류 분류, ethers 요청 cache로 인한 Anvil 간헐 30초 대기 원인 제거
 - Issue #61 Worker 재시도 지수 backoff와 전송 시도 상한 뒤 `MANUAL_REVIEW` 전환
 - PR #63 merge `6bbf58c`(Issue #59), PR #64 merge `695210c`(Issue #61), 독립 리뷰 2회 CRITICAL/HIGH 0
+- Issue #66 SIWE challenge PostgreSQL 공유 저장소(migration 0008, 원자적 claim, 만료 정리, 계정 삭제 연동)
 - Expo 57.0.24·expo-router 57.0.22·@expo/ui 57.0.19 patch 적용, moderate advisory 14건 재평가(변화 없음, B-008 유지)
 
 - PR #53 merge `62196f0`, main CI `35450443943` PASS, Issue #52 종료
@@ -55,7 +56,7 @@
 
 ## 최신 검증
 
-- API `35/35`, API PostgreSQL `14/14`
+- API `37/37`, API PostgreSQL `20/20`
 - Worker `8/8`, Worker PostgreSQL `6/6`, Anvil `W07 M01~M08 PASS`
 - 모바일 `48/48`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
@@ -72,7 +73,7 @@
 
 ## 재개 시 할 일
 
-1. SIWE challenge 공유 저장소와 운영 세션 저장 정책 결정
+1. 운영 세션 저장 정책(SecureStore) 결정
 2. B-008: Expo upstream이 `uuid`·`decode-uri-component` 전이 의존성을 고치면 재평가(현재 호환 수정 없음)
 3. Expo patch 적용 뒤 Android 실기 회귀(자동화 불가, 사용자 판정 필요)
 4. 외부 HTTPS·Base Sepolia·release AAB·Google Play·공개/최종 제출은 별도 승인 뒤 진행

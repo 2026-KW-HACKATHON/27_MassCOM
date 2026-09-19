@@ -10,7 +10,7 @@ import {
 
 type ChallengeStatus = 'pending' | 'verifying' | 'used';
 
-type ChallengeRecord = {
+export type ChallengeRecord = {
   challengeId: string;
   accountId: string;
   address: string;
@@ -21,6 +21,15 @@ type ChallengeRecord = {
   expiresAt: string;
   status: ChallengeStatus;
 };
+
+export interface ChallengeStore {
+  create(record: ChallengeRecord): Promise<void>;
+  get(challengeId: string): Promise<ChallengeRecord | undefined>;
+  claim(challengeId: string): Promise<void>;
+  release(challengeId: string): Promise<void>;
+  consume(challengeId: string): Promise<void>;
+  deleteByAccount(accountId: string): Promise<void>;
+}
 
 export type IssuedWalletChallenge = Pick<
   ChallengeRecord,
@@ -42,21 +51,21 @@ export class WalletChallengeError extends Error {
   }
 }
 
-export class InMemoryChallengeStore {
+export class InMemoryChallengeStore implements ChallengeStore {
   readonly #records = new Map<string, ChallengeRecord>();
 
-  create(record: ChallengeRecord): void {
+  async create(record: ChallengeRecord): Promise<void> {
     if (this.#records.has(record.challengeId)) {
       throw new WalletChallengeError('CHALLENGE_ID_CONFLICT');
     }
     this.#records.set(record.challengeId, record);
   }
 
-  get(challengeId: string): ChallengeRecord | undefined {
+  async get(challengeId: string): Promise<ChallengeRecord | undefined> {
     return this.#records.get(challengeId);
   }
 
-  claim(challengeId: string): void {
+  async claim(challengeId: string): Promise<void> {
     const record = this.#required(challengeId);
     if (record.status === 'used') {
       throw new WalletChallengeError('NONCE_ALREADY_USED');
@@ -67,14 +76,14 @@ export class InMemoryChallengeStore {
     record.status = 'verifying';
   }
 
-  release(challengeId: string): void {
+  async release(challengeId: string): Promise<void> {
     const record = this.#required(challengeId);
     if (record.status === 'verifying') {
       record.status = 'pending';
     }
   }
 
-  consume(challengeId: string): void {
+  async consume(challengeId: string): Promise<void> {
     const record = this.#required(challengeId);
     if (record.status !== 'verifying') {
       throw new WalletChallengeError('NONCE_NOT_CLAIMED');
@@ -82,7 +91,7 @@ export class InMemoryChallengeStore {
     record.status = 'used';
   }
 
-  deleteByAccount(accountId: string): void {
+  async deleteByAccount(accountId: string): Promise<void> {
     for (const [challengeId, record] of this.#records) {
       if (record.accountId === accountId) this.#records.delete(challengeId);
     }
@@ -98,7 +107,7 @@ export class InMemoryChallengeStore {
 }
 
 type WalletChallengeServiceOptions = {
-  store: InMemoryChallengeStore;
+  store: ChallengeStore;
   domain: string;
   uri: string;
   chainId: number;
@@ -124,7 +133,7 @@ type VerifyChallengeInput = {
 };
 
 export class WalletChallengeService {
-  readonly #store: InMemoryChallengeStore;
+  readonly #store: ChallengeStore;
   readonly #domain: string;
   readonly #uri: string;
   readonly #chainId: number;
@@ -190,7 +199,7 @@ export class WalletChallengeService {
       expiresAt: expiresAt.toISOString(),
       status: 'pending',
     };
-    this.#store.create(record);
+    await this.#store.create(record);
 
     return {
       challengeId,
@@ -206,7 +215,7 @@ export class WalletChallengeService {
       throw new WalletChallengeError('SIGNATURE_REQUIRED');
     }
 
-    const record = this.#store.get(input.challengeId);
+    const record = await this.#store.get(input.challengeId);
     if (!record) {
       throw new WalletChallengeError('CHALLENGE_NOT_FOUND');
     }
@@ -231,8 +240,9 @@ export class WalletChallengeService {
     }
 
     const parsed = parseAndMatchMessage(record, input.message, this.#domain, this.#uri);
-    this.#store.claim(record.challengeId);
+    await this.#store.claim(record.challengeId);
 
+    let bindingRecorded = false;
     try {
       const verification = await parsed.verify(
         {
@@ -258,7 +268,8 @@ export class WalletChallengeService {
         chainId: record.chainId,
         verifiedAt: now,
       });
-      this.#store.consume(record.challengeId);
+      bindingRecorded = true;
+      await this.#store.consume(record.challengeId);
       return {
         verifiedAddress: record.address,
         walletLinkVersion: record.challengeId,
@@ -267,7 +278,14 @@ export class WalletChallengeService {
         verifiedAt: binding.verifiedAt,
       };
     } catch (error) {
-      this.#store.release(record.challengeId);
+      // Once the binding exists the nonce must never return to pending, or the same signature replays.
+      if (bindingRecorded) throw error;
+      // A challenge removed mid-verify (expiry purge, account deletion) must not mask the real failure.
+      await this.#store.release(record.challengeId).catch((releaseError: unknown) => {
+        console.error('wallet challenge release failed', {
+          name: releaseError instanceof Error ? releaseError.name : 'UnknownError',
+        });
+      });
       if (error instanceof WalletChallengeError) {
         throw error;
       }
@@ -297,8 +315,8 @@ export class WalletChallengeService {
     return this.#bindingStore.getActive(accountId);
   }
 
-  forgetAccount(accountId: string): void {
-    this.#store.deleteByAccount(accountId);
+  async forgetAccount(accountId: string): Promise<void> {
+    await this.#store.deleteByAccount(accountId);
   }
 }
 

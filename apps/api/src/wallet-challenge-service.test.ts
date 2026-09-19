@@ -248,3 +248,69 @@ test('rejects an insecure SIWE URI at service configuration time', () => {
     (error: unknown) => error instanceof WalletChallengeError && error.code === 'INVALID_SERVICE_CONFIG',
   );
 });
+
+test('a consume failure after the binding is recorded never reopens the nonce for replay', async () => {
+  const wallet = Wallet.createRandom();
+  const store = new InMemoryChallengeStore();
+  const consume = store.consume.bind(store);
+  let failConsume = true;
+  store.consume = async (challengeId) => {
+    if (failConsume) throw new Error('database unavailable');
+    await consume(challengeId);
+  };
+  const service = new WalletChallengeService({
+    store,
+    domain,
+    uri,
+    chainId,
+    ttlMs: 5 * 60 * 1000,
+    now: () => new Date('2026-09-18T00:00:00.000Z'),
+    nonce: () => 'abc12345def67890',
+    challengeId: () => 'challenge-consume-failure',
+  });
+  const challenge = await service.createChallenge({ accountId, address: wallet.address, chainId });
+  const input = {
+    accountId,
+    challengeId: challenge.challengeId,
+    message: challenge.message,
+    signature: await wallet.signMessage(challenge.message),
+    currentAddress: wallet.address,
+  };
+
+  await assert.rejects(service.verifyChallenge(input), /database unavailable/);
+  failConsume = false;
+  await assert.rejects(
+    service.verifyChallenge(input),
+    (error: unknown) => error instanceof WalletChallengeError && error.code === 'NONCE_IN_PROGRESS',
+  );
+});
+
+test('a challenge removed during verification does not mask the signer failure', async () => {
+  const wallet = Wallet.createRandom();
+  const store = new InMemoryChallengeStore();
+  store.release = async () => {
+    throw new WalletChallengeError('CHALLENGE_NOT_FOUND');
+  };
+  const service = new WalletChallengeService({
+    store,
+    domain,
+    uri,
+    chainId,
+    ttlMs: 5 * 60 * 1000,
+    now: () => new Date('2026-09-18T00:00:00.000Z'),
+    nonce: () => 'abc12345def67890',
+    challengeId: () => 'challenge-release-failure',
+  });
+  const challenge = await service.createChallenge({ accountId, address: wallet.address, chainId });
+
+  await assert.rejects(
+    service.verifyChallenge({
+      accountId,
+      challengeId: challenge.challengeId,
+      message: challenge.message,
+      signature: await Wallet.createRandom().signMessage(challenge.message),
+      currentAddress: wallet.address,
+    }),
+    (error: unknown) => error instanceof WalletChallengeError && error.code === 'SIGNER_MISMATCH',
+  );
+});
