@@ -17,6 +17,7 @@ function Routes() {
       <Stack.Screen name="claim" options={{ title: '방문 수령' }} />
       <Stack.Screen name="collection" options={{ title: '나의 도감' }} />
       <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
+      <Stack.Screen name="recommendations" options={{ title: '다음 가게 추천' }} />
       <Stack.Screen name="wallet" options={{ title: '외부 지갑 연결' }} />
     </Stack>
   );

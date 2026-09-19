@@ -15,10 +15,15 @@ import {
   type MerchantAccessControl,
 } from './merchant-access.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
+import {
+  RecommendationService,
+  type RecommendationReader,
+} from './recommendation-service.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
+import { PostgresRecommendationSource } from './postgres/recommendation.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -33,6 +38,7 @@ export function createApiServer(
   merchantAccess?: MerchantAccessControl,
   claimSlots?: ClaimSlotService,
   collection?: CollectionReader,
+  recommendations?: RecommendationReader,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -57,6 +63,17 @@ export function createApiServer(
         }
         const accountId = await resolveAccountId(request);
         sendJson(response, 200, await collection.getCollection(accountId));
+        return;
+      }
+
+      if (request.method === 'GET' && request.url === '/recommendations') {
+        if (!recommendations) {
+          throw new RequestError(503, 'RECOMMENDATIONS_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        sendJson(response, 200, {
+          recommendations: await recommendations.listRecommendations(accountId),
+        });
         return;
       }
 
@@ -328,6 +345,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const merchantCatalog = pool ? new PostgresMerchantCatalog(pool) : undefined;
   const merchantAccess = pool ? new PostgresMerchantAccessControl(pool) : undefined;
   const collection = pool ? new PostgresCollectionReader(pool) : undefined;
+  const recommendations = pool
+    ? new RecommendationService(new PostgresRecommendationSource(pool))
+    : undefined;
   const claimSlots =
     pool && process.env.MERCHANT_REFERENCE_HMAC_SECRET
       ? new PostgresClaimSlotService(pool, {
@@ -348,6 +368,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     merchantAccess,
     claimSlots,
     collection,
+    recommendations,
   ).listen(port, '127.0.0.1', () => {
     console.log(`wallet API listening on http://127.0.0.1:${port}`);
   });

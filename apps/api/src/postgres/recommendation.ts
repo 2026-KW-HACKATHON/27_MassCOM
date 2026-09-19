@@ -1,0 +1,77 @@
+import type { Pool } from 'pg';
+
+import type {
+  RecommendationCandidate,
+  RecommendationSource,
+} from '../recommendation-service.js';
+import { parseRewardGoals } from './merchant-catalog.js';
+
+type RecommendationRow = {
+  merchant_id: string;
+  merchant_name: string;
+  road_address: string;
+  is_demo: boolean;
+  campaign_id: string;
+  campaign_title: string;
+  enrollment_open: boolean;
+  progress_visit_count: number;
+  reward_goals: unknown;
+};
+
+export class PostgresRecommendationSource implements RecommendationSource {
+  constructor(
+    private readonly pool: Pool,
+    private readonly now: () => Date = () => new Date(),
+  ) {}
+
+  async listCandidates(accountId: string): Promise<readonly RecommendationCandidate[]> {
+    const result = await this.pool.query<RecommendationRow>(
+      `SELECT
+         merchant.id AS merchant_id,
+         merchant.name AS merchant_name,
+         merchant.road_address,
+         merchant.is_demo,
+         campaign.id AS campaign_id,
+         campaign.title AS campaign_title,
+         campaign.enrolled_count < campaign.enrollment_capacity AS enrollment_open,
+         count(DISTINCT visit.business_date)::integer AS progress_visit_count,
+         jsonb_agg(
+           DISTINCT jsonb_build_object(
+             'targetVisitCount', goal.target_visit_count,
+             'displayName', goal.display_name
+           )
+         ) AS reward_goals
+       FROM merchants AS merchant
+       JOIN campaigns AS campaign ON campaign.merchant_id = merchant.id
+       JOIN campaign_goals AS goal ON goal.campaign_id = campaign.id
+       LEFT JOIN visit_events AS visit
+         ON visit.campaign_id = campaign.id
+        AND visit.customer_account_id = $1
+        AND visit.status = 'VALID'
+        AND visit.progress_counted = true
+       WHERE merchant.status = 'ACTIVE'
+         AND campaign.status = 'ACTIVE'
+         AND campaign.is_public = true
+         AND campaign.starts_at <= $2
+         AND campaign.ends_at > $2
+       GROUP BY merchant.id, campaign.id
+       HAVING array_agg(DISTINCT goal.target_visit_count ORDER BY goal.target_visit_count) = ARRAY[1, 3, 5]::integer[]
+       ORDER BY merchant.id`,
+      [accountId, this.now()],
+    );
+
+    return result.rows.map((row) => ({
+      merchantId: row.merchant_id,
+      merchantName: row.merchant_name,
+      roadAddress: row.road_address,
+      campaignId: row.campaign_id,
+      campaignTitle: row.campaign_title,
+      enrollmentStatus: row.enrollment_open ? 'OPEN' : 'FULL',
+      progressVisitCount: row.progress_visit_count,
+      rewardGoals: [...parseRewardGoals(row.reward_goals)].sort(
+        (left, right) => left.targetVisitCount - right.targetVisitCount,
+      ),
+      demo: row.is_demo,
+    }));
+  }
+}

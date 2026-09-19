@@ -83,6 +83,26 @@ type CollectionFixture = {
   }>;
 };
 
+type RecommendationFixture = {
+  listRecommendations(accountId: string): Promise<readonly {
+    merchantId: string;
+    merchantName: string;
+    roadAddress: string;
+    campaignId: string;
+    campaignTitle: string;
+    enrollmentStatus: 'OPEN';
+    progressVisitCount: number;
+    demo: boolean;
+    reasonCode: 'NEW_PLACE';
+    reasonText: string;
+    nextGoal: {
+      targetVisitCount: 1;
+      displayName: string;
+      remainingVisits: number;
+    };
+  }[]>;
+};
+
 function claimSlotFixture(overrides: Partial<ClaimSlotFixture>): ClaimSlotFixture {
   return {
     issue: async () => {
@@ -108,6 +128,7 @@ async function startFixture(
   merchantAccess?: MerchantAccessFixture,
   claimSlots?: ClaimSlotFixture,
   collection?: CollectionFixture,
+  recommendations?: RecommendationFixture,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -125,6 +146,7 @@ async function startFixture(
     merchantAccess,
     claimSlots,
     collection,
+    recommendations,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -468,6 +490,49 @@ test('does not bypass an unconfigured collection boundary', async (t) => {
 
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { code: 'COLLECTION_NOT_CONFIGURED' });
+});
+
+test('returns authenticated recommendations with stable reason codes', async (t) => {
+  let receivedAccountId: string | undefined;
+  const recommendations = [
+    {
+      merchantId: 'merchant-new',
+      merchantName: '새 가게',
+      roadAddress: '서울 노원구 새길 1',
+      campaignId: 'campaign-new',
+      campaignTitle: '새 가게 도감',
+      enrollmentStatus: 'OPEN' as const,
+      progressVisitCount: 0,
+      demo: true,
+      reasonCode: 'NEW_PLACE' as const,
+      reasonText: '아직 방문하지 않은 동네 가게예요.',
+      nextGoal: {
+        targetVisitCount: 1 as const,
+        displayName: '첫 잎새',
+        remainingVisits: 1,
+      },
+    },
+  ];
+  const baseUrl = await startFixture(
+    t,
+    () => 'customer-1',
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {
+      listRecommendations: async (accountId) => {
+        receivedAccountId = accountId;
+        return recommendations;
+      },
+    },
+  );
+
+  const response = await fetch(`${baseUrl}/recommendations`);
+
+  assert.equal(response.status, 200);
+  assert.equal(receivedAccountId, 'customer-1');
+  assert.deepEqual(await response.json(), { recommendations });
 });
 
 test('maps claim slot conflicts and expiration without exposing stored data', async (t) => {
