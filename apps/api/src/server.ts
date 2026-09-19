@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { Pool } from 'pg';
 
 import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
+import type { CollectionReader } from './collection.js';
 import {
   InMemoryChallengeStore,
   WalletChallengeError,
@@ -15,6 +16,7 @@ import {
 } from './merchant-access.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
+import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 
@@ -30,6 +32,7 @@ export function createApiServer(
   merchantCatalog?: MerchantCatalog,
   merchantAccess?: MerchantAccessControl,
   claimSlots?: ClaimSlotService,
+  collection?: CollectionReader,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -45,6 +48,15 @@ export function createApiServer(
           throw new RequestError(503, 'MERCHANT_CATALOG_NOT_CONFIGURED');
         }
         sendJson(response, 200, { merchants: await merchantCatalog.listPublicMerchants() });
+        return;
+      }
+
+      if (request.method === 'GET' && request.url === '/collection') {
+        if (!collection) {
+          throw new RequestError(503, 'COLLECTION_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        sendJson(response, 200, await collection.getCollection(accountId));
         return;
       }
 
@@ -315,6 +327,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     : undefined;
   const merchantCatalog = pool ? new PostgresMerchantCatalog(pool) : undefined;
   const merchantAccess = pool ? new PostgresMerchantAccessControl(pool) : undefined;
+  const collection = pool ? new PostgresCollectionReader(pool) : undefined;
   const claimSlots =
     pool && process.env.MERCHANT_REFERENCE_HMAC_SECRET
       ? new PostgresClaimSlotService(pool, {
@@ -334,6 +347,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     merchantCatalog,
     merchantAccess,
     claimSlots,
+    collection,
   ).listen(port, '127.0.0.1', () => {
     console.log(`wallet API listening on http://127.0.0.1:${port}`);
   });

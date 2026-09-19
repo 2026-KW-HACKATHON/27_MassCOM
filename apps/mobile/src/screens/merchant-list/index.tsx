@@ -39,7 +39,24 @@ export function MerchantListScreen({ apiUrl }: Props) {
             지갑 없이 가게를 둘러보고 방문을 모아보세요. 실제 NFT 발행은 원하는 사람만 나중에
             선택합니다.
           </Text>
+          <View style={styles.primaryActions}>
+            <Link href="/claim" asChild>
+              <Pressable accessibilityRole="button" style={styles.primaryActionLink}>
+                <Text style={styles.primaryActionLinkText}>방문 코드 받기</Text>
+              </Pressable>
+            </Link>
+            <Link href="/collection" asChild>
+              <Pressable accessibilityRole="button" style={styles.primaryActionLink}>
+                <Text style={styles.primaryActionLinkText}>내 도감</Text>
+              </Pressable>
+            </Link>
+          </View>
           <View style={styles.quickActions}>
+            <Link href="/merchant" asChild>
+              <Pressable accessibilityRole="button" style={styles.secondaryAction}>
+                <Text style={styles.secondaryActionText}>점주 데모</Text>
+              </Pressable>
+            </Link>
             <Link href="/wallet" asChild>
               <Pressable accessibilityRole="button" style={styles.secondaryAction}>
                 <Text style={styles.secondaryActionText}>외부 지갑 연결</Text>
@@ -183,6 +200,9 @@ const styles = StyleSheet.create({
   title: { color: colors.label, fontSize: 34, fontWeight: '900', lineHeight: 42, letterSpacing: -0.8 },
   intro: { color: colors.secondaryLabel, fontSize: 16, lineHeight: 25 },
   quickActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  primaryActions: { flexDirection: 'row', gap: 10 },
+  primaryActionLink: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, borderRadius: 14, backgroundColor: colors.primary },
+  primaryActionLinkText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },
   secondaryAction: {
     minHeight: 44,
     justifyContent: 'center',

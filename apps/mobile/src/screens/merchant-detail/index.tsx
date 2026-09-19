@@ -85,8 +85,13 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
       </View>
 
       <View style={styles.nextStep}>
-        <Text style={styles.nextStepLabel}>다음 단계 · PR 2</Text>
-        <Text style={styles.nextStepText}>점주 확인 뒤 일회용 QR로 방문을 받는 흐름을 연결합니다.</Text>
+        <Text style={styles.nextStepLabel}>이용했다면</Text>
+        <Text style={styles.nextStepText}>점주가 만든 1회 코드로 방문과 보상권을 안전하게 받습니다.</Text>
+        <Link href="/claim" asChild>
+          <Pressable accessibilityRole="button" style={styles.walletAction}>
+            <Text style={styles.walletActionText}>방문 코드 받기</Text>
+          </Pressable>
+        </Link>
       </View>
     </ScrollView>
   );

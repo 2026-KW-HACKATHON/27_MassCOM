@@ -45,7 +45,7 @@
 - [x] Move the Phase 1 wallet UI to `/wallet` as an optional action.
 - [x] Run mobile tests, typecheck, lint, Android export, and update docs.
 - [x] Commit, push, and create Korean PR #45.
-- [ ] Wait for CI and required review, then merge.
+- [x] Wait for CI and required review, then merge PR #45; main CI run `35424531021` passed.
 
 ### Task 2: Merchant claim, customer redemption, and collection
 
@@ -58,15 +58,16 @@
 - Consumes: merchant context, claim-slot issue/reissue/preview/redeem services
 - Produces: collection read API, merchant issue UI, customer preview/redeem UI, collection UI
 
-- [ ] Add failing API tests for collection visits, entitlements, and separated NFT status.
-- [ ] Implement collection PostgreSQL query and authenticated route.
-- [ ] Add failing mobile client tests for context, issue, preview, redeem, collection.
-- [ ] Implement typed clients and error mapping without token logging.
-- [ ] Implement merchant context/issue route using development account resolver labels.
-- [ ] Implement claim preview/confirm route with duplicate-submit protection.
-- [ ] Implement collection route separating visit, app collectible, and NFT states.
-- [ ] Run API, PostgreSQL, mobile, typecheck, lint, export, secret checks.
-- [ ] Commit, push, create Korean PR, wait for CI, merge.
+- [x] Add failing API tests for collection visits, entitlements, and separated NFT status.
+- [x] Implement collection PostgreSQL query and authenticated route.
+- [x] Add failing mobile client tests for context, issue, preview, redeem, collection.
+- [x] Implement typed clients and error mapping without token logging.
+- [x] Implement merchant context/issue route using development account resolver labels.
+- [x] Implement claim preview/confirm route with duplicate-submit protection.
+- [x] Implement collection route separating visit, app collectible, and NFT states.
+- [x] Run API, PostgreSQL, mobile, typecheck, lint, export, secret checks.
+- [x] Commit, push, and create Korean PR #46.
+- [ ] Wait for CI and required review, then merge.
 
 ### Task 3: Explainable recommendations and end-to-end proof
 
