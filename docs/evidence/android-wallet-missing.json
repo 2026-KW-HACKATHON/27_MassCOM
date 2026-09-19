@@ -1,0 +1,36 @@
+{
+  "checked_at": "2026-09-19T12:17:31+09:00",
+  "source_branch": "test/33-wallet-missing-return",
+  "implementation_commit": "1dba58fa6eab45f1e743b3e669fe6a6a6de77baf",
+  "base_commit": "e34f3d52016be8ba7ab68af5925d6829e4da48e7",
+  "environment": {
+    "host": "macOS",
+    "device": "Samsung SM-S928N",
+    "android": "Android 16, API 36",
+    "wallet_under_test": "Trust Wallet not installed",
+    "appkit": "@reown/appkit-react-native 2.0.6",
+    "transport": "USB debugging with adb reverse for local API 3000 and Metro 8081"
+  },
+  "results": {
+    "wallet_absence": "PASS: the selected Trust Wallet package was not installed",
+    "appkit_guidance": "PASS: AppKit showed App not installed and a Get action",
+    "store_handoff": "PASS: Get opened the official Google Play listing without installing the wallet",
+    "manual_return": "PASS: two Android system-back actions returned from the Play listing to the app",
+    "app_recovery": "PASS: the AppKit modal was closed and the app showed NOT_CONNECTED, CHECK_REQUIRED, UNVERIFIED and a Korean retry/preservation message",
+    "automatic_return": "NOT_RUN: automatic Play-to-app return was not observed; the test intentionally used Android system back"
+  },
+  "automated_verification": {
+    "mobile_tests": "PASS: 22/22",
+    "typecheck": "PASS",
+    "lint": "PASS"
+  },
+  "security": {
+    "wallet_installed": false,
+    "wallet_data_changed": false,
+    "asset_request_made": false,
+    "reward_mutation_request_made": false,
+    "wallet_address_recorded": false,
+    "device_serial_recorded": false,
+    "seed_or_private_key_accessed": false
+  }
+}

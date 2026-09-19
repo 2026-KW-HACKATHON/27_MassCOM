@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  isAppKitGetWalletEvent,
   isAppKitUserRejectionEvent,
   isReownChainSwitchRejection,
   isWalletUserRejection,
@@ -51,6 +52,25 @@ test('does not treat near-miss AppKit events as a connection rejection', () => {
     isAppKitUserRejectionEvent({ data: { event: 'USER_REJECTED' }, timestamp: 3 }),
     false,
   );
+});
+
+test('recognizes the AppKit store handoff for an uninstalled wallet', () => {
+  assert.equal(
+    isAppKitGetWalletEvent({
+      data: {
+        type: 'track',
+        event: 'GET_WALLET',
+        properties: { name: 'Trust Wallet', linkType: 'playstore' },
+      },
+      timestamp: 4,
+    }),
+    true,
+  );
+  assert.equal(
+    isAppKitGetWalletEvent({ data: { type: 'track', event: 'CONNECT_ERROR' }, timestamp: 5 }),
+    false,
+  );
+  assert.equal(isAppKitGetWalletEvent({ data: { event: 'GET_WALLET' }, timestamp: 6 }), false);
 });
 
 test('does not treat other provider failures as user cancellation', () => {

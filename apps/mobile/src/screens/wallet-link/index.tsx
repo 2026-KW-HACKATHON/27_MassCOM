@@ -12,6 +12,7 @@ import { colors } from '@/theme/colors';
 import { baseSepolia } from '@/wallet/base-sepolia';
 import { WalletApiClient, WalletApiError } from '@/wallet/wallet-api';
 import {
+  isAppKitGetWalletEvent,
   isAppKitUserRejectionEvent,
   isReownChainSwitchRejection,
   isWalletUserRejection,
@@ -36,6 +37,8 @@ type Phase =
 
 const walletCancellationMessage =
   '지갑 연결 또는 서명을 취소했습니다. 방문 기록과 받을 수집품은 유지됩니다.';
+const walletMissingMessage =
+  '선택한 지갑 앱이 설치되어 있지 않아 연결하지 못했습니다. 설치 후 다시 시도하거나 다른 외부 지갑을 선택해 주세요. 방문 기록과 받을 수집품은 유지됩니다.';
 
 export function WalletLinkScreen({ config }: Props) {
   useColorScheme();
@@ -74,6 +77,23 @@ export function WalletLinkScreen({ config }: Props) {
   );
 
   useAppKitEventSubscription('USER_REJECTED', handleAppKitUserRejection);
+
+  const handleAppKitGetWallet = useCallback(
+    (event: unknown) => {
+      if (!awaitingWalletConnectionDecision.current || !isAppKitGetWalletEvent(event)) {
+        return;
+      }
+
+      awaitingWalletConnectionDecision.current = false;
+      void close().catch(() => undefined);
+      setVerifiedAddress(undefined);
+      setPhase('error');
+      setMessage(walletMissingMessage);
+    },
+    [close],
+  );
+
+  useAppKitEventSubscription('GET_WALLET', handleAppKitGetWallet);
 
   useEffect(() => {
     if (hasWalletSession) {
