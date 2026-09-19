@@ -16,6 +16,8 @@ type Options = {
   nextChainEventId: () => string;
   nextAssetId: () => string;
   retryDelayMs: number;
+  maxRetryDelayMs: number;
+  maxAttempts: number;
   chainFromBlock: number;
   reorgMargin: number;
 };
@@ -52,6 +54,8 @@ const defaultOptions: Options = {
   nextChainEventId: () => randomUUID(),
   nextAssetId: () => randomUUID(),
   retryDelayMs: 1_000,
+  maxRetryDelayMs: 300_000,
+  maxAttempts: 5,
   chainFromBlock: 0,
   reorgMargin: 12,
 };
@@ -64,6 +68,9 @@ export class PostgresMintRepository implements MintWorkRepository {
     options: Partial<Options> = {},
   ) {
     this.options = { ...defaultOptions, ...options };
+    if (!Number.isSafeInteger(this.options.maxAttempts) || this.options.maxAttempts <= 0) {
+      throw new Error('maxAttempts must be a positive safe integer');
+    }
     if (!Number.isSafeInteger(this.options.chainFromBlock) || this.options.chainFromBlock < 0) {
       throw new Error('chainFromBlock must be a non-negative safe integer');
     }
@@ -385,24 +392,40 @@ export class PostgresMintRepository implements MintWorkRepository {
 
   async releaseRetryable(jobId: string, workerId: string, code: string): Promise<void> {
     const now = this.options.now();
-    const availableAt = new Date(now.getTime() + this.options.retryDelayMs);
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       await requireLease(client, jobId, workerId, now);
-      await client.query(
-        `UPDATE mint_jobs
-         SET status = 'RETRYABLE', last_error_code = $1, updated_at = $2
-         WHERE id = $3`,
-        [code, now, jobId],
-      );
-      await client.query(
-        `UPDATE outbox_events
-         SET status = 'PENDING', available_at = $1, lease_owner = NULL,
-             lease_expires_at = NULL, updated_at = $2
-         WHERE aggregate_id = $3`,
-        [availableAt, now, jobId],
-      );
+      const job = (
+        await client.query<{ attempt_count: number }>(
+          'SELECT attempt_count FROM mint_jobs WHERE id = $1 FOR UPDATE',
+          [jobId],
+        )
+      ).rows[0];
+      if (!job) throw new Error('MINT_JOB_NOT_FOUND');
+      const attemptCount = job.attempt_count;
+      if (attemptCount >= this.options.maxAttempts) {
+        // Only submission attempts count, so waiting for finality or an RPC outage never lands here.
+        await closeForManualReview(client, jobId, 'RETRY_LIMIT_EXCEEDED', now);
+      } else {
+        const delayMs = Math.min(
+          this.options.retryDelayMs * 2 ** attemptCount,
+          this.options.maxRetryDelayMs,
+        );
+        await client.query(
+          `UPDATE mint_jobs
+           SET status = 'RETRYABLE', last_error_code = $1, updated_at = $2
+           WHERE id = $3`,
+          [code, now, jobId],
+        );
+        await client.query(
+          `UPDATE outbox_events
+           SET status = 'PENDING', available_at = $1, lease_owner = NULL,
+               lease_expires_at = NULL, updated_at = $2
+           WHERE aggregate_id = $3`,
+          [new Date(now.getTime() + delayMs), now, jobId],
+        );
+      }
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -418,18 +441,7 @@ export class PostgresMintRepository implements MintWorkRepository {
     try {
       await client.query('BEGIN');
       await requireLease(client, jobId, workerId, now);
-      await client.query(
-        `UPDATE mint_jobs
-         SET status = 'MANUAL_REVIEW', last_error_code = $1, updated_at = $2
-         WHERE id = $3`,
-        [code, now, jobId],
-      );
-      await client.query(
-        `UPDATE outbox_events
-         SET status = 'PUBLISHED', lease_owner = NULL, lease_expires_at = NULL, updated_at = $1
-         WHERE aggregate_id = $2`,
-        [now, jobId],
-      );
+      await closeForManualReview(client, jobId, code, now);
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -438,6 +450,26 @@ export class PostgresMintRepository implements MintWorkRepository {
       client.release();
     }
   }
+}
+
+async function closeForManualReview(
+  client: PoolClient,
+  jobId: string,
+  code: string,
+  now: Date,
+): Promise<void> {
+  await client.query(
+    `UPDATE mint_jobs
+     SET status = 'MANUAL_REVIEW', last_error_code = $1, updated_at = $2
+     WHERE id = $3`,
+    [code, now, jobId],
+  );
+  await client.query(
+    `UPDATE outbox_events
+     SET status = 'PUBLISHED', lease_owner = NULL, lease_expires_at = NULL, updated_at = $1
+     WHERE aggregate_id = $2`,
+    [now, jobId],
+  );
 }
 
 async function requireLease(
