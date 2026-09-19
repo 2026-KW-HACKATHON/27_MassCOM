@@ -38,6 +38,7 @@ jobs:
           cache-dependency-path: |
             apps/api/package-lock.json
             apps/mobile/package-lock.json
+            apps/worker/package-lock.json
       - name: 저장소 비밀값 검사
         run: |
           bash scripts/check-secrets.sh
@@ -65,6 +66,7 @@ jobs:
         run: |
           npm ci --prefix apps/api
           npm ci --prefix apps/mobile
+          npm ci --prefix apps/worker
       - name: API·PostgreSQL 테스트·타입검사·빌드
         env:
           DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
@@ -77,6 +79,31 @@ jobs:
           npm run typecheck --prefix apps/api
           npm run build --prefix apps/api
           npm run audit:ci --prefix apps/api
+          npm run test:postgres --prefix apps/worker
+          npm test --prefix apps/worker
+          npm run typecheck --prefix apps/worker
+          npm run build --prefix apps/worker
+          npm run audit:ci --prefix apps/worker
+      - name: Worker 로컬 Anvil 전체 흐름
+        env:
+          DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
+          TEST_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
+          PGPASSWORD: postgres
+          ANVIL_RPC_URL: http://127.0.0.1:8545
+        run: |
+          ./scripts/anvil.sh --chain-id 31337 --silent > /tmp/masscom-anvil.log 2>&1 &
+          anvil_pid=$!
+          trap 'kill "$anvil_pid"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail \
+              --header 'content-type: application/json' \
+              --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' \
+              http://127.0.0.1:8545 >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          npm run test:anvil --prefix apps/worker
       - name: Android 앱 테스트·정적검사·번들
         run: |
           npm test --prefix apps/mobile

@@ -1,0 +1,28 @@
+{
+  "name": "@masscom/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start:once": "tsx src/run-worker.ts",
+    "test": "tsx --test src/**/*.test.ts",
+    "test:postgres": "DATABASE_URL=$TEST_DATABASE_URL npm run db:migrate --prefix ../api && tsx --test --test-concurrency=1 src/**/*.postgres.integration.ts",
+    "test:anvil": "tsx --test --test-concurrency=1 src/**/*.anvil.integration.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "audit:ci": "npm audit --omit=dev --audit-level=high"
+  },
+  "dependencies": {
+    "ethers": "6.17.0",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/pg": "8.18.0",
+    "tsx": "4.21.0",
+    "typescript": "6.0.3"
+  }
+}

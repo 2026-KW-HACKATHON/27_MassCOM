@@ -27,6 +27,21 @@ type CollectibleRow = {
   target_visit_count: 1 | 3 | 5;
   display_name: string;
   entitlement_status: 'GRANTED' | 'MINT_REQUESTED' | 'FULFILLED';
+  mint_job_id: string | null;
+  mint_job_status:
+    | 'QUEUED'
+    | 'PREPARED'
+    | 'SUBMITTED'
+    | 'CONFIRMING'
+    | 'FINALIZED'
+    | 'RETRYABLE'
+    | 'PAUSED'
+    | 'MANUAL_REVIEW'
+    | null;
+  recipient_address: string | null;
+  asset_chain_id: number | null;
+  asset_contract_address: string | null;
+  asset_token_id: string | null;
 };
 
 export class PostgresCollectionReader implements CollectionReader {
@@ -61,13 +76,21 @@ export class PostgresCollectionReader implements CollectionReader {
            campaign.title AS campaign_title,
            entitlement.target_visit_count,
            goal.display_name,
-           entitlement.status AS entitlement_status
+           entitlement.status AS entitlement_status,
+           job.id AS mint_job_id,
+           job.status AS mint_job_status,
+           job.recipient_address,
+           asset.chain_id AS asset_chain_id,
+           asset.contract_address AS asset_contract_address,
+           asset.token_id::text AS asset_token_id
          FROM reward_entitlements AS entitlement
          JOIN campaigns AS campaign ON campaign.id = entitlement.campaign_id
          JOIN merchants AS merchant ON merchant.id = campaign.merchant_id
          JOIN campaign_goals AS goal
            ON goal.campaign_id = entitlement.campaign_id
           AND goal.target_visit_count = entitlement.target_visit_count
+         LEFT JOIN mint_jobs AS job ON job.entitlement_id = entitlement.id
+         LEFT JOIN nft_assets AS asset ON asset.mint_job_id = job.id
          WHERE entitlement.customer_account_id = $1
            AND entitlement.status IN ('GRANTED', 'MINT_REQUESTED', 'FULFILLED')
          ORDER BY entitlement.target_visit_count DESC, entitlement.id DESC`,
@@ -105,14 +128,34 @@ function mapCollectible(row: CollectibleRow): CollectionCollectible {
     targetVisitCount: row.target_visit_count,
     displayName: row.display_name,
     appCollectibleStatus: 'COLLECTED',
-    nftStatus: nftStatusFor(row.entitlement_status),
+    mintJobId: row.mint_job_id,
+    recipient: row.recipient_address,
+    nftStatus: nftStatusFor(row),
+    nft:
+      row.asset_chain_id !== null &&
+      row.asset_contract_address !== null &&
+      row.asset_token_id !== null
+        ? {
+            chainId: row.asset_chain_id,
+            contractAddress: row.asset_contract_address,
+            tokenId: row.asset_token_id,
+          }
+        : null,
   };
 }
 
-function nftStatusFor(
-  status: CollectibleRow['entitlement_status'],
-): CollectionCollectible['nftStatus'] {
-  if (status === 'MINT_REQUESTED') return 'REQUESTED';
-  if (status === 'FULFILLED') return 'FULFILLED';
-  return 'NOT_REQUESTED';
+function nftStatusFor(row: CollectibleRow): CollectionCollectible['nftStatus'] {
+  if (row.entitlement_status === 'GRANTED') return 'NOT_REQUESTED';
+  if (row.mint_job_status === 'FINALIZED' && row.asset_token_id !== null) return 'FINALIZED';
+  if (row.mint_job_status === 'SUBMITTED' || row.mint_job_status === 'CONFIRMING') {
+    return 'CONFIRMING';
+  }
+  if (
+    row.mint_job_status === 'QUEUED' ||
+    row.mint_job_status === 'PREPARED' ||
+    row.mint_job_status === 'RETRYABLE'
+  ) {
+    return 'QUEUED';
+  }
+  return 'REVIEW_REQUIRED';
 }
