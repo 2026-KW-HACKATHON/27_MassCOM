@@ -138,7 +138,24 @@ test('W07 M01-M08 finalize once and reject an unconfirmed reorg event on Anvil',
   const externallySubmitted = await minterContract
     .getFunction('mintWithRewardKey')
     .send(recipients[1], seriesKey, rewardKeys[1]);
-  await waitFor(externallySubmitted);
+  const externallySubmittedReceipt = await externallySubmitted.wait();
+  assert.equal(externallySubmittedReceipt?.status, 1);
+  assert.ok(externallySubmittedReceipt);
+  const fallbackGateway = new EthersMintChainGateway({
+    rpcUrl,
+    chainId: 31337,
+    contractAddress,
+    minterAddress,
+    confirmations: 1,
+    fromBlock: externallySubmittedReceipt.blockNumber + 1,
+    fallbackFromBlock: 0,
+  });
+  const recoveredFromFallback = await fallbackGateway.findMintByRewardKey({
+    ...validationItem,
+    rewardKey: rewardKeys[1]!,
+    recipient: recipients[1],
+  });
+  assert.equal(recoveredFromFallback?.transactionHash, externallySubmitted.hash.toLowerCase());
   await assert.rejects(
     gateway.confirmMint(
       {
@@ -248,7 +265,7 @@ async function seedAnvilJobs(
   rewardKeys: readonly string[],
 ): Promise<void> {
   await pool.query(
-    'TRUNCATE nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
+    'TRUNCATE chain_cursors, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
   );
   await pool.query(
     `INSERT INTO merchants

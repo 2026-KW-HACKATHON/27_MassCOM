@@ -8,8 +8,8 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 | Issue #56 완료 후 사용자 요청으로 중지 |
-| 현재 검증 기준 | API 35·PostgreSQL 14·Worker 8/PG 4·모바일 48·Foundry 8/fuzz128·Anvil PASS |
+| 현재 작업 | Issue #59 chain cursor 재시작 범위·reorg margin 구현 |
+| 현재 검증 기준 | API 35·PostgreSQL 14·Worker 8/PG 5·모바일 48·Foundry 8/fuzz128·Anvil PASS |
 | 최근 main 기준선 | PR #57 merge `9794c70`, main CI run `35455419805` PASS |
 
 ## Phase 상태
@@ -44,6 +44,7 @@
 - 결과를 미리 채우지 않은 현장 검증 기록지와 제출 증거 manifest·허위 주장 gate
 - 삭제·wallet·claim·redeem·mint request 공통 account lifecycle lock과 삭제 tombstone write 차단
 - 활성 Worker lease 삭제 보호, submit 직전 lease 재검사, duplicate revert reward-key 복구
+- chain cursor 기반 재시작 범위, 12블록 reorg margin, 오래된 reward 이벤트 fallback 복구
 - 36개 테스트 catalog/ledger ID별 상태 동기화와 강화된 secret·PR·presentation gate
 
 ## 미완료
@@ -60,7 +61,7 @@
 
 - 필수 36개: `26 PASS / 2 BLOCKED / 8 NOT_RUN`
 - API 단위: `35/35 PASS`; PostgreSQL: `14/14 PASS`
-- Worker 단위: `8/8 PASS`; PostgreSQL: `4/4 PASS`; Anvil W07/M01~M08: `PASS`
+- Worker 단위: `8/8 PASS`; PostgreSQL: `5/5 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `48/48 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`

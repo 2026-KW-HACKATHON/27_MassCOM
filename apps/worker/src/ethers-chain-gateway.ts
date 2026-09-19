@@ -35,6 +35,7 @@ type GatewayOptions = {
   minterAddress: string;
   confirmations: number;
   fromBlock: number;
+  fallbackFromBlock?: number;
 };
 
 export class EthersMintChainGateway implements MintChainGateway {
@@ -54,6 +55,14 @@ export class EthersMintChainGateway implements MintChainGateway {
     }
     if (!Number.isSafeInteger(options.fromBlock) || options.fromBlock < 0) {
       throw new Error('fromBlock must be a non-negative safe integer');
+    }
+    const fallbackFromBlock = options.fallbackFromBlock ?? options.fromBlock;
+    if (
+      !Number.isSafeInteger(fallbackFromBlock) ||
+      fallbackFromBlock < 0 ||
+      fallbackFromBlock > options.fromBlock
+    ) {
+      throw new Error('fallbackFromBlock must be between zero and fromBlock');
     }
   }
 
@@ -96,22 +105,50 @@ export class EthersMintChainGateway implements MintChainGateway {
 
     const eventFragment = this.contractInterface.getEvent('MascotMinted');
     if (!eventFragment) throw new MintEventMismatchError('MINT_EVENT_ABI_MISSING');
-    const logs = await this.provider.getLogs({
-      address: this.contractAddress,
-      fromBlock: this.options.fromBlock,
-      toBlock: 'latest',
-      topics: [eventFragment.topicHash, item.rewardKey],
-    });
-    const event = logs.at(-1);
-    if (!event) throw new MintEventMismatchError('MINT_EVENT_NOT_FOUND');
     const latestBlock = Number(
       BigInt((await this.provider.send('eth_blockNumber', [])) as string),
     );
+    let event = await this.findLatestMintEvent(
+      item,
+      eventFragment.topicHash,
+      this.options.fromBlock,
+      latestBlock,
+    );
+    const fallbackFromBlock = this.options.fallbackFromBlock ?? this.options.fromBlock;
+    if (!event && fallbackFromBlock < this.options.fromBlock) {
+      event = await this.findLatestMintEvent(
+        item,
+        eventFragment.topicHash,
+        fallbackFromBlock,
+        Math.min(latestBlock, this.options.fromBlock - 1),
+      );
+    }
+    if (!event) throw new MintEventMismatchError('MINT_EVENT_NOT_FOUND');
     const requiredLatestBlock = event.blockNumber + this.options.confirmations - 1;
     if (latestBlock < requiredLatestBlock) {
       throw new RetryableChainError('MINT_EVENT_NOT_FINALIZED');
     }
     return this.resultFromEvent(item, event, tokenId);
+  }
+
+  private async findLatestMintEvent(
+    item: MintWorkItem,
+    topicHash: string,
+    fromBlock: number,
+    toBlock: number,
+  ): Promise<Log | undefined> {
+    if (fromBlock > toBlock) return undefined;
+    try {
+      const logs = await this.provider.getLogs({
+        address: this.contractAddress,
+        fromBlock,
+        toBlock,
+        topics: [topicHash, item.rewardKey],
+      });
+      return logs.at(-1);
+    } catch {
+      throw new RetryableChainError('MINT_EVENT_LOOKUP_FAILED');
+    }
   }
 
   async submitMint(item: MintWorkItem): Promise<{ transactionHash: string }> {

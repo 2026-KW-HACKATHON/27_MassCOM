@@ -37,6 +37,7 @@
 
 - duplicate transaction revert 뒤 기존 reward key를 찾으면 `MANUAL_REVIEW` 대신 `FINALIZED`로 수렴합니다.
 - 만료 lease는 갱신할 수 없고, 취소된 `PREPARED` job은 `SUBMITTED`로 되살릴 수 없습니다.
+- `chain_cursors`를 재시작 조회 범위에 사용하고 reorg margin·배포 블록 fallback으로 out-of-order 복구를 보존합니다.
 - secret scanner가 camelCase token/secret/key assignment와 로컬 `.worktrees/.omx/.omc/.serena` 경계를 처리합니다.
 - insecure DEMO 재인증 헤더는 `EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION=true`일 때만 전송됩니다.
 - 한글 PR gate는 제목·본문의 최소 한글 문자 수를 요구합니다.
@@ -46,7 +47,6 @@
 
 | 항목 | 현재 조치 | 운영 전 조건 |
 | --- | --- | --- |
-| `chain_cursors` write-only | 로컬 데이터 소량, M08 복구 PASS | cursor 기반 스캔 범위 전진·재조직 여유 정책 |
 | Worker retry 상한 없음 | 중복 효과는 계약·DB가 차단 | backoff·최대 횟수·dead-letter/manual review |
 | SIWE challenge 메모리 저장 | 단일 인스턴스 DEMO로 명시 | PostgreSQL/공유 저장소 또는 단일 인스턴스 강제 |
 | 모바일 moderate advisory 14건 | high/critical 0, B-008 유지 | Expo 호환 upstream 업데이트 후 release 회귀 |

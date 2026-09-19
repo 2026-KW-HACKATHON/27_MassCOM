@@ -19,7 +19,8 @@
     "docs/evidence/account-deletion-privacy.json"
   ],
   "securityEvidence": [
-    "docs/evidence/security-audit-issue-56.json"
+    "docs/evidence/security-audit-issue-56.json",
+    "docs/evidence/chain-cursor-recovery.json"
   ],
   "blocked": [
     "repository public conversion",

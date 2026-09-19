@@ -15,6 +15,8 @@ type Options = {
   nextChainEventId: () => string;
   nextAssetId: () => string;
   retryDelayMs: number;
+  chainFromBlock: number;
+  reorgMargin: number;
 };
 
 type WorkRow = {
@@ -49,6 +51,8 @@ const defaultOptions: Options = {
   nextChainEventId: () => randomUUID(),
   nextAssetId: () => randomUUID(),
   retryDelayMs: 1_000,
+  chainFromBlock: 0,
+  reorgMargin: 12,
 };
 
 export class PostgresMintRepository implements MintWorkRepository {
@@ -59,6 +63,34 @@ export class PostgresMintRepository implements MintWorkRepository {
     options: Partial<Options> = {},
   ) {
     this.options = { ...defaultOptions, ...options };
+    if (!Number.isSafeInteger(this.options.chainFromBlock) || this.options.chainFromBlock < 0) {
+      throw new Error('chainFromBlock must be a non-negative safe integer');
+    }
+    if (!Number.isSafeInteger(this.options.reorgMargin) || this.options.reorgMargin <= 0) {
+      throw new Error('reorgMargin must be a positive safe integer');
+    }
+  }
+
+  async getEventScanStart(chainId: number, contractAddress: string): Promise<number> {
+    const row = (
+      await this.pool.query<{ scan_from_block: string }>(
+        `SELECT greatest($3::bigint, next_block - $4::bigint)::text AS scan_from_block
+         FROM chain_cursors
+         WHERE chain_id = $1 AND contract_address_normalized = $2`,
+        [
+          chainId,
+          contractAddress.toLowerCase(),
+          this.options.chainFromBlock,
+          this.options.reorgMargin,
+        ],
+      )
+    ).rows[0];
+    if (!row) return this.options.chainFromBlock;
+    const scanFromBlock = Number(row.scan_from_block);
+    if (!Number.isSafeInteger(scanFromBlock) || scanFromBlock < 0) {
+      throw new Error('chain cursor exceeds the supported block range');
+    }
+    return scanFromBlock;
   }
 
   async leaseNext(workerId: string, leaseMs: number): Promise<MintWorkItem | undefined> {

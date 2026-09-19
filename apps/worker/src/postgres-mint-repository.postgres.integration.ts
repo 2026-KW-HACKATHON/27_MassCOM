@@ -199,9 +199,38 @@ test('markSubmitted cannot revive a cancelled prepared job', async (t) => {
   assert.equal(state.rows[0]?.status, 'CANCELLED');
 });
 
+test('event scan start reads the cursor with a reorg margin and deployment floor', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const repository = new PostgresMintRepository(pool, {
+    chainFromBlock: 20,
+    reorgMargin: 12,
+  });
+  const contractAddress = '0x7000000000000000000000000000000000000007';
+
+  assert.equal(await repository.getEventScanStart(31337, contractAddress), 20);
+
+  await pool.query(
+    `INSERT INTO chain_cursors (
+       chain_id, contract_address_normalized, next_block, updated_at
+     ) VALUES ($1, $2, 5, now())`,
+    [31337, contractAddress.toLowerCase()],
+  );
+  assert.equal(await repository.getEventScanStart(31337, contractAddress), 20);
+
+  await pool.query(
+    `UPDATE chain_cursors
+     SET next_block = 120, updated_at = now()
+     WHERE chain_id = $1 AND contract_address_normalized = $2`,
+    [31337, contractAddress.toLowerCase()],
+  );
+  assert.equal(await repository.getEventScanStart(31337, contractAddress), 108);
+});
+
 async function seedWorkerFixture(pool: Pool): Promise<void> {
   await pool.query(
-    'TRUNCATE nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
+    'TRUNCATE chain_cursors, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
   );
   await pool.query(
     `INSERT INTO merchants

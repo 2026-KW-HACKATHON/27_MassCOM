@@ -13,20 +13,34 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
   const contractAddress = required(environment.NFT_CONTRACT_ADDRESS, 'NFT_CONTRACT_ADDRESS');
   const minterAddress = required(environment.MINTER_ADDRESS, 'MINTER_ADDRESS');
   const workerId = environment.WORKER_ID?.trim() || 'local-mint-worker';
+  const confirmations = requiredInteger(
+    environment.CHAIN_CONFIRMATIONS ?? '1',
+    'CHAIN_CONFIRMATIONS',
+  );
+  const chainFromBlock = requiredNonNegativeInteger(
+    environment.CHAIN_FROM_BLOCK ?? '0',
+    'CHAIN_FROM_BLOCK',
+  );
+  const reorgMargin = requiredInteger(
+    environment.CHAIN_REORG_MARGIN ?? '12',
+    'CHAIN_REORG_MARGIN',
+  );
   if (chainId !== 31337 || environment.ALLOW_UNLOCKED_LOCAL_MINTER !== 'true') {
     throw new Error('unlocked RPC worker is restricted to explicit local Anvil configuration');
   }
 
   const pool = new Pool({ connectionString: databaseUrl });
   try {
-    const repository = new PostgresMintRepository(pool);
+    const repository = new PostgresMintRepository(pool, { chainFromBlock, reorgMargin });
+    const scanFromBlock = await repository.getEventScanStart(chainId, contractAddress);
     const gateway = new EthersMintChainGateway({
       rpcUrl,
       chainId,
       contractAddress,
       minterAddress,
-      confirmations: requiredInteger(environment.CHAIN_CONFIRMATIONS ?? '1', 'CHAIN_CONFIRMATIONS'),
-      fromBlock: requiredNonNegativeInteger(environment.CHAIN_FROM_BLOCK ?? '0', 'CHAIN_FROM_BLOCK'),
+      confirmations,
+      fromBlock: scanFromBlock,
+      fallbackFromBlock: chainFromBlock,
     });
     return await new MintWorker(repository, gateway).runOnce(workerId);
   } finally {
