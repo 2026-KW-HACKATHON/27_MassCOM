@@ -1,0 +1,362 @@
+export type MerchantContext = {
+  merchantId: string;
+  role: 'OWNER' | 'STAFF';
+  permissions: readonly ('VIEW_MERCHANT' | 'CONFIRM_VISIT')[];
+};
+
+export type IssuedClaim = {
+  claimSlotId: string;
+  token: string;
+  tokenVersion: number;
+  expiresAt: string;
+};
+
+export type ClaimPreview = {
+  claimSlotId: string;
+  merchantId: string;
+  expiresAt: string;
+  status: 'AVAILABLE' | 'EXPIRED';
+};
+
+export type RedeemedClaim = {
+  claimSlotId: string;
+  merchantId: string;
+  status: 'CLAIMED';
+  visit: {
+    visitEventId: string;
+    campaignId: string;
+    businessDate: string;
+    verificationLevel: 'MERCHANT_CONFIRMED';
+    progressCounted: boolean;
+    progressVisitCount: number;
+  };
+  grantedRewards: readonly {
+    entitlementId: string;
+    targetVisitCount: 1 | 3 | 5;
+    status: 'GRANTED';
+    claimExpiresAt: string;
+  }[];
+};
+
+export type CollectionSnapshot = {
+  visits: readonly {
+    visitEventId: string;
+    merchantId: string;
+    merchantName: string;
+    campaignId: string;
+    campaignTitle: string;
+    businessDate: string;
+    progressCounted: boolean;
+    verificationLevel: 'MERCHANT_CONFIRMED' | 'POS_VERIFIED';
+  }[];
+  collectibles: readonly {
+    entitlementId: string;
+    merchantId: string;
+    merchantName: string;
+    campaignId: string;
+    campaignTitle: string;
+    targetVisitCount: 1 | 3 | 5;
+    displayName: string;
+    appCollectibleStatus: 'COLLECTED';
+    nftStatus: 'NOT_REQUESTED' | 'REQUESTED' | 'FULFILLED';
+  }[];
+};
+
+type Options = {
+  apiUrl: string;
+  accountId: string;
+  fetcher?: typeof fetch;
+};
+
+export class CommerceApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message = code,
+  ) {
+    super(message);
+    this.name = 'CommerceApiError';
+  }
+}
+
+export function createCommerceApiClient(options: Options) {
+  const apiUrl = options.apiUrl.replace(/\/+$/, '');
+  const fetcher = options.fetcher ?? fetch;
+
+  async function request(path: string, init?: RequestInit): Promise<unknown> {
+    const response = await fetcher(`${apiUrl}${path}`, {
+      ...init,
+      headers: {
+        Accept: 'application/json',
+        'x-account-id': options.accountId,
+        ...init?.headers,
+      },
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      const code = isRecord(payload) && typeof payload.code === 'string'
+        ? payload.code
+        : `HTTP_${response.status}`;
+      throw new CommerceApiError(response.status, code);
+    }
+    return payload;
+  }
+
+  async function post(path: string, body: object): Promise<unknown> {
+    return request(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  return {
+    async getMerchantContext(merchantId: string): Promise<MerchantContext> {
+      return parseMerchantContext(
+        await request(`/merchant/merchants/${encodeURIComponent(merchantId)}/context`),
+      );
+    },
+
+    async issueClaim(input: {
+      merchantId: string;
+      customerAccountId: string;
+      merchantReference: string;
+    }): Promise<IssuedClaim> {
+      return parseIssuedClaim(
+        await post(`/merchant/merchants/${encodeURIComponent(input.merchantId)}/claim-slots`, {
+          customerAccountId: input.customerAccountId,
+          merchantReference: input.merchantReference,
+        }),
+      );
+    },
+
+    async reissueClaim(input: {
+      merchantId: string;
+      claimSlotId: string;
+      expectedTokenVersion: number;
+    }): Promise<IssuedClaim> {
+      return parseIssuedClaim(
+        await post(
+          `/merchant/merchants/${encodeURIComponent(input.merchantId)}/claim-slots/${encodeURIComponent(input.claimSlotId)}/reissue`,
+          { expectedTokenVersion: input.expectedTokenVersion },
+        ),
+      );
+    },
+
+    async previewClaim(token: string): Promise<ClaimPreview> {
+      return parseClaimPreview(await post('/claim-slots/preview', { token }));
+    },
+
+    async redeemClaim(token: string): Promise<RedeemedClaim> {
+      return parseRedeemedClaim(await post('/claim-slots/redeem', { token }));
+    },
+
+    async getCollection(): Promise<CollectionSnapshot> {
+      return parseCollection(await request('/collection'));
+    },
+  };
+}
+
+function parseMerchantContext(value: unknown): MerchantContext {
+  if (
+    !isRecord(value) ||
+    !isString(value.merchantId) ||
+    (value.role !== 'OWNER' && value.role !== 'STAFF') ||
+    !Array.isArray(value.permissions) ||
+    !value.permissions.every((permission) =>
+      permission === 'VIEW_MERCHANT' || permission === 'CONFIRM_VISIT'
+    )
+  ) {
+    throw invalidResponse('점주 권한');
+  }
+  return {
+    merchantId: value.merchantId,
+    role: value.role,
+    permissions: value.permissions,
+  };
+}
+
+function parseIssuedClaim(value: unknown): IssuedClaim {
+  if (
+    !isRecord(value) ||
+    !isString(value.claimSlotId) ||
+    !isString(value.token) ||
+    !isPositiveInteger(value.tokenVersion) ||
+    !isDate(value.expiresAt)
+  ) {
+    throw invalidResponse('수령 코드');
+  }
+  return {
+    claimSlotId: value.claimSlotId,
+    token: value.token,
+    tokenVersion: value.tokenVersion,
+    expiresAt: value.expiresAt,
+  };
+}
+
+function parseClaimPreview(value: unknown): ClaimPreview {
+  if (
+    !isRecord(value) ||
+    !isString(value.claimSlotId) ||
+    !isString(value.merchantId) ||
+    !isDate(value.expiresAt) ||
+    (value.status !== 'AVAILABLE' && value.status !== 'EXPIRED')
+  ) {
+    throw invalidResponse('수령 확인');
+  }
+  return {
+    claimSlotId: value.claimSlotId,
+    merchantId: value.merchantId,
+    expiresAt: value.expiresAt,
+    status: value.status,
+  };
+}
+
+function parseRedeemedClaim(value: unknown): RedeemedClaim {
+  if (
+    !isRecord(value) ||
+    !isString(value.claimSlotId) ||
+    !isString(value.merchantId) ||
+    value.status !== 'CLAIMED' ||
+    !isRecord(value.visit) ||
+    !isString(value.visit.visitEventId) ||
+    !isString(value.visit.campaignId) ||
+    !isBusinessDate(value.visit.businessDate) ||
+    value.visit.verificationLevel !== 'MERCHANT_CONFIRMED' ||
+    typeof value.visit.progressCounted !== 'boolean' ||
+    !isNonNegativeInteger(value.visit.progressVisitCount) ||
+    !Array.isArray(value.grantedRewards)
+  ) {
+    throw invalidResponse('방문 수령');
+  }
+  return {
+    claimSlotId: value.claimSlotId,
+    merchantId: value.merchantId,
+    status: 'CLAIMED',
+    visit: {
+      visitEventId: value.visit.visitEventId,
+      campaignId: value.visit.campaignId,
+      businessDate: value.visit.businessDate,
+      verificationLevel: 'MERCHANT_CONFIRMED',
+      progressCounted: value.visit.progressCounted,
+      progressVisitCount: value.visit.progressVisitCount,
+    },
+    grantedRewards: value.grantedRewards.map(parseGrantedReward),
+  };
+}
+
+function parseGrantedReward(value: unknown): RedeemedClaim['grantedRewards'][number] {
+  if (
+    !isRecord(value) ||
+    !isString(value.entitlementId) ||
+    !isGoal(value.targetVisitCount) ||
+    value.status !== 'GRANTED' ||
+    !isDate(value.claimExpiresAt)
+  ) {
+    throw invalidResponse('방문 보상');
+  }
+  return {
+    entitlementId: value.entitlementId,
+    targetVisitCount: value.targetVisitCount,
+    status: 'GRANTED',
+    claimExpiresAt: value.claimExpiresAt,
+  };
+}
+
+function parseCollection(value: unknown): CollectionSnapshot {
+  if (!isRecord(value) || !Array.isArray(value.visits) || !Array.isArray(value.collectibles)) {
+    throw invalidResponse('도감');
+  }
+  return {
+    visits: value.visits.map(parseCollectionVisit),
+    collectibles: value.collectibles.map(parseCollectible),
+  };
+}
+
+function parseCollectionVisit(value: unknown): CollectionSnapshot['visits'][number] {
+  if (
+    !isRecord(value) ||
+    !isString(value.visitEventId) ||
+    !isString(value.merchantId) ||
+    !isString(value.merchantName) ||
+    !isString(value.campaignId) ||
+    !isString(value.campaignTitle) ||
+    !isBusinessDate(value.businessDate) ||
+    typeof value.progressCounted !== 'boolean' ||
+    (value.verificationLevel !== 'MERCHANT_CONFIRMED' && value.verificationLevel !== 'POS_VERIFIED')
+  ) {
+    throw invalidResponse('도감 방문');
+  }
+  return {
+    visitEventId: value.visitEventId,
+    merchantId: value.merchantId,
+    merchantName: value.merchantName,
+    campaignId: value.campaignId,
+    campaignTitle: value.campaignTitle,
+    businessDate: value.businessDate,
+    progressCounted: value.progressCounted,
+    verificationLevel: value.verificationLevel,
+  };
+}
+
+function parseCollectible(value: unknown): CollectionSnapshot['collectibles'][number] {
+  if (
+    !isRecord(value) ||
+    !isString(value.entitlementId) ||
+    !isString(value.merchantId) ||
+    !isString(value.merchantName) ||
+    !isString(value.campaignId) ||
+    !isString(value.campaignTitle) ||
+    !isGoal(value.targetVisitCount) ||
+    !isString(value.displayName) ||
+    value.appCollectibleStatus !== 'COLLECTED' ||
+    (value.nftStatus !== 'NOT_REQUESTED' &&
+      value.nftStatus !== 'REQUESTED' &&
+      value.nftStatus !== 'FULFILLED')
+  ) {
+    throw invalidResponse('도감');
+  }
+  return {
+    entitlementId: value.entitlementId,
+    merchantId: value.merchantId,
+    merchantName: value.merchantName,
+    campaignId: value.campaignId,
+    campaignTitle: value.campaignTitle,
+    targetVisitCount: value.targetVisitCount,
+    displayName: value.displayName,
+    appCollectibleStatus: 'COLLECTED',
+    nftStatus: value.nftStatus,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isDate(value: unknown): value is string {
+  return isString(value) && !Number.isNaN(Date.parse(value));
+}
+
+function isBusinessDate(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 0;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) > 0;
+}
+
+function isGoal(value: unknown): value is 1 | 3 | 5 {
+  return value === 1 || value === 3 || value === 5;
+}
+
+function invalidResponse(label: string): CommerceApiError {
+  return new CommerceApiError(200, 'INVALID_RESPONSE', `${label} 응답 형식이 올바르지 않습니다.`);
+}

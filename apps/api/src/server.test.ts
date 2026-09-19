@@ -57,6 +57,32 @@ type ClaimSlotFixture = {
   }>;
 };
 
+type CollectionFixture = {
+  getCollection(accountId: string): Promise<{
+    visits: readonly {
+      visitEventId: string;
+      merchantId: string;
+      merchantName: string;
+      campaignId: string;
+      campaignTitle: string;
+      businessDate: string;
+      progressCounted: boolean;
+      verificationLevel: 'MERCHANT_CONFIRMED' | 'POS_VERIFIED';
+    }[];
+    collectibles: readonly {
+      entitlementId: string;
+      merchantId: string;
+      merchantName: string;
+      campaignId: string;
+      campaignTitle: string;
+      targetVisitCount: 1 | 3 | 5;
+      displayName: string;
+      appCollectibleStatus: 'COLLECTED';
+      nftStatus: 'NOT_REQUESTED' | 'REQUESTED' | 'FULFILLED';
+    }[];
+  }>;
+};
+
 function claimSlotFixture(overrides: Partial<ClaimSlotFixture>): ClaimSlotFixture {
   return {
     issue: async () => {
@@ -81,6 +107,7 @@ async function startFixture(
   merchantCatalog?: MerchantCatalog,
   merchantAccess?: MerchantAccessFixture,
   claimSlots?: ClaimSlotFixture,
+  collection?: CollectionFixture,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -97,6 +124,7 @@ async function startFixture(
     merchantCatalog,
     merchantAccess,
     claimSlots,
+    collection,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -381,6 +409,65 @@ test('previews a claim token without consuming it or putting the token in the UR
     expiresAt: '2026-09-18T03:30:00.000Z',
     status: 'AVAILABLE',
   });
+});
+
+test('returns an authenticated collection without exposing claim tokens or exact meal times', async (t) => {
+  let receivedAccountId: string | undefined;
+  const collection = {
+    visits: [
+      {
+        visitEventId: 'visit-event-1',
+        merchantId: 'merchant-visible',
+        merchantName: '데모 식당',
+        campaignId: 'campaign-visible',
+        campaignTitle: '가을 방문 도감',
+        businessDate: '2026-09-19',
+        progressCounted: true,
+        verificationLevel: 'MERCHANT_CONFIRMED' as const,
+      },
+    ],
+    collectibles: [
+      {
+        entitlementId: 'entitlement-1',
+        merchantId: 'merchant-visible',
+        merchantName: '데모 식당',
+        campaignId: 'campaign-visible',
+        campaignTitle: '가을 방문 도감',
+        targetVisitCount: 1 as const,
+        displayName: '첫 방문 마스코트',
+        appCollectibleStatus: 'COLLECTED' as const,
+        nftStatus: 'NOT_REQUESTED' as const,
+      },
+    ],
+  };
+  const baseUrl = await startFixture(
+    t,
+    () => 'customer-1',
+    undefined,
+    undefined,
+    undefined,
+    {
+      getCollection: async (accountId) => {
+        receivedAccountId = accountId;
+        return collection;
+      },
+    },
+  );
+
+  const response = await fetch(`${baseUrl}/collection`);
+
+  assert.equal(response.status, 200);
+  assert.equal(receivedAccountId, 'customer-1');
+  assert.deepEqual(await response.json(), collection);
+  assert.doesNotMatch(JSON.stringify(collection), /token|occurredAt/);
+});
+
+test('does not bypass an unconfigured collection boundary', async (t) => {
+  const baseUrl = await startFixture(t, () => 'customer-1');
+  const response = await fetch(`${baseUrl}/collection`);
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { code: 'COLLECTION_NOT_CONFIGURED' });
 });
 
 test('maps claim slot conflicts and expiration without exposing stored data', async (t) => {
