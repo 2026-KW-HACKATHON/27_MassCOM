@@ -18,6 +18,7 @@ import {
   ChainConfigurationError,
   MintEventMismatchError,
   MintWorker,
+  RetryableChainError,
   type MintWorkItem,
 } from './mint-worker.js';
 import { PostgresMintRepository } from './postgres-mint-repository.js';
@@ -31,7 +32,7 @@ const recipients = [
   getAddress('0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc'),
 ] as const;
 
-test('W07 M01-M05 M07-M08 finalize exactly one NFT per fixed job on Anvil', async (t) => {
+test('W07 M01-M08 finalize once and reject an unconfirmed reorg event on Anvil', async (t) => {
   const rpcUrl = process.env.ANVIL_RPC_URL;
   if (!rpcUrl) throw new Error('ANVIL_RPC_URL is required');
   const databaseUrl = requiredTestDatabaseUrl();
@@ -54,7 +55,7 @@ test('W07 M01-M05 M07-M08 finalize exactly one NFT per fixed job on Anvil', asyn
   await contract.waitForDeployment();
   const contractAddress = getAddress(await contract.getAddress());
   const seriesKey = id('worker-anvil-series');
-  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://worker/', 3));
+  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://worker/', 4));
   await waitFor(await contract.getFunction('activateSeries').send(seriesKey));
 
   const rewardKeys = [id('worker-reward-1'), id('worker-reward-2'), id('worker-reward-3')];
@@ -175,6 +176,38 @@ test('W07 M01-M05 M07-M08 finalize exactly one NFT per fixed job on Anvil', asyn
     );
     assert.equal(await contract.getFunction('locked').staticCall(BigInt(index + 1)), true);
   }
+
+  const reorgRewardKey = id('worker-reward-reorg');
+  const snapshotId = (await provider.send('evm_snapshot', [])) as string;
+  await waitFor(
+    await minterContract
+      .getFunction('mintWithRewardKey')
+      .send(recipients[0], seriesKey, reorgRewardKey),
+  );
+  const finalityGateway = new EthersMintChainGateway({
+    rpcUrl,
+    chainId: 31337,
+    contractAddress,
+    minterAddress,
+    confirmations: 2,
+    fromBlock: 0,
+  });
+  await assert.rejects(
+    finalityGateway.findMintByRewardKey({
+      ...validationItem,
+      rewardKey: reorgRewardKey,
+    }),
+    (error: unknown) =>
+      error instanceof RetryableChainError && error.code === 'MINT_EVENT_NOT_FINALIZED',
+  );
+  assert.equal(await provider.send('evm_revert', [snapshotId]), true);
+  assert.equal(
+    await finalityGateway.findMintByRewardKey({
+      ...validationItem,
+      rewardKey: reorgRewardKey,
+    }),
+    undefined,
+  );
   assert.equal(await workerA.runOnce('anvil-worker-a'), false);
 
   const counts = await pool.query<{

@@ -104,6 +104,13 @@ export class EthersMintChainGateway implements MintChainGateway {
     });
     const event = logs.at(-1);
     if (!event) throw new MintEventMismatchError('MINT_EVENT_NOT_FOUND');
+    const latestBlock = Number(
+      BigInt((await this.provider.send('eth_blockNumber', [])) as string),
+    );
+    const requiredLatestBlock = event.blockNumber + this.options.confirmations - 1;
+    if (latestBlock < requiredLatestBlock) {
+      throw new RetryableChainError('MINT_EVENT_NOT_FINALIZED');
+    }
     return this.resultFromEvent(item, event, tokenId);
   }
 
