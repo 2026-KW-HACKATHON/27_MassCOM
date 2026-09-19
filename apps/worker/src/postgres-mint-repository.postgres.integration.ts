@@ -31,6 +31,18 @@ test('M03 M06 lease race, retry, finalization, and repeated event ingestion stay
   assert.equal(item.seriesKey, `0x${'33'.repeat(32)}`);
 
   const workerId = leaseRace[0] ? 'worker-a' : 'worker-b';
+  now = new Date('2026-09-19T04:00:20.000Z');
+  await repository.renewLease(item, workerId, 30_000);
+  const renewed = await pool.query<{ lease_expires_at: Date }>(
+    `SELECT lease_expires_at
+     FROM outbox_events
+     WHERE id = $1`,
+    [item.outboxId],
+  );
+  assert.equal(
+    renewed.rows[0]?.lease_expires_at.toISOString(),
+    '2026-09-19T04:00:50.000Z',
+  );
   const attemptId = await repository.markPrepared(item, workerId);
   const transactionHash = `0x${'aa'.repeat(32)}`;
   await repository.markSubmitted(item.jobId, workerId, attemptId, transactionHash);

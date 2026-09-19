@@ -11,7 +11,7 @@
 ## 이번 작업에서 완료한 것
 
 - `0006_mint_attempts_chain_events.sql`로 mint attempt·chain event·NFT asset·cursor 저장 구조 추가
-- Outbox `SKIP LOCKED` lease, 만료 lease 복구, retry/manual-review/finalize 상태 전이 구현
+- Outbox `SKIP LOCKED` lease, 장기 체인 확인 중 heartbeat, 만료 lease 복구, retry/manual-review/finalize 상태 전이 구현
 - 기존 reward key를 전송보다 먼저 확인해 응답 유실·DB 복구 시 재발행 방지
 - RPC chain·contract code·MINTER role을 전송 전에 검사
 - receipt 성공만으로 완료하지 않고 contract·recipient·series·reward key·owner·locked를 대조
@@ -25,7 +25,7 @@
 ## 최신 검증
 
 - API `34/34`, API PostgreSQL `8/8`
-- Worker `4/4`, Worker PostgreSQL `1/1`, Anvil `W07 M01~M08 PASS`
+- Worker `6/6`, Worker PostgreSQL `1/1`, Anvil `W07 M01~M08 PASS`
 - 모바일 `45/45`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - secret scan·bootstrap·portal accessibility/structure PASS

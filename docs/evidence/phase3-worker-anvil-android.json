@@ -16,7 +16,7 @@
   "automated": {
     "apiUnit": "PASS 34/34",
     "apiPostgres": "PASS 8/8",
-    "workerUnit": "PASS 4/4",
+    "workerUnit": "PASS 6/6 including lease heartbeat and ownership-loss stop",
     "workerPostgres": "PASS 1/1",
     "workerAnvil": "PASS 1/1 covering W07, M01-M05, M07-M08",
     "mobileUnit": "PASS 45/45",

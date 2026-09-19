@@ -33,7 +33,7 @@
 - 방문·앱 수집품·실제 NFT를 분리한 도감과 이유가 보이는 다음 가게 추천
 - OpenZeppelin ERC-721/ERC-5192 계약의 역할·누적 상한·reward key·영구 잠금
 - 보상권·고정 수령인 mint job·Outbox 원자 생성과 동일 요청 20개 수렴
-- Worker의 `SKIP LOCKED` lease, 제출 attempt, 체인 이벤트, NFT 자산, cursor 저장
+- Worker의 `SKIP LOCKED` lease·heartbeat, 제출 attempt, 체인 이벤트, NFT 자산, cursor 저장
 - 전송 전 chain/contract/MINTER 검사와 receipt·계약·수령인·series·reward key·owner·locked 대조
 - 응답 유실, 두 Worker 경쟁, lease 만료, 이벤트 반복, 확정 전 재조직, DB 자산 복구
 - Samsung Android 16에서 NFT 공개 안내→접수→등록 완료와 기존 token #1 재전송 없는 복구
@@ -51,7 +51,7 @@
 
 - 필수 36개: `24 PASS / 2 BLOCKED / 10 NOT_RUN`
 - API 단위: `34/34 PASS`; PostgreSQL: `8/8 PASS`
-- Worker 단위: `4/4 PASS`; PostgreSQL: `1/1 PASS`; Anvil W07/M01~M08: `PASS`
+- Worker 단위: `6/6 PASS`; PostgreSQL: `1/1 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `45/45 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`

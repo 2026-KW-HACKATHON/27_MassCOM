@@ -26,6 +26,7 @@ export type ChainMintResult = {
 
 export interface MintWorkRepository {
   leaseNext(workerId: string, leaseMs: number): Promise<MintWorkItem | undefined>;
+  renewLease(item: MintWorkItem, workerId: string, leaseMs: number): Promise<void>;
   markPrepared(item: MintWorkItem, workerId: string): Promise<string>;
   markSubmitted(
     jobId: string,
@@ -88,64 +89,101 @@ export class MintWorker {
   async runOnce(workerId: string): Promise<boolean> {
     const item = await this.repository.leaseNext(workerId, this.leaseMs);
     if (!item) return false;
+    const heartbeat = this.startLeaseHeartbeat(item, workerId);
 
     try {
-      await this.gateway.validate(item);
-    } catch (error) {
-      await this.handleChainError(item, workerId, error);
-      return true;
-    }
-
-    try {
-      const existing = await this.gateway.findMintByRewardKey(item);
-      if (existing) {
-        await this.repository.finalize(item, workerId, undefined, existing);
+      try {
+        await this.gateway.validate(item);
+      } catch (error) {
+        await this.handleChainError(item, workerId, error);
         return true;
       }
-    } catch (error) {
-      await this.handleChainError(item, workerId, error);
-      return true;
-    }
+      await heartbeat.assertHealthy();
 
-    if (item.transactionHash) {
       try {
-        const confirmed = await this.gateway.confirmMint(item, item.transactionHash);
-        await this.repository.finalize(item, workerId, undefined, confirmed);
+        const existing = await this.gateway.findMintByRewardKey(item);
+        await heartbeat.assertHealthy();
+        if (existing) {
+          await this.repository.finalize(item, workerId, undefined, existing);
+          return true;
+        }
+      } catch (error) {
+        await this.handleChainError(item, workerId, error);
+        return true;
+      }
+
+      if (item.transactionHash) {
+        try {
+          const confirmed = await this.gateway.confirmMint(item, item.transactionHash);
+          await this.repository.finalize(item, workerId, undefined, confirmed);
+        } catch (error) {
+          await this.handleChainError(item, workerId, error);
+        }
+        return true;
+      }
+
+      const attemptId = await this.repository.markPrepared(item, workerId);
+      let transactionHash: string;
+      try {
+        transactionHash = (await this.gateway.submitMint(item)).transactionHash;
+        await this.repository.markSubmitted(item.jobId, workerId, attemptId, transactionHash);
+      } catch (error) {
+        if (error instanceof SubmissionOutcomeUnknownError) {
+          try {
+            const recovered = await this.gateway.findMintByRewardKey(item);
+            if (recovered) {
+              await this.repository.finalize(item, workerId, attemptId, recovered);
+              return true;
+            }
+          } catch (lookupError) {
+            await this.handleChainError(item, workerId, lookupError);
+            return true;
+          }
+        }
+        await this.handleChainError(item, workerId, error);
+        return true;
+      }
+
+      try {
+        const confirmed = await this.gateway.confirmMint(item, transactionHash);
+        await this.repository.finalize(item, workerId, attemptId, confirmed);
       } catch (error) {
         await this.handleChainError(item, workerId, error);
       }
       return true;
+    } finally {
+      await heartbeat.stop();
     }
+  }
 
-    const attemptId = await this.repository.markPrepared(item, workerId);
-    let transactionHash: string;
-    try {
-      transactionHash = (await this.gateway.submitMint(item)).transactionHash;
-      await this.repository.markSubmitted(item.jobId, workerId, attemptId, transactionHash);
-    } catch (error) {
-      if (error instanceof SubmissionOutcomeUnknownError) {
+  private startLeaseHeartbeat(item: MintWorkItem, workerId: string): {
+    assertHealthy: () => Promise<void>;
+    stop: () => Promise<void>;
+  } {
+    const intervalMs = Math.max(10, Math.floor(this.leaseMs / 3));
+    let pending = Promise.resolve();
+    let failure: unknown;
+    const timer = setInterval(() => {
+      pending = pending.then(async () => {
         try {
-          const recovered = await this.gateway.findMintByRewardKey(item);
-          if (recovered) {
-            await this.repository.finalize(item, workerId, attemptId, recovered);
-            return true;
-          }
-        } catch (lookupError) {
-          await this.handleChainError(item, workerId, lookupError);
-          return true;
+          await this.repository.renewLease(item, workerId, this.leaseMs);
+        } catch (error) {
+          failure ??= error;
         }
-      }
-      await this.handleChainError(item, workerId, error);
-      return true;
-    }
-
-    try {
-      const confirmed = await this.gateway.confirmMint(item, transactionHash);
-      await this.repository.finalize(item, workerId, attemptId, confirmed);
-    } catch (error) {
-      await this.handleChainError(item, workerId, error);
-    }
-    return true;
+      });
+    }, intervalMs);
+    timer.unref();
+    const assertHealthy = async () => {
+      await pending;
+      if (failure) throw failure;
+    };
+    return {
+      assertHealthy,
+      stop: async () => {
+        clearInterval(timer);
+        await assertHealthy();
+      },
+    };
   }
 
   private async handleChainError(

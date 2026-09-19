@@ -60,7 +60,7 @@ python3 -m http.server 4173 --directory docs
 | PostgreSQL | `IN_PROGRESS` | 점포·캠페인·멤버십·claim slot·방문·보상권 migration 구현, 지갑 challenge 영속화는 후속 |
 | NFT 계약 | `VERIFIED` | PR #49, Foundry 8/8·fuzz 128·Anvil 31337 실제 1개 발행; Base Sepolia `NOT_RUN` |
 | wallet binding·mint job·Outbox | `IMPLEMENTED` | PR #50, SIWE 영속화·동시 20요청 job/Outbox 하나·고정 수령인 PostgreSQL 통합 PASS |
-| Worker | `VERIFIED` | PR #51, PostgreSQL lease·시도·이벤트·자산, 체인 설정 사전 검사, receipt/event/state 대조, 응답 유실·lease·재조직 전 확정 복구를 로컬 Anvil에서 검증 |
+| Worker | `VERIFIED` | PR #51, PostgreSQL lease heartbeat·시도·이벤트·자산, 체인 설정 사전 검사, receipt/event/state 대조, 응답 유실·lease·재조직 전 확정 복구를 로컬 Anvil에서 검증 |
 | Reown 외부 지갑 코드 | `IMPLEMENTED` | AppKit 2.0.6, 외부 지갑 전용 기능 플래그·메서드 allowlist |
 | 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름·W06 PASS; W04 동일 세션 주소 전환과 W05 미지원 스마트지갑은 준비된 외부 환경 부재로 `BLOCKED` |
 | NFT 발행 전체 흐름 | `VERIFIED` | Local Anvil에서 Android 접수→Worker→이벤트 대조→등록 완료와 기존 token #1 복구 PASS; Base Sepolia는 `BLOCKED` |

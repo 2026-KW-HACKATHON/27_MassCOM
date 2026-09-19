@@ -40,6 +40,7 @@ const result: ChainMintResult = {
 class FakeRepository implements MintWorkRepository {
   leased = false;
   calls: string[] = [];
+  renewError?: Error;
 
   async leaseNext(): Promise<MintWorkItem | undefined> {
     this.calls.push('lease');
@@ -67,6 +68,11 @@ class FakeRepository implements MintWorkRepository {
 
   async markManualReview(_jobId: string, _workerId: string, code: string): Promise<void> {
     this.calls.push(`review:${code}`);
+  }
+
+  async renewLease(): Promise<void> {
+    this.calls.push('renewed');
+    if (this.renewError) throw this.renewError;
   }
 }
 
@@ -154,4 +160,34 @@ test('M05 rejects a successful receipt whose mint event does not match the job',
   assert.equal(await worker.runOnce('worker-1'), true);
   assert.equal(repository.calls.at(-1), 'review:MINT_EVENT_MISMATCH');
   assert.equal(repository.calls.some((call) => call.startsWith('finalized:')), false);
+});
+
+test('renews a short lease while chain confirmation is still running', async () => {
+  const repository = new FakeRepository();
+  const gateway = new FakeGateway();
+  gateway.confirmMint = async () => {
+    gateway.calls.push('confirm');
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    return result;
+  };
+  const worker = new MintWorker(repository, gateway, 30);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.ok(repository.calls.filter((call) => call === 'renewed').length >= 2);
+  assert.equal(repository.calls.at(-1), 'finalized:1');
+});
+
+test('does not submit after the lease heartbeat loses ownership', async () => {
+  const repository = new FakeRepository();
+  repository.renewError = new Error('MINT_JOB_LEASE_LOST');
+  const gateway = new FakeGateway();
+  gateway.findMintByRewardKey = async () => {
+    gateway.calls.push('find');
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    return undefined;
+  };
+  const worker = new MintWorker(repository, gateway, 30);
+
+  await assert.rejects(worker.runOnce('worker-1'), /MINT_JOB_LEASE_LOST/);
+  assert.equal(gateway.calls.includes('submit'), false);
 });

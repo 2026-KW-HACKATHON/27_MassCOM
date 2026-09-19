@@ -114,6 +114,32 @@ export class PostgresMintRepository implements MintWorkRepository {
     }
   }
 
+  async renewLease(item: MintWorkItem, workerId: string, leaseMs: number): Promise<void> {
+    const now = this.options.now();
+    const leaseExpiresAt = new Date(now.getTime() + leaseMs);
+    const updated = await this.pool.query(
+      `UPDATE outbox_events
+       SET lease_expires_at = $1, updated_at = $2
+       WHERE id = $3
+         AND aggregate_id = $4
+         AND status = 'LEASED'
+         AND lease_owner = $5`,
+      [leaseExpiresAt, now, item.outboxId, item.jobId, workerId],
+    );
+    if (updated.rowCount === 1) return;
+
+    const current = (
+      await this.pool.query<{ status: string; lease_owner: string | null }>(
+        `SELECT status, lease_owner
+         FROM outbox_events
+         WHERE id = $1 AND aggregate_id = $2`,
+        [item.outboxId, item.jobId],
+      )
+    ).rows[0];
+    if (current && current.status !== 'LEASED') return;
+    throw new Error('MINT_JOB_LEASE_LOST');
+  }
+
   async markPrepared(item: MintWorkItem, workerId: string): Promise<string> {
     const now = this.options.now();
     const attemptId = this.options.nextAttemptId();

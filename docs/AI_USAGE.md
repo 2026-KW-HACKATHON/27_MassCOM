@@ -21,7 +21,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-19 | Codex | Phase 2 설명 가능한 추천·최종 통합 | 추천 정책·PostgreSQL 후보·Android 이유 화면·상세 복귀·문서/포털 | TDD RED 후 API 31/31·PostgreSQL 6/6·모바일 43/43·Android 추천 실기 PASS | 실제 점주·이용자 행동이나 매출 효과로 확대 해석하지 않음 |
 | 2026-09-19 | Codex | Phase 3 양도 제한 NFT 계약 | Solidity 계약·Foundry/Anvil wrapper·C01~C04·CI·문서 | TDD RED 후 Foundry 8/8·fuzz 128·Anvil deploy/mint/locked/event PASS | 전문 감사·Base Sepolia·메인넷으로 표시하지 않음; private key·mnemonic 미사용 |
 | 2026-09-19 | Codex | Phase 3 wallet binding·mint request·Outbox | migration·SIWE 영속화·idempotency·고정 수령인 job·API/client·문서 | TDD RED 후 API 34/34·PostgreSQL 8/8·동시 20요청·주소 변경·Android export PASS | Worker·온체인 완료로 확대하지 않고 W07/M01/M07은 NOT_RUN 유지 |
-| 2026-09-19 | Codex | Phase 3 Worker·체인 대조·Android 완료 상태 | Worker lease/attempt/event/asset, Ethers gateway, 확정 깊이·복구, 도감 접수/완료 UI, CI·증거 | Worker 4/4·PostgreSQL 1/1·Anvil W07/M01~M08·API 34/34·모바일 45/45·Samsung 접수→등록 완료·재전송 없는 복구 PASS | 로컬 Anvil 증거이며 전문 감사·Base Sepolia·운영 signer·매출 효과로 확대하지 않음 |
+| 2026-09-19 | Codex | Phase 3 Worker·체인 대조·Android 완료 상태 | Worker lease heartbeat/attempt/event/asset, Ethers gateway, 확정 깊이·복구, 도감 접수/완료 UI, CI·증거 | Worker 6/6·PostgreSQL 1/1·Anvil W07/M01~M08·API 34/34·모바일 45/45·Samsung 접수→등록 완료·재전송 없는 복구 PASS | 로컬 Anvil 증거이며 전문 감사·Base Sepolia·운영 signer·매출 효과로 확대하지 않음 |
 
 ## 팀 설명 체크리스트
 
