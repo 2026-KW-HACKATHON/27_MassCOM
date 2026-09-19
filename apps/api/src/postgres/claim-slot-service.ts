@@ -126,7 +126,10 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      await this.options.accountLifecycle?.assertActive(client, input.customerAccountId);
+      await this.options.accountLifecycle?.assertAllActive(client, [
+        input.createdByAccountId,
+        input.customerAccountId,
+      ]);
       const access = await client.query<AccessAndDuplicateRow>(
         `SELECT
            EXISTS (
@@ -222,10 +225,13 @@ export class PostgresClaimSlotService implements ClaimSlotService {
   }): Promise<IssuedClaimSlot> {
     const requestedAt = this.options.now();
     const expiresAt = new Date(requestedAt.getTime() + this.options.ttlMs);
-    const token = this.options.nextToken();
-    let updated;
+    const client = await this.pool.connect();
+    let issued: IssuedClaimSlot | undefined;
     try {
-      updated = await this.pool.query<IssuedClaimSlotRow>(
+      await client.query('BEGIN');
+      await this.options.accountLifecycle?.assertActive(client, input.requestedByAccountId);
+      const token = this.options.nextToken();
+      const updated = await client.query<IssuedClaimSlotRow>(
         `UPDATE claim_slots AS slot
          SET token_hash = $1,
              token_version = token_version + 1,
@@ -253,33 +259,42 @@ export class PostgresClaimSlotService implements ClaimSlotService {
           input.expectedTokenVersion,
         ],
       );
+      if (updated.rowCount !== 1) {
+        const membership = await client.query(
+          `SELECT 1
+           FROM merchant_members
+           WHERE merchant_id = $1
+             AND account_id = $2
+             AND status = 'ACTIVE'`,
+          [input.merchantId, input.requestedByAccountId],
+        );
+        if (membership.rowCount !== 1) {
+          throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+        }
+        throw new ClaimSlotError('CLAIM_SLOT_NOT_REISSUABLE');
+      }
+      issued = {
+        claimSlotId: input.claimSlotId,
+        token,
+        tokenVersion: updated.rows[0]!.token_version,
+        expiresAt: expiresAt.toISOString(),
+      };
+      await client.query('COMMIT');
     } catch (error) {
+      await client.query('ROLLBACK');
+      if (error instanceof AccountLifecycleError) {
+        throw new ClaimSlotError('ACCOUNT_DELETED');
+      }
       if (isPostgresConstraint(error, 'claim_slots_unique_token')) {
         throw new ClaimSlotError('CLAIM_TOKEN_UNAVAILABLE');
       }
       throw error;
-    }
-    if (updated.rowCount !== 1) {
-      const membership = await this.pool.query(
-        `SELECT 1
-         FROM merchant_members
-         WHERE merchant_id = $1
-           AND account_id = $2
-           AND status = 'ACTIVE'`,
-        [input.merchantId, input.requestedByAccountId],
-      );
-      if (membership.rowCount !== 1) {
-        throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
-      }
-      throw new ClaimSlotError('CLAIM_SLOT_NOT_REISSUABLE');
+    } finally {
+      client.release();
     }
 
-    return {
-      claimSlotId: input.claimSlotId,
-      token,
-      tokenVersion: updated.rows[0]!.token_version,
-      expiresAt: expiresAt.toISOString(),
-    };
+    if (!issued) throw new Error('claim slot reissue completed without a result');
+    return issued;
   }
 
   async preview(input: {

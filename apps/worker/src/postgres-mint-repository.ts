@@ -123,7 +123,8 @@ export class PostgresMintRepository implements MintWorkRepository {
        WHERE id = $3
          AND aggregate_id = $4
          AND status = 'LEASED'
-         AND lease_owner = $5`,
+         AND lease_owner = $5
+         AND lease_expires_at > $2`,
       [leaseExpiresAt, now, item.outboxId, item.jobId, workerId],
     );
     if (updated.rowCount === 1) return;
@@ -213,12 +214,14 @@ export class PostgresMintRepository implements MintWorkRepository {
          WHERE id = $3 AND mint_job_id = $4`,
         [normalizedHash, now, attemptId, jobId],
       );
-      await client.query(
+      const updatedJob = await client.query(
         `UPDATE mint_jobs
          SET status = 'SUBMITTED', transaction_hash = $1, updated_at = $2
-         WHERE id = $3`,
+         WHERE id = $3
+           AND status = 'PREPARED'`,
         [normalizedHash, now, jobId],
       );
+      if (updatedJob.rowCount !== 1) throw new Error('MINT_JOB_STATE_CONFLICT');
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');

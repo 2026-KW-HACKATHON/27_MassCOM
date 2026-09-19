@@ -219,9 +219,18 @@ test('deleted account tombstone rejects wallet, claim, redeem, and mint writes',
   await assert.rejects(
     claimSlots.issue({
       merchantId: 'merchant-delete',
-      customerAccountId: 'delete-me',
+      customerAccountId: 'customer-other',
       merchantReference: 'deleted-customer-order',
       createdByAccountId: 'delete-me',
+    }),
+    (error: unknown) => error instanceof ClaimSlotError && error.code === 'ACCOUNT_DELETED',
+  );
+  await assert.rejects(
+    claimSlots.reissue({
+      merchantId: 'merchant-delete',
+      claimSlotId: '00000000-0000-4000-8004-000000000001',
+      expectedTokenVersion: 1,
+      requestedByAccountId: 'delete-me',
     }),
     (error: unknown) => error instanceof ClaimSlotError && error.code === 'ACCOUNT_DELETED',
   );
@@ -321,6 +330,56 @@ test('concurrent deletion and mint request leave no active work under the origin
     active_jobs: 0,
     pending_outbox: 0,
   });
+});
+
+test('concurrent staff deletion and claim issue leave no original creator reference', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedDeletionFixture(pool);
+  const accountLifecycle = new PostgresAccountLifecycle({
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+  });
+  const deletion = new PostgresAccountDeletionService(pool, {
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+    accountLifecycle,
+    nextRequestId: () => '90000000-0000-4000-8000-000000000006',
+    now: () => new Date('2026-09-19T15:00:00.000Z'),
+    policyVersion: 'account-deletion-v1',
+  });
+  const claimSlots = new PostgresClaimSlotService(pool, {
+    referenceHmacSecret: 'test-only-reference-secret-at-least-32-bytes',
+    accountLifecycle,
+    now: () => new Date('2026-09-19T15:00:00.000Z'),
+    nextToken: () => 'creator-race-token-abcdefghijklmnopqrstuvwxyz',
+    nextId: () => '00000000-0000-4000-8006-000000000001',
+  });
+
+  const [deletionResult, issueResult] = await Promise.allSettled([
+    deletion.requestDeletion({
+      accountId: 'delete-me',
+      confirmation: 'DELETE MY ACCOUNT',
+    }),
+    claimSlots.issue({
+      merchantId: 'merchant-delete',
+      customerAccountId: 'customer-other',
+      merchantReference: 'creator-deletion-race',
+      createdByAccountId: 'delete-me',
+    }),
+  ]);
+
+  assert.equal(deletionResult.status, 'fulfilled');
+  if (issueResult.status === 'rejected') {
+    assert.ok(
+      (issueResult.reason instanceof ClaimSlotError && issueResult.reason.code === 'ACCOUNT_DELETED') ||
+        issueResult.reason?.code === 'MERCHANT_ACCESS_DENIED',
+    );
+  }
+  const remaining = await pool.query<{ raw_creators: number; raw_members: number }>(
+    `SELECT
+       (SELECT count(*)::integer FROM claim_slots WHERE created_by_account_id = 'delete-me') AS raw_creators,
+       (SELECT count(*)::integer FROM merchant_members WHERE account_id = 'delete-me') AS raw_members`,
+  );
+  assert.deepEqual(remaining.rows[0], { raw_creators: 0, raw_members: 0 });
 });
 
 async function seedDeletionFixture(pool: Pool): Promise<void> {

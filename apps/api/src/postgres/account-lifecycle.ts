@@ -29,13 +29,28 @@ export class PostgresAccountLifecycle {
   }
 
   async assertActive(client: PoolClient, accountId: string): Promise<void> {
-    const referenceHash = await this.lockForDeletion(client, accountId);
-    const deleted = await client.query(
-      `SELECT 1
-       FROM account_deletion_requests
-       WHERE account_reference_hash = $1`,
-      [referenceHash],
-    );
-    if (deleted.rowCount === 1) throw new AccountLifecycleError('ACCOUNT_DELETED');
+    await this.assertAllActive(client, [accountId]);
+  }
+
+  async assertAllActive(client: PoolClient, accountIds: readonly string[]): Promise<void> {
+    const references = [...new Set(accountIds)]
+      .map((accountId) => {
+        const referenceHash = this.referenceHash(accountId);
+        return { referenceHash, lockKey: referenceHash.toString('hex') };
+      })
+      .sort((left, right) => left.lockKey.localeCompare(right.lockKey));
+
+    for (const reference of references) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
+        reference.lockKey,
+      ]);
+      const deleted = await client.query(
+        `SELECT 1
+         FROM account_deletion_requests
+         WHERE account_reference_hash = $1`,
+        [reference.referenceHash],
+      );
+      if (deleted.rowCount === 1) throw new AccountLifecycleError('ACCOUNT_DELETED');
+    }
   }
 }
