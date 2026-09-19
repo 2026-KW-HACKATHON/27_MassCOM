@@ -39,17 +39,18 @@
 - Produces: `createSeries(bytes32,string,uint64)`, `activateSeries(bytes32)`, `mintWithRewardKey(address,bytes32,bytes32)`, `pause()`, `unpause()`, `locked(uint256)`.
 - Produces event: `MascotMinted(bytes32 indexed rewardKey,uint256 indexed tokenId,address indexed recipient,bytes32 seriesId)`.
 
-- [ ] Add pinned `openzeppelin-contracts@v5.7.0` and `forge-std@v1.16.2` submodules.
-- [ ] Write failing C01 tests: only `MINTER_ROLE` mints and a minter cannot grant itself admin.
-- [ ] Write failing C02 tests: duplicate reward key, zero recipient, inactive series, and cap+1 revert; fuzz `maxEverMinted` within `1..1000`.
-- [ ] Write failing C03 tests for `approve`, `setApprovalForAll`, both `safeTransferFrom` overloads, and `transferFrom`.
-- [ ] Write failing C04 tests: inactive series cannot mint and no series mutation surface exists after activation.
-- [ ] Run `forge test -vvv` and confirm RED because `WolgyeMascot` is missing.
-- [ ] Implement `IERC5192` and the minimum non-upgradeable `WolgyeMascot` contract.
-- [ ] Run `forge fmt --check`, `forge build`, `forge test -vvv`; expect all C01~C04 PASS.
-- [ ] Start Anvil with chain ID 31337, deploy using test accounts, mint one token, and verify owner/locked/event without recording private keys.
-- [ ] Add Foundry to CI and update license/source records.
-- [ ] Commit, push, create a Korean PR, wait for CI/review, merge, and verify main CI.
+- [x] Add pinned `openzeppelin-contracts@v5.7.0` and `forge-std@v1.16.2` submodules.
+- [x] Write failing C01 tests: only `MINTER_ROLE` mints and a minter cannot grant itself admin.
+- [x] Write failing C02 tests: duplicate reward key, zero recipient, inactive series, and cap+1 revert; fuzz the configured cap boundary.
+- [x] Write failing C03 tests for `approve`, `setApprovalForAll`, both `safeTransferFrom` overloads, and `transferFrom`.
+- [x] Write failing C04 tests: inactive series cannot mint and no series mutation surface exists after activation.
+- [x] Run `forge test -vvv` and confirm RED because `WolgyeMascot` is missing.
+- [x] Implement `IERC5192` and the minimum non-upgradeable `WolgyeMascot` contract.
+- [x] Run `forge fmt --check`, `forge build`, `forge test -vvv`; C01~C04 PASS.
+- [x] Start Anvil with chain ID 31337, deploy using test accounts, mint one token, and verify owner/locked/event without recording private keys.
+- [x] Add Foundry to CI and update license/source records.
+- [x] Commit, push, and create Korean PR #49.
+- [ ] Wait for CI/review, merge, and verify main CI.
 
 ### Task 2: Persistent wallet binding and atomic mint request Outbox
 

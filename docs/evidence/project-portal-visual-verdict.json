@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-09-19T15:22:46+09:00",
+  "checked_at": "2026-09-19T21:48:45+09:00",
   "score": 96,
   "threshold": 90,
   "verdict": "pass",
@@ -26,5 +26,5 @@
   },
   "differences": [],
   "suggestions": [],
-  "reasoning": "Desktop and 390px in-app-browser layouts preserve Korean word boundaries, keep Phase 1 and Phase 2 verified states plus 11 PASS / 2 BLOCKED / 23 NOT_RUN metadata readable, expose semantic content to assistive technology, and have no horizontal overflow in the measured mobile viewport."
+  "reasoning": "Desktop and 390px in-app-browser layouts preserve Korean word boundaries, keep Phase 0~2 and the Phase 3 local contract state plus 15 PASS / 2 BLOCKED / 19 NOT_RUN metadata readable, expose semantic content to assistive technology, and have no horizontal overflow in the measured mobile viewport."
 }

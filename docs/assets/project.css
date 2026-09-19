@@ -781,7 +781,7 @@ footer p {
   }
 
   .header-state::after {
-    content: "P2 검증";
+    content: "P3 계약";
     font-size: 0.72rem;
     white-space: nowrap;
   }

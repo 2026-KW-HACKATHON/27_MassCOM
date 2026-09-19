@@ -2,14 +2,20 @@
 
 마지막 갱신 시각: 2026-09-19 KST
 
-기준 브랜치: `feat/44-recommendations`
+기준 브랜치: `feat/phase3-nft-contract`
 
-검증 기준 커밋 SHA: `0af854a`, PR #47 CI 대기
+검증 기준 커밋 SHA: `e6aae59`, PR #49 CI 대기
 
-현재 작업: Phase 2 마지막 추천·최종 검증 PR #47; merge 후 Issue #44 종료, Phase 3 미착수
+현재 작업: Phase 3 첫 묶음 NFT 계약 PR #49; Issue #48 유지
 
 ## 이번 세션에서 완료한 것
 
+- 사용자 최신 요청으로 Phase 3 이후 로컬 구현·검증 범위를 재개하고 외부 승인 경계 유지
+- Solidity 0.8.24·OpenZeppelin 5.7.0·Foundry 1.8.3 toolchain 고정
+- ERC-721/ERC-5192 영구 잠금, 역할 분리, series cap, reward key 단일 소비 계약 구현
+- C01~C04 Foundry 8/8·fuzz 128 PASS
+- private key 없는 Anvil unlocked 계정으로 chain 31337 배포·시리즈·mint·owner·locked·이벤트 PASS
+- Issue #48과 PR #49 생성, API 31개·모바일 43개 회귀 PASS
 - 과도한 PR 분할을 피하도록 Phase 2를 3개 기능 PR로 고정하고 상태 전용 PR을 금지
 - 공개 API 설정을 Reown 지갑 설정과 분리해 지갑 없이 `/` 음식점 목록 사용
 - `GET /merchants` 응답 런타임 검증과 loading/error/empty/content/refresh 상태 구현
@@ -109,11 +115,11 @@
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. PR #47 CI·리뷰를 확인하고 통과하면 merge한 뒤 main CI까지 확인
-2. Issue #44가 자동 종료됐는지 확인하고 열린 Phase 2 PR이 없는지 검증
-3. Phase 3 NFT 계약·Worker·테스트넷은 사용자 범위 밖이므로 착수하지 않음
-4. W04·W05 외부 환경 blocker를 Issue #40·#41과 B-010·B-011로 유지
-5. 공개 배포·유료 자원·Play 제출은 별도 승인 없이 실행하지 않음
+1. PR #49 CI·리뷰를 확인하고 통과하면 merge한 뒤 main CI 확인
+2. 두 번째 Phase 3 PR에서 wallet binding·mint request·Outbox 원자 저장 구현
+3. 세 번째 Phase 3 PR에서 Worker·이벤트 대조·Android 상태 구현
+4. Base Sepolia는 전용 시험 배포자·gas가 준비되기 전 B-012 BLOCKED 유지
+5. 운영 키·메인넷·유료 자원·공개/Play/제출은 실행하지 않음
 
 ## 실행 명령
 

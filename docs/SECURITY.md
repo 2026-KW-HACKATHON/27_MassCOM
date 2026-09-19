@@ -37,6 +37,16 @@
 - Reown AppKit은 패키지 메타데이터상 별도 LICENSE.md를 참조하므로 공개 전 upstream Community License 조건을 다시 확인합니다.
 - AppKit 2.0.6의 연결 초기 체인 이벤트 경쟁을 피하기 위해 `@walletconnect/universal-provider` 2.23.5를 override로 고정했습니다. 버전 변경 전 실제 MetaMask 연결 회귀를 다시 수행합니다.
 
+## NFT 계약
+
+- `DEFAULT_ADMIN_ROLE`, `MINTER_ROLE`, `PAUSER_ROLE`을 분리하고 민터는 역할을 스스로 올릴 수 없습니다.
+- 활성 시리즈만 발행하며 `maxEverMinted`와 누적 `everMinted`를 계약이 직접 비교합니다.
+- 32바이트 `rewardKey`는 한 번만 소비되고 이미 사용한 키는 다른 수령인·시리즈에도 다시 쓸 수 없습니다.
+- ERC-5192 `locked=true`와 함께 approve·setApprovalForAll·transfer·safeTransfer의 모든 경로를 거절합니다.
+- 시리즈 설정 변경, 업그레이드 프록시, 소각, 교환, 관리자 회수를 제공하지 않습니다.
+- 이벤트와 token URI에는 사용자 ID·주문번호·정확한 식사 시각을 넣지 않습니다.
+- 로컬 Anvil unlocked test account는 개발 전용이며 private key·mnemonic을 명령·증거에 기록하지 않습니다.
+
 ## 미검증
 
 실제 Android 기기에서 Reown gateway, WalletConnect 세션, Base Sepolia 전환, 읽을 수 있는 `personal_sign`, 서버 서명 복구와 콜드 재시작 세션 복원을 확인했습니다. Base Sepolia 등록은 앱 RPC가 아니라 MetaMask 설정 UI에서 사용자가 직접 승인했으며, 앱의 체인 전환 경로는 `wallet_switchEthereumChain`만 요청합니다. `wallet_addEthereumChain`은 세션 제안과 앱 허용 목록에서 제외되고 SDK 특성화 테스트에서도 요청되지 않는지 확인합니다. 미설치 SafePal의 스토어 이동·수동 앱 복귀·pending proposal 즉시 취소 후 6분 지연 오류 부재를 확인했습니다. 패치는 proposal ID 만료·pending rejection 소비·pairing 정리에 한정하며 송금·서명 경계를 변경하지 않습니다. Account 1 VERIFIED가 Account 2 재연결에 승계되지 않는 것은 확인했지만 MetaMask 동일 세션 계정 변경과 실제 미지원 스마트 지갑은 외부 환경 제약으로 BLOCKED입니다. Android App Link, release 서명, AAB 16KB 호환, 외부 HTTPS는 아직 검증되지 않았습니다. PostgreSQL 방문·보상권 원자 트랜잭션은 검증했지만 방문 취소·도감 조회·Android QR 카메라는 아직 `NOT_RUN`입니다.

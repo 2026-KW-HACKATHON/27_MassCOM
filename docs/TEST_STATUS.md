@@ -29,10 +29,10 @@
 | M06 | 인덱서·체인 | NOT_RUN | 이벤트 반복 수집·재조직 | 중복 없음, 확정 전 되돌림 가능 | 미구현 |
 | M07 | DB·Worker | NOT_RUN | 민팅 도중 프로필 지갑 변경 | 이미 고정한 수령인 유지 | 미구현 |
 | M08 | 복원 | NOT_RUN | DB 백업 복원 후 재처리 | 기존 NFT를 다시 발행하지 않음 | 미구현 |
-| C01 | Foundry 계약 | NOT_RUN | 비민터 발행·민터 권한 상승 | 계약에서 거절 | D-005 승인, 계약 미구현 |
-| C02 | Foundry 속성 | NOT_RUN | 누적 상한 경계·중복 발행 키 | 상한·일회성 유지 | 계약 미구현 |
-| C03 | Foundry 계약 | NOT_RUN | 모든 전송·우회 경로 | 잠긴 NFT는 이전 불가 | D-005 승인, 계약 미구현 |
-| C04 | Foundry 계약 | NOT_RUN | 시리즈 활성화 후 조건 변경 | 동결된 값 변경 불가 | 계약 미구현 |
+| C01 | Foundry 계약 | PASS | 비민터 발행·민터 권한 상승 | 계약에서 거절 | 비민터 mint와 MINTER의 admin grant 모두 `AccessControlUnauthorizedAccount` |
+| C02 | Foundry 속성 | PASS | 누적 상한 경계·중복 발행 키 | 상한·일회성 유지 | cap+1·중복 rewardKey 거절, 128회 fuzz에서 `everMinted ≤ maxEverMinted` |
+| C03 | Foundry 계약 | PASS | 모든 전송·우회 경로 | 잠긴 NFT는 이전 불가 | approve·setApprovalForAll·transferFrom·safeTransferFrom 2종과 내부 `_update` 거절 |
+| C04 | Foundry 계약 | PASS | 시리즈 활성화 후 조건 변경 | 동결된 값 변경 불가 | 비활성 mint 거절, 중복 생성·재활성화 거절, 설정 변경 함수 없음 |
 | D01 | API·Worker | NOT_RUN | 발급 중 탈퇴 | 미전송·제출됨을 구분 | 미구현 |
 | D02 | Android·API | NOT_RUN | 계정 전환·캐시 복구 | 이전 사용자 데이터 미노출 | 미구현 |
 | D03 | 정적·통합 검사 | NOT_RUN | 로그·분석·메타데이터 검사 | 개인키·QR·개인 식별자 누출 없음 | 미구현 범위 존재 |
@@ -72,5 +72,6 @@
 | 2026-09-19 KST | `935e6d5`, PR #45 | 모바일 32개·typecheck·lint·Android export·목록→상세→선택적 지갑·콜드 재시작 | Samsung SM-S928N·Android 16·PostgreSQL 18 DEMO 3곳 | PASS, 외부 HTTPS `NOT_RUN` | `docs/evidence/android-merchant-discovery.json`; 실제 협약 점포·지갑 주소·기기 일련번호 미기록 |
 | 2026-09-19 KST | `16c9cf4`, PR #46 | API 27개·PostgreSQL 5개·모바일 40개·Android export·점주 발급→고객 수령→도감·중복 수령 | Samsung SM-S928N·Android 16·PostgreSQL 18 loopback DEMO | PASS, 중복 HTTP 409·효과 1:1 유지; 카메라 QR `NOT_RUN` | `docs/evidence/android-claim-collection.json`; 노출된 DEMO token 버전 즉시 폐기, 원문 저장소 미기록 |
 | 2026-09-19 KST | `0af854a`, PR #47 | API 31개·PostgreSQL 6개·모바일 43개·Android export·추천 순서/이유/정원 제외→상세 | Samsung SM-S928N·Android 16·PostgreSQL 18 loopback DEMO | PASS, 현장 사용자 행동·외부 HTTPS `NOT_RUN` | `docs/evidence/android-recommendations.json`; 미방문 2·방문 1·정원 마감 1 DEMO fixture |
+| 2026-09-19 KST | `e6aae59`, PR #49 | Foundry fmt·build·lint·8 tests·128 fuzz, Anvil deploy→series→mint→owner/locked/event | Foundry 1.8.3 Docker·Solidity 0.8.24·Anvil chain 31337 | C01~C04 PASS, Base Sepolia `BLOCKED` | `docs/evidence/foundry-contract-local.json`; private key·mnemonic 미기록 |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R03은 각각 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04·R02는 계속 `NOT_RUN`입니다.

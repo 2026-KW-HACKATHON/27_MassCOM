@@ -2,7 +2,7 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-> 현재 상태: 저장소 기준선 `VERIFIED` · Phase 1 핵심 지갑 흐름 `VERIFIED` · Phase 2 탐색→방문 수령→도감→추천 핵심 흐름 `VERIFIED` · 필수 시험 11 `PASS` / 2 `BLOCKED` / 23 `NOT_RUN`
+> 현재 상태: Phase 0~2 핵심 흐름 `VERIFIED` · Phase 3 양도 제한 NFT 계약 로컬 `VERIFIED`·발행 API/Worker `IN_PROGRESS` · 필수 시험 15 `PASS` / 2 `BLOCKED` / 19 `NOT_RUN`
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](docs/index.html)
 
@@ -22,6 +22,7 @@
 - [음식점 탐색 Android 증거](docs/evidence/android-merchant-discovery.json): 지갑 없는 목록·상세·선택적 지갑 이동
 - [방문 수령·도감 Android 증거](docs/evidence/android-claim-collection.json): 점주 권한·1회 코드·고객 수령·상태 분리
 - [다음 가게 추천 Android 증거](docs/evidence/android-recommendations.json): 미방문 우선·이유 공개·정원 제외·상세 복귀
+- [NFT 계약 로컬 증거](docs/evidence/foundry-contract-local.json): C01~C04·상한·reward key·영구 잠금·Anvil 발행
 - [보안 경계](docs/SECURITY.md): 허용 메서드·nonce·의존성 위험
 - [평가 대응표](docs/EVALUATION_MAP.md): 요구사항·Issue·PR·코드·시험·실증·발표 연결
 
@@ -56,10 +57,11 @@ python3 -m http.server 4173 --directory docs
 | 다음 음식점 추천 | `VERIFIED` | PR #47, 정원 마감 제외·미방문 우선·다음 고정 보상 설명·한국 날짜별 회전·상세 연결 PASS |
 | 주소 확인 API | `IMPLEMENTED` | ERC-4361 challenge·실제 서명 복구·nonce 소비 15 tests PASS |
 | PostgreSQL | `IN_PROGRESS` | 점포·캠페인·멤버십·claim slot·방문·보상권 migration 구현, 지갑 challenge 영속화는 후속 |
-| Worker | `PLANNED` | Phase 3 전 |
+| NFT 계약 | `VERIFIED` | PR #49, Foundry 8/8·fuzz 128·Anvil 31337 실제 1개 발행; Base Sepolia `NOT_RUN` |
+| Worker | `IN_PROGRESS` | 계약 완료, Outbox·민팅·이벤트 대조는 다음 Phase 3 PR |
 | Reown 외부 지갑 코드 | `IMPLEMENTED` | AppKit 2.0.6, 외부 지갑 전용 기능 플래그·메서드 allowlist |
 | 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름·W06 PASS; W04 동일 세션 주소 전환과 W05 미지원 스마트지갑은 준비된 외부 환경 부재로 `BLOCKED` |
-| NFT 계약·발행 | `PLANNED` | D-004·D-005 승인, Phase 3 전 |
+| NFT 발행 전체 흐름 | `IN_PROGRESS` | 계약 C01~C04 PASS, API·Worker·Base Sepolia 미완료 |
 | 외부 HTTPS·Play 제출 | `BLOCKED` | 계정·비용·정책·명시 승인 필요 |
 
 상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
@@ -146,6 +148,7 @@ npm run test:postgres --prefix apps/api
 - Android 음식점 탐색: 로컬 PostgreSQL의 `demo: true` 점포 3곳으로 목록·상세·고정 보상 조건·선택적 지갑 이동 검증
 - Android 방문 수령: loopback DEMO에서 점주 권한→1회 코드→고객 수령→도감 검증; 카메라 QR은 `NOT_RUN`
 - Android 다음 가게: 미방문·다음 고정 보상 이유를 표시하고 기존 상세 탐색으로 복귀하는 순환 검증
+- NFT 계약: 고정 Docker Foundry로 C01~C04와 로컬 Anvil 발행 검증; 테스트넷·메인넷으로 표현하지 않음
 - Android AAB·release package ID·App Link: `NOT_RUN`
 - 실제 Reown 지갑 흐름: MetaMask 핵심·W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `BLOCKED`
 - 테스트넷 계약: 배포 전

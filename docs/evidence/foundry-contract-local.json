@@ -1,0 +1,61 @@
+{
+  "recordedAt": "2026-09-19 KST",
+  "branch": "feat/phase3-nft-contract",
+  "commit": "e6aae59",
+  "toolchain": {
+    "solidity": "0.8.24",
+    "foundry": "1.8.3",
+    "foundryImageDigest": "sha256:2e4287278639262de76db72477301d5d3212fa1b1cce710d7d148750a46ce9e7",
+    "openZeppelinContracts": "5.7.0@cab19933",
+    "forgeStd": "1.16.2@bf647bd6"
+  },
+  "automated": {
+    "format": "PASS",
+    "build": "PASS",
+    "compilerWarnings": 0,
+    "lint": "PASS",
+    "tests": {
+      "status": "PASS",
+      "passed": 8,
+      "failed": 0,
+      "fuzzRuns": 128
+    },
+    "requiredIds": {
+      "C01": "PASS",
+      "C02": "PASS",
+      "C03": "PASS",
+      "C04": "PASS"
+    }
+  },
+  "localChain": {
+    "network": "Anvil local only",
+    "chainId": 31337,
+    "isBaseSepolia": false,
+    "contractAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "createSeriesTx": "0x813eaee1d543e07cf62ed8b4a786c8db5b91a53763a8b1611e7a2f7f0a472ff7",
+    "activateSeriesTx": "0xfafb48f12601b564f82d89fd3d26f17da1fa171694dd4d26b94b0af75d7bfc92",
+    "mintTx": "0x8968e2a88d8c0137e9769fe08bdb410be5ad108c69ce2e9754e9463f01a32ce4",
+    "mintBlock": 4,
+    "receiptStatus": 1,
+    "recipient": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+    "ownerMatchesRecipient": true,
+    "locked": true,
+    "tokenByRewardKey": "1",
+    "seriesMaxEverMinted": "3",
+    "seriesEverMinted": "1",
+    "mascotMintedEvents": 1,
+    "lockedEvents": 1
+  },
+  "privacy": {
+    "privateKeyRecorded": false,
+    "mnemonicRecorded": false,
+    "userWalletUsed": false,
+    "personalDataInMetadata": false
+  },
+  "notRun": [
+    "Base Sepolia deployment",
+    "external RPC",
+    "mainnet deployment",
+    "operational key"
+  ]
+}
