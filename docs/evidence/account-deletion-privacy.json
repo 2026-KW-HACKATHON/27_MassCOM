@@ -2,6 +2,7 @@
   "recordedAt": "2026-09-19 KST",
   "branch": "feat/phase4-release-readiness",
   "codeCommit": "75aedae",
+  "documentationCommit": "bbdab99",
   "scope": "Local account deletion, privacy logging gate, and Android disclosure",
   "automated": {
     "apiUnit": "PASS 35/35",

@@ -8,7 +8,7 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 | `feat/phase4-release-readiness`, Issue #52 계정 삭제·개인정보·출시 준비 |
+| 현재 작업 | `feat/phase4-release-readiness`, PR #53 CI·리뷰·merge |
 | 현재 검증 기준 | API 35·PostgreSQL 10·모바일 48·D01/D03·Samsung 삭제 안내 Local DEMO PASS |
 | 최근 main 기준선 | PR #51 merge `36065ab`, main CI run `35448436859` PASS |
 

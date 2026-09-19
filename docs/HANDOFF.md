@@ -6,7 +6,7 @@
 
 검증 기준 커밋: `7ca3c72`·`d4597cd`
 
-현재 작업: Issue #52 Phase 4 계정 삭제·개인정보·출시 준비 통합 PR 준비
+현재 작업: PR #53 Phase 4 계정 삭제·개인정보·출시 준비 CI·리뷰·merge
 
 ## 이번 작업에서 완료한 것
 
@@ -50,10 +50,9 @@
 
 ## 다음 실행 순서
 
-1. Issue #52의 코드·문서 최종 회귀 후 한글 PR 하나 생성
-2. PR CI·필수 리뷰 확인, 실패 시 같은 브랜치에서 수정
-3. 통과 후 merge·main CI 확인·Issue #52 종료
-4. 운영 재인증·외부 HTTPS 삭제 URL·release package/AAB는 승인·외부 조건 전 BLOCKED 유지
+1. PR #53 CI·필수 리뷰 확인, 실패 시 같은 브랜치에서 수정
+2. 통과 후 merge·main CI 확인·Issue #52 종료
+3. 운영 재인증·외부 HTTPS 삭제 URL·release package/AAB는 승인·외부 조건 전 BLOCKED 유지
 
 ## 재현 명령
 
