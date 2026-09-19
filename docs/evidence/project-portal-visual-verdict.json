@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-09-19T22:56:56+09:00",
+  "checked_at": "2026-09-19T23:47:17+09:00",
   "score": 96,
   "threshold": 90,
   "verdict": "pass",
@@ -26,5 +26,5 @@
   },
   "differences": [],
   "suggestions": [],
-  "reasoning": "Desktop and 390px layouts preserve Korean word boundaries, show the Local Anvil contract-to-Worker completion boundary and 24 PASS / 2 BLOCKED / 10 NOT_RUN metadata, expose semantic content to assistive technology, and pass the repository mobile-overflow regression."
+  "reasoning": "Desktop and 390px layouts preserve Korean word boundaries, show Phase 4 local account deletion separately from blocked public release work, display 26 PASS / 2 BLOCKED / 8 NOT_RUN metadata, expose semantic content to assistive technology, and pass the repository mobile-overflow regression."
 }

@@ -1,0 +1,45 @@
+{
+  "recordedAt": "2026-09-19 KST",
+  "branch": "feat/phase4-release-readiness",
+  "codeCommit": "75aedae",
+  "scope": "Local account deletion, privacy logging gate, and Android disclosure",
+  "automated": {
+    "apiUnit": "PASS 35/35",
+    "apiPostgres": "PASS 10/10",
+    "mobileUnit": "PASS 48/48",
+    "mobileTypecheckLintExport": "PASS",
+    "privacyScan": "PASS",
+    "secretScan": "PASS"
+  },
+  "D01": {
+    "status": "PASS",
+    "observed": "Ten concurrent requests converged to one deletion request; one unsent job was cancelled, submitted and response-lost jobs stayed pending, one finalized NFT stayed preserved, and the original account ID had zero remaining references."
+  },
+  "D02": {
+    "status": "NOT_RUN",
+    "observed": "Account-scoped routes now remount on account ID change, but no production login/account-switch or OS backup-restore environment exists."
+  },
+  "D03": {
+    "status": "PASS",
+    "observed": "Repository privacy gate rejects sensitive console arguments and unreviewed analytics SDKs; API no longer logs raw error objects. External production log aggregation remains NOT_RUN."
+  },
+  "android": {
+    "device": "Samsung SM-S928N, Android 16",
+    "settingsScreen": "PASS",
+    "irreversibleDisclosure": "PASS",
+    "localDemoRequest": "PASS COMPLETED with zero seeded records",
+    "productionReauthentication": "BLOCKED"
+  },
+  "screenshots": [
+    "docs/evidence/screenshots/android-account-settings.png",
+    "docs/evidence/screenshots/android-account-deletion-confirm.png",
+    "docs/evidence/screenshots/android-account-deletion-completed.png"
+  ],
+  "notClaimed": [
+    "external deletion HTTPS URL",
+    "signed release AAB",
+    "Play Console submission",
+    "closed test participants",
+    "production backup restore"
+  ]
+}

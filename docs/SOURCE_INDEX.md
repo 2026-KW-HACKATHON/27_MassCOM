@@ -35,3 +35,13 @@
 | --- | --- | --- |
 | [PostgreSQL 18 문서](https://www.postgresql.org/docs/18/) | 2026-09-18 | 제약·부분 인덱스·트랜잭션 migration·통합 시험 |
 | [node-postgres](https://node-postgres.com/) | 2026-09-18 | Pool·parameterized query·환경 기반 연결 |
+
+## Phase 4 출시 준비 공식 근거
+
+| 근거 | 확인일 | 적용 내용 |
+| --- | --- | --- |
+| [Google Play 계정 삭제](https://support.google.com/googleplay/android-developer/answer/13327111?hl=en) | 2026-09-19 | 앱 안·외부 웹 삭제 경로와 관련 데이터 처리 |
+| [새 개인 계정 테스트](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en) | 2026-09-19 | 적용 계정의 12명·연속 14일 폐쇄 테스트 |
+| [Android 16KB page size](https://developer.android.com/guide/practices/page-sizes) | 2026-09-19 | 64비트 네이티브 라이브러리·release 호환 확인 |
+| [Android App Links 검증](https://developer.android.com/training/app-links/verify-applinks) | 2026-09-19 | HTTPS domain·assetlinks·package·서명 대조 |
+| [Play package 이름 등록](https://support.google.com/googleplay/android-developer/answer/16984799?hl=en) | 2026-09-19 | 2026-09-30 시행 전후 Console 등록 상태 재확인 |

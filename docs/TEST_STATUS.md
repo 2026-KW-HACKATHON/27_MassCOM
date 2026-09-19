@@ -33,9 +33,9 @@
 | C02 | Foundry 속성 | PASS | 누적 상한 경계·중복 발행 키 | 상한·일회성 유지 | cap+1·중복 rewardKey 거절, 128회 fuzz에서 `everMinted ≤ maxEverMinted` |
 | C03 | Foundry 계약 | PASS | 모든 전송·우회 경로 | 잠긴 NFT는 이전 불가 | approve·setApprovalForAll·transferFrom·safeTransferFrom 2종과 내부 `_update` 거절 |
 | C04 | Foundry 계약 | PASS | 시리즈 활성화 후 조건 변경 | 동결된 값 변경 불가 | 비활성 mint 거절, 중복 생성·재활성화 거절, 설정 변경 함수 없음 |
-| D01 | API·Worker | NOT_RUN | 발급 중 탈퇴 | 미전송·제출됨을 구분 | 미구현 |
+| D01 | API·Worker | PASS | 발급 중 탈퇴 | 미전송·제출됨을 구분 | 동시 10요청 하나로 수렴, 미전송 1건 `CANCELLED`, 제출 1건 결과 대기, 확정 NFT 1건 보존, 원 account ID 참조 0 |
 | D02 | Android·API | NOT_RUN | 계정 전환·캐시 복구 | 이전 사용자 데이터 미노출 | 미구현 |
-| D03 | 정적·통합 검사 | NOT_RUN | 로그·분석·메타데이터 검사 | 개인키·QR·개인 식별자 누출 없음 | 미구현 범위 존재 |
+| D03 | 정적·통합 검사 | PASS | 로그·분석·메타데이터 검사 | 개인키·QR·개인 식별자 누출 없음 | 민감 console 인자·미검토 analytics SDK gate와 fixture PASS, raw API error 객체 로그 제거; 외부 운영 로그는 NOT_RUN |
 | A01 | Android 실기 | NOT_RUN | 카메라 권한 거절·오프라인 | 수동 코드·정확한 상태 표시 | QR 화면 미구현 |
 | A02 | Android 릴리스 | NOT_RUN | 실제 AAB·16KB·앱 링크 | 설치·실행·복귀 정상 | debug APK 부분 PASS, release NOT_RUN |
 | O01 | 환경 권한 | NOT_RUN | 시연 권리로 운영 API 접근 | 환경 경계에서 거절 | 운영 환경 미구현 |
@@ -75,5 +75,6 @@
 | 2026-09-19 KST | `e6aae59`, PR #49 | Foundry fmt·build·lint·8 tests·128 fuzz, Anvil deploy→series→mint→owner/locked/event | Foundry 1.8.3 Docker·Solidity 0.8.24·Anvil chain 31337 | C01~C04 PASS, Base Sepolia `BLOCKED` | `docs/evidence/foundry-contract-local.json`; private key·mnemonic 미기록 |
 | 2026-09-19 KST | `14e6eab`, PR #50 | API 34개·PostgreSQL 8개·모바일 44개·동일 mint request 20개·binding 주소 변경 | PostgreSQL 18 Alpine·Node·Expo | 원자 job/Outbox·replay 19·수령인 고정 PASS; W07·M01·M07 전체는 Worker 전까지 `NOT_RUN` | `docs/evidence/mint-request-outbox.json`; reward key API/Outbox 미노출 |
 | 2026-09-19 KST | `7ca3c72`·`d4597cd`, PR #51 | Worker 6개·Worker PostgreSQL 1개·Anvil W07/M01~M08·API 34개·API PostgreSQL 8개·모바일 45개·Foundry 8개/fuzz128·Android export·secret/portal | Node 25.9.0·PostgreSQL 18 Alpine·Foundry 1.8.3·Anvil 31337·Samsung SM-S928N Android 16 | PASS; Android 접수→등록 완료와 기존 token #1 attempt 0 복구, 30ms lease heartbeat·소유권 상실 전송 차단 PASS, Base Sepolia `BLOCKED` | `docs/evidence/phase3-worker-anvil-android.json`; 공개 Anvil 시험 주소만 기록, private key·mnemonic 미기록 |
+| 2026-09-19 KST | `feat/phase4-release-readiness`, Issue #52 | API 35개·PostgreSQL 10개·모바일 48개·privacy/secret gate·Android export·계정 삭제 실기 | PostgreSQL 18 Alpine·Node 25.9.0·Expo 57·Samsung SM-S928N Android 16 | D01·D03 PASS, D02 NOT_RUN; 운영 재인증·외부 삭제 URL·서명 AAB 미완료 | `docs/evidence/account-deletion-privacy.json`; Local DEMO 계정만 사용 |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R03은 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04·R02는 계속 `NOT_RUN`입니다. Phase 3의 W07·M01~M08은 로컬 Anvil·PostgreSQL·실기기 증거이며 Base Sepolia나 운영 배포 성공을 뜻하지 않습니다.
