@@ -4,9 +4,9 @@
 
 기준 브랜치: `main`
 
-통합 기준 커밋 SHA: `main@e34f3d52016be8ba7ab68af5925d6829e4da48e7`, main CI run `35323830141` PASS
+통합 기준 커밋 SHA: `main@1ca93010523c918588a40967bc6d3d460def8b8a`, main CI run `35418431281` PASS
 
-현재 작업: `test/33-wallet-missing-return@1dba58f`, PR #34 OPEN
+현재 작업: `docs/35-wallet-proposal-expiry-blocker`, Issue #35 OPEN, PR 생성 전
 
 ## 이번 세션에서 완료한 것
 
@@ -30,12 +30,14 @@
 - #25 `test: 실제 MetaMask 연결과 주소 확인 서명을 검증한다`
 - #27 `fix: 지갑 연결 거절을 취소 상태로 정규화한다`
 - #31 `fix: 지갑 연결 거절 이벤트를 앱 취소 상태에 반영한다`
+- #33 `test: 미설치 지갑 선택과 앱 복귀 안내를 실기 검증한다`
 
 ## 통합한 작업 브랜치
 
 - `test/25-wallet-device`
 - `fix/27-wallet-connection-rejection`
 - `fix/31-wallet-rejection-event`
+- `test/33-wallet-missing-return`
 
 ## Phase 1에서 merge된 PR
 
@@ -49,6 +51,7 @@
 - #28, merge commit `bdeade4`
 - #30, merge commit `9c5ad0e`
 - #32, merge commit `e34f3d5`
+- #34, merge commit `1ca9301`
 
 ## 실행한 테스트
 
@@ -70,13 +73,14 @@
 ## 현재 Phase 1 상태
 
 - 핵심 흐름 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED`→콜드 재시작은 `VERIFIED`
-- W06 미설치·거절·복귀 실패 묶음 `PASS`; W04 주소 변경과 W05 미지원 스마트지갑은 `NOT_RUN`
+- W06 즉시 UX는 PASS이나 지연 `Proposal expired` 미처리로 전체 `FAIL`; W04 주소 변경과 W05 미지원 스마트지갑은 `NOT_RUN`
 
 ## BLOCKER
 
 - 외부 HTTPS·유료 AWS·공개 배포는 별도 승인 필요
 - GitHub Pages는 현재 꺼져 있고 private 저장소의 조직 요금제·공개 정책 확인 및 공개 승인 필요
 - MetaMask 거절 뒤 자동 딥링크 복귀는 관측되지 않았으며 수동 Android 뒤로가기는 PASS
+- Reown 2.0.6 미설치 지갑 제안을 취소하는 공개 API가 없어 약 5분 뒤 `Uncaught Proposal expired`; Issue #35
 
 ## 사용자 승인이 필요한 사항
 
@@ -85,10 +89,11 @@
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. Phase 1 잔여 W04 주소 변경·W05 미지원 스마트지갑을 준비된 안전한 환경에서 별도 증거로 남김
-2. 실제 지갑 실기는 비밀번호·복구 문구·개인키를 공유하거나 기록하지 않고 사용자가 직접 잠금만 해제
-3. 실제로 실행하지 않은 예외 시험은 계속 `NOT_RUN`으로 유지
-4. Phase 2 이상, 공개 배포, Play 제출은 새 사용자 승인 없이 진행하지 않음
+1. Issue #35에서 공개 API만으로 pending proposal을 취소할 수 있는지 Reown upstream 근거를 확인하고, 내부 패치·큰 SDK 변경은 승인 없이 하지 않음
+2. Phase 1 잔여 W04 주소 변경·W05 미지원 스마트지갑을 준비된 안전한 환경에서 별도 증거로 남김
+3. 실제 지갑 실기는 비밀번호·복구 문구·개인키를 공유하거나 기록하지 않고 사용자가 직접 잠금만 해제
+4. 실제로 실행하지 않은 예외 시험은 계속 `NOT_RUN`으로 유지
+5. Phase 2 이상, 공개 배포, Play 제출은 새 사용자 승인 없이 진행하지 않음
 
 ## 실행 명령
 
@@ -113,6 +118,6 @@ PostgreSQL 통합은 DB 이름이 `_test`로 끝나는 전용 `TEST_DATABASE_URL
 - Q01·Q02·Q03·Q05·R01·R03은 실제 PostgreSQL 증거로 PASS이며 Q04·R02는 계속 NOT_RUN
 - 정확한 식사 시각은 서비스 DB 감사 자료일 뿐 온체인·IPFS·공개 메타데이터에 넣지 않음
 - 방문 취소·도감 조회·Android QR 카메라를 구현 완료로 표시하지 않음
-- Phase 1 핵심 외부 지갑 흐름·W06 실기 PASS와 잔여 W04·W05 예외를 구분함
+- Phase 1 핵심 외부 지갑 흐름 PASS, W06 FAIL, 잔여 W04·W05 NOT_RUN을 구분함
 - 실제 Android 기기 일련번호·개인 앱 목록·지갑 비밀은 저장소에 기록하지 않음
 - 개인 private mirror는 사용자가 나중에 요청할 때만 생성

@@ -17,7 +17,7 @@
 | W03 | 서명 검증 | PASS | 만료·사용한 nonce 재사용 | 거절 | 5분 만료·단일 소비·replay 409 PASS |
 | W04 | Android·지갑 | NOT_RUN | 서명 도중 지갑 주소 변경 | 기존 원문·확인 상태 무효 | 자동화 PASS, MetaMask 실기 NOT_RUN |
 | W05 | Android·지갑 | NOT_RUN | 지원하지 않는 스마트 지갑 | 무검증 우회 없이 설명·거절 | 실기 미수행 |
-| W06 | Android 실기 | PASS | 지갑 미설치·서명 거절·복귀 실패 | 안내와 재시도, 보상권 유지 | 실제 서명·연결 거절 뒤 보존 안내 PASS. 미설치 Trust Wallet의 `App not installed`·Google Play 이동·수동 복귀·한국어 재시도 안내 PASS; 지갑/보상 변경 요청 없음 |
+| W06 | Android 실기 | FAIL | 지갑 미설치·서명 거절·복귀 실패 | 안내와 재시도, 보상권 유지 | 서명·연결 거절과 미설치 Trust Wallet의 즉시 안내·스토어 복귀는 PASS. 이후 남은 제안 만료가 `Uncaught Proposal expired`를 발생시켜 Issue #35로 분리 |
 | W07 | DB·Worker | NOT_RUN | 주소 연결 해제와 전송 경쟁 | 고정 수령인·명확한 작업 상태 | Worker 미구현 |
 | W08 | 배포 빌드 검사 | NOT_RUN | SDK 구매·스왑·내장 지갑 기본값 | 배포 빌드에 해당 진입점 없음 | 개발 코드 경계 PASS, 배포 빌드 NOT_RUN |
 | W09 | 요청 경계 | PASS | 예기치 않은 송금·approve 요청 | 앱 요청 경계에서 거절 | allowlist 외 요청 provider 호출 전 거절 PASS |
@@ -66,6 +66,6 @@
 | 2026-09-18 KST | PR #26 HEAD | 모바일 19개·typecheck·lint·Expo doctor·Android export·실제 MetaMask 흐름 | Samsung SM-S928N·Android 16·MetaMask 8.11.0·Base Sepolia | 자동화 PASS, 연결·체인 승인·`personal_sign`·서버 `VERIFIED`·콜드 재시작 PASS, W01 PASS | `docs/evidence/android-wallet-connection.json`; 주소·서명·세션 토픽·기기 일련번호 미기록 |
 | 2026-09-18 KST | `bdeade4`, main CI `35319672490` | 모바일 19개·API 25개·PostgreSQL 통합·typecheck·lint·Android export·비밀 검사 | GitHub Actions Ubuntu·PostgreSQL 18 | PASS, Claude·Astra 검토 지적 반영 | PR #26·#28 merge; W04·W05·W06 잔여 실기는 `NOT_RUN` 유지 |
 | 2026-09-18 KST | `a4dc155`, PR #32 | 모바일 21개·typecheck·lint·실제 MetaMask 서명·연결 거절 | Samsung SM-S928N·Android 16·MetaMask 8.11.0, macOS | 자동화·서명 거절 PASS; 연결 거절 후 수동 앱 복귀와 보존 안내 PASS, 자동 딥링크 복귀 NOT_RUN | Issue #31·PR #32; `docs/evidence/android-wallet-connection.json` |
-| 2026-09-19 KST | `1dba58f`, PR #34 | 모바일 22개·typecheck·lint·미설치 Trust Wallet·Google Play 이동·수동 앱 복귀 | Samsung SM-S928N·Android 16, macOS | W06 PASS; 새 지갑 설치·자산·보상 변경 요청 없음 | Issue #33·`docs/evidence/android-wallet-missing.json` |
+| 2026-09-19 KST | `1dba58f`, PR #34 | 모바일 22개·typecheck·lint·미설치 Trust Wallet·Google Play 이동·수동 앱 복귀·제안 만료 대기 | Samsung SM-S928N·Android 16, macOS | 즉시 UI PASS, 지연 `Uncaught Proposal expired`로 W06 FAIL; 같은 원인 2회 이상 재현 후 중단 | Issue #33·#35, `docs/evidence/android-wallet-missing.json` |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R03은 각각 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04·R02는 계속 `NOT_RUN`입니다.

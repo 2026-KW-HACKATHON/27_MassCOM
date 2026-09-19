@@ -12,12 +12,14 @@
     "transport": "USB debugging with adb reverse for local API 3000 and Metro 8081"
   },
   "results": {
+    "overall_w06": "FAIL: immediate missing-wallet recovery passed, but the pending WalletConnect proposal later expired as an unhandled promise rejection",
     "wallet_absence": "PASS: the selected Trust Wallet package was not installed",
     "appkit_guidance": "PASS: AppKit showed App not installed and a Get action",
     "store_handoff": "PASS: Get opened the official Google Play listing without installing the wallet",
     "manual_return": "PASS: two Android system-back actions returned from the Play listing to the app",
     "app_recovery": "PASS: the AppKit modal was closed and the app showed NOT_CONNECTED, CHECK_REQUIRED, UNVERIFIED and a Korean retry/preservation message",
-    "automatic_return": "NOT_RUN: automatic Play-to-app return was not observed; the test intentionally used Android system back"
+    "automatic_return": "NOT_RUN: automatic Play-to-app return was not observed; the test intentionally used Android system back",
+    "proposal_expiry": "FAIL: after the pending pairing lifetime elapsed, the development client logged Uncaught (in promise) Error: Proposal expired; reproduced more than twice and split to Issue #35"
   },
   "automated_verification": {
     "mobile_tests": "PASS: 22/22",
