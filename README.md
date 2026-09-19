@@ -2,7 +2,7 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-> 현재 상태: 저장소 기준선 `VERIFIED` · Phase 1 핵심 지갑 흐름 `VERIFIED` · Phase 2 방문·보상 기반 `IN_PROGRESS` · 필수 시험 11 `PASS` / 25 `NOT_RUN`
+> 현재 상태: 저장소 기준선 `VERIFIED` · Phase 1 핵심 지갑 흐름 `VERIFIED` · Phase 2 방문·보상 기반 `IN_PROGRESS` · 필수 시험 11 `PASS` / 2 `BLOCKED` / 23 `NOT_RUN`
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](docs/index.html)
 
@@ -18,6 +18,7 @@
 - [실제 Android 기기 증거](docs/evidence/android-physical-device.json): 빌드·설치·실행·복귀·MetaMask 준비 상태
 - [실제 지갑 흐름 증거](docs/evidence/android-wallet-connection.json): 연결·체인 전환·서명·서버 확인·복원 결과
 - [미설치 지갑 복귀 증거](docs/evidence/android-wallet-missing.json): 스토어 이동·수동 복귀·한국어 재시도 안내
+- [지갑 주소 변경 증거](docs/evidence/android-wallet-address-change.json): 계정별 확인 격리와 MetaMask 세션 한계
 - [보안 경계](docs/SECURITY.md): 허용 메서드·nonce·의존성 위험
 - [평가 대응표](docs/EVALUATION_MAP.md): 요구사항·Issue·PR·코드·시험·실증·발표 연결
 
@@ -51,7 +52,7 @@ python3 -m http.server 4173 --directory docs
 | PostgreSQL | `IN_PROGRESS` | 점포·캠페인·멤버십·claim slot·방문·보상권 migration 구현, 지갑 challenge 영속화는 후속 |
 | Worker | `PLANNED` | Phase 3 전 |
 | Reown 외부 지갑 코드 | `IMPLEMENTED` | AppKit 2.0.6, 외부 지갑 전용 기능 플래그·메서드 allowlist |
-| 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름과 미설치 SafePal 스토어 복귀·proposal 취소·6분 지연 회귀 W06 PASS; 주소 변경·미지원 스마트지갑은 `NOT_RUN` |
+| 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름·W06 PASS; W04 동일 세션 주소 전환과 W05 미지원 스마트지갑은 준비된 외부 환경 부재로 `BLOCKED` |
 | NFT 계약·발행 | `PLANNED` | D-004·D-005 승인, Phase 3 전 |
 | 외부 HTTPS·Play 제출 | `BLOCKED` | 계정·비용·정책·명시 승인 필요 |
 
@@ -137,7 +138,7 @@ npm run test:postgres --prefix apps/api
 - 정적 프로젝트 포털: 로컬 검증 중, 공개 URL 없음
 - Android debug APK: Android 16 16KB AVD와 Samsung SM-S928N 실기기에서 빌드·설치·실행·홈 복귀·콜드 스타트 검증, 저장소에는 미포함
 - Android AAB·release package ID·App Link: `NOT_RUN`
-- 실제 Reown 지갑 흐름: MetaMask 연결·Base Sepolia·주소 확인·거절 복귀와 SafePal 미설치·Google Play 복귀·pending proposal 취소 `PASS`; W04·W05는 `NOT_RUN`
+- 실제 Reown 지갑 흐름: MetaMask 핵심·W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `BLOCKED`
 - 테스트넷 계약: 배포 전
 - 메인넷·Google Play·대회 제출: 명시 승인 전 실행 금지
 - 저장소: 현재 `PRIVATE`; 심사 시점 public 요구는 [대회 규칙](docs/COMPETITION.md)에 기록

@@ -1,0 +1,26 @@
+{
+  "checked_at": "2026-09-19T13:56:42+09:00",
+  "source_branch": "test/40-wallet-address-change",
+  "implementation_commit": "dbab97fb2427788d4763f61dccd85491b29835dd",
+  "environment": {
+    "device": "Samsung SM-S928N",
+    "android": "Android 16, API 36",
+    "wallet": "MetaMask 8.11.0",
+    "accounts": "two existing empty EOA accounts; addresses not recorded"
+  },
+  "results": {
+    "account_1_verification": "PASS: the first WalletConnect session reached VERIFIED",
+    "disconnect_preservation": "PASS: disconnect returned to NOT_CONNECTED and UNVERIFIED with the preservation message",
+    "account_2_reconnect": "PASS: a new WalletConnect session using the second account returned as CONNECTED, BASE_SEPOLIA and UNVERIFIED",
+    "verification_isolation": "PASS: the first account VERIFIED state was not inherited by the second account session",
+    "inflight_mismatch_automation": "PASS: API and wallet logic reject challenge/current-address or recovered-signer mismatch",
+    "same_session_mid_signature_change": "BLOCKED: MetaMask 8.11.0 pins the WalletConnect session account and exposes no editable connected-site account for this session; the secure approval UI cannot be automated safely"
+  },
+  "privacy": {
+    "wallet_addresses_recorded": false,
+    "signatures_recorded": false,
+    "session_topics_recorded": false,
+    "seed_or_private_key_accessed": false,
+    "asset_request_made": false
+  }
+}
