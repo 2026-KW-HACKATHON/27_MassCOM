@@ -72,7 +72,7 @@
 - B-002 저장소 공개 전환과 심사 public 준비: 명시 승인 필요
 - B-003 외부 HTTPS·유료 클라우드: 비용·계정 승인 필요
 - B-004/B-007 Google Play 정책·release package ID: 공식 확인과 결정 필요
-- B-008 Expo 전이 moderate advisory: 호환되는 upstream 수정 필요
+- B-008 Expo 전이 moderate advisory: 2026-09-20 Expo 57.0.24·expo-router 57.0.22 patch 적용 뒤 재평가에서도 14건 유지. 근원은 `xcode`→`uuid`(iOS 설정 도구, 빌드 시점)와 `expo-router`→`query-string`→`decode-uri-component`이며 npm이 제시하는 수정은 expo 46 다운그레이드뿐이라 호환되는 upstream 수정 필요
 - B-010/B-011 W04·W05용 실제 지갑 환경 부재
 - B-012 Base Sepolia 전용 배포자·faucet gas 부재
 - B-013 운영 재인증과 소유 HTTPS 외부 삭제 URL 부재

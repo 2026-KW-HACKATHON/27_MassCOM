@@ -4,9 +4,9 @@
 
 기준 브랜치: `main`
 
-검증 기준: PR #58 merge `7da97b6`, main CI `35455903163` PASS
+검증 기준: PR #64 merge `695210c`
 
-현재 작업: Issue #59 PR #60 병합 대기(npm audit endpoint 503), Issue #61 재시도 상한 PR 검토
+현재 작업: Expo 호환 patch 적용과 B-008 재평가 PR
 
 ## 이번 작업에서 완료한 것
 
@@ -22,6 +22,8 @@
 - 빠른 cursor 범위에 이벤트가 없으면 배포 기준 블록까지 fallback하는 Anvil 복구
 - cursor 조회 실패의 재시도 오류 분류, ethers 요청 cache로 인한 Anvil 간헐 30초 대기 원인 제거
 - Issue #61 Worker 재시도 지수 backoff와 전송 시도 상한 뒤 `MANUAL_REVIEW` 전환
+- PR #63 merge `6bbf58c`(Issue #59), PR #64 merge `695210c`(Issue #61), 독립 리뷰 2회 CRITICAL/HIGH 0
+- Expo 57.0.24·expo-router 57.0.22·@expo/ui 57.0.19 patch 적용, moderate advisory 14건 재평가(변화 없음, B-008 유지)
 
 - PR #53 merge `62196f0`, main CI `35450443943` PASS, Issue #52 종료
 - 브라우저 발표 페이지와 데스크톱·390px 시각 검증
@@ -71,8 +73,9 @@
 ## 재개 시 할 일
 
 1. SIWE challenge 공유 저장소와 운영 세션 저장 정책 결정
-2. Expo 호환 업데이트로 모바일 moderate advisory 14건을 재평가
-3. 외부 HTTPS·Base Sepolia·release AAB·Google Play·공개/최종 제출은 별도 승인 뒤 진행
+2. B-008: Expo upstream이 `uuid`·`decode-uri-component` 전이 의존성을 고치면 재평가(현재 호환 수정 없음)
+3. Expo patch 적용 뒤 Android 실기 회귀(자동화 불가, 사용자 판정 필요)
+4. 외부 HTTPS·Base Sepolia·release AAB·Google Play·공개/최종 제출은 별도 승인 뒤 진행
 
 ## 재현 명령
 
