@@ -4,9 +4,9 @@
 
 기준 브랜치: `main`
 
-검증 기준 커밋 SHA: `main@cdd7d532a812f18936f5914aadf4ebba55929a9a`, main CI run `35418821772` PASS
+검증 기준 커밋 SHA: `main@ab641872504743aed5d853dfe7be4a69e1c199c4`, main CI run `35421201914` PASS
 
-현재 작업: `fix/35-wallet-proposal-cancel@bff7c68`, Issue #35 OPEN, PR #38 OPEN
+현재 작업: Phase 1 지갑 핵심·W06 검증 완료, 열린 Issue·PR·구현 브랜치 없음
 
 ## 이번 세션에서 완료한 것
 
@@ -53,6 +53,7 @@
 - #32, merge commit `e34f3d5`
 - #34, merge commit `1ca9301`
 - #36, merge commit `cdd7d53` (W06 FAIL·B-009 상태 기록)
+- #38, merge commit `ab64187` (pending proposal 취소·W06 PASS)
 
 ## 실행한 테스트
 
@@ -81,7 +82,7 @@
 - 외부 HTTPS·유료 AWS·공개 배포는 별도 승인 필요
 - GitHub Pages는 현재 꺼져 있고 private 저장소의 조직 요금제·공개 정책 확인 및 공개 승인 필요
 - MetaMask 거절 뒤 자동 딥링크 복귀는 관측되지 않았으며 수동 Android 뒤로가기는 PASS
-- Reown 2.0.6 공개 API 부재는 승인된 patch-package 최소 패치로 해소 중; upstream stable 제공 시 제거
+- Reown 2.0.6 공개 API 부재는 승인된 patch-package 최소 패치로 해소; upstream stable 제공 시 제거
 
 ## 사용자 승인이 필요한 사항
 
@@ -90,11 +91,10 @@
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. PR #38 CI·merge와 main CI를 확인하고 Issue #35를 종료
-2. Phase 1 잔여 W04 주소 변경·W05 미지원 스마트지갑을 준비된 안전한 환경에서 별도 증거로 남김
-3. 실제 지갑 실기는 비밀번호·복구 문구·개인키를 공유하거나 기록하지 않고 사용자가 직접 잠금만 해제
-4. 실제로 실행하지 않은 예외 시험은 계속 `NOT_RUN`으로 유지
-5. Phase 2 이상, 공개 배포, Play 제출은 새 사용자 승인 없이 진행하지 않음
+1. Phase 1 잔여 W04 주소 변경·W05 미지원 스마트지갑을 준비된 안전한 환경에서 별도 증거로 남김
+2. 실제 지갑 실기는 비밀번호·복구 문구·개인키를 공유하거나 기록하지 않고 사용자가 직접 잠금만 해제
+3. 실제로 실행하지 않은 예외 시험은 계속 `NOT_RUN`으로 유지
+4. Phase 2 이상, 공개 배포, Play 제출은 새 사용자 승인 없이 진행하지 않음
 
 ## 실행 명령
 
