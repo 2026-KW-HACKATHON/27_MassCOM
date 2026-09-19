@@ -1,0 +1,66 @@
+{
+  "recordedAt": "2026-09-19 KST",
+  "branch": "feat/44-recommendations",
+  "commit": "0af854a",
+  "environment": {
+    "device": "Samsung SM-S928N",
+    "os": "Android 16",
+    "app": "Expo development build",
+    "api": "loopback through adb reverse with insecure demo account mode",
+    "database": "PostgreSQL 18 Alpine local test database"
+  },
+  "fixture": {
+    "unvisitedOpenMerchants": 2,
+    "visitedOpenMerchants": 1,
+    "fullMerchants": 1,
+    "demoOnly": true,
+    "realPartnerClaimed": false
+  },
+  "checks": [
+    {
+      "id": "unvisited-priority",
+      "status": "PASS",
+      "observed": "Two unvisited open merchants appeared before the merchant with one counted visit."
+    },
+    {
+      "id": "reason-visible",
+      "status": "PASS",
+      "observed": "NEW_PLACE appeared as 아직 방문하지 않은 동네 가게예요 and NEXT_REWARD appeared as 2번 더 방문하면 단골 새싹을 받을 수 있어요."
+    },
+    {
+      "id": "full-excluded",
+      "status": "PASS",
+      "observed": "The full campaign fixture was absent from the three rendered recommendations."
+    },
+    {
+      "id": "detail-loop",
+      "status": "PASS",
+      "observed": "Selecting the first recommendation opened the matching merchant detail route."
+    },
+    {
+      "id": "field-behavior",
+      "status": "NOT_RUN",
+      "observed": "No real merchant or user behavior study was authorized or represented as evidence."
+    }
+  ],
+  "visualVerdict": {
+    "status": "PASS",
+    "criticalFindings": 0,
+    "majorFindings": 0,
+    "notes": [
+      "The recommendation policy is visible before the ranked results.",
+      "Reason, current visit count, next fixed goal, demo status, and detail action are independently readable.",
+      "The floating gear is the Expo development-client overlay and is not part of a release build."
+    ]
+  },
+  "screenshots": [
+    "docs/evidence/android-recommendations.png"
+  ],
+  "privacy": {
+    "walletAddressRecorded": false,
+    "signatureRecorded": false,
+    "deviceSerialRecorded": false,
+    "qrTokenRecorded": false,
+    "exactMealTimeReturned": false
+  }
+}

@@ -759,6 +759,8 @@ footer p {
   }
 
   .site-header {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 8rem);
+    gap: 0.5rem;
     min-height: 4rem;
     padding-inline: 0.7rem;
   }
@@ -769,7 +771,34 @@ footer p {
   }
 
   .header-state {
+    min-width: 0;
+    width: auto;
+    justify-self: end;
+    justify-content: flex-end;
+    font-size: 0;
+    line-height: 1.25;
+    text-align: right;
+  }
+
+  .header-state::after {
+    content: "P2 검증";
     font-size: 0.72rem;
+    white-space: nowrap;
+  }
+
+  .truth-board dl > div {
+    gap: 0.55rem;
+    align-items: flex-start;
+  }
+
+  .truth-board dt {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+  }
+
+  .truth-board dd {
+    flex: none;
   }
 
   h1 {

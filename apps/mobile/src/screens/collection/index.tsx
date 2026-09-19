@@ -1,3 +1,4 @@
+import { Link } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -119,6 +120,12 @@ export function CollectionScreen({ apiUrl, accountId }: { apiUrl: string; accoun
           ))
         )}
       </Section>
+
+      <Link href="/recommendations" asChild>
+        <Pressable accessibilityRole="button" style={styles.primaryButton}>
+          <Text style={styles.primaryButtonText}>다음 음식점 추천 보기</Text>
+        </Pressable>
+      </Link>
     </ScrollView>
   );
 }

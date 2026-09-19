@@ -51,6 +51,11 @@ export function MerchantListScreen({ apiUrl }: Props) {
               </Pressable>
             </Link>
           </View>
+          <Link href="/recommendations" asChild>
+            <Pressable accessibilityRole="button" style={styles.recommendationAction}>
+              <Text style={styles.recommendationActionText}>이유가 보이는 다음 가게 추천 →</Text>
+            </Pressable>
+          </Link>
           <View style={styles.quickActions}>
             <Link href="/merchant" asChild>
               <Pressable accessibilityRole="button" style={styles.secondaryAction}>
@@ -203,6 +208,8 @@ const styles = StyleSheet.create({
   primaryActions: { flexDirection: 'row', gap: 10 },
   primaryActionLink: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, borderRadius: 14, backgroundColor: colors.primary },
   primaryActionLinkText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },
+  recommendationAction: { minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.primaryContainer },
+  recommendationActionText: { color: colors.onPrimaryContainer, fontSize: 14, fontWeight: '900' },
   secondaryAction: {
     minHeight: 44,
     justifyContent: 'center',

@@ -80,7 +80,7 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
   }
 }
 
-function parseRewardGoals(value: unknown): readonly PublicRewardGoal[] {
+export function parseRewardGoals(value: unknown): readonly PublicRewardGoal[] {
   if (!Array.isArray(value)) {
     throw new Error('invalid campaign reward goals');
   }
