@@ -2,7 +2,7 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-> 현재 상태: 저장소 기준선 `VERIFIED` · Phase 1 핵심 지갑 흐름 `VERIFIED` · Phase 2 음식점 탐색 실기 `VERIFIED`·방문/보상 UI `IN_PROGRESS` · 필수 시험 11 `PASS` / 2 `BLOCKED` / 23 `NOT_RUN`
+> 현재 상태: 저장소 기준선 `VERIFIED` · Phase 1 핵심 지갑 흐름 `VERIFIED` · Phase 2 탐색·방문 수령·도감 실기 `VERIFIED`·추천 `IN_PROGRESS` · 필수 시험 11 `PASS` / 2 `BLOCKED` / 23 `NOT_RUN`
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](docs/index.html)
 
@@ -20,6 +20,7 @@
 - [미설치 지갑 복귀 증거](docs/evidence/android-wallet-missing.json): 스토어 이동·수동 복귀·한국어 재시도 안내
 - [지갑 주소 변경 증거](docs/evidence/android-wallet-address-change.json): 계정별 확인 격리와 MetaMask 세션 한계
 - [음식점 탐색 Android 증거](docs/evidence/android-merchant-discovery.json): 지갑 없는 목록·상세·선택적 지갑 이동
+- [방문 수령·도감 Android 증거](docs/evidence/android-claim-collection.json): 점주 권한·1회 코드·고객 수령·상태 분리
 - [보안 경계](docs/SECURITY.md): 허용 메서드·nonce·의존성 위험
 - [평가 대응표](docs/EVALUATION_MAP.md): 요구사항·Issue·PR·코드·시험·실증·발표 연결
 
@@ -49,7 +50,8 @@ python3 -m http.server 4173 --directory docs
 | 점주·직원 권한 API | `IMPLEMENTED` | PR #18 merge `e242c99`, main CI run `35302502498` PASS |
 | 일회용 QR 슬롯 API | `IMPLEMENTED` | PR #20, 원문 미저장·버전 잠금 재발급·preview·단일 소비 기반 |
 | 방문·고정 보상권 | `IMPLEMENTED` | PR #22, QR 소비·KST 일일 진행·첫/3/5회 보상권을 한 DB 트랜잭션으로 처리 |
-| 점주·직원 웹 | `PLANNED` | 권한·QR API만 구현, 화면은 미구현 |
+| 점주·직원 방문 확인 UI | `VERIFIED` | PR #46, loopback DEMO 계정의 STAFF 권한 확인→1인 코드 발급·재발급 Android 실기 PASS; 운영 인증·별도 웹은 미구현 |
+| 고객 방문 수령·도감 | `VERIFIED` | PR #46, preview→redeem→방문 1·앱 수집품 1·실제 NFT 0 분리 표시와 중복 409 PASS |
 | 주소 확인 API | `IMPLEMENTED` | ERC-4361 challenge·실제 서명 복구·nonce 소비 15 tests PASS |
 | PostgreSQL | `IN_PROGRESS` | 점포·캠페인·멤버십·claim slot·방문·보상권 migration 구현, 지갑 challenge 영속화는 후속 |
 | Worker | `PLANNED` | Phase 3 전 |
@@ -140,6 +142,7 @@ npm run test:postgres --prefix apps/api
 - 정적 프로젝트 포털: 로컬 검증 중, 공개 URL 없음
 - Android debug APK: Android 16 16KB AVD와 Samsung SM-S928N 실기기에서 빌드·설치·실행·홈 복귀·콜드 스타트 검증, 저장소에는 미포함
 - Android 음식점 탐색: 로컬 PostgreSQL의 `demo: true` 점포 3곳으로 목록·상세·고정 보상 조건·선택적 지갑 이동 검증
+- Android 방문 수령: loopback DEMO에서 점주 권한→1회 코드→고객 수령→도감 검증; 카메라 QR은 `NOT_RUN`
 - Android AAB·release package ID·App Link: `NOT_RUN`
 - 실제 Reown 지갑 흐름: MetaMask 핵심·W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `BLOCKED`
 - 테스트넷 계약: 배포 전

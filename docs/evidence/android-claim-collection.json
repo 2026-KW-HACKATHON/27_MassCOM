@@ -1,0 +1,77 @@
+{
+  "recordedAt": "2026-09-19 KST",
+  "branch": "feat/44-merchant-claims",
+  "commit": "16c9cf4",
+  "environment": {
+    "device": "Samsung SM-S928N",
+    "os": "Android 16",
+    "app": "Expo development build",
+    "api": "loopback through adb reverse with insecure demo account mode",
+    "database": "PostgreSQL 18 Alpine local test database"
+  },
+  "flow": [
+    {
+      "step": "merchant-access",
+      "status": "PASS",
+      "observed": "The merchant screen displayed STAFF and VIEW_MERCHANT/CONFIRM_VISIT only after the server membership check."
+    },
+    {
+      "step": "claim-issue",
+      "status": "PASS",
+      "observed": "Issued a one-person versioned claim slot for the configured demo customer."
+    },
+    {
+      "step": "claim-preview",
+      "status": "PASS",
+      "observed": "The customer screen showed AVAILABLE, merchant ID, and expiry before any state change."
+    },
+    {
+      "step": "claim-redeem",
+      "status": "PASS",
+      "observed": "Redeem created one valid visit, one progress count, and the first fixed reward entitlement."
+    },
+    {
+      "step": "duplicate-redeem",
+      "status": "PASS",
+      "observed": "A repeated redeem returned HTTP 409; visit and entitlement counts remained 1:1."
+    },
+    {
+      "step": "collection",
+      "status": "PASS",
+      "observed": "The collection showed visit 1, app collectible 1, actual NFT 0, and NOT_REQUESTED as 발행하지 않음."
+    },
+    {
+      "step": "camera-qr",
+      "status": "NOT_RUN",
+      "observed": "This PR keeps the manual one-time-code fallback; Android camera scanning is not claimed."
+    }
+  ],
+  "visualVerdict": {
+    "status": "PASS",
+    "criticalFindings": 0,
+    "majorFindings": 0,
+    "notes": [
+      "Merchant mode is visibly labeled as a development screen rather than production authentication.",
+      "The collection hierarchy makes app collectible and actual NFT counts independently readable.",
+      "The floating gear is the Expo development-client overlay and is not part of a release build."
+    ]
+  },
+  "securityIncident": {
+    "kind": "ephemeral demo token appeared once in local diagnostic output",
+    "contained": true,
+    "containment": "The same slot was immediately reissued, invalidating the exposed version before redeem.",
+    "repositoryContainsToken": false
+  },
+  "screenshots": [
+    "docs/evidence/android-merchant-claim.png",
+    "docs/evidence/android-claim-redeem.png",
+    "docs/evidence/android-collection.png"
+  ],
+  "privacy": {
+    "walletAddressRecorded": false,
+    "signatureRecorded": false,
+    "deviceSerialRecorded": false,
+    "qrTokenRecordedInRepository": false,
+    "exactMealTimeReturnedByCollection": false
+  }
+}

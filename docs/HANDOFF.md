@@ -2,11 +2,11 @@
 
 마지막 갱신 시각: 2026-09-19 KST
 
-기준 브랜치: `feat/44-customer-discovery`
+기준 브랜치: `feat/44-merchant-claims`
 
-검증 기준 커밋 SHA: `935e6d5`, PR #45 CI 대기
+검증 기준 커밋 SHA: `16c9cf4`, PR #46 CI 대기
 
-현재 작업: Phase 2 첫 묶음인 음식점 목록·상세 PR #45; Issue #44는 수령·도감·추천 완료까지 유지
+현재 작업: Phase 2 두 번째 묶음인 점주 발급·고객 수령·도감 PR #46; 추천·최종 통합 1개 PR 남음
 
 ## 이번 세션에서 완료한 것
 
@@ -17,6 +17,11 @@
 - 기존 Phase 1 지갑 화면을 선택 경로 `/wallet`로 이동
 - Samsung Android 16에서 DEMO 3곳 목록→상세→지갑 이동과 콜드 재시작 PASS
 - PR #45 생성, 모바일 32개·typecheck·lint·Android export·비밀 검사 PASS
+- PR #45 merge `ffc1525`, main CI run `35424531021` PASS
+- PostgreSQL 도감 조회 API와 방문·앱 수집품·NFT 상태 분리 구현
+- 점주 STAFF 권한→1회 코드→고객 preview/redeem→도감 Android 실기 PASS
+- 중복 redeem HTTP 409, 방문·보상권 1:1 유지 PASS
+- PR #46 생성, API 27개·PostgreSQL 5개·모바일 40개·typecheck·lint·Android export PASS
 - PR #26 merge `782fef6`, Issue #25 종료, main CI run `35317894775` PASS 확인
 - PR #28 merge `bdeade4`, Issue #27 종료, main CI run `35319672490` PASS 확인
 - Reown project ID와 사용자가 준비·잠금 해제한 MetaMask로 WalletConnect 연결 승인
@@ -91,7 +96,7 @@
 - GitHub Pages는 현재 꺼져 있고 private 저장소의 조직 요금제·공개 정책 확인 및 공개 승인 필요
 - MetaMask 거절 뒤 자동 딥링크 복귀는 관측되지 않았으며 수동 Android 뒤로가기는 PASS
 - Reown 2.0.6 공개 API 부재는 승인된 patch-package 최소 패치로 해소; upstream stable 제공 시 제거
-- PR #45의 GitHub Actions와 필수 리뷰가 끝나기 전에는 merge하지 않음
+- PR #46의 GitHub Actions와 필수 리뷰가 끝나기 전에는 merge하지 않음
 
 ## 사용자 승인이 필요한 사항
 
@@ -100,8 +105,8 @@
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. PR #45 CI·리뷰를 확인하고 통과하면 merge한 뒤 main CI까지 확인
-2. 두 번째 기능 PR에서 점주 claim slot 발급→고객 preview/redeem→도감을 한 흐름으로 구현
+1. PR #46 CI·리뷰를 확인하고 통과하면 merge한 뒤 main CI까지 확인
+2. 세 번째 기능 PR에서 설명 가능한 추천과 Phase 2 최종 Android 통합·문서를 완료
 3. W04·W05 외부 환경 blocker를 Issue #40·#41과 B-010·B-011로 유지
 4. 실제 지갑 실기는 비밀번호·복구 문구·개인키를 공유하거나 기록하지 않음
 5. 공개 배포·유료 자원·Play 제출은 별도 승인 없이 실행하지 않음
