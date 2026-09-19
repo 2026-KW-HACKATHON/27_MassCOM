@@ -8,6 +8,7 @@ import {
   WalletChallengeError,
   WalletChallengeService,
 } from './wallet-challenge-service.js';
+import { InMemoryWalletBindingStore } from './wallet-binding.js';
 
 const domain = 'api.masscom.local';
 const uri = 'https://api.masscom.local/wallet/verify';
@@ -28,6 +29,10 @@ function createFixture() {
     now: () => now,
     nonce: () => nonces[nonceIndex++]!,
     challengeId: () => `challenge-${nonceIndex}`,
+    bindingStore: new InMemoryWalletBindingStore({
+      now: () => now,
+      nextId: () => `binding-${nonceIndex}`,
+    }),
   });
 
   return {
@@ -75,6 +80,8 @@ test('verifies the signer and consumes the challenge once', async () => {
 
   assert.equal(verification.verifiedAddress, wallet.address);
   assert.equal(verification.walletLinkVersion, challenge.challengeId);
+  assert.equal(verification.walletBindingId, 'binding-1');
+  assert.equal(verification.bindingVersion, 1);
 
   await assert.rejects(
     service.verifyChallenge({

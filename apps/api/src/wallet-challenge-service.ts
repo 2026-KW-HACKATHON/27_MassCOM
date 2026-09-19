@@ -1,6 +1,13 @@
 import { getAddress, verifyMessage } from 'ethers';
 import { SiweMessage } from 'siwe';
 
+import {
+  InMemoryWalletBindingStore,
+  WalletBindingError,
+  type WalletBindingStore,
+  type VerifiedWalletBinding,
+} from './wallet-binding.js';
+
 type ChallengeStatus = 'pending' | 'verifying' | 'used';
 
 type ChallengeRecord = {
@@ -23,6 +30,8 @@ export type IssuedWalletChallenge = Pick<
 export type VerifiedWalletChallenge = {
   verifiedAddress: string;
   walletLinkVersion: string;
+  walletBindingId: string;
+  bindingVersion: number;
   verifiedAt: string;
 };
 
@@ -91,6 +100,7 @@ type WalletChallengeServiceOptions = {
   now?: () => Date;
   nonce?: () => string;
   challengeId?: () => string;
+  bindingStore?: WalletBindingStore;
 };
 
 type CreateChallengeInput = {
@@ -116,6 +126,7 @@ export class WalletChallengeService {
   readonly #now: () => Date;
   readonly #nonce: () => string;
   readonly #challengeId: () => string;
+  readonly #bindingStore: WalletBindingStore;
 
   constructor(options: WalletChallengeServiceOptions) {
     validateServiceOptions(options);
@@ -127,6 +138,7 @@ export class WalletChallengeService {
     this.#now = options.now ?? (() => new Date());
     this.#nonce = options.nonce ?? defaultNonce;
     this.#challengeId = options.challengeId ?? defaultChallengeId;
+    this.#bindingStore = options.bindingStore ?? new InMemoryWalletBindingStore();
   }
 
   async createChallenge(input: CreateChallengeInput): Promise<IssuedWalletChallenge> {
@@ -234,19 +246,49 @@ export class WalletChallengeService {
         throw new WalletChallengeError('SIGNER_MISMATCH');
       }
 
+      const binding = await this.#bindingStore.recordVerified({
+        accountId: record.accountId,
+        address: record.address,
+        chainId: record.chainId,
+        verifiedAt: now,
+      });
       this.#store.consume(record.challengeId);
       return {
         verifiedAddress: record.address,
         walletLinkVersion: record.challengeId,
-        verifiedAt: now.toISOString(),
+        walletBindingId: binding.bindingId,
+        bindingVersion: binding.bindingVersion,
+        verifiedAt: binding.verifiedAt,
       };
     } catch (error) {
       this.#store.release(record.challengeId);
       if (error instanceof WalletChallengeError) {
         throw error;
       }
+      if (error instanceof WalletBindingError) {
+        throw new WalletChallengeError(error.code);
+      }
       throw new WalletChallengeError('SIGNER_MISMATCH');
     }
+  }
+
+  async disconnectBinding(input: {
+    accountId: string;
+    bindingId: string;
+    bindingVersion: number;
+  }): Promise<void> {
+    try {
+      await this.#bindingStore.disconnect(input);
+    } catch (error) {
+      if (error instanceof WalletBindingError) {
+        throw new WalletChallengeError(error.code);
+      }
+      throw error;
+    }
+  }
+
+  getActiveBinding(accountId: string): Promise<VerifiedWalletBinding | undefined> {
+    return this.#bindingStore.getActive(accountId);
   }
 }
 
