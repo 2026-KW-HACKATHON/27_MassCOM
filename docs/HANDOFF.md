@@ -2,11 +2,11 @@
 
 마지막 갱신 시각: 2026-09-19 KST
 
-기준 브랜치: `feat/44-merchant-claims`
+기준 브랜치: `feat/44-recommendations`
 
-검증 기준 커밋 SHA: `16c9cf4`, PR #46 CI 대기
+검증 기준 커밋 SHA: `0af854a`, PR #47 CI 대기
 
-현재 작업: Phase 2 두 번째 묶음인 점주 발급·고객 수령·도감 PR #46; 추천·최종 통합 1개 PR 남음
+현재 작업: Phase 2 마지막 추천·최종 검증 PR #47; merge 후 Issue #44 종료, Phase 3 미착수
 
 ## 이번 세션에서 완료한 것
 
@@ -22,6 +22,10 @@
 - 점주 STAFF 권한→1회 코드→고객 preview/redeem→도감 Android 실기 PASS
 - 중복 redeem HTTP 409, 방문·보상권 1:1 유지 PASS
 - PR #46 생성, API 27개·PostgreSQL 5개·모바일 40개·typecheck·lint·Android export PASS
+- PR #46 merge `dadac5c`, main CI run `35425582837` PASS
+- 정원 마감 제외·미방문 우선·다음 보상 이유·한국 날짜별 회전 추천 구현
+- Android에서 미방문 2곳→방문 1곳 순서와 추천→상세 복귀 PASS
+- PR #47 생성, API 31개·PostgreSQL 6개·모바일 43개·전체 정적/번들/포털 검사 PASS
 - PR #26 merge `782fef6`, Issue #25 종료, main CI run `35317894775` PASS 확인
 - PR #28 merge `bdeade4`, Issue #27 종료, main CI run `35319672490` PASS 확인
 - Reown project ID와 사용자가 준비·잠금 해제한 MetaMask로 WalletConnect 연결 승인
@@ -96,7 +100,7 @@
 - GitHub Pages는 현재 꺼져 있고 private 저장소의 조직 요금제·공개 정책 확인 및 공개 승인 필요
 - MetaMask 거절 뒤 자동 딥링크 복귀는 관측되지 않았으며 수동 Android 뒤로가기는 PASS
 - Reown 2.0.6 공개 API 부재는 승인된 patch-package 최소 패치로 해소; upstream stable 제공 시 제거
-- PR #46의 GitHub Actions와 필수 리뷰가 끝나기 전에는 merge하지 않음
+- PR #47의 GitHub Actions와 필수 리뷰가 끝나기 전에는 merge하지 않음
 
 ## 사용자 승인이 필요한 사항
 
@@ -105,10 +109,10 @@
 
 ## 다음 세션이 가장 먼저 해야 할 작업
 
-1. PR #46 CI·리뷰를 확인하고 통과하면 merge한 뒤 main CI까지 확인
-2. 세 번째 기능 PR에서 설명 가능한 추천과 Phase 2 최종 Android 통합·문서를 완료
-3. W04·W05 외부 환경 blocker를 Issue #40·#41과 B-010·B-011로 유지
-4. 실제 지갑 실기는 비밀번호·복구 문구·개인키를 공유하거나 기록하지 않음
+1. PR #47 CI·리뷰를 확인하고 통과하면 merge한 뒤 main CI까지 확인
+2. Issue #44가 자동 종료됐는지 확인하고 열린 Phase 2 PR이 없는지 검증
+3. Phase 3 NFT 계약·Worker·테스트넷은 사용자 범위 밖이므로 착수하지 않음
+4. W04·W05 외부 환경 blocker를 Issue #40·#41과 B-010·B-011로 유지
 5. 공개 배포·유료 자원·Play 제출은 별도 승인 없이 실행하지 않음
 
 ## 실행 명령

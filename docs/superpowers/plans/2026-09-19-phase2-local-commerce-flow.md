@@ -67,7 +67,7 @@
 - [x] Implement collection route separating visit, app collectible, and NFT states.
 - [x] Run API, PostgreSQL, mobile, typecheck, lint, export, secret checks.
 - [x] Commit, push, and create Korean PR #46.
-- [ ] Wait for CI and required review, then merge.
+- [x] Wait for CI and required review, then merge PR #46; main CI run `35425582837` passed.
 
 ### Task 3: Explainable recommendations and end-to-end proof
 
@@ -79,11 +79,12 @@
 - Consumes: public merchants plus authenticated visit progress
 - Produces: ordered recommendations with stable reason codes and Korean explanations
 
-- [ ] Write failing recommendation tests for unvisited priority, campaign availability, and deterministic rotation.
-- [ ] Implement minimal recommendation API with reasons.
-- [ ] Implement loading/error/empty/content recommendation screen.
-- [ ] Run full automated regression.
-- [ ] Exercise merchant issue → customer preview/redeem → collection → recommendation on Android.
-- [ ] Record PASS/FAIL/BLOCKED/NOT_RUN evidence without secrets.
-- [ ] Update evaluation and final Phase 2 handoff in the same functional PR.
-- [ ] Commit, push, create Korean PR, wait for CI, merge, verify main CI.
+- [x] Write failing recommendation tests for unvisited priority, campaign availability, and deterministic rotation.
+- [x] Implement minimal recommendation API with reasons.
+- [x] Implement loading/error/empty/content recommendation screen.
+- [x] Run full automated regression.
+- [x] Exercise merchant issue → customer preview/redeem → collection → recommendation on Android.
+- [x] Record PASS/FAIL/BLOCKED/NOT_RUN evidence without secrets.
+- [x] Update evaluation and final Phase 2 handoff in the same functional PR.
+- [x] Commit, push, and create Korean PR #47.
+- [ ] Wait for CI and required review, then merge and verify main CI.

@@ -1,6 +1,6 @@
 # MassCOM API
 
-ERC-4361(SIWE) 주소 확인, Phase 2 공개 점포·캠페인 카탈로그, 점포별 점주·직원 권한, 1인용 일회용 코드, 방문·고정 보상권·도감 조회를 제공하는 Node.js API입니다.
+ERC-4361(SIWE) 주소 확인, Phase 2 공개 점포·캠페인 카탈로그, 점포별 점주·직원 권한, 1인용 일회용 코드, 방문·고정 보상권·도감·설명 가능한 추천을 제공하는 Node.js API입니다.
 
 ## 실행
 
@@ -23,6 +23,7 @@ npm run start:local
 - `GET /health`
 - `GET /merchants`: 로그인·지갑 없이 활성 점포와 공개 중인 현재 캠페인 조회
 - `GET /collection`: 서버가 확인한 계정의 유효 방문·앱 수집품·NFT 요청 상태 조회; 정확한 식사 시각과 token 제외
+- `GET /recommendations`: 정원 마감 제외·미방문 우선·다음 고정 보상과 한국 날짜 회전을 reason code와 함께 조회
 - `GET /merchant/merchants/:merchantId/context`: 서버가 확인한 계정의 활성 점포 멤버십과 허용 권한 조회
 - `POST /merchant/merchants/:merchantId/claim-slots`: 대상 계정의 1인용 수령 슬롯과 일회용 token 발급
 - `POST /merchant/merchants/:merchantId/claim-slots/:claimSlotId/reissue`: 본문의 `expectedTokenVersion`이 현재 버전과 같을 때만 이전 token을 폐기하고 재발급

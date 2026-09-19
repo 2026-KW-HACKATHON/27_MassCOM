@@ -30,7 +30,7 @@
         <a href="#evidence">증거</a>
         <a href="#decisions">결정</a>
       </nav>
-      <span class="header-state"><span aria-hidden="true"></span> Phase 2 구현 중</span>
+      <span class="header-state"><span aria-hidden="true"></span> Phase 2 핵심 흐름 검증</span>
     </header>
 
     <main id="main-content">
@@ -55,7 +55,7 @@
         <aside class="truth-board" aria-labelledby="truth-title">
           <div class="truth-heading">
             <h2 id="truth-title">지금 사실인 것</h2>
-            <span>2026-09-18 KST</span>
+            <span>2026-09-19 KST</span>
           </div>
           <dl>
             <div>
@@ -63,16 +63,16 @@
               <dd><span class="status status-verified">VERIFIED</span></dd>
             </div>
             <div>
-              <dt>점포 카탈로그</dt>
-              <dd><span class="status status-implemented">IMPLEMENTED</span></dd>
+              <dt>Android 탐색·상세</dt>
+              <dd><span class="status status-verified">VERIFIED</span></dd>
             </div>
             <div>
-              <dt>점주·직원 권한 API</dt>
-              <dd><span class="status status-implemented">IMPLEMENTED</span></dd>
+              <dt>점주 발급·고객 수령·도감</dt>
+              <dd><span class="status status-verified">VERIFIED</span></dd>
             </div>
             <div>
-              <dt>일회용 QR 슬롯 API</dt>
-              <dd><span class="status status-implemented">IMPLEMENTED</span></dd>
+              <dt>이유가 보이는 추천</dt>
+              <dd><span class="status status-verified">VERIFIED</span></dd>
             </div>
             <div>
               <dt>Phase 1 핵심 지갑 흐름</dt>
@@ -136,7 +136,7 @@
           <div class="architecture-lane lane-client">
             <h3>사람이 쓰는 화면</h3>
             <div class="node primary-node">Android 앱<small>탐색 · QR · 도감</small></div>
-            <div class="node">점주·직원 웹<small>이용 확인 · QR 발급</small></div>
+            <div class="node">점주·직원 Android 데모<small>권한 확인 · 1회 코드 발급</small></div>
             <div class="node wallet-node">외부 지갑 앱<small>주소 확인 서명만</small></div>
           </div>
           <div class="architecture-lane lane-cloud">
@@ -169,10 +169,13 @@
           <article class="evidence-primary">
             <span class="evidence-number">main</span>
             <h3>검증된 기준선</h3>
-            <p>Phase 0 기준선과 Phase 1 지갑 코드가 CI를 통과해 main에 반영됐습니다.</p>
+            <p>Phase 0 기준선, Phase 1 지갑, Phase 2 탐색·수령·도감 코드가 CI를 통과해 main에 반영됐습니다.</p>
             <div class="evidence-links">
               <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/2" rel="noreferrer">PR #2</a>
               <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/10" rel="noreferrer">PR #10</a>
+              <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/45" rel="noreferrer">PR #45</a>
+              <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/46" rel="noreferrer">PR #46</a>
+              <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/47" rel="noreferrer">PR #47</a>
             </div>
           </article>
           <article>

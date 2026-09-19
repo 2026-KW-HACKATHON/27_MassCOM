@@ -8,9 +8,9 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 기준 | Phase 2 방문 수령·도감 PR #46 검증 중; 추천·최종 검증 1개 PR 남음 |
-| 현재 검증 기준 | `feat/44-merchant-claims@16c9cf4`, API 27개·PostgreSQL 5개·모바일 40개·Android 전체 흐름 PASS |
-| 최근 main 기준선 | PR #45 merge `ffc1525`, main CI run `35424531021` PASS |
+| 현재 작업 기준 | Phase 2 마지막 추천·최종 검증 PR #47; merge 후 Phase 2에서 정지 |
+| 현재 검증 기준 | `feat/44-recommendations@0af854a`, API 31개·PostgreSQL 6개·모바일 43개·Android 추천→상세 PASS |
+| 최근 main 기준선 | PR #46 merge `dadac5c`, main CI run `35425582837` PASS |
 | Phase 1 종료 Issue | #25 실제 지갑 검증, #27·#31 거절 처리, #33 미설치 지갑 실기 |
 | Phase 1 merge PR | #26 실제 지갑 안정화, #28·#32 거절 처리, #34 미설치 지갑 안내 |
 
@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | Phase 0 저장소·개발 기반 | `VERIFIED` | PR #2·#4·#6·#8, CI PASS |
 | Phase 1 외부 지갑 연결 | `IN_PROGRESS` | API 15개·모바일 24개 자동화 PASS, 핵심 흐름·W06 PASS; W04·W05 외부 지갑 환경 `BLOCKED` |
-| Phase 2 지역 상권 핵심 기능 | `IN_PROGRESS` | 탐색·상세·점주 발급·고객 수령·도감 Android 실기 완료; 추천·최종 통합 남음 |
+| Phase 2 지역 상권 핵심 기능 | `VERIFIED` | loopback DEMO에서 탐색→점주 발급→고객 수령→도감→이유가 보이는 추천→상세 순환 PASS; 카메라 QR·외부 HTTPS는 별도 |
 | Phase 3 NFT | `PLANNED` | 계약·Worker·테스트넷 미착수 |
 | Phase 4 출시 기반 | `PLANNED` | 외부 HTTPS·AAB·탈퇴·복원 미착수 |
 | Phase 5 대회 검증·발표 | `PLANNED` | 현장 검증·영상·제출 버전 미착수 |
@@ -41,6 +41,7 @@
 - Samsung Android 16에서 DEMO 3곳 목록·상세·고정 보상 조건·선택적 지갑 이동
 - 점주 STAFF 권한→1인 코드 발급·재발급→고객 preview/redeem→도감 Android 흐름
 - 계정별 `GET /collection`, 방문·앱 수집품·NFT 상태 분리와 정확한 식사 시각 제외
+- 정원 마감 제외·미방문 우선·다음 고정 보상 설명·한국 날짜별 순위 회전 추천
 - PostgreSQL `merchant_members` migration과 점포별 `OWNER`·`STAFF` 권한 경계
 - 다른 점포·무소속·철회 계정 거절과 철회 즉시 반영 Q05 통합 테스트
 - PostgreSQL `claim_slots` migration과 token SHA-256·주문 참조 HMAC-SHA-256 저장
@@ -62,8 +63,7 @@
 
 ### 진행 중
 
-- PR #46 CI·리뷰·merge
-- 설명 가능한 다음 음식점 추천과 Phase 2 최종 Android 통합
+- PR #47 CI·리뷰·merge와 main CI 확인
 - W04 MetaMask 동일 세션 주소 변경·W05 미지원 스마트지갑 실제 환경 blocker
 
 ### 미구현
@@ -80,11 +80,11 @@
 
 ## 검증·배포 상태
 
-- API 단위 테스트: `PASS` 27개
-- PostgreSQL 18 통합 테스트: `PASS` 5개(카탈로그·도감·Q01~Q03·Q05·R01·R03, 로컬 Docker; PR #46 CI 대기)
+- API 단위 테스트: `PASS` 31개
+- PostgreSQL 18 통합 테스트: `PASS` 6개(카탈로그·도감·추천·Q01~Q03·Q05·R01·R03, 로컬 Docker)
 - v3 필수 36개: W01·W02·W03·W06·W09·Q01·Q02·Q03·Q05·R01·R03 `PASS`, W04·W05 `BLOCKED`, 나머지 23개 `NOT_RUN`
-- 모바일 단위 테스트: `PASS` 40개, typecheck·lint·Android export `PASS`
-- Android: 음식점 탐색→점주 권한→1회 코드→고객 수령→도감 `PASS`; 카메라 QR `NOT_RUN`
+- 모바일 단위 테스트: `PASS` 43개, typecheck·lint·Android export `PASS`
+- Android: 음식점 탐색→점주 권한→1회 코드→고객 수령→도감→추천→상세 `PASS`; 카메라 QR `NOT_RUN`
 - 외부 지갑 핵심 흐름·W06 `PASS`; Account 1/2 재연결 검증 격리 PASS; MetaMask 동일 세션 주소 변경과 미지원 스마트지갑 실기는 `BLOCKED`
 - 공개 HTTPS·GitHub Pages·Play: 미배포
 - NFT·테스트넷: 계약·전송 모두 미실행

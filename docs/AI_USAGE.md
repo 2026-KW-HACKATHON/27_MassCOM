@@ -18,6 +18,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-19 | Codex | W04 계정 변경 실기와 W05 환경 확인 | MetaMask Account 1/2 연결·검증 격리, 연결 관리·스마트 지갑 준비 상태 확인 | Account 1 VERIFIED → Account 2 재연결 UNVERIFIED PASS; 동일 세션 변경·실제 스마트 지갑은 BLOCKED | 사용자가 계정 2를 준비했고 Codex는 주소·서명·복구 문구를 기록하지 않음 |
 | 2026-09-19 | Codex | Phase 2 음식점 탐색·상세 | 공용 API 설정 분리, 응답 검증, Android 목록·상세·선택적 지갑 라우트, 테스트·문서 | TDD RED 후 모바일 32/32·typecheck·lint·Android export·Samsung 실기 PASS | AI 구현·검증으로 기록하며 사람 기여나 실제 협약 점포 실적으로 표시하지 않음 |
 | 2026-09-19 | Codex | Phase 2 점주 발급·고객 수령·도감 | 도감 read model, 권한·발급·preview/redeem·도감 Android 화면, 테스트·문서 | TDD RED 후 API 27/27·PostgreSQL 5/5·모바일 40/40·Samsung 전체 흐름·중복 409 PASS | 로컬 진단에 노출된 DEMO token은 즉시 재발급 폐기; 저장소·사람 기여·운영 실적으로 기록하지 않음 |
+| 2026-09-19 | Codex | Phase 2 설명 가능한 추천·최종 통합 | 추천 정책·PostgreSQL 후보·Android 이유 화면·상세 복귀·문서/포털 | TDD RED 후 API 31/31·PostgreSQL 6/6·모바일 43/43·Android 추천 실기 PASS | 실제 점주·이용자 행동이나 매출 효과로 확대 해석하지 않음 |
 
 ## 팀 설명 체크리스트
 

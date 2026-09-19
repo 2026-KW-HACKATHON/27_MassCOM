@@ -71,5 +71,6 @@
 | 2026-09-19 KST | `dbab97f`, Issue #40 | Account 1 VERIFIED·disconnect·Account 2 재연결 UNVERIFIED·MetaMask 연결 관리 확인 | Samsung SM-S928N·Android 16·MetaMask 8.11.0 | 계정별 검증 격리 PASS, 정확한 동일 세션 주소 변경은 BLOCKED | `docs/evidence/android-wallet-address-change.json` |
 | 2026-09-19 KST | `935e6d5`, PR #45 | 모바일 32개·typecheck·lint·Android export·목록→상세→선택적 지갑·콜드 재시작 | Samsung SM-S928N·Android 16·PostgreSQL 18 DEMO 3곳 | PASS, 외부 HTTPS `NOT_RUN` | `docs/evidence/android-merchant-discovery.json`; 실제 협약 점포·지갑 주소·기기 일련번호 미기록 |
 | 2026-09-19 KST | `16c9cf4`, PR #46 | API 27개·PostgreSQL 5개·모바일 40개·Android export·점주 발급→고객 수령→도감·중복 수령 | Samsung SM-S928N·Android 16·PostgreSQL 18 loopback DEMO | PASS, 중복 HTTP 409·효과 1:1 유지; 카메라 QR `NOT_RUN` | `docs/evidence/android-claim-collection.json`; 노출된 DEMO token 버전 즉시 폐기, 원문 저장소 미기록 |
+| 2026-09-19 KST | `0af854a`, PR #47 | API 31개·PostgreSQL 6개·모바일 43개·Android export·추천 순서/이유/정원 제외→상세 | Samsung SM-S928N·Android 16·PostgreSQL 18 loopback DEMO | PASS, 현장 사용자 행동·외부 HTTPS `NOT_RUN` | `docs/evidence/android-recommendations.json`; 미방문 2·방문 1·정원 마감 1 DEMO fixture |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R03은 각각 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04·R02는 계속 `NOT_RUN`입니다.
