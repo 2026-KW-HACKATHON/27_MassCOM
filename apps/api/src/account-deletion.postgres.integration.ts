@@ -16,6 +16,14 @@ test('D01 concurrent deletion cancels only unsent mint work and pseudonymizes th
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
   await seedDeletionFixture(pool);
+  await pool.query(
+    `INSERT INTO wallet_challenges (
+       id, account_id, address, chain_id, nonce, message, issued_at, expires_at, status
+     ) VALUES (
+       'challenge-delete-me', 'delete-me', '0x7000000000000000000000000000000000000007', 84532,
+       'abc12345def67890', 'pending wallet verification', now(), now() + interval '5 minutes', 'pending'
+     )`,
+  );
 
   const service = new PostgresAccountDeletionService(pool, {
     hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
@@ -68,6 +76,7 @@ test('D01 concurrent deletion cancels only unsent mint work and pseudonymizes th
          (SELECT count(*) FROM visit_events WHERE customer_account_id = 'delete-me') +
          (SELECT count(*) FROM reward_entitlements WHERE customer_account_id = 'delete-me') +
          (SELECT count(*) FROM wallet_bindings WHERE account_id = 'delete-me') +
+         (SELECT count(*) FROM wallet_challenges WHERE account_id = 'delete-me') +
          (SELECT count(*) FROM mint_jobs WHERE account_id = 'delete-me')
        )::integer AS raw_account_references,
        (SELECT count(*)::integer FROM wallet_bindings WHERE status = 'DISCONNECTED') AS disconnected_bindings,

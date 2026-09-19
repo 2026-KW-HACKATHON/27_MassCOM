@@ -242,6 +242,7 @@ export class WalletChallengeService {
     const parsed = parseAndMatchMessage(record, input.message, this.#domain, this.#uri);
     await this.#store.claim(record.challengeId);
 
+    let bindingRecorded = false;
     try {
       const verification = await parsed.verify(
         {
@@ -267,6 +268,7 @@ export class WalletChallengeService {
         chainId: record.chainId,
         verifiedAt: now,
       });
+      bindingRecorded = true;
       await this.#store.consume(record.challengeId);
       return {
         verifiedAddress: record.address,
@@ -276,7 +278,10 @@ export class WalletChallengeService {
         verifiedAt: binding.verifiedAt,
       };
     } catch (error) {
-      await this.#store.release(record.challengeId);
+      // Once the binding exists the nonce must never return to pending, or the same signature replays.
+      if (bindingRecorded) throw error;
+      // A challenge removed mid-verify (expiry purge, account deletion) must not mask the real failure.
+      await this.#store.release(record.challengeId).catch(() => undefined);
       if (error instanceof WalletChallengeError) {
         throw error;
       }

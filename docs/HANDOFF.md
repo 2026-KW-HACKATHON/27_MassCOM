@@ -56,7 +56,7 @@
 
 ## 최신 검증
 
-- API `35/35`, API PostgreSQL `20/20`
+- API `37/37`, API PostgreSQL `20/20`
 - Worker `8/8`, Worker PostgreSQL `6/6`, Anvil `W07 M01~M08 PASS`
 - 모바일 `48/48`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
