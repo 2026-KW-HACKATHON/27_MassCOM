@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { Pool } from 'pg';
 
 import { PostgresMintRepository } from './postgres-mint-repository.js';
-import type { ChainMintResult } from './mint-worker.js';
+import { RetryableChainError, type ChainMintResult } from './mint-worker.js';
 
 test('M03 M06 lease race, retry, finalization, and repeated event ingestion stay idempotent', async (t) => {
   const connectionString = requiredTestDatabaseUrl();
@@ -226,6 +226,14 @@ test('event scan start reads the cursor with a reorg margin and deployment floor
     [31337, contractAddress.toLowerCase()],
   );
   assert.equal(await repository.getEventScanStart(31337, contractAddress), 108);
+
+  const closedPool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  await closedPool.end();
+  await assert.rejects(
+    new PostgresMintRepository(closedPool).getEventScanStart(31337, contractAddress),
+    (error: unknown) =>
+      error instanceof RetryableChainError && error.code === 'CHAIN_CURSOR_READ_FAILED',
+  );
 });
 
 async function seedWorkerFixture(pool: Pool): Promise<void> {
