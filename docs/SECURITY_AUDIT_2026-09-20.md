@@ -47,7 +47,6 @@
 
 | 항목 | 현재 조치 | 운영 전 조건 |
 | --- | --- | --- |
-| SIWE challenge 메모리 저장 | 단일 인스턴스 DEMO로 명시 | PostgreSQL/공유 저장소 또는 단일 인스턴스 강제 |
 | 모바일 moderate advisory 14건 | high/critical 0, B-008 유지 | Expo 호환 upstream 업데이트 후 release 회귀 |
 | SecureStore 미사용 세션 | 개인키 없음·RPC allowlist 적용 | 운영 세션 저장 정책 검토 |
 
