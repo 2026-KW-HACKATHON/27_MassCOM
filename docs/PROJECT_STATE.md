@@ -10,7 +10,7 @@
 | 기본 브랜치 | `main` |
 | 현재 작업 | Issue #59 chain cursor 재시작 범위·reorg margin 구현 |
 | 현재 검증 기준 | API 37·PostgreSQL 20·Worker 8/PG 6·모바일 48·Foundry 8/fuzz128·Anvil PASS |
-| 최근 main 기준선 | PR #58 merge `7da97b6`, main CI run `35455903163` PASS |
+| 최근 main 기준선 | PR #67 merge `9c3c04a`, main CI run `35460087002` PASS |
 
 ## Phase 상태
 

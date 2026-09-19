@@ -4,9 +4,9 @@
 
 기준 브랜치: `main`
 
-검증 기준: PR #65 merge `4c4d744`, main CI PASS
+검증 기준: PR #67 merge `9c3c04a`, main CI `35460087002` PASS
 
-현재 작업: Issue #66 SIWE challenge PostgreSQL 저장소 PR
+현재 작업: 없음. 다음 작업은 아래 재개 목록에서 시작
 
 ## 이번 작업에서 완료한 것
 
@@ -24,6 +24,7 @@
 - Issue #61 Worker 재시도 지수 backoff와 전송 시도 상한 뒤 `MANUAL_REVIEW` 전환
 - PR #63 merge `6bbf58c`(Issue #59), PR #64 merge `695210c`(Issue #61), 독립 리뷰 2회 CRITICAL/HIGH 0
 - Issue #66 SIWE challenge PostgreSQL 공유 저장소(migration 0008, 원자적 claim, 만료 정리, 계정 삭제 연동)
+- PR #67 merge `9c3c04a`(Issue #66), sonnet 리뷰와 opus 보안 재리뷰 APPROVE. binding 기록 뒤 nonce 재사용 차단, 삭제 transaction 안 challenge 제거
 - Expo 57.0.24·expo-router 57.0.22·@expo/ui 57.0.19 patch 적용, moderate advisory 14건 재평가(변화 없음, B-008 유지)
 
 - PR #53 merge `62196f0`, main CI `35450443943` PASS, Issue #52 종료
