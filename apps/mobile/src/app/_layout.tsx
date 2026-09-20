@@ -1,9 +1,13 @@
 import { AppKit, AppKitProvider } from '@reown/appkit-react-native';
 import { Stack } from 'expo-router/stack';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { demoRuntimeConfig } from '@/config/demo-runtime';
+import { purgeForeignWalletSessions } from '@/wallet/account-scope';
 import { appKit } from '@/wallet/appkit';
+import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
 
 function Routes() {
   return (
@@ -26,6 +30,21 @@ function Routes() {
 }
 
 export default function RootLayout() {
+  const accountId = demoRuntimeConfig.customerAccountId;
+  useEffect(() => {
+    if (!accountId) return;
+    // Hygiene only: scoped storage already keeps another account's session from being read.
+    purgeForeignWalletSessions({
+      accountId,
+      listStoredKeys: listAppKitStorageKeys,
+      removeStoredKeys: removeAppKitStorageKeys,
+    }).catch((error: unknown) => {
+      console.error('wallet session cleanup failed', {
+        name: error instanceof Error ? error.name : 'UnknownError',
+      });
+    });
+  }, [accountId]);
+
   if (!appKit) {
     return (
       <SafeAreaProvider>

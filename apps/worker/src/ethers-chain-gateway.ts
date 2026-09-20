@@ -143,8 +143,12 @@ export class EthersMintChainGateway implements MintChainGateway {
       tokenId = (await this.contract
         .getFunction('tokenByRewardKey')
         .staticCall(item.rewardKey)) as bigint;
-    } catch {
-      throw new RetryableChainError('REWARD_KEY_LOOKUP_FAILED');
+    } catch (error) {
+      const classified = contractCallError(error);
+      if (classified instanceof ChainConfigurationError) throw classified;
+      // Keep the existing retryable code here (tests/logs depend on it) rather than the generic
+      // RPC_UNAVAILABLE that contractCallError would otherwise produce.
+      throw new RetryableChainError('REWARD_KEY_LOOKUP_FAILED', { cause: error });
     }
     if (tokenId === 0n) return undefined;
 

@@ -37,7 +37,7 @@ const presentationFile = process.argv[4];
 const repoRoot = process.argv[5];
 const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
 const tests = manifest.requiredTests;
-if (tests.total !== 36 || tests.PASS !== 28 || tests.BLOCKED !== 2 || tests.NOT_RUN !== 6 || tests.FAIL !== 0) {
+if (tests.total !== 36 || tests.PASS !== 29 || tests.BLOCKED !== 2 || tests.NOT_RUN !== 5 || tests.FAIL !== 0) {
   throw new Error('submission evidence test totals do not match TEST_STATUS');
 }
 if (manifest.truthBoundary.partnerStoresClaimed !== 0 || manifest.truthBoundary.fieldParticipantsClaimed !== 0) {
@@ -58,6 +58,12 @@ const presentation = fs.readFileSync(presentationFile, 'utf8');
 for (const status of ['PASS', 'BLOCKED', 'NOT_RUN']) {
   if (!presentation.includes(`${status} ${tests[status]}`)) {
     throw new Error(`presentation is missing current ${status} total`);
+  }
+}
+const openingFacts = { PASS: '필수 시험 PASS', BLOCKED: '외부 환경 BLOCKED', NOT_RUN: '아직 NOT_RUN' };
+for (const [status, label] of Object.entries(openingFacts)) {
+  if (!presentation.includes(`<strong>${tests[status]}</strong><span>${label}</span>`)) {
+    throw new Error(`presentation opening shows a stale ${status} total`);
   }
 }
 for (const evidencePath of [...manifest.androidEvidence, ...(manifest.securityEvidence ?? [])]) {

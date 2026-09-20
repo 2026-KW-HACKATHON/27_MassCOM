@@ -32,6 +32,7 @@ TEST_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_restore_test' \
 | --- | --- | --- |
 | RPC chain/contract 불일치 | Worker `PAUSED/MANUAL_REVIEW`, 전송 금지. code는 있지만 인터페이스가 다른 계약은 `CONTRACT_INTERFACE_MISMATCH` | chain ID·contract code·MINTER role·계약 주소 재검증 |
 | RPC 연결 불가 | 조치 불필요. Worker가 `RPC_UNAVAILABLE`로 물러나 작업은 `RETRYABLE`, 전송 시도 소모 없음 | `SELECT status, last_error_code, attempt_count FROM mint_jobs WHERE status = 'RETRYABLE'`로 확인, RPC 복구 뒤 다음 실행에서 자동 재개 |
+| 전송 직후 중지로 거래 revert | Worker가 중지·잔액·RPC를 다시 확인해 일시 조건이면 revert된 거래 hash를 지우고 `RETRYABLE`. 조건이 이미 풀렸으면 `MINT_TRANSACTION_REVERTED`로 `MANUAL_REVIEW` | 수동 검토 작업은 reward key가 체인에 없음을 확인한 뒤 재대기열 여부를 결정 |
 | 발행 중지(pause) | PAUSER가 계약을 중지하면 Worker는 `MINT_PAUSED`로 물러남. 이미 제출된 거래의 확인·완료는 계속됨 | 원인 해소 뒤 admin이 `unpause`, 다음 실행에서 각 작업이 정확히 1개 발행 |
 | 민터 잔액 부족 | 잔액이 `MINTER_MIN_BALANCE_WEI` 이하이면 `MINTER_BALANCE_LOW`로 물러남. 보상권·Outbox 유지, 전송 시도 소모 없음 | 승인된 예산·시험 faucet으로 충전 뒤 다음 실행에서 자동 재개, 기존 reward key부터 조회 |
 | DB 장애 | API 변경 요청 실패, 완료 화면 금지. Worker는 체인에 아무것도 전송하지 않고 오류로 종료 | DB 일관성·migration·Outbox lease 확인 뒤 Worker 재실행 |

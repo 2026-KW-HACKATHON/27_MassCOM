@@ -7,7 +7,7 @@
 | Q01 | PostgreSQL 동시성 | PASS | 같은 QR 동시 20요청 | 수령·방문 인정 1회 | 동일 token 20요청에서 `CLAIMED`·방문·첫 보상권 각 1건, 나머지 거절 |
 | Q02 | PostgreSQL 동시성 | PASS | QR 만료와 수령 경쟁 | 하나의 최종 상태 | 정확한 만료 시각 동시 20요청에서 `EXPIRED` 한 번 확정, 나머지 거절 |
 | Q03 | API 통합 | PASS | QR 재발급 후 이전 코드 사용 | 이전 코드는 거절, 권리 추가 없음 | 같은 slot token 교체, 이전 token 거절, slot 수 1 유지, 실제 HTTP+PostgreSQL 동일 버전 동시 재발급 2요청 중 `200` 1건·`409` 1건 |
-| Q04 | API 통합 | NOT_RUN | 단체 일부만 수령 | 사람별 결과 독립, 다른 슬롯 유지 | 단체 슬롯 미구현 |
+| Q04 | PostgreSQL 동시성 | PASS | 단체 일부만 수령 | 사람별 결과 독립, 다른 슬롯 유지 | PostgreSQL 18에서 같은 주문 참조로 3명 발급 → 다른 사람 token 수령 거절, 2명 동시 수령(중복 요청 포함)에 사람별 방문 1·첫 방문 보상 1, 미수령 1명은 `ISSUED`·token 유지 후 만료 시 그 슬롯만 `EXPIRED`. 단체 최대 인원·1인 최소 금액·명단 고정은 v3 제안값이라 미구현 |
 | Q05 | 권한 통합 | PASS | 다른 점포 직원·다른 사용자 접근 | 조회·변경 모두 거절 | PostgreSQL 18에서 다른 점포·무소속·철회 계정 조회 403, `CONFIRM_VISIT` 권한 거절, 철회 즉시 반영 |
 | R01 | PostgreSQL 동시성 | PASS | 한국 날짜 경계·동시 방문 평가 | 한국 날짜당 진행 최대 1회 | `14:59:59.999Z`와 `15:00:00Z` 경계가 서로 다른 KST 날짜, 같은 날짜 추가 방문은 진행도 미증가 |
 | R02 | PostgreSQL 동시성 | PASS | 마지막 캠페인 자리 동시 등록 | 약속한 공급 상한 초과 없음 | 남은 1자리에 서로 다른 계정 20개 동시 등록 → 1건 성공·19건 `CAMPAIGN_FULL`, `enrolled_count`=정원. 같은 계정 동시 중복과 마지막 자리 경합도 자리 1개만 사용 |
@@ -34,7 +34,7 @@
 | C03 | Foundry 계약 | PASS | 모든 전송·우회 경로 | 잠긴 NFT는 이전 불가 | approve·setApprovalForAll·transferFrom·safeTransferFrom 2종과 내부 `_update` 거절 |
 | C04 | Foundry 계약 | PASS | 시리즈 활성화 후 조건 변경 | 동결된 값 변경 불가 | 비활성 mint 거절, 중복 생성·재활성화 거절, 설정 변경 함수 없음 |
 | D01 | API·Worker | PASS | 발급 중 탈퇴 | 미전송·제출됨을 구분 | 동시 10요청 하나로 수렴, 미전송 1건 `CANCELLED`, 제출 1건 결과 대기, 확정 NFT 1건 보존, 원 account ID 참조 0 |
-| D02 | Android·API | NOT_RUN | 계정 전환·캐시 복구 | 이전 사용자 데이터 미노출 | 미구현 |
+| D02 | Android·API | NOT_RUN | 계정 전환·캐시 복구 | 이전 사용자 데이터 미노출 | 구현과 자동 시험은 PASS(Issue #80): API 모든 응답 `Cache-Control: no-store`, 지갑 세션 저장 key 계정별 분리, 시작 시 다른 계정 세션 제거, 모든 계정 화면 remount. 운영 로그인이 없어 Android 실기 계정 전환은 실행하지 못했으므로 상태는 `NOT_RUN` 유지 |
 | D03 | 정적·통합 검사 | PASS | 로그·분석·메타데이터 검사 | 개인키·QR·개인 식별자 누출 없음 | 민감 console 인자·미검토 analytics SDK gate와 fixture PASS, raw API error 객체 로그 제거; 외부 운영 로그는 NOT_RUN |
 | A01 | Android 실기 | NOT_RUN | 카메라 권한 거절·오프라인 | 수동 코드·정확한 상태 표시 | QR 화면 미구현 |
 | A02 | Android 릴리스 | NOT_RUN | 실제 AAB·16KB·앱 링크 | 설치·실행·복귀 정상 | debug APK 부분 PASS, release NOT_RUN |
@@ -88,5 +88,8 @@
 | 2026-09-20 KST | `ecf8015`, Issue #73 | `npm run test:postgres --prefix apps/api`(27개, R02 7개 포함)·API 단위 40개·Worker PostgreSQL 6개 회귀 | macOS·Docker PostgreSQL 18 | PASS | R02 `NOT_RUN`→`PASS`. 마지막 자리 동일 계정 경합 시험은 수정 전 `CAMPAIGN_FULL` 실패를 확인한 뒤 통과. PR·CI 번호는 PR 본문과 HANDOFF에 기록 |
 | 2026-09-20 KST | Issue #75 | `npm test --prefix apps/api`(41개) | macOS | PASS | 잘못된 percent-encoding 경로 값을 8개 라우트 공통 helper로 400 `INVALID_PATH_PARAMETER` 처리. 신규 시험은 수정 전 500으로 실패함을 확인 |
 | 2026-09-20 KST | `438484f`, Issue #77 | Worker 단위 14개·PostgreSQL 7개·Anvil 5개(W07 + O02a/b/c/d) | macOS·Docker PostgreSQL 18·Anvil 31337 | PASS | O02 `NOT_RUN`→`PASS`. RPC 중단 시험은 수정 전 `MANUAL_REVIEW`로, 다른 인터페이스 계약 시험(O02d)은 분류 수정 전 `RETRYABLE`로 실패함을 확인. 기존 lease 재확인 시험의 기대값은 변경 없음 |
+| 2026-09-20 KST | Issue #80 | API 단위 42개·모바일 단위 54개·typecheck·lint·Android export | macOS | PASS | D02 자동 시험만 PASS, 실기 계정 전환은 `NOT_RUN`이라 D02 상태는 유지. `no-store` 시험은 기존 동작을 고정하는 회귀 시험 |
+| 2026-09-20 KST | `e1c58a0`, Issue #78 | Worker 단위 16개·PostgreSQL 11개·Anvil 6개(O02e 포함, skip 없이 8회 반복)·API PostgreSQL 27개(migration 0010 회귀) | macOS·Docker PostgreSQL 18·Anvil 31337 | PASS | 전송 전 장애의 지수 backoff와 전송 직후 중지로 revert된 거래의 재시도 분류. 기존 시험 기대값 변경 없음. 필수 36개 상태 변동 없음 |
+| 2026-09-20 KST | Issue #84 | `npm run test:postgres --prefix apps/api`(28개, Q04 1개 추가)·presentation gate | macOS·Docker PostgreSQL 18 | PASS | Q04 `NOT_RUN`→`PASS`. 기존 모델 실증이라 수정 전 실패가 없으므로, redeem의 소유자 조건을 임시로 제거해 시험이 실패하는 것을 확인한 뒤 되돌림. 발표 첫 화면 집계 검사는 오래된 수치에서 실패를 확인한 뒤 통과 |
 
-Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R02·R03은 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04는 계속 `NOT_RUN`입니다. Phase 3의 W07·M01~M08은 로컬 Anvil·PostgreSQL·실기기 증거이며 Base Sepolia나 운영 배포 성공을 뜻하지 않습니다.
+Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01~Q05·R01·R02·R03은 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했습니다. Q04는 사람별 슬롯 독립성만 실증했으며 단체 인원·금액 한도 정책은 구현하지 않았습니다. Phase 3의 W07·M01~M08은 로컬 Anvil·PostgreSQL·실기기 증거이며 Base Sepolia나 운영 배포 성공을 뜻하지 않습니다.
