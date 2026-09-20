@@ -18,7 +18,26 @@ npm run start:local
 
 `GET /merchants`를 사용하려면 `DATABASE_URL`을 실제 PostgreSQL에 지정한 뒤 migration을 실행합니다. claim slot API는 `MERCHANT_REFERENCE_HMAC_SECRET`에 32바이트 이상의 별도 비밀값도 필요하며 저장소에는 실제 값을 커밋하지 않습니다. 운영 seed는 제공하지 않으며 테스트의 가상 점포만 `demo: true`로 사용합니다.
 
+## 인증 방식
+
+| 방식 | 켜지는 조건 | 용도 |
+| --- | --- | --- |
+| 운영 로그인 | `GOOGLE_OAUTH_CLIENT_IDS`(쉼표 구분 허용 `aud`)와 `DATABASE_URL` | Google ID token을 서버에서 검증(JWKS RS256·`iss`·`aud`·`exp`/`iat`)하고 서버 저장 세션을 발급. 요청은 `Authorization: Bearer <세션 토큰>` |
+| DEMO | `ALLOW_INSECURE_DEMO_ACCOUNT=true` | loopback 개발 전용 `x-account-id` 헤더. 인터넷에 공개하는 서버에서 켜지 않는다 |
+| 없음 | 둘 다 없음 | 계정이 필요한 요청은 `503 ACCOUNT_AUTH_NOT_CONFIGURED` |
+
+두 방식을 함께 설정하면 서버가 기동을 거절합니다. 운영 로그인에서는 DEMO 재인증 헤더(`x-demo-reauthenticated`)가 동작하지 않습니다.
+
+- 계정 식별자는 `acct_` + 무작위 UUID입니다. Google `sub`는 `auth_identities`에만 두고 계정 ID·로그에 쓰지 않으며 이메일은 저장하지 않습니다.
+- 세션 토큰은 32바이트 무작위 값이고 DB에는 SHA-256만 저장합니다(migration 0012). 기본 수명 30일(`AUTH_SESSION_TTL_MS`), 로그아웃·계정 삭제 시 즉시 폐기됩니다.
+- 계정 삭제는 최근 5분 이내에 로그인 또는 `POST /auth/reauthenticate`(같은 Google 계정만)를 한 세션에서만 가능합니다(`401 REAUTHENTICATION_REQUIRED`). 삭제는 같은 트랜잭션에서 모든 세션을 폐기하고 로그인 연결을 지우므로, 같은 Google 계정으로 다시 로그인하면 새 계정이 만들어집니다.
+- 세션 토큰·ID token·토큰 해시는 로그에 남기지 않습니다.
+
 ## 엔드포인트
+
+- `POST /auth/google` `{ idToken }` → `{ sessionToken, accountId, expiresAt }`
+- `POST /auth/logout`(Bearer) → 해당 세션만 폐기
+- `POST /auth/reauthenticate`(Bearer + `{ idToken }`) → 같은 Google 계정일 때만 재인증 시각 갱신
 
 - `GET /health`
 - `GET /merchants`: 로그인·지갑 없이 활성 점포와 공개 중인 현재 캠페인 조회
