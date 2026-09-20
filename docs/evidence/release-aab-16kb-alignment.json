@@ -33,5 +33,38 @@
     "operational package ID",
     "install and launch on a 16KB page size device from this AAB",
     "Play Console pre-launch report"
-  ]
+  ],
+  "productionVariant": {
+    "date": "2026-09-20",
+    "command": "scripts/build-release-aab.sh",
+    "package": "kr.masscom.wolgye",
+    "urlSchemes": [
+      "masscom",
+      "https",
+      "exp+masscom-mobile"
+    ],
+    "artifact": "app-release.aab (77,735,285 bytes), local debug key, not uploaded, not committed",
+    "results": {
+      "arm64-v8a": {
+        "libs": 24,
+        "minLoadAlign": "0x4000",
+        "below16KB": 0
+      },
+      "x86_64": {
+        "libs": 24,
+        "minLoadAlign": "0x4000",
+        "below16KB": 0
+      }
+    },
+    "releaseManifestPermissions": [
+      "ACCESS_NETWORK_STATE",
+      "ACCESS_WIFI_STATE",
+      "INTERNET",
+      "VIBRATE",
+      "BIND_GET_INSTALL_REFERRER_SERVICE",
+      "DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+    ],
+    "removedPermission": "SYSTEM_ALERT_WINDOW",
+    "status": "PASS"
+  }
 }

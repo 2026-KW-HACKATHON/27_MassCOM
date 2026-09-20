@@ -6,6 +6,14 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal"
+    },
+    "production": {
+      "env": {
+        "APP_VARIANT": "production"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
     }
   }
 }

@@ -5,7 +5,7 @@
 ## 근거로 삼은 실제 구현
 
 - 설치된 SDK: Expo 기본 모듈, Reown AppKit(WalletConnect), AsyncStorage. 분석·광고·crash 수집 SDK 없음(privacy gate가 CI에서 차단).
-- 선언 권한(2026-09-20 로컬 release 병합 manifest 기준): `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `VIBRATE`, `SYSTEM_ALERT_WINDOW`, install referrer 조회. 카메라·위치·연락처·저장소·알림 권한 없음. `SYSTEM_ALERT_WINDOW`는 개발용 client에서 온 것으로 보이며 운영 빌드에서 `expo-dev-client`를 제외해 제거되는지 제출 전 확인해야 합니다.
+- 선언 권한(2026-09-20 운영 variant `kr.masscom.wolgye` release 병합 manifest 기준): `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `VIBRATE`, install referrer 조회. 카메라·위치·연락처·저장소·알림·overlay 권한 없음. 개발용 `SYSTEM_ALERT_WINDOW`는 운영 variant에서 제거됨을 확인했습니다.
 - 서버로 보내는 값: 앱 account ID, 지갑 공개 주소, 주소 확인용 SIWE 서명, QR 수령 token, 계정 삭제 요청.
 - 기기에 저장하는 값: WalletConnect 세션뿐이며 개인키·복구 문구·인증 token은 저장하지 않습니다(D-021).
 - 제3자 전송: Reown relay(WalletConnect 세션 중계), Base Sepolia RPC(allowlist), 서비스 API.
@@ -43,7 +43,7 @@
 
 ## 제출 전 소유자가 확정할 것
 
-1. 운영 package ID(B-007)와 upload key, Play App Signing 등록
+1. upload key 생성과 Play App Signing 등록(package ID는 `kr.masscom.wolgye`로 결정, D-022)
 2. 소유 HTTPS domain, 개인정보처리방침 URL, 외부 계정 삭제 URL(B-003·B-013)
 3. 개발자 계정 생성일에 따른 폐쇄 테스트(12명·14일) 적용 여부
 4. 위 표의 "확인 필요" 항목과 Console 문항 원문 대조

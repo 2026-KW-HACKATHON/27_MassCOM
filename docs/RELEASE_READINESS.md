@@ -4,8 +4,8 @@
 
 | 항목 | 현재 상태 | 완료 조건 |
 | --- | --- | --- |
-| 운영 package ID | `BLOCKED` B-007 | 팀 소유 식별자 결정·2026-09-30 이후 package 등록 상태 확인 |
-| 서명 AAB | `NOT_RUN` | 운영 package ID·upload key·Play App Signing 절차를 정한 뒤 실제 AAB 생성 |
+| 운영 package ID | `DECIDED` D-022 | `kr.masscom.wolgye` 적용(`APP_VARIANT=production`). 2026-09-30 이후 Console package 등록 상태는 소유자가 확인 |
+| 서명 AAB | `IN_PROGRESS` | `scripts/build-release-aab.sh`로 운영 variant AAB 생성. upload key는 소유자가 저장소 밖에 만들고 `~/.gradle/gradle.properties`의 `android.injected.signing.*`로 주입. debug 서명 AAB는 업로드 금지 |
 | upload key | `NOT_RUN` | 운영 키 생성 승인, 접근자·백업·교체 절차 기록 |
 | 16KB page size | `IN_PROGRESS` | 2026-09-20 로컬 debug 서명 release AAB의 arm64-v8a·x86_64 네이티브 라이브러리 48개 모두 LOAD 정렬 `0x4000` PASS(`docs/evidence/release-aab-16kb-alignment.json`). upload key 서명 AAB와 16KB 기기 설치 검사는 `NOT_RUN` |
 | App Links | `BLOCKED` | 소유 HTTPS domain, 운영 package ID, 배포 서명 SHA-256, `assetlinks.json` 준비 |
