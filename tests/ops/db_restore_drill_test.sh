@@ -16,14 +16,16 @@ fi
 out="$(bash "$drill")"
 grep -q 'restore drill passed' <<<"$out"
 
-read -r -a pg <<<"${PG_EXEC:-}"
+read -r -a pg_prefix <<<"${PG_EXEC:-} "
+pg() { if [[ -n "${PG_EXEC:-}" ]]; then "${pg_prefix[@]}" "$@"; else "$@"; fi; }
 base="${url%%\?*}"
-left="$("${pg[@]}" psql "${base%/*}/postgres" --no-psqlrc -tAc "SELECT count(*) FROM pg_database WHERE datname LIKE '%\_restore\_test'")"
+left="$(pg psql "${base%/*}/postgres" --no-psqlrc -tAc "SELECT count(*) FROM pg_database WHERE datname LIKE '%\_restore\_test'")"
 [[ "$left" == "0" ]] || { echo "scratch database was left behind" >&2; exit 1; }
 
 # A restore that does not match the source must fail the drill.
 tampered="$(mktemp -t drill-tampered.XXXXXX)"
-awk '/^if ! diff /{print "\"${pg[@]}\" psql \"$scratch_url\" --no-psqlrc --quiet --command \"DELETE FROM schema_migrations WHERE filename = (SELECT max(filename) FROM schema_migrations)\" >/dev/null"} {print}' "$drill" >"$tampered"
+awk '/^if ! diff /{print "pg psql \"$scratch_url\" --no-psqlrc --quiet --command \"DELETE FROM schema_migrations WHERE filename = (SELECT max(filename) FROM schema_migrations)\" >/dev/null"} {print}' "$drill" >"$tampered"
+cmp -s "$drill" "$tampered" && { echo "tamper injection point not found in the drill script" >&2; exit 1; }
 if tampered_out="$(bash "$tampered" 2>&1)"; then
   echo "drill passed although the restored database was altered" >&2
   exit 1
