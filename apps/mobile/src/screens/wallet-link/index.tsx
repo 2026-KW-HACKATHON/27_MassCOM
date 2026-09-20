@@ -326,7 +326,7 @@ function messageFor(
       SIGNATURE_EXPIRED: '주소 확인 문구가 만료됐습니다. 새 문구로 다시 시도해 주세요.',
       NONCE_ALREADY_USED: '이미 사용한 확인 문구입니다. 새 문구로 다시 시도해 주세요.',
       WALLET_CHANGED: '서명 중 지갑 주소가 변경됐습니다. 새 주소로 다시 시작해 주세요.',
-      SIGNER_MISMATCH: '서명한 주소가 받을 주소와 다릅니다.',
+      SIGNER_MISMATCH: '서명한 주소가 받을 주소와 다릅니다. 스마트 지갑(계약 계정)은 아직 지원하지 않으니 일반 지갑 계정으로 다시 확인해 주세요.',
     };
     return { cancelled: false, text: messages[error.code] ?? `서버 확인 실패: ${error.code}` };
   }
