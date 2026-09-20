@@ -2,7 +2,7 @@ id	layer	status	scenario	pass_condition	evidence
 Q01	postgres-concurrency	PASS	같은 QR 동시 20요청	수령·방문 인정 1회	docs/TEST_STATUS.md
 Q02	postgres-concurrency	PASS	QR 만료와 수령 경쟁	하나의 최종 상태	docs/TEST_STATUS.md
 Q03	api-integration	PASS	QR 재발급 후 이전 코드 사용	이전 코드는 거절, 권리 추가 없음	docs/TEST_STATUS.md
-Q04	api-integration	PASS	단체 일부만 수령	사람별 결과 독립, 다른 슬롯 유지	docs/TEST_STATUS.md
+Q04	postgres-concurrency	PASS	단체 일부만 수령	사람별 결과 독립, 다른 슬롯 유지	docs/TEST_STATUS.md
 Q05	authorization	PASS	다른 점포 직원·다른 사용자 접근	조회·변경 모두 거절	docs/TEST_STATUS.md
 R01	postgres-concurrency	PASS	한국 날짜 경계·동시 방문 평가	정한 일별 규칙대로 최대 1회	docs/TEST_STATUS.md
 R02	postgres-concurrency	PASS	마지막 캠페인 자리 동시 등록	약속한 공급 상한 초과 없음	docs/TEST_STATUS.md
