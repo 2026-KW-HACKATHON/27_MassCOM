@@ -5,6 +5,7 @@ import {
   ChainConfigurationError,
   MintEventMismatchError,
   MintWorker,
+  RetryableChainError,
   SubmissionOutcomeUnknownError,
   type ChainMintResult,
   type MintChainGateway,
@@ -90,9 +91,15 @@ class FakeGateway implements MintChainGateway {
   existing?: ChainMintResult;
   submitError?: Error;
   confirmError?: Error;
+  assertCanSubmitError?: Error;
 
   async validate(): Promise<void> {
     this.calls.push('validate');
+  }
+
+  async assertCanSubmit(): Promise<void> {
+    this.calls.push('assertCanSubmit');
+    if (this.assertCanSubmitError) throw this.assertCanSubmitError;
   }
 
   async findMintByRewardKey(): Promise<ChainMintResult | undefined> {
@@ -125,7 +132,7 @@ test('submits and finalizes one leased mint job', async () => {
     `submitted:${result.transactionHash}`,
     'finalized:1',
   ]);
-  assert.deepEqual(gateway.calls, ['validate', 'find', 'submit', 'confirm']);
+  assert.deepEqual(gateway.calls, ['validate', 'find', 'assertCanSubmit', 'submit', 'confirm']);
   assert.equal(await worker.runOnce('worker-1'), false);
 });
 
@@ -142,7 +149,7 @@ test('M02 recovers an unknown submission from the existing reward key without re
   const worker = new MintWorker(repository, gateway);
 
   assert.equal(await worker.runOnce('worker-1'), true);
-  assert.deepEqual(gateway.calls, ['validate', 'find', 'submit', 'find']);
+  assert.deepEqual(gateway.calls, ['validate', 'find', 'assertCanSubmit', 'submit', 'find']);
   assert.equal(gateway.calls.filter((call) => call === 'submit').length, 1);
   assert.equal(workCalls(repository).at(-1), 'finalized:1');
 });
@@ -184,7 +191,14 @@ test('recovers an existing reward key when a duplicate submitted transaction rev
   const worker = new MintWorker(repository, gateway);
 
   assert.equal(await worker.runOnce('worker-1'), true);
-  assert.deepEqual(gateway.calls, ['validate', 'find', 'submit', 'confirm', 'find']);
+  assert.deepEqual(gateway.calls, [
+    'validate',
+    'find',
+    'assertCanSubmit',
+    'submit',
+    'confirm',
+    'find',
+  ]);
   assert.equal(workCalls(repository).at(-1), 'finalized:1');
   assert.equal(workCalls(repository).some((call) => call.startsWith('review:')), false);
 });
@@ -228,4 +242,58 @@ test('rechecks lease ownership after preparing and before submitting', async () 
   await assert.rejects(worker.runOnce('worker-1'), /MINT_JOB_LEASE_LOST/);
   assert.equal(repository.calls.includes('prepared'), true);
   assert.equal(gateway.calls.includes('submit'), false);
+});
+
+test('O02 blocks submission without consuming an attempt when assertCanSubmit is retryable', async () => {
+  const repository = new FakeRepository();
+  const gateway = new FakeGateway();
+  gateway.assertCanSubmitError = new RetryableChainError('MINT_PAUSED');
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.deepEqual(gateway.calls, ['validate', 'find', 'assertCanSubmit']);
+  assert.equal(repository.calls.includes('prepared'), false);
+  assert.deepEqual(workCalls(repository), ['lease', 'retryable:MINT_PAUSED']);
+});
+
+test('O02 finalizes an already-minted reward key even when assertCanSubmit would fail', async () => {
+  const repository = new FakeRepository();
+  const gateway = new FakeGateway();
+  gateway.existing = result;
+  gateway.assertCanSubmitError = new RetryableChainError('MINT_PAUSED');
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.deepEqual(gateway.calls, ['validate', 'find']);
+  assert.equal(gateway.calls.includes('assertCanSubmit'), false);
+  assert.equal(workCalls(repository).at(-1), 'finalized:1');
+});
+
+test('O02 confirms an already submitted transaction even when assertCanSubmit would fail', async () => {
+  const repository = new FakeRepository();
+  repository.leaseNext = async () => {
+    repository.calls.push('lease');
+    return { ...work, transactionHash: result.transactionHash };
+  };
+  const gateway = new FakeGateway();
+  gateway.assertCanSubmitError = new RetryableChainError('MINTER_BALANCE_LOW');
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.equal(gateway.calls.includes('assertCanSubmit'), false);
+  assert.equal(gateway.calls.includes('submit'), false);
+  assert.equal(workCalls(repository).at(-1), 'finalized:1');
+});
+
+test('O02 propagates a repository failure before leasing without calling the gateway', async () => {
+  const repository = new FakeRepository();
+  repository.leaseNext = async () => {
+    repository.calls.push('lease');
+    throw new Error('DATABASE_UNAVAILABLE');
+  };
+  const gateway = new FakeGateway();
+  const worker = new MintWorker(repository, gateway);
+
+  await assert.rejects(worker.runOnce('worker-1'), /DATABASE_UNAVAILABLE/);
+  assert.deepEqual(gateway.calls, []);
 });

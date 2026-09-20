@@ -3,6 +3,8 @@ import {
   Interface,
   JsonRpcProvider,
   getAddress,
+  isError,
+  isHexString,
   type EventLog,
   type Log,
 } from 'ethers';
@@ -25,6 +27,7 @@ const abi = [
   'function ownerOf(uint256 tokenId) view returns (address)',
   'function seriesByToken(uint256 tokenId) view returns (bytes32)',
   'function locked(uint256 tokenId) view returns (bool)',
+  'function paused() view returns (bool)',
   'event MascotMinted(bytes32 indexed rewardKey,uint256 indexed tokenId,address indexed recipient,bytes32 seriesId)',
 ] as const;
 
@@ -36,6 +39,7 @@ type GatewayOptions = {
   confirmations: number;
   fromBlock: number;
   fallbackFromBlock?: number;
+  minMinterBalanceWei?: bigint;
 };
 
 export class EthersMintChainGateway implements MintChainGateway {
@@ -44,6 +48,7 @@ export class EthersMintChainGateway implements MintChainGateway {
   private readonly minterAddress: string;
   private readonly contract: Contract;
   private readonly contractInterface = new Interface(abi);
+  private readonly minMinterBalanceWei: bigint;
 
   constructor(private readonly options: GatewayOptions) {
     // cacheTimeout -1: a block number cached for 250ms can predate a just-mined receipt, and
@@ -69,6 +74,11 @@ export class EthersMintChainGateway implements MintChainGateway {
     ) {
       throw new Error('fallbackFromBlock must be between zero and fromBlock');
     }
+    const minMinterBalanceWei = options.minMinterBalanceWei ?? 0n;
+    if (minMinterBalanceWei < 0n) {
+      throw new Error('minMinterBalanceWei must not be negative');
+    }
+    this.minMinterBalanceWei = minMinterBalanceWei;
   }
 
   async validate(item: MintWorkItem): Promise<void> {
@@ -82,19 +92,49 @@ export class EthersMintChainGateway implements MintChainGateway {
     try {
       const chainIdHex = (await this.provider.send('eth_chainId', [])) as string;
       rpcChainId = Number(BigInt(chainIdHex));
-    } catch {
-      throw new ChainConfigurationError('RPC_CHAIN_MISMATCH');
+    } catch (error) {
+      throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
     }
     if (rpcChainId !== this.options.chainId) {
       throw new ChainConfigurationError('RPC_CHAIN_MISMATCH');
     }
-    const code = await this.provider.getCode(this.contractAddress);
+    let code: string;
+    try {
+      code = await this.provider.getCode(this.contractAddress);
+    } catch (error) {
+      throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
+    }
     if (code === '0x') throw new ChainConfigurationError('CONTRACT_CODE_MISSING');
-    const minterRole = (await this.contract.getFunction('MINTER_ROLE').staticCall()) as string;
-    const hasMinterRole = (await this.contract
-      .getFunction('hasRole')
-      .staticCall(minterRole, this.minterAddress)) as boolean;
+    let hasMinterRole: boolean;
+    try {
+      const minterRole = (await this.contract.getFunction('MINTER_ROLE').staticCall()) as string;
+      hasMinterRole = (await this.contract
+        .getFunction('hasRole')
+        .staticCall(minterRole, this.minterAddress)) as boolean;
+    } catch (error) {
+      throw contractCallError(error);
+    }
     if (!hasMinterRole) throw new ChainConfigurationError('MINTER_ROLE_MISSING');
+  }
+
+  async assertCanSubmit(_item: MintWorkItem): Promise<void> {
+    let paused: boolean;
+    try {
+      paused = (await this.contract.getFunction('paused').staticCall()) as boolean;
+    } catch (error) {
+      throw contractCallError(error);
+    }
+    if (paused) throw new RetryableChainError('MINT_PAUSED');
+
+    let minterBalance: bigint;
+    try {
+      minterBalance = await this.provider.getBalance(this.minterAddress);
+    } catch (error) {
+      throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
+    }
+    if (minterBalance <= this.minMinterBalanceWei) {
+      throw new RetryableChainError('MINTER_BALANCE_LOW');
+    }
   }
 
   async findMintByRewardKey(item: MintWorkItem): Promise<ChainMintResult | undefined> {
@@ -251,4 +291,18 @@ export class EthersMintChainGateway implements MintChainGateway {
       chainId: item.chainId,
     };
   }
+}
+
+// A contract that answers but not with our interface is a deployment mistake that retrying cannot
+// fix. ethers labels every JSON-RPC error returned for eth_call as CALL_EXCEPTION, including rate
+// limits and node timeouts, so only a CALL_EXCEPTION that carries EVM return data is a real revert.
+export function contractCallError(error: unknown): ChainConfigurationError | RetryableChainError {
+  const reverted = isError(error, 'CALL_EXCEPTION') && error.data != null;
+  // The provider also raises BAD_DATA for a missing entry in a batched response; only a decode
+  // failure carries the returned hex data as its value.
+  const undecodable = isError(error, 'BAD_DATA') && isHexString(error.value);
+  if (reverted || undecodable) {
+    return new ChainConfigurationError('CONTRACT_INTERFACE_MISMATCH');
+  }
+  return new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
 }

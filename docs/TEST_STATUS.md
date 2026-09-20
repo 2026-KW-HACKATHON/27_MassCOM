@@ -39,7 +39,7 @@
 | A01 | Android 실기 | NOT_RUN | 카메라 권한 거절·오프라인 | 수동 코드·정확한 상태 표시 | QR 화면 미구현 |
 | A02 | Android 릴리스 | NOT_RUN | 실제 AAB·16KB·앱 링크 | 설치·실행·복귀 정상 | debug APK 부분 PASS, release NOT_RUN |
 | O01 | 환경 권한 | NOT_RUN | 시연 권리로 운영 API 접근 | 환경 경계에서 거절 | 운영 환경 미구현 |
-| O02 | 장애·복원 | NOT_RUN | RPC·민터 잔액·DB 장애 | 보상권 보존·중지·복구 절차 동작 | 미구현 |
+| O02 | 장애·복원 | PASS | RPC·민터 잔액·DB 장애 | 보상권 보존·중지·복구 절차 동작 | Local Anvil·Docker PostgreSQL: RPC 연결 불가 `RPC_UNAVAILABLE`, 계약 중지 `MINT_PAUSED`, 민터 잔액 0 `MINTER_BALANCE_LOW` 모두 `RETRYABLE`·전송 시도 0·보상권 불변, 복구 뒤 NFT 1개. code는 있지만 인터페이스가 다른 계약은 `CONTRACT_INTERFACE_MISMATCH`로 `MANUAL_REVIEW`. DB 연결 불가는 체인 호출 0건·작업 불변. 운영 RPC·실제 운영 DB 장애는 `NOT_RUN` |
 
 ## 실행 기록
 
@@ -87,5 +87,6 @@
 | 2026-09-20 KST | `9e670ab`, PR #70, main CI `35487020999` | 운영 package ID `kr.masscom.wolgye`·`APP_VARIANT`·`build-release-aab.sh`·upload key 서명 배관 | macOS·Docker PostgreSQL 18·Anvil·GitHub Actions | 로컬 debug 서명 운영 AAB의 package·권한·16KB 정렬 48개 PASS, upload key 서명·Play 제출 `NOT_RUN` | Issue #70 |
 | 2026-09-20 KST | `ecf8015`, Issue #73 | `npm run test:postgres --prefix apps/api`(27개, R02 7개 포함)·API 단위 40개·Worker PostgreSQL 6개 회귀 | macOS·Docker PostgreSQL 18 | PASS | R02 `NOT_RUN`→`PASS`. 마지막 자리 동일 계정 경합 시험은 수정 전 `CAMPAIGN_FULL` 실패를 확인한 뒤 통과. PR·CI 번호는 PR 본문과 HANDOFF에 기록 |
 | 2026-09-20 KST | Issue #75 | `npm test --prefix apps/api`(41개) | macOS | PASS | 잘못된 percent-encoding 경로 값을 8개 라우트 공통 helper로 400 `INVALID_PATH_PARAMETER` 처리. 신규 시험은 수정 전 500으로 실패함을 확인 |
+| 2026-09-20 KST | `438484f`, Issue #77 | Worker 단위 14개·PostgreSQL 7개·Anvil 5개(W07 + O02a/b/c/d) | macOS·Docker PostgreSQL 18·Anvil 31337 | PASS | O02 `NOT_RUN`→`PASS`. RPC 중단 시험은 수정 전 `MANUAL_REVIEW`로, 다른 인터페이스 계약 시험(O02d)은 분류 수정 전 `RETRYABLE`로 실패함을 확인. 기존 lease 재확인 시험의 기대값은 변경 없음 |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R02·R03은 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04는 계속 `NOT_RUN`입니다. Phase 3의 W07·M01~M08은 로컬 Anvil·PostgreSQL·실기기 증거이며 Base Sepolia나 운영 배포 성공을 뜻하지 않습니다.

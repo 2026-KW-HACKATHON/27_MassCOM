@@ -46,6 +46,7 @@ export interface MintWorkRepository {
 
 export interface MintChainGateway {
   validate(item: MintWorkItem): Promise<void>;
+  assertCanSubmit(item: MintWorkItem): Promise<void>;
   findMintByRewardKey(item: MintWorkItem): Promise<ChainMintResult | undefined>;
   submitMint(item: MintWorkItem): Promise<{ transactionHash: string }>;
   confirmMint(item: MintWorkItem, transactionHash: string): Promise<ChainMintResult>;
@@ -122,6 +123,13 @@ export class MintWorker {
         } catch (error) {
           await this.handleChainError(item, workerId, error);
         }
+        return true;
+      }
+
+      try {
+        await this.gateway.assertCanSubmit(item);
+      } catch (error) {
+        await this.handleChainError(item, workerId, error);
         return true;
       }
 

@@ -37,7 +37,7 @@ const presentationFile = process.argv[4];
 const repoRoot = process.argv[5];
 const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
 const tests = manifest.requiredTests;
-if (tests.total !== 36 || tests.PASS !== 27 || tests.BLOCKED !== 2 || tests.NOT_RUN !== 7 || tests.FAIL !== 0) {
+if (tests.total !== 36 || tests.PASS !== 28 || tests.BLOCKED !== 2 || tests.NOT_RUN !== 6 || tests.FAIL !== 0) {
   throw new Error('submission evidence test totals do not match TEST_STATUS');
 }
 if (manifest.truthBoundary.partnerStoresClaimed !== 0 || manifest.truthBoundary.fieldParticipantsClaimed !== 0) {
