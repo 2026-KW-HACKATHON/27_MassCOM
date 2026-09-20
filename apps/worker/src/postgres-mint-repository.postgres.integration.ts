@@ -4,7 +4,12 @@ import { test } from 'node:test';
 import { Pool } from 'pg';
 
 import { PostgresMintRepository } from './postgres-mint-repository.js';
-import { RetryableChainError, type ChainMintResult } from './mint-worker.js';
+import {
+  MintWorker,
+  RetryableChainError,
+  type ChainMintResult,
+  type MintChainGateway,
+} from './mint-worker.js';
 
 test('M03 M06 lease race, retry, finalization, and repeated event ingestion stay idempotent', async (t) => {
   const connectionString = requiredTestDatabaseUrl();
@@ -253,6 +258,38 @@ test('retry delay doubles per submission attempt and the attempt cap closes the 
 
   now = new Date(now.getTime() + 3_600_000);
   assert.equal(await repository.leaseNext('worker-retry', 30_000), undefined);
+});
+
+test('O02 a database outage stops the worker before any chain call and leaves the queued job intact', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const before = await pool.query<{ job_status: string; outbox_status: string }>(
+    `SELECT job.status AS job_status, outbox.status AS outbox_status
+     FROM mint_jobs AS job JOIN outbox_events AS outbox ON outbox.aggregate_id = job.id`,
+  );
+
+  const chainCalls: string[] = [];
+  const gateway = new Proxy({} as MintChainGateway, {
+    get: (_target, method) => async () => {
+      chainCalls.push(String(method));
+      throw new Error('the chain must not be reached while the database is down');
+    },
+  });
+  const unavailablePool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  await unavailablePool.end();
+
+  await assert.rejects(
+    new MintWorker(new PostgresMintRepository(unavailablePool), gateway).runOnce('worker-db-outage'),
+  );
+  assert.deepEqual(chainCalls, []);
+
+  const after = await pool.query<{ job_status: string; outbox_status: string }>(
+    `SELECT job.status AS job_status, outbox.status AS outbox_status
+     FROM mint_jobs AS job JOIN outbox_events AS outbox ON outbox.aggregate_id = job.id`,
+  );
+  assert.deepEqual(after.rows, before.rows);
+  assert.ok(after.rows.length > 0);
 });
 
 test('event scan start reads the cursor with a reorg margin and deployment floor', async (t) => {

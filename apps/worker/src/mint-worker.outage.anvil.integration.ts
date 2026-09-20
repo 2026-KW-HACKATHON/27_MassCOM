@@ -190,6 +190,47 @@ test('O02c recovers a job once the minter balance is restored', async (t) => {
   await assertMinted(provider, contractAddress, rewardKey, jobId, pool);
 });
 
+test('O02d a deployed contract with a different interface goes to manual review instead of retrying forever', async (t) => {
+  const rpcUrl = requiredAnvilRpcUrl();
+  const provider = new JsonRpcProvider(rpcUrl, 31337, { staticNetwork: true });
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(async () => {
+    await pool.end();
+    await provider.destroy();
+  });
+
+  // Init code that deploys the single runtime byte 0x00 (STOP): it has code, answers every call
+  // with empty data, and therefore implements none of the mascot interface.
+  const deployer = await provider.getSigner(adminAddress);
+  const receipt = await (await deployer.sendTransaction({ data: '0x600060005360016000f3' })).wait();
+  const foreignContract = getAddress(receipt!.contractAddress!);
+  assert.equal(await provider.getCode(foreignContract), '0x00');
+
+  const rewardKey = id('worker-outage-d-reward');
+  const { jobId, entitlementId } = await seedOutageJob(pool, {
+    suffix: 'd',
+    contractAddress: foreignContract,
+    seriesKey: id('worker-outage-d-series'),
+    rewardKey,
+    recipient,
+  });
+  const gateway = new EthersMintChainGateway({
+    rpcUrl,
+    chainId: 31337,
+    contractAddress: foreignContract,
+    minterAddress,
+    confirmations: 1,
+    fromBlock: 0,
+  });
+
+  assert.equal(await new MintWorker(new PostgresMintRepository(pool), gateway).runOnce('outage-worker-d'), true);
+  const state = await readJobState(pool, jobId);
+  assert.equal(state.status, 'MANUAL_REVIEW');
+  assert.equal(state.last_error_code, 'CONTRACT_INTERFACE_MISMATCH');
+  assert.equal(state.attempt_count, 0);
+  assert.equal(await readEntitlementStatus(pool, entitlementId), 'MINT_REQUESTED');
+});
+
 async function deployMascot(
   provider: JsonRpcProvider,
 ): Promise<{ contract: Contract; contractAddress: string }> {

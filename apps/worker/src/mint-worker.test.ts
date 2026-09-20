@@ -269,6 +269,22 @@ test('O02 finalizes an already-minted reward key even when assertCanSubmit would
   assert.equal(workCalls(repository).at(-1), 'finalized:1');
 });
 
+test('O02 confirms an already submitted transaction even when assertCanSubmit would fail', async () => {
+  const repository = new FakeRepository();
+  repository.leaseNext = async () => {
+    repository.calls.push('lease');
+    return { ...work, transactionHash: result.transactionHash };
+  };
+  const gateway = new FakeGateway();
+  gateway.assertCanSubmitError = new RetryableChainError('MINTER_BALANCE_LOW');
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.equal(gateway.calls.includes('assertCanSubmit'), false);
+  assert.equal(gateway.calls.includes('submit'), false);
+  assert.equal(workCalls(repository).at(-1), 'finalized:1');
+});
+
 test('O02 propagates a repository failure before leasing without calling the gateway', async () => {
   const repository = new FakeRepository();
   repository.leaseNext = async () => {

@@ -3,6 +3,7 @@ import {
   Interface,
   JsonRpcProvider,
   getAddress,
+  isError,
   type EventLog,
   type Log,
 } from 'ethers';
@@ -110,7 +111,7 @@ export class EthersMintChainGateway implements MintChainGateway {
         .getFunction('hasRole')
         .staticCall(minterRole, this.minterAddress)) as boolean;
     } catch (error) {
-      throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
+      throw contractCallError(error);
     }
     if (!hasMinterRole) throw new ChainConfigurationError('MINTER_ROLE_MISSING');
   }
@@ -120,7 +121,7 @@ export class EthersMintChainGateway implements MintChainGateway {
     try {
       paused = (await this.contract.getFunction('paused').staticCall()) as boolean;
     } catch (error) {
-      throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
+      throw contractCallError(error);
     }
     if (paused) throw new RetryableChainError('MINT_PAUSED');
 
@@ -289,4 +290,17 @@ export class EthersMintChainGateway implements MintChainGateway {
       chainId: item.chainId,
     };
   }
+}
+
+// A contract that answers but not with our interface is a deployment mistake that retrying cannot
+// fix; only transport failures are an outage.
+function contractCallError(error: unknown): ChainConfigurationError | RetryableChainError {
+  if (
+    isError(error, 'CALL_EXCEPTION') ||
+    isError(error, 'BAD_DATA') ||
+    isError(error, 'UNSUPPORTED_OPERATION')
+  ) {
+    return new ChainConfigurationError('CONTRACT_INTERFACE_MISMATCH');
+  }
+  return new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
 }

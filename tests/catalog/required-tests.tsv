@@ -34,4 +34,4 @@ D03	static-integration	PASS	로그·분석·메타데이터 검사	개인키·QR
 A01	android-device	NOT_RUN	카메라 권한 거절·오프라인	수동 코드·정확한 상태 표시	docs/TEST_STATUS.md
 A02	android-release	NOT_RUN	실제 AAB·16KB·앱 링크	설치·실행·복귀 정상	docs/TEST_STATUS.md
 O01	environment-auth	NOT_RUN	시연 권리로 운영 API 접근	환경 경계에서 거절	docs/TEST_STATUS.md
-O02	failure-recovery	NOT_RUN	RPC·민터 잔액·DB 장애	보상권 보존·중지·복구 절차 동작	docs/TEST_STATUS.md
+O02	failure-recovery	PASS	RPC·민터 잔액·DB 장애	보상권 보존·중지·복구 절차 동작	docs/TEST_STATUS.md
