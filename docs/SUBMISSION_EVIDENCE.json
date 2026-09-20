@@ -4,9 +4,9 @@
   "repositoryVisibility": "PRIVATE",
   "requiredTests": {
     "total": 36,
-    "PASS": 28,
+    "PASS": 29,
     "BLOCKED": 2,
-    "NOT_RUN": 6,
+    "NOT_RUN": 5,
     "FAIL": 0
   },
   "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53, 55, 57, 63, 64, 65, 67, 68, 69, 70],
