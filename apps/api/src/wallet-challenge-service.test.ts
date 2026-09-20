@@ -20,6 +20,10 @@ function createFixture() {
   let nonceIndex = 0;
   const nonces = ['abc12345def67890', 'fedcba9876543210'];
 
+  const bindingStore = new InMemoryWalletBindingStore({
+    now: () => now,
+    nextId: () => `binding-${nonceIndex}`,
+  });
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
     domain,
@@ -29,14 +33,12 @@ function createFixture() {
     now: () => now,
     nonce: () => nonces[nonceIndex++]!,
     challengeId: () => `challenge-${nonceIndex}`,
-    bindingStore: new InMemoryWalletBindingStore({
-      now: () => now,
-      nextId: () => `binding-${nonceIndex}`,
-    }),
+    bindingStore,
   });
 
   return {
     service,
+    bindingStore,
     setNow(value: string) {
       now = new Date(value);
     },
@@ -310,6 +312,50 @@ test('a challenge removed during verification does not mask the signer failure',
       message: challenge.message,
       signature: await Wallet.createRandom().signMessage(challenge.message),
       currentAddress: wallet.address,
+    }),
+    (error: unknown) => error instanceof WalletChallengeError && error.code === 'SIGNER_MISMATCH',
+  );
+});
+
+test('W05 fixture: smart-wallet signatures are refused without a binding and the challenge stays usable', async () => {
+  // A contract account cannot produce an ECDSA signature that recovers to its own address. These are
+  // the shapes such wallets return instead; none may verify, crash, or burn the challenge.
+  const owner = Wallet.createRandom();
+  const contractAccount = Wallet.createRandom().address;
+  const { service, bindingStore } = createFixture();
+  const challenge = await service.createChallenge({ accountId, address: contractAccount, chainId });
+  const ownerSignature = await owner.signMessage(challenge.message);
+  const erc6492Suffix = '6492649264926492649264926492649264926492649264926492649264926492';
+  const signatures = {
+    'ERC-1271 owner signature (valid ECDSA, recovers to the owner, not the contract)': ownerSignature,
+    'ERC-6492 wrapped signature for an undeployed account': `0x${'00'.repeat(96)}${ownerSignature.slice(2)}${erc6492Suffix}`,
+    'multi-owner signature blob longer than 65 bytes': `${ownerSignature}${ownerSignature.slice(2)}`,
+  };
+
+  for (const [shape, signature] of Object.entries(signatures)) {
+    await assert.rejects(
+      service.verifyChallenge({
+        accountId,
+        challengeId: challenge.challengeId,
+        message: challenge.message,
+        signature,
+        currentAddress: contractAccount,
+      }),
+      (error: unknown) => error instanceof WalletChallengeError && error.code === 'SIGNER_MISMATCH',
+      shape,
+    );
+    assert.equal(await bindingStore.getActive(accountId), undefined, shape);
+  }
+
+  // Each refusal released the challenge: another attempt is judged on its signature again instead
+  // of being turned away as already used or still verifying.
+  await assert.rejects(
+    service.verifyChallenge({
+      accountId,
+      challengeId: challenge.challengeId,
+      message: challenge.message,
+      signature: ownerSignature,
+      currentAddress: contractAccount,
     }),
     (error: unknown) => error instanceof WalletChallengeError && error.code === 'SIGNER_MISMATCH',
   );
