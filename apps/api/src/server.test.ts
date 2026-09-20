@@ -940,12 +940,21 @@ test('malformed percent-encoding in a path parameter is a 400, not a server erro
       },
     },
   ) as MintRequestService;
+  const unreachable = <T>() =>
+    new Proxy(
+      {},
+      {
+        get: () => async () => {
+          throw new Error('must not be reached');
+        },
+      },
+    ) as T;
   const baseUrl = await startFixture(
     t,
     () => 'account-1',
     undefined,
-    undefined,
-    undefined,
+    unreachable<MerchantAccessFixture>(),
+    unreachable<ClaimSlotFixture>(),
     undefined,
     undefined,
     unreachableMintRequests,
@@ -959,6 +968,9 @@ test('malformed percent-encoding in a path parameter is a 400, not a server erro
     ['POST', '/entitlements/%E0%A4%A/mint'],
     ['GET', '/mint-jobs/%E0%A4%A'],
     ['DELETE', '/wallets/%E0%A4%A/binding'],
+    ['GET', '/merchant/merchants/%E0%A4%A/context'],
+    ['POST', '/merchant/merchants/%E0%A4%A/claim-slots'],
+    ['POST', '/merchant/merchants/%E0%A4%A/claim-slots/slot-1/reissue'],
   ] as const) {
     const response = await fetch(`${baseUrl}${path}`, {
       method,
