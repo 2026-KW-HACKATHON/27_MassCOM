@@ -45,6 +45,13 @@ if [[ "$signers" -gt 1 ]]; then
   echo "NOT UPLOADABLE: the bundle carries $signers signatures; exactly one upload signature is expected" >&2
   exit 6
 fi
+# The JAR format exempts META-INF/*.SF|RSA|DSA|EC from that warning, so a file smuggled in under
+# such a name is invisible to jarsigner. One signer leaves exactly one .SF and one block file.
+signature_files="$(unzip -Z1 "$file" | grep -ciE '^META-INF/[^/]+\.(SF|RSA|DSA|EC)$' || true)"
+if [[ "$signature_files" != "2" ]]; then
+  echo "NOT UPLOADABLE: expected one signature file pair in META-INF, found $signature_files signature files" >&2
+  exit 5
+fi
 if [[ ! "$actual" =~ ^[0-9A-F]{64}$ ]]; then
   echo "NOT UPLOADABLE: no signing certificate could be read" >&2
   exit 4

@@ -58,6 +58,11 @@ echo "added after signing" >"$work/src-extra/injected.txt"
 (cd "$work/src-extra" && zip -q "$work/extra.aab" injected.txt)
 expect 'entry added after signing' 5 'added after signing' "$approved" "$work/extra.aab"
 
+make_jar smuggled; sign smuggled upload.jks upload
+mkdir -p "$work/src-smuggled/META-INF"; echo "payload" >"$work/src-smuggled/META-INF/EVIL.SF"
+(cd "$work/src-smuggled" && zip -q "$work/smuggled.aab" META-INF/EVIL.SF)
+expect 'file smuggled in under a signature-file name' 5 'signature file pair' "$approved" "$work/smuggled.aab"
+
 # Whichever order the two signatures are applied in, a second signer is never accepted.
 make_jar two-a; sign two-a other.jks other; sign two-a upload.jks upload
 expect 'two signers, approved key last' 6 'exactly one upload signature' "$approved" "$work/two-a.aab"
