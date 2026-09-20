@@ -926,6 +926,63 @@ test('returns 200 for an idempotent replay and 201 for a new campaign enrollment
   assert.equal(second.status, 200);
 });
 
+test('malformed percent-encoding in a path parameter is a 400, not a server error', async (t) => {
+  const campaignEnrollments: CampaignEnrollmentService = {
+    async enroll() {
+      throw new Error('must not be reached');
+    },
+  };
+  const unreachableMintRequests = new Proxy(
+    {},
+    {
+      get: () => async () => {
+        throw new Error('must not be reached');
+      },
+    },
+  ) as MintRequestService;
+  const unreachable = <T>() =>
+    new Proxy(
+      {},
+      {
+        get: () => async () => {
+          throw new Error('must not be reached');
+        },
+      },
+    ) as T;
+  const baseUrl = await startFixture(
+    t,
+    () => 'account-1',
+    undefined,
+    unreachable<MerchantAccessFixture>(),
+    unreachable<ClaimSlotFixture>(),
+    undefined,
+    undefined,
+    unreachableMintRequests,
+    undefined,
+    undefined,
+    campaignEnrollments,
+  );
+
+  for (const [method, path] of [
+    ['POST', '/campaigns/%E0%A4%A/enrollments'],
+    ['POST', '/entitlements/%E0%A4%A/mint'],
+    ['GET', '/mint-jobs/%E0%A4%A'],
+    ['DELETE', '/wallets/%E0%A4%A/binding'],
+    ['GET', '/merchant/merchants/%E0%A4%A/context'],
+    ['POST', '/merchant/merchants/%E0%A4%A/claim-slots'],
+    ['POST', '/merchant/merchants/%E0%A4%A/claim-slots/slot-1/reissue'],
+  ] as const) {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method,
+      ...(method !== 'GET'
+        ? { headers: { 'content-type': 'application/json' }, body: '{}' }
+        : {}),
+    });
+    assert.equal(response.status, 400, `${method} ${path}`);
+    assert.deepEqual(await response.json(), { code: 'INVALID_PATH_PARAMETER' });
+  }
+});
+
 test('disconnects only the authenticated wallet binding version', async (t) => {
   const baseUrl = await startFixture(t, () => 'customer-1');
   const wallet = Wallet.createRandom();
