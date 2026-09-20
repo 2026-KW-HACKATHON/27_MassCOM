@@ -487,6 +487,124 @@ test('a reverted submission is dropped and released for retry in one transaction
   });
 });
 
+test('a broadcast transaction awaiting its receipt is not capped by the send limit but times out on the wall clock', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  let now = new Date('2026-09-19T04:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+    nextAttemptId: () => '60000000-0000-4000-8000-000000000005',
+    maxAttempts: 1,
+    receiptTimeoutMs: 60_000,
+  });
+  const readState = async (jobId: string) =>
+    (
+      await pool.query<{ status: string; code: string | null; transaction_hash: string | null }>(
+        `SELECT status, last_error_code AS code, transaction_hash FROM mint_jobs WHERE id = $1`,
+        [jobId],
+      )
+    ).rows[0];
+
+  const item = await repository.leaseNext('worker-receipt-check', 30_000);
+  assert.ok(item);
+  const attemptId = await repository.markPrepared(item, 'worker-receipt-check');
+  const transactionHash = `0x${'ab'.repeat(32)}`;
+  await repository.markSubmitted(item.jobId, 'worker-receipt-check', attemptId, transactionHash);
+
+  // At the send cap (maxAttempts: 1) and holding a broadcast hash: a plain result check (no new
+  // send) must not be treated as exceeding the send limit.
+  await repository.releaseRetryable(item.jobId, 'worker-receipt-check', 'RECEIPT_NOT_READY');
+  assert.deepEqual(await readState(item.jobId), {
+    status: 'RETRYABLE',
+    code: 'RECEIPT_NOT_READY',
+    transaction_hash: transactionHash,
+  });
+
+  // Re-lease and release again, now past the wall-clock receipt timeout.
+  now = new Date(now.getTime() + 61_000);
+  const relet = await repository.leaseNext('worker-receipt-check', 30_000);
+  assert.equal(relet?.jobId, item.jobId);
+  await repository.releaseRetryable(item.jobId, 'worker-receipt-check', 'RECEIPT_NOT_READY');
+  assert.deepEqual(await readState(item.jobId), {
+    status: 'MANUAL_REVIEW',
+    code: 'RECEIPT_TIMEOUT',
+    transaction_hash: transactionHash,
+  });
+});
+
+test('a job at the send cap without a broadcast hash still closes for RETRY_LIMIT_EXCEEDED', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const now = new Date('2026-09-19T04:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+    maxAttempts: 1,
+  });
+  const item = await repository.leaseNext('worker-presubmit-cap', 30_000);
+  assert.ok(item);
+  await repository.markPrepared(item, 'worker-presubmit-cap'); // attempt_count -> 1 == maxAttempts
+
+  // A pre-submission transient failure (no transaction_hash on the job) is a would-be new send,
+  // so the existing attempt cap still applies.
+  await repository.releaseRetryable(item.jobId, 'worker-presubmit-cap', 'RPC_UNAVAILABLE');
+  const state = await pool.query<{ status: string; code: string; transaction_hash: string | null }>(
+    `SELECT status, last_error_code AS code, transaction_hash FROM mint_jobs WHERE id = $1`,
+    [item.jobId],
+  );
+  assert.deepEqual(state.rows[0], {
+    status: 'MANUAL_REVIEW',
+    code: 'RETRY_LIMIT_EXCEEDED',
+    transaction_hash: null,
+  });
+});
+
+test('a transaction that confirms after the send cap still finalizes without any duplicate send', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  let now = new Date('2026-09-19T04:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+    nextAttemptId: () => '60000000-0000-4000-8000-000000000006',
+    nextChainEventId: () => '70000000-0000-4000-8000-000000000006',
+    nextAssetId: () => '80000000-0000-4000-8000-000000000006',
+    maxAttempts: 1,
+    receiptTimeoutMs: 60_000,
+  });
+  const item = await repository.leaseNext('worker-late-finalize', 30_000);
+  assert.ok(item);
+  const attemptId = await repository.markPrepared(item, 'worker-late-finalize'); // attempt_count -> 1
+  const transactionHash = `0x${'cd'.repeat(32)}`;
+  await repository.markSubmitted(item.jobId, 'worker-late-finalize', attemptId, transactionHash);
+
+  // A receipt check released at the send cap must not block a later successful confirmation.
+  await repository.releaseRetryable(item.jobId, 'worker-late-finalize', 'RECEIPT_NOT_READY');
+  now = new Date(now.getTime() + 60_000);
+  const relet = await repository.leaseNext('worker-late-finalize', 30_000);
+  assert.equal(relet?.jobId, item.jobId);
+
+  await repository.finalize(relet!, 'worker-late-finalize', attemptId, {
+    transactionHash,
+    blockNumber: 5,
+    blockHash: `0x${'ef'.repeat(32)}`,
+    logIndex: 0,
+    tokenId: '2',
+    rewardKey: relet!.rewardKey,
+    recipient: relet!.recipient,
+    seriesKey: relet!.seriesKey,
+    contractAddress: relet!.contractAddress,
+    chainId: relet!.chainId,
+  });
+
+  const state = await pool.query<{ status: string; attempt_count: number }>(
+    `SELECT status, attempt_count FROM mint_jobs WHERE id = $1`,
+    [item.jobId],
+  );
+  assert.deepEqual(state.rows[0], { status: 'FINALIZED', attempt_count: 1 });
+});
+
 test('event scan start reads the cursor with a reorg margin and deployment floor', async (t) => {
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());

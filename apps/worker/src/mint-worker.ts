@@ -49,6 +49,15 @@ export interface MintWorkRepository {
     revertCode: string,
     retryCode: string,
   ): Promise<void>;
+  /**
+   * Finds the attempt that submitted the given transaction hash for a job, so a restart-recovery
+   * path (which never called markPrepared this run) can still pass the right attempt id to
+   * releaseRevertedForRetry.
+   */
+  findAttemptIdForTransactionHash(
+    jobId: string,
+    transactionHash: string,
+  ): Promise<string | undefined>;
   markManualReview(jobId: string, workerId: string, code: string): Promise<void>;
 }
 
@@ -125,11 +134,19 @@ export class MintWorker {
       }
 
       if (item.transactionHash) {
+        const transactionHash = item.transactionHash;
         try {
-          const confirmed = await this.gateway.confirmMint(item, item.transactionHash);
+          const confirmed = await this.gateway.confirmMint(item, transactionHash);
           await this.repository.finalize(item, workerId, undefined, confirmed);
         } catch (error) {
-          await this.handleChainError(item, workerId, error);
+          await this.handleConfirmError(
+            item,
+            workerId,
+            undefined,
+            transactionHash,
+            heartbeat,
+            error,
+          );
         }
         return true;
       }
@@ -168,39 +185,7 @@ export class MintWorker {
         const confirmed = await this.gateway.confirmMint(item, transactionHash);
         await this.repository.finalize(item, workerId, attemptId, confirmed);
       } catch (error) {
-        if (error instanceof MintEventMismatchError && error.code === 'MINT_TRANSACTION_REVERTED') {
-          try {
-            const recovered = await this.gateway.findMintByRewardKey(item);
-            await heartbeat.assertHealthy();
-            if (recovered) {
-              await this.repository.finalize(item, workerId, attemptId, recovered);
-              return true;
-            }
-          } catch (lookupError) {
-            await this.handleChainError(item, workerId, lookupError);
-            return true;
-          }
-          // Not yet minted: before treating this as a permanent revert, recheck the transient
-          // conditions (pause/balance/RPC) a race with assertCanSubmit could have caused. A
-          // transient hit must drop the reverted hash in the same transaction that releases the
-          // job: a leftover hash is re-confirmed forever, and a hash dropped without the release
-          // leaves a SUBMITTED job nothing can pick up.
-          try {
-            await this.gateway.assertCanSubmit(item);
-          } catch (transientError) {
-            if (transientError instanceof RetryableChainError) {
-              await this.repository.releaseRevertedForRetry(
-                item.jobId,
-                workerId,
-                attemptId,
-                error.code,
-                transientError.code,
-              );
-              return true;
-            }
-          }
-        }
-        await this.handleChainError(item, workerId, error);
+        await this.handleConfirmError(item, workerId, attemptId, transactionHash, heartbeat, error);
       }
       return true;
     } finally {
@@ -238,6 +223,62 @@ export class MintWorker {
         await assertHealthy();
       },
     };
+  }
+
+  /**
+   * Single decision for what happens after confirmMint fails, shared by the restart-recovery path
+   * (attemptId undefined, nothing prepared this run) and the fresh-submission path (attemptId set):
+   * the same failure must give the same outcome either way.
+   */
+  private async handleConfirmError(
+    item: MintWorkItem,
+    workerId: string,
+    attemptId: string | undefined,
+    transactionHash: string,
+    heartbeat: { assertHealthy: () => Promise<void>; stop: () => Promise<void> },
+    error: unknown,
+  ): Promise<void> {
+    if (!(error instanceof MintEventMismatchError && error.code === 'MINT_TRANSACTION_REVERTED')) {
+      await this.handleChainError(item, workerId, error);
+      return;
+    }
+    try {
+      const recovered = await this.gateway.findMintByRewardKey(item);
+      await heartbeat.assertHealthy();
+      if (recovered) {
+        await this.repository.finalize(item, workerId, attemptId, recovered);
+        return;
+      }
+    } catch (lookupError) {
+      await this.handleChainError(item, workerId, lookupError);
+      return;
+    }
+    // Not yet minted: before treating this as a permanent revert, recheck the transient
+    // conditions (pause/balance/RPC) a race with assertCanSubmit could have caused. A
+    // transient hit must drop the reverted hash in the same transaction that releases the
+    // job: a leftover hash is re-confirmed forever, and a hash dropped without the release
+    // leaves a SUBMITTED job nothing can pick up.
+    try {
+      await this.gateway.assertCanSubmit(item);
+    } catch (transientError) {
+      if (transientError instanceof RetryableChainError) {
+        // The restart path never called markPrepared this run, so it has no attempt id: recover
+        // the attempt that actually submitted the stored hash so the right row is marked FAILED.
+        const resolvedAttemptId =
+          attemptId ?? (await this.repository.findAttemptIdForTransactionHash(item.jobId, transactionHash));
+        if (resolvedAttemptId) {
+          await this.repository.releaseRevertedForRetry(
+            item.jobId,
+            workerId,
+            resolvedAttemptId,
+            error.code,
+            transientError.code,
+          );
+          return;
+        }
+      }
+    }
+    await this.handleChainError(item, workerId, error);
   }
 
   private async handleChainError(
