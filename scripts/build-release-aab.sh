@@ -20,7 +20,8 @@ aab="$mobile_dir/android/app/build/outputs/bundle/release/app-release.aab"
 echo "AAB: $aab"
 # keytool labels are localized, so match the certificate subject instead of the "Owner:" label.
 signer="$(keytool -J-Duser.language=en -printcert -jarfile "$aab")"
-grep -E 'Owner:|SHA256:' <<<"$signer" | head -2
+# Informational only: a missing label must not abort before the debug-key check below.
+grep -E 'Owner:|SHA256:' <<<"$signer" | head -2 || true
 if grep -q 'CN=Android Debug' <<<"$signer"; then
   echo "WARNING: signed with the local debug key; configure the upload key before uploading" >&2
 fi

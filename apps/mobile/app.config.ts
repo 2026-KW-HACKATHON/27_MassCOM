@@ -18,7 +18,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       blockedPermissions: production ? ['android.permission.SYSTEM_ALERT_WINDOW'] : [],
     },
     plugins: production
-      ? (config.plugins ?? []).filter((plugin) => plugin !== 'expo-dev-client')
+      ? (config.plugins ?? []).filter(
+          (plugin) => (Array.isArray(plugin) ? plugin[0] : plugin) !== 'expo-dev-client',
+        )
       : config.plugins,
   };
 };
