@@ -6,6 +6,8 @@
 # Keystore account (the owner runs this once, in their own terminal):
 #   new testnet-only key : cast wallet new <name>                   hidden password prompt, key is never shown
 #   existing key         : cast wallet import <name> --interactive
+# Run `cast wallet new <name>` where no directory called <name> exists, or cast treats it as a path.
+# A keyed BASE_SEPOLIA_RPC_URL is visible in `ps` while this runs; the default public RPC has no key.
 # Never run a bare `cast wallet new`: without a name it prints the private key.
 
 set -euo pipefail
@@ -14,7 +16,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 account="${1:?keystore account name is required (see the header of this script)}"
 mode="${2:-}"
 redeploy="${3:-}"
-keystore_dir="${FOUNDRY_KEYSTORE_DIR:-$HOME/.foundry/keystores}"
+# ETH_KEYSTORE is the variable forge itself reads for --account, so the check and the tool agree.
+keystore_dir="${ETH_KEYSTORE:-$HOME/.foundry/keystores}"
 expected_chain_id=84532
 
 : "${BASE_SEPOLIA_ADMIN:?BASE_SEPOLIA_ADMIN address is required}"
@@ -26,8 +29,8 @@ if [[ -n "${PRIVATE_KEY:-}" || -n "${DEPLOYER_PRIVATE_KEY:-}" ]]; then
   echo "refusing to run with a private key in the environment; use the encrypted keystore account" >&2
   exit 1
 fi
-if [[ -n "$mode" && "$mode" != "--broadcast" ]] || [[ -n "$redeploy" && "$redeploy" != "--redeploy" ]]; then
-  echo "unknown option: $mode $redeploy" >&2
+if [[ $# -gt 3 ]] || [[ $# -ge 2 && "$mode" != "--broadcast" ]] || [[ $# -eq 3 && "$redeploy" != "--redeploy" ]]; then
+  echo "unknown option: ${*:2}" >&2
   exit 1
 fi
 
@@ -44,9 +47,12 @@ if [[ ! -f "$keystore_dir/$account" ]]; then
 fi
 
 # A lost response is not a failed deployment: look at the record before sending again.
+# forge's own record is gitignored and disappears with a fresh clone, so the committed evidence
+# file written after a real deployment is checked as well.
 record="$repo_root/contracts/broadcast/DeployBaseSepolia.s.sol/$expected_chain_id/run-latest.json"
-if [[ "$mode" == "--broadcast" && -f "$record" && "$redeploy" != "--redeploy" ]]; then
-  echo "a Base Sepolia broadcast record already exists: $record" >&2
+evidence="$repo_root/docs/evidence/base-sepolia-deployment.json"
+if [[ "$mode" == "--broadcast" && "$redeploy" != "--redeploy" ]] && [[ -f "$record" || -f "$evidence" ]]; then
+  echo "a Base Sepolia deployment record already exists: $([[ -f "$record" ]] && echo "$record" || echo "$evidence")" >&2
   echo "check its transaction and contract address on the chain first; pass --redeploy only to deploy a second contract on purpose" >&2
   exit 1
 fi
