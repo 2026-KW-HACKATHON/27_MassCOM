@@ -18,6 +18,15 @@
 
 계정 삭제·초기화는 시험 전용 계정(`demo-*`)과 DEMO DB에서만 합니다. 지갑 앱의 데이터나 실사용 계정은 지우지 않습니다.
 
+## 환경 준비(2026-09-21 실행으로 확인한 절차)
+
+1. 일회용 DB: 시험용 PostgreSQL 컨테이너에 `masscom_demo`를 만들고 `DATABASE_URL=... npm run db:migrate --prefix apps/api`. 점포·`merchant_members`(앱의 DEMO 계정을 `OWNER`로)·`campaigns`·`campaign_goals`를 넣는다. 끝나면 `DROP DATABASE`
+2. API: `apps/api`에서 `DATABASE_URL`·`MERCHANT_REFERENCE_HMAC_SECRET`·`ACCOUNT_DELETION_HMAC_SECRET`(둘 다 `openssl rand -hex 32`로 즉석 생성)·`ALLOW_INSECURE_DEMO_ACCOUNT=true`를 환경변수로 주고 `npx tsx --env-file=.env src/server.ts`. 서버는 `127.0.0.1`에만 bind한다
+3. `adb reverse tcp:3000 tcp:3000`, `adb reverse tcp:8081 tcp:8081`
+4. Metro: `apps/mobile`에서 `EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID`·`EXPO_PUBLIC_DEMO_MERCHANT_ID`(점주 화면), E03에는 `EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION=true`를 **명령의 환경변수로** 주고 `npx expo start --dev-client --port 8081 --clear`. 소유자의 `.env.local`은 고치지 않는다
+5. 설치·실행: `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`, `adb shell am start -a android.intent.action.VIEW -d "masscom-dev://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081" kr.masscom.wolgye.dev`
+6. 화면 확인은 `adb shell uiautomator dump`의 text로 한다. 1회 코드는 스크립트 안에서만 옮기고 출력·커밋하지 않는다
+
 ## E01 Expo patch 회귀
 
 - 대상 빌드: 개발 variant debug APK(`kr.masscom.wolgye.dev`), 현재 `main`
