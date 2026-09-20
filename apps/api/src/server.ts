@@ -118,7 +118,7 @@ export function createApiServer(
           throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
         }
         const accountId = await resolveAccountId(request);
-        const merchantId = decodeURIComponent(request.url!.split('/')[3]!);
+        const merchantId = decodePathParameter(request.url!.split('/')[3]!);
         const grant = await merchantAccess.requirePermission({
           accountId,
           merchantId,
@@ -136,7 +136,7 @@ export function createApiServer(
           throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
         }
         const accountId = await resolveAccountId(request);
-        const merchantId = decodeURIComponent(request.url!.split('/')[3]!);
+        const merchantId = decodePathParameter(request.url!.split('/')[3]!);
         await merchantAccess.requirePermission({
           accountId,
           merchantId,
@@ -167,7 +167,7 @@ export function createApiServer(
           throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
         }
         const accountId = await resolveAccountId(request);
-        const merchantId = decodeURIComponent(reissueMatch[1]!);
+        const merchantId = decodePathParameter(reissueMatch[1]!);
         await merchantAccess.requirePermission({
           accountId,
           merchantId,
@@ -176,7 +176,7 @@ export function createApiServer(
         const body = await readJson(request);
         const issued = await claimSlots.reissue({
           merchantId,
-          claimSlotId: decodeURIComponent(reissueMatch[2]!),
+          claimSlotId: decodePathParameter(reissueMatch[2]!),
           expectedTokenVersion: requirePositiveInteger(body, 'expectedTokenVersion'),
           requestedByAccountId: accountId,
         });
@@ -250,7 +250,7 @@ export function createApiServer(
         const body = await readJson(request);
         await service.disconnectBinding({
           accountId,
-          bindingId: decodeURIComponent(disconnectWalletMatch[1]!),
+          bindingId: decodePathParameter(disconnectWalletMatch[1]!),
           bindingVersion: requirePositiveInteger(body, 'bindingVersion'),
         });
         sendJson(response, 200, { status: 'DISCONNECTED' });
@@ -266,7 +266,7 @@ export function createApiServer(
         const body = await readJson(request);
         const result = await mintRequests.requestMint({
           accountId,
-          entitlementId: decodeURIComponent(mintRequestMatch[1]!),
+          entitlementId: decodePathParameter(mintRequestMatch[1]!),
           walletBindingId: requireString(body, 'walletBindingId'),
           bindingVersion: requirePositiveInteger(body, 'bindingVersion'),
           consentVersion: requireString(body, 'consentVersion'),
@@ -287,7 +287,7 @@ export function createApiServer(
           200,
           await mintRequests.getMintJob({
             accountId,
-            jobId: decodeURIComponent(mintJobMatch[1]!),
+            jobId: decodePathParameter(mintJobMatch[1]!),
           }),
         );
         return;
@@ -318,7 +318,7 @@ export function createApiServer(
           throw new RequestError(503, 'CAMPAIGN_ENROLLMENT_SERVICE_NOT_CONFIGURED');
         }
         const accountId = await resolveAccountId(request);
-        const campaignId = decodeURIComponent(enrollmentMatch[1]!);
+        const campaignId = decodePathParameter(enrollmentMatch[1]!);
         const enrollment = await campaignEnrollments.enroll({ campaignId, accountId });
         sendJson(response, enrollment.created ? 201 : 200, enrollment);
         return;
@@ -361,6 +361,15 @@ export function createApiServer(
       sendJson(response, 500, { code: 'INTERNAL_ERROR' });
     }
   });
+}
+
+// Malformed percent-encoding is the caller's mistake, not a server fault.
+function decodePathParameter(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw new RequestError(400, 'INVALID_PATH_PARAMETER');
+  }
 }
 
 class RequestError extends Error {
