@@ -8,17 +8,24 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 브랜치 | `main` (작업 브랜치는 Issue별로 생성 후 병합) |
-| 기준 커밋 SHA | `5aafafcf2fb49dfdb3d799abf9e6039636f1e7f4` — 이 문서를 갱신한 PR 직전의 검증된 main |
-| 현재 작업 | 없음. 다음 작업은 HANDOFF의 “다음 세션이 가장 먼저 해야 할 작업” |
+| 기준 커밋 | 이 문서는 SHA를 고정하지 않는다. 실제 기준은 `git log origin/main -1`, 직전 검증 기준은 `docs/HANDOFF.md` 머리말 |
+| 현재 작업·열린 PR | `gh pr list`, `gh issue list`가 기준. 인수인계 요약은 `docs/HANDOFF.md` |
 | 현재 검증 기준 | API 43·PostgreSQL 28·Worker 20/PG 16·모바일 54·Foundry 8/fuzz128·Anvil PASS |
-| 최근 main 기준선 | PR #81 merge `5aafafc` |
+
+## 검증 수준별 현황
+
+필수 36개: 30 PASS / 2 BLOCKED / 4 NOT_RUN. 아래 네 묶음은 서로 다른 상태이며 섞어 말하지 않는다.
+
+| 수준 | 해당 항목 |
+| --- | --- |
+| 로컬 검증 완료 | 탐색·발급·수령·도감·추천, 지갑 주소 확인(SIWE), 발행 요청·Outbox·Worker·계약(Local Anvil), 계정 삭제, 백업·복원 drill, 운영 variant AAB 정적 검사(W08), 배포·서명 사전 검사 스크립트 |
+| 시험망 미검증 | Base Sepolia 계약 배포와 그 계약에 대한 Worker 발행. 배포자·역할 keystore 계정 4개는 소유자가 2026-09-20 생성, 배포자 잔액 0(faucet 대기). Worker는 아직 Local Anvil 전용 |
+| 운영 코드 미구현 | 운영 로그인·서버 세션·재인증(현재는 `ALLOW_INSECURE_DEMO_ACCOUNT` DEMO resolver만), 공개 테스트넷용 서비스 민터 서명 경로, 카메라 QR 화면(A01), 시연/운영 환경 권한 경계(O01), 외부 HTTPS 배포·삭제 페이지 |
+| 사용자 승인·입력 대기 | 로그인 방식·호스팅·도메인(`docs/HOSTING_LOGIN_PROPOSAL.md`), D-023 수령 시 캠페인 등록 요구 여부, upload keystore와 인증서 지문, faucet gas, Android 기기 연결, W04·W05용 지갑 환경(B-010·B-011) |
 
 ## 열린 Issue·PR과 최근 병합
 
-- 열린 Issue: #78(재시도 간격·전송 직후 중지 처리, 이 갱신을 담은 PR로 종료 예정) 외 없음
-- 열린 PR: 이 갱신을 담은 PR 외 없음
-- 최근 병합 PR: #63 `6bbf58c` 체인 cursor 재시작, #64 `695210c` Worker 재시도 상한, #65 `4c4d744` Expo patch·B-008 재평가, #67 `9c3c04a` SIWE PostgreSQL 저장소, #68 `f386c84` 문서, #69 `a83cef9` Base Sepolia 배포 스크립트·기기 세션 정리·Play 초안, #70 `9e670ab` 운영 package ID·release AAB 경로, #72 `761ac42` 문서 정합, #74 `b04af56` 캠페인 참여 등록·R02, #76 `640bb83` 경로 인코딩 400, #79 `e4e633c` Worker 장애 복구·O02, #81 `5aafafc` 계정 전환 분리·D02
+실시간 목록은 `gh pr list --state all --limit 20`이 기준이다. 2026-09-20 기준 병합: #63·#64·#65·#67·#68·#69·#70·#72·#74·#76·#79·#81·#82·#83(PragmoB)·#85·#87·#89·#91·#93.
 
 ## Phase 상태
 
@@ -76,7 +83,7 @@
 
 ## 검증 상태
 
-- 필수 36개: `30 PASS / 2 BLOCKED / 4 NOT_RUN`
+- 필수 36개: 30 PASS / 2 BLOCKED / 4 NOT_RUN
 - API 단위: `43/43 PASS`; PostgreSQL: `28/28 PASS`
 - Worker 단위: `20/20 PASS`; PostgreSQL: `16/16 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `54/54 PASS`; typecheck·lint·Android export `PASS`

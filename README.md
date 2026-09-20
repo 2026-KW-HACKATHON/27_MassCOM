@@ -2,7 +2,7 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-> 현재 상태: Phase 0~3 로컬 핵심 흐름 `VERIFIED` · Phase 4 출시 기반과 Phase 5 발표·증거 준비 `IN_PROGRESS` · 필수 시험 26 `PASS` / 2 `BLOCKED` / 8 `NOT_RUN`
+> 현재 상태: Phase 0~3 로컬 핵심 흐름 `VERIFIED` · Phase 4 출시 기반과 Phase 5 발표·증거 준비 `IN_PROGRESS` · 필수 시험 30 `PASS` / 2 `BLOCKED` / 4 `NOT_RUN`(로컬 검증 기준. 시험망·운영 환경은 아래 “현재 한계” 참고)
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](docs/index.html)
 
@@ -184,7 +184,7 @@ npm run test:postgres --prefix apps/api
 - 정적 프로젝트 포털: 로컬 검증 중, 공개 URL 없음
 - Android debug APK: Android 16 16KB AVD와 Samsung SM-S928N 실기기에서 빌드·설치·실행·홈 복귀·콜드 스타트 검증, 저장소에는 미포함
 - Android 음식점 탐색: 로컬 PostgreSQL의 `demo: true` 점포 3곳으로 목록·상세·고정 보상 조건·선택적 지갑 이동 검증
-- Android 방문 수령: loopback DEMO에서 점주 권한→1회 코드→고객 수령→도감 검증; 카메라 QR은 `NOT_RUN`
+- Android 방문 수령: loopback DEMO에서 점주 권한→1회 코드→고객 수령→도감 검증; 카메라 QR 화면은 아직 구현되지 않음(A01은 기기 대기가 아니라 구현 필요)
 - Android 다음 가게: 미방문·다음 고정 보상 이유를 표시하고 기존 상세 탐색으로 복귀하는 순환 검증
 - NFT 계약: 고정 Docker Foundry로 C01~C04와 로컬 Anvil 발행 검증; 테스트넷·메인넷으로 표현하지 않음
 - NFT 발행 요청: 클라이언트 주소·series 입력을 무시하고 검증된 binding/version에서 수령인을 고정해 보상권·job·Outbox 원자 저장
