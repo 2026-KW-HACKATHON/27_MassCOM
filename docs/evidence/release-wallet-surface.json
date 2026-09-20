@@ -1,0 +1,30 @@
+{
+  "id": "release-wallet-surface",
+  "requiredTest": "W08",
+  "date": "2026-09-20",
+  "commit": "367f26b",
+  "environment": "macOS, scripts/build-release-aab.sh (APP_VARIANT=production, Gradle bundleRelease), local debug keystore signing",
+  "artifact": "app-release.aab (77,736,275 bytes, sha256 6d5af4926030027a11ff289b95b235758bd49a82950d2ef10d31274f0451fe49), not uploaded, not committed",
+  "command": "scripts/check-release-wallet-surface.sh apps/mobile/android/app/build/outputs/bundle/release/app-release.aab",
+  "result": "PASS",
+  "checks": {
+    "manifestPackage": "kr.masscom.wolgye, not the .dev variant",
+    "manifestPermissions": "no com.android.vending.BILLING, no SYSTEM_ALERT_WINDOW",
+    "dexClasses": "no Play Billing, Coinbase, Stripe, MoonPay, Transak, Meld, Web3Auth, Privy or Magic classes",
+    "appKitConfig": "single createAppKit call; socials, swaps, onramp and enableAnalytics are explicit false",
+    "accountScreenReachability": "every AppKit open() call targets the Connect view; no SDK AppKitButton/AccountButton/ConnectButton/NetworkButton is rendered",
+    "sessionMethods": "no eth_sendTransaction, eth_sign, eth_signTypedData*, wallet_sendCalls or wallet_grantPermissions"
+  },
+  "sdkFacts": {
+    "package": "@reown/appkit-react-native 2.0.6",
+    "onrampDefault": "enabled when features.onramp is undefined (AppKit.js), so an explicit false is required",
+    "sendButton": "AccountDefault view shows Send without a feature flag; it is reachable only through open() without a view or the SDK buttons",
+    "bundleStrings": "the Hermes bundle still contains the SDK's swap and on-ramp screens as unreachable code, so string absence is not the criterion"
+  },
+  "regression": "tests/release/check_release_wallet_surface_test.sh plants 8 violations (billing permission, dev package, billing SDK class, on-ramp true, on-ramp left to default, open() without view, SDK button, eth_sendTransaction) and each fails for its own reason",
+  "limits": [
+    "static inspection only; the release build was not installed or driven on a device",
+    "signed with the local debug key, not the owner's upload key; rerun the command on the final AAB",
+    "source checks cover the inputs of the release bundle, not decompiled Hermes bytecode"
+  ]
+}

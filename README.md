@@ -190,6 +190,7 @@ npm run test:postgres --prefix apps/api
 - NFT 발행 요청: 클라이언트 주소·series 입력을 무시하고 검증된 binding/version에서 수령인을 고정해 보상권·job·Outbox 원자 저장
 - NFT 발행 Worker: Local Anvil에서 중복 Worker·응답 유실·설정 오류·이벤트 불일치·확정 전 재조직·DB 복구와 RPC 중단·발행 중지·민터 잔액 부족·DB 장애 뒤 자동 복구(O02, Issue #77)를 검증하고 Android가 접수/확인 중/등록 완료를 구분
 - 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), `APP_VARIANT`로 분기하는 scheme `masscom`/`masscom-dev`: `IMPLEMENTED`; `scripts/build-release-aab.sh`로 로컬 debug 서명 운영 AAB의 package·권한·16KB 정렬 48개 항목 PASS
+- 운영 AAB 지갑 진입점 검사(W08): `scripts/check-release-wallet-surface.sh <aab>`로 결제 권한·결제/온램프/내장 지갑 SDK·AppKit 기능 flag·계정 화면 도달 경로·세션 메서드를 정적 검사해 PASS. 실기기 UI 확인과 upload key 서명본 검사는 아님
 - upload key로 서명한 release AAB, App Link, Play Console 제출: `NOT_RUN`
 - 계정 삭제: 앱 내부 Local DEMO와 PostgreSQL 미전송 취소·제출 거래 보존·비식별화 PASS; 외부 HTTPS 삭제 URL·운영 재인증은 `BLOCKED`
 - 실제 Reown 지갑 흐름: MetaMask 핵심·W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `BLOCKED`

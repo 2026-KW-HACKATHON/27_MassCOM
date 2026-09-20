@@ -14,7 +14,7 @@ W04	android-wallet	BLOCKED	서명 도중 지갑 주소 변경	기존 원문·확
 W05	android-wallet	BLOCKED	지원하지 않는 스마트 지갑	무검증 우회 없이 설명·거절	docs/TEST_STATUS.md
 W06	android-device	PASS	지갑 미설치·서명 거절·복귀 실패	안내와 재시도, 보상권 유지	docs/TEST_STATUS.md
 W07	db-worker	PASS	주소 연결 해제와 전송 경쟁	고정 수령인·명확한 작업 상태	docs/TEST_STATUS.md
-W08	release-inspection	NOT_RUN	SDK 구매·스왑·내장 지갑 기본값	배포 빌드에 해당 진입점 없음	docs/TEST_STATUS.md
+W08	release-inspection	PASS	SDK 구매·스왑·내장 지갑 기본값	배포 빌드에 해당 진입점 없음	docs/TEST_STATUS.md
 W09	request-boundary	PASS	예기치 않은 송금·approve 요청	앱 요청 경계에서 거절	docs/TEST_STATUS.md
 M01	worker-chain	PASS	같은 발급 버튼·Worker 중복 실행	온체인 NFT 하나	docs/TEST_STATUS.md
 M02	worker-chain	PASS	전송 직후 응답 유실	기존 발행 조회, 새 보상 키 금지	docs/TEST_STATUS.md

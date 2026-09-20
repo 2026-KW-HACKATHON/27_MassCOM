@@ -4,9 +4,9 @@
   "repositoryVisibility": "PRIVATE",
   "requiredTests": {
     "total": 36,
-    "PASS": 29,
+    "PASS": 30,
     "BLOCKED": 2,
-    "NOT_RUN": 5,
+    "NOT_RUN": 4,
     "FAIL": 0
   },
   "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53, 55, 57, 63, 64, 65, 67, 68, 69, 70],
@@ -21,7 +21,8 @@
   ],
   "securityEvidence": [
     "docs/evidence/security-audit-issue-56.json",
-    "docs/evidence/chain-cursor-recovery.json"
+    "docs/evidence/chain-cursor-recovery.json",
+    "docs/evidence/release-wallet-surface.json"
   ],
   "blocked": [
     "repository public conversion",

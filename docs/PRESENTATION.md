@@ -10,7 +10,7 @@
 | 0:25~0:50 | 문제 | 익숙한 가게 반복은 가설이며 매출 증가를 아직 주장하지 않음 | `scene-problem`, RQ-001 |
 | 0:50~1:30 | 흐름 | 탐색→점주 확인→방문→앱 도감→선택 지갑→NFT→다음 가게 | Phase 2 Android 증거 |
 | 1:30~2:15 | 구조 | 지갑 키를 맡지 않고 고정 수령인·Outbox·Worker·이벤트 대조 | PR #49~#51 |
-| 2:15~2:45 | 검증 | 36개 중 29 PASS, 2 BLOCKED, 5 NOT_RUN을 숨기지 않음 | `TEST_STATUS.md` |
+| 2:15~2:45 | 검증 | 36개 중 30 PASS, 2 BLOCKED, 4 NOT_RUN을 숨기지 않음 | `TEST_STATUS.md` |
 | 2:45~3:00 | 다음 | 현장 점주·이용자 행동을 허락받아 검증 | `FIELD_VALIDATION.md` |
 
 ## 최종평가 5분 흐름
