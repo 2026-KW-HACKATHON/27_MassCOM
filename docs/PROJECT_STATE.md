@@ -8,9 +8,17 @@
 | --- | --- |
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 현재 작업 | Issue #59 chain cursor 재시작 범위·reorg margin 구현 |
+| 현재 브랜치 | `main` (작업 브랜치는 Issue별로 생성 후 병합) |
+| 기준 커밋 SHA | `9e670abaa3b67840bac323ee18d47be813e38020` — 이 문서를 갱신한 PR 직전의 검증된 main |
+| 현재 작업 | 없음. 다음 작업은 HANDOFF의 “다음 세션이 가장 먼저 해야 할 작업” |
 | 현재 검증 기준 | API 37·PostgreSQL 20·Worker 8/PG 6·모바일 50·Foundry 8/fuzz128·Anvil PASS |
-| 최근 main 기준선 | PR #67 merge `9c3c04a`, main CI run `35460087002` PASS |
+| 최근 main 기준선 | PR #70 merge `9e670ab`, main CI run `35487020999` PASS |
+
+## 열린 Issue·PR과 최근 병합
+
+- 열린 Issue: #71(문서 정합, 이 갱신을 담은 PR로 종료 예정) 외 없음
+- 열린 PR: 이 갱신을 담은 PR 외 없음
+- 최근 병합 PR: #63 `6bbf58c` 체인 cursor 재시작, #64 `695210c` Worker 재시도 상한, #65 `4c4d744` Expo patch·B-008 재평가, #67 `9c3c04a` SIWE PostgreSQL 저장소, #68 `f386c84` 문서, #69 `a83cef9` Base Sepolia 배포 스크립트·기기 세션 정리·Play 초안, #70 `9e670ab` 운영 package ID·release AAB 경로
 
 ## Phase 상태
 
@@ -56,6 +64,15 @@
 - release AAB·16KB·App Link A02, 운영 권한·장애 복원 O01~O02
 - 외부 HTTPS·Base Sepolia·운영 signer·mainnet·Google Play·공개 데모
 - 실제 현장 참여·발표 리허설·영상 촬영·저장소 공개·대회 최종 제출
+
+## 영역별 현재 상태
+
+| 영역 | 상태 | 내용 |
+| --- | --- | --- |
+| 배포 | `BLOCKED` | 외부 HTTPS·클라우드 없음(B-003). loopback DEMO와 로컬 PostgreSQL만 검증 |
+| Android 빌드 | `IN_PROGRESS` | 개발 빌드 실기 PASS. 운영 variant `kr.masscom.wolgye` 로컬 debug 서명 AAB에서 package·scheme·권한·16KB 정렬 PASS. upload key 서명 AAB·16KB 기기 설치·Play 업로드는 `NOT_RUN` |
+| NFT·시험망 | `IN_PROGRESS` | Local Anvil 계약·Worker·이벤트 대조 PASS. Base Sepolia는 keystore 배포 스크립트와 실체인 시뮬레이션 PASS, 실제 배포는 `NOT_RUN`(B-012). mainnet 범위 밖 |
+| 외부 지갑 연동 | `IN_PROGRESS` | MetaMask 연결·Base Sepolia 전환·`personal_sign`·서버 검증·W06 실기 PASS. W04·W05는 지갑 환경 부재로 `BLOCKED`(B-010·B-011). 새 package·scheme 실기 회귀는 `NOT_RUN` |
 
 ## 검증 상태
 

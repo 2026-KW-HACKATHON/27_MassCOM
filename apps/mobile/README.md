@@ -17,7 +17,9 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 - MetaMask 8.11.0 설치·첫 화면 실행: `VERIFIED` — 지갑 생성·가져오기는 수행하지 않음
 - 실제 Reown project ID·MetaMask 연결·서명·지갑 복귀 핵심 흐름: `VERIFIED`; W04·W05 외부 환경은 `BLOCKED`
 - Android 카메라 QR: `NOT_RUN`; 수동 1회 코드 입력은 `VERIFIED`
-- 출시 package ID·AAB·Play 제출: `NOT_RUN`
+- 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), scheme `masscom`/`masscom-dev`: `IMPLEMENTED`
+- 계정 삭제 접수 시 지갑 연결 해제 및 기기 WalletConnect 세션 제거: `IMPLEMENTED`
+- upload key로 서명한 release AAB, Base Sepolia 실제 배포, Play Console 제출: `NOT_RUN`(로컬 debug 서명 운영 AAB의 package·권한·16KB 정렬 검증만 완료)
 
 ## 로컬 준비
 
@@ -47,7 +49,15 @@ adb reverse tcp:8081 tcp:8081
 npx expo start --dev-client --host localhost
 ```
 
-출시 package ID는 미확정이므로 `app.json`에 커밋하지 않았습니다. 로컬 prebuild가 만든 `com.anonymous.masscommobile`은 개발 증거용이며 출시 식별자가 아닙니다.
+운영 package ID는 `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`)로 확정되어 `apps/mobile/app.config.ts`가 `APP_VARIANT=production` 여부로 package와 scheme(`masscom`/`masscom-dev`)을 분기합니다. 기본(비운영) prebuild는 개발 package와 scheme을 그대로 사용합니다.
+
+## release AAB 빌드
+
+```bash
+scripts/build-release-aab.sh [--restore-dev]
+```
+
+`APP_VARIANT=production`으로 운영 package를 prebuild한 뒤 `gradlew bundleRelease`를 실행합니다. upload key는 저장소 밖에 두고 `~/.gradle/gradle.properties`의 `android.injected.signing.store.file`/`store.password`/`key.alias`/`key.password`로 주입해야 하며, 없으면 로컬 debug 키로 서명되고 스크립트가 경고를 출력합니다. `--restore-dev`를 주면 빌드 뒤 개발용 prebuild로 되돌립니다. 실제 upload key 서명과 Play Console 제출은 아직 수행하지 않았습니다(`NOT_RUN`).
 
 ## 안전 경계
 
