@@ -2,7 +2,7 @@
 
 마지막 갱신 시각: 2026-09-20 KST
 기준 브랜치: `main`
-기준 커밋 SHA: `367f26b` (PR #85 merge, 전체 값은 `git rev-parse 367f26b`). 이 문서를 담은 Issue #86 PR이 병합되면 그 merge 커밋이 새 기준이며, 실제 값은 `git log origin/main -1`로 확인한다.
+기준 커밋 SHA: `a2a0452` (PR #87 merge, 전체 값은 `git rev-parse a2a0452`). 이 문서를 담은 Issue #88 PR이 병합되면 그 merge 커밋이 새 기준이며, 실제 값은 `git log origin/main -1`로 확인한다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
 
@@ -15,6 +15,7 @@
 - Base Sepolia keystore 전용 배포 스크립트와 실체인 시뮬레이션 PASS(전송 없음). 계정 삭제가 접수되면 앱이 지갑 연결을 끊고 기기의 WalletConnect 세션 제거(D-021)
 - 운영 package ID `kr.masscom.wolgye`(D-022)와 개발 variant 분리, `scripts/build-release-aab.sh`, 로컬 debug 서명 운영 AAB에서 package·scheme·overlay 권한 제거·16KB 정렬 48개 PASS
 - Google Play Console 제출 초안 `docs/PLAY_CONSOLE_DRAFT.md`(입력·제출 없음)
+- Issue #88: 배포 안내의 `cast wallet import`→`cast wallet new <이름>` 정정, 배포 스크립트 사전 검사(keystore 계정·chainId·역할 주소·기존 broadcast 기록 시 `--redeploy` 요구), 빌드 스크립트 산출물 출처 출력과 debug 서명 종료 코드 3, `android.injected.signing.*` 주입을 일회용 키로 확인. 실제 전송·upload key 서명은 하지 않음
 - Issue #86: 로컬 production AAB를 `scripts/check-release-wallet-surface.sh`로 정적 검사해 W08 PASS. SDK는 `features.onramp` 미지정 시 온램프를 켜고 계정 화면의 송금 버튼에는 flag가 없으므로, 명시적 false와 “`open()`은 Connect view만·SDK 버튼 미렌더링”을 CI 회귀 시험으로 고정. upload key 서명본에서 같은 명령을 다시 실행해야 함
 - Issue #84: 같은 주문 참조 아래 사람별 슬롯 독립성을 PostgreSQL로 실증해 Q04 PASS(스키마 변경 없음). 단체 최대 인원·1인 최소 금액·명단 고정은 v3 제안값이라 구현하지 않음. 발표 첫 화면의 오래된 집계(26/8)를 고치고 검증기가 그 위치도 검사하게 함
 - Issue #78: 연속 재시도를 `mint_jobs.retry_streak`(migration 0010)에 기록해 지연을 최대 5분까지 늘림(수동 검토 전환에는 쓰지 않음). 전송 직후 중지로 revert된 거래는 일시 조건이면 hash를 지우고 재시도. reward key 조회 실패도 인터페이스 불일치와 장애를 구분
@@ -43,7 +44,7 @@
 
 ## 생성한 PR
 
-- #63, #64, #65, #67, #68, #69, #70, #72 #74, #76, #79, #81, #82, #85 (모두 병합), Issue #86 PR
+- #63, #64, #65, #67, #68, #69, #70, #72 #74, #76, #79, #81, #82, #83(PragmoB), #85, #87 (모두 병합), Issue #88 PR
 - #60·#62는 #63·#64로 대체하고 닫았다.
 
 ## merge된 PR
@@ -64,6 +65,8 @@
 | #81 계정 전환 분리·D02 | `5aafafc` | PASS |
 | #82 재시도 backoff·revert 재분류 | `e4d4edb` | `35504888279` PASS |
 | #85 단체 슬롯 독립·Q04 | `367f26b` | `35505367620` PASS |
+| #83 하단 safe-area 여백(PragmoB, 후속 수정 포함) | `6417b0c` | PASS |
+| #87 운영 AAB 지갑 진입점·W08 | `a2a0452` | 병합 뒤 main CI는 `gh run list --branch main`으로 확인 |
 
 코드 PR은 서로 다른 모델의 독립 리뷰에서 CRITICAL·HIGH 0을 확인한 뒤 병합했다. #63·#67·#69는 두 모델, #64·#65·#70은 단일 모델 리뷰(지적 반영 뒤 재리뷰)로 병합했다.
 
@@ -81,7 +84,7 @@
 
 ## 현재 열린 PR
 
-- Issue #86 W08 PR. 팀원 PragmoB의 #83(하단 safe-area 여백)은 소유자 결정 대기: 최신 main에 시험 병합 시 모바일 54/54·typecheck·lint PASS, 다만 기존 하단 여백 48을 `20 + insets.bottom`으로 덮어써 제스처 내비게이션에서 여백이 줄어드는 점을 소유자에게 보고함.
+- Issue #88 배포·빌드 사전 검사 PR 하나. 병합되면 열린 PR은 없다.
 
 ## 현재 작업 중인 기능
 
@@ -114,7 +117,7 @@
 ## 다음 세션이 가장 먼저 해야 할 작업
 
 1. `git fetch && git log origin/main -3`, `gh pr list`, `gh issue list`, `gh run list --branch main --limit 3`으로 이 문서와 실제 상태를 대조한다.
-2. Issue #86 PR이 열려 있으면 CI와 리뷰를 확인해 병합한다.
+2. Issue #88 PR이 열려 있으면 CI와 리뷰를 확인해 병합한다.
 3. 소유자 입력이 도착했는지 확인한다. Base Sepolia 배포 결과(계약 주소·거래 hash)가 있으면 증거 json과 B-012·TEST_STATUS를 갱신한다. domain이 정해졌으면 `assetlinks.json`, 외부 계정 삭제 페이지, 개인정보처리방침 페이지를 Issue부터 만들어 진행한다.
 4. 입력이 없으면 로컬에서 검증 가능한 남은 필수 테스트를 Issue로 만들어 진행한다(가치·위험 순): 백업·복원 drill 스크립트(`scripts/db-restore-drill.sh` 초안이 로컬에 있을 수 있음), Android 캠페인 참여 화면, O01 시연·운영 환경 경계(인가 모델 확장이라 착수 전 소유자 확인). Android 캠페인 참여 화면과 “수령 시 등록 요구” 여부는 보상 규칙 결정이 필요해 소유자에게 묻는다. A02·W04·W05는 외부 입력 없이는 진행할 수 없다.
 
