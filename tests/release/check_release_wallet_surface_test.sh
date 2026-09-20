@@ -73,9 +73,10 @@ p = sys.argv[1]
 s = open(p).read()
 old = "await open({ view: 'Connect' });"
 assert s.count(old) == 1
-open(p, 'w').write(s.replace(old, "await open({\n        view: 'OnRamp',\n      });"))
+# "open (" slips past the per-line open( match, so only the view scan can catch this one.
+open(p, 'w').write(s.replace(old, "await open (\n        { view: 'OnRamp' },\n      );"))
 PY
-expect_fail 'view spread over several lines' 'open()' "$work/good.aab" "$src"
+expect_fail 'view spread over several lines' 'AppKit view other than Connect' "$work/good.aab" "$src"
 
 src="$(make_src internal-controller)"
 printf '%s\n' "import { RouterController } from '@reown/appkit-core-react-native';" "RouterController.push('WalletSend');" >"$src/screens/leak.ts"
