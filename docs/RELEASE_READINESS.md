@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | 운영 package ID | `DECIDED` D-022 | `kr.masscom.wolgye` 적용(`APP_VARIANT=production`). 2026-09-30 이후 Console package 등록 상태는 소유자가 확인 |
 | 서명 AAB | `IN_PROGRESS` | `scripts/build-release-aab.sh`로 운영 variant AAB 생성 후 `scripts/check-release-wallet-surface.sh <aab>`로 구매·스왑·내장 지갑·송금 진입점 부재(W08)를 확인. upload key는 소유자가 저장소 밖에 만들고 `~/.gradle/gradle.properties`의 `android.injected.signing.*`로 주입. debug 서명 AAB는 업로드 금지 |
-| upload key | `NOT_RUN` | 운영 키 생성 승인, 접근자·백업·교체 절차 기록 |
+| upload key | `NOT_RUN` | 2026-09-20 기준 이 장비에 upload keystore·`android.injected.signing.*` 설정 없음. 생성은 소유자 승인·직접 입력 사항이며 기존 키를 다시 만들거나 덮어쓰지 않는다. 주입 경로 자체는 일회용 키로 PASS(`docs/evidence/release-signing-injection.json`). 빌드 스크립트는 debug 서명이면 종료 코드 3과 `NOT UPLOADABLE`을 낸다 |
 | 16KB page size | `IN_PROGRESS` | 2026-09-20 로컬 debug 서명 release AAB의 arm64-v8a·x86_64 네이티브 라이브러리 48개 모두 LOAD 정렬 `0x4000` PASS(`docs/evidence/release-aab-16kb-alignment.json`). upload key 서명 AAB와 16KB 기기 설치 검사는 `NOT_RUN` |
 | App Links | `BLOCKED` | 소유 HTTPS domain, 운영 package ID, 배포 서명 SHA-256, `assetlinks.json` 준비 |
 | 계정 삭제 앱 경로 | `VERIFIED` Local DEMO | 운영 재인증·실제 계정으로 동일 처리 검증 |

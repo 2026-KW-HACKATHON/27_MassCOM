@@ -1,0 +1,15 @@
+{
+  "id": "release-signing-injection",
+  "date": "2026-09-20",
+  "commit": "a2a0452",
+  "purpose": "prove that android.injected.signing.* actually replaces the debug signing that expo prebuild writes into android/app/build.gradle (release signingConfig = signingConfigs.debug)",
+  "method": "generated a throwaway RSA-2048 keystore (CN=MassCOM Throwaway Signing Test, 2-day validity) outside the repository, passed the four android.injected.signing.* values as ORG_GRADLE_PROJECT_ environment properties to `./gradlew bundleRelease` with APP_VARIANT=production, then read the AAB signer with keytool",
+  "result": "PASS: the AAB signer changed from CN=Android Debug to the throwaway certificate, so the owner's upload key in ~/.gradle/gradle.properties will be honoured without editing generated Gradle files",
+  "artifact": "app-release.aab sha256 087c63ec3ec61994217f330c3d1e315f2bfa030e6fd078b1fbe86b9338fa6931, applicationId kr.masscom.wolgye, versionCode 1, versionName 0.1.0; throwaway-signed, not uploadable, not committed",
+  "cleanup": "the throwaway keystore was deleted right after the build; its password was random and never written to disk or Git",
+  "limits": [
+    "this is not the upload key: no upload keystore exists on this machine as of this date",
+    "Play App Signing re-signs installs, so the upload certificate is not the certificate devices see; login or App Links fingerprints must come from the Play Console app signing page",
+    "installing this build on a device was not done"
+  ]
+}

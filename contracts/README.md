@@ -38,11 +38,17 @@ Anvil chain ID `31337`의 결과는 Base Sepolia `84532` 배포 증거가 아닙
 배포자는 암호화된 Foundry keystore 계정만 사용합니다. private key를 환경 변수·명령·저장소·증거에 남기지 않으며, 스크립트는 환경에 `PRIVATE_KEY`가 있으면 실행을 거절합니다. keystore 생성과 faucet gas 수령은 계정 소유자가 직접 합니다.
 
 ```bash
-cast wallet import masscom-base-sepolia --interactive   # 소유자가 직접 실행, 자산 없는 전용 시험 계정
+cast wallet list                                        # 계정이 이미 있으면 새로 만들지 않는다
+cast wallet new masscom-base-sepolia                    # 소유자가 직접 실행. 새 시험 전용 키를 암호화 keystore로 저장(숨김 비밀번호 입력, 개인키 미출력)
 export BASE_SEPOLIA_ADMIN=0x... BASE_SEPOLIA_MINTER=0x... BASE_SEPOLIA_PAUSER=0x...
 ./scripts/deploy-base-sepolia.sh masscom-base-sepolia               # 실제 체인 시뮬레이션만, 전송 없음
 ./scripts/deploy-base-sepolia.sh masscom-base-sepolia --broadcast   # 실제 배포
 ```
+
+- `cast wallet new`를 **이름 없이** 실행하면 개인키가 화면에 출력되므로 쓰지 않습니다. `cast wallet import <이름> --interactive`는 이미 가진 개인키를 가져올 때만 씁니다(Foundry 1.8.3 `--help`로 확인).
+- 공개 주소는 `cast wallet address --account masscom-base-sepolia`로 확인해 faucet에 넣습니다.
+- 스크립트는 전송 전에 keystore 계정 존재, RPC chainId 84532, 역할 주소 3개의 형식·상호 구분을 검사하고 키를 만들지 않습니다. `contracts/broadcast/DeployBaseSepolia.s.sol/84532/run-latest.json`이 이미 있으면 `--broadcast`를 거절합니다. 응답이 끊겼다면 다시 보내지 말고 그 기록의 거래 hash와 계약 주소를 체인에서 먼저 확인하세요. 두 번째 계약이 정말 필요할 때만 `--broadcast --redeploy`를 씁니다.
+- 역할 3개(`DEFAULT_ADMIN_ROLE`·`MINTER_ROLE`·`PAUSER_ROLE`)는 계약 생성자가 실제로 받으며 서로 달라야 합니다. 배포자 계정은 gas만 내고 아무 역할도 받지 않습니다.
 
 스크립트는 chain ID가 `84532`가 아니거나 세 역할 주소가 서로 같으면 중단합니다. 2026-09-20 실제 Base Sepolia RPC 시뮬레이션은 PASS(예상 gas 약 0.000026 ETH)이며 실제 배포는 B-012가 해소될 때까지 `NOT_RUN`입니다.
 

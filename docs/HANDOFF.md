@@ -99,11 +99,11 @@
 
 ## 사용자 승인이 필요한 사항
 
-승인된 것(D-019~D-022): SIWE PostgreSQL 저장소, 외부 HTTPS·Base Sepolia·release AAB·Google Play 준비, 기기 세션 저장 정책, 운영 package ID. Codex는 사용하지 않는다.
+승인된 것(D-019~D-022): SIWE PostgreSQL 저장소, 외부 HTTPS·Base Sepolia·release AAB·Google Play 준비, 기기 세션 저장 정책, 운영 package ID. 소유자는 Codex와 Claude 세션을 번갈아 쓰므로 어느 쪽이든 이 문서와 저장소 기록에서 상태를 복원한다.
 
 소유자가 직접 해야 하는 것(대신 수행하지 않음):
 
-1. Foundry 설치, `cast wallet import masscom-base-sepolia --interactive`로 자산 없는 전용 계정 생성, faucet gas 수령, 역할 주소 3개 결정, `--broadcast` 실행
+1. `cast wallet new masscom-base-sepolia`로 자산 없는 시험 전용 계정 생성(비밀번호는 소유자가 자기 터미널에서 입력. `import`는 기존 키를 가져오는 명령이라 쓰지 않음. 이름 없는 `cast wallet new`는 개인키를 출력하므로 금지), `cast wallet address --account masscom-base-sepolia`로 주소 확인 뒤 faucet gas 수령, 역할 주소 3개 결정. Foundry 1.8.3은 `~/.foundry/bin`에 설치되어 있고(공식 릴리스 SHA-256 대조, 고정 Docker 이미지와 같은 커밋 `cae51ad`) 2026-09-20 기준 keystore 계정은 하나도 없다
 2. upload keystore 생성과 `~/.gradle/gradle.properties`의 `android.injected.signing.*` 설정
 3. 소유 domain·hosting 업체·운영 로그인 방식 결정(과금 자원)
 4. Play Console 로그인, package 이름 등록, 양식 제출

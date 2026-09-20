@@ -61,6 +61,8 @@ jobs:
         run: bash tests/site/verify_presentation_test.sh
       - name: Verify release wallet surface check
         run: bash tests/release/check_release_wallet_surface_test.sh
+      - name: Verify Base Sepolia deploy preflight
+        run: bash tests/release/deploy_base_sepolia_preflight_test.sh
       - name: NFT 계약 포맷·빌드·테스트
         run: |
           ./scripts/forge.sh --version | grep -q 'forge Version: 1.8.3'
