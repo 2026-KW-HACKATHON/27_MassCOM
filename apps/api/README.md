@@ -26,7 +26,7 @@ npm run start:local
 | DEMO | `ALLOW_INSECURE_DEMO_ACCOUNT=true` | loopback 개발 전용 `x-account-id` 헤더. 인터넷에 공개하는 서버에서 켜지 않는다 |
 | 없음 | 둘 다 없음 | 계정이 필요한 요청은 `503 ACCOUNT_AUTH_NOT_CONFIGURED` |
 
-두 방식을 함께 설정하면 서버가 기동을 거절합니다. `GOOGLE_OAUTH_CLIENT_IDS`만 있고 `DATABASE_URL`이 없을 때도 기동을 거절하며 DEMO로 내려가지 않습니다. `AUTH_SESSION_TTL_MS`는 1년 이하의 양의 정수(ms)만 받습니다. Google 공개키(JWKS)는 10분 캐시하고, 모르는 `kid`로 인한 재조회는 60초에 한 번·동시 요청은 한 번의 조회로 묶어 로그인 전 요청이 외부 호출을 유발하지 못하게 합니다(조회 제한 시간 5초). 운영 로그인에서는 DEMO 재인증 헤더(`x-demo-reauthenticated`)가 동작하지 않습니다.
+두 방식을 함께 설정하면 서버가 기동을 거절합니다. `GOOGLE_OAUTH_CLIENT_IDS`만 있고 `DATABASE_URL`이 없을 때도 기동을 거절하며 DEMO로 내려가지 않습니다. `AUTH_SESSION_TTL_MS`는 1년 이하의 양의 정수(ms)만 받습니다. Google 공개키(JWKS)는 10분 캐시하고, 모르는 `kid`로 인한 재조회는 60초에 한 번·동시 요청은 한 번의 조회로 묶어 로그인 전 요청이 외부 호출을 유발하지 못하게 합니다(조회 제한 시간 5초). 조회가 실패하면 마지막으로 받은 키를 계속 씁니다. Google 장애가 길어지는 동안에는 그사이 폐기된 키도 신뢰되므로, JWKS 조회 실패가 이어지면 운영자가 알아차릴 수 있는 감시가 필요합니다(아직 없음). 운영 로그인에서는 DEMO 재인증 헤더(`x-demo-reauthenticated`)가 동작하지 않습니다.
 
 - 계정 식별자는 `acct_` + 무작위 UUID입니다. Google `sub`는 `auth_identities`에만 두고 계정 ID·로그에 쓰지 않으며 이메일은 저장하지 않습니다.
 - 세션 토큰은 32바이트 무작위 값이고 DB에는 SHA-256만 저장합니다(migration 0012). 기본 수명 30일(`AUTH_SESSION_TTL_MS`), 로그아웃·계정 삭제 시 즉시 폐기됩니다.
