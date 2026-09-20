@@ -62,8 +62,18 @@ class FakeRepository implements MintWorkRepository {
     return 'attempt-1';
   }
 
-  async markSubmitted(_jobId: string, _workerId: string, _attemptId: string, txHash: string): Promise<void> {
+  async markSubmitted(
+    _jobId: string,
+    _workerId: string,
+    _attemptId: string,
+    txHash: string,
+    _signedTransaction?: string,
+  ): Promise<void> {
     this.calls.push(`submitted:${txHash}`);
+  }
+
+  async withMinterLock<T>(_chainId: number, _minterAddress: string, fn: () => Promise<T>): Promise<T> {
+    return fn();
   }
 
   async finalize(_item: MintWorkItem, _workerId: string, _attemptId: string | undefined, value: ChainMintResult): Promise<void> {
@@ -103,6 +113,7 @@ class FakeRepository implements MintWorkRepository {
 }
 
 class FakeGateway implements MintChainGateway {
+  readonly minterAddress = '0x9000000000000000000000000000000000000009';
   calls: string[] = [];
   existing?: ChainMintResult;
   submitError?: Error;
@@ -123,10 +134,18 @@ class FakeGateway implements MintChainGateway {
     return this.existing;
   }
 
-  async submitMint(): Promise<{ transactionHash: string }> {
+  async submitMint(
+    _item: MintWorkItem,
+    persistBeforeBroadcast: (record: { transactionHash: string }) => Promise<void>,
+  ): Promise<{ transactionHash: string }> {
     this.calls.push('submit');
     if (this.submitError) throw this.submitError;
+    await persistBeforeBroadcast({ transactionHash: result.transactionHash });
     return { transactionHash: result.transactionHash };
+  }
+
+  async rebroadcastIfNeeded(): Promise<void> {
+    this.calls.push('rebroadcast');
   }
 
   async confirmMint(): Promise<ChainMintResult> {

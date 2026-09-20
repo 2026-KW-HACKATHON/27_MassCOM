@@ -2,11 +2,13 @@ import {
   Contract,
   Interface,
   JsonRpcProvider,
+  Transaction,
   getAddress,
   isError,
   isHexString,
   type EventLog,
   type Log,
+  type Signer,
 } from 'ethers';
 
 import {
@@ -17,6 +19,7 @@ import {
   type ChainMintResult,
   type MintChainGateway,
   type MintWorkItem,
+  type RecordedSubmission,
 } from './mint-worker.js';
 
 const abi = [
@@ -40,12 +43,19 @@ type GatewayOptions = {
   fromBlock: number;
   fallbackFromBlock?: number;
   minMinterBalanceWei?: bigint;
+  /**
+   * A locally held signer for the minter address (service-signer path only). When present,
+   * submitMint builds, signs, and records a transaction before ever broadcasting it. When
+   * absent, the gateway keeps the existing local-Anvil behaviour: the node itself signs and
+   * broadcasts an unlocked account's transaction in one call.
+   */
+  signer?: Signer;
 };
 
 export class EthersMintChainGateway implements MintChainGateway {
   private readonly provider: JsonRpcProvider;
   private readonly contractAddress: string;
-  private readonly minterAddress: string;
+  readonly minterAddress: string;
   private readonly contract: Contract;
   private readonly contractInterface = new Interface(abi);
   private readonly minMinterBalanceWei: bigint;
@@ -200,14 +210,24 @@ export class EthersMintChainGateway implements MintChainGateway {
     }
   }
 
-  async submitMint(item: MintWorkItem): Promise<{ transactionHash: string }> {
+  async submitMint(
+    item: MintWorkItem,
+    persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
+  ): Promise<{ transactionHash: string }> {
+    if (this.options.signer) {
+      return this.submitMintWithServiceSigner(item, this.options.signer, persistBeforeBroadcast);
+    }
     try {
       const signer = await this.provider.getSigner(this.minterAddress);
       const writable = this.contract.connect(signer) as Contract;
       const transaction = await writable
         .getFunction('mintWithRewardKey')
         .send(item.recipient, item.seriesKey, item.rewardKey);
-      return { transactionHash: String(transaction.hash).toLowerCase() };
+      const transactionHash = String(transaction.hash).toLowerCase();
+      // The unlocked node signs and broadcasts in the same call, so the hash is only known
+      // after the fact: record it right away, matching the previous behaviour exactly.
+      await persistBeforeBroadcast({ transactionHash });
+      return { transactionHash };
     } catch (error) {
       if (
         typeof error === 'object' &&
@@ -218,6 +238,79 @@ export class EthersMintChainGateway implements MintChainGateway {
         throw new SubmissionOutcomeUnknownError('MINT_SUBMISSION_RESPONSE_LOST');
       }
       throw new RetryableChainError('MINT_SUBMISSION_FAILED');
+    }
+  }
+
+  private async submitMintWithServiceSigner(
+    item: MintWorkItem,
+    signer: Signer,
+    persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
+  ): Promise<{ transactionHash: string }> {
+    const data = this.contractInterface.encodeFunctionData('mintWithRewardKey', [
+      item.recipient,
+      item.seriesKey,
+      item.rewardKey,
+    ]);
+    let nonce: number;
+    let feeData: Awaited<ReturnType<JsonRpcProvider['getFeeData']>>;
+    let gasLimit: bigint;
+    try {
+      nonce = await this.provider.getTransactionCount(this.minterAddress, 'pending');
+      feeData = await this.provider.getFeeData();
+      gasLimit = await this.provider.estimateGas({
+        to: this.contractAddress,
+        data,
+        from: this.minterAddress,
+      });
+    } catch (error) {
+      throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
+    }
+    let signedTransaction: string;
+    try {
+      signedTransaction = await signer.signTransaction({
+        type: 2,
+        to: this.contractAddress,
+        data,
+        nonce,
+        chainId: this.options.chainId,
+        gasLimit,
+        maxFeePerGas: feeData.maxFeePerGas ?? null,
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? null,
+      });
+    } catch (error) {
+      throw new RetryableChainError('MINT_SIGNING_FAILED', { cause: error });
+    }
+    const transactionHash = Transaction.from(signedTransaction).hash;
+    if (!transactionHash) throw new RetryableChainError('MINT_SIGNING_FAILED');
+    const normalizedHash = transactionHash.toLowerCase();
+    // Record before broadcasting: a crash or a lost response after this point never needs a new
+    // transaction — restart recovery re-broadcasts this exact signed transaction instead.
+    await persistBeforeBroadcast({ transactionHash: normalizedHash, signedTransaction });
+    await this.broadcastSigned(signedTransaction);
+    return { transactionHash: normalizedHash };
+  }
+
+  /**
+   * Restart recovery for a job that already recorded a signed transaction: re-broadcasts it only
+   * if the network does not already know it, so a crash between recording and broadcasting (or a
+   * lost broadcast response) never needs a new transaction or a new nonce.
+   */
+  async rebroadcastIfNeeded(transactionHash: string, signedTransaction: string): Promise<void> {
+    try {
+      const existing = await this.provider.getTransaction(transactionHash);
+      if (existing) return;
+    } catch (error) {
+      throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
+    }
+    await this.broadcastSigned(signedTransaction);
+  }
+
+  private async broadcastSigned(signedTransaction: string): Promise<void> {
+    try {
+      await this.provider.broadcastTransaction(signedTransaction);
+    } catch (error) {
+      if (isAlreadyKnownOrNonceTooLow(error)) return;
+      throw new RetryableChainError('MINT_BROADCAST_FAILED', { cause: error });
     }
   }
 
@@ -309,4 +402,17 @@ export function contractCallError(error: unknown): ChainConfigurationError | Ret
     return new ChainConfigurationError('CONTRACT_INTERFACE_MISMATCH');
   }
   return new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
+}
+
+// A re-broadcast of a transaction the network has already accepted (or superseded by an earlier
+// nonce it already mined) is exactly the outcome we want, not a failure: the node's wording for
+// this varies ("already known", "nonce too low", "replacement transaction underpriced" is not
+// included here since that indicates an actual conflicting transaction, not the same one).
+function isAlreadyKnownOrNonceTooLow(error: unknown): boolean {
+  if (isError(error, 'NONCE_EXPIRED')) return true;
+  const message =
+    typeof error === 'object' && error !== null && 'message' in error
+      ? String((error as { message: unknown }).message).toLowerCase()
+      : '';
+  return message.includes('already known') || message.includes('nonce too low');
 }

@@ -9,6 +9,18 @@ export type MintWorkItem = {
   contractAddress: string;
   seriesKey: string;
   transactionHash?: string;
+  /**
+   * The signed raw transaction recorded for `transactionHash` before it was broadcast (service
+   * signer only). Present when a restart needs to re-broadcast the exact same signed transaction
+   * rather than build a new one.
+   */
+  signedTransaction?: string;
+};
+
+/** What the gateway persists through the worker before it broadcasts a signed transaction. */
+export type RecordedSubmission = {
+  transactionHash: string;
+  signedTransaction?: string;
 };
 
 export type ChainMintResult = {
@@ -33,6 +45,7 @@ export interface MintWorkRepository {
     workerId: string,
     attemptId: string,
     transactionHash: string,
+    signedTransaction?: string,
   ): Promise<void>;
   finalize(
     item: MintWorkItem,
@@ -59,13 +72,38 @@ export interface MintWorkRepository {
     transactionHash: string,
   ): Promise<string | undefined>;
   markManualReview(jobId: string, workerId: string, code: string): Promise<void>;
+  /**
+   * Serializes a block of work (reading the minter's pending nonce, signing, recording, and
+   * broadcasting) against every other worker process submitting for the same chain/minter pair,
+   * using a PostgreSQL advisory lock. A gateway with no local signer (the local unlocked path)
+   * never needs this, but every caller goes through it uniformly.
+   */
+  withMinterLock<T>(chainId: number, minterAddress: string, fn: () => Promise<T>): Promise<T>;
 }
 
 export interface MintChainGateway {
+  /** The address submissions are signed/sent from. Used as the nonce-serialization lock key. */
+  readonly minterAddress: string;
   validate(item: MintWorkItem): Promise<void>;
   assertCanSubmit(item: MintWorkItem): Promise<void>;
   findMintByRewardKey(item: MintWorkItem): Promise<ChainMintResult | undefined>;
-  submitMint(item: MintWorkItem): Promise<{ transactionHash: string }>;
+  /**
+   * `persistBeforeBroadcast` is invoked with the transaction hash (and, for a locally signed
+   * transaction, the signed raw transaction) once it is known but before anything is sent to the
+   * network, so the caller can make it durable first. The local-unlocked path only learns the
+   * hash once the node has already broadcast it, so it calls this right after, unchanged from
+   * previous behaviour.
+   */
+  submitMint(
+    item: MintWorkItem,
+    persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
+  ): Promise<{ transactionHash: string }>;
+  /**
+   * Restart recovery for a job that already has a recorded-but-possibly-unbroadcast signed
+   * transaction: broadcasts it again if the network does not already know it. A no-op for the
+   * local-unlocked path, which never records before broadcasting.
+   */
+  rebroadcastIfNeeded(transactionHash: string, signedTransaction: string): Promise<void>;
   confirmMint(item: MintWorkItem, transactionHash: string): Promise<ChainMintResult>;
 }
 
@@ -136,6 +174,12 @@ export class MintWorker {
       if (item.transactionHash) {
         const transactionHash = item.transactionHash;
         try {
+          if (item.signedTransaction) {
+            // Never build a new transaction for a job that already holds a hash: re-broadcast
+            // the exact same signed transaction if the network has not seen it yet (a crash or a
+            // lost response between recording and broadcasting), then confirm as usual.
+            await this.gateway.rebroadcastIfNeeded(transactionHash, item.signedTransaction);
+          }
           const confirmed = await this.gateway.confirmMint(item, transactionHash);
           await this.repository.finalize(item, workerId, undefined, confirmed);
         } catch (error) {
@@ -162,8 +206,25 @@ export class MintWorker {
       await heartbeat.assertHealthy();
       let transactionHash: string;
       try {
-        transactionHash = (await this.gateway.submitMint(item)).transactionHash;
-        await this.repository.markSubmitted(item.jobId, workerId, attemptId, transactionHash);
+        // One minter can serve many jobs across several worker processes: hold the per
+        // chain/minter advisory lock for the whole nonce-read -> sign -> record -> broadcast
+        // sequence so two submissions never race for the same nonce.
+        transactionHash = await this.repository.withMinterLock(
+          item.chainId,
+          this.gateway.minterAddress,
+          async () => {
+            const submission = await this.gateway.submitMint(item, (record) =>
+              this.repository.markSubmitted(
+                item.jobId,
+                workerId,
+                attemptId,
+                record.transactionHash,
+                record.signedTransaction,
+              ),
+            );
+            return submission.transactionHash;
+          },
+        );
       } catch (error) {
         if (error instanceof SubmissionOutcomeUnknownError) {
           try {
@@ -277,6 +338,13 @@ export class MintWorker {
           return;
         }
       }
+      // A non-retryable recheck (e.g. a configuration error) must not vanish silently: it is
+      // not the outcome acted on below, but it is worth a trace to explain why the transient
+      // recheck did not save this job from manual review.
+      console.error('mint worker: assertCanSubmit recheck failed', {
+        name: (transientError as { name?: unknown })?.name,
+        code: (transientError as { code?: unknown })?.code,
+      });
     }
     await this.handleChainError(item, workerId, error);
   }

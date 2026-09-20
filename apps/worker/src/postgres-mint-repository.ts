@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
@@ -40,6 +40,7 @@ type WorkRow = {
   contract_address: string;
   series_key: string;
   transaction_hash: string | null;
+  signed_transaction: string | null;
 };
 
 type ExistingAssetRow = {
@@ -136,9 +137,14 @@ export class PostgresMintRepository implements MintWorkRepository {
              job.chain_id,
              job.contract_address,
              encode(job.series_key, 'hex') AS series_key,
-             job.transaction_hash
+             job.transaction_hash,
+             attempt.signed_transaction
            FROM outbox_events AS outbox
            JOIN mint_jobs AS job ON job.id = outbox.aggregate_id
+           LEFT JOIN mint_tx_attempts AS attempt
+             ON attempt.mint_job_id = job.id
+             AND attempt.transaction_hash = job.transaction_hash
+             AND attempt.status = 'SUBMITTED'
            WHERE outbox.event_type = 'MINT_REQUESTED'
              AND (
                (outbox.status = 'PENDING' AND outbox.available_at <= $1)
@@ -258,6 +264,7 @@ export class PostgresMintRepository implements MintWorkRepository {
     workerId: string,
     attemptId: string,
     transactionHash: string,
+    signedTransaction?: string,
   ): Promise<void> {
     const now = this.options.now();
     const normalizedHash = transactionHash.toLowerCase();
@@ -267,9 +274,10 @@ export class PostgresMintRepository implements MintWorkRepository {
       await requireLease(client, jobId, workerId, now);
       await client.query(
         `UPDATE mint_tx_attempts
-         SET status = 'SUBMITTED', transaction_hash = $1, submitted_at = $2, updated_at = $2
+         SET status = 'SUBMITTED', transaction_hash = $1, signed_transaction = $5,
+             submitted_at = $2, updated_at = $2
          WHERE id = $3 AND mint_job_id = $4`,
-        [normalizedHash, now, attemptId, jobId],
+        [normalizedHash, now, attemptId, jobId, signedTransaction ?? null],
       );
       const updatedJob = await client.query(
         `UPDATE mint_jobs
@@ -283,6 +291,31 @@ export class PostgresMintRepository implements MintWorkRepository {
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Serializes the nonce-read -> sign -> record -> broadcast sequence for one chain/minter pair
+   * across every worker process using a PostgreSQL session advisory lock, so two submissions for
+   * the same minter never race for the same nonce. The lock is acquired and released on the same
+   * dedicated connection, since PostgreSQL session advisory locks are held per-session.
+   */
+  async withMinterLock<T>(
+    chainId: number,
+    minterAddress: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const [key1, key2] = advisoryLockKey(chainId, minterAddress);
+    const client = await this.pool.connect();
+    try {
+      await client.query('SELECT pg_advisory_lock($1, $2)', [key1, key2]);
+      try {
+        return await fn();
+      } finally {
+        await client.query('SELECT pg_advisory_unlock($1, $2)', [key1, key2]);
+      }
     } finally {
       client.release();
     }
@@ -643,7 +676,16 @@ function mapWork(row: WorkRow): MintWorkItem {
     contractAddress: row.contract_address,
     seriesKey: `0x${row.series_key}`,
     ...(row.transaction_hash ? { transactionHash: row.transaction_hash } : {}),
+    ...(row.signed_transaction ? { signedTransaction: row.signed_transaction } : {}),
   };
+}
+
+/** Deterministic two-int32 key for pg_advisory_lock, scoped to one chain/minter pair. */
+function advisoryLockKey(chainId: number, minterAddress: string): [number, number] {
+  const digest = createHash('sha256')
+    .update(`mint-minter-lock:${chainId}:${minterAddress.toLowerCase()}`)
+    .digest();
+  return [digest.readInt32BE(0), digest.readInt32BE(4)];
 }
 
 function assertResultMatches(item: MintWorkItem, result: ChainMintResult): void {
