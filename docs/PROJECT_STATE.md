@@ -10,7 +10,7 @@
 | 기본 브랜치 | `main` |
 | 기준 커밋 | 이 문서는 SHA를 고정하지 않는다. 실제 기준은 `git log origin/main -1`, 직전 검증 기준은 `docs/HANDOFF.md` 머리말 |
 | 현재 작업·열린 PR | `gh pr list`, `gh issue list`가 기준. 인수인계 요약은 `docs/HANDOFF.md` |
-| 현재 검증 기준 | API 43·PostgreSQL 28·Worker 20/PG 16·모바일 57·Foundry 8/fuzz128·Anvil PASS |
+| 현재 검증 기준 | API 43·PostgreSQL 28·Worker 33/PG 18·모바일 57·Foundry 8/fuzz128·Anvil PASS |
 
 ## 검증 수준별 현황
 
@@ -19,8 +19,8 @@
 | 수준 | 해당 항목 |
 | --- | --- |
 | 로컬 검증 완료 | 탐색·발급·수령·도감·추천, 지갑 주소 확인(SIWE), 발행 요청·Outbox·Worker·계약(Local Anvil), 계정 삭제, 백업·복원 drill, 운영 variant AAB 정적 검사(W08), 배포·서명 사전 검사 스크립트 |
-| 시험망 미검증 | Base Sepolia 계약 배포와 그 계약에 대한 Worker 발행. 배포자·역할 keystore 계정 4개는 소유자가 2026-09-20 생성, 배포자 잔액 0(faucet 대기). Worker는 아직 Local Anvil 전용 |
-| 운영 코드 미구현 | 운영 로그인·서버 세션·재인증(현재는 `ALLOW_INSECURE_DEMO_ACCOUNT` DEMO resolver만), 공개 테스트넷용 서비스 민터 서명 경로, 시연/운영 환경 권한 경계(O01), 외부 HTTPS 배포·삭제 페이지 |
+| 시험망 미검증 | Base Sepolia 계약 배포와 그 계약에 대한 Worker 발행. 배포자·역할 keystore 계정 4개는 소유자가 2026-09-20 생성, 배포자 잔액 0(faucet 대기). Worker의 서비스 민터 서명 경로는 구현·로컬 검증됨(Issue #100), 실제 시험망 전송은 아직 없음 |
+| 운영 코드 미구현 | 운영 로그인·서버 세션·재인증(현재는 `ALLOW_INSECURE_DEMO_ACCOUNT` DEMO resolver만), 시연/운영 환경 권한 경계(O01), 외부 HTTPS 배포·삭제 페이지 |
 | 사용자 승인·입력 대기 | **Reown 허용 목록에 새 package 등록(B-014, 실기에서 지갑 연결 거절)**, 호스팅·도메인(`docs/HOSTING_LOGIN_PROPOSAL.md`. 로그인 방식·세션·재인증은 D-024~D-026으로 승인됨, 구현 전), D-023 수령 시 캠페인 등록 요구 여부, upload keystore와 인증서 지문, faucet gas, Android 기기 연결, W04·W05용 지갑 환경(B-010·B-011) |
 
 ## 열린 Issue·PR과 최근 병합
@@ -85,7 +85,7 @@
 
 - 필수 36개: 30 PASS / 2 BLOCKED / 4 NOT_RUN
 - API 단위: `43/43 PASS`; PostgreSQL: `28/28 PASS`
-- Worker 단위: `20/20 PASS`; PostgreSQL: `16/16 PASS`; Anvil W07/M01~M08: `PASS`
+- Worker 단위: `33/33 PASS`; PostgreSQL: `18/18 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `57/57 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`
