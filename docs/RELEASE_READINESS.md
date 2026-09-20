@@ -7,10 +7,11 @@
 | 운영 package ID | `BLOCKED` B-007 | 팀 소유 식별자 결정·2026-09-30 이후 package 등록 상태 확인 |
 | 서명 AAB | `NOT_RUN` | 운영 package ID·upload key·Play App Signing 절차를 정한 뒤 실제 AAB 생성 |
 | upload key | `NOT_RUN` | 운영 키 생성 승인, 접근자·백업·교체 절차 기록 |
-| 16KB page size | `IN_PROGRESS` | Android export와 기존 16KB AVD debug는 PASS; 실제 release AAB 네이티브 정렬·설치 검사 |
+| 16KB page size | `IN_PROGRESS` | 2026-09-20 로컬 debug 서명 release AAB의 arm64-v8a·x86_64 네이티브 라이브러리 48개 모두 LOAD 정렬 `0x4000` PASS(`docs/evidence/release-aab-16kb-alignment.json`). upload key 서명 AAB와 16KB 기기 설치 검사는 `NOT_RUN` |
 | App Links | `BLOCKED` | 소유 HTTPS domain, 운영 package ID, 배포 서명 SHA-256, `assetlinks.json` 준비 |
 | 계정 삭제 앱 경로 | `VERIFIED` Local DEMO | 운영 재인증·실제 계정으로 동일 처리 검증 |
 | 외부 삭제 웹 경로 | `BLOCKED` | 인증된 외부 HTTPS 페이지가 같은 API를 호출하고 오류 없이 열림 |
+| Console 제출 초안 | `DRAFT` | `docs/PLAY_CONSOLE_DRAFT.md`의 초안을 소유자가 Console 문항과 대조해 확정 |
 | Data safety | `IN_PROGRESS` | 실제 로그인·Reown relay·RPC·서버·분석 전송과 일치하게 Console 제출 |
 | 금융 기능 선언 | `NOT_RUN` | 실제 NFT 보상 기능 기준으로 Console 항목 확인, 자동으로 “없음” 선택 금지 |
 | 콘텐츠 등급·연령 | `NOT_RUN` | 실제 디자인·NFT·지역 상권 기능 기준 응답 |

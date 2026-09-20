@@ -1,0 +1,37 @@
+{
+  "id": "release-aab-16kb-alignment",
+  "date": "2026-09-20",
+  "commit": "e9059f7",
+  "environment": "macOS, JDK 17.0.19, Android Gradle bundleRelease, NDK 30.0.14904198, local debug keystore signing",
+  "command": "cd apps/mobile/android && ./gradlew bundleRelease",
+  "artifact": "app-release.aab (77,729,863 bytes), not uploaded, not committed",
+  "method": "parsed ELF64 program headers of every base/lib/<abi>/*.so and read PT_LOAD p_align",
+  "results": {
+    "arm64-v8a": {
+      "libs": 24,
+      "minLoadAlign": "0x4000",
+      "below16KB": 0
+    },
+    "x86_64": {
+      "libs": 24,
+      "minLoadAlign": "0x4000",
+      "below16KB": 0
+    }
+  },
+  "releaseManifestPermissions": [
+    "ACCESS_NETWORK_STATE",
+    "ACCESS_WIFI_STATE",
+    "INTERNET",
+    "SYSTEM_ALERT_WINDOW",
+    "VIBRATE",
+    "BIND_GET_INSTALL_REFERRER_SERVICE",
+    "DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+  ],
+  "status": "PASS",
+  "notRun": [
+    "upload-key signed AAB",
+    "operational package ID",
+    "install and launch on a 16KB page size device from this AAB",
+    "Play Console pre-launch report"
+  ]
+}
