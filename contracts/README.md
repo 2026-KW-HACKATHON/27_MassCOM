@@ -31,7 +31,20 @@ Anvil 기본 공개 test account를 unlocked RPC로 사용하므로 private key�
   --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 ```
 
-Anvil chain ID `31337`의 결과는 Base Sepolia `84532` 배포 증거가 아닙니다. Base Sepolia는 전용 시험 배포자와 gas가 준비된 뒤 별도 검증합니다.
+Anvil chain ID `31337`의 결과는 Base Sepolia `84532` 배포 증거가 아닙니다.
+
+## Base Sepolia
+
+배포자는 암호화된 Foundry keystore 계정만 사용합니다. private key를 환경 변수·명령·저장소·증거에 남기지 않으며, 스크립트는 환경에 `PRIVATE_KEY`가 있으면 실행을 거절합니다. keystore 생성과 faucet gas 수령은 계정 소유자가 직접 합니다.
+
+```bash
+cast wallet import masscom-base-sepolia --interactive   # 소유자가 직접 실행, 자산 없는 전용 시험 계정
+export BASE_SEPOLIA_ADMIN=0x... BASE_SEPOLIA_MINTER=0x... BASE_SEPOLIA_PAUSER=0x...
+./scripts/deploy-base-sepolia.sh masscom-base-sepolia               # 실제 체인 시뮬레이션만, 전송 없음
+./scripts/deploy-base-sepolia.sh masscom-base-sepolia --broadcast   # 실제 배포
+```
+
+스크립트는 chain ID가 `84532`가 아니거나 세 역할 주소가 서로 같으면 중단합니다. 2026-09-20 실제 Base Sepolia RPC 시뮬레이션은 PASS(예상 gas 약 0.000026 ETH)이며 실제 배포는 B-012가 해소될 때까지 `NOT_RUN`입니다.
 
 ## 계약 경계
 

@@ -23,6 +23,8 @@
 | D-017 | Phase 2 PR 수 | 기능 흐름 기준 최대 3개, 상태 전용 PR 금지 | `USER_CONFIRMED` | 2026-09-19 사용자가 과도한 PR 분할을 피하도록 요청; 탐색, 수령·도감, 추천·최종검증으로 통합 |
 | D-018 | 후속 전체 개발 | 승인된 v3 순서대로 Phase 3 이후 로컬 구현·검증 계속 | `USER_CONFIRMED` | 2026-09-19 사용자 ‘페이지 쭉쭉 전부다’; 운영 키·메인넷·유료 자원·공개/Play/제출 승인 경계는 유지 |
 | D-019 | SIWE challenge 저장 방식 | `DATABASE_URL`이 있으면 PostgreSQL `wallet_challenges`, 없으면 DEMO 메모리 저장소 | `USER_CONFIRMED` | 2026-09-20 사용자 ‘다 승인할께’; 제안된 PostgreSQL 공유 저장소 범위에 한정하며 운영 키·메인넷·유료 자원·공개/Play/제출 승인 경계는 유지. 같은 응답에서 Codex 미사용을 명시 |
+| D-020 | 외부 실행 범위 승인 | 외부 HTTPS·Base Sepolia 배포·release AAB·Google Play 준비 진행 | `USER_CONFIRMED` | 2026-09-20 사용자 ‘전부 동의할께’. 개인키·keystore 생성, faucet, 계정 로그인, Console 약관 동의와 제출은 소유자가 직접 수행. mainnet·사용자 자산 이동·저장소 공개·대회 최종 제출은 포함하지 않음 |
+| D-021 | 기기 세션 저장 정책 | WalletConnect 세션은 AsyncStorage 유지, 인증 token 도입 시 SecureStore 전용, 계정 삭제 때 기기 세션 제거 | `USER_CONFIRMED` | 2026-09-20 사용자가 정책 결정을 위임. 기기에 비밀이 없고 세션이 SecureStore 한도를 넘어 새 의존성을 추가하지 않음 |
 
 ## 2026-09-18 승인 범위
 

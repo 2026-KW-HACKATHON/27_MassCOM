@@ -9,7 +9,7 @@
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
 | 현재 작업 | Issue #59 chain cursor 재시작 범위·reorg margin 구현 |
-| 현재 검증 기준 | API 37·PostgreSQL 20·Worker 8/PG 6·모바일 48·Foundry 8/fuzz128·Anvil PASS |
+| 현재 검증 기준 | API 37·PostgreSQL 20·Worker 8/PG 6·모바일 50·Foundry 8/fuzz128·Anvil PASS |
 | 최근 main 기준선 | PR #67 merge `9c3c04a`, main CI run `35460087002` PASS |
 
 ## Phase 상태
@@ -62,7 +62,7 @@
 - 필수 36개: `26 PASS / 2 BLOCKED / 8 NOT_RUN`
 - API 단위: `37/37 PASS`; PostgreSQL: `20/20 PASS`
 - Worker 단위: `8/8 PASS`; PostgreSQL: `6/6 PASS`; Anvil W07/M01~M08: `PASS`
-- 모바일: `48/48 PASS`; typecheck·lint·Android export `PASS`
+- 모바일: `50/50 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`
 - production dependency audit: API·Worker high 이상 0; 모바일 high 이상 0, Expo 전이 moderate 14건은 B-008

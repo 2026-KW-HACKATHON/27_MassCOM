@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useAppKit } from '@reown/appkit-react-native';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -7,6 +8,8 @@ import {
   type AccountDeletionResult,
 } from '@/privacy/account-deletion-api';
 import { colors } from '@/theme/colors';
+import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
+import { forgetWalletSession } from '@/wallet/forget-wallet-session';
 
 export function AccountSettingsScreen({
   apiUrl,
@@ -25,6 +28,7 @@ export function AccountSettingsScreen({
     }),
     [accountId, allowInsecureDemoReauthentication, apiUrl],
   );
+  const { disconnect } = useAppKit();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AccountDeletionResult>();
   const [error, setError] = useState<string>();
@@ -46,6 +50,11 @@ export function AccountSettingsScreen({
     setError(undefined);
     try {
       setResult(await client.requestDeletion());
+      await forgetWalletSession({
+        disconnect: async () => disconnect('eip155'),
+        listStoredKeys: listAppKitStorageKeys,
+        removeStoredKeys: removeAppKitStorageKeys,
+      });
     } catch (caught) {
       setError(deletionErrorMessage(caught));
     } finally {

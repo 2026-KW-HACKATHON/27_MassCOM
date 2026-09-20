@@ -33,3 +33,11 @@ async function getKeys(): Promise<string[]> {
   const keys = await AsyncStorage.getAllKeys();
   return keys.filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length));
 }
+
+export async function listAppKitStorageKeys(): Promise<string[]> {
+  return (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(prefix));
+}
+
+export async function removeAppKitStorageKeys(keys: string[]): Promise<void> {
+  await AsyncStorage.multiRemove(keys);
+}

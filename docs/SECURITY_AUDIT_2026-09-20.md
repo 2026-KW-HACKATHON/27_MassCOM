@@ -48,7 +48,6 @@
 | 항목 | 현재 조치 | 운영 전 조건 |
 | --- | --- | --- |
 | 모바일 moderate advisory 14건 | high/critical 0, B-008 유지 | Expo 호환 upstream 업데이트 후 release 회귀 |
-| SecureStore 미사용 세션 | 개인키 없음·RPC allowlist 적용 | 운영 세션 저장 정책 검토 |
 
 이 항목들은 운영·Play·외부 HTTPS가 이미 BLOCKED인 현재 로컬 DEMO 범위의 완료 주장을 바꾸지 않지만, 운영 배포 전에는 반드시 다시 판정합니다.
 
