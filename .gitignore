@@ -37,3 +37,4 @@ contracts/broadcast/
 # Local evidence containing device or user data
 artifacts/private/
 test-results/private/
+.claude/worktrees/
