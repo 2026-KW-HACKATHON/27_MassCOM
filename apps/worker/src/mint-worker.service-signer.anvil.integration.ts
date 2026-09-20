@@ -467,6 +467,130 @@ test('W-100 a recorded but unbroadcast transaction keeps its nonce when the next
   assert.equal(await provider.getTransactionCount(serviceSigner.address, 'latest'), nonceBefore + 2);
 });
 
+test('H1 a straggler that never broadcasts blocks the next job until its own job is closed for manual review', async (t) => {
+  const rpcUrl = process.env.ANVIL_RPC_URL;
+  if (!rpcUrl) throw new Error('ANVIL_RPC_URL is required');
+  const provider = new JsonRpcProvider(rpcUrl, 31337, { staticNetwork: true, cacheTimeout: -1 });
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(async () => {
+    await pool.end();
+    await provider.destroy();
+  });
+
+  await truncateServiceSignerTables(pool);
+  const artifact = JSON.parse(
+    await readFile(
+      new URL('../../../contracts/out/WolgyeMascot.sol/WolgyeMascot.json', import.meta.url),
+      'utf8',
+    ),
+  ) as { abi: InterfaceAbi; bytecode: { object: string } };
+  const serviceSigner = Wallet.createRandom();
+  const funder = await provider.getSigner(funderAddress);
+  await waitFor(await funder.sendTransaction({ to: serviceSigner.address, value: parseEther('5') }));
+  const adminSigner = await provider.getSigner(adminAddress);
+  const factory = new ContractFactory(artifact.abi, artifact.bytecode.object, adminSigner);
+  const contract = await factory.deploy(adminAddress, serviceSigner.address, pauserAddress);
+  await contract.waitForDeployment();
+  const contractAddress = getAddress(await contract.getAddress());
+  const seriesKey = id('service-signer-permanent-straggler-series');
+  await waitFor(
+    await contract.getFunction('createSeries').send(seriesKey, 'ipfs://permanent-straggler/', 10),
+  );
+  await waitFor(await contract.getFunction('activateSeries').send(seriesKey));
+  const rewardKeys = [
+    id('service-signer-permanent-straggler-1'),
+    id('service-signer-permanent-straggler-2'),
+  ] as const;
+  const jobIds = [
+    '90000000-0000-4000-9005-000000000001',
+    '90000000-0000-4000-9005-000000000002',
+  ] as const;
+  await seedServiceSignerJobs(pool, contractAddress, seriesKey, rewardKeys, jobIds);
+
+  function makeGateway(): EthersMintChainGateway {
+    return new EthersMintChainGateway({
+      rpcUrl: rpcUrl!,
+      chainId: 31337,
+      contractAddress,
+      minterAddress: serviceSigner.address,
+      confirmations: 1,
+      fromBlock: 0,
+      signer: serviceSigner,
+    });
+  }
+  function makeAlwaysFailingGateway(): EthersMintChainGateway {
+    const gateway = makeGateway();
+    internalProvider(gateway).broadcastTransaction = async () => {
+      throw new Error('SIMULATED_PERMANENT_BROADCAST_FAILURE');
+    };
+    return gateway;
+  }
+
+  // Job 1 records a signed transaction and then can never get it onto the network.
+  assert.equal(
+    await new MintWorker(new PostgresMintRepository(pool), makeAlwaysFailingGateway()).runOnce('dies-first'),
+    true,
+  );
+  const straggler = await pool.query<{ id: string; transaction_hash: string; attempt_count: number }>(
+    `SELECT id, transaction_hash, attempt_count FROM mint_jobs WHERE transaction_hash IS NOT NULL`,
+  );
+  assert.equal(straggler.rowCount, 1);
+  const stragglerJobId = straggler.rows[0]!.id;
+  const stragglerHash = straggler.rows[0]!.transaction_hash;
+  assert.equal(straggler.rows[0]!.attempt_count, 1);
+  assert.equal(await provider.getTransaction(stragglerHash), null);
+  await waitForRetryAvailable(pool, stragglerJobId);
+
+  // Job 2 leases next. The sweep tries to rebroadcast the straggler first, on the same
+  // always-failing gateway, and fails again: job 2 must be released MINTER_NONCE_BLOCKED without
+  // ever spending its own attempt (markPrepared never ran for it).
+  assert.equal(
+    await new MintWorker(new PostgresMintRepository(pool), makeAlwaysFailingGateway()).runOnce(
+      'next-job-blocked',
+    ),
+    true,
+  );
+  const other = await pool.query<{
+    id: string;
+    status: string;
+    last_error_code: string;
+    attempt_count: number;
+  }>('SELECT id, status, last_error_code, attempt_count FROM mint_jobs WHERE id <> $1', [
+    stragglerJobId,
+  ]);
+  assert.deepEqual(
+    { status: other.rows[0]?.status, code: other.rows[0]?.last_error_code, attempts: other.rows[0]?.attempt_count },
+    { status: 'RETRYABLE', code: 'MINTER_NONCE_BLOCKED', attempts: 0 },
+  );
+  const otherJobId = other.rows[0]!.id;
+
+  // Close the straggler's job for manual review (simulating whatever eventually gives up on it —
+  // the retry-limit cap in production). Once its job is terminal, the sweep must stop including
+  // its attempt.
+  const closingRepository = new PostgresMintRepository(pool);
+  const stragglerItem = await closingRepository.leaseNext('closing-worker', 30_000);
+  assert.equal(stragglerItem?.jobId, stragglerJobId);
+  await closingRepository.markManualReview(stragglerJobId, 'closing-worker', 'RETRY_LIMIT_EXCEEDED');
+  const closed = await pool.query<{ status: string; attempt_status: string }>(
+    `SELECT job.status, (SELECT status FROM mint_tx_attempts WHERE mint_job_id = job.id) AS attempt_status
+     FROM mint_jobs AS job WHERE job.id = $1`,
+    [stragglerJobId],
+  );
+  assert.deepEqual(closed.rows[0], { status: 'MANUAL_REVIEW', attempt_status: 'FAILED' });
+
+  // Now job 2 can proceed on a working gateway: the sweep excludes the now-terminal straggler
+  // job, so nothing blocks it, and it finalizes normally.
+  await waitForRetryAvailable(pool, otherJobId);
+  assert.equal(
+    await new MintWorker(new PostgresMintRepository(pool), makeGateway()).runOnce('finalizer'),
+    true,
+  );
+  const finalized = await pool.query<{ status: string }>('SELECT status FROM mint_jobs WHERE id = $1', [
+    otherJobId,
+  ]);
+  assert.equal(finalized.rows[0]?.status, 'FINALIZED');
+});
+
 function internalProvider(gateway: EthersMintChainGateway): JsonRpcApiProvider & {
   broadcastTransaction: (signed: string) => Promise<unknown>;
 } {
