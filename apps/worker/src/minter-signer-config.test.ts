@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile, chmod, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, chmod, readFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -108,6 +108,45 @@ test('a raw private key env var refuses startup even if named creatively', () =>
   assert.doesNotThrow(() => assertNoRawPrivateKeyEnv({ SOME_OTHER_VAR: '1' }));
 });
 
+test('L7 a lowercase or oddly-named env var ending in a forbidden suffix is still rejected', () => {
+  for (const assembledName of [
+    ['minter', 'private', 'key'].join('_'),
+    ['Wallet', 'Private', 'Key'].join('_'),
+    ['SERVICE', 'MNEMONIC'].join('_'),
+    'mnemonic',
+    ['recovery', 'seed', 'phrase'].join('_'),
+    ['SEED', 'PHRASE'].join('_'),
+  ]) {
+    assert.throws(
+      () => assertNoRawPrivateKeyEnv({ [assembledName]: 'anything' }),
+      (error: unknown) =>
+        error instanceof MinterConfigurationError &&
+        error.code === 'MINTER_RAW_PRIVATE_KEY_ENV_FORBIDDEN',
+      assembledName,
+    );
+  }
+  // A name that merely contains the word somewhere other than at the end is not a match: only
+  // the suffix is forbidden.
+  assert.doesNotThrow(() =>
+    assertNoRawPrivateKeyEnv({ [['PRIVATE', 'KEY', 'PATH'].join('_')]: '/some/path' }),
+  );
+  assert.doesNotThrow(() => assertNoRawPrivateKeyEnv({ SOME_OTHER_VAR: '1' }));
+});
+
+test('L7 the local unlocked path also refuses a raw key env, not just the service-signer path', async () => {
+  const assembledName = ['MINTER', 'MNEMONIC'].join('_');
+  await assert.rejects(
+    resolveMinterSigner({
+      env: { ALLOW_UNLOCKED_LOCAL_MINTER: 'true', [assembledName]: 'anything' },
+      chainId: 31337,
+      minterAddress: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+    }),
+    (error: unknown) =>
+      error instanceof MinterConfigurationError &&
+      error.code === 'MINTER_RAW_PRIVATE_KEY_ENV_FORBIDDEN',
+  );
+});
+
 test('resolveMinterSigner on an allow-listed chain refuses startup if a raw key env is set', async () => {
   const assembledName = ['DEPLOYER', 'PRIVATE', 'KEY'].join('_');
   await assert.rejects(
@@ -158,6 +197,47 @@ test('a relative keystore path is rejected even if it would resolve outside the 
   });
 });
 
+test('M6 a keystore path that looks outside the repo but is a symlink into it is rejected', async () => {
+  await withTempDir(async (dir) => {
+    const { passwordFilePath } = await writeKeystoreFixture(dir);
+    // This file is genuinely inside the repository (any tracked, readable file will do).
+    const targetInsideRepo = join(defaultRepoRoot, 'apps/worker/package.json');
+    const symlinkPath = join(dir, 'looks-outside.json');
+    await symlink(targetInsideRepo, symlinkPath);
+    await assert.rejects(
+      loadServiceSignerFiles({
+        env: {
+          MINTER_KEYSTORE_PATH: symlinkPath,
+          MINTER_KEYSTORE_PASSWORD_FILE: passwordFilePath,
+        },
+        repoRoot: defaultRepoRoot,
+      }),
+      (error: unknown) =>
+        error instanceof MinterConfigurationError &&
+        error.code === 'MINTER_KEYSTORE_PATH_INSIDE_REPO',
+    );
+  });
+});
+
+test('M6 a keystore in a group/world writable directory is rejected even with tight file permissions', async () => {
+  await withTempDir(async (dir) => {
+    const { keystorePath, passwordFilePath } = await writeKeystoreFixture(dir);
+    await chmod(dir, 0o777);
+    await assert.rejects(
+      loadServiceSignerFiles({
+        env: {
+          MINTER_KEYSTORE_PATH: keystorePath,
+          MINTER_KEYSTORE_PASSWORD_FILE: passwordFilePath,
+        },
+        repoRoot: defaultRepoRoot,
+      }),
+      (error: unknown) =>
+        error instanceof MinterConfigurationError &&
+        error.code === 'MINTER_KEYSTORE_DIRECTORY_PERMISSIONS_TOO_OPEN',
+    );
+  });
+});
+
 test('group/world readable keystore file is rejected', async () => {
   await withTempDir(async (dir) => {
     const { keystorePath, passwordFilePath } = await writeKeystoreFixture(dir, {
@@ -195,6 +275,24 @@ test('group/world readable password file is rejected', async () => {
         error instanceof MinterConfigurationError &&
         error.code === 'MINTER_KEYSTORE_PASSWORD_PERMISSIONS_TOO_OPEN',
     );
+  });
+});
+
+test('L8 a password file with several trailing CR/LF characters still loads the exact password', async () => {
+  await withTempDir(async (dir) => {
+    const { keystorePath, address } = await writeKeystoreFixture(dir);
+    const passwordFilePath = join(dir, 'multi-newline.pass');
+    await writeFile(passwordFilePath, `${testPassword}\r\n\n\r\n`, { mode: 0o600 });
+    const resolved = await resolveMinterSigner({
+      env: {
+        MINTER_KEYSTORE_PATH: keystorePath,
+        MINTER_KEYSTORE_PASSWORD_FILE: passwordFilePath,
+      },
+      chainId: 84532,
+      minterAddress: address,
+      repoRoot: defaultRepoRoot,
+    });
+    assert.equal(resolved.mode, 'service');
   });
 });
 

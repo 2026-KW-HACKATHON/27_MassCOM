@@ -213,9 +213,15 @@ export class EthersMintChainGateway implements MintChainGateway {
   async submitMint(
     item: MintWorkItem,
     persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
+    unconfirmedSignedTransactions: { transactionHash: string; signedTransaction: string }[] = [],
   ): Promise<{ transactionHash: string }> {
     if (this.options.signer) {
-      return this.submitMintWithServiceSigner(item, this.options.signer, persistBeforeBroadcast);
+      return this.submitMintWithServiceSigner(
+        item,
+        this.options.signer,
+        persistBeforeBroadcast,
+        unconfirmedSignedTransactions,
+      );
     }
     try {
       const signer = await this.provider.getSigner(this.minterAddress);
@@ -245,17 +251,24 @@ export class EthersMintChainGateway implements MintChainGateway {
     item: MintWorkItem,
     signer: Signer,
     persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
+    unconfirmedSignedTransactions: { transactionHash: string; signedTransaction: string }[],
   ): Promise<{ transactionHash: string }> {
     const data = this.contractInterface.encodeFunctionData('mintWithRewardKey', [
       item.recipient,
       item.seriesKey,
       item.rewardKey,
     ]);
-    let nonce: number;
+    let latestNonce: number;
+    let pendingNonce: number;
     let feeData: Awaited<ReturnType<JsonRpcProvider['getFeeData']>>;
     let estimatedGas: bigint;
     try {
-      nonce = await this.provider.getTransactionCount(this.minterAddress, 'pending');
+      // Take the max of 'latest' and 'pending': some RPC providers track a connected account's
+      // mempool nonce poorly, and a stale 'pending' response must never move the nonce backward.
+      [latestNonce, pendingNonce] = await Promise.all([
+        this.provider.getTransactionCount(this.minterAddress, 'latest'),
+        this.provider.getTransactionCount(this.minterAddress, 'pending'),
+      ]);
       feeData = await this.provider.getFeeData();
       estimatedGas = await this.provider.estimateGas({
         to: this.contractAddress,
@@ -265,6 +278,20 @@ export class EthersMintChainGateway implements MintChainGateway {
     } catch (error) {
       throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
     }
+    // A further floor: one past the highest nonce among this chain's own recorded-but-unconfirmed
+    // signed attempts (decoded from the signed payload itself, not trusted metadata). The sweep
+    // that runs before this already tried to rebroadcast every one of them, but the RPC's nonce
+    // view can still lag a moment behind that — this worker's own records must win that race.
+    let recordedNonceFloor = 0;
+    for (const pending of unconfirmedSignedTransactions) {
+      try {
+        recordedNonceFloor = Math.max(recordedNonceFloor, Transaction.from(pending.signedTransaction).nonce + 1);
+      } catch {
+        // An unparsable recorded payload contributes no floor; rebroadcastIfNeeded already tried
+        // it above regardless of whether we can decode it here.
+      }
+    }
+    const nonce = Math.max(latestNonce, pendingNonce, recordedNonceFloor);
     // A null or non-positive maxFeePerGas would sign a transaction the network can never accept
     // (or, worse, one with an unbounded fee): fail closed before anything is signed or recorded,
     // rather than let `?? null` silently paper over missing fee data.

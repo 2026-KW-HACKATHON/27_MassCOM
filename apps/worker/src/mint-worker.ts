@@ -96,10 +96,16 @@ export interface MintChainGateway {
    * network, so the caller can make it durable first. The local-unlocked path only learns the
    * hash once the node has already broadcast it, so it calls this right after, unchanged from
    * previous behaviour.
+   * `unconfirmedSignedTransactions` is this chain's set of recorded-but-not-yet-confirmed signed
+   * attempts (the same set the caller just swept via rebroadcastIfNeeded): a service-signer
+   * gateway uses it as a floor under the nonce it reads from the network, in case the RPC's
+   * pending-nonce view lags behind what this worker already knows it has sent. Ignored by the
+   * local-unlocked path, which lets the node manage its own nonces.
    */
   submitMint(
     item: MintWorkItem,
     persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
+    unconfirmedSignedTransactions: { transactionHash: string; signedTransaction: string }[],
   ): Promise<{ transactionHash: string }>;
   /**
    * Restart recovery for a job that already has a recorded-but-possibly-unbroadcast signed
@@ -228,7 +234,10 @@ export class MintWorker {
             // recorded one can never be mined. This runs before markPrepared: if a straggler
             // cannot be gotten past, this job's attempt must not be spent on someone else's
             // stuck transaction.
-            for (const pending of await this.repository.listUnconfirmedSignedTransactions(item.chainId)) {
+            const unconfirmedSignedTransactions = await this.repository.listUnconfirmedSignedTransactions(
+              item.chainId,
+            );
+            for (const pending of unconfirmedSignedTransactions) {
               try {
                 await this.gateway.rebroadcastIfNeeded(pending.transactionHash, pending.signedTransaction);
               } catch (error) {
@@ -238,14 +247,17 @@ export class MintWorker {
             }
             preparedAttemptId = await this.repository.markPrepared(item, workerId);
             await heartbeat.assertHealthy();
-            const submission = await this.gateway.submitMint(item, (record) =>
-              this.repository.markSubmitted(
-                item.jobId,
-                workerId,
-                preparedAttemptId!,
-                record.transactionHash,
-                record.signedTransaction,
-              ),
+            const submission = await this.gateway.submitMint(
+              item,
+              (record) =>
+                this.repository.markSubmitted(
+                  item.jobId,
+                  workerId,
+                  preparedAttemptId!,
+                  record.transactionHash,
+                  record.signedTransaction,
+                ),
+              unconfirmedSignedTransactions,
             );
             return {
               blocked: false,
