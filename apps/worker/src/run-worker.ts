@@ -25,6 +25,10 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
     environment.CHAIN_REORG_MARGIN ?? '12',
     'CHAIN_REORG_MARGIN',
   );
+  const minterMinBalanceWei = nonNegativeIntegerBigInt(
+    environment.MINTER_MIN_BALANCE_WEI ?? '0',
+    'MINTER_MIN_BALANCE_WEI',
+  );
   if (chainId !== 31337 || environment.ALLOW_UNLOCKED_LOCAL_MINTER !== 'true') {
     throw new Error('unlocked RPC worker is restricted to explicit local Anvil configuration');
   }
@@ -41,6 +45,7 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
       confirmations,
       fromBlock: scanFromBlock,
       fallbackFromBlock: chainFromBlock,
+      minMinterBalanceWei: minterMinBalanceWei,
     });
     return await new MintWorker(repository, gateway).runOnce(workerId);
   } finally {
@@ -63,6 +68,12 @@ function requiredNonNegativeInteger(value: string | undefined, name: string): nu
   const parsed = Number(required(value, name));
   if (!Number.isSafeInteger(parsed) || parsed < 0) throw new Error(`${name} must be a non-negative integer`);
   return parsed;
+}
+
+function nonNegativeIntegerBigInt(value: string, name: string): bigint {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) throw new Error(`${name} must be a non-negative integer`);
+  return BigInt(trimmed);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
