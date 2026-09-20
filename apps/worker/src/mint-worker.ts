@@ -205,41 +205,69 @@ export class MintWorker {
         return true;
       }
 
-      const attemptId = await this.repository.markPrepared(item, workerId);
-      await heartbeat.assertHealthy();
       let transactionHash: string;
+      let attemptId: string;
+      // Set as soon as markPrepared succeeds inside the lock below, so a later failure in that
+      // same lock callback (e.g. submitMint reporting an unknown outcome) still knows which
+      // attempt row this submission belongs to, even though the callback itself never returned.
+      let preparedAttemptId: string | undefined;
       try {
         // One minter can serve many jobs across several worker processes: hold the per
-        // chain/minter advisory lock for the whole nonce-read -> sign -> record -> broadcast
-        // sequence so two submissions never race for the same nonce.
-        transactionHash = await this.repository.withMinterLock(
+        // chain/minter advisory lock for the whole sweep -> markPrepared -> nonce-read -> sign ->
+        // record -> broadcast sequence so two submissions never race for the same nonce, and so
+        // a straggler this job cannot get past is discovered before this job's own attempt is
+        // consumed.
+        const outcome = await this.repository.withMinterLock(
           item.chainId,
           this.gateway.minterAddress,
-          async () => {
+          async (): Promise<
+            { blocked: true } | { blocked: false; attemptId: string; transactionHash: string }
+          > => {
             // A transaction recorded by a worker that died before broadcasting still owns its
             // nonce. Send those first, or this submission reads the same pending nonce and the
-            // recorded one can never be mined.
+            // recorded one can never be mined. This runs before markPrepared: if a straggler
+            // cannot be gotten past, this job's attempt must not be spent on someone else's
+            // stuck transaction.
             for (const pending of await this.repository.listUnconfirmedSignedTransactions(item.chainId)) {
-              await this.gateway.rebroadcastIfNeeded(pending.transactionHash, pending.signedTransaction);
+              try {
+                await this.gateway.rebroadcastIfNeeded(pending.transactionHash, pending.signedTransaction);
+              } catch (error) {
+                if (error instanceof RetryableChainError) return { blocked: true };
+                throw error;
+              }
             }
+            preparedAttemptId = await this.repository.markPrepared(item, workerId);
+            await heartbeat.assertHealthy();
             const submission = await this.gateway.submitMint(item, (record) =>
               this.repository.markSubmitted(
                 item.jobId,
                 workerId,
-                attemptId,
+                preparedAttemptId!,
                 record.transactionHash,
                 record.signedTransaction,
               ),
             );
-            return submission.transactionHash;
+            return {
+              blocked: false,
+              attemptId: preparedAttemptId,
+              transactionHash: submission.transactionHash,
+            };
           },
         );
+        if (outcome.blocked) {
+          // No attempt was consumed: nothing was prepared for this job. Release it for a fresh
+          // try rather than letting an unrelated stuck straggler burn this job's retry budget.
+          await this.repository.releaseRetryable(item.jobId, workerId, 'MINTER_NONCE_BLOCKED');
+          return true;
+        }
+        attemptId = outcome.attemptId;
+        transactionHash = outcome.transactionHash;
       } catch (error) {
         if (error instanceof SubmissionOutcomeUnknownError) {
           try {
             const recovered = await this.gateway.findMintByRewardKey(item);
             if (recovered) {
-              await this.repository.finalize(item, workerId, attemptId, recovered);
+              await this.repository.finalize(item, workerId, preparedAttemptId, recovered);
               return true;
             }
           } catch (lookupError) {

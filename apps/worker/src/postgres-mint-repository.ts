@@ -305,6 +305,11 @@ export class PostgresMintRepository implements MintWorkRepository {
   /**
    * Signed transactions that were recorded but have no result yet, oldest first. They still own
    * their nonces, so they must reach the network before a new nonce is read.
+   * Only attempts whose parent job is still active are returned: a job already closed
+   * (FINALIZED / MANUAL_REVIEW / CANCELLED) can leave a SUBMITTED attempt behind (e.g. an
+   * un-broadcastable straggler sent to manual review), and that attempt must stop being swept
+   * forever once its job is terminal. Bounded by a sane LIMIT so one chain can never make this
+   * scan unbounded.
    * ponytail: filtered by chain only, one service minter per chain; add a minter column if a
    * chain ever gets a second minter.
    */
@@ -318,7 +323,9 @@ export class PostgresMintRepository implements MintWorkRepository {
        WHERE job.chain_id = $1
          AND attempt.status = 'SUBMITTED'
          AND attempt.signed_transaction IS NOT NULL
-       ORDER BY attempt.submitted_at, attempt.attempt_number`,
+         AND job.status NOT IN ('FINALIZED', 'MANUAL_REVIEW', 'CANCELLED')
+       ORDER BY attempt.submitted_at, attempt.attempt_number
+       LIMIT 50`,
       [chainId],
     );
     return result.rows.map((row) => ({
@@ -429,6 +436,15 @@ export class PostgresMintRepository implements MintWorkRepository {
           [result.transactionHash.toLowerCase(), now, item.jobId],
         );
       }
+      // Any other still-SUBMITTED attempt of this job (a straggler sharing the job but not the
+      // hash that actually got mined) is now dead on arrival: the job only has one nonce future,
+      // and it just landed under a different attempt. Close it so it stops being swept forever.
+      await client.query(
+        `UPDATE mint_tx_attempts
+         SET status = 'FAILED', error_code = 'SUPERSEDED_BY_ONCHAIN_MINT', updated_at = $2
+         WHERE mint_job_id = $3 AND status = 'SUBMITTED' AND transaction_hash IS DISTINCT FROM $1`,
+        [result.transactionHash.toLowerCase(), now, item.jobId],
+      );
       await client.query(
         `UPDATE mint_jobs
          SET status = 'FINALIZED', transaction_hash = $1, token_id = $2::numeric,
@@ -635,6 +651,16 @@ async function closeForManualReview(
     `UPDATE mint_jobs
      SET status = 'MANUAL_REVIEW', last_error_code = $1, updated_at = $2
      WHERE id = $3`,
+    [code, now, jobId],
+  );
+  // A job going to manual review can still be holding a SUBMITTED attempt (a straggler that
+  // never got a receipt, or one this worker gave up on). Close it in the same transaction: left
+  // SUBMITTED, it would be swept and rebroadcast forever by listUnconfirmedSignedTransactions
+  // even though nothing can ever act on its job again.
+  await client.query(
+    `UPDATE mint_tx_attempts
+     SET status = 'FAILED', error_code = $1, updated_at = $2
+     WHERE mint_job_id = $3 AND status = 'SUBMITTED'`,
     [code, now, jobId],
   );
   await client.query(

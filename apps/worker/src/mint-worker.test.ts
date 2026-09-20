@@ -479,6 +479,27 @@ test('signed transactions recorded but never broadcast are sent before a new non
   ]);
 });
 
+test('H1 a straggler that cannot be rebroadcast releases this job without consuming an attempt', async () => {
+  const repository = new FakeRepository();
+  repository.unconfirmedSigned = [
+    { transactionHash: `0x${'01'.repeat(32)}`, signedTransaction: '0x02f801' },
+  ];
+  const gateway = new FakeGateway();
+  gateway.rebroadcastIfNeeded = async () => {
+    gateway.calls.push('rebroadcast');
+    throw new RetryableChainError('MINT_BROADCAST_FAILED');
+  };
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.deepEqual(gateway.calls, ['validate', 'find', 'assertCanSubmit', 'rebroadcast']);
+  // markPrepared never ran: the straggler was discovered before this job's own attempt could be
+  // consumed, and the job is released under its own code rather than the straggler's error code.
+  assert.equal(repository.calls.includes('prepared'), false);
+  assert.equal(gateway.calls.includes('submit'), false);
+  assert.deepEqual(workCalls(repository), ['lease', 'retryable:MINTER_NONCE_BLOCKED']);
+});
+
 test('O02 propagates a repository failure before leasing without calling the gateway', async () => {
   const repository = new FakeRepository();
   repository.leaseNext = async () => {
