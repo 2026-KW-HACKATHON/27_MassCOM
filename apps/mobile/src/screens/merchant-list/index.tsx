@@ -29,7 +29,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
       data={merchants}
       keyExtractor={(merchant) => merchant.id}
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: 20 + insets.bottom }]}
+      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
       ListHeaderComponent={
         <View style={styles.header}>

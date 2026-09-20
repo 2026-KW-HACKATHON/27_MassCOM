@@ -14,7 +14,7 @@ export function WalletConfigurationRequired({ missing }: Props) {
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom }]}
+      contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
     >
       <View style={styles.badge}>
         <Text style={styles.badgeText}>BLOCKED</Text>

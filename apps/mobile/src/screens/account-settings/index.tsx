@@ -70,7 +70,7 @@ export function AccountSettingsScreen({
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: 20 + insets.bottom }]}
+      contentContainerStyle={[styles.content, { paddingBottom: 52 + insets.bottom }]}
     >
       <Text style={styles.eyebrow}>개인정보와 계정</Text>
       <Text selectable style={styles.title}>삭제되는 것과{`\n`}남는 것을 먼저 확인합니다.</Text>

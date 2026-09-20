@@ -69,7 +69,7 @@ export function ClaimRedeemScreen({ apiUrl, accountId }: { apiUrl: string; accou
     <ScrollView
       ref={scrollView}
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: 20 + insets.bottom }]}
+      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
     >
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>방문 인증</Text>

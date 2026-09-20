@@ -26,7 +26,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: 20 + insets.bottom }]}
+      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
       <View style={styles.hero}>

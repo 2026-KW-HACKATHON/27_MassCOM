@@ -222,7 +222,7 @@ export function WalletLinkScreen({ config }: Props) {
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: 20 + insets.bottom }]}
+      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
     >
       <View style={styles.hero}>
         <Text style={styles.context}>Base Sepolia · 외부 지갑만</Text>
