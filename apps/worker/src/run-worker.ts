@@ -34,6 +34,9 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
     environment.MINTER_MAX_TX_FEE_WEI ?? '10000000000000000',
     'MINTER_MAX_TX_FEE_WEI',
   );
+  if (minterMaxTransactionFeeWei === 0n) {
+    throw new Error('MINTER_MAX_TX_FEE_WEI must be greater than zero');
+  }
   const receiptTimeoutMs = requiredInteger(
     environment.CHAIN_RECEIPT_TIMEOUT_MS ?? String(24 * 60 * 60 * 1_000),
     'CHAIN_RECEIPT_TIMEOUT_MS',

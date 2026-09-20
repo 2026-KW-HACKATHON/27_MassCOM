@@ -386,9 +386,11 @@ export class PostgresMintRepository implements MintWorkRepository {
         try {
           await client.query("SELECT set_config('lock_timeout', '0', false)");
         } catch (error) {
-          // The lock is held but we never reach the unlock below: this session must not be pooled.
-          if (held) destroy = true;
-          throw error;
+          // The session kept a non-default lock_timeout and may hold the lock without reaching the
+          // unlock below: never pool it. Without the lock the acquisition error already in flight
+          // (e.g. MINTER_LOCK_TIMEOUT) is the one the caller must see, so this one is not rethrown.
+          destroy = true;
+          if (held) throw error;
         }
       }
       try {
