@@ -79,6 +79,9 @@ export interface MintWorkRepository {
    * never needs this, but every caller goes through it uniformly.
    */
   withMinterLock<T>(chainId: number, minterAddress: string, fn: () => Promise<T>): Promise<T>;
+  listUnconfirmedSignedTransactions(
+    chainId: number,
+  ): Promise<{ transactionHash: string; signedTransaction: string }[]>;
 }
 
 export interface MintChainGateway {
@@ -213,6 +216,12 @@ export class MintWorker {
           item.chainId,
           this.gateway.minterAddress,
           async () => {
+            // A transaction recorded by a worker that died before broadcasting still owns its
+            // nonce. Send those first, or this submission reads the same pending nonce and the
+            // recorded one can never be mined.
+            for (const pending of await this.repository.listUnconfirmedSignedTransactions(item.chainId)) {
+              await this.gateway.rebroadcastIfNeeded(pending.transactionHash, pending.signedTransaction);
+            }
             const submission = await this.gateway.submitMint(item, (record) =>
               this.repository.markSubmitted(
                 item.jobId,

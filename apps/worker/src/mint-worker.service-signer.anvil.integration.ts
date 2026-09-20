@@ -385,6 +385,88 @@ test('W-100 consecutive submissions get consecutive nonces and two racing worker
   );
 });
 
+test('W-100 a recorded but unbroadcast transaction keeps its nonce when the next job is submitted', async (t) => {
+  const rpcUrl = process.env.ANVIL_RPC_URL;
+  if (!rpcUrl) throw new Error('ANVIL_RPC_URL is required');
+  const provider = new JsonRpcProvider(rpcUrl, 31337, { staticNetwork: true, cacheTimeout: -1 });
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(async () => {
+    await pool.end();
+    await provider.destroy();
+  });
+
+  await truncateServiceSignerTables(pool);
+  const artifact = JSON.parse(
+    await readFile(
+      new URL('../../../contracts/out/WolgyeMascot.sol/WolgyeMascot.json', import.meta.url),
+      'utf8',
+    ),
+  ) as { abi: InterfaceAbi; bytecode: { object: string } };
+  const serviceSigner = Wallet.createRandom();
+  const funder = await provider.getSigner(funderAddress);
+  await waitFor(await funder.sendTransaction({ to: serviceSigner.address, value: parseEther('5') }));
+  const adminSigner = await provider.getSigner(adminAddress);
+  const factory = new ContractFactory(artifact.abi, artifact.bytecode.object, adminSigner);
+  const contract = await factory.deploy(adminAddress, serviceSigner.address, pauserAddress);
+  await contract.waitForDeployment();
+  const contractAddress = getAddress(await contract.getAddress());
+  const seriesKey = id('service-signer-straggler-series');
+  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://straggler/', 10));
+  await waitFor(await contract.getFunction('activateSeries').send(seriesKey));
+  const rewardKeys = [id('service-signer-straggler-1'), id('service-signer-straggler-2')] as const;
+  const jobIds = [
+    '90000000-0000-4000-9004-000000000001',
+    '90000000-0000-4000-9004-000000000002',
+  ] as const;
+  await seedServiceSignerJobs(pool, contractAddress, seriesKey, rewardKeys, jobIds);
+
+  function makeGateway(): EthersMintChainGateway {
+    return new EthersMintChainGateway({
+      rpcUrl: rpcUrl!,
+      chainId: 31337,
+      contractAddress,
+      minterAddress: serviceSigner.address,
+      confirmations: 1,
+      fromBlock: 0,
+      signer: serviceSigner,
+    });
+  }
+
+  const nonceBefore = await provider.getTransactionCount(serviceSigner.address, 'latest');
+  const crashingGateway = makeGateway();
+  internalProvider(crashingGateway).broadcastTransaction = async () => {
+    throw new Error('SIMULATED_CRASH_BEFORE_BROADCAST');
+  };
+  assert.equal(await new MintWorker(new PostgresMintRepository(pool), crashingGateway).runOnce('dies-first'), true);
+  const straggler = await pool.query<{ id: string; transaction_hash: string }>(
+    `SELECT id, transaction_hash FROM mint_jobs WHERE transaction_hash IS NOT NULL`,
+  );
+  assert.equal(straggler.rowCount, 1);
+  const stragglerHash = straggler.rows[0]!.transaction_hash;
+  assert.equal(await provider.getTransaction(stragglerHash), null);
+
+  // The first job is still backing off, so this run leases the other one. It must put the recorded
+  // transaction on the wire before reading the pending nonce, or both would claim the same nonce.
+  assert.equal(await new MintWorker(new PostgresMintRepository(pool), makeGateway()).runOnce('next-job'), true);
+  const stragglerTx = await provider.getTransaction(stragglerHash);
+  assert.equal(stragglerTx?.nonce, nonceBefore);
+  const other = await pool.query<{ status: string; transaction_hash: string }>(
+    'SELECT status, transaction_hash FROM mint_jobs WHERE id <> $1',
+    [straggler.rows[0]!.id],
+  );
+  assert.equal(other.rows[0]?.status, 'FINALIZED');
+  assert.equal((await provider.getTransaction(other.rows[0]!.transaction_hash))?.nonce, nonceBefore + 1);
+
+  await waitForRetryAvailable(pool, straggler.rows[0]!.id);
+  assert.equal(await new MintWorker(new PostgresMintRepository(pool), makeGateway()).runOnce('restart'), true);
+  const recovered = await pool.query<{ status: string; transaction_hash: string; attempt_count: number }>(
+    'SELECT status, transaction_hash, attempt_count FROM mint_jobs WHERE id = $1',
+    [straggler.rows[0]!.id],
+  );
+  assert.deepEqual(recovered.rows[0], { status: 'FINALIZED', transaction_hash: stragglerHash, attempt_count: 1 });
+  assert.equal(await provider.getTransactionCount(serviceSigner.address, 'latest'), nonceBefore + 2);
+});
+
 function internalProvider(gateway: EthersMintChainGateway): JsonRpcApiProvider & {
   broadcastTransaction: (signed: string) => Promise<unknown>;
 } {

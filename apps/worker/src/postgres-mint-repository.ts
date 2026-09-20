@@ -302,6 +302,31 @@ export class PostgresMintRepository implements MintWorkRepository {
    * the same minter never race for the same nonce. The lock is acquired and released on the same
    * dedicated connection, since PostgreSQL session advisory locks are held per-session.
    */
+  /**
+   * Signed transactions that were recorded but have no result yet, oldest first. They still own
+   * their nonces, so they must reach the network before a new nonce is read.
+   * ponytail: filtered by chain only, one service minter per chain; add a minter column if a
+   * chain ever gets a second minter.
+   */
+  async listUnconfirmedSignedTransactions(
+    chainId: number,
+  ): Promise<{ transactionHash: string; signedTransaction: string }[]> {
+    const result = await this.pool.query<{ transaction_hash: string; signed_transaction: string }>(
+      `SELECT attempt.transaction_hash, attempt.signed_transaction
+       FROM mint_tx_attempts AS attempt
+       JOIN mint_jobs AS job ON job.id = attempt.mint_job_id
+       WHERE job.chain_id = $1
+         AND attempt.status = 'SUBMITTED'
+         AND attempt.signed_transaction IS NOT NULL
+       ORDER BY attempt.submitted_at, attempt.attempt_number`,
+      [chainId],
+    );
+    return result.rows.map((row) => ({
+      transactionHash: row.transaction_hash,
+      signedTransaction: row.signed_transaction,
+    }));
+  }
+
   async withMinterLock<T>(
     chainId: number,
     minterAddress: string,

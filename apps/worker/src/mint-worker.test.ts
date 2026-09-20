@@ -76,6 +76,12 @@ class FakeRepository implements MintWorkRepository {
     return fn();
   }
 
+  unconfirmedSigned: { transactionHash: string; signedTransaction: string }[] = [];
+
+  async listUnconfirmedSignedTransactions(): Promise<{ transactionHash: string; signedTransaction: string }[]> {
+    return this.unconfirmedSigned;
+  }
+
   async finalize(_item: MintWorkItem, _workerId: string, _attemptId: string | undefined, value: ChainMintResult): Promise<void> {
     this.calls.push(`finalized:${value.tokenId}`);
   }
@@ -449,6 +455,28 @@ test('restart recovery finalizes without resubmitting when the reward key was al
   assert.equal(gateway.calls.includes('confirm'), false);
   assert.equal(gateway.calls.includes('submit'), false);
   assert.equal(workCalls(repository).at(-1), 'finalized:1');
+});
+
+test('signed transactions recorded but never broadcast are sent before a new nonce is taken', async () => {
+  const repository = new FakeRepository();
+  repository.unconfirmedSigned = [
+    { transactionHash: `0x${'01'.repeat(32)}`, signedTransaction: '0x02f801' },
+    { transactionHash: `0x${'02'.repeat(32)}`, signedTransaction: '0x02f802' },
+  ];
+  const gateway = new FakeGateway();
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  // Both stragglers go out, in order, before this job's own submission reads the pending nonce.
+  assert.deepEqual(gateway.calls, [
+    'validate',
+    'find',
+    'assertCanSubmit',
+    'rebroadcast',
+    'rebroadcast',
+    'submit',
+    'confirm',
+  ]);
 });
 
 test('O02 propagates a repository failure before leasing without calling the gateway', async () => {
