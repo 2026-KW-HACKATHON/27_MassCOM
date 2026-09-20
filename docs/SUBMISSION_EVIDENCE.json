@@ -1,6 +1,6 @@
 {
   "recordedAt": "2026-09-20 KST",
-  "baselineCommit": "9794c700c600c6442f2b227a93406fa8fae9c445",
+  "baselineCommit": "9e670abaa3b67840bac323ee18d47be813e38020",
   "repositoryVisibility": "PRIVATE",
   "requiredTests": {
     "total": 36,
@@ -9,14 +9,15 @@
     "NOT_RUN": 8,
     "FAIL": 0
   },
-  "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53, 55, 57],
-  "mainCiRuns": [35424531021, 35425582837, 35426622394, 35444126068, 35445281598, 35448436859, 35450443943, 35451429441, 35455419805],
+  "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53, 55, 57, 63, 64, 65, 67, 68, 69, 70],
+  "mainCiRuns": [35424531021, 35425582837, 35426622394, 35444126068, 35445281598, 35448436859, 35450443943, 35451429441, 35455419805, 35458855491, 35459019638, 35459313304, 35460087002, 35460432649, 35486460953, 35487020999],
   "androidEvidence": [
     "docs/evidence/android-merchant-discovery.json",
     "docs/evidence/android-claim-collection.json",
     "docs/evidence/android-recommendations.json",
     "docs/evidence/phase3-worker-anvil-android.json",
-    "docs/evidence/account-deletion-privacy.json"
+    "docs/evidence/account-deletion-privacy.json",
+    "docs/evidence/release-aab-16kb-alignment.json"
   ],
   "securityEvidence": [
     "docs/evidence/security-audit-issue-56.json",
@@ -26,7 +27,7 @@
     "repository public conversion",
     "external HTTPS and production reauthentication",
     "Base Sepolia dedicated deployer and gas",
-    "release package ID and signed AAB",
+    "upload-key-signed release AAB",
     "Google Play and competition submission"
   ],
   "notRun": [

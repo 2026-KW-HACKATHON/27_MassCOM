@@ -33,6 +33,7 @@
 - [보안 경계](docs/SECURITY.md): 허용 메서드·nonce·의존성 위험
 - [전체 보안 감사](docs/SECURITY_AUDIT_2026-09-20.md): Claude·독립 리뷰 HIGH 수정과 운영 전 MEDIUM
 - [평가 대응표](docs/EVALUATION_MAP.md): 요구사항·Issue·PR·코드·시험·실증·발표 연결
+- [Play Console 등록 초안](docs/PLAY_CONSOLE_DRAFT.md): 실제 Console 입력 전 준비한 텍스트·자료 초안
 
 ### 포털 로컬 미리보기
 
@@ -152,6 +153,15 @@ TEST_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_test' npm run t
 
 `npm run test:anvil --prefix apps/worker`는 별도 로컬 Anvil과 `_test` 데이터베이스가 필요합니다. Worker 실행 entrypoint는 `CHAIN_ID=31337`과 `ALLOW_UNLOCKED_LOCAL_MINTER=true`를 동시에 요구해 운영 키나 공개 체인에 사용할 수 없도록 제한했습니다. `CHAIN_REORG_MARGIN`은 cursor보다 다시 확인할 블록 수이며 현재 로컬 기본값은 12입니다.
 
+Base Sepolia 계약 배포는 암호화 Foundry keystore 전용 스크립트로 시뮬레이션만 확인했습니다(`BLOCKED`, 실제 브로드캐스트 미실행).
+
+```bash
+scripts/deploy-base-sepolia.sh <keystore-account>          # 시뮬레이션
+scripts/deploy-base-sepolia.sh <keystore-account> --broadcast  # 실제 배포(NOT_RUN)
+```
+
+`BASE_SEPOLIA_ADMIN`·`BASE_SEPOLIA_MINTER`·`BASE_SEPOLIA_PAUSER` 환경 변수가 필수이며 `BASE_SEPOLIA_RPC_URL`은 선택(기본 `https://sepolia.base.org`)입니다. Android 운영 package `APP_VARIANT`와 release AAB 빌드는 [`apps/mobile/README.md`](apps/mobile/README.md)를 따릅니다.
+
 Phase 2 점포 카탈로그, 점포별 권한, QR 수령 슬롯, 방문·보상권 검증은 실제 PostgreSQL 연결이 필요합니다.
 
 ```bash
@@ -178,7 +188,8 @@ npm run test:postgres --prefix apps/api
 - NFT 계약: 고정 Docker Foundry로 C01~C04와 로컬 Anvil 발행 검증; 테스트넷·메인넷으로 표현하지 않음
 - NFT 발행 요청: 클라이언트 주소·series 입력을 무시하고 검증된 binding/version에서 수령인을 고정해 보상권·job·Outbox 원자 저장
 - NFT 발행 Worker: Local Anvil에서 중복 Worker·응답 유실·설정 오류·이벤트 불일치·확정 전 재조직·DB 복구를 검증하고 Android가 접수/확인 중/등록 완료를 구분
-- Android AAB·release package ID·App Link: `NOT_RUN`
+- 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), `APP_VARIANT`로 분기하는 scheme `masscom`/`masscom-dev`: `IMPLEMENTED`; `scripts/build-release-aab.sh`로 로컬 debug 서명 운영 AAB의 package·권한·16KB 정렬 48개 항목 PASS
+- upload key로 서명한 release AAB, App Link, Play Console 제출: `NOT_RUN`
 - 계정 삭제: 앱 내부 Local DEMO와 PostgreSQL 미전송 취소·제출 거래 보존·비식별화 PASS; 외부 HTTPS 삭제 URL·운영 재인증은 `BLOCKED`
 - 실제 Reown 지갑 흐름: MetaMask 핵심·W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `BLOCKED`
 - 테스트넷 계약: 배포 전
