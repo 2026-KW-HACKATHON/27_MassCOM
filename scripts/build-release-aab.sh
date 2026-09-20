@@ -16,6 +16,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mobile_dir="$repo_root/apps/mobile"
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 
+[[ $# -le 1 ]] || { echo "unknown option: ${*:2}" >&2; exit 1; }
 case "${1:-}" in
   ''|--restore-dev) ;;
   *) echo "unknown option: $1" >&2; exit 1 ;;
@@ -24,7 +25,8 @@ restore_dev="${1:-}"
 # Runs on every exit, so a failed build or signer check never leaves the production project behind.
 restore() {
   if [[ "$restore_dev" == "--restore-dev" ]]; then
-    (cd "$mobile_dir" && CI=1 npx --no-install expo prebuild --platform android --clean --no-install) || true
+    (cd "$mobile_dir" && CI=1 npx --no-install expo prebuild --platform android --clean --no-install) \
+      || echo "warning: --restore-dev could not regenerate the development project" >&2
   fi
 }
 trap restore EXIT

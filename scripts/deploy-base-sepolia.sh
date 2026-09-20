@@ -16,8 +16,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 account="${1:?keystore account name is required (see the header of this script)}"
 mode="${2:-}"
 redeploy="${3:-}"
-# ETH_KEYSTORE is the variable forge itself reads for --account, so the check and the tool agree.
-keystore_dir="${ETH_KEYSTORE:-$HOME/.foundry/keystores}"
+# forge resolves --account only in this folder (forge script --help, 1.8.3); it is not configurable.
+keystore_dir="$HOME/.foundry/keystores"
 expected_chain_id=84532
 
 : "${BASE_SEPOLIA_ADMIN:?BASE_SEPOLIA_ADMIN address is required}"
@@ -27,6 +27,10 @@ rpc_url="${BASE_SEPOLIA_RPC_URL:-https://sepolia.base.org}"
 
 if [[ -n "${PRIVATE_KEY:-}" || -n "${DEPLOYER_PRIVATE_KEY:-}" ]]; then
   echo "refusing to run with a private key in the environment; use the encrypted keystore account" >&2
+  exit 1
+fi
+if [[ -n "${ETH_KEYSTORE:-}" || -n "${ETH_KEYSTORE_ACCOUNT:-}" ]]; then
+  echo "unset ETH_KEYSTORE and ETH_KEYSTORE_ACCOUNT: forge would add them as extra signers next to --account" >&2
   exit 1
 fi
 if [[ $# -gt 3 ]] || [[ $# -ge 2 && "$mode" != "--broadcast" ]] || [[ $# -eq 3 && "$redeploy" != "--redeploy" ]]; then

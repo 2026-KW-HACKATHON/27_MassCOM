@@ -8,13 +8,13 @@ work="$(mktemp -d -t deploy-preflight.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
 
 sandbox="$work/repo"
-mkdir -p "$sandbox/scripts" "$sandbox/contracts" "$sandbox/docs/evidence" "$work/bin" "$work/keys" "$work/home"
+mkdir -p "$sandbox/scripts" "$sandbox/contracts" "$sandbox/docs/evidence" "$work/bin" "$work/home/.foundry/keystores"
 cp "$repo_root/scripts/deploy-base-sepolia.sh" "$sandbox/scripts/"
 deploy="$sandbox/scripts/deploy-base-sepolia.sh"
 printf '#!/usr/bin/env bash\necho "${STUB_CHAIN_ID:-84532}"\n' >"$work/bin/cast"
 printf '#!/usr/bin/env bash\necho "FORGE $*"\n' >"$work/bin/forge"
 chmod +x "$work/bin/cast" "$work/bin/forge"
-: >"$work/keys/present"
+: >"$work/home/.foundry/keystores/present"
 record="$sandbox/contracts/broadcast/DeployBaseSepolia.s.sol/84532/run-latest.json"
 evidence="$sandbox/docs/evidence/base-sepolia-deployment.json"
 
@@ -24,8 +24,8 @@ pauser=0x3333333333333333333333333333333333333333
 
 run() { # <env assignments...> -- <args...>
   local envs=(); while [[ "${1:-}" != "--" ]]; do envs+=("$1"); shift; done; shift
-  env -u PRIVATE_KEY -u DEPLOYER_PRIVATE_KEY -u BASE_SEPOLIA_RPC_URL HOME="$work/home" PATH="$work/bin:$PATH" \
-    ETH_KEYSTORE="$work/keys" BASE_SEPOLIA_ADMIN="$admin" BASE_SEPOLIA_MINTER="$minter" BASE_SEPOLIA_PAUSER="$pauser" \
+  env -u PRIVATE_KEY -u DEPLOYER_PRIVATE_KEY -u BASE_SEPOLIA_RPC_URL -u ETH_KEYSTORE -u ETH_KEYSTORE_ACCOUNT \
+    HOME="$work/home" PATH="$work/bin:$PATH" BASE_SEPOLIA_ADMIN="$admin" BASE_SEPOLIA_MINTER="$minter" BASE_SEPOLIA_PAUSER="$pauser" \
     ${envs[@]+"${envs[@]}"} bash "$deploy" "$@" 2>&1
 }
 expect_fail() { # <label> <expected message> <env assignments...> -- <args...>
@@ -46,6 +46,7 @@ expect_forge 'first broadcast' '--account present --broadcast --slow$' -- presen
 # The variable name is assembled so the repository secret scanner does not read this dummy as a key.
 key_variable="PRIVATE""_KEY"
 expect_fail 'private key in environment' 'refusing to run with a private key' "$key_variable=dummy" -- present
+expect_fail 'second signer from the environment' 'unset ETH_KEYSTORE' ETH_KEYSTORE=/elsewhere -- present
 expect_fail 'unknown option' 'unknown option' -- present --send
 expect_fail 'redeploy without broadcast' 'unknown option' -- present --redeploy
 expect_fail 'empty mode before redeploy' 'unknown option' -- present '' --redeploy
