@@ -42,16 +42,30 @@ for feature in socials swaps onramp; do
 done
 grep -qE '^\s*enableAnalytics: false,$' "$config" || fail "enableAnalytics is not an explicit false"
 
-# The SDK account screen has an unflagged Send button. It opens only through open() without a
-# view or through the SDK's own buttons, so neither may exist.
+# The SDK account screen has an unflagged Send button, and open() also accepts Swap and OnRamp
+# views. App code may therefore reach the modal only as open({ view: 'Connect' }).
 while IFS= read -r call; do
   [[ "$call" =~ open\(\{\ view:\ \'Connect\'\ \}\) ]] || fail "AppKit open() must target the Connect view only: $call"
-done < <(grep -hE '\bopen\(' $app_files | grep -v 'openWalletSelector' || true)
+done < <(grep -hE '\bopen\(' $app_files || true)
+appkit_files="$(grep -lE "@reown/|useAppKit" $app_files || true)"
+if [[ -n "$appkit_files" ]]; then
+  # A renamed binding or a view spread over several lines would slip past the line match above.
+  if hit="$(grep -hE -m1 '\bopen\s*:' $appkit_files)"; then fail "open must not be renamed or wrapped: $hit"; fi
+  if hit="$(grep -hE "\bview\s*:" $appkit_files | grep -vE "view: 'Connect'" | head -1)" && [[ -n "$hit" ]]; then
+    fail "AppKit view other than Connect: $hit"
+  fi
+fi
+# The SDK's internal controllers can push any view (WalletSend included) without calling open().
+if hit="$(grep -hE -m1 "@reown/appkit-core-react-native|@reown/appkit-common-react-native|\b(RouterController|ModalController|OptionsController|OnRampController|SwapController|SendController)\b" $app_files)"; then
+  fail "app code must not use AppKit internal controllers: $hit"
+fi
 if hit="$(grep -hE -m1 '<(AppKitButton|AccountButton|ConnectButton|NetworkButton)\b' $app_files)"; then
   fail "SDK button would expose the account screen: $hit"
 fi
 
-if hit="$(sed -n '/methods: {/,/},/p' "$config" | grep -oE "'(eth_sendTransaction|eth_sendRawTransaction|eth_sign|eth_signTransaction|eth_signTypedData[_a-zA-Z0-9]*|wallet_sendCalls|wallet_grantPermissions)'" | head -1)"; then
+methods="$(sed -n '/methods: {/,/},/p' "$config")"
+grep -q "'personal_sign'" <<<"$methods" || fail "could not locate the session methods block"
+if hit="$(grep -oE "'(eth_sendTransaction|eth_sendRawTransaction|eth_sign|eth_signTransaction|eth_signTypedData[_a-zA-Z0-9]*|wallet_sendCalls|wallet_grantPermissions)'" <<<"$methods" | head -1)" && [[ -n "$hit" ]]; then
   fail "session requests a transaction or blind-signing method: $hit"
 fi
 

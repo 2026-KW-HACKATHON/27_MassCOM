@@ -61,4 +61,28 @@ src="$(make_src send-method)"
 sed -i.bak "s/'personal_sign',/'personal_sign', 'eth_sendTransaction',/" "$src/wallet/wallet-runtime-config.ts"
 expect_fail 'transaction method in session' 'transaction or blind-signing method' "$work/good.aab" "$src"
 
+src="$(make_src open-renamed)"
+sed -i.bak "s/await open({ view: 'Connect' });/await launch({ view: 'Swap' });/" "$src/screens/wallet-link/index.tsx"
+printf '%s\n' "const { open: launch } = useAppKit();" >>"$src/screens/wallet-link/index.tsx"
+expect_fail 'open renamed on destructure' 'open must not be renamed' "$work/good.aab" "$src"
+
+src="$(make_src open-multiline)"
+python3 - "$src/screens/wallet-link/index.tsx" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+old = "await open({ view: 'Connect' });"
+assert s.count(old) == 1
+open(p, 'w').write(s.replace(old, "await open({\n        view: 'OnRamp',\n      });"))
+PY
+expect_fail 'view spread over several lines' 'open()' "$work/good.aab" "$src"
+
+src="$(make_src internal-controller)"
+printf '%s\n' "import { RouterController } from '@reown/appkit-core-react-native';" "RouterController.push('WalletSend');" >"$src/screens/leak.ts"
+expect_fail 'internal controller import' 'internal controllers' "$work/good.aab" "$src"
+
+src="$(make_src methods-reformatted)"
+sed -i.bak 's/^\( *\)methods: {$/\1methods:{/' "$src/wallet/wallet-runtime-config.ts"
+expect_fail 'methods block no longer recognisable' 'could not locate the session methods block' "$work/good.aab" "$src"
+
 echo "release wallet surface tests passed"

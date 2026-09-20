@@ -12,7 +12,7 @@
     "manifestPermissions": "no com.android.vending.BILLING, no SYSTEM_ALERT_WINDOW",
     "dexClasses": "no Play Billing, Coinbase, Stripe, MoonPay, Transak, Meld, Web3Auth, Privy or Magic classes",
     "appKitConfig": "single createAppKit call; socials, swaps, onramp and enableAnalytics are explicit false",
-    "accountScreenReachability": "every AppKit open() call targets the Connect view; no SDK AppKitButton/AccountButton/ConnectButton/NetworkButton is rendered",
+    "accountScreenReachability": "every AppKit open() call targets the Connect view; open is not renamed; no view other than Connect; no import of AppKit internal controllers (RouterController, ModalController, ...); no SDK AppKitButton/AccountButton/ConnectButton/NetworkButton is rendered",
     "sessionMethods": "no eth_sendTransaction, eth_sign, eth_signTypedData*, wallet_sendCalls or wallet_grantPermissions"
   },
   "sdkFacts": {
@@ -21,7 +21,7 @@
     "sendButton": "AccountDefault view shows Send without a feature flag; it is reachable only through open() without a view or the SDK buttons",
     "bundleStrings": "the Hermes bundle still contains the SDK's swap and on-ramp screens as unreachable code, so string absence is not the criterion"
   },
-  "regression": "tests/release/check_release_wallet_surface_test.sh plants 8 violations (billing permission, dev package, billing SDK class, on-ramp true, on-ramp left to default, open() without view, SDK button, eth_sendTransaction) and each fails for its own reason",
+  "regression": "tests/release/check_release_wallet_surface_test.sh plants 12 violations (billing permission, dev package, billing SDK class, on-ramp true, on-ramp left to default, open() without view, SDK button, eth_sendTransaction, open renamed on destructure, view spread over several lines, internal controller import, unrecognisable methods block) and each fails for its own reason",
   "limits": [
     "static inspection only; the release build was not installed or driven on a device",
     "signed with the local debug key, not the owner's upload key; rerun the command on the final AAB",
