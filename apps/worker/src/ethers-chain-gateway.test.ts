@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { makeError } from 'ethers';
+import { FeeData, Wallet, makeError, type JsonRpcApiProvider } from 'ethers';
 
-import { contractCallError } from './ethers-chain-gateway.js';
-import { ChainConfigurationError, RetryableChainError } from './mint-worker.js';
+import { EthersMintChainGateway, contractCallError } from './ethers-chain-gateway.js';
+import { ChainConfigurationError, RetryableChainError, type MintWorkItem } from './mint-worker.js';
 
 const callException = (data: string | null) =>
   makeError('call failed', 'CALL_EXCEPTION', {
@@ -41,4 +41,66 @@ test('O02 a real revert or undecodable return data is a contract interface misma
     assert.ok(classified instanceof ChainConfigurationError, String(error));
     assert.equal(classified.code, 'CONTRACT_INTERFACE_MISMATCH');
   }
+});
+
+function internalProvider(gateway: EthersMintChainGateway): JsonRpcApiProvider & {
+  getTransactionCount: (address: string, blockTag?: string) => Promise<number>;
+  getFeeData: () => Promise<FeeData>;
+  estimateGas: (tx: unknown) => Promise<bigint>;
+} {
+  return (
+    gateway as unknown as {
+      provider: JsonRpcApiProvider & {
+        getTransactionCount: (address: string, blockTag?: string) => Promise<number>;
+        getFeeData: () => Promise<FeeData>;
+        estimateGas: (tx: unknown) => Promise<bigint>;
+      };
+    }
+  ).provider;
+}
+
+const item: MintWorkItem = {
+  jobId: 'job-1',
+  outboxId: 'outbox-1',
+  accountId: 'customer-1',
+  entitlementId: 'entitlement-1',
+  rewardKey: `0x${'11'.repeat(32)}`,
+  recipient: '0x4000000000000000000000000000000000000004',
+  chainId: 84532,
+  contractAddress: '0x7000000000000000000000000000000000000007',
+  seriesKey: `0x${'33'.repeat(32)}`,
+};
+
+test('H2 a fresh submission signs nothing and records nothing when fee data is unavailable', async () => {
+  const signer = Wallet.createRandom();
+  const gateway = new EthersMintChainGateway({
+    rpcUrl: 'http://127.0.0.1:1',
+    chainId: 84532,
+    contractAddress: item.contractAddress,
+    minterAddress: signer.address,
+    confirmations: 1,
+    fromBlock: 0,
+    signer,
+  });
+  const provider = internalProvider(gateway);
+  provider.getTransactionCount = async () => 0;
+  provider.estimateGas = async () => 21_000n;
+  let persisted = false;
+
+  for (const feeData of [
+    new FeeData(null, null, 1n),
+    new FeeData(null, 1n, null),
+    new FeeData(null, 0n, 1n),
+    new FeeData(null, -1n, 1n),
+  ]) {
+    provider.getFeeData = async () => feeData;
+    await assert.rejects(
+      gateway.submitMint({ ...item, recipient: signer.address }, async () => {
+        persisted = true;
+      }),
+      (error: unknown) =>
+        error instanceof RetryableChainError && error.code === 'FEE_DATA_UNAVAILABLE',
+    );
+  }
+  assert.equal(persisted, false);
 });

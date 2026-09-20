@@ -253,11 +253,11 @@ export class EthersMintChainGateway implements MintChainGateway {
     ]);
     let nonce: number;
     let feeData: Awaited<ReturnType<JsonRpcProvider['getFeeData']>>;
-    let gasLimit: bigint;
+    let estimatedGas: bigint;
     try {
       nonce = await this.provider.getTransactionCount(this.minterAddress, 'pending');
       feeData = await this.provider.getFeeData();
-      gasLimit = await this.provider.estimateGas({
+      estimatedGas = await this.provider.estimateGas({
         to: this.contractAddress,
         data,
         from: this.minterAddress,
@@ -265,6 +265,16 @@ export class EthersMintChainGateway implements MintChainGateway {
     } catch (error) {
       throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
     }
+    // A null or non-positive maxFeePerGas would sign a transaction the network can never accept
+    // (or, worse, one with an unbounded fee): fail closed before anything is signed or recorded,
+    // rather than let `?? null` silently paper over missing fee data.
+    if (feeData.maxFeePerGas == null || feeData.maxPriorityFeePerGas == null || feeData.maxFeePerGas <= 0n) {
+      throw new RetryableChainError('FEE_DATA_UNAVAILABLE');
+    }
+    // 20% headroom over the estimate: an estimate taken slightly before signing can be too tight
+    // by the time the transaction actually executes, and an out-of-gas revert is far more
+    // expensive to recover from than a slightly larger gas limit.
+    const gasLimit = (estimatedGas * 12n) / 10n;
     let signedTransaction: string;
     try {
       signedTransaction = await signer.signTransaction({
@@ -274,8 +284,8 @@ export class EthersMintChainGateway implements MintChainGateway {
         nonce,
         chainId: this.options.chainId,
         gasLimit,
-        maxFeePerGas: feeData.maxFeePerGas ?? null,
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? null,
+        maxFeePerGas: feeData.maxFeePerGas,
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
       });
     } catch (error) {
       throw new RetryableChainError('MINT_SIGNING_FAILED', { cause: error });
@@ -286,7 +296,7 @@ export class EthersMintChainGateway implements MintChainGateway {
     // Record before broadcasting: a crash or a lost response after this point never needs a new
     // transaction — restart recovery re-broadcasts this exact signed transaction instead.
     await persistBeforeBroadcast({ transactionHash: normalizedHash, signedTransaction });
-    await this.broadcastSigned(signedTransaction);
+    await this.broadcastSigned(signedTransaction, 'fresh');
     return { transactionHash: normalizedHash };
   }
 
@@ -302,14 +312,36 @@ export class EthersMintChainGateway implements MintChainGateway {
     } catch (error) {
       throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
     }
-    await this.broadcastSigned(signedTransaction);
+    await this.broadcastSigned(signedTransaction, 'rebroadcast');
   }
 
-  private async broadcastSigned(signedTransaction: string): Promise<void> {
+  /**
+   * `mode` distinguishes a brand-new submission from resending a transaction already recorded on
+   * an earlier attempt: "nonce too low" means something different in each case.
+   * - rebroadcast: the recorded transaction's nonce was already consumed — by an earlier
+   *   broadcast of this exact transaction, or by this same signed payload sent previously — so
+   *   there is nothing left to do.
+   * - fresh: this transaction was just signed against a nonce this worker believed was free. A
+   *   nonce-too-low response here means that belief was wrong and this exact transaction can
+   *   never mine, which is a real problem worth surfacing (not silently swallowing).
+   */
+  private async broadcastSigned(
+    signedTransaction: string,
+    mode: 'fresh' | 'rebroadcast',
+  ): Promise<void> {
     try {
       await this.provider.broadcastTransaction(signedTransaction);
     } catch (error) {
-      if (isAlreadyKnownOrNonceTooLow(error)) return;
+      if (isAlreadyKnown(error)) return;
+      if (isNonceTooLow(error)) {
+        if (mode === 'rebroadcast') return;
+        // Never log the raw provider error here: it can echo back the signed transaction payload.
+        console.error('mint worker: fresh submission nonce rejected', {
+          name: (error as { name?: unknown })?.name,
+          code: (error as { code?: unknown })?.code,
+        });
+        throw new RetryableChainError('MINT_BROADCAST_NONCE_CONFLICT', { cause: error });
+      }
       throw new RetryableChainError('MINT_BROADCAST_FAILED', { cause: error });
     }
   }
@@ -404,15 +436,23 @@ export function contractCallError(error: unknown): ChainConfigurationError | Ret
   return new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
 }
 
-// A re-broadcast of a transaction the network has already accepted (or superseded by an earlier
-// nonce it already mined) is exactly the outcome we want, not a failure: the node's wording for
-// this varies ("already known", "nonce too low", "replacement transaction underpriced" is not
-// included here since that indicates an actual conflicting transaction, not the same one).
-function isAlreadyKnownOrNonceTooLow(error: unknown): boolean {
-  if (isError(error, 'NONCE_EXPIRED')) return true;
-  const message =
-    typeof error === 'object' && error !== null && 'message' in error
-      ? String((error as { message: unknown }).message).toLowerCase()
-      : '';
-  return message.includes('already known') || message.includes('nonce too low');
+// The node already has this exact transaction (a retried broadcast of the same payload): not a
+// failure either way, so this check does not depend on fresh vs rebroadcast.
+function isAlreadyKnown(error: unknown): boolean {
+  return errorMessage(error).includes('already known');
+}
+
+// Prefer ethers' own classification over message sniffing; fall back to the message only when
+// the provider does not tag the error. NONCE_EXPIRED is the direct "nonce too low" case;
+// REPLACEMENT_UNDERPRICED means a transaction already occupies that nonce and this one does not
+// out-bid it — for our purposes (this exact nonce is spoken for) that is the same situation.
+function isNonceTooLow(error: unknown): boolean {
+  if (isError(error, 'NONCE_EXPIRED') || isError(error, 'REPLACEMENT_UNDERPRICED')) return true;
+  return errorMessage(error).includes('nonce too low');
+}
+
+function errorMessage(error: unknown): string {
+  return typeof error === 'object' && error !== null && 'message' in error
+    ? String((error as { message: unknown }).message).toLowerCase()
+    : '';
 }
