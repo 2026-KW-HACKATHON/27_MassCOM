@@ -1,11 +1,13 @@
 import { Link } from 'expo-router';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { colors } from '@/theme/colors';
 
 export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: string; apiUrl: string }) {
   useColorScheme();
+  const insets = useSafeAreaInsets();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const merchant = merchants.find((item) => item.id === merchantId);
 
@@ -24,7 +26,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: 20 + insets.bottom }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
       <View style={styles.hero}>

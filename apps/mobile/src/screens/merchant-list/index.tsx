@@ -9,6 +9,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PublicMerchant } from '@/merchant/merchant-api';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
@@ -20,6 +21,7 @@ type Props = {
 
 export function MerchantListScreen({ apiUrl }: Props) {
   useColorScheme();
+  const insets = useSafeAreaInsets();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
 
   return (
@@ -27,7 +29,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
       data={merchants}
       keyExtractor={(merchant) => merchant.id}
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: 20 + insets.bottom }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
       ListHeaderComponent={
         <View style={styles.header}>

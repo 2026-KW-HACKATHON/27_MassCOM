@@ -1,11 +1,13 @@
 import { Link } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
 import { colors } from '@/theme/colors';
 
 export function RecommendationsScreen({ apiUrl, accountId }: { apiUrl: string; accountId: string }) {
+  const insets = useSafeAreaInsets();
   const api = useMemo(
     () => createRecommendationApiClient({ apiUrl, accountId }),
     [accountId, apiUrl],
@@ -67,7 +69,7 @@ export function RecommendationsScreen({ apiUrl, accountId }: { apiUrl: string; a
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: 20 + insets.bottom }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
       <View style={styles.hero}>

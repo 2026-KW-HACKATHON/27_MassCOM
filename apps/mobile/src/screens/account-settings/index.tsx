@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useAppKit } from '@reown/appkit-react-native';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   AccountDeletionApiClient,
@@ -20,6 +21,7 @@ export function AccountSettingsScreen({
   accountId: string;
   allowInsecureDemoReauthentication?: boolean;
 }) {
+  const insets = useSafeAreaInsets();
   const client = useMemo(
     () => new AccountDeletionApiClient({
       apiUrl,
@@ -66,7 +68,10 @@ export function AccountSettingsScreen({
   }
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={[styles.content, { paddingBottom: 20 + insets.bottom }]}
+    >
       <Text style={styles.eyebrow}>개인정보와 계정</Text>
       <Text selectable style={styles.title}>삭제되는 것과{`\n`}남는 것을 먼저 확인합니다.</Text>
       <Text selectable style={styles.intro}>

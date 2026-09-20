@@ -7,6 +7,7 @@ import {
 } from '@reown/appkit-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '@/theme/colors';
 import { baseSepolia } from '@/wallet/base-sepolia';
@@ -43,6 +44,7 @@ const walletMissingMessage =
 
 export function WalletLinkScreen({ config }: Props) {
   useColorScheme();
+  const insets = useSafeAreaInsets();
   const { address, chainId } = useAccount();
   const { provider } = useProvider();
   const { open, close, disconnect, switchNetwork, cancelPendingConnection } = useAppKit();
@@ -218,7 +220,10 @@ export function WalletLinkScreen({ config }: Props) {
   }
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={[styles.content, { paddingBottom: 20 + insets.bottom }]}
+    >
       <View style={styles.hero}>
         <Text style={styles.context}>Base Sepolia · 외부 지갑만</Text>
         <Text selectable style={styles.title}>NFT를 받을 주소를 확인합니다.</Text>

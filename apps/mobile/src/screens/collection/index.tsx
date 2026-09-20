@@ -1,12 +1,14 @@
 import { Link } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CommerceApiError, createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
 import { colors } from '@/theme/colors';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
 export function CollectionScreen({ apiUrl, accountId }: { apiUrl: string; accountId: string }) {
+  const insets = useSafeAreaInsets();
   const api = useMemo(() => createCommerceApiClient({ apiUrl, accountId }), [accountId, apiUrl]);
   const walletApi = useMemo(() => new WalletApiClient({ apiUrl, accountId }), [accountId, apiUrl]);
   const [collection, setCollection] = useState<CollectionSnapshot>();
@@ -146,7 +148,7 @@ export function CollectionScreen({ apiUrl, accountId }: { apiUrl: string; accoun
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: 20 + insets.bottom }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
       <View style={styles.hero}>

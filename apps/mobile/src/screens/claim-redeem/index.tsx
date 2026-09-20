@@ -1,6 +1,7 @@
 import { Link } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   CommerceApiError,
@@ -12,6 +13,7 @@ import { colors } from '@/theme/colors';
 
 export function ClaimRedeemScreen({ apiUrl, accountId }: { apiUrl: string; accountId: string }) {
   const scrollView = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
   const api = useMemo(
     () => createCommerceApiClient({ apiUrl, accountId }),
     [accountId, apiUrl],
@@ -64,7 +66,11 @@ export function ClaimRedeemScreen({ apiUrl, accountId }: { apiUrl: string; accou
   }
 
   return (
-    <ScrollView ref={scrollView} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+    <ScrollView
+      ref={scrollView}
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={[styles.content, { paddingBottom: 20 + insets.bottom }]}
+    >
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>방문 인증</Text>
         <Text selectable style={styles.title}>점주가 준 1회 코드를{`\n`}확인하고 받습니다.</Text>
