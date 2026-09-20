@@ -479,6 +479,19 @@ test('signed transactions recorded but never broadcast are sent before a new non
   ]);
 });
 
+test('an over-full backlog of unconfirmed signed transactions blocks submission instead of guessing a nonce', async () => {
+  const repository = new FakeRepository();
+  repository.listUnconfirmedSignedTransactions = async () => {
+    throw new RetryableChainError('MINTER_UNCONFIRMED_BACKLOG');
+  };
+  const gateway = new FakeGateway();
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.equal(gateway.calls.includes('submit'), false);
+  assert.deepEqual(workCalls(repository), ['lease', 'retryable:MINTER_NONCE_BLOCKED']);
+});
+
 test('H1 a straggler that cannot be rebroadcast releases this job without consuming an attempt', async () => {
   const repository = new FakeRepository();
   repository.unconfirmedSigned = [

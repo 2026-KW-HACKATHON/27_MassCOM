@@ -43,6 +43,8 @@ type GatewayOptions = {
   fromBlock: number;
   fallbackFromBlock?: number;
   minMinterBalanceWei?: bigint;
+  /** Service signer only: refuse to sign when the RPC's fee quote makes one mint cost more than this. */
+  maxTransactionFeeWei?: bigint;
   /**
    * A locally held signer for the minter address (service-signer path only). When present,
    * submitMint builds, signs, and records a transaction before ever broadcasting it. When
@@ -59,6 +61,7 @@ export class EthersMintChainGateway implements MintChainGateway {
   private readonly contract: Contract;
   private readonly contractInterface = new Interface(abi);
   private readonly minMinterBalanceWei: bigint;
+  private readonly maxTransactionFeeWei: bigint;
 
   constructor(private readonly options: GatewayOptions) {
     // cacheTimeout -1: a block number cached for 250ms can predate a just-mined receipt, and
@@ -83,6 +86,11 @@ export class EthersMintChainGateway implements MintChainGateway {
       fallbackFromBlock > options.fromBlock
     ) {
       throw new Error('fallbackFromBlock must be between zero and fromBlock');
+    }
+    // 0.01 ETH per mint: far above a Base Sepolia mint, far below a drained wallet.
+    this.maxTransactionFeeWei = options.maxTransactionFeeWei ?? 10_000_000_000_000_000n;
+    if (this.maxTransactionFeeWei <= 0n) {
+      throw new Error('maxTransactionFeeWei must be positive');
     }
     const minMinterBalanceWei = options.minMinterBalanceWei ?? 0n;
     if (minMinterBalanceWei < 0n) {
@@ -302,6 +310,11 @@ export class EthersMintChainGateway implements MintChainGateway {
     // by the time the transaction actually executes, and an out-of-gas revert is far more
     // expensive to recover from than a slightly larger gas limit.
     const gasLimit = (estimatedGas * 12n) / 10n;
+    // The fee quote comes from the RPC endpoint. A faulty or hostile one could otherwise get a
+    // transaction signed that spends the minter's whole balance on gas.
+    if (gasLimit * feeData.maxFeePerGas > this.maxTransactionFeeWei) {
+      throw new RetryableChainError('FEE_ABOVE_CEILING');
+    }
     let signedTransaction: string;
     try {
       signedTransaction = await signer.signTransaction({

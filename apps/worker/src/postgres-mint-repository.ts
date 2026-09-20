@@ -76,6 +76,8 @@ const defaultOptions: Options = {
   minterLockTimeoutMs: 10_000,
 };
 
+const unconfirmedSweepLimit = 50;
+
 export class PostgresMintRepository implements MintWorkRepository {
   private readonly options: Options;
 
@@ -338,9 +340,14 @@ export class PostgresMintRepository implements MintWorkRepository {
          AND attempt.signed_transaction IS NOT NULL
          AND job.status NOT IN ('FINALIZED', 'MANUAL_REVIEW', 'CANCELLED')
        ORDER BY attempt.submitted_at, attempt.attempt_number
-       LIMIT 50`,
+       LIMIT ${unconfirmedSweepLimit + 1}`,
       [chainId],
     );
+    // A partial view would compute a nonce floor from some of the in-flight nonces only, so an
+    // over-full window is reported instead of silently truncated.
+    if (result.rows.length > unconfirmedSweepLimit) {
+      throw new RetryableChainError('MINTER_UNCONFIRMED_BACKLOG');
+    }
     return result.rows.map((row) => ({
       transactionHash: row.transaction_hash,
       signedTransaction: row.signed_transaction,
@@ -366,15 +373,23 @@ export class PostgresMintRepository implements MintWorkRepository {
       await client.query("SELECT set_config('lock_timeout', $1, false)", [
         `${this.options.minterLockTimeoutMs}ms`,
       ]);
+      let held = false;
       try {
         await client.query('SELECT pg_advisory_lock($1, $2)', [key1, key2]);
+        held = true;
       } catch (error) {
         if (isLockTimeout(error)) {
           throw new RetryableChainError('MINTER_LOCK_TIMEOUT', { cause: error });
         }
         throw error;
       } finally {
-        await client.query("SELECT set_config('lock_timeout', '0', false)");
+        try {
+          await client.query("SELECT set_config('lock_timeout', '0', false)");
+        } catch (error) {
+          // The lock is held but we never reach the unlock below: this session must not be pooled.
+          if (held) destroy = true;
+          throw error;
+        }
       }
       try {
         return await fn();

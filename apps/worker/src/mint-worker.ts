@@ -234,14 +234,28 @@ export class MintWorker {
             // recorded one can never be mined. This runs before markPrepared: if a straggler
             // cannot be gotten past, this job's attempt must not be spent on someone else's
             // stuck transaction.
-            const unconfirmedSignedTransactions = await this.repository.listUnconfirmedSignedTransactions(
-              item.chainId,
-            );
+            let unconfirmedSignedTransactions: { transactionHash: string; signedTransaction: string }[];
+            try {
+              unconfirmedSignedTransactions = await this.repository.listUnconfirmedSignedTransactions(
+                item.chainId,
+              );
+            } catch (error) {
+              if (error instanceof RetryableChainError) return { blocked: true };
+              throw error;
+            }
             for (const pending of unconfirmedSignedTransactions) {
               try {
                 await this.gateway.rebroadcastIfNeeded(pending.transactionHash, pending.signedTransaction);
               } catch (error) {
-                if (error instanceof RetryableChainError) return { blocked: true };
+                if (error instanceof RetryableChainError) {
+                  // Every mint on this chain waits behind this transaction until its own job is
+                  // settled or times out, so name it for the operator. The hash is public data.
+                  console.error('mint worker: minter nonce blocked by an unbroadcastable transaction', {
+                    transactionHash: pending.transactionHash,
+                    code: error.code,
+                  });
+                  return { blocked: true };
+                }
                 throw error;
               }
             }

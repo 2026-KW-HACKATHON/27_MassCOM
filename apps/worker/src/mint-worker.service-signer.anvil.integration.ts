@@ -591,6 +591,67 @@ test('H1 a straggler that never broadcasts blocks the next job until its own job
   assert.equal(finalized.rows[0]?.status, 'FINALIZED');
 });
 
+test('W-100 a fee quote above the per-mint ceiling is refused before anything is signed or recorded', async (t) => {
+  const rpcUrl = process.env.ANVIL_RPC_URL;
+  if (!rpcUrl) throw new Error('ANVIL_RPC_URL is required');
+  const provider = new JsonRpcProvider(rpcUrl, 31337, { staticNetwork: true, cacheTimeout: -1 });
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(async () => {
+    await pool.end();
+    await provider.destroy();
+  });
+
+  await truncateServiceSignerTables(pool);
+  const artifact = JSON.parse(
+    await readFile(
+      new URL('../../../contracts/out/WolgyeMascot.sol/WolgyeMascot.json', import.meta.url),
+      'utf8',
+    ),
+  ) as { abi: InterfaceAbi; bytecode: { object: string } };
+  const serviceSigner = Wallet.createRandom();
+  const funder = await provider.getSigner(funderAddress);
+  await waitFor(await funder.sendTransaction({ to: serviceSigner.address, value: parseEther('5') }));
+  const adminSigner = await provider.getSigner(adminAddress);
+  const factory = new ContractFactory(artifact.abi, artifact.bytecode.object, adminSigner);
+  const contract = await factory.deploy(adminAddress, serviceSigner.address, pauserAddress);
+  await contract.waitForDeployment();
+  const contractAddress = getAddress(await contract.getAddress());
+  const seriesKey = id('service-signer-fee-ceiling-series');
+  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://fee/', 10));
+  await waitFor(await contract.getFunction('activateSeries').send(seriesKey));
+  const rewardKeys = [id('service-signer-fee-1'), id('service-signer-fee-2')] as const;
+  const jobIds = [
+    '90000000-0000-4000-9005-000000000001',
+    '90000000-0000-4000-9005-000000000002',
+  ] as const;
+  await seedServiceSignerJobs(pool, contractAddress, seriesKey, rewardKeys, jobIds);
+
+  const nonceBefore = await provider.getTransactionCount(serviceSigner.address, 'pending');
+  const cappedGateway = new EthersMintChainGateway({
+    rpcUrl,
+    chainId: 31337,
+    contractAddress,
+    minterAddress: serviceSigner.address,
+    confirmations: 1,
+    fromBlock: 0,
+    signer: serviceSigner,
+    maxTransactionFeeWei: 1n,
+  });
+  assert.equal(await new MintWorker(new PostgresMintRepository(pool), cappedGateway).runOnce('fee-capped'), true);
+
+  const refused = await pool.query<{ status: string; last_error_code: string; transaction_hash: string | null }>(
+    'SELECT status, last_error_code, transaction_hash FROM mint_jobs WHERE last_error_code IS NOT NULL',
+  );
+  assert.deepEqual(refused.rows, [
+    { status: 'RETRYABLE', last_error_code: 'FEE_ABOVE_CEILING', transaction_hash: null },
+  ]);
+  const recorded = await pool.query<{ count: string }>(
+    'SELECT count(*) FROM mint_tx_attempts WHERE signed_transaction IS NOT NULL OR transaction_hash IS NOT NULL',
+  );
+  assert.equal(recorded.rows[0]?.count, '0');
+  assert.equal(await provider.getTransactionCount(serviceSigner.address, 'pending'), nonceBefore);
+});
+
 function internalProvider(gateway: EthersMintChainGateway): JsonRpcApiProvider & {
   broadcastTransaction: (signed: string) => Promise<unknown>;
 } {
