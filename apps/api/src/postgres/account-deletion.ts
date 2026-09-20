@@ -221,6 +221,12 @@ async function pseudonymizeAccount(
   now: Date,
 ): Promise<void> {
   await client.query('DELETE FROM wallet_challenges WHERE account_id = $1', [accountId]);
+  // Sessions keep the real account id so a leaked token still fails the revocation check.
+  await client.query(
+    `UPDATE auth_sessions SET revoked_at = coalesce(revoked_at, $1) WHERE account_id = $2`,
+    [now, accountId],
+  );
+  await client.query('DELETE FROM auth_identities WHERE account_id = $1', [accountId]);
   await client.query(
     `INSERT INTO merchant_members (
        merchant_id, account_id, role, status, granted_at, revoked_at, updated_at
