@@ -7,7 +7,9 @@ import {
   AccountDeletionError,
   type AccountDeletionService,
 } from './account-deletion.js';
+import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
+import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js';
 import {
   CampaignEnrollmentError,
   type CampaignEnrollmentService,
@@ -33,6 +35,7 @@ import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
+import { PostgresAuthSessionService } from './postgres/auth-session.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
@@ -51,6 +54,15 @@ export type ReauthenticationGuard = (
 ) => void | Promise<void>;
 
 export const developmentHeaderAccountResolver: AccountResolver = requireAccountId;
+export const createBearerAccountResolver =
+  (sessions: AuthSessionService): AccountResolver =>
+  (request) =>
+    sessions.resolve(requireBearerToken(request));
+export const createSessionReauthenticationGuard =
+  (sessions: AuthSessionService): ReauthenticationGuard =>
+  async (_accountId, request) => {
+    await sessions.assertRecentlyAuthenticated(requireBearerToken(request));
+  };
 export const developmentHeaderReauthenticationGuard: ReauthenticationGuard = (
   _accountId,
   request,
@@ -72,6 +84,7 @@ export function createApiServer(
   accountDeletions?: AccountDeletionService,
   requireReauthentication?: ReauthenticationGuard,
   campaignEnrollments?: CampaignEnrollmentService,
+  authSessions?: AuthSessionService,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -79,6 +92,29 @@ export function createApiServer(
     try {
       if (request.method === 'GET' && request.url === '/health') {
         sendJson(response, 200, { status: 'ok' });
+        return;
+      }
+
+      if (request.method === 'POST' && request.url === '/auth/google') {
+        const sessions = requireAuthSessions(authSessions);
+        const body = await readJson(request);
+        sendJson(response, 200, await sessions.signInWithGoogle(requireString(body, 'idToken')));
+        return;
+      }
+
+      if (request.method === 'POST' && request.url === '/auth/logout') {
+        const sessions = requireAuthSessions(authSessions);
+        await sessions.logout(requireBearerToken(request));
+        sendJson(response, 200, { status: 'LOGGED_OUT' });
+        return;
+      }
+
+      if (request.method === 'POST' && request.url === '/auth/reauthenticate') {
+        const sessions = requireAuthSessions(authSessions);
+        const sessionToken = requireBearerToken(request);
+        const body = await readJson(request);
+        await sessions.reauthenticate(sessionToken, requireString(body, 'idToken'));
+        sendJson(response, 200, { status: 'REAUTHENTICATED' });
         return;
       }
 
@@ -342,6 +378,14 @@ export function createApiServer(
         sendJson(response, statusForMintRequest(error.code), { code: error.code });
         return;
       }
+      if (error instanceof AuthSessionError) {
+        sendJson(response, statusForAuthSession(error.code), { code: error.code });
+        return;
+      }
+      if (error instanceof GoogleIdTokenError) {
+        sendJson(response, 401, { code: error.code });
+        return;
+      }
       if (error instanceof AccountDeletionError) {
         sendJson(response, statusForAccountDeletion(error.code), { code: error.code });
         return;
@@ -442,6 +486,24 @@ function requirePositiveInteger(body: Record<string, unknown>, field: string): n
   return value;
 }
 
+function requireAuthSessions(sessions: AuthSessionService | undefined): AuthSessionService {
+  if (!sessions) throw new RequestError(503, 'ACCOUNT_AUTH_NOT_CONFIGURED');
+  return sessions;
+}
+
+function requireBearerToken(request: IncomingMessage): string {
+  const value = request.headers.authorization;
+  const header = Array.isArray(value) ? value[0] : value;
+  const bearer = header?.match(/^Bearer (\S+)$/)?.[1];
+  if (!bearer) throw new AuthSessionError('SESSION_REQUIRED');
+  return bearer;
+}
+
+function statusForAuthSession(code: string): number {
+  if (code === 'IDENTITY_MISMATCH') return 403;
+  return 401;
+}
+
 function statusForAccountDeletion(code: string): number {
   if (code === 'REAUTHENTICATION_REQUIRED') return 401;
   if (code === 'ACCOUNT_REQUIRED') return 401;
@@ -499,6 +561,31 @@ function setCommonHeaders(response: ServerResponse): void {
 function sendJson(response: ServerResponse, status: number, body: object): void {
   response.writeHead(status);
   response.end(JSON.stringify(body));
+}
+
+export type AuthMode =
+  | { kind: 'production'; audiences: readonly string[] }
+  | { kind: 'demo' }
+  | { kind: 'unconfigured' };
+
+// The DEMO header boundary is loopback-only by design, so it can never coexist with real login.
+export function resolveAuthMode(env: Record<string, string | undefined>): AuthMode {
+  const audiences = (env.GOOGLE_OAUTH_CLIENT_IDS ?? '')
+    .split(',')
+    .map((clientId) => clientId.trim())
+    .filter((clientId) => clientId.length > 0);
+  const productionConfigured = audiences.length > 0 && Boolean(env.DATABASE_URL);
+  const demoConfigured = env.ALLOW_INSECURE_DEMO_ACCOUNT === 'true';
+
+  if (productionConfigured && demoConfigured) {
+    throw new Error(
+      'ALLOW_INSECURE_DEMO_ACCOUNT and GOOGLE_OAUTH_CLIENT_IDS are both configured; ' +
+        'the insecure DEMO account header cannot run alongside production login',
+    );
+  }
+  if (productionConfigured) return { kind: 'production', audiences };
+  if (demoConfigured) return { kind: 'demo' };
+  return { kind: 'unconfigured' };
 }
 
 function configuredService(
@@ -566,14 +653,25 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;
-  const accountResolver: AccountResolver =
-    process.env.ALLOW_INSECURE_DEMO_ACCOUNT === 'true'
+  const authMode = resolveAuthMode(process.env);
+  const authSessions =
+    pool && authMode.kind === 'production'
+      ? new PostgresAuthSessionService(pool, {
+          verifier: new GoogleIdTokenVerifier({ audiences: authMode.audiences }),
+          sessionTtlMs: Number(process.env.AUTH_SESSION_TTL_MS ?? 30 * 24 * 60 * 60 * 1000),
+          ...(accountLifecycle ? { accountLifecycle } : {}),
+        })
+      : undefined;
+  const accountResolver: AccountResolver = authSessions
+    ? createBearerAccountResolver(authSessions)
+    : authMode.kind === 'demo'
       ? developmentHeaderAccountResolver
       : () => {
           throw new WalletChallengeError('ACCOUNT_AUTH_NOT_CONFIGURED');
         };
-  const reauthenticationGuard: ReauthenticationGuard | undefined =
-    process.env.ALLOW_INSECURE_DEMO_ACCOUNT === 'true'
+  const reauthenticationGuard: ReauthenticationGuard | undefined = authSessions
+    ? createSessionReauthenticationGuard(authSessions)
+    : authMode.kind === 'demo'
       ? developmentHeaderReauthenticationGuard
       : undefined;
 
@@ -589,6 +687,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     accountDeletions,
     reauthenticationGuard,
     campaignEnrollments,
+    authSessions,
   ).listen(port, '127.0.0.1', () => {
     console.log(`wallet API listening on http://127.0.0.1:${port}`);
   });

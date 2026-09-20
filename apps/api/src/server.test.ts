@@ -4,9 +4,14 @@ import { test, type TestContext } from 'node:test';
 import { Wallet } from 'ethers';
 
 import type { AccountDeletionService } from './account-deletion.js';
+import { AuthSessionError, type AuthSessionService } from './auth-session.js';
+import { GoogleIdTokenError } from './google-id-token.js';
 import {
   createApiServer,
+  createBearerAccountResolver,
+  createSessionReauthenticationGuard,
   developmentHeaderAccountResolver,
+  resolveAuthMode,
   type AccountResolver,
   type ReauthenticationGuard,
 } from './server.js';
@@ -148,6 +153,7 @@ async function startFixture(
   accountDeletions?: AccountDeletionService,
   requireReauthentication?: ReauthenticationGuard,
   campaignEnrollments?: CampaignEnrollmentService,
+  authSessions?: AuthSessionService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -170,6 +176,7 @@ async function startFixture(
     accountDeletions,
     requireReauthentication,
     campaignEnrollments,
+    authSessions,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -1101,4 +1108,281 @@ test('D01 requires reauthentication, requests deletion, and invalidates wallet c
   });
   assert.equal(invalidated.status, 404);
   assert.deepEqual(await invalidated.json(), { code: 'CHALLENGE_NOT_FOUND' });
+});
+
+function authSessionFixture(overrides: Partial<AuthSessionService> = {}): AuthSessionService {
+  return {
+    signInWithGoogle: async () => {
+      throw new Error('unexpected sign-in call');
+    },
+    resolve: async () => {
+      throw new Error('unexpected resolve call');
+    },
+    logout: async () => {
+      throw new Error('unexpected logout call');
+    },
+    reauthenticate: async () => {
+      throw new Error('unexpected reauthenticate call');
+    },
+    assertRecentlyAuthenticated: async () => {
+      throw new Error('unexpected recency check call');
+    },
+    ...overrides,
+  };
+}
+
+test('D24 signs in with a Google ID token and returns the session once', async (t) => {
+  let received: string | undefined;
+  const sessions = authSessionFixture({
+    signInWithGoogle: async (idToken) => {
+      received = idToken;
+      return {
+        sessionToken: 'session-returned-once',
+        accountId: 'acct_11111111-1111-4111-8111-111111111111',
+        expiresAt: '2026-10-21T00:00:00.000Z',
+      };
+    },
+  });
+  const baseUrl = await startFixture(
+    t,
+    () => 'unused-account',
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    sessions,
+  );
+
+  const response = await fetch(`${baseUrl}/auth/google`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ idToken: 'google-id-token-value' }),
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await response.json(), {
+    sessionToken: 'session-returned-once',
+    accountId: 'acct_11111111-1111-4111-8111-111111111111',
+    expiresAt: '2026-10-21T00:00:00.000Z',
+  });
+  assert.equal(received, 'google-id-token-value');
+});
+
+test('D24 rejects an unverifiable Google ID token with a fixed code', async (t) => {
+  const sessions = authSessionFixture({
+    signInWithGoogle: async () => {
+      throw new GoogleIdTokenError('ID_TOKEN_AUDIENCE_MISMATCH');
+    },
+  });
+  const baseUrl = await startFixture(
+    t,
+    () => 'unused-account',
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    sessions,
+  );
+
+  const response = await fetch(`${baseUrl}/auth/google`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ idToken: 'forged-id-token-value' }),
+  });
+
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { code: 'ID_TOKEN_AUDIENCE_MISMATCH' });
+});
+
+test('D25 resolves the account from the bearer session and refuses a missing one', async (t) => {
+  const sessions = authSessionFixture({
+    resolve: async (sessionToken) => {
+      if (sessionToken !== 'live-session') throw new AuthSessionError('SESSION_INVALID');
+      return 'acct_22222222-2222-4222-8222-222222222222';
+    },
+  });
+  let collectionFor: string | undefined;
+  const baseUrl = await startFixture(
+    t,
+    createBearerAccountResolver(sessions),
+    undefined,
+    undefined,
+    undefined,
+    {
+      getCollection: async (accountId) => {
+        collectionFor = accountId;
+        return { visits: [], collectibles: [] };
+      },
+    },
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    sessions,
+  );
+
+  const authorized = await fetch(`${baseUrl}/collection`, {
+    headers: { authorization: 'Bearer live-session' },
+  });
+  assert.equal(authorized.status, 200);
+  assert.equal(collectionFor, 'acct_22222222-2222-4222-8222-222222222222');
+
+  const anonymous = await fetch(`${baseUrl}/collection`);
+  assert.equal(anonymous.status, 401);
+  assert.deepEqual(await anonymous.json(), { code: 'SESSION_REQUIRED' });
+
+  const stale = await fetch(`${baseUrl}/collection`, {
+    headers: { authorization: 'Bearer revoked-session' },
+  });
+  assert.equal(stale.status, 401);
+  assert.deepEqual(await stale.json(), { code: 'SESSION_INVALID' });
+});
+
+test('D25 logout revokes the presented session and reauthentication refreshes it', async (t) => {
+  const revoked: string[] = [];
+  let reauthenticated: readonly [string, string] | undefined;
+  const sessions = authSessionFixture({
+    logout: async (sessionToken) => {
+      revoked.push(sessionToken);
+    },
+    reauthenticate: async (sessionToken, idToken) => {
+      reauthenticated = [sessionToken, idToken];
+    },
+  });
+  const baseUrl = await startFixture(
+    t,
+    createBearerAccountResolver(sessions),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    sessions,
+  );
+
+  const logout = await fetch(`${baseUrl}/auth/logout`, {
+    method: 'POST',
+    headers: { authorization: 'Bearer live-session' },
+  });
+  assert.equal(logout.status, 200);
+  assert.deepEqual(revoked, ['live-session']);
+
+  const refreshed = await fetch(`${baseUrl}/auth/reauthenticate`, {
+    method: 'POST',
+    headers: { authorization: 'Bearer live-session', 'content-type': 'application/json' },
+    body: JSON.stringify({ idToken: 'google-id-token-value' }),
+  });
+  assert.equal(refreshed.status, 200);
+  assert.deepEqual(reauthenticated, ['live-session', 'google-id-token-value']);
+
+  const anonymous = await fetch(`${baseUrl}/auth/logout`, { method: 'POST' });
+  assert.equal(anonymous.status, 401);
+  assert.deepEqual(await anonymous.json(), { code: 'SESSION_REQUIRED' });
+});
+
+test('D26 account deletion ignores the DEMO header and requires a recent session authentication', async (t) => {
+  const sessions = authSessionFixture({
+    resolve: async () => 'acct_33333333-3333-4333-8333-333333333333',
+    assertRecentlyAuthenticated: async (sessionToken) => {
+      if (sessionToken !== 'recently-authenticated') {
+        throw new AuthSessionError('REAUTHENTICATION_REQUIRED');
+      }
+      return 'acct_33333333-3333-4333-8333-333333333333';
+    },
+  });
+  const result = {
+    requestId: '90000000-0000-4000-8000-000000000002',
+    status: 'COMPLETED' as const,
+    requestedAt: '2026-09-21T00:00:00.000Z',
+    completedAt: '2026-09-21T00:00:00.000Z',
+    cancelledMintJobs: 0,
+    pendingMintJobs: 0,
+    retainedFinalizedNfts: 0,
+    replayed: false,
+  };
+  const baseUrl = await startFixture(
+    t,
+    createBearerAccountResolver(sessions),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    { requestDeletion: async () => result },
+    createSessionReauthenticationGuard(sessions),
+    undefined,
+    sessions,
+  );
+
+  const demoAttempt = await fetch(`${baseUrl}/account-deletion-requests`, {
+    method: 'POST',
+    headers: {
+      authorization: 'Bearer stale-session',
+      'content-type': 'application/json',
+      'x-demo-reauthenticated': 'true',
+    },
+    body: JSON.stringify({ confirmation: 'DELETE MY ACCOUNT' }),
+  });
+  assert.equal(demoAttempt.status, 401);
+  assert.deepEqual(await demoAttempt.json(), { code: 'REAUTHENTICATION_REQUIRED' });
+
+  const authorized = await fetch(`${baseUrl}/account-deletion-requests`, {
+    method: 'POST',
+    headers: { authorization: 'Bearer recently-authenticated', 'content-type': 'application/json' },
+    body: JSON.stringify({ confirmation: 'DELETE MY ACCOUNT' }),
+  });
+  assert.equal(authorized.status, 202);
+  assert.deepEqual(await authorized.json(), result);
+});
+
+test('D24 refuses to start when the DEMO account header and production login are both configured', () => {
+  assert.throws(
+    () =>
+      resolveAuthMode({
+        ALLOW_INSECURE_DEMO_ACCOUNT: 'true',
+        GOOGLE_OAUTH_CLIENT_IDS: '1234567890-demo.apps.googleusercontent.com',
+        DATABASE_URL: 'postgres://127.0.0.1:5432/masscom',
+      }),
+    /both/i,
+  );
+});
+
+test('D24 picks production login, the DEMO boundary, or neither from the environment', () => {
+  assert.deepEqual(
+    resolveAuthMode({
+      GOOGLE_OAUTH_CLIENT_IDS:
+        '1234567890-demo.apps.googleusercontent.com, 999-other.apps.googleusercontent.com',
+      DATABASE_URL: 'postgres://127.0.0.1:5432/masscom',
+    }),
+    {
+      kind: 'production',
+      audiences: [
+        '1234567890-demo.apps.googleusercontent.com',
+        '999-other.apps.googleusercontent.com',
+      ],
+    },
+  );
+  assert.deepEqual(resolveAuthMode({ ALLOW_INSECURE_DEMO_ACCOUNT: 'true' }), { kind: 'demo' });
+  assert.deepEqual(resolveAuthMode({}), { kind: 'unconfigured' });
+  assert.deepEqual(
+    resolveAuthMode({ GOOGLE_OAUTH_CLIENT_IDS: '1234567890-demo.apps.googleusercontent.com' }),
+    { kind: 'unconfigured' },
+  );
 });
