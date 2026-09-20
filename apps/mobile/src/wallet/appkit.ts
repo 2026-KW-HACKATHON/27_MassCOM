@@ -2,6 +2,8 @@ import '@walletconnect/react-native-compat';
 
 import { EthersAdapter } from '@reown/appkit-ethers-react-native';
 import { createAppKit } from '@reown/appkit-react-native';
+import * as Application from 'expo-application';
+import Constants from 'expo-constants';
 
 import { appKitStorage } from './appkit-storage';
 import { baseSepolia } from './base-sepolia';
@@ -13,6 +15,13 @@ export const walletRuntimeConfig = getWalletRuntimeConfig({
   EXPO_PUBLIC_DEMO_ACCOUNT_ID: process.env.EXPO_PUBLIC_DEMO_ACCOUNT_ID,
 });
 
+// The wallet returns to whichever variant is installed. If the embedded config is missing, the
+// installed package decides, so the store app never advertises the development scheme.
+const configuredScheme = Constants.expoConfig?.scheme;
+const appScheme =
+  (Array.isArray(configuredScheme) ? configuredScheme[0] : configuredScheme) ??
+  (Application.applicationId === 'kr.masscom.wolgye' ? 'masscom' : 'masscom-dev');
+
 export const appKit = walletRuntimeConfig.available
   ? createAppKit({
       projectId: walletRuntimeConfig.projectId,
@@ -22,7 +31,7 @@ export const appKit = walletRuntimeConfig.available
         url: 'https://github.com/2026-KW-HACKATHON/27_MassCOM',
         icons: [],
         redirect: {
-          native: 'masscom-dev://',
+          native: `${appScheme}://`,
         },
       },
       adapters: [new EthersAdapter()],
