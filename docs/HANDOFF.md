@@ -2,7 +2,7 @@
 
 마지막 갱신 시각: 2026-09-20 KST
 기준 브랜치: `main`
-기준 커밋 SHA: `f28737b` (PR #91 merge, 전체 값은 `git rev-parse f28737b`). 이 문서를 담은 Issue #92 PR이 병합되면 그 merge 커밋이 새 기준이며, 실제 값은 `git log origin/main -1`로 확인한다.
+기준 커밋 SHA: `058c850` (PR #105 merge, 전체 값은 `git rev-parse 058c850`). 이 문서를 고친 PR이 병합되면 그 merge 커밋이 새 기준이며, 실제 값은 `git log origin/main -1`로 확인한다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
 
@@ -46,7 +46,7 @@
 
 ## 생성한 PR
 
-- #63, #64, #65, #67, #68, #69, #70, #72 #74, #76, #79, #81, #82, #83(PragmoB), #85, #87, #89, #91 (모두 병합), Issue #92 PR
+- #63, #64, #65, #67, #68, #69, #70, #72 #74, #76, #79, #81, #82, #83(PragmoB), #85, #87, #89, #91, #93, #96, #98, #99, #102, #104, #105(PragmoB), #107, #108 (모두 병합)
 - #60·#62는 #63·#64로 대체하고 닫았다.
 
 ## merge된 PR
@@ -88,7 +88,7 @@
 
 ## 현재 열린 PR
 
-- Issue #92 운영 준비 PR 하나. 병합되면 열린 PR은 없다.
+- 없음(이 문서를 고치는 PR 제외).
 
 ## 현재 작업 중인 기능
 
@@ -123,10 +123,12 @@
 ## 다음 세션이 가장 먼저 해야 할 작업
 
 1. `git fetch && git log origin/main -3`, `gh pr list`, `gh issue list`, `gh run list --branch main --limit 3`으로 이 문서와 실제 상태를 대조한다.
-2. Issue #92 PR이 열려 있으면 CI와 리뷰를 확인해 병합한다.
-3. 소유자 입력이 도착했는지 확인한다. Base Sepolia 배포 결과(계약 주소·거래 hash)가 있으면 증거 json과 B-012·TEST_STATUS를 갱신한다. domain이 정해졌으면 `assetlinks.json`, 외부 계정 삭제 페이지, 개인정보처리방침 페이지를 Issue부터 만들어 진행한다.
-4. 입력이 없으면 로컬에서 검증 가능한 남은 필수 테스트를 Issue로 만들어 진행한다(가치·위험 순): 백업·복원 drill 스크립트(`scripts/db-restore-drill.sh` 초안이 로컬에 있을 수 있음), Android 캠페인 참여 화면, O01 시연·운영 환경 경계(인가 모델 확장이라 착수 전 소유자 확인). Android 캠페인 참여 화면과 “수령 시 등록 요구” 여부는 보상 규칙 결정이 필요해 소유자에게 묻는다. A02·W04·W05는 외부 입력 없이는 진행할 수 없다.
-
+2. 소유자 입력이 도착했는지 확인한다. 도착 순서대로 처리한다.
+   - **Reown 허용 목록(B-014)**에 `kr.masscom.wolgye`·`kr.masscom.wolgye.dev`가 추가됐으면 `docs/DEVICE_TEST_PLAN.md` E02 → E03의 지갑 세션 부분 → D02 → W04 순으로 실기 재실행. 팀원은 TrustWallet 연결에 성공했으므로(PR #105) 소유자 project 설정 문제로 추정된다
+   - **faucet gas**: 배포자 `0xFDd1746dcEdE5A796812fBe30fc231059a98c089`, 민터 `0xfDfaB19251Caa5Bd140CdD7F167F6e4De895c355` 잔액 확인(`cast balance <주소> --rpc-url https://sepolia.base.org --ether`). 들어왔으면 역할 주소(admin `0x35ee91BBc75778308B9168Ac6c325df8fF408F04`, minter 위 주소, pauser `0x1a050f7c6Fe0dDcDD78554b488d41cFd4A2CcFB6`)로 시뮬레이션 → 소유자가 비밀번호를 입력하는 `--broadcast` → 계약·역할 검증 → `docs/evidence/base-sepolia-deployment.json` 커밋. 그 뒤 Worker 서비스 민터 경로(Issue #100)로 시험망 발행 1건을 검증한다(민터 keystore 경로·비밀번호 파일은 소유자가 준비)
+   - **Google OAuth client ID**: 받으면 모바일의 `x-account-id` DEMO 헤더를 Bearer 세션으로 교체하는 Issue를 연다(서버 측은 Issue #106으로 완료, D-024~D-026)
+   - upload keystore와 인증서 지문, 호스팅·도메인 결정(`docs/HOSTING_LOGIN_PROPOSAL.md`)
+3. 입력이 없으면 승인 없이 가능한 일: `docs/PLAY_CONSOLE_DRAFT.md`를 실제 코드·권한과 대조(카메라 권한 추가를 Data safety에 반영), 서비스 민터 리뷰의 남은 LOW 항목(환경변수 이름 패턴, 상위 디렉터리 소유자·권한, 서명 거래의 from 확인, lock timeout·pool 크기 설정화), 만료 세션 정리와 로그인 시도 제한, A01의 실제 촬영→수령 실기(사람이 기기를 들어야 함)
 ## 실행 명령
 
 ```bash
