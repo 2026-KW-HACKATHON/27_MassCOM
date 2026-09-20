@@ -9,6 +9,7 @@
 # Exit codes: 0 uploadable | 3 debug key | 4 unsigned | 5 signature broken | 6 signed with another key
 #             7 no approved fingerprint configured | 1 usage or tool failure
 # An upload key is self-signed by design, so the certificate chain is deliberately not validated.
+# Expiry is not checked either: trust comes from the pinned fingerprint, and Play decides validity.
 
 set -euo pipefail
 
@@ -22,6 +23,16 @@ if grep -q 'jar is unsigned' <<<"$integrity"; then
   echo "NOT UPLOADABLE: the bundle is not signed" >&2
   exit 4
 fi
+if grep -q 'signed with a weak algorithm' <<<"$integrity"; then
+  echo "NOT UPLOADABLE: signed with an algorithm the JDK no longer trusts, so it counts as unsigned" >&2
+  exit 4
+fi
+# jarsigner still says "jar verified" when files were added after signing; it only warns. -strict is
+# no use here because it also fails every self-signed certificate, which an upload key always is.
+if grep -q 'unsigned entries' <<<"$integrity"; then
+  echo "NOT UPLOADABLE: the bundle contains entries that were added after signing" >&2
+  exit 5
+fi
 if ! grep -q '^jar verified' <<<"$integrity"; then
   echo "NOT UPLOADABLE: the signature does not match the contents (modified or damaged after signing)" >&2
   exit 5
@@ -29,6 +40,11 @@ fi
 
 signer="$(keytool -J-Duser.language=en -printcert -jarfile "$file" 2>&1 || true)"
 actual="$(grep -E '^[[:space:]]*SHA256:' <<<"$signer" | head -1 | sed 's/.*SHA256:[[:space:]]*//' | tr -d ': \r' | tr 'a-f' 'A-F')"
+signers="$(grep -cE '^[[:space:]]*SHA256:' <<<"$signer" || true)"
+if [[ "$signers" -gt 1 ]]; then
+  echo "NOT UPLOADABLE: the bundle carries $signers signatures; exactly one upload signature is expected" >&2
+  exit 6
+fi
 if [[ ! "$actual" =~ ^[0-9A-F]{64}$ ]]; then
   echo "NOT UPLOADABLE: no signing certificate could be read" >&2
   exit 4

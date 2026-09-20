@@ -53,6 +53,22 @@ echo "changed after signing" >"$work/src-good/payload.txt"
 (cd "$work/src-good" && zip -q "$work/tampered.aab" payload.txt)
 expect 'contents changed after signing' 5 'does not match the contents' "$approved" "$work/tampered.aab"
 
+make_jar extra; sign extra upload.jks upload
+echo "added after signing" >"$work/src-extra/injected.txt"
+(cd "$work/src-extra" && zip -q "$work/extra.aab" injected.txt)
+expect 'entry added after signing' 5 'added after signing' "$approved" "$work/extra.aab"
+
+# Whichever order the two signatures are applied in, a second signer is never accepted.
+make_jar two-a; sign two-a other.jks other; sign two-a upload.jks upload
+expect 'two signers, approved key last' 6 'exactly one upload signature' "$approved" "$work/two-a.aab"
+make_jar two-b; sign two-b upload.jks upload; sign two-b other.jks other
+expect 'two signers, approved key first' 6 'exactly one upload signature' "$approved" "$work/two-b.aab"
+
+make_jar weak
+jarsigner -keystore "$work/upload.jks" -storepass "$pw" -keypass "$pw" -sigalg SHA1withRSA -digestalg SHA1 \
+  "$work/weak.aab" upload >/dev/null 2>&1
+expect 'weak signature algorithm' 4 'no longer trusts' "$approved" "$work/weak.aab"
+
 # Build script control flow: the reported artifact must survive --restore-dev, and the restore must
 # not inherit APP_VARIANT=production from the caller.
 sandbox="$work/repo"
@@ -77,5 +93,12 @@ reported="$(sed -n 's/^AAB: //p' <<<"$out")"
 [[ "$reported" != */android/* ]] || { echo "build flow: artifact still lives under android/: $reported" >&2; exit 1; }
 [[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development" ]] \
   || { echo "build flow: restore inherited the caller's variant: $(cat "$work/prebuild.log")" >&2; exit 1; }
+
+# A rejected build keeps its artifact, but under a name nobody can mistake for an uploadable one.
+status=0
+out="$(cd "$sandbox" && env -u UPLOAD_CERT_SHA256 PATH="$work/bin:$PATH" bash scripts/build-release-aab.sh 2>&1)" || status=$?
+[[ "$status" == "7" ]] || { echo "rejected build: expected exit 7, got $status: $out" >&2; exit 1; }
+[[ ! -f "$(sed -n 's/^AAB: //p' <<<"$out")" ]] || { echo "rejected build left an artifact under the normal name" >&2; exit 1; }
+ls "$sandbox"/apps/mobile/release-artifacts/*.NOT-UPLOADABLE-exit7.aab >/dev/null
 
 echo "AAB signature and build flow tests passed"

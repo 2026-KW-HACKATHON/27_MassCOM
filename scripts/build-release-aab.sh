@@ -52,5 +52,13 @@ echo "source commit: $commit$(git -C "$repo_root" diff --quiet -- apps/mobile ||
 grep -E "^[[:space:]]*(applicationId|versionCode|versionName)[[:space:](]" "$gradle_file" | sed 's/^ *//' \
   || echo "version metadata not found in $gradle_file" >&2
 
-# The build succeeded either way; a non-zero verdict tells callers the artifact must not go to Play.
-"$repo_root/scripts/verify-aab-signature.sh" "$aab"
+# The build succeeded either way; a non-zero verdict tells callers the artifact must not go to Play,
+# and the file name says so too, because the directory is gitignored and outlives this run.
+verdict=0
+"$repo_root/scripts/verify-aab-signature.sh" "$aab" || verdict=$?
+if [[ "$verdict" != "0" ]]; then
+  rejected="${aab%.aab}.NOT-UPLOADABLE-exit$verdict.aab"
+  mv "$aab" "$rejected"
+  echo "AAB renamed: $rejected" >&2
+  exit "$verdict"
+fi
