@@ -9,16 +9,16 @@
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
 | 현재 브랜치 | `main` (작업 브랜치는 Issue별로 생성 후 병합) |
-| 기준 커밋 SHA | `e4e633c27abb20e3dab307d4a8caaf0d4b2c3f0f` — 이 문서를 갱신한 PR 직전의 검증된 main |
+| 기준 커밋 SHA | `5aafafcf2fb49dfdb3d799abf9e6039636f1e7f4` — 이 문서를 갱신한 PR 직전의 검증된 main |
 | 현재 작업 | 없음. 다음 작업은 HANDOFF의 “다음 세션이 가장 먼저 해야 할 작업” |
-| 현재 검증 기준 | API 42·PostgreSQL 27·Worker 14/PG 7·모바일 54·Foundry 8/fuzz128·Anvil PASS |
-| 최근 main 기준선 | PR #79 merge `e4e633c`, main CI run `35499451454` PASS |
+| 현재 검증 기준 | API 42·PostgreSQL 27·Worker 16/PG 10·모바일 54·Foundry 8/fuzz128·Anvil PASS |
+| 최근 main 기준선 | PR #81 merge `5aafafc` |
 
 ## 열린 Issue·PR과 최근 병합
 
-- 열린 Issue: #80(계정 전환 분리·D02, 이 갱신을 담은 PR로 종료 예정), #78(전송 전 장애 재시도 간격·전송 직후 중지 처리)
+- 열린 Issue: #78(재시도 간격·전송 직후 중지 처리, 이 갱신을 담은 PR로 종료 예정) 외 없음
 - 열린 PR: 이 갱신을 담은 PR 외 없음
-- 최근 병합 PR: #63 `6bbf58c` 체인 cursor 재시작, #64 `695210c` Worker 재시도 상한, #65 `4c4d744` Expo patch·B-008 재평가, #67 `9c3c04a` SIWE PostgreSQL 저장소, #68 `f386c84` 문서, #69 `a83cef9` Base Sepolia 배포 스크립트·기기 세션 정리·Play 초안, #70 `9e670ab` 운영 package ID·release AAB 경로, #72 `761ac42` 문서 정합, #74 `b04af56` 캠페인 참여 등록·R02, #76 `640bb83` 경로 인코딩 400, #79 `e4e633c` Worker 장애 복구·O02
+- 최근 병합 PR: #63 `6bbf58c` 체인 cursor 재시작, #64 `695210c` Worker 재시도 상한, #65 `4c4d744` Expo patch·B-008 재평가, #67 `9c3c04a` SIWE PostgreSQL 저장소, #68 `f386c84` 문서, #69 `a83cef9` Base Sepolia 배포 스크립트·기기 세션 정리·Play 초안, #70 `9e670ab` 운영 package ID·release AAB 경로, #72 `761ac42` 문서 정합, #74 `b04af56` 캠페인 참여 등록·R02, #76 `640bb83` 경로 인코딩 400, #79 `e4e633c` Worker 장애 복구·O02, #81 `5aafafc` 계정 전환 분리·D02
 
 ## Phase 상태
 
@@ -78,7 +78,7 @@
 
 - 필수 36개: `28 PASS / 2 BLOCKED / 6 NOT_RUN`
 - API 단위: `42/42 PASS`; PostgreSQL: `27/27 PASS`
-- Worker 단위: `14/14 PASS`; PostgreSQL: `7/7 PASS`; Anvil W07/M01~M08: `PASS`
+- Worker 단위: `16/16 PASS`; PostgreSQL: `10/10 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `54/54 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`
