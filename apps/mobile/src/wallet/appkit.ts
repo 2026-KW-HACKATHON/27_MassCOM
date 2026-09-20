@@ -32,7 +32,7 @@ export const appKit = walletRuntimeConfig.available
         url: 'https://github.com/2026-KW-HACKATHON/27_MassCOM',
         icons: [],
         redirect: {
-          native: `${appScheme}://`,
+          native: `${appScheme}://wallet`,
         },
       },
       adapters: [new EthersAdapter()],
