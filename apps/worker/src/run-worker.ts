@@ -39,7 +39,11 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
   // keystore for an allow-listed public testnet. Throws a MinterConfigurationError otherwise.
   const signerResolution = await resolveMinterSigner({ env: environment, chainId, minterAddress });
 
-  const pool = new Pool({ connectionString: databaseUrl });
+  // max >= 4: withMinterLock holds one dedicated connection for the whole
+  // sweep -> markPrepared -> submit sequence, while the rest of the repository (lease, finalize,
+  // etc.) needs its own connections concurrently; a pool of 1-2 would let the lock holder starve
+  // everything else that shares this pool within the same process.
+  const pool = new Pool({ connectionString: databaseUrl, max: 4 });
   try {
     const repository = new PostgresMintRepository(pool, {
       chainFromBlock,

@@ -27,6 +27,12 @@ type Options = {
   receiptTimeoutMs: number;
   chainFromBlock: number;
   reorgMargin: number;
+  /**
+   * Bounds how long withMinterLock waits to acquire the per chain/minter advisory lock, on the
+   * dedicated connection that holds it. A wedged holder (or a very large backlog of callers) must
+   * not be able to block this connection, and therefore this worker, forever.
+   */
+  minterLockTimeoutMs: number;
 };
 
 type WorkRow = {
@@ -67,6 +73,7 @@ const defaultOptions: Options = {
   receiptTimeoutMs: 24 * 60 * 60 * 1_000,
   chainFromBlock: 0,
   reorgMargin: 12,
+  minterLockTimeoutMs: 10_000,
 };
 
 export class PostgresMintRepository implements MintWorkRepository {
@@ -88,6 +95,12 @@ export class PostgresMintRepository implements MintWorkRepository {
     }
     if (!Number.isSafeInteger(this.options.reorgMargin) || this.options.reorgMargin <= 0) {
       throw new Error('reorgMargin must be a positive safe integer');
+    }
+    if (
+      !Number.isSafeInteger(this.options.minterLockTimeoutMs) ||
+      this.options.minterLockTimeoutMs <= 0
+    ) {
+      throw new Error('minterLockTimeoutMs must be a positive safe integer');
     }
   }
 
@@ -341,15 +354,41 @@ export class PostgresMintRepository implements MintWorkRepository {
   ): Promise<T> {
     const [key1, key2] = advisoryLockKey(chainId, minterAddress);
     const client = await this.pool.connect();
+    // Destroyed instead of pooled if anything below leaves the session in a state we cannot
+    // trust: an advisory lock is held per-session, so a connection returned to the pool while
+    // still holding it (or while we are not sure it does not) would silently wedge every future
+    // borrower of that connection behind a lock nothing will ever release.
+    let destroy = false;
     try {
-      await client.query('SELECT pg_advisory_lock($1, $2)', [key1, key2]);
+      // Bound the acquisition itself, on this dedicated connection only, so a wedged holder (or a
+      // pile-up of callers) cannot block this connection forever. Session-scoped via set_config
+      // (no surrounding transaction here), so it is reset explicitly once the lock is held.
+      await client.query("SELECT set_config('lock_timeout', $1, false)", [
+        `${this.options.minterLockTimeoutMs}ms`,
+      ]);
+      try {
+        await client.query('SELECT pg_advisory_lock($1, $2)', [key1, key2]);
+      } catch (error) {
+        if (isLockTimeout(error)) {
+          throw new RetryableChainError('MINTER_LOCK_TIMEOUT', { cause: error });
+        }
+        throw error;
+      } finally {
+        await client.query("SELECT set_config('lock_timeout', '0', false)");
+      }
       try {
         return await fn();
       } finally {
-        await client.query('SELECT pg_advisory_unlock($1, $2)', [key1, key2]);
+        try {
+          await client.query('SELECT pg_advisory_unlock($1, $2)', [key1, key2]);
+        } catch (error) {
+          // The lock may still be held on this session: never let it go back to the pool.
+          destroy = true;
+          throw error;
+        }
       }
     } finally {
-      client.release();
+      client.release(destroy);
     }
   }
 
@@ -729,6 +768,16 @@ function mapWork(row: WorkRow): MintWorkItem {
     ...(row.transaction_hash ? { transactionHash: row.transaction_hash } : {}),
     ...(row.signed_transaction ? { signedTransaction: row.signed_transaction } : {}),
   };
+}
+
+/** PostgreSQL's lock_timeout SQLSTATE (55P03, lock_not_available). */
+function isLockTimeout(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === '55P03'
+  );
 }
 
 /** Deterministic two-int32 key for pg_advisory_lock, scoped to one chain/minter pair. */

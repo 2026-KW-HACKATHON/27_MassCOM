@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 
 import { PostgresMintRepository } from './postgres-mint-repository.js';
 import {
@@ -764,6 +765,138 @@ test('signed_transaction is stored with the attempt and survives a release and a
   assert.equal(afterRestart?.signedTransaction, signedTransaction);
 });
 
+test('H1 closeForManualReview also closes the job\'s SUBMITTED attempt so it stops being swept', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const repository = new PostgresMintRepository(pool);
+  const item = await repository.leaseNext('worker-manual-review-closes-attempt', 30_000);
+  assert.ok(item);
+  const attemptId = await repository.markPrepared(item, 'worker-manual-review-closes-attempt');
+  const transactionHash = `0x${'ab'.repeat(32)}`;
+  await repository.markSubmitted(
+    item.jobId,
+    'worker-manual-review-closes-attempt',
+    attemptId,
+    transactionHash,
+    '0x02f801',
+  );
+
+  // Before closing: the attempt is still SUBMITTED and the sweep would pick it up.
+  assert.deepEqual(await repository.listUnconfirmedSignedTransactions(item.chainId), [
+    { transactionHash, signedTransaction: '0x02f801' },
+  ]);
+
+  await repository.markManualReview(item.jobId, 'worker-manual-review-closes-attempt', 'RECEIPT_TIMEOUT');
+
+  const attempt = await pool.query<{ status: string; error_code: string }>(
+    'SELECT status, error_code FROM mint_tx_attempts WHERE id = $1',
+    [attemptId],
+  );
+  assert.deepEqual(attempt.rows[0], { status: 'FAILED', error_code: 'RECEIPT_TIMEOUT' });
+  // And it no longer shows up for the sweep: nothing can ever act on this job again.
+  assert.deepEqual(await repository.listUnconfirmedSignedTransactions(item.chainId), []);
+});
+
+test('H1 finalize supersedes any other SUBMITTED attempt of the same job', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  let now = new Date('2026-09-20T04:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+    nextAttemptId: () => '60000000-0000-4000-8000-0000000000a1',
+    nextChainEventId: () => '70000000-0000-4000-8000-0000000000a1',
+    nextAssetId: () => '80000000-0000-4000-8000-0000000000a1',
+  });
+  const item = await repository.leaseNext('worker-supersede', 30_000);
+  assert.ok(item);
+  const firstAttemptId = await repository.markPrepared(item, 'worker-supersede');
+  const staleHash = `0x${'a1'.repeat(32)}`;
+  await repository.markSubmitted(item.jobId, 'worker-supersede', firstAttemptId, staleHash, '0x02f801');
+
+  // A second attempt for the same job (e.g. a resubmission after a receipt-not-ready release)
+  // that is also still SUBMITTED when the first one actually gets mined.
+  const now2 = new Date(now.getTime() + 60_000);
+  await pool.query(
+    `INSERT INTO mint_tx_attempts (
+       id, mint_job_id, attempt_number, status, transaction_hash, signed_transaction,
+       prepared_at, submitted_at, updated_at
+     ) VALUES ($1, $2, 2, 'SUBMITTED', $3, $4, $5, $5, $5)`,
+    [
+      '60000000-0000-4000-8000-0000000000a2',
+      item.jobId,
+      `0x${'a2'.repeat(32)}`,
+      '0x02f802',
+      now2,
+    ],
+  );
+
+  const minedHash = staleHash;
+  await repository.finalize(item, 'worker-supersede', firstAttemptId, {
+    transactionHash: minedHash,
+    blockNumber: 4,
+    blockHash: `0x${'bb'.repeat(32)}`,
+    logIndex: 2,
+    tokenId: '1',
+    rewardKey: item.rewardKey,
+    recipient: item.recipient,
+    seriesKey: item.seriesKey,
+    contractAddress: item.contractAddress,
+    chainId: item.chainId,
+  });
+
+  const attempts = await pool.query<{ id: string; status: string; error_code: string | null }>(
+    'SELECT id, status, error_code FROM mint_tx_attempts WHERE mint_job_id = $1 ORDER BY attempt_number',
+    [item.jobId],
+  );
+  assert.deepEqual(attempts.rows, [
+    { id: firstAttemptId, status: 'MINED', error_code: null },
+    {
+      id: '60000000-0000-4000-8000-0000000000a2',
+      status: 'FAILED',
+      error_code: 'SUPERSEDED_BY_ONCHAIN_MINT',
+    },
+  ]);
+});
+
+test('H1 the sweep excludes attempts whose parent job is already terminal', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const repository = new PostgresMintRepository(pool);
+  const item = await repository.leaseNext('worker-sweep-terminal', 30_000);
+  assert.ok(item);
+  const attemptId = await repository.markPrepared(item, 'worker-sweep-terminal');
+  const transactionHash = `0x${'cd'.repeat(32)}`;
+  await repository.markSubmitted(
+    item.jobId,
+    'worker-sweep-terminal',
+    attemptId,
+    transactionHash,
+    '0x02f803',
+  );
+
+  assert.deepEqual(await repository.listUnconfirmedSignedTransactions(item.chainId), [
+    { transactionHash, signedTransaction: '0x02f803' },
+  ]);
+
+  for (const terminalStatus of ['FINALIZED', 'MANUAL_REVIEW', 'CANCELLED']) {
+    await pool.query(`UPDATE mint_jobs SET status = $1 WHERE id = $2`, [terminalStatus, item.jobId]);
+    assert.deepEqual(
+      await repository.listUnconfirmedSignedTransactions(item.chainId),
+      [],
+      `${terminalStatus} jobs must not be swept`,
+    );
+  }
+
+  // Back to a non-terminal status: the sweep picks the attempt back up.
+  await pool.query(`UPDATE mint_jobs SET status = 'SUBMITTED' WHERE id = $1`, [item.jobId]);
+  assert.deepEqual(await repository.listUnconfirmedSignedTransactions(item.chainId), [
+    { transactionHash, signedTransaction: '0x02f803' },
+  ]);
+});
+
 test('withMinterLock serializes concurrent callers for the same chain and minter', async (t) => {
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
@@ -802,6 +935,97 @@ test('withMinterLock serializes concurrent callers for the same chain and minter
   ]);
   assert.equal(otherRanWhileLocked, true);
 });
+
+test('M4 a lock acquisition that times out is retryable and does not hang the worker', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl(), max: 3 });
+  t.after(() => pool.end());
+  const repository = new PostgresMintRepository(pool, { minterLockTimeoutMs: 200 });
+  const minterAddress = '0x00000000000000000000000000000000BEEF01';
+
+  // Hold the same chain/minter advisory lock from a separate connection, outside the repository.
+  const holder = await pool.connect();
+  await holder.query('SELECT pg_advisory_lock($1, $2)', advisoryKeyForTest(777701, minterAddress));
+  try {
+    const startedAt = Date.now();
+    await assert.rejects(
+      repository.withMinterLock(777701, minterAddress, async () => {
+        assert.fail('fn must not run when the lock could not be acquired');
+      }),
+      (error: unknown) =>
+        error instanceof RetryableChainError && error.code === 'MINTER_LOCK_TIMEOUT',
+    );
+    // A generous ceiling: this only guards against the acquisition hanging indefinitely.
+    assert.ok(Date.now() - startedAt < 5_000);
+  } finally {
+    await holder.query('SELECT pg_advisory_unlock($1, $2)', advisoryKeyForTest(777701, minterAddress));
+    holder.release();
+  }
+
+  // Once the holder releases, a fresh acquisition for the same chain/minter succeeds normally.
+  let acquired = false;
+  await repository.withMinterLock(777701, minterAddress, async () => {
+    acquired = true;
+  });
+  assert.equal(acquired, true);
+});
+
+test('M4 withMinterLock destroys the connection instead of pooling it when the unlock query fails', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl(), max: 3 });
+  t.after(() => pool.end());
+  const repository = new PostgresMintRepository(pool);
+  const minterAddress = '0x00000000000000000000000000000000BEEF02';
+
+  // Inject a failure on the unlock query only, on a real pooled connection, so we can observe
+  // exactly how that connection is released without tearing down the actual TCP session (which
+  // would risk an unhandled 'error' event on a checked-out client racing the assertion).
+  const originalConnect = pool.connect.bind(pool);
+  let releasedWith: unknown;
+  (pool as unknown as { connect: typeof pool.connect }).connect = (async (...args: unknown[]) => {
+    const client = await (originalConnect as (...a: unknown[]) => Promise<PoolClient>)(
+      ...(args as []),
+    );
+    const originalQuery = client.query.bind(client);
+    const originalRelease = client.release.bind(client);
+    client.query = ((...queryArgs: unknown[]) => {
+      const sql = typeof queryArgs[0] === 'string' ? queryArgs[0] : '';
+      if (sql.includes('pg_advisory_unlock')) {
+        return Promise.reject(new Error('SIMULATED_UNLOCK_FAILURE'));
+      }
+      return (originalQuery as (...a: unknown[]) => unknown)(...queryArgs);
+    }) as typeof client.query;
+    client.release = ((destroy?: boolean | Error) => {
+      releasedWith = destroy;
+      return originalRelease(destroy as boolean);
+    }) as typeof client.release;
+    return client;
+  }) as typeof pool.connect;
+
+  try {
+    await assert.rejects(
+      repository.withMinterLock(777702, minterAddress, async () => 'ok'),
+      /SIMULATED_UNLOCK_FAILURE/,
+    );
+  } finally {
+    pool.connect = originalConnect;
+  }
+  assert.equal(releasedWith, true);
+
+  // The underlying session was actually torn down (not returned to the pool still holding the
+  // lock), so PostgreSQL released the advisory lock when that connection closed: a fresh
+  // acquisition for the same chain/minter succeeds immediately instead of hanging forever.
+  let acquired = false;
+  await repository.withMinterLock(777702, minterAddress, async () => {
+    acquired = true;
+  });
+  assert.equal(acquired, true);
+});
+
+function advisoryKeyForTest(chainId: number, minterAddress: string): [number, number] {
+  const digest = createHash('sha256')
+    .update(`mint-minter-lock:${chainId}:${minterAddress.toLowerCase()}`)
+    .digest();
+  return [digest.readInt32BE(0), digest.readInt32BE(4)];
+}
 
 async function seedWorkerFixture(pool: Pool): Promise<void> {
   await pool.query(
