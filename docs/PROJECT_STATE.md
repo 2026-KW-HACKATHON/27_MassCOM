@@ -16,7 +16,7 @@
 
 ## 열린 Issue·PR과 최근 병합
 
-- 열린 Issue: #73(캠페인 참여 등록·R02, 이 갱신을 담은 PR로 종료 예정) 외 없음
+- 열린 Issue: #73(캠페인 참여 등록·R02, 이 갱신을 담은 PR로 종료 예정), #75(잘못된 경로 인코딩 400 처리)
 - 열린 PR: 이 갱신을 담은 PR 외 없음
 - 최근 병합 PR: #63 `6bbf58c` 체인 cursor 재시작, #64 `695210c` Worker 재시도 상한, #65 `4c4d744` Expo patch·B-008 재평가, #67 `9c3c04a` SIWE PostgreSQL 저장소, #68 `f386c84` 문서, #69 `a83cef9` Base Sepolia 배포 스크립트·기기 세션 정리·Play 초안, #70 `9e670ab` 운영 package ID·release AAB 경로, #72 `761ac42` 문서 정합
 
