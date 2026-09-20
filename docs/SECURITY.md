@@ -15,6 +15,7 @@
 - 성공 nonce는 재사용할 수 없고, 동시 검증은 claim 상태로 한 요청만 진행합니다.
 - HTTP 본문은 64KiB로 제한하고 응답은 `no-store`, `nosniff`를 사용합니다.
 - 기본 서버는 account resolver가 없으면 wallet POST를 `503`으로 거절합니다. `x-account-id`는 loopback 서버에서 `ALLOW_INSECURE_DEMO_ACCOUNT=true`를 명시한 개발 모드에만 사용합니다.
+- 기기 저장 정책(D-021): 기기에는 WalletConnect 세션만 `@masscom:appkit:` AsyncStorage에 저장하며 개인키·복구 문구·인증 token은 저장하지 않습니다. 세션 크기가 SecureStore 한도를 넘어 옮기지 않습니다. 운영 로그인 token이 도입되면 그 token은 SecureStore(Android Keystore)에만 저장합니다. 계정 삭제가 접수되면 앱이 지갑 연결을 끊고 기기의 세션 key를 모두 지웁니다. 연결 해제가 실패한 상태에서 실행 중인 provider가 세션을 다시 기록할 가능성은 Android 실기에서 확인하지 못했으며(`NOT_RUN`), 앱 재시작 뒤 세션이 복원되지 않는지 실기 회귀에서 확인합니다.
 - `DATABASE_URL`이 있으면 challenge를 PostgreSQL `wallet_challenges`에 저장하고 단일 조건부 UPDATE로 nonce를 한 번만 claim합니다. 서명은 저장하지 않으며 만료 행은 발급 때 정리합니다.
 - `DATABASE_URL`이 없는 DEMO의 메모리 challenge store는 재시작 복구·다중 인스턴스 원자성을 제공하지 않습니다.
 

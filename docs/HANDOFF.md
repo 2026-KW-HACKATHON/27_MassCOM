@@ -6,7 +6,7 @@
 
 검증 기준: PR #67 merge `9c3c04a`, main CI `35460087002` PASS
 
-현재 작업: 없음. 다음 작업은 아래 재개 목록에서 시작
+현재 작업: 외부 실행 준비(D-020) — 소유자 입력이 필요한 단계는 재개 목록 1번
 
 ## 이번 작업에서 완료한 것
 
@@ -24,6 +24,8 @@
 - Issue #61 Worker 재시도 지수 backoff와 전송 시도 상한 뒤 `MANUAL_REVIEW` 전환
 - PR #63 merge `6bbf58c`(Issue #59), PR #64 merge `695210c`(Issue #61), 독립 리뷰 2회 CRITICAL/HIGH 0
 - Issue #66 SIWE challenge PostgreSQL 공유 저장소(migration 0008, 원자적 claim, 만료 정리, 계정 삭제 연동)
+- 로컬 release AAB 16KB 정렬 PASS(네이티브 48개, 증거 json), Google Play Console 제출 초안 `docs/PLAY_CONSOLE_DRAFT.md`
+- Base Sepolia keystore 배포 스크립트와 실체인 시뮬레이션 PASS(전송 없음), 기기 세션 저장 정책 D-021과 계정 삭제 시 기기 세션 제거
 - PR #67 merge `9c3c04a`(Issue #66), sonnet 리뷰와 opus 보안 재리뷰 APPROVE. binding 기록 뒤 nonce 재사용 차단, 삭제 transaction 안 challenge 제거
 - Expo 57.0.24·expo-router 57.0.22·@expo/ui 57.0.19 patch 적용, moderate advisory 14건 재평가(변화 없음, B-008 유지)
 
@@ -59,7 +61,7 @@
 
 - API `37/37`, API PostgreSQL `20/20`
 - Worker `8/8`, Worker PostgreSQL `6/6`, Anvil `W07 M01~M08 PASS`
-- 모바일 `48/48`, typecheck·lint·Android export PASS
+- 모바일 `50/50`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - secret scan·bootstrap·portal accessibility/structure PASS
 - 필수 36개 `26 PASS / 2 BLOCKED / 8 NOT_RUN`
@@ -74,7 +76,7 @@
 
 ## 재개 시 할 일
 
-1. 운영 세션 저장 정책(SecureStore) 결정
+1. 소유자 입력 대기: Base Sepolia keystore 계정·faucet gas(B-012), 운영 package ID(B-007), 소유 HTTPS domain·hosting(B-003), upload key, Play Console 접근
 2. B-008: Expo upstream이 `uuid`·`decode-uri-component` 전이 의존성을 고치면 재평가(현재 호환 수정 없음)
 3. Expo patch 적용 뒤 Android 실기 회귀(자동화 불가, 사용자 판정 필요)
 4. 외부 HTTPS·Base Sepolia·release AAB·Google Play·공개/최종 제출은 별도 승인 뒤 진행
