@@ -4,6 +4,7 @@ import {
   JsonRpcProvider,
   getAddress,
   isError,
+  isHexString,
   type EventLog,
   type Log,
 } from 'ethers';
@@ -297,7 +298,10 @@ export class EthersMintChainGateway implements MintChainGateway {
 // limits and node timeouts, so only a CALL_EXCEPTION that carries EVM return data is a real revert.
 export function contractCallError(error: unknown): ChainConfigurationError | RetryableChainError {
   const reverted = isError(error, 'CALL_EXCEPTION') && error.data != null;
-  if (reverted || isError(error, 'BAD_DATA')) {
+  // The provider also raises BAD_DATA for a missing entry in a batched response; only a decode
+  // failure carries the returned hex data as its value.
+  const undecodable = isError(error, 'BAD_DATA') && isHexString(error.value);
+  if (reverted || undecodable) {
     return new ChainConfigurationError('CONTRACT_INTERFACE_MISMATCH');
   }
   return new RetryableChainError('RPC_UNAVAILABLE', { cause: error });

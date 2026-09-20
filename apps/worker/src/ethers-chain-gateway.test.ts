@@ -19,6 +19,7 @@ const callException = (data: string | null) =>
 test('O02 a node error without EVM return data is an outage, not a contract mismatch', () => {
   for (const error of [
     callException(null),
+    makeError('missing response for request', 'BAD_DATA', { value: [], info: { payload: {} } }),
     makeError('cancelled request', 'UNSUPPORTED_OPERATION', { operation: 'provider destroyed' }),
     makeError('connection refused', 'NETWORK_ERROR', { event: 'request' }),
     makeError('timeout', 'TIMEOUT', { operation: 'request', reason: 'timeout' }),
