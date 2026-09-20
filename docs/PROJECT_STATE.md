@@ -60,7 +60,7 @@
 - Android 카메라 QR·수동 코드 대체 입력·오프라인 A01
 - 단체 인원·금액 한도 정책(v3 제안값, 미승인). 사람별 슬롯 독립성 Q04는 PASS
 - W04 동일 세션 서명 중 주소 변경, W05 미지원 스마트 지갑 실기
-- 배포 빌드의 SDK 진입점 W08, 실제 운영 계정 전환·캐시 복원 D02
+- 실제 운영 계정 전환·캐시 복원 D02. W08은 로컬 production AAB 정적 검사로 PASS이며 upload key 서명본에서 같은 명령을 다시 실행해야 함
 - release AAB·16KB·App Link A02, 운영 권한 O01
 - 외부 HTTPS·Base Sepolia·운영 signer·mainnet·Google Play·공개 데모
 - 실제 현장 참여·발표 리허설·영상 촬영·저장소 공개·대회 최종 제출
@@ -76,7 +76,7 @@
 
 ## 검증 상태
 
-- 필수 36개: `29 PASS / 2 BLOCKED / 5 NOT_RUN`
+- 필수 36개: `30 PASS / 2 BLOCKED / 4 NOT_RUN`
 - API 단위: `42/42 PASS`; PostgreSQL: `28/28 PASS`
 - Worker 단위: `16/16 PASS`; PostgreSQL: `11/11 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `54/54 PASS`; typecheck·lint·Android export `PASS`

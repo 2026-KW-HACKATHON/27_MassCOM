@@ -19,7 +19,7 @@
 | W05 | Android·지갑 | BLOCKED | 지원하지 않는 스마트 지갑 | 무검증 우회 없이 설명·거절 | 준비된 지갑은 EOA뿐이며 새 지갑 생성·복구 문구 접근 없이 사용할 실제 스마트 지갑 환경 없음 |
 | W06 | Android 실기 | PASS | 지갑 미설치·서명 거절·복귀 실패 | 안내와 재시도, 보상권 유지 | 서명·연결 거절 PASS. 미설치 SafePal → Google Play → 수동 앱 복귀·한국어 안내·pending proposal 취소 후 6분 지연 오류 없음 |
 | W07 | DB·Worker | PASS | 주소 연결 해제와 전송 경쟁 | 고정 수령인·명확한 작업 상태 | job 생성 뒤 binding을 `DISCONNECTED`로 바꿔도 Local Anvil NFT owner가 요청 시 고정 수령인과 일치 |
-| W08 | 배포 빌드 검사 | NOT_RUN | SDK 구매·스왑·내장 지갑 기본값 | 배포 빌드에 해당 진입점 없음 | 개발 코드 경계 PASS, 배포 빌드 NOT_RUN |
+| W08 | 배포 빌드 검사 | PASS | SDK 구매·스왑·내장 지갑 기본값 | 배포 빌드에 해당 진입점 없음 | 로컬 production AAB(디버그 키 서명) 정적 검사: 결제 권한·결제/온램프/내장 지갑 SDK 클래스 없음, 운영 package, AppKit 기능 명시적 false(SDK는 onramp 미지정 시 켜짐), `open()`은 Connect view만·SDK 버튼 미렌더링이라 송금 버튼이 있는 계정 화면에 도달 불가, 세션에 거래·blind signing 메서드 없음. 실기기 UI 확인과 upload key 서명본 검사는 아님. `docs/evidence/release-wallet-surface.json` |
 | W09 | 요청 경계 | PASS | 예기치 않은 송금·approve 요청 | 앱 요청 경계에서 거절 | allowlist 외 요청 provider 호출 전 거절 PASS |
 | M01 | Worker·체인 | PASS | 같은 발급 버튼·Worker 중복 실행 | 온체인 NFT 하나 | 두 Worker 동시 lease에서 한 작업만 실행, 세 job의 reward key별 token 하나·DB asset 하나 |
 | M02 | Worker·체인 | PASS | 전송 직후 응답 유실 | 기존 발행 조회, 새 보상 키 금지 | 외부 선발행 뒤 Worker가 `tokenByRewardKey`와 이벤트를 찾아 제출 attempt 없이 복구 |
@@ -91,5 +91,6 @@
 | 2026-09-20 KST | Issue #80 | API 단위 42개·모바일 단위 54개·typecheck·lint·Android export | macOS | PASS | D02 자동 시험만 PASS, 실기 계정 전환은 `NOT_RUN`이라 D02 상태는 유지. `no-store` 시험은 기존 동작을 고정하는 회귀 시험 |
 | 2026-09-20 KST | `e1c58a0`, Issue #78 | Worker 단위 16개·PostgreSQL 11개·Anvil 6개(O02e 포함, skip 없이 8회 반복)·API PostgreSQL 27개(migration 0010 회귀) | macOS·Docker PostgreSQL 18·Anvil 31337 | PASS | 전송 전 장애의 지수 backoff와 전송 직후 중지로 revert된 거래의 재시도 분류. 기존 시험 기대값 변경 없음. 필수 36개 상태 변동 없음 |
 | 2026-09-20 KST | Issue #84 | `npm run test:postgres --prefix apps/api`(28개, Q04 1개 추가)·presentation gate | macOS·Docker PostgreSQL 18 | PASS | Q04 `NOT_RUN`→`PASS`. 기존 모델 실증이라 수정 전 실패가 없으므로, redeem의 소유자 조건을 임시로 제거해 시험이 실패하는 것을 확인한 뒤 되돌림. 발표 첫 화면 집계 검사는 오래된 수치에서 실패를 확인한 뒤 통과 |
+| 2026-09-20 KST | `367f26b`, Issue #86 | `scripts/build-release-aab.sh` → `scripts/check-release-wallet-surface.sh <aab>`, `tests/release/check_release_wallet_surface_test.sh` | macOS·Gradle bundleRelease·로컬 debug 서명 | PASS | W08 `NOT_RUN`→`PASS`. 위반 12종(리뷰가 지적한 open 이름 변경·여러 줄 view·내부 controller import·methods 블록 미인식 포함)을 심은 입력에서 각각 해당 사유로 실패함을 확인. AAB는 업로드·커밋하지 않음 |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01~Q05·R01·R02·R03은 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했습니다. Q04는 사람별 슬롯 독립성만 실증했으며 단체 인원·금액 한도 정책은 구현하지 않았습니다. Phase 3의 W07·M01~M08은 로컬 Anvil·PostgreSQL·실기기 증거이며 Base Sepolia나 운영 배포 성공을 뜻하지 않습니다.
