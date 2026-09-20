@@ -37,6 +37,10 @@
 - PR을 열기 전에 `bash tests/bootstrap/check_pr_korean_test.sh`로 한국어 작성 규칙을 검증한다.
 - 공유 이력의 force push, 날짜·작성자 조작, 빈 커밋, 가짜 리뷰·테스트를 금지한다.
 - 커밋은 의도 중심 제목과 필요한 Lore trailer를 사용한다.
+- Issue·PR·리뷰 대응·커밋 설명·진행 문서는 한국어로 쓴다. README에 영향이 있으면 같은 PR에서 고치고, 없으면 PR에 이유를 적는다.
+- 세션을 시작하면 이전 대화 기억이 아니라 `docs/HANDOFF.md`·`docs/PROJECT_STATE.md`·`docs/DECISIONS.md`·`docs/TEST_STATUS.md`와 `git`/`gh` 실제 상태에서 복원한다. 완료된 bootstrap·기능·계약을 다시 만들지 않고 `reset --hard`·`git clean`으로 남의 작업을 지우지 않는다.
+- 서명·배포 키(Foundry keystore, Android upload keystore)는 에이전트가 만들거나 다시 만들거나 덮어쓰지 않는다. 존재 여부만 확인하고 비밀번호·개인키·복구 구문을 대화·로그·Git·인수인계 문서에 남기지 않는다.
+- 빌드 성공, 서명 확인, 설치 확인, Play 업로드, 심사 승인은 서로 다른 상태로 기록한다.
 - 현재 부트스트랩 검증: `bash tests/bootstrap/verify_bootstrap_test.sh`
 - 현재 비밀 검사: `bash tests/bootstrap/check_secrets_test.sh`
 - 현재 프로젝트 포털 검사: `bash tests/site/verify_project_site_test.sh`
