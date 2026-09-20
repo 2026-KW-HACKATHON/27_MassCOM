@@ -2,11 +2,13 @@ import {
   Contract,
   Interface,
   JsonRpcProvider,
+  Transaction,
   getAddress,
   isError,
   isHexString,
   type EventLog,
   type Log,
+  type Signer,
 } from 'ethers';
 
 import {
@@ -17,6 +19,7 @@ import {
   type ChainMintResult,
   type MintChainGateway,
   type MintWorkItem,
+  type RecordedSubmission,
 } from './mint-worker.js';
 
 const abi = [
@@ -40,15 +43,25 @@ type GatewayOptions = {
   fromBlock: number;
   fallbackFromBlock?: number;
   minMinterBalanceWei?: bigint;
+  /** Service signer only: refuse to sign when the RPC's fee quote makes one mint cost more than this. */
+  maxTransactionFeeWei?: bigint;
+  /**
+   * A locally held signer for the minter address (service-signer path only). When present,
+   * submitMint builds, signs, and records a transaction before ever broadcasting it. When
+   * absent, the gateway keeps the existing local-Anvil behaviour: the node itself signs and
+   * broadcasts an unlocked account's transaction in one call.
+   */
+  signer?: Signer;
 };
 
 export class EthersMintChainGateway implements MintChainGateway {
   private readonly provider: JsonRpcProvider;
   private readonly contractAddress: string;
-  private readonly minterAddress: string;
+  readonly minterAddress: string;
   private readonly contract: Contract;
   private readonly contractInterface = new Interface(abi);
   private readonly minMinterBalanceWei: bigint;
+  private readonly maxTransactionFeeWei: bigint;
 
   constructor(private readonly options: GatewayOptions) {
     // cacheTimeout -1: a block number cached for 250ms can predate a just-mined receipt, and
@@ -73,6 +86,11 @@ export class EthersMintChainGateway implements MintChainGateway {
       fallbackFromBlock > options.fromBlock
     ) {
       throw new Error('fallbackFromBlock must be between zero and fromBlock');
+    }
+    // 0.01 ETH per mint: far above a Base Sepolia mint, far below a drained wallet.
+    this.maxTransactionFeeWei = options.maxTransactionFeeWei ?? 10_000_000_000_000_000n;
+    if (this.maxTransactionFeeWei <= 0n) {
+      throw new Error('maxTransactionFeeWei must be positive');
     }
     const minMinterBalanceWei = options.minMinterBalanceWei ?? 0n;
     if (minMinterBalanceWei < 0n) {
@@ -200,14 +218,30 @@ export class EthersMintChainGateway implements MintChainGateway {
     }
   }
 
-  async submitMint(item: MintWorkItem): Promise<{ transactionHash: string }> {
+  async submitMint(
+    item: MintWorkItem,
+    persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
+    unconfirmedSignedTransactions: { transactionHash: string; signedTransaction: string }[] = [],
+  ): Promise<{ transactionHash: string }> {
+    if (this.options.signer) {
+      return this.submitMintWithServiceSigner(
+        item,
+        this.options.signer,
+        persistBeforeBroadcast,
+        unconfirmedSignedTransactions,
+      );
+    }
     try {
       const signer = await this.provider.getSigner(this.minterAddress);
       const writable = this.contract.connect(signer) as Contract;
       const transaction = await writable
         .getFunction('mintWithRewardKey')
         .send(item.recipient, item.seriesKey, item.rewardKey);
-      return { transactionHash: String(transaction.hash).toLowerCase() };
+      const transactionHash = String(transaction.hash).toLowerCase();
+      // The unlocked node signs and broadcasts in the same call, so the hash is only known
+      // after the fact: record it right away, matching the previous behaviour exactly.
+      await persistBeforeBroadcast({ transactionHash });
+      return { transactionHash };
     } catch (error) {
       if (
         typeof error === 'object' &&
@@ -218,6 +252,137 @@ export class EthersMintChainGateway implements MintChainGateway {
         throw new SubmissionOutcomeUnknownError('MINT_SUBMISSION_RESPONSE_LOST');
       }
       throw new RetryableChainError('MINT_SUBMISSION_FAILED');
+    }
+  }
+
+  private async submitMintWithServiceSigner(
+    item: MintWorkItem,
+    signer: Signer,
+    persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
+    unconfirmedSignedTransactions: { transactionHash: string; signedTransaction: string }[],
+  ): Promise<{ transactionHash: string }> {
+    const data = this.contractInterface.encodeFunctionData('mintWithRewardKey', [
+      item.recipient,
+      item.seriesKey,
+      item.rewardKey,
+    ]);
+    let latestNonce: number;
+    let pendingNonce: number;
+    let feeData: Awaited<ReturnType<JsonRpcProvider['getFeeData']>>;
+    let estimatedGas: bigint;
+    try {
+      // Take the max of 'latest' and 'pending': some RPC providers track a connected account's
+      // mempool nonce poorly, and a stale 'pending' response must never move the nonce backward.
+      [latestNonce, pendingNonce] = await Promise.all([
+        this.provider.getTransactionCount(this.minterAddress, 'latest'),
+        this.provider.getTransactionCount(this.minterAddress, 'pending'),
+      ]);
+      feeData = await this.provider.getFeeData();
+      estimatedGas = await this.provider.estimateGas({
+        to: this.contractAddress,
+        data,
+        from: this.minterAddress,
+      });
+    } catch (error) {
+      throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
+    }
+    // A further floor: one past the highest nonce among this chain's own recorded-but-unconfirmed
+    // signed attempts (decoded from the signed payload itself, not trusted metadata). The sweep
+    // that runs before this already tried to rebroadcast every one of them, but the RPC's nonce
+    // view can still lag a moment behind that — this worker's own records must win that race.
+    let recordedNonceFloor = 0;
+    for (const pending of unconfirmedSignedTransactions) {
+      try {
+        recordedNonceFloor = Math.max(recordedNonceFloor, Transaction.from(pending.signedTransaction).nonce + 1);
+      } catch {
+        // An unparsable recorded payload contributes no floor; rebroadcastIfNeeded already tried
+        // it above regardless of whether we can decode it here.
+      }
+    }
+    const nonce = Math.max(latestNonce, pendingNonce, recordedNonceFloor);
+    // A null or non-positive maxFeePerGas would sign a transaction the network can never accept
+    // (or, worse, one with an unbounded fee): fail closed before anything is signed or recorded,
+    // rather than let `?? null` silently paper over missing fee data.
+    if (feeData.maxFeePerGas == null || feeData.maxPriorityFeePerGas == null || feeData.maxFeePerGas <= 0n) {
+      throw new RetryableChainError('FEE_DATA_UNAVAILABLE');
+    }
+    // 20% headroom over the estimate: an estimate taken slightly before signing can be too tight
+    // by the time the transaction actually executes, and an out-of-gas revert is far more
+    // expensive to recover from than a slightly larger gas limit.
+    const gasLimit = (estimatedGas * 12n) / 10n;
+    // The fee quote comes from the RPC endpoint. A faulty or hostile one could otherwise get a
+    // transaction signed that spends the minter's whole balance on gas.
+    if (gasLimit * feeData.maxFeePerGas > this.maxTransactionFeeWei) {
+      throw new RetryableChainError('FEE_ABOVE_CEILING');
+    }
+    let signedTransaction: string;
+    try {
+      signedTransaction = await signer.signTransaction({
+        type: 2,
+        to: this.contractAddress,
+        data,
+        nonce,
+        chainId: this.options.chainId,
+        gasLimit,
+        maxFeePerGas: feeData.maxFeePerGas,
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
+      });
+    } catch (error) {
+      throw new RetryableChainError('MINT_SIGNING_FAILED', { cause: error });
+    }
+    const transactionHash = Transaction.from(signedTransaction).hash;
+    if (!transactionHash) throw new RetryableChainError('MINT_SIGNING_FAILED');
+    const normalizedHash = transactionHash.toLowerCase();
+    // Record before broadcasting: a crash or a lost response after this point never needs a new
+    // transaction — restart recovery re-broadcasts this exact signed transaction instead.
+    await persistBeforeBroadcast({ transactionHash: normalizedHash, signedTransaction });
+    await this.broadcastSigned(signedTransaction, 'fresh');
+    return { transactionHash: normalizedHash };
+  }
+
+  /**
+   * Restart recovery for a job that already recorded a signed transaction: re-broadcasts it only
+   * if the network does not already know it, so a crash between recording and broadcasting (or a
+   * lost broadcast response) never needs a new transaction or a new nonce.
+   */
+  async rebroadcastIfNeeded(transactionHash: string, signedTransaction: string): Promise<void> {
+    try {
+      const existing = await this.provider.getTransaction(transactionHash);
+      if (existing) return;
+    } catch (error) {
+      throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
+    }
+    await this.broadcastSigned(signedTransaction, 'rebroadcast');
+  }
+
+  /**
+   * `mode` distinguishes a brand-new submission from resending a transaction already recorded on
+   * an earlier attempt: "nonce too low" means something different in each case.
+   * - rebroadcast: the recorded transaction's nonce was already consumed — by an earlier
+   *   broadcast of this exact transaction, or by this same signed payload sent previously — so
+   *   there is nothing left to do.
+   * - fresh: this transaction was just signed against a nonce this worker believed was free. A
+   *   nonce-too-low response here means that belief was wrong and this exact transaction can
+   *   never mine, which is a real problem worth surfacing (not silently swallowing).
+   */
+  private async broadcastSigned(
+    signedTransaction: string,
+    mode: 'fresh' | 'rebroadcast',
+  ): Promise<void> {
+    try {
+      await this.provider.broadcastTransaction(signedTransaction);
+    } catch (error) {
+      if (isAlreadyKnown(error)) return;
+      if (isNonceTooLow(error)) {
+        if (mode === 'rebroadcast') return;
+        // Never log the raw provider error here: it can echo back the signed transaction payload.
+        console.error('mint worker: fresh submission nonce rejected', {
+          name: (error as { name?: unknown })?.name,
+          code: (error as { code?: unknown })?.code,
+        });
+        throw new RetryableChainError('MINT_BROADCAST_NONCE_CONFLICT', { cause: error });
+      }
+      throw new RetryableChainError('MINT_BROADCAST_FAILED', { cause: error });
     }
   }
 
@@ -309,4 +474,25 @@ export function contractCallError(error: unknown): ChainConfigurationError | Ret
     return new ChainConfigurationError('CONTRACT_INTERFACE_MISMATCH');
   }
   return new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
+}
+
+// The node already has this exact transaction (a retried broadcast of the same payload): not a
+// failure either way, so this check does not depend on fresh vs rebroadcast.
+function isAlreadyKnown(error: unknown): boolean {
+  return errorMessage(error).includes('already known');
+}
+
+// Prefer ethers' own classification over message sniffing; fall back to the message only when
+// the provider does not tag the error. NONCE_EXPIRED is the direct "nonce too low" case;
+// REPLACEMENT_UNDERPRICED means a transaction already occupies that nonce and this one does not
+// out-bid it — for our purposes (this exact nonce is spoken for) that is the same situation.
+function isNonceTooLow(error: unknown): boolean {
+  if (isError(error, 'NONCE_EXPIRED') || isError(error, 'REPLACEMENT_UNDERPRICED')) return true;
+  return errorMessage(error).includes('nonce too low');
+}
+
+function errorMessage(error: unknown): string {
+  return typeof error === 'object' && error !== null && 'message' in error
+    ? String((error as { message: unknown }).message).toLowerCase()
+    : '';
 }

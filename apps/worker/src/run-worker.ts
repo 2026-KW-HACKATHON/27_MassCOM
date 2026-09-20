@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 
 import { EthersMintChainGateway } from './ethers-chain-gateway.js';
 import { MintWorker } from './mint-worker.js';
+import { resolveMinterSigner } from './minter-signer-config.js';
 import { PostgresMintRepository } from './postgres-mint-repository.js';
 
 export async function runConfiguredWorker(environment = process.env): Promise<boolean> {
@@ -29,13 +30,33 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
     environment.MINTER_MIN_BALANCE_WEI ?? '0',
     'MINTER_MIN_BALANCE_WEI',
   );
-  if (chainId !== 31337 || environment.ALLOW_UNLOCKED_LOCAL_MINTER !== 'true') {
-    throw new Error('unlocked RPC worker is restricted to explicit local Anvil configuration');
+  const minterMaxTransactionFeeWei = nonNegativeIntegerBigInt(
+    environment.MINTER_MAX_TX_FEE_WEI ?? '10000000000000000',
+    'MINTER_MAX_TX_FEE_WEI',
+  );
+  if (minterMaxTransactionFeeWei === 0n) {
+    throw new Error('MINTER_MAX_TX_FEE_WEI must be greater than zero');
   }
+  const receiptTimeoutMs = requiredInteger(
+    environment.CHAIN_RECEIPT_TIMEOUT_MS ?? String(24 * 60 * 60 * 1_000),
+    'CHAIN_RECEIPT_TIMEOUT_MS',
+  );
+  // Resolves how the worker signs: the local Anvil unlocked path (chainId 31337, gated on
+  // ALLOW_UNLOCKED_LOCAL_MINTER=true, unchanged) or a service signer loaded from an encrypted
+  // keystore for an allow-listed public testnet. Throws a MinterConfigurationError otherwise.
+  const signerResolution = await resolveMinterSigner({ env: environment, chainId, minterAddress });
 
-  const pool = new Pool({ connectionString: databaseUrl });
+  // max >= 4: withMinterLock holds one dedicated connection for the whole
+  // sweep -> markPrepared -> submit sequence, while the rest of the repository (lease, finalize,
+  // etc.) needs its own connections concurrently; a pool of 1-2 would let the lock holder starve
+  // everything else that shares this pool within the same process.
+  const pool = new Pool({ connectionString: databaseUrl, max: 4 });
   try {
-    const repository = new PostgresMintRepository(pool, { chainFromBlock, reorgMargin });
+    const repository = new PostgresMintRepository(pool, {
+      chainFromBlock,
+      reorgMargin,
+      receiptTimeoutMs,
+    });
     const scanFromBlock = await repository.getEventScanStart(chainId, contractAddress);
     const gateway = new EthersMintChainGateway({
       rpcUrl,
@@ -46,6 +67,8 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
       fromBlock: scanFromBlock,
       fallbackFromBlock: chainFromBlock,
       minMinterBalanceWei: minterMinBalanceWei,
+      maxTransactionFeeWei: minterMaxTransactionFeeWei,
+      ...(signerResolution.mode === 'service' ? { signer: signerResolution.signer } : {}),
     });
     return await new MintWorker(repository, gateway).runOnce(workerId);
   } finally {

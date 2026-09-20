@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
@@ -27,6 +27,12 @@ type Options = {
   receiptTimeoutMs: number;
   chainFromBlock: number;
   reorgMargin: number;
+  /**
+   * Bounds how long withMinterLock waits to acquire the per chain/minter advisory lock, on the
+   * dedicated connection that holds it. A wedged holder (or a very large backlog of callers) must
+   * not be able to block this connection, and therefore this worker, forever.
+   */
+  minterLockTimeoutMs: number;
 };
 
 type WorkRow = {
@@ -40,6 +46,7 @@ type WorkRow = {
   contract_address: string;
   series_key: string;
   transaction_hash: string | null;
+  signed_transaction: string | null;
 };
 
 type ExistingAssetRow = {
@@ -66,7 +73,10 @@ const defaultOptions: Options = {
   receiptTimeoutMs: 24 * 60 * 60 * 1_000,
   chainFromBlock: 0,
   reorgMargin: 12,
+  minterLockTimeoutMs: 10_000,
 };
+
+const unconfirmedSweepLimit = 50;
 
 export class PostgresMintRepository implements MintWorkRepository {
   private readonly options: Options;
@@ -87,6 +97,12 @@ export class PostgresMintRepository implements MintWorkRepository {
     }
     if (!Number.isSafeInteger(this.options.reorgMargin) || this.options.reorgMargin <= 0) {
       throw new Error('reorgMargin must be a positive safe integer');
+    }
+    if (
+      !Number.isSafeInteger(this.options.minterLockTimeoutMs) ||
+      this.options.minterLockTimeoutMs <= 0
+    ) {
+      throw new Error('minterLockTimeoutMs must be a positive safe integer');
     }
   }
 
@@ -136,9 +152,14 @@ export class PostgresMintRepository implements MintWorkRepository {
              job.chain_id,
              job.contract_address,
              encode(job.series_key, 'hex') AS series_key,
-             job.transaction_hash
+             job.transaction_hash,
+             attempt.signed_transaction
            FROM outbox_events AS outbox
            JOIN mint_jobs AS job ON job.id = outbox.aggregate_id
+           LEFT JOIN mint_tx_attempts AS attempt
+             ON attempt.mint_job_id = job.id
+             AND attempt.transaction_hash = job.transaction_hash
+             AND attempt.status = 'SUBMITTED'
            WHERE outbox.event_type = 'MINT_REQUESTED'
              AND (
                (outbox.status = 'PENDING' AND outbox.available_at <= $1)
@@ -258,6 +279,7 @@ export class PostgresMintRepository implements MintWorkRepository {
     workerId: string,
     attemptId: string,
     transactionHash: string,
+    signedTransaction?: string,
   ): Promise<void> {
     const now = this.options.now();
     const normalizedHash = transactionHash.toLowerCase();
@@ -267,9 +289,10 @@ export class PostgresMintRepository implements MintWorkRepository {
       await requireLease(client, jobId, workerId, now);
       await client.query(
         `UPDATE mint_tx_attempts
-         SET status = 'SUBMITTED', transaction_hash = $1, submitted_at = $2, updated_at = $2
+         SET status = 'SUBMITTED', transaction_hash = $1, signed_transaction = $5,
+             submitted_at = $2, updated_at = $2
          WHERE id = $3 AND mint_job_id = $4`,
-        [normalizedHash, now, attemptId, jobId],
+        [normalizedHash, now, attemptId, jobId, signedTransaction ?? null],
       );
       const updatedJob = await client.query(
         `UPDATE mint_jobs
@@ -285,6 +308,104 @@ export class PostgresMintRepository implements MintWorkRepository {
       throw error;
     } finally {
       client.release();
+    }
+  }
+
+  /**
+   * Serializes the nonce-read -> sign -> record -> broadcast sequence for one chain/minter pair
+   * across every worker process using a PostgreSQL session advisory lock, so two submissions for
+   * the same minter never race for the same nonce. The lock is acquired and released on the same
+   * dedicated connection, since PostgreSQL session advisory locks are held per-session.
+   */
+  /**
+   * Signed transactions that were recorded but have no result yet, oldest first. They still own
+   * their nonces, so they must reach the network before a new nonce is read.
+   * Only attempts whose parent job is still active are returned: a job already closed
+   * (FINALIZED / MANUAL_REVIEW / CANCELLED) can leave a SUBMITTED attempt behind (e.g. an
+   * un-broadcastable straggler sent to manual review), and that attempt must stop being swept
+   * forever once its job is terminal. Bounded by a sane LIMIT so one chain can never make this
+   * scan unbounded.
+   * ponytail: filtered by chain only, one service minter per chain; add a minter column if a
+   * chain ever gets a second minter.
+   */
+  async listUnconfirmedSignedTransactions(
+    chainId: number,
+  ): Promise<{ transactionHash: string; signedTransaction: string }[]> {
+    const result = await this.pool.query<{ transaction_hash: string; signed_transaction: string }>(
+      `SELECT attempt.transaction_hash, attempt.signed_transaction
+       FROM mint_tx_attempts AS attempt
+       JOIN mint_jobs AS job ON job.id = attempt.mint_job_id
+       WHERE job.chain_id = $1
+         AND attempt.status = 'SUBMITTED'
+         AND attempt.signed_transaction IS NOT NULL
+         AND job.status NOT IN ('FINALIZED', 'MANUAL_REVIEW', 'CANCELLED')
+       ORDER BY attempt.submitted_at, attempt.attempt_number
+       LIMIT ${unconfirmedSweepLimit + 1}`,
+      [chainId],
+    );
+    // A partial view would compute a nonce floor from some of the in-flight nonces only, so an
+    // over-full window is reported instead of silently truncated.
+    if (result.rows.length > unconfirmedSweepLimit) {
+      throw new RetryableChainError('MINTER_UNCONFIRMED_BACKLOG');
+    }
+    return result.rows.map((row) => ({
+      transactionHash: row.transaction_hash,
+      signedTransaction: row.signed_transaction,
+    }));
+  }
+
+  async withMinterLock<T>(
+    chainId: number,
+    minterAddress: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const [key1, key2] = advisoryLockKey(chainId, minterAddress);
+    const client = await this.pool.connect();
+    // Destroyed instead of pooled if anything below leaves the session in a state we cannot
+    // trust: an advisory lock is held per-session, so a connection returned to the pool while
+    // still holding it (or while we are not sure it does not) would silently wedge every future
+    // borrower of that connection behind a lock nothing will ever release.
+    let destroy = false;
+    try {
+      // Bound the acquisition itself, on this dedicated connection only, so a wedged holder (or a
+      // pile-up of callers) cannot block this connection forever. Session-scoped via set_config
+      // (no surrounding transaction here), so it is reset explicitly once the lock is held.
+      await client.query("SELECT set_config('lock_timeout', $1, false)", [
+        `${this.options.minterLockTimeoutMs}ms`,
+      ]);
+      let held = false;
+      try {
+        await client.query('SELECT pg_advisory_lock($1, $2)', [key1, key2]);
+        held = true;
+      } catch (error) {
+        if (isLockTimeout(error)) {
+          throw new RetryableChainError('MINTER_LOCK_TIMEOUT', { cause: error });
+        }
+        throw error;
+      } finally {
+        try {
+          await client.query("SELECT set_config('lock_timeout', '0', false)");
+        } catch (error) {
+          // The session kept a non-default lock_timeout and may hold the lock without reaching the
+          // unlock below: never pool it. Without the lock the acquisition error already in flight
+          // (e.g. MINTER_LOCK_TIMEOUT) is the one the caller must see, so this one is not rethrown.
+          destroy = true;
+          if (held) throw error;
+        }
+      }
+      try {
+        return await fn();
+      } finally {
+        try {
+          await client.query('SELECT pg_advisory_unlock($1, $2)', [key1, key2]);
+        } catch (error) {
+          // The lock may still be held on this session: never let it go back to the pool.
+          destroy = true;
+          throw error;
+        }
+      }
+    } finally {
+      client.release(destroy);
     }
   }
 
@@ -371,6 +492,15 @@ export class PostgresMintRepository implements MintWorkRepository {
           [result.transactionHash.toLowerCase(), now, item.jobId],
         );
       }
+      // Any other still-SUBMITTED attempt of this job (a straggler sharing the job but not the
+      // hash that actually got mined) is now dead on arrival: the job only has one nonce future,
+      // and it just landed under a different attempt. Close it so it stops being swept forever.
+      await client.query(
+        `UPDATE mint_tx_attempts
+         SET status = 'FAILED', error_code = 'SUPERSEDED_BY_ONCHAIN_MINT', updated_at = $2
+         WHERE mint_job_id = $3 AND status = 'SUBMITTED' AND transaction_hash IS DISTINCT FROM $1`,
+        [result.transactionHash.toLowerCase(), now, item.jobId],
+      );
       await client.query(
         `UPDATE mint_jobs
          SET status = 'FINALIZED', transaction_hash = $1, token_id = $2::numeric,
@@ -579,6 +709,16 @@ async function closeForManualReview(
      WHERE id = $3`,
     [code, now, jobId],
   );
+  // A job going to manual review can still be holding a SUBMITTED attempt (a straggler that
+  // never got a receipt, or one this worker gave up on). Close it in the same transaction: left
+  // SUBMITTED, it would be swept and rebroadcast forever by listUnconfirmedSignedTransactions
+  // even though nothing can ever act on its job again.
+  await client.query(
+    `UPDATE mint_tx_attempts
+     SET status = 'FAILED', error_code = $1, updated_at = $2
+     WHERE mint_job_id = $3 AND status = 'SUBMITTED'`,
+    [code, now, jobId],
+  );
   await client.query(
     `UPDATE outbox_events
      SET status = 'PUBLISHED', lease_owner = NULL, lease_expires_at = NULL, updated_at = $1
@@ -643,7 +783,26 @@ function mapWork(row: WorkRow): MintWorkItem {
     contractAddress: row.contract_address,
     seriesKey: `0x${row.series_key}`,
     ...(row.transaction_hash ? { transactionHash: row.transaction_hash } : {}),
+    ...(row.signed_transaction ? { signedTransaction: row.signed_transaction } : {}),
   };
+}
+
+/** PostgreSQL's lock_timeout SQLSTATE (55P03, lock_not_available). */
+function isLockTimeout(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === '55P03'
+  );
+}
+
+/** Deterministic two-int32 key for pg_advisory_lock, scoped to one chain/minter pair. */
+function advisoryLockKey(chainId: number, minterAddress: string): [number, number] {
+  const digest = createHash('sha256')
+    .update(`mint-minter-lock:${chainId}:${minterAddress.toLowerCase()}`)
+    .digest();
+  return [digest.readInt32BE(0), digest.readInt32BE(4)];
 }
 
 function assertResultMatches(item: MintWorkItem, result: ChainMintResult): void {

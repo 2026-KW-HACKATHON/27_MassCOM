@@ -62,8 +62,24 @@ class FakeRepository implements MintWorkRepository {
     return 'attempt-1';
   }
 
-  async markSubmitted(_jobId: string, _workerId: string, _attemptId: string, txHash: string): Promise<void> {
+  async markSubmitted(
+    _jobId: string,
+    _workerId: string,
+    _attemptId: string,
+    txHash: string,
+    _signedTransaction?: string,
+  ): Promise<void> {
     this.calls.push(`submitted:${txHash}`);
+  }
+
+  async withMinterLock<T>(_chainId: number, _minterAddress: string, fn: () => Promise<T>): Promise<T> {
+    return fn();
+  }
+
+  unconfirmedSigned: { transactionHash: string; signedTransaction: string }[] = [];
+
+  async listUnconfirmedSignedTransactions(): Promise<{ transactionHash: string; signedTransaction: string }[]> {
+    return this.unconfirmedSigned;
   }
 
   async finalize(_item: MintWorkItem, _workerId: string, _attemptId: string | undefined, value: ChainMintResult): Promise<void> {
@@ -103,6 +119,7 @@ class FakeRepository implements MintWorkRepository {
 }
 
 class FakeGateway implements MintChainGateway {
+  readonly minterAddress = '0x9000000000000000000000000000000000000009';
   calls: string[] = [];
   existing?: ChainMintResult;
   submitError?: Error;
@@ -123,10 +140,18 @@ class FakeGateway implements MintChainGateway {
     return this.existing;
   }
 
-  async submitMint(): Promise<{ transactionHash: string }> {
+  async submitMint(
+    _item: MintWorkItem,
+    persistBeforeBroadcast: (record: { transactionHash: string }) => Promise<void>,
+  ): Promise<{ transactionHash: string }> {
     this.calls.push('submit');
     if (this.submitError) throw this.submitError;
+    await persistBeforeBroadcast({ transactionHash: result.transactionHash });
     return { transactionHash: result.transactionHash };
+  }
+
+  async rebroadcastIfNeeded(): Promise<void> {
+    this.calls.push('rebroadcast');
   }
 
   async confirmMint(): Promise<ChainMintResult> {
@@ -430,6 +455,62 @@ test('restart recovery finalizes without resubmitting when the reward key was al
   assert.equal(gateway.calls.includes('confirm'), false);
   assert.equal(gateway.calls.includes('submit'), false);
   assert.equal(workCalls(repository).at(-1), 'finalized:1');
+});
+
+test('signed transactions recorded but never broadcast are sent before a new nonce is taken', async () => {
+  const repository = new FakeRepository();
+  repository.unconfirmedSigned = [
+    { transactionHash: `0x${'01'.repeat(32)}`, signedTransaction: '0x02f801' },
+    { transactionHash: `0x${'02'.repeat(32)}`, signedTransaction: '0x02f802' },
+  ];
+  const gateway = new FakeGateway();
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  // Both stragglers go out, in order, before this job's own submission reads the pending nonce.
+  assert.deepEqual(gateway.calls, [
+    'validate',
+    'find',
+    'assertCanSubmit',
+    'rebroadcast',
+    'rebroadcast',
+    'submit',
+    'confirm',
+  ]);
+});
+
+test('an over-full backlog of unconfirmed signed transactions blocks submission instead of guessing a nonce', async () => {
+  const repository = new FakeRepository();
+  repository.listUnconfirmedSignedTransactions = async () => {
+    throw new RetryableChainError('MINTER_UNCONFIRMED_BACKLOG');
+  };
+  const gateway = new FakeGateway();
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.equal(gateway.calls.includes('submit'), false);
+  assert.deepEqual(workCalls(repository), ['lease', 'retryable:MINTER_NONCE_BLOCKED']);
+});
+
+test('H1 a straggler that cannot be rebroadcast releases this job without consuming an attempt', async () => {
+  const repository = new FakeRepository();
+  repository.unconfirmedSigned = [
+    { transactionHash: `0x${'01'.repeat(32)}`, signedTransaction: '0x02f801' },
+  ];
+  const gateway = new FakeGateway();
+  gateway.rebroadcastIfNeeded = async () => {
+    gateway.calls.push('rebroadcast');
+    throw new RetryableChainError('MINT_BROADCAST_FAILED');
+  };
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.deepEqual(gateway.calls, ['validate', 'find', 'assertCanSubmit', 'rebroadcast']);
+  // markPrepared never ran: the straggler was discovered before this job's own attempt could be
+  // consumed, and the job is released under its own code rather than the straggler's error code.
+  assert.equal(repository.calls.includes('prepared'), false);
+  assert.equal(gateway.calls.includes('submit'), false);
+  assert.deepEqual(workCalls(repository), ['lease', 'retryable:MINTER_NONCE_BLOCKED']);
 });
 
 test('O02 propagates a repository failure before leasing without calling the gateway', async () => {
