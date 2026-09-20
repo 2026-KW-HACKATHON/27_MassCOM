@@ -36,7 +36,7 @@
 | D01 | API·Worker | PASS | 발급 중 탈퇴 | 미전송·제출됨을 구분 | 동시 10요청 하나로 수렴, 미전송 1건 `CANCELLED`, 제출 1건 결과 대기, 확정 NFT 1건 보존, 원 account ID 참조 0 |
 | D02 | Android·API | NOT_RUN | 계정 전환·캐시 복구 | 이전 사용자 데이터 미노출 | 구현과 자동 시험은 PASS(Issue #80): API 모든 응답 `Cache-Control: no-store`, 지갑 세션 저장 key 계정별 분리, 시작 시 다른 계정 세션 제거, 모든 계정 화면 remount. 운영 로그인이 없어 Android 실기 계정 전환은 실행하지 못했으므로 상태는 `NOT_RUN` 유지 |
 | D03 | 정적·통합 검사 | PASS | 로그·분석·메타데이터 검사 | 개인키·QR·개인 식별자 누출 없음 | 민감 console 인자·미검토 analytics SDK gate와 fixture PASS, raw API error 객체 로그 제거; 외부 운영 로그는 NOT_RUN |
-| A01 | Android 실기 | NOT_RUN | 카메라 권한 거절·오프라인 | 수동 코드·정확한 상태 표시 | QR 화면 미구현 |
+| A01 | Android 실기 | NOT_RUN | 카메라 권한 거절·오프라인 | 수동 코드·정확한 상태 표시 | 카메라 QR 화면 미구현. 수동 코드 수령 경로만 있음. 기기 대기가 아니라 **구현이 먼저 필요한 항목** |
 | A02 | Android 릴리스 | NOT_RUN | 실제 AAB·16KB·앱 링크 | 설치·실행·복귀 정상 | debug APK 부분 PASS, release NOT_RUN |
 | O01 | 환경 권한 | NOT_RUN | 시연 권리로 운영 API 접근 | 환경 경계에서 거절 | 운영 환경 미구현 |
 | O02 | 장애·복원 | PASS | RPC·민터 잔액·DB 장애 | 보상권 보존·중지·복구 절차 동작 | Local Anvil·Docker PostgreSQL: RPC 연결 불가 `RPC_UNAVAILABLE`, 계약 중지 `MINT_PAUSED`, 민터 잔액 0 `MINTER_BALANCE_LOW` 모두 `RETRYABLE`·전송 시도 0·보상권 불변, 복구 뒤 NFT 1개. code는 있지만 인터페이스가 다른 계약은 `CONTRACT_INTERFACE_MISMATCH`로 `MANUAL_REVIEW`. DB 연결 불가는 체인 호출 0건·작업 불변. 운영 RPC·실제 운영 DB 장애는 `NOT_RUN` |
