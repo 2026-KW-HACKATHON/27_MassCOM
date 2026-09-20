@@ -362,6 +362,14 @@ export class PostgresMintRepository implements MintWorkRepository {
            WHERE id = $3 AND mint_job_id = $4`,
           [result.transactionHash.toLowerCase(), now, attemptId, item.jobId],
         );
+      } else {
+        // Restart recovery has no attempt id; the hash is unique per attempt, so close that row.
+        await client.query(
+          `UPDATE mint_tx_attempts
+           SET status = 'MINED', mined_at = $2, updated_at = $2
+           WHERE mint_job_id = $3 AND transaction_hash = $1 AND status = 'SUBMITTED'`,
+          [result.transactionHash.toLowerCase(), now, item.jobId],
+        );
       }
       await client.query(
         `UPDATE mint_jobs
@@ -437,12 +445,16 @@ export class PostgresMintRepository implements MintWorkRepository {
          WHERE id = $3 AND mint_job_id = $4 AND status = 'SUBMITTED'`,
         [revertCode, now, attemptId, jobId],
       );
-      await client.query(
+      // Matched by the attempt's own hash, not by job status: after a restart the job is RETRYABLE,
+      // and matching the hash also keeps a newer transaction from being dropped by mistake.
+      const dropped = await client.query(
         `UPDATE mint_jobs
          SET transaction_hash = NULL, updated_at = $1
-         WHERE id = $2 AND status = 'SUBMITTED'`,
-        [now, jobId],
+         WHERE id = $2
+           AND transaction_hash = (SELECT transaction_hash FROM mint_tx_attempts WHERE id = $3)`,
+        [now, jobId, attemptId],
       );
+      if (dropped.rowCount !== 1) throw new Error('MINT_REVERTED_HASH_MISMATCH');
       await this.releaseForRetry(client, jobId, retryCode, now);
       await client.query('COMMIT');
     } catch (error) {
@@ -484,8 +496,13 @@ export class PostgresMintRepository implements MintWorkRepository {
           [jobId, job.transaction_hash],
         )
       ).rows[0];
-      const submittedAt = attempt?.submitted_at ?? now;
-      if (now.getTime() - submittedAt.getTime() >= this.options.receiptTimeoutMs) {
+      // Without the submitted attempt there is no clock to bound the wait, so stop here rather
+      // than restarting the clock on every release.
+      if (!attempt?.submitted_at) {
+        await closeForManualReview(client, jobId, 'RECEIPT_ATTEMPT_MISSING', now);
+        return;
+      }
+      if (now.getTime() - attempt.submitted_at.getTime() >= this.options.receiptTimeoutMs) {
         await closeForManualReview(client, jobId, 'RECEIPT_TIMEOUT', now);
         return;
       }

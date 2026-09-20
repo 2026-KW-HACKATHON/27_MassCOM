@@ -605,6 +605,85 @@ test('a transaction that confirms after the send cap still finalizes without any
   assert.deepEqual(state.rows[0], { status: 'FINALIZED', attempt_count: 1 });
 });
 
+test('restart recovery drops a reverted hash from a RETRYABLE job and lets the next lease send again', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  let now = new Date('2026-09-19T05:00:00.000Z');
+  const attemptIds = ['60000000-0000-4000-8000-000000000007', '60000000-0000-4000-8000-000000000008'];
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+    nextAttemptId: () => attemptIds.shift()!,
+  });
+  const item = await repository.leaseNext('worker-before-restart', 30_000);
+  assert.ok(item);
+  const attemptId = await repository.markPrepared(item, 'worker-before-restart');
+  const transactionHash = `0x${'ab'.repeat(32)}`;
+  await repository.markSubmitted(item.jobId, 'worker-before-restart', attemptId, transactionHash);
+  // The receipt was not ready, so the job waits as RETRYABLE while still holding the hash.
+  await repository.releaseRetryable(item.jobId, 'worker-before-restart', 'RECEIPT_NOT_READY');
+
+  now = new Date(now.getTime() + 60_000);
+  const afterRestart = await repository.leaseNext('worker-after-restart', 30_000);
+  assert.equal(afterRestart?.transactionHash, transactionHash);
+  const recoveredAttemptId = await repository.findAttemptIdForTransactionHash(item.jobId, transactionHash);
+  assert.equal(recoveredAttemptId, attemptId);
+  await repository.releaseRevertedForRetry(
+    item.jobId,
+    'worker-after-restart',
+    recoveredAttemptId!,
+    'MINT_TRANSACTION_REVERTED',
+    'MINT_PAUSED',
+  );
+
+  const job = await pool.query<{ status: string; transaction_hash: string | null; last_error_code: string }>(
+    'SELECT status, transaction_hash, last_error_code FROM mint_jobs WHERE id = $1',
+    [item.jobId],
+  );
+  assert.deepEqual(job.rows[0], { status: 'RETRYABLE', transaction_hash: null, last_error_code: 'MINT_PAUSED' });
+  const attempt = await pool.query<{ status: string; error_code: string; transaction_hash: string }>(
+    'SELECT status, error_code, transaction_hash FROM mint_tx_attempts WHERE id = $1',
+    [attemptId],
+  );
+  // The reverted hash stays on the attempt row as evidence.
+  assert.deepEqual(attempt.rows[0], {
+    status: 'FAILED',
+    error_code: 'MINT_TRANSACTION_REVERTED',
+    transaction_hash: transactionHash,
+  });
+  assert.equal(await repository.findAttemptIdForTransactionHash(item.jobId, transactionHash), undefined);
+
+  now = new Date(now.getTime() + 60_000);
+  const resend = await repository.leaseNext('worker-after-restart', 30_000);
+  assert.equal(resend?.jobId, item.jobId);
+  assert.equal(resend?.transactionHash, undefined);
+  assert.equal(await repository.markPrepared(resend!, 'worker-after-restart'), '60000000-0000-4000-8000-000000000008');
+});
+
+test('a receipt wait with no submitted attempt behind it closes instead of restarting its clock', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const now = new Date('2026-09-19T06:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+    nextAttemptId: () => '60000000-0000-4000-8000-000000000009',
+  });
+  const item = await repository.leaseNext('worker-orphan-hash', 30_000);
+  assert.ok(item);
+  const attemptId = await repository.markPrepared(item, 'worker-orphan-hash');
+  await repository.markSubmitted(item.jobId, 'worker-orphan-hash', attemptId, `0x${'12'.repeat(32)}`);
+  await pool.query(`UPDATE mint_tx_attempts SET status = 'FAILED' WHERE id = $1`, [attemptId]);
+
+  await repository.releaseRetryable(item.jobId, 'worker-orphan-hash', 'RECEIPT_NOT_READY');
+
+  const job = await pool.query<{ status: string; last_error_code: string }>(
+    'SELECT status, last_error_code FROM mint_jobs WHERE id = $1',
+    [item.jobId],
+  );
+  assert.deepEqual(job.rows[0], { status: 'MANUAL_REVIEW', last_error_code: 'RECEIPT_ATTEMPT_MISSING' });
+});
+
 test('event scan start reads the cursor with a reorg margin and deployment floor', async (t) => {
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());

@@ -31,7 +31,7 @@ Worker는 user private key·recovery phrase를 사용하지 않습니다. 로컬
 
 재시도 지연은 전송 시도마다 두 배(기본 1초, 최대 5분)로 늘고, 전송 시도가 5회에 도달한 작업은 `MANUAL_REVIEW`(`RETRY_LIMIT_EXCEEDED`)로 닫혀 다시 임대되지 않습니다. 전송 전 단계의 완결성 대기와 RPC 조회 실패는 시도 횟수를 늘리지 않습니다.
 
-5회 상한은 **새 거래 전송**에만 적용됩니다. 이미 보낸 거래(job에 `transaction_hash`가 남아 있는 상태)의 결과 확인은 상한과 무관하게 같은 backoff로 계속되며, 그 거래의 제출 시각부터 `receiptTimeoutMs`(기본 24시간)가 지나면 `MANUAL_REVIEW`(`RECEIPT_TIMEOUT`)로 닫힙니다. 나중에 성공이 확인되면 추가 전송 없이 `FINALIZED`가 됩니다.
+5회 상한은 **새 거래 전송**에만 적용됩니다. 이미 보낸 거래(job에 `transaction_hash`가 남아 있는 상태)의 결과 확인은 상한과 무관하게 같은 backoff로 계속되며, 그 거래의 제출 시각부터 `receiptTimeoutMs`(기본 24시간)가 지나면 `MANUAL_REVIEW`(`RECEIPT_TIMEOUT`)로 닫힙니다. 나중에 성공이 확인되면 추가 전송 없이 `FINALIZED`가 됩니다. 그 hash를 제출한 시도 기록을 찾을 수 없으면 기다릴 기준 시각이 없으므로 `RECEIPT_ATTEMPT_MISSING`으로 닫습니다.
 
 Worker가 재시작해 저장된 거래 hash를 다시 확인할 때도 신규 전송과 같은 판정 함수를 씁니다. receipt가 확실히 revert(status 0)인 경우에만 발행 여부를 다시 조회하고, 중지·잔액·RPC 같은 일시 조건이면 그 hash를 제출한 시도 기록을 찾아 `FAILED`로 바꾸면서 hash 제거와 재시도 전환을 한 트랜잭션으로 처리합니다. receipt를 아직 못 찾은 거래와 설정·이벤트 불일치 같은 영구 오류는 재전송하지 않습니다.
 

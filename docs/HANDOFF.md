@@ -77,7 +77,7 @@
 ## 실행한 테스트
 
 - API 단위 `43/43`, API PostgreSQL `28/28`(R02 7개·Q04 1개 포함)
-- Worker 단위 `20/20`, Worker PostgreSQL `14/14`, Anvil `6/6`(W07 M01~M08 + O02a~e)
+- Worker 단위 `20/20`, Worker PostgreSQL `16/16`, Anvil `6/6`(W07 M01~M08 + O02a~e)
 - 모바일 `54/54`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - 실제 Base Sepolia RPC 배포 시뮬레이션 PASS(전송 없음), 잘못된 체인·중복 역할 거절 PASS
