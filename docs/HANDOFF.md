@@ -2,7 +2,7 @@
 
 마지막 갱신 시각: 2026-09-20 KST
 기준 브랜치: `main`
-기준 커밋 SHA: `5aafafcf2fb49dfdb3d799abf9e6039636f1e7f4` (PR #81 merge). 이 문서를 담은 Issue #78 PR이 병합되면 그 merge 커밋이 새 기준이며, 실제 값은 `git log origin/main -1`로 확인한다.
+기준 커밋 SHA: `e4d4edb` (PR #82 merge, 전체 값은 `git rev-parse e4d4edb`). 이 문서를 담은 Issue #84 PR이 병합되면 그 merge 커밋이 새 기준이며, 실제 값은 `git log origin/main -1`로 확인한다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
 
@@ -15,6 +15,7 @@
 - Base Sepolia keystore 전용 배포 스크립트와 실체인 시뮬레이션 PASS(전송 없음). 계정 삭제가 접수되면 앱이 지갑 연결을 끊고 기기의 WalletConnect 세션 제거(D-021)
 - 운영 package ID `kr.masscom.wolgye`(D-022)와 개발 variant 분리, `scripts/build-release-aab.sh`, 로컬 debug 서명 운영 AAB에서 package·scheme·overlay 권한 제거·16KB 정렬 48개 PASS
 - Google Play Console 제출 초안 `docs/PLAY_CONSOLE_DRAFT.md`(입력·제출 없음)
+- Issue #84: 같은 주문 참조 아래 사람별 슬롯 독립성을 PostgreSQL로 실증해 Q04 PASS(스키마 변경 없음). 단체 최대 인원·1인 최소 금액·명단 고정은 v3 제안값이라 구현하지 않음. 발표 첫 화면의 오래된 집계(26/8)를 고치고 검증기가 그 위치도 검사하게 함
 - Issue #78: 연속 재시도를 `mint_jobs.retry_streak`(migration 0010)에 기록해 지연을 최대 5분까지 늘림(수동 검토 전환에는 쓰지 않음). 전송 직후 중지로 revert된 거래는 일시 조건이면 hash를 지우고 재시도. reward key 조회 실패도 인터페이스 불일치와 장애를 구분
 - Issue #80: 지갑 세션 저장을 계정별 tag로 분리하고 시작 시 다른 계정 세션을 제거, 점주·지갑 화면에 remount 보호 추가. API `no-store`는 이미 구현돼 있어 회귀 시험만 추가. D02는 실기 계정 전환을 못 해 `NOT_RUN` 유지
 - Issue #77: RPC 연결 불가가 작업을 `MANUAL_REVIEW`로 보내던 분류를 `RPC_UNAVAILABLE` 재시도로 수정. 계약 중지 `MINT_PAUSED`, 민터 잔액 부족 `MINTER_BALANCE_LOW`는 전송 준비 직전에 확인해 전송 시도를 소모하지 않음. code는 있지만 인터페이스가 다른 계약은 재시도하지 않고 `CONTRACT_INTERFACE_MISMATCH`로 수동 검토. 필수 테스트 O02를 Local Anvil·PostgreSQL 증거로 `NOT_RUN`→`PASS` 전환
@@ -41,7 +42,7 @@
 
 ## 생성한 PR
 
-- #63, #64, #65, #67, #68, #69, #70, #72 #74, #76, #79, #81 (모두 병합), Issue #78 PR
+- #63, #64, #65, #67, #68, #69, #70, #72 #74, #76, #79, #81, #82 (모두 병합), Issue #84 PR
 - #60·#62는 #63·#64로 대체하고 닫았다.
 
 ## merge된 PR
@@ -59,25 +60,26 @@
 | #74 캠페인 참여 등록·R02 | `b04af56` | PASS |
 | #76 경로 인코딩 400 | `640bb83` | PASS |
 | #79 Worker 장애 복구·O02 | `e4e633c` | `35499451454` PASS |
-| #81 계정 전환 분리·D02 | `5aafafc` | 병합 뒤 main CI는 `gh run list --branch main`으로 확인 |
+| #81 계정 전환 분리·D02 | `5aafafc` | PASS |
+| #82 재시도 backoff·revert 재분류 | `e4d4edb` | 병합 뒤 main CI는 `gh run list --branch main`으로 확인 |
 
 코드 PR은 서로 다른 모델의 독립 리뷰에서 CRITICAL·HIGH 0을 확인한 뒤 병합했다. #63·#67·#69는 두 모델, #64·#65·#70은 단일 모델 리뷰(지적 반영 뒤 재리뷰)로 병합했다.
 
 ## 실행한 테스트
 
-- API 단위 `42/42`, API PostgreSQL `27/27`(R02 7개 포함)
+- API 단위 `42/42`, API PostgreSQL `28/28`(R02 7개·Q04 1개 포함)
 - Worker 단위 `16/16`, Worker PostgreSQL `11/11`, Anvil `6/6`(W07 M01~M08 + O02a~e)
 - 모바일 `54/54`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - 실제 Base Sepolia RPC 배포 시뮬레이션 PASS(전송 없음), 잘못된 체인·중복 역할 거절 PASS
 - 운영 variant `bundleRelease`와 ELF `PT_LOAD` 정렬 검사 PASS(debug 서명)
 - secret·privacy·bootstrap·portal·presentation verifier PASS
-- 필수 36개 `28 PASS / 2 BLOCKED / 6 NOT_RUN`(R02·O02 전환)
+- 필수 36개 `29 PASS / 2 BLOCKED / 5 NOT_RUN`(R02·O02·Q04 전환)
 - `NOT_RUN`: 실제 Base Sepolia 배포, upload key 서명 AAB, 16KB 기기 설치, Android 실기 회귀(Expo patch·새 package와 scheme·계정 삭제 뒤 세션 복원 여부), Play Console
 
 ## 현재 열린 PR
 
-- Issue #78 재시도 간격 PR 하나. 병합되면 열린 PR은 없다.
+- Issue #84 Q04 PR 하나. 병합되면 열린 PR은 없다.
 
 ## 현재 작업 중인 기능
 
@@ -110,9 +112,9 @@
 ## 다음 세션이 가장 먼저 해야 할 작업
 
 1. `git fetch && git log origin/main -3`, `gh pr list`, `gh issue list`, `gh run list --branch main --limit 3`으로 이 문서와 실제 상태를 대조한다.
-2. Issue #78 PR이 열려 있으면 CI와 리뷰를 확인해 병합한다.
+2. Issue #84 PR이 열려 있으면 CI와 리뷰를 확인해 병합한다.
 3. 소유자 입력이 도착했는지 확인한다. Base Sepolia 배포 결과(계약 주소·거래 hash)가 있으면 증거 json과 B-012·TEST_STATUS를 갱신한다. domain이 정해졌으면 `assetlinks.json`, 외부 계정 삭제 페이지, 개인정보처리방침 페이지를 Issue부터 만들어 진행한다.
-4. 입력이 없으면 로컬에서 검증 가능한 남은 필수 테스트를 Issue로 만들어 진행한다(가치·위험 순): Q04 단체 QR 부분 수령(보상 규칙과 닿으므로 D-006과 충돌 여부 먼저 확인), O01 시연·운영 환경 경계(인가 모델 확장이라 착수 전 소유자 확인). Android 캠페인 참여 화면과 “수령 시 등록 요구” 여부는 보상 규칙 결정이 필요해 소유자에게 묻는다. A02·W04·W05는 외부 입력 없이는 진행할 수 없다.
+4. 입력이 없으면 로컬에서 검증 가능한 남은 필수 테스트를 Issue로 만들어 진행한다(가치·위험 순): W08 운영 빌드 정적 검사, 백업·복원 스크립트, O01 시연·운영 환경 경계(인가 모델 확장이라 착수 전 소유자 확인). Android 캠페인 참여 화면과 “수령 시 등록 요구” 여부는 보상 규칙 결정이 필요해 소유자에게 묻는다. A02·W04·W05는 외부 입력 없이는 진행할 수 없다.
 
 ## 실행 명령
 
