@@ -293,13 +293,11 @@ export class EthersMintChainGateway implements MintChainGateway {
 }
 
 // A contract that answers but not with our interface is a deployment mistake that retrying cannot
-// fix; only transport failures are an outage.
-function contractCallError(error: unknown): ChainConfigurationError | RetryableChainError {
-  if (
-    isError(error, 'CALL_EXCEPTION') ||
-    isError(error, 'BAD_DATA') ||
-    isError(error, 'UNSUPPORTED_OPERATION')
-  ) {
+// fix. ethers labels every JSON-RPC error returned for eth_call as CALL_EXCEPTION, including rate
+// limits and node timeouts, so only a CALL_EXCEPTION that carries EVM return data is a real revert.
+export function contractCallError(error: unknown): ChainConfigurationError | RetryableChainError {
+  const reverted = isError(error, 'CALL_EXCEPTION') && error.data != null;
+  if (reverted || isError(error, 'BAD_DATA')) {
     return new ChainConfigurationError('CONTRACT_INTERFACE_MISMATCH');
   }
   return new RetryableChainError('RPC_UNAVAILABLE', { cause: error });

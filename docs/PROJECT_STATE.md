@@ -11,7 +11,7 @@
 | 현재 브랜치 | `main` (작업 브랜치는 Issue별로 생성 후 병합) |
 | 기준 커밋 SHA | `640bb8315be1f2b1e7359a74b09d5713db6c87d8` — 이 문서를 갱신한 PR 직전의 검증된 main |
 | 현재 작업 | 없음. 다음 작업은 HANDOFF의 “다음 세션이 가장 먼저 해야 할 작업” |
-| 현재 검증 기준 | API 41·PostgreSQL 27·Worker 12/PG 7·모바일 50·Foundry 8/fuzz128·Anvil PASS |
+| 현재 검증 기준 | API 41·PostgreSQL 27·Worker 14/PG 7·모바일 50·Foundry 8/fuzz128·Anvil PASS |
 | 최근 main 기준선 | PR #76 merge `640bb83` |
 
 ## 열린 Issue·PR과 최근 병합
@@ -78,7 +78,7 @@
 
 - 필수 36개: `28 PASS / 2 BLOCKED / 6 NOT_RUN`
 - API 단위: `41/41 PASS`; PostgreSQL: `27/27 PASS`
-- Worker 단위: `12/12 PASS`; PostgreSQL: `7/7 PASS`; Anvil W07/M01~M08: `PASS`
+- Worker 단위: `14/14 PASS`; PostgreSQL: `7/7 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `50/50 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`

@@ -61,7 +61,7 @@
 ## 실행한 테스트
 
 - API 단위 `41/41`, API PostgreSQL `27/27`(R02 7개 포함)
-- Worker 단위 `12/12`, Worker PostgreSQL `7/7`, Anvil `5/5`(W07 M01~M08 + O02a/b/c/d)
+- Worker 단위 `14/14`, Worker PostgreSQL `7/7`, Anvil `5/5`(W07 M01~M08 + O02a/b/c/d)
 - 모바일 `50/50`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - 실제 Base Sepolia RPC 배포 시뮬레이션 PASS(전송 없음), 잘못된 체인·중복 역할 거절 PASS
@@ -141,6 +141,7 @@ PostgreSQL 통합·Anvil 시험은 이름이 `_test`로 끝나는 전용 `TEST_D
 - 앱 수집품과 실제 NFT를 분리하고, NFT 수를 매출 증가로 표현하지 않는다. 실행하지 않은 검증을 PASS로 쓰지 않는다.
 - PR 제목·본문은 한국어로 쓰고 `bash scripts/check-pr-korean.sh`를 통과시킨다. 커밋과 PR에 AI 공동 작성자 trailer나 생성 도구 문구를 넣지 않는다.
 - 공유 이력 force push, 날짜·작성자 조작, 빈 커밋을 하지 않는다. 브랜치를 바꿔야 하면 새 브랜치와 새 PR로 대체한다.
+- ethers v6는 `eth_call`에 대한 모든 JSON-RPC 오류(rate limit·timeout 포함)를 `CALL_EXCEPTION`으로 표시한다. 실제 revert는 반환 `data`가 있을 때만이다. 오류 코드만으로 영구 결함을 판정하지 않는다.
 - macOS 기본 `awk`에는 `strtonum`이 없고 `keytool` 출력은 한국어로 번역된다. 검사 스크립트는 오류 없이 끝났는지까지 확인한다.
 - 운영 로그인을 도입해 account ID를 외부에서 정할 수 있게 되면, 계정 삭제의 `campaign_enrollments` 비식별화가 `(campaign_id, 삭제 별칭)` 중복으로 막히지 않는지 먼저 확인한다(PR #74 리뷰 지적).
 - npm audit endpoint가 점검 중이면 CI의 audit 단계가 503으로 실패한다. 단계를 우회하지 말고 복구 뒤 다시 실행한다.
