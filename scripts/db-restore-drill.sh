@@ -18,6 +18,23 @@ set -euo pipefail
 url="${DRILL_DATABASE_URL:?DRILL_DATABASE_URL is required}"
 own_backup=""
 if [[ -n "${1:-}" ]]; then backup="$1"; else backup="$(mktemp -t masscom-backup.XXXXXX)"; own_backup=1; fi
+created_scratch=""
+drop_scratch() {
+  # A dump holds real data: the temporary one never outlives the drill. A path the caller gave is theirs.
+  if [[ -n "$own_backup" ]]; then rm -f "$backup"; fi
+  [[ -n "$created_scratch" ]] || return 0
+  # Variables used below are set before created_scratch, so this only runs once they exist.
+  pg psql "$admin_url" --no-psqlrc --quiet --set ON_ERROR_STOP=1 \
+    --command "DROP DATABASE IF EXISTS \"$scratch_db\"" >/dev/null
+}
+# A scratch database that cannot be dropped still holds a copy of the data, so that is a failure
+# even when the comparison passed.
+cleanup() {
+  local status=$?
+  drop_scratch || { echo "could not drop the scratch database; remove it by hand" >&2; status=1; }
+  exit "$status"
+}
+trap cleanup EXIT
 # bash 3.2 (macOS) treats an empty array as unbound under `set -u`, so the prefix is a function.
 read -r -a pg_prefix <<<"${PG_EXEC:-} "
 pg() { if [[ -n "${PG_EXEC:-}" ]]; then "${pg_prefix[@]}" "$@"; else "$@"; fi; }
@@ -41,15 +58,6 @@ snapshot() {
   pg psql "$1" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 \
     --command "$counts_sql" --command 'SELECT filename FROM schema_migrations ORDER BY filename'
 }
-created_scratch=""
-drop_scratch() {
-  # A dump holds real data: the temporary one never outlives the drill. A path the caller gave is theirs.
-  if [[ -n "$own_backup" ]]; then rm -f "$backup"; fi
-  [[ -n "$created_scratch" ]] || return 0
-  pg psql "$admin_url" --no-psqlrc --quiet --set ON_ERROR_STOP=1 \
-    --command "DROP DATABASE IF EXISTS \"$scratch_db\"" >/dev/null
-}
-trap drop_scratch EXIT
 
 pg pg_dump --format=custom --no-owner "$url" >"$backup"
 echo "backup: $backup ($(wc -c <"$backup" | tr -d ' ') bytes)"
