@@ -563,6 +563,17 @@ function sendJson(response: ServerResponse, status: number, body: object): void 
   response.end(JSON.stringify(body));
 }
 
+const maxSessionTtlMs = 365 * 24 * 60 * 60 * 1000;
+
+export function sessionTtlMs(raw: string | undefined): number {
+  if (raw === undefined) return 30 * 24 * 60 * 60 * 1000;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0 || value > maxSessionTtlMs) {
+    throw new Error('AUTH_SESSION_TTL_MS must be a positive integer of milliseconds, at most one year');
+  }
+  return value;
+}
+
 export type AuthMode =
   | { kind: 'production'; audiences: readonly string[] }
   | { kind: 'demo' }
@@ -574,8 +585,16 @@ export function resolveAuthMode(env: Record<string, string | undefined>): AuthMo
     .split(',')
     .map((clientId) => clientId.trim())
     .filter((clientId) => clientId.length > 0);
-  const productionConfigured = audiences.length > 0 && Boolean(env.DATABASE_URL);
   const demoConfigured = env.ALLOW_INSECURE_DEMO_ACCOUNT === 'true';
+  // Client ids state the intent to run real login; a missing database must stop the server rather
+  // than quietly leave the DEMO header in charge.
+  if (audiences.length > 0 && !env.DATABASE_URL) {
+    throw new Error(
+      'GOOGLE_OAUTH_CLIENT_IDS is set but DATABASE_URL is missing; production login cannot start ' +
+        'and must not fall back to the DEMO account header',
+    );
+  }
+  const productionConfigured = audiences.length > 0;
 
   if (productionConfigured && demoConfigured) {
     throw new Error(
@@ -658,7 +677,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     pool && authMode.kind === 'production'
       ? new PostgresAuthSessionService(pool, {
           verifier: new GoogleIdTokenVerifier({ audiences: authMode.audiences }),
-          sessionTtlMs: Number(process.env.AUTH_SESSION_TTL_MS ?? 30 * 24 * 60 * 60 * 1000),
+          sessionTtlMs: sessionTtlMs(process.env.AUTH_SESSION_TTL_MS),
           ...(accountLifecycle ? { accountLifecycle } : {}),
         })
       : undefined;

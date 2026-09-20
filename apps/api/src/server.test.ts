@@ -12,6 +12,7 @@ import {
   createSessionReauthenticationGuard,
   developmentHeaderAccountResolver,
   resolveAuthMode,
+  sessionTtlMs,
   type AccountResolver,
   type ReauthenticationGuard,
 } from './server.js';
@@ -1381,8 +1382,23 @@ test('D24 picks production login, the DEMO boundary, or neither from the environ
   );
   assert.deepEqual(resolveAuthMode({ ALLOW_INSECURE_DEMO_ACCOUNT: 'true' }), { kind: 'demo' });
   assert.deepEqual(resolveAuthMode({}), { kind: 'unconfigured' });
-  assert.deepEqual(
-    resolveAuthMode({ GOOGLE_OAUTH_CLIENT_IDS: '1234567890-demo.apps.googleusercontent.com' }),
-    { kind: 'unconfigured' },
-  );
+  // Client ids without a database are a half-configured production login: refuse, and above all
+  // never drop to the DEMO header because it happens to be switched on as well.
+  for (const env of [
+    { GOOGLE_OAUTH_CLIENT_IDS: '1234567890-demo.apps.googleusercontent.com' },
+    {
+      GOOGLE_OAUTH_CLIENT_IDS: '1234567890-demo.apps.googleusercontent.com',
+      ALLOW_INSECURE_DEMO_ACCOUNT: 'true',
+    },
+  ]) {
+    assert.throws(() => resolveAuthMode(env), /DATABASE_URL is missing/);
+  }
+});
+
+test('session lifetime from the environment must be a sane whole number of milliseconds', () => {
+  assert.equal(sessionTtlMs(undefined), 30 * 24 * 60 * 60 * 1000);
+  assert.equal(sessionTtlMs('3600000'), 3_600_000);
+  for (const raw of ['30d', '', '0', '-1', '1.5', '1e30', String(366 * 24 * 60 * 60 * 1000)]) {
+    assert.throws(() => sessionTtlMs(raw), /AUTH_SESSION_TTL_MS/, raw);
+  }
 });

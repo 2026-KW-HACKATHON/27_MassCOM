@@ -76,7 +76,7 @@
 
 ## 실행한 테스트
 
-- API 단위 `63/63`, API PostgreSQL `34/34`(R02 7개·Q04 1개 포함)
+- API 단위 `66/66`, API PostgreSQL `34/34`(R02 7개·Q04 1개 포함)
 - Worker 단위 `20/20`, Worker PostgreSQL `16/16`, Anvil `6/6`(W07 M01~M08 + O02a~e)
 - 모바일 `57/57`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS

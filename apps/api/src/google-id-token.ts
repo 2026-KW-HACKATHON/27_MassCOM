@@ -29,21 +29,25 @@ type Options = {
   fetchJwks: JwksFetcher;
   now: () => Date;
   jwksMaxAgeMs: number;
+  unknownKeyRefreshIntervalMs: number;
   clockSkewMs: number;
 };
 
 type VerifierOptions = Pick<Options, 'audiences'> & Partial<Options>;
 
 const defaultOptions = {
-  fetchJwks: ((url) => fetch(url)) as JwksFetcher,
+  fetchJwks: ((url) => fetch(url, { signal: AbortSignal.timeout(5_000) })) as JwksFetcher,
   now: () => new Date(),
   jwksMaxAgeMs: 10 * 60 * 1000,
+  unknownKeyRefreshIntervalMs: 60 * 1000,
   clockSkewMs: 60 * 1000,
 };
 
 export class GoogleIdTokenVerifier {
   private readonly options: Options;
   private keys = new Map<string, JsonWebKey>();
+  private lastRefreshAt = Number.NEGATIVE_INFINITY;
+  private refreshing: Promise<void> | undefined;
   private keysFetchedAt = 0;
 
   constructor(options: VerifierOptions) {
@@ -79,7 +83,12 @@ export class GoogleIdTokenVerifier {
     if (typeof payload.aud !== 'string' || !this.options.audiences.includes(payload.aud)) {
       throw new GoogleIdTokenError('ID_TOKEN_AUDIENCE_MISMATCH');
     }
-    if (typeof payload.exp !== 'number' || typeof payload.iat !== 'number') {
+    if (
+      typeof payload.exp !== 'number' ||
+      typeof payload.iat !== 'number' ||
+      !Number.isFinite(payload.exp) ||
+      !Number.isFinite(payload.iat)
+    ) {
       throw new GoogleIdTokenError('ID_TOKEN_INVALID');
     }
 
@@ -97,11 +106,15 @@ export class GoogleIdTokenVerifier {
     return { subject, issuedAt, expiresAt };
   }
 
-  // Google rotates signing keys, so an unknown key id earns exactly one refetch.
+  // Google rotates signing keys, so an unknown key id may earn a refetch. The token is still
+  // unverified here and /auth/google needs no credential, so a caller sending random key ids must
+  // not turn every request into an outbound fetch: unknown ids refetch at most once per interval.
   private async publicKey(kid: string) {
-    const stale = this.options.now().getTime() - this.keysFetchedAt >= this.options.jwksMaxAgeMs;
-    if (stale) await this.refreshKeys();
-    if (!this.keys.has(kid)) await this.refreshKeys();
+    const now = this.options.now().getTime();
+    if (now - this.keysFetchedAt >= this.options.jwksMaxAgeMs) await this.refreshKeys();
+    if (!this.keys.has(kid) && now - this.lastRefreshAt >= this.options.unknownKeyRefreshIntervalMs) {
+      await this.refreshKeys();
+    }
     const jwk = this.keys.get(kid);
     if (!jwk) throw new GoogleIdTokenError('ID_TOKEN_INVALID');
     try {
@@ -111,7 +124,16 @@ export class GoogleIdTokenVerifier {
     }
   }
 
-  private async refreshKeys(): Promise<void> {
+  // Concurrent verifications share one outbound request.
+  private refreshKeys(): Promise<void> {
+    this.refreshing ??= this.fetchKeys().finally(() => {
+      this.refreshing = undefined;
+    });
+    return this.refreshing;
+  }
+
+  private async fetchKeys(): Promise<void> {
+    this.lastRefreshAt = this.options.now().getTime();
     const response = await this.options.fetchJwks(jwksUrl);
     if (!response.ok) throw new GoogleIdTokenError('ID_TOKEN_INVALID');
     const body: unknown = await response.json();
@@ -121,8 +143,13 @@ export class GoogleIdTokenVerifier {
     this.keys = new Map(
       keys
         .filter((key): key is JsonWebKey & { kid: string } => {
-          const candidate = key as { kid?: unknown; kty?: unknown };
-          return typeof candidate.kid === 'string' && candidate.kty === 'RSA';
+          const candidate = key as { kid?: unknown; kty?: unknown; use?: unknown; alg?: unknown };
+          return (
+            typeof candidate.kid === 'string' &&
+            candidate.kty === 'RSA' &&
+            (candidate.use === undefined || candidate.use === 'sig') &&
+            (candidate.alg === undefined || candidate.alg === 'RS256')
+          );
         })
         .map((key) => [key.kid, key]),
     );

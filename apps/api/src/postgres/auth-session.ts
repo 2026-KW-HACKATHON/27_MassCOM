@@ -49,7 +49,7 @@ export class PostgresAuthSessionService implements AuthSessionService {
     options: ServiceOptions,
   ) {
     this.options = { ...defaultOptions, ...options };
-    if (this.options.sessionTtlMs <= 0) {
+    if (!Number.isFinite(this.options.sessionTtlMs) || this.options.sessionTtlMs <= 0) {
       throw new Error('auth session TTL must be positive');
     }
   }
@@ -161,22 +161,16 @@ async function findOrCreateAccountId(
   candidateAccountId: string,
   now: Date,
 ): Promise<string> {
-  const inserted = await client.query<{ account_id: string }>(
+  // DO UPDATE (a no-op) instead of DO NOTHING so the statement always returns the winning row,
+  // even when a concurrent first sign-in for the same subject commits or aborts in between.
+  const identity = await client.query<{ account_id: string }>(
     `INSERT INTO auth_identities (provider, subject, account_id, created_at)
      VALUES ('google', $1, $2, $3)
-     ON CONFLICT (provider, subject) DO NOTHING
+     ON CONFLICT (provider, subject) DO UPDATE SET account_id = auth_identities.account_id
      RETURNING account_id`,
     [subject, candidateAccountId, now],
   );
-  if (inserted.rows[0]) return inserted.rows[0].account_id;
-
-  const existing = await client.query<{ account_id: string }>(
-    `SELECT account_id FROM auth_identities WHERE provider = 'google' AND subject = $1`,
-    [subject],
-  );
-  const accountId = existing.rows[0]?.account_id;
-  if (!accountId) throw new AuthSessionError('SESSION_INVALID');
-  return accountId;
+  return identity.rows[0]!.account_id;
 }
 
 async function activeSession(

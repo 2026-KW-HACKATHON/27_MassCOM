@@ -113,27 +113,58 @@ test('rejects a token whose header carries no key id', async () => {
   );
 });
 
-test('refetches the key set once when the key id is unknown, then accepts the rotated key', async () => {
+test('refetches the key set for a rotated key id once the refresh interval has passed', async () => {
   const retired = keyPair('kid-retired');
   const rotated = keyPair('kid-rotated');
   const fetcher = fetcherOf(jwksOf(retired), jwksOf(retired, rotated));
+  let now = verifyNow();
+  const verifier = verifierOf(fetcher, () => now);
 
-  const claims = await verifierOf(fetcher).verify(signedIdToken(rotated));
+  await verifier.verify(signedIdToken(retired));
+  assert.equal(fetcher.calls, 1);
 
+  now = new Date(now.getTime() + 61_000);
+  const claims = await verifier.verify(signedIdToken(rotated));
   assert.equal(claims.subject, 'google-subject-1');
   assert.equal(fetcher.calls, 2);
 });
 
-test('refetches at most once for an unknown key id before giving up', async () => {
+test('unknown key ids from unauthenticated callers cannot force a fetch per request', async () => {
   const advertised = keyPair('kid-1');
-  const unknown = keyPair('kid-unknown');
   const fetcher = fetcherOf(jwksOf(advertised));
+  let now = verifyNow();
+  const verifier = verifierOf(fetcher, () => now);
+  const invalid = (error: unknown) => error instanceof GoogleIdTokenError && error.code === 'ID_TOKEN_INVALID';
 
-  await assert.rejects(
-    verifierOf(fetcher).verify(signedIdToken(unknown)),
-    (error: unknown) => error instanceof GoogleIdTokenError && error.code === 'ID_TOKEN_INVALID',
-  );
+  // The cold-start load is the only fetch, however many unknown key ids arrive.
+  for (let index = 0; index < 25; index += 1) {
+    await assert.rejects(verifier.verify(signedIdToken(keyPair(`kid-unknown-${index}`))), invalid);
+  }
+  assert.equal(fetcher.calls, 1);
+
+  now = new Date(now.getTime() + 61_000);
+  await assert.rejects(verifier.verify(signedIdToken(keyPair('kid-late'))), invalid);
+  await assert.rejects(verifier.verify(signedIdToken(keyPair('kid-later'))), invalid);
   assert.equal(fetcher.calls, 2);
+});
+
+test('concurrent verifications share one key set request', async () => {
+  const pair = keyPair('kid-1');
+  const fetcher = fetcherOf(jwksOf(pair));
+  const verifier = verifierOf(fetcher);
+
+  await Promise.all(Array.from({ length: 10 }, () => verifier.verify(signedIdToken(pair))));
+  assert.equal(fetcher.calls, 1);
+});
+
+test('rejects non-finite expiry and issue times', async () => {
+  const pair = keyPair('kid-1');
+  for (const claims of [{ exp: 1e999 }, { iat: 1e999 }]) {
+    await assert.rejects(
+      verifierOf(fetcherOf(jwksOf(pair))).verify(signedIdToken(pair, claims)),
+      (error: unknown) => error instanceof GoogleIdTokenError && error.code === 'ID_TOKEN_INVALID',
+    );
+  }
 });
 
 test('rejects an issuer that is not Google and accepts both Google spellings', async () => {
