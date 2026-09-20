@@ -27,6 +27,9 @@
 | D-021 | 기기 세션 저장 정책 | WalletConnect 세션은 AsyncStorage 유지, 인증 token 도입 시 SecureStore 전용, 계정 삭제 때 기기 세션 제거 | `USER_CONFIRMED` | 2026-09-20 사용자가 정책 결정을 위임. 기기에 비밀이 없고 세션이 SecureStore 한도를 넘어 새 의존성을 추가하지 않음 |
 | D-022 | 운영 package ID | 운영 `kr.masscom.wolgye`, 개발 `kr.masscom.wolgye.dev`, URL scheme은 각각 `masscom`·`masscom-dev` | `USER_CONFIRMED` | 2026-09-20 사용자 지정. Play package 이름 등록과 domain 소유 확인은 소유자가 Console에서 수행 |
 | D-023 | 캠페인 참여 자리 반환과 수령 조건 | 삭제·취소로 자리를 반환하지 않음. 방문 수령(redeem)이 참여 등록을 요구할지는 미정 | `PROPOSED` | 2026-09-20 Issue #73 구현 중 제안. 자리 미반환은 v3 6.2절 ‘약속한 상한 초과 금지’를 보수적으로 적용한 구현 기본값이며, 수령 시 등록 요구는 보상 규칙 변경이라 사용자 결정 전에는 적용하지 않음 |
+| D-024 | 운영 로그인 방식 | Google 로그인(OIDC ID token을 서버에서 서명·`aud`·`exp` 검증, `sub`를 계정 식별자로) | `USER_CONFIRMED` | 2026-09-21 사용자 ‘다 승인’. `docs/HOSTING_LOGIN_PROPOSAL.md` 후보 1. Google Cloud OAuth client 생성·동의 화면은 소유자가 직접 수행 |
+| D-025 | 서버 세션 형태 | 서버 저장 세션 + 불투명 토큰(해시로 저장, 만료·로그아웃·계정 삭제 시 즉시 폐기) | `USER_CONFIRMED` | 2026-09-21 사용자 승인. JWT 단독 방식은 즉시 폐기가 어려워 채택하지 않음 |
+| D-026 | 재인증 기준 | 계정 삭제 직전 5분 이내 재로그인 요구 | `USER_CONFIRMED` | 2026-09-21 사용자 승인. DEMO `x-demo-reauthenticated` 경로는 loopback 개발 전용으로 유지 |
 
 ## 2026-09-18 승인 범위
 

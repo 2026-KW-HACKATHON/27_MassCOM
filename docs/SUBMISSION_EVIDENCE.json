@@ -12,6 +12,7 @@
   "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53, 55, 57, 63, 64, 65, 67, 68, 69, 70],
   "mainCiRuns": [35424531021, 35425582837, 35426622394, 35444126068, 35445281598, 35448436859, 35450443943, 35451429441, 35455419805, 35458855491, 35459019638, 35459313304, 35460087002, 35460432649, 35486460953, 35487020999],
   "androidEvidence": [
+    "docs/evidence/android-regression-2026-09-21.json",
     "docs/evidence/android-merchant-discovery.json",
     "docs/evidence/android-claim-collection.json",
     "docs/evidence/android-recommendations.json",
