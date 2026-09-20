@@ -50,11 +50,14 @@ export function AccountSettingsScreen({
     setError(undefined);
     try {
       setResult(await client.requestDeletion());
+      // The deletion result stays authoritative; a failed device wipe gets its own message.
       await forgetWalletSession({
         disconnect: async () => disconnect('eip155'),
         listStoredKeys: listAppKitStorageKeys,
         removeStoredKeys: removeAppKitStorageKeys,
-      });
+      }).catch(() =>
+        setError('계정 삭제는 접수됐지만 이 기기의 지갑 연결 정보를 지우지 못했습니다. 지갑 연결 화면에서 연결을 해제해 주세요.'),
+      );
     } catch (caught) {
       setError(deletionErrorMessage(caught));
     } finally {
