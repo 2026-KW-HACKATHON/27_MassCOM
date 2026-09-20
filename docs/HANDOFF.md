@@ -2,7 +2,7 @@
 
 마지막 갱신 시각: 2026-09-20 KST
 기준 브랜치: `main`
-기준 커밋 SHA: `e4e633c27abb20e3dab307d4a8caaf0d4b2c3f0f` (PR #79 merge, main CI run `35499451454` PASS). 이 문서를 담은 Issue #80 PR이 병합되면 그 merge 커밋이 새 기준이며, 실제 값은 `git log origin/main -1`로 확인한다.
+기준 커밋 SHA: `5aafafcf2fb49dfdb3d799abf9e6039636f1e7f4` (PR #81 merge). 이 문서를 담은 Issue #78 PR이 병합되면 그 merge 커밋이 새 기준이며, 실제 값은 `git log origin/main -1`로 확인한다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
 
@@ -15,6 +15,7 @@
 - Base Sepolia keystore 전용 배포 스크립트와 실체인 시뮬레이션 PASS(전송 없음). 계정 삭제가 접수되면 앱이 지갑 연결을 끊고 기기의 WalletConnect 세션 제거(D-021)
 - 운영 package ID `kr.masscom.wolgye`(D-022)와 개발 variant 분리, `scripts/build-release-aab.sh`, 로컬 debug 서명 운영 AAB에서 package·scheme·overlay 권한 제거·16KB 정렬 48개 PASS
 - Google Play Console 제출 초안 `docs/PLAY_CONSOLE_DRAFT.md`(입력·제출 없음)
+- Issue #78: 연속 재시도를 `mint_jobs.retry_streak`(migration 0010)에 기록해 지연을 최대 5분까지 늘림(수동 검토 전환에는 쓰지 않음). 전송 직후 중지로 revert된 거래는 일시 조건이면 hash를 지우고 재시도. reward key 조회 실패도 인터페이스 불일치와 장애를 구분
 - Issue #80: 지갑 세션 저장을 계정별 tag로 분리하고 시작 시 다른 계정 세션을 제거, 점주·지갑 화면에 remount 보호 추가. API `no-store`는 이미 구현돼 있어 회귀 시험만 추가. D02는 실기 계정 전환을 못 해 `NOT_RUN` 유지
 - Issue #77: RPC 연결 불가가 작업을 `MANUAL_REVIEW`로 보내던 분류를 `RPC_UNAVAILABLE` 재시도로 수정. 계약 중지 `MINT_PAUSED`, 민터 잔액 부족 `MINTER_BALANCE_LOW`는 전송 준비 직전에 확인해 전송 시도를 소모하지 않음. code는 있지만 인터페이스가 다른 계약은 재시도하지 않고 `CONTRACT_INTERFACE_MISMATCH`로 수동 검토. 필수 테스트 O02를 Local Anvil·PostgreSQL 증거로 `NOT_RUN`→`PASS` 전환
 - Issue #75: 경로 값의 잘못된 percent-encoding을 8개 라우트 공통 helper로 400 `INVALID_PATH_PARAMETER` 처리(기존 500)
@@ -29,18 +30,18 @@
 - #73 캠페인 참여 등록과 정원 원자 예약 R02 (종료)
 - #75 잘못된 경로 인코딩을 400으로 거절 (종료)
 - #77 RPC·발행 중지·민터 잔액 장애 복구 O02 (종료)
-- #80 계정 전환 시 이전 사용자 데이터 미노출 D02 (이 문서를 담은 PR로 종료)
-- #78 전송 전 장애의 재시도 간격과 전송 직후 중지 처리 개선 (열림, 발행 로직·schema라 두 모델 교차 리뷰 필요)
+- #80 계정 전환 시 이전 사용자 데이터 미노출 D02 (종료)
+- #78 전송 전 장애의 재시도 간격과 전송 직후 중지 처리 개선 (이 문서를 담은 PR로 종료)
 - #65·#69·#70 작업은 Issue 없이 진행했다. 이후 작업은 Issue를 먼저 만든다.
 
 ## 생성한 브랜치
 
-- `feat/59-chain-cursor-restart`, `feat/61-worker-retry-limit`, `chore/expo-patch-advisory-recheck`, `feat/66-siwe-challenge-postgres`, `docs/66-closeout`, `feat/base-sepolia-deploy-script`, `feat/release-package-id`, `docs/71-state-sync`, `feat/73-campaign-enrollment`, `fix/75-path-param-decoding`, `fix/77-worker-outage-recovery`, `fix/80-account-switch-isolation`
+- `feat/59-chain-cursor-restart`, `feat/61-worker-retry-limit`, `chore/expo-patch-advisory-recheck`, `feat/66-siwe-challenge-postgres`, `docs/66-closeout`, `feat/base-sepolia-deploy-script`, `feat/release-package-id`, `docs/71-state-sync`, `feat/73-campaign-enrollment`, `fix/75-path-param-decoding`, `fix/77-worker-outage-recovery`, `fix/80-account-switch-isolation`, `fix/78-presubmit-backoff`
 - 남아 있는 원격 브랜치 `feat/59-chain-cursor-read`, `feat/61-worker-retry-cap`은 같은 내용을 새 브랜치로 대체한 뒤 닫은 PR #60·#62의 것이다. main에 병합되지 않았으며 삭제 여부는 소유자가 정한다.
 
 ## 생성한 PR
 
-- #63, #64, #65, #67, #68, #69, #70, #72 #74, #76, #79 (모두 병합), Issue #80 PR
+- #63, #64, #65, #67, #68, #69, #70, #72 #74, #76, #79, #81 (모두 병합), Issue #78 PR
 - #60·#62는 #63·#64로 대체하고 닫았다.
 
 ## merge된 PR
@@ -58,13 +59,14 @@
 | #74 캠페인 참여 등록·R02 | `b04af56` | PASS |
 | #76 경로 인코딩 400 | `640bb83` | PASS |
 | #79 Worker 장애 복구·O02 | `e4e633c` | `35499451454` PASS |
+| #81 계정 전환 분리·D02 | `5aafafc` | 병합 뒤 main CI는 `gh run list --branch main`으로 확인 |
 
 코드 PR은 서로 다른 모델의 독립 리뷰에서 CRITICAL·HIGH 0을 확인한 뒤 병합했다. #63·#67·#69는 두 모델, #64·#65·#70은 단일 모델 리뷰(지적 반영 뒤 재리뷰)로 병합했다.
 
 ## 실행한 테스트
 
 - API 단위 `42/42`, API PostgreSQL `27/27`(R02 7개 포함)
-- Worker 단위 `14/14`, Worker PostgreSQL `7/7`, Anvil `5/5`(W07 M01~M08 + O02a/b/c/d)
+- Worker 단위 `16/16`, Worker PostgreSQL `11/11`, Anvil `6/6`(W07 M01~M08 + O02a~e)
 - 모바일 `54/54`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - 실제 Base Sepolia RPC 배포 시뮬레이션 PASS(전송 없음), 잘못된 체인·중복 역할 거절 PASS
@@ -75,7 +77,7 @@
 
 ## 현재 열린 PR
 
-- Issue #80 계정 전환 분리 PR 하나. 병합되면 열린 PR은 없다.
+- Issue #78 재시도 간격 PR 하나. 병합되면 열린 PR은 없다.
 
 ## 현재 작업 중인 기능
 
@@ -108,9 +110,9 @@
 ## 다음 세션이 가장 먼저 해야 할 작업
 
 1. `git fetch && git log origin/main -3`, `gh pr list`, `gh issue list`, `gh run list --branch main --limit 3`으로 이 문서와 실제 상태를 대조한다.
-2. Issue #80 PR이 열려 있으면 CI와 리뷰를 확인해 병합한다.
+2. Issue #78 PR이 열려 있으면 CI와 리뷰를 확인해 병합한다.
 3. 소유자 입력이 도착했는지 확인한다. Base Sepolia 배포 결과(계약 주소·거래 hash)가 있으면 증거 json과 B-012·TEST_STATUS를 갱신한다. domain이 정해졌으면 `assetlinks.json`, 외부 계정 삭제 페이지, 개인정보처리방침 페이지를 Issue부터 만들어 진행한다.
-4. 입력이 없으면 로컬에서 검증 가능한 남은 필수 테스트를 Issue로 만들어 진행한다(가치·위험 순): Issue #78 전송 전 장애 재시도 간격과 전송 직후 중지 처리(발행 로직·schema라 두 모델 교차 리뷰), Q04 단체 QR 부분 수령(보상 규칙과 닿으므로 D-006과 충돌 여부 먼저 확인), O01 시연·운영 환경 경계(인가 모델 확장이라 착수 전 소유자 확인). Android 캠페인 참여 화면과 “수령 시 등록 요구” 여부는 보상 규칙 결정이 필요해 소유자에게 묻는다. A02·W04·W05는 외부 입력 없이는 진행할 수 없다.
+4. 입력이 없으면 로컬에서 검증 가능한 남은 필수 테스트를 Issue로 만들어 진행한다(가치·위험 순): Q04 단체 QR 부분 수령(보상 규칙과 닿으므로 D-006과 충돌 여부 먼저 확인), O01 시연·운영 환경 경계(인가 모델 확장이라 착수 전 소유자 확인). Android 캠페인 참여 화면과 “수령 시 등록 요구” 여부는 보상 규칙 결정이 필요해 소유자에게 묻는다. A02·W04·W05는 외부 입력 없이는 진행할 수 없다.
 
 ## 실행 명령
 
@@ -145,6 +147,7 @@ PostgreSQL 통합·Anvil 시험은 이름이 `_test`로 끝나는 전용 `TEST_D
 - PR 제목·본문은 한국어로 쓰고 `bash scripts/check-pr-korean.sh`를 통과시킨다. 커밋과 PR에 AI 공동 작성자 trailer나 생성 도구 문구를 넣지 않는다.
 - 공유 이력 force push, 날짜·작성자 조작, 빈 커밋을 하지 않는다. 브랜치를 바꿔야 하면 새 브랜치와 새 PR로 대체한다.
 - ethers v6는 `eth_call`에 대한 모든 JSON-RPC 오류(rate limit·timeout 포함)를 `CALL_EXCEPTION`으로 표시한다. 실제 revert는 반환 `data`가 있을 때만이다. 오류 코드만으로 영구 결함을 판정하지 않는다.
+- 위임한 구현이 경합 시험에 `t.skip` 대체 경로를 넣은 적이 있다. 재현되지 않으면 실패해야 하므로 skip을 실패로 바꾸고 반복 실행으로 결정성을 확인한다. 병합 전 `git grep -n "\.skip("`로 확인한다.
 - 이 저장소의 shell은 zsh다. `grep --include=*.ts`처럼 따옴표 없는 glob은 오류로 끝나 검색이 실행되지 않는다. 코드 검색은 `git grep`을 쓴다.
 - macOS 기본 `awk`에는 `strtonum`이 없고 `keytool` 출력은 한국어로 번역된다. 검사 스크립트는 오류 없이 끝났는지까지 확인한다.
 - 지갑 세션의 계정별 분리는 “한 프로세스 안에서 계정이 바뀌지 않는다”는 전제에 선다. WalletConnect Core는 저장소를 프로세스 전역 core에 cache하므로, 운영 로그인으로 실행 중 계정을 바꾸게 되면 AppKit을 계정별 `customStoragePrefix`로 다시 만들거나 앱을 재시작해야 한다(PR #81 리뷰 지적).

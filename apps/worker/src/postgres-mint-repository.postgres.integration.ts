@@ -260,6 +260,140 @@ test('retry delay doubles per submission attempt and the attempt cap closes the 
   assert.equal(await repository.leaseNext('worker-retry', 30_000), undefined);
 });
 
+test('repeated pre-submission failures back off exponentially without consuming an attempt', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  let now = new Date('2026-09-19T04:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+    retryDelayMs: 1_000,
+    maxRetryDelayMs: 10_000,
+    maxAttempts: 5,
+  });
+  const readState = async (jobId: string) =>
+    (
+      await pool.query<{ job_status: string; attempt_count: number; delay_ms: number }>(
+        `SELECT job.status AS job_status, job.attempt_count,
+                (extract(epoch FROM outbox.available_at - $2::timestamptz) * 1000)::integer AS delay_ms
+         FROM mint_jobs AS job JOIN outbox_events AS outbox ON outbox.aggregate_id = job.id
+         WHERE job.id = $1`,
+        [jobId, now],
+      )
+    ).rows[0];
+
+  const first = await repository.leaseNext('worker-outage-backoff', 30_000);
+  assert.ok(first);
+
+  // Only RPC/pause/balance failures before submission: attempt_count never moves, but the delay
+  // still grows so a long outage stops hammering the RPC/DB every base-delay tick.
+  for (const expectedDelayMs of [1_000, 2_000, 4_000, 8_000, 10_000, 10_000]) {
+    now = new Date(now.getTime() + 60_000);
+    const item = await repository.leaseNext('worker-outage-backoff', 30_000);
+    assert.equal(item?.jobId, first.jobId);
+    await repository.releaseRetryable(first.jobId, 'worker-outage-backoff', 'RPC_UNAVAILABLE');
+    const state = await readState(first.jobId);
+    assert.equal(state?.job_status, 'RETRYABLE');
+    assert.equal(state?.attempt_count, 0);
+    assert.equal(state?.delay_ms, expectedDelayMs);
+  }
+});
+
+test('a successful submission or finalize resets the retry streak to the base delay', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  let now = new Date('2026-09-19T04:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+    nextAttemptId: () => '60000000-0000-4000-8000-000000000003',
+    retryDelayMs: 1_000,
+    maxRetryDelayMs: 60_000,
+    maxAttempts: 5,
+  });
+  const readDelayMs = async (jobId: string) =>
+    (
+      await pool.query<{ delay_ms: number }>(
+        `SELECT (extract(epoch FROM outbox.available_at - $2::timestamptz) * 1000)::integer AS delay_ms
+         FROM outbox_events AS outbox
+         WHERE outbox.aggregate_id = $1`,
+        [jobId, now],
+      )
+    ).rows[0]?.delay_ms;
+
+  const item = await repository.leaseNext('worker-streak-reset', 30_000);
+  assert.ok(item);
+  await repository.releaseRetryable(item.jobId, 'worker-streak-reset', 'RPC_UNAVAILABLE');
+  now = new Date(now.getTime() + 60_000);
+  const relet = await repository.leaseNext('worker-streak-reset', 30_000);
+  assert.equal(relet?.jobId, item.jobId);
+  await repository.releaseRetryable(item.jobId, 'worker-streak-reset', 'RPC_UNAVAILABLE');
+  assert.equal(await readDelayMs(item.jobId), 2_000);
+
+  // markSubmitted resets the streak.
+  now = new Date(now.getTime() + 60_000);
+  const leased = await repository.leaseNext('worker-streak-reset', 30_000);
+  assert.equal(leased?.jobId, item.jobId);
+  const attemptId = await repository.markPrepared(leased!, 'worker-streak-reset');
+  await repository.markSubmitted(
+    item.jobId,
+    'worker-streak-reset',
+    attemptId,
+    `0x${'cc'.repeat(32)}`,
+  );
+  await pool.query(`UPDATE mint_jobs SET status = 'RETRYABLE' WHERE id = $1`, [item.jobId]);
+  await pool.query(
+    `UPDATE outbox_events SET status = 'LEASED', lease_owner = $2, lease_expires_at = $3 WHERE aggregate_id = $1`,
+    [item.jobId, 'worker-streak-reset', new Date(now.getTime() + 30_000)],
+  );
+  await repository.releaseRetryable(item.jobId, 'worker-streak-reset', 'RPC_UNAVAILABLE');
+  assert.equal(await readDelayMs(item.jobId), 1_000);
+});
+
+test('finalize resets the retry streak to the base delay for a later re-mint attempt', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  let now = new Date('2026-09-19T04:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+    nextAttemptId: () => '60000000-0000-4000-8000-000000000004',
+    nextChainEventId: () => '70000000-0000-4000-8000-000000000004',
+    nextAssetId: () => '80000000-0000-4000-8000-000000000004',
+    retryDelayMs: 1_000,
+    maxRetryDelayMs: 60_000,
+  });
+
+  const item = await repository.leaseNext('worker-finalize-reset', 30_000);
+  assert.ok(item);
+  await repository.releaseRetryable(item.jobId, 'worker-finalize-reset', 'RPC_UNAVAILABLE');
+
+  now = new Date(now.getTime() + 60_000);
+  const relet = await repository.leaseNext('worker-finalize-reset', 30_000);
+  assert.equal(relet?.jobId, item.jobId);
+  const attemptId = await repository.markPrepared(relet!, 'worker-finalize-reset');
+  const transactionHash = `0x${'dd'.repeat(32)}`;
+  await repository.markSubmitted(item.jobId, 'worker-finalize-reset', attemptId, transactionHash);
+  await repository.finalize(relet!, 'worker-finalize-reset', attemptId, {
+    transactionHash,
+    blockNumber: 4,
+    blockHash: `0x${'ee'.repeat(32)}`,
+    logIndex: 2,
+    tokenId: '1',
+    rewardKey: relet!.rewardKey,
+    recipient: relet!.recipient,
+    seriesKey: relet!.seriesKey,
+    contractAddress: relet!.contractAddress,
+    chainId: relet!.chainId,
+  });
+
+  const streak = await pool.query<{ retry_streak: number }>(
+    'SELECT retry_streak FROM mint_jobs WHERE id = $1',
+    [item.jobId],
+  );
+  assert.equal(streak.rows[0]?.retry_streak, 0);
+});
+
 test('O02 a database outage stops the worker before any chain call and leaves the queued job intact', async (t) => {
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
@@ -290,6 +424,67 @@ test('O02 a database outage stops the worker before any chain call and leaves th
   );
   assert.deepEqual(after.rows, before.rows);
   assert.ok(after.rows.length > 0);
+});
+
+test('a reverted submission is dropped and released for retry in one transaction', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const repository = new PostgresMintRepository(pool);
+  const readJob = async (jobId: string) =>
+    (
+      await pool.query<{
+        status: string;
+        transaction_hash: string | null;
+        code: string;
+        attempt_status: string;
+        outbox_status: string;
+      }>(
+        `SELECT job.status, job.transaction_hash, job.last_error_code AS code,
+                (SELECT status FROM mint_tx_attempts WHERE mint_job_id = job.id) AS attempt_status,
+                (SELECT status FROM outbox_events WHERE aggregate_id = job.id) AS outbox_status
+         FROM mint_jobs AS job WHERE job.id = $1`,
+        [jobId],
+      )
+    ).rows[0];
+
+  const item = await repository.leaseNext('worker-revert', 30_000);
+  assert.ok(item);
+  const attemptId = await repository.markPrepared(item, 'worker-revert');
+  await repository.markSubmitted(item.jobId, 'worker-revert', attemptId, `0x${'ab'.repeat(32)}`);
+
+  // Without the lease nothing may change: a half-applied drop would strand a SUBMITTED job.
+  await assert.rejects(
+    repository.releaseRevertedForRetry(
+      item.jobId,
+      'another-worker',
+      attemptId,
+      'MINT_TRANSACTION_REVERTED',
+      'MINT_PAUSED',
+    ),
+  );
+  assert.deepEqual(await readJob(item.jobId), {
+    status: 'SUBMITTED',
+    transaction_hash: `0x${'ab'.repeat(32)}`,
+    code: null,
+    attempt_status: 'SUBMITTED',
+    outbox_status: 'LEASED',
+  });
+
+  await repository.releaseRevertedForRetry(
+    item.jobId,
+    'worker-revert',
+    attemptId,
+    'MINT_TRANSACTION_REVERTED',
+    'MINT_PAUSED',
+  );
+  assert.deepEqual(await readJob(item.jobId), {
+    status: 'RETRYABLE',
+    transaction_hash: null,
+    code: 'MINT_PAUSED',
+    attempt_status: 'FAILED',
+    outbox_status: 'PENDING',
+  });
 });
 
 test('event scan start reads the cursor with a reorg margin and deployment floor', async (t) => {

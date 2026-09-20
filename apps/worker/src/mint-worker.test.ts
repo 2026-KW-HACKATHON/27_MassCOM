@@ -73,6 +73,16 @@ class FakeRepository implements MintWorkRepository {
     this.calls.push(`retryable:${code}`);
   }
 
+  async releaseRevertedForRetry(
+    _jobId: string,
+    _workerId: string,
+    _attemptId: string,
+    revertCode: string,
+    retryCode: string,
+  ): Promise<void> {
+    this.calls.push(`reverted-retry:${revertCode}:${retryCode}`);
+  }
+
   async markManualReview(_jobId: string, _workerId: string, code: string): Promise<void> {
     this.calls.push(`review:${code}`);
   }
@@ -201,6 +211,62 @@ test('recovers an existing reward key when a duplicate submitted transaction rev
   ]);
   assert.equal(workCalls(repository).at(-1), 'finalized:1');
   assert.equal(workCalls(repository).some((call) => call.startsWith('review:')), false);
+});
+
+test('O05 retries a submitted transaction that reverted from a transient pause instead of manual review', async () => {
+  const repository = new FakeRepository();
+  const gateway = new FakeGateway();
+  gateway.confirmError = new MintEventMismatchError('MINT_TRANSACTION_REVERTED');
+  let assertCanSubmitCount = 0;
+  gateway.assertCanSubmit = async () => {
+    gateway.calls.push('assertCanSubmit');
+    assertCanSubmitCount += 1;
+    if (assertCanSubmitCount === 2) throw new RetryableChainError('MINT_PAUSED');
+  };
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.deepEqual(gateway.calls, [
+    'validate',
+    'find',
+    'assertCanSubmit',
+    'submit',
+    'confirm',
+    'find',
+    'assertCanSubmit',
+  ]);
+  assert.deepEqual(workCalls(repository), [
+    'lease',
+    'prepared',
+    `submitted:${result.transactionHash}`,
+    'reverted-retry:MINT_TRANSACTION_REVERTED:MINT_PAUSED',
+  ]);
+  assert.equal(workCalls(repository).some((call) => call.startsWith('review:')), false);
+});
+
+test('O05 sends a permanently reverted submission to manual review when the recheck passes', async () => {
+  const repository = new FakeRepository();
+  const gateway = new FakeGateway();
+  gateway.confirmError = new MintEventMismatchError('MINT_TRANSACTION_REVERTED');
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.deepEqual(gateway.calls, [
+    'validate',
+    'find',
+    'assertCanSubmit',
+    'submit',
+    'confirm',
+    'find',
+    'assertCanSubmit',
+  ]);
+  assert.deepEqual(workCalls(repository), [
+    'lease',
+    'prepared',
+    `submitted:${result.transactionHash}`,
+    'review:MINT_TRANSACTION_REVERTED',
+  ]);
+  assert.equal(workCalls(repository).some((call) => call.startsWith('reverted-retry:')), false);
 });
 
 test('renews a short lease while chain confirmation is still running', async () => {
