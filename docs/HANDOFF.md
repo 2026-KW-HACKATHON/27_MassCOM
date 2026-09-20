@@ -78,7 +78,7 @@
 
 - API 단위 `43/43`, API PostgreSQL `28/28`(R02 7개·Q04 1개 포함)
 - Worker 단위 `20/20`, Worker PostgreSQL `16/16`, Anvil `6/6`(W07 M01~M08 + O02a~e)
-- 모바일 `54/54`, typecheck·lint·Android export PASS
+- 모바일 `57/57`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - 실제 Base Sepolia RPC 배포 시뮬레이션 PASS(전송 없음), 잘못된 체인·중복 역할 거절 PASS
 - 운영 variant `bundleRelease`와 ELF `PT_LOAD` 정렬 검사 PASS(debug 서명)
@@ -109,6 +109,8 @@
 승인된 것(D-019~D-022): SIWE PostgreSQL 저장소, 외부 HTTPS·Base Sepolia·release AAB·Google Play 준비, 기기 세션 저장 정책, 운영 package ID. 소유자는 Codex와 Claude 세션을 번갈아 쓰므로 어느 쪽이든 이 문서와 저장소 기록에서 상태를 복원한다.
 
 소유자가 직접 해야 하는 것(대신 수행하지 않음):
+
+0. **Reown dashboard 허용 목록에 `kr.masscom.wolgye`·`kr.masscom.wolgye.dev` 추가(B-014)**. 2026-09-21 실기에서 새 package의 지갑 연결이 `origin not allowed`로 거절됐다. 추가 뒤 `docs/DEVICE_TEST_PLAN.md` E02부터 다시 실행한다. faucet gas도 아직 0(배포자 `0xFDd1…c089`, 민터 `0xfDfa…c355`)
 
 1. `cast wallet new masscom-base-sepolia`로 자산 없는 시험 전용 계정 생성(비밀번호는 소유자가 자기 터미널에서 입력. `import`는 기존 키를 가져오는 명령이라 쓰지 않음. 이름 없는 `cast wallet new`는 개인키를 출력하므로 금지), `cast wallet address --account masscom-base-sepolia`로 주소 확인 뒤 faucet gas 수령, 역할 주소 3개 결정. Foundry 1.8.3은 `~/.foundry/bin`에 설치되어 있고(공식 릴리스 SHA-256 대조, 고정 Docker 이미지와 같은 커밋 `cae51ad`) 2026-09-20 기준 keystore 계정은 하나도 없다
 2. upload keystore 생성과 `~/.gradle/gradle.properties`의 `android.injected.signing.*` 설정. 만든 뒤 인증서 SHA-256 지문(공개 정보)을 `apps/mobile/upload-certificate.sha256`에 커밋하거나 `UPLOAD_CERT_SHA256`으로 넘겨야 빌드 스크립트가 업로드 가능(종료 코드 0)으로 판정한다

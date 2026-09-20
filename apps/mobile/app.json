@@ -27,6 +27,13 @@
       "expo-router",
       "expo-dev-client",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "점주 화면의 방문 수령 QR을 읽는 데만 카메라를 사용합니다. 사진이나 영상은 저장하지 않습니다.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#12303D",

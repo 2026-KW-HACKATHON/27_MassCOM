@@ -1,3 +1,4 @@
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Link } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -9,6 +10,7 @@ import {
   type ClaimPreview,
   type RedeemedClaim,
 } from '@/commerce/commerce-api';
+import { createScanGate, parseScannedClaimCode } from '@/commerce/claim-code';
 import { colors } from '@/theme/colors';
 
 export function ClaimRedeemScreen({ apiUrl, accountId }: { apiUrl: string; accountId: string }) {
@@ -23,6 +25,9 @@ export function ClaimRedeemScreen({ apiUrl, accountId }: { apiUrl: string; accou
   const [redeemed, setRedeemed] = useState<RedeemedClaim>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
+  const [scanning, setScanning] = useState(false);
+  const [, requestCameraPermission] = useCameraPermissions();
+  const scanGate = useRef(createScanGate()).current;
 
   function changeToken(value: string) {
     setToken(value);
@@ -31,12 +36,39 @@ export function ClaimRedeemScreen({ apiUrl, accountId }: { apiUrl: string; accou
     setMessage(undefined);
   }
 
-  async function inspect() {
-    if (!token.trim() || busy) return;
+  async function startScan() {
+    const permission = await requestCameraPermission();
+    if (!permission.granted) {
+      setMessage('카메라 권한이 없어 촬영할 수 없습니다. 점주 화면의 코드를 아래 칸에 직접 입력해 주세요.');
+      return;
+    }
+    scanGate.reset();
+    setMessage(undefined);
+    setScanning(true);
+  }
+
+  // Scanning only fills the code and checks its state; confirming the visit stays a separate tap.
+  function handleScanned(raw: string) {
+    const scanned = parseScannedClaimCode(raw);
+    if (!scanned.ok) {
+      // The camera reports the same wrong QR many times a second; keep the state identical.
+      const notClaimQr = '방문 수령용 QR이 아닙니다. 점주 화면의 QR을 다시 비춰 주세요.';
+      setMessage((current) => (current === notClaimQr ? current : notClaimQr));
+      return;
+    }
+    if (!scanGate.accept(scanned.code)) return;
+    setScanning(false);
+    changeToken(scanned.code);
+    void inspect(scanned.code);
+  }
+
+  async function inspect(scannedCode?: string) {
+    const code = (scannedCode ?? token).trim();
+    if (!code || busy) return;
     setBusy(true);
     setMessage(undefined);
     try {
-      const next = await api.previewClaim(token.trim());
+      const next = await api.previewClaim(code);
       setPreview(next);
       setMessage(next.status === 'AVAILABLE' ? '사용 가능한 1회 코드입니다. 아래에서 수령을 확정하세요.' : '만료된 코드입니다.');
       requestAnimationFrame(() => scrollView.current?.scrollToEnd({ animated: true }));
@@ -78,6 +110,24 @@ export function ClaimRedeemScreen({ apiUrl, accountId }: { apiUrl: string; accou
       </View>
 
       <View style={styles.formCard}>
+        {scanning ? (
+          <View style={styles.camera}>
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={({ data }) => handleScanned(data)}
+            />
+          </View>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={scanning ? () => setScanning(false) : () => void startScan()}
+          style={[styles.button, styles.scanButton, busy && styles.disabled]}
+        >
+          <Text style={[styles.buttonText, styles.scanButtonText]}>{scanning ? '촬영 닫기' : 'QR 촬영'}</Text>
+        </Pressable>
         <Text style={styles.inputLabel}>수령 코드</Text>
         <TextInput
           value={token}
@@ -89,7 +139,7 @@ export function ClaimRedeemScreen({ apiUrl, accountId }: { apiUrl: string; accou
           placeholderTextColor={colors.secondaryLabel}
           style={styles.input}
         />
-        <Pressable accessibilityRole="button" disabled={!token.trim() || busy} onPress={inspect} style={[styles.button, (!token.trim() || busy) && styles.disabled]}>
+        <Pressable accessibilityRole="button" disabled={!token.trim() || busy} onPress={() => void inspect()} style={[styles.button, (!token.trim() || busy) && styles.disabled]}>
           <Text style={styles.buttonText}>{busy ? '확인 중…' : '코드 상태 확인'}</Text>
         </Pressable>
       </View>
@@ -168,6 +218,9 @@ const styles = StyleSheet.create({
   body: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 24 },
   formCard: { gap: 12, padding: 18, borderRadius: 20, backgroundColor: colors.surface },
   inputLabel: { color: colors.label, fontSize: 14, fontWeight: '900' },
+  camera: { height: 280, borderRadius: 14, overflow: 'hidden', backgroundColor: '#000000' },
+  scanButton: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary },
+  scanButtonText: { color: colors.primary },
   input: { minHeight: 100, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.separator, color: colors.label, backgroundColor: colors.background, fontFamily: 'monospace', fontSize: 13, textAlignVertical: 'top' },
   button: { minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.primary },
   buttonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },

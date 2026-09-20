@@ -17,6 +17,7 @@ import {
   type IssuedClaim,
   type MerchantContext,
 } from '@/commerce/commerce-api';
+import { ClaimQr } from '@/commerce/claim-qr';
 import { colors } from '@/theme/colors';
 
 type Props = {
@@ -163,8 +164,11 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
             <Text style={styles.tokenLabel}>QR용 1회 코드 · v{issued.tokenVersion}</Text>
             <Text style={styles.expiry}>{formatDateTime(issued.expiresAt)} 만료</Text>
           </View>
+          <View style={styles.qr}>
+            <ClaimQr code={issued.token} />
+          </View>
           <Text selectable style={styles.token}>{issued.token}</Text>
-          <Text style={styles.help}>현재 앱은 카메라 대신 이 코드를 고객 화면에 직접 입력해 검증합니다.</Text>
+          <Text style={styles.help}>고객 화면의 ‘QR 촬영’으로 읽습니다. 카메라를 쓸 수 없으면 아래 코드를 직접 입력합니다.</Text>
           <View style={styles.actions}>
             <PrimaryButton label="안전하게 공유" onPress={shareToken} />
             <PrimaryButton label="이전 코드 폐기·재발급" variant="secondary" disabled={busy} onPress={reissue} />
@@ -258,6 +262,7 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.42 },
   message: { padding: 13, borderRadius: 14, color: colors.onPrimaryContainer, backgroundColor: colors.primaryContainer, fontSize: 13, lineHeight: 20 },
   errorText: { color: colors.onErrorContainer, fontSize: 13, lineHeight: 20 },
+  qr: { alignItems: 'center', paddingVertical: 8 },
   tokenCard: { gap: 14, padding: 18, borderRadius: 20, backgroundColor: colors.surface },
   tokenTopline: { gap: 4 },
   tokenLabel: { color: colors.primary, fontSize: 13, fontWeight: '900' },

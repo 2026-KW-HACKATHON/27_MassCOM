@@ -1,0 +1,37 @@
+{
+  "id": "android-regression-2026-09-21",
+  "date": "2026-09-21",
+  "commit": "a016e63",
+  "plan": "docs/DEVICE_TEST_PLAN.md",
+  "device": "Samsung SM-S928N, Android 16, USB debugging",
+  "wallet": "MetaMask Android 8.11.0",
+  "build": "development variant debug APK (kr.masscom.wolgye.dev, scheme masscom-dev), Metro dev client over adb reverse",
+  "server": "loopback DEMO API (127.0.0.1 only, ALLOW_INSECURE_DEMO_ACCOUNT=true) with a disposable PostgreSQL 18 database that was dropped afterwards; merchant demo ids and DEMO reauthentication were injected as Metro environment variables, the owner's .env.local was not edited",
+  "method": "adb install, deep-link launch, uiautomator text dumps, adb input; one-time claim code carried between screens inside a script and never printed or stored in the repository",
+  "results": {
+    "E01_expo_patch_regression": {
+      "status": "PASS",
+      "observed": "home, merchant list (2 demo merchants), merchant detail, recommendations, merchant issue screen (role OWNER, VIEW_MERCHANT and CONFIRM_VISIT), claim preview, redeem, collection, account settings and wallet screen all opened; logcat FATAL EXCEPTION count 0; bottom content clears the navigation bar (PR #83)",
+      "flow": "issue one-time code -> preview '수령 가능' -> redeem -> '2026-09-21 · 1회 진행', 1 new entitlement; database had 1 visit event, 1 entitlement, slot CLAIMED; collection showed 1 visit / 1 app collectible / 0 NFT; re-entering the used code -> '이 계정에서 사용할 수 없거나 이미 사용한 코드입니다.'"
+    },
+    "E02_wallet_return_with_new_package": {
+      "status": "FAIL",
+      "scope": "development variant only; the production variant was not installed",
+      "observed": "AppKit modal listed wallets; choosing MetaMask never left the app and the modal showed 'WebSocket connection closed abnormally with code: 3000 (Unauthorized: origin not allowed)'",
+      "likelyCause": "the Reown project allowlist still names the pre-rename Android package (com.anonymous.masscommobile is still installed on the device from earlier evidence); the package ids introduced by D-022 (kr.masscom.wolgye, kr.masscom.wolgye.dev) are not registered. Not verified from the Reown dashboard, which only the owner can open",
+      "screenshot": "docs/evidence/android-wallet-origin-not-allowed.png",
+      "blocker": "B-014"
+    },
+    "E03_account_deletion": {
+      "status": "PARTIAL",
+      "passed": "without DEMO reauthentication the app refused with '계정 삭제 전에 다시 로그인해 주세요.' and nothing was deleted; with DEMO reauthentication the request completed ('계정 삭제 처리 완료'); after a cold restart the collection was empty, rows under the original account id were 0 while the retained slot stayed under an alias, and a write by the deleted account returned HTTP 410 ACCOUNT_DELETED",
+      "notRun": "wallet session must not be restored after deletion: not testable because no wallet session could be created (B-014)",
+      "observation": "read endpoints answer the deleted account with HTTP 200 and empty data rather than 410; writes are refused"
+    }
+  },
+  "notRun": ["D02 account switch by overlay install", "W04", "W05", "A02 release build install", "production variant wallet return"],
+  "limits": [
+    "DEMO account resolver and DEMO reauthentication, not production login",
+    "development build served by Metro, not a release build"
+  ]
+}
