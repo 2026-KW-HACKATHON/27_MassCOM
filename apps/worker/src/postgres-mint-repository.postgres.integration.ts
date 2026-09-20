@@ -721,6 +721,88 @@ test('event scan start reads the cursor with a reorg margin and deployment floor
   );
 });
 
+test('signed_transaction is stored with the attempt and survives a release and a restart lease', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  let now = new Date('2026-09-19T07:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    now: () => now,
+    nextAttemptId: () => '60000000-0000-4000-8000-000000000010',
+  });
+  const item = await repository.leaseNext('worker-signed-tx', 30_000);
+  assert.ok(item);
+  assert.equal(item.signedTransaction, undefined);
+  const attemptId = await repository.markPrepared(item, 'worker-signed-tx');
+  const transactionHash = `0x${'cd'.repeat(32)}`;
+  const signedTransaction = `0x${'ef'.repeat(110)}`;
+  await repository.markSubmitted(
+    item.jobId,
+    'worker-signed-tx',
+    attemptId,
+    transactionHash,
+    signedTransaction,
+  );
+
+  const attemptRow = await pool.query<{ signed_transaction: string | null }>(
+    'SELECT signed_transaction FROM mint_tx_attempts WHERE id = $1',
+    [attemptId],
+  );
+  assert.equal(attemptRow.rows[0]?.signed_transaction, signedTransaction);
+
+  // The receipt was not ready, so the job waits as RETRYABLE while still holding the hash.
+  await repository.releaseRetryable(item.jobId, 'worker-signed-tx', 'RECEIPT_NOT_READY');
+  const stillStored = await pool.query<{ signed_transaction: string | null }>(
+    'SELECT signed_transaction FROM mint_tx_attempts WHERE id = $1',
+    [attemptId],
+  );
+  assert.equal(stillStored.rows[0]?.signed_transaction, signedTransaction);
+
+  now = new Date(now.getTime() + 60_000);
+  const afterRestart = await repository.leaseNext('worker-signed-tx-restart', 30_000);
+  assert.equal(afterRestart?.transactionHash, transactionHash);
+  assert.equal(afterRestart?.signedTransaction, signedTransaction);
+});
+
+test('withMinterLock serializes concurrent callers for the same chain and minter', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  const repository = new PostgresMintRepository(pool);
+  const minterAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+
+  let running = 0;
+  let maxConcurrent = 0;
+  const order: number[] = [];
+  const runOne = async (id: number) => {
+    await repository.withMinterLock(31337, minterAddress, async () => {
+      running += 1;
+      maxConcurrent = Math.max(maxConcurrent, running);
+      order.push(id);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      running -= 1;
+    });
+  };
+
+  await Promise.all([runOne(1), runOne(2), runOne(3)]);
+  assert.equal(maxConcurrent, 1);
+  assert.equal(order.length, 3);
+
+  // A different minter address is not serialized against the first.
+  let otherRanWhileLocked = false;
+  await Promise.all([
+    repository.withMinterLock(31337, minterAddress, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    }),
+    (async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await repository.withMinterLock(31337, '0x000000000000000000000000000000000000dE0f', async () => {
+        otherRanWhileLocked = true;
+      });
+    })(),
+  ]);
+  assert.equal(otherRanWhileLocked, true);
+});
+
 async function seedWorkerFixture(pool: Pool): Promise<void> {
   await pool.query(
     'TRUNCATE wallet_challenges, chain_cursors, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
