@@ -11,6 +11,11 @@ import {
   type ReauthenticationGuard,
 } from './server.js';
 import {
+  CampaignEnrollmentError,
+  type CampaignEnrollmentErrorCode,
+  type CampaignEnrollmentService,
+} from './campaign-enrollment.js';
+import {
   ClaimSlotError,
   type ClaimSlotErrorCode,
   type RedeemedClaimSlot,
@@ -142,6 +147,7 @@ async function startFixture(
   mintRequests?: MintRequestService,
   accountDeletions?: AccountDeletionService,
   requireReauthentication?: ReauthenticationGuard,
+  campaignEnrollments?: CampaignEnrollmentService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -163,6 +169,7 @@ async function startFixture(
     mintRequests,
     accountDeletions,
     requireReauthentication,
+    campaignEnrollments,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -813,6 +820,110 @@ test('returns only the authenticated owner mint job', async (t) => {
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), view);
   assert.deepEqual(received, { accountId: 'customer-1', jobId: 'mint-job-1' });
+});
+
+test('requires an authenticated account boundary for campaign enrollment', async (t) => {
+  const campaignEnrollments: CampaignEnrollmentService = {
+    enroll: async () => {
+      throw new Error('unexpected enroll call');
+    },
+  };
+  const baseUrl = await startFixture(
+    t,
+    developmentHeaderAccountResolver,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    campaignEnrollments,
+  );
+
+  const response = await fetch(`${baseUrl}/campaigns/campaign-1/enrollments`, {
+    method: 'POST',
+  });
+
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { code: 'ACCOUNT_REQUIRED' });
+});
+
+test('maps campaign enrollment errors without leaking capacity internals', async (t) => {
+  let failure: CampaignEnrollmentErrorCode = 'CAMPAIGN_NOT_FOUND';
+  const campaignEnrollments: CampaignEnrollmentService = {
+    enroll: async () => {
+      throw new CampaignEnrollmentError(failure);
+    },
+  };
+  const baseUrl = await startFixture(
+    t,
+    () => 'account-1',
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    campaignEnrollments,
+  );
+
+  const cases = [
+    { code: 'CAMPAIGN_NOT_FOUND' as const, expectedStatus: 404 },
+    { code: 'CAMPAIGN_NOT_AVAILABLE' as const, expectedStatus: 409 },
+    { code: 'CAMPAIGN_FULL' as const, expectedStatus: 409 },
+    { code: 'ACCOUNT_DELETED' as const, expectedStatus: 410 },
+  ];
+
+  for (const scenario of cases) {
+    failure = scenario.code;
+    const response = await fetch(`${baseUrl}/campaigns/campaign-1/enrollments`, {
+      method: 'POST',
+    });
+    assert.equal(response.status, scenario.expectedStatus, scenario.code);
+    assert.deepEqual(await response.json(), { code: scenario.code });
+  }
+});
+
+test('returns 200 for an idempotent replay and 201 for a new campaign enrollment', async (t) => {
+  let created = true;
+  let received: Parameters<CampaignEnrollmentService['enroll']>[0] | undefined;
+  const campaignEnrollments: CampaignEnrollmentService = {
+    enroll: async (input) => {
+      received = input;
+      return {
+        enrollmentId: 'enrollment-1',
+        campaignId: input.campaignId,
+        accountId: input.accountId,
+        enrolledAt: '2026-09-20T03:00:00.000Z',
+        created,
+      };
+    },
+  };
+  const baseUrl = await startFixture(
+    t,
+    () => 'account-1',
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    campaignEnrollments,
+  );
+
+  const first = await fetch(`${baseUrl}/campaigns/campaign-1/enrollments`, { method: 'POST' });
+  assert.equal(first.status, 201);
+  assert.deepEqual(received, { campaignId: 'campaign-1', accountId: 'account-1' });
+
+  created = false;
+  const second = await fetch(`${baseUrl}/campaigns/campaign-1/enrollments`, { method: 'POST' });
+  assert.equal(second.status, 200);
 });
 
 test('disconnects only the authenticated wallet binding version', async (t) => {
