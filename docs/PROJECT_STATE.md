@@ -9,16 +9,16 @@
 | 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
 | 기본 브랜치 | `main` |
 | 현재 브랜치 | `main` (작업 브랜치는 Issue별로 생성 후 병합) |
-| 기준 커밋 SHA | `9e670abaa3b67840bac323ee18d47be813e38020` — 이 문서를 갱신한 PR 직전의 검증된 main |
+| 기준 커밋 SHA | `761ac42d1b4f1603c0a7cf96523a87b19a59ba0a` — 이 문서를 갱신한 PR 직전의 검증된 main |
 | 현재 작업 | 없음. 다음 작업은 HANDOFF의 “다음 세션이 가장 먼저 해야 할 작업” |
-| 현재 검증 기준 | API 37·PostgreSQL 20·Worker 8/PG 6·모바일 50·Foundry 8/fuzz128·Anvil PASS |
-| 최근 main 기준선 | PR #70 merge `9e670ab`, main CI run `35487020999` PASS |
+| 현재 검증 기준 | API 40·PostgreSQL 27·Worker 8/PG 6·모바일 50·Foundry 8/fuzz128·Anvil PASS |
+| 최근 main 기준선 | PR #72 merge `761ac42`, main CI run `35487858774` PASS |
 
 ## 열린 Issue·PR과 최근 병합
 
-- 열린 Issue: #71(문서 정합, 이 갱신을 담은 PR로 종료 예정) 외 없음
+- 열린 Issue: #73(캠페인 참여 등록·R02, 이 갱신을 담은 PR로 종료 예정) 외 없음
 - 열린 PR: 이 갱신을 담은 PR 외 없음
-- 최근 병합 PR: #63 `6bbf58c` 체인 cursor 재시작, #64 `695210c` Worker 재시도 상한, #65 `4c4d744` Expo patch·B-008 재평가, #67 `9c3c04a` SIWE PostgreSQL 저장소, #68 `f386c84` 문서, #69 `a83cef9` Base Sepolia 배포 스크립트·기기 세션 정리·Play 초안, #70 `9e670ab` 운영 package ID·release AAB 경로
+- 최근 병합 PR: #63 `6bbf58c` 체인 cursor 재시작, #64 `695210c` Worker 재시도 상한, #65 `4c4d744` Expo patch·B-008 재평가, #67 `9c3c04a` SIWE PostgreSQL 저장소, #68 `f386c84` 문서, #69 `a83cef9` Base Sepolia 배포 스크립트·기기 세션 정리·Play 초안, #70 `9e670ab` 운영 package ID·release AAB 경로, #72 `761ac42` 문서 정합
 
 ## Phase 상태
 
@@ -76,8 +76,8 @@
 
 ## 검증 상태
 
-- 필수 36개: `26 PASS / 2 BLOCKED / 8 NOT_RUN`
-- API 단위: `37/37 PASS`; PostgreSQL: `20/20 PASS`
+- 필수 36개: `27 PASS / 2 BLOCKED / 7 NOT_RUN`
+- API 단위: `40/40 PASS`; PostgreSQL: `27/27 PASS`
 - Worker 단위: `8/8 PASS`; PostgreSQL: `6/6 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `50/50 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`

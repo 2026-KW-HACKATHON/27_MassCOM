@@ -5,7 +5,7 @@ Q03	api-integration	PASS	QR 재발급 후 이전 코드 사용	이전 코드는 
 Q04	api-integration	NOT_RUN	단체 일부만 수령	사람별 결과 독립, 다른 슬롯 유지	docs/TEST_STATUS.md
 Q05	authorization	PASS	다른 점포 직원·다른 사용자 접근	조회·변경 모두 거절	docs/TEST_STATUS.md
 R01	postgres-concurrency	PASS	한국 날짜 경계·동시 방문 평가	정한 일별 규칙대로 최대 1회	docs/TEST_STATUS.md
-R02	postgres-concurrency	NOT_RUN	마지막 캠페인 자리 동시 등록	약속한 공급 상한 초과 없음	docs/TEST_STATUS.md
+R02	postgres-concurrency	PASS	마지막 캠페인 자리 동시 등록	약속한 공급 상한 초과 없음	docs/TEST_STATUS.md
 R03	domain-db	PASS	같은 목표 반복 평가	보상권 하나	docs/TEST_STATUS.md
 W01	wallet-api	PASS	연결만 승인하고 서명 생략	미검증 주소, 민팅 불가	docs/TEST_STATUS.md
 W02	signature	PASS	다른 계정·도메인·체인의 서명	거절	docs/TEST_STATUS.md
