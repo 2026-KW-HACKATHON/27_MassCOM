@@ -231,6 +231,111 @@ test('O02d a deployed contract with a different interface goes to manual review 
   assert.equal(await readEntitlementStatus(pool, entitlementId), 'MINT_REQUESTED');
 });
 
+test('O02e retries a submitted mint that reverted from a pause raced in after submission', async (t) => {
+  const rpcUrl = requiredAnvilRpcUrl();
+  const databaseUrl = requiredTestDatabaseUrl();
+  const provider = new JsonRpcProvider(rpcUrl, 31337, { staticNetwork: true });
+  const pool = new Pool({ connectionString: databaseUrl });
+  t.after(async () => {
+    await provider.send('evm_setAutomine', [true]).catch(() => undefined);
+    await pool.end();
+    await provider.destroy();
+  });
+
+  const { contract, contractAddress } = await deployMascot(provider);
+  const rewardKey = id('worker-outage-e-reward');
+  const seriesKey = id('worker-outage-e-series');
+  await recreateSeries(provider, contractAddress, seriesKey);
+  const { jobId } = await seedOutageJob(pool, {
+    suffix: 'e',
+    contractAddress,
+    seriesKey,
+    rewardKey,
+    recipient,
+  });
+
+  const gateway = new EthersMintChainGateway({
+    rpcUrl,
+    chainId: 31337,
+    contractAddress,
+    minterAddress,
+    confirmations: 1,
+    fromBlock: 0,
+  });
+  const repository = new PostgresMintRepository(pool);
+  const worker = new MintWorker(repository, gateway);
+
+  await provider.send('evm_setAutomine', [false]);
+  const runOncePromise = worker.runOnce('outage-worker-e');
+
+  // Wait for the worker's submission to land in the (unmined) mempool before racing the pause in.
+  let submittedHash: string | undefined;
+  for (let i = 0; i < 100 && !submittedHash; i += 1) {
+    const row = (
+      await pool.query<{ transaction_hash: string | null }>(
+        'SELECT transaction_hash FROM mint_jobs WHERE id = $1',
+        [jobId],
+      )
+    ).rows[0];
+    submittedHash = row?.transaction_hash ?? undefined;
+    if (!submittedHash) await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  if (!submittedHash) {
+    await provider.send('evm_setAutomine', [true]);
+    await runOncePromise.catch(() => undefined);
+    t.skip('could not deterministically observe the mint transaction land unmined before pausing');
+    return;
+  }
+
+  // Outbid the pending mint transaction's gas price so the pause is ordered first when both are
+  // mined together, making the already-submitted mint revert on-chain instead of finalizing.
+  const pauserSigner = await provider.getSigner(pauserAddress);
+  const pausable = contract.connect(pauserSigner) as Contract;
+  const pauseTx = await pausable.getFunction('pause').send({
+    maxFeePerGas: 100_000_000_000n,
+    maxPriorityFeePerGas: 10_000_000_000n,
+  });
+  await provider.send('evm_mine', []);
+  const pauseReceipt = await pauseTx.wait();
+  if (!pauseReceipt || pauseReceipt.status !== 1) {
+    throw new Error('pause transaction failed to mine');
+  }
+
+  const mintReceipt = await provider.getTransactionReceipt(submittedHash);
+  await provider.send('evm_setAutomine', [true]);
+
+  if (!mintReceipt || mintReceipt.status !== 0) {
+    // The race did not land deterministically on this run (the mint mined before the pause, or in
+    // a separate block after it): fall through without asserting the revert path, matching the
+    // "skip if not reproducible" guidance rather than forcing a flaky assertion.
+    await runOncePromise.catch(() => undefined);
+    t.skip('pause did not land ahead of the already-submitted mint transaction in this run');
+    return;
+  }
+
+  assert.equal(await runOncePromise, true);
+  const state = await readJobState(pool, jobId);
+  assert.equal(state.status, 'RETRYABLE');
+  assert.equal(state.last_error_code, 'MINT_PAUSED');
+  assert.equal(state.attempt_count, 1);
+
+  const cleared = await pool.query<{ transaction_hash: string | null }>(
+    'SELECT transaction_hash FROM mint_jobs WHERE id = $1',
+    [jobId],
+  );
+  assert.equal(cleared.rows[0]?.transaction_hash, null);
+
+  const adminSigner = await provider.getSigner(adminAddress);
+  const adminControlled = contract.connect(adminSigner) as Contract;
+  await waitFor(await adminControlled.getFunction('unpause').send());
+  await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+
+  assert.equal(await worker.runOnce('outage-worker-e-recovered'), true);
+  const finalState = await readJobState(pool, jobId);
+  assert.equal(finalState.status, 'FINALIZED');
+  await assertMinted(provider, contractAddress, rewardKey, jobId, pool);
+});
+
 async function deployMascot(
   provider: JsonRpcProvider,
 ): Promise<{ contract: Contract; contractAddress: string }> {

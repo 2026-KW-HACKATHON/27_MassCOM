@@ -41,6 +41,12 @@ export interface MintWorkRepository {
     result: ChainMintResult,
   ): Promise<void>;
   releaseRetryable(jobId: string, workerId: string, code: string): Promise<void>;
+  clearRevertedSubmission(
+    jobId: string,
+    workerId: string,
+    attemptId: string,
+    code: string,
+  ): Promise<void>;
   markManualReview(jobId: string, workerId: string, code: string): Promise<void>;
 }
 
@@ -171,6 +177,24 @@ export class MintWorker {
           } catch (lookupError) {
             await this.handleChainError(item, workerId, lookupError);
             return true;
+          }
+          // Not yet minted: before treating this as a permanent revert, recheck the transient
+          // conditions (pause/balance/RPC) a race with assertCanSubmit could have caused. A
+          // transient hit must clear the reverted hash first, or the next lease would just
+          // confirm the same reverted transaction hash forever instead of resubmitting.
+          try {
+            await this.gateway.assertCanSubmit(item);
+          } catch (transientError) {
+            if (transientError instanceof RetryableChainError) {
+              await this.repository.clearRevertedSubmission(
+                item.jobId,
+                workerId,
+                attemptId,
+                error.code,
+              );
+              await this.handleChainError(item, workerId, transientError);
+              return true;
+            }
           }
         }
         await this.handleChainError(item, workerId, error);
