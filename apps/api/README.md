@@ -81,4 +81,4 @@ npm run test:postgres
 
 지갑 challenge 원문·nonce claim은 `DATABASE_URL`이 설정되면 PostgreSQL `wallet_challenges` 테이블(migration 0008)에 원자적 claim으로 저장되어 프로세스 재시작에도 남습니다. `DATABASE_URL`이 없으면 DEMO 전용 in-memory 저장소로 대체되며 이 경우에만 재시작 시 사라집니다. 계정 삭제 요청은 남은 challenge를 저장소 종류와 무관하게 즉시 제거합니다. 성공한 주소 연결과 mint job·Outbox·체인 이벤트·NFT 자산은 PostgreSQL에 남습니다. Worker 실행과 Local Anvil 재현은 [`../worker/README.md`](../worker/README.md)를 따르며 운영 signer·Base Sepolia는 포함하지 않습니다.
 
-계정 삭제는 `ACCOUNT_DELETION_HMAC_SECRET`이 설정된 경우에만 켜집니다. 실제 운영 재인증 guard는 아직 연결되지 않았으며 `ALLOW_INSECURE_DEMO_ACCOUNT=true`에서만 `x-demo-reauthenticated: true`를 받는 loopback DEMO 경계를 사용합니다. 미전송 mint job만 `CANCELLED`로 바꾸고, 제출·확정 작업의 체인 대조 자료는 비식별 account alias와 함께 보존합니다.
+계정 삭제는 `ACCOUNT_DELETION_HMAC_SECRET`이 설정된 경우에만 켜집니다. 운영 로그인에서는 최근 5분 이내에 인증한 세션만 삭제를 요청할 수 있고(위 “인증 방식”), `x-demo-reauthenticated: true` 헤더는 `ALLOW_INSECURE_DEMO_ACCOUNT=true`인 loopback DEMO에서만 받습니다. 미전송 mint job만 `CANCELLED`로 바꾸고, 제출·확정 작업의 체인 대조 자료는 비식별 account alias와 함께 보존합니다.

@@ -148,6 +148,27 @@ test('unknown key ids from unauthenticated callers cannot force a fetch per requ
   assert.equal(fetcher.calls, 2);
 });
 
+test('a failing key set refresh keeps serving tokens signed with keys already held', async () => {
+  const pair = keyPair('kid-1');
+  let calls = 0;
+  let failing = false;
+  const fetcher: JwksFetcher = async () => {
+    calls += 1;
+    if (failing) throw new Error('jwks endpoint unreachable');
+    return { ok: true, json: async () => jwksOf(pair) };
+  };
+  let now = verifyNow();
+  const verifier = verifierOf(fetcher, () => now);
+  await verifier.verify(signedIdToken(pair));
+
+  failing = true;
+  now = new Date(now.getTime() + 11 * 60 * 1000);
+  assert.equal((await verifier.verify(signedIdToken(pair))).subject, 'google-subject-1');
+  assert.equal((await verifier.verify(signedIdToken(pair))).subject, 'google-subject-1');
+  // One failed attempt for the stale cache, not one per request.
+  assert.equal(calls, 2);
+});
+
 test('concurrent verifications share one key set request', async () => {
   const pair = keyPair('kid-1');
   const fetcher = fetcherOf(jwksOf(pair));

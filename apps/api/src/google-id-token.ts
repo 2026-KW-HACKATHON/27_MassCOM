@@ -110,10 +110,15 @@ export class GoogleIdTokenVerifier {
   // unverified here and /auth/google needs no credential, so a caller sending random key ids must
   // not turn every request into an outbound fetch: unknown ids refetch at most once per interval.
   private async publicKey(kid: string) {
+    // A refresh that fails keeps the last good key set: an outage at Google must not reject tokens
+    // signed with keys we already hold, and the same interval bounds the retries.
     const now = this.options.now().getTime();
-    if (now - this.keysFetchedAt >= this.options.jwksMaxAgeMs) await this.refreshKeys();
-    if (!this.keys.has(kid) && now - this.lastRefreshAt >= this.options.unknownKeyRefreshIntervalMs) {
-      await this.refreshKeys();
+    const stale = now - this.keysFetchedAt >= this.options.jwksMaxAgeMs;
+    if ((stale || !this.keys.has(kid)) && now - this.lastRefreshAt >= this.options.unknownKeyRefreshIntervalMs) {
+      await this.refreshKeys().catch(() => undefined);
+    } else if (this.refreshing) {
+      // Another verification is already fetching: wait for it rather than miss a key it brings.
+      await this.refreshing.catch(() => undefined);
     }
     const jwk = this.keys.get(kid);
     if (!jwk) throw new GoogleIdTokenError('ID_TOKEN_INVALID');
