@@ -77,7 +77,8 @@ test('D01 concurrent deletion cancels only unsent mint work and pseudonymizes th
          (SELECT count(*) FROM reward_entitlements WHERE customer_account_id = 'delete-me') +
          (SELECT count(*) FROM wallet_bindings WHERE account_id = 'delete-me') +
          (SELECT count(*) FROM wallet_challenges WHERE account_id = 'delete-me') +
-         (SELECT count(*) FROM mint_jobs WHERE account_id = 'delete-me')
+         (SELECT count(*) FROM mint_jobs WHERE account_id = 'delete-me') +
+         (SELECT count(*) FROM campaign_enrollments WHERE account_id = 'delete-me')
        )::integer AS raw_account_references,
        (SELECT count(*)::integer FROM wallet_bindings WHERE status = 'DISCONNECTED') AS disconnected_bindings,
        (SELECT status FROM mint_jobs WHERE id = '40000000-0000-4000-8004-000000000001') AS queued_status,
@@ -393,7 +394,7 @@ test('concurrent staff deletion and claim issue leave no original creator refere
 
 async function seedDeletionFixture(pool: Pool): Promise<void> {
   await pool.query(
-    'TRUNCATE account_deletion_requests, wallet_challenges, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, merchant_members, campaign_goals, campaigns, merchants CASCADE',
+    'TRUNCATE account_deletion_requests, wallet_challenges, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, campaign_enrollments, merchant_members, campaign_goals, campaigns, merchants CASCADE',
   );
   await pool.query(
     `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
@@ -417,6 +418,10 @@ async function seedDeletionFixture(pool: Pool): Promise<void> {
        ('campaign-delete', 1, '삭제 1회'),
        ('campaign-delete', 3, '삭제 3회'),
        ('campaign-delete', 5, '삭제 5회')`,
+  );
+  await pool.query(
+    `INSERT INTO campaign_enrollments (id, campaign_id, account_id, enrolled_at)
+     VALUES ('60000000-0000-4000-8004-000000000001', 'campaign-delete', 'delete-me', '2026-09-10T03:00:00Z')`,
   );
   await pool.query(
     `INSERT INTO nft_series (

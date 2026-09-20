@@ -10,7 +10,7 @@
 | Q04 | API 통합 | NOT_RUN | 단체 일부만 수령 | 사람별 결과 독립, 다른 슬롯 유지 | 단체 슬롯 미구현 |
 | Q05 | 권한 통합 | PASS | 다른 점포 직원·다른 사용자 접근 | 조회·변경 모두 거절 | PostgreSQL 18에서 다른 점포·무소속·철회 계정 조회 403, `CONFIRM_VISIT` 권한 거절, 철회 즉시 반영 |
 | R01 | PostgreSQL 동시성 | PASS | 한국 날짜 경계·동시 방문 평가 | 한국 날짜당 진행 최대 1회 | `14:59:59.999Z`와 `15:00:00Z` 경계가 서로 다른 KST 날짜, 같은 날짜 추가 방문은 진행도 미증가 |
-| R02 | PostgreSQL 동시성 | NOT_RUN | 마지막 캠페인 자리 동시 등록 | 약속한 공급 상한 초과 없음 | 등록·예약 미구현 |
+| R02 | PostgreSQL 동시성 | PASS | 마지막 캠페인 자리 동시 등록 | 약속한 공급 상한 초과 없음 | 남은 1자리에 서로 다른 계정 20개 동시 등록 → 1건 성공·19건 `CAMPAIGN_FULL`, `enrolled_count`=정원. 같은 계정 동시 중복과 마지막 자리 경합도 자리 1개만 사용 |
 | R03 | 도메인·DB | PASS | 같은 목표 반복 평가 | 보상권 하나 | 첫/3/5회 목표만 생성, `(계정, 캠페인, 목표)` 고유 제약과 반복 평가에서 총 3건 유지 |
 | W01 | 지갑·API | PASS | 연결만 승인하고 서명 생략 | 미검증 주소, 민팅 불가 | MetaMask 연결 뒤 앱이 `CONNECTED / UNVERIFIED`를 표시했고 주소 확인 전에는 발행 상태가 없음; API 미검증 주소 거절 자동화 PASS |
 | W02 | 서명 검증 | PASS | 다른 계정·도메인·체인의 서명 | 거절 | Node HTTP·ethers 실제 서명 PASS |
@@ -85,5 +85,6 @@
 | 2026-09-20 KST | `f386c84`, PR #68, main CI `35460432649` | 문서 갱신 회귀 | macOS·Docker PostgreSQL 18·Anvil·GitHub Actions | 문서 링크·상태 정합 PASS | 문서 PR |
 | 2026-09-20 KST | `a83cef9`, PR #69, main CI `35486460953` | `DeployBaseSepolia.s.sol`·`deploy-base-sepolia.sh` 시뮬레이션·계정 삭제 시 지갑 세션 제거·Play Console 초안 | macOS·Docker PostgreSQL 18·Anvil·GitHub Actions | 암호화 keystore 전용 실체인 시뮬레이션만 PASS, 실제 브로드캐스트 `NOT_RUN` | `docs/PLAY_CONSOLE_DRAFT.md`, `docs/evidence/release-aab-16kb-alignment.json` |
 | 2026-09-20 KST | `9e670ab`, PR #70, main CI `35487020999` | 운영 package ID `kr.masscom.wolgye`·`APP_VARIANT`·`build-release-aab.sh`·upload key 서명 배관 | macOS·Docker PostgreSQL 18·Anvil·GitHub Actions | 로컬 debug 서명 운영 AAB의 package·권한·16KB 정렬 48개 PASS, upload key 서명·Play 제출 `NOT_RUN` | Issue #70 |
+| 2026-09-20 KST | `ecf8015`, Issue #73 | `npm run test:postgres --prefix apps/api`(27개, R02 7개 포함)·API 단위 40개·Worker PostgreSQL 6개 회귀 | macOS·Docker PostgreSQL 18 | PASS | R02 `NOT_RUN`→`PASS`. 마지막 자리 동일 계정 경합 시험은 수정 전 `CAMPAIGN_FULL` 실패를 확인한 뒤 통과. PR·CI 번호는 PR 본문과 HANDOFF에 기록 |
 
-Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R03은 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04·R02는 계속 `NOT_RUN`입니다. Phase 3의 W07·M01~M08은 로컬 Anvil·PostgreSQL·실기기 증거이며 Base Sepolia나 운영 배포 성공을 뜻하지 않습니다.
+Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R02·R03은 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04는 계속 `NOT_RUN`입니다. Phase 3의 W07·M01~M08은 로컬 Anvil·PostgreSQL·실기기 증거이며 Base Sepolia나 운영 배포 성공을 뜻하지 않습니다.

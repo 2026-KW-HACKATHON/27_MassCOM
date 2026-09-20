@@ -26,6 +26,7 @@
 | D-020 | 외부 실행 범위 승인 | 외부 HTTPS·Base Sepolia 배포·release AAB·Google Play 준비 진행 | `USER_CONFIRMED` | 2026-09-20 사용자 ‘전부 동의할께’. 개인키·keystore 생성, faucet, 계정 로그인, Console 약관 동의와 제출은 소유자가 직접 수행. mainnet·사용자 자산 이동·저장소 공개·대회 최종 제출은 포함하지 않음 |
 | D-021 | 기기 세션 저장 정책 | WalletConnect 세션은 AsyncStorage 유지, 인증 token 도입 시 SecureStore 전용, 계정 삭제 때 기기 세션 제거 | `USER_CONFIRMED` | 2026-09-20 사용자가 정책 결정을 위임. 기기에 비밀이 없고 세션이 SecureStore 한도를 넘어 새 의존성을 추가하지 않음 |
 | D-022 | 운영 package ID | 운영 `kr.masscom.wolgye`, 개발 `kr.masscom.wolgye.dev`, URL scheme은 각각 `masscom`·`masscom-dev` | `USER_CONFIRMED` | 2026-09-20 사용자 지정. Play package 이름 등록과 domain 소유 확인은 소유자가 Console에서 수행 |
+| D-023 | 캠페인 참여 자리 반환과 수령 조건 | 삭제·취소로 자리를 반환하지 않음. 방문 수령(redeem)이 참여 등록을 요구할지는 미정 | `PROPOSED` | 2026-09-20 Issue #73 구현 중 제안. 자리 미반환은 v3 6.2절 ‘약속한 상한 초과 금지’를 보수적으로 적용한 구현 기본값이며, 수령 시 등록 요구는 보상 규칙 변경이라 사용자 결정 전에는 적용하지 않음 |
 
 ## 2026-09-18 승인 범위
 

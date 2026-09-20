@@ -8,6 +8,10 @@ import {
   type AccountDeletionService,
 } from './account-deletion.js';
 import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
+import {
+  CampaignEnrollmentError,
+  type CampaignEnrollmentService,
+} from './campaign-enrollment.js';
 import type { CollectionReader } from './collection.js';
 import {
   InMemoryChallengeStore,
@@ -26,6 +30,7 @@ import {
   type RecommendationReader,
 } from './recommendation-service.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
+import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
@@ -66,6 +71,7 @@ export function createApiServer(
   mintRequests?: MintRequestService,
   accountDeletions?: AccountDeletionService,
   requireReauthentication?: ReauthenticationGuard,
+  campaignEnrollments?: CampaignEnrollmentService,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -306,6 +312,18 @@ export function createApiServer(
         return;
       }
 
+      const enrollmentMatch = request.url?.match(/^\/campaigns\/([^/]+)\/enrollments$/);
+      if (request.method === 'POST' && enrollmentMatch) {
+        if (!campaignEnrollments) {
+          throw new RequestError(503, 'CAMPAIGN_ENROLLMENT_SERVICE_NOT_CONFIGURED');
+        }
+        const accountId = await resolveAccountId(request);
+        const campaignId = decodeURIComponent(enrollmentMatch[1]!);
+        const enrollment = await campaignEnrollments.enroll({ campaignId, accountId });
+        sendJson(response, enrollment.created ? 201 : 200, enrollment);
+        return;
+      }
+
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
       if (error instanceof ClaimSlotError) {
@@ -326,6 +344,10 @@ export function createApiServer(
       }
       if (error instanceof AccountDeletionError) {
         sendJson(response, statusForAccountDeletion(error.code), { code: error.code });
+        return;
+      }
+      if (error instanceof CampaignEnrollmentError) {
+        sendJson(response, statusForCampaignEnrollment(error.code), { code: error.code });
         return;
       }
       if (error instanceof RequestError) {
@@ -452,6 +474,13 @@ function statusForMintRequest(code: string): number {
   return 409;
 }
 
+function statusForCampaignEnrollment(code: string): number {
+  if (code === 'CAMPAIGN_NOT_FOUND') return 404;
+  if (code === 'ACCOUNT_DELETED') return 410;
+  if (code === 'CAMPAIGN_FULL' || code === 'CAMPAIGN_NOT_AVAILABLE') return 409;
+  return 409;
+}
+
 function setCommonHeaders(response: ServerResponse): void {
   response.setHeader('cache-control', 'no-store');
   response.setHeader('content-type', 'application/json; charset=utf-8');
@@ -523,6 +552,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           ...(accountLifecycle ? { accountLifecycle } : {}),
         })
       : undefined;
+  const campaignEnrollments = pool
+    ? new PostgresCampaignEnrollmentService(pool, {
+        ...(accountLifecycle ? { accountLifecycle } : {}),
+      })
+    : undefined;
   const accountResolver: AccountResolver =
     process.env.ALLOW_INSECURE_DEMO_ACCOUNT === 'true'
       ? developmentHeaderAccountResolver
@@ -545,6 +579,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     mintRequests,
     accountDeletions,
     reauthenticationGuard,
+    campaignEnrollments,
   ).listen(port, '127.0.0.1', () => {
     console.log(`wallet API listening on http://127.0.0.1:${port}`);
   });

@@ -253,6 +253,13 @@ async function pseudonymizeAccount(
      WHERE customer_account_id = $3`,
     [deletedAlias, now, accountId],
   );
+  // Enrollment rows are re-aliased, not deleted; the campaign slot they reserved is not
+  // returned so enrolled_count never exceeds the promised enrollment_capacity.
+  await client.query(
+    `UPDATE campaign_enrollments SET account_id = $1
+     WHERE account_id = $2`,
+    [deletedAlias, accountId],
+  );
   await client.query(
     `UPDATE wallet_bindings
      SET account_id = $1, status = 'DISCONNECTED', disconnected_at = coalesce(disconnected_at, $2),
