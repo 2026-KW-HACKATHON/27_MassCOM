@@ -52,4 +52,8 @@ Worker가 재시작해 저장된 거래 hash를 다시 확인할 때도 신규 �
 - 환경에 개인키 변수가 있으면 기동을 거절합니다. 복호화 실패는 `MINTER_KEYSTORE_DECRYPT_FAILED`, 주소 불일치는 `MINTER_ADDRESS_MISMATCH`, 계약에 `MINTER_ROLE`이 없으면 `MINTER_ROLE_MISSING`이며 모두 설정 오류(재시도 안 함)입니다. 오류와 로그에 비밀번호·keystore 내용·키를 넣지 않습니다.
 - **전송 전 기록**: 거래를 먼저 서명해 hash와 서명된 raw 거래(`mint_tx_attempts.signed_transaction`, 공개 정보)를 DB에 기록한 뒤 broadcast합니다. 기록 직후 종료되거나 RPC 응답을 잃어도 재시작한 Worker는 새 거래를 만들지 않고 **같은 서명 거래**를 다시 보내거나 기존 hash를 확인합니다.
 - **nonce**: 같은 민터로 여러 작업·여러 Worker가 돌 때 PostgreSQL advisory lock(체인+민터) 안에서 “결과가 없는 기록된 서명 거래를 오래된 순서로 먼저 전송 → pending nonce 조회 → 서명 → 기록 → 전송”을 직렬화합니다. 체인당 서비스 민터 하나를 전제로 합니다.
+- 기록된 거래가 전송될 수 없는 상태(예: 수수료 급등)로 남아 있으면 같은 민터의 다른 작업은 시도 횟수를 쓰지 않고 `MINTER_NONCE_BLOCKED`로 재시도 대기합니다. 그 거래의 작업이 확정되거나 운영자 검토로 닫히면 시도 기록도 함께 닫혀 다음 작업이 진행됩니다. lock 대기가 길어지면 `MINTER_LOCK_TIMEOUT`(시도 횟수 미소모)입니다.
+- 수수료 정보를 받지 못하면 서명하지 않고 `FEE_DATA_UNAVAILABLE`로 재시도합니다(기록되는 것이 없음). gas 한도는 추정값의 1.2배입니다. nonce는 `latest`·`pending`·기록된 미확정 거래의 nonce+1 중 가장 큰 값입니다.
+- keystore·비밀번호 파일은 실제 경로(symlink 해석) 기준으로 저장소 밖이어야 하고, 파일은 권한 600 이하, 상위 디렉터리는 그룹·기타 쓰기 불가여야 합니다. 이름이 개인키·mnemonic·seed phrase로 끝나는 환경변수가 있으면 로컬 경로를 포함해 기동을 거절합니다.
+- 대체(가속) 거래는 만들지 않습니다. 오래 채굴되지 않는 거래는 `RECEIPT_TIMEOUT` → 운영자 검토로 갑니다.
 - 실제 Base Sepolia 전송은 아직 하지 않았습니다(로컬 Anvil에서 시험용 keystore로만 검증).
