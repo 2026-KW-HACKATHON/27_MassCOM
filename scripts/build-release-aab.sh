@@ -5,8 +5,8 @@
 # in ~/.gradle/gradle.properties. Without them the AAB is signed with the local debug key and
 # this script says so; a debug-signed AAB must not be uploaded.
 # Usage: scripts/build-release-aab.sh [--restore-dev]   (--restore-dev regenerates the dev project afterwards)
-# --restore-dev wipes android/ and the AAB with it, so copy the AAB out first if you need it.
-# Exit codes: 0 signed with a non-debug key, 3 built but debug-signed (not uploadable), other = build failure.
+# The AAB is copied to apps/mobile/release-artifacts/ (gitignored) before anything is restored.
+# Exit codes: 0 uploadable; 3-7 built but not uploadable (see scripts/verify-aab-signature.sh); other = build failure.
 # The upload key is the owner's; Play re-signs installs with its own app signing key, so the
 # certificate printed here is the upload certificate, not the one devices will see.
 
@@ -23,9 +23,11 @@ case "${1:-}" in
 esac
 restore_dev="${1:-}"
 # Runs on every exit, so a failed build or signer check never leaves the production project behind.
+# The variant is set explicitly: a caller that exported APP_VARIANT=production must not get a
+# production project back.
 restore() {
   if [[ "$restore_dev" == "--restore-dev" ]]; then
-    (cd "$mobile_dir" && CI=1 npx --no-install expo prebuild --platform android --clean --no-install) \
+    (cd "$mobile_dir" && CI=1 APP_VARIANT=development npx --no-install expo prebuild --platform android --clean --no-install) \
       || echo "warning: --restore-dev could not regenerate the development project" >&2
   fi
 }
@@ -35,24 +37,20 @@ cd "$mobile_dir"
 CI=1 APP_VARIANT=production npx --no-install expo prebuild --platform android --clean --no-install
 (cd android && APP_VARIANT=production ./gradlew bundleRelease --console=plain -q)
 
-aab="$mobile_dir/android/app/build/outputs/bundle/release/app-release.aab"
+built="$mobile_dir/android/app/build/outputs/bundle/release/app-release.aab"
 gradle_file="$mobile_dir/android/app/build.gradle"
+commit="$(git -C "$repo_root" rev-parse HEAD)"
+# android/ is wiped by the restore above, so everything reported below is about the copy.
+artifacts="${RELEASE_ARTIFACT_DIR:-$mobile_dir/release-artifacts}"
+mkdir -p "$artifacts"
+aab="$artifacts/app-release-${commit:0:7}.aab"
+cp "$built" "$aab"
 echo "AAB: $aab"
 echo "sha256: $(shasum -a 256 "$aab" | cut -d' ' -f1)"
-echo "source commit: $(git -C "$repo_root" rev-parse HEAD)$(git -C "$repo_root" diff --quiet -- apps/mobile || echo ' (apps/mobile has uncommitted changes)')"
+echo "source commit: $commit$(git -C "$repo_root" diff --quiet -- apps/mobile || echo ' (apps/mobile has uncommitted changes)')"
 # Informational: a format change here must not abort before the signing verdict below.
 grep -E "^[[:space:]]*(applicationId|versionCode|versionName)[[:space:](]" "$gradle_file" | sed 's/^ *//' \
   || echo "version metadata not found in $gradle_file" >&2
-# keytool labels are localized, so match the certificate subject instead of the "Owner:" label.
-signer="$(keytool -J-Duser.language=en -printcert -jarfile "$aab")"
-# Informational only: a missing label must not abort before the debug-key check below.
-grep -E 'Owner:|SHA256:' <<<"$signer" | head -2 || true
-uploadable=1
-if grep -q 'CN=Android Debug' <<<"$signer"; then
-  uploadable=0
-  echo "NOT UPLOADABLE: signed with the local debug key; configure the upload key (see the header)" >&2
-fi
 
-
-# The build succeeded either way; exit 3 tells callers the artifact must not go to Play.
-[[ "$uploadable" == "1" ]] || exit 3
+# The build succeeded either way; a non-zero verdict tells callers the artifact must not go to Play.
+"$repo_root/scripts/verify-aab-signature.sh" "$aab"
