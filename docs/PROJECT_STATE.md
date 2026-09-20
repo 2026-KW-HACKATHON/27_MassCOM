@@ -11,7 +11,7 @@
 | 현재 브랜치 | `main` (작업 브랜치는 Issue별로 생성 후 병합) |
 | 기준 커밋 SHA | `e4e633c27abb20e3dab307d4a8caaf0d4b2c3f0f` — 이 문서를 갱신한 PR 직전의 검증된 main |
 | 현재 작업 | 없음. 다음 작업은 HANDOFF의 “다음 세션이 가장 먼저 해야 할 작업” |
-| 현재 검증 기준 | API 42·PostgreSQL 27·Worker 14/PG 7·모바일 53·Foundry 8/fuzz128·Anvil PASS |
+| 현재 검증 기준 | API 42·PostgreSQL 27·Worker 14/PG 7·모바일 54·Foundry 8/fuzz128·Anvil PASS |
 | 최근 main 기준선 | PR #79 merge `e4e633c`, main CI run `35499451454` PASS |
 
 ## 열린 Issue·PR과 최근 병합
@@ -79,7 +79,7 @@
 - 필수 36개: `28 PASS / 2 BLOCKED / 6 NOT_RUN`
 - API 단위: `42/42 PASS`; PostgreSQL: `27/27 PASS`
 - Worker 단위: `14/14 PASS`; PostgreSQL: `7/7 PASS`; Anvil W07/M01~M08: `PASS`
-- 모바일: `53/53 PASS`; typecheck·lint·Android export `PASS`
+- 모바일: `54/54 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`
 - production dependency audit: API·Worker high 이상 0; 모바일 high 이상 0, Expo 전이 moderate 14건은 B-008

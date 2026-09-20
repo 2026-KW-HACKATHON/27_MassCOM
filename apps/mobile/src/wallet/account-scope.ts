@@ -2,12 +2,17 @@ const BASE_PREFIX = '@masscom:appkit:';
 
 /**
  * Short non-reversible label for an account, so storage key names never contain the account ID.
- * ponytail: FNV-1a is not a secret-keeping hash; it only keeps the raw ID out of key names. Switch
- * to a keyed hash if account IDs ever become sensitive on their own.
+ * Two independently seeded 32-bit FNV-1a passes give 64 bits: a collision would let one account
+ * read another's session, and 32 bits alone collide at tens of thousands of accounts.
+ * ponytail: not a secret-keeping hash; switch to a keyed hash if account IDs become sensitive.
  */
 export function accountStorageTag(accountId: string): string {
-  let hash = 0x811c9dc5;
-  for (const char of accountId) {
+  return fnv1a(accountId, 0x811c9dc5) + fnv1a(accountId, 0x9747b28c);
+}
+
+function fnv1a(value: string, seed: number): string {
+  let hash = seed;
+  for (const char of value) {
     hash ^= char.codePointAt(0)!;
     hash = Math.imul(hash, 0x01000193);
   }

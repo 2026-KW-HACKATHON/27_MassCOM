@@ -38,7 +38,10 @@ export const appKit = walletRuntimeConfig.available
       adapters: [new EthersAdapter()],
       networks: [baseSepolia],
       defaultNetwork: baseSepolia,
-      // Scoped per account, so another account's wallet session is never read back.
+      // Scoped per account, so another account's wallet session is never read back. The account
+      // is fixed for the life of the process: WalletConnect caches its storage on a process-wide
+      // core, so a runtime login must recreate AppKit with its own `customStoragePrefix` (or
+      // restart the app) before it may change accounts.
       storage: createAppKitStorage(walletSessionPrefix(walletRuntimeConfig.accountId)),
       features: walletRuntimeConfig.features,
       universalProviderConfigOverride: walletRuntimeConfig.sessionPermissions,

@@ -88,6 +88,6 @@
 | 2026-09-20 KST | `ecf8015`, Issue #73 | `npm run test:postgres --prefix apps/api`(27개, R02 7개 포함)·API 단위 40개·Worker PostgreSQL 6개 회귀 | macOS·Docker PostgreSQL 18 | PASS | R02 `NOT_RUN`→`PASS`. 마지막 자리 동일 계정 경합 시험은 수정 전 `CAMPAIGN_FULL` 실패를 확인한 뒤 통과. PR·CI 번호는 PR 본문과 HANDOFF에 기록 |
 | 2026-09-20 KST | Issue #75 | `npm test --prefix apps/api`(41개) | macOS | PASS | 잘못된 percent-encoding 경로 값을 8개 라우트 공통 helper로 400 `INVALID_PATH_PARAMETER` 처리. 신규 시험은 수정 전 500으로 실패함을 확인 |
 | 2026-09-20 KST | `438484f`, Issue #77 | Worker 단위 14개·PostgreSQL 7개·Anvil 5개(W07 + O02a/b/c/d) | macOS·Docker PostgreSQL 18·Anvil 31337 | PASS | O02 `NOT_RUN`→`PASS`. RPC 중단 시험은 수정 전 `MANUAL_REVIEW`로, 다른 인터페이스 계약 시험(O02d)은 분류 수정 전 `RETRYABLE`로 실패함을 확인. 기존 lease 재확인 시험의 기대값은 변경 없음 |
-| 2026-09-20 KST | Issue #80 | API 단위 42개·모바일 단위 53개·typecheck·lint·Android export | macOS | PASS | D02 자동 시험만 PASS, 실기 계정 전환은 `NOT_RUN`이라 D02 상태는 유지. `no-store` 시험은 기존 동작을 고정하는 회귀 시험 |
+| 2026-09-20 KST | Issue #80 | API 단위 42개·모바일 단위 54개·typecheck·lint·Android export | macOS | PASS | D02 자동 시험만 PASS, 실기 계정 전환은 `NOT_RUN`이라 D02 상태는 유지. `no-store` 시험은 기존 동작을 고정하는 회귀 시험 |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01·Q02·Q03·Q05·R01·R02·R03은 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했으며 Q04는 계속 `NOT_RUN`입니다. Phase 3의 W07·M01~M08은 로컬 Anvil·PostgreSQL·실기기 증거이며 Base Sepolia나 운영 배포 성공을 뜻하지 않습니다.

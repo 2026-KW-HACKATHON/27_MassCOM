@@ -5,10 +5,16 @@ import { accountStorageTag, purgeForeignWalletSessions, walletSessionPrefix } fr
 
 test('D02 storage keys are scoped per account without containing the account ID', () => {
   const prefix = walletSessionPrefix('customer-alice');
-  assert.match(prefix, /^@masscom:appkit:[0-9a-f]{8}:$/);
+  assert.match(prefix, /^@masscom:appkit:[0-9a-f]{16}:$/);
   assert.equal(prefix.includes('alice'), false);
   assert.equal(accountStorageTag('customer-alice'), accountStorageTag('customer-alice'));
   assert.notEqual(walletSessionPrefix('customer-alice'), walletSessionPrefix('customer-bob'));
+});
+
+test('D02 account tags stay distinct across many accounts', () => {
+  const tags = new Set<string>();
+  for (let index = 0; index < 200_000; index++) tags.add(accountStorageTag(`customer-${index}`));
+  assert.equal(tags.size, 200_000);
 });
 
 test('D02 switching accounts removes the previous wallet session and keeps the current one', async () => {
