@@ -48,6 +48,7 @@ class FakeRepository implements MintWorkRepository {
   renewError?: Error;
   failRenewAt?: number;
   renewCount = 0;
+  recoveredAttemptId?: string = 'attempt-recovered';
 
   async leaseNext(): Promise<MintWorkItem | undefined> {
     this.calls.push('lease');
@@ -81,6 +82,11 @@ class FakeRepository implements MintWorkRepository {
     retryCode: string,
   ): Promise<void> {
     this.calls.push(`reverted-retry:${revertCode}:${retryCode}`);
+  }
+
+  async findAttemptIdForTransactionHash(): Promise<string | undefined> {
+    this.calls.push('findAttempt');
+    return this.recoveredAttemptId;
   }
 
   async markManualReview(_jobId: string, _workerId: string, code: string): Promise<void> {
@@ -347,6 +353,81 @@ test('O02 confirms an already submitted transaction even when assertCanSubmit wo
 
   assert.equal(await worker.runOnce('worker-1'), true);
   assert.equal(gateway.calls.includes('assertCanSubmit'), false);
+  assert.equal(gateway.calls.includes('submit'), false);
+  assert.equal(workCalls(repository).at(-1), 'finalized:1');
+});
+
+test('restart recovery retries a reverted receipt from a transient pause the same way a fresh submission does', async () => {
+  const repository = new FakeRepository();
+  repository.leaseNext = async () => {
+    repository.calls.push('lease');
+    return { ...work, transactionHash: result.transactionHash };
+  };
+  const gateway = new FakeGateway();
+  gateway.confirmError = new MintEventMismatchError('MINT_TRANSACTION_REVERTED');
+  let assertCanSubmitCount = 0;
+  gateway.assertCanSubmit = async () => {
+    gateway.calls.push('assertCanSubmit');
+    assertCanSubmitCount += 1;
+    if (assertCanSubmitCount === 1) throw new RetryableChainError('MINT_PAUSED');
+  };
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.deepEqual(gateway.calls, ['validate', 'find', 'confirm', 'find', 'assertCanSubmit']);
+  assert.deepEqual(workCalls(repository), [
+    'lease',
+    'findAttempt',
+    'reverted-retry:MINT_TRANSACTION_REVERTED:MINT_PAUSED',
+  ]);
+  assert.equal(workCalls(repository).some((call) => call.startsWith('review:')), false);
+});
+
+test('restart recovery sends a permanently reverted receipt to manual review the same way a fresh submission does', async () => {
+  const repository = new FakeRepository();
+  repository.leaseNext = async () => {
+    repository.calls.push('lease');
+    return { ...work, transactionHash: result.transactionHash };
+  };
+  const gateway = new FakeGateway();
+  gateway.confirmError = new MintEventMismatchError('MINT_TRANSACTION_REVERTED');
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.deepEqual(gateway.calls, ['validate', 'find', 'confirm', 'find', 'assertCanSubmit']);
+  assert.deepEqual(workCalls(repository), ['lease', 'review:MINT_TRANSACTION_REVERTED']);
+  assert.equal(repository.calls.includes('findAttempt'), false);
+});
+
+test('restart recovery does not resubmit when the receipt for the stored hash is not yet available', async () => {
+  const repository = new FakeRepository();
+  repository.leaseNext = async () => {
+    repository.calls.push('lease');
+    return { ...work, transactionHash: result.transactionHash };
+  };
+  const gateway = new FakeGateway();
+  gateway.confirmError = new RetryableChainError('RECEIPT_NOT_READY');
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.deepEqual(gateway.calls, ['validate', 'find', 'confirm']);
+  assert.equal(gateway.calls.includes('submit'), false);
+  assert.deepEqual(workCalls(repository), ['lease', 'retryable:RECEIPT_NOT_READY']);
+});
+
+test('restart recovery finalizes without resubmitting when the reward key was already minted', async () => {
+  const repository = new FakeRepository();
+  repository.leaseNext = async () => {
+    repository.calls.push('lease');
+    return { ...work, transactionHash: result.transactionHash };
+  };
+  const gateway = new FakeGateway();
+  gateway.existing = result;
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.deepEqual(gateway.calls, ['validate', 'find']);
+  assert.equal(gateway.calls.includes('confirm'), false);
   assert.equal(gateway.calls.includes('submit'), false);
   assert.equal(workCalls(repository).at(-1), 'finalized:1');
 });

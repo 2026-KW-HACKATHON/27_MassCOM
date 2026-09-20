@@ -10,7 +10,7 @@
 | 기본 브랜치 | `main` |
 | 기준 커밋 | 이 문서는 SHA를 고정하지 않는다. 실제 기준은 `git log origin/main -1`, 직전 검증 기준은 `docs/HANDOFF.md` 머리말 |
 | 현재 작업·열린 PR | `gh pr list`, `gh issue list`가 기준. 인수인계 요약은 `docs/HANDOFF.md` |
-| 현재 검증 기준 | API 43·PostgreSQL 28·Worker 16/PG 11·모바일 54·Foundry 8/fuzz128·Anvil PASS |
+| 현재 검증 기준 | API 43·PostgreSQL 28·Worker 20/PG 16·모바일 54·Foundry 8/fuzz128·Anvil PASS |
 
 ## 검증 수준별 현황
 
@@ -85,7 +85,7 @@
 
 - 필수 36개: 30 PASS / 2 BLOCKED / 4 NOT_RUN
 - API 단위: `43/43 PASS`; PostgreSQL: `28/28 PASS`
-- Worker 단위: `16/16 PASS`; PostgreSQL: `11/11 PASS`; Anvil W07/M01~M08: `PASS`
+- Worker 단위: `20/20 PASS`; PostgreSQL: `16/16 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `54/54 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`

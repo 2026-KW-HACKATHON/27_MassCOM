@@ -18,6 +18,13 @@ type Options = {
   retryDelayMs: number;
   maxRetryDelayMs: number;
   maxAttempts: number;
+  /**
+   * Wall-clock bound on checking the result of an already-broadcast transaction (the job holds a
+   * transaction_hash), measured from that attempt's submitted_at. Separate from maxAttempts, which
+   * only caps new sends: a receipt check never sends a transaction, so it must not be able to
+   * exhaust the send cap and stop a job that is simply waiting on confirmations.
+   */
+  receiptTimeoutMs: number;
   chainFromBlock: number;
   reorgMargin: number;
 };
@@ -56,6 +63,7 @@ const defaultOptions: Options = {
   retryDelayMs: 1_000,
   maxRetryDelayMs: 300_000,
   maxAttempts: 5,
+  receiptTimeoutMs: 24 * 60 * 60 * 1_000,
   chainFromBlock: 0,
   reorgMargin: 12,
 };
@@ -70,6 +78,9 @@ export class PostgresMintRepository implements MintWorkRepository {
     this.options = { ...defaultOptions, ...options };
     if (!Number.isSafeInteger(this.options.maxAttempts) || this.options.maxAttempts <= 0) {
       throw new Error('maxAttempts must be a positive safe integer');
+    }
+    if (!Number.isSafeInteger(this.options.receiptTimeoutMs) || this.options.receiptTimeoutMs <= 0) {
+      throw new Error('receiptTimeoutMs must be a positive safe integer');
     }
     if (!Number.isSafeInteger(this.options.chainFromBlock) || this.options.chainFromBlock < 0) {
       throw new Error('chainFromBlock must be a non-negative safe integer');
@@ -351,6 +362,14 @@ export class PostgresMintRepository implements MintWorkRepository {
            WHERE id = $3 AND mint_job_id = $4`,
           [result.transactionHash.toLowerCase(), now, attemptId, item.jobId],
         );
+      } else {
+        // Restart recovery has no attempt id; the hash is unique per attempt, so close that row.
+        await client.query(
+          `UPDATE mint_tx_attempts
+           SET status = 'MINED', mined_at = $2, updated_at = $2
+           WHERE mint_job_id = $3 AND transaction_hash = $1 AND status = 'SUBMITTED'`,
+          [result.transactionHash.toLowerCase(), now, item.jobId],
+        );
       }
       await client.query(
         `UPDATE mint_jobs
@@ -426,12 +445,16 @@ export class PostgresMintRepository implements MintWorkRepository {
          WHERE id = $3 AND mint_job_id = $4 AND status = 'SUBMITTED'`,
         [revertCode, now, attemptId, jobId],
       );
-      await client.query(
+      // Matched by the attempt's own hash, not by job status: after a restart the job is RETRYABLE,
+      // and matching the hash also keeps a newer transaction from being dropped by mistake.
+      const dropped = await client.query(
         `UPDATE mint_jobs
          SET transaction_hash = NULL, updated_at = $1
-         WHERE id = $2 AND status = 'SUBMITTED'`,
-        [now, jobId],
+         WHERE id = $2
+           AND transaction_hash = (SELECT transaction_hash FROM mint_tx_attempts WHERE id = $3)`,
+        [now, jobId, attemptId],
       );
+      if (dropped.rowCount !== 1) throw new Error('MINT_REVERTED_HASH_MISMATCH');
       await this.releaseForRetry(client, jobId, retryCode, now);
       await client.query('COMMIT');
     } catch (error) {
@@ -449,20 +472,48 @@ export class PostgresMintRepository implements MintWorkRepository {
     now: Date,
   ): Promise<void> {
     const job = (
-      await client.query<{ attempt_count: number; retry_streak: number }>(
-        'SELECT attempt_count, retry_streak FROM mint_jobs WHERE id = $1 FOR UPDATE',
+      await client.query<{
+        attempt_count: number;
+        retry_streak: number;
+        transaction_hash: string | null;
+      }>(
+        'SELECT attempt_count, retry_streak, transaction_hash FROM mint_jobs WHERE id = $1 FOR UPDATE',
         [jobId],
       )
     ).rows[0];
     if (!job) throw new Error('MINT_JOB_NOT_FOUND');
-    if (job.attempt_count >= this.options.maxAttempts) {
+
+    if (job.transaction_hash) {
+      // The job already holds a broadcast transaction: this release only checks its result
+      // (RECEIPT_NOT_READY or a lookup failure), it never sends a new one, so the send cap below
+      // does not apply. Bound it by wall-clock time since that attempt was submitted instead.
+      const attempt = (
+        await client.query<{ submitted_at: Date | null }>(
+          `SELECT submitted_at FROM mint_tx_attempts
+           WHERE mint_job_id = $1 AND transaction_hash = $2 AND status = 'SUBMITTED'
+           ORDER BY attempt_number DESC
+           LIMIT 1`,
+          [jobId, job.transaction_hash],
+        )
+      ).rows[0];
+      // Without the submitted attempt there is no clock to bound the wait, so stop here rather
+      // than restarting the clock on every release.
+      if (!attempt?.submitted_at) {
+        await closeForManualReview(client, jobId, 'RECEIPT_ATTEMPT_MISSING', now);
+        return;
+      }
+      if (now.getTime() - attempt.submitted_at.getTime() >= this.options.receiptTimeoutMs) {
+        await closeForManualReview(client, jobId, 'RECEIPT_TIMEOUT', now);
+        return;
+      }
+    } else if (job.attempt_count >= this.options.maxAttempts) {
       // Only submission attempts count, so waiting for finality or an RPC outage never lands here.
       await closeForManualReview(client, jobId, 'RETRY_LIMIT_EXCEEDED', now);
       return;
     }
     // The streak also grows on pre-submission failures (RPC outages, a paused contract) so a long
     // outage backs off instead of hammering the RPC/DB every base-delay tick, but it is never used
-    // to decide the manual-review cap above.
+    // to decide the manual-review caps above.
     const delayMs = Math.min(
       this.options.retryDelayMs * 2 ** job.retry_streak,
       this.options.maxRetryDelayMs,
@@ -480,6 +531,23 @@ export class PostgresMintRepository implements MintWorkRepository {
        WHERE aggregate_id = $3`,
       [new Date(now.getTime() + delayMs), now, jobId],
     );
+  }
+
+  /** See MintWorkRepository.findAttemptIdForTransactionHash. */
+  async findAttemptIdForTransactionHash(
+    jobId: string,
+    transactionHash: string,
+  ): Promise<string | undefined> {
+    const row = (
+      await this.pool.query<{ id: string }>(
+        `SELECT id FROM mint_tx_attempts
+         WHERE mint_job_id = $1 AND transaction_hash = $2 AND status = 'SUBMITTED'
+         ORDER BY attempt_number DESC
+         LIMIT 1`,
+        [jobId, transactionHash.toLowerCase()],
+      )
+    ).rows[0];
+    return row?.id;
   }
 
   async markManualReview(jobId: string, workerId: string, code: string): Promise<void> {
