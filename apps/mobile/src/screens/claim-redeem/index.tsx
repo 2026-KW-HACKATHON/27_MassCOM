@@ -51,7 +51,9 @@ export function ClaimRedeemScreen({ apiUrl, accountId }: { apiUrl: string; accou
   function handleScanned(raw: string) {
     const scanned = parseScannedClaimCode(raw);
     if (!scanned.ok) {
-      setMessage('방문 수령용 QR이 아닙니다. 점주 화면의 QR을 다시 비춰 주세요.');
+      // The camera reports the same wrong QR many times a second; keep the state identical.
+      const notClaimQr = '방문 수령용 QR이 아닙니다. 점주 화면의 QR을 다시 비춰 주세요.';
+      setMessage((current) => (current === notClaimQr ? current : notClaimQr));
       return;
     }
     if (!scanGate.accept(scanned.code)) return;
