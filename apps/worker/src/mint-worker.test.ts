@@ -73,13 +73,14 @@ class FakeRepository implements MintWorkRepository {
     this.calls.push(`retryable:${code}`);
   }
 
-  async clearRevertedSubmission(
+  async releaseRevertedForRetry(
     _jobId: string,
     _workerId: string,
     _attemptId: string,
-    code: string,
+    revertCode: string,
+    retryCode: string,
   ): Promise<void> {
-    this.calls.push(`cleared:${code}`);
+    this.calls.push(`reverted-retry:${revertCode}:${retryCode}`);
   }
 
   async markManualReview(_jobId: string, _workerId: string, code: string): Promise<void> {
@@ -238,8 +239,7 @@ test('O05 retries a submitted transaction that reverted from a transient pause i
     'lease',
     'prepared',
     `submitted:${result.transactionHash}`,
-    'cleared:MINT_TRANSACTION_REVERTED',
-    'retryable:MINT_PAUSED',
+    'reverted-retry:MINT_TRANSACTION_REVERTED:MINT_PAUSED',
   ]);
   assert.equal(workCalls(repository).some((call) => call.startsWith('review:')), false);
 });
@@ -266,7 +266,7 @@ test('O05 sends a permanently reverted submission to manual review when the rech
     `submitted:${result.transactionHash}`,
     'review:MINT_TRANSACTION_REVERTED',
   ]);
-  assert.equal(workCalls(repository).some((call) => call.startsWith('cleared:')), false);
+  assert.equal(workCalls(repository).some((call) => call.startsWith('reverted-retry:')), false);
 });
 
 test('renews a short lease while chain confirmation is still running', async () => {

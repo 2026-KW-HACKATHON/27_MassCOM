@@ -426,6 +426,67 @@ test('O02 a database outage stops the worker before any chain call and leaves th
   assert.ok(after.rows.length > 0);
 });
 
+test('a reverted submission is dropped and released for retry in one transaction', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const repository = new PostgresMintRepository(pool);
+  const readJob = async (jobId: string) =>
+    (
+      await pool.query<{
+        status: string;
+        transaction_hash: string | null;
+        code: string;
+        attempt_status: string;
+        outbox_status: string;
+      }>(
+        `SELECT job.status, job.transaction_hash, job.last_error_code AS code,
+                (SELECT status FROM mint_tx_attempts WHERE mint_job_id = job.id) AS attempt_status,
+                (SELECT status FROM outbox_events WHERE aggregate_id = job.id) AS outbox_status
+         FROM mint_jobs AS job WHERE job.id = $1`,
+        [jobId],
+      )
+    ).rows[0];
+
+  const item = await repository.leaseNext('worker-revert', 30_000);
+  assert.ok(item);
+  const attemptId = await repository.markPrepared(item, 'worker-revert');
+  await repository.markSubmitted(item.jobId, 'worker-revert', attemptId, `0x${'ab'.repeat(32)}`);
+
+  // Without the lease nothing may change: a half-applied drop would strand a SUBMITTED job.
+  await assert.rejects(
+    repository.releaseRevertedForRetry(
+      item.jobId,
+      'another-worker',
+      attemptId,
+      'MINT_TRANSACTION_REVERTED',
+      'MINT_PAUSED',
+    ),
+  );
+  assert.deepEqual(await readJob(item.jobId), {
+    status: 'SUBMITTED',
+    transaction_hash: `0x${'ab'.repeat(32)}`,
+    code: null,
+    attempt_status: 'SUBMITTED',
+    outbox_status: 'LEASED',
+  });
+
+  await repository.releaseRevertedForRetry(
+    item.jobId,
+    'worker-revert',
+    attemptId,
+    'MINT_TRANSACTION_REVERTED',
+    'MINT_PAUSED',
+  );
+  assert.deepEqual(await readJob(item.jobId), {
+    status: 'RETRYABLE',
+    transaction_hash: null,
+    code: 'MINT_PAUSED',
+    attempt_status: 'FAILED',
+    outbox_status: 'PENDING',
+  });
+});
+
 test('event scan start reads the cursor with a reorg margin and deployment floor', async (t) => {
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());

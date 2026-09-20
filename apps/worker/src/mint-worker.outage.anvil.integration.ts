@@ -283,8 +283,7 @@ test('O02e retries a submitted mint that reverted from a pause raced in after su
   if (!submittedHash) {
     await provider.send('evm_setAutomine', [true]);
     await runOncePromise.catch(() => undefined);
-    t.skip('could not deterministically observe the mint transaction land unmined before pausing');
-    return;
+    assert.fail('the mint transaction was never recorded as submitted while automine was off');
   }
 
   // Outbid the pending mint transaction's gas price so the pause is ordered first when both are
@@ -304,14 +303,9 @@ test('O02e retries a submitted mint that reverted from a pause raced in after su
   const mintReceipt = await provider.getTransactionReceipt(submittedHash);
   await provider.send('evm_setAutomine', [true]);
 
-  if (!mintReceipt || mintReceipt.status !== 0) {
-    // The race did not land deterministically on this run (the mint mined before the pause, or in
-    // a separate block after it): fall through without asserting the revert path, matching the
-    // "skip if not reproducible" guidance rather than forcing a flaky assertion.
-    await runOncePromise.catch(() => undefined);
-    t.skip('pause did not land ahead of the already-submitted mint transaction in this run');
-    return;
-  }
+  // The scenario is only meaningful if the pause really mined ahead of the mint; a run where it
+  // did not must fail loudly rather than pass without exercising the revert path.
+  assert.equal(mintReceipt?.status, 0, 'the submitted mint must revert behind the pause');
 
   assert.equal(await runOncePromise, true);
   const state = await readJobState(pool, jobId);

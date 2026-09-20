@@ -41,11 +41,13 @@ export interface MintWorkRepository {
     result: ChainMintResult,
   ): Promise<void>;
   releaseRetryable(jobId: string, workerId: string, code: string): Promise<void>;
-  clearRevertedSubmission(
+  /** Atomically drops a reverted submission and releases the job for retry. */
+  releaseRevertedForRetry(
     jobId: string,
     workerId: string,
     attemptId: string,
-    code: string,
+    revertCode: string,
+    retryCode: string,
   ): Promise<void>;
   markManualReview(jobId: string, workerId: string, code: string): Promise<void>;
 }
@@ -180,19 +182,20 @@ export class MintWorker {
           }
           // Not yet minted: before treating this as a permanent revert, recheck the transient
           // conditions (pause/balance/RPC) a race with assertCanSubmit could have caused. A
-          // transient hit must clear the reverted hash first, or the next lease would just
-          // confirm the same reverted transaction hash forever instead of resubmitting.
+          // transient hit must drop the reverted hash in the same transaction that releases the
+          // job: a leftover hash is re-confirmed forever, and a hash dropped without the release
+          // leaves a SUBMITTED job nothing can pick up.
           try {
             await this.gateway.assertCanSubmit(item);
           } catch (transientError) {
             if (transientError instanceof RetryableChainError) {
-              await this.repository.clearRevertedSubmission(
+              await this.repository.releaseRevertedForRetry(
                 item.jobId,
                 workerId,
                 attemptId,
                 error.code,
+                transientError.code,
               );
-              await this.handleChainError(item, workerId, transientError);
               return true;
             }
           }

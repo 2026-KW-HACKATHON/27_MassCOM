@@ -66,7 +66,7 @@
 ## 실행한 테스트
 
 - API 단위 `42/42`, API PostgreSQL `27/27`(R02 7개 포함)
-- Worker 단위 `16/16`, Worker PostgreSQL `10/10`, Anvil `6/6`(W07 M01~M08 + O02a~e)
+- Worker 단위 `16/16`, Worker PostgreSQL `11/11`, Anvil `6/6`(W07 M01~M08 + O02a~e)
 - 모바일 `54/54`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - 실제 Base Sepolia RPC 배포 시뮬레이션 PASS(전송 없음), 잘못된 체인·중복 역할 거절 PASS
@@ -147,6 +147,7 @@ PostgreSQL 통합·Anvil 시험은 이름이 `_test`로 끝나는 전용 `TEST_D
 - PR 제목·본문은 한국어로 쓰고 `bash scripts/check-pr-korean.sh`를 통과시킨다. 커밋과 PR에 AI 공동 작성자 trailer나 생성 도구 문구를 넣지 않는다.
 - 공유 이력 force push, 날짜·작성자 조작, 빈 커밋을 하지 않는다. 브랜치를 바꿔야 하면 새 브랜치와 새 PR로 대체한다.
 - ethers v6는 `eth_call`에 대한 모든 JSON-RPC 오류(rate limit·timeout 포함)를 `CALL_EXCEPTION`으로 표시한다. 실제 revert는 반환 `data`가 있을 때만이다. 오류 코드만으로 영구 결함을 판정하지 않는다.
+- 위임한 구현이 경합 시험에 `t.skip` 대체 경로를 넣은 적이 있다. 재현되지 않으면 실패해야 하므로 skip을 실패로 바꾸고 반복 실행으로 결정성을 확인한다. 병합 전 `git grep -n "\.skip("`로 확인한다.
 - 이 저장소의 shell은 zsh다. `grep --include=*.ts`처럼 따옴표 없는 glob은 오류로 끝나 검색이 실행되지 않는다. 코드 검색은 `git grep`을 쓴다.
 - macOS 기본 `awk`에는 `strtonum`이 없고 `keytool` 출력은 한국어로 번역된다. 검사 스크립트는 오류 없이 끝났는지까지 확인한다.
 - 지갑 세션의 계정별 분리는 “한 프로세스 안에서 계정이 바뀌지 않는다”는 전제에 선다. WalletConnect Core는 저장소를 프로세스 전역 core에 cache하므로, 운영 로그인으로 실행 중 계정을 바꾸게 되면 AppKit을 계정별 `customStoragePrefix`로 다시 만들거나 앱을 재시작해야 한다(PR #81 리뷰 지적).

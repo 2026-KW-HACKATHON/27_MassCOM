@@ -396,39 +396,7 @@ export class PostgresMintRepository implements MintWorkRepository {
     try {
       await client.query('BEGIN');
       await requireLease(client, jobId, workerId, now);
-      const job = (
-        await client.query<{ attempt_count: number; retry_streak: number }>(
-          'SELECT attempt_count, retry_streak FROM mint_jobs WHERE id = $1 FOR UPDATE',
-          [jobId],
-        )
-      ).rows[0];
-      if (!job) throw new Error('MINT_JOB_NOT_FOUND');
-      const attemptCount = job.attempt_count;
-      if (attemptCount >= this.options.maxAttempts) {
-        // Only submission attempts count, so waiting for finality or an RPC outage never lands here.
-        await closeForManualReview(client, jobId, 'RETRY_LIMIT_EXCEEDED', now);
-      } else {
-        // The streak also grows on pre-submission failures (RPC outages, a paused contract) so a
-        // long outage backs off instead of hammering the RPC/DB every base-delay tick, but it is
-        // never used to decide the manual-review cap above.
-        const delayMs = Math.min(
-          this.options.retryDelayMs * 2 ** job.retry_streak,
-          this.options.maxRetryDelayMs,
-        );
-        await client.query(
-          `UPDATE mint_jobs
-           SET status = 'RETRYABLE', last_error_code = $1, retry_streak = least(retry_streak + 1, 30), updated_at = $2
-           WHERE id = $3`,
-          [code, now, jobId],
-        );
-        await client.query(
-          `UPDATE outbox_events
-           SET status = 'PENDING', available_at = $1, lease_owner = NULL,
-               lease_expires_at = NULL, updated_at = $2
-           WHERE aggregate_id = $3`,
-          [new Date(now.getTime() + delayMs), now, jobId],
-        );
-      }
+      await this.releaseForRetry(client, jobId, code, now);
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -438,25 +406,25 @@ export class PostgresMintRepository implements MintWorkRepository {
     }
   }
 
-  async clearRevertedSubmission(
+  async releaseRevertedForRetry(
     jobId: string,
     workerId: string,
     attemptId: string,
-    code: string,
+    revertCode: string,
+    retryCode: string,
   ): Promise<void> {
     const now = this.options.now();
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       await requireLease(client, jobId, workerId, now);
-      // The submitted transaction reverted but the recheck found only a transient condition
-      // (pause/balance/RPC), so clear the reverted hash before releasing for retry: otherwise the
-      // next lease would confirm the same reverted transaction hash forever instead of resubmitting.
+      // One transaction: a reverted hash left behind is re-confirmed forever, and a hash dropped
+      // without the release leaves a SUBMITTED job that no step can prepare again.
       await client.query(
         `UPDATE mint_tx_attempts
          SET status = 'FAILED', error_code = $1, updated_at = $2
          WHERE id = $3 AND mint_job_id = $4 AND status = 'SUBMITTED'`,
-        [code, now, attemptId, jobId],
+        [revertCode, now, attemptId, jobId],
       );
       await client.query(
         `UPDATE mint_jobs
@@ -464,6 +432,7 @@ export class PostgresMintRepository implements MintWorkRepository {
          WHERE id = $2 AND status = 'SUBMITTED'`,
         [now, jobId],
       );
+      await this.releaseForRetry(client, jobId, retryCode, now);
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -471,6 +440,46 @@ export class PostgresMintRepository implements MintWorkRepository {
     } finally {
       client.release();
     }
+  }
+
+  private async releaseForRetry(
+    client: PoolClient,
+    jobId: string,
+    code: string,
+    now: Date,
+  ): Promise<void> {
+    const job = (
+      await client.query<{ attempt_count: number; retry_streak: number }>(
+        'SELECT attempt_count, retry_streak FROM mint_jobs WHERE id = $1 FOR UPDATE',
+        [jobId],
+      )
+    ).rows[0];
+    if (!job) throw new Error('MINT_JOB_NOT_FOUND');
+    if (job.attempt_count >= this.options.maxAttempts) {
+      // Only submission attempts count, so waiting for finality or an RPC outage never lands here.
+      await closeForManualReview(client, jobId, 'RETRY_LIMIT_EXCEEDED', now);
+      return;
+    }
+    // The streak also grows on pre-submission failures (RPC outages, a paused contract) so a long
+    // outage backs off instead of hammering the RPC/DB every base-delay tick, but it is never used
+    // to decide the manual-review cap above.
+    const delayMs = Math.min(
+      this.options.retryDelayMs * 2 ** job.retry_streak,
+      this.options.maxRetryDelayMs,
+    );
+    await client.query(
+      `UPDATE mint_jobs
+       SET status = 'RETRYABLE', last_error_code = $1, retry_streak = least(retry_streak + 1, 30), updated_at = $2
+       WHERE id = $3`,
+      [code, now, jobId],
+    );
+    await client.query(
+      `UPDATE outbox_events
+       SET status = 'PENDING', available_at = $1, lease_owner = NULL,
+           lease_expires_at = NULL, updated_at = $2
+       WHERE aggregate_id = $3`,
+      [new Date(now.getTime() + delayMs), now, jobId],
+    );
   }
 
   async markManualReview(jobId: string, workerId: string, code: string): Promise<void> {
