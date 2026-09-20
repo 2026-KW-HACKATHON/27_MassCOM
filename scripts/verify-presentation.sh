@@ -62,11 +62,11 @@ for (const status of ['PASS', 'BLOCKED', 'NOT_RUN']) {
 }
 // README and the two state documents restate the totals in prose; they drift unless checked.
 const totalsLine = `${tests.PASS} PASS / ${tests.BLOCKED} BLOCKED / ${tests.NOT_RUN} NOT_RUN`;
-for (const file of ['README.md', 'docs/PROJECT_STATE.md', 'docs/HANDOFF.md']) {
-  const text = fs.readFileSync(path.join(repoRoot, file), 'utf8').replace(/`/g, '');
+for (const stateFile of ['README.md', 'docs/PROJECT_STATE.md', 'docs/HANDOFF.md']) {
+  const text = fs.readFileSync(path.join(repoRoot, stateFile), 'utf8').replace(/`/g, '');
   const stated = text.match(/\d+ PASS \/ \d+ BLOCKED \/ \d+ NOT_RUN/g) ?? [];
   if (stated.length === 0 || stated.some((value) => value !== totalsLine)) {
-    throw new Error(`${file} states required-test totals other than ${totalsLine}: ${stated.join(', ') || 'none'}`);
+    throw new Error(`${stateFile} states required-test totals other than ${totalsLine}: ${stated.join(', ') || 'none'}`);
   }
 }
 const openingFacts = { PASS: '필수 시험 PASS', BLOCKED: '외부 환경 BLOCKED', NOT_RUN: '아직 NOT_RUN' };
