@@ -2,6 +2,7 @@ import { AppKit, AppKitProvider } from '@reown/appkit-react-native';
 import { Stack } from 'expo-router/stack';
 import { useEffect } from 'react';
 import { View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { demoRuntimeConfig } from '@/config/demo-runtime';
 import { purgeForeignWalletSessions } from '@/wallet/account-scope';
@@ -45,15 +46,21 @@ export default function RootLayout() {
   }, [accountId]);
 
   if (!appKit) {
-    return <Routes />;
+    return (
+      <SafeAreaProvider>
+        <Routes />
+      </SafeAreaProvider>
+    );
   }
 
   return (
-    <AppKitProvider instance={appKit}>
-      <Routes />
-      <View pointerEvents="box-none" style={{ position: 'absolute', width: '100%', height: '100%' }}>
-        <AppKit />
-      </View>
-    </AppKitProvider>
+    <SafeAreaProvider>
+      <AppKitProvider instance={appKit}>
+        <Routes />
+        <View pointerEvents="box-none" style={{ position: 'absolute', width: '100%', height: '100%' }}>
+          <AppKit />
+        </View>
+      </AppKitProvider>
+    </SafeAreaProvider>
   );
 }
