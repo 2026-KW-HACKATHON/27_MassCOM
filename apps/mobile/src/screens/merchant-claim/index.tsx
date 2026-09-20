@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   CommerceApiError,
@@ -27,6 +28,7 @@ type Props = {
 
 export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCustomerAccountId = '' }: Props) {
   const scrollView = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
   const api = useMemo(
     () => createCommerceApiClient({ apiUrl, accountId }),
     [accountId, apiUrl],
@@ -103,7 +105,11 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
   }
 
   return (
-    <ScrollView ref={scrollView} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+    <ScrollView
+      ref={scrollView}
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
+    >
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>점주·직원 개발 화면</Text>
         <Text selectable style={styles.title}>한 사람에게 쓸 수 있는{`\n`}방문 코드를 만듭니다.</Text>

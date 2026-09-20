@@ -1,4 +1,5 @@
 import { ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '@/theme/colors';
 
@@ -8,9 +9,13 @@ type Props = {
 
 export function WalletConfigurationRequired({ missing }: Props) {
   useColorScheme();
+  const insets = useSafeAreaInsets();
 
   return (
-    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={[styles.content, { paddingBottom: 24 + insets.bottom }]}
+    >
       <View style={styles.badge}>
         <Text style={styles.badgeText}>BLOCKED</Text>
       </View>
