@@ -5,7 +5,8 @@ import { createAppKit } from '@reown/appkit-react-native';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 
-import { appKitStorage } from './appkit-storage';
+import { walletSessionPrefix } from './account-scope';
+import { createAppKitStorage } from './appkit-storage';
 import { baseSepolia } from './base-sepolia';
 import { getWalletRuntimeConfig } from './wallet-runtime-config';
 
@@ -37,7 +38,8 @@ export const appKit = walletRuntimeConfig.available
       adapters: [new EthersAdapter()],
       networks: [baseSepolia],
       defaultNetwork: baseSepolia,
-      storage: appKitStorage,
+      // Scoped per account, so another account's wallet session is never read back.
+      storage: createAppKitStorage(walletSessionPrefix(walletRuntimeConfig.accountId)),
       features: walletRuntimeConfig.features,
       universalProviderConfigOverride: walletRuntimeConfig.sessionPermissions,
       enableAnalytics: walletRuntimeConfig.enableAnalytics,

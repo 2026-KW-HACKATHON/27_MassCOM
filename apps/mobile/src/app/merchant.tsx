@@ -14,6 +14,7 @@ export default function MerchantClaimRoute() {
 
   return (
     <MerchantClaimScreen
+      key={demoRuntimeConfig.merchant.accountId}
       apiUrl={publicApiConfig.apiUrl}
       accountId={demoRuntimeConfig.merchant.accountId}
       merchantId={demoRuntimeConfig.merchant.merchantId}

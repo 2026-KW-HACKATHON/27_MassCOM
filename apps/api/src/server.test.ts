@@ -191,6 +191,20 @@ test('serves health without exposing wallet data', async (t) => {
   assert.deepEqual(await response.json(), { status: 'ok' });
 });
 
+test('D02 every JSON response forbids caching so one account never receives another account\'s data', async (t) => {
+  const baseUrl = await startFixture(t, () => 'account-1');
+
+  for (const [method, path] of [
+    ['GET', '/health'],
+    ['GET', '/collection'],
+    ['GET', '/recommendations'],
+    ['GET', '/no-such-route'],
+  ] as const) {
+    const response = await fetch(`${baseUrl}${path}`, { method });
+    assert.equal(response.headers.get('cache-control'), 'no-store', `${method} ${path}`);
+  }
+});
+
 test('lists public merchants without requiring login or a wallet', async (t) => {
   const merchant = {
     id: 'merchant-demo-noodle',

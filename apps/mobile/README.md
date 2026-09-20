@@ -65,3 +65,7 @@ scripts/build-release-aab.sh [--restore-dev]
 - 거절: 거래 전송, transaction 서명, batch call, typed data, approve, permit, swap, purchase
 - 앱 복귀 또는 `accountsChanged` 후 주소가 달라지면 기존 확인 상태를 지웁니다.
 - 연결만 된 주소는 `UNVERIFIED`이며 서버 확인 전에는 NFT 발행 대상으로 사용할 수 없습니다.
+
+## 계정 전환 시 데이터 분리
+
+지갑 세션은 계정별 tag가 붙은 key(`@masscom:appkit:<tag>:`)에만 저장하고 읽습니다. 앱 시작 때 현재 계정의 것이 아닌 지갑 세션 key를 지우며, 계정 ID를 받는 모든 화면은 계정이 바뀌면 remount됩니다. 이 변경 뒤 첫 실행에서는 이전 형식의 세션이 지워져 지갑을 한 번 다시 연결해야 합니다. 실기 계정 전환 검증(D02)은 운영 로그인이 없어 `NOT_RUN`입니다.

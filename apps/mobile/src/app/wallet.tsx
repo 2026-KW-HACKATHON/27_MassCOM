@@ -7,5 +7,5 @@ export default function WalletLinkRoute() {
     return <WalletConfigurationRequired missing={[...walletRuntimeConfig.missing]} />;
   }
 
-  return <WalletLinkScreen config={walletRuntimeConfig} />;
+  return <WalletLinkScreen key={walletRuntimeConfig.accountId} config={walletRuntimeConfig} />;
 }
