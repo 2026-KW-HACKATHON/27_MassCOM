@@ -2,7 +2,7 @@
   "recordedAt": "2026-09-21 KST",
   "branch": "fix/112-service-minter-hardening",
   "issue": 112,
-  "pullRequest": 113,
+  "pullRequest": 114,
   "scope": "Service minter pre-signing validation and keystore path hardening",
   "automated": {
     "workerUnit": "PASS 45/45",
