@@ -147,6 +147,7 @@ mkdir -p "$sandbox/scripts" "$sandbox/apps/mobile/src" "$work/bin"
 cp "$repo_root/scripts/build-release-aab.sh" \
   "$repo_root/scripts/verify-aab-signature.sh" \
   "$repo_root/scripts/assess-release-aab.sh" \
+  "$repo_root/scripts/dump-aab-manifest.sh" \
   "$repo_root/scripts/write-aab-provenance.mjs" \
   "$sandbox/scripts/"
 cat >"$sandbox/scripts/check-release-wallet-surface.sh" <<'STUB'
@@ -199,12 +200,22 @@ GRADLE
 chmod +x android/gradlew
 STUB
 chmod +x "$work/bin/npx"
-cat >"$work/bin/aapt2" <<'STUB'
-#!/bin/bash
-artifact="${@: -1}"
-exec unzip -p "$artifact" base/manifest/AndroidManifest.xml
+printf 'fixture bundletool jar\n' >"$work/bundletool-all.jar"
+export BUNDLETOOL_JAR="$work/bundletool-all.jar"
+cat >"$work/bin/java" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+artifact=''
+for argument in "$@"; do
+  case "$argument" in
+    --bundle=*) artifact="${argument#--bundle=}" ;;
+  esac
+done
+[[ -n "$artifact" ]] || exit 2
+unzip -p "$artifact" base/manifest/AndroidManifest.xml \
+  | sed -nE 's/^[[:space:]]*A: android:value="([^"]+)".*/\1/p'
 STUB
-chmod +x "$work/bin/aapt2"
+chmod +x "$work/bin/java"
 
 # The production builder must reject every test-only gate control before prebuild. In particular,
 # fake gates must never turn a release build green.

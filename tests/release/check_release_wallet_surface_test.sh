@@ -8,12 +8,28 @@ check="$repo_root/scripts/check-release-wallet-surface.sh"
 work="$(mktemp -d -t wallet-surface-test.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/bin"
-cat >"$work/bin/aapt2" <<'STUB'
+printf 'fixture bundletool jar\n' >"$work/bundletool-all.jar"
+export BUNDLETOOL_JAR="$work/bundletool-all.jar"
+cat >"$work/bin/java" <<'STUB'
 #!/usr/bin/env bash
-artifact="${@: -1}"
-exec unzip -p "$artifact" base/manifest/AndroidManifest.xml
+set -euo pipefail
+artifact=''
+xpath=''
+for argument in "$@"; do
+  case "$argument" in
+    --bundle=*) artifact="${argument#--bundle=}" ;;
+    --xpath=*) xpath="${argument#--xpath=}" ;;
+  esac
+done
+[[ -n "$artifact" ]] || exit 2
+if [[ "$xpath" == '/manifest/@package' ]]; then
+  unzip -p "$artifact" base/manifest/AndroidManifest.xml \
+    | sed -nE 's/^[[:space:]]*A: package="([^"]+)".*/\1/p'
+else
+  exec unzip -p "$artifact" base/manifest/AndroidManifest.xml
+fi
 STUB
-chmod +x "$work/bin/aapt2"
+chmod +x "$work/bin/java"
 
 make_aab() { # <name> <manifest text> <dex text>
   local dir="$work/$1.d"
