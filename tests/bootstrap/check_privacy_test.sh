@@ -17,6 +17,8 @@ mkdir -p "$fixture_root/apps/api/src" "$fixture_root/apps/mobile"
 printf '%s\n' \
   "console.log('worker started')" \
   "console.error('wallet signature verification failed')" \
+  "console.error('request failed, signature unavailable')" \
+  'console.error(`request failed, signature unavailable`)' \
   "throw new Error('ACCOUNT_REQUIRED')" \
   "console.error(safeErrorMetadata('wallet.verify.failed', error))" \
   "// console.error('request failed', error)" \
@@ -39,6 +41,10 @@ unsafe_logs=(
   "console.error('request failed', { detail: error.message })"
   'console.error(`request failed: ${body.signature}`)'
   "console.error('request failed: ' + body.signature)"
+  "console.error(signature)"
+  "console.error(body.signature)"
+  "console.error('request failed', signature)"
+  "console.error('request failed', body.signature)"
 )
 
 for unsafe_log in "${unsafe_logs[@]}"; do
