@@ -10,7 +10,7 @@
 
 - Issue #110: Google `auth_time` 최근성, JWKS 최대 stale 24시간, `/auth/google` 검증 전 요청 제한, 만료·폐기 세션 bounded cleanup(migration 0013), Play 카메라·NFT award 초안 정합
 - Issue #112: EIP-1559 priority fee 관계·signed sender 대조, raw-key 이름 변형, keystore 전체 상위 경로, lock timeout·pool 설정 보강
-- PR #114: Issue #112 서비스 민터 보강과 signed transaction intent 검증. PR #113은 GitHub가 CI run을 만들지 않아 동일 커밋으로 대체 후 종료
+- PR #114: Issue #112 서비스 민터 보강과 signed transaction intent 검증. PR #113은 GitHub가 CI run을 만들지 않아 동일 커밋으로 대체 후 종료. #114도 `opened`·`synchronize` 뒤 check suite 0개로 필수 CI가 생성되지 않아 merge하지 않고 `BLOCKED`
 - Issue #59: 체인 cursor에서 `CHAIN_REORG_MARGIN`만큼 되돌아가 조회하고, 못 찾으면 배포 기준 블록까지 다시 조회. cursor 조회 실패는 `CHAIN_CURSOR_READ_FAILED` 재시도 오류. ethers 요청 cache 때문에 Anvil에서 간헐적으로 30초 대기하던 원인 제거
 - Issue #61: Worker 재시도 지수 backoff(1초→최대 5분)와 전송 시도 5회 도달 시 `MANUAL_REVIEW`(`RETRY_LIMIT_EXCEEDED`) 전환. migration 없음
 - Expo 57.0.24·expo-router 57.0.22·@expo/ui 57.0.19 patch 적용. 모바일 moderate 권고 14건은 upstream 수정이 없어 B-008 유지
