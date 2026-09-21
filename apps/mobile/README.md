@@ -15,11 +15,11 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 - 앱 수집품과 실제 NFT, 접수·확인 중·등록 완료·확인 필요 상태 분리: `VERIFIED`
 - 계정 삭제 전 공개 장부·외부 지갑·제출 거래 보존 안내와 loopback DEMO 요청: `VERIFIED`; 운영 재인증·외부 삭제 URL은 `BLOCKED`
 - MetaMask 8.11.0 설치·첫 화면 실행: `VERIFIED` — 지갑 생성·가져오기는 수행하지 않음
-- 실제 Reown project ID·MetaMask 연결·서명·지갑 복귀 핵심 흐름: `VERIFIED`; W04·W05 외부 환경은 `BLOCKED`
+- 실제 Reown project ID·`kr.masscom.wolgye.dev` MetaMask 연결·서명·자동 복귀·콜드 스타트 서버 binding 복원: `VERIFIED`; 운영 release package와 W04·W05 외부 환경은 `NOT_RUN/BLOCKED`
 - Android 카메라 QR: `NOT_RUN`; 수동 1회 코드 입력은 `VERIFIED`
 - 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), scheme `masscom`/`masscom-dev`: `IMPLEMENTED`
 - 계정 삭제 접수 시 지갑 연결 해제 및 기기 WalletConnect 세션 제거: `IMPLEMENTED`
-- upload key로 서명한 release AAB, Base Sepolia 실제 배포, Play Console 제출: `NOT_RUN`(로컬 debug 서명 운영 AAB의 package·권한·16KB 정렬 검증만 완료)
+- upload key 파일·공개 SHA-256 핀: `IMPLEMENTED`; upload key로 서명한 release AAB, Base Sepolia 실제 배포, Play Console 제출: `NOT_RUN`(로컬 debug 서명 운영 AAB의 package·권한·16KB 정렬 검증만 완료)
 
 ## 로컬 준비
 
@@ -65,6 +65,7 @@ scripts/build-release-aab.sh [--restore-dev]
 - 거절: 거래 전송, transaction 서명, batch call, typed data, approve, permit, swap, purchase
 - 앱 복귀 또는 `accountsChanged` 후 주소가 달라지면 기존 확인 상태를 지웁니다.
 - 연결만 된 주소는 `UNVERIFIED`이며 서버 확인 전에는 NFT 발행 대상으로 사용할 수 없습니다.
+- 앱 재시작 때 서버의 활성 binding 주소·체인이 현재 WalletConnect 세션과 모두 일치하는 경우에만 `VERIFIED`를 복원합니다.
 
 ## 계정 전환 시 데이터 분리
 

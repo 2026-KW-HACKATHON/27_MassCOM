@@ -1,0 +1,70 @@
+{
+  "id": "android-wallet-phase1-rerun-2026-09-21",
+  "date": "2026-09-21",
+  "issue": 116,
+  "baseCommit": "edf72a5",
+  "implementationCommits": ["b2b32ac", "afe023b"],
+  "plan": "docs/DEVICE_TEST_PLAN.md",
+  "device": "Samsung SM-S928N, Android 16 (API 36), USB debugging",
+  "wallet": "MetaMask Android 8.11.0, user-unlocked test account",
+  "build": "development variant debug APK (kr.masscom.wolgye.dev, scheme masscom-dev), Expo development client over adb reverse",
+  "server": "127.0.0.1 loopback DEMO API with disposable PostgreSQL 18 database masscom_device_test",
+  "commands": [
+    "npm ci --prefix apps/mobile",
+    "npm test --prefix apps/mobile",
+    "npm run typecheck --prefix apps/mobile",
+    "npm run lint --prefix apps/mobile",
+    "npm run export:android --prefix apps/mobile",
+    "bash tests/release/verify_aab_signature_test.sh",
+    "adb reverse tcp:3000 tcp:3000",
+    "adb reverse tcp:8081 tcp:8081"
+  ],
+  "results": {
+    "reown_allowlist_development_package": {
+      "status": "PASS",
+      "observed": "AppKit opened MetaMask from kr.masscom.wolgye.dev without code 3000 origin rejection; B-014 development-package blocker is resolved"
+    },
+    "wallet_connect_and_verify": {
+      "status": "PASS",
+      "observed": "MetaMask connection approval returned automatically to the app as CONNECTED / BASE_SEPOLIA / UNVERIFIED; personal_sign requested a readable address-control message only; after user approval the app returned automatically as VERIFIED",
+      "serverProof": "PostgreSQL contained one active chain 84532 binding at version 1 with status VERIFIED and the one-time challenge status was used",
+      "forbiddenRequests": "no transaction, signTransaction, approve, permit, swap, purchase, or embedded-wallet request was observed"
+    },
+    "cold_restart_before_fix": {
+      "status": "FAIL",
+      "commit": "edf72a5",
+      "observed": "WalletConnect restored the same session after force-stop, but the screen stayed CONNECTED / BASE_SEPOLIA / UNVERIFIED while PostgreSQL still held the matching VERIFIED binding",
+      "rootCause": "WalletLinkScreen kept verifiedAddress only in React memory and never loaded GET /wallets/active-binding on startup"
+    },
+    "cold_restart_after_fix": {
+      "status": "PASS",
+      "commit": "b2b32ac",
+      "observed": "two cold starts restored CONNECTED / BASE_SEPOLIA / VERIFIED only after the server binding address and chain matched the current WalletConnect session; mismatched address and chain cases are covered by unit tests"
+    },
+    "expired_or_missing_wallet_recovery": {
+      "status": "PASS",
+      "observed": "an expired mobile proposal remains a retryable connection error without a development LogBox; selecting uninstalled SafePal, opening Google Play, and returning produced the Korean recovery message and no Proposal expired, Uncaught, FATAL EXCEPTION, or origin-not-allowed log"
+    },
+    "upload_certificate_pin": {
+      "status": "PASS",
+      "observed": "the existing external PKCS12 keystore alias was read without exposing its password; file permission is 0600 and its public SHA-256 certificate fingerprint is pinned in apps/mobile/upload-certificate.sha256",
+      "notProved": "no upload-key-signed AAB was built or uploaded"
+    }
+  },
+  "automated": {
+    "mobile": "59/59 PASS",
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "androidExport": "PASS",
+    "aabSignatureHarness": "PASS",
+    "cleanPatchInstall": "npm ci applied @reown/appkit-react-native@2.0.6 patch successfully"
+  },
+  "notRun": [
+    "production package kr.masscom.wolgye release return (E02 full scope)",
+    "same-session signing-time account change W04",
+    "unsupported smart wallet W05",
+    "upload-key-signed AAB installation A02",
+    "Google Play submission"
+  ],
+  "privacy": "wallet address, signature, SIWE message, WalletConnect topic, device serial, keystore password, and notification screenshot were not committed"
+}

@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | 운영 package ID | `DECIDED` D-022 | `kr.masscom.wolgye` 적용(`APP_VARIANT=production`). 2026-09-30 이후 Console package 등록 상태는 소유자가 확인 |
 | 서명 AAB | `IN_PROGRESS` | `scripts/build-release-aab.sh`로 운영 variant AAB 생성 후 `scripts/check-release-wallet-surface.sh <aab>`로 구매·스왑·내장 지갑·송금 진입점 부재(W08)를 확인. upload key는 소유자가 저장소 밖에 만들고 `~/.gradle/gradle.properties`의 `android.injected.signing.*`로 주입. debug 서명 AAB는 업로드 금지 |
-| upload key | `NOT_RUN` | 2026-09-20 기준 이 장비에 upload keystore·`android.injected.signing.*` 설정 없음. 생성은 소유자 승인·직접 입력 사항이며 기존 키를 다시 만들거나 덮어쓰지 않는다. 주입 경로 자체는 일회용 키로 PASS(`docs/evidence/release-signing-injection.json`). 빌드 스크립트는 AAB를 `apps/mobile/release-artifacts/`(gitignore)로 복사한 뒤 `scripts/verify-aab-signature.sh`로 판정한다: 서명 무결성(jarsigner) → 인증서 존재 → debug 키 거절 → 승인된 upload 인증서 SHA-256(`UPLOAD_CERT_SHA256` 또는 `apps/mobile/upload-certificate.sha256`) 대조. 종료 코드 0 업로드 가능, 3 debug, 4 미서명, 5 서명 손상, 6 다른 키, 7 승인 지문 미설정. 자체서명이라는 이유로 거절하지 않는다 |
+| upload key | `IN_PROGRESS` | 2026-09-21 소유자가 저장소 밖 `~/.android/masscom-upload.jks`를 생성했고 권한 `0600`, 별칭·공개 인증서 지문 대조를 완료했다. 승인 SHA-256은 `apps/mobile/upload-certificate.sha256`에 고정했으며 비밀번호·keystore는 저장소에 없다. `android.injected.signing.*` 로컬 주입과 실제 upload-key AAB는 아직 `NOT_RUN`. 주입 경로 자체는 일회용 키로 PASS(`docs/evidence/release-signing-injection.json`). 검증기는 서명 무결성 → 인증서 존재 → debug 키 거절 → 승인 지문 대조를 수행한다 |
 | 16KB page size | `IN_PROGRESS` | 2026-09-20 로컬 debug 서명 release AAB의 arm64-v8a·x86_64 네이티브 라이브러리 48개 모두 LOAD 정렬 `0x4000` PASS(`docs/evidence/release-aab-16kb-alignment.json`). upload key 서명 AAB와 16KB 기기 설치 검사는 `NOT_RUN` |
 | App Links | `BLOCKED` | 소유 HTTPS domain, 운영 package ID, 배포 서명 SHA-256, `assetlinks.json` 준비 |
 | 계정 삭제 앱 경로 | `VERIFIED` Local DEMO | 운영 재인증·실제 계정으로 동일 처리 검증 |

@@ -193,9 +193,9 @@ npm run test:postgres --prefix apps/api
 - 백업·복원 drill: `scripts/db-restore-drill.sh`로 dump→scratch DB 복원→행 수·migration 대조를 로컬 PostgreSQL 18에서 PASS. 운영 DB·외부 백업 저장소는 `NOT_RUN`
 - 실기 시험 절차는 [`docs/DEVICE_TEST_PLAN.md`](docs/DEVICE_TEST_PLAN.md), 외부 HTTPS·로그인 결정안은 [`docs/HOSTING_LOGIN_PROPOSAL.md`](docs/HOSTING_LOGIN_PROPOSAL.md)(승인 대기, 자원 미생성)
 - 운영 AAB 지갑 진입점 검사(W08): `scripts/check-release-wallet-surface.sh <aab>`로 결제 권한·결제/온램프/내장 지갑 SDK·AppKit 기능 flag·계정 화면 도달 경로·세션 메서드를 정적 검사해 PASS. 실기기 UI 확인과 upload key 서명본 검사는 아님
-- upload key로 서명한 release AAB, App Link, Play Console 제출: `NOT_RUN`
+- upload keystore와 공개 인증서 SHA-256 핀: `IMPLEMENTED`; upload key로 서명한 release AAB, App Link, Play Console 제출: `NOT_RUN`
 - 계정 삭제: 앱 내부 Local DEMO와 PostgreSQL 미전송 취소·제출 거래 보존·비식별화 PASS; 외부 HTTPS 삭제 URL·운영 재인증은 `BLOCKED`
-- 실제 Reown 지갑 흐름: MetaMask 핵심·W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `BLOCKED`
+- 실제 Reown 지갑 흐름: 개발 package MetaMask 연결·서명·자동 복귀·콜드 스타트 서버 binding 복원과 W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 운영 release package, 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `NOT_RUN/BLOCKED`
 - 테스트넷 계약: 배포 전
 - 메인넷·Google Play·대회 제출: 명시 승인 전 실행 금지
 - 저장소: 현재 `PRIVATE`; 심사 시점 public 요구는 [대회 규칙](docs/COMPETITION.md)에 기록
