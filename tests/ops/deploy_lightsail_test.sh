@@ -52,7 +52,7 @@ grep -q '^COPYFILE_DISABLE=1 tar ' "$deploy" || {
   echo "deploy archive does not disable macOS AppleDouble metadata" >&2
   exit 1
 }
-grep -q 'compose run --rm -T migrate' "$deploy" || {
+grep -q 'compose run --rm -T migrate </dev/null' "$deploy" || {
   echo "migration container can consume the remaining remote deploy script from stdin" >&2
   exit 1
 }

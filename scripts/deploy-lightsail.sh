@@ -107,7 +107,7 @@ compose() {
 
 compose build api
 compose up -d postgres
-compose run --rm -T migrate
+compose run --rm -T migrate </dev/null
 compose up -d api caddy
 compose exec -T api node -e \
   "fetch('http://127.0.0.1:3000/health').then(async r=>{if(!r.ok)throw new Error('HTTP '+r.status);const b=await r.json();if(b.status!=='ok')throw new Error('unexpected health payload')}).catch(e=>{console.error(e.message);process.exit(1)})"
