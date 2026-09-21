@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": true,
+    "strict": true,
+    "target": "ES2022",
+    "typeRoots": ["../apps/api/node_modules/@types"],
+    "types": ["node"]
+  },
+  "files": [
+    "check-accessibility-semantics.mjs",
+    "verify-evidence-consistency.mjs",
+    "verify-operations-docs.mjs"
+  ]
+}

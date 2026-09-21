@@ -29,6 +29,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          fetch-depth: 0
           submodules: true
       - name: Node.js 설정
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -51,12 +52,18 @@ jobs:
         run: bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"
       - name: Verify repository contract
         run: bash tests/bootstrap/verify_bootstrap_test.sh
+      - name: 운영 문서 정합 검사
+        run: bash tests/bootstrap/verify_operations_docs_test.sh
       - name: Verify project portal
         run: bash tests/site/check_site_accessibility_test.sh
       - name: Verify project portal structure
         run: bash tests/site/verify_project_site_test.sh
+      - name: 모바일 접근성 semantics 검사
+        run: bash tests/mobile/check_accessibility_semantics_test.sh
       - name: Verify presentation and submission evidence
         run: bash tests/site/verify_presentation_test.sh
+      - name: 증거 수치·장면 정합 검사
+        run: bash tests/site/verify_evidence_consistency_test.sh
       - name: Verify release wallet surface check
         run: bash tests/release/check_release_wallet_surface_test.sh
       - name: Verify Base Sepolia deploy preflight

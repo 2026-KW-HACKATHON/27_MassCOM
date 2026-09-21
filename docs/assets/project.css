@@ -781,7 +781,7 @@ footer p {
   }
 
   .header-state::after {
-    content: "P3 Outbox";
+    content: "P4 출시 준비";
     font-size: 0.72rem;
     white-space: nowrap;
   }

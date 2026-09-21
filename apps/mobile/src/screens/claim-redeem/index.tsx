@@ -150,6 +150,8 @@ export function ClaimRedeemScreen({
         ) : null}
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="QR 코드 촬영"
+          accessibilityHint="점주 화면의 방문 수령 QR 코드를 카메라로 읽습니다."
           disabled={busy}
           onPress={scanning ? () => setScanning(false) : () => void startScan()}
           style={[styles.button, styles.scanButton, busy && styles.disabled]}

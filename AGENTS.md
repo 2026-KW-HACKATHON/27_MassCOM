@@ -34,7 +34,7 @@
 
 - 기능은 Issue와 수용 기준을 만들고 목적별 브랜치와 PR로 통합한다.
 - PR 제목·본문·검증 요약은 한국어를 기본으로 작성한다. 코드 식별자·파일명·표준명·고유 기술명만 필요한 범위에서 영어를 사용한다.
-- PR을 열기 전에 `bash tests/bootstrap/check_pr_korean_test.sh`로 한국어 작성 규칙을 검증한다.
+- PR을 열기 전에 실제 제목·본문을 `bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"`로 검증한다. `bash tests/bootstrap/check_pr_korean_test.sh`는 checker 자체 회귀 시험일 뿐 실제 PR 내용을 대신 검사하지 않는다.
 - 공유 이력의 force push, 날짜·작성자 조작, 빈 커밋, 가짜 리뷰·테스트를 금지한다.
 - 커밋은 의도 중심 제목과 필요한 Lore trailer를 사용한다.
 - Issue·PR·리뷰 대응·커밋 설명·진행 문서는 한국어로 쓴다. README에 영향이 있으면 같은 PR에서 고치고, 없으면 PR에 이유를 적는다.

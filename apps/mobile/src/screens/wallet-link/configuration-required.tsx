@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: '#FCE4DA',
+    backgroundColor: colors.errorContainer,
   },
   badgeText: {
     color: colors.error,

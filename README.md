@@ -115,10 +115,14 @@ D-004~D-008은 2026-09-18 승인됐습니다. 유료 자원 생성·메인넷·�
 저장소 기준선 검사는 추가 패키지가 필요하지 않습니다.
 
 ```bash
-git clone https://github.com/2026-KW-HACKATHON/27_MassCOM.git
+git clone --recurse-submodules https://github.com/2026-KW-HACKATHON/27_MassCOM.git
 cd 27_MassCOM
+git submodule update --init --recursive  # 이미 clone한 저장소에서 실행
 bash tests/bootstrap/check_secrets_test.sh
-bash tests/bootstrap/check_pr_korean_test.sh
+PR_TITLE='한국어 PR 제목'
+PR_BODY='변경 내용과 실제 검증 결과를 설명하는 한국어 본문'
+bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"
+bash tests/bootstrap/check_pr_korean_test.sh  # checker 자체 회귀 시험
 bash tests/bootstrap/verify_bootstrap_test.sh
 bash tests/site/check_site_accessibility_test.sh
 bash tests/site/verify_project_site_test.sh

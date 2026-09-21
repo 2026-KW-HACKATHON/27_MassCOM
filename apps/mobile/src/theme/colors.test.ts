@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+
+import { colorsForScheme, darkColors, lightColors } from './palette';
+
+const contrastPairs = [
+  ['label', 'background'],
+  ['label', 'surface'],
+  ['onPrimary', 'primary'],
+  ['onPrimaryContainer', 'primaryContainer'],
+  ['onSuccessContainer', 'successContainer'],
+  ['onErrorContainer', 'errorContainer'],
+] as const;
+
+test('light and dark palettes expose the same semantic color contract', () => {
+  assert.deepEqual(Object.keys(darkColors).sort(), Object.keys(lightColors).sort());
+  for (const palette of [lightColors, darkColors]) {
+    for (const key of [
+      'label', 'secondaryLabel', 'separator', 'background', 'surface',
+      'primary', 'onPrimary', 'primaryContainer', 'onPrimaryContainer',
+      'success', 'successContainer', 'onSuccessContainer',
+      'error', 'errorContainer', 'onErrorContainer',
+    ] as const) {
+      assert.match(palette[key], /^#[0-9A-F]{6}$/i, key);
+    }
+  }
+});
+
+test('body and status foreground pairs meet WCAG 4.5 contrast', () => {
+  for (const [scheme, palette] of [['light', lightColors], ['dark', darkColors]] as const) {
+    for (const [foreground, background] of contrastPairs) {
+      assert.ok(
+        contrast(palette[foreground], palette[background]) >= 4.5,
+        `${scheme} ${foreground}/${background}`,
+      );
+    }
+  }
+});
+
+test('scheme selection is explicit and null defaults to light', () => {
+  assert.equal(colorsForScheme(null), lightColors);
+  assert.equal(colorsForScheme('light'), lightColors);
+  assert.equal(colorsForScheme('dark'), darkColors);
+  assert.notEqual(lightColors.background, darkColors.background);
+  assert.notEqual(lightColors.surface, darkColors.surface);
+});
+
+function contrast(foreground: string, background: string): number {
+  const [lighter, darker] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function luminance(hex: string): number {
+  const channels = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255);
+  const [red, green, blue] = channels.map((value) =>
+    value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * red! + 0.7152 * green! + 0.0722 * blue!;
+}

@@ -25,6 +25,7 @@ required_files=(
   docs/STATUS.md
   docs/TEST_REPORT.md
   docs/AI_USAGE.md
+  docs/HANDOFF.md
   scripts/check-secrets.sh
   tests/bootstrap/check_secrets_test.sh
   tests/catalog/required-tests.tsv
@@ -33,6 +34,22 @@ required_files=(
 for relative_path in "${required_files[@]}"; do
   [[ -s "$repo_root/$relative_path" ]] || fail "missing or empty $relative_path"
 done
+
+grep -Fq 'git clone --recurse-submodules https://github.com/2026-KW-HACKATHON/27_MassCOM.git' "$repo_root/README.md" \
+  || fail 'README fresh clone must initialize submodules'
+grep -Fq 'git submodule update --init --recursive' "$repo_root/README.md" \
+  || fail 'README existing clone must initialize submodules'
+grep -Fq 'bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"' "$repo_root/AGENTS.md" \
+  || fail 'AGENTS must run the actual Korean PR checker'
+if grep -Fq 'PR을 열기 전에 `bash tests/bootstrap/check_pr_korean_test.sh`' "$repo_root/AGENTS.md"; then
+  fail 'AGENTS presents the checker regression fixture as actual PR validation'
+fi
+grep -Fq "PR_TITLE='" "$repo_root/docs/HANDOFF.md" || fail 'HANDOFF is missing PR_TITLE input'
+grep -Fq "PR_BODY='" "$repo_root/docs/HANDOFF.md" || fail 'HANDOFF is missing PR_BODY input'
+grep -Fq 'bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"' "$repo_root/docs/HANDOFF.md" \
+  || fail 'HANDOFF is missing actual Korean PR validation'
+grep -Fq 'checker 자체 회귀 시험' "$repo_root/docs/HANDOFF.md" \
+  || fail 'HANDOFF does not label the checker regression test'
 
 for status in PLANNED IN_PROGRESS IMPLEMENTED VERIFIED BLOCKED; do
   grep -q "$status" "$repo_root/README.md" || fail "README is missing status $status"

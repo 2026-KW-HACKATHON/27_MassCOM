@@ -52,7 +52,6 @@ export function createAccountScopedAppKit(
       enableAnalytics: config.enableAnalytics,
       debug: __DEV__,
       logger: __DEV__ ? 'warn' : 'error',
-      themeMode: 'light',
-      })
+    })
     : null;
 }

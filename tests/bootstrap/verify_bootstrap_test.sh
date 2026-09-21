@@ -26,6 +26,7 @@ cp "$repo_root/README.md" "$fixture_root/README.md"
 cp "$repo_root/.gitignore" "$fixture_root/.gitignore"
 cp "$repo_root/.env.example" "$fixture_root/.env.example"
 cp "$repo_root/AGENTS.md" "$fixture_root/AGENTS.md"
+cp "$repo_root/docs/HANDOFF.md" "$fixture_root/docs/HANDOFF.md"
 cp "$repo_root/THIRD_PARTY_NOTICES.md" "$fixture_root/THIRD_PARTY_NOTICES.md"
 cp "$repo_root/scripts/check-secrets.sh" "$fixture_root/scripts/check-secrets.sh"
 cp "$repo_root/tests/bootstrap/check_secrets_test.sh" "$fixture_root/tests/bootstrap/check_secrets_test.sh"
@@ -57,6 +58,24 @@ if "$verifier" "$fixture_root" >/dev/null 2>&1; then
   echo "verifier accepted a bootstrap missing docs/TEST_STATUS.md" >&2
   exit 1
 fi
+
+assert_doc_mutation_fails() { # <file> <fixed text>
+  local file="$1" text="$2"
+  local backup="$fixture_root/$file.backup"
+  cp "$fixture_root/$file" "$backup"
+  grep -Fv "$text" "$backup" > "$fixture_root/$file"
+  if "$verifier" "$fixture_root" >/dev/null 2>&1; then
+    echo "verifier accepted missing documentation contract: $text" >&2
+    exit 1
+  fi
+  mv "$backup" "$fixture_root/$file"
+}
+
+assert_doc_mutation_fails README.md \
+  'git clone --recurse-submodules https://github.com/2026-KW-HACKATHON/27_MassCOM.git'
+assert_doc_mutation_fails README.md 'git submodule update --init --recursive'
+assert_doc_mutation_fails AGENTS.md 'bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"'
+assert_doc_mutation_fails docs/HANDOFF.md 'bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"'
 
 cp "$repo_root/docs/TEST_STATUS.md" "$fixture_root/docs/TEST_STATUS.md"
 awk -F '\t' 'BEGIN { OFS="\t" } $1 == "W02" { $3 = "NOT_RUN" } { print }' \

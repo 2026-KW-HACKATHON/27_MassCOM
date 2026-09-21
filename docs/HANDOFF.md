@@ -1,13 +1,17 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-21 KST
+마지막 갱신 시각: 2026-09-22 KST
 기준 브랜치: `main`
-기준 main 커밋 SHA: `edf72a5` (PR #115 merge, main CI `35564447379` PASS). 이 문서를 고친 PR이 병합되면 실제 값은 `git log origin/main -1`로 확인한다.
+기준 main 커밋 SHA: `a50f678` (PR #120 merge, main CI `35620303554` PASS). PR #119 merge `48aa435`, main CI `35606071753`도 PASS했다. 이 문서를 고친 PR이 병합되면 실제 값은 `git log origin/main -1`로 확인한다.
+열린 PR 최종 기준: `gh pr list`. 이 문서 작성 시점의 `docs/118-design-evidence`는 PR 생성 전이지만, 이후 상태는 이 스냅샷보다 GitHub를 우선한다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
 
 ## 이번 세션에서 완료한 것
 
+- Issue #118: PR #119에서 release provenance·W08·privacy·서비스 민터 fail-closed 검사를 강화하고 merge `48aa435`, main CI `35606071753` PASS
+- Issue #118: PR #120에서 모바일 Bearer/DEMO 인증 배타, SecureStore 부분 실패 복구, 로그아웃·계정 전환 직렬화, mint polling 단조성을 보강하고 merge `a50f678`, main CI `35620303554` PASS
+- `docs/118-design-evidence`: 라이트·다크 의미색 대조, Reown 테마 동기화, TalkBack live region·QR 설명, 새 clone/PR 검사 문서, API·Worker 운영 경계, 포털·발표·증거 일관성 검사를 추가. 포털·발표 1440px/390px 시각 판정 96점, 가로 넘침 없음
 - Issue #116: Reown 허용 목록의 개발 package 실기, MetaMask 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED` 자동 복귀, 콜드 스타트에서 서버 binding 주소·체인 대조 복원, 미설치 SafePal 복귀를 Samsung SM-S928N에서 PASS. 수정 전에는 DB binding이 있어도 `UNVERIFIED`로 돌아가는 결함을 재현
 - 소유자가 만든 저장소 밖 upload PKCS12 키의 권한 `0600`·별칭·공개 인증서 지문을 확인하고 SHA-256만 `apps/mobile/upload-certificate.sha256`에 고정. 실제 upload-key AAB는 `NOT_RUN`
 - Issue #110: Google `auth_time` 최근성, JWKS 최대 stale 24시간, `/auth/google` 검증 전 요청 제한, 만료·폐기 세션 bounded cleanup(migration 0013), Play 카메라·NFT award 초안 정합
@@ -49,12 +53,12 @@
 
 ## 생성한 브랜치
 
-- `feat/59-chain-cursor-restart`, `feat/61-worker-retry-limit`, `chore/expo-patch-advisory-recheck`, `feat/66-siwe-challenge-postgres`, `docs/66-closeout`, `feat/base-sepolia-deploy-script`, `feat/release-package-id`, `docs/71-state-sync`, `feat/73-campaign-enrollment`, `fix/75-path-param-decoding`, `fix/77-worker-outage-recovery`, `fix/80-account-switch-isolation`, `fix/78-presubmit-backoff`, `test/116-device-wallet-release-inputs`
+- `feat/59-chain-cursor-restart`, `feat/61-worker-retry-limit`, `chore/expo-patch-advisory-recheck`, `feat/66-siwe-challenge-postgres`, `docs/66-closeout`, `feat/base-sepolia-deploy-script`, `feat/release-package-id`, `docs/71-state-sync`, `feat/73-campaign-enrollment`, `fix/75-path-param-decoding`, `fix/77-worker-outage-recovery`, `fix/80-account-switch-isolation`, `fix/78-presubmit-backoff`, `test/116-device-wallet-release-inputs`, `fix/118-security-release-gates`, `feat/118-mobile-auth-recovery`, `docs/118-design-evidence`
 - 남아 있는 원격 브랜치 `feat/59-chain-cursor-read`, `feat/61-worker-retry-cap`은 같은 내용을 새 브랜치로 대체한 뒤 닫은 PR #60·#62의 것이다. main에 병합되지 않았으며 삭제 여부는 소유자가 정한다.
 
 ## 생성한 PR
 
-- #63, #64, #65, #67, #68, #69, #70, #72 #74, #76, #79, #81, #82, #83(PragmoB), #85, #87, #89, #91, #93, #96, #98, #99, #102, #104, #105(PragmoB), #107, #108, #109, #111, #114, #115 (모두 병합), #117(Issue #116 마감 PR)
+- #63, #64, #65, #67, #68, #69, #70, #72 #74, #76, #79, #81, #82, #83(PragmoB), #85, #87, #89, #91, #93, #96, #98, #99, #102, #104, #105(PragmoB), #107, #108, #109, #111, #114, #115, #117, #119, #120 (모두 병합)
 - #60·#62는 #63·#64로 대체했고, #113은 CI run 미생성으로 #114로 대체해 닫았다.
 
 ## merge된 PR
@@ -82,28 +86,31 @@
 | #111 운영 로그인 후속 보안·Play 초안 | `205d273` | `35561417735` PASS |
 | #114 서비스 민터 후속 보안 | `595f70f` | `35563583964` PASS |
 | #115 운영 로그인·민터 후속 문서 마감 | `edf72a5` | `35564447379` PASS |
+| #119 보안·출시 gate 보강 | `48aa435` | `35606071753` PASS |
+| #120 모바일 인증·복구 보강 | `a50f678` | `35620303554` PASS |
 
 코드 PR은 서로 다른 모델의 독립 리뷰에서 CRITICAL·HIGH 0을 확인한 뒤 병합했다. #63·#67·#69는 두 모델, #64·#65·#70은 단일 모델 리뷰(지적 반영 뒤 재리뷰)로 병합했다.
 
 ## 실행한 테스트
 
-- API 단위 `72/72`, API PostgreSQL `37/37`(운영 로그인 보강·R02 7개·Q04 1개 포함)
+- API 단위 `78/78`, API PostgreSQL `37/37`(운영 로그인·claim replay·R02 7개·Q04 포함)
 - Worker 단위 `45/45`, Worker PostgreSQL `23/23`, Anvil `12/12`(W07 M01~M08 + O02a~e)
-- 모바일 `59/59`, typecheck·lint·Android export PASS; clean `npm ci` Reown patch 적용과 AAB 서명 판정 회귀 PASS
+- 모바일 `140/140`, typecheck·lint·Android export PASS; Google/SecureStore native debug compile PASS, 실제 Google 기기 로그인은 NOT_RUN
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - 실제 Base Sepolia RPC 배포 시뮬레이션 PASS(전송 없음), 잘못된 체인·중복 역할 거절 PASS
 - 운영 variant `bundleRelease`와 ELF `PT_LOAD` 정렬 검사 PASS(debug 서명)
 - secret·privacy·bootstrap·portal·presentation verifier PASS
+- 포털·발표 1440px/390px 브라우저 검증 PASS, 가로 넘침 없음, 시각 판정 각 96/100. 발표 timing·프로젝터 가독성·공개 호스팅은 NOT_RUN
 - 필수 36개 `30 PASS / 2 BLOCKED / 4 NOT_RUN`(R02·O02·Q04·W08 전환). 남은 NOT_RUN: D02·O01·A01·A02
 - `NOT_RUN`: 실제 Base Sepolia 배포, upload key 서명 AAB, 16KB 기기 설치, 운영 package `kr.masscom.wolgye` 지갑 복귀, 계정 삭제 뒤 지갑 세션 복원, Play Console
 
 ## 현재 열린 PR
 
-- #117(이 문서를 담은 PR). 병합되면 열린 PR 없음; 최종 상태는 GitHub가 기준이다.
+- 최종 상태는 `gh pr list`가 기준이다. 이 문서 작성 시 `docs/118-design-evidence`는 PR 준비 단계였으므로 PR 생성·merge 뒤 번호와 CI는 GitHub 기록으로 확인한다.
 
 ## 현재 작업 중인 기능
 
-- Issue #116 브랜치에서 실기 증거와 문서 정합을 마감 중이다. `apps/mobile/android`는 gitignore된 생성물이며 현재 개발 variant(`kr.masscom.wolgye.dev`)로 생성돼 있다.
+- Issue #118의 마지막 묶음인 `docs/118-design-evidence`에서 다크 모드·접근성·운영 문서·포털·발표 증거를 마감 중이다. 실제 Google 로그인·Base Sepolia 전송·upload-key AAB·공개 호스팅은 이 브랜치 범위가 아니며 상태를 올리지 않는다.
 
 ## BLOCKER
 
@@ -137,7 +144,7 @@
    - **faucet gas**: 위 두 주소에 잔액이 들어왔으면 역할 주소(admin `0x35ee91BBc75778308B9168Ac6c325df8fF408F04`, minter 위 주소, pauser `0x1a050f7c6Fe0dDcDD78554b488d41cFd4A2CcFB6`)로 시뮬레이션 → 소유자가 비밀번호를 입력하는 `--broadcast` → 계약·역할 검증 → `docs/evidence/base-sepolia-deployment.json` 커밋. 그 뒤 Worker 서비스 민터 경로로 시험망 발행 1건을 검증한다
    - **Google OAuth client ID**: 제공된 ID의 client 유형을 확인하고 Android/Web 구성이 갖춰지면 모바일의 `x-account-id` DEMO 헤더를 Bearer 세션으로 교체하는 Issue를 연다(서버 측은 Issue #106으로 완료, D-024~D-026)
    - upload-key AAB 로컬 서명 설정과 호스팅·도메인 결정(`docs/HOSTING_LOGIN_PROPOSAL.md`)
-3. 입력이 없으면 새 기능을 시작하지 않는다. 자동화 가능한 운영 로그인·서비스 민터 후속은 모두 병합됐다. 서비스 민터의 다중 민터 지원은 실제 두 번째 민터 요구가 생기기 전에는 추가하지 않는다.
+3. 입력이 없으면 새 기능을 시작하지 않는다. 자동화 가능한 운영 로그인·서비스 민터·문서/디자인 후속은 모두 병합 또는 최종 PR 검증 단계다. 서비스 민터의 다중 민터 지원은 실제 두 번째 민터 요구가 생기기 전에는 추가하지 않는다.
 ## 실행 명령
 
 ```bash
@@ -155,7 +162,10 @@ bash scripts/check-secrets.sh
 bash scripts/check-privacy.sh
 bash tests/bootstrap/verify_bootstrap_test.sh
 bash tests/site/verify_presentation_test.sh
-bash tests/bootstrap/check_pr_korean_test.sh
+PR_TITLE='한국어 PR 제목'
+PR_BODY='변경 내용과 실제 검증 결과를 설명하는 한국어 본문'
+bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"
+bash tests/bootstrap/check_pr_korean_test.sh                     # checker 자체 회귀 시험
 ./scripts/deploy-base-sepolia.sh <keystore-account>            # 시뮬레이션만
 ./scripts/build-release-aab.sh --restore-dev                   # 운영 AAB 빌드 뒤 개발 프로젝트 복원
 ```
@@ -164,7 +174,7 @@ PostgreSQL 통합·Anvil 시험은 이름이 `_test`로 끝나는 전용 `TEST_D
 
 ## 주의사항
 
-- Worker 실행 entrypoint는 Local Anvil unlocked account 전용이다. 운영 signer 경로로 확대하지 않는다.
+- Worker `start:once`는 Local Anvil unlocked account와 Base Sepolia encrypted keystore signer를 모두 지원한다. 공개 체인에서는 raw key나 unlocked account를 허용하지 않는다.
 - 사용자 개인키·복구 문구·지갑 비밀번호를 요청하거나 저장하지 않는다. 배포자 private key를 환경 변수·명령·저장소·증거에 남기지 않는다.
 - debug key로 서명한 AAB는 업로드하지 않는다.
 - 앱 수집품과 실제 NFT를 분리하고, NFT 수를 매출 증가로 표현하지 않는다. 실행하지 않은 검증을 PASS로 쓰지 않는다.

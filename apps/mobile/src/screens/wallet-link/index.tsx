@@ -277,7 +277,7 @@ export function WalletLinkScreen({ config, credential, onSessionInvalid }: Props
         {connectedAddress ? <Text selectable style={styles.address}>{connectedAddress}</Text> : null}
       </View>
 
-      <View style={[styles.message, phase === 'error' || phase === 'cancelled' ? styles.messageError : null]}>
+      <View accessibilityLiveRegion="polite" style={[styles.message, phase === 'error' || phase === 'cancelled' ? styles.messageError : null]}>
         <Text selectable style={styles.messageText}>{message}</Text>
       </View>
 
@@ -405,8 +405,8 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   address: { paddingTop: 14, color: colors.primary, fontFamily: 'monospace', fontSize: 13 },
-  message: { padding: 16, borderRadius: 14, borderCurve: 'continuous', backgroundColor: '#EAF5FB' },
-  messageError: { backgroundColor: '#FCE4DA' },
+  message: { padding: 16, borderRadius: 14, borderCurve: 'continuous', backgroundColor: colors.primaryContainer },
+  messageError: { backgroundColor: colors.errorContainer },
   messageText: { color: colors.label, fontSize: 15, lineHeight: 23 },
   actions: { gap: 10 },
   nativeButtonHost: { minHeight: 48 },
