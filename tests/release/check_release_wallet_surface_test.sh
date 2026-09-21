@@ -15,6 +15,16 @@ make_aab() { # <name> <manifest text> <dex text>
   printf '%s\n' "$3" >"$dir/base/dex/classes.dex"
   (cd "$dir" && zip -q -r "$work/$1.aab" base)
 }
+make_large_forbidden_aab() {
+  local dir="$work/large-forbidden.d"
+  mkdir -p "$dir/base/manifest" "$dir/base/dex"
+  printf '%s\n' "$good_manifest" >"$dir/base/manifest/AndroidManifest.xml"
+  {
+    printf '%s\n' 'Lcom/android/billingclient/api/BillingClient;'
+    dd if=/dev/zero bs=1048576 count=2 2>/dev/null | tr '\0' 'A'
+  } >"$dir/base/dex/classes.dex"
+  (cd "$dir" && zip -q -r "$work/large-forbidden.aab" base)
+}
 make_src() { # <name> -> prints the copy's path
   cp -R "$repo_root/apps/mobile/src" "$work/$1.src"
   echo "$work/$1.src"
@@ -40,6 +50,13 @@ expect_fail 'development package' 'manifest' "$work/devpkg.aab" "$good_src"
 
 make_aab sdk "$good_manifest" 'Lcom/android/billingclient/api/BillingClient;'
 expect_fail 'billing SDK class' 'payment or embedded-wallet SDK class' "$work/sdk.aab" "$good_src"
+
+make_large_forbidden_aab
+expect_fail \
+  'large DEX payment class after pipefail' \
+  'payment or embedded-wallet SDK class' \
+  "$work/large-forbidden.aab" \
+  "$good_src"
 
 src="$(make_src onramp-on)"
 sed -i.bak 's/^\( *\)onramp: false,$/\1onramp: true,/' "$src/wallet/wallet-runtime-config.ts"

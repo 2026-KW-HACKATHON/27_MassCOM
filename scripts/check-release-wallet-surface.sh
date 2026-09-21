@@ -27,7 +27,15 @@ if grep -qiE 'com\.android\.vending\.BILLING|SYSTEM_ALERT_WINDOW' <<<"$manifest"
 fi
 
 # Native payment, on-ramp and embedded-wallet SDKs.
-if hit="$(cat "$work"/base/dex/*.dex | strings | grep -iE -m1 'com/android/billingclient|com/coinbase|com/stripe|com/moonpay|com/transak|io/meld|com/web3auth|io/privy|link/magic')"; then
+dex_strings="$work/dex-strings.txt"
+: >"$dex_strings"
+for dex in "$work"/base/dex/*.dex; do
+  strings "$dex" >>"$dex_strings" || fail "could not inspect DEX strings: $(basename "$dex")"
+done
+
+if hit="$(grep -iE -m1 \
+  'com/android/billingclient|com/coinbase|com/stripe|com/moonpay|com/transak|io/meld|com/web3auth|io/privy|link/magic' \
+  "$dex_strings")"; then
   fail "dex contains a payment or embedded-wallet SDK class: $hit"
 fi
 
