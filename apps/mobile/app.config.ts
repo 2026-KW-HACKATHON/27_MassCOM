@@ -28,6 +28,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         (plugin) => (Array.isArray(plugin) ? plugin[0] : plugin) !== 'expo-dev-client',
       )
     : config.plugins;
+  const authPlugins = [
+    ...(plugins ?? []),
+    'expo-secure-store',
+  ];
   return {
     ...config,
     name: production ? '월계 마스코트' : (config.name ?? '월계 마스코트 개발'),
@@ -41,9 +45,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     plugins: production
       ? [
-          ...(plugins ?? []),
+          ...authPlugins,
           ['./plugins/with-build-source-commit.cjs', { commit: buildSourceCommit }],
         ]
-      : plugins,
+      : authPlugins,
   };
 };

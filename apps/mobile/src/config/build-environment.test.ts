@@ -153,6 +153,7 @@ test('actual Expo production config preserves release identity, plugins, and blo
     'expo-router',
     'expo-camera',
     'expo-splash-screen',
+    'expo-secure-store',
     './plugins/with-build-source-commit.cjs',
   ]);
   assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW']);
@@ -217,6 +218,7 @@ test('actual Expo development config preserves local DEMO identity, plugins, and
     'expo-dev-client',
     'expo-camera',
     'expo-splash-screen',
+    'expo-secure-store',
   ]);
   assert.deepEqual(config.android?.blockedPermissions, []);
 });
