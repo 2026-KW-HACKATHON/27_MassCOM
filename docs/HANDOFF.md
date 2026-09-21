@@ -3,7 +3,7 @@
 마지막 갱신 시각: 2026-09-22 KST
 기준 브랜치: `main`
 기준 main 커밋 SHA: `a50f678` (PR #120 merge, main CI `35620303554` PASS). PR #119 merge `48aa435`, main CI `35606071753`도 PASS했다. 이 문서를 고친 PR이 병합되면 실제 값은 `git log origin/main -1`로 확인한다.
-현재 열린 PR: 없음. 현재 작업 브랜치 `docs/118-design-evidence`는 PR 생성 전이다.
+열린 PR 최종 기준: `gh pr list`. 이 문서 작성 시점의 `docs/118-design-evidence`는 PR 생성 전이지만, 이후 상태는 이 스냅샷보다 GitHub를 우선한다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
 
@@ -106,7 +106,7 @@
 
 ## 현재 열린 PR
 
-- 없음. 최종 상태는 `gh pr list`가 기준이다.
+- 최종 상태는 `gh pr list`가 기준이다. 이 문서 작성 시 `docs/118-design-evidence`는 PR 준비 단계였으므로 PR 생성·merge 뒤 번호와 CI는 GitHub 기록으로 확인한다.
 
 ## 현재 작업 중인 기능
 

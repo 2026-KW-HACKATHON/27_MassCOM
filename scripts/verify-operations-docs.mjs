@@ -3,15 +3,18 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const root = resolve(process.argv[2] ?? '.');
+/** @param {string} path */
 const read = (path) => readFileSync(join(root, path), 'utf8');
 const api = read('apps/api/README.md');
 const mobile = read('apps/mobile/README.md');
 const worker = read('apps/worker/README.md');
 const handoff = read('docs/HANDOFF.md');
 const state = read('docs/PROJECT_STATE.md');
+/** @type {Record<string, { scripts: Record<string, string> }>} */
 const packages = Object.fromEntries(['api', 'mobile', 'worker'].map((name) => [
   name, JSON.parse(read(`apps/${name}/package.json`)),
 ]));
+/** @type {Array<[string, string]>} */
 const required = [
   [api, '운영 계정 API는 `Authorization: Bearer <sessionToken>`만 사용'],
   [api, 'loopback 개발 DEMO는 `x-account-id`만 사용'],
@@ -21,17 +24,19 @@ const required = [
   [worker, 'MINTER_KEYSTORE_PATH'], [worker, 'MINTER_KEYSTORE_PASSWORD_FILE'],
   [worker, 'npm run db:migrate --prefix ../api'], [worker, '실제 Base Sepolia 전송은 `NOT_RUN`'],
   [handoff, '기준 main 커밋 SHA: `a50f678`'], [handoff, 'main CI `35620303554` PASS'],
-  [handoff, '현재 열린 PR: 없음'], [state, 'API 78'], [state, '모바일 140'], [state, 'PostgreSQL 37'],
+  [handoff, '열린 PR 최종 기준: `gh pr list`'], [state, 'API 78'], [state, '모바일 140'], [state, 'PostgreSQL 37'],
 ];
 let failures = 0;
 for (const [source, text] of required) {
   if (!source.includes(text)) { console.error(`operations documentation missing: ${text}`); failures += 1; }
 }
-for (const [name, scripts] of [
+/** @type {Array<[string, string[]]>} */
+const requiredScripts = [
   ['api', ['test', 'test:postgres', 'typecheck', 'build']],
   ['mobile', ['test', 'typecheck', 'lint', 'export:android']],
   ['worker', ['start:once', 'test', 'test:postgres', 'test:anvil', 'typecheck', 'build']],
-]) {
+];
+for (const [name, scripts] of requiredScripts) {
   for (const script of scripts) {
     if (typeof packages[name]?.scripts?.[script] !== 'string') {
       console.error(`missing package script: ${name}:${script}`); failures += 1;

@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const root = resolve(process.argv[2] ?? '.');
+/** @param {string} path */
 const read = (path) => readFileSync(join(root, path), 'utf8');
 const catalog = read('tests/catalog/required-tests.tsv');
 const ledger = read('docs/TEST_STATUS.md');
@@ -14,11 +15,12 @@ const presentationNotes = read('docs/PRESENTATION.md');
 const readme = read('README.md');
 const manifest = JSON.parse(read('docs/SUBMISSION_EVIDENCE.json'));
 
+/** @type {Record<'PASS' | 'FAIL' | 'BLOCKED' | 'NOT_RUN', number>} */
 const counts = { PASS: 0, FAIL: 0, BLOCKED: 0, NOT_RUN: 0 };
 const catalogRows = catalog.trim().split(/\r?\n/).slice(1).map((line) => line.split('\t'));
 for (const [id, , status] of catalogRows) {
   if (!(status in counts)) throw new Error(`unknown catalog status: ${id}:${status}`);
-  counts[status] += 1;
+  counts[/** @type {keyof typeof counts} */ (status)] += 1;
   const row = new RegExp(`\\|\\s*${id}\\s*\\|[^\\n]*\\|\\s*${status}\\s*\\|`).test(ledger);
   if (!row) throw new Error(`TEST_STATUS mismatch for ${id}:${status}`);
 }
