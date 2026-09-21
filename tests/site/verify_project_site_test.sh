@@ -12,6 +12,17 @@ fi
 
 "$verifier" "$repo_root"
 
+for page in privacy.html account-deletion.html; do
+  [[ -s "$repo_root/docs/$page" ]] || {
+    echo "project portal is missing $page" >&2
+    exit 1
+  }
+  grep -q '월계 마스코트' "$repo_root/docs/$page"
+done
+grep -q 'href="privacy.html"' "$repo_root/docs/index.html"
+grep -q 'href="account-deletion.html"' "$repo_root/docs/index.html"
+grep -q '"cleanUrls": true' "$repo_root/docs/vercel.json"
+
 fixture_root="$(mktemp -d)"
 trap 'rm -rf "$fixture_root"' EXIT
 

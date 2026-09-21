@@ -1,0 +1,114 @@
+.legal-header {
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  display: flex;
+  min-height: 4.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem max(1.25rem, calc((100vw - 58rem) / 2));
+  border-bottom: 1px solid rgb(201 217 222 / 80%);
+  background: rgb(244 249 250 / 94%);
+  backdrop-filter: blur(1rem);
+}
+
+.legal-header a:last-child {
+  color: var(--stream-deep);
+  font-size: 0.9rem;
+  font-weight: 720;
+}
+
+.legal-main {
+  width: min(58rem, calc(100vw - 2.5rem));
+  margin-inline: auto;
+  padding-block: clamp(3rem, 8vw, 6rem);
+}
+
+.legal-main > header {
+  margin-bottom: 3rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.legal-main h1 {
+  max-width: none;
+  margin-bottom: 1rem;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  line-height: 1.05;
+}
+
+.legal-main h2 {
+  margin: 2.8rem 0 0.8rem;
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+}
+
+.legal-main h3 {
+  margin: 1.8rem 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.legal-main p,
+.legal-main li {
+  max-width: 48rem;
+}
+
+.legal-main ul,
+.legal-main ol {
+  padding-left: 1.35rem;
+}
+
+.legal-main li + li {
+  margin-top: 0.5rem;
+}
+
+.legal-summary,
+.legal-warning {
+  padding: 1.2rem 1.3rem;
+  border-radius: var(--radius);
+}
+
+.legal-summary {
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.legal-warning {
+  border-left: 0.45rem solid var(--food);
+  background: #fff0ea;
+}
+
+.legal-action {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  margin-top: 0.7rem;
+  padding: 0.65rem 1rem;
+  border-radius: 0.7rem;
+  background: var(--night);
+  color: #fff;
+  font-weight: 720;
+  text-decoration: none;
+}
+
+.legal-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.legal-footer {
+  width: min(58rem, calc(100vw - 2.5rem));
+  margin-inline: auto;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 38rem) {
+  .legal-header {
+    min-height: 4rem;
+    padding-inline: 0.7rem;
+  }
+
+  .legal-header .brand span:last-child {
+    font-size: 0.9rem;
+  }
+}
