@@ -4,9 +4,9 @@ set -euo pipefail
 
 scan_root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 finding_count=0
-logger_pattern='console\.(log|error|warn|info|debug)'
-sensitive_identifier='accountId|customerAccountId|createdByAccountId|merchantReference|claim(Token)?|token|signature|privateKey|mnemonic|recoveryPhrase|address'
+sensitive_identifier='accountId|customerAccountId|createdByAccountId|merchantReference|claim(Token)?|token|signature|password|secret|privateKey|mnemonic|recoveryPhrase|address'
 error_detail='message|stack|cause'
+approved_safe_metadata_pattern="safeErrorMetadata[[:space:]]*\\([[:space:]]*('[[:space:]]*'|\"[[:space:]]*\")[[:space:]]*,[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*(,[[:space:]]*new[[:space:]]+Set[[:space:]]*\\([[:space:]]*\\[[[:space:]'\",]*\\][[:space:]]*\\)[[:space:]]*)?\\)"
 
 normalize_logger_calls() {
   awk '
@@ -63,13 +63,58 @@ normalize_logger_calls() {
         call_depth = 0
         call_quote = ""
         call_escaped = 0
+        template_expression_depth = 0
+        template_expression_quote = ""
+        template_expression_escaped = 0
         call_end = 0
 
         for (call_index = RSTART; call_index <= length(remaining); call_index += 1) {
           character = substr(remaining, call_index, 1)
+          next_character = substr(remaining, call_index + 1, 1)
 
-          if (call_quote != "") {
-            if (call_quote == "`" || (!call_escaped && character == call_quote)) {
+          if (call_quote == "`") {
+            if (template_expression_depth > 0) {
+              if (template_expression_quote != "") {
+                if (!template_expression_escaped && character == template_expression_quote) {
+                  call = call character
+                } else {
+                  call = call " "
+                }
+                if (template_expression_escaped) {
+                  template_expression_escaped = 0
+                } else if (character == "\\") {
+                  template_expression_escaped = 1
+                } else if (character == template_expression_quote) {
+                  template_expression_quote = ""
+                }
+              } else {
+                call = call character
+                if (character == single_quote || character == "\"" || character == "`") {
+                  template_expression_quote = character
+                } else if (character == "{") {
+                  template_expression_depth += 1
+                } else if (character == "}") {
+                  template_expression_depth -= 1
+                }
+              }
+            } else if (call_escaped) {
+              call = call " "
+              call_escaped = 0
+            } else if (character == "\\") {
+              call = call " "
+              call_escaped = 1
+            } else if (character == "`") {
+              call = call character
+              call_quote = ""
+            } else if (character == "$" && next_character == "{") {
+              call = call "${"
+              template_expression_depth = 1
+              call_index += 1
+            } else {
+              call = call " "
+            }
+          } else if (call_quote != "") {
+            if (!call_escaped && character == call_quote) {
               call = call character
             } else {
               call = call " "
@@ -98,7 +143,8 @@ normalize_logger_calls() {
         }
 
         gsub(/[[:space:]]+/, " ", call)
-        print call
+        opening_parenthesis = index(call, "(")
+        print substr(call, opening_parenthesis + 1, length(call) - opening_parenthesis - 1)
         if (call_end == 0) break
         remaining = substr(remaining, call_end + 1)
       }
@@ -108,14 +154,13 @@ normalize_logger_calls() {
 
 if [[ -d "$scan_root/apps" ]]; then
   while IFS= read -r -d '' source_file; do
-    logger_calls="$(normalize_logger_calls "$source_file")"
-    structural_logger_calls="$(sed -E 's/`[^$`]*`/``/g' <<< "$logger_calls")"
-    if grep -Eqi "${logger_pattern}\\([[:space:]]*(error|caught)([^A-Za-z0-9_$]|$)|${logger_pattern}\\([[:space:]]*('[^']*'|\"[^\"]*\"|[A-Za-z_$][A-Za-z0-9_$.]*)[[:space:]]*,[[:space:]]*(error|caught)([^A-Za-z0-9_$]|$)" <<< "$structural_logger_calls" ||
-      grep -Eqi "${logger_pattern}\\([[:space:]]*([A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\\.[[:space:]]*)*(${sensitive_identifier})([^A-Za-z0-9_$]|$)|${logger_pattern}\\([^;]*,[[:space:]]*([A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\\.[[:space:]]*)*(${sensitive_identifier})([^A-Za-z0-9_$]|$)" <<< "$structural_logger_calls" ||
-      grep -Eqi "${logger_pattern}\\([^;]*\\{[^;}]*(${sensitive_identifier}|${error_detail})[[:space:]]*:|${logger_pattern}\\([^;]*\\{[[:space:]]*(${sensitive_identifier}|${error_detail})[[:space:]]*[,}]|${logger_pattern}\\([^;]*\\{[^;}]*,[[:space:]]*(${sensitive_identifier}|${error_detail})[[:space:]]*[,}]" <<< "$structural_logger_calls" ||
-      grep -Eqi "${logger_pattern}\\([^;]*\\{[^;}]*((error|caught)[[:space:]]*\\.[[:space:]]*(${error_detail})|[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\\.[[:space:]]*(${sensitive_identifier}))" <<< "$structural_logger_calls" ||
-      grep -Eqi "${logger_pattern}\\([^;]*\\$\\{[^}]*([A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\\.[[:space:]]*)?(${sensitive_identifier}|${error_detail})[^}]*\\}" <<< "$logger_calls" ||
-      grep -Eqi "${logger_pattern}\\([^;]*(\\+[[:space:]]*([A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\\.[[:space:]]*)?(${sensitive_identifier}|${error_detail})|(${sensitive_identifier}|${error_detail})[[:space:]]*\\+)" <<< "$structural_logger_calls"; then
+    logger_arguments="$(normalize_logger_calls "$source_file")"
+    logger_arguments="$(sed -E "s/${approved_safe_metadata_pattern}/SAFE_ERROR_METADATA/g" <<< "$logger_arguments")"
+    forbidden_identifier="$sensitive_identifier"
+    if [[ "$source_file" == "$scan_root/apps/api/"* ]]; then
+      forbidden_identifier="error|caught|${error_detail}|${forbidden_identifier}"
+    fi
+    if grep -Eq "(^|[^A-Za-z0-9_$])(${forbidden_identifier})([^A-Za-z0-9_$]|$)" <<< "$logger_arguments"; then
       echo "possible sensitive log arguments in ${source_file#"$scan_root"/}" >&2
       finding_count=$((finding_count + 1))
     fi
