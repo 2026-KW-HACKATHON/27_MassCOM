@@ -1,36 +1,32 @@
 {
-  "checkedAt": "2026-09-20 KST",
-  "score": 95,
+  "checked_at": "2026-09-22T01:28:29+09:00",
+  "score": 96,
   "threshold": 90,
   "verdict": "pass",
-  "briefMatch": true,
+  "category_match": true,
   "viewports": [
     {
       "width": 1440,
       "height": 900,
       "artifact": "presentation-desktop.png",
-      "observation": "Seven evidence-first scenes read as a presentation rather than a dashboard."
+      "capture_scope": "opening scene"
     },
     {
       "width": 390,
       "height": 844,
       "artifact": "presentation-mobile.png",
-      "documentScrollWidth": 375,
-      "observation": "No horizontal overflow; scenes become a continuous readable document."
+      "capture_scope": "opening scene",
+      "document_scroll_width": 375,
+      "horizontal_overflow": false
     }
   ],
-  "accessibility": {
-    "semanticAndContrastCheck": "PASS",
-    "keyboardSkipLink": "PRESENT",
-    "reducedMotion": "SUPPORTED"
+  "truth_boundary": {
+    "scene_count": 7,
+    "scene_navigation_count": 7,
+    "pass_blocked_not_run_visible": true,
+    "unsupported_revenue_or_play_claim": false
   },
-  "truthBoundary": {
-    "passBlockedNotRunVisible": true,
-    "fieldValidationMarkedNotRun": true,
-    "unsupportedRevenueOrPlayClaim": false
-  },
-  "remaining": [
-    "Presentation timing and live projector readability are NOT_RUN.",
-    "Field validation, video recording, public hosting, and final submission are NOT_RUN."
-  ]
+  "differences": [],
+  "suggestions": [],
+  "reasoning": "데스크톱과 모바일 첫 장면은 지역 문제, 핵심 가치, 30 PASS / 2 BLOCKED / 4 NOT_RUN을 한 시선 흐름으로 전달한다. 전체 문서는 일곱 장면과 일곱 탐색 링크가 대응하고 가로 넘침이 없다. 실기·공개 배포를 완료로 꾸미는 표현도 없다."
 }

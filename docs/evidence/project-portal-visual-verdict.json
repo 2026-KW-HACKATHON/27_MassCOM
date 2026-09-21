@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-09-20T00:11:16+09:00",
+  "checked_at": "2026-09-22T01:28:29+09:00",
   "score": 96,
   "threshold": 90,
   "verdict": "pass",
@@ -8,23 +8,23 @@
     {
       "width": 1440,
       "height": 1000,
-      "artifact": "project-portal-desktop.png"
+      "artifact": "project-portal-desktop.png",
+      "capture_scope": "initial viewport"
     },
     {
       "width": 390,
       "height": 844,
       "artifact": "project-portal-mobile.png",
-      "inner_width": 390,
+      "capture_scope": "initial viewport",
       "document_scroll_width": 375,
-      "truth_board_right": 365
+      "horizontal_overflow": false
     }
   ],
   "automated_accessibility": {
     "html_validate": "PASS",
-    "axe_core": "PASS: 0 violations (2026-09-18 evidence; not rerun)",
     "repository_contrast_and_semantics_regression": "PASS"
   },
   "differences": [],
   "suggestions": [],
-  "reasoning": "Desktop and 390px layouts preserve Korean word boundaries, expose the presentation entry without hiding Phase 4 blockers, display 26 PASS / 2 BLOCKED / 8 NOT_RUN metadata, expose semantic content to assistive technology, and pass the repository mobile-overflow regression."
+  "reasoning": "데스크톱과 390px 첫 화면은 핵심 문장, 현재 사실, 선택형 지갑 경계를 같은 우선순위로 보여 준다. 전체 문서 DOM은 가로 넘침이 없고, 모바일 축약 상태도 데스크톱과 같은 Phase 4 출시 준비를 뜻한다. 30 PASS / 2 BLOCKED / 4 NOT_RUN은 제품 시험 카탈로그와 일치한다."
 }
