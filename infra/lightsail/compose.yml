@@ -1,0 +1,103 @@
+name: masscom
+
+services:
+  postgres:
+    image: postgres:16.10-alpine
+    environment:
+      POSTGRES_DB: masscom
+      POSTGRES_USER: masscom
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U masscom -d masscom"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  migrate:
+    image: masscom-api:${MASSCOM_IMAGE_TAG:-local}
+    command: ["node", "dist/postgres/migrate-command.js"]
+    environment:
+      DATABASE_URL: postgresql://masscom:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/masscom
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    image: masscom-api:${MASSCOM_IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: infra/lightsail/api.Dockerfile
+    environment:
+      NODE_ENV: production
+      API_BIND_HOST: 0.0.0.0
+      PORT: "3000"
+      DATABASE_URL: postgresql://masscom:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/masscom
+      GOOGLE_OAUTH_CLIENT_IDS: ${GOOGLE_OAUTH_CLIENT_IDS:?GOOGLE_OAUTH_CLIENT_IDS is required}
+      SIWE_DOMAIN: ${MASSCOM_API_DOMAIN:-api.masscom.kr}
+      SIWE_URI: https://${MASSCOM_API_DOMAIN:-api.masscom.kr}/wallet/verify
+      WALLET_CHAIN_ID: "84532"
+      ACCOUNT_DELETION_HMAC_SECRET: ${ACCOUNT_DELETION_HMAC_SECRET:?ACCOUNT_DELETION_HMAC_SECRET is required}
+      ACCOUNT_DELETION_POLICY_VERSION: account-deletion-v1
+      MERCHANT_REFERENCE_HMAC_SECRET: ${MERCHANT_REFERENCE_HMAC_SECRET:?MERCHANT_REFERENCE_HMAC_SECRET is required}
+      NFT_MINT_CONSENT_VERSION: nft-mint-v1
+      AUTH_SESSION_TTL_MS: "2592000000"
+      GOOGLE_JWKS_MAX_STALE_MS: "86400000"
+      AUTH_SESSION_CLEANUP_BATCH_SIZE: "100"
+      AUTH_LOGIN_RATE_LIMIT_MAX: "60"
+      AUTH_LOGIN_RATE_LIMIT_WINDOW_MS: "60000"
+      ALLOW_INSECURE_DEMO_ACCOUNT: "false"
+    expose:
+      - "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    environment:
+      MASSCOM_API_DOMAIN: ${MASSCOM_API_DOMAIN:-api.masscom.kr}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
