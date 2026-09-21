@@ -22,15 +22,16 @@ npm run start:local
 
 | 방식 | 켜지는 조건 | 용도 |
 | --- | --- | --- |
-| 운영 로그인 | `GOOGLE_OAUTH_CLIENT_IDS`(쉼표 구분 허용 `aud`)와 `DATABASE_URL` | Google ID token을 서버에서 검증(JWKS RS256·`iss`·`aud`·`exp`/`iat`)하고 서버 저장 세션을 발급. 요청은 `Authorization: Bearer <세션 토큰>` |
+| 운영 로그인 | `GOOGLE_OAUTH_CLIENT_IDS`(쉼표 구분 허용 `aud`)와 `DATABASE_URL` | Google ID token을 서버에서 검증(JWKS RS256·`iss`·`aud`·`exp`/`iat`·선택적 `auth_time`)하고 서버 저장 세션을 발급. 요청은 `Authorization: Bearer <세션 토큰>` |
 | DEMO | `ALLOW_INSECURE_DEMO_ACCOUNT=true` | loopback 개발 전용 `x-account-id` 헤더. 인터넷에 공개하는 서버에서 켜지 않는다 |
 | 없음 | 둘 다 없음 | 계정이 필요한 요청은 `503 ACCOUNT_AUTH_NOT_CONFIGURED` |
 
-두 방식을 함께 설정하면 서버가 기동을 거절합니다. `GOOGLE_OAUTH_CLIENT_IDS`만 있고 `DATABASE_URL`이 없을 때도 기동을 거절하며 DEMO로 내려가지 않습니다. `AUTH_SESSION_TTL_MS`는 1년 이하의 양의 정수(ms)만 받습니다. Google 공개키(JWKS)는 10분 캐시하고, 모르는 `kid`로 인한 재조회는 60초에 한 번·동시 요청은 한 번의 조회로 묶어 로그인 전 요청이 외부 호출을 유발하지 못하게 합니다(조회 제한 시간 5초). 조회가 실패하면 마지막으로 받은 키를 계속 씁니다. Google 장애가 길어지는 동안에는 그사이 폐기된 키도 신뢰되므로, JWKS 조회 실패가 이어지면 운영자가 알아차릴 수 있는 감시가 필요합니다(아직 없음). 운영 로그인에서는 DEMO 재인증 헤더(`x-demo-reauthenticated`)가 동작하지 않습니다.
+두 방식을 함께 설정하면 서버가 기동을 거절합니다. `GOOGLE_OAUTH_CLIENT_IDS`만 있고 `DATABASE_URL`이 없을 때도 기동을 거절하며 DEMO로 내려가지 않습니다. `AUTH_SESSION_TTL_MS`는 1년 이하의 양의 정수(ms)만 받습니다. Google 공개키(JWKS)는 10분 캐시하고, 모르는 `kid`로 인한 재조회는 60초에 한 번·동시 요청은 한 번의 조회로 묶습니다(조회 제한 시간 5초). 조회 실패 때 마지막 정상 키는 기본 24시간(`GOOGLE_JWKS_MAX_STALE_MS`, 10분~7일)까지만 허용하고 이후에는 `503 ID_TOKEN_KEY_SET_UNAVAILABLE`로 닫습니다. 운영 로그인에서는 DEMO 재인증 헤더(`x-demo-reauthenticated`)가 동작하지 않습니다.
 
 - 계정 식별자는 `acct_` + 무작위 UUID입니다. Google `sub`는 `auth_identities`에만 두고 계정 ID·로그에 쓰지 않으며 이메일은 저장하지 않습니다.
-- 세션 토큰은 32바이트 무작위 값이고 DB에는 SHA-256만 저장합니다(migration 0012). 기본 수명 30일(`AUTH_SESSION_TTL_MS`), 로그아웃·계정 삭제 시 즉시 폐기됩니다.
-- 계정 삭제는 최근 5분 이내에 로그인 또는 `POST /auth/reauthenticate`(같은 Google 계정만)를 한 세션에서만 가능합니다(`401 REAUTHENTICATION_REQUIRED`). 삭제는 같은 트랜잭션에서 모든 세션을 폐기하고 로그인 연결을 지우므로, 같은 Google 계정으로 다시 로그인하면 새 계정이 만들어집니다.
+- 세션 토큰은 32바이트 무작위 값이고 DB에는 SHA-256만 저장합니다(migration 0012). 기본 수명 30일(`AUTH_SESSION_TTL_MS`), 로그아웃·계정 삭제 시 즉시 폐기됩니다. 성공 로그인마다 만료·폐기 세션을 최대 `AUTH_SESSION_CLEANUP_BATCH_SIZE`개(기본 100) 정리합니다(migration 0013 인덱스).
+- `POST /auth/google`은 socket 원격 주소별 fixed window 제한(기본 60회/60초)을 검증 전에 적용합니다. `X-Forwarded-For`는 신뢰하지 않으므로 reverse proxy 환경에서는 이 제한이 proxy 전체 상한이 되며, 외부 HTTPS 공개 전 proxy/WAF에서도 별도 제한을 둬야 합니다.
+- 계정 삭제는 최근 5분 이내의 Google `auth_time`을 가진 로그인 또는 `POST /auth/reauthenticate`(같은 Google 계정만)를 한 세션에서만 가능합니다(`401 REAUTHENTICATION_REQUIRED`). `auth_time`이 없는 ID token은 일반 세션은 만들 수 있지만 최근 인증 권한을 주지 않습니다. 모바일 OAuth 연결은 재인증 때 실제 사용자 상호작용을 요구하도록 구성해야 합니다. 삭제는 같은 트랜잭션에서 모든 세션을 폐기하고 로그인 연결을 지우므로, 같은 Google 계정으로 다시 로그인하면 새 계정이 만들어집니다.
 - 세션 토큰·ID token·토큰 해시는 로그에 남기지 않습니다.
 
 ## 엔드포인트

@@ -3,6 +3,8 @@ import { test, type TestContext } from 'node:test';
 
 import { Wallet } from 'ethers';
 
+import * as serverModule from './server.js';
+
 import type { AccountDeletionService } from './account-deletion.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { GoogleIdTokenError } from './google-id-token.js';
@@ -124,6 +126,10 @@ type RecommendationFixture = {
   }[]>;
 };
 
+type AuthLoginLimiterFixture = {
+  consume(key: string): { allowed: boolean; retryAfterSeconds: number };
+};
+
 function claimSlotFixture(overrides: Partial<ClaimSlotFixture>): ClaimSlotFixture {
   return {
     issue: async () => {
@@ -155,6 +161,7 @@ async function startFixture(
   requireReauthentication?: ReauthenticationGuard,
   campaignEnrollments?: CampaignEnrollmentService,
   authSessions?: AuthSessionService,
+  authLoginLimiter?: AuthLoginLimiterFixture,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -178,6 +185,7 @@ async function startFixture(
     requireReauthentication,
     campaignEnrollments,
     authSessions,
+    authLoginLimiter,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -1206,6 +1214,76 @@ test('D24 rejects an unverifiable Google ID token with a fixed code', async (t) 
   assert.deepEqual(await response.json(), { code: 'ID_TOKEN_AUDIENCE_MISMATCH' });
 });
 
+test('D24 rate limits Google sign-in before invoking token verification', async (t) => {
+  let signInCalls = 0;
+  let limiterCalls = 0;
+  const sessions = authSessionFixture({
+    signInWithGoogle: async () => {
+      signInCalls += 1;
+      return {
+        sessionToken: 'session-rate-limit',
+        accountId: 'acct_rate_limit',
+        expiresAt: '2026-10-21T00:00:00.000Z',
+      };
+    },
+  });
+  const baseUrl = await startFixture(
+    t,
+    () => 'unused-account',
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    sessions,
+    {
+      consume: () => {
+        limiterCalls += 1;
+        return limiterCalls === 1
+          ? { allowed: true, retryAfterSeconds: 0 }
+          : { allowed: false, retryAfterSeconds: 60 };
+      },
+    },
+  );
+
+  const request = () =>
+    fetch(`${baseUrl}/auth/google`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ idToken: 'google-id-token-value' }),
+    });
+  assert.equal((await request()).status, 200);
+  const limited = await request();
+  assert.equal(limited.status, 429);
+  assert.equal(limited.headers.get('retry-after'), '60');
+  assert.deepEqual(await limited.json(), { code: 'LOGIN_RATE_LIMITED' });
+  assert.equal(signInCalls, 1);
+});
+
+test('fixed-window login limiter tracks independent client keys and resets after the window', () => {
+  const Limiter = (serverModule as unknown as {
+    FixedWindowAuthLoginLimiter?: new (options: {
+      maxAttempts: number;
+      windowMs: number;
+      now: () => Date;
+    }) => AuthLoginLimiterFixture;
+  }).FixedWindowAuthLoginLimiter;
+  assert.equal(typeof Limiter, 'function');
+  let now = new Date('2026-09-21T00:00:00.000Z');
+  const limiter = new Limiter!({ maxAttempts: 2, windowMs: 60_000, now: () => now });
+
+  assert.equal(limiter.consume('127.0.0.1').allowed, true);
+  assert.equal(limiter.consume('127.0.0.1').allowed, true);
+  assert.equal(limiter.consume('127.0.0.1').allowed, false);
+  assert.equal(limiter.consume('127.0.0.2').allowed, true);
+  now = new Date(now.getTime() + 60_000);
+  assert.equal(limiter.consume('127.0.0.1').allowed, true);
+});
+
 test('D25 resolves the account from the bearer session and refuses a missing one', async (t) => {
   const sessions = authSessionFixture({
     resolve: async (sessionToken) => {
@@ -1400,5 +1478,26 @@ test('session lifetime from the environment must be a sane whole number of milli
   assert.equal(sessionTtlMs('3600000'), 3_600_000);
   for (const raw of ['30d', '', '0', '-1', '1.5', '1e30', String(366 * 24 * 60 * 60 * 1000)]) {
     assert.throws(() => sessionTtlMs(raw), /AUTH_SESSION_TTL_MS/, raw);
+  }
+});
+
+test('auth operational limits have bounded defaults and reject unsafe values', () => {
+  const config = serverModule as unknown as {
+    authLoginLimit(raw: string | undefined): number;
+    authLoginWindowMs(raw: string | undefined): number;
+    googleJwksMaxStaleMs(raw: string | undefined): number;
+    authSessionCleanupBatchSize(raw: string | undefined): number;
+  };
+  assert.equal(config.authLoginLimit(undefined), 60);
+  assert.equal(config.authLoginWindowMs(undefined), 60_000);
+  assert.equal(config.googleJwksMaxStaleMs(undefined), 24 * 60 * 60 * 1000);
+  assert.equal(config.authSessionCleanupBatchSize(undefined), 100);
+  for (const [name, parse, values] of [
+    ['AUTH_LOGIN_RATE_LIMIT_MAX', config.authLoginLimit, ['0', '10001']],
+    ['AUTH_LOGIN_RATE_LIMIT_WINDOW_MS', config.authLoginWindowMs, ['0', '3600001']],
+    ['GOOGLE_JWKS_MAX_STALE_MS', config.googleJwksMaxStaleMs, ['599999', '604800001']],
+    ['AUTH_SESSION_CLEANUP_BATCH_SIZE', config.authSessionCleanupBatchSize, ['0', '10001']],
+  ] as const) {
+    for (const raw of values) assert.throws(() => parse(raw), new RegExp(name), `${name}=${raw}`);
   }
 });

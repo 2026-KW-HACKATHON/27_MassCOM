@@ -30,7 +30,10 @@ for evidence in \
   phase3-worker-anvil-android.json \
   account-deletion-privacy.json \
   security-audit-issue-56.json \
-  chain-cursor-recovery.json; do
+  chain-cursor-recovery.json \
+  release-wallet-surface.json \
+  release-signing-injection.json \
+  auth-operations-hardening.json; do
   cp "$repo_root/docs/evidence/$evidence" "$fixture_root/docs/evidence/$evidence"
 done
 

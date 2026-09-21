@@ -6,7 +6,8 @@ const acceptedIssuers = new Set(['accounts.google.com', 'https://accounts.google
 export type GoogleIdTokenErrorCode =
   | 'ID_TOKEN_INVALID'
   | 'ID_TOKEN_EXPIRED'
-  | 'ID_TOKEN_AUDIENCE_MISMATCH';
+  | 'ID_TOKEN_AUDIENCE_MISMATCH'
+  | 'ID_TOKEN_KEY_SET_UNAVAILABLE';
 
 // The rejected token is deliberately absent from the message: it is a bearer credential.
 export class GoogleIdTokenError extends Error {
@@ -20,6 +21,7 @@ export type GoogleIdTokenClaims = {
   subject: string;
   issuedAt: Date;
   expiresAt: Date;
+  authTime?: Date;
 };
 
 export type JwksFetcher = (url: string) => Promise<{ ok: boolean; json: () => Promise<unknown> }>;
@@ -29,6 +31,7 @@ type Options = {
   fetchJwks: JwksFetcher;
   now: () => Date;
   jwksMaxAgeMs: number;
+  jwksMaxStaleMs: number;
   unknownKeyRefreshIntervalMs: number;
   clockSkewMs: number;
 };
@@ -39,6 +42,7 @@ const defaultOptions = {
   fetchJwks: ((url) => fetch(url, { signal: AbortSignal.timeout(5_000) })) as JwksFetcher,
   now: () => new Date(),
   jwksMaxAgeMs: 10 * 60 * 1000,
+  jwksMaxStaleMs: 24 * 60 * 60 * 1000,
   unknownKeyRefreshIntervalMs: 60 * 1000,
   clockSkewMs: 60 * 1000,
 };
@@ -54,6 +58,12 @@ export class GoogleIdTokenVerifier {
     this.options = { ...defaultOptions, ...options };
     if (this.options.audiences.length === 0) {
       throw new Error('at least one Google OAuth client id is required');
+    }
+    if (
+      !Number.isSafeInteger(this.options.jwksMaxStaleMs) ||
+      this.options.jwksMaxStaleMs < this.options.jwksMaxAgeMs
+    ) {
+      throw new Error('jwksMaxStaleMs must be a safe integer at least as large as jwksMaxAgeMs');
     }
   }
 
@@ -103,7 +113,22 @@ export class GoogleIdTokenVerifier {
     const subject = typeof payload.sub === 'string' ? payload.sub.trim() : '';
     if (!subject) throw new GoogleIdTokenError('ID_TOKEN_INVALID');
 
-    return { subject, issuedAt, expiresAt };
+    let authTime: Date | undefined;
+    if (payload.auth_time !== undefined) {
+      if (
+        typeof payload.auth_time !== 'number' ||
+        !Number.isFinite(payload.auth_time) ||
+        payload.auth_time <= 0
+      ) {
+        throw new GoogleIdTokenError('ID_TOKEN_INVALID');
+      }
+      authTime = new Date(payload.auth_time * 1000);
+      if (authTime.getTime() > now + this.options.clockSkewMs) {
+        throw new GoogleIdTokenError('ID_TOKEN_INVALID');
+      }
+    }
+
+    return { subject, issuedAt, expiresAt, ...(authTime ? { authTime } : {}) };
   }
 
   // Google rotates signing keys, so an unknown key id may earn a refetch. The token is still
@@ -114,11 +139,23 @@ export class GoogleIdTokenVerifier {
     // signed with keys we already hold, and the same interval bounds the retries.
     const now = this.options.now().getTime();
     const stale = now - this.keysFetchedAt >= this.options.jwksMaxAgeMs;
+    let refreshFailed = false;
     if ((stale || !this.keys.has(kid)) && now - this.lastRefreshAt >= this.options.unknownKeyRefreshIntervalMs) {
-      await this.refreshKeys().catch(() => undefined);
+      await this.refreshKeys().catch(() => {
+        refreshFailed = true;
+      });
     } else if (this.refreshing) {
       // Another verification is already fetching: wait for it rather than miss a key it brings.
-      await this.refreshing.catch(() => undefined);
+      await this.refreshing.catch(() => {
+        refreshFailed = true;
+      });
+    }
+    const staleForMs = now - this.keysFetchedAt;
+    if (
+      (refreshFailed && this.keys.size === 0) ||
+      (this.keys.has(kid) && staleForMs > this.options.jwksMaxStaleMs)
+    ) {
+      throw new GoogleIdTokenError('ID_TOKEN_KEY_SET_UNAVAILABLE');
     }
     const jwk = this.keys.get(kid);
     if (!jwk) throw new GoogleIdTokenError('ID_TOKEN_INVALID');

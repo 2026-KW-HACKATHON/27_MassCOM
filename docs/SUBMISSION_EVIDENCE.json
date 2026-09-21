@@ -24,7 +24,8 @@
     "docs/evidence/security-audit-issue-56.json",
     "docs/evidence/chain-cursor-recovery.json",
     "docs/evidence/release-wallet-surface.json",
-    "docs/evidence/release-signing-injection.json"
+    "docs/evidence/release-signing-injection.json",
+    "docs/evidence/auth-operations-hardening.json"
   ],
   "blocked": [
     "repository public conversion",

@@ -10,7 +10,7 @@ import {
 import { AccountLifecycleError, PostgresAccountLifecycle } from './account-lifecycle.js';
 
 type IdTokenVerifier = {
-  verify(idToken: string): Promise<{ subject: string }>;
+  verify(idToken: string): Promise<{ subject: string; authTime?: Date }>;
 };
 
 type Options = {
@@ -21,6 +21,7 @@ type Options = {
   nextAccountId: () => string;
   nextSessionToken: () => string;
   now: () => Date;
+  cleanupBatchSize: number;
   accountLifecycle?: PostgresAccountLifecycle;
 };
 
@@ -39,6 +40,7 @@ const defaultOptions = {
   nextAccountId: () => `acct_${randomUUID()}`,
   nextSessionToken: () => randomBytes(32).toString('base64url'),
   now: () => new Date(),
+  cleanupBatchSize: 100,
 };
 
 export class PostgresAuthSessionService implements AuthSessionService {
@@ -52,17 +54,24 @@ export class PostgresAuthSessionService implements AuthSessionService {
     if (!Number.isFinite(this.options.sessionTtlMs) || this.options.sessionTtlMs <= 0) {
       throw new Error('auth session TTL must be positive');
     }
+    if (!Number.isSafeInteger(this.options.cleanupBatchSize) || this.options.cleanupBatchSize <= 0) {
+      throw new Error('auth session cleanup batch size must be a positive safe integer');
+    }
   }
 
   async signInWithGoogle(idToken: string): Promise<IssuedSession> {
-    const { subject } = await this.options.verifier.verify(idToken);
+    const { subject, authTime } = await this.options.verifier.verify(idToken);
     const now = this.options.now();
     const sessionToken = this.options.nextSessionToken();
     const expiresAt = new Date(now.getTime() + this.options.sessionTtlMs);
+    // A valid ID token can be obtained silently. Without Google's auth_time it creates a usable
+    // session, but must not grant the separate recent-user-presence privilege used for deletion.
+    const lastAuthenticatedAt = authTime ?? new Date(0);
 
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      await cleanupStaleSessions(client, now, this.options.cleanupBatchSize);
       const accountId = await findOrCreateAccountId(
         client,
         subject,
@@ -72,8 +81,15 @@ export class PostgresAuthSessionService implements AuthSessionService {
       await client.query(
         `INSERT INTO auth_sessions (
            id, account_id, token_hash, created_at, expires_at, last_authenticated_at
-         ) VALUES ($1, $2, $3, $4, $5, $4)`,
-        [this.options.nextSessionId(), accountId, tokenHash(sessionToken), now, expiresAt],
+         ) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          this.options.nextSessionId(),
+          accountId,
+          tokenHash(sessionToken),
+          now,
+          expiresAt,
+          lastAuthenticatedAt,
+        ],
       );
       await client.query('COMMIT');
       return { sessionToken, accountId, expiresAt: expiresAt.toISOString() };
@@ -104,8 +120,14 @@ export class PostgresAuthSessionService implements AuthSessionService {
   }
 
   async reauthenticate(sessionToken: string, idToken: string): Promise<void> {
-    const { subject } = await this.options.verifier.verify(idToken);
+    const { subject, authTime } = await this.options.verifier.verify(idToken);
     const now = this.options.now();
+    if (
+      !authTime ||
+      authTime.getTime() < now.getTime() - this.options.reauthenticationWindowMs
+    ) {
+      throw new AuthSessionError('REAUTHENTICATION_REQUIRED');
+    }
     const client = await this.pool.connect();
     try {
       const session = await activeSession(client, sessionToken, now);
@@ -153,6 +175,27 @@ export class PostgresAuthSessionService implements AuthSessionService {
       throw error;
     }
   }
+}
+
+async function cleanupStaleSessions(
+  client: PoolClient,
+  now: Date,
+  batchSize: number,
+): Promise<void> {
+  await client.query(
+    `WITH stale AS (
+       SELECT id
+       FROM auth_sessions
+       WHERE expires_at <= $1 OR revoked_at IS NOT NULL
+       ORDER BY coalesce(revoked_at, expires_at), id
+       LIMIT $2
+       FOR UPDATE SKIP LOCKED
+     )
+     DELETE FROM auth_sessions AS session
+     USING stale
+     WHERE session.id = stale.id`,
+    [now, batchSize],
+  );
 }
 
 async function findOrCreateAccountId(

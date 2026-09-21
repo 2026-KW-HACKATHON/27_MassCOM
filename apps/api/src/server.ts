@@ -47,6 +47,58 @@ import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-bi
 
 const MAX_BODY_BYTES = 64 * 1024;
 
+export type AuthLoginLimiter = {
+  consume(key: string): { allowed: boolean; retryAfterSeconds: number };
+};
+
+type LoginLimiterOptions = {
+  maxAttempts: number;
+  windowMs: number;
+  maxEntries?: number;
+  now?: () => Date;
+};
+
+export class FixedWindowAuthLoginLimiter implements AuthLoginLimiter {
+  private readonly buckets = new Map<string, { count: number; startedAt: number }>();
+  private readonly maxEntries: number;
+  private readonly now: () => Date;
+
+  constructor(private readonly options: LoginLimiterOptions) {
+    if (!Number.isSafeInteger(options.maxAttempts) || options.maxAttempts <= 0) {
+      throw new Error('auth login max attempts must be a positive safe integer');
+    }
+    if (!Number.isSafeInteger(options.windowMs) || options.windowMs <= 0) {
+      throw new Error('auth login window must be a positive safe integer');
+    }
+    this.maxEntries = options.maxEntries ?? 10_000;
+    this.now = options.now ?? (() => new Date());
+  }
+
+  consume(key: string): { allowed: boolean; retryAfterSeconds: number } {
+    const now = this.now().getTime();
+    const existing = this.buckets.get(key);
+    if (!existing || now - existing.startedAt >= this.options.windowMs) {
+      if (!existing && this.buckets.size >= this.maxEntries) {
+        const oldest = this.buckets.keys().next().value as string | undefined;
+        if (oldest) this.buckets.delete(oldest);
+      }
+      this.buckets.set(key, { count: 1, startedAt: now });
+      return { allowed: true, retryAfterSeconds: 0 };
+    }
+    if (existing.count >= this.options.maxAttempts) {
+      return {
+        allowed: false,
+        retryAfterSeconds: Math.max(
+          1,
+          Math.ceil((existing.startedAt + this.options.windowMs - now) / 1000),
+        ),
+      };
+    }
+    existing.count += 1;
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+}
+
 export type AccountResolver = (request: IncomingMessage) => string | Promise<string>;
 export type ReauthenticationGuard = (
   accountId: string,
@@ -85,6 +137,7 @@ export function createApiServer(
   requireReauthentication?: ReauthenticationGuard,
   campaignEnrollments?: CampaignEnrollmentService,
   authSessions?: AuthSessionService,
+  authLoginLimiter?: AuthLoginLimiter,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -96,6 +149,14 @@ export function createApiServer(
       }
 
       if (request.method === 'POST' && request.url === '/auth/google') {
+        if (authLoginLimiter) {
+          const decision = authLoginLimiter.consume(request.socket.remoteAddress ?? 'unknown');
+          if (!decision.allowed) {
+            response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+            sendJson(response, 429, { code: 'LOGIN_RATE_LIMITED' });
+            return;
+          }
+        }
         const sessions = requireAuthSessions(authSessions);
         const body = await readJson(request);
         sendJson(response, 200, await sessions.signInWithGoogle(requireString(body, 'idToken')));
@@ -383,7 +444,9 @@ export function createApiServer(
         return;
       }
       if (error instanceof GoogleIdTokenError) {
-        sendJson(response, 401, { code: error.code });
+        sendJson(response, error.code === 'ID_TOKEN_KEY_SET_UNAVAILABLE' ? 503 : 401, {
+          code: error.code,
+        });
         return;
       }
       if (error instanceof AccountDeletionError) {
@@ -574,6 +637,55 @@ export function sessionTtlMs(raw: string | undefined): number {
   return value;
 }
 
+export function authLoginLimit(raw: string | undefined): number {
+  return boundedPositiveInteger(raw, 60, 'AUTH_LOGIN_RATE_LIMIT_MAX', 10_000);
+}
+
+export function authLoginWindowMs(raw: string | undefined): number {
+  return boundedPositiveInteger(raw, 60_000, 'AUTH_LOGIN_RATE_LIMIT_WINDOW_MS', 60 * 60 * 1000);
+}
+
+export function googleJwksMaxStaleMs(raw: string | undefined): number {
+  return boundedIntegerRange(
+    raw,
+    24 * 60 * 60 * 1000,
+    'GOOGLE_JWKS_MAX_STALE_MS',
+    10 * 60 * 1000,
+    7 * 24 * 60 * 60 * 1000,
+  );
+}
+
+export function authSessionCleanupBatchSize(raw: string | undefined): number {
+  return boundedPositiveInteger(raw, 100, 'AUTH_SESSION_CLEANUP_BATCH_SIZE', 10_000);
+}
+
+function boundedPositiveInteger(
+  raw: string | undefined,
+  fallback: number,
+  name: string,
+  maximum: number,
+): number {
+  const parsed = Number(raw ?? fallback);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed > maximum) {
+    throw new Error(`${name} must be a positive integer no greater than ${maximum}`);
+  }
+  return parsed;
+}
+
+function boundedIntegerRange(
+  raw: string | undefined,
+  fallback: number,
+  name: string,
+  minimum: number,
+  maximum: number,
+): number {
+  const parsed = Number(raw ?? fallback);
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`);
+  }
+  return parsed;
+}
+
 export type AuthMode =
   | { kind: 'production'; audiences: readonly string[] }
   | { kind: 'demo' }
@@ -676,11 +788,23 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const authSessions =
     pool && authMode.kind === 'production'
       ? new PostgresAuthSessionService(pool, {
-          verifier: new GoogleIdTokenVerifier({ audiences: authMode.audiences }),
+          verifier: new GoogleIdTokenVerifier({
+            audiences: authMode.audiences,
+            jwksMaxStaleMs: googleJwksMaxStaleMs(process.env.GOOGLE_JWKS_MAX_STALE_MS),
+          }),
           sessionTtlMs: sessionTtlMs(process.env.AUTH_SESSION_TTL_MS),
+          cleanupBatchSize: authSessionCleanupBatchSize(
+            process.env.AUTH_SESSION_CLEANUP_BATCH_SIZE,
+          ),
           ...(accountLifecycle ? { accountLifecycle } : {}),
         })
       : undefined;
+  const authLoginLimiter = authSessions
+    ? new FixedWindowAuthLoginLimiter({
+        maxAttempts: authLoginLimit(process.env.AUTH_LOGIN_RATE_LIMIT_MAX),
+        windowMs: authLoginWindowMs(process.env.AUTH_LOGIN_RATE_LIMIT_WINDOW_MS),
+      })
+    : undefined;
   const accountResolver: AccountResolver = authSessions
     ? createBearerAccountResolver(authSessions)
     : authMode.kind === 'demo'
@@ -707,6 +831,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     reauthenticationGuard,
     campaignEnrollments,
     authSessions,
+    authLoginLimiter,
   ).listen(port, '127.0.0.1', () => {
     console.log(`wallet API listening on http://127.0.0.1:${port}`);
   });

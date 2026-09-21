@@ -30,7 +30,7 @@
 | RQ-020 | 현장 검증 | 허락받은 점주·이용자 자료만 실적으로 기록 | `PLANNED` |
 | RQ-021 | 기여 추적 | 실제 사람·AI 역할을 Issue·PR·커밋과 연결 | `IN_PROGRESS` |
 
-계정 삭제·개인정보·출시 경계의 상세 수용 기준은 [PRIVACY_DELETION.md](PRIVACY_DELETION.md)와 [RELEASE_READINESS.md](RELEASE_READINESS.md)에 연결합니다. 앱 내부 Local DEMO 삭제는 구현됐지만 운영 재인증·외부 HTTPS 삭제 경로·서명 AAB·Play 제출은 완료로 간주하지 않습니다.
+계정 삭제·개인정보·출시 경계의 상세 수용 기준은 [PRIVACY_DELETION.md](PRIVACY_DELETION.md)와 [RELEASE_READINESS.md](RELEASE_READINESS.md)에 연결합니다. 서버 측 Google `auth_time` 재인증과 Local DEMO 삭제는 구현됐지만 모바일 Google 로그인 연결·외부 HTTPS 삭제 경로·upload-key 서명 AAB·실제 운영 계정 전환·Play 제출은 완료로 간주하지 않습니다.
 
 ## 범위 밖
 
