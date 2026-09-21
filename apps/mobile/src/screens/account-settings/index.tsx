@@ -104,7 +104,7 @@ export function AccountSettingsScreen({
         현재 계정 {shortAccountId(accountId)} · {credential.kind === 'bearer' ? '운영 session' : '개발 DEMO'}
       </Text>
 
-      <View style={styles.sessionActions}>
+      {credential.kind === 'bearer' ? <View style={styles.sessionActions}>
         <Host matchContents seedColor={colors.primary} style={styles.sessionButtonHost}>
           <Button
             label={busy === 'logout' ? '로그아웃 중' : '로그아웃'}
@@ -123,7 +123,7 @@ export function AccountSettingsScreen({
             />
           </Host>
         ) : null}
-      </View>
+      </View> : null}
 
       <InfoCard
         title="삭제·연결 해제"

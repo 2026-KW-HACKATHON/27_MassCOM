@@ -277,7 +277,7 @@ export function WalletLinkScreen({ config, credential, onSessionInvalid }: Props
         {connectedAddress ? <Text selectable style={styles.address}>{connectedAddress}</Text> : null}
       </View>
 
-      <View style={[styles.message, phase === 'error' || phase === 'cancelled' ? styles.messageError : null]}>
+      <View accessibilityLiveRegion="polite" style={[styles.message, phase === 'error' || phase === 'cancelled' ? styles.messageError : null]}>
         <Text selectable style={styles.messageText}>{message}</Text>
       </View>
 

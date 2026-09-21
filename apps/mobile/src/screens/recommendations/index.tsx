@@ -67,7 +67,7 @@ export function RecommendationsScreen({
     return (
       <View style={styles.centered}>
         <Text style={styles.centeredTitle}>추천을 불러오지 못했어요</Text>
-        <Text style={styles.centeredBody}>{error}</Text>
+        <Text accessibilityRole="alert" style={styles.centeredBody}>{error}</Text>
         <Pressable accessibilityRole="button" onPress={refresh} style={styles.retryButton}>
           <Text style={styles.retryButtonText}>다시 불러오기</Text>
         </Pressable>
@@ -94,7 +94,7 @@ export function RecommendationsScreen({
         <Text style={styles.policyBody}>미방문 우선 · 이유 공개 · 한국 날짜별 동일 순위 회전</Text>
       </View>
 
-      {error ? <Text style={styles.inlineError}>{error}</Text> : null}
+      {error ? <Text accessibilityLiveRegion="polite" style={styles.inlineError}>{error}</Text> : null}
 
       {recommendations.length === 0 ? (
         <View style={styles.emptyCard}>

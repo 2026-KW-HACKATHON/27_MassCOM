@@ -139,7 +139,7 @@ export function CollectionScreen({
         ? nextPollingState(current, { type: 'success', snapshot: next })
         : initialPollingState(next));
     } catch {
-      setError('NFT 작업 결과를 다시 확인하지 못했습니다. 접수는 취소되지 않았습니다.');
+      setError('NFT 등록 작업 결과를 다시 확인하지 못했습니다. 접수는 취소되지 않았습니다.');
     } finally {
       setPollingRetrying(false);
     }
@@ -237,7 +237,7 @@ export function CollectionScreen({
       {polling?.mode === 'manual-retry' ? (
         <View accessibilityLiveRegion="polite" style={styles.recoveryBanner}>
           <Text selectable style={styles.recoveryText}>
-            NFT 작업 결과를 확인하지 못했습니다. 접수는 취소되지 않았습니다.
+            NFT 등록 작업 결과를 확인하지 못했습니다. 접수는 취소되지 않았습니다.
           </Text>
           <Pressable
             accessibilityRole="button"
