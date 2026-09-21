@@ -12,6 +12,11 @@ import {
   type RedeemedClaim,
 } from '@/commerce/commerce-api';
 import { createScanGate, parseScannedClaimCode } from '@/commerce/claim-code';
+import {
+  claimFailureAction,
+  claimSuccessCopy,
+  type ClaimRecoveryAction,
+} from '@/commerce/claim-recovery';
 import { colors } from '@/theme/colors';
 
 export function ClaimRedeemScreen({
@@ -32,6 +37,8 @@ export function ClaimRedeemScreen({
   const [token, setToken] = useState('');
   const [preview, setPreview] = useState<ClaimPreview>();
   const [redeemed, setRedeemed] = useState<RedeemedClaim>();
+  const [pendingRedeemToken, setPendingRedeemToken] = useState<string>();
+  const [recoveryAction, setRecoveryAction] = useState<ClaimRecoveryAction>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
   const [scanning, setScanning] = useState(false);
@@ -42,6 +49,8 @@ export function ClaimRedeemScreen({
     setToken(value);
     setPreview(undefined);
     setRedeemed(undefined);
+    setPendingRedeemToken(undefined);
+    setRecoveryAction(undefined);
     setMessage(undefined);
   }
 
@@ -79,6 +88,8 @@ export function ClaimRedeemScreen({
     try {
       const next = await api.previewClaim(code);
       setPreview(next);
+      setPendingRedeemToken(code);
+      setRecoveryAction(undefined);
       setMessage(next.status === 'AVAILABLE' ? '사용 가능한 1회 코드입니다. 아래에서 수령을 확정하세요.' : '만료된 코드입니다.');
       requestAnimationFrame(() => scrollView.current?.scrollToEnd({ animated: true }));
     } catch (error) {
@@ -89,18 +100,26 @@ export function ClaimRedeemScreen({
   }
 
   async function redeem() {
-    if (!token.trim() || preview?.status !== 'AVAILABLE' || busy) return;
+    if (!pendingRedeemToken || preview?.status !== 'AVAILABLE' || busy) return;
     setBusy(true);
     setMessage(undefined);
     try {
-      const result = await api.redeemClaim(token.trim());
+      const result = await api.redeemClaim(pendingRedeemToken);
       setRedeemed(result);
       setPreview(undefined);
       setToken('');
-      setMessage('방문과 보상권을 서버에서 한 번에 확정했습니다.');
+      setPendingRedeemToken(undefined);
+      setRecoveryAction(undefined);
+      setMessage(claimSuccessCopy(result).body);
       requestAnimationFrame(() => scrollView.current?.scrollToEnd({ animated: true }));
     } catch (error) {
-      setMessage(messageFor(error));
+      const action = claimFailureAction(error, preview);
+      setRecoveryAction(action);
+      setMessage(action.message);
+      if (!action.keepPreview) {
+        setPreview(undefined);
+        setPendingRedeemToken(undefined);
+      }
     } finally {
       setBusy(false);
     }
@@ -153,34 +172,51 @@ export function ClaimRedeemScreen({
         </Pressable>
       </View>
 
-      {message ? <Text style={styles.message}>{message}</Text> : null}
+      {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
 
       {preview ? (
         <View style={styles.previewCard}>
           <StatusRow label="상태" value={preview.status === 'AVAILABLE' ? '수령 가능' : '만료'} />
-          <StatusRow label="점포 ID" value={preview.merchantId} />
+          <StatusRow label="가게" value={preview.merchantName} />
+          <StatusRow label="캠페인" value={preview.campaignTitle} />
           <StatusRow label="만료" value={formatDateTime(preview.expiresAt)} />
-          <Pressable accessibilityRole="button" disabled={preview.status !== 'AVAILABLE' || busy} onPress={redeem} style={[styles.button, (preview.status !== 'AVAILABLE' || busy) && styles.disabled]}>
-            <Text style={styles.buttonText}>방문 수령 확정</Text>
-          </Pressable>
+          {recoveryAction?.kind === 'collection-check' ? (
+            <Link href="/collection" asChild>
+              <Pressable accessibilityRole="button" style={styles.button}>
+                <Text style={styles.buttonText}>{recoveryAction.label}</Text>
+              </Pressable>
+            </Link>
+          ) : (
+            <Pressable accessibilityRole="button" disabled={preview.status !== 'AVAILABLE' || busy} onPress={redeem} style={[styles.button, (preview.status !== 'AVAILABLE' || busy) && styles.disabled]}>
+              <Text style={styles.buttonText}>
+                {recoveryAction?.kind === 'retry' ? recoveryAction.label : '방문 수령 확정'}
+              </Text>
+            </Pressable>
+          )}
         </View>
       ) : null}
 
       {redeemed ? (
-        <View style={styles.successCard}>
+        <View accessibilityLiveRegion="polite" style={styles.successCard}>
           <Text style={styles.successEyebrow}>방문 인증 완료</Text>
-          <Text style={styles.successTitle}>{redeemed.visit.businessDate} · {redeemed.visit.progressVisitCount}회 진행</Text>
+          <Text selectable style={styles.successTitle}>{claimSuccessCopy(redeemed).title}</Text>
+          <Text selectable style={styles.successBody}>{claimSuccessCopy(redeemed).body}</Text>
+          <Text style={styles.successBody}>{redeemed.visit.businessDate} · {redeemed.visit.progressVisitCount}회 진행</Text>
           <Text style={styles.successBody}>
             {redeemed.visit.progressCounted ? '오늘 방문이 진행 횟수에 반영됐습니다.' : '방문은 기록됐지만 같은 한국 날짜의 진행은 한 번만 셉니다.'}
           </Text>
           <Text style={styles.successBody}>
             새 보상권 {redeemed.grantedRewards.length}개 · NFT 발행은 아직 요청하지 않았습니다.
           </Text>
-          <Link href="/collection" asChild>
-            <Pressable accessibilityRole="button" style={styles.collectionButton}>
-              <Text style={styles.collectionButtonText}>내 도감 확인</Text>
-            </Pressable>
-          </Link>
+          <View style={styles.successActions}>
+            {claimSuccessCopy(redeemed).destinations.map((destination) => (
+              <Link key={destination.href} href={destination.href} asChild>
+                <Pressable accessibilityRole="button" style={styles.collectionButton}>
+                  <Text style={styles.collectionButtonText}>{destination.label}</Text>
+                </Pressable>
+              </Link>
+            ))}
+          </View>
         </View>
       ) : null}
     </ScrollView>
@@ -245,4 +281,5 @@ const styles = StyleSheet.create({
   successBody: { color: colors.onSuccessContainer, fontSize: 14, lineHeight: 22 },
   collectionButton: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.primary },
   collectionButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },
+  successActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
 });
