@@ -1,11 +1,38 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-22 KST
-기준 브랜치: `main`
-기준 main 커밋 SHA: `a50f678` (PR #120 merge, main CI `35620303554` PASS). PR #119 merge `48aa435`, main CI `35606071753`도 PASS했다. 이 문서를 고친 PR이 병합되면 실제 값은 `git log origin/main -1`로 확인한다.
-열린 PR 최종 기준: `gh pr list`. 이 문서 작성 시점의 `docs/118-design-evidence`는 PR 생성 전이지만, 이후 상태는 이 스냅샷보다 GitHub를 우선한다.
+마지막 갱신 시각: 2026-09-22 05:35 KST
+작업 브랜치: `test/122-oauth-testnet-device-closeout`
+연결 Issue: `#122 OAuth·Base Sepolia 입력과 Android 실기 증거 마감`
+기준 main 커밋 SHA: `9926730`. 현재 브랜치 HEAD는 `a337dfe`이며 작업 트리는 clean이다. 이후 상태는 `git status`, `git log`, `gh pr list`를 우선한다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
+
+## 2026-09-22 중단 체크포인트 — 반복 금지
+
+- AWS Free Plan의 `$100` 크레딧 범위에서 서울 리전 Lightsail `masscom-api-seoul`(Ubuntu 24.04, 2GB, 월 최대 `$12`)을 생성했다. Paid Plan 전환은 하지 않았다.
+- 고정 IP `masscom-api-ip`(`43.200.56.97`)를 연결하고 Lightsail 방화벽에 HTTP 80·HTTPS 443을 추가했다. SSH 22는 배포 마감 전 임시로 열려 있다.
+- 커밋 `73e07c8`을 `/opt/masscom/releases/73e07c8cf1e3`에 배포했다. PostgreSQL·API·Caddy가 healthy이고 `/opt/masscom/DEPLOYED_COMMIT`이 해당 전체 SHA를 가리킨다. PostgreSQL 5432와 API 3000은 인터넷에 publish하지 않았다.
+- `api.masscom.kr` A 레코드는 **아직 만들지 못했다**. 가비아 레코드 수정에서 재로그인을 요구했고 세션이 로그인 화면에 멈췄다. Caddy 인증서·외부 `/health`는 따라서 `NOT_RUN`이다.
+- Vercel `masscom-wolgye` production deployment `dpl_DyKyoVjHWCykwJsmfb5sdDbhnmQm`이 READY다. `https://masscom.kr/`, `/privacy`, `/account-deletion` 모두 HTTPS 200과 본문을 확인했다.
+- Google Cloud 새 프로젝트 `MassCOM`(`masscom-wolgye-2026`, project number `172380658768`)에 아래 OAuth client를 만들었다. 다시 만들지 않는다.
+  - Web server: `172380658768-n5r2vad5f2g6ndb9kh2cbcig1j9i792g.apps.googleusercontent.com`
+  - 개발 Android: `172380658768-4rpku6qkj265b7p1m55tduvegks5dv91.apps.googleusercontent.com`, `kr.masscom.wolgye.dev`, debug SHA-1 `0A:15:0F:D7:20:43:47:B3:D2:D1:E1:10:36:D9:89:4C:BD:A7:0D:C7`
+  - 운영 직접 설치용 Android: `172380658768-kk7r7rnhvqr6799q4thcjfjkq3flasha.apps.googleusercontent.com`, `kr.masscom.wolgye`, upload SHA-1 `06:CB:25:F6:60:11:56:57:E7:8C:75:EF:DC:1E:75:43:A1:54:2A:7D`
+- 잘못 사용하던 `dailycoding-492802` 프로젝트에서 MassCOM Web·개발 Android·운영 Android client 3개를 삭제했다. 기존 `DailyCoding` Web client는 보존했다. 삭제 항목은 Google에서 30일 내 복원 가능하지만 복원하지 않는다.
+- `apps/mobile/.env.local`은 Git 비추적 상태로 새 Web client ID와 `https://api.masscom.kr`을 가리킨다.
+- Samsung SM-S928N(Android 16)은 ADB로 다시 연결됐고 개발 앱을 새 bundle로 실행했다. Google 로그인 버튼을 누르면 `CredentialSelectorActivity`가 시작된 흔적은 있었지만 계정 선택·ID token·서버 session 완료를 관찰하지 못했다. DNS와 OAuth 전파 전이므로 실제 Google 로그인은 `NOT_RUN`이다.
+- 중단하면서 Metro·로컬 API를 종료하고 ADB reverse를 제거했으며 개발 앱을 force-stop했다. AWS와 Vercel 서비스만 계속 실행 중이다.
+
+### 다음 실행의 정확한 재개 순서
+
+1. 사용자가 가비아 로그인 화면에서 직접 로그인한다. 비밀번호를 대화에 받지 않는다.
+2. 기존 3개 레코드를 보존하고 `A api 43.200.56.97 TTL 600` 하나만 추가한다.
+3. `dig +short api.masscom.kr A`가 고정 IP를 반환할 때까지 기다린 뒤 `curl https://api.masscom.kr/health`의 200·`{"status":"ok"}`·TLS·보안 헤더를 확인한다. Caddy 로그에서 인증서 성공을 확인한다.
+4. Google OAuth 테스트 사용자/전파 상태를 확인한다. 테스트 사용자 추가가 필요하면 해당 Google 계정 전송 승인을 그 시점에 받는다.
+5. 휴대전화 연결 → `adb reverse tcp:8081 tcp:8081` → Metro 재시작 → 개발 앱 명시 실행 → Google 로그인·SecureStore 복원·로그아웃·계정 전환을 실기한다. 직접 관찰하지 않은 항목은 PASS로 바꾸지 않는다.
+6. 외부 HTTPS가 확인된 뒤 upload-key AAB helper를 다시 실행하고 비밀번호는 로컬 터미널에만 입력한다. 산출물·서명·설치·Play 제출은 각각 별도 상태다.
+7. Base Sepolia 계약 배포는 faucet 잔액이 준비된 상태지만 아직 `NOT_RUN`이다. keystore 비밀번호를 로컬 터미널에 입력받아 시험망에서만 수행한다.
+8. README·상태·테스트·증거를 실제 결과로 갱신한 후 한글 PR 하나로 push·CI·리뷰·merge한다. Google Play 제출·저장소 공개·대회 최종 제출은 실행하지 않는다.
 
 ## 이번 세션에서 완료한 것
 

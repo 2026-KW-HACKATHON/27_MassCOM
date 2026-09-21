@@ -1,0 +1,74 @@
+{
+  "recordedAt": "2026-09-22 05:35 KST",
+  "branch": "test/122-oauth-testnet-device-closeout",
+  "issue": 122,
+  "repositoryVisibility": "PRIVATE",
+  "commits": [
+    "0b9b928",
+    "90e217d",
+    "f815f35",
+    "5dca967",
+    "73e07c8",
+    "a337dfe"
+  ],
+  "hosting": {
+    "provider": "AWS Lightsail",
+    "instance": "masscom-api-seoul",
+    "region": "ap-northeast-2",
+    "plan": "2 GB Linux, USD 12 monthly maximum",
+    "accountPlan": "Free Plan; no Paid Plan conversion",
+    "staticIpv4": "43.200.56.97",
+    "deployedCommit": "73e07c8cf1e3ccf3dbc1ecb65d8f857fccab7a61",
+    "services": {
+      "postgres": "HEALTHY; internal 5432 only",
+      "api": "HEALTHY; internal 3000 only",
+      "caddy": "RUNNING; public 80/443"
+    },
+    "apiDns": "BLOCKED; Gabia reauthentication required before adding api.masscom.kr",
+    "externalApiHttps": "NOT_RUN"
+  },
+  "publicPortal": {
+    "provider": "Vercel Hobby",
+    "deploymentId": "dpl_DyKyoVjHWCykwJsmfb5sdDbhnmQm",
+    "production": "https://masscom.kr",
+    "checks": {
+      "/": "PASS HTTP 200",
+      "/privacy": "PASS HTTP 200",
+      "/account-deletion": "PASS HTTP 200"
+    }
+  },
+  "googleOAuth": {
+    "projectId": "masscom-wolgye-2026",
+    "projectNumber": "172380658768",
+    "webClientId": "172380658768-n5r2vad5f2g6ndb9kh2cbcig1j9i792g.apps.googleusercontent.com",
+    "developmentAndroid": {
+      "clientId": "172380658768-4rpku6qkj265b7p1m55tduvegks5dv91.apps.googleusercontent.com",
+      "package": "kr.masscom.wolgye.dev",
+      "sha1": "0A:15:0F:D7:20:43:47:B3:D2:D1:E1:10:36:D9:89:4C:BD:A7:0D:C7"
+    },
+    "uploadKeyAndroid": {
+      "clientId": "172380658768-kk7r7rnhvqr6799q4thcjfjkq3flasha.apps.googleusercontent.com",
+      "package": "kr.masscom.wolgye",
+      "sha1": "06:CB:25:F6:60:11:56:57:E7:8C:75:EF:DC:1E:75:43:A1:54:2A:7D",
+      "boundary": "This is not the future Google Play app-signing certificate client."
+    },
+    "oldProjectCleanup": "PASS; three MassCOM clients deleted from dailycoding-492802 and the DailyCoding web client retained",
+    "androidLogin": "NOT_RUN; credential selector launch was observed but no account selection, ID token, or server session was completed"
+  },
+  "device": {
+    "model": "Samsung SM-S928N",
+    "android": "16",
+    "package": "kr.masscom.wolgye.dev",
+    "result": "NOT_RUN",
+    "resume": "Reconnect ADB, reverse only 8081, start Metro with the ignored .env.local, then verify Google login after API DNS/TLS is live."
+  },
+  "notClaimed": [
+    "api.masscom.kr DNS or TLS",
+    "successful Google account selection or server session",
+    "upload-key AAB",
+    "Google Play app-signing OAuth client",
+    "Base Sepolia contract deployment",
+    "Google Play submission",
+    "competition final submission"
+  ]
+}

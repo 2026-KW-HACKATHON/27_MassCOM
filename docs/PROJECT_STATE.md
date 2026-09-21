@@ -10,7 +10,16 @@
 | 기본 브랜치 | `main` |
 | 기준 커밋 | 이 문서는 SHA를 고정하지 않는다. 실제 기준은 `git log origin/main -1`, 직전 검증 기준은 `docs/HANDOFF.md` 머리말 |
 | 현재 작업·열린 PR | `gh pr list`, `gh issue list`가 기준. 인수인계 요약은 `docs/HANDOFF.md` |
-| 현재 검증 기준 | API 78·PostgreSQL 37·Worker 45/PG 23·모바일 140·Foundry 8/fuzz128·Anvil PASS |
+| 현재 검증 기준 | API 80·PostgreSQL 37·Worker 45/PG 23·모바일 140·Foundry 8/fuzz128·Anvil PASS |
+
+## Issue #122 중단 체크포인트
+
+- 브랜치 `test/122-oauth-testnet-device-closeout`, HEAD `a337dfe`, 작업 트리 clean.
+- AWS Lightsail 서울 2GB 인스턴스에 커밋 `73e07c8`의 PostgreSQL·API·Caddy를 배포했고 세 컨테이너 상태를 healthy/running으로 확인했다. DB 5432·API 3000은 인터넷에 publish하지 않았다.
+- Vercel 정적 포털 `https://masscom.kr`과 `/privacy`, `/account-deletion`은 HTTPS 200 `VERIFIED`다.
+- `api.masscom.kr` DNS는 가비아 재로그인 때문에 `BLOCKED`; 외부 API TLS와 Android Google 로그인은 `NOT_RUN`이다.
+- Google Cloud `masscom-wolgye-2026`에 Web·개발 Android·upload-key Android client를 만들고 잘못된 DailyCoding MassCOM client 3개를 삭제했다. Play 앱 서명 인증서 client는 Play Console 키가 생긴 뒤 별도로 만든다.
+- 상세 값과 재개 순서는 [`docs/evidence/external-oauth-hosting-2026-09-22.json`](evidence/external-oauth-hosting-2026-09-22.json), [`docs/HANDOFF.md`](HANDOFF.md)를 따른다.
 
 ## 검증 수준별 현황
 
@@ -77,15 +86,15 @@
 
 | 영역 | 상태 | 내용 |
 | --- | --- | --- |
-| 배포 | `BLOCKED` | 외부 HTTPS·클라우드 없음(B-003). loopback DEMO와 로컬 PostgreSQL만 검증 |
+| 배포 | `IN_PROGRESS` | Vercel 포털 HTTPS와 AWS Lightsail API/DB/Caddy 내부 health는 확인. `api.masscom.kr` DNS·ACME·외부 `/health`는 B-015로 `BLOCKED` |
 | Android 빌드 | `IN_PROGRESS` | 개발 빌드 실기 PASS. 운영 variant `kr.masscom.wolgye` 로컬 debug 서명 AAB에서 package·scheme·권한·16KB 정렬 PASS. 저장소 밖 upload keystore·승인 SHA-256 핀은 준비됐고 upload key 서명 AAB·16KB 기기 설치·Play 업로드는 `NOT_RUN` |
-| NFT·시험망 | `IN_PROGRESS` | Local Anvil 계약·Worker·이벤트 대조 PASS. Base Sepolia는 keystore 배포 스크립트와 실체인 시뮬레이션 PASS, 실제 배포는 `NOT_RUN`(B-012). mainnet 범위 밖 |
+| NFT·시험망 | `IN_PROGRESS` | Local Anvil 계약·Worker·이벤트 대조 PASS. Base Sepolia faucet gas는 준비됐고 keystore 배포 스크립트·실체인 시뮬레이션 PASS, 실제 배포는 `NOT_RUN`. mainnet 범위 밖 |
 | 외부 지갑 연동 | `IN_PROGRESS` | `kr.masscom.wolgye.dev` MetaMask 연결·Base Sepolia·`personal_sign`·서버 검증·자동 복귀·콜드 스타트 복원과 W06 실기 PASS(B-014 해소). 운영 `kr.masscom.wolgye` release 복귀는 `NOT_RUN`; W04·W05는 `BLOCKED`(B-010·B-011) |
 
 ## 검증 상태
 
 - 필수 36개: 30 PASS / 2 BLOCKED / 4 NOT_RUN
-- API 단위: `78/78 PASS`; PostgreSQL: `37/37 PASS`
+- API 단위: `80/80 PASS`; PostgreSQL: `37/37 PASS`
 - Worker 단위: `45/45 PASS`; PostgreSQL: `23/23 PASS`; Anvil W07/M01~M08: `PASS`
 - 모바일: `140/140 PASS`; typecheck·lint·Android export·Nitro Google/SecureStore development native compile `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
