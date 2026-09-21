@@ -169,6 +169,9 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
   assert.deepEqual(preview, {
     claimSlotId: first.claimSlotId,
     merchantId: 'merchant-a',
+    merchantName: 'A 데모 식당',
+    campaignId: 'campaign-a',
+    campaignTitle: '가을 방문 도감',
     expiresAt: '2026-09-18T03:15:00.000Z',
     status: 'AVAILABLE',
   });
@@ -183,8 +186,20 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
       service.redeem({ accountId: 'customer-1', token: reissued.token }),
     ),
   );
-  assert.equal(concurrent.filter((result) => result.status === 'fulfilled').length, 1);
-  assert.equal(concurrent.filter((result) => result.status === 'rejected').length, 19);
+  assert.equal(concurrent.filter((result) => result.status === 'fulfilled').length, 20);
+  assert.equal(concurrent.filter((result) => result.status === 'rejected').length, 0);
+  assert.equal(
+    concurrent.filter(
+      (result) => result.status === 'fulfilled' && result.value.replayed === false,
+    ).length,
+    1,
+  );
+  assert.equal(
+    concurrent.filter(
+      (result) => result.status === 'fulfilled' && result.value.replayed === true,
+    ).length,
+    19,
+  );
   const claimed = await pool.query<{ status: string; claimed_count: string }>(
     `SELECT status, count(claimed_at)::text AS claimed_count
      FROM claim_slots

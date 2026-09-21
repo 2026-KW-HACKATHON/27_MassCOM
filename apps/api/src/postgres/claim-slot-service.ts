@@ -39,6 +39,9 @@ type ClaimSlotRow = {
 type ClaimSlotPreviewRow = {
   id: string;
   merchant_id: string;
+  merchant_name: string;
+  campaign_id: string;
+  campaign_title: string;
   expires_at: Date;
 };
 
@@ -54,6 +57,8 @@ type IssuedClaimSlotRow = {
 
 type CampaignRow = {
   id: string;
+  title: string;
+  merchant_name: string;
 };
 
 type VisitEventRow = {
@@ -74,6 +79,18 @@ type RewardEntitlementRow = {
   id: string;
   target_visit_count: 1 | 3 | 5;
   claim_expires_at: Date;
+};
+
+type RedeemedReplayRow = {
+  claim_slot_id: string;
+  merchant_id: string;
+  merchant_name: string;
+  campaign_id: string;
+  campaign_title: string;
+  visit_event_id: string;
+  business_date: string;
+  progress_counted: boolean;
+  progress_visit_count: number;
 };
 
 const defaultOptions: ClaimSlotServiceOptions = {
@@ -302,12 +319,26 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     token: string;
   }): Promise<ClaimSlotPreview> {
     const result = await this.pool.query<ClaimSlotPreviewRow>(
-      `SELECT id, merchant_id, expires_at
-       FROM claim_slots
-       WHERE token_hash = $1
-         AND customer_account_id = $2
-         AND status = 'ISSUED'`,
-      [hashValue(input.token), input.accountId],
+      `SELECT slot.id,
+              slot.merchant_id,
+              merchant.name AS merchant_name,
+              campaign.id AS campaign_id,
+              campaign.title AS campaign_title,
+              slot.expires_at
+       FROM claim_slots AS slot
+       JOIN merchants AS merchant ON merchant.id = slot.merchant_id
+       JOIN campaigns AS campaign
+         ON campaign.merchant_id = slot.merchant_id
+        AND campaign.status = 'ACTIVE'
+        AND campaign.is_public = true
+        AND campaign.starts_at <= $3
+        AND campaign.ends_at > $3
+       WHERE slot.token_hash = $1
+         AND slot.customer_account_id = $2
+         AND slot.status = 'ISSUED'
+       ORDER BY campaign.id
+       LIMIT 1`,
+      [hashValue(input.token), input.accountId, this.options.now()],
     );
     const slot = result.rows[0];
     if (!slot) {
@@ -316,6 +347,9 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     return {
       claimSlotId: slot.id,
       merchantId: slot.merchant_id,
+      merchantName: slot.merchant_name,
+      campaignId: slot.campaign_id,
+      campaignTitle: slot.campaign_title,
       expiresAt: slot.expires_at.toISOString(),
       status: slot.expires_at.getTime() <= this.options.now().getTime() ? 'EXPIRED' : 'AVAILABLE',
     };
@@ -345,6 +379,16 @@ export class PostgresClaimSlotService implements ClaimSlotService {
       );
       const slot = result.rows[0];
       if (!slot) {
+        const replayed = await findRedeemedClaim(
+          client,
+          hashValue(input.token),
+          input.accountId,
+        );
+        if (replayed) {
+          await client.query('COMMIT');
+          transactionActive = false;
+          return replayed;
+        }
         throw new ClaimSlotError('CLAIM_TOKEN_UNAVAILABLE');
       }
       if (slot.status === 'EXPIRED') {
@@ -508,7 +552,10 @@ export class PostgresClaimSlotService implements ClaimSlotService {
       return {
         claimSlotId: slot.id,
         merchantId: slot.merchant_id,
+        merchantName: campaign.merchant_name,
+        campaignTitle: campaign.title,
         status: 'CLAIMED',
+        replayed: false,
         visit: {
           visitEventId: visit.id,
           campaignId: campaign.id,
@@ -539,18 +586,90 @@ async function findActiveCampaign(
   redeemedAt: Date,
 ): Promise<CampaignRow | undefined> {
   const result = await client.query<CampaignRow>(
-    `SELECT id
-     FROM campaigns
-     WHERE merchant_id = $1
-       AND status = 'ACTIVE'
-       AND is_public = true
-       AND starts_at <= $2
-       AND ends_at > $2
-     ORDER BY id
+    `SELECT campaign.id, campaign.title, merchant.name AS merchant_name
+     FROM campaigns AS campaign
+     JOIN merchants AS merchant ON merchant.id = campaign.merchant_id
+     WHERE campaign.merchant_id = $1
+       AND campaign.status = 'ACTIVE'
+       AND campaign.is_public = true
+       AND campaign.starts_at <= $2
+       AND campaign.ends_at > $2
+     ORDER BY campaign.id
      LIMIT 1`,
     [merchantId, redeemedAt],
   );
   return result.rows[0];
+}
+
+async function findRedeemedClaim(
+  client: PoolClient,
+  tokenHash: Buffer,
+  accountId: string,
+): Promise<RedeemedClaimSlot | undefined> {
+  const result = await client.query<RedeemedReplayRow>(
+    `SELECT slot.id AS claim_slot_id,
+            slot.merchant_id,
+            merchant.name AS merchant_name,
+            visit.campaign_id,
+            campaign.title AS campaign_title,
+            visit.id AS visit_event_id,
+            visit.business_date::text,
+            visit.progress_counted,
+            (
+              SELECT count(*)::integer
+              FROM visit_events AS progress_visit
+              WHERE progress_visit.customer_account_id = $2
+                AND progress_visit.campaign_id = visit.campaign_id
+                AND progress_visit.status = 'VALID'
+                AND progress_visit.progress_counted
+                AND progress_visit.occurred_at <= visit.occurred_at
+            ) AS progress_visit_count
+     FROM claim_slots AS slot
+     JOIN visit_events AS visit
+       ON visit.claim_slot_id = slot.id
+      AND visit.customer_account_id = slot.customer_account_id
+      AND visit.status = 'VALID'
+     JOIN campaigns AS campaign ON campaign.id = visit.campaign_id
+     JOIN merchants AS merchant ON merchant.id = slot.merchant_id
+     WHERE slot.token_hash = $1
+       AND slot.customer_account_id = $2
+       AND slot.status = 'CLAIMED'
+     LIMIT 1`,
+    [tokenHash, accountId],
+  );
+  const replay = result.rows[0];
+  if (!replay) return undefined;
+  const rewards = await client.query<RewardEntitlementRow>(
+    `SELECT id, target_visit_count, claim_expires_at
+     FROM reward_entitlements
+     WHERE customer_account_id = $1
+       AND source_visit_event_id = $2
+       AND status = 'GRANTED'
+     ORDER BY target_visit_count`,
+    [accountId, replay.visit_event_id],
+  );
+  return {
+    claimSlotId: replay.claim_slot_id,
+    merchantId: replay.merchant_id,
+    merchantName: replay.merchant_name,
+    campaignTitle: replay.campaign_title,
+    status: 'CLAIMED',
+    replayed: true,
+    visit: {
+      visitEventId: replay.visit_event_id,
+      campaignId: replay.campaign_id,
+      businessDate: replay.business_date,
+      verificationLevel: 'MERCHANT_CONFIRMED',
+      progressCounted: replay.progress_counted,
+      progressVisitCount: replay.progress_visit_count,
+    },
+    grantedRewards: rewards.rows.map((reward) => ({
+      entitlementId: reward.id,
+      targetVisitCount: reward.target_visit_count,
+      status: 'GRANTED' as const,
+      claimExpiresAt: reward.claim_expires_at.toISOString(),
+    })),
+  };
 }
 
 function hashValue(value: string): Buffer {

@@ -107,13 +107,17 @@ test('Q01 R01 R03 redeem creates one visit effect per QR and grants fixed goals 
         ? `${result.reason.name}: ${result.reason.message}`
         : String(result.reason),
     );
-  assert.equal(firstSuccesses.length, 1, firstRejections.join('\n'));
-  assert.equal(firstRace.filter((result) => result.status === 'rejected').length, 19);
-  const first = firstSuccesses[0]!.value;
+  assert.equal(firstSuccesses.length, 20, firstRejections.join('\n'));
+  assert.equal(firstRace.filter((result) => result.status === 'rejected').length, 0);
+  const first = firstSuccesses.find((result) => result.value.replayed === false)?.value;
+  assert.ok(first);
   assert.deepEqual(first, {
     claimSlotId: firstSlot.claimSlotId,
     merchantId: 'merchant-a',
+    merchantName: 'A 데모 식당',
+    campaignTitle: '가을 방문 도감',
     status: 'CLAIMED',
+    replayed: false,
     visit: {
       visitEventId: '10000000-0000-4000-8000-000000000001',
       campaignId: 'campaign-a',
@@ -130,6 +134,31 @@ test('Q01 R01 R03 redeem creates one visit effect per QR and grants fixed goals 
         claimExpiresAt: '2026-12-17T03:00:00.000Z',
       },
     ],
+  });
+  const recovered = await service.redeem({ accountId: 'customer-1', token: firstSlot.token });
+  assert.equal(recovered.replayed, true);
+  assert.equal(recovered.claimSlotId, first.claimSlotId);
+  assert.equal(recovered.visit.visitEventId, first.visit.visitEventId);
+  assert.deepEqual(recovered.grantedRewards, first.grantedRewards);
+  await assert.rejects(
+    service.redeem({ accountId: 'different-customer', token: firstSlot.token }),
+    { code: 'CLAIM_TOKEN_UNAVAILABLE' },
+  );
+  const responseLossCounts = await pool.query<{
+    claim_count: number;
+    visit_count: number;
+    entitlement_count: number;
+  }>(
+    `SELECT
+       (SELECT count(*)::integer FROM claim_slots WHERE id = $1) AS claim_count,
+       (SELECT count(*)::integer FROM visit_events WHERE claim_slot_id = $1) AS visit_count,
+       (SELECT count(*)::integer FROM reward_entitlements WHERE source_visit_event_id = $2) AS entitlement_count`,
+    [first.claimSlotId, first.visit.visitEventId],
+  );
+  assert.deepEqual(responseLossCounts.rows[0], {
+    claim_count: 1,
+    visit_count: 1,
+    entitlement_count: 1,
   });
 
   currentTime = new Date('2026-09-18T14:59:59.999Z');

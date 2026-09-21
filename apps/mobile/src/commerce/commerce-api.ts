@@ -17,6 +17,9 @@ export type IssuedClaim = {
 export type ClaimPreview = {
   claimSlotId: string;
   merchantId: string;
+  merchantName: string;
+  campaignId: string;
+  campaignTitle: string;
   expiresAt: string;
   status: 'AVAILABLE' | 'EXPIRED';
 };
@@ -24,7 +27,10 @@ export type ClaimPreview = {
 export type RedeemedClaim = {
   claimSlotId: string;
   merchantId: string;
+  merchantName: string;
+  campaignTitle: string;
   status: 'CLAIMED';
+  replayed: boolean;
   visit: {
     visitEventId: string;
     campaignId: string;
@@ -249,6 +255,9 @@ function parseClaimPreview(value: unknown): ClaimPreview {
     !isRecord(value) ||
     !isString(value.claimSlotId) ||
     !isString(value.merchantId) ||
+    !isString(value.merchantName) ||
+    !isString(value.campaignId) ||
+    !isString(value.campaignTitle) ||
     !isDate(value.expiresAt) ||
     (value.status !== 'AVAILABLE' && value.status !== 'EXPIRED')
   ) {
@@ -257,6 +266,9 @@ function parseClaimPreview(value: unknown): ClaimPreview {
   return {
     claimSlotId: value.claimSlotId,
     merchantId: value.merchantId,
+    merchantName: value.merchantName,
+    campaignId: value.campaignId,
+    campaignTitle: value.campaignTitle,
     expiresAt: value.expiresAt,
     status: value.status,
   };
@@ -267,7 +279,10 @@ function parseRedeemedClaim(value: unknown): RedeemedClaim {
     !isRecord(value) ||
     !isString(value.claimSlotId) ||
     !isString(value.merchantId) ||
+    !isString(value.merchantName) ||
+    !isString(value.campaignTitle) ||
     value.status !== 'CLAIMED' ||
+    typeof value.replayed !== 'boolean' ||
     !isRecord(value.visit) ||
     !isString(value.visit.visitEventId) ||
     !isString(value.visit.campaignId) ||
@@ -282,7 +297,10 @@ function parseRedeemedClaim(value: unknown): RedeemedClaim {
   return {
     claimSlotId: value.claimSlotId,
     merchantId: value.merchantId,
+    merchantName: value.merchantName,
+    campaignTitle: value.campaignTitle,
     status: 'CLAIMED',
+    replayed: value.replayed,
     visit: {
       visitEventId: value.visit.visitEventId,
       campaignId: value.visit.campaignId,

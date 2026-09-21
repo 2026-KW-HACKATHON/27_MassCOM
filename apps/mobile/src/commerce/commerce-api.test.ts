@@ -74,6 +74,9 @@ test('keeps the claim token out of preview and redeem URLs', async () => {
         return Response.json({
           claimSlotId: 'claim-slot-1',
           merchantId: 'merchant-1',
+          merchantName: '월계 밥상',
+          campaignId: 'campaign-1',
+          campaignTitle: '월계 한 바퀴',
           expiresAt: '2026-09-19T05:00:00.000Z',
           status: 'AVAILABLE',
         });
@@ -81,7 +84,10 @@ test('keeps the claim token out of preview and redeem URLs', async () => {
       return Response.json({
         claimSlotId: 'claim-slot-1',
         merchantId: 'merchant-1',
+        merchantName: '월계 밥상',
+        campaignTitle: '월계 한 바퀴',
         status: 'CLAIMED',
+        replayed: false,
         visit: {
           visitEventId: 'visit-1',
           campaignId: 'campaign-1',
@@ -100,6 +106,42 @@ test('keeps the claim token out of preview and redeem URLs', async () => {
 
   assert.equal(requestedUrls.length, 2);
   assert.equal(requestedUrls.some((url) => url.includes('secret-claim-token')), false);
+});
+
+test('rejects preview and redeem responses without user-facing recovery fields', async () => {
+  const responses = [
+    {
+      claimSlotId: 'claim-slot-1',
+      merchantId: 'merchant-1',
+      campaignId: 'campaign-1',
+      campaignTitle: '월계 한 바퀴',
+      expiresAt: '2026-09-19T05:00:00.000Z',
+      status: 'AVAILABLE',
+    },
+    {
+      claimSlotId: 'claim-slot-1',
+      merchantId: 'merchant-1',
+      merchantName: '월계 밥상',
+      campaignTitle: '월계 한 바퀴',
+      status: 'CLAIMED',
+      visit: {
+        visitEventId: 'visit-1',
+        campaignId: 'campaign-1',
+        businessDate: '2026-09-19',
+        verificationLevel: 'MERCHANT_CONFIRMED',
+        progressCounted: true,
+        progressVisitCount: 1,
+      },
+      grantedRewards: [],
+    },
+  ];
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
+    fetcher: async () => Response.json(responses.shift()),
+  });
+  await assert.rejects(client.previewClaim('token'), /수령 확인 응답 형식/);
+  await assert.rejects(client.redeemClaim('token'), /방문 수령 응답 형식/);
 });
 
 test('parses collection states while keeping app collectibles and NFT state separate', async () => {

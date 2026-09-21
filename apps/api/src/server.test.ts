@@ -72,6 +72,9 @@ type ClaimSlotFixture = {
   }): Promise<{
     claimSlotId: string;
     merchantId: string;
+    merchantName: string;
+    campaignId: string;
+    campaignTitle: string;
     expiresAt: string;
     status: 'AVAILABLE' | 'EXPIRED';
   }>;
@@ -406,7 +409,10 @@ test('redeems a claim token only for the authenticated customer account', async 
       redeem: async () => ({
         claimSlotId: 'claim-slot-1',
         merchantId: 'merchant-visible',
+        merchantName: '데모 식당',
+        campaignTitle: '가을 방문 도감',
         status: 'CLAIMED',
+        replayed: false,
         visit: {
           visitEventId: 'visit-event-1',
           campaignId: 'campaign-visible',
@@ -436,7 +442,10 @@ test('redeems a claim token only for the authenticated customer account', async 
   assert.deepEqual(await response.json(), {
     claimSlotId: 'claim-slot-1',
     merchantId: 'merchant-visible',
+    merchantName: '데모 식당',
+    campaignTitle: '가을 방문 도감',
     status: 'CLAIMED',
+    replayed: false,
     visit: {
       visitEventId: 'visit-event-1',
       campaignId: 'campaign-visible',
@@ -466,6 +475,9 @@ test('previews a claim token without consuming it or putting the token in the UR
       preview: async () => ({
         claimSlotId: 'claim-slot-1',
         merchantId: 'merchant-visible',
+        merchantName: '데모 식당',
+        campaignId: 'campaign-visible',
+        campaignTitle: '가을 방문 도감',
         expiresAt: '2026-09-18T03:30:00.000Z',
         status: 'AVAILABLE',
       }),
@@ -481,6 +493,9 @@ test('previews a claim token without consuming it or putting the token in the UR
   assert.deepEqual(await response.json(), {
     claimSlotId: 'claim-slot-1',
     merchantId: 'merchant-visible',
+    merchantName: '데모 식당',
+    campaignId: 'campaign-visible',
+    campaignTitle: '가을 방문 도감',
     expiresAt: '2026-09-18T03:30:00.000Z',
     status: 'AVAILABLE',
   });
