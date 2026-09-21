@@ -155,7 +155,10 @@ bash scripts/check-secrets.sh
 bash scripts/check-privacy.sh
 bash tests/bootstrap/verify_bootstrap_test.sh
 bash tests/site/verify_presentation_test.sh
-bash tests/bootstrap/check_pr_korean_test.sh
+PR_TITLE='한국어 PR 제목'
+PR_BODY='변경 내용과 실제 검증 결과를 설명하는 한국어 본문'
+bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"
+bash tests/bootstrap/check_pr_korean_test.sh                     # checker 자체 회귀 시험
 ./scripts/deploy-base-sepolia.sh <keystore-account>            # 시뮬레이션만
 ./scripts/build-release-aab.sh --restore-dev                   # 운영 AAB 빌드 뒤 개발 프로젝트 복원
 ```
