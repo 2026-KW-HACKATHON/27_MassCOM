@@ -1,4 +1,5 @@
 import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
+import { shouldInvalidateSession } from '@/auth/session-invalid';
 
 export type MerchantContext = {
   merchantId: string;
@@ -82,6 +83,7 @@ export type MintJobResponse = {
 type Options = {
   apiUrl: string;
   credential: AccountCredential;
+  onSessionInvalid?: () => void | Promise<void>;
   fetcher?: typeof fetch;
 };
 
@@ -115,6 +117,9 @@ export function createCommerceApiClient(options: Options) {
       const code = isRecord(payload) && typeof payload.code === 'string'
         ? payload.code
         : `HTTP_${response.status}`;
+      if (shouldInvalidateSession(options.credential, response.status, code)) {
+        await options.onSessionInvalid?.();
+      }
       throw new CommerceApiError(response.status, code);
     }
     return payload;

@@ -72,3 +72,15 @@ test('preserves HTTP failure status for recovery UI', async () => {
     return true;
   });
 });
+
+test('invalidates a rejected bearer session once', async () => {
+  let invalidations = 0;
+  const client = createRecommendationApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'expired-session' },
+    onSessionInvalid: async () => { invalidations += 1; },
+    fetcher: async () => Response.json({ code: 'SESSION_INVALID' }, { status: 401 }),
+  });
+  await assert.rejects(client.listRecommendations(), /SESSION_INVALID/);
+  assert.equal(invalidations, 1);
+});

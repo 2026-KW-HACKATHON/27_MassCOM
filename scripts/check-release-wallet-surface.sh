@@ -78,14 +78,13 @@ done < <(find "$src" -type f \( \
 \) ! -name '*.test.*' -print0)
 [[ "${#app_files[@]}" -gt 0 ]] || fail "no supported mobile source files found"
 
-# Reown is intentionally exposed through six narrow imports. Reject every other occurrence of the
+# Reown is intentionally exposed through five narrow imports. Reject every other occurrence of the
 # module specifier, including namespace re-exports that can hide computed createAppKit/open calls.
 reown_module='@reown/appkit-react-native'
 allowed_reown_files=(
   wallet/appkit.ts
   wallet/base-sepolia.ts
   wallet/appkit-storage.ts
-  screens/account-settings/index.tsx
   screens/wallet-link/index.tsx
   app/_layout.tsx
 )
@@ -94,7 +93,6 @@ expected_reown_import() {
     wallet/appkit.ts) echo "import { createAppKit } from '$reown_module';" ;;
     wallet/base-sepolia.ts) echo "import type { AppKitNetwork } from '$reown_module';" ;;
     wallet/appkit-storage.ts) echo "import type { Storage } from '$reown_module';" ;;
-    screens/account-settings/index.tsx) echo "import { useAppKit } from '$reown_module';" ;;
     screens/wallet-link/index.tsx)
       echo "import { useAccount, useAppKit, useAppKitEventSubscription, useProvider, } from '$reown_module';"
       ;;
@@ -159,12 +157,6 @@ open_references="$(grep -oE '\bopen\b' "$wallet_link" | wc -l | tr -d ' ')"
 wallet_hook_references="$(grep -oE '\buseAppKit\b' "$wallet_link" | wc -l | tr -d ' ')"
 [[ "$open_references" == 2 && "$wallet_hook_references" == 2 ]] \
   || fail "wallet-link may not alias or reacquire AppKit open"
-account_settings="$src/screens/account-settings/index.tsx"
-normalized_account_settings="$(tr '\n' ' ' <"$account_settings" | sed -E 's/[[:space:]]+/ /g')"
-[[ "$normalized_account_settings" == *"const { disconnect } = useAppKit();"* ]] \
-  || fail "account settings must use the canonical AppKit destructuring"
-account_hook_references="$(grep -oE '\buseAppKit\b' "$account_settings" | wc -l | tr -d ' ')"
-[[ "$account_hook_references" == 2 ]] || fail "account settings may not reacquire AppKit"
 appkit_files=()
 for app_file in "${app_files[@]}"; do
   if grep -qE "@reown/|useAppKit" "$app_file"; then

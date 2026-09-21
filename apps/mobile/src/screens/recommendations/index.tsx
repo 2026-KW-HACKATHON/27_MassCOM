@@ -3,15 +3,23 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { AccountCredential } from '@/auth/account-credential';
 import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
-import { createDemoCredential } from '@/config/demo-runtime';
 import { colors } from '@/theme/colors';
 
-export function RecommendationsScreen({ apiUrl, accountId }: { apiUrl: string; accountId: string }) {
+export function RecommendationsScreen({
+  apiUrl,
+  credential,
+  onSessionInvalid,
+}: {
+  apiUrl: string;
+  credential: AccountCredential;
+  onSessionInvalid: () => Promise<void>;
+}) {
   const insets = useSafeAreaInsets();
   const api = useMemo(
-    () => createRecommendationApiClient({ apiUrl, credential: createDemoCredential(accountId) }),
-    [accountId, apiUrl],
+    () => createRecommendationApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
   );
   const [recommendations, setRecommendations] = useState<readonly Recommendation[]>();
   const [loading, setLoading] = useState(true);

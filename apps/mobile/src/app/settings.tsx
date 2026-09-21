@@ -1,22 +1,27 @@
-import { demoRuntimeConfig } from '@/config/demo-runtime';
+import { useAuthSession } from '@/auth/auth-provider';
 import { publicApiConfig } from '@/config/public-api-runtime';
 import { DemoConfigurationRequired } from '@/screens/demo-configuration-required';
 import { AccountSettingsScreen } from '@/screens/account-settings';
 
 export default function SettingsRoute() {
+  const auth = useAuthSession();
   const missing = [
     ...(!publicApiConfig.available ? ['EXPO_PUBLIC_API_URL'] : []),
-    ...(!demoRuntimeConfig.customerAccountId ? ['EXPO_PUBLIC_DEMO_ACCOUNT_ID'] : []),
+    ...(!auth.credential ? ['AUTH_SESSION'] : []),
   ];
-  if (!publicApiConfig.available || !demoRuntimeConfig.customerAccountId) {
+  if (!publicApiConfig.available || !auth.credential || !auth.accountId) {
     return <DemoConfigurationRequired title="계정 설정에 API 연결이 필요합니다." missing={missing} />;
   }
   return (
     <AccountSettingsScreen
-      key={demoRuntimeConfig.customerAccountId}
+      key={auth.accountId}
       apiUrl={publicApiConfig.apiUrl}
-      accountId={demoRuntimeConfig.customerAccountId}
-      allowInsecureDemoReauthentication={demoRuntimeConfig.allowInsecureDemoReauthentication}
+      accountId={auth.accountId}
+      credential={auth.credential}
+      destructiveReauthentication={auth.destructiveReauthentication}
+      canSwitchAccount={auth.canSignIn}
+      onLogout={auth.logout}
+      onSwitchAccount={auth.switchAccount}
     />
   );
 }

@@ -62,6 +62,18 @@ test('preserves the server error code for recovery UI', async () => {
   );
 });
 
+test('invalidates a rejected bearer session once', async () => {
+  let invalidations = 0;
+  const client = new WalletApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'expired-session' },
+    onSessionInvalid: async () => { invalidations += 1; },
+    fetcher: async () => Response.json({ code: 'SESSION_INVALID' }, { status: 401 }),
+  });
+  await assert.rejects(client.getActiveBinding(), /SESSION_INVALID/);
+  assert.equal(invalidations, 1);
+});
+
 test('reads and disconnects the server wallet binding version', async () => {
   const requests: { url: string; init?: RequestInit }[] = [];
   const binding = {

@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { AccountCredential } from '@/auth/account-credential';
 import {
   CommerceApiError,
   createCommerceApiClient,
@@ -11,15 +12,22 @@ import {
   type RedeemedClaim,
 } from '@/commerce/commerce-api';
 import { createScanGate, parseScannedClaimCode } from '@/commerce/claim-code';
-import { createDemoCredential } from '@/config/demo-runtime';
 import { colors } from '@/theme/colors';
 
-export function ClaimRedeemScreen({ apiUrl, accountId }: { apiUrl: string; accountId: string }) {
+export function ClaimRedeemScreen({
+  apiUrl,
+  credential,
+  onSessionInvalid,
+}: {
+  apiUrl: string;
+  credential: AccountCredential;
+  onSessionInvalid: () => Promise<void>;
+}) {
   const scrollView = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
   const api = useMemo(
-    () => createCommerceApiClient({ apiUrl, credential: createDemoCredential(accountId) }),
-    [accountId, apiUrl],
+    () => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
   );
   const [token, setToken] = useState('');
   const [preview, setPreview] = useState<ClaimPreview>();

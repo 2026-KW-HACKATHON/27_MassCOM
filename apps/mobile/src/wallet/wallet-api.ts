@@ -1,4 +1,5 @@
 import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
+import { shouldInvalidateSession } from '@/auth/session-invalid';
 
 export type WalletChallengeResponse = {
   challengeId: string;
@@ -52,6 +53,7 @@ type VerifyChallengeInput = {
 type WalletApiClientOptions = {
   apiUrl: string;
   credential: AccountCredential;
+  onSessionInvalid?: () => void | Promise<void>;
   fetcher?: typeof fetch;
 };
 
@@ -68,11 +70,13 @@ export class WalletApiError extends Error {
 export class WalletApiClient {
   readonly #apiUrl: string;
   readonly #credential: AccountCredential;
+  readonly #onSessionInvalid?: () => void | Promise<void>;
   readonly #fetcher: typeof fetch;
 
   constructor(options: WalletApiClientOptions) {
     this.#apiUrl = options.apiUrl.replace(/\/$/, '');
     this.#credential = options.credential;
+    this.#onSessionInvalid = options.onSessionInvalid;
     this.#fetcher = options.fetcher ?? fetch;
   }
 
@@ -121,6 +125,9 @@ export class WalletApiClient {
       const code = 'code' in (payload as object) && typeof (payload as { code?: unknown }).code === 'string'
         ? (payload as { code: string }).code
         : `HTTP_${response.status}`;
+      if (shouldInvalidateSession(this.#credential, response.status, code)) {
+        await this.#onSessionInvalid?.();
+      }
       throw new WalletApiError(response.status, code);
     }
     return payload as T;

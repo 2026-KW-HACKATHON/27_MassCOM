@@ -27,6 +27,7 @@ import { readApprovedEvmAccount } from '@/wallet/wallet-session';
 type Props = {
   config: AvailableWalletRuntimeConfig;
   credential: AccountCredential;
+  onSessionInvalid: () => Promise<void>;
 };
 
 type Phase =
@@ -44,7 +45,7 @@ const walletCancellationMessage =
 const walletMissingMessage =
   '선택한 지갑 앱이 설치되어 있지 않아 연결하지 못했습니다. 설치 후 다시 시도하거나 다른 외부 지갑을 선택해 주세요. 방문 기록과 받을 수집품은 유지됩니다.';
 
-export function WalletLinkScreen({ config, credential }: Props) {
+export function WalletLinkScreen({ config, credential, onSessionInvalid }: Props) {
   useColorScheme();
   const insets = useSafeAreaInsets();
   const { address, chainId } = useAccount();
@@ -54,8 +55,9 @@ export function WalletLinkScreen({ config, credential }: Props) {
     () => new WalletApiClient({
       apiUrl: config.apiUrl,
       credential,
+      onSessionInvalid,
     }),
-    [config.apiUrl, credential],
+    [config.apiUrl, credential, onSessionInvalid],
   );
   const previousAddress = useRef<string | undefined>(address);
   const awaitingWalletConnectionDecision = useRef(false);

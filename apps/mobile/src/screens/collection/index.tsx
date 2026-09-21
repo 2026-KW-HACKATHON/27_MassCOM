@@ -3,16 +3,29 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { AccountCredential } from '@/auth/account-credential';
 import { CommerceApiError, createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
-import { createDemoCredential } from '@/config/demo-runtime';
 import { colors } from '@/theme/colors';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
-export function CollectionScreen({ apiUrl, accountId }: { apiUrl: string; accountId: string }) {
+export function CollectionScreen({
+  apiUrl,
+  credential,
+  onSessionInvalid,
+}: {
+  apiUrl: string;
+  credential: AccountCredential;
+  onSessionInvalid: () => Promise<void>;
+}) {
   const insets = useSafeAreaInsets();
-  const credential = useMemo(() => createDemoCredential(accountId), [accountId]);
-  const api = useMemo(() => createCommerceApiClient({ apiUrl, credential }), [apiUrl, credential]);
-  const walletApi = useMemo(() => new WalletApiClient({ apiUrl, credential }), [apiUrl, credential]);
+  const api = useMemo(
+    () => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
+  const walletApi = useMemo(
+    () => new WalletApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
   const [collection, setCollection] = useState<CollectionSnapshot>();
   const [binding, setBinding] = useState<ActiveWalletBindingResponse['binding']>();
   const [loading, setLoading] = useState(true);

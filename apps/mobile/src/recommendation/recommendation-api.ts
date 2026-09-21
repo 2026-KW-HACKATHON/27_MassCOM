@@ -1,4 +1,5 @@
 import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
+import { shouldInvalidateSession } from '@/auth/session-invalid';
 
 export type RecommendationReasonCode = 'NEW_PLACE' | 'NEXT_REWARD' | 'COLLECTION_COMPLETE';
 
@@ -23,6 +24,7 @@ export type Recommendation = {
 type Options = {
   apiUrl: string;
   credential: AccountCredential;
+  onSessionInvalid?: () => void | Promise<void>;
   fetcher?: typeof fetch;
 };
 
@@ -56,6 +58,9 @@ export function createRecommendationApiClient(options: Options) {
         const code = isRecord(payload) && typeof payload.code === 'string'
           ? payload.code
           : `HTTP_${response.status}`;
+        if (shouldInvalidateSession(options.credential, response.status, code)) {
+          await options.onSessionInvalid?.();
+        }
         throw new RecommendationApiError(response.status, code);
       }
       return parseRecommendations(payload);
