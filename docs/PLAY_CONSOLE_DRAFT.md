@@ -1,12 +1,12 @@
 # Google Play Console 제출 초안
 
-상태: `DRAFT` — Console에 입력하거나 제출한 항목은 없습니다. 아래 답은 2026-09-20 기준 실제 코드의 데이터 흐름에서 도출한 초안이며, 제출 전 계정 소유자가 Console 문항 원문과 대조해 확정합니다. 승인·심사 결과를 뜻하지 않습니다.
+상태: `DRAFT` — Console에 입력하거나 제출한 항목은 없습니다. 아래 답은 2026-09-21 기준 실제 코드의 데이터 흐름에서 도출한 초안이며, 제출 전 계정 소유자가 Console 문항 원문과 대조해 확정합니다. 승인·심사 결과를 뜻하지 않습니다.
 
 ## 근거로 삼은 실제 구현
 
-- 설치된 SDK: Expo 기본 모듈, Reown AppKit(WalletConnect), AsyncStorage. 분석·광고·crash 수집 SDK 없음(privacy gate가 CI에서 차단).
-- 선언 권한(2026-09-20 운영 variant `kr.masscom.wolgye` release 병합 manifest 기준): `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `VIBRATE`, install referrer 조회. 카메라·위치·연락처·저장소·알림·overlay 권한 없음. 개발용 `SYSTEM_ALERT_WINDOW`는 운영 variant에서 제거됨을 확인했습니다.
-- 서버로 보내는 값: 앱 account ID, 지갑 공개 주소, 주소 확인용 SIWE 서명, QR 수령 token, 계정 삭제 요청.
+- 설치된 SDK: Expo 기본 모듈·Expo Camera, Reown AppKit(WalletConnect), AsyncStorage. 분석·광고·crash 수집 SDK 없음(privacy gate가 CI에서 차단).
+- 현재 코드가 요구하는 권한: `CAMERA`, `INTERNET`, 네트워크 상태, `VIBRATE`. 카메라는 점주 화면의 방문 수령 QR을 전경에서 읽을 때만 runtime 요청하며 `RECORD_AUDIO`는 비활성화했습니다. QR 이미지·사진·영상은 저장하거나 서버로 보내지 않습니다. 현재 생성된 Android manifest에는 Android 12 이하용 legacy 저장소 권한(`maxSdkVersion=32`)이 Expo 의존성에서 합쳐지므로, 최종 upload-key AAB에서 다시 확인하고 Console 답을 확정합니다. 개발용 `SYSTEM_ALERT_WINDOW`는 운영 variant에서 제거되어야 합니다.
+- 서버로 보내는 값: 앱 account ID, Google ID token(검증 후 미보관), Google `sub` 식별자(서버 identity 연결에 저장), 지갑 공개 주소, 주소 확인용 SIWE 서명, 카메라가 해독한 QR 수령 token, 계정 삭제 요청. 카메라 frame은 보내지 않습니다.
 - 기기에 저장하는 값: WalletConnect 세션뿐이며 개인키·복구 문구·인증 token은 저장하지 않습니다(D-021).
 - 제3자 전송: Reown relay(WalletConnect 세션 중계), Base Sepolia RPC(allowlist), 서비스 API.
 
@@ -17,10 +17,11 @@
 | 사용자 데이터를 수집하거나 공유하는가 | 수집함 | account ID, 지갑 주소, 방문 기록이 서버에 저장됨 |
 | 전송 중 암호화 | 예(운영 HTTPS 전제) | 외부 HTTPS가 준비되기 전에는 제출하지 않음(B-003) |
 | 삭제 요청 방법 제공 | 예 | 앱 안 경로 구현. 외부 웹 경로는 B-013 해소 뒤 URL 입력 |
-| 개인 식별자(사용자 ID) | 수집, 앱 기능·계정 관리 목적 | 운영 로그인 방식 확정 뒤 식별자 종류 재확인 |
+| 개인 식별자(사용자 ID) | 수집, 앱 기능·계정 관리·보안 목적 | 서버는 Google `sub`와 무작위 내부 account ID를 저장하고 이메일은 저장하지 않음. 모바일 Google 로그인은 아직 `NOT_RUN` |
 | 금융 정보 | 결제·카드 정보는 수집하지 않음 | 지갑 공개 주소를 어느 범주로 선언할지 소유자가 Console 정의와 대조 |
 | 위치 | 수집하지 않음 | 위치 권한·SDK 없음. 점포 주소는 점포 데이터이며 사용자 위치가 아님 |
 | 앱 활동 | 수집(방문·수령 기록) | 보상 지급과 중복 방지 목적 |
+| 사진·동영상 | 수집하지 않음 | 카메라 frame은 기기에서 QR token 해독에만 쓰고 저장·업로드하지 않음 |
 | 기기 ID·광고 ID | 수집하지 않음 | 광고·분석 SDK 없음 |
 | 제3자 공유 | Reown relay와 RPC 제공자로 지갑 세션·주소가 전달됨 | "공유" 해당 여부를 Console 정의와 대조 |
 
@@ -28,7 +29,8 @@
 
 - 앱은 송금·결제·스왑·구매·`approve`/`permit`·내장 지갑 기능을 제공하지 않습니다.
 - NFT는 방문 보상으로 서비스가 gas를 부담해 발행하며 양도가 제한됩니다. 판매·거래 기능은 없습니다.
-- 블록체인 기반 콘텐츠(NFT) 관련 문항은 자동으로 "없음"을 고르지 않고, 위 사실을 기준으로 소유자가 해당 항목을 선택합니다.
+- Google Play의 금융 기능 선언에서 **Tokenized digital asset (NFT) sales, trading, and awards** 중 NFT award에 해당함을 공개합니다. "금융 기능 없음"을 선택하지 않습니다.
+- 금전이나 가치 있는 자산을 무작위 NFT 획득 기회와 교환하지 않으며, 수익 가능성을 홍보하지 않습니다.
 
 ## 콘텐츠 등급·대상 연령 초안
 
@@ -47,3 +49,10 @@
 2. 소유 HTTPS domain, 개인정보처리방침 URL, 외부 계정 삭제 URL(B-003·B-013)
 3. 개발자 계정 생성일에 따른 폐쇄 테스트(12명·14일) 적용 여부
 4. 위 표의 "확인 필요" 항목과 Console 문항 원문 대조
+
+## 공식 확인 근거
+
+- [Google Play 금융 기능 선언](https://support.google.com/googleplay/android-developer/answer/13849271?hl=en)
+- [Google Play 블록체인 기반 콘텐츠 정책](https://support.google.com/googleplay/android-developer/answer/13607354?hl=en)
+- [Google Play 계정 삭제 요구사항](https://support.google.com/googleplay/android-developer/answer/13327111?hl=en)
+- [Android 권한 개요](https://developer.android.com/guide/topics/permissions/overview)

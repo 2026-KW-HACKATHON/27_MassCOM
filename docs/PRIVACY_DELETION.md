@@ -12,7 +12,7 @@
 
 ## 구현된 로컬 처리
 
-`POST /account-deletion-requests`는 계정 resolver와 별도 재인증 guard를 모두 통과해야 합니다. 현재 운영 로그인 guard는 없고, loopback DEMO에서만 `x-demo-reauthenticated: true`를 받습니다.
+`POST /account-deletion-requests`는 계정 resolver와 별도 재인증 guard를 모두 통과해야 합니다. 운영 로그인은 같은 Google 계정의 최근 5분 이내 `auth_time`이 확인된 세션만 허용하며, `auth_time` 없는 token은 일반 로그인만 가능하고 삭제 권한을 갱신하지 않습니다. loopback DEMO에서만 `x-demo-reauthenticated: true`를 받습니다.
 
 한 트랜잭션에서 다음을 수행합니다.
 

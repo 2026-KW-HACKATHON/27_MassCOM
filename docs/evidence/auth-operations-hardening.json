@@ -1,0 +1,24 @@
+{
+  "recordedAt": "2026-09-21 KST",
+  "branch": "fix/110-auth-operations",
+  "issue": 110,
+  "scope": "Server-side Google authentication operational hardening and Play draft correction",
+  "automated": {
+    "apiUnit": "PASS 72/72",
+    "apiPostgres": "PASS 37/37",
+    "apiTypecheck": "PASS",
+    "apiBuild": "PASS"
+  },
+  "observed": [
+    "A missing or older-than-five-minutes Google auth_time cannot grant recent-authentication privilege.",
+    "Google JWKS cached keys stop being trusted after the configured maximum stale interval.",
+    "Google sign-in is rate limited before token verification.",
+    "Successful sign-in deletes at most one configured batch of expired or revoked sessions."
+  ],
+  "notClaimed": [
+    "real Google OAuth token",
+    "mobile Google login",
+    "external HTTPS reverse proxy rate limiting",
+    "Play Console submission"
+  ]
+}

@@ -35,6 +35,7 @@ function signedIdToken(
       aud: audience,
       sub: 'google-subject-1',
       iat: 1_789_948_500,
+      auth_time: 1_789_948_500,
       exp: 1_789_952_400,
       ...claims,
     }),
@@ -64,6 +65,7 @@ test('accepts a correctly signed Google ID token and exposes only the subject cl
   const claims = await verifierOf(fetcherOf(jwksOf(pair))).verify(signedIdToken(pair));
 
   assert.equal(claims.subject, 'google-subject-1');
+  assert.equal(claims.authTime?.toISOString(), new Date(1_789_948_500_000).toISOString());
   assert.equal(claims.expiresAt.toISOString(), new Date(1_789_952_400_000).toISOString());
 });
 
@@ -169,6 +171,35 @@ test('a failing key set refresh keeps serving tokens signed with keys already he
   assert.equal(calls, 2);
 });
 
+test('a failing refresh stops trusting a cached key after the maximum stale window', async () => {
+  const pair = keyPair('kid-1');
+  let failing = false;
+  const fetcher: JwksFetcher = async () => {
+    if (failing) throw new Error('jwks endpoint unreachable');
+    return { ok: true, json: async () => jwksOf(pair) };
+  };
+  let now = verifyNow();
+  const longLivedToken = signedIdToken(pair, {
+    exp: Math.floor((verifyNow().getTime() + 2 * 60 * 60 * 1000) / 1000),
+  });
+  const verifier = new GoogleIdTokenVerifier({
+    audiences: [audience],
+    fetchJwks: fetcher,
+    now: () => now,
+    jwksMaxAgeMs: 10 * 60 * 1000,
+    jwksMaxStaleMs: 60 * 60 * 1000,
+  });
+  await verifier.verify(longLivedToken);
+
+  failing = true;
+  now = new Date(now.getTime() + 60 * 60 * 1000 + 1);
+  await assert.rejects(
+    verifier.verify(longLivedToken),
+    (error: unknown) =>
+      error instanceof GoogleIdTokenError && error.code === 'ID_TOKEN_KEY_SET_UNAVAILABLE',
+  );
+});
+
 test('concurrent verifications share one key set request', async () => {
   const pair = keyPair('kid-1');
   const fetcher = fetcherOf(jwksOf(pair));
@@ -181,6 +212,16 @@ test('concurrent verifications share one key set request', async () => {
 test('rejects non-finite expiry and issue times', async () => {
   const pair = keyPair('kid-1');
   for (const claims of [{ exp: 1e999 }, { iat: 1e999 }]) {
+    await assert.rejects(
+      verifierOf(fetcherOf(jwksOf(pair))).verify(signedIdToken(pair, claims)),
+      (error: unknown) => error instanceof GoogleIdTokenError && error.code === 'ID_TOKEN_INVALID',
+    );
+  }
+});
+
+test('rejects a malformed or future authentication time', async () => {
+  const pair = keyPair('kid-1');
+  for (const claims of [{ auth_time: 1e999 }, { auth_time: 1_789_949_400 }]) {
     await assert.rejects(
       verifierOf(fetcherOf(jwksOf(pair))).verify(signedIdToken(pair, claims)),
       (error: unknown) => error instanceof GoogleIdTokenError && error.code === 'ID_TOKEN_INVALID',

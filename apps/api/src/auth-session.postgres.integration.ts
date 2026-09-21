@@ -15,21 +15,29 @@ const lifecycleSecret = 'test-only-account-deletion-secret-at-least-32-bytes';
 const signInAt = new Date('2026-09-21T00:00:00.000Z');
 
 // The fake verifier stands in for Google: the ID token is just a subject marker.
-function fakeVerifier(): { verify(idToken: string): Promise<{ subject: string }> } {
+function fakeVerifier(now: () => Date): {
+  verify(idToken: string): Promise<{ subject: string; authTime: Date }>;
+} {
   return {
     verify: async (idToken: string) => {
       if (!idToken.startsWith('subject:')) throw new GoogleIdTokenError('ID_TOKEN_INVALID');
-      return { subject: idToken.slice('subject:'.length) };
+      return { subject: idToken.slice('subject:'.length), authTime: now() };
     },
   };
 }
 
-function sessionService(pool: Pool, now: () => Date = () => signInAt): PostgresAuthSessionService {
+function sessionService(
+  pool: Pool,
+  now: () => Date = () => signInAt,
+  verifier: { verify(idToken: string): Promise<{ subject: string; authTime?: Date }> } = fakeVerifier(now),
+  cleanupBatchSize?: number,
+): PostgresAuthSessionService {
   return new PostgresAuthSessionService(pool, {
-    verifier: fakeVerifier(),
+    verifier,
     accountLifecycle: new PostgresAccountLifecycle({ hmacSecret: lifecycleSecret }),
     sessionTtlMs: 30 * 24 * 60 * 60 * 1000,
     now,
+    ...(cleanupBatchSize === undefined ? {} : { cleanupBatchSize }),
   });
 }
 
@@ -145,6 +153,75 @@ test('reauthentication refreshes the recency window only for the session own ide
     await muchLater.assertRecentlyAuthenticated(session.sessionToken),
     session.accountId,
   );
+});
+
+test('reauthentication rejects a missing or stale Google authentication time', async (t) => {
+  const pool = await freshPool(t);
+  const session = await sessionService(pool).signInWithGoogle('subject:google-user-1');
+  const now = new Date(signInAt.getTime() + 60 * 60 * 1000);
+
+  for (const authTime of [undefined, signInAt]) {
+    const service = sessionService(pool, () => now, {
+      verify: async () => ({ subject: 'google-user-1', ...(authTime ? { authTime } : {}) }),
+    });
+    await assert.rejects(
+      service.reauthenticate(session.sessionToken, 'unused-token'),
+      (error: unknown) =>
+        error instanceof AuthSessionError && error.code === 'REAUTHENTICATION_REQUIRED',
+    );
+  }
+});
+
+test('sign-in without Google authentication time does not grant recent-authentication privilege', async (t) => {
+  const pool = await freshPool(t);
+  const service = sessionService(pool, () => signInAt, {
+    verify: async () => ({ subject: 'google-user-without-auth-time' }),
+  });
+  const session = await service.signInWithGoogle('unused-token');
+
+  await assert.rejects(
+    service.assertRecentlyAuthenticated(session.sessionToken),
+    (error: unknown) =>
+      error instanceof AuthSessionError && error.code === 'REAUTHENTICATION_REQUIRED',
+  );
+});
+
+test('successful sign-in removes only one bounded batch of expired or revoked sessions', async (t) => {
+  const pool = await freshPool(t);
+  await pool.query(
+    `INSERT INTO auth_sessions (
+       id, account_id, token_hash, created_at, expires_at, last_authenticated_at, revoked_at
+     ) VALUES
+       ('10000000-0000-4000-8000-000000000001', 'stale-1', decode(repeat('11', 32), 'hex'), $1, $1, $1, NULL),
+       ('10000000-0000-4000-8000-000000000002', 'stale-2', decode(repeat('22', 32), 'hex'), $1, $2, $1, $1),
+       ('10000000-0000-4000-8000-000000000003', 'stale-3', decode(repeat('33', 32), 'hex'), $1, $1, $1, NULL),
+       ('10000000-0000-4000-8000-000000000004', 'active-1', decode(repeat('44', 32), 'hex'), $1, $2, $1, NULL)`,
+    [new Date(signInAt.getTime() - 1), new Date(signInAt.getTime() + 60_000)],
+  );
+
+  await sessionService(pool, () => signInAt, fakeVerifier(() => signInAt), 2).signInWithGoogle(
+    'subject:cleanup-user',
+  );
+
+  const remaining = await pool.query<{ stale: number; active: number }>(
+    `SELECT
+       count(*) FILTER (WHERE expires_at <= $1 OR revoked_at IS NOT NULL)::integer AS stale,
+       count(*) FILTER (WHERE expires_at > $1 AND revoked_at IS NULL)::integer AS active
+     FROM auth_sessions`,
+    [signInAt],
+  );
+  assert.deepEqual(remaining.rows[0], { stale: 1, active: 2 });
+
+  const indexes = await pool.query<{ indexname: string }>(
+    `SELECT indexname FROM pg_indexes
+     WHERE tablename = 'auth_sessions'
+       AND indexname IN ('auth_sessions_expires_at', 'auth_sessions_revoked_at')
+     ORDER BY indexname`,
+  );
+  assert.deepEqual(indexes.rows.map((row) => row.indexname), [
+    'auth_sessions_expires_at',
+    'auth_sessions_revoked_at',
+  ]);
 });
 
 test('account deletion needs recent authentication, then revokes every session and the identity', async (t) => {
