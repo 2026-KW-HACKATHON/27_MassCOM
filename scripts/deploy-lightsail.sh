@@ -69,7 +69,7 @@ fi
 ssh "${ssh_options[@]}" "$target" \
   "sudo install -d -m 0755 '$remote_release' && sudo chown -R ubuntu:ubuntu '$remote_release'"
 
-tar -C "$repo_root" -czf - \
+COPYFILE_DISABLE=1 tar -C "$repo_root" -czf - \
   apps/api/package.json \
   apps/api/package-lock.json \
   apps/api/tsconfig.json \
