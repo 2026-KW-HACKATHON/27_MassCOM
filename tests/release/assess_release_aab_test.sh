@@ -16,8 +16,8 @@ make_marker_artifact() { # <output> <commit>
 E: manifest
   E: application
     E: meta-data
-      A: android:name="kr.masscom.BUILD_SOURCE_COMMIT"
-      A: android:value="$commit"
+      A: http://schemas.android.com/apk/res/android:name(0x01010003)="kr.masscom.BUILD_SOURCE_COMMIT" (Raw: "kr.masscom.BUILD_SOURCE_COMMIT")
+      A: http://schemas.android.com/apk/res/android:value(0x01010024)="$commit" (Raw: "$commit")
 MANIFEST
   (cd "$directory" && zip -q -r "$output" base)
 }
@@ -133,8 +133,8 @@ cat >"$confused_marker_dir/base/manifest/AndroidManifest.xml" <<MANIFEST
 E: manifest
   E: application
     E: meta-data
-      A: android:name="kr.masscom.BUILD_SOURCE_COMMIT"
-      A: android:value="not-the-expected-commit"
+      A: http://schemas.android.com/apk/res/android:name(0x01010003)="kr.masscom.BUILD_SOURCE_COMMIT" (Raw: "kr.masscom.BUILD_SOURCE_COMMIT")
+      A: http://schemas.android.com/apk/res/android:value(0x01010024)="not-the-expected-commit" (Raw: "not-the-expected-commit")
     E: activity
       A: android:label="$expected_commit"
 kr.masscom.BUILD_SOURCE_COMMIT

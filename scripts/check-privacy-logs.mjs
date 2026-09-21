@@ -3,8 +3,9 @@
 import { createRequire } from 'node:module';
 import { readdirSync, readFileSync } from 'node:fs';
 import { extname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const toolRoot = resolve(new URL('..', import.meta.url).pathname);
+const toolRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const scanRoot = resolve(process.argv[2] ?? toolRoot);
 const require = createRequire(import.meta.url);
 let ts;
@@ -65,6 +66,9 @@ function isDirectLogger(expression) {
   const path = staticMemberPath(expression);
   return (
     path?.length === 2 && path[0] === 'console' && loggerMethods.has(path[1])
+  ) || (
+    path?.length === 3 && path[0] === 'globalThis' && path[1] === 'console'
+      && loggerMethods.has(path[2])
   ) || (
     path?.length === 3 && path[0] === 'process' && path[1] === 'stderr' && path[2] === 'write'
   );
@@ -147,13 +151,49 @@ function fileLeaks(file) {
     for (const name of apiForbidden) forbidden.add(name);
   }
 
-  function expressionIsLogger(expression, visiting = new Set()) {
-    if (isDirectLogger(expression)) return true;
+  function expressionIsConsoleObject(expression, visiting = new Set()) {
+    const path = staticMemberPath(expression);
+    if (
+      (path?.length === 1 && path[0] === 'console')
+      || (path?.length === 2 && path[0] === 'globalThis' && path[1] === 'console')
+    ) return true;
     if (!ts.isIdentifier(expression) || visiting.has(expression.text)) return false;
     const nextVisiting = new Set(visiting).add(expression.text);
     return (aliases.get(expression.text) ?? []).some(
-      (alias) => alias.initializer && expressionIsLogger(alias.initializer, nextVisiting),
+      (alias) => alias.propertyNames.length === 0
+        && alias.initializer
+        && expressionIsConsoleObject(alias.initializer, nextVisiting),
     );
+  }
+
+  function expressionIsLogger(expression, visiting = new Set()) {
+    if (isDirectLogger(expression)) return true;
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+      const path = staticMemberPath(expression);
+      const memberName = path?.at(-1);
+      if (memberName && loggerMethods.has(memberName)) {
+        return expressionIsConsoleObject(expression.expression, visiting);
+      }
+    }
+    if (ts.isCallExpression(expression)) {
+      const boundPath = staticMemberPath(expression.expression);
+      if (boundPath?.at(-1) === 'bind' && (
+        ts.isPropertyAccessExpression(expression.expression)
+        || ts.isElementAccessExpression(expression.expression)
+      )) {
+        return expressionIsLogger(expression.expression.expression, visiting);
+      }
+      return false;
+    }
+    if (!ts.isIdentifier(expression) || visiting.has(expression.text)) return false;
+    const nextVisiting = new Set(visiting).add(expression.text);
+    return (aliases.get(expression.text) ?? []).some((alias) => (
+      alias.initializer && expressionIsLogger(alias.initializer, nextVisiting)
+    ) || (
+      alias.initializer
+      && loggerMethods.has(alias.propertyNames.at(-1))
+      && expressionIsConsoleObject(alias.initializer, nextVisiting)
+    ));
   }
 
   function isSensitive(node, visiting = new Set()) {

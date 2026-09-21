@@ -123,11 +123,11 @@ manifest_nodes="$(awk '
       next
     }
     if (!in_metadata) next
-    if ($0 ~ /A: android:name([^=]*)=/) {
+    if ($0 ~ /A: ([^[:space:]]*:)?name(\([^)]*\))?=/) {
       metadata_name = $0
       sub(/^[^"]*"/, "", metadata_name)
       sub(/".*$/, "", metadata_name)
-    } else if ($0 ~ /A: android:value([^=]*)=/) {
+    } else if ($0 ~ /A: ([^[:space:]]*:)?value(\([^)]*\))?=/) {
       metadata_value = $0
       sub(/^[^"]*"/, "", metadata_value)
       sub(/".*$/, "", metadata_value)

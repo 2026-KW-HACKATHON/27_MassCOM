@@ -80,6 +80,10 @@ unsafe_logs=(
   "const report = console.error; report(error)"
   "function report(detail: unknown) { console.error(detail); } report(error)"
   "const detail = error; { const detail = 'safe'; console.log(detail); } console.error(detail)"
+  "const c = console; c.error(signature)"
+  "const { error: report } = console; report(signature)"
+  "const report = console.error.bind(console); report(signature)"
+  "globalThis.console.error(signature)"
 )
 
 for unsafe_log in "${unsafe_logs[@]}"; do
