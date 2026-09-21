@@ -2,6 +2,9 @@
   "recordedAt": "2026-09-21 KST",
   "branch": "fix/110-auth-operations",
   "issue": 110,
+  "pullRequest": 111,
+  "mergeCommit": "205d273",
+  "mainCi": 35561417735,
   "scope": "Server-side Google authentication operational hardening and Play draft correction",
   "automated": {
     "apiUnit": "PASS 72/72",
