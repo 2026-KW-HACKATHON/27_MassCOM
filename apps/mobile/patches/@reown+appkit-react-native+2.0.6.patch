@@ -50,7 +50,7 @@ index 885ae6b..c5c47e3 100644
      };
    }, [context.appKit]);
 diff --git a/node_modules/@reown/appkit-react-native/lib/commonjs/partials/w3m-connecting-mobile/index.js b/node_modules/@reown/appkit-react-native/lib/commonjs/partials/w3m-connecting-mobile/index.js
-index 2748875..0ea6a17 100644
+index 2748875..627ecb0 100644
 --- a/node_modules/@reown/appkit-react-native/lib/commonjs/partials/w3m-connecting-mobile/index.js
 +++ b/node_modules/@reown/appkit-react-native/lib/commonjs/partials/w3m-connecting-mobile/index.js
 @@ -8,6 +8,7 @@ var _valtio = require("valtio");
@@ -61,22 +61,20 @@ index 2748875..0ea6a17 100644
  var _appkitUiReactNative = require("@reown/appkit-ui-react-native");
  var _StoreLink = require("./components/StoreLink");
  var _w3mConnectingBody = require("../w3m-connecting-body");
-@@ -104,12 +105,12 @@ function ConnectingMobile({
+@@ -104,10 +105,12 @@ function ConnectingMobile({
          });
        }
      } catch (error) {
 -      _appkitCoreReactNative.LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
        if (error.message.includes(_appkitCoreReactNative.ConstantsUtil.LINKING_ERROR)) {
          setErrorType('not_installed');
--      } else {
--        setErrorType('default');
-+      } else if (!_appkitCommonReactNative.ErrorUtil.isProposalExpiredError(error)) {
-+        _appkitCoreReactNative.LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
+       } else {
++        if (!_appkitCommonReactNative.ErrorUtil.isProposalExpiredError(error)) {
++          _appkitCoreReactNative.LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
++        }
+         setErrorType('default');
        }
-+      setErrorType('default');
      }
-   }, [wcUri, data]);
-   (0, _react.useEffect)(() => {
 diff --git a/node_modules/@reown/appkit-react-native/lib/commonjs/views/w3m-connecting-view/index.js b/node_modules/@reown/appkit-react-native/lib/commonjs/views/w3m-connecting-view/index.js
 index 0c3f525..2bd87c6 100644
 --- a/node_modules/@reown/appkit-react-native/lib/commonjs/views/w3m-connecting-view/index.js
@@ -155,7 +153,7 @@ index 84276dd..a690a5e 100644
      };
    }, [context.appKit]);
 diff --git a/node_modules/@reown/appkit-react-native/lib/module/partials/w3m-connecting-mobile/index.js b/node_modules/@reown/appkit-react-native/lib/module/partials/w3m-connecting-mobile/index.js
-index 8a0e69b..c8e76b5 100644
+index 8a0e69b..091d6da 100644
 --- a/node_modules/@reown/appkit-react-native/lib/module/partials/w3m-connecting-mobile/index.js
 +++ b/node_modules/@reown/appkit-react-native/lib/module/partials/w3m-connecting-mobile/index.js
 @@ -4,6 +4,7 @@ import { useSnapshot } from 'valtio';
@@ -166,22 +164,20 @@ index 8a0e69b..c8e76b5 100644
  import { Button, FlexView, LoadingThumbnail, WalletImage, Link, IconBox, useCustomDimensions } from '@reown/appkit-ui-react-native';
  import { StoreLink } from './components/StoreLink';
  import { ConnectingBody, getMessage } from '../w3m-connecting-body';
-@@ -99,12 +100,12 @@ export function ConnectingMobile({
+@@ -99,10 +100,12 @@ export function ConnectingMobile({
          });
        }
      } catch (error) {
 -      LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
        if (error.message.includes(ConstantsUtil.LINKING_ERROR)) {
          setErrorType('not_installed');
--      } else {
--        setErrorType('default');
-+      } else if (!ErrorUtil.isProposalExpiredError(error)) {
-+        LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
+       } else {
++        if (!ErrorUtil.isProposalExpiredError(error)) {
++          LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
++        }
+         setErrorType('default');
        }
-+      setErrorType('default');
      }
-   }, [wcUri, data]);
-   useEffect(() => {
 diff --git a/node_modules/@reown/appkit-react-native/lib/module/views/w3m-connecting-view/index.js b/node_modules/@reown/appkit-react-native/lib/module/views/w3m-connecting-view/index.js
 index 5064883..e3f0014 100644
 --- a/node_modules/@reown/appkit-react-native/lib/module/views/w3m-connecting-view/index.js
@@ -300,7 +296,7 @@ index 2dff2dc..a21dc72 100644
      };
    }, [context.appKit]);
 diff --git a/node_modules/@reown/appkit-react-native/src/partials/w3m-connecting-mobile/index.tsx b/node_modules/@reown/appkit-react-native/src/partials/w3m-connecting-mobile/index.tsx
-index a74b096..f5e1775 100644
+index a74b096..4eb283f 100644
 --- a/node_modules/@reown/appkit-react-native/src/partials/w3m-connecting-mobile/index.tsx
 +++ b/node_modules/@reown/appkit-react-native/src/partials/w3m-connecting-mobile/index.tsx
 @@ -14,6 +14,7 @@ import {
@@ -311,21 +307,20 @@ index a74b096..f5e1775 100644
  import {
    Button,
    FlexView,
-@@ -106,11 +107,11 @@ export function ConnectingMobile({ onRetry, onCopyUri, isInstalled }: Props) {
+@@ -106,10 +107,12 @@ export function ConnectingMobile({ onRetry, onCopyUri, isInstalled }: Props) {
          });
        }
      } catch (error: any) {
 -      LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
        if (error.message.includes(ConstantsUtil.LINKING_ERROR)) {
          setErrorType('not_installed');
--      } else {
--        setErrorType('default');
-+      } else if (!ErrorUtil.isProposalExpiredError(error)) {
-+        LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
+       } else {
++        if (!ErrorUtil.isProposalExpiredError(error)) {
++          LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
++        }
+         setErrorType('default');
        }
-+      setErrorType('default');
      }
-   }, [wcUri, data]);
 diff --git a/node_modules/@reown/appkit-react-native/src/views/w3m-connecting-view/index.tsx b/node_modules/@reown/appkit-react-native/src/views/w3m-connecting-view/index.tsx
 index a6e5cc1..dbe1d84 100644
 --- a/node_modules/@reown/appkit-react-native/src/views/w3m-connecting-view/index.tsx
