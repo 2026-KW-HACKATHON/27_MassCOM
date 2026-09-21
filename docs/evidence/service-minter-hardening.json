@@ -3,7 +3,9 @@
   "branch": "fix/112-service-minter-hardening",
   "issue": 112,
   "pullRequest": 114,
-  "pullRequestCi": 35562980058,
+  "pullRequestCi": 35563298914,
+  "mergeCommit": "595f70f",
+  "mainCi": 35563583964,
   "scope": "Service minter pre-signing validation and keystore path hardening",
   "automated": {
     "workerUnit": "PASS 45/45",

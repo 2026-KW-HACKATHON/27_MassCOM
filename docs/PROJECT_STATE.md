@@ -20,7 +20,7 @@
 | --- | --- |
 | 로컬 검증 완료 | 탐색·발급·수령·도감·추천, 지갑 주소 확인(SIWE), 발행 요청·Outbox·Worker·계약(Local Anvil), 계정 삭제, 백업·복원 drill, 운영 variant AAB 정적 검사(W08), 배포·서명 사전 검사 스크립트 |
 | 시험망 미검증 | Base Sepolia 계약 배포와 그 계약에 대한 Worker 발행. 배포자·역할 keystore 계정 4개는 소유자가 2026-09-20 생성, 배포자 잔액 0(faucet 대기). Worker의 서비스 민터 서명 경로는 구현·로컬 검증됨(Issue #100), 실제 시험망 전송은 아직 없음 |
-| 운영 코드 미구현 | 운영 로그인의 **모바일 측**(Google 로그인 UI와 `x-account-id` 헤더 교체. 서버 측 Google ID token 검증·세션·재인증은 Issue #106으로 구현·로컬 검증됨, 소유자의 OAuth client ID 필요), 시연/운영 환경 권한 경계(O01), 외부 HTTPS 배포·삭제 페이지 |
+| 운영 코드 미구현 | 운영 로그인의 **모바일 측**(Google 로그인 UI와 `x-account-id` 헤더 교체. 서버 측 Google ID token 검증·`auth_time` 재인증·요청 제한·세션 정리는 Issue #106·#110으로 구현·로컬 검증됨, 소유자의 OAuth client ID 필요), 시연/운영 환경 권한 경계(O01), 외부 HTTPS 배포·삭제 페이지 |
 | 사용자 승인·입력 대기 | **Reown 허용 목록에 새 package 등록(B-014, 실기에서 지갑 연결 거절)**, 호스팅·도메인(`docs/HOSTING_LOGIN_PROPOSAL.md`. 로그인 방식·세션·재인증은 D-024~D-026으로 승인됨, 구현 전), D-023 수령 시 캠페인 등록 요구 여부, upload keystore와 인증서 지문, faucet gas, Android 기기 연결, W04·W05용 지갑 환경(B-010·B-011) |
 
 ## 열린 Issue·PR과 최근 병합
@@ -35,7 +35,7 @@
 | Phase 1 외부 지갑 연결 | `IN_PROGRESS` | MetaMask 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED`, W06 PASS; W04·W05 외부 환경 `BLOCKED` |
 | Phase 2 지역 상권 핵심 기능 | `VERIFIED` | loopback DEMO 탐색→점주 발급→고객 수령→도감→추천→상세 순환 PASS |
 | Phase 3 NFT | `VERIFIED` | Local Anvil 계약→원자 job/Outbox→Worker→이벤트 대조→Android 등록 완료·복구 PASS; Base Sepolia `BLOCKED` |
-| Phase 4 출시 기반 | `IN_PROGRESS` | 계정 삭제·HMAC 비식별화·privacy gate·출시 체크리스트·Android DEMO PASS; 외부 HTTPS·운영 재인증·release AAB 미완료 |
+| Phase 4 출시 기반 | `IN_PROGRESS` | 계정 삭제·HMAC 비식별화·서버 auth_time 재인증·privacy gate·출시 체크리스트·Android DEMO PASS; 모바일 Google 로그인·외부 HTTPS·upload-key AAB 미완료 |
 | Phase 5 대회 검증·발표 | `IN_PROGRESS` | 발표 웹·3/5분 원고·시연 runbook·빈 현장 기록지·증거 manifest 구현; 현장·리허설·영상·제출은 NOT_RUN |
 | Phase 6 후속 기능 | `PLANNED` | 별도 승인 전 미착수 |
 
@@ -98,7 +98,7 @@
 - B-004 Google Play 정책: 공식 확인 필요. B-007 package ID는 `kr.masscom.wolgye`로 해소(D-022)
 - B-008 Expo 전이 moderate advisory: 2026-09-20 Expo 57.0.24·expo-router 57.0.22 patch 적용 뒤 재평가에서도 14건 유지. 근원은 `xcode`→`uuid`(iOS 설정 도구, 빌드 시점)와 `expo-router`→`query-string`→`decode-uri-component`이며 npm이 제시하는 수정은 expo 46 다운그레이드뿐이라 호환되는 upstream 수정 필요
 - B-010/B-011 W04·W05용 실제 지갑 환경 부재
-- B-012 Base Sepolia 전용 배포자·faucet gas 부재
-- B-013 운영 재인증과 소유 HTTPS 외부 삭제 URL 부재
+- B-012 Base Sepolia keystore 계정은 존재하나 배포자·민터 잔액 0으로 faucet gas 부재
+- B-013 모바일 Google 로그인과 소유 HTTPS 외부 삭제 URL 부재. 서버 재인증은 구현 완료
 
 상세 실행 근거는 [TEST_STATUS.md](TEST_STATUS.md), Phase 3 증거는 [phase3-worker-anvil-android.json](evidence/phase3-worker-anvil-android.json), 차단 사유는 [BLOCKERS.md](BLOCKERS.md), 다음 세션 상태는 [HANDOFF.md](HANDOFF.md)를 기준으로 합니다.
