@@ -19,7 +19,9 @@ import {
   type ChainMintResult,
   type MintChainGateway,
   type MintWorkItem,
+  type MintTransactionIntent,
   type RecordedSubmission,
+  type UnconfirmedSignedTransaction,
 } from './mint-worker.js';
 
 const abi = [
@@ -221,7 +223,7 @@ export class EthersMintChainGateway implements MintChainGateway {
   async submitMint(
     item: MintWorkItem,
     persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
-    unconfirmedSignedTransactions: { transactionHash: string; signedTransaction: string }[] = [],
+    unconfirmedSignedTransactions: UnconfirmedSignedTransaction[] = [],
   ): Promise<{ transactionHash: string }> {
     if (this.options.signer) {
       return this.submitMintWithServiceSigner(
@@ -259,7 +261,7 @@ export class EthersMintChainGateway implements MintChainGateway {
     item: MintWorkItem,
     signer: Signer,
     persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
-    unconfirmedSignedTransactions: { transactionHash: string; signedTransaction: string }[],
+    unconfirmedSignedTransactions: UnconfirmedSignedTransaction[],
   ): Promise<{ transactionHash: string }> {
     const data = this.contractInterface.encodeFunctionData('mintWithRewardKey', [
       item.recipient,
@@ -303,7 +305,13 @@ export class EthersMintChainGateway implements MintChainGateway {
     // A null or non-positive maxFeePerGas would sign a transaction the network can never accept
     // (or, worse, one with an unbounded fee): fail closed before anything is signed or recorded,
     // rather than let `?? null` silently paper over missing fee data.
-    if (feeData.maxFeePerGas == null || feeData.maxPriorityFeePerGas == null || feeData.maxFeePerGas <= 0n) {
+    if (
+      feeData.maxFeePerGas == null ||
+      feeData.maxPriorityFeePerGas == null ||
+      feeData.maxFeePerGas <= 0n ||
+      feeData.maxPriorityFeePerGas <= 0n ||
+      feeData.maxPriorityFeePerGas > feeData.maxFeePerGas
+    ) {
       throw new RetryableChainError('FEE_DATA_UNAVAILABLE');
     }
     // 20% headroom over the estimate: an estimate taken slightly before signing can be too tight
@@ -330,7 +338,8 @@ export class EthersMintChainGateway implements MintChainGateway {
     } catch (error) {
       throw new RetryableChainError('MINT_SIGNING_FAILED', { cause: error });
     }
-    const transactionHash = Transaction.from(signedTransaction).hash;
+    const signed = this.checkedServiceTransaction(signedTransaction, item);
+    const transactionHash = signed.hash;
     if (!transactionHash) throw new RetryableChainError('MINT_SIGNING_FAILED');
     const normalizedHash = transactionHash.toLowerCase();
     // Record before broadcasting: a crash or a lost response after this point never needs a new
@@ -345,7 +354,12 @@ export class EthersMintChainGateway implements MintChainGateway {
    * if the network does not already know it, so a crash between recording and broadcasting (or a
    * lost broadcast response) never needs a new transaction or a new nonce.
    */
-  async rebroadcastIfNeeded(transactionHash: string, signedTransaction: string): Promise<void> {
+  async rebroadcastIfNeeded(
+    intent: MintTransactionIntent,
+    transactionHash: string,
+    signedTransaction: string,
+  ): Promise<void> {
+    this.checkedServiceTransaction(signedTransaction, intent, transactionHash);
     try {
       const existing = await this.provider.getTransaction(transactionHash);
       if (existing) return;
@@ -353,6 +367,42 @@ export class EthersMintChainGateway implements MintChainGateway {
       throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
     }
     await this.broadcastSigned(signedTransaction, 'rebroadcast');
+  }
+
+  private checkedServiceTransaction(
+    signedTransaction: string,
+    intent: MintTransactionIntent,
+    expectedHash?: string,
+  ): Transaction {
+    let transaction: Transaction;
+    try {
+      transaction = Transaction.from(signedTransaction);
+    } catch (error) {
+      throw new RetryableChainError('MINT_SIGNED_TRANSACTION_INVALID', { cause: error });
+    }
+    if (!transaction.from || getAddress(transaction.from) !== this.minterAddress) {
+      throw new RetryableChainError('MINTER_SIGNER_MISMATCH');
+    }
+    const expectedData = this.contractInterface.encodeFunctionData('mintWithRewardKey', [
+      intent.recipient,
+      intent.seriesKey,
+      intent.rewardKey,
+    ]);
+    if (
+      transaction.chainId !== BigInt(intent.chainId) ||
+      !transaction.to ||
+      getAddress(transaction.to) !== getAddress(intent.contractAddress) ||
+      transaction.data.toLowerCase() !== expectedData.toLowerCase()
+    ) {
+      throw new RetryableChainError('MINT_SIGNED_TRANSACTION_MISMATCH');
+    }
+    if (
+      expectedHash &&
+      (!transaction.hash || transaction.hash.toLowerCase() !== expectedHash.toLowerCase())
+    ) {
+      throw new RetryableChainError('MINT_SIGNED_TRANSACTION_MISMATCH');
+    }
+    return transaction;
   }
 
   /**

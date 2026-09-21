@@ -41,6 +41,8 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
     environment.CHAIN_RECEIPT_TIMEOUT_MS ?? String(24 * 60 * 60 * 1_000),
     'CHAIN_RECEIPT_TIMEOUT_MS',
   );
+  const lockTimeoutMs = minterLockTimeoutMs(environment.MINTER_LOCK_TIMEOUT_MS);
+  const databasePoolMax = workerDatabasePoolMax(environment.WORKER_DATABASE_POOL_MAX);
   // Resolves how the worker signs: the local Anvil unlocked path (chainId 31337, gated on
   // ALLOW_UNLOCKED_LOCAL_MINTER=true, unchanged) or a service signer loaded from an encrypted
   // keystore for an allow-listed public testnet. Throws a MinterConfigurationError otherwise.
@@ -50,12 +52,13 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
   // sweep -> markPrepared -> submit sequence, while the rest of the repository (lease, finalize,
   // etc.) needs its own connections concurrently; a pool of 1-2 would let the lock holder starve
   // everything else that shares this pool within the same process.
-  const pool = new Pool({ connectionString: databaseUrl, max: 4 });
+  const pool = new Pool({ connectionString: databaseUrl, max: databasePoolMax });
   try {
     const repository = new PostgresMintRepository(pool, {
       chainFromBlock,
       reorgMargin,
       receiptTimeoutMs,
+      minterLockTimeoutMs: lockTimeoutMs,
     });
     const scanFromBlock = await repository.getEventScanStart(chainId, contractAddress);
     const gateway = new EthersMintChainGateway({
@@ -74,6 +77,28 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
   } finally {
     await pool.end();
   }
+}
+
+export function minterLockTimeoutMs(raw: string | undefined): number {
+  return boundedInteger(raw, 10_000, 'MINTER_LOCK_TIMEOUT_MS', 500, 60_000);
+}
+
+export function workerDatabasePoolMax(raw: string | undefined): number {
+  return boundedInteger(raw, 4, 'WORKER_DATABASE_POOL_MAX', 4, 100);
+}
+
+function boundedInteger(
+  raw: string | undefined,
+  fallback: number,
+  name: string,
+  minimum: number,
+  maximum: number,
+): number {
+  const parsed = Number(raw ?? fallback);
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`);
+  }
+  return parsed;
 }
 
 function required(value: string | undefined, name: string): string {

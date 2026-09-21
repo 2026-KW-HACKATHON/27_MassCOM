@@ -26,6 +26,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-20 | Codex | Phase 5 발표·시연·평가 증거 준비 | 발표 웹·원고·시연/현장/제출 문서·evidence manifest·truth gate | 1440×900·390×844 시각 검토, 접근성·manifest·NOT_RUN 보존 회귀 PASS | 실제 사람의 발표·현장 참여·영상·기여로 표시하지 않음; 공개·제출 미실행 |
 | 2026-09-20 | Claude CLI + Codex 독립 리뷰 | 전체 코드·보안·브랜치·README 감사 | 삭제/민팅 경쟁, 계정 lock, 테스트 정본, Worker 복구, CI·의존성·브랜치 검토 | CRITICAL 0, HIGH 3 재현; code-reviewer `REQUEST CHANGES`, architect `BLOCK`; RED→GREEN 수정 | Claude·리뷰 결과를 사람 기여로 표시하지 않으며 미실행 운영 보완은 MEDIUM으로 유지 |
 | 2026-09-21 | Codex + 독립 code-reviewer | 운영 로그인 후속 보안·Play 초안 정합 | Google `auth_time` 최근성, JWKS stale 상한, 로그인 제한, 세션 cleanup, 카메라·NFT award 선언 초안 | HIGH 1·MEDIUM 3 재현 후 API 72/72·PostgreSQL 37/37 RED→GREEN | 실제 Google token·모바일 로그인·외부 HTTPS·Play 입력/제출은 수행하거나 완료로 표시하지 않음 |
+| 2026-09-21 | Codex + 독립 architect | 서비스 민터 후속 보안 | priority fee·signed sender/hash/intent·환경변수 이름·keystore 경로·lock/pool 설정·README 검토 | MEDIUM 1·LOW 2·WATCH 1 재현 후 Worker 45/45 RED→GREEN | 실제 keystore·Base Sepolia 전송은 사용하지 않았고 다중 민터 migration은 요구 전까지 추가하지 않음 |
 
 ## 팀 설명 체크리스트
 

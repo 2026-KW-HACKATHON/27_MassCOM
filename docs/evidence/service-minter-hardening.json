@@ -1,0 +1,26 @@
+{
+  "recordedAt": "2026-09-21 KST",
+  "branch": "fix/112-service-minter-hardening",
+  "issue": 112,
+  "pullRequest": 114,
+  "pullRequestCi": 35562980058,
+  "scope": "Service minter pre-signing validation and keystore path hardening",
+  "automated": {
+    "workerUnit": "PASS 45/45",
+    "workerPostgres": "PASS 23/23",
+    "workerAnvil": "PASS 12/12",
+    "workerTypecheckBuild": "PASS"
+  },
+  "observed": [
+    "Invalid EIP-1559 priority fee relationships stop before signing or persistence.",
+    "A signed transaction with another sender, hash, chain, contract, or mint calldata stops before persistence or rebroadcast.",
+    "Raw-key environment name variants and writable ancestor directories are rejected.",
+    "Minter lock timeout and worker database pool size are bounded configuration values."
+  ],
+  "notClaimed": [
+    "real service keystore",
+    "Base Sepolia broadcast",
+    "multi-minter support",
+    "mainnet signer"
+  ]
+}

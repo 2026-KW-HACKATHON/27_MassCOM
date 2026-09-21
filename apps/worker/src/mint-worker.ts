@@ -23,6 +23,17 @@ export type RecordedSubmission = {
   signedTransaction?: string;
 };
 
+export type MintTransactionIntent = Pick<
+  MintWorkItem,
+  'rewardKey' | 'recipient' | 'chainId' | 'contractAddress' | 'seriesKey'
+>;
+
+export type UnconfirmedSignedTransaction = {
+  transactionHash: string;
+  signedTransaction: string;
+  intent: MintTransactionIntent;
+};
+
 export type ChainMintResult = {
   transactionHash: string;
   blockNumber: number;
@@ -81,7 +92,7 @@ export interface MintWorkRepository {
   withMinterLock<T>(chainId: number, minterAddress: string, fn: () => Promise<T>): Promise<T>;
   listUnconfirmedSignedTransactions(
     chainId: number,
-  ): Promise<{ transactionHash: string; signedTransaction: string }[]>;
+  ): Promise<UnconfirmedSignedTransaction[]>;
 }
 
 export interface MintChainGateway {
@@ -105,14 +116,18 @@ export interface MintChainGateway {
   submitMint(
     item: MintWorkItem,
     persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
-    unconfirmedSignedTransactions: { transactionHash: string; signedTransaction: string }[],
+    unconfirmedSignedTransactions: UnconfirmedSignedTransaction[],
   ): Promise<{ transactionHash: string }>;
   /**
    * Restart recovery for a job that already has a recorded-but-possibly-unbroadcast signed
    * transaction: broadcasts it again if the network does not already know it. A no-op for the
    * local-unlocked path, which never records before broadcasting.
    */
-  rebroadcastIfNeeded(transactionHash: string, signedTransaction: string): Promise<void>;
+  rebroadcastIfNeeded(
+    intent: MintTransactionIntent,
+    transactionHash: string,
+    signedTransaction: string,
+  ): Promise<void>;
   confirmMint(item: MintWorkItem, transactionHash: string): Promise<ChainMintResult>;
 }
 
@@ -187,7 +202,7 @@ export class MintWorker {
             // Never build a new transaction for a job that already holds a hash: re-broadcast
             // the exact same signed transaction if the network has not seen it yet (a crash or a
             // lost response between recording and broadcasting), then confirm as usual.
-            await this.gateway.rebroadcastIfNeeded(transactionHash, item.signedTransaction);
+            await this.gateway.rebroadcastIfNeeded(item, transactionHash, item.signedTransaction);
           }
           const confirmed = await this.gateway.confirmMint(item, transactionHash);
           await this.repository.finalize(item, workerId, undefined, confirmed);
@@ -234,7 +249,7 @@ export class MintWorker {
             // recorded one can never be mined. This runs before markPrepared: if a straggler
             // cannot be gotten past, this job's attempt must not be spent on someone else's
             // stuck transaction.
-            let unconfirmedSignedTransactions: { transactionHash: string; signedTransaction: string }[];
+            let unconfirmedSignedTransactions: UnconfirmedSignedTransaction[];
             try {
               unconfirmedSignedTransactions = await this.repository.listUnconfirmedSignedTransactions(
                 item.chainId,
@@ -245,7 +260,11 @@ export class MintWorker {
             }
             for (const pending of unconfirmedSignedTransactions) {
               try {
-                await this.gateway.rebroadcastIfNeeded(pending.transactionHash, pending.signedTransaction);
+                await this.gateway.rebroadcastIfNeeded(
+                  pending.intent,
+                  pending.transactionHash,
+                  pending.signedTransaction,
+                );
               } catch (error) {
                 if (error instanceof RetryableChainError) {
                   // Every mint on this chain waits behind this transaction until its own job is

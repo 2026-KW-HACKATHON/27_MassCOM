@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile, chmod, readFile, symlink } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, chmod, readFile, symlink, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -116,6 +116,9 @@ test('L7 a lowercase or oddly-named env var ending in a forbidden suffix is stil
     'mnemonic',
     ['recovery', 'seed', 'phrase'].join('_'),
     ['SEED', 'PHRASE'].join('_'),
+    ['MINTER', 'PRIVATEKEY'].join('_'),
+    ['RECOVERY', 'PHRASE'].join('_'),
+    ['WALLET', 'SEED-PHRASE'].join('_'),
   ]) {
     assert.throws(
       () => assertNoRawPrivateKeyEnv({ [assembledName]: 'anything' }),
@@ -129,6 +132,9 @@ test('L7 a lowercase or oddly-named env var ending in a forbidden suffix is stil
   // the suffix is forbidden.
   assert.doesNotThrow(() =>
     assertNoRawPrivateKeyEnv({ [['PRIVATE', 'KEY', 'PATH'].join('_')]: '/some/path' }),
+  );
+  assert.doesNotThrow(() =>
+    assertNoRawPrivateKeyEnv({ MINTER_KEYSTORE_PASSWORD_FILE: '/some/password-file' }),
   );
   assert.doesNotThrow(() => assertNoRawPrivateKeyEnv({ SOME_OTHER_VAR: '1' }));
 });
@@ -223,6 +229,30 @@ test('M6 a keystore in a group/world writable directory is rejected even with ti
   await withTempDir(async (dir) => {
     const { keystorePath, passwordFilePath } = await writeKeystoreFixture(dir);
     await chmod(dir, 0o777);
+    await assert.rejects(
+      loadServiceSignerFiles({
+        env: {
+          MINTER_KEYSTORE_PATH: keystorePath,
+          MINTER_KEYSTORE_PASSWORD_FILE: passwordFilePath,
+        },
+        repoRoot: defaultRepoRoot,
+      }),
+      (error: unknown) =>
+        error instanceof MinterConfigurationError &&
+        error.code === 'MINTER_KEYSTORE_DIRECTORY_PERMISSIONS_TOO_OPEN',
+    );
+  });
+});
+
+test('a writable ancestor above the immediate keystore directory is also rejected', async () => {
+  await withTempDir(async (dir) => {
+    const writableParent = join(dir, 'writable-parent');
+    const privateChild = join(writableParent, 'private-child');
+    await mkdir(privateChild, { recursive: true, mode: 0o700 });
+    const { keystorePath, passwordFilePath } = await writeKeystoreFixture(privateChild);
+    await chmod(privateChild, 0o700);
+    await chmod(writableParent, 0o777);
+
     await assert.rejects(
       loadServiceSignerFiles({
         env: {

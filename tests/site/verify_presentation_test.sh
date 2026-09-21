@@ -33,7 +33,8 @@ for evidence in \
   chain-cursor-recovery.json \
   release-wallet-surface.json \
   release-signing-injection.json \
-  auth-operations-hardening.json; do
+  auth-operations-hardening.json \
+  service-minter-hardening.json; do
   cp "$repo_root/docs/evidence/$evidence" "$fixture_root/docs/evidence/$evidence"
 done
 

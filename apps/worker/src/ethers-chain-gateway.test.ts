@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { FeeData, Wallet, makeError, type JsonRpcApiProvider } from 'ethers';
+import { FeeData, Transaction, Wallet, makeError, type JsonRpcApiProvider } from 'ethers';
 
 import { EthersMintChainGateway, contractCallError } from './ethers-chain-gateway.js';
 import { ChainConfigurationError, RetryableChainError, type MintWorkItem } from './mint-worker.js';
@@ -92,6 +92,8 @@ test('H2 a fresh submission signs nothing and records nothing when fee data is u
     new FeeData(null, 1n, null),
     new FeeData(null, 0n, 1n),
     new FeeData(null, -1n, 1n),
+    new FeeData(null, 2n, 0n),
+    new FeeData(null, 2n, 3n),
   ]) {
     provider.getFeeData = async () => feeData;
     await assert.rejects(
@@ -103,4 +105,69 @@ test('H2 a fresh submission signs nothing and records nothing when fee data is u
     );
   }
   assert.equal(persisted, false);
+});
+
+test('a service signer cannot persist a transaction from a different address', async () => {
+  const configuredMinter = Wallet.createRandom();
+  const foreignSigner = Wallet.createRandom();
+  const gateway = new EthersMintChainGateway({
+    rpcUrl: 'http://127.0.0.1:1',
+    chainId: 84532,
+    contractAddress: item.contractAddress,
+    minterAddress: configuredMinter.address,
+    confirmations: 1,
+    fromBlock: 0,
+    signer: foreignSigner,
+  });
+  const provider = internalProvider(gateway);
+  provider.getTransactionCount = async () => 0;
+  provider.estimateGas = async () => 21_000n;
+  provider.getFeeData = async () => new FeeData(null, 2n, 1n);
+  let persisted = false;
+
+  await assert.rejects(
+    gateway.submitMint(item, async () => {
+      persisted = true;
+    }),
+    (error: unknown) =>
+      error instanceof RetryableChainError && error.code === 'MINTER_SIGNER_MISMATCH',
+  );
+  assert.equal(persisted, false);
+});
+
+test('rebroadcast refuses a stored transaction whose mint intent differs from the job', async () => {
+  const signer = Wallet.createRandom();
+  const gateway = new EthersMintChainGateway({
+    rpcUrl: 'http://127.0.0.1:1',
+    chainId: 84532,
+    contractAddress: item.contractAddress,
+    minterAddress: signer.address,
+    confirmations: 1,
+    fromBlock: 0,
+    signer,
+  });
+  const wrongIntent = await signer.signTransaction({
+    type: 2,
+    to: item.contractAddress,
+    data: '0x',
+    nonce: 0,
+    chainId: item.chainId,
+    gasLimit: 21_000n,
+    maxFeePerGas: 2n,
+    maxPriorityFeePerGas: 1n,
+  });
+  const hash = Transaction.from(wrongIntent).hash!;
+
+  await assert.rejects(
+    (gateway as unknown as {
+      rebroadcastIfNeeded(
+        intent: MintWorkItem,
+        transactionHash: string,
+        signedTransaction: string,
+      ): Promise<void>;
+    }).rebroadcastIfNeeded(item, hash, wrongIntent),
+    (error: unknown) =>
+      error instanceof RetryableChainError &&
+      error.code === 'MINT_SIGNED_TRANSACTION_MISMATCH',
+  );
 });
