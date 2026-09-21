@@ -118,6 +118,10 @@ NODE
 
 cd "$mobile_dir"
 CI=1 APP_VARIANT=production MASSCOM_BUILD_SOURCE_COMMIT="$commit" \
+  EXPO_PUBLIC_DEMO_ACCOUNT_ID= \
+  EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID= \
+  EXPO_PUBLIC_DEMO_MERCHANT_ID= \
+  EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION= \
   npx --no-install expo prebuild --platform android --clean --no-install
 (cd android && APP_VARIANT=production ./gradlew bundleRelease --console=plain -q)
 if [[ "$(git -C "$repo_root" rev-parse HEAD)" != "$commit" ]]; then

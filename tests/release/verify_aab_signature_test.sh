@@ -174,7 +174,7 @@ printf 'release fixture\n' >"$build_artifact_dir/payload.txt"
 sign build-good upload.jks upload
 cat >"$work/bin/npx" <<STUB
 #!/usr/bin/env bash
-echo "prebuild APP_VARIANT=\${APP_VARIANT:-unset} SOURCE_COMMIT=\${MASSCOM_BUILD_SOURCE_COMMIT:-unset}" >>"$work/prebuild.log"
+echo "prebuild APP_VARIANT=\${APP_VARIANT:-unset} SOURCE_COMMIT=\${MASSCOM_BUILD_SOURCE_COMMIT:-unset} DEMO_ACCOUNT=\${EXPO_PUBLIC_DEMO_ACCOUNT_ID-unset} DEMO_MERCHANT_ACCOUNT=\${EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID-unset} DEMO_MERCHANT_ID=\${EXPO_PUBLIC_DEMO_MERCHANT_ID-unset} DEMO_INSECURE_REAUTH=\${EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION-unset}" >>"$work/prebuild.log"
 rm -rf android; mkdir -p android/app/build/outputs/bundle/release
 printf "applicationId 'kr.masscom.wolgye'\nversionCode 1\n" >android/app/build.gradle
 cat >android/gradlew <<GRADLE
@@ -440,7 +440,12 @@ race_staged_aab="$(find "$race_artifacts" -type f -name 'app-release-*.aab' -pri
 
 accepted_artifacts="$work/accepted-artifacts"
 status=0
-out="$(cd "$sandbox" && env APP_VARIANT=production RELEASE_ARTIFACT_DIR="$accepted_artifacts" \
+out="$(cd "$sandbox" && env APP_VARIANT=production \
+  EXPO_PUBLIC_DEMO_ACCOUNT_ID=dev-account \
+  EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID=dev-merchant-account \
+  EXPO_PUBLIC_DEMO_MERCHANT_ID=dev-merchant \
+  EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION=true \
+  RELEASE_ARTIFACT_DIR="$accepted_artifacts" \
   UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
   bash scripts/build-release-aab.sh --restore-dev 2>&1)" || status=$?
 [[ "$status" == "0" ]] || { echo "build flow: expected exit 0, got $status: $out" >&2; exit 1; }
@@ -473,9 +478,9 @@ grep -qF 'Release readiness: NOT_RUN' <<<"$out" \
   || { echo "build flow: release readiness was not reported: $out" >&2; exit 1; }
 [[ "$out" != *UPLOADABLE* && "$out" != *READY* ]] \
   || { echo "build flow overstated release readiness: $out" >&2; exit 1; }
-grep -qF "prebuild APP_VARIANT=production SOURCE_COMMIT=$full_commit" "$work/prebuild.log" \
-  || { echo "build flow did not inject its captured commit into prebuild: $(cat "$work/prebuild.log")" >&2; exit 1; }
-[[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development SOURCE_COMMIT=unset" ]] \
+grep -qFx "prebuild APP_VARIANT=production SOURCE_COMMIT=$full_commit DEMO_ACCOUNT= DEMO_MERCHANT_ACCOUNT= DEMO_MERCHANT_ID= DEMO_INSECURE_REAUTH=" "$work/prebuild.log" \
+  || { echo "build flow did not isolate production prebuild from development-only environment: $(cat "$work/prebuild.log")" >&2; exit 1; }
+[[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development SOURCE_COMMIT=unset DEMO_ACCOUNT=dev-account DEMO_MERCHANT_ACCOUNT=dev-merchant-account DEMO_MERCHANT_ID=dev-merchant DEMO_INSECURE_REAUTH=true" ]] \
   || { echo "build flow: restore inherited the caller's variant: $(cat "$work/prebuild.log")" >&2; exit 1; }
 
 # A rejected build keeps the paired evidence under a name that states only the automated verdict.
@@ -514,7 +519,7 @@ if (record.signature.status !== 'FAIL' || record.signature.exitCode !== 7) {
 if (record.walletSurface.status !== 'PASS') throw new Error('rejected provenance did not preserve W08 PASS');
 if (record.releaseReadiness.status !== 'NOT_RUN') throw new Error('rejected provenance overstated release readiness');
 NODE
-[[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development SOURCE_COMMIT=unset" ]] \
+[[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development SOURCE_COMMIT=unset DEMO_ACCOUNT=unset DEMO_MERCHANT_ACCOUNT=unset DEMO_MERCHANT_ID=unset DEMO_INSECURE_REAUTH=unset" ]] \
   || { echo "rejected build did not restore the development variant: $(cat "$work/prebuild.log")" >&2; exit 1; }
 
 # A successful assessor must not allow the staged AAB to be replaced before publication.
