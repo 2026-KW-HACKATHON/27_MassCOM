@@ -35,16 +35,17 @@
   ],
   "blocked": [
     "repository public conversion",
-    "production fresh reauthentication and account switch",
-    "Base Sepolia contract broadcast",
-    "upload-key-signed release AAB",
+    "W04 same-session wallet address change",
+    "W05 unsupported smart wallet",
+    "Expo transitive moderate advisories",
     "Google Play and competition submission"
   ],
   "notRun": [
     "field merchant and user validation",
     "camera permission and offline acceptance",
-    "real account switching and OS backup restore",
-    "signed AAB, 16KB release, and App Links",
+    "production fresh reauthentication, real account switching, and OS backup restore",
+    "Base Sepolia contract broadcast",
+    "upload-key-signed AAB, 16KB release, and App Links",
     "production authorization and outage drill",
     "presentation rehearsal and final video"
   ],

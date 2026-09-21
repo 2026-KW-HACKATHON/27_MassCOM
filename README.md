@@ -74,11 +74,11 @@ python3 -m http.server 4173 --directory docs
 | Worker | `VERIFIED` | PR #51, PostgreSQL lease heartbeat·시도·이벤트·자산, 체인 설정 사전 검사, receipt/event/state 대조, 응답 유실·lease·재조직 전 확정 복구를 로컬 Anvil에서 검증 |
 | Reown 외부 지갑 코드 | `IMPLEMENTED` | AppKit 2.0.6, 외부 지갑 전용 기능 플래그·메서드 allowlist |
 | 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름·W06 PASS; W04 동일 세션 주소 전환과 W05 미지원 스마트지갑은 준비된 외부 환경 부재로 `BLOCKED` |
-| NFT 발행 전체 흐름 | `VERIFIED` | Local Anvil에서 Android 접수→Worker→이벤트 대조→등록 완료와 기존 token #1 복구 PASS; Base Sepolia는 `BLOCKED` |
+| NFT 발행 전체 흐름 | `VERIFIED` | Local Anvil에서 Android 접수→Worker→이벤트 대조→등록 완료와 기존 token #1 복구 PASS; Base Sepolia는 `NOT_RUN` |
 | 계정 삭제·개인정보 | `IN_PROGRESS` | D01·D03 로컬 PASS, 공개 삭제·개인정보 HTTPS 페이지 PASS; 운영 fresh reauthentication 삭제와 D02 계정 전환은 미완료 |
 | 외부 HTTPS·Play 제출 | `IN_PROGRESS` | `api.masscom.kr` DNS·TLS·health와 `masscom.kr` 포털 PASS. Play App Signing OAuth·AAB·Console 제출은 `NOT_RUN/BLOCKED` |
 
-상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
+상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED / NOT_RUN`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
 
 ## 보안·제품 경계
 

@@ -44,6 +44,21 @@ for name in \
   }
 done
 
+deployment_paths=(
+  apps/api/package.json
+  apps/api/package-lock.json
+  apps/api/tsconfig.json
+  apps/api/src
+  apps/api/migrations
+  infra/lightsail
+)
+deployment_status="$(git -C "$repo_root" status --porcelain --untracked-files=all -- "${deployment_paths[@]}")"
+if [[ -n "$deployment_status" ]]; then
+  echo 'deployment source paths must be clean so deployed bytes match the recorded commit' >&2
+  printf '%s\n' "$deployment_status" >&2
+  exit 1
+fi
+
 commit="$(git -C "$repo_root" rev-parse --verify HEAD)"
 release_id="${commit:0:12}"
 target="ubuntu@$host"
@@ -69,13 +84,7 @@ fi
 ssh "${ssh_options[@]}" "$target" \
   "sudo install -d -m 0755 '$remote_release' && sudo chown -R ubuntu:ubuntu '$remote_release'"
 
-COPYFILE_DISABLE=1 tar -C "$repo_root" -czf - \
-  apps/api/package.json \
-  apps/api/package-lock.json \
-  apps/api/tsconfig.json \
-  apps/api/src \
-  apps/api/migrations \
-  infra/lightsail \
+COPYFILE_DISABLE=1 tar -C "$repo_root" -czf - "${deployment_paths[@]}" \
   | ssh "${ssh_options[@]}" "$target" "tar -xzf - -C '$remote_release'"
 
 scp "${ssh_options[@]}" -q "$runtime_env" "$target:$remote_tmp_env"

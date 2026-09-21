@@ -38,6 +38,32 @@ if grep -q 'DO_NOT_PRINT_THIS_VALUE' <<<"$out"; then
   exit 1
 fi
 
+dirty_repo="$scratch/dirty-deploy-repo"
+mkdir -p "$dirty_repo/scripts" "$dirty_repo/apps/api/src" "$dirty_repo/infra/lightsail"
+cp "$deploy" "$dirty_repo/scripts/deploy-lightsail.sh"
+printf 'tracked source\n' >"$dirty_repo/apps/api/src/fixture.ts"
+printf 'tracked infra\n' >"$dirty_repo/infra/lightsail/fixture.yml"
+git -C "$dirty_repo" init -q
+git -C "$dirty_repo" add .
+git -C "$dirty_repo" -c user.email=t@example.invalid -c user.name=Test \
+  commit -q -m 'deploy source fixture'
+printf 'dirty source\n' >>"$dirty_repo/apps/api/src/fixture.ts"
+status=0
+out="$({
+  MASSCOM_LIGHTSAIL_HOST=example.invalid \
+    MASSCOM_LIGHTSAIL_KEY_FILE="$key" \
+    MASSCOM_RUNTIME_ENV_FILE="$runtime" \
+    bash "$dirty_repo/scripts/deploy-lightsail.sh" --dry-run
+} 2>&1)" || status=$?
+[[ "$status" == 1 ]] || {
+  echo "deploy script accepted source bytes that differ from the recorded commit" >&2
+  exit 1
+}
+grep -qF 'deployment source paths must be clean' <<<"$out" || {
+  echo "dirty deployment source failed for an unrelated reason: $out" >&2
+  exit 1
+}
+
 chmod 644 "$runtime"
 if MASSCOM_LIGHTSAIL_HOST=example.invalid \
   MASSCOM_LIGHTSAIL_KEY_FILE="$key" \
