@@ -104,12 +104,15 @@ compose() {
   sudo env MASSCOM_IMAGE_TAG="$release_id" \
     docker compose --env-file "$runtime_env" -f "$compose_file" "$@"
 }
+compose_no_stdin() {
+  compose "$@" </dev/null
+}
 
 compose build api
 compose up -d postgres
-compose run --rm -T migrate </dev/null
+compose_no_stdin run --rm -T migrate
 compose up -d api caddy
-compose exec -T api node -e \
+compose_no_stdin exec -T api node -e \
   "fetch('http://127.0.0.1:3000/health').then(async r=>{if(!r.ok)throw new Error('HTTP '+r.status);const b=await r.json();if(b.status!=='ok')throw new Error('unexpected health payload')}).catch(e=>{console.error(e.message);process.exit(1)})"
 
 sudo ln -sfn "$release" /opt/masscom/current
