@@ -8,6 +8,7 @@ style="$repo_root/docs/assets/presentation.css"
 portal="$repo_root/docs/index.html"
 manifest="$repo_root/docs/SUBMISSION_EVIDENCE.json"
 test_status="$repo_root/docs/TEST_STATUS.md"
+node "$repo_root/scripts/verify-evidence-consistency.mjs" "$repo_root"
 
 for required in "$page" "$style" "$portal" "$manifest" "$test_status"; do
   if [[ ! -f "$required" ]]; then
@@ -37,9 +38,6 @@ const presentationFile = process.argv[4];
 const repoRoot = process.argv[5];
 const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
 const tests = manifest.requiredTests;
-if (tests.total !== 36 || tests.PASS !== 30 || tests.BLOCKED !== 2 || tests.NOT_RUN !== 4 || tests.FAIL !== 0) {
-  throw new Error('submission evidence test totals do not match TEST_STATUS');
-}
 if (manifest.truthBoundary.partnerStoresClaimed !== 0 || manifest.truthBoundary.fieldParticipantsClaimed !== 0) {
   throw new Error('submission evidence invents field achievements');
 }

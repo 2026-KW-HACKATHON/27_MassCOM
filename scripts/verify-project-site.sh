@@ -8,6 +8,7 @@ css="$repo_root/docs/assets/project.css"
 readme="$repo_root/README.md"
 script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 accessibility_checker="$script_root/check-site-accessibility.mjs"
+node "$repo_root/scripts/verify-evidence-consistency.mjs" "$repo_root"
 
 fail() {
   echo "project portal verification failed: $1" >&2
