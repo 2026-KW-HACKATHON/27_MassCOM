@@ -1,17 +1,23 @@
-import { AppKit, AppKitProvider } from '@reown/appkit-react-native';
+import { AppKit, AppKitProvider, useAppKitTheme } from '@reown/appkit-react-native';
 import { Stack } from 'expo-router/stack';
-import { View } from 'react-native';
+import { useEffect } from 'react';
+import { useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthSessionProvider, useAuthSession } from '@/auth/auth-provider';
 import { AuthRequiredScreen } from '@/screens/auth-required';
+import { colorsForScheme } from '@/theme/palette';
 
 function Routes() {
+  const palette = colorsForScheme(useColorScheme());
   return (
     <Stack
       screenOptions={{
         headerShadowVisible: false,
         headerBackButtonDisplayMode: 'minimal',
+        headerStyle: { backgroundColor: palette.surface },
+        headerTintColor: palette.label,
+        contentStyle: { backgroundColor: palette.background },
       }}
     >
       <Stack.Screen name="index" options={{ title: '월계 맛길' }} />
@@ -38,6 +44,7 @@ export default function RootLayout() {
 
 function AuthenticatedRoot() {
   const auth = useAuthSession();
+  const themeMode = useColorScheme() === 'dark' ? 'dark' : 'light';
 
   if (auth.state.status !== 'signedIn' && auth.state.status !== 'demo') {
     return (
@@ -53,10 +60,17 @@ function AuthenticatedRoot() {
 
   return (
     <AppKitProvider key={auth.accountId} instance={auth.appKit}>
+      <WalletThemeSynchronizer themeMode={themeMode} />
       <Routes />
       <View pointerEvents="box-none" style={{ position: 'absolute', width: '100%', height: '100%' }}>
         <AppKit />
       </View>
     </AppKitProvider>
   );
+}
+
+function WalletThemeSynchronizer({ themeMode }: { themeMode: 'light' | 'dark' }) {
+  const { setThemeMode } = useAppKitTheme();
+  useEffect(() => setThemeMode(themeMode), [setThemeMode, themeMode]);
+  return null;
 }

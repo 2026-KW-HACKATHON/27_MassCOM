@@ -96,7 +96,7 @@ expected_reown_import() {
     screens/wallet-link/index.tsx)
       echo "import { useAccount, useAppKit, useAppKitEventSubscription, useProvider, } from '$reown_module';"
       ;;
-    app/_layout.tsx) echo "import { AppKit, AppKitProvider } from '$reown_module';" ;;
+    app/_layout.tsx) echo "import { AppKit, AppKitProvider, useAppKitTheme } from '$reown_module';" ;;
     *) return 1 ;;
   esac
 }
