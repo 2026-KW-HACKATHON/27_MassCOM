@@ -28,6 +28,12 @@ function validateBuildEnvironment(variant, environment) {
     throw new Error('production API must use non-loopback HTTPS');
   }
 
+  const buildSourceCommit = environment.MASSCOM_BUILD_SOURCE_COMMIT?.trim();
+  if (!buildSourceCommit) throw new Error('production build source commit is required');
+  if (!/^[0-9a-f]{40}$/i.test(buildSourceCommit)) {
+    throw new Error('production build source commit must be 40 hexadecimal characters');
+  }
+
   const unsafeKey = demoKeys.find((key) => environment[key]?.trim());
   if (unsafeKey) throw new Error(`production build rejects ${unsafeKey}`);
 }

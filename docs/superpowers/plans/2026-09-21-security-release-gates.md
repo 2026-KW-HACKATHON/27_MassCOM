@@ -539,7 +539,10 @@ Run:
 
 ```bash
 git diff origin/main...HEAD --stat
-git diff origin/main...HEAD -- scripts apps/api/src apps/mobile/src tests .github apps/mobile/README.md docs/RELEASE_READINESS.md
+git diff origin/main...HEAD -- \
+  scripts apps/api/src apps/mobile/src apps/mobile/app.config.ts apps/mobile/.env.example \
+  apps/mobile/plugins tests .github/workflows/ci.yml apps/mobile/README.md \
+  docs/RELEASE_READINESS.md docs/TEST_STATUS.md
 bash scripts/check-secrets.sh
 bash scripts/check-privacy.sh
 ```

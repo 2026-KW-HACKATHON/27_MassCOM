@@ -66,6 +66,8 @@ scripts/build-release-aab.sh [--restore-dev]
 
 provenance는 공개 가능한 빌드 증거인 AAB basename·SHA-256·크기, source commit과 mobile dirty 여부, 기대 package/version, W08이 확인한 artifact package, 서명·W08 상태와 exit code, upload 인증서 공개 SHA-256, 미실행 release gate, 생성 시각을 기록합니다. keystore 경로·비밀번호·개인키는 기록하지 않으며 현재 스키마는 artifact의 절대 경로 대신 basename만 저장합니다. provenance에서 개인 로컬 filesystem 경로가 발견되면 커밋하지 말고 원인을 조사해야 합니다.
 
+release build는 시작부터 publish 직전까지 전체 Git worktree가 clean이고 HEAD가 같은지 확인합니다. production prebuild에는 캡처한 공개 Git SHA를 로컬 Expo config plugin으로 Android manifest의 `kr.masscom.BUILD_SOURCE_COMMIT`에 넣으며, assessor는 서명된 AAB의 marker·현재 HEAD·provenance source commit이 모두 같을 때만 자동 gate PASS를 허용합니다. 개발 build는 이 marker 없이 계속 사용할 수 있습니다.
+
 자동 검증이 거절되면 AAB와 provenance를 삭제하지 않고 각각 `app-release-<short-sha>.NOT-RELEASE-READY-exitN.aab`와 `app-release-<short-sha>.NOT-RELEASE-READY-exitN.provenance.json`으로 함께 바꿔 진단 증거를 보존합니다. exit 0과 `Automated gates: PASS`는 승인 upload 인증서 서명과 W08 wallet surface gate만 통과했다는 뜻입니다. 다음 단계는 서로 대체되지 않습니다.
 
 같은 commit의 accepted 또는 rejected 최종 경로가 하나라도 이미 있으면 기존 증거를 덮지 않고 prebuild 전에 중단합니다. 기존 쌍을 검토·보관하거나 다른 `RELEASE_ARTIFACT_DIR`를 선택한 뒤 다시 실행합니다.

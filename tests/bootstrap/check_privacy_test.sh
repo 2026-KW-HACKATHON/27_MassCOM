@@ -38,6 +38,7 @@ printf '%s\n' \
   "console['error']('wallet verification failed')" \
   "process.stderr.write('worker stopped\\n')" \
   "const fixedEvent = 'wallet.verify.failed'; console.error(fixedEvent)" \
+  $'const fixedEvent: string = \'wallet.verify.failed\'\nprocess.stderr.write(fixedEvent)' \
   "// console.error('request failed', error)" \
   "/*" \
   "console.error('request failed', { detail: error.message })" \
@@ -69,6 +70,9 @@ unsafe_logs=(
   "process.stderr.write(error.stack)"
   "const detail = error; console.error(detail)"
   "const detail = body.signature; console.error(detail)"
+  "const detail: unknown = error; console.error(detail)"
+  "const detail = error as unknown; console.error(detail)"
+  $'const detail = body.signature\nconsole.error(detail)'
 )
 
 for unsafe_log in "${unsafe_logs[@]}"; do
@@ -86,6 +90,9 @@ global_unsafe_logs=(
   "console['error'](privateKey)"
   "process.stderr.write(signature)"
   "const detail = body.password; console.error(detail)"
+  "const detail: string = privateKey; console.error(detail)"
+  "const detail = recoveryPhrase as string; process.stderr.write(detail)"
+  $'const detail = body.password\nconsole.error(detail)'
 )
 
 for unsafe_log in "${global_unsafe_logs[@]}"; do

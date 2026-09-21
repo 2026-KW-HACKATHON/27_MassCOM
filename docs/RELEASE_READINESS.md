@@ -24,13 +24,16 @@
 `scripts/build-release-aab.sh [--restore-dev]`는 기본 `apps/mobile/release-artifacts/` 또는 운영자가 지정한 `RELEASE_ARTIFACT_DIR`에 `app-release-<short-sha>.aab`와 `app-release-<short-sha>.provenance.json`을 한 쌍으로 보존합니다. provenance에는 다음 공개 증거만 들어갑니다.
 
 - artifact basename·SHA-256·byte 크기
-- source commit·`apps/mobile` dirty 여부
+- source commit·전체 Git worktree clean 여부
+- signed AAB manifest의 `kr.masscom.BUILD_SOURCE_COMMIT` 값과 source commit 일치 여부
 - source가 기대한 Android package/version과 W08이 AAB에서 확인한 package
 - signature와 W08의 `PASS`/`FAIL`, exit code, upload 인증서 공개 SHA-256
 - `releaseReadiness.status`와 남은 A02 설치·App Links·Play upload/review gate
 - 생성 시각
 
 keystore 경로·비밀번호·개인키는 provenance 대상이 아닙니다. 현재 schema는 artifact 절대 경로가 아닌 basename만 저장합니다. provenance에 개인 로컬 filesystem 경로가 드러나면 그 파일을 커밋하지 말고 생성 경로를 점검합니다. 기본 `apps/mobile/release-artifacts/`만 저장소에서 gitignored입니다. 사용자 지정 `RELEASE_ARTIFACT_DIR`는 자동으로 ignore되지 않으므로 운영자가 접근 권한·ignore·보존 정책을 책임집니다.
+
+production build는 시작 전, Gradle 직후, 자동 gate 직후, publish 직전에 같은 HEAD와 clean worktree를 요구합니다. 캡처한 공개 Git SHA는 local Expo config plugin이 AAB manifest에 기록하며, assessor는 artifact marker·현재 HEAD·provenance source commit이 같지 않으면 자동 gate를 실패시킵니다. development build에는 marker가 필요하지 않습니다.
 
 자동 gate가 exit `N`으로 실패하면 두 파일은 삭제되지 않고 `app-release-<short-sha>.NOT-RELEASE-READY-exitN.aab`와 같은 basename의 `.provenance.json`으로 함께 이동합니다. 이 이름은 자동 판단 실패를 뜻할 뿐 Play의 최종 심사 판단이 아닙니다.
 

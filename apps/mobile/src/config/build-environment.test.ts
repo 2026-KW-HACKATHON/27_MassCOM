@@ -3,12 +3,15 @@ import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 
+import buildSourceCommitPlugin from '../../plugins/with-build-source-commit.cjs';
 import { validateBuildEnvironment } from './build-environment';
 
 const mobileRoot = resolve(__dirname, '../..');
 const expoCli = require.resolve('expo/bin/cli');
+const buildSourceCommit = 'a'.repeat(40);
 const buildEnvironmentKeys = [
   'APP_VARIANT',
+  'MASSCOM_BUILD_SOURCE_COMMIT',
   'EXPO_PUBLIC_API_URL',
   'EXPO_PUBLIC_DEMO_ACCOUNT_ID',
   'EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID',
@@ -29,6 +32,7 @@ test('production build environment accepts a non-loopback HTTPS API without DEMO
   assert.doesNotThrow(() =>
     validateBuildEnvironment('production', {
       EXPO_PUBLIC_API_URL: 'https://api.example.test',
+      MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
     }),
   );
 });
@@ -53,7 +57,11 @@ test('production build environment rejects local API host variants', () => {
     'https://10.0.2.2',
   ]) {
     assert.throws(
-      () => validateBuildEnvironment('production', { EXPO_PUBLIC_API_URL: apiUrl }),
+      () =>
+        validateBuildEnvironment('production', {
+          EXPO_PUBLIC_API_URL: apiUrl,
+          MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+        }),
       /production API must use non-loopback HTTPS/,
       apiUrl,
     );
@@ -71,6 +79,7 @@ for (const key of [
       () =>
         validateBuildEnvironment('production', {
           EXPO_PUBLIC_API_URL: 'https://api.example.test',
+          MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
           [key]: key === 'EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION' ? 'true' : 'demo-value',
         }),
       new RegExp(key),
@@ -80,8 +89,29 @@ for (const key of [
 
 test('production build environment requires the API URL', () => {
   assert.throws(
-    () => validateBuildEnvironment('production', {}),
+    () =>
+      validateBuildEnvironment('production', {
+        MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+      }),
     /production EXPO_PUBLIC_API_URL is required/,
+  );
+});
+
+test('production build environment requires a 40-hex source commit', () => {
+  assert.throws(
+    () =>
+      validateBuildEnvironment('production', {
+        EXPO_PUBLIC_API_URL: 'https://api.example.test',
+      }),
+    /production build source commit is required/,
+  );
+  assert.throws(
+    () =>
+      validateBuildEnvironment('production', {
+        EXPO_PUBLIC_API_URL: 'https://api.example.test',
+        MASSCOM_BUILD_SOURCE_COMMIT: 'not-a-commit',
+      }),
+    /production build source commit must be 40 hexadecimal characters/,
   );
 });
 
@@ -90,6 +120,7 @@ test('production build environment rejects a false DEMO reauthentication setting
     () =>
       validateBuildEnvironment('production', {
         EXPO_PUBLIC_API_URL: 'https://api.example.test',
+        MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
         EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION: 'false',
       }),
     /EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION/,
@@ -111,13 +142,19 @@ test('actual Expo production config preserves release identity, plugins, and blo
   const result = evaluateExpoConfig({
     APP_VARIANT: 'production',
     EXPO_PUBLIC_API_URL: 'https://api.example.test',
+    MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
   });
 
   assert.equal(result.status, 0, result.stderr);
   const config = JSON.parse(result.stdout) as EvaluatedExpoConfig;
   assert.equal(config.android?.package, 'kr.masscom.wolgye');
   assert.equal(config.scheme, 'masscom');
-  assert.deepEqual(pluginNames(config), ['expo-router', 'expo-camera', 'expo-splash-screen']);
+  assert.deepEqual(pluginNames(config), [
+    'expo-router',
+    'expo-camera',
+    'expo-splash-screen',
+    './plugins/with-build-source-commit.cjs',
+  ]);
   assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW']);
 });
 
@@ -131,6 +168,7 @@ test('actual Expo production config rejects local API host variants', () => {
     const result = evaluateExpoConfig({
       APP_VARIANT: 'production',
       EXPO_PUBLIC_API_URL: apiUrl,
+      MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
     });
 
     assert.notEqual(result.status, 0, apiUrl);
@@ -142,11 +180,22 @@ test('actual Expo production config rejects a stray false DEMO setting', () => {
   const result = evaluateExpoConfig({
     APP_VARIANT: 'production',
     EXPO_PUBLIC_API_URL: 'https://api.example.test',
+    MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
     EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION: 'false',
   });
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION/);
+});
+
+test('actual Expo production config rejects a missing source commit', () => {
+  const result = evaluateExpoConfig({
+    APP_VARIANT: 'production',
+    EXPO_PUBLIC_API_URL: 'https://api.example.test',
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /production build source commit is required/);
 });
 
 test('actual Expo development config preserves local DEMO identity, plugins, and permissions', () => {
@@ -170,6 +219,34 @@ test('actual Expo development config preserves local DEMO identity, plugins, and
     'expo-splash-screen',
   ]);
   assert.deepEqual(config.android?.blockedPermissions, []);
+});
+
+test('local production plugin writes the source commit into Android manifest metadata', () => {
+  const { applyBuildSourceCommit, BUILD_SOURCE_COMMIT_KEY } = buildSourceCommitPlugin as unknown as {
+    BUILD_SOURCE_COMMIT_KEY: string;
+    applyBuildSourceCommit: (manifest: Record<string, unknown>, commit: string) => Record<string, unknown>;
+  };
+  const manifest = {
+    manifest: {
+      $: { 'xmlns:android': 'http://schemas.android.com/apk/res/android' },
+      queries: [],
+      application: [{ $: { 'android:name': '.MainApplication' } }],
+    },
+  };
+
+  applyBuildSourceCommit(manifest, buildSourceCommit.toUpperCase());
+
+  const application = manifest.manifest.application[0] as (typeof manifest.manifest.application)[number] & {
+    'meta-data': unknown[];
+  };
+  assert.deepEqual(application['meta-data'], [
+    {
+      $: {
+        'android:name': BUILD_SOURCE_COMMIT_KEY,
+        'android:value': buildSourceCommit,
+      },
+    },
+  ]);
 });
 
 function evaluateExpoConfig(overrides: Record<string, string>) {

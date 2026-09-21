@@ -78,7 +78,18 @@ if [[ "$signers" -gt 1 ]]; then
 fi
 # The JAR format exempts META-INF/*.SF|RSA|DSA|EC from that warning, so a file smuggled in under
 # such a name is invisible to jarsigner. One signer leaves exactly one .SF and one block file.
-signature_files="$(unzip -Z1 "$file" | grep -ciE '^META-INF/[^/]+\.(SF|RSA|DSA|EC)$' || true)"
+command -v unzip >/dev/null 2>&1 || {
+  echo 'SIGNATURE CHECK ERROR: unzip is unavailable' >&2
+  exit 1
+}
+archive_entries=''
+unzip_exit=0
+archive_entries="$(unzip -Z1 "$file" 2>&1)" || unzip_exit=$?
+if [[ "$unzip_exit" != 0 ]]; then
+  echo "SIGNATURE CHECK ERROR: unzip failed with exit $unzip_exit" >&2
+  exit 1
+fi
+signature_files="$(grep -ciE '^META-INF/[^/]+\.(SF|RSA|DSA|EC)$' <<<"$archive_entries" || true)"
 if [[ "$signature_files" != "2" ]]; then
   echo "SIGNATURE REJECTED: expected one signature file pair in META-INF, found $signature_files signature files" >&2
   exit 5

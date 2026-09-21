@@ -8,11 +8,20 @@ writer="$repo_root/scripts/write-aab-provenance.mjs"
 work="$(mktemp -d -t aab-assessment.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
 
+make_marker_artifact() { # <output> <commit>
+  local output="$1" commit="$2"
+  local directory="$output.d"
+  mkdir -p "$directory/base/manifest"
+  printf 'kr.masscom.BUILD_SOURCE_COMMIT\n%s\n' "$commit" \
+    >"$directory/base/manifest/AndroidManifest.xml"
+  (cd "$directory" && zip -q -r "$output" base)
+}
+
+expected_commit="$(git -C "$repo_root" rev-parse HEAD)"
 artifact="$work/tiny-release.aab"
-printf 'tiny deterministic AAB fixture\n' >"$artifact"
+make_marker_artifact "$artifact" "$expected_commit"
 expected_sha="$(shasum -a 256 "$artifact" | cut -d' ' -f1)"
 expected_bytes="$(wc -c <"$artifact" | tr -d ' ')"
-expected_commit="$(git -C "$repo_root" rev-parse HEAD)"
 if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=normal -- apps/mobile)" ]]; then
   expected_dirty=true
 else
@@ -57,6 +66,7 @@ equal(record.schema, 'masscom.aab-provenance.v1', 'schema');
 equal(record.artifact.basename, 'tiny-release.aab', 'artifact basename');
 equal(record.artifact.sha256, expectedSha, 'artifact sha256');
 equal(record.artifact.bytes, Number(expectedBytes), 'artifact bytes');
+equal(record.artifact.buildSourceCommit, expectedCommit, 'artifact build source commit');
 equal(record.source.commit, expectedCommit, 'source commit');
 equal(record.source.mobileDirty, expectedDirty === 'true', 'source mobileDirty');
 equal(record.android.sourceExpected.package, 'kr.masscom.wolgye', 'source-expected Android package');
@@ -80,6 +90,37 @@ if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(record.generatedAt)) {
 if (raw.includes(ambientSentinel)) fail('provenance captured unrelated ambient environment data');
 NODE
 
+wrong_marker_artifact="$work/wrong-marker.aab"
+make_marker_artifact "$wrong_marker_artifact" 1111111111111111111111111111111111111111
+wrong_marker_provenance="$work/wrong-marker.provenance.json"
+status=0
+error="$(env MASSCOM_TEST_MODE=true \
+  AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
+  AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-pass" \
+  bash "$assess" "$wrong_marker_artifact" "$repo_root/apps/mobile/src" "$wrong_marker_provenance" 2>&1)" \
+  || status=$?
+[[ "$status" == 1 ]] || { echo "wrong artifact marker: expected exit 1, got $status: $error" >&2; exit 1; }
+grep -qF 'artifact BUILD_SOURCE_COMMIT does not match the assessed source commit' <<<"$error" \
+  || { echo "wrong artifact marker failed for an unrelated reason: $error" >&2; exit 1; }
+[[ ! -e "$wrong_marker_provenance" ]] || { echo 'wrong artifact marker wrote provenance' >&2; exit 1; }
+
+missing_marker_artifact="$work/missing-marker.aab"
+missing_marker_dir="$work/missing-marker.d"
+mkdir -p "$missing_marker_dir/base/manifest"
+printf 'manifest without build marker\n' >"$missing_marker_dir/base/manifest/AndroidManifest.xml"
+(cd "$missing_marker_dir" && zip -q -r "$missing_marker_artifact" base)
+missing_marker_provenance="$work/missing-marker.provenance.json"
+status=0
+error="$(env MASSCOM_TEST_MODE=true \
+  AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
+  AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-pass" \
+  bash "$assess" "$missing_marker_artifact" "$repo_root/apps/mobile/src" "$missing_marker_provenance" 2>&1)" \
+  || status=$?
+[[ "$status" == 1 ]] || { echo "missing artifact marker: expected exit 1, got $status: $error" >&2; exit 1; }
+grep -qF 'artifact must contain exactly one BUILD_SOURCE_COMMIT manifest marker' <<<"$error" \
+  || { echo "missing artifact marker failed for an unrelated reason: $error" >&2; exit 1; }
+[[ ! -e "$missing_marker_provenance" ]] || { echo 'missing artifact marker wrote provenance' >&2; exit 1; }
+
 # A disposable Git repository proves clean and already-dirty invocations without touching user files.
 dirty_repo="$work/dirty-repo"
 mkdir -p "$dirty_repo/scripts" "$dirty_repo/apps/mobile/src"
@@ -90,20 +131,56 @@ git -C "$dirty_repo" init -q
 git -C "$dirty_repo" add .
 git -C "$dirty_repo" -c user.email=test@example.invalid -c user.name=Test \
   commit -q -m 'fixture baseline'
+isolated_commit="$(git -C "$dirty_repo" rev-parse HEAD)"
+isolated_artifact="$work/isolated-release.aab"
+make_marker_artifact "$isolated_artifact" "$isolated_commit"
 
 clean_provenance="$work/isolated-clean.provenance.json"
 env MASSCOM_TEST_MODE=true \
   AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
   AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-pass" \
   bash "$dirty_repo/scripts/assess-release-aab.sh" \
-  "$artifact" "$dirty_repo/apps/mobile/src" "$clean_provenance" >/dev/null 2>&1
+  "$isolated_artifact" "$dirty_repo/apps/mobile/src" "$clean_provenance" >/dev/null 2>&1
+printf 'unrelated dirty state\n' >"$dirty_repo/unrelated.txt"
+dirty_worktree_provenance="$work/dirty-worktree.provenance.json"
+status=0
+error="$(env MASSCOM_TEST_MODE=true MASSCOM_BUILD_SOURCE_COMMIT="$isolated_commit" \
+  AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
+  AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-pass" \
+  bash "$dirty_repo/scripts/assess-release-aab.sh" \
+  "$isolated_artifact" "$dirty_repo/apps/mobile/src" "$dirty_worktree_provenance" 2>&1)" || status=$?
+[[ "$status" == 1 ]] || { echo "dirty worktree assessment: expected exit 1, got $status: $error" >&2; exit 1; }
+grep -qF 'Git worktree changed during release assessment' <<<"$error" \
+  || { echo "dirty worktree assessment failed for an unrelated reason: $error" >&2; exit 1; }
+[[ ! -e "$dirty_worktree_provenance" ]] || { echo 'dirty worktree assessment wrote provenance' >&2; exit 1; }
+rm "$dirty_repo/unrelated.txt"
+
+cat >"$work/w08-mutates-worktree" <<STUB
+#!/usr/bin/env bash
+printf 'gate-created dirty state\n' >'$dirty_repo/unrelated-during-gate.txt'
+echo "release wallet surface verified: \$(basename "\$1"), package kr.masscom.wolgye"
+STUB
+chmod +x "$work/w08-mutates-worktree"
+gate_mutation_provenance="$work/gate-mutation.provenance.json"
+status=0
+error="$(env MASSCOM_TEST_MODE=true MASSCOM_BUILD_SOURCE_COMMIT="$isolated_commit" \
+  AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
+  AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-mutates-worktree" \
+  bash "$dirty_repo/scripts/assess-release-aab.sh" \
+  "$isolated_artifact" "$dirty_repo/apps/mobile/src" "$gate_mutation_provenance" 2>&1)" || status=$?
+[[ "$status" == 1 ]] || { echo "gate worktree mutation: expected exit 1, got $status: $error" >&2; exit 1; }
+grep -qF 'Git worktree changed during release assessment' <<<"$error" \
+  || { echo "gate worktree mutation failed for an unrelated reason: $error" >&2; exit 1; }
+[[ ! -e "$gate_mutation_provenance" ]] || { echo 'gate worktree mutation wrote provenance' >&2; exit 1; }
+rm "$dirty_repo/unrelated-during-gate.txt"
+
 printf 'invocation-owned dirty state\n' >"$dirty_repo/apps/mobile/src/dirty.ts"
 dirty_provenance="$work/isolated-dirty.provenance.json"
 env MASSCOM_TEST_MODE=true \
   AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
   AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-pass" \
   bash "$dirty_repo/scripts/assess-release-aab.sh" \
-  "$artifact" "$dirty_repo/apps/mobile/src" "$dirty_provenance" >/dev/null 2>&1
+  "$isolated_artifact" "$dirty_repo/apps/mobile/src" "$dirty_provenance" >/dev/null 2>&1
 node - "$clean_provenance" "$dirty_provenance" <<'NODE'
 const fs = require('node:fs');
 const clean = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -202,6 +279,19 @@ grep -qF 'mobile source override requires MASSCOM_TEST_MODE=true' <<<"$error" \
   || { echo "production source override failed for an unrelated reason: $error" >&2; exit 1; }
 [[ ! -e "$rejected_source_override" ]] || { echo 'rejected source override wrote provenance' >&2; exit 1; }
 
+# Standalone production assessment must receive the builder-captured commit.
+missing_expected_commit_provenance="$work/missing-expected-commit.provenance.json"
+status=0
+error="$(env -u MASSCOM_TEST_MODE -u MASSCOM_BUILD_SOURCE_COMMIT \
+  -u AAB_SIGNATURE_CHECK_COMMAND -u AAB_WALLET_SURFACE_CHECK_COMMAND \
+  bash "$assess" "$artifact" "$repo_root/apps/mobile/src" "$missing_expected_commit_provenance" 2>&1)" \
+  || status=$?
+[[ "$status" == 1 ]] || { echo "missing expected commit: expected exit 1, got $status: $error" >&2; exit 1; }
+grep -qF 'production assessment requires MASSCOM_BUILD_SOURCE_COMMIT' <<<"$error" \
+  || { echo "missing expected commit failed for an unrelated reason: $error" >&2; exit 1; }
+[[ ! -e "$missing_expected_commit_provenance" ]] \
+  || { echo 'missing expected commit wrote provenance' >&2; exit 1; }
+
 # A builder-captured commit must still be current when assessment begins.
 commit_mismatch_provenance="$work/commit-mismatch.provenance.json"
 status=0
@@ -279,6 +369,7 @@ writer_args=(
   --artifact "$artifact"
   --artifact-sha256 "$expected_sha"
   --artifact-bytes "$expected_bytes"
+  --artifact-source-commit "$expected_commit"
   --source-commit "$expected_commit"
   --mobile-dirty false
   --source-expected-android-package kr.masscom.wolgye
@@ -348,6 +439,8 @@ expect_writer_reject() {
 }
 expect_writer_reject 'missing artifact' 'artifact does not exist' --artifact "$work/missing.aab"
 expect_writer_reject 'malformed digest' 'artifact sha256 must be 64 hexadecimal characters' --artifact-sha256 bad
+expect_writer_reject 'artifact/source commit mismatch' 'artifact source commit must match the source commit' \
+  --artifact-source-commit 1111111111111111111111111111111111111111
 expect_writer_reject 'unknown status' 'unknown signature status' --signature-status MAYBE
 expect_writer_reject 'manual gates still pending' 'release readiness cannot pass with pending gates' \
   --release-readiness-status PASS

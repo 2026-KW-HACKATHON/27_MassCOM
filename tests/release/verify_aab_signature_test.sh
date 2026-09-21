@@ -46,10 +46,16 @@ expect_missing_tool() { # <tool> <file>
   local out status=0
   mkdir -p "$bin"
   ln -s "$(command -v dirname)" "$bin/dirname"
-  if [[ "$tool" == keytool ]]; then
+  if [[ "$tool" == keytool || "$tool" == unzip ]]; then
     ln -s "$(command -v grep)" "$bin/grep"
     printf '#!/bin/bash\necho "jar verified."\n' >"$bin/jarsigner"
     chmod +x "$bin/jarsigner"
+  fi
+  if [[ "$tool" == unzip ]]; then
+    ln -s "$(command -v awk)" "$bin/awk"
+    printf '#!/bin/bash\necho "Owner: CN=MassCOM Fixture"\necho " SHA256: %s"\n' \
+      "$approved" >"$bin/keytool"
+    chmod +x "$bin/keytool"
   fi
   out="$(PATH="$bin" UPLOAD_CERT_SHA256="$approved" /bin/bash "$verify" "$file" 2>&1)" || status=$?
   [[ "$status" == 1 ]] || { echo "$tool missing: expected exit 1, got $status: $out" >&2; exit 1; }
@@ -72,6 +78,9 @@ make_jar good; sign good upload.jks upload
 expect_missing_tool keytool "$work/good.aab"
 expect_tool_failure keytool 127 keytool-missing "$work/good.aab"
 expect_tool_failure keytool 9 keytool-execution "$work/good.aab"
+expect_missing_tool unzip "$work/good.aab"
+expect_tool_failure unzip 127 unzip-missing "$work/good.aab"
+expect_tool_failure unzip 9 unzip-execution "$work/good.aab"
 expect 'approved self-signed upload key' 0 'signature verified against the approved upload certificate' "$approved" "$work/good.aab"
 expect 'lower-case fingerprint without colons' 0 'signature verified' "$(tr -d ':' <<<"$approved" | tr 'A-F' 'a-f')" "$work/good.aab"
 no_pin_repo="$work/no-pin-repo"
@@ -150,14 +159,22 @@ printf 'fixture\n' >"$sandbox/apps/mobile/src/fixture.ts"
 printf 'apps/mobile/android/\n' >"$sandbox/.gitignore"
 (cd "$sandbox" && git init -q && git add . && \
   git -c user.email=t@example.invalid -c user.name=t commit -q -m sample)
+sandbox_commit="$(git -C "$sandbox" rev-parse HEAD)"
+build_artifact_dir="$work/build-good.d"
+mkdir -p "$build_artifact_dir/base/manifest"
+printf 'kr.masscom.BUILD_SOURCE_COMMIT\n%s\n' "$sandbox_commit" \
+  >"$build_artifact_dir/base/manifest/AndroidManifest.xml"
+printf 'release fixture\n' >"$build_artifact_dir/payload.txt"
+(cd "$build_artifact_dir" && zip -q -r "$work/build-good.aab" .)
+sign build-good upload.jks upload
 cat >"$work/bin/npx" <<STUB
 #!/usr/bin/env bash
-echo "prebuild APP_VARIANT=\${APP_VARIANT:-unset}" >>"$work/prebuild.log"
+echo "prebuild APP_VARIANT=\${APP_VARIANT:-unset} SOURCE_COMMIT=\${MASSCOM_BUILD_SOURCE_COMMIT:-unset}" >>"$work/prebuild.log"
 rm -rf android; mkdir -p android/app/build/outputs/bundle/release
 printf "applicationId 'kr.masscom.wolgye'\nversionCode 1\n" >android/app/build.gradle
 cat >android/gradlew <<GRADLE
 #!/usr/bin/env bash
-cp "$work/good.aab" app/build/outputs/bundle/release/app-release.aab
+cp "$work/build-good.aab" app/build/outputs/bundle/release/app-release.aab
 case "\\\${BUILD_MUTATION_MODE:-}" in
   head)
     printf 'committed during build\n' >>../src/fixture.ts
@@ -167,6 +184,9 @@ case "\\\${BUILD_MUTATION_MODE:-}" in
     ;;
   tree)
     printf 'dirty during build\n' >>../src/fixture.ts
+    ;;
+  repo-tree)
+    printf 'unrelated dirty state during build\n' >../../../unrelated-during-build.txt
     ;;
 esac
 GRADLE
@@ -225,11 +245,28 @@ out="$(cd "$dirty_sandbox" && env RELEASE_ARTIFACT_DIR="$dirty_artifacts" \
   UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
   bash scripts/build-release-aab.sh 2>&1)" || status=$?
 [[ "$status" == 1 ]] || { echo "dirty source preflight: expected exit 1, got $status: $out" >&2; exit 1; }
-grep -qF 'release build requires a clean mobile tree' <<<"$out" \
+grep -qF 'release build requires a clean Git worktree' <<<"$out" \
   || { echo "dirty source preflight failed for an unrelated reason: $out" >&2; exit 1; }
 [[ ! -e "$work/prebuild.log" ]] || { echo 'dirty source preflight reached prebuild' >&2; exit 1; }
 [[ ! -d "$dirty_artifacts" ]] || ! find "$dirty_artifacts" -type f -print -quit | grep -q . \
   || { echo 'dirty source preflight published an artifact' >&2; exit 1; }
+
+# Unrelated tracked or untracked repository state is part of the release source boundary too.
+dirty_repo_sandbox="$work/dirty-repository-build"
+cp -R "$sandbox" "$dirty_repo_sandbox"
+printf 'unrelated dirty state\n' >"$dirty_repo_sandbox/unrelated.txt"
+dirty_repo_artifacts="$work/dirty-repository-artifacts"
+rm -f "$work/prebuild.log"
+status=0
+out="$(cd "$dirty_repo_sandbox" && env RELEASE_ARTIFACT_DIR="$dirty_repo_artifacts" \
+  UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
+  bash scripts/build-release-aab.sh 2>&1)" || status=$?
+[[ "$status" == 1 ]] || { echo "dirty repository preflight: expected exit 1, got $status: $out" >&2; exit 1; }
+grep -qF 'release build requires a clean Git worktree' <<<"$out" \
+  || { echo "dirty repository preflight failed for an unrelated reason: $out" >&2; exit 1; }
+[[ ! -e "$work/prebuild.log" ]] || { echo 'dirty repository preflight reached prebuild' >&2; exit 1; }
+[[ ! -d "$dirty_repo_artifacts" ]] || ! find "$dirty_repo_artifacts" -type f -print -quit | grep -q . \
+  || { echo 'dirty repository preflight published an artifact' >&2; exit 1; }
 
 # Advancing HEAD during Gradle must abort before assessment or publication.
 head_mutation_sandbox="$work/head-mutation-repo"
@@ -257,11 +294,26 @@ out="$(cd "$tree_mutation_sandbox" && env BUILD_MUTATION_MODE=tree \
   RELEASE_ARTIFACT_DIR="$tree_mutation_artifacts" UPLOAD_CERT_SHA256="$approved" \
   PATH="$work/bin:$PATH" bash scripts/build-release-aab.sh 2>&1)" || status=$?
 [[ "$status" == 1 ]] || { echo "tree mutation: expected exit 1, got $status: $out" >&2; exit 1; }
-grep -qF 'mobile source changed during release build' <<<"$out" \
+grep -qF 'Git worktree changed during release build' <<<"$out" \
   || { echo "tree mutation failed for an unrelated reason: $out" >&2; exit 1; }
 [[ ! -d "$tree_mutation_artifacts" ]] \
   || ! find "$tree_mutation_artifacts" -type f \( -name '*.aab' -o -name '*.json' \) -print -quit | grep -q . \
   || { echo 'tree mutation published final evidence' >&2; exit 1; }
+
+# The post-Gradle check covers the full repository, not just apps/mobile.
+repo_tree_mutation_sandbox="$work/repository-tree-mutation-repo"
+cp -R "$sandbox" "$repo_tree_mutation_sandbox"
+repo_tree_mutation_artifacts="$work/repository-tree-mutation-artifacts"
+status=0
+out="$(cd "$repo_tree_mutation_sandbox" && env BUILD_MUTATION_MODE=repo-tree \
+  RELEASE_ARTIFACT_DIR="$repo_tree_mutation_artifacts" UPLOAD_CERT_SHA256="$approved" \
+  PATH="$work/bin:$PATH" bash scripts/build-release-aab.sh 2>&1)" || status=$?
+[[ "$status" == 1 ]] || { echo "repository tree mutation: expected exit 1, got $status: $out" >&2; exit 1; }
+grep -qF 'Git worktree changed during release build' <<<"$out" \
+  || { echo "repository tree mutation failed for an unrelated reason: $out" >&2; exit 1; }
+[[ ! -d "$repo_tree_mutation_artifacts" ]] \
+  || ! find "$repo_tree_mutation_artifacts" -type f \( -name '*.aab' -o -name '*.json' \) -print -quit | grep -q . \
+  || { echo 'repository tree mutation published final evidence' >&2; exit 1; }
 
 # The captured commit must be passed into assessment so a later race cannot rebind provenance.
 assessment_mutation_sandbox="$work/assessment-mutation-repo"
@@ -279,6 +331,9 @@ git -C "$repo_root" -c user.email=t@example.invalid -c user.name=Test \
 exec "$repo_root/scripts/assess-release-aab-real.sh" "$@"
 STUB
 chmod +x "$assessment_mutation_sandbox/scripts/assess-release-aab.sh"
+git -C "$assessment_mutation_sandbox" add scripts/assess-release-aab.sh scripts/assess-release-aab-real.sh
+git -C "$assessment_mutation_sandbox" -c user.email=t@example.invalid -c user.name=Test \
+  commit -q -m 'install assessment mutation fixture'
 assessment_mutation_artifacts="$work/assessment-mutation-artifacts"
 captured_short="$(git -C "$assessment_mutation_sandbox" rev-parse --short=7 HEAD)"
 status=0
@@ -294,6 +349,7 @@ grep -qF 'source commit changed during release assessment' <<<"$out" \
   || { echo 'assessment mutation published final provenance' >&2; exit 1; }
 
 short_commit="$(git -C "$sandbox" rev-parse --short=7 HEAD)"
+full_commit="$(git -C "$sandbox" rev-parse HEAD)"
 assert_preexisting_target_preserved() { # <label> <target suffix> <approved|missing pin>
   local label="$1" suffix="$2" pin="$3" artifact_dir="$work/preexisting-$1"
   local target="$artifact_dir/app-release-$short_commit$suffix" out status=0
@@ -321,21 +377,25 @@ assert_preexisting_target_preserved rejected-provenance '.NOT-RELEASE-READY-exit
 
 # An assessor infrastructure failure may return before writing provenance. The builder must preserve
 # that exact exit without publishing an accepted or rejected final name from incomplete evidence.
-cp "$sandbox/scripts/assess-release-aab.sh" "$work/real-assess-release-aab.sh"
-cat >"$sandbox/scripts/assess-release-aab.sh" <<'STUB'
+incomplete_sandbox="$work/incomplete-assessment-repo"
+cp -R "$sandbox" "$incomplete_sandbox"
+cat >"$incomplete_sandbox/scripts/assess-release-aab.sh" <<'STUB'
 #!/usr/bin/env bash
 echo 'assessor fixture failed before provenance' >&2
 exit 23
 STUB
-chmod +x "$sandbox/scripts/assess-release-aab.sh"
+chmod +x "$incomplete_sandbox/scripts/assess-release-aab.sh"
+git -C "$incomplete_sandbox" add scripts/assess-release-aab.sh
+git -C "$incomplete_sandbox" -c user.email=t@example.invalid -c user.name=Test \
+  commit -q -m 'install incomplete assessment fixture'
+incomplete_short="$(git -C "$incomplete_sandbox" rev-parse --short=7 HEAD)"
 incomplete_artifacts="$work/incomplete-artifacts"
 status=0
-out="$(cd "$sandbox" && env RELEASE_ARTIFACT_DIR="$incomplete_artifacts" \
+out="$(cd "$incomplete_sandbox" && env RELEASE_ARTIFACT_DIR="$incomplete_artifacts" \
   UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
   bash scripts/build-release-aab.sh 2>&1)" || status=$?
-cp "$work/real-assess-release-aab.sh" "$sandbox/scripts/assess-release-aab.sh"
 [[ "$status" == "23" ]] || { echo "incomplete assessment: expected exit 23, got $status: $out" >&2; exit 1; }
-incomplete_base="$incomplete_artifacts/app-release-$short_commit"
+incomplete_base="$incomplete_artifacts/app-release-$incomplete_short"
 [[ ! -e "$incomplete_base.aab" && ! -e "$incomplete_base.provenance.json" ]] \
   || { echo 'incomplete assessment published an accepted final name' >&2; exit 1; }
 find "$incomplete_artifacts" -maxdepth 1 -name 'app-release-*.NOT-RELEASE-READY-*' -print -quit \
@@ -387,6 +447,9 @@ const artifact = readFileSync(artifactPath);
 const record = JSON.parse(readFileSync(provenancePath, 'utf8'));
 const digest = createHash('sha256').update(artifact).digest('hex');
 if (record.artifact.sha256 !== digest) throw new Error('provenance digest does not match copied AAB');
+if (record.artifact.buildSourceCommit !== record.source.commit) {
+  throw new Error('accepted provenance did not bind the artifact marker to source commit');
+}
 if (record.signature.status !== 'PASS') throw new Error('successful build did not record signature PASS');
 if (record.walletSurface.status !== 'PASS') throw new Error('successful build did not record W08 PASS');
 if (record.releaseReadiness.status !== 'NOT_RUN') throw new Error('successful build overstated release readiness');
@@ -399,7 +462,9 @@ grep -qF 'Release readiness: NOT_RUN' <<<"$out" \
   || { echo "build flow: release readiness was not reported: $out" >&2; exit 1; }
 [[ "$out" != *UPLOADABLE* && "$out" != *READY* ]] \
   || { echo "build flow overstated release readiness: $out" >&2; exit 1; }
-[[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development" ]] \
+grep -qF "prebuild APP_VARIANT=production SOURCE_COMMIT=$full_commit" "$work/prebuild.log" \
+  || { echo "build flow did not inject its captured commit into prebuild: $(cat "$work/prebuild.log")" >&2; exit 1; }
+[[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development SOURCE_COMMIT=unset" ]] \
   || { echo "build flow: restore inherited the caller's variant: $(cat "$work/prebuild.log")" >&2; exit 1; }
 
 # A rejected build keeps the paired evidence under a name that states only the automated verdict.
@@ -426,6 +491,9 @@ const artifact = readFileSync(artifactPath);
 const record = JSON.parse(readFileSync(provenancePath, 'utf8'));
 const digest = createHash('sha256').update(artifact).digest('hex');
 if (record.artifact.sha256 !== digest) throw new Error('rejected provenance digest does not match retained AAB');
+if (record.artifact.buildSourceCommit !== record.source.commit) {
+  throw new Error('rejected provenance did not bind the artifact marker to source commit');
+}
 if (record.artifact.basename !== require('node:path').basename(artifactPath)) {
   throw new Error('rejected provenance basename does not match retained AAB');
 }
@@ -435,7 +503,7 @@ if (record.signature.status !== 'FAIL' || record.signature.exitCode !== 7) {
 if (record.walletSurface.status !== 'PASS') throw new Error('rejected provenance did not preserve W08 PASS');
 if (record.releaseReadiness.status !== 'NOT_RUN') throw new Error('rejected provenance overstated release readiness');
 NODE
-[[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development" ]] \
+[[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development SOURCE_COMMIT=unset" ]] \
   || { echo "rejected build did not restore the development variant: $(cat "$work/prebuild.log")" >&2; exit 1; }
 
 echo "AAB signature and build flow tests passed"

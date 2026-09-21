@@ -54,22 +54,26 @@ normalize_logger_calls() {
         }
       }
 
+      alias_scan = line
+      while (match(alias_scan, /(const|let|var)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*([[:space:]]*:[^=;]+)?[[:space:]]*=/)) {
+        alias_header = substr(alias_scan, RSTART, RLENGTH)
+        sub(/^(const|let|var)[[:space:]]+/, "", alias_header)
+        alias_name = alias_header
+        sub(/[[:space:]:=].*/, "", alias_name)
+        alias_tail = substr(alias_scan, RSTART + RLENGTH)
+        if (match(alias_tail, /^[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*/)) {
+          alias_value = substr(alias_tail, RSTART, RLENGTH)
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", alias_value)
+          aliases[alias_name] = alias_value
+          alias_scan = substr(alias_tail, RSTART + RLENGTH)
+        } else {
+          alias_scan = alias_tail
+        }
+      }
+
       source = source (source == "" ? "" : " ") line
     }
     END {
-      alias_source = source
-      while (match(alias_source, /(const|let|var)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*[[:space:]]*;/)) {
-        assignment = substr(alias_source, RSTART, RLENGTH)
-        sub(/^(const|let|var)[[:space:]]+/, "", assignment)
-        alias_name = assignment
-        sub(/[[:space:]]*=.*/, "", alias_name)
-        alias_value = assignment
-        sub(/^[^=]*=[[:space:]]*/, "", alias_value)
-        sub(/[[:space:]]*;.*/, "", alias_value)
-        aliases[alias_name] = alias_value
-        alias_source = substr(alias_source, RSTART + RLENGTH)
-      }
-
       remaining = source
       while (match(remaining, /(console\.(log|error|warn|info|debug)|console[[:space:]]*\[[^]]+\]|process[[:space:]]*\.[[:space:]]*stderr[[:space:]]*\.[[:space:]]*write)[[:space:]]*\(/)) {
         call = ""

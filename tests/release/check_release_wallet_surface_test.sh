@@ -66,6 +66,56 @@ src="$(make_src onramp-default)"
 sed -i.bak '/^ *onramp: false,$/d' "$src/wallet/wallet-runtime-config.ts"
 expect_fail 'on-ramp left to the SDK default' 'features.onramp is not an explicit false' "$work/good.aab" "$src"
 
+src="$(make_src create-appkit-import-alias)"
+printf '%s\n' \
+  "import { createAppKit as makeAppKit } from '@reown/appkit-react-native';" \
+  'makeAppKit({});' >"$src/screens/create-appkit-alias.ts"
+expect_fail 'createAppKit import alias' 'canonical import and call' "$work/good.aab" "$src"
+
+src="$(make_src create-appkit-assignment-alias)"
+printf '%s\n' \
+  "import { createAppKit } from '@reown/appkit-react-native';" \
+  'const makeAppKit = createAppKit;' \
+  'makeAppKit({});' >"$src/screens/create-appkit-assignment.ts"
+expect_fail 'createAppKit assignment alias' 'canonical import and call' "$work/good.aab" "$src"
+
+src="$(make_src create-appkit-wrapper)"
+printf '%s\n' \
+  "import { createAppKit } from '@reown/appkit-react-native';" \
+  'const makeAppKit = (...args) => createAppKit(...args);' \
+  'makeAppKit({});' >"$src/screens/create-appkit-wrapper.ts"
+expect_fail 'createAppKit wrapper alias' 'canonical import and call' "$work/good.aab" "$src"
+
+src="$(make_src reown-namespace)"
+printf '%s\n' \
+  "import * as Reown from '@reown/appkit-react-native';" \
+  "Reown['create' + 'AppKit']({});" >"$src/screens/reown-namespace.ts"
+expect_fail 'Reown namespace import' 'static named imports' "$work/good.aab" "$src"
+
+src="$(make_src reown-default-import)"
+printf '%s\n' \
+  "import Reown from '@reown/appkit-react-native';" \
+  'Reown.createAppKit({});' >"$src/screens/reown-default-import.ts"
+expect_fail 'Reown default import' 'static named imports' "$work/good.aab" "$src"
+
+src="$(make_src reown-dynamic-import)"
+printf '%s\n' \
+  "const Reown = await import('@reown/appkit-react-native');" \
+  "Reown['createAppKit']({});" >"$src/screens/reown-dynamic-import.ts"
+expect_fail 'Reown dynamic import' 'static named imports' "$work/good.aab" "$src"
+
+src="$(make_src reown-require)"
+printf '%s\n' \
+  "const Reown = require('@reown/appkit-react-native');" \
+  'Reown.createAppKit({});' >"$src/screens/reown-require.cjs"
+expect_fail 'Reown require path' 'static named imports' "$work/good.aab" "$src"
+
+src="$(make_src sdk-button-alias)"
+printf '%s\n' \
+  "import { AppKitButton as WalletButton } from '@reown/appkit-react-native';" \
+  'export const Leak = () => <WalletButton />;' >"$src/screens/aliased-button.tsx"
+expect_fail 'SDK button alias' 'SDK button aliases' "$work/good.aab" "$src"
+
 src="$(make_src open-account)"
 sed -i.bak "s/await open({ view: 'Connect' });/await open();/" "$src/screens/wallet-link/index.tsx"
 expect_fail 'open() without a view' 'Connect view only' "$work/good.aab" "$src"

@@ -40,6 +40,11 @@ if [[ -n "${AAB_SIGNATURE_CHECK_COMMAND:-}" || -n "${AAB_WALLET_SURFACE_CHECK_CO
     exit 1
   }
 fi
+expected_source_commit="${MASSCOM_BUILD_SOURCE_COMMIT:-}"
+if [[ "${MASSCOM_TEST_MODE:-}" != 'true' && -z "$expected_source_commit" ]]; then
+  echo 'production assessment requires MASSCOM_BUILD_SOURCE_COMMIT' >&2
+  exit 1
+fi
 
 signature_check="${AAB_SIGNATURE_CHECK_COMMAND:-$repo_root/scripts/verify-aab-signature.sh}"
 wallet_check="${AAB_WALLET_SURFACE_CHECK_COMMAND:-$repo_root/scripts/check-release-wallet-surface.sh}"
@@ -49,7 +54,6 @@ wallet_check="${AAB_WALLET_SURFACE_CHECK_COMMAND:-$repo_root/scripts/check-relea
 artifact_sha256="$(shasum -a 256 "$artifact" | cut -d' ' -f1)"
 artifact_bytes="$(wc -c <"$artifact" | tr -d ' ')"
 source_commit="$(git -C "$repo_root" rev-parse HEAD)"
-expected_source_commit="${MASSCOM_BUILD_SOURCE_COMMIT:-}"
 if [[ -n "$expected_source_commit" ]]; then
   [[ "$expected_source_commit" =~ ^[0-9a-fA-F]{40}$ ]] || {
     echo 'MASSCOM_BUILD_SOURCE_COMMIT must be a 40-character Git object id' >&2
@@ -60,15 +64,41 @@ if [[ -n "$expected_source_commit" ]]; then
     exit 1
   }
 fi
-mobile_status="$(git -C "$repo_root" status --porcelain --untracked-files=normal -- apps/mobile)"
-if [[ -n "$expected_source_commit" && -n "$mobile_status" ]]; then
-  echo 'mobile source changed during release assessment' >&2
+worktree_status="$(git -C "$repo_root" status --porcelain --untracked-files=normal)"
+if [[ -n "$expected_source_commit" && -n "$worktree_status" ]]; then
+  echo 'Git worktree changed during release assessment' >&2
   exit 1
 fi
+mobile_status="$(git -C "$repo_root" status --porcelain --untracked-files=normal -- apps/mobile)"
 if [[ -n "$mobile_status" ]]; then
   mobile_dirty=true
 else
   mobile_dirty=false
+fi
+
+manifest_work="$(mktemp -d -t aab-source-commit.XXXXXX)"
+trap 'rm -rf "$manifest_work"' EXIT
+if ! unzip -q "$artifact" 'base/manifest/AndroidManifest.xml' -d "$manifest_work"; then
+  echo 'artifact AndroidManifest could not be read' >&2
+  exit 1
+fi
+manifest_strings="$(strings "$manifest_work/base/manifest/AndroidManifest.xml")" || {
+  echo 'artifact AndroidManifest strings could not be read' >&2
+  exit 1
+}
+read -r marker_name_count marker_commit_count artifact_source_commit <<<"$(awk \
+  -v key='kr.masscom.BUILD_SOURCE_COMMIT' '
+    $0 == key { name_count += 1 }
+    $0 ~ /^[0-9A-Fa-f]{40}$/ { commit_count += 1; commit = tolower($0) }
+    END { printf "%d %d %s\n", name_count, commit_count, commit }
+  ' <<<"$manifest_strings")"
+if [[ "$marker_name_count" != 1 || "$marker_commit_count" != 1 ]]; then
+  echo 'artifact must contain exactly one BUILD_SOURCE_COMMIT manifest marker' >&2
+  exit 1
+fi
+if [[ "$artifact_source_commit" != "$source_commit" ]]; then
+  echo 'artifact BUILD_SOURCE_COMMIT does not match the assessed source commit' >&2
+  exit 1
 fi
 
 app_json="$repo_root/apps/mobile/app.json"
@@ -97,8 +127,8 @@ if [[ -n "$expected_source_commit" ]]; then
     echo 'source commit changed during release assessment' >&2
     exit 1
   }
-  [[ -z "$(git -C "$repo_root" status --porcelain --untracked-files=normal -- apps/mobile)" ]] || {
-    echo 'mobile source changed during release assessment' >&2
+  [[ -z "$(git -C "$repo_root" status --porcelain --untracked-files=normal)" ]] || {
+    echo 'Git worktree changed during release assessment' >&2
     exit 1
   }
 fi
@@ -108,6 +138,7 @@ node "$repo_root/scripts/write-aab-provenance.mjs" \
   --artifact "$artifact" \
   --artifact-sha256 "$artifact_sha256" \
   --artifact-bytes "$artifact_bytes" \
+  --artifact-source-commit "$artifact_source_commit" \
   --source-commit "$source_commit" \
   --mobile-dirty "$mobile_dirty" \
   --source-expected-android-package kr.masscom.wolgye \

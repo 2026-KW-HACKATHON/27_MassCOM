@@ -17,6 +17,7 @@ const allowedOptions = new Set([
   'artifact',
   'artifact-sha256',
   'artifact-bytes',
+  'artifact-source-commit',
   'source-commit',
   'mobile-dirty',
   'source-expected-android-package',
@@ -179,6 +180,13 @@ const sourceCommit = required(options, 'source-commit');
 if (!/^[0-9a-f]{40}$/i.test(sourceCommit)) {
   throw new Error('source commit must be a 40-character hexadecimal Git object id');
 }
+const artifactSourceCommit = required(options, 'artifact-source-commit');
+if (!/^[0-9a-f]{40}$/i.test(artifactSourceCommit)) {
+  throw new Error('artifact source commit must be a 40-character hexadecimal Git object id');
+}
+if (artifactSourceCommit.toLowerCase() !== sourceCommit.toLowerCase()) {
+  throw new Error('artifact source commit must match the source commit');
+}
 
 const certificate = options.get('signature-certificate-sha256') ?? '';
 if (certificate !== '' && !/^[0-9a-f]{64}$/i.test(certificate)) {
@@ -212,6 +220,7 @@ const record = {
     basename: basename(artifactPath),
     sha256: artifactSha256.toLowerCase(),
     bytes: integer(options, 'artifact-bytes', 'artifact bytes'),
+    buildSourceCommit: artifactSourceCommit.toLowerCase(),
   },
   source: {
     commit: sourceCommit.toLowerCase(),

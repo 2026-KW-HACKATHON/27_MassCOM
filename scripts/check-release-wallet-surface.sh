@@ -50,7 +50,22 @@ done < <(find "$src" -type f \( \
 \) ! -name '*.test.*' -print0)
 [[ "${#app_files[@]}" -gt 0 ]] || fail "no supported mobile source files found"
 
-[[ "$(grep -hE 'createAppKit\(' "${app_files[@]}" | wc -l | tr -d ' ')" == "1" ]] || fail "createAppKit must be called exactly once"
+if hit="$(grep -hE -m1 \
+  "import[[:space:]]+\*[[:space:]]+as[[:space:]]+.*from[[:space:]]+['\"]@reown/appkit-react-native['\"]|import[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]+from[[:space:]]+['\"]@reown/appkit-react-native['\"]|(require|import)[[:space:]]*\([[:space:]]*['\"]@reown/appkit-react-native['\"]" \
+  "${app_files[@]}")"; then
+  fail "Reown module must use static named imports: $hit"
+fi
+create_appkit_imports="$(grep -hEc \
+  "^[[:space:]]*import[[:space:]]*\{[[:space:]]*createAppKit[[:space:]]*\}[[:space:]]*from[[:space:]]*['\"]@reown/appkit-react-native['\"];?[[:space:]]*$" \
+  "${app_files[@]}" | awk '{ total += $1 } END { print total + 0 }')"
+create_appkit_calls="$(grep -hEc '^[[:space:]]*\?[[:space:]]+createAppKit\(\{[[:space:]]*$' \
+  "${app_files[@]}" | awk '{ total += $1 } END { print total + 0 }')"
+create_appkit_references="$(grep -hoE '\bcreateAppKit\b' "${app_files[@]}" | wc -l | tr -d ' ')"
+[[ "$create_appkit_imports" == 1 && "$create_appkit_calls" == 1 && "$create_appkit_references" == 2 ]] \
+  || fail "createAppKit must use the canonical import and call"
+if hit="$(grep -hE -m1 '\b(AppKitButton|AccountButton|ConnectButton|NetworkButton)\b' "${app_files[@]}")"; then
+  fail "SDK button aliases and usages are forbidden: $hit"
+fi
 config="$src/wallet/wallet-runtime-config.ts"
 for feature in socials swaps onramp; do
   # The SDK turns on-ramp ON when the flag is undefined, so each one must be an explicit false.
