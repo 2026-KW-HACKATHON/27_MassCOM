@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const root = resolve(process.argv[2] ?? '.');
-/** @param {string} path */
+/** @type {(path: string) => string} */
 const read = (path) => readFileSync(join(root, path), 'utf8');
 const api = read('apps/api/README.md');
 const mobile = read('apps/mobile/README.md');
@@ -30,15 +30,15 @@ let failures = 0;
 for (const [source, text] of required) {
   if (!source.includes(text)) { console.error(`operations documentation missing: ${text}`); failures += 1; }
 }
-/** @type {Array<[string, string[]]>} */
+/** @type {Array<[string, { scripts: Record<string, string> }, string[]]>} */
 const requiredScripts = [
-  ['api', ['test', 'test:postgres', 'typecheck', 'build']],
-  ['mobile', ['test', 'typecheck', 'lint', 'export:android']],
-  ['worker', ['start:once', 'test', 'test:postgres', 'test:anvil', 'typecheck', 'build']],
+  ['api', packages.api, ['test', 'test:postgres', 'typecheck', 'build']],
+  ['mobile', packages.mobile, ['test', 'typecheck', 'lint', 'export:android']],
+  ['worker', packages.worker, ['start:once', 'test', 'test:postgres', 'test:anvil', 'typecheck', 'build']],
 ];
-for (const [name, scripts] of requiredScripts) {
+for (const [name, packageDefinition, scripts] of requiredScripts) {
   for (const script of scripts) {
-    if (typeof packages[name]?.scripts?.[script] !== 'string') {
+    if (typeof packageDefinition.scripts[script] !== 'string') {
       console.error(`missing package script: ${name}:${script}`); failures += 1;
     }
   }
