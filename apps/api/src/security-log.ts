@@ -9,11 +9,16 @@ export function safeErrorMetadata(
   error: unknown,
   allowedCodes: ReadonlySet<string> = new Set(),
 ): SafeErrorMetadata {
-  const errorName = error instanceof Error ? error.name : 'UnknownError';
-  const candidate =
-    typeof error === 'object' && error !== null && 'code' in error
-      ? (error as { code?: unknown }).code
-      : undefined;
+  const errorName = error instanceof Error ? 'Error' : 'UnknownError';
+  let candidate: unknown;
+  if (typeof error === 'object' && error !== null) {
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(error, 'code');
+      candidate = descriptor && 'value' in descriptor ? descriptor.value : undefined;
+    } catch {
+      candidate = undefined;
+    }
+  }
 
   return typeof candidate === 'string' && allowedCodes.has(candidate)
     ? { event, errorName, errorCode: candidate }

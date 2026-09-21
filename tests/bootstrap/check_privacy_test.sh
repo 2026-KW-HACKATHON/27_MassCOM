@@ -19,6 +19,11 @@ printf '%s\n' \
   "console.error('wallet signature verification failed')" \
   "throw new Error('ACCOUNT_REQUIRED')" \
   "console.error(safeErrorMetadata('wallet.verify.failed', error))" \
+  "// console.error('request failed', error)" \
+  "/*" \
+  "console.error('request failed', { detail: error.message })" \
+  'console.error(`request failed: ${body.signature}`)' \
+  "*/" \
   > "$fixture_root/apps/api/src/safe.ts"
 printf '%s\n' '{"dependencies":{}}' > "$fixture_root/apps/mobile/package.json"
 "$scanner" "$fixture_root"
@@ -29,6 +34,11 @@ unsafe_logs=(
   "console.error('request failed', { stack: error.stack })"
   "console.error('request failed', { cause: error.cause })"
   "console.error('request failed', { signature: body.signature })"
+  $'console.error(\n  \'request failed\',\n  error,\n)'
+  "console.error('request failed', { message })"
+  "console.error('request failed', { detail: error.message })"
+  'console.error(`request failed: ${body.signature}`)'
+  "console.error('request failed: ' + body.signature)"
 )
 
 for unsafe_log in "${unsafe_logs[@]}"; do
