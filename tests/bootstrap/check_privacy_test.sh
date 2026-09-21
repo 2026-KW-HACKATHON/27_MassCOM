@@ -16,17 +16,28 @@ mkdir -p "$fixture_root/apps/api/src" "$fixture_root/apps/mobile"
 
 printf '%s\n' \
   "console.log('worker started')" \
+  "console.error('wallet signature verification failed')" \
   "throw new Error('ACCOUNT_REQUIRED')" \
+  "console.error(safeErrorMetadata('wallet.verify.failed', error))" \
   > "$fixture_root/apps/api/src/safe.ts"
 printf '%s\n' '{"dependencies":{}}' > "$fixture_root/apps/mobile/package.json"
 "$scanner" "$fixture_root"
 
-printf '%s\n' 'console.error("request failed", { accountId, token, signature });' \
-  > "$fixture_root/apps/api/src/leaking-log.ts"
-if "$scanner" "$fixture_root" >/dev/null 2>&1; then
-  echo "privacy scanner accepted sensitive log arguments" >&2
-  exit 1
-fi
+unsafe_logs=(
+  "console.error('request failed', error)"
+  "console.error('request failed', { message: error.message })"
+  "console.error('request failed', { stack: error.stack })"
+  "console.error('request failed', { cause: error.cause })"
+  "console.error('request failed', { signature: body.signature })"
+)
+
+for unsafe_log in "${unsafe_logs[@]}"; do
+  printf '%s\n' "$unsafe_log" > "$fixture_root/apps/api/src/leaking-log.ts"
+  if "$scanner" "$fixture_root" >/dev/null 2>&1; then
+    echo "privacy scanner accepted unsafe error projection: $unsafe_log" >&2
+    exit 1
+  fi
+done
 
 rm "$fixture_root/apps/api/src/leaking-log.ts"
 printf '%s\n' '{"dependencies":{"@react-native-firebase/analytics":"1.0.0"}}' \

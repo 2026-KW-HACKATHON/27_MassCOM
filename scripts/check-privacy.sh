@@ -7,8 +7,8 @@ finding_count=0
 
 if [[ -d "$scan_root/apps" ]]; then
   while IFS= read -r -d '' source_file; do
-    if grep -Eqi 'console\.(log|error|warn|info|debug)\([^;]*(accountId|customerAccountId|createdByAccountId|merchantReference|claim(Token)?|token|signature|privateKey|mnemonic|recoveryPhrase|address)' "$source_file" ||
-      grep -Eqi 'console\.(log|error|warn|info|debug)\([^;]*,[[:space:]]*(error|caught)([^A-Za-z]|$)' "$source_file"; then
+    if sed -E "s/'[^']*'//g; s/\"[^\"]*\"//g" "$source_file" |
+      grep -Eqi 'console\.(log|error|warn|info|debug)\([^;]*\{[^;}]*((accountId|customerAccountId|createdByAccountId|merchantReference|claim(Token)?|token|signature|privateKey|mnemonic|recoveryPhrase|address|message|stack|cause)[[:space:]]*:|(accountId|customerAccountId|createdByAccountId|merchantReference|claim(Token)?|token|signature|privateKey|mnemonic|recoveryPhrase|address)[[:space:]]*[,}])|console\.(log|error|warn|info|debug)\([[:space:]]*(accountId|customerAccountId|createdByAccountId|merchantReference|claim(Token)?|token|signature|privateKey|mnemonic|recoveryPhrase|address|error|caught)([^A-Za-z]|$)|console\.(log|error|warn|info|debug)\([^(,;]*,[[:space:]]*(accountId|customerAccountId|createdByAccountId|merchantReference|claim(Token)?|token|signature|privateKey|mnemonic|recoveryPhrase|address|error|caught)([^A-Za-z]|$)'; then
       echo "possible sensitive log arguments in ${source_file#"$scan_root"/}" >&2
       finding_count=$((finding_count + 1))
     fi

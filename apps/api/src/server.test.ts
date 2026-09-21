@@ -752,6 +752,46 @@ test('issues and verifies a signed wallet challenge through HTTP', async (t) => 
   assert.deepEqual(await replayResponse.json(), { code: 'NONCE_ALREADY_USED' });
 });
 
+test('rejects a malformed wallet signature without logging it', async (t) => {
+  const captured: unknown[][] = [];
+  const originalConsoleError = console.error;
+  console.error = (...args: unknown[]) => {
+    captured.push(args);
+  };
+  t.after(() => {
+    console.error = originalConsoleError;
+  });
+
+  const baseUrl = await startFixture(t, () => 'wallet-log-boundary-user');
+  const wallet = Wallet.createRandom();
+  const challengeResponse = await fetch(`${baseUrl}/wallet/challenges`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ address: wallet.address, chainId: 84532 }),
+  });
+  assert.equal(challengeResponse.status, 201);
+  const challenge = (await challengeResponse.json()) as {
+    challengeId: string;
+    message: string;
+  };
+  const signature = `0x${'ab'.repeat(66)}`;
+
+  const response = await fetch(`${baseUrl}/wallet/verify`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      challengeId: challenge.challengeId,
+      message: challenge.message,
+      signature,
+      currentAddress: wallet.address,
+    }),
+  });
+
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { code: 'SIGNER_MISMATCH' });
+  assert.equal(JSON.stringify(captured).includes(signature), false);
+});
+
 test('accepts a mint request without trusting recipient or series fields from the client', async (t) => {
   let received:
     | Parameters<MintRequestService['requestMint']>[0]
