@@ -6,8 +6,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 assess="$repo_root/scripts/assess-release-aab.sh"
 writer="$repo_root/scripts/write-aab-provenance.mjs"
 work="$(mktemp -d -t aab-assessment.XXXXXX)"
-dirty_marker="$repo_root/apps/mobile/.assess-release-aab-dirty-fixture"
-trap 'rm -rf "$work"; rm -f "$dirty_marker"' EXIT
+trap 'rm -rf "$work"' EXIT
 
 artifact="$work/tiny-release.aab"
 printf 'tiny deterministic AAB fixture\n' >"$artifact"
@@ -19,10 +18,6 @@ if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=normal -- a
 else
   expected_dirty=false
 fi
-[[ "$expected_dirty" == false ]] || {
-  echo 'assessment regression requires apps/mobile to start clean' >&2
-  exit 1
-}
 fingerprint='0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF'
 
 cat >"$work/signature-pass" <<STUB
@@ -85,17 +80,37 @@ if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(record.generatedAt)) {
 if (raw.includes(secret)) fail('provenance captured an unrelated environment secret');
 NODE
 
-# The same checkout must transition from clean to dirty when apps/mobile changes.
-touch "$dirty_marker"
-dirty_provenance="$work/dirty.provenance.json"
+# A disposable Git repository proves clean and already-dirty invocations without touching user files.
+dirty_repo="$work/dirty-repo"
+mkdir -p "$dirty_repo/scripts" "$dirty_repo/apps/mobile/src"
+cp "$assess" "$writer" "$dirty_repo/scripts/"
+printf '{"expo":{"version":"0.1.0","android":{"versionCode":1}}}\n' >"$dirty_repo/apps/mobile/app.json"
+printf 'tracked\n' >"$dirty_repo/apps/mobile/src/tracked.ts"
+git -C "$dirty_repo" init -q
+git -C "$dirty_repo" add .
+git -C "$dirty_repo" -c user.email=test@example.invalid -c user.name=Test \
+  commit -q -m 'fixture baseline'
+
+clean_provenance="$work/isolated-clean.provenance.json"
 env MASSCOM_TEST_MODE=true \
   AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
   AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-pass" \
-  bash "$assess" "$artifact" "$repo_root/apps/mobile/src" "$dirty_provenance" >/dev/null 2>&1
-node -e \
-  "const r=require(process.argv[1]); if(r.source.mobileDirty!==true) throw new Error('mobileDirty did not become true')" \
-  "$dirty_provenance"
-rm -f "$dirty_marker"
+  bash "$dirty_repo/scripts/assess-release-aab.sh" \
+  "$artifact" "$dirty_repo/apps/mobile/src" "$clean_provenance" >/dev/null 2>&1
+printf 'invocation-owned dirty state\n' >"$dirty_repo/apps/mobile/src/dirty.ts"
+dirty_provenance="$work/isolated-dirty.provenance.json"
+env MASSCOM_TEST_MODE=true \
+  AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
+  AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-pass" \
+  bash "$dirty_repo/scripts/assess-release-aab.sh" \
+  "$artifact" "$dirty_repo/apps/mobile/src" "$dirty_provenance" >/dev/null 2>&1
+node - "$clean_provenance" "$dirty_provenance" <<'NODE'
+const fs = require('node:fs');
+const clean = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const dirty = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+if (clean.source.mobileDirty !== false) throw new Error('isolated clean checkout was not clean');
+if (dirty.source.mobileDirty !== true) throw new Error('isolated initial dirty state was not recorded');
+NODE
 
 # rev-parse can succeed while status fails; failure to establish dirty state must abort before gates.
 actual_git="$(command -v git)"
@@ -175,6 +190,36 @@ env -u MASSCOM_TEST_MODE AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
   || status=$?
 [[ "$status" != 0 ]] || { echo 'production override was accepted' >&2; exit 1; }
 [[ ! -e "$rejected_override" ]] || { echo 'rejected override still wrote provenance' >&2; exit 1; }
+
+# EXPECTED_PACKAGE is another W08 override and is forbidden outside exact test mode.
+rejected_expected_package="$work/rejected-expected-package.json"
+status=0
+error="$(env -u MASSCOM_TEST_MODE -u AAB_SIGNATURE_CHECK_COMMAND -u AAB_WALLET_SURFACE_CHECK_COMMAND \
+  EXPECTED_PACKAGE=com.attacker.release \
+  bash "$assess" "$artifact" "$repo_root/apps/mobile/src" "$rejected_expected_package" 2>&1)" \
+  || status=$?
+[[ "$status" != 0 ]] || { echo 'production EXPECTED_PACKAGE override was accepted' >&2; exit 1; }
+grep -qF 'EXPECTED_PACKAGE requires MASSCOM_TEST_MODE=true' <<<"$error" \
+  || { echo "production EXPECTED_PACKAGE failed for an unrelated reason: $error" >&2; exit 1; }
+[[ ! -e "$rejected_expected_package" ]] || { echo 'rejected EXPECTED_PACKAGE wrote provenance' >&2; exit 1; }
+
+# Even in test mode, a W08 PASS package must exactly match the source-expected production package.
+cat >"$work/w08-mismatched-package" <<'STUB'
+#!/usr/bin/env bash
+echo "release wallet surface verified: $(basename "$1"), package com.attacker.release"
+STUB
+chmod +x "$work/w08-mismatched-package"
+mismatched_package_provenance="$work/mismatched-package.provenance.json"
+status=0
+error="$(env MASSCOM_TEST_MODE=true EXPECTED_PACKAGE=com.attacker.release \
+  AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
+  AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-mismatched-package" \
+  bash "$assess" "$artifact" "$repo_root/apps/mobile/src" "$mismatched_package_provenance" 2>&1)" \
+  || status=$?
+[[ "$status" != 0 ]] || { echo 'mismatched W08 PASS package was accepted' >&2; exit 1; }
+grep -qF 'W08-verified artifact package must match source-expected Android package' <<<"$error" \
+  || { echo "mismatched package failed for an unrelated reason: $error" >&2; exit 1; }
+[[ ! -e "$mismatched_package_provenance" ]] || { echo 'mismatched package wrote provenance' >&2; exit 1; }
 
 # Neither a canonical-path alias nor another inode link may let provenance overwrite the AAB.
 cat >"$work/collision-gate" <<STUB

@@ -25,6 +25,10 @@ if [[ "$artifact" == "$provenance" ]] || [[ -e "$provenance" && "$artifact" -ef 
   exit 1
 fi
 
+if [[ "${EXPECTED_PACKAGE+x}" == x && "${MASSCOM_TEST_MODE:-}" != 'true' ]]; then
+  echo 'EXPECTED_PACKAGE requires MASSCOM_TEST_MODE=true' >&2
+  exit 1
+fi
 if [[ -n "${AAB_SIGNATURE_CHECK_COMMAND:-}" || -n "${AAB_WALLET_SURFACE_CHECK_COMMAND:-}" ]]; then
   [[ "${MASSCOM_TEST_MODE:-}" == 'true' ]] || {
     echo 'AAB gate command overrides require MASSCOM_TEST_MODE=true' >&2

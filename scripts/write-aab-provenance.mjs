@@ -186,5 +186,13 @@ if (
 ) {
   throw new Error('wallet surface PASS requires a verified artifact package');
 }
+if (
+  record.walletSurface.status === 'PASS' &&
+  record.android.w08VerifiedArtifactPackage !== record.android.sourceExpected.package
+) {
+  throw new Error(
+    'W08-verified artifact package must match source-expected Android package',
+  );
+}
 
 writeFileSync(outputPath, `${JSON.stringify(record, null, 2)}\n`);
