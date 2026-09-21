@@ -1,10 +1,27 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
+import { loadModuleSync } from '@expo/require-utils';
+
+import type * as BuildEnvironment from './src/config/build-environment';
+
+// Expo transpiles only app.config.ts, so nested TypeScript config modules use its module loader.
+const { validateBuildEnvironment } = loadModuleSync(
+  require.resolve('./src/config/build-environment.ts'),
+) as typeof BuildEnvironment;
 
 const PRODUCTION_PACKAGE = 'kr.masscom.wolgye';
 
 // APP_VARIANT=production builds the store app; anything else keeps the development app, which
 // installs side by side under its own package and URL scheme.
 export default ({ config }: ConfigContext): ExpoConfig => {
+  validateBuildEnvironment(process.env.APP_VARIANT, {
+    EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+    EXPO_PUBLIC_DEMO_ACCOUNT_ID: process.env.EXPO_PUBLIC_DEMO_ACCOUNT_ID,
+    EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID: process.env.EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID,
+    EXPO_PUBLIC_DEMO_MERCHANT_ID: process.env.EXPO_PUBLIC_DEMO_MERCHANT_ID,
+    EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION:
+      process.env.EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION,
+  });
+
   const production = process.env.APP_VARIANT === 'production';
   return {
     ...config,
