@@ -6,6 +6,8 @@ PostgreSQL Outbox의 mint job을 임대해 계약 설정·기존 reward key·rec
 
 기본 로컬 예시는 Anvil이며 `CHAIN_ID=31337`에서는 `ALLOW_UNLOCKED_LOCAL_MINTER=true`가 있어야만 RPC의 잠금 해제 계정을 사용합니다. 공개 체인 경로는 Base Sepolia `CHAIN_ID=84532`와 저장소 밖 암호화 keystore를 함께 요구합니다. 다른 체인과 raw private key 환경변수는 거절합니다. 서비스 민터 코드는 로컬 Anvil에서 검증됐지만 실제 Base Sepolia 전송은 `NOT_RUN`입니다.
 
+아래 명령은 `apps/worker` 디렉터리에서 실행합니다. Worker PostgreSQL 시험은 package script 안에서 API schema의 `npm run db:migrate --prefix ../api`를 먼저 실행합니다.
+
 ```bash
 npm ci
 npm test
@@ -60,3 +62,5 @@ Worker가 재시작해 저장된 거래 hash를 다시 확인할 때도 신규 �
 - keystore·비밀번호 파일은 canonical 경로 기준으로 저장소 밖이어야 하고, 파일은 권한 600 이하, 모든 상위 디렉터리는 현재 사용자 또는 root 소유이며 그룹·기타 쓰기 불가여야 합니다(root 소유 sticky 임시 디렉터리 제외). 이름 정규화 뒤 개인키·mnemonic·seed/recovery phrase로 끝나는 환경변수가 있으면 로컬 경로를 포함해 기동을 거절합니다.
 - 대체(가속) 거래는 만들지 않습니다. 오래 채굴되지 않는 거래는 `RECEIPT_TIMEOUT` → 운영자 검토로 갑니다.
 - 실제 Base Sepolia 전송은 아직 하지 않았습니다(로컬 Anvil에서 시험용 keystore로만 검증).
+
+운영 모드 요약: Local Anvil은 `CHAIN_ID=31337`와 `ALLOW_UNLOCKED_LOCAL_MINTER=true`, Base Sepolia encrypted keystore는 `CHAIN_ID=84532`와 `MINTER_KEYSTORE_PATH`·`MINTER_KEYSTORE_PASSWORD_FILE`을 사용합니다. 실제 Base Sepolia 전송은 `NOT_RUN`입니다.

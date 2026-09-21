@@ -1,6 +1,6 @@
 # 프로젝트 상태
 
-마지막 갱신 시각: 2026-09-21 KST
+마지막 갱신 시각: 2026-09-22 KST
 
 ## 기준선
 
@@ -10,7 +10,7 @@
 | 기본 브랜치 | `main` |
 | 기준 커밋 | 이 문서는 SHA를 고정하지 않는다. 실제 기준은 `git log origin/main -1`, 직전 검증 기준은 `docs/HANDOFF.md` 머리말 |
 | 현재 작업·열린 PR | `gh pr list`, `gh issue list`가 기준. 인수인계 요약은 `docs/HANDOFF.md` |
-| 현재 검증 기준 | API 72·PostgreSQL 37·Worker 45/PG 23·모바일 59·Foundry 8/fuzz128·Anvil PASS |
+| 현재 검증 기준 | API 78·PostgreSQL 37·Worker 45/PG 23·모바일 140·Foundry 8/fuzz128·Anvil PASS |
 
 ## 검증 수준별 현황
 
@@ -20,7 +20,7 @@
 | --- | --- |
 | 로컬 검증 완료 | 탐색·발급·수령·도감·추천, 지갑 주소 확인(SIWE), 발행 요청·Outbox·Worker·계약(Local Anvil), 계정 삭제, 백업·복원 drill, 운영 variant AAB 정적 검사(W08), 배포·서명 사전 검사 스크립트 |
 | 시험망 미검증 | Base Sepolia 계약 배포와 그 계약에 대한 Worker 발행. 배포자·역할 keystore 계정 4개는 소유자가 2026-09-20 생성, 배포자 잔액 0(faucet 대기). Worker의 서비스 민터 서명 경로는 구현·로컬 검증됨(Issue #100), 실제 시험망 전송은 아직 없음 |
-| 운영 코드 미구현 | 운영 로그인의 **모바일 측**(Google 로그인 UI와 `x-account-id` 헤더 교체. 서버 측 Google ID token 검증·`auth_time` 재인증·요청 제한·세션 정리는 Issue #106·#110으로 구현·로컬 검증됨, 소유자의 OAuth client ID 필요), 시연/운영 환경 권한 경계(O01), 외부 HTTPS 배포·삭제 페이지 |
+| 운영 실기 미검증 | 모바일 Google 로그인·Bearer/SecureStore·로그아웃/계정 전환 코드는 구현되고 native compile PASS. 실제 OAuth client mapping과 기기 로그인·D02는 NOT_RUN. 시연/운영 환경 권한 경계(O01), 외부 HTTPS 배포·삭제 페이지는 미완료 |
 | 사용자 승인·입력 대기 | 호스팅·도메인(`docs/HOSTING_LOGIN_PROPOSAL.md`. 로그인 방식·세션·재인증은 D-024~D-026으로 승인됨, 구현 전), D-023 수령 시 캠페인 등록 요구 여부, Google OAuth client 유형·Web/Play client 구성, faucet gas, W04·W05용 지갑 환경(B-010·B-011). Reown 허용 목록·Android 기기·upload keystore와 공개 지문 핀은 해소 |
 
 ## 열린 Issue·PR과 최근 병합
@@ -87,7 +87,7 @@
 - 필수 36개: 30 PASS / 2 BLOCKED / 4 NOT_RUN
 - API 단위: `72/72 PASS`; PostgreSQL: `37/37 PASS`
 - Worker 단위: `45/45 PASS`; PostgreSQL: `23/23 PASS`; Anvil W07/M01~M08: `PASS`
-- 모바일: `59/59 PASS`; typecheck·lint·Android export `PASS`
+- 모바일: `140/140 PASS`; typecheck·lint·Android export·Nitro Google/SecureStore development native compile `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`
 - production dependency audit: API·Worker high 이상 0; 모바일 high 이상 0, Expo 전이 moderate 14건은 B-008

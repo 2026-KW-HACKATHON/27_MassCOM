@@ -26,6 +26,8 @@ npm run start:local
 | DEMO | `ALLOW_INSECURE_DEMO_ACCOUNT=true` | loopback 개발 전용 `x-account-id` 헤더. 인터넷에 공개하는 서버에서 켜지 않는다 |
 | 없음 | 둘 다 없음 | 계정이 필요한 요청은 `503 ACCOUNT_AUTH_NOT_CONFIGURED` |
 
+운영 계정 API는 `Authorization: Bearer <sessionToken>`만 사용하고, loopback 개발 DEMO는 `x-account-id`만 사용합니다. 한 요청에 두 계정 경계를 함께 보내지 않습니다.
+
 두 방식을 함께 설정하면 서버가 기동을 거절합니다. `GOOGLE_OAUTH_CLIENT_IDS`만 있고 `DATABASE_URL`이 없을 때도 기동을 거절하며 DEMO로 내려가지 않습니다. `AUTH_SESSION_TTL_MS`는 1년 이하의 양의 정수(ms)만 받습니다. Google 공개키(JWKS)는 10분 캐시하고, 모르는 `kid`로 인한 재조회는 60초에 한 번·동시 요청은 한 번의 조회로 묶습니다(조회 제한 시간 5초). 조회 실패 때 마지막 정상 키는 기본 24시간(`GOOGLE_JWKS_MAX_STALE_MS`, 10분~7일)까지만 허용하고 이후에는 `503 ID_TOKEN_KEY_SET_UNAVAILABLE`로 닫습니다. 운영 로그인에서는 DEMO 재인증 헤더(`x-demo-reauthenticated`)가 동작하지 않습니다.
 
 - 계정 식별자는 `acct_` + 무작위 UUID입니다. Google `sub`는 `auth_identities`에만 두고 계정 ID·로그에 쓰지 않으며 이메일은 저장하지 않습니다.

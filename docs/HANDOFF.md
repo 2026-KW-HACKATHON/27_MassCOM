@@ -1,8 +1,9 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-21 KST
+마지막 갱신 시각: 2026-09-22 KST
 기준 브랜치: `main`
-기준 main 커밋 SHA: `edf72a5` (PR #115 merge, main CI `35564447379` PASS). 이 문서를 고친 PR이 병합되면 실제 값은 `git log origin/main -1`로 확인한다.
+기준 main 커밋 SHA: `a50f678` (PR #120 merge, main CI `35620303554` PASS). PR #119 merge `48aa435`, main CI `35606071753`도 PASS했다. 이 문서를 고친 PR이 병합되면 실제 값은 `git log origin/main -1`로 확인한다.
+현재 열린 PR: 없음. 현재 작업 브랜치 `docs/118-design-evidence`는 PR 생성 전이다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
 
@@ -87,9 +88,9 @@
 
 ## 실행한 테스트
 
-- API 단위 `72/72`, API PostgreSQL `37/37`(운영 로그인 보강·R02 7개·Q04 1개 포함)
+- API 단위 `78/78`, API PostgreSQL `37/37`(운영 로그인·claim replay·R02 7개·Q04 포함)
 - Worker 단위 `45/45`, Worker PostgreSQL `23/23`, Anvil `12/12`(W07 M01~M08 + O02a~e)
-- 모바일 `59/59`, typecheck·lint·Android export PASS; clean `npm ci` Reown patch 적용과 AAB 서명 판정 회귀 PASS
+- 모바일 `140/140`, typecheck·lint·Android export PASS; Google/SecureStore native debug compile PASS, 실제 Google 기기 로그인은 NOT_RUN
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - 실제 Base Sepolia RPC 배포 시뮬레이션 PASS(전송 없음), 잘못된 체인·중복 역할 거절 PASS
 - 운영 variant `bundleRelease`와 ELF `PT_LOAD` 정렬 검사 PASS(debug 서명)
@@ -99,7 +100,7 @@
 
 ## 현재 열린 PR
 
-- #117(이 문서를 담은 PR). 병합되면 열린 PR 없음; 최종 상태는 GitHub가 기준이다.
+- 없음. 최종 상태는 `gh pr list`가 기준이다.
 
 ## 현재 작업 중인 기능
 
@@ -167,7 +168,7 @@ PostgreSQL 통합·Anvil 시험은 이름이 `_test`로 끝나는 전용 `TEST_D
 
 ## 주의사항
 
-- Worker 실행 entrypoint는 Local Anvil unlocked account 전용이다. 운영 signer 경로로 확대하지 않는다.
+- Worker `start:once`는 Local Anvil unlocked account와 Base Sepolia encrypted keystore signer를 모두 지원한다. 공개 체인에서는 raw key나 unlocked account를 허용하지 않는다.
 - 사용자 개인키·복구 문구·지갑 비밀번호를 요청하거나 저장하지 않는다. 배포자 private key를 환경 변수·명령·저장소·증거에 남기지 않는다.
 - debug key로 서명한 AAB는 업로드하지 않는다.
 - 앱 수집품과 실제 NFT를 분리하고, NFT 수를 매출 증가로 표현하지 않는다. 실행하지 않은 검증을 PASS로 쓰지 않는다.

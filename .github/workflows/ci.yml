@@ -51,6 +51,8 @@ jobs:
         run: bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"
       - name: Verify repository contract
         run: bash tests/bootstrap/verify_bootstrap_test.sh
+      - name: 운영 문서 정합 검사
+        run: bash tests/bootstrap/verify_operations_docs_test.sh
       - name: Verify project portal
         run: bash tests/site/check_site_accessibility_test.sh
       - name: Verify project portal structure
