@@ -14,6 +14,7 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 - 외부 지갑 확인 뒤 NFT 공개 안내→접수→Worker 이벤트 대조→도감 등록 완료: `VERIFIED` (Local Anvil)
 - 앱 수집품과 실제 NFT, 접수·확인 중·등록 완료·확인 필요 상태 분리: `VERIFIED`
 - 계정 삭제 전 공개 장부·외부 지갑·제출 거래 보존 안내와 loopback DEMO 요청: `VERIFIED`; 운영 재인증·외부 삭제 URL은 `BLOCKED`
+- Google ID token→서버 Bearer session→SecureStore 복원·로그아웃·계정 전환 코드와 자동 시험: `IMPLEMENTED`; 실제 Google 계정·Credential Manager 실기: `NOT_RUN`
 - MetaMask 8.11.0 설치·첫 화면 실행: `VERIFIED` — 지갑 생성·가져오기는 수행하지 않음
 - 실제 Reown project ID·`kr.masscom.wolgye.dev` MetaMask 연결·서명·자동 복귀·콜드 스타트 서버 binding 복원: `VERIFIED`; 운영 release package와 W04·W05 외부 환경은 `NOT_RUN/BLOCKED`
 - Android 카메라 QR: `NOT_RUN`; 수동 1회 코드 입력은 `VERIFIED`
@@ -34,9 +35,21 @@ npm run export:android
 
 `.env.local`의 API·DEMO 계정 값으로 로컬 탐색·수령을 실행합니다. Reown project ID는 선택적 지갑 화면에만 필요합니다. `EXPO_PUBLIC_*` 값은 앱 번들에서 보이므로 비밀을 넣지 않습니다.
 
+- `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`: Google ID token의 서버 audience로 쓰는 공개 Web OAuth client ID. client secret이 아님
 - `EXPO_PUBLIC_DEMO_ACCOUNT_ID`: 고객 loopback 데모 계정
 - `EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID`: 점주·직원 loopback 데모 계정
 - `EXPO_PUBLIC_DEMO_MERCHANT_ID`: 위 계정이 실제 PostgreSQL 멤버십을 가진 데모 점포
+
+## 운영 Google 로그인 설정
+
+- 고정 native 의존성: `react-native-nitro-google-signin@2.3.0`, `react-native-nitro-modules@0.37.1`, Expo SDK 57 호환 `expo-secure-store@57.0.4`
+- Web OAuth client ID는 `POST /auth/google`에서 검증할 ID token audience이며 API의 `GOOGLE_OAUTH_CLIENT_IDS`와 앱의 `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`가 같은 승인 값을 가리켜야 합니다.
+- Android OAuth client는 package/SHA 조합별로 별도 생성합니다. 개발 package `kr.masscom.wolgye.dev`와 운영 package `kr.masscom.wolgye`, 각 서명 인증서 SHA-1을 Google Cloud에 정확히 등록해야 합니다. 목표 인프라를 만들었다는 사실만으로 실제 로그인 PASS가 되지 않습니다.
+- Android는 explicit Web client ID와 React Native native autolinking을 사용합니다. Nitro Expo config plugin v2.3.0은 iOS reversed client ID 또는 Firebase 파일을 요구하므로, 현재 Android-only 범위에서 가짜 iOS 값을 만들지 않고 등록하지 않았습니다. iOS 지원 시 실제 iOS OAuth client와 함께 추가해야 합니다.
+- 서버가 돌려준 `{ sessionToken, accountId, expiresAt }`는 SecureStore key `masscom.auth.session.v1`의 version 1 레코드에만 저장합니다. AsyncStorage·URL·화면·로그·증거 JSON에는 session token을 넣지 않습니다.
+- 운영 계정 API는 `Authorization: Bearer <sessionToken>`만 보냅니다. development DEMO는 `x-account-id`만 보내며 한 요청에서 두 방식을 섞지 않습니다.
+- 로그아웃·계정 전환은 서버 logout 시도 → SecureStore 삭제 → Reown disconnect와 저장 key 삭제 → Google sign-out 순서입니다. 계정 전환은 이 정리가 끝난 뒤 새 Google 로그인을 시작하고 account ID key로 route와 AppKit을 다시 만듭니다.
+- Google mobile sign-in의 `signIn`/`createAccount`는 삭제 요청에 필요한 fresh `auth_time`을 보장하지 않습니다. `getTokens`나 `presentExplicitSignIn`을 재인증 증거로 사용하지 않으며 운영 계정 삭제는 승인된 별도 사용자 확인 설계 전까지 `BLOCKED`입니다.
 
 ## development build
 
@@ -90,4 +103,4 @@ release build는 시작부터 publish 직전까지 전체 Git worktree가 clean�
 
 ## 계정 전환 시 데이터 분리
 
-지갑 세션은 계정별 tag가 붙은 key(`@masscom:appkit:<tag>:`)에만 저장하고 읽습니다. 앱 시작 때 현재 계정의 것이 아닌 지갑 세션 key를 지우며, 계정 ID를 받는 모든 화면은 계정이 바뀌면 remount됩니다. 이 변경 뒤 첫 실행에서는 이전 형식의 세션이 지워져 지갑을 한 번 다시 연결해야 합니다. 계정은 현재 빌드 시점 값이라 한 프로세스 안에서 바뀌지 않습니다. 운영 로그인으로 실행 중 계정을 바꾸게 되면 AppKit을 다시 만들거나 앱을 재시작해야 이 분리가 유지됩니다. 실기 계정 전환 검증(D02)은 운영 로그인이 없어 `NOT_RUN`입니다.
+지갑 세션은 계정별 tag가 붙은 key(`@masscom:appkit:<tag>:`)에만 저장하고 읽습니다. 앱 시작 때 현재 계정의 것이 아닌 지갑 세션 key를 지우며, 계정 ID를 받는 모든 화면은 계정이 바뀌면 remount됩니다. 계정 전환 시 이전 AppKit을 disconnect하고 저장 key를 지운 뒤 새 account ID용 AppKit instance를 만듭니다. 이 변경 뒤 첫 실행에서는 이전 형식의 세션이 지워져 지갑을 한 번 다시 연결해야 할 수 있습니다. 자동 controller 시험은 통과했지만 실제 Google 계정 전환 뒤 이전 사용자 API·지갑 데이터가 보이지 않는지 확인하는 D02 실기는 `NOT_RUN`입니다.

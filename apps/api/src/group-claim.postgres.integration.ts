@@ -83,7 +83,19 @@ test('Q04 one order shared by a group keeps every person slot independent', asyn
     service.redeem({ accountId: 'customer-2', token: second.token }),
   ]);
   const firstOutcomes = results.slice(0, 2);
-  assert.equal(firstOutcomes.filter((result) => result.status === 'fulfilled').length, 1);
+  assert.equal(firstOutcomes.filter((result) => result.status === 'fulfilled').length, 2);
+  assert.equal(
+    firstOutcomes.filter(
+      (result) => result.status === 'fulfilled' && result.value.replayed === false,
+    ).length,
+    1,
+  );
+  assert.equal(
+    firstOutcomes.filter(
+      (result) => result.status === 'fulfilled' && result.value.replayed === true,
+    ).length,
+    1,
+  );
   assert.equal(results[2]!.status, 'fulfilled');
   for (const result of results) {
     if (result.status === 'fulfilled') {
@@ -91,8 +103,6 @@ test('Q04 one order shared by a group keeps every person slot independent', asyn
         result.value.grantedRewards.map((reward) => reward.targetVisitCount),
         [1],
       );
-    } else {
-      assert.equal(result.reason.code, 'CLAIM_TOKEN_UNAVAILABLE');
     }
   }
 

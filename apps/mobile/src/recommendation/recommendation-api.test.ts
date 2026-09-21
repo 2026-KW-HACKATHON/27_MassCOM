@@ -28,10 +28,12 @@ const payload = {
 test('loads authenticated recommendations with explanation fields', async () => {
   const client = createRecommendationApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
+    credential: { kind: 'bearer', sessionToken: 'server-session' },
     fetcher: async (input, init) => {
       assert.equal(input, 'https://api.example.test/recommendations');
-      assert.equal(new Headers(init?.headers).get('x-account-id'), 'customer-1');
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get('authorization'), 'Bearer server-session');
+      assert.equal(headers.has('x-account-id'), false);
       return Response.json(payload);
     },
   });
@@ -42,10 +44,15 @@ test('loads authenticated recommendations with explanation fields', async () => 
 test('rejects unknown reason codes instead of rendering an unexplained recommendation', async () => {
   const client = createRecommendationApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
-    fetcher: async () => Response.json({
-      recommendations: [{ ...payload.recommendations[0], reasonCode: 'BECAUSE_AI_SAID_SO' }],
-    }),
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
+    fetcher: async (_input, init) => {
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get('x-account-id'), 'customer-1');
+      assert.equal(headers.has('authorization'), false);
+      return Response.json({
+        recommendations: [{ ...payload.recommendations[0], reasonCode: 'BECAUSE_AI_SAID_SO' }],
+      });
+    },
   });
 
   await assert.rejects(client.listRecommendations(), /추천 응답 형식/);
@@ -54,7 +61,7 @@ test('rejects unknown reason codes instead of rendering an unexplained recommend
 test('preserves HTTP failure status for recovery UI', async () => {
   const client = createRecommendationApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
     fetcher: async () => Response.json({ code: 'ACCOUNT_AUTH_NOT_CONFIGURED' }, { status: 503 }),
   });
 
@@ -64,4 +71,16 @@ test('preserves HTTP failure status for recovery UI', async () => {
     assert.equal(error.code, 'ACCOUNT_AUTH_NOT_CONFIGURED');
     return true;
   });
+});
+
+test('invalidates a rejected bearer session once', async () => {
+  let invalidations = 0;
+  const client = createRecommendationApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'expired-session' },
+    onSessionInvalid: async () => { invalidations += 1; },
+    fetcher: async () => Response.json({ code: 'SESSION_INVALID' }, { status: 401 }),
+  });
+  await assert.rejects(client.listRecommendations(), /SESSION_INVALID/);
+  assert.equal(invalidations, 1);
 });

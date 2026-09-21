@@ -1,13 +1,10 @@
 import { AppKit, AppKitProvider } from '@reown/appkit-react-native';
 import { Stack } from 'expo-router/stack';
-import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { demoRuntimeConfig } from '@/config/demo-runtime';
-import { purgeForeignWalletSessions } from '@/wallet/account-scope';
-import { appKit } from '@/wallet/appkit';
-import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
+import { AuthSessionProvider, useAuthSession } from '@/auth/auth-provider';
+import { AuthRequiredScreen } from '@/screens/auth-required';
 
 function Routes() {
   return (
@@ -30,37 +27,36 @@ function Routes() {
 }
 
 export default function RootLayout() {
-  const accountId = demoRuntimeConfig.customerAccountId;
-  useEffect(() => {
-    if (!accountId) return;
-    // Hygiene only: scoped storage already keeps another account's session from being read.
-    purgeForeignWalletSessions({
-      accountId,
-      listStoredKeys: listAppKitStorageKeys,
-      removeStoredKeys: removeAppKitStorageKeys,
-    }).catch((error: unknown) => {
-      console.error('wallet session cleanup failed', {
-        name: error instanceof Error ? error.name : 'UnknownError',
-      });
-    });
-  }, [accountId]);
+  return (
+    <SafeAreaProvider>
+      <AuthSessionProvider>
+        <AuthenticatedRoot />
+      </AuthSessionProvider>
+    </SafeAreaProvider>
+  );
+}
 
-  if (!appKit) {
+function AuthenticatedRoot() {
+  const auth = useAuthSession();
+
+  if (auth.state.status !== 'signedIn' && auth.state.status !== 'demo') {
     return (
-      <SafeAreaProvider>
-        <Routes />
-      </SafeAreaProvider>
+      <AuthRequiredScreen
+        state={auth.state}
+        canSignIn={auth.canSignIn}
+        onSignIn={auth.signIn}
+      />
     );
   }
 
+  if (!auth.appKit) return <Routes key={auth.accountId} />;
+
   return (
-    <SafeAreaProvider>
-      <AppKitProvider instance={appKit}>
-        <Routes />
-        <View pointerEvents="box-none" style={{ position: 'absolute', width: '100%', height: '100%' }}>
-          <AppKit />
-        </View>
-      </AppKitProvider>
-    </SafeAreaProvider>
+    <AppKitProvider key={auth.accountId} instance={auth.appKit}>
+      <Routes />
+      <View pointerEvents="box-none" style={{ position: 'absolute', width: '100%', height: '100%' }}>
+        <AppKit />
+      </View>
+    </AppKitProvider>
   );
 }

@@ -8,7 +8,10 @@ export type IssuedClaimSlot = {
 export type RedeemedClaimSlot = {
   claimSlotId: string;
   merchantId: string;
+  merchantName: string;
+  campaignTitle: string;
   status: 'CLAIMED';
+  replayed: boolean;
   visit: {
     visitEventId: string;
     campaignId: string;
@@ -28,6 +31,9 @@ export type RedeemedClaimSlot = {
 export type ClaimSlotPreview = {
   claimSlotId: string;
   merchantId: string;
+  merchantName: string;
+  campaignId: string;
+  campaignTitle: string;
   expiresAt: string;
   status: 'AVAILABLE' | 'EXPIRED';
 };

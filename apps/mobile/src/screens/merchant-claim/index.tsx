@@ -18,6 +18,7 @@ import {
   type MerchantContext,
 } from '@/commerce/commerce-api';
 import { ClaimQr } from '@/commerce/claim-qr';
+import { createDemoCredential } from '@/config/demo-runtime';
 import { colors } from '@/theme/colors';
 
 type Props = {
@@ -31,7 +32,7 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
   const scrollView = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
   const api = useMemo(
-    () => createCommerceApiClient({ apiUrl, accountId }),
+    () => createCommerceApiClient({ apiUrl, credential: createDemoCredential(accountId) }),
     [accountId, apiUrl],
   );
   const [context, setContext] = useState<MerchantContext>();
@@ -115,7 +116,7 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
         <Text style={styles.eyebrow}>점주·직원 개발 화면</Text>
         <Text selectable style={styles.title}>한 사람에게 쓸 수 있는{`\n`}방문 코드를 만듭니다.</Text>
         <Text selectable style={styles.body}>
-          운영 로그인 화면이 아닙니다. 현재 loopback 시연 계정의 점포 권한을 서버에서 매번 확인합니다.
+          운영에서는 사용할 수 없는 로컬 직원 DEMO 화면입니다. 현재 loopback 시연 계정의 점포 권한을 서버에서 매번 확인합니다.
         </Text>
       </View>
 

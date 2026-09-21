@@ -6,10 +6,11 @@ import { CommerceApiError, createCommerceApiClient } from './commerce-api';
 test('reads merchant context through the explicit demo account boundary', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'staff-1',
+    credential: { kind: 'demo', accountId: 'staff-1', allowInsecureReauthentication: false },
     fetcher: async (input, init) => {
       assert.equal(input, 'https://api.example.test/merchant/merchants/merchant-1/context');
       assert.equal(new Headers(init?.headers).get('x-account-id'), 'staff-1');
+      assert.equal(new Headers(init?.headers).has('authorization'), false);
       return Response.json({
         merchantId: 'merchant-1',
         role: 'STAFF',
@@ -28,7 +29,7 @@ test('reads merchant context through the explicit demo account boundary', async 
 test('issues one claim slot with the customer and merchant reference only in the POST body', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'staff-1',
+    credential: { kind: 'demo', accountId: 'staff-1', allowInsecureReauthentication: false },
     fetcher: async (input, init) => {
       assert.equal(input, 'https://api.example.test/merchant/merchants/merchant-1/claim-slots');
       assert.equal(init?.method, 'POST');
@@ -64,7 +65,7 @@ test('keeps the claim token out of preview and redeem URLs', async () => {
   const requestedUrls: string[] = [];
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
     fetcher: async (input, init) => {
       requestedUrls.push(String(input));
       const body = JSON.parse(String(init?.body)) as { token: string };
@@ -73,6 +74,9 @@ test('keeps the claim token out of preview and redeem URLs', async () => {
         return Response.json({
           claimSlotId: 'claim-slot-1',
           merchantId: 'merchant-1',
+          merchantName: '월계 밥상',
+          campaignId: 'campaign-1',
+          campaignTitle: '월계 한 바퀴',
           expiresAt: '2026-09-19T05:00:00.000Z',
           status: 'AVAILABLE',
         });
@@ -80,7 +84,10 @@ test('keeps the claim token out of preview and redeem URLs', async () => {
       return Response.json({
         claimSlotId: 'claim-slot-1',
         merchantId: 'merchant-1',
+        merchantName: '월계 밥상',
+        campaignTitle: '월계 한 바퀴',
         status: 'CLAIMED',
+        replayed: false,
         visit: {
           visitEventId: 'visit-1',
           campaignId: 'campaign-1',
@@ -99,6 +106,42 @@ test('keeps the claim token out of preview and redeem URLs', async () => {
 
   assert.equal(requestedUrls.length, 2);
   assert.equal(requestedUrls.some((url) => url.includes('secret-claim-token')), false);
+});
+
+test('rejects preview and redeem responses without user-facing recovery fields', async () => {
+  const responses = [
+    {
+      claimSlotId: 'claim-slot-1',
+      merchantId: 'merchant-1',
+      campaignId: 'campaign-1',
+      campaignTitle: '월계 한 바퀴',
+      expiresAt: '2026-09-19T05:00:00.000Z',
+      status: 'AVAILABLE',
+    },
+    {
+      claimSlotId: 'claim-slot-1',
+      merchantId: 'merchant-1',
+      merchantName: '월계 밥상',
+      campaignTitle: '월계 한 바퀴',
+      status: 'CLAIMED',
+      visit: {
+        visitEventId: 'visit-1',
+        campaignId: 'campaign-1',
+        businessDate: '2026-09-19',
+        verificationLevel: 'MERCHANT_CONFIRMED',
+        progressCounted: true,
+        progressVisitCount: 1,
+      },
+      grantedRewards: [],
+    },
+  ];
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
+    fetcher: async () => Response.json(responses.shift()),
+  });
+  await assert.rejects(client.previewClaim('token'), /수령 확인 응답 형식/);
+  await assert.rejects(client.redeemClaim('token'), /방문 수령 응답 형식/);
 });
 
 test('parses collection states while keeping app collectibles and NFT state separate', async () => {
@@ -134,10 +177,12 @@ test('parses collection states while keeping app collectibles and NFT state sepa
   };
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
+    credential: { kind: 'bearer', sessionToken: 'server-session' },
     fetcher: async (input, init) => {
       assert.equal(input, 'https://api.example.test/collection');
-      assert.equal(new Headers(init?.headers).get('x-account-id'), 'customer-1');
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get('authorization'), 'Bearer server-session');
+      assert.equal(headers.has('x-account-id'), false);
       return Response.json(payload);
     },
   });
@@ -148,7 +193,7 @@ test('parses collection states while keeping app collectibles and NFT state sepa
 test('requests minting with binding and consent only, never a client recipient or series', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
     fetcher: async (input, init) => {
       assert.equal(input, 'https://api.example.test/entitlements/entitlement-1/mint');
       assert.equal(new Headers(init?.headers).get('idempotency-key'), 'mint-request-1');
@@ -186,7 +231,7 @@ test('requests minting with binding and consent only, never a client recipient o
 test('rejects malformed collection data', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
     fetcher: async () => Response.json({ visits: [], collectibles: [{ nftStatus: 'MINTED' }] }),
   });
 
@@ -196,7 +241,7 @@ test('rejects malformed collection data', async () => {
 test('preserves API status and code for Korean recovery messages', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
     fetcher: async () => Response.json({ code: 'CLAIM_TOKEN_EXPIRED' }, { status: 410 }),
   });
 
@@ -206,4 +251,16 @@ test('preserves API status and code for Korean recovery messages', async () => {
     assert.equal(error.code, 'CLAIM_TOKEN_EXPIRED');
     return true;
   });
+});
+
+test('invalidates a rejected bearer session once', async () => {
+  let invalidations = 0;
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'expired-session' },
+    onSessionInvalid: async () => { invalidations += 1; },
+    fetcher: async () => Response.json({ code: 'SESSION_INVALID' }, { status: 401 }),
+  });
+  await assert.rejects(client.getCollection(), /SESSION_INVALID/);
+  assert.equal(invalidations, 1);
 });

@@ -11,7 +11,6 @@ test('keeps wallet linking unavailable until a Reown project ID and API URL are 
     missing: [
       'EXPO_PUBLIC_REOWN_PROJECT_ID',
       'EXPO_PUBLIC_API_URL',
-      'EXPO_PUBLIC_DEMO_ACCOUNT_ID',
     ],
   });
 });
@@ -20,7 +19,6 @@ test('returns the fixed Base Sepolia and external-wallet-only feature contract',
   const config = getWalletRuntimeConfig({
     EXPO_PUBLIC_REOWN_PROJECT_ID: 'project-test-123',
     EXPO_PUBLIC_API_URL: 'https://api.example.test',
-    EXPO_PUBLIC_DEMO_ACCOUNT_ID: 'demo-user-1',
   });
 
   assert.equal(config.available, true);
@@ -28,7 +26,6 @@ test('returns the fixed Base Sepolia and external-wallet-only feature contract',
 
   assert.equal(config.projectId, 'project-test-123');
   assert.equal(config.apiUrl, 'https://api.example.test');
-  assert.equal(config.accountId, 'demo-user-1');
   assert.equal(config.chainId, 84532);
   assert.equal(config.caipNetworkId, 'eip155:84532');
   assert.deepEqual(config.features, {
@@ -65,7 +62,6 @@ test('rejects non-HTTPS production-like API URLs', () => {
     getWalletRuntimeConfig({
       EXPO_PUBLIC_REOWN_PROJECT_ID: 'project-test-123',
       EXPO_PUBLIC_API_URL: 'http://api.example.test',
-      EXPO_PUBLIC_DEMO_ACCOUNT_ID: 'demo-user-1',
     }),
   );
 });
@@ -74,7 +70,6 @@ test('allows loopback HTTP only for local development', () => {
   const config = getWalletRuntimeConfig({
     EXPO_PUBLIC_REOWN_PROJECT_ID: 'project-test-123',
     EXPO_PUBLIC_API_URL: 'http://127.0.0.1:3000',
-    EXPO_PUBLIC_DEMO_ACCOUNT_ID: 'demo-user-1',
   });
 
   assert.equal(config.available, true);

@@ -3,33 +3,61 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { AccountCredential } from '@/auth/account-credential';
+import {
+  initialPollingState,
+  nextPollingState,
+  resolveCollectionLoad,
+  type PollingState,
+} from '@/commerce/collection-recovery';
 import { CommerceApiError, createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
 import { colors } from '@/theme/colors';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
-export function CollectionScreen({ apiUrl, accountId }: { apiUrl: string; accountId: string }) {
+export function CollectionScreen({
+  apiUrl,
+  credential,
+  onSessionInvalid,
+}: {
+  apiUrl: string;
+  credential: AccountCredential;
+  onSessionInvalid: () => Promise<void>;
+}) {
   const insets = useSafeAreaInsets();
-  const api = useMemo(() => createCommerceApiClient({ apiUrl, accountId }), [accountId, apiUrl]);
-  const walletApi = useMemo(() => new WalletApiClient({ apiUrl, accountId }), [accountId, apiUrl]);
-  const [collection, setCollection] = useState<CollectionSnapshot>();
+  const api = useMemo(
+    () => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
+  const walletApi = useMemo(
+    () => new WalletApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
+  const [polling, setPolling] = useState<PollingState>();
   const [binding, setBinding] = useState<ActiveWalletBindingResponse['binding']>();
+  const [bindingError, setBindingError] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyEntitlementId, setBusyEntitlementId] = useState<string>();
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
+  const [pollingRetrying, setPollingRetrying] = useState(false);
+  const collection = polling?.snapshot;
 
   useEffect(() => {
     let active = true;
-    void Promise.all([api.getCollection(), walletApi.getActiveBinding()])
-      .then(([nextCollection, nextBinding]) => {
-        if (active) {
-          setCollection(nextCollection);
-          setBinding(nextBinding.binding);
+    void Promise.allSettled([api.getCollection(), walletApi.getActiveBinding()])
+      .then(([collectionResult, bindingResult]) => {
+        if (!active) return;
+        const resolved = resolveCollectionLoad(collectionResult, bindingResult);
+        if (!resolved.ok) {
+          setError('도감을 불러오지 못했습니다. API 연결을 확인해 주세요.');
+          return;
         }
-      })
-      .catch(() => {
-        if (active) setError('도감을 불러오지 못했습니다. API 연결을 확인해 주세요.');
+        setPolling(initialPollingState(resolved.collection));
+        setBinding(resolved.binding);
+        setBindingError(resolved.bindingError
+          ? '도감은 불러왔지만 지갑 상태는 확인하지 못했습니다.'
+          : undefined);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -40,44 +68,80 @@ export function CollectionScreen({ apiUrl, accountId }: { apiUrl: string; accoun
   }, [api, walletApi]);
 
   useEffect(() => {
-    if (!collection?.collectibles.some((item) => item.nftStatus === 'QUEUED' || item.nftStatus === 'CONFIRMING')) {
-      return;
+    if (polling?.mode !== 'polling') return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      try {
+        const next = await api.getCollection();
+        if (active) {
+          setPolling((current) => current
+            ? nextPollingState(current, { type: 'success', snapshot: next })
+            : initialPollingState(next));
+        }
+      } catch {
+        if (active) {
+          setPolling((current) => current
+            ? nextPollingState(current, { type: 'failure' })
+            : current);
+        }
+      } finally {
+        if (active) timer = setTimeout(() => void poll(), 3_000);
+      }
     }
-    const timer = setInterval(() => {
-      void api
-        .getCollection()
-        .then((next) => {
-          const finalized = next.collectibles.some(
-            (item) =>
-              item.nftStatus === 'FINALIZED' &&
-              collection.collectibles.some(
-                (previous) =>
-                  previous.entitlementId === item.entitlementId &&
-                  (previous.nftStatus === 'QUEUED' || previous.nftStatus === 'CONFIRMING'),
-              ),
-          );
-          setCollection(next);
-          if (finalized) setMessage('NFT가 블록체인 이벤트 대조를 거쳐 등록 완료됐습니다.');
-        })
-        .catch(() => undefined);
-    }, 3_000);
-    return () => clearInterval(timer);
-  }, [api, collection]);
+    timer = setTimeout(() => void poll(), 3_000);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [api, polling?.mode]);
 
   async function refresh() {
     setRefreshing(true);
     setError(undefined);
     try {
-      const [nextCollection, nextBinding] = await Promise.all([
+      const [collectionResult, bindingResult] = await Promise.allSettled([
         api.getCollection(),
         walletApi.getActiveBinding(),
       ]);
-      setCollection(nextCollection);
-      setBinding(nextBinding.binding);
-    } catch {
-      setError('최신 도감을 가져오지 못했습니다. 기존 내용은 유지합니다.');
+      const resolved = resolveCollectionLoad(collectionResult, bindingResult);
+      if (!resolved.ok) {
+        setError('최신 도감을 가져오지 못했습니다. 기존 내용은 유지합니다.');
+      } else {
+        setPolling((current) => current
+          ? nextPollingState(current, { type: 'success', snapshot: resolved.collection })
+          : initialPollingState(resolved.collection));
+        setBinding(resolved.binding);
+        setBindingError(resolved.bindingError
+          ? '도감은 갱신했지만 지갑 상태는 확인하지 못했습니다.'
+          : undefined);
+      }
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function refreshBinding() {
+    setBindingError(undefined);
+    try {
+      setBinding((await walletApi.getActiveBinding()).binding);
+    } catch {
+      setBindingError('지갑 상태를 확인하지 못했습니다. 도감과 방문 기록은 유지됩니다.');
+    }
+  }
+
+  async function retryPolling() {
+    if (!polling || pollingRetrying) return;
+    setPollingRetrying(true);
+    try {
+      const next = await api.getCollection();
+      setPolling((current) => current
+        ? nextPollingState(current, { type: 'success', snapshot: next })
+        : initialPollingState(next));
+    } catch {
+      setError('NFT 작업 결과를 다시 확인하지 못했습니다. 접수는 취소되지 않았습니다.');
+    } finally {
+      setPollingRetrying(false);
     }
   }
 
@@ -116,7 +180,7 @@ export function CollectionScreen({ apiUrl, accountId }: { apiUrl: string; accoun
           ? '이미 접수한 NFT 작업을 다시 불러왔습니다.'
           : 'NFT 발행을 접수했습니다. 아직 블록체인 등록 완료가 아닙니다.',
       );
-      setCollection(await api.getCollection());
+      setPolling(initialPollingState(await api.getCollection()));
     } catch (caught) {
       setError(mintErrorMessage(caught));
     } finally {
@@ -162,7 +226,34 @@ export function CollectionScreen({ apiUrl, accountId }: { apiUrl: string; accoun
       </View>
 
       {error ? <Text style={styles.inlineError}>{error}</Text> : null}
-      {message ? <Text style={styles.inlineMessage}>{message}</Text> : null}
+      {bindingError ? (
+        <View style={styles.recoveryBanner}>
+          <Text selectable style={styles.recoveryText}>{bindingError}</Text>
+          <Pressable accessibilityRole="button" onPress={() => void refreshBinding()} style={styles.recoveryButton}>
+            <Text style={styles.recoveryButtonText}>지갑 상태 다시 확인</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {polling?.mode === 'manual-retry' ? (
+        <View accessibilityLiveRegion="polite" style={styles.recoveryBanner}>
+          <Text selectable style={styles.recoveryText}>
+            NFT 작업 결과를 확인하지 못했습니다. 접수는 취소되지 않았습니다.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            disabled={pollingRetrying}
+            onPress={() => void retryPolling()}
+            style={[styles.recoveryButton, pollingRetrying && styles.disabled]}
+          >
+            <Text style={styles.recoveryButtonText}>{pollingRetrying ? '확인 중…' : '지금 다시 확인'}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {polling?.message === 'NFT_FINALIZED' ? (
+        <Text accessibilityLiveRegion="polite" style={styles.inlineMessage}>
+          NFT가 블록체인 이벤트 대조를 거쳐 등록 완료됐습니다.
+        </Text>
+      ) : message ? <Text style={styles.inlineMessage}>{message}</Text> : null}
 
       <Section title="앱에서 받은 수집품" note="보상권을 받으면 앱 도감에 먼저 기록됩니다.">
         {collection.collectibles.length === 0 ? (
@@ -314,6 +405,10 @@ const styles = StyleSheet.create({
   countLabel: { color: colors.secondaryLabel, fontSize: 11, fontWeight: '700' },
   inlineError: { padding: 12, borderRadius: 12, color: colors.onErrorContainer, backgroundColor: colors.errorContainer, fontSize: 13 },
   inlineMessage: { padding: 12, borderRadius: 12, color: colors.onPrimaryContainer, backgroundColor: colors.primaryContainer, fontSize: 13, lineHeight: 20 },
+  recoveryBanner: { gap: 10, padding: 14, borderRadius: 14, backgroundColor: colors.errorContainer },
+  recoveryText: { color: colors.onErrorContainer, fontSize: 13, lineHeight: 20 },
+  recoveryButton: { alignSelf: 'flex-start', paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surface },
+  recoveryButtonText: { color: colors.primary, fontSize: 12, fontWeight: '900' },
   section: { gap: 5 },
   sectionTitle: { color: colors.label, fontSize: 22, fontWeight: '900' },
   sectionNote: { color: colors.secondaryLabel, fontSize: 13, lineHeight: 20 },

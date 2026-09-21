@@ -1,3 +1,4 @@
+import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
 import { normalizePublicApiUrl } from '@/config/public-api';
 
 export type AccountDeletionResult = {
@@ -13,8 +14,7 @@ export type AccountDeletionResult = {
 
 type Options = {
   apiUrl: string;
-  accountId: string;
-  allowInsecureDemoReauthentication?: boolean;
+  credential: AccountCredential;
   fetchImpl?: typeof fetch;
 };
 
@@ -38,16 +38,20 @@ export class AccountDeletionApiClient {
   }
 
   async requestDeletion(): Promise<AccountDeletionResult> {
+    const headers = new Headers({
+      Accept: 'application/json',
+      'content-type': 'application/json',
+      ...headersForCredential(this.options.credential),
+    });
+    if (
+      this.options.credential.kind === 'demo'
+      && this.options.credential.allowInsecureReauthentication
+    ) {
+      headers.set('x-demo-reauthenticated', 'true');
+    }
     const response = await this.fetchImpl(`${this.apiUrl}/account-deletion-requests`, {
       method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'content-type': 'application/json',
-        'x-account-id': this.options.accountId,
-        ...(this.options.allowInsecureDemoReauthentication
-          ? { 'x-demo-reauthenticated': 'true' }
-          : {}),
-      },
+      headers,
       body: JSON.stringify({ confirmation: 'DELETE MY ACCOUNT' }),
     });
     const payload: unknown = await response.json();

@@ -1,3 +1,6 @@
+import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
+import { shouldInvalidateSession } from '@/auth/session-invalid';
+
 export type MerchantContext = {
   merchantId: string;
   role: 'OWNER' | 'STAFF';
@@ -14,6 +17,9 @@ export type IssuedClaim = {
 export type ClaimPreview = {
   claimSlotId: string;
   merchantId: string;
+  merchantName: string;
+  campaignId: string;
+  campaignTitle: string;
   expiresAt: string;
   status: 'AVAILABLE' | 'EXPIRED';
 };
@@ -21,7 +27,10 @@ export type ClaimPreview = {
 export type RedeemedClaim = {
   claimSlotId: string;
   merchantId: string;
+  merchantName: string;
+  campaignTitle: string;
   status: 'CLAIMED';
+  replayed: boolean;
   visit: {
     visitEventId: string;
     campaignId: string;
@@ -79,7 +88,8 @@ export type MintJobResponse = {
 
 type Options = {
   apiUrl: string;
-  accountId: string;
+  credential: AccountCredential;
+  onSessionInvalid?: () => void | Promise<void>;
   fetcher?: typeof fetch;
 };
 
@@ -99,19 +109,23 @@ export function createCommerceApiClient(options: Options) {
   const fetcher = options.fetcher ?? fetch;
 
   async function request(path: string, init?: RequestInit): Promise<unknown> {
+    const headers = new Headers(init?.headers);
+    headers.set('Accept', 'application/json');
+    for (const [name, value] of Object.entries(headersForCredential(options.credential))) {
+      headers.set(name, value);
+    }
     const response = await fetcher(`${apiUrl}${path}`, {
       ...init,
-      headers: {
-        Accept: 'application/json',
-        'x-account-id': options.accountId,
-        ...init?.headers,
-      },
+      headers,
     });
     const payload = await response.json();
     if (!response.ok) {
       const code = isRecord(payload) && typeof payload.code === 'string'
         ? payload.code
         : `HTTP_${response.status}`;
+      if (shouldInvalidateSession(options.credential, response.status, code)) {
+        await options.onSessionInvalid?.();
+      }
       throw new CommerceApiError(response.status, code);
     }
     return payload;
@@ -241,6 +255,9 @@ function parseClaimPreview(value: unknown): ClaimPreview {
     !isRecord(value) ||
     !isString(value.claimSlotId) ||
     !isString(value.merchantId) ||
+    !isString(value.merchantName) ||
+    !isString(value.campaignId) ||
+    !isString(value.campaignTitle) ||
     !isDate(value.expiresAt) ||
     (value.status !== 'AVAILABLE' && value.status !== 'EXPIRED')
   ) {
@@ -249,6 +266,9 @@ function parseClaimPreview(value: unknown): ClaimPreview {
   return {
     claimSlotId: value.claimSlotId,
     merchantId: value.merchantId,
+    merchantName: value.merchantName,
+    campaignId: value.campaignId,
+    campaignTitle: value.campaignTitle,
     expiresAt: value.expiresAt,
     status: value.status,
   };
@@ -259,7 +279,10 @@ function parseRedeemedClaim(value: unknown): RedeemedClaim {
     !isRecord(value) ||
     !isString(value.claimSlotId) ||
     !isString(value.merchantId) ||
+    !isString(value.merchantName) ||
+    !isString(value.campaignTitle) ||
     value.status !== 'CLAIMED' ||
+    typeof value.replayed !== 'boolean' ||
     !isRecord(value.visit) ||
     !isString(value.visit.visitEventId) ||
     !isString(value.visit.campaignId) ||
@@ -274,7 +297,10 @@ function parseRedeemedClaim(value: unknown): RedeemedClaim {
   return {
     claimSlotId: value.claimSlotId,
     merchantId: value.merchantId,
+    merchantName: value.merchantName,
+    campaignTitle: value.campaignTitle,
     status: 'CLAIMED',
+    replayed: value.replayed,
     visit: {
       visitEventId: value.visit.visitEventId,
       campaignId: value.visit.campaignId,
