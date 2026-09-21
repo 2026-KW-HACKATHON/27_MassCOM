@@ -43,8 +43,6 @@ jobs:
         run: |
           bash scripts/check-secrets.sh
           bash tests/bootstrap/check_secrets_test.sh
-          bash scripts/check-privacy.sh
-          bash tests/bootstrap/check_privacy_test.sh
       - name: PR 한국어 작성 확인
         if: github.event_name == 'pull_request'
         env:
@@ -65,6 +63,8 @@ jobs:
         run: bash tests/release/deploy_base_sepolia_preflight_test.sh
       - name: Verify AAB signature verdict and build flow
         run: bash tests/release/verify_aab_signature_test.sh
+      - name: Verify AAB assessment provenance
+        run: bash tests/release/assess_release_aab_test.sh
       - name: NFT 계약 포맷·빌드·테스트
         run: |
           ./scripts/forge.sh --version | grep -q 'forge Version: 1.8.3'
@@ -77,6 +77,10 @@ jobs:
           npm ci --prefix apps/api
           npm ci --prefix apps/mobile
           npm ci --prefix apps/worker
+      - name: 개인정보 로그 검사
+        run: |
+          bash scripts/check-privacy.sh
+          bash tests/bootstrap/check_privacy_test.sh
       - name: API·PostgreSQL 테스트·타입검사·빌드
         env:
           DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test

@@ -1,6 +1,7 @@
 import { getAddress, verifyMessage } from 'ethers';
 import { SiweMessage } from 'siwe';
 
+import { safeErrorMetadata } from './security-log.js';
 import {
   InMemoryWalletBindingStore,
   WalletBindingError,
@@ -244,6 +245,7 @@ export class WalletChallengeService {
 
     let bindingRecorded = false;
     try {
+      const recoveredAddress = normalizeAddress(verifyMessage(input.message, input.signature));
       const verification = await parsed.verify(
         {
           signature: input.signature,
@@ -257,7 +259,6 @@ export class WalletChallengeService {
         throw new WalletChallengeError('SIGNER_MISMATCH');
       }
 
-      const recoveredAddress = normalizeAddress(verifyMessage(input.message, input.signature));
       if (recoveredAddress !== record.address || normalizeAddress(verification.data.address) !== record.address) {
         throw new WalletChallengeError('SIGNER_MISMATCH');
       }
@@ -282,9 +283,7 @@ export class WalletChallengeService {
       if (bindingRecorded) throw error;
       // A challenge removed mid-verify (expiry purge, account deletion) must not mask the real failure.
       await this.#store.release(record.challengeId).catch((releaseError: unknown) => {
-        console.error('wallet challenge release failed', {
-          name: releaseError instanceof Error ? releaseError.name : 'UnknownError',
-        });
+        console.error(safeErrorMetadata('wallet.challenge.release.failed', releaseError));
       });
       if (error instanceof WalletChallengeError) {
         throw error;

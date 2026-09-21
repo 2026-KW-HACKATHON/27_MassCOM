@@ -31,6 +31,7 @@ import {
   RecommendationService,
   type RecommendationReader,
 } from './recommendation-service.js';
+import { safeErrorMetadata } from './security-log.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
@@ -462,9 +463,7 @@ export function createApiServer(
         return;
       }
 
-      console.error('unhandled API error', {
-        name: error instanceof Error ? error.name : 'UnknownError',
-      });
+      console.error(safeErrorMetadata('api.unhandled', error));
       sendJson(response, 500, { code: 'INTERNAL_ERROR' });
     }
   });

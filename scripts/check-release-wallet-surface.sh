@@ -16,29 +16,133 @@ fail() { echo "release wallet surface check FAILED: $*" >&2; exit 1; }
 
 work="$(mktemp -d -t wallet-surface.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
-unzip -q "$aab" 'base/manifest/AndroidManifest.xml' 'base/dex/*' -d "$work" || fail "not a readable AAB: $aab"
+unzip -q "$aab" 'base/dex/*' -d "$work" || fail "not a readable AAB: $aab"
 
-manifest="$(strings "$work/base/manifest/AndroidManifest.xml")"
-# The bundle manifest is a protobuf, so the package attribute shows up as `<package>"` plus a tag byte.
-grep -qE "^${expected_package//./\\.}\"" <<<"$manifest" || fail "manifest package is not $expected_package"
-if grep -qF "$expected_package.dev" <<<"$manifest"; then fail "manifest belongs to the development variant"; fi
+aapt2=''
+if command -v aapt2 >/dev/null 2>&1; then
+  aapt2="$(command -v aapt2)"
+else
+  android_sdk="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+  for candidate in "$android_sdk"/build-tools/*/aapt2; do
+    [[ -x "$candidate" ]] && aapt2="$candidate"
+  done
+fi
+[[ -n "$aapt2" ]] || fail 'manifest parser aapt2 is unavailable'
+manifest="$($aapt2 dump xmltree --file base/manifest/AndroidManifest.xml "$aab" 2>&1)" \
+  || fail "manifest could not be parsed: $aab"
+read -r package_count artifact_package <<<"$(awk '
+  {
+    if ($0 ~ /^[[:space:]]*E:/) {
+      if (in_manifest) exit
+      if ($0 ~ /^[[:space:]]*E: manifest([[:space:]]|$)/) in_manifest = 1
+      next
+    }
+    if (in_manifest && $0 ~ /A: package([^=]*)=/) {
+      value = $0
+      sub(/^[^\"]*\"/, "", value)
+      sub(/\".*$/, "", value)
+      count += 1
+      package_name = value
+    }
+  }
+  END { printf "%d %s\n", count, package_name }
+' <<<"$manifest")"
+[[ "$package_count" == 1 && "$artifact_package" == "$expected_package" ]] \
+  || fail "manifest package is not $expected_package"
+if [[ "$artifact_package" == "$expected_package.dev" ]]; then fail "manifest belongs to the development variant"; fi
 if grep -qiE 'com\.android\.vending\.BILLING|SYSTEM_ALERT_WINDOW' <<<"$manifest"; then
   fail "manifest declares a billing or overlay permission"
 fi
 
 # Native payment, on-ramp and embedded-wallet SDKs.
-if hit="$(cat "$work"/base/dex/*.dex | strings | grep -iE -m1 'com/android/billingclient|com/coinbase|com/stripe|com/moonpay|com/transak|io/meld|com/web3auth|io/privy|link/magic')"; then
+dex_strings="$work/dex-strings.txt"
+: >"$dex_strings"
+for dex in "$work"/base/dex/*.dex; do
+  strings "$dex" >>"$dex_strings" || fail "could not inspect DEX strings: $(basename "$dex")"
+done
+
+if hit="$(grep -iE -m1 \
+  'com/android/billingclient|com/coinbase|com/stripe|com/moonpay|com/transak|io/meld|com/web3auth|io/privy|link/magic' \
+  "$dex_strings")"; then
   fail "dex contains a payment or embedded-wallet SDK class: $hit"
 fi
 
-app_files="$(find "$src" -type f \( -name '*.ts' -o -name '*.tsx' \) ! -name '*.test.*')"
+source_symlink="$(find "$src" -type l -print -quit)" || fail "could not inspect mobile source symlinks"
+[[ -z "$source_symlink" ]] || fail "source tree contains symlink: $source_symlink"
 
-[[ "$(grep -hE 'createAppKit\(' $app_files | wc -l | tr -d ' ')" == "1" ]] || fail "createAppKit must be called exactly once"
+app_files=()
+while IFS= read -r -d '' app_file; do
+  app_files[${#app_files[@]}]="$app_file"
+done < <(find "$src" -type f \( \
+  -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' \
+\) ! -name '*.test.*' -print0)
+[[ "${#app_files[@]}" -gt 0 ]] || fail "no supported mobile source files found"
+
+# Reown is intentionally exposed through six narrow imports. Reject every other occurrence of the
+# module specifier, including namespace re-exports that can hide computed createAppKit/open calls.
+reown_module='@reown/appkit-react-native'
+allowed_reown_files=(
+  wallet/appkit.ts
+  wallet/base-sepolia.ts
+  wallet/appkit-storage.ts
+  screens/account-settings/index.tsx
+  screens/wallet-link/index.tsx
+  app/_layout.tsx
+)
+expected_reown_import() {
+  case "$1" in
+    wallet/appkit.ts) echo "import { createAppKit } from '$reown_module';" ;;
+    wallet/base-sepolia.ts) echo "import type { AppKitNetwork } from '$reown_module';" ;;
+    wallet/appkit-storage.ts) echo "import type { Storage } from '$reown_module';" ;;
+    screens/account-settings/index.tsx) echo "import { useAppKit } from '$reown_module';" ;;
+    screens/wallet-link/index.tsx)
+      echo "import { useAccount, useAppKit, useAppKitEventSubscription, useProvider, } from '$reown_module';"
+      ;;
+    app/_layout.tsx) echo "import { AppKit, AppKitProvider } from '$reown_module';" ;;
+    *) return 1 ;;
+  esac
+}
+for app_file in "${app_files[@]}"; do
+  module_occurrences="$(awk -v needle="$reown_module" '
+    { line = $0; while ((position = index(line, needle)) > 0) { count += 1; line = substr(line, position + length(needle)) } }
+    END { print count + 0 }
+  ' "$app_file")"
+  [[ "$module_occurrences" == 0 ]] && continue
+  relative_file="${app_file#"$src"/}"
+  expected_import="$(expected_reown_import "$relative_file" 2>/dev/null || true)"
+  [[ -n "$expected_import" ]] || fail "Reown module is not allowed in $relative_file"
+  [[ "$module_occurrences" == 1 ]] || fail "Reown module must occur once in $relative_file"
+  normalized_file="$(tr '\n' ' ' <"$app_file" | sed -E 's/[[:space:]]+/ /g')"
+  [[ "$normalized_file" == *"$expected_import"* ]] \
+    || fail "Reown module must use the canonical import in $relative_file"
+done
+for relative_file in "${allowed_reown_files[@]}"; do
+  [[ -f "$src/$relative_file" ]] || fail "missing canonical Reown integration file: $relative_file"
+  grep -qF "$reown_module" "$src/$relative_file" \
+    || fail "missing canonical Reown import in $relative_file"
+done
+
+if hit="$(grep -hE -m1 \
+  "import[[:space:]]+\*[[:space:]]+as[[:space:]]+.*from[[:space:]]+['\"]@reown/appkit-react-native['\"]|import[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]+from[[:space:]]+['\"]@reown/appkit-react-native['\"]|(require|import)[[:space:]]*\([[:space:]]*['\"]@reown/appkit-react-native['\"]" \
+  "${app_files[@]}")"; then
+  fail "Reown module must use static named imports: $hit"
+fi
+create_appkit_imports="$(grep -hEc \
+  "^[[:space:]]*import[[:space:]]*\{[[:space:]]*createAppKit[[:space:]]*\}[[:space:]]*from[[:space:]]*['\"]@reown/appkit-react-native['\"];?[[:space:]]*$" \
+  "${app_files[@]}" | awk '{ total += $1 } END { print total + 0 }')"
+create_appkit_calls="$(grep -hEc '^[[:space:]]*\?[[:space:]]+createAppKit\(\{[[:space:]]*$' \
+  "${app_files[@]}" | awk '{ total += $1 } END { print total + 0 }')"
+create_appkit_references="$(grep -hoE '\bcreateAppKit\b' "${app_files[@]}" | wc -l | tr -d ' ')"
+[[ "$create_appkit_imports" == 1 && "$create_appkit_calls" == 1 && "$create_appkit_references" == 2 ]] \
+  || fail "createAppKit must use the canonical import and call"
+if hit="$(grep -hE -m1 '\b(AppKitButton|AccountButton|ConnectButton|NetworkButton)\b' "${app_files[@]}")"; then
+  fail "SDK button aliases and usages are forbidden: $hit"
+fi
 config="$src/wallet/wallet-runtime-config.ts"
 for feature in socials swaps onramp; do
   # The SDK turns on-ramp ON when the flag is undefined, so each one must be an explicit false.
   grep -qE "^\s*$feature: false,\$" "$config" || fail "features.$feature is not an explicit false"
-  if grep -hE "\b$feature:\s*(true|\[)" $app_files >/dev/null; then fail "features.$feature is enabled somewhere"; fi
+  if grep -hE "\b$feature:\s*(true|\[)" "${app_files[@]}" >/dev/null; then fail "features.$feature is enabled somewhere"; fi
 done
 grep -qE '^\s*enableAnalytics: false,$' "$config" || fail "enableAnalytics is not an explicit false"
 
@@ -46,27 +150,50 @@ grep -qE '^\s*enableAnalytics: false,$' "$config" || fail "enableAnalytics is no
 # views. App code may therefore reach the modal only as open({ view: 'Connect' }).
 while IFS= read -r call; do
   [[ "$call" =~ open\(\{\ view:\ \'Connect\'\ \}\) ]] || fail "AppKit open() must target the Connect view only: $call"
-done < <(grep -hE '\bopen\(' $app_files || true)
-appkit_files="$(grep -lE "@reown/|useAppKit" $app_files || true)"
-if [[ -n "$appkit_files" ]]; then
+done < <(grep -hE '\bopen\(' "${app_files[@]}" || true)
+wallet_link="$src/screens/wallet-link/index.tsx"
+normalized_wallet_link="$(tr '\n' ' ' <"$wallet_link" | sed -E 's/[[:space:]]+/ /g')"
+[[ "$normalized_wallet_link" == *"const { open, close, disconnect, switchNetwork, cancelPendingConnection } = useAppKit();"* ]] \
+  || fail "useAppKit must use the canonical wallet-link destructuring"
+open_references="$(grep -oE '\bopen\b' "$wallet_link" | wc -l | tr -d ' ')"
+wallet_hook_references="$(grep -oE '\buseAppKit\b' "$wallet_link" | wc -l | tr -d ' ')"
+[[ "$open_references" == 2 && "$wallet_hook_references" == 2 ]] \
+  || fail "wallet-link may not alias or reacquire AppKit open"
+account_settings="$src/screens/account-settings/index.tsx"
+normalized_account_settings="$(tr '\n' ' ' <"$account_settings" | sed -E 's/[[:space:]]+/ /g')"
+[[ "$normalized_account_settings" == *"const { disconnect } = useAppKit();"* ]] \
+  || fail "account settings must use the canonical AppKit destructuring"
+account_hook_references="$(grep -oE '\buseAppKit\b' "$account_settings" | wc -l | tr -d ' ')"
+[[ "$account_hook_references" == 2 ]] || fail "account settings may not reacquire AppKit"
+appkit_files=()
+for app_file in "${app_files[@]}"; do
+  if grep -qE "@reown/|useAppKit" "$app_file"; then
+    appkit_files[${#appkit_files[@]}]="$app_file"
+  fi
+done
+if [[ "${#appkit_files[@]}" -gt 0 ]]; then
   # A renamed binding or a view spread over several lines would slip past the line match above.
-  if hit="$(grep -hE -m1 '\bopen\s*:' $appkit_files)"; then fail "open must not be renamed or wrapped: $hit"; fi
-  if hit="$(grep -hE "\bview\s*:" $appkit_files | grep -vE "view: 'Connect'" | head -1)" && [[ -n "$hit" ]]; then
+  if hit="$(grep -hE -m1 '\bopen\s*:' "${appkit_files[@]}")"; then fail "open must not be renamed or wrapped: $hit"; fi
+  hit="$(awk -v allowed="view: 'Connect'" '
+    $0 ~ /(^|[^[:alnum:]_])view[[:space:]]*:/ && index($0, allowed) == 0 { print; exit }
+  ' "${appkit_files[@]}")" || fail "could not inspect AppKit views"
+  if [[ -n "$hit" ]]; then
     fail "AppKit view other than Connect: $hit"
   fi
 fi
 # The SDK's internal controllers can push any view (WalletSend included) without calling open().
-if hit="$(grep -hE -m1 "@reown/appkit-core-react-native|@reown/appkit-common-react-native|\b(RouterController|ModalController|OptionsController|OnRampController|SwapController|SendController)\b" $app_files)"; then
+if hit="$(grep -hE -m1 "@reown/appkit-core-react-native|@reown/appkit-common-react-native|\b(RouterController|ModalController|OptionsController|OnRampController|SwapController|SendController)\b" "${app_files[@]}")"; then
   fail "app code must not use AppKit internal controllers: $hit"
 fi
-if hit="$(grep -hE -m1 '<(AppKitButton|AccountButton|ConnectButton|NetworkButton)\b' $app_files)"; then
+if hit="$(grep -hE -m1 '<(AppKitButton|AccountButton|ConnectButton|NetworkButton)\b' "${app_files[@]}")"; then
   fail "SDK button would expose the account screen: $hit"
 fi
 
 methods="$(sed -n '/methods: {/,/},/p' "$config")"
 grep -q "'personal_sign'" <<<"$methods" || fail "could not locate the session methods block"
-if hit="$(grep -oE "'(eth_sendTransaction|eth_sendRawTransaction|eth_sign|eth_signTransaction|eth_signTypedData[_a-zA-Z0-9]*|wallet_sendCalls|wallet_grantPermissions)'" <<<"$methods" | head -1)" && [[ -n "$hit" ]]; then
+hit="$(grep -oE -m1 "'(eth_sendTransaction|eth_sendRawTransaction|eth_sign|eth_signTransaction|eth_signTypedData[_a-zA-Z0-9]*|wallet_sendCalls|wallet_grantPermissions)'" <<<"$methods" || true)"
+if [[ -n "$hit" ]]; then
   fail "session requests a transaction or blind-signing method: $hit"
 fi
 
-echo "release wallet surface verified: $(basename "$aab"), package $expected_package"
+echo "release wallet surface verified: $(basename "$aab"), package $artifact_package"
