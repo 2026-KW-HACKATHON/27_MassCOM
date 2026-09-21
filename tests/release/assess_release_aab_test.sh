@@ -33,19 +33,19 @@ STUB
 chmod +x "$work/signature-pass" "$work/w08-pass"
 
 provenance="$work/tiny-release.provenance.json"
-secret='must-not-appear-in-provenance'
+ambient_sentinel='must-not-appear-in-provenance'
 out="$(env \
   MASSCOM_TEST_MODE=true \
-  MASSCOM_PROVENANCE_SECRET="$secret" \
+  MASSCOM_PROVENANCE_SENTINEL="$ambient_sentinel" \
   AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
   AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-pass" \
   bash "$assess" "$artifact" "$repo_root/apps/mobile/src" "$provenance" 2>&1)"
 [[ "$out" == *"$provenance"* ]] || { echo "assessor did not print provenance path: $out" >&2; exit 1; }
 
-node - "$provenance" "$expected_sha" "$expected_bytes" "$expected_commit" "$expected_dirty" "$fingerprint" "$secret" <<'NODE'
+node - "$provenance" "$expected_sha" "$expected_bytes" "$expected_commit" "$expected_dirty" "$fingerprint" "$ambient_sentinel" <<'NODE'
 const fs = require('node:fs');
 
-const [path, expectedSha, expectedBytes, expectedCommit, expectedDirty, fingerprint, secret] = process.argv.slice(2);
+const [path, expectedSha, expectedBytes, expectedCommit, expectedDirty, fingerprint, ambientSentinel] = process.argv.slice(2);
 const raw = fs.readFileSync(path, 'utf8');
 const record = JSON.parse(raw);
 const fail = (message) => { throw new Error(message); };
@@ -77,7 +77,7 @@ equal(
 if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(record.generatedAt)) {
   fail(`generatedAt is not an ISO timestamp: ${record.generatedAt}`);
 }
-if (raw.includes(secret)) fail('provenance captured an unrelated environment secret');
+if (raw.includes(ambientSentinel)) fail('provenance captured unrelated ambient environment data');
 NODE
 
 # A disposable Git repository proves clean and already-dirty invocations without touching user files.

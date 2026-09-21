@@ -78,6 +78,19 @@ src="$(make_src send-method)"
 sed -i.bak "s/'personal_sign',/'personal_sign', 'eth_sendTransaction',/" "$src/wallet/wallet-runtime-config.ts"
 expect_fail 'transaction method in session' 'transaction or blind-signing method' "$work/good.aab" "$src"
 
+src="$(make_src oversized-methods)"
+config="$src/wallet/wallet-runtime-config.ts"
+awk -v forbidden="          'eth_sendTransaction'," '
+  { print }
+  /personal_sign/ { for (i = 0; i < 20000; i++) print forbidden }
+' "$config" >"$config.tmp"
+mv "$config.tmp" "$config"
+expect_fail \
+  'oversized forbidden session methods after pipefail' \
+  'transaction or blind-signing method' \
+  "$work/good.aab" \
+  "$src"
+
 src="$(make_src open-renamed)"
 sed -i.bak "s/await open({ view: 'Connect' });/await launch({ view: 'Swap' });/" "$src/screens/wallet-link/index.tsx"
 printf '%s\n' "const { open: launch } = useAppKit();" >>"$src/screens/wallet-link/index.tsx"
@@ -94,6 +107,17 @@ assert s.count(old) == 1
 open(p, 'w').write(s.replace(old, "await open (\n        { view: 'OnRamp' },\n      );"))
 PY
 expect_fail 'view spread over several lines' 'AppKit view other than Connect' "$work/good.aab" "$src"
+
+src="$(make_src oversized-view)"
+{
+  printf '%s\n' "import { useAppKit } from '@reown/appkit-react-native';"
+  awk -v line="export const leak = { view: 'Swap' };" 'BEGIN { for (i = 0; i < 20000; i++) print line }'
+} >"$src/screens/oversized-view.ts"
+expect_fail \
+  'oversized non-Connect view after pipefail' \
+  'AppKit view other than Connect' \
+  "$work/good.aab" \
+  "$src"
 
 src="$(make_src internal-controller)"
 printf '%s\n' "import { RouterController } from '@reown/appkit-core-react-native';" "RouterController.push('WalletSend');" >"$src/screens/leak.ts"

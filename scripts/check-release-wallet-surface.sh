@@ -59,7 +59,10 @@ appkit_files="$(grep -lE "@reown/|useAppKit" $app_files || true)"
 if [[ -n "$appkit_files" ]]; then
   # A renamed binding or a view spread over several lines would slip past the line match above.
   if hit="$(grep -hE -m1 '\bopen\s*:' $appkit_files)"; then fail "open must not be renamed or wrapped: $hit"; fi
-  if hit="$(grep -hE "\bview\s*:" $appkit_files | grep -vE "view: 'Connect'" | head -1)" && [[ -n "$hit" ]]; then
+  hit="$(awk -v allowed="view: 'Connect'" '
+    $0 ~ /(^|[^[:alnum:]_])view[[:space:]]*:/ && index($0, allowed) == 0 { print; exit }
+  ' $appkit_files)" || fail "could not inspect AppKit views"
+  if [[ -n "$hit" ]]; then
     fail "AppKit view other than Connect: $hit"
   fi
 fi
@@ -73,7 +76,8 @@ fi
 
 methods="$(sed -n '/methods: {/,/},/p' "$config")"
 grep -q "'personal_sign'" <<<"$methods" || fail "could not locate the session methods block"
-if hit="$(grep -oE "'(eth_sendTransaction|eth_sendRawTransaction|eth_sign|eth_signTransaction|eth_signTypedData[_a-zA-Z0-9]*|wallet_sendCalls|wallet_grantPermissions)'" <<<"$methods" | head -1)" && [[ -n "$hit" ]]; then
+hit="$(grep -oE -m1 "'(eth_sendTransaction|eth_sendRawTransaction|eth_sign|eth_signTransaction|eth_signTypedData[_a-zA-Z0-9]*|wallet_sendCalls|wallet_grantPermissions)'" <<<"$methods" || true)"
+if [[ -n "$hit" ]]; then
   fail "session requests a transaction or blind-signing method: $hit"
 fi
 

@@ -74,6 +74,24 @@ expect 'two signers, approved key last' 6 'SIGNATURE REJECTED: the bundle carrie
 make_jar two-b; sign two-b upload.jks upload; sign two-b other.jks other
 expect 'two signers, approved key first' 6 'SIGNATURE REJECTED: the bundle carries' "$approved" "$work/two-b.aab"
 
+# A large multi-signer listing must reach the explicit classification instead of leaking SIGPIPE 141.
+mkdir -p "$work/large-signer-bin"
+cat >"$work/large-signer-bin/keytool" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' 'Owner: CN=MassCOM Fixture'
+for ((i = 0; i < 20000; i++)); do
+  printf ' SHA256: %s\n' '$approved'
+done
+STUB
+chmod +x "$work/large-signer-bin/keytool"
+status=0
+out="$(PATH="$work/large-signer-bin:$PATH" UPLOAD_CERT_SHA256="$approved" \
+  bash "$verify" "$work/good.aab" 2>&1)" || status=$?
+[[ "$status" == 6 ]] \
+  || { echo "large signer output: expected exit 6, got $status: $out" >&2; exit 1; }
+grep -qF 'SIGNATURE REJECTED: the bundle carries 20000 signatures' <<<"$out" \
+  || { echo "large signer output: missing explicit classification: $out" >&2; exit 1; }
+
 make_jar weak
 jarsigner -keystore "$work/upload.jks" -storepass "$pw" -keypass "$pw" -sigalg SHA1withRSA -digestalg SHA1 \
   "$work/weak.aab" upload >/dev/null 2>&1

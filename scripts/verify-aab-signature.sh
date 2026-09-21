@@ -39,7 +39,14 @@ if ! grep -q '^jar verified' <<<"$integrity"; then
 fi
 
 signer="$(keytool -J-Duser.language=en -printcert -jarfile "$file" 2>&1 || true)"
-actual="$(grep -E '^[[:space:]]*SHA256:' <<<"$signer" | head -1 | sed 's/.*SHA256:[[:space:]]*//' | tr -d ': \r' | tr 'a-f' 'A-F')"
+actual="$(awk '
+  /^[[:space:]]*SHA256:/ {
+    sub(/^.*SHA256:[[:space:]]*/, "")
+    gsub(/[: \r]/, "")
+    print toupper($0)
+    exit
+  }
+' <<<"$signer")"
 signers="$(grep -cE '^[[:space:]]*SHA256:' <<<"$signer" || true)"
 if [[ "$signers" -gt 1 ]]; then
   echo "SIGNATURE REJECTED: the bundle carries $signers signatures; exactly one upload signature is expected" >&2
