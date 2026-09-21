@@ -3,8 +3,13 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const root = resolve(process.argv[2] ?? '.');
-/** @type {(path: string) => string} */
-const read = (path) => readFileSync(join(root, path), 'utf8');
+/**
+ * @param {string} path
+ * @returns {string}
+ */
+function read(path) {
+  return readFileSync(join(root, path), 'utf8');
+}
 const api = read('apps/api/README.md');
 const mobile = read('apps/mobile/README.md');
 const worker = read('apps/worker/README.md');
