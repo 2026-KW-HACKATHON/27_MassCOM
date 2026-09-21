@@ -59,7 +59,7 @@ scripts/build-release-aab.sh [--restore-dev]
 
 `APP_VARIANT=production`으로 운영 package를 prebuild한 뒤 `gradlew bundleRelease`를 실행합니다. upload key는 저장소 밖에 두고 `~/.gradle/gradle.properties`의 `android.injected.signing.store.file`/`store.password`/`key.alias`/`key.password`로 주입해야 하며, 없으면 로컬 debug 키로 서명되고 스크립트가 경고를 출력합니다. `--restore-dev`를 주면 빌드 뒤 개발용 prebuild로 되돌립니다. 실제 upload key 서명과 Play Console 제출은 아직 수행하지 않았습니다(`NOT_RUN`).
 
-빌드가 끝나면 gitignored `apps/mobile/release-artifacts/`(또는 `RELEASE_ARTIFACT_DIR`)에 다음 두 파일을 함께 남깁니다.
+빌드가 끝나면 기본 gitignored 경로 `apps/mobile/release-artifacts/`에 다음 두 파일을 함께 남깁니다. `RELEASE_ARTIFACT_DIR`로 다른 경로를 지정할 수 있지만 그 경로는 자동으로 gitignore되지 않으므로 접근 권한·ignore·보존 정책은 운영자가 관리해야 합니다.
 
 - `app-release-<short-sha>.aab`
 - `app-release-<short-sha>.provenance.json`
@@ -67,6 +67,8 @@ scripts/build-release-aab.sh [--restore-dev]
 provenance는 공개 가능한 빌드 증거인 AAB basename·SHA-256·크기, source commit과 mobile dirty 여부, 기대 package/version, W08이 확인한 artifact package, 서명·W08 상태와 exit code, upload 인증서 공개 SHA-256, 미실행 release gate, 생성 시각을 기록합니다. keystore 경로·비밀번호·개인키는 기록하지 않으며 현재 스키마는 artifact의 절대 경로 대신 basename만 저장합니다. provenance에서 개인 로컬 filesystem 경로가 발견되면 커밋하지 말고 원인을 조사해야 합니다.
 
 자동 검증이 거절되면 AAB와 provenance를 삭제하지 않고 각각 `app-release-<short-sha>.NOT-RELEASE-READY-exitN.aab`와 `app-release-<short-sha>.NOT-RELEASE-READY-exitN.provenance.json`으로 함께 바꿔 진단 증거를 보존합니다. exit 0과 `Automated gates: PASS`는 승인 upload 인증서 서명과 W08 wallet surface gate만 통과했다는 뜻입니다. 다음 단계는 서로 대체되지 않습니다.
+
+같은 commit의 accepted 또는 rejected 최종 경로가 하나라도 이미 있으면 기존 증거를 덮지 않고 prebuild 전에 중단합니다. 기존 쌍을 검토·보관하거나 다른 `RELEASE_ARTIFACT_DIR`를 선택한 뒤 다시 실행합니다.
 
 - Gradle build 성공: AAB 생성만 증명
 - `signature.status: PASS`: 승인 upload 인증서와 서명 무결성만 증명

@@ -106,8 +106,125 @@ printf '#!/usr/bin/env bash\ncp "$work/good.aab" app/build/outputs/bundle/releas
 chmod +x android/gradlew
 STUB
 chmod +x "$work/bin/npx"
+
+# The production builder must reject every test-only gate control before prebuild. In particular,
+# fake gates must never turn a release build green.
+cat >"$work/fake-signature-pass" <<STUB
+#!/usr/bin/env bash
+touch '$work/fake-signature-ran'
+echo 'certificate sha256: $(tr -d ':' <<<"$approved")'
+STUB
+cat >"$work/fake-w08-pass" <<STUB
+#!/usr/bin/env bash
+touch '$work/fake-w08-ran'
+echo "release wallet surface verified: \$(basename "\$1"), package kr.masscom.wolgye"
+STUB
+chmod +x "$work/fake-signature-pass" "$work/fake-w08-pass"
+rm -f "$work/prebuild.log" "$work/fake-signature-ran" "$work/fake-w08-ran"
 status=0
-out="$(cd "$sandbox" && env APP_VARIANT=production UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
+out="$(cd "$sandbox" && env MASSCOM_TEST_MODE=true \
+  AAB_SIGNATURE_CHECK_COMMAND="$work/fake-signature-pass" \
+  AAB_WALLET_SURFACE_CHECK_COMMAND="$work/fake-w08-pass" \
+  AAB_W08_CHECK_COMMAND="$work/fake-w08-pass" \
+  RELEASE_ARTIFACT_DIR="$work/override-artifacts" \
+  UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
+  bash scripts/build-release-aab.sh 2>&1)" || status=$?
+[[ "$status" != "0" ]] || { echo "test gate override produced a passing release build: $out" >&2; exit 1; }
+[[ ! -e "$work/prebuild.log" ]] || { echo "test gate override reached prebuild: $(cat "$work/prebuild.log")" >&2; exit 1; }
+[[ ! -e "$work/fake-signature-ran" && ! -e "$work/fake-w08-ran" ]] \
+  || { echo 'test gate override executed a fake gate' >&2; exit 1; }
+
+for variable in MASSCOM_TEST_MODE AAB_SIGNATURE_CHECK_COMMAND \
+  AAB_WALLET_SURFACE_CHECK_COMMAND AAB_W08_CHECK_COMMAND EXPECTED_PACKAGE; do
+  rm -f "$work/prebuild.log"
+  status=0
+  out="$(cd "$sandbox" && env -u MASSCOM_TEST_MODE -u AAB_SIGNATURE_CHECK_COMMAND \
+    -u AAB_WALLET_SURFACE_CHECK_COMMAND -u AAB_W08_CHECK_COMMAND -u EXPECTED_PACKAGE \
+    "$variable=$work/fake-signature-pass" RELEASE_ARTIFACT_DIR="$work/override-$variable" \
+    UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
+    bash scripts/build-release-aab.sh 2>&1)" || status=$?
+  [[ "$status" != "0" ]] || { echo "$variable was accepted by the release builder: $out" >&2; exit 1; }
+  [[ ! -e "$work/prebuild.log" ]] || { echo "$variable reached prebuild" >&2; exit 1; }
+done
+
+short_commit="$(git -C "$sandbox" rev-parse --short=7 HEAD)"
+assert_preexisting_target_preserved() { # <label> <target suffix> <approved|missing pin>
+  local label="$1" suffix="$2" pin="$3" artifact_dir="$work/preexisting-$1"
+  local target="$artifact_dir/app-release-$short_commit$suffix" out status=0
+  mkdir -p "$artifact_dir"
+  printf 'sentinel-%s\n' "$label" >"$target"
+  rm -f "$work/prebuild.log"
+  if [[ "$pin" == approved ]]; then
+    out="$(cd "$sandbox" && env RELEASE_ARTIFACT_DIR="$artifact_dir" \
+      UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
+      bash scripts/build-release-aab.sh 2>&1)" || status=$?
+  else
+    out="$(cd "$sandbox" && env -u UPLOAD_CERT_SHA256 RELEASE_ARTIFACT_DIR="$artifact_dir" \
+      PATH="$work/bin:$PATH" bash scripts/build-release-aab.sh 2>&1)" || status=$?
+  fi
+  [[ "$status" != "0" ]] || { echo "$label: pre-existing target was accepted: $out" >&2; exit 1; }
+  [[ "$(cat "$target")" == "sentinel-$label" ]] \
+    || { echo "$label: pre-existing target was overwritten" >&2; exit 1; }
+  [[ ! -e "$work/prebuild.log" ]] \
+    || { echo "$label: pre-existing target was detected only after prebuild" >&2; exit 1; }
+}
+assert_preexisting_target_preserved accepted-aab '.aab' approved
+assert_preexisting_target_preserved accepted-provenance '.provenance.json' approved
+assert_preexisting_target_preserved rejected-aab '.NOT-RELEASE-READY-exit7.aab' missing
+assert_preexisting_target_preserved rejected-provenance '.NOT-RELEASE-READY-exit7.provenance.json' missing
+
+# An assessor infrastructure failure may return before writing provenance. The builder must preserve
+# that exact exit without publishing an accepted or rejected final name from incomplete evidence.
+cp "$sandbox/scripts/assess-release-aab.sh" "$work/real-assess-release-aab.sh"
+cat >"$sandbox/scripts/assess-release-aab.sh" <<'STUB'
+#!/usr/bin/env bash
+echo 'assessor fixture failed before provenance' >&2
+exit 23
+STUB
+chmod +x "$sandbox/scripts/assess-release-aab.sh"
+incomplete_artifacts="$work/incomplete-artifacts"
+status=0
+out="$(cd "$sandbox" && env RELEASE_ARTIFACT_DIR="$incomplete_artifacts" \
+  UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
+  bash scripts/build-release-aab.sh 2>&1)" || status=$?
+cp "$work/real-assess-release-aab.sh" "$sandbox/scripts/assess-release-aab.sh"
+[[ "$status" == "23" ]] || { echo "incomplete assessment: expected exit 23, got $status: $out" >&2; exit 1; }
+incomplete_base="$incomplete_artifacts/app-release-$short_commit"
+[[ ! -e "$incomplete_base.aab" && ! -e "$incomplete_base.provenance.json" ]] \
+  || { echo 'incomplete assessment published an accepted final name' >&2; exit 1; }
+find "$incomplete_artifacts" -maxdepth 1 -name 'app-release-*.NOT-RELEASE-READY-*' -print -quit \
+  | grep -q . && { echo 'incomplete assessment published a rejected final name' >&2; exit 1; }
+incomplete_aab="$(sed -n 's/^AAB retained after incomplete assessment: //p' <<<"$out")"
+[[ -f "$incomplete_aab" ]] || { echo "incomplete assessment lost its AAB: $out" >&2; exit 1; }
+
+# If a target appears after the preflight but before the second publish, the first published link is
+# rolled back, the raced-in sentinel is untouched, and the assessor's original rejection wins.
+actual_ln="$(command -v ln)"
+mkdir -p "$work/race-bin"
+cat >"$work/race-bin/ln" <<STUB
+#!/usr/bin/env bash
+if [[ "\$2" == *.provenance.json ]]; then
+  printf 'race-sentinel\n' >"\$2"
+fi
+exec '$actual_ln' "\$@"
+STUB
+chmod +x "$work/race-bin/ln"
+race_artifacts="$work/race-artifacts"
+race_base="$race_artifacts/app-release-$short_commit.NOT-RELEASE-READY-exit7"
+status=0
+out="$(cd "$sandbox" && env -u UPLOAD_CERT_SHA256 RELEASE_ARTIFACT_DIR="$race_artifacts" \
+  PATH="$work/race-bin:$work/bin:$PATH" bash scripts/build-release-aab.sh 2>&1)" || status=$?
+[[ "$status" == "7" ]] || { echo "publish race: expected assessor exit 7, got $status: $out" >&2; exit 1; }
+[[ ! -e "$race_base.aab" ]] || { echo 'publish race left a partial rejected AAB' >&2; exit 1; }
+[[ "$(cat "$race_base.provenance.json")" == race-sentinel ]] \
+  || { echo 'publish race overwrote the provenance sentinel' >&2; exit 1; }
+race_staged_aab="$(find "$race_artifacts" -type f -name 'app-release-*.aab' -print -quit)"
+[[ -f "$race_staged_aab" ]] || { echo 'publish race did not retain the staged AAB' >&2; exit 1; }
+
+accepted_artifacts="$work/accepted-artifacts"
+status=0
+out="$(cd "$sandbox" && env APP_VARIANT=production RELEASE_ARTIFACT_DIR="$accepted_artifacts" \
+  UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
   bash scripts/build-release-aab.sh --restore-dev 2>&1)" || status=$?
 [[ "$status" == "0" ]] || { echo "build flow: expected exit 0, got $status: $out" >&2; exit 1; }
 reported="$(sed -n 's/^AAB: //p' <<<"$out")"
@@ -141,8 +258,10 @@ grep -qF 'Release readiness: NOT_RUN' <<<"$out" \
 
 # A rejected build keeps the paired evidence under a name that states only the automated verdict.
 : >"$work/prebuild.log"
+rejected_artifacts="$work/rejected-artifacts"
 status=0
-out="$(cd "$sandbox" && env -u UPLOAD_CERT_SHA256 PATH="$work/bin:$PATH" \
+out="$(cd "$sandbox" && env -u UPLOAD_CERT_SHA256 RELEASE_ARTIFACT_DIR="$rejected_artifacts" \
+  PATH="$work/bin:$PATH" \
   bash scripts/build-release-aab.sh --restore-dev 2>&1)" || status=$?
 [[ "$status" == "7" ]] || { echo "rejected build: expected exit 7, got $status: $out" >&2; exit 1; }
 rejected_reported="$(sed -n 's/^AAB: //p' <<<"$out")"
@@ -161,6 +280,9 @@ const artifact = readFileSync(artifactPath);
 const record = JSON.parse(readFileSync(provenancePath, 'utf8'));
 const digest = createHash('sha256').update(artifact).digest('hex');
 if (record.artifact.sha256 !== digest) throw new Error('rejected provenance digest does not match retained AAB');
+if (record.artifact.basename !== require('node:path').basename(artifactPath)) {
+  throw new Error('rejected provenance basename does not match retained AAB');
+}
 if (record.signature.status !== 'FAIL' || record.signature.exitCode !== 7) {
   throw new Error('rejected provenance did not preserve the signature failure');
 }

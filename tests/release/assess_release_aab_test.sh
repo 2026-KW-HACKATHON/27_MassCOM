@@ -272,6 +272,42 @@ writer_args=(
 node "$writer" --output "$work/writer-a.json" "${writer_args[@]}"
 node "$writer" --output "$work/writer-b.json" "${writer_args[@]}"
 cmp "$work/writer-a.json" "$work/writer-b.json"
+finalized_basename='tiny-release.NOT-RELEASE-READY-exit7.aab'
+node "$writer" \
+  --input "$work/writer-a.json" \
+  --output "$work/writer-finalized.json" \
+  --finalize-artifact-basename "$finalized_basename"
+node - "$work/writer-a.json" "$work/writer-finalized.json" "$finalized_basename" <<'NODE'
+const fs = require('node:fs');
+const [inputPath, outputPath, expectedBasename] = process.argv.slice(2);
+const input = JSON.parse(fs.readFileSync(inputPath, 'utf8'));
+const output = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+if (output.artifact.basename !== expectedBasename) throw new Error('finalized basename was not applied');
+output.artifact.basename = input.artifact.basename;
+if (JSON.stringify(output) !== JSON.stringify(input)) throw new Error('finalization changed fields other than basename');
+NODE
+
+printf 'finalization-sentinel\n' >"$work/existing-finalized.json"
+status=0
+error="$(node "$writer" \
+  --input "$work/writer-a.json" \
+  --output "$work/existing-finalized.json" \
+  --finalize-artifact-basename "$finalized_basename" 2>&1)" || status=$?
+[[ "$status" != 0 ]] || { echo 'finalization overwrote an existing output' >&2; exit 1; }
+grep -qF 'provenance output already exists' <<<"$error" \
+  || { echo "finalization collision failed for an unrelated reason: $error" >&2; exit 1; }
+[[ "$(cat "$work/existing-finalized.json")" == finalization-sentinel ]] \
+  || { echo 'finalization changed an existing output' >&2; exit 1; }
+
+printf 'writer-sentinel\n' >"$work/existing-writer.json"
+status=0
+error="$(node "$writer" --output "$work/existing-writer.json" "${writer_args[@]}" 2>&1)" || status=$?
+[[ "$status" != 0 ]] || { echo 'writer overwrote an existing output' >&2; exit 1; }
+grep -qF 'provenance output already exists' <<<"$error" \
+  || { echo "writer collision failed for an unrelated reason: $error" >&2; exit 1; }
+[[ "$(cat "$work/existing-writer.json")" == writer-sentinel ]] \
+  || { echo 'writer changed an existing output' >&2; exit 1; }
+
 node "$writer" --output "$work/release-ready.json" "${writer_args[@]}" \
   --release-readiness-status PASS --release-readiness-pending ''
 node -e \

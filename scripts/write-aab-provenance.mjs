@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 
-import { existsSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  linkSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { basename, dirname, join, resolve } from 'node:path';
 
 const allowedOptions = new Set([
@@ -22,6 +31,8 @@ const allowedOptions = new Set([
   'release-readiness-status',
   'release-readiness-pending',
   'generated-at',
+  'input',
+  'finalize-artifact-basename',
 ]);
 
 function parseArguments(argv) {
@@ -80,12 +91,75 @@ function validateAutomatedVerdict(verdict, label) {
   }
 }
 
+function canonicalOutputPath(outputPath) {
+  return join(realpathSync(dirname(resolve(outputPath))), basename(outputPath));
+}
+
+function writeRecordAtomically(outputPath, record) {
+  const outputCanonicalPath = canonicalOutputPath(outputPath);
+  const temporaryPath = join(
+    dirname(outputCanonicalPath),
+    `.${basename(outputCanonicalPath)}.${randomUUID()}.tmp`,
+  );
+  try {
+    writeFileSync(temporaryPath, `${JSON.stringify(record, null, 2)}\n`, {
+      encoding: 'utf8',
+      flag: 'wx',
+      mode: 0o600,
+    });
+    linkSync(temporaryPath, outputCanonicalPath);
+  } catch (error) {
+    if (error?.code === 'EEXIST') {
+      throw new Error(`provenance output already exists: ${outputCanonicalPath}`);
+    }
+    throw error;
+  } finally {
+    if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
+  }
+}
+
 const options = parseArguments(process.argv.slice(2));
 const outputPath = required(options, 'output');
+if (options.has('finalize-artifact-basename')) {
+  const finalizationOptions = new Set(['input', 'output', 'finalize-artifact-basename']);
+  for (const option of options.keys()) {
+    if (!finalizationOptions.has(option)) {
+      throw new Error(`finalization does not accept option: --${option}`);
+    }
+  }
+  const inputPath = required(options, 'input');
+  if (!existsSync(inputPath)) throw new Error(`provenance input does not exist: ${inputPath}`);
+  const inputCanonicalPath = realpathSync(inputPath);
+  const outputCanonicalPath = canonicalOutputPath(outputPath);
+  if (inputCanonicalPath === outputCanonicalPath) {
+    throw new Error('finalized provenance output must differ from its input');
+  }
+  const finalArtifactBasename = required(options, 'finalize-artifact-basename');
+  if (
+    basename(finalArtifactBasename) !== finalArtifactBasename ||
+    !finalArtifactBasename.endsWith('.aab')
+  ) {
+    throw new Error('final artifact basename must be a basename ending in .aab');
+  }
+  const record = JSON.parse(readFileSync(inputCanonicalPath, 'utf8'));
+  if (record?.schema !== 'masscom.aab-provenance.v1' || typeof record?.artifact !== 'object') {
+    throw new Error('provenance input does not use the supported schema');
+  }
+  if (!/^[0-9a-f]{64}$/i.test(record.artifact.sha256 ?? '')) {
+    throw new Error('provenance input has an invalid artifact sha256');
+  }
+  if (!Number.isSafeInteger(record.artifact.bytes) || record.artifact.bytes < 0) {
+    throw new Error('provenance input has invalid artifact bytes');
+  }
+  record.artifact.basename = finalArtifactBasename;
+  writeRecordAtomically(outputCanonicalPath, record);
+  process.exit(0);
+}
+
 const artifactPath = required(options, 'artifact');
 if (!existsSync(artifactPath)) throw new Error(`artifact does not exist: ${artifactPath}`);
 const artifactCanonicalPath = realpathSync(artifactPath);
-const outputCanonicalPath = join(realpathSync(dirname(resolve(outputPath))), basename(outputPath));
+const outputCanonicalPath = canonicalOutputPath(outputPath);
 const artifactStat = statSync(artifactPath);
 let sameExistingInode = false;
 if (existsSync(outputPath)) {
@@ -195,4 +269,4 @@ if (
   );
 }
 
-writeFileSync(outputPath, `${JSON.stringify(record, null, 2)}\n`);
+writeRecordAtomically(outputCanonicalPath, record);

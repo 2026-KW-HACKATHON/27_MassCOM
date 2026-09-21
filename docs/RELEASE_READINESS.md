@@ -21,7 +21,7 @@
 
 ## Release artifact와 provenance
 
-`scripts/build-release-aab.sh [--restore-dev]`는 `apps/mobile/release-artifacts/` 또는 `RELEASE_ARTIFACT_DIR`에 `app-release-<short-sha>.aab`와 `app-release-<short-sha>.provenance.json`을 한 쌍으로 보존합니다. provenance에는 다음 공개 증거만 들어갑니다.
+`scripts/build-release-aab.sh [--restore-dev]`는 기본 `apps/mobile/release-artifacts/` 또는 운영자가 지정한 `RELEASE_ARTIFACT_DIR`에 `app-release-<short-sha>.aab`와 `app-release-<short-sha>.provenance.json`을 한 쌍으로 보존합니다. provenance에는 다음 공개 증거만 들어갑니다.
 
 - artifact basename·SHA-256·byte 크기
 - source commit·`apps/mobile` dirty 여부
@@ -30,9 +30,11 @@
 - `releaseReadiness.status`와 남은 A02 설치·App Links·Play upload/review gate
 - 생성 시각
 
-keystore 경로·비밀번호·개인키는 provenance 대상이 아닙니다. 현재 schema는 artifact 절대 경로가 아닌 basename만 저장합니다. provenance에 개인 로컬 filesystem 경로가 드러나면 그 파일을 커밋하지 말고 생성 경로를 점검합니다. release artifact 디렉터리는 gitignored이며, 공개·커밋 여부는 내용 검토 뒤 별도로 결정합니다.
+keystore 경로·비밀번호·개인키는 provenance 대상이 아닙니다. 현재 schema는 artifact 절대 경로가 아닌 basename만 저장합니다. provenance에 개인 로컬 filesystem 경로가 드러나면 그 파일을 커밋하지 말고 생성 경로를 점검합니다. 기본 `apps/mobile/release-artifacts/`만 저장소에서 gitignored입니다. 사용자 지정 `RELEASE_ARTIFACT_DIR`는 자동으로 ignore되지 않으므로 운영자가 접근 권한·ignore·보존 정책을 책임집니다.
 
 자동 gate가 exit `N`으로 실패하면 두 파일은 삭제되지 않고 `app-release-<short-sha>.NOT-RELEASE-READY-exitN.aab`와 같은 basename의 `.provenance.json`으로 함께 이동합니다. 이 이름은 자동 판단 실패를 뜻할 뿐 Play의 최종 심사 판단이 아닙니다.
+
+동일 commit의 accepted/rejected 최종 파일이 이미 있으면 script는 기존 증거를 덮지 않고 prebuild 전에 중단합니다. 기존 파일을 검토·보관하거나 비어 있는 별도 artifact 디렉터리를 지정한 뒤 다시 실행합니다.
 
 증거 단계는 다음처럼 구분합니다.
 
