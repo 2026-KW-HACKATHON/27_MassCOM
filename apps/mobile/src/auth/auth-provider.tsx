@@ -39,6 +39,7 @@ export type AuthSessionContextValue = {
   signIn(): Promise<void>;
   logout(): Promise<void>;
   switchAccount(): Promise<void>;
+  invalidateSession(): Promise<void>;
 };
 
 const AuthSessionContext = createContext<AuthSessionContextValue | undefined>(undefined);
@@ -153,6 +154,10 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     async switchAccount() {
       if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
       await controllerRef.current.switchAccount();
+    },
+    async invalidateSession() {
+      if (!session || !controllerRef.current) return;
+      await controllerRef.current.invalidateSession(session.sessionToken);
     },
   }), [accountId, appKit, credential, session, state]);
 

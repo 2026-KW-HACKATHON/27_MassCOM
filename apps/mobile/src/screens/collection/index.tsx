@@ -69,21 +69,31 @@ export function CollectionScreen({
 
   useEffect(() => {
     if (polling?.mode !== 'polling') return;
-    const timer = setInterval(() => {
-      void api
-        .getCollection()
-        .then((next) => {
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      try {
+        const next = await api.getCollection();
+        if (active) {
           setPolling((current) => current
             ? nextPollingState(current, { type: 'success', snapshot: next })
             : initialPollingState(next));
-        })
-        .catch(() => {
+        }
+      } catch {
+        if (active) {
           setPolling((current) => current
             ? nextPollingState(current, { type: 'failure' })
             : current);
-        });
-    }, 3_000);
-    return () => clearInterval(timer);
+        }
+      } finally {
+        if (active) timer = setTimeout(() => void poll(), 3_000);
+      }
+    }
+    timer = setTimeout(() => void poll(), 3_000);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [api, polling?.mode]);
 
   async function refresh() {

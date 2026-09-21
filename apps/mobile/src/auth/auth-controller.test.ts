@@ -130,6 +130,90 @@ test('revokes a newly issued server session if secure storage save fails', async
   });
 });
 
+test('clears a partially written session even when server revocation also fails', async () => {
+  let persisted: StoredAuthSessionV1 | undefined;
+  const f = fixture({
+    sessionStore: {
+      async load() { return persisted; },
+      async save(session) {
+        persisted = session;
+        throw new AuthStorageError('WRITE_FAILED');
+      },
+      async clear() {
+        f.calls.push('store.clear');
+        persisted = undefined;
+      },
+    },
+    authApi: {
+      async signIn() {
+        f.calls.push('api.signIn');
+        return newSession;
+      },
+      async logout() {
+        f.calls.push('api.logout:new-session');
+        throw new Error('network unavailable');
+      },
+    },
+  });
+  const controller = createAuthController(f.dependencies);
+  await assert.rejects(controller.signIn(), /SECURE_STORAGE_UNAVAILABLE/);
+  assert.equal(persisted, undefined);
+  assert.deepEqual(f.calls, [
+    'google.signIn',
+    'api.signIn',
+    'store.clear',
+    'api.logout:new-session',
+  ]);
+});
+
+test('serializes overlapping sign-ins so memory and storage cannot select different accounts', async () => {
+  let googleCalls = 0;
+  let stored: StoredAuthSessionV1 | undefined;
+  let releaseFirstSave!: () => void;
+  let firstSaveStarted!: () => void;
+  const firstSave = new Promise<void>((resolve) => { releaseFirstSave = resolve; });
+  const started = new Promise<void>((resolve) => { firstSaveStarted = resolve; });
+  const f = fixture({
+    google: {
+      async signIn() {
+        googleCalls += 1;
+        return { idToken: `google-${googleCalls}` };
+      },
+      async signOut() {},
+    },
+    authApi: {
+      async signIn(idToken) {
+        return idToken === 'google-1'
+          ? { ...oldSession, sessionToken: 'session-1', accountId: 'account-1' }
+          : { ...newSession, sessionToken: 'session-2', accountId: 'account-2' };
+      },
+      async logout() {},
+    },
+    sessionStore: {
+      async load() { return stored; },
+      async save(session) {
+        stored = session;
+        if (session.sessionToken === 'session-1') {
+          firstSaveStarted();
+          await firstSave;
+        }
+      },
+      async clear() { stored = undefined; },
+    },
+  });
+  const controller = createAuthController(f.dependencies);
+  const first = controller.signIn();
+  await started;
+  const second = controller.signIn();
+  releaseFirstSave();
+  await Promise.all([first, second]);
+  assert.equal(googleCalls, 1);
+  const finalState = controller.getState();
+  assert.equal(finalState.status, 'signedIn');
+  if (finalState.status !== 'signedIn') return;
+  assert.equal(finalState.session.sessionToken, stored?.sessionToken);
+});
+
 test('logout clears local and wallet state even when the server is unreachable', async () => {
   const f = fixture({
     authApi: {
@@ -172,6 +256,51 @@ test('switch account finishes old cleanup before starting new Google login', asy
     status: 'signedIn',
     session: newSession,
     credential: { kind: 'bearer', sessionToken: 'new-session' },
+  });
+});
+
+test('ignores a stale invalidation after account switch and serializes an extra login tap', async () => {
+  const f = fixture();
+  const controller = createAuthController(f.dependencies);
+  await controller.restore();
+  await Promise.all([controller.switchAccount(), controller.signIn()]);
+  await controller.invalidateSession('old-session');
+  const finalState = controller.getState();
+  assert.equal(finalState.status, 'signedIn');
+  if (finalState.status !== 'signedIn') return;
+  assert.equal(finalState.session.sessionToken, 'new-session');
+  assert.equal(f.calls.filter((call) => call === 'google.signIn').length, 1);
+});
+
+test('stops logout and switch success when local wallet storage cannot be purged', async () => {
+  const f = fixture({
+    async clearWalletSession() {
+      f.calls.push('wallet.clear');
+      throw new Error('local storage unavailable');
+    },
+  });
+  const controller = createAuthController(f.dependencies);
+  await controller.restore();
+  await assert.rejects(controller.logout(), /WALLET_STORAGE_CLEANUP_FAILED/);
+  assert.deepEqual(controller.getState(), {
+    status: 'signedOut',
+    reason: 'WALLET_STORAGE_CLEANUP_FAILED',
+  });
+});
+
+test('rejects an account switch that returns the same server account', async () => {
+  const f = fixture({
+    authApi: {
+      async signIn() { return { ...oldSession, sessionToken: 'replacement-session' }; },
+      async logout(token) { f.calls.push(`api.logout:${token}`); },
+    },
+  });
+  const controller = createAuthController(f.dependencies);
+  await controller.restore();
+  await assert.rejects(controller.switchAccount(), /ACCOUNT_SWITCH_UNCHANGED/);
+  assert.deepEqual(controller.getState(), {
+    status: 'signedOut',
+    reason: 'ACCOUNT_SWITCH_UNCHANGED',
   });
 });
 

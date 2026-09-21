@@ -55,6 +55,7 @@ export function initialPollingState(snapshot: CollectionSnapshot): PollingState 
 }
 
 export function nextPollingState(current: PollingState, event: PollingEvent): PollingState {
+  if (current.mode === 'complete') return current;
   if (event.type === 'failure') {
     const consecutiveFailures = current.consecutiveFailures + 1;
     return {

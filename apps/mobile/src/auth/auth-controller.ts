@@ -6,7 +6,9 @@ import type { StoredAuthSessionV1, createSessionStore } from './session-store';
 export type SignedOutReason =
   | 'SECURE_STORAGE_UNAVAILABLE'
   | 'GOOGLE_SIGN_IN_CANCELLED'
-  | 'SIGN_IN_FAILED';
+  | 'SIGN_IN_FAILED'
+  | 'WALLET_STORAGE_CLEANUP_FAILED'
+  | 'ACCOUNT_SWITCH_UNCHANGED';
 
 export type AuthState =
   | { status: 'restoring' }
@@ -37,13 +39,20 @@ export class AuthControllerError extends Error {
 
 export function createAuthController(dependencies: AuthControllerDependencies) {
   let state: AuthState = { status: 'restoring' };
+  let operationTail: Promise<void> = Promise.resolve();
 
   function setState(next: AuthState) {
     state = next;
     dependencies.publish(next);
   }
 
-  async function restore(): Promise<void> {
+  function serialize(work: () => Promise<void>): Promise<void> {
+    const result = operationTail.then(work, work);
+    operationTail = result.catch(() => undefined);
+    return result;
+  }
+
+  async function performRestore(): Promise<void> {
     setState({ status: 'restoring' });
     try {
       const session = await dependencies.sessionStore.load();
@@ -53,52 +62,83 @@ export function createAuthController(dependencies: AuthControllerDependencies) {
     }
   }
 
-  async function signIn(): Promise<void> {
+  async function performSignIn(previousAccountId?: string): Promise<void> {
     let issued: StoredAuthSessionV1 | undefined;
     try {
       const google = await dependencies.google.signIn();
       issued = await dependencies.authApi.signIn(google.idToken);
+      if (previousAccountId && issued.accountId === previousAccountId) {
+        await dependencies.authApi.logout(issued.sessionToken).catch(() => undefined);
+        issued = undefined;
+        setState({ status: 'signedOut', reason: 'ACCOUNT_SWITCH_UNCHANGED' });
+        throw new AuthControllerError('ACCOUNT_SWITCH_UNCHANGED');
+      }
       await dependencies.sessionStore.save(issued);
       setState(signedIn(issued));
     } catch (error) {
-      if (issued) await dependencies.authApi.logout(issued.sessionToken).catch(() => undefined);
+      if (issued) {
+        await dependencies.sessionStore.clear().catch(() => undefined);
+        await dependencies.authApi.logout(issued.sessionToken).catch(() => undefined);
+      }
       const reason = authFailureReason(error);
       setState({ status: 'signedOut', reason });
       throw new AuthControllerError(reason);
     }
   }
 
-  async function clearCurrentSession(session?: StoredAuthSessionV1): Promise<void> {
+  async function clearCurrentSession(
+    session: StoredAuthSessionV1 | undefined,
+    publishSignedOut: boolean,
+  ): Promise<void> {
     if (session) await dependencies.authApi.logout(session.sessionToken).catch(() => undefined);
     let storageFailed = false;
     await dependencies.sessionStore.clear().catch(() => {
       storageFailed = true;
     });
-    await dependencies.clearWalletSession().catch(() => undefined);
+    let walletStorageFailed = false;
+    await dependencies.clearWalletSession().catch(() => {
+      walletStorageFailed = true;
+    });
     await dependencies.google.signOut().catch(() => undefined);
-    setState(storageFailed
-      ? { status: 'signedOut', reason: 'SECURE_STORAGE_UNAVAILABLE' }
-      : { status: 'signedOut' });
+    const reason = walletStorageFailed
+      ? 'WALLET_STORAGE_CLEANUP_FAILED'
+      : storageFailed
+        ? 'SECURE_STORAGE_UNAVAILABLE'
+        : undefined;
+    if (publishSignedOut || reason) {
+      setState(reason ? { status: 'signedOut', reason } : { status: 'signedOut' });
+    }
+    if (reason) throw new AuthControllerError(reason);
   }
 
-  async function logout(): Promise<void> {
+  async function performLogout(): Promise<void> {
     const session = state.status === 'signedIn' ? state.session : undefined;
-    await clearCurrentSession(session);
+    await clearCurrentSession(session, true);
   }
 
-  async function switchAccount(): Promise<void> {
+  async function performSwitchAccount(): Promise<void> {
     const session = state.status === 'signedIn' ? state.session : undefined;
     if (session) setState({ status: 'switchingAccount', previousAccountId: session.accountId });
-    await clearCurrentSession(session);
-    await signIn();
+    await clearCurrentSession(session, false);
+    await performSignIn(session?.accountId);
+  }
+
+  async function performInvalidation(sessionToken: string): Promise<void> {
+    if (state.status !== 'signedIn' || state.session.sessionToken !== sessionToken) return;
+    await clearCurrentSession(state.session, true);
   }
 
   return {
     getState: () => state,
-    restore,
-    signIn,
-    logout,
-    switchAccount,
+    restore: () => serialize(performRestore),
+    signIn: () => serialize(async () => {
+      if (state.status === 'signedIn' || state.status === 'switchingAccount') return;
+      await performSignIn();
+    }),
+    logout: () => serialize(performLogout),
+    switchAccount: () => serialize(performSwitchAccount),
+    invalidateSession: (sessionToken: string) =>
+      serialize(() => performInvalidation(sessionToken)),
   };
 }
 
@@ -111,6 +151,7 @@ function signedIn(session: StoredAuthSessionV1): Extract<AuthState, { status: 's
 }
 
 function authFailureReason(error: unknown): SignedOutReason {
+  if (error instanceof AuthControllerError) return error.code;
   if (
     typeof error === 'object'
     && error !== null

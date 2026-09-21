@@ -644,7 +644,6 @@ async function findRedeemedClaim(
      FROM reward_entitlements
      WHERE customer_account_id = $1
        AND source_visit_event_id = $2
-       AND status = 'GRANTED'
      ORDER BY target_visit_count`,
     [accountId, replay.visit_event_id],
   );

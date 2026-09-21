@@ -140,6 +140,24 @@ test('Q01 R01 R03 redeem creates one visit effect per QR and grants fixed goals 
   assert.equal(recovered.claimSlotId, first.claimSlotId);
   assert.equal(recovered.visit.visitEventId, first.visit.visitEventId);
   assert.deepEqual(recovered.grantedRewards, first.grantedRewards);
+  await pool.query(
+    `UPDATE reward_entitlements
+     SET status = 'MINT_REQUESTED', updated_at = now()
+     WHERE source_visit_event_id = $1`,
+    [first.visit.visitEventId],
+  );
+  const recoveredAfterMintRequest = await service.redeem({
+    accountId: 'customer-1',
+    token: firstSlot.token,
+  });
+  assert.equal(recoveredAfterMintRequest.replayed, true);
+  assert.deepEqual(recoveredAfterMintRequest.grantedRewards, first.grantedRewards);
+  await pool.query(
+    `UPDATE reward_entitlements
+     SET status = 'GRANTED', updated_at = now()
+     WHERE source_visit_event_id = $1`,
+    [first.visit.visitEventId],
+  );
   await assert.rejects(
     service.redeem({ accountId: 'different-customer', token: firstSlot.token }),
     { code: 'CLAIM_TOKEN_UNAVAILABLE' },

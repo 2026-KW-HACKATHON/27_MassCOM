@@ -18,7 +18,7 @@ export default function RecommendationsRoute() {
       key={auth.accountId}
       apiUrl={publicApiConfig.apiUrl}
       credential={auth.credential}
-      onSessionInvalid={auth.logout}
+      onSessionInvalid={auth.invalidateSession}
     />
   );
 }

@@ -73,6 +73,12 @@ function reasonMessage(state: Props['state']): string {
     return '기기 보안 저장소를 사용할 수 없어 로그인 정보를 복원하지 않았습니다.';
   }
   if (state.reason === 'GOOGLE_SIGN_IN_CANCELLED') return 'Google 로그인을 취소했습니다.';
+  if (state.reason === 'ACCOUNT_SWITCH_UNCHANGED') {
+    return '같은 Google 계정을 다시 선택했습니다. 다른 계정으로 바꾸려면 다시 시도해 주세요.';
+  }
+  if (state.reason === 'WALLET_STORAGE_CLEANUP_FAILED') {
+    return '이 기기의 이전 지갑 연결 정보를 모두 지우지 못해 계정 전환을 중지했습니다.';
+  }
   return '로그인을 완료하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.';
 }
 

@@ -15,7 +15,7 @@ export default function WalletLinkRoute() {
       key={auth.accountId}
       config={walletRuntimeConfig}
       credential={auth.credential}
-      onSessionInvalid={auth.logout}
+      onSessionInvalid={auth.invalidateSession}
     />
   );
 }

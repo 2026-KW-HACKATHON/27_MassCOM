@@ -85,6 +85,15 @@ test('finalized transition completes polling with an explicit message', () => {
   );
 });
 
+test('finalized polling state is monotonic under stale success and failure completions', () => {
+  const complete = nextPollingState(initialPollingState(pendingSnapshot), {
+    type: 'success',
+    snapshot: finalizedSnapshot,
+  });
+  assert.equal(nextPollingState(complete, { type: 'success', snapshot: pendingSnapshot }), complete);
+  assert.equal(nextPollingState(complete, { type: 'failure' }), complete);
+});
+
 function snapshot(nftStatus: CollectionSnapshot['collectibles'][number]['nftStatus']): CollectionSnapshot {
   return {
     visits: [],
