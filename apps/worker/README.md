@@ -4,7 +4,7 @@ PostgreSQL Outbox의 mint job을 임대해 계약 설정·기존 reward key·rec
 
 체인 확인이 초기 lease보다 오래 걸려도 Worker가 1/3 주기로 lease를 갱신합니다. 소유권 갱신에 실패한 Worker는 다음 신규 전송 전에 중단하며, 다른 Worker는 기존 reward key와 transaction hash부터 복구합니다.
 
-현재 실행 entrypoint는 **로컬 Anvil 전용**입니다. `CHAIN_ID=31337`과 `ALLOW_UNLOCKED_LOCAL_MINTER=true`가 아니면 시작하지 않습니다. 운영 키·Base Sepolia·메인넷 실행 경로가 아닙니다.
+기본 로컬 예시는 Anvil이며 `CHAIN_ID=31337`에서는 `ALLOW_UNLOCKED_LOCAL_MINTER=true`가 있어야만 RPC의 잠금 해제 계정을 사용합니다. 공개 체인 경로는 Base Sepolia `CHAIN_ID=84532`와 저장소 밖 암호화 keystore를 함께 요구합니다. 다른 체인과 raw private key 환경변수는 거절합니다. 서비스 민터 코드는 로컬 Anvil에서 검증됐지만 실제 Base Sepolia 전송은 `NOT_RUN`입니다.
 
 ```bash
 npm ci
@@ -37,7 +37,7 @@ Worker가 재시작해 저장된 거래 hash를 다시 확인할 때도 신규 �
 
 일시 장애는 작업을 수동 검토로 보내지 않습니다. RPC 연결 불가는 `RPC_UNAVAILABLE`, 계약 중지는 `MINT_PAUSED`, 민터 잔액이 `MINTER_MIN_BALANCE_WEI`(기본 0) 이하이면 `MINTER_BALANCE_LOW`로 물러나 작업은 `RETRYABLE`로 남고 전송 시도를 소모하지 않습니다. 중지·잔액 검사는 신규 전송 직전에만 하므로 이미 제출됐거나 체인에 발행된 작업의 확인·완료는 계속됩니다. 다른 chain ID·계약 code 없음·MINTER role 없음, 그리고 code는 있지만 인터페이스가 다른 계약(`CONTRACT_INTERFACE_MISMATCH`, EVM 반환 데이터가 있는 revert나 해석할 수 없는 응답일 때만) 같은 설정 오류는 재시도하지 않고 `MANUAL_REVIEW`입니다. 연속 재시도는 `retry_streak`에 기록해 지연을 1초부터 최대 5분까지 두 배씩 늘리며, 이 값은 수동 검토 전환에 쓰지 않아 장기 발행 중지에서도 작업은 `RETRYABLE`로 남습니다. 제출한 거래가 revert됐고 기존 발행도 없으면 중지·잔액·RPC를 다시 확인해 일시 조건이면 revert된 거래 hash를 지우고 재시도합니다. 재확인 시점에 조건이 이미 풀렸다면 기존처럼 `MANUAL_REVIEW`입니다.
 
-`CHAIN_REORG_MARGIN`은 1 이상의 블록 수이며 기본값은 12입니다. 현재 entrypoint는 로컬 Anvil 전용이므로 공개 체인 운영 전에는 해당 체인의 finality 정책과 RPC 조회 한도에 맞춰 다시 결정해야 합니다.
+`CHAIN_REORG_MARGIN`은 1 이상의 블록 수이며 기본값은 12입니다. 공개 체인 운영 전에는 해당 체인의 finality 정책과 RPC 조회 한도에 맞춰 다시 결정해야 합니다.
 
 ## 공개 테스트넷 서비스 민터(Base Sepolia 84532)
 
@@ -49,12 +49,14 @@ Worker가 재시작해 저장된 거래 hash를 다시 확인할 때도 신규 �
 | `MINTER_KEYSTORE_PASSWORD_FILE` | 비밀번호가 든 파일 경로(권한 600 이하). 비밀번호를 환경변수 값으로 받지 않음 |
 | `CHAIN_RECEIPT_TIMEOUT_MS` | 보낸 거래의 결과 대기 상한(기본 24시간). 전송 불가능한 기록 거래가 같은 민터의 모든 발행을 막는 시간의 상한이기도 하므로 Base Sepolia에서는 분 단위로 낮추는 것을 권장 |
 | `MINTER_MAX_TX_FEE_WEI` | 발행 1건의 최대 수수료(gas 한도×`maxFeePerGas`) 상한, 기본 0.01 ETH. RPC가 비정상적으로 큰 수수료를 돌려주면 서명하지 않고 `FEE_ABOVE_CEILING`으로 재시도 |
+| `MINTER_LOCK_TIMEOUT_MS` | chain+minter advisory lock 대기 상한, 기본 10초·허용 0.5~60초 |
+| `WORKER_DATABASE_POOL_MAX` | Worker PostgreSQL pool 크기, 기본·최소 4·최대 100 |
 
 - 환경에 개인키 변수가 있으면 기동을 거절합니다. 복호화 실패는 `MINTER_KEYSTORE_DECRYPT_FAILED`, 주소 불일치는 `MINTER_ADDRESS_MISMATCH`, 계약에 `MINTER_ROLE`이 없으면 `MINTER_ROLE_MISSING`이며 모두 설정 오류(재시도 안 함)입니다. 오류와 로그에 비밀번호·keystore 내용·키를 넣지 않습니다.
-- **전송 전 기록**: 거래를 먼저 서명해 hash와 서명된 raw 거래(`mint_tx_attempts.signed_transaction`, 공개 정보)를 DB에 기록한 뒤 broadcast합니다. 기록 직후 종료되거나 RPC 응답을 잃어도 재시작한 Worker는 새 거래를 만들지 않고 **같은 서명 거래**를 다시 보내거나 기존 hash를 확인합니다.
-- **nonce**: 같은 민터로 여러 작업·여러 Worker가 돌 때 PostgreSQL advisory lock(체인+민터) 안에서 “결과가 없는 기록된 서명 거래를 오래된 순서로 먼저 전송 → pending nonce 조회 → 서명 → 기록 → 전송”을 직렬화합니다. 체인당 서비스 민터 하나를 전제로 합니다.
+- **전송 전 기록**: 거래를 먼저 서명하고 recovered `from`이 `MINTER_ADDRESS`와 같은지 확인한 뒤 hash와 서명된 raw 거래(`mint_tx_attempts.signed_transaction`, 공개 정보)를 DB에 기록하고 broadcast합니다. 기록 직후 종료되거나 RPC 응답을 잃어도 재시작한 Worker는 새 거래를 만들지 않고 **같은 서명 거래**를 다시 보내거나 기존 hash를 확인합니다.
+- **nonce**: 같은 민터로 여러 작업·여러 Worker가 돌 때 PostgreSQL advisory lock(체인+민터) 안에서 “결과가 없는 기록된 서명 거래를 오래된 순서로 먼저 전송 → pending nonce 조회 → 서명 → 기록 → 전송”을 직렬화합니다. 현재 체인당 서비스 민터 하나를 전제로 합니다. 두 번째 민터를 추가하기 전에는 `mint_jobs`/`mint_tx_attempts`에 minter address를 저장하고 sweep을 chain+minter로 좁히는 migration이 필수입니다.
 - 기록된 거래가 전송될 수 없는 상태(예: 수수료 급등)로 남아 있으면 같은 민터의 다른 작업은 시도 횟수를 쓰지 않고 `MINTER_NONCE_BLOCKED`로 재시도 대기합니다. 이때 Worker는 막고 있는 거래 hash를 오류 로그에 남깁니다. 결과를 모르는 기록 거래가 50건을 넘으면 일부만 보고 nonce를 정하지 않도록 같은 방식으로 멈춥니다(`MINTER_UNCONFIRMED_BACKLOG` → `MINTER_NONCE_BLOCKED`). 그 거래의 작업이 확정되거나 운영자 검토로 닫히면 시도 기록도 함께 닫혀 다음 작업이 진행됩니다. lock 대기가 길어지면 `MINTER_LOCK_TIMEOUT`(시도 횟수 미소모)입니다.
-- 수수료 정보를 받지 못하면 서명하지 않고 `FEE_DATA_UNAVAILABLE`로 재시도합니다(기록되는 것이 없음). gas 한도는 추정값의 1.2배입니다. nonce는 `latest`·`pending`·기록된 미확정 거래의 nonce+1 중 가장 큰 값입니다.
-- keystore·비밀번호 파일은 실제 경로(symlink 해석) 기준으로 저장소 밖이어야 하고, 파일은 권한 600 이하, 상위 디렉터리는 그룹·기타 쓰기 불가여야 합니다. 이름이 개인키·mnemonic·seed phrase로 끝나는 환경변수가 있으면 로컬 경로를 포함해 기동을 거절합니다.
+- 수수료 정보를 받지 못하거나 `0 < maxPriorityFeePerGas <= maxFeePerGas` 관계가 깨지면 서명하지 않고 `FEE_DATA_UNAVAILABLE`로 재시도합니다(기록되는 것이 없음). gas 한도는 추정값의 1.2배입니다. nonce는 `latest`·`pending`·기록된 미확정 거래의 nonce+1 중 가장 큰 값입니다.
+- keystore·비밀번호 파일은 canonical 경로 기준으로 저장소 밖이어야 하고, 파일은 권한 600 이하, 모든 상위 디렉터리는 현재 사용자 또는 root 소유이며 그룹·기타 쓰기 불가여야 합니다(root 소유 sticky 임시 디렉터리 제외). 이름 정규화 뒤 개인키·mnemonic·seed/recovery phrase로 끝나는 환경변수가 있으면 로컬 경로를 포함해 기동을 거절합니다.
 - 대체(가속) 거래는 만들지 않습니다. 오래 채굴되지 않는 거래는 `RECEIPT_TIMEOUT` → 운영자 검토로 갑니다.
 - 실제 Base Sepolia 전송은 아직 하지 않았습니다(로컬 Anvil에서 시험용 keystore로만 검증).

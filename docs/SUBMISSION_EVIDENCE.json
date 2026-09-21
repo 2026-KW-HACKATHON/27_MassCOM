@@ -25,7 +25,8 @@
     "docs/evidence/chain-cursor-recovery.json",
     "docs/evidence/release-wallet-surface.json",
     "docs/evidence/release-signing-injection.json",
-    "docs/evidence/auth-operations-hardening.json"
+    "docs/evidence/auth-operations-hardening.json",
+    "docs/evidence/service-minter-hardening.json"
   ],
   "blocked": [
     "repository public conversion",

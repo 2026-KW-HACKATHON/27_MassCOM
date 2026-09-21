@@ -42,8 +42,11 @@ export type ServiceSignerResolution = { mode: 'service'; signer: Signer; address
 export function assertNoRawPrivateKeyEnv(env: NodeJS.ProcessEnv): void {
   for (const [name, value] of Object.entries(env)) {
     if (value === undefined) continue;
-    const upperName = name.toUpperCase();
-    if (FORBIDDEN_RAW_KEY_ENV_NAME_SUFFIXES.some((suffix) => upperName.endsWith(suffix))) {
+    const normalizedName = name.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const forbidden = FORBIDDEN_RAW_KEY_ENV_NAME_SUFFIXES.some((suffix) =>
+      normalizedName.endsWith(suffix.replace(/[^A-Z0-9]/g, '')),
+    ) || normalizedName.endsWith('RECOVERYPHRASE');
+    if (forbidden) {
       throw new MinterConfigurationError('MINTER_RAW_PRIVATE_KEY_ENV_FORBIDDEN');
     }
   }
@@ -95,18 +98,22 @@ export async function loadServiceSignerFiles(params: {
     params.env.MINTER_KEYSTORE_PASSWORD_FILE,
     'MINTER_KEYSTORE_PASSWORD_FILE',
   );
-  await assertOutsideRepo(keystorePath, params.repoRoot, 'MINTER_KEYSTORE_PATH_INSIDE_REPO');
-  await assertOutsideRepo(
+  const resolvedKeystorePath = await assertOutsideRepo(
+    keystorePath,
+    params.repoRoot,
+    'MINTER_KEYSTORE_PATH_INSIDE_REPO',
+  );
+  const resolvedPasswordFilePath = await assertOutsideRepo(
     passwordFilePath,
     params.repoRoot,
     'MINTER_KEYSTORE_PASSWORD_FILE_INSIDE_REPO',
   );
-  const keystoreJson = await readPrivateFile(keystorePath, {
+  const keystoreJson = await readPrivateFile(resolvedKeystorePath, {
     directoryTooOpen: 'MINTER_KEYSTORE_DIRECTORY_PERMISSIONS_TOO_OPEN',
     permissionsTooOpen: 'MINTER_KEYSTORE_PERMISSIONS_TOO_OPEN',
     unreadable: 'MINTER_KEYSTORE_UNREADABLE',
   });
-  const passwordRaw = await readPrivateFile(passwordFilePath, {
+  const passwordRaw = await readPrivateFile(resolvedPasswordFilePath, {
     directoryTooOpen: 'MINTER_KEYSTORE_PASSWORD_DIRECTORY_PERMISSIONS_TOO_OPEN',
     permissionsTooOpen: 'MINTER_KEYSTORE_PASSWORD_PERMISSIONS_TOO_OPEN',
     unreadable: 'MINTER_KEYSTORE_PASSWORD_UNREADABLE',
@@ -151,7 +158,11 @@ function requiredEnv(value: string | undefined, name: string): string {
  * actually tracked inside it. Both sides are canonicalized with realpath before comparing, so
  * that case is rejected the same as a literally-inside path.
  */
-async function assertOutsideRepo(candidatePath: string, repoRoot: string, code: string): Promise<void> {
+async function assertOutsideRepo(
+  candidatePath: string,
+  repoRoot: string,
+  code: string,
+): Promise<string> {
   if (!isAbsolute(candidatePath)) throw new MinterConfigurationError(code);
   const resolvedRepoRoot = await realpath(resolve(repoRoot));
   const resolvedCandidate = await realpathTolerant(resolve(candidatePath));
@@ -159,6 +170,7 @@ async function assertOutsideRepo(candidatePath: string, repoRoot: string, code: 
   const isInsideRepo =
     relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
   if (isInsideRepo) throw new MinterConfigurationError(code);
+  return resolvedCandidate;
 }
 
 /**
@@ -178,17 +190,26 @@ async function realpathTolerant(candidatePath: string): Promise<string> {
   }
 }
 
-async function assertDirectoryNotWritableByOthers(filePath: string, code: string): Promise<void> {
-  let mode: number;
-  try {
-    mode = (await stat(dirname(filePath))).mode;
-  } catch {
-    throw new MinterConfigurationError(code);
-  }
-  // Group- or world-writable: someone other than the owner could replace or delete this file
-  // regardless of how tight the file's own permissions are.
-  if ((mode & 0o022) !== 0) {
-    throw new MinterConfigurationError(code);
+async function assertDirectoryChainPrivate(filePath: string, code: string): Promise<void> {
+  const currentUid = process.getuid?.();
+  let directory = dirname(filePath);
+  while (true) {
+    let metadata;
+    try {
+      metadata = await stat(directory);
+    } catch {
+      throw new MinterConfigurationError(code);
+    }
+    const stickyRootDirectory = metadata.uid === 0 && (metadata.mode & 0o1000) !== 0;
+    if ((metadata.mode & 0o022) !== 0 && !stickyRootDirectory) {
+      throw new MinterConfigurationError(code);
+    }
+    if (currentUid !== undefined && metadata.uid !== 0 && metadata.uid !== currentUid) {
+      throw new MinterConfigurationError(code);
+    }
+    const parent = dirname(directory);
+    if (parent === directory) return;
+    directory = parent;
   }
 }
 
@@ -201,7 +222,7 @@ async function readPrivateFile(
   path: string,
   codes: { directoryTooOpen: string; permissionsTooOpen: string; unreadable: string },
 ): Promise<string> {
-  await assertDirectoryNotWritableByOthers(path, codes.directoryTooOpen);
+  await assertDirectoryChainPrivate(path, codes.directoryTooOpen);
   let handle;
   try {
     handle = await open(path, 'r');

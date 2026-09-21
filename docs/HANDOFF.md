@@ -1,14 +1,15 @@
 # HANDOFF
 
 마지막 갱신 시각: 2026-09-21 KST
-기준 브랜치: `fix/110-auth-operations`
-기준 main 커밋 SHA: `de2ada8` (PR #109 merge, main CI `35546080271` PASS). 이 문서를 고친 PR이 병합되면 실제 값은 `git log origin/main -1`로 확인한다.
+기준 브랜치: `fix/112-service-minter-hardening`
+기준 main 커밋 SHA: `205d273` (PR #111 merge, main CI `35561417735` PASS). 이 문서를 고친 PR이 병합되면 실제 값은 `git log origin/main -1`로 확인한다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
 
 ## 이번 세션에서 완료한 것
 
 - Issue #110: Google `auth_time` 최근성, JWKS 최대 stale 24시간, `/auth/google` 검증 전 요청 제한, 만료·폐기 세션 bounded cleanup(migration 0013), Play 카메라·NFT award 초안 정합
+- Issue #112: EIP-1559 priority fee 관계·signed sender 대조, raw-key 이름 변형, keystore 전체 상위 경로, lock timeout·pool 설정 보강
 - Issue #59: 체인 cursor에서 `CHAIN_REORG_MARGIN`만큼 되돌아가 조회하고, 못 찾으면 배포 기준 블록까지 다시 조회. cursor 조회 실패는 `CHAIN_CURSOR_READ_FAILED` 재시도 오류. ethers 요청 cache 때문에 Anvil에서 간헐적으로 30초 대기하던 원인 제거
 - Issue #61: Worker 재시도 지수 backoff(1초→최대 5분)와 전송 시도 5회 도달 시 `MANUAL_REVIEW`(`RETRY_LIMIT_EXCEEDED`) 전환. migration 없음
 - Expo 57.0.24·expo-router 57.0.22·@expo/ui 57.0.19 patch 적용. 모바일 moderate 권고 14건은 upstream 수정이 없어 B-008 유지
@@ -78,7 +79,7 @@
 ## 실행한 테스트
 
 - API 단위 `72/72`, API PostgreSQL `37/37`(운영 로그인 보강·R02 7개·Q04 1개 포함)
-- Worker 단위 `41/41`, Worker PostgreSQL `23/23`, Anvil `12/12`(W07 M01~M08 + O02a~e)
+- Worker 단위 `44/44`, Worker PostgreSQL `23/23`, Anvil `12/12`(W07 M01~M08 + O02a~e)
 - 모바일 `57/57`, typecheck·lint·Android export PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - 실제 Base Sepolia RPC 배포 시뮬레이션 PASS(전송 없음), 잘못된 체인·중복 역할 거절 PASS
@@ -129,7 +130,7 @@
    - **faucet gas**: 배포자 `0xFDd1746dcEdE5A796812fBe30fc231059a98c089`, 민터 `0xfDfaB19251Caa5Bd140CdD7F167F6e4De895c355` 잔액 확인(`cast balance <주소> --rpc-url https://sepolia.base.org --ether`). 들어왔으면 역할 주소(admin `0x35ee91BBc75778308B9168Ac6c325df8fF408F04`, minter 위 주소, pauser `0x1a050f7c6Fe0dDcDD78554b488d41cFd4A2CcFB6`)로 시뮬레이션 → 소유자가 비밀번호를 입력하는 `--broadcast` → 계약·역할 검증 → `docs/evidence/base-sepolia-deployment.json` 커밋. 그 뒤 Worker 서비스 민터 경로(Issue #100)로 시험망 발행 1건을 검증한다(민터 keystore 경로·비밀번호 파일은 소유자가 준비)
    - **Google OAuth client ID**: 받으면 모바일의 `x-account-id` DEMO 헤더를 Bearer 세션으로 교체하는 Issue를 연다(서버 측은 Issue #106으로 완료, D-024~D-026)
    - upload keystore와 인증서 지문, 호스팅·도메인 결정(`docs/HOSTING_LOGIN_PROPOSAL.md`)
-3. 입력이 없으면 승인 없이 가능한 일: 서비스 민터 리뷰의 남은 LOW 항목(환경변수 이름 패턴, 상위 디렉터리 소유자·권한, 서명 거래의 from 확인, lock timeout·pool 크기 설정화), A01의 실제 촬영→수령 실기(사람이 기기를 들어야 함)
+3. 입력이 없으면 승인 없이 가능한 일: A01의 실제 촬영→수령·오프라인 실기(사람이 기기를 들어야 함). 서비스 민터의 다중 민터 지원은 실제 두 번째 민터 요구가 생기기 전에는 추가하지 않는다.
 ## 실행 명령
 
 ```bash

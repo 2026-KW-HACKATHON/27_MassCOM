@@ -92,6 +92,8 @@ test('H2 a fresh submission signs nothing and records nothing when fee data is u
     new FeeData(null, 1n, null),
     new FeeData(null, 0n, 1n),
     new FeeData(null, -1n, 1n),
+    new FeeData(null, 2n, 0n),
+    new FeeData(null, 2n, 3n),
   ]) {
     provider.getFeeData = async () => feeData;
     await assert.rejects(
@@ -102,5 +104,33 @@ test('H2 a fresh submission signs nothing and records nothing when fee data is u
         error instanceof RetryableChainError && error.code === 'FEE_DATA_UNAVAILABLE',
     );
   }
+  assert.equal(persisted, false);
+});
+
+test('a service signer cannot persist a transaction from a different address', async () => {
+  const configuredMinter = Wallet.createRandom();
+  const foreignSigner = Wallet.createRandom();
+  const gateway = new EthersMintChainGateway({
+    rpcUrl: 'http://127.0.0.1:1',
+    chainId: 84532,
+    contractAddress: item.contractAddress,
+    minterAddress: configuredMinter.address,
+    confirmations: 1,
+    fromBlock: 0,
+    signer: foreignSigner,
+  });
+  const provider = internalProvider(gateway);
+  provider.getTransactionCount = async () => 0;
+  provider.estimateGas = async () => 21_000n;
+  provider.getFeeData = async () => new FeeData(null, 2n, 1n);
+  let persisted = false;
+
+  await assert.rejects(
+    gateway.submitMint(item, async () => {
+      persisted = true;
+    }),
+    (error: unknown) =>
+      error instanceof RetryableChainError && error.code === 'MINTER_SIGNER_MISMATCH',
+  );
   assert.equal(persisted, false);
 });
