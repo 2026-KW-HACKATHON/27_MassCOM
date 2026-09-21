@@ -39,14 +39,23 @@ if hit="$(grep -iE -m1 \
   fail "dex contains a payment or embedded-wallet SDK class: $hit"
 fi
 
-app_files="$(find "$src" -type f \( -name '*.ts' -o -name '*.tsx' \) ! -name '*.test.*')"
+source_symlink="$(find "$src" -type l -print -quit)" || fail "could not inspect mobile source symlinks"
+[[ -z "$source_symlink" ]] || fail "source tree contains symlink: $source_symlink"
 
-[[ "$(grep -hE 'createAppKit\(' $app_files | wc -l | tr -d ' ')" == "1" ]] || fail "createAppKit must be called exactly once"
+app_files=()
+while IFS= read -r -d '' app_file; do
+  app_files[${#app_files[@]}]="$app_file"
+done < <(find "$src" -type f \( \
+  -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' \
+\) ! -name '*.test.*' -print0)
+[[ "${#app_files[@]}" -gt 0 ]] || fail "no supported mobile source files found"
+
+[[ "$(grep -hE 'createAppKit\(' "${app_files[@]}" | wc -l | tr -d ' ')" == "1" ]] || fail "createAppKit must be called exactly once"
 config="$src/wallet/wallet-runtime-config.ts"
 for feature in socials swaps onramp; do
   # The SDK turns on-ramp ON when the flag is undefined, so each one must be an explicit false.
   grep -qE "^\s*$feature: false,\$" "$config" || fail "features.$feature is not an explicit false"
-  if grep -hE "\b$feature:\s*(true|\[)" $app_files >/dev/null; then fail "features.$feature is enabled somewhere"; fi
+  if grep -hE "\b$feature:\s*(true|\[)" "${app_files[@]}" >/dev/null; then fail "features.$feature is enabled somewhere"; fi
 done
 grep -qE '^\s*enableAnalytics: false,$' "$config" || fail "enableAnalytics is not an explicit false"
 
@@ -54,23 +63,28 @@ grep -qE '^\s*enableAnalytics: false,$' "$config" || fail "enableAnalytics is no
 # views. App code may therefore reach the modal only as open({ view: 'Connect' }).
 while IFS= read -r call; do
   [[ "$call" =~ open\(\{\ view:\ \'Connect\'\ \}\) ]] || fail "AppKit open() must target the Connect view only: $call"
-done < <(grep -hE '\bopen\(' $app_files || true)
-appkit_files="$(grep -lE "@reown/|useAppKit" $app_files || true)"
-if [[ -n "$appkit_files" ]]; then
+done < <(grep -hE '\bopen\(' "${app_files[@]}" || true)
+appkit_files=()
+for app_file in "${app_files[@]}"; do
+  if grep -qE "@reown/|useAppKit" "$app_file"; then
+    appkit_files[${#appkit_files[@]}]="$app_file"
+  fi
+done
+if [[ "${#appkit_files[@]}" -gt 0 ]]; then
   # A renamed binding or a view spread over several lines would slip past the line match above.
-  if hit="$(grep -hE -m1 '\bopen\s*:' $appkit_files)"; then fail "open must not be renamed or wrapped: $hit"; fi
+  if hit="$(grep -hE -m1 '\bopen\s*:' "${appkit_files[@]}")"; then fail "open must not be renamed or wrapped: $hit"; fi
   hit="$(awk -v allowed="view: 'Connect'" '
     $0 ~ /(^|[^[:alnum:]_])view[[:space:]]*:/ && index($0, allowed) == 0 { print; exit }
-  ' $appkit_files)" || fail "could not inspect AppKit views"
+  ' "${appkit_files[@]}")" || fail "could not inspect AppKit views"
   if [[ -n "$hit" ]]; then
     fail "AppKit view other than Connect: $hit"
   fi
 fi
 # The SDK's internal controllers can push any view (WalletSend included) without calling open().
-if hit="$(grep -hE -m1 "@reown/appkit-core-react-native|@reown/appkit-common-react-native|\b(RouterController|ModalController|OptionsController|OnRampController|SwapController|SendController)\b" $app_files)"; then
+if hit="$(grep -hE -m1 "@reown/appkit-core-react-native|@reown/appkit-common-react-native|\b(RouterController|ModalController|OptionsController|OnRampController|SwapController|SendController)\b" "${app_files[@]}")"; then
   fail "app code must not use AppKit internal controllers: $hit"
 fi
-if hit="$(grep -hE -m1 '<(AppKitButton|AccountButton|ConnectButton|NetworkButton)\b' $app_files)"; then
+if hit="$(grep -hE -m1 '<(AppKitButton|AccountButton|ConnectButton|NetworkButton)\b' "${app_files[@]}")"; then
   fail "SDK button would expose the account screen: $hit"
 fi
 

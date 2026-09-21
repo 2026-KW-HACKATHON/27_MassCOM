@@ -74,6 +74,20 @@ src="$(make_src sdk-button)"
 printf '%s\n' "export const Leak = () => <AppKitButton />;" >"$src/screens/leak.tsx"
 expect_fail 'SDK account button' 'SDK button' "$work/good.aab" "$src"
 
+src="$(make_src spaced-sdk-button)"
+printf '%s\n' "export const Leak = () => <AppKitButton />;" >"$src/screens/spaced leak.tsx"
+expect_fail 'SDK account button in spaced filename' 'SDK button' "$work/good.aab" "$src"
+
+src="$(make_src javascript-controller)"
+printf '%s\n' "import { RouterController } from '@reown/appkit-core-react-native';" \
+  "RouterController.push('WalletSend');" >"$src/screens/leak.js"
+expect_fail 'internal controller in JavaScript source' 'internal controllers' "$work/good.aab" "$src"
+
+src="$(make_src source-symlink)"
+printf '%s\n' "export const Leak = () => <AppKitButton />;" >"$work/outside-wallet-source.tsx"
+ln -s "$work/outside-wallet-source.tsx" "$src/screens/linked-wallet-source.tsx"
+expect_fail 'source tree symlink' 'source tree contains symlink' "$work/good.aab" "$src"
+
 src="$(make_src send-method)"
 sed -i.bak "s/'personal_sign',/'personal_sign', 'eth_sendTransaction',/" "$src/wallet/wallet-runtime-config.ts"
 expect_fail 'transaction method in session' 'transaction or blind-signing method' "$work/good.aab" "$src"

@@ -191,6 +191,31 @@ env -u MASSCOM_TEST_MODE AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
 [[ "$status" != 0 ]] || { echo 'production override was accepted' >&2; exit 1; }
 [[ ! -e "$rejected_override" ]] || { echo 'rejected override still wrote provenance' >&2; exit 1; }
 
+# Production assessment must bind W08 to the repository's canonical mobile source tree.
+rejected_source_override="$work/rejected-source-override.json"
+status=0
+error="$(env -u MASSCOM_TEST_MODE -u AAB_SIGNATURE_CHECK_COMMAND -u AAB_WALLET_SURFACE_CHECK_COMMAND \
+  bash "$assess" "$artifact" "$dirty_repo/apps/mobile/src" "$rejected_source_override" 2>&1)" \
+  || status=$?
+[[ "$status" == 1 ]] || { echo "production source override: expected exit 1, got $status: $error" >&2; exit 1; }
+grep -qF 'mobile source override requires MASSCOM_TEST_MODE=true' <<<"$error" \
+  || { echo "production source override failed for an unrelated reason: $error" >&2; exit 1; }
+[[ ! -e "$rejected_source_override" ]] || { echo 'rejected source override wrote provenance' >&2; exit 1; }
+
+# A builder-captured commit must still be current when assessment begins.
+commit_mismatch_provenance="$work/commit-mismatch.provenance.json"
+status=0
+error="$(env MASSCOM_TEST_MODE=true \
+  MASSCOM_BUILD_SOURCE_COMMIT=0000000000000000000000000000000000000000 \
+  AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
+  AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-pass" \
+  bash "$assess" "$artifact" "$repo_root/apps/mobile/src" "$commit_mismatch_provenance" 2>&1)" \
+  || status=$?
+[[ "$status" == 1 ]] || { echo "source commit mismatch: expected exit 1, got $status: $error" >&2; exit 1; }
+grep -qF 'source commit changed during release assessment' <<<"$error" \
+  || { echo "source commit mismatch failed for an unrelated reason: $error" >&2; exit 1; }
+[[ ! -e "$commit_mismatch_provenance" ]] || { echo 'source commit mismatch wrote provenance' >&2; exit 1; }
+
 # EXPECTED_PACKAGE is another W08 override and is forbidden outside exact test mode.
 rejected_expected_package="$work/rejected-expected-package.json"
 status=0

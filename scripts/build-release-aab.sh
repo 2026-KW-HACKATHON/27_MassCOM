@@ -38,6 +38,11 @@ for variable in "${test_only_environment[@]}"; do
 done
 
 commit="$(git -C "$repo_root" rev-parse HEAD)"
+initial_mobile_status="$(git -C "$repo_root" status --porcelain --untracked-files=normal -- apps/mobile)"
+if [[ -n "$initial_mobile_status" ]]; then
+  echo 'release build requires a clean mobile tree' >&2
+  exit 1
+fi
 artifacts_input="${RELEASE_ARTIFACT_DIR:-$mobile_dir/release-artifacts}"
 if [[ "$artifacts_input" == /* ]]; then
   artifacts="$artifacts_input"
@@ -99,6 +104,14 @@ publish_pair() { # <source-aab> <source-provenance> <target-aab> <target-provena
 cd "$mobile_dir"
 CI=1 APP_VARIANT=production npx --no-install expo prebuild --platform android --clean --no-install
 (cd android && APP_VARIANT=production ./gradlew bundleRelease --console=plain -q)
+if [[ "$(git -C "$repo_root" rev-parse HEAD)" != "$commit" ]]; then
+  echo 'source commit changed during release build' >&2
+  exit 1
+fi
+if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=normal -- apps/mobile)" ]]; then
+  echo 'mobile source changed during release build' >&2
+  exit 1
+fi
 
 built="$mobile_dir/android/app/build/outputs/bundle/release/app-release.aab"
 gradle_file="$mobile_dir/android/app/build.gradle"
@@ -116,8 +129,16 @@ grep -E "^[[:space:]]*(applicationId|versionCode|versionName)[[:space:](]" "$gra
 
 # The assessor records both automated verdicts and leaves manual/device/Play readiness explicit.
 assessment=0
-"$repo_root/scripts/assess-release-aab.sh" \
+MASSCOM_BUILD_SOURCE_COMMIT="$commit" "$repo_root/scripts/assess-release-aab.sh" \
   "$staged_aab" "$mobile_dir/src" "$staged_provenance" || assessment=$?
+if [[ "$(git -C "$repo_root" rev-parse HEAD)" != "$commit" ]]; then
+  echo 'source commit changed before release evidence publication' >&2
+  exit 1
+fi
+if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=normal -- apps/mobile)" ]]; then
+  echo 'mobile source changed before release evidence publication' >&2
+  exit 1
+fi
 if [[ "$assessment" != "0" ]]; then
   if [[ ! -f "$staged_provenance" || -L "$staged_provenance" ]]; then
     echo "assessment exited $assessment without fresh provenance" >&2

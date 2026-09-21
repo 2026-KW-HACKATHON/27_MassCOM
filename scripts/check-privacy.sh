@@ -57,8 +57,21 @@ normalize_logger_calls() {
       source = source (source == "" ? "" : " ") line
     }
     END {
+      alias_source = source
+      while (match(alias_source, /(const|let|var)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*[[:space:]]*;/)) {
+        assignment = substr(alias_source, RSTART, RLENGTH)
+        sub(/^(const|let|var)[[:space:]]+/, "", assignment)
+        alias_name = assignment
+        sub(/[[:space:]]*=.*/, "", alias_name)
+        alias_value = assignment
+        sub(/^[^=]*=[[:space:]]*/, "", alias_value)
+        sub(/[[:space:]]*;.*/, "", alias_value)
+        aliases[alias_name] = alias_value
+        alias_source = substr(alias_source, RSTART + RLENGTH)
+      }
+
       remaining = source
-      while (match(remaining, /console\.(log|error|warn|info|debug)[[:space:]]*\(/)) {
+      while (match(remaining, /(console\.(log|error|warn|info|debug)|console[[:space:]]*\[[^]]+\]|process[[:space:]]*\.[[:space:]]*stderr[[:space:]]*\.[[:space:]]*write)[[:space:]]*\(/)) {
         call = ""
         call_depth = 0
         call_quote = ""
@@ -144,7 +157,13 @@ normalize_logger_calls() {
 
         gsub(/[[:space:]]+/, " ", call)
         opening_parenthesis = index(call, "(")
-        print substr(call, opening_parenthesis + 1, length(call) - opening_parenthesis - 1)
+        arguments = substr(call, opening_parenthesis + 1, length(call) - opening_parenthesis - 1)
+        for (alias_name in aliases) {
+          if (arguments ~ ("(^|[^A-Za-z0-9_])" alias_name "([^A-Za-z0-9_]|$)")) {
+            arguments = arguments " " aliases[alias_name]
+          }
+        }
+        print arguments
         if (call_end == 0) break
         remaining = substr(remaining, call_end + 1)
       }

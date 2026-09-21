@@ -18,7 +18,13 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -f "$file" ]] || { echo "no such file: $file" >&2; exit 1; }
 
 # English output: both tools localize their messages.
-integrity="$(jarsigner -J-Duser.language=en -verify "$file" 2>&1 || true)"
+command -v jarsigner >/dev/null 2>&1 || {
+  echo 'SIGNATURE CHECK ERROR: jarsigner is unavailable' >&2
+  exit 1
+}
+integrity=''
+jarsigner_exit=0
+integrity="$(jarsigner -J-Duser.language=en -verify "$file" 2>&1)" || jarsigner_exit=$?
 if grep -q 'jar is unsigned' <<<"$integrity"; then
   echo "SIGNATURE REJECTED: the bundle is not signed" >&2
   exit 4
@@ -33,12 +39,30 @@ if grep -q 'unsigned entries' <<<"$integrity"; then
   echo "SIGNATURE REJECTED: the bundle contains entries that were added after signing" >&2
   exit 5
 fi
+if [[ "$jarsigner_exit" != 0 ]] && grep -qiE 'digest error|invalid signature|java\.lang\.SecurityException' <<<"$integrity"; then
+  echo "SIGNATURE REJECTED: the signature does not match the contents (modified or damaged after signing)" >&2
+  exit 5
+fi
+if [[ "$jarsigner_exit" != 0 ]]; then
+  echo "SIGNATURE CHECK ERROR: jarsigner failed with exit $jarsigner_exit" >&2
+  exit 1
+fi
 if ! grep -q '^jar verified' <<<"$integrity"; then
   echo "SIGNATURE REJECTED: the signature does not match the contents (modified or damaged after signing)" >&2
   exit 5
 fi
 
-signer="$(keytool -J-Duser.language=en -printcert -jarfile "$file" 2>&1 || true)"
+command -v keytool >/dev/null 2>&1 || {
+  echo 'SIGNATURE CHECK ERROR: keytool is unavailable' >&2
+  exit 1
+}
+signer=''
+keytool_exit=0
+signer="$(keytool -J-Duser.language=en -printcert -jarfile "$file" 2>&1)" || keytool_exit=$?
+if [[ "$keytool_exit" != 0 ]]; then
+  echo "SIGNATURE CHECK ERROR: keytool failed with exit $keytool_exit" >&2
+  exit 1
+fi
 actual="$(awk '
   /^[[:space:]]*SHA256:/ {
     sub(/^.*SHA256:[[:space:]]*/, "")
@@ -63,7 +87,8 @@ if [[ ! "$actual" =~ ^[0-9A-F]{64}$ ]]; then
   echo "SIGNATURE REJECTED: no signing certificate could be read" >&2
   exit 4
 fi
-grep -E 'Owner:' <<<"$signer" | head -1 | sed 's/^ *//' || true
+owner="$(awk '/Owner:/ { sub(/^[[:space:]]*/, ""); print; exit }' <<<"$signer")"
+[[ -z "$owner" ]] || printf '%s\n' "$owner"
 echo "certificate sha256: $actual"
 if grep -q 'CN=Android Debug' <<<"$signer"; then
   echo "SIGNATURE REJECTED: signed with the local debug key" >&2

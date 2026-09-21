@@ -28,6 +28,34 @@ expect_with() { # <verifier> <label> <expected exit> <expected text> <fingerprin
   grep -qF "$4" <<<"$out" || { echo "$2: missing '$4' in: $out" >&2; exit 1; }
 }
 expect() { expect_with "$verify" "$@"; }
+expect_tool_failure() { # <tool> <tool exit> <label> <file>
+  local tool="$1" tool_exit="$2" label="$3" file="$4"
+  local bin="$work/$label-bin"
+  local out status=0
+  mkdir -p "$bin"
+  printf '#!/usr/bin/env bash\necho "%s fixture failure" >&2\nexit %s\n' "$tool" "$tool_exit" >"$bin/$tool"
+  chmod +x "$bin/$tool"
+  out="$(PATH="$bin:$PATH" UPLOAD_CERT_SHA256="$approved" bash "$verify" "$file" 2>&1)" || status=$?
+  [[ "$status" == 1 ]] || { echo "$label: expected exit 1, got $status: $out" >&2; exit 1; }
+  grep -qF "SIGNATURE CHECK ERROR: $tool" <<<"$out" \
+    || { echo "$label: missing tool-failure classification: $out" >&2; exit 1; }
+}
+expect_missing_tool() { # <tool> <file>
+  local tool="$1" file="$2"
+  local bin="$work/$tool-absent-bin"
+  local out status=0
+  mkdir -p "$bin"
+  ln -s "$(command -v dirname)" "$bin/dirname"
+  if [[ "$tool" == keytool ]]; then
+    ln -s "$(command -v grep)" "$bin/grep"
+    printf '#!/bin/bash\necho "jar verified."\n' >"$bin/jarsigner"
+    chmod +x "$bin/jarsigner"
+  fi
+  out="$(PATH="$bin" UPLOAD_CERT_SHA256="$approved" /bin/bash "$verify" "$file" 2>&1)" || status=$?
+  [[ "$status" == 1 ]] || { echo "$tool missing: expected exit 1, got $status: $out" >&2; exit 1; }
+  grep -qF "SIGNATURE CHECK ERROR: $tool is unavailable" <<<"$out" \
+    || { echo "$tool missing: wrong classification: $out" >&2; exit 1; }
+}
 
 make_key upload.jks upload 'CN=MassCOM Sample Upload Key'
 make_key other.jks other 'CN=Somebody Else'
@@ -35,9 +63,15 @@ make_key debug.jks androiddebugkey 'CN=Android Debug, OU=Android, O=Unknown, L=U
 approved="$(fingerprint upload.jks)"
 
 make_jar unsigned
+expect_missing_tool jarsigner "$work/unsigned.aab"
+expect_tool_failure jarsigner 127 jarsigner-missing "$work/unsigned.aab"
+expect_tool_failure jarsigner 9 jarsigner-execution "$work/unsigned.aab"
 expect 'unsigned bundle' 4 'SIGNATURE REJECTED: the bundle is not signed' "$approved" "$work/unsigned.aab"
 
 make_jar good; sign good upload.jks upload
+expect_missing_tool keytool "$work/good.aab"
+expect_tool_failure keytool 127 keytool-missing "$work/good.aab"
+expect_tool_failure keytool 9 keytool-execution "$work/good.aab"
 expect 'approved self-signed upload key' 0 'signature verified against the approved upload certificate' "$approved" "$work/good.aab"
 expect 'lower-case fingerprint without colons' 0 'signature verified' "$(tr -d ':' <<<"$approved" | tr 'A-F' 'a-f')" "$work/good.aab"
 no_pin_repo="$work/no-pin-repo"
@@ -113,6 +147,7 @@ STUB
 chmod +x "$sandbox/scripts/check-release-wallet-surface.sh"
 printf '{"expo":{"version":"0.1.0","android":{"versionCode":1}}}\n' >"$sandbox/apps/mobile/app.json"
 printf 'fixture\n' >"$sandbox/apps/mobile/src/fixture.ts"
+printf 'apps/mobile/android/\n' >"$sandbox/.gitignore"
 (cd "$sandbox" && git init -q && git add . && \
   git -c user.email=t@example.invalid -c user.name=t commit -q -m sample)
 cat >"$work/bin/npx" <<STUB
@@ -120,7 +155,21 @@ cat >"$work/bin/npx" <<STUB
 echo "prebuild APP_VARIANT=\${APP_VARIANT:-unset}" >>"$work/prebuild.log"
 rm -rf android; mkdir -p android/app/build/outputs/bundle/release
 printf "applicationId 'kr.masscom.wolgye'\nversionCode 1\n" >android/app/build.gradle
-printf '#!/usr/bin/env bash\ncp "$work/good.aab" app/build/outputs/bundle/release/app-release.aab\n' >android/gradlew
+cat >android/gradlew <<GRADLE
+#!/usr/bin/env bash
+cp "$work/good.aab" app/build/outputs/bundle/release/app-release.aab
+case "\\\${BUILD_MUTATION_MODE:-}" in
+  head)
+    printf 'committed during build\n' >>../src/fixture.ts
+    git -C "\\\$PWD/../../.." add apps/mobile/src/fixture.ts
+    git -C "\\\$PWD/../../.." -c user.email=t@example.invalid -c user.name=Test \
+      commit -q -m 'mutate during build'
+    ;;
+  tree)
+    printf 'dirty during build\n' >>../src/fixture.ts
+    ;;
+esac
+GRADLE
 chmod +x android/gradlew
 STUB
 chmod +x "$work/bin/npx"
@@ -164,6 +213,85 @@ for variable in MASSCOM_TEST_MODE AAB_SIGNATURE_CHECK_COMMAND \
   [[ "$status" != "0" ]] || { echo "$variable was accepted by the release builder: $out" >&2; exit 1; }
   [[ ! -e "$work/prebuild.log" ]] || { echo "$variable reached prebuild" >&2; exit 1; }
 done
+
+# Release builds must reject a dirty mobile tree before prebuild starts.
+dirty_sandbox="$work/dirty-build-repo"
+cp -R "$sandbox" "$dirty_sandbox"
+printf 'dirty before build\n' >>"$dirty_sandbox/apps/mobile/src/fixture.ts"
+dirty_artifacts="$work/dirty-build-artifacts"
+rm -f "$work/prebuild.log"
+status=0
+out="$(cd "$dirty_sandbox" && env RELEASE_ARTIFACT_DIR="$dirty_artifacts" \
+  UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
+  bash scripts/build-release-aab.sh 2>&1)" || status=$?
+[[ "$status" == 1 ]] || { echo "dirty source preflight: expected exit 1, got $status: $out" >&2; exit 1; }
+grep -qF 'release build requires a clean mobile tree' <<<"$out" \
+  || { echo "dirty source preflight failed for an unrelated reason: $out" >&2; exit 1; }
+[[ ! -e "$work/prebuild.log" ]] || { echo 'dirty source preflight reached prebuild' >&2; exit 1; }
+[[ ! -d "$dirty_artifacts" ]] || ! find "$dirty_artifacts" -type f -print -quit | grep -q . \
+  || { echo 'dirty source preflight published an artifact' >&2; exit 1; }
+
+# Advancing HEAD during Gradle must abort before assessment or publication.
+head_mutation_sandbox="$work/head-mutation-repo"
+cp -R "$sandbox" "$head_mutation_sandbox"
+head_mutation_artifacts="$work/head-mutation-artifacts"
+rm -f "$work/prebuild.log"
+status=0
+out="$(cd "$head_mutation_sandbox" && env BUILD_MUTATION_MODE=head \
+  RELEASE_ARTIFACT_DIR="$head_mutation_artifacts" UPLOAD_CERT_SHA256="$approved" \
+  PATH="$work/bin:$PATH" bash scripts/build-release-aab.sh 2>&1)" || status=$?
+[[ "$status" == 1 ]] || { echo "HEAD mutation: expected exit 1, got $status: $out" >&2; exit 1; }
+grep -qF 'source commit changed during release build' <<<"$out" \
+  || { echo "HEAD mutation failed for an unrelated reason: $out" >&2; exit 1; }
+[[ ! -d "$head_mutation_artifacts" ]] \
+  || ! find "$head_mutation_artifacts" -type f \( -name '*.aab' -o -name '*.json' \) -print -quit | grep -q . \
+  || { echo 'HEAD mutation published final evidence' >&2; exit 1; }
+
+# A dirty mobile tree created during Gradle must be rejected under the same source-state contract.
+tree_mutation_sandbox="$work/tree-mutation-repo"
+cp -R "$sandbox" "$tree_mutation_sandbox"
+tree_mutation_artifacts="$work/tree-mutation-artifacts"
+rm -f "$work/prebuild.log"
+status=0
+out="$(cd "$tree_mutation_sandbox" && env BUILD_MUTATION_MODE=tree \
+  RELEASE_ARTIFACT_DIR="$tree_mutation_artifacts" UPLOAD_CERT_SHA256="$approved" \
+  PATH="$work/bin:$PATH" bash scripts/build-release-aab.sh 2>&1)" || status=$?
+[[ "$status" == 1 ]] || { echo "tree mutation: expected exit 1, got $status: $out" >&2; exit 1; }
+grep -qF 'mobile source changed during release build' <<<"$out" \
+  || { echo "tree mutation failed for an unrelated reason: $out" >&2; exit 1; }
+[[ ! -d "$tree_mutation_artifacts" ]] \
+  || ! find "$tree_mutation_artifacts" -type f \( -name '*.aab' -o -name '*.json' \) -print -quit | grep -q . \
+  || { echo 'tree mutation published final evidence' >&2; exit 1; }
+
+# The captured commit must be passed into assessment so a later race cannot rebind provenance.
+assessment_mutation_sandbox="$work/assessment-mutation-repo"
+cp -R "$sandbox" "$assessment_mutation_sandbox"
+mv "$assessment_mutation_sandbox/scripts/assess-release-aab.sh" \
+  "$assessment_mutation_sandbox/scripts/assess-release-aab-real.sh"
+cat >"$assessment_mutation_sandbox/scripts/assess-release-aab.sh" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+printf 'committed during assessment\n' >>"$repo_root/apps/mobile/src/fixture.ts"
+git -C "$repo_root" add apps/mobile/src/fixture.ts
+git -C "$repo_root" -c user.email=t@example.invalid -c user.name=Test \
+  commit -q -m 'mutate during assessment'
+exec "$repo_root/scripts/assess-release-aab-real.sh" "$@"
+STUB
+chmod +x "$assessment_mutation_sandbox/scripts/assess-release-aab.sh"
+assessment_mutation_artifacts="$work/assessment-mutation-artifacts"
+captured_short="$(git -C "$assessment_mutation_sandbox" rev-parse --short=7 HEAD)"
+status=0
+out="$(cd "$assessment_mutation_sandbox" && env \
+  RELEASE_ARTIFACT_DIR="$assessment_mutation_artifacts" UPLOAD_CERT_SHA256="$approved" \
+  PATH="$work/bin:$PATH" bash scripts/build-release-aab.sh 2>&1)" || status=$?
+[[ "$status" == 1 ]] || { echo "assessment mutation: expected exit 1, got $status: $out" >&2; exit 1; }
+grep -qF 'source commit changed during release assessment' <<<"$out" \
+  || { echo "assessment mutation failed for an unrelated reason: $out" >&2; exit 1; }
+[[ ! -e "$assessment_mutation_artifacts/app-release-$captured_short.aab" ]] \
+  || { echo 'assessment mutation published a final AAB' >&2; exit 1; }
+[[ ! -e "$assessment_mutation_artifacts/app-release-$captured_short.provenance.json" ]] \
+  || { echo 'assessment mutation published final provenance' >&2; exit 1; }
 
 short_commit="$(git -C "$sandbox" rev-parse --short=7 HEAD)"
 assert_preexisting_target_preserved() { # <label> <target suffix> <approved|missing pin>

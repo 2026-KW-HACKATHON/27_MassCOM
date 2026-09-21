@@ -4,11 +4,23 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 scanner="$repo_root/scripts/check-privacy.sh"
+ci="$repo_root/.github/workflows/ci.yml"
 
 if [[ ! -x "$scanner" ]]; then
   echo "expected executable privacy scanner at $scanner" >&2
   exit 1
 fi
+
+privacy_ci_step="$(awk '
+  /- name: 개인정보 로그 검사/ { capture = 1; next }
+  capture && /- name:/ { exit }
+  capture { print }
+' "$ci")"
+[[ -n "$privacy_ci_step" ]] || { echo 'CI is missing the explicit privacy scan step' >&2; exit 1; }
+grep -qF 'bash scripts/check-privacy.sh' <<<"$privacy_ci_step" \
+  || { echo 'CI privacy step does not run the scanner' >&2; exit 1; }
+grep -qF 'bash tests/bootstrap/check_privacy_test.sh' <<<"$privacy_ci_step" \
+  || { echo 'CI privacy step does not run the regression suite' >&2; exit 1; }
 
 fixture_root="$(mktemp -d)"
 trap 'rm -rf "$fixture_root"' EXIT
@@ -23,6 +35,9 @@ printf '%s\n' \
   "console.error(safeErrorMetadata('wallet.verify.failed', error))" \
   "console.error(safeErrorMetadata('wallet.verify.failed', error, new Set(['SIGNER_MISMATCH'])))" \
   "console.error({ event: 'wallet.verify.failed', errorName: 'Error', errorCode: 'SIGNER_MISMATCH' })" \
+  "console['error']('wallet verification failed')" \
+  "process.stderr.write('worker stopped\\n')" \
+  "const fixedEvent = 'wallet.verify.failed'; console.error(fixedEvent)" \
   "// console.error('request failed', error)" \
   "/*" \
   "console.error('request failed', { detail: error.message })" \
@@ -50,6 +65,10 @@ unsafe_logs=(
   "console.error({ detail: error })"
   "console.error({ detail: caught })"
   "console.error({ detail: signature })"
+  "console['error']('request failed', error)"
+  "process.stderr.write(error.stack)"
+  "const detail = error; console.error(detail)"
+  "const detail = body.signature; console.error(detail)"
 )
 
 for unsafe_log in "${unsafe_logs[@]}"; do
@@ -64,6 +83,9 @@ rm "$fixture_root/apps/api/src/leaking-log.ts"
 global_unsafe_logs=(
   "console.error({ detail: secret })"
   "console.error({ detail: body.password })"
+  "console['error'](privateKey)"
+  "process.stderr.write(signature)"
+  "const detail = body.password; console.error(detail)"
 )
 
 for unsafe_log in "${global_unsafe_logs[@]}"; do

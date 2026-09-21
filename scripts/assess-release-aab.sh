@@ -15,6 +15,11 @@ artifact="$(cd "$(dirname "$artifact_input")" && pwd -P)/$(basename "$artifact_i
 mobile_src_input="${2:-$repo_root/apps/mobile/src}"
 [[ -d "$mobile_src_input" ]] || { echo "no such mobile source directory: $mobile_src_input" >&2; exit 1; }
 mobile_src="$(cd "$mobile_src_input" && pwd -P)"
+canonical_mobile_src="$(cd "$repo_root/apps/mobile/src" && pwd -P)"
+if [[ "$mobile_src" != "$canonical_mobile_src" && "${MASSCOM_TEST_MODE:-}" != 'true' ]]; then
+  echo 'mobile source override requires MASSCOM_TEST_MODE=true' >&2
+  exit 1
+fi
 
 provenance_input="${3:-${artifact%.aab}.provenance.json}"
 provenance_parent="$(dirname "$provenance_input")"
@@ -44,7 +49,22 @@ wallet_check="${AAB_WALLET_SURFACE_CHECK_COMMAND:-$repo_root/scripts/check-relea
 artifact_sha256="$(shasum -a 256 "$artifact" | cut -d' ' -f1)"
 artifact_bytes="$(wc -c <"$artifact" | tr -d ' ')"
 source_commit="$(git -C "$repo_root" rev-parse HEAD)"
+expected_source_commit="${MASSCOM_BUILD_SOURCE_COMMIT:-}"
+if [[ -n "$expected_source_commit" ]]; then
+  [[ "$expected_source_commit" =~ ^[0-9a-fA-F]{40}$ ]] || {
+    echo 'MASSCOM_BUILD_SOURCE_COMMIT must be a 40-character Git object id' >&2
+    exit 1
+  }
+  [[ "$source_commit" == "$expected_source_commit" ]] || {
+    echo 'source commit changed during release assessment' >&2
+    exit 1
+  }
+fi
 mobile_status="$(git -C "$repo_root" status --porcelain --untracked-files=normal -- apps/mobile)"
+if [[ -n "$expected_source_commit" && -n "$mobile_status" ]]; then
+  echo 'mobile source changed during release assessment' >&2
+  exit 1
+fi
 if [[ -n "$mobile_status" ]]; then
   mobile_dirty=true
 else
@@ -71,6 +91,17 @@ if [[ "$wallet_exit" == 0 ]]; then wallet_status=PASS; else wallet_status=FAIL; 
 w08_verified_artifact_package="$(sed -nE \
   's/^release wallet surface verified: .*, package ([A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+)[[:space:]]*$/\1/p' \
   <<<"$wallet_output")"
+
+if [[ -n "$expected_source_commit" ]]; then
+  [[ "$(git -C "$repo_root" rev-parse HEAD)" == "$expected_source_commit" ]] || {
+    echo 'source commit changed during release assessment' >&2
+    exit 1
+  }
+  [[ -z "$(git -C "$repo_root" status --porcelain --untracked-files=normal -- apps/mobile)" ]] || {
+    echo 'mobile source changed during release assessment' >&2
+    exit 1
+  }
+fi
 
 node "$repo_root/scripts/write-aab-provenance.mjs" \
   --output "$provenance" \
