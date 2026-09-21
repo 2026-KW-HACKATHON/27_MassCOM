@@ -9,8 +9,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { AccountCredential } from '@/auth/account-credential';
 import { colors } from '@/theme/colors';
-import { createDemoCredential } from '@/config/demo-runtime';
 import { baseSepolia } from '@/wallet/base-sepolia';
 import { matchActiveBinding, WalletApiClient, WalletApiError } from '@/wallet/wallet-api';
 import {
@@ -26,6 +26,7 @@ import { readApprovedEvmAccount } from '@/wallet/wallet-session';
 
 type Props = {
   config: AvailableWalletRuntimeConfig;
+  credential: AccountCredential;
 };
 
 type Phase =
@@ -43,7 +44,7 @@ const walletCancellationMessage =
 const walletMissingMessage =
   '선택한 지갑 앱이 설치되어 있지 않아 연결하지 못했습니다. 설치 후 다시 시도하거나 다른 외부 지갑을 선택해 주세요. 방문 기록과 받을 수집품은 유지됩니다.';
 
-export function WalletLinkScreen({ config }: Props) {
+export function WalletLinkScreen({ config, credential }: Props) {
   useColorScheme();
   const insets = useSafeAreaInsets();
   const { address, chainId } = useAccount();
@@ -52,9 +53,9 @@ export function WalletLinkScreen({ config }: Props) {
   const api = useMemo(
     () => new WalletApiClient({
       apiUrl: config.apiUrl,
-      credential: createDemoCredential(config.accountId),
+      credential,
     }),
-    [config.accountId, config.apiUrl],
+    [config.apiUrl, credential],
   );
   const previousAddress = useRef<string | undefined>(address);
   const awaitingWalletConnectionDecision = useRef(false);

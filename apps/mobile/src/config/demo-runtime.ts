@@ -46,7 +46,7 @@ export const demoRuntimeConfig = getDemoRuntimeConfig({
 export function createDemoCredential(
   accountId: string,
   allowInsecureReauthentication = false,
-): AccountCredential {
+): Extract<AccountCredential, { kind: 'demo' }> {
   return { kind: 'demo', accountId, allowInsecureReauthentication };
 }
 

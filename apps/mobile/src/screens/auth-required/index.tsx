@@ -1,0 +1,106 @@
+import { Button, Host } from '@expo/ui';
+import { useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import type { AuthSessionState } from '@/auth/auth-provider';
+import { colors } from '@/theme/colors';
+
+type Props = {
+  state: Exclude<AuthSessionState, { status: 'signedIn' } | { status: 'demo' }>;
+  canSignIn: boolean;
+  onSignIn: () => Promise<void>;
+};
+
+export function AuthRequiredScreen({ state, canSignIn, onSignIn }: Props) {
+  useColorScheme();
+  const insets = useSafeAreaInsets();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const restoring = state.status === 'restoring' || state.status === 'switchingAccount';
+
+  async function signIn() {
+    if (busy || !canSignIn) return;
+    setBusy(true);
+    setError(undefined);
+    try {
+      await onSignIn();
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const configurationRequired = state.status === 'signedOut'
+    && state.reason === 'CONFIGURATION_REQUIRED';
+  return (
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}
+    >
+      <Text style={styles.eyebrow}>운영 계정</Text>
+      <Text selectable style={styles.title}>방문 기록을 안전하게{`\n`}이어서 확인합니다.</Text>
+      <Text selectable style={styles.body}>
+        Google 계정 확인 뒤 서버가 발급한 session만 기기의 보안 저장소에 보관합니다. 지갑이 없어도 음식점 탐색과 방문 도감은 사용할 수 있습니다.
+      </Text>
+
+      <View accessibilityLiveRegion="polite" style={styles.statusCard}>
+        {restoring || busy ? <ActivityIndicator color={colors.primary} /> : null}
+        <Text selectable style={styles.statusTitle}>
+          {restoring ? '저장된 로그인을 확인하는 중입니다.' : configurationRequired
+            ? 'Google 로그인 설정이 필요합니다.' : error ?? reasonMessage(state)}
+        </Text>
+      </View>
+
+      {!configurationRequired && !restoring ? (
+        <Host matchContents seedColor={colors.primary} style={styles.buttonHost}>
+          <Button
+            label={busy ? '로그인 중' : 'Google로 로그인'}
+            variant="filled"
+            disabled={busy || !canSignIn}
+            onPress={() => void signIn()}
+          />
+        </Host>
+      ) : null}
+    </ScrollView>
+  );
+}
+
+function reasonMessage(state: Props['state']): string {
+  if (state.status !== 'signedOut' || !state.reason) return 'Google 로그인이 필요합니다.';
+  if (state.reason === 'SECURE_STORAGE_UNAVAILABLE') {
+    return '기기 보안 저장소를 사용할 수 없어 로그인 정보를 복원하지 않았습니다.';
+  }
+  if (state.reason === 'GOOGLE_SIGN_IN_CANCELLED') return 'Google 로그인을 취소했습니다.';
+  return '로그인을 완료하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.';
+}
+
+function messageFor(error: unknown): string {
+  return error instanceof Error && error.message === 'GOOGLE_SIGN_IN_CANCELLED'
+    ? 'Google 로그인을 취소했습니다.'
+    : '로그인을 완료하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.';
+}
+
+const styles = StyleSheet.create({
+  content: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    gap: 18,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    backgroundColor: colors.background,
+  },
+  eyebrow: { color: colors.primary, fontSize: 14, fontWeight: '800' },
+  title: { color: colors.label, fontSize: 30, lineHeight: 38, fontWeight: '900' },
+  body: { color: colors.secondaryLabel, fontSize: 16, lineHeight: 25 },
+  statusCard: {
+    gap: 10,
+    padding: 18,
+    borderRadius: 20,
+    borderCurve: 'continuous',
+    backgroundColor: colors.surface,
+  },
+  statusTitle: { color: colors.label, fontSize: 15, lineHeight: 22, fontWeight: '700' },
+  buttonHost: { minHeight: 48 },
+});

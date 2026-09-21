@@ -3,7 +3,6 @@ import { normalizePublicApiUrl } from '@/config/public-api';
 const requiredEnvironmentKeys = [
   'EXPO_PUBLIC_REOWN_PROJECT_ID',
   'EXPO_PUBLIC_API_URL',
-  'EXPO_PUBLIC_DEMO_ACCOUNT_ID',
 ] as const;
 
 type EnvironmentKey = (typeof requiredEnvironmentKeys)[number];
@@ -18,7 +17,6 @@ export type AvailableWalletRuntimeConfig = {
   available: true;
   projectId: string;
   apiUrl: string;
-  accountId: string;
   chainId: 84532;
   caipNetworkId: 'eip155:84532';
   features: {
@@ -50,7 +48,6 @@ export function getWalletRuntimeConfig(environment: Environment): WalletRuntimeC
     available: true,
     projectId: environment.EXPO_PUBLIC_REOWN_PROJECT_ID!.trim(),
     apiUrl,
-    accountId: environment.EXPO_PUBLIC_DEMO_ACCOUNT_ID!.trim(),
     chainId: 84532,
     caipNetworkId: 'eip155:84532',
     features: {
