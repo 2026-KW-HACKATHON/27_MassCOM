@@ -24,6 +24,22 @@ export type ActiveWalletBindingResponse = {
   };
 };
 
+export function matchActiveBinding(
+  response: ActiveWalletBindingResponse,
+  connectedAddress: string,
+  chainId: number,
+): string | undefined {
+  const binding = response.binding;
+  if (
+    !binding ||
+    binding.chainId !== chainId ||
+    binding.address.toLowerCase() !== connectedAddress.toLowerCase()
+  ) {
+    return undefined;
+  }
+  return binding.address;
+}
+
 type VerifyChallengeInput = {
   challengeId: string;
   message: string;

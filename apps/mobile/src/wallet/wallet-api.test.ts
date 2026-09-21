@@ -2,6 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { WalletApiClient, WalletApiError } from './wallet-api';
+import * as walletApiModule from './wallet-api';
+
+type ActiveBindingMatcher = (
+  response: walletApiModule.ActiveWalletBindingResponse,
+  connectedAddress: string,
+  chainId: number,
+) => string | undefined;
 
 test('sends the account boundary and Base Sepolia challenge request', async () => {
   const requests: { url: string; init?: RequestInit }[] = [];
@@ -82,4 +89,52 @@ test('reads and disconnects the server wallet binding version', async () => {
   assert.equal(requests[1]?.url, 'https://api.example.test/wallets/binding-1/binding');
   assert.equal(requests[1]?.init?.method, 'DELETE');
   assert.deepEqual(JSON.parse(String(requests[1]?.init?.body)), { bindingVersion: 2 });
+});
+
+test('restores the verified address when the active binding matches the wallet session', () => {
+  const matchActiveBinding = (
+    walletApiModule as typeof walletApiModule & { matchActiveBinding?: ActiveBindingMatcher }
+  ).matchActiveBinding;
+  const address = '0x00000000000000000000000000000000000000Aa';
+
+  assert.equal(
+    matchActiveBinding?.(
+      {
+        binding: {
+          bindingId: 'binding-1',
+          bindingVersion: 1,
+          address,
+          chainId: 84532,
+          verifiedAt: '2026-09-21T06:19:00.000Z',
+        },
+      },
+      address.toLowerCase(),
+      84532,
+    ),
+    address,
+  );
+});
+
+test('does not restore a binding for a different wallet address or chain', () => {
+  const matchActiveBinding = (
+    walletApiModule as typeof walletApiModule & { matchActiveBinding?: ActiveBindingMatcher }
+  ).matchActiveBinding;
+  const response: walletApiModule.ActiveWalletBindingResponse = {
+    binding: {
+      bindingId: 'binding-1',
+      bindingVersion: 1,
+      address: '0x00000000000000000000000000000000000000Aa',
+      chainId: 84532,
+      verifiedAt: '2026-09-21T06:19:00.000Z',
+    },
+  };
+
+  assert.equal(
+    matchActiveBinding?.(response, '0x00000000000000000000000000000000000000Bb', 84532),
+    undefined,
+  );
+  assert.equal(
+    matchActiveBinding?.(response, '0x00000000000000000000000000000000000000Aa', 1),
+    undefined,
+  );
 });
