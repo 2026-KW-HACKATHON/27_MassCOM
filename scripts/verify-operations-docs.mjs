@@ -24,8 +24,8 @@ const required = [
   [worker, 'Base Sepolia encrypted keystore'], [worker, 'CHAIN_ID=84532'],
   [worker, 'MINTER_KEYSTORE_PATH'], [worker, 'MINTER_KEYSTORE_PASSWORD_FILE'],
   [worker, 'npm run db:migrate --prefix ../api'], [worker, '실제 Base Sepolia 전송은 `NOT_RUN`'],
-  [handoff, '기준 main 커밋 SHA: `a50f678`'], [handoff, 'main CI `35620303554` PASS'],
-  [handoff, '열린 PR 최종 기준: `gh pr list`'], [state, 'API 78'], [state, '모바일 140'], [state, 'PostgreSQL 37'],
+  [handoff, '기준 main 커밋 SHA:'], [handoff, 'gh pr list'],
+  [state, 'API 80'], [state, '모바일 141'], [state, 'PostgreSQL 37'],
 ];
 let failures = 0;
 for (const [source, text] of required) {

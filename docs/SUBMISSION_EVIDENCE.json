@@ -35,7 +35,7 @@
   ],
   "blocked": [
     "repository public conversion",
-    "api.masscom.kr DNS, TLS, and production reauthentication",
+    "production fresh reauthentication and account switch",
     "Base Sepolia contract broadcast",
     "upload-key-signed release AAB",
     "Google Play and competition submission"

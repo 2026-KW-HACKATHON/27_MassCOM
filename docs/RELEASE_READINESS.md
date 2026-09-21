@@ -10,7 +10,7 @@
 | 16KB page size | `IN_PROGRESS` | 2026-09-20 로컬 debug 서명 release AAB의 arm64-v8a·x86_64 네이티브 라이브러리 48개 모두 LOAD 정렬 `0x4000` PASS(`docs/evidence/release-aab-16kb-alignment.json`). upload key 서명 AAB와 16KB 기기 설치 검사는 `NOT_RUN` |
 | App Links | `BLOCKED` | 소유 HTTPS domain, 운영 package ID, 배포 서명 SHA-256, `assetlinks.json` 준비 |
 | 계정 삭제 앱 경로 | `VERIFIED` Local DEMO | 운영 재인증·실제 계정으로 동일 처리 검증 |
-| 외부 삭제 웹 경로 | `BLOCKED` | 인증된 외부 HTTPS 페이지가 같은 API를 호출하고 오류 없이 열림 |
+| 외부 삭제 웹 경로 | `VERIFIED` | `https://masscom.kr/account-deletion` HTTPS 200과 삭제·보존·지갑 비밀 경고 확인. 현재 웹 경로는 수동 요청 접수이며 자동 삭제로 표현하지 않음 |
 | Console 제출 초안 | `DRAFT` | `docs/PLAY_CONSOLE_DRAFT.md`의 초안을 소유자가 Console 문항과 대조해 확정 |
 | Data safety | `IN_PROGRESS` | 실제 로그인·Reown relay·RPC·서버·분석 전송과 일치하게 Console 제출 |
 | 금융 기능 선언 | `NOT_RUN` | 실제 NFT 보상 기능 기준으로 Console 항목 확인, 자동으로 “없음” 선택 금지 |
@@ -51,7 +51,7 @@ production build는 시작 전, Gradle 직후, 자동 gate 직후, publish 직�
 
 ## 공식 확인 결과
 
-- Google Play 계정 삭제 경로는 앱 안과 외부 웹에서 제공해야 하며, 관련 계정 데이터 삭제와 합법적 보존 범위를 설명해야 합니다. 현재 외부 URL은 없습니다.
+- Google Play 계정 삭제 경로는 앱 안과 외부 웹에서 제공해야 하며, 관련 계정 데이터 삭제와 합법적 보존 범위를 설명해야 합니다. 외부 URL은 `https://masscom.kr/account-deletion`이며 실제 제출은 하지 않았습니다.
 - 2023-11-13 이후 생성된 개인 개발자 계정에는 공식 도움말 기준 최소 12명이 연속 14일 opt-in 상태인 폐쇄 테스트가 적용됩니다. 실제 계정 생성일·Console 적용 여부를 확인하기 전에는 이 프로젝트의 확정 요건으로 단정하지 않습니다.
 - Android 공식 문서는 Android 15/API 35 이상을 대상으로 하는 64비트 Play 앱의 16KB page size 지원을 요구하며, 2027-02-01 이후 비호환 업데이트 제한을 안내합니다. debug/JS export만으로 release AAB 호환을 완료 처리하지 않습니다.
 - App Links는 HTTPS domain의 `/.well-known/assetlinks.json`과 배포 서명·package ID가 일치해야 합니다. domain과 운영 서명이 없어 현재 검증할 수 없습니다.

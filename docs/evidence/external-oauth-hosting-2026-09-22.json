@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-09-22 05:35 KST",
+  "recordedAt": "2026-09-22 06:55 KST",
   "branch": "test/122-oauth-testnet-device-closeout",
   "issue": 122,
   "repositoryVisibility": "PRIVATE",
@@ -9,7 +9,8 @@
     "f815f35",
     "5dca967",
     "73e07c8",
-    "a337dfe"
+    "a337dfe",
+    "e84a7a8"
   ],
   "hosting": {
     "provider": "AWS Lightsail",
@@ -24,8 +25,9 @@
       "api": "HEALTHY; internal 3000 only",
       "caddy": "RUNNING; public 80/443"
     },
-    "apiDns": "BLOCKED; Gabia reauthentication required before adding api.masscom.kr",
-    "externalApiHttps": "NOT_RUN"
+    "apiDns": "PASS; A api.masscom.kr -> 43.200.56.97, TTL 600",
+    "externalApiHttps": "PASS; HTTP/2 200 with {status: ok}, Cache-Control no-store, HSTS, nosniff, DENY frame policy",
+    "certificate": "PASS; Let's Encrypt CN=api.masscom.kr"
   },
   "publicPortal": {
     "provider": "Vercel Hobby",
@@ -53,18 +55,21 @@
       "boundary": "This is not the future Google Play app-signing certificate client."
     },
     "oldProjectCleanup": "PASS; three MassCOM clients deleted from dailycoding-492802 and the DailyCoding web client retained",
-    "androidLogin": "NOT_RUN; credential selector launch was observed but no account selection, ID token, or server session was completed"
+    "testUsers": 1,
+    "androidLogin": "PASS; explicit Google button flow -> consent -> ID token -> external API session",
+    "coldStartSessionRestore": "PASS; app reopened without Google UI and restored the server session from SecureStore",
+    "logout": "PASS; app returned to signed-out screen and the server session changed from active to revoked",
+    "accountSwitch": "NOT_RUN; no second approved OAuth test account"
   },
   "device": {
     "model": "Samsung SM-S928N",
     "android": "16",
     "package": "kr.masscom.wolgye.dev",
-    "result": "NOT_RUN",
-    "resume": "Reconnect ADB, reverse only 8081, start Metro with the ignored .env.local, then verify Google login after API DNS/TLS is live."
+    "result": "PASS for first Google login, cold-start restore, and logout; account switch NOT_RUN",
+    "googleCredentialManagerFinding": "Default GetGoogleIdOption flow hit Android TransactionTooLargeException. Commit e84a7a8 prefers GetSignInWithGoogleOption for the explicit user button and completed the flow.",
+    "automated": "mobile 141/141 PASS; typecheck PASS; lint PASS"
   },
   "notClaimed": [
-    "api.masscom.kr DNS or TLS",
-    "successful Google account selection or server session",
     "upload-key AAB",
     "Google Play app-signing OAuth client",
     "Base Sepolia contract deployment",

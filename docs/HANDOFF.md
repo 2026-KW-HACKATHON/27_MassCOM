@@ -1,9 +1,9 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-22 05:35 KST
+마지막 갱신 시각: 2026-09-22 07:00 KST
 작업 브랜치: `test/122-oauth-testnet-device-closeout`
 연결 Issue: `#122 OAuth·Base Sepolia 입력과 Android 실기 증거 마감`
-기준 main 커밋 SHA: `9926730`. 현재 브랜치 HEAD는 `a337dfe`이며 작업 트리는 clean이다. 이후 상태는 `git status`, `git log`, `gh pr list`를 우선한다.
+기준 main 커밋 SHA: `9926730`. 현재 브랜치의 Google 로그인 수정 커밋은 `e84a7a8`이다. 이후 상태는 `git status`, `git log`, `gh pr list`를 우선한다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
 
@@ -12,7 +12,7 @@
 - AWS Free Plan의 `$100` 크레딧 범위에서 서울 리전 Lightsail `masscom-api-seoul`(Ubuntu 24.04, 2GB, 월 최대 `$12`)을 생성했다. Paid Plan 전환은 하지 않았다.
 - 고정 IP `masscom-api-ip`(`43.200.56.97`)를 연결하고 Lightsail 방화벽에 HTTP 80·HTTPS 443을 추가했다. SSH 22는 배포 마감 전 임시로 열려 있다.
 - 커밋 `73e07c8`을 `/opt/masscom/releases/73e07c8cf1e3`에 배포했다. PostgreSQL·API·Caddy가 healthy이고 `/opt/masscom/DEPLOYED_COMMIT`이 해당 전체 SHA를 가리킨다. PostgreSQL 5432와 API 3000은 인터넷에 publish하지 않았다.
-- `api.masscom.kr` A 레코드는 **아직 만들지 못했다**. 가비아 레코드 수정에서 재로그인을 요구했고 세션이 로그인 화면에 멈췄다. Caddy 인증서·외부 `/health`는 따라서 `NOT_RUN`이다.
+- `A api 43.200.56.97 TTL 600`을 가비아에 저장하고 공용 DNS 전파를 확인했다. Caddy 재시작 뒤 Let’s Encrypt 인증서, `https://api.masscom.kr/health` HTTP/2 200·`{"status":"ok"}`·`no-store`·HSTS·nosniff·frame DENY를 확인했다.
 - Vercel `masscom-wolgye` production deployment `dpl_DyKyoVjHWCykwJsmfb5sdDbhnmQm`이 READY다. `https://masscom.kr/`, `/privacy`, `/account-deletion` 모두 HTTPS 200과 본문을 확인했다.
 - Google Cloud 새 프로젝트 `MassCOM`(`masscom-wolgye-2026`, project number `172380658768`)에 아래 OAuth client를 만들었다. 다시 만들지 않는다.
   - Web server: `172380658768-n5r2vad5f2g6ndb9kh2cbcig1j9i792g.apps.googleusercontent.com`
@@ -20,19 +20,15 @@
   - 운영 직접 설치용 Android: `172380658768-kk7r7rnhvqr6799q4thcjfjkq3flasha.apps.googleusercontent.com`, `kr.masscom.wolgye`, upload SHA-1 `06:CB:25:F6:60:11:56:57:E7:8C:75:EF:DC:1E:75:43:A1:54:2A:7D`
 - 잘못 사용하던 `dailycoding-492802` 프로젝트에서 MassCOM Web·개발 Android·운영 Android client 3개를 삭제했다. 기존 `DailyCoding` Web client는 보존했다. 삭제 항목은 Google에서 30일 내 복원 가능하지만 복원하지 않는다.
 - `apps/mobile/.env.local`은 Git 비추적 상태로 새 Web client ID와 `https://api.masscom.kr`을 가리킨다.
-- Samsung SM-S928N(Android 16)은 ADB로 다시 연결됐고 개발 앱을 새 bundle로 실행했다. Google 로그인 버튼을 누르면 `CredentialSelectorActivity`가 시작된 흔적은 있었지만 계정 선택·ID token·서버 session 완료를 관찰하지 못했다. DNS와 OAuth 전파 전이므로 실제 Google 로그인은 `NOT_RUN`이다.
+- Google OAuth 테스트 사용자 1명을 등록했다. 기본 Credential Manager flow는 Samsung Android 16에서 622,528바이트 `TransactionTooLargeException`으로 시스템 selector가 종료됐다. 커밋 `e84a7a8`이 explicit Google button flow를 우선하도록 고쳤고 실제 동의→ID token→외부 API session, 콜드 스타트 SecureStore 복원, logout과 서버 revoke를 PASS했다. 두 번째 계정 전환은 `NOT_RUN`이다.
 - 중단하면서 Metro·로컬 API를 종료하고 ADB reverse를 제거했으며 개발 앱을 force-stop했다. AWS와 Vercel 서비스만 계속 실행 중이다.
 
 ### 다음 실행의 정확한 재개 순서
 
-1. 사용자가 가비아 로그인 화면에서 직접 로그인한다. 비밀번호를 대화에 받지 않는다.
-2. 기존 3개 레코드를 보존하고 `A api 43.200.56.97 TTL 600` 하나만 추가한다.
-3. `dig +short api.masscom.kr A`가 고정 IP를 반환할 때까지 기다린 뒤 `curl https://api.masscom.kr/health`의 200·`{"status":"ok"}`·TLS·보안 헤더를 확인한다. Caddy 로그에서 인증서 성공을 확인한다.
-4. Google OAuth 테스트 사용자/전파 상태를 확인한다. 테스트 사용자 추가가 필요하면 해당 Google 계정 전송 승인을 그 시점에 받는다.
-5. 휴대전화 연결 → `adb reverse tcp:8081 tcp:8081` → Metro 재시작 → 개발 앱 명시 실행 → Google 로그인·SecureStore 복원·로그아웃·계정 전환을 실기한다. 직접 관찰하지 않은 항목은 PASS로 바꾸지 않는다.
-6. 외부 HTTPS가 확인된 뒤 upload-key AAB helper를 다시 실행하고 비밀번호는 로컬 터미널에만 입력한다. 산출물·서명·설치·Play 제출은 각각 별도 상태다.
-7. Base Sepolia 계약 배포는 faucet 잔액이 준비된 상태지만 아직 `NOT_RUN`이다. keystore 비밀번호를 로컬 터미널에 입력받아 시험망에서만 수행한다.
-8. README·상태·테스트·증거를 실제 결과로 갱신한 후 한글 PR 하나로 push·CI·리뷰·merge한다. Google Play 제출·저장소 공개·대회 최종 제출은 실행하지 않는다.
+1. macOS Terminal에서 이미 열린 `run-upload-build.sh`의 upload-keystore 비밀번호를 입력한다. 산출물·서명·설치·Play 제출은 각각 별도 상태다.
+2. Base Sepolia 계약 배포는 faucet 잔액이 준비된 상태지만 아직 `NOT_RUN`이다. keystore 비밀번호를 로컬 터미널에 입력받아 시험망에서만 수행한다.
+3. 두 번째로 승인된 Google 테스트 계정이 생길 때만 계정 전환 D02를 실기한다.
+4. README·상태·테스트·증거를 실제 결과로 갱신한 후 한글 PR 하나로 push·CI·리뷰·merge한다. Google Play 제출·저장소 공개·대회 최종 제출은 실행하지 않는다.
 
 ## 이번 세션에서 완료한 것
 
@@ -120,16 +116,16 @@
 
 ## 실행한 테스트
 
-- API 단위 `78/78`, API PostgreSQL `37/37`(운영 로그인·claim replay·R02 7개·Q04 포함)
+- API 단위 `80/80`, API PostgreSQL `37/37`(운영 로그인·claim replay·R02 7개·Q04 포함)
 - Worker 단위 `45/45`, Worker PostgreSQL `23/23`, Anvil `12/12`(W07 M01~M08 + O02a~e)
-- 모바일 `140/140`, typecheck·lint·Android export PASS; Google/SecureStore native debug compile PASS, 실제 Google 기기 로그인은 NOT_RUN
+- 모바일 `141/141`, typecheck·lint·Android export PASS; 실제 Google 첫 로그인·SecureStore 복원·logout revoke PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - 실제 Base Sepolia RPC 배포 시뮬레이션 PASS(전송 없음), 잘못된 체인·중복 역할 거절 PASS
 - 운영 variant `bundleRelease`와 ELF `PT_LOAD` 정렬 검사 PASS(debug 서명)
 - secret·privacy·bootstrap·portal·presentation verifier PASS
 - 포털·발표 1440px/390px 브라우저 검증 PASS, 가로 넘침 없음, 시각 판정 각 96/100. 발표 timing·프로젝터 가독성·공개 호스팅은 NOT_RUN
 - 필수 36개 `30 PASS / 2 BLOCKED / 4 NOT_RUN`(R02·O02·Q04·W08 전환). 남은 NOT_RUN: D02·O01·A01·A02
-- `NOT_RUN`: 실제 Base Sepolia 배포, upload key 서명 AAB, 16KB 기기 설치, 운영 package `kr.masscom.wolgye` 지갑 복귀, 계정 삭제 뒤 지갑 세션 복원, Play Console
+- `NOT_RUN`: 실제 Base Sepolia 배포, upload key 서명 AAB, 16KB 기기 설치, 운영 package `kr.masscom.wolgye` 지갑 복귀, 두 Google 계정 전환, 운영 fresh reauthentication 삭제, Play Console
 
 ## 현재 열린 PR
 
@@ -137,17 +133,15 @@
 
 ## 현재 작업 중인 기능
 
-- Issue #118의 마지막 묶음인 `docs/118-design-evidence`에서 다크 모드·접근성·운영 문서·포털·발표 증거를 마감 중이다. 실제 Google 로그인·Base Sepolia 전송·upload-key AAB·공개 호스팅은 이 브랜치 범위가 아니며 상태를 올리지 않는다.
+- Issue #122에서 외부 HTTPS와 첫 Google 로그인을 완료했다. macOS Terminal의 upload-key AAB 비밀번호 입력과 Base Sepolia keystore 역할 주소·broadcast, 두 계정 전환 D02가 남았다.
 
 ## BLOCKER
 
 - B-002 저장소 공개 전환: 명시 승인 필요
-- B-003 외부 HTTPS·유료 클라우드: 소유 domain·hosting·계정 필요
 - B-004 Google Play 정책·국내 분류 공식 확인
 - B-008 모바일 moderate 권고 14건: Expo upstream 수정 대기
 - B-010·B-011 W04·W05용 실제 지갑 환경 부재
-- B-012 Base Sepolia: Foundry keystore 계정 4개는 존재하지만 배포자·민터 잔액이 각각 0이라 faucet gas 필요
-- B-013 모바일 Google 로그인과 외부 HTTPS 삭제 URL 부재. 서버 auth_time 재인증·요청 제한·세션 정리는 완료
+- Base Sepolia와 upload-key AAB는 blocker가 아니라 숨김 비밀번호 입력 전 `NOT_RUN`
 
 ## 사용자 승인이 필요한 사항
 
@@ -155,12 +149,11 @@
 
 소유자가 직접 해야 하는 것(대신 수행하지 않음):
 
-1. Base Sepolia faucet으로 배포자 `0xFDd1746dcEdE5A796812fBe30fc231059a98c089`와 민터 `0xfDfaB19251Caa5Bd140CdD7F167F6e4De895c355`에 gas를 넣는다. 2026-09-21 재조회에서도 둘 다 정확히 `0 ETH`. `masscom-base-sepolia`, `masscom-sepolia-admin`, `masscom-sepolia-minter`, `masscom-sepolia-pauser` keystore 이름은 이미 존재하므로 다시 만들지 않는다.
-2. 생성된 Android upload keystore는 다시 만들지 않는다. 로컬 `android.injected.signing.*` 네 값을 비밀번호가 남지 않는 방식으로 설정하고 upload-key AAB를 빌드·검사·백업한다. 공개 SHA-256 핀은 이미 저장소에 있다.
-3. 제공된 Google OAuth client ID가 Android용인지 Web application용인지 Console에서 확인한다. `kr.masscom.wolgye.dev` debug SHA-1 Android client, Play App Signing 인증서용 production Android client, 서버 ID token용 Web client가 모두 필요하며 없는 유형만 만든다.
-4. 소유 domain·hosting 업체를 정하고 개인정보처리방침·외부 계정 삭제 URL을 준비한다(과금 자원). 그 전에는 서버가 127.0.0.1 loopback이며 공개하지 않는다.
-5. Play Console에서 package 등록·Data safety·금융 기능의 NFT award·계정 삭제 URL을 확인하고 제출한다. 에이전트는 승인 없이 입력·제출하지 않는다.
-6. 연결된 기기로 실제 카메라 QR 촬영→수령과 오프라인 안내(A01), 운영 package Reown 복귀·계정 전환(D02/W04), upload-key AAB 설치(A02)를 사람이 직접 조작하며 검증한다. 개발 package MetaMask 복귀·서명·콜드 스타트 복원은 완료됐다.
+1. 열린 macOS Terminal의 `run-upload-build.sh` 프롬프트에 upload keystore 비밀번호를 입력한다. 공개 SHA-256 핀은 이미 저장소에 있으며 키를 다시 만들지 않는다.
+2. Base Sepolia keystore 역할 주소를 비밀번호 프롬프트로 확인하고 시험망 deployer 계정으로만 broadcast한다. private key·비밀번호는 기록하지 않는다.
+3. Play Console에서 App Signing SHA-1을 받은 뒤 `kr.masscom.wolgye`용 Play Android OAuth client를 별도로 만든다. 현재 upload-key client를 Play signing client로 오인하지 않는다.
+4. Play Console package 등록·Data safety·금융 기능 NFT award·계정 삭제 URL은 실제 제출 직전 다시 확인하고 승인 없이 제출하지 않는다.
+5. 실제 카메라 QR 촬영→수령과 오프라인 안내(A01), 두 Google 계정 전환(D02), 운영 package Reown 복귀, upload-key AAB 설치(A02)는 별도 실기한다.
 
 여전히 승인 전 금지: mainnet, 사용자 자산 이동, 저장소 공개, Play 프로덕션 공개, 대회 최종 제출.
 

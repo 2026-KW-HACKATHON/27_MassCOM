@@ -2,13 +2,15 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-> 현재 상태: Phase 0~3 로컬 핵심 흐름 `VERIFIED` · Phase 4 출시 기반과 Phase 5 발표·증거 준비 `IN_PROGRESS` · 필수 시험 30 `PASS` / 2 `BLOCKED` / 4 `NOT_RUN`(로컬 검증 기준. 시험망·운영 환경은 아래 “현재 한계” 참고)
+> 현재 상태: Phase 0~3 로컬 핵심 흐름 `VERIFIED` · 외부 HTTPS와 첫 Google 로그인 실기 `VERIFIED` · Phase 4 출시 기반과 Phase 5 발표·증거 준비 `IN_PROGRESS` · 필수 시험 30 `PASS` / 2 `BLOCKED` / 4 `NOT_RUN`
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](docs/index.html)
 
 ## 한눈에 보기
 
 - [프로젝트 포털](docs/index.html): 흐름·아키텍처·평가 증거·결정 상태를 시각적으로 탐색
+- [공개 프로젝트 포털](https://masscom.kr): 다운로드 없이 열리는 실제 Vercel 배포
+- [공개 계정 삭제 안내](https://masscom.kr/account-deletion): 삭제 요청·보존 정보·지갑 비밀 경계
 - [발표·시연 페이지](docs/presentation.html): 3분·5분 발표 장면과 실제/미실행 증거 경계
 - [현장 검증 빈 기록지](docs/FIELD_VALIDATION.md): 동의·과업·결과를 미리 채우지 않은 양식
 - [제출 체크리스트](docs/SUBMISSION_CHECKLIST.md): 승인 전 공개·태그·제출 금지 경계
@@ -66,15 +68,15 @@ python3 -m http.server 4173 --directory docs
 | 다음 음식점 추천 | `VERIFIED` | PR #47, 정원 마감 제외·미방문 우선·다음 고정 보상 설명·한국 날짜별 회전·상세 연결 PASS |
 | 캠페인 참여 등록 API | `IMPLEMENTED` | Issue #73, `POST /campaigns/:id/enrollments` 정원 원자 예약·멱등 재요청, R02 PostgreSQL 동시 20요청 PASS. Android 참여 화면과 수령 시 등록 요구는 미구현(`PLANNED`) |
 | 주소 확인 API | `IMPLEMENTED` | ERC-4361 challenge·실제 서명 복구·nonce 소비 15 tests PASS |
-| PostgreSQL | `IN_PROGRESS` | 점포·캠페인·멤버십·claim slot·방문·보상권·지갑 challenge(PR #67)·캠페인 참여 등록 migration 구현. 외부 운영 DB는 `BLOCKED`(B-003) |
+| PostgreSQL | `IN_PROGRESS` | 점포·캠페인·멤버십·claim slot·방문·보상권·지갑 challenge·Google session migration 구현. Lightsail 사설 Compose DB에서 migration·session 발급 확인, 외부 백업 복원은 `NOT_RUN` |
 | NFT 계약 | `VERIFIED` | PR #49, Foundry 8/8·fuzz 128·Anvil 31337 실제 1개 발행; Base Sepolia `NOT_RUN` |
 | wallet binding·mint job·Outbox | `IMPLEMENTED` | PR #50, SIWE 영속화·동시 20요청 job/Outbox 하나·고정 수령인 PostgreSQL 통합 PASS |
 | Worker | `VERIFIED` | PR #51, PostgreSQL lease heartbeat·시도·이벤트·자산, 체인 설정 사전 검사, receipt/event/state 대조, 응답 유실·lease·재조직 전 확정 복구를 로컬 Anvil에서 검증 |
 | Reown 외부 지갑 코드 | `IMPLEMENTED` | AppKit 2.0.6, 외부 지갑 전용 기능 플래그·메서드 allowlist |
 | 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름·W06 PASS; W04 동일 세션 주소 전환과 W05 미지원 스마트지갑은 준비된 외부 환경 부재로 `BLOCKED` |
 | NFT 발행 전체 흐름 | `VERIFIED` | Local Anvil에서 Android 접수→Worker→이벤트 대조→등록 완료와 기존 token #1 복구 PASS; Base Sepolia는 `BLOCKED` |
-| 계정 삭제·개인정보 | `IN_PROGRESS` | PR #53, D01·D03 로컬 PASS, Android 삭제 전 공개 장부 안내·DEMO 요청 PASS; 운영 재인증·외부 삭제 HTTPS·D02는 미완료 |
-| 외부 HTTPS·Play 제출 | `BLOCKED` | 계정·비용·정책·명시 승인 필요 |
+| 계정 삭제·개인정보 | `IN_PROGRESS` | D01·D03 로컬 PASS, 공개 삭제·개인정보 HTTPS 페이지 PASS; 운영 fresh reauthentication 삭제와 D02 계정 전환은 미완료 |
+| 외부 HTTPS·Play 제출 | `IN_PROGRESS` | `api.masscom.kr` DNS·TLS·health와 `masscom.kr` 포털 PASS. Play App Signing OAuth·AAB·Console 제출은 `NOT_RUN/BLOCKED` |
 
 상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
 
@@ -96,7 +98,7 @@ Android 앱 ─┐
                     └─ 외부 지갑 주소 확인 서명
 ```
 
-현재 `apps/mobile`, `apps/api`, `apps/worker`, `apps/api/migrations`, `contracts`가 구현됐습니다. 별도 점주 웹과 운영 `infra`는 후속 Phase에서 실제 실행 코드와 함께 추가합니다.
+현재 `apps/mobile`, `apps/api`, `apps/worker`, `apps/api/migrations`, `contracts`, `infra/lightsail`이 구현됐습니다. 별도 점주 웹은 후속 Phase 범위입니다.
 
 ## 기술 선택 상태
 
@@ -106,7 +108,7 @@ Android 앱 ─┐
 | 지갑 연결 | Reown AppKit 외부 지갑만, MetaMask 1차 실기 | `USER_CONFIRMED` |
 | 체인 | Base Sepolia → 별도 승인 후 Base mainnet | `USER_CONFIRMED` |
 | 서버·DB | Node.js LTS + TypeScript + PostgreSQL | `USER_CONFIRMED` |
-| 배포 | AWS 서울 리전 + Docker Compose + Nginx | `USER_CONFIRMED` |
+| 배포 | AWS 서울 리전 + Docker Compose + Caddy | `USER_CONFIRMED`·`VERIFIED` |
 
 D-004~D-008은 2026-09-18 승인됐습니다. 유료 자원 생성·메인넷·공개 배포는 이 승인에 포함되지 않습니다.
 
@@ -158,7 +160,7 @@ TEST_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_test' npm run t
 
 `npm run test:anvil --prefix apps/worker`는 별도 로컬 Anvil과 `_test` 데이터베이스가 필요합니다. Worker 실행 entrypoint는 `CHAIN_ID=31337`과 `ALLOW_UNLOCKED_LOCAL_MINTER=true`를 동시에 요구해 운영 키나 공개 체인에 사용할 수 없도록 제한했습니다. `CHAIN_REORG_MARGIN`은 cursor보다 다시 확인할 블록 수이며 현재 로컬 기본값은 12입니다. `MINTER_MIN_BALANCE_WEI`(기본 0) 이하로 민터 잔액이 내려가면 신규 전송을 미루고 재시도합니다.
 
-Base Sepolia 계약 배포는 암호화 Foundry keystore 전용 스크립트로 시뮬레이션만 확인했습니다(`BLOCKED`, 실제 브로드캐스트 미실행).
+Base Sepolia 계약 배포는 암호화 Foundry keystore 전용 스크립트와 faucet gas까지 준비했습니다. 실제 브로드캐스트는 숨김 비밀번호 입력 전 `NOT_RUN`입니다.
 
 ```bash
 scripts/deploy-base-sepolia.sh <keystore-account>          # 시뮬레이션
@@ -185,7 +187,9 @@ npm run test:postgres --prefix apps/api
 
 ## 데모·배포·출시
 
-- 정적 프로젝트 포털: 로컬 검증 중, 공개 URL 없음
+- 정적 프로젝트 포털: `https://masscom.kr`·`/privacy`·`/account-deletion` HTTPS 200 `VERIFIED`
+- 운영 API: AWS Lightsail 서울 리전의 `https://api.masscom.kr/health` HTTP/2 200·Let’s Encrypt·보안 헤더 `VERIFIED`; DB·API 내부 포트는 비공개
+- Google 로그인: Samsung SM-S928N Android 16에서 실제 동의→ID token→외부 API session·콜드 스타트 복원·logout revoke `PASS`; 두 번째 계정 전환은 `NOT_RUN`
 - Android debug APK: Android 16 16KB AVD와 Samsung SM-S928N 실기기에서 빌드·설치·실행·홈 복귀·콜드 스타트 검증, 저장소에는 미포함
 - Android 음식점 탐색: 로컬 PostgreSQL의 `demo: true` 점포 3곳으로 목록·상세·고정 보상 조건·선택적 지갑 이동 검증
 - Android 방문 수령: loopback DEMO에서 점주 권한→1회 코드→고객 수령→도감 검증; 점주 화면의 QR을 고객 화면에서 촬영해 같은 수령 API로 연결(권한 거부 시 수동 입력, 수령용이 아닌 QR·연속 인식은 앱에서 걸러냄). 실제 촬영→수령 실기는 `NOT_RUN`
@@ -195,10 +199,10 @@ npm run test:postgres --prefix apps/api
 - NFT 발행 Worker: Local Anvil에서 중복 Worker·응답 유실·설정 오류·이벤트 불일치·확정 전 재조직·DB 복구와 RPC 중단·발행 중지·민터 잔액 부족·DB 장애 뒤 자동 복구(O02, Issue #77)를 검증하고 Android가 접수/확인 중/등록 완료를 구분
 - 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), `APP_VARIANT`로 분기하는 scheme `masscom`/`masscom-dev`: `IMPLEMENTED`; `scripts/build-release-aab.sh`로 로컬 debug 서명 운영 AAB의 package·권한·16KB 정렬 48개 항목 PASS
 - 백업·복원 drill: `scripts/db-restore-drill.sh`로 dump→scratch DB 복원→행 수·migration 대조를 로컬 PostgreSQL 18에서 PASS. 운영 DB·외부 백업 저장소는 `NOT_RUN`
-- 실기 시험 절차는 [`docs/DEVICE_TEST_PLAN.md`](docs/DEVICE_TEST_PLAN.md), 외부 HTTPS·로그인 결정안은 [`docs/HOSTING_LOGIN_PROPOSAL.md`](docs/HOSTING_LOGIN_PROPOSAL.md)(승인 대기, 자원 미생성)
+- 실기 시험 절차는 [`docs/DEVICE_TEST_PLAN.md`](docs/DEVICE_TEST_PLAN.md), 외부 HTTPS·로그인 실제 결정은 [`docs/HOSTING_LOGIN_PROPOSAL.md`](docs/HOSTING_LOGIN_PROPOSAL.md)를 따릅니다.
 - 운영 AAB 지갑 진입점 검사(W08): `scripts/check-release-wallet-surface.sh <aab>`로 결제 권한·결제/온램프/내장 지갑 SDK·AppKit 기능 flag·계정 화면 도달 경로·세션 메서드를 정적 검사해 PASS. 실기기 UI 확인과 upload key 서명본 검사는 아님
 - upload keystore와 공개 인증서 SHA-256 핀: `IMPLEMENTED`; upload key로 서명한 release AAB, App Link, Play Console 제출: `NOT_RUN`
-- 계정 삭제: 앱 내부 Local DEMO와 PostgreSQL 미전송 취소·제출 거래 보존·비식별화 PASS; 외부 HTTPS 삭제 URL·운영 재인증은 `BLOCKED`
+- 계정 삭제: 앱 내부 Local DEMO와 PostgreSQL 미전송 취소·제출 거래 보존·비식별화 PASS; 외부 HTTPS 삭제 URL PASS, 운영 fresh reauthentication 삭제는 `NOT_RUN`
 - 실제 Reown 지갑 흐름: 개발 package MetaMask 연결·서명·자동 복귀·콜드 스타트 서버 binding 복원과 W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 운영 release package, 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `NOT_RUN/BLOCKED`
 - 테스트넷 계약: 배포 전
 - 메인넷·Google Play·대회 제출: 명시 승인 전 실행 금지
