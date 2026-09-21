@@ -75,6 +75,11 @@ unsafe_logs=(
   $'const detail = body.signature\nconsole.error(detail)'
   $'const detail =\n  error;\nconsole.error(detail)'
   "const { message: detail } = error; console.error(detail)"
+  "const { message: detail, stack: trace } = error; console.error(detail)"
+  "const detail = body['signature']; console.error(detail)"
+  "const report = console.error; report(error)"
+  "function report(detail: unknown) { console.error(detail); } report(error)"
+  "const detail = error; { const detail = 'safe'; console.log(detail); } console.error(detail)"
 )
 
 for unsafe_log in "${unsafe_logs[@]}"; do
@@ -97,6 +102,8 @@ global_unsafe_logs=(
   $'const detail = body.password\nconsole.error(detail)'
   $'const detail =\n  privateKey;\nconsole.error(detail)'
   "const { password: detail } = body; console.error(detail)"
+  "const { password: detail, secret: backup } = body; console.error(detail)"
+  'const detail = body["privateKey"]; console.error(detail)'
 )
 
 for unsafe_log in "${global_unsafe_logs[@]}"; do

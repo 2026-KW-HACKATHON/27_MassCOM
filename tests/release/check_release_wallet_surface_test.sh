@@ -7,6 +7,13 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 check="$repo_root/scripts/check-release-wallet-surface.sh"
 work="$(mktemp -d -t wallet-surface-test.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/bin"
+cat >"$work/bin/aapt2" <<'STUB'
+#!/usr/bin/env bash
+artifact="${@: -1}"
+exec unzip -p "$artifact" base/manifest/AndroidManifest.xml
+STUB
+chmod +x "$work/bin/aapt2"
 
 make_aab() { # <name> <manifest text> <dex text>
   local dir="$work/$1.d"
@@ -31,22 +38,26 @@ make_src() { # <name> -> prints the copy's path
 }
 expect_fail() { # <label> <expected message> <aab> <src>
   local out
-  if out="$(bash "$check" "$3" "$4" 2>&1)"; then
+  if out="$(PATH="$work/bin:$PATH" bash "$check" "$3" "$4" 2>&1)"; then
     echo "expected failure but passed: $1" >&2; exit 1
   fi
   grep -qF "$2" <<<"$out" || { echo "$1 failed for an unrelated reason: $out" >&2; exit 1; }
 }
 
-good_manifest=$'kr.masscom.wolgye"K\nandroid.permission.INTERNET('
+good_manifest=$'E: manifest\n  A: package="kr.masscom.wolgye"\n  E: uses-permission\n    A: android:name="android.permission.INTERNET"'
 make_aab good "$good_manifest" 'Lcom/facebook/react/ReactActivity;'
 good_src="$(make_src good)"
-bash "$check" "$work/good.aab" "$good_src" >/dev/null
+PATH="$work/bin:$PATH" bash "$check" "$work/good.aab" "$good_src" >/dev/null
 
-make_aab billing "$good_manifest"$'\ncom.android.vending.BILLING(' 'Lcom/facebook/react/ReactActivity;'
+make_aab billing "$good_manifest"$'\n  E: uses-permission\n    A: android:name="com.android.vending.BILLING"' 'Lcom/facebook/react/ReactActivity;'
 expect_fail 'billing permission' 'billing or overlay permission' "$work/billing.aab" "$good_src"
 
-make_aab devpkg $'kr.masscom.wolgye.dev"K' 'x'
+make_aab devpkg $'E: manifest\n  A: package="kr.masscom.wolgye.dev"' 'x'
 expect_fail 'development package' 'manifest' "$work/devpkg.aab" "$good_src"
+
+make_aab package-decoy $'E: manifest\n  A: package="com.attacker.release"\n  E: application\n    A: android:label="kr.masscom.wolgye"' 'x'
+expect_fail 'wrong package with expected-package decoy' 'manifest package is not kr.masscom.wolgye' \
+  "$work/package-decoy.aab" "$good_src"
 
 make_aab sdk "$good_manifest" 'Lcom/android/billingclient/api/BillingClient;'
 expect_fail 'billing SDK class' 'payment or embedded-wallet SDK class' "$work/sdk.aab" "$good_src"

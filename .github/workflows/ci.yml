@@ -43,10 +43,6 @@ jobs:
         run: |
           bash scripts/check-secrets.sh
           bash tests/bootstrap/check_secrets_test.sh
-      - name: 개인정보 로그 검사
-        run: |
-          bash scripts/check-privacy.sh
-          bash tests/bootstrap/check_privacy_test.sh
       - name: PR 한국어 작성 확인
         if: github.event_name == 'pull_request'
         env:
@@ -81,6 +77,10 @@ jobs:
           npm ci --prefix apps/api
           npm ci --prefix apps/mobile
           npm ci --prefix apps/worker
+      - name: 개인정보 로그 검사
+        run: |
+          bash scripts/check-privacy.sh
+          bash tests/bootstrap/check_privacy_test.sh
       - name: API·PostgreSQL 테스트·타입검사·빌드
         env:
           DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test

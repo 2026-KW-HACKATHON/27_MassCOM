@@ -16,12 +16,40 @@ fail() { echo "release wallet surface check FAILED: $*" >&2; exit 1; }
 
 work="$(mktemp -d -t wallet-surface.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
-unzip -q "$aab" 'base/manifest/AndroidManifest.xml' 'base/dex/*' -d "$work" || fail "not a readable AAB: $aab"
+unzip -q "$aab" 'base/dex/*' -d "$work" || fail "not a readable AAB: $aab"
 
-manifest="$(strings "$work/base/manifest/AndroidManifest.xml")"
-# The bundle manifest is a protobuf, so the package attribute shows up as `<package>"` plus a tag byte.
-grep -qE "^${expected_package//./\\.}\"" <<<"$manifest" || fail "manifest package is not $expected_package"
-if grep -qF "$expected_package.dev" <<<"$manifest"; then fail "manifest belongs to the development variant"; fi
+aapt2=''
+if command -v aapt2 >/dev/null 2>&1; then
+  aapt2="$(command -v aapt2)"
+else
+  android_sdk="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+  for candidate in "$android_sdk"/build-tools/*/aapt2; do
+    [[ -x "$candidate" ]] && aapt2="$candidate"
+  done
+fi
+[[ -n "$aapt2" ]] || fail 'manifest parser aapt2 is unavailable'
+manifest="$($aapt2 dump xmltree --file base/manifest/AndroidManifest.xml "$aab" 2>&1)" \
+  || fail "manifest could not be parsed: $aab"
+read -r package_count artifact_package <<<"$(awk '
+  {
+    if ($0 ~ /^[[:space:]]*E:/) {
+      if (in_manifest) exit
+      if ($0 ~ /^[[:space:]]*E: manifest([[:space:]]|$)/) in_manifest = 1
+      next
+    }
+    if (in_manifest && $0 ~ /A: package([^=]*)=/) {
+      value = $0
+      sub(/^[^\"]*\"/, "", value)
+      sub(/\".*$/, "", value)
+      count += 1
+      package_name = value
+    }
+  }
+  END { printf "%d %s\n", count, package_name }
+' <<<"$manifest")"
+[[ "$package_count" == 1 && "$artifact_package" == "$expected_package" ]] \
+  || fail "manifest package is not $expected_package"
+if [[ "$artifact_package" == "$expected_package.dev" ]]; then fail "manifest belongs to the development variant"; fi
 if grep -qiE 'com\.android\.vending\.BILLING|SYSTEM_ALERT_WINDOW' <<<"$manifest"; then
   fail "manifest declares a billing or overlay permission"
 fi
@@ -168,4 +196,4 @@ if [[ -n "$hit" ]]; then
   fail "session requests a transaction or blind-signing method: $hit"
 fi
 
-echo "release wallet surface verified: $(basename "$aab"), package $expected_package"
+echo "release wallet surface verified: $(basename "$aab"), package $artifact_package"
