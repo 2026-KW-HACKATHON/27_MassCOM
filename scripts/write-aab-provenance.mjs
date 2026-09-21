@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { existsSync, writeFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { existsSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 
 const allowedOptions = new Set([
   'output',
@@ -10,9 +10,10 @@ const allowedOptions = new Set([
   'artifact-bytes',
   'source-commit',
   'mobile-dirty',
-  'android-package',
-  'android-version-name',
-  'android-version-code',
+  'source-expected-android-package',
+  'source-expected-android-version-name',
+  'source-expected-android-version-code',
+  'w08-verified-artifact-package',
   'signature-status',
   'signature-exit-code',
   'signature-certificate-sha256',
@@ -67,10 +68,33 @@ function boolean(options, name) {
   throw new Error(`${name} must be true or false`);
 }
 
+function validateAutomatedVerdict(verdict, label) {
+  if (!['PASS', 'FAIL'].includes(verdict.status)) {
+    throw new Error(`${label} status must be PASS or FAIL`);
+  }
+  if (verdict.status === 'PASS' && verdict.exitCode !== 0) {
+    throw new Error(`${label} PASS requires exit code 0`);
+  }
+  if (verdict.status === 'FAIL' && verdict.exitCode === 0) {
+    throw new Error(`${label} FAIL requires a nonzero exit code`);
+  }
+}
+
 const options = parseArguments(process.argv.slice(2));
 const outputPath = required(options, 'output');
 const artifactPath = required(options, 'artifact');
 if (!existsSync(artifactPath)) throw new Error(`artifact does not exist: ${artifactPath}`);
+const artifactCanonicalPath = realpathSync(artifactPath);
+const outputCanonicalPath = join(realpathSync(dirname(resolve(outputPath))), basename(outputPath));
+const artifactStat = statSync(artifactPath);
+let sameExistingInode = false;
+if (existsSync(outputPath)) {
+  const outputStat = statSync(outputPath);
+  sameExistingInode = outputStat.dev === artifactStat.dev && outputStat.ino === artifactStat.ino;
+}
+if (outputCanonicalPath === artifactCanonicalPath || sameExistingInode) {
+  throw new Error('provenance output must not refer to the artifact');
+}
 
 const artifactSha256 = required(options, 'artifact-sha256');
 if (!/^[0-9a-f]{64}$/i.test(artifactSha256)) {
@@ -85,6 +109,14 @@ if (!/^[0-9a-f]{40}$/i.test(sourceCommit)) {
 const certificate = options.get('signature-certificate-sha256') ?? '';
 if (certificate !== '' && !/^[0-9a-f]{64}$/i.test(certificate)) {
   throw new Error('signature certificate sha256 must be empty or 64 hexadecimal characters');
+}
+
+const w08VerifiedArtifactPackage = options.get('w08-verified-artifact-package') ?? '';
+if (
+  w08VerifiedArtifactPackage !== '' &&
+  !/^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/.test(w08VerifiedArtifactPackage)
+) {
+  throw new Error('W08-verified artifact package is not a valid Android package name');
 }
 
 const generatedAt = options.get('generated-at') ?? new Date().toISOString();
@@ -112,9 +144,17 @@ const record = {
     mobileDirty: boolean(options, 'mobile-dirty'),
   },
   android: {
-    package: required(options, 'android-package'),
-    versionName: required(options, 'android-version-name'),
-    versionCode: integer(options, 'android-version-code', 'Android version code'),
+    sourceExpected: {
+      package: required(options, 'source-expected-android-package'),
+      versionName: required(options, 'source-expected-android-version-name'),
+      versionCode: integer(
+        options,
+        'source-expected-android-version-code',
+        'source-expected Android version code',
+      ),
+    },
+    w08VerifiedArtifactPackage:
+      w08VerifiedArtifactPackage === '' ? null : w08VerifiedArtifactPackage,
   },
   signature: {
     status: status(options, 'signature-status', 'signature'),
@@ -134,6 +174,17 @@ const record = {
 
 if (record.releaseReadiness.status === 'PASS' && record.releaseReadiness.pending.length > 0) {
   throw new Error('release readiness cannot pass with pending gates');
+}
+validateAutomatedVerdict(record.signature, 'signature');
+validateAutomatedVerdict(record.walletSurface, 'wallet surface');
+if (record.signature.status === 'PASS' && record.signature.certificateSha256 === null) {
+  throw new Error('signature PASS requires a certificate fingerprint');
+}
+if (
+  record.walletSurface.status === 'PASS' &&
+  record.android.w08VerifiedArtifactPackage === null
+) {
+  throw new Error('wallet surface PASS requires a verified artifact package');
 }
 
 writeFileSync(outputPath, `${JSON.stringify(record, null, 2)}\n`);

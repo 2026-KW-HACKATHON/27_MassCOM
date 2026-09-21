@@ -6,7 +6,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 assess="$repo_root/scripts/assess-release-aab.sh"
 writer="$repo_root/scripts/write-aab-provenance.mjs"
 work="$(mktemp -d -t aab-assessment.XXXXXX)"
-trap 'rm -rf "$work"' EXIT
+dirty_marker="$repo_root/apps/mobile/.assess-release-aab-dirty-fixture"
+trap 'rm -rf "$work"; rm -f "$dirty_marker"' EXIT
 
 artifact="$work/tiny-release.aab"
 printf 'tiny deterministic AAB fixture\n' >"$artifact"
@@ -18,6 +19,10 @@ if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=normal -- a
 else
   expected_dirty=false
 fi
+[[ "$expected_dirty" == false ]] || {
+  echo 'assessment regression requires apps/mobile to start clean' >&2
+  exit 1
+}
 fingerprint='0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF'
 
 cat >"$work/signature-pass" <<STUB
@@ -59,9 +64,10 @@ equal(record.artifact.sha256, expectedSha, 'artifact sha256');
 equal(record.artifact.bytes, Number(expectedBytes), 'artifact bytes');
 equal(record.source.commit, expectedCommit, 'source commit');
 equal(record.source.mobileDirty, expectedDirty === 'true', 'source mobileDirty');
-equal(record.android.package, 'kr.masscom.wolgye', 'Android package');
-equal(record.android.versionName, '0.1.0', 'Android version name');
-equal(record.android.versionCode, 1, 'Android version code');
+equal(record.android.sourceExpected.package, 'kr.masscom.wolgye', 'source-expected Android package');
+equal(record.android.sourceExpected.versionName, '0.1.0', 'source-expected Android version name');
+equal(record.android.sourceExpected.versionCode, 1, 'source-expected Android version code');
+equal(record.android.w08VerifiedArtifactPackage, 'kr.masscom.wolgye', 'W08-verified artifact package');
 equal(record.signature.status, 'PASS', 'signature status');
 equal(record.signature.exitCode, 0, 'signature exit code');
 equal(record.signature.certificateSha256, fingerprint, 'certificate fingerprint');
@@ -78,6 +84,48 @@ if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(record.generatedAt)) {
 }
 if (raw.includes(secret)) fail('provenance captured an unrelated environment secret');
 NODE
+
+# The same checkout must transition from clean to dirty when apps/mobile changes.
+touch "$dirty_marker"
+dirty_provenance="$work/dirty.provenance.json"
+env MASSCOM_TEST_MODE=true \
+  AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
+  AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-pass" \
+  bash "$assess" "$artifact" "$repo_root/apps/mobile/src" "$dirty_provenance" >/dev/null 2>&1
+node -e \
+  "const r=require(process.argv[1]); if(r.source.mobileDirty!==true) throw new Error('mobileDirty did not become true')" \
+  "$dirty_provenance"
+rm -f "$dirty_marker"
+
+# rev-parse can succeed while status fails; failure to establish dirty state must abort before gates.
+actual_git="$(command -v git)"
+mkdir -p "$work/git-fail-bin"
+cat >"$work/git-fail-bin/git" <<STUB
+#!/usr/bin/env bash
+if [[ " \$* " == *' status '* ]]; then
+  echo 'simulated git status failure' >&2
+  exit 42
+fi
+exec '$actual_git' "\$@"
+STUB
+chmod +x "$work/git-fail-bin/git"
+status_failure_provenance="$work/status-failure.provenance.json"
+rm -f "$work/status-failure-gate-ran"
+cat >"$work/status-failure-signature" <<STUB
+#!/usr/bin/env bash
+touch '$work/status-failure-gate-ran'
+exit 0
+STUB
+chmod +x "$work/status-failure-signature"
+status=0
+env PATH="$work/git-fail-bin:$PATH" MASSCOM_TEST_MODE=true \
+  AAB_SIGNATURE_CHECK_COMMAND="$work/status-failure-signature" \
+  AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-pass" \
+  bash "$assess" "$artifact" "$repo_root/apps/mobile/src" "$status_failure_provenance" >/dev/null 2>&1 \
+  || status=$?
+[[ "$status" == 42 ]] || { echo "git status failure: expected exit 42, got $status" >&2; exit 1; }
+[[ ! -e "$status_failure_provenance" ]] || { echo 'git status failure wrote provenance' >&2; exit 1; }
+[[ ! -e "$work/status-failure-gate-ran" ]] || { echo 'git status failure still ran a gate' >&2; exit 1; }
 
 # Each automated gate is an independent subprocess. Both results are recorded, then the first
 # failing gate's code is returned only after provenance has been written.
@@ -114,6 +162,9 @@ if (record.walletSurface.status !== 'FAIL' || record.walletSurface.exitCode !== 
 if (record.releaseReadiness.status !== 'NOT_RUN') {
   throw new Error('automated failure changed manual release readiness');
 }
+if (record.android.w08VerifiedArtifactPackage !== null) {
+  throw new Error('failed W08 claimed an artifact package');
+}
 NODE
 
 # Production callers cannot replace either gate executable.
@@ -125,6 +176,34 @@ env -u MASSCOM_TEST_MODE AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
 [[ "$status" != 0 ]] || { echo 'production override was accepted' >&2; exit 1; }
 [[ ! -e "$rejected_override" ]] || { echo 'rejected override still wrote provenance' >&2; exit 1; }
 
+# Neither a canonical-path alias nor another inode link may let provenance overwrite the AAB.
+cat >"$work/collision-gate" <<STUB
+#!/usr/bin/env bash
+touch '$work/collision-gate-ran'
+echo 'certificate sha256: $fingerprint'
+echo 'release wallet surface verified: collision.aab, package kr.masscom.wolgye'
+STUB
+chmod +x "$work/collision-gate"
+assert_collision_rejected() { # <artifact> <output>
+  local candidate_artifact="$1" candidate_output="$2" before status=0
+  before="$(shasum -a 256 "$candidate_artifact" | cut -d' ' -f1)"
+  rm -f "$work/collision-gate-ran"
+  env MASSCOM_TEST_MODE=true \
+    AAB_SIGNATURE_CHECK_COMMAND="$work/collision-gate" \
+    AAB_WALLET_SURFACE_CHECK_COMMAND="$work/collision-gate" \
+    bash "$assess" "$candidate_artifact" "$repo_root/apps/mobile/src" "$candidate_output" >/dev/null 2>&1 \
+    || status=$?
+  [[ "$status" != 0 ]] || { echo 'artifact/provenance collision was accepted' >&2; exit 1; }
+  [[ ! -e "$work/collision-gate-ran" ]] || { echo 'collision ran automated gates' >&2; exit 1; }
+  [[ "$(shasum -a 256 "$candidate_artifact" | cut -d' ' -f1)" == "$before" ]] \
+    || { echo 'collision modified the artifact' >&2; exit 1; }
+}
+cp "$artifact" "$work/canonical-collision.aab"
+assert_collision_rejected "$work/canonical-collision.aab" "$work/./canonical-collision.aab"
+cp "$artifact" "$work/inode-collision.aab"
+ln "$work/inode-collision.aab" "$work/inode-collision.provenance.json"
+assert_collision_rejected "$work/inode-collision.aab" "$work/inode-collision.provenance.json"
+
 # The writer has a stable field order/format for identical explicit inputs and validates its trust boundary.
 writer_args=(
   --artifact "$artifact"
@@ -132,9 +211,10 @@ writer_args=(
   --artifact-bytes "$expected_bytes"
   --source-commit "$expected_commit"
   --mobile-dirty false
-  --android-package kr.masscom.wolgye
-  --android-version-name 0.1.0
-  --android-version-code 1
+  --source-expected-android-package kr.masscom.wolgye
+  --source-expected-android-version-name 0.1.0
+  --source-expected-android-version-code 1
+  --w08-verified-artifact-package kr.masscom.wolgye
   --signature-status pass
   --signature-exit-code 0
   --signature-certificate-sha256 "$fingerprint"
@@ -165,5 +245,23 @@ expect_writer_reject 'malformed digest' 'artifact sha256 must be 64 hexadecimal 
 expect_writer_reject 'unknown status' 'unknown signature status' --signature-status MAYBE
 expect_writer_reject 'manual gates still pending' 'release readiness cannot pass with pending gates' \
   --release-readiness-status PASS
+expect_writer_reject 'signature PASS with nonzero exit' 'signature PASS requires exit code 0' \
+  --signature-exit-code 6
+expect_writer_reject 'signature FAIL with zero exit' 'signature FAIL requires a nonzero exit code' \
+  --signature-status FAIL
+expect_writer_reject 'wallet PASS with nonzero exit' 'wallet surface PASS requires exit code 0' \
+  --wallet-surface-exit-code 9
+expect_writer_reject 'wallet FAIL with zero exit' 'wallet surface FAIL requires a nonzero exit code' \
+  --wallet-surface-status FAIL
+expect_writer_reject 'signature BLOCKED with zero exit' 'signature status must be PASS or FAIL' \
+  --signature-status BLOCKED
+expect_writer_reject 'wallet NOT_RUN with zero exit' 'wallet surface status must be PASS or FAIL' \
+  --wallet-surface-status NOT_RUN
+expect_writer_reject 'signature PASS without certificate' 'signature PASS requires a certificate fingerprint' \
+  --signature-certificate-sha256 ''
+expect_writer_reject 'wallet PASS without verified package' 'wallet surface PASS requires a verified artifact package' \
+  --w08-verified-artifact-package ''
+expect_writer_reject 'writer artifact/output collision' 'provenance output must not refer to the artifact' \
+  --output "$artifact"
 
 echo 'AAB assessment provenance tests passed'

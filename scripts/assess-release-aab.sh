@@ -11,15 +11,19 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 artifact_input="$1"
 [[ -f "$artifact_input" ]] || { echo "no such artifact: $artifact_input" >&2; exit 1; }
-artifact="$(cd "$(dirname "$artifact_input")" && pwd)/$(basename "$artifact_input")"
+artifact="$(cd "$(dirname "$artifact_input")" && pwd -P)/$(basename "$artifact_input")"
 mobile_src_input="${2:-$repo_root/apps/mobile/src}"
 [[ -d "$mobile_src_input" ]] || { echo "no such mobile source directory: $mobile_src_input" >&2; exit 1; }
-mobile_src="$(cd "$mobile_src_input" && pwd)"
+mobile_src="$(cd "$mobile_src_input" && pwd -P)"
 
 provenance_input="${3:-${artifact%.aab}.provenance.json}"
 provenance_parent="$(dirname "$provenance_input")"
 [[ -d "$provenance_parent" ]] || { echo "no such provenance directory: $provenance_parent" >&2; exit 1; }
-provenance="$(cd "$provenance_parent" && pwd)/$(basename "$provenance_input")"
+provenance="$(cd "$provenance_parent" && pwd -P)/$(basename "$provenance_input")"
+if [[ "$artifact" == "$provenance" ]] || [[ -e "$provenance" && "$artifact" -ef "$provenance" ]]; then
+  echo 'provenance output must not refer to the artifact' >&2
+  exit 1
+fi
 
 if [[ -n "${AAB_SIGNATURE_CHECK_COMMAND:-}" || -n "${AAB_WALLET_SURFACE_CHECK_COMMAND:-}" ]]; then
   [[ "${MASSCOM_TEST_MODE:-}" == 'true' ]] || {
@@ -36,7 +40,8 @@ wallet_check="${AAB_WALLET_SURFACE_CHECK_COMMAND:-$repo_root/scripts/check-relea
 artifact_sha256="$(shasum -a 256 "$artifact" | cut -d' ' -f1)"
 artifact_bytes="$(wc -c <"$artifact" | tr -d ' ')"
 source_commit="$(git -C "$repo_root" rev-parse HEAD)"
-if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=normal -- apps/mobile)" ]]; then
+mobile_status="$(git -C "$repo_root" status --porcelain --untracked-files=normal -- apps/mobile)"
+if [[ -n "$mobile_status" ]]; then
   mobile_dirty=true
 else
   mobile_dirty=false
@@ -59,6 +64,9 @@ wallet_exit=0
 wallet_output="$("$wallet_check" "$artifact" "$mobile_src" 2>&1)" || wallet_exit=$?
 [[ -z "$wallet_output" ]] || printf '%s\n' "$wallet_output" >&2
 if [[ "$wallet_exit" == 0 ]]; then wallet_status=PASS; else wallet_status=FAIL; fi
+w08_verified_artifact_package="$(sed -nE \
+  's/^release wallet surface verified: .*, package ([A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+)[[:space:]]*$/\1/p' \
+  <<<"$wallet_output")"
 
 node "$repo_root/scripts/write-aab-provenance.mjs" \
   --output "$provenance" \
@@ -67,9 +75,10 @@ node "$repo_root/scripts/write-aab-provenance.mjs" \
   --artifact-bytes "$artifact_bytes" \
   --source-commit "$source_commit" \
   --mobile-dirty "$mobile_dirty" \
-  --android-package kr.masscom.wolgye \
-  --android-version-name "$android_version_name" \
-  --android-version-code "$android_version_code" \
+  --source-expected-android-package kr.masscom.wolgye \
+  --source-expected-android-version-name "$android_version_name" \
+  --source-expected-android-version-code "$android_version_code" \
+  --w08-verified-artifact-package "$w08_verified_artifact_package" \
   --signature-status "$signature_status" \
   --signature-exit-code "$signature_exit" \
   --signature-certificate-sha256 "$certificate_sha256" \
