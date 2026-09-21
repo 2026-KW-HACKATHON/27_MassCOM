@@ -179,6 +179,7 @@ rm -rf android; mkdir -p android/app/build/outputs/bundle/release
 printf "applicationId 'kr.masscom.wolgye'\nversionCode 1\n" >android/app/build.gradle
 cat >android/gradlew <<GRADLE
 #!/usr/bin/env bash
+echo "gradle APP_VARIANT=\\\${APP_VARIANT:-unset} SOURCE_COMMIT=\\\${MASSCOM_BUILD_SOURCE_COMMIT:-unset} DEMO_ACCOUNT=\\\${EXPO_PUBLIC_DEMO_ACCOUNT_ID-unset} DEMO_MERCHANT_ACCOUNT=\\\${EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID-unset} DEMO_MERCHANT_ID=\\\${EXPO_PUBLIC_DEMO_MERCHANT_ID-unset} DEMO_INSECURE_REAUTH=\\\${EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION-unset}" >>"$work/gradle.log"
 cp "$work/build-good.aab" app/build/outputs/bundle/release/app-release.aab
 case "\\\${BUILD_MUTATION_MODE:-}" in
   head)
@@ -439,6 +440,7 @@ race_staged_aab="$(find "$race_artifacts" -type f -name 'app-release-*.aab' -pri
 [[ -f "$race_staged_aab" ]] || { echo 'publish race did not retain the staged AAB' >&2; exit 1; }
 
 accepted_artifacts="$work/accepted-artifacts"
+: >"$work/gradle.log"
 status=0
 out="$(cd "$sandbox" && env APP_VARIANT=production \
   EXPO_PUBLIC_DEMO_ACCOUNT_ID=dev-account \
@@ -480,6 +482,8 @@ grep -qF 'Release readiness: NOT_RUN' <<<"$out" \
   || { echo "build flow overstated release readiness: $out" >&2; exit 1; }
 grep -qFx "prebuild APP_VARIANT=production SOURCE_COMMIT=$full_commit DEMO_ACCOUNT= DEMO_MERCHANT_ACCOUNT= DEMO_MERCHANT_ID= DEMO_INSECURE_REAUTH=" "$work/prebuild.log" \
   || { echo "build flow did not isolate production prebuild from development-only environment: $(cat "$work/prebuild.log")" >&2; exit 1; }
+grep -qFx "gradle APP_VARIANT=production SOURCE_COMMIT=$full_commit DEMO_ACCOUNT= DEMO_MERCHANT_ACCOUNT= DEMO_MERCHANT_ID= DEMO_INSECURE_REAUTH=" "$work/gradle.log" \
+  || { echo "build flow did not isolate the production Gradle bundle from development-only environment: $(cat "$work/gradle.log")" >&2; exit 1; }
 [[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development SOURCE_COMMIT=unset DEMO_ACCOUNT=dev-account DEMO_MERCHANT_ACCOUNT=dev-merchant-account DEMO_MERCHANT_ID=dev-merchant DEMO_INSECURE_REAUTH=true" ]] \
   || { echo "build flow: restore inherited the caller's variant: $(cat "$work/prebuild.log")" >&2; exit 1; }
 
