@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '@/theme/colors';
 import { baseSepolia } from '@/wallet/base-sepolia';
-import { WalletApiClient, WalletApiError } from '@/wallet/wallet-api';
+import { matchActiveBinding, WalletApiClient, WalletApiError } from '@/wallet/wallet-api';
 import {
   isAppKitGetWalletEvent,
   isAppKitUserRejectionEvent,
@@ -103,6 +103,36 @@ export function WalletLinkScreen({ config }: Props) {
       awaitingWalletConnectionDecision.current = false;
     }
   }, [hasWalletSession]);
+
+  useEffect(() => {
+    if (!hasWalletSession || !connectedAddress || currentChainId === undefined) return;
+
+    let active = true;
+    void api
+      .getActiveBinding()
+      .then((response) => {
+        if (!active) return;
+        const restoredAddress = matchActiveBinding(
+          response,
+          connectedAddress,
+          currentChainId,
+        );
+        if (!restoredAddress) return;
+        setVerifiedAddress(restoredAddress);
+        setPhase('verified');
+        setMessage('서버에 저장된 주소 확인 상태를 현재 지갑 세션과 대조해 복원했습니다.');
+      })
+      .catch(() => {
+        if (!active) return;
+        setVerifiedAddress(undefined);
+        setPhase('error');
+        setMessage('서버의 주소 확인 상태를 불러오지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요.');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [api, connectedAddress, currentChainId, hasWalletSession]);
 
   useEffect(() => {
     if (

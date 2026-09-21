@@ -1,5 +1,5 @@
 diff --git a/node_modules/@reown/appkit-react-native/lib/commonjs/AppKit.js b/node_modules/@reown/appkit-react-native/lib/commonjs/AppKit.js
-index 50334a4..80bd91d 100644
+index 50334a4..3d6ca32 100644
 --- a/node_modules/@reown/appkit-react-native/lib/commonjs/AppKit.js
 +++ b/node_modules/@reown/appkit-react-native/lib/commonjs/AppKit.js
 @@ -87,7 +87,9 @@ class AppKit {
@@ -50,10 +50,18 @@ index 885ae6b..c5c47e3 100644
      };
    }, [context.appKit]);
 diff --git a/node_modules/@reown/appkit-react-native/lib/commonjs/partials/w3m-connecting-mobile/index.js b/node_modules/@reown/appkit-react-native/lib/commonjs/partials/w3m-connecting-mobile/index.js
-index 2748875..27da609 100644
+index 2748875..627ecb0 100644
 --- a/node_modules/@reown/appkit-react-native/lib/commonjs/partials/w3m-connecting-mobile/index.js
 +++ b/node_modules/@reown/appkit-react-native/lib/commonjs/partials/w3m-connecting-mobile/index.js
-@@ -104,10 +104,10 @@ function ConnectingMobile({
+@@ -8,6 +8,7 @@ var _valtio = require("valtio");
+ var _react = require("react");
+ var _reactNative = require("react-native");
+ var _appkitCoreReactNative = require("@reown/appkit-core-react-native");
++var _appkitCommonReactNative = require("@reown/appkit-common-react-native");
+ var _appkitUiReactNative = require("@reown/appkit-ui-react-native");
+ var _StoreLink = require("./components/StoreLink");
+ var _w3mConnectingBody = require("../w3m-connecting-body");
+@@ -104,10 +105,12 @@ function ConnectingMobile({
          });
        }
      } catch (error) {
@@ -61,12 +69,14 @@ index 2748875..27da609 100644
        if (error.message.includes(_appkitCoreReactNative.ConstantsUtil.LINKING_ERROR)) {
          setErrorType('not_installed');
        } else {
-+        _appkitCoreReactNative.LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
++        if (!_appkitCommonReactNative.ErrorUtil.isProposalExpiredError(error)) {
++          _appkitCoreReactNative.LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
++        }
          setErrorType('default');
        }
      }
 diff --git a/node_modules/@reown/appkit-react-native/lib/commonjs/views/w3m-connecting-view/index.js b/node_modules/@reown/appkit-react-native/lib/commonjs/views/w3m-connecting-view/index.js
-index 0c3f525..66a6257 100644
+index 0c3f525..2bd87c6 100644
 --- a/node_modules/@reown/appkit-react-native/lib/commonjs/views/w3m-connecting-view/index.js
 +++ b/node_modules/@reown/appkit-react-native/lib/commonjs/views/w3m-connecting-view/index.js
 @@ -56,11 +56,11 @@ function ConnectingView() {
@@ -83,7 +93,7 @@ index 0c3f525..66a6257 100644
        }
        _appkitCoreReactNative.EventsController.sendEvent({
 diff --git a/node_modules/@reown/appkit-react-native/lib/module/AppKit.js b/node_modules/@reown/appkit-react-native/lib/module/AppKit.js
-index c8ba1ac..fd80eae 100644
+index c8ba1ac..a06a0ca 100644
 --- a/node_modules/@reown/appkit-react-native/lib/module/AppKit.js
 +++ b/node_modules/@reown/appkit-react-native/lib/module/AppKit.js
 @@ -2,7 +2,7 @@
@@ -143,10 +153,18 @@ index 84276dd..a690a5e 100644
      };
    }, [context.appKit]);
 diff --git a/node_modules/@reown/appkit-react-native/lib/module/partials/w3m-connecting-mobile/index.js b/node_modules/@reown/appkit-react-native/lib/module/partials/w3m-connecting-mobile/index.js
-index 8a0e69b..74965a7 100644
+index 8a0e69b..091d6da 100644
 --- a/node_modules/@reown/appkit-react-native/lib/module/partials/w3m-connecting-mobile/index.js
 +++ b/node_modules/@reown/appkit-react-native/lib/module/partials/w3m-connecting-mobile/index.js
-@@ -99,10 +99,10 @@ export function ConnectingMobile({
+@@ -4,6 +4,7 @@ import { useSnapshot } from 'valtio';
+ import { useCallback, useEffect, useState } from 'react';
+ import { Platform, ScrollView } from 'react-native';
+ import { RouterController, ApiController, AssetUtil, WcController, CoreHelperUtil, OptionsController, EventsController, ConstantsUtil, AssetController, LogController, ConnectionsController } from '@reown/appkit-core-react-native';
++import { ErrorUtil } from '@reown/appkit-common-react-native';
+ import { Button, FlexView, LoadingThumbnail, WalletImage, Link, IconBox, useCustomDimensions } from '@reown/appkit-ui-react-native';
+ import { StoreLink } from './components/StoreLink';
+ import { ConnectingBody, getMessage } from '../w3m-connecting-body';
+@@ -99,10 +100,12 @@ export function ConnectingMobile({
          });
        }
      } catch (error) {
@@ -154,12 +172,14 @@ index 8a0e69b..74965a7 100644
        if (error.message.includes(ConstantsUtil.LINKING_ERROR)) {
          setErrorType('not_installed');
        } else {
-+        LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
++        if (!ErrorUtil.isProposalExpiredError(error)) {
++          LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
++        }
          setErrorType('default');
        }
      }
 diff --git a/node_modules/@reown/appkit-react-native/lib/module/views/w3m-connecting-view/index.js b/node_modules/@reown/appkit-react-native/lib/module/views/w3m-connecting-view/index.js
-index 5064883..80dc9b9 100644
+index 5064883..e3f0014 100644
 --- a/node_modules/@reown/appkit-react-native/lib/module/views/w3m-connecting-view/index.js
 +++ b/node_modules/@reown/appkit-react-native/lib/module/views/w3m-connecting-view/index.js
 @@ -52,11 +52,11 @@ export function ConnectingView() {
@@ -276,10 +296,18 @@ index 2dff2dc..a21dc72 100644
      };
    }, [context.appKit]);
 diff --git a/node_modules/@reown/appkit-react-native/src/partials/w3m-connecting-mobile/index.tsx b/node_modules/@reown/appkit-react-native/src/partials/w3m-connecting-mobile/index.tsx
-index a74b096..7e73738 100644
+index a74b096..4eb283f 100644
 --- a/node_modules/@reown/appkit-react-native/src/partials/w3m-connecting-mobile/index.tsx
 +++ b/node_modules/@reown/appkit-react-native/src/partials/w3m-connecting-mobile/index.tsx
-@@ -106,10 +106,10 @@ export function ConnectingMobile({ onRetry, onCopyUri, isInstalled }: Props) {
+@@ -14,6 +14,7 @@ import {
+   LogController,
+   ConnectionsController
+ } from '@reown/appkit-core-react-native';
++import { ErrorUtil } from '@reown/appkit-common-react-native';
+ import {
+   Button,
+   FlexView,
+@@ -106,10 +107,12 @@ export function ConnectingMobile({ onRetry, onCopyUri, isInstalled }: Props) {
          });
        }
      } catch (error: any) {
@@ -287,7 +315,9 @@ index a74b096..7e73738 100644
        if (error.message.includes(ConstantsUtil.LINKING_ERROR)) {
          setErrorType('not_installed');
        } else {
-+        LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
++        if (!ErrorUtil.isProposalExpiredError(error)) {
++          LogController.sendError(error, 'ConnectingMobile.tsx', 'onConnect');
++        }
          setErrorType('default');
        }
      }

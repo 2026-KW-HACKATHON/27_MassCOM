@@ -45,7 +45,7 @@
 
 ## 제출 전 소유자가 확정할 것
 
-1. upload key 생성과 Play App Signing 등록(package ID는 `kr.masscom.wolgye`로 결정, D-022)
+1. 생성된 upload key의 안전한 백업·로컬 서명 설정과 Play App Signing 등록(package ID는 `kr.masscom.wolgye`로 결정, D-022). 공개 SHA-256 핀은 저장소에 있으며 key/password는 저장소 밖에 유지
 2. 소유 HTTPS domain, 개인정보처리방침 URL, 외부 계정 삭제 URL(B-003·B-013)
 3. 개발자 계정 생성일에 따른 폐쇄 테스트(12명·14일) 적용 여부
 4. 위 표의 "확인 필요" 항목과 Console 문항 원문 대조

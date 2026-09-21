@@ -21,12 +21,13 @@ sign() { # <name> <keystore> <alias>
   jarsigner -keystore "$work/$2" -storepass "$pw" -keypass "$pw" "$work/$1.aab" "$3" >/dev/null 2>&1
 }
 fingerprint() { keytool -J-Duser.language=en -list -v -keystore "$work/$1" -storepass "$pw" 2>/dev/null | grep -E 'SHA256:' | head -1 | sed 's/.*SHA256: *//'; }
-expect() { # <label> <expected exit> <expected text> <fingerprint or ''> <file>
+expect_with() { # <verifier> <label> <expected exit> <expected text> <fingerprint or ''> <file>
   local out status=0
-  out="$(env -u UPLOAD_CERT_SHA256 ${4:+UPLOAD_CERT_SHA256="$4"} bash "$verify" "$5" 2>&1)" || status=$?
-  [[ "$status" == "$2" ]] || { echo "$1: expected exit $2, got $status: $out" >&2; exit 1; }
-  grep -qF "$3" <<<"$out" || { echo "$1: missing '$3' in: $out" >&2; exit 1; }
+  out="$(env -u UPLOAD_CERT_SHA256 ${5:+UPLOAD_CERT_SHA256="$5"} bash "$1" "$6" 2>&1)" || status=$?
+  [[ "$status" == "$3" ]] || { echo "$2: expected exit $3, got $status: $out" >&2; exit 1; }
+  grep -qF "$4" <<<"$out" || { echo "$2: missing '$4' in: $out" >&2; exit 1; }
 }
+expect() { expect_with "$verify" "$@"; }
 
 make_key upload.jks upload 'CN=MassCOM Sample Upload Key'
 make_key other.jks other 'CN=Somebody Else'
@@ -39,7 +40,11 @@ expect 'unsigned bundle' 4 'not signed' "$approved" "$work/unsigned.aab"
 make_jar good; sign good upload.jks upload
 expect 'approved self-signed upload key' 0 'signature verified against the approved upload certificate' "$approved" "$work/good.aab"
 expect 'lower-case fingerprint without colons' 0 'signature verified' "$(tr -d ':' <<<"$approved" | tr 'A-F' 'a-f')" "$work/good.aab"
-expect 'no approved fingerprint configured' 7 'no approved upload certificate fingerprint' '' "$work/good.aab"
+no_pin_repo="$work/no-pin-repo"
+mkdir -p "$no_pin_repo/scripts" "$no_pin_repo/apps/mobile"
+cp "$verify" "$no_pin_repo/scripts/"
+expect_with "$no_pin_repo/scripts/verify-aab-signature.sh" \
+  'no approved fingerprint configured' 7 'no approved upload certificate fingerprint' '' "$work/good.aab"
 
 make_jar wrongkey; sign wrongkey other.jks other
 expect 'signed with another key' 6 'other than the approved upload key' "$approved" "$work/wrongkey.aab"

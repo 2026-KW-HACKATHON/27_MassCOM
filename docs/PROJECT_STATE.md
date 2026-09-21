@@ -10,7 +10,7 @@
 | 기본 브랜치 | `main` |
 | 기준 커밋 | 이 문서는 SHA를 고정하지 않는다. 실제 기준은 `git log origin/main -1`, 직전 검증 기준은 `docs/HANDOFF.md` 머리말 |
 | 현재 작업·열린 PR | `gh pr list`, `gh issue list`가 기준. 인수인계 요약은 `docs/HANDOFF.md` |
-| 현재 검증 기준 | API 72·PostgreSQL 37·Worker 45/PG 23·모바일 57·Foundry 8/fuzz128·Anvil PASS |
+| 현재 검증 기준 | API 72·PostgreSQL 37·Worker 45/PG 23·모바일 59·Foundry 8/fuzz128·Anvil PASS |
 
 ## 검증 수준별 현황
 
@@ -21,7 +21,7 @@
 | 로컬 검증 완료 | 탐색·발급·수령·도감·추천, 지갑 주소 확인(SIWE), 발행 요청·Outbox·Worker·계약(Local Anvil), 계정 삭제, 백업·복원 drill, 운영 variant AAB 정적 검사(W08), 배포·서명 사전 검사 스크립트 |
 | 시험망 미검증 | Base Sepolia 계약 배포와 그 계약에 대한 Worker 발행. 배포자·역할 keystore 계정 4개는 소유자가 2026-09-20 생성, 배포자 잔액 0(faucet 대기). Worker의 서비스 민터 서명 경로는 구현·로컬 검증됨(Issue #100), 실제 시험망 전송은 아직 없음 |
 | 운영 코드 미구현 | 운영 로그인의 **모바일 측**(Google 로그인 UI와 `x-account-id` 헤더 교체. 서버 측 Google ID token 검증·`auth_time` 재인증·요청 제한·세션 정리는 Issue #106·#110으로 구현·로컬 검증됨, 소유자의 OAuth client ID 필요), 시연/운영 환경 권한 경계(O01), 외부 HTTPS 배포·삭제 페이지 |
-| 사용자 승인·입력 대기 | **Reown 허용 목록에 새 package 등록(B-014, 실기에서 지갑 연결 거절)**, 호스팅·도메인(`docs/HOSTING_LOGIN_PROPOSAL.md`. 로그인 방식·세션·재인증은 D-024~D-026으로 승인됨, 구현 전), D-023 수령 시 캠페인 등록 요구 여부, upload keystore와 인증서 지문, faucet gas, Android 기기 연결, W04·W05용 지갑 환경(B-010·B-011) |
+| 사용자 승인·입력 대기 | 호스팅·도메인(`docs/HOSTING_LOGIN_PROPOSAL.md`. 로그인 방식·세션·재인증은 D-024~D-026으로 승인됨, 구현 전), D-023 수령 시 캠페인 등록 요구 여부, Google OAuth client 유형·Web/Play client 구성, faucet gas, W04·W05용 지갑 환경(B-010·B-011). Reown 허용 목록·Android 기기·upload keystore와 공개 지문 핀은 해소 |
 
 ## 열린 Issue·PR과 최근 병합
 
@@ -32,7 +32,7 @@
 | Phase | 상태 | 실제 근거 |
 | --- | --- | --- |
 | Phase 0 저장소·개발 기반 | `VERIFIED` | README·프로젝트 포털·한국어 PR 검사·CI |
-| Phase 1 외부 지갑 연결 | `IN_PROGRESS` | MetaMask 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED`, W06 PASS; W04·W05 외부 환경 `BLOCKED` |
+| Phase 1 외부 지갑 연결 | `IN_PROGRESS` | 개발 package MetaMask 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED`→콜드 스타트 binding 복원, W06 PASS; 운영 release package·W04·W05는 `NOT_RUN/BLOCKED` |
 | Phase 2 지역 상권 핵심 기능 | `VERIFIED` | loopback DEMO 탐색→점주 발급→고객 수령→도감→추천→상세 순환 PASS |
 | Phase 3 NFT | `VERIFIED` | Local Anvil 계약→원자 job/Outbox→Worker→이벤트 대조→Android 등록 완료·복구 PASS; Base Sepolia `BLOCKED` |
 | Phase 4 출시 기반 | `IN_PROGRESS` | 계정 삭제·HMAC 비식별화·서버 auth_time 재인증·privacy gate·출시 체크리스트·Android DEMO PASS; 모바일 Google 로그인·외부 HTTPS·upload-key AAB 미완료 |
@@ -42,6 +42,7 @@
 ## 구현·검증 완료
 
 - Expo Android 앱, Reown 외부 지갑 전용 연결, 금지 RPC 메서드 차단
+- Reown 새 개발 package 허용 목록 실기, MetaMask 자동 복귀, 서버 binding과 현재 주소·체인을 대조한 콜드 스타트 `VERIFIED` 복원
 - ERC-4361 주소 확인, nonce 단일 소비, 버전된 PostgreSQL wallet binding
 - 공개 음식점·캠페인, 점포별 OWNER/STAFF 권한, 1인 일회용 방문 코드
 - QR slot 소비·방문·KST 일일 진행·첫/3/5회 고정 보상권 원자 처리
@@ -77,16 +78,16 @@
 | 영역 | 상태 | 내용 |
 | --- | --- | --- |
 | 배포 | `BLOCKED` | 외부 HTTPS·클라우드 없음(B-003). loopback DEMO와 로컬 PostgreSQL만 검증 |
-| Android 빌드 | `IN_PROGRESS` | 개발 빌드 실기 PASS. 운영 variant `kr.masscom.wolgye` 로컬 debug 서명 AAB에서 package·scheme·권한·16KB 정렬 PASS. upload key 서명 AAB·16KB 기기 설치·Play 업로드는 `NOT_RUN` |
+| Android 빌드 | `IN_PROGRESS` | 개발 빌드 실기 PASS. 운영 variant `kr.masscom.wolgye` 로컬 debug 서명 AAB에서 package·scheme·권한·16KB 정렬 PASS. 저장소 밖 upload keystore·승인 SHA-256 핀은 준비됐고 upload key 서명 AAB·16KB 기기 설치·Play 업로드는 `NOT_RUN` |
 | NFT·시험망 | `IN_PROGRESS` | Local Anvil 계약·Worker·이벤트 대조 PASS. Base Sepolia는 keystore 배포 스크립트와 실체인 시뮬레이션 PASS, 실제 배포는 `NOT_RUN`(B-012). mainnet 범위 밖 |
-| 외부 지갑 연동 | `IN_PROGRESS` | MetaMask 연결·Base Sepolia 전환·`personal_sign`·서버 검증·W06 실기 PASS. W04·W05는 지갑 환경 부재로 `BLOCKED`(B-010·B-011). 새 package·scheme 실기 회귀는 `NOT_RUN` |
+| 외부 지갑 연동 | `IN_PROGRESS` | `kr.masscom.wolgye.dev` MetaMask 연결·Base Sepolia·`personal_sign`·서버 검증·자동 복귀·콜드 스타트 복원과 W06 실기 PASS(B-014 해소). 운영 `kr.masscom.wolgye` release 복귀는 `NOT_RUN`; W04·W05는 `BLOCKED`(B-010·B-011) |
 
 ## 검증 상태
 
 - 필수 36개: 30 PASS / 2 BLOCKED / 4 NOT_RUN
 - API 단위: `72/72 PASS`; PostgreSQL: `37/37 PASS`
 - Worker 단위: `45/45 PASS`; PostgreSQL: `23/23 PASS`; Anvil W07/M01~M08: `PASS`
-- 모바일: `57/57 PASS`; typecheck·lint·Android export `PASS`
+- 모바일: `59/59 PASS`; typecheck·lint·Android export `PASS`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`
 - production dependency audit: API·Worker high 이상 0; 모바일 high 이상 0, Expo 전이 moderate 14건은 B-008
@@ -99,6 +100,6 @@
 - B-008 Expo 전이 moderate advisory: 2026-09-20 Expo 57.0.24·expo-router 57.0.22 patch 적용 뒤 재평가에서도 14건 유지. 근원은 `xcode`→`uuid`(iOS 설정 도구, 빌드 시점)와 `expo-router`→`query-string`→`decode-uri-component`이며 npm이 제시하는 수정은 expo 46 다운그레이드뿐이라 호환되는 upstream 수정 필요
 - B-010/B-011 W04·W05용 실제 지갑 환경 부재
 - B-012 Base Sepolia keystore 계정은 존재하나 배포자·민터 잔액 0으로 faucet gas 부재
-- B-013 모바일 Google 로그인과 소유 HTTPS 외부 삭제 URL 부재. 서버 재인증은 구현 완료
+- B-013 모바일 Google 로그인과 소유 HTTPS 외부 삭제 URL 부재. OAuth client ID 하나는 제공됐지만 Android/Web/Play 용도를 아직 확인하지 않았고 서버 재인증만 구현 완료
 
 상세 실행 근거는 [TEST_STATUS.md](TEST_STATUS.md), Phase 3 증거는 [phase3-worker-anvil-android.json](evidence/phase3-worker-anvil-android.json), 차단 사유는 [BLOCKERS.md](BLOCKERS.md), 다음 세션 상태는 [HANDOFF.md](HANDOFF.md)를 기준으로 합니다.

@@ -2,12 +2,14 @@
 
 마지막 갱신 시각: 2026-09-21 KST
 기준 브랜치: `main`
-기준 main 커밋 SHA: `595f70f` (PR #114 merge, main CI `35563583964` PASS). 이 문서를 고친 PR이 병합되면 실제 값은 `git log origin/main -1`로 확인한다.
+기준 main 커밋 SHA: `edf72a5` (PR #115 merge, main CI `35564447379` PASS). 이 문서를 고친 PR이 병합되면 실제 값은 `git log origin/main -1`로 확인한다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
 
 ## 이번 세션에서 완료한 것
 
+- Issue #116: Reown 허용 목록의 개발 package 실기, MetaMask 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED` 자동 복귀, 콜드 스타트에서 서버 binding 주소·체인 대조 복원, 미설치 SafePal 복귀를 Samsung SM-S928N에서 PASS. 수정 전에는 DB binding이 있어도 `UNVERIFIED`로 돌아가는 결함을 재현
+- 소유자가 만든 저장소 밖 upload PKCS12 키의 권한 `0600`·별칭·공개 인증서 지문을 확인하고 SHA-256만 `apps/mobile/upload-certificate.sha256`에 고정. 실제 upload-key AAB는 `NOT_RUN`
 - Issue #110: Google `auth_time` 최근성, JWKS 최대 stale 24시간, `/auth/google` 검증 전 요청 제한, 만료·폐기 세션 bounded cleanup(migration 0013), Play 카메라·NFT award 초안 정합
 - Issue #112: EIP-1559 priority fee 관계·signed sender 대조, raw-key 이름 변형, keystore 전체 상위 경로, lock timeout·pool 설정 보강
 - PR #111 merge `205d273`, main CI `35561417735` PASS. PR #114 merge `595f70f`, 최종 PR CI `35563298914`·main CI `35563583964` PASS. PR #113은 GitHub가 CI run을 만들지 않아 동일 커밋으로 대체 후 종료
@@ -42,16 +44,17 @@
 - #77 RPC·발행 중지·민터 잔액 장애 복구 O02 (종료)
 - #80 계정 전환 시 이전 사용자 데이터 미노출 D02 (종료)
 - #78 전송 전 장애의 재시도 간격과 전송 직후 중지 처리 개선 (이 문서를 담은 PR로 종료)
+- #116 Phase 1 실제 MetaMask 복귀·서명과 출시 입력 상태 검증 (이 문서를 담은 PR로 종료)
 - #65·#69·#70 작업은 Issue 없이 진행했다. 이후 작업은 Issue를 먼저 만든다.
 
 ## 생성한 브랜치
 
-- `feat/59-chain-cursor-restart`, `feat/61-worker-retry-limit`, `chore/expo-patch-advisory-recheck`, `feat/66-siwe-challenge-postgres`, `docs/66-closeout`, `feat/base-sepolia-deploy-script`, `feat/release-package-id`, `docs/71-state-sync`, `feat/73-campaign-enrollment`, `fix/75-path-param-decoding`, `fix/77-worker-outage-recovery`, `fix/80-account-switch-isolation`, `fix/78-presubmit-backoff`
+- `feat/59-chain-cursor-restart`, `feat/61-worker-retry-limit`, `chore/expo-patch-advisory-recheck`, `feat/66-siwe-challenge-postgres`, `docs/66-closeout`, `feat/base-sepolia-deploy-script`, `feat/release-package-id`, `docs/71-state-sync`, `feat/73-campaign-enrollment`, `fix/75-path-param-decoding`, `fix/77-worker-outage-recovery`, `fix/80-account-switch-isolation`, `fix/78-presubmit-backoff`, `test/116-device-wallet-release-inputs`
 - 남아 있는 원격 브랜치 `feat/59-chain-cursor-read`, `feat/61-worker-retry-cap`은 같은 내용을 새 브랜치로 대체한 뒤 닫은 PR #60·#62의 것이다. main에 병합되지 않았으며 삭제 여부는 소유자가 정한다.
 
 ## 생성한 PR
 
-- #63, #64, #65, #67, #68, #69, #70, #72 #74, #76, #79, #81, #82, #83(PragmoB), #85, #87, #89, #91, #93, #96, #98, #99, #102, #104, #105(PragmoB), #107, #108, #109, #111, #114 (모두 병합)
+- #63, #64, #65, #67, #68, #69, #70, #72 #74, #76, #79, #81, #82, #83(PragmoB), #85, #87, #89, #91, #93, #96, #98, #99, #102, #104, #105(PragmoB), #107, #108, #109, #111, #114, #115 (모두 병합), #117(Issue #116 마감 PR)
 - #60·#62는 #63·#64로 대체했고, #113은 CI run 미생성으로 #114로 대체해 닫았다.
 
 ## merge된 PR
@@ -78,6 +81,7 @@
 | #91 W05 fixture·미지원 안내 | `f28737b` | 병합 뒤 main CI는 `gh run list --branch main`으로 확인 |
 | #111 운영 로그인 후속 보안·Play 초안 | `205d273` | `35561417735` PASS |
 | #114 서비스 민터 후속 보안 | `595f70f` | `35563583964` PASS |
+| #115 운영 로그인·민터 후속 문서 마감 | `edf72a5` | `35564447379` PASS |
 
 코드 PR은 서로 다른 모델의 독립 리뷰에서 CRITICAL·HIGH 0을 확인한 뒤 병합했다. #63·#67·#69는 두 모델, #64·#65·#70은 단일 모델 리뷰(지적 반영 뒤 재리뷰)로 병합했다.
 
@@ -85,21 +89,21 @@
 
 - API 단위 `72/72`, API PostgreSQL `37/37`(운영 로그인 보강·R02 7개·Q04 1개 포함)
 - Worker 단위 `45/45`, Worker PostgreSQL `23/23`, Anvil `12/12`(W07 M01~M08 + O02a~e)
-- 모바일 `57/57`, typecheck·lint·Android export PASS
+- 모바일 `59/59`, typecheck·lint·Android export PASS; clean `npm ci` Reown patch 적용과 AAB 서명 판정 회귀 PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - 실제 Base Sepolia RPC 배포 시뮬레이션 PASS(전송 없음), 잘못된 체인·중복 역할 거절 PASS
 - 운영 variant `bundleRelease`와 ELF `PT_LOAD` 정렬 검사 PASS(debug 서명)
 - secret·privacy·bootstrap·portal·presentation verifier PASS
 - 필수 36개 `30 PASS / 2 BLOCKED / 4 NOT_RUN`(R02·O02·Q04·W08 전환). 남은 NOT_RUN: D02·O01·A01·A02
-- `NOT_RUN`: 실제 Base Sepolia 배포, upload key 서명 AAB, 16KB 기기 설치, Android 실기 회귀(Expo patch·새 package와 scheme·계정 삭제 뒤 세션 복원 여부), Play Console
+- `NOT_RUN`: 실제 Base Sepolia 배포, upload key 서명 AAB, 16KB 기기 설치, 운영 package `kr.masscom.wolgye` 지갑 복귀, 계정 삭제 뒤 지갑 세션 복원, Play Console
 
 ## 현재 열린 PR
 
-- 없음(이 문서를 고치는 PR 제외).
+- #117(이 문서를 담은 PR). 병합되면 열린 PR 없음; 최종 상태는 GitHub가 기준이다.
 
 ## 현재 작업 중인 기능
 
-- 없음. 로컬에만 있고 원격에 없는 변경도 없다. `apps/mobile/android`는 gitignore된 생성물이며 현재 개발 variant(`kr.masscom.wolgye.dev`)로 생성돼 있다.
+- Issue #116 브랜치에서 실기 증거와 문서 정합을 마감 중이다. `apps/mobile/android`는 gitignore된 생성물이며 현재 개발 variant(`kr.masscom.wolgye.dev`)로 생성돼 있다.
 
 ## BLOCKER
 
@@ -110,7 +114,6 @@
 - B-010·B-011 W04·W05용 실제 지갑 환경 부재
 - B-012 Base Sepolia: Foundry keystore 계정 4개는 존재하지만 배포자·민터 잔액이 각각 0이라 faucet gas 필요
 - B-013 모바일 Google 로그인과 외부 HTTPS 삭제 URL 부재. 서버 auth_time 재인증·요청 제한·세션 정리는 완료
-- B-014 Reown 허용 목록의 새 package 등록 여부를 dashboard에서 확인해야 함
 
 ## 사용자 승인이 필요한 사항
 
@@ -118,13 +121,12 @@
 
 소유자가 직접 해야 하는 것(대신 수행하지 않음):
 
-0. **Reown dashboard 허용 목록에 `kr.masscom.wolgye`·`kr.masscom.wolgye.dev`가 있는지 확인하고 없으면 추가(B-014)**. 로컬에는 Reown project ID가 설정되어 있지만 dashboard 설정은 확인할 수 없다. 추가 뒤 연결된 Samsung SM-S928N에서 `docs/DEVICE_TEST_PLAN.md` E02부터 재실행한다.
 1. Base Sepolia faucet으로 배포자 `0xFDd1746dcEdE5A796812fBe30fc231059a98c089`와 민터 `0xfDfaB19251Caa5Bd140CdD7F167F6e4De895c355`에 gas를 넣는다. 2026-09-21 재조회에서도 둘 다 정확히 `0 ETH`. `masscom-base-sepolia`, `masscom-sepolia-admin`, `masscom-sepolia-minter`, `masscom-sepolia-pauser` keystore 이름은 이미 존재하므로 다시 만들지 않는다.
-2. Android upload keystore를 직접 생성하고 로컬 Gradle signing 설정을 넣는다. 현재 `android.injected.signing.*` 설정과 `apps/mobile/upload-certificate.sha256`이 없다. 비밀번호·keystore는 저장소나 대화에 붙이지 않고 인증서 SHA-256 지문만 파일 또는 `UPLOAD_CERT_SHA256`으로 제공한다.
-3. Google Cloud에서 `kr.masscom.wolgye.dev` debug SHA-1용 Android OAuth client와 향후 Play App Signing 인증서용 production client를 만든다. 현재 로컬에는 Reown ID만 있고 Google client ID가 없다.
+2. 생성된 Android upload keystore는 다시 만들지 않는다. 로컬 `android.injected.signing.*` 네 값을 비밀번호가 남지 않는 방식으로 설정하고 upload-key AAB를 빌드·검사·백업한다. 공개 SHA-256 핀은 이미 저장소에 있다.
+3. 제공된 Google OAuth client ID가 Android용인지 Web application용인지 Console에서 확인한다. `kr.masscom.wolgye.dev` debug SHA-1 Android client, Play App Signing 인증서용 production Android client, 서버 ID token용 Web client가 모두 필요하며 없는 유형만 만든다.
 4. 소유 domain·hosting 업체를 정하고 개인정보처리방침·외부 계정 삭제 URL을 준비한다(과금 자원). 그 전에는 서버가 127.0.0.1 loopback이며 공개하지 않는다.
 5. Play Console에서 package 등록·Data safety·금융 기능의 NFT award·계정 삭제 URL을 확인하고 제출한다. 에이전트는 승인 없이 입력·제출하지 않는다.
-6. 연결된 기기로 실제 카메라 QR 촬영→수령과 오프라인 안내(A01), Reown 복귀·계정 전환(D02/W04), upload-key AAB 설치(A02)를 사람이 직접 조작하며 검증한다.
+6. 연결된 기기로 실제 카메라 QR 촬영→수령과 오프라인 안내(A01), 운영 package Reown 복귀·계정 전환(D02/W04), upload-key AAB 설치(A02)를 사람이 직접 조작하며 검증한다. 개발 package MetaMask 복귀·서명·콜드 스타트 복원은 완료됐다.
 
 여전히 승인 전 금지: mainnet, 사용자 자산 이동, 저장소 공개, Play 프로덕션 공개, 대회 최종 제출.
 
@@ -132,10 +134,9 @@
 
 1. `git fetch && git log origin/main -3`, `gh pr list`, `gh issue list`, `gh run list --branch main --limit 3`으로 이 문서와 실제 상태를 대조한다.
 2. 소유자 입력이 도착했는지 확인한다. 도착 순서대로 처리한다.
-   - **Reown 허용 목록(B-014)**에 `kr.masscom.wolgye`·`kr.masscom.wolgye.dev`가 추가됐으면 `docs/DEVICE_TEST_PLAN.md` E02 → E03의 지갑 세션 부분 → D02 → W04 순으로 실기 재실행. 팀원은 TrustWallet 연결에 성공했으므로(PR #105) 소유자 project 설정 문제로 추정된다
    - **faucet gas**: 위 두 주소에 잔액이 들어왔으면 역할 주소(admin `0x35ee91BBc75778308B9168Ac6c325df8fF408F04`, minter 위 주소, pauser `0x1a050f7c6Fe0dDcDD78554b488d41cFd4A2CcFB6`)로 시뮬레이션 → 소유자가 비밀번호를 입력하는 `--broadcast` → 계약·역할 검증 → `docs/evidence/base-sepolia-deployment.json` 커밋. 그 뒤 Worker 서비스 민터 경로로 시험망 발행 1건을 검증한다
-   - **Google OAuth client ID**: 받으면 모바일의 `x-account-id` DEMO 헤더를 Bearer 세션으로 교체하는 Issue를 연다(서버 측은 Issue #106으로 완료, D-024~D-026)
-   - upload keystore와 인증서 지문, 호스팅·도메인 결정(`docs/HOSTING_LOGIN_PROPOSAL.md`)
+   - **Google OAuth client ID**: 제공된 ID의 client 유형을 확인하고 Android/Web 구성이 갖춰지면 모바일의 `x-account-id` DEMO 헤더를 Bearer 세션으로 교체하는 Issue를 연다(서버 측은 Issue #106으로 완료, D-024~D-026)
+   - upload-key AAB 로컬 서명 설정과 호스팅·도메인 결정(`docs/HOSTING_LOGIN_PROPOSAL.md`)
 3. 입력이 없으면 새 기능을 시작하지 않는다. 자동화 가능한 운영 로그인·서비스 민터 후속은 모두 병합됐다. 서비스 민터의 다중 민터 지원은 실제 두 번째 민터 요구가 생기기 전에는 추가하지 않는다.
 ## 실행 명령
 
