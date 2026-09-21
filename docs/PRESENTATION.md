@@ -22,7 +22,7 @@
 - 주소·공개 범위 확인 후 Local Anvil NFT를 접수하고 등록 완료되는 장면
 - 계정 삭제 전 외부 지갑·공개 체인 기록은 지워지지 않는다는 안내
 - CI에서 느린 receipt와 Worker lease 결함을 발견하고 복구한 사례
-- 출시 전 BLOCKER: 운영 재인증·외부 삭제 URL·package ID·서명 AAB·App Links
+- 출시 전 BLOCKER: 모바일 Google 로그인·외부 삭제 URL·upload-key 서명 AAB·App Links·실제 운영 계정 전환
 
 ## 예상 질문
 
