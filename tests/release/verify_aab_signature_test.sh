@@ -35,7 +35,7 @@ make_key debug.jks androiddebugkey 'CN=Android Debug, OU=Android, O=Unknown, L=U
 approved="$(fingerprint upload.jks)"
 
 make_jar unsigned
-expect 'unsigned bundle' 4 'not signed' "$approved" "$work/unsigned.aab"
+expect 'unsigned bundle' 4 'SIGNATURE REJECTED: the bundle is not signed' "$approved" "$work/unsigned.aab"
 
 make_jar good; sign good upload.jks upload
 expect 'approved self-signed upload key' 0 'signature verified against the approved upload certificate' "$approved" "$work/good.aab"
@@ -44,40 +44,40 @@ no_pin_repo="$work/no-pin-repo"
 mkdir -p "$no_pin_repo/scripts" "$no_pin_repo/apps/mobile"
 cp "$verify" "$no_pin_repo/scripts/"
 expect_with "$no_pin_repo/scripts/verify-aab-signature.sh" \
-  'no approved fingerprint configured' 7 'no approved upload certificate fingerprint' '' "$work/good.aab"
+  'no approved fingerprint configured' 7 'SIGNATURE REJECTED: no approved upload certificate fingerprint' '' "$work/good.aab"
 
 make_jar wrongkey; sign wrongkey other.jks other
-expect 'signed with another key' 6 'other than the approved upload key' "$approved" "$work/wrongkey.aab"
+expect 'signed with another key' 6 'SIGNATURE REJECTED: signed with a key other than the approved upload key' "$approved" "$work/wrongkey.aab"
 
 make_jar debug; sign debug debug.jks androiddebugkey
-expect 'debug key' 3 'local debug key' "$approved" "$work/debug.aab"
-expect 'debug key even if its fingerprint were approved' 3 'local debug key' "$(fingerprint debug.jks)" "$work/debug.aab"
+expect 'debug key' 3 'SIGNATURE REJECTED: signed with the local debug key' "$approved" "$work/debug.aab"
+expect 'debug key even if its fingerprint were approved' 3 'SIGNATURE REJECTED: signed with the local debug key' "$(fingerprint debug.jks)" "$work/debug.aab"
 
 cp "$work/good.aab" "$work/tampered.aab"
 echo "changed after signing" >"$work/src-good/payload.txt"
 (cd "$work/src-good" && zip -q "$work/tampered.aab" payload.txt)
-expect 'contents changed after signing' 5 'does not match the contents' "$approved" "$work/tampered.aab"
+expect 'contents changed after signing' 5 'SIGNATURE REJECTED: the signature does not match the contents' "$approved" "$work/tampered.aab"
 
 make_jar extra; sign extra upload.jks upload
 echo "added after signing" >"$work/src-extra/injected.txt"
 (cd "$work/src-extra" && zip -q "$work/extra.aab" injected.txt)
-expect 'entry added after signing' 5 'added after signing' "$approved" "$work/extra.aab"
+expect 'entry added after signing' 5 'SIGNATURE REJECTED: the bundle contains entries that were added after signing' "$approved" "$work/extra.aab"
 
 make_jar smuggled; sign smuggled upload.jks upload
 mkdir -p "$work/src-smuggled/META-INF"; echo "payload" >"$work/src-smuggled/META-INF/EVIL.SF"
 (cd "$work/src-smuggled" && zip -q "$work/smuggled.aab" META-INF/EVIL.SF)
-expect 'file smuggled in under a signature-file name' 5 'signature file pair' "$approved" "$work/smuggled.aab"
+expect 'file smuggled in under a signature-file name' 5 'SIGNATURE REJECTED: expected one signature file pair' "$approved" "$work/smuggled.aab"
 
 # Whichever order the two signatures are applied in, a second signer is never accepted.
 make_jar two-a; sign two-a other.jks other; sign two-a upload.jks upload
-expect 'two signers, approved key last' 6 'exactly one upload signature' "$approved" "$work/two-a.aab"
+expect 'two signers, approved key last' 6 'SIGNATURE REJECTED: the bundle carries' "$approved" "$work/two-a.aab"
 make_jar two-b; sign two-b upload.jks upload; sign two-b other.jks other
-expect 'two signers, approved key first' 6 'exactly one upload signature' "$approved" "$work/two-b.aab"
+expect 'two signers, approved key first' 6 'SIGNATURE REJECTED: the bundle carries' "$approved" "$work/two-b.aab"
 
 make_jar weak
 jarsigner -keystore "$work/upload.jks" -storepass "$pw" -keypass "$pw" -sigalg SHA1withRSA -digestalg SHA1 \
   "$work/weak.aab" upload >/dev/null 2>&1
-expect 'weak signature algorithm' 4 'no longer trusts' "$approved" "$work/weak.aab"
+expect 'weak signature algorithm' 4 'SIGNATURE REJECTED: signed with an algorithm the JDK no longer trusts' "$approved" "$work/weak.aab"
 
 # Build script control flow: the reported artifact must survive --restore-dev, and the restore must
 # not inherit APP_VARIANT=production from the caller.

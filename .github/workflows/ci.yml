@@ -65,6 +65,8 @@ jobs:
         run: bash tests/release/deploy_base_sepolia_preflight_test.sh
       - name: Verify AAB signature verdict and build flow
         run: bash tests/release/verify_aab_signature_test.sh
+      - name: Verify AAB assessment provenance
+        run: bash tests/release/assess_release_aab_test.sh
       - name: NFT 계약 포맷·빌드·테스트
         run: |
           ./scripts/forge.sh --version | grep -q 'forge Version: 1.8.3'
