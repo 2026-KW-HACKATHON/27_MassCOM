@@ -53,6 +53,13 @@ wallet_check="${AAB_WALLET_SURFACE_CHECK_COMMAND:-$repo_root/scripts/check-relea
 
 artifact_sha256="$(shasum -a 256 "$artifact" | cut -d' ' -f1)"
 artifact_bytes="$(wc -c <"$artifact" | tr -d ' ')"
+assert_artifact_unchanged() {
+  if [[ "$(shasum -a 256 "$artifact" | cut -d' ' -f1)" != "$artifact_sha256" \
+    || "$(wc -c <"$artifact" | tr -d ' ')" != "$artifact_bytes" ]]; then
+    echo 'artifact changed during release assessment' >&2
+    return 1
+  fi
+}
 source_commit="$(git -C "$repo_root" rev-parse HEAD)"
 if [[ -n "$expected_source_commit" ]]; then
   [[ "$expected_source_commit" =~ ^[0-9a-fA-F]{40}$ ]] || {
@@ -76,27 +83,69 @@ else
   mobile_dirty=false
 fi
 
-manifest_work="$(mktemp -d -t aab-source-commit.XXXXXX)"
-trap 'rm -rf "$manifest_work"' EXIT
-if ! unzip -q "$artifact" 'base/manifest/AndroidManifest.xml' -d "$manifest_work"; then
-  echo 'artifact AndroidManifest could not be read' >&2
-  exit 1
+manifest_dump=''
+if [[ "${MASSCOM_TEST_MODE:-}" == 'true' ]]; then
+  manifest_dump="$(unzip -p "$artifact" 'base/manifest/AndroidManifest.xml')" || {
+    echo 'artifact AndroidManifest could not be read' >&2
+    exit 1
+  }
+else
+  aapt2=''
+  if command -v aapt2 >/dev/null 2>&1; then
+    aapt2="$(command -v aapt2)"
+  else
+    android_sdk="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+    for candidate in "$android_sdk"/build-tools/*/aapt2; do
+      [[ -x "$candidate" ]] && aapt2="$candidate"
+    done
+  fi
+  [[ -n "$aapt2" ]] || { echo 'artifact manifest parser aapt2 is unavailable' >&2; exit 1; }
+  manifest_dump="$($aapt2 dump xmltree --file base/manifest/AndroidManifest.xml "$artifact" 2>&1)" || {
+    echo 'artifact AndroidManifest could not be parsed' >&2
+    exit 1
+  }
 fi
-manifest_strings="$(strings "$manifest_work/base/manifest/AndroidManifest.xml")" || {
-  echo 'artifact AndroidManifest strings could not be read' >&2
-  exit 1
-}
-read -r marker_name_count marker_commit_count artifact_source_commit <<<"$(awk \
-  -v key='kr.masscom.BUILD_SOURCE_COMMIT' '
-    $0 == key { name_count += 1 }
-    $0 ~ /^[0-9A-Fa-f]{40}$/ { commit_count += 1; commit = tolower($0) }
-    END { printf "%d %d %s\n", name_count, commit_count, commit }
-  ' <<<"$manifest_strings")"
-if [[ "$marker_name_count" != 1 || "$marker_commit_count" != 1 ]]; then
+manifest_nodes="$(awk '
+  function emit_node() {
+    if (in_metadata) print metadata_name "\t" metadata_value
+    in_metadata = 0
+    metadata_name = ""
+    metadata_value = ""
+  }
+  {
+    indent = match($0, /[^[:space:]]/) - 1
+    if ($0 ~ /^[[:space:]]*E:/) {
+      if (in_metadata && indent <= metadata_indent) emit_node()
+      if ($0 ~ /^[[:space:]]*E: meta-data([[:space:]]|$)/) {
+        in_metadata = 1
+        metadata_indent = indent
+      }
+      next
+    }
+    if (!in_metadata) next
+    if ($0 ~ /A: android:name([^=]*)=/) {
+      metadata_name = $0
+      sub(/^[^"]*"/, "", metadata_name)
+      sub(/".*$/, "", metadata_name)
+    } else if ($0 ~ /A: android:value([^=]*)=/) {
+      metadata_value = $0
+      sub(/^[^"]*"/, "", metadata_value)
+      sub(/".*$/, "", metadata_value)
+    }
+  }
+  END { emit_node() }
+' <<<"$manifest_dump")"
+read -r marker_name_count marker_match_count artifact_source_commit <<<"$(awk -F '\t' \
+  -v key='kr.masscom.BUILD_SOURCE_COMMIT' -v expected="$source_commit" '
+    $1 == key { name_count += 1; marker = tolower($2) }
+    $1 == key && tolower($2) == tolower(expected) { match_count += 1 }
+    END { printf "%d %d %s\n", name_count, match_count, marker }
+  ' <<<"$manifest_nodes")"
+if [[ "$marker_name_count" != 1 ]]; then
   echo 'artifact must contain exactly one BUILD_SOURCE_COMMIT manifest marker' >&2
   exit 1
 fi
-if [[ "$artifact_source_commit" != "$source_commit" ]]; then
+if [[ "$marker_match_count" != 1 || "$artifact_source_commit" != "$source_commit" ]]; then
   echo 'artifact BUILD_SOURCE_COMMIT does not match the assessed source commit' >&2
   exit 1
 fi
@@ -132,6 +181,7 @@ if [[ -n "$expected_source_commit" ]]; then
     exit 1
   }
 fi
+assert_artifact_unchanged || exit 1
 
 node "$repo_root/scripts/write-aab-provenance.mjs" \
   --output "$provenance" \
@@ -152,6 +202,11 @@ node "$repo_root/scripts/write-aab-provenance.mjs" \
   --wallet-surface-exit-code "$wallet_exit" \
   --release-readiness-status NOT_RUN \
   --release-readiness-pending A02_DEVICE_INSTALL,APP_LINKS,PLAY_UPLOAD_AND_REVIEW
+
+if ! assert_artifact_unchanged; then
+  rm -f "$provenance"
+  exit 1
+fi
 
 echo "$provenance"
 if [[ "$signature_exit" != 0 ]]; then exit "$signature_exit"; fi

@@ -73,6 +73,8 @@ unsafe_logs=(
   "const detail: unknown = error; console.error(detail)"
   "const detail = error as unknown; console.error(detail)"
   $'const detail = body.signature\nconsole.error(detail)'
+  $'const detail =\n  error;\nconsole.error(detail)'
+  "const { message: detail } = error; console.error(detail)"
 )
 
 for unsafe_log in "${unsafe_logs[@]}"; do
@@ -93,6 +95,8 @@ global_unsafe_logs=(
   "const detail: string = privateKey; console.error(detail)"
   "const detail = recoveryPhrase as string; process.stderr.write(detail)"
   $'const detail = body.password\nconsole.error(detail)'
+  $'const detail =\n  privateKey;\nconsole.error(detail)'
+  "const { password: detail } = body; console.error(detail)"
 )
 
 for unsafe_log in "${global_unsafe_logs[@]}"; do

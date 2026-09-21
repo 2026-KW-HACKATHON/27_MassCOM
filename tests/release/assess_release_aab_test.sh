@@ -12,8 +12,13 @@ make_marker_artifact() { # <output> <commit>
   local output="$1" commit="$2"
   local directory="$output.d"
   mkdir -p "$directory/base/manifest"
-  printf 'kr.masscom.BUILD_SOURCE_COMMIT\n%s\n' "$commit" \
-    >"$directory/base/manifest/AndroidManifest.xml"
+  cat >"$directory/base/manifest/AndroidManifest.xml" <<MANIFEST
+E: manifest
+  E: application
+    E: meta-data
+      A: android:name="kr.masscom.BUILD_SOURCE_COMMIT"
+      A: android:value="$commit"
+MANIFEST
   (cd "$directory" && zip -q -r "$output" base)
 }
 
@@ -120,6 +125,53 @@ error="$(env MASSCOM_TEST_MODE=true \
 grep -qF 'artifact must contain exactly one BUILD_SOURCE_COMMIT manifest marker' <<<"$error" \
   || { echo "missing artifact marker failed for an unrelated reason: $error" >&2; exit 1; }
 [[ ! -e "$missing_marker_provenance" ]] || { echo 'missing artifact marker wrote provenance' >&2; exit 1; }
+
+confused_marker_artifact="$work/confused-marker.aab"
+confused_marker_dir="$work/confused-marker.d"
+mkdir -p "$confused_marker_dir/base/manifest"
+cat >"$confused_marker_dir/base/manifest/AndroidManifest.xml" <<MANIFEST
+E: manifest
+  E: application
+    E: meta-data
+      A: android:name="kr.masscom.BUILD_SOURCE_COMMIT"
+      A: android:value="not-the-expected-commit"
+    E: activity
+      A: android:label="$expected_commit"
+kr.masscom.BUILD_SOURCE_COMMIT
+$expected_commit
+MANIFEST
+(cd "$confused_marker_dir" && zip -q -r "$confused_marker_artifact" base)
+confused_marker_provenance="$work/confused-marker.provenance.json"
+status=0
+error="$(env MASSCOM_TEST_MODE=true \
+  AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
+  AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-pass" \
+  bash "$assess" "$confused_marker_artifact" "$repo_root/apps/mobile/src" \
+  "$confused_marker_provenance" 2>&1)" || status=$?
+[[ "$status" == 1 ]] || { echo "confused artifact marker: expected exit 1, got $status: $error" >&2; exit 1; }
+grep -qF 'artifact BUILD_SOURCE_COMMIT does not match the assessed source commit' <<<"$error" \
+  || { echo "confused artifact marker failed for an unrelated reason: $error" >&2; exit 1; }
+[[ ! -e "$confused_marker_provenance" ]] || { echo 'confused artifact marker wrote provenance' >&2; exit 1; }
+
+replacement_artifact="$work/replacement-race.aab"
+cp "$artifact" "$replacement_artifact"
+cat >"$work/w08-replaces-artifact" <<'STUB'
+#!/usr/bin/env bash
+printf 'replacement artifact\n' >"$1"
+echo "release wallet surface verified: $(basename "$1"), package kr.masscom.wolgye"
+STUB
+chmod +x "$work/w08-replaces-artifact"
+replacement_provenance="$work/replacement-race.provenance.json"
+status=0
+error="$(env MASSCOM_TEST_MODE=true \
+  AAB_SIGNATURE_CHECK_COMMAND="$work/signature-pass" \
+  AAB_WALLET_SURFACE_CHECK_COMMAND="$work/w08-replaces-artifact" \
+  bash "$assess" "$replacement_artifact" "$repo_root/apps/mobile/src" \
+  "$replacement_provenance" 2>&1)" || status=$?
+[[ "$status" == 1 ]] || { echo "assessment artifact replacement: expected exit 1, got $status: $error" >&2; exit 1; }
+grep -qF 'artifact changed during release assessment' <<<"$error" \
+  || { echo "assessment artifact replacement failed for an unrelated reason: $error" >&2; exit 1; }
+[[ ! -e "$replacement_provenance" ]] || { echo 'assessment artifact replacement wrote provenance' >&2; exit 1; }
 
 # A disposable Git repository proves clean and already-dirty invocations without touching user files.
 dirty_repo="$work/dirty-repo"

@@ -70,51 +70,61 @@ src="$(make_src create-appkit-import-alias)"
 printf '%s\n' \
   "import { createAppKit as makeAppKit } from '@reown/appkit-react-native';" \
   'makeAppKit({});' >"$src/screens/create-appkit-alias.ts"
-expect_fail 'createAppKit import alias' 'canonical import and call' "$work/good.aab" "$src"
+expect_fail 'createAppKit import alias' 'Reown module is not allowed' "$work/good.aab" "$src"
 
 src="$(make_src create-appkit-assignment-alias)"
 printf '%s\n' \
   "import { createAppKit } from '@reown/appkit-react-native';" \
   'const makeAppKit = createAppKit;' \
   'makeAppKit({});' >"$src/screens/create-appkit-assignment.ts"
-expect_fail 'createAppKit assignment alias' 'canonical import and call' "$work/good.aab" "$src"
+expect_fail 'createAppKit assignment alias' 'Reown module is not allowed' "$work/good.aab" "$src"
 
 src="$(make_src create-appkit-wrapper)"
 printf '%s\n' \
   "import { createAppKit } from '@reown/appkit-react-native';" \
   'const makeAppKit = (...args) => createAppKit(...args);' \
   'makeAppKit({});' >"$src/screens/create-appkit-wrapper.ts"
-expect_fail 'createAppKit wrapper alias' 'canonical import and call' "$work/good.aab" "$src"
+expect_fail 'createAppKit wrapper alias' 'Reown module is not allowed' "$work/good.aab" "$src"
 
 src="$(make_src reown-namespace)"
 printf '%s\n' \
   "import * as Reown from '@reown/appkit-react-native';" \
   "Reown['create' + 'AppKit']({});" >"$src/screens/reown-namespace.ts"
-expect_fail 'Reown namespace import' 'static named imports' "$work/good.aab" "$src"
+expect_fail 'Reown namespace import' 'Reown module is not allowed' "$work/good.aab" "$src"
 
 src="$(make_src reown-default-import)"
 printf '%s\n' \
   "import Reown from '@reown/appkit-react-native';" \
   'Reown.createAppKit({});' >"$src/screens/reown-default-import.ts"
-expect_fail 'Reown default import' 'static named imports' "$work/good.aab" "$src"
+expect_fail 'Reown default import' 'Reown module is not allowed' "$work/good.aab" "$src"
 
 src="$(make_src reown-dynamic-import)"
 printf '%s\n' \
   "const Reown = await import('@reown/appkit-react-native');" \
   "Reown['createAppKit']({});" >"$src/screens/reown-dynamic-import.ts"
-expect_fail 'Reown dynamic import' 'static named imports' "$work/good.aab" "$src"
+expect_fail 'Reown dynamic import' 'Reown module is not allowed' "$work/good.aab" "$src"
 
 src="$(make_src reown-require)"
 printf '%s\n' \
   "const Reown = require('@reown/appkit-react-native');" \
   'Reown.createAppKit({});' >"$src/screens/reown-require.cjs"
-expect_fail 'Reown require path' 'static named imports' "$work/good.aab" "$src"
+expect_fail 'Reown require path' 'Reown module is not allowed' "$work/good.aab" "$src"
+
+src="$(make_src reown-namespace-reexport)"
+printf '%s\n' \
+  "export * as WalletSdk from '@reown/appkit-react-native';" \
+  >"$src/screens/reown-bridge.ts"
+printf '%s\n' \
+  "import { WalletSdk } from './reown-bridge';" \
+  "WalletSdk['create' + 'AppKit']({});" \
+  >"$src/screens/reown-namespace-consumer.ts"
+expect_fail 'Reown namespace re-export' 'Reown module is not allowed' "$work/good.aab" "$src"
 
 src="$(make_src sdk-button-alias)"
 printf '%s\n' \
   "import { AppKitButton as WalletButton } from '@reown/appkit-react-native';" \
   'export const Leak = () => <WalletButton />;' >"$src/screens/aliased-button.tsx"
-expect_fail 'SDK button alias' 'SDK button aliases' "$work/good.aab" "$src"
+expect_fail 'SDK button alias' 'Reown module is not allowed' "$work/good.aab" "$src"
 
 src="$(make_src open-account)"
 sed -i.bak "s/await open({ view: 'Connect' });/await open();/" "$src/screens/wallet-link/index.tsx"
@@ -158,7 +168,14 @@ expect_fail \
 src="$(make_src open-renamed)"
 sed -i.bak "s/await open({ view: 'Connect' });/await launch({ view: 'Swap' });/" "$src/screens/wallet-link/index.tsx"
 printf '%s\n' "const { open: launch } = useAppKit();" >>"$src/screens/wallet-link/index.tsx"
-expect_fail 'open renamed on destructure' 'open must not be renamed' "$work/good.aab" "$src"
+expect_fail 'open renamed on destructure' 'wallet-link may not alias or reacquire AppKit open' "$work/good.aab" "$src"
+
+src="$(make_src open-computed-alias)"
+printf '%s\n' \
+  "const appKitAgain = useAppKit();" \
+  "await appKitAgain['op' + 'en']({ view: 'Swap' });" \
+  >>"$src/screens/wallet-link/index.tsx"
+expect_fail 'computed open alias' 'wallet-link may not alias or reacquire AppKit open' "$work/good.aab" "$src"
 
 src="$(make_src open-multiline)"
 python3 - "$src/screens/wallet-link/index.tsx" <<'PY'
@@ -179,7 +196,7 @@ src="$(make_src oversized-view)"
 } >"$src/screens/oversized-view.ts"
 expect_fail \
   'oversized non-Connect view after pipefail' \
-  'AppKit view other than Connect' \
+  'Reown module is not allowed' \
   "$work/good.aab" \
   "$src"
 

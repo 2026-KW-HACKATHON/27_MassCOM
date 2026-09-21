@@ -54,7 +54,12 @@ normalize_logger_calls() {
         }
       }
 
-      alias_scan = line
+      source = source (source == "" ? "" : " ") line
+    }
+    END {
+      # Scan aliases only after the comment-free source is joined. This makes line breaks ordinary
+      # whitespace and preserves the source expression behind simple/destructured aliases.
+      alias_scan = source
       while (match(alias_scan, /(const|let|var)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*([[:space:]]*:[^=;]+)?[[:space:]]*=/)) {
         alias_header = substr(alias_scan, RSTART, RLENGTH)
         sub(/^(const|let|var)[[:space:]]+/, "", alias_header)
@@ -65,15 +70,23 @@ normalize_logger_calls() {
           alias_value = substr(alias_tail, RSTART, RLENGTH)
           gsub(/^[[:space:]]+|[[:space:]]+$/, "", alias_value)
           aliases[alias_name] = alias_value
-          alias_scan = substr(alias_tail, RSTART + RLENGTH)
-        } else {
-          alias_scan = alias_tail
         }
+        alias_scan = alias_tail
       }
-
-      source = source (source == "" ? "" : " ") line
-    }
-    END {
+      destructuring_scan = source
+      while (match(destructuring_scan, /(const|let|var)[[:space:]]*\{[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*:[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\}[[:space:]]*=[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*/)) {
+        declaration = substr(destructuring_scan, RSTART, RLENGTH)
+        property = declaration
+        sub(/^[^{]*\{[[:space:]]*/, "", property)
+        sub(/[[:space:]:].*$/, "", property)
+        alias_name = declaration
+        sub(/^[^:]*:[[:space:]]*/, "", alias_name)
+        sub(/[[:space:]}].*$/, "", alias_name)
+        alias_value = declaration
+        sub(/^.*=[[:space:]]*/, "", alias_value)
+        aliases[alias_name] = alias_value "." property
+        destructuring_scan = substr(destructuring_scan, RSTART + RLENGTH)
+      }
       remaining = source
       while (match(remaining, /(console\.(log|error|warn|info|debug)|console[[:space:]]*\[[^]]+\]|process[[:space:]]*\.[[:space:]]*stderr[[:space:]]*\.[[:space:]]*write)[[:space:]]*\(/)) {
         call = ""

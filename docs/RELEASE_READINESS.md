@@ -24,7 +24,7 @@
 `scripts/build-release-aab.sh [--restore-dev]`는 기본 `apps/mobile/release-artifacts/` 또는 운영자가 지정한 `RELEASE_ARTIFACT_DIR`에 `app-release-<short-sha>.aab`와 `app-release-<short-sha>.provenance.json`을 한 쌍으로 보존합니다. provenance에는 다음 공개 증거만 들어갑니다.
 
 - artifact basename·SHA-256·byte 크기
-- source commit·전체 Git worktree clean 여부
+- source commit·모바일 경로 dirty 여부 (`source.mobileDirty`); 전체 Git worktree clean은 production 생성 조건으로 별도 강제
 - signed AAB manifest의 `kr.masscom.BUILD_SOURCE_COMMIT` 값과 source commit 일치 여부
 - source가 기대한 Android package/version과 W08이 AAB에서 확인한 package
 - signature와 W08의 `PASS`/`FAIL`, exit code, upload 인증서 공개 SHA-256

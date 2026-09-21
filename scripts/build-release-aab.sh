@@ -83,6 +83,21 @@ trap restore EXIT
 
 publish_pair() { # <source-aab> <source-provenance> <target-aab> <target-provenance>
   local source_aab="$1" source_provenance="$2" target_aab="$3" target_provenance="$4"
+  if ! node - "$source_aab" "$source_provenance" <<'NODE'
+const { createHash } = require('node:crypto');
+const { readFileSync, statSync } = require('node:fs');
+const [artifactPath, provenancePath] = process.argv.slice(2);
+const artifact = readFileSync(artifactPath);
+const provenance = JSON.parse(readFileSync(provenancePath, 'utf8'));
+const digest = createHash('sha256').update(artifact).digest('hex');
+if (provenance?.artifact?.sha256 !== digest || provenance?.artifact?.bytes !== statSync(artifactPath).size) {
+  throw new Error('staged AAB no longer matches its provenance');
+}
+NODE
+  then
+    echo 'staged AAB changed before release evidence publication' >&2
+    return 1
+  fi
   if [[ -e "$target_aab" || -L "$target_aab" || -e "$target_provenance" || -L "$target_provenance" ]]; then
     echo "release artifact target appeared during build" >&2
     return 1

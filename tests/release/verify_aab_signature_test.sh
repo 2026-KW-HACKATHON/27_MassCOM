@@ -162,8 +162,13 @@ printf 'apps/mobile/android/\n' >"$sandbox/.gitignore"
 sandbox_commit="$(git -C "$sandbox" rev-parse HEAD)"
 build_artifact_dir="$work/build-good.d"
 mkdir -p "$build_artifact_dir/base/manifest"
-printf 'kr.masscom.BUILD_SOURCE_COMMIT\n%s\n' "$sandbox_commit" \
-  >"$build_artifact_dir/base/manifest/AndroidManifest.xml"
+cat >"$build_artifact_dir/base/manifest/AndroidManifest.xml" <<MANIFEST
+E: manifest
+  E: application
+    E: meta-data
+      A: android:name="kr.masscom.BUILD_SOURCE_COMMIT"
+      A: android:value="$sandbox_commit"
+MANIFEST
 printf 'release fixture\n' >"$build_artifact_dir/payload.txt"
 (cd "$build_artifact_dir" && zip -q -r "$work/build-good.aab" .)
 sign build-good upload.jks upload
@@ -193,6 +198,12 @@ GRADLE
 chmod +x android/gradlew
 STUB
 chmod +x "$work/bin/npx"
+cat >"$work/bin/aapt2" <<'STUB'
+#!/bin/bash
+artifact="${@: -1}"
+exec unzip -p "$artifact" base/manifest/AndroidManifest.xml
+STUB
+chmod +x "$work/bin/aapt2"
 
 # The production builder must reject every test-only gate control before prebuild. In particular,
 # fake gates must never turn a release build green.
@@ -505,5 +516,50 @@ if (record.releaseReadiness.status !== 'NOT_RUN') throw new Error('rejected prov
 NODE
 [[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development SOURCE_COMMIT=unset" ]] \
   || { echo "rejected build did not restore the development variant: $(cat "$work/prebuild.log")" >&2; exit 1; }
+
+# A successful assessor must not allow the staged AAB to be replaced before publication.
+post_assessment_sandbox="$work/post-assessment-replacement-repo"
+cp -R "$sandbox" "$post_assessment_sandbox"
+mv "$post_assessment_sandbox/scripts/assess-release-aab.sh" \
+  "$post_assessment_sandbox/scripts/assess-release-aab-real.sh"
+cat >"$post_assessment_sandbox/scripts/assess-release-aab.sh" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+"$repo_root/scripts/assess-release-aab-real.sh" "$@"
+printf 'replacement after assessment\n' >"$1"
+STUB
+chmod +x "$post_assessment_sandbox/scripts/assess-release-aab.sh"
+git -C "$post_assessment_sandbox" add scripts/assess-release-aab.sh scripts/assess-release-aab-real.sh
+git -C "$post_assessment_sandbox" -c user.email=t@example.invalid -c user.name=Test \
+  commit -q -m 'replace staged artifact after assessment'
+post_assessment_commit="$(git -C "$post_assessment_sandbox" rev-parse HEAD)"
+rm -rf "$build_artifact_dir"
+mkdir -p "$build_artifact_dir/base/manifest"
+cat >"$build_artifact_dir/base/manifest/AndroidManifest.xml" <<MANIFEST
+E: manifest
+  E: application
+    E: meta-data
+      A: android:name="kr.masscom.BUILD_SOURCE_COMMIT"
+      A: android:value="$post_assessment_commit"
+MANIFEST
+printf 'release fixture\n' >"$build_artifact_dir/payload.txt"
+rm -f "$work/build-good.aab"
+(cd "$build_artifact_dir" && zip -q -r "$work/build-good.aab" .)
+sign build-good upload.jks upload
+post_assessment_artifacts="$work/post-assessment-replacement-artifacts"
+status=0
+out="$(cd "$post_assessment_sandbox" && env RELEASE_ARTIFACT_DIR="$post_assessment_artifacts" \
+  UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
+  bash scripts/build-release-aab.sh 2>&1)" || status=$?
+[[ "$status" == 1 ]] \
+  || { echo "post-assessment replacement: expected exit 1, got $status: $out" >&2; exit 1; }
+grep -qF 'staged AAB changed before release evidence publication' <<<"$out" \
+  || { echo "post-assessment replacement failed for an unrelated reason: $out" >&2; exit 1; }
+post_assessment_short="${post_assessment_commit:0:7}"
+[[ ! -e "$post_assessment_artifacts/app-release-$post_assessment_short.aab" ]] \
+  || { echo 'post-assessment replacement published an accepted AAB' >&2; exit 1; }
+[[ ! -e "$post_assessment_artifacts/app-release-$post_assessment_short.provenance.json" ]] \
+  || { echo 'post-assessment replacement published accepted provenance' >&2; exit 1; }
 
 echo "AAB signature and build flow tests passed"
