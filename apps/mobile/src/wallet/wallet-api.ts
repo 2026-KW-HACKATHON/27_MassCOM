@@ -1,3 +1,5 @@
+import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
+
 export type WalletChallengeResponse = {
   challengeId: string;
   address: string;
@@ -49,7 +51,7 @@ type VerifyChallengeInput = {
 
 type WalletApiClientOptions = {
   apiUrl: string;
-  accountId: string;
+  credential: AccountCredential;
   fetcher?: typeof fetch;
 };
 
@@ -65,12 +67,12 @@ export class WalletApiError extends Error {
 
 export class WalletApiClient {
   readonly #apiUrl: string;
-  readonly #accountId: string;
+  readonly #credential: AccountCredential;
   readonly #fetcher: typeof fetch;
 
   constructor(options: WalletApiClientOptions) {
     this.#apiUrl = options.apiUrl.replace(/\/$/, '');
-    this.#accountId = options.accountId;
+    this.#credential = options.credential;
     this.#fetcher = options.fetcher ?? fetch;
   }
 
@@ -105,12 +107,13 @@ export class WalletApiClient {
   }
 
   async #request<T>(path: string, init?: RequestInit): Promise<T> {
+    const headers = new Headers(init?.headers);
+    for (const [name, value] of Object.entries(headersForCredential(this.#credential))) {
+      headers.set(name, value);
+    }
     const response = await this.#fetcher(`${this.#apiUrl}${path}`, {
       ...init,
-      headers: {
-        'x-account-id': this.#accountId,
-        ...init?.headers,
-      },
+      headers,
     });
 
     const payload = (await response.json()) as T | { code?: string };

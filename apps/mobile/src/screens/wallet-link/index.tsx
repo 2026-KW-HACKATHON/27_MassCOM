@@ -10,6 +10,7 @@ import { AppState, ScrollView, StyleSheet, Text, View, useColorScheme } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '@/theme/colors';
+import { createDemoCredential } from '@/config/demo-runtime';
 import { baseSepolia } from '@/wallet/base-sepolia';
 import { matchActiveBinding, WalletApiClient, WalletApiError } from '@/wallet/wallet-api';
 import {
@@ -49,7 +50,10 @@ export function WalletLinkScreen({ config }: Props) {
   const { provider } = useProvider();
   const { open, close, disconnect, switchNetwork, cancelPendingConnection } = useAppKit();
   const api = useMemo(
-    () => new WalletApiClient({ apiUrl: config.apiUrl, accountId: config.accountId }),
+    () => new WalletApiClient({
+      apiUrl: config.apiUrl,
+      credential: createDemoCredential(config.accountId),
+    }),
     [config.accountId, config.apiUrl],
   );
   const previousAddress = useRef<string | undefined>(address);

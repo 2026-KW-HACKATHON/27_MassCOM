@@ -4,13 +4,15 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CommerceApiError, createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
+import { createDemoCredential } from '@/config/demo-runtime';
 import { colors } from '@/theme/colors';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
 export function CollectionScreen({ apiUrl, accountId }: { apiUrl: string; accountId: string }) {
   const insets = useSafeAreaInsets();
-  const api = useMemo(() => createCommerceApiClient({ apiUrl, accountId }), [accountId, apiUrl]);
-  const walletApi = useMemo(() => new WalletApiClient({ apiUrl, accountId }), [accountId, apiUrl]);
+  const credential = useMemo(() => createDemoCredential(accountId), [accountId]);
+  const api = useMemo(() => createCommerceApiClient({ apiUrl, credential }), [apiUrl, credential]);
+  const walletApi = useMemo(() => new WalletApiClient({ apiUrl, credential }), [apiUrl, credential]);
   const [collection, setCollection] = useState<CollectionSnapshot>();
   const [binding, setBinding] = useState<ActiveWalletBindingResponse['binding']>();
   const [loading, setLoading] = useState(true);

@@ -14,7 +14,7 @@ test('sends the account boundary and Base Sepolia challenge request', async () =
   const requests: { url: string; init?: RequestInit }[] = [];
   const client = new WalletApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'demo-user-1',
+    credential: { kind: 'bearer', sessionToken: 'server-session' },
     fetcher: async (url, init) => {
       requests.push({ url: String(url), init });
       return Response.json(
@@ -34,7 +34,9 @@ test('sends the account boundary and Base Sepolia challenge request', async () =
 
   assert.equal(result.challengeId, 'challenge-1');
   assert.equal(requests[0]?.url, 'https://api.example.test/wallet/challenges');
-  assert.equal(new Headers(requests[0]?.init?.headers).get('x-account-id'), 'demo-user-1');
+  const challengeHeaders = new Headers(requests[0]?.init?.headers);
+  assert.equal(challengeHeaders.get('authorization'), 'Bearer server-session');
+  assert.equal(challengeHeaders.has('x-account-id'), false);
   assert.deepEqual(JSON.parse(String(requests[0]?.init?.body)), {
     address: '0x0000000000000000000000000000000000000001',
     chainId: 84532,
@@ -44,7 +46,7 @@ test('sends the account boundary and Base Sepolia challenge request', async () =
 test('preserves the server error code for recovery UI', async () => {
   const client = new WalletApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'demo-user-1',
+    credential: { kind: 'demo', accountId: 'demo-user-1', allowInsecureReauthentication: false },
     fetcher: async () => Response.json({ code: 'SIGNATURE_EXPIRED' }, { status: 410 }),
   });
 
@@ -71,7 +73,7 @@ test('reads and disconnects the server wallet binding version', async () => {
   };
   const client = new WalletApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'demo-user-1',
+    credential: { kind: 'demo', accountId: 'demo-user-1', allowInsecureReauthentication: false },
     fetcher: async (url, init) => {
       requests.push({ url: String(url), init });
       return String(url).endsWith('/active-binding')
@@ -86,6 +88,7 @@ test('reads and disconnects the server wallet binding version', async () => {
   });
   assert.equal(requests[0]?.url, 'https://api.example.test/wallets/active-binding');
   assert.equal(new Headers(requests[0]?.init?.headers).get('x-account-id'), 'demo-user-1');
+  assert.equal(new Headers(requests[0]?.init?.headers).has('authorization'), false);
   assert.equal(requests[1]?.url, 'https://api.example.test/wallets/binding-1/binding');
   assert.equal(requests[1]?.init?.method, 'DELETE');
   assert.deepEqual(JSON.parse(String(requests[1]?.init?.body)), { bindingVersion: 2 });

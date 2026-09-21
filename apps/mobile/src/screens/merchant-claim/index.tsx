@@ -18,6 +18,7 @@ import {
   type MerchantContext,
 } from '@/commerce/commerce-api';
 import { ClaimQr } from '@/commerce/claim-qr';
+import { createDemoCredential } from '@/config/demo-runtime';
 import { colors } from '@/theme/colors';
 
 type Props = {
@@ -31,7 +32,7 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
   const scrollView = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
   const api = useMemo(
-    () => createCommerceApiClient({ apiUrl, accountId }),
+    () => createCommerceApiClient({ apiUrl, credential: createDemoCredential(accountId) }),
     [accountId, apiUrl],
   );
   const [context, setContext] = useState<MerchantContext>();

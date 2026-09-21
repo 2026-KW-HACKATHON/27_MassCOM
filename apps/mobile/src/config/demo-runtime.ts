@@ -1,3 +1,5 @@
+import type { AccountCredential } from '@/auth/account-credential';
+
 type DemoEnvironment = Partial<
   Record<
     | 'EXPO_PUBLIC_DEMO_ACCOUNT_ID'
@@ -40,6 +42,13 @@ export const demoRuntimeConfig = getDemoRuntimeConfig({
   EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION:
     process.env.EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION,
 });
+
+export function createDemoCredential(
+  accountId: string,
+  allowInsecureReauthentication = false,
+): AccountCredential {
+  return { kind: 'demo', accountId, allowInsecureReauthentication };
+}
 
 function trimmed(value: string | undefined): string | undefined {
   const result = value?.trim();

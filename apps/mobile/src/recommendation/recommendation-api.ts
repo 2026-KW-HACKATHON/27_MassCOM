@@ -1,3 +1,5 @@
+import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
+
 export type RecommendationReasonCode = 'NEW_PLACE' | 'NEXT_REWARD' | 'COLLECTION_COMPLETE';
 
 export type Recommendation = {
@@ -20,7 +22,7 @@ export type Recommendation = {
 
 type Options = {
   apiUrl: string;
-  accountId: string;
+  credential: AccountCredential;
   fetcher?: typeof fetch;
 };
 
@@ -41,11 +43,12 @@ export function createRecommendationApiClient(options: Options) {
 
   return {
     async listRecommendations(signal?: AbortSignal): Promise<readonly Recommendation[]> {
+      const headers = new Headers({ Accept: 'application/json' });
+      for (const [name, value] of Object.entries(headersForCredential(options.credential))) {
+        headers.set(name, value);
+      }
       const response = await fetcher(`${apiUrl}/recommendations`, {
-        headers: {
-          Accept: 'application/json',
-          'x-account-id': options.accountId,
-        },
+        headers,
         signal,
       });
       const payload = await response.json();

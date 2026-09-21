@@ -8,8 +8,11 @@ test('requests account deletion through the authenticated API without wallet sec
   let receivedInit: RequestInit | undefined;
   const client = new AccountDeletionApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-delete',
-    allowInsecureDemoReauthentication: true,
+    credential: {
+      kind: 'demo',
+      accountId: 'customer-delete',
+      allowInsecureReauthentication: true,
+    },
     fetchImpl: async (input, init) => {
       receivedUrl = String(input);
       receivedInit = init;
@@ -48,7 +51,7 @@ test('does not claim demo reauthentication unless the caller explicitly enables 
   let receivedHeaders: Headers | undefined;
   const client = new AccountDeletionApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-delete',
+    credential: { kind: 'bearer', sessionToken: 'server-session' },
     fetchImpl: async (_input, init) => {
       receivedHeaders = new Headers(init?.headers);
       return new Response(
@@ -68,13 +71,19 @@ test('does not claim demo reauthentication unless the caller explicitly enables 
   });
 
   await client.requestDeletion();
+  assert.equal(receivedHeaders?.get('authorization'), 'Bearer server-session');
+  assert.equal(receivedHeaders?.has('x-account-id'), false);
   assert.equal(receivedHeaders?.has('x-demo-reauthenticated'), false);
 });
 
 test('rejects malformed deletion status instead of claiming completion', async () => {
   const client = new AccountDeletionApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-delete',
+    credential: {
+      kind: 'demo',
+      accountId: 'customer-delete',
+      allowInsecureReauthentication: false,
+    },
     fetchImpl: async () =>
       new Response(
         JSON.stringify({

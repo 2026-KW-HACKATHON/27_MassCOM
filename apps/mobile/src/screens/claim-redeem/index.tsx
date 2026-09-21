@@ -11,13 +11,14 @@ import {
   type RedeemedClaim,
 } from '@/commerce/commerce-api';
 import { createScanGate, parseScannedClaimCode } from '@/commerce/claim-code';
+import { createDemoCredential } from '@/config/demo-runtime';
 import { colors } from '@/theme/colors';
 
 export function ClaimRedeemScreen({ apiUrl, accountId }: { apiUrl: string; accountId: string }) {
   const scrollView = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
   const api = useMemo(
-    () => createCommerceApiClient({ apiUrl, accountId }),
+    () => createCommerceApiClient({ apiUrl, credential: createDemoCredential(accountId) }),
     [accountId, apiUrl],
   );
   const [token, setToken] = useState('');

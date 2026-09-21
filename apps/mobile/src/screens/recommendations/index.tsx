@@ -4,12 +4,13 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
+import { createDemoCredential } from '@/config/demo-runtime';
 import { colors } from '@/theme/colors';
 
 export function RecommendationsScreen({ apiUrl, accountId }: { apiUrl: string; accountId: string }) {
   const insets = useSafeAreaInsets();
   const api = useMemo(
-    () => createRecommendationApiClient({ apiUrl, accountId }),
+    () => createRecommendationApiClient({ apiUrl, credential: createDemoCredential(accountId) }),
     [accountId, apiUrl],
   );
   const [recommendations, setRecommendations] = useState<readonly Recommendation[]>();

@@ -1,3 +1,5 @@
+import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
+
 export type MerchantContext = {
   merchantId: string;
   role: 'OWNER' | 'STAFF';
@@ -79,7 +81,7 @@ export type MintJobResponse = {
 
 type Options = {
   apiUrl: string;
-  accountId: string;
+  credential: AccountCredential;
   fetcher?: typeof fetch;
 };
 
@@ -99,13 +101,14 @@ export function createCommerceApiClient(options: Options) {
   const fetcher = options.fetcher ?? fetch;
 
   async function request(path: string, init?: RequestInit): Promise<unknown> {
+    const headers = new Headers(init?.headers);
+    headers.set('Accept', 'application/json');
+    for (const [name, value] of Object.entries(headersForCredential(options.credential))) {
+      headers.set(name, value);
+    }
     const response = await fetcher(`${apiUrl}${path}`, {
       ...init,
-      headers: {
-        Accept: 'application/json',
-        'x-account-id': options.accountId,
-        ...init?.headers,
-      },
+      headers,
     });
     const payload = await response.json();
     if (!response.ok) {

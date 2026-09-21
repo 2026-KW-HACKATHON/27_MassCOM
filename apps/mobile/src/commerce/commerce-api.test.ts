@@ -6,10 +6,11 @@ import { CommerceApiError, createCommerceApiClient } from './commerce-api';
 test('reads merchant context through the explicit demo account boundary', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'staff-1',
+    credential: { kind: 'demo', accountId: 'staff-1', allowInsecureReauthentication: false },
     fetcher: async (input, init) => {
       assert.equal(input, 'https://api.example.test/merchant/merchants/merchant-1/context');
       assert.equal(new Headers(init?.headers).get('x-account-id'), 'staff-1');
+      assert.equal(new Headers(init?.headers).has('authorization'), false);
       return Response.json({
         merchantId: 'merchant-1',
         role: 'STAFF',
@@ -28,7 +29,7 @@ test('reads merchant context through the explicit demo account boundary', async 
 test('issues one claim slot with the customer and merchant reference only in the POST body', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'staff-1',
+    credential: { kind: 'demo', accountId: 'staff-1', allowInsecureReauthentication: false },
     fetcher: async (input, init) => {
       assert.equal(input, 'https://api.example.test/merchant/merchants/merchant-1/claim-slots');
       assert.equal(init?.method, 'POST');
@@ -64,7 +65,7 @@ test('keeps the claim token out of preview and redeem URLs', async () => {
   const requestedUrls: string[] = [];
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
     fetcher: async (input, init) => {
       requestedUrls.push(String(input));
       const body = JSON.parse(String(init?.body)) as { token: string };
@@ -134,10 +135,12 @@ test('parses collection states while keeping app collectibles and NFT state sepa
   };
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
+    credential: { kind: 'bearer', sessionToken: 'server-session' },
     fetcher: async (input, init) => {
       assert.equal(input, 'https://api.example.test/collection');
-      assert.equal(new Headers(init?.headers).get('x-account-id'), 'customer-1');
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get('authorization'), 'Bearer server-session');
+      assert.equal(headers.has('x-account-id'), false);
       return Response.json(payload);
     },
   });
@@ -148,7 +151,7 @@ test('parses collection states while keeping app collectibles and NFT state sepa
 test('requests minting with binding and consent only, never a client recipient or series', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
     fetcher: async (input, init) => {
       assert.equal(input, 'https://api.example.test/entitlements/entitlement-1/mint');
       assert.equal(new Headers(init?.headers).get('idempotency-key'), 'mint-request-1');
@@ -186,7 +189,7 @@ test('requests minting with binding and consent only, never a client recipient o
 test('rejects malformed collection data', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
     fetcher: async () => Response.json({ visits: [], collectibles: [{ nftStatus: 'MINTED' }] }),
   });
 
@@ -196,7 +199,7 @@ test('rejects malformed collection data', async () => {
 test('preserves API status and code for Korean recovery messages', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
-    accountId: 'customer-1',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
     fetcher: async () => Response.json({ code: 'CLAIM_TOKEN_EXPIRED' }, { status: 410 }),
   });
 

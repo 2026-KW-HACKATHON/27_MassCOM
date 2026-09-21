@@ -8,6 +8,7 @@ import {
   AccountDeletionApiError,
   type AccountDeletionResult,
 } from '@/privacy/account-deletion-api';
+import { createDemoCredential } from '@/config/demo-runtime';
 import { colors } from '@/theme/colors';
 import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
 import { forgetWalletSession } from '@/wallet/forget-wallet-session';
@@ -25,8 +26,7 @@ export function AccountSettingsScreen({
   const client = useMemo(
     () => new AccountDeletionApiClient({
       apiUrl,
-      accountId,
-      allowInsecureDemoReauthentication,
+      credential: createDemoCredential(accountId, allowInsecureDemoReauthentication),
     }),
     [accountId, allowInsecureDemoReauthentication, apiUrl],
   );
