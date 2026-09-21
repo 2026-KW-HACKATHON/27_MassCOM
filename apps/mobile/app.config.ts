@@ -1,11 +1,9 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
-import { loadModuleSync } from '@expo/require-utils';
 
 import type * as BuildEnvironment from './src/config/build-environment';
 
-// Expo transpiles only app.config.ts, so nested TypeScript config modules use its module loader.
-const { validateBuildEnvironment } = loadModuleSync(
-  require.resolve('./src/config/build-environment.ts'),
+const { validateBuildEnvironment } = require(
+  './src/config/build-environment.cjs'
 ) as typeof BuildEnvironment;
 
 const PRODUCTION_PACKAGE = 'kr.masscom.wolgye';
