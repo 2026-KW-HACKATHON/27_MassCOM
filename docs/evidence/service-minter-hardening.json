@@ -4,14 +4,14 @@
   "issue": 112,
   "scope": "Service minter pre-signing validation and keystore path hardening",
   "automated": {
-    "workerUnit": "PASS 44/44",
+    "workerUnit": "PASS 45/45",
     "workerPostgres": "PASS 23/23",
     "workerAnvil": "PASS 12/12",
     "workerTypecheckBuild": "PASS"
   },
   "observed": [
     "Invalid EIP-1559 priority fee relationships stop before signing or persistence.",
-    "A signed transaction recovered from another address stops before persistence.",
+    "A signed transaction with another sender, hash, chain, contract, or mint calldata stops before persistence or rebroadcast.",
     "Raw-key environment name variants and writable ancestor directories are rejected.",
     "Minter lock timeout and worker database pool size are bounded configuration values."
   ],

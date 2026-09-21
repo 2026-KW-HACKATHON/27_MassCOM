@@ -12,6 +12,30 @@ import {
   type MintChainGateway,
 } from './mint-worker.js';
 
+function expectedUnconfirmed(
+  item: {
+    rewardKey: string;
+    recipient: string;
+    chainId: number;
+    contractAddress: string;
+    seriesKey: string;
+  },
+  transactionHash: string,
+  signedTransaction: string,
+) {
+  return {
+    transactionHash,
+    signedTransaction,
+    intent: {
+      rewardKey: item.rewardKey,
+      recipient: item.recipient,
+      chainId: item.chainId,
+      contractAddress: item.contractAddress,
+      seriesKey: item.seriesKey,
+    },
+  };
+}
+
 test('M03 M06 lease race, retry, finalization, and repeated event ingestion stay idempotent', async (t) => {
   const connectionString = requiredTestDatabaseUrl();
   const pool = new Pool({ connectionString });
@@ -784,7 +808,7 @@ test('H1 closeForManualReview also closes the job\'s SUBMITTED attempt so it sto
 
   // Before closing: the attempt is still SUBMITTED and the sweep would pick it up.
   assert.deepEqual(await repository.listUnconfirmedSignedTransactions(item.chainId), [
-    { transactionHash, signedTransaction: '0x02f801' },
+    expectedUnconfirmed(item, transactionHash, '0x02f801'),
   ]);
 
   await repository.markManualReview(item.jobId, 'worker-manual-review-closes-attempt', 'RECEIPT_TIMEOUT');
@@ -878,7 +902,7 @@ test('H1 the sweep excludes attempts whose parent job is already terminal', asyn
   );
 
   assert.deepEqual(await repository.listUnconfirmedSignedTransactions(item.chainId), [
-    { transactionHash, signedTransaction: '0x02f803' },
+    expectedUnconfirmed(item, transactionHash, '0x02f803'),
   ]);
 
   for (const terminalStatus of ['FINALIZED', 'MANUAL_REVIEW', 'CANCELLED']) {
@@ -893,7 +917,7 @@ test('H1 the sweep excludes attempts whose parent job is already terminal', asyn
   // Back to a non-terminal status: the sweep picks the attempt back up.
   await pool.query(`UPDATE mint_jobs SET status = 'SUBMITTED' WHERE id = $1`, [item.jobId]);
   assert.deepEqual(await repository.listUnconfirmedSignedTransactions(item.chainId), [
-    { transactionHash, signedTransaction: '0x02f803' },
+    expectedUnconfirmed(item, transactionHash, '0x02f803'),
   ]);
 });
 

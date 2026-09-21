@@ -11,6 +11,7 @@ import {
   type MintChainGateway,
   type MintWorkItem,
   type MintWorkRepository,
+  type UnconfirmedSignedTransaction,
 } from './mint-worker.js';
 
 const work: MintWorkItem = {
@@ -76,9 +77,9 @@ class FakeRepository implements MintWorkRepository {
     return fn();
   }
 
-  unconfirmedSigned: { transactionHash: string; signedTransaction: string }[] = [];
+  unconfirmedSigned: UnconfirmedSignedTransaction[] = [];
 
-  async listUnconfirmedSignedTransactions(): Promise<{ transactionHash: string; signedTransaction: string }[]> {
+  async listUnconfirmedSignedTransactions(): Promise<UnconfirmedSignedTransaction[]> {
     return this.unconfirmedSigned;
   }
 
@@ -460,8 +461,8 @@ test('restart recovery finalizes without resubmitting when the reward key was al
 test('signed transactions recorded but never broadcast are sent before a new nonce is taken', async () => {
   const repository = new FakeRepository();
   repository.unconfirmedSigned = [
-    { transactionHash: `0x${'01'.repeat(32)}`, signedTransaction: '0x02f801' },
-    { transactionHash: `0x${'02'.repeat(32)}`, signedTransaction: '0x02f802' },
+    { transactionHash: `0x${'01'.repeat(32)}`, signedTransaction: '0x02f801', intent: work },
+    { transactionHash: `0x${'02'.repeat(32)}`, signedTransaction: '0x02f802', intent: work },
   ];
   const gateway = new FakeGateway();
   const worker = new MintWorker(repository, gateway);
@@ -495,7 +496,7 @@ test('an over-full backlog of unconfirmed signed transactions blocks submission 
 test('H1 a straggler that cannot be rebroadcast releases this job without consuming an attempt', async () => {
   const repository = new FakeRepository();
   repository.unconfirmedSigned = [
-    { transactionHash: `0x${'01'.repeat(32)}`, signedTransaction: '0x02f801' },
+    { transactionHash: `0x${'01'.repeat(32)}`, signedTransaction: '0x02f801', intent: work },
   ];
   const gateway = new FakeGateway();
   gateway.rebroadcastIfNeeded = async () => {

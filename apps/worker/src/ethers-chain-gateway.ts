@@ -19,7 +19,9 @@ import {
   type ChainMintResult,
   type MintChainGateway,
   type MintWorkItem,
+  type MintTransactionIntent,
   type RecordedSubmission,
+  type UnconfirmedSignedTransaction,
 } from './mint-worker.js';
 
 const abi = [
@@ -221,7 +223,7 @@ export class EthersMintChainGateway implements MintChainGateway {
   async submitMint(
     item: MintWorkItem,
     persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
-    unconfirmedSignedTransactions: { transactionHash: string; signedTransaction: string }[] = [],
+    unconfirmedSignedTransactions: UnconfirmedSignedTransaction[] = [],
   ): Promise<{ transactionHash: string }> {
     if (this.options.signer) {
       return this.submitMintWithServiceSigner(
@@ -259,7 +261,7 @@ export class EthersMintChainGateway implements MintChainGateway {
     item: MintWorkItem,
     signer: Signer,
     persistBeforeBroadcast: (record: RecordedSubmission) => Promise<void>,
-    unconfirmedSignedTransactions: { transactionHash: string; signedTransaction: string }[],
+    unconfirmedSignedTransactions: UnconfirmedSignedTransaction[],
   ): Promise<{ transactionHash: string }> {
     const data = this.contractInterface.encodeFunctionData('mintWithRewardKey', [
       item.recipient,
@@ -336,7 +338,7 @@ export class EthersMintChainGateway implements MintChainGateway {
     } catch (error) {
       throw new RetryableChainError('MINT_SIGNING_FAILED', { cause: error });
     }
-    const signed = this.checkedServiceTransaction(signedTransaction);
+    const signed = this.checkedServiceTransaction(signedTransaction, item);
     const transactionHash = signed.hash;
     if (!transactionHash) throw new RetryableChainError('MINT_SIGNING_FAILED');
     const normalizedHash = transactionHash.toLowerCase();
@@ -352,8 +354,12 @@ export class EthersMintChainGateway implements MintChainGateway {
    * if the network does not already know it, so a crash between recording and broadcasting (or a
    * lost broadcast response) never needs a new transaction or a new nonce.
    */
-  async rebroadcastIfNeeded(transactionHash: string, signedTransaction: string): Promise<void> {
-    this.checkedServiceTransaction(signedTransaction, transactionHash);
+  async rebroadcastIfNeeded(
+    intent: MintTransactionIntent,
+    transactionHash: string,
+    signedTransaction: string,
+  ): Promise<void> {
+    this.checkedServiceTransaction(signedTransaction, intent, transactionHash);
     try {
       const existing = await this.provider.getTransaction(transactionHash);
       if (existing) return;
@@ -365,6 +371,7 @@ export class EthersMintChainGateway implements MintChainGateway {
 
   private checkedServiceTransaction(
     signedTransaction: string,
+    intent: MintTransactionIntent,
     expectedHash?: string,
   ): Transaction {
     let transaction: Transaction;
@@ -375,6 +382,19 @@ export class EthersMintChainGateway implements MintChainGateway {
     }
     if (!transaction.from || getAddress(transaction.from) !== this.minterAddress) {
       throw new RetryableChainError('MINTER_SIGNER_MISMATCH');
+    }
+    const expectedData = this.contractInterface.encodeFunctionData('mintWithRewardKey', [
+      intent.recipient,
+      intent.seriesKey,
+      intent.rewardKey,
+    ]);
+    if (
+      transaction.chainId !== BigInt(intent.chainId) ||
+      !transaction.to ||
+      getAddress(transaction.to) !== getAddress(intent.contractAddress) ||
+      transaction.data.toLowerCase() !== expectedData.toLowerCase()
+    ) {
+      throw new RetryableChainError('MINT_SIGNED_TRANSACTION_MISMATCH');
     }
     if (
       expectedHash &&

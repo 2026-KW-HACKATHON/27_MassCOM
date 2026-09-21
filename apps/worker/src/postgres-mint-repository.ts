@@ -8,6 +8,7 @@ import {
   type ChainMintResult,
   type MintWorkItem,
   type MintWorkRepository,
+  type UnconfirmedSignedTransaction,
 } from './mint-worker.js';
 
 type Options = {
@@ -60,6 +61,16 @@ type ExistingAssetRow = {
   series_key: string;
   contract_address: string;
   chain_id: number;
+};
+
+type UnconfirmedSignedRow = {
+  transaction_hash: string;
+  signed_transaction: string;
+  reward_key: string;
+  recipient_address: string;
+  chain_id: number;
+  contract_address: string;
+  series_key: string;
 };
 
 const defaultOptions: Options = {
@@ -330,9 +341,12 @@ export class PostgresMintRepository implements MintWorkRepository {
    */
   async listUnconfirmedSignedTransactions(
     chainId: number,
-  ): Promise<{ transactionHash: string; signedTransaction: string }[]> {
-    const result = await this.pool.query<{ transaction_hash: string; signed_transaction: string }>(
-      `SELECT attempt.transaction_hash, attempt.signed_transaction
+  ): Promise<UnconfirmedSignedTransaction[]> {
+    const result = await this.pool.query<UnconfirmedSignedRow>(
+      `SELECT attempt.transaction_hash, attempt.signed_transaction,
+              encode(job.reward_key, 'hex') AS reward_key,
+              job.recipient_address, job.chain_id, job.contract_address,
+              encode(job.series_key, 'hex') AS series_key
        FROM mint_tx_attempts AS attempt
        JOIN mint_jobs AS job ON job.id = attempt.mint_job_id
        WHERE job.chain_id = $1
@@ -351,6 +365,13 @@ export class PostgresMintRepository implements MintWorkRepository {
     return result.rows.map((row) => ({
       transactionHash: row.transaction_hash,
       signedTransaction: row.signed_transaction,
+      intent: {
+        rewardKey: `0x${row.reward_key}`,
+        recipient: row.recipient_address,
+        chainId: row.chain_id,
+        contractAddress: row.contract_address,
+        seriesKey: `0x${row.series_key}`,
+      },
     }));
   }
 
