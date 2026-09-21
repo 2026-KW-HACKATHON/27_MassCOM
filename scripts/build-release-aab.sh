@@ -5,8 +5,8 @@
 # in ~/.gradle/gradle.properties. Without them the AAB is signed with the local debug key and
 # this script says so; a debug-signed AAB must not be uploaded.
 # Usage: scripts/build-release-aab.sh [--restore-dev]   (--restore-dev regenerates the dev project afterwards)
-# The AAB is copied to apps/mobile/release-artifacts/ (gitignored) before anything is restored.
-# Exit codes: 0 uploadable; 3-7 built but not uploadable (see scripts/verify-aab-signature.sh); other = build failure.
+# The AAB and its provenance are copied to apps/mobile/release-artifacts/ (gitignored) before anything is restored.
+# Exit code 0 means the automated gates passed; release/device/Play readiness remains NOT_RUN.
 # The upload key is the owner's; Play re-signs installs with its own app signing key, so the
 # certificate printed here is the upload certificate, not the one devices will see.
 
@@ -52,13 +52,18 @@ echo "source commit: $commit$(git -C "$repo_root" diff --quiet -- apps/mobile ||
 grep -E "^[[:space:]]*(applicationId|versionCode|versionName)[[:space:](]" "$gradle_file" | sed 's/^ *//' \
   || echo "version metadata not found in $gradle_file" >&2
 
-# The build succeeded either way; a non-zero verdict tells callers the artifact must not go to Play,
-# and the file name says so too, because the directory is gitignored and outlives this run.
-verdict=0
-"$repo_root/scripts/verify-aab-signature.sh" "$aab" || verdict=$?
-if [[ "$verdict" != "0" ]]; then
-  rejected="${aab%.aab}.NOT-UPLOADABLE-exit$verdict.aab"
-  mv "$aab" "$rejected"
-  echo "AAB renamed: $rejected" >&2
-  exit "$verdict"
+# The assessor records both automated verdicts and leaves manual/device/Play readiness explicit.
+provenance="${aab%.aab}.provenance.json"
+assessment=0
+"$repo_root/scripts/assess-release-aab.sh" "$aab" "$mobile_dir/src" "$provenance" || assessment=$?
+if [[ "$assessment" != "0" ]]; then
+  rejected_base="${aab%.aab}.NOT-RELEASE-READY-exit$assessment"
+  mv "$aab" "$rejected_base.aab"
+  mv "$provenance" "$rejected_base.provenance.json"
+  echo "AAB retained for diagnosis: $rejected_base.aab" >&2
+  echo "Provenance: $rejected_base.provenance.json" >&2
+  exit "$assessment"
 fi
+echo "Provenance: $provenance"
+echo 'Automated gates: PASS'
+echo 'Release readiness: NOT_RUN'

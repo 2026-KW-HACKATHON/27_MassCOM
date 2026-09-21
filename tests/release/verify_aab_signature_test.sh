@@ -82,9 +82,21 @@ expect 'weak signature algorithm' 4 'SIGNATURE REJECTED: signed with an algorith
 # Build script control flow: the reported artifact must survive --restore-dev, and the restore must
 # not inherit APP_VARIANT=production from the caller.
 sandbox="$work/repo"
-mkdir -p "$sandbox/scripts" "$sandbox/apps/mobile" "$work/bin"
-cp "$repo_root/scripts/build-release-aab.sh" "$repo_root/scripts/verify-aab-signature.sh" "$sandbox/scripts/"
-(cd "$sandbox" && git init -q && git -c user.email=t@example.invalid -c user.name=t commit -q --allow-empty -m sample)
+mkdir -p "$sandbox/scripts" "$sandbox/apps/mobile/src" "$work/bin"
+cp "$repo_root/scripts/build-release-aab.sh" \
+  "$repo_root/scripts/verify-aab-signature.sh" \
+  "$repo_root/scripts/assess-release-aab.sh" \
+  "$repo_root/scripts/write-aab-provenance.mjs" \
+  "$sandbox/scripts/"
+cat >"$sandbox/scripts/check-release-wallet-surface.sh" <<'STUB'
+#!/usr/bin/env bash
+echo "release wallet surface verified: $(basename "$1"), package kr.masscom.wolgye"
+STUB
+chmod +x "$sandbox/scripts/check-release-wallet-surface.sh"
+printf '{"expo":{"version":"0.1.0","android":{"versionCode":1}}}\n' >"$sandbox/apps/mobile/app.json"
+printf 'fixture\n' >"$sandbox/apps/mobile/src/fixture.ts"
+(cd "$sandbox" && git init -q && git add . && \
+  git -c user.email=t@example.invalid -c user.name=t commit -q -m sample)
 cat >"$work/bin/npx" <<STUB
 #!/usr/bin/env bash
 echo "prebuild APP_VARIANT=\${APP_VARIANT:-unset}" >>"$work/prebuild.log"
@@ -101,14 +113,61 @@ out="$(cd "$sandbox" && env APP_VARIANT=production UPLOAD_CERT_SHA256="$approved
 reported="$(sed -n 's/^AAB: //p' <<<"$out")"
 [[ -f "$reported" ]] || { echo "build flow: reported artifact is gone after --restore-dev: $reported" >&2; exit 1; }
 [[ "$reported" != */android/* ]] || { echo "build flow: artifact still lives under android/: $reported" >&2; exit 1; }
+provenance="${reported%.aab}.provenance.json"
+[[ -f "$provenance" ]] || { echo "build flow: paired provenance is missing: $provenance" >&2; exit 1; }
+[[ "$provenance" != */android/* ]] || { echo "build flow: provenance still lives under android/: $provenance" >&2; exit 1; }
+node - "$reported" "$provenance" <<'NODE'
+const { createHash } = require('node:crypto');
+const { readFileSync } = require('node:fs');
+const [artifactPath, provenancePath] = process.argv.slice(2);
+const artifact = readFileSync(artifactPath);
+const record = JSON.parse(readFileSync(provenancePath, 'utf8'));
+const digest = createHash('sha256').update(artifact).digest('hex');
+if (record.artifact.sha256 !== digest) throw new Error('provenance digest does not match copied AAB');
+if (record.signature.status !== 'PASS') throw new Error('successful build did not record signature PASS');
+if (record.walletSurface.status !== 'PASS') throw new Error('successful build did not record W08 PASS');
+if (record.releaseReadiness.status !== 'NOT_RUN') throw new Error('successful build overstated release readiness');
+NODE
+grep -qF "Provenance: $provenance" <<<"$out" \
+  || { echo "build flow: provenance path was not reported: $out" >&2; exit 1; }
+grep -qF 'Automated gates: PASS' <<<"$out" \
+  || { echo "build flow: automated gate status was not reported: $out" >&2; exit 1; }
+grep -qF 'Release readiness: NOT_RUN' <<<"$out" \
+  || { echo "build flow: release readiness was not reported: $out" >&2; exit 1; }
+[[ "$out" != *UPLOADABLE* && "$out" != *READY* ]] \
+  || { echo "build flow overstated release readiness: $out" >&2; exit 1; }
 [[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development" ]] \
   || { echo "build flow: restore inherited the caller's variant: $(cat "$work/prebuild.log")" >&2; exit 1; }
 
-# A rejected build keeps its artifact, but under a name nobody can mistake for an uploadable one.
+# A rejected build keeps the paired evidence under a name that states only the automated verdict.
+: >"$work/prebuild.log"
 status=0
-out="$(cd "$sandbox" && env -u UPLOAD_CERT_SHA256 PATH="$work/bin:$PATH" bash scripts/build-release-aab.sh 2>&1)" || status=$?
+out="$(cd "$sandbox" && env -u UPLOAD_CERT_SHA256 PATH="$work/bin:$PATH" \
+  bash scripts/build-release-aab.sh --restore-dev 2>&1)" || status=$?
 [[ "$status" == "7" ]] || { echo "rejected build: expected exit 7, got $status: $out" >&2; exit 1; }
-[[ ! -f "$(sed -n 's/^AAB: //p' <<<"$out")" ]] || { echo "rejected build left an artifact under the normal name" >&2; exit 1; }
-ls "$sandbox"/apps/mobile/release-artifacts/*.NOT-UPLOADABLE-exit7.aab >/dev/null
+rejected_reported="$(sed -n 's/^AAB: //p' <<<"$out")"
+[[ ! -f "$rejected_reported" ]] || { echo "rejected build left an artifact under the normal name" >&2; exit 1; }
+[[ ! -f "${rejected_reported%.aab}.provenance.json" ]] \
+  || { echo "rejected build left provenance under the normal name" >&2; exit 1; }
+rejected_base="${rejected_reported%.aab}.NOT-RELEASE-READY-exit7"
+[[ -f "$rejected_base.aab" ]] || { echo "rejected build lost its AAB: $rejected_base.aab" >&2; exit 1; }
+[[ -f "$rejected_base.provenance.json" ]] \
+  || { echo "rejected build lost its provenance: $rejected_base.provenance.json" >&2; exit 1; }
+node - "$rejected_base.aab" "$rejected_base.provenance.json" <<'NODE'
+const { createHash } = require('node:crypto');
+const { readFileSync } = require('node:fs');
+const [artifactPath, provenancePath] = process.argv.slice(2);
+const artifact = readFileSync(artifactPath);
+const record = JSON.parse(readFileSync(provenancePath, 'utf8'));
+const digest = createHash('sha256').update(artifact).digest('hex');
+if (record.artifact.sha256 !== digest) throw new Error('rejected provenance digest does not match retained AAB');
+if (record.signature.status !== 'FAIL' || record.signature.exitCode !== 7) {
+  throw new Error('rejected provenance did not preserve the signature failure');
+}
+if (record.walletSurface.status !== 'PASS') throw new Error('rejected provenance did not preserve W08 PASS');
+if (record.releaseReadiness.status !== 'NOT_RUN') throw new Error('rejected provenance overstated release readiness');
+NODE
+[[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development" ]] \
+  || { echo "rejected build did not restore the development variant: $(cat "$work/prebuild.log")" >&2; exit 1; }
 
 echo "AAB signature and build flow tests passed"

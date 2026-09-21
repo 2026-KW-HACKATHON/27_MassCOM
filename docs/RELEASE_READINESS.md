@@ -5,7 +5,7 @@
 | 항목 | 현재 상태 | 완료 조건 |
 | --- | --- | --- |
 | 운영 package ID | `DECIDED` D-022 | `kr.masscom.wolgye` 적용(`APP_VARIANT=production`). 2026-09-30 이후 Console package 등록 상태는 소유자가 확인 |
-| 서명 AAB | `IN_PROGRESS` | `scripts/build-release-aab.sh`로 운영 variant AAB 생성 후 `scripts/check-release-wallet-surface.sh <aab>`로 구매·스왑·내장 지갑·송금 진입점 부재(W08)를 확인. upload key는 소유자가 저장소 밖에 만들고 `~/.gradle/gradle.properties`의 `android.injected.signing.*`로 주입. debug 서명 AAB는 업로드 금지 |
+| 서명 AAB | `IN_PROGRESS` | `scripts/build-release-aab.sh`로 운영 variant AAB와 provenance를 생성하고 assessor의 서명·W08 자동 gate를 통과. upload key는 소유자가 저장소 밖에 만들고 `~/.gradle/gradle.properties`의 `android.injected.signing.*`로 주입. debug 서명 AAB는 업로드 금지. 자동 gate PASS는 기기·App Links·Play 준비 완료가 아님 |
 | upload key | `IN_PROGRESS` | 2026-09-21 소유자가 저장소 밖 `~/.android/masscom-upload.jks`를 생성했고 권한 `0600`, 별칭·공개 인증서 지문 대조를 완료했다. 승인 SHA-256은 `apps/mobile/upload-certificate.sha256`에 고정했으며 비밀번호·keystore는 저장소에 없다. `android.injected.signing.*` 로컬 주입과 실제 upload-key AAB는 아직 `NOT_RUN`. 주입 경로 자체는 일회용 키로 PASS(`docs/evidence/release-signing-injection.json`). 검증기는 서명 무결성 → 인증서 존재 → debug 키 거절 → 승인 지문 대조를 수행한다 |
 | 16KB page size | `IN_PROGRESS` | 2026-09-20 로컬 debug 서명 release AAB의 arm64-v8a·x86_64 네이티브 라이브러리 48개 모두 LOAD 정렬 `0x4000` PASS(`docs/evidence/release-aab-16kb-alignment.json`). upload key 서명 AAB와 16KB 기기 설치 검사는 `NOT_RUN` |
 | App Links | `BLOCKED` | 소유 HTTPS domain, 운영 package ID, 배포 서명 SHA-256, `assetlinks.json` 준비 |
@@ -18,6 +18,31 @@
 | 심사 접근 | `PLANNED` | 실제 구매 없이 재현 가능한 시연 계정·DEMO 점포·안전한 QR·테스트넷 표기 |
 | 폐쇄 테스트 | `NOT_RUN` | 계정 적용 여부 확인, 필요한 경우 실제 12명 연속 14일과 피드백 기록 |
 | Play 업로드·공개 | `BLOCKED` | 사용자 명시 승인과 모든 사전 조건 충족 |
+
+## Release artifact와 provenance
+
+`scripts/build-release-aab.sh [--restore-dev]`는 `apps/mobile/release-artifacts/` 또는 `RELEASE_ARTIFACT_DIR`에 `app-release-<short-sha>.aab`와 `app-release-<short-sha>.provenance.json`을 한 쌍으로 보존합니다. provenance에는 다음 공개 증거만 들어갑니다.
+
+- artifact basename·SHA-256·byte 크기
+- source commit·`apps/mobile` dirty 여부
+- source가 기대한 Android package/version과 W08이 AAB에서 확인한 package
+- signature와 W08의 `PASS`/`FAIL`, exit code, upload 인증서 공개 SHA-256
+- `releaseReadiness.status`와 남은 A02 설치·App Links·Play upload/review gate
+- 생성 시각
+
+keystore 경로·비밀번호·개인키는 provenance 대상이 아닙니다. 현재 schema는 artifact 절대 경로가 아닌 basename만 저장합니다. provenance에 개인 로컬 filesystem 경로가 드러나면 그 파일을 커밋하지 말고 생성 경로를 점검합니다. release artifact 디렉터리는 gitignored이며, 공개·커밋 여부는 내용 검토 뒤 별도로 결정합니다.
+
+자동 gate가 exit `N`으로 실패하면 두 파일은 삭제되지 않고 `app-release-<short-sha>.NOT-RELEASE-READY-exitN.aab`와 같은 basename의 `.provenance.json`으로 함께 이동합니다. 이 이름은 자동 판단 실패를 뜻할 뿐 Play의 최종 심사 판단이 아닙니다.
+
+증거 단계는 다음처럼 구분합니다.
+
+1. Gradle build 성공은 AAB가 생성됐다는 증거다.
+2. `signature.status: PASS`는 AAB 무결성과 승인 upload 인증서 일치 증거다.
+3. `Automated gates: PASS`는 signature와 W08을 모두 통과했다는 증거다.
+4. A02 기기 설치와 App Links는 별도 기기·HTTPS domain 증거가 필요하다.
+5. Play upload와 Play review는 별도 Console 실행·심사 결과가 필요하다.
+
+1~3이 통과해도 4~5를 실행하지 않았다면 `releaseReadiness.status`는 `NOT_RUN`이다. 따라서 build 출력·서명 PASS·자동 gate PASS를 “uploadable” 또는 “ready”로 표기하지 않습니다.
 
 ## 공식 확인 결과
 
