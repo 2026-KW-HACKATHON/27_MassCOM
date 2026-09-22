@@ -25,7 +25,7 @@
 
 ### 다음 실행의 정확한 재개 순서
 
-1. upload-key AAB 자동 gate는 완료됐다. A02는 bundletool로 생성한 APK set의 실제 기기 설치·실행이며 아직 `NOT_RUN`이다.
+1. upload-key AAB 자동 gate와 Samsung Android 16(4KB) APK set 설치·콜드 실행은 완료됐다. A02는 16KB 기기 실행·HTTPS App Links가 남아 전체 `NOT_RUN`이다.
 2. Base Sepolia 계약 배포는 faucet 잔액이 준비된 상태지만 아직 `NOT_RUN`이다. keystore 비밀번호를 로컬 터미널에 입력받아 시험망에서만 수행한다.
 3. 두 번째로 승인된 Google 테스트 계정이 생길 때만 계정 전환 D02를 실기한다.
 4. 현재 문서 갱신 커밋을 push한 후 한글 PR 하나로 CI·리뷰·merge한다. Google Play 제출·저장소 공개·대회 최종 제출은 실행하지 않는다.
@@ -133,7 +133,7 @@
 
 ## 현재 작업 중인 기능
 
-- Issue #122에서 외부 HTTPS·첫 Google 로그인·upload-key AAB 자동 gate를 완료했다. A02 설치, Base Sepolia keystore 역할 주소·broadcast, 두 계정 전환 D02가 남았다.
+- Issue #122에서 외부 HTTPS·첫 Google 로그인·upload-key AAB 자동 gate·4KB 기기 설치/콜드 실행을 완료했다. 16KB 기기·App Links, Base Sepolia broadcast, D02가 남았다.
 
 ## BLOCKER
 
@@ -149,11 +149,11 @@
 
 소유자가 직접 해야 하는 것(대신 수행하지 않음):
 
-1. upload-key AAB·provenance 로컬 보존 상태를 확인한다. 비밀번호를 다시 입력하거나 키를 다시 만들 필요는 없다.
+1. upload-key AAB·provenance·APK set 로컬 보존 상태를 확인한다. 비밀번호를 다시 입력하거나 키를 다시 만들 필요는 없다.
 2. Base Sepolia keystore 역할 주소를 비밀번호 프롬프트로 확인하고 시험망 deployer 계정으로만 broadcast한다. private key·비밀번호는 기록하지 않는다.
 3. Play Console에서 App Signing SHA-1을 받은 뒤 `kr.masscom.wolgye`용 Play Android OAuth client를 별도로 만든다. 현재 upload-key client를 Play signing client로 오인하지 않는다.
 4. Play Console package 등록·Data safety·금융 기능 NFT award·계정 삭제 URL은 실제 제출 직전 다시 확인하고 승인 없이 제출하지 않는다.
-5. 실제 카메라 QR 촬영→수령과 오프라인 안내(A01), 두 Google 계정 전환(D02), 운영 package Reown 복귀, upload-key AAB 설치(A02)는 별도 실기한다.
+5. 실제 카메라 QR 촬영→수령과 오프라인 안내(A01), 두 Google 계정 전환(D02), 운영 package Reown 복귀, 16KB 기기·HTTPS App Links(A02)는 별도 실기한다.
 
 여전히 승인 전 금지: mainnet, 사용자 자산 이동, 저장소 공개, Play 프로덕션 공개, 대회 최종 제출.
 

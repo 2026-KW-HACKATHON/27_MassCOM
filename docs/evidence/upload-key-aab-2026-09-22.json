@@ -40,6 +40,22 @@
     },
     "status": "PASS"
   },
+  "deviceInstallation": {
+    "device": "Samsung SM-S928N",
+    "android": "16",
+    "pageSize": 4096,
+    "apkSetBytes": 148028076,
+    "package": "kr.masscom.wolgye",
+    "versionName": "0.1.0",
+    "versionCode": 1,
+    "apkSignatureSchemes": ["v2", "v3"],
+    "certificateSha256": "5E5ED3C31971E5A88EA752B3A2AE50772FEA1C956B9D97A82DD5CA7130CFA395",
+    "firstColdLaunchMs": 1455,
+    "foregroundActivity": "kr.masscom.wolgye/.MainActivity",
+    "fatalErrors": 0,
+    "result": "PASS",
+    "boundary": "This is a 4KB page-size device. Static 16KB ELF alignment passed, but 16KB-device runtime and HTTPS App Links remain NOT_RUN."
+  },
   "releaseReadiness": {
     "status": "NOT_RUN",
     "pending": [

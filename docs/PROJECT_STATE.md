@@ -29,7 +29,7 @@
 | --- | --- |
 | 로컬 검증 완료 | 탐색·발급·수령·도감·추천, 지갑 주소 확인(SIWE), 발행 요청·Outbox·Worker·계약(Local Anvil), 계정 삭제, 백업·복원 drill, upload-key 운영 AAB 서명·W08·source marker·16KB 정적 검사 |
 | 시험망 미검증 | Base Sepolia 계약 배포와 그 계약에 대한 Worker 발행. 배포자·역할 keystore 계정 4개와 faucet gas는 준비됐고 Worker 서비스 민터 경로는 로컬 검증됨. 실제 시험망 전송은 아직 없음 |
-| 운영 실기 미검증 | 외부 HTTPS와 첫 Google 로그인·Bearer/SecureStore·logout은 PASS. 두 번째 계정 전환 D02, 운영 fresh reauthentication 삭제, O01 운영 권한, A02 설치·App Links·Play는 `NOT_RUN` |
+| 운영 실기 미검증 | 외부 HTTPS·첫 Google 로그인·upload-key 운영 package 설치/콜드 실행은 PASS. 두 번째 계정 전환 D02, fresh reauthentication 삭제, O01, 16KB 기기 실행·App Links·Play는 `NOT_RUN` |
 | 사용자 승인·입력 대기 | Foundry keystore 숨김 비밀번호, D-023 수령 시 캠페인 등록 요구 여부, W04·W05용 지갑 환경(B-010·B-011), Play App Signing 인증서 client. 호스팅·도메인·OAuth·faucet·upload AAB는 해소 |
 
 ## 열린 Issue·PR과 최근 병합
@@ -44,7 +44,7 @@
 | Phase 1 외부 지갑 연결 | `IN_PROGRESS` | 개발 package MetaMask 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED`→콜드 스타트 binding 복원, W06 PASS; 운영 release package·W04·W05는 `NOT_RUN/BLOCKED` |
 | Phase 2 지역 상권 핵심 기능 | `VERIFIED` | loopback DEMO 탐색→점주 발급→고객 수령→도감→추천→상세 순환 PASS |
 | Phase 3 NFT | `VERIFIED` | Local Anvil 계약→원자 job/Outbox→Worker→이벤트 대조→Android 등록 완료·복구 PASS; Base Sepolia `NOT_RUN` |
-| Phase 4 출시 기반 | `IN_PROGRESS` | 외부 HTTPS, 모바일 첫 Google 로그인·SecureStore 복원·logout, 공개 개인정보·삭제 페이지, upload-key AAB 자동 gate PASS. 계정 전환 D02·fresh reauth 삭제·A02·App Links·Play는 미완료 |
+| Phase 4 출시 기반 | `IN_PROGRESS` | 외부 HTTPS·첫 Google 로그인·삭제 페이지·upload-key AAB 자동 gate·Samsung 운영 package 설치/콜드 실행 PASS. D02·fresh reauth·16KB 기기·App Links·Play는 미완료 |
 | Phase 5 대회 검증·발표 | `IN_PROGRESS` | 발표 웹·3/5분 원고·시연 runbook·빈 현장 기록지·증거 manifest 구현; 현장·리허설·영상·제출은 NOT_RUN |
 | Phase 6 후속 기능 | `PLANNED` | 별도 승인 전 미착수 |
 
@@ -78,7 +78,7 @@
 - 단체 인원·금액 한도 정책(v3 제안값, 미승인). 사람별 슬롯 독립성 Q04는 PASS
 - W04 동일 세션 서명 중 주소 변경, W05 미지원 스마트 지갑 실기
 - 실제 운영 계정 전환·캐시 복원 D02
-- upload-key AAB의 A02 설치·App Links, 운영 권한 O01
+- 16KB 기기에서 upload-key AAB 실행·App Links, 운영 권한 O01
 - Base Sepolia·운영 signer·mainnet·Google Play 제품 배포
 - 실제 현장 참여·발표 리허설·영상 촬영·저장소 공개·대회 최종 제출
 
@@ -87,7 +87,7 @@
 | 영역 | 상태 | 내용 |
 | --- | --- | --- |
 | 배포 | `VERIFIED` | Vercel 포털·법적 페이지와 AWS Lightsail `api.masscom.kr` DNS·Let’s Encrypt·외부 `/health` 200·보안 헤더 확인. Worker·운영 복원은 별도 `NOT_RUN` |
-| Android 빌드 | `IN_PROGRESS` | 개발 빌드 실기 PASS. upload key 운영 AAB의 승인 인증서·package·source marker·W08·64비트 58개 라이브러리 16KB 정렬 PASS. A02 설치·App Links·Play 업로드는 `NOT_RUN` |
+| Android 빌드 | `IN_PROGRESS` | upload key AAB 승인 인증서·package·source marker·W08·16KB 정렬과 Samsung Android 16(4KB) 설치·콜드 실행 PASS. 16KB 기기·App Links·Play 업로드는 `NOT_RUN` |
 | NFT·시험망 | `IN_PROGRESS` | Local Anvil 계약·Worker·이벤트 대조 PASS. Base Sepolia faucet gas는 준비됐고 keystore 배포 스크립트·실체인 시뮬레이션 PASS, 실제 배포는 `NOT_RUN`. mainnet 범위 밖 |
 | 외부 지갑 연동 | `IN_PROGRESS` | `kr.masscom.wolgye.dev` MetaMask 연결·Base Sepolia·`personal_sign`·서버 검증·자동 복귀·콜드 스타트 복원과 W06 실기 PASS(B-014 해소). 운영 `kr.masscom.wolgye` release 복귀는 `NOT_RUN`; W04·W05는 `BLOCKED`(B-010·B-011) |
 

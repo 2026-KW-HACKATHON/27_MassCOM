@@ -5,9 +5,9 @@
 | 항목 | 현재 상태 | 완료 조건 |
 | --- | --- | --- |
 | 운영 package ID | `DECIDED` D-022 | `kr.masscom.wolgye` 적용(`APP_VARIANT=production`). 2026-09-30 이후 Console package 등록 상태는 소유자가 확인 |
-| 서명 AAB | `VERIFIED` 자동 gate | 2026-09-22 commit `f13a283`의 운영 AAB와 provenance 생성. 승인 upload 인증서 서명·package·manifest source marker·W08·artifact hash PASS. A02 기기 설치·App Links·Play는 별도 `NOT_RUN` |
+| 서명 AAB | `VERIFIED` 자동 gate·4KB 기기 | commit `f13a283` 운영 AAB의 승인 인증서·package·source marker·W08·hash PASS. Samsung Android 16에서 APK set 설치·콜드 실행·foreground·FATAL 0 PASS. 16KB 기기·App Links·Play는 별도 `NOT_RUN` |
 | upload key | `VERIFIED` 로컬 서명 | 저장소 밖 PKCS12 권한 `0600`, 별칭·승인 SHA-256 대조와 실제 AAB 서명 PASS. 비밀번호·keystore는 저장소와 provenance에 없으며 Play App Signing 인증서와는 다름 |
-| 16KB page size | `VERIFIED` 정적 | upload key AAB의 arm64-v8a·x86_64 각 29개 라이브러리, 각 87개 LOAD segment 최소 정렬 `0x4000`, 미달 0 PASS. 16KB 기기 설치 A02는 `NOT_RUN` |
+| 16KB page size | `VERIFIED` 정적 | upload key AAB의 arm64-v8a·x86_64 각 29개 라이브러리, 각 87개 LOAD segment 최소 정렬 `0x4000`, 미달 0 PASS. 연결 기기는 4KB라 16KB 기기 실행은 `NOT_RUN` |
 | App Links | `BLOCKED` | 소유 HTTPS domain, 운영 package ID, 배포 서명 SHA-256, `assetlinks.json` 준비 |
 | 계정 삭제 앱 경로 | `VERIFIED` Local DEMO | 운영 재인증·실제 계정으로 동일 처리 검증 |
 | 외부 삭제 웹 경로 | `VERIFIED` | `https://masscom.kr/account-deletion` HTTPS 200과 삭제·보존·지갑 비밀 경고 확인. 현재 웹 경로는 수동 요청 접수이며 자동 삭제로 표현하지 않음 |

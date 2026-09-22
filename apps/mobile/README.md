@@ -20,7 +20,7 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 - Android 카메라 QR: `NOT_RUN`; 수동 1회 코드 입력은 `VERIFIED`
 - 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), scheme `masscom`/`masscom-dev`: `IMPLEMENTED`
 - 계정 삭제 접수 시 지갑 연결 해제 및 기기 WalletConnect 세션 제거: `IMPLEMENTED`
-- upload key 파일·공개 SHA-256 핀과 upload key 서명 release AAB 자동 gate: `VERIFIED`; Base Sepolia 실제 배포·A02 설치·App Links·Play Console 제출: `NOT_RUN`
+- upload key 파일·공개 SHA-256 핀, release AAB 자동 gate와 Samsung Android 16 설치·콜드 실행: `VERIFIED`; Base Sepolia·16KB 기기 실행·App Links·Play Console 제출: `NOT_RUN`
 
 ## 로컬 준비
 
