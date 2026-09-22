@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-- 상태: `Draft` — 2026-09-23 사용자가 방향과 B안 화면 구조를 승인했다. 상세 명세 검토와 구현은 아직 남았다.
+- 상태: `Active` — 2026-09-23 상세 명세까지 사용자 승인. 구현 계획 검토와 실제 UI 검증은 아직 남았다.
 - 마지막 갱신: 2026-09-23
 - 적용 표면: Android 앱의 음식점 탐색·방문 인증·도감·계정 화면. 프로젝트 포털과 발표 자료는 별도 표면이다.
 - 근거: `docs/PRD.md`, `docs/DECISIONS.md`, `apps/mobile/src/app/_layout.tsx`, `apps/mobile/src/theme/palette.ts`, `apps/mobile/src/screens/`, `docs/evidence/android-merchant-list.png`, `docs/evidence/android-collection.png`, `docs/evidence/screenshots/android-account-settings.png`.

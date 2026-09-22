@@ -4,9 +4,9 @@
 
 - 현재 작업: Issue #126, 브랜치 `feat/126-mobile-ui-navigation`, 기준 main `de1448f`.
 - 사용자는 ‘따뜻한 동네 음식 탐험 + 마스코트 수집’ 및 B안 기본 이동(`탐색 / 방문 인증 / 도감 / 내 정보`)을 승인했다.
-- 루트 `DESIGN.md`와 `docs/superpowers/specs/2026-09-23-mobile-ui-navigation-design.md`에 상세 설계를 작성했다. **상세 명세는 사용자 검토 대기**이며 UI 코드는 아직 바꾸지 않았다. 이 브랜치에서 계속 구현하고 한국어 PR 하나로 통합한다.
+- 루트 `DESIGN.md`와 `docs/superpowers/specs/2026-09-23-mobile-ui-navigation-design.md`의 상세 설계를 사용자가 승인했다. `docs/superpowers/plans/2026-09-23-mobile-ui-navigation.md`의 구현 계획은 검토 대기이며 UI 코드는 아직 바꾸지 않았다. 이 브랜치에서 계속 구현하고 한국어 PR 하나로 통합한다.
 - 두 번째 Google 계정은 연결된 Samsung 기기에 있고 운영 앱 로그인 및 서버 session 발급을 확인했다. 계정 이메일은 Git·문서에 기록하지 않는다. A↔B 데이터/지갑 분리와 콜드 복원까지 확인하지 않았으므로 D02는 `NOT_RUN` 유지한다.
-- 새 세션은 아래 오래된 2026-09-22 체크포인트보다 이 항목과 실제 `git`/`gh` 상태를 우선한다. 명세 승인 뒤에 구현 계획을 작성하고 UI 코드를 시작한다.
+- 새 세션은 아래 오래된 2026-09-22 체크포인트보다 이 항목과 실제 `git`/`gh` 상태를 우선한다. 구현 계획을 검토받고 실행 방법을 정한 뒤 UI 코드를 시작한다.
 
 마지막 갱신 시각: 2026-09-22 22:03 KST
 작업 브랜치: `feat/124-release-closeout`
