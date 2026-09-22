@@ -1,7 +1,7 @@
 {
-  "recordedAt": "2026-09-22 KST",
-  "baselineCommit": "992673003c57a31d683ade7f079e14bb1a4f9c31",
-  "workingBranch": "feat/124-release-closeout",
+  "recordedAt": "2026-09-23 KST",
+  "baselineCommit": "4437607dee8d6f790a3ca84963c9e7e867ede347",
+  "workingBranch": "main",
   "repositoryVisibility": "PRIVATE",
   "requiredTests": {
     "total": 36,
@@ -10,8 +10,8 @@
     "NOT_RUN": 3,
     "FAIL": 0
   },
-  "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53, 55, 57, 63, 64, 65, 67, 68, 69, 70, 72, 74, 76, 79, 81, 82, 83, 85, 87, 89, 91, 93, 96, 98, 99, 102, 104, 105, 107, 108, 109, 111, 114, 115, 117, 119, 120, 123],
-  "mainCiRuns": [35424531021, 35425582837, 35426622394, 35444126068, 35445281598, 35448436859, 35450443943, 35451429441, 35455419805, 35458855491, 35459019638, 35459313304, 35460087002, 35460432649, 35486460953, 35487020999, 35499451454, 35504888279, 35505367620, 35515121024, 35516824381, 35517123931, 35517380989, 35529317094, 35530154514, 35544864440, 35545794259, 35545849426, 35546080271, 35561417735, 35563583964, 35564447379, 35570802979, 35606071753, 35620303554, 35693149567],
+  "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53, 55, 57, 63, 64, 65, 67, 68, 69, 70, 72, 74, 76, 79, 81, 82, 83, 85, 87, 89, 91, 93, 96, 98, 99, 102, 104, 105, 107, 108, 109, 111, 114, 115, 117, 119, 120, 123, 125, 127],
+  "mainCiRuns": [35424531021, 35425582837, 35426622394, 35444126068, 35445281598, 35448436859, 35450443943, 35451429441, 35455419805, 35458855491, 35459019638, 35459313304, 35460087002, 35460432649, 35486460953, 35487020999, 35499451454, 35504888279, 35505367620, 35515121024, 35516824381, 35517123931, 35517380989, 35529317094, 35530154514, 35544864440, 35545794259, 35545849426, 35546080271, 35561417735, 35563583964, 35564447379, 35570802979, 35606071753, 35620303554, 35693149567, 35733488626, 35763199480],
   "androidEvidence": [
     "docs/evidence/android-regression-2026-09-21.json",
     "docs/evidence/android-wallet-phase1-rerun-2026-09-21.json",
@@ -22,7 +22,8 @@
     "docs/evidence/account-deletion-privacy.json",
     "docs/evidence/release-aab-16kb-alignment.json",
     "docs/evidence/upload-key-aab-2026-09-22.json",
-    "docs/evidence/android-app-links-2026-09-22.json"
+    "docs/evidence/android-app-links-2026-09-22.json",
+    "docs/evidence/android-ui-navigation-2026-09-23.json"
   ],
   "securityEvidence": [
     "docs/evidence/security-audit-issue-56.json",
@@ -48,6 +49,7 @@
     "camera permission and offline acceptance",
     "production fresh reauthentication, real account switching, and OS backup restore",
     "production authorization and outage drill",
+    "TalkBack app-content narration, current-code production App Link and nonempty account-switch isolation",
     "presentation rehearsal and final video"
   ],
   "truthBoundary": {

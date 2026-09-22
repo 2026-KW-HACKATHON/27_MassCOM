@@ -42,9 +42,9 @@ if (scenes !== 7 || navItems !== scenes) throw new Error(`presentation scene/nav
 if (!presentation.includes('일곱 장면') || presentation.includes('아홉 장면')) {
   throw new Error('presentation scene copy drift');
 }
-if (manifest.recordedAt !== '2026-09-22 KST'
-  || !portal.includes('2026-09-22 KST')
-  || !presentation.includes('2026-09-22')) {
+if (manifest.recordedAt !== '2026-09-23 KST'
+  || !portal.includes('2026-09-23 KST')
+  || !presentation.includes('2026-09-23')) {
   throw new Error('evidence date drift');
 }
 if (!/^[0-9a-f]{40}$/.test(manifest.baselineCommit)) throw new Error('invalid manifest baseline commit');
