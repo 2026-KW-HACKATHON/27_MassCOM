@@ -14,13 +14,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { PublicMerchant } from '@/merchant/merchant-api';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { colors } from '@/theme/colors';
+import { colorsForScheme } from '@/theme/palette';
+import { uiMetrics } from '@/theme/ui-metrics';
 
 type Props = {
   apiUrl: string;
 };
 
 export function MerchantListScreen({ apiUrl }: Props) {
-  useColorScheme();
+  const palette = colorsForScheme(useColorScheme());
   const insets = useSafeAreaInsets();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
 
@@ -33,54 +35,27 @@ export function MerchantListScreen({ apiUrl }: Props) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
       ListHeaderComponent={
         <View style={styles.header}>
-          <View style={styles.routeMarker}>
-            <Text style={styles.routeMarkerText}>월계1동 · LOCAL ROUTE 01</Text>
+          <View style={[styles.routeMarker, { backgroundColor: palette.accentContainer }]}>
+            <Text style={[styles.routeMarkerText, { color: palette.onAccentContainer }]}>
+              월계1동 · 동네 한 바퀴
+            </Text>
           </View>
-          <Text selectable style={styles.title}>오늘의 한 끼가{`\n`}동네 기록이 됩니다.</Text>
+          <Text selectable style={styles.title}>동네의 한 끼를{`\n`}찾아보세요.</Text>
           <Text selectable style={styles.intro}>
-            지갑 없이 가게를 둘러보고 방문을 모아보세요. 실제 NFT 발행은 원하는 사람만 나중에
-            선택합니다.
+            지갑 없이 음식점을 둘러보고 방문을 모아보세요.
           </Text>
-          <View style={styles.primaryActions}>
-            <Link href="/claim" asChild>
-              <Pressable accessibilityRole="button" style={styles.primaryActionLink}>
-                <Text style={styles.primaryActionLinkText}>방문 코드 받기</Text>
-              </Pressable>
-            </Link>
-            <Link href="/collection" asChild>
-              <Pressable accessibilityRole="button" style={styles.primaryActionLink}>
-                <Text style={styles.primaryActionLinkText}>내 도감</Text>
-              </Pressable>
-            </Link>
-          </View>
-          <Link href="/recommendations" asChild>
-            <Pressable accessibilityRole="button" style={styles.recommendationAction}>
-              <Text style={styles.recommendationActionText}>이유가 보이는 다음 가게 추천 →</Text>
-            </Pressable>
-          </Link>
-          <View style={styles.quickActions}>
-            <Link href="/merchant" asChild>
-              <Pressable accessibilityRole="button" style={styles.secondaryAction}>
-                <Text style={styles.secondaryActionText}>점주 데모</Text>
-              </Pressable>
-            </Link>
-            <Link href="/wallet" asChild>
-              <Pressable accessibilityRole="button" style={styles.secondaryAction}>
-                <Text style={styles.secondaryActionText}>외부 지갑 연결</Text>
-              </Pressable>
-            </Link>
-            <Link href="/settings" asChild>
-              <Pressable accessibilityRole="button" style={styles.secondaryAction}>
-                <Text style={styles.secondaryActionText}>계정 설정</Text>
-              </Pressable>
-            </Link>
-            <View style={styles.privacyNote}>
-              <Text style={styles.privacyNoteText}>탐색에는 지갑 불필요</Text>
-            </View>
-          </View>
           <View style={styles.sectionHeading}>
-            <Text style={styles.sectionEyebrow}>동네 음식점</Text>
-            <Text style={styles.sectionCount}>{merchants.length}곳</Text>
+            <View style={styles.sectionTitleRow}>
+              <Text style={styles.sectionEyebrow}>동네 음식점</Text>
+              <Text style={styles.sectionCount}>{merchants.length}곳</Text>
+            </View>
+            {merchants.length > 0 ? (
+              <Link href="/recommendations" asChild>
+                <Pressable accessibilityRole="button" accessibilityLabel="다음 가게 추천 보기" style={styles.recommendationAction}>
+                  <Text style={styles.recommendationActionText}>추천 보기 →</Text>
+                </Pressable>
+              </Link>
+            ) : null}
           </View>
           {error && merchants.length > 0 ? (
             <Pressable accessibilityRole="button" onPress={retry} style={styles.inlineError}>
@@ -196,53 +171,37 @@ function StatusPanel({
 const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
-    padding: 20,
+    padding: uiMetrics.pageInset,
     paddingBottom: 48,
     backgroundColor: colors.background,
   },
-  header: { gap: 16, marginBottom: 22 },
+  header: { gap: 11, marginBottom: 14 },
   routeMarker: {
     alignSelf: 'flex-start',
     paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: colors.primaryContainer,
   },
-  routeMarkerText: { color: colors.onPrimaryContainer, fontSize: 12, fontWeight: '800', letterSpacing: 0.7 },
-  title: { color: colors.label, fontSize: 34, fontWeight: '900', lineHeight: 42, letterSpacing: -0.8 },
-  intro: { color: colors.secondaryLabel, fontSize: 16, lineHeight: 25 },
-  quickActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
-  primaryActions: { flexDirection: 'row', gap: 10 },
-  primaryActionLink: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, borderRadius: 14, backgroundColor: colors.primary },
-  primaryActionLinkText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },
-  recommendationAction: { minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.primaryContainer },
-  recommendationActionText: { color: colors.onPrimaryContainer, fontSize: 14, fontWeight: '900' },
-  secondaryAction: {
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  secondaryActionText: { color: colors.primary, fontSize: 14, fontWeight: '800' },
-  privacyNote: { width: '100%' },
-  privacyNoteText: { color: colors.secondaryLabel, fontSize: 12, lineHeight: 18 },
-  sectionHeading: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 16 },
-  sectionEyebrow: { color: colors.primary, fontSize: 14, fontWeight: '800' },
+  routeMarkerText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
+  title: { color: colors.label, fontSize: 27, fontWeight: '800', lineHeight: 34, letterSpacing: -0.6 },
+  intro: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 21 },
+  recommendationAction: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
+  recommendationActionText: { color: colors.primary, fontSize: 13, fontWeight: '800' },
+  sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  sectionEyebrow: { color: colors.label, fontSize: 18, fontWeight: '800' },
   sectionCount: { color: colors.secondaryLabel, fontSize: 13, fontWeight: '700' },
   inlineError: { padding: 12, borderRadius: 12, backgroundColor: colors.errorContainer },
   inlineErrorText: { color: colors.onErrorContainer, fontSize: 13, lineHeight: 19 },
   separator: { height: 14 },
   card: {
     gap: 10,
-    padding: 20,
-    borderRadius: 22,
+    padding: 16,
+    borderRadius: uiMetrics.cardRadius,
     borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.separator,
     backgroundColor: colors.surface,
-    boxShadow: '0 9px 28px rgba(16, 40, 51, 0.07)',
   },
   cardPressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
   cardTopline: { flexDirection: 'row', alignItems: 'center', gap: 7 },
@@ -253,8 +212,8 @@ const styles = StyleSheet.create({
   fullBadgeText: { color: colors.onErrorContainer },
   demoBadge: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.primaryContainer },
   demoBadgeText: { color: colors.onPrimaryContainer, fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
-  cardTitle: { color: colors.label, fontSize: 24, fontWeight: '900', letterSpacing: -0.4 },
-  cardStory: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 23 },
+  cardTitle: { color: colors.label, fontSize: 21, fontWeight: '800', letterSpacing: -0.4 },
+  cardStory: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 21 },
   cardRule: { height: StyleSheet.hairlineWidth, backgroundColor: colors.separator },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   cardAddress: { flex: 1, color: colors.label, fontSize: 13, fontWeight: '600' },
