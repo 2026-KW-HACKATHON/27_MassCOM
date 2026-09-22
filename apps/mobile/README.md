@@ -5,6 +5,7 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 ## 현재 상태
 
 - Expo Router 화면·Reown AppKit·Ethers adapter: `IMPLEMENTED`
+- 탐색·방문 인증·도감·내 정보 네 기본 탭과 간결한 화면 구조: `IMPLEMENTED`; 자동 145개·typecheck·lint·Android export PASS. 이번 UI 변경 뒤 내부 Android 화면·큰 글씨·TalkBack은 인증 게이트로 `NOT_RUN`([증거](../../docs/evidence/android-ui-navigation-2026-09-23.json))
 - 이메일·소셜·내장 지갑·구매·스왑 UI: 명시적으로 비활성화
 - 거래·approve·permit 요청: 앱 메서드 경계에서 거절
 - Android 16 / arm64 / 16KB AVD debug APK 빌드·설치·실행: `VERIFIED`
@@ -13,8 +14,8 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 - 미방문·다음 보상 이유가 보이는 다음 가게 추천과 상세 복귀: `VERIFIED` (loopback DEMO)
 - 외부 지갑 확인 뒤 NFT 공개 안내→접수→Worker 이벤트 대조→도감 등록 완료: `VERIFIED` (Local Anvil)
 - 앱 수집품과 실제 NFT, 접수·확인 중·등록 완료·확인 필요 상태 분리: `VERIFIED`
-- 계정 삭제 전 공개 장부·외부 지갑·제출 거래 보존 안내와 loopback DEMO 요청: `VERIFIED`; 운영 재인증·외부 삭제 URL은 `BLOCKED`
-- Google ID token→서버 Bearer session→SecureStore 복원·로그아웃·계정 전환 코드와 자동 시험: `IMPLEMENTED`; 실제 Google 계정·Credential Manager 실기: `NOT_RUN`
+- 계정 삭제 전 공개 장부·외부 지갑·제출 거래 보존 안내와 loopback DEMO 요청: `VERIFIED`; 외부 삭제 안내 URL은 HTTPS 확인, 운영 fresh reauthentication은 `BLOCKED`
+- Google ID token→서버 Bearer session→SecureStore 복원·로그아웃 코드와 실제 Samsung 첫 로그인·복원·logout revoke: `VERIFIED`; 두 Google 계정의 전체 전환·이전 데이터 부재 D02는 `NOT_RUN`
 - MetaMask 8.11.0 설치·첫 화면 실행: `VERIFIED` — 지갑 생성·가져오기는 수행하지 않음
 - 실제 Reown project ID·`kr.masscom.wolgye.dev` MetaMask 연결·서명·자동 복귀·콜드 스타트 서버 binding 복원: `VERIFIED`; 운영 release package와 W04·W05 외부 환경은 `NOT_RUN/BLOCKED`
 - Android 카메라 QR: `NOT_RUN`; 수동 1회 코드 입력은 `VERIFIED`

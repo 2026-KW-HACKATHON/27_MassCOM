@@ -8,6 +8,8 @@
 
 ## 한눈에 보기
 
+- [모바일 디자인 기준](DESIGN.md): 탐색·방문 인증·도감·내 정보의 화면 구조와 접근성 원칙
+- [모바일 UI 변경 명세](docs/superpowers/specs/2026-09-23-mobile-ui-navigation-design.md): Issue #126의 범위·보존 조건·검증 기준
 - [프로젝트 포털](docs/index.html): 흐름·아키텍처·평가 증거·결정 상태를 시각적으로 탐색
 - [공개 프로젝트 포털](https://masscom.kr): 다운로드 없이 열리는 실제 Vercel 배포
 - [공개 계정 삭제 안내](https://masscom.kr/account-deletion): 삭제 요청·보존 정보·지갑 비밀 경계
@@ -58,6 +60,7 @@ python3 -m http.server 4173 --directory docs
 | 저장소·문서·CI 기준선 | `VERIFIED` | PR #2·#4 merge, GitHub Actions PASS |
 | 프로젝트 포털 | `VERIFIED` | PR #6, CI PASS, 접근성·반응형 증거 저장 |
 | Android 고객 앱 | `IMPLEMENTED` | Expo 57 dev-client, Android 16 AVD와 Samsung SM-S928N 실기기 debug APK 설치·실행·복귀 |
+| Android 기본 UI 네 탭 | `IMPLEMENTED` | 탐색·방문 인증·도감·내 정보 route와 화면 밀도 개선 코드. 모바일 자동 145개·typecheck·lint·Android export PASS; 새 화면의 Android 내부 실기는 인증 게이트로 `NOT_RUN`([증거](docs/evidence/android-ui-navigation-2026-09-23.json)) |
 | 공개 점포·캠페인 API | `IMPLEMENTED` | PR #14 merge `a27d0d0`, main CI run `35300158651` PASS |
 | Android 음식점 목록·상세 | `VERIFIED` | PR #45, Samsung Android 16에서 DEMO 3곳 목록→상세→선택적 지갑 이동 PASS |
 | 점주·직원 권한 API | `IMPLEMENTED` | PR #18 merge `e242c99`, main CI run `35302502498` PASS |

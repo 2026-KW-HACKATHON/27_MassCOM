@@ -1,0 +1,31 @@
+{
+  "issue": 126,
+  "codeCommit": "6445a2dd366bcbf283b6f9640fef073615c0f995",
+  "recordedDate": "2026-09-23 KST",
+  "environment": {
+    "host": "macOS, Node 25.9.0, Expo 57.0.24, Android SDK 36",
+    "emulator": "Small_Phone, Android 36, arm64, 16KB image, 720x1280 at 320 dpi",
+    "package": "kr.masscom.wolgye.dev",
+    "physicalPhone": "not connected"
+  },
+  "automated": [
+    { "command": "npm test --prefix apps/mobile", "result": "PASS", "detail": "145 tests, 0 failures; 2 new collection count/responsive tests included" },
+    { "command": "npm run typecheck --prefix apps/mobile", "result": "PASS" },
+    { "command": "npm run lint --prefix apps/mobile", "result": "PASS" },
+    { "command": "npm run export:android --prefix apps/mobile", "result": "PASS", "detail": "Android bundle generated; upstream package export warnings remain" },
+    { "command": "bash tests/bootstrap/verify_bootstrap_test.sh", "result": "PASS", "detail": "required 36 test IDs unchanged" },
+    { "command": "bash scripts/check-secrets.sh", "result": "BLOCKED", "detail": "ignored local docs/.env.local and .tmp/lightsail-runtime.env were scanned; values were not opened or printed" },
+    { "command": "git archive HEAD to a temporary directory, then bash scripts/check-secrets.sh on that clean tracked tree", "result": "PASS" }
+  ],
+  "android": [
+    { "step": "first headless emulator boot", "result": "FAIL", "detail": "ADB remained offline; process stopped after a bounded wait" },
+    { "step": "headless boot with -no-audio", "result": "PASS", "detail": "ADB reported emulator-5554 as device; Android 36 boot complete" },
+    { "step": "all-ABI development APK installation", "result": "FAIL", "detail": "273 MB APK, INSTALL_FAILED_INSUFFICIENT_STORAGE" },
+    { "step": "arm64-only development APK build and installation", "result": "PASS", "detail": "97 MB APK built and installed without deleting emulator user packages" },
+    { "step": "development app cold launch", "result": "PASS", "detail": "kr.masscom.wolgye.dev MainActivity visible" },
+    { "step": "new four-tab navigation and screen visual review", "result": "NOT_RUN", "detail": "the app remained on the Google login gate; test emulator had no Google account. A bounded DEMO configuration attempt did not reach tabs, and temporary boolean-only diagnostics were removed" },
+    { "step": "360/390/412dp, 130%/200% text, TalkBack, dark mode, account switch and deep-link review", "result": "NOT_RUN", "detail": "internal screens were inaccessible in this emulator session" }
+  ],
+  "productTestStatusChange": "none",
+  "privacy": "No email, session token, wallet secret, signing key or recovery phrase was recorded. Only the newly installed emulator development app data was cleared; no phone or production app data was changed."
+}

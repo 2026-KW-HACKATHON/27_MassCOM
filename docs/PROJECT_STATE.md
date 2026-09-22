@@ -1,6 +1,6 @@
 # 프로젝트 상태
 
-마지막 갱신 시각: 2026-09-22 KST
+마지막 갱신 시각: 2026-09-23 KST
 
 ## 기준선
 
@@ -10,7 +10,14 @@
 | 기본 브랜치 | `main` |
 | 기준 커밋 | 이 문서는 SHA를 고정하지 않는다. 실제 기준은 `git log origin/main -1`, 직전 검증 기준은 `docs/HANDOFF.md` 머리말 |
 | 현재 작업·열린 PR | `gh pr list`, `gh issue list`가 기준. 인수인계 요약은 `docs/HANDOFF.md` |
-| 현재 검증 기준 | API 80·PostgreSQL 37·Worker 45/PG 23·모바일 141·Foundry 8/fuzz128·Anvil PASS |
+| 현재 검증 기준 | API 80·PostgreSQL 37·Worker 45/PG 23·모바일 145·Foundry 8/fuzz128·Anvil PASS. 모바일 UI 내부 실기는 별도 `NOT_RUN` |
+
+## Issue #126 모바일 UI 작업
+
+- 브랜치 `feat/126-mobile-ui-navigation`에서 네 기본 탭과 탐색·방문·도감·내 정보의 시각 계층을 구현했다. 기존 경로·API·인증·지갑·NFT 상태 로직은 변경하지 않았다.
+- 모바일 자동 시험 `145/145 PASS`, typecheck·lint·Android export·Android 36 arm64 개발 APK 빌드/설치 `PASS`.
+- Android 36 16KB AVD에서 앱 실행은 확인했지만 로그인 게이트를 넘어 내부 탭을 보지 못했다. 큰 글씨·TalkBack·딥링크·실제 계정 전환은 이 코드 기준 `NOT_RUN`; [진단 증거](evidence/android-ui-navigation-2026-09-23.json). 필수 36개 집계는 31/2/3 그대로다.
+- `RQ-001`의 ‘로그인 없이 음식점 탐색 VERIFIED’는 현재 앱 루트의 인증 게이트와 충돌한다. 공개 API의 무로그인 조회가 앱 전체 탐색을 증명하지 않으므로 요구사항 상태를 `IN_PROGRESS`로 바로잡았다. 인증 모델 변경은 이번 UI PR 범위 밖이다.
 
 ## Issue #124 중단 체크포인트
 
@@ -96,7 +103,7 @@
 - 필수 36개: 31 PASS / 2 BLOCKED / 3 NOT_RUN
 - API 단위: `80/80 PASS`; PostgreSQL: `37/37 PASS`
 - Worker 단위: `45/45 PASS`; PostgreSQL: `23/23 PASS`; Anvil W07/M01~M08: `PASS`
-- 모바일: `141/141 PASS`; typecheck·lint·Android export·Nitro Google/SecureStore development native compile `PASS`; 첫 Google 로그인·콜드 복원·logout 실기 PASS
+- 모바일: `145/145 PASS`; typecheck·lint·Android export·Nitro Google/SecureStore development native compile `PASS`; 첫 Google 로그인·콜드 복원·logout 실기 PASS. Issue #126 새 탭 화면 실기는 `NOT_RUN`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`
 - production dependency audit: API·Worker high 이상 0; 모바일 high 이상 0, Expo 전이 moderate 14건은 B-008
