@@ -15,7 +15,7 @@
 - 성공 nonce는 재사용할 수 없고, 동시 검증은 claim 상태로 한 요청만 진행합니다.
 - HTTP 본문은 64KiB로 제한하고 응답은 `no-store`, `nosniff`를 사용합니다.
 - 기본 서버는 account resolver가 없으면 wallet POST를 `503`으로 거절합니다. `x-account-id`는 loopback 서버에서 `ALLOW_INSECURE_DEMO_ACCOUNT=true`를 명시한 개발 모드에만 사용합니다.
-- Issue #129: DEMO 인증과 `API_BIND_HOST=0.0.0.0` 조합은 기동을 거절합니다. 로그인 제한은 기본적으로 socket IP를 쓰고, 운영 Caddy가 덮어쓴 단일 `X-Forwarded-For`만 명시 설정에서 사용합니다. API 3000 포트를 외부에 publish하지 않는 Compose 경계를 보존해야 하며, 운영 반영·외부 실증은 아직 `NOT_RUN`입니다.
+- Issue #129: DEMO 인증과 `API_BIND_HOST=0.0.0.0` 조합은 기동을 거절합니다. 로그인 제한은 기본적으로 socket IP를 쓰고, 운영 Caddy가 덮어쓴 단일 `X-Forwarded-For`만 명시 설정에서 사용합니다. API 3000 포트를 외부에 publish하지 않는 Compose 경계를 보존해야 합니다. 운영 API·Caddy 배포와 외부 HTTPS/헤더-only 401은 [PASS](evidence/lightsail-api-deployment-2026-09-23.json); 외부 두 사용자 IP의 제한 분리 실증은 `NOT_RUN`입니다.
 - Issue #129: 발행 이벤트의 블록 해시와 재조회한 정식 블록 해시가 다르면 `MINT_EVENT_NOT_FINALIZED`로 재시도합니다. 서버 세션 회수가 실패한 로그아웃은 로컬 저장소를 지우고 실패를 사용자에게 표시합니다. 오프라인 상태의 이전 서버 토큰을 자동 재회수하는 기능은 아직 없으며 만료 전 유효할 수 있습니다.
 - 기기 저장 정책(D-021): 기기에는 WalletConnect 세션만 `@masscom:appkit:` AsyncStorage에 저장하며 개인키·복구 문구·인증 token은 저장하지 않습니다. 세션 크기가 SecureStore 한도를 넘어 옮기지 않습니다. 운영 로그인 token이 도입되면 그 token은 SecureStore(Android Keystore)에만 저장합니다. 지갑 세션 key는 account ID 원문이 아닌 계정별 tag로 구분해(`@masscom:appkit:<tag>:`) 다른 계정의 세션을 읽지 않으며, 앱 시작 때 현재 계정의 것이 아닌 세션 key를 지웁니다. 계정 삭제가 접수되면 앱이 지갑 연결을 끊고 기기의 세션 key를 모두 지웁니다. 연결 해제가 실패한 상태에서 실행 중인 provider가 세션을 다시 기록할 가능성은 Android 실기에서 확인하지 못했으며(`NOT_RUN`), 앱 재시작 뒤 세션이 복원되지 않는지 실기 회귀에서 확인합니다.
 - `DATABASE_URL`이 있으면 challenge를 PostgreSQL `wallet_challenges`에 저장하고 단일 조건부 UPDATE로 nonce를 한 번만 claim합니다. 서명은 저장하지 않으며 만료 행은 발급 때 정리합니다.

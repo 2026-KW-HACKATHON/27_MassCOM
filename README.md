@@ -92,7 +92,7 @@ python3 -m http.server 4173 --directory docs
 - 외부 지갑에는 주소 확인용 메시지 서명만 요청합니다.
 - 송금·`approve`·`permit`·스왑·구매·내장 지갑 기능을 넣지 않습니다.
 - 발행 요청의 수령 주소와 연결 버전을 고정하고 재시도로 중복 발행하지 않습니다.
-- DEMO 계정 헤더는 loopback 이외 바인드에서 API 기동을 거부합니다. 운영 Caddy는 로그인 제한용 원 클라이언트 IP를 덮어써 전달하고 API는 명시 설정에서만 사용합니다. 이 변경의 운영 배포 검증은 `NOT_RUN`입니다.
+- DEMO 계정 헤더는 loopback 이외 바인드에서 API 기동을 거부합니다. 운영 Caddy는 로그인 제한용 원 클라이언트 IP를 덮어써 전달하고 API는 명시 설정에서만 사용합니다. [운영 API·Caddy 배포와 HTTPS/401 확인](docs/evidence/lightsail-api-deployment-2026-09-23.json)은 `PASS`; 외부 두 IP 제한 실증은 `NOT_RUN`입니다.
 - 체인 이벤트의 블록 해시와 현재 정식 블록 해시가 다르면 Worker는 최종 완료로 저장하지 않고 재시도합니다. 오프라인 로그아웃 시 로컬 정보는 지우되 서버 세션 회수 실패를 알립니다.
 - 개인정보·주문번호·정확한 식사 시각을 온체인/IPFS에 넣지 않습니다.
 
@@ -195,7 +195,7 @@ npm run test:postgres --prefix apps/api
 ## 데모·배포·출시
 
 - 정적 프로젝트 포털: `https://masscom.kr`·`/privacy`·`/account-deletion` HTTPS 200 `VERIFIED`
-- 운영 API: AWS Lightsail 서울 리전의 `https://api.masscom.kr/health` HTTP/2 200·Let’s Encrypt·보안 헤더 `VERIFIED`; DB·API 내부 포트는 비공개
+- 운영 API: AWS Lightsail 서울 리전의 [PR #130 병합 `fcaa1c0` 배포](docs/evidence/lightsail-api-deployment-2026-09-23.json) 후 `https://api.masscom.kr/health` HTTP/2 200·보안 헤더와 DEMO 헤더만 넣은 보호 요청 401을 확인. DB·API 내부 포트는 비공개; 사용자별 rate-limit 실증은 `NOT_RUN`
 - Google 로그인: Samsung SM-S928N Android 16에서 실제 동의→ID token→외부 API session·콜드 스타트 복원·logout revoke `PASS`; 두 번째 계정 전환은 `NOT_RUN`
 - Android debug APK: Android 16 16KB AVD와 Samsung SM-S928N 실기기에서 빌드·설치·실행·홈 복귀·콜드 스타트 검증, 저장소에는 미포함
 - Android 음식점 탐색: 로컬 PostgreSQL의 `demo: true` 점포 3곳으로 목록·상세·고정 보상 조건·선택적 지갑 이동 검증

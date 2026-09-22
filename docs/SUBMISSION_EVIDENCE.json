@@ -1,6 +1,6 @@
 {
   "recordedAt": "2026-09-23 KST",
-  "baselineCommit": "4437607dee8d6f790a3ca84963c9e7e867ede347",
+  "baselineCommit": "fcaa1c0c096408d15d064600047bccefd7896cb6",
   "workingBranch": "main",
   "repositoryVisibility": "PRIVATE",
   "requiredTests": {
@@ -10,8 +10,8 @@
     "NOT_RUN": 3,
     "FAIL": 0
   },
-  "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53, 55, 57, 63, 64, 65, 67, 68, 69, 70, 72, 74, 76, 79, 81, 82, 83, 85, 87, 89, 91, 93, 96, 98, 99, 102, 104, 105, 107, 108, 109, 111, 114, 115, 117, 119, 120, 123, 125, 127],
-  "mainCiRuns": [35424531021, 35425582837, 35426622394, 35444126068, 35445281598, 35448436859, 35450443943, 35451429441, 35455419805, 35458855491, 35459019638, 35459313304, 35460087002, 35460432649, 35486460953, 35487020999, 35499451454, 35504888279, 35505367620, 35515121024, 35516824381, 35517123931, 35517380989, 35529317094, 35530154514, 35544864440, 35545794259, 35545849426, 35546080271, 35561417735, 35563583964, 35564447379, 35570802979, 35606071753, 35620303554, 35693149567, 35733488626, 35763199480],
+  "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53, 55, 57, 63, 64, 65, 67, 68, 69, 70, 72, 74, 76, 79, 81, 82, 83, 85, 87, 89, 91, 93, 96, 98, 99, 102, 104, 105, 107, 108, 109, 111, 114, 115, 117, 119, 120, 123, 125, 127, 128, 130],
+  "mainCiRuns": [35424531021, 35425582837, 35426622394, 35444126068, 35445281598, 35448436859, 35450443943, 35451429441, 35455419805, 35458855491, 35459019638, 35459313304, 35460087002, 35460432649, 35486460953, 35487020999, 35499451454, 35504888279, 35505367620, 35515121024, 35516824381, 35517123931, 35517380989, 35529317094, 35530154514, 35544864440, 35545794259, 35545849426, 35546080271, 35561417735, 35563583964, 35564447379, 35570802979, 35606071753, 35620303554, 35693149567, 35733488626, 35763199480, 35765080061, 35772682920],
   "androidEvidence": [
     "docs/evidence/android-regression-2026-09-21.json",
     "docs/evidence/android-wallet-phase1-rerun-2026-09-21.json",
@@ -23,7 +23,8 @@
     "docs/evidence/release-aab-16kb-alignment.json",
     "docs/evidence/upload-key-aab-2026-09-22.json",
     "docs/evidence/android-app-links-2026-09-22.json",
-    "docs/evidence/android-ui-navigation-2026-09-23.json"
+    "docs/evidence/android-ui-navigation-2026-09-23.json",
+    "docs/evidence/android-discovery-2026-09-23.json"
   ],
   "securityEvidence": [
     "docs/evidence/security-audit-issue-56.json",
@@ -35,7 +36,8 @@
   ],
   "deploymentEvidence": [
     "docs/evidence/external-oauth-hosting-2026-09-22.json",
-    "docs/evidence/base-sepolia-deployment.json"
+    "docs/evidence/base-sepolia-deployment.json",
+    "docs/evidence/lightsail-api-deployment-2026-09-23.json"
   ],
   "blocked": [
     "repository public conversion",
