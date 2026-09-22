@@ -20,7 +20,7 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 - Android 카메라 QR: `NOT_RUN`; 수동 1회 코드 입력은 `VERIFIED`
 - 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), scheme `masscom`/`masscom-dev`: `IMPLEMENTED`
 - 계정 삭제 접수 시 지갑 연결 해제 및 기기 WalletConnect 세션 제거: `IMPLEMENTED`
-- upload key 파일·공개 SHA-256 핀, release AAB 자동 gate와 Samsung Android 16 설치·콜드 실행: `VERIFIED`; Base Sepolia·16KB 기기 실행·App Links·Play Console 제출: `NOT_RUN`
+- upload key 파일·공개 SHA-256 핀, release AAB 자동 gate와 Samsung 4KB·Android 36 16KB AVD 설치·콜드 실행: `VERIFIED`; App Links·Play Console 제출: `NOT_RUN`
 
 ## 로컬 준비
 
@@ -90,7 +90,7 @@ release build는 시작부터 publish 직전까지 전체 Git worktree가 clean�
 - Gradle build 성공: AAB 생성만 증명
 - `signature.status: PASS`: 승인 upload 인증서와 서명 무결성만 증명
 - `Automated gates: PASS`: signature와 W08 자동 검사 통과만 증명
-- A02 기기 설치·App Links: 별도 실기·도메인 검증 필요
+- A02 App Links: APK 설치·4KB/16KB 실행은 PASS, HTTPS domain 복귀만 별도 실기 필요
 - Play upload·review: 별도 Console 작업과 Google 심사 필요
 
 따라서 자동 검사가 통과해도 provenance의 `releaseReadiness.status`는 `NOT_RUN`이며, 출력이나 파일명을 “uploadable” 또는 “ready”의 증거로 사용하면 안 됩니다.
