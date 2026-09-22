@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { FeeData, Transaction, Wallet, makeError, type JsonRpcApiProvider } from 'ethers';
+import { FeeData, Transaction, Wallet, makeError, type JsonRpcApiProvider, type Log } from 'ethers';
 
 import { EthersMintChainGateway, contractCallError } from './ethers-chain-gateway.js';
 import { ChainConfigurationError, RetryableChainError, type MintWorkItem } from './mint-worker.js';
@@ -70,6 +70,61 @@ const item: MintWorkItem = {
   contractAddress: '0x7000000000000000000000000000000000000007',
   seriesKey: `0x${'33'.repeat(32)}`,
 };
+
+test('a reorged mint event is retried instead of finalizing against a different canonical block', async () => {
+  const gateway = new EthersMintChainGateway({
+    rpcUrl: 'http://127.0.0.1:1', chainId: item.chainId, contractAddress: item.contractAddress,
+    minterAddress: '0x5000000000000000000000000000000000000005', confirmations: 1, fromBlock: 0,
+  });
+  const internals = gateway as unknown as {
+    contractInterface: { getEvent(name: string): unknown; encodeEventLog(fragment: unknown, values: unknown[]): { data: string; topics: string[] } };
+    contract: { getFunction(name: string): { staticCall(): Promise<unknown> } };
+    resultFromEvent(work: MintWorkItem, event: Log, tokenId?: bigint): Promise<unknown>;
+  };
+  const fragment = internals.contractInterface.getEvent('MascotMinted');
+  const encoded = internals.contractInterface.encodeEventLog(fragment, [item.rewardKey, 7n, item.recipient, item.seriesKey]);
+  const event = {
+    ...encoded, address: item.contractAddress, blockNumber: 42,
+    blockHash: `0x${'aa'.repeat(32)}`, transactionHash: `0x${'cc'.repeat(32)}`,
+  } as unknown as Log;
+  internals.contract = {
+    getFunction(name) {
+      return { staticCall: async () => ({ ownerOf: '0x6000000000000000000000000000000000000006', seriesByToken: item.seriesKey, locked: true })[name] };
+    },
+  };
+  const provider = internalProvider(gateway);
+  provider.getBlock = async () => ({ hash: `0x${'bb'.repeat(32)}` }) as Awaited<ReturnType<typeof provider.getBlock>>;
+
+  await assert.rejects(
+    internals.resultFromEvent(item, event),
+    (error: unknown) => error instanceof RetryableChainError && error.code === 'MINT_EVENT_NOT_FINALIZED',
+  );
+});
+
+test('a missing canonical mint block remains retryable rather than becoming a permanent state mismatch', async () => {
+  const gateway = new EthersMintChainGateway({
+    rpcUrl: 'http://127.0.0.1:1', chainId: item.chainId, contractAddress: item.contractAddress,
+    minterAddress: '0x5000000000000000000000000000000000000005', confirmations: 1, fromBlock: 0,
+  });
+  const internals = gateway as unknown as {
+    contractInterface: { getEvent(name: string): unknown; encodeEventLog(fragment: unknown, values: unknown[]): { data: string; topics: string[] } };
+    resultFromEvent(work: MintWorkItem, event: Log, tokenId?: bigint): Promise<unknown>;
+  };
+  const encoded = internals.contractInterface.encodeEventLog(
+    internals.contractInterface.getEvent('MascotMinted'),
+    [item.rewardKey, 7n, item.recipient, item.seriesKey],
+  );
+  const event = {
+    ...encoded, address: item.contractAddress, blockNumber: 42,
+    blockHash: `0x${'aa'.repeat(32)}`, transactionHash: `0x${'cc'.repeat(32)}`,
+  } as unknown as Log;
+  internalProvider(gateway).getBlock = async () => null;
+
+  await assert.rejects(
+    internals.resultFromEvent(item, event),
+    (error: unknown) => error instanceof RetryableChainError && error.code === 'MINT_EVENT_NOT_FINALIZED',
+  );
+});
 
 test('H2 a fresh submission signs nothing and records nothing when fee data is unavailable', async () => {
   const signer = Wallet.createRandom();

@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { isIP } from 'node:net';
 import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
@@ -139,6 +140,7 @@ export function createApiServer(
   campaignEnrollments?: CampaignEnrollmentService,
   authSessions?: AuthSessionService,
   authLoginLimiter?: AuthLoginLimiter,
+  trustProxyClientIp = false,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -151,7 +153,7 @@ export function createApiServer(
 
       if (request.method === 'POST' && request.url === '/auth/google') {
         if (authLoginLimiter) {
-          const decision = authLoginLimiter.consume(request.socket.remoteAddress ?? 'unknown');
+          const decision = authLoginLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
           if (!decision.allowed) {
             response.setHeader('Retry-After', String(decision.retryAfterSeconds));
             sendJson(response, 429, { code: 'LOGIN_RATE_LIMITED' });
@@ -469,6 +471,14 @@ export function createApiServer(
   });
 }
 
+function authLoginClientKey(request: IncomingMessage, trustProxyClientIp: boolean): string {
+  const forwardedFor = request.headers['x-forwarded-for'];
+  if (trustProxyClientIp && typeof forwardedFor === 'string' && isIP(forwardedFor)) {
+    return forwardedFor;
+  }
+  return request.socket.remoteAddress ?? 'unknown';
+}
+
 // Malformed percent-encoding is the caller's mistake, not a server fault.
 function decodePathParameter(value: string): string {
   try {
@@ -714,7 +724,12 @@ export function resolveAuthMode(env: Record<string, string | undefined>): AuthMo
     );
   }
   if (productionConfigured) return { kind: 'production', audiences };
-  if (demoConfigured) return { kind: 'demo' };
+  if (demoConfigured) {
+    if (resolveApiBindHost(env.API_BIND_HOST) !== '127.0.0.1') {
+      throw new Error('DEMO account header requires a loopback API bind');
+    }
+    return { kind: 'demo' };
+  }
   return { kind: 'unconfigured' };
 }
 
@@ -838,6 +853,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     campaignEnrollments,
     authSessions,
     authLoginLimiter,
+    authMode.kind === 'production' && process.env.AUTH_TRUST_CADDY_FORWARDED_FOR === 'true',
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

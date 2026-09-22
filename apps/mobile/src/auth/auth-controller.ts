@@ -7,6 +7,7 @@ export type SignedOutReason =
   | 'SECURE_STORAGE_UNAVAILABLE'
   | 'GOOGLE_SIGN_IN_CANCELLED'
   | 'SIGN_IN_FAILED'
+  | 'SERVER_SESSION_REVOCATION_FAILED'
   | 'WALLET_STORAGE_CLEANUP_FAILED'
   | 'ACCOUNT_SWITCH_UNCHANGED';
 
@@ -90,7 +91,10 @@ export function createAuthController(dependencies: AuthControllerDependencies) {
     session: StoredAuthSessionV1 | undefined,
     publishSignedOut: boolean,
   ): Promise<void> {
-    if (session) await dependencies.authApi.logout(session.sessionToken).catch(() => undefined);
+    let revocationFailed = false;
+    if (session) await dependencies.authApi.logout(session.sessionToken).catch(() => {
+      revocationFailed = true;
+    });
     let storageFailed = false;
     await dependencies.sessionStore.clear().catch(() => {
       storageFailed = true;
@@ -104,7 +108,9 @@ export function createAuthController(dependencies: AuthControllerDependencies) {
       ? 'WALLET_STORAGE_CLEANUP_FAILED'
       : storageFailed
         ? 'SECURE_STORAGE_UNAVAILABLE'
-        : undefined;
+        : revocationFailed
+          ? 'SERVER_SESSION_REVOCATION_FAILED'
+          : undefined;
     if (publishSignedOut || reason) {
       setState(reason ? { status: 'signedOut', reason } : { status: 'signedOut' });
     }

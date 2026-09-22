@@ -14,7 +14,7 @@ npm run db:migrate:local
 npm run start:local
 ```
 
-로컬 앱 연동 시험에서만 `ALLOW_INSECURE_DEMO_ACCOUNT=true`로 바꿀 수 있습니다. 기본값 `false`에서는 실제 account resolver가 없으므로 wallet POST 요청을 `503 ACCOUNT_AUTH_NOT_CONFIGURED`로 거절합니다.
+로컬 앱 연동 시험에서만 `ALLOW_INSECURE_DEMO_ACCOUNT=true`로 바꿀 수 있습니다. 이때 `API_BIND_HOST`가 loopback 이외이면 기동을 거절합니다. 기본값 `false`에서는 실제 account resolver가 없으므로 wallet POST 요청을 `503 ACCOUNT_AUTH_NOT_CONFIGURED`로 거절합니다.
 
 `GET /merchants`를 사용하려면 `DATABASE_URL`을 실제 PostgreSQL에 지정한 뒤 migration을 실행합니다. claim slot API는 `MERCHANT_REFERENCE_HMAC_SECRET`에 32바이트 이상의 별도 비밀값도 필요하며 저장소에는 실제 값을 커밋하지 않습니다. 운영 seed는 제공하지 않으며 테스트의 가상 점포만 `demo: true`로 사용합니다.
 
@@ -32,7 +32,7 @@ npm run start:local
 
 - 계정 식별자는 `acct_` + 무작위 UUID입니다. Google `sub`는 `auth_identities`에만 두고 계정 ID·로그에 쓰지 않으며 이메일은 저장하지 않습니다.
 - 세션 토큰은 32바이트 무작위 값이고 DB에는 SHA-256만 저장합니다(migration 0012). 기본 수명 30일(`AUTH_SESSION_TTL_MS`), 로그아웃·계정 삭제 시 즉시 폐기됩니다. 성공 로그인마다 만료·폐기 세션을 최대 `AUTH_SESSION_CLEANUP_BATCH_SIZE`개(기본 100) 정리합니다(migration 0013 인덱스).
-- `POST /auth/google`은 socket 원격 주소별 fixed window 제한(기본 60회/60초)을 검증 전에 적용합니다. `X-Forwarded-For`는 신뢰하지 않으므로 reverse proxy 환경에서는 이 제한이 proxy 전체 상한이 되며, 외부 HTTPS 공개 전 proxy/WAF에서도 별도 제한을 둬야 합니다.
+- `POST /auth/google`은 검증 전에 fixed window 제한(기본 60회/60초)을 적용합니다. 기본은 socket 원격 주소를 사용하고 임의 `X-Forwarded-For`를 무시합니다. Lightsail Compose에서는 API 포트를 외부에 publish하지 않고 Caddy가 `{remote_host}`로 덮어쓴 단일 IP만 `AUTH_TRUST_CADDY_FORWARDED_FOR=true`에서 사용합니다. 직접 노출된 API에 이 옵션을 켜면 헤더 위조 위험이 있으므로 Caddy·API의 네트워크 경계를 유지해야 합니다. 운영 배포 후 외부 사용자별 제한은 별도 실증이 필요합니다.
 - 계정 삭제는 최근 5분 이내의 Google `auth_time`을 가진 로그인 또는 `POST /auth/reauthenticate`(같은 Google 계정만)를 한 세션에서만 가능합니다(`401 REAUTHENTICATION_REQUIRED`). `auth_time`이 없는 ID token은 일반 세션은 만들 수 있지만 최근 인증 권한을 주지 않습니다. 현재 모바일 Google sign-in은 fresh `auth_time`을 신뢰성 있게 강제하지 못하므로 운영 삭제 재인증 연결은 `BLOCKED`이며 서버 검사를 완화하지 않습니다. 삭제가 승인되면 같은 트랜잭션에서 모든 세션을 폐기하고 로그인 연결을 지우므로, 같은 Google 계정으로 다시 로그인하면 새 계정이 만들어집니다.
 - 세션 토큰·ID token·토큰 해시는 로그에 남기지 않습니다.
 

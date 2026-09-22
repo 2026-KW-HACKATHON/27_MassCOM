@@ -166,6 +166,7 @@ async function startFixture(
   campaignEnrollments?: CampaignEnrollmentService,
   authSessions?: AuthSessionService,
   authLoginLimiter?: AuthLoginLimiterFixture,
+  trustProxyClientIp = false,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -190,6 +191,7 @@ async function startFixture(
     campaignEnrollments,
     authSessions,
     authLoginLimiter,
+    trustProxyClientIp,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -1320,6 +1322,38 @@ test('D24 rate limits Google sign-in before invoking token verification', async 
   assert.equal(signInCalls, 1);
 });
 
+test('Google login limiter separates Caddy client IPs only when proxy trust is enabled', async (t) => {
+  const keys: string[] = [];
+  const sessions = authSessionFixture({
+    signInWithGoogle: async () => ({
+      sessionToken: 'session-proxy', accountId: 'acct_proxy', expiresAt: '2026-10-21T00:00:00.000Z',
+    }),
+  });
+  const limiter = {
+    consume: (key: string) => { keys.push(key); return { allowed: true, retryAfterSeconds: 0 }; },
+  };
+  const start = (trust: boolean) => startFixture(
+    t, () => 'unused-account', undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, sessions, limiter, trust,
+  );
+  const directUrl = await start(false);
+  const proxiedUrl = await start(true);
+  const signIn = (baseUrl: string, forwardedFor: string) => fetch(`${baseUrl}/auth/google`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': forwardedFor },
+    body: JSON.stringify({ idToken: 'google-id-token-value' }),
+  });
+
+  assert.equal((await signIn(directUrl, '198.51.100.11')).status, 200);
+  assert.equal((await signIn(directUrl, '198.51.100.12')).status, 200);
+  assert.equal((await signIn(proxiedUrl, '198.51.100.11')).status, 200);
+  assert.equal((await signIn(proxiedUrl, '198.51.100.12')).status, 200);
+  assert.equal((await signIn(proxiedUrl, '198.51.100.11, 198.51.100.12')).status, 200);
+  assert.deepEqual(keys, [
+    '127.0.0.1', '127.0.0.1', '198.51.100.11', '198.51.100.12', '127.0.0.1',
+  ]);
+});
+
 test('fixed-window login limiter tracks independent client keys and resets after the window', () => {
   const Limiter = (serverModule as unknown as {
     FixedWindowAuthLoginLimiter?: new (options: {
@@ -1496,6 +1530,17 @@ test('D24 refuses to start when the DEMO account header and production login are
         DATABASE_URL: 'postgres://127.0.0.1:5432/masscom',
       }),
     /both/i,
+  );
+});
+
+test('DEMO header cannot be enabled on a non-loopback API bind', () => {
+  assert.throws(
+    () => resolveAuthMode({ ALLOW_INSECURE_DEMO_ACCOUNT: 'true', API_BIND_HOST: '0.0.0.0' }),
+    /DEMO.*loopback/i,
+  );
+  assert.deepEqual(
+    resolveAuthMode({ ALLOW_INSECURE_DEMO_ACCOUNT: 'true', API_BIND_HOST: '127.0.0.1' }),
+    { kind: 'demo' },
   );
 });
 

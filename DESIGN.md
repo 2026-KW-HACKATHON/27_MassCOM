@@ -2,7 +2,7 @@
 
 ## Source of truth
 
-- 상태: `Active` — 2026-09-23 상세 명세까지 사용자 승인. 구현 계획 검토와 실제 UI 검증은 아직 남았다.
+- 상태: `Active` — Issue #126의 네 탭과 Android 실기 검증을 반영. Issue #129 탐색 검색·빈 상태 개선은 자동 검증 후 실기 재확인 대상이다.
 - 마지막 갱신: 2026-09-23
 - 적용 표면: Android 앱의 음식점 탐색·방문 인증·도감·계정 화면. 프로젝트 포털과 발표 자료는 별도 표면이다.
 - 근거: `docs/PRD.md`, `docs/DECISIONS.md`, `apps/mobile/src/app/_layout.tsx`, `apps/mobile/src/theme/palette.ts`, `apps/mobile/src/screens/`, `docs/evidence/android-merchant-list.png`, `docs/evidence/android-collection.png`, `docs/evidence/screenshots/android-account-settings.png`.
@@ -31,6 +31,7 @@
 - 기본 이동: `탐색 / 방문 인증 / 도감 / 내 정보` 네 탭.
 - 맥락 화면: 음식점 상세, 다음 가게 추천, 외부 지갑 연결, 점주 방문 확인, HTTPS 앱 복귀는 기존 경로와 진입 의미를 유지한다.
 - 우선순위: 탐색 탭은 실제 음식점 목록을 긴 소개 문구보다 앞세운다. 도감은 방문·앱 수집품·NFT 발행 상태의 차이를 먼저 보여준다. 내 정보는 계정·개인정보와 로그아웃/전환을 먼저, 삭제는 설명과 함께 분리한다.
+- 탐색 데이터가 있을 때만 실제 목록의 이름·주소·이야기·캠페인 제목 검색과 참여 가능 필터를 제공한다. 공개 목록이 0건이면 검색 결과 0건과 구분하고, 이용 순서와 재조회 행동을 보여 준다.
 
 ## Design principles
 
@@ -51,6 +52,7 @@
 
 - 재사용: 기존 `Link`, `Pressable`, `FlatList`, `@expo/ui` 버튼, Safe Area, `colorsForScheme`, 기존 화면·API hook.
 - 변경 예정: 탭 셸, 화면 소개, 주요/보조 행동, 상태 패널, 음식점 카드, 도감 상태 요약의 표현을 일관되게 정리한다.
+- Issue #129의 탐색 도구와 빈 상태는 기존 `theme/palette.ts` 의미색과 `ui-metrics.ts` 터치 크기를 재사용한다. 실제 점포 사진·마스코트 보유 이미지는 만들지 않는다.
 - 상태: 기본·누름·비활성·로딩·오류·빈 상태·성공. NFT는 앱 수집·접수·확인 중·최종 완료를 텍스트로 구분한다.
 - 소유: 토큰은 `apps/mobile/src/theme/`, 화면별 조합은 `apps/mobile/src/screens/`; API 데이터 모델은 UI 작업에서 바꾸지 않는다.
 

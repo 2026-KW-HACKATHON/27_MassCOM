@@ -481,18 +481,25 @@ export class EthersMintChainGateway implements MintChainGateway {
       throw new MintEventMismatchError('MINT_EVENT_MISMATCH');
     }
 
-    const [owner, storedSeries, locked, block] = await Promise.all([
+    let block;
+    try {
+      block = await this.provider.getBlock(event.blockNumber);
+    } catch (error) {
+      throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
+    }
+    if (!block?.hash || !event.blockHash || block.hash.toLowerCase() !== event.blockHash.toLowerCase()) {
+      throw new RetryableChainError('MINT_EVENT_NOT_FINALIZED');
+    }
+
+    const [owner, storedSeries, locked] = await Promise.all([
       this.contract.getFunction('ownerOf').staticCall(tokenId) as Promise<string>,
       this.contract.getFunction('seriesByToken').staticCall(tokenId) as Promise<string>,
       this.contract.getFunction('locked').staticCall(tokenId) as Promise<boolean>,
-      this.provider.getBlock(event.blockNumber),
     ]);
     if (
       getAddress(owner) !== recipient ||
       String(storedSeries).toLowerCase() !== seriesKey ||
-      locked !== true ||
-      !block ||
-      !block.hash
+      locked !== true
     ) {
       throw new MintEventMismatchError('MINT_STATE_MISMATCH');
     }

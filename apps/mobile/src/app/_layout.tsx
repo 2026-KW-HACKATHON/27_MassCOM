@@ -1,4 +1,5 @@
 import { AppKit, AppKitProvider, useAppKitTheme } from '@reown/appkit-react-native';
+import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router/stack';
 import { useEffect } from 'react';
 import { useColorScheme, View } from 'react-native';
@@ -32,6 +33,7 @@ function Routes() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
+      <StatusBar style="auto" />
       <AuthSessionProvider>
         <AuthenticatedRoot />
       </AuthSessionProvider>

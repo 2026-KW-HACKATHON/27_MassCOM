@@ -9,7 +9,7 @@
 | B-005 | private 조직 저장소의 Pages 지원·공개 승인 미확정 | 프로젝트 포털 공개 URL 없음 | private 저장소는 유지하고 Vercel 정적 포털 `https://masscom.kr` 배포, 법적 페이지 포함 HTTPS 200 확인 | `RESOLVED` |
 | B-006 | Reown Dashboard project ID·초기화된 사용자 지갑 없음 | AppKit modal·WalletConnect 연결·서명·지갑 복귀 실기 불가 | 2026-09-18 사용자 제공 project ID와 사용자가 준비·잠금 해제한 MetaMask로 실기 | `RESOLVED` |
 | B-007 | Android release package ID 미확정 | release AAB·App Link·Play 준비 불가 | 2026-09-20 사용자가 `kr.masscom.wolgye`로 결정(D-022). 개발 variant는 `kr.masscom.wolgye.dev` | `RESOLVED` |
-| B-008 | Expo Router/config-plugin 전이 의존성 moderate advisory 14건 | release 보안 검토 미완료 | Expo 호환 비파괴 upstream 수정 확인·업그레이드 | `BLOCKED` |
+| B-008 | Expo Router/config-plugin 전이 의존성 moderate advisory 15건(2026-09-23 재평가) | release 보안 검토 미완료 | Expo 호환 비파괴 upstream 수정 확인·업그레이드 | `BLOCKED` |
 | B-009 | Reown 2.0.6 미설치 지갑 연결 제안을 취소하는 공개 API 부재 | 스토어 복귀 뒤 pending proposal 만료가 미처리 Promise 발생 | 승인된 patch-package 최소 패치와 PR #38 실기 회귀 | `RESOLVED` |
 | B-010 | MetaMask 8.11.0 WalletConnect 세션 계정 편집 경로 부재 | W04 정확한 서명 중 주소 변경 Android 실기 불가 | 같은 세션의 계정 변경을 지원하는 지갑 또는 MetaMask 지원 추가 | `BLOCKED` |
 | B-011 | 복구 문구 없이 준비된 실제 미지원 스마트 지갑 없음 | W05 Android 실기 불가 | 자산·비밀정보가 없는 테스트 전용 스마트 지갑 제공 | `BLOCKED` |

@@ -27,6 +27,20 @@ if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Do
 fi
 mv "$scratch/Caddyfile.bak" "$scratch/Caddyfile"
 
+sed -i.bak '/header_up X-Forwarded-For {remote_host}/d' "$scratch/Caddyfile"
+if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
+  echo "verifier accepted a proxy without sanitized client IP" >&2
+  exit 1
+fi
+mv "$scratch/Caddyfile.bak" "$scratch/Caddyfile"
+
+sed -i.bak 's/AUTH_TRUST_CADDY_FORWARDED_FOR: "true"/AUTH_TRUST_CADDY_FORWARDED_FOR: "false"/' "$scratch/compose.yml"
+if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
+  echo "verifier accepted a shared proxy login limit" >&2
+  exit 1
+fi
+mv "$scratch/compose.yml.bak" "$scratch/compose.yml"
+
 sed -i.bak '/^USER node$/d' "$scratch/api.Dockerfile"
 if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
   echo "verifier accepted a root runtime image" >&2
