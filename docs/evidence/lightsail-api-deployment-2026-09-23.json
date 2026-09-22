@@ -1,0 +1,64 @@
+{
+  "issue": 131,
+  "sourcePullRequest": 130,
+  "sourceCommit": "fcaa1c0c096408d15d064600047bccefd7896cb6",
+  "sourceCi": {
+    "pullRequestRun": 35772111371,
+    "mainRun": 35772682920,
+    "result": "PASS"
+  },
+  "environment": "AWS Lightsail Seoul existing 2GB instance, Docker Compose, PostgreSQL 16, Caddy 2.10.2",
+  "deployment": {
+    "command": "bash scripts/deploy-lightsail.sh --deploy",
+    "result": "PASS",
+    "releasePath": "/opt/masscom/releases/fcaa1c0c0964",
+    "deployedCommitFile": "/opt/masscom/DEPLOYED_COMMIT",
+    "deployedCommitObserved": "fcaa1c0c096408d15d064600047bccefd7896cb6",
+    "previousRelease": "/opt/masscom/releases/73e07c8cf1e3",
+    "databaseMigrations": "applied; no new migration in this commit",
+    "containersObserved": {
+      "masscom-api-1": "healthy",
+      "masscom-caddy-1": "running",
+      "masscom-postgres-1": "healthy"
+    }
+  },
+  "checks": [
+    {
+      "name": "external HTTPS health",
+      "command": "curl --proto '=https' --tlsv1.2 --dump-header - https://api.masscom.kr/health",
+      "result": "PASS",
+      "observed": "HTTP/2 200, {\"status\":\"ok\"}, no-store, HSTS, nosniff, frame DENY"
+    },
+    {
+      "name": "DEMO account header cannot authenticate protected collection",
+      "command": "curl --header 'x-account-id: probe-not-authenticated' https://api.masscom.kr/collection",
+      "result": "PASS",
+      "observed": "HTTP 401"
+    },
+    {
+      "name": "running Caddy config equals merged source",
+      "result": "PASS",
+      "sha256": "dcd6316df4723566d885fc1371d75e04643c3dc8e6ddbba7f4a8c3669fda89df"
+    },
+    {
+      "name": "running API explicitly trusts Caddy client IP",
+      "result": "PASS",
+      "observed": "container env boolean compared to true without printing environment or secrets"
+    },
+    {
+      "name": "external two-client-IP rate limit isolation",
+      "result": "NOT_RUN",
+      "reason": "controlled two-origin saturation test was not performed against production"
+    },
+    {
+      "name": "production Google login, Worker and chain reorganization after deployment",
+      "result": "NOT_RUN",
+      "reason": "this release deploys API and Caddy only; no real login or Worker state mutation was performed"
+    }
+  ],
+  "securityNotes": [
+    "No new paid resource, operational key, mainnet transaction or user asset movement.",
+    "The local runtime environment and SSH identity files were used by the deployment script but their values and paths are not recorded here.",
+    "The 401 probe proves header-only access is rejected, not full authorization or rate-limit correctness under all clients."
+  ]
+}

@@ -10,15 +10,16 @@
 | 기본 브랜치 | `main` |
 | 기준 커밋 | 이 문서는 SHA를 고정하지 않는다. 실제 기준은 `git log origin/main -1`, 직전 검증 기준은 `docs/HANDOFF.md` 머리말 |
 | 현재 작업·열린 PR | `gh pr list`, `gh issue list`가 기준. 인수인계 요약은 `docs/HANDOFF.md` |
-| 현재 검증 기준 | API 단위 82·PostgreSQL 37·Worker 단위 47/PG 23·모바일 148·Foundry 8/fuzz128. Issue #129의 Samsung 빈 화면 라이트·다크 실기는 PASS; 검색·필터 조작과 운영 재배포는 `NOT_RUN` |
+| 현재 검증 기준 | PR #130 merge `fcaa1c0`, main CI `35772682920` PASS, 운영 API·Caddy 같은 커밋 배포·HTTPS/401 PASS. API 단위 82·PostgreSQL 37·Worker 단위 47/PG 23·모바일 148. 검색·필터 조작과 외부 두 IP 제한은 `NOT_RUN` |
 
-## Issue #129 탐색·운영 방어 진행
+## Issue #129 탐색·운영 방어와 배포
 
 - 공개 카탈로그의 실제 점포 검색·참여 가능 필터, 첫 화면 0건/검색 0건/오류 구분을 구현했다. 148개 모바일 자동 시험·typecheck·lint·Android export는 PASS. Samsung Android 16의 실제 0건 라이트·다크·상태표시줄은 PASS([증거](evidence/android-discovery-2026-09-23.json)); 점포가 없어 검색·필터 실기와 TalkBack·200% 확대는 `NOT_RUN`.
-- DEMO 인증의 외부 바인드를 기동 단계에서 차단하고, Caddy가 덮어쓴 단일 IP로 운영 로그인 제한을 분리했다. API 82개 자동 시험·typecheck PASS. Caddy·API의 변경 후 운영 배포와 외부 2-IP 실증은 `NOT_RUN`.
+- DEMO 인증의 외부 바인드를 기동 단계에서 차단하고, Caddy가 덮어쓴 단일 IP로 운영 로그인 제한을 분리했다. API 82개 자동 시험·typecheck PASS. Caddy·API의 변경 후 운영 배포와 외부 HTTPS/401은 [실증](evidence/lightsail-api-deployment-2026-09-23.json) PASS, 외부 2-IP 제한은 `NOT_RUN`.
 - Worker는 먼저 이벤트와 정식 블록 해시를 대조하고, 블록이 사라지거나 해시가 다르면 최종화하지 않고 재시도한다. Worker 47개 자동 시험·typecheck PASS; 변경 후 Anvil 재구성 통합 시험과 Base Sepolia 재실증은 `NOT_RUN`.
 - 오프라인 로그아웃 시 로컬 키를 지우되 서버 세션 회수 실패를 명시한다. 이전 서버 토큰 자동 재회수는 아직 미구현이며 만료 전 유효할 수 있다.
 - 개인 Codex 설정의 기본 추론은 GPT‑6 Sol medium으로 조정했고 역할별 Luna/Sol/Astra 배분을 정리했다. 저장소의 협업 기준은 [AI 모델 사용 기준](AI_MODEL_ROUTING.md)에 기록했다.
+- [PR #130](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/130)을 merge `fcaa1c0`으로 통합했고 main CI `35772682920`이 PASS했다. 기존 Lightsail 인스턴스에 같은 커밋의 API·Caddy를 배포했다. Worker 운영 서비스·계정 전환·Play는 이번 배포 범위가 아니다.
 
 ## Issue #126 모바일 UI 완료
 
