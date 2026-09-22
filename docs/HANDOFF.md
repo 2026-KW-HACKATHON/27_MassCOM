@@ -5,6 +5,7 @@
 ## 2026-09-23 모바일 UI 구현 체크포인트
 
 - Issue #126, 브랜치 `feat/126-mobile-ui-navigation`. 코드 커밋 `d874502`(네 탭), `28f5c45`(강조색), `59c6eae`(탐색), `6445a2d`(방문·도감·내 정보). 설계·코드는 한국어 PR 하나로 검증하며 PR의 최신 상태는 `gh pr list --head feat/126-mobile-ui-navigation`를 따른다.
+- [PR #127](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/127)은 Draft다. 첫 CI run `35753907241`의 운영 문서 검사기는 모바일 141 고정값 때문에 실패했다. 검사기·회귀 시험을 145로 고친 뒤 최신 결과는 `gh pr checks 127`로 확인한다. B-016 새 화면 실기 전에는 머지 준비 완료로 표시하지 않는다.
 - 모바일 `145/145 PASS`, typecheck·lint·Android export·bootstrap PASS. 개발 APK는 Android 36 16KB Small_Phone AVD용 arm64 빌드 97MB와 설치/실행까지 PASS. 전체 로컬 secret scan은 Git-ignored 환경 파일 2개로 BLOCKED, 깨끗한 tracked archive scan은 PASS.
 - 새 네 탭의 실제 Android 화면·큰 글씨·TalkBack·새 코드 기준 딥링크는 `NOT_RUN`. AVD에서 개발 앱이 Google 로그인 게이트에 머물렀고 휴대전화는 연결되지 않았다. `docs/evidence/android-ui-navigation-2026-09-23.json`과 B-016을 본다. 임시 진단 로그는 제거했고 개발 앱의 에뮬레이터 데이터만 초기화했다.
 - RQ-001의 로그인 없는 탐색과 현재 앱 루트 인증 게이트가 충돌하므로 PRD 상태를 `IN_PROGRESS`로 바로잡았다(B-017). 이번 UI PR에서 인증 모델을 바꾸지 않는다.

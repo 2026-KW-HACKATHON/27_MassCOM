@@ -30,6 +30,7 @@ assert_mutation_fails() { # <file> <from> <to>
 assert_mutation_fails apps/api/README.md '운영 계정 API는' '모든 계정 API는'
 assert_mutation_fails apps/worker/README.md 'Base Sepolia encrypted keystore' 'Local Anvil 전용'
 assert_mutation_fails docs/HANDOFF.md 'gh pr list' '문서 고정 PR 목록'
+assert_mutation_fails docs/PROJECT_STATE.md '모바일 145' '모바일 141'
 assert_mutation_fails apps/mobile/README.md '운영 계정 삭제.*BLOCKED' '운영 계정 삭제 재인증 완료'
 
 echo 'operations docs regression tests passed'
