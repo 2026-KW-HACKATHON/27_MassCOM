@@ -16,15 +16,16 @@ const dockerfilePath = resolve(
 const scratch = await mkdtemp(resolve(tmpdir(), 'masscom-compose-'));
 try {
   const environmentPath = resolve(scratch, 'runtime.env');
+  const environmentLine = (name, value) => `${name}=${value}`;
   writeFileSync(
     environmentPath,
     [
-      'MASSCOM_API_DOMAIN=api.masscom.kr',
-      'MASSCOM_IMAGE_TAG=verification',
-      'POSTGRES_PASSWORD=0123456789abcdef0123456789abcdef',
-      'GOOGLE_OAUTH_CLIENT_IDS=1234567890-test.apps.googleusercontent.com',
-      'ACCOUNT_DELETION_HMAC_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-      'MERCHANT_REFERENCE_HMAC_SECRET=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      environmentLine('MASSCOM_API_DOMAIN', 'api.masscom.kr'),
+      environmentLine('MASSCOM_IMAGE_TAG', 'verification'),
+      environmentLine('POSTGRES_PASSWORD', '0123456789abcdef0123456789abcdef'),
+      environmentLine('GOOGLE_OAUTH_CLIENT_IDS', '1234567890-test.apps.googleusercontent.com'),
+      environmentLine('ACCOUNT_DELETION_HMAC_SECRET', 'a'.repeat(64)),
+      environmentLine('MERCHANT_REFERENCE_HMAC_SECRET', 'b'.repeat(64)),
       '',
     ].join('\n'),
   );

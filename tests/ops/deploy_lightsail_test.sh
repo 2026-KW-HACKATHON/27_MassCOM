@@ -10,12 +10,12 @@ trap 'rm -rf "$scratch"' EXIT
 key="$scratch/default.pem"
 runtime="$scratch/runtime.env"
 printf 'not-a-real-key\n' >"$key"
-printf '%s\n' \
-  'MASSCOM_API_DOMAIN=api.masscom.kr' \
-  'POSTGRES_PASSWORD=DO_NOT_PRINT_THIS_VALUE' \
-  'GOOGLE_OAUTH_CLIENT_IDS=123-test.apps.googleusercontent.com' \
-  'ACCOUNT_DELETION_HMAC_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
-  'MERCHANT_REFERENCE_HMAC_SECRET=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' \
+printf '%s=%s\n' \
+  MASSCOM_API_DOMAIN api.masscom.kr \
+  POSTGRES_PASSWORD DO_NOT_PRINT_THIS_VALUE \
+  GOOGLE_OAUTH_CLIENT_IDS 123-test.apps.googleusercontent.com \
+  ACCOUNT_DELETION_HMAC_SECRET aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  MERCHANT_REFERENCE_HMAC_SECRET bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
   >"$runtime"
 chmod 400 "$key"
 chmod 600 "$runtime"
