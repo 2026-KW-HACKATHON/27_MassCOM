@@ -42,6 +42,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       package: production ? PRODUCTION_PACKAGE : `${PRODUCTION_PACKAGE}.dev`,
       // The development client library declares this overlay permission; the store app never uses it.
       blockedPermissions: production ? ['android.permission.SYSTEM_ALERT_WINDOW'] : [],
+      intentFilters: production
+        ? [
+            {
+              action: 'VIEW',
+              autoVerify: true,
+              category: ['BROWSABLE', 'DEFAULT'],
+              data: [{ scheme: 'https', host: 'masscom.kr', pathPrefix: '/open' }],
+            },
+          ]
+        : [],
     },
     plugins: production
       ? [
