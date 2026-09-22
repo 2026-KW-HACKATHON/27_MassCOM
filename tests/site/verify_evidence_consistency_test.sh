@@ -22,6 +22,10 @@ assert_mutation_fails() { # <file> <from> <to>
   local file="$1" from="$2" to="$3"
   cp "$fixture/$file" "$fixture/$file.backup"
   sed "s/$from/$to/" "$fixture/$file.backup" > "$fixture/$file"
+  if cmp -s "$fixture/$file.backup" "$fixture/$file"; then
+    echo "evidence mutation did not change $file: $from" >&2
+    exit 1
+  fi
   if node "$verifier" "$fixture" >/dev/null 2>&1; then
     echo "evidence verifier accepted drift in $file: $from" >&2
     exit 1
@@ -33,6 +37,10 @@ assert_mutation_fails docs/index.html '30 PASS · 2 BLOCKED · 4 NOT_RUN' '29 PA
 assert_mutation_fails docs/presentation.html '일곱 장면' '아홉 장면'
 assert_mutation_fails docs/presentation.html 'class="scene next-scene"' 'class="next-scene"'
 assert_mutation_fails docs/SUBMISSION_EVIDENCE.json '"total": 36' '"total": 35'
-assert_mutation_fails docs/SUBMISSION_EVIDENCE.json '"baselineCommit": "a50f67875392f62af3c3f2be8b6e5c0e7b3b0820"' '"baselineCommit": "not-a-commit"'
+baseline_commit="$(node -e "const m=require(process.argv[1]); process.stdout.write(m.baselineCommit)" \
+  "$fixture/docs/SUBMISSION_EVIDENCE.json")"
+assert_mutation_fails docs/SUBMISSION_EVIDENCE.json \
+  "\"baselineCommit\": \"$baseline_commit\"" \
+  '"baselineCommit": "not-a-commit"'
 
 echo 'evidence consistency regression tests passed'
