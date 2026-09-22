@@ -1,9 +1,9 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-22 07:54 KST
-작업 브랜치: `test/122-oauth-testnet-device-closeout`
+마지막 갱신 시각: 2026-09-22 22:03 KST
+작업 브랜치: `feat/124-release-closeout`
 연결 Issue: `#124 GitHub Android 설치와 남은 출시·시험망 검증을 마감한다`
-기준 main 커밋 SHA: `9926730`. 현재 브랜치의 Google 로그인 수정은 `e84a7a8`, upload-key AAB 자동 gate 기준은 `f13a283`이다. 이후 상태는 `git status`, `git log`, `gh pr list`를 우선한다.
+기준 main 커밋 SHA: `83e1c29`. 현재 App Link APK 기준은 `0d93c49`, Base Sepolia proof 기준선은 main `83e1c29`다. 이후 상태는 `git status`, `git log`, `gh pr list`를 우선한다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
 
@@ -13,7 +13,7 @@
 - 고정 IP `masscom-api-ip`(`43.200.56.97`)를 연결하고 Lightsail 방화벽에 HTTP 80·HTTPS 443을 추가했다. SSH 22는 배포 마감 전 임시로 열려 있다.
 - 커밋 `73e07c8`을 `/opt/masscom/releases/73e07c8cf1e3`에 배포했다. PostgreSQL·API·Caddy가 healthy이고 `/opt/masscom/DEPLOYED_COMMIT`이 해당 전체 SHA를 가리킨다. PostgreSQL 5432와 API 3000은 인터넷에 publish하지 않았다.
 - `A api 43.200.56.97 TTL 600`을 가비아에 저장하고 공용 DNS 전파를 확인했다. Caddy 재시작 뒤 Let’s Encrypt 인증서, `https://api.masscom.kr/health` HTTP/2 200·`{"status":"ok"}`·`no-store`·HSTS·nosniff·frame DENY를 확인했다.
-- Vercel `masscom-wolgye` production deployment `dpl_CF6gFQZUqs7j4qT3nKrH3PHknCD4`가 READY다. `https://masscom.kr/`, `/privacy`, `/account-deletion` 모두 HTTPS 200과 본문을 확인했다.
+- Vercel `masscom-wolgye` production deployment `dpl_6MrwqxM8cxwoV7jSvLBiPHJhYY3Z`가 READY다. 포털·법적 페이지·`/.well-known/assetlinks.json`·`/open`을 HTTPS로 확인했다.
 - Google Cloud 새 프로젝트 `MassCOM`(`masscom-wolgye-2026`, project number `172380658768`)에 아래 OAuth client를 만들었다. 다시 만들지 않는다.
   - Web server: `172380658768-n5r2vad5f2g6ndb9kh2cbcig1j9i792g.apps.googleusercontent.com`
   - 개발 Android: `172380658768-4rpku6qkj265b7p1m55tduvegks5dv91.apps.googleusercontent.com`, `kr.masscom.wolgye.dev`, debug SHA-1 `0A:15:0F:D7:20:43:47:B3:D2:D1:E1:10:36:D9:89:4C:BD:A7:0D:C7`
@@ -25,7 +25,7 @@
 
 ### 다음 실행의 정확한 재개 순서
 
-1. private GitHub APK와 Samsung 4KB·Android 36 16KB AVD 설치/콜드 실행은 완료됐다. A02는 HTTPS App Links만 남아 전체 `NOT_RUN`이다.
+1. private GitHub test.2 APK와 Samsung 4KB·Android 36 16KB AVD 설치/콜드 실행·HTTPS `/open` App Links를 완료해 A02 PASS다.
 2. Base Sepolia 계약·role·cap 1 series·Worker service minter mint #1·재실행 무작업을 완료했다. 다시 배포·발행하지 않는다.
 3. 두 번째로 승인된 Google 테스트 계정이 생길 때만 계정 전환 D02를 실기한다.
 4. 현재 문서 갱신 커밋을 push한 후 한글 PR 하나로 CI·리뷰·merge한다. Google Play 제출·저장소 공개·대회 최종 제출은 실행하지 않는다.
@@ -124,8 +124,8 @@
 - private GitHub APK, upload-key AAB gate, Samsung 4KB와 Android 36 16KB AVD 설치·cold launch PASS
 - secret·privacy·bootstrap·portal·presentation verifier PASS
 - 포털·발표 1440px/390px 브라우저 검증 PASS, 가로 넘침 없음, 시각 판정 각 96/100. 발표 timing·프로젝터 가독성·공개 호스팅은 NOT_RUN
-- 필수 36개 `30 PASS / 2 BLOCKED / 4 NOT_RUN`(R02·O02·Q04·W08 전환). 남은 NOT_RUN: D02·O01·A01·A02
-- `NOT_RUN`: HTTPS App Links, 운영 package 지갑 복귀, 두 Google 계정 전환, 운영 fresh reauthentication 삭제, Play Console
+- 필수 36개 `31 PASS / 2 BLOCKED / 3 NOT_RUN`. 남은 NOT_RUN: D02·O01·A01
+- `NOT_RUN`: 운영 package 지갑 복귀, 두 Google 계정 전환, 운영 fresh reauthentication 삭제, Play Console
 
 ## 현재 열린 PR
 
@@ -133,7 +133,7 @@
 
 ## 현재 작업 중인 기능
 
-- Issue #124에서 private GitHub APK·16KB runtime·Base Sepolia 계약/Worker mint를 완료했다. App Links와 D02가 남았다.
+- Issue #124에서 private GitHub test.2 APK·16KB runtime·verified App Links·Base Sepolia 계약/Worker mint를 완료했다. D02가 남았다.
 
 ## BLOCKER
 
@@ -141,7 +141,7 @@
 - B-004 Google Play 정책·국내 분류 공식 확인
 - B-008 모바일 moderate 권고 14건: Expo upstream 수정 대기
 - B-010·B-011 W04·W05용 실제 지갑 환경 부재
-- Base Sepolia 계약·Worker proof와 upload-key AAB·16KB runtime은 PASS. App Links·Play는 별도 `NOT_RUN`
+- Base Sepolia 계약·Worker proof와 upload-key AAB·16KB runtime·App Links는 PASS. Play는 별도 `NOT_RUN`
 
 ## 사용자 승인이 필요한 사항
 
@@ -153,7 +153,7 @@
 2. Base Sepolia 계약·series·token #1은 다시 배포·발행하지 않는다. 공개 주소·tx hash만 증거로 사용하고 private key·비밀번호는 기록하지 않는다.
 3. Play Console에서 App Signing SHA-1을 받은 뒤 `kr.masscom.wolgye`용 Play Android OAuth client를 별도로 만든다. 현재 upload-key client를 Play signing client로 오인하지 않는다.
 4. Play Console package 등록·Data safety·금융 기능 NFT award·계정 삭제 URL은 실제 제출 직전 다시 확인하고 승인 없이 제출하지 않는다.
-5. 실제 카메라 QR 촬영→수령과 오프라인 안내(A01), 두 Google 계정 전환(D02), 운영 package Reown 복귀, 16KB 기기·HTTPS App Links(A02)는 별도 실기한다.
+5. 실제 카메라 QR 촬영→수령과 오프라인 안내(A01), 두 Google 계정 전환(D02), 운영 package Reown 복귀(E02)는 별도 실기한다. A02는 PASS다.
 
 여전히 승인 전 금지: mainnet, 사용자 자산 이동, 저장소 공개, Play 프로덕션 공개, 대회 최종 제출.
 

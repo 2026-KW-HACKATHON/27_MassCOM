@@ -33,7 +33,7 @@ assert_mutation_fails() { # <file> <from> <to>
   mv "$fixture/$file.backup" "$fixture/$file"
 }
 
-assert_mutation_fails docs/index.html '30 PASS · 2 BLOCKED · 4 NOT_RUN' '29 PASS · 2 BLOCKED · 5 NOT_RUN'
+assert_mutation_fails docs/index.html '31 PASS · 2 BLOCKED · 3 NOT_RUN' '30 PASS · 2 BLOCKED · 4 NOT_RUN'
 assert_mutation_fails docs/presentation.html '일곱 장면' '아홉 장면'
 assert_mutation_fails docs/presentation.html 'class="scene next-scene"' 'class="next-scene"'
 assert_mutation_fails docs/SUBMISSION_EVIDENCE.json '"total": 36' '"total": 35'

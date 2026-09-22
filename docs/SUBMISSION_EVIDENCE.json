@@ -5,9 +5,9 @@
   "repositoryVisibility": "PRIVATE",
   "requiredTests": {
     "total": 36,
-    "PASS": 30,
+    "PASS": 31,
     "BLOCKED": 2,
-    "NOT_RUN": 4,
+    "NOT_RUN": 3,
     "FAIL": 0
   },
   "mergedPullRequests": [45, 46, 47, 49, 50, 51, 53, 55, 57, 63, 64, 65, 67, 68, 69, 70, 72, 74, 76, 79, 81, 82, 83, 85, 87, 89, 91, 93, 96, 98, 99, 102, 104, 105, 107, 108, 109, 111, 114, 115, 117, 119, 120, 123],
@@ -21,7 +21,8 @@
     "docs/evidence/phase3-worker-anvil-android.json",
     "docs/evidence/account-deletion-privacy.json",
     "docs/evidence/release-aab-16kb-alignment.json",
-    "docs/evidence/upload-key-aab-2026-09-22.json"
+    "docs/evidence/upload-key-aab-2026-09-22.json",
+    "docs/evidence/android-app-links-2026-09-22.json"
   ],
   "securityEvidence": [
     "docs/evidence/security-audit-issue-56.json",
@@ -46,7 +47,6 @@
     "field merchant and user validation",
     "camera permission and offline acceptance",
     "production fresh reauthentication, real account switching, and OS backup restore",
-    "HTTPS App Links",
     "production authorization and outage drill",
     "presentation rehearsal and final video"
   ],

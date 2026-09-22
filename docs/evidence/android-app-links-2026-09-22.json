@@ -1,0 +1,61 @@
+{
+  "schema": "masscom.android-app-links.v1",
+  "recordedAt": "2026-09-22 22:03 KST",
+  "issue": 124,
+  "sourceCommit": "0d93c497bd294b8b323dbae18a86d7810f5d5d64",
+  "release": {
+    "tag": "android-v0.1.0-test.2",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2",
+    "repositoryVisibility": "PRIVATE",
+    "package": "kr.masscom.wolgye",
+    "versionName": "0.1.0-test.2",
+    "versionCode": 2,
+    "apkAsset": "MassCOM-android-v0.1.0-test.2.apk",
+    "apkBytes": 148027774,
+    "apkSha256": "a8048f560c97651400b82a20acc933ca087d585a8f1b37276f2ed65cc6a5808e",
+    "redownloadHashMatch": true,
+    "signatureSchemes": ["v2", "v3"],
+    "certificateSha256": "5E:5E:D3:C3:19:71:E5:A8:8E:A7:52:B3:A2:AE:50:77:2F:EA:1C:95:6B:9D:97:A8:2D:D5:CA:71:30:CF:A3:95"
+  },
+  "association": {
+    "domain": "masscom.kr",
+    "pathPrefix": "/open",
+    "assetlinksUrl": "https://masscom.kr/.well-known/assetlinks.json",
+    "assetlinksHttpStatus": 200,
+    "assetlinksRedirects": 0,
+    "assetlinksContentType": "application/json; charset=utf-8",
+    "fallbackUrl": "https://masscom.kr/open",
+    "fallbackHttpStatus": 200,
+    "vercelDeploymentId": "dpl_6MrwqxM8cxwoV7jSvLBiPHJhYY3Z",
+    "developmentPackageHasProductionFilter": false
+  },
+  "devices": [
+    {
+      "name": "Samsung SM-S928N",
+      "android": "16",
+      "pageSize": 4096,
+      "domainState": "verified",
+      "openPathResolvesToApp": true,
+      "privacyPathResolvesToApp": false,
+      "coldLaunchMs": 1491,
+      "foregroundActivity": "kr.masscom.wolgye/.MainActivity",
+      "fatalErrors": 0,
+      "result": "PASS"
+    },
+    {
+      "name": "Android 36 Small_Phone AVD",
+      "systemImage": "google_apis_playstore_ps16k arm64-v8a",
+      "pageSize": 16384,
+      "domainState": "verified",
+      "openPathResolvesToApp": true,
+      "privacyPathResolvesToApp": false,
+      "coldLaunchMs": 1240,
+      "foregroundActivity": "kr.masscom.wolgye/.MainActivity",
+      "fatalErrors": 0,
+      "result": "PASS"
+    }
+  ],
+  "a02Status": "PASS",
+  "playBoundary": "Play App Signing certificate must be added to assetlinks and its Android OAuth client after Play Console creates it. No Play upload or review was performed.",
+  "secretsRecorded": false
+}

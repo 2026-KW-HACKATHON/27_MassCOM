@@ -8,7 +8,7 @@
 | 서명 AAB | `VERIFIED` 자동 gate·실기 | commit `f13a283` 운영 AAB의 승인 인증서·package·source marker·W08·hash PASS. Samsung 4KB와 Android 36 16KB AVD에서 설치·콜드 실행·foreground·FATAL 0 PASS |
 | upload key | `VERIFIED` 로컬 서명 | 저장소 밖 PKCS12 권한 `0600`, 별칭·승인 SHA-256 대조와 실제 AAB 서명 PASS. 비밀번호·keystore는 저장소와 provenance에 없으며 Play App Signing 인증서와는 다름 |
 | 16KB page size | `VERIFIED` 정적·runtime | 64비트 각 29개 라이브러리/87 LOAD 최소 `0x4000`, 미달 0. Android 36 ps16k arm64 AVD에서 page size `16384`, 설치·cold 2345ms·FATAL 0 PASS |
-| App Links | `IN_PROGRESS` | 소유 HTTPS domain·운영 package·upload 인증서 준비 완료. `/open` intent filter·`assetlinks.json` 배포와 실제 복귀 검증 필요. Play App Signing 인증서는 Play 단계에서 추가 |
+| App Links | `VERIFIED` 직접 설치본 | `masscom.kr/open`만 autoVerify, upload 인증서 assetlinks HTTPS 200·무리디렉션. Samsung 4KB·Android 36 16KB에서 domain `verified`와 앱 cold 복귀 PASS; `/privacy`는 앱 미매칭. Play App Signing 인증서는 Play 단계에서 추가 |
 | 계정 삭제 앱 경로 | `VERIFIED` Local DEMO | 운영 재인증·실제 계정으로 동일 처리 검증 |
 | 외부 삭제 웹 경로 | `VERIFIED` | `https://masscom.kr/account-deletion` HTTPS 200과 삭제·보존·지갑 비밀 경고 확인. 현재 웹 경로는 수동 요청 접수이며 자동 삭제로 표현하지 않음 |
 | Console 제출 초안 | `DRAFT` | `docs/PLAY_CONSOLE_DRAFT.md`의 초안을 소유자가 Console 문항과 대조해 확정 |
