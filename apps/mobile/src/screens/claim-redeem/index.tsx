@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Link } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -18,6 +18,8 @@ import {
   type ClaimRecoveryAction,
 } from '@/commerce/claim-recovery';
 import { colors } from '@/theme/colors';
+import { colorsForScheme, type AppColors } from '@/theme/palette';
+import { uiMetrics } from '@/theme/ui-metrics';
 
 export function ClaimRedeemScreen({
   apiUrl,
@@ -30,6 +32,7 @@ export function ClaimRedeemScreen({
 }) {
   const scrollView = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
+  const palette = colorsForScheme(useColorScheme());
   const api = useMemo(
     () => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
@@ -129,15 +132,17 @@ export function ClaimRedeemScreen({
     <ScrollView
       ref={scrollView}
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom, backgroundColor: palette.background }]}
     >
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>방문 인증</Text>
-        <Text selectable style={styles.title}>점주가 준 1회 코드를{`\n`}확인하고 받습니다.</Text>
-        <Text selectable style={styles.body}>코드는 URL이나 로그에 넣지 않고 서버 POST body로만 전송합니다.</Text>
+        <Text style={[styles.eyebrow, { color: palette.primary }]}>방문 인증</Text>
+        <Text selectable style={[styles.title, { color: palette.label }]}>방문을 인증해요.</Text>
+        <Text selectable style={[styles.body, { color: palette.secondaryLabel }]}>점주에게 받은 QR을 촬영하거나 1회 코드를 입력하세요.</Text>
       </View>
 
-      <View style={styles.formCard}>
+      <View style={[styles.formCard, { backgroundColor: palette.surface }]}>
+        <Text style={[styles.sectionTitle, { color: palette.label }]}>1 · 코드 확인</Text>
         {scanning ? (
           <View style={styles.camera}>
             <CameraView
@@ -154,11 +159,11 @@ export function ClaimRedeemScreen({
           accessibilityHint="점주 화면의 방문 수령 QR 코드를 카메라로 읽습니다."
           disabled={busy}
           onPress={scanning ? () => setScanning(false) : () => void startScan()}
-          style={[styles.button, styles.scanButton, busy && styles.disabled]}
+          style={[styles.button, styles.scanButton, { backgroundColor: palette.surface, borderColor: palette.primary }, busy && styles.disabled]}
         >
-          <Text style={[styles.buttonText, styles.scanButtonText]}>{scanning ? '촬영 닫기' : 'QR 촬영'}</Text>
+          <Text style={[styles.buttonText, styles.scanButtonText, { color: palette.primary }]}>{scanning ? '촬영 닫기' : 'QR 촬영'}</Text>
         </Pressable>
-        <Text style={styles.inputLabel}>수령 코드</Text>
+        <Text style={[styles.inputLabel, { color: palette.label }]}>수령 코드</Text>
         <TextInput
           value={token}
           onChangeText={changeToken}
@@ -166,31 +171,33 @@ export function ClaimRedeemScreen({
           autoCorrect={false}
           multiline
           placeholder="점주 화면의 1회 코드를 입력"
-          placeholderTextColor={colors.secondaryLabel}
-          style={styles.input}
+          placeholderTextColor={palette.secondaryLabel}
+          style={[styles.input, { color: palette.label, backgroundColor: palette.background, borderColor: palette.separator }]}
         />
-        <Pressable accessibilityRole="button" disabled={!token.trim() || busy} onPress={() => void inspect()} style={[styles.button, (!token.trim() || busy) && styles.disabled]}>
-          <Text style={styles.buttonText}>{busy ? '확인 중…' : '코드 상태 확인'}</Text>
+        <Text selectable style={[styles.securityNote, { color: palette.secondaryLabel }]}>코드는 URL이나 로그에 남기지 않고 안전하게 전송합니다.</Text>
+        <Pressable accessibilityRole="button" disabled={!token.trim() || busy} onPress={() => void inspect()} style={[styles.button, { backgroundColor: !token.trim() || busy ? palette.primaryContainer : palette.primary }]}>
+          <Text style={[styles.buttonText, { color: !token.trim() || busy ? palette.onPrimaryContainer : palette.onPrimary }]}>{busy ? '확인 중…' : '코드 상태 확인'}</Text>
         </Pressable>
       </View>
 
-      {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
+      {message ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
 
       {preview ? (
-        <View style={styles.previewCard}>
-          <StatusRow label="상태" value={preview.status === 'AVAILABLE' ? '수령 가능' : '만료'} />
-          <StatusRow label="가게" value={preview.merchantName} />
-          <StatusRow label="캠페인" value={preview.campaignTitle} />
-          <StatusRow label="만료" value={formatDateTime(preview.expiresAt)} />
+        <View style={[styles.previewCard, { backgroundColor: palette.surface }]}>
+          <Text style={[styles.sectionTitle, { color: palette.label }]}>2 · 방문 확정</Text>
+          <StatusRow palette={palette} label="상태" value={preview.status === 'AVAILABLE' ? '수령 가능' : '만료'} />
+          <StatusRow palette={palette} label="가게" value={preview.merchantName} />
+          <StatusRow palette={palette} label="캠페인" value={preview.campaignTitle} />
+          <StatusRow palette={palette} label="만료" value={formatDateTime(preview.expiresAt)} />
           {recoveryAction?.kind === 'collection-check' ? (
             <Link href="/collection" asChild>
-              <Pressable accessibilityRole="button" style={styles.button}>
-                <Text style={styles.buttonText}>{recoveryAction.label}</Text>
+              <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.button, { backgroundColor: palette.primary }])}>
+                <Text style={[styles.buttonText, { color: palette.onPrimary }]}>{recoveryAction.label}</Text>
               </Pressable>
             </Link>
           ) : (
-            <Pressable accessibilityRole="button" disabled={preview.status !== 'AVAILABLE' || busy} onPress={redeem} style={[styles.button, (preview.status !== 'AVAILABLE' || busy) && styles.disabled]}>
-              <Text style={styles.buttonText}>
+            <Pressable accessibilityRole="button" disabled={preview.status !== 'AVAILABLE' || busy} onPress={redeem} style={[styles.button, { backgroundColor: preview.status !== 'AVAILABLE' || busy ? palette.primaryContainer : palette.primary }]}>
+              <Text style={[styles.buttonText, { color: preview.status !== 'AVAILABLE' || busy ? palette.onPrimaryContainer : palette.onPrimary }]}>
                 {recoveryAction?.kind === 'retry' ? recoveryAction.label : '방문 수령 확정'}
               </Text>
             </Pressable>
@@ -199,22 +206,22 @@ export function ClaimRedeemScreen({
       ) : null}
 
       {redeemed ? (
-        <View accessibilityLiveRegion="polite" style={styles.successCard}>
-          <Text style={styles.successEyebrow}>방문 인증 완료</Text>
-          <Text selectable style={styles.successTitle}>{claimSuccessCopy(redeemed).title}</Text>
-          <Text selectable style={styles.successBody}>{claimSuccessCopy(redeemed).body}</Text>
-          <Text style={styles.successBody}>{redeemed.visit.businessDate} · {redeemed.visit.progressVisitCount}회 진행</Text>
-          <Text style={styles.successBody}>
+        <View accessibilityLiveRegion="polite" style={[styles.successCard, { backgroundColor: palette.successContainer }]}>
+          <Text style={[styles.successEyebrow, { color: palette.onSuccessContainer }]}>3 · 방문 완료</Text>
+          <Text selectable style={[styles.successTitle, { color: palette.onSuccessContainer }]}>{claimSuccessCopy(redeemed).title}</Text>
+          <Text selectable style={[styles.successBody, { color: palette.onSuccessContainer }]}>{claimSuccessCopy(redeemed).body}</Text>
+          <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>{redeemed.visit.businessDate} · {redeemed.visit.progressVisitCount}회 진행</Text>
+          <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
             {redeemed.visit.progressCounted ? '오늘 방문이 진행 횟수에 반영됐습니다.' : '방문은 기록됐지만 같은 한국 날짜의 진행은 한 번만 셉니다.'}
           </Text>
-          <Text style={styles.successBody}>
+          <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
             새 보상권 {redeemed.grantedRewards.length}개 · NFT 발행은 아직 요청하지 않았습니다.
           </Text>
           <View style={styles.successActions}>
             {claimSuccessCopy(redeemed).destinations.map((destination) => (
               <Link key={destination.href} href={destination.href} asChild>
-                <Pressable accessibilityRole="button" style={styles.collectionButton}>
-                  <Text style={styles.collectionButtonText}>{destination.label}</Text>
+                <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.collectionButton, { backgroundColor: palette.primary }])}>
+                  <Text style={[styles.collectionButtonText, { color: palette.onPrimary }]}>{destination.label}</Text>
                 </Pressable>
               </Link>
             ))}
@@ -225,11 +232,11 @@ export function ClaimRedeemScreen({
   );
 }
 
-function StatusRow({ label, value }: { label: string; value: string }) {
+function StatusRow({ label, value, palette }: { label: string; value: string; palette: AppColors }) {
   return (
-    <View style={styles.statusRow}>
-      <Text style={styles.statusLabel}>{label}</Text>
-      <Text selectable style={styles.statusValue}>{value}</Text>
+    <View style={[styles.statusRow, { borderBottomColor: palette.separator }]}>
+      <Text style={[styles.statusLabel, { color: palette.secondaryLabel }]}>{label}</Text>
+      <Text selectable style={[styles.statusValue, { color: palette.label }]}>{value}</Text>
     </View>
   );
 }
@@ -258,18 +265,20 @@ function formatDateTime(value: string): string {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: 18, padding: 20, paddingBottom: 48, backgroundColor: colors.background },
-  hero: { gap: 10 },
+  content: { gap: 14, padding: uiMetrics.pageInset, paddingBottom: 48, backgroundColor: colors.background },
+  hero: { gap: 8 },
   eyebrow: { color: colors.primary, fontSize: 13, fontWeight: '900' },
-  title: { color: colors.label, fontSize: 31, fontWeight: '900', lineHeight: 39, letterSpacing: -0.6 },
-  body: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 24 },
-  formCard: { gap: 12, padding: 18, borderRadius: 20, backgroundColor: colors.surface },
+  title: { color: colors.label, fontSize: 26, fontWeight: '800', lineHeight: 34, letterSpacing: -0.4 },
+  body: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 21 },
+  formCard: { gap: 10, padding: 16, borderRadius: uiMetrics.cardRadius, backgroundColor: colors.surface },
+  sectionTitle: { color: colors.label, fontSize: 17, fontWeight: '800' },
+  securityNote: { color: colors.secondaryLabel, fontSize: 12, lineHeight: 18 },
   inputLabel: { color: colors.label, fontSize: 14, fontWeight: '900' },
   camera: { height: 280, borderRadius: 14, overflow: 'hidden', backgroundColor: '#000000' },
   scanButton: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary },
   scanButtonText: { color: colors.primary },
-  input: { minHeight: 100, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.separator, color: colors.label, backgroundColor: colors.background, fontFamily: 'monospace', fontSize: 13, textAlignVertical: 'top' },
-  button: { minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.primary },
+  input: { minHeight: 72, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.separator, color: colors.label, backgroundColor: colors.background, fontFamily: 'monospace', fontSize: 13, textAlignVertical: 'top' },
+  button: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.primary },
   buttonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },
   disabled: { opacity: 0.42 },
   message: { padding: 13, borderRadius: 14, color: colors.onPrimaryContainer, backgroundColor: colors.primaryContainer, fontSize: 13, lineHeight: 20 },
@@ -281,7 +290,7 @@ const styles = StyleSheet.create({
   successEyebrow: { color: colors.onSuccessContainer, fontSize: 12, fontWeight: '900' },
   successTitle: { color: colors.onSuccessContainer, fontSize: 22, fontWeight: '900' },
   successBody: { color: colors.onSuccessContainer, fontSize: 14, lineHeight: 22 },
-  collectionButton: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.primary },
-  collectionButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },
+  collectionButton: { minHeight: uiMetrics.minTouch, maxWidth: '100%', alignSelf: 'flex-start', justifyContent: 'center', marginTop: 4, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.primary },
+  collectionButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900', textAlign: 'center' },
   successActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
 });

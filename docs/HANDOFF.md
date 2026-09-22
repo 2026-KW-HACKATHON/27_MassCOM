@@ -1,6 +1,25 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-22 22:03 KST
+마지막 갱신 시각: 2026-09-23 KST
+
+## 2026-09-23 모바일 UI 구현 체크포인트
+
+- Issue #126, 브랜치 `feat/126-mobile-ui-navigation`. 코드 커밋 `d874502`(네 탭), `28f5c45`(강조색), `59c6eae`(탐색), `6445a2d`(방문·도감·내 정보), `9c2daac`(48dp), `e03b24d`(Samsung 반응형·live dark·DEMO 경계). 설계·코드는 한국어 PR 하나로 검증하며 PR의 최신 상태는 `gh pr list --head feat/126-mobile-ui-navigation`를 따른다.
+- [PR #127](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/127)은 Draft로 열었다. 첫 CI run `35753907241`의 운영 문서 검사기는 모바일 141 고정값 때문에 실패했고, 검사기·회귀 시험을 고친 run `35754452530`은 전체 PASS했다. 이후 Samsung 실기 수정·증거 commit의 최신 CI는 `gh pr checks 127`로 확인한다.
+- 모바일 `146/146 PASS`, typecheck·lint·Android export·bootstrap PASS. Android 36 16KB AVD용 arm64 개발 APK 97MB 빌드·설치/실행과 Samsung Android 16 네 탭 실기까지 PASS. 전체 로컬 secret scan은 Git-ignored 환경 파일 2개로 BLOCKED, 깨끗한 tracked archive scan은 PASS.
+- Samsung에서 네 탭·빈 상태·360dp·200% 글씨·실시간 다크 모드·추천 뒤로 가기·`masscom-dev://collection`/`open`을 확인했다. 운영 계정의 DEMO 점주 링크, 200% 탭 잘림, live dark 불일치, Link asChild 런타임 오류를 재현 후 수정했다. TalkBack 앱 낭독·현재 코드 production App Link·완전한 D02는 `NOT_RUN`; `docs/evidence/android-ui-navigation-2026-09-23.json`을 본다.
+- RQ-001의 로그인 없는 탐색과 현재 앱 루트 인증 게이트가 충돌하므로 PRD 상태를 `IN_PROGRESS`로 바로잡았다(B-017). 이번 UI PR에서 인증 모델을 바꾸지 않는다.
+- 다음: 최종 문서 commit/push→PR CI 확인→Draft 해제 여부 판단→필수 검토를 우회하지 않고 merge. TalkBack 앱 낭독·현재 코드 production App Link·완전한 D02는 별도 `NOT_RUN`으로 유지한다.
+
+## 2026-09-23 모바일 UI 설계 단계 기록(과거 상태)
+
+- 현재 작업: Issue #126, 브랜치 `feat/126-mobile-ui-navigation`, 기준 main `de1448f`.
+- 사용자는 ‘따뜻한 동네 음식 탐험 + 마스코트 수집’ 및 B안 기본 이동(`탐색 / 방문 인증 / 도감 / 내 정보`)을 승인했다.
+- 루트 `DESIGN.md`와 `docs/superpowers/specs/2026-09-23-mobile-ui-navigation-design.md`의 상세 설계를 사용자가 승인했다. 당시에는 `docs/superpowers/plans/2026-09-23-mobile-ui-navigation.md`의 구현 계획이 검토 대기였고 UI 코드가 없었다. 현재 상태는 맨 위 구현 체크포인트를 따른다.
+- 두 번째 Google 계정은 연결된 Samsung 기기에 있고 운영 앱 로그인 및 서버 session 발급을 확인했다. 계정 이메일은 Git·문서에 기록하지 않는다. A↔B 데이터/지갑 분리와 콜드 복원까지 확인하지 않았으므로 D02는 `NOT_RUN` 유지한다.
+- 이 항목은 설계 단계의 기록이다. 새 세션은 맨 위 구현 체크포인트와 실제 `git`/`gh` 상태를 우선한다.
+
+이전 작업 기록 갱신 시각: 2026-09-22 22:03 KST
 작업 브랜치: `feat/124-release-closeout`
 연결 Issue: `#124 GitHub Android 설치와 남은 출시·시험망 검증을 마감한다`
 기준 main 커밋 SHA: `83e1c29`. 현재 App Link APK 기준은 `0d93c49`, Base Sepolia proof 기준선은 main `83e1c29`다. 이후 상태는 `git status`, `git log`, `gh pr list`를 우선한다.

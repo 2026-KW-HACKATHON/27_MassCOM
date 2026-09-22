@@ -8,7 +8,7 @@
 
 | ID | 요구사항 | 수용 기준 | 상태 |
 | --- | --- | --- | --- |
-| RQ-001 | 로그인 없이 음식점 탐색 | 점포 목록·상세·조건을 지갑 없이 조회 | `VERIFIED` |
+| RQ-001 | 로그인 없이 음식점 탐색 | 점포 목록·상세·조건을 지갑 없이 조회 | `IN_PROGRESS` |
 | RQ-002 | 점주·직원 이용 확인 | 자기 점포 권한만 사용, 철회 즉시 반영 | `VERIFIED` |
 | RQ-003 | 일회용 QR 방문 인증 | 만료·재발급·동시 수령에서도 효과 1회 | `IN_PROGRESS` |
 | RQ-004 | 보상권과 방문 도감 | 방문, 앱 수집품, 실제 NFT 상태를 분리 | `VERIFIED` |
@@ -30,7 +30,9 @@
 | RQ-020 | 현장 검증 | 허락받은 점주·이용자 자료만 실적으로 기록 | `PLANNED` |
 | RQ-021 | 기여 추적 | 실제 사람·AI 역할을 Issue·PR·커밋과 연결 | `IN_PROGRESS` |
 
-계정 삭제·개인정보·출시 경계의 상세 수용 기준은 [PRIVACY_DELETION.md](PRIVACY_DELETION.md)와 [RELEASE_READINESS.md](RELEASE_READINESS.md)에 연결합니다. 외부 HTTPS·첫 모바일 Google 로그인·upload-key 서명 AAB 자동 gate는 PASS했습니다. 운영 fresh reauthentication 삭제·두 계정 전환·A02 설치·App Links·Play 제출은 완료로 간주하지 않습니다.
+계정 삭제·개인정보·출시 경계의 상세 수용 기준은 [PRIVACY_DELETION.md](PRIVACY_DELETION.md)와 [RELEASE_READINESS.md](RELEASE_READINESS.md)에 연결합니다. 외부 HTTPS·첫 모바일 Google 로그인·upload-key 서명 AAB 자동 gate와 A02 설치·App Links는 PASS했습니다. 운영 fresh reauthentication 삭제·두 계정 전환·Play 제출은 완료로 간주하지 않습니다.
+
+RQ-001은 공개 API의 무로그인 점포 조회와 앱 사용 경험을 분리해 평가합니다. API는 무로그인 조회가 가능하지만 현재 `apps/mobile/src/app/_layout.tsx`는 비로그인 상태에서 모든 앱 화면을 인증 안내로 대체하므로 앱 수준은 미완료입니다. 로그인 정책 변경은 별도 승인·보안 검증 없이 UI 작업에 섞지 않습니다.
 
 ## 범위 밖
 

@@ -10,6 +10,7 @@ const contrastPairs = [
   ['onPrimaryContainer', 'primaryContainer'],
   ['onSuccessContainer', 'successContainer'],
   ['onErrorContainer', 'errorContainer'],
+  ['onAccentContainer', 'accentContainer'],
 ] as const;
 
 test('light and dark palettes expose the same semantic color contract', () => {
@@ -20,8 +21,9 @@ test('light and dark palettes expose the same semantic color contract', () => {
       'primary', 'onPrimary', 'primaryContainer', 'onPrimaryContainer',
       'success', 'successContainer', 'onSuccessContainer',
       'error', 'errorContainer', 'onErrorContainer',
+      'accentContainer', 'onAccentContainer',
     ] as const) {
-      assert.match(palette[key], /^#[0-9A-F]{6}$/i, key);
+      assert.match(palette[key] ?? '', /^#[0-9A-F]{6}$/i, key);
     }
   }
 });
@@ -29,6 +31,8 @@ test('light and dark palettes expose the same semantic color contract', () => {
 test('body and status foreground pairs meet WCAG 4.5 contrast', () => {
   for (const [scheme, palette] of [['light', lightColors], ['dark', darkColors]] as const) {
     for (const [foreground, background] of contrastPairs) {
+      assert.match(palette[foreground] ?? '', /^#[0-9A-F]{6}$/i, foreground);
+      assert.match(palette[background] ?? '', /^#[0-9A-F]{6}$/i, background);
       assert.ok(
         contrast(palette[foreground], palette[background]) >= 4.5,
         `${scheme} ${foreground}/${background}`,
