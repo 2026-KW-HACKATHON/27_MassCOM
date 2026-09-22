@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
   successEyebrow: { color: colors.onSuccessContainer, fontSize: 12, fontWeight: '900' },
   successTitle: { color: colors.onSuccessContainer, fontSize: 22, fontWeight: '900' },
   successBody: { color: colors.onSuccessContainer, fontSize: 14, lineHeight: 22 },
-  collectionButton: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.primary },
-  collectionButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },
+  collectionButton: { minHeight: uiMetrics.minTouch, maxWidth: '100%', alignSelf: 'flex-start', justifyContent: 'center', marginTop: 4, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.primary },
+  collectionButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900', textAlign: 'center' },
   successActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
 });
