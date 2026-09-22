@@ -76,7 +76,7 @@ python3 -m http.server 4173 --directory docs
 | 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름·W06 PASS; W04 동일 세션 주소 전환과 W05 미지원 스마트지갑은 준비된 외부 환경 부재로 `BLOCKED` |
 | NFT 발행 전체 흐름 | `VERIFIED` | Local Anvil에서 Android 접수→Worker→이벤트 대조→등록 완료와 기존 token #1 복구 PASS; Base Sepolia는 `NOT_RUN` |
 | 계정 삭제·개인정보 | `IN_PROGRESS` | D01·D03 로컬 PASS, 공개 삭제·개인정보 HTTPS 페이지 PASS; 운영 fresh reauthentication 삭제와 D02 계정 전환은 미완료 |
-| 외부 HTTPS·Play 제출 | `IN_PROGRESS` | `api.masscom.kr` DNS·TLS·health와 `masscom.kr` 포털 PASS. Play App Signing OAuth·AAB·Console 제출은 `NOT_RUN/BLOCKED` |
+| 외부 HTTPS·Play 제출 | `IN_PROGRESS` | `api.masscom.kr` DNS·TLS·health와 `masscom.kr` 포털 PASS. upload-key 운영 AAB 자동 gate PASS; A02 설치·App Links·Play App Signing OAuth·Console 제출은 `NOT_RUN/BLOCKED` |
 
 상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED / NOT_RUN`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
 
@@ -197,11 +197,11 @@ npm run test:postgres --prefix apps/api
 - NFT 계약: 고정 Docker Foundry로 C01~C04와 로컬 Anvil 발행 검증; 테스트넷·메인넷으로 표현하지 않음
 - NFT 발행 요청: 클라이언트 주소·series 입력을 무시하고 검증된 binding/version에서 수령인을 고정해 보상권·job·Outbox 원자 저장
 - NFT 발행 Worker: Local Anvil에서 중복 Worker·응답 유실·설정 오류·이벤트 불일치·확정 전 재조직·DB 복구와 RPC 중단·발행 중지·민터 잔액 부족·DB 장애 뒤 자동 복구(O02, Issue #77)를 검증하고 Android가 접수/확인 중/등록 완료를 구분
-- 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), `APP_VARIANT`로 분기하는 scheme `masscom`/`masscom-dev`: `IMPLEMENTED`; `scripts/build-release-aab.sh`로 로컬 debug 서명 운영 AAB의 package·권한·16KB 정렬 48개 항목 PASS
+- 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), scheme `masscom`/`masscom-dev`: `IMPLEMENTED`; upload key 서명 운영 AAB에서 package·source commit·W08·서명 지문과 64비트 라이브러리 58개의 16KB LOAD 정렬 PASS
 - 백업·복원 drill: `scripts/db-restore-drill.sh`로 dump→scratch DB 복원→행 수·migration 대조를 로컬 PostgreSQL 18에서 PASS. 운영 DB·외부 백업 저장소는 `NOT_RUN`
 - 실기 시험 절차는 [`docs/DEVICE_TEST_PLAN.md`](docs/DEVICE_TEST_PLAN.md), 외부 HTTPS·로그인 실제 결정은 [`docs/HOSTING_LOGIN_PROPOSAL.md`](docs/HOSTING_LOGIN_PROPOSAL.md)를 따릅니다.
-- 운영 AAB 지갑 진입점 검사(W08): `scripts/check-release-wallet-surface.sh <aab>`로 결제 권한·결제/온램프/내장 지갑 SDK·AppKit 기능 flag·계정 화면 도달 경로·세션 메서드를 정적 검사해 PASS. 실기기 UI 확인과 upload key 서명본 검사는 아님
-- upload keystore와 공개 인증서 SHA-256 핀: `IMPLEMENTED`; upload key로 서명한 release AAB, App Link, Play Console 제출: `NOT_RUN`
+- 운영 AAB 지갑 진입점 검사(W08): upload key 서명본을 공식 bundletool로 읽어 package와 source marker를 확인하고 결제 권한·결제/온램프/내장 지갑 SDK·AppKit 기능 flag·계정 화면 도달 경로·세션 메서드를 정적 검사해 PASS. 실기기 UI는 별도 `NOT_RUN`
+- upload keystore와 공개 인증서 SHA-256 핀, upload key 서명 release AAB 자동 gate: `VERIFIED`; A02 설치·App Links·Play Console 제출: `NOT_RUN`
 - 계정 삭제: 앱 내부 Local DEMO와 PostgreSQL 미전송 취소·제출 거래 보존·비식별화 PASS; 외부 HTTPS 삭제 URL PASS, 운영 fresh reauthentication 삭제는 `NOT_RUN`
 - 실제 Reown 지갑 흐름: 개발 package MetaMask 연결·서명·자동 복귀·콜드 스타트 서버 binding 복원과 W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 운영 release package, 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `NOT_RUN/BLOCKED`
 - 테스트넷 계약: 배포 전

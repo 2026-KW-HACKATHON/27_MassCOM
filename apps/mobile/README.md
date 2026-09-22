@@ -20,7 +20,7 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 - Android 카메라 QR: `NOT_RUN`; 수동 1회 코드 입력은 `VERIFIED`
 - 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), scheme `masscom`/`masscom-dev`: `IMPLEMENTED`
 - 계정 삭제 접수 시 지갑 연결 해제 및 기기 WalletConnect 세션 제거: `IMPLEMENTED`
-- upload key 파일·공개 SHA-256 핀: `IMPLEMENTED`; upload key로 서명한 release AAB, Base Sepolia 실제 배포, Play Console 제출: `NOT_RUN`(로컬 debug 서명 운영 AAB의 package·권한·16KB 정렬 검증만 완료)
+- upload key 파일·공개 SHA-256 핀과 upload key 서명 release AAB 자동 gate: `VERIFIED`; Base Sepolia 실제 배포·A02 설치·App Links·Play Console 제출: `NOT_RUN`
 
 ## 로컬 준비
 
@@ -70,7 +70,9 @@ npx expo start --dev-client --host localhost
 scripts/build-release-aab.sh [--restore-dev]
 ```
 
-`APP_VARIANT=production`으로 운영 package를 prebuild한 뒤 `gradlew bundleRelease`를 실행합니다. upload key는 저장소 밖에 두고 `~/.gradle/gradle.properties`의 `android.injected.signing.store.file`/`store.password`/`key.alias`/`key.password`로 주입해야 하며, 없으면 로컬 debug 키로 서명되고 스크립트가 경고를 출력합니다. `--restore-dev`를 주면 빌드 뒤 개발용 prebuild로 되돌립니다. 실제 upload key 서명과 Play Console 제출은 아직 수행하지 않았습니다(`NOT_RUN`).
+`APP_VARIANT=production`으로 운영 package를 prebuild한 뒤 `gradlew bundleRelease`를 실행합니다. upload key는 저장소 밖에서 `android.injected.signing.*`로 주입하며, 없으면 로컬 debug 키로 서명되어 자동 gate가 거절합니다. `--restore-dev`를 주면 빌드 뒤 개발용 prebuild로 되돌립니다. 2026-09-22 upload key 서명 AAB의 서명·package·source marker·W08·16KB 정적 검사는 PASS했고, Play Console 제출은 `NOT_RUN`입니다.
+
+AAB manifest 검사는 Google 공식 `bundletool-all` jar를 사용합니다. `BUNDLETOOL_JAR`를 지정하거나 `ANDROID_HOME/bundletool/bundletool-all.jar` 또는 단 하나의 `bundletool-all-<version>.jar`를 둡니다. 여러 버전 jar가 있으면 임의 선택하지 않고 중단합니다.
 
 빌드가 끝나면 기본 gitignored 경로 `apps/mobile/release-artifacts/`에 다음 두 파일을 함께 남깁니다. `RELEASE_ARTIFACT_DIR`로 다른 경로를 지정할 수 있지만 그 경로는 자동으로 gitignore되지 않으므로 접근 권한·ignore·보존 정책은 운영자가 관리해야 합니다.
 

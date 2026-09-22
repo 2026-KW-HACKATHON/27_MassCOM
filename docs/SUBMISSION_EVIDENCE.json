@@ -20,7 +20,8 @@
     "docs/evidence/android-recommendations.json",
     "docs/evidence/phase3-worker-anvil-android.json",
     "docs/evidence/account-deletion-privacy.json",
-    "docs/evidence/release-aab-16kb-alignment.json"
+    "docs/evidence/release-aab-16kb-alignment.json",
+    "docs/evidence/upload-key-aab-2026-09-22.json"
   ],
   "securityEvidence": [
     "docs/evidence/security-audit-issue-56.json",
@@ -45,7 +46,7 @@
     "camera permission and offline acceptance",
     "production fresh reauthentication, real account switching, and OS backup restore",
     "Base Sepolia contract broadcast",
-    "upload-key-signed AAB, 16KB release, and App Links",
+    "upload-key AAB device installation and App Links",
     "production authorization and outage drill",
     "presentation rehearsal and final video"
   ],

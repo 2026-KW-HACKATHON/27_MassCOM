@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-09-22 06:55 KST",
+  "recordedAt": "2026-09-22 07:54 KST",
   "branch": "test/122-oauth-testnet-device-closeout",
   "issue": 122,
   "repositoryVisibility": "PRIVATE",
@@ -10,7 +10,8 @@
     "5dca967",
     "73e07c8",
     "a337dfe",
-    "e84a7a8"
+    "e84a7a8",
+    "f13a283"
   ],
   "hosting": {
     "provider": "AWS Lightsail",
@@ -31,7 +32,7 @@
   },
   "publicPortal": {
     "provider": "Vercel Hobby",
-    "deploymentId": "dpl_DyKyoVjHWCykwJsmfb5sdDbhnmQm",
+    "deploymentId": "dpl_CF6gFQZUqs7j4qT3nKrH3PHknCD4",
     "production": "https://masscom.kr",
     "checks": {
       "/": "PASS HTTP 200",
@@ -69,8 +70,18 @@
     "googleCredentialManagerFinding": "Default GetGoogleIdOption flow hit Android TransactionTooLargeException. Commit e84a7a8 prefers GetSignInWithGoogleOption for the explicit user button and completed the flow.",
     "automated": "mobile 141/141 PASS; typecheck PASS; lint PASS"
   },
+  "releaseAab": {
+    "artifact": "app-release-f13a283.aab; 95638437 bytes; stored locally and not committed",
+    "sha256": "991badb12d3b7552a3f967e9dae28b42fe72cb504c711f5a4051722905195007",
+    "sourceCommit": "f13a283753f277d25d6c2e63d5ef9f55776ce32e",
+    "package": "kr.masscom.wolgye",
+    "uploadCertificateSignature": "PASS",
+    "walletSurfaceW08": "PASS",
+    "elf16KbAlignment": "PASS; arm64-v8a and x86_64 each 29 libraries and 87 LOAD segments, minimum 0x4000, below 16KB 0",
+    "releaseReadiness": "NOT_RUN; A02 device install, App Links, Play upload and review remain"
+  },
   "notClaimed": [
-    "upload-key AAB",
+    "upload-key AAB device installation",
     "Google Play app-signing OAuth client",
     "Base Sepolia contract deployment",
     "Google Play submission",

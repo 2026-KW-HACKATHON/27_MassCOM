@@ -1,9 +1,9 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-22 07:00 KST
+마지막 갱신 시각: 2026-09-22 07:54 KST
 작업 브랜치: `test/122-oauth-testnet-device-closeout`
 연결 Issue: `#122 OAuth·Base Sepolia 입력과 Android 실기 증거 마감`
-기준 main 커밋 SHA: `9926730`. 현재 브랜치의 Google 로그인 수정 커밋은 `e84a7a8`이다. 이후 상태는 `git status`, `git log`, `gh pr list`를 우선한다.
+기준 main 커밋 SHA: `9926730`. 현재 브랜치의 Google 로그인 수정은 `e84a7a8`, upload-key AAB 자동 gate 기준은 `f13a283`이다. 이후 상태는 `git status`, `git log`, `gh pr list`를 우선한다.
 
 새 세션이나 다른 계정은 Phase 0을 반복하지 말고 아래 “다음 세션이 가장 먼저 해야 할 작업”부터 이어간다. 문서와 GitHub가 다르면 실제 commit·merge 기록을 따른다.
 
@@ -13,7 +13,7 @@
 - 고정 IP `masscom-api-ip`(`43.200.56.97`)를 연결하고 Lightsail 방화벽에 HTTP 80·HTTPS 443을 추가했다. SSH 22는 배포 마감 전 임시로 열려 있다.
 - 커밋 `73e07c8`을 `/opt/masscom/releases/73e07c8cf1e3`에 배포했다. PostgreSQL·API·Caddy가 healthy이고 `/opt/masscom/DEPLOYED_COMMIT`이 해당 전체 SHA를 가리킨다. PostgreSQL 5432와 API 3000은 인터넷에 publish하지 않았다.
 - `A api 43.200.56.97 TTL 600`을 가비아에 저장하고 공용 DNS 전파를 확인했다. Caddy 재시작 뒤 Let’s Encrypt 인증서, `https://api.masscom.kr/health` HTTP/2 200·`{"status":"ok"}`·`no-store`·HSTS·nosniff·frame DENY를 확인했다.
-- Vercel `masscom-wolgye` production deployment `dpl_DyKyoVjHWCykwJsmfb5sdDbhnmQm`이 READY다. `https://masscom.kr/`, `/privacy`, `/account-deletion` 모두 HTTPS 200과 본문을 확인했다.
+- Vercel `masscom-wolgye` production deployment `dpl_CF6gFQZUqs7j4qT3nKrH3PHknCD4`가 READY다. `https://masscom.kr/`, `/privacy`, `/account-deletion` 모두 HTTPS 200과 본문을 확인했다.
 - Google Cloud 새 프로젝트 `MassCOM`(`masscom-wolgye-2026`, project number `172380658768`)에 아래 OAuth client를 만들었다. 다시 만들지 않는다.
   - Web server: `172380658768-n5r2vad5f2g6ndb9kh2cbcig1j9i792g.apps.googleusercontent.com`
   - 개발 Android: `172380658768-4rpku6qkj265b7p1m55tduvegks5dv91.apps.googleusercontent.com`, `kr.masscom.wolgye.dev`, debug SHA-1 `0A:15:0F:D7:20:43:47:B3:D2:D1:E1:10:36:D9:89:4C:BD:A7:0D:C7`
@@ -25,10 +25,10 @@
 
 ### 다음 실행의 정확한 재개 순서
 
-1. macOS Terminal에서 이미 열린 `run-upload-build.sh`의 upload-keystore 비밀번호를 입력한다. 산출물·서명·설치·Play 제출은 각각 별도 상태다.
+1. upload-key AAB 자동 gate는 완료됐다. A02는 bundletool로 생성한 APK set의 실제 기기 설치·실행이며 아직 `NOT_RUN`이다.
 2. Base Sepolia 계약 배포는 faucet 잔액이 준비된 상태지만 아직 `NOT_RUN`이다. keystore 비밀번호를 로컬 터미널에 입력받아 시험망에서만 수행한다.
 3. 두 번째로 승인된 Google 테스트 계정이 생길 때만 계정 전환 D02를 실기한다.
-4. README·상태·테스트·증거를 실제 결과로 갱신한 후 한글 PR 하나로 push·CI·리뷰·merge한다. Google Play 제출·저장소 공개·대회 최종 제출은 실행하지 않는다.
+4. 현재 문서 갱신 커밋을 push한 후 한글 PR 하나로 CI·리뷰·merge한다. Google Play 제출·저장소 공개·대회 최종 제출은 실행하지 않는다.
 
 ## 이번 세션에서 완료한 것
 
@@ -36,7 +36,7 @@
 - Issue #118: PR #120에서 모바일 Bearer/DEMO 인증 배타, SecureStore 부분 실패 복구, 로그아웃·계정 전환 직렬화, mint polling 단조성을 보강하고 merge `a50f678`, main CI `35620303554` PASS
 - `docs/118-design-evidence`: 라이트·다크 의미색 대조, Reown 테마 동기화, TalkBack live region·QR 설명, 새 clone/PR 검사 문서, API·Worker 운영 경계, 포털·발표·증거 일관성 검사를 추가. 포털·발표 1440px/390px 시각 판정 96점, 가로 넘침 없음
 - Issue #116: Reown 허용 목록의 개발 package 실기, MetaMask 연결→Base Sepolia→`personal_sign`→서버 `VERIFIED` 자동 복귀, 콜드 스타트에서 서버 binding 주소·체인 대조 복원, 미설치 SafePal 복귀를 Samsung SM-S928N에서 PASS. 수정 전에는 DB binding이 있어도 `UNVERIFIED`로 돌아가는 결함을 재현
-- 소유자가 만든 저장소 밖 upload PKCS12 키의 권한 `0600`·별칭·공개 인증서 지문을 확인하고 SHA-256만 `apps/mobile/upload-certificate.sha256`에 고정. 실제 upload-key AAB는 `NOT_RUN`
+- 저장소 밖 upload PKCS12 키의 권한 `0600`·별칭·공개 인증서 지문을 확인하고 SHA-256만 고정. commit `f13a283`의 upload-key AAB 서명·bundletool manifest·W08·provenance·16KB 정적 검사를 PASS
 - Issue #110: Google `auth_time` 최근성, JWKS 최대 stale 24시간, `/auth/google` 검증 전 요청 제한, 만료·폐기 세션 bounded cleanup(migration 0013), Play 카메라·NFT award 초안 정합
 - Issue #112: EIP-1559 priority fee 관계·signed sender 대조, raw-key 이름 변형, keystore 전체 상위 경로, lock timeout·pool 설정 보강
 - PR #111 merge `205d273`, main CI `35561417735` PASS. PR #114 merge `595f70f`, 최종 PR CI `35563298914`·main CI `35563583964` PASS. PR #113은 GitHub가 CI run을 만들지 않아 동일 커밋으로 대체 후 종료
@@ -121,11 +121,11 @@
 - 모바일 `141/141`, typecheck·lint·Android export PASS; 실제 Google 첫 로그인·SecureStore 복원·logout revoke PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - 실제 Base Sepolia RPC 배포 시뮬레이션 PASS(전송 없음), 잘못된 체인·중복 역할 거절 PASS
-- 운영 variant `bundleRelease`와 ELF `PT_LOAD` 정렬 검사 PASS(debug 서명)
+- 운영 variant upload-key `bundleRelease`, 승인 인증서·package·source marker·W08와 ELF `PT_LOAD` 16KB 정렬 검사 PASS
 - secret·privacy·bootstrap·portal·presentation verifier PASS
 - 포털·발표 1440px/390px 브라우저 검증 PASS, 가로 넘침 없음, 시각 판정 각 96/100. 발표 timing·프로젝터 가독성·공개 호스팅은 NOT_RUN
 - 필수 36개 `30 PASS / 2 BLOCKED / 4 NOT_RUN`(R02·O02·Q04·W08 전환). 남은 NOT_RUN: D02·O01·A01·A02
-- `NOT_RUN`: 실제 Base Sepolia 배포, upload key 서명 AAB, 16KB 기기 설치, 운영 package `kr.masscom.wolgye` 지갑 복귀, 두 Google 계정 전환, 운영 fresh reauthentication 삭제, Play Console
+- `NOT_RUN`: 실제 Base Sepolia 배포, upload-key AAB 기기 설치·App Links, 운영 package `kr.masscom.wolgye` 지갑 복귀, 두 Google 계정 전환, 운영 fresh reauthentication 삭제, Play Console
 
 ## 현재 열린 PR
 
@@ -133,7 +133,7 @@
 
 ## 현재 작업 중인 기능
 
-- Issue #122에서 외부 HTTPS와 첫 Google 로그인을 완료했다. macOS Terminal의 upload-key AAB 비밀번호 입력과 Base Sepolia keystore 역할 주소·broadcast, 두 계정 전환 D02가 남았다.
+- Issue #122에서 외부 HTTPS·첫 Google 로그인·upload-key AAB 자동 gate를 완료했다. A02 설치, Base Sepolia keystore 역할 주소·broadcast, 두 계정 전환 D02가 남았다.
 
 ## BLOCKER
 
@@ -141,7 +141,7 @@
 - B-004 Google Play 정책·국내 분류 공식 확인
 - B-008 모바일 moderate 권고 14건: Expo upstream 수정 대기
 - B-010·B-011 W04·W05용 실제 지갑 환경 부재
-- Base Sepolia와 upload-key AAB는 blocker가 아니라 숨김 비밀번호 입력 전 `NOT_RUN`
+- Base Sepolia broadcast는 blocker가 아니라 Foundry 숨김 비밀번호 입력 전 `NOT_RUN`; upload-key AAB 자동 gate는 PASS
 
 ## 사용자 승인이 필요한 사항
 
@@ -149,7 +149,7 @@
 
 소유자가 직접 해야 하는 것(대신 수행하지 않음):
 
-1. 열린 macOS Terminal의 `run-upload-build.sh` 프롬프트에 upload keystore 비밀번호를 입력한다. 공개 SHA-256 핀은 이미 저장소에 있으며 키를 다시 만들지 않는다.
+1. upload-key AAB·provenance 로컬 보존 상태를 확인한다. 비밀번호를 다시 입력하거나 키를 다시 만들 필요는 없다.
 2. Base Sepolia keystore 역할 주소를 비밀번호 프롬프트로 확인하고 시험망 deployer 계정으로만 broadcast한다. private key·비밀번호는 기록하지 않는다.
 3. Play Console에서 App Signing SHA-1을 받은 뒤 `kr.masscom.wolgye`용 Play Android OAuth client를 별도로 만든다. 현재 upload-key client를 Play signing client로 오인하지 않는다.
 4. Play Console package 등록·Data safety·금융 기능 NFT award·계정 삭제 URL은 실제 제출 직전 다시 확인하고 승인 없이 제출하지 않는다.
@@ -163,7 +163,7 @@
 2. 소유자 입력이 도착했는지 확인한다. 도착 순서대로 처리한다.
    - **faucet gas**: 위 두 주소에 잔액이 들어왔으면 역할 주소(admin `0x35ee91BBc75778308B9168Ac6c325df8fF408F04`, minter 위 주소, pauser `0x1a050f7c6Fe0dDcDD78554b488d41cFd4A2CcFB6`)로 시뮬레이션 → 소유자가 비밀번호를 입력하는 `--broadcast` → 계약·역할 검증 → `docs/evidence/base-sepolia-deployment.json` 커밋. 그 뒤 Worker 서비스 민터 경로로 시험망 발행 1건을 검증한다
    - **Google OAuth client ID**: 제공된 ID의 client 유형을 확인하고 Android/Web 구성이 갖춰지면 모바일의 `x-account-id` DEMO 헤더를 Bearer 세션으로 교체하는 Issue를 연다(서버 측은 Issue #106으로 완료, D-024~D-026)
-   - upload-key AAB 로컬 서명 설정과 호스팅·도메인 결정(`docs/HOSTING_LOGIN_PROPOSAL.md`)
+   - **A02**: upload-key AAB를 bundletool APK set으로 변환·설치해 운영 package 실행·복귀를 실제 기기에서 검증
 3. 입력이 없으면 새 기능을 시작하지 않는다. 자동화 가능한 운영 로그인·서비스 민터·문서/디자인 후속은 모두 병합 또는 최종 PR 검증 단계다. 서비스 민터의 다중 민터 지원은 실제 두 번째 민터 요구가 생기기 전에는 추가하지 않는다.
 ## 실행 명령
 
