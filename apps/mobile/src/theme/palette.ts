@@ -3,6 +3,7 @@ export type AppColors = {
   primary: string; onPrimary: string; primaryContainer: string; onPrimaryContainer: string;
   success: string; successContainer: string; onSuccessContainer: string;
   error: string; errorContainer: string; onErrorContainer: string;
+  accentContainer: string; onAccentContainer: string;
 };
 
 export const lightColors: AppColors = {
@@ -11,6 +12,7 @@ export const lightColors: AppColors = {
   primaryContainer: '#D9EDF5', onPrimaryContainer: '#163B4D', success: '#2D6A4F',
   successContainer: '#DDEFE5', onSuccessContainer: '#174D35', error: '#9A371D',
   errorContainer: '#FCE4DA', onErrorContainer: '#7B2718',
+  accentContainer: '#F7E8C9', onAccentContainer: '#4D3516',
 };
 
 export const darkColors: AppColors = {
@@ -19,6 +21,7 @@ export const darkColors: AppColors = {
   primaryContainer: '#173F50', onPrimaryContainer: '#D9F2FC', success: '#75D6A2',
   successContainer: '#163A29', onSuccessContainer: '#D8F8E5', error: '#FFB4A1',
   errorContainer: '#512015', onErrorContainer: '#FFE2DA',
+  accentContainer: '#45371B', onAccentContainer: '#F8E9CC',
 };
 
 export function colorsForScheme(
