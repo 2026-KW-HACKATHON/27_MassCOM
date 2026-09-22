@@ -24,6 +24,12 @@ type EvaluatedExpoConfig = {
   android?: {
     package?: string;
     blockedPermissions?: string[];
+    intentFilters?: {
+      action?: string;
+      autoVerify?: boolean;
+      category?: string[];
+      data?: { scheme?: string; host?: string; pathPrefix?: string }[];
+    }[];
   };
   plugins?: (string | [string, ...unknown[]])[];
 };
@@ -157,6 +163,14 @@ test('actual Expo production config preserves release identity, plugins, and blo
     './plugins/with-build-source-commit.cjs',
   ]);
   assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW']);
+  assert.deepEqual(config.android?.intentFilters, [
+    {
+      action: 'VIEW',
+      autoVerify: true,
+      category: ['BROWSABLE', 'DEFAULT'],
+      data: [{ scheme: 'https', host: 'masscom.kr', pathPrefix: '/open' }],
+    },
+  ]);
 });
 
 test('actual Expo production config rejects local API host variants', () => {
@@ -221,6 +235,7 @@ test('actual Expo development config preserves local DEMO identity, plugins, and
     'expo-secure-store',
   ]);
   assert.deepEqual(config.android?.blockedPermissions, []);
+  assert.deepEqual(config.android?.intentFilters, []);
 });
 
 test('local production plugin writes the source commit into Android manifest metadata', () => {

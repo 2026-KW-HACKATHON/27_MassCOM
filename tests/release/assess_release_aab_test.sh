@@ -23,6 +23,10 @@ MANIFEST
 }
 
 expected_commit="$(git -C "$repo_root" rev-parse HEAD)"
+expected_version_name="$(node -e "const c=require(process.argv[1]).expo; process.stdout.write(c.version)" \
+  "$repo_root/apps/mobile/app.json")"
+expected_version_code="$(node -e "const c=require(process.argv[1]).expo; process.stdout.write(String(c.android.versionCode))" \
+  "$repo_root/apps/mobile/app.json")"
 artifact="$work/tiny-release.aab"
 make_marker_artifact "$artifact" "$expected_commit"
 expected_sha="$(shasum -a 256 "$artifact" | cut -d' ' -f1)"
@@ -56,10 +60,12 @@ out="$(env \
   bash "$assess" "$artifact" "$repo_root/apps/mobile/src" "$provenance" 2>&1)"
 [[ "$out" == *"$provenance"* ]] || { echo "assessor did not print provenance path: $out" >&2; exit 1; }
 
-node - "$provenance" "$expected_sha" "$expected_bytes" "$expected_commit" "$expected_dirty" "$fingerprint" "$ambient_sentinel" <<'NODE'
+node - "$provenance" "$expected_sha" "$expected_bytes" "$expected_commit" "$expected_dirty" \
+  "$fingerprint" "$ambient_sentinel" "$expected_version_name" "$expected_version_code" <<'NODE'
 const fs = require('node:fs');
 
-const [path, expectedSha, expectedBytes, expectedCommit, expectedDirty, fingerprint, ambientSentinel] = process.argv.slice(2);
+const [path, expectedSha, expectedBytes, expectedCommit, expectedDirty, fingerprint, ambientSentinel,
+  expectedVersionName, expectedVersionCode] = process.argv.slice(2);
 const raw = fs.readFileSync(path, 'utf8');
 const record = JSON.parse(raw);
 const fail = (message) => { throw new Error(message); };
@@ -75,8 +81,8 @@ equal(record.artifact.buildSourceCommit, expectedCommit, 'artifact build source 
 equal(record.source.commit, expectedCommit, 'source commit');
 equal(record.source.mobileDirty, expectedDirty === 'true', 'source mobileDirty');
 equal(record.android.sourceExpected.package, 'kr.masscom.wolgye', 'source-expected Android package');
-equal(record.android.sourceExpected.versionName, '0.1.0', 'source-expected Android version name');
-equal(record.android.sourceExpected.versionCode, 1, 'source-expected Android version code');
+equal(record.android.sourceExpected.versionName, expectedVersionName, 'source-expected Android version name');
+equal(record.android.sourceExpected.versionCode, Number(expectedVersionCode), 'source-expected Android version code');
 equal(record.android.w08VerifiedArtifactPackage, 'kr.masscom.wolgye', 'W08-verified artifact package');
 equal(record.signature.status, 'PASS', 'signature status');
 equal(record.signature.exitCode, 0, 'signature exit code');

@@ -5,10 +5,10 @@
 | 항목 | 현재 상태 | 완료 조건 |
 | --- | --- | --- |
 | 운영 package ID | `DECIDED` D-022 | `kr.masscom.wolgye` 적용(`APP_VARIANT=production`). 2026-09-30 이후 Console package 등록 상태는 소유자가 확인 |
-| 서명 AAB | `VERIFIED` 자동 gate·4KB 기기 | commit `f13a283` 운영 AAB의 승인 인증서·package·source marker·W08·hash PASS. Samsung Android 16에서 APK set 설치·콜드 실행·foreground·FATAL 0 PASS. 16KB 기기·App Links·Play는 별도 `NOT_RUN` |
+| 서명 AAB | `VERIFIED` 자동 gate·실기 | commit `f13a283` 운영 AAB의 승인 인증서·package·source marker·W08·hash PASS. Samsung 4KB와 Android 36 16KB AVD에서 설치·콜드 실행·foreground·FATAL 0 PASS |
 | upload key | `VERIFIED` 로컬 서명 | 저장소 밖 PKCS12 권한 `0600`, 별칭·승인 SHA-256 대조와 실제 AAB 서명 PASS. 비밀번호·keystore는 저장소와 provenance에 없으며 Play App Signing 인증서와는 다름 |
-| 16KB page size | `VERIFIED` 정적 | upload key AAB의 arm64-v8a·x86_64 각 29개 라이브러리, 각 87개 LOAD segment 최소 정렬 `0x4000`, 미달 0 PASS. 연결 기기는 4KB라 16KB 기기 실행은 `NOT_RUN` |
-| App Links | `BLOCKED` | 소유 HTTPS domain, 운영 package ID, 배포 서명 SHA-256, `assetlinks.json` 준비 |
+| 16KB page size | `VERIFIED` 정적·runtime | 64비트 각 29개 라이브러리/87 LOAD 최소 `0x4000`, 미달 0. Android 36 ps16k arm64 AVD에서 page size `16384`, 설치·cold 2345ms·FATAL 0 PASS |
+| App Links | `VERIFIED` 직접 설치본 | `masscom.kr/open`만 autoVerify, upload 인증서 assetlinks HTTPS 200·무리디렉션. Samsung 4KB·Android 36 16KB에서 domain `verified`와 앱 cold 복귀 PASS; `/privacy`는 앱 미매칭. Play App Signing 인증서는 Play 단계에서 추가 |
 | 계정 삭제 앱 경로 | `VERIFIED` Local DEMO | 운영 재인증·실제 계정으로 동일 처리 검증 |
 | 외부 삭제 웹 경로 | `VERIFIED` | `https://masscom.kr/account-deletion` HTTPS 200과 삭제·보존·지갑 비밀 경고 확인. 현재 웹 경로는 수동 요청 접수이며 자동 삭제로 표현하지 않음 |
 | Console 제출 초안 | `DRAFT` | `docs/PLAY_CONSOLE_DRAFT.md`의 초안을 소유자가 Console 문항과 대조해 확정 |
@@ -54,7 +54,7 @@ production build는 시작 전, Gradle 직후, 자동 gate 직후, publish 직�
 - Google Play 계정 삭제 경로는 앱 안과 외부 웹에서 제공해야 하며, 관련 계정 데이터 삭제와 합법적 보존 범위를 설명해야 합니다. 외부 URL은 `https://masscom.kr/account-deletion`이며 실제 제출은 하지 않았습니다.
 - 2023-11-13 이후 생성된 개인 개발자 계정에는 공식 도움말 기준 최소 12명이 연속 14일 opt-in 상태인 폐쇄 테스트가 적용됩니다. 실제 계정 생성일·Console 적용 여부를 확인하기 전에는 이 프로젝트의 확정 요건으로 단정하지 않습니다.
 - Android 공식 문서는 Android 15/API 35 이상을 대상으로 하는 64비트 Play 앱의 16KB page size 지원을 요구하며, 2027-02-01 이후 비호환 업데이트 제한을 안내합니다. debug/JS export만으로 release AAB 호환을 완료 처리하지 않습니다.
-- App Links는 HTTPS domain의 `/.well-known/assetlinks.json`과 배포 서명·package ID가 일치해야 합니다. domain과 운영 서명이 없어 현재 검증할 수 없습니다.
+- App Links는 HTTPS domain의 `/.well-known/assetlinks.json`과 설치본 서명·package ID가 일치해야 합니다. 직접 설치본은 upload 인증서로 검증하고, Play 배포 전에는 Play App Signing 인증서를 assetlinks와 OAuth client에 별도로 추가합니다.
 - Play package 이름 등록 요구는 2026-09-30 시행으로 안내되어 실제 제출 직전 Console에서 자동 등록 여부를 확인합니다.
 
 ## 공식 근거

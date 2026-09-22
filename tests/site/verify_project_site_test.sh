@@ -12,7 +12,7 @@ fi
 
 "$verifier" "$repo_root"
 
-for page in privacy.html account-deletion.html; do
+for page in privacy.html account-deletion.html open.html; do
   [[ -s "$repo_root/docs/$page" ]] || {
     echo "project portal is missing $page" >&2
     exit 1
@@ -22,6 +22,22 @@ done
 grep -q 'href="privacy.html"' "$repo_root/docs/index.html"
 grep -q 'href="account-deletion.html"' "$repo_root/docs/index.html"
 grep -q '"cleanUrls": true' "$repo_root/docs/vercel.json"
+node - "$repo_root/docs/.well-known/assetlinks.json" <<'NODE'
+const record = JSON.parse(require('node:fs').readFileSync(process.argv[2], 'utf8'));
+if (!Array.isArray(record) || record.length !== 1) throw new Error('expected one asset link');
+const link = record[0];
+if (link.relation?.[0] !== 'delegate_permission/common.handle_all_urls') {
+  throw new Error('wrong App Link relation');
+}
+if (link.target?.namespace !== 'android_app' || link.target?.package_name !== 'kr.masscom.wolgye') {
+  throw new Error('wrong App Link Android target');
+}
+const fingerprints = link.target?.sha256_cert_fingerprints;
+if (JSON.stringify(fingerprints) !== JSON.stringify([
+  '5E:5E:D3:C3:19:71:E5:A8:8E:A7:52:B3:A2:AE:50:77:2F:EA:1C:95:6B:9D:97:A8:2D:D5:CA:71:30:CF:A3:95',
+])) throw new Error('wrong App Link certificate fingerprint');
+NODE
+grep -qF 'android-v0.1.0-test.2' "$repo_root/docs/open.html"
 
 fixture_root="$(mktemp -d)"
 trap 'rm -rf "$fixture_root"' EXIT

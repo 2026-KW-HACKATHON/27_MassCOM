@@ -1,0 +1,84 @@
+{
+  "schema": "masscom.base-sepolia-deployment.v1",
+  "recordedAt": "2026-09-22 20:06 KST",
+  "issue": 124,
+  "sourceCommit": "83e1c292dd1581939c588059f6e79bc0073bef6a",
+  "network": {
+    "name": "Base Sepolia",
+    "chainId": 84532,
+    "rpc": "https://sepolia.base.org"
+  },
+  "deployment": {
+    "contract": "0x1edca95bb453d8456cfe28c6e24c4e51172e36c4",
+    "transactionHash": "0x082cf07547261ef753ff554bd3ff7cefeace852bf6a796de42b3f036abdc7dea",
+    "blockNumber": 47152878,
+    "receiptStatus": "PASS",
+    "runtimeCodeBytes": 7479,
+    "runtimeCodeHash": "0xd1781ecc157df1997aae0185a83cc704c087da7fcbe7b95eb7eef23c2a371b6e",
+    "explorer": "https://sepolia.basescan.org/address/0x1edca95bb453d8456cfe28c6e24c4e51172e36c4"
+  },
+  "roles": {
+    "admin": {
+      "address": "0x35ee91BBc75778308B9168Ac6c325df8fF408F04",
+      "defaultAdminRole": true
+    },
+    "minter": {
+      "address": "0xfDfaB19251Caa5Bd140CdD7F167F6e4De895c355",
+      "minterRole": true
+    },
+    "pauser": {
+      "address": "0x1a050f7c6Fe0dDcDD78554b488d41cFd4A2CcFB6",
+      "pauserRole": true
+    },
+    "deployer": {
+      "address": "0xFDd1746dcEdE5A796812fBe30fc231059a98c089",
+      "defaultAdminRole": false
+    }
+  },
+  "contractState": {
+    "name": "Wolgye Mascot",
+    "symbol": "WOLGYE",
+    "paused": false,
+    "erc5192Supported": true
+  },
+  "proofSeries": {
+    "seriesKey": "0x494687222a6a36dbceb9e3a262921a8c609d1ec8d1a54d852c9d194c5f1ff509",
+    "maxEverMinted": 1,
+    "everMinted": 1,
+    "active": true,
+    "metadataBase": "https://masscom.kr/nft-metadata/base-sepolia-proof/",
+    "createdTransactionHash": "0x0a0e2e09f113afe81f12a3149f9beb1131c375993865141363181ad2921f99db",
+    "createdBlockNumber": 47153224,
+    "activatedTransactionHash": "0xf060d6e587cbf439770bd10d9e13429df220a0d72402c35e4e6c248113962ce4",
+    "activatedBlockNumber": 47153225
+  },
+  "workerProof": {
+    "database": "dedicated local PostgreSQL scratch database; no production data",
+    "jobId": "96000000-0000-4000-9001-000000000124",
+    "rewardKey": "0x943154da7897b17122b90328c98bb9c4e278e4be56638565d14dd3ccfd8520f4",
+    "transactionHash": "0x3ab8b50831e9b6567769a0b8e8d2e117a48ac040e29af2b04fb6c8f9120ec1cf",
+    "blockNumber": 47153378,
+    "blockHash": "0x18608d164b4680bd683d4d20975d192055238fa02e2439539684f2ce7299698c",
+    "receiptStatus": "PASS",
+    "attemptCount": 1,
+    "jobStatus": "FINALIZED",
+    "outboxStatus": "PUBLISHED",
+    "chainEventStatus": "FINALIZED",
+    "tokenId": "1",
+    "recipient": "0xFDd1746dcEdE5A796812fBe30fc231059a98c089",
+    "ownerMatchesFixedRecipient": true,
+    "locked": true,
+    "tokenUri": "https://masscom.kr/nft-metadata/base-sepolia-proof/1.json",
+    "metadataHttpsStatus": 200,
+    "secondWorkerRun": "NO_WORK",
+    "explorer": "https://sepolia.basescan.org/tx/0x3ab8b50831e9b6567769a0b8e8d2e117a48ac040e29af2b04fb6c8f9120ec1cf"
+  },
+  "truthBoundary": {
+    "network": "testnet",
+    "mainnetClaimed": false,
+    "partnerStoreClaimed": false,
+    "revenueClaimed": false,
+    "personalDataInMetadata": false,
+    "secretsRecorded": false
+  }
+}

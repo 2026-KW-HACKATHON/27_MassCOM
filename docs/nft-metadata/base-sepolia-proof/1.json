@@ -1,0 +1,18 @@
+{
+  "name": "월계 마스코트 Base Sepolia 실증 #1",
+  "description": "월계 마스코트의 Worker·Outbox·체인 이벤트 대조를 Base Sepolia에서 검증한 비양도 테스트 NFT입니다. 실제 구매·매출·제휴 점포 실적을 뜻하지 않습니다.",
+  "attributes": [
+    {
+      "trait_type": "환경",
+      "value": "Base Sepolia"
+    },
+    {
+      "trait_type": "발행 방식",
+      "value": "고정 방문 보상 Worker 실증"
+    },
+    {
+      "trait_type": "양도",
+      "value": "영구 제한"
+    }
+  ]
+}

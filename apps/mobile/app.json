@@ -2,7 +2,7 @@
   "expo": {
     "name": "월계 마스코트 개발",
     "slug": "masscom-mobile",
-    "version": "0.1.0",
+    "version": "0.1.0-test.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "masscom-dev",
@@ -11,6 +11,7 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

@@ -1,6 +1,6 @@
 {
   "schema": "masscom.upload-key-aab-evidence.v1",
-  "recordedAt": "2026-09-22 07:54 KST",
+  "recordedAt": "2026-09-22 20:06 KST",
   "issue": 122,
   "artifact": {
     "basename": "app-release-f13a283.aab",
@@ -54,12 +54,31 @@
     "foregroundActivity": "kr.masscom.wolgye/.MainActivity",
     "fatalErrors": 0,
     "result": "PASS",
-    "boundary": "This is a 4KB page-size device. Static 16KB ELF alignment passed, but 16KB-device runtime and HTTPS App Links remain NOT_RUN."
+    "boundary": "This is a 4KB page-size device. A separate 16KB AVD runtime passed; HTTPS App Links remain NOT_RUN."
+  },
+  "sixteenKbRuntime": {
+    "avd": "Small_Phone",
+    "systemImage": "Android 36 google_apis_playstore_ps16k arm64-v8a",
+    "pageSize": 16384,
+    "apkSha256": "68df695ba37c1715fe50dfd61b83cad95e8352351ec9b01d337c7060b7148ae1",
+    "install": "PASS",
+    "coldLaunchMs": 2345,
+    "foregroundActivity": "kr.masscom.wolgye/.MainActivity",
+    "fatalErrors": 0,
+    "result": "PASS"
+  },
+  "githubPrerelease": {
+    "tag": "android-v0.1.0-test.1",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.1",
+    "repositoryVisibility": "PRIVATE",
+    "apkAsset": "MassCOM-android-v0.1.0-test.1.apk",
+    "apkBytes": 148027774,
+    "apkSha256": "68df695ba37c1715fe50dfd61b83cad95e8352351ec9b01d337c7060b7148ae1",
+    "redownloadHashMatch": true
   },
   "releaseReadiness": {
     "status": "NOT_RUN",
     "pending": [
-      "A02_DEVICE_INSTALL",
       "APP_LINKS",
       "PLAY_UPLOAD_AND_REVIEW"
     ]
