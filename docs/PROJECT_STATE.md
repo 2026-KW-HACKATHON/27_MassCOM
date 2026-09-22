@@ -12,9 +12,9 @@
 | 현재 작업·열린 PR | `gh pr list`, `gh issue list`가 기준. 인수인계 요약은 `docs/HANDOFF.md` |
 | 현재 검증 기준 | API 80·PostgreSQL 37·Worker 45/PG 23·모바일 146·Foundry 8/fuzz128·Anvil PASS. 새 모바일 UI 실기 PASS, TalkBack 앱 낭독·현재 코드 production App Link·완전한 D02는 별도 `NOT_RUN` |
 
-## Issue #126 모바일 UI 작업
+## Issue #126 모바일 UI 완료
 
-- 브랜치 `feat/126-mobile-ui-navigation`에서 네 기본 탭과 탐색·방문·도감·내 정보의 시각 계층을 구현했다. 기존 경로·API·인증·지갑·NFT 상태 로직은 변경하지 않았다.
+- [PR #127](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/127)을 merge commit `4437607`로 main에 통합했다. 네 기본 탭과 탐색·방문·도감·내 정보의 시각 계층을 구현했으며 기존 API·인증·지갑·NFT 상태 로직은 변경하지 않았다.
 - 모바일 자동 시험 `146/146 PASS`, typecheck·lint·Android export·Android 36 arm64 개발 APK 빌드/설치 `PASS`.
 - Samsung Android 16에서 네 탭·정직한 빈 상태·360dp·200% 글씨·실시간 다크 모드·뒤로 가기·개발 scheme를 PASS했다. TalkBack 서비스와 접근성 포커스는 부분 확인했으나 첫 실행 안내로 앱 콘텐츠 낭독은 `NOT_RUN`; 두 계정 marker와 cold restore는 확인했지만 데이터·지갑이 모두 비어 D02는 `NOT_RUN`; [증거](evidence/android-ui-navigation-2026-09-23.json). 필수 36개 집계는 31/2/3 그대로다.
 - `RQ-001`의 ‘로그인 없이 음식점 탐색 VERIFIED’는 현재 앱 루트의 인증 게이트와 충돌한다. 공개 API의 무로그인 조회가 앱 전체 탐색을 증명하지 않으므로 요구사항 상태를 `IN_PROGRESS`로 바로잡았다. 인증 모델 변경은 이번 UI PR 범위 밖이다.
@@ -41,7 +41,7 @@
 
 ## 열린 Issue·PR과 최근 병합
 
-실시간 목록은 `gh pr list --state all --limit 20`이 기준이다. 2026-09-22 확인한 최근 기준선은 PR #119 merge `48aa435`와 PR #120 merge `a50f678`이며 두 main CI가 PASS했다. Issue #118의 문서·디자인 브랜치는 별도 PR로 검증한다.
+실시간 목록은 `gh pr list --state all --limit 20`이 기준이다. 2026-09-23 최근 기준선은 PR #127 merge `4437607`, main CI run `35763199480` PASS다. 직전 release 기준선은 PR #125 merge `de1448f`, main CI `35733488626` PASS다.
 
 ## Phase 상태
 

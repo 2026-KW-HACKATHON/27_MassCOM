@@ -2,14 +2,14 @@
 
 마지막 갱신 시각: 2026-09-23 KST
 
-## 2026-09-23 모바일 UI 구현 체크포인트
+## 2026-09-23 모바일 UI 병합 완료
 
-- Issue #126, 브랜치 `feat/126-mobile-ui-navigation`. 코드 커밋 `d874502`(네 탭), `28f5c45`(강조색), `59c6eae`(탐색), `6445a2d`(방문·도감·내 정보), `9c2daac`(48dp), `e03b24d`(Samsung 반응형·live dark·DEMO 경계). 설계·코드는 한국어 PR 하나로 검증하며 PR의 최신 상태는 `gh pr list --head feat/126-mobile-ui-navigation`를 따른다.
-- [PR #127](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/127)은 Draft로 열었다. 첫 CI run `35753907241`의 운영 문서 검사기는 모바일 141 고정값 때문에 실패했고, 검사기·회귀 시험을 고친 run `35754452530`은 전체 PASS했다. 이후 Samsung 실기 수정·증거 commit의 최신 CI는 `gh pr checks 127`로 확인한다.
+- Issue #126과 [PR #127](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/127)을 merge commit `4437607`로 main에 통합했다. PR 최종 CI `35762617508`과 main CI `35763199480`은 전체 PASS했다.
+- 코드 커밋 `d874502`(네 탭), `28f5c45`(강조색), `59c6eae`(탐색), `6445a2d`(방문·도감·내 정보), `9c2daac`(48dp), `e03b24d`(Samsung 반응형·live dark·DEMO 경계)와 증거 commit `29d2dcf`가 merge 이력에 보존됐다.
 - 모바일 `146/146 PASS`, typecheck·lint·Android export·bootstrap PASS. Android 36 16KB AVD용 arm64 개발 APK 97MB 빌드·설치/실행과 Samsung Android 16 네 탭 실기까지 PASS. 전체 로컬 secret scan은 Git-ignored 환경 파일 2개로 BLOCKED, 깨끗한 tracked archive scan은 PASS.
 - Samsung에서 네 탭·빈 상태·360dp·200% 글씨·실시간 다크 모드·추천 뒤로 가기·`masscom-dev://collection`/`open`을 확인했다. 운영 계정의 DEMO 점주 링크, 200% 탭 잘림, live dark 불일치, Link asChild 런타임 오류를 재현 후 수정했다. TalkBack 앱 낭독·현재 코드 production App Link·완전한 D02는 `NOT_RUN`; `docs/evidence/android-ui-navigation-2026-09-23.json`을 본다.
 - RQ-001의 로그인 없는 탐색과 현재 앱 루트 인증 게이트가 충돌하므로 PRD 상태를 `IN_PROGRESS`로 바로잡았다(B-017). 이번 UI PR에서 인증 모델을 바꾸지 않는다.
-- 다음: 최종 문서 commit/push→PR CI 확인→Draft 해제 여부 판단→필수 검토를 우회하지 않고 merge. TalkBack 앱 낭독·현재 코드 production App Link·완전한 D02는 별도 `NOT_RUN`으로 유지한다.
+- 다음: UI를 다시 만들거나 새 PR로 분할하지 않는다. TalkBack 앱 낭독·현재 코드 production App Link·완전한 D02는 별도 `NOT_RUN`으로 유지하고 B-017 무로그인 탐색 정책을 결정하기 전 인증 모델을 바꾸지 않는다.
 
 ## 2026-09-23 모바일 UI 설계 단계 기록(과거 상태)
 
@@ -137,7 +137,7 @@
 
 - API 단위 `80/80`, API PostgreSQL `37/37`(운영 로그인·claim replay·R02 7개·Q04 포함)
 - Worker 단위 `45/45`, Worker PostgreSQL `23/23`, Anvil `12/12`(W07 M01~M08 + O02a~e)
-- 모바일 `141/141`, typecheck·lint·Android export PASS; 실제 Google 첫 로그인·SecureStore 복원·logout revoke PASS
+- 모바일 `146/146`, typecheck·lint·Android export PASS; 실제 Google 첫 로그인·SecureStore 복원·logout revoke와 새 UI Samsung 실기 PASS
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - Base Sepolia 계약 `0x1edca95bb453d8456cfe28c6e24c4e51172e36c4`, role·Worker token #1·중복 방지 PASS
 - private GitHub APK, upload-key AAB gate, Samsung 4KB와 Android 36 16KB AVD 설치·cold launch PASS
@@ -148,11 +148,11 @@
 
 ## 현재 열린 PR
 
-- 최종 상태는 `gh pr list`가 기준이다. 이 문서 작성 시 `docs/118-design-evidence`는 PR 준비 단계였으므로 PR 생성·merge 뒤 번호와 CI는 GitHub 기록으로 확인한다.
+- 최종 상태는 `gh pr list`가 기준이다. PR #127은 병합됐고 이 문서 마감용 PR 외 새 기능 PR을 만들지 않는다.
 
 ## 현재 작업 중인 기능
 
-- Issue #124에서 private GitHub test.2 APK·16KB runtime·verified App Links·Base Sepolia 계약/Worker mint를 완료했다. D02가 남았다.
+- Issue #124의 private GitHub test.2 APK·16KB runtime·verified App Links·Base Sepolia 계약/Worker mint와 Issue #126 모바일 UI를 완료했다. D02·O01·A01과 별도 출시/현장 항목이 남았다.
 
 ## BLOCKER
 
