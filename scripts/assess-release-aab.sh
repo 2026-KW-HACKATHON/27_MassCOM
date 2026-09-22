@@ -83,29 +83,12 @@ else
   mobile_dirty=false
 fi
 
-manifest_dump=''
 if [[ "${MASSCOM_TEST_MODE:-}" == 'true' ]]; then
   manifest_dump="$(unzip -p "$artifact" 'base/manifest/AndroidManifest.xml')" || {
     echo 'artifact AndroidManifest could not be read' >&2
     exit 1
   }
-else
-  aapt2=''
-  if command -v aapt2 >/dev/null 2>&1; then
-    aapt2="$(command -v aapt2)"
-  else
-    android_sdk="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
-    for candidate in "$android_sdk"/build-tools/*/aapt2; do
-      [[ -x "$candidate" ]] && aapt2="$candidate"
-    done
-  fi
-  [[ -n "$aapt2" ]] || { echo 'artifact manifest parser aapt2 is unavailable' >&2; exit 1; }
-  manifest_dump="$($aapt2 dump xmltree --file base/manifest/AndroidManifest.xml "$artifact" 2>&1)" || {
-    echo 'artifact AndroidManifest could not be parsed' >&2
-    exit 1
-  }
-fi
-manifest_nodes="$(awk '
+  manifest_nodes="$(awk '
   function emit_node() {
     if (in_metadata) print metadata_name "\t" metadata_value
     in_metadata = 0
@@ -135,12 +118,27 @@ manifest_nodes="$(awk '
   }
   END { emit_node() }
 ' <<<"$manifest_dump")"
-read -r marker_name_count marker_match_count artifact_source_commit <<<"$(awk -F '\t' \
-  -v key='kr.masscom.BUILD_SOURCE_COMMIT' -v expected="$source_commit" '
-    $1 == key { name_count += 1; marker = tolower($2) }
-    $1 == key && tolower($2) == tolower(expected) { match_count += 1 }
-    END { printf "%d %d %s\n", name_count, match_count, marker }
-  ' <<<"$manifest_nodes")"
+  read -r marker_name_count marker_match_count artifact_source_commit <<<"$(awk -F '\t' \
+    -v key='kr.masscom.BUILD_SOURCE_COMMIT' -v expected="$source_commit" '
+      $1 == key { name_count += 1; marker = tolower($2) }
+      $1 == key && tolower($2) == tolower(expected) { match_count += 1 }
+      END { printf "%d %d %s\n", name_count, match_count, marker }
+    ' <<<"$manifest_nodes")"
+else
+  manifest_reader="$repo_root/scripts/dump-aab-manifest.sh"
+  [[ -x "$manifest_reader" ]] || { echo 'AAB manifest reader is unavailable' >&2; exit 1; }
+  marker_xpath='/manifest/application/meta-data[@android:name="kr.masscom.BUILD_SOURCE_COMMIT"]/@android:value'
+  marker_values="$("$manifest_reader" "$artifact" "$marker_xpath")" || {
+    echo 'artifact AndroidManifest could not be parsed' >&2
+    exit 1
+  }
+  read -r marker_name_count marker_match_count artifact_source_commit <<<"$(awk \
+    -v expected="$source_commit" '
+      NF { name_count += 1; marker = tolower($0) }
+      NF && tolower($0) == tolower(expected) { match_count += 1 }
+      END { printf "%d %d %s\n", name_count, match_count, marker }
+    ' <<<"$marker_values")"
+fi
 if [[ "$marker_name_count" != 1 ]]; then
   echo 'artifact must contain exactly one BUILD_SOURCE_COMMIT manifest marker' >&2
   exit 1

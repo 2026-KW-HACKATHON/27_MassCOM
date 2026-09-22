@@ -1,0 +1,68 @@
+{
+  "schema": "masscom.upload-key-aab-evidence.v1",
+  "recordedAt": "2026-09-22 07:54 KST",
+  "issue": 122,
+  "artifact": {
+    "basename": "app-release-f13a283.aab",
+    "sha256": "991badb12d3b7552a3f967e9dae28b42fe72cb504c711f5a4051722905195007",
+    "bytes": 95638437,
+    "storedInGit": false
+  },
+  "source": {
+    "commit": "f13a283753f277d25d6c2e63d5ef9f55776ce32e",
+    "mobileDirty": false
+  },
+  "android": {
+    "package": "kr.masscom.wolgye",
+    "versionName": "0.1.0",
+    "versionCode": 1,
+    "buildSourceCommit": "f13a283753f277d25d6c2e63d5ef9f55776ce32e"
+  },
+  "automatedGates": {
+    "uploadCertificateSignature": "PASS",
+    "certificateSha256": "5E5ED3C31971E5A88EA752B3A2AE50772FEA1C956B9D97A82DD5CA7130CFA395",
+    "walletSurfaceW08": "PASS",
+    "bundletoolManifest": "PASS"
+  },
+  "elf16KbAlignment": {
+    "method": "NDK llvm-readelf -lW over every 64-bit base/lib shared object; inspect every PT_LOAD p_align",
+    "arm64-v8a": {
+      "libraries": 29,
+      "loadSegments": 87,
+      "minLoadAlign": "0x4000",
+      "below16Kb": 0
+    },
+    "x86_64": {
+      "libraries": 29,
+      "loadSegments": 87,
+      "minLoadAlign": "0x4000",
+      "below16Kb": 0
+    },
+    "status": "PASS"
+  },
+  "deviceInstallation": {
+    "device": "Samsung SM-S928N",
+    "android": "16",
+    "pageSize": 4096,
+    "apkSetBytes": 148028076,
+    "package": "kr.masscom.wolgye",
+    "versionName": "0.1.0",
+    "versionCode": 1,
+    "apkSignatureSchemes": ["v2", "v3"],
+    "certificateSha256": "5E5ED3C31971E5A88EA752B3A2AE50772FEA1C956B9D97A82DD5CA7130CFA395",
+    "firstColdLaunchMs": 1455,
+    "foregroundActivity": "kr.masscom.wolgye/.MainActivity",
+    "fatalErrors": 0,
+    "result": "PASS",
+    "boundary": "This is a 4KB page-size device. Static 16KB ELF alignment passed, but 16KB-device runtime and HTTPS App Links remain NOT_RUN."
+  },
+  "releaseReadiness": {
+    "status": "NOT_RUN",
+    "pending": [
+      "A02_DEVICE_INSTALL",
+      "APP_LINKS",
+      "PLAY_UPLOAD_AND_REVIEW"
+    ]
+  },
+  "secretsRecorded": false
+}

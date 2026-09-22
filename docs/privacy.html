@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="월계 마스코트 개인정보처리방침과 지갑·블록체인 정보 처리 경계">
+    <meta name="theme-color" content="#12303d">
+    <title>개인정보처리방침 · 월계 마스코트</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2312303d'/%3E%3Cpath d='M44 13a20 20 0 1 0 7 33A22 22 0 1 1 44 13Z' fill='%23d9ecff'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="assets/project.css?v=20260922">
+    <link rel="stylesheet" href="assets/legal.css?v=20260922">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
+    <header class="legal-header">
+      <a class="brand" href="index.html" aria-label="월계 마스코트 프로젝트 포털로 이동">
+        <span class="brand-mark" aria-hidden="true">月</span><span>월계 마스코트</span>
+      </a>
+      <a href="account-deletion.html">계정 삭제 안내</a>
+    </header>
+
+    <main class="legal-main" id="main-content">
+      <header>
+        <p class="context">시행일 2026-09-22 · 대회 심사용 개발 서비스</p>
+        <h1>개인정보처리방침</h1>
+        <p class="lede">월계 마스코트는 음식점 탐색·방문 인증·수집품 기능에 필요한 정보만 처리하며, 사용자 개인키나 복구 문구를 요구하거나 저장하지 않습니다.</p>
+      </header>
+
+      <p class="legal-warning"><strong>현재 상태:</strong> 이 서비스는 Google Play 일반 공개 전 개발·검증 단계입니다. 실제 일반 공개 전 보관 기간, 처리 위탁 계약과 법률 검토 결과를 반영해 이 문서를 갱신합니다.</p>
+
+      <h2>1. 처리하는 정보</h2>
+      <ul>
+        <li><strong>계정:</strong> Google 로그인이 제공하는 안정적인 계정 식별자, 로그인·재인증 및 세션 상태</li>
+        <li><strong>서비스 이용:</strong> 방문한 점포·캠페인, QR 인증과 보상 처리 상태, 도감 및 계정 삭제 요청 상태</li>
+        <li><strong>선택적 지갑 연결:</strong> 공개 지갑 주소, 요청 체인, nonce, 주소 통제 확인 결과와 연결 버전</li>
+        <li><strong>NFT 발행:</strong> 수령 주소, 거래 해시, 계약 주소와 token ID 등 중복 방지·발행 확인에 필요한 정보</li>
+      </ul>
+      <p>Google 비밀번호, 외부 지갑 비밀번호, 개인키, 복구 문구는 처리하지 않습니다. 서명은 주소 통제 확인에만 사용하며 자산 송금·승인 권한을 요청하지 않습니다.</p>
+
+      <h2>2. 이용 목적</h2>
+      <ul>
+        <li>음식점 탐색, 점주 확인, 일회용 QR 방문 인증과 보상권 발급</li>
+        <li>로그인 상태와 점주·직원 권한 관리, 중복·부정 이용 방지</li>
+        <li>선택한 사용자의 외부 지갑 주소 확인과 Base Sepolia NFT 발행·복구</li>
+        <li>계정 삭제, 장애 대응, 보안 감사와 서비스 품질 검증</li>
+      </ul>
+
+      <h2>3. 외부 서비스와 공개 장부</h2>
+      <p>운영 과정에서 Google 로그인, Reown 지갑 연결, Base 블록체인, AWS API·DB 호스팅, Vercel 정적 문서 호스팅을 사용합니다. 각 서비스는 자체 정책에 따라 정보를 처리할 수 있습니다.</p>
+      <p>실제 NFT가 발행되면 지갑 주소, 거래 해시, 계약 주소, token ID가 공개 블록체인에 남습니다. 개인정보·주문번호·정확한 식사 시각은 NFT 메타데이터나 공개 장부에 넣지 않습니다.</p>
+
+      <h2>4. 보관과 삭제</h2>
+      <p>계정 삭제가 완료되면 로그인 세션과 지갑 연결을 끊고, 미전송 발행 작업을 취소하며 계정 식별자를 비식별 별칭으로 교체합니다. 제출되었거나 확정된 거래와 NFT 기록은 중복 발행 방지와 공개 장부 대조를 위해 보존될 수 있습니다. 블록체인에 이미 기록된 정보는 서비스가 삭제할 수 없습니다.</p>
+      <p>현재 개발 환경의 구체적인 법정 보관 기간과 백업 순환 기간은 확정되지 않았습니다. 확정되지 않은 기간을 완료된 운영 정책으로 표시하지 않습니다.</p>
+
+      <h2>5. 이용자의 선택과 문의</h2>
+      <p>지갑 없이 음식점 탐색·방문 인증·도감을 이용할 수 있습니다. 앱의 계정 설정 또는 <a href="account-deletion.html">웹 계정 삭제 안내</a>에서 삭제를 요청할 수 있습니다.</p>
+      <p>문의: <a href="mailto:choijunhuk2007@gmail.com">choijunhuk2007@gmail.com</a></p>
+    </main>
+
+    <footer class="legal-footer">
+      <p>월계 마스코트(가칭) · 마지막 갱신 2026-09-22 KST</p>
+      <div class="footer-links"><a href="index.html">프로젝트 포털</a><a href="account-deletion.html">계정 삭제 안내</a></div>
+    </footer>
+  </body>
+</html>

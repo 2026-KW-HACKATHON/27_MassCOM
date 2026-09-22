@@ -43,6 +43,30 @@ test('returns the ID token from the native success response', async () => {
   assert.deepEqual(await adapter.signIn(), { idToken: 'google-id-token' });
 });
 
+test('prefers the explicit Google button flow when the native surface provides it', async () => {
+  let explicitCalls = 0;
+  let credentialManagerCalls = 0;
+  const surface = fakeSurface({
+    async signIn() {
+      credentialManagerCalls += 1;
+      return { type: 'success', data: { idToken: 'credential-manager-token' } };
+    },
+  }) as NitroGoogleSurface & {
+    presentExplicitSignIn(): Promise<{ type: 'success'; data: { idToken: string } }>;
+  };
+  surface.presentExplicitSignIn = async () => {
+    explicitCalls += 1;
+    return { type: 'success', data: { idToken: 'explicit-button-token' } };
+  };
+
+  const adapter = createGoogleSignInAdapter(surface);
+  adapter.configure('web-client');
+
+  assert.deepEqual(await adapter.signIn(), { idToken: 'explicit-button-token' });
+  assert.equal(explicitCalls, 1);
+  assert.equal(credentialManagerCalls, 0);
+});
+
 test('uses createAccount only when no saved credential exists', async () => {
   let createCalls = 0;
   const adapter = createGoogleSignInAdapter(fakeSurface({

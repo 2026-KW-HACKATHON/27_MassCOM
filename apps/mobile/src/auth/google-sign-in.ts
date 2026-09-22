@@ -8,6 +8,7 @@ export type NitroGoogleSurface = {
   configure(options: { webClientId: string; offlineAccess: false }): void;
   signIn(): Promise<NitroGoogleResponse>;
   createAccount(): Promise<NitroGoogleResponse>;
+  presentExplicitSignIn?(): Promise<NitroGoogleResponse>;
   signOut(): Promise<void>;
 };
 
@@ -41,7 +42,9 @@ export function createGoogleSignInAdapter(surface: NitroGoogleSurface) {
       throw new GoogleSignInAdapterError('GOOGLE_SIGN_IN_NOT_CONFIGURED');
     }
     try {
-      let response = await surface.signIn();
+      let response = surface.presentExplicitSignIn
+        ? await surface.presentExplicitSignIn()
+        : await surface.signIn();
       if (response.type === 'noSavedCredentialFound') {
         response = await surface.createAccount();
       }

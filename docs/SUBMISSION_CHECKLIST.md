@@ -13,8 +13,9 @@
 ## Android·서버
 
 - [ ] 운영 package ID·versionCode 결정
-- [ ] 서명 AAB·upload key 백업·16KB·App Links 실기
-- [ ] 외부 HTTPS·운영 로그인·외부 삭제 URL
+- [x] upload-key 서명 AAB 자동 gate·공개 인증서 핀·16KB 정적 검사
+- [ ] upload key 안전 백업·A02 기기 설치·App Links 실기
+- [x] 외부 HTTPS·첫 운영 로그인·외부 삭제 URL
 - [ ] 심사 계정·DEMO 점포·안전한 QR·테스트넷 표기
 - [ ] Data safety·금융 기능·등급·타깃 연령 Console 응답
 

@@ -74,6 +74,6 @@
 
 ## A02 release AAB 설치
 
-- 사전 조건: upload key 서명 AAB(소유자), `bundletool`(다운로드 승인 필요) 또는 Play 내부 테스트 트랙
+- 사전 조건: upload key 서명 AAB(완료), checksum을 확인한 공식 `bundletool-all`(로컬 Android SDK에 설치) 또는 Play 내부 테스트 트랙
 - 순서: AAB → 기기용 APK 세트 설치 → E01·E02 반복 → 16KB page size 기기 또는 에뮬레이터에서 실행
 - 빌드 성공·서명 확인·설치 확인·Play 업로드·심사 승인은 각각 따로 기록

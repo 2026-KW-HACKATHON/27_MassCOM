@@ -733,8 +733,15 @@ function configuredService(
   });
 }
 
+export function resolveApiBindHost(raw: string | undefined): '127.0.0.1' | '0.0.0.0' {
+  const host = raw ?? '127.0.0.1';
+  if (host === '127.0.0.1' || host === '0.0.0.0') return host;
+  throw new Error('API_BIND_HOST must be 127.0.0.1 or 0.0.0.0');
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.env.PORT ?? 3000);
+  const bindHost = resolveApiBindHost(process.env.API_BIND_HOST);
   const pool = process.env.DATABASE_URL
     ? new Pool({ connectionString: process.env.DATABASE_URL })
     : undefined;
@@ -831,7 +838,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     campaignEnrollments,
     authSessions,
     authLoginLimiter,
-  ).listen(port, '127.0.0.1', () => {
-    console.log(`wallet API listening on http://127.0.0.1:${port}`);
+  ).listen(port, bindHost, () => {
+    console.log(`wallet API listening on http://${bindHost}:${port}`);
   });
 }

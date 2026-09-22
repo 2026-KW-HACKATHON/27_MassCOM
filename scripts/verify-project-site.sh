@@ -5,6 +5,10 @@ set -euo pipefail
 repo_root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 html="$repo_root/docs/index.html"
 css="$repo_root/docs/assets/project.css"
+legal_css="$repo_root/docs/assets/legal.css"
+privacy_html="$repo_root/docs/privacy.html"
+deletion_html="$repo_root/docs/account-deletion.html"
+vercel_config="$repo_root/docs/vercel.json"
 readme="$repo_root/README.md"
 script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 accessibility_checker="$script_root/check-site-accessibility.mjs"
@@ -17,6 +21,10 @@ fail() {
 
 [[ -s "$html" ]] || fail "missing docs/index.html"
 [[ -s "$css" ]] || fail "missing docs/assets/project.css"
+[[ -s "$legal_css" ]] || fail "missing docs/assets/legal.css"
+[[ -s "$privacy_html" ]] || fail "missing docs/privacy.html"
+[[ -s "$deletion_html" ]] || fail "missing docs/account-deletion.html"
+[[ -s "$vercel_config" ]] || fail "missing docs/vercel.json"
 [[ -s "$readme" ]] || fail "missing README.md"
 [[ -s "$accessibility_checker" ]] || fail "missing accessibility checker"
 
@@ -36,6 +44,10 @@ for status in PLANNED IN_PROGRESS IMPLEMENTED VERIFIED BLOCKED NOT_RUN; do
 done
 
 grep -q 'assets/project.css' "$html" || fail "local stylesheet is not linked"
+grep -q 'href="privacy.html"' "$html" || fail "privacy policy is not linked"
+grep -q 'href="account-deletion.html"' "$html" || fail "account deletion page is not linked"
+grep -q '외부 지갑 비밀번호, 개인키, 복구 문구' "$deletion_html" || fail "wallet secret warning is missing"
+grep -q '"cleanUrls": true' "$vercel_config" || fail "Vercel clean URLs are not enabled"
 grep -q 'docs/index.html' "$readme" || fail "README does not link to the project portal"
 grep -q 'python3 -m http.server' "$readme" || fail "README does not explain how to preview the portal"
 

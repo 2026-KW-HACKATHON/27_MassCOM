@@ -5,6 +5,10 @@ import type { Pool } from 'pg';
 const migrationsDirectory = new URL('../../migrations/', import.meta.url);
 const migrationLockId = 2_026_091_801;
 
+export function isMigrationFilename(filename: string): boolean {
+  return /^\d{4}_[a-z0-9_]+\.sql$/.test(filename);
+}
+
 export async function runMigrations(pool: Pool): Promise<void> {
   const client = await pool.connect();
   let lockAcquired = false;
@@ -19,7 +23,7 @@ export async function runMigrations(pool: Pool): Promise<void> {
     `);
 
     const filenames = (await readdir(migrationsDirectory))
-      .filter((filename) => filename.endsWith('.sql'))
+      .filter(isMigrationFilename)
       .sort();
 
     for (const filename of filenames) {

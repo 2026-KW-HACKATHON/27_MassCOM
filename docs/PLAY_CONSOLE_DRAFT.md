@@ -5,7 +5,7 @@
 ## 근거로 삼은 실제 구현
 
 - 설치된 SDK: Expo 기본 모듈·Expo Camera, Reown AppKit(WalletConnect), AsyncStorage. 분석·광고·crash 수집 SDK 없음(privacy gate가 CI에서 차단).
-- 현재 코드가 요구하는 권한: `CAMERA`, `INTERNET`, 네트워크 상태, `VIBRATE`. 카메라는 점주 화면의 방문 수령 QR을 전경에서 읽을 때만 runtime 요청하며 `RECORD_AUDIO`는 비활성화했습니다. QR 이미지·사진·영상은 저장하거나 서버로 보내지 않습니다. 현재 생성된 Android manifest에는 Android 12 이하용 legacy 저장소 권한(`maxSdkVersion=32`)이 Expo 의존성에서 합쳐지므로, 최종 upload-key AAB에서 다시 확인하고 Console 답을 확정합니다. 개발용 `SYSTEM_ALERT_WINDOW`는 운영 variant에서 제거되어야 합니다.
+- 현재 코드가 요구하는 권한: `CAMERA`, `INTERNET`, 네트워크 상태, `VIBRATE`. 카메라는 점주 화면의 방문 수령 QR을 전경에서 읽을 때만 runtime 요청하며 `RECORD_AUDIO`는 비활성화했습니다. QR 이미지·사진·영상은 저장하거나 서버로 보내지 않습니다. upload-key AAB에서 Android 12 이하용 legacy 저장소 권한(`maxSdkVersion=32`)이 Expo 의존성으로 합쳐지는 것과 개발용 `SYSTEM_ALERT_WINDOW`가 제거된 것을 bundletool로 확인했습니다. Console 답은 실제 문항 원문과 다시 대조합니다.
 - 서버로 보내는 값: 앱 account ID, Google ID token(검증 후 미보관), Google `sub` 식별자(서버 identity 연결에 저장), 지갑 공개 주소, 주소 확인용 SIWE 서명, 카메라가 해독한 QR 수령 token, 계정 삭제 요청. 카메라 frame은 보내지 않습니다.
 - 기기에 저장하는 값: WalletConnect 세션뿐이며 개인키·복구 문구·인증 token은 저장하지 않습니다(D-021).
 - 제3자 전송: Reown relay(WalletConnect 세션 중계), Base Sepolia RPC(allowlist), 서비스 API.
@@ -15,9 +15,9 @@
 | 문항 | 초안 답 | 근거·확인 필요 |
 | --- | --- | --- |
 | 사용자 데이터를 수집하거나 공유하는가 | 수집함 | account ID, 지갑 주소, 방문 기록이 서버에 저장됨 |
-| 전송 중 암호화 | 예(운영 HTTPS 전제) | 외부 HTTPS가 준비되기 전에는 제출하지 않음(B-003) |
+| 전송 중 암호화 | 예 | `api.masscom.kr` TLS와 외부 health를 확인. 제출 직전 다시 확인 |
 | 삭제 요청 방법 제공 | 예 | 앱 안 경로 구현. 외부 웹 경로는 B-013 해소 뒤 URL 입력 |
-| 개인 식별자(사용자 ID) | 수집, 앱 기능·계정 관리·보안 목적 | 서버는 Google `sub`와 무작위 내부 account ID를 저장하고 이메일은 저장하지 않음. 모바일 Google 로그인은 아직 `NOT_RUN` |
+| 개인 식별자(사용자 ID) | 수집, 앱 기능·계정 관리·보안 목적 | 서버는 Google `sub`와 무작위 내부 account ID를 저장하고 이메일은 저장하지 않음. 첫 모바일 Google 로그인·session 복원·logout PASS |
 | 금융 정보 | 결제·카드 정보는 수집하지 않음 | 지갑 공개 주소를 어느 범주로 선언할지 소유자가 Console 정의와 대조 |
 | 위치 | 수집하지 않음 | 위치 권한·SDK 없음. 점포 주소는 점포 데이터이며 사용자 위치가 아님 |
 | 앱 활동 | 수집(방문·수령 기록) | 보상 지급과 중복 방지 목적 |

@@ -13,6 +13,7 @@ import {
   createBearerAccountResolver,
   createSessionReauthenticationGuard,
   developmentHeaderAccountResolver,
+  resolveApiBindHost,
   resolveAuthMode,
   sessionTtlMs,
   type AccountResolver,
@@ -1554,5 +1555,15 @@ test('auth operational limits have bounded defaults and reject unsafe values', (
     ['AUTH_SESSION_CLEANUP_BATCH_SIZE', config.authSessionCleanupBatchSize, ['0', '10001']],
   ] as const) {
     for (const raw of values) assert.throws(() => parse(raw), new RegExp(name), `${name}=${raw}`);
+  }
+});
+
+test('API bind host stays loopback by default and only permits the container wildcard explicitly', () => {
+  assert.equal(resolveApiBindHost(undefined), '127.0.0.1');
+  assert.equal(resolveApiBindHost('127.0.0.1'), '127.0.0.1');
+  assert.equal(resolveApiBindHost('0.0.0.0'), '0.0.0.0');
+
+  for (const raw of ['', 'localhost', '::', '192.0.2.10', 'api']) {
+    assert.throws(() => resolveApiBindHost(raw), /API_BIND_HOST/, raw);
   }
 });

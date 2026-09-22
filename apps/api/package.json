@@ -11,8 +11,10 @@
     "build": "tsc -p tsconfig.json",
     "db:migrate": "tsx src/postgres/migrate-command.ts",
     "db:migrate:local": "tsx --env-file=.env src/postgres/migrate-command.ts",
+    "db:migrate:production": "node dist/postgres/migrate-command.js",
     "start": "tsx src/server.ts",
     "start:local": "tsx --env-file=.env src/server.ts",
+    "start:production": "node dist/server.js",
     "test": "tsx --test src/**/*.test.ts",
     "test:postgres": "tsx --test --test-concurrency=1 src/**/*.postgres.integration.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"

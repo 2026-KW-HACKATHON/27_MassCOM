@@ -18,35 +18,15 @@ work="$(mktemp -d -t wallet-surface.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
 unzip -q "$aab" 'base/dex/*' -d "$work" || fail "not a readable AAB: $aab"
 
-aapt2=''
-if command -v aapt2 >/dev/null 2>&1; then
-  aapt2="$(command -v aapt2)"
-else
-  android_sdk="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
-  for candidate in "$android_sdk"/build-tools/*/aapt2; do
-    [[ -x "$candidate" ]] && aapt2="$candidate"
-  done
-fi
-[[ -n "$aapt2" ]] || fail 'manifest parser aapt2 is unavailable'
-manifest="$($aapt2 dump xmltree --file base/manifest/AndroidManifest.xml "$aab" 2>&1)" \
-  || fail "manifest could not be parsed: $aab"
+manifest_reader="$repo_root/scripts/dump-aab-manifest.sh"
+[[ -x "$manifest_reader" ]] || fail 'AAB manifest reader is unavailable'
+manifest="$("$manifest_reader" "$aab" 2>&1)" || fail "manifest could not be parsed: $aab"
+package_values="$("$manifest_reader" "$aab" '/manifest/@package' 2>&1)" \
+  || fail "manifest package could not be parsed: $aab"
 read -r package_count artifact_package <<<"$(awk '
-  {
-    if ($0 ~ /^[[:space:]]*E:/) {
-      if (in_manifest) exit
-      if ($0 ~ /^[[:space:]]*E: manifest([[:space:]]|$)/) in_manifest = 1
-      next
-    }
-    if (in_manifest && $0 ~ /A: package([^=]*)=/) {
-      value = $0
-      sub(/^[^\"]*\"/, "", value)
-      sub(/\".*$/, "", value)
-      count += 1
-      package_name = value
-    }
-  }
+  NF { count += 1; package_name = $0 }
   END { printf "%d %s\n", count, package_name }
-' <<<"$manifest")"
+' <<<"$package_values")"
 [[ "$package_count" == 1 && "$artifact_package" == "$expected_package" ]] \
   || fail "manifest package is not $expected_package"
 if [[ "$artifact_package" == "$expected_package.dev" ]]; then fail "manifest belongs to the development variant"; fi

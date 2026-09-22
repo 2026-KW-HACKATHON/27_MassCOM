@@ -1,6 +1,6 @@
-# 외부 HTTPS·운영 로그인 제안 (승인 대기)
+# 외부 HTTPS·운영 로그인 결정과 실제 배포
 
-상태: `PROPOSED`. 이 문서의 어떤 자원도 만들지 않았습니다. D-020은 외부 HTTPS **준비**를 승인했지만 업체·도메인·로그인 방식·비용은 결정된 기록이 없습니다(`docs/DECISIONS.md`, B-003·B-013). 가격은 바뀌므로 승인 시점에 각 공식 가격 페이지에서 확인하고 그 값을 D-0xx에 적습니다.
+상태: `IMPLEMENTED / PARTIALLY_VERIFIED`. 2026-09-22 사용자가 AWS Free Plan Lightsail 2GB(월 최대 USD 12, 크레딧 차감), `masscom.kr`, Google 로그인을 승인했다. API·PostgreSQL·Caddy를 서울 리전에 배포했고 `https://api.masscom.kr/health` HTTPS 200, Android 첫 Google 로그인·session 복원·logout revoke를 확인했다. Worker·Base Sepolia·운영 복원 drill은 별도 상태다.
 
 ## 지금 코드가 요구하는 것
 
@@ -21,7 +21,7 @@
 | B. 단일 VM(국내 리전 클라우드) + Docker Compose + Caddy | VM 1대에 API·Worker·PostgreSQL·reverse proxy | 비용 예측 쉬움, 국내 지연 낮음 | OS 패치·방화벽·백업을 직접 운영. DB를 같은 VM에 두면 백업을 VM 밖으로 내보내야 함(`OPERATIONS_RUNBOOK`) |
 | C. 기존 보유 자원 | 소유자가 이미 가진 서버·도메인 | 추가 비용 없음 | 승인 범위·다른 서비스와의 격리 확인 필요 |
 
-권장: 대회·심사 기간에는 **A**. 과금 상한을 걸 수 있고, 중단은 서비스 2개와 DB를 끄면 끝납니다. 공개 범위는 API origin과 공개 페이지 2개뿐이며 DB·Worker는 외부에 열지 않습니다.
+실제 선택: **B**. AWS Lightsail `masscom-api-seoul` 한 대에서 Docker Compose로 PostgreSQL·API·Caddy를 실행한다. DB 5432와 API 3000은 publish하지 않고 Caddy 80/443만 공개한다. 현재 Worker는 올리지 않았다.
 
 도메인: 소유 도메인이 있으면 하위 도메인(`api.<도메인>`)을 쓰고, 없으면 PaaS 기본 도메인으로 시작할 수 있습니다. 다만 SIWE `domain`과 Play에 적는 삭제 URL이 origin에 묶이므로 **나중에 도메인을 바꾸면 앱 재빌드와 Console 수정이 필요**합니다.
 
@@ -33,7 +33,7 @@
 | 2. 이메일 일회용 코드 | 자체 코드 발급·검증 테이블 | 코드 재입력 | 메일 발송 서비스(과금·발신 도메인) 필요, 남용 방지 필요 |
 | 3. 지갑만으로 로그인 | 기존 SIWE | 재서명 | 제품 원칙(“지갑은 마지막 선택”)과 어긋남. 지갑 없는 사용자가 앱을 못 씀 |
 
-권장: **1**. 새 비밀을 거의 만들지 않고 `resolveAccountId` 한 곳에 연결됩니다. 구현은 인증 모델 변경이라 승인 뒤 별도 Issue로 진행합니다(O01·D02 실제 전환 시험의 전제).
+실제 선택: **1**. Google Web client ID token을 서버가 검증하고 `sub`를 내부 계정으로 매핑한다. 개발 Android package/SHA와 upload-key package/SHA client를 분리했다. Play App Signing 인증서 client는 Play Console 키가 나온 뒤 별도 생성한다.
 
 ## 승인 요청 묶음
 

@@ -5,12 +5,12 @@
 | 항목 | 현재 상태 | 완료 조건 |
 | --- | --- | --- |
 | 운영 package ID | `DECIDED` D-022 | `kr.masscom.wolgye` 적용(`APP_VARIANT=production`). 2026-09-30 이후 Console package 등록 상태는 소유자가 확인 |
-| 서명 AAB | `IN_PROGRESS` | `scripts/build-release-aab.sh`로 운영 variant AAB와 provenance를 생성하고 assessor의 서명·W08 자동 gate를 통과. upload key는 소유자가 저장소 밖에 만들고 `~/.gradle/gradle.properties`의 `android.injected.signing.*`로 주입. debug 서명 AAB는 업로드 금지. 자동 gate PASS는 기기·App Links·Play 준비 완료가 아님 |
-| upload key | `IN_PROGRESS` | 2026-09-21 소유자가 저장소 밖 `~/.android/masscom-upload.jks`를 생성했고 권한 `0600`, 별칭·공개 인증서 지문 대조를 완료했다. 승인 SHA-256은 `apps/mobile/upload-certificate.sha256`에 고정했으며 비밀번호·keystore는 저장소에 없다. `android.injected.signing.*` 로컬 주입과 실제 upload-key AAB는 아직 `NOT_RUN`. 주입 경로 자체는 일회용 키로 PASS(`docs/evidence/release-signing-injection.json`). 검증기는 서명 무결성 → 인증서 존재 → debug 키 거절 → 승인 지문 대조를 수행한다 |
-| 16KB page size | `IN_PROGRESS` | 2026-09-20 로컬 debug 서명 release AAB의 arm64-v8a·x86_64 네이티브 라이브러리 48개 모두 LOAD 정렬 `0x4000` PASS(`docs/evidence/release-aab-16kb-alignment.json`). upload key 서명 AAB와 16KB 기기 설치 검사는 `NOT_RUN` |
+| 서명 AAB | `VERIFIED` 자동 gate·4KB 기기 | commit `f13a283` 운영 AAB의 승인 인증서·package·source marker·W08·hash PASS. Samsung Android 16에서 APK set 설치·콜드 실행·foreground·FATAL 0 PASS. 16KB 기기·App Links·Play는 별도 `NOT_RUN` |
+| upload key | `VERIFIED` 로컬 서명 | 저장소 밖 PKCS12 권한 `0600`, 별칭·승인 SHA-256 대조와 실제 AAB 서명 PASS. 비밀번호·keystore는 저장소와 provenance에 없으며 Play App Signing 인증서와는 다름 |
+| 16KB page size | `VERIFIED` 정적 | upload key AAB의 arm64-v8a·x86_64 각 29개 라이브러리, 각 87개 LOAD segment 최소 정렬 `0x4000`, 미달 0 PASS. 연결 기기는 4KB라 16KB 기기 실행은 `NOT_RUN` |
 | App Links | `BLOCKED` | 소유 HTTPS domain, 운영 package ID, 배포 서명 SHA-256, `assetlinks.json` 준비 |
 | 계정 삭제 앱 경로 | `VERIFIED` Local DEMO | 운영 재인증·실제 계정으로 동일 처리 검증 |
-| 외부 삭제 웹 경로 | `BLOCKED` | 인증된 외부 HTTPS 페이지가 같은 API를 호출하고 오류 없이 열림 |
+| 외부 삭제 웹 경로 | `VERIFIED` | `https://masscom.kr/account-deletion` HTTPS 200과 삭제·보존·지갑 비밀 경고 확인. 현재 웹 경로는 수동 요청 접수이며 자동 삭제로 표현하지 않음 |
 | Console 제출 초안 | `DRAFT` | `docs/PLAY_CONSOLE_DRAFT.md`의 초안을 소유자가 Console 문항과 대조해 확정 |
 | Data safety | `IN_PROGRESS` | 실제 로그인·Reown relay·RPC·서버·분석 전송과 일치하게 Console 제출 |
 | 금융 기능 선언 | `NOT_RUN` | 실제 NFT 보상 기능 기준으로 Console 항목 확인, 자동으로 “없음” 선택 금지 |
@@ -33,7 +33,7 @@
 
 keystore 경로·비밀번호·개인키는 provenance 대상이 아닙니다. 현재 schema는 artifact 절대 경로가 아닌 basename만 저장합니다. provenance에 개인 로컬 filesystem 경로가 드러나면 그 파일을 커밋하지 말고 생성 경로를 점검합니다. 기본 `apps/mobile/release-artifacts/`만 저장소에서 gitignored입니다. 사용자 지정 `RELEASE_ARTIFACT_DIR`는 자동으로 ignore되지 않으므로 운영자가 접근 권한·ignore·보존 정책을 책임집니다.
 
-production build는 시작 전, Gradle 직후, 자동 gate 직후, publish 직전에 같은 HEAD와 clean worktree를 요구합니다. 캡처한 공개 Git SHA는 local Expo config plugin이 AAB manifest에 기록하며, assessor는 artifact marker·현재 HEAD·provenance source commit이 같지 않으면 자동 gate를 실패시킵니다. development build에는 marker가 필요하지 않습니다.
+production build는 시작 전, Gradle 직후, 자동 gate 직후, publish 직전에 같은 HEAD와 clean worktree를 요구합니다. 캡처한 공개 Git SHA는 local Expo config plugin이 AAB manifest에 기록하며, assessor는 Google 공식 bundletool로 artifact marker를 읽어 현재 HEAD·provenance source commit과 같지 않으면 자동 gate를 실패시킵니다. development build에는 marker가 필요하지 않습니다.
 
 자동 gate가 exit `N`으로 실패하면 두 파일은 삭제되지 않고 `app-release-<short-sha>.NOT-RELEASE-READY-exitN.aab`와 같은 basename의 `.provenance.json`으로 함께 이동합니다. 이 이름은 자동 판단 실패를 뜻할 뿐 Play의 최종 심사 판단이 아닙니다.
 
@@ -51,7 +51,7 @@ production build는 시작 전, Gradle 직후, 자동 gate 직후, publish 직�
 
 ## 공식 확인 결과
 
-- Google Play 계정 삭제 경로는 앱 안과 외부 웹에서 제공해야 하며, 관련 계정 데이터 삭제와 합법적 보존 범위를 설명해야 합니다. 현재 외부 URL은 없습니다.
+- Google Play 계정 삭제 경로는 앱 안과 외부 웹에서 제공해야 하며, 관련 계정 데이터 삭제와 합법적 보존 범위를 설명해야 합니다. 외부 URL은 `https://masscom.kr/account-deletion`이며 실제 제출은 하지 않았습니다.
 - 2023-11-13 이후 생성된 개인 개발자 계정에는 공식 도움말 기준 최소 12명이 연속 14일 opt-in 상태인 폐쇄 테스트가 적용됩니다. 실제 계정 생성일·Console 적용 여부를 확인하기 전에는 이 프로젝트의 확정 요건으로 단정하지 않습니다.
 - Android 공식 문서는 Android 15/API 35 이상을 대상으로 하는 64비트 Play 앱의 16KB page size 지원을 요구하며, 2027-02-01 이후 비호환 업데이트 제한을 안내합니다. debug/JS export만으로 release AAB 호환을 완료 처리하지 않습니다.
 - App Links는 HTTPS domain의 `/.well-known/assetlinks.json`과 배포 서명·package ID가 일치해야 합니다. domain과 운영 서명이 없어 현재 검증할 수 없습니다.
