@@ -20,14 +20,11 @@ function Routes() {
         contentStyle: { backgroundColor: palette.background },
       }}
     >
-      <Stack.Screen name="index" options={{ title: '월계 맛길' }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="merchants/[merchantId]" options={{ title: '음식점 상세' }} />
-      <Stack.Screen name="claim" options={{ title: '방문 수령' }} />
-      <Stack.Screen name="collection" options={{ title: '나의 도감' }} />
       <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
       <Stack.Screen name="recommendations" options={{ title: '다음 가게 추천' }} />
       <Stack.Screen name="wallet" options={{ title: '외부 지갑 연결' }} />
-      <Stack.Screen name="settings" options={{ title: '계정·개인정보' }} />
     </Stack>
   );
 }
