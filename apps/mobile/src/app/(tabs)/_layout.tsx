@@ -1,11 +1,14 @@
 import { Tabs } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { Text, useColorScheme, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { colorsForScheme } from '@/theme/palette';
 
 export default function PrimaryTabLayout() {
   const palette = colorsForScheme(useColorScheme());
+  const { fontScale } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -17,10 +20,19 @@ export default function PrimaryTabLayout() {
         tabBarStyle: {
           backgroundColor: palette.surface,
           borderTopColor: palette.separator,
+          ...(fontScale >= 1.5 ? { height: 64 + insets.bottom } : {}),
         },
         tabBarActiveTintColor: palette.primary,
         tabBarInactiveTintColor: palette.secondaryLabel,
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '700' },
+        tabBarLabel: ({ color, children }) => (
+          <Text
+            maxFontSizeMultiplier={1.25}
+            numberOfLines={1}
+            style={{ color, fontSize: 12, fontWeight: '700', textAlign: 'center' }}
+          >
+            {children}
+          </Text>
+        ),
         tabBarItemStyle: { minHeight: 48 },
       }}
     >

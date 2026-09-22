@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { getDemoRuntimeConfig } from './demo-runtime';
+import { canOpenMerchantDemo, getDemoRuntimeConfig } from './demo-runtime';
 
 test('keeps customer and merchant demo identities separate', () => {
   assert.deepEqual(
@@ -25,4 +25,14 @@ test('does not invent demo identities when variables are missing', () => {
     merchant: undefined,
     allowInsecureDemoReauthentication: false,
   });
+});
+
+test('merchant demo link is unavailable to production accounts and incomplete demos', () => {
+  const configured = getDemoRuntimeConfig({
+    EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID: 'staff-1',
+    EXPO_PUBLIC_DEMO_MERCHANT_ID: 'merchant-1',
+  });
+  assert.equal(canOpenMerchantDemo({ kind: 'bearer', sessionToken: 'test' }, configured), false);
+  assert.equal(canOpenMerchantDemo({ kind: 'demo', accountId: 'account-1', allowInsecureReauthentication: false }, getDemoRuntimeConfig({})), false);
+  assert.equal(canOpenMerchantDemo({ kind: 'demo', accountId: 'account-1', allowInsecureReauthentication: false }, configured), true);
 });

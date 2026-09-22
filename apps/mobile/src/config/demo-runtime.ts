@@ -43,6 +43,13 @@ export const demoRuntimeConfig = getDemoRuntimeConfig({
     process.env.EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION,
 });
 
+export function canOpenMerchantDemo(
+  credential: AccountCredential,
+  config: DemoRuntimeConfig,
+): boolean {
+  return credential.kind === 'demo' && Boolean(config.merchant);
+}
+
 export function createDemoCredential(
   accountId: string,
   allowInsecureReauthentication = false,

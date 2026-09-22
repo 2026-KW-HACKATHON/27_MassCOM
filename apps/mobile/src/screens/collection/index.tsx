@@ -12,7 +12,7 @@ import {
 } from '@/commerce/collection-recovery';
 import { CommerceApiError, createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
 import { colors } from '@/theme/colors';
-import { colorsForScheme } from '@/theme/palette';
+import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { uiMetrics } from '@/theme/ui-metrics';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
@@ -197,20 +197,20 @@ export function CollectionScreen({
 
   if (loading && !collection) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={colors.primary} />
-        <Text style={styles.centeredTitle}>방문 도감을 펼치는 중</Text>
+      <View style={[styles.centered, { backgroundColor: palette.background }]}>
+        <ActivityIndicator color={palette.primary} />
+        <Text style={[styles.centeredTitle, { color: palette.label }]}>방문 도감을 펼치는 중</Text>
       </View>
     );
   }
 
   if (!collection) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.centeredTitle}>도감을 불러오지 못했어요</Text>
-        <Text style={styles.centeredBody}>{error}</Text>
-        <Pressable accessibilityRole="button" onPress={refresh} style={styles.primaryButton}>
-          <Text style={styles.primaryButtonText}>다시 불러오기</Text>
+      <View style={[styles.centered, { backgroundColor: palette.background }]}>
+        <Text style={[styles.centeredTitle, { color: palette.label }]}>도감을 불러오지 못했어요</Text>
+        <Text style={[styles.centeredBody, { color: palette.secondaryLabel }]}>{error}</Text>
+        <Pressable accessibilityRole="button" onPress={refresh} style={[styles.primaryButton, { backgroundColor: palette.primary }]}>
+          <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>다시 불러오기</Text>
         </Pressable>
       </View>
     );
@@ -221,70 +221,70 @@ export function CollectionScreen({
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
+      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom, backgroundColor: palette.background }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
       <View style={[styles.hero, { backgroundColor: palette.accentContainer }]}>
         <Text style={[styles.eyebrow, { color: palette.onAccentContainer }]}>나의 월계 기록</Text>
         <Text selectable style={[styles.title, { color: palette.onAccentContainer }]}>방문 기록과 수집품</Text>
         <View style={[styles.countRow, stackCounts && styles.countRowStacked]}>
-          <Count label="방문" value={summary.visits} stacked={stackCounts} />
-          <Count label="앱 수집품" value={summary.appCollectibles} stacked={stackCounts} />
-          <Count label="실제 NFT" value={summary.finalizedNfts} stacked={stackCounts} />
+          <Count label="방문" value={summary.visits} stacked={stackCounts} palette={palette} />
+          <Count label="앱 수집품" value={summary.appCollectibles} stacked={stackCounts} palette={palette} />
+          <Count label="실제 NFT" value={summary.finalizedNfts} stacked={stackCounts} palette={palette} />
         </View>
       </View>
 
-      {error ? <Text style={styles.inlineError}>{error}</Text> : null}
+      {error ? <Text style={[styles.inlineError, { color: palette.onErrorContainer, backgroundColor: palette.errorContainer }]}>{error}</Text> : null}
       {bindingError ? (
-        <View style={styles.recoveryBanner}>
-          <Text selectable style={styles.recoveryText}>{bindingError}</Text>
-          <Pressable accessibilityRole="button" onPress={() => void refreshBinding()} style={styles.recoveryButton}>
-            <Text style={styles.recoveryButtonText}>지갑 상태 다시 확인</Text>
+        <View style={[styles.recoveryBanner, { backgroundColor: palette.errorContainer }]}>
+          <Text selectable style={[styles.recoveryText, { color: palette.onErrorContainer }]}>{bindingError}</Text>
+          <Pressable accessibilityRole="button" onPress={() => void refreshBinding()} style={[styles.recoveryButton, { backgroundColor: palette.surface }]}>
+            <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>지갑 상태 다시 확인</Text>
           </Pressable>
         </View>
       ) : null}
       {polling?.mode === 'manual-retry' ? (
-        <View accessibilityLiveRegion="polite" style={styles.recoveryBanner}>
-          <Text selectable style={styles.recoveryText}>
+        <View accessibilityLiveRegion="polite" style={[styles.recoveryBanner, { backgroundColor: palette.errorContainer }]}>
+          <Text selectable style={[styles.recoveryText, { color: palette.onErrorContainer }]}>
             NFT 등록 작업 결과를 확인하지 못했습니다. 접수는 취소되지 않았습니다.
           </Text>
           <Pressable
             accessibilityRole="button"
             disabled={pollingRetrying}
             onPress={() => void retryPolling()}
-            style={[styles.recoveryButton, pollingRetrying && styles.disabled]}
+            style={[styles.recoveryButton, { backgroundColor: palette.surface }, pollingRetrying && styles.disabled]}
           >
-            <Text style={styles.recoveryButtonText}>{pollingRetrying ? '확인 중…' : '지금 다시 확인'}</Text>
+            <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>{pollingRetrying ? '확인 중…' : '지금 다시 확인'}</Text>
           </Pressable>
         </View>
       ) : null}
       {polling?.message === 'NFT_FINALIZED' ? (
-        <Text accessibilityLiveRegion="polite" style={styles.inlineMessage}>
+        <Text accessibilityLiveRegion="polite" style={[styles.inlineMessage, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>
           NFT가 블록체인 이벤트 대조를 거쳐 등록 완료됐습니다.
         </Text>
-      ) : message ? <Text style={styles.inlineMessage}>{message}</Text> : null}
+      ) : message ? <Text style={[styles.inlineMessage, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
 
-      <Section title="앱에서 받은 수집품" note="보상권을 받으면 앱 도감에 먼저 기록됩니다.">
+      <Section palette={palette} title="앱에서 받은 수집품" note="보상권을 받으면 앱 도감에 먼저 기록됩니다.">
         {collection.collectibles.length === 0 ? (
-          <EmptyCopy text="아직 받은 수집품이 없습니다. 첫 방문을 인증해 보세요." />
+          <EmptyCopy palette={palette} text="아직 받은 수집품이 없습니다. 첫 방문을 인증해 보세요." />
         ) : (
           collection.collectibles.map((item) => (
-            <View key={item.entitlementId} style={styles.collectibleCard}>
+            <View key={item.entitlementId} style={[styles.collectibleCard, { backgroundColor: palette.surface }]}>
               <View style={styles.collectibleTopline}>
-                <Text style={styles.goalBadge}>{item.targetVisitCount}회</Text>
-                <Text style={styles.appStatus}>APP · 수집 완료</Text>
+                <Text style={[styles.goalBadge, { color: palette.primary }]}>{item.targetVisitCount}회</Text>
+                <Text style={[styles.appStatus, { color: palette.onSuccessContainer }]}>APP · 수집 완료</Text>
               </View>
-              <Text selectable style={styles.itemTitle}>{item.displayName}</Text>
-              <Text style={styles.itemMeta}>{item.merchantName} · {item.campaignTitle}</Text>
-              <View style={styles.nftRow}>
-                <Text style={styles.nftLabel}>실제 NFT</Text>
-                <Text style={styles.nftValue}>{nftLabel(item.nftStatus)}</Text>
+              <Text selectable style={[styles.itemTitle, { color: palette.label }]}>{item.displayName}</Text>
+              <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{item.merchantName} · {item.campaignTitle}</Text>
+              <View style={[styles.nftRow, { borderTopColor: palette.separator }]}>
+                <Text style={[styles.nftLabel, { color: palette.secondaryLabel }]}>실제 NFT</Text>
+                <Text style={[styles.nftValue, { color: palette.label }]}>{nftLabel(item.nftStatus)}</Text>
               </View>
               {item.recipient ? (
-                <Text selectable style={styles.recipient}>수령인 {shortAddress(item.recipient)}</Text>
+                <Text selectable style={[styles.recipient, { color: palette.secondaryLabel }]}>수령인 {shortAddress(item.recipient)}</Text>
               ) : null}
               {item.nft ? (
-                <Text selectable style={styles.nftIdentity}>
+                <Text selectable style={[styles.nftIdentity, { color: palette.primary }]}>
                   {chainLabel(item.nft.chainId)} · {shortAddress(item.nft.contractAddress)} · #{item.nft.tokenId}
                 </Text>
               ) : null}
@@ -294,16 +294,16 @@ export function CollectionScreen({
                     accessibilityRole="button"
                     disabled={busyEntitlementId === item.entitlementId}
                     onPress={() => confirmMint(item)}
-                    style={[styles.mintButton, busyEntitlementId === item.entitlementId && styles.disabled]}
+                    style={[styles.mintButton, { backgroundColor: palette.primary }, busyEntitlementId === item.entitlementId && styles.disabled]}
                   >
-                    <Text style={styles.mintButtonText}>
+                    <Text style={[styles.mintButtonText, { color: palette.onPrimary }]}>
                       {busyEntitlementId === item.entitlementId ? '접수 중…' : '양도 제한 NFT 받기'}
                     </Text>
                   </Pressable>
                 ) : (
                   <Link href="/wallet" asChild>
-                    <Pressable accessibilityRole="button" style={styles.walletButton}>
-                      <Text style={styles.walletButtonText}>외부 지갑 주소 확인</Text>
+                    <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.walletButton, { borderColor: palette.primary }])}>
+                      <Text style={[styles.walletButtonText, { color: palette.primary }]}>외부 지갑 주소 확인</Text>
                     </Pressable>
                   </Link>
                 )
@@ -313,19 +313,19 @@ export function CollectionScreen({
         )}
       </Section>
 
-      <Section title="방문 기록" note="정확한 식사 시각 대신 한국 날짜만 표시합니다.">
+      <Section palette={palette} title="방문 기록" note="정확한 식사 시각 대신 한국 날짜만 표시합니다.">
         {collection.visits.length === 0 ? (
-          <EmptyCopy text="아직 인증한 방문이 없습니다." />
+          <EmptyCopy palette={palette} text="아직 인증한 방문이 없습니다." />
         ) : (
           collection.visits.map((visit) => (
-            <View key={visit.visitEventId} style={styles.visitRow}>
+            <View key={visit.visitEventId} style={[styles.visitRow, { backgroundColor: palette.surface }]}>
               <View>
-                <Text selectable style={styles.visitMerchant}>{visit.merchantName}</Text>
-                <Text style={styles.itemMeta}>{visit.campaignTitle}</Text>
+                <Text selectable style={[styles.visitMerchant, { color: palette.label }]}>{visit.merchantName}</Text>
+                <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{visit.campaignTitle}</Text>
               </View>
               <View style={styles.visitRight}>
-                <Text style={styles.visitDate}>{visit.businessDate}</Text>
-                <Text style={styles.progressLabel}>{visit.progressCounted ? '진행 반영' : '방문만 기록'}</Text>
+                <Text style={[styles.visitDate, { color: palette.label }]}>{visit.businessDate}</Text>
+                <Text style={[styles.progressLabel, { color: palette.primary }]}>{visit.progressCounted ? '진행 반영' : '방문만 기록'}</Text>
               </View>
             </View>
           ))
@@ -333,35 +333,35 @@ export function CollectionScreen({
       </Section>
 
       <Link href="/recommendations" asChild>
-        <Pressable accessibilityRole="button" style={styles.primaryButton}>
-          <Text style={styles.primaryButtonText}>다음 음식점 추천 보기</Text>
+        <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.primaryButton, { backgroundColor: palette.primary }])}>
+          <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>다음 음식점 추천 보기</Text>
         </Pressable>
       </Link>
     </ScrollView>
   );
 }
 
-function Count({ label, value, stacked }: { label: string; value: number; stacked: boolean }) {
+function Count({ label, value, stacked, palette }: { label: string; value: number; stacked: boolean; palette: AppColors }) {
   return (
-    <View style={[styles.countItem, stacked && styles.countItemStacked]}>
-      <Text style={styles.countValue}>{value}</Text>
-      <Text style={styles.countLabel}>{label}</Text>
+    <View style={[styles.countItem, stacked && styles.countItemStacked, { backgroundColor: palette.surface }]}>
+      <Text style={[styles.countValue, { color: palette.primary }]}>{value}</Text>
+      <Text style={[styles.countLabel, { color: palette.secondaryLabel }]}>{label}</Text>
     </View>
   );
 }
 
-function Section({ title, note, children }: { title: string; note: string; children: React.ReactNode }) {
+function Section({ title, note, children, palette }: { title: string; note: string; children: React.ReactNode; palette: AppColors }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <Text style={styles.sectionNote}>{note}</Text>
+      <Text style={[styles.sectionTitle, { color: palette.label }]}>{title}</Text>
+      <Text style={[styles.sectionNote, { color: palette.secondaryLabel }]}>{note}</Text>
       <View style={styles.sectionBody}>{children}</View>
     </View>
   );
 }
 
-function EmptyCopy({ text }: { text: string }) {
-  return <Text style={styles.emptyCopy}>{text}</Text>;
+function EmptyCopy({ text, palette }: { text: string; palette: AppColors }) {
+  return <Text style={[styles.emptyCopy, { color: palette.secondaryLabel, backgroundColor: palette.surface }]}>{text}</Text>;
 }
 
 function nftLabel(status: CollectionSnapshot['collectibles'][number]['nftStatus']): string {
