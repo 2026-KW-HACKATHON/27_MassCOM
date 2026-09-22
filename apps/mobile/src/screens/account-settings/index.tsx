@@ -1,4 +1,5 @@
 import { Button, Host } from '@expo/ui';
+import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +15,7 @@ import {
   type DestructiveReauthentication,
 } from '@/privacy/deletion-capability';
 import { colors } from '@/theme/colors';
+import { uiMetrics } from '@/theme/ui-metrics';
 
 export function AccountSettingsScreen({
   apiUrl,
@@ -95,10 +97,10 @@ export function AccountSettingsScreen({
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={[styles.content, { paddingBottom: 52 + insets.bottom }]}
     >
-      <Text style={styles.eyebrow}>개인정보와 계정</Text>
-      <Text selectable style={styles.title}>삭제되는 것과{`\n`}남는 것을 먼저 확인합니다.</Text>
+      <Text style={styles.eyebrow}>내 정보</Text>
+      <Text selectable style={styles.title}>내 계정과 방문 기록</Text>
       <Text selectable style={styles.intro}>
-        앱 계정 삭제와 외부 지갑 삭제는 다릅니다. 이미 공개된 NFT 발행 기록은 서비스가 지울 수 없습니다.
+        로그인과 개인정보를 관리합니다. 외부 지갑은 앱 계정과 별도로 관리됩니다.
       </Text>
       <Text selectable style={styles.accountDiagnostic}>
         현재 계정 {shortAccountId(accountId)} · {credential.kind === 'bearer' ? '운영 session' : '개발 DEMO'}
@@ -124,6 +126,20 @@ export function AccountSettingsScreen({
           </Host>
         ) : null}
       </View> : null}
+
+      <View style={styles.toolsSection}>
+        <Text style={styles.sectionTitle}>점주·직원 도구</Text>
+        <Link href="/merchant" asChild>
+          <Pressable accessibilityRole="button" accessibilityHint="권한이 있는 점주와 직원만 사용할 수 있습니다." style={styles.secondaryLink}>
+            <Text style={styles.secondaryLinkText}>점주용 방문 확인 →</Text>
+          </Pressable>
+        </Link>
+      </View>
+
+      <Text style={styles.sectionTitle}>계정 삭제 안내</Text>
+      <Text selectable style={styles.intro}>
+        앱 계정 삭제와 외부 지갑 삭제는 다릅니다. 이미 공개된 NFT 발행 기록은 서비스가 지울 수 없습니다.
+      </Text>
 
       <InfoCard
         title="삭제·연결 해제"
@@ -217,14 +233,18 @@ function deletionErrorMessage(error: unknown): string {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: 14, padding: 20, paddingBottom: 52, backgroundColor: colors.background },
+  content: { gap: 14, padding: uiMetrics.pageInset, paddingBottom: 52, backgroundColor: colors.background },
   eyebrow: { color: colors.primary, fontSize: 14, fontWeight: '800' },
-  title: { color: colors.label, fontSize: 32, lineHeight: 40, fontWeight: '900', letterSpacing: -0.7 },
-  intro: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 24 },
+  title: { color: colors.label, fontSize: 26, lineHeight: 34, fontWeight: '800', letterSpacing: -0.4 },
+  intro: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 21 },
   accountDiagnostic: { color: colors.secondaryLabel, fontSize: 12, lineHeight: 18 },
   sessionActions: { gap: 10 },
-  sessionButtonHost: { minHeight: 46 },
-  card: { gap: 7, padding: 18, borderRadius: 18, backgroundColor: colors.surface },
+  sessionButtonHost: { minHeight: uiMetrics.minTouch },
+  toolsSection: { gap: 8, paddingVertical: 10 },
+  sectionTitle: { color: colors.label, fontSize: 18, fontWeight: '800' },
+  secondaryLink: { minHeight: uiMetrics.minTouch, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.primary },
+  secondaryLinkText: { color: colors.primary, fontSize: 14, fontWeight: '800' },
+  card: { gap: 7, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
   cardTitle: { color: colors.label, fontSize: 16, fontWeight: '900' },
   cardBody: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 22 },
   statusCard: { gap: 7, padding: 18, borderRadius: 18, backgroundColor: colors.primaryContainer },

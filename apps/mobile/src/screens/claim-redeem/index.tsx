@@ -18,6 +18,7 @@ import {
   type ClaimRecoveryAction,
 } from '@/commerce/claim-recovery';
 import { colors } from '@/theme/colors';
+import { uiMetrics } from '@/theme/ui-metrics';
 
 export function ClaimRedeemScreen({
   apiUrl,
@@ -129,15 +130,17 @@ export function ClaimRedeemScreen({
     <ScrollView
       ref={scrollView}
       contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
       contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
     >
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>방문 인증</Text>
-        <Text selectable style={styles.title}>점주가 준 1회 코드를{`\n`}확인하고 받습니다.</Text>
-        <Text selectable style={styles.body}>코드는 URL이나 로그에 넣지 않고 서버 POST body로만 전송합니다.</Text>
+        <Text selectable style={styles.title}>방문을 인증해요.</Text>
+        <Text selectable style={styles.body}>점주에게 받은 QR을 촬영하거나 1회 코드를 입력하세요.</Text>
       </View>
 
       <View style={styles.formCard}>
+        <Text style={styles.sectionTitle}>1 · 코드 확인</Text>
         {scanning ? (
           <View style={styles.camera}>
             <CameraView
@@ -169,6 +172,7 @@ export function ClaimRedeemScreen({
           placeholderTextColor={colors.secondaryLabel}
           style={styles.input}
         />
+        <Text selectable style={styles.securityNote}>코드는 URL이나 로그에 남기지 않고 안전하게 전송합니다.</Text>
         <Pressable accessibilityRole="button" disabled={!token.trim() || busy} onPress={() => void inspect()} style={[styles.button, (!token.trim() || busy) && styles.disabled]}>
           <Text style={styles.buttonText}>{busy ? '확인 중…' : '코드 상태 확인'}</Text>
         </Pressable>
@@ -178,6 +182,7 @@ export function ClaimRedeemScreen({
 
       {preview ? (
         <View style={styles.previewCard}>
+          <Text style={styles.sectionTitle}>2 · 방문 확정</Text>
           <StatusRow label="상태" value={preview.status === 'AVAILABLE' ? '수령 가능' : '만료'} />
           <StatusRow label="가게" value={preview.merchantName} />
           <StatusRow label="캠페인" value={preview.campaignTitle} />
@@ -200,7 +205,7 @@ export function ClaimRedeemScreen({
 
       {redeemed ? (
         <View accessibilityLiveRegion="polite" style={styles.successCard}>
-          <Text style={styles.successEyebrow}>방문 인증 완료</Text>
+          <Text style={styles.successEyebrow}>3 · 방문 완료</Text>
           <Text selectable style={styles.successTitle}>{claimSuccessCopy(redeemed).title}</Text>
           <Text selectable style={styles.successBody}>{claimSuccessCopy(redeemed).body}</Text>
           <Text style={styles.successBody}>{redeemed.visit.businessDate} · {redeemed.visit.progressVisitCount}회 진행</Text>
@@ -258,18 +263,20 @@ function formatDateTime(value: string): string {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: 18, padding: 20, paddingBottom: 48, backgroundColor: colors.background },
-  hero: { gap: 10 },
+  content: { gap: 14, padding: uiMetrics.pageInset, paddingBottom: 48, backgroundColor: colors.background },
+  hero: { gap: 8 },
   eyebrow: { color: colors.primary, fontSize: 13, fontWeight: '900' },
-  title: { color: colors.label, fontSize: 31, fontWeight: '900', lineHeight: 39, letterSpacing: -0.6 },
-  body: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 24 },
-  formCard: { gap: 12, padding: 18, borderRadius: 20, backgroundColor: colors.surface },
+  title: { color: colors.label, fontSize: 26, fontWeight: '800', lineHeight: 34, letterSpacing: -0.4 },
+  body: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 21 },
+  formCard: { gap: 10, padding: 16, borderRadius: uiMetrics.cardRadius, backgroundColor: colors.surface },
+  sectionTitle: { color: colors.label, fontSize: 17, fontWeight: '800' },
+  securityNote: { color: colors.secondaryLabel, fontSize: 12, lineHeight: 18 },
   inputLabel: { color: colors.label, fontSize: 14, fontWeight: '900' },
   camera: { height: 280, borderRadius: 14, overflow: 'hidden', backgroundColor: '#000000' },
   scanButton: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary },
   scanButtonText: { color: colors.primary },
-  input: { minHeight: 100, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.separator, color: colors.label, backgroundColor: colors.background, fontFamily: 'monospace', fontSize: 13, textAlignVertical: 'top' },
-  button: { minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.primary },
+  input: { minHeight: 72, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.separator, color: colors.label, backgroundColor: colors.background, fontFamily: 'monospace', fontSize: 13, textAlignVertical: 'top' },
+  button: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.primary },
   buttonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },
   disabled: { opacity: 0.42 },
   message: { padding: 13, borderRadius: 14, color: colors.onPrimaryContainer, backgroundColor: colors.primaryContainer, fontSize: 13, lineHeight: 20 },

@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -12,7 +12,11 @@ import {
 } from '@/commerce/collection-recovery';
 import { CommerceApiError, createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
 import { colors } from '@/theme/colors';
+import { colorsForScheme } from '@/theme/palette';
+import { uiMetrics } from '@/theme/ui-metrics';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
+
+import { collectionCounts, shouldStackCounts } from './collection-counts';
 
 export function CollectionScreen({
   apiUrl,
@@ -24,6 +28,9 @@ export function CollectionScreen({
   onSessionInvalid: () => Promise<void>;
 }) {
   const insets = useSafeAreaInsets();
+  const palette = colorsForScheme(useColorScheme());
+  const { width, fontScale } = useWindowDimensions();
+  const stackCounts = shouldStackCounts(width, fontScale);
   const api = useMemo(
     () => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
@@ -209,19 +216,21 @@ export function CollectionScreen({
     );
   }
 
+  const summary = collectionCounts(collection);
+
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
-      <View style={styles.hero}>
-        <Text style={styles.eyebrow}>나의 월계 기록</Text>
-        <Text selectable style={styles.title}>방문과 수집품을{`\n`}서로 다른 상태로 봅니다.</Text>
-        <View style={styles.countRow}>
-          <Count label="방문" value={collection.visits.length} />
-          <Count label="앱 수집품" value={collection.collectibles.length} />
-          <Count label="실제 NFT" value={collection.collectibles.filter((item) => item.nftStatus === 'FINALIZED').length} />
+      <View style={[styles.hero, { backgroundColor: palette.accentContainer }]}>
+        <Text style={[styles.eyebrow, { color: palette.onAccentContainer }]}>나의 월계 기록</Text>
+        <Text selectable style={[styles.title, { color: palette.onAccentContainer }]}>방문 기록과 수집품</Text>
+        <View style={[styles.countRow, stackCounts && styles.countRowStacked]}>
+          <Count label="방문" value={summary.visits} stacked={stackCounts} />
+          <Count label="앱 수집품" value={summary.appCollectibles} stacked={stackCounts} />
+          <Count label="실제 NFT" value={summary.finalizedNfts} stacked={stackCounts} />
         </View>
       </View>
 
@@ -332,9 +341,9 @@ export function CollectionScreen({
   );
 }
 
-function Count({ label, value }: { label: string; value: number }) {
+function Count({ label, value, stacked }: { label: string; value: number; stacked: boolean }) {
   return (
-    <View style={styles.countItem}>
+    <View style={[styles.countItem, stacked && styles.countItemStacked]}>
       <Text style={styles.countValue}>{value}</Text>
       <Text style={styles.countLabel}>{label}</Text>
     </View>
@@ -395,14 +404,16 @@ const styles = StyleSheet.create({
   centeredBody: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 22, textAlign: 'center' },
   primaryButton: { paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.primary },
   primaryButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },
-  content: { gap: 24, padding: 20, paddingBottom: 48, backgroundColor: colors.background },
-  hero: { gap: 12, padding: 22, borderRadius: 24, backgroundColor: colors.primaryContainer },
-  eyebrow: { color: colors.onPrimaryContainer, fontSize: 12, fontWeight: '900' },
-  title: { color: colors.onPrimaryContainer, fontSize: 29, fontWeight: '900', lineHeight: 37, letterSpacing: -0.5 },
+  content: { gap: uiMetrics.sectionGap, padding: uiMetrics.pageInset, paddingBottom: 48, backgroundColor: colors.background },
+  hero: { gap: 12, padding: 20, borderRadius: uiMetrics.cardRadius },
+  eyebrow: { fontSize: 12, fontWeight: '800' },
+  title: { fontSize: 24, fontWeight: '800', lineHeight: 32, letterSpacing: -0.4 },
   countRow: { flexDirection: 'row', gap: 8 },
+  countRowStacked: { flexDirection: 'column' },
   countItem: { flex: 1, gap: 2, padding: 12, borderRadius: 14, backgroundColor: colors.surface },
-  countValue: { color: colors.primary, fontSize: 22, fontWeight: '900' },
-  countLabel: { color: colors.secondaryLabel, fontSize: 11, fontWeight: '700' },
+  countItemStacked: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  countValue: { color: colors.primary, fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  countLabel: { color: colors.secondaryLabel, fontSize: 12, fontWeight: '700' },
   inlineError: { padding: 12, borderRadius: 12, color: colors.onErrorContainer, backgroundColor: colors.errorContainer, fontSize: 13 },
   inlineMessage: { padding: 12, borderRadius: 12, color: colors.onPrimaryContainer, backgroundColor: colors.primaryContainer, fontSize: 13, lineHeight: 20 },
   recoveryBanner: { gap: 10, padding: 14, borderRadius: 14, backgroundColor: colors.errorContainer },
