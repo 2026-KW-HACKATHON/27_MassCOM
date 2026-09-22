@@ -10,7 +10,15 @@
 | 기본 브랜치 | `main` |
 | 기준 커밋 | 이 문서는 SHA를 고정하지 않는다. 실제 기준은 `git log origin/main -1`, 직전 검증 기준은 `docs/HANDOFF.md` 머리말 |
 | 현재 작업·열린 PR | `gh pr list`, `gh issue list`가 기준. 인수인계 요약은 `docs/HANDOFF.md` |
-| 현재 검증 기준 | API 80·PostgreSQL 37·Worker 45/PG 23·모바일 146·Foundry 8/fuzz128·Anvil PASS. 새 모바일 UI 실기 PASS, TalkBack 앱 낭독·현재 코드 production App Link·완전한 D02는 별도 `NOT_RUN` |
+| 현재 검증 기준 | API 단위 82·PostgreSQL 37·Worker 단위 47/PG 23·모바일 148·Foundry 8/fuzz128. Issue #129의 Samsung 빈 화면 라이트·다크 실기는 PASS; 검색·필터 조작과 운영 재배포는 `NOT_RUN` |
+
+## Issue #129 탐색·운영 방어 진행
+
+- 공개 카탈로그의 실제 점포 검색·참여 가능 필터, 첫 화면 0건/검색 0건/오류 구분을 구현했다. 148개 모바일 자동 시험·typecheck·lint·Android export는 PASS. Samsung Android 16의 실제 0건 라이트·다크·상태표시줄은 PASS([증거](evidence/android-discovery-2026-09-23.json)); 점포가 없어 검색·필터 실기와 TalkBack·200% 확대는 `NOT_RUN`.
+- DEMO 인증의 외부 바인드를 기동 단계에서 차단하고, Caddy가 덮어쓴 단일 IP로 운영 로그인 제한을 분리했다. API 82개 자동 시험·typecheck PASS. Caddy·API의 변경 후 운영 배포와 외부 2-IP 실증은 `NOT_RUN`.
+- Worker는 먼저 이벤트와 정식 블록 해시를 대조하고, 블록이 사라지거나 해시가 다르면 최종화하지 않고 재시도한다. Worker 47개 자동 시험·typecheck PASS; 변경 후 Anvil 재구성 통합 시험과 Base Sepolia 재실증은 `NOT_RUN`.
+- 오프라인 로그아웃 시 로컬 키를 지우되 서버 세션 회수 실패를 명시한다. 이전 서버 토큰 자동 재회수는 아직 미구현이며 만료 전 유효할 수 있다.
+- 개인 Codex 설정의 기본 추론은 GPT‑6 Sol medium으로 조정했고 역할별 Luna/Sol/Astra 배분을 정리했다. 저장소의 협업 기준은 [AI 모델 사용 기준](AI_MODEL_ROUTING.md)에 기록했다.
 
 ## Issue #126 모바일 UI 완료
 
@@ -101,9 +109,9 @@
 ## 검증 상태
 
 - 필수 36개: 31 PASS / 2 BLOCKED / 3 NOT_RUN
-- API 단위: `80/80 PASS`; PostgreSQL: `37/37 PASS`
-- Worker 단위: `45/45 PASS`; PostgreSQL: `23/23 PASS`; Anvil W07/M01~M08: `PASS`
-- 모바일: `146/146 PASS`; typecheck·lint·Android export·Nitro Google/SecureStore development native compile `PASS`; 첫 Google 로그인·콜드 복원·logout 실기와 Issue #126 네 탭·반응형·다크 모드 실기 PASS. TalkBack 앱 낭독·완전한 D02는 `NOT_RUN`
+- API 단위: `82/82 PASS`; PostgreSQL: 직전 `37/37 PASS`(이번 변경 뒤 미재실행)
+- Worker 단위: `47/47 PASS`; PostgreSQL: 직전 `23/23 PASS`(이번 변경 뒤 미재실행); Anvil W07/M01~M08: 직전 `PASS`
+- 모바일: `148/148 PASS`; typecheck·lint·Android export `PASS`. Issue #129의 Samsung 빈 화면 라이트·다크·상태표시줄 실기 PASS. 첫 Google 로그인·콜드 복원·logout과 Issue #126 네 탭 실기는 이전 코드 기준 PASS이며, 변경 후 검색·필터·TalkBack 앱 낭독·완전한 D02는 `NOT_RUN`
 - Foundry: `8/8 PASS`, fuzz 128, fmt·build·lint `PASS`
 - 비밀 검사·부트스트랩·프로젝트 포털 접근성/구조: `PASS`
 - production dependency audit: API·Worker high 이상 0; 모바일 high 이상 0, Expo 전이 moderate 14건은 B-008
@@ -113,6 +121,7 @@
 - B-002 저장소 공개 전환과 심사 public 준비: 명시 승인 필요
 - B-004 Google Play 정책: 공식 확인 필요. B-007 package ID는 `kr.masscom.wolgye`로 해소(D-022)
 - B-008 Expo 전이 moderate advisory: 2026-09-20 Expo 57.0.24·expo-router 57.0.22 patch 적용 뒤 재평가에서도 14건 유지. 근원은 `xcode`→`uuid`(iOS 설정 도구, 빌드 시점)와 `expo-router`→`query-string`→`decode-uri-component`이며 npm이 제시하는 수정은 expo 46 다운그레이드뿐이라 호환되는 upstream 수정 필요
+- Issue #129 재평가에서는 모바일 moderate 15건, high/critical 0건. 자동 downgrade는 적용하지 않았다. 오프라인 서버 세션 회수 재시도와 운영 프록시 실증은 남아 있다.
 - B-010/B-011 W04·W05용 실제 지갑 환경 부재
 - Base Sepolia Worker proof와 upload-key AAB·16KB runtime·App Links는 PASS. Play는 별도 `NOT_RUN`
 

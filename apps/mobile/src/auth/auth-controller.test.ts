@@ -214,7 +214,7 @@ test('serializes overlapping sign-ins so memory and storage cannot select differ
   assert.equal(finalState.session.sessionToken, stored?.sessionToken);
 });
 
-test('logout clears local and wallet state even when the server is unreachable', async () => {
+test('logout clears local state but reports unrevoked server session when offline', async () => {
   const f = fixture({
     authApi: {
       async signIn() { return newSession; },
@@ -227,14 +227,14 @@ test('logout clears local and wallet state even when the server is unreachable',
   const controller = createAuthController(f.dependencies);
   await controller.restore();
   f.calls.length = 0;
-  await controller.logout();
+  await assert.rejects(controller.logout(), /SERVER_SESSION_REVOCATION_FAILED/);
   assert.deepEqual(f.calls, [
     'api.logout:old-session',
     'store.clear',
     'wallet.clear',
     'google.signOut',
   ]);
-  assert.deepEqual(controller.getState(), { status: 'signedOut' });
+  assert.deepEqual(controller.getState(), { status: 'signedOut', reason: 'SERVER_SESSION_REVOCATION_FAILED' });
 });
 
 test('switch account finishes old cleanup before starting new Google login', async () => {

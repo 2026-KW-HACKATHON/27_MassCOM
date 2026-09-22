@@ -32,6 +32,8 @@
 
 ## Git·검증
 
+- 역할별 AI 모델·추론 수준은 [AI 모델 사용 기준](docs/AI_MODEL_ROUTING.md)을 따른다. 기본 작업에 고비용 모델을 고정하지 않고 인증·체인·배포 검증에는 독립적인 높은 수준의 검토를 배치한다. 모델 선택은 테스트·실기 근거를 대신하지 않는다.
+
 - 기능은 Issue와 수용 기준을 만들고 목적별 브랜치와 PR로 통합한다.
 - PR 제목·본문·검증 요약은 한국어를 기본으로 작성한다. 코드 식별자·파일명·표준명·고유 기술명만 필요한 범위에서 영어를 사용한다.
 - PR을 열기 전에 실제 제목·본문을 `bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"`로 검증한다. `bash tests/bootstrap/check_pr_korean_test.sh`는 checker 자체 회귀 시험일 뿐 실제 PR 내용을 대신 검사하지 않는다.

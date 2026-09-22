@@ -49,6 +49,10 @@ try {
   );
   assert(services.api.environment?.API_BIND_HOST === '0.0.0.0', 'API container must bind 0.0.0.0');
   assert(
+    services.api.environment?.AUTH_TRUST_CADDY_FORWARDED_FOR === 'true',
+    'API must separate login limits by Caddy client IP',
+  );
+  assert(
     services.api.environment?.ALLOW_INSECURE_DEMO_ACCOUNT !== 'true',
     'production deployment must reject the insecure DEMO account header',
   );
@@ -68,6 +72,10 @@ try {
   const caddyfile = readFileSync(caddyPath, 'utf8');
   assert(caddyfile.includes('{$MASSCOM_API_DOMAIN:api.masscom.kr}'), 'Caddy must use api.masscom.kr');
   assert(caddyfile.includes('reverse_proxy api:3000'), 'Caddy must only proxy the API service');
+  assert(
+    /^\s*header_up X-Forwarded-For \{remote_host\}\s*$/m.test(caddyfile),
+    'Caddy must overwrite incoming client IP chains before proxying',
+  );
   assert(!caddyfile.includes('postgres:5432'), 'Caddy must never proxy PostgreSQL');
 
   const dockerfile = readFileSync(dockerfilePath, 'utf8');

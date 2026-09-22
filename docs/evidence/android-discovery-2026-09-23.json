@@ -1,0 +1,37 @@
+{
+  "issue": 129,
+  "branch": "feat/129-discovery-hardening",
+  "environment": "Samsung SM-S928N, Android 16, kr.masscom.wolgye.dev development build, Metro USB reverse 8081",
+  "resolution": "1080x2340",
+  "fontScale": "1.0",
+  "checks": [
+    {
+      "name": "탐색 빈 상태 라이트 모드",
+      "result": "PASS",
+      "method": "ADB 앱 실행, 실제 API 공개 점포 0곳 상태, 빈 화면·재조회 버튼·하단 탭·상태표시줄 육안 확인",
+      "screenshot": "screenshots/android-discovery-empty-light-2026-09-23.png",
+      "sha256": "e92025057a99635d5f802f98826bfe2ae65f8b361a545de2d54b421c3645f65c"
+    },
+    {
+      "name": "탐색 빈 상태 다크 모드",
+      "result": "PASS",
+      "method": "ADB night yes 전환 후 같은 화면·텍스트 대비·상태표시줄 확인, 원래 night no로 복원",
+      "screenshot": "screenshots/android-discovery-empty-dark-2026-09-23.png",
+      "sha256": "dec5c5c0802974966125a16d1263d9163b1ad3e28ea1c938c2b2412f020518d9"
+    },
+    {
+      "name": "검색·참여 가능 필터 Android 실기",
+      "result": "NOT_RUN",
+      "reason": "현재 공개 점포가 0곳이라 검색·필터 UI가 표시되지 않음. 순수 필터 함수 자동 시험은 PASS"
+    },
+    {
+      "name": "변경 화면 TalkBack·200% 글꼴",
+      "result": "NOT_RUN",
+      "reason": "이번 변경 화면에서는 실제 낭독·200% 확대를 실행하지 않음"
+    }
+  ],
+  "limits": [
+    "개발 앱에서 로컬 Metro의 현재 JS를 실행했다. 운영 release APK/AAB와 Play 배포의 증거가 아니다.",
+    "방문·지갑·체인 상태는 이 화면 증거로 검증하지 않았다."
+  ]
+}

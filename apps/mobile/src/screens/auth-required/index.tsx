@@ -72,6 +72,9 @@ function reasonMessage(state: Props['state']): string {
   if (state.reason === 'SECURE_STORAGE_UNAVAILABLE') {
     return '기기 보안 저장소를 사용할 수 없어 로그인 정보를 복원하지 않았습니다.';
   }
+  if (state.reason === 'SERVER_SESSION_REVOCATION_FAILED') {
+    return '이 기기에서는 로그아웃됐지만 서버 세션 해지를 확인하지 못했습니다. 이전 세션은 만료 전까지 유효할 수 있습니다.';
+  }
   if (state.reason === 'GOOGLE_SIGN_IN_CANCELLED') return 'Google 로그인을 취소했습니다.';
   if (state.reason === 'ACCOUNT_SWITCH_UNCHANGED') {
     return '같은 Google 계정을 다시 선택했습니다. 다른 계정으로 바꾸려면 다시 시도해 주세요.';
