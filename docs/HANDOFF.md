@@ -4,12 +4,12 @@
 
 ## 2026-09-23 모바일 UI 구현 체크포인트
 
-- Issue #126, 브랜치 `feat/126-mobile-ui-navigation`. 코드 커밋 `d874502`(네 탭), `28f5c45`(강조색), `59c6eae`(탐색), `6445a2d`(방문·도감·내 정보). 설계·코드는 한국어 PR 하나로 검증하며 PR의 최신 상태는 `gh pr list --head feat/126-mobile-ui-navigation`를 따른다.
-- [PR #127](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/127)은 Draft다. 첫 CI run `35753907241`의 운영 문서 검사기는 모바일 141 고정값 때문에 실패했다. 검사기·회귀 시험을 145로 고친 뒤 최신 결과는 `gh pr checks 127`로 확인한다. B-016 새 화면 실기 전에는 머지 준비 완료로 표시하지 않는다.
-- 모바일 `145/145 PASS`, typecheck·lint·Android export·bootstrap PASS. 개발 APK는 Android 36 16KB Small_Phone AVD용 arm64 빌드 97MB와 설치/실행까지 PASS. 전체 로컬 secret scan은 Git-ignored 환경 파일 2개로 BLOCKED, 깨끗한 tracked archive scan은 PASS.
-- 새 네 탭의 실제 Android 화면·큰 글씨·TalkBack·새 코드 기준 딥링크는 `NOT_RUN`. AVD에서 개발 앱이 Google 로그인 게이트에 머물렀고 휴대전화는 연결되지 않았다. `docs/evidence/android-ui-navigation-2026-09-23.json`과 B-016을 본다. 임시 진단 로그는 제거했고 개발 앱의 에뮬레이터 데이터만 초기화했다.
+- Issue #126, 브랜치 `feat/126-mobile-ui-navigation`. 코드 커밋 `d874502`(네 탭), `28f5c45`(강조색), `59c6eae`(탐색), `6445a2d`(방문·도감·내 정보), `9c2daac`(48dp), `e03b24d`(Samsung 반응형·live dark·DEMO 경계). 설계·코드는 한국어 PR 하나로 검증하며 PR의 최신 상태는 `gh pr list --head feat/126-mobile-ui-navigation`를 따른다.
+- [PR #127](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/127)은 Draft로 열었다. 첫 CI run `35753907241`의 운영 문서 검사기는 모바일 141 고정값 때문에 실패했고, 검사기·회귀 시험을 고친 run `35754452530`은 전체 PASS했다. 이후 Samsung 실기 수정·증거 commit의 최신 CI는 `gh pr checks 127`로 확인한다.
+- 모바일 `146/146 PASS`, typecheck·lint·Android export·bootstrap PASS. Android 36 16KB AVD용 arm64 개발 APK 97MB 빌드·설치/실행과 Samsung Android 16 네 탭 실기까지 PASS. 전체 로컬 secret scan은 Git-ignored 환경 파일 2개로 BLOCKED, 깨끗한 tracked archive scan은 PASS.
+- Samsung에서 네 탭·빈 상태·360dp·200% 글씨·실시간 다크 모드·추천 뒤로 가기·`masscom-dev://collection`/`open`을 확인했다. 운영 계정의 DEMO 점주 링크, 200% 탭 잘림, live dark 불일치, Link asChild 런타임 오류를 재현 후 수정했다. TalkBack 앱 낭독·현재 코드 production App Link·완전한 D02는 `NOT_RUN`; `docs/evidence/android-ui-navigation-2026-09-23.json`을 본다.
 - RQ-001의 로그인 없는 탐색과 현재 앱 루트 인증 게이트가 충돌하므로 PRD 상태를 `IN_PROGRESS`로 바로잡았다(B-017). 이번 UI PR에서 인증 모델을 바꾸지 않는다.
-- 다음: 문서 검증→commit/push→한국어 PR·CI·리뷰. 새 화면의 실기 수용은 테스트 Google 계정이 있는 Android 휴대전화가 다시 연결된 뒤 완료한다. 화면 검증이 없으면 완료/merge 여부를 과장하지 않는다.
+- 다음: 최종 문서 commit/push→PR CI 확인→Draft 해제 여부 판단→필수 검토를 우회하지 않고 merge. TalkBack 앱 낭독·현재 코드 production App Link·완전한 D02는 별도 `NOT_RUN`으로 유지한다.
 
 ## 2026-09-23 모바일 UI 설계 단계 기록(과거 상태)
 

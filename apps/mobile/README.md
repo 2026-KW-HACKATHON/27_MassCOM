@@ -5,7 +5,7 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 ## 현재 상태
 
 - Expo Router 화면·Reown AppKit·Ethers adapter: `IMPLEMENTED`
-- 탐색·방문 인증·도감·내 정보 네 기본 탭과 간결한 화면 구조: `IMPLEMENTED`; 자동 145개·typecheck·lint·Android export PASS. 이번 UI 변경 뒤 내부 Android 화면·큰 글씨·TalkBack은 인증 게이트로 `NOT_RUN`([증거](../../docs/evidence/android-ui-navigation-2026-09-23.json))
+- 탐색·방문 인증·도감·내 정보 네 기본 탭과 간결한 화면 구조: `VERIFIED`; 자동 146개·typecheck·lint·Android export, Samsung Android 16의 360dp·200% 글씨·실시간 다크 모드·뒤로 가기·개발 scheme PASS. TalkBack 서비스·포커스는 부분 확인, 앱 콘텐츠 낭독은 `NOT_RUN`([증거](../../docs/evidence/android-ui-navigation-2026-09-23.json))
 - 이메일·소셜·내장 지갑·구매·스왑 UI: 명시적으로 비활성화
 - 거래·approve·permit 요청: 앱 메서드 경계에서 거절
 - Android 16 / arm64 / 16KB AVD debug APK 빌드·설치·실행: `VERIFIED`

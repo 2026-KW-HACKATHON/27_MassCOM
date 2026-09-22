@@ -27,6 +27,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-20 | Claude CLI + Codex 독립 리뷰 | 전체 코드·보안·브랜치·README 감사 | 삭제/민팅 경쟁, 계정 lock, 테스트 정본, Worker 복구, CI·의존성·브랜치 검토 | CRITICAL 0, HIGH 3 재현; code-reviewer `REQUEST CHANGES`, architect `BLOCK`; RED→GREEN 수정 | Claude·리뷰 결과를 사람 기여로 표시하지 않으며 미실행 운영 보완은 MEDIUM으로 유지 |
 | 2026-09-21 | Codex + 독립 code-reviewer | 운영 로그인 후속 보안·Play 초안 정합 | Google `auth_time` 최근성, JWKS stale 상한, 로그인 제한, 세션 cleanup, 카메라·NFT award 선언 초안 | HIGH 1·MEDIUM 3 재현 후 API 72/72·PostgreSQL 37/37 RED→GREEN | 실제 Google token·모바일 로그인·외부 HTTPS·Play 입력/제출은 수행하거나 완료로 표시하지 않음 |
 | 2026-09-21 | Codex + 독립 architect | 서비스 민터 후속 보안 | priority fee·signed sender/hash/intent·환경변수 이름·keystore 경로·lock/pool 설정·README 검토 | MEDIUM 1·LOW 2·WATCH 1 재현 후 Worker 45/45 RED→GREEN | 실제 keystore·Base Sepolia 전송은 사용하지 않았고 다중 민터 migration은 요구 전까지 추가하지 않음 |
+| 2026-09-23 | Codex + 독립 code-reviewer·architect | 모바일 탐색·방문·도감 UI 개편 | `DESIGN.md`, 네 기본 탭, 탐색·방문·도감·내 정보 계층, 반응형·다크·접근성 보완, Issue #126·PR #127 문서 | TDD·모바일 146/146·typecheck·lint·Android export·Samsung 네 탭/360dp/200%/live dark/뒤로 가기/dev scheme PASS; 리뷰 MEDIUM 1 수정 | 사용자가 UI 방향과 명세·계획을 승인하고 두 번째 Google 테스트 계정을 제공. AI 구현·실기 조작을 사람 기여나 현장 성과로 표시하지 않음; TalkBack 앱 낭독·완전한 D02·현재 코드 production App Link는 NOT_RUN |
 
 ## 팀 설명 체크리스트
 

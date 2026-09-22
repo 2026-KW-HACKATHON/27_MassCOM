@@ -1,31 +1,55 @@
 {
   "issue": 126,
-  "codeCommit": "6445a2dd366bcbf283b6f9640fef073615c0f995",
+  "pullRequest": 127,
+  "appCodeCommit": "e03b24df007652b8d885363f76eb48fd86cfadf1",
   "recordedDate": "2026-09-23 KST",
   "environment": {
     "host": "macOS, Node 25.9.0, Expo 57.0.24, Android SDK 36",
     "emulator": "Small_Phone, Android 36, arm64, 16KB image, 720x1280 at 320 dpi",
+    "physicalPhone": "Samsung SM-S928N, Android 16, 1080x2340, 450 dpi",
     "package": "kr.masscom.wolgye.dev",
-    "physicalPhone": "not connected"
+    "accountData": "two Google test accounts were used; email, token and account ID values are omitted"
   },
   "automated": [
-    { "command": "npm test --prefix apps/mobile", "result": "PASS", "detail": "145 tests, 0 failures; 2 new collection count/responsive tests included" },
+    { "command": "npm test --prefix apps/mobile", "result": "PASS", "detail": "146 tests, 0 failures; collection count/responsive and merchant-demo visibility tests included" },
     { "command": "npm run typecheck --prefix apps/mobile", "result": "PASS" },
     { "command": "npm run lint --prefix apps/mobile", "result": "PASS" },
-    { "command": "npm run export:android --prefix apps/mobile", "result": "PASS", "detail": "Android bundle generated; upstream package export warnings remain" },
+    { "command": "npm run export:android --prefix apps/mobile", "result": "PASS", "detail": "Android bundle generated; known upstream package export warnings remain" },
     { "command": "bash tests/bootstrap/verify_bootstrap_test.sh", "result": "PASS", "detail": "required 36 test IDs unchanged" },
+    { "command": "bash tests/bootstrap/verify_operations_docs_test.sh", "result": "PASS", "detail": "mobile test count contract updated with a reverse mutation test" },
     { "command": "bash scripts/check-secrets.sh", "result": "BLOCKED", "detail": "ignored local docs/.env.local and .tmp/lightsail-runtime.env were scanned; values were not opened or printed" },
-    { "command": "git archive HEAD to a temporary directory, then bash scripts/check-secrets.sh on that clean tracked tree", "result": "PASS" }
+    { "command": "git archive of the tested tracked tree, then bash scripts/check-secrets.sh on the temporary archive", "result": "PASS" }
   ],
   "android": [
     { "step": "first headless emulator boot", "result": "FAIL", "detail": "ADB remained offline; process stopped after a bounded wait" },
-    { "step": "headless boot with -no-audio", "result": "PASS", "detail": "ADB reported emulator-5554 as device; Android 36 boot complete" },
+    { "step": "headless emulator boot with -no-audio", "result": "PASS", "detail": "ADB reported emulator-5554 as device; Android 36 boot complete" },
     { "step": "all-ABI development APK installation", "result": "FAIL", "detail": "273 MB APK, INSTALL_FAILED_INSUFFICIENT_STORAGE" },
     { "step": "arm64-only development APK build and installation", "result": "PASS", "detail": "97 MB APK built and installed without deleting emulator user packages" },
-    { "step": "development app cold launch", "result": "PASS", "detail": "kr.masscom.wolgye.dev MainActivity visible" },
-    { "step": "new four-tab navigation and screen visual review", "result": "NOT_RUN", "detail": "the app remained on the Google login gate; test emulator had no Google account. A bounded DEMO configuration attempt did not reach tabs, and temporary boolean-only diagnostics were removed" },
-    { "step": "360/390/412dp, 130%/200% text, TalkBack, dark mode, account switch and deep-link review", "result": "NOT_RUN", "detail": "internal screens were inaccessible in this emulator session" }
+    { "step": "Samsung Google login with second test account", "result": "PASS", "detail": "Google selector to server session to four-tab app; no password or verification code was handled" },
+    { "step": "four primary tabs and honest empty states", "result": "PASS", "detail": "explore, claim, collection and account tabs opened; restaurant, visit and collectible empty states stayed distinct" },
+    { "step": "merchant demo visibility boundary", "result": "FAIL_THEN_PASS", "detail": "production bearer account initially saw a local-DEMO-only merchant link; the link is now hidden unless the credential and complete merchant DEMO configuration both exist" },
+    { "step": "360dp layout", "result": "PASS", "detail": "temporary density 480 on 1080px display; explore and collection screenshots show no horizontal clipping; physical density restored to 450" },
+    { "step": "200 percent font scale", "result": "FAIL_THEN_PASS", "detail": "tab labels initially clipped; visible tab labels now cap at 1.25 and the bar grows for fontScale at least 1.5. Collection counts stack vertically. font_scale restored to 1.0" },
+    { "step": "live dark-mode switch without app reload", "result": "FAIL_THEN_PASS", "detail": "screen bodies initially stayed light. Render-time palettes now update explore, claim, collection and account surfaces consistently; night mode restored to no" },
+    { "step": "collection recommendation back navigation", "result": "PASS", "detail": "Android back returned from recommendation Stack screen to the collection tab" },
+    { "step": "development deep links", "result": "PASS", "detail": "masscom-dev://collection opened collection and masscom-dev://open returned to explore" },
+    { "step": "TalkBack service and accessibility focus", "result": "PARTIAL", "detail": "Samsung TalkBack bound and displayed an accessibility focus rectangle, but first-run tutorial prevented traversal of app tabs. Existing accessibility service list was restored exactly" },
+    { "step": "two Google account switch and cold restore", "result": "PARTIAL", "detail": "B to A marker changed, cold start restored A, and A to B changed back. Both accounts had empty collection data and no connected wallet, so D02 previous-data and wallet isolation remains NOT_RUN" },
+    { "step": "production HTTPS App Link on current code", "result": "NOT_RUN", "detail": "development scheme was checked on current code; the earlier A02 production App Link evidence remains separate" }
   ],
-  "productTestStatusChange": "none",
-  "privacy": "No email, session token, wallet secret, signing key or recovery phrase was recorded. Only the newly installed emulator development app data was cleared; no phone or production app data was changed."
+  "screenshots": [
+    "docs/evidence/screenshots/android-ui-explore-2026-09-23.png",
+    "docs/evidence/screenshots/android-ui-claim-2026-09-23.png",
+    "docs/evidence/screenshots/android-ui-collection-2026-09-23.png",
+    "docs/evidence/screenshots/android-ui-explore-360dp-2026-09-23.png",
+    "docs/evidence/screenshots/android-ui-collection-360dp-2026-09-23.png",
+    "docs/evidence/screenshots/android-ui-explore-font200-2026-09-23.png",
+    "docs/evidence/screenshots/android-ui-collection-font200-2026-09-23.png",
+    "docs/evidence/screenshots/android-ui-explore-dark-live-palette-2026-09-23.png",
+    "docs/evidence/screenshots/android-ui-claim-dark-live-2026-09-23.png",
+    "docs/evidence/screenshots/android-ui-collection-dark-live-fixed-2026-09-23.png",
+    "docs/evidence/screenshots/android-ui-talkback-focus-2026-09-23.png"
+  ],
+  "productTestStatusChange": "none; D02 remains NOT_RUN and required catalog stays 31 PASS / 2 BLOCKED / 3 NOT_RUN",
+  "privacy": "No email, Google ID token, server session token, wallet address, signing key or recovery phrase was committed. Account markers were compared in memory and not written to evidence. Phone density, font scale, dark mode and accessibility service settings were restored."
 }
