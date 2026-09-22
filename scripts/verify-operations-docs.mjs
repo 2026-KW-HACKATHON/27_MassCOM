@@ -25,7 +25,8 @@ const required = [
   [worker, 'MINTER_KEYSTORE_PATH'], [worker, 'MINTER_KEYSTORE_PASSWORD_FILE'],
   [worker, 'npm run db:migrate --prefix ../api'], [worker, '실제 Base Sepolia 전송은 `NOT_RUN`'],
   [handoff, '기준 main 커밋 SHA:'], [handoff, 'gh pr list'],
-  [state, 'API 80'], [state, '모바일 146'], [state, 'PostgreSQL 37'],
+  [state, 'API 단위 82'], [state, 'Worker 단위 47'], [state, '모바일 148'],
+  [state, 'PostgreSQL 37'],
 ];
 let failures = 0;
 for (const [source, text] of required) {

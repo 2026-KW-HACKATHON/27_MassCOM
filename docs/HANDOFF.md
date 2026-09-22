@@ -9,7 +9,8 @@
 - 보안: DEMO 외부 바인드 거부, Caddy 단일 원 클라이언트 IP를 명시적으로 신뢰하는 로그인 제한, Worker 이벤트/정식 블록 해시 일치, 오프라인 로그아웃의 서버 회수 실패 표시를 추가했다.
 - 자동 검증: 모바일 148/148, API 82/82, Worker 47/47, 세 패키지 typecheck와 모바일 lint·Android export·Lightsail 배포 설정 회귀·Caddy 구문 검사 PASS. Samsung에서 실제 공개 점포 0건의 라이트·다크·상태표시줄을 확인하고 원래 라이트 모드로 복원했다. [화면 증거](evidence/android-discovery-2026-09-23.json). 검색·필터 실기·TalkBack·운영 Caddy 배포·외부 2-IP 제한·Anvil 재구성 통합은 `NOT_RUN`.
 - 모델: 개인 Codex 기본은 GPT‑6 Sol medium, 탐색은 Luna low, 고위험 독립 리뷰는 Astra medium/high로 조정했다. `docs/AI_MODEL_ROUTING.md`가 팀 가이드다. 현재 실행 중인 대화의 모델은 소급 변경되지 않는다.
-- 다음: 현재 diff 독립 리뷰 → 한국어 PR/CI/merge → 상태 원장에 최종 SHA/결과 반영. 오프라인 서버 세션 자동 재회수는 별도 보안 설계가 필요하다.
+- [PR #130](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/130)은 한국어로 열었다. 첫 CI `35771836501`은 운영 문서 검사에 남은 과거 자동 시험 수(API 80·모바일 146) 때문에 실패했고, 새 기준 82/47/148과 변경 검출 회귀 시험으로 수정했다. 후속 CI·merge의 실제 상태는 PR에서 확인한다.
+- 다음: 수정 커밋 push → 새 CI·필수 리뷰 확인 후 merge → 실제 main 상태 보고. 오프라인 서버 세션 자동 재회수는 별도 보안 설계가 필요하다.
 
 ## 2026-09-23 모바일 UI 병합 완료
 
