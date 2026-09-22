@@ -40,6 +40,20 @@ grep -qFx -- "$jar" "$work/args.txt"
 grep -qFx -- "--bundle=$artifact" "$work/args.txt"
 grep -qFx -- '--module=base' "$work/args.txt"
 
+printf 'second fixture jar\n' >"$work/sdk/bundletool/bundletool-all-1.17.2.jar"
+status=0
+out="$(PATH="$work/bin:$PATH" ANDROID_HOME="$work/sdk" \
+  env -u BUNDLETOOL_JAR bash "$dump" "$artifact" 2>&1)" || status=$?
+[[ "$status" == 1 ]] || {
+  echo "multiple bundletool jars were selected ambiguously: $out" >&2
+  exit 1
+}
+grep -qF 'multiple versioned bundletool-all jars found' <<<"$out" || {
+  echo "multiple bundletool jars failed for an unrelated reason: $out" >&2
+  exit 1
+}
+rm "$work/sdk/bundletool/bundletool-all-1.17.2.jar"
+
 xpath='/manifest/@package'
 out="$(PATH="$work/bin:$PATH" BUNDLETOOL_JAR="$jar" bash "$dump" "$artifact" "$xpath")"
 [[ "$out" == 'kr.masscom.wolgye' ]] || {

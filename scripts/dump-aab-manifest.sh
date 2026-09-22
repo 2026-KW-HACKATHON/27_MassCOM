@@ -20,8 +20,15 @@ if [[ -z "$bundletool_jar" ]]; then
   if [[ -f "$bundletool_dir/bundletool-all.jar" ]]; then
     bundletool_jar="$bundletool_dir/bundletool-all.jar"
   elif [[ -d "$bundletool_dir" ]]; then
-    bundletool_jar="$(find "$bundletool_dir" -maxdepth 1 -type f \
-      -name 'bundletool-all-*.jar' -print | sort -V | tail -1)"
+    shopt -s nullglob
+    versioned_jars=("$bundletool_dir"/bundletool-all-*.jar)
+    shopt -u nullglob
+    if [[ "${#versioned_jars[@]}" == 1 ]]; then
+      bundletool_jar="${versioned_jars[0]}"
+    elif [[ "${#versioned_jars[@]}" -gt 1 ]]; then
+      echo 'multiple versioned bundletool-all jars found; set BUNDLETOOL_JAR or provide bundletool-all.jar' >&2
+      exit 1
+    fi
   fi
 fi
 [[ -n "$bundletool_jar" && -f "$bundletool_jar" ]] || {
