@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- Issue #146 `fix/146-account-link-style`에서 Samsung 개발 앱의 ‘내 정보’ Expo Router 오류를 RED→GREEN 수정했다. 모바일 182/182·typecheck·lint와 동일 폰의 내 정보·역할 시안 진입은 PASS. 로컬 가상 점포 코드 발급/미리보기만 PASS, USB 연결 해제로 방문 수령·보상은 BLOCKED([증거](evidence/android-dev-ui-2026-09-24/README.md)). PR·병합 상태는 `gh pr list`로 확인하며 운영 앱 배포로 표현하지 않는다.
+
 - PR #138은 merge `d257d0b`, main CI `35879966085` PASS. 역할 선택은 개발용 미리보기이며 운영 네 탭은 유지된다. Issue #136의 원래 첫 화면 요구는 OPEN이다.
 - Issue #137에서는 정적 시연 웹 PR #139, 로컬 `_test` seed PR #140, 시연 Android 빌드 경계 PR #141을 병합했다. PR #141의 `main` CI `35889398325`는 PASS다. 후속 `fix/137-demo-auth-boundary`는 개발 DEMO 인증을 정확한 `.dev` package로 제한한다(브랜치·PR 상태는 `gh pr list`로 확인). 시연 package/scheme/API 설정만 구현됐고 외부 시연 API/DB·OAuth/Reown·APK·실기와 운영 웹 개인 도감은 미완료다.
 - 후속 `feat/137-showcase-local-runtime`은 별도 로컬 Docker API·DB를 인증 없이 실행해 가상 점포 공개 조회와 계정 요청 거절을 검증했다. 로컬 환경은 외부 시연 API/DB 배포·시연 앱 연결 완료가 아니다. 실제 PR·CI·병합 상태는 `gh pr list`로 확인한다.

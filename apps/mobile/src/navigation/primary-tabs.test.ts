@@ -39,7 +39,7 @@ test('the UI preview entry is development-only and cannot replace account tools'
 });
 
 test('the role preview Link child does not pass a style array to Expo Router Slot', () => {
-  const settings = readFileSync(fileURLToPath(new URL('../screens/account-settings/index.tsx', import.meta.url)), 'utf8');
+  const settings = readFileSync(join(app, '..', 'screens', 'account-settings', 'index.tsx'), 'utf8');
   const link = settings.match(/<Link href="\/foundation-preview" asChild>([\s\S]*?)<\/Link>/)?.[1];
   assert.ok(link, 'development preview Link');
   const pressable = link.match(/<Pressable\b[^>]*>/)?.[0];
