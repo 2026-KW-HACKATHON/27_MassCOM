@@ -1,0 +1,93 @@
+{
+  "schema": "masscom.showcase-web-local.v1",
+  "recordedAt": "2026-09-23 18:41 KST",
+  "issue": 137,
+  "environment": "macOS, Python 3 local HTTP server, Codex in-app browser",
+  "scope": "LOCAL_ONLY",
+  "checks": [
+    {
+      "name": "read-only and truthful-content mutations",
+      "command": "node --test tests/site/verify_showcase_site_test.mjs",
+      "result": "PASS",
+      "observed": "17/17 including real page and independent execution URL, hidden disclosure, CSS import and fake NFT rejection"
+    },
+    {
+      "name": "static site verifier",
+      "command": "python3 scripts/verify-showcase-site.py",
+      "result": "PASS",
+      "observed": "showcase site verified"
+    },
+    {
+      "name": "desktop viewport",
+      "result": "PASS",
+      "viewport": "1440x900",
+      "documentScrollWidth": 1425,
+      "observed": "persistent fictional-data disclosure and separate merchant/collection columns visible without horizontal overflow"
+    },
+    {
+      "name": "phone-size viewports",
+      "result": "PASS",
+      "viewports": [
+        { "size": "390x844", "documentScrollWidth": 375 },
+        { "size": "360x800", "documentScrollWidth": 345 }
+      ],
+      "observed": "single-column merchant and collection, readable disclosure, no horizontal overflow"
+    },
+    {
+      "name": "200 percent root text size",
+      "result": "PASS",
+      "method": "temporary copy of site CSS with html font-size: 200%; production CSS unchanged",
+      "viewport": "390x844",
+      "rootFontPx": 32,
+      "documentScrollWidth": 375,
+      "observed": "disclosure grows to 209px but text remains visible and collection is reachable by vertical scroll; no horizontal clipping"
+    },
+    {
+      "name": "accessible text and skip link",
+      "result": "PASS",
+      "observed": "browser accessibility tree includes disclosure, fictional merchant, sample visit/collectible and footer; after anchor fix, skip link reaches #main below the sticky disclosure"
+    },
+    {
+      "name": "sticky disclosure does not cover anchor targets",
+      "result": "PASS",
+      "method": "actual browser link click after reviewer RED; CSS scroll-margin-top 8rem; fresh-origin reload avoided stale local CSS cache",
+      "before": { "viewport": "360x800", "bannerBottomPx": 65, "merchantDisclosureTopPx": 21, "merchantDisclosureBottomPx": 55, "result": "FAIL" },
+      "after": [
+        { "viewport": "360x800", "bannerBottomPx": 65, "merchantDisclosureTopPx": 149, "result": "PASS" },
+        { "viewport": "390x844", "bannerBottomPx": 65, "merchantDisclosureTopPx": 149, "result": "PASS" },
+        { "viewport": "360x800, root font 200%", "bannerBottomPx": 209, "merchantDisclosureTopPx": 331, "result": "PASS" },
+        { "viewport": "390x844, root font 200%", "bannerBottomPx": 209, "merchantDisclosureTopPx": 331, "result": "PASS" }
+      ],
+      "skipLinkAt200Percent": { "bannerBottomPx": 209, "mainTopPx": 256, "result": "PASS" }
+    },
+    {
+      "name": "browser resource and writing surface",
+      "result": "PASS",
+      "observedRequests": [
+        "http://127.0.0.1:4174/",
+        "http://127.0.0.1:4174/assets/showcase.css"
+      ],
+      "observed": "Chrome DevTools Protocol reload requested only local HTML/CSS; DOM has 0 scripts, 0 forms, 0 buttons and 1 stylesheet"
+    },
+    {
+      "name": "text contrast",
+      "result": "PASS",
+      "minimumObservedRatio": 5.29,
+      "ratios": {
+        "white_on_night_banner": 13.85,
+        "ink_on_paper_body": 14.4,
+        "muted_on_paper": 6.17,
+        "ink_on_moon_merchant": 12.66,
+        "stream_on_moon": 5.29
+      }
+    },
+    {
+      "name": "external HTTPS, public demo domain and actual Android demo sync",
+      "result": "NOT_RUN",
+      "reason": "no domain, hosting project, mobile showcase variant or demo API was created in this local static slice"
+    }
+  ],
+  "visualVerdict": "initial 92/100 was revised to 83/100 after reviewer reproduced hidden anchor disclosure; corrected anchor paths PASS 92/100 against existing project portal brand. In-app browser screenshots observed but not committed because no real image or personal data was needed",
+  "productionDataChanged": false,
+  "realMerchantOrNftClaimed": false
+}

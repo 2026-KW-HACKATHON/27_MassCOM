@@ -58,6 +58,8 @@ jobs:
         run: bash tests/site/check_site_accessibility_test.sh
       - name: Verify project portal structure
         run: bash tests/site/verify_project_site_test.sh
+      - name: 시연 웹 사실성·읽기 전용 검사
+        run: node --test tests/site/verify_showcase_site_test.mjs
       - name: 모바일 접근성 semantics 검사
         run: bash tests/mobile/check_accessibility_semantics_test.sh
       - name: Verify presentation and submission evidence
