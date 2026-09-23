@@ -1,15 +1,32 @@
 :root {
   color-scheme: light;
   font-family: Pretendard, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-  --ink: #102833;
-  --muted: #49616b;
-  --paper: #f4f9fa;
-  --surface: #ffffff;
-  --night: #12303d;
-  --moon: #d9ecff;
-  --stream: #286585;
-  --line: #c9d9de;
-  --focus: #0a6dad;
+  --ink: #192331;
+  --muted: #58677d;
+  --paper: #ffffff;
+  --surface: #f5f7fa;
+  --night: #2456d6;
+  --moon: #ebf1ff;
+  --stream: #2456d6;
+  --line: #d9e2f0;
+  --focus: #2456d6;
+  --ribbon-ink: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --ink: #f3f5f9;
+    --muted: #a6b0c0;
+    --paper: #14171d;
+    --surface: #20252f;
+    --night: #25334f;
+    --moon: #25334f;
+    --stream: #9bb8ff;
+    --line: #3c4860;
+    --focus: #9bb8ff;
+    --ribbon-ink: #f3f5f9;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -47,7 +64,7 @@ a:focus-visible { outline: .2rem solid var(--focus); outline-offset: .2rem; }
   margin: 0;
   padding: .8rem max(1rem, calc((100vw - 74rem) / 2));
   background: var(--night);
-  color: #ffffff;
+  color: var(--ribbon-ink);
   font-size: .91rem;
   font-weight: 750;
   line-height: 1.45;
@@ -78,8 +95,8 @@ a:focus-visible { outline: .2rem solid var(--focus); outline-offset: .2rem; }
   height: 2rem;
   place-items: center;
   border-radius: 50%;
-  background: var(--night);
-  color: var(--moon);
+  background: var(--stream);
+  color: var(--paper);
   font-family: Georgia, serif;
   font-size: 1.15rem;
 }
@@ -100,12 +117,12 @@ h1 { margin: 0; font-size: clamp(2.5rem, 6.5vw, 5.7rem); line-height: 1.08; lett
 .intro-body { max-width: 39rem; margin: 1.7rem 0 0; color: var(--muted); font-size: clamp(1rem, 2vw, 1.14rem); }
 
 .merchant-card, .collection-card { padding: clamp(1.25rem, 3vw, 2.4rem); border-radius: 1.4rem; }
-.merchant-card { background: var(--moon); border: 1px solid #b7d4e7; }
+.merchant-card { background: var(--moon); border: 1px solid var(--line); }
 .collection-card { background: var(--surface); border: 1px solid var(--line); }
-.tag { display: inline-block; margin: 0 0 1.3rem; padding: .35rem .65rem; border-radius: .5rem; background: var(--night); color: #fff; font-size: .87rem; font-weight: 800; }
+.tag { display: inline-block; margin: 0 0 1.3rem; padding: .35rem .65rem; border-radius: .5rem; background: var(--stream); color: var(--paper); font-size: .87rem; font-weight: 800; }
 h2 { margin: 0; font-size: clamp(1.8rem, 3vw, 2.65rem); line-height: 1.22; letter-spacing: -.035em; word-break: keep-all; }
 .merchant-location { margin: .6rem 0 0; color: var(--stream); font-weight: 800; }
-.merchant-body { max-width: 33rem; margin: 2.3rem 0 0; padding-top: 1rem; border-top: 1px solid #a4c6db; color: var(--ink); }
+.merchant-body { max-width: 33rem; margin: 2.3rem 0 0; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--ink); }
 .collection-caption { margin: 0 0 .8rem; color: var(--stream); font-weight: 800; }
 .collection-entry { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .collection-entry p { margin: .3rem 0 0; color: var(--muted); }
