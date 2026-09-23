@@ -29,12 +29,23 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
   });
   await new Promise((done) => server.listen(0, '127.0.0.1', done));
   const pageUrl = `http://127.0.0.1:${server.address().port}/`;
-  const chrome = spawn(chromePath, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, pageUrl], { stdio: 'ignore' });
+  const chrome = spawn(chromePath, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, pageUrl], { stdio: ['ignore', 'ignore', 'pipe'] });
+  let chromeExit;
+  let chromeSpawnError;
+  let chromeStderr = '';
+  chrome.on('exit', (code, signal) => { chromeExit = { code, signal }; });
+  chrome.on('error', (error) => { chromeSpawnError = error; });
+  chrome.stderr?.on('data', (chunk) => { chromeStderr = (chromeStderr + chunk.toString()).slice(-2048); });
   let socket;
   try {
     const portFile = join(profile, 'DevToolsActivePort');
-    for (let i = 0; i < 100 && !existsSync(portFile); i++) await delay(100);
-    assert.ok(existsSync(portFile), 'Chrome DevTools 시작 실패');
+    for (let i = 0; i < 100 && !existsSync(portFile) && !chromeExit && !chromeSpawnError; i++) await delay(100);
+    const startupDetails = [
+      chromeSpawnError?.message,
+      chromeExit ? `exit=${chromeExit.code} signal=${chromeExit.signal}` : 'process still running',
+      chromeStderr.trim() ? `stderr=${chromeStderr.trim()}` : '',
+    ].filter(Boolean).join('; ');
+    assert.ok(existsSync(portFile), `Chrome DevTools 시작 실패: ${startupDetails}`);
     const port = readFileSync(portFile, 'utf8').split('\n')[0];
     const pages = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
     const page = pages.find((entry) => entry.type === 'page');
@@ -119,7 +130,7 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
   } finally {
     socket?.close();
     chrome.kill();
-    await new Promise((done) => { if (chrome.exitCode !== null) done(); else chrome.once('exit', done); });
+    await new Promise((done) => { if (chrome.exitCode !== null || chrome.signalCode !== null || chromeSpawnError) done(); else chrome.once('exit', done); });
     rmSync(profile, { recursive: true, force: true });
     await new Promise((done) => server.close(done));
   }
