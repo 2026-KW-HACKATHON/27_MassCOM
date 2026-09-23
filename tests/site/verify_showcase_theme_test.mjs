@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const chromePath = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../apps/showcase-web');
 const expected = {
   light: { '--paper': '#ffffff', '--surface': '#f5f7fa', '--ink': '#192331', '--muted': '#58677d', '--stream': '#2456d6', '--moon': '#ebf1ff', '--night': '#2456d6', '--focus': '#2456d6' },
@@ -17,7 +17,7 @@ const expected = {
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
 
 test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비', async () => {
-  assert.ok(existsSync(chromePath), '로컬 Chrome 실행 파일 필요');
+  assert.ok(existsSync(chromePath), `Chrome 실행 파일 필요: ${chromePath}`);
   const profile = mkdtempSync(join(tmpdir(), 'masscom-showcase-chrome-'));
   const requests = [];
   const server = createServer((request, response) => {

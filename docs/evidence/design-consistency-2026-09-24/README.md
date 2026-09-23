@@ -17,6 +17,6 @@
 
 - `web-light-360.png`, `web-dark-360.png`: 로컬 읽기 전용 시연 웹의 모바일 폭 라이트/다크.
 - `web-light-1440.png`, `web-dark-1440.png`: 같은 웹의 데스크톱 라이트/다크.
-- `android-auth-light.png`, `android-auth-dark.png`, `android-auth-dark-200.png`: 전용 AVD 개발 앱의 로그인 게이트. 개발 메뉴 단추는 Expo dev-client 오버레이이며 운영 앱 요소가 아닙니다.
+- `android-auth-light.png`, `android-auth-dark.png`, `android-auth-dark-200.png`, `android-auth-dark-200-scrolled.png`: 전용 AVD 개발 앱의 로그인 게이트. 200% 확대에서 스크롤 뒤 로그인 버튼에 접근할 수 있습니다. 개발 메뉴 단추는 Expo dev-client 오버레이이며 운영 앱 요소가 아닙니다.
 
 웹 캡처는 로컬 Chrome `Page.captureScreenshot`, Android 캡처는 `adb -s emulator-5554 exec-out screencap -p`로 생성했습니다. 사용한 `_test` PostgreSQL과 loopback API는 운영 점포·운영 DB와 분리됐고, 이 AVD에서는 로그인 게이트 때문에 방문 수령·보상·NFT 흐름을 실행하지 않았습니다.
