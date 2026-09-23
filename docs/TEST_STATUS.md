@@ -1,6 +1,6 @@
 # 테스트 상태
 
-2026-09-24 Issue #137 시연 Android 빌드 경계(브랜치 `feat/137-showcase-android-boundary`, 코드 `9e378d5`·`2cf97c2`): 모바일 단위 163/163, typecheck, lint, Android **개발 variant JS export**, `tests/release/check_release_wallet_surface_test.sh`는 `PASS`. 실제 `expo config --type public --json` 시험에서 세 package/scheme/name·시연 App Link host를 구분하고 운영/시연 API 교차 주소·개발 DEMO 값·기존 Google/Reown 공개 ID 승계를 거절했습니다. `showcase`의 별도 OAuth/Reown 연결, 외부 시연 API·DB/HTTPS, AAB W08 판정, Android 동시 설치·QR·지갑 복귀는 `NOT_RUN`입니다. 36개 필수 테스트 ID 상태는 변경하지 않습니다.
+2026-09-24 Issue #137 시연 Android 빌드 경계(브랜치 `feat/137-showcase-android-boundary`, 코드 `9e378d5`·`2cf97c2`): 모바일 단위 164/164, typecheck, lint, Android **개발 variant JS export**, `tests/release/check_release_wallet_surface_test.sh`는 `PASS`. 실제 `expo config --type public --json` 시험에서 세 package/scheme/name·시연 App Link host를 구분하고 운영/시연 API 교차 주소·개발 DEMO 값·기존 Google/Reown 공개 ID 승계를 거절했습니다. 독립 리뷰에서 발견한 빈 `?`·`#` URL 구분자도 실제 Expo config 회귀를 RED→GREEN으로 거절했습니다. `showcase`의 별도 OAuth/Reown 연결, 외부 시연 API·DB/HTTPS, AAB W08 판정, Android 동시 설치·QR·지갑 복귀는 `NOT_RUN`입니다. 36개 필수 테스트 ID 상태는 변경하지 않습니다.
 
 2026-09-24 Issue #136 PR #138 수정본: 기존 네 기능 탭을 운영 시작 경로로 복원하고 역할 선택·선택적 지갑·다섯 빈 공간을 개발용 미리보기로 격리했다. 모바일 단위 152/152, typecheck, lint, Android JS export, release wallet surface 회귀는 `PASS`. Android 16 에뮬레이터에서 개발 앱 실행은 확인했으나 인증 화면 이후 미리보기·실제 외부지갑 복귀·TalkBack·200% 글꼴은 `NOT_RUN`; 웹 전체 렌더링은 기존 네이티브 Reown 모듈 오류로 `BLOCKED`. 이전 PR CI 실패(`route-boundary.tsx` 비허용 Reown import)를 수정했고, 새 PR CI의 최종 결과는 PR에서 확인한다. 필수 36개 ID의 상태를 이 자동 시험만으로 변경하지 않는다.
 

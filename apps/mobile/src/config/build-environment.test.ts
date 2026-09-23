@@ -58,7 +58,9 @@ test('showcase accepts only its exact HTTPS API origin', () => {
     'https://user@demo-api.masscom.kr',
     'https://demo-api.masscom.kr/collection',
     'https://demo-api.masscom.kr?source=prod',
+    'https://demo-api.masscom.kr?',
     'https://demo-api.masscom.kr/#section',
+    'https://demo-api.masscom.kr#',
     'http://demo-api.masscom.kr',
     'http://127.0.0.1:3000',
   ]) {
@@ -77,7 +79,9 @@ test('production rejects demo API and URL override components', () => {
     'https://user@api.masscom.kr',
     'https://api.masscom.kr/collection',
     'https://api.masscom.kr?host=demo-api.masscom.kr',
+    'https://api.masscom.kr?',
     'https://api.masscom.kr/#section',
+    'https://api.masscom.kr#',
   ]) {
     assert.throws(() => validateBuildEnvironment('production', {
       EXPO_PUBLIC_API_URL: apiUrl,
@@ -350,6 +354,23 @@ test('actual Expo showcase config refuses inherited production Google and Reown 
     });
     assert.notEqual(result.status, 0, key);
     assert.match(result.stderr, new RegExp(`showcase build rejects ${key}`));
+  }
+});
+
+test('actual Expo configs reject empty query and fragment delimiters', () => {
+  for (const [variant, origin] of [
+    ['production', 'https://api.masscom.kr'],
+    ['showcase', 'https://demo-api.masscom.kr'],
+  ] as const) {
+    for (const suffix of ['?', '#']) {
+      const result = evaluateExpoConfig({
+        APP_VARIANT: variant,
+        EXPO_PUBLIC_API_URL: `${origin}${suffix}`,
+        MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+      });
+      assert.notEqual(result.status, 0, `${variant}${suffix}`);
+      assert.match(result.stderr, new RegExp(`${variant} API must use`));
+    }
   }
 });
 

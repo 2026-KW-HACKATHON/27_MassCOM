@@ -39,7 +39,8 @@ function validateBuildEnvironment(variant, environment) {
   }
   const expectedOrigin = selectedVariant === 'production'
     ? 'https://api.masscom.kr' : 'https://demo-api.masscom.kr';
-  if (apiUrl.origin !== expectedOrigin || apiUrl.pathname !== '/' || apiUrl.search || apiUrl.hash ||
+  if (apiUrl.origin !== expectedOrigin || apiUrl.pathname !== '/' ||
+      rawApiUrl.includes('?') || rawApiUrl.includes('#') ||
       apiUrl.username || apiUrl.password || apiUrl.port) {
     throw new Error(`${selectedVariant} API must use ${expectedOrigin}`);
   }
