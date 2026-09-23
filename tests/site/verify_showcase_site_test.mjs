@@ -38,6 +38,10 @@ test('정상 가상 페이지는 필수 고지와 비쓰기 경계를 통과한�
   withFixture((root) => assert.equal(run(root).status, 0));
 });
 
+test('실제 시연 웹은 읽기 전용 계약을 통과한다', () => {
+  assert.equal(run(source).status, 0);
+});
+
 for (const [name, oldText, replacement, expectedError, file = 'index.html'] of [
   ['가상 점포 고지 제거', '가상 점포 · 실제 방문할 수 없습니다', '방문할 수 있습니다', '필수 문구 없음'],
   ['가짜 NFT 상태 추가', '</main>', '<p>FINALIZED</p></main>', '금지 문구'],
