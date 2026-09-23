@@ -1,5 +1,26 @@
 # Android 고객 앱
 
+## 세 빌드의 경계
+
+| `APP_VARIANT` | Android package | 복귀 scheme | API | 현재 검증 |
+| --- | --- | --- | --- | --- |
+| 비움/`development` | `kr.masscom.wolgye.dev` | `masscom-dev` | 로컬 loopback 가능 | 기존 개발 앱·로컬 DEMO |
+| `showcase` | `kr.masscom.wolgye.demo` | `masscom-demo` | 정확히 `https://demo-api.masscom.kr` | Expo config·교차 연결 거절 자동 시험만 PASS |
+| `production` | `kr.masscom.wolgye` | `masscom` | 정확히 `https://api.masscom.kr` | 기존 release 검증 유지 |
+
+시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. **`demo.masscom.kr`·`demo-api.masscom.kr` 외부 배포, 전용 API/DB·Google/Reown 프로젝트 연결, 설치용 AAB/APK는 아직 검증되지 않았습니다.** 따라서 현 단계의 시연 variant는 로그인·QR 수령·지갑 연결까지 이용 가능한 앱이 아닙니다. 현재 시연 기능 시험은 별도 로컬 개발 앱과 `_test` DB에서만 합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
+
+`APP_VARIANT=showcase`는 기존 `.env.local`의 운영 Google/Reown ID 또는 개발 DEMO 변수가 있으면 빌드 설정을 거절합니다. 현재 환경 경계만 확인하려면 다음처럼 로컬 dotenv 로드를 끄고 공개 시험 URL만 명시합니다(실제 API 요청·APK 빌드 아님).
+
+```bash
+EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
+  MASSCOM_BUILD_SOURCE_COMMIT="$(git rev-parse HEAD)" \
+  EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
+  npx expo config --type public --json
+```
+
+Expo의 [앱 variant 안내](https://docs.expo.dev/build-reference/variants/)대로 package를 바꿔 설치할 때는 격리된 checkout에서 해당 `APP_VARIANT`로 native `prebuild --clean`을 먼저 해야 합니다. 기존 `apps/mobile/android`를 다른 variant로 덮어쓰지 않습니다. 실제 시연 앱의 동시 설치·외부 HTTPS·지갑 복귀·Google 로그인·QR→도감은 별도 환경 준비와 실기 전까지 `NOT_RUN`입니다.
+
 ## 개발용 UI 시안과 로컬 실행 (Issue #136)
 
 운영 앱의 기본 화면은 기존 탐색·방문 인증·도감·내 정보 네 탭입니다. 개발 빌드에서 로그인한 뒤 `내 정보 → 역할 선택 시안 보기`를 열면 `누구세요?` 역할 카드, 선택적 외부지갑 안내, 내용 없는 다섯 공간의 스와이프를 확인할 수 있습니다. 이 시안은 실제 점포·방문·혜택이 아니며 점주 선택으로 권한이 생기지 않습니다. release 빌드에서는 미리보기 진입점이 없고 미리보기 URL도 기본 화면으로 돌아갑니다.
@@ -83,7 +104,7 @@ adb reverse tcp:8081 tcp:8081
 npx expo start --dev-client --host localhost
 ```
 
-운영 package ID는 `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`)로 확정되어 `apps/mobile/app.config.ts`가 `APP_VARIANT=production` 여부로 package와 scheme(`masscom`/`masscom-dev`)을 분기합니다. 기본(비운영) prebuild는 개발 package와 scheme을 그대로 사용합니다.
+`apps/mobile/app.config.ts`는 빈 값/`development`, `showcase`, `production`을 명시 분기합니다. 미지 variant는 거절하며 기본값은 기존 개발 package `kr.masscom.wolgye.dev`/`masscom-dev`입니다. 시연 package/scheme은 `kr.masscom.wolgye.demo`/`masscom-demo`, 운영은 `kr.masscom.wolgye`/`masscom`입니다. 다른 variant로 native prebuild를 바꿀 때는 별도 checkout을 사용합니다.
 
 ## release AAB 빌드
 

@@ -8,13 +8,17 @@ const { validateBuildEnvironment } = require(
 
 const PRODUCTION_PACKAGE = 'kr.masscom.wolgye';
 
-// APP_VARIANT=production builds the store app; anything else keeps the development app, which
-// installs side by side under its own package and URL scheme.
+// Each installed variant has its own package and return scheme. Unknown variants fail validation.
 export default ({ config }: ConfigContext): ExpoConfig => {
-  const production = process.env.APP_VARIANT === 'production';
+  const variant = process.env.APP_VARIANT || 'development';
+  const production = variant === 'production';
+  const showcase = variant === 'showcase';
+  const releaseLike = production || showcase;
   const buildSourceCommit = process.env.MASSCOM_BUILD_SOURCE_COMMIT;
-  validateBuildEnvironment(process.env.APP_VARIANT, {
+  validateBuildEnvironment(variant, {
     EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+    EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    EXPO_PUBLIC_REOWN_PROJECT_ID: process.env.EXPO_PUBLIC_REOWN_PROJECT_ID,
     MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
     EXPO_PUBLIC_DEMO_ACCOUNT_ID: process.env.EXPO_PUBLIC_DEMO_ACCOUNT_ID,
     EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID: process.env.EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID,
@@ -23,7 +27,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       process.env.EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION,
   });
 
-  const plugins = production
+  const plugins = releaseLike
     ? (config.plugins ?? []).filter(
         (plugin) => (Array.isArray(plugin) ? plugin[0] : plugin) !== 'expo-dev-client',
       )
@@ -34,26 +38,29 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   ];
   return {
     ...config,
-    name: production ? '월계 마스코트' : (config.name ?? '월계 마스코트 개발'),
+    name: production ? '월계 마스코트'
+      : showcase ? '월계 마스코트 체험용'
+        : (config.name ?? '월계 마스코트 개발'),
     slug: config.slug ?? 'masscom-mobile',
-    scheme: production ? 'masscom' : 'masscom-dev',
+    scheme: production ? 'masscom' : showcase ? 'masscom-demo' : 'masscom-dev',
     android: {
       ...config.android,
-      package: production ? PRODUCTION_PACKAGE : `${PRODUCTION_PACKAGE}.dev`,
+      package: production ? PRODUCTION_PACKAGE
+        : showcase ? `${PRODUCTION_PACKAGE}.demo` : `${PRODUCTION_PACKAGE}.dev`,
       // The development client library declares this overlay permission; the store app never uses it.
-      blockedPermissions: production ? ['android.permission.SYSTEM_ALERT_WINDOW'] : [],
-      intentFilters: production
+      blockedPermissions: releaseLike ? ['android.permission.SYSTEM_ALERT_WINDOW'] : [],
+      intentFilters: releaseLike
         ? [
             {
               action: 'VIEW',
               autoVerify: true,
               category: ['BROWSABLE', 'DEFAULT'],
-              data: [{ scheme: 'https', host: 'masscom.kr', pathPrefix: '/open' }],
+              data: [{ scheme: 'https', host: showcase ? 'demo.masscom.kr' : 'masscom.kr', pathPrefix: '/open' }],
             },
           ]
         : [],
     },
-    plugins: production
+    plugins: releaseLike
       ? [
           ...authPlugins,
           ['./plugins/with-build-source-commit.cjs', { commit: buildSourceCommit }],

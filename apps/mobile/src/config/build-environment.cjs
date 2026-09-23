@@ -18,24 +18,46 @@ localAddresses.addAddress('::ffff:0.0.0.0', 'ipv6');
 localAddresses.addAddress('::ffff:10.0.2.2', 'ipv6');
 
 function validateBuildEnvironment(variant, environment) {
-  if (variant !== 'production') return;
+  const selectedVariant = variant || 'development';
+  if (!['development', 'showcase', 'production'].includes(selectedVariant)) {
+    throw new Error('UNSUPPORTED_APP_VARIANT');
+  }
+  if (selectedVariant === 'development') return;
 
   const rawApiUrl = environment.EXPO_PUBLIC_API_URL?.trim();
-  if (!rawApiUrl) throw new Error('production EXPO_PUBLIC_API_URL is required');
+  if (!rawApiUrl) throw new Error(`${selectedVariant} EXPO_PUBLIC_API_URL is required`);
 
-  const apiUrl = new URL(rawApiUrl);
-  if (apiUrl.protocol !== 'https:' || isLocalHostname(apiUrl.hostname)) {
+  let apiUrl;
+  try {
+    apiUrl = new URL(rawApiUrl);
+  } catch {
+    throw new Error(`${selectedVariant} API URL is invalid`);
+  }
+  if (selectedVariant === 'production' &&
+      (apiUrl.protocol !== 'https:' || isLocalHostname(apiUrl.hostname))) {
     throw new Error('production API must use non-loopback HTTPS');
+  }
+  const expectedOrigin = selectedVariant === 'production'
+    ? 'https://api.masscom.kr' : 'https://demo-api.masscom.kr';
+  if (apiUrl.origin !== expectedOrigin || apiUrl.pathname !== '/' ||
+      rawApiUrl.includes('?') || rawApiUrl.includes('#') ||
+      apiUrl.username || apiUrl.password || apiUrl.port) {
+    throw new Error(`${selectedVariant} API must use ${expectedOrigin}`);
   }
 
   const buildSourceCommit = environment.MASSCOM_BUILD_SOURCE_COMMIT?.trim();
-  if (!buildSourceCommit) throw new Error('production build source commit is required');
+  if (!buildSourceCommit) throw new Error(`${selectedVariant} build source commit is required`);
   if (!/^[0-9a-f]{40}$/i.test(buildSourceCommit)) {
-    throw new Error('production build source commit must be 40 hexadecimal characters');
+    throw new Error(`${selectedVariant} build source commit must be 40 hexadecimal characters`);
   }
 
   const unsafeKey = demoKeys.find((key) => environment[key]?.trim());
-  if (unsafeKey) throw new Error(`production build rejects ${unsafeKey}`);
+  if (unsafeKey) throw new Error(`${selectedVariant} build rejects ${unsafeKey}`);
+  if (selectedVariant === 'showcase') {
+    for (const key of ['EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID', 'EXPO_PUBLIC_REOWN_PROJECT_ID']) {
+      if (environment[key]?.trim()) throw new Error(`showcase build rejects ${key}`);
+    }
+  }
 }
 
 function isLocalHostname(hostname) {

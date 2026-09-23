@@ -10,18 +10,15 @@ import { createAppKitStorage } from './appkit-storage';
 import { baseSepolia } from './base-sepolia';
 import { getWalletRuntimeConfig } from './wallet-runtime-config';
 import { createWalletMetadata } from './wallet-metadata';
+import { resolveWalletReturnScheme } from './return-scheme';
 
 export const walletRuntimeConfig = getWalletRuntimeConfig({
   EXPO_PUBLIC_REOWN_PROJECT_ID: process.env.EXPO_PUBLIC_REOWN_PROJECT_ID,
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
 });
 
-// The wallet returns to whichever variant is installed. If the embedded config is missing, the
-// installed package decides, so the store app never advertises the development scheme.
-const configuredScheme = Constants.expoConfig?.scheme;
-const appScheme =
-  (Array.isArray(configuredScheme) ? configuredScheme[0] : configuredScheme) ??
-  (Application.applicationId === 'kr.masscom.wolgye' ? 'masscom' : 'masscom-dev');
+// The installed package decides the return scheme; a stale embedded config may not override it.
+const appScheme = resolveWalletReturnScheme(Constants.expoConfig?.scheme, Application.applicationId);
 
 export function createAccountScopedAppKit(
   config: typeof walletRuntimeConfig,

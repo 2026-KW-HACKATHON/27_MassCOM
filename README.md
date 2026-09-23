@@ -13,6 +13,7 @@
 ## 한눈에 보기
 
 - [모바일 개발용 UI 시안·로컬 실행](apps/mobile/README.md): Issue #136 역할 선택·선택적 지갑·다섯 빈 공간을 개발용 미리보기로 보존. 운영 앱의 네 기능 탭은 유지
+- 시연 Android 빌드 경계: `kr.masscom.wolgye.demo`/`masscom-demo`와 전용 API URL의 교차 연결 거절을 구현. 실제 시연 OAuth·Reown·API/DB·APK/실기·공개 배포는 `NOT_RUN`이며 [세 빌드의 경계](apps/mobile/README.md#세-빌드의-경계)에 현재 상태를 구분했습니다.
 
 - [모바일 디자인 기준](DESIGN.md): 탐색·방문 인증·도감·내 정보의 화면 구조와 접근성 원칙
 - [AI 모델 사용 기준](docs/AI_MODEL_ROUTING.md): GPT‑6 Luna/Sol/Astra 작업별 사용처와 검증 경계
@@ -214,7 +215,7 @@ npm run test:postgres --prefix apps/api
 - NFT 발행 요청: 클라이언트 주소·series 입력을 무시하고 검증된 binding/version에서 수령인을 고정해 보상권·job·Outbox 원자 저장
 - NFT 발행 Worker: Local Anvil에서 중복 Worker·응답 유실·설정 오류·이벤트 불일치·확정 전 재조직·DB 복구와 RPC 중단·발행 중지·민터 잔액 부족·DB 장애 뒤 자동 복구(O02, Issue #77)를 검증하고 Android가 접수/확인 중/등록 완료를 구분
 - private GitHub 설치본: [MassCOM Android 0.1.0 테스트 2](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2), 저장소 접근 권한 필요. 재다운로드 SHA-256과 App Link 실기 설치본 일치 PASS
-- 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), scheme `masscom`/`masscom-dev`: `IMPLEMENTED`; upload key AAB와 4KB Samsung·16KB AVD 설치/콜드 실행 PASS
+- 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), scheme `masscom`/`masscom-dev`: `IMPLEMENTED`; 시연 `kr.masscom.wolgye.demo`/`masscom-demo`는 빌드 설정만 `IMPLEMENTED`, 실제 APK·동시 설치 `NOT_RUN`. 기존 운영 upload key AAB와 4KB Samsung·16KB AVD 설치/콜드 실행 PASS
 - 백업·복원 drill: `scripts/db-restore-drill.sh`로 dump→scratch DB 복원→행 수·migration 대조를 로컬 PostgreSQL 18에서 PASS. 운영 DB·외부 백업 저장소는 `NOT_RUN`
 - 실기 시험 절차는 [`docs/DEVICE_TEST_PLAN.md`](docs/DEVICE_TEST_PLAN.md), 외부 HTTPS·로그인 실제 결정은 [`docs/HOSTING_LOGIN_PROPOSAL.md`](docs/HOSTING_LOGIN_PROPOSAL.md)를 따릅니다.
 - 운영 AAB 지갑 진입점 검사(W08): upload key 서명본을 공식 bundletool로 읽어 package와 source marker를 확인하고 결제 권한·결제/온램프/내장 지갑 SDK·AppKit 기능 flag·계정 화면 도달 경로·세션 메서드를 정적 검사해 PASS. 실기기 UI는 별도 `NOT_RUN`

@@ -1,6 +1,6 @@
 # 시연·운영 환경 분리와 읽기 전용 웹 도감 설계
 
-상태: 사용자 검토 요청 · 2026-09-23 · [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137) · 구현·배포 전 설계
+상태: 부분 구현 · 2026-09-24 · [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137). 정적 시연 웹·격리 로컬 seed는 병합됐고 Android 세 variant 빌드 경계는 구현 중이다. 외부 API·웹 배포·실기 검증은 아직 아니다.
 
 ## 사용자 의도와 성공 기준
 
@@ -10,11 +10,11 @@
 
 ## 현재 기준선과 변경 이유
 
-- `apps/mobile/app.config.ts`는 운영 `kr.masscom.wolgye`/`masscom`과 내부 개발 `kr.masscom.wolgye.dev`/`masscom-dev` 두 종류다. 시연용 배포 variant는 아직 없다.
+- 이 설계 작성 당시 `apps/mobile/app.config.ts`는 운영 `kr.masscom.wolgye`/`masscom`과 내부 개발 `kr.masscom.wolgye.dev`/`masscom-dev` 두 종류였다. 후속 빌드 경계 PR이 시연 `kr.masscom.wolgye.demo`/`masscom-demo` 설정을 추가하지만 실제 설치본·외부 API는 별도로 검증한다.
 - `infra/lightsail/compose.yml`은 `api.masscom.kr`과 운영 PostgreSQL 한 벌이다. `ALLOW_INSECURE_DEMO_ACCOUNT=false`이며, 개발 계정 헤더를 인터넷에 열어 시연 계정으로 사용하지 않는다.
 - `apps/api/src/postgres/merchant-catalog.ts`와 `recommendation.ts`는 활성·공개 캠페인인 `is_demo` 점포도 응답한다. 따라서 운영 DB에 가상 점포를 넣고 배지만 붙이는 방식은 운영 목록을 오염시킨다.
 - `docs/index.html`은 정적 프로젝트 포털이다. `GET /merchants`는 공개 조회지만 `GET /collection`은 서버가 계정을 확인한다(`apps/api/src/server.ts`). 현재 정적 웹만으로 개인 도감을 안전하게 표시할 수 없다.
-- 열려 있는 Issue #136은 역할 선택·다섯 공간 모바일 UI의 별도 작업이다. 이 명세는 그 PR이 병합됐다고 가정하지 않으며, 라우트·탭을 선점하거나 인증·점주 권한을 약화하지 않는다.
+- Issue #136의 PR #138은 개발용 역할 선택 시안으로 병합됐고, 운영 네 탭·인증·점주 권한은 유지됐다. 이 명세는 그 미리보기 라우트를 시연 앱의 실제 기능 완료로 간주하지 않는다.
 
 ## 접근법 비교와 선택
 
