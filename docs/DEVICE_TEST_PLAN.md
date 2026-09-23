@@ -2,7 +2,7 @@
 
 이 문서는 실행 절차입니다. 결과는 `docs/TEST_STATUS.md`와 `docs/evidence/*.json`에만 기록하며, 실행하지 않은 항목은 `NOT_RUN` 또는 `BLOCKED`로 남깁니다. 시험용 fixture 결과와 실제 기기·외부 지갑 결과는 서로 다른 행으로 적습니다.
 
-2026-09-20 기준 상태: 개발 장비에 `adb`는 있으나 연결된 기기가 없습니다(`adb devices` 빈 목록). 아래 시험은 모두 기기 연결 뒤에 실행합니다.
+2026-09-20의 기기 미연결 기록은 과거 상태입니다. 2026-09-23에는 Samsung SM-S928N을 USB로 연결하여 Issue #133 개발 앱 기동을 확인했으나 MetaMask 재연결은 지갑 잠금으로 `BLOCKED`였습니다([증거](evidence/domain-wallet-origin-2026-09-23.json)). 다음 실행에서는 `adb devices -l`로 실제 연결 상태를 다시 확인합니다.
 
 ## 공통 준비
 

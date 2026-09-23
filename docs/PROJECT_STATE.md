@@ -10,13 +10,14 @@
 | 기본 브랜치 | `main` |
 | 기준 커밋 | 이 문서는 SHA를 고정하지 않는다. 실제 기준은 `git log origin/main -1`, 직전 검증 기준은 `docs/HANDOFF.md` 머리말 |
 | 현재 작업·열린 PR | `gh pr list`, `gh issue list`가 기준. 인수인계 요약은 `docs/HANDOFF.md` |
-| 현재 검증 기준 | PR #130 merge `fcaa1c0`, main CI `35772682920` PASS, 운영 API·Caddy 같은 커밋 배포·HTTPS/401 PASS. API 단위 82·PostgreSQL 37·Worker 단위 47/PG 23·모바일 149(이번 브랜치 로컬). 검색·필터 조작과 외부 두 IP 제한은 `NOT_RUN` |
+| 현재 검증 기준 | PR #134 merge `e9f5b58`, main CI `35809960551` PASS, 기존 Vercel 도메인 새 SVG·`/open` HTTPS PASS. API 단위 82·PostgreSQL 37·Worker 단위 47/PG 23·모바일 149. MetaMask 재연결은 지갑 잠금으로 `BLOCKED`; 검색·필터 조작과 외부 두 IP 제한은 `NOT_RUN` |
 
 ## Issue #133 공식 서비스 URL·지갑 출처 진행
 
 - README에는 원래 `https://masscom.kr`이 있었지만 긴 목록 안에 있었고 첫 미리보기 링크는 로컬 `docs/index.html`이었다. 공개 포털·`/open`·API·private GitHub의 역할을 상단에서 구분한다.
 - Reown 승인 메타데이터는 GitHub URL 대신 `https://masscom.kr`과 기존 포털 표식을 사용한다. `api.masscom.kr` SIWE 검증, native 복귀 스킴, Base Sepolia와 허용 메서드는 변경하지 않는다.
-- 모바일 149개 단위 시험·typecheck·lint·Android export 및 포털 구조·접근성·bootstrap·비밀 검사는 로컬 PASS. 공개 표식 URL과 변경 뒤 MetaMask 개발·운영 package의 실제 출처 표시·복귀는 배포/실기 전 `NOT_RUN`.
+- [PR #134](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/134) 병합과 PR·main CI PASS. 모바일 149개 단위 시험·typecheck·lint·Android export 및 포털 구조·접근성·bootstrap·비밀 검사 PASS. 기존 Vercel 프로젝트 배포 후 공개 표식 HTTPS 200·`image/svg+xml`·소스 hash 일치, `/open` 200·홈 링크 확인 PASS([증거](evidence/domain-wallet-origin-2026-09-23.json)).
+- 개발 앱 새 JS와 지갑 화면은 Samsung 실기에서 열림. MetaMask 8.11.0 재연결은 비밀번호 잠금으로 `BLOCKED`; 기존 세션은 앱에서 해제되어 화면은 `NOT_CONNECTED / UNVERIFIED`. 운영 test.2 APK는 변경 전 코드이므로 새 운영 빌드·재연결은 `NOT_RUN`. Issue #133은 이 실기 완료 전 열린 상태로 유지.
 
 ## Issue #129 탐색·운영 방어와 배포
 
