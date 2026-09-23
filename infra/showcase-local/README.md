@@ -7,7 +7,8 @@ read -r -s SHOWCASE_LOCAL_POSTGRES_PASSWORD
 export SHOWCASE_LOCAL_POSTGRES_PASSWORD
 docker compose -f infra/showcase-local/compose.yml up -d --build --wait
 
-PGPASSWORD="$SHOWCASE_LOCAL_POSTGRES_PASSWORD" \
+read -r PGPASSWORD <<< "$SHOWCASE_LOCAL_POSTGRES_PASSWORD"
+export PGPASSWORD
 SHOWCASE_TEST_DATABASE_URL='postgresql://masscom_showcase@127.0.0.1:55434/masscom_showcase_test' \
 npm run seed:showcase:local --prefix apps/api
 

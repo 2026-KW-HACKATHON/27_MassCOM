@@ -22,7 +22,7 @@
       "evidence": "dedicated postgres healthy, migration exited 0, API healthy"
     },
     {
-      "command": "PGPASSWORD=<local test value> SHOWCASE_TEST_DATABASE_URL=postgresql://masscom_showcase@127.0.0.1:55434/masscom_showcase_test npm run seed:showcase:local --prefix apps/api (repeated three times)",
+      "command": "SHOWCASE_TEST_DATABASE_URL=postgresql://masscom_showcase@127.0.0.1:55434/masscom_showcase_test npm run seed:showcase:local --prefix apps/api (repeated three times; PGPASSWORD preloaded locally)",
       "status": "PASS",
       "evidence": "LOCAL_SHOWCASE_SEEDED each time; one demo merchant remains"
     },

@@ -36,7 +36,7 @@ test('production namespace, auth, public ports, and extra services are rejected'
     (config) => { config.services.postgres.ports[0].published = '5432'; },
     (config) => { config.services.postgres.environment.POSTGRES_HOST_AUTH_METHOD = 'trust'; },
     (config) => { config.services.migrate.environment.DATABASE_URL = 'postgresql://masscom:pw@postgres:5432/masscom'; },
-    (config) => { config.services.api.environment.PGPASSWORD = 'different'; },
+    (config) => { Object.assign(config.services.api.environment, { PGPASSWORD: 'different' }); },
     (config) => { config.services.api.environment.DATABASE_URL = 'postgresql://masscom_showcase:pw@postgres:5432/masscom_showcase_test'; },
     (config) => { config.services.api.environment.DATABASE_URL += '?host=production-db'; },
     (config) => { config.services.api.build.dockerfile = 'unreviewed.Dockerfile'; },
