@@ -55,7 +55,7 @@
 ```js
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,9 +65,30 @@ const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const source = join(repo, 'apps/showcase-web');
 const verifier = join(repo, 'scripts/verify-showcase-site.py');
 const run = (root) => spawnSync('python3', [verifier, root], { encoding: 'utf8' });
+const fixtureHtml = `<!doctype html><html lang="ko"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="체험 도감">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'">
+<link rel="stylesheet" href="assets/showcase.css"></head><body>
+<p>체험용 가상 데이터로 서비스 흐름을 보여드립니다</p>
+<main id="main"><section data-demo-merchant><p>가상 점포 · 실제 방문할 수 없습니다</p></section>
+<section><p>예시 방문 기록</p><p>앱 안의 예시 수집품 · 실제 NFT가 아닙니다</p>
+<p>앱의 체험 진행 결과와 자동으로 동기화되지 않습니다</p></section></main>
+<footer><p>실제 운영 성과가 아닙니다</p></footer></body></html>`;
+function withFixture(check) {
+  const root = mkdtempSync(join(tmpdir(), 'masscom-showcase-'));
+  try {
+    mkdirSync(join(root, 'assets'));
+    writeFileSync(join(root, 'index.html'), fixtureHtml);
+    writeFileSync(join(root, 'assets/showcase.css'), 'body { color: #102833; }');
+    check(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
 
-test('시연 사이트 원본은 필수 고지와 비쓰기 경계를 통과한다', () => {
-  assert.equal(run(source).status, 0);
+test('정상 가상 페이지는 필수 고지와 비쓰기 경계를 통과한다', () => {
+  withFixture((root) => assert.equal(run(root).status, 0));
 });
 
 for (const [name, oldText, replacement, expectedError, file = 'index.html'] of [
@@ -88,9 +109,7 @@ for (const [name, oldText, replacement, expectedError, file = 'index.html'] of [
   ['CSS 외부 이미지', 'body {', 'body { background-image: url(https://example.com/x.png);', '허용되지 않은 CSS', 'assets/showcase.css'],
 ]) {
   test(name, () => {
-    const root = mkdtempSync(join(tmpdir(), 'masscom-showcase-'));
-    try {
-      cpSync(source, root, { recursive: true });
+    withFixture((root) => {
       const target = join(root, file);
       const original = readFileSync(target, 'utf8');
       assert.ok(original.includes(oldText), `fixture 원문 없음: ${name}`);
@@ -98,14 +117,12 @@ for (const [name, oldText, replacement, expectedError, file = 'index.html'] of [
       const result = run(root);
       assert.equal(result.status, 1);
       assert.match(result.stderr, new RegExp(expectedError));
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
+    });
   });
 }
 ```
 
-- [ ] **Step 2: RED를 확인한다.** 실행: `node --test tests/site/verify_showcase_site_test.mjs`. 예상: verifier 또는 사이트 파일이 아직 없어 원본 시험이 FAIL. 변이 시험만 우연히 통과해도 전체는 실패해야 한다.
+- [ ] **Step 2: RED를 확인한다.** 실행: `node --test tests/site/verify_showcase_site_test.mjs`. 예상: verifier가 없어 정상 fixture 시험이 FAIL. 사이트 파일 존재 여부는 이 Task의 시험 결과에 영향을 주지 않는다.
 - [ ] **Step 3: 허용 목록 기반 검증기를 작성한다.** `scripts/verify-showcase-site.py`는 HTML을 Python 표준 `HTMLParser`로 읽고 실제 `<body>` 텍스트 노드에 고지가 있는지 검사한다. 허용하지 않은 태그·속성·URL은 기본 거절한다. CSS는 외부 참조와 숨김 규칙을 거절한다. 아래 골격의 오류 범주·허용 집합을 그대로 사용하고 외부 패키지를 추가하지 않는다.
 
 ```python
@@ -196,7 +213,7 @@ if re.search(r'@import|url\s*\(|display\s*:\s*none|visibility\s*:\s*hidden|opaci
 print('showcase site verified')
 ```
 
-- [ ] **Step 4: 아직 사이트가 없어 FAIL임을 확인한다.** `node --test tests/site/verify_showcase_site_test.mjs`가 Task 2 이전에는 성공해서는 안 된다.
+- [ ] **Step 4: fixture GREEN을 확인한다.** `node --test tests/site/verify_showcase_site_test.mjs`의 정상·독립 변이 시험이 모두 PASS한다. 실제 `apps/showcase-web`은 다음 Task에서 별도 RED→GREEN으로 다룬다.
 
 ### Task 2: 가상 점포 한 곳과 예시 도감을 보여주는 독립 정적 페이지
 
@@ -208,7 +225,8 @@ print('showcase site verified')
 - Consumes: Task 1의 필수 문구와 `data-demo-merchant` 한 곳 계약.
 - Produces: 정적 서버에서 `/`로 열리는 HTML/CSS만 있는 공개 가능 *로컬* 시연 사이트. 개인 API나 지갑 세션은 읽지 않는다.
 
-- [ ] **Step 1: HTML의 작은 실제 구조를 만든다.** `index.html`은 한국어·viewport·설명 메타데이터, 로컬 CSS와 아래 CSP, 본문 건너뛰기, `<main id="main">`, 고정 시연 고지, 가상 점포 카드 한 곳, 예시 방문 1건, 앱 수집품 1건, 실제 NFT가 아님을 담는다. 점포명은 `가상 점포 A`, 위치는 `시연용 가상 위치 · 실제 방문 불가`로 쓰고 실제 도로명·사진·금액·거래 해시를 만들지 않는다. 아래 필수 표현을 그대로 포함한다.
+- [ ] **Step 1: 실제 사이트의 실패 시험을 추가한다.** Task 1의 시험 파일에 `test('실제 시연 웹은 읽기 전용 계약을 통과한다', () => assert.equal(run(source).status, 0));`를 추가하고 `node --test tests/site/verify_showcase_site_test.mjs`에서 정적 사이트가 없어 이 시험만 RED임을 확인한다.
+- [ ] **Step 2: HTML의 작은 실제 구조를 만든다.** `index.html`은 한국어·viewport·설명 메타데이터, 로컬 CSS와 아래 CSP, 본문 건너뛰기, `<main id="main">`, 고정 시연 고지, 가상 점포 카드 한 곳, 예시 방문 1건, 앱 수집품 1건, 실제 NFT가 아님을 담는다. 점포명은 `가상 점포 A`, 위치는 `시연용 가상 위치 · 실제 방문 불가`로 쓰고 실제 도로명·사진·금액·거래 해시를 만들지 않는다. 아래 필수 표현을 그대로 포함한다.
 
 ```html
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'">
@@ -231,7 +249,7 @@ print('showcase site verified')
 <footer><p>이 화면의 점포·방문·수집품은 기능 설명을 위한 가상 예시이며 실제 운영 성과가 아닙니다.</p></footer>
 ```
 
-- [ ] **Step 2: CSS를 작성한다.** `:root`의 기존 `docs/assets/project.css` 청록·잎색 의미를 참고하되 파일은 독립적으로 둔다. 아래 최소 레이아웃을 적용하고 360px·200% 글꼴에서 수평 스크롤 여부를 직접 확인한다. 색상만으로 시연 여부를 나타내지 않는다.
+- [ ] **Step 3: CSS를 작성한다.** `:root`의 기존 `docs/assets/project.css` 청록·잎색 의미를 참고하되 파일은 독립적으로 둔다. 아래 최소 레이아웃을 적용하고 360px·200% 글꼴에서 수평 스크롤 여부를 직접 확인한다. 색상만으로 시연 여부를 나타내지 않는다.
 
 ```css
 :root { color-scheme: light; font-family: Pretendard, system-ui, sans-serif; --ink:#102833; --paper:#f4f9fa; --surface:#fff; --focus:#0a6dad; }
@@ -244,9 +262,9 @@ a:focus-visible { outline: .2rem solid var(--focus); outline-offset: .2rem; }
 @media (min-width: 56rem) { main { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 ```
-- [ ] **Step 3: GREEN을 확인한다.** `node --test tests/site/verify_showcase_site_test.mjs`와 `python3 scripts/verify-showcase-site.py` 모두 PASS. 독립 변이들은 각각 기대한 오류 범주로 종료 코드 1을 반환해야 한다.
-- [ ] **Step 4: 브라우저에서 화면과 실행 경계를 직접 확인한다.** `python3 -m http.server 4174 --directory apps/showcase-web --bind 127.0.0.1`로 열어 1440×900, 390×844, 360×800 및 200% 글꼴을 확인한다. 상단 고지·가상 점포·도감이 실제로 보이고 접근성 트리에서도 읽히며, skip link가 `main`으로 이동하고 본문 대비가 4.5:1 이상이어야 한다. 수평 스크롤·잘림이 없어야 한다. 브라우저 네트워크 기록에서 외부 도메인·API 요청·실행 스크립트가 없어야 한다(브라우저의 자동 favicon 요청은 분리 기록). `docs/evidence/showcase-web-local-2026-09-23.json`에 검사 viewport·수치·요청 경로·실제 결과를 기록하고 외부 HTTPS는 `NOT_RUN`으로 둔다. 실패하면 이 Task 안에서 HTML/CSS만 고치고 검사를 반복한다.
-- [ ] **Step 5: 기능·시험만 의미 있는 한 커밋으로 기록한다.** 한국어 의도형 제목과 `Tested:`/`Not-tested:` Lore trailer를 쓰고 점포·방문을 실적이라 쓰지 않는다.
+- [ ] **Step 4: GREEN을 확인한다.** `node --test tests/site/verify_showcase_site_test.mjs`와 `python3 scripts/verify-showcase-site.py` 모두 PASS. 독립 변이들은 각각 기대한 오류 범주로 종료 코드 1을 반환해야 한다.
+- [ ] **Step 5: 브라우저에서 화면과 실행 경계를 직접 확인한다.** `python3 -m http.server 4174 --directory apps/showcase-web --bind 127.0.0.1`로 열어 1440×900, 390×844, 360×800 및 200% 글꼴을 확인한다. 상단 고지·가상 점포·도감이 실제로 보이고 접근성 트리에서도 읽히며, skip link가 `main`으로 이동하고 본문 대비가 4.5:1 이상이어야 한다. 수평 스크롤·잘림이 없어야 한다. 브라우저 네트워크 기록에서 외부 도메인·API 요청·실행 스크립트가 없어야 한다(브라우저의 자동 favicon 요청은 분리 기록). `docs/evidence/showcase-web-local-2026-09-23.json`에 검사 viewport·수치·요청 경로·실제 결과를 기록하고 외부 HTTPS는 `NOT_RUN`으로 둔다. 실패하면 이 Task 안에서 HTML/CSS만 고치고 검사를 반복한다.
+- [ ] **Step 6: 기능·시험만 의미 있는 한 커밋으로 기록한다.** 한국어 의도형 제목과 `Tested:`/`Not-tested:` Lore trailer를 쓰고 점포·방문을 실적이라 쓰지 않는다.
 
 ### Task 3: README·CI에 로컬 시연 범위와 재현 명령 연결
 
