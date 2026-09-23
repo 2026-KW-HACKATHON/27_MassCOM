@@ -10,7 +10,7 @@ import { AppState, ScrollView, StyleSheet, Text, View, useColorScheme } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
-import { colors } from '@/theme/colors';
+import { colorsForScheme } from '@/theme/palette';
 import { baseSepolia } from '@/wallet/base-sepolia';
 import { matchActiveBinding, WalletApiClient, WalletApiError } from '@/wallet/wallet-api';
 import {
@@ -23,6 +23,9 @@ import { cleanupPendingWalletConnection } from '@/wallet/wallet-lifecycle';
 import { buildPersonalSignRequest, safeWalletRequest } from '@/wallet/wallet-method-policy';
 import type { AvailableWalletRuntimeConfig } from '@/wallet/wallet-runtime-config';
 import { readApprovedEvmAccount } from '@/wallet/wallet-session';
+import { makeWalletLinkStyles } from './styles';
+
+type WalletLinkStyles = ReturnType<typeof makeWalletLinkStyles>;
 
 type Props = {
   config: AvailableWalletRuntimeConfig;
@@ -46,7 +49,8 @@ const walletMissingMessage =
   '선택한 지갑 앱이 설치되어 있지 않아 연결하지 못했습니다. 설치 후 다시 시도하거나 다른 외부 지갑을 선택해 주세요. 방문 기록과 받을 수집품은 유지됩니다.';
 
 export function WalletLinkScreen({ config, credential, onSessionInvalid }: Props) {
-  useColorScheme();
+  const palette = colorsForScheme(useColorScheme());
+  const styles = StyleSheet.create(makeWalletLinkStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
   const { address, chainId } = useAccount();
   const { provider } = useProvider();
@@ -271,9 +275,9 @@ export function WalletLinkScreen({ config, credential, onSessionInvalid }: Props
       </View>
 
       <View style={styles.card}>
-        <StatusRow label="연결" value={hasWalletSession ? 'CONNECTED' : 'NOT_CONNECTED'} />
-        <StatusRow label="체인" value={currentChainId === 84532 ? 'BASE_SEPOLIA' : 'CHECK_REQUIRED'} />
-        <StatusRow label="주소 확인" value={verifiedAddress ? 'VERIFIED' : 'UNVERIFIED'} />
+        <StatusRow styles={styles} label="연결" value={hasWalletSession ? 'CONNECTED' : 'NOT_CONNECTED'} />
+        <StatusRow styles={styles} label="체인" value={currentChainId === 84532 ? 'BASE_SEPOLIA' : 'CHECK_REQUIRED'} />
+        <StatusRow styles={styles} label="주소 확인" value={verifiedAddress ? 'VERIFIED' : 'UNVERIFIED'} />
         {connectedAddress ? <Text selectable style={styles.address}>{connectedAddress}</Text> : null}
       </View>
 
@@ -283,10 +287,12 @@ export function WalletLinkScreen({ config, credential, onSessionInvalid }: Props
 
       <View style={styles.actions}>
         {!hasWalletSession ? (
-          <NativeButton label="외부 지갑 연결" onPress={openWalletSelector} />
+          <NativeButton styles={styles} palette={palette} label="외부 지갑 연결" onPress={openWalletSelector} />
         ) : (
           <>
             <NativeButton
+              styles={styles}
+              palette={palette}
               label={
                 busy
                   ? '확인 중…'
@@ -298,7 +304,7 @@ export function WalletLinkScreen({ config, credential, onSessionInvalid }: Props
               }
               onPress={busy ? undefined : verifyAddress}
             />
-            <NativeButton label="연결 해제" variant="outlined" onPress={busy ? undefined : disconnectWallet} />
+            <NativeButton styles={styles} palette={palette} label="연결 해제" variant="outlined" onPress={busy ? undefined : disconnectWallet} />
           </>
         )}
       </View>
@@ -318,22 +324,26 @@ export function WalletLinkScreen({ config, credential, onSessionInvalid }: Props
 }
 
 function NativeButton({
+  styles,
+  palette,
   label,
   onPress,
   variant = 'filled',
 }: {
+  styles: WalletLinkStyles;
+  palette: ReturnType<typeof colorsForScheme>;
   label: string;
   onPress?: () => void;
   variant?: 'filled' | 'outlined' | 'text';
 }) {
   return (
-    <Host matchContents seedColor={colors.primary} style={styles.nativeButtonHost}>
+    <Host matchContents seedColor={palette.primary} style={styles.nativeButtonHost}>
       <Button label={label} variant={variant} onPress={onPress} />
     </Host>
   );
 }
 
-function StatusRow({ label, value }: { label: string; value: string }) {
+function StatusRow({ styles, label, value }: { styles: WalletLinkStyles; label: string; value: string }) {
   return (
     <View style={styles.statusRow}>
       <Text style={styles.statusLabel}>{label}</Text>
@@ -369,55 +379,3 @@ function messageFor(
   }
   return { cancelled: false, text: '지갑 또는 네트워크 오류가 발생했습니다. 연결 상태를 확인하고 다시 시도해 주세요.' };
 }
-
-const styles = StyleSheet.create({
-  content: {
-    gap: 20,
-    padding: 24,
-    paddingBottom: 48,
-    backgroundColor: colors.background,
-  },
-  hero: { gap: 10 },
-  context: { color: colors.primary, fontSize: 14, fontWeight: '700' },
-  title: { color: colors.label, fontSize: 32, fontWeight: '800', lineHeight: 40 },
-  body: { color: colors.secondaryLabel, fontSize: 17, lineHeight: 27 },
-  card: {
-    gap: 2,
-    padding: 18,
-    borderRadius: 18,
-    borderCurve: 'continuous',
-    backgroundColor: colors.surface,
-    boxShadow: '0 8px 24px rgba(16, 40, 51, 0.08)',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.separator,
-  },
-  statusLabel: { color: colors.secondaryLabel, fontSize: 14 },
-  statusValue: {
-    color: colors.label,
-    fontSize: 13,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-  },
-  address: { paddingTop: 14, color: colors.primary, fontFamily: 'monospace', fontSize: 13 },
-  message: { padding: 16, borderRadius: 14, borderCurve: 'continuous', backgroundColor: colors.primaryContainer },
-  messageError: { backgroundColor: colors.errorContainer },
-  messageText: { color: colors.label, fontSize: 15, lineHeight: 23 },
-  actions: { gap: 10 },
-  nativeButtonHost: { minHeight: 48 },
-  boundaryCard: {
-    gap: 8,
-    padding: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.separator,
-    borderRadius: 18,
-    borderCurve: 'continuous',
-  },
-  boundaryTitle: { color: colors.label, fontSize: 15, fontWeight: '700' },
-  boundaryText: { marginBottom: 8, color: colors.secondaryLabel, fontSize: 14, lineHeight: 22 },
-});

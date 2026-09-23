@@ -1,0 +1,38 @@
+import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
+import { type AppColors } from '../../theme/palette';
+
+export function makeRecommendationsStyles(palette: AppColors, hairlineWidth = 1) {
+  return {
+
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 28, backgroundColor: palette.background },
+  centeredTitle: { color: palette.label, fontSize: 21, fontWeight: '900', textAlign: 'center' },
+  centeredBody: { color: palette.secondaryLabel, fontSize: 14, lineHeight: 22, textAlign: 'center' },
+  retryButton: { paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, backgroundColor: palette.primary },
+  retryButtonText: { color: palette.onPrimary, fontSize: 14, fontWeight: '900' },
+  content: { gap: 16, padding: 20, paddingBottom: 48, backgroundColor: palette.background },
+  hero: { gap: 11, paddingBottom: 8 },
+  eyebrow: { color: palette.primary, fontSize: 13, fontWeight: '900' },
+  title: { color: palette.label, fontSize: 31, fontWeight: '900', lineHeight: 39, letterSpacing: -0.6 },
+  body: { color: palette.secondaryLabel, fontSize: 15, lineHeight: 24 },
+  policyCard: { gap: 4, padding: 16, borderRadius: 18, backgroundColor: palette.primaryContainer },
+  policyTitle: { color: palette.onPrimaryContainer, fontSize: 13, fontWeight: '900' },
+  policyBody: { color: palette.onPrimaryContainer, fontSize: 13, lineHeight: 20 },
+  inlineError: { padding: 12, borderRadius: 12, color: palette.onErrorContainer, backgroundColor: palette.errorContainer, fontSize: 13 },
+  emptyCard: { gap: 8, padding: 22, borderRadius: 20, backgroundColor: palette.surface },
+  emptyTitle: { color: palette.label, fontSize: 18, fontWeight: '900' },
+  emptyBody: { color: palette.secondaryLabel, fontSize: 14, lineHeight: 22 },
+  card: { gap: 11, padding: 20, borderRadius: 22, borderCurve: 'continuous', borderWidth: hairlineWidth, borderColor: palette.separator, backgroundColor: palette.surface },
+  cardPressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
+  cardTopline: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  rank: { marginRight: 'auto', color: palette.primary, fontSize: 13, fontWeight: '900', letterSpacing: 1 },
+  reasonCode: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, color: palette.onSuccessContainer, backgroundColor: palette.successContainer, fontSize: 11, fontWeight: '900' },
+  demo: { color: palette.onPrimaryContainer, fontSize: 10, fontWeight: '900' },
+  cardTitle: { color: palette.label, fontSize: 24, fontWeight: '900' },
+  reason: { color: palette.label, fontSize: 16, lineHeight: 24, fontWeight: '700' },
+  meta: { color: palette.secondaryLabel, fontSize: 12 },
+  progressRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingTop: 10, borderTopWidth: hairlineWidth, borderTopColor: palette.separator },
+  progress: { color: palette.secondaryLabel, fontSize: 12, fontWeight: '700' },
+  goal: { flex: 1, color: palette.label, fontSize: 12, fontWeight: '800', textAlign: 'right' },
+  openDetail: { color: palette.primary, fontSize: 13, fontWeight: '900', textAlign: 'right' },
+} satisfies Record<string, ImageStyle | TextStyle | ViewStyle>;
+}

@@ -1,11 +1,14 @@
 import { Link } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
-import { colors } from '@/theme/colors';
+import { colorsForScheme } from '@/theme/palette';
+import { makeRecommendationsStyles } from './styles';
+
+type RecommendationsStyles = ReturnType<typeof makeRecommendationsStyles>;
 
 export function RecommendationsScreen({
   apiUrl,
@@ -16,6 +19,8 @@ export function RecommendationsScreen({
   credential: AccountCredential;
   onSessionInvalid: () => Promise<void>;
 }) {
+  const palette = colorsForScheme(useColorScheme());
+  const styles = StyleSheet.create(makeRecommendationsStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
   const api = useMemo(
     () => createRecommendationApiClient({ apiUrl, credential, onSessionInvalid }),
@@ -57,7 +62,7 @@ export function RecommendationsScreen({
   if (loading && !recommendations) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={palette.primary} />
         <Text style={styles.centeredTitle}>다음 동네 가게를 찾는 중</Text>
       </View>
     );
@@ -103,14 +108,14 @@ export function RecommendationsScreen({
         </View>
       ) : (
         recommendations.map((item, index) => (
-          <RecommendationCard key={item.merchantId} item={item} index={index} />
+          <RecommendationCard styles={styles} key={item.merchantId} item={item} index={index} />
         ))
       )}
     </ScrollView>
   );
 }
 
-function RecommendationCard({ item, index }: { item: Recommendation; index: number }) {
+function RecommendationCard({ styles, item, index }: { styles: RecommendationsStyles; item: Recommendation; index: number }) {
   return (
     <Link
       href={{ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } }}
@@ -140,36 +145,3 @@ function reasonLabel(code: Recommendation['reasonCode']): string {
   if (code === 'NEXT_REWARD') return '다음 보상 가까움';
   return '도감 완성';
 }
-
-const styles = StyleSheet.create({
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 28, backgroundColor: colors.background },
-  centeredTitle: { color: colors.label, fontSize: 21, fontWeight: '900', textAlign: 'center' },
-  centeredBody: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 22, textAlign: 'center' },
-  retryButton: { paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.primary },
-  retryButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },
-  content: { gap: 16, padding: 20, paddingBottom: 48, backgroundColor: colors.background },
-  hero: { gap: 11, paddingBottom: 8 },
-  eyebrow: { color: colors.primary, fontSize: 13, fontWeight: '900' },
-  title: { color: colors.label, fontSize: 31, fontWeight: '900', lineHeight: 39, letterSpacing: -0.6 },
-  body: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 24 },
-  policyCard: { gap: 4, padding: 16, borderRadius: 18, backgroundColor: colors.primaryContainer },
-  policyTitle: { color: colors.onPrimaryContainer, fontSize: 13, fontWeight: '900' },
-  policyBody: { color: colors.onPrimaryContainer, fontSize: 13, lineHeight: 20 },
-  inlineError: { padding: 12, borderRadius: 12, color: colors.onErrorContainer, backgroundColor: colors.errorContainer, fontSize: 13 },
-  emptyCard: { gap: 8, padding: 22, borderRadius: 20, backgroundColor: colors.surface },
-  emptyTitle: { color: colors.label, fontSize: 18, fontWeight: '900' },
-  emptyBody: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 22 },
-  card: { gap: 11, padding: 20, borderRadius: 22, borderCurve: 'continuous', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.separator, backgroundColor: colors.surface },
-  cardPressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
-  cardTopline: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  rank: { marginRight: 'auto', color: colors.primary, fontSize: 13, fontWeight: '900', letterSpacing: 1 },
-  reasonCode: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, color: colors.onSuccessContainer, backgroundColor: colors.successContainer, fontSize: 11, fontWeight: '900' },
-  demo: { color: colors.onPrimaryContainer, fontSize: 10, fontWeight: '900' },
-  cardTitle: { color: colors.label, fontSize: 24, fontWeight: '900' },
-  reason: { color: colors.label, fontSize: 16, lineHeight: 24, fontWeight: '700' },
-  meta: { color: colors.secondaryLabel, fontSize: 12 },
-  progressRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
-  progress: { color: colors.secondaryLabel, fontSize: 12, fontWeight: '700' },
-  goal: { flex: 1, color: colors.label, fontSize: 12, fontWeight: '800', textAlign: 'right' },
-  openDetail: { color: colors.primary, fontSize: 13, fontWeight: '900', textAlign: 'right' },
-});

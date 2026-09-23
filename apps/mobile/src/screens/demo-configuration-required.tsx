@@ -1,6 +1,7 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, useColorScheme } from 'react-native';
 
-import { colors } from '@/theme/colors';
+import { colorsForScheme } from '@/theme/palette';
+import { makeDemoConfigurationRequiredStyles } from './demo-configuration-required.styles';
 
 export function DemoConfigurationRequired({
   title,
@@ -9,6 +10,7 @@ export function DemoConfigurationRequired({
   title: string;
   missing: readonly string[];
 }) {
+  const styles = StyleSheet.create(makeDemoConfigurationRequiredStyles(colorsForScheme(useColorScheme()), StyleSheet.hairlineWidth));
   return (
     <View style={styles.content}>
       <Text style={styles.eyebrow}>개발·시연 설정 필요</Text>
@@ -25,12 +27,3 @@ export function DemoConfigurationRequired({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { flex: 1, justifyContent: 'center', gap: 16, padding: 24, backgroundColor: colors.background },
-  eyebrow: { color: colors.primary, fontSize: 13, fontWeight: '900' },
-  title: { color: colors.label, fontSize: 30, fontWeight: '900', lineHeight: 38 },
-  body: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 24 },
-  card: { gap: 10, padding: 18, borderRadius: 18, backgroundColor: colors.surface },
-  code: { color: colors.primary, fontFamily: 'monospace', fontSize: 13, fontWeight: '700' },
-});
