@@ -37,3 +37,12 @@ test('the UI preview entry is development-only and cannot replace account tools'
   assert.match(preview, /if \(!__DEV__\) return <Redirect href="\/" \/>/);
   assert.match(settings, /계정 삭제 안내/);
 });
+
+test('the role preview Link child does not pass a style array to Expo Router Slot', () => {
+  const settings = readFileSync(fileURLToPath(new URL('../screens/account-settings/index.tsx', import.meta.url)), 'utf8');
+  const link = settings.match(/<Link href="\/foundation-preview" asChild>([\s\S]*?)<\/Link>/)?.[1];
+  assert.ok(link, 'development preview Link');
+  const pressable = link.match(/<Pressable\b[^>]*>/)?.[0];
+  assert.ok(pressable, 'Link direct Pressable child');
+  assert.doesNotMatch(pressable, /style=\{\s*\[/, 'Expo Router Slot rejects array-valued child styles');
+});
