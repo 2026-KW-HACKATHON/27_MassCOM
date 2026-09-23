@@ -1,0 +1,48 @@
+import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
+import type { AppColors } from '../../theme/palette';
+
+export function makeMerchantDetailStyles(palette: AppColors, hairlineWidth = 1) {
+  return {
+
+  content: { gap: 18, padding: 20, paddingBottom: 48, backgroundColor: palette.background },
+  hero: { gap: 12, padding: 24, borderRadius: 26, borderCurve: 'continuous', backgroundColor: palette.primary },
+  heroTopline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  heroEyebrow: { color: palette.onPrimary, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
+  demoBadge: { color: palette.onPrimary, fontSize: 10, fontWeight: '900' },
+  title: { color: palette.onPrimary, fontSize: 34, fontWeight: '900', lineHeight: 42, letterSpacing: -0.7 },
+  story: { color: palette.onPrimary, fontSize: 16, lineHeight: 25, opacity: 0.88 },
+  inlineError: { padding: 12, borderRadius: 12, backgroundColor: palette.errorContainer },
+  inlineErrorText: { color: palette.onErrorContainer, fontSize: 13, lineHeight: 19 },
+  infoCard: { paddingHorizontal: 18, borderRadius: 20, borderCurve: 'continuous', backgroundColor: palette.surface },
+  infoRow: { flexDirection: 'row', gap: 18, paddingVertical: 16, borderBottomWidth: hairlineWidth, borderBottomColor: palette.separator },
+  infoLabel: { width: 72, color: palette.secondaryLabel, fontSize: 13, fontWeight: '700' },
+  infoValue: { flex: 1, color: palette.label, fontSize: 14, fontWeight: '700', textAlign: 'right' },
+  campaignHeader: { gap: 6, paddingTop: 4 },
+  sectionEyebrow: { color: palette.primary, fontSize: 13, fontWeight: '900' },
+  campaignTitle: { color: palette.label, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  period: { color: palette.secondaryLabel, fontSize: 13 },
+  rewardCard: { gap: 8, padding: 20, borderRadius: 22, borderCurve: 'continuous', backgroundColor: palette.surface },
+  rewardHeading: { color: palette.label, fontSize: 18, fontWeight: '900' },
+  rewardNote: { color: palette.secondaryLabel, fontSize: 13, lineHeight: 20 },
+  goalList: { marginTop: 10 },
+  goalRow: { minHeight: 76, flexDirection: 'row', gap: 14 },
+  timeline: { width: 34, alignItems: 'center' },
+  goalNumber: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: palette.primaryContainer },
+  goalNumberText: { color: palette.onPrimaryContainer, fontSize: 13, fontWeight: '900' },
+  timelineLine: { flex: 1, width: 2, marginVertical: 5, backgroundColor: palette.separator },
+  goalCopy: { gap: 3, paddingTop: 4 },
+  goalLabel: { color: palette.secondaryLabel, fontSize: 12, fontWeight: '700' },
+  goalName: { color: palette.label, fontSize: 17, fontWeight: '800' },
+  boundaryCard: { gap: 10, padding: 20, borderRadius: 22, borderCurve: 'continuous', backgroundColor: palette.primaryContainer },
+  boundaryTitle: { color: palette.onPrimaryContainer, fontSize: 18, fontWeight: '900' },
+  boundaryBody: { color: palette.onPrimaryContainer, fontSize: 14, lineHeight: 22 },
+  walletAction: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, backgroundColor: palette.primary },
+  walletActionText: { color: palette.onPrimary, fontSize: 14, fontWeight: '800' },
+  nextStep: { gap: 5, paddingHorizontal: 4 },
+  nextStepLabel: { color: palette.primary, fontSize: 12, fontWeight: '900' },
+  nextStepText: { color: palette.secondaryLabel, fontSize: 13, lineHeight: 20 },
+  centeredState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 28, backgroundColor: palette.background },
+  centeredTitle: { color: palette.label, fontSize: 21, fontWeight: '900', textAlign: 'center' },
+  centeredBody: { color: palette.secondaryLabel, fontSize: 15, lineHeight: 23, textAlign: 'center' },
+} satisfies Record<string, ImageStyle | TextStyle | ViewStyle>;
+}

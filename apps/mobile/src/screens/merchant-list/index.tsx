@@ -17,9 +17,9 @@ import type { PublicMerchant } from '@/merchant/merchant-api';
 import { filterMerchants, type MerchantAvailabilityFilter } from '@/merchant/filter-merchants';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { TabGlyph } from '@/navigation/tab-glyph';
-import { colors } from '@/theme/colors';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
-import { uiMetrics } from '@/theme/ui-metrics';
+
+import { makeMerchantListStyles } from './styles';
 
 type Props = {
   apiUrl: string;
@@ -28,6 +28,7 @@ type Props = {
 export function MerchantListScreen({ apiUrl }: Props) {
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
+  const styles = StyleSheet.create(makeMerchantListStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const [query, setQuery] = useState('');
@@ -157,6 +158,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
 }
 
 function CatalogEmptyState({ palette, onRefresh, refreshing }: { palette: AppColors; onRefresh: () => void; refreshing: boolean }) {
+  const styles = StyleSheet.create(makeMerchantListStyles(palette, StyleSheet.hairlineWidth));
   return (
     <View style={[styles.emptyState, { backgroundColor: palette.accentContainer }]}>
       <View style={styles.emptyRoute} accessibilityElementsHidden>
@@ -188,6 +190,7 @@ function CatalogEmptyState({ palette, onRefresh, refreshing }: { palette: AppCol
 
 export function MerchantApiConfigurationRequired() {
   const palette = colorsForScheme(useColorScheme());
+  const styles = StyleSheet.create(makeMerchantListStyles(palette, StyleSheet.hairlineWidth));
   return (
     <View style={[styles.configurationContent, { backgroundColor: palette.background }]}>
       <Text style={[styles.sectionEyebrow, { color: palette.label }]}>설정 필요</Text>
@@ -204,6 +207,7 @@ export function MerchantApiConfigurationRequired() {
 }
 
 function MerchantCard({ merchant, index, palette }: { merchant: PublicMerchant; index: number; palette: AppColors }) {
+  const styles = StyleSheet.create(makeMerchantListStyles(palette, StyleSheet.hairlineWidth));
   return (
     <Link
       href={{ pathname: '/merchants/[merchantId]', params: { merchantId: merchant.id } }}
@@ -251,6 +255,7 @@ function StatusPanel({
   onPress?: () => void;
   children?: React.ReactNode;
 }) {
+  const styles = StyleSheet.create(makeMerchantListStyles(palette, StyleSheet.hairlineWidth));
   return (
     <View style={[styles.statusPanel, { backgroundColor: palette.surface }]}>
       {children}
@@ -264,88 +269,3 @@ function StatusPanel({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  content: {
-    flexGrow: 1,
-    padding: uiMetrics.pageInset,
-    paddingBottom: 48,
-    backgroundColor: colors.background,
-  },
-  header: { gap: 11, marginBottom: 14 },
-  discoveryTools: { gap: 12, paddingTop: 8 },
-  searchField: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1 },
-  searchGlyph: { justifyContent: 'center' },
-  searchInput: { flex: 1, minWidth: 0, fontSize: 15, paddingVertical: 10 },
-  clearSearch: { minHeight: uiMetrics.minTouch, justifyContent: 'center', paddingHorizontal: 4 },
-  clearSearchText: { fontSize: 13, fontWeight: '700' },
-  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  filterChip: { minHeight: uiMetrics.minTouch, justifyContent: 'center', paddingHorizontal: 16, borderRadius: 999, borderWidth: 1 },
-  filterText: { fontSize: 13, fontWeight: '800' },
-  routeMarker: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  routeMarkerText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
-  title: { color: colors.label, fontSize: 27, fontWeight: '800', lineHeight: 34, letterSpacing: -0.6 },
-  intro: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 21 },
-  recommendationAction: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  recommendationActionText: { color: colors.primary, fontSize: 13, fontWeight: '800' },
-  sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  sectionEyebrow: { color: colors.label, fontSize: 18, fontWeight: '800' },
-  sectionCount: { color: colors.secondaryLabel, fontSize: 13, fontWeight: '700' },
-  inlineError: { padding: 12, borderRadius: 12, backgroundColor: colors.errorContainer },
-  inlineErrorText: { color: colors.onErrorContainer, fontSize: 13, lineHeight: 19 },
-  separator: { height: 14 },
-  card: {
-    gap: 10,
-    padding: 16,
-    borderRadius: uiMetrics.cardRadius,
-    borderCurve: 'continuous',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.separator,
-    backgroundColor: colors.surface,
-  },
-  cardPressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
-  cardTopline: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  routeNumber: { marginRight: 'auto', color: colors.primary, fontSize: 13, fontWeight: '900', letterSpacing: 1.2 },
-  statusBadge: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.successContainer },
-  statusBadgeText: { color: colors.onSuccessContainer, fontSize: 11, fontWeight: '800' },
-  fullBadge: { backgroundColor: colors.errorContainer },
-  fullBadgeText: { color: colors.onErrorContainer },
-  demoBadge: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.primaryContainer },
-  demoBadgeText: { color: colors.onPrimaryContainer, fontSize: 10, fontWeight: '900', letterSpacing: 0.6 },
-  cardTitle: { color: colors.label, fontSize: 21, fontWeight: '800', letterSpacing: -0.4 },
-  cardStory: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 21 },
-  cardRule: { height: StyleSheet.hairlineWidth, backgroundColor: colors.separator },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  cardAddress: { flex: 1, color: colors.label, fontSize: 13, fontWeight: '600' },
-  cardArrow: { color: colors.primary, fontSize: 20, fontWeight: '800' },
-  campaignName: { color: colors.secondaryLabel, fontSize: 12 },
-  statusPanel: { alignItems: 'center', gap: 12, padding: 28, borderRadius: 22, backgroundColor: colors.surface },
-  emptyState: { gap: 14, padding: 24, borderRadius: 24, borderCurve: 'continuous' },
-  emptyRoute: { height: 24, flexDirection: 'row', alignItems: 'center' },
-  routeStop: { width: 15, height: 15, borderRadius: 999 },
-  routeStopOutline: { backgroundColor: 'transparent', borderWidth: 2 },
-  routeTrack: { width: 72, height: 1, borderTopWidth: 1, borderStyle: 'dashed' },
-  emptyEyebrow: { fontSize: 12, fontWeight: '900', letterSpacing: 0.3 },
-  emptyTitle: { fontSize: 24, lineHeight: 31, fontWeight: '900', letterSpacing: -0.5 },
-  emptyBody: { fontSize: 14, lineHeight: 22 },
-  journey: { gap: 7, paddingTop: 14, borderTopWidth: 1 },
-  journeyLabel: { fontSize: 12, fontWeight: '900' },
-  journeyText: { fontSize: 13, lineHeight: 21, fontWeight: '700' },
-  emptyRefresh: { minHeight: uiMetrics.minTouch, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 18, borderRadius: 14 },
-  emptyRefreshText: { fontSize: 14, fontWeight: '800' },
-  statusTitle: { color: colors.label, fontSize: 20, fontWeight: '800', textAlign: 'center' },
-  statusBody: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 23, textAlign: 'center' },
-  primaryAction: { marginTop: 4, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.primary },
-  primaryActionText: { color: colors.onPrimary, fontSize: 14, fontWeight: '800' },
-  footer: { marginTop: 22, color: colors.secondaryLabel, fontSize: 12, lineHeight: 19 },
-  configurationContent: { flex: 1, justifyContent: 'center', gap: 18, padding: 24, backgroundColor: colors.background },
-  configurationCard: { gap: 8, padding: 18, borderRadius: 18, backgroundColor: colors.surface },
-  configurationCode: { color: colors.primary, fontFamily: 'monospace', fontSize: 14, fontWeight: '700' },
-  configurationHelp: { color: colors.secondaryLabel, fontSize: 13, lineHeight: 20 },
-});

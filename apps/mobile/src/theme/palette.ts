@@ -7,18 +7,18 @@ export type AppColors = {
 };
 
 export const lightColors: AppColors = {
-  label: '#102833', secondaryLabel: '#526A73', separator: '#C9D9DE',
-  background: '#F4F9FA', surface: '#FFFFFF', primary: '#286585', onPrimary: '#FFFFFF',
-  primaryContainer: '#D9EDF5', onPrimaryContainer: '#163B4D', success: '#2D6A4F',
+  label: '#192331', secondaryLabel: '#58677D', separator: '#DDE3EC',
+  background: '#FFFFFF', surface: '#F5F7FA', primary: '#2456D6', onPrimary: '#FFFFFF',
+  primaryContainer: '#EBF1FF', onPrimaryContainer: '#192331', success: '#2D6A4F',
   successContainer: '#DDEFE5', onSuccessContainer: '#174D35', error: '#9A371D',
   errorContainer: '#FCE4DA', onErrorContainer: '#7B2718',
   accentContainer: '#F7E8C9', onAccentContainer: '#4D3516',
 };
 
 export const darkColors: AppColors = {
-  label: '#F2F7F9', secondaryLabel: '#B8C8CF', separator: '#35515C',
-  background: '#071A22', surface: '#102A35', primary: '#86D1F2', onPrimary: '#052430',
-  primaryContainer: '#173F50', onPrimaryContainer: '#D9F2FC', success: '#75D6A2',
+  label: '#F3F5F9', secondaryLabel: '#A6B0C0', separator: '#343C49',
+  background: '#14171D', surface: '#20252F', primary: '#9BB8FF', onPrimary: '#14254A',
+  primaryContainer: '#25334F', onPrimaryContainer: '#D9F2FC', success: '#75D6A2',
   successContainer: '#163A29', onSuccessContainer: '#D8F8E5', error: '#FFB4A1',
   errorContainer: '#512015', onErrorContainer: '#FFE2DA',
   accentContainer: '#45371B', onAccentContainer: '#F8E9CC',

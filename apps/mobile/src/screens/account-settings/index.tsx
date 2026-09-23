@@ -15,9 +15,9 @@ import {
   deletionCapability,
   type DestructiveReauthentication,
 } from '@/privacy/deletion-capability';
-import { colors } from '@/theme/colors';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
-import { uiMetrics } from '@/theme/ui-metrics';
+
+import { makeAccountSettingsStyles } from './styles';
 
 export function AccountSettingsScreen({
   apiUrl,
@@ -38,6 +38,7 @@ export function AccountSettingsScreen({
 }) {
   const insets = useSafeAreaInsets();
   const palette = colorsForScheme(useColorScheme());
+  const styles = StyleSheet.create(makeAccountSettingsStyles(palette, StyleSheet.hairlineWidth));
   const capability = deletionCapability(credential, destructiveReauthentication);
   const client = useMemo(
     () => capability.allowed ? new AccountDeletionApiClient({ apiUrl, credential }) : undefined,
@@ -211,6 +212,7 @@ function shortAccountId(accountId: string): string {
 }
 
 function InfoCard({ title, body, palette }: { title: string; body: string; palette: AppColors }) {
+  const styles = StyleSheet.create(makeAccountSettingsStyles(palette, StyleSheet.hairlineWidth));
   return (
     <View style={[styles.card, { borderTopColor: palette.separator }]}>
       <Text style={[styles.cardTitle, { color: palette.label }]}>{title}</Text>
@@ -220,6 +222,7 @@ function InfoCard({ title, body, palette }: { title: string; body: string; palet
 }
 
 function DeletionStatus({ result, palette }: { result: AccountDeletionResult; palette: AppColors }) {
+  const styles = StyleSheet.create(makeAccountSettingsStyles(palette, StyleSheet.hairlineWidth));
   const waiting = result.status === 'WAITING_FOR_MINT_FINALITY';
   return (
     <View style={[styles.statusCard, { backgroundColor: palette.primaryContainer }]}>
@@ -251,33 +254,3 @@ function deletionErrorMessage(error: unknown): string {
   }
   return '삭제 요청 응답을 확인할 수 없습니다. 기존 계정 상태를 완료로 간주하지 않습니다.';
 }
-
-const styles = StyleSheet.create({
-  content: { gap: 14, padding: uiMetrics.pageInset, paddingBottom: 52, backgroundColor: colors.background },
-  eyebrow: { color: colors.primary, fontSize: 14, fontWeight: '800' },
-  title: { color: colors.label, fontSize: 26, lineHeight: 34, fontWeight: '800', letterSpacing: -0.4 },
-  intro: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 21 },
-  accountDiagnostic: { color: colors.secondaryLabel, fontSize: 12, lineHeight: 18 },
-  sessionActions: { gap: 10 },
-  sessionButtonHost: { minHeight: uiMetrics.minTouch },
-  toolsSection: { gap: 8, paddingVertical: 10 },
-  sectionTitle: { color: colors.label, fontSize: 18, fontWeight: '800' },
-  secondaryLink: { minHeight: uiMetrics.minTouch, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.primary },
-  secondaryLinkText: { color: colors.primary, fontSize: 14, fontWeight: '800' },
-  card: { gap: 7, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
-  cardTitle: { color: colors.label, fontSize: 16, fontWeight: '900' },
-  cardBody: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 22 },
-  statusCard: { gap: 7, padding: 18, borderRadius: 18, backgroundColor: colors.primaryContainer },
-  statusTitle: { color: colors.onPrimaryContainer, fontSize: 16, fontWeight: '900' },
-  statusBody: { color: colors.onPrimaryContainer, fontSize: 13, lineHeight: 20 },
-  error: { padding: 14, borderRadius: 14, color: colors.onErrorContainer, backgroundColor: colors.errorContainer, lineHeight: 20 },
-  message: { padding: 14, borderRadius: 14, color: colors.onPrimaryContainer, backgroundColor: colors.primaryContainer, lineHeight: 20 },
-  liveRegion: { gap: 10 },
-  deleteButton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.errorContainer },
-  deleteButtonText: { color: colors.onErrorContainer, fontSize: 15, fontWeight: '900' },
-  disabled: { opacity: 0.45 },
-  note: { color: colors.secondaryLabel, fontSize: 12, lineHeight: 19 },
-  blockedCard: { gap: 8, padding: 18, borderRadius: 18, backgroundColor: colors.errorContainer },
-  blockedTitle: { color: colors.onErrorContainer, fontSize: 15, fontWeight: '900' },
-  blockedBody: { color: colors.onErrorContainer, fontSize: 13, lineHeight: 21 },
-});

@@ -8,6 +8,7 @@ import {
   Text,
   TextInput,
   View,
+  useColorScheme,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,7 +20,10 @@ import {
 } from '@/commerce/commerce-api';
 import { ClaimQr } from '@/commerce/claim-qr';
 import { createDemoCredential } from '@/config/demo-runtime';
-import { colors } from '@/theme/colors';
+import { colorsForScheme } from '@/theme/palette';
+import { makeMerchantClaimStyles } from './styles';
+
+type MerchantClaimStyles = ReturnType<typeof makeMerchantClaimStyles>;
 
 type Props = {
   apiUrl: string;
@@ -29,6 +33,8 @@ type Props = {
 };
 
 export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCustomerAccountId = '' }: Props) {
+  const palette = colorsForScheme(useColorScheme());
+  const styles = StyleSheet.create(makeMerchantClaimStyles(palette, StyleSheet.hairlineWidth));
   const scrollView = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
   const api = useMemo(
@@ -124,26 +130,30 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
         <Text style={styles.cardLabel}>권한 확인</Text>
         {context ? (
           <>
-            <InfoRow label="점포" value={context.merchantId} />
-            <InfoRow label="역할" value={context.role} />
-            <InfoRow label="권한" value={context.permissions.join(' · ')} />
+            <InfoRow styles={styles} label="점포" value={context.merchantId} />
+            <InfoRow styles={styles} label="역할" value={context.role} />
+            <InfoRow styles={styles} label="권한" value={context.permissions.join(' · ')} />
           </>
         ) : contextError ? (
           <Text style={styles.errorText}>{contextError}</Text>
         ) : (
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={palette.primary} />
         )}
       </View>
 
       <View style={styles.formCard}>
         <Text style={styles.cardLabel}>발급 대상</Text>
         <LabeledInput
+          styles={styles}
+          palette={palette}
           label="고객 데모 계정"
           value={customerAccountId}
           onChangeText={setCustomerAccountId}
           placeholder="customer-account-id"
         />
         <LabeledInput
+          styles={styles}
+          palette={palette}
           label="점포 주문 참조"
           value={merchantReference}
           onChangeText={setMerchantReference}
@@ -151,6 +161,7 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
         />
         <Text style={styles.help}>주문 참조 원문은 서버 DB에 저장하지 않고 점포 범위 HMAC으로만 비교합니다.</Text>
         <PrimaryButton
+          styles={styles}
           label={busy ? '발급 중…' : '1회 수령 코드 발급'}
           disabled={!context || busy || !customerAccountId.trim() || !merchantReference.trim()}
           onPress={issue}
@@ -171,8 +182,8 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
           <Text selectable style={styles.token}>{issued.token}</Text>
           <Text style={styles.help}>고객 화면의 ‘QR 촬영’으로 읽습니다. 카메라를 쓸 수 없으면 아래 코드를 직접 입력합니다.</Text>
           <View style={styles.actions}>
-            <PrimaryButton label="안전하게 공유" onPress={shareToken} />
-            <PrimaryButton label="이전 코드 폐기·재발급" variant="secondary" disabled={busy} onPress={reissue} />
+            <PrimaryButton styles={styles} label="안전하게 공유" onPress={shareToken} />
+            <PrimaryButton styles={styles} label="이전 코드 폐기·재발급" variant="secondary" disabled={busy} onPress={reissue} />
           </View>
         </View>
       ) : null}
@@ -180,7 +191,7 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
   );
 }
 
-function LabeledInput({ label, ...props }: { label: string; value: string; onChangeText(value: string): void; placeholder: string }) {
+function LabeledInput({ styles, palette, label, ...props }: { styles: MerchantClaimStyles; palette: ReturnType<typeof colorsForScheme>; label: string; value: string; onChangeText(value: string): void; placeholder: string }) {
   return (
     <View style={styles.inputGroup}>
       <Text style={styles.inputLabel}>{label}</Text>
@@ -189,13 +200,13 @@ function LabeledInput({ label, ...props }: { label: string; value: string; onCha
         autoCapitalize="none"
         autoCorrect={false}
         style={styles.input}
-        placeholderTextColor={colors.secondaryLabel}
+        placeholderTextColor={palette.secondaryLabel}
       />
     </View>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ styles, label, value }: { styles: MerchantClaimStyles; label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
@@ -204,7 +215,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PrimaryButton({ label, onPress, disabled = false, variant = 'primary' }: { label: string; onPress(): void; disabled?: boolean; variant?: 'primary' | 'secondary' }) {
+function PrimaryButton({ styles, label, onPress, disabled = false, variant = 'primary' }: { styles: MerchantClaimStyles; label: string; onPress(): void; disabled?: boolean; variant?: 'primary' | 'secondary' }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -239,35 +250,3 @@ function formatDateTime(value: string): string {
     minute: '2-digit',
   }).format(new Date(value));
 }
-
-const styles = StyleSheet.create({
-  content: { gap: 18, padding: 20, paddingBottom: 48, backgroundColor: colors.background },
-  hero: { gap: 10 },
-  eyebrow: { color: colors.primary, fontSize: 13, fontWeight: '900' },
-  title: { color: colors.label, fontSize: 31, fontWeight: '900', lineHeight: 39, letterSpacing: -0.6 },
-  body: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 24 },
-  contextCard: { gap: 8, padding: 18, borderRadius: 20, backgroundColor: colors.primaryContainer },
-  formCard: { gap: 14, padding: 18, borderRadius: 20, backgroundColor: colors.surface },
-  cardLabel: { color: colors.label, fontSize: 17, fontWeight: '900' },
-  infoRow: { flexDirection: 'row', gap: 12, justifyContent: 'space-between' },
-  infoLabel: { color: colors.onPrimaryContainer, fontSize: 13, fontWeight: '700' },
-  infoValue: { flex: 1, color: colors.onPrimaryContainer, fontSize: 13, fontWeight: '800', textAlign: 'right' },
-  inputGroup: { gap: 7 },
-  inputLabel: { color: colors.label, fontSize: 13, fontWeight: '800' },
-  input: { minHeight: 50, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.separator, color: colors.label, backgroundColor: colors.background, fontSize: 15 },
-  help: { color: colors.secondaryLabel, fontSize: 12, lineHeight: 19 },
-  button: { minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.primary },
-  secondaryButton: { borderWidth: 1, borderColor: colors.primary, backgroundColor: 'transparent' },
-  buttonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900', textAlign: 'center' },
-  secondaryButtonText: { color: colors.primary },
-  disabled: { opacity: 0.42 },
-  message: { padding: 13, borderRadius: 14, color: colors.onPrimaryContainer, backgroundColor: colors.primaryContainer, fontSize: 13, lineHeight: 20 },
-  errorText: { color: colors.onErrorContainer, fontSize: 13, lineHeight: 20 },
-  qr: { alignItems: 'center', paddingVertical: 8 },
-  tokenCard: { gap: 14, padding: 18, borderRadius: 20, backgroundColor: colors.surface },
-  tokenTopline: { gap: 4 },
-  tokenLabel: { color: colors.primary, fontSize: 13, fontWeight: '900' },
-  expiry: { color: colors.secondaryLabel, fontSize: 12 },
-  token: { padding: 13, borderRadius: 12, color: colors.label, backgroundColor: colors.background, fontFamily: 'monospace', fontSize: 13, lineHeight: 20 },
-  actions: { gap: 10 },
-});

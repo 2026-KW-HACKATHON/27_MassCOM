@@ -1,14 +1,15 @@
 import { ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors } from '@/theme/colors';
+import { colorsForScheme } from '@/theme/palette';
+import { makeWalletConfigurationRequiredStyles } from './configuration-required.styles';
 
 type Props = {
   missing: string[];
 };
 
 export function WalletConfigurationRequired({ missing }: Props) {
-  useColorScheme();
+  const styles = StyleSheet.create(makeWalletConfigurationRequiredStyles(colorsForScheme(useColorScheme()), StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
 
   return (
@@ -36,57 +37,3 @@ export function WalletConfigurationRequired({ missing }: Props) {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  content: {
-    flexGrow: 1,
-    gap: 18,
-    padding: 24,
-    backgroundColor: colors.background,
-  },
-  badge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: colors.errorContainer,
-  },
-  badgeText: {
-    color: colors.error,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  title: {
-    color: colors.label,
-    fontSize: 30,
-    fontWeight: '800',
-    lineHeight: 38,
-  },
-  body: {
-    color: colors.secondaryLabel,
-    fontSize: 17,
-    lineHeight: 27,
-  },
-  card: {
-    gap: 10,
-    padding: 18,
-    borderRadius: 18,
-    borderCurve: 'continuous',
-    backgroundColor: colors.surface,
-    boxShadow: '0 8px 24px rgba(16, 40, 51, 0.08)',
-  },
-  cardTitle: {
-    color: colors.label,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  code: {
-    color: colors.primary,
-    fontFamily: 'monospace',
-    fontSize: 14,
-  },
-  note: {
-    color: colors.secondaryLabel,
-    fontSize: 14,
-  },
-});

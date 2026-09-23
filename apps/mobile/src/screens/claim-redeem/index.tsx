@@ -17,9 +17,9 @@ import {
   claimSuccessCopy,
   type ClaimRecoveryAction,
 } from '@/commerce/claim-recovery';
-import { colors } from '@/theme/colors';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
-import { uiMetrics } from '@/theme/ui-metrics';
+
+import { makeClaimRedeemStyles } from './styles';
 
 export function ClaimRedeemScreen({
   apiUrl,
@@ -33,6 +33,7 @@ export function ClaimRedeemScreen({
   const scrollView = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
   const palette = colorsForScheme(useColorScheme());
+  const styles = StyleSheet.create(makeClaimRedeemStyles(palette, StyleSheet.hairlineWidth));
   const api = useMemo(
     () => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
@@ -233,6 +234,7 @@ export function ClaimRedeemScreen({
 }
 
 function StatusRow({ label, value, palette }: { label: string; value: string; palette: AppColors }) {
+  const styles = StyleSheet.create(makeClaimRedeemStyles(palette, StyleSheet.hairlineWidth));
   return (
     <View style={[styles.statusRow, { borderBottomColor: palette.separator }]}>
       <Text style={[styles.statusLabel, { color: palette.secondaryLabel }]}>{label}</Text>
@@ -263,34 +265,3 @@ function formatDateTime(value: string): string {
     minute: '2-digit',
   }).format(new Date(value));
 }
-
-const styles = StyleSheet.create({
-  content: { gap: 14, padding: uiMetrics.pageInset, paddingBottom: 48, backgroundColor: colors.background },
-  hero: { gap: 8 },
-  eyebrow: { color: colors.primary, fontSize: 13, fontWeight: '900' },
-  title: { color: colors.label, fontSize: 26, fontWeight: '800', lineHeight: 34, letterSpacing: -0.4 },
-  body: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 21 },
-  formCard: { gap: 10, padding: 16, borderRadius: uiMetrics.cardRadius, backgroundColor: colors.surface },
-  sectionTitle: { color: colors.label, fontSize: 17, fontWeight: '800' },
-  securityNote: { color: colors.secondaryLabel, fontSize: 12, lineHeight: 18 },
-  inputLabel: { color: colors.label, fontSize: 14, fontWeight: '900' },
-  camera: { height: 280, borderRadius: 14, overflow: 'hidden', backgroundColor: '#000000' },
-  scanButton: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary },
-  scanButtonText: { color: colors.primary },
-  input: { minHeight: 72, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.separator, color: colors.label, backgroundColor: colors.background, fontFamily: 'monospace', fontSize: 13, textAlignVertical: 'top' },
-  button: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.primary },
-  buttonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900' },
-  disabled: { opacity: 0.42 },
-  message: { padding: 13, borderRadius: 14, color: colors.onPrimaryContainer, backgroundColor: colors.primaryContainer, fontSize: 13, lineHeight: 20 },
-  previewCard: { gap: 10, padding: 18, borderRadius: 20, backgroundColor: colors.surface },
-  statusRow: { flexDirection: 'row', gap: 16, justifyContent: 'space-between', paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.separator },
-  statusLabel: { color: colors.secondaryLabel, fontSize: 13, fontWeight: '700' },
-  statusValue: { flex: 1, color: colors.label, fontSize: 13, fontWeight: '800', textAlign: 'right' },
-  successCard: { gap: 10, padding: 20, borderRadius: 22, backgroundColor: colors.successContainer },
-  successEyebrow: { color: colors.onSuccessContainer, fontSize: 12, fontWeight: '900' },
-  successTitle: { color: colors.onSuccessContainer, fontSize: 22, fontWeight: '900' },
-  successBody: { color: colors.onSuccessContainer, fontSize: 14, lineHeight: 22 },
-  collectionButton: { minHeight: uiMetrics.minTouch, maxWidth: '100%', alignSelf: 'flex-start', justifyContent: 'center', marginTop: 4, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.primary },
-  collectionButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900', textAlign: 'center' },
-  successActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-});

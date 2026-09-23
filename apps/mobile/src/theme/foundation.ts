@@ -1,11 +1,17 @@
-// Temporary presentation tokens; independent of the existing feature UI and TDS.
+import { darkColors, lightColors } from './palette';
+
+// Presentation names map to the same semantic palette as the feature UI.
 export const foundationColors = {
   light: {
-    background: '#FFFFFF', ink: '#192331', muted: '#647184', line: '#EDF0F4',
-    soft: '#F5F7FA', accent: '#376CF4', tint: '#EBF1FF', onAccent: '#FFFFFF',
+    background: lightColors.background, ink: lightColors.label,
+    muted: lightColors.secondaryLabel, line: lightColors.separator,
+    soft: lightColors.surface, accent: lightColors.primary,
+    tint: lightColors.primaryContainer, onAccent: lightColors.onPrimary,
   },
   dark: {
-    background: '#14171D', ink: '#F3F5F9', muted: '#A6B0C0', line: '#292E38',
-    soft: '#20252F', accent: '#9BB8FF', tint: '#25334F', onAccent: '#14254A',
+    background: darkColors.background, ink: darkColors.label,
+    muted: darkColors.secondaryLabel, line: darkColors.separator,
+    soft: darkColors.surface, accent: darkColors.primary,
+    tint: darkColors.primaryContainer, onAccent: darkColors.onPrimary,
   },
 };

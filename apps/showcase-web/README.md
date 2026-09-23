@@ -16,8 +16,11 @@ python3 -m http.server 4174 --directory apps/showcase-web --bind 127.0.0.1
 
 ```bash
 node --test tests/site/verify_showcase_site_test.mjs
+node --test tests/site/verify_showcase_theme_test.mjs
 python3 scripts/verify-showcase-site.py
 ```
+
+테마 검사는 로컬 Google Chrome에서 라이트·다크 계산 색, 본문·고지·태그 대비, 360px/1440px 화면과 200% 글씨, 키보드 초점, HTML/CSS 요청 경로를 확인합니다. Linux CI에서는 설치된 Chrome/Chromium 경로를 `CHROME_PATH`로 전달해 같은 검사를 실행합니다.
 
 페이지에는 JavaScript·양식·쓰기 버튼·원격 자산을 넣지 않았습니다. 운영 API·DB와 연결되지 않으며 앱의 체험 진행 결과와 자동 동기화되지 않습니다. QR 촬영·방문 코드·지갑 연결·NFT 발행 요청은 웹에서 제공하지 않습니다.
 

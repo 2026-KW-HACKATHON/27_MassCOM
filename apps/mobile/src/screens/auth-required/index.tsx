@@ -4,7 +4,8 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View, useColorScheme }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AuthSessionState } from '@/auth/auth-provider';
-import { colors } from '@/theme/colors';
+import { colorsForScheme } from '@/theme/palette';
+import { makeAuthRequiredStyles } from './styles';
 
 type Props = {
   state: Exclude<AuthSessionState, { status: 'signedIn' } | { status: 'demo' }>;
@@ -13,7 +14,8 @@ type Props = {
 };
 
 export function AuthRequiredScreen({ state, canSignIn, onSignIn }: Props) {
-  useColorScheme();
+  const palette = colorsForScheme(useColorScheme());
+  const styles = StyleSheet.create(makeAuthRequiredStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -46,7 +48,7 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn }: Props) {
       </Text>
 
       <View accessibilityLiveRegion="polite" style={styles.statusCard}>
-        {restoring || busy ? <ActivityIndicator color={colors.primary} /> : null}
+        {restoring || busy ? <ActivityIndicator color={palette.primary} /> : null}
         <Text selectable style={styles.statusTitle}>
           {restoring ? '저장된 로그인을 확인하는 중입니다.' : configurationRequired
             ? 'Google 로그인 설정이 필요합니다.' : error ?? reasonMessage(state)}
@@ -54,7 +56,7 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn }: Props) {
       </View>
 
       {!configurationRequired && !restoring ? (
-        <Host matchContents seedColor={colors.primary} style={styles.buttonHost}>
+        <Host matchContents seedColor={palette.primary} style={styles.buttonHost}>
           <Button
             label={busy ? '로그인 중' : 'Google로 로그인'}
             variant="filled"
@@ -90,26 +92,3 @@ function messageFor(error: unknown): string {
     ? 'Google 로그인을 취소했습니다.'
     : '로그인을 완료하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.';
 }
-
-const styles = StyleSheet.create({
-  content: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    gap: 18,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    backgroundColor: colors.background,
-  },
-  eyebrow: { color: colors.primary, fontSize: 14, fontWeight: '800' },
-  title: { color: colors.label, fontSize: 30, lineHeight: 38, fontWeight: '900' },
-  body: { color: colors.secondaryLabel, fontSize: 16, lineHeight: 25 },
-  statusCard: {
-    gap: 10,
-    padding: 18,
-    borderRadius: 20,
-    borderCurve: 'continuous',
-    backgroundColor: colors.surface,
-  },
-  statusTitle: { color: colors.label, fontSize: 15, lineHeight: 22, fontWeight: '700' },
-  buttonHost: { minHeight: 48 },
-});

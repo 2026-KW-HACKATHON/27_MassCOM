@@ -3,24 +3,28 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
-import { colors } from '@/theme/colors';
+import { colorsForScheme } from '@/theme/palette';
+import { makeMerchantDetailStyles } from './styles';
+
+type MerchantDetailStyles = ReturnType<typeof makeMerchantDetailStyles>;
 
 export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: string; apiUrl: string }) {
-  useColorScheme();
+  const palette = colorsForScheme(useColorScheme());
+  const styles = StyleSheet.create(makeMerchantDetailStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const merchant = merchants.find((item) => item.id === merchantId);
 
   if (loading && !merchant) {
-    return <CenteredState title="가게 이야기를 불러오는 중" loading />;
+    return <CenteredState styles={styles} palette={palette} title="가게 이야기를 불러오는 중" loading />;
   }
 
   if (error && !merchant) {
-    return <CenteredState title="가게 정보를 불러오지 못했어요" body={error} action="다시 불러오기" onPress={retry} />;
+    return <CenteredState styles={styles} palette={palette} title="가게 정보를 불러오지 못했어요" body={error} action="다시 불러오기" onPress={retry} />;
   }
 
   if (!merchant) {
-    return <CenteredState title="찾을 수 없는 음식점입니다" body="목록에서 공개 중인 음식점을 다시 선택해 주세요." />;
+    return <CenteredState styles={styles} palette={palette} title="찾을 수 없는 음식점입니다" body="목록에서 공개 중인 음식점을 다시 선택해 주세요." />;
   }
 
   return (
@@ -45,9 +49,9 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
       ) : null}
 
       <View style={styles.infoCard}>
-        <InfoRow label="주소" value={merchant.roadAddress} />
-        <InfoRow label="최소 이용" value={`${merchant.minimumSpendWon.toLocaleString('ko-KR')}원`} />
-        <InfoRow label="참여 상태" value={merchant.campaign.enrollmentStatus === 'OPEN' ? '참여 가능' : '정원 마감'} />
+        <InfoRow styles={styles} label="주소" value={merchant.roadAddress} />
+        <InfoRow styles={styles} label="최소 이용" value={`${merchant.minimumSpendWon.toLocaleString('ko-KR')}원`} />
+        <InfoRow styles={styles} label="참여 상태" value={merchant.campaign.enrollmentStatus === 'OPEN' ? '참여 가능' : '정원 마감'} />
       </View>
 
       <View style={styles.campaignHeader}>
@@ -64,6 +68,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
         <View style={styles.goalList}>
           {merchant.campaign.rewardGoals.map((goal, index) => (
             <RewardGoalRow
+              styles={styles}
               key={`${goal.targetVisitCount}-${goal.displayName}`}
               target={goal.targetVisitCount}
               name={goal.displayName}
@@ -99,7 +104,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ styles, label, value }: { styles: MerchantDetailStyles; label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
@@ -108,7 +113,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function RewardGoalRow({ target, name, final }: { target: number; name: string; final: boolean }) {
+function RewardGoalRow({ styles, target, name, final }: { styles: MerchantDetailStyles; target: number; name: string; final: boolean }) {
   return (
     <View style={styles.goalRow}>
       <View style={styles.timeline}>
@@ -125,10 +130,10 @@ function RewardGoalRow({ target, name, final }: { target: number; name: string; 
   );
 }
 
-function CenteredState({ title, body, action, onPress, loading = false }: { title: string; body?: string; action?: string; onPress?: () => void; loading?: boolean }) {
+function CenteredState({ styles, palette, title, body, action, onPress, loading = false }: { styles: MerchantDetailStyles; palette: ReturnType<typeof colorsForScheme>; title: string; body?: string; action?: string; onPress?: () => void; loading?: boolean }) {
   return (
     <View style={styles.centeredState}>
-      {loading ? <ActivityIndicator color={colors.primary} /> : null}
+      {loading ? <ActivityIndicator color={palette.primary} /> : null}
       <Text style={styles.centeredTitle}>{title}</Text>
       {body ? <Text style={styles.centeredBody}>{body}</Text> : null}
       {action && onPress ? (
@@ -148,46 +153,3 @@ function formatDate(value: string): string {
     day: 'numeric',
   }).format(new Date(value));
 }
-
-const styles = StyleSheet.create({
-  content: { gap: 18, padding: 20, paddingBottom: 48, backgroundColor: colors.background },
-  hero: { gap: 12, padding: 24, borderRadius: 26, borderCurve: 'continuous', backgroundColor: colors.primary },
-  heroTopline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  heroEyebrow: { color: colors.onPrimary, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
-  demoBadge: { color: colors.onPrimary, fontSize: 10, fontWeight: '900', opacity: 0.78 },
-  title: { color: colors.onPrimary, fontSize: 34, fontWeight: '900', lineHeight: 42, letterSpacing: -0.7 },
-  story: { color: colors.onPrimary, fontSize: 16, lineHeight: 25, opacity: 0.88 },
-  inlineError: { padding: 12, borderRadius: 12, backgroundColor: colors.errorContainer },
-  inlineErrorText: { color: colors.onErrorContainer, fontSize: 13, lineHeight: 19 },
-  infoCard: { paddingHorizontal: 18, borderRadius: 20, borderCurve: 'continuous', backgroundColor: colors.surface },
-  infoRow: { flexDirection: 'row', gap: 18, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.separator },
-  infoLabel: { width: 72, color: colors.secondaryLabel, fontSize: 13, fontWeight: '700' },
-  infoValue: { flex: 1, color: colors.label, fontSize: 14, fontWeight: '700', textAlign: 'right' },
-  campaignHeader: { gap: 6, paddingTop: 4 },
-  sectionEyebrow: { color: colors.primary, fontSize: 13, fontWeight: '900' },
-  campaignTitle: { color: colors.label, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
-  period: { color: colors.secondaryLabel, fontSize: 13 },
-  rewardCard: { gap: 8, padding: 20, borderRadius: 22, borderCurve: 'continuous', backgroundColor: colors.surface },
-  rewardHeading: { color: colors.label, fontSize: 18, fontWeight: '900' },
-  rewardNote: { color: colors.secondaryLabel, fontSize: 13, lineHeight: 20 },
-  goalList: { marginTop: 10 },
-  goalRow: { minHeight: 76, flexDirection: 'row', gap: 14 },
-  timeline: { width: 34, alignItems: 'center' },
-  goalNumber: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: colors.primaryContainer },
-  goalNumberText: { color: colors.onPrimaryContainer, fontSize: 13, fontWeight: '900' },
-  timelineLine: { flex: 1, width: 2, marginVertical: 5, backgroundColor: colors.separator },
-  goalCopy: { gap: 3, paddingTop: 4 },
-  goalLabel: { color: colors.secondaryLabel, fontSize: 12, fontWeight: '700' },
-  goalName: { color: colors.label, fontSize: 17, fontWeight: '800' },
-  boundaryCard: { gap: 10, padding: 20, borderRadius: 22, borderCurve: 'continuous', backgroundColor: colors.primaryContainer },
-  boundaryTitle: { color: colors.onPrimaryContainer, fontSize: 18, fontWeight: '900' },
-  boundaryBody: { color: colors.onPrimaryContainer, fontSize: 14, lineHeight: 22 },
-  walletAction: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.primary },
-  walletActionText: { color: colors.onPrimary, fontSize: 14, fontWeight: '800' },
-  nextStep: { gap: 5, paddingHorizontal: 4 },
-  nextStepLabel: { color: colors.primary, fontSize: 12, fontWeight: '900' },
-  nextStepText: { color: colors.secondaryLabel, fontSize: 13, lineHeight: 20 },
-  centeredState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 28, backgroundColor: colors.background },
-  centeredTitle: { color: colors.label, fontSize: 21, fontWeight: '900', textAlign: 'center' },
-  centeredBody: { color: colors.secondaryLabel, fontSize: 15, lineHeight: 23, textAlign: 'center' },
-});
