@@ -2,12 +2,18 @@
 
 마지막 갱신 시각: 2026-09-24 KST
 
-## Issue #137 시연 Android 빌드 경계 (진행 중)
+## Issue #142 파란 UI 일관화 (PR 준비 중)
 
-- 브랜치 `feat/137-showcase-android-boundary`는 main `d257d0b`에서 시작했다. 계획 `d98b228`은 독립 Astra 검토 CLEAR, URL·variant 차단 `9e378d5`, 세 Android 정체성과 지갑 복귀 `2cf97c2`를 완료했다. 실제 PR·CI·merge 상태는 `gh pr list`와 `git log origin/main -1`에서 확인한다.
+- 작업 브랜치 `feat/142-design-consistency`; 시안 색상 정본은 `apps/mobile/src/theme/palette.ts`다. 운영 네 탭·보조/인증/지갑/점주 11개 화면은 라이트/다크 palette를 렌더 시점에 선택하고, 시연 웹은 같은 의미색 CSS 변수와 명시적 다크 media를 사용한다. 기능·라우트·API·지갑 요청·시연 웹 읽기 전용 경계는 유지한다.
+- 자동 검증: 모바일 180/180, typecheck·lint·Android 개발 JS export, 시연 웹 19/19·정적 verifier·접근성, bootstrap·운영 문서·privacy·모바일 접근성 의미·W08 회귀 PASS. `MassCOM_Design_QA` Android 36 AVD에 개발 debug APK 설치·실행, 로그인 화면 라이트/다크·200% 확인 PASS. 로그인 후 네 탭, 실물 휴대전화, 시연 APK/외부 HTTPS는 NOT_RUN. [증거](evidence/design-consistency-2026-09-24/README.md).
+- 다음: Issue #142 한글 PR·CI·독립 리뷰를 끝내고 병합한다. Issue #137 별도 API/DB·OAuth/Reown·실기와 운영 웹 개인 도감은 별개이며 아직 남아 있다.
+
+## Issue #137 시연 Android 빌드 경계 (병합, 후속 진행 중)
+
+- 브랜치 `feat/137-showcase-android-boundary`는 main `d257d0b`에서 시작했다. 계획 `d98b228`은 독립 Astra 검토 CLEAR, URL·variant 차단 `9e378d5`, 세 Android 정체성과 지갑 복귀 `2cf97c2`, 빈 URL 구분자 차단 `5c20215`를 완료했다. PR #141은 `b093fbd`로 main에 병합됐고 main CI `35889398325` PASS다.
 - `showcase`는 `kr.masscom.wolgye.demo`/`masscom-demo`/`월계 마스코트 체험용`과 정확한 `https://demo-api.masscom.kr`만 허용한다. 운영은 `https://api.masscom.kr`만 허용한다. 개발 빌드의 API URL은 기존 규칙대로 HTTPS 또는 허용된 loopback HTTP가 가능하지만, 불안전한 DEMO 계정 헤더를 받는 API 서버 자체는 loopback 바인드로 제한한다. 시연 빌드가 기존 Google/Reown 공개 ID를 받으면 거절한다. 164개 모바일 단위·typecheck·lint·개발 Android JS export·W08 검사 도구 회귀는 PASS.
 - 아직 없는 것으로 **확인된 것**은 별도 API/DB·OAuth/Reown 프로젝트의 저장소 연결과 실제 시연 설치본 증거다. 외부 자원 자체의 존재 여부는 재확인 전 단정하지 않는다. Android 시연·운영 동시 설치, 실제 QR/지갑 복귀, 외부 HTTPS, 시연 AAB W08은 NOT_RUN. 운영 DB에는 가상 seed를 넣지 않는다.
-- 다음: 한국어 PR의 CI·독립 코드 리뷰 후 이 경계만 통합한다. 이어서 #137의 별도 시연 API 인증/DB, 운영 웹 읽기 전용 개인 도감, 디자인 일관화, 외부 환경·실기 증거를 각각 진행한다. 새 유료 자원·DNS·공개 배포는 승인 경계를 확인한다.
+- 다음: #137의 별도 시연 API 인증/DB, 운영 웹 읽기 전용 개인 도감, 외부 환경·실기 증거를 각각 진행한다. 시연 앱을 개발 앱으로 분류하는 런타임 판단도 정확한 package ID로 고쳐야 한다. 새 유료 자원·DNS·공개 배포는 승인 경계를 확인한다.
 
 ## Issue #136 PR #138 수정 작업 (현재)
 

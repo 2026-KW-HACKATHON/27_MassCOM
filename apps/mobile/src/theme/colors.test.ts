@@ -15,6 +15,7 @@ const contrastPairs = [
   ['success', 'background'],
   ['success', 'surface'],
   ['onSuccessContainer', 'successContainer'],
+  ['onSuccessContainer', 'surface'],
   ['error', 'background'],
   ['error', 'surface'],
   ['onErrorContainer', 'errorContainer'],
