@@ -38,6 +38,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.frame, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <Text selectable style={[styles.previewNotice, { color: colors.muted }]}>개발용 화면 시안 · 실제 음식점·방문·혜택이 아닙니다.</Text>
         {stage === 'shell' && role ? (
           <EmptyPager role={role} onBack={() => { setStage('role'); setRole(undefined); }} />
         ) : (
@@ -196,6 +197,7 @@ function Glyph({ kind, color, size }: { kind: Role | 'wallet' | number; color: s
 
 const styles = StyleSheet.create({
   root: { flex: 1 }, frame: { flex: 1, width: '100%', maxWidth: 600, alignSelf: 'center' },
+  previewNotice: { paddingHorizontal: 20, paddingTop: 8, fontSize: 12, lineHeight: 18 },
   onboarding: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 32, paddingBottom: 24 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 9 }, brand: { fontSize: 19, fontWeight: '700', letterSpacing: -0.6 },
   brandMark: { width: 23, height: 23, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }, brandDot: { width: 7, height: 7, borderRadius: 4 },

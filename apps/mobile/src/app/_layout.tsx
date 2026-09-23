@@ -6,14 +6,13 @@ import { useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthSessionProvider, useAuthSession } from '@/auth/auth-provider';
-import { RouteBoundary, WalletBackButton } from '@/navigation/route-boundary';
+import { AuthRequiredScreen } from '@/screens/auth-required';
 import { colorsForScheme } from '@/theme/palette';
 
 function Routes() {
   const palette = colorsForScheme(useColorScheme());
   return (
     <Stack
-      screenLayout={({ children, route }) => <RouteBoundary name={route.name}>{children}</RouteBoundary>}
       screenOptions={{
         headerShadowVisible: false,
         headerBackButtonDisplayMode: 'minimal',
@@ -22,13 +21,12 @@ function Routes() {
         contentStyle: { backgroundColor: palette.background },
       }}
     >
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="open" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="foundation-preview" options={{ title: 'UI 시안 미리보기' }} />
       <Stack.Screen name="merchants/[merchantId]" options={{ title: '음식점 상세' }} />
       <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
       <Stack.Screen name="recommendations" options={{ title: '다음 가게 추천' }} />
-      <Stack.Screen name="wallet" options={{ title: '외부 지갑 연결', headerLeft: () => <WalletBackButton /> }} />
+      <Stack.Screen name="wallet" options={{ title: '외부 지갑 연결' }} />
     </Stack>
   );
 }
@@ -38,22 +36,32 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <StatusBar style="auto" />
       <AuthSessionProvider>
-        <Routes />
-        <WalletOverlay />
+        <AuthenticatedRoot />
       </AuthSessionProvider>
     </SafeAreaProvider>
   );
 }
 
-function WalletOverlay() {
+function AuthenticatedRoot() {
   const auth = useAuthSession();
   const themeMode = useColorScheme() === 'dark' ? 'dark' : 'light';
 
-  if (!auth.appKit) return null;
+  if (auth.state.status !== 'signedIn' && auth.state.status !== 'demo') {
+    return (
+      <AuthRequiredScreen
+        state={auth.state}
+        canSignIn={auth.canSignIn}
+        onSignIn={auth.signIn}
+      />
+    );
+  }
+
+  if (!auth.appKit) return <Routes key={auth.accountId} />;
 
   return (
     <AppKitProvider key={auth.accountId} instance={auth.appKit}>
       <WalletThemeSynchronizer themeMode={themeMode} />
+      <Routes />
       <View pointerEvents="box-none" style={{ position: 'absolute', width: '100%', height: '100%' }}>
         <AppKit />
       </View>

@@ -12,7 +12,7 @@
 
 ## 한눈에 보기
 
-- [모바일 UI 기초·로컬 실행](apps/mobile/README.md): Issue #136 역할 선택·선택적 지갑·다섯 빈 공간과 PR 브랜치 Android 개발 앱 실행 방법
+- [모바일 개발용 UI 시안·로컬 실행](apps/mobile/README.md): Issue #136 역할 선택·선택적 지갑·다섯 빈 공간을 개발용 미리보기로 보존. 운영 앱의 네 기능 탭은 유지
 
 - [모바일 디자인 기준](DESIGN.md): 탐색·방문 인증·도감·내 정보의 화면 구조와 접근성 원칙
 - [AI 모델 사용 기준](docs/AI_MODEL_ROUTING.md): GPT‑6 Luna/Sol/Astra 작업별 사용처와 검증 경계
