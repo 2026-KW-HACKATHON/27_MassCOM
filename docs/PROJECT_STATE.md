@@ -1,6 +1,11 @@
 # 프로젝트 상태
 
-마지막 갱신 시각: 2026-09-23 KST
+마지막 갱신 시각: 2026-09-24 KST
+
+## 최신 작업 경계
+
+- PR #138은 merge `d257d0b`, main CI `35879966085` PASS. 역할 선택은 개발용 미리보기이며 운영 네 탭은 유지된다. Issue #136의 원래 첫 화면 요구는 OPEN이다.
+- Issue #137에서는 정적 시연 웹 PR #139와 로컬 `_test` seed PR #140을 병합했다. `feat/137-showcase-android-boundary`가 시연 Android package/scheme/API 교차 연결 차단을 구현 중이다. 외부 시연 API/DB·OAuth/Reown·APK·실기와 운영 웹 개인 도감은 아직 미완료다. 아래 2026-09-23 기준 수치·상태를 이번 후속 작업의 완료 증거로 바꾸지 않는다.
 
 ## 기준선
 
