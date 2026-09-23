@@ -21,6 +21,27 @@ for page in privacy.html account-deletion.html open.html; do
 done
 grep -q 'href="privacy.html"' "$repo_root/docs/index.html"
 grep -q 'href="account-deletion.html"' "$repo_root/docs/index.html"
+for entry in \
+  'index.html|https://masscom.kr/' \
+  'open.html|https://masscom.kr/open' \
+  'privacy.html|https://masscom.kr/privacy' \
+  'account-deletion.html|https://masscom.kr/account-deletion' \
+  'presentation.html|https://masscom.kr/presentation'; do
+  page="${entry%%|*}"
+  canonical="${entry#*|}"
+  grep -qF "rel=\"canonical\" href=\"$canonical\"" "$repo_root/docs/$page" || {
+    echo "project portal canonical URL is missing: $page" >&2
+    exit 1
+  }
+done
+[[ -s "$repo_root/docs/assets/wallet-mark.svg" ]] || {
+  echo 'project portal is missing the public wallet mark' >&2
+  exit 1
+}
+grep -q 'href="https://masscom.kr/open"' "$repo_root/docs/index.html" || {
+  echo 'project portal is missing the Android App Link entry' >&2
+  exit 1
+}
 grep -q '"cleanUrls": true' "$repo_root/docs/vercel.json"
 node - "$repo_root/docs/.well-known/assetlinks.json" <<'NODE'
 const record = JSON.parse(require('node:fs').readFileSync(process.argv[2], 'utf8'));
@@ -60,6 +81,20 @@ if [[ "$status" == 0 ]]; then
 fi
 grep -qF 'project portal verification failed: main content landmark is missing' <<<"$out" || {
   echo "missing-main fixture failed for an unrelated reason: $out" >&2
+  exit 1
+}
+
+cp "$repo_root/docs/index.html" "$fixture_root/docs/index.html"
+sed 's#<link rel="canonical" href="https://masscom.kr/">#<link rel="stylesheet" href="https://example.com/evil.css">#' \
+  "$repo_root/docs/index.html" > "$fixture_root/docs/index.html"
+status=0
+out="$("$verifier" "$fixture_root" 2>&1)" || status=$?
+if [[ "$status" == 0 ]]; then
+  echo "site verifier accepted an external stylesheet" >&2
+  exit 1
+fi
+grep -qF 'project portal verification failed: page loads an external script, image, or stylesheet' <<<"$out" || {
+  echo "external stylesheet fixture failed for an unrelated reason: $out" >&2
   exit 1
 }
 

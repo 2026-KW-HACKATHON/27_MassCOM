@@ -58,7 +58,9 @@ grep -q '"cleanUrls": true' "$vercel_config" || fail "Vercel clean URLs are not 
 grep -q 'docs/index.html' "$readme" || fail "README does not link to the project portal"
 grep -q 'python3 -m http.server' "$readme" || fail "README does not explain how to preview the portal"
 
-if grep -Eqi '<(script|img|link)[^>]+(src|href)="https?://' "$html"; then
+if grep -Eqi '<(script|img)[^>]+(src|href)="https?://' "$html" \
+  || grep -Ei '<link[^>]+href="https?://' "$html" \
+    | grep -Ev '^[[:space:]]*<link rel="canonical" href="https://masscom.kr/">[[:space:]]*$'; then
   fail "page loads an external script, image, or stylesheet"
 fi
 

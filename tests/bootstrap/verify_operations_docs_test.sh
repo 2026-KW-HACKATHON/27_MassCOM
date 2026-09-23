@@ -32,7 +32,7 @@ assert_mutation_fails apps/worker/README.md 'Base Sepolia encrypted keystore' 'L
 assert_mutation_fails docs/HANDOFF.md 'gh pr list' '문서 고정 PR 목록'
 assert_mutation_fails docs/PROJECT_STATE.md 'API 단위 82' 'API 단위 80'
 assert_mutation_fails docs/PROJECT_STATE.md 'Worker 단위 47' 'Worker 단위 45'
-assert_mutation_fails docs/PROJECT_STATE.md '모바일 148' '모바일 141'
+assert_mutation_fails docs/PROJECT_STATE.md '모바일 149' '모바일 141'
 assert_mutation_fails apps/mobile/README.md '운영 계정 삭제.*BLOCKED' '운영 계정 삭제 재인증 완료'
 
 echo 'operations docs regression tests passed'

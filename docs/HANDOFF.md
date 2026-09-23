@@ -2,6 +2,14 @@
 
 마지막 갱신 시각: 2026-09-23 KST
 
+## Issue #133 공식 서비스 출처 체크포인트
+
+- 작업 브랜치 `fix/133-wallet-origin`, [Issue #133](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/133). 실제 커밋·PR·merge는 `git status -sb`, `git log -1`, `gh pr list --state all`을 우선한다.
+- MetaMask의 `github.com` 표시는 `apps/mobile/src/wallet/appkit.ts`의 메타데이터 URL에서 왔다. 이를 공식 포털 `https://masscom.kr`과 기존 포털 표식의 HTTPS 자산으로 바꿨다. `api.masscom.kr` 서버 SIWE 검증·Android native 복귀·지갑 메서드는 그대로다.
+- README 첫 웹 진입점과 포털의 Android `/open` CTA, 공개 페이지 canonical URL을 정리했다. private GitHub 코드·PR·APK 링크는 대체하지 않는다. Vercel 연결 대상은 기존 `choijunhuks-projects/masscom-wolgye`로 읽기 확인했고 새 프로젝트·유료 자원은 만들지 않았다.
+- 로컬 모바일 149/149·typecheck·lint·Android export, 포털·접근성·bootstrap·비밀 검사는 PASS. 공개 아이콘 URL·변경 뒤 MetaMask 승인 출처는 배포·재연결 전 `NOT_RUN`이다. 기존 test.2 release APK는 이번 JS 메타데이터를 포함하지 않는다.
+- 다음: 단일 한국어 PR의 CI·리뷰 후 merge → 기존 Vercel 프로젝트에 정적 페이지 반영 → HTTPS 표식·`/open`·개발 앱 MetaMask 출처/복귀 실기 확인. 운영 release AAB·Play는 별도 상태다.
+
 ## Issue #129 병합·운영 배포 체크포인트
 
 - 기준: [Issue #129](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/129)·[PR #130](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/130) merge `fcaa1c0c096408d15d064600047bccefd7896cb6`. PR CI `35772111371`과 main CI `35772682920` PASS. 현재 main·후속 PR은 `git status -sb`, `git log -1`, `gh pr list --state all`에서 확인한다. 이전 UI 작업을 반복하지 않는다.

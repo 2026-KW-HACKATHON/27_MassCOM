@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 64 64">
+  <title>월계 마스코트 프로젝트 표식</title>
+  <rect width="64" height="64" rx="14" fill="#12303d"/>
+  <path d="M44 13a20 20 0 1 0 7 33A22 22 0 1 1 44 13Z" fill="#d9ecff"/>
+  <path d="M13 47c10-8 18-8 38-4" fill="none" stroke="#5ca6d6" stroke-width="5" stroke-linecap="round"/>
+</svg>

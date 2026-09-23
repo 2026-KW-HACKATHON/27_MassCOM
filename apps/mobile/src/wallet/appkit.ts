@@ -9,6 +9,7 @@ import { walletSessionPrefix } from './account-scope';
 import { createAppKitStorage } from './appkit-storage';
 import { baseSepolia } from './base-sepolia';
 import { getWalletRuntimeConfig } from './wallet-runtime-config';
+import { createWalletMetadata } from './wallet-metadata';
 
 export const walletRuntimeConfig = getWalletRuntimeConfig({
   EXPO_PUBLIC_REOWN_PROJECT_ID: process.env.EXPO_PUBLIC_REOWN_PROJECT_ID,
@@ -30,15 +31,7 @@ export function createAccountScopedAppKit(
   return config.available && normalizedAccountId
     ? createAppKit({
       projectId: config.projectId,
-      metadata: {
-        name: 'Wolgye Mascot',
-        description: 'Restaurant visit verification and mascot collection',
-        url: 'https://github.com/2026-KW-HACKATHON/27_MassCOM',
-        icons: [],
-        redirect: {
-          native: `${appScheme}://wallet`,
-        },
-      },
+      metadata: createWalletMetadata(appScheme),
       adapters: [new EthersAdapter()],
       networks: [baseSepolia],
       defaultNetwork: baseSepolia,
