@@ -1,5 +1,7 @@
 # 테스트 상태
 
+2026-09-24 Issue #136 PR #138 수정본: 기존 네 기능 탭을 운영 시작 경로로 복원하고 역할 선택·선택적 지갑·다섯 빈 공간을 개발용 미리보기로 격리했다. 모바일 단위 152/152, typecheck, lint, Android JS export, release wallet surface 회귀는 `PASS`. Android 16 에뮬레이터에서 개발 앱 실행은 확인했으나 인증 화면 이후 미리보기·실제 외부지갑 복귀·TalkBack·200% 글꼴은 `NOT_RUN`; 웹 전체 렌더링은 기존 네이티브 Reown 모듈 오류로 `BLOCKED`. 이전 PR CI 실패(`route-boundary.tsx` 비허용 Reown import)를 수정했고, 새 PR CI의 최종 결과는 PR에서 확인한다. 필수 36개 ID의 상태를 이 자동 시험만으로 변경하지 않는다.
+
 2026-09-23 Issue #137 로컬 가상 점포 seed 검증: Docker PostgreSQL 18의 전용 `masscom_test`에 migration을 적용한 뒤 API PostgreSQL 42/42 `PASS`; `masscom_showcase_test`에 CLI seed 두 번 모두 `PASS`; API 단위 87/87·typecheck·build·privacy·bootstrap `PASS`. 독립 리뷰의 동시 최초 실행과 삽입 후 rollback 지적을 실제 PostgreSQL RED→GREEN으로 수정했습니다. 로컬 loopback API `GET /merchants` 응답에서 가상 점포 1곳·`demo: true`·1/3/5회 목표를 확인했습니다. 첫 전체 PG 실행은 기존 migration 0007 누락으로 계정 삭제 6건 `FAIL`이었고, migration 적용 후 재실행에서 42/42 통과했습니다. 로컬 secret scan은 기존 Git-ignored `docs/.env.local`, `.tmp/lightsail-runtime.env` 두 파일 때문에 `FAIL`(내용 미열람·미삭제)이며 PR CI의 깨끗한 체크아웃에서 재검증해야 합니다. 외부 시연 API·Android 실제 화면·QR 수령은 `NOT_RUN`입니다(`adb devices`에 기기 없음). 운영 DB·`api.masscom.kr` 미변경이며 필수 36개 ID 집계도 변동 없습니다.
 
 상태는 `PASS / FAIL / BLOCKED / NOT_RUN`만 사용합니다. v3 19.1절의 36개 ID를 바꾸거나 재번호화하지 않습니다.

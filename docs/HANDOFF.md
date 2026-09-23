@@ -1,6 +1,21 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-23 KST
+마지막 갱신 시각: 2026-09-24 KST
+
+## Issue #136 PR #138 수정 작업 (현재)
+
+- 사용자가 최근 PR 검토 뒤 참고할 부분을 가져와 수정하도록 요청했다. [PR #138 검토 답글](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/138#issuecomment-5796835197)을 남겼다. 기존 CI `35836456584`는 `navigation/route-boundary.tsx`의 비허용 Reown import 때문에 FAIL이었다.
+- `main de6f168`을 `feat/mobile-ui-foundation`에 일반 merge로 반영했다(공유 이력 force push 없음). 역할 카드·선택적 지갑 문구·다섯 공간은 개발용 `foundation-preview`로 격리하고, 실제 앱은 기존 `탐색 / 방문 인증 / 도감 / 내 정보` 네 탭과 루트 인증·지갑 제공자 경계를 유지한다. 설정의 미리보기 진입점은 `__DEV__`에서만 표시한다.
+- 수정본 로컬 모바일 단위 152/152, typecheck·lint·Android JS export와 release wallet surface 회귀 PASS. 새 UI 시안 Android 실기·TalkBack·200% 글꼴·실제 외부지갑 복귀는 아직 `NOT_RUN`. Android 16 에뮬레이터에서 개발 앱은 실행됐으나 인증 화면에서 미리보기까지 진입하지 못했다. [수정 범위와 최초 캡처 구분](evidence/mobile-ui-foundation/README.md).
+- 현재 브랜치의 수정·PR CI·Android 실기 상태는 작업 완료 후 `git status -sb`, `gh pr checks 138`과 아래 검증 기록으로 다시 확인한다. 원래 시안의 브라우저 캡처를 수정본 실기 증거로 사용하지 않는다. Issue #136의 최초 “첫 화면 역할 선택” 수용 기준은 현재 운영 시작 화면에 적용되지 않으므로 PR의 자동 종료 문구를 제거하고 Issue는 별도 판단 전 OPEN으로 둔다.
+
+## Issue #136 모바일 UI 기초 PR 작업 (최초 head의 과거 기록)
+
+- 브랜치 `feat/mobile-ui-foundation`, 당시 기준 main `60d37a7`. 기존 checkout과 분리해 최신 원격 저장소를 clone했다. 최초 요청은 PR 작성까지만이었으나 이후 사용자가 검토·수정을 다시 요청했다.
+- 첫 화면 역할 선택 → 사용자 선택적 외부지갑 안내 / 점주 DEMO → 콘텐츠 없는 5면 스와이프 UI. 기존 기능 탐색은 `/explore`로 보존한다. `DESIGN.md` 상단이 이번 UI 범위의 우선 기준이다.
+- 공개 화면은 데이터 없는 index/open으로 제한하고 기존 기능은 인증 경계를 유지한다. root navigator는 인증 복원 중에도 유지하고, 보호 콘텐츠만 계정에 따라 remount한다. 외부지갑 연결·서명·세션 구현은 변경하지 않는다.
+- 구현 commit `0917d8e`, [PR #138](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/138) OPEN·미병합. 모바일 153개 시험·typecheck·lint·Android export, bootstrap·운영 문서·접근성·비밀·개인정보 검사 PASS. [화면 및 검증 범위](evidence/mobile-ui-foundation/README.md). GitHub CI는 생성 직후 실행 중이며 실제 최신 상태를 PR에서 확인한다.
+- 다음 명령: `gh pr checks 138 --repo 2026-KW-HACKATHON/27_MassCOM`. 새 Android UI 실기·TalkBack·실제 지갑 복귀는 NOT_RUN. 과거 Android 실기 PASS를 이번 UI 실기 증거로 재사용하지 않는다. 사용자 요청대로 병합하지 않는다.
 
 ## Issue #133 공식 서비스 출처·배포 체크포인트
 

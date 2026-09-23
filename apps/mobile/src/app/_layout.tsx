@@ -22,6 +22,7 @@ function Routes() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="foundation-preview" options={{ title: 'UI 시안 미리보기' }} />
       <Stack.Screen name="merchants/[merchantId]" options={{ title: '음식점 상세' }} />
       <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
       <Stack.Screen name="recommendations" options={{ title: '다음 가게 추천' }} />

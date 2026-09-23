@@ -1,5 +1,22 @@
 # Android 고객 앱
 
+## 개발용 UI 시안과 로컬 실행 (Issue #136)
+
+운영 앱의 기본 화면은 기존 탐색·방문 인증·도감·내 정보 네 탭입니다. 개발 빌드에서 로그인한 뒤 `내 정보 → 역할 선택 시안 보기`를 열면 `누구세요?` 역할 카드, 선택적 외부지갑 안내, 내용 없는 다섯 공간의 스와이프를 확인할 수 있습니다. 이 시안은 실제 점포·방문·혜택이 아니며 점주 선택으로 권한이 생기지 않습니다. release 빌드에서는 미리보기 진입점이 없고 미리보기 URL도 기본 화면으로 돌아갑니다.
+
+해당 브랜치에서 개발용 Android 앱을 빌드하려면 Node.js, Android SDK 및 호환 JDK와 USB 디버깅 기기 또는 에뮬레이터가 필요합니다. Windows PowerShell에서:
+
+```powershell
+cd apps/mobile
+npm ci
+if (!(Test-Path .env.local)) { Copy-Item .env.example .env.local }
+npx expo run:android --device
+```
+
+첫 실행은 네이티브 개발 앱을 생성·빌드·설치하고 개발 서버를 실행합니다. UI 코드만 바뀐 다음 실행은 `npx expo start --dev-client`로 충분합니다. 네이티브 의존성이 바뀌면 다시 빌드합니다. Expo Go는 이 앱의 네이티브 로그인·지갑 모듈 실행 환경이 아닙니다.
+
+개발 앱 `kr.masscom.wolgye.dev`는 운영 앱 `kr.masscom.wolgye`와 함께 설치할 수 있으며, 기존 개발 앱이 있으면 그 앱을 업데이트합니다. 미리보기 진입에는 기존 개발 로그인 설정이 필요하고, 실제 지갑 연결은 원래 API·Google·Reown 개발 설정을 사용합니다. `.env.example`의 loopback API를 USB 연결 기기에서 사용할 때는 API 실행 후 `adb reverse tcp:3000 tcp:3000`을 설정합니다. `npm run export:android`는 JS 번들 검증이며 설치용 APK 생성은 아닙니다.
+
 Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코드로 방문·보상권·도감을 기록하며, 선택적으로 Reown 외부 지갑 주소를 확인하는 Android 앱입니다.
 
 ## 현재 상태

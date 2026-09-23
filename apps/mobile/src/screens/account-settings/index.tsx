@@ -141,6 +141,18 @@ export function AccountSettingsScreen({
         </View>
       ) : null}
 
+      {__DEV__ ? (
+        <View style={styles.toolsSection}>
+          <Text style={[styles.sectionTitle, { color: palette.label }]}>개발용 UI 시안</Text>
+          <Text selectable style={[styles.intro, { color: palette.secondaryLabel }]}>가상 점포·방문 화면의 배치 시안입니다. 실제 이용 내역이나 혜택이 아닙니다.</Text>
+          <Link href="/foundation-preview" asChild>
+            <Pressable accessibilityRole="button" style={[styles.secondaryLink, { borderColor: palette.primary }]}>
+              <Text style={[styles.secondaryLinkText, { color: palette.primary }]}>역할 선택 시안 보기 →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
       <Text style={[styles.sectionTitle, { color: palette.label }]}>계정 삭제 안내</Text>
       <Text selectable style={[styles.intro, { color: palette.secondaryLabel }]}>
         앱 계정 삭제와 외부 지갑 삭제는 다릅니다. 이미 공개된 NFT 발행 기록은 서비스가 지울 수 없습니다.
