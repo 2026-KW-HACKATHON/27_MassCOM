@@ -45,7 +45,20 @@
     {
       "name": "accessible text and skip link",
       "result": "PASS",
-      "observed": "browser accessibility tree includes disclosure, fictional merchant, sample visit/collectible and footer; skip link reaches #main with main top at viewport 0"
+      "observed": "browser accessibility tree includes disclosure, fictional merchant, sample visit/collectible and footer; after anchor fix, skip link reaches #main below the sticky disclosure"
+    },
+    {
+      "name": "sticky disclosure does not cover anchor targets",
+      "result": "PASS",
+      "method": "actual browser link click after reviewer RED; CSS scroll-margin-top 8rem; fresh-origin reload avoided stale local CSS cache",
+      "before": { "viewport": "360x800", "bannerBottomPx": 65, "merchantDisclosureTopPx": 21, "merchantDisclosureBottomPx": 55, "result": "FAIL" },
+      "after": [
+        { "viewport": "360x800", "bannerBottomPx": 65, "merchantDisclosureTopPx": 149, "result": "PASS" },
+        { "viewport": "390x844", "bannerBottomPx": 65, "merchantDisclosureTopPx": 149, "result": "PASS" },
+        { "viewport": "360x800, root font 200%", "bannerBottomPx": 209, "merchantDisclosureTopPx": 331, "result": "PASS" },
+        { "viewport": "390x844, root font 200%", "bannerBottomPx": 209, "merchantDisclosureTopPx": 331, "result": "PASS" }
+      ],
+      "skipLinkAt200Percent": { "bannerBottomPx": 209, "mainTopPx": 256, "result": "PASS" }
     },
     {
       "name": "browser resource and writing surface",
@@ -74,7 +87,7 @@
       "reason": "no domain, hosting project, mobile showcase variant or demo API was created in this local static slice"
     }
   ],
-  "visualVerdict": "PASS 92/100 against existing project portal brand, in-app browser screenshots observed but not committed because no real image or personal data was needed",
+  "visualVerdict": "initial 92/100 was revised to 83/100 after reviewer reproduced hidden anchor disclosure; corrected anchor paths PASS 92/100 against existing project portal brand. In-app browser screenshots observed but not committed because no real image or personal data was needed",
   "productionDataChanged": false,
   "realMerchantOrNftClaimed": false
 }
