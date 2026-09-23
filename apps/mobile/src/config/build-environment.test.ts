@@ -22,6 +22,7 @@ const buildEnvironmentKeys = [
 ] as const;
 
 type EvaluatedExpoConfig = {
+  name?: string;
   scheme?: string;
   android?: {
     package?: string;
@@ -310,6 +311,46 @@ test('actual Expo development config preserves local DEMO identity, plugins, and
   ]);
   assert.deepEqual(config.android?.blockedPermissions, []);
   assert.deepEqual(config.android?.intentFilters, []);
+});
+
+test('actual Expo showcase config has its own Android identity and no dev launcher', () => {
+  const result = evaluateExpoConfig({
+    APP_VARIANT: 'showcase',
+    EXPO_PUBLIC_API_URL: 'https://demo-api.masscom.kr',
+    MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const config = JSON.parse(result.stdout) as EvaluatedExpoConfig;
+  assert.equal(config.name, '월계 마스코트 체험용');
+  assert.equal(config.android?.package, 'kr.masscom.wolgye.demo');
+  assert.equal(config.scheme, 'masscom-demo');
+  assert.deepEqual(pluginNames(config), [
+    'expo-router',
+    'expo-camera',
+    'expo-splash-screen',
+    'expo-secure-store',
+    './plugins/with-build-source-commit.cjs',
+  ]);
+  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW']);
+  assert.deepEqual(config.android?.intentFilters, [{
+    action: 'VIEW',
+    autoVerify: true,
+    category: ['BROWSABLE', 'DEFAULT'],
+    data: [{ scheme: 'https', host: 'demo.masscom.kr', pathPrefix: '/open' }],
+  }]);
+});
+
+test('actual Expo showcase config refuses inherited production Google and Reown IDs', () => {
+  for (const key of ['EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID', 'EXPO_PUBLIC_REOWN_PROJECT_ID']) {
+    const result = evaluateExpoConfig({
+      APP_VARIANT: 'showcase',
+      EXPO_PUBLIC_API_URL: 'https://demo-api.masscom.kr',
+      MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+      [key]: 'production-public-id',
+    });
+    assert.notEqual(result.status, 0, key);
+    assert.match(result.stderr, new RegExp(`showcase build rejects ${key}`));
+  }
 });
 
 test('local production plugin writes the source commit into Android manifest metadata', () => {
