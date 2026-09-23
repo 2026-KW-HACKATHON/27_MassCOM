@@ -7,7 +7,8 @@
 - 브랜치 `feat/mobile-ui-foundation`, 기준 main `60d37a7`. 기존 checkout과 분리해 최신 원격 저장소를 clone했다. 사용자 요청은 PR 작성까지이며 **병합·운영 배포하지 않는다**.
 - 첫 화면 역할 선택 → 사용자 선택적 외부지갑 안내 / 점주 DEMO → 콘텐츠 없는 5면 스와이프 UI. 기존 기능 탐색은 `/explore`로 보존한다. `DESIGN.md` 상단이 이번 UI 범위의 우선 기준이다.
 - 공개 화면은 데이터 없는 index/open으로 제한하고 기존 기능은 인증 경계를 유지한다. root navigator는 인증 복원 중에도 유지하고, 보호 콘텐츠만 계정에 따라 remount한다. 외부지갑 연결·서명·세션 구현은 변경하지 않는다.
-- 구현 검증과 PR 번호는 아래 후속 체크포인트에서 확인한다. 과거 Android 실기 PASS를 이번 UI 실기 증거로 재사용하지 않는다.
+- 구현 commit `0917d8e`, [PR #138](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/138) OPEN·미병합. 모바일 153개 시험·typecheck·lint·Android export, bootstrap·운영 문서·접근성·비밀·개인정보 검사 PASS. [화면 및 검증 범위](evidence/mobile-ui-foundation/README.md). GitHub CI는 생성 직후 실행 중이며 실제 최신 상태를 PR에서 확인한다.
+- 다음 명령: `gh pr checks 138 --repo 2026-KW-HACKATHON/27_MassCOM`. 새 Android UI 실기·TalkBack·실제 지갑 복귀는 NOT_RUN. 과거 Android 실기 PASS를 이번 UI 실기 증거로 재사용하지 않는다. 사용자 요청대로 병합하지 않는다.
 
 ## Issue #133 공식 서비스 출처·배포 체크포인트
 
