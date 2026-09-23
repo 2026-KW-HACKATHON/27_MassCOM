@@ -5,7 +5,7 @@
 ## 최신 작업 경계
 
 - PR #138은 merge `d257d0b`, main CI `35879966085` PASS. 역할 선택은 개발용 미리보기이며 운영 네 탭은 유지된다. Issue #136의 원래 첫 화면 요구는 OPEN이다.
-- Issue #137에서는 정적 시연 웹 PR #139, 로컬 `_test` seed PR #140, 시연 Android 빌드 경계 PR #141을 병합했다. PR #141의 `main` CI `35889398325`는 PASS다. 시연 package/scheme/API 설정만 구현됐고 외부 시연 API/DB·OAuth/Reown·APK·실기와 운영 웹 개인 도감은 미완료다.
+- Issue #137에서는 정적 시연 웹 PR #139, 로컬 `_test` seed PR #140, 시연 Android 빌드 경계 PR #141을 병합했다. PR #141의 `main` CI `35889398325`는 PASS다. 후속 `fix/137-demo-auth-boundary`는 개발 DEMO 인증을 정확한 `.dev` package로 제한한다(브랜치·PR 상태는 `gh pr list`로 확인). 시연 package/scheme/API 설정만 구현됐고 외부 시연 API/DB·OAuth/Reown·APK·실기와 운영 웹 개인 도감은 미완료다.
 - Issue #142의 개발용 파란 시안 기준을 운영 11개 화면과 읽기 전용 시연 웹의 라이트/다크 의미색에 적용했다. 한글 PR #143의 현재 CI·병합 상태는 `gh pr view 143`과 `git log origin/main -1`로 확인한다. 모바일 자동 180/180, typecheck·lint·Android 개발 JS export, 시연 웹 19/19·접근성·정적 검사, 테스트 AVD의 로그인 화면 라이트/다크·200%는 PASS. 로그인 후 네 탭·실제 휴대전화·공개 HTTPS는 NOT_RUN([증거](evidence/design-consistency-2026-09-24/README.md)). 아래 2026-09-23 수치를 이번 작업의 최신 결과로 오인하지 않는다.
 
 ## 기준선

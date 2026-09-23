@@ -1,5 +1,7 @@
 # 테스트 상태
 
+2026-09-24 Issue #137 런타임 DEMO 인증 경계(브랜치 `fix/137-demo-auth-boundary`): `kr.masscom.wolgye.dev`만 개발 DEMO 인증 허용, 운영·시연·미확인 package 및 빈 ID 거절을 RED→GREEN 테스트로 검증했습니다. 모바일 **181/181 PASS**, typecheck·lint·W08·bootstrap PASS. 이 결과는 로컬 자동 시험이며 시연 앱의 별도 로그인·실제 설치·외부 HTTPS는 여전히 `NOT_RUN`입니다. 기존 36개 필수 ID는 변경하지 않았습니다.
+
 2026-09-24 Issue #142 파란 UI 일관화(브랜치 `feat/142-design-consistency`, 코드 `c8197b0`까지): 모바일 `npm test --prefix apps/mobile` **180/180 PASS**, typecheck·lint·Android 개발 JS export PASS. 시연 웹 기존+Chrome 테마 **19/19 PASS**, 정적 verifier·사이트 접근성 PASS; bootstrap·운영 문서·privacy·모바일 접근성 의미·W08 회귀 PASS. 테스트 전용 Android 36 `MassCOM_Design_QA` AVD에 개발 debug APK를 빌드·설치하고 로그인 화면 라이트/다크·200%를 확인했습니다. 새 AVD에서는 로그인하지 않았으므로 로그인 뒤 운영 11개 화면의 실기 UI와 실제 휴대전화·시연 APK/외부 HTTPS는 `NOT_RUN`입니다. [증거](evidence/design-consistency-2026-09-24/README.md). 필수 36개 테스트 ID·집계는 그대로 유지합니다.
 
 2026-09-24 Issue #137 시연 Android 빌드 경계(PR #141 병합 `b093fbd`, main CI `35889398325` PASS, 코드 `9e378d5`·`2cf97c2`·`5c20215`): 모바일 단위 164/164, typecheck, lint, Android **개발 variant JS export**, `tests/release/check_release_wallet_surface_test.sh`는 `PASS`. 실제 `expo config --type public --json` 시험에서 세 package/scheme/name·시연 App Link host를 구분하고 운영/시연 API 교차 주소·개발 DEMO 값·기존 Google/Reown 공개 ID 승계를 거절했습니다. 독립 리뷰에서 발견한 빈 `?`·`#` URL 구분자도 실제 Expo config 회귀를 RED→GREEN으로 거절했습니다. `showcase`의 별도 OAuth/Reown 연결, 외부 시연 API·DB/HTTPS, AAB W08 판정, Android 동시 설치·QR·지갑 복귀는 `NOT_RUN`입니다. 36개 필수 테스트 ID 상태는 변경하지 않습니다.

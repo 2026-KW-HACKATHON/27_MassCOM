@@ -19,6 +19,10 @@ export type DemoRuntimeConfig = {
   allowInsecureDemoReauthentication: boolean;
 };
 
+export function isDevelopmentDemoBuild(applicationId: string | null | undefined): boolean {
+  return applicationId === 'kr.masscom.wolgye.dev';
+}
+
 export function getDemoRuntimeConfig(environment: DemoEnvironment): DemoRuntimeConfig {
   const customerAccountId = trimmed(environment.EXPO_PUBLIC_DEMO_ACCOUNT_ID);
   const merchantAccountId = trimmed(environment.EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID);

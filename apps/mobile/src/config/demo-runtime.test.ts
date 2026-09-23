@@ -1,7 +1,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { canOpenMerchantDemo, getDemoRuntimeConfig } from './demo-runtime';
+import { canOpenMerchantDemo, getDemoRuntimeConfig, isDevelopmentDemoBuild } from './demo-runtime';
+
+test('development demo authentication belongs only to the exact dev package', () => {
+  assert.equal(isDevelopmentDemoBuild('kr.masscom.wolgye.dev'), true);
+  for (const applicationId of [
+    'kr.masscom.wolgye',
+    'kr.masscom.wolgye.demo',
+    'kr.masscom.wolgye.dev.attacker',
+    'unknown',
+    null,
+    undefined,
+  ]) {
+    assert.equal(isDevelopmentDemoBuild(applicationId), false, `${applicationId}`);
+  }
+});
 
 test('keeps customer and merchant demo identities separate', () => {
   assert.deepEqual(
