@@ -1,0 +1,128 @@
+:root {
+  color-scheme: light;
+  font-family: Pretendard, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --ink: #102833;
+  --muted: #49616b;
+  --paper: #f4f9fa;
+  --surface: #ffffff;
+  --night: #12303d;
+  --moon: #d9ecff;
+  --stream: #286585;
+  --line: #c9d9de;
+  --focus: #0a6dad;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+main, section[id] { scroll-margin-top: 8rem; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+a { color: inherit; text-underline-offset: .22em; }
+a:focus-visible { outline: .2rem solid var(--focus); outline-offset: .2rem; }
+
+.skip-link {
+  position: absolute;
+  top: .5rem;
+  left: .5rem;
+  z-index: 30;
+  padding: .55rem .8rem;
+  background: var(--surface);
+  color: var(--ink);
+  transform: translateY(-180%);
+}
+.skip-link:focus { transform: translateY(0); }
+
+.demo-ribbon {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: 0;
+  padding: .8rem max(1rem, calc((100vw - 74rem) / 2));
+  background: var(--night);
+  color: #ffffff;
+  font-size: .91rem;
+  font-weight: 750;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .75rem 1.5rem;
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: .65rem;
+  margin: 0;
+  font-weight: 800;
+}
+.brand-mark {
+  display: inline-grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--night);
+  color: var(--moon);
+  font-family: Georgia, serif;
+  font-size: 1.15rem;
+}
+nav { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; font-size: .93rem; font-weight: 700; }
+nav a { padding: .15rem 0; }
+
+main {
+  display: grid;
+  gap: 1.4rem;
+  width: min(74rem, calc(100% - 2rem));
+  margin: clamp(2rem, 6vw, 5rem) auto;
+}
+main section { min-width: 0; }
+.intro { grid-column: 1 / -1; max-width: 58rem; padding-bottom: clamp(.5rem, 3vw, 2rem); }
+.context { margin: 0 0 1rem; color: var(--stream); font-size: .88rem; font-weight: 800; }
+h1, h2, p { overflow-wrap: anywhere; }
+h1 { margin: 0; font-size: clamp(2.5rem, 6.5vw, 5.7rem); line-height: 1.08; letter-spacing: -.05em; font-weight: 850; word-break: keep-all; }
+.intro-body { max-width: 39rem; margin: 1.7rem 0 0; color: var(--muted); font-size: clamp(1rem, 2vw, 1.14rem); }
+
+.merchant-card, .collection-card { padding: clamp(1.25rem, 3vw, 2.4rem); border-radius: 1.4rem; }
+.merchant-card { background: var(--moon); border: 1px solid #b7d4e7; }
+.collection-card { background: var(--surface); border: 1px solid var(--line); }
+.tag { display: inline-block; margin: 0 0 1.3rem; padding: .35rem .65rem; border-radius: .5rem; background: var(--night); color: #fff; font-size: .87rem; font-weight: 800; }
+h2 { margin: 0; font-size: clamp(1.8rem, 3vw, 2.65rem); line-height: 1.22; letter-spacing: -.035em; word-break: keep-all; }
+.merchant-location { margin: .6rem 0 0; color: var(--stream); font-weight: 800; }
+.merchant-body { max-width: 33rem; margin: 2.3rem 0 0; padding-top: 1rem; border-top: 1px solid #a4c6db; color: var(--ink); }
+.collection-caption { margin: 0 0 .8rem; color: var(--stream); font-weight: 800; }
+.collection-entry { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.collection-entry p { margin: .3rem 0 0; color: var(--muted); }
+.collection-entry .entry-heading { margin: 0; color: var(--ink); font-weight: 800; }
+.sync-note { margin: 1.8rem 0 0; padding: .8rem 1rem; border-left: .2rem solid var(--stream); background: var(--paper); font-size: .91rem; }
+
+.site-footer { max-width: 76rem; margin: 0 auto; padding: 0 1rem 3rem; color: var(--muted); font-size: .88rem; }
+.site-footer p { padding-top: 1rem; border-top: 1px solid var(--line); }
+
+@media (min-width: 56rem) {
+  main { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 26rem) {
+  .site-header { align-items: flex-start; }
+  .demo-ribbon { font-size: .85rem; }
+  .merchant-card, .collection-card { border-radius: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}

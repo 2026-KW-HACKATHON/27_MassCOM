@@ -1,5 +1,7 @@
 # 테스트 상태
 
+2026-09-23 Issue #137 로컬 가상 점포 seed 검증: Docker PostgreSQL 18의 전용 `masscom_test`에 migration을 적용한 뒤 API PostgreSQL 42/42 `PASS`; `masscom_showcase_test`에 CLI seed 두 번 모두 `PASS`; API 단위 87/87·typecheck·build·privacy·bootstrap `PASS`. 독립 리뷰의 동시 최초 실행과 삽입 후 rollback 지적을 실제 PostgreSQL RED→GREEN으로 수정했습니다. 로컬 loopback API `GET /merchants` 응답에서 가상 점포 1곳·`demo: true`·1/3/5회 목표를 확인했습니다. 첫 전체 PG 실행은 기존 migration 0007 누락으로 계정 삭제 6건 `FAIL`이었고, migration 적용 후 재실행에서 42/42 통과했습니다. 로컬 secret scan은 기존 Git-ignored `docs/.env.local`, `.tmp/lightsail-runtime.env` 두 파일 때문에 `FAIL`(내용 미열람·미삭제)이며 PR CI의 깨끗한 체크아웃에서 재검증해야 합니다. 외부 시연 API·Android 실제 화면·QR 수령은 `NOT_RUN`입니다(`adb devices`에 기기 없음). 운영 DB·`api.masscom.kr` 미변경이며 필수 36개 ID 집계도 변동 없습니다.
+
 상태는 `PASS / FAIL / BLOCKED / NOT_RUN`만 사용합니다. v3 19.1절의 36개 ID를 바꾸거나 재번호화하지 않습니다.
 
 | ID | 구분 | 상태 | 시나리오 | 통과 조건 | 증거 |
