@@ -8,7 +8,7 @@
 | `showcase` | `kr.masscom.wolgye.demo` | `masscom-demo` | 정확히 `https://demo-api.masscom.kr` | Expo config·교차 연결 거절 자동 시험만 PASS |
 | `production` | `kr.masscom.wolgye` | `masscom` | 정확히 `https://api.masscom.kr` | 기존 release 검증 유지 |
 
-시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. **`demo.masscom.kr`·`demo-api.masscom.kr` 외부 배포, 전용 API/DB·Google/Reown 프로젝트 연결, 설치용 AAB/APK는 아직 검증되지 않았습니다.** 따라서 현 단계의 시연 variant는 로그인·QR 수령·지갑 연결까지 이용 가능한 앱이 아닙니다. 현재 시연 기능 시험은 별도 로컬 개발 앱과 `_test` DB에서만 합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
+시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. **`demo.masscom.kr`·`demo-api.masscom.kr` 외부 배포, 전용 API/DB·Google/Reown 프로젝트 연결, 설치용 AAB/APK는 아직 검증되지 않았습니다.** 따라서 현 단계의 시연 variant는 로그인·QR 수령·지갑 연결까지 이용 가능한 앱이 아닙니다. 현재 시연 기능 시험은 별도 로컬 개발 앱과 `_test` DB에서만 합니다. 런타임의 개발 DEMO 인증도 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
 
 `APP_VARIANT=showcase`는 기존 `.env.local`의 운영 Google/Reown ID 또는 개발 DEMO 변수가 있으면 빌드 설정을 거절합니다. 현재 환경 경계만 확인하려면 다음처럼 로컬 dotenv 로드를 끄고 공개 시험 URL만 명시합니다(실제 API 요청·APK 빌드 아님).
 

@@ -8,7 +8,7 @@ import { getAuthConfiguration } from './auth-config';
 import { createAuthController, type AuthState } from './auth-controller';
 import { nativeGoogleSignIn } from './google-sign-in-runtime';
 import { createSessionStore, type StoredAuthSessionV1 } from './session-store';
-import { demoRuntimeConfig, createDemoCredential } from '@/config/demo-runtime';
+import { demoRuntimeConfig, createDemoCredential, isDevelopmentDemoBuild } from '@/config/demo-runtime';
 import { getPublicApiConfig } from '@/config/public-api';
 import { purgeForeignWalletSessions } from '@/wallet/account-scope';
 import { createAccountScopedAppKit, walletRuntimeConfig } from '@/wallet/appkit';
@@ -50,7 +50,7 @@ const authConfiguration = getAuthConfiguration({
 const publicApiConfiguration = getPublicApiConfig({
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
 });
-const developmentBuild = Application.applicationId !== 'kr.masscom.wolgye';
+const developmentBuild = isDevelopmentDemoBuild(Application.applicationId);
 const productionAuthAvailable = authConfiguration.available && publicApiConfiguration.available;
 
 function initialAuthState(): AuthSessionState {
