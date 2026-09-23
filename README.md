@@ -206,6 +206,7 @@ npm run test:postgres --prefix apps/api
 - 읽기 전용 시연 웹: [apps/showcase-web](apps/showcase-web/README.md) `STATIC_DEMO` 로컬 구현·라이트/다크 계산색·대비·360px/데스크톱 브라우저 검사 PASS([증거](docs/evidence/design-consistency-2026-09-24/README.md)), 외부 공개 `NOT_DEPLOYED`. 가상 점포·예시 도감은 실제 협약 점포·방문·NFT 실적이 아니며 운영 API·DB와 연결하지 않았습니다.
 - 운영 Android UI: Issue #142에서 개발용 파란 시안과 네 탭·보조 화면의 색상 기준을 통일했고 180개 모바일 단위 테스트, typecheck·lint·Android 개발 JS export, 테스트 전용 에뮬레이터의 로그인 화면 라이트/다크·200% 글씨를 확인했습니다. 로그인 후 네 탭의 새 빌드 실기·실제 휴대전화·시연 Android APK는 아직 `NOT_RUN`입니다. 이 디자인 작업은 시연 API/DB 또는 배포 완료를 뜻하지 않습니다.
 - 로컬 API 시연 데이터: [전용 DB 실행 방법](apps/api/README.md#격리된-로컬-시연-점포)에 따라 `masscom_showcase_test`에 `가상 점포 A`와 1/3/5회 목표를 생성. 실제 영업점·방문·NFT가 아니며 운영 API/DB에는 미적용. 정적 시연 웹과도 아직 실시간 연결되지 않습니다.
+- 로컬 시연 API·DB: [독립 Docker 환경](infra/showcase-local/README.md)은 운영 Compose와 다른 프로젝트·볼륨·loopback 포트로만 실행하고, 인증을 닫은 상태에서 가상 점포 공개 조회를 검증합니다. 외부 시연 API·QR·지갑·NFT 기능은 여전히 `NOT_RUN`입니다.
 - 운영 API: AWS Lightsail 서울 리전의 [PR #130 병합 `fcaa1c0` 배포](docs/evidence/lightsail-api-deployment-2026-09-23.json) 후 `https://api.masscom.kr/health` HTTP/2 200·보안 헤더와 DEMO 헤더만 넣은 보호 요청 401을 확인. DB·API 내부 포트는 비공개; 사용자별 rate-limit 실증은 `NOT_RUN`
 - Google 로그인: Samsung SM-S928N Android 16에서 실제 동의→ID token→외부 API session·콜드 스타트 복원·logout revoke `PASS`; 두 번째 계정 전환은 `NOT_RUN`
 - Android debug APK: Android 16 16KB AVD와 Samsung SM-S928N 실기기에서 빌드·설치·실행·홈 복귀·콜드 스타트 검증, 저장소에는 미포함
