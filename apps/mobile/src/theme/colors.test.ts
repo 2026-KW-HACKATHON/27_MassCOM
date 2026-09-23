@@ -2,16 +2,49 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { colorsForScheme, darkColors, lightColors } from './palette';
+import { foundationColors } from './foundation';
 
 const contrastPairs = [
   ['label', 'background'],
   ['label', 'surface'],
+  ['secondaryLabel', 'background'],
+  ['secondaryLabel', 'surface'],
+  ['primary', 'background'],
   ['onPrimary', 'primary'],
   ['onPrimaryContainer', 'primaryContainer'],
+  ['success', 'background'],
+  ['success', 'surface'],
   ['onSuccessContainer', 'successContainer'],
+  ['error', 'background'],
+  ['error', 'surface'],
   ['onErrorContainer', 'errorContainer'],
   ['onAccentContainer', 'accentContainer'],
 ] as const;
+
+test('the shared action blue matches the approved light and dark palette', () => {
+  assert.equal(lightColors.primary, '#2456D6');
+  assert.equal(darkColors.primary, '#9BB8FF');
+});
+
+test('presentation colors are aliases of the semantic palette', () => {
+  for (const [scheme, palette] of [['light', lightColors], ['dark', darkColors]] as const) {
+    const foundation = foundationColors[scheme];
+    assert.deepEqual(foundation, {
+      background: palette.background,
+      ink: palette.label,
+      muted: palette.secondaryLabel,
+      line: palette.separator,
+      soft: palette.surface,
+      accent: palette.primary,
+      tint: palette.primaryContainer,
+      onAccent: palette.onPrimary,
+    });
+  }
+});
+
+test('78% white over light action blue falls below body-text contrast', () => {
+  assert.ok(contrast(composite('#FFFFFF', lightColors.primary, 0.78), lightColors.primary) < 4.5);
+});
 
 test('light and dark palettes expose the same semantic color contract', () => {
   assert.deepEqual(Object.keys(darkColors).sort(), Object.keys(lightColors).sort());
@@ -52,6 +85,15 @@ test('scheme selection is explicit and null defaults to light', () => {
 function contrast(foreground: string, background: string): number {
   const [lighter, darker] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
   return (lighter + 0.05) / (darker + 0.05);
+}
+
+function composite(foreground: string, background: string, opacity: number): string {
+  const channel = (index: number) => {
+    const front = Number.parseInt(foreground.slice(index, index + 2), 16);
+    const back = Number.parseInt(background.slice(index, index + 2), 16);
+    return Math.round(front * opacity + back * (1 - opacity)).toString(16).padStart(2, '0');
+  };
+  return `#${[1, 3, 5].map(channel).join('')}`;
 }
 
 function luminance(hex: string): number {
