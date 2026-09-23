@@ -5,7 +5,7 @@
 ## Issue #146 Android 내 정보 렌더 오류 (PR 준비)
 
 - Samsung SM-S928N Android 16 개발 앱에서 `Link asChild` 아래 역할 시안 `Pressable`의 스타일 배열로 Expo Router 오류를 재현했다. 브랜치 `fix/146-account-link-style` 코드 `f177c0a`는 해당 스타일만 `StyleSheet.flatten`으로 단일 객체로 전달한다. 자동 182/182·typecheck·lint PASS, 동일 폰에서 내 정보·역할 시안·점주 화면 실제 진입 PASS. [증거](evidence/android-dev-ui-2026-09-24/README.md).
-- 별도 `.env.local` 없는 격리 checkout과 loopback DEMO API/DB에서 네 탭·가상 점포 상세·추천·코드 발급·미리보기를 확인했다. 수령 확정 직전 USB 연결 해제로 DB 방문 0/보상권 0/슬롯 1이므로 해당 경로는 BLOCKED. 운영 release·시연 APK·외부 지갑·QR 카메라 촬영은 NOT_RUN. PR·CI·병합 상태는 `gh pr list`와 `git log origin/main -1`로 확인한다.
+- 별도 `.env.local` 없는 격리 checkout과 loopback DEMO API/DB에서 수정 전 기준선의 탐색·방문 인증·빈 도감·가상 점포 상세·추천을 확인했다. 수정 후 코드의 내 정보·시안·점주 화면과 발급·미리보기는 별도 확인이다. 수령 확정 직전 USB 연결 해제로 DB 방문 0/보상권 0/슬롯 1(`ISSUED`)이므로 해당 경로는 BLOCKED. 운영 release·시연 APK·외부 지갑·QR 카메라 촬영은 NOT_RUN. PR·CI·병합 상태는 `gh pr list`와 `git log origin/main -1`로 확인한다.
 
 ## Issue #142 파란 UI 일관화 (PR #143)
 
