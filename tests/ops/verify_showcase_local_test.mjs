@@ -28,16 +28,20 @@ test('production namespace, auth, public ports, and extra services are rejected'
   const mutations = [
     (config) => { config.name = 'masscom'; },
     (config) => { config.volumes.postgres_data.name = 'masscom_postgres_data'; },
-    (config) => { config.services.api.environment.DATABASE_URL = 'postgresql://masscom:pw@postgres:5432/masscom'; },
+    (config) => { config.services.api.environment.DATABASE_URL = 'postgresql://masscom@postgres:5432/masscom'; },
     (config) => { config.services.api.environment.ALLOW_INSECURE_DEMO_ACCOUNT = 'true'; },
     (config) => { config.services.api.environment.GOOGLE_OAUTH_CLIENT_IDS = 'prod-client'; },
     (config) => { config.services.api.environment.AUTH_TRUST_CADDY_FORWARDED_FOR = 'true'; },
     (config) => { config.services.api.ports[0].host_ip = '0.0.0.0'; },
     (config) => { config.services.postgres.ports[0].published = '5432'; },
     (config) => { config.services.postgres.environment.POSTGRES_HOST_AUTH_METHOD = 'trust'; },
-    (config) => { config.services.migrate.environment.DATABASE_URL = 'postgresql://masscom:pw@postgres:5432/masscom'; },
+    (config) => { config.services.migrate.environment.DATABASE_URL = 'postgresql://masscom@postgres:5432/masscom'; },
     (config) => { Object.assign(config.services.api.environment, { PGPASSWORD: 'different' }); },
-    (config) => { config.services.api.environment.DATABASE_URL = 'postgresql://masscom_showcase:pw@postgres:5432/masscom_showcase_test'; },
+    (config) => {
+      const url = new URL(config.services.api.environment.DATABASE_URL);
+      url.password = 'fixture';
+      config.services.api.environment.DATABASE_URL = url.toString();
+    },
     (config) => { config.services.api.environment.DATABASE_URL += '?host=production-db'; },
     (config) => { config.services.api.build.dockerfile = 'unreviewed.Dockerfile'; },
     (config) => { config.volumes.postgres_data.driver_opts = { type: 'none', o: 'bind', device: '/var/lib/docker/volumes/masscom_postgres_data/_data' }; },
