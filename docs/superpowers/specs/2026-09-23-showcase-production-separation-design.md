@@ -1,6 +1,6 @@
 # 시연·운영 환경 분리와 읽기 전용 웹 도감 설계
 
-상태: 부분 구현 · 2026-09-24 · [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137). 정적 시연 웹·격리 로컬 seed는 병합됐고 Android 세 variant 빌드 경계는 구현 중이다. 외부 API·웹 배포·실기 검증은 아직 아니다.
+상태: 부분 구현 · 2026-09-24 · [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137). 정적 시연 웹·격리 로컬 seed·Android 세 variant 빌드 경계와 개발 DEMO 인증 package 제한은 병합됐고, 독립 로컬 시연 API·DB를 검증했다. 외부 API·웹 배포·실기 검증은 아직 아니다.
 
 ## 사용자 의도와 성공 기준
 

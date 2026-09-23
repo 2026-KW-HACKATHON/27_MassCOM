@@ -1,5 +1,7 @@
 # 테스트 상태
 
+2026-09-24 Issue #137 로컬 시연 API·DB 분리(브랜치 `feat/137-showcase-local-runtime`, 코드 `4cba787`): 독립 Docker 프로젝트 `masscom-showcase-local`, 별도 PostgreSQL 볼륨과 loopback API 3301/DB 55434. 설정 허용 목록 2/2·실제 Compose 렌더 PASS; 운영 DB/볼륨, 공개 포트, Google/DEMO 인증, 외부 네트워크·추가 Worker 변조를 거절했습니다. migration 후 seed 반복 3회에도 가상 점포 1곳, `GET /merchants` 200·`demo=true`, 인증 없는/DEMO 헤더 `/collection`과 `/auth/google` 503 `ACCOUNT_AUTH_NOT_CONFIGURED`, DB 세션·방문·mint job 0건, Compose down/up 후 점포 유지 PASS([증거](evidence/showcase-local-runtime-2026-09-24.json)). 운영 DB와 외부 DNS·HTTPS·Android 시연 앱은 변경·검증하지 않았으며 실제 시연 로그인/QR/지갑·NFT는 `NOT_RUN`입니다. 필수 36개 ID는 변경하지 않았습니다.
+
 2026-09-24 Issue #137 런타임 DEMO 인증 경계(브랜치 `fix/137-demo-auth-boundary`): `kr.masscom.wolgye.dev`만 개발 DEMO 인증 허용, 운영·시연·미확인 package 및 빈 ID 거절을 RED→GREEN 테스트로 검증했습니다. 모바일 **181/181 PASS**, typecheck·lint·W08·bootstrap PASS. 이 결과는 로컬 자동 시험이며 시연 앱의 별도 로그인·실제 설치·외부 HTTPS는 여전히 `NOT_RUN`입니다. 기존 36개 필수 ID는 변경하지 않았습니다.
 
 2026-09-24 Issue #142 파란 UI 일관화(브랜치 `feat/142-design-consistency`, 코드 `c8197b0`까지): 모바일 `npm test --prefix apps/mobile` **180/180 PASS**, typecheck·lint·Android 개발 JS export PASS. 시연 웹 기존+Chrome 테마 **19/19 PASS**, 정적 verifier·사이트 접근성 PASS; bootstrap·운영 문서·privacy·모바일 접근성 의미·W08 회귀 PASS. 테스트 전용 Android 36 `MassCOM_Design_QA` AVD에 개발 debug APK를 빌드·설치하고 로그인 화면 라이트/다크·200%를 확인했습니다. 새 AVD에서는 로그인하지 않았으므로 로그인 뒤 운영 11개 화면의 실기 UI와 실제 휴대전화·시연 APK/외부 HTTPS는 `NOT_RUN`입니다. [증거](evidence/design-consistency-2026-09-24/README.md). 필수 36개 테스트 ID·집계는 그대로 유지합니다.

@@ -68,6 +68,10 @@ jobs:
             exit 1
           fi
           CHROME_PATH="$chrome_path" node --test tests/site/verify_showcase_theme_test.mjs
+      - name: 로컬 시연 API·DB 격리 설정 검사
+        run: |
+          node --test tests/ops/verify_showcase_local_test.mjs
+          node scripts/verify-showcase-local.mjs
       - name: 모바일 접근성 semantics 검사
         run: bash tests/mobile/check_accessibility_semantics_test.sh
       - name: Verify presentation and submission evidence
