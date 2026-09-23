@@ -8,15 +8,15 @@ import { validateShowcaseCompose } from '../../scripts/verify-showcase-local.mjs
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 const safePort = (target, published) => ({ target, published: String(published), host_ip: '127.0.0.1', protocol: 'tcp' });
-const safeService = (extra = {}) => ({ security_opt: ['no-new-privileges:true'], ...extra });
+const safeService = (extra = {}) => ({ security_opt: ['no-new-privileges:true'], networks: { default: null }, ...extra });
 const safe = () => ({
   name: 'masscom-showcase-local',
   services: {
-    postgres: safeService({ environment: { POSTGRES_DB: 'masscom_showcase_test', POSTGRES_USER: 'masscom_showcase', POSTGRES_PASSWORD: 'test-only' }, ports: [safePort(5432, 55434)], volumes: [{ type: 'volume', source: 'postgres_data', target: '/var/lib/postgresql/data' }] }),
+    postgres: safeService({ environment: { POSTGRES_DB: 'masscom_showcase_test', POSTGRES_USER: 'masscom_showcase', POSTGRES_PASSWORD: 'test-only' }, ports: [safePort(5432, 55434)], volumes: [{ type: 'volume', source: 'postgres_data', target: '/var/lib/postgresql/data', volume: {} }] }),
     migrate: safeService({ image: 'masscom-showcase-local-api:local', environment: { DATABASE_URL: 'postgresql://masscom_showcase@postgres:5432/masscom_showcase_test', PGPASSWORD: 'test-only' }, depends_on: { postgres: { condition: 'service_healthy' } }, read_only: true }),
     api: safeService({ image: 'masscom-showcase-local-api:local', build: { context: repoRoot, dockerfile: 'infra/lightsail/api.Dockerfile' }, environment: { NODE_ENV: 'production', PORT: '3000', SIWE_DOMAIN: 'demo-api.masscom.local', SIWE_URI: 'https://demo-api.masscom.local/wallet/verify', DATABASE_URL: 'postgresql://masscom_showcase@postgres:5432/masscom_showcase_test', PGPASSWORD: 'test-only', API_BIND_HOST: '0.0.0.0', ALLOW_INSECURE_DEMO_ACCOUNT: 'false', GOOGLE_OAUTH_CLIENT_IDS: '', AUTH_TRUST_CADDY_FORWARDED_FOR: 'false' }, depends_on: { migrate: { condition: 'service_completed_successfully' } }, ports: [safePort(3000, 3301)], read_only: true }),
   },
-  networks: { default: { name: 'masscom-showcase-local_default' } },
+  networks: { default: { name: 'masscom-showcase-local_default', ipam: {} } },
   volumes: { postgres_data: { name: 'masscom-showcase-local_postgres_data' } },
 });
 
@@ -40,6 +40,13 @@ test('production namespace, auth, public ports, and extra services are rejected'
     (config) => { config.services.api.environment.DATABASE_URL = 'postgresql://masscom_showcase:pw@postgres:5432/masscom_showcase_test'; },
     (config) => { config.services.api.environment.DATABASE_URL += '?host=production-db'; },
     (config) => { config.services.api.build.dockerfile = 'unreviewed.Dockerfile'; },
+    (config) => { config.volumes.postgres_data.driver_opts = { type: 'none', o: 'bind', device: '/var/lib/docker/volumes/masscom_postgres_data/_data' }; },
+    (config) => { config.services.postgres.volumes_from = ['container:production-db']; },
+    (config) => { config.services.api.extra_hosts = ['postgres:203.0.113.1']; },
+    (config) => { config.services.postgres.volumes[0].type = 'bind'; },
+    (config) => { config.services.migrate.links = ['production-db:postgres']; },
+    (config) => { config.services.api.external_links = ['production-db:postgres']; },
+    (config) => { config.services.api.networks = { external: null }; },
     (config) => { config.services.api.privileged = true; },
     (config) => { config.services.api.network_mode = 'service:postgres'; },
     (config) => { config.services.api.depends_on = {}; },

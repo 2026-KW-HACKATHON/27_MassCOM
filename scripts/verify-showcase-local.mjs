@@ -11,11 +11,9 @@ export function validateShowcaseCompose(config) {
   assert.equal(config.name, 'masscom-showcase-local');
   assert.deepEqual(Object.keys(config.services ?? {}).sort(), ['api', 'migrate', 'postgres']);
   assert.deepEqual(Object.keys(config.networks ?? {}), ['default']);
-  assert.equal(config.networks.default.name, 'masscom-showcase-local_default');
-  assert.notEqual(config.networks.default.external, true);
+  assert.deepEqual(config.networks.default, { name: 'masscom-showcase-local_default', ipam: {} });
   assert.deepEqual(Object.keys(config.volumes ?? {}), ['postgres_data']);
-  assert.equal(config.volumes.postgres_data.name, 'masscom-showcase-local_postgres_data');
-  assert.notEqual(config.volumes.postgres_data.external, true);
+  assert.deepEqual(config.volumes.postgres_data, { name: 'masscom-showcase-local_postgres_data' });
 
   const { postgres, migrate, api } = config.services;
   assert.equal(postgres.environment.POSTGRES_DB, 'masscom_showcase_test');
@@ -24,9 +22,9 @@ export function validateShowcaseCompose(config) {
   assert.deepEqual(Object.keys(postgres.environment).sort(), [
     'POSTGRES_DB', 'POSTGRES_PASSWORD', 'POSTGRES_USER',
   ]);
-  assert.deepEqual((postgres.volumes ?? []).map(({ source, target }) => [source, target]), [
-    ['postgres_data', '/var/lib/postgresql/data'],
-  ]);
+  assert.deepEqual(postgres.volumes, [{
+    type: 'volume', source: 'postgres_data', target: '/var/lib/postgresql/data', volume: {},
+  }]);
   assert.deepEqual((migrate.ports ?? []), []);
   assert.deepEqual((migrate.volumes ?? []), []);
   assert.deepEqual((api.volumes ?? []), []);
@@ -51,6 +49,11 @@ export function validateShowcaseCompose(config) {
   for (const service of [postgres, migrate, api]) {
     assert.ok((service.security_opt ?? []).includes('no-new-privileges:true'));
     assert.equal(service.network_mode, undefined);
+    assert.deepEqual(service.networks, { default: null });
+    assert.equal(service.extra_hosts, undefined);
+    assert.equal(service.links, undefined);
+    assert.equal(service.external_links, undefined);
+    assert.equal(service.volumes_from, undefined);
     assert.notEqual(service.privileged, true);
   }
   assert.equal(api.read_only, true);
