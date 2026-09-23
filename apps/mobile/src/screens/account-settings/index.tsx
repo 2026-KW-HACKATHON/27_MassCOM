@@ -147,7 +147,7 @@ export function AccountSettingsScreen({
           <Text style={[styles.sectionTitle, { color: palette.label }]}>개발용 UI 시안</Text>
           <Text selectable style={[styles.intro, { color: palette.secondaryLabel }]}>가상 점포·방문 화면의 배치 시안입니다. 실제 이용 내역이나 혜택이 아닙니다.</Text>
           <Link href="/foundation-preview" asChild>
-            <Pressable accessibilityRole="button" style={[styles.secondaryLink, { borderColor: palette.primary }]}>
+            <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.secondaryLink, { borderColor: palette.primary }])}>
               <Text style={[styles.secondaryLinkText, { color: palette.primary }]}>역할 선택 시안 보기 →</Text>
             </Pressable>
           </Link>
