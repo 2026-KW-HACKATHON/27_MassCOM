@@ -42,6 +42,13 @@ test('실제 시연 웹은 읽기 전용 계약을 통과한다', () => {
   assert.equal(run(source).status, 0);
 });
 
+test('README는 로컬 시연 웹만 안내하고 배포를 주장하지 않는다', () => {
+  const readme = readFileSync(join(repo, 'README.md'), 'utf8');
+  assert.ok(readme.includes('apps/showcase-web'));
+  assert.ok(readme.includes('NOT_DEPLOYED'));
+  assert.equal(readme.includes('https://demo.masscom.kr'), false);
+});
+
 for (const [name, oldText, replacement, expectedError, file = 'index.html'] of [
   ['가상 점포 고지 제거', '가상 점포 · 실제 방문할 수 없습니다', '방문할 수 있습니다', '필수 문구 없음'],
   ['가짜 NFT 상태 추가', '</main>', '<p>FINALIZED</p></main>', '금지 문구'],
