@@ -18,6 +18,7 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 - Google ID token→서버 Bearer session→SecureStore 복원·로그아웃 코드와 실제 Samsung 첫 로그인·복원·logout revoke: `VERIFIED`; 두 Google 계정의 전체 전환·이전 데이터 부재 D02는 `NOT_RUN`
 - MetaMask 8.11.0 설치·첫 화면 실행: `VERIFIED` — 지갑 생성·가져오기는 수행하지 않음
 - 실제 Reown project ID·`kr.masscom.wolgye.dev` MetaMask 연결·서명·자동 복귀·콜드 스타트 서버 binding 복원: `VERIFIED`; 운영 release package와 W04·W05 외부 환경은 `NOT_RUN/BLOCKED`
+- Reown 지갑 승인 화면의 앱 이름·공식 URL은 `월계 마스코트`·`https://masscom.kr`로 설정하고 기존 포털 표식을 `https://masscom.kr/assets/wallet-mark.svg`에서 제공하도록 구현. 변경 후 MetaMask 표시·운영 release 재연결은 실기 확인 전 `NOT_RUN`
 - Android 카메라 QR: `NOT_RUN`; 수동 1회 코드 입력은 `VERIFIED`
 - 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), scheme `masscom`/`masscom-dev`: `IMPLEMENTED`
 - 계정 삭제 접수 시 지갑 연결 해제 및 기기 WalletConnect 세션 제거: `IMPLEMENTED`
@@ -35,6 +36,8 @@ npm run export:android
 ```
 
 `.env.local`의 API·DEMO 계정 값으로 로컬 탐색·수령을 실행합니다. Reown project ID는 선택적 지갑 화면에만 필요합니다. `EXPO_PUBLIC_*` 값은 앱 번들에서 보이므로 비밀을 넣지 않습니다.
+
+`https://masscom.kr`은 지갑에 보이는 서비스 정체성, `https://api.masscom.kr`은 실제 API·SIWE 주소 확인 서버입니다. 지갑 메타데이터를 고쳐도 체인·nonce·도메인 검증 주소나 `masscom-dev://wallet`/`masscom://wallet` 복귀 스킴을 바꾸지 않습니다.
 
 - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`: Google ID token의 서버 audience로 쓰는 공개 Web OAuth client ID. client secret이 아님
 - `EXPO_PUBLIC_DEMO_ACCOUNT_ID`: 고객 loopback 데모 계정

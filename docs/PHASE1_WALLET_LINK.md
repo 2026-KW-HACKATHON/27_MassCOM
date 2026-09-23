@@ -10,6 +10,7 @@ GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLO
 - Reown AppKit RN/Ethers adapter 2.0.6, WalletConnect compat 2.25.0
 - Base Sepolia 단일 네트워크
 - 외부 지갑 연결과 `personal_sign` SIWE 주소 확인
+- 지갑 승인에 보이는 공식 앱 출처는 `https://masscom.kr`, 실제 challenge·서명 검증 서버는 `https://api.masscom.kr`로 역할을 분리. 기존 native 복귀 스킴은 유지
 - Node.js TypeScript 최소 API와 실제 ethers 서명 검증
 - 이메일·소셜·내장 지갑·구매·스왑·거래 요청 비활성화
 - WalletConnect session proposal도 Base Sepolia와 5개 허용 메서드·3개 이벤트로 제한
@@ -67,7 +68,7 @@ GitHub: Issue [#9](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/9) CLO
 - W06은 미설치 SafePal의 스토어 복귀·pending proposal 즉시 취소·6분 지연 오류 부재까지 `PASS`; 패치 세부사항은 [`REOWN_PATCH.md`](REOWN_PATCH.md)
 - Account 1 검증이 Account 2 재연결에 승계되지 않는 것은 PASS이나 MetaMask가 같은 WalletConnect 세션 계정 편집을 제공하지 않아 정확한 W04 서명 중 변경은 `BLOCKED`
 - 복구 문구 없이 준비된 미지원 스마트 지갑 환경이 없어 W05는 `BLOCKED`
-- release package ID·AAB·App Link·Play 트랙 미확정
+- 운영 package ID·upload-key AAB·직접 설치본 App Link는 후속 검증에서 확정·PASS. Play App Signing·Play 트랙은 별도 `NOT_RUN`. 공식 지갑 출처 변경 뒤 MetaMask 개발·운영 package 표시 실기는 다시 확인해야 함
 
 ## 공식 근거
 

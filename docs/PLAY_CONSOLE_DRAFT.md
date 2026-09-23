@@ -16,7 +16,7 @@
 | --- | --- | --- |
 | 사용자 데이터를 수집하거나 공유하는가 | 수집함 | account ID, 지갑 주소, 방문 기록이 서버에 저장됨 |
 | 전송 중 암호화 | 예 | `api.masscom.kr` TLS와 외부 health를 확인. 제출 직전 다시 확인 |
-| 삭제 요청 방법 제공 | 예 | 앱 안 경로 구현. 외부 웹 경로는 B-013 해소 뒤 URL 입력 |
+| 삭제 요청 방법 제공 | 예 | 앱 안 경로 구현, 외부 안내 `https://masscom.kr/account-deletion` HTTPS 확인. 실제 Console 입력·운영 fresh 재인증은 별도 |
 | 개인 식별자(사용자 ID) | 수집, 앱 기능·계정 관리·보안 목적 | 서버는 Google `sub`와 무작위 내부 account ID를 저장하고 이메일은 저장하지 않음. 첫 모바일 Google 로그인·session 복원·logout PASS |
 | 금융 정보 | 결제·카드 정보는 수집하지 않음 | 지갑 공개 주소를 어느 범주로 선언할지 소유자가 Console 정의와 대조 |
 | 위치 | 수집하지 않음 | 위치 권한·SDK 없음. 점포 주소는 점포 데이터이며 사용자 위치가 아님 |
@@ -46,7 +46,7 @@
 ## 제출 전 소유자가 확정할 것
 
 1. 생성된 upload key의 안전한 백업·로컬 서명 설정과 Play App Signing 등록(package ID는 `kr.masscom.wolgye`로 결정, D-022). 공개 SHA-256 핀은 저장소에 있으며 key/password는 저장소 밖에 유지
-2. 소유 HTTPS domain, 개인정보처리방침 URL, 외부 계정 삭제 URL(B-003·B-013)
+2. 소유 HTTPS domain `https://masscom.kr`, 개인정보처리방침 `https://masscom.kr/privacy`, 외부 계정 삭제 안내 `https://masscom.kr/account-deletion`을 실제 Console 문항에 맞춰 확인. URL의 HTTPS 동작은 검증했으나 Console 제출은 하지 않음
 3. 개발자 계정 생성일에 따른 폐쇄 테스트(12명·14일) 적용 여부
 4. 위 표의 "확인 필요" 항목과 Console 문항 원문 대조
 

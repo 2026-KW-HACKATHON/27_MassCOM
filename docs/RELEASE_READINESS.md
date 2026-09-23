@@ -9,6 +9,7 @@
 | upload key | `VERIFIED` 로컬 서명 | 저장소 밖 PKCS12 권한 `0600`, 별칭·승인 SHA-256 대조와 실제 AAB 서명 PASS. 비밀번호·keystore는 저장소와 provenance에 없으며 Play App Signing 인증서와는 다름 |
 | 16KB page size | `VERIFIED` 정적·runtime | 64비트 각 29개 라이브러리/87 LOAD 최소 `0x4000`, 미달 0. Android 36 ps16k arm64 AVD에서 page size `16384`, 설치·cold 2345ms·FATAL 0 PASS |
 | App Links | `VERIFIED` 직접 설치본 | `masscom.kr/open`만 autoVerify, upload 인증서 assetlinks HTTPS 200·무리디렉션. Samsung 4KB·Android 36 16KB에서 domain `verified`와 앱 cold 복귀 PASS; `/privacy`는 앱 미매칭. Play App Signing 인증서는 Play 단계에서 추가 |
+| 지갑 승인 화면 출처 | `IN_PROGRESS` | Reown 앱 이름·URL·아이콘을 `masscom.kr` 포털과 일치시킨 뒤 개발·운영 package의 실제 MetaMask 승인 화면 및 자동 복귀를 다시 확인. 기존 test.2 APK에는 변경 전 메타데이터가 남을 수 있음 |
 | 계정 삭제 앱 경로 | `VERIFIED` Local DEMO | 운영 재인증·실제 계정으로 동일 처리 검증 |
 | 외부 삭제 웹 경로 | `VERIFIED` | `https://masscom.kr/account-deletion` HTTPS 200과 삭제·보존·지갑 비밀 경고 확인. 현재 웹 경로는 수동 요청 접수이며 자동 삭제로 표현하지 않음 |
 | Console 제출 초안 | `DRAFT` | `docs/PLAY_CONSOLE_DRAFT.md`의 초안을 소유자가 Console 문항과 대조해 확정 |
