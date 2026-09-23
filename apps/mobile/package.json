@@ -53,7 +53,7 @@
     "audit:ci": "npm audit --omit=dev --audit-level=high",
     "export:android": "expo export --platform android --output-dir dist",
     "ios": "expo run:ios",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "tsx --test 'src/**/*.test.ts'",
     "typecheck": "tsc --noEmit",
     "web": "expo start --web",
     "lint": "expo lint",
