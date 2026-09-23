@@ -7,7 +7,7 @@
 - Reown `universalProviderConfigOverride`도 같은 allowlist와 `eip155:84532`만 wallet session에 제안합니다.
 - 거래·typed data·batch call은 앱 경계에서 기본 거절합니다.
 - Reown socials, swaps, onramp, analytics를 비활성화합니다.
-- 지갑 연결 승인 화면의 앱 출처는 `https://masscom.kr`로 표기하고 포털의 기존 표식을 HTTPS 아이콘으로 제공합니다. 이는 private GitHub 소스 주소와 구분되며, SIWE 서명 검증 서버 `api.masscom.kr`이나 Android native 복귀 스킴을 변경하지 않습니다. 변경 후 MetaMask 화면은 별도 실기 확인 전 `NOT_RUN`입니다.
+- 지갑 연결 승인 화면의 앱 출처는 `https://masscom.kr`로 표기하고 포털의 기존 표식을 검증된 HTTPS 아이콘으로 제공합니다. 이는 private GitHub 소스 주소와 구분되며, SIWE 서명 검증 서버 `api.masscom.kr`이나 Android native 복귀 스킴을 변경하지 않습니다. 변경 후 MetaMask 재연결은 기기 지갑 잠금 때문에 `BLOCKED`이며, 출처 표시·앱 복귀를 통과로 추정하지 않습니다([증거](evidence/domain-wallet-origin-2026-09-23.json)).
 - 연결된 주소는 서버 SIWE 검증 전까지 `UNVERIFIED`입니다.
 
 ## 서버
