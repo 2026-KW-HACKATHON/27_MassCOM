@@ -10,7 +10,7 @@
 
 ## Issue #137 시연 Android 빌드 경계 (병합, 후속 진행 중)
 
-- 후속 브랜치 `feat/137-showcase-local-runtime`은 운영 Compose를 건드리지 않는 독립 `masscom-showcase-local` PostgreSQL/API를 준비했다. 로컬 127.0.0.1:55434 DB에 seed를 반복해 가상 점포 1곳 유지, 127.0.0.1:3301 공개 목록 1곳, `/collection`·`/auth/google` 503 인증 미설정, 세션·방문·mint 작업 0건, API 재시작 후 자료 유지 PASS. 설정 변조 검사와 실제 Docker config PASS. PR·CI·merge 상태는 `gh pr list`로 확인한다. 별도 시연 OAuth·초대·외부 HTTPS·실기 기능은 NOT_RUN.
+- 후속 브랜치 `feat/137-showcase-local-runtime`은 운영 Compose를 건드리지 않는 독립 `masscom-showcase-local` PostgreSQL/API를 준비했다. 로컬 127.0.0.1:55434 DB에 seed를 반복해 가상 점포 1곳 유지, 127.0.0.1:3301 공개 목록 1곳, `/collection`·`/auth/google` 503 인증 미설정, 세션·방문·mint 작업 0건, Compose down/up 후 자료 유지 PASS. 설정 변조 검사와 실제 Docker config PASS([증거](evidence/showcase-local-runtime-2026-09-24.json)). PR·CI·merge 상태는 `gh pr list`로 확인한다. 별도 시연 OAuth·초대·외부 HTTPS·실기 기능은 NOT_RUN.
 
 - 브랜치 `feat/137-showcase-android-boundary`는 main `d257d0b`에서 시작했다. 계획 `d98b228`은 독립 Astra 검토 CLEAR, URL·variant 차단 `9e378d5`, 세 Android 정체성과 지갑 복귀 `2cf97c2`, 빈 URL 구분자 차단 `5c20215`를 완료했다. PR #141은 `b093fbd`로 main에 병합됐고 main CI `35889398325` PASS다.
 - `showcase`는 `kr.masscom.wolgye.demo`/`masscom-demo`/`월계 마스코트 체험용`과 정확한 `https://demo-api.masscom.kr`만 허용한다. 운영은 `https://api.masscom.kr`만 허용한다. 개발 빌드의 API URL은 기존 규칙대로 HTTPS 또는 허용된 loopback HTTP가 가능하지만, 불안전한 DEMO 계정 헤더를 받는 API 서버 자체는 loopback 바인드로 제한한다. 시연 빌드가 기존 Google/Reown 공개 ID를 받으면 거절한다. 164개 모바일 단위·typecheck·lint·개발 Android JS export·W08 검사 도구 회귀는 PASS.

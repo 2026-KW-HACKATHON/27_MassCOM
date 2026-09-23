@@ -1,0 +1,52 @@
+{
+  "scope": "Issue #137 isolated local showcase API and PostgreSQL only",
+  "date": "2026-09-24 KST",
+  "code_commit": "4cba787504b37e37d98390235b9b39cd0cd2270c",
+  "environment": {
+    "host": "macOS local Docker Compose",
+    "project": "masscom-showcase-local",
+    "api": "127.0.0.1:3301",
+    "database": "127.0.0.1:55434/masscom_showcase_test",
+    "exposure": "loopback only",
+    "production_resources_modified": false
+  },
+  "results": [
+    {
+      "command": "node --test tests/ops/verify_showcase_local_test.mjs && node scripts/verify-showcase-local.mjs",
+      "status": "PASS",
+      "evidence": "2/2 mutation tests, rendered Docker Compose boundary verified"
+    },
+    {
+      "command": "docker compose -f infra/showcase-local/compose.yml up -d --build --wait",
+      "status": "PASS",
+      "evidence": "dedicated postgres healthy, migration exited 0, API healthy"
+    },
+    {
+      "command": "PGPASSWORD=<local test value> SHOWCASE_TEST_DATABASE_URL=postgresql://masscom_showcase@127.0.0.1:55434/masscom_showcase_test npm run seed:showcase:local --prefix apps/api (repeated three times)",
+      "status": "PASS",
+      "evidence": "LOCAL_SHOWCASE_SEEDED each time; one demo merchant remains"
+    },
+    {
+      "command": "GET /health, GET /merchants, GET /collection without and with x-account-id, POST /auth/google with invalid token",
+      "status": "PASS",
+      "evidence": "health 200; merchants 200 and exactly one 가상 점포 A with demo=true; collection 503 ACCOUNT_AUTH_NOT_CONFIGURED both ways; auth/google 503 ACCOUNT_AUTH_NOT_CONFIGURED"
+    },
+    {
+      "command": "SELECT count from auth_sessions, visit_events, mint_jobs, merchants",
+      "status": "PASS",
+      "evidence": "0|0|0|1"
+    },
+    {
+      "command": "docker compose down; docker compose up -d --wait; GET /merchants; docker compose down; docker volume inspect masscom-showcase-local_postgres_data",
+      "status": "PASS",
+      "evidence": "one demo merchant survives full container/network recreation; dedicated volume remains; no down -v"
+    }
+  ],
+  "not_run": [
+    "external demo-api.masscom.kr HTTPS and DNS",
+    "separate showcase Google/Reown authentication and invited test accounts",
+    "Android showcase APK, QR redemption, wallet return, NFT",
+    "production web account-specific collection"
+  ],
+  "reproduction": "Follow infra/showcase-local/README.md with a local password; do not use production database credentials or deploy this compose file externally."
+}
