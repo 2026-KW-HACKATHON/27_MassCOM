@@ -11,12 +11,11 @@ import {
   type PollingState,
 } from '@/commerce/collection-recovery';
 import { CommerceApiError, createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
-import { colors } from '@/theme/colors';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
-import { uiMetrics } from '@/theme/ui-metrics';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
+import { makeCollectionStyles } from './styles';
 
 export function CollectionScreen({
   apiUrl,
@@ -29,6 +28,7 @@ export function CollectionScreen({
 }) {
   const insets = useSafeAreaInsets();
   const palette = colorsForScheme(useColorScheme());
+  const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
   const { width, fontScale } = useWindowDimensions();
   const stackCounts = shouldStackCounts(width, fontScale);
   const api = useMemo(
@@ -342,6 +342,7 @@ export function CollectionScreen({
 }
 
 function Count({ label, value, stacked, palette }: { label: string; value: number; stacked: boolean; palette: AppColors }) {
+  const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
   return (
     <View style={[styles.countItem, stacked && styles.countItemStacked, { backgroundColor: palette.surface }]}>
       <Text style={[styles.countValue, { color: palette.primary }]}>{value}</Text>
@@ -351,6 +352,7 @@ function Count({ label, value, stacked, palette }: { label: string; value: numbe
 }
 
 function Section({ title, note, children, palette }: { title: string; note: string; children: React.ReactNode; palette: AppColors }) {
+  const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
   return (
     <View style={styles.section}>
       <Text style={[styles.sectionTitle, { color: palette.label }]}>{title}</Text>
@@ -361,6 +363,7 @@ function Section({ title, note, children, palette }: { title: string; note: stri
 }
 
 function EmptyCopy({ text, palette }: { text: string; palette: AppColors }) {
+  const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
   return <Text style={[styles.emptyCopy, { color: palette.secondaryLabel, backgroundColor: palette.surface }]}>{text}</Text>;
 }
 
@@ -397,53 +400,3 @@ function chainLabel(chainId: number): string {
   if (chainId === 31337) return 'Local Anvil';
   return `Chain ${chainId}`;
 }
-
-const styles = StyleSheet.create({
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 28, backgroundColor: colors.background },
-  centeredTitle: { color: colors.label, fontSize: 21, fontWeight: '900', textAlign: 'center' },
-  centeredBody: { color: colors.secondaryLabel, fontSize: 14, lineHeight: 22, textAlign: 'center' },
-  primaryButton: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.primary },
-  primaryButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '900', textAlign: 'center' },
-  content: { gap: uiMetrics.sectionGap, padding: uiMetrics.pageInset, paddingBottom: 48, backgroundColor: colors.background },
-  hero: { gap: 12, padding: 20, borderRadius: uiMetrics.cardRadius },
-  eyebrow: { fontSize: 12, fontWeight: '800' },
-  title: { fontSize: 24, fontWeight: '800', lineHeight: 32, letterSpacing: -0.4 },
-  countRow: { flexDirection: 'row', gap: 8 },
-  countRowStacked: { flexDirection: 'column' },
-  countItem: { flex: 1, gap: 2, padding: 12, borderRadius: 14, backgroundColor: colors.surface },
-  countItemStacked: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  countValue: { color: colors.primary, fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  countLabel: { color: colors.secondaryLabel, fontSize: 12, fontWeight: '700' },
-  inlineError: { padding: 12, borderRadius: 12, color: colors.onErrorContainer, backgroundColor: colors.errorContainer, fontSize: 13 },
-  inlineMessage: { padding: 12, borderRadius: 12, color: colors.onPrimaryContainer, backgroundColor: colors.primaryContainer, fontSize: 13, lineHeight: 20 },
-  recoveryBanner: { gap: 10, padding: 14, borderRadius: 14, backgroundColor: colors.errorContainer },
-  recoveryText: { color: colors.onErrorContainer, fontSize: 13, lineHeight: 20 },
-  recoveryButton: { minHeight: uiMetrics.minTouch, maxWidth: '100%', alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surface },
-  recoveryButtonText: { color: colors.primary, fontSize: 12, fontWeight: '900' },
-  section: { gap: 5 },
-  sectionTitle: { color: colors.label, fontSize: 22, fontWeight: '900' },
-  sectionNote: { color: colors.secondaryLabel, fontSize: 13, lineHeight: 20 },
-  sectionBody: { gap: 12, marginTop: 9 },
-  collectibleCard: { gap: 9, padding: 18, borderRadius: 20, backgroundColor: colors.surface },
-  collectibleTopline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  goalBadge: { color: colors.primary, fontSize: 12, fontWeight: '900' },
-  appStatus: { color: colors.onSuccessContainer, fontSize: 11, fontWeight: '900' },
-  itemTitle: { color: colors.label, fontSize: 19, fontWeight: '900' },
-  itemMeta: { color: colors.secondaryLabel, fontSize: 12, lineHeight: 18 },
-  nftRow: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 9, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
-  nftLabel: { color: colors.secondaryLabel, fontSize: 12, fontWeight: '700' },
-  nftValue: { color: colors.label, fontSize: 12, fontWeight: '900' },
-  recipient: { color: colors.secondaryLabel, fontFamily: 'monospace', fontSize: 11 },
-  nftIdentity: { color: colors.primary, fontFamily: 'monospace', fontSize: 11, lineHeight: 17 },
-  mintButton: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.primary },
-  mintButtonText: { color: colors.onPrimary, fontSize: 13, fontWeight: '900', textAlign: 'center' },
-  walletButton: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.primary },
-  walletButtonText: { color: colors.primary, fontSize: 13, fontWeight: '900', textAlign: 'center' },
-  disabled: { opacity: 0.42 },
-  visitRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 14, padding: 16, borderRadius: 18, backgroundColor: colors.surface },
-  visitMerchant: { color: colors.label, fontSize: 16, fontWeight: '900' },
-  visitRight: { alignItems: 'flex-end', gap: 3 },
-  visitDate: { color: colors.label, fontSize: 13, fontWeight: '800' },
-  progressLabel: { color: colors.primary, fontSize: 11, fontWeight: '800' },
-  emptyCopy: { padding: 18, borderRadius: 18, color: colors.secondaryLabel, backgroundColor: colors.surface, fontSize: 14, lineHeight: 22 },
-});
