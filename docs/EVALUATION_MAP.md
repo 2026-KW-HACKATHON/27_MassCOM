@@ -21,4 +21,8 @@ Phase 2 핵심 loopback DEMO와 Phase 3 Local Anvil 발행·복구 흐름은 구
 - **중간 논리의 연결성·최종 지역 문제 적합성:** RQ-004·RQ-005의 탐색→방문→도감 이동을 [Issue #126](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/126)과 [PR #127](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/127)의 네 탭·화면 구조로 연결했다. 실제 현장 사용자 행동은 `NOT_RUN`; RQ-001 무로그인 앱 탐색은 `IN_PROGRESS`.
 - **최종 구현 완성도·기획 재현성:** `DESIGN.md`, UI 명세·계획, `apps/mobile/src/app/(tabs)`, 도감 수치 시험, [2026-09-23 Android 증거](evidence/android-ui-navigation-2026-09-23.json)를 연결했다. 모바일 146개·typecheck·lint·Android export와 네 탭·360dp·200%·실시간 다크·개발 scheme은 PASS. TalkBack 앱 콘텐츠 낭독·현재 코드 production App Link·완전한 D02는 `NOT_RUN`이며 발표 화면 증거로 승격하지 않는다.
 
+## Issue #137 로컬 가상 방문 순환 증거
+
+- **중간 논리의 연결성·기획 재현성 / 최종 구현 완성도:** [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)의 개발 앱·별도 `_test` DB에서 STAFF 발급→고객 수동 코드 수령→도감(방문 1/앱 수집품 1/실제 NFT 0)→다음 3회 고정 보상 추천을 [Samsung 실기 기록](evidence/android-local-claim-2026-09-24/README.md)에 연결했다. 동일 코드 재확인 뒤 DB 추가 효과 0을 확인했다. 실제 QR 카메라 촬영·외부 지갑·공개 시연 API·운영/시연 release APK는 `NOT_RUN`이며, 가상 점포를 지역 실증·매출·협약 실적으로 표현하지 않는다.
+
 NFT 발행 수는 매출 증가 증거가 아닙니다. 목표 점포·인원은 실제 확보 실적과 분리하고, AI가 수행한 작업을 사람의 기여로 표시하지 않습니다.
