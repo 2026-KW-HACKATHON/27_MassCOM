@@ -2,6 +2,11 @@
 
 마지막 갱신 시각: 2026-09-24 KST
 
+## Issue #137 로컬 가상 방문 수령 실기 (후속 증거)
+
+- Samsung SM-S928N Android 16 개발 앱, `.env.local` 없는 격리 checkout과 loopback DEMO API/전용 `_test` DB로 STAFF 발급→고객 수동 코드 미리보기→방문 확정→도감→추천을 실제 기기에서 PASS. 도감은 방문 1/앱 수집품 1/실제 NFT 0, DB는 방문 1/보상권 1/mint job 0/`CLAIMED` 슬롯 1. 동일 코드 재확인도 추가 효과 0이었다. [증거](evidence/android-local-claim-2026-09-24/README.md).
+- 앞선 USB 해제로 수령하지 못한 시도는 [별도 기록](evidence/android-dev-ui-2026-09-24/README.md)에 BLOCKED로 남긴다. 이번 PASS는 다른 포트·새 코드의 로컬 수동 입력이며 카메라 QR·외부 지갑·시연/운영 release APK·공개 HTTPS를 완료로 바꾸지 않는다. Issue #137 전체는 계속 OPEN이다.
+
 ## Issue #146 Android 내 정보 렌더 오류 (PR 준비)
 
 - Samsung SM-S928N Android 16 개발 앱에서 `Link asChild` 아래 역할 시안 `Pressable`의 스타일 배열로 Expo Router 오류를 재현했다. 브랜치 `fix/146-account-link-style` 코드 `f177c0a`는 해당 스타일만 `StyleSheet.flatten`으로 단일 객체로 전달한다. 자동 182/182·typecheck·lint PASS, 동일 폰에서 내 정보·역할 시안·점주 화면 실제 진입 PASS. [증거](evidence/android-dev-ui-2026-09-24/README.md).

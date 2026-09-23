@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- Issue #137의 로컬 개발 DEMO에서 Samsung Android 16 실기 수동 코드 흐름을 새 USB 연결로 완료했다. STAFF 발급→고객 수령→도감 1/1/0→다음 보상 추천과 동일 코드 추가 효과 0을 확인했다([증거](evidence/android-local-claim-2026-09-24/README.md)). 실제 QR 카메라·외부 시연 API/앱·지갑/NFT와 운영 웹 개인 도감은 여전히 미완료다.
+
 - Issue #146 `fix/146-account-link-style`에서 Samsung 개발 앱의 ‘내 정보’ Expo Router 오류를 RED→GREEN 수정했다. 모바일 182/182·typecheck·lint와 동일 폰의 내 정보·역할 시안 진입은 PASS. 로컬 가상 점포 코드 발급/미리보기만 PASS, USB 연결 해제로 방문 수령·보상은 BLOCKED([증거](evidence/android-dev-ui-2026-09-24/README.md)). PR·병합 상태는 `gh pr list`로 확인하며 운영 앱 배포로 표현하지 않는다.
 
 - PR #138은 merge `d257d0b`, main CI `35879966085` PASS. 역할 선택은 개발용 미리보기이며 운영 네 탭은 유지된다. Issue #136의 원래 첫 화면 요구는 OPEN이다.
