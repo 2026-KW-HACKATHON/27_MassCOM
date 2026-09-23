@@ -2,6 +2,13 @@
 
 마지막 갱신 시각: 2026-09-23 KST
 
+## Issue #136 모바일 UI 기초 PR 작업
+
+- 브랜치 `feat/mobile-ui-foundation`, 기준 main `60d37a7`. 기존 checkout과 분리해 최신 원격 저장소를 clone했다. 사용자 요청은 PR 작성까지이며 **병합·운영 배포하지 않는다**.
+- 첫 화면 역할 선택 → 사용자 선택적 외부지갑 안내 / 점주 DEMO → 콘텐츠 없는 5면 스와이프 UI. 기존 기능 탐색은 `/explore`로 보존한다. `DESIGN.md` 상단이 이번 UI 범위의 우선 기준이다.
+- 공개 화면은 데이터 없는 index/open으로 제한하고 기존 기능은 인증 경계를 유지한다. root navigator는 인증 복원 중에도 유지하고, 보호 콘텐츠만 계정에 따라 remount한다. 외부지갑 연결·서명·세션 구현은 변경하지 않는다.
+- 구현 검증과 PR 번호는 아래 후속 체크포인트에서 확인한다. 과거 Android 실기 PASS를 이번 UI 실기 증거로 재사용하지 않는다.
+
 ## Issue #133 공식 서비스 출처·배포 체크포인트
 
 - [Issue #133](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/133), [PR #134](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/134) merge `e9f5b58eef219a1e0a639d2605c2bb98744f4fa1`. PR CI `35809652307`와 main CI `35809960551` 전체 PASS, 독립 코드 리뷰 APPROVE. 실기 미완료로 Issue를 다시 열었다.

@@ -1,5 +1,22 @@
 # Android 고객 앱
 
+## 새 UI 기초와 로컬 실행 (Issue #136)
+
+첫 화면은 `누구세요?` 역할 선택입니다. 사용자는 기존 외부지갑 화면으로 이동하거나 건너뛰고, 점주는 DEMO로 진입합니다. 다섯 공간은 콘텐츠 없이 스와이프와 하단 바만 제공합니다. 기존 기능 탭은 `/explore`, `/claim`, `/collection`, `/settings`에 보존하며 인증을 요구합니다. 역할 선택은 실제 점주 권한을 부여하지 않습니다.
+
+PR을 병합하지 않아도 해당 브랜치에서 개발용 Android 앱을 빌드할 수 있습니다. Node.js, Android SDK 및 호환 JDK와 USB 디버깅 기기 또는 에뮬레이터가 필요합니다. Windows PowerShell에서:
+
+```powershell
+cd apps/mobile
+npm ci
+if (!(Test-Path .env.local)) { Copy-Item .env.example .env.local }
+npx expo run:android --device
+```
+
+첫 실행은 네이티브 개발 앱을 생성·빌드·설치하고 개발 서버를 실행합니다. UI 코드만 바뀐 다음 실행은 `npx expo start --dev-client`로 충분합니다. 네이티브 의존성이 바뀌면 다시 빌드합니다. Expo Go는 이 앱의 네이티브 로그인·지갑 모듈 실행 환경이 아닙니다.
+
+개발 앱 `kr.masscom.wolgye.dev`는 운영 앱 `kr.masscom.wolgye`와 함께 설치할 수 있으며, 기존 개발 앱이 있으면 그 앱을 업데이트합니다. 새 UI는 서버 없이 볼 수 있지만 기존 기능·실제 지갑 연결은 원래 API·Google·Reown 개발 설정을 사용해야 합니다. `.env.example`의 loopback API를 USB 연결 기기에서 사용할 때는 API 실행 후 `adb reverse tcp:3000 tcp:3000`을 설정합니다. `npm run export:android`는 JS 번들 검증이며 설치용 APK 생성은 아닙니다.
+
 Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코드로 방문·보상권·도감을 기록하며, 선택적으로 Reown 외부 지갑 주소를 확인하는 Android 앱입니다.
 
 ## 현재 상태

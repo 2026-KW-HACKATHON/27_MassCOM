@@ -37,7 +37,7 @@ export default function PrimaryTabLayout() {
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="explore"
         options={{
           title: '탐색',
           tabBarAccessibilityLabel: '탐색',

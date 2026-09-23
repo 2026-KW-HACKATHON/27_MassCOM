@@ -7,10 +7,12 @@ import { fileURLToPath } from 'node:url';
 const app = fileURLToPath(new URL('../app/', import.meta.url));
 
 test('four primary routes live under one tab group without duplicate root files', () => {
-  for (const name of ['index', 'claim', 'collection', 'settings']) {
+  for (const name of ['explore', 'claim', 'collection', 'settings']) {
     assert.ok(existsSync(join(app, '(tabs)', name + '.tsx')), name);
     assert.equal(existsSync(join(app, name + '.tsx')), false, name);
   }
+  assert.ok(existsSync(join(app, 'index.tsx')), 'public role chooser');
+  assert.equal(existsSync(join(app, '(tabs)', 'index.tsx')), false, 'no ambiguous root route');
   assert.ok(existsSync(join(app, 'open.tsx')), 'external app link route');
   const root = readFileSync(join(app, '_layout.tsx'), 'utf8');
   assert.match(root, /name="\(tabs\)"/);
