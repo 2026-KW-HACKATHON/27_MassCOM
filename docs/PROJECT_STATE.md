@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- 2026-09-24 사용자 요청으로 이슈 #136·#137을 `CLOSED / NOT_PLANNED`로 종료했다. 종료 이유는 이슈 추적 종료이지 전체 수용 기준 완료가 아니다. 현재 열린 이슈 0개·열린 PR 0개, `main` 기준 `cfe32eb`·CI `35991738902` PASS. 역할 선택의 운영 첫 화면, `demo.*` DNS·외부 API·시연 APK·운영 웹 개인 도감은 아래 미완료 상태를 유지한다. 다시 착수할 때 실제 외부·기기 상태를 확인한 뒤 새 범위의 이슈를 만든다.
+
 - Issue #137 공개 시연 API의 초대 제한 코드를 추가했다. `SHOWCASE_MODE=true`는 정확한 `masscom_showcase` DB·Google audience 한 개·초대된 `sub` 해시 목록이 없으면 시작을 거절한다. 유효한 Google 토큰이라도 초대되지 않으면 DB identity/session 저장 전 `INVITE_REQUIRED` 403, 초대 목록 변경 후 모든 인스턴스를 재시작하면 기존 세션 조회도 거절한다. API 단위 90/90·PostgreSQL 45/45·typecheck/build 로컬 PASS. 실제 외부 API·DNS·Google client·Android 시연 APK는 `NOT_RUN`이다.
 
 - 무료 Vercel Hobby의 분리 프로젝트에 정적 시연 웹을 올렸다. `https://masscom-showcase-web.vercel.app` HTML·CSS HTTPS 200과 A·B·C 표기를 확인했다. `demo.masscom.kr` DNS는 아직 미연결이며 운영 `masscom.kr` 포털은 변경하지 않았다. 시연 Android는 전용 Google Web client ID를 빌드 설정에서 요구하고 실제 `.demo` package에서만 읽도록 코드·시험을 추가하는 중이다. 시연 OAuth client·외부 API·APK 설치는 `NOT_RUN`이다.
