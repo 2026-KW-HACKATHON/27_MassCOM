@@ -1,8 +1,8 @@
 # 기존 Lightsail의 포털·운영 웹 이관
 
-`www.masscom.kr` 추가 전환은 [별도 승인 설계](../../docs/superpowers/specs/2026-09-25-www-web-consolidation-design.md)를 따른다. `/preview/` 정적 번들과 apex/www 인증 호스트 경계는 로컬 테스트만 PASS이며, 현재 `www` DNS는 Vercel CNAME(TTL 600초)이다. Google `www` 콜백·운영 www TLS·실계정 로그인 검증 전에는 `www`를 완료 URL로 표기하거나 apex DNS를 바꾸지 않는다. [최신 시험 원장](../../docs/TEST_STATUS.md)이 실제 전환 판정의 기준이다.
+`www.masscom.kr` 추가 전환은 [승인 설계](../../docs/superpowers/specs/2026-09-25-www-web-consolidation-design.md)를 따른다. PR #169의 정적 `/preview/`와 호스트별 인증 코드는 기존 서버에 배포돼 apex 경로·DB migration·백업·Google `www` 승인 URI까지 확인했다([전환 증거](../../docs/evidence/www-web-cutover-2026-09-25.json)). 현재 `www` DNS는 Vercel CNAME(TTL 600초)이므로 운영 www TLS·실계정 로그인 전에는 `www`를 완료 URL로 표기하지 않는다. apex DNS는 유지한다. [최신 시험 원장](../../docs/TEST_STATUS.md)이 실제 전환 판정의 기준이다.
 
-**최신 상태(2026-09-25):** 운영 배포 `d787471`, 기존 PostgreSQL 컨테이너 유지, Google 로그인 시작 302와 데스크톱의 기존 계정 빈 도감·새로고침·로그아웃 및 익명 401을 확인했다. Samsung Android Chrome에서도 서로 다른 Google 계정 2개를 순차 로그인하고 A 로그아웃 후 B 세션 유지를 확인했다. OAuth 비밀값은 Git 밖 mode 600 파일에만 저장했고 클립보드를 비웠다. 두 계정 모두 기록 0건이라 실제 데이터가 있는 도감의 교차 노출과 최신 운영 APK는 `NOT_RUN`이다. [최신 시험 원장](../../docs/TEST_STATUS.md)을 우선한다.
+**이전 운영 웹 실증(2026-09-25):** 당시 운영 배포 `d787471`, 기존 PostgreSQL 컨테이너 유지, Google 로그인 시작 302와 데스크톱의 기존 계정 빈 도감·새로고침·로그아웃 및 익명 401을 확인했다. Samsung Android Chrome에서도 서로 다른 Google 계정 2개를 순차 로그인하고 A 로그아웃 후 B 세션 유지를 확인했다. OAuth 비밀값은 Git 밖 mode 600 파일에만 저장했고 클립보드를 비웠다. 두 계정 모두 기록 0건이라 실제 데이터가 있는 도감의 교차 노출과 최신 운영 APK는 `NOT_RUN`이다. [최신 시험 원장](../../docs/TEST_STATUS.md)을 우선한다.
 
 ## 이관 당시 상태와 실행 기록
 

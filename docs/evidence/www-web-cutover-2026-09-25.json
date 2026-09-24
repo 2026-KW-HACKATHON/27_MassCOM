@@ -1,0 +1,25 @@
+{
+  "date": "2026-09-25 KST",
+  "issue": 137,
+  "codePr": 169,
+  "mergeCommit": "3c59ac056b506061d284e1a26e92ec622a337889",
+  "prCi": "36066483008 PASS",
+  "mainCi": "36067114722 PASS",
+  "deployment": {
+    "result": "PASS",
+    "environment": "existing AWS Lightsail masscom-api-seoul; no new paid resource",
+    "deployedCommit": "3c59ac056b506061d284e1a26e92ec622a337889",
+    "postgresContainerPreserved": "e0d14fb7c8034d7509dee440b8644adf6de848a478f259fc524d3337086d4827; restart count 0; healthy",
+    "migrations": ["0016_web_session_origin.sql", "0017_web_oauth_redirect.sql"],
+    "backup": "/opt/masscom/backups/pre-www-web-20260925.dump, root mode 600, pg_restore --list PASS; runtime-pre-www-20260925.env root mode 600",
+    "apexHttps": "/, /app/, /open, /preview/, /preview/assets/showcase.css, /privacy, /account-deletion 200; /HANDOFF.md, /claim, /mint 404; api.masscom.kr/health 200",
+    "previewSourceMatch": "apex /preview/ HTML and CSS match repository bytes",
+    "apexOAuthStart": "302 to accounts.google.com with apex callback, Secure/HttpOnly/SameSite=Lax state cookie"
+  },
+  "googleWebCallback": "Existing MassCOM OAuth client retained apex callback and saved exact https://www.masscom.kr/api/web/auth/callback; console readback PASS",
+  "dns": "NOT_RUN; Gabia www CNAME still targets bda696dd0b1fd89e.vercel-dns-017.com. TTL 600",
+  "wwwTls": "NOT_RUN",
+  "wwwRealAccountLogin": "NOT_RUN",
+  "androidBrowser": "SM-S928N Android 16 Chrome 153.0.8010.52 opened apex /preview/; UI showed 시연, 가상 점포, 체험 도감. www login NOT_RUN",
+  "dataBoundary": "No production visit, reward, NFT, user identifiers, secrets, or wallet keys were included in this evidence."
+}
