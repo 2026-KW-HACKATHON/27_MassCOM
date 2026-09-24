@@ -16,6 +16,7 @@ GitHub에서 앱 받기: [운영 테스트 APK](https://github.com/2026-KW-HACKA
 
 - [모바일 개발용 UI 시안·로컬 실행](apps/mobile/README.md): 개발용 미리보기는 보존하고, Issue #136 시연 앱 전용 첫 역할 선택·권한 확인·빈 공간 투어 코드는 `IN_PROGRESS`. 운영 앱의 네 기능 탭은 유지하며 시연 설치본 실기는 `NOT_RUN`
 - 시연 Android 빌드 경계: `kr.masscom.wolgye.demo`/`masscom-demo`와 전용 API URL의 교차 연결 거절을 구현. 실제 시연 OAuth·Reown·API/DB·APK/실기·공개 배포는 `NOT_RUN`이며 [세 빌드의 경계](apps/mobile/README.md#세-빌드의-경계)에 현재 상태를 구분했습니다.
+- [시연 호스트 격리 준비](infra/showcase-host/README.md): 독립 Compose·초대 계정용 seed/STAFF 관리 코드를 로컬에서 검증. AWS 호스트 배포·외부 HTTPS는 미완료
 
 - [모바일 디자인 기준](DESIGN.md): 탐색·방문 인증·도감·내 정보와 읽기 전용 시연 웹의 파란 팔레트·접근성 원칙
 - [AI 모델 사용 기준](docs/AI_MODEL_ROUTING.md): GPT‑6 Luna/Sol/Astra 작업별 사용처와 검증 경계

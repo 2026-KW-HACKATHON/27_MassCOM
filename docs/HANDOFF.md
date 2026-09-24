@@ -4,6 +4,8 @@
 
 ## 현재 GitHub 이슈 상태 — 2026-09-24
 
+- #136 시연 역할 진입은 [PR #156](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/156) merge `5e91728`, main CI `35998825263` PASS까지 확인했다. 실제 시연 APK/외부 API·OAuth/지갑 실기는 `NOT_RUN`이므로 Issue는 계속 OPEN이다.
+- #137 후속 `feat/137-host-delivery`는 [별도 호스트 구성](../infra/showcase-host/README.md)과 [로컬 격리 증거](evidence/showcase-host-local-2026-09-24.json)를 준비했다. 실제 AWS 콘솔은 두 브라우저 모두 로그인 화면이고 CLI/SSH 설정이 없어 비용·용량을 읽지 못했다. 운영 API health는 `{"status":"ok"}`, `demo.*` DNS는 응답 없음. **원격 배포는 이 선행 검사 완료 전 BLOCKED**이며 로컬 PASS를 외부 완료로 승격하지 않는다.
 - D-032에서 사용자가 #136 역할 첫 화면을 시연 앱 `.demo`에만 적용하도록 확정했다. 작업 브랜치 `feat/136-showcase-entry`는 package별 첫 진입, 계정별 역할 초기화, 점주 서버 권한 확인, 고객용 빈 다섯 공간 투어를 구현 중이다. 운영 앱의 네 탭과 개발용 미리보기는 유지한다. 자동 시험·PR·실기 결과는 아래 최신 기록과 `gh pr view`로 확인하고, 시연 APK·OAuth·외부 API가 준비되기 전에는 #136을 닫지 않는다.
 - [#136](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/136)과 [#137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)은 `OPEN`이다. 이전 `CLOSED / NOT_PLANNED` 처리는 실행 계획 없이 미완료 수용 기준을 닫은 오류여서 되돌렸다. 그때의 종료 댓글은 이력일 뿐 완료 증거가 아니다.
 - #136의 개발용 UI 미리보기는 구현됐지만 실제 시연 앱 첫 진입·실기는 미완료다. [#136 실행 계획](superpowers/plans/2026-09-24-issue136-showcase-entry.md)의 적용 범위를 결정한 뒤 시작한다. 운영 앱 네 탭은 현재 유지한다.

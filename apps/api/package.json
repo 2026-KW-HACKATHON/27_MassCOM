@@ -13,6 +13,8 @@
     "db:migrate:local": "tsx --env-file=.env src/postgres/migrate-command.ts",
     "db:migrate:production": "node dist/postgres/migrate-command.js",
     "seed:showcase:local": "tsx src/showcase/seed-command.ts",
+    "seed:showcase:host": "tsx src/showcase/host-seed-command.ts",
+    "grant:showcase:staff": "tsx src/showcase/grant-staff-command.ts",
     "start": "tsx src/server.ts",
     "start:local": "tsx --env-file=.env src/server.ts",
     "start:production": "node dist/server.js",

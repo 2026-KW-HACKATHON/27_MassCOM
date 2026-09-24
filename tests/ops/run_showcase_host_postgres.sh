@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "$0")/../.." && pwd -P)"
+container_id=''
+
+cleanup() {
+  if [[ -n "$container_id" ]]; then
+    docker stop "$container_id" >/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
+run_case() {
+  local test_file="$1"
+  container_id="$(docker run --rm -d \
+    --name "masscom-showcase-host-test-$$" \
+    -e POSTGRES_DB=masscom_showcase \
+    -e POSTGRES_USER=masscom_showcase \
+    -e POSTGRES_HOST_AUTH_METHOD=trust \
+    -p 127.0.0.1:55435:5432 \
+    postgres:16.10-alpine)"
+
+  local ready='false'
+  for _attempt in $(seq 1 30); do
+    if docker exec "$container_id" pg_isready -U masscom_showcase -d masscom_showcase >/dev/null 2>&1; then
+      ready='true'
+      break
+    fi
+    sleep 1
+  done
+  [[ "$ready" == 'true' ]] || { echo 'disposable showcase PostgreSQL did not become ready' >&2; exit 1; }
+
+  (
+    cd "$repo_root/apps/api"
+    TEST_SHOWCASE_HOST_DATABASE_URL='postgresql://masscom_showcase@127.0.0.1:55435/masscom_showcase' \
+      ./node_modules/.bin/tsx --test "src/showcase/$test_file"
+  )
+  docker stop "$container_id" >/dev/null
+  container_id=''
+}
+
+run_case host-seed-existing.postgres.integration.ts
+run_case host-seed.postgres.integration.ts
