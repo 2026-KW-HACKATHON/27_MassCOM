@@ -167,7 +167,7 @@ export function createApiServer(
             return;
           }
         }
-        const started = await webAuth.start();
+        const started = await webAuth.start('https://masscom.kr');
         response.setHeader('x-robots-tag', 'noindex, nofollow');
         response.setHeader('set-cookie', `web_auth_state=${started.state}; Path=/api/web/auth; Max-Age=300; HttpOnly; Secure; SameSite=Lax`);
         response.setHeader('location', started.location);
@@ -185,6 +185,7 @@ export function createApiServer(
         }
         const session = await webAuth.complete(
           query.get('code')!, query.get('state')!, requireWebCookie(request, 'web_auth_state'),
+          'https://masscom.kr',
         );
         response.setHeader('set-cookie', [
           'web_auth_state=; Path=/api/web/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax',
@@ -198,7 +199,7 @@ export function createApiServer(
       if (path === '/api/web/collection' && request.method === 'GET') {
         if (!webAuth || !collection) throw new RequestError(503, 'WEB_COLLECTION_NOT_CONFIGURED');
         response.setHeader('x-robots-tag', 'noindex, nofollow');
-        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'));
+        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), 'https://masscom.kr');
         sendJson(response, 200, await collection.getCollection(accountId));
         return;
       }
@@ -208,7 +209,7 @@ export function createApiServer(
         if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');
         response.setHeader('x-robots-tag', 'noindex, nofollow');
         const sessionToken = optionalWebCookie(request, 'web_session');
-        if (sessionToken) await webAuth.logout(sessionToken);
+        if (sessionToken) await webAuth.logout(sessionToken, 'https://masscom.kr');
         response.setHeader('set-cookie', 'web_session=; Path=/api/web; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
         response.writeHead(204);
         response.end();

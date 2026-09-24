@@ -82,7 +82,7 @@ ALTER TABLE web_sessions
 
 ### Task 3: OAuth state·Google callback의 호스트 바인딩
 
-**Files:** Create `apps/api/migrations/0017_web_oauth_redirect.sql`; modify `apps/api/src/web-auth.ts`, `apps/api/src/web-auth.test.ts`, `apps/api/src/web-auth.postgres.integration.ts`, Task 2의 `apps/api/src/postgres/web-origin-migration.postgres.integration.ts`, `infra/lightsail/runtime.env.example`.
+**Files:** Create `apps/api/migrations/0017_web_oauth_redirect.sql`; modify `apps/api/src/web-auth.ts`, `apps/api/src/web-auth.test.ts`, `apps/api/src/web-auth.postgres.integration.ts`, Task 2의 `apps/api/src/postgres/web-origin-migration.postgres.integration.ts`, `apps/api/src/server.ts`의 기존 apex 호출(이번 Task의 임시 호환 경계), `infra/lightsail/runtime.env.example`.
 
 **Interfaces:** Task 2의 `WebOrigin`을 사용해 `WebAuthService.start(origin: WebOrigin)`, `complete(code, state, cookieState, origin)`, `resolveSession(token, origin)`, `logout(token, origin)`를 제공한다. `GOOGLE_WEB_WWW_ENABLED`는 누락 시 apex만, 정확한 `true`일 때 www origin도 허용하며 다른 값은 설정 오류로 거절한다. 기존 apex callback URI·client secret을 유지한다.
 

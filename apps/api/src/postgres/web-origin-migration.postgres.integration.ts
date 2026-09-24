@@ -46,3 +46,36 @@ test('existing web sessions gain apex origin without changing their token hash',
     await pool.end();
   }
 });
+
+test('existing unfinished OAuth state keeps the apex callback after migration', {
+  skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
+}, async () => {
+  const pool = new Pool({ connectionString: testUrl });
+  const client = await pool.connect();
+  const schema = `web_state_${randomUUID().replaceAll('-', '')}`;
+  try {
+    await client.query(`CREATE SCHEMA "${schema}"`);
+    await client.query(`SET search_path TO "${schema}"`);
+    await client.query(await readFile(new URL('0015_web_oauth_states.sql', migrations), 'utf8'));
+    const stateHash = randomBytes(32);
+    await client.query(
+      `INSERT INTO web_oauth_states(state_hash, code_verifier, nonce, expires_at)
+       VALUES ($1, $2, $3, now() + interval '5 minutes')`,
+      [stateHash, 'v'.repeat(43), 'n'.repeat(43)],
+    );
+    await client.query(await readFile(new URL('0017_web_oauth_redirect.sql', migrations), 'utf8'));
+    const result = await client.query<{ redirect_uri: string }>(
+      'SELECT redirect_uri FROM web_oauth_states WHERE state_hash = $1', [stateHash],
+    );
+    assert.equal(result.rows[0]?.redirect_uri, 'https://masscom.kr/api/web/auth/callback');
+    await assert.rejects(client.query(
+      "UPDATE web_oauth_states SET redirect_uri = 'https://other.example/callback' WHERE state_hash = $1",
+      [stateHash],
+    ), { code: '23514' });
+  } finally {
+    await client.query('SET search_path TO public').catch(() => {});
+    await client.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).catch(() => {});
+    client.release();
+    await pool.end();
+  }
+});
