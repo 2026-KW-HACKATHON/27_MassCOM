@@ -90,6 +90,46 @@ test('a second sign-in for the same Google subject reuses the account and issues
   assert.equal(await service.resolve(second.sessionToken), first.accountId);
 });
 
+test('showcase invite guard rejects uninvited Google subjects before any account or session write', async (t) => {
+  const pool = await freshPool(t);
+  const invitedHash = createHash('sha256').update('invited-google-subject').digest('hex');
+  const service = new PostgresAuthSessionService(pool, {
+    verifier: fakeVerifier(() => signInAt),
+    allowedSubjectHashes: new Set([invitedHash]),
+    now: () => signInAt,
+  });
+
+  await assert.rejects(service.signInWithGoogle('subject:outsider'), (error: unknown) =>
+    error instanceof AuthSessionError && error.code === 'INVITE_REQUIRED');
+  const counts = await pool.query<{ identities: string; sessions: string }>(
+    `SELECT (SELECT count(*) FROM auth_identities)::text AS identities,
+            (SELECT count(*) FROM auth_sessions)::text AS sessions`,
+  );
+  assert.deepEqual(counts.rows[0], { identities: '0', sessions: '0' });
+
+  const invited = await service.signInWithGoogle('subject:invited-google-subject');
+  assert.equal(await service.resolve(invited.sessionToken), invited.accountId);
+});
+
+test('showcase invite removal blocks an old session without changing normal production sessions', async (t) => {
+  const pool = await freshPool(t);
+  const invitedHash = createHash('sha256').update('invited-google-subject').digest('hex');
+  const service = new PostgresAuthSessionService(pool, {
+    verifier: fakeVerifier(() => signInAt),
+    allowedSubjectHashes: new Set([invitedHash]),
+    now: () => signInAt,
+  });
+  const invited = await service.signInWithGoogle('subject:invited-google-subject');
+  const removed = new PostgresAuthSessionService(pool, {
+    verifier: fakeVerifier(() => signInAt),
+    allowedSubjectHashes: new Set(['f'.repeat(64)]),
+    now: () => signInAt,
+  });
+  await assert.rejects(removed.resolve(invited.sessionToken), (error: unknown) =>
+    error instanceof AuthSessionError && error.code === 'INVITE_REQUIRED');
+  assert.equal(await sessionService(pool).resolve(invited.sessionToken), invited.accountId);
+});
+
 test('resolve rejects unknown, expired and revoked session tokens', async (t) => {
   const pool = await freshPool(t);
   const service = sessionService(pool);

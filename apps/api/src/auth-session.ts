@@ -2,7 +2,8 @@ export type AuthSessionErrorCode =
   | 'SESSION_REQUIRED'
   | 'SESSION_INVALID'
   | 'REAUTHENTICATION_REQUIRED'
-  | 'IDENTITY_MISMATCH';
+  | 'IDENTITY_MISMATCH'
+  | 'INVITE_REQUIRED';
 
 export class AuthSessionError extends Error {
   constructor(readonly code: AuthSessionErrorCode) {
