@@ -39,7 +39,8 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
   let socket;
   try {
     const portFile = join(profile, 'DevToolsActivePort');
-    for (let i = 0; i < 100 && !existsSync(portFile) && !chromeExit && !chromeSpawnError; i++) await delay(100);
+    // Shared CI runners have twice kept Chrome alive beyond the former 10s startup limit.
+    for (let i = 0; i < 300 && !existsSync(portFile) && !chromeExit && !chromeSpawnError; i++) await delay(100);
     const startupDetails = [
       chromeSpawnError?.message,
       chromeExit ? `exit=${chromeExit.code} signal=${chromeExit.signal}` : 'process still running',

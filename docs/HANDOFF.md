@@ -2,6 +2,10 @@
 
 마지막 갱신 시각: 2026-09-24 KST
 
+## Issue #137 시연 웹 Chrome CI 시작 지연
+
+- PR #151 병합 후 main CI `35988191241` 첫 시도와 PR #152 병합 후 main CI `35990461496`가 Chrome 프로세스는 살아 있으나 10초 안에 `DevToolsActivePort`가 생기지 않아 실패했다. 첫 run의 재시도는 코드 변경 없이 PASS. 같은 원인이 두 번 발생해 단순 무한 재시도 대신 `fix/137-chrome-startup-timeout`에서 시작 대기만 30초로 늘렸다. 실제 웹 계산색·대비·반응형·키보드 검사는 유지했다. PR·main CI가 통과하기 전까지 #152 병합 커밋을 완전 검증 기준선으로 부르지 않는다.
+
 ## Issue #137 공개 시연 API 초대 제한 준비
 
 - `feat/137-showcase-invite-guard`: 초대되지 않은 Google `sub`는 계정·세션 쓰기 전에 거절한다. 초대 변경은 모든 시연 API 인스턴스 재시작·이전 인스턴스 종료 후 기존 세션 조회에도 적용된다. `SHOWCASE_MODE=true` 설정은 정확한 `masscom_showcase` DB·Google audience 한 개·초대 `sub` SHA-256 목록을 요구한다. 운영 API는 해당 설정이 없어 기존 정책을 유지한다([경계 문서](SHOWCASE_AUTH_GUARD.md)). API 단위 90/90·PostgreSQL 45/45·typecheck/build 로컬 PASS.
