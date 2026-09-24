@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { once } from 'node:events';
 
 import { Pool } from 'pg';
 
@@ -13,8 +14,9 @@ if (!databaseUrl || !new URL(databaseUrl).pathname.endsWith('_test')) {
 
 const pool = new Pool({ connectionString: databaseUrl });
 await runMigrations(pool);
-const accountId = `pending-www-${randomUUID()}`;
+const accountId = process.env.ROLLBACK_TEST_ACCOUNT_ID ?? `pending-www-${randomUUID()}`;
 const subject = `subject-${accountId}`;
+let expectedNonce = '';
 await pool.query(
   `INSERT INTO auth_identities(provider, subject, account_id, created_at)
    VALUES ('google', $1, $2, now())`, [subject, accountId],
@@ -28,10 +30,15 @@ const service = new WebAuthService(pool, new PostgresWebSessionStore(pool, {
   wwwEnabled: true,
   exchangeCode: async () => {
     process.stdout.write('WAITING_FOR_GOOGLE\n');
-    setInterval(() => {}, 1_000);
-    return new Promise<string>(() => {});
+    const [input] = await once(process.stdin, 'data');
+    if (String(input).trim() !== 'RELEASE') throw new Error('unexpected fixture release');
+    return 'signed-id-token';
   },
-  verifyIdToken: async () => ({ subject, nonce: '' }),
+  verifyIdToken: async () => ({ subject, nonce: expectedNonce }),
 });
 const started = await service.start('https://www.masscom.kr');
+expectedNonce = new URL(started.location).searchParams.get('nonce') ?? '';
+if (!expectedNonce) throw new Error('missing fixture nonce');
 await service.complete('held-code', started.state, started.state, 'https://www.masscom.kr');
+process.stdout.write('SESSION_CREATED\n');
+await pool.end();

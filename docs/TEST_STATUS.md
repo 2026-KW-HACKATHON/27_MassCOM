@@ -1,6 +1,6 @@
 # 테스트 상태
 
-2026-09-25 Issue #137 [www 웹 통합 로컬 증거](evidence/www-web-local-2026-09-25.json): 공개 번들 16개 중 추가된 시연 HTML/CSS 2개만 `/preview/`에 복사, 로컬 Caddy의 `/preview` 308·본문/CSS 200·비공개 404와 apex/www 두 Host 경로 2/2 PASS. API Host·Origin 단위 109/109, 실제 `_test` PostgreSQL 52 PASS/2 SKIP, 지연 콜백 프로세스 종료 후 www 세션 철회 1/1, API typecheck/build·Compose/Caddy validate PASS. 처음 시험은 새 경로·세션 열·redirect state 부재로 RED였고 수정 뒤 GREEN. 운영 DB migration·Google `www` 승인 URI·가비아 DNS·공인 TLS·휴대전화 www 로그인은 `NOT_RUN`; v3 36개 ID 집계는 변경하지 않는다.
+2026-09-25 Issue #137 [www 웹 통합 로컬 증거](evidence/www-web-local-2026-09-25.json): 공개 번들 16개 중 추가된 시연 HTML/CSS 2개만 `/preview/`에 복사, 로컬 Caddy의 `/preview` 308·본문/CSS 200·비공개 404와 apex/www 두 Host 경로 2/2 PASS. API Host·Origin 단위 109/109, 실제 `_test` PostgreSQL 52 PASS/2 SKIP, 지연 콜백 롤백 시험 1/1, API typecheck/build·Compose/Caddy validate PASS. 독립 리뷰가 기존 롤백 fixture는 세션을 절대 만들 수 없다고 지적해, 철회 후 콜백 완료 시 www 세션이 새로 생기는 반례를 실제 PostgreSQL에서 RED→GREEN으로 재현하고 프로세스 종료→철회 순서·www 플래그 OFF·apex 보존을 확인했다. 처음 시험은 새 경로·세션 열·redirect state 부재로 RED였고 수정 뒤 GREEN. 운영 DB migration·Google `www` 승인 URI·가비아 DNS·공인 TLS·휴대전화 www 로그인은 `NOT_RUN`; v3 36개 ID 집계는 변경하지 않는다.
 
 [2026-09-25 시연 웹 전용 GitHub 미리보기 태그](evidence/showcase-web-release-2026-09-25.json): `showcase-web-v0.1.0-preview.1`은 `main` `f96c324`의 검증된 정적 HTML/CSS만 고정한다. main CI `36051088165` PASS, 시연 웹 사실성·비쓰기 19/19·실제 브라우저 라이트/다크 1/1·정적 검사 PASS, 공개 HTTPS HTML/CSS 200 및 저장소 SHA-256 일치, GitHub ZIP digest 일치. 이는 **웹 전용**이며 시연 Android APK/Release는 `NOT_RUN`, `demo-api.masscom.kr` DNS는 미해결이다. 36개 제품 시험 ID 상태는 바꾸지 않는다.
 

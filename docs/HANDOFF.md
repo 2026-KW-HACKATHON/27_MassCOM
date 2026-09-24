@@ -4,7 +4,7 @@
 
 ## 현재 GitHub·운영 상태 — 2026-09-25
 
-- D-034 www/apex 공존 코드는 `feat/137-www-web-consolidation`의 로컬 커밋까지 진행됐다. [승인된 설계](superpowers/specs/2026-09-25-www-web-consolidation-design.md)·[계획](superpowers/plans/2026-09-25-www-web-consolidation.md)에 따라 정적 `/preview` 허용 목록, 호스트별 OAuth state·웹 세션, 정확한 Host·Origin 거부 경계를 구현했다. 분리 PostgreSQL·로컬 Caddy·지연 콜백 롤백 시험은 PASS([증거](evidence/www-web-local-2026-09-25.json)); GitHub 코드 PR·main CI·Google `www` 콜백 등록·Lightsail 코드 배포·가비아 DNS·공인 TLS·실계정 www 로그인은 아직 `NOT_RUN`. 가비아 `www`는 Vercel CNAME(TTL 600초)이다. 실제 작업 브랜치·PR은 `git`·`gh`로 확인하고, 외부 검증 전 README 주 주소를 `www`로 바꾸지 않는다.
+- D-034 www/apex 공존 코드는 `feat/137-www-web-consolidation`의 [PR #169](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/169)에서 진행 중이다. [승인된 설계](superpowers/specs/2026-09-25-www-web-consolidation-design.md)·[계획](superpowers/plans/2026-09-25-www-web-consolidation.md)에 따라 정적 `/preview` 허용 목록, 호스트별 OAuth state·웹 세션, 정확한 Host·Origin 거부 경계를 구현했다. 분리 PostgreSQL·로컬 Caddy·지연 콜백 롤백 반례/안전 순서 시험은 PASS([증거](evidence/www-web-local-2026-09-25.json)); 독립 리뷰의 롤백 fixture 지적은 수정해 재검증했다. PR/main CI·Google `www` 콜백 등록·Lightsail 코드 배포·가비아 DNS·공인 TLS·실계정 www 로그인은 아직 `NOT_RUN` 또는 진행 중이다. 가비아 `www`는 Vercel CNAME(TTL 600초)이다. 외부 검증 전 README 주 주소를 `www`로 바꾸지 않는다.
 
 - 시연 웹은 [공개 HTTPS 주소](https://masscom-showcase-web.vercel.app/)에서 HTML/CSS 200과 저장소 원본 SHA-256 일치를 확인했다. 별도 private [웹 전용 사전 릴리스 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1)는 `f96c324`를 가리키고 정적 HTML/CSS ZIP만 담는다([근거](evidence/showcase-web-release-2026-09-25.json)). 시연 Android APK·태그는 없다. `demo-api.masscom.kr` DNS가 없어 운영 APK를 시연용으로 재포장하지 않는다. 최종 대회 제출 태그와도 구분한다.
 

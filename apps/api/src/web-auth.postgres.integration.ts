@@ -134,6 +134,18 @@ test('www OAuth state cannot finish on apex and its session cannot be used or re
     expectedNonce = authorization.searchParams.get('nonce')!;
     assert.equal(authorization.searchParams.get('redirect_uri'),
       'https://www.masscom.kr/api/web/auth/callback');
+    const disabled = new WebAuthService(pool, new PostgresWebSessionStore(pool, {
+      hmacSecret: 'web-auth-disposable-hmac-secret-at-least-32-bytes', ttlMs: 60_000,
+    }), {
+      clientId: '1234567890-web.apps.googleusercontent.com',
+      webCredential: 'test-only-secret',
+      redirectUri: 'https://masscom.kr/api/web/auth/callback',
+      wwwEnabled: false,
+      exchangeCode: async () => { throw new Error('disabled callback reached Google'); },
+      verifyIdToken: async () => { throw new Error('disabled callback verified a token'); },
+    });
+    await assert.rejects(disabled.complete('www-one-time-code', started.state, started.state,
+      'https://www.masscom.kr'), /WEB_AUTH_ORIGIN_INVALID/);
     await assert.rejects(service.complete('www-one-time-code', started.state, started.state,
       'https://masscom.kr'), /WEB_AUTH_STATE_INVALID/);
     const session = await service.complete('www-one-time-code', started.state, started.state,
