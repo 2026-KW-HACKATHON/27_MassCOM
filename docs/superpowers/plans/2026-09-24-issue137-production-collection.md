@@ -1,5 +1,7 @@
 # Issue #137 운영 웹 본인 도감 구현 계획
 
+> 작성 시점(2026-09-24)의 계획·기준선이다. 아래 `NOT_RUN`·Vercel·체크박스를 현재 상태로 읽지 않는다. 운영 AWS HTTPS와 Google 계정 A/B의 Android Chrome 순차 로그인은 이후 확인됐으며, 최신 판정은 [테스트 원장](../../TEST_STATUS.md)과 [프로젝트 상태](../../PROJECT_STATE.md)를 따른다. 비어 있지 않은 도감의 실제 계정 간 격리는 여전히 미검증이다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax for tracking. Authentication and cookie changes require an independent security review before external deployment.
 
 **Goal:** 운영 웹에서 공개 음식점을 로그인 없이 읽고, 로그인한 사람만 자신의 실제 방문·앱 수집품·검증 완료 NFT 도감을 읽는다.
@@ -12,7 +14,7 @@
 
 **시작 순서:** 1. AWS 포털·운영 웹의 외부 이관과 Task 1의 같은 출처 쿠키 프록시 실증을 마친다. 2. 성공한 경로에 한해서 Task 2~4의 서버 세션·로그인·읽기 화면을 개발한다. 3. Task 5의 외부 계정 격리·보안 리뷰·CI로 종료를 판정한다.
 
-## 현재 기준선과 결정 게이트
+## 계획 작성 당시 기준선과 결정 게이트
 
 - `apps/production-web/server.mjs`는 로컬에서 공개 점포만 읽고, 개인 도감은 의도적으로 닫혀 있다. 외부 운영 웹 배포·웹 Google 로그인은 `NOT_RUN`.
 - 현재 `masscom.kr`의 실제 DNS·HTTPS는 Vercel이다. AWS 경로는 로컬 Caddy·웹 smoke까지이며 비용·용량·TLS·DNS 전환이 끝나기 전에는 외부 운영 웹 완료로 쓰지 않는다.
