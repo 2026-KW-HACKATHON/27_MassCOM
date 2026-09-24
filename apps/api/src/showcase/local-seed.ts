@@ -8,10 +8,29 @@ export const SHOWCASE_CUSTOMER_ACCOUNT_ID = 'showcase-local-customer';
 const localDatabaseError = 'SHOWCASE_LOCAL_DATABASE_REQUIRED';
 const fixtureError = 'SHOWCASE_FIXTURE_COLLISION';
 const showcaseSeedLockId = 2_026_092_313_7;
-const merchantName = '가상 점포 A';
-const merchantStory = '체험용 가상 데이터이며 실제 영업점·방문 혜택이 아닙니다.';
 const merchantAddress = '시연용 가상 위치 · 실제 방문 불가';
 const campaignTitle = '체험 방문 도감';
+const merchants = [
+  {
+    merchantId: SHOWCASE_MERCHANT_ID,
+    campaignId: SHOWCASE_CAMPAIGN_ID,
+    name: '가상 점포 A',
+    story: '체험용 가상 데이터이며 실제 영업점·방문 혜택이 아닙니다.',
+  },
+  {
+    merchantId: 'showcase-local-merchant-b',
+    campaignId: 'showcase-local-campaign-b',
+    name: '가상 점포 B',
+    story: '다음 가게를 찾아보는 흐름을 보여주는 가상 점포입니다. 실제 영업점·방문 혜택이 아닙니다.',
+  },
+  {
+    merchantId: 'showcase-local-merchant-c',
+    campaignId: 'showcase-local-campaign-c',
+    name: '가상 점포 C',
+    story: '여러 가게의 방문을 모으는 흐름을 보여주는 가상 점포입니다. 실제 영업점·방문 혜택이 아닙니다.',
+  },
+] as const;
+type ShowcaseMerchant = (typeof merchants)[number];
 const goals = [
   [1, '가상 첫 방문 수집품'],
   [3, '가상 세 번째 방문 수집품'],
@@ -75,7 +94,7 @@ type CampaignRow = {
 type GoalRow = { target_visit_count: number; display_name: string };
 type MemberRow = { role: string; status: string; revoked_at: Date | null };
 
-async function readFixture(client: PoolClient): Promise<{
+async function readFixture(client: PoolClient, entry: ShowcaseMerchant): Promise<{
   merchant?: MerchantRow;
   campaign?: CampaignRow;
   goals: GoalRow[];
@@ -84,23 +103,23 @@ async function readFixture(client: PoolClient): Promise<{
   const merchant = await client.query<MerchantRow>(
     `SELECT name, story, road_address, minimum_spend_won, status, is_demo
      FROM merchants WHERE id = $1`,
-    [SHOWCASE_MERCHANT_ID],
+    [entry.merchantId],
   );
   const campaign = await client.query<CampaignRow>(
     `SELECT merchant_id, title, starts_at, ends_at, status, is_public,
             enrollment_capacity, enrolled_count
      FROM campaigns WHERE id = $1`,
-    [SHOWCASE_CAMPAIGN_ID],
+    [entry.campaignId],
   );
   const rewardGoals = await client.query<GoalRow>(
     `SELECT target_visit_count, display_name FROM campaign_goals
      WHERE campaign_id = $1 ORDER BY target_visit_count`,
-    [SHOWCASE_CAMPAIGN_ID],
+    [entry.campaignId],
   );
   const member = await client.query<MemberRow>(
     `SELECT role, status, revoked_at FROM merchant_members
      WHERE merchant_id = $1 AND account_id = $2`,
-    [SHOWCASE_MERCHANT_ID, SHOWCASE_STAFF_ACCOUNT_ID],
+    [entry.merchantId, SHOWCASE_STAFF_ACCOUNT_ID],
   );
   return {
     ...(merchant.rows[0] ? { merchant: merchant.rows[0] } : {}),
@@ -110,13 +129,17 @@ async function readFixture(client: PoolClient): Promise<{
   };
 }
 
-function assertFixtureMatches(fixture: Awaited<ReturnType<typeof readFixture>>, now: Date): void {
+function assertFixtureMatches(
+  fixture: Awaited<ReturnType<typeof readFixture>>,
+  entry: ShowcaseMerchant,
+  now: Date,
+): void {
   const { merchant, campaign, member } = fixture;
   if (
-    !merchant || merchant.name !== merchantName || merchant.story !== merchantStory ||
+    !merchant || merchant.name !== entry.name || merchant.story !== entry.story ||
     merchant.road_address !== merchantAddress || merchant.minimum_spend_won !== 0 ||
     merchant.status !== 'ACTIVE' || merchant.is_demo !== true ||
-    !campaign || campaign.merchant_id !== SHOWCASE_MERCHANT_ID ||
+    !campaign || campaign.merchant_id !== entry.merchantId ||
     campaign.title !== campaignTitle || campaign.status !== 'ACTIVE' ||
     campaign.is_public !== true || campaign.enrollment_capacity !== 20 ||
     campaign.enrolled_count < 0 || campaign.enrolled_count > 20 ||
@@ -144,19 +167,21 @@ export async function seedLocalShowcase(
     await client.query('BEGIN');
     transactionStarted = true;
     await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [showcaseSeedLockId]);
-    const existing = await readFixture(client);
-    const hasExisting = Boolean(
-      existing.merchant || existing.campaign || existing.member || existing.goals.length,
-    );
-    if (hasExisting) {
-      assertFixtureMatches(existing, now);
-    } else {
+    for (const entry of merchants) {
+      const existing = await readFixture(client, entry);
+      const hasExisting = Boolean(
+        existing.merchant || existing.campaign || existing.member || existing.goals.length,
+      );
+      if (hasExisting) {
+        assertFixtureMatches(existing, entry, now);
+        continue;
+      }
       await client.query(
         `INSERT INTO merchants
          (id, name, story, road_address, minimum_spend_won, status, is_demo)
          VALUES ($1, $2, $3, $4, 0, 'ACTIVE', true)
          ON CONFLICT (id) DO NOTHING`,
-        [SHOWCASE_MERCHANT_ID, merchantName, merchantStory, merchantAddress],
+        [entry.merchantId, entry.name, entry.story, merchantAddress],
       );
       await client.query(
         `INSERT INTO campaigns
@@ -165,7 +190,7 @@ export async function seedLocalShowcase(
          VALUES ($1, $2, $3, $4, $5, 'ACTIVE', true, 20, 0)
          ON CONFLICT (id) DO NOTHING`,
         [
-          SHOWCASE_CAMPAIGN_ID, SHOWCASE_MERCHANT_ID, campaignTitle,
+          entry.campaignId, entry.merchantId, campaignTitle,
           new Date(now.getTime() - 24 * 60 * 60 * 1000),
           new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
         ],
@@ -175,16 +200,16 @@ export async function seedLocalShowcase(
           `INSERT INTO campaign_goals (campaign_id, target_visit_count, display_name)
            VALUES ($1, $2, $3)
            ON CONFLICT (campaign_id, target_visit_count) DO NOTHING`,
-          [SHOWCASE_CAMPAIGN_ID, count, name],
+          [entry.campaignId, count, name],
         );
       }
       await client.query(
         `INSERT INTO merchant_members (merchant_id, account_id, role, status)
          VALUES ($1, $2, 'STAFF', 'ACTIVE')
          ON CONFLICT (merchant_id, account_id) DO NOTHING`,
-        [SHOWCASE_MERCHANT_ID, SHOWCASE_STAFF_ACCOUNT_ID],
+        [entry.merchantId, SHOWCASE_STAFF_ACCOUNT_ID],
       );
-      assertFixtureMatches(await readFixture(client), now);
+      assertFixtureMatches(await readFixture(client, entry), entry, now);
     }
     await client.query('COMMIT');
     transactionStarted = false;

@@ -208,10 +208,10 @@ npm run test:postgres --prefix apps/api
 ## 데모·배포·출시
 
 - 정적 프로젝트 포털: `https://masscom.kr`·`/privacy`·`/account-deletion` HTTPS 200 `VERIFIED`
-- 읽기 전용 시연 웹: [apps/showcase-web](apps/showcase-web/README.md) `STATIC_DEMO` 로컬 구현·라이트/다크 계산색·대비·360px/데스크톱 브라우저 검사 PASS([증거](docs/evidence/design-consistency-2026-09-24/README.md)), 외부 공개 `NOT_DEPLOYED`. 가상 점포·예시 도감은 실제 협약 점포·방문·NFT 실적이 아니며 운영 API·DB와 연결하지 않았습니다.
+- 읽기 전용 시연 웹: [apps/showcase-web](apps/showcase-web/README.md) `STATIC_DEMO` 로컬 구현·라이트/다크 계산색·대비·360px/데스크톱 브라우저 검사 PASS([증거](docs/evidence/design-consistency-2026-09-24/README.md)), 외부 공개 `NOT_DEPLOYED`. 가상 점포 A·B·C와 A 방문을 가정한 고정 예시는 실제 협약 점포·방문·NFT 실적이 아니며 운영 API·DB와 연결하지 않았습니다.
 - 읽기 전용 운영 웹: [apps/production-web](apps/production-web/README.md)은 별도 로컬 서버에서 운영 API의 공개 점포만 조회합니다. 실제 운영 API는 현재 0곳을 반환하며 가상 점포를 채우지 않습니다. 개인 도감의 안전한 웹 세션과 외부 배포는 `NOT_RUN`입니다.
 - 운영 Android UI: Issue #142에서 개발용 파란 시안과 네 탭·보조 화면의 색상 기준을 통일했고, 후속 Issue #146에서 ‘내 정보’ 렌더 오류를 수정했습니다. 모바일 182개 단위 테스트·typecheck·lint PASS. Samsung Android 16 개발 앱의 [오류 전후 UI](docs/evidence/android-dev-ui-2026-09-24/README.md)와 새 연결에서의 [로컬 가상 방문 수령→도감→추천](docs/evidence/android-local-claim-2026-09-24/README.md)을 구분해 확인했습니다. 실제 카메라 QR·외부 지갑·운영/시연 release APK는 NOT_RUN이며 공개 배포 완료를 뜻하지 않습니다.
-- 로컬 API 시연 데이터: [전용 DB 실행 방법](apps/api/README.md#격리된-로컬-시연-점포)에 따라 `masscom_showcase_test`에 `가상 점포 A`와 1/3/5회 목표를 생성. 실제 영업점·방문·NFT가 아니며 운영 API/DB에는 미적용. 정적 시연 웹과도 아직 실시간 연결되지 않습니다.
+- 로컬 API 시연 데이터: [전용 DB 실행 방법](apps/api/README.md#격리된-로컬-시연-점포)에 따라 `masscom_showcase_test`에 가상 점포 A·B·C와 각 점포의 1/3/5회 목표를 생성. 실제 영업점·방문·NFT가 아니며 운영 API/DB에는 미적용. 정적 시연 웹과도 아직 실시간 연결되지 않습니다.
 - 로컬 시연 API·DB: [독립 Docker 환경](infra/showcase-local/README.md)은 운영 Compose와 다른 프로젝트·볼륨·loopback 포트로만 실행하고, 인증을 닫은 상태에서 가상 점포 공개 조회를 검증합니다. 외부 시연 API·QR·지갑·NFT 기능은 여전히 `NOT_RUN`입니다.
 - 운영 API: AWS Lightsail 서울 리전의 [PR #130 병합 `fcaa1c0` 배포](docs/evidence/lightsail-api-deployment-2026-09-23.json) 후 `https://api.masscom.kr/health` HTTP/2 200·보안 헤더와 DEMO 헤더만 넣은 보호 요청 401을 확인. DB·API 내부 포트는 비공개; 사용자별 rate-limit 실증은 `NOT_RUN`
 - Google 로그인: Samsung SM-S928N Android 16에서 실제 동의→ID token→외부 API session·콜드 스타트 복원·logout revoke `PASS`; 두 번째 계정 전환은 `NOT_RUN`
