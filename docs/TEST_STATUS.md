@@ -4,6 +4,8 @@
 
 같은 브랜치의 웹 원격 점검 수정: `bash tests/ops/deploy_lightsail_web_test.sh`에서 API 버전별 401/404/503 JSON·`no-store` 허용과 200/502·웹 서버 자체 404 거절을 RED→GREEN으로 확인했다. 로컬 Caddy fixture 1/1, 웹 smoke, Compose·운영 문서·증거 정합·비밀값·개인정보 검사 PASS. 이 결과는 원격 `--deploy` 실행 결과가 아니다.
 
+독립 리뷰가 추가로 찾은 두 배포 위험도 RED→GREEN으로 수정했다. 정상처럼 보이는 헤더 뒤 curl timeout을 모의하면 점검이 실패하고, 미커밋 웹 점검 파일을 넣은 격리 Git fixture는 SSH를 호출하기 전에 배포를 거절한다. 실제 Lightsail의 Caddy/웹 전환과 rollback은 여전히 `NOT_RUN`이다.
+
 2026-09-25 Issue #137 웹 도감 로컬 구현(PR #159 merge `e6dcc82`, PR CI `36019777124`·main CI `36020699683` PASS): `node --test tests/ops/verify_web_session_proxy_test.mjs` 1/1, `bash tests/ops/run_aws_web_smoke.sh`, `node --test tests/site/verify_production_web_test.mjs` 14/14, API 단위 106/106·PostgreSQL 49 PASS/2 SKIP·typecheck/build·비밀값/개인정보 검사 `PASS`. 로컬 Caddy fixture에서 네 경로만 쿠키·redirect·no-store 전달, 임의 `/api/web/*`·claim·mint 404. PostgreSQL에서 웹 쿠키 해시·A/B 격리·만료·로그아웃·계정 삭제 회수·state 일회성·nonce·기존 Google `sub`만 연결을 시험했다. 독립 리뷰의 다른 탭 로그아웃 후 이전 기록 잔존과 Google 장애의 401 오분류를 RED→GREEN으로 수정했다. 로컬 Chrome 390px 다크 모드 `GET /api/web/collection` 401→로그인 안내와 가로 넘침 없음 확인. Google token endpoint는 로컬 대역으로 시험했으며 실제 code 교환/실계정 A/B·AWS HTTPS·쿠키 TLS·Android 브라우저는 `NOT_RUN/BLOCKED`. `masscom.kr`은 현재 Vercel이며 36개 필수 ID 상태 불변.
 
 같은 날 웹 smoke 첫 재실행은 수동 로컬 브라우저 fixture가 포트 8089를 점유해 Docker 바인딩 단계에서 `FAIL`이었다. 해당 시험용 컨테이너·네트워크·임시 공개 번들만 정리하고 같은 코드로 재실행해 `PASS`했다. 운영 배포 실패나 제품 코드 회귀로 분류하지 않는다.

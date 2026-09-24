@@ -70,6 +70,7 @@ source_paths=(
   scripts/build-public-site.mjs
   scripts/deploy-lightsail-web.sh
   scripts/lightsail-web-rollback.sh
+  scripts/lightsail-web-probe-guard.sh
   docs/index.html docs/open.html docs/privacy.html docs/account-deletion.html
   docs/presentation.html docs/.well-known/assetlinks.json docs/assets
   docs/evidence/android-collection.png docs/evidence/android-merchant-list.png
@@ -233,12 +234,7 @@ probe_web_routes() {
     status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address$path")"
     [[ "$status" == '404' ]]
   done
-  local content_type cache_control
-  IFS='|' read -r status content_type cache_control <<< "$(
-    curl -sS -o /dev/null -w '%{http_code}|%{content_type}|%header{cache-control}' \
-      --max-time 8 "http://$address/api/web/collection"
-  )"
-  web_collection_probe_accepts "$status" "$content_type" "$cache_control"
+  web_collection_probe_response "http://$address/api/web/collection"
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address/merchants")"
   [[ "$status" == '200' ]]
   sudo docker stop "$probe_id" >/dev/null
