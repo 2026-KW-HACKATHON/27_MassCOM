@@ -1,6 +1,6 @@
 # 테스트 상태
 
-2026-09-24 `main` CI Chrome 시작 BLOCKER: PR #151의 main run `35988191241` 첫 시도와 PR #152의 main run `35990461496`에서 같은 시연 웹 Chrome 단계가 `Chrome DevTools 시작 실패: process still running`으로 실패했습니다. 첫 run 재시도는 코드 변경 없이 PASS했으나 같은 원인이 재발했습니다. 페이지 계산색 검사가 아니라 10초 이내 `DevToolsActivePort` 생성 실패이며 원인은 CI 공유 실행기 시작 지연 가능성이 큽니다(추론). 브랜치 `fix/137-chrome-startup-timeout`에서 대기 상한만 30초로 늘리고 실제 색·대비·반응형·초점 검사는 유지합니다. 로컬 Chrome 1/1, 시연 웹 19/19 PASS. GitHub CI 결과 전까지 이번 수정의 CI 결과는 `NOT_RUN`입니다.
+2026-09-24 `main` CI Chrome 시작 BLOCKER: PR #151의 main run `35988191241` 첫 시도와 PR #152의 main run `35990461496`에서 같은 시연 웹 Chrome 단계가 `Chrome DevTools 시작 실패: process still running`으로 실패했습니다. 첫 run 재시도는 코드 변경 없이 PASS했으나 같은 원인이 재발했습니다. 10초 안에 `DevToolsActivePort`를 만들지 못한 사실은 확인됐으나 실행기 지연만이 원인인지는 미확정입니다. `fix/137-chrome-startup-timeout`의 첫 CI `35990774434`가 Chrome 단계에서 2분 이상 멈춰 취소했습니다. 후속 수정은 시작 대기 30초 외에 HTTP page list·WebSocket open·CDP 명령을 각각 8초로 제한하고 멈춘 단계를 오류에 적습니다. 실제 색·대비·반응형·초점 검사는 유지합니다. 로컬 Chrome 1/1, 시연 웹 19/19 PASS. 새 GitHub CI 결과 전까지 이 수정의 CI 상태는 `NOT_RUN`입니다.
 
 2026-09-24 Issue #137 시연 초대 인증 경계(브랜치 `feat/137-showcase-invite-guard`): `npm test --prefix apps/api` 90/90, 실제 PostgreSQL 18 `_test` DB의 `npm run test:postgres --prefix apps/api` 45/45, API typecheck/build `PASS`. 초대 외 subject가 identity/session 0건 상태에서 `INVITE_REQUIRED`로 거절, 초대 subject는 로그인 허용, 허용 목록에서 제외한 뒤 기존 session 조회도 거절, 운영 정책은 유지, HTTP 응답은 403. `SHOWCASE_MODE=true`에서 운영 DB 이름·audience 누락/복수·초대 목록 누락/형식 오류·개발 DEMO 헤더가 시작 전 거절됨. 외부 시연 API 배포·실제 OAuth·STAFF 권한·시연 APK는 `NOT_RUN`; 필수 36개 ID 집계 불변.
 

@@ -4,7 +4,7 @@
 
 ## Issue #137 시연 웹 Chrome CI 시작 지연
 
-- PR #151 병합 후 main CI `35988191241` 첫 시도와 PR #152 병합 후 main CI `35990461496`가 Chrome 프로세스는 살아 있으나 10초 안에 `DevToolsActivePort`가 생기지 않아 실패했다. 첫 run의 재시도는 코드 변경 없이 PASS. 같은 원인이 두 번 발생해 단순 무한 재시도 대신 `fix/137-chrome-startup-timeout`에서 시작 대기만 30초로 늘렸다. 실제 웹 계산색·대비·반응형·키보드 검사는 유지했다. PR·main CI가 통과하기 전까지 #152 병합 커밋을 완전 검증 기준선으로 부르지 않는다.
+- PR #151 병합 후 main CI `35988191241` 첫 시도와 PR #152 병합 후 main CI `35990461496`가 Chrome 프로세스는 살아 있으나 10초 안에 `DevToolsActivePort`가 생기지 않아 실패했다. 첫 run의 재시도는 코드 변경 없이 PASS. 같은 원인이 두 번 발생해 단순 무한 재시도 대신 `fix/137-chrome-startup-timeout`에서 시작 대기를 30초로 늘렸다. 첫 PR CI `35990774434`가 Chrome 단계에서 2분 넘게 멈춰 수동 취소했고, HTTP page list·WebSocket open·CDP 명령에 각각 8초 제한 및 진단 메시지를 더했다. 실제 웹 계산색·대비·반응형·키보드 검사는 유지한다. 수정 PR·main CI가 통과하기 전까지 #152 병합 커밋을 완전 검증 기준선으로 부르지 않는다.
 
 ## Issue #137 공개 시연 API 초대 제한 준비
 
