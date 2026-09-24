@@ -4,6 +4,7 @@
 
 ## 최신 작업 경계
 
+- 2026-09-24 D-032로 #136 역할 선택의 시연 앱 전용 범위가 확정됐다. `feat/136-showcase-entry`에서 `.demo` package만 첫 역할 화면을 보이고, 고객은 기존 네 탭, 점주는 서버 `CONFIRM_VISIT` 확인 뒤에만 코드 발급 화면으로 진행하도록 구현 중이다. 개발·운영 첫 화면은 유지한다. 이 브랜치의 자동 시험은 시연 설치본·외부 API 실기 완료를 뜻하지 않는다.
 - 2026-09-24 이슈 #136·#137의 `CLOSED / NOT_PLANNED` 처리는 미완료 작업을 계획 없이 닫은 오류여서 되돌렸고 둘 다 `OPEN`이다. [#136 시연 앱 진입](superpowers/plans/2026-09-24-issue136-showcase-entry.md), [#137 외부 시연 전달](superpowers/plans/2026-09-24-issue137-showcase-delivery.md), [#137 운영 웹 본인 도감](superpowers/plans/2026-09-24-issue137-production-collection.md)을 계획했다. 현재 구현·외부 검증 상태는 아래 항목과 각 계획의 게이트를 따른다. 이 문서 수정은 미완료 기능을 PASS로 승격하지 않는다.
 
 - Issue #137 공개 시연 API의 초대 제한 코드를 추가했다. `SHOWCASE_MODE=true`는 정확한 `masscom_showcase` DB·Google audience 한 개·초대된 `sub` 해시 목록이 없으면 시작을 거절한다. 유효한 Google 토큰이라도 초대되지 않으면 DB identity/session 저장 전 `INVITE_REQUIRED` 403, 초대 목록 변경 후 모든 인스턴스를 재시작하면 기존 세션 조회도 거절한다. API 단위 90/90·PostgreSQL 45/45·typecheck/build 로컬 PASS. 실제 외부 API·DNS·Google client·Android 시연 APK는 `NOT_RUN`이다.

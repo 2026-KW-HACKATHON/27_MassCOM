@@ -18,6 +18,7 @@ import {
   type IssuedClaim,
   type MerchantContext,
 } from '@/commerce/commerce-api';
+import type { AccountCredential } from '@/auth/account-credential';
 import { ClaimQr } from '@/commerce/claim-qr';
 import { createDemoCredential } from '@/config/demo-runtime';
 import { colorsForScheme } from '@/theme/palette';
@@ -30,16 +31,17 @@ type Props = {
   accountId: string;
   merchantId: string;
   defaultCustomerAccountId?: string;
+  credential?: AccountCredential;
 };
 
-export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCustomerAccountId = '' }: Props) {
+export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCustomerAccountId = '', credential }: Props) {
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeMerchantClaimStyles(palette, StyleSheet.hairlineWidth));
   const scrollView = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
   const api = useMemo(
-    () => createCommerceApiClient({ apiUrl, credential: createDemoCredential(accountId) }),
-    [accountId, apiUrl],
+    () => createCommerceApiClient({ apiUrl, credential: credential ?? createDemoCredential(accountId) }),
+    [accountId, apiUrl, credential],
   );
   const [context, setContext] = useState<MerchantContext>();
   const [contextError, setContextError] = useState<string>();
@@ -119,10 +121,12 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
       contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
     >
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>점주·직원 개발 화면</Text>
+        <Text style={styles.eyebrow}>{credential?.kind === 'bearer' ? '체험용 점주·직원 화면' : '점주·직원 개발 화면'}</Text>
         <Text selectable style={styles.title}>한 사람에게 쓸 수 있는{`\n`}방문 코드를 만듭니다.</Text>
         <Text selectable style={styles.body}>
-          운영에서는 사용할 수 없는 로컬 직원 DEMO 화면입니다. 현재 loopback 시연 계정의 점포 권한을 서버에서 매번 확인합니다.
+          {credential?.kind === 'bearer'
+            ? '가상 점포의 체험용 방문 코드를 발급합니다. 실제 주문·방문 혜택이 아니며 서버가 점포 권한을 확인합니다.'
+            : '운영에서는 사용할 수 없는 로컬 직원 DEMO 화면입니다. 현재 loopback 시연 계정의 점포 권한을 서버에서 매번 확인합니다.'}
         </Text>
       </View>
 
@@ -146,10 +150,10 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
         <LabeledInput
           styles={styles}
           palette={palette}
-          label="고객 데모 계정"
+          label={credential?.kind === 'bearer' ? '체험 고객 계정 ID' : '고객 데모 계정'}
           value={customerAccountId}
           onChangeText={setCustomerAccountId}
-          placeholder="customer-account-id"
+          placeholder={credential?.kind === 'bearer' ? '초대된 체험 고객 계정 ID' : 'customer-account-id'}
         />
         <LabeledInput
           styles={styles}

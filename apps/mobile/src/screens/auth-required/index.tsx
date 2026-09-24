@@ -1,6 +1,6 @@
 import { Button, Host } from '@expo/ui';
 import { useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AuthSessionState } from '@/auth/auth-provider';
@@ -11,9 +11,10 @@ type Props = {
   state: Exclude<AuthSessionState, { status: 'signedIn' } | { status: 'demo' }>;
   canSignIn: boolean;
   onSignIn: () => Promise<void>;
+  onBackToRole?: () => void;
 };
 
-export function AuthRequiredScreen({ state, canSignIn, onSignIn }: Props) {
+export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole }: Props) {
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeAuthRequiredStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
@@ -65,6 +66,9 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn }: Props) {
           />
         </Host>
       ) : null}
+      {onBackToRole ? <Pressable accessibilityRole="button" onPress={onBackToRole} style={{ minHeight: 48, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: palette.primary, fontSize: 16, fontWeight: '700' }}>역할 다시 선택</Text>
+      </Pressable> : null}
     </ScrollView>
   );
 }

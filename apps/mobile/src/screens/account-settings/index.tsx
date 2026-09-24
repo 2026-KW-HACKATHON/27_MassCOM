@@ -1,3 +1,4 @@
+import * as Application from 'expo-application';
 import { Button, Host } from '@expo/ui';
 import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -6,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { canOpenMerchantDemo, demoRuntimeConfig } from '@/config/demo-runtime';
+import { canOpenShowcaseTour } from '@/navigation/showcase-entry';
 import {
   AccountDeletionApiClient,
   AccountDeletionApiError,
@@ -149,6 +151,18 @@ export function AccountSettingsScreen({
           <Link href="/foundation-preview" asChild>
             <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.secondaryLink, { borderColor: palette.primary }])}>
               <Text style={[styles.secondaryLinkText, { color: palette.primary }]}>역할 선택 시안 보기 →</Text>
+            </Pressable>
+          </Link>
+        </View>
+      ) : null}
+
+      {canOpenShowcaseTour(Application.applicationId) ? (
+        <View style={styles.toolsSection}>
+          <Text style={[styles.sectionTitle, { color: palette.label }]}>체험용 화면</Text>
+          <Text selectable style={[styles.intro, { color: palette.secondaryLabel }]}>아래 다섯 공간은 빈 화면 시안이며 실제 방문·수집품은 도감에서 확인합니다.</Text>
+          <Link href="/showcase-tour" asChild>
+            <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.secondaryLink, { borderColor: palette.primary }])}>
+              <Text style={[styles.secondaryLinkText, { color: palette.primary }]}>다섯 공간 둘러보기 →</Text>
             </Pressable>
           </Link>
         </View>
