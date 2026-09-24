@@ -127,6 +127,7 @@ jobs:
           npm run db:migrate --prefix apps/api
           npm test --prefix apps/api
           npm run test:postgres --prefix apps/api
+          node --test tests/ops/verify_web_auth_rollback_test.mjs
           npm run typecheck --prefix apps/api
           npm run build --prefix apps/api
           npm run audit:ci --prefix apps/api

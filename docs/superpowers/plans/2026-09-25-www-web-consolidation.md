@@ -105,7 +105,7 @@ ALTER TABLE web_oauth_states
 
 ### Task 4: HTTP Host·Origin과 Caddy 다중 호스트
 
-**Files:** Modify Task 2의 `apps/api/src/web-origin.ts`, `apps/api/src/server.ts`, `apps/api/src/server.test.ts`, `infra/lightsail/Caddyfile`, `infra/lightsail/compose.yml`, `tests/ops/verify_web_session_proxy_test.mjs`, `tests/ops/verify_aws_web_routes_test.mjs`; create `tests/ops/verify_web_auth_rollback_test.mjs`.
+**Files:** Modify Task 2의 `apps/api/src/web-origin.ts`, `apps/api/src/server.ts`, `apps/api/src/server.test.ts`, `infra/lightsail/compose.yml`, `tests/ops/verify_web_session_proxy_test.mjs`; verify existing `infra/lightsail/Caddyfile` with two exact hosts; create `tests/ops/verify_web_auth_rollback_test.mjs`, `apps/api/test-fixtures/pending-www-callback.ts`.
 
 **Interfaces:** `resolveWebOrigin(hostHeader: string | undefined, wwwEnabled: boolean): WebOrigin`는 정확한 apex/www Host만 반환하고 나머지에 `WebOriginError`를 던진다. `server.ts`는 이 오류를 403 `{code:'WEB_ORIGIN_FORBIDDEN'}`으로 매핑한다. www 플래그 OFF는 www의 웹 인증·도감 경로만 거절하며 apex는 계속 동작한다. Caddy의 `MASSCOM_WEB_DOMAIN`은 운영에서 정확히 `masscom.kr, www.masscom.kr`, 로컬 fixture에서는 `:8080`이다.
 
