@@ -2,6 +2,12 @@
 
 마지막 갱신 시각: 2026-09-24 KST
 
+## 현재 GitHub 이슈 상태 — 2026-09-24
+
+- 사용자 요청으로 [#136](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/136)과 [#137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)을 모두 `CLOSED / NOT_PLANNED`로 종료했다. 종료 댓글에 미충족 수용 기준을 명시했고, 열린 이슈는 0개다. **종료는 구현 완료·출시 승인이 아니다.** 아래 과거의 “OPEN 유지” 문구는 그 시점의 기록이다.
+- #136: 역할 선택·다섯 공간은 개발용 미리보기까지 구현. 운영 첫 화면 분기는 미구현. #137: [읽기 전용 시연 웹](https://masscom-showcase-web.vercel.app)은 HTTPS 200이지만 `demo.*` DNS, 외부 시연 API·전용 OAuth/Reown, 시연 APK·실기, 운영 웹 개인 도감은 미완료. 기준 `main`은 `cfe32eb`; [CI `35991738902`](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/35991738902) PASS.
+- 재착수할 때 먼저 `gh issue list --state open`과 실제 DNS·Release·기기 상태를 확인한다. 미완료 기능을 실제 시작하는 경우에만 작은 수용 기준의 새 이슈를 만들고, 기존 #136/#137을 완료 증거로 사용하지 않는다.
+
 ## Issue #137 시연 웹 Chrome CI 시작 지연
 
 - PR #151 병합 후 main CI `35988191241` 첫 시도와 PR #152 병합 후 main CI `35990461496`가 Chrome 프로세스는 살아 있으나 10초 안에 `DevToolsActivePort`가 생기지 않아 실패했다. 첫 run의 재시도는 코드 변경 없이 PASS. 같은 원인이 두 번 발생해 단순 무한 재시도 대신 `fix/137-chrome-startup-timeout`에서 시작 대기를 30초로 늘렸다. 첫 PR CI `35990774434`가 Chrome 단계에서 2분 넘게 멈춰 수동 취소했고, HTTP page list·WebSocket open·CDP 명령에 각각 8초 제한 및 진단 메시지를 더했다. 실제 웹 계산색·대비·반응형·키보드 검사는 유지한다. 수정 PR·main CI가 통과하기 전까지 #152 병합 커밋을 완전 검증 기준선으로 부르지 않는다.
