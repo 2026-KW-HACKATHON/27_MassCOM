@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 
 import { loadMerchants } from '../../apps/production-web/assets/production.mjs';
-import { createProductionServer } from '../../apps/production-web/server.mjs';
+import { createProductionServer, resolveProductionBindHost } from '../../apps/production-web/server.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const web = join(repo, 'apps/production-web');
@@ -13,6 +13,13 @@ const html = readFileSync(join(web, 'index.html'), 'utf8');
 const script = readFileSync(join(web, 'assets/production.mjs'), 'utf8');
 const css = readFileSync(join(web, 'assets/production.css'), 'utf8');
 const serverSource = readFileSync(join(web, 'server.mjs'), 'utf8');
+
+test('운영 웹은 로컬 기본 바인딩을 유지하고 명시한 컨테이너 바인딩만 허용한다', () => {
+  assert.equal(resolveProductionBindHost(undefined), '127.0.0.1');
+  assert.equal(resolveProductionBindHost('0.0.0.0'), '0.0.0.0');
+  assert.throws(() => resolveProductionBindHost('::'), /WEB_BIND_HOST_INVALID/);
+  assert.throws(() => resolveProductionBindHost('api.masscom.kr'), /WEB_BIND_HOST_INVALID/);
+});
 
 function element() {
   return {

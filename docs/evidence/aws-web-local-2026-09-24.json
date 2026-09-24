@@ -1,0 +1,38 @@
+{
+  "date": "2026-09-24",
+  "branch": "feat/137-aws-web",
+  "environment": "disposable local Docker Compose, Caddy 2.10.2 HTTP-only smoke host",
+  "status": "PASS",
+  "checks": [
+    { "name": "public file allowlist and byte equality", "result": "PASS", "files": 14 },
+    { "name": "operating web local behavior", "result": "PASS", "tests": 9 },
+    { "name": "AWS web Compose mutation boundary", "result": "PASS", "tests": 1 },
+    { "name": "Caddy portal, legal pages, /open, /app assets", "result": "PASS" },
+    { "name": "assetlinks bytes and JSON content type", "result": "PASS" },
+    { "name": "private Markdown, JSON evidence, claim, mint, web auth paths", "result": "PASS", "httpStatus": 404 },
+    { "name": "web smoke service isolation", "result": "PASS", "runningServices": ["caddy", "production-web"] },
+    { "name": "web-only rollback control flow with fake service commands", "result": "PASS", "cases": ["before web change", "web start or health failure", "Caddy or post-start failure", "first web release", "probe cleanup", "rollback failure surfaced"] },
+    { "name": "operating API and database containers started by web smoke", "result": "PASS", "count": 0 }
+  ],
+  "publicStateAtCheck": {
+    "masscomKr": "existing Vercel HTTPS 200",
+    "apiMasscomKr": "existing Lightsail health ok",
+    "apexARecords": ["64.29.17.1", "216.198.79.1"],
+    "apiARecord": "43.200.56.97"
+  },
+  "notVerified": [
+    "AWS account-specific cost, credit, memory, disk, and SSH access",
+    "web-only remote deploy and rollback",
+    "apex DNS cutover and public certificate",
+    "production web personal collection login",
+    "Android verified App Link after migration"
+  ],
+  "commands": [
+    "node --test tests/site/build_public_site_test.mjs",
+    "node --test tests/site/verify_production_web_test.mjs tests/ops/verify_aws_web_routes_test.mjs",
+    "node scripts/verify-lightsail-web.mjs",
+    "bash tests/ops/run_aws_web_smoke.sh",
+    "bash tests/ops/deploy_lightsail_web_test.sh",
+    "bash tests/ops/lightsail_web_rollback_test.sh"
+  ]
+}

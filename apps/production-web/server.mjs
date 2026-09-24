@@ -10,6 +10,12 @@ const files = new Map([
   ['/assets/production.mjs', ['assets/production.mjs', 'text/javascript; charset=utf-8']],
 ]);
 
+export function resolveProductionBindHost(raw) {
+  if (raw === undefined || raw === '') return '127.0.0.1';
+  if (raw === '0.0.0.0') return raw;
+  throw new Error('WEB_BIND_HOST_INVALID');
+}
+
 export function createProductionServer(fetcher = fetch) {
   return createHttpServer(async (request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -69,7 +75,8 @@ export function createProductionServer(fetcher = fetch) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const port = Number(process.env.PORT ?? 4173);
-  createProductionServer().listen(port, '127.0.0.1', () => {
-    console.log(`운영 웹 로컬 미리보기: http://127.0.0.1:${port}`);
+  const bindHost = resolveProductionBindHost(process.env.MASSCOM_WEB_BIND_HOST);
+  createProductionServer().listen(port, bindHost, () => {
+    console.log(`운영 웹 실행: ${bindHost}:${port}`);
   });
 }

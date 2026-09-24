@@ -1,0 +1,32 @@
+name: masscom-aws-web-smoke
+
+services:
+  production-web:
+    image: masscom-production-web:smoke
+    build:
+      context: ../..
+      dockerfile: infra/lightsail/production-web.Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "4173"
+      MASSCOM_WEB_BIND_HOST: 0.0.0.0
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    environment:
+      MASSCOM_API_DOMAIN: ":8081"
+      MASSCOM_WEB_DOMAIN: ":8080"
+    ports:
+      - "127.0.0.1:8089:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${MASSCOM_PUBLIC_SITE:?public bundle is required}:/srv/masscom:ro
+    depends_on:
+      - production-web
+    security_opt:
+      - no-new-privileges:true
