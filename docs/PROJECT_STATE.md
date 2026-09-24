@@ -4,11 +4,13 @@
 
 ## 최신 작업 경계
 
+- 운영 웹 실증 기준: [PR #166](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/166) merge `c0ad8d6`, PR CI `36047283723`·당시 main CI `36048047690` PASS. 운영 API 배포 `d787471`과 뒤이은 문서 merge는 별개이며, 실제 최신 HEAD·브랜치·CI·Issue는 `git`·`gh`로 확인한다. Issue #137은 당시 OPEN; 운영 웹 로그인과 시연 API/앱 전체 완료를 혼동하지 않는다.
+
 - 2026-09-25 Samsung Android Chrome에서 기존 Google 계정 A 로그인·빈 도감, A 로그아웃, B의 소유자 본인 확인 후 로그인·빈 도감, URL 재열기 뒤 B 세션 유지를 확인했다. 운영 서버에는 최근 세션 3건·서로 다른 계정 2개·철회 2건·활성 1건이 기록됐다([증거](evidence/android-web-auth-2026-09-25.json)). 실제 기록이 있는 계정 간 도감 교차 노출, 최신 APK, 일반 App Link 탭은 `NOT_RUN`; 이전 아래 항목의 휴대전화 로그인 `NOT_RUN`은 검증 전 시점의 상태다.
 
-- 2026-09-25 운영 웹 Google 로그인 최신: [PR #164](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/164) merge `d787471`·PR/main CI PASS 후 동일 커밋을 기존 Lightsail에 배포했다. 런타임 비밀값은 Git 밖 mode 600으로 반영하고 클립보드를 비웠다. Google 로그인 시작 302·정확한 callback·state/PKCE/Secure/HttpOnly 쿠키, 기존 계정 1개의 본인 빈 도감·새로고침 유지·로그아웃 후 미로그인 및 서버 세션 revoke, 익명 도감 401, 공개 점포 0건 200을 확인했다. 실계정 A/B 도감 격리·휴대전화 브라우저 로그인·최신 Android APK는 `NOT_RUN`; Issue #137 전체는 OPEN([세부](TEST_STATUS.md)).
+### 이전 단계 기록 — 당시 상태, 현재 판정 아님
 
-### 이전 단계 기록
+- 2026-09-25 운영 웹 Google 로그인 최신: [PR #164](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/164) merge `d787471`·PR/main CI PASS 후 동일 커밋을 기존 Lightsail에 배포했다. 런타임 비밀값은 Git 밖 mode 600으로 반영하고 클립보드를 비웠다. Google 로그인 시작 302·정확한 callback·state/PKCE/Secure/HttpOnly 쿠키, 기존 계정 1개의 본인 빈 도감·새로고침 유지·로그아웃 후 미로그인 및 서버 세션 revoke, 익명 도감 401, 공개 점포 0건 200을 확인했다. 실계정 A/B 도감 격리·휴대전화 브라우저 로그인·최신 Android APK는 `NOT_RUN`; Issue #137 전체는 OPEN([세부](TEST_STATUS.md)).
 
 - 2026-09-25 최신: [PR #163](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/163) merge `ec57eb4`와 main CI `36034481207` PASS 뒤 AWS 웹 staging, 가비아 apex DNS `43.200.56.97` 전환, Let's Encrypt TLS 및 공개 포털·`/app/`·`/merchants` HTTPS 200을 확인했다. Samsung SM-S928N에서 이전 `test.2` APK의 `/open` 명시적 VIEW intent와 Chrome의 `/app/` 로드를 확인했지만, Android 사용자 선택 상태 `Disabled`이므로 일반 링크 탭의 기본 열기는 미검증이다. 같은 커밋의 운영 API와 migration 0014·0015를 배포했고 DB 백업·API health를 확인했다. Google 콜백 URI는 등록됐으나 비밀값 미설정으로 로그인·개인 도감은 503 `BLOCKED`; 실제 Google 계정 A/B는 `NOT_RUN`이다([상세](TEST_STATUS.md)).
 

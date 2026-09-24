@@ -4,20 +4,23 @@
 
 ## 현재 GitHub·운영 상태 — 2026-09-25
 
-- 최신 추가 실증: Samsung SM-S928N Android Chrome에서 Google 계정 A 로그인·빈 도감, A 로그아웃 후 계정 B 로그인·빈 도감, `/app/` 재열기 뒤 B 세션 유지를 확인했다. B의 Google 본인 확인은 소유자가 기기에서 직접 완료했다. 서버는 최근 웹 세션 3건·서로 다른 계정 2개·철회 2건·활성 1건이었다([비밀값 없는 증거](evidence/android-web-auth-2026-09-25.json)). 두 계정 모두 개인 기록 0건이므로 비어 있지 않은 도감의 교차 노출은 `NOT_RUN`. 최신 운영 APK·일반 App Link 탭·시연 API/앱도 미완료다. PR #165 merge `89ff0f7`, main CI `36046412045` PASS. 현재 체크아웃은 `docs/137-android-web-auth-proof`이며 이 추가 문서의 PR·CI는 작성 시점에 미완료다. 중단 시 실제 `git`·`gh` 상태를 먼저 확인한다.
+- 운영 웹 실증 기준선: [PR #166](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/166) merge `c0ad8d6`, PR CI `36047283723`·당시 병합 후 main CI `36048047690` PASS. 운영 API 배포 커밋은 `d787471`이며 뒤이은 문서 merge와 별도다. `masscom.kr`의 Google 로그인 시작 302·익명 도감 401, `api.masscom.kr/health` 200을 재확인했다. 이 문서에 Git의 최신 HEAD·작업 브랜치·열린 PR을 고정하지 않는다. 재개 시 `git status -sb`, `git log origin/main -1`, `gh pr list`, `gh run list --branch main`을 우선한다.
+- Samsung SM-S928N Chrome의 두 Google 계정 순차 로그인·A 로그아웃 후 B 세션 유지 PASS([실기 증거](evidence/android-web-auth-2026-09-25.json)). 두 계정 모두 방문·수집품 0건이라 비어 있지 않은 도감의 교차 노출, 최신 운영 APK·일반 App Link 탭·시연 API/앱은 `NOT_RUN`. [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)은 OPEN이며, [최신 시험 원장](TEST_STATUS.md)을 따른다. 비밀번호·인증 숫자·OAuth 비밀값은 문서·채팅·Git에 기록하지 않는다.
+
+## 이전 작업 시점 기록 — 현재 브랜치·PR 상태로 읽지 말 것
+
+아래의 날짜별 결과는 기록 당시의 스냅샷이다. 그 안의 “현재”, “다음 작업”, “NOT_RUN”은 최신 판정이 아니며, 위 현재 상태·`docs/TEST_STATUS.md`의 최신 항목과 실제 `git`·`gh` 결과가 우선한다.
 
 - `main`의 [PR #164](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/164) merge `d787471`, PR CI `36042479248`·main CI `36043259636` PASS. 같은 커밋을 기존 AWS Lightsail에 재배포했고 PostgreSQL 컨테이너 `e0d14fb7c803`은 유지됐다. `api.masscom.kr/health` 200, 공개 `/merchants` 200/0건. Google 로그인 시작은 `accounts.google.com`으로 302이며 정확한 `https://masscom.kr/api/web/auth/callback`·state·PKCE·Secure/HttpOnly state 쿠키를 확인했다. 비밀값은 채팅·Git에 남기지 않고 로컬·서버 mode 600 런타임 환경 파일에 저장, 클립보드는 비웠다.
 - 실제 데스크톱 브라우저에서 기존 Google 계정 1개가 로그인해 본인 도감의 기록 0건을 표시했고 새로고침 후 세션 유지·로그아웃 후 재로드에서 미로그인 안내를 확인했다. 서버에서 최근 웹 세션 1건 중 1건이 `revoked_at` 설정됐고 익명 `GET /api/web/collection`은 401이었다. 이 결과는 실제 A/B 계정 데이터 격리나 휴대전화 브라우저 로그인·최신 Android APK 검증이 아니다. Issue #137은 시연 API/앱 등을 포함해 계속 OPEN이다.
-- 현재 체크아웃은 `docs/137-web-auth-live-verification` 문서 브랜치다. README·운영 웹 안내·상태 원장에 위 실증 범위를 반영 중이며 PR·CI·병합은 이 문서를 작성하는 시점에 아직 진행 전이다. 중단되면 `git status`, `gh pr list`, `gh run list --branch main`으로 실제 최신 상태를 먼저 복원할 것. 실제 두 계정 격리에는 두 번째 Google 계정의 정당한 로그인 세션이 필요하며, 비밀번호·복구 정보는 채팅에 받지 않는다.
 
-## 이전 GitHub 이슈 상태 기록 — 2026-09-25
+### 더 이른 GitHub 이슈 상태 — 2026-09-25
 
 - 최신 운영 기준: [PR #163](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/163) merge `ec57eb4`, main CI `36034481207` PASS. `masscom.kr` 가비아 apex A는 `43.200.56.97`로 저장됐고 공인 DNS, Let's Encrypt 인증서, 외부 포털·`/app/`·API 경로 HTTPS를 확인했다. 같은 커밋의 API/DB migration 0014·0015도 운영 서버에 배포했다. 기존 DB의 서버 내부 mode 600 백업 `/opt/masscom/backups/pre-web-auth-20260925.dump`를 생성하고 archive 목록을 검증했으며 PostgreSQL 컨테이너는 유지됐다. `https://api.masscom.kr/health` 200, 공개 `/merchants` 200/0건, 웹 인증 경로는 비밀값 미설정으로 예상대로 503이다. Google Web client에 `https://masscom.kr/api/web/auth/callback`을 등록해 재조회했지만 기존 비밀값은 콘솔에서 재표시되지 않는다. 소유자의 새 비밀값 생성·클립보드 복사를 기다리고 있다. 채팅·Git에는 값을 남기지 말 것.
-- Samsung SM-S928N의 기존 `0.1.0-test.2` 설치본에서 `adb shell am start -W -a VIEW -c BROWSABLE -d https://masscom.kr/open`이 앱을 열었고 휴대전화 Chrome에서 `/app/` 운영 웹을 표시했다. Android App Links 도메인 검증은 `verified`이나 사용자 0의 선택 상태가 `Disabled`라 일반 링크 탭의 기본 연결은 별도 확인이 필요하다. 최신 운영 APK와 실계정 개인 도감은 미검증이다. 현재 작업 브랜치 `chore/137-web-auth-cutover`에는 비밀값 표준입력 설치 도구와 문서 정합 수정이 있으며 PR은 아직 열지 않았다. 새 비밀값 복사 후 `pbpaste | node scripts/install-web-oauth-runtime.mjs .tmp/lightsail-runtime.env`로 로컬 mode 600 env를 갱신하고 서버 반영·실계정 검증을 이어갈 것.
 
 - 이전 원격 staging 게이트: [PR #162](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/162) merge `cde6a2d`, PR CI `36031150450`·main CI `36031948040` PASS. 첫 웹 전용 `--deploy`는 없는 `/opt/masscom/web/current` fallback 처리 오류로 실패했지만 `fix/137-first-web-release`·PR #163 이후 재시도와 실제 운영 이관으로 해소됐다. 아래 과거 실패 기록을 현재 서버 상태로 해석하지 않는다.
 
-- 이전 CI 게이트: 웹 원격 점검 [PR #161](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/161) merge `fec90ff`, PR CI `36029206895` PASS. 병합 후 main CI `36029974084`는 시연 호스트 PostgreSQL 초기화 경합으로 FAIL했지만 후속 PR #162와 main CI로 수정·확인했다. 현재 배포 중단 원인은 위 첫 staging 실패를 따른다.
+- 이전 CI 게이트: 웹 원격 점검 [PR #161](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/161) merge `fec90ff`, PR CI `36029206895` PASS. 병합 후 main CI `36029974084`의 시연 호스트 PostgreSQL 초기화 경합은 후속 PR #162와 main CI로 해소됐다.
 
 - 이전 #137 웹 기준선: [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159) merge `e6dcc82`, PR CI `36019777124`·병합 후 main CI `36020699683` PASS. 당시 웹 전용 세션/Google OIDC·읽기 전용 도감은 코드·로컬/CI 검증 단계였다. 현재 원격 웹·TLS·DNS 완료와 실계정 미완료의 분리는 맨 위 최신 기준을 따른다.
 
@@ -26,7 +29,7 @@
 - #136 시연 역할 진입은 [PR #156](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/156) merge `5e91728`, main CI `35998825263` PASS까지 확인했다. 실제 시연 APK/외부 API·OAuth/지갑 실기는 `NOT_RUN`이므로 Issue는 계속 OPEN이다.
 - [#136](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/136)과 [#137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)은 `OPEN`이다. 이전 `CLOSED / NOT_PLANNED` 처리는 실행 계획 없이 미완료 수용 기준을 닫은 오류여서 되돌렸다. 그때의 종료 댓글은 이력일 뿐 완료 증거가 아니다.
 - #137의 [정적 시연 웹](https://masscom-showcase-web.vercel.app)은 공개됐지만 `demo.*` DNS·외부 시연 API/DB·전용 OAuth·시연 APK/실기·운영 웹 도감의 외부 실계정 검증은 미완료다. [외부 시연 전달](superpowers/plans/2026-09-24-issue137-showcase-delivery.md)과 [운영 웹 도감](superpowers/plans/2026-09-24-issue137-production-collection.md)을 별도 검증 게이트로 진행한다.
-- 다음 작업은 [이관 실행 순서](../infra/lightsail/README.md)의 OAuth 비밀값 반영·운영 Google 실계정 도감 검증과 시연 환경 별도 검증이다. Issue #137은 OPEN 유지한다.
+- 당시 다음 작업이었던 OAuth 비밀값 반영·운영 웹 실계정 로그인은 위 현재 상태에서 완료 범위를 다시 판정했다. 별도 시연 환경과 실제 기록이 있는 계정 간 격리 등 남은 기준은 Issue #137 및 최신 시험 원장을 따른다.
 
 ## Issue #137 시연 웹 Chrome CI 시작 지연
 
@@ -80,7 +83,7 @@
 - 후속 브랜치 `fix/137-demo-auth-boundary`에서 런타임의 개발 DEMO 인증 분류를 정확한 `.dev` package로 좁혔다. RED→GREEN 회귀, 모바일 181/181·typecheck·lint·W08·bootstrap은 로컬 PASS; PR·CI·병합은 `gh pr list`로 확인한다. 이로써 빌드 설정 거절과 런타임 권한 경계가 함께 적용되지만, 실제 시연 인증이 구현됐다는 뜻은 아니다.
 - 다음: #137의 외부 시연 API 인증·전용 DB 연결, 운영 웹 읽기 전용 개인 도감, 외부 환경·실기 증거를 각각 진행한다. 새 유료 자원·DNS·공개 배포는 승인 경계를 확인한다.
 
-## Issue #136 PR #138 수정 작업 (현재)
+## Issue #136 PR #138 수정 작업 (당시 기록)
 
 - 사용자가 최근 PR 검토 뒤 참고할 부분을 가져와 수정하도록 요청했다. [PR #138 검토 답글](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/138#issuecomment-5796835197)을 남겼다. 기존 CI `35836456584`는 `navigation/route-boundary.tsx`의 비허용 Reown import 때문에 FAIL이었다.
 - `main de6f168`을 `feat/mobile-ui-foundation`에 일반 merge로 반영했다(공유 이력 force push 없음). 역할 카드·선택적 지갑 문구·다섯 공간은 개발용 `foundation-preview`로 격리하고, 실제 앱은 기존 `탐색 / 방문 인증 / 도감 / 내 정보` 네 탭과 루트 인증·지갑 제공자 경계를 유지한다. 설정의 미리보기 진입점은 `__DEV__`에서만 표시한다.
@@ -259,11 +262,11 @@
 - 필수 36개 `31 PASS / 2 BLOCKED / 3 NOT_RUN`. 남은 NOT_RUN: D02·O01·A01
 - `NOT_RUN`: 운영 package 지갑 복귀, 두 Google 계정 전환, 운영 fresh reauthentication 삭제, Play Console
 
-## 현재 열린 PR
+## 당시 열려 있던 PR
 
 - 최종 상태는 `gh pr list`가 기준이다. PR #127은 병합됐고 이 문서 마감용 PR 외 새 기능 PR을 만들지 않는다.
 
-## 현재 작업 중인 기능
+## 당시 작업 중이던 기능
 
 - Issue #124의 private GitHub test.2 APK·16KB runtime·verified App Links·Base Sepolia 계약/Worker mint와 Issue #126 모바일 UI를 완료했다. D02·O01·A01과 별도 출시/현장 항목이 남았다.
 

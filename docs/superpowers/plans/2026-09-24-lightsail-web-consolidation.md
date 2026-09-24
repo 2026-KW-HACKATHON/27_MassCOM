@@ -1,5 +1,7 @@
 # Lightsail 포털·운영 웹 통합 구현 계획
 
+> 작성 시점(2026-09-24)의 전환 계획이다. 아래 Vercel DNS·미실행 체크박스는 당시 조건이며, 이후 AWS 전환·TLS·운영 웹 로그인은 [테스트 원장](../../TEST_STATUS.md)에 별도 기록됐다. 이 계획을 현재 배포 상태의 근거로 사용하지 않는다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Each checkbox is a task checkpoint; passing local tests is not external HTTPS acceptance.
 
 **Goal:** 기존 Lightsail 한 대에서 `masscom.kr` 포털과 `/app/` 읽기 전용 운영 웹을 제공하되 API·DB를 재배포하지 않고 현재 공개 주소를 안전하게 이관한다.
