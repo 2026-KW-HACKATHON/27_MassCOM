@@ -18,12 +18,16 @@ const publicFiles = [
   'presentation.html',
   'privacy.html',
 ];
+const sources = [
+  ...publicFiles.map((file) => ({ source: join('docs', file), target: file })),
+  { source: join('apps', 'showcase-web', 'index.html'), target: join('preview', 'index.html') },
+  { source: join('apps', 'showcase-web', 'assets', 'showcase.css'), target: join('preview', 'assets', 'showcase.css') },
+];
 
 export async function buildPublicSite(repoRoot, targetDirectory) {
-  const sourceRoot = join(repoRoot, 'docs');
   const target = resolve(targetDirectory);
-  for (const file of publicFiles) {
-    const source = await lstat(join(sourceRoot, file));
+  for (const file of sources) {
+    const source = await lstat(join(repoRoot, file.source));
     if (!source.isFile()) throw new Error('PUBLIC_SITE_SOURCE_INVALID');
   }
   try {
@@ -35,11 +39,11 @@ export async function buildPublicSite(repoRoot, targetDirectory) {
 
   await mkdir(target);
   try {
-    for (const file of publicFiles) {
-      await mkdir(dirname(join(target, file)), { recursive: true });
-      await copyFile(join(sourceRoot, file), join(target, file));
+    for (const file of sources) {
+      await mkdir(dirname(join(target, file.target)), { recursive: true });
+      await copyFile(join(repoRoot, file.source), join(target, file.target));
     }
-    return [...publicFiles];
+    return sources.map((file) => file.target);
   } catch (error) {
     await rm(target, { recursive: true });
     throw error;

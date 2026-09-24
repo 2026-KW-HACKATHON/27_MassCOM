@@ -3,30 +3,41 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Pool } from 'pg';
 
 import type { PostgresWebSessionStore } from './postgres/web-session.js';
+import type { WebOrigin, WebOriginHost } from './web-origin.js';
 
 type Options = {
   clientId: string;
   webCredential: string;
   redirectUri: string;
-  exchangeCode?: (code: string, verifier: string) => Promise<string>;
+  wwwEnabled?: boolean;
+  exchangeCode?: (code: string, verifier: string, redirectUri: string) => Promise<string>;
   verifyIdToken: (token: string) => Promise<{ subject: string; nonce?: string }>;
 };
 
-export function resolveWebAuthConfig(env: NodeJS.ProcessEnv): Pick<Options, 'clientId' | 'webCredential' | 'redirectUri'> | undefined {
+export function resolveWebAuthConfig(env: NodeJS.ProcessEnv):
+  (Pick<Options, 'clientId' | 'webCredential' | 'redirectUri'> & { wwwEnabled: boolean }) | undefined {
   const clientId = env.GOOGLE_WEB_CLIENT_ID?.trim();
   const webCredential = env.GOOGLE_WEB_CLIENT_SECRET?.trim();
   const redirectUri = env.GOOGLE_WEB_REDIRECT_URI?.trim();
-  if (!clientId && !webCredential && !redirectUri) return undefined;
+  const wwwFlag = env.GOOGLE_WEB_WWW_ENABLED?.trim();
+  if (wwwFlag && wwwFlag !== 'true' && wwwFlag !== 'false') {
+    throw new Error('WEB_AUTH_CONFIGURATION_INVALID');
+  }
+  if (!clientId && !webCredential && !redirectUri) {
+    if (wwwFlag === 'true') throw new Error('WEB_AUTH_CONFIGURATION_INVALID');
+    return undefined;
+  }
   if (!clientId || !webCredential || redirectUri !== 'https://masscom.kr/api/web/auth/callback' ||
     !/^[\w.-]+\.apps\.googleusercontent\.com$/.test(clientId)) {
     throw new Error('WEB_AUTH_CONFIGURATION_INVALID');
   }
-  return { clientId, webCredential, redirectUri };
+  return { clientId, webCredential, redirectUri, wwwEnabled: wwwFlag === 'true' };
 }
 
 export class WebAuthError extends Error {
   constructor(readonly code: 'WEB_AUTH_STATE_INVALID' | 'WEB_AUTH_NONCE_INVALID' |
-    'WEB_AUTH_ACCOUNT_NOT_FOUND' | 'WEB_AUTH_CODE_INVALID' | 'WEB_AUTH_UPSTREAM_UNAVAILABLE') {
+    'WEB_AUTH_ACCOUNT_NOT_FOUND' | 'WEB_AUTH_CODE_INVALID' | 'WEB_AUTH_UPSTREAM_UNAVAILABLE' |
+    'WEB_AUTH_ORIGIN_INVALID') {
     super(code);
     this.name = 'WebAuthError';
   }
@@ -91,7 +102,21 @@ export class WebAuthService {
     }
   }
 
-  async start(): Promise<{ location: string; state: string }> {
+  private redirectUriFor(origin: WebOrigin): string {
+    if (origin === 'https://masscom.kr') return this.options.redirectUri;
+    if (origin === 'https://www.masscom.kr' && this.options.wwwEnabled === true) {
+      return 'https://www.masscom.kr/api/web/auth/callback';
+    }
+    throw new WebAuthError('WEB_AUTH_ORIGIN_INVALID');
+  }
+
+  private originHost(origin: WebOrigin): WebOriginHost {
+    this.redirectUriFor(origin);
+    return origin === 'https://masscom.kr' ? 'masscom.kr' : 'www.masscom.kr';
+  }
+
+  async start(origin: WebOrigin): Promise<{ location: string; state: string }> {
+    const redirectUri = this.redirectUriFor(origin);
     await this.pool.query(
       `WITH stale AS (
          SELECT state_hash FROM web_oauth_states
@@ -106,13 +131,13 @@ export class WebAuthService {
     const nonce = randomToken();
     const expiresAt = new Date(Date.now() + stateTtlMs);
     await this.pool.query(
-      `INSERT INTO web_oauth_states(state_hash, code_verifier, nonce, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [digest(state), verifier, nonce, expiresAt],
+      `INSERT INTO web_oauth_states(state_hash, code_verifier, nonce, expires_at, redirect_uri)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [digest(state), verifier, nonce, expiresAt, redirectUri],
     );
     const location = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     location.searchParams.set('client_id', this.options.clientId);
-    location.searchParams.set('redirect_uri', this.options.redirectUri);
+    location.searchParams.set('redirect_uri', redirectUri);
     location.searchParams.set('response_type', 'code');
     location.searchParams.set('scope', 'openid');
     location.searchParams.set('state', state);
@@ -122,21 +147,22 @@ export class WebAuthService {
     return { location: location.toString(), state };
   }
 
-  async complete(code: string, state: string, cookieState: string): Promise<{ token: string }> {
+  async complete(code: string, state: string, cookieState: string, origin: WebOrigin): Promise<{ token: string }> {
+    const redirectUri = this.redirectUriFor(origin);
     if (!code || !tokenPattern.test(state) || !tokenPattern.test(cookieState) ||
       !timingSafeEqual(Buffer.from(state), Buffer.from(cookieState))) {
       throw new WebAuthError('WEB_AUTH_STATE_INVALID');
     }
     const consumed = await this.pool.query<{ code_verifier: string; nonce: string }>(
       `DELETE FROM web_oauth_states
-       WHERE state_hash = $1 AND expires_at > $2
+       WHERE state_hash = $1 AND redirect_uri = $2 AND expires_at > $3
        RETURNING code_verifier, nonce`,
-      [digest(state), new Date()],
+      [digest(state), redirectUri, new Date()],
     );
     const pending = consumed.rows[0];
     if (!pending) throw new WebAuthError('WEB_AUTH_STATE_INVALID');
     const idToken = await (this.options.exchangeCode ?? this.exchangeGoogleCode.bind(this))(
-      code, pending.code_verifier,
+      code, pending.code_verifier, redirectUri,
     );
     const claims = await this.options.verifyIdToken(idToken);
     if (claims.nonce !== pending.nonce) throw new WebAuthError('WEB_AUTH_NONCE_INVALID');
@@ -146,23 +172,23 @@ export class WebAuthService {
     );
     const accountId = account.rows[0]?.account_id;
     if (!accountId) throw new WebAuthError('WEB_AUTH_ACCOUNT_NOT_FOUND');
-    const session = await this.sessions.create(accountId);
+    const session = await this.sessions.create(accountId, this.originHost(origin));
     return { token: session.token };
   }
 
-  async resolveSession(token: string): Promise<string> {
-    return this.sessions.resolve(token);
+  async resolveSession(token: string, origin: WebOrigin): Promise<string> {
+    return this.sessions.resolve(token, this.originHost(origin));
   }
 
-  async logout(token: string): Promise<void> {
-    await this.sessions.revoke(token);
+  async logout(token: string, origin: WebOrigin): Promise<void> {
+    await this.sessions.revoke(token, this.originHost(origin));
   }
 
-  private async exchangeGoogleCode(code: string, verifier: string): Promise<string> {
+  private async exchangeGoogleCode(code: string, verifier: string, redirectUri: string): Promise<string> {
     return exchangeGoogleCode({
       clientId: this.options.clientId,
       webCredential: this.options.webCredential,
-      redirectUri: this.options.redirectUri,
+      redirectUri,
       code,
       verifier,
     });

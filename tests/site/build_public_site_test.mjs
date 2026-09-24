@@ -22,8 +22,14 @@ const expected = [
   'index.html',
   'open.html',
   'presentation.html',
+  'preview/assets/showcase.css',
+  'preview/index.html',
   'privacy.html',
 ].sort();
+const previewSources = new Map([
+  ['preview/index.html', 'apps/showcase-web/index.html'],
+  ['preview/assets/showcase.css', 'apps/showcase-web/assets/showcase.css'],
+]);
 
 test('public bundle copies only the approved pages and matching bytes', async () => {
   const scratch = await mkdtemp(join(tmpdir(), 'masscom-public-site-'));
@@ -34,11 +40,12 @@ test('public bundle copies only the approved pages and matching bytes', async ()
     for (const file of expected) {
       assert.deepEqual(
         await readFile(join(target, file)),
-        await readFile(join(repoRoot, 'docs', file)),
+        await readFile(join(repoRoot, previewSources.get(file) ?? join('docs', file))),
         file,
       );
     }
-    for (const hidden of ['HANDOFF.md', 'TEST_STATUS.md', 'evidence/showcase-host-local-2026-09-24.json']) {
+    for (const hidden of ['HANDOFF.md', 'TEST_STATUS.md', 'evidence/showcase-host-local-2026-09-24.json',
+      'preview/.vercel/project.json', 'preview/.env.local']) {
       assert.equal((await collectFiles(target)).includes(hidden), false, hidden);
     }
   } finally {

@@ -13,6 +13,7 @@ import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
 import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js';
 import { WebAuthError, WebAuthService, resolveWebAuthConfig, type WebAuthHandler } from './web-auth.js';
 import { WebSessionError } from './web-session.js';
+import { WebOriginError, resolveWebOrigin } from './web-origin.js';
 import {
   CampaignEnrollmentError,
   type CampaignEnrollmentService,
@@ -146,6 +147,7 @@ export function createApiServer(
   authLoginLimiter?: AuthLoginLimiter,
   trustProxyClientIp = false,
   webAuth?: WebAuthHandler,
+  webWwwEnabled = false,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -158,6 +160,7 @@ export function createApiServer(
 
       const path = new URL(request.url ?? '/', 'http://localhost').pathname;
       if (path === '/api/web/auth/start' && request.method === 'GET') {
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
         if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');
         if (authLoginLimiter) {
           const decision = authLoginLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
@@ -167,7 +170,7 @@ export function createApiServer(
             return;
           }
         }
-        const started = await webAuth.start();
+        const started = await webAuth.start(origin);
         response.setHeader('x-robots-tag', 'noindex, nofollow');
         response.setHeader('set-cookie', `web_auth_state=${started.state}; Path=/api/web/auth; Max-Age=300; HttpOnly; Secure; SameSite=Lax`);
         response.setHeader('location', started.location);
@@ -176,6 +179,7 @@ export function createApiServer(
         return;
       }
       if (path === '/api/web/auth/callback' && request.method === 'GET') {
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
         if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');
         response.setHeader('x-robots-tag', 'noindex, nofollow');
         response.setHeader('set-cookie', 'web_auth_state=; Path=/api/web/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
@@ -185,6 +189,7 @@ export function createApiServer(
         }
         const session = await webAuth.complete(
           query.get('code')!, query.get('state')!, requireWebCookie(request, 'web_auth_state'),
+          origin,
         );
         response.setHeader('set-cookie', [
           'web_auth_state=; Path=/api/web/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax',
@@ -196,19 +201,21 @@ export function createApiServer(
         return;
       }
       if (path === '/api/web/collection' && request.method === 'GET') {
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
         if (!webAuth || !collection) throw new RequestError(503, 'WEB_COLLECTION_NOT_CONFIGURED');
         response.setHeader('x-robots-tag', 'noindex, nofollow');
-        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'));
+        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
         sendJson(response, 200, await collection.getCollection(accountId));
         return;
       }
       if (path === '/api/web/logout') {
         if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
-        if (request.headers.origin !== 'https://masscom.kr') throw new RequestError(403, 'ORIGIN_FORBIDDEN');
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
+        if (request.headers.origin !== origin) throw new RequestError(403, 'ORIGIN_FORBIDDEN');
         if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');
         response.setHeader('x-robots-tag', 'noindex, nofollow');
         const sessionToken = optionalWebCookie(request, 'web_session');
-        if (sessionToken) await webAuth.logout(sessionToken);
+        if (sessionToken) await webAuth.logout(sessionToken, origin);
         response.setHeader('set-cookie', 'web_session=; Path=/api/web; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
         response.writeHead(204);
         response.end();
@@ -514,6 +521,10 @@ export function createApiServer(
         sendJson(response, error.code === 'ID_TOKEN_KEY_SET_UNAVAILABLE' ? 503 : 401, {
           code: error.code,
         });
+        return;
+      }
+      if (error instanceof WebOriginError) {
+        sendJson(response, 403, { code: error.code });
         return;
       }
       if (error instanceof WebAuthError || error instanceof WebSessionError) {
@@ -971,6 +982,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     authLoginLimiter,
     authMode.kind === 'production' && process.env.AUTH_TRUST_CADDY_FORWARDED_FOR === 'true',
     webAuth,
+    webAuthConfig?.wwwEnabled ?? false,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

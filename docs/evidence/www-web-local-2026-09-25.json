@@ -1,0 +1,34 @@
+{
+  "date": "2026-09-25 KST",
+  "issue": 137,
+  "branch": "feat/137-www-web-consolidation",
+  "codeReview": "PR #169; independent Important rollback-test finding corrected before merge",
+  "environment": "macOS, Docker Caddy 2.10.2, disposable PostgreSQL 18 masscom_www_test on loopback",
+  "staticPreview": {
+    "result": "PASS",
+    "publicBundleFiles": 16,
+    "addedFiles": ["preview/index.html", "preview/assets/showcase.css"],
+    "bundleTests": "2/2",
+    "showcaseContract": "19/19",
+    "caddySmoke": "preview slash 308, HTML/CSS 200, private paths 404; API/DB containers not started"
+  },
+  "webAuth": {
+    "result": "PASS local only",
+    "apiUnit": "109/109",
+    "postgresIntegration": "52 PASS, 2 SKIP; hosted showcase tests require a separate fixture DB",
+    "originRules": "apex/www Host, matching logout Origin, forged forwarded Host rejection",
+    "legacyMigration": "existing apex OAuth state and web session remain apex-bound",
+    "wrongHost": "copied state/session and wrong-host revoke rejected",
+    "rollbackRace": "1/1; negative control proved revoke-before-callback creates a fresh www session; stop-before-revoke prevented a late session and retained the apex row",
+    "wwwDisabledGate": "PostgreSQL integration rejected a pending www callback with the replacement API flag OFF before Google code exchange"
+  },
+  "otherChecks": ["API typecheck", "API build", "Lightsail Compose validation", "Caddy two-domain syntax validation", "changed-path secret scan"],
+  "externalState": {
+    "wwwDns": "Vercel CNAME bda696dd0b1fd89e.vercel-dns-017.com., TTL 600 seconds",
+    "wwwGoogleCallback": "NOT_RUN",
+    "operatingDeployment": "NOT_RUN; existing deployed API still d787471",
+    "wwwTls": "NOT_RUN",
+    "wwwAndroidBrowser": "NOT_RUN"
+  },
+  "scope": "No production DB migration, Google client edit, DNS change, new paid resource, or official README URL switch was performed."
+}

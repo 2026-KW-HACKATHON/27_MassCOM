@@ -5,6 +5,8 @@ import { exchangeGoogleCode, resolveWebAuthConfig } from './web-auth.js';
 
 test('web OAuth is disabled without a full credential tuple and rejects partial configuration', () => {
   assert.equal(resolveWebAuthConfig({}), undefined);
+  assert.throws(() => resolveWebAuthConfig({ GOOGLE_WEB_WWW_ENABLED: 'true' }),
+    /WEB_AUTH_CONFIGURATION_INVALID/);
   assert.throws(() => resolveWebAuthConfig({ GOOGLE_WEB_CLIENT_ID: '123.apps.googleusercontent.com' }),
     /WEB_AUTH_CONFIGURATION_INVALID/);
   assert.throws(() => resolveWebAuthConfig({
@@ -23,7 +25,19 @@ test('web OAuth accepts only the operating-domain callback configuration', () =>
     clientId: '123.apps.googleusercontent.com',
     webCredential: 'test-only-secret',
     redirectUri: 'https://masscom.kr/api/web/auth/callback',
+    wwwEnabled: false,
   });
+});
+
+test('www OAuth is opt-in and rejects unknown flag values', () => {
+  const base = {
+    GOOGLE_WEB_CLIENT_ID: '123.apps.googleusercontent.com',
+    GOOGLE_WEB_CLIENT_SECRET: 'test-only-secret',
+    GOOGLE_WEB_REDIRECT_URI: 'https://masscom.kr/api/web/auth/callback',
+  };
+  assert.equal(resolveWebAuthConfig({ ...base, GOOGLE_WEB_WWW_ENABLED: 'true' })?.wwwEnabled, true);
+  assert.throws(() => resolveWebAuthConfig({ ...base, GOOGLE_WEB_WWW_ENABLED: 'yes' }),
+    /WEB_AUTH_CONFIGURATION_INVALID/);
 });
 
 const exchangeInput = {

@@ -36,7 +36,8 @@
 | D-030 | 공개 서비스·지갑 출처 | 공식 포털 `https://masscom.kr`을 Reown 메타데이터와 README의 대표 웹 주소로 사용. API는 `api.masscom.kr`, private 코드·APK는 GitHub로 분리 | `USER_CONFIRMED` | 2026-09-23 사용자 요청. 기존 Android native 복귀 스킴·SIWE 검증 도메인·체인·허용 메서드는 유지 |
 | D-031 | 시연용 가상 점포 수 | 읽기 전용 시연 웹과 격리 로컬 시연 DB를 가상 점포 A·B·C 총 3곳으로 확장. 기존 A 방문·보상 기록은 유지하고 운영 DB에는 적용하지 않음 | `USER_CONFIRMED` | 2026-09-24 사용자가 한 점포는 보여줄 내용이 적다며 추가를 요청. 3곳은 작은 탐색 흐름을 보여주기 위한 구현 수량이며 실제 제휴·매출 실적이 아님 |
 | D-032 | 첫 화면 역할 선택 적용 범위 | `kr.masscom.wolgye.demo` 시연 앱에만 사용자·점주 첫 진입을 적용하고 운영 앱의 네 탭과 인증·지갑·권한 경계는 유지 | `USER_CONFIRMED` | 2026-09-24 사용자가 계획의 시연 앱 전용 권장안에 “그러면 그렇게 해”라고 답함. 시연 점주 기능은 별도 API 권한 확인 전까지 허용하지 않음 |
-| D-033 | 운영 웹 호스팅 이관 | 기존 Lightsail에서 `masscom.kr` 포털과 `/app/` 읽기 전용 웹을 제공하고 Vercel은 DNS 전환 검증 전까지 rollback 경로로 유지 | `PROPOSED` | 2026-09-24 사용자가 AWS 단일 호스트 가능성을 제안. 로컬 구현은 진행하되 실제 DNS·TLS 공개 전환은 현재 비용·용량·호스트 접근과 사용자 선택을 확인한다 |
+| D-033 | 운영 웹 호스팅 이관 | 기존 Lightsail에서 `masscom.kr` 포털과 `/app/` 읽기 전용 웹을 제공하고 Vercel 배포는 rollback 후보로 유지 | `USER_CONFIRMED` | 2026-09-24 사용자가 기존 AWS 활용을 승인했고 [PR #163](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/163) 이후 apex DNS·TLS를 검증했다. `www` 추가 전환은 D-034와 별개 |
+| D-034 | `www` 웹 대표 주소·apex 호환 | 기존 Lightsail의 `www.masscom.kr/app/`·`/preview/`을 웹 대표 경로로 준비하고, `masscom.kr`은 Android App Link·Reown 출처·기존 로그인 호환을 위해 유지. 웹 세션은 호스트별로 분리하고 `www` Google 콜백·TLS·DNS를 검증한 뒤 안내 주소를 변경 | `USER_CONFIRMED` | 2026-09-25 사용자가 권장 방식·[서면 설계](superpowers/specs/2026-09-25-www-web-consolidation-design.md)·[구현 계획](superpowers/plans/2026-09-25-www-web-consolidation.md)을 승인하고 실행을 요청. 코드·로컬 검증과 Google 콘솔·공개 DNS 완료는 별도 상태로 기록 |
 
 ## 2026-09-23 UI 기초 작업 범위 (Issue #136)
 

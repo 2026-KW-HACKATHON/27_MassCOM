@@ -1,15 +1,19 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { request as httpRequest } from 'node:http';
 import { createServer } from 'node:net';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import test from 'node:test';
+
+import { buildPublicSite } from '../../scripts/build-public-site.mjs';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 const fixture = `const { createServer } = require('node:http');
 createServer((request, response) => {
   response.setHeader('Cache-Control', 'no-store');
+  response.setHeader('X-Observed-Host', request.headers.host || '');
   if (request.url === '/api/web/auth/start') {
     response.writeHead(302, {
       Location: '/app/',
@@ -42,6 +46,23 @@ async function freePort() {
       const address = server.address();
       server.close(() => resolvePort(address.port));
     });
+  });
+}
+
+async function requestForHost(url, path, host, method = 'GET') {
+  return new Promise((resolveResponse, reject) => {
+    const request = httpRequest(`${url}${path}`, { method, headers: { Host: host } }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => resolveResponse({
+        status: response.statusCode,
+        headers: response.headers,
+        body: Buffer.concat(chunks).toString('utf8'),
+      }));
+      response.on('error', reject);
+    });
+    request.on('error', reject);
+    request.end();
   });
 }
 
@@ -106,5 +127,76 @@ test('Caddy forwards only the four browser-session routes, preserving redirects 
     docker('rm', '-f', caddy, api);
     docker('network', 'rm', network);
     rmSync(publicRoot, { recursive: true, force: true });
+  }
+});
+
+test('Caddy serves the same limited web surface for exact apex and www hosts', async () => {
+  const suffix = `${process.pid}-${Date.now()}`;
+  const network = `masscom-web-host-test-${suffix}`;
+  const api = `masscom-web-api-host-test-${suffix}`;
+  const web = `masscom-web-static-host-test-${suffix}`;
+  const caddy = `masscom-web-caddy-host-test-${suffix}`;
+  const scratch = mkdtempSync(resolve(tmpdir(), 'masscom-web-host-'));
+  const publicRoot = join(scratch, 'public');
+  const port = await freePort();
+  await buildPublicSite(repoRoot, publicRoot);
+  docker('network', 'create', network);
+  try {
+    docker('run', '-d', '--rm', '--network', network, '--network-alias', 'api', '--name', api,
+      'node:24-alpine', 'node', '-e', fixture);
+    docker('run', '-d', '--rm', '--network', network, '--network-alias', 'production-web', '--name', web,
+      'node:24-alpine', 'node', '-e',
+      "require('node:http').createServer((request,response)=>response.end('web:'+request.url)).listen(4173,'0.0.0.0')");
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      try {
+        docker('exec', api, 'node', '-e',
+          "fetch('http://127.0.0.1:3000/').then(() => process.exit(0)).catch(() => process.exit(1))");
+        docker('exec', web, 'node', '-e',
+          "fetch('http://127.0.0.1:4173/').then(() => process.exit(0)).catch(() => process.exit(1))");
+        break;
+      } catch {
+        if (attempt === 29) throw new Error('web host fixtures did not become ready');
+        await new Promise((resolveWait) => setTimeout(resolveWait, 200));
+      }
+    }
+    docker('run', '-d', '--rm', '--network', network, '--name', caddy,
+      '-p', `127.0.0.1:${port}:8080`,
+      '-e', 'MASSCOM_API_DOMAIN=:8081',
+      '-e', 'MASSCOM_WEB_DOMAIN=http://masscom.kr:8080, http://www.masscom.kr:8080',
+      '-v', `${resolve(repoRoot, 'infra/lightsail/Caddyfile')}:/etc/caddy/Caddyfile:ro`,
+      '-v', `${publicRoot}:/srv/masscom:ro`, 'caddy:2.10.2-alpine');
+    const url = `http://127.0.0.1:${port}`;
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      try {
+        await requestForHost(url, '/', 'masscom.kr');
+        break;
+      } catch {
+        if (attempt === 29) throw new Error('Caddy web hosts did not become ready');
+        await new Promise((resolveWait) => setTimeout(resolveWait, 200));
+      }
+    }
+    for (const host of ['masscom.kr', 'www.masscom.kr']) {
+      assert.equal((await requestForHost(url, '/', host)).status, 200, host);
+      assert.equal((await requestForHost(url, '/preview/', host)).status, 200, host);
+      assert.equal((await requestForHost(url, '/preview/assets/showcase.css', host)).status, 200, host);
+      const previewRedirect = await requestForHost(url, '/preview', host);
+      assert.equal(previewRedirect.status, 308, host);
+      assert.equal(previewRedirect.headers.location, '/preview/', host);
+      assert.equal((await requestForHost(url, '/app/', host)).body, 'web:/', host);
+      const login = await requestForHost(url, '/api/web/auth/start', host);
+      assert.equal(login.status, 302, host);
+      assert.equal(login.headers['x-observed-host'], host, host);
+      assert.equal((await requestForHost(url, '/api/web/collection', host)).status, 401, host);
+      for (const blocked of ['/HANDOFF.md', '/preview/.vercel/project.json', '/claim', '/mint', '/api/web/unknown']) {
+        assert.equal((await requestForHost(url, blocked, host)).status, 404, `${host}${blocked}`);
+      }
+    }
+    const unknownHost = await requestForHost(url, '/', 'other.masscom.kr');
+    assert.equal(unknownHost.body, '');
+    assert.equal(unknownHost.headers['x-observed-host'], undefined);
+  } finally {
+    docker('rm', '-f', caddy, api, web);
+    docker('network', 'rm', network);
+    rmSync(scratch, { recursive: true, force: true });
   }
 });

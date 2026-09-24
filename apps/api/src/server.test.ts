@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { request as httpRequest } from 'node:http';
 import { test, type TestContext } from 'node:test';
 
 import { Wallet } from 'ethers';
@@ -169,6 +170,7 @@ async function startFixture(
   authLoginLimiter?: AuthLoginLimiterFixture,
   trustProxyClientIp = false,
   webAuth?: WebAuthHandler,
+  wwwEnabled = false,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -195,6 +197,7 @@ async function startFixture(
     authLoginLimiter,
     trustProxyClientIp,
     webAuth,
+    wwwEnabled,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -206,6 +209,36 @@ async function startFixture(
   }
 
   return `http://127.0.0.1:${address.port}`;
+}
+
+async function webRequest(baseUrl: string, path: string, options: {
+  host?: string;
+  method?: string;
+  headers?: Record<string, string>;
+} = {}): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(new URL(path, baseUrl), {
+      method: options.method ?? 'GET',
+      headers: { Host: options.host ?? 'masscom.kr', ...options.headers },
+    }, (response) => {
+      const chunks: Buffer[] = [];
+      response.on('data', (chunk: Buffer) => chunks.push(chunk));
+      response.on('end', () => {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(response.headers)) {
+          if (Array.isArray(value)) value.forEach((item) => headers.append(name, item));
+          else if (value !== undefined) headers.set(name, value);
+        }
+        const body = Buffer.concat(chunks);
+        resolve(new Response(body.length ? body : null, {
+          status: response.statusCode ?? 500, headers,
+        }));
+      });
+      response.on('error', reject);
+    });
+    request.on('error', reject);
+    request.end();
+  });
 }
 
 test('serves health without exposing wallet data', async (t) => {
@@ -228,13 +261,13 @@ test('web auth starts with a browser state cookie and callback returns only a sc
   };
   const baseUrl = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth);
-  const start = await fetch(`${baseUrl}/api/web/auth/start`, { redirect: 'manual' });
+  const start = await webRequest(baseUrl, '/api/web/auth/start');
   assert.equal(start.status, 302);
   assert.match(start.headers.get('set-cookie') ?? '', /web_auth_state=state-1; Path=\/api\/web\/auth; Max-Age=300; HttpOnly; Secure; SameSite=Lax/);
   assert.match(start.headers.get('location') ?? '', /^https:\/\/accounts\.google\.com\//);
 
-  const callback = await fetch(`${baseUrl}/api/web/auth/callback?code=one-time-code&state=state-1`, {
-    redirect: 'manual', headers: { cookie: 'web_auth_state=state-1' },
+  const callback = await webRequest(baseUrl, '/api/web/auth/callback?code=one-time-code&state=state-1', {
+    headers: { cookie: 'web_auth_state=state-1' },
   });
   assert.equal(callback.status, 303);
   assert.equal(callback.headers.get('location'), '/app/');
@@ -260,8 +293,8 @@ test('web collection uses only the web cookie and never exposes private data wit
       return { visits: [], collectibles: [] };
     },
   }, undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth);
-  assert.equal((await fetch(`${baseUrl}/api/web/collection`)).status, 401);
-  const response = await fetch(`${baseUrl}/api/web/collection`, {
+  assert.equal((await webRequest(baseUrl, '/api/web/collection')).status, 401);
+  const response = await webRequest(baseUrl, '/api/web/collection', {
     headers: { cookie: 'web_session=valid-web-cookie' },
   });
   assert.equal(response.status, 200);
@@ -281,13 +314,13 @@ test('web logout rejects GET and missing or foreign Origin before revoking a coo
   };
   const baseUrl = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth);
-  assert.equal((await fetch(`${baseUrl}/api/web/logout`)).status, 405);
-  assert.equal((await fetch(`${baseUrl}/api/web/logout`, { method: 'POST', headers: { cookie: 'web_session=token' } })).status, 403);
-  assert.equal((await fetch(`${baseUrl}/api/web/logout`, {
+  assert.equal((await webRequest(baseUrl, '/api/web/logout')).status, 405);
+  assert.equal((await webRequest(baseUrl, '/api/web/logout', { method: 'POST', headers: { cookie: 'web_session=token' } })).status, 403);
+  assert.equal((await webRequest(baseUrl, '/api/web/logout', {
     method: 'POST', headers: { origin: 'https://evil.example', cookie: 'web_session=token' },
   })).status, 403);
   assert.deepEqual(revoked, []);
-  const response = await fetch(`${baseUrl}/api/web/logout`, {
+  const response = await webRequest(baseUrl, '/api/web/logout', {
     method: 'POST', headers: { origin: 'https://masscom.kr', cookie: 'web_session=token' },
   });
   assert.equal(response.status, 204);
@@ -309,7 +342,7 @@ test('web login start obeys the existing per-client login limiter before storing
   const baseUrl = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined,
     { consume: () => ({ allowed: false, retryAfterSeconds: 20 }) }, false, webAuth);
-  const response = await fetch(`${baseUrl}/api/web/auth/start`, { redirect: 'manual' });
+  const response = await webRequest(baseUrl, '/api/web/auth/start');
   assert.equal(response.status, 429);
   assert.equal(response.headers.get('retry-after'), '20');
   assert.equal(started, 0);
@@ -324,13 +357,78 @@ test('web callback maps provider outage to a retryable 503 without echoing the c
   };
   const baseUrl = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth);
-  const response = await fetch(`${baseUrl}/api/web/auth/callback?code=secret-code&state=state-1`, {
-    headers: { cookie: 'web_auth_state=state-1' }, redirect: 'manual',
+  const response = await webRequest(baseUrl, '/api/web/auth/callback?code=secret-code&state=state-1', {
+    headers: { cookie: 'web_auth_state=state-1' },
   });
   assert.equal(response.status, 503);
   const body = await response.text();
   assert.match(body, /WEB_AUTH_UPSTREAM_UNAVAILABLE/);
   assert.doesNotMatch(body, /secret-code/);
+});
+
+test('www web routes use only the exact Host and matching logout Origin', async (t) => {
+  const calls: string[] = [];
+  const webAuth: WebAuthHandler = {
+    start: async (origin) => {
+      calls.push(`start:${origin}`);
+      return { location: 'https://accounts.google.com/o/oauth2/v2/auth', state: 'www-state' };
+    },
+    complete: async (_code, _state, _cookieState, origin) => {
+      calls.push(`complete:${origin}`);
+      return { token: 'www-token' };
+    },
+    resolveSession: async (_token, origin) => {
+      calls.push(`collection:${origin}`);
+      return 'account-1';
+    },
+    logout: async (_token, origin) => { calls.push(`logout:${origin}`); },
+  };
+  const baseUrl = await startFixture(t, undefined, undefined, undefined, undefined, {
+    getCollection: async () => ({ visits: [], collectibles: [] }),
+  }, undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, true);
+  const wwwStart = await webRequest(baseUrl, '/api/web/auth/start', { host: 'www.masscom.kr' });
+  assert.equal(wwwStart.status, 302);
+  assert.match(wwwStart.headers.get('set-cookie') ?? '', /HttpOnly; Secure; SameSite=Lax/);
+  assert.equal((await webRequest(baseUrl, '/api/web/auth/start', { host: 'api.masscom.kr' })).status, 403);
+  assert.equal((await webRequest(baseUrl, '/api/web/auth/start', { host: 'www.masscom.kr:8443' })).status, 403);
+  assert.equal((await webRequest(baseUrl, '/api/web/auth/start', {
+    headers: { 'X-Forwarded-Host': 'www.masscom.kr' },
+  })).status, 302);
+  assert.equal((await webRequest(baseUrl, '/api/web/auth/callback?code=code&state=www-state', {
+    host: 'www.masscom.kr', headers: { cookie: 'web_auth_state=www-state' },
+  })).status, 303);
+  assert.equal((await webRequest(baseUrl, '/api/web/collection', {
+    host: 'www.masscom.kr', headers: { cookie: 'web_session=www-token' },
+  })).status, 200);
+  assert.equal((await webRequest(baseUrl, '/api/web/logout', {
+    host: 'www.masscom.kr', method: 'POST',
+    headers: { origin: 'https://masscom.kr', cookie: 'web_session=www-token' },
+  })).status, 403);
+  assert.equal((await webRequest(baseUrl, '/api/web/logout', {
+    host: 'www.masscom.kr', method: 'POST',
+    headers: { origin: 'https://www.masscom.kr', cookie: 'web_session=www-token' },
+  })).status, 204);
+  assert.deepEqual(calls, [
+    'start:https://www.masscom.kr', 'start:https://masscom.kr',
+    'complete:https://www.masscom.kr', 'collection:https://www.masscom.kr',
+    'logout:https://www.masscom.kr',
+  ]);
+});
+
+test('www web auth remains closed when its runtime flag is off', async (t) => {
+  let starts = 0;
+  const webAuth: WebAuthHandler = {
+    start: async () => { starts += 1; return { location: 'https://accounts.google.com/', state: 'apex-state' }; },
+    complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'account-1',
+    logout: async () => {},
+  };
+  const baseUrl = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false);
+  assert.equal((await webRequest(baseUrl, '/api/web/auth/start', { host: 'www.masscom.kr' })).status, 403);
+  assert.equal(starts, 0);
+  assert.equal((await webRequest(baseUrl, '/api/web/auth/start', { host: 'masscom.kr' })).status, 302);
+  assert.equal(starts, 1);
 });
 
 test('D02 every JSON response forbids caching so one account never receives another account\'s data', async (t) => {

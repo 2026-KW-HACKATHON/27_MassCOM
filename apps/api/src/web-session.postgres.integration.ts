@@ -47,16 +47,19 @@ test('web sessions hash tokens, separate A/B, revoke one, and expire without sha
     hmacSecret, ttlMs: 60_000, now: () => now,
     nextToken: () => queue.shift()!, nextSessionId: randomUUID,
   });
-  assert.equal((await store.create(accountA)).token, tokenA);
-  assert.equal((await store.create(accountB)).token, tokenB);
-  const row = await pool.query<{ token_hash: Buffer }>(
-    'SELECT token_hash FROM web_sessions WHERE account_id = $1', [accountA],
+  assert.equal((await store.create(accountA, 'masscom.kr')).token, tokenA);
+  assert.equal((await store.create(accountB, 'www.masscom.kr')).token, tokenB);
+  const row = await pool.query<{ token_hash: Buffer; origin_host: string }>(
+    'SELECT token_hash, origin_host FROM web_sessions WHERE account_id = $1', [accountA],
   );
   assert.equal(row.rows.length, 1);
+  assert.equal(row.rows[0]?.origin_host, 'masscom.kr');
   assert.equal(row.rows[0]?.token_hash.toString('hex'), createHash('sha256').update(tokenA).digest('hex'));
   assert.notEqual(row.rows[0]?.token_hash.toString(), tokenA);
-  assert.equal(await store.resolve(tokenA), accountA);
-  assert.equal(await store.resolve(tokenB), accountB);
+  assert.equal(await store.resolve(tokenA, 'masscom.kr'), accountA);
+  await assert.rejects(store.resolve(tokenA, 'www.masscom.kr'), /WEB_SESSION_INVALID/);
+  assert.equal(await store.resolve(tokenB, 'www.masscom.kr'), accountB);
+  await assert.rejects(store.resolve(tokenB, 'masscom.kr'), /WEB_SESSION_INVALID/);
   const mobile = new PostgresAuthSessionService(pool, {
     verifier: { verify: async () => ({ subject: `subject-${accountA}`, authTime: now }) },
     accountLifecycle: new PostgresAccountLifecycle({ hmacSecret }),
@@ -65,18 +68,20 @@ test('web sessions hash tokens, separate A/B, revoke one, and expire without sha
   await assert.rejects(mobile.resolve(tokenA), /SESSION_INVALID/);
   const mobileSession = await mobile.signInWithGoogle('verified-by-test-verifier');
   await mobile.logout(mobileSession.sessionToken);
-  assert.equal(await store.resolve(tokenA), accountA);
-  await assert.rejects(store.resolve('not-a-session'), /WEB_SESSION_INVALID/);
+  assert.equal(await store.resolve(tokenA, 'masscom.kr'), accountA);
+  await assert.rejects(store.resolve('not-a-session', 'masscom.kr'), /WEB_SESSION_INVALID/);
   const mobileRows = await pool.query(
     'SELECT count(*)::int AS total FROM auth_sessions WHERE token_hash = $1',
     [createHash('sha256').update(tokenA).digest()],
   );
   assert.equal(mobileRows.rows[0]?.total, 0);
-  await store.revoke(tokenA);
-  await assert.rejects(store.resolve(tokenA), /WEB_SESSION_INVALID/);
-  assert.equal(await store.resolve(tokenB), accountB);
+  await store.revoke(tokenA, 'www.masscom.kr');
+  assert.equal(await store.resolve(tokenA, 'masscom.kr'), accountA);
+  await store.revoke(tokenA, 'masscom.kr');
+  await assert.rejects(store.resolve(tokenA, 'masscom.kr'), /WEB_SESSION_INVALID/);
+  assert.equal(await store.resolve(tokenB, 'www.masscom.kr'), accountB);
   now = new Date('2026-09-24T12:01:01.000Z');
-  await assert.rejects(store.resolve(tokenB), /WEB_SESSION_INVALID/);
+  await assert.rejects(store.resolve(tokenB, 'www.masscom.kr'), /WEB_SESSION_INVALID/);
 }));
 
 test('account deletion revokes every web session and blocks a racing new login', {
@@ -89,21 +94,21 @@ test('account deletion revokes every web session and blocks a racing new login',
     hmacSecret, ttlMs: 60_000, now: () => new Date('2026-09-24T12:00:00.000Z'),
     nextToken: () => issued.shift()!, nextSessionId: randomUUID,
   });
-  const first = await store.create(accountId);
-  const second = await store.create(accountId);
+  const first = await store.create(accountId, 'masscom.kr');
+  const second = await store.create(accountId, 'www.masscom.kr');
   const deletion = new PostgresAccountDeletionService(pool, {
     hmacSecret, policyVersion: 'account-deletion-v1',
     now: () => new Date('2026-09-24T12:00:01.000Z'),
   });
   await deletion.requestDeletion({ accountId, confirmation: 'DELETE MY ACCOUNT' });
-  await assert.rejects(store.resolve(first.token), /WEB_SESSION_INVALID/);
-  await assert.rejects(store.resolve(second.token), /WEB_SESSION_INVALID/);
+  await assert.rejects(store.resolve(first.token, 'masscom.kr'), /WEB_SESSION_INVALID/);
+  await assert.rejects(store.resolve(second.token, 'www.masscom.kr'), /WEB_SESSION_INVALID/);
   const revoked = await pool.query<{ total: number }>(
     'SELECT count(*)::int AS total FROM web_sessions WHERE account_id = $1 AND revoked_at IS NOT NULL',
     [accountId],
   );
   assert.equal(revoked.rows[0]?.total, 2);
-  await assert.rejects(store.create(accountId), /ACCOUNT_DELETED/);
+  await assert.rejects(store.create(accountId, 'masscom.kr'), /ACCOUNT_DELETED/);
 
   const racingId = `web-race-${randomUUID()}`;
   await identity(pool, racingId);
@@ -112,7 +117,7 @@ test('account deletion revokes every web session and blocks a racing new login',
   try {
     await blocker.query('BEGIN');
     const referenceHash = await lifecycle.lockForDeletion(blocker, racingId);
-    const outcome = store.create(racingId).then(
+    const outcome = store.create(racingId, 'masscom.kr').then(
       () => ({ error: undefined }), (error: unknown) => ({ error }),
     );
     await new Promise((done) => setTimeout(done, 40));

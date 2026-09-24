@@ -3,6 +3,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 
 import { WebSessionError } from '../web-session.js';
+import type { WebOriginHost } from '../web-origin.js';
 import { AccountLifecycleError, PostgresAccountLifecycle } from './account-lifecycle.js';
 
 type Options = {
@@ -36,7 +37,7 @@ export class PostgresWebSessionStore {
     this.lifecycle = new PostgresAccountLifecycle({ hmacSecret: options.hmacSecret });
   }
 
-  async create(accountId: string): Promise<{ token: string; expiresAt: Date }> {
+  async create(accountId: string, originHost: WebOriginHost): Promise<{ token: string; expiresAt: Date }> {
     if (!accountId.trim()) throw new WebSessionError('WEB_SESSION_ACCOUNT_REQUIRED');
     const client = await this.pool.connect();
     try {
@@ -52,9 +53,9 @@ export class PostgresWebSessionStore {
       const now = this.now();
       const expiresAt = new Date(now.getTime() + this.options.ttlMs);
       await client.query(
-        `INSERT INTO web_sessions (id, account_id, token_hash, created_at, expires_at)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [this.nextSessionId(), accountId, tokenHash(token), now, expiresAt],
+        `INSERT INTO web_sessions (id, account_id, token_hash, created_at, expires_at, origin_host)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [this.nextSessionId(), accountId, tokenHash(token), now, expiresAt, originHost],
       );
       await client.query('COMMIT');
       return { token, expiresAt };
@@ -66,14 +67,14 @@ export class PostgresWebSessionStore {
     }
   }
 
-  async resolve(token: string): Promise<string> {
+  async resolve(token: string, originHost: WebOriginHost): Promise<string> {
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new WebSessionError('WEB_SESSION_INVALID');
     const client = await this.pool.connect();
     try {
       const result = await client.query<{ account_id: string }>(
         `SELECT account_id FROM web_sessions
-         WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > $2`,
-        [tokenHash(token), this.now()],
+         WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > $2 AND origin_host = $3`,
+        [tokenHash(token), this.now(), originHost],
       );
       const accountId = result.rows[0]?.account_id;
       if (!accountId) throw new WebSessionError('WEB_SESSION_INVALID');
@@ -89,12 +90,12 @@ export class PostgresWebSessionStore {
     }
   }
 
-  async revoke(token: string): Promise<void> {
+  async revoke(token: string, originHost: WebOriginHost): Promise<void> {
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return;
     await this.pool.query(
       `UPDATE web_sessions SET revoked_at = $1
-       WHERE token_hash = $2 AND revoked_at IS NULL`,
-      [this.now(), tokenHash(token)],
+       WHERE token_hash = $2 AND revoked_at IS NULL AND origin_host = $3`,
+      [this.now(), tokenHash(token), originHost],
     );
   }
 }
