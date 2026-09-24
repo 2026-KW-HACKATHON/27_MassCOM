@@ -4,9 +4,10 @@
 
 ## 현재 GitHub 이슈 상태 — 2026-09-24
 
-- 사용자 요청으로 [#136](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/136)과 [#137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)을 모두 `CLOSED / NOT_PLANNED`로 종료했다. 종료 댓글에 미충족 수용 기준을 명시했고, 열린 이슈는 0개다. **종료는 구현 완료·출시 승인이 아니다.** 아래 과거의 “OPEN 유지” 문구는 그 시점의 기록이다.
-- #136: 역할 선택·다섯 공간은 개발용 미리보기까지 구현. 운영 첫 화면 분기는 미구현. #137: [읽기 전용 시연 웹](https://masscom-showcase-web.vercel.app)은 HTTPS 200이지만 `demo.*` DNS, 외부 시연 API·전용 OAuth/Reown, 시연 APK·실기, 운영 웹 개인 도감은 미완료. 기준 `main`은 `cfe32eb`; [CI `35991738902`](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/35991738902) PASS.
-- 재착수할 때 먼저 `gh issue list --state open`과 실제 DNS·Release·기기 상태를 확인한다. 미완료 기능을 실제 시작하는 경우에만 작은 수용 기준의 새 이슈를 만들고, 기존 #136/#137을 완료 증거로 사용하지 않는다.
+- [#136](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/136)과 [#137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)은 `OPEN`이다. 이전 `CLOSED / NOT_PLANNED` 처리는 실행 계획 없이 미완료 수용 기준을 닫은 오류여서 되돌렸다. 그때의 종료 댓글은 이력일 뿐 완료 증거가 아니다.
+- #136의 개발용 UI 미리보기는 구현됐지만 실제 시연 앱 첫 진입·실기는 미완료다. [#136 실행 계획](superpowers/plans/2026-09-24-issue136-showcase-entry.md)의 적용 범위를 결정한 뒤 시작한다. 운영 앱 네 탭은 현재 유지한다.
+- #137의 [정적 시연 웹](https://masscom-showcase-web.vercel.app)은 공개됐지만 `demo.*` DNS·외부 시연 API/DB·전용 OAuth·시연 APK/실기·운영 웹 개인 도감은 미완료다. [외부 시연 전달](superpowers/plans/2026-09-24-issue137-showcase-delivery.md)과 [운영 웹 도감](superpowers/plans/2026-09-24-issue137-production-collection.md)을 별도 검증 게이트로 진행한다.
+- 다음 작업은 `gh issue view 136`, `gh issue view 137`, `gh pr list --state open`으로 원격 상태를 확인한 다음, 계획의 첫 미완료 체크박스부터 진행하고 실제 증거가 모두 모일 때까지 이슈를 열어 두는 것이다.
 
 ## Issue #137 시연 웹 Chrome CI 시작 지연
 

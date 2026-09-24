@@ -32,7 +32,7 @@ GitHub에서 앱 받기: [운영 테스트 APK](https://github.com/2026-KW-HACKA
 - [제출 증거 manifest](docs/SUBMISSION_EVIDENCE.json): main 기준선·CI·PR·스크린샷·BLOCKED/NOT_RUN 기계 판독 기록
 - [포털 시각 검증](docs/evidence/project-portal-visual-verdict.json): 데스크톱·모바일 뷰포트와 접근성 결과
 - [현재 상태](docs/PROJECT_STATE.md): 실제 완료·미완료·BLOCKER
-- 이슈 #136·#137은 사용자 요청에 따라 `CLOSED / NOT_PLANNED`로 정리했습니다. 이는 미완료 기능을 완료로 판정한 것이 아닙니다. 재개 조건은 [인수인계](docs/HANDOFF.md)에 남아 있습니다.
+- 이슈 [#136](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/136)·[#137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)은 미완료 상태로 다시 열었습니다. [시연 앱 진입 계획](docs/superpowers/plans/2026-09-24-issue136-showcase-entry.md), [외부 시연 전달 계획](docs/superpowers/plans/2026-09-24-issue137-showcase-delivery.md), [운영 웹 본인 도감 계획](docs/superpowers/plans/2026-09-24-issue137-production-collection.md)은 실행 계획이지 구현·실기 검증 완료 증거가 아닙니다.
 - [제품 요구사항](docs/PRD.md): RQ-001~RQ-021
 - [결정 기록](docs/DECISIONS.md): 승인·제안·외부 확인 구분
 - [테스트 원장](docs/TEST_STATUS.md): v3 19절의 36개 ID와 실행 근거
