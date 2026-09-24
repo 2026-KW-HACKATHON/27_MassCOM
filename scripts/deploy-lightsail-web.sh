@@ -70,6 +70,7 @@ source_paths=(
   scripts/build-public-site.mjs
   scripts/deploy-lightsail-web.sh
   scripts/lightsail-web-rollback.sh
+  scripts/lightsail-web-probe-guard.sh
   docs/index.html docs/open.html docs/privacy.html docs/account-deletion.html
   docs/presentation.html docs/.well-known/assetlinks.json docs/assets
   docs/evidence/android-collection.png docs/evidence/android-merchant-list.png
@@ -142,7 +143,8 @@ node "$repo_root/scripts/build-public-site.mjs" "$scratch/site/public" >/dev/nul
 remote_release="/opt/masscom/web/releases/$release_id"
 ssh "${ssh_options[@]}" "$target" \
   "sudo install -d -m 0755 '$remote_release' && sudo chown ubuntu:ubuntu '$remote_release'"
-COPYFILE_DISABLE=1 tar -C "$repo_root" -czf - apps/production-web infra/lightsail scripts/lightsail-web-rollback.sh \
+COPYFILE_DISABLE=1 tar -C "$repo_root" -czf - apps/production-web infra/lightsail \
+  scripts/lightsail-web-rollback.sh scripts/lightsail-web-probe-guard.sh \
   -C "$scratch" site \
   | ssh "${ssh_options[@]}" "$target" "tar -xzf - -C '$remote_release'"
 
@@ -198,6 +200,7 @@ web_change_started='false'
 changing_caddy='false'
 probe_id=''
 source "$release/scripts/lightsail-web-rollback.sh"
+source "$release/scripts/lightsail-web-probe-guard.sh"
 trap 'web_rollback "$?"' ERR
 
 probe_web_routes() {
@@ -227,10 +230,11 @@ probe_web_routes() {
     | cmp - "$release/site/public/.well-known/assetlinks.json"
   curl -fsSI --max-time 8 "http://$address/.well-known/assetlinks.json" \
     | grep -Eqi '^content-type: application/json'
-  for path in /HANDOFF.md /TEST_STATUS.md /claim /mint /api/web/collection; do
+  for path in /HANDOFF.md /TEST_STATUS.md /claim /mint /api/web/unknown; do
     status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address$path")"
     [[ "$status" == '404' ]]
   done
+  web_collection_probe_response "http://$address/api/web/collection"
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address/merchants")"
   [[ "$status" == '200' ]]
   sudo docker stop "$probe_id" >/dev/null

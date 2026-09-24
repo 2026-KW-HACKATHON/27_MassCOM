@@ -4,14 +4,14 @@
 
 ## 현재 GitHub 이슈 상태 — 2026-09-25
 
-- 최신 #137: [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159) merge `e6dcc82`, PR CI `36019777124`·병합 후 main CI `36020699683` PASS. 웹 전용 세션/Google OIDC·읽기 전용 도감은 코드·로컬/CI 검증 단계까지만 완료했으며 외부 배포는 없다. 독립 리뷰의 다른 탭 이전 도감 잔존과 OAuth 장애 오분류는 RED→GREEN 수정했다. `masscom.kr` 응답의 `server: Vercel`; AWS 브라우저는 IAM 로그인 화면, CLI 인증·SSH 키 없음. `adb devices -l`에는 현재 기기가 없다. 다음 실행은 AWS 로그인 후 [이관 절차](../infra/lightsail/README.md)의 용량·요금·TLS·DNS를 확인하고 비밀값 없는 같은 출처 쿠키 경로를 외부에서 실증하는 것이다. 그 전에는 실계정을 연결하지 않는다.
+- 최신 #137: [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159) merge `e6dcc82`, PR CI `36019777124`·병합 후 main CI `36020699683` PASS. 웹 전용 세션/Google OIDC·읽기 전용 도감은 코드·로컬/CI 검증 단계까지만 완료했으며 외부 배포는 없다. AWS 로그인 후 기존 서울 Lightsail의 default key를 로컬 mode 600으로 보관하고 검증된 호스트키로 `ssh masscom` 접속을 확인했다. Samsung SM-S928N은 `adb`에 연결됐다. 기존 크레딧의 Lightsail 적용과 메모리·디스크 여유는 읽기 전용으로 확인해 저장소 밖 mode 600 증거에 남겼고 웹 배포 dry-run은 PASS다. 웹 원격 점검 보완 [PR #161](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/161)은 독립 리뷰의 curl 실패 은폐·미커밋 실행 파일 누락을 RED→GREEN 수정한 뒤 CI 확인 중이다. 현재 `masscom.kr`은 Vercel이며 원격 웹 배포·TLS·DNS·실계정 연결은 `NOT_RUN`. 다음에는 PR #161 CI·병합 후 [이관 절차](../infra/lightsail/README.md)의 원격 staging을 수행한다.
 
-- #137 AWS 웹 이관 PR #158: [설계·실행 계획](superpowers/plans/2026-09-24-lightsail-web-consolidation.md)과 [로컬 Caddy 증거](evidence/aws-web-local-2026-09-24.json)를 작성해 병합했다. 공개 14개 파일만 복사하고 포털·법적 경로·`/app/`·assetlinks를 로컬 검증했으며 웹 전용 배포 스크립트는 원격 미실행이다. `masscom.kr` DNS는 여전히 Vercel, AWS 로그인/SSH·현재 비용/용량 확인이 없어 DNS 공개 전환 `BLOCKED`다.
+- #137 AWS 웹 이관 PR #158: [설계·실행 계획](superpowers/plans/2026-09-24-lightsail-web-consolidation.md)과 [로컬 Caddy 증거](evidence/aws-web-local-2026-09-24.json)를 작성해 병합했다. 공개 14개 파일만 복사하고 포털·법적 경로·`/app/`·assetlinks를 로컬 검증했다. 당시 AWS 로그인·SSH·비용 확인이 없어 원격 배포는 미실행이었고, 현재 해결된 접근·용량 상태는 위 최신 #137 항목을 따른다. `masscom.kr` DNS는 여전히 Vercel이다.
 - #137 시연 호스트 경계는 [PR #157](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/157) merge `96341e8`, main CI `36005667769` PASS다. 이는 로컬·CI seed와 격리 근거이지 외부 시연 API 배포 증거가 아니다.
 - #136 시연 역할 진입은 [PR #156](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/156) merge `5e91728`, main CI `35998825263` PASS까지 확인했다. 실제 시연 APK/외부 API·OAuth/지갑 실기는 `NOT_RUN`이므로 Issue는 계속 OPEN이다.
 - [#136](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/136)과 [#137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)은 `OPEN`이다. 이전 `CLOSED / NOT_PLANNED` 처리는 실행 계획 없이 미완료 수용 기준을 닫은 오류여서 되돌렸다. 그때의 종료 댓글은 이력일 뿐 완료 증거가 아니다.
 - #137의 [정적 시연 웹](https://masscom-showcase-web.vercel.app)은 공개됐지만 `demo.*` DNS·외부 시연 API/DB·전용 OAuth·시연 APK/실기·운영 웹 도감의 외부 실계정 검증은 미완료다. [외부 시연 전달](superpowers/plans/2026-09-24-issue137-showcase-delivery.md)과 [운영 웹 도감](superpowers/plans/2026-09-24-issue137-production-collection.md)을 별도 검증 게이트로 진행한다.
-- 다음 작업은 AWS 로그인 후 [이관 실행 순서](../infra/lightsail/README.md)의 1단계 비용·용량 증거 수집이다.
+- 다음 작업은 웹 프록시 응답 판정 수정 PR 검증 뒤 [이관 실행 순서](../infra/lightsail/README.md)의 3단계 원격 staging이다.
 
 ## Issue #137 시연 웹 Chrome CI 시작 지연
 

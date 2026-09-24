@@ -3,7 +3,39 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd -P)"
 deploy="$repo_root/scripts/deploy-lightsail-web.sh"
+guard="$repo_root/scripts/lightsail-web-probe-guard.sh"
 [[ -f "$deploy" ]] || { echo 'web-only deploy script is missing' >&2; exit 1; }
+
+source "$guard"
+for accepted in 401 404 503; do
+  web_collection_probe_accepts "$accepted" 'application/json; charset=utf-8' 'no-store'
+done
+for rejected in \
+  '200|application/json; charset=utf-8|no-store' \
+  '502|application/json; charset=utf-8|no-store' \
+  '404|text/plain|no-store' \
+  '404|application/json; charset=utf-8|public, max-age=60'; do
+  IFS='|' read -r status content_type cache_control <<< "$rejected"
+  if web_collection_probe_accepts "$status" "$content_type" "$cache_control"; then
+    echo "unsafe web collection probe response accepted: $status" >&2
+    exit 1
+  fi
+done
+
+(
+  curl() {
+    printf '503|application/json; charset=utf-8|no-store'
+    return 28
+  }
+  if web_collection_probe_response 'http://api-fixture.invalid/api/web/collection'; then
+    echo 'web probe ignored a curl timeout after receiving safe-looking headers' >&2
+    exit 1
+  fi
+)
+(
+  curl() { printf '404|application/json; charset=utf-8|no-store'; }
+  web_collection_probe_response 'http://api-fixture.invalid/api/web/collection'
+)
 
 scratch="$(mktemp -d -t masscom-web-deploy-test.XXXXXX)"
 trap 'rm -rf "$scratch"' EXIT
@@ -51,15 +83,35 @@ bash -n "$scratch/remote.sh"
 grep -q 'compose_new up -d --no-deps production-web' "$scratch/remote.sh"
 grep -q 'compose_new up -d --no-deps --force-recreate caddy' "$scratch/remote.sh"
 grep -q 'source "$release/scripts/lightsail-web-rollback.sh"' "$scratch/remote.sh"
+grep -q 'source "$release/scripts/lightsail-web-probe-guard.sh"' "$scratch/remote.sh"
 grep -q 'web_change_started=' "$scratch/remote.sh"
 grep -q 'service_snapshot api' "$scratch/remote.sh"
 grep -q 'service_snapshot postgres' "$scratch/remote.sh"
 grep -q 'probe_web_routes' "$scratch/remote.sh"
+grep -q 'web_collection_probe_response' "$scratch/remote.sh"
 grep -q 'web_rollback' "$scratch/remote.sh"
 if grep -Eq 'compose_new (build|up).*\b(api|postgres|migrate)\b' "$scratch/remote.sh"; then
   echo 'web-only deploy script would modify API or database services' >&2
   exit 1
 fi
 bash "$repo_root/tests/ops/lightsail_web_rollback_test.sh"
+
+mkdir -p "$scratch/checkout/scripts" "$scratch/bin"
+cp "$deploy" "$guard" "$scratch/checkout/scripts/"
+git init -q -b main "$scratch/checkout"
+git -C "$scratch/checkout" add scripts
+git -C "$scratch/checkout" -c user.name=Fixture -c user.email=fixture@example.invalid \
+  commit -qm 'clean deployment fixture'
+printf '\n# uncommitted executable change\n' >> "$scratch/checkout/scripts/lightsail-web-probe-guard.sh"
+printf '#!/bin/sh\necho SSH_WAS_REACHED\nexit 79\n' > "$scratch/bin/ssh"
+chmod +x "$scratch/bin/ssh"
+status=0
+output="$(env PATH="$scratch/bin:$PATH" "${common_env[@]}" \
+  bash "$scratch/checkout/scripts/deploy-lightsail-web.sh" --deploy 2>&1)" || status=$?
+if [[ "$status" == '0' || "$output" != *'web deployment source paths must match the committed revision'* ||
+      "$output" == *'SSH_WAS_REACHED'* ]]; then
+  echo 'dirty web probe guard reached SSH instead of failing the source check' >&2
+  exit 1
+fi
 
 echo 'Lightsail web-only deploy preflight verified'
