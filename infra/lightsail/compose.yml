@@ -79,20 +79,48 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  production-web:
+    image: masscom-production-web:${MASSCOM_WEB_IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: infra/lightsail/production-web.Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "4173"
+      MASSCOM_WEB_BIND_HOST: 0.0.0.0
+    expose:
+      - "4173"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4173/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
   caddy:
     image: caddy:2.10.2-alpine
     environment:
       MASSCOM_API_DOMAIN: ${MASSCOM_API_DOMAIN:-api.masscom.kr}
+      MASSCOM_WEB_DOMAIN: ${MASSCOM_WEB_DOMAIN:-masscom.kr}
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../site/public:/srv/masscom:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       api:
+        condition: service_healthy
+      production-web:
         condition: service_healthy
     restart: unless-stopped
     security_opt:

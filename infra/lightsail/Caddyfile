@@ -17,3 +17,36 @@
 		-Server
 	}
 }
+
+{$MASSCOM_WEB_DOMAIN:masscom.kr} {
+	encode zstd gzip
+	root * /srv/masscom
+
+	@appRoot path /app
+	redir @appRoot /app/ 308
+	handle_path /app/* {
+		reverse_proxy production-web:4173
+	}
+	handle /merchants {
+		reverse_proxy production-web:4173
+	}
+	@open path /open
+	rewrite @open /open.html
+	@privacy path /privacy
+	rewrite @privacy /privacy.html
+	@deletion path /account-deletion
+	rewrite @deletion /account-deletion.html
+	@presentation path /presentation
+	rewrite @presentation /presentation.html
+	handle {
+		file_server
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}
