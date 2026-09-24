@@ -4,6 +4,8 @@
 
 현재 열리는 시연 웹: [https://masscom-showcase-web.vercel.app](https://masscom-showcase-web.vercel.app). `demo.masscom.kr` 맞춤 주소는 가비아 DNS가 아직 연결되지 않아 열리지 않습니다.
 
+GitHub에서 버전·원본을 확인하려면 [시연 웹 전용 `showcase-web-v0.1.0-preview.1` 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1)를 보세요. ZIP에는 HTML·CSS만 있으며 Android APK가 아닙니다. 웹은 위 공개 주소에서 설치 없이 바로 볼 수 있습니다.
+
 가상 점포 세 곳과 A점포 방문을 가정한 예시 기록·앱 수집품을 보여주는 읽기 전용 정적 페이지입니다. 모든 점포·방문·수집품은 기능 설명용 가상 데이터이며 실제 영업점, 방문 실적 또는 NFT 발행 결과가 아닙니다. `DEMO` 배지에만 의존하지 않고 화면 상단과 각 내용에 이 경계를 한국어로 적습니다.
 
 ## 로컬 미리보기와 검사

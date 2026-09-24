@@ -4,7 +4,14 @@
 
 공개 프로젝트 웹: [https://masscom.kr](https://masscom.kr) · [Android 테스트 앱 열기](https://masscom.kr/open)
 
-GitHub에서 앱 받기: [운영 테스트 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2) (`test.2`, 최신 코드 아님) · 시연 앱 APK `NOT_RUN` (아직 다운로드 없음). [두 앱의 설치·검증 상태](docs/ANDROID_DOWNLOADS.md)
+| 구분 | 바로 열기·받기 | 현재 상태 |
+| --- | --- | --- |
+| 운영 웹 | [masscom.kr/app/](https://masscom.kr/app/) | 실제 운영 데이터, Google 로그인·읽기 전용 본인 도감 |
+| **시연 웹** | [설치 없이 바로 보기](https://masscom-showcase-web.vercel.app/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | 가상 점포 A·B·C와 예시 수집품을 표시하는 정적 시연, 실제 방문·NFT 실적 아님 |
+| 운영 Android 앱 | [test.2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2) | 설치 가능하지만 최신 `main` 코드가 아닌 이전 테스트본 |
+| **시연 Android 앱** | [설치본 상태·선행 조건](docs/ANDROID_DOWNLOADS.md) | **APK·Release 태그 없음.** 전용 API·Google 인증·서명·실기 검증 전이므로 운영 앱을 이름만 바꿔 올리지 않음 |
+
+저장소는 비공개라 GitHub Release를 보려면 접근 권한이 필요합니다. 시연 웹의 공개 주소는 GitHub 로그인·다운로드 없이 열립니다.
 
 > 현재 상태: Phase 0~3와 Base Sepolia 핵심 흐름 `VERIFIED` · 외부 HTTPS·Google 로그인·Android App Links 실기 `VERIFIED` · Phase 4 출시 기반과 Phase 5 발표·증거 준비 `IN_PROGRESS` · 필수 시험 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`
 

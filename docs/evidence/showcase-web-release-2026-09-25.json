@@ -1,0 +1,36 @@
+{
+  "checkedAt": "2026-09-25 KST",
+  "scope": "Static showcase web only; no Android APK or contest submission",
+  "repositoryVisibility": "PRIVATE",
+  "tag": "showcase-web-v0.1.0-preview.1",
+  "targetCommit": "f96c32401441d3f406a4f0cc7576d6b84a744b91",
+  "mainCi": {
+    "runId": 36051088165,
+    "result": "PASS"
+  },
+  "githubRelease": {
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1",
+    "prerelease": true,
+    "asset": "MassCOM-showcase-web-v0.1.0-preview.1.zip",
+    "assetFiles": ["apps/showcase-web/index.html", "apps/showcase-web/assets/showcase.css"],
+    "assetSha256": "08cb0dfad778f6386e396cdab9e3357a921831364da55448206aaa12a1e9fec3",
+    "githubAssetDigestMatched": true
+  },
+  "publicWeb": {
+    "url": "https://masscom-showcase-web.vercel.app/",
+    "httpsHtml": 200,
+    "htmlSha256MatchesSource": "97425699d34a32ad114c7c4d4f16db8989a25533d078f9ffb47461ef635216f0",
+    "cssSha256MatchesSource": "194743a1b4e93da0a909c4b398cca91455168c82f2c86a809ec6a4c1bc831b40"
+  },
+  "tests": {
+    "showcaseSite": "PASS 19/19",
+    "actualBrowserTheme": "PASS 1/1",
+    "staticVerifier": "PASS"
+  },
+  "showcaseAndroid": {
+    "githubApkAsset": "NOT_RUN; none published",
+    "separateApiDns": "BLOCKED; demo-api.masscom.kr did not resolve",
+    "separateGoogleAuthAndSignedInstall": "NOT_RUN",
+    "productionApkReuse": "prohibited"
+  }
+}
