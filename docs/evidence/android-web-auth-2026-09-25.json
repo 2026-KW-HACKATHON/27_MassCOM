@@ -1,0 +1,32 @@
+{
+  "date": "2026-09-25 KST",
+  "issue": 137,
+  "operatingDeploymentCommit": "d78747127e99fdc38b80e934f20b038ee0901597",
+  "device": "Samsung SM-S928N, USB adb; ChromeTabbedActivity",
+  "entry": "adb shell am start -W -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d https://masscom.kr/app/",
+  "accountA": {
+    "selection": "existing Google account chosen on phone; address omitted",
+    "collection": "authenticated empty visit and collectible state, logout button visible",
+    "logout": "login prompt restored",
+    "result": "PASS"
+  },
+  "accountB": {
+    "selection": "second existing Google account chosen on phone; address omitted",
+    "identityCheck": "Google required additional identity confirmation completed by device owner; no passcode or password recorded",
+    "collection": "authenticated empty visit and collectible state, logout button visible",
+    "reopen": "https://masscom.kr/app/ remained authenticated as B",
+    "result": "PASS"
+  },
+  "serverSessionCounts": {
+    "query": "count sessions, distinct account_id, revoked, active from web_sessions created in previous 45 minutes",
+    "result": "3 sessions, 2 distinct accounts, 2 revoked, 1 active",
+    "accountIdentifiers": "not queried or recorded"
+  },
+  "remaining": {
+    "nonemptyCrossAccountCollection": "NOT_RUN; both real accounts had zero visits and zero collectibles",
+    "newestProductionApk": "NOT_RUN; browser test does not prove native app release",
+    "defaultAppLinkTap": "NOT_RUN; this test launched an explicit VIEW intent",
+    "showcaseAndroidAndApi": "NOT_RUN"
+  },
+  "scope": "This proves two distinct real account sessions and an A-to-B logout/login transition on the phone, not visibility isolation for nonempty personal data."
+}

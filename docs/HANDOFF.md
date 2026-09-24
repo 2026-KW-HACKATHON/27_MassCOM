@@ -4,6 +4,8 @@
 
 ## 현재 GitHub·운영 상태 — 2026-09-25
 
+- 최신 추가 실증: Samsung SM-S928N Android Chrome에서 Google 계정 A 로그인·빈 도감, A 로그아웃 후 계정 B 로그인·빈 도감, `/app/` 재열기 뒤 B 세션 유지를 확인했다. B의 Google 본인 확인은 소유자가 기기에서 직접 완료했다. 서버는 최근 웹 세션 3건·서로 다른 계정 2개·철회 2건·활성 1건이었다([비밀값 없는 증거](evidence/android-web-auth-2026-09-25.json)). 두 계정 모두 개인 기록 0건이므로 비어 있지 않은 도감의 교차 노출은 `NOT_RUN`. 최신 운영 APK·일반 App Link 탭·시연 API/앱도 미완료다. PR #165 merge `89ff0f7`, main CI `36046412045` PASS. 현재 체크아웃은 `docs/137-android-web-auth-proof`이며 이 추가 문서의 PR·CI는 작성 시점에 미완료다. 중단 시 실제 `git`·`gh` 상태를 먼저 확인한다.
+
 - `main`의 [PR #164](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/164) merge `d787471`, PR CI `36042479248`·main CI `36043259636` PASS. 같은 커밋을 기존 AWS Lightsail에 재배포했고 PostgreSQL 컨테이너 `e0d14fb7c803`은 유지됐다. `api.masscom.kr/health` 200, 공개 `/merchants` 200/0건. Google 로그인 시작은 `accounts.google.com`으로 302이며 정확한 `https://masscom.kr/api/web/auth/callback`·state·PKCE·Secure/HttpOnly state 쿠키를 확인했다. 비밀값은 채팅·Git에 남기지 않고 로컬·서버 mode 600 런타임 환경 파일에 저장, 클립보드는 비웠다.
 - 실제 데스크톱 브라우저에서 기존 Google 계정 1개가 로그인해 본인 도감의 기록 0건을 표시했고 새로고침 후 세션 유지·로그아웃 후 재로드에서 미로그인 안내를 확인했다. 서버에서 최근 웹 세션 1건 중 1건이 `revoked_at` 설정됐고 익명 `GET /api/web/collection`은 401이었다. 이 결과는 실제 A/B 계정 데이터 격리나 휴대전화 브라우저 로그인·최신 Android APK 검증이 아니다. Issue #137은 시연 API/앱 등을 포함해 계속 OPEN이다.
 - 현재 체크아웃은 `docs/137-web-auth-live-verification` 문서 브랜치다. README·운영 웹 안내·상태 원장에 위 실증 범위를 반영 중이며 PR·CI·병합은 이 문서를 작성하는 시점에 아직 진행 전이다. 중단되면 `git status`, `gh pr list`, `gh run list --branch main`으로 실제 최신 상태를 먼저 복원할 것. 실제 두 계정 격리에는 두 번째 Google 계정의 정당한 로그인 세션이 필요하며, 비밀번호·복구 정보는 채팅에 받지 않는다.

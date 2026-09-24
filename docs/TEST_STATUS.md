@@ -1,5 +1,7 @@
 # 테스트 상태
 
+[2026-09-25 Samsung Android Chrome 실계정 A/B 순차 로그인](evidence/android-web-auth-2026-09-25.json): 실제 SM-S928N에서 `https://masscom.kr/app/`을 Chrome으로 열고 계정 A 로그인→본인 빈 도감/로그아웃 버튼→A 로그아웃 후 미로그인 안내→계정 B 선택·소유자 본인 확인→B 본인 빈 도감→URL 재열기 뒤 B 세션 유지를 확인했다. 서버 집계는 최근 웹 세션 3건·서로 다른 계정 2개·철회 2건·활성 1건이다. 두 계정 모두 방문·수집품 0건이라 비어 있지 않은 개인 기록의 교차 노출은 `NOT_RUN`; 최신 운영 APK·일반 App Link 탭·시연 앱도 `NOT_RUN`. 계정 주소·인증 숫자·쿠키·비밀값은 증거에 기록하지 않는다.
+
 [2026-09-25 운영 웹 실계정 1개 검증](evidence/web-auth-live-2026-09-25.json): 운영 API/웹을 `main` `d787471`로 재배포, DB 컨테이너 유지·API health 200·mode 600 OAuth 런타임 값 존재 확인. 외부 `GET /api/web/auth/start`가 Google 302로 이동하며 정확한 callback·state·PKCE·Secure/HttpOnly cookie를 포함했다. 실제 데스크톱 브라우저의 기존 Google 계정 1개에서 본인 빈 도감·새로고침 후 세션 유지·로그아웃 후 재로드 미로그인 PASS; 서버는 최근 웹 세션 1/1 revoke, 익명 도감 401, 공개 점포 조회 200/0건. 값 원문·계정 식별자·쿠키는 기록하지 않았다. 실제 두 계정 간 도감 격리·휴대전화 브라우저 로그인·최신 APK는 `NOT_RUN`; 필수 v3 36개 ID 집계는 변경하지 않는다.
 
 [2026-09-25 운영 웹·API 전환 구조화 증거](evidence/aws-public-cutover-2026-09-25.json). 비밀값·개인정보는 포함하지 않는다.

@@ -17,7 +17,7 @@ GitHub에서 앱 받기: [운영 테스트 APK](https://github.com/2026-KW-HACKA
 - [모바일 개발용 UI 시안·로컬 실행](apps/mobile/README.md): 개발용 미리보기는 보존하고, Issue #136 시연 앱 전용 첫 역할 선택·권한 확인·빈 공간 투어 코드는 `IN_PROGRESS`. 운영 앱의 네 기능 탭은 유지하며 시연 설치본 실기는 `NOT_RUN`
 - 시연 Android 빌드 경계: `kr.masscom.wolgye.demo`/`masscom-demo`와 전용 API URL의 교차 연결 거절을 구현. 실제 시연 OAuth·Reown·API/DB·APK/실기·공개 배포는 `NOT_RUN`이며 [세 빌드의 경계](apps/mobile/README.md#세-빌드의-경계)에 현재 상태를 구분했습니다.
 - [시연 호스트 격리 준비](infra/showcase-host/README.md): 독립 Compose·초대 계정용 seed/STAFF 관리 코드를 로컬에서 검증. AWS 호스트 배포·외부 HTTPS는 미완료
-- [기존 Lightsail의 포털·운영 웹 이관](infra/lightsail/README.md): `masscom.kr`의 AWS DNS·공인 TLS·운영 웹 Google 로그인과 기존 계정 1개의 빈 도감·로그아웃을 외부 HTTPS에서 확인했습니다. 실제 두 계정 간 격리와 최신 Android APK는 별도 미검증
+- [기존 Lightsail의 포털·운영 웹 이관](infra/lightsail/README.md): AWS DNS·공인 TLS와 운영 웹 Google 로그인을 확인했습니다. Samsung Android Chrome에서 서로 다른 Google 계정 2개로 순차 로그인·빈 도감·세션 전환을 확인했고, 실제 기록이 있는 계정 간 격리와 최신 APK는 별도 미검증
 
 - [모바일 디자인 기준](DESIGN.md): 탐색·방문 인증·도감·내 정보와 읽기 전용 시연 웹의 파란 팔레트·접근성 원칙
 - [AI 모델 사용 기준](docs/AI_MODEL_ROUTING.md): GPT‑6 Luna/Sol/Astra 작업별 사용처와 검증 경계
@@ -25,7 +25,7 @@ GitHub에서 앱 받기: [운영 테스트 APK](https://github.com/2026-KW-HACKA
 - [프로젝트 포털](docs/index.html): 흐름·아키텍처·평가 증거·결정 상태를 시각적으로 탐색
 - [공개 프로젝트 포털](https://masscom.kr): 다운로드 없이 열리는 기존 AWS Lightsail의 실제 HTTPS 배포
 - [Android 설치본 상태](docs/ANDROID_DOWNLOADS.md): 운영 테스트 APK와 아직 배포하지 않은 시연 APK의 차이
-- [시연용 읽기 전용 웹](apps/showcase-web/README.md) · [운영용 읽기 전용 웹](apps/production-web/README.md): 별도 코드·데이터 경계. 운영 웹은 AWS HTTPS에서 기존 Google 계정 1개의 본인 도감 읽기·세션 유지·로그아웃을 확인했고, 실계정 A/B 전환은 미검증
+- [시연용 읽기 전용 웹](apps/showcase-web/README.md) · [운영용 읽기 전용 웹](apps/production-web/README.md): 별도 코드·데이터 경계. 운영 웹은 AWS HTTPS에서 데스크톱 1계정과 Android Chrome의 2계정 순차 로그인·로그아웃을 확인했지만, 두 계정 모두 기록 0건이라 비어 있지 않은 도감의 교차 노출은 미검증
 - [현재 HTTPS 시연 웹](https://masscom-showcase-web.vercel.app): 가상 점포 A·B·C 고정 예시. `demo.masscom.kr` 맞춤 주소는 DNS 미연결
 - [공개 계정 삭제 안내](https://masscom.kr/account-deletion): 삭제 요청·보존 정보·지갑 비밀 경계
 - [발표·시연 페이지](docs/presentation.html): 3분·5분 발표 장면과 실제/미실행 증거 경계
@@ -75,7 +75,7 @@ python3 -m http.server 4173 --directory docs
 | --- | --- | --- |
 | 저장소·문서·CI 기준선 | `VERIFIED` | PR #2·#4 merge, GitHub Actions PASS |
 | 프로젝트 포털 | `VERIFIED` | PR #6, CI PASS, 접근성·반응형 증거 저장 |
-| 운영용 웹 | `IN_PROGRESS` | AWS HTTPS `/app/`·공개 점포 0건·Samsung Android Chrome 표시 PASS. 실제 Google 계정 1개의 본인 빈 도감·새로고침 유지·로그아웃 및 익명 401 PASS. 두 계정 간 실계정 격리·최신 Android APK는 `NOT_RUN` |
+| 운영용 웹 | `IN_PROGRESS` | AWS HTTPS `/app/`·공개 점포 0건, 데스크톱 본인 빈 도감·새로고침·로그아웃·익명 401 PASS. Samsung Android Chrome에서 Google A/B 순차 로그인, A 로그아웃 후 B 세션 유지 PASS. 실제 기록이 있는 계정 간 격리·최신 Android APK는 `NOT_RUN` |
 | Android 고객 앱 | `IMPLEMENTED` | Expo 57 dev-client, Android 16 AVD와 Samsung SM-S928N 실기기 debug APK 설치·실행·복귀 |
 | Android 기본 UI 네 탭 | `VERIFIED` | 탐색·방문 인증·도감·내 정보, 360dp·200% 글씨·실시간 다크 모드·뒤로 가기·개발 scheme를 Samsung Android 16에서 확인. 모바일 자동 146개·typecheck·lint·Android export PASS([증거](docs/evidence/android-ui-navigation-2026-09-23.json)) |
 | 탐색 검색·참여 상태 필터 | `IN_PROGRESS` | 공개 API가 반환한 실제 점포 이름·주소·이야기·캠페인만 로컬 검색. 모바일 148개 자동 시험 PASS. Samsung에서 실제 0건의 라이트·다크·상태표시줄을 확인했으나 점포가 없어 검색·필터 실기는 `NOT_RUN`([증거](docs/evidence/android-discovery-2026-09-23.json)) |
@@ -213,7 +213,7 @@ npm run test:postgres --prefix apps/api
 
 - 정적 프로젝트 포털: `https://masscom.kr`·`/privacy`·`/account-deletion` HTTPS 200 `VERIFIED`
 - 읽기 전용 시연 웹: [별도 HTTPS 주소](https://masscom-showcase-web.vercel.app)의 A·B·C HTML과 CSS 200, 로컬 라이트/다크·대비·반응형 검사 PASS([증거](docs/evidence/design-consistency-2026-09-24/README.md)). `demo.masscom.kr` DNS와 Android 시연 앱 동기화는 미완료. A 방문을 가정한 고정 예시는 실제 협약 점포·방문·NFT 실적이 아니며 운영 API·DB와 연결하지 않았습니다.
-- 읽기 전용 운영 웹: [https://masscom.kr/app/](https://masscom.kr/app/)이 기존 Lightsail의 공개 점포 API를 조회하고, 현재 실제 점포 0곳을 빈 상태로 표시합니다. Samsung Android Chrome에서 화면 로드를 확인했습니다. 운영 OAuth 비밀값을 Git 밖의 권한 600 런타임에 반영했고, 기존 Google 계정 1개로 본인 빈 도감·새로고침 유지·로그아웃과 익명 401을 확인했습니다. 실제 A/B 계정 전환은 `NOT_RUN`입니다.
+- 읽기 전용 운영 웹: [https://masscom.kr/app/](https://masscom.kr/app/)이 기존 Lightsail의 공개 점포 API를 조회하고, 현재 실제 점포 0곳을 빈 상태로 표시합니다. OAuth 비밀값은 Git 밖의 권한 600 런타임에만 있습니다. 데스크톱의 단일 계정 도감·로그아웃과 Samsung Android Chrome의 A/B 순차 로그인·A 로그아웃 후 B 세션 유지를 확인했습니다. 서버의 최근 세션 3건은 서로 다른 계정 2개이며 이전 2건은 철회됐습니다. 두 계정 모두 방문·수집품 0건이어서 실제 기록의 교차 노출은 `NOT_RUN`입니다.
 - 운영 Android UI: Issue #142에서 개발용 파란 시안과 네 탭·보조 화면의 색상 기준을 통일했고, 후속 Issue #146에서 ‘내 정보’ 렌더 오류를 수정했습니다. 모바일 182개 단위 테스트·typecheck·lint PASS. Samsung Android 16 개발 앱의 [오류 전후 UI](docs/evidence/android-dev-ui-2026-09-24/README.md)와 새 연결에서의 [로컬 가상 방문 수령→도감→추천](docs/evidence/android-local-claim-2026-09-24/README.md)을 구분해 확인했습니다. 실제 카메라 QR·외부 지갑·운영/시연 release APK는 NOT_RUN이며 공개 배포 완료를 뜻하지 않습니다.
 - 로컬 API 시연 데이터: [전용 DB 실행 방법](apps/api/README.md#격리된-로컬-시연-점포)에 따라 `masscom_showcase_test`에 가상 점포 A·B·C와 각 점포의 1/3/5회 목표를 생성. 실제 영업점·방문·NFT가 아니며 운영 API/DB에는 미적용. 정적 시연 웹과도 아직 실시간 연결되지 않습니다.
 - 로컬 시연 API·DB: [독립 Docker 환경](infra/showcase-local/README.md)은 운영 Compose와 다른 프로젝트·볼륨·loopback 포트로만 실행하고, 인증을 닫은 상태에서 가상 점포 공개 조회를 검증합니다. 외부 시연 API·QR·지갑·NFT 기능은 여전히 `NOT_RUN`입니다.
