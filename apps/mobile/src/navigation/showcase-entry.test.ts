@@ -26,6 +26,10 @@ test('role choice survives first sign-in but clears on sign-out or account chang
   assert.deepEqual(reconcileShowcaseAccount({ role: 'merchant', accountId: 'account-a' }, 'account-b'), {
     role: undefined, accountId: 'account-b',
   });
+  const afterSignIn = reconcileShowcaseAccount(selected, 'account-a');
+  assert.deepEqual(reconcileShowcaseAccount(afterSignIn, 'account-b'), {
+    role: undefined, accountId: 'account-b',
+  });
 });
 
 test('showcase role chooses a destination without bypassing authentication', () => {

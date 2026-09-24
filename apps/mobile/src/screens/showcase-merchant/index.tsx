@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, ScrollView, Text, View, useColorScheme } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { createMerchantApiClient } from '@/merchant/merchant-api';
 import { findShowcaseStaffMerchant } from '@/merchant/showcase-staff';
 import { MerchantClaimScreen } from '@/screens/merchant-claim';
+import { FoundationScreen } from '@/screens/foundation';
 import { colorsForScheme } from '@/theme/palette';
 
 type Props = {
@@ -13,19 +14,32 @@ type Props = {
   accountId: string;
   credential: AccountCredential;
   onBrowse: () => void;
+  onLogout: () => Promise<void>;
+  onSessionInvalid: () => Promise<void>;
 };
 
-export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse }: Props) {
+export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse, onLogout, onSessionInvalid }: Props) {
   const colors = colorsForScheme(useColorScheme());
   const [retry, setRetry] = useState(0);
+  const [tour, setTour] = useState(false);
+  const [logoutError, setLogoutError] = useState(false);
   const [state, setState] = useState<
     { status: 'loading' } | { status: 'denied' } | { status: 'error' } |
     { status: 'allowed'; merchantId: string }
   >({ status: 'loading' });
   const client = useMemo(
-    () => apiUrl ? createCommerceApiClient({ apiUrl, credential }) : undefined,
-    [apiUrl, credential],
+    () => apiUrl ? createCommerceApiClient({ apiUrl, credential, onSessionInvalid }) : undefined,
+    [apiUrl, credential, onSessionInvalid],
   );
+
+  useEffect(() => {
+    if (tour || state.status !== 'allowed') return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBrowse();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [onBrowse, state.status, tour]);
 
   useEffect(() => {
     if (!apiUrl || !client) return;
@@ -48,13 +62,30 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
 
   const status = apiUrl ? state.status : 'error';
 
+  if (tour) return <FoundationScreen initialRole="merchant" showcaseTour onExit={() => setTour(false)} />;
+
   if (state.status === 'allowed' && apiUrl) {
-    return <MerchantClaimScreen
-      apiUrl={apiUrl}
-      accountId={accountId}
-      merchantId={state.merchantId}
-      credential={credential}
-    />;
+    return <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 20, paddingTop: 12 }}>
+        <Pressable accessibilityRole="button" onPress={onBrowse} style={{ minHeight: 48, justifyContent: 'center' }}>
+          <Text style={{ color: colors.primary, fontWeight: '700' }}>고객 탐색으로</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => setTour(true)} style={{ minHeight: 48, justifyContent: 'center' }}>
+          <Text style={{ color: colors.primary, fontWeight: '700' }}>빈 공간 투어</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => void onLogout().catch(() => setLogoutError(true))} style={{ minHeight: 48, justifyContent: 'center' }}>
+          <Text style={{ color: colors.primary, fontWeight: '700' }}>로그아웃</Text>
+        </Pressable>
+      </View>
+      {logoutError ? <Text accessibilityLiveRegion="polite" style={{ paddingHorizontal: 20, color: colors.label }}>로그아웃을 완료하지 못했습니다. 다시 시도해 주세요.</Text> : null}
+      <MerchantClaimScreen
+        apiUrl={apiUrl}
+        accountId={accountId}
+        merchantId={state.merchantId}
+        credential={credential}
+        onSessionInvalid={onSessionInvalid}
+      />
+    </View>;
   }
 
   return <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', gap: 20, padding: 28, backgroundColor: colors.background }}>

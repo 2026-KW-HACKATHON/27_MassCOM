@@ -10,7 +10,7 @@ export async function findShowcaseStaffMerchant(
       if (context.merchantId !== merchantId) throw new Error('MERCHANT_CONTEXT_MISMATCH');
       if (context.permissions.includes('CONFIRM_VISIT')) return context;
     } catch (error) {
-      if (error instanceof CommerceApiError && error.status === 403) continue;
+      if (error instanceof CommerceApiError && error.status === 403 && error.code === 'MERCHANT_ACCESS_DENIED') continue;
       throw error;
     }
   }

@@ -53,6 +53,10 @@ function AuthenticatedRoot() {
   const themeMode = useColorScheme() === 'dark' ? 'dark' : 'light';
   const [entry, setEntry] = useState<ShowcaseRoleState>({});
   const activeEntry = reconcileShowcaseAccount(entry, auth.accountId);
+  if (activeEntry !== entry) {
+    setEntry(activeEntry);
+    return null;
+  }
 
   const destination = showcaseEntryDestination(
     Application.applicationId,
@@ -83,6 +87,8 @@ function AuthenticatedRoot() {
       accountId={auth.accountId}
       credential={auth.credential}
       onBrowse={() => setEntry({ role: 'customer', accountId: auth.accountId })}
+      onLogout={auth.logout}
+      onSessionInvalid={auth.invalidateSession}
     />;
   }
 

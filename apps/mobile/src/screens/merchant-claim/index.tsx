@@ -32,16 +32,17 @@ type Props = {
   merchantId: string;
   defaultCustomerAccountId?: string;
   credential?: AccountCredential;
+  onSessionInvalid?: () => void | Promise<void>;
 };
 
-export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCustomerAccountId = '', credential }: Props) {
+export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCustomerAccountId = '', credential, onSessionInvalid }: Props) {
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeMerchantClaimStyles(palette, StyleSheet.hairlineWidth));
   const scrollView = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
   const api = useMemo(
-    () => createCommerceApiClient({ apiUrl, credential: credential ?? createDemoCredential(accountId) }),
-    [accountId, apiUrl, credential],
+    () => createCommerceApiClient({ apiUrl, credential: credential ?? createDemoCredential(accountId), onSessionInvalid }),
+    [accountId, apiUrl, credential, onSessionInvalid],
   );
   const [context, setContext] = useState<MerchantContext>();
   const [contextError, setContextError] = useState<string>();
@@ -117,6 +118,7 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
   return (
     <ScrollView
       ref={scrollView}
+      style={{ flex: 1 }}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
     >

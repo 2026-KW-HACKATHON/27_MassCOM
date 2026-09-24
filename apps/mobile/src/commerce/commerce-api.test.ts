@@ -264,3 +264,26 @@ test('invalidates a rejected bearer session once', async () => {
   await assert.rejects(client.getCollection(), /SESSION_INVALID/);
   assert.equal(invalidations, 1);
 });
+
+test('merchant context and claim issue both invoke bearer session recovery on expiry', async () => {
+  const paths: string[] = [];
+  let invalidations = 0;
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'expired-session' },
+    onSessionInvalid: async () => { invalidations += 1; },
+    fetcher: async (input) => {
+      paths.push(String(input));
+      return Response.json({ code: 'SESSION_INVALID' }, { status: 401 });
+    },
+  });
+  await assert.rejects(client.getMerchantContext('store-a'), /SESSION_INVALID/);
+  await assert.rejects(client.issueClaim({
+    merchantId: 'store-a', customerAccountId: 'customer-a', merchantReference: 'visit-a',
+  }), /SESSION_INVALID/);
+  assert.deepEqual(paths, [
+    'https://api.example.test/merchant/merchants/store-a/context',
+    'https://api.example.test/merchant/merchants/store-a/claim-slots',
+  ]);
+  assert.equal(invalidations, 2);
+});

@@ -9,7 +9,7 @@ test('showcase staff entry accepts only server-confirmed visit permission', asyn
     merchantId: 'store-b', role: 'STAFF', permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT'],
   };
   const result = await findShowcaseStaffMerchant(['store-a', 'store-b'], async (id) => {
-    if (id === 'store-a') throw new CommerceApiError(403, 'MERCHANT_PERMISSION_REQUIRED');
+    if (id === 'store-a') throw new CommerceApiError(403, 'MERCHANT_ACCESS_DENIED');
     return allowed;
   });
   assert.deepEqual(result, allowed);
@@ -28,5 +28,14 @@ test('network errors remain visible instead of being mistaken for no permission'
       throw new CommerceApiError(503, 'RPC_UNAVAILABLE');
     }),
     /RPC_UNAVAILABLE/,
+  );
+});
+
+test('showcase invitation revocation is not treated as ordinary missing staff permission', async () => {
+  await assert.rejects(
+    () => findShowcaseStaffMerchant(['store-a'], async () => {
+      throw new CommerceApiError(403, 'INVITE_REQUIRED');
+    }),
+    /INVITE_REQUIRED/,
   );
 });
