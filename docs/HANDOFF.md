@@ -2,16 +2,16 @@
 
 마지막 갱신 시각: 2026-09-25 KST
 
-## 현재 GitHub 이슈 상태 — 2026-09-24
+## 현재 GitHub 이슈 상태 — 2026-09-25
 
-- 최신 #137: PR #158 AWS 웹 코드가 병합됐고 post-merge main CI 통과. 웹 전용 세션/Google OIDC·읽기 전용 도감은 [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159)에서 CI·수정 중이며 외부 배포는 없다. 독립 리뷰가 다른 탭의 이전 도감 잔존과 OAuth 장애 오분류를 발견해 RED→GREEN 수정했고 로컬 전체 회귀를 통과했다. `masscom.kr` 응답의 `server: Vercel`; AWS 브라우저는 IAM 로그인 화면, CLI 인증·SSH 키 없음. 다음 실행에서는 `gh pr checks 159`, 리뷰 수정 커밋·PR 상태를 확인하고, AWS 로그인 후 [이관 절차](../infra/lightsail/README.md)의 용량·TLS·DNS 순서를 진행한다. 실계정 연결 전 호스트에서 같은 출처 쿠키·TLS를 증명해야 한다.
+- 최신 #137: [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159) merge `e6dcc82`, PR CI `36019777124`·병합 후 main CI `36020699683` PASS. 웹 전용 세션/Google OIDC·읽기 전용 도감은 코드·로컬/CI 검증 단계까지만 완료했으며 외부 배포는 없다. 독립 리뷰의 다른 탭 이전 도감 잔존과 OAuth 장애 오분류는 RED→GREEN 수정했다. `masscom.kr` 응답의 `server: Vercel`; AWS 브라우저는 IAM 로그인 화면, CLI 인증·SSH 키 없음. `adb devices -l`에는 현재 기기가 없다. 다음 실행은 AWS 로그인 후 [이관 절차](../infra/lightsail/README.md)의 용량·요금·TLS·DNS를 확인하고 비밀값 없는 같은 출처 쿠키 경로를 외부에서 실증하는 것이다. 그 전에는 실계정을 연결하지 않는다.
 
 - #137 AWS 웹 이관 PR #158: [설계·실행 계획](superpowers/plans/2026-09-24-lightsail-web-consolidation.md)과 [로컬 Caddy 증거](evidence/aws-web-local-2026-09-24.json)를 작성해 병합했다. 공개 14개 파일만 복사하고 포털·법적 경로·`/app/`·assetlinks를 로컬 검증했으며 웹 전용 배포 스크립트는 원격 미실행이다. `masscom.kr` DNS는 여전히 Vercel, AWS 로그인/SSH·현재 비용/용량 확인이 없어 DNS 공개 전환 `BLOCKED`다.
 - #137 시연 호스트 경계는 [PR #157](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/157) merge `96341e8`, main CI `36005667769` PASS다. 이는 로컬·CI seed와 격리 근거이지 외부 시연 API 배포 증거가 아니다.
 - #136 시연 역할 진입은 [PR #156](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/156) merge `5e91728`, main CI `35998825263` PASS까지 확인했다. 실제 시연 APK/외부 API·OAuth/지갑 실기는 `NOT_RUN`이므로 Issue는 계속 OPEN이다.
 - [#136](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/136)과 [#137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)은 `OPEN`이다. 이전 `CLOSED / NOT_PLANNED` 처리는 실행 계획 없이 미완료 수용 기준을 닫은 오류여서 되돌렸다. 그때의 종료 댓글은 이력일 뿐 완료 증거가 아니다.
-- #137의 [정적 시연 웹](https://masscom-showcase-web.vercel.app)은 공개됐지만 `demo.*` DNS·외부 시연 API/DB·전용 OAuth·시연 APK/실기·운영 웹 개인 도감은 미완료다. [외부 시연 전달](superpowers/plans/2026-09-24-issue137-showcase-delivery.md)과 [운영 웹 도감](superpowers/plans/2026-09-24-issue137-production-collection.md)을 별도 검증 게이트로 진행한다.
-- 다음 작업은 현재 웹 도감 브랜치의 보안 리뷰·한글 PR·CI와, AWS 로그인 뒤 [이관 실행 순서](../infra/lightsail/README.md)의 1단계 비용·용량 증거 수집이다.
+- #137의 [정적 시연 웹](https://masscom-showcase-web.vercel.app)은 공개됐지만 `demo.*` DNS·외부 시연 API/DB·전용 OAuth·시연 APK/실기·운영 웹 도감의 외부 실계정 검증은 미완료다. [외부 시연 전달](superpowers/plans/2026-09-24-issue137-showcase-delivery.md)과 [운영 웹 도감](superpowers/plans/2026-09-24-issue137-production-collection.md)을 별도 검증 게이트로 진행한다.
+- 다음 작업은 AWS 로그인 후 [이관 실행 순서](../infra/lightsail/README.md)의 1단계 비용·용량 증거 수집이다.
 
 ## Issue #137 시연 웹 Chrome CI 시작 지연
 
