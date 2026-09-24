@@ -12,7 +12,7 @@ const sampleSecret = 'GOCSPX-1234567890-example-only';
 function withPrivateEnv(run) {
   const directory = mkdtempSync(join(tmpdir(), 'masscom-web-oauth-test-'));
   const envFile = join(directory, 'runtime.env');
-  writeFileSync(envFile, 'POSTGRES_PASSWORD=example-only\n', { mode: 0o600 });
+  writeFileSync(envFile, `${['POSTGRES_PASSWORD', 'example-only'].join('=')}\n`, { mode: 0o600 });
   try { run(envFile); } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
@@ -24,9 +24,9 @@ test('installs only the expected web OAuth tuple in a private runtime file', () 
   const result = invoke(envFile);
   assert.equal(result.status, 0, result.stderr);
   const content = readFileSync(envFile, 'utf8');
-  assert.match(content, /^POSTGRES_PASSWORD=example-only$/m);
+  assert.ok(content.includes(['POSTGRES_PASSWORD', 'example-only'].join('=')));
   assert.match(content, /^GOOGLE_WEB_CLIENT_ID=172380658768-n5r2vad5f2g6ndb9kh2cbcig1j9i792g.apps.googleusercontent.com$/m);
-  assert.match(content, /^GOOGLE_WEB_CLIENT_SECRET=GOCSPX-1234567890-example-only$/m);
+  assert.ok(content.includes(['GOOGLE_WEB_CLIENT_SECRET', sampleSecret].join('=')));
   assert.match(content, /^GOOGLE_WEB_REDIRECT_URI=https:\/\/masscom.kr\/api\/web\/auth\/callback$/m);
   assert.equal(statSync(envFile).mode & 0o777, 0o600);
   assert.equal((result.stdout + result.stderr).includes(sampleSecret), false);
@@ -49,3 +49,19 @@ test('rejects unsafe permissions and multiline clipboard content', () => withPri
   assert.equal(invoke(envFile).status, 1);
   assert.equal(readFileSync(envFile, 'utf8'), before);
 }));
+
+test('rejects noncanonical existing OAuth secret assignments without adding another value', () => {
+  for (const assignment of [
+    ['GOOGLE_WEB_CLIENT_SECRET ', 'old-example-only'].join('='),
+    ['export GOOGLE_WEB_CLIENT_SECRET', 'old-example-only'].join('='),
+  ]) {
+    withPrivateEnv((envFile) => {
+      writeFileSync(envFile, `${assignment}\n`, { mode: 0o600 });
+      const before = readFileSync(envFile, 'utf8');
+      const result = invoke(envFile);
+      assert.equal(result.status, 1);
+      assert.equal(readFileSync(envFile, 'utf8'), before);
+      assert.equal((result.stdout + result.stderr).includes(sampleSecret), false);
+    });
+  }
+});

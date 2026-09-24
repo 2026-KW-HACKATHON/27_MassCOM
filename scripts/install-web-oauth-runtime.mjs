@@ -31,7 +31,9 @@ try {
   };
   const existing = new Map();
   for (const line of current.split('\n')) {
+    const possibleKey = /^\s*(?:export\s+)?(GOOGLE_WEB_CLIENT_ID|GOOGLE_WEB_CLIENT_SECRET|GOOGLE_WEB_REDIRECT_URI)\s*=/.exec(line)?.[1];
     const match = /^(GOOGLE_WEB_CLIENT_ID|GOOGLE_WEB_CLIENT_SECRET|GOOGLE_WEB_REDIRECT_URI)=(.*)$/.exec(line);
+    if (possibleKey && !match) throw new Error(`unsupported ${possibleKey} formatting in runtime env`);
     if (!match) continue;
     if (existing.has(match[1])) throw new Error(`duplicate ${match[1]} in runtime env`);
     existing.set(match[1], match[2]);
