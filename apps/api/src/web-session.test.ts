@@ -20,5 +20,5 @@ test('web session lookup does not disguise a database outage as an invalid user 
     hmacSecret: 'web-session-disposable-lifecycle-key-at-least-32-bytes',
     ttlMs: 60_000,
   });
-  await assert.rejects(store.resolve(token), /DB_UNAVAILABLE/);
+  await assert.rejects(store.resolve(token, 'masscom.kr'), /DB_UNAVAILABLE/);
 });

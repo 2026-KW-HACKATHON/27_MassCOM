@@ -63,12 +63,12 @@ const previewFiles = [
 
 ### Task 2: 기존 apex 세션을 보존하는 DB 호스트 바인딩
 
-**Files:** Create `apps/api/migrations/0016_web_session_origin.sql`, `apps/api/src/web-origin.ts`, `apps/api/src/postgres/web-origin-migration.postgres.integration.ts`; modify `apps/api/src/postgres/web-session.ts`, `apps/api/src/web-session.postgres.integration.ts`, `apps/api/src/web-session.test.ts`.
+**Files:** Create `apps/api/migrations/0016_web_session_origin.sql`, `apps/api/src/web-origin.ts`, `apps/api/src/postgres/web-origin-migration.postgres.integration.ts`; modify `apps/api/src/postgres/web-session.ts`, `apps/api/src/web-session.postgres.integration.ts`, `apps/api/src/web-session.test.ts`, `apps/api/src/web-auth.ts`의 기존 apex store 호출(이번 Task의 임시 호환 경계).
 
 **Interfaces:** `apps/api/src/web-origin.ts`가 `WebOriginHost = 'masscom.kr' | 'www.masscom.kr'`와 `WebOrigin = 'https://masscom.kr' | 'https://www.masscom.kr'`를 내보낸다. `PostgresWebSessionStore.create(accountId: string, originHost: WebOriginHost)`, `resolve(token: string, originHost: WebOriginHost)`, `revoke(token: string, originHost: WebOriginHost)`가 호스트를 조건으로 사용한다. 계정 삭제의 기존 전체 세션 회수 SQL은 호스트 제한 없이 유지한다.
 
 - [ ] **Step 1: 실패 시험.** disposable `_test` DB의 고유 임시 schema에서 기존 `0014_web_sessions.sql`로 구형 테이블·세션을 만든 뒤 실제 `0016_web_session_origin.sql` 텍스트를 같은 client의 `search_path`에서 실행해 기존 행이 `origin_host='masscom.kr'`로 보존되는지 확인한다. 별도 통합 시험에서는 새 www 토큰의 apex 조회/철회가 실패하고 www 조회/철회만 성공하는지, 운영 계정 삭제가 양쪽 세션을 모두 철회하는지 확인한다. 임시 schema는 `finally`에서 정확한 이름만 제거한다.
-- [ ] **Step 2: RED 확인.** `TEST_DATABASE_URL`이 이름 `_test`로 끝나는 분리 DB일 때 `npm run test:postgres --prefix apps/api`를 실행해 호스트 인자/열 부재로 실패함을 확인한다. 운영 DB를 이 시험에 연결하지 않는다.
+- [ ] **Step 2: RED 확인.** `TEST_DATABASE_URL`이 이름 `_test`로 끝나는 분리 DB일 때 `DATABASE_URL`도 같은 loopback `_test` DB로 주어 `npm run db:migrate --prefix apps/api`를 먼저 실행한다. 그 다음 `npm run test:postgres --prefix apps/api`에서 호스트 인자/열 부재로 실패함을 확인한다. 운영 DB를 이 시험에 연결하지 않는다.
 - [ ] **Step 3: additive migration·구현.** `web-origin.ts`에 위 두 literal union 타입을 선언한다. `0016_web_session_origin.sql`에서 `web_sessions`에 `origin_host text NOT NULL DEFAULT 'masscom.kr'`와 두 호스트만 허용하는 CHECK를 추가한다. `create`의 INSERT와 `resolve`의 SELECT, `revoke`의 UPDATE에 `origin_host=$n` 조건을 넣는다. `token_hash`의 기존 UNIQUE와 계정 삭제 범위는 변경하지 않는다.
 
 ```sql

@@ -146,16 +146,16 @@ export class WebAuthService {
     );
     const accountId = account.rows[0]?.account_id;
     if (!accountId) throw new WebAuthError('WEB_AUTH_ACCOUNT_NOT_FOUND');
-    const session = await this.sessions.create(accountId);
+    const session = await this.sessions.create(accountId, 'masscom.kr');
     return { token: session.token };
   }
 
   async resolveSession(token: string): Promise<string> {
-    return this.sessions.resolve(token);
+    return this.sessions.resolve(token, 'masscom.kr');
   }
 
   async logout(token: string): Promise<void> {
-    await this.sessions.revoke(token);
+    await this.sessions.revoke(token, 'masscom.kr');
   }
 
   private async exchangeGoogleCode(code: string, verifier: string): Promise<string> {
