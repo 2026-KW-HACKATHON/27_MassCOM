@@ -15,6 +15,7 @@ const buildEnvironmentKeys = [
   'EXPO_PUBLIC_API_URL',
   'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID',
   'EXPO_PUBLIC_REOWN_PROJECT_ID',
+  'MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID',
   'EXPO_PUBLIC_DEMO_ACCOUNT_ID',
   'EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID',
   'EXPO_PUBLIC_DEMO_MERCHANT_ID',
@@ -24,6 +25,7 @@ const buildEnvironmentKeys = [
 type EvaluatedExpoConfig = {
   name?: string;
   scheme?: string;
+  extra?: { masscomShowcase?: { googleWebClientId?: string } };
   android?: {
     package?: string;
     blockedPermissions?: string[];
@@ -50,6 +52,7 @@ test('showcase accepts only its exact HTTPS API origin', () => {
   assert.doesNotThrow(() => validateBuildEnvironment('showcase', {
     EXPO_PUBLIC_API_URL: 'https://demo-api.masscom.kr',
     MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+    MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID: '123-demo.apps.googleusercontent.com',
   }));
   for (const apiUrl of [
     'https://api.masscom.kr',
@@ -105,6 +108,29 @@ test('showcase requires a source commit and refuses inherited auth or wallet pro
       [key]: 'production-public-id',
     }), new RegExp(`showcase build rejects ${key}`));
   }
+});
+
+test('showcase requires its own Google Web client and exposes only that public ID', () => {
+  assert.throws(() => validateBuildEnvironment('showcase', {
+    EXPO_PUBLIC_API_URL: 'https://demo-api.masscom.kr',
+    MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+  }), /MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID/);
+  for (const invalid of ['production-client', '  ', '123-demo.apps.googleusercontent.com/other']) {
+    assert.throws(() => validateBuildEnvironment('showcase', {
+      EXPO_PUBLIC_API_URL: 'https://demo-api.masscom.kr',
+      MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+      MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID: invalid,
+    }), /MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID/);
+  }
+  const result = evaluateExpoConfig({
+    APP_VARIANT: 'showcase',
+    EXPO_PUBLIC_API_URL: 'https://demo-api.masscom.kr',
+    MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+    MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID: '123-demo.apps.googleusercontent.com',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const config = JSON.parse(result.stdout) as EvaluatedExpoConfig;
+  assert.equal(config.extra?.masscomShowcase?.googleWebClientId, '123-demo.apps.googleusercontent.com');
 });
 
 test('showcase refuses every insecure development DEMO variable, including false', () => {
@@ -322,6 +348,7 @@ test('actual Expo showcase config has its own Android identity and no dev launch
     APP_VARIANT: 'showcase',
     EXPO_PUBLIC_API_URL: 'https://demo-api.masscom.kr',
     MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+    MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID: '123-demo.apps.googleusercontent.com',
   });
   assert.equal(result.status, 0, result.stderr);
   const config = JSON.parse(result.stdout) as EvaluatedExpoConfig;

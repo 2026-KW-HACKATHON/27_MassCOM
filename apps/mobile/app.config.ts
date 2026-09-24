@@ -19,6 +19,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
     EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     EXPO_PUBLIC_REOWN_PROJECT_ID: process.env.EXPO_PUBLIC_REOWN_PROJECT_ID,
+    MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID: process.env.MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID,
     MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
     EXPO_PUBLIC_DEMO_ACCOUNT_ID: process.env.EXPO_PUBLIC_DEMO_ACCOUNT_ID,
     EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID: process.env.EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID,
@@ -43,6 +44,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         : (config.name ?? '월계 마스코트 개발'),
     slug: config.slug ?? 'masscom-mobile',
     scheme: production ? 'masscom' : showcase ? 'masscom-demo' : 'masscom-dev',
+    extra: {
+      ...config.extra,
+      masscomShowcase: showcase
+        ? { googleWebClientId: process.env.MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID?.trim() }
+        : undefined,
+    },
     android: {
       ...config.android,
       package: production ? PRODUCTION_PACKAGE

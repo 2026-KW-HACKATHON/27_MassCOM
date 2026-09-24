@@ -2,6 +2,12 @@
 
 마지막 갱신 시각: 2026-09-24 KST
 
+## Issue #137 무료 시연 웹과 Android 인증 경계
+
+- 기존 `feat/137-showcase-auth-readiness` 브랜치는 계획 커밋 `ee849f4`에서 재개했다. 별도 Vercel Hobby 프로젝트 `masscom-showcase-web`의 배포 `dpl_46Ug4QohG2bfoMEdxnT7WuJ6g5UC`가 READY이고 [기본 HTTPS 주소](https://masscom-showcase-web.vercel.app) HTML/CSS 200·A/B/C 표기 PASS다([증거](evidence/showcase-web-vercel-2026-09-24.json)). `demo.masscom.kr`은 Vercel 프로젝트에 등록됐지만 가비아 DNS가 없어 미연결. 가비아 로그인은 소유자에게 비밀번호를 보내지 않고 직접 하도록 요청했다.
+- 시연 Android는 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID` 형식을 빌드에서 요구하고 Expo config `extra.masscomShowcase`에 담는다. 런타임은 설치 package `.demo`에서만 이 값을 읽고 기존 운영 Google/Reown ID fallback을 차단한다. 시연 지갑은 별도 Reown 프로젝트 전까지 비활성. 모바일 186/186·typecheck·lint·Android JS export·W08 PASS. 이는 실제 Google client 발급·외부 시연 API·APK 실기를 증명하지 않는다.
+- 기존 Lightsail의 `free -m`은 total 1906MiB·available 1257MiB, 디스크 53GiB 여유, 운영 Caddy/API/PostgreSQL healthy였다(읽기 전용 SSH). 신규 Lightsail 인스턴스·Paid Plan은 만들지 않았다.
+
 ## Issue #137 가상 점포 세 곳 확장
 
 - 사용자 요청으로 시연 웹과 로컬 `_test` DB를 가상 점포 A·B·C 총 3곳으로 확장했다. A 방문을 가정한 웹 도감은 고정 예시이며 실제 앱 진행과 동기화되지 않는다. 기존 A점포만 있는 전용 DB에 B·C를 추가할 때 A의 진행 수치를 보존하도록 seed를 바꿨다. 운영 DB·API·공개 사이트·기존 GitHub APK는 변경하지 않는다.

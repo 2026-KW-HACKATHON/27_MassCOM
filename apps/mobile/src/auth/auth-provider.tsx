@@ -1,4 +1,5 @@
 import * as Application from 'expo-application';
+import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { createContext, type PropsWithChildren, use, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -10,6 +11,7 @@ import { nativeGoogleSignIn } from './google-sign-in-runtime';
 import { createSessionStore, type StoredAuthSessionV1 } from './session-store';
 import { demoRuntimeConfig, createDemoCredential, isDevelopmentDemoBuild } from '@/config/demo-runtime';
 import { getPublicApiConfig } from '@/config/public-api';
+import { resolveRuntimeIdentity } from '@/config/showcase-identity';
 import { purgeForeignWalletSessions } from '@/wallet/account-scope';
 import { createAccountScopedAppKit, walletRuntimeConfig } from '@/wallet/appkit';
 import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
@@ -44,8 +46,16 @@ export type AuthSessionContextValue = {
 
 const AuthSessionContext = createContext<AuthSessionContextValue | undefined>(undefined);
 
+const runtimeIdentity = resolveRuntimeIdentity(
+  Application.applicationId,
+  Constants.expoConfig?.extra,
+  {
+    googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    reownProjectId: process.env.EXPO_PUBLIC_REOWN_PROJECT_ID,
+  },
+);
 const authConfiguration = getAuthConfiguration({
-  EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: runtimeIdentity.googleWebClientId,
 });
 const publicApiConfiguration = getPublicApiConfig({
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,

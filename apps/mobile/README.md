@@ -8,13 +8,14 @@
 | `showcase` | `kr.masscom.wolgye.demo` | `masscom-demo` | 정확히 `https://demo-api.masscom.kr` | Expo config·교차 연결 거절 자동 시험만 PASS |
 | `production` | `kr.masscom.wolgye` | `masscom` | 정확히 `https://api.masscom.kr` | 기존 release 검증 유지 |
 
-시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. **`demo.masscom.kr`·`demo-api.masscom.kr` 외부 배포, 전용 API/DB·Google/Reown 프로젝트 연결, 설치용 AAB/APK는 아직 검증되지 않았습니다.** 따라서 현 단계의 시연 variant는 로그인·QR 수령·지갑 연결까지 이용 가능한 앱이 아닙니다. 현재 시연 기능 시험은 별도 로컬 개발 앱과 `_test` DB에서만 합니다. 런타임의 개발 DEMO 인증도 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
+시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 정적 시연 웹은 [기본 Vercel HTTPS 주소](https://masscom-showcase-web.vercel.app)에서 열립니다. **`demo.masscom.kr` 맞춤 DNS, `demo-api.masscom.kr` 외부 API/DB와 설치용 AAB/APK는 아직 검증되지 않았습니다.** 따라서 현 단계의 시연 variant는 로그인·QR 수령·지갑 연결까지 이용 가능한 앱이 아닙니다. 현재 시연 기능 시험은 별도 로컬 개발 앱과 `_test` DB에서만 합니다. 런타임의 개발 DEMO 인증도 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
 
-`APP_VARIANT=showcase`는 기존 `.env.local`의 운영 Google/Reown ID 또는 개발 DEMO 변수가 있으면 빌드 설정을 거절합니다. 현재 환경 경계만 확인하려면 다음처럼 로컬 dotenv 로드를 끄고 공개 시험 URL만 명시합니다(실제 API 요청·APK 빌드 아님).
+`APP_VARIANT=showcase`는 기존 `.env.local`의 운영 Google/Reown ID 또는 개발 DEMO 변수가 있으면 빌드 설정을 거절합니다. 시연 전용 Google Web client ID를 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`로 요구하고, 설치 package가 `.demo`일 때만 앱 설정의 이 값을 읽습니다. 별도 Reown 프로젝트는 미설정이라 시연 지갑 연결은 비활성입니다. 현재 환경 경계만 확인하려면 로컬 dotenv 로드를 끄고 실제 발급받은 시연 전용 공개 ID를 명시합니다(실제 API 요청·APK 빌드 아님).
 
 ```bash
 EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
   MASSCOM_BUILD_SOURCE_COMMIT="$(git rev-parse HEAD)" \
+  MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID='<시연 전용 Google Web client ID>' \
   EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
   npx expo config --type public --json
 ```
@@ -86,6 +87,7 @@ npm run export:android
 
 - 고정 native 의존성: `react-native-nitro-google-signin@2.3.0`, `react-native-nitro-modules@0.37.1`, Expo SDK 57 호환 `expo-secure-store@57.0.4`
 - Web OAuth client ID는 `POST /auth/google`에서 검증할 ID token audience이며 API의 `GOOGLE_OAUTH_CLIENT_IDS`와 앱의 `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`가 같은 승인 값을 가리켜야 합니다.
+- 시연 앱만 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`를 공개 Web audience로 사용합니다. 실제 시연 API의 `GOOGLE_OAUTH_CLIENT_IDS`에도 **같은 시연 전용 ID만** 설정해야 하고 운영 API의 audience 목록에는 넣지 않습니다. Android OAuth client는 `kr.masscom.wolgye.demo`와 시연 APK에 실제 사용한 서명 인증서 SHA-1 조합으로 별도 등록해야 합니다. 아직 이 client·서버 audience·APK 실기 확인은 `NOT_RUN`입니다.
 - Android OAuth client는 package/SHA 조합별로 별도 생성합니다. 개발 package `kr.masscom.wolgye.dev`와 운영 package `kr.masscom.wolgye`, 각 서명 인증서 SHA-1을 Google Cloud에 정확히 등록해야 합니다. 목표 인프라를 만들었다는 사실만으로 실제 로그인 PASS가 되지 않습니다.
 - Android는 explicit Web client ID와 React Native native autolinking을 사용합니다. Nitro Expo config plugin v2.3.0은 iOS reversed client ID 또는 Firebase 파일을 요구하므로, 현재 Android-only 범위에서 가짜 iOS 값을 만들지 않고 등록하지 않았습니다. iOS 지원 시 실제 iOS OAuth client와 함께 추가해야 합니다.
 - 서버가 돌려준 `{ sessionToken, accountId, expiresAt }`는 SecureStore key `masscom.auth.session.v1`의 version 1 레코드에만 저장합니다. AsyncStorage·URL·화면·로그·증거 JSON에는 session token을 넣지 않습니다.
