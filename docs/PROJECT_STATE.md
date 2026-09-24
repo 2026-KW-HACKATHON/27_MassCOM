@@ -4,7 +4,7 @@
 
 ## 최신 작업 경계
 
-- D-034 `www.masscom.kr/app/`·`/preview/` 웹 통합 방향과 [서면 설계](superpowers/specs/2026-09-25-www-web-consolidation-design.md)는 사용자 승인, 독립 설계 검토 CLEAR다. [구현 계획](superpowers/plans/2026-09-25-www-web-consolidation.md)은 검토 대기. www DNS는 아직 Vercel CNAME(TTL 600초), 기존 Lightsail은 apex만 제공하며 코드·Google `www` 콜백·DNS 전환은 `NOT_RUN`이다. 현재 README의 Vercel 시연 웹 주소를 검증 전 `www/preview/` 완료로 바꾸지 않는다.
+- D-034 `www.masscom.kr/app/`·`/preview/` [설계](superpowers/specs/2026-09-25-www-web-consolidation-design.md)·[계획](superpowers/plans/2026-09-25-www-web-consolidation.md)은 사용자 승인됐다. 정적 preview allowlist, host-bound OAuth state·웹 세션, 정확한 Host·Origin 검사 코드는 로컬 브랜치에서 구현·시험 PASS([증거](evidence/www-web-local-2026-09-25.json)). www DNS는 아직 Vercel CNAME(TTL 600초)이며 Google `www` 콜백·운영 코드 배포·공인 TLS·실계정 www 로그인은 `NOT_RUN`이다. 외부 확인 전 README 주 주소를 `www/preview/` 완료로 바꾸지 않는다.
 
 - 시연 웹은 [공개 Vercel HTTPS](https://masscom-showcase-web.vercel.app/)에서 바로 볼 수 있고, [private GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1)의 HTML/CSS 원본·ZIP digest를 확인했다([증거](evidence/showcase-web-release-2026-09-25.json)). 시연 Android APK·Release는 아직 없으며 `demo-api.masscom.kr` DNS·별도 인증·서명 설치 검증 전이다. 웹 예시 기록을 운영 데이터·NFT 발행 실적으로 표시하지 않는다.
 
