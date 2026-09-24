@@ -43,7 +43,8 @@ run_case() {
 
 [[ "$(run_case prior-web true false false)" == '73' ]]
 [[ "$(sed -n '1p' "$scratch/actions")" == 'old:up -d --no-deps --force-recreate production-web' ]]
-[[ "$(wc -l < "$scratch/actions" | tr -d ' ')" == '1' ]]
+[[ "$(wc -l < "$scratch/actions" | tr -d ' ')" == '2' ]]
+grep -q '^old:exec -T production-web' "$scratch/actions"
 
 [[ "$(run_case prior-web true false false probe-id)" == '73' ]]
 [[ "$(sed -n '1p' "$scratch/actions")" == 'sudo:docker stop probe-id' ]]
