@@ -22,6 +22,7 @@ export type GoogleIdTokenClaims = {
   issuedAt: Date;
   expiresAt: Date;
   authTime?: Date;
+  nonce?: string;
 };
 
 export type JwksFetcher = (url: string) => Promise<{ ok: boolean; json: () => Promise<unknown> }>;
@@ -113,6 +114,11 @@ export class GoogleIdTokenVerifier {
     const subject = typeof payload.sub === 'string' ? payload.sub.trim() : '';
     if (!subject) throw new GoogleIdTokenError('ID_TOKEN_INVALID');
 
+    if (payload.nonce !== undefined && (typeof payload.nonce !== 'string' || !payload.nonce)) {
+      throw new GoogleIdTokenError('ID_TOKEN_INVALID');
+    }
+    const nonce = payload.nonce as string | undefined;
+
     let authTime: Date | undefined;
     if (payload.auth_time !== undefined) {
       if (
@@ -128,7 +134,7 @@ export class GoogleIdTokenVerifier {
       }
     }
 
-    return { subject, issuedAt, expiresAt, ...(authTime ? { authTime } : {}) };
+    return { subject, issuedAt, expiresAt, ...(authTime ? { authTime } : {}), ...(nonce ? { nonce } : {}) };
   }
 
   // Google rotates signing keys, so an unknown key id may earn a refetch. The token is still

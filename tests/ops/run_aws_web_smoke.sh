@@ -41,9 +41,15 @@ curl -fsS --max-time 8 http://127.0.0.1:8089/.well-known/assetlinks.json \
 curl -fsSI --max-time 8 http://127.0.0.1:8089/.well-known/assetlinks.json \
   | grep -Eqi '^content-type: application/json'
 
-for path in /HANDOFF.md /TEST_STATUS.md /evidence/showcase-host-local-2026-09-24.json /claim /mint /merchants/1 /api/web/collection; do
+for path in /HANDOFF.md /TEST_STATUS.md /evidence/showcase-host-local-2026-09-24.json /claim /mint /merchants/1 /api/web/unknown /api/claim /api/mint; do
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:8089$path")"
   [[ "$status" == '404' ]] || { echo "$path unexpectedly returned $status" >&2; exit 1; }
+done
+
+# The four explicit browser-session routes reach the absent API in this web-only smoke.
+for path in /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection; do
+  status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:8089$path")"
+  [[ "$status" == '502' ]] || { echo "$path unexpectedly returned $status" >&2; exit 1; }
 done
 
 merchant_status="$(curl -s -o "$scratch/merchants.json" -w '%{http_code}' --max-time 8 http://127.0.0.1:8089/merchants)"

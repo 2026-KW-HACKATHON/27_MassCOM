@@ -69,6 +69,15 @@ test('accepts a correctly signed Google ID token and exposes only the subject cl
   assert.equal(claims.expiresAt.toISOString(), new Date(1_789_952_400_000).toISOString());
 });
 
+test('returns the signed OIDC nonce for browser callback binding', async () => {
+  const pair = keyPair('web-nonce-key');
+  const claims = await verifierOf(fetcherOf(jwksOf(pair))).verify(
+    signedIdToken(pair, { nonce: 'browser-login-nonce' }),
+  );
+
+  assert.equal(claims.nonce, 'browser-login-nonce');
+});
+
 test('caches the key set so a second verification does not refetch', async () => {
   const pair = keyPair('kid-1');
   const fetcher = fetcherOf(jwksOf(pair));

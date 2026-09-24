@@ -1,4 +1,121 @@
 const MERCHANTS_URL = '/merchants';
+const COLLECTION_URL = '/api/web/collection';
+const collectionRequests = new WeakMap();
+
+const nftLabels = {
+  NOT_REQUESTED: 'NFT 미신청',
+  QUEUED: 'NFT 발행 접수',
+  CONFIRMING: 'NFT 확인 중',
+  FINALIZED: 'NFT 발행 완료',
+  REVIEW_REQUIRED: 'NFT 확인 필요',
+};
+
+function isCollection(value) {
+  return value && Array.isArray(value.visits) && Array.isArray(value.collectibles)
+    && value.visits.every((visit) => visit && typeof visit.merchantName === 'string'
+      && typeof visit.businessDate === 'string')
+    && value.collectibles.every((item) => item && typeof item.displayName === 'string'
+      && typeof item.merchantName === 'string' && item.appCollectibleStatus === 'COLLECTED'
+      && Object.hasOwn(nftLabels, item.nftStatus)
+      && (item.nftStatus !== 'FINALIZED' || (item.nft && typeof item.nft.tokenId === 'string')));
+}
+
+function collectionNodes(doc) {
+  const names = ['collection-status', 'collection-login', 'collection-retry', 'collection-logout',
+    'collection-content', 'visit-list', 'collectible-list'];
+  const nodes = Object.fromEntries(names.map((name) => [name, doc.getElementById(name)]));
+  return names.every((name) => nodes[name]) ? nodes : null;
+}
+
+function clearCollection(nodes) {
+  nodes['visit-list'].replaceChildren();
+  nodes['collectible-list'].replaceChildren();
+  nodes['collection-content'].hidden = true;
+  nodes['collection-login'].hidden = true;
+  nodes['collection-retry'].hidden = true;
+  nodes['collection-logout'].hidden = true;
+}
+
+function detail(doc, text) {
+  const item = doc.createElement('p');
+  item.textContent = text;
+  return item;
+}
+
+export async function loadCollection(fetcher, doc) {
+  const nodes = collectionNodes(doc);
+  if (!nodes) return;
+  const requestId = (collectionRequests.get(doc) ?? 0) + 1;
+  collectionRequests.set(doc, requestId);
+  clearCollection(nodes);
+  nodes['collection-status'].textContent = '내 도감을 확인하는 중입니다.';
+
+  try {
+    const response = await fetcher(COLLECTION_URL, {
+      method: 'GET', credentials: 'same-origin', cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (collectionRequests.get(doc) !== requestId) return;
+    if (response.status === 401) {
+      nodes['collection-status'].textContent = '내 도감을 보려면 Google 계정으로 로그인해 주세요.';
+      nodes['collection-login'].hidden = false;
+      return;
+    }
+    if (!response.ok) throw new Error('collection unavailable');
+    const data = await response.json();
+    if (collectionRequests.get(doc) !== requestId) return;
+    if (!isCollection(data)) throw new Error('invalid collection');
+
+    for (const visit of data.visits) {
+      const card = doc.createElement('article');
+      card.className = 'collection-card';
+      const name = doc.createElement('h4');
+      name.textContent = visit.merchantName;
+      card.append(name, detail(doc, `${visit.businessDate} 방문`));
+      nodes['visit-list'].append(card);
+    }
+    for (const item of data.collectibles) {
+      const card = doc.createElement('article');
+      card.className = 'collection-card';
+      const name = doc.createElement('h4');
+      name.textContent = item.displayName;
+      card.append(name, detail(doc, `${item.merchantName} · 앱 수집품`),
+        detail(doc, nftLabels[item.nftStatus]));
+      nodes['collectible-list'].append(card);
+    }
+    nodes['collection-status'].textContent = data.visits.length + data.collectibles.length === 0
+      ? '방문 기록과 수집품이 아직 없습니다. 앱에서 방문을 인증하면 이곳에서 확인할 수 있습니다.'
+      : `방문 ${data.visits.length}건, 앱 수집품 ${data.collectibles.length}개를 확인했습니다.`;
+    nodes['collection-content'].hidden = false;
+    nodes['collection-logout'].hidden = false;
+  } catch {
+    if (collectionRequests.get(doc) !== requestId) return;
+    clearCollection(nodes);
+    nodes['collection-status'].textContent = '도감을 불러올 수 없습니다. 다시 시도해 주세요.';
+    nodes['collection-retry'].hidden = false;
+  }
+}
+
+export function bindCollectionControls(fetcher, doc) {
+  const nodes = collectionNodes(doc);
+  if (!nodes) return;
+  nodes['collection-retry'].addEventListener('click', () => { void loadCollection(fetcher, doc); });
+  nodes['collection-logout'].addEventListener('click', async () => {
+    collectionRequests.set(doc, (collectionRequests.get(doc) ?? 0) + 1);
+    clearCollection(nodes);
+    nodes['collection-status'].textContent = '로그아웃하는 중입니다.';
+    try {
+      const response = await fetcher('/api/web/logout', {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      });
+      if (!response.ok) throw new Error('logout unavailable');
+      await loadCollection(fetcher, doc);
+    } catch {
+      nodes['collection-status'].textContent = '로그아웃을 확인하지 못했습니다. 다시 확인해 주세요.';
+      nodes['collection-retry'].hidden = false;
+    }
+  });
+}
 
 function isMerchant(value) {
   return value !== null && typeof value === 'object'
@@ -52,4 +169,6 @@ export async function loadMerchants(fetcher, doc) {
 
 if (typeof document !== 'undefined') {
   void loadMerchants(fetch, document);
+  bindCollectionControls(fetch, document);
+  void loadCollection(fetch, document);
 }

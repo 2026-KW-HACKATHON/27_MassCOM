@@ -23,6 +23,8 @@ Phase 2 핵심 loopback DEMO와 Phase 3 Local Anvil 발행·복구 흐름은 구
 
 ## Issue #137 로컬 가상 방문 순환 증거
 
+- **중간 기획 재현성·최종 구현 완성도:** PR #158은 운영 웹의 AWS 이관 코드를 로컬·CI로 확인했으며 `feat/137-web-collection-auth`는 같은 출처의 웹 세션·본인 도감 읽기 경계를 로컬 PostgreSQL·Caddy·브라우저로 시험했다([상세 결과](TEST_STATUS.md)). 실제 `masscom.kr` AWS 배포·Google 실계정 A/B·Android 브라우저가 끝나기 전에는 외부 상용화 실증으로 발표하지 않는다.
+
 - **중간 논리의 연결성·기획 재현성 / 최종 구현 완성도:** [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)의 개발 앱·별도 `_test` DB에서 STAFF 발급→고객 수동 코드 수령→도감(방문 1/앱 수집품 1/실제 NFT 0)→다음 3회 고정 보상 추천을 [Samsung 실기 기록](evidence/android-local-claim-2026-09-24/README.md)에 연결했다. 동일 코드 재확인 뒤 DB 추가 효과 0을 확인했다. 실제 QR 카메라 촬영·외부 지갑·공개 시연 API·운영/시연 release APK는 `NOT_RUN`이며, 가상 점포를 지역 실증·매출·협약 실적으로 표현하지 않는다.
 
 NFT 발행 수는 매출 증가 증거가 아닙니다. 목표 점포·인원은 실제 확보 실적과 분리하고, AI가 수행한 작업을 사람의 기여로 표시하지 않습니다.

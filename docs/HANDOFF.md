@@ -1,15 +1,17 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-24 KST
+마지막 갱신 시각: 2026-09-25 KST
 
 ## 현재 GitHub 이슈 상태 — 2026-09-24
 
-- #137 AWS 웹 이관 브랜치 `feat/137-aws-web`: [설계·실행 계획](superpowers/plans/2026-09-24-lightsail-web-consolidation.md)과 [로컬 Caddy 증거](evidence/aws-web-local-2026-09-24.json)를 작성했다. 공개 14개 파일만 복사하고 포털·법적 경로·`/app/`·assetlinks를 로컬 검증했으며, 웹 전용 배포 스크립트는 현재 원격 미실행이다. `masscom.kr` DNS는 여전히 Vercel, AWS는 로그인/SSH·현재 비용/용량 확인이 없어 DNS 공개 전환 `BLOCKED`다. 다음에는 PR·CI 상태와 AWS 계정 접근을 확인한다.
+- 최신 #137: PR #158 AWS 웹 코드가 병합됐고 post-merge main CI 통과. 현재 `feat/137-web-collection-auth`에는 웹 전용 세션/Google OIDC·읽기 전용 도감의 로컬 코드가 있으며 PR·외부 배포는 아직 없다. `masscom.kr` 응답의 `server: Vercel`; AWS 브라우저는 IAM 로그인 화면, CLI 인증·SSH 키 없음. 다음 실행에서는 `git status --short --branch`, `gh pr list --state open`, 로컬 테스트 결과를 확인하고 이 브랜치의 보안 리뷰·PR·CI를 마친 뒤, AWS 로그인 후 [이관 절차](../infra/lightsail/README.md)를 진행한다. 실계정 연결 전에 호스트에서 같은 출처 쿠키·TLS를 증명해야 한다.
+
+- #137 AWS 웹 이관 PR #158: [설계·실행 계획](superpowers/plans/2026-09-24-lightsail-web-consolidation.md)과 [로컬 Caddy 증거](evidence/aws-web-local-2026-09-24.json)를 작성해 병합했다. 공개 14개 파일만 복사하고 포털·법적 경로·`/app/`·assetlinks를 로컬 검증했으며 웹 전용 배포 스크립트는 원격 미실행이다. `masscom.kr` DNS는 여전히 Vercel, AWS 로그인/SSH·현재 비용/용량 확인이 없어 DNS 공개 전환 `BLOCKED`다.
 - #137 시연 호스트 경계는 [PR #157](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/157) merge `96341e8`, main CI `36005667769` PASS다. 이는 로컬·CI seed와 격리 근거이지 외부 시연 API 배포 증거가 아니다.
 - #136 시연 역할 진입은 [PR #156](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/156) merge `5e91728`, main CI `35998825263` PASS까지 확인했다. 실제 시연 APK/외부 API·OAuth/지갑 실기는 `NOT_RUN`이므로 Issue는 계속 OPEN이다.
 - [#136](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/136)과 [#137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)은 `OPEN`이다. 이전 `CLOSED / NOT_PLANNED` 처리는 실행 계획 없이 미완료 수용 기준을 닫은 오류여서 되돌렸다. 그때의 종료 댓글은 이력일 뿐 완료 증거가 아니다.
 - #137의 [정적 시연 웹](https://masscom-showcase-web.vercel.app)은 공개됐지만 `demo.*` DNS·외부 시연 API/DB·전용 OAuth·시연 APK/실기·운영 웹 개인 도감은 미완료다. [외부 시연 전달](superpowers/plans/2026-09-24-issue137-showcase-delivery.md)과 [운영 웹 도감](superpowers/plans/2026-09-24-issue137-production-collection.md)을 별도 검증 게이트로 진행한다.
-- 다음 작업은 `gh pr list --state open`으로 `feat/137-aws-web`의 PR·CI 상태를 확인하고, AWS 로그인 뒤 [이관 실행 순서](../infra/lightsail/README.md)의 1단계 비용·용량 증거를 수집하는 것이다.
+- 다음 작업은 현재 웹 도감 브랜치의 보안 리뷰·한글 PR·CI와, AWS 로그인 뒤 [이관 실행 순서](../infra/lightsail/README.md)의 1단계 비용·용량 증거 수집이다.
 
 ## Issue #137 시연 웹 Chrome CI 시작 지연
 
@@ -33,7 +35,7 @@
 
 ## Issue #137 운영 웹·두 Android 배포 경계
 
-- 브랜치 `feat/137-web-download-surfaces`에서 `apps/production-web`에 공개 음식점 전용 로컬 운영 웹을 추가했다. 같은 출처의 `GET /merchants`만 `https://api.masscom.kr/merchants`로 전달하며 현재 실제 응답은 `200 {"merchants":[]}`. 개인 도감은 안전한 웹 세션 전까지 닫아 두고 QR·방문·지갑·발행 쓰기 경로는 없다. 외부 배포·운영 개인 도감·실제 점포 목록 실증은 `NOT_RUN`이다.
+- 과거 브랜치 `feat/137-web-download-surfaces`에서 `apps/production-web`에 공개 음식점 전용 로컬 운영 웹을 추가했다. 같은 출처의 `GET /merchants`만 `https://api.masscom.kr/merchants`로 전달했고 응답은 `200 {"merchants":[]}`였다. 당시 개인 도감은 닫혀 있었으며, 현재 웹 전용 세션·UI의 로컬 구현 상태는 이 문서 맨 위 최신 #137 항목을 따른다. 외부 배포·실제 점포 목록 실증은 `NOT_RUN`이다.
 - [GitHub 다운로드 상태](ANDROID_DOWNLOADS.md): private test.2 운영 APK만 실제 asset으로 존재하며 현재 `main` 최신 UI 빌드가 아니다. 시연 APK는 외부 `demo-api.masscom.kr` DNS/인증·전용 DB와 실기 검증 전까지 없다. 기존 앱 링크·운영 API/DB·릴리스 파일은 변경하지 않았다.
 - 새 운영 웹 회귀: `node --test tests/site/verify_production_web_test.mjs`; 저장소 포털 회귀: `bash tests/site/verify_project_site_test.sh`. PR·CI·병합 상태는 `gh pr list`와 `git log origin/main -1`로 확인한다. Issue #137은 계속 OPEN이다.
 

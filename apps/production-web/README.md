@@ -1,5 +1,7 @@
 # 운영 웹
 
-`node apps/production-web/server.mjs`로 로컬 서버를 실행하면 `http://127.0.0.1:4173`에서 웹을 볼 수 있습니다. 서버는 같은 출처의 `GET /merchants`만 `https://api.masscom.kr/merchants`로 전달합니다. API 연결이 없거나 정적 파일 서버로만 열면 이용 불가 안내를 표시하며 예시 점포를 만들지 않습니다.
+`node apps/production-web/server.mjs`로 로컬 서버를 실행하면 `http://127.0.0.1:4173`에서 웹을 볼 수 있습니다. 공개 음식점은 같은 출처의 `GET /merchants`를 거쳐 `https://api.masscom.kr/merchants`에서 읽습니다. API 연결이 없으면 이용 불가 안내를 표시하며 예시 점포를 만들지 않습니다.
 
-개인 도감은 안전한 웹 로그인·서버 세션이 준비될 때까지 이용할 수 없습니다. 이 페이지에는 방문 코드, QR, 지갑, 발행 기능이 없습니다. 외부 배포 상태: `NOT_DEPLOYED`.
+개인 도감 UI와 API는 `GET /api/web/collection`의 웹 전용 HttpOnly 세션 쿠키로만 연결됩니다. 브라우저에는 모바일 Bearer 토큰을 저장하지 않습니다. 로그인은 `/api/web/auth/start` → Google → `/api/web/auth/callback`, 로그아웃은 같은 출처의 `POST /api/web/logout`입니다. 실제 Google OAuth client·AWS의 `masscom.kr/app/` 배포가 구성되기 전에는 도감 오류 안내가 보이는 것이 정상입니다. 이 페이지에는 방문 코드 발급·QR 인증·지갑 연결·NFT 발행 동작이 없습니다.
+
+로컬 검사: `node --test tests/site/verify_production_web_test.mjs`, `node --test tests/ops/verify_web_session_proxy_test.mjs`, `bash tests/ops/run_aws_web_smoke.sh`. 외부 배포·실계정 A/B·Android 브라우저 검증은 `NOT_RUN`입니다.

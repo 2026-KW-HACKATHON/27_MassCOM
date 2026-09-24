@@ -8,6 +8,7 @@ import * as serverModule from './server.js';
 import type { AccountDeletionService } from './account-deletion.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { GoogleIdTokenError } from './google-id-token.js';
+import { WebAuthError, type WebAuthHandler } from './web-auth.js';
 import {
   createApiServer,
   createBearerAccountResolver,
@@ -167,6 +168,7 @@ async function startFixture(
   authSessions?: AuthSessionService,
   authLoginLimiter?: AuthLoginLimiterFixture,
   trustProxyClientIp = false,
+  webAuth?: WebAuthHandler,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -192,6 +194,7 @@ async function startFixture(
     authSessions,
     authLoginLimiter,
     trustProxyClientIp,
+    webAuth,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -211,6 +214,105 @@ test('serves health without exposing wallet data', async (t) => {
 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { status: 'ok' });
+});
+
+test('web auth starts with a browser state cookie and callback returns only a scoped session cookie', async (t) => {
+  const webAuth: WebAuthHandler = {
+    start: async () => ({ location: 'https://accounts.google.com/o/oauth2/v2/auth?state=state-1', state: 'state-1' }),
+    complete: async (code, state, cookieState) => {
+      assert.deepEqual([code, state, cookieState], ['one-time-code', 'state-1', 'state-1']);
+      return { token: 'secret-web-token' };
+    },
+    resolveSession: async () => 'account-1',
+    logout: async () => {},
+  };
+  const baseUrl = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth);
+  const start = await fetch(`${baseUrl}/api/web/auth/start`, { redirect: 'manual' });
+  assert.equal(start.status, 302);
+  assert.match(start.headers.get('set-cookie') ?? '', /web_auth_state=state-1; Path=\/api\/web\/auth; Max-Age=300; HttpOnly; Secure; SameSite=Lax/);
+  assert.match(start.headers.get('location') ?? '', /^https:\/\/accounts\.google\.com\//);
+
+  const callback = await fetch(`${baseUrl}/api/web/auth/callback?code=one-time-code&state=state-1`, {
+    redirect: 'manual', headers: { cookie: 'web_auth_state=state-1' },
+  });
+  assert.equal(callback.status, 303);
+  assert.equal(callback.headers.get('location'), '/app/');
+  assert.match(callback.headers.get('set-cookie') ?? '', /web_session=secret-web-token; Path=\/api\/web; HttpOnly; Secure; SameSite=Lax/);
+  assert.doesNotMatch(callback.headers.get('location') ?? '', /one-time-code|secret-web-token/);
+  assert.equal(callback.headers.get('cache-control'), 'no-store');
+});
+
+test('web collection uses only the web cookie and never exposes private data without it', async (t) => {
+  const accounts: string[] = [];
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('not used'); },
+    complete: async () => { throw new Error('not used'); },
+    resolveSession: async (token) => {
+      if (token !== 'valid-web-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'web-account';
+    },
+    logout: async () => {},
+  };
+  const baseUrl = await startFixture(t, undefined, undefined, undefined, undefined, {
+    getCollection: async (accountId) => {
+      accounts.push(accountId);
+      return { visits: [], collectibles: [] };
+    },
+  }, undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth);
+  assert.equal((await fetch(`${baseUrl}/api/web/collection`)).status, 401);
+  const response = await fetch(`${baseUrl}/api/web/collection`, {
+    headers: { cookie: 'web_session=valid-web-cookie' },
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { visits: [], collectibles: [] });
+  assert.deepEqual(accounts, ['web-account']);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
+});
+
+test('web logout rejects GET and missing or foreign Origin before revoking a cookie', async (t) => {
+  const revoked: string[] = [];
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('not used'); },
+    complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'account-1',
+    logout: async (token) => { revoked.push(token); },
+  };
+  const baseUrl = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth);
+  assert.equal((await fetch(`${baseUrl}/api/web/logout`)).status, 405);
+  assert.equal((await fetch(`${baseUrl}/api/web/logout`, { method: 'POST', headers: { cookie: 'web_session=token' } })).status, 403);
+  assert.equal((await fetch(`${baseUrl}/api/web/logout`, {
+    method: 'POST', headers: { origin: 'https://evil.example', cookie: 'web_session=token' },
+  })).status, 403);
+  assert.deepEqual(revoked, []);
+  const response = await fetch(`${baseUrl}/api/web/logout`, {
+    method: 'POST', headers: { origin: 'https://masscom.kr', cookie: 'web_session=token' },
+  });
+  assert.equal(response.status, 204);
+  assert.deepEqual(revoked, ['token']);
+  assert.match(response.headers.get('set-cookie') ?? '', /web_session=; Path=\/api\/web; Max-Age=0/);
+});
+
+test('web login start obeys the existing per-client login limiter before storing a state', async (t) => {
+  let started = 0;
+  const webAuth: WebAuthHandler = {
+    start: async () => {
+      started += 1;
+      return { location: 'https://accounts.google.com/o/oauth2/v2/auth', state: 'state-1' };
+    },
+    complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'account-1',
+    logout: async () => {},
+  };
+  const baseUrl = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined,
+    { consume: () => ({ allowed: false, retryAfterSeconds: 20 }) }, false, webAuth);
+  const response = await fetch(`${baseUrl}/api/web/auth/start`, { redirect: 'manual' });
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get('retry-after'), '20');
+  assert.equal(started, 0);
 });
 
 test('D02 every JSON response forbids caching so one account never receives another account\'s data', async (t) => {

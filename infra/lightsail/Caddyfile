@@ -24,6 +24,12 @@
 
 	@appRoot path /app
 	redir @appRoot /app/ 308
+	@webSession path /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection
+	handle @webSession {
+		reverse_proxy api:3000 {
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
 	handle_path /app/* {
 		reverse_proxy production-web:4173
 	}
