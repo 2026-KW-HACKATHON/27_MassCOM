@@ -4,20 +4,20 @@
 
 **Goal:** 운영 웹에서 공개 음식점을 로그인 없이 읽고, 로그인한 사람만 자신의 실제 방문·앱 수집품·검증 완료 NFT 도감을 읽는다.
 
-**Architecture:** 기존 `masscom.kr` Vercel 포털(`docs/`)은 유지하고 운영 웹 정적 파일을 `/web/`에 별도로 게시한다. 공개 점포와 웹 인증·도감만 허용한 같은 출처 API 경로를 먼저 검증하고, 운영 API가 Google OIDC code callback·서버 저장 웹 session·HttpOnly cookie를 소유한다. 브라우저에는 모바일 Bearer token이나 WalletConnect 세션을 복사하지 않는다. 웹에는 QR/방문 수령·지갑 서명·발행 쓰기 경로를 만들지 않는다.
+**Architecture:** [Lightsail 웹 이관](2026-09-24-lightsail-web-consolidation.md)의 `masscom.kr/app/` 운영 웹을 사용한다. 기존 공개 `/merchants`는 웹 서버의 필터를 유지하고, 웹 인증·도감에 필요한 명시적 `/api/web/*` 경로만 같은 호스트 Caddy에서 운영 API로 전달한다. API가 Google OIDC code callback·서버 저장 웹 session·HttpOnly cookie를 소유한다. 브라우저에는 모바일 Bearer token이나 WalletConnect 세션을 복사하지 않는다.
 
-**Tech Stack:** 기존 Vercel 정적 포털, Node.js/TypeScript API, PostgreSQL, Google OIDC, 실제 Chrome·Android 브라우저.
+**Tech Stack:** 기존 AWS Lightsail/Caddy, Node.js/TypeScript API, PostgreSQL, Google OIDC, 실제 Chrome·Android 브라우저.
 
-**Spec:** [시연·운영 분리 설계](../specs/2026-09-23-showcase-production-separation-design.md), [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137), [Google OIDC server flow](https://developers.google.com/identity/openid-connect/openid-connect), [Vercel 외부 rewrite](https://vercel.com/docs/routing/rewrites).
+**Spec:** [시연·운영 분리 설계](../specs/2026-09-23-showcase-production-separation-design.md), [Lightsail 웹 이관 설계](../specs/2026-09-24-lightsail-web-consolidation-design.md), [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137), [Google OIDC server flow](https://developers.google.com/identity/openid-connect/openid-connect).
 
-**시작 순서:** 1. Task 1에서 무료 preview의 쿠키·rewrite 실증을 마친다. 2. 성공한 경로에 한해서 Task 2~4의 서버 세션·로그인·읽기 화면을 개발한다. 3. Task 5의 외부 계정 격리·보안 리뷰·CI로 종료를 판정한다.
+**시작 순서:** 1. AWS 포털·운영 웹의 외부 이관과 Task 1의 같은 출처 쿠키 프록시 실증을 마친다. 2. 성공한 경로에 한해서 Task 2~4의 서버 세션·로그인·읽기 화면을 개발한다. 3. Task 5의 외부 계정 격리·보안 리뷰·CI로 종료를 판정한다.
 
 ## 현재 기준선과 결정 게이트
 
 - `apps/production-web/server.mjs`는 로컬에서 공개 점포만 읽고, 개인 도감은 의도적으로 닫혀 있다. 외부 운영 웹 배포·웹 Google 로그인은 `NOT_RUN`.
-- `docs/.vercel/project.json`이 현재 포털 배포 정본이고 `apps/production-web`은 로컬 파일이다. 현재 HTTPS `/web/`·`/merchants`·`/api/web/collection`은 미게시/404이므로 인증 rewrite만 추가해도 운영 웹이 생기지 않는다.
-- 먼저 `/web/` 정적 배치와 공개 점포 경로를 preview에서 검증한다. 쿠키/redirect 전달 실증에는 **실계정·비밀값이 없는 별도 preview fixture 응답 제공자**를 명시해야 한다. 제공자가 없으면 쿠키 실증을 PASS로 쓰지 않고, 실제 계정 연결 전에 `web.masscom.kr`의 독립 서버 방식으로 설계를 재검토한다.
-- 무료 범위(기존 Vercel/기존 Lightsail)로 처리할 수 없으면 유료 전환 없이 `BLOCKED`로 둔다. Google Play·일반 공개 제출은 범위 밖이다.
+- 현재 `masscom.kr`의 실제 DNS·HTTPS는 Vercel이다. AWS 경로는 로컬 Caddy·웹 smoke까지이며 비용·용량·TLS·DNS 전환이 끝나기 전에는 외부 운영 웹 완료로 쓰지 않는다.
+- 먼저 기존 Lightsail에서 `/app/`와 공개 `/merchants`를 검증한다. 쿠키/redirect 전달 실증에는 **실계정·비밀값이 없는 별도 로컬 fixture 응답 제공자**가 필요하다. 없으면 실증을 PASS로 쓰지 않고 실제 계정 연결을 멈춘다.
+- 기존 Lightsail 범위로 처리할 수 없으면 유료 전환 없이 `BLOCKED`로 둔다. Google Play·일반 공개 제출은 범위 밖이다.
 
 ## Global Constraints
 
@@ -31,19 +31,19 @@
 
 - 로그인 전·로그아웃 후·만료 후·다른 계정 쿠키로 `/api/web/collection`이 401이고 개인정보가 응답/캐시에 남지 않는지 Task 2/4 시험.
 - OAuth callback의 잘못된 `state`·PKCE·redirect URL·중복 code가 세션을 만들지 않는지 Task 3 시험.
-- Vercel rewrite가 쿠키와 `no-store`를 보존하며 `/api/web/*` 밖의 QR/claim/mint를 프록시하지 않는지 Task 1/4 시험.
+- Caddy의 같은 출처 경로가 쿠키와 `no-store`를 보존하며 명시한 `/api/web/*` 밖의 QR/claim/mint를 프록시하지 않는지 Task 1/4 시험.
 - 웹 새로고침·뒤로 가기·계정 전환 때 이전 사용자 도감이 잠깐도 렌더되지 않는지 Task 4/5 브라우저 시험.
 - 계정 삭제는 같은 트랜잭션에서 모든 웹 세션을 회수하고, 모바일 로그아웃은 웹 세션을 회수하지 않는지 Task 2에서 시험한다.
 
 ---
 
-### Task 1: 운영 웹 정적 게시와 같은 출처 프록시·쿠키 최소 실증
+### Task 1: Lightsail 같은 출처 프록시·쿠키 최소 실증
 
-**Files:** `docs/vercel.json`, `apps/production-web/`의 배포 연결 스크립트, `docs/index.html`, 새 `tests/site/verify_web_session_proxy_test.mjs`, `docs/TEST_STATUS.md`.
+**Files:** `infra/lightsail/Caddyfile`, 새 `tests/ops/verify_web_session_proxy_test.mjs`, `docs/TEST_STATUS.md`.
 
-- [ ] `apps/production-web`의 정적 파일을 `docs/web/`에 재현 가능하게 배치하고 포털에서 연결한다. 상대 asset URL과 공개 점포 요청 `/api/web/merchants`가 preview에서 실제로 200/빈 목록을 표시하는지 시험한다.
-- [ ] `vercel.json`에는 `/api/web/merchants`와 인증·도감의 **명시적 허용 경로만** 기대한 운영 HTTPS API로 rewrite한다. `/api/claim`, `/api/mint`와 임의 외부 host가 프록시되지 않는 변조 시험을 먼저 실패→통과시킨다.
-- [ ] 별도 preview fixture 제공자를 정한 뒤 비밀·실계정 없는 응답으로 `Set-Cookie`·redirect·`no-store` 전달을 Chrome에서 확인한다. 제공자를 만들 수 없거나 무료 한도가 부족하면 개인 계정을 연결하지 않고 다른 호스팅 분기로 돌아간다. preview만으로 운영 출시를 완료로 쓰지 않는다.
+- [ ] [AWS 웹 이관 계획](2026-09-24-lightsail-web-consolidation.md)의 `/app/`와 기존 정제된 `/merchants` 외부 검증을 먼저 마친다. 현재 Vercel URL의 200을 이 검증으로 사용하지 않는다.
+- [ ] Caddy에 `/api/web/auth/start`, `/api/web/auth/callback`, `/api/web/logout`, `/api/web/collection`만 운영 API로 전달한다. `/api/claim`, `/api/mint`와 임의 `/api/web/` 경로를 거절하는 회귀를 먼저 실패→통과시킨다.
+- [ ] 로컬 fixture upstream의 비밀·실계정 없는 응답으로 `Set-Cookie`·redirect·`no-store` 전달을 Chrome에서 확인한 뒤 외부 AWS host에서도 반복한다. 외부 검증 전에는 개인 계정을 연결하지 않는다.
 
 ### Task 2: 웹 전용 서버 세션과 계정 삭제 경계
 
@@ -77,7 +77,7 @@
 **Files:** `docs/TEST_STATUS.md`, `docs/HANDOFF.md`, `docs/PROJECT_STATE.md`, `docs/EVALUATION_MAP.md`, `README.md`.
 
 1. 준비된 실제 운영 HTTPS에서 Google 계정 A 로그인→본인 도감, 계정 B 로그인→A 자료 0, 로그아웃/만료/계정 삭제 뒤 개인 응답 401, 브라우저 공유 캐시·검색 색인 노출 0을 확인한다. 각 요청의 명령·커밋·환경·결과를 기록한다.
-2. PR CI·독립 보안 리뷰·병합 후 main CI와 실제 Android/Web 브라우저 실기가 통과하기 전에는 개인 도감을 `VERIFIED`로 승격하지 않는다. 공개 서비스에서 실패하면 신규 웹 auth/rewrite만 되돌리고 기존 `masscom.kr` 포털·`api.masscom.kr` 모바일 경로를 확인한다.
+2. PR CI·독립 보안 리뷰·병합 후 main CI와 실제 Android/Web 브라우저 실기가 통과하기 전에는 개인 도감을 `VERIFIED`로 승격하지 않는다. 공개 서비스에서 실패하면 신규 웹 auth/Caddy 경로만 되돌리고 기존 `masscom.kr` 포털·`api.masscom.kr` 모바일 경로를 확인한다.
 3. [시연 전달 계획](2026-09-24-issue137-showcase-delivery.md)까지 #137 전체 수용 기준이 충족됐을 때만 이슈를 `COMPLETED`로 닫는다. 부분 통과 시 열린 상태와 `NOT_RUN/BLOCKED`를 유지한다.
 
-**다음 행동:** Task 1의 preview rewrite·쿠키 전달 최소 실증을 비밀·실계정 데이터 없이 시작한다.
+**다음 행동:** AWS 웹 이관의 외부 검증 이후 Task 1의 로컬·외부 Caddy 쿠키 전달 실증을 비밀·실계정 데이터 없이 시작한다.

@@ -4,8 +4,9 @@
 
 ## 최신 작업 경계
 
-- 2026-09-24 `feat/137-host-delivery`: 시연 호스트 Compose와 exact-DB seed, 초대 Google 계정의 STAFF 부여 경계를 구현했다. 별도 로컬 Docker project에서 API/DB healthy, A/B/C 3곳·목표 9개, 반복 seed, 익명 도감 401, loopback API·독립 네트워크 PASS([증거](evidence/showcase-host-local-2026-09-24.json)). 운영 Lightsail 비용·용량과 전용 OAuth·DNS·외부 HTTPS는 미확인이라 실제 서버 배포는 BLOCKED다.
-- 2026-09-24 D-032로 #136 역할 선택의 시연 앱 전용 범위가 확정됐다. `feat/136-showcase-entry`에서 `.demo` package만 첫 역할 화면을 보이고, 고객은 기존 네 탭, 점주는 서버 `CONFIRM_VISIT` 확인 뒤에만 코드 발급 화면으로 진행하도록 구현 중이다. 개발·운영 첫 화면은 유지한다. 이 브랜치의 자동 시험은 시연 설치본·외부 API 실기 완료를 뜻하지 않는다.
+- 2026-09-24 `feat/137-aws-web`: 사용자가 AWS 단일 호스트를 제안해 공개 파일 allowlist·기존 Lightsail Caddy의 포털과 `/app/` 경로·웹 전용 배포/rollback 준비를 진행했다([로컬 증거](evidence/aws-web-local-2026-09-24.json)). 현재 공개 `masscom.kr`은 Vercel HTTPS 200이며 AWS apex DNS·TLS·기기 재검증은 `NOT_RUN`; 웹 개인 도감 로그인도 여전히 미구현이다.
+- 2026-09-24 시연 호스트 경계는 PR #157 merge `96341e8`·main CI `36005667769` PASS다. 별도 로컬 Docker에서 API/DB healthy, A/B/C 3곳·목표 9개, 반복 seed, 익명 도감 401을 확인했다([증거](evidence/showcase-host-local-2026-09-24.json)). 운영 Lightsail 비용·용량과 전용 OAuth·DNS·외부 HTTPS는 미확인이라 실제 서버 배포는 BLOCKED다.
+- 2026-09-24 D-032의 #136 시연 앱 전용 첫 역할 선택은 PR #156 merge `5e91728`·main CI `35998825263` PASS다. 개발·운영 첫 화면은 유지하며 시연 설치본·외부 API 실기는 `NOT_RUN`이다.
 - 2026-09-24 이슈 #136·#137의 `CLOSED / NOT_PLANNED` 처리는 미완료 작업을 계획 없이 닫은 오류여서 되돌렸고 둘 다 `OPEN`이다. [#136 시연 앱 진입](superpowers/plans/2026-09-24-issue136-showcase-entry.md), [#137 외부 시연 전달](superpowers/plans/2026-09-24-issue137-showcase-delivery.md), [#137 운영 웹 본인 도감](superpowers/plans/2026-09-24-issue137-production-collection.md)을 계획했다. 현재 구현·외부 검증 상태는 아래 항목과 각 계획의 게이트를 따른다. 이 문서 수정은 미완료 기능을 PASS로 승격하지 않는다.
 
 - Issue #137 공개 시연 API의 초대 제한 코드를 추가했다. `SHOWCASE_MODE=true`는 정확한 `masscom_showcase` DB·Google audience 한 개·초대된 `sub` 해시 목록이 없으면 시작을 거절한다. 유효한 Google 토큰이라도 초대되지 않으면 DB identity/session 저장 전 `INVITE_REQUIRED` 403, 초대 목록 변경 후 모든 인스턴스를 재시작하면 기존 세션 조회도 거절한다. API 단위 90/90·PostgreSQL 45/45·typecheck/build 로컬 PASS. 실제 외부 API·DNS·Google client·Android 시연 APK는 `NOT_RUN`이다.

@@ -30,6 +30,11 @@ for path in / /open /privacy /account-deletion /presentation /app/ /app/assets/p
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:8089$path")"
   [[ "$status" == '200' ]] || { echo "$path returned $status" >&2; exit 1; }
 done
+app_redirect="$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 8 http://127.0.0.1:8089/app)"
+[[ "$app_redirect" == '308 http://127.0.0.1:8089/app/' ]] || {
+  echo "/app redirect mismatch: $app_redirect" >&2
+  exit 1
+}
 
 curl -fsS --max-time 8 http://127.0.0.1:8089/.well-known/assetlinks.json \
   | cmp - "$MASSCOM_PUBLIC_SITE/.well-known/assetlinks.json"

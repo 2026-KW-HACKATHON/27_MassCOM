@@ -67,6 +67,9 @@ jobs:
           node --test tests/site/build_public_site_test.mjs tests/ops/verify_aws_web_routes_test.mjs
           node scripts/verify-lightsail-web.mjs
           bash tests/ops/run_aws_web_smoke.sh
+          bash tests/ops/verify_lightsail_deployment_test.sh
+          bash tests/ops/deploy_lightsail_test.sh
+          bash tests/ops/deploy_lightsail_web_test.sh
       - name: 시연 웹 라이트·다크 실제 브라우저 검사
         run: |
           chrome_path="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"

@@ -50,9 +50,18 @@ deployment_paths=(
   apps/api/tsconfig.json
   apps/api/src
   apps/api/migrations
+  apps/production-web
   infra/lightsail
 )
-deployment_status="$(git -C "$repo_root" status --porcelain --untracked-files=all -- "${deployment_paths[@]}")"
+public_source_paths=(
+  scripts/build-public-site.mjs
+  docs/index.html docs/open.html docs/privacy.html docs/account-deletion.html
+  docs/presentation.html docs/.well-known/assetlinks.json docs/assets
+  docs/evidence/android-collection.png docs/evidence/android-merchant-list.png
+  docs/evidence/screenshots/android-account-settings.png
+  docs/evidence/screenshots/android-nft-finalized.png
+)
+deployment_status="$(git -C "$repo_root" status --porcelain --untracked-files=all -- "${deployment_paths[@]}" "${public_source_paths[@]}")"
 if [[ -n "$deployment_status" ]]; then
   echo 'deployment source paths must be clean so deployed bytes match the recorded commit' >&2
   printf '%s\n' "$deployment_status" >&2
@@ -81,10 +90,16 @@ if [[ "$mode" == "--dry-run" ]]; then
   exit 0
 fi
 
+public_site_scratch="$(mktemp -d -t masscom-public-deploy.XXXXXX)"
+trap 'rm -rf "$public_site_scratch"' EXIT
+mkdir -p "$public_site_scratch/site"
+node "$repo_root/scripts/build-public-site.mjs" "$public_site_scratch/site/public" >/dev/null
+
 ssh "${ssh_options[@]}" "$target" \
   "sudo install -d -m 0755 '$remote_release' && sudo chown -R ubuntu:ubuntu '$remote_release'"
 
 COPYFILE_DISABLE=1 tar -C "$repo_root" -czf - "${deployment_paths[@]}" \
+  -C "$public_site_scratch" site \
   | ssh "${ssh_options[@]}" "$target" "tar -xzf - -C '$remote_release'"
 
 scp "${ssh_options[@]}" -q "$runtime_env" "$target:$remote_tmp_env"
@@ -110,22 +125,30 @@ sudo install -o root -g root -m 600 "$temporary_env" "$runtime_env"
 rm -f "$temporary_env"
 
 compose() {
-  sudo env MASSCOM_IMAGE_TAG="$release_id" \
+  sudo env MASSCOM_IMAGE_TAG="$release_id" MASSCOM_WEB_IMAGE_TAG="$release_id" \
     docker compose --env-file "$runtime_env" -f "$compose_file" "$@"
 }
 compose_no_stdin() {
   compose "$@" </dev/null
 }
 
-compose build api
+sudo docker run --rm \
+  -v "$release/infra/lightsail/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  caddy:2.10.2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile </dev/null
+compose build api production-web
 compose up -d postgres
 compose_no_stdin run --rm -T migrate
-compose up -d api caddy
+compose up -d api production-web caddy
 compose_no_stdin exec -T api node -e \
   "fetch('http://127.0.0.1:3000/health').then(async r=>{if(!r.ok)throw new Error('HTTP '+r.status);const b=await r.json();if(b.status!=='ok')throw new Error('unexpected health payload')}).catch(e=>{console.error(e.message);process.exit(1)})"
+compose_no_stdin exec -T production-web node -e \
+  "fetch('http://127.0.0.1:4173/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 
 sudo ln -sfn "$release" /opt/masscom/current
 printf '%s\n' "$commit" | sudo tee /opt/masscom/DEPLOYED_COMMIT >/dev/null
+sudo install -d -m 0755 /opt/masscom/web
+sudo ln -sfn "$release" /opt/masscom/web/current
+printf '%s\n' "$commit" | sudo tee /opt/masscom/web/DEPLOYED_COMMIT >/dev/null
 compose ps
 REMOTE
 

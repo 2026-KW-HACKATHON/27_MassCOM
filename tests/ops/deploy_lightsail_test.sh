@@ -90,4 +90,20 @@ grep -q 'compose_no_stdin exec -T api node -e' "$deploy" || {
   echo "health check container can consume the remaining remote deploy script from stdin" >&2
   exit 1
 }
+grep -q 'node "$repo_root/scripts/build-public-site.mjs"' "$deploy" || {
+  echo 'full API release omits the approved public site bundle' >&2
+  exit 1
+}
+grep -q 'compose build api production-web' "$deploy" || {
+  echo 'full API release does not build its web service' >&2
+  exit 1
+}
+grep -q 'compose up -d api production-web caddy' "$deploy" || {
+  echo 'full API release does not start the matched web/Caddy pair' >&2
+  exit 1
+}
+grep -q '/opt/masscom/web/DEPLOYED_COMMIT' "$deploy" || {
+  echo 'full API release does not update web deployment provenance' >&2
+  exit 1
+}
 echo "Lightsail deployment script tests passed"

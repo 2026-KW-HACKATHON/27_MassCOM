@@ -4,13 +4,12 @@
 
 ## 현재 GitHub 이슈 상태 — 2026-09-24
 
+- #137 AWS 웹 이관 브랜치 `feat/137-aws-web`: [설계·실행 계획](superpowers/plans/2026-09-24-lightsail-web-consolidation.md)과 [로컬 Caddy 증거](evidence/aws-web-local-2026-09-24.json)를 작성했다. 공개 14개 파일만 복사하고 포털·법적 경로·`/app/`·assetlinks를 로컬 검증했으며, 웹 전용 배포 스크립트는 현재 원격 미실행이다. `masscom.kr` DNS는 여전히 Vercel, AWS는 로그인/SSH·현재 비용/용량 확인이 없어 DNS 공개 전환 `BLOCKED`다. 다음에는 PR·CI 상태와 AWS 계정 접근을 확인한다.
+- #137 시연 호스트 경계는 [PR #157](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/157) merge `96341e8`, main CI `36005667769` PASS다. 이는 로컬·CI seed와 격리 근거이지 외부 시연 API 배포 증거가 아니다.
 - #136 시연 역할 진입은 [PR #156](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/156) merge `5e91728`, main CI `35998825263` PASS까지 확인했다. 실제 시연 APK/외부 API·OAuth/지갑 실기는 `NOT_RUN`이므로 Issue는 계속 OPEN이다.
-- #137 후속 `feat/137-host-delivery`는 [별도 호스트 구성](../infra/showcase-host/README.md)과 [로컬 격리 증거](evidence/showcase-host-local-2026-09-24.json)를 준비했다. 실제 AWS 콘솔은 두 브라우저 모두 로그인 화면이고 CLI/SSH 설정이 없어 비용·용량을 읽지 못했다. 운영 API health는 `{"status":"ok"}`, `demo.*` DNS는 응답 없음. **원격 배포는 이 선행 검사 완료 전 BLOCKED**이며 로컬 PASS를 외부 완료로 승격하지 않는다.
-- D-032에서 사용자가 #136 역할 첫 화면을 시연 앱 `.demo`에만 적용하도록 확정했다. 작업 브랜치 `feat/136-showcase-entry`는 package별 첫 진입, 계정별 역할 초기화, 점주 서버 권한 확인, 고객용 빈 다섯 공간 투어를 구현 중이다. 운영 앱의 네 탭과 개발용 미리보기는 유지한다. 자동 시험·PR·실기 결과는 아래 최신 기록과 `gh pr view`로 확인하고, 시연 APK·OAuth·외부 API가 준비되기 전에는 #136을 닫지 않는다.
 - [#136](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/136)과 [#137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)은 `OPEN`이다. 이전 `CLOSED / NOT_PLANNED` 처리는 실행 계획 없이 미완료 수용 기준을 닫은 오류여서 되돌렸다. 그때의 종료 댓글은 이력일 뿐 완료 증거가 아니다.
-- #136의 개발용 UI 미리보기는 구현됐지만 실제 시연 앱 첫 진입·실기는 미완료다. [#136 실행 계획](superpowers/plans/2026-09-24-issue136-showcase-entry.md)의 적용 범위를 결정한 뒤 시작한다. 운영 앱 네 탭은 현재 유지한다.
 - #137의 [정적 시연 웹](https://masscom-showcase-web.vercel.app)은 공개됐지만 `demo.*` DNS·외부 시연 API/DB·전용 OAuth·시연 APK/실기·운영 웹 개인 도감은 미완료다. [외부 시연 전달](superpowers/plans/2026-09-24-issue137-showcase-delivery.md)과 [운영 웹 도감](superpowers/plans/2026-09-24-issue137-production-collection.md)을 별도 검증 게이트로 진행한다.
-- 다음 작업은 `gh issue view 136`, `gh issue view 137`, `gh pr list --state open`으로 원격 상태를 확인한 다음, 계획의 첫 미완료 체크박스부터 진행하고 실제 증거가 모두 모일 때까지 이슈를 열어 두는 것이다.
+- 다음 작업은 `gh pr list --state open`으로 `feat/137-aws-web`의 PR·CI 상태를 확인하고, AWS 로그인 뒤 [이관 실행 순서](../infra/lightsail/README.md)의 1단계 비용·용량 증거를 수집하는 것이다.
 
 ## Issue #137 시연 웹 Chrome CI 시작 지연
 
