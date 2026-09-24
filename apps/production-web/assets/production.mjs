@@ -99,22 +99,46 @@ export async function loadCollection(fetcher, doc) {
 export function bindCollectionControls(fetcher, doc) {
   const nodes = collectionNodes(doc);
   if (!nodes) return;
-  nodes['collection-retry'].addEventListener('click', () => { void loadCollection(fetcher, doc); });
-  nodes['collection-logout'].addEventListener('click', async () => {
+  const Channel = doc.defaultView?.BroadcastChannel;
+  const channel = Channel ? new Channel('masscom-web-session') : undefined;
+  const invalidate = () => {
     collectionRequests.set(doc, (collectionRequests.get(doc) ?? 0) + 1);
     clearCollection(nodes);
+    nodes['collection-status'].textContent = '내 도감을 다시 확인해 주세요.';
+  };
+  const refresh = () => loadCollection(fetcher, doc);
+  if (channel) {
+    channel.onmessage = (event) => {
+      if (event.data !== 'refresh') return;
+      invalidate();
+      if (!doc.hidden) void refresh();
+    };
+  }
+  doc.addEventListener('visibilitychange', () => {
+    if (doc.hidden) invalidate();
+    else return refresh();
+  });
+  doc.defaultView?.addEventListener('pagehide', invalidate);
+  doc.defaultView?.addEventListener('pageshow', (event) => {
+    if (event?.persisted !== false) return refresh();
+  });
+  nodes['collection-retry'].addEventListener('click', () => { void loadCollection(fetcher, doc); });
+  nodes['collection-logout'].addEventListener('click', async () => {
+    invalidate();
     nodes['collection-status'].textContent = '로그아웃하는 중입니다.';
     try {
       const response = await fetcher('/api/web/logout', {
         method: 'POST', credentials: 'same-origin', cache: 'no-store',
       });
       if (!response.ok) throw new Error('logout unavailable');
-      await loadCollection(fetcher, doc);
+      channel?.postMessage('refresh');
+      await refresh();
     } catch {
       nodes['collection-status'].textContent = '로그아웃을 확인하지 못했습니다. 다시 확인해 주세요.';
       nodes['collection-retry'].hidden = false;
     }
   });
+  return refresh().then(() => { channel?.postMessage('refresh'); });
 }
 
 function isMerchant(value) {
@@ -169,6 +193,5 @@ export async function loadMerchants(fetcher, doc) {
 
 if (typeof document !== 'undefined') {
   void loadMerchants(fetch, document);
-  bindCollectionControls(fetch, document);
-  void loadCollection(fetch, document);
+  void bindCollectionControls(fetch, document);
 }

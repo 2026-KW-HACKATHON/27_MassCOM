@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 
-import { loadCollection, loadMerchants } from '../../apps/production-web/assets/production.mjs';
+import { bindCollectionControls, loadCollection, loadMerchants } from '../../apps/production-web/assets/production.mjs';
 import { createProductionServer, resolveProductionBindHost } from '../../apps/production-web/server.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -22,12 +22,15 @@ test('운영 웹은 로컬 기본 바인딩을 유지하고 명시한 컨테이�
 });
 
 function element() {
+  const listeners = new Map();
   return {
     textContent: '',
     children: [],
     className: '',
     append(...children) { this.children.push(...children); },
     replaceChildren() { this.children = []; },
+    addEventListener(type, callback) { listeners.set(type, callback); },
+    async click() { return listeners.get('click')?.(); },
   };
 }
 
@@ -69,9 +72,82 @@ function collectionFixture() {
     doc: {
       getElementById(id) { return nodes[id]; },
       createElement: element,
+      hidden: false,
+      listeners: new Map(),
+      addEventListener(type, callback) { this.listeners.set(type, callback); },
+      async dispatch(type) { return this.listeners.get(type)?.(); },
     },
   };
 }
+
+function sharedWindows(...docs) {
+  const channels = new Set();
+  class Channel {
+    constructor() { channels.add(this); }
+    postMessage(value) {
+      for (const peer of channels) if (peer !== this) peer.onmessage?.({ data: value });
+    }
+  }
+  for (const doc of docs) {
+    doc.defaultView = {
+      BroadcastChannel: Channel,
+      listeners: new Map(),
+      addEventListener(type, callback) { this.listeners.set(type, callback); },
+      async dispatch(type) { return this.listeners.get(type)?.(); },
+    };
+  }
+}
+
+test('다른 탭 로그아웃과 계정 전환은 오래 열린 도감의 이전 기록을 지운다', async () => {
+  const a = collectionFixture();
+  const b = collectionFixture();
+  const c = collectionFixture();
+  sharedWindows(a.doc, b.doc, c.doc);
+  let account = 'ACCOUNT_A_PRIVATE_VISIT';
+  const fetcher = async (url) => {
+    if (url === '/api/web/logout') {
+      account = '';
+      return { ok: true };
+    }
+    if (!account) return { ok: false, status: 401 };
+    return { ok: true, json: async () => ({
+      visits: [{ merchantName: account, businessDate: '2026-09-25' }], collectibles: [],
+    }) };
+  };
+  await bindCollectionControls(fetcher, a.doc);
+  await bindCollectionControls(fetcher, b.doc);
+  await new Promise((done) => setTimeout(done, 0));
+  assert.equal(a.nodes['visit-list'].children[0].children[0].textContent, 'ACCOUNT_A_PRIVATE_VISIT');
+  await b.nodes['collection-logout'].click();
+  await new Promise((done) => setTimeout(done, 0));
+  assert.equal(a.nodes['visit-list'].children.length, 0);
+  assert.equal(a.nodes['collection-content'].hidden, true);
+
+  account = 'ACCOUNT_B_PRIVATE_VISIT';
+  await bindCollectionControls(fetcher, c.doc);
+  await new Promise((done) => setTimeout(done, 0));
+  assert.equal(a.nodes['visit-list'].children[0].children[0].textContent, 'ACCOUNT_B_PRIVATE_VISIT');
+});
+
+test('숨긴 탭과 뒤로 가기로 보존된 문서는 개인 DOM을 즉시 비운 뒤 다시 조회한다', async () => {
+  const { nodes, doc } = collectionFixture();
+  doc.defaultView = { addEventListener(type, callback) { this[type] = callback; } };
+  const fetcher = async () => ({ ok: true, json: async () => ({
+    visits: [{ merchantName: '민감한 이전 방문', businessDate: '2026-09-25' }], collectibles: [],
+  }) });
+  await bindCollectionControls(fetcher, doc);
+  doc.hidden = true;
+  await doc.dispatch('visibilitychange');
+  assert.equal(nodes['visit-list'].children.length, 0);
+  assert.equal(nodes['collection-content'].hidden, true);
+  doc.hidden = false;
+  await doc.dispatch('visibilitychange');
+  assert.equal(nodes['visit-list'].children.length, 1);
+  await doc.defaultView.pagehide();
+  assert.equal(nodes['visit-list'].children.length, 0);
+  await doc.defaultView.pageshow();
+  assert.equal(nodes['visit-list'].children.length, 1);
+});
 
 test('운영 도감은 미로그인과 실제 기록 0건을 구분하고 다른 계정의 이전 화면을 지운다', async () => {
   const { nodes, doc } = collectionFixture();

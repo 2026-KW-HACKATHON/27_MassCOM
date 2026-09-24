@@ -26,7 +26,7 @@ export function resolveWebAuthConfig(env: NodeJS.ProcessEnv): Pick<Options, 'cli
 
 export class WebAuthError extends Error {
   constructor(readonly code: 'WEB_AUTH_STATE_INVALID' | 'WEB_AUTH_NONCE_INVALID' |
-    'WEB_AUTH_ACCOUNT_NOT_FOUND' | 'WEB_AUTH_CODE_INVALID') {
+    'WEB_AUTH_ACCOUNT_NOT_FOUND' | 'WEB_AUTH_CODE_INVALID' | 'WEB_AUTH_UPSTREAM_UNAVAILABLE') {
     super(code);
     this.name = 'WebAuthError';
   }
@@ -38,6 +38,45 @@ const stateTtlMs = 5 * 60 * 1000;
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 const digest = (value: string) => createHash('sha256').update(value).digest();
 const randomToken = () => randomBytes(32).toString('base64url');
+
+export async function exchangeGoogleCode(input: {
+  clientId: string; webCredential: string; redirectUri: string; code: string; verifier: string;
+}, fetcher: (url: string, options: RequestInit) => Promise<Response> = fetch): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetcher('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code: input.code,
+        client_id: input.clientId,
+        client_secret: input.webCredential,
+        redirect_uri: input.redirectUri,
+        grant_type: 'authorization_code',
+        code_verifier: input.verifier,
+      }),
+      signal: AbortSignal.timeout(5_000),
+    });
+  } catch {
+    throw new WebAuthError('WEB_AUTH_UPSTREAM_UNAVAILABLE');
+  }
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new WebAuthError('WEB_AUTH_UPSTREAM_UNAVAILABLE');
+  }
+  if (!body || typeof body !== 'object') throw new WebAuthError('WEB_AUTH_UPSTREAM_UNAVAILABLE');
+  if (!response.ok) {
+    if (response.status === 400 && (body as { error?: unknown }).error === 'invalid_grant') {
+      throw new WebAuthError('WEB_AUTH_CODE_INVALID');
+    }
+    throw new WebAuthError('WEB_AUTH_UPSTREAM_UNAVAILABLE');
+  }
+  const idToken = (body as { id_token?: unknown }).id_token;
+  if (typeof idToken !== 'string' || !idToken) throw new WebAuthError('WEB_AUTH_UPSTREAM_UNAVAILABLE');
+  return idToken;
+}
 
 export class WebAuthService {
   constructor(
@@ -120,28 +159,12 @@ export class WebAuthService {
   }
 
   private async exchangeGoogleCode(code: string, verifier: string): Promise<string> {
-    let response: Response;
-    try {
-      response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          code,
-          client_id: this.options.clientId,
-          client_secret: this.options.webCredential,
-          redirect_uri: this.options.redirectUri,
-          grant_type: 'authorization_code',
-          code_verifier: verifier,
-        }),
-        signal: AbortSignal.timeout(5_000),
-      });
-    } catch {
-      throw new WebAuthError('WEB_AUTH_CODE_INVALID');
-    }
-    if (!response.ok) throw new WebAuthError('WEB_AUTH_CODE_INVALID');
-    const body: unknown = await response.json().catch(() => null);
-    const idToken = (body as { id_token?: unknown } | null)?.id_token;
-    if (typeof idToken !== 'string' || !idToken) throw new WebAuthError('WEB_AUTH_CODE_INVALID');
-    return idToken;
+    return exchangeGoogleCode({
+      clientId: this.options.clientId,
+      webCredential: this.options.webCredential,
+      redirectUri: this.options.redirectUri,
+      code,
+      verifier,
+    });
   }
 }

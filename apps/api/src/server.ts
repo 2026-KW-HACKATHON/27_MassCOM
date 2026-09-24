@@ -517,7 +517,12 @@ export function createApiServer(
         return;
       }
       if (error instanceof WebAuthError || error instanceof WebSessionError) {
-        sendJson(response, 401, { code: error.code });
+        sendJson(response, error.code === 'WEB_AUTH_UPSTREAM_UNAVAILABLE' ? 503 : 401, {
+          code: error.code,
+          ...(error.code === 'WEB_AUTH_UPSTREAM_UNAVAILABLE'
+            ? { message: 'Google 연결을 확인할 수 없습니다. 운영 웹으로 돌아가 새 로그인을 시작해 주세요.', next: '/app/' }
+            : {}),
+        });
         return;
       }
       if (error instanceof AccountDeletionError) {

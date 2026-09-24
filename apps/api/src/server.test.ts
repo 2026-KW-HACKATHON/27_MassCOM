@@ -315,6 +315,24 @@ test('web login start obeys the existing per-client login limiter before storing
   assert.equal(started, 0);
 });
 
+test('web callback maps provider outage to a retryable 503 without echoing the code', async (t) => {
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('not used'); },
+    complete: async () => { throw new WebAuthError('WEB_AUTH_UPSTREAM_UNAVAILABLE'); },
+    resolveSession: async () => 'account-1',
+    logout: async () => {},
+  };
+  const baseUrl = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth);
+  const response = await fetch(`${baseUrl}/api/web/auth/callback?code=secret-code&state=state-1`, {
+    headers: { cookie: 'web_auth_state=state-1' }, redirect: 'manual',
+  });
+  assert.equal(response.status, 503);
+  const body = await response.text();
+  assert.match(body, /WEB_AUTH_UPSTREAM_UNAVAILABLE/);
+  assert.doesNotMatch(body, /secret-code/);
+});
+
 test('D02 every JSON response forbids caching so one account never receives another account\'s data', async (t) => {
   const baseUrl = await startFixture(t, () => 'account-1');
 
