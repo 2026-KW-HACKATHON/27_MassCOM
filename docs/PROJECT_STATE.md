@@ -4,13 +4,15 @@
 
 ## 최신 작업 경계
 
-- 2026-09-25 첫 AWS 웹 staging 명령은 tar 전송 뒤 실패했다. 운영 API/DB/Caddy와 HTTPS health는 그대로이고 웹 컨테이너·배포 표식은 없다. 없는 `/opt/masscom/web/current`에 대한 `readlink -f` fallback 오류를 `fix/137-first-web-release`에서 RED→GREEN 수정했다. 새 PR·main CI 뒤 재시도하며 현재 `masscom.kr` DNS는 Vercel이다([상세](TEST_STATUS.md)).
+- 2026-09-25 최신: [PR #163](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/163) merge `ec57eb4`와 main CI `36034481207` PASS 뒤 AWS 웹 staging, 가비아 apex DNS `43.200.56.97` 전환, Let's Encrypt TLS 및 공개 포털·`/app/`·`/merchants` HTTPS 200을 확인했다. Samsung SM-S928N에서 이전 `test.2` APK의 `/open` 명시적 VIEW intent와 Chrome의 `/app/` 로드를 확인했지만, Android 사용자 선택 상태 `Disabled`이므로 일반 링크 탭의 기본 열기는 미검증이다. 같은 커밋의 운영 API와 migration 0014·0015를 배포했고 DB 백업·API health를 확인했다. Google 콜백 URI는 등록됐으나 비밀값 미설정으로 로그인·개인 도감은 503 `BLOCKED`; 실제 Google 계정 A/B는 `NOT_RUN`이다([상세](TEST_STATUS.md)).
 
-- 2026-09-25 CI 중단: PR #161은 merge `fec90ff`이고 PR CI는 PASS였지만 병합 후 main CI `36029974084`가 시연 호스트 PostgreSQL 초기화 경합으로 FAIL했다. 수정 브랜치 `fix/137-showcase-pg-tcp-readiness`의 로컬 재현·전용 통합 2/2는 PASS; 새 PR·병합 후 main CI 전에는 외부 AWS 웹 staging을 실행하지 않는다. [실패·수정 근거](TEST_STATUS.md)를 확인한다.
+- 2026-09-25 과거 첫 AWS 웹 staging 명령은 tar 전송 뒤 실패했다. 없는 `/opt/masscom/web/current`의 `readlink -f` fallback 오류를 `fix/137-first-web-release`에서 수정했고 후속 PR #163·main CI와 위 실제 배포로 해소했다. 이 실패는 현재 원격 상태가 아니다.
 
-- 2026-09-25 `feat/137-web-collection-auth`: PR #158의 AWS 웹 코드에 이어 [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159)이 merge `e6dcc82`로 `main`에 통합됐다. 웹 전용 Google OIDC state·PKCE·nonce, 해시 저장 세션, 계정 삭제 시 회수, 읽기 전용 도감 UI 및 Caddy 네 경로를 로컬 구현·시험했다. 독립 리뷰의 두 보안·장애 지적은 RED→GREEN 수정했고 PR CI `36019777124`와 병합 후 main CI `36020699683`이 PASS했다. 이후 AWS 로그인·SSH와 기존 크레딧 적용·서버 여유·Android USB 연결을 확인했다. 그러나 실제 Google Web client/secret·`masscom.kr` DNS/TLS 전환·실계정 A/B·Android 브라우저는 `BLOCKED/NOT_RUN`; 외부 운영 웹 완료가 아니다. [검증 세부](TEST_STATUS.md)를 확인한다.
+- 2026-09-25 과거 CI 중단: PR #161 병합 후 main CI `36029974084`의 PostgreSQL 초기화 경합은 PR #162 merge `cde6a2d`·main CI `36031948040` PASS로 해소했다. [실패·수정 근거](TEST_STATUS.md)를 보존한다.
 
-- 2026-09-24 `feat/137-aws-web`: PR #158로 병합된 공개 파일 allowlist·기존 Lightsail Caddy 포털과 `/app/`·웹 전용 배포/rollback 코드([로컬 증거](evidence/aws-web-local-2026-09-24.json)). 현재 공개 `masscom.kr`은 Vercel HTTPS 200이며 AWS apex DNS·TLS·기기 재검증은 `NOT_RUN`이다. 이후 웹 도감 로컬 작업은 위 2026-09-25 항목을 따른다.
+- 2026-09-25 `feat/137-web-collection-auth`: [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159)에서 웹 전용 Google OIDC state·PKCE·nonce, 해시 저장 세션, 계정 삭제 시 회수, 읽기 전용 도감 UI 및 Caddy 네 경로를 구현·시험했다. 당시 로컬/CI 결과와 현재의 외부 배포·실계정 미완료 상태는 별개이며 최신 판정은 위 항목과 [검증 세부](TEST_STATUS.md)를 따른다.
+
+- 2026-09-24 `feat/137-aws-web`: PR #158로 병합된 공개 파일 allowlist·기존 Lightsail Caddy 포털과 `/app/`·웹 전용 배포/rollback 코드([당시 로컬 증거](evidence/aws-web-local-2026-09-24.json)). 이후 AWS apex DNS·TLS·기기 검증은 위 최신 항목을 따른다.
 - 2026-09-24 시연 호스트 경계는 PR #157 merge `96341e8`·main CI `36005667769` PASS다. 별도 로컬 Docker에서 API/DB healthy, A/B/C 3곳·목표 9개, 반복 seed, 익명 도감 401을 확인했다([증거](evidence/showcase-host-local-2026-09-24.json)). 운영 Lightsail 비용·용량과 전용 OAuth·DNS·외부 HTTPS는 미확인이라 실제 서버 배포는 BLOCKED다.
 - 2026-09-24 D-032의 #136 시연 앱 전용 첫 역할 선택은 PR #156 merge `5e91728`·main CI `35998825263` PASS다. 개발·운영 첫 화면은 유지하며 시연 설치본·외부 API 실기는 `NOT_RUN`이다.
 - 2026-09-24 이슈 #136·#137의 `CLOSED / NOT_PLANNED` 처리는 미완료 작업을 계획 없이 닫은 오류여서 되돌렸고 둘 다 `OPEN`이다. [#136 시연 앱 진입](superpowers/plans/2026-09-24-issue136-showcase-entry.md), [#137 외부 시연 전달](superpowers/plans/2026-09-24-issue137-showcase-delivery.md), [#137 운영 웹 본인 도감](superpowers/plans/2026-09-24-issue137-production-collection.md)을 계획했다. 현재 구현·외부 검증 상태는 아래 항목과 각 계획의 게이트를 따른다. 이 문서 수정은 미완료 기능을 PASS로 승격하지 않는다.
@@ -21,7 +23,7 @@
 
 - Issue #137에서 사용자 요청에 따라 읽기 전용 시연 웹과 격리 로컬 seed를 가상 점포 A·B·C 총 3곳으로 확장했다. 웹의 A 방문·수집품은 고정 예시이며 B·C를 방문 완료로 꾸미지 않는다. 실제 PostgreSQL 반복 seed·A 기존 진행 보존·동시 생성·손상 거절과 로컬 API 공개 목록 3곳은 PASS. 외부 `demo.masscom.kr`·시연 APK는 여전히 `NOT_RUN`이다.
 
-- Issue #137 후속으로 별도 `apps/production-web` 로컬 운영 웹을 추가했다. 공개 `GET /merchants`는 실제 0건을 빈 상태로 보이고 시연 행을 제거한다. 이후 웹 전용 로그인·본인 도감 읽기 코드를 추가했지만 실제 서비스 연결 전까지 화면은 재시도 상태일 수 있다. GitHub 운영 test.2 APK는 이전 코드이며 시연 APK·최신 운영 APK는 없다. 외부 운영 웹 배포와 두 APK 새 실기는 `NOT_RUN`([다운로드 구분](ANDROID_DOWNLOADS.md)).
+- Issue #137 후속으로 별도 `apps/production-web` 운영 웹을 추가했다. 공개 `GET /merchants`는 실제 0건을 빈 상태로 보이고 시연 행을 제거한다. 운영 웹 외부 배포는 위 최신 항목과 같이 확인됐지만 개인 도감 로그인은 아직 503이다. GitHub 운영 test.2 APK는 이전 코드이며 시연 APK·최신 운영 APK는 없다([다운로드 구분](ANDROID_DOWNLOADS.md)).
 
 - Issue #137의 로컬 개발 DEMO에서 Samsung Android 16 실기 수동 코드 흐름을 새 USB 연결로 완료했다. STAFF 발급→고객 수령→도감 1/1/0→다음 보상 추천과 동일 코드 추가 효과 0을 확인했다([증거](evidence/android-local-claim-2026-09-24/README.md)). 실제 QR 카메라·외부 시연 API/앱·지갑/NFT와 운영 웹 개인 도감은 여전히 미완료다.
 
@@ -139,7 +141,7 @@
 
 | 영역 | 상태 | 내용 |
 | --- | --- | --- |
-| 배포 | `VERIFIED` | Vercel 포털·법적 페이지와 AWS Lightsail `api.masscom.kr` DNS·Let’s Encrypt·외부 `/health` 200·보안 헤더 확인. Worker·운영 복원은 별도 `NOT_RUN` |
+| 배포 | `IN_PROGRESS` | `masscom.kr` 포털·법적 페이지·`/app/` 및 `api.masscom.kr`이 기존 AWS Lightsail에서 공인 TLS로 응답하고 `/health` 200을 확인. 운영 웹 Google 로그인·개인 도감·Worker·백업 복원 실험은 별도 `BLOCKED/NOT_RUN` |
 | Android 빌드 | `IN_PROGRESS` | private GitHub test.2 APK, upload key AAB gate, Samsung 4KB·Android 36 16KB AVD·verified `/open` App Link PASS. Play 업로드는 `NOT_RUN` |
 | NFT·시험망 | `VERIFIED` | Local Anvil 복구·장애 흐름과 Base Sepolia 실제 계약·role·series·Worker mint #1·중복 방지 PASS. mainnet 범위 밖 |
 | 외부 지갑 연동 | `IN_PROGRESS` | `kr.masscom.wolgye.dev` MetaMask 연결·Base Sepolia·`personal_sign`·서버 검증·자동 복귀·콜드 스타트 복원과 W06 실기 PASS(B-014 해소). 운영 `kr.masscom.wolgye` release 복귀는 `NOT_RUN`; W04·W05는 `BLOCKED`(B-010·B-011) |

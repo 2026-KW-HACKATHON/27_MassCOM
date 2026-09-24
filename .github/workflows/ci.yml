@@ -68,6 +68,7 @@ jobs:
           node scripts/verify-lightsail-web.mjs
           bash tests/ops/run_aws_web_smoke.sh
           node --test tests/ops/verify_web_session_proxy_test.mjs
+          node --test tests/ops/install_web_oauth_runtime_test.mjs
           bash tests/ops/verify_lightsail_deployment_test.sh
           bash tests/ops/deploy_lightsail_test.sh
           bash tests/ops/deploy_lightsail_web_test.sh

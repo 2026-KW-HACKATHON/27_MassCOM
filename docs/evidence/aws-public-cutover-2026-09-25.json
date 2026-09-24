@@ -1,0 +1,47 @@
+{
+  "date": "2026-09-25 KST",
+  "issue": 137,
+  "repository": "2026-KW-HACKATHON/27_MassCOM",
+  "mainCommit": "ec57eb498b3a5cc559d1657020749d4208e039e5",
+  "mainCi": 36034481207,
+  "dns": {
+    "apexA": "43.200.56.97",
+    "checkedWith": ["ns.gabia.co.kr", "1.1.1.1", "8.8.8.8", "system resolver"],
+    "www": "existing Vercel CNAME retained",
+    "result": "PASS"
+  },
+  "https": {
+    "certificate": "Let's Encrypt, CN=masscom.kr; system TLS validation without -k",
+    "status200": ["/", "/open", "/privacy", "/account-deletion", "/presentation", "/.well-known/assetlinks.json", "/app/", "/app/assets/production.mjs", "/merchants"],
+    "status404": ["/HANDOFF.md", "/TEST_STATUS.md", "/claim", "/mint", "/api/web/unknown"],
+    "apiHealth": "https://api.masscom.kr/health -> 200 {\"status\":\"ok\"}",
+    "merchants": "200 {\"merchants\":[]}",
+    "result": "PASS"
+  },
+  "apiDeployment": {
+    "script": "MASSCOM_LIGHTSAIL_* and MASSCOM_RUNTIME_ENV_FILE set; bash scripts/deploy-lightsail.sh --deploy",
+    "deployedCommit": "ec57eb498b3a5cc559d1657020749d4208e039e5",
+    "migrations": ["0014_web_sessions.sql", "0015_web_oauth_states.sql"],
+    "databaseBackup": "root-owned mode 600 archive on existing Lightsail disk; pg_restore --list PASS",
+    "postgresContainer": "existing container remained running",
+    "apiAndWeb": "healthy",
+    "result": "PASS"
+  },
+  "android": {
+    "device": "Samsung SM-S928N",
+    "installedApp": "kr.masscom.wolgye 0.1.0-test.2, versionCode 2; not latest source",
+    "explicitOpenIntent": "https://masscom.kr/open -> kr.masscom.wolgye/.MainActivity",
+    "chrome": "https://masscom.kr/app/ rendered operating web",
+    "appLinksDomain": "verified",
+    "userSelection": "Disabled; ordinary link tapping NOT_RUN",
+    "result": "BLOCKED"
+  },
+  "googleWebAuth": {
+    "redirectUri": "https://masscom.kr/api/web/auth/callback registered and re-opened in Google Cloud console",
+    "runtimeSecret": "not configured; never stored in this evidence",
+    "startAndCollection": "503 until complete runtime tuple is installed",
+    "realAccountAB": "NOT_RUN",
+    "result": "BLOCKED"
+  },
+  "scope": "This evidence does not prove newest Android APK, default App Link selection, real account collection, showcase API, QR, wallet, NFT, or Google Play acceptance."
+}
