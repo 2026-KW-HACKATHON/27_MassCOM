@@ -11,6 +11,20 @@ cleanup() {
 }
 trap cleanup EXIT
 
+wait_for_postgres_ready() {
+  local container="$1" ready='false'
+  for _attempt in $(seq 1 30); do
+    # The image first starts a Unix-socket-only server for init scripts, then restarts it.
+    if docker exec "$container" pg_isready -h 127.0.0.1 \
+      -U masscom_showcase -d masscom_showcase >/dev/null 2>&1; then
+      ready='true'
+      break
+    fi
+    sleep 1
+  done
+  [[ "$ready" == 'true' ]] || { echo 'disposable showcase PostgreSQL did not become ready' >&2; return 1; }
+}
+
 run_case() {
   local test_file="$1"
   container_id="$(docker run --rm -d \
@@ -21,15 +35,7 @@ run_case() {
     -p 127.0.0.1:55435:5432 \
     postgres:16.10-alpine)"
 
-  local ready='false'
-  for _attempt in $(seq 1 30); do
-    if docker exec "$container_id" pg_isready -U masscom_showcase -d masscom_showcase >/dev/null 2>&1; then
-      ready='true'
-      break
-    fi
-    sleep 1
-  done
-  [[ "$ready" == 'true' ]] || { echo 'disposable showcase PostgreSQL did not become ready' >&2; exit 1; }
+  wait_for_postgres_ready "$container_id"
 
   (
     cd "$repo_root/apps/api"
@@ -40,5 +46,7 @@ run_case() {
   container_id=''
 }
 
-run_case host-seed-existing.postgres.integration.ts
-run_case host-seed.postgres.integration.ts
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  run_case host-seed-existing.postgres.integration.ts
+  run_case host-seed.postgres.integration.ts
+fi

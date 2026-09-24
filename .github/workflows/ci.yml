@@ -155,7 +155,9 @@ jobs:
           done
           npm run test:anvil --prefix apps/worker
       - name: 시연 호스트 전용 PostgreSQL 격리·복원 시험
-        run: bash tests/ops/run_showcase_host_postgres.sh
+        run: |
+          bash tests/ops/showcase_host_readiness_test.sh
+          bash tests/ops/run_showcase_host_postgres.sh
       - name: Android 앱 테스트·정적검사·번들
         run: |
           npm test --prefix apps/mobile

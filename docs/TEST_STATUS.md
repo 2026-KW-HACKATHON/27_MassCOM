@@ -1,5 +1,7 @@
 # 테스트 상태
 
+2026-09-25 Issue #137 병합 후 CI 게이트: PR #161 CI `36029206895` PASS·merge `fec90ff`, 그러나 main CI `36029974084`는 `tests/ops/run_showcase_host_postgres.sh`의 첫 PostgreSQL 통합 시험에서 `Connection terminated unexpectedly`로 FAIL했다. PostgreSQL 16.10 이미지의 초기 임시 서버는 Unix 소켓만 열고 재시작하므로 기존 `docker exec pg_isready`가 너무 이르게 통과했다. `fix/137-showcase-pg-tcp-readiness`에서 TCP 준비를 기다리도록 수정한 회귀는 RED(1회 확인)→GREEN(3회 확인), 로컬 전용 PostgreSQL 두 통합 시험 2/2 PASS. 수정 PR·main CI 전에는 기존 실패를 PASS로 바꾸거나 원격 웹 staging을 시작하지 않는다. 필수 36개 ID 집계는 이번 CI 환경 오류로 변경하지 않는다.
+
 2026-09-25 Issue #137 AWS 접속·용량 선행검증: macOS에서 `ssh masscom`/`ssh masscom-api-seoul`로 기존 Lightsail Ubuntu 로그인 `PASS`; AWS 브라우저 SSH의 ED25519 호스트키 지문과 네트워크 지문을 대조했다. Samsung SM-S928N은 `adb devices -l`에 연결됐다. 서버의 사용 가능 메모리 1211MiB·디스크 여유 약 53GiB, 운영 API/DB healthy·재시작 0회, static IP 일치를 읽기 전용으로 확인했다. AWS Billing의 활성 크레딧에 Lightsail이 포함되며 예상 잔여액이 있음을 확인했고 금액 자체는 저장소에 기록하지 않았다. `bash scripts/deploy-lightsail-web.sh --dry-run` PASS이나 출력대로 원격 검사·웹 배포는 `NOT_RUN`; DNS·TLS·실계정은 미변경이다. 기존 `api.masscom.kr/api/web/collection`의 실제 미로그인 응답은 `404 | application/json | no-store`였다. 이슈 #137은 OPEN, 필수 36개 ID 집계 불변.
 
 같은 브랜치의 웹 원격 점검 수정: `bash tests/ops/deploy_lightsail_web_test.sh`에서 API 버전별 401/404/503 JSON·`no-store` 허용과 200/502·웹 서버 자체 404 거절을 RED→GREEN으로 확인했다. 로컬 Caddy fixture 1/1, 웹 smoke, Compose·운영 문서·증거 정합·비밀값·개인정보 검사 PASS. 이 결과는 원격 `--deploy` 실행 결과가 아니다.
