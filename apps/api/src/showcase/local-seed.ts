@@ -94,7 +94,7 @@ type CampaignRow = {
 type GoalRow = { target_visit_count: number; display_name: string };
 type MemberRow = { role: string; status: string; revoked_at: Date | null };
 
-async function readFixture(client: PoolClient, entry: ShowcaseMerchant): Promise<{
+async function readFixture(client: PoolClient, entry: ShowcaseMerchant, staffAccountId?: string): Promise<{
   merchant?: MerchantRow;
   campaign?: CampaignRow;
   goals: GoalRow[];
@@ -116,16 +116,16 @@ async function readFixture(client: PoolClient, entry: ShowcaseMerchant): Promise
      WHERE campaign_id = $1 ORDER BY target_visit_count`,
     [entry.campaignId],
   );
-  const member = await client.query<MemberRow>(
+  const member = staffAccountId ? await client.query<MemberRow>(
     `SELECT role, status, revoked_at FROM merchant_members
      WHERE merchant_id = $1 AND account_id = $2`,
-    [entry.merchantId, SHOWCASE_STAFF_ACCOUNT_ID],
-  );
+    [entry.merchantId, staffAccountId],
+  ) : undefined;
   return {
     ...(merchant.rows[0] ? { merchant: merchant.rows[0] } : {}),
     ...(campaign.rows[0] ? { campaign: campaign.rows[0] } : {}),
     goals: rewardGoals.rows,
-    ...(member.rows[0] ? { member: member.rows[0] } : {}),
+    ...(member?.rows[0] ? { member: member.rows[0] } : {}),
   };
 }
 
@@ -133,6 +133,7 @@ function assertFixtureMatches(
   fixture: Awaited<ReturnType<typeof readFixture>>,
   entry: ShowcaseMerchant,
   now: Date,
+  expectStaff: boolean,
 ): void {
   const { merchant, campaign, member } = fixture;
   if (
@@ -149,8 +150,8 @@ function assertFixtureMatches(
     goals.some(([count, name], index) =>
       fixture.goals[index]?.target_visit_count !== count ||
       fixture.goals[index]?.display_name !== name) ||
-    !member || member.role !== 'STAFF' || member.status !== 'ACTIVE' ||
-    member.revoked_at !== null
+    (expectStaff && (!member || member.role !== 'STAFF' || member.status !== 'ACTIVE' ||
+    member.revoked_at !== null))
   ) {
     throw new Error(fixtureError);
   }
@@ -160,7 +161,25 @@ export async function seedLocalShowcase(
   pool: Pool,
   now: Date = new Date(),
 ): Promise<{ merchantId: string; campaignId: string }> {
-  await assertShowcaseDatabaseTarget(pool);
+  return seedShowcaseFixtureData(pool, 'local', now);
+}
+
+export async function seedShowcaseFixtureData(
+  pool: Pool,
+  mode: 'local' | 'hosted',
+  now: Date = new Date(),
+): Promise<{ merchantId: string; campaignId: string }> {
+  if (mode === 'local') {
+    await assertShowcaseDatabaseTarget(pool);
+  } else if (mode === 'hosted') {
+    const result = await pool.query<{ name: string }>('SELECT current_database() AS name');
+    if (result.rows[0]?.name !== 'masscom_showcase') {
+      throw new Error('SHOWCASE_HOST_DATABASE_REQUIRED');
+    }
+  } else {
+    throw new Error('SHOWCASE_SEED_MODE_REQUIRED');
+  }
+  const staffAccountId = mode === 'local' ? SHOWCASE_STAFF_ACCOUNT_ID : undefined;
   const client = await pool.connect();
   let transactionStarted = false;
   try {
@@ -168,12 +187,12 @@ export async function seedLocalShowcase(
     transactionStarted = true;
     await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [showcaseSeedLockId]);
     for (const entry of merchants) {
-      const existing = await readFixture(client, entry);
+      const existing = await readFixture(client, entry, staffAccountId);
       const hasExisting = Boolean(
         existing.merchant || existing.campaign || existing.member || existing.goals.length,
       );
       if (hasExisting) {
-        assertFixtureMatches(existing, entry, now);
+        assertFixtureMatches(existing, entry, now, Boolean(staffAccountId));
         continue;
       }
       await client.query(
@@ -203,13 +222,17 @@ export async function seedLocalShowcase(
           [entry.campaignId, count, name],
         );
       }
-      await client.query(
-        `INSERT INTO merchant_members (merchant_id, account_id, role, status)
-         VALUES ($1, $2, 'STAFF', 'ACTIVE')
-         ON CONFLICT (merchant_id, account_id) DO NOTHING`,
-        [entry.merchantId, SHOWCASE_STAFF_ACCOUNT_ID],
+      if (staffAccountId) {
+        await client.query(
+          `INSERT INTO merchant_members (merchant_id, account_id, role, status)
+           VALUES ($1, $2, 'STAFF', 'ACTIVE')
+           ON CONFLICT (merchant_id, account_id) DO NOTHING`,
+          [entry.merchantId, staffAccountId],
+        );
+      }
+      assertFixtureMatches(
+        await readFixture(client, entry, staffAccountId), entry, now, Boolean(staffAccountId),
       );
-      assertFixtureMatches(await readFixture(client, entry), entry, now);
     }
     await client.query('COMMIT');
     transactionStarted = false;

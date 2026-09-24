@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-24",
+  "environment": "disposable local Docker Compose project masscom-showcase-ci-20260924",
+  "branch": "feat/137-host-delivery",
+  "status": "PASS",
+  "checks": [
+    { "name": "Compose isolation validator and mutation tests", "result": "PASS", "count": "3/3" },
+    { "name": "API and PostgreSQL container health", "result": "PASS" },
+    { "name": "host seed repeated without duplicates", "result": "PASS", "merchants": 3, "campaigns": 3, "goals": 9, "members": 0, "visits": 0, "entitlements": 0 },
+    { "name": "disposable PostgreSQL integration", "result": "PASS", "cases": 2, "details": "A-only visit and entitlement preserved during B/C expansion; partial write rolled back; concurrent seed converged; uninvited, expired-session, non-demo, revoked-member, and deleted-account grant paths rejected" },
+    { "name": "public catalog", "result": "PASS", "merchants": ["가상 점포 A", "가상 점포 B", "가상 점포 C"] },
+    { "name": "anonymous collection", "result": "PASS", "httpStatus": 401 },
+    { "name": "API host port", "result": "PASS", "binding": "127.0.0.1:3301" },
+    { "name": "Docker network", "result": "PASS", "network": "masscom-showcase-ci-20260924_default" }
+  ],
+  "notVerified": [
+    "AWS Lightsail memory, cost, and credit status",
+    "production-host deployment and Caddy routing",
+    "dedicated Google OAuth client and invited live accounts",
+    "external HTTPS and Android showcase APK"
+  ],
+  "reproduce": [
+    "node scripts/verify-showcase-host.mjs",
+    "node --test tests/ops/verify_showcase_host_test.mjs",
+    "bash tests/ops/run_showcase_host_postgres.sh",
+    "Use a newly created isolated local Compose project with test-only environment values; never run these destructive fixture tests against the operating database."
+  ]
+}

@@ -1,0 +1,77 @@
+name: masscom-showcase
+
+services:
+  postgres:
+    image: postgres:16.10-alpine
+    environment:
+      POSTGRES_DB: masscom_showcase
+      POSTGRES_USER: masscom_showcase
+      POSTGRES_PASSWORD: ${SHOWCASE_HOST_POSTGRES_PASSWORD:?showcase database password is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U masscom_showcase -d masscom_showcase"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  migrate:
+    image: masscom-showcase-api:${MASSCOM_SHOWCASE_IMAGE_TAG:-local}
+    command: ["node", "dist/postgres/migrate-command.js"]
+    environment:
+      DATABASE_URL: postgresql://masscom_showcase@postgres:5432/masscom_showcase
+      PGPASSWORD: ${SHOWCASE_HOST_POSTGRES_PASSWORD:?showcase database password is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    image: masscom-showcase-api:${MASSCOM_SHOWCASE_IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: infra/lightsail/api.Dockerfile
+    environment:
+      NODE_ENV: production
+      API_BIND_HOST: 0.0.0.0
+      PORT: "3000"
+      DATABASE_URL: postgresql://masscom_showcase@postgres:5432/masscom_showcase
+      PGPASSWORD: ${SHOWCASE_HOST_POSTGRES_PASSWORD:?showcase database password is required}
+      SHOWCASE_MODE: "true"
+      SHOWCASE_INVITED_SUBJECT_SHA256: ${SHOWCASE_INVITED_SUBJECT_SHA256:?invited subject hashes are required}
+      SHOWCASE_STAFF_SUBJECT_SHA256: ${SHOWCASE_STAFF_SUBJECT_SHA256:-}
+      GOOGLE_OAUTH_CLIENT_IDS: ${SHOWCASE_GOOGLE_WEB_CLIENT_ID:?dedicated Google Web client is required}
+      ALLOW_INSECURE_DEMO_ACCOUNT: "false"
+      AUTH_TRUST_CADDY_FORWARDED_FOR: "false"
+      SIWE_DOMAIN: demo-api.masscom.kr
+      SIWE_URI: https://demo-api.masscom.kr/wallet/verify
+      WALLET_CHAIN_ID: "84532"
+      ACCOUNT_DELETION_HMAC_SECRET: ${SHOWCASE_ACCOUNT_DELETION_HMAC_SECRET:?showcase deletion secret is required}
+      MERCHANT_REFERENCE_HMAC_SECRET: ${SHOWCASE_MERCHANT_REFERENCE_HMAC_SECRET:?showcase reference secret is required}
+    ports:
+      - "127.0.0.1:3301:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  postgres_data:
