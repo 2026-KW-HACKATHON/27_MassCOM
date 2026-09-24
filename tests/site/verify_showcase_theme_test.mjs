@@ -15,6 +15,19 @@ const expected = {
 };
 
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
+const withTimeout = async (work, label, ms = 8000) => {
+  let timer;
+  try {
+    return await Promise.race([
+      work,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비', async () => {
   assert.ok(existsSync(chromePath), `Chrome 실행 파일 필요: ${chromePath}`);
@@ -39,7 +52,8 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
   let socket;
   try {
     const portFile = join(profile, 'DevToolsActivePort');
-    for (let i = 0; i < 100 && !existsSync(portFile) && !chromeExit && !chromeSpawnError; i++) await delay(100);
+    // Shared CI runners have twice kept Chrome alive beyond the former 10s startup limit.
+    for (let i = 0; i < 300 && !existsSync(portFile) && !chromeExit && !chromeSpawnError; i++) await delay(100);
     const startupDetails = [
       chromeSpawnError?.message,
       chromeExit ? `exit=${chromeExit.code} signal=${chromeExit.signal}` : 'process still running',
@@ -47,11 +61,17 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
     ].filter(Boolean).join('; ');
     assert.ok(existsSync(portFile), `Chrome DevTools 시작 실패: ${startupDetails}`);
     const port = readFileSync(portFile, 'utf8').split('\n')[0];
-    const pages = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
+    const pagesResponse = await fetch(`http://127.0.0.1:${port}/json`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    const pages = await withTimeout(pagesResponse.json(), 'Chrome DevTools page list');
     const page = pages.find((entry) => entry.type === 'page');
     assert.ok(page, 'Chrome 페이지 없음');
     socket = new WebSocket(page.webSocketDebuggerUrl);
-    await new Promise((done, fail) => { socket.addEventListener('open', done, { once: true }); socket.addEventListener('error', fail, { once: true }); });
+    await withTimeout(new Promise((done, fail) => {
+      socket.addEventListener('open', done, { once: true });
+      socket.addEventListener('error', fail, { once: true });
+    }), 'Chrome DevTools WebSocket open');
     let id = 0;
     const pending = new Map();
     socket.addEventListener('message', ({ data }) => {
@@ -61,11 +81,11 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
       pending.delete(message.id);
       if (message.error) fail(new Error(message.error.message)); else done(message.result);
     });
-    const send = (method, params = {}) => new Promise((done, fail) => {
+    const send = (method, params = {}) => withTimeout(new Promise((done, fail) => {
       const nextId = ++id;
       pending.set(nextId, { done, fail });
       socket.send(JSON.stringify({ id: nextId, method, params }));
-    });
+    }), `Chrome DevTools ${method}`);
     let loaded = false;
     for (let i = 0; i < 100 && !loaded; i++) {
       const result = await send('Runtime.evaluate', { expression: "document.readyState === 'complete' && !!document.querySelector('.demo-ribbon') && !!getComputedStyle(document.documentElement).getPropertyValue('--ink')", returnByValue: true });
@@ -129,7 +149,7 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
     assert.deepEqual([...new Set(requests)].sort(), ['/', '/assets/showcase.css?v=20260924']);
   } finally {
     socket?.close();
-    chrome.kill();
+    chrome.kill('SIGKILL');
     await new Promise((done) => { if (chrome.exitCode !== null || chrome.signalCode !== null || chromeSpawnError) done(); else chrome.once('exit', done); });
     rmSync(profile, { recursive: true, force: true });
     await new Promise((done) => server.close(done));
