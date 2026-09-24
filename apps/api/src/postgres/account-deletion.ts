@@ -226,6 +226,10 @@ async function pseudonymizeAccount(
     `UPDATE auth_sessions SET revoked_at = coalesce(revoked_at, $1) WHERE account_id = $2`,
     [now, accountId],
   );
+  await client.query(
+    `UPDATE web_sessions SET revoked_at = coalesce(revoked_at, $1) WHERE account_id = $2`,
+    [now, accountId],
+  );
   await client.query('DELETE FROM auth_identities WHERE account_id = $1', [accountId]);
   await client.query(
     `INSERT INTO merchant_members (

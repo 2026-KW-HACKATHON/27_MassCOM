@@ -1,10 +1,12 @@
 # 프로젝트 상태
 
-마지막 갱신 시각: 2026-09-24 KST
+마지막 갱신 시각: 2026-09-25 KST
 
 ## 최신 작업 경계
 
-- 2026-09-24 `feat/137-aws-web`: 사용자가 AWS 단일 호스트를 제안해 공개 파일 allowlist·기존 Lightsail Caddy의 포털과 `/app/` 경로·웹 전용 배포/rollback 준비를 진행했다([로컬 증거](evidence/aws-web-local-2026-09-24.json)). 현재 공개 `masscom.kr`은 Vercel HTTPS 200이며 AWS apex DNS·TLS·기기 재검증은 `NOT_RUN`; 웹 개인 도감 로그인도 여전히 미구현이다.
+- 2026-09-25 `feat/137-web-collection-auth`: PR #158의 AWS 웹 코드가 `main`에 병합됐고 CI를 통과했다. [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159)에서는 웹 전용 Google OIDC state·PKCE·nonce, 해시 저장 세션, 계정 삭제 시 회수, 읽기 전용 도감 UI 및 Caddy 네 경로를 로컬 구현·시험했다. 독립 리뷰의 두 보안·장애 지적은 RED→GREEN 수정, PR CI는 별도 확인 대상이다. 실제 Google Web client/secret·AWS 로그인/SSH·`masscom.kr` DNS/TLS 전환·실계정 A/B·Android 브라우저는 `BLOCKED/NOT_RUN`; 외부 운영 웹 완료가 아니다. [검증 세부](TEST_STATUS.md)를 확인한다.
+
+- 2026-09-24 `feat/137-aws-web`: PR #158로 병합된 공개 파일 allowlist·기존 Lightsail Caddy 포털과 `/app/`·웹 전용 배포/rollback 코드([로컬 증거](evidence/aws-web-local-2026-09-24.json)). 현재 공개 `masscom.kr`은 Vercel HTTPS 200이며 AWS apex DNS·TLS·기기 재검증은 `NOT_RUN`이다. 이후 웹 도감 로컬 작업은 위 2026-09-25 항목을 따른다.
 - 2026-09-24 시연 호스트 경계는 PR #157 merge `96341e8`·main CI `36005667769` PASS다. 별도 로컬 Docker에서 API/DB healthy, A/B/C 3곳·목표 9개, 반복 seed, 익명 도감 401을 확인했다([증거](evidence/showcase-host-local-2026-09-24.json)). 운영 Lightsail 비용·용량과 전용 OAuth·DNS·외부 HTTPS는 미확인이라 실제 서버 배포는 BLOCKED다.
 - 2026-09-24 D-032의 #136 시연 앱 전용 첫 역할 선택은 PR #156 merge `5e91728`·main CI `35998825263` PASS다. 개발·운영 첫 화면은 유지하며 시연 설치본·외부 API 실기는 `NOT_RUN`이다.
 - 2026-09-24 이슈 #136·#137의 `CLOSED / NOT_PLANNED` 처리는 미완료 작업을 계획 없이 닫은 오류여서 되돌렸고 둘 다 `OPEN`이다. [#136 시연 앱 진입](superpowers/plans/2026-09-24-issue136-showcase-entry.md), [#137 외부 시연 전달](superpowers/plans/2026-09-24-issue137-showcase-delivery.md), [#137 운영 웹 본인 도감](superpowers/plans/2026-09-24-issue137-production-collection.md)을 계획했다. 현재 구현·외부 검증 상태는 아래 항목과 각 계획의 게이트를 따른다. 이 문서 수정은 미완료 기능을 PASS로 승격하지 않는다.
@@ -15,7 +17,7 @@
 
 - Issue #137에서 사용자 요청에 따라 읽기 전용 시연 웹과 격리 로컬 seed를 가상 점포 A·B·C 총 3곳으로 확장했다. 웹의 A 방문·수집품은 고정 예시이며 B·C를 방문 완료로 꾸미지 않는다. 실제 PostgreSQL 반복 seed·A 기존 진행 보존·동시 생성·손상 거절과 로컬 API 공개 목록 3곳은 PASS. 외부 `demo.masscom.kr`·시연 APK는 여전히 `NOT_RUN`이다.
 
-- Issue #137 후속으로 별도 `apps/production-web` 로컬 운영 웹을 추가했다. 공개 `GET /merchants`만 운영 API로 조회하며 실제 0건을 빈 상태로 보이고, 시연 행은 렌더하지 않는다. 웹 개인 도감은 안전한 로그인 세션 전까지 이용 불가다. GitHub 운영 test.2 APK는 이전 코드로 내려받을 수 있지만 시연 APK·최신 운영 APK는 없다. 외부 운영 웹 배포와 두 APK 새 실기는 `NOT_RUN`([다운로드 구분](ANDROID_DOWNLOADS.md)).
+- Issue #137 후속으로 별도 `apps/production-web` 로컬 운영 웹을 추가했다. 공개 `GET /merchants`는 실제 0건을 빈 상태로 보이고 시연 행을 제거한다. 이후 웹 전용 로그인·본인 도감 읽기 코드를 추가했지만 실제 서비스 연결 전까지 화면은 재시도 상태일 수 있다. GitHub 운영 test.2 APK는 이전 코드이며 시연 APK·최신 운영 APK는 없다. 외부 운영 웹 배포와 두 APK 새 실기는 `NOT_RUN`([다운로드 구분](ANDROID_DOWNLOADS.md)).
 
 - Issue #137의 로컬 개발 DEMO에서 Samsung Android 16 실기 수동 코드 흐름을 새 USB 연결로 완료했다. STAFF 발급→고객 수령→도감 1/1/0→다음 보상 추천과 동일 코드 추가 효과 0을 확인했다([증거](evidence/android-local-claim-2026-09-24/README.md)). 실제 QR 카메라·외부 시연 API/앱·지갑/NFT와 운영 웹 개인 도감은 여전히 미완료다.
 

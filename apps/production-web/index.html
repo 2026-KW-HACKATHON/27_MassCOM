@@ -37,15 +37,33 @@
 
       <section class="collection-section" id="collection" aria-labelledby="collection-title">
         <div>
-          <p class="context">개인 정보 보호</p>
+          <p class="context">본인에게만 보이는 기록</p>
           <h2 id="collection-title">내 도감</h2>
+          <p class="collection-message">앱에서 인증한 방문과 수집품을 여기서 읽을 수 있습니다. QR 인증과 NFT 발행은 앱에서만 진행합니다.</p>
         </div>
-        <p class="collection-message">웹 로그인과 안전한 개인 세션이 준비되면 본인의 도감을 여기서 볼 수 있습니다. 현재 웹 도감은 이용할 수 없습니다.</p>
+        <div>
+          <p id="collection-status" class="status" role="status" aria-live="polite">내 도감을 확인하는 중입니다.</p>
+          <div class="collection-actions">
+            <a id="collection-login" class="collection-action" href="/api/web/auth/start" hidden>Google 계정으로 로그인</a>
+            <button id="collection-retry" class="collection-action" type="button" hidden>도감 다시 확인</button>
+            <button id="collection-logout" class="collection-action secondary" type="button" hidden>로그아웃</button>
+          </div>
+          <div id="collection-content" class="collection-content" hidden>
+            <section aria-labelledby="visits-title">
+              <h3 id="visits-title">방문 기록</h3>
+              <div id="visit-list" class="collection-list"></div>
+            </section>
+            <section aria-labelledby="collectibles-title">
+              <h3 id="collectibles-title">앱 수집품과 NFT 상태</h3>
+              <div id="collectible-list" class="collection-list"></div>
+            </section>
+          </div>
+        </div>
       </section>
     </main>
 
     <footer class="site-footer">
-      <p>월계 마스코트 운영 서비스 · 이 페이지는 공개 음식점 정보만 표시합니다.</p>
+      <p>월계 마스코트 운영 서비스 · 음식점은 공개 정보이며 내 도감은 본인 로그인 후에만 표시합니다.</p>
     </footer>
   </body>
 </html>

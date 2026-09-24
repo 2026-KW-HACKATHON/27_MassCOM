@@ -1,5 +1,9 @@
 # 테스트 상태
 
+2026-09-25 Issue #137 웹 도감 로컬 구현(PR #159): `node --test tests/ops/verify_web_session_proxy_test.mjs` 1/1, `bash tests/ops/run_aws_web_smoke.sh`, `node --test tests/site/verify_production_web_test.mjs` 14/14, API 단위 106/106·PostgreSQL 49 PASS/2 SKIP·typecheck/build·비밀값/개인정보 검사 `PASS`. 로컬 Caddy fixture에서 네 경로만 쿠키·redirect·no-store 전달, 임의 `/api/web/*`·claim·mint 404. PostgreSQL에서 웹 쿠키 해시·A/B 격리·만료·로그아웃·계정 삭제 회수·state 일회성·nonce·기존 Google `sub`만 연결을 시험했다. 독립 리뷰의 다른 탭 로그아웃 후 이전 기록 잔존과 Google 장애의 401 오분류를 RED→GREEN으로 수정했다. 로컬 Chrome 390px 다크 모드 `GET /api/web/collection` 401→로그인 안내와 가로 넘침 없음 확인. Google token endpoint는 로컬 대역으로 시험했으며 실제 code 교환/실계정 A/B·AWS HTTPS·쿠키 TLS·Android 브라우저는 `NOT_RUN/BLOCKED`. `masscom.kr`은 현재 Vercel이며 36개 필수 ID 상태 불변.
+
+같은 날 웹 smoke 첫 재실행은 수동 로컬 브라우저 fixture가 포트 8089를 점유해 Docker 바인딩 단계에서 `FAIL`이었다. 해당 시험용 컨테이너·네트워크·임시 공개 번들만 정리하고 같은 코드로 재실행해 `PASS`했다. 운영 배포 실패나 제품 코드 회귀로 분류하지 않는다.
+
 2026-09-24 Issue #137 AWS 웹 이관(`feat/137-aws-web`): 공개 파일 allowlist 2/2, 운영 웹 로컬 9/9, Compose 변조 1/1, 로컬 Caddy 경로·assetlinks·비공개 404·API/DB 미기동 smoke PASS. 웹 전용 dry-run과 **가짜 서비스 명령으로 실행한** 시작·상태·Caddy 실패별 복구 제어 시험 PASS([증거](evidence/aws-web-local-2026-09-24.json)). 이는 실제 Lightsail에서 웹/Caddy 복구를 실행한 결과가 아니다. AWS 비용·용량/SSH, apex DNS·공인 인증서, 운영 웹 외부 URL·Android verified App Link는 `BLOCKED/NOT_RUN`. 현재 `masscom.kr` HTTPS 200은 기존 Vercel 결과이며 AWS 배포 PASS가 아니다. 필수 36개 ID 집계 불변.
 
 2026-09-24 Issue #137 시연 호스트 격리(`feat/137-host-delivery`): API 단위 94/94, PostgreSQL 공통 45 PASS·host 전용 2 SKIP(별도 타깃 없이 실행), 전용 일회용 `masscom_showcase` DB의 hosted seed/권한 통합 2/2, Compose 변조 3/3, API typecheck/build PASS. A만 있던 DB의 방문·보상권 보존, B 삽입 중 실패 시 rollback, 동시 seed, 직원 초대/활성 세션·취소된 직원 권한·삭제 계정 잠금 경쟁을 분리 검증했다. 별도 로컬 Compose에서는 API/DB healthy·A/B/C 3곳·목표 9개·직원/방문/보상권 0·익명 도감 401·loopback 3301을 확인했다([증거](evidence/showcase-host-local-2026-09-24.json)). 호스트 비용·용량/크레딧 확인, 실제 외부 배포·전용 OAuth·DNS·서명 APK·실기는 `BLOCKED/NOT_RUN`이며 필수 36개 집계는 바꾸지 않는다.

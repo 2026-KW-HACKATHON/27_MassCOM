@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 
-import { loadMerchants } from '../../apps/production-web/assets/production.mjs';
+import { bindCollectionControls, loadCollection, loadMerchants } from '../../apps/production-web/assets/production.mjs';
 import { createProductionServer, resolveProductionBindHost } from '../../apps/production-web/server.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -22,12 +22,15 @@ test('운영 웹은 로컬 기본 바인딩을 유지하고 명시한 컨테이�
 });
 
 function element() {
+  const listeners = new Map();
   return {
     textContent: '',
     children: [],
     className: '',
     append(...children) { this.children.push(...children); },
     replaceChildren() { this.children = []; },
+    addEventListener(type, callback) { listeners.set(type, callback); },
+    async click() { return listeners.get('click')?.(); },
   };
 }
 
@@ -44,8 +47,8 @@ function documentFixture() {
   };
 }
 
-test('운영 웹은 시연 데이터와 쓰기 UI 없이 개인 도감을 닫는다', () => {
-  assert.match(html, /현재 웹 도감은 이용할 수 없습니다/);
+test('운영 웹은 시연 데이터와 쓰기 UI 없이 개인 도감을 읽기 전용으로 둔다', () => {
+  assert.match(html, /내 도감/);
   assert.match(html, /role="status" aria-live="polite"/);
   assert.match(html, /lang="ko"/);
   assert.match(html, /viewport/);
@@ -53,9 +56,151 @@ test('운영 웹은 시연 데이터와 쓰기 UI 없이 개인 도감을 닫는
   assert.match(css, /#2456d6/);
   assert.doesNotMatch(html + script + serverSource, /localStorage|innerHTML|dangerouslySetInnerHTML/);
   assert.doesNotMatch(html + script, /가상 점포|예시 방문|실제 NFT가 아닙니다|DEMO 배지/);
-  assert.doesNotMatch(html, /<form\b|<button\b|wallet|mint|QR|claim/i);
+  assert.doesNotMatch(html, /<form\b|href="[^"]*(?:wallet|mint|claim|qr)|data-action="[^"]*(?:wallet|mint|claim|qr)/i);
   assert.match(script, /textContent = merchant\.name/);
   assert.match(script, /merchant\.demo === false/);
+});
+
+function collectionFixture() {
+  const ids = [
+    'collection-status', 'collection-login', 'collection-retry', 'collection-logout',
+    'collection-content', 'visit-list', 'collectible-list',
+  ];
+  const nodes = Object.fromEntries(ids.map((id) => [id, { ...element(), hidden: true }]));
+  return {
+    nodes,
+    doc: {
+      getElementById(id) { return nodes[id]; },
+      createElement: element,
+      hidden: false,
+      listeners: new Map(),
+      addEventListener(type, callback) { this.listeners.set(type, callback); },
+      async dispatch(type) { return this.listeners.get(type)?.(); },
+    },
+  };
+}
+
+function sharedWindows(...docs) {
+  const channels = new Set();
+  class Channel {
+    constructor() { channels.add(this); }
+    postMessage(value) {
+      for (const peer of channels) if (peer !== this) peer.onmessage?.({ data: value });
+    }
+  }
+  for (const doc of docs) {
+    doc.defaultView = {
+      BroadcastChannel: Channel,
+      listeners: new Map(),
+      addEventListener(type, callback) { this.listeners.set(type, callback); },
+      async dispatch(type) { return this.listeners.get(type)?.(); },
+    };
+  }
+}
+
+test('다른 탭 로그아웃과 계정 전환은 오래 열린 도감의 이전 기록을 지운다', async () => {
+  const a = collectionFixture();
+  const b = collectionFixture();
+  const c = collectionFixture();
+  sharedWindows(a.doc, b.doc, c.doc);
+  let account = 'ACCOUNT_A_PRIVATE_VISIT';
+  const fetcher = async (url) => {
+    if (url === '/api/web/logout') {
+      account = '';
+      return { ok: true };
+    }
+    if (!account) return { ok: false, status: 401 };
+    return { ok: true, json: async () => ({
+      visits: [{ merchantName: account, businessDate: '2026-09-25' }], collectibles: [],
+    }) };
+  };
+  await bindCollectionControls(fetcher, a.doc);
+  await bindCollectionControls(fetcher, b.doc);
+  await new Promise((done) => setTimeout(done, 0));
+  assert.equal(a.nodes['visit-list'].children[0].children[0].textContent, 'ACCOUNT_A_PRIVATE_VISIT');
+  await b.nodes['collection-logout'].click();
+  await new Promise((done) => setTimeout(done, 0));
+  assert.equal(a.nodes['visit-list'].children.length, 0);
+  assert.equal(a.nodes['collection-content'].hidden, true);
+
+  account = 'ACCOUNT_B_PRIVATE_VISIT';
+  await bindCollectionControls(fetcher, c.doc);
+  await new Promise((done) => setTimeout(done, 0));
+  assert.equal(a.nodes['visit-list'].children[0].children[0].textContent, 'ACCOUNT_B_PRIVATE_VISIT');
+});
+
+test('숨긴 탭과 뒤로 가기로 보존된 문서는 개인 DOM을 즉시 비운 뒤 다시 조회한다', async () => {
+  const { nodes, doc } = collectionFixture();
+  doc.defaultView = { addEventListener(type, callback) { this[type] = callback; } };
+  const fetcher = async () => ({ ok: true, json: async () => ({
+    visits: [{ merchantName: '민감한 이전 방문', businessDate: '2026-09-25' }], collectibles: [],
+  }) });
+  await bindCollectionControls(fetcher, doc);
+  doc.hidden = true;
+  await doc.dispatch('visibilitychange');
+  assert.equal(nodes['visit-list'].children.length, 0);
+  assert.equal(nodes['collection-content'].hidden, true);
+  doc.hidden = false;
+  await doc.dispatch('visibilitychange');
+  assert.equal(nodes['visit-list'].children.length, 1);
+  await doc.defaultView.pagehide();
+  assert.equal(nodes['visit-list'].children.length, 0);
+  await doc.defaultView.pageshow();
+  assert.equal(nodes['visit-list'].children.length, 1);
+});
+
+test('운영 도감은 미로그인과 실제 기록 0건을 구분하고 다른 계정의 이전 화면을 지운다', async () => {
+  const { nodes, doc } = collectionFixture();
+  await loadCollection(async (url, options) => {
+    assert.equal(url, '/api/web/collection');
+    assert.equal(options.credentials, 'same-origin');
+    assert.equal(options.cache, 'no-store');
+    return { status: 401, ok: false };
+  }, doc);
+  assert.match(nodes['collection-status'].textContent, /로그인/);
+  assert.equal(nodes['collection-login'].hidden, false);
+  assert.equal(nodes['collection-content'].hidden, true);
+
+  await loadCollection(async () => ({ ok: true, json: async () => ({ visits: [], collectibles: [] }) }), doc);
+  assert.match(nodes['collection-status'].textContent, /아직 없습니다/);
+  assert.equal(nodes['collection-login'].hidden, true);
+  assert.equal(nodes['collection-logout'].hidden, false);
+  assert.equal(nodes['visit-list'].children.length, 0);
+  assert.equal(nodes['collectible-list'].children.length, 0);
+});
+
+test('운영 도감은 방문과 앱 수집품을 실제 NFT 완료와 구분해 텍스트로 표시한다', async () => {
+  const { nodes, doc } = collectionFixture();
+  await loadCollection(async () => ({ ok: true, json: async () => ({
+    visits: [{
+      visitEventId: 'visit-1', merchantId: 'merchant-1', merchantName: '<script>bad</script>',
+      campaignId: 'campaign-1', campaignTitle: '방문', businessDate: '2026-09-24',
+      progressCounted: true, verificationLevel: 'MERCHANT_CONFIRMED',
+    }],
+    collectibles: [{
+      entitlementId: 'reward-1', merchantId: 'merchant-1', merchantName: '월계 가게',
+      campaignId: 'campaign-1', campaignTitle: '방문', targetVisitCount: 1,
+      displayName: '마스코트', appCollectibleStatus: 'COLLECTED', mintJobId: null,
+      recipient: null, nftStatus: 'NOT_REQUESTED', nft: null,
+    }],
+  }) }), doc);
+  assert.equal(nodes['visit-list'].children.length, 1);
+  assert.equal(nodes['visit-list'].children[0].children[0].textContent, '<script>bad</script>');
+  assert.equal(nodes['collectible-list'].children.length, 1);
+  const cardText = nodes['collectible-list'].children[0].children.map((child) => child.textContent).join(' ');
+  assert.match(cardText, /앱 수집품/);
+  assert.match(cardText, /NFT 미신청/);
+  assert.doesNotMatch(cardText, /발행 완료/);
+});
+
+test('운영 도감 API 오류는 이전 기록을 지우고 재시도 선택지를 표시한다', async () => {
+  const { nodes, doc } = collectionFixture();
+  nodes['visit-list'].children.push({ textContent: '다른 계정 방문' });
+  await loadCollection(async () => { throw new Error('offline'); }, doc);
+  assert.equal(nodes['visit-list'].children.length, 0);
+  assert.equal(nodes['collection-content'].hidden, true);
+  assert.equal(nodes['collection-retry'].hidden, false);
+  assert.match(nodes['collection-status'].textContent, /다시 시도/);
 });
 
 test('실제 공개 응답 0건은 빈 상태를 표시한다', async () => {

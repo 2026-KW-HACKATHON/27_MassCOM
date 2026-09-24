@@ -11,6 +11,8 @@ import {
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
 import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js';
+import { WebAuthError, WebAuthService, resolveWebAuthConfig, type WebAuthHandler } from './web-auth.js';
+import { WebSessionError } from './web-session.js';
 import {
   CampaignEnrollmentError,
   type CampaignEnrollmentService,
@@ -38,6 +40,7 @@ import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollmen
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
+import { PostgresWebSessionStore } from './postgres/web-session.js';
 import { resolveShowcaseInviteConfig } from './showcase/invite-config.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
@@ -142,6 +145,7 @@ export function createApiServer(
   authSessions?: AuthSessionService,
   authLoginLimiter?: AuthLoginLimiter,
   trustProxyClientIp = false,
+  webAuth?: WebAuthHandler,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -149,6 +153,65 @@ export function createApiServer(
     try {
       if (request.method === 'GET' && request.url === '/health') {
         sendJson(response, 200, { status: 'ok' });
+        return;
+      }
+
+      const path = new URL(request.url ?? '/', 'http://localhost').pathname;
+      if (path === '/api/web/auth/start' && request.method === 'GET') {
+        if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');
+        if (authLoginLimiter) {
+          const decision = authLoginLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
+          if (!decision.allowed) {
+            response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+            sendJson(response, 429, { code: 'LOGIN_RATE_LIMITED' });
+            return;
+          }
+        }
+        const started = await webAuth.start();
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        response.setHeader('set-cookie', `web_auth_state=${started.state}; Path=/api/web/auth; Max-Age=300; HttpOnly; Secure; SameSite=Lax`);
+        response.setHeader('location', started.location);
+        response.writeHead(302);
+        response.end();
+        return;
+      }
+      if (path === '/api/web/auth/callback' && request.method === 'GET') {
+        if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        response.setHeader('set-cookie', 'web_auth_state=; Path=/api/web/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
+        const query = new URL(request.url!, 'http://localhost').searchParams;
+        if (query.getAll('code').length !== 1 || query.getAll('state').length !== 1) {
+          throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+        }
+        const session = await webAuth.complete(
+          query.get('code')!, query.get('state')!, requireWebCookie(request, 'web_auth_state'),
+        );
+        response.setHeader('set-cookie', [
+          'web_auth_state=; Path=/api/web/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax',
+          `web_session=${session.token}; Path=/api/web; HttpOnly; Secure; SameSite=Lax`,
+        ]);
+        response.setHeader('location', '/app/');
+        response.writeHead(303);
+        response.end();
+        return;
+      }
+      if (path === '/api/web/collection' && request.method === 'GET') {
+        if (!webAuth || !collection) throw new RequestError(503, 'WEB_COLLECTION_NOT_CONFIGURED');
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'));
+        sendJson(response, 200, await collection.getCollection(accountId));
+        return;
+      }
+      if (path === '/api/web/logout') {
+        if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+        if (request.headers.origin !== 'https://masscom.kr') throw new RequestError(403, 'ORIGIN_FORBIDDEN');
+        if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        const sessionToken = optionalWebCookie(request, 'web_session');
+        if (sessionToken) await webAuth.logout(sessionToken);
+        response.setHeader('set-cookie', 'web_session=; Path=/api/web; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
+        response.writeHead(204);
+        response.end();
         return;
       }
 
@@ -453,6 +516,15 @@ export function createApiServer(
         });
         return;
       }
+      if (error instanceof WebAuthError || error instanceof WebSessionError) {
+        sendJson(response, error.code === 'WEB_AUTH_UPSTREAM_UNAVAILABLE' ? 503 : 401, {
+          code: error.code,
+          ...(error.code === 'WEB_AUTH_UPSTREAM_UNAVAILABLE'
+            ? { message: 'Google 연결을 확인할 수 없습니다. 운영 웹으로 돌아가 새 로그인을 시작해 주세요.', next: '/app/' }
+            : {}),
+        });
+        return;
+      }
       if (error instanceof AccountDeletionError) {
         sendJson(response, statusForAccountDeletion(error.code), { code: error.code });
         return;
@@ -470,6 +542,21 @@ export function createApiServer(
       sendJson(response, 500, { code: 'INTERNAL_ERROR' });
     }
   });
+}
+
+function optionalWebCookie(request: IncomingMessage, name: string): string | undefined {
+  const header = request.headers.cookie;
+  if (!header) return undefined;
+  const matches = header.split(';').map((part) => part.trim()).filter((part) => part.startsWith(`${name}=`));
+  if (matches.length !== 1) return undefined;
+  const value = matches[0]!.slice(name.length + 1);
+  return /^[A-Za-z0-9_-]{1,128}$/.test(value) ? value : undefined;
+}
+
+function requireWebCookie(request: IncomingMessage, name: string): string {
+  const cookie = optionalWebCookie(request, name);
+  if (!cookie) throw new WebSessionError('WEB_SESSION_INVALID');
+  return cookie;
 }
 
 function authLoginClientKey(request: IncomingMessage, trustProxyClientIp: boolean): string {
@@ -835,6 +922,26 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         windowMs: authLoginWindowMs(process.env.AUTH_LOGIN_RATE_LIMIT_WINDOW_MS),
       })
     : undefined;
+  const webAuthConfig = resolveWebAuthConfig(process.env);
+  if (webAuthConfig && (authMode.kind !== 'production' || !pool || !accountDeletionHmacSecret || showcaseInvites)) {
+    throw new Error('WEB_AUTH_CONFIGURATION_INVALID');
+  }
+  const webIdTokenVerifier = webAuthConfig
+    ? new GoogleIdTokenVerifier({ audiences: [webAuthConfig.clientId] })
+    : undefined;
+  const webAuth = webAuthConfig && pool && accountDeletionHmacSecret
+    ? new WebAuthService(
+        pool,
+        new PostgresWebSessionStore(pool, {
+          hmacSecret: accountDeletionHmacSecret,
+          ttlMs: 24 * 60 * 60 * 1000,
+        }),
+        {
+          ...webAuthConfig,
+          verifyIdToken: (token) => webIdTokenVerifier!.verify(token),
+        },
+      )
+    : undefined;
   const accountResolver: AccountResolver = authSessions
     ? createBearerAccountResolver(authSessions)
     : authMode.kind === 'demo'
@@ -863,6 +970,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     authSessions,
     authLoginLimiter,
     authMode.kind === 'production' && process.env.AUTH_TRUST_CADDY_FORWARDED_FOR === 'true',
+    webAuth,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

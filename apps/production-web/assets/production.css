@@ -30,10 +30,12 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--paper); color: var(--ink); line-height: 1.6; overflow-wrap: anywhere; }
 a { color: inherit; text-underline-offset: .22em; }
 a:focus-visible { outline: .2rem solid var(--focus); outline-offset: .2rem; }
+button:focus-visible { outline: .2rem solid var(--focus); outline-offset: .2rem; }
 .skip-link { position: absolute; top: .5rem; left: .5rem; z-index: 2; padding: .55rem .8rem; background: var(--surface); transform: translateY(-180%); }
 .skip-link:focus { transform: translateY(0); }
 .site-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1.5rem; max-width: 76rem; margin: 0 auto; padding: 1rem; border-bottom: 1px solid var(--line); }
@@ -60,11 +62,21 @@ h2 { margin: 0; font-size: clamp(1.8rem, 3vw, 2.65rem); line-height: 1.2; letter
 .merchant-story { margin: 1.3rem 0 0; padding-top: 1rem; border-top: 1px solid var(--line); }
 .collection-section { display: grid; gap: 1rem 2.5rem; padding: clamp(1.5rem, 4vw, 2.8rem); border: 1px solid var(--line); border-radius: 1.3rem; background: var(--surface); }
 .collection-message { max-width: 37rem; margin: 0; color: var(--muted); }
+.collection-actions { display: flex; flex-wrap: wrap; gap: .7rem; margin: 1rem 0 1.5rem; }
+.collection-action { display: inline-flex; align-items: center; justify-content: center; min-height: 2.8rem; padding: .6rem 1rem; border: 1px solid var(--stream); border-radius: .65rem; background: var(--stream); color: var(--paper); font: inherit; font-weight: 750; text-decoration: none; cursor: pointer; }
+.collection-action.secondary { background: transparent; color: var(--stream); }
+.collection-content { display: grid; gap: 1.5rem; }
+.collection-content h3 { margin: 0 0 .7rem; font-size: 1.2rem; }
+.collection-list { display: grid; gap: .7rem; }
+.collection-card { padding: 1rem; border: 1px solid var(--line); border-radius: .8rem; background: var(--paper); }
+.collection-card h4 { margin: 0; font-size: 1.05rem; }
+.collection-card p { margin: .35rem 0 0; color: var(--muted); }
 .site-footer { max-width: 76rem; margin: 0 auto; padding: 0 1rem 3rem; color: var(--muted); font-size: .88rem; }
 .site-footer p { padding-top: 1rem; border-top: 1px solid var(--line); }
 @media (min-width: 56rem) {
   .merchant-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .collection-section { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); align-items: center; }
+  .collection-content { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 26rem) { .site-header { align-items: flex-start; } .merchant-card, .collection-section { border-radius: 1rem; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
