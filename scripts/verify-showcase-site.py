@@ -24,6 +24,8 @@ class ReadOnlyPage(HTMLParser):
         self.in_body = False
         self.visible: list[str] = []
         self.merchants = 0
+        self.merchant_visible: list[list[str]] = []
+        self.current_merchant: list[str] | None = None
         self.main = False
         self.korean = False
         self.local_css = False
@@ -50,7 +52,7 @@ class ReadOnlyPage(HTMLParser):
         if tag == "a" and not (attrs.get("href") or "").startswith("#"):
             fail("허용되지 않은 URL")
         if tag == "link":
-            if attrs.get("rel") != "stylesheet" or attrs.get("href") != "assets/showcase.css":
+            if attrs.get("rel") != "stylesheet" or attrs.get("href") != "assets/showcase.css?v=20260924":
                 fail("허용되지 않은 URL")
             self.local_css = True
         if tag == "meta":
@@ -63,6 +65,8 @@ class ReadOnlyPage(HTMLParser):
             self.main = True
         if tag == "section" and "data-demo-merchant" in attrs:
             self.merchants += 1
+            self.current_merchant = []
+            self.merchant_visible.append(self.current_merchant)
 
     def _check_meta(self, attrs: dict[str, str | None]) -> None:
         if set(attrs) == {"charset"} and (attrs.get("charset") or "").lower() == "utf-8":
@@ -92,10 +96,14 @@ class ReadOnlyPage(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag == "body":
             self.in_body = False
+        if tag == "section":
+            self.current_merchant = None
 
     def handle_data(self, data: str) -> None:
         if self.in_body:
             self.visible.append(data)
+            if self.current_merchant is not None:
+                self.current_merchant.append(data)
 
 
 def main() -> None:
@@ -109,8 +117,13 @@ def main() -> None:
     page.feed(html_file.read_text(encoding="utf-8"))
     if not (page.korean and page.main and page.local_css and page.csp):
         fail("한국어·본문·로컬 CSS·CSP 중 하나가 없음")
-    if page.merchants != 1:
-        fail("가상 점포 수가 1이 아님")
+    if page.merchants != 3:
+        fail("가상 점포 수가 3이 아님")
+    if any(
+        "가상 점포 · 실제 방문할 수 없습니다" not in " ".join(card)
+        for card in page.merchant_visible
+    ):
+        fail("필수 문구 없음: 가상 점포")
 
     visible = " ".join(page.visible)
     required = (

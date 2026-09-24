@@ -77,7 +77,7 @@ npm run start:local
 
 독립 Docker API·DB를 함께 실행하려면 [로컬 시연 환경](../../infra/showcase-local/README.md)을 사용합니다. 기본 운영 Compose의 DB/볼륨·외부 포트는 변경하지 않으며, 이 환경은 로그인·QR 수령 없이 가상 점포 공개 조회까지만 검증합니다.
 
-실제 영업점·협약·방문 혜택이 아닌 `가상 점포 A` 한 곳을 **별도 로컬 PostgreSQL**에만 생성합니다. `SHOWCASE_TEST_DATABASE_URL`은 `localhost`/`127.0.0.1`/`::1`의 정확한 `masscom_showcase_test` DB만 허용하고, 연결 뒤 실제 DB 이름을 다시 확인한 다음 migration을 실행합니다. 운영 `DATABASE_URL`이나 `api.masscom.kr`에는 seed하지 않습니다. `SHOWCASE_TEST_DATABASE_URL`의 비밀번호는 명령 기록·저장소에 넣지 말고 로컬 `PGPASSWORD`로 전달하세요.
+실제 영업점·협약·방문 혜택이 아닌 `가상 점포 A·B·C` 세 곳을 **별도 로컬 PostgreSQL**에만 생성합니다. `SHOWCASE_TEST_DATABASE_URL`은 `localhost`/`127.0.0.1`/`::1`의 정확한 `masscom_showcase_test` DB만 허용하고, 연결 뒤 실제 DB 이름을 다시 확인한 다음 migration을 실행합니다. 운영 `DATABASE_URL`이나 `api.masscom.kr`에는 seed하지 않습니다. `SHOWCASE_TEST_DATABASE_URL`의 비밀번호는 명령 기록·저장소에 넣지 말고 로컬 `PGPASSWORD`로 전달하세요.
 
 ```bash
 createdb -h 127.0.0.1 -U postgres masscom_showcase_test
@@ -86,7 +86,7 @@ read -s PGPASSWORD && export PGPASSWORD
 npm run seed:showcase:local
 ```
 
-첫 실행은 migration·가상 점포·진행 중 캠페인·1/3/5회 목표·`showcase-local-staff` 직원 멤버십을 만들고, 같은 명령 재실행은 행 수를 늘리지 않습니다. 이미 있는 fixture가 일부 누락·변조됐거나 캠페인이 만료됐으면 자동으로 덮어쓰지 않고 `SHOWCASE_LOCAL_SEED_FAILED`로 멈춥니다. 이 경우 **전용 시험 DB 이름과 백업을 확인한 뒤** 수동 조사·정리하세요. 전체 테이블을 지우는 seed 명령은 없습니다.
+첫 실행은 migration·가상 점포 3곳·각각의 진행 중 캠페인·1/3/5회 목표·`showcase-local-staff` 직원 멤버십을 만들고, 같은 명령 재실행은 행 수를 늘리지 않습니다. 기존 A점포만 있는 전용 시연 DB에서는 A의 진행 수치를 보존한 채 B·C만 추가합니다. 이미 있는 fixture가 일부 누락·변조됐거나 캠페인이 만료됐으면 자동으로 덮어쓰지 않고 `SHOWCASE_LOCAL_SEED_FAILED`로 멈춥니다. 이 경우 **전용 시험 DB 이름과 백업을 확인한 뒤** 수동 조사·정리하세요. 전체 테이블을 지우는 seed 명령은 없습니다.
 
 개발 API를 이 DB에 연결하려면 별도 로컬 셸에서만 `DATABASE_URL="$SHOWCASE_TEST_DATABASE_URL"`와 `ALLOW_INSECURE_DEMO_ACCOUNT=true`를 설정하고 loopback으로 기동합니다. 이 DEMO 헤더는 실제 인증이 아니므로 공개 서버에서는 켜지지 않습니다. Android USB 개발 앱은 필요할 때 `adb reverse tcp:3000 tcp:3000`으로 로컬 API에 접근합니다. 현재 seed는 QR·방문 기록·수집품·NFT를 미리 만들지 않으며, 실제 점주 확인과 폰 수령은 별도 검증입니다.
 

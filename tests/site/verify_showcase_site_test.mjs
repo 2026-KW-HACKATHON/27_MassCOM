@@ -15,9 +15,11 @@ const fixtureHtml = `<!doctype html><html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="체험 도감">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'">
-<link rel="stylesheet" href="assets/showcase.css"></head><body>
+<link rel="stylesheet" href="assets/showcase.css?v=20260924"></head><body>
 <p>체험용 가상 데이터로 서비스 흐름을 보여드립니다</p>
 <main id="main"><section data-demo-merchant><p>가상 점포 · 실제 방문할 수 없습니다</p></section>
+<section data-demo-merchant><p>가상 점포 · 실제 방문할 수 없습니다</p></section>
+<section data-demo-merchant><p>가상 점포 · 실제 방문할 수 없습니다</p></section>
 <section><p>예시 방문 기록</p><p>앱 안의 예시 수집품 · 실제 NFT가 아닙니다</p>
 <p>앱의 체험 진행 결과와 자동으로 동기화되지 않습니다</p></section></main>
 <footer><p>실제 운영 성과가 아닙니다</p></footer></body></html>`;
@@ -40,6 +42,20 @@ test('정상 가상 페이지는 필수 고지와 비쓰기 경계를 통과한�
 
 test('실제 시연 웹은 읽기 전용 계약을 통과한다', () => {
   assert.equal(run(source).status, 0);
+});
+
+test('실제 시연 웹은 서로 다른 가상 점포 세 곳을 표시한다', () => {
+  const html = readFileSync(join(source, 'index.html'), 'utf8');
+  assert.match(html, /href="assets\/showcase\.css\?v=20260924"/);
+  assert.match(html, /role="group" aria-label="가상 점포 목록"/);
+  assert.equal((html.match(/data-demo-merchant/g) ?? []).length, 3);
+  for (const name of ['가상 점포 A', '가상 점포 B', '가상 점포 C']) {
+    assert.match(html, new RegExp(name));
+  }
+  const cards = [...html.matchAll(/<section class="merchant-card"[^>]*data-demo-merchant[^>]*>(.*?)<\/section>/gs)];
+  assert.equal(cards.length, 3);
+  assert.ok(cards.every((card) => card[1]?.includes('가상 점포 · 실제 방문할 수 없습니다')));
+  assert.match(html, /실제 영업점이나 방문 혜택과 연결되지 않습니다/);
 });
 
 test('README는 로컬 시연 웹만 안내하고 배포를 주장하지 않는다', () => {

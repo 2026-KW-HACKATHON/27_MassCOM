@@ -22,7 +22,7 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
   const requests = [];
   const server = createServer((request, response) => {
     requests.push(request.url);
-    const asset = request.url === '/' ? 'index.html' : request.url === '/assets/showcase.css' ? 'assets/showcase.css' : null;
+    const asset = request.url === '/' ? 'index.html' : request.url === '/assets/showcase.css?v=20260924' ? 'assets/showcase.css' : null;
     if (!asset) { response.writeHead(404).end(); return; }
     response.setHeader('Content-Type', asset.endsWith('.css') ? 'text/css' : 'text/html; charset=utf-8');
     response.end(readFileSync(join(siteRoot, asset)));
@@ -126,7 +126,7 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
         writeFileSync(join(process.env.SHOWCASE_CAPTURE_DIR, `${scheme}-focus.png`), Buffer.from(screenshot.data, 'base64'));
       }
     }
-    assert.deepEqual([...new Set(requests)].sort(), ['/', '/assets/showcase.css']);
+    assert.deepEqual([...new Set(requests)].sort(), ['/', '/assets/showcase.css?v=20260924']);
   } finally {
     socket?.close();
     chrome.kill();

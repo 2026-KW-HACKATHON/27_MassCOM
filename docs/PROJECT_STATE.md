@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- Issue #137에서 사용자 요청에 따라 읽기 전용 시연 웹과 격리 로컬 seed를 가상 점포 A·B·C 총 3곳으로 확장했다. 웹의 A 방문·수집품은 고정 예시이며 B·C를 방문 완료로 꾸미지 않는다. 실제 PostgreSQL 반복 seed·A 기존 진행 보존·동시 생성·손상 거절과 로컬 API 공개 목록 3곳은 PASS. 외부 `demo.masscom.kr`·시연 APK는 여전히 `NOT_RUN`이다.
+
 - Issue #137 후속으로 별도 `apps/production-web` 로컬 운영 웹을 추가했다. 공개 `GET /merchants`만 운영 API로 조회하며 실제 0건을 빈 상태로 보이고, 시연 행은 렌더하지 않는다. 웹 개인 도감은 안전한 로그인 세션 전까지 이용 불가다. GitHub 운영 test.2 APK는 이전 코드로 내려받을 수 있지만 시연 APK·최신 운영 APK는 없다. 외부 운영 웹 배포와 두 APK 새 실기는 `NOT_RUN`([다운로드 구분](ANDROID_DOWNLOADS.md)).
 
 - Issue #137의 로컬 개발 DEMO에서 Samsung Android 16 실기 수동 코드 흐름을 새 USB 연결로 완료했다. STAFF 발급→고객 수령→도감 1/1/0→다음 보상 추천과 동일 코드 추가 효과 0을 확인했다([증거](evidence/android-local-claim-2026-09-24/README.md)). 실제 QR 카메라·외부 시연 API/앱·지갑/NFT와 운영 웹 개인 도감은 여전히 미완료다.

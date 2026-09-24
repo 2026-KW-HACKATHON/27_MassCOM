@@ -2,6 +2,11 @@
 
 마지막 갱신 시각: 2026-09-24 KST
 
+## Issue #137 가상 점포 세 곳 확장
+
+- 사용자 요청으로 시연 웹과 로컬 `_test` DB를 가상 점포 A·B·C 총 3곳으로 확장했다. A 방문을 가정한 웹 도감은 고정 예시이며 실제 앱 진행과 동기화되지 않는다. 기존 A점포만 있는 전용 DB에 B·C를 추가할 때 A의 진행 수치를 보존하도록 seed를 바꿨다. 운영 DB·API·공개 사이트·기존 GitHub APK는 변경하지 않는다.
+- 검증: 시연 웹 19/19·실제 Chrome 테마 1/1, API 단위 87/87·PostgreSQL 43/43·typecheck PASS. 전용 테스트 DB의 반복 seed 3/3/9/3행, A 기존 진행 보존, 동시 생성·손상 거절과 loopback API의 가상 점포 A·B·C `demo=true` 응답 PASS. 127.0.0.1:4174 브라우저의 데스크톱 3열·390px 1열·가로 넘침 없음 확인. 외부 시연 웹·Android 시연 APK·전용 외부 인증 API는 아직 `NOT_RUN`; Issue #137은 OPEN 유지한다.
+
 ## Issue #137 운영 웹·두 Android 배포 경계
 
 - 브랜치 `feat/137-web-download-surfaces`에서 `apps/production-web`에 공개 음식점 전용 로컬 운영 웹을 추가했다. 같은 출처의 `GET /merchants`만 `https://api.masscom.kr/merchants`로 전달하며 현재 실제 응답은 `200 {"merchants":[]}`. 개인 도감은 안전한 웹 세션 전까지 닫아 두고 QR·방문·지갑·발행 쓰기 경로는 없다. 외부 배포·운영 개인 도감·실제 점포 목록 실증은 `NOT_RUN`이다.
