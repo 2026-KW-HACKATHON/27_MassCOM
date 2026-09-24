@@ -11,6 +11,7 @@
     { "name": "assetlinks bytes and JSON content type", "result": "PASS" },
     { "name": "private Markdown, JSON evidence, claim, mint, web auth paths", "result": "PASS", "httpStatus": 404 },
     { "name": "web smoke service isolation", "result": "PASS", "runningServices": ["caddy", "production-web"] },
+    { "name": "web-only rollback control flow with fake service commands", "result": "PASS", "cases": ["before web change", "web start or health failure", "Caddy or post-start failure", "first web release", "probe cleanup", "rollback failure surfaced"] },
     { "name": "operating API and database containers started by web smoke", "result": "PASS", "count": 0 }
   ],
   "publicStateAtCheck": {
@@ -31,6 +32,7 @@
     "node --test tests/site/verify_production_web_test.mjs tests/ops/verify_aws_web_routes_test.mjs",
     "node scripts/verify-lightsail-web.mjs",
     "bash tests/ops/run_aws_web_smoke.sh",
-    "bash tests/ops/deploy_lightsail_web_test.sh"
+    "bash tests/ops/deploy_lightsail_web_test.sh",
+    "bash tests/ops/lightsail_web_rollback_test.sh"
   ]
 }

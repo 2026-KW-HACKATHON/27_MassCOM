@@ -55,6 +55,7 @@ deployment_paths=(
 )
 public_source_paths=(
   scripts/build-public-site.mjs
+  scripts/deploy-lightsail.sh
   docs/index.html docs/open.html docs/privacy.html docs/account-deletion.html
   docs/presentation.html docs/.well-known/assetlinks.json docs/assets
   docs/evidence/android-collection.png docs/evidence/android-merchant-list.png

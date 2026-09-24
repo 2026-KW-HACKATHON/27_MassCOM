@@ -50,16 +50,16 @@ awk '/^set -Eeuo pipefail$/ {inside=1} /^REMOTE_DEPLOY$/ {inside=0} inside {prin
 bash -n "$scratch/remote.sh"
 grep -q 'compose_new up -d --no-deps production-web' "$scratch/remote.sh"
 grep -q 'compose_new up -d --no-deps --force-recreate caddy' "$scratch/remote.sh"
-grep -q 'compose_old up -d --no-deps --force-recreate caddy' "$scratch/remote.sh"
-grep -q 'compose_old up -d --no-deps --force-recreate production-web' "$scratch/remote.sh"
+grep -q 'source "$release/scripts/lightsail-web-rollback.sh"' "$scratch/remote.sh"
 grep -q 'web_change_started=' "$scratch/remote.sh"
 grep -q 'service_snapshot api' "$scratch/remote.sh"
 grep -q 'service_snapshot postgres' "$scratch/remote.sh"
 grep -q 'probe_web_routes' "$scratch/remote.sh"
-grep -q 'WEB_ROLLBACK_FAILED' "$scratch/remote.sh"
+grep -q 'web_rollback' "$scratch/remote.sh"
 if grep -Eq 'compose_new (build|up).*\b(api|postgres|migrate)\b' "$scratch/remote.sh"; then
   echo 'web-only deploy script would modify API or database services' >&2
   exit 1
 fi
+bash "$repo_root/tests/ops/lightsail_web_rollback_test.sh"
 
 echo 'Lightsail web-only deploy preflight verified'

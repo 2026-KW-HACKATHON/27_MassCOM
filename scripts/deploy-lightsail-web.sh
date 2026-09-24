@@ -69,6 +69,7 @@ source_paths=(
   infra/lightsail
   scripts/build-public-site.mjs
   scripts/deploy-lightsail-web.sh
+  scripts/lightsail-web-rollback.sh
   docs/index.html docs/open.html docs/privacy.html docs/account-deletion.html
   docs/presentation.html docs/.well-known/assetlinks.json docs/assets
   docs/evidence/android-collection.png docs/evidence/android-merchant-list.png
@@ -141,7 +142,7 @@ node "$repo_root/scripts/build-public-site.mjs" "$scratch/site/public" >/dev/nul
 remote_release="/opt/masscom/web/releases/$release_id"
 ssh "${ssh_options[@]}" "$target" \
   "sudo install -d -m 0755 '$remote_release' && sudo chown ubuntu:ubuntu '$remote_release'"
-COPYFILE_DISABLE=1 tar -C "$repo_root" -czf - apps/production-web infra/lightsail \
+COPYFILE_DISABLE=1 tar -C "$repo_root" -czf - apps/production-web infra/lightsail scripts/lightsail-web-rollback.sh \
   -C "$scratch" site \
   | ssh "${ssh_options[@]}" "$target" "tar -xzf - -C '$remote_release'"
 
@@ -187,40 +188,17 @@ api_before="$(service_snapshot api)"
 db_before="$(service_snapshot postgres)"
 previous_web_id="$(service_id production-web)"
 if [[ -n "$previous_web_id" ]]; then
+  [[ "$previous_web_id" != *$'\n'* ]]
   compose_old config --services | grep -qx 'production-web'
+  current_web_image="$(sudo docker inspect --format '{{.Config.Image}}' "$previous_web_id")"
+  [[ "$current_web_image" == "masscom-production-web:$old_web_tag" ]]
 fi
 
 web_change_started='false'
 changing_caddy='false'
 probe_id=''
-rollback() {
-  local code="$?"
-  local rollback_failed='false'
-  trap - ERR
-  if [[ -n "$probe_id" ]]; then
-    sudo docker stop "$probe_id" >/dev/null || rollback_failed='true'
-  fi
-  if [[ "$web_change_started" == 'true' ]]; then
-    if [[ -n "$previous_web_id" ]]; then
-      compose_old up -d --no-deps --force-recreate production-web || rollback_failed='true'
-    else
-      compose_new stop production-web || rollback_failed='true'
-    fi
-  fi
-  if [[ "$changing_caddy" == 'true' ]]; then
-    compose_old up -d --no-deps --force-recreate caddy || rollback_failed='true'
-  fi
-  [[ "$(service_snapshot api)" == "$api_before" ]] || rollback_failed='true'
-  [[ "$(service_snapshot postgres)" == "$db_before" ]] || rollback_failed='true'
-  curl -fsS --max-time 8 https://api.masscom.kr/health >/dev/null || rollback_failed='true'
-  if [[ "$rollback_failed" == 'true' ]]; then
-    echo 'WEB_ROLLBACK_FAILED: inspect web, Caddy, API and DB before retrying' >&2
-    exit 1
-  fi
-  echo 'WEB_DEPLOY_REVERTED: previous web/Caddy restored; API and DB unchanged' >&2
-  exit "$code"
-}
-trap rollback ERR
+source "$release/scripts/lightsail-web-rollback.sh"
+trap 'web_rollback "$?"' ERR
 
 probe_web_routes() {
   probe_id="$(sudo docker run --rm -d \
