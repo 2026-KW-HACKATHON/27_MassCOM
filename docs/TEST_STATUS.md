@@ -1,5 +1,7 @@
 # 테스트 상태
 
+[2026-09-25 운영 웹 실계정 1개 검증](evidence/web-auth-live-2026-09-25.json): 운영 API/웹을 `main` `d787471`로 재배포, DB 컨테이너 유지·API health 200·mode 600 OAuth 런타임 값 존재 확인. 외부 `GET /api/web/auth/start`가 Google 302로 이동하며 정확한 callback·state·PKCE·Secure/HttpOnly cookie를 포함했다. 실제 데스크톱 브라우저의 기존 Google 계정 1개에서 본인 빈 도감·새로고침 후 세션 유지·로그아웃 후 재로드 미로그인 PASS; 서버는 최근 웹 세션 1/1 revoke, 익명 도감 401, 공개 점포 조회 200/0건. 값 원문·계정 식별자·쿠키는 기록하지 않았다. 실제 두 계정 간 도감 격리·휴대전화 브라우저 로그인·최신 APK는 `NOT_RUN`; 필수 v3 36개 ID 집계는 변경하지 않는다.
+
 [2026-09-25 운영 웹·API 전환 구조화 증거](evidence/aws-public-cutover-2026-09-25.json). 비밀값·개인정보는 포함하지 않는다.
 
 PR #164 독립 검토에서 비정규 OAuth 환경변수 형식의 덮어쓰기 보호 우회가 재현돼 거부 경계와 회귀 시험을 추가했다. 최신 `node --test tests/ops/install_web_oauth_runtime_test.mjs`는 4/4 PASS, `bash scripts/check-secrets.sh tests/ops` PASS. 아래 3/3은 첫 제출 직후 기록이며 최신 판정은 이 줄을 따른다.

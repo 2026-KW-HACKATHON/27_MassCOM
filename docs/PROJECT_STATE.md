@@ -4,6 +4,10 @@
 
 ## 최신 작업 경계
 
+- 2026-09-25 운영 웹 Google 로그인 최신: [PR #164](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/164) merge `d787471`·PR/main CI PASS 후 동일 커밋을 기존 Lightsail에 배포했다. 런타임 비밀값은 Git 밖 mode 600으로 반영하고 클립보드를 비웠다. Google 로그인 시작 302·정확한 callback·state/PKCE/Secure/HttpOnly 쿠키, 기존 계정 1개의 본인 빈 도감·새로고침 유지·로그아웃 후 미로그인 및 서버 세션 revoke, 익명 도감 401, 공개 점포 0건 200을 확인했다. 실계정 A/B 도감 격리·휴대전화 브라우저 로그인·최신 Android APK는 `NOT_RUN`; Issue #137 전체는 OPEN([세부](TEST_STATUS.md)).
+
+### 이전 단계 기록
+
 - 2026-09-25 최신: [PR #163](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/163) merge `ec57eb4`와 main CI `36034481207` PASS 뒤 AWS 웹 staging, 가비아 apex DNS `43.200.56.97` 전환, Let's Encrypt TLS 및 공개 포털·`/app/`·`/merchants` HTTPS 200을 확인했다. Samsung SM-S928N에서 이전 `test.2` APK의 `/open` 명시적 VIEW intent와 Chrome의 `/app/` 로드를 확인했지만, Android 사용자 선택 상태 `Disabled`이므로 일반 링크 탭의 기본 열기는 미검증이다. 같은 커밋의 운영 API와 migration 0014·0015를 배포했고 DB 백업·API health를 확인했다. Google 콜백 URI는 등록됐으나 비밀값 미설정으로 로그인·개인 도감은 503 `BLOCKED`; 실제 Google 계정 A/B는 `NOT_RUN`이다([상세](TEST_STATUS.md)).
 
 - 2026-09-25 과거 첫 AWS 웹 staging 명령은 tar 전송 뒤 실패했다. 없는 `/opt/masscom/web/current`의 `readlink -f` fallback 오류를 `fix/137-first-web-release`에서 수정했고 후속 PR #163·main CI와 위 실제 배포로 해소했다. 이 실패는 현재 원격 상태가 아니다.

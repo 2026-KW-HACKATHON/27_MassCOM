@@ -1,0 +1,38 @@
+{
+  "date": "2026-09-25 KST",
+  "issue": 137,
+  "repositoryCommit": "d78747127e99fdc38b80e934f20b038ee0901597",
+  "pullRequest": 164,
+  "pullRequestCi": 36042479248,
+  "mainCi": 36043259636,
+  "environment": "Existing AWS Lightsail operating API/DB/web, public masscom.kr HTTPS, desktop Codex in-app browser",
+  "deployment": {
+    "dryRun": "PASS",
+    "deploy": "PASS",
+    "remoteCommit": "d78747127e99fdc38b80e934f20b038ee0901597",
+    "postgresContainer": "e0d14fb7c803 retained",
+    "apiHealth": "https://api.masscom.kr/health -> 200",
+    "runtimeEnv": "mode 600 root:root; OAuth secret SET, value not recorded",
+    "clipboard": "cleared after private installation"
+  },
+  "webLogin": {
+    "start": "302 to accounts.google.com, exact masscom.kr callback, state and PKCE present",
+    "stateCookie": "HttpOnly and Secure",
+    "realGoogleAccountCount": 1,
+    "authenticatedCollection": "empty own visit and collectible state displayed",
+    "refresh": "authenticated state retained",
+    "logout": "login prompt restored and remained after refresh",
+    "serverSession": "1 recent web session, 1 revoked after logout; account identifier not queried",
+    "anonymousCollection": "GET https://masscom.kr/api/web/collection -> 401",
+    "publicMerchants": "GET https://masscom.kr/merchants -> 200, zero real stores",
+    "result": "PASS"
+  },
+  "notRun": [
+    "second real Google account / A-B cross-account collection isolation",
+    "Android phone browser sign-in",
+    "newest production Android APK",
+    "default app-link tap rather than explicit VIEW intent",
+    "showcase API and demo app"
+  ],
+  "scope": "The live result verifies one existing account with no visits or collectibles; it does not prove nonempty personal collection rendering, two-account isolation, QR, wallet, NFT or Play acceptance."
+}
