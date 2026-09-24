@@ -1,5 +1,7 @@
 # 테스트 상태
 
+[2026-09-25 시연 웹 전용 GitHub 미리보기 태그](evidence/showcase-web-release-2026-09-25.json): `showcase-web-v0.1.0-preview.1`은 `main` `f96c324`의 검증된 정적 HTML/CSS만 고정한다. main CI `36051088165` PASS, 시연 웹 사실성·비쓰기 19/19·실제 브라우저 라이트/다크 1/1·정적 검사 PASS, 공개 HTTPS HTML/CSS 200 및 저장소 SHA-256 일치, GitHub ZIP digest 일치. 이는 **웹 전용**이며 시연 Android APK/Release는 `NOT_RUN`, `demo-api.masscom.kr` DNS는 미해결이다. 36개 제품 시험 ID 상태는 바꾸지 않는다.
+
 이 원장은 실행 시점별 증거를 최신순으로 보존한다. 아래의 과거 “현재”, `BLOCKED`, `NOT_RUN` 표현은 그 시점의 결과이며, 같은 항목의 최신 판정은 위쪽 기록과 실제 배포·Git 상태를 따른다. v3 36개 필수 ID 집계는 별도 catalog 기준으로만 변경한다.
 
 [2026-09-25 Samsung Android Chrome 실계정 A/B 순차 로그인](evidence/android-web-auth-2026-09-25.json): 실제 SM-S928N에서 `https://masscom.kr/app/`을 Chrome으로 열고 계정 A 로그인→본인 빈 도감/로그아웃 버튼→A 로그아웃 후 미로그인 안내→계정 B 선택·소유자 본인 확인→B 본인 빈 도감→URL 재열기 뒤 B 세션 유지를 확인했다. 서버 집계는 최근 웹 세션 3건·서로 다른 계정 2개·철회 2건·활성 1건이다. 두 계정 모두 방문·수집품 0건이라 비어 있지 않은 개인 기록의 교차 노출은 `NOT_RUN`; 최신 운영 APK·일반 App Link 탭·시연 앱도 `NOT_RUN`. 계정 주소·인증 숫자·쿠키·비밀값은 증거에 기록하지 않는다.

@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- 시연 웹은 [공개 Vercel HTTPS](https://masscom-showcase-web.vercel.app/)에서 바로 볼 수 있고, [private GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1)의 HTML/CSS 원본·ZIP digest를 확인했다([증거](evidence/showcase-web-release-2026-09-25.json)). 시연 Android APK·Release는 아직 없으며 `demo-api.masscom.kr` DNS·별도 인증·서명 설치 검증 전이다. 웹 예시 기록을 운영 데이터·NFT 발행 실적으로 표시하지 않는다.
+
 - 운영 웹 실증 기준: [PR #166](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/166) merge `c0ad8d6`, PR CI `36047283723`·당시 main CI `36048047690` PASS. 운영 API 배포 `d787471`과 뒤이은 문서 merge는 별개이며, 실제 최신 HEAD·브랜치·CI·Issue는 `git`·`gh`로 확인한다. Issue #137은 당시 OPEN; 운영 웹 로그인과 시연 API/앱 전체 완료를 혼동하지 않는다.
 
 - 2026-09-25 Samsung Android Chrome에서 기존 Google 계정 A 로그인·빈 도감, A 로그아웃, B의 소유자 본인 확인 후 로그인·빈 도감, URL 재열기 뒤 B 세션 유지를 확인했다. 운영 서버에는 최근 세션 3건·서로 다른 계정 2개·철회 2건·활성 1건이 기록됐다([증거](evidence/android-web-auth-2026-09-25.json)). 실제 기록이 있는 계정 간 도감 교차 노출, 최신 APK, 일반 App Link 탭은 `NOT_RUN`; 이전 아래 항목의 휴대전화 로그인 `NOT_RUN`은 검증 전 시점의 상태다.

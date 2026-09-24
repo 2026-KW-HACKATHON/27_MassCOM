@@ -4,6 +4,8 @@
 
 ## 현재 GitHub·운영 상태 — 2026-09-25
 
+- 시연 웹은 [공개 HTTPS 주소](https://masscom-showcase-web.vercel.app/)에서 HTML/CSS 200과 저장소 원본 SHA-256 일치를 확인했다. 별도 private [웹 전용 사전 릴리스 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1)는 `f96c324`를 가리키고 정적 HTML/CSS ZIP만 담는다([근거](evidence/showcase-web-release-2026-09-25.json)). 시연 Android APK·태그는 없다. `demo-api.masscom.kr` DNS가 없어 운영 APK를 시연용으로 재포장하지 않는다. 최종 대회 제출 태그와도 구분한다.
+
 - 운영 웹 실증 기준선: [PR #166](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/166) merge `c0ad8d6`, PR CI `36047283723`·당시 병합 후 main CI `36048047690` PASS. 운영 API 배포 커밋은 `d787471`이며 뒤이은 문서 merge와 별도다. `masscom.kr`의 Google 로그인 시작 302·익명 도감 401, `api.masscom.kr/health` 200을 재확인했다. 이 문서에 Git의 최신 HEAD·작업 브랜치·열린 PR을 고정하지 않는다. 재개 시 `git status -sb`, `git log origin/main -1`, `gh pr list`, `gh run list --branch main`을 우선한다.
 - Samsung SM-S928N Chrome의 두 Google 계정 순차 로그인·A 로그아웃 후 B 세션 유지 PASS([실기 증거](evidence/android-web-auth-2026-09-25.json)). 두 계정 모두 방문·수집품 0건이라 비어 있지 않은 도감의 교차 노출, 최신 운영 APK·일반 App Link 탭·시연 API/앱은 `NOT_RUN`. [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)은 OPEN이며, [최신 시험 원장](TEST_STATUS.md)을 따른다. 비밀번호·인증 숫자·OAuth 비밀값은 문서·채팅·Git에 기록하지 않는다.
 
