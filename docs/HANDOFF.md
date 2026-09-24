@@ -2,7 +2,13 @@
 
 마지막 갱신 시각: 2026-09-25 KST
 
-## 현재 GitHub 이슈 상태 — 2026-09-25
+## 현재 GitHub·운영 상태 — 2026-09-25
+
+- `main`의 [PR #164](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/164) merge `d787471`, PR CI `36042479248`·main CI `36043259636` PASS. 같은 커밋을 기존 AWS Lightsail에 재배포했고 PostgreSQL 컨테이너 `e0d14fb7c803`은 유지됐다. `api.masscom.kr/health` 200, 공개 `/merchants` 200/0건. Google 로그인 시작은 `accounts.google.com`으로 302이며 정확한 `https://masscom.kr/api/web/auth/callback`·state·PKCE·Secure/HttpOnly state 쿠키를 확인했다. 비밀값은 채팅·Git에 남기지 않고 로컬·서버 mode 600 런타임 환경 파일에 저장, 클립보드는 비웠다.
+- 실제 데스크톱 브라우저에서 기존 Google 계정 1개가 로그인해 본인 도감의 기록 0건을 표시했고 새로고침 후 세션 유지·로그아웃 후 재로드에서 미로그인 안내를 확인했다. 서버에서 최근 웹 세션 1건 중 1건이 `revoked_at` 설정됐고 익명 `GET /api/web/collection`은 401이었다. 이 결과는 실제 A/B 계정 데이터 격리나 휴대전화 브라우저 로그인·최신 Android APK 검증이 아니다. Issue #137은 시연 API/앱 등을 포함해 계속 OPEN이다.
+- 현재 체크아웃은 `docs/137-web-auth-live-verification` 문서 브랜치다. README·운영 웹 안내·상태 원장에 위 실증 범위를 반영 중이며 PR·CI·병합은 이 문서를 작성하는 시점에 아직 진행 전이다. 중단되면 `git status`, `gh pr list`, `gh run list --branch main`으로 실제 최신 상태를 먼저 복원할 것. 실제 두 계정 격리에는 두 번째 Google 계정의 정당한 로그인 세션이 필요하며, 비밀번호·복구 정보는 채팅에 받지 않는다.
+
+## 이전 GitHub 이슈 상태 기록 — 2026-09-25
 
 - 최신 운영 기준: [PR #163](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/163) merge `ec57eb4`, main CI `36034481207` PASS. `masscom.kr` 가비아 apex A는 `43.200.56.97`로 저장됐고 공인 DNS, Let's Encrypt 인증서, 외부 포털·`/app/`·API 경로 HTTPS를 확인했다. 같은 커밋의 API/DB migration 0014·0015도 운영 서버에 배포했다. 기존 DB의 서버 내부 mode 600 백업 `/opt/masscom/backups/pre-web-auth-20260925.dump`를 생성하고 archive 목록을 검증했으며 PostgreSQL 컨테이너는 유지됐다. `https://api.masscom.kr/health` 200, 공개 `/merchants` 200/0건, 웹 인증 경로는 비밀값 미설정으로 예상대로 503이다. Google Web client에 `https://masscom.kr/api/web/auth/callback`을 등록해 재조회했지만 기존 비밀값은 콘솔에서 재표시되지 않는다. 소유자의 새 비밀값 생성·클립보드 복사를 기다리고 있다. 채팅·Git에는 값을 남기지 말 것.
 - Samsung SM-S928N의 기존 `0.1.0-test.2` 설치본에서 `adb shell am start -W -a VIEW -c BROWSABLE -d https://masscom.kr/open`이 앱을 열었고 휴대전화 Chrome에서 `/app/` 운영 웹을 표시했다. Android App Links 도메인 검증은 `verified`이나 사용자 0의 선택 상태가 `Disabled`라 일반 링크 탭의 기본 연결은 별도 확인이 필요하다. 최신 운영 APK와 실계정 개인 도감은 미검증이다. 현재 작업 브랜치 `chore/137-web-auth-cutover`에는 비밀값 표준입력 설치 도구와 문서 정합 수정이 있으며 PR은 아직 열지 않았다. 새 비밀값 복사 후 `pbpaste | node scripts/install-web-oauth-runtime.mjs .tmp/lightsail-runtime.env`로 로컬 mode 600 env를 갱신하고 서버 반영·실계정 검증을 이어갈 것.
