@@ -7,6 +7,26 @@ library="$repo_root/scripts/lightsail-web-rollback.sh"
 scratch="$(mktemp -d -t masscom-web-rollback-test.XXXXXX)"
 trap 'rm -rf "$scratch"' EXIT
 
+source "$library"
+mkdir -p "$scratch/base" "$scratch/new" "$scratch/web"
+base="$(cd "$scratch/base" && pwd -P)"
+new="$(cd "$scratch/new" && pwd -P)"
+ln -s "$scratch/base" "$scratch/current"
+[[ "$(web_previous_release "$scratch/web/current" "$scratch/current")" == "$base" ]] || {
+  echo 'missing web/current did not fall back to the existing base release' >&2
+  exit 1
+}
+ln -s "$scratch/new" "$scratch/web/current"
+[[ "$(web_previous_release "$scratch/web/current" "$scratch/current")" == "$new" ]] || {
+  echo 'existing web/current was not selected' >&2
+  exit 1
+}
+ln -sfn "$scratch/missing" "$scratch/web/current"
+[[ "$(web_previous_release "$scratch/web/current" "$scratch/current")" == "$base" ]] || {
+  echo 'broken web/current did not fall back to the existing base release' >&2
+  exit 1
+}
+
 run_case() {
   local prior_web="$1" web_started="$2" caddy_started="$3" fail_restore="$4" active_probe="${5:-}"
   local log="$scratch/actions" output="$scratch/output" status=0

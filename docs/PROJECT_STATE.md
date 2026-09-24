@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- 2026-09-25 첫 AWS 웹 staging 명령은 tar 전송 뒤 실패했다. 운영 API/DB/Caddy와 HTTPS health는 그대로이고 웹 컨테이너·배포 표식은 없다. 없는 `/opt/masscom/web/current`에 대한 `readlink -f` fallback 오류를 `fix/137-first-web-release`에서 RED→GREEN 수정했다. 새 PR·main CI 뒤 재시도하며 현재 `masscom.kr` DNS는 Vercel이다([상세](TEST_STATUS.md)).
+
 - 2026-09-25 CI 중단: PR #161은 merge `fec90ff`이고 PR CI는 PASS였지만 병합 후 main CI `36029974084`가 시연 호스트 PostgreSQL 초기화 경합으로 FAIL했다. 수정 브랜치 `fix/137-showcase-pg-tcp-readiness`의 로컬 재현·전용 통합 2/2는 PASS; 새 PR·병합 후 main CI 전에는 외부 AWS 웹 staging을 실행하지 않는다. [실패·수정 근거](TEST_STATUS.md)를 확인한다.
 
 - 2026-09-25 `feat/137-web-collection-auth`: PR #158의 AWS 웹 코드에 이어 [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159)이 merge `e6dcc82`로 `main`에 통합됐다. 웹 전용 Google OIDC state·PKCE·nonce, 해시 저장 세션, 계정 삭제 시 회수, 읽기 전용 도감 UI 및 Caddy 네 경로를 로컬 구현·시험했다. 독립 리뷰의 두 보안·장애 지적은 RED→GREEN 수정했고 PR CI `36019777124`와 병합 후 main CI `36020699683`이 PASS했다. 이후 AWS 로그인·SSH와 기존 크레딧 적용·서버 여유·Android USB 연결을 확인했다. 그러나 실제 Google Web client/secret·`masscom.kr` DNS/TLS 전환·실계정 A/B·Android 브라우저는 `BLOCKED/NOT_RUN`; 외부 운영 웹 완료가 아니다. [검증 세부](TEST_STATUS.md)를 확인한다.
