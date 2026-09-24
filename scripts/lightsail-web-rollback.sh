@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 
 # Sourced by the web-only remote deploy after compose_old/new and service_snapshot exist.
+web_previous_release() {
+  if [[ -e "$1" ]]; then
+    readlink -f "$1"
+  elif [[ -e "$2" ]]; then
+    readlink -f "$2"
+  else
+    return 1
+  fi
+}
+
 web_rollback() {
   local code="${1:-1}" rollback_failed='false'
   trap - ERR

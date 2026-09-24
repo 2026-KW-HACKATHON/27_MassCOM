@@ -4,7 +4,9 @@
 
 ## 현재 GitHub 이슈 상태 — 2026-09-25
 
-- 최신 CI 게이트: 웹 원격 점검 [PR #161](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/161) merge `fec90ff`, PR CI `36029206895` PASS. 병합 후 main CI `36029974084`는 시연 호스트 전용 PostgreSQL 시험에서 초기 임시 Unix 서버를 준비 완료로 오인해 `Connection terminated unexpectedly`로 FAIL했다. `fix/137-showcase-pg-tcp-readiness`에서 호스트 TCP 준비를 기다리는 회귀를 RED→GREEN으로 수정했고 로컬 시연 호스트 두 통합 시험은 PASS다. 이 수정의 PR·main CI가 성공하기 전까지 AWS 웹 원격 staging은 실행하지 않는다. 다음 행동은 이 수정 브랜치의 한국어 PR·CI·병합 후 main CI 확인이다.
+- 최신 원격 staging 게이트: [PR #162](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/162) merge `cde6a2d`, PR CI `36031150450`·main CI `36031948040` PASS. 웹 전용 `--deploy` 첫 시도는 release 파일 전송 뒤 exit 1로 실패했다. 원인은 없는 `/opt/masscom/web/current`에 대한 `readlink -f`가 비어 있지 않은 경로를 반환해 기존 release fallback을 건너뛴 것이다. API·DB·Caddy ID·재시작 수와 HTTPS health는 시도 전후 동일, production-web 컨테이너 및 웹 배포 표식은 없다. `fix/137-first-web-release`에서 유효한 이전 release를 선택하는 회귀를 RED→GREEN으로 고쳤다. 다음에는 수정 PR·CI·병합 후 원격 staging을 재시도한다. DNS와 Google 실계정은 변경하지 않는다.
+
+- 이전 CI 게이트: 웹 원격 점검 [PR #161](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/161) merge `fec90ff`, PR CI `36029206895` PASS. 병합 후 main CI `36029974084`는 시연 호스트 PostgreSQL 초기화 경합으로 FAIL했지만 후속 PR #162와 main CI로 수정·확인했다. 현재 배포 중단 원인은 위 첫 staging 실패를 따른다.
 
 - 이전 #137 웹 기준선: [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159) merge `e6dcc82`, PR CI `36019777124`·병합 후 main CI `36020699683` PASS. 웹 전용 세션/Google OIDC·읽기 전용 도감은 코드·로컬/CI 검증 단계까지만 완료했으며 외부 배포는 없다. AWS 로그인 후 기존 서울 Lightsail의 default key를 로컬 mode 600으로 보관하고 검증된 호스트키로 `ssh masscom` 접속을 확인했다. Samsung SM-S928N은 `adb`에 연결됐다. 기존 크레딧의 Lightsail 적용과 메모리·디스크 여유는 읽기 전용으로 확인해 저장소 밖 mode 600 증거에 남겼고 웹 배포 dry-run은 PASS다. 현재 `masscom.kr`은 Vercel이며 원격 웹 배포·TLS·DNS·실계정 연결은 `NOT_RUN`; 최신 CI 중단 경계는 위 항목을 따른다.
 

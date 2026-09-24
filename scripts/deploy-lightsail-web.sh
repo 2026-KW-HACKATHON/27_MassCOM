@@ -154,13 +154,11 @@ release="$1"
 web_tag="$2"
 commit="$3"
 runtime_env=/opt/masscom/runtime.env
+source "$release/scripts/lightsail-web-rollback.sh"
 api_commit="$(sudo cat /opt/masscom/DEPLOYED_COMMIT)"
 [[ "$api_commit" =~ ^[0-9a-f]{40}$ ]]
 api_tag="${api_commit:0:12}"
-old_release="$(readlink -f /opt/masscom/web/current 2>/dev/null || true)"
-if [[ -z "$old_release" ]]; then
-  old_release="$(readlink -f /opt/masscom/current)"
-fi
+old_release="$(web_previous_release /opt/masscom/web/current /opt/masscom/current)"
 test -f "$old_release/infra/lightsail/compose.yml"
 old_web_tag="$(basename "$old_release")"
 
@@ -199,7 +197,6 @@ fi
 web_change_started='false'
 changing_caddy='false'
 probe_id=''
-source "$release/scripts/lightsail-web-rollback.sh"
 source "$release/scripts/lightsail-web-probe-guard.sh"
 trap 'web_rollback "$?"' ERR
 
