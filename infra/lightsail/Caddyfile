@@ -24,6 +24,8 @@
 
 	@appRoot path /app
 	redir @appRoot /app/ 308
+	@previewRoot path /preview
+	redir @previewRoot /preview/ 308
 	@webSession path /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection
 	handle @webSession {
 		reverse_proxy api:3000 {

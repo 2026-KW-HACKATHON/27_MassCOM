@@ -26,7 +26,7 @@ for _attempt in $(seq 1 30); do
 done
 [[ "$ready" == 'true' ]] || { echo 'web smoke Caddy did not become ready' >&2; exit 1; }
 
-for path in / /open /privacy /account-deletion /presentation /app/ /app/assets/production.mjs; do
+for path in / /open /privacy /account-deletion /presentation /app/ /app/assets/production.mjs /preview/ /preview/assets/showcase.css; do
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:8089$path")"
   [[ "$status" == '200' ]] || { echo "$path returned $status" >&2; exit 1; }
 done
@@ -35,13 +35,21 @@ app_redirect="$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' --max-tim
   echo "/app redirect mismatch: $app_redirect" >&2
   exit 1
 }
+preview_redirect="$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 8 http://127.0.0.1:8089/preview)"
+[[ "$preview_redirect" == '308 http://127.0.0.1:8089/preview/' ]] || {
+  echo "/preview redirect mismatch: $preview_redirect" >&2
+  exit 1
+}
+curl -fsS --max-time 8 http://127.0.0.1:8089/preview/ | cmp - "$MASSCOM_PUBLIC_SITE/preview/index.html"
+curl -fsS --max-time 8 http://127.0.0.1:8089/preview/assets/showcase.css \
+  | cmp - "$MASSCOM_PUBLIC_SITE/preview/assets/showcase.css"
 
 curl -fsS --max-time 8 http://127.0.0.1:8089/.well-known/assetlinks.json \
   | cmp - "$MASSCOM_PUBLIC_SITE/.well-known/assetlinks.json"
 curl -fsSI --max-time 8 http://127.0.0.1:8089/.well-known/assetlinks.json \
   | grep -Eqi '^content-type: application/json'
 
-for path in /HANDOFF.md /TEST_STATUS.md /evidence/showcase-host-local-2026-09-24.json /claim /mint /merchants/1 /api/web/unknown /api/claim /api/mint; do
+for path in /HANDOFF.md /TEST_STATUS.md /evidence/showcase-host-local-2026-09-24.json /preview/.vercel/project.json /preview/.env.local /claim /mint /merchants/1 /api/web/unknown /api/claim /api/mint; do
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:8089$path")"
   [[ "$status" == '404' ]] || { echo "$path unexpectedly returned $status" >&2; exit 1; }
 done

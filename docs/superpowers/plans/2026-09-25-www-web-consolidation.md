@@ -44,12 +44,12 @@
 
 ### Task 1: 정적 시연 웹 allowlist와 `/preview/`
 
-**Files:** Modify `scripts/build-public-site.mjs`, `tests/site/build_public_site_test.mjs`, `infra/lightsail/Caddyfile`, `tests/ops/verify_aws_web_routes_test.mjs`.
+**Files:** Modify `scripts/build-public-site.mjs`, `tests/site/build_public_site_test.mjs`, `infra/lightsail/Caddyfile`, `tests/ops/run_aws_web_smoke.sh`.
 
 **Interfaces:** `buildPublicSite(repoRoot, targetDirectory): Promise<string[]>`는 결과 경로에 `preview/index.html`, `preview/assets/showcase.css`를 추가하고 기존 반환값을 보존한다. Caddy는 `/preview`를 `/preview/`로 308 이동한다.
 
 - [ ] **Step 1: 실패 시험.** `expected`에 두 preview 파일을 추가하고 원본별 byte 비교를 `apps/showcase-web/`에 연결한다. `.vercel/project.json`, `.env.local`, `HANDOFF.md` 누출 거부와 `/preview` 308·`/preview/` 200·CSS 200을 Caddy 시험에 추가한다.
-- [ ] **Step 2: RED 확인.** `node --test tests/site/build_public_site_test.mjs tests/ops/verify_aws_web_routes_test.mjs`가 preview 파일/라우트 부재로 실패함을 기록한다.
+- [ ] **Step 2: RED 확인.** `node --test tests/site/build_public_site_test.mjs`는 preview 파일 부재로, `bash tests/ops/run_aws_web_smoke.sh`는 실제 `/preview` 경로 부재로 각각 실패함을 기록한다.
 - [ ] **Step 3: 최소 구현.** 기존 `publicFiles`의 `docs/` 아래 공개 원본 매핑을 유지하고 별도 두 source-target 쌍을 추가한다. 예: `['apps/showcase-web/index.html', 'preview/index.html']`, `['apps/showcase-web/assets/showcase.css', 'preview/assets/showcase.css']`. 모든 원본에 `lstat().isFile()`을 확인한 뒤 새 대상에만 복사한다. Caddy에 `@previewRoot path /preview`와 `redir @previewRoot /preview/ 308`을 추가하고 기존 `file_server`가 `/preview/`를 제공하게 한다.
 
 ```js
