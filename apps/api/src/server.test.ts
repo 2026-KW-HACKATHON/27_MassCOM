@@ -1272,6 +1272,25 @@ test('D24 rejects an unverifiable Google ID token with a fixed code', async (t) 
   assert.deepEqual(await response.json(), { code: 'ID_TOKEN_AUDIENCE_MISMATCH' });
 });
 
+test('showcase uninvited Google subject is denied without issuing a session', async (t) => {
+  const sessions = authSessionFixture({
+    signInWithGoogle: async () => {
+      throw new AuthSessionError('INVITE_REQUIRED');
+    },
+  });
+  const baseUrl = await startFixture(
+    t, () => 'unused-account', undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, sessions,
+  );
+  const response = await fetch(`${baseUrl}/auth/google`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ idToken: 'signed-but-uninvited' }),
+  });
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { code: 'INVITE_REQUIRED' });
+});
+
 test('D24 rate limits Google sign-in before invoking token verification', async (t) => {
   let signInCalls = 0;
   let limiterCalls = 0;

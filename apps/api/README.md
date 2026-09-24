@@ -75,6 +75,8 @@ npm run start:local
 
 ### 격리된 로컬 시연 점포
 
+외부 공개 시연 API의 초대 로그인은 [시연 초대 인증 경계](../../docs/SHOWCASE_AUTH_GUARD.md)를 따릅니다. 아래 로컬 seed·DEMO 헤더는 외부 시연 로그인을 대신하지 않습니다.
+
 독립 Docker API·DB를 함께 실행하려면 [로컬 시연 환경](../../infra/showcase-local/README.md)을 사용합니다. 기본 운영 Compose의 DB/볼륨·외부 포트는 변경하지 않으며, 이 환경은 로그인·QR 수령 없이 가상 점포 공개 조회까지만 검증합니다.
 
 실제 영업점·협약·방문 혜택이 아닌 `가상 점포 A·B·C` 세 곳을 **별도 로컬 PostgreSQL**에만 생성합니다. `SHOWCASE_TEST_DATABASE_URL`은 `localhost`/`127.0.0.1`/`::1`의 정확한 `masscom_showcase_test` DB만 허용하고, 연결 뒤 실제 DB 이름을 다시 확인한 다음 migration을 실행합니다. 운영 `DATABASE_URL`이나 `api.masscom.kr`에는 seed하지 않습니다. `SHOWCASE_TEST_DATABASE_URL`의 비밀번호는 명령 기록·저장소에 넣지 말고 로컬 `PGPASSWORD`로 전달하세요.

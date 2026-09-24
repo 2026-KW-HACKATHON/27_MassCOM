@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- Issue #137 공개 시연 API의 초대 제한 코드를 추가했다. `SHOWCASE_MODE=true`는 정확한 `masscom_showcase` DB·Google audience 한 개·초대된 `sub` 해시 목록이 없으면 시작을 거절한다. 유효한 Google 토큰이라도 초대되지 않으면 DB identity/session 저장 전 `INVITE_REQUIRED` 403, 초대 목록 변경 후 모든 인스턴스를 재시작하면 기존 세션 조회도 거절한다. API 단위 90/90·PostgreSQL 45/45·typecheck/build 로컬 PASS. 실제 외부 API·DNS·Google client·Android 시연 APK는 `NOT_RUN`이다.
+
 - 무료 Vercel Hobby의 분리 프로젝트에 정적 시연 웹을 올렸다. `https://masscom-showcase-web.vercel.app` HTML·CSS HTTPS 200과 A·B·C 표기를 확인했다. `demo.masscom.kr` DNS는 아직 미연결이며 운영 `masscom.kr` 포털은 변경하지 않았다. 시연 Android는 전용 Google Web client ID를 빌드 설정에서 요구하고 실제 `.demo` package에서만 읽도록 코드·시험을 추가하는 중이다. 시연 OAuth client·외부 API·APK 설치는 `NOT_RUN`이다.
 
 - Issue #137에서 사용자 요청에 따라 읽기 전용 시연 웹과 격리 로컬 seed를 가상 점포 A·B·C 총 3곳으로 확장했다. 웹의 A 방문·수집품은 고정 예시이며 B·C를 방문 완료로 꾸미지 않는다. 실제 PostgreSQL 반복 seed·A 기존 진행 보존·동시 생성·손상 거절과 로컬 API 공개 목록 3곳은 PASS. 외부 `demo.masscom.kr`·시연 APK는 여전히 `NOT_RUN`이다.

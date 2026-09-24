@@ -2,6 +2,11 @@
 
 마지막 갱신 시각: 2026-09-24 KST
 
+## Issue #137 공개 시연 API 초대 제한 준비
+
+- `feat/137-showcase-invite-guard`: 초대되지 않은 Google `sub`는 계정·세션 쓰기 전에 거절한다. 초대 변경은 모든 시연 API 인스턴스 재시작·이전 인스턴스 종료 후 기존 세션 조회에도 적용된다. `SHOWCASE_MODE=true` 설정은 정확한 `masscom_showcase` DB·Google audience 한 개·초대 `sub` SHA-256 목록을 요구한다. 운영 API는 해당 설정이 없어 기존 정책을 유지한다([경계 문서](SHOWCASE_AUTH_GUARD.md)). API 단위 90/90·PostgreSQL 45/45·typecheck/build 로컬 PASS.
+- 기존 Lightsail의 운영 Caddy는 `admin off`이고 운영 API/DB가 같은 Compose 프로젝트에 있으므로 현재 `infra/showcase-local`을 그대로 공개하면 안 된다. 별도 시연 Compose·네트워크·비밀·초대 STAFF 연결과 Caddy 변경/되돌리기 검증 전에는 외부 API·Android 시연 로그인 `NOT_RUN`. 새 유료 자원은 생성하지 않았다.
+
 ## Issue #137 무료 시연 웹과 Android 인증 경계
 
 - 기존 `feat/137-showcase-auth-readiness` 브랜치는 계획 커밋 `ee849f4`에서 재개했다. 별도 Vercel Hobby 프로젝트 `masscom-showcase-web`의 배포 `dpl_46Ug4QohG2bfoMEdxnT7WuJ6g5UC`가 READY이고 [기본 HTTPS 주소](https://masscom-showcase-web.vercel.app) HTML/CSS 200·A/B/C 표기 PASS다([증거](evidence/showcase-web-vercel-2026-09-24.json)). `demo.masscom.kr`은 Vercel 프로젝트에 등록됐지만 가비아 DNS가 없어 미연결. 가비아 로그인은 소유자에게 비밀번호를 보내지 않고 직접 하도록 요청했다.

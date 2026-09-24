@@ -38,6 +38,7 @@ import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollmen
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
+import { resolveShowcaseInviteConfig } from './showcase/invite-config.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
@@ -572,7 +573,7 @@ function requireBearerToken(request: IncomingMessage): string {
 }
 
 function statusForAuthSession(code: string): number {
-  if (code === 'IDENTITY_MISMATCH') return 403;
+  if (code === 'IDENTITY_MISMATCH' || code === 'INVITE_REQUIRED') return 403;
   return 401;
 }
 
@@ -757,9 +758,16 @@ export function resolveApiBindHost(raw: string | undefined): '127.0.0.1' | '0.0.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.env.PORT ?? 3000);
   const bindHost = resolveApiBindHost(process.env.API_BIND_HOST);
+  const showcaseInvites = resolveShowcaseInviteConfig(process.env);
   const pool = process.env.DATABASE_URL
     ? new Pool({ connectionString: process.env.DATABASE_URL })
     : undefined;
+  if (showcaseInvites) {
+    const result = await pool!.query<{ name: string }>('SELECT current_database() AS name');
+    if (result.rows[0]?.name !== 'masscom_showcase') {
+      throw new Error('SHOWCASE_DATABASE_MISMATCH');
+    }
+  }
   const merchantCatalog = pool ? new PostgresMerchantCatalog(pool) : undefined;
   const merchantAccess = pool ? new PostgresMerchantAccessControl(pool) : undefined;
   const collection = pool ? new PostgresCollectionReader(pool) : undefined;
@@ -817,6 +825,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           cleanupBatchSize: authSessionCleanupBatchSize(
             process.env.AUTH_SESSION_CLEANUP_BATCH_SIZE,
           ),
+          ...(showcaseInvites ? { allowedSubjectHashes: showcaseInvites.allowedSubjectHashes } : {}),
           ...(accountLifecycle ? { accountLifecycle } : {}),
         })
       : undefined;
