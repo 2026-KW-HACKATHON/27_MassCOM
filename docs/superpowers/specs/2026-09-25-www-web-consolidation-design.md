@@ -1,6 +1,6 @@
 # `www.masscom.kr` 웹 경로 통합 설계
 
-상태: **사용자 서면 검토 대기·독립 설계 검토 CLEAR**. 2026-09-25 사용자가 `www.masscom.kr/app`·`www.masscom.kr/preview` 방향과 기존 apex 호환 유지 권장안에 동의했다. 독립 검토에서 발견한 세션 호스트 바인딩·지연 콜백 롤백 경계를 반영해 차단 지적이 해소됐다. 이는 구현·DNS 변경·Google 콜백 등록의 완료 근거가 아니다. 관련 [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137), [현재 상태](../../PROJECT_STATE.md), [실제 시험](../../TEST_STATUS.md)을 먼저 확인한다.
+상태: **사용자 서면 설계 승인·독립 설계 검토 CLEAR**. 2026-09-25 사용자가 `www.masscom.kr/app`·`www.masscom.kr/preview` 방향과 기존 apex 호환 유지 권장안에 동의한 뒤 서면 설계도 승인했다. 독립 검토에서 발견한 세션 호스트 바인딩·지연 콜백 롤백 경계를 반영해 차단 지적이 해소됐다. 이는 구현·DNS 변경·Google 콜백 등록의 완료 근거가 아니다. 관련 [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137), [현재 상태](../../PROJECT_STATE.md), [실제 시험](../../TEST_STATUS.md)을 먼저 확인한다.
 
 ## 목적과 경계
 

@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- D-034 `www.masscom.kr/app/`·`/preview/` 웹 통합 방향과 [서면 설계](superpowers/specs/2026-09-25-www-web-consolidation-design.md)는 사용자 승인, 독립 설계 검토 CLEAR다. [구현 계획](superpowers/plans/2026-09-25-www-web-consolidation.md)은 검토 대기. www DNS는 아직 Vercel CNAME(TTL 600초), 기존 Lightsail은 apex만 제공하며 코드·Google `www` 콜백·DNS 전환은 `NOT_RUN`이다. 현재 README의 Vercel 시연 웹 주소를 검증 전 `www/preview/` 완료로 바꾸지 않는다.
+
 - 시연 웹은 [공개 Vercel HTTPS](https://masscom-showcase-web.vercel.app/)에서 바로 볼 수 있고, [private GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1)의 HTML/CSS 원본·ZIP digest를 확인했다([증거](evidence/showcase-web-release-2026-09-25.json)). 시연 Android APK·Release는 아직 없으며 `demo-api.masscom.kr` DNS·별도 인증·서명 설치 검증 전이다. 웹 예시 기록을 운영 데이터·NFT 발행 실적으로 표시하지 않는다.
 
 - 운영 웹 실증 기준: [PR #166](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/166) merge `c0ad8d6`, PR CI `36047283723`·당시 main CI `36048047690` PASS. 운영 API 배포 `d787471`과 뒤이은 문서 merge는 별개이며, 실제 최신 HEAD·브랜치·CI·Issue는 `git`·`gh`로 확인한다. Issue #137은 당시 OPEN; 운영 웹 로그인과 시연 API/앱 전체 완료를 혼동하지 않는다.
