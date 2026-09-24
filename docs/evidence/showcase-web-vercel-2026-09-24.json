@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-09-24 KST",
+  "environment": "Vercel Hobby, separate project masscom-showcase-web",
+  "deploymentId": "dpl_46Ug4QohG2bfoMEdxnT7WuJ6g5UC",
+  "url": "https://masscom-showcase-web.vercel.app",
+  "status": "PASS",
+  "checks": [
+    "HTTPS HTML 200 with valid TLS certificate",
+    "HTML contains 가상 점포 A, B, C",
+    "versioned CSS HTTPS 200 with text/css"
+  ],
+  "notVerified": [
+    "demo.masscom.kr DNS and custom-domain TLS",
+    "Android showcase app authentication or QR flow",
+    "website synchronization with app progress"
+  ]
+}

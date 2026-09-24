@@ -11,9 +11,18 @@ import { baseSepolia } from './base-sepolia';
 import { getWalletRuntimeConfig } from './wallet-runtime-config';
 import { createWalletMetadata } from './wallet-metadata';
 import { resolveWalletReturnScheme } from './return-scheme';
+import { resolveRuntimeIdentity } from '@/config/showcase-identity';
 
+const runtimeIdentity = resolveRuntimeIdentity(
+  Application.applicationId,
+  Constants.expoConfig?.extra,
+  {
+    googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    reownProjectId: process.env.EXPO_PUBLIC_REOWN_PROJECT_ID,
+  },
+);
 export const walletRuntimeConfig = getWalletRuntimeConfig({
-  EXPO_PUBLIC_REOWN_PROJECT_ID: process.env.EXPO_PUBLIC_REOWN_PROJECT_ID,
+  EXPO_PUBLIC_REOWN_PROJECT_ID: runtimeIdentity.reownProjectId,
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
 });
 

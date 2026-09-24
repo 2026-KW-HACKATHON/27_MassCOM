@@ -57,6 +57,10 @@ function validateBuildEnvironment(variant, environment) {
     for (const key of ['EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID', 'EXPO_PUBLIC_REOWN_PROJECT_ID']) {
       if (environment[key]?.trim()) throw new Error(`showcase build rejects ${key}`);
     }
+    const googleWebClientId = environment.MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID?.trim();
+    if (!googleWebClientId || !/^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(googleWebClientId)) {
+      throw new Error('showcase MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID is required');
+    }
   }
 }
 
