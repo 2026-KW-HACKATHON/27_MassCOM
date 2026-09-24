@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- 2026-09-25 Samsung Android Chrome에서 기존 Google 계정 A 로그인·빈 도감, A 로그아웃, B의 소유자 본인 확인 후 로그인·빈 도감, URL 재열기 뒤 B 세션 유지를 확인했다. 운영 서버에는 최근 세션 3건·서로 다른 계정 2개·철회 2건·활성 1건이 기록됐다([증거](evidence/android-web-auth-2026-09-25.json)). 실제 기록이 있는 계정 간 도감 교차 노출, 최신 APK, 일반 App Link 탭은 `NOT_RUN`; 이전 아래 항목의 휴대전화 로그인 `NOT_RUN`은 검증 전 시점의 상태다.
+
 - 2026-09-25 운영 웹 Google 로그인 최신: [PR #164](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/164) merge `d787471`·PR/main CI PASS 후 동일 커밋을 기존 Lightsail에 배포했다. 런타임 비밀값은 Git 밖 mode 600으로 반영하고 클립보드를 비웠다. Google 로그인 시작 302·정확한 callback·state/PKCE/Secure/HttpOnly 쿠키, 기존 계정 1개의 본인 빈 도감·새로고침 유지·로그아웃 후 미로그인 및 서버 세션 revoke, 익명 도감 401, 공개 점포 0건 200을 확인했다. 실계정 A/B 도감 격리·휴대전화 브라우저 로그인·최신 Android APK는 `NOT_RUN`; Issue #137 전체는 OPEN([세부](TEST_STATUS.md)).
 
 ### 이전 단계 기록
