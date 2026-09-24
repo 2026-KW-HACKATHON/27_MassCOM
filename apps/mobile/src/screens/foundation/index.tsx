@@ -10,10 +10,17 @@ import { INITIAL_PAGE, PAGE_COUNT, pageAtOffset } from '@/navigation/foundation-
 import { foundationColors } from '@/theme/foundation';
 
 type Role = 'customer' | 'merchant';
-type Props = { initialRole?: Role; isFocused?: boolean; onConnectWallet: () => void };
+type Props = {
+  initialRole?: Role;
+  isFocused?: boolean;
+  onConnectWallet?: () => void;
+  onChooseRole?: (role: Role) => void;
+  showcaseTour?: boolean;
+  onExit?: () => void;
+};
 const pages = Array.from({ length: PAGE_COUNT }, (_, index) => index);
 
-export function FoundationScreen({ initialRole, isFocused = true, onConnectWallet }: Props) {
+export function FoundationScreen({ initialRole, isFocused = true, onConnectWallet, onChooseRole, showcaseTour = false, onExit }: Props) {
   const colors = foundationColors[useColorScheme() === 'dark' ? 'dark' : 'light'];
   const insets = useSafeAreaInsets();
   const [role, setRole] = useState<Role | undefined>(initialRole);
@@ -23,14 +30,22 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
     if (!isFocused || Platform.OS !== 'android') return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (stage === 'role') return false;
+      if (showcaseTour && onExit) {
+        onExit();
+        return true;
+      }
       setStage('role');
       setRole(undefined);
       return true;
     });
     return () => subscription.remove();
-  }, [isFocused, stage]);
+  }, [isFocused, onExit, showcaseTour, stage]);
 
   function choose(nextRole: Role) {
+    if (onChooseRole) {
+      onChooseRole(nextRole);
+      return;
+    }
     setRole(nextRole);
     setStage(nextRole === 'customer' ? 'wallet' : 'shell');
   }
@@ -38,9 +53,19 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.frame, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        <Text selectable style={[styles.previewNotice, { color: colors.muted }]}>개발용 화면 시안 · 실제 음식점·방문·혜택이 아닙니다.</Text>
+        <Text selectable style={[styles.previewNotice, { color: colors.muted }]}>
+          {showcaseTour
+            ? '체험용 빈 공간 다섯 개입니다. 실제 방문·수집품 정보는 탐색과 도감에서 확인하세요.'
+            : onChooseRole
+            ? '체험용 가상 데이터입니다. 실제 영업점·방문 혜택과 연결되지 않습니다.'
+            : '개발용 화면 시안 · 실제 음식점·방문·혜택이 아닙니다.'}
+        </Text>
         {stage === 'shell' && role ? (
-          <EmptyPager role={role} onBack={() => { setStage('role'); setRole(undefined); }} />
+          <EmptyPager
+            role={role}
+            backLabel={showcaseTour ? '체험 종료' : '역할 다시 선택'}
+            onBack={showcaseTour && onExit ? onExit : () => { setStage('role'); setRole(undefined); }}
+          />
         ) : (
           <ScrollView contentContainerStyle={styles.onboarding} showsVerticalScrollIndicator={false}>
             <View style={styles.brandRow}>
@@ -58,7 +83,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
                 </View>
                 <View style={styles.roleChoices}>
                   <RoleChoice title="사용자예요" subtitle="나의 공간으로 시작" role="customer" onPress={() => choose('customer')} />
-                  <RoleChoice title="점주예요" subtitle="점주 화면 미리보기" role="merchant" onPress={() => choose('merchant')} />
+                  <RoleChoice title="점주예요" subtitle={onChooseRole ? '로그인 후 서버에서 권한 확인' : '점주 화면 미리보기'} role="merchant" onPress={() => choose('merchant')} />
                 </View>
                 <Text style={[styles.footnote, { color: colors.muted }]}>편하게 선택해 주세요. 언제든 바꿀 수 있어요.</Text>
               </>
@@ -71,7 +96,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
                   <Text style={[styles.description, { color: colors.muted }]}>지금 연결하지 않아도 괜찮아요.</Text>
                 </View>
                 <View style={styles.walletActions}>
-                  <Pressable accessibilityRole="button" onPress={() => { setStage('shell'); onConnectWallet(); }} style={({ pressed }) => [styles.primary, { backgroundColor: colors.accent, opacity: pressed ? 0.75 : 1 }]}>
+                  <Pressable accessibilityRole="button" onPress={() => { setStage('shell'); onConnectWallet?.(); }} style={({ pressed }) => [styles.primary, { backgroundColor: colors.accent, opacity: pressed ? 0.75 : 1 }]}>
                     <Text style={[styles.actionLabel, { color: colors.onAccent }]}>외부지갑 연결하기</Text>
                   </Pressable>
                   <Pressable accessibilityRole="button" onPress={() => setStage('shell')} style={styles.secondary}>
@@ -104,7 +129,7 @@ function RoleChoice({ title, subtitle, role, onPress }: { title: string; subtitl
   );
 }
 
-function EmptyPager({ role, onBack }: { role: Role; onBack: () => void }) {
+function EmptyPager({ role, onBack, backLabel }: { role: Role; onBack: () => void; backLabel: string }) {
   const colors = foundationColors[useColorScheme() === 'dark' ? 'dark' : 'light'];
   const pager = useRef<ScrollView>(null);
   const [scrollX] = useState(() => new Animated.Value(0));
@@ -146,7 +171,7 @@ function EmptyPager({ role, onBack }: { role: Role; onBack: () => void }) {
   return (
     <View style={styles.pagerRoot}>
       <View style={styles.shellHeader}>
-        <Pressable accessibilityRole="button" accessibilityLabel="역할 다시 선택" onPress={onBack} style={styles.back}>
+        <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={onBack} style={styles.back}>
           <Text style={[styles.chevron, { color: colors.ink }]}>‹</Text>
         </Pressable>
         <Text style={[styles.shellTitle, { color: colors.ink }]}>{role === 'merchant' ? '점주' : '사용자'}</Text>
