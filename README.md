@@ -25,7 +25,7 @@ GitHub에서 앱 받기: [운영 테스트 APK](https://github.com/2026-KW-HACKA
 - [프로젝트 포털](docs/index.html): 흐름·아키텍처·평가 증거·결정 상태를 시각적으로 탐색
 - [공개 프로젝트 포털](https://masscom.kr): 다운로드 없이 열리는 실제 Vercel 배포
 - [Android 설치본 상태](docs/ANDROID_DOWNLOADS.md): 운영 테스트 APK와 아직 배포하지 않은 시연 APK의 차이
-- [시연용 읽기 전용 웹](apps/showcase-web/README.md) · [운영용 읽기 전용 웹](apps/production-web/README.md): 별도 코드·데이터 경계. 운영 웹의 개인 도감·Google OIDC 코드는 로컬 검증 중이며 실제 OAuth 설정·AWS 외부 배포는 미완료
+- [시연용 읽기 전용 웹](apps/showcase-web/README.md) · [운영용 읽기 전용 웹](apps/production-web/README.md): 별도 코드·데이터 경계. 운영 웹의 개인 도감·Google OIDC 코드는 PR #159로 병합·CI 통과했지만, 실제 OAuth 설정·AWS 외부 배포는 미완료
 - [현재 HTTPS 시연 웹](https://masscom-showcase-web.vercel.app): 가상 점포 A·B·C 고정 예시. `demo.masscom.kr` 맞춤 주소는 DNS 미연결
 - [공개 계정 삭제 안내](https://masscom.kr/account-deletion): 삭제 요청·보존 정보·지갑 비밀 경계
 - [발표·시연 페이지](docs/presentation.html): 3분·5분 발표 장면과 실제/미실행 증거 경계

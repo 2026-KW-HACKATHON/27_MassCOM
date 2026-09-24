@@ -4,7 +4,7 @@
 
 ## 최신 작업 경계
 
-- 2026-09-25 `feat/137-web-collection-auth`: PR #158의 AWS 웹 코드가 `main`에 병합됐고 CI를 통과했다. [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159)에서는 웹 전용 Google OIDC state·PKCE·nonce, 해시 저장 세션, 계정 삭제 시 회수, 읽기 전용 도감 UI 및 Caddy 네 경로를 로컬 구현·시험했다. 독립 리뷰의 두 보안·장애 지적은 RED→GREEN 수정, PR CI는 별도 확인 대상이다. 실제 Google Web client/secret·AWS 로그인/SSH·`masscom.kr` DNS/TLS 전환·실계정 A/B·Android 브라우저는 `BLOCKED/NOT_RUN`; 외부 운영 웹 완료가 아니다. [검증 세부](TEST_STATUS.md)를 확인한다.
+- 2026-09-25 `feat/137-web-collection-auth`: PR #158의 AWS 웹 코드에 이어 [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159)이 merge `e6dcc82`로 `main`에 통합됐다. 웹 전용 Google OIDC state·PKCE·nonce, 해시 저장 세션, 계정 삭제 시 회수, 읽기 전용 도감 UI 및 Caddy 네 경로를 로컬 구현·시험했다. 독립 리뷰의 두 보안·장애 지적은 RED→GREEN 수정했고 PR CI `36019777124`와 병합 후 main CI `36020699683`이 PASS했다. 실제 Google Web client/secret·AWS 로그인/SSH·`masscom.kr` DNS/TLS 전환·실계정 A/B·Android 브라우저는 `BLOCKED/NOT_RUN`; 외부 운영 웹 완료가 아니다. [검증 세부](TEST_STATUS.md)를 확인한다.
 
 - 2026-09-24 `feat/137-aws-web`: PR #158로 병합된 공개 파일 allowlist·기존 Lightsail Caddy 포털과 `/app/`·웹 전용 배포/rollback 코드([로컬 증거](evidence/aws-web-local-2026-09-24.json)). 현재 공개 `masscom.kr`은 Vercel HTTPS 200이며 AWS apex DNS·TLS·기기 재검증은 `NOT_RUN`이다. 이후 웹 도감 로컬 작업은 위 2026-09-25 항목을 따른다.
 - 2026-09-24 시연 호스트 경계는 PR #157 merge `96341e8`·main CI `36005667769` PASS다. 별도 로컬 Docker에서 API/DB healthy, A/B/C 3곳·목표 9개, 반복 seed, 익명 도감 401을 확인했다([증거](evidence/showcase-host-local-2026-09-24.json)). 운영 Lightsail 비용·용량과 전용 OAuth·DNS·외부 HTTPS는 미확인이라 실제 서버 배포는 BLOCKED다.
