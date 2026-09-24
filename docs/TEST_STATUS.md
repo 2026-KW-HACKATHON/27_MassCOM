@@ -1,5 +1,9 @@
 # 테스트 상태
 
+2026-09-25 Issue #137 AWS 접속·용량 선행검증: macOS에서 `ssh masscom`/`ssh masscom-api-seoul`로 기존 Lightsail Ubuntu 로그인 `PASS`; AWS 브라우저 SSH의 ED25519 호스트키 지문과 네트워크 지문을 대조했다. Samsung SM-S928N은 `adb devices -l`에 연결됐다. 서버의 사용 가능 메모리 1211MiB·디스크 여유 약 53GiB, 운영 API/DB healthy·재시작 0회, static IP 일치를 읽기 전용으로 확인했다. AWS Billing의 활성 크레딧에 Lightsail이 포함되며 예상 잔여액이 있음을 확인했고 금액 자체는 저장소에 기록하지 않았다. `bash scripts/deploy-lightsail-web.sh --dry-run` PASS이나 출력대로 원격 검사·웹 배포는 `NOT_RUN`; DNS·TLS·실계정은 미변경이다. 기존 `api.masscom.kr/api/web/collection`의 실제 미로그인 응답은 `404 | application/json | no-store`였다. 이슈 #137은 OPEN, 필수 36개 ID 집계 불변.
+
+같은 브랜치의 웹 원격 점검 수정: `bash tests/ops/deploy_lightsail_web_test.sh`에서 API 버전별 401/404/503 JSON·`no-store` 허용과 200/502·웹 서버 자체 404 거절을 RED→GREEN으로 확인했다. 로컬 Caddy fixture 1/1, 웹 smoke, Compose·운영 문서·증거 정합·비밀값·개인정보 검사 PASS. 이 결과는 원격 `--deploy` 실행 결과가 아니다.
+
 2026-09-25 Issue #137 웹 도감 로컬 구현(PR #159 merge `e6dcc82`, PR CI `36019777124`·main CI `36020699683` PASS): `node --test tests/ops/verify_web_session_proxy_test.mjs` 1/1, `bash tests/ops/run_aws_web_smoke.sh`, `node --test tests/site/verify_production_web_test.mjs` 14/14, API 단위 106/106·PostgreSQL 49 PASS/2 SKIP·typecheck/build·비밀값/개인정보 검사 `PASS`. 로컬 Caddy fixture에서 네 경로만 쿠키·redirect·no-store 전달, 임의 `/api/web/*`·claim·mint 404. PostgreSQL에서 웹 쿠키 해시·A/B 격리·만료·로그아웃·계정 삭제 회수·state 일회성·nonce·기존 Google `sub`만 연결을 시험했다. 독립 리뷰의 다른 탭 로그아웃 후 이전 기록 잔존과 Google 장애의 401 오분류를 RED→GREEN으로 수정했다. 로컬 Chrome 390px 다크 모드 `GET /api/web/collection` 401→로그인 안내와 가로 넘침 없음 확인. Google token endpoint는 로컬 대역으로 시험했으며 실제 code 교환/실계정 A/B·AWS HTTPS·쿠키 TLS·Android 브라우저는 `NOT_RUN/BLOCKED`. `masscom.kr`은 현재 Vercel이며 36개 필수 ID 상태 불변.
 
 같은 날 웹 smoke 첫 재실행은 수동 로컬 브라우저 fixture가 포트 8089를 점유해 Docker 바인딩 단계에서 `FAIL`이었다. 해당 시험용 컨테이너·네트워크·임시 공개 번들만 정리하고 같은 코드로 재실행해 `PASS`했다. 운영 배포 실패나 제품 코드 회귀로 분류하지 않는다.

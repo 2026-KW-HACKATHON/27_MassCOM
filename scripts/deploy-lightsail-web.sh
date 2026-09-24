@@ -142,7 +142,8 @@ node "$repo_root/scripts/build-public-site.mjs" "$scratch/site/public" >/dev/nul
 remote_release="/opt/masscom/web/releases/$release_id"
 ssh "${ssh_options[@]}" "$target" \
   "sudo install -d -m 0755 '$remote_release' && sudo chown ubuntu:ubuntu '$remote_release'"
-COPYFILE_DISABLE=1 tar -C "$repo_root" -czf - apps/production-web infra/lightsail scripts/lightsail-web-rollback.sh \
+COPYFILE_DISABLE=1 tar -C "$repo_root" -czf - apps/production-web infra/lightsail \
+  scripts/lightsail-web-rollback.sh scripts/lightsail-web-probe-guard.sh \
   -C "$scratch" site \
   | ssh "${ssh_options[@]}" "$target" "tar -xzf - -C '$remote_release'"
 
@@ -198,6 +199,7 @@ web_change_started='false'
 changing_caddy='false'
 probe_id=''
 source "$release/scripts/lightsail-web-rollback.sh"
+source "$release/scripts/lightsail-web-probe-guard.sh"
 trap 'web_rollback "$?"' ERR
 
 probe_web_routes() {
@@ -227,10 +229,16 @@ probe_web_routes() {
     | cmp - "$release/site/public/.well-known/assetlinks.json"
   curl -fsSI --max-time 8 "http://$address/.well-known/assetlinks.json" \
     | grep -Eqi '^content-type: application/json'
-  for path in /HANDOFF.md /TEST_STATUS.md /claim /mint /api/web/collection; do
+  for path in /HANDOFF.md /TEST_STATUS.md /claim /mint /api/web/unknown; do
     status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address$path")"
     [[ "$status" == '404' ]]
   done
+  local content_type cache_control
+  IFS='|' read -r status content_type cache_control <<< "$(
+    curl -sS -o /dev/null -w '%{http_code}|%{content_type}|%header{cache-control}' \
+      --max-time 8 "http://$address/api/web/collection"
+  )"
+  web_collection_probe_accepts "$status" "$content_type" "$cache_control"
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address/merchants")"
   [[ "$status" == '200' ]]
   sudo docker stop "$probe_id" >/dev/null

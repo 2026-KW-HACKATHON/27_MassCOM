@@ -1,6 +1,6 @@
 # 기존 Lightsail의 포털·운영 웹 이관
 
-상태: **로컬 Caddy/웹 경로 검증 PASS, 원격 배포·DNS 전환 NOT_RUN**. 현재 `masscom.kr`은 Vercel, `api.masscom.kr`은 기존 Lightsail이다. [설계](../../docs/superpowers/specs/2026-09-24-lightsail-web-consolidation-design.md)와 [로컬 증거](../../docs/evidence/aws-web-local-2026-09-24.json)를 구분해 읽는다.
+상태: **로컬 Caddy/웹 경로·SSH/용량/dry-run PASS, 원격 웹 배포·DNS 전환 NOT_RUN**. 현재 `masscom.kr`은 Vercel, `api.masscom.kr`은 기존 Lightsail이다. [설계](../../docs/superpowers/specs/2026-09-24-lightsail-web-consolidation-design.md)와 [테스트 원장](../../docs/TEST_STATUS.md)을 구분해 읽는다.
 
 ## 실행 순서
 
@@ -12,4 +12,4 @@
 
 실패하면 먼저 웹 전용 스크립트의 이전 Caddy release 복귀 결과와 운영 API health를 확인한다. DNS를 이미 바꿨다면 기록한 Vercel 목적지로 되돌리되 TTL 지연을 `BLOCKED` 증거로 남긴다. 운영 DB 볼륨 삭제·`/opt/masscom/DEPLOYED_COMMIT` 수정은 복구 절차에 포함하지 않는다.
 
-**다음 행동:** AWS 로그인과 기존 호스트 접근이 되면 1단계 비용·용량 증거부터 읽기 전용으로 수집한다.
+**다음 행동:** 웹 프록시 점검 수정 PR·CI를 마친 뒤 3단계 원격 staging에서 API/DB 컨테이너 ID와 health를 전후 대조한다. DNS는 4단계 전까지 Vercel로 유지한다.

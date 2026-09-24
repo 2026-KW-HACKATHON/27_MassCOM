@@ -3,7 +3,24 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd -P)"
 deploy="$repo_root/scripts/deploy-lightsail-web.sh"
+guard="$repo_root/scripts/lightsail-web-probe-guard.sh"
 [[ -f "$deploy" ]] || { echo 'web-only deploy script is missing' >&2; exit 1; }
+
+source "$guard"
+for accepted in 401 404 503; do
+  web_collection_probe_accepts "$accepted" 'application/json; charset=utf-8' 'no-store'
+done
+for rejected in \
+  '200|application/json; charset=utf-8|no-store' \
+  '502|application/json; charset=utf-8|no-store' \
+  '404|text/plain|no-store' \
+  '404|application/json; charset=utf-8|public, max-age=60'; do
+  IFS='|' read -r status content_type cache_control <<< "$rejected"
+  if web_collection_probe_accepts "$status" "$content_type" "$cache_control"; then
+    echo "unsafe web collection probe response accepted: $status" >&2
+    exit 1
+  fi
+done
 
 scratch="$(mktemp -d -t masscom-web-deploy-test.XXXXXX)"
 trap 'rm -rf "$scratch"' EXIT
@@ -51,10 +68,12 @@ bash -n "$scratch/remote.sh"
 grep -q 'compose_new up -d --no-deps production-web' "$scratch/remote.sh"
 grep -q 'compose_new up -d --no-deps --force-recreate caddy' "$scratch/remote.sh"
 grep -q 'source "$release/scripts/lightsail-web-rollback.sh"' "$scratch/remote.sh"
+grep -q 'source "$release/scripts/lightsail-web-probe-guard.sh"' "$scratch/remote.sh"
 grep -q 'web_change_started=' "$scratch/remote.sh"
 grep -q 'service_snapshot api' "$scratch/remote.sh"
 grep -q 'service_snapshot postgres' "$scratch/remote.sh"
 grep -q 'probe_web_routes' "$scratch/remote.sh"
+grep -q 'web_collection_probe_accepts' "$scratch/remote.sh"
 grep -q 'web_rollback' "$scratch/remote.sh"
 if grep -Eq 'compose_new (build|up).*\b(api|postgres|migrate)\b' "$scratch/remote.sh"; then
   echo 'web-only deploy script would modify API or database services' >&2
