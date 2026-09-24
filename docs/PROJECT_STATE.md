@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- Issue #137 후속으로 별도 `apps/production-web` 로컬 운영 웹을 추가했다. 공개 `GET /merchants`만 운영 API로 조회하며 실제 0건을 빈 상태로 보이고, 시연 행은 렌더하지 않는다. 웹 개인 도감은 안전한 로그인 세션 전까지 이용 불가다. GitHub 운영 test.2 APK는 이전 코드로 내려받을 수 있지만 시연 APK·최신 운영 APK는 없다. 외부 운영 웹 배포와 두 APK 새 실기는 `NOT_RUN`([다운로드 구분](ANDROID_DOWNLOADS.md)).
+
 - Issue #137의 로컬 개발 DEMO에서 Samsung Android 16 실기 수동 코드 흐름을 새 USB 연결로 완료했다. STAFF 발급→고객 수령→도감 1/1/0→다음 보상 추천과 동일 코드 추가 효과 0을 확인했다([증거](evidence/android-local-claim-2026-09-24/README.md)). 실제 QR 카메라·외부 시연 API/앱·지갑/NFT와 운영 웹 개인 도감은 여전히 미완료다.
 
 - Issue #146 `fix/146-account-link-style`에서 Samsung 개발 앱의 ‘내 정보’ Expo Router 오류를 RED→GREEN 수정했다. 모바일 182/182·typecheck·lint와 동일 폰의 내 정보·역할 시안 진입은 PASS. 로컬 가상 점포 코드 발급/미리보기만 PASS, USB 연결 해제로 방문 수령·보상은 BLOCKED([증거](evidence/android-dev-ui-2026-09-24/README.md)). PR·병합 상태는 `gh pr list`로 확인하며 운영 앱 배포로 표현하지 않는다.

@@ -60,6 +60,8 @@ jobs:
         run: bash tests/site/verify_project_site_test.sh
       - name: 시연 웹 사실성·읽기 전용 검사
         run: node --test tests/site/verify_showcase_site_test.mjs
+      - name: 운영 웹 공개 조회·읽기 전용 경계 검사
+        run: node --test tests/site/verify_production_web_test.mjs
       - name: 시연 웹 라이트·다크 실제 브라우저 검사
         run: |
           chrome_path="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"

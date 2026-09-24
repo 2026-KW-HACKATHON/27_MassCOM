@@ -2,6 +2,12 @@
 
 마지막 갱신 시각: 2026-09-24 KST
 
+## Issue #137 운영 웹·두 Android 배포 경계
+
+- 브랜치 `feat/137-web-download-surfaces`에서 `apps/production-web`에 공개 음식점 전용 로컬 운영 웹을 추가했다. 같은 출처의 `GET /merchants`만 `https://api.masscom.kr/merchants`로 전달하며 현재 실제 응답은 `200 {"merchants":[]}`. 개인 도감은 안전한 웹 세션 전까지 닫아 두고 QR·방문·지갑·발행 쓰기 경로는 없다. 외부 배포·운영 개인 도감·실제 점포 목록 실증은 `NOT_RUN`이다.
+- [GitHub 다운로드 상태](ANDROID_DOWNLOADS.md): private test.2 운영 APK만 실제 asset으로 존재하며 현재 `main` 최신 UI 빌드가 아니다. 시연 APK는 외부 `demo-api.masscom.kr` DNS/인증·전용 DB와 실기 검증 전까지 없다. 기존 앱 링크·운영 API/DB·릴리스 파일은 변경하지 않았다.
+- 새 운영 웹 회귀: `node --test tests/site/verify_production_web_test.mjs`; 저장소 포털 회귀: `bash tests/site/verify_project_site_test.sh`. PR·CI·병합 상태는 `gh pr list`와 `git log origin/main -1`로 확인한다. Issue #137은 계속 OPEN이다.
+
 ## Issue #137 로컬 가상 방문 수령 실기 (후속 증거)
 
 - Samsung SM-S928N Android 16 개발 앱, `.env.local` 없는 격리 checkout과 loopback DEMO API/전용 `_test` DB로 STAFF 발급→고객 수동 코드 미리보기→방문 확정→도감→추천을 실제 기기에서 PASS. 도감은 방문 1/앱 수집품 1/실제 NFT 0, DB는 방문 1/보상권 1/mint job 0/`CLAIMED` 슬롯 1. 동일 코드 재확인도 추가 효과 0이었다. [증거](evidence/android-local-claim-2026-09-24/README.md).

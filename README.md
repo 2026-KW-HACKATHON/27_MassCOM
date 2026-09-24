@@ -4,6 +4,8 @@
 
 공개 프로젝트 웹: [https://masscom.kr](https://masscom.kr) · [Android 테스트 앱 열기](https://masscom.kr/open)
 
+GitHub에서 앱 받기: [운영 테스트 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2) (`test.2`, 최신 코드 아님) · 시연 앱 APK `NOT_RUN` (아직 다운로드 없음). [두 앱의 설치·검증 상태](docs/ANDROID_DOWNLOADS.md)
+
 > 현재 상태: Phase 0~3와 Base Sepolia 핵심 흐름 `VERIFIED` · 외부 HTTPS·Google 로그인·Android App Links 실기 `VERIFIED` · Phase 4 출시 기반과 Phase 5 발표·증거 준비 `IN_PROGRESS` · 필수 시험 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`
 
 [![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](https://masscom.kr)
@@ -20,6 +22,8 @@
 - [모바일 UI 변경 명세](docs/superpowers/specs/2026-09-23-mobile-ui-navigation-design.md): Issue #126의 범위·보존 조건·검증 기준
 - [프로젝트 포털](docs/index.html): 흐름·아키텍처·평가 증거·결정 상태를 시각적으로 탐색
 - [공개 프로젝트 포털](https://masscom.kr): 다운로드 없이 열리는 실제 Vercel 배포
+- [Android 설치본 상태](docs/ANDROID_DOWNLOADS.md): 운영 테스트 APK와 아직 배포하지 않은 시연 APK의 차이
+- [시연용 읽기 전용 웹](apps/showcase-web/README.md) · [운영용 읽기 전용 웹](apps/production-web/README.md): 별도 코드·데이터 경계. 운영 웹의 개인 도감 로그인과 외부 배포는 아직 미완료
 - [공개 계정 삭제 안내](https://masscom.kr/account-deletion): 삭제 요청·보존 정보·지갑 비밀 경계
 - [발표·시연 페이지](docs/presentation.html): 3분·5분 발표 장면과 실제/미실행 증거 경계
 - [현장 검증 빈 기록지](docs/FIELD_VALIDATION.md): 동의·과업·결과를 미리 채우지 않은 양식
@@ -67,6 +71,7 @@ python3 -m http.server 4173 --directory docs
 | --- | --- | --- |
 | 저장소·문서·CI 기준선 | `VERIFIED` | PR #2·#4 merge, GitHub Actions PASS |
 | 프로젝트 포털 | `VERIFIED` | PR #6, CI PASS, 접근성·반응형 증거 저장 |
+| 운영용 웹 | `IN_PROGRESS` | 별도 `apps/production-web`에서 실제 공개 점포만 조회하는 로컬 웹 구현. 운영 API 0건 응답·오류·시연 데이터 제외 자동 시험 PASS. 개인 도감 인증·외부 배포 `NOT_RUN` |
 | Android 고객 앱 | `IMPLEMENTED` | Expo 57 dev-client, Android 16 AVD와 Samsung SM-S928N 실기기 debug APK 설치·실행·복귀 |
 | Android 기본 UI 네 탭 | `VERIFIED` | 탐색·방문 인증·도감·내 정보, 360dp·200% 글씨·실시간 다크 모드·뒤로 가기·개발 scheme를 Samsung Android 16에서 확인. 모바일 자동 146개·typecheck·lint·Android export PASS([증거](docs/evidence/android-ui-navigation-2026-09-23.json)) |
 | 탐색 검색·참여 상태 필터 | `IN_PROGRESS` | 공개 API가 반환한 실제 점포 이름·주소·이야기·캠페인만 로컬 검색. 모바일 148개 자동 시험 PASS. Samsung에서 실제 0건의 라이트·다크·상태표시줄을 확인했으나 점포가 없어 검색·필터 실기는 `NOT_RUN`([증거](docs/evidence/android-discovery-2026-09-23.json)) |
@@ -204,6 +209,7 @@ npm run test:postgres --prefix apps/api
 
 - 정적 프로젝트 포털: `https://masscom.kr`·`/privacy`·`/account-deletion` HTTPS 200 `VERIFIED`
 - 읽기 전용 시연 웹: [apps/showcase-web](apps/showcase-web/README.md) `STATIC_DEMO` 로컬 구현·라이트/다크 계산색·대비·360px/데스크톱 브라우저 검사 PASS([증거](docs/evidence/design-consistency-2026-09-24/README.md)), 외부 공개 `NOT_DEPLOYED`. 가상 점포·예시 도감은 실제 협약 점포·방문·NFT 실적이 아니며 운영 API·DB와 연결하지 않았습니다.
+- 읽기 전용 운영 웹: [apps/production-web](apps/production-web/README.md)은 별도 로컬 서버에서 운영 API의 공개 점포만 조회합니다. 실제 운영 API는 현재 0곳을 반환하며 가상 점포를 채우지 않습니다. 개인 도감의 안전한 웹 세션과 외부 배포는 `NOT_RUN`입니다.
 - 운영 Android UI: Issue #142에서 개발용 파란 시안과 네 탭·보조 화면의 색상 기준을 통일했고, 후속 Issue #146에서 ‘내 정보’ 렌더 오류를 수정했습니다. 모바일 182개 단위 테스트·typecheck·lint PASS. Samsung Android 16 개발 앱의 [오류 전후 UI](docs/evidence/android-dev-ui-2026-09-24/README.md)와 새 연결에서의 [로컬 가상 방문 수령→도감→추천](docs/evidence/android-local-claim-2026-09-24/README.md)을 구분해 확인했습니다. 실제 카메라 QR·외부 지갑·운영/시연 release APK는 NOT_RUN이며 공개 배포 완료를 뜻하지 않습니다.
 - 로컬 API 시연 데이터: [전용 DB 실행 방법](apps/api/README.md#격리된-로컬-시연-점포)에 따라 `masscom_showcase_test`에 `가상 점포 A`와 1/3/5회 목표를 생성. 실제 영업점·방문·NFT가 아니며 운영 API/DB에는 미적용. 정적 시연 웹과도 아직 실시간 연결되지 않습니다.
 - 로컬 시연 API·DB: [독립 Docker 환경](infra/showcase-local/README.md)은 운영 Compose와 다른 프로젝트·볼륨·loopback 포트로만 실행하고, 인증을 닫은 상태에서 가상 점포 공개 조회를 검증합니다. 외부 시연 API·QR·지갑·NFT 기능은 여전히 `NOT_RUN`입니다.
