@@ -11,6 +11,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+showcase_container_name() {
+  printf 'masscom-showcase-host-test-%s-%s\n' "$$" "${1%.postgres.integration.ts}"
+}
+
 wait_for_postgres_ready() {
   local container="$1" ready='false'
   for _attempt in $(seq 1 30); do
@@ -26,9 +30,10 @@ wait_for_postgres_ready() {
 }
 
 run_case() {
-  local test_file="$1"
+  local test_file="$1" case_container_name
+  case_container_name="$(showcase_container_name "$test_file")"
   container_id="$(docker run --rm -d \
-    --name "masscom-showcase-host-test-$$" \
+    --name "$case_container_name" \
     -e POSTGRES_DB=masscom_showcase \
     -e POSTGRES_USER=masscom_showcase \
     -e POSTGRES_HOST_AUTH_METHOD=trust \
