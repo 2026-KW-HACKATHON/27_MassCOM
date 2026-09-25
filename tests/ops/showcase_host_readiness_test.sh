@@ -4,6 +4,15 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "$0")/../.." && pwd -P)"
 source "$repo_root/tests/ops/run_showcase_host_postgres.sh"
 
+first_name="$(showcase_container_name host-seed-existing.postgres.integration.ts)"
+second_name="$(showcase_container_name host-seed.postgres.integration.ts)"
+[[ "$first_name" == "masscom-showcase-host-test-$$-host-seed-existing" &&
+   "$second_name" == "masscom-showcase-host-test-$$-host-seed" &&
+   "$first_name" != "$second_name" ]] || {
+  echo 'consecutive showcase PostgreSQL cases reuse one Docker name' >&2
+  exit 1
+}
+
 calls=0
 docker() {
   case "$*" in
