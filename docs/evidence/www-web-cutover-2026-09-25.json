@@ -1,0 +1,39 @@
+{
+  "date": "2026-09-25 KST",
+  "issue": 137,
+  "codePr": 169,
+  "mergeCommit": "3c59ac056b506061d284e1a26e92ec622a337889",
+  "prCi": "36066483008 PASS",
+  "mainCi": "36067114722 PASS",
+  "githubShowcaseWebRelease": "showcase-web-v0.1.0-preview.1 description updated to https://www.masscom.kr/preview/; original ZIP tag and SHA-256 unchanged",
+  "deployment": {
+    "result": "PASS",
+    "environment": "existing AWS Lightsail masscom-api-seoul; no new paid resource",
+    "deployedCommit": "3c59ac056b506061d284e1a26e92ec622a337889",
+    "postgresContainerPreserved": "e0d14fb7c8034d7509dee440b8644adf6de848a478f259fc524d3337086d4827; restart count 0; healthy",
+    "migrations": ["0016_web_session_origin.sql", "0017_web_oauth_redirect.sql"],
+    "backup": "/opt/masscom/backups/pre-www-web-20260925.dump, root mode 600, pg_restore --list PASS; runtime-pre-www-20260925.env root mode 600",
+    "apexHttps": "/, /app/, /open, /preview/, /preview/assets/showcase.css, /privacy, /account-deletion 200; /HANDOFF.md, /claim, /mint 404; api.masscom.kr/health 200",
+    "previewSourceMatch": "apex /preview/ HTML and CSS match repository bytes",
+    "apexOAuthStart": "302 to accounts.google.com with apex callback, Secure/HttpOnly/SameSite=Lax state cookie"
+  },
+  "googleWebCallback": "Existing MassCOM OAuth client retained apex callback and saved exact https://www.masscom.kr/api/web/auth/callback; console readback PASS",
+  "googleWebClientId": "172380658768-n5r2vad5f2g6ndb9kh2cbcig1j9i792g.apps.googleusercontent.com (public client identifier, not a secret)",
+  "dns": "PASS; Gabia changed only www from Vercel CNAME to A 43.200.56.97, TTL 600; apex and api A unchanged; ns.gabia.co.kr, 1.1.1.1 and 8.8.8.8 returned 43.200.56.97",
+  "wwwTls": "PASS; normal certificate verification authorized, SAN DNS:www.masscom.kr; /, /app/, /preview/, CSS, /privacy, /account-deletion, assetlinks.json 200; /HANDOFF.md, /TEST_STATUS.md, /claim, /mint 404; preview HTML/CSS byte-match repository source",
+  "transientTlsFailureAndRecovery": "Before DNS propagation the CA reached former Vercel IPs and standard TLS failed; after authoritative/public A answers became 43.200.56.97, the existing Caddy container was restarted once and normal TLS verification returned PASS. No certificate validation bypass was used.",
+  "wwwRealAccountLogin": "PASS for one existing Google account on physical Android Chrome: own empty collection, session after reopening URL, logout to sign-in prompt; www logout left apex collection signed in. Second distinct www account and non-empty collection NOT_RUN",
+  "androidBrowser": "SM-S928N Android 16 Chrome 153.0.8010.52 showed www /preview/ as a labeled virtual demo and www /app/ as live empty merchant/collection view; apex /preview/ also displayed. Explicit /open VIEW showed Android resolver, not automatic App Link selection",
+  "postCutoverSessionAggregate": "www 3 historical sessions for one account, 0 active after logout; apex 2 active; no account identifiers recorded",
+  "verificationCommands": [
+    "dig +short www.masscom.kr A @ns.gabia.co.kr",
+    "dig +short www.masscom.kr A @1.1.1.1",
+    "dig +short www.masscom.kr A @8.8.8.8",
+    "Node.js fetch with default TLS validation for public www/apex routes",
+    "Node.js TLS socket authorized and SAN check for www.masscom.kr",
+    "adb shell am start -W -a android.intent.action.VIEW -d https://www.masscom.kr/preview/ -p com.android.chrome",
+    "adb shell am start -W -a android.intent.action.VIEW -d https://www.masscom.kr/app/ -p com.android.chrome",
+    "adb shell uiautomator dump and screen observation for login, reload, logout, and apex isolation"
+  ],
+  "dataBoundary": "No production visit, reward, NFT, user identifiers, secrets, or wallet keys were included in this evidence."
+}

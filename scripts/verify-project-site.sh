@@ -60,7 +60,7 @@ grep -q 'python3 -m http.server' "$readme" || fail "README does not explain how 
 
 if grep -Eqi '<(script|img)[^>]+(src|href)="https?://' "$html" \
   || grep -Ei '<link[^>]+href="https?://' "$html" \
-    | grep -Ev '^[[:space:]]*<link rel="canonical" href="https://masscom.kr/">[[:space:]]*$'; then
+    | grep -Ev '^[[:space:]]*<link rel="canonical" href="https://www.masscom.kr/">[[:space:]]*$'; then
   fail "page loads an external script, image, or stylesheet"
 fi
 

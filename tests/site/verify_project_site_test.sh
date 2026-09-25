@@ -22,11 +22,11 @@ done
 grep -q 'href="privacy.html"' "$repo_root/docs/index.html"
 grep -q 'href="account-deletion.html"' "$repo_root/docs/index.html"
 for entry in \
-  'index.html|https://masscom.kr/' \
+  'index.html|https://www.masscom.kr/' \
   'open.html|https://masscom.kr/open' \
-  'privacy.html|https://masscom.kr/privacy' \
-  'account-deletion.html|https://masscom.kr/account-deletion' \
-  'presentation.html|https://masscom.kr/presentation'; do
+  'privacy.html|https://www.masscom.kr/privacy' \
+  'account-deletion.html|https://www.masscom.kr/account-deletion' \
+  'presentation.html|https://www.masscom.kr/presentation'; do
   page="${entry%%|*}"
   canonical="${entry#*|}"
   grep -qF "rel=\"canonical\" href=\"$canonical\"" "$repo_root/docs/$page" || {
@@ -42,6 +42,26 @@ grep -q 'href="https://masscom.kr/open"' "$repo_root/docs/index.html" || {
   echo 'project portal is missing the Android App Link entry' >&2
   exit 1
 }
+for file in README.md apps/showcase-web/README.md docs/ANDROID_DOWNLOADS.md; do
+  grep -qF 'https://www.masscom.kr/preview/' "$repo_root/$file" || {
+    echo "www preview link is missing: $file" >&2
+    exit 1
+  }
+done
+for file in README.md apps/production-web/README.md; do
+  grep -qF 'https://www.masscom.kr/app/' "$repo_root/$file" || {
+    echo "www operating web link is missing: $file" >&2
+    exit 1
+  }
+done
+for entry in 'app/|운영 웹 보기' 'preview/|시연 웹 보기'; do
+  path="${entry%%|*}"
+  label="${entry#*|}"
+  grep -qF "href=\"https://www.masscom.kr/$path\">$label" "$repo_root/docs/index.html" || {
+    echo "project portal is missing $label" >&2
+    exit 1
+  }
+done
 grep -q '"cleanUrls": true' "$repo_root/docs/vercel.json"
 node - "$repo_root/docs/.well-known/assetlinks.json" <<'NODE'
 const record = JSON.parse(require('node:fs').readFileSync(process.argv[2], 'utf8'));
@@ -85,7 +105,7 @@ grep -qF 'project portal verification failed: main content landmark is missing' 
 }
 
 cp "$repo_root/docs/index.html" "$fixture_root/docs/index.html"
-sed 's#<link rel="canonical" href="https://masscom.kr/">#<link rel="stylesheet" href="https://example.com/evil.css">#' \
+sed 's#<link rel="canonical" href="https://www.masscom.kr/">#<link rel="stylesheet" href="https://example.com/evil.css">#' \
   "$repo_root/docs/index.html" > "$fixture_root/docs/index.html"
 status=0
 out="$("$verifier" "$fixture_root" 2>&1)" || status=$?

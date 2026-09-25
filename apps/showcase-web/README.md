@@ -1,8 +1,8 @@
 # 월계 마스코트 체험 웹
 
-상태: `STATIC_DEMO` · 기본 Vercel HTTPS `VERIFIED`; `demo.masscom.kr` DNS `BLOCKED`
+상태: `STATIC_DEMO` · 대표 www HTTPS `VERIFIED`; 시연 Android APK는 아직 없음
 
-현재 열리는 시연 웹: [https://masscom-showcase-web.vercel.app](https://masscom-showcase-web.vercel.app). `demo.masscom.kr` 맞춤 주소는 가비아 DNS가 아직 연결되지 않아 열리지 않습니다.
+현재 열리는 시연 웹: [https://www.masscom.kr/preview/](https://www.masscom.kr/preview/). 가상 점포와 예시 도감을 설치 없이 볼 수 있습니다. [기존 Vercel 주소](https://masscom-showcase-web.vercel.app/)는 장애 시 복구 참고용으로 유지합니다.
 
 GitHub에서 버전·원본을 확인하려면 [시연 웹 전용 `showcase-web-v0.1.0-preview.1` 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1)를 보세요. ZIP에는 HTML·CSS만 있으며 Android APK가 아닙니다. 웹은 위 공개 주소에서 설치 없이 바로 볼 수 있습니다.
 
@@ -28,4 +28,4 @@ python3 scripts/verify-showcase-site.py
 
 페이지에는 JavaScript·양식·쓰기 버튼·원격 자산을 넣지 않았습니다. 운영 API·DB와 연결되지 않으며 앱의 체험 진행 결과와 자동 동기화되지 않습니다. QR 촬영·방문 코드·지갑 연결·NFT 발행 요청은 웹에서 제공하지 않습니다.
 
-[로컬 브라우저 검사 기록](../../docs/evidence/showcase-web-local-2026-09-23.json)은 당시 자동 시험 결과입니다. 후속 Vercel 배포 `dpl_46Ug4QohG2bfoMEdxnT7WuJ6g5UC`는 별도 프로젝트에서 READY이며 위 기본 HTTPS 주소의 HTML·CSS 200과 A·B·C 표기를 확인했습니다. 앱과의 진행 동기화, Android 시연 APK, `demo.masscom.kr` 맞춤 도메인은 별개로 미완료입니다.
+[로컬 브라우저 검사 기록](../../docs/evidence/showcase-web-local-2026-09-23.json)은 당시 자동 시험 결과입니다. [www 공개 전환 증거](../../docs/evidence/www-web-cutover-2026-09-25.json)는 HTML/CSS 원본 바이트 일치와 실제 Android Chrome 표시를 기록합니다. 기존 Vercel 배포 `dpl_46Ug4QohG2bfoMEdxnT7WuJ6g5UC`는 복구 후보로 보존합니다. 앱과의 진행 동기화·Android 시연 APK·전용 시연 API는 별개로 미완료입니다.
