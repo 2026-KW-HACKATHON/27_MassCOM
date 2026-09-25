@@ -231,7 +231,7 @@ probe_web_routes() {
     status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address$path")"
     [[ "$status" == '404' ]]
   done
-  web_collection_probe_response "http://$address/api/web/collection"
+  web_collection_probe_response "http://$address/api/web/collection" masscom.kr
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address/merchants")"
   [[ "$status" == '200' ]]
   sudo docker stop "$probe_id" >/dev/null

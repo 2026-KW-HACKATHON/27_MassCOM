@@ -9,8 +9,9 @@ web_collection_probe_accepts() {
 }
 
 web_collection_probe_response() {
+  local probe_host="${2:?web collection probe host is required}"
   local response status content_type cache_control
-  response="$(curl -sS -o /dev/null \
+  response="$(curl -sS -o /dev/null -H "Host: $probe_host" \
     -w '%{http_code}|%{content_type}|%header{cache-control}' \
     --max-time 8 "$1")" || return 1
   IFS='|' read -r status content_type cache_control <<< "$response"
