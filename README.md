@@ -2,12 +2,12 @@
 
 월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
 
-공개 프로젝트 웹: [https://masscom.kr](https://masscom.kr) · [Android 테스트 앱 열기](https://masscom.kr/open)
+공개 프로젝트 웹: [https://www.masscom.kr](https://www.masscom.kr) · [Android 테스트 앱 열기](https://masscom.kr/open)
 
 | 구분 | 바로 열기·받기 | 현재 상태 |
 | --- | --- | --- |
-| 운영 웹 | [masscom.kr/app/](https://masscom.kr/app/) | 실제 운영 데이터, Google 로그인·읽기 전용 본인 도감 |
-| **시연 웹** | [설치 없이 바로 보기](https://masscom-showcase-web.vercel.app/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | 가상 점포 A·B·C와 예시 수집품을 표시하는 정적 시연, 실제 방문·NFT 실적 아님 |
+| 운영 웹 | [www.masscom.kr/app/](https://www.masscom.kr/app/) | 실제 운영 데이터, Google 로그인·읽기 전용 본인 도감. Samsung Chrome의 www 로그인·재열기·로그아웃 확인 |
+| **시연 웹** | [설치 없이 바로 보기](https://www.masscom.kr/preview/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | 가상 점포 A·B·C와 예시 수집품을 표시하는 정적 시연, 실제 방문·NFT 실적 아님 |
 | 운영 Android 앱 | [test.2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2) | 설치 가능하지만 최신 `main` 코드가 아닌 이전 테스트본 |
 | **시연 Android 앱** | [설치본 상태·선행 조건](docs/ANDROID_DOWNLOADS.md) | **APK·Release 태그 없음.** 전용 API·Google 인증·서명·실기 검증 전이므로 운영 앱을 이름만 바꿔 올리지 않음 |
 
@@ -15,9 +15,9 @@
 
 > 현재 상태: Phase 0~3와 Base Sepolia 핵심 흐름 `VERIFIED` · 외부 HTTPS·Google 로그인·Android App Links 실기 `VERIFIED` · Phase 4 출시 기반과 Phase 5 발표·증거 준비 `IN_PROGRESS` · 필수 시험 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`
 
-[![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](https://masscom.kr)
+[![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](https://www.masscom.kr)
 
-웹 주소의 역할은 다릅니다. `masscom.kr`은 공개 프로젝트 포털이자 외부 지갑에 표시할 공식 서비스 주소이며, 앱 전체 기능을 웹에서 제공한다는 뜻은 아닙니다. `masscom.kr/open`은 Android 앱 열기·private 테스트 APK 안내, `api.masscom.kr`은 로그인·방문·주소 확인을 처리하는 서버입니다. GitHub는 private 소스·Issue·PR 이력과 접근 권한이 필요한 APK 배포에 계속 사용합니다.
+웹 주소의 역할은 다릅니다. `www.masscom.kr`은 프로젝트 포털·운영 웹(`/app/`)·가상 시연 웹(`/preview/`)의 대표 주소입니다. `masscom.kr`은 기존 링크·외부 지갑 출처·Google 로그인 호환용이며 `/open` Android App Link를 유지합니다. `api.masscom.kr`은 모바일 로그인·방문·주소 확인을 처리합니다. GitHub는 private 소스·Issue·PR 이력과 접근 권한이 필요한 APK 배포에 계속 사용합니다.
 
 ## 한눈에 보기
 
@@ -30,11 +30,11 @@
 - [AI 모델 사용 기준](docs/AI_MODEL_ROUTING.md): GPT‑6 Luna/Sol/Astra 작업별 사용처와 검증 경계
 - [모바일 UI 변경 명세](docs/superpowers/specs/2026-09-23-mobile-ui-navigation-design.md): Issue #126의 범위·보존 조건·검증 기준
 - [프로젝트 포털](docs/index.html): 흐름·아키텍처·평가 증거·결정 상태를 시각적으로 탐색
-- [공개 프로젝트 포털](https://masscom.kr): 다운로드 없이 열리는 기존 AWS Lightsail의 실제 HTTPS 배포
+- [공개 프로젝트 포털](https://www.masscom.kr): 다운로드 없이 열리는 기존 AWS Lightsail의 실제 HTTPS 배포
 - [Android 설치본 상태](docs/ANDROID_DOWNLOADS.md): 운영 테스트 APK와 아직 배포하지 않은 시연 APK의 차이
-- [시연용 읽기 전용 웹](apps/showcase-web/README.md) · [운영용 읽기 전용 웹](apps/production-web/README.md): 별도 코드·데이터 경계. 운영 웹은 AWS HTTPS에서 데스크톱 1계정과 Android Chrome의 2계정 순차 로그인·로그아웃을 확인했지만, 두 계정 모두 기록 0건이라 비어 있지 않은 도감의 교차 노출은 미검증
-- [현재 HTTPS 시연 웹](https://masscom-showcase-web.vercel.app): 가상 점포 A·B·C 고정 예시. `demo.masscom.kr` 맞춤 주소는 DNS 미연결
-- [공개 계정 삭제 안내](https://masscom.kr/account-deletion): 삭제 요청·보존 정보·지갑 비밀 경계
+- [시연용 읽기 전용 웹](apps/showcase-web/README.md) · [운영용 읽기 전용 웹](apps/production-web/README.md): 별도 코드·데이터 경계. 기존 apex에서 Android Chrome의 서로 다른 2계정 순차 로그인은 확인했고, 새 www에서는 1계정 로그인·로그아웃과 apex 세션 유지까지 확인했습니다. www의 두 번째 계정과 기록이 있는 도감의 교차 노출은 미검증입니다.
+- [현재 HTTPS 시연 웹](https://www.masscom.kr/preview/): 가상 점포 A·B·C 고정 예시. 기존 Vercel 주소는 장애 복구용으로 보존
+- [공개 계정 삭제 안내](https://www.masscom.kr/account-deletion): 삭제 요청·보존 정보·지갑 비밀 경계
 - [발표·시연 페이지](docs/presentation.html): 3분·5분 발표 장면과 실제/미실행 증거 경계
 - [현장 검증 빈 기록지](docs/FIELD_VALIDATION.md): 동의·과업·결과를 미리 채우지 않은 양식
 - [제출 체크리스트](docs/SUBMISSION_CHECKLIST.md): 승인 전 공개·태그·제출 금지 경계
@@ -218,13 +218,13 @@ npm run test:postgres --prefix apps/api
 
 ## 데모·배포·출시
 
-- 정적 프로젝트 포털: `https://masscom.kr`·`/privacy`·`/account-deletion` HTTPS 200 `VERIFIED`
-- 읽기 전용 시연 웹: [별도 HTTPS 주소](https://masscom-showcase-web.vercel.app)의 A·B·C HTML과 CSS 200, 로컬 라이트/다크·대비·반응형 검사 PASS([증거](docs/evidence/design-consistency-2026-09-24/README.md)). `demo.masscom.kr` DNS와 Android 시연 앱 동기화는 미완료. A 방문을 가정한 고정 예시는 실제 협약 점포·방문·NFT 실적이 아니며 운영 API·DB와 연결하지 않았습니다.
-- 읽기 전용 운영 웹: [https://masscom.kr/app/](https://masscom.kr/app/)이 기존 Lightsail의 공개 점포 API를 조회하고, 현재 실제 점포 0곳을 빈 상태로 표시합니다. OAuth 비밀값은 Git 밖의 권한 600 런타임에만 있습니다. 데스크톱의 단일 계정 도감·로그아웃과 Samsung Android Chrome의 A/B 순차 로그인·A 로그아웃 후 B 세션 유지를 확인했습니다. 서버의 최근 세션 3건은 서로 다른 계정 2개이며 이전 2건은 철회됐습니다. 두 계정 모두 방문·수집품 0건이어서 실제 기록의 교차 노출은 `NOT_RUN`입니다.
+- 정적 프로젝트 포털: [https://www.masscom.kr](https://www.masscom.kr)·`/privacy`·`/account-deletion` 공인 TLS와 HTTPS 200 `VERIFIED`; 기존 apex 호환 경로도 유지
+- 읽기 전용 시연 웹: [https://www.masscom.kr/preview/](https://www.masscom.kr/preview/)의 가상 A·B·C HTML/CSS가 저장소 원본과 바이트 일치([전환 증거](docs/evidence/www-web-cutover-2026-09-25.json)). 로컬 라이트/다크·대비·반응형 검사도 PASS([기존 증거](docs/evidence/design-consistency-2026-09-24/README.md)). Android 시연 앱과 진행 동기화되지 않으며 고정 예시는 실제 협약 점포·방문·NFT 실적이 아닙니다.
+- 읽기 전용 운영 웹: [https://www.masscom.kr/app/](https://www.masscom.kr/app/)이 기존 Lightsail의 운영 데이터(현재 공개 점포 0곳)를 표시합니다. OAuth 비밀값은 Git 밖 권한 600 런타임에 있습니다. Samsung Android Chrome에서 www의 한 기존 Google 계정 로그인·빈 도감·URL 재열기·로그아웃과 www 로그아웃 뒤 apex 로그인 유지가 PASS입니다. 기존 apex의 두 계정 순차 로그인은 [이전 증거](docs/evidence/android-web-auth-2026-09-25.json)이고, www의 두 번째 계정과 기록이 있는 도감의 교차 노출은 `NOT_RUN`입니다.
 - 운영 Android UI: Issue #142에서 개발용 파란 시안과 네 탭·보조 화면의 색상 기준을 통일했고, 후속 Issue #146에서 ‘내 정보’ 렌더 오류를 수정했습니다. 모바일 182개 단위 테스트·typecheck·lint PASS. Samsung Android 16 개발 앱의 [오류 전후 UI](docs/evidence/android-dev-ui-2026-09-24/README.md)와 새 연결에서의 [로컬 가상 방문 수령→도감→추천](docs/evidence/android-local-claim-2026-09-24/README.md)을 구분해 확인했습니다. 실제 카메라 QR·외부 지갑·운영/시연 release APK는 NOT_RUN이며 공개 배포 완료를 뜻하지 않습니다.
 - 로컬 API 시연 데이터: [전용 DB 실행 방법](apps/api/README.md#격리된-로컬-시연-점포)에 따라 `masscom_showcase_test`에 가상 점포 A·B·C와 각 점포의 1/3/5회 목표를 생성. 실제 영업점·방문·NFT가 아니며 운영 API/DB에는 미적용. 정적 시연 웹과도 아직 실시간 연결되지 않습니다.
 - 로컬 시연 API·DB: [독립 Docker 환경](infra/showcase-local/README.md)은 운영 Compose와 다른 프로젝트·볼륨·loopback 포트로만 실행하고, 인증을 닫은 상태에서 가상 점포 공개 조회를 검증합니다. 외부 시연 API·QR·지갑·NFT 기능은 여전히 `NOT_RUN`입니다.
-- 운영 API: AWS Lightsail 서울 리전의 기존 [배포 이력](docs/evidence/lightsail-api-deployment-2026-09-23.json)에 이어 `d787471`을 배포했고 `https://api.masscom.kr/health` 200과 웹 인증 DB migration 0014·0015를 확인했습니다. DB·API 내부 포트는 비공개이며 웹 단일 계정 로그인은 PASS, 두 계정 격리·사용자별 rate-limit 실증은 별도 `NOT_RUN`입니다.
+- 운영 API: AWS Lightsail 서울 리전의 기존 [배포 이력](docs/evidence/lightsail-api-deployment-2026-09-23.json)에 이어 코드 PR #169의 merge `3c59ac0`을 배포했고 `https://api.masscom.kr/health` 200, 웹 호스트 경계 DB migration 0016·0017 및 기존 PostgreSQL 컨테이너 보존을 확인했습니다([전환 증거](docs/evidence/www-web-cutover-2026-09-25.json)). DB·API 내부 포트는 비공개이며 www 단일 계정 로그인은 PASS, 기록이 있는 두 계정 도감 격리는 별도 `NOT_RUN`입니다.
 - Google 로그인: Samsung SM-S928N Android 16에서 실제 동의→ID token→외부 API session·콜드 스타트 복원·logout revoke `PASS`; 두 번째 계정 전환은 `NOT_RUN`
 - Android debug APK: Android 16 16KB AVD와 Samsung SM-S928N 실기기에서 빌드·설치·실행·홈 복귀·콜드 스타트 검증, 저장소에는 미포함
 - Android 음식점 탐색: 로컬 PostgreSQL의 `demo: true` 점포 3곳으로 목록·상세·고정 보상 조건·선택적 지갑 이동 검증

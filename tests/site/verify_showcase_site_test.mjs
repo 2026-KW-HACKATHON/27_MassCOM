@@ -58,11 +58,12 @@ test('실제 시연 웹은 서로 다른 가상 점포 세 곳을 표시한다',
   assert.match(html, /실제 영업점이나 방문 혜택과 연결되지 않습니다/);
 });
 
-test('README는 실제 배포 주소와 미연결 맞춤 도메인을 구분한다', () => {
+test('README는 www 시연 웹과 미배포 시연 Android APK를 구분한다', () => {
   const readme = readFileSync(join(repo, 'README.md'), 'utf8');
   assert.ok(readme.includes('apps/showcase-web'));
-  assert.ok(readme.includes('https://masscom-showcase-web.vercel.app'));
-  assert.ok(readme.includes('demo.masscom.kr'));
+  assert.ok(readme.includes('https://www.masscom.kr/preview/'));
+  assert.ok(readme.includes('시연 Android 앱'));
+  assert.ok(readme.includes('APK·Release 태그 없음'));
 });
 
 for (const [name, oldText, replacement, expectedError, file = 'index.html'] of [
