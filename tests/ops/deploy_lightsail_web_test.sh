@@ -27,14 +27,24 @@ done
     printf '503|application/json; charset=utf-8|no-store'
     return 28
   }
-  if web_collection_probe_response 'http://api-fixture.invalid/api/web/collection'; then
+  if web_collection_probe_response 'http://api-fixture.invalid/api/web/collection' masscom.kr; then
     echo 'web probe ignored a curl timeout after receiving safe-looking headers' >&2
     exit 1
   fi
 )
 (
-  curl() { printf '404|application/json; charset=utf-8|no-store'; }
-  web_collection_probe_response 'http://api-fixture.invalid/api/web/collection'
+  curl() {
+    local previous=''
+    for argument in "$@"; do
+      if [[ "$previous" == '-H' && "$argument" == 'Host: masscom.kr' ]]; then
+        printf '401|application/json; charset=utf-8|no-store'
+        return
+      fi
+      previous="$argument"
+    done
+    printf '403|application/json; charset=utf-8|no-store'
+  }
+  web_collection_probe_response 'http://api-fixture.invalid/api/web/collection' masscom.kr
 )
 
 scratch="$(mktemp -d -t masscom-web-deploy-test.XXXXXX)"
@@ -89,7 +99,7 @@ grep -q 'web_change_started=' "$scratch/remote.sh"
 grep -q 'service_snapshot api' "$scratch/remote.sh"
 grep -q 'service_snapshot postgres' "$scratch/remote.sh"
 grep -q 'probe_web_routes' "$scratch/remote.sh"
-grep -q 'web_collection_probe_response' "$scratch/remote.sh"
+grep -qF 'web_collection_probe_response "http://$address/api/web/collection" masscom.kr' "$scratch/remote.sh"
 grep -q 'web_rollback' "$scratch/remote.sh"
 if grep -Eq 'compose_new (build|up).*\b(api|postgres|migrate)\b' "$scratch/remote.sh"; then
   echo 'web-only deploy script would modify API or database services' >&2
