@@ -4,6 +4,10 @@
 
 ## 현재 GitHub·운영 상태 — 2026-09-27
 
+- **최신 시연 실기:** [두 초대 계정 폰·DB 근거](evidence/showcase-two-account-phone-2026-09-27.json)에서 같은 Samsung·시연 APK `c53c199`로 STAFF 발급→다른 초대 Google 계정 로그인→직접 코드 미리보기·수령→도감 방문 2/앱 수집품1/NFT0→재입력 추가 효과 0을 확인했다. 시연 DB 슬롯 3·방문 2·보상권 1·mint 0, 운영 DB 가상 점포 0. 실제 카메라 QR 촬영 수령·시연 지갑·`demo.masscom.kr` App Link는 `NOT_RUN`; Issue #137은 OPEN. 이번 README 개편은 user-provided MassCOM 콘셉트 그림을 오해 없는 Hero로 편집하고 실제 Android 화면 4장·Mermaid·최신 근거를 연결한다. 일회용 코드·계정 식별자는 문서/이미지에 넣지 않는다.
+
+### 아래 한 항목은 시연 APK 첫 릴리스 시점의 기록
+
 - **최신 재개 기준:** [PR #177](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/177) merge `74d9eb1`, PR/main CI `36266216091`/`36266648303` PASS. [시연 Android 실증](evidence/showcase-android-apk-2026-09-27.json)의 source `c53c199` APK를 Samsung SM-S928N Android 16에 운영 앱과 함께 설치하고 전용 Google 로그인·가상 점포 A/B/C·빈 도감·카메라·가상 A점포 STAFF 발급을 확인했다. [private Preview 1 Release](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)에 APK·체크섬·provenance를 올리고 다시 내려받아 SHA-256과 바이트 일치를 확인했다. 고객의 **폰 QR 촬영→수령·두 계정 도감 분리, `demo.masscom.kr` App Link·별도 Reown·NFT는 미검증**이라 Issue #137을 닫지 않는다. 로컬 실행 도우미 `/Users/choi/Desktop/MassCOM/run-showcase-build.command`는 기존 Keychain 값만 사용하고 비밀번호를 Git/채팅에 기록하지 않는다. 이 도우미는 현재 작업공간 경로를 사용하므로 worktree를 옮기면 경로를 갱신한다. 한 번 노출된 구 QR은 즉시 재발급으로 폐기했고 새 코드는 남기지 않았다. 이전 빌드 산출물은 `apps/mobile/release-artifacts/`(Git 무시)에 보존했다.
 
 ### 아래 한 항목은 APK 전 단계의 당시 기록

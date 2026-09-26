@@ -1,0 +1,39 @@
+{
+  "recordedAtUtc": "2026-09-26T20:53:37Z",
+  "issue": 137,
+  "environment": "Samsung SM-S928N Android 16, private showcase APK c53c199, public demo-api.masscom.kr HTTPS",
+  "accounts": {
+    "differentInvitedGoogleAccountsSelectedOnTheSamePhone": 2,
+    "staffAccountHasVirtualMerchantAPermission": true,
+    "staffCollectionBeforeSwitch": "0 visits / 0 app collectibles / 0 NFTs",
+    "customerCollectionBeforeNewClaim": "1 synthetic visit / 1 app collectible / 0 NFTs",
+    "customerCollectionAfterNewClaim": "2 synthetic visits / 1 app collectible / 0 NFTs",
+    "emailSubjectAccountIdOrSessionTokenRecorded": false
+  },
+  "phoneFlow": {
+    "staffIssuedFreshSingleUseCodeForOtherInvitedCustomer": "PASS",
+    "customerGoogleLogin": "PASS",
+    "customerManualCodePreview": "PASS",
+    "customerManualCodeRedeem": "PASS",
+    "sameCodePreviewAfterRedeem": "PASS: already used or unavailable message",
+    "cameraPreview": "PASS from prior APK phone test",
+    "physicalCameraQrScan": "NOT_RUN",
+    "noOneTimeCodeRecorded": true
+  },
+  "database": {
+    "claimSlotsBeforeNewIssue": 2,
+    "claimSlotsAfterIssueAndRedeem": 3,
+    "visitsBeforeAndAfter": "1 -> 2",
+    "rewardEntitlementsBeforeAndAfter": "1 -> 1",
+    "mintJobsBeforeAndAfter": "0 -> 0",
+    "countsUnchangedAfterReplay": true,
+    "sameKoreanCalendarDateProgressIncrementedAgain": false,
+    "operatingDemoMerchants": 0
+  },
+  "scope": {
+    "allMerchantsAndVisitsSynthetic": true,
+    "fieldVisitRevenuePartnerStoreOrNftClaimed": false,
+    "temporaryPhoneAndMacDiagnosticsContainingAccountOrCodeRemoved": true,
+    "dedicatedWalletAndDemoAppLink": "NOT_RUN"
+  }
+}

@@ -5,10 +5,10 @@
 | `APP_VARIANT` | Android package | 복귀 scheme | API | 현재 검증 |
 | --- | --- | --- | --- | --- |
 | 비움/`development` | `kr.masscom.wolgye.dev` | `masscom-dev` | 로컬 loopback 가능 | 기존 개발 앱·로컬 DEMO |
-| `showcase` | `kr.masscom.wolgye.demo` | `masscom-demo` | 정확히 `https://demo-api.masscom.kr` | [서명 APK·Samsung 설치·Google 로그인·카탈로그·카메라·점주 발급](../../docs/evidence/showcase-android-apk-2026-09-27.json) PASS, 고객 QR 수령 `NOT_RUN` |
+| `showcase` | `kr.masscom.wolgye.demo` | `masscom-demo` | 정확히 `https://demo-api.masscom.kr` | [두 계정 폰 로그인·점주 발급→고객 직접 코드 수령·재입력 거절](../../docs/evidence/showcase-two-account-phone-2026-09-27.json) PASS, 카메라 QR 촬영 수령 `NOT_RUN` |
 | `production` | `kr.masscom.wolgye` | `masscom` | 정확히 `https://api.masscom.kr` | 기존 release 검증 유지 |
 
-시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 정적 시연 웹은 [www 공개 HTTPS](https://www.masscom.kr/preview/)에서 열립니다. **[전용 시연 API/DB의 공인 HTTPS](https://demo-api.masscom.kr/health)와 [설치용 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)는 확인했지만 `demo.masscom.kr` App Link DNS·실제 고객 QR 수령·지갑 연결은 미검증**입니다. 로컬 개발 앱과 `_test` DB의 이전 실기는 별도 기록입니다. 런타임의 개발 DEMO 인증도 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
+시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 정적 시연 웹은 [www 공개 HTTPS](https://www.masscom.kr/preview/)에서 열립니다. **[전용 시연 API/DB의 공인 HTTPS](https://demo-api.masscom.kr/health)와 [설치용 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1), 두 계정의 직접 코드 수령은 확인했지만 `demo.masscom.kr` App Link DNS·카메라 QR 촬영 수령·지갑 연결은 미검증**입니다. 로컬 개발 앱과 `_test` DB의 이전 실기는 별도 기록입니다. 런타임의 개발 DEMO 인증도 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
 
 `APP_VARIANT=showcase`는 기존 `.env.local`의 운영 Google/Reown ID 또는 개발 DEMO 변수가 있으면 빌드 설정을 거절합니다. 시연 전용 Google Web client ID를 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`로 요구하고, 설치 package가 `.demo`일 때만 앱 설정의 이 값을 읽습니다. 별도 Reown 프로젝트는 미설정이라 시연 지갑 연결은 비활성입니다. 현재 환경 경계만 확인하려면 로컬 dotenv 로드를 끄고 실제 발급받은 시연 전용 공개 ID를 명시합니다(실제 API 요청·APK 빌드 아님).
 
@@ -20,7 +20,7 @@ EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
   npx expo config --type public --json
 ```
 
-Expo의 [앱 variant 안내](https://docs.expo.dev/build-reference/variants/)대로 package를 바꿔 설치할 때는 격리된 checkout에서 해당 `APP_VARIANT`로 native `prebuild --clean`을 먼저 해야 합니다. 기존 `apps/mobile/android`를 다른 variant로 덮어쓰지 않습니다. 실제 시연 앱의 운영 앱 동시 설치·공개 HTTPS·Google 로그인은 [폰 실기](../../docs/evidence/showcase-android-apk-2026-09-27.json)에서 PASS, 지갑 복귀와 고객 QR→도감은 `NOT_RUN`입니다.
+Expo의 [앱 variant 안내](https://docs.expo.dev/build-reference/variants/)대로 package를 바꿔 설치할 때는 격리된 checkout에서 해당 `APP_VARIANT`로 native `prebuild --clean`을 먼저 해야 합니다. 기존 `apps/mobile/android`를 다른 variant로 덮어쓰지 않습니다. 실제 시연 앱의 운영 앱 동시 설치·공개 HTTPS·Google 로그인과 고객 직접 코드 수령→도감은 [폰 실기](../../docs/evidence/showcase-two-account-phone-2026-09-27.json)에서 PASS, 지갑 복귀와 카메라 QR 촬영→수령은 `NOT_RUN`입니다.
 
 시연 APK 빌드 게이트는 저장소 루트의 `scripts/build-showcase-apk.sh`입니다. `--check`는 **로컬 설정만** 확인하며 APK를 만들지 않습니다. 전용 Google Web client ID와 운영 Web client ID, 저장소 밖 mode 600 전용 keystore·별칭·공개 SHA-256 지문을 요구하고 운영/개발 값 재사용을 거절합니다. 두 ID와 지문은 공개 식별자지만 비밀번호는 채팅·Git에 넣지 않습니다. `--build`는 기본적으로 키 비밀번호를 로컬 터미널에서 받으며, 이 Mac의 명시적 `MASSCOM_SHOWCASE_USE_KEYCHAIN=1` 모드에서만 고정된 시연 Keychain 항목을 읽습니다. 셸 추적을 켠 빌드는 비밀번호 조회 전에 거절합니다. [실제 빌드·폰 설치·Release 재다운로드](../../docs/evidence/showcase-android-apk-2026-09-27.json)에서 `.demo` package·소스 커밋·인증서·SHA-256·지갑 금지 표면을 검증했습니다. 시연 키의 로컬 Keychain 보관은 백업 완료를 뜻하지 않습니다.
 

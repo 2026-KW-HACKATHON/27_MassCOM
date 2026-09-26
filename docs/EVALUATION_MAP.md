@@ -23,6 +23,8 @@ Phase 2 핵심 loopback DEMO와 Phase 3 Local Anvil 발행·복구 흐름은 구
 
 ## Issue #137 로컬 가상 방문 순환 증거
 
+- **중간 논리 연결성·기획 재현성 / 최종 구현 완성도:** [시연 APK 두 계정 폰 실증](evidence/showcase-two-account-phone-2026-09-27.json)에서 점주 STAFF 권한→고객 대상 코드 발급→다른 초대 계정의 직접 입력 수령→도감 방문 2·앱 수집품 1·NFT 0→재입력 추가 효과 0을 확인했다. 같은 한국 날짜의 두 번째 방문은 보상 진행을 다시 올리지 않았다. 카메라 QR 촬영 수령·실제 점포·매출·메인넷 NFT 증거로 확대하지 않는다.
+
 - **중간 기획 재현성·최종 구현 완성도:** [PR #177](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/177)·[폰 APK/Release 실증](evidence/showcase-android-apk-2026-09-27.json)으로 별도 package·서명·Google 로그인·공개 시연 API·가상 점포 A/B/C·도감·카메라·점주 STAFF 1회 코드 발급을 연결했다. [비공개 설치본](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)의 재다운로드 해시도 일치한다. 이는 현장 점포나 실제 고객 QR 수령·매출·NFT 발행 증거가 아니다.
 
 - **중간 기획 재현성·최종 구현 완성도:** [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) merge·CI 후 [공개 시연 API HTTPS·운영 분리 증거](evidence/showcase-public-edge-2026-09-27.json)에서 가상 점포 A/B/C 3곳, 시연/운영 API 응답 분리, 운영 API/DB/웹 컨테이너 보존을 확인했다. 이는 실제 모바일 앱 설치·카메라 QR·현장 식당 실증이나 NFT 발행 증거는 아니다.

@@ -1,28 +1,60 @@
-# 월계 마스코트(가칭)
+<p align="center">
+  <img src="docs/assets/readme/hero.png" width="100%" alt="월계동 식당 거리와 파란 월계 마스코트가 함께 있는 MassCOM 콘셉트 일러스트">
+</p>
 
-월계1동 음식점을 발견하고, 실제 이용 인증으로 마스코트 도감을 채우며, 원하는 수집품을 외부 지갑에 NFT로 발급받는 Android 서비스입니다.
+<h1 align="center">월계 마스코트 · MassCOM</h1>
 
-공개 프로젝트 웹: [https://www.masscom.kr](https://www.masscom.kr) · [Android 테스트 앱 열기](https://masscom.kr/open)
+<p align="center">동네 가게를 발견하고, 방문을 기록하고, 마스코트를 모으는 Android 서비스.<br>외부 지갑 NFT는 선택 기능이며 앱 수집품과 실제 발행 상태를 구분합니다.</p>
+
+<p align="center">
+  <img alt="React Native" src="https://img.shields.io/badge/React_Native-Android-2358C7?logo=react&amp;logoColor=white">
+  <img alt="Expo SDK 57" src="https://img.shields.io/badge/Expo-SDK_57-152A4A?logo=expo&amp;logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-API%20%26%20App-3178C6?logo=typescript&amp;logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-Data-336791?logo=postgresql&amp;logoColor=white">
+  <img alt="Base Sepolia" src="https://img.shields.io/badge/Base_Sepolia-Testnet-0052FF">
+</p>
+
+<p align="center">
+  <a href="https://www.masscom.kr/preview/">시연 웹 보기</a> ·
+  <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1">시연 APK 받기</a> ·
+  <a href="https://www.masscom.kr/app/">운영 웹 보기</a> ·
+  <a href="docs/TEST_STATUS.md">검증 현황</a> ·
+  <a href="#설치검증">직접 실행</a>
+</p>
+
+> 배너는 콘셉트 일러스트입니다. 시연 점포·방문은 가상 데이터이며 협약 점포, Google Play 승인, 매출 증가를 뜻하지 않습니다. 현재 시연 APK에서는 두 초대 계정의 로그인·점주 발급·고객 **직접 코드 입력 수령·중복 거절**까지 폰에서 확인했습니다. 실제 카메라 QR 촬영→수령, 시연 앱 외부 지갑·NFT 발행은 별도 `NOT_RUN`입니다.
+
+## 왜 만드는가
+
+| 대상 | 다루는 문제 | MassCOM의 접근 | 현재 근거 |
+| --- | --- | --- | --- |
+| 지역 이용자 | 가게를 찾은 뒤 방문 경험이 이어지지 않음 | 탐색 → 방문 기록 → 마스코트 도감 → 다음 가게 추천 | [가상 점포 3곳·두 계정 폰 실기](docs/evidence/showcase-two-account-phone-2026-09-27.json) |
+| 점주·직원 | 방문 확인과 중복 수령을 구분해야 함 | 서버 권한 확인 뒤 일회용 코드 발급, 사용 후 추가 효과 차단 | [Android 발급·수령·재입력](docs/evidence/showcase-two-account-phone-2026-09-27.json) |
+| 지갑이 없는 사람 | 탐색과 방문에 암호화폐 지갑이 진입 장벽이 됨 | 앱 수집품은 지갑 없이 사용하고 NFT 발행만 외부 지갑으로 분리 | [도감의 앱 수집품 1·실제 NFT 0](docs/evidence/showcase-android-apk-2026-09-27.json) |
+
+## 지금 열어보기
 
 | 구분 | 바로 열기·받기 | 현재 상태 |
 | --- | --- | --- |
 | 운영 웹 | [www.masscom.kr/app/](https://www.masscom.kr/app/) | 실제 운영 데이터, Google 로그인·읽기 전용 본인 도감. Samsung Chrome의 www 로그인·재열기·로그아웃 확인 |
 | **시연 웹** | [설치 없이 바로 보기](https://www.masscom.kr/preview/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | 가상 점포 A·B·C와 예시 수집품을 표시하는 정적 시연, 실제 방문·NFT 실적 아님 |
 | 운영 Android 앱 | [test.2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2) | 설치 가능하지만 최신 `main` 코드가 아닌 이전 테스트본 |
-| **시연 Android 앱** | [private 시연 APK 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | 별도 package·키·API의 설치본. Samsung에서 Google 로그인·가상 점포·도감·카메라·점주 발급 확인; 고객 QR 수령·지갑·NFT는 미검증 |
+| **시연 Android 앱** | [private 시연 APK 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | 별도 package·키·API의 설치본. 두 계정의 폰 직접 코드 수령·중복 거절 확인; 카메라 QR 촬영 수령·지갑·NFT는 미검증 |
 
 저장소는 비공개라 GitHub Release를 보려면 접근 권한이 필요합니다. 시연 웹의 공개 주소는 GitHub 로그인·다운로드 없이 열립니다.
 
-> 현재 상태: Phase 0~3와 Base Sepolia 핵심 흐름 `VERIFIED` · 외부 HTTPS·Google 로그인·Android App Links 실기 `VERIFIED` · Phase 4 출시 기반과 Phase 5 발표·증거 준비 `IN_PROGRESS` · 필수 시험 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`
+**현재 판정:** 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`입니다. Base Sepolia 발행과 운영 지갑 검증은 [별도 증거](docs/TEST_STATUS.md)가 있고, 시연 APK에는 전용 지갑·발행 기능을 자동으로 포함하지 않았습니다. [시연 APK 세부 상태](docs/ANDROID_DOWNLOADS.md)와 [현재 차단 항목](docs/BLOCKERS.md)이 아래 그림보다 우선합니다.
 
-[![월계 마스코트 프로젝트 포털 데스크톱 미리보기](docs/evidence/project-portal-desktop.png)](https://www.masscom.kr)
-
-웹 주소의 역할은 다릅니다. `www.masscom.kr`은 프로젝트 포털·운영 웹(`/app/`)·가상 시연 웹(`/preview/`)의 대표 주소입니다. `masscom.kr`은 기존 링크·외부 지갑 출처·Google 로그인 호환용이며 `/open` Android App Link를 유지합니다. `api.masscom.kr`은 모바일 로그인·방문·주소 확인을 처리합니다. GitHub는 private 소스·Issue·PR 이력과 접근 권한이 필요한 APK 배포에 계속 사용합니다.
+`www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 저장소와 APK Release는 비공개이며, 시연 웹만 GitHub 로그인 없이 열립니다.
 
 ## 한눈에 보기
 
+<details>
+<summary>개발 문서·검증 근거 전체 보기</summary>
+
+
 - [모바일 개발용 UI 시안·로컬 실행](apps/mobile/README.md): 개발용 미리보기를 보존하고 시연 APK에는 첫 역할 선택·권한 확인·빈 공간 투어를 분리했다. 운영 앱의 네 기능 탭은 유지하며 [시연 설치본 실기 범위](docs/evidence/showcase-android-apk-2026-09-27.json)를 따로 기록했다.
-- 시연 Android 빌드·배포: `kr.masscom.wolgye.demo`/`masscom-demo`, 전용 Google·Keychain 서명·[공개 API](https://demo-api.masscom.kr/health)를 사용한다. [private APK 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)의 재다운로드 SHA-256과 Samsung 설치·로그인·가상 점포 3곳·QR 카메라·점주 발급을 확인했다. 실제 고객의 QR 수령은 아직 `NOT_RUN`이다([실증](docs/evidence/showcase-android-apk-2026-09-27.json)).
+- 시연 Android 빌드·배포: `kr.masscom.wolgye.demo`/`masscom-demo`, 전용 Google·Keychain 서명·[공개 API](https://demo-api.masscom.kr/health)를 사용한다. [private APK 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)의 재다운로드 SHA-256과 Samsung 설치·두 계정 로그인·가상 점포 3곳·직접 코드 수령/중복 거절을 확인했다. 실제 카메라 QR 촬영→수령은 `NOT_RUN`이다([폰 실증](docs/evidence/showcase-two-account-phone-2026-09-27.json)).
 - [시연 호스트 격리](infra/showcase-host/README.md): 기존 Lightsail의 독립 API/DB에 가상 A/B/C를 기동하고 두 초대 계정의 내부 발급→수령→도감·중복 방지를 [내부 API 증거](docs/evidence/showcase-internal-auth-claim-2026-09-27.json)로 확인했다. [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) 이후 **[공개 시연 API HTTPS](https://demo-api.masscom.kr/health)**와 운영 API/웹 분리는 [외부 실측](docs/evidence/showcase-public-edge-2026-09-27.json)했다. 폰에서는 로그인·점주 발급까지 확인했으며 지갑/NFT는 별도 미검증이다.
 - [기존 Lightsail의 포털·운영 웹 이관](infra/lightsail/README.md): AWS DNS·공인 TLS와 운영 웹 Google 로그인을 확인했습니다. Samsung Android Chrome에서 서로 다른 Google 계정 2개로 순차 로그인·빈 도감·세션 전환을 확인했고, 실제 기록이 있는 계정 간 격리와 최신 APK는 별도 미검증
 - [기존 서버 SSH 접속](docs/SERVER_ACCESS.md): 이 Mac의 `ssh masscom` 및 더블클릭 접속 파일 사용법. AWS 콘솔 로그인과 별개이며 개인키는 Git 밖에 보관
@@ -71,11 +103,51 @@ python3 -m http.server 4173 --directory docs
 
 브라우저에서 `http://127.0.0.1:4173/`을 엽니다. GitHub Pages 공개 배포는 저장소 가시성과 조직 요금제를 확인한 뒤 별도 승인으로 진행합니다.
 
+</details>
+
 ## 핵심 사용자 흐름
 
-`음식점 탐색 → 점주 이용 확인 → QR 인증 → 보상권 → 외부 지갑 연결 → 주소 확인 서명 → 기존 블록체인 NFT 발행 → 도감 → 다음 음식점 탐색`
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Staff as 시연 점주 앱
+    participant API as 시연 API
+    participant DB as 시연 PostgreSQL
+    actor Customer as 시연 고객 앱
+    Staff->>API: 서버 권한 확인 · 1회 코드 발급
+    API->>DB: STAFF 확인 · 일회용 슬롯 저장
+    API-->>Staff: QR 및 수령 코드
+    Customer->>API: 코드 미리보기 · 직접 입력 수령
+    API->>DB: 코드 소비 · 방문/보상 함께 기록
+    API-->>Customer: 도감과 다음 가게 추천
+    Customer->>API: 같은 코드 재확인
+    API-->>Customer: 이미 사용됨 · 추가 효과 0
+    Note over Staff,Customer: 실제 카메라 QR 촬영→수령은 아직 NOT_RUN
+```
 
-지갑은 선택 기능입니다. 지갑이 없어도 탐색·방문 인증·방문 도감을 사용할 수 있어야 하며, 앱 수집품과 실제 발행 NFT를 구분합니다.
+두 초대 계정의 Android **직접 코드 입력** 흐름은 [폰·DB 실측](docs/evidence/showcase-two-account-phone-2026-09-27.json)에서 확인했습니다. 지갑은 선택 기능이라 시연 앱에서 없어도 탐색·방문 인증·도감을 사용합니다. 앱 수집품과 실제 발행 NFT는 별도 상태이며, 시연 앱의 지갑·NFT는 아직 활성화하지 않았습니다.
+
+## 실제 Android 화면
+
+아래는 [private 시연 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)(source `c53c199`)를 Samsung SM-S928N·Android 16에서 촬영한 화면입니다. 점포·방문·수집품은 모두 **가상 시연 데이터**이며 화면 이미지는 기획 목업이 아닙니다.
+
+| 시연 진입 | 가상 점포 탐색 |
+| :---: | :---: |
+| <img src="docs/evidence/readme-showcase-2026-09-27/role.png" width="250" alt="실제 시연 앱의 사용자·점주 역할 선택 화면"> | <img src="docs/evidence/readme-showcase-2026-09-27/discovery.png" width="250" alt="실제 시연 앱의 가상 점포 세 곳 탐색 화면"> |
+| **도감: 방문 2 · 앱 수집품 1 · 실제 NFT 0** | **다음 가게 추천** |
+| <img src="docs/evidence/readme-showcase-2026-09-27/collection.png" width="250" alt="실제 시연 앱의 가상 방문 2건과 앱 수집품 1개, NFT 0개 도감 화면"> | <img src="docs/evidence/readme-showcase-2026-09-27/recommendations.png" width="250" alt="실제 시연 앱의 미방문 가상 점포 우선 추천 화면"> |
+
+## 단계별 진행
+
+| 단계 | 확인된 것 | 아직 남은 것 |
+| --- | --- | --- |
+| 0 · 기반 | 저장소·CI·요구사항·평가 근거 | 심사 시 공개 전환은 별도 승인 |
+| 1 · 외부 지갑 | 개발 앱의 MetaMask 주소 확인 서명·서버 검증 | 시연 APK의 전용 Reown 연동, 동일 세션 주소 변경·미지원 지갑 실기 |
+| 2 · 방문·도감 | 시연 APK 두 계정의 코드 발급→직접 입력 수령→중복 거절, 앱 도감 | 실제 카메라 QR 촬영→수령, 실제 제휴 점포 |
+| 3 · NFT | Local Anvil·Base Sepolia 발행/복구 검증 | 시연 앱 별도 지갑·발행 연동, 메인넷은 별도 승인 |
+| 4–5 · 출시·실증 | 개인정보 안내·발표 자료·private 시연 APK | Play 제출·현장 실증·최종 제출 |
+
+[36개 필수 시험 ID와 실행 근거](docs/TEST_STATUS.md)에서 `PASS / BLOCKED / NOT_RUN`을 구분합니다. 목표 인원·점포 수는 확보 실적이 아닙니다.
 
 ## 실제 기능 상태
 
@@ -123,24 +195,52 @@ python3 -m http.server 4173 --directory docs
 
 ## 아키텍처
 
-```text
-Android 앱 ─┐
-            ├─ HTTPS API ─ PostgreSQL ─ Outbox/Worker ─ 기존 블록체인
-점주 웹 ────┘       │
-                    └─ 외부 지갑 주소 확인 서명
+```mermaid
+flowchart LR
+    subgraph operating["운영 데이터 경계"]
+        prodApp["Android 운영 앱"] --> prodApi["api.masscom.kr"]
+        prodWeb["www.masscom.kr/app · 본인 도감 열람"] --> prodApi
+        prodApi --> prodDb[(PostgreSQL masscom)]
+        prodDb --> outbox["Outbox · 발행 Worker"]
+        outbox --> testnet["Base Sepolia · 시험망 검증"]
+        prodApp <-->|주소 확인 메시지 서명| wallet["외부 지갑 앱"]
+    end
+    subgraph showcase["가상 시연 데이터 경계"]
+        demoApp["Android .demo APK"] --> demoApi["demo-api.masscom.kr"]
+        demoApi --> demoDb[(PostgreSQL masscom_showcase)]
+    end
+    demoWeb["www.masscom.kr/preview/ · 고정 예시 · 읽기 전용"]
 ```
 
-현재 `apps/mobile`, `apps/api`, `apps/worker`, `apps/api/migrations`, `contracts`, `infra/lightsail`이 구현됐습니다. 별도 점주 웹은 후속 Phase 범위입니다.
+시연 DB는 운영 DB와 계정·볼륨·Docker 네트워크를 공유하지 않습니다([공개 edge 실측](docs/evidence/showcase-public-edge-2026-09-27.json)). `apps/mobile`, `apps/api`, `apps/worker`, `apps/api/migrations`, `contracts`, `infra/lightsail`이 구현됐고 별도 점주 웹은 후속 범위입니다. 운영 앱의 시험망 NFT 검증과 시연 앱의 가상 수집품을 같은 완료 상태로 보지 않습니다.
+
+### 기술 구현에서 중요한 경계
+
+| 문제 | 구현에서 지키는 조건 | 코드·검증 |
+| --- | --- | --- |
+| 같은 날 반복 방문 | 방문 이벤트는 남겨도 한국 날짜의 보상 진행은 한 번만 증가 | [방문 트랜잭션](apps/api/src/postgres/claim-slot-service.ts) · [두 계정 폰 재입력 증거](docs/evidence/showcase-two-account-phone-2026-09-27.json) |
+| Worker 동시 재시도 | 발행 작업과 Outbox를 함께 잠그고, 불확실한 거래는 기존 해시부터 대조 | [작업 lease](apps/worker/src/postgres-mint-repository.ts) · [Anvil 장애 복구](docs/evidence/phase3-worker-anvil-android.json) |
+| 지갑 요청의 범위 | 주소 확인용 메시지 서명만 허용하고 송금·승인·구매 메서드는 차단 | [메서드 정책](apps/mobile/src/wallet/wallet-method-policy.ts) · [회귀 시험](apps/mobile/src/wallet/wallet-method-policy.test.ts) |
+
+예를 들어 방문 진행을 기록하는 SQL은 이미 유효한 같은 점포·같은 한국 날짜의 진행이 있으면 두 번째 보상 진행 행을 만들지 않습니다.
+
+```sql
+ON CONFLICT (customer_account_id, merchant_id, business_date)
+  WHERE status = 'VALID' AND progress_counted
+DO NOTHING
+```
+
+이것은 [실제 구현의 일부](apps/api/src/postgres/claim-slot-service.ts)이며, 방문 2건과 앱 수집품 1개가 동시에 성립한 [시연 DB·폰 결과](docs/evidence/showcase-two-account-phone-2026-09-27.json)와 연결됩니다. 발행 Worker가 시연 APK에서 가동된다는 뜻은 아닙니다.
 
 ## 기술 선택 상태
 
-| 항목 | v3 권장안 | 현재 상태 |
-| --- | --- | --- |
-| 고객 앱 | React Native + TypeScript + Expo development build | `USER_CONFIRMED` |
-| 지갑 연결 | Reown AppKit 외부 지갑만, MetaMask 1차 실기 | `USER_CONFIRMED` |
-| 체인 | Base Sepolia → 별도 승인 후 Base mainnet | `USER_CONFIRMED` |
-| 서버·DB | Node.js LTS + TypeScript + PostgreSQL | `USER_CONFIRMED` |
-| 배포 | AWS 서울 리전 + Docker Compose + Caddy | `USER_CONFIRMED`·`VERIFIED` |
+| 영역 | 채택한 기술 | 이 프로젝트에서 맡는 일 | 실제 상태 |
+| --- | --- | --- | --- |
+| Android | React Native · Expo SDK 57 · TypeScript | 운영·시연 package를 분리하고 같은 코드의 사용자 흐름을 검증 | 시연 APK 폰 실기 `PASS`, Play 제출 `NOT_RUN` |
+| 서버·DB | Node.js · TypeScript · PostgreSQL | 점주 권한, 일회용 코드, 방문·보상권을 서버/트랜잭션에서 판정 | 시연 HTTPS·두 계정 수령·중복 거절 `PASS` |
+| 배포 | 기존 AWS Lightsail · Docker Compose · Caddy | 운영/시연 DB 격리와 각 HTTPS host의 TLS·라우팅 | [외부 서버 실측](docs/evidence/showcase-public-edge-2026-09-27.json) `PASS` |
+| 외부 지갑 | Reown AppKit · SIWE 주소 확인 | 개인키를 보관하지 않고 지갑의 주소 통제를 검증 | 운영 개발 앱 실기 근거 있음, 시연 APK 연결 `NOT_RUN` |
+| 블록체인 | Foundry · Base Sepolia | 기존 체인에서 NFT 계약·발행/복구를 시험 | 시험망 검증 `PASS`, Base 메인넷 배포 `NOT_RUN` |
 
 D-004~D-008은 2026-09-18 승인됐습니다. 유료 자원 생성·메인넷·공개 배포는 이 승인에 포함되지 않습니다.
 
