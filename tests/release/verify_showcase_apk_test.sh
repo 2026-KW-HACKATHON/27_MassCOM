@@ -138,14 +138,20 @@ created_lock=false
 
 short_commit="$(git -C "$repo_root" rev-parse --short=7 HEAD)"
 existing_apk="$repo_root/apps/mobile/release-artifacts/MassCOM-showcase-android-$short_commit.apk"
-printf 'existing artifact must not be overwritten\n' > "$existing_apk"
-created_existing=true
+if [[ ! -e "$existing_apk" ]]; then
+  printf 'existing artifact must not be overwritten\n' > "$existing_apk"
+  created_existing=true
+fi
+before_digest="$(shasum -a 256 "$existing_apk" | awk '{print $1}')"
 expect_build_rejected 'existing artifact' 'showcase artifact already exists; refusing overwrite'
-[[ "$(<"$existing_apk")" == 'existing artifact must not be overwritten' ]] || {
+after_digest="$(shasum -a 256 "$existing_apk" | awk '{print $1}')"
+[[ "$before_digest" == "$after_digest" ]] || {
   echo 'existing showcase artifact was changed' >&2
   exit 1
 }
-rm "$existing_apk"
-created_existing=false
+if [[ "$created_existing" == true ]]; then
+  rm "$existing_apk"
+  created_existing=false
+fi
 
 echo 'showcase APK preflight boundaries verified; no APK built'
