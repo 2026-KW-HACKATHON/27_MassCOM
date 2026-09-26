@@ -11,7 +11,7 @@ export function makeMerchantListStyles(palette: AppColors, hairlineWidth = 1) {
     backgroundColor: palette.background,
   },
   header: { gap: 6, marginBottom: 8 },
-  banner: { width: '100%', aspectRatio: 1.95, borderRadius: uiMetrics.cardRadius, backgroundColor: palette.surface },
+  banner: { width: '100%', aspectRatio: 2.6, borderRadius: uiMetrics.cardRadius, backgroundColor: palette.surface },
   discoveryTools: { gap: 12, paddingTop: 4 },
   searchField: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1 },
   searchGlyph: { justifyContent: 'center' },
