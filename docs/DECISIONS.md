@@ -38,6 +38,7 @@
 | D-032 | 첫 화면 역할 선택 적용 범위 | `kr.masscom.wolgye.demo` 시연 앱에만 사용자·점주 첫 진입을 적용하고 운영 앱의 네 탭과 인증·지갑·권한 경계는 유지 | `USER_CONFIRMED` | 2026-09-24 사용자가 계획의 시연 앱 전용 권장안에 “그러면 그렇게 해”라고 답함. 시연 점주 기능은 별도 API 권한 확인 전까지 허용하지 않음 |
 | D-033 | 운영 웹 호스팅 이관 | 기존 Lightsail에서 `masscom.kr` 포털과 `/app/` 읽기 전용 웹을 제공하고 Vercel 배포는 rollback 후보로 유지 | `USER_CONFIRMED` | 2026-09-24 사용자가 기존 AWS 활용을 승인했고 [PR #163](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/163) 이후 apex DNS·TLS를 검증했다. `www` 추가 전환은 D-034와 별개 |
 | D-034 | `www` 웹 대표 주소·apex 호환 | 기존 Lightsail의 `www.masscom.kr/app/`·`/preview/`을 웹 대표 경로로 사용하고, `masscom.kr`은 Android App Link·Reown 출처·기존 로그인 호환을 위해 유지. 웹 세션은 호스트별로 분리 | `USER_CONFIRMED` | 2026-09-25 사용자가 [설계](superpowers/specs/2026-09-25-www-web-consolidation-design.md)·[계획](superpowers/plans/2026-09-25-www-web-consolidation.md)을 승인. PR #169·main CI, Google 콜백, 가비아 DNS, 공인 TLS와 휴대전화 한 계정 로그인은 [실증](evidence/www-web-cutover-2026-09-25.json)으로 확인; www 두 번째 계정·시연 Android는 별도 미완료 |
+| D-035 | 시연 APK 전용 서명 키 생성 1회 예외 | `kr.masscom.wolgye.demo`만을 위한 새 키를 Git 밖에 만들고 로컬 Keychain에 비밀번호를 보관. 운영 키 재사용·변경 금지 | `USER_CONFIRMED` | 2026-09-26 사용자가 저장소의 에이전트 키 생성 금지 규칙에 대해 **이번 시연 전용 키만** 명시적으로 예외 승인. 키 파일 mode 600·Keychain 조회로 인증서 열기 확인. 비밀번호·개인키는 문서·Git에 기록하지 않음; 백업과 실제 APK 서명은 별도 검증 |
 
 ## 2026-09-23 UI 기초 작업 범위 (Issue #136)
 

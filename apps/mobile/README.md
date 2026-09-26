@@ -8,7 +8,7 @@
 | `showcase` | `kr.masscom.wolgye.demo` | `masscom-demo` | 정확히 `https://demo-api.masscom.kr` | Expo config·교차 연결 거절 자동 시험만 PASS |
 | `production` | `kr.masscom.wolgye` | `masscom` | 정확히 `https://api.masscom.kr` | 기존 release 검증 유지 |
 
-시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 정적 시연 웹은 [기본 Vercel HTTPS 주소](https://masscom-showcase-web.vercel.app)에서 열립니다. **`demo.masscom.kr` 맞춤 DNS, `demo-api.masscom.kr` 외부 API/DB와 설치용 AAB/APK는 아직 검증되지 않았습니다.** 따라서 현 단계의 시연 variant는 로그인·QR 수령·지갑 연결까지 이용 가능한 앱이 아닙니다. 현재 시연 기능 시험은 별도 로컬 개발 앱과 `_test` DB에서만 합니다. 런타임의 개발 DEMO 인증도 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
+시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 정적 시연 웹은 [www 공개 HTTPS](https://www.masscom.kr/preview/)에서 열립니다. **`demo.masscom.kr` App Link DNS, `demo-api.masscom.kr` 외부 API/DB와 설치용 APK는 아직 검증되지 않았습니다.** 따라서 현 단계의 시연 variant는 로그인·QR 수령·지갑 연결까지 이용 가능한 앱이 아닙니다. 현재 시연 기능 시험은 별도 로컬 개발 앱과 `_test` DB에서만 합니다. 런타임의 개발 DEMO 인증도 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
 
 `APP_VARIANT=showcase`는 기존 `.env.local`의 운영 Google/Reown ID 또는 개발 DEMO 변수가 있으면 빌드 설정을 거절합니다. 시연 전용 Google Web client ID를 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`로 요구하고, 설치 package가 `.demo`일 때만 앱 설정의 이 값을 읽습니다. 별도 Reown 프로젝트는 미설정이라 시연 지갑 연결은 비활성입니다. 현재 환경 경계만 확인하려면 로컬 dotenv 로드를 끄고 실제 발급받은 시연 전용 공개 ID를 명시합니다(실제 API 요청·APK 빌드 아님).
 
@@ -21,6 +21,8 @@ EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
 ```
 
 Expo의 [앱 variant 안내](https://docs.expo.dev/build-reference/variants/)대로 package를 바꿔 설치할 때는 격리된 checkout에서 해당 `APP_VARIANT`로 native `prebuild --clean`을 먼저 해야 합니다. 기존 `apps/mobile/android`를 다른 variant로 덮어쓰지 않습니다. 실제 시연 앱의 동시 설치·외부 HTTPS·지갑 복귀·Google 로그인·QR→도감은 별도 환경 준비와 실기 전까지 `NOT_RUN`입니다.
+
+시연 APK 빌드 게이트는 저장소 루트의 `scripts/build-showcase-apk.sh`입니다. `--check`는 **로컬 설정만** 확인하며 APK를 만들지 않습니다. 전용 Google Web client ID와 운영 Web client ID, 저장소 밖 mode 600 전용 keystore·별칭·공개 SHA-256 지문을 요구하고 운영/개발 값 재사용을 거절합니다. 두 ID와 지문은 공개 식별자지만 비밀번호는 채팅·Git에 넣지 않습니다. 정확한 전용 API에서 가상 점포 A/B/C를 조회할 수 있을 때만 기본 `--build`가 키 비밀번호를 로컬 터미널에서 받아 release APK를 만듭니다. 빌드 후 `.demo` package·소스 커밋·인증서·SHA-256·지갑 금지 표면을 검증하며, 기기 설치와 GitHub 게시 상태는 별도로 기록합니다. 2026-09-26 전용 키·Web client·연결된 Samsung으로 실제 공개값 `--check`는 PASS지만 Android OAuth·외부 API/DB가 없어 실제 APK는 `BLOCKED/NOT_RUN`입니다. 시연 키의 로컬 Keychain 보관은 백업 완료를 뜻하지 않습니다.
 
 ## 개발용 UI 시안과 로컬 실행 (Issue #136)
 
