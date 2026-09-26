@@ -1,10 +1,14 @@
 # 프로젝트 상태
 
-마지막 갱신 시각: 2026-09-26 KST
+마지막 갱신 시각: 2026-09-27 KST
 
 ## 최신 작업 경계
 
-- Issue #137의 시연 Android APK 빌드 게이트는 [PR #173](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/173) merge `8d69c5b`·PR/main CI PASS다. `.demo` package와 운영 값 교차 거절, 모바일 196/196·typecheck·lint·Android JS export는 로컬 PASS다. 2026-09-26 시연 전용 키(mode 600·Keychain 조회), 운영과 다른 Google Web/Android client, OAuth 테스트 사용자 2명, Samsung SM-S928N ADB 연결과 실제 공개값 `--check` PASS까지 확인했다. 현재 `feat/137-showcase-live`에서 기존 Lightsail 비용·용량과 런타임 비밀 생성 경계를 준비 중이다. `demo-api.masscom.kr` 외부 API/DB·초대 인증이 아직 없어 실제 설치용 APK·Release는 `BLOCKED/NOT_RUN`([B-018](BLOCKERS.md), [시험](TEST_STATUS.md)). 시연 앱 코드·로컬 사전검사와 APK 배포를 혼동하지 않는다.
+- `demo-api.masscom.kr` A가 권한·외부 DNS에서 기존 Lightsail IP로 확인됐고, 운영 Google Web client의 실제 ID 토큰은 시연 API에서 `401 ID_TOKEN_AUDIENCE_MISMATCH`로 거절돼 identity/session 쓰기 0이었다. 시험용 `localhost:4176` 운영 OAuth 원본은 제거·재조회했다([DNS·교차 인증 증거](evidence/showcase-dns-audience-2026-09-27.json)). **DNS A 등록만 완료**이며 운영 Caddy·공인 TLS·시연 APK는 미적용/`NOT_RUN`. 공개 라우팅은 별도 사용자 확인과 PR #175 병합·Caddy-only 롤백 시험 전까지 보류한다.
+
+- Issue #137 내부 실계정·가상 흐름은 전용 Web OAuth 두 계정의 API 로그인 200/200, 비초대 유효 토큰 403·추가 DB 쓰기 0, 가상 A점포 STAFF 권한 1계정만 허용을 [실측](evidence/showcase-internal-auth-claim-2026-09-27.json)했다. 가상 코드 발급→미리보기→수령→재수령은 201/200/200/200(`replayed=true`), 시연 DB claim slot/방문/보상권 1/1/1·mint 0, 고객 도감 1/1·STAFF 0/0이며 시험 세션은 모두 철회했다. 이는 내부 SSH 터널을 통한 API 시험이지 실제 Android QR·외부 HTTPS·NFT 발행이 아니다. 운영 audience 유효 토큰의 실제 교차 거절과 기록 있는 두 고객 계정 격리는 아직 `NOT_RUN`. 현재 [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175)의 전용 edge/Caddy는 독립 리뷰 지적을 수정하고 CI PASS했지만 아직 병합·운영 Caddy 적용 전이다.
+
+- Issue #137: [PR #174](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/174) merge `7dba450`·PR/main CI PASS 이후 기존 Lightsail의 별도 `/opt/masscom-showcase`에서 시연 API·DB를 loopback 전용으로 기동했다. 가상 점포·캠페인·목표 `3/3/9`, 시연 방문/계정/세션 0, 운영 DB 가상 점포 0, 운영 컨테이너 ID·재시작 횟수 불변과 운영 HTTPS 200을 [내부 증거](evidence/showcase-internal-2026-09-27.json)로 확인했다. 현재 `feat/137-showcase-edge`는 공개 라우팅용 전용 네트워크·Caddy 변경을 로컬에서 시험 중이며 실제 서버 Caddy/DNS는 미변경이다. 전용 키·Google Web/Android client·OAuth 테스트 사용자 2명·Samsung ADB와 APK `--check`는 준비됐지만 실제 초대 로그인·외부 HTTPS·서명 APK/Release/실기는 `BLOCKED/NOT_RUN`([B-018](BLOCKERS.md), [시험](TEST_STATUS.md)).
 
 - D-034 `www.masscom.kr/app/`·`/preview/` [설계](superpowers/specs/2026-09-25-www-web-consolidation-design.md)·[계획](superpowers/plans/2026-09-25-www-web-consolidation.md)은 사용자 승인됐고 [PR #169](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/169) merge `3c59ac0` 및 PR/main CI PASS다. 정적 preview allowlist, host-bound OAuth state·웹 세션, 정확한 Host·Origin 검사는 [로컬 검증](evidence/www-web-local-2026-09-25.json) 후 기존 Lightsail에 배포됐다. 운영 DB 0016·0017 적용·기존 DB 컨테이너 보존·백업, Google `www` 승인 URI와 가비아 DNS A 전환, 공인 www TLS·정적 시연 원본 일치·Samsung Chrome의 www 한 계정 로그인/재열기/로그아웃 및 apex 세션 보존은 [전환 증거](evidence/www-web-cutover-2026-09-25.json)에 기록했다. www의 두 번째 계정·기록 있는 도감 격리·시연 Android APK는 별도 미완료다.
 

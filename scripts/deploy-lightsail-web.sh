@@ -71,6 +71,7 @@ source_paths=(
   scripts/deploy-lightsail-web.sh
   scripts/lightsail-web-rollback.sh
   scripts/lightsail-web-probe-guard.sh
+  scripts/verify-showcase-edge-routes.mjs
   docs/index.html docs/open.html docs/privacy.html docs/account-deletion.html
   docs/presentation.html docs/.well-known/assetlinks.json docs/assets
   docs/evidence/android-collection.png docs/evidence/android-merchant-list.png
@@ -186,6 +187,14 @@ service_snapshot() {
 }
 api_before="$(service_snapshot api)"
 db_before="$(service_snapshot postgres)"
+command -v jq >/dev/null
+[[ "$(sudo docker network inspect -f '{{.Driver}}' masscom_showcase_edge)" == bridge ]]
+showcase_api_id="$(sudo docker ps -q --filter label=com.docker.compose.project=masscom-showcase --filter label=com.docker.compose.service=showcase-api)"
+[[ -n "$showcase_api_id" && "$showcase_api_id" != *$'\n'* ]]
+[[ "$(sudo docker inspect -f '{{.State.Health.Status}}' "$showcase_api_id")" == healthy ]]
+curl -fsS --max-time 8 http://127.0.0.1:3301/merchants |
+  jq -e '.merchants | (type == "array") and (length == 3) and all(.[]; .demo == true)' >/dev/null
+getent ahostsv4 demo-api.masscom.kr | awk '{print $1}' | grep -qx '43.200.56.97'
 previous_web_id="$(service_id production-web)"
 if [[ -n "$previous_web_id" ]]; then
   [[ "$previous_web_id" != *$'\n'* ]]
@@ -205,12 +214,16 @@ probe_web_routes() {
     --name "masscom-web-probe-$web_tag-$$" \
     --network masscom_default \
     -e MASSCOM_API_DOMAIN=:8081 -e MASSCOM_WEB_DOMAIN=:8080 \
-    -p 127.0.0.1::8080 \
+    -e MASSCOM_SHOWCASE_API_DOMAIN=:8082 \
+    -p 127.0.0.1::8080 -p 127.0.0.1::8081 -p 127.0.0.1::8082 \
     -v "$release/infra/lightsail/Caddyfile:/etc/caddy/Caddyfile:ro" \
     -v "$release/site/public:/srv/masscom:ro" \
     caddy:2.10.2-alpine)"
-  local address ready status
+  sudo docker network connect masscom_showcase_edge "$probe_id"
+  local address operating_address showcase_address ready status
   address="$(sudo docker port "$probe_id" 8080/tcp)"
+  operating_address="$(sudo docker port "$probe_id" 8081/tcp)"
+  showcase_address="$(sudo docker port "$probe_id" 8082/tcp)"
   ready='false'
   for _attempt in $(seq 1 30); do
     if curl -fsS --max-time 2 "http://$address/" >/dev/null 2>&1; then
@@ -234,6 +247,12 @@ probe_web_routes() {
   web_collection_probe_response "http://$address/api/web/collection" masscom.kr
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address/merchants")"
   [[ "$status" == '200' ]]
+  curl -fsS --max-time 8 "http://$operating_address/merchants" |
+    jq -e '.merchants | (type == "array") and all(.[]; .demo == false)' >/dev/null
+  curl -fsS --max-time 8 "http://$showcase_address/merchants" |
+    jq -e '.merchants | (type == "array") and (length == 3) and all(.[]; .demo == true)' >/dev/null
+  status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$showcase_address/collection")"
+  [[ "$status" == '401' ]]
   sudo docker stop "$probe_id" >/dev/null
   probe_id=''
 }
@@ -241,6 +260,12 @@ probe_web_routes() {
 sudo docker run --rm \
   -v "$release/infra/lightsail/Caddyfile:/etc/caddy/Caddyfile:ro" \
   caddy:2.10.2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile </dev/null
+sudo docker run --rm \
+  -v "$release/infra/lightsail/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  caddy:2.10.2-alpine caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile \
+  | sudo docker run --rm -i \
+      -v "$release/scripts/verify-showcase-edge-routes.mjs:/verify.mjs:ro" \
+      node:22-bookworm-slim node /verify.mjs
 compose_new config >/dev/null
 compose_new build production-web
 web_change_started='true'
@@ -257,7 +282,32 @@ live_caddy_id="$(service_id caddy)"
 [[ -n "$live_caddy_id" ]]
 [[ "$(sudo docker inspect --format '{{.State.Running}}' "$live_caddy_id")" == 'true' ]]
 [[ "$(sudo docker inspect --format '{{range .Mounts}}{{if eq .Destination "/srv/masscom"}}{{.Source}}{{end}}{{end}}' "$live_caddy_id")" == "$release/site/public" ]]
+sudo docker exec "$live_caddy_id" caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile \
+  | sudo docker run --rm -i \
+      -v "$release/scripts/verify-showcase-edge-routes.mjs:/verify.mjs:ro" \
+      node:22-bookworm-slim node /verify.mjs
 curl -fsS --max-time 8 https://api.masscom.kr/health >/dev/null
+curl -fsS --max-time 8 https://www.masscom.kr/app/ >/dev/null
+curl -fsS --max-time 8 https://api.masscom.kr/merchants |
+  jq -e '.merchants | (type == "array") and all(.[]; .demo == false)' >/dev/null
+showcase_https_ready='false'
+for _attempt in $(seq 1 24); do
+  if curl -fsS --max-time 8 https://demo-api.masscom.kr/health 2>/dev/null |
+      jq -e '.status == "ok"' >/dev/null 2>&1; then
+    showcase_https_ready='true'
+    break
+  fi
+  sleep 5
+done
+[[ "$showcase_https_ready" == 'true' ]]
+curl -fsS --max-time 8 https://demo-api.masscom.kr/merchants |
+  jq -e '.merchants | (type == "array") and (length == 3) and all(.[]; .demo == true)' >/dev/null
+status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 https://demo-api.masscom.kr/collection)"
+[[ "$status" == '401' ]]
+showcase_headers="$(curl -fsS -D - -o /dev/null --max-time 8 https://demo-api.masscom.kr/health)"
+grep -Eqi '^strict-transport-security: max-age=31536000; includeSubDomains' <<< "$showcase_headers"
+grep -Eqi '^x-content-type-options: nosniff' <<< "$showcase_headers"
+grep -Eqi '^x-frame-options: DENY' <<< "$showcase_headers"
 
 sudo install -d -m 0755 /opt/masscom/web
 sudo ln -sfn "$release" /opt/masscom/web/current

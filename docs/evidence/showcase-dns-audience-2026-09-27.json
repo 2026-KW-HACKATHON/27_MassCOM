@@ -1,0 +1,31 @@
+{
+  "recordedAtUtc": "2026-09-26T17:07:59Z",
+  "issue": 137,
+  "dns": {
+    "domain": "demo-api.masscom.kr",
+    "type": "A",
+    "address": "43.200.56.97",
+    "ttlSeconds": 600,
+    "authoritativeGabia": "PASS",
+    "cloudflareResolver": "PASS",
+    "googleResolver": "PASS",
+    "existingApexWwwApiPreserved": true
+  },
+  "operatingAudienceCrossCheck": {
+    "source": "Google-signed ID token from existing MassCOM operating Web OAuth client",
+    "destination": "showcase API through local SSH tunnel",
+    "httpStatus": 401,
+    "errorCode": "ID_TOKEN_AUDIENCE_MISMATCH",
+    "showcaseIdentityAndSessionTotalsBeforeAfter": "2/2 -> 2/2",
+    "activeSessionsAfter": 0,
+    "temporaryLocalOrigin": "http://localhost:4176",
+    "temporaryOriginRemovedAndRechecked": true,
+    "existingOperatingCallbackUrisPreserved": true,
+    "idTokenOrClientSecretRecorded": false
+  },
+  "remaining": {
+    "publicDemoApiHttps": "NOT_RUN",
+    "operatingCaddyModified": false,
+    "signedShowcaseApk": "NOT_RUN"
+  }
+}

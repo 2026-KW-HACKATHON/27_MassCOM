@@ -18,6 +18,22 @@
 	}
 }
 
+{$MASSCOM_SHOWCASE_API_DOMAIN:demo-api.masscom.kr} {
+	encode zstd gzip
+	reverse_proxy showcase-api:3000 {
+		# Only Caddy's observed client IP may drive the invited-login rate limit.
+		header_up X-Forwarded-For {remote_host}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}
+
 {$MASSCOM_WEB_DOMAIN:masscom.kr} {
 	encode zstd gzip
 	root * /srv/masscom

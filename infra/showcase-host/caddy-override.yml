@@ -1,0 +1,14 @@
+# Apply only after the dedicated edge network and invited-login gates pass.
+# Combine with the currently deployed operating Compose; do not start other services.
+services:
+  caddy:
+    volumes:
+      - ${MASSCOM_SHOWCASE_CADDYFILE:?candidate Caddyfile path is required}:/etc/caddy/Caddyfile:ro
+    networks:
+      default:
+      showcase_edge:
+
+networks:
+  showcase_edge:
+    external: true
+    name: masscom_showcase_edge

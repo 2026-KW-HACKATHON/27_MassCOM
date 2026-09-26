@@ -11,21 +11,29 @@ const keysAre = (value, expected) =>
 
 export function validateShowcaseHostCompose(config, options = {}) {
   requireSafe(config?.name === 'masscom-showcase');
-  requireSafe(keysAre(config.services, ['api', 'migrate', 'postgres']));
-  requireSafe(keysAre(config.networks, ['default']));
+  requireSafe(keysAre(config.services, ['showcase-api', 'migrate', 'postgres']));
+  requireSafe(keysAre(config.networks, ['default', 'edge']));
   requireSafe(config.networks.default.name === 'masscom-showcase_default');
   requireSafe(config.networks.default.external !== true);
+  requireSafe(config.networks.edge.name === 'masscom_showcase_edge');
+  requireSafe(config.networks.edge.external === true);
+  requireSafe((!config.networks.edge.ipam || keysAre(config.networks.edge.ipam, [])) &&
+    !config.networks.edge.driver_opts);
   requireSafe(keysAre(config.volumes, ['postgres_data']));
   requireSafe(config.volumes.postgres_data.name === 'masscom-showcase_postgres_data');
   requireSafe(!config.volumes.postgres_data.driver_opts);
 
-  const { api, migrate, postgres } = config.services;
+  const { migrate, postgres } = config.services;
+  const api = config.services['showcase-api'];
   for (const entry of [api, migrate, postgres]) {
     requireSafe(entry.security_opt?.includes('no-new-privileges:true'));
-    requireSafe(keysAre(entry.networks, ['default']));
     requireSafe(!entry.network_mode && !entry.privileged && !entry.volumes_from);
     requireSafe(!entry.links && !entry.external_links && !entry.extra_hosts);
   }
+  requireSafe(keysAre(api.networks, ['default', 'edge']));
+  requireSafe(keysAre(migrate.networks, ['default']));
+  requireSafe(keysAre(postgres.networks, ['default']));
+  requireSafe(api.networks.edge === null || keysAre(api.networks.edge, []));
   requireSafe(api.read_only === true && migrate.read_only === true);
   requireSafe((postgres.ports ?? []).length === 0 && (migrate.ports ?? []).length === 0);
   requireSafe(api.ports?.length === 1);
@@ -63,7 +71,7 @@ export function validateShowcaseHostCompose(config, options = {}) {
   requireSafe(api.environment?.API_BIND_HOST === '0.0.0.0' && api.environment?.PORT === '3000');
   requireSafe(api.environment?.SHOWCASE_MODE === 'true');
   requireSafe(api.environment?.ALLOW_INSECURE_DEMO_ACCOUNT === 'false');
-  requireSafe(api.environment?.AUTH_TRUST_CADDY_FORWARDED_FOR === 'false');
+  requireSafe(api.environment?.AUTH_TRUST_CADDY_FORWARDED_FOR === 'true');
   requireSafe(api.environment?.SIWE_DOMAIN === 'demo-api.masscom.kr');
   requireSafe(api.environment?.SIWE_URI === 'https://demo-api.masscom.kr/wallet/verify');
   const audience = api.environment?.GOOGLE_OAUTH_CLIENT_IDS;

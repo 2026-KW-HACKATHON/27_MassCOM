@@ -5,11 +5,25 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const fail = () => { throw new Error('AWS_WEB_BOUNDARY_INVALID'); };
 const requireSafe = (condition) => { if (!condition) fail(); };
+const keysAre = (value, expected) =>
+  value && Object.keys(value).sort().join(',') === [...expected].sort().join(',');
 
 export function validateAwsWebCompose(config) {
   requireSafe(config?.name === 'masscom');
   const services = config.services ?? {};
-  requireSafe(['api', 'postgres', 'caddy', 'production-web'].every((name) => Boolean(services[name])));
+  requireSafe(['api', 'postgres', 'migrate', 'caddy', 'production-web']
+    .every((name) => Boolean(services[name])));
+  requireSafe(keysAre(config.networks, ['default', 'showcase_edge']));
+  requireSafe(config.networks.default.name === 'masscom_default' &&
+    config.networks.default.external !== true);
+  requireSafe(config.networks.showcase_edge.name === 'masscom_showcase_edge' &&
+    config.networks.showcase_edge.external === true);
+  requireSafe(!config.networks.showcase_edge.driver_opts &&
+    Object.keys(config.networks.showcase_edge.ipam ?? {}).length === 0);
+  for (const name of ['api', 'postgres', 'migrate', 'production-web']) {
+    requireSafe(keysAre(services[name].networks, ['default']));
+  }
+  requireSafe(keysAre(services.caddy.networks, ['default', 'showcase_edge']));
   for (const name of ['api', 'postgres', 'production-web']) {
     requireSafe((services[name].ports ?? []).length === 0);
     requireSafe(services[name].security_opt?.includes('no-new-privileges:true'));

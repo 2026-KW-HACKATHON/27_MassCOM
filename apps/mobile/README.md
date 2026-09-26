@@ -91,7 +91,7 @@ npm run export:android
 
 - 고정 native 의존성: `react-native-nitro-google-signin@2.3.0`, `react-native-nitro-modules@0.37.1`, Expo SDK 57 호환 `expo-secure-store@57.0.4`
 - Web OAuth client ID는 `POST /auth/google`에서 검증할 ID token audience이며 API의 `GOOGLE_OAUTH_CLIENT_IDS`와 앱의 `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`가 같은 승인 값을 가리켜야 합니다.
-- 시연 앱만 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`를 공개 Web audience로 사용합니다. 실제 시연 API의 `GOOGLE_OAUTH_CLIENT_IDS`에도 **같은 시연 전용 ID만** 설정해야 하고 운영 API의 audience 목록에는 넣지 않습니다. Android OAuth client는 `kr.masscom.wolgye.demo`와 시연 APK에 실제 사용한 서명 인증서 SHA-1 조합으로 별도 등록해야 합니다. 아직 이 client·서버 audience·APK 실기 확인은 `NOT_RUN`입니다.
+- 시연 앱만 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`를 공개 Web audience로 사용합니다. 실제 시연 API의 `GOOGLE_OAUTH_CLIENT_IDS`에도 **같은 시연 전용 ID만** 설정하며 운영 API의 audience 목록에는 넣지 않습니다. Android OAuth client는 `kr.masscom.wolgye.demo`와 시연 전용 서명 인증서 SHA-1로 별도 등록했습니다([설정 근거](../../docs/evidence/showcase-oauth-2026-09-26.json)). 서버의 전용 audience·운영 audience 거절은 내부 API에서 PASS지만 실제 `.demo` APK 로그인은 아직 `NOT_RUN`입니다.
 - Android OAuth client는 package/SHA 조합별로 별도 생성합니다. 개발 package `kr.masscom.wolgye.dev`와 운영 package `kr.masscom.wolgye`, 각 서명 인증서 SHA-1을 Google Cloud에 정확히 등록해야 합니다. 목표 인프라를 만들었다는 사실만으로 실제 로그인 PASS가 되지 않습니다.
 - Android는 explicit Web client ID와 React Native native autolinking을 사용합니다. Nitro Expo config plugin v2.3.0은 iOS reversed client ID 또는 Firebase 파일을 요구하므로, 현재 Android-only 범위에서 가짜 iOS 값을 만들지 않고 등록하지 않았습니다. iOS 지원 시 실제 iOS OAuth client와 함께 추가해야 합니다.
 - 서버가 돌려준 `{ sessionToken, accountId, expiresAt }`는 SecureStore key `masscom.auth.session.v1`의 version 1 레코드에만 저장합니다. AsyncStorage·URL·화면·로그·증거 JSON에는 session token을 넣지 않습니다.
