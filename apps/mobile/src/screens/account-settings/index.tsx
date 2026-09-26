@@ -6,6 +6,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { accountContextLabel } from '@/config/app-context';
 import { canOpenMerchantDemo, demoRuntimeConfig } from '@/config/demo-runtime';
 import { canOpenShowcaseTour } from '@/navigation/showcase-entry';
 import {
@@ -109,7 +110,8 @@ export function AccountSettingsScreen({
         로그인과 개인정보를 관리합니다. 외부 지갑은 앱 계정과 별도로 관리됩니다.
       </Text>
       <Text selectable style={[styles.accountDiagnostic, { color: palette.secondaryLabel }]}>
-        현재 계정 {shortAccountId(accountId)} · {credential.kind === 'bearer' ? '운영 session' : '개발 DEMO'}
+        현재 계정 {shortAccountId(accountId)} · {credential.kind === 'bearer'
+          ? `${accountContextLabel(Application.applicationId)} 세션` : '개발 DEMO'}
       </Text>
 
       {credential.kind === 'bearer' ? <View style={styles.sessionActions}>
@@ -211,9 +213,9 @@ export function AccountSettingsScreen({
         </>
       ) : (
         <View style={[styles.blockedCard, { backgroundColor: palette.errorContainer }]}>
-          <Text style={[styles.blockedTitle, { color: palette.onErrorContainer }]}>운영 계정 삭제 BLOCKED</Text>
+          <Text style={[styles.blockedTitle, { color: palette.onErrorContainer }]}>계정 삭제 요청 준비 중</Text>
           <Text selectable style={[styles.blockedBody, { color: palette.onErrorContainer }]}>
-            운영 계정 삭제는 최근 사용자 확인 수단이 확정되지 않아 아직 요청할 수 없습니다. Google 모바일 로그인만으로 fresh auth_time을 보장하지 않으며 서버 검사를 완화하지 않습니다.
+            최근 본인 확인 수단이 확정되지 않아 아직 요청할 수 없습니다. Google 모바일 로그인만으로 삭제 재인증을 보장하지 않아 서버 검사를 완화하지 않습니다.
           </Text>
         </View>
       )}

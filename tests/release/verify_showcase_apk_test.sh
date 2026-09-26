@@ -97,6 +97,16 @@ expect_rejected 'operating certificate' 'showcase certificate must differ from o
   MASSCOM_SHOWCASE_CERT_SHA256=5e5ed3c31971e5a88ea752b3a2ae50772fea1c956b9d97a82dd5ca7130cfa395
 expect_rejected 'missing keystore' 'showcase-only keystore is required' \
   MASSCOM_SHOWCASE_KEYSTORE_FILE="$scratch/missing.jks"
+expect_rejected 'unsupported Keychain mode' 'showcase Keychain mode must be 1' \
+  MASSCOM_SHOWCASE_USE_KEYCHAIN=unexpected
+
+trace_status=0
+trace_output="$(env -u EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID -u EXPO_PUBLIC_REOWN_PROJECT_ID \
+  "${common[@]}" bash -x "$builder" --check 2>&1)" || trace_status=$?
+[[ "$trace_status" != 0 && "$trace_output" == *'showcase signing refuses shell tracing'* ]] || {
+  echo 'showcase builder did not refuse shell tracing' >&2
+  exit 1
+}
 
 chmod 644 "$key"
 expect_rejected 'readable keystore' 'showcase keystore must have mode 400 or 600'
@@ -128,14 +138,20 @@ created_lock=false
 
 short_commit="$(git -C "$repo_root" rev-parse --short=7 HEAD)"
 existing_apk="$repo_root/apps/mobile/release-artifacts/MassCOM-showcase-android-$short_commit.apk"
-printf 'existing artifact must not be overwritten\n' > "$existing_apk"
-created_existing=true
+if [[ ! -e "$existing_apk" ]]; then
+  printf 'existing artifact must not be overwritten\n' > "$existing_apk"
+  created_existing=true
+fi
+before_digest="$(shasum -a 256 "$existing_apk" | awk '{print $1}')"
 expect_build_rejected 'existing artifact' 'showcase artifact already exists; refusing overwrite'
-[[ "$(<"$existing_apk")" == 'existing artifact must not be overwritten' ]] || {
+after_digest="$(shasum -a 256 "$existing_apk" | awk '{print $1}')"
+[[ "$before_digest" == "$after_digest" ]] || {
   echo 'existing showcase artifact was changed' >&2
   exit 1
 }
-rm "$existing_apk"
-created_existing=false
+if [[ "$created_existing" == true ]]; then
+  rm "$existing_apk"
+  created_existing=false
+fi
 
 echo 'showcase APK preflight boundaries verified; no APK built'

@@ -1,9 +1,11 @@
+import * as Application from 'expo-application';
 import { Button, Host } from '@expo/ui';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AuthSessionState } from '@/auth/auth-provider';
+import { accountContextLabel } from '@/config/app-context';
 import { colorsForScheme } from '@/theme/palette';
 import { makeAuthRequiredStyles } from './styles';
 
@@ -42,7 +44,7 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole }:
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}
     >
-      <Text style={styles.eyebrow}>운영 계정</Text>
+      <Text style={styles.eyebrow}>{accountContextLabel(Application.applicationId)}</Text>
       <Text selectable style={styles.title}>방문 기록을 안전하게{`\n`}이어서 확인합니다.</Text>
       <Text selectable style={styles.body}>
         Google 계정 확인 뒤 서버가 발급한 session만 기기의 보안 저장소에 보관합니다. 지갑이 없어도 음식점 탐색과 방문 도감은 사용할 수 있습니다.
