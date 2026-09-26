@@ -375,7 +375,7 @@ function messageFor(
       WALLET_CHANGED: '서명 중 지갑 주소가 변경됐습니다. 새 주소로 다시 시작해 주세요.',
       SIGNER_MISMATCH: '서명한 주소가 받을 주소와 다릅니다. 지갑에서 선택한 계정을 확인해 주세요. 스마트 지갑(계약 계정)은 아직 지원하지 않아 같은 안내가 나올 수 있습니다.',
     };
-    return { cancelled: false, text: messages[error.code] ?? `서버 확인 실패: ${error.code}` };
+    return { cancelled: false, text: messages[error.code] ?? '주소 확인에 실패했어요. 잠시 후 다시 시도해 주세요.' };
   }
   return { cancelled: false, text: '지갑 또는 네트워크 오류가 발생했습니다. 연결 상태를 확인하고 다시 시도해 주세요.' };
 }

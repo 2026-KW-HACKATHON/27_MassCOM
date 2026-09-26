@@ -83,7 +83,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
                 </View>
                 <View style={styles.roleChoices}>
                   <RoleChoice title="사용자예요" subtitle="나의 공간으로 시작" role="customer" onPress={() => choose('customer')} />
-                  <RoleChoice title="점주예요" subtitle={onChooseRole ? '로그인 후 서버에서 권한 확인' : '점주 화면 미리보기'} role="merchant" onPress={() => choose('merchant')} />
+                  <RoleChoice title="점주예요" subtitle={onChooseRole ? '로그인하면 점주 권한을 확인해요' : '점주 화면 미리보기'} role="merchant" onPress={() => choose('merchant')} />
                 </View>
                 <Text style={[styles.footnote, { color: colors.muted }]}>편하게 선택해 주세요. 언제든 바꿀 수 있어요.</Text>
               </>
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 9 }, brand: { fontSize: 19, fontWeight: '700', letterSpacing: -0.6 },
   brandMark: { width: 23, height: 23, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }, brandDot: { width: 7, height: 7, borderRadius: 4 },
   intro: { paddingTop: 72, paddingBottom: 40, gap: 12 }, eyebrow: { fontSize: 14, fontWeight: '600' },
-  title: { fontSize: 42, fontWeight: '700', letterSpacing: -1.8, lineHeight: 55 },
+  title: { fontSize: 32, fontWeight: '700', letterSpacing: -1, lineHeight: 40 },
   walletTitle: { fontSize: 32, fontWeight: '700', letterSpacing: -1.3, lineHeight: 44 },
   description: { fontSize: 16, lineHeight: 25 }, roleChoices: { gap: 14 },
   roleCard: { minHeight: 108, padding: 20, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16 },

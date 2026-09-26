@@ -53,7 +53,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
               월계1동 · 동네 한 바퀴
             </Text>
           </View>
-          <Text selectable style={[styles.title, { color: palette.label }]}>월계에서 만나는{`\n`}오늘의 한 끼.</Text>
+          <Text selectable style={[styles.title, { color: palette.label }]}>월계에서 만나는 오늘의 한 끼.</Text>
           <Text selectable style={[styles.intro, { color: palette.secondaryLabel }]}>
             공개된 음식점을 찾고, 방문을 도감에 모아보세요.
           </Text>

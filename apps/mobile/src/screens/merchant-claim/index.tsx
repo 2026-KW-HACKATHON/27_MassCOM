@@ -128,7 +128,7 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
         <Text selectable style={styles.body}>
           {credential?.kind === 'bearer'
             ? '가상 점포의 체험용 방문 코드를 발급합니다. 실제 주문·방문 혜택이 아니며 서버가 점포 권한을 확인합니다.'
-            : '운영에서는 사용할 수 없는 로컬 직원 DEMO 화면입니다. 현재 loopback 시연 계정의 점포 권한을 서버에서 매번 확인합니다.'}
+            : '운영에서는 쓸 수 없는 개발자용 DEMO 화면이에요. 지금은 로컬 시연 계정의 점포 권한을 매번 새로 확인해요.'}
         </Text>
       </View>
 
