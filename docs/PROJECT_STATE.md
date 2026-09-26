@@ -1,8 +1,10 @@
 # 프로젝트 상태
 
-마지막 갱신 시각: 2026-09-25 KST
+마지막 갱신 시각: 2026-09-26 KST
 
 ## 최신 작업 경계
+
+- Issue #137의 시연 Android APK 요청은 `feat/137-showcase-apk`에서 전용 빌드 게이트를 준비 중이다. `.demo` package와 운영 값 교차 거절, 모바일 196/196·typecheck·lint·Android JS export는 로컬 PASS지만 `demo-api.masscom.kr`/전용 Google client/소유자 관리 서명 키/연결 기기가 없어 실제 설치용 APK·Release는 `BLOCKED/NOT_RUN`([B-018](BLOCKERS.md), [시험](TEST_STATUS.md)). 시연 앱 코드와 APK 배포를 혼동하지 않는다.
 
 - D-034 `www.masscom.kr/app/`·`/preview/` [설계](superpowers/specs/2026-09-25-www-web-consolidation-design.md)·[계획](superpowers/plans/2026-09-25-www-web-consolidation.md)은 사용자 승인됐고 [PR #169](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/169) merge `3c59ac0` 및 PR/main CI PASS다. 정적 preview allowlist, host-bound OAuth state·웹 세션, 정확한 Host·Origin 검사는 [로컬 검증](evidence/www-web-local-2026-09-25.json) 후 기존 Lightsail에 배포됐다. 운영 DB 0016·0017 적용·기존 DB 컨테이너 보존·백업, Google `www` 승인 URI와 가비아 DNS A 전환, 공인 www TLS·정적 시연 원본 일치·Samsung Chrome의 www 한 계정 로그인/재열기/로그아웃 및 apex 세션 보존은 [전환 증거](evidence/www-web-cutover-2026-09-25.json)에 기록했다. www의 두 번째 계정·기록 있는 도감 격리·시연 Android APK는 별도 미완료다.
 
