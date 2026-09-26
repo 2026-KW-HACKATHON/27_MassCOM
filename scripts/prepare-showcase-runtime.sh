@@ -14,6 +14,9 @@ parent="$(dirname "$target")"
 parent="$(cd -P "$parent" && pwd -P)"
 [[ "$parent" != "$repo_root" && "$parent" != "$repo_root"/* ]] ||
   fail 'runtime must stay outside the source repository'
+if git -C "$parent" rev-parse --is-inside-work-tree --is-inside-git-dir 2>/dev/null | grep -qx true; then
+  fail 'runtime must stay outside any Git checkout'
+fi
 
 tag="${MASSCOM_SHOWCASE_IMAGE_TAG:-}"
 client="${SHOWCASE_GOOGLE_WEB_CLIENT_ID:-}"

@@ -5,7 +5,10 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 script="$repo_root/scripts/prepare-showcase-runtime.sh"
 scratch="$(mktemp -d)"
 repo_scratch="$(mktemp -d "$repo_root/.showcase-runtime-test.XXXXXX")"
-trap 'rm -rf -- "$scratch" "$repo_scratch"' EXIT
+common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir)"
+main_root="$(dirname "$common_dir")"
+main_scratch="$(mktemp -d "$main_root/.showcase-runtime-test.XXXXXX")"
+trap 'rm -rf -- "$scratch" "$repo_scratch" "$main_scratch"' EXIT
 target="$scratch/runtime.env"
 demo_client='123-demo.apps.googleusercontent.com'
 operating_client='456-operating.apps.googleusercontent.com'
@@ -57,7 +60,8 @@ fi
 [[ "$(shasum -a 256 "$target")" == "$before" ]]
 ! grep -Eq '[0-9a-f]{64}' "$scratch/retry.log"
 
-if MASSCOM_SHOWCASE_RUNTIME_OUTPUT="$scratch/invalid.env" \
+mkdir "$scratch/badaudience"
+if MASSCOM_SHOWCASE_RUNTIME_OUTPUT="$scratch/badaudience/runtime.env" \
   MASSCOM_SHOWCASE_IMAGE_TAG=8d69c5b \
   SHOWCASE_GOOGLE_WEB_CLIENT_ID="$operating_client" \
   MASSCOM_OPERATING_GOOGLE_WEB_CLIENT_ID="$operating_client" \
@@ -66,7 +70,8 @@ if MASSCOM_SHOWCASE_RUNTIME_OUTPUT="$scratch/invalid.env" \
   echo 'operating Google audience unexpectedly accepted' >&2
   exit 1
 fi
-[[ ! -e "$scratch/invalid.env" ]]
+[[ ! -e "$scratch/badaudience/runtime.env" ]]
+grep -q 'dedicated Google audience required' "$scratch/invalid.log"
 
 second_hash="$(printf 'b%.0s' {1..64})"
 mkdir "$scratch/badstaff"
@@ -92,5 +97,22 @@ if MASSCOM_SHOWCASE_RUNTIME_OUTPUT="$repo_scratch/runtime.env" \
   exit 1
 fi
 [[ ! -e "$repo_scratch/runtime.env" ]]
+grep -q 'runtime must stay outside the source repository' "$scratch/repository.log"
+
+if MASSCOM_SHOWCASE_RUNTIME_OUTPUT="$main_scratch/runtime.env" \
+  MASSCOM_SHOWCASE_IMAGE_TAG=8d69c5b \
+  SHOWCASE_GOOGLE_WEB_CLIENT_ID="$demo_client" \
+  MASSCOM_OPERATING_GOOGLE_WEB_CLIENT_ID="$operating_client" \
+  SHOWCASE_INVITED_SUBJECT_SHA256="$invite_hash" \
+  bash "$script" >"$scratch/main-checkout.log" 2>&1; then
+  echo 'main-checkout secret file unexpectedly accepted' >&2
+  exit 1
+fi
+[[ ! -e "$main_scratch/runtime.env" ]]
+if [[ "$main_root" != "$repo_root" ]]; then
+  grep -q 'runtime must stay outside any Git checkout' "$scratch/main-checkout.log"
+else
+  grep -q 'runtime must stay outside the source repository' "$scratch/main-checkout.log"
+fi
 
 echo 'showcase runtime generation boundaries verified'
