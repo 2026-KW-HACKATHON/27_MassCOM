@@ -6,7 +6,7 @@
 
 - **최신 판정:** [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) merge `036f31f`·PR/main CI PASS 뒤 기존 Lightsail의 별도 시연 API/DB와 운영 Caddy만 내부 edge에 연결했다. [공개 HTTPS 실측](evidence/showcase-public-edge-2026-09-27.json)에서 `demo-api.masscom.kr` TLS·health 200·가상 점포 3곳·익명 도감 401, 운영 API/웹 200·운영 점포 0곳, 운영 API/DB/웹 컨테이너 보존을 확인했다. Samsung ADB·전용 키·Google client는 준비됐지만 Keychain 비밀번호 접근의 OS 승인 대기로 서명 APK·기기 설치·카메라 QR·GitHub Release는 `BLOCKED/NOT_RUN`. Issue #137은 계속 OPEN이다.
 
-### 아래 세 항목은 공개 전 단계의 당시 기록
+### 이하 항목은 공개 전 단계의 당시 기록
 
 - `demo-api.masscom.kr` A가 권한·외부 DNS에서 기존 Lightsail IP로 확인됐고, 운영 Google Web client의 실제 ID 토큰은 시연 API에서 `401 ID_TOKEN_AUDIENCE_MISMATCH`로 거절돼 identity/session 쓰기 0이었다. 시험용 `localhost:4176` 운영 OAuth 원본은 제거·재조회했다([DNS·교차 인증 증거](evidence/showcase-dns-audience-2026-09-27.json)). **DNS A 등록만 완료**이며 운영 Caddy·공인 TLS·시연 APK는 미적용/`NOT_RUN`. 공개 라우팅은 별도 사용자 확인과 PR #175 병합·Caddy-only 롤백 시험 전까지 보류한다.
 

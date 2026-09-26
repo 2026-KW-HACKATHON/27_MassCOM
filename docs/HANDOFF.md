@@ -6,7 +6,7 @@
 
 - **재개 기준:** [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) merge `036f31f`, PR/main CI `36258512932`/`36260544567` PASS. [공개 edge 증거](evidence/showcase-public-edge-2026-09-27.json)의 기존 Lightsail `https://demo-api.masscom.kr/health` 200·TLS 검증, 가상 점포 A/B/C 3곳·익명 도감 401, 운영 API/웹 200·운영 점포 0곳을 확인했다. Samsung 폰의 자체 curl도 시연 API·운영 API·시연 웹에서 HTTPS 200/TLS 검증 성공. 운영 Caddyfile/Compose는 서버의 `/opt/masscom/backups/showcase-edge-036f31f`에 백업했고 Caddy만 재생성했으며 운영 API/DB/웹 컨테이너 ID·재시작 횟수는 불변이다. 서버의 Caddy·Compose는 merge `036f31f`, 시연 API 이미지는 변경 없는 기존 `7dba450`이다. 별도 시연 서명 키/Google client·Samsung ADB·142GiB 여유·APK `--check`는 준비됐지만 Keychain 비밀번호 자동 읽기가 OS 승인 대기에서 멈춰 **서명 APK·설치·GitHub Release·카메라 QR 실기는 없음**. 이 배포 상태는 문서 PR #176에 기록하고 비밀번호·토큰은 남기지 않는다. 다음 안전 단계는 기존 키에 대한 로컬 접근 완료 → 같은 키 지문 재검증 → 시연 release APK 빌드 → 삼성 폰 동시 설치·QR/로그인 실기 → private Release다. 새 키를 임의로 다시 만들거나 운영 키·DB를 건드리지 않는다.
 
-### 아래 세 항목은 공개 전 단계의 당시 기록
+### 이하 항목은 공개 전 단계의 당시 기록
 
 - 사용자 승인으로 가비아 `demo-api.masscom.kr` A `43.200.56.97` TTL 600을 저장했고 권한 DNS·1.1.1.1·8.8.8.8 일치를 확인했다. 운영 Web OAuth에 `http://localhost:4176` 원본을 일시 허용해 실제 운영 audience Google 토큰을 내부 시연 API에 보냈을 때 `401 ID_TOKEN_AUDIENCE_MISMATCH`·DB 쓰기 0을 확인한 뒤 임시 원본을 제거·재조회했다([증거](evidence/showcase-dns-audience-2026-09-27.json)). 사용자에게는 **공개 시연 API 전환**을 별도 질문으로 요청했고 응답 전에는 운영 Caddy를 변경하지 않는다. [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) HEAD `189e937`의 CI `36256581264` PASS지만 Draft·미병합이다. 이 브랜치의 Caddy-only override는 현재 운영 Compose와 읽기 전용 합성 PASS; 실제 적용·공인 TLS·서명 APK는 `NOT_RUN`이다.
 
