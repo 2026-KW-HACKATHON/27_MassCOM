@@ -32,6 +32,9 @@ export function buildStampSlots(
   });
 }
 
-export function stampColumnCount(width: number): number {
-  return width < 340 ? 2 : 3;
+/** Columns shrink with the width that remains after system font scaling, so 200% text still fits. */
+export function stampColumnCount(width: number, fontScale = 1): number {
+  const effectiveWidth = width / Math.max(fontScale, 1);
+  if (effectiveWidth < 220) return 1;
+  return effectiveWidth < 340 ? 2 : 3;
 }

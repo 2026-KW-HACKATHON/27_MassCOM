@@ -53,3 +53,10 @@ test('stamp grid drops to two columns only below the narrow-width threshold', ()
   assert.equal(stampColumnCount(340), 3);
   assert.equal(stampColumnCount(339), 2);
 });
+
+test('stamp grid uses fewer columns when system font scale grows', () => {
+  assert.equal(stampColumnCount(412, 1.3), 2);
+  assert.equal(stampColumnCount(412, 2), 1);
+  assert.equal(stampColumnCount(360, 2), 1);
+  assert.equal(stampColumnCount(412, 0.85), 3);
+});

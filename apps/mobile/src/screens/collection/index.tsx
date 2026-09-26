@@ -60,7 +60,7 @@ export function CollectionScreen({
     () => buildStampSlots(publicMerchants, collection?.visits ?? []),
     [publicMerchants, collection],
   );
-  const stampColumns = stampColumnCount(width);
+  const stampColumns = stampColumnCount(width, fontScale);
   const stampGap = 10;
   const stampSlotWidth = (width - uiMetrics.pageInset * 2 - stampGap * (stampColumns - 1)) / stampColumns;
 
