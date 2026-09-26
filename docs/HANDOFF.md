@@ -4,6 +4,10 @@
 
 ## 현재 GitHub·운영 상태 — 2026-09-27
 
+- **최신 재개 기준:** [PR #177](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/177) merge `74d9eb1`, PR/main CI `36266216091`/`36266648303` PASS. [시연 Android 실증](evidence/showcase-android-apk-2026-09-27.json)의 source `c53c199` APK를 Samsung SM-S928N Android 16에 운영 앱과 함께 설치하고 전용 Google 로그인·가상 점포 A/B/C·빈 도감·카메라·가상 A점포 STAFF 발급을 확인했다. [private Preview 1 Release](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)에 APK·체크섬·provenance를 올리고 다시 내려받아 SHA-256과 바이트 일치를 확인했다. 고객의 **폰 QR 촬영→수령·두 계정 도감 분리, `demo.masscom.kr` App Link·별도 Reown·NFT는 미검증**이라 Issue #137을 닫지 않는다. 로컬 실행 도우미 `/Users/choi/Desktop/MassCOM/run-showcase-build.command`는 기존 Keychain 값만 사용하고 비밀번호를 Git/채팅에 기록하지 않는다. 이 도우미는 현재 작업공간 경로를 사용하므로 worktree를 옮기면 경로를 갱신한다. 한 번 노출된 구 QR은 즉시 재발급으로 폐기했고 새 코드는 남기지 않았다. 이전 빌드 산출물은 `apps/mobile/release-artifacts/`(Git 무시)에 보존했다.
+
+### 아래 한 항목은 APK 전 단계의 당시 기록
+
 - **재개 기준:** [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) merge `036f31f`, PR/main CI `36258512932`/`36260544567` PASS. [공개 edge 증거](evidence/showcase-public-edge-2026-09-27.json)의 기존 Lightsail `https://demo-api.masscom.kr/health` 200·TLS 검증, 가상 점포 A/B/C 3곳·익명 도감 401, 운영 API/웹 200·운영 점포 0곳을 확인했다. Samsung 폰의 자체 curl도 시연 API·운영 API·시연 웹에서 HTTPS 200/TLS 검증 성공. 운영 Caddyfile/Compose는 서버의 `/opt/masscom/backups/showcase-edge-036f31f`에 백업했고 Caddy만 재생성했으며 운영 API/DB/웹 컨테이너 ID·재시작 횟수는 불변이다. 서버의 Caddy·Compose는 merge `036f31f`, 시연 API 이미지는 변경 없는 기존 `7dba450`이다. 별도 시연 서명 키/Google client·Samsung ADB·142GiB 여유·APK `--check`는 준비됐지만 Keychain 비밀번호 자동 읽기가 OS 승인 대기에서 멈춰 **서명 APK·설치·GitHub Release·카메라 QR 실기는 없음**. 이 배포 상태는 문서 PR #176에 기록하고 비밀번호·토큰은 남기지 않는다. 다음 안전 단계는 기존 키에 대한 로컬 접근 완료 → 같은 키 지문 재검증 → 시연 release APK 빌드 → 삼성 폰 동시 설치·QR/로그인 실기 → private Release다. 새 키를 임의로 다시 만들거나 운영 키·DB를 건드리지 않는다.
 
 ### 이하 항목은 공개 전 단계의 당시 기록

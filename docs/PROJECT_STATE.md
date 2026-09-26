@@ -4,6 +4,10 @@
 
 ## 최신 작업 경계
 
+- **현재 시연 앱 판정:** [PR #177](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/177) merge `74d9eb1`·PR/main CI PASS와 [Samsung 실기](evidence/showcase-android-apk-2026-09-27.json) 뒤 별도 서명 APK를 [private Preview 1 Release](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)에 게시했다. GitHub 재다운로드 SHA-256/바이트 대조, 운영 앱 동시 설치, 전용 Google 로그인, 가상 점포 3곳·도감·QR 카메라·점주 STAFF 발급 PASS. 실제 고객 폰의 QR 촬영→수령·계정별 도감 격리와 시연 App Link/지갑/NFT는 `NOT_RUN`, Issue #137은 OPEN. 가상 발급을 실제 방문·매출·NFT로 기록하지 않는다.
+
+### 아래 한 항목은 APK 전 단계의 당시 기록
+
 - **최신 판정:** [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) merge `036f31f`·PR/main CI PASS 뒤 기존 Lightsail의 별도 시연 API/DB와 운영 Caddy만 내부 edge에 연결했다. [공개 HTTPS 실측](evidence/showcase-public-edge-2026-09-27.json)에서 `demo-api.masscom.kr` TLS·health 200·가상 점포 3곳·익명 도감 401, 운영 API/웹 200·운영 점포 0곳, 운영 API/DB/웹 컨테이너 보존을 확인했다. Samsung ADB·전용 키·Google client는 준비됐지만 Keychain 비밀번호 접근의 OS 승인 대기로 서명 APK·기기 설치·카메라 QR·GitHub Release는 `BLOCKED/NOT_RUN`. Issue #137은 계속 OPEN이다.
 
 ### 이하 항목은 공개 전 단계의 당시 기록

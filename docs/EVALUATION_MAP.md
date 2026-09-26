@@ -23,6 +23,8 @@ Phase 2 핵심 loopback DEMO와 Phase 3 Local Anvil 발행·복구 흐름은 구
 
 ## Issue #137 로컬 가상 방문 순환 증거
 
+- **중간 기획 재현성·최종 구현 완성도:** [PR #177](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/177)·[폰 APK/Release 실증](evidence/showcase-android-apk-2026-09-27.json)으로 별도 package·서명·Google 로그인·공개 시연 API·가상 점포 A/B/C·도감·카메라·점주 STAFF 1회 코드 발급을 연결했다. [비공개 설치본](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)의 재다운로드 해시도 일치한다. 이는 현장 점포나 실제 고객 QR 수령·매출·NFT 발행 증거가 아니다.
+
 - **중간 기획 재현성·최종 구현 완성도:** [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) merge·CI 후 [공개 시연 API HTTPS·운영 분리 증거](evidence/showcase-public-edge-2026-09-27.json)에서 가상 점포 A/B/C 3곳, 시연/운영 API 응답 분리, 운영 API/DB/웹 컨테이너 보존을 확인했다. 이는 실제 모바일 앱 설치·카메라 QR·현장 식당 실증이나 NFT 발행 증거는 아니다.
 
 - **중간 기획 재현성·최종 구현 완성도:** [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)의 외부 시연 준비에서는 기존 Lightsail의 운영과 분리된 내부 API/DB에 가상 A/B/C를 올리고, 실제 Google 시험 계정 두 개의 초대 로그인과 STAFF 권한 분리·가상 A점포 발급→고객 수령→도감·중복 효과 1회를 [내부 API 증거](evidence/showcase-internal-auth-claim-2026-09-27.json)로 확인했다. 이는 SSH 터널 내부 테스트이며 공개 HTTPS·시연 APK/카메라 QR·현장 점포 검증이 아니다. 가상 1회 방문을 지역 매출이나 실제 고객 실적으로 해석하지 않는다.
