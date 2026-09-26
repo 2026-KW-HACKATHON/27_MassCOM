@@ -22,8 +22,8 @@
 ## 한눈에 보기
 
 - [모바일 개발용 UI 시안·로컬 실행](apps/mobile/README.md): 개발용 미리보기는 보존하고, Issue #136 시연 앱 전용 첫 역할 선택·권한 확인·빈 공간 투어 코드는 `IN_PROGRESS`. 운영 앱의 네 기능 탭은 유지하며 시연 설치본 실기는 `NOT_RUN`
-- 시연 Android 빌드 경계: `kr.masscom.wolgye.demo`/`masscom-demo`와 전용 API URL의 교차 연결 거절, [전용 APK 사전검사](scripts/build-showcase-apk.sh)를 구현. [PR #173](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/173) 병합·main CI PASS, 시연 전용 키·Google Web/Android client·연결 기기로 로컬 `--check`까지 PASS지만 이전 JS export와 이 사전검사는 실제 APK가 아닙니다. 외부 API/DB·APK/실기·GitHub 배포는 `BLOCKED/NOT_RUN`이며 [세 빌드의 경계](apps/mobile/README.md#세-빌드의-경계)에 구분했습니다.
-- [시연 호스트 격리 준비](infra/showcase-host/README.md): 독립 Compose·초대 계정용 seed/STAFF 관리 코드를 로컬에서 검증. AWS 호스트 배포·외부 HTTPS는 미완료
+- 시연 Android 빌드 경계: `kr.masscom.wolgye.demo`/`masscom-demo`와 전용 API URL의 교차 연결 거절, [전용 APK 사전검사](scripts/build-showcase-apk.sh)를 구현. [PR #173](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/173) 병합·main CI PASS, 시연 전용 키·Google Web/Android client·연결 기기로 로컬 `--check`까지 PASS지만 이전 JS export와 이 사전검사는 실제 APK가 아닙니다. 내부 API/DB만 별도 기동했으며 외부 HTTPS·실제 초대 로그인·APK/실기·GitHub 배포는 `BLOCKED/NOT_RUN`입니다.
+- [시연 호스트 격리](infra/showcase-host/README.md): 독립 Compose·초대 가드와 가상 A/B/C seed를 로컬 시험 뒤 기존 Lightsail의 loopback에서 기동·검증([내부 증거](docs/evidence/showcase-internal-2026-09-27.json)). 외부 HTTPS·시연 앱 수령은 미완료
 - [기존 Lightsail의 포털·운영 웹 이관](infra/lightsail/README.md): AWS DNS·공인 TLS와 운영 웹 Google 로그인을 확인했습니다. Samsung Android Chrome에서 서로 다른 Google 계정 2개로 순차 로그인·빈 도감·세션 전환을 확인했고, 실제 기록이 있는 계정 간 격리와 최신 APK는 별도 미검증
 - [기존 서버 SSH 접속](docs/SERVER_ACCESS.md): 이 Mac의 `ssh masscom` 및 더블클릭 접속 파일 사용법. AWS 콘솔 로그인과 별개이며 개인키는 Git 밖에 보관
 

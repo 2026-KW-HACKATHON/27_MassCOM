@@ -1,6 +1,6 @@
 # 시연 API·DB 호스트
 
-현재 상태: 별도 Compose와 가상 점포 A/B/C seed는 **로컬 격리 환경에서 검증**했다. 2026-09-26 기존 AWS 호스트의 비용 크레딧·여유 자원·운영 건강 상태는 [읽기 전용 증거](../../docs/evidence/showcase-host-preflight-2026-09-26.json)로 확인했다. 외부 시연 DNS·HTTPS와 실제 시연 Google 로그인은 아직 확인하지 못했다. [로컬 증거](../../docs/evidence/showcase-host-local-2026-09-24.json)는 공개 배포 증거가 아니다.
+현재 상태: 별도 Compose와 가상 점포 A/B/C seed는 로컬 격리 시험 뒤 기존 AWS 호스트의 별도 `/opt/masscom-showcase`에서 **loopback 전용으로 기동·검증**했다([내부 증거](../../docs/evidence/showcase-internal-2026-09-27.json)). 기존 호스트 크레딧·용량과 운영 건강 상태는 [선행 확인](../../docs/evidence/showcase-host-preflight-2026-09-26.json)을 따릅니다. 외부 DNS·HTTPS와 실제 시연 Google 로그인은 아직 `NOT_RUN`입니다.
 
 ## 실행 순서
 
@@ -12,4 +12,10 @@
 
 공개 `demo-api.masscom.kr` 연결·Caddy 변경·Android APK는 [외부 시연 전달 계획](../../docs/superpowers/plans/2026-09-24-issue137-showcase-delivery.md)의 후속 게이트다. 실패 시 시연 Compose만 중지하고 운영 health를 다시 확인한다. 볼륨 삭제·운영 자료 변경은 이 절차에 포함하지 않는다.
 
-**다음 행동:** 실제 전용 초대 해시·런타임 파일을 준비하고 기존 서버의 별도 `/opt/masscom-showcase`에서만 loopback 스택을 기동한다. 운영 건강 상태·컨테이너 ID를 전후 대조하기 전에는 공개 라우팅을 추가하지 않는다.
+**다음 행동:** 실제 두 계정의 초대 로그인·STAFF 권한·계정 격리를 내부 연결에서 확인한다. Caddy edge 네트워크·DNS·TLS·되돌리기 시험을 통과하기 전에는 공개 라우팅을 추가하지 않는다. 운영 컨테이너 ID·건강 상태는 내부 기동 전후 동일했습니다.
+
+## 공개 edge 연결 게이트 — 아직 실행하지 않음
+
+`masscom_showcase_edge`는 시연 API와 운영 Caddy만 함께 연결하는 외부 Docker bridge 네트워크입니다. 시연 PostgreSQL·migrate와 운영 API·DB·웹은 이 네트워크에 넣지 않습니다. [Docker Compose 외부 네트워크 안내](https://docs.docker.com/compose/how-tos/networking/)와 `scripts/verify-showcase-host.mjs`·`scripts/verify-lightsail-web.mjs`·`scripts/verify-showcase-edge-routes.mjs`의 변조 시험을 따릅니다. 현재 서버에는 이 edge 네트워크가 없고 Caddy도 시연 API를 프록시하지 않습니다.
+
+실제 초대 계정 로그인 200, 비초대 유효 토큰 403·쓰기 0, 운영 audience 401, STAFF 발급 권한과 계정별 도감 격리를 내부/터널에서 확인한 뒤에만 다음 단계로 갑니다. 그때 가비아 `demo-api.masscom.kr` A와 공인 TLS, edge 네트워크의 정확한 구성원을 확인하고 Caddy의 **현재 운영 파일·마운트**를 백업합니다. 새 Compose/Caddy 구문·별도 proxy/IP 헤더를 검증한 후 Caddy만 짧게 재생성하고 `api.masscom.kr`·운영 웹·시연 health/401/403·보안 헤더를 검사합니다. 실패하면 이전 Caddy release로 되돌린 뒤 운영 API/DB ID·건강 상태를 다시 확인합니다. [`deploy-lightsail-web.sh`](../../scripts/deploy-lightsail-web.sh)는 edge 네트워크가 없으면 운영 웹 변경 전에 실패하고, 로컬 probe에서는 시연 호스트를 비공개 `:8082`로 치환합니다. 이 문단은 절차이며 공개 배포 완료 증거가 아닙니다.

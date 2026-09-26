@@ -1,6 +1,6 @@
 # 외부 시연 API 초대 인증 경계
 
-상태: 코드·로컬 PostgreSQL 검증 `PASS`, 전용 Google Web/Android client·OAuth 테스트 사용자 2명 준비 `PASS`([근거](evidence/showcase-oauth-2026-09-26.json)), 외부 API 연결·실제 시연 로그인 `NOT_RUN`.
+상태: 코드·로컬 PostgreSQL 검증과 기존 Lightsail의 [loopback 내부 시연 API/DB](evidence/showcase-internal-2026-09-27.json) `PASS`, 전용 Google Web/Android client·OAuth 테스트 사용자 2명 준비 `PASS`([근거](evidence/showcase-oauth-2026-09-26.json)). 실제 시연 Google 로그인·STAFF 권한·외부 HTTPS는 `NOT_RUN`.
 
 시연 앱은 운영 Google ID·지갑 프로젝트를 물려받지 않습니다. 시연 API도 별도 Google Web client ID 하나만 `GOOGLE_OAUTH_CLIENT_IDS`로 허용해야 합니다. Google 서명·발급자·대상·만료 검증을 통과해도 **그 사실만으로 초대된 사람은 아닙니다.**
 

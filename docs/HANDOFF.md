@@ -1,10 +1,12 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-26 KST
+마지막 갱신 시각: 2026-09-27 KST
 
-## 현재 GitHub·운영 상태 — 2026-09-26
+## 현재 GitHub·운영 상태 — 2026-09-27
 
-- 2026-09-26 시연 Android APK 빌드 경계는 [PR #173](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/173) merge `8d69c5b`, PR CI `36247822210`·main CI `36248205679` PASS다. 사용자 승인으로 시연 전용 서명 키를 Git 밖에 만들고 로컬 Keychain 비밀번호로 인증서를 열었다([D-035](DECISIONS.md)). Google Web/Android 전용 client와 OAuth 테스트 사용자 2명, Samsung SM-S928N ADB `device`, 실제 공개 ID·키 지문의 `scripts/build-showcase-apk.sh --check`를 확인했다([OAuth 준비 근거](evidence/showcase-oauth-2026-09-26.json)). 검사는 운영값·개발 DEMO·운영/디버그 키 재사용을 거절하지만 APK를 만들지는 않는다. 현재 브랜치 `feat/137-showcase-live`는 기존 Lightsail의 [비용·용량 사전검사](evidence/showcase-host-preflight-2026-09-26.json)와 비밀값 생성 경계를 준비 중이다. `demo-api.masscom.kr` HTTPS/초대 API·서명 APK·GitHub Release는 `BLOCKED/NOT_RUN`이며 키 백업은 미확인이다. 운영 API/DB·기존 키·운영 APK는 변경하지 않았다.
+- [PR #174](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/174) merge `7dba450`의 PR/main CI PASS 뒤, 기존 Lightsail의 별도 `/opt/masscom-showcase`에 그 커밋의 API를 배포했다. `runtime.env`는 Git 밖 mode 600이고 초대 해시 2개는 앞서 검증된 Google 로그인 subject에서 서버 내부에서만 산출했다. 별도 Compose `masscom-showcase`의 API/DB는 healthy이며 API host binding은 `127.0.0.1:3301`뿐이다. seed 3회 뒤 가상 점포/캠페인/목표 `3/3/9`, 시연 방문·identity·session `0/0/0`, 운영 DB 가상 점포 0, 운영 네 컨테이너 ID·재시작 횟수 불변, 운영 HTTPS health 200을 [내부 증거](evidence/showcase-internal-2026-09-27.json)에 기록했다. 현재 `feat/137-showcase-edge`는 전용 Docker edge/Caddy 코드와 시험을 준비 중이지만 **서버의 Caddy/DNS는 변경하지 않았다**. 실제 Google 초대 로그인·STAFF·외부 HTTPS·시연 서명 APK는 `NOT_RUN`이다.
+
+- 2026-09-26 시점: 시연 Android APK 빌드 경계는 [PR #173](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/173) merge `8d69c5b`, PR CI `36247822210`·main CI `36248205679` PASS다. 사용자 승인으로 시연 전용 서명 키를 Git 밖에 만들고 로컬 Keychain 비밀번호로 인증서를 열었다([D-035](DECISIONS.md)). Google Web/Android 전용 client와 OAuth 테스트 사용자 2명, Samsung SM-S928N ADB `device`, 실제 공개 ID·키 지문의 `scripts/build-showcase-apk.sh --check`를 확인했다([OAuth 준비 근거](evidence/showcase-oauth-2026-09-26.json)). 검사는 운영값·개발 DEMO·운영/디버그 키 재사용을 거절하지만 APK를 만들지는 않는다. 당시 브랜치 `feat/137-showcase-live`는 기존 Lightsail의 [비용·용량 사전검사](evidence/showcase-host-preflight-2026-09-26.json)와 비밀값 생성 경계를 준비했다. 키 백업은 미확인이고 운영 API/DB·기존 키·운영 APK는 변경하지 않았다.
 
 - D-034 www/apex 공존 코드는 [PR #169](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/169)로 병합했고 PR/main CI PASS, 기존 Lightsail에 merge `3c59ac0`을 배포했다. 정적 `/preview` 허용 목록, 호스트별 OAuth state·웹 세션, 정확한 Host·Origin 거부 경계를 구현했고 독립 리뷰의 지연 콜백 롤백 시험 지적을 수정했다([로컬 증거](evidence/www-web-local-2026-09-25.json)). 운영 DB 0016·0017 적용·기존 컨테이너 보존·백업, Google `www` 콜백 추가, 가비아 `www` A 전환, 공인 TLS와 시연 원본 바이트 일치까지 PASS. Samsung Chrome에서 www 실계정 1개의 빈 도감·재열기·로그아웃과 apex 세션 유지도 확인했다([전환 증거](evidence/www-web-cutover-2026-09-25.json)). www의 두 번째 계정·실제 기록이 있는 도감·시연 Android APK는 여전히 미완료다.
 

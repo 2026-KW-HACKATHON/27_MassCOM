@@ -87,8 +87,11 @@ jobs:
       - name: 시연 호스트 격리 설정 검사
         run: |
           bash tests/ops/prepare_showcase_runtime_test.sh
-          node --test tests/ops/verify_showcase_host_test.mjs
+          node --test tests/ops/verify_showcase_host_test.mjs tests/ops/verify_showcase_edge_routes_test.mjs
           node scripts/verify-showcase-host.mjs
+          docker run --rm -v "$PWD/infra/lightsail/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2.10.2-alpine caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile 2>/dev/null \
+            | node scripts/verify-showcase-edge-routes.mjs
       - name: 모바일 접근성 semantics 검사
         run: bash tests/mobile/check_accessibility_semantics_test.sh
       - name: Verify presentation and submission evidence

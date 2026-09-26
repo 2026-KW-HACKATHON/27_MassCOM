@@ -99,6 +99,8 @@ grep -q 'web_change_started=' "$scratch/remote.sh"
 grep -q 'service_snapshot api' "$scratch/remote.sh"
 grep -q 'service_snapshot postgres' "$scratch/remote.sh"
 grep -q 'probe_web_routes' "$scratch/remote.sh"
+grep -q 'docker network inspect -f.*masscom_showcase_edge' "$scratch/remote.sh"
+grep -q 'MASSCOM_SHOWCASE_API_DOMAIN=:8082' "$scratch/remote.sh"
 grep -qF 'web_collection_probe_response "http://$address/api/web/collection" masscom.kr' "$scratch/remote.sh"
 grep -q 'web_rollback' "$scratch/remote.sh"
 if grep -Eq 'compose_new (build|up).*\b(api|postgres|migrate)\b' "$scratch/remote.sh"; then

@@ -1,0 +1,49 @@
+{
+  "recordedAtUtc": "2026-09-26T15:29:17Z",
+  "sourceMainCommit": "7dba450fd25c9ed888c9bbeedac27ef90a27656d",
+  "mainCiRun": 36250730655,
+  "scope": "existing Lightsail internal loopback showcase API and separate PostgreSQL; no public route",
+  "sourcePackageLockDigestMatched": true,
+  "runtime": {
+    "pathOutsideOperatingRelease": true,
+    "mode": "600",
+    "dedicatedGoogleWebAudience": true,
+    "invitedVerifiedSubjectHashCount": 2,
+    "staffHashConfigured": false,
+    "secretValuesRecorded": false
+  },
+  "isolation": {
+    "composeProject": "masscom-showcase",
+    "network": "masscom-showcase_default",
+    "networkMembers": ["masscom-showcase-api-1", "masscom-showcase-postgres-1"],
+    "showcaseApiHostBinding": "127.0.0.1:3301",
+    "showcaseDatabaseHostPortPublished": false,
+    "operatingComposeChanged": false,
+    "operatingCaddyChanged": false
+  },
+  "checks": {
+    "showcaseHealth": "PASS",
+    "anonymousVirtualMerchantList": "PASS: 3/3 demo=true",
+    "seedRepeated": "PASS: 3 total executions, no duplicates",
+    "showcaseMerchants": 3,
+    "showcaseCampaigns": 3,
+    "showcaseGoals": 9,
+    "showcaseVisits": 0,
+    "showcaseIdentities": 0,
+    "showcaseSessions": 0,
+    "anonymousCollectionHttp": 401,
+    "invalidGoogleTokenHttp": 401,
+    "insecureDemoHeaderCollectionHttp": 401,
+    "identitiesAndSessionsAfterRejectedRequests": "0/0",
+    "operatingDemoMerchants": 0,
+    "operatingHealthHttp": 200,
+    "operatingTlsVerified": true,
+    "operatingContainerIdsAndRestartCountsUnchanged": true
+  },
+  "notRun": [
+    "real invited Google login and STAFF authorization",
+    "external demo-api.masscom.kr DNS and HTTPS",
+    "signed showcase APK and Android installation",
+    "public Caddy edge routing"
+  ]
+}

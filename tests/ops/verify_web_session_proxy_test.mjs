@@ -90,6 +90,7 @@ test('Caddy forwards only the four browser-session routes, preserving redirects 
     docker('run', '-d', '--rm', '--network', network, '--name', caddy,
       '-p', `127.0.0.1:${port}:8080`,
       '-e', 'MASSCOM_API_DOMAIN=:8081', '-e', 'MASSCOM_WEB_DOMAIN=:8080',
+      '-e', 'MASSCOM_SHOWCASE_API_DOMAIN=:8082',
       '-v', `${resolve(repoRoot, 'infra/lightsail/Caddyfile')}:/etc/caddy/Caddyfile:ro`,
       '-v', `${publicRoot}:/srv/masscom:ro`, 'caddy:2.10.2-alpine');
 
@@ -163,6 +164,7 @@ test('Caddy serves the same limited web surface for exact apex and www hosts', a
       '-p', `127.0.0.1:${port}:8080`,
       '-e', 'MASSCOM_API_DOMAIN=:8081',
       '-e', 'MASSCOM_WEB_DOMAIN=http://masscom.kr:8080, http://www.masscom.kr:8080',
+      '-e', 'MASSCOM_SHOWCASE_API_DOMAIN=:8082',
       '-v', `${resolve(repoRoot, 'infra/lightsail/Caddyfile')}:/etc/caddy/Caddyfile:ro`,
       '-v', `${publicRoot}:/srv/masscom:ro`, 'caddy:2.10.2-alpine');
     const url = `http://127.0.0.1:${port}`;

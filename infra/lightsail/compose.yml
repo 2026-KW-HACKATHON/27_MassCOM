@@ -116,6 +116,9 @@ services:
       - "80:80"
       - "443:443"
       - "443:443/udp"
+    networks:
+      default:
+      showcase_edge:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ../../site/public:/srv/masscom:ro
@@ -129,6 +132,11 @@ services:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+
+networks:
+  showcase_edge:
+    external: true
+    name: masscom_showcase_edge
 
 volumes:
   postgres_data:

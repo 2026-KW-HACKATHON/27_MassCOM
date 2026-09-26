@@ -186,6 +186,7 @@ service_snapshot() {
 }
 api_before="$(service_snapshot api)"
 db_before="$(service_snapshot postgres)"
+[[ "$(sudo docker network inspect -f '{{.Driver}}' masscom_showcase_edge)" == bridge ]]
 previous_web_id="$(service_id production-web)"
 if [[ -n "$previous_web_id" ]]; then
   [[ "$previous_web_id" != *$'\n'* ]]
@@ -205,6 +206,7 @@ probe_web_routes() {
     --name "masscom-web-probe-$web_tag-$$" \
     --network masscom_default \
     -e MASSCOM_API_DOMAIN=:8081 -e MASSCOM_WEB_DOMAIN=:8080 \
+    -e MASSCOM_SHOWCASE_API_DOMAIN=:8082 \
     -p 127.0.0.1::8080 \
     -v "$release/infra/lightsail/Caddyfile:/etc/caddy/Caddyfile:ro" \
     -v "$release/site/public:/srv/masscom:ro" \
