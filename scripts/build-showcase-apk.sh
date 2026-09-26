@@ -35,7 +35,11 @@ esac
 keystore_dir="$(cd -P "$(dirname "$keystore")" && pwd -P)"
 [[ "$keystore_dir/$(basename "$keystore")" != "$repo_root"/* ]] ||
   fail 'showcase-only keystore must stay outside the repository'
-keystore_mode="$(stat -f '%Lp' "$keystore" 2>/dev/null || stat -c '%a' "$keystore")"
+keystore_mode="$(stat -c '%a' "$keystore" 2>/dev/null || true)"
+if [[ ! "$keystore_mode" =~ ^[0-9]{3,4}$ ]]; then
+  keystore_mode="$(stat -f '%Lp' "$keystore" 2>/dev/null)" ||
+    fail 'could not inspect showcase keystore permissions'
+fi
 [[ "$keystore_mode" == 400 || "$keystore_mode" == 600 ]] ||
   fail 'showcase keystore must have mode 400 or 600'
 alias_name="${MASSCOM_SHOWCASE_KEY_ALIAS:-}"

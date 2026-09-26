@@ -65,6 +65,20 @@ result="$(env -u EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID -u EXPO_PUBLIC_REOWN_PROJECT_I
   exit 1
 }
 
+mkdir "$scratch/bin"
+printf '%s\n' \
+  '#!/bin/sh' \
+  'if [ "$1" = "-c" ]; then echo 600; exit 0; fi' \
+  'if [ "$1" = "-f" ]; then echo "GNU filesystem data"; exit 0; fi' \
+  'exit 1' > "$scratch/bin/stat"
+chmod +x "$scratch/bin/stat"
+result="$(env -u EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID -u EXPO_PUBLIC_REOWN_PROJECT_ID \
+  PATH="$scratch/bin:$PATH" "${common[@]}" bash "$builder" --check)"
+[[ "$result" == *'local showcase APK preflight PASS'* ]] || {
+  echo 'GNU stat filesystem output was mistaken for a permission mode' >&2
+  exit 1
+}
+
 expect_rejected 'operating Google audience' 'dedicated Google Web client' \
   MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID=456-operating.apps.googleusercontent.com
 expect_rejected 'inherited operating audience' 'showcase build rejects EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID' \
