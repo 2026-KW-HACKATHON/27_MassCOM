@@ -11,7 +11,7 @@ const keysAre = (value, expected) =>
 
 export function validateShowcaseHostCompose(config, options = {}) {
   requireSafe(config?.name === 'masscom-showcase');
-  requireSafe(keysAre(config.services, ['api', 'migrate', 'postgres']));
+  requireSafe(keysAre(config.services, ['showcase-api', 'migrate', 'postgres']));
   requireSafe(keysAre(config.networks, ['default', 'edge']));
   requireSafe(config.networks.default.name === 'masscom-showcase_default');
   requireSafe(config.networks.default.external !== true);
@@ -23,7 +23,8 @@ export function validateShowcaseHostCompose(config, options = {}) {
   requireSafe(config.volumes.postgres_data.name === 'masscom-showcase_postgres_data');
   requireSafe(!config.volumes.postgres_data.driver_opts);
 
-  const { api, migrate, postgres } = config.services;
+  const { migrate, postgres } = config.services;
+  const api = config.services['showcase-api'];
   for (const entry of [api, migrate, postgres]) {
     requireSafe(entry.security_opt?.includes('no-new-privileges:true'));
     requireSafe(!entry.network_mode && !entry.privileged && !entry.volumes_from);
@@ -32,9 +33,7 @@ export function validateShowcaseHostCompose(config, options = {}) {
   requireSafe(keysAre(api.networks, ['default', 'edge']));
   requireSafe(keysAre(migrate.networks, ['default']));
   requireSafe(keysAre(postgres.networks, ['default']));
-  requireSafe(keysAre(api.networks.edge, ['aliases']));
-  requireSafe(api.networks.edge.aliases?.length === 1 &&
-    api.networks.edge.aliases[0] === 'showcase-api');
+  requireSafe(api.networks.edge === null || keysAre(api.networks.edge, []));
   requireSafe(api.read_only === true && migrate.read_only === true);
   requireSafe((postgres.ports ?? []).length === 0 && (migrate.ports ?? []).length === 0);
   requireSafe(api.ports?.length === 1);

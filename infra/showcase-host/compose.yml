@@ -33,7 +33,7 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  api:
+  showcase-api:
     image: masscom-showcase-api:${MASSCOM_SHOWCASE_IMAGE_TAG:-local}
     build:
       context: ../..
@@ -60,8 +60,6 @@ services:
     networks:
       default:
       edge:
-        aliases:
-          - showcase-api
     depends_on:
       migrate:
         condition: service_completed_successfully

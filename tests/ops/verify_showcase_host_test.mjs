@@ -21,7 +21,7 @@ function safeConfig() {
         environment: { DATABASE_URL: databaseUrl, PGPASSWORD: password },
         depends_on: { postgres: { condition: 'service_healthy' } },
       }),
-      api: service({
+      'showcase-api': service({
         image: 'masscom-showcase-api:local', read_only: true,
         environment: {
           NODE_ENV: 'production', API_BIND_HOST: '0.0.0.0', PORT: '3000',
@@ -35,7 +35,7 @@ function safeConfig() {
         },
         depends_on: { migrate: { condition: 'service_completed_successfully' } },
         ports: [structuredClone(port)],
-        networks: { default: null, edge: { aliases: ['showcase-api'] } },
+        networks: { default: null, edge: null },
       }),
     },
     networks: {
@@ -51,20 +51,21 @@ test('independent hosted showcase config is accepted', () => {
 });
 
 test('operating namespace, public ports, demo auth, and worker injection are refused', () => {
+  const demoApi = (config) => config.services['showcase-api'];
   const mutations = [
     (config) => { config.name = 'masscom'; },
     (config) => { config.volumes.postgres_data.name = 'masscom_postgres_data'; },
     (config) => { config.services.postgres.environment.POSTGRES_DB = 'masscom'; },
-    (config) => { config.services.api.environment.DATABASE_URL = 'postgresql://masscom@postgres:5432/masscom'; },
-    (config) => { config.services.api.ports[0].host_ip = '0.0.0.0'; },
+    (config) => { demoApi(config).environment.DATABASE_URL = 'postgresql://masscom@postgres:5432/masscom'; },
+    (config) => { demoApi(config).ports[0].host_ip = '0.0.0.0'; },
     (config) => { config.services.postgres.ports = [{ target: 5432, published: '5432', host_ip: '0.0.0.0', protocol: 'tcp' }]; },
-    (config) => { config.services.api.environment.ALLOW_INSECURE_DEMO_ACCOUNT = 'true'; },
-    (config) => { config.services.api.environment.SHOWCASE_MODE = 'false'; },
-    (config) => { config.services.api.environment.GOOGLE_OAUTH_CLIENT_IDS = ''; },
-    (config) => { config.services.api.environment.SHOWCASE_INVITED_SUBJECT_SHA256 = ''; },
-    (config) => { Reflect.set(config.services.api.environment, 'ACCOUNT_DELETION_HMAC_SECRET', 'short'); },
-    (config) => { Reflect.set(config.services.api.environment, 'MERCHANT_REFERENCE_HMAC_SECRET', 'short'); },
-    (config) => { Reflect.set(config.services.api.environment, 'MERCHANT_REFERENCE_HMAC_SECRET', config.services.api.environment.ACCOUNT_DELETION_HMAC_SECRET); },
+    (config) => { demoApi(config).environment.ALLOW_INSECURE_DEMO_ACCOUNT = 'true'; },
+    (config) => { demoApi(config).environment.SHOWCASE_MODE = 'false'; },
+    (config) => { demoApi(config).environment.GOOGLE_OAUTH_CLIENT_IDS = ''; },
+    (config) => { demoApi(config).environment.SHOWCASE_INVITED_SUBJECT_SHA256 = ''; },
+    (config) => { Reflect.set(demoApi(config).environment, 'ACCOUNT_DELETION_HMAC_SECRET', 'short'); },
+    (config) => { Reflect.set(demoApi(config).environment, 'MERCHANT_REFERENCE_HMAC_SECRET', 'short'); },
+    (config) => { Reflect.set(demoApi(config).environment, 'MERCHANT_REFERENCE_HMAC_SECRET', demoApi(config).environment.ACCOUNT_DELETION_HMAC_SECRET); },
     (config) => { config.services.worker = {}; },
     (config) => { config.networks.default.external = true; },
     (config) => { config.networks.edge.external = false; },
@@ -72,9 +73,10 @@ test('operating namespace, public ports, demo auth, and worker injection are ref
     (config) => { config.networks.edge.ipam = { config: [{ subnet: '10.20.0.0/24' }] }; },
     (config) => { config.services.postgres.networks.edge = null; },
     (config) => { config.services.migrate.networks.edge = null; },
-    (config) => { config.services.api.networks.edge.aliases = ['api']; },
-    (config) => { config.services.api.environment.AUTH_TRUST_CADDY_FORWARDED_FOR = 'false'; },
-    (config) => { config.services.api.networks = { operating: null }; },
+    (config) => { demoApi(config).networks.edge = { aliases: ['api'] }; },
+    (config) => { demoApi(config).environment.AUTH_TRUST_CADDY_FORWARDED_FOR = 'false'; },
+    (config) => { demoApi(config).networks = { operating: null }; },
+    (config) => { config.services.api = demoApi(config); delete config.services['showcase-api']; },
     (config) => { config.services.postgres.volumes[0].type = 'bind'; },
   ];
   for (const mutate of mutations) {

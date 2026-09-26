@@ -89,6 +89,7 @@ jobs:
           bash tests/ops/prepare_showcase_runtime_test.sh
           node --test tests/ops/verify_showcase_host_test.mjs tests/ops/verify_showcase_edge_routes_test.mjs
           node scripts/verify-showcase-host.mjs
+          node --test tests/ops/verify_showcase_edge_runtime_test.mjs
           docker run --rm -v "$PWD/infra/lightsail/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.10.2-alpine caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile 2>/dev/null \
             | node scripts/verify-showcase-edge-routes.mjs
