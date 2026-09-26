@@ -12,7 +12,7 @@
 
 공개 `demo-api.masscom.kr` 연결·Caddy 변경·Android APK는 [외부 시연 전달 계획](../../docs/superpowers/plans/2026-09-24-issue137-showcase-delivery.md)의 후속 게이트다. 실패 시 시연 Compose만 중지하고 운영 health를 다시 확인한다. 볼륨 삭제·운영 자료 변경은 이 절차에 포함하지 않는다.
 
-**다음 행동:** 실제 두 계정의 초대 로그인·STAFF 권한·계정 격리를 내부 연결에서 확인한다. Caddy edge 네트워크·DNS·TLS·되돌리기 시험을 통과하기 전에는 공개 라우팅을 추가하지 않는다. 운영 컨테이너 ID·건강 상태는 내부 기동 전후 동일했습니다.
+**다음 행동:** 두 계정의 내부 로그인 200/200, 비초대 유효 토큰 403, 가상 A점포 STAFF 1계정과 고객 발급→수령→도감·재수령 효과 1회는 [내부 실증](../../docs/evidence/showcase-internal-auth-claim-2026-09-27.json)했습니다. 운영 audience의 실제 교차 거절·기록 있는 두 고객 계정 분리, Caddy edge·DNS·TLS·되돌리기 시험 전에는 공개 라우팅을 추가하지 않습니다. 운영 컨테이너 ID·건강 상태는 내부 기동 전후 동일했습니다.
 
 ## 공개 edge 연결 게이트 — 아직 실행하지 않음
 

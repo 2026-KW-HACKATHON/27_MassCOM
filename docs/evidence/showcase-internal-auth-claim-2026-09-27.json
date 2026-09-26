@@ -1,0 +1,54 @@
+{
+  "recordedAtUtc": "2026-09-26T16:15:39Z",
+  "environment": "existing Lightsail showcase API/DB through Mac SSH localhost tunnel; not public HTTPS or Android APK",
+  "sourceCommit": "7dba450fd25c9ed888c9bbeedac27ef90a27656d",
+  "google": {
+    "dedicatedWebAudience": true,
+    "authorizedLocalOrigin": "http://localhost:4175",
+    "distinctRealTestAccounts": 2,
+    "invitedLoginHttp": [200, 200],
+    "temporaryOneInviteApi": {
+      "excludedSecondAccountHttp": 403,
+      "errorCode": "INVITE_REQUIRED",
+      "identityAndSessionTotalsBeforeAndAfter": "2/2 -> 2/2",
+      "temporaryProcessAndTunnelStopped": true
+    },
+    "idTokensOrSessionTokensRecorded": false
+  },
+  "merchantPermission": {
+    "firstAccountContextHttp": 200,
+    "secondAccountContextHttp": 403,
+    "firstAccountEmptyIssueHttp": 400,
+    "secondAccountEmptyIssueHttp": 403,
+    "claimSlotsAfterEmptyRequests": 0,
+    "staffMembershipCount": 1
+  },
+  "virtualClaim": {
+    "merchant": "가상 점포 A",
+    "actualVisitOrSale": false,
+    "staffIssueHttp": 201,
+    "customerPreviewHttp": 200,
+    "customerRedeemHttp": 200,
+    "sameCodeReplayHttp": 200,
+    "firstReplayFlag": false,
+    "secondReplayFlag": true,
+    "customerVisits": 1,
+    "customerAppCollectibles": 1,
+    "staffVisits": 0,
+    "staffAppCollectibles": 0,
+    "databaseClaimSlots": 1,
+    "databaseVisitEvents": 1,
+    "databaseRewardEntitlements": 1,
+    "databaseMintJobs": 0,
+    "operatingDemoMerchants": 0,
+    "activeTestSessionsAfterCleanup": 0,
+    "claimTokenAndMerchantReferenceRecorded": false
+  },
+  "remainingNotRun": [
+    "valid Google token for operating audience rejected by showcase API",
+    "external DNS and HTTPS",
+    "Android camera QR and signed showcase APK installation",
+    "second customer with nonempty collection",
+    "on-chain NFT mint"
+  ]
+}
