@@ -86,6 +86,7 @@ jobs:
           node scripts/verify-showcase-local.mjs
       - name: 시연 호스트 격리 설정 검사
         run: |
+          bash tests/ops/prepare_showcase_runtime_test.sh
           node --test tests/ops/verify_showcase_host_test.mjs
           node scripts/verify-showcase-host.mjs
       - name: 모바일 접근성 semantics 검사

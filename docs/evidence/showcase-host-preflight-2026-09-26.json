@@ -1,0 +1,31 @@
+{
+  "recordedAtUtc": "2026-09-26T14:47:12Z",
+  "scope": "existing Lightsail masscom-api-seoul read-only preflight; showcase stack not deployed",
+  "billing": {
+    "newResourceCreated": false,
+    "activeCredit": true,
+    "lightsailEligible": true,
+    "creditExpiresOn": "2027-04-29",
+    "estimatedRemainingAmountStoredInGit": false
+  },
+  "host": {
+    "memoryTotalMiB": 1906,
+    "memoryAvailableMiB": 1227,
+    "rootDiskTotalGiB": 58,
+    "rootDiskAvailableGiB": 53,
+    "operatingContainers": {
+      "caddy": { "id": "0431ca43d95b37fb5c20e66e9834e9171a14da071e68e3a1bd6ed724b953ea72", "running": true, "restarts": 0 },
+      "api": { "id": "4c778637be1ba0d9f61de0fd8621308fd196e804e4a7b8363ee6dad2ffe72d1d", "running": true, "restarts": 0 },
+      "postgres": { "id": "e0d14fb7c8034d7509dee440b8644adf6de848a478f259fc524d3337086d4827", "running": true, "restarts": 0 },
+      "productionWeb": { "id": "14f00e560df795fceca595e656529112aaf7be584199ef8cf4d7acafcd1a5c53", "running": true, "restarts": 0 }
+    }
+  },
+  "operatingApi": { "healthHttp": 200, "tlsVerified": true },
+  "showcaseApi": { "dnsResolved": false, "externalHttps": "NOT_RUN", "databaseDeployed": false },
+  "commands": [
+    "ssh masscom 'free -m; df -h /; sudo docker inspect ...'",
+    "curl https://api.masscom.kr/health",
+    "dig +short demo-api.masscom.kr A",
+    "AWS Billing > Credits read-only view"
+  ]
+}
