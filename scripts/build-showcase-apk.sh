@@ -68,7 +68,7 @@ mkdir -p "$artifacts"
 mkdir "$lock_path" 2>/dev/null || fail 'another showcase APK build is already running'
 staging=''
 cleanup_build() {
-  unset store_password key_password
+  unset store_password key_password MASSCOM_SHOWCASE_STORE_PASSWORD MASSCOM_SHOWCASE_KEY_PASSWORD
   if [[ -n "$staging" && -d "$staging" ]]; then
     echo "staged APK evidence remains at $staging" >&2
   fi
@@ -115,19 +115,26 @@ printf '\n'
 [[ -n "$store_password" ]] || fail 'showcase keystore password is required'
 key_password="${key_password:-$store_password}"
 
-fingerprint="$(MASSCOM_SHOWCASE_STORE_PASSWORD="$store_password" \
-  keytool -J-Duser.language=en -list -v -keystore "$keystore" -alias "$alias_name" \
+set_signing_environment() {
+  printf -v MASSCOM_SHOWCASE_STORE_PASSWORD '%s' "$store_password"
+  printf -v MASSCOM_SHOWCASE_KEY_PASSWORD '%s' "$key_password"
+  export MASSCOM_SHOWCASE_STORE_PASSWORD MASSCOM_SHOWCASE_KEY_PASSWORD
+}
+
+set_signing_environment
+fingerprint="$(keytool -J-Duser.language=en -list -v -keystore "$keystore" -alias "$alias_name" \
   -storepass:env MASSCOM_SHOWCASE_STORE_PASSWORD 2>/dev/null \
   | sed -n 's/.*SHA256: *//p' | head -1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
 [[ "$fingerprint" == "$certificate" ]] || fail 'showcase keystore certificate does not match the approved SHA-256 pin'
+unset MASSCOM_SHOWCASE_STORE_PASSWORD MASSCOM_SHOWCASE_KEY_PASSWORD
 
 cd "$mobile_dir"
 CI=1 EXPO_NO_DOTENV=1 APP_VARIANT=showcase MASSCOM_BUILD_SOURCE_COMMIT="$commit" \
   MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID="$showcase_client" \
   EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
   npx --no-install expo prebuild --platform android --clean --no-install
-MASSCOM_SHOWCASE_STORE_PASSWORD="$store_password" MASSCOM_SHOWCASE_KEY_PASSWORD="$key_password" \
-  MASSCOM_SHOWCASE_KEYSTORE_FILE="$keystore" MASSCOM_SHOWCASE_KEY_ALIAS="$alias_name" \
+set_signing_environment
+MASSCOM_SHOWCASE_KEYSTORE_FILE="$keystore" MASSCOM_SHOWCASE_KEY_ALIAS="$alias_name" \
   CI=1 NODE_ENV=production EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
   MASSCOM_BUILD_SOURCE_COMMIT="$commit" MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID="$showcase_client" \
   EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
@@ -146,7 +153,7 @@ const result = spawnSync('./gradlew', ['assembleRelease', 'bundleRelease', '--co
 });
 process.exit(result.status ?? 1);
 NODE
-unset store_password key_password
+unset store_password key_password MASSCOM_SHOWCASE_STORE_PASSWORD MASSCOM_SHOWCASE_KEY_PASSWORD
 
 [[ "$(git -C "$repo_root" rev-parse HEAD)" == "$commit" &&
    -z "$(git -C "$repo_root" status --porcelain --untracked-files=normal)" ]] ||

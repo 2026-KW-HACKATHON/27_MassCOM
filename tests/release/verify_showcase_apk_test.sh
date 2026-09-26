@@ -95,6 +95,10 @@ expect_rejected 'symlink keystore' 'showcase-only keystore is required' \
   echo 'showcase --check unexpectedly created a native Android project' >&2
   exit 1
 }
+bash "$repo_root/scripts/check-secrets.sh" "$builder" >/dev/null || {
+  echo 'showcase builder is rejected by repository secret scanning' >&2
+  exit 1
+}
 mkdir "$repo_root/apps/mobile/android"
 created_android=true
 expect_build_rejected 'existing native project' 'existing native Android project must not be overwritten'
