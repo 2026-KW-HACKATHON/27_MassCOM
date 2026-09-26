@@ -100,6 +100,14 @@ expect_rejected 'missing keystore' 'showcase-only keystore is required' \
 expect_rejected 'unsupported Keychain mode' 'showcase Keychain mode must be 1' \
   MASSCOM_SHOWCASE_USE_KEYCHAIN=unexpected
 
+trace_status=0
+trace_output="$(env -u EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID -u EXPO_PUBLIC_REOWN_PROJECT_ID \
+  "${common[@]}" bash -x "$builder" --check 2>&1)" || trace_status=$?
+[[ "$trace_status" != 0 && "$trace_output" == *'showcase signing refuses shell tracing'* ]] || {
+  echo 'showcase builder did not refuse shell tracing' >&2
+  exit 1
+}
+
 chmod 644 "$key"
 expect_rejected 'readable keystore' 'showcase keystore must have mode 400 or 600'
 chmod 600 "$key"

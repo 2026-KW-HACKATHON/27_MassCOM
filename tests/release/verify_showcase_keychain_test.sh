@@ -37,4 +37,14 @@ for mode in empty fail; do
   fi
 done
 
+trace_status=0
+trace_output="$(PATH="$scratch/bin:$PATH" MOCK_KEYCHAIN_RESULT=present bash -ex -c '
+  source "$1"
+  load_showcase_keychain_password
+' bash "$helper" 2>&1)" || trace_status=$?
+[[ "$trace_status" != 0 && "$trace_output" != *fixture-secret* ]] || {
+  echo 'shell tracing could expose the showcase Keychain password' >&2
+  exit 1
+}
+
 echo 'showcase Keychain password boundary verified'

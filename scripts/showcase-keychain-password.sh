@@ -2,6 +2,10 @@
 # Source from the showcase builder. Never print or persist the retrieved value.
 
 load_showcase_keychain_password() {
+  [[ "$-" != *x* ]] || {
+    echo 'showcase Keychain refuses shell tracing' >&2
+    return 1
+  }
   local retrieved
   retrieved="$(security find-generic-password \
     -s masscom-showcase-upload-keystore -a masscom-showcase-upload -w 2>/dev/null)" || {

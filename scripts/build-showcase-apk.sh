@@ -11,6 +11,7 @@ mode="${1:---build}"
 }
 
 fail() { echo "$*" >&2; exit 1; }
+[[ "$-" != *x* ]] || fail 'showcase signing refuses shell tracing'
 
 showcase_client="${MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID:-}"
 operating_client="${MASSCOM_OPERATING_GOOGLE_WEB_CLIENT_ID:-}"
