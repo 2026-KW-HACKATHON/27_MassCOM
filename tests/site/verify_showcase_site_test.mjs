@@ -58,13 +58,31 @@ test('실제 시연 웹은 서로 다른 가상 점포 세 곳을 표시한다',
   assert.match(html, /실제 영업점이나 방문 혜택과 연결되지 않습니다/);
 });
 
-test('README는 읽기 전용 시연 웹과 별도 설치 APK 및 미검증 수령을 구분한다', () => {
+test('README는 시연 웹과 APK의 직접 코드 수령 및 미실행 QR 촬영을 구분한다', () => {
   const readme = readFileSync(join(repo, 'README.md'), 'utf8');
   assert.ok(readme.includes('apps/showcase-web'));
   assert.ok(readme.includes('https://www.masscom.kr/preview/'));
   assert.ok(readme.includes('시연 Android 앱'));
   assert.ok(readme.includes('https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1'));
-  assert.ok(readme.includes('고객 QR 수령·지갑·NFT는 미검증'));
+  assert.ok(readme.includes('두 계정의 폰 직접 코드 수령·중복 거절 확인'));
+  assert.ok(readme.includes('카메라 QR 촬영 수령·지갑·NFT는 미검증'));
+});
+
+test('README의 콘셉트 배너와 실제 폰 화면 네 장은 저장소 PNG를 가리킨다', () => {
+  const readme = readFileSync(join(repo, 'README.md'), 'utf8');
+  const assets = [
+    'docs/assets/readme/hero.png',
+    ...['role', 'discovery', 'collection', 'recommendations']
+      .map((name) => `docs/evidence/readme-showcase-2026-09-27/${name}.png`),
+  ];
+  for (const asset of assets) {
+    assert.ok(readme.includes(`src="${asset}"`), asset);
+    const image = readFileSync(join(repo, asset));
+    assert.equal(image.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', asset);
+    assert.ok(image.readUInt32BE(16) >= 1080 && image.readUInt32BE(20) >= 700, asset);
+  }
+  assert.ok(readme.includes('배너는 콘셉트 일러스트입니다'));
+  assert.ok(readme.includes('기획 목업이 아닙니다'));
 });
 
 for (const [name, oldText, replacement, expectedError, file = 'index.html'] of [

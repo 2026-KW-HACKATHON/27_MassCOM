@@ -1,6 +1,6 @@
 # 시연 API·DB 호스트
 
-현재 상태: 별도 Compose·DB의 가상 점포 A/B/C와 실제 두 계정의 내부 초대 로그인·가상 수령·운영 audience 거절을 확인했다([내부 증거](../../docs/evidence/showcase-internal-auth-claim-2026-09-27.json)). [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) 병합·CI 후 기존 AWS 호스트에서 Caddy만 재생성해 **[공개 `demo-api.masscom.kr` HTTPS](https://demo-api.masscom.kr/health)**와 운영 API/웹 보존을 [실측](../../docs/evidence/showcase-public-edge-2026-09-27.json)했다. [서명 Android 시연 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)와 폰 로그인·STAFF 발급은 확인했지만 고객 QR 수령·외부 지갑은 아직 미검증이다([폰 증거](../../docs/evidence/showcase-android-apk-2026-09-27.json)).
+현재 상태: 별도 Compose·DB의 가상 점포 A/B/C와 실제 두 계정의 내부 초대 로그인·가상 수령·운영 audience 거절을 확인했다([내부 증거](../../docs/evidence/showcase-internal-auth-claim-2026-09-27.json)). [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) 병합·CI 후 기존 AWS 호스트에서 Caddy만 재생성해 **[공개 `demo-api.masscom.kr` HTTPS](https://demo-api.masscom.kr/health)**와 운영 API/웹 보존을 [실측](../../docs/evidence/showcase-public-edge-2026-09-27.json)했다. [서명 Android 시연 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)의 [두 계정 직접 코드 수령·재입력 거절](../../docs/evidence/showcase-two-account-phone-2026-09-27.json)은 PASS, 카메라 QR 촬영 수령·외부 지갑은 미검증이다.
 
 ## 실행 순서
 
@@ -12,7 +12,7 @@
 
 아래는 첫 배포 때 적용한 순서와 복구 절차입니다. `demo-api.masscom.kr` 연결·Caddy 변경은 [공개 실측](../../docs/evidence/showcase-public-edge-2026-09-27.json)에서, Android APK 설치·로그인은 [폰 실증](../../docs/evidence/showcase-android-apk-2026-09-27.json)에서 PASS입니다. 고객 QR 수령은 후속 게이트입니다. 실패 시 운영 Caddy의 이전 Compose/Caddyfile 마운트로 복귀한 뒤 운영 health를 확인합니다. 볼륨 삭제·운영 자료 변경은 이 절차에 포함하지 않습니다.
 
-**다음 행동:** 설치·로그인·가상 점포·카메라·점주 발급과 GitHub 재다운로드 해시는 [폰 증거](../../docs/evidence/showcase-android-apk-2026-09-27.json)에서 PASS입니다. 고객의 실제 폰 QR 수령→도감·중복 거절, 기록 있는 두 고객 계정의 분리·실제 롤백 실행은 후속 `NOT_RUN`입니다.
+**다음 행동:** 설치·두 계정 로그인·가상 점포·카메라 미리보기·점주 발급→고객 직접 코드 수령·도감·중복 거절과 GitHub 재다운로드 해시는 [폰 증거](../../docs/evidence/showcase-two-account-phone-2026-09-27.json)에서 PASS입니다. 카메라로 QR을 촬영하는 경로, 기록 있는 두 **고객** 계정 사이의 분리·실제 롤백 실행은 후속 `NOT_RUN`입니다.
 
 ## 공개 edge 연결·복구 게이트 — 첫 적용 완료
 

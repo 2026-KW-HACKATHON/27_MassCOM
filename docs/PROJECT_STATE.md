@@ -4,6 +4,10 @@
 
 ## 최신 작업 경계
 
+- **두 계정 폰 실기 판정:** [시연 APK·폰·DB 근거](evidence/showcase-two-account-phone-2026-09-27.json)에서 STAFF 발급→다른 초대 Google 계정의 직접 코드 미리보기·수령→도감 방문 2/앱 수집품1/NFT0→같은 코드 재입력 추가 효과 0을 확인했다. 운영 DB 가상 점포 0, 시연 DB 방문 2·보상권 1·mint 0이다. 실제 카메라 QR 촬영 수령·시연 앱 별도 지갑·App Link·NFT는 `NOT_RUN`, Issue #137은 OPEN이다. README는 콘셉트 일러스트와 실제 폰 화면을 구분하고 최신 검증을 우선 표기한다.
+
+### 아래 한 항목은 시연 APK 첫 릴리스 시점의 기록
+
 - **현재 시연 앱 판정:** [PR #177](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/177) merge `74d9eb1`·PR/main CI PASS와 [Samsung 실기](evidence/showcase-android-apk-2026-09-27.json) 뒤 별도 서명 APK를 [private Preview 1 Release](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)에 게시했다. GitHub 재다운로드 SHA-256/바이트 대조, 운영 앱 동시 설치, 전용 Google 로그인, 가상 점포 3곳·도감·QR 카메라·점주 STAFF 발급 PASS. 실제 고객 폰의 QR 촬영→수령·계정별 도감 격리와 시연 App Link/지갑/NFT는 `NOT_RUN`, Issue #137은 OPEN. 가상 발급을 실제 방문·매출·NFT로 기록하지 않는다.
 
 ### 아래 한 항목은 APK 전 단계의 당시 기록
