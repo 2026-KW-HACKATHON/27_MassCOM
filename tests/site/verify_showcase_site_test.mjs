@@ -58,12 +58,13 @@ test('실제 시연 웹은 서로 다른 가상 점포 세 곳을 표시한다',
   assert.match(html, /실제 영업점이나 방문 혜택과 연결되지 않습니다/);
 });
 
-test('README는 www 시연 웹과 미배포 시연 Android APK를 구분한다', () => {
+test('README는 읽기 전용 시연 웹과 별도 설치 APK 및 미검증 수령을 구분한다', () => {
   const readme = readFileSync(join(repo, 'README.md'), 'utf8');
   assert.ok(readme.includes('apps/showcase-web'));
   assert.ok(readme.includes('https://www.masscom.kr/preview/'));
   assert.ok(readme.includes('시연 Android 앱'));
-  assert.ok(readme.includes('APK·Release 태그 없음'));
+  assert.ok(readme.includes('https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1'));
+  assert.ok(readme.includes('고객 QR 수령·지갑·NFT는 미검증'));
 });
 
 for (const [name, oldText, replacement, expectedError, file = 'index.html'] of [
