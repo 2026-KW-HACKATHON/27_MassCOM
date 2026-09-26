@@ -47,7 +47,7 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole }:
       <Text style={styles.eyebrow}>{accountContextLabel(Application.applicationId)}</Text>
       <Text selectable style={styles.title}>방문 기록을 안전하게{`\n`}이어서 확인합니다.</Text>
       <Text selectable style={styles.body}>
-        Google 계정으로 로그인하면 안전한 로그인 정보만 기기에 보관해요. 지갑이 없어도 음식점 탐색과 방문 도감은 사용할 수 있어요.
+        Google 계정으로 로그인하면 로그인 후 서버가 발급한 보안 토큰만 기기의 보안 저장소에 보관해요. 지갑이 없어도 음식점 탐색과 방문 도감은 사용할 수 있어요.
       </Text>
 
       <View accessibilityLiveRegion="polite" style={styles.statusCard}>

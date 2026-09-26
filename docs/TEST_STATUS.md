@@ -1,5 +1,7 @@
 # 테스트 상태
 
+2026-09-27 Issue #183 앱 문구·제목 크기 정리: 탐색·추천 제목 25pt, 역할 선택 32pt, 개발자 말투 문구 9곳을 해요체로 교체(사실 유지). 모바일 197/197·typecheck·lint·Android JS export·접근성 semantics PASS. 바뀐 화면의 실기 캡처는 시연 APK 재빌드 뒤 기록하며 현재 `NOT_RUN`. 필수 36개 판정 변화 없음.
+
 2026-09-27 Issue #181 문서·규칙 정합: 필수 36개 시험 ID와 판정(31 PASS·2 BLOCKED·3 NOT_RUN)은 변경 없음. 새 `tools/gate.sh`(비밀값·bootstrap·운영 문서·증거 정합) 로컬 PASS, 전체 판정은 PR CI를 따른다.
 
 2026-09-27 Issue #137 [두 초대 계정 시연 APK 폰 수령 실증](evidence/showcase-two-account-phone-2026-09-27.json): Samsung SM-S928N Android 16의 private `.demo` APK(source `c53c199`)에서 STAFF 계정이 가상 A점포 권한 확인 뒤 다른 초대 계정 앞으로 새 1회 코드를 발급했다. 폰 계정 선택 목록을 내려 고객 계정에 실제 로그인했고, 기존 고객 도감 1방문/앱 수집품1/NFT0과 STAFF 도감 0/0/0 분리를 확인했다. 고객이 **코드를 직접 입력**해 미리보기·방문 수령 후 도감은 2방문/앱 수집품1/NFT0, DB 슬롯 2→3·방문 1→2·보상권 1→1·mint job 0→0이었다. 같은 한국 날짜의 두 번째 방문이라 보상 진행은 추가되지 않았다. 같은 코드를 다시 확인하자 사용 불가/이미 사용 안내가 표시됐고 DB 효과는 0이었다. 운영 DB 가상 점포는 0, 시연 HTTPS health 200/TLS 정상. 계정 ID·세션·일회용 코드 원문은 증거/Git에 남기지 않았고 임시 진단 파일은 폰과 Mac에서 삭제했다. **실제 카메라 QR 촬영→수령, 별도 시연 지갑·App Link·NFT는 `NOT_RUN`**. 필수 36개 제품 시험 ID를 이 범위만으로 임의 승격하지 않는다.
