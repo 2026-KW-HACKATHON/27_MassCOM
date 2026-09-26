@@ -23,6 +23,8 @@ android/app/build/
 .omx/
 .omc/
 .serena/
+.superpowers/
+.worktrees/
 .sites-runtime/
 
 # IDE and operating system
