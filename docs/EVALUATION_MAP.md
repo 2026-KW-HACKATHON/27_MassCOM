@@ -23,6 +23,8 @@ Phase 2 핵심 loopback DEMO와 Phase 3 Local Anvil 발행·복구 흐름은 구
 
 ## Issue #137 로컬 가상 방문 순환 증거
 
+- **중간 기획 재현성·최종 구현 완성도:** [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) merge·CI 후 [공개 시연 API HTTPS·운영 분리 증거](evidence/showcase-public-edge-2026-09-27.json)에서 가상 점포 A/B/C 3곳, 시연/운영 API 응답 분리, 운영 API/DB/웹 컨테이너 보존을 확인했다. 이는 실제 모바일 앱 설치·카메라 QR·현장 식당 실증이나 NFT 발행 증거는 아니다.
+
 - **중간 기획 재현성·최종 구현 완성도:** [Issue #137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)의 외부 시연 준비에서는 기존 Lightsail의 운영과 분리된 내부 API/DB에 가상 A/B/C를 올리고, 실제 Google 시험 계정 두 개의 초대 로그인과 STAFF 권한 분리·가상 A점포 발급→고객 수령→도감·중복 효과 1회를 [내부 API 증거](evidence/showcase-internal-auth-claim-2026-09-27.json)로 확인했다. 이는 SSH 터널 내부 테스트이며 공개 HTTPS·시연 APK/카메라 QR·현장 점포 검증이 아니다. 가상 1회 방문을 지역 매출이나 실제 고객 실적으로 해석하지 않는다.
 
 - **중간 기획 재현성·최종 구현 완성도:** PR #158은 운영 웹의 AWS 이관 코드를 로컬·CI로 확인했으며 [PR #159](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/159)는 merge `e6dcc82`·PR/main CI 통과까지 확인했다. 같은 출처 웹 세션·본인 도감 읽기 경계의 로컬 PostgreSQL·Caddy·브라우저 시험은 [상세 결과](TEST_STATUS.md)에 있다. 실제 `masscom.kr` AWS 배포·Google 실계정 A/B·Android 브라우저가 끝나기 전에는 외부 상용화 실증으로 발표하지 않는다.

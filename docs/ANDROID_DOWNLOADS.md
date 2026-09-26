@@ -5,7 +5,7 @@
 | 구분 | package | GitHub 다운로드 | 실제 상태 |
 | --- | --- | --- | --- |
 | 운영 테스트 앱 | `kr.masscom.wolgye` | [test.2 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2) | `VERIFIED` — 당시 APK 재다운로드 해시·Samsung/AVD 설치·App Link 확인. **최신 `main` UI와 동일한 빌드가 아님** |
-| 시연 앱 | `kr.masscom.wolgye.demo` | 아직 없음 | `BLOCKED/NOT_RUN` — 전용 서명 키·Google Web/Android client·ADB 기기, 내부 API/DB의 초대 로그인·가상 수령, `demo-api` A 레코드는 확인했지만 공인 HTTPS·서명 APK·기기 설치가 없음 |
+| 시연 앱 | `kr.masscom.wolgye.demo` | 아직 없음 | `BLOCKED/NOT_RUN` — 전용 서명 키·Google Web/Android client·ADB 기기·[시연 API 공인 HTTPS](https://demo-api.masscom.kr/health)는 확인. 기존 키의 Keychain 비밀번호 자동 읽기가 OS 승인 대기에서 멈춰 서명 APK·기기 설치·Release는 아직 없음([근거](evidence/showcase-public-edge-2026-09-27.json)) |
 
 시연 **웹**은 앱 설치와 별개입니다. [공개 주소](https://www.masscom.kr/preview/)에서 다운로드 없이 볼 수 있고, [웹 전용 GitHub 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1)에는 정적 HTML/CSS ZIP만 있습니다. 이 태그에 Android APK는 없으며 가상 점포·예시 수집품을 실제 방문·NFT 발행 실적으로 보지 않습니다. [www 전환 증거](evidence/www-web-cutover-2026-09-25.json)를 참고하세요. 기존 Vercel 주소는 복구용으로 보존합니다.
 
