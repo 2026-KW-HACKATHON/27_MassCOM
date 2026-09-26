@@ -28,7 +28,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-21 | Codex + 독립 code-reviewer | 운영 로그인 후속 보안·Play 초안 정합 | Google `auth_time` 최근성, JWKS stale 상한, 로그인 제한, 세션 cleanup, 카메라·NFT award 선언 초안 | HIGH 1·MEDIUM 3 재현 후 API 72/72·PostgreSQL 37/37 RED→GREEN | 실제 Google token·모바일 로그인·외부 HTTPS·Play 입력/제출은 수행하거나 완료로 표시하지 않음 |
 | 2026-09-21 | Codex + 독립 architect | 서비스 민터 후속 보안 | priority fee·signed sender/hash/intent·환경변수 이름·keystore 경로·lock/pool 설정·README 검토 | MEDIUM 1·LOW 2·WATCH 1 재현 후 Worker 45/45 RED→GREEN | 실제 keystore·Base Sepolia 전송은 사용하지 않았고 다중 민터 migration은 요구 전까지 추가하지 않음 |
 | 2026-09-23 | Codex + 독립 code-reviewer·architect | 모바일 탐색·방문·도감 UI 개편 | `DESIGN.md`, 네 기본 탭, 탐색·방문·도감·내 정보 계층, 반응형·다크·접근성 보완, Issue #126·PR #127 문서 | TDD·모바일 146/146·typecheck·lint·Android export·Samsung 네 탭/360dp/200%/live dark/뒤로 가기/dev scheme PASS; 리뷰 MEDIUM 1 수정 | 사용자가 UI 방향과 명세·계획을 승인하고 두 번째 Google 테스트 계정을 제공. AI 구현·실기 조작을 사람 기여나 현장 성과로 표시하지 않음; TalkBack 앱 낭독·완전한 D02·현재 코드 production App Link는 NOT_RUN |
-| 2026-09-27 | Codex + imagegen | README 시각 개편과 두 계정 폰 실기 정리 | 사용자 제공 MassCOM 참고 그림에서 Play 배지·목업·성과 문구를 제거한 장식용 Hero, 시연 APK 실제 화면 4장, 상태가 구분된 Mermaid·문서 | 배너 2172×724, Samsung SM-S928N 실기 화면·DB 수치·링크·README 검사; 직접 코드 수령 PASS, 카메라 QR 촬영 수령 NOT_RUN | AI 생성·편집과 ADB 캡처를 팀원의 수작업으로 표시하지 않음. 참고 원본의 공개 사용 권리는 저장소 공개 전 사용자 확인 필요; 다른 팀 README 문장·코드·자산은 사용하지 않음 |
+| 2026-09-27 | Codex + imagegen | README 시각 개편과 두 계정 폰 실기 정리 | 사용자 제공 MassCOM 콘셉트 그림에서 Play 배지·목업·성과 문구를 제거한 장식용 Hero, 시연 APK 실제 화면 4장, 상태가 구분된 Mermaid·문서 | 배너 2172×724, Samsung SM-S928N 실기 화면·DB 수치·링크·README 검사; 직접 코드 수령 PASS, 카메라 QR 촬영 수령 NOT_RUN | AI 생성·편집과 ADB 캡처를 팀원의 수작업으로 표시하지 않음. 원본의 공개 사용 권리는 저장소 공개 전 사용자 확인 필요 |
 
 ## 팀 설명 체크리스트
 
