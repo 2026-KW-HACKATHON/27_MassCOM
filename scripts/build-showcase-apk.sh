@@ -50,9 +50,31 @@ if [[ "$mode" == --check ]]; then
   exit 0
 fi
 
+[[ ! -e "$mobile_dir/android" ]] || fail 'existing native Android project must not be overwritten'
+lock_path="$mobile_dir/release-artifacts/.showcase-build.lock"
+[[ ! -e "$lock_path" ]] || fail 'another showcase APK build is already running'
+git_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-dir)"
+common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir)"
+[[ "$git_dir" != "$common_dir" ]] || fail 'showcase build requires an isolated Git worktree'
 commit="$(git -C "$repo_root" rev-parse --verify HEAD)"
+artifacts="$mobile_dir/release-artifacts"
+basename="MassCOM-showcase-android-${commit:0:7}"
+target="$artifacts/$basename.apk"
+provenance="$artifacts/$basename.provenance.json"
+[[ ! -e "$target" && ! -e "$provenance" ]] || fail 'showcase artifact already exists; refusing overwrite'
 [[ -z "$(git -C "$repo_root" status --porcelain --untracked-files=normal)" ]] ||
   fail 'showcase build requires a clean Git worktree'
+mkdir -p "$artifacts"
+mkdir "$lock_path" 2>/dev/null || fail 'another showcase APK build is already running'
+staging=''
+cleanup_build() {
+  unset store_password key_password
+  if [[ -n "$staging" && -d "$staging" ]]; then
+    echo "staged APK evidence remains at $staging" >&2
+  fi
+  rmdir "$lock_path" 2>/dev/null || echo 'showcase build lock needs inspection' >&2
+}
+trap cleanup_build EXIT
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
 tools_dir="$ANDROID_HOME/build-tools/36.0.0"
@@ -92,7 +114,6 @@ read -r -s -p '시연 키 비밀번호 입력 (같으면 Enter): ' key_password
 printf '\n'
 [[ -n "$store_password" ]] || fail 'showcase keystore password is required'
 key_password="${key_password:-$store_password}"
-trap 'unset store_password key_password' EXIT
 
 fingerprint="$(MASSCOM_SHOWCASE_STORE_PASSWORD="$store_password" \
   keytool -J-Duser.language=en -list -v -keystore "$keystore" -alias "$alias_name" \
@@ -130,30 +151,30 @@ unset store_password key_password
 [[ "$(git -C "$repo_root" rev-parse HEAD)" == "$commit" &&
    -z "$(git -C "$repo_root" status --porcelain --untracked-files=normal)" ]] ||
   fail 'source changed during showcase build'
-apk="$mobile_dir/android/app/build/outputs/apk/release/app-release.apk"
-aab="$mobile_dir/android/app/build/outputs/bundle/release/app-release.aab"
-[[ -s "$apk" && -s "$aab" ]] || fail 'showcase APK or companion AAB is missing'
-"$tools_dir/aapt" dump badging "$apk" |
-  grep -qF "package: name='kr.masscom.wolgye.demo' " || fail 'APK package is not the showcase package'
-"$tools_dir/aapt" dump xmltree "$apk" AndroidManifest.xml |
-  grep -A1 -F 'kr.masscom.BUILD_SOURCE_COMMIT' | grep -qF "\"$commit\"" ||
+built_apk="$mobile_dir/android/app/build/outputs/apk/release/app-release.apk"
+built_aab="$mobile_dir/android/app/build/outputs/bundle/release/app-release.aab"
+[[ -s "$built_apk" && -s "$built_aab" ]] || fail 'showcase APK or companion AAB is missing'
+staging="$(mktemp -d "$artifacts/.showcase-apk.XXXXXX")"
+apk="$staging/$basename.apk"
+aab="$staging/$basename.aab"
+cp "$built_apk" "$apk"
+cp "$built_aab" "$aab"
+badging="$("$tools_dir/aapt" dump badging "$apk")" || fail 'APK manifest is unreadable'
+[[ "$badging" == *"package: name='kr.masscom.wolgye.demo' "* ]] ||
+  fail 'APK package is not the showcase package'
+manifest="$("$tools_dir/aapt" dump xmltree "$apk" AndroidManifest.xml)" ||
+  fail 'APK manifest is unreadable'
+source_entry="$(grep -A1 -F 'kr.masscom.BUILD_SOURCE_COMMIT' <<< "$manifest")" ||
   fail 'APK source commit marker is missing'
-signed_certificate="$("$tools_dir/apksigner" verify --verbose --print-certs "$apk" |
-  sed -n 's/^Signer #1 certificate SHA-256 digest: *//p' | head -1)"
+[[ "$source_entry" == *"\"$commit\""* ]] || fail 'APK source commit marker is missing'
+signature_report="$("$tools_dir/apksigner" verify --verbose --print-certs "$apk")" ||
+  fail 'APK signature verification failed'
+signed_certificate="$(sed -n 's/^Signer #1 certificate SHA-256 digest: *//p' <<< "$signature_report" | head -1)"
 [[ "$signed_certificate" == "$certificate" ]] || fail 'APK signature does not match the approved showcase certificate'
 EXPECTED_PACKAGE=kr.masscom.wolgye.demo \
   "$repo_root/scripts/check-release-wallet-surface.sh" "$aab" "$mobile_dir/src"
 
-artifacts="$mobile_dir/release-artifacts"
-mkdir -p "$artifacts"
-basename="MassCOM-showcase-android-${commit:0:7}"
-target="$artifacts/$basename.apk"
-provenance="$artifacts/$basename.provenance.json"
-[[ ! -e "$target" && ! -e "$provenance" ]] || fail 'showcase artifact already exists; refusing overwrite'
-staging="$(mktemp -d "$artifacts/.showcase-apk.XXXXXX")"
-trap 'unset store_password key_password; test -d "$staging" && echo "staged APK evidence remains at $staging" >&2' EXIT
-cp "$apk" "$staging/$basename.apk"
-node - "$staging/$basename.apk" "$staging/$basename.provenance.json" "$commit" "$certificate" <<'NODE'
+node - "$apk" "$staging/$basename.provenance.json" "$commit" "$certificate" <<'NODE'
 const { createHash } = require('node:crypto');
 const { readFileSync, statSync, writeFileSync } = require('node:fs');
 const [apkPath, resultPath, sourceCommit, certificateSha256] = process.argv.slice(2);
@@ -169,11 +190,14 @@ writeFileSync(resultPath, JSON.stringify({
   githubRelease: 'NOT_RUN',
 }, null, 2) + '\n', { mode: 0o600 });
 NODE
-ln "$staging/$basename.apk" "$target"
-ln "$staging/$basename.provenance.json" "$provenance"
-rm "$staging/$basename.apk" "$staging/$basename.provenance.json"
+ln "$apk" "$target"
+if ! ln "$staging/$basename.provenance.json" "$provenance"; then
+  rm "$target"
+  fail 'could not publish showcase provenance without overwriting'
+fi
+rm "$apk" "$aab" "$staging/$basename.provenance.json"
 rmdir "$staging"
-trap - EXIT
+staging=''
 echo "Showcase APK built: $target"
 echo "SHA-256: $(shasum -a 256 "$target" | awk '{print $1}')"
 echo "Provenance: $provenance"

@@ -4,11 +4,27 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "$0")/../.." && pwd -P)"
 builder="$repo_root/scripts/build-showcase-apk.sh"
 scratch="$(mktemp -d -t masscom-showcase-apk-test.XXXXXX)"
-trap 'rm -rf "$scratch"' EXIT
+created_android=false
+created_lock=false
+created_existing=false
+existing_apk=''
+cleanup() {
+  if [[ "$created_android" == true ]]; then rmdir "$repo_root/apps/mobile/android" 2>/dev/null || true; fi
+  if [[ "$created_lock" == true ]]; then
+    rmdir "$repo_root/apps/mobile/release-artifacts/.showcase-build.lock" 2>/dev/null || true
+  fi
+  if [[ "$created_existing" == true ]]; then rm "$existing_apk" 2>/dev/null || true; fi
+  rm -rf "$scratch"
+}
+trap cleanup EXIT
 
 key="$scratch/showcase.jks"
 printf 'test fixture, not a signing key\n' > "$key"
 chmod 600 "$key"
+for banned_name in masscom-upload.jks debug.keystore; do
+  printf 'test fixture, not a signing key\n' > "$scratch/$banned_name"
+  chmod 600 "$scratch/$banned_name"
+done
 common=(
   MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID=123-showcase.apps.googleusercontent.com
   MASSCOM_OPERATING_GOOGLE_WEB_CLIENT_ID=456-operating.apps.googleusercontent.com
@@ -23,6 +39,16 @@ expect_rejected() {
   local output status=0
   output="$(env -u EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID -u EXPO_PUBLIC_REOWN_PROJECT_ID \
     "${common[@]}" "$@" bash "$builder" --check 2>&1)" || status=$?
+  if [[ "$status" == 0 || "$output" != *"$expected"* ]]; then
+    echo "$label did not fail closed: $output" >&2
+    exit 1
+  fi
+}
+
+expect_build_rejected() {
+  local label="$1" expected="$2" output status=0
+  output="$(env -u EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID -u EXPO_PUBLIC_REOWN_PROJECT_ID \
+    "${common[@]}" bash "$builder" --build 2>&1)" || status=$?
   if [[ "$status" == 0 || "$output" != *"$expected"* ]]; then
     echo "$label did not fail closed: $output" >&2
     exit 1
@@ -69,5 +95,29 @@ expect_rejected 'symlink keystore' 'showcase-only keystore is required' \
   echo 'showcase --check unexpectedly created a native Android project' >&2
   exit 1
 }
+mkdir "$repo_root/apps/mobile/android"
+created_android=true
+expect_build_rejected 'existing native project' 'existing native Android project must not be overwritten'
+rmdir "$repo_root/apps/mobile/android"
+created_android=false
+
+mkdir -p "$repo_root/apps/mobile/release-artifacts"
+mkdir "$repo_root/apps/mobile/release-artifacts/.showcase-build.lock"
+created_lock=true
+expect_build_rejected 'concurrent builder' 'another showcase APK build is already running'
+rmdir "$repo_root/apps/mobile/release-artifacts/.showcase-build.lock"
+created_lock=false
+
+short_commit="$(git -C "$repo_root" rev-parse --short=7 HEAD)"
+existing_apk="$repo_root/apps/mobile/release-artifacts/MassCOM-showcase-android-$short_commit.apk"
+printf 'existing artifact must not be overwritten\n' > "$existing_apk"
+created_existing=true
+expect_build_rejected 'existing artifact' 'showcase artifact already exists; refusing overwrite'
+[[ "$(<"$existing_apk")" == 'existing artifact must not be overwritten' ]] || {
+  echo 'existing showcase artifact was changed' >&2
+  exit 1
+}
+rm "$existing_apk"
+created_existing=false
 
 echo 'showcase APK preflight boundaries verified; no APK built'
