@@ -5,10 +5,10 @@
 | `APP_VARIANT` | Android package | 복귀 scheme | API | 현재 검증 |
 | --- | --- | --- | --- | --- |
 | 비움/`development` | `kr.masscom.wolgye.dev` | `masscom-dev` | 로컬 loopback 가능 | 기존 개발 앱·로컬 DEMO |
-| `showcase` | `kr.masscom.wolgye.demo` | `masscom-demo` | 정확히 `https://demo-api.masscom.kr` | Expo config·교차 연결 거절 자동 시험만 PASS |
+| `showcase` | `kr.masscom.wolgye.demo` | `masscom-demo` | 정확히 `https://demo-api.masscom.kr` | [서명 APK·Samsung 설치·Google 로그인·카탈로그·카메라·점주 발급](../../docs/evidence/showcase-android-apk-2026-09-27.json) PASS, 고객 QR 수령 `NOT_RUN` |
 | `production` | `kr.masscom.wolgye` | `masscom` | 정확히 `https://api.masscom.kr` | 기존 release 검증 유지 |
 
-시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 정적 시연 웹은 [www 공개 HTTPS](https://www.masscom.kr/preview/)에서 열립니다. **[전용 시연 API/DB의 공인 HTTPS](https://demo-api.masscom.kr/health)는 확인했지만 `demo.masscom.kr` App Link DNS와 설치용 APK는 아직 검증되지 않았습니다.** 따라서 현 단계의 시연 variant를 실제 폰의 로그인·QR 수령·지갑 연결 완료로 표시하지 않습니다. 로컬 개발 앱과 `_test` DB의 이전 실기는 별도 기록입니다. 런타임의 개발 DEMO 인증도 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
+시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 정적 시연 웹은 [www 공개 HTTPS](https://www.masscom.kr/preview/)에서 열립니다. **[전용 시연 API/DB의 공인 HTTPS](https://demo-api.masscom.kr/health)와 [설치용 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)는 확인했지만 `demo.masscom.kr` App Link DNS·실제 고객 QR 수령·지갑 연결은 미검증**입니다. 로컬 개발 앱과 `_test` DB의 이전 실기는 별도 기록입니다. 런타임의 개발 DEMO 인증도 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
 
 `APP_VARIANT=showcase`는 기존 `.env.local`의 운영 Google/Reown ID 또는 개발 DEMO 변수가 있으면 빌드 설정을 거절합니다. 시연 전용 Google Web client ID를 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`로 요구하고, 설치 package가 `.demo`일 때만 앱 설정의 이 값을 읽습니다. 별도 Reown 프로젝트는 미설정이라 시연 지갑 연결은 비활성입니다. 현재 환경 경계만 확인하려면 로컬 dotenv 로드를 끄고 실제 발급받은 시연 전용 공개 ID를 명시합니다(실제 API 요청·APK 빌드 아님).
 
@@ -20,15 +20,15 @@ EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
   npx expo config --type public --json
 ```
 
-Expo의 [앱 variant 안내](https://docs.expo.dev/build-reference/variants/)대로 package를 바꿔 설치할 때는 격리된 checkout에서 해당 `APP_VARIANT`로 native `prebuild --clean`을 먼저 해야 합니다. 기존 `apps/mobile/android`를 다른 variant로 덮어쓰지 않습니다. 실제 시연 앱의 동시 설치·외부 HTTPS·지갑 복귀·Google 로그인·QR→도감은 별도 환경 준비와 실기 전까지 `NOT_RUN`입니다.
+Expo의 [앱 variant 안내](https://docs.expo.dev/build-reference/variants/)대로 package를 바꿔 설치할 때는 격리된 checkout에서 해당 `APP_VARIANT`로 native `prebuild --clean`을 먼저 해야 합니다. 기존 `apps/mobile/android`를 다른 variant로 덮어쓰지 않습니다. 실제 시연 앱의 운영 앱 동시 설치·공개 HTTPS·Google 로그인은 [폰 실기](../../docs/evidence/showcase-android-apk-2026-09-27.json)에서 PASS, 지갑 복귀와 고객 QR→도감은 `NOT_RUN`입니다.
 
-시연 APK 빌드 게이트는 저장소 루트의 `scripts/build-showcase-apk.sh`입니다. `--check`는 **로컬 설정만** 확인하며 APK를 만들지 않습니다. 전용 Google Web client ID와 운영 Web client ID, 저장소 밖 mode 600 전용 keystore·별칭·공개 SHA-256 지문을 요구하고 운영/개발 값 재사용을 거절합니다. 두 ID와 지문은 공개 식별자지만 비밀번호는 채팅·Git에 넣지 않습니다. [전용 API의 가상 점포 A/B/C 공개 조회](../../docs/evidence/showcase-public-edge-2026-09-27.json)는 PASS입니다. `--build`는 키 비밀번호를 로컬 터미널에서 받은 뒤 release APK를 만들고 `.demo` package·소스 커밋·인증서·SHA-256·지갑 금지 표면을 검증합니다. 현재 Keychain 자동 읽기가 OS 승인 대기에서 멈춰 **실제 빌드·기기 설치·GitHub 게시 모두 `NOT_RUN`**입니다. 시연 키의 로컬 Keychain 보관은 백업 완료를 뜻하지 않습니다.
+시연 APK 빌드 게이트는 저장소 루트의 `scripts/build-showcase-apk.sh`입니다. `--check`는 **로컬 설정만** 확인하며 APK를 만들지 않습니다. 전용 Google Web client ID와 운영 Web client ID, 저장소 밖 mode 600 전용 keystore·별칭·공개 SHA-256 지문을 요구하고 운영/개발 값 재사용을 거절합니다. 두 ID와 지문은 공개 식별자지만 비밀번호는 채팅·Git에 넣지 않습니다. `--build`는 기본적으로 키 비밀번호를 로컬 터미널에서 받으며, 이 Mac의 명시적 `MASSCOM_SHOWCASE_USE_KEYCHAIN=1` 모드에서만 고정된 시연 Keychain 항목을 읽습니다. 셸 추적을 켠 빌드는 비밀번호 조회 전에 거절합니다. [실제 빌드·폰 설치·Release 재다운로드](../../docs/evidence/showcase-android-apk-2026-09-27.json)에서 `.demo` package·소스 커밋·인증서·SHA-256·지갑 금지 표면을 검증했습니다. 시연 키의 로컬 Keychain 보관은 백업 완료를 뜻하지 않습니다.
 
 ## 개발용 UI 시안과 로컬 실행 (Issue #136)
 
 운영 앱의 기본 화면은 기존 탐색·방문 인증·도감·내 정보 네 탭입니다. 개발 빌드에서 로그인한 뒤 `내 정보 → 역할 선택 시안 보기`를 열면 `누구세요?` 역할 카드, 선택적 외부지갑 안내, 내용 없는 다섯 공간의 스와이프를 확인할 수 있습니다. 이 시안은 실제 점포·방문·혜택이 아니며 점주 선택으로 권한이 생기지 않습니다. release 빌드에서는 개발용 미리보기 진입점이 없고 미리보기 URL도 기본 화면으로 돌아갑니다.
 
-시연 앱 `.demo` 전용 코드에는 로그인 전 역할 선택, 고객의 기존 네 탭 진입, 점주의 서버 `CONFIRM_VISIT` 확인, 고객 설정에서 열 수 있는 빈 다섯 공간 투어를 추가했습니다. 점주 선택만으로 발급 권한을 주지 않고, 가상 점포에 권한이 없으면 거절 안내를 표시합니다. 별도 시연 OAuth·외부 API/DB·서명 APK가 아직 없어 이 기능의 **시연 설치본 실기 결과는 `NOT_RUN`**입니다. 시연 지갑은 전용 Reown 프로젝트 전까지 비활성으로 남습니다.
+시연 앱 `.demo` 전용 코드에는 로그인 전 역할 선택, 고객의 기존 네 탭 진입, 점주의 서버 `CONFIRM_VISIT` 확인, 고객 설정에서 열 수 있는 빈 다섯 공간 투어를 추가했습니다. 점주 선택만으로 발급 권한을 주지 않고, 가상 점포에 권한이 없으면 거절 안내를 표시합니다. 별도 시연 OAuth·공개 API/DB·서명 APK의 **Google 로그인·가상 점포 탐색·카메라·STAFF 발급은 폰에서 PASS**이며 고객 QR 촬영→수령과 지갑은 `NOT_RUN`입니다. 시연 지갑은 전용 Reown 프로젝트 전까지 비활성으로 남습니다.
 
 해당 브랜치에서 개발용 Android 앱을 빌드하려면 Node.js, Android SDK 및 호환 JDK와 USB 디버깅 기기 또는 에뮬레이터가 필요합니다. Windows PowerShell에서:
 
@@ -91,11 +91,11 @@ npm run export:android
 
 - 고정 native 의존성: `react-native-nitro-google-signin@2.3.0`, `react-native-nitro-modules@0.37.1`, Expo SDK 57 호환 `expo-secure-store@57.0.4`
 - Web OAuth client ID는 `POST /auth/google`에서 검증할 ID token audience이며 API의 `GOOGLE_OAUTH_CLIENT_IDS`와 앱의 `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`가 같은 승인 값을 가리켜야 합니다.
-- 시연 앱만 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`를 공개 Web audience로 사용합니다. 실제 시연 API의 `GOOGLE_OAUTH_CLIENT_IDS`에도 **같은 시연 전용 ID만** 설정하며 운영 API의 audience 목록에는 넣지 않습니다. Android OAuth client는 `kr.masscom.wolgye.demo`와 시연 전용 서명 인증서 SHA-1로 별도 등록했습니다([설정 근거](../../docs/evidence/showcase-oauth-2026-09-26.json)). 서버의 전용 audience·운영 audience 거절은 내부 API에서 PASS지만 실제 `.demo` APK 로그인은 아직 `NOT_RUN`입니다.
+- 시연 앱만 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`를 공개 Web audience로 사용합니다. 실제 시연 API의 `GOOGLE_OAUTH_CLIENT_IDS`에도 **같은 시연 전용 ID만** 설정하며 운영 API의 audience 목록에는 넣지 않습니다. Android OAuth client는 `kr.masscom.wolgye.demo`와 시연 전용 서명 인증서 SHA-1로 별도 등록했습니다([설정 근거](../../docs/evidence/showcase-oauth-2026-09-26.json)). 서버의 전용 audience·운영 audience 거절은 내부 API에서, 실제 `.demo` APK의 초대 Google 로그인은 [Samsung 실기](../../docs/evidence/showcase-android-apk-2026-09-27.json)에서 PASS입니다.
 - Android OAuth client는 package/SHA 조합별로 별도 생성합니다. 개발 package `kr.masscom.wolgye.dev`와 운영 package `kr.masscom.wolgye`, 각 서명 인증서 SHA-1을 Google Cloud에 정확히 등록해야 합니다. 목표 인프라를 만들었다는 사실만으로 실제 로그인 PASS가 되지 않습니다.
 - Android는 explicit Web client ID와 React Native native autolinking을 사용합니다. Nitro Expo config plugin v2.3.0은 iOS reversed client ID 또는 Firebase 파일을 요구하므로, 현재 Android-only 범위에서 가짜 iOS 값을 만들지 않고 등록하지 않았습니다. iOS 지원 시 실제 iOS OAuth client와 함께 추가해야 합니다.
 - 서버가 돌려준 `{ sessionToken, accountId, expiresAt }`는 SecureStore key `masscom.auth.session.v1`의 version 1 레코드에만 저장합니다. AsyncStorage·URL·화면·로그·증거 JSON에는 session token을 넣지 않습니다.
-- 운영 계정 API는 `Authorization: Bearer <sessionToken>`만 보냅니다. development DEMO는 `x-account-id`만 보내며 한 요청에서 두 방식을 섞지 않습니다.
+- 운영·시연 Google 계정 API는 `Authorization: Bearer <sessionToken>`만 보냅니다. development DEMO는 `x-account-id`만 보내며 한 요청에서 두 방식을 섞지 않습니다.
 - 로그아웃·계정 전환은 서버 logout 시도 → SecureStore 삭제 → Reown disconnect와 저장 key 삭제 → Google sign-out 순서입니다. 계정 전환은 이 정리가 끝난 뒤 새 Google 로그인을 시작하고 account ID key로 route와 AppKit을 다시 만듭니다.
 - Google mobile sign-in의 `signIn`/`createAccount`는 삭제 요청에 필요한 fresh `auth_time`을 보장하지 않습니다. `getTokens`나 `presentExplicitSignIn`을 재인증 증거로 사용하지 않으며 운영 계정 삭제는 승인된 별도 사용자 확인 설계 전까지 `BLOCKED`입니다.
 
