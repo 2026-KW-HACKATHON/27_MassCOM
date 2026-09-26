@@ -4,8 +4,9 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { MerchantMark } from '@/merchant/merchant-mark';
 import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
-import { colorsForScheme } from '@/theme/palette';
+import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { makeRecommendationsStyles } from './styles';
 
 type RecommendationsStyles = ReturnType<typeof makeRecommendationsStyles>;
@@ -105,14 +106,14 @@ export function RecommendationsScreen({
         </View>
       ) : (
         recommendations.map((item, index) => (
-          <RecommendationCard styles={styles} key={item.merchantId} item={item} index={index} />
+          <RecommendationCard styles={styles} palette={palette} key={item.merchantId} item={item} index={index} />
         ))
       )}
     </ScrollView>
   );
 }
 
-function RecommendationCard({ styles, item, index }: { styles: RecommendationsStyles; item: Recommendation; index: number }) {
+function RecommendationCard({ styles, palette, item, index }: { styles: RecommendationsStyles; palette: AppColors; item: Recommendation; index: number }) {
   return (
     <Link
       href={{ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } }}
@@ -124,7 +125,10 @@ function RecommendationCard({ styles, item, index }: { styles: RecommendationsSt
           <Text style={styles.reasonCode}>{reasonLabel(item.reasonCode)}</Text>
           {item.demo ? <Text style={styles.demo}>DEMO</Text> : null}
         </View>
-        <Text selectable style={styles.cardTitle}>{item.merchantName}</Text>
+        <View style={styles.cardNameRow}>
+          <MerchantMark name={item.merchantName} visited={item.progressVisitCount > 0} palette={palette} />
+          <Text selectable style={[styles.cardTitle, { flex: 1 }]}>{item.merchantName}</Text>
+        </View>
         <Text selectable style={styles.reason}>{item.reasonText}</Text>
         <Text style={styles.meta}>{item.roadAddress}</Text>
         <View style={styles.progressRow}>

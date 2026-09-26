@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -15,11 +16,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PublicMerchant } from '@/merchant/merchant-api';
 import { filterMerchants, type MerchantAvailabilityFilter } from '@/merchant/filter-merchants';
+import { MerchantMark } from '@/merchant/merchant-mark';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
 
 import { makeMerchantListStyles } from './styles';
+
+const exploreBanner = require('../../../assets/images/mascot/explore-banner.jpg');
 
 type Props = {
   apiUrl: string;
@@ -48,11 +52,12 @@ export function MerchantListScreen({ apiUrl }: Props) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={palette.primary} />}
       ListHeaderComponent={
         <View style={styles.header}>
-          <View style={[styles.routeMarker, { backgroundColor: palette.accentContainer }]}>
-            <Text style={[styles.routeMarkerText, { color: palette.onAccentContainer }]}>
-              월계1동 · 동네 한 바퀴
-            </Text>
-          </View>
+          <Image
+            source={exploreBanner}
+            accessible={false}
+            accessibilityIgnoresInvertColors
+            style={styles.banner}
+          />
           <Text selectable style={[styles.title, { color: palette.label }]}>월계에서 만나는 오늘의 한 끼.</Text>
           <Text selectable style={[styles.intro, { color: palette.secondaryLabel }]}>
             공개된 음식점을 찾고, 방문을 도감에 모아보세요.
@@ -227,7 +232,10 @@ function MerchantCard({ merchant, index, palette }: { merchant: PublicMerchant; 
             </View>
           ) : null}
         </View>
-        <Text selectable style={[styles.cardTitle, { color: palette.label }]}>{merchant.name}</Text>
+        <View style={styles.cardNameRow}>
+          <MerchantMark name={merchant.name} visited={false} palette={palette} />
+          <Text selectable style={[styles.cardTitle, { color: palette.label, flex: 1 }]}>{merchant.name}</Text>
+        </View>
         <Text selectable numberOfLines={2} style={[styles.cardStory, { color: palette.secondaryLabel }]}>{merchant.story}</Text>
         <View style={[styles.cardRule, { backgroundColor: palette.separator }]} />
         <View style={styles.cardMeta}>

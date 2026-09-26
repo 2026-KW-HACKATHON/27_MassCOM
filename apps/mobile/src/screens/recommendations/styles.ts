@@ -25,6 +25,7 @@ export function makeRecommendationsStyles(palette: AppColors, hairlineWidth = 1)
   rank: { marginRight: 'auto', color: palette.primary, fontSize: 13, fontWeight: '900', letterSpacing: 1 },
   reasonCode: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, color: palette.onSuccessContainer, backgroundColor: palette.successContainer, fontSize: 11, fontWeight: '900' },
   demo: { color: palette.onPrimaryContainer, fontSize: 10, fontWeight: '900' },
+  cardNameRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cardTitle: { color: palette.label, fontSize: 24, fontWeight: '900' },
   reason: { color: palette.label, fontSize: 16, lineHeight: 24, fontWeight: '700' },
   meta: { color: palette.secondaryLabel, fontSize: 12 },
