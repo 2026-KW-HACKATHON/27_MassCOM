@@ -1,6 +1,6 @@
 # 외부 시연 API 초대 인증 경계
 
-상태: 코드·로컬 PostgreSQL 검증과 기존 Lightsail의 [loopback 내부 시연 API/DB](evidence/showcase-internal-2026-09-27.json) `PASS`, 전용 Google Web/Android client·OAuth 테스트 사용자 2명 준비 `PASS`([근거](evidence/showcase-oauth-2026-09-26.json)). 내부 실제 초대 로그인·비초대/운영 audience 거절·STAFF 권한은 [실증](evidence/showcase-internal-auth-claim-2026-09-27.json)·[교차 검사](evidence/showcase-dns-audience-2026-09-27.json) `PASS`; 공인 HTTPS·Android APK는 `NOT_RUN`.
+상태: 코드·로컬 PostgreSQL 검증과 기존 Lightsail의 [별도 시연 API/DB](evidence/showcase-internal-2026-09-27.json) `PASS`, 전용 Google Web/Android client·OAuth 테스트 사용자 2명 준비 `PASS`([근거](evidence/showcase-oauth-2026-09-26.json)). 내부 실제 초대 로그인·비초대/운영 audience 거절·STAFF 권한은 [실증](evidence/showcase-internal-auth-claim-2026-09-27.json)·[교차 검사](evidence/showcase-dns-audience-2026-09-27.json) `PASS`; [공인 HTTPS·운영 분리](evidence/showcase-public-edge-2026-09-27.json)도 `PASS`. 공개 호스트의 실제 Google 로그인·Android APK·카메라 QR은 `NOT_RUN`.
 
 시연 앱은 운영 Google ID·지갑 프로젝트를 물려받지 않습니다. 시연 API도 별도 Google Web client ID 하나만 `GOOGLE_OAUTH_CLIENT_IDS`로 허용해야 합니다. Google 서명·발급자·대상·만료 검증을 통과해도 **그 사실만으로 초대된 사람은 아닙니다.**
 
@@ -15,4 +15,4 @@
 
 초대 목록은 실제 Google 로그인 token의 **검증된** `sub`에서 만들어야 합니다. 임의 이메일 문자열이나 미검증 JWT payload로 해시를 만들지 않습니다. 사용자의 신원을 구분하는 키로 이메일 대신 `sub`를 쓰는 이유는 Google의 [서버 측 ID 토큰 검증 안내](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token)에 따릅니다.
 
-내부 시연 API에서는 전용 Web OAuth 두 계정의 초대 로그인과 비초대·운영 audience 거절을 확인했습니다. 가상 A점포 STAFF 권한은 첫 계정에만 부여했고 고객 계정이 자동으로 얻지 않음을 검증했습니다. DNS A는 등록됐지만 공인 TLS·Caddy 공개 라우팅, Android 시연 APK 및 카메라 QR→도감·외부 지갑 실기는 `NOT_RUN`입니다. 시연 API를 공개하기 전에 운영과 다른 DB/계정/볼륨, Caddy 라우팅, 제한된 외부 포트, 운영 건강 상태와 되돌리기 절차를 검증해야 합니다.
+내부 시연 API에서는 전용 Web OAuth 두 계정의 초대 로그인과 비초대·운영 audience 거절을 확인했습니다. 가상 A점포 STAFF 권한은 첫 계정에만 부여했고 고객 계정이 자동으로 얻지 않음을 검증했습니다. 공개 TLS·Caddy 라우팅과 운영 DB/API/웹 보존은 [별도 공개 실측](evidence/showcase-public-edge-2026-09-27.json)으로 확인했습니다. 다만 공개 호스트의 실제 계정 토큰 로그인, Android 시연 APK 및 카메라 QR→도감·외부 지갑 실기는 `NOT_RUN`입니다. 실제 롤백은 정상 배포였으므로 실행하지 않았고 이전 Caddy 설정·Compose 백업을 서버에 보존했습니다.
