@@ -53,15 +53,15 @@ fi
 [[ ! -e "$mobile_dir/android" ]] || fail 'existing native Android project must not be overwritten'
 lock_path="$mobile_dir/release-artifacts/.showcase-build.lock"
 [[ ! -e "$lock_path" ]] || fail 'another showcase APK build is already running'
-git_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-dir)"
-common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir)"
-[[ "$git_dir" != "$common_dir" ]] || fail 'showcase build requires an isolated Git worktree'
 commit="$(git -C "$repo_root" rev-parse --verify HEAD)"
 artifacts="$mobile_dir/release-artifacts"
 basename="MassCOM-showcase-android-${commit:0:7}"
 target="$artifacts/$basename.apk"
 provenance="$artifacts/$basename.provenance.json"
 [[ ! -e "$target" && ! -e "$provenance" ]] || fail 'showcase artifact already exists; refusing overwrite'
+git_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-dir)"
+common_dir="$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir)"
+[[ "$git_dir" != "$common_dir" ]] || fail 'showcase build requires an isolated Git worktree'
 [[ -z "$(git -C "$repo_root" status --porcelain --untracked-files=normal)" ]] ||
   fail 'showcase build requires a clean Git worktree'
 mkdir -p "$artifacts"
