@@ -1,0 +1,14 @@
+{
+  "recordedAtDateKst": "2026-09-26",
+  "googleCloudProject": "masscom-wolgye-2026",
+  "webClientId": "172380658768-h4r324hn855n3b29cbepdn9qnlb7sf5h.apps.googleusercontent.com",
+  "androidClientId": "172380658768-fc708v1bkqapt1l4f924n0f3ppoqiigd.apps.googleusercontent.com",
+  "androidPackage": "kr.masscom.wolgye.demo",
+  "androidSigningSha1": "85:24:D7:1A:DB:B3:30:B3:FB:6F:6F:A7:BD:B0:58:7E:F0:74:3D:A8",
+  "consentMode": "testing",
+  "testUserCount": 2,
+  "separateFromOperatingClient": true,
+  "clientSecretStoredInGit": false,
+  "signedApk": "NOT_RUN",
+  "externalLogin": "NOT_RUN"
+}
