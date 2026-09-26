@@ -14,6 +14,7 @@
     "operatingComposeBaseline": "/opt/masscom/web/releases/4a42475275e3/infra/lightsail/compose.yml",
     "activeCaddyConfig": "/opt/masscom-showcase/releases/036f31f/infra/lightsail/Caddyfile",
     "showcaseComposeAndCaddyfileMatchMergedCommitSha256": true,
+    "showcaseApiImageTag": "7dba450",
     "candidateCaddyValidation": "PASS",
     "renderedOperatingComposeOverlay": "PASS",
     "edgeNetwork": "masscom_showcase_edge",
