@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- `demo-api.masscom.kr` A가 권한·외부 DNS에서 기존 Lightsail IP로 확인됐고, 운영 Google Web client의 실제 ID 토큰은 시연 API에서 `401 ID_TOKEN_AUDIENCE_MISMATCH`로 거절돼 identity/session 쓰기 0이었다. 시험용 `localhost:4176` 운영 OAuth 원본은 제거·재조회했다([DNS·교차 인증 증거](evidence/showcase-dns-audience-2026-09-27.json)). **DNS A 등록만 완료**이며 운영 Caddy·공인 TLS·시연 APK는 미적용/`NOT_RUN`. 공개 라우팅은 별도 사용자 확인과 PR #175 병합·Caddy-only 롤백 시험 전까지 보류한다.
+
 - Issue #137 내부 실계정·가상 흐름은 전용 Web OAuth 두 계정의 API 로그인 200/200, 비초대 유효 토큰 403·추가 DB 쓰기 0, 가상 A점포 STAFF 권한 1계정만 허용을 [실측](evidence/showcase-internal-auth-claim-2026-09-27.json)했다. 가상 코드 발급→미리보기→수령→재수령은 201/200/200/200(`replayed=true`), 시연 DB claim slot/방문/보상권 1/1/1·mint 0, 고객 도감 1/1·STAFF 0/0이며 시험 세션은 모두 철회했다. 이는 내부 SSH 터널을 통한 API 시험이지 실제 Android QR·외부 HTTPS·NFT 발행이 아니다. 운영 audience 유효 토큰의 실제 교차 거절과 기록 있는 두 고객 계정 격리는 아직 `NOT_RUN`. 현재 [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175)의 전용 edge/Caddy는 독립 리뷰 지적을 수정하고 CI PASS했지만 아직 병합·운영 Caddy 적용 전이다.
 
 - Issue #137: [PR #174](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/174) merge `7dba450`·PR/main CI PASS 이후 기존 Lightsail의 별도 `/opt/masscom-showcase`에서 시연 API·DB를 loopback 전용으로 기동했다. 가상 점포·캠페인·목표 `3/3/9`, 시연 방문/계정/세션 0, 운영 DB 가상 점포 0, 운영 컨테이너 ID·재시작 횟수 불변과 운영 HTTPS 200을 [내부 증거](evidence/showcase-internal-2026-09-27.json)로 확인했다. 현재 `feat/137-showcase-edge`는 공개 라우팅용 전용 네트워크·Caddy 변경을 로컬에서 시험 중이며 실제 서버 Caddy/DNS는 미변경이다. 전용 키·Google Web/Android client·OAuth 테스트 사용자 2명·Samsung ADB와 APK `--check`는 준비됐지만 실제 초대 로그인·외부 HTTPS·서명 APK/Release/실기는 `BLOCKED/NOT_RUN`([B-018](BLOCKERS.md), [시험](TEST_STATUS.md)).
