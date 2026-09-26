@@ -25,6 +25,8 @@ for variable in EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_REOWN_PROJECT_ID \
   [[ -z "${!variable:-}" ]] || fail "showcase build rejects $variable"
 done
 [[ -z "${APP_VARIANT:-}" || "$APP_VARIANT" == showcase ]] || fail 'showcase build rejects another APP_VARIANT'
+[[ -z "${MASSCOM_SHOWCASE_USE_KEYCHAIN:-}" || "${MASSCOM_SHOWCASE_USE_KEYCHAIN}" == 1 ]] ||
+  fail 'showcase Keychain mode must be 1'
 
 keystore="${MASSCOM_SHOWCASE_KEYSTORE_FILE:-}"
 [[ "$keystore" == /* && -f "$keystore" && ! -L "$keystore" ]] ||
@@ -111,11 +113,16 @@ const api = 'https://demo-api.masscom.kr';
 })().catch(() => { console.error('SHOWCASE_API_NOT_READY'); process.exitCode = 1; });
 NODE
 
-[[ -t 0 ]] || fail 'interactive terminal is required for the owner-managed showcase keystore password'
-read -r -s -p '시연 키 저장소 비밀번호 입력: ' store_password
-printf '\n'
-read -r -s -p '시연 키 비밀번호 입력 (같으면 Enter): ' key_password
-printf '\n'
+if [[ "${MASSCOM_SHOWCASE_USE_KEYCHAIN:-}" == 1 ]]; then
+  source "$repo_root/scripts/showcase-keychain-password.sh"
+  load_showcase_keychain_password || fail 'showcase Keychain password could not be loaded'
+else
+  [[ -t 0 ]] || fail 'interactive terminal is required for the owner-managed showcase keystore password'
+  read -r -s -p '시연 키 저장소 비밀번호 입력: ' store_password
+  printf '\n'
+  read -r -s -p '시연 키 비밀번호 입력 (같으면 Enter): ' key_password
+  printf '\n'
+fi
 [[ -n "$store_password" ]] || fail 'showcase keystore password is required'
 key_password="${key_password:-$store_password}"
 

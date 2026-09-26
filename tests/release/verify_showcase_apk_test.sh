@@ -97,6 +97,8 @@ expect_rejected 'operating certificate' 'showcase certificate must differ from o
   MASSCOM_SHOWCASE_CERT_SHA256=5e5ed3c31971e5a88ea752b3a2ae50772fea1c956b9d97a82dd5ca7130cfa395
 expect_rejected 'missing keystore' 'showcase-only keystore is required' \
   MASSCOM_SHOWCASE_KEYSTORE_FILE="$scratch/missing.jks"
+expect_rejected 'unsupported Keychain mode' 'showcase Keychain mode must be 1' \
+  MASSCOM_SHOWCASE_USE_KEYCHAIN=unexpected
 
 chmod 644 "$key"
 expect_rejected 'readable keystore' 'showcase keystore must have mode 400 or 600'
