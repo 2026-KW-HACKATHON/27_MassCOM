@@ -1,0 +1,64 @@
+{
+  "status": "PASS",
+  "releaseReadiness": "BLOCKED; account deletion Issue #194 and Google Play submission remain unresolved",
+  "verifiedAt": "2026-09-27T17:07:51Z",
+  "sourceCommit": "c5cba68f7e36d2b2bebd988e888a14588bdb86ff",
+  "pullRequest": 198,
+  "checks": {
+    "pullRequestCI": "36334339405 PASS",
+    "mainCI": "36334694626 PASS",
+    "localReleaseFlow": "tests/release/verify_aab_signature_test.sh PASS; tools/gate.sh PASS"
+  },
+  "rejectedEarlierArtifact": {
+    "source": "22283d7ebdc27b7d35e437d09932c364996070cb",
+    "finding": "AAB signature PASS but production API URL and Google Web client ID absent from the embedded Hermes bundle; Samsung showed configuration required",
+    "disposition": "not published as a new release"
+  },
+  "acceptedArtifact": {
+    "aab": "app-release-c5cba68.aab",
+    "aabSha256": "ff08c6e87fc9f9adbe760f90b3d0ba2abafa8a960678b6d9909a149bdd205928",
+    "apk": "MassCOM-operating-android-c5cba68.apk",
+    "apkSha256": "69fe089ce3c7bee8cb4ec2239254dca9b9de2736f2479e7a10fad32950890185",
+    "apkBytes": 148425402,
+    "package": "kr.masscom.wolgye",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "sourceMarker": "c5cba68f7e36d2b2bebd988e888a14588bdb86ff",
+    "uploadCertificateSha256": "5e5ed3c31971e5a88ea752b3a2ae50772fea1c956b9d97a82dd5ca7130cfa395",
+    "signature": "PASS; apksigner and AAB provenance",
+    "embeddedPublicConfiguration": "PASS; expected production API URL and Google Web client ID matched within AAB and extracted APK Hermes bundles; values omitted here"
+  },
+  "physicalAndroid": {
+    "device": "Samsung SM-S928N; Android 16; 4KB pages",
+    "apkInstall": "PASS; package lastUpdateTime 2026-09-28 01:56:59 KST",
+    "coldLaunch": "PASS; kr.masscom.wolgye/.MainActivity",
+    "productionCatalog": "PASS; after the existing Google session was restored, 0 real public merchants and no showcase A/B/C cards; unauthenticated app browsing not proven",
+    "googleLogin": "PASS; approved existing Google account selected through the native picker, production account session shown after fresh sign-in",
+    "sessionRestore": "PASS; cold restart reopened the same production account session without the Google picker",
+    "accountDeletionEntry": "PASS; web deletion-request button and non-completion notice visible in the account screen; opening/submitting the request NOT_RUN",
+    "sameAccountSelection": "PASS; explicit same-account guidance shown rather than silently changing accounts",
+    "fatalLog": "no kr.masscom.wolgye FATAL EXCEPTION in the inspected recent log window",
+    "appLink": "masscom.kr verified, but automatic opening disabled in user 0 device preferences; explicit MainActivity VIEW intent PASS, automatic selection BLOCKED by device setting"
+  },
+  "sixteenKbAndroid": {
+    "device": "Android 36 ps16k emulator; page size 16384",
+    "firstAvd": "BLOCKED; Small_Phone /data had 395MB free and install-create returned not enough space; phone itself had ample storage",
+    "alternateAvd": "PASS; MassCOM_Design_QA /data had 3.8GB free, signed APK set installed and MainActivity cold start returned Status: ok",
+    "screenCapture": "BLOCKED; emulator screencap hung twice, so visible rendering was not inferred from the cold-launch result",
+    "visibleRendering": "NOT_RUN"
+  },
+  "githubRelease": {
+    "tag": "android-v0.1.0-test.3",
+    "kind": "public prerelease; not Google Play",
+    "apkAssetDigest": "sha256:69fe089ce3c7bee8cb4ec2239254dca9b9de2736f2479e7a10fad32950890185",
+    "anonymousDownload": "APK HEAD 200; TLS verify 0",
+    "companionAssets": "AAB provenance JSON and SHA256SUMS.txt; GitHub asset digests match local files"
+  },
+  "notClaimed": [
+    "Google Play upload, approval, closed testing, or production release",
+    "second physical Google account login or data-isolation test for this APK",
+    "16KB emulator visible screen rendering or accessibility",
+    "current APK external-wallet return, real QR redemption, or NFT issuance",
+    "automatic App Link selection on this user's disabled device setting",
+    "automated account deletion; Issue #194 remains BLOCKED"
+  ]
+}
