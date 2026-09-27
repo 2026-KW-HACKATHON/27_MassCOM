@@ -44,6 +44,7 @@
     "firstAvd": "BLOCKED; Small_Phone /data had 395MB free and install-create returned not enough space; phone itself had ample storage",
     "alternateAvd": "PASS; MassCOM_Design_QA /data had 3.8GB free, signed APK set installed and MainActivity cold start returned Status: ok",
     "screenCapture": "BLOCKED; emulator screencap hung twice, so visible rendering was not inferred from the cold-launch result",
+    "screenCaptureMinimalRepro": "adb -s emulator-5554 shell screencap -p /sdcard/masscom-operating-emulator.png; no output or completion after 30s twice, terminated; adb shell echo alive returned immediately",
     "visibleRendering": "NOT_RUN"
   },
   "githubRelease": {
