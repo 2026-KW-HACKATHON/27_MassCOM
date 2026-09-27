@@ -46,6 +46,8 @@
 
 **현재 판정:** 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`입니다. Base Sepolia 발행과 운영 지갑 검증은 [별도 증거](docs/TEST_STATUS.md)가 있고, 시연 APK에는 전용 지갑·발행 기능을 자동으로 포함하지 않았습니다. [시연 APK 세부 상태](docs/ANDROID_DOWNLOADS.md)와 [현재 차단 항목](docs/BLOCKERS.md)이 아래 그림보다 우선합니다.
 
+[Issue #202](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/202)의 새 Android 소스는 로그아웃 상태의 공개 점포 탐색과 개인 화면의 로그인 안내를 구현했습니다. 위에 링크한 운영 test.3·시연 Preview 3 APK는 **변경 전 설치본**입니다. 새 소스의 실제 기기 로그인 복귀·계정 전환은 별도 검증 전까지 `NOT_RUN`입니다.
+
 `www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 저장소와 APK 사전 릴리스는 공개됐지만 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
 
 ## 한눈에 보기

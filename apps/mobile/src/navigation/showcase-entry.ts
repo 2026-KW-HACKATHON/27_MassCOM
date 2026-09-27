@@ -1,5 +1,20 @@
+import type { AccountCredential } from '@/auth/account-credential';
+import { canOpenMerchantDemo, isDevelopmentDemoBuild, type DemoRuntimeConfig } from '@/config/demo-runtime';
+
 export type ShowcaseRole = 'customer' | 'merchant';
 export type ShowcaseRoleState = { role?: ShowcaseRole; accountId?: string };
+
+let pendingMerchantReturn: string | undefined;
+
+export function rememberMerchantReturn(merchantId: string | undefined): void {
+  pendingMerchantReturn = merchantId;
+}
+
+export function consumeMerchantReturn(): string | undefined {
+  const merchantId = pendingMerchantReturn;
+  pendingMerchantReturn = undefined;
+  return merchantId;
+}
 
 export function showShowcaseRoleEntry(
   packageId: string | null | undefined,
@@ -25,12 +40,20 @@ export function showcaseEntryDestination(
   authenticated: boolean,
 ): 'role' | 'auth' | 'customer' | 'merchant' {
   if (showShowcaseRoleEntry(packageId, selectedRole)) return 'role';
-  if (!authenticated) return 'auth';
-  return packageId === 'kr.masscom.wolgye.demo' && selectedRole === 'merchant'
-    ? 'merchant'
-    : 'customer';
+  if (packageId === 'kr.masscom.wolgye.demo' && selectedRole === 'merchant') {
+    return authenticated ? 'merchant' : 'auth';
+  }
+  return 'customer';
 }
 
 export function canOpenShowcaseTour(packageId: string | null | undefined): boolean {
   return packageId === 'kr.masscom.wolgye.demo';
+}
+
+export function canOpenDeveloperMerchantRoute(
+  packageId: string | null | undefined,
+  credential: AccountCredential | undefined,
+  config: DemoRuntimeConfig,
+): boolean {
+  return isDevelopmentDemoBuild(packageId) && Boolean(credential && canOpenMerchantDemo(credential, config));
 }

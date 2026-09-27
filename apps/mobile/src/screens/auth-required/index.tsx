@@ -16,9 +16,10 @@ type Props = {
   canSignIn: boolean;
   onSignIn: () => Promise<void>;
   onBackToRole?: () => void;
+  onBackToBrowse?: () => void;
 };
 
-export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole }: Props) {
+export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole, onBackToBrowse }: Props) {
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeAuthRequiredStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
@@ -75,6 +76,9 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole }:
       ) : null}
       {onBackToRole ? <Pressable accessibilityRole="button" onPress={onBackToRole} style={{ minHeight: 48, justifyContent: 'center', alignItems: 'center' }}>
         <Text style={{ color: palette.primary, fontSize: 16, fontWeight: '700' }}>역할 다시 선택</Text>
+      </Pressable> : null}
+      {onBackToBrowse ? <Pressable accessibilityRole="button" onPress={onBackToBrowse} style={{ minHeight: 48, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: palette.primary, fontSize: 16, fontWeight: '700' }}>음식점으로 돌아가기</Text>
       </Pressable> : null}
     </ScrollView>
   );

@@ -2,6 +2,7 @@ import * as Application from 'expo-application';
 import { AppKit, AppKitProvider, useAppKitTheme } from '@reown/appkit-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router/stack';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -9,13 +10,20 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthSessionProvider, useAuthSession } from '@/auth/auth-provider';
 import { AuthRequiredScreen } from '@/screens/auth-required';
 import { publicApiConfig } from '@/config/public-api-runtime';
-import { reconcileShowcaseAccount, showcaseEntryDestination, type ShowcaseRoleState } from '@/navigation/showcase-entry';
+import { consumeMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, type ShowcaseRoleState } from '@/navigation/showcase-entry';
 import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseMerchantScreen } from '@/screens/showcase-merchant';
 import { colorsForScheme } from '@/theme/palette';
 
 function Routes() {
+  const auth = useAuthSession();
+  const router = useRouter();
   const palette = colorsForScheme(useColorScheme());
+  useEffect(() => {
+    if (auth.state.status !== 'signedIn') return;
+    const merchantId = consumeMerchantReturn();
+    if (merchantId) router.replace({ pathname: '/merchants/[merchantId]', params: { merchantId } });
+  }, [auth.state.status, router]);
   return (
     <Stack
       screenOptions={{
@@ -92,7 +100,7 @@ function AuthenticatedRoot() {
     />;
   }
 
-  if (!auth.appKit) return <Routes key={auth.accountId} />;
+  if (!auth.appKit) return <Routes />;
 
   return (
     <AppKitProvider key={auth.accountId} instance={auth.appKit}>
