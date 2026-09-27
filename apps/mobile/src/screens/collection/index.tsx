@@ -1,3 +1,4 @@
+import * as Application from 'expo-application';
 import { Link } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
@@ -304,7 +305,7 @@ export function CollectionScreen({
           <EmptyCopy palette={palette} text="아직 받은 수집품이 없습니다. 첫 방문을 인증해 보세요." />
         ) : (
           collection.collectibles.map((item) => {
-            const artKey = showcaseCollectibleArtKey(item.merchantId);
+            const artKey = showcaseCollectibleArtKey(Application.applicationId, item.merchantId);
             return (
               <View key={item.entitlementId} style={[styles.collectibleCard, { backgroundColor: palette.surface }]}>
               {artKey ? (
