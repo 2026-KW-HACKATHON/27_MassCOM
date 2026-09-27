@@ -1,6 +1,6 @@
 export type CustomerIdentity = { token: string; expiresAt: string };
 
-export type ResolvedCustomerIdentity = { customerAccountId: string; expiresAt: string };
+export type ResolvedCustomerIdentity = { expiresAt: string };
 
 export interface CustomerIdentityService {
   create(accountId: string): Promise<CustomerIdentity>;

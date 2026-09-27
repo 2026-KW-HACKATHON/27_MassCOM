@@ -7,7 +7,7 @@ import { Pool } from 'pg';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { runMigrations } from './postgres/migrate.js';
-import { createApiServer } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 test('one-person claim slots keep only hashes, reissue in place, and consume once under concurrency', async (t) => {
@@ -250,7 +250,7 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
       chainId: 84532,
       ttlMs: 5 * 60 * 1000,
     }),
-    () => 'staff-a',
+    developmentHeaderAccountResolver,
     undefined,
     new PostgresMerchantAccessControl(pool),
     service,
@@ -269,7 +269,7 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
   const apiBaseUrl = `http://127.0.0.1:${apiAddress.port}`;
   const issueResponse = await fetch(`${apiBaseUrl}/merchant/merchants/merchant-a/claim-slots`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-account-id': 'staff-a' },
     body: JSON.stringify({
       customerAccountId: 'customer-http',
       merchantReference: 'demo-order-http',
@@ -286,7 +286,7 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
         `${apiBaseUrl}/merchant/merchants/merchant-a/claim-slots/${issuedOverHttp.claimSlotId}/reissue`,
         {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json', 'x-account-id': 'staff-a' },
           body: JSON.stringify({ expectedTokenVersion: issuedOverHttp.tokenVersion }),
         },
       ),

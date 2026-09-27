@@ -11,7 +11,7 @@ import {
   type RedeemedClaimSlot,
 } from '../claim-slot-service.js';
 import { MerchantAccessError } from '../merchant-access.js';
-import { hashCustomerIdentityToken } from './customer-identity.js';
+import { hashCustomerIdentityToken, isCustomerIdentityToken } from './customer-identity.js';
 import {
   AccountLifecycleError,
   type PostgresAccountLifecycle,
@@ -161,6 +161,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
       let customerAccountId = input.customerAccountId;
       let identityHash: Buffer | undefined;
       if (input.customerIdentityToken !== undefined) {
+        if (!isCustomerIdentityToken(input.customerIdentityToken)) throw new ClaimSlotError('CUSTOMER_IDENTITY_UNAVAILABLE');
         identityHash = hashCustomerIdentityToken(input.customerIdentityToken);
         const identity = await client.query<{ customer_account_id: string }>(
           `SELECT customer_account_id FROM customer_identity_tokens WHERE token_hash = $1`,

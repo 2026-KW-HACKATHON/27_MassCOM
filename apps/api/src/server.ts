@@ -345,6 +345,7 @@ export function createApiServer(
           sendJson(response, 'replayed' in issued ? 200 : 201, issued);
         } else {
           if ('useConfirmed' in body) throw new RequestError(400, 'INVALID_REQUEST');
+          if (resolveAccountId !== developmentHeaderAccountResolver) throw new RequestError(403, 'CUSTOMER_IDENTITY_REQUIRED');
           const issued = await claimSlots.issue({ merchantId,
             customerAccountId: requireString(body, 'customerAccountId'),
             merchantReference: requireString(body, 'merchantReference'),

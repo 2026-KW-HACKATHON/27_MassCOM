@@ -33,10 +33,13 @@ test('customer identity is bound read-only and consumed atomically with one clai
   let now = new Date('2026-09-28T00:00:00Z');
   const lifecycle = new PostgresAccountLifecycle({ hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes' });
   const identityTokens = [
-    'identity-token-abcdefghijklmnopqrstuvwxyz012345',
-    'identity-token-abcdefghijklmnopqrstuvwxyz012346',
-    'identity-token-abcdefghijklmnopqrstuvwxyz012347',
-    'identity-token-abcdefghijklmnopqrstuvwxyz012348',
+    'masscom-customer:v1:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFX',
+    'masscom-customer:v1:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG',
+    'masscom-customer:v1:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFH',
+    'masscom-customer:v1:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFI',
+    'masscom-customer:v1:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFJ',
+    'masscom-customer:v1:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFK',
+    'masscom-customer:v1:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFL',
   ];
   const identity = new PostgresCustomerIdentityService(pool, {
     now: () => now,
@@ -44,15 +47,19 @@ test('customer identity is bound read-only and consumed atomically with one clai
     accountLifecycle: lifecycle,
   });
   const created = await identity.create('customer-a');
+  assert.match(created.token, /^masscom-customer:v1:/);
   assert.equal(created.expiresAt, '2026-09-28T00:02:00.000Z');
   const stored = await pool.query('SELECT token_hash, customer_account_id FROM customer_identity_tokens');
   assert.equal(stored.rowCount, 1);
   assert.equal(stored.rows[0]!.token_hash.length, 32);
   assert.notEqual(stored.rows[0]!.token_hash.toString(), created.token);
 
+  await assert.rejects(identity.resolve({ token: 'claim-token-abcdefghijklmnopqrstuvwxyz', merchantId: 'identity-merchant', staffAccountId: 'staff-a' }), { code: 'CUSTOMER_IDENTITY_UNAVAILABLE' });
+  await assert.rejects(new PostgresClaimSlotService(pool, { referenceHmacSecret: 'test-reference-hmac-secret-32-bytes' }).preview({ accountId: 'customer-a', token: created.token }), { code: 'CLAIM_TOKEN_UNAVAILABLE' });
+
   await assert.rejects(identity.resolve({ token: created.token, merchantId: 'identity-merchant', staffAccountId: 'outsider' }), { code: 'MERCHANT_ACCESS_DENIED' });
   const resolved = await identity.resolve({ token: created.token, merchantId: 'identity-merchant', staffAccountId: 'staff-a' });
-  assert.equal(resolved.customerAccountId, 'customer-a');
+  assert.deepEqual(resolved, { expiresAt: created.expiresAt });
   await assert.rejects(identity.resolve({ token: created.token, merchantId: 'identity-merchant', staffAccountId: 'staff-b' }), { code: 'CUSTOMER_IDENTITY_UNAVAILABLE' });
   await assert.rejects(identity.resolve({ token: created.token, merchantId: 'other-merchant', staffAccountId: 'staff-a' }), { code: 'CUSTOMER_IDENTITY_UNAVAILABLE' });
   assert.equal((await pool.query('SELECT count(*)::int AS count FROM claim_slots')).rows[0]!.count, 0);
@@ -83,6 +90,14 @@ test('customer identity is bound read-only and consumed atomically with one clai
   const revoked = await identity.create('customer-b');
   await identity.revoke({ token: revoked.token, accountId: 'customer-b' });
   await assert.rejects(identity.resolve({ token: revoked.token, merchantId: 'identity-merchant', staffAccountId: 'staff-a' }), { code: 'CUSTOMER_IDENTITY_UNAVAILABLE' });
+
+  const oldUnbound = await identity.create('customer-refresh');
+  const oldBound = await identity.create('customer-refresh');
+  await assert.rejects(identity.resolve({ token: oldUnbound.token, merchantId: 'identity-merchant', staffAccountId: 'staff-a' }), { code: 'CUSTOMER_IDENTITY_UNAVAILABLE' });
+  await identity.resolve({ token: oldBound.token, merchantId: 'identity-merchant', staffAccountId: 'staff-a' });
+  const latest = await identity.create('customer-refresh');
+  await assert.rejects(identity.resolve({ token: oldBound.token, merchantId: 'identity-merchant', staffAccountId: 'staff-a' }), { code: 'CUSTOMER_IDENTITY_UNAVAILABLE' });
+  await identity.resolve({ token: latest.token, merchantId: 'identity-merchant', staffAccountId: 'staff-a' });
 
   const deletionIdentity = new PostgresCustomerIdentityService(pool, { now: () => now, accountLifecycle: lifecycle });
   const beforeDeletion = await deletionIdentity.create('customer-delete');
@@ -119,8 +134,11 @@ test('customer identity is bound read-only and consumed atomically with one clai
   const resolvePath = '/merchant/merchants/identity-merchant/customer-identities/resolve';
   const resolveResponse = await request(resolvePath, 'staff-a', { customerIdentityToken: httpToken });
   assert.equal(resolveResponse.status, 200);
-  assert.equal((await resolveResponse.json() as { customerAccountId: string }).customerAccountId, 'customer-http');
+  assert.deepEqual(await resolveResponse.json(), { expiresAt: '2026-09-28T00:04:00.000Z' });
   const issuePath = '/merchant/merchants/identity-merchant/claim-slots';
+  const rawIssue = await request(issuePath, 'staff-a', { customerAccountId: 'attacker-chosen', merchantReference: 'raw-order' });
+  assert.equal(rawIssue.status, 403);
+  assert.deepEqual(await rawIssue.json(), { code: 'CUSTOMER_IDENTITY_REQUIRED' });
   const invalidIssue = await request(issuePath, 'staff-a', { customerIdentityToken: httpToken,
     customerAccountId: 'attacker-chosen', merchantReference: 'http-order', useConfirmed: true });
   assert.equal(invalidIssue.status, 400);
