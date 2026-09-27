@@ -121,12 +121,11 @@ function RecommendationCard({ styles, palette, item, index }: { styles: Recommen
     >
       <Pressable accessibilityRole="button" style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
         <View style={styles.cardTopline}>
-          <Text style={styles.rank}>{String(index + 1).padStart(2, '0')}</Text>
           <Text style={styles.reasonCode}>{reasonLabel(item.reasonCode)}</Text>
           {item.demo ? <Text style={styles.demo}>DEMO</Text> : null}
         </View>
         <View style={styles.cardNameRow}>
-          <MerchantMark name={item.merchantName} visited={item.progressVisitCount > 0} palette={palette} />
+          <MerchantMark label={String(index + 1)} visited={item.progressVisitCount > 0} palette={palette} />
           <Text selectable style={[styles.cardTitle, { flex: 1 }]}>{item.merchantName}</Text>
         </View>
         <Text selectable style={styles.reason}>{item.reasonText}</Text>

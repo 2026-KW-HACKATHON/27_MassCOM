@@ -347,7 +347,7 @@ export function CollectionScreen({
         ) : (
           collection.visits.map((visit) => (
             <View key={visit.visitEventId} style={[styles.visitRow, { backgroundColor: palette.surface }]}>
-              <View>
+              <View style={styles.visitLeft}>
                 <Text selectable style={[styles.visitMerchant, { color: palette.label }]}>{visit.merchantName}</Text>
                 <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{visit.campaignTitle}</Text>
               </View>

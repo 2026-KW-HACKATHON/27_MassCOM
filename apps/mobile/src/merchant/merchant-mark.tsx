@@ -5,7 +5,8 @@ import type { AppColors } from '@/theme/palette';
 const mascotStamp = require('../../assets/images/mascot/mascot-stamp.png');
 
 type Props = {
-  name: string;
+  /** Short text for the plain circle, e.g. the card's order number. */
+  label: string;
   visited: boolean;
   palette: AppColors;
   size?: number;
@@ -13,11 +14,11 @@ type Props = {
 
 /**
  * Small circular mark shown next to a merchant name: the approved mascot
- * stamp (D-036) once visited, otherwise a soft initial-letter circle.
+ * stamp (D-036) once visited, otherwise a soft circle with a short label.
  * Purely decorative — the merchant name text next to it already carries
  * the accessible label.
  */
-export function MerchantMark({ name, visited, palette, size = 40 }: Props) {
+export function MerchantMark({ label, visited, palette, size = 40 }: Props) {
   const dimension = { width: size, height: size, borderRadius: size / 2 };
   if (visited) {
     return (
@@ -29,7 +30,6 @@ export function MerchantMark({ name, visited, palette, size = 40 }: Props) {
       />
     );
   }
-  const initial = name.trim().charAt(0) || '?';
   return (
     <View
       accessible={false}
@@ -39,7 +39,7 @@ export function MerchantMark({ name, visited, palette, size = 40 }: Props) {
         { backgroundColor: palette.primaryContainer, borderColor: palette.separator },
       ]}
     >
-      <Text style={[styles.initialText, { color: palette.onPrimaryContainer }]}>{initial}</Text>
+      <Text style={[styles.initialText, { color: palette.onPrimaryContainer }]}>{label}</Text>
     </View>
   );
 }
