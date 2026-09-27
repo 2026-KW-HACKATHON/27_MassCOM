@@ -1,0 +1,43 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-09-27T16:53:36Z",
+  "target": "existing Lightsail masscom-api-seoul; no new cloud resource",
+  "sourceCommit": "174aa13d2863f6cda066f59e31b09be57d6efd1b",
+  "pullRequest": 197,
+  "checks": {
+    "pullRequestCI": "36332791455 PASS",
+    "mainCI": "36333774247 PASS"
+  },
+  "firstAttempt": {
+    "sourceCommit": "22283d7ebdc27b7d35e437d09932c364996070cb",
+    "result": "FAIL; remote /verify.mjs missing from tar payload; WEB_DEPLOY_REVERTED",
+    "oldWebCommitPreserved": "4a42475275e3fe6f2d808b6c8c691d2d36710c5e"
+  },
+  "retry": {
+    "command": "scripts/deploy-lightsail-web.sh --deploy",
+    "exitCode": 0,
+    "webMarker": "174aa13d2863f6cda066f59e31b09be57d6efd1b",
+    "webImage": "masscom-production-web:174aa13d2863",
+    "caddyState": "running; restart count 0"
+  },
+  "externalHttps": {
+    "https://www.masscom.kr/": "200; TLS verify 0",
+    "https://www.masscom.kr/preview/": "200; TLS verify 0",
+    "https://www.masscom.kr/app/": "200; TLS verify 0",
+    "https://www.masscom.kr/account-deletion.html": "200; TLS verify 0; SHA-256 65dcf05d99c841de3cba30eae8c1832269ad9c81adf905e7c19106dfea60e93a matches docs/account-deletion.html",
+    "https://api.masscom.kr/health": "200; TLS verify 0",
+    "https://demo-api.masscom.kr/health": "200; TLS verify 0"
+  },
+  "dataBoundary": {
+    "productionMerchants": 0,
+    "showcaseVirtualMerchants": 3,
+    "productionApiImageUnchanged": "masscom-api:3c59ac056b50",
+    "productionDbContainerUnchanged": "e0d14fb7c8034d7509dee440b8644adf6de848a478f259fc524d3337086d4827",
+    "showcaseApiImageUnchanged": "masscom-showcase-api:7455791",
+    "databaseMigration": "NOT_RUN; web-only deployment"
+  },
+  "remaining": [
+    "Account deletion request is still not securely mapped to a verified account or completed; Issue #194 remains BLOCKED.",
+    "Latest operating Android release and new Google login remain separate device checks."
+  ]
+}

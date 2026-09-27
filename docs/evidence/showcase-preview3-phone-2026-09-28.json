@@ -1,0 +1,26 @@
+{
+  "status": "PASS",
+  "scope": "physical installation, customer navigation, Google cancellation and retry UI only",
+  "verifiedAt": "2026-09-27T17:07:51Z",
+  "apk": "MassCOM-showcase-android-128ce5f.apk",
+  "sourceCommit": "128ce5f7e6e9d7e1e079a079d59fc90b8fbf4678",
+  "sha256": "c47104ce3fc7f6bf27f83120731f07fd89ebf84165a23d548059160a25b64fae",
+  "package": "kr.masscom.wolgye.demo",
+  "device": "Samsung SM-S928N; Android 16",
+  "checks": {
+    "adbInstall": "PASS; streamed install -r returned Success",
+    "signedPackage": "PASS; dedicated showcase certificate and package verified before install",
+    "roleSelection": "PASS; dedicated showcase and virtual-data notice visible",
+    "customerExplore": "PASS; three virtual merchants A/B/C visible with DEMO and non-real-visit notices",
+    "googleCancellation": "PASS; native Google consent cancel returned to role selection without the reported repeated generic network error",
+    "retryNavigation": "PASS; customer explore and account screen reachable after cancellation",
+    "fatalLog": "no kr.masscom.wolgye.demo FATAL EXCEPTION in the inspected recent log window"
+  },
+  "notClaimed": [
+    "New Google login with an account outside the previous invited set",
+    "Camera QR capture and reward claim in this APK",
+    "Merchant STAFF authorization retest in this APK",
+    "Showcase external wallet or NFT issuance",
+    "TalkBack or complete 200% text review in this APK"
+  ]
+}

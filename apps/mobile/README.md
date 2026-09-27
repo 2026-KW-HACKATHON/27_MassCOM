@@ -6,9 +6,9 @@
 | --- | --- | --- | --- | --- |
 | 비움/`development` | `kr.masscom.wolgye.dev` | `masscom-dev` | 로컬 loopback 가능 | 기존 개발 앱·로컬 DEMO |
 | `showcase` | `kr.masscom.wolgye.demo` | `masscom-demo` | 정확히 `https://demo-api.masscom.kr` | [두 계정 폰 로그인·점주 발급→고객 직접 코드 수령·재입력 거절](../../docs/evidence/showcase-two-account-phone-2026-09-27.json) PASS, 카메라 QR 촬영 수령 `NOT_RUN` |
-| `production` | `kr.masscom.wolgye` | `masscom` | 정확히 `https://api.masscom.kr` | 기존 release 검증 유지 |
+| `production` | `kr.masscom.wolgye` | `masscom` | 정확히 `https://api.masscom.kr` | [test.3 Samsung Google 로그인·16KB 설치](../../docs/evidence/operating-android-test3-2026-09-28.json) PASS; Play 별도 |
 
-시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 정적 시연 웹은 [www 공개 HTTPS](https://www.masscom.kr/preview/)에서 열립니다. **[전용 시연 API/DB](https://demo-api.masscom.kr/health)는 [새 고객 로그인 코드로 교체](../../docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)했고 [Preview 3 설치용 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)는 서명·게시했지만 초대 밖 실계정 로그인·새 APK 물리 기기 설치·`demo.masscom.kr` App Link·카메라 QR 촬영 수령·지갑 연결은 미검증**입니다. 이전 두 계정 직접 코드 수령은 [별도 폰 실기](../../docs/evidence/showcase-two-account-phone-2026-09-27.json)입니다. 개발 앱의 DEMO 인증은 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
+시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 정적 시연 웹은 [www 공개 HTTPS](https://www.masscom.kr/preview/)에서 열립니다. **[전용 시연 API/DB](https://demo-api.masscom.kr/health)는 [새 고객 로그인 코드로 교체](../../docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)했고 [Preview 3 설치용 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)는 [Samsung 설치·가상 3점포·Google 취소 후 재진입](../../docs/evidence/showcase-preview3-phone-2026-09-28.json)까지 확인했습니다. 초대 밖 실계정 새 로그인·`demo.masscom.kr` App Link·카메라 QR 촬영 수령·지갑 연결은 미검증**입니다. 이전 두 계정 직접 코드 수령은 [별도 폰 실기](../../docs/evidence/showcase-two-account-phone-2026-09-27.json)입니다. 개발 앱의 DEMO 인증은 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
 
 `APP_VARIANT=showcase`는 기존 `.env.local`의 운영 Google/Reown ID 또는 개발 DEMO 변수가 있으면 빌드 설정을 거절합니다. 시연 전용 Google Web client ID를 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`로 요구하고, 설치 package가 `.demo`일 때만 앱 설정의 이 값을 읽습니다. 별도 Reown 프로젝트는 미설정이라 시연 지갑 연결은 비활성입니다. 현재 환경 경계만 확인하려면 로컬 dotenv 로드를 끄고 실제 발급받은 시연 전용 공개 ID를 명시합니다(실제 API 요청·APK 빌드 아님).
 
@@ -69,7 +69,7 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 - Android 카메라 QR: `NOT_RUN`; 수동 1회 코드 입력은 `VERIFIED`
 - 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), scheme `masscom`/`masscom-dev`: `IMPLEMENTED`
 - 계정 삭제 접수 시 지갑 연결 해제 및 기기 WalletConnect 세션 제거: `IMPLEMENTED`
-- upload key 파일·공개 SHA-256 핀, test.2 AAB/APK와 Samsung 4KB·Android 36 16KB AVD 설치·콜드 실행·`masscom.kr/open` App Link: `VERIFIED`; Play Console 제출: `NOT_RUN`
+- upload key 파일·공개 SHA-256 핀, [test.3 AAB/APK](../../docs/evidence/operating-android-test3-2026-09-28.json)의 Samsung 4KB 고객 Google 로그인·콜드 세션 복원과 Android 36 16KB AVD 설치·콜드 실행: `VERIFIED`. App Link 도메인은 verified지만 이 폰의 자동 열기 설정은 disabled; Play Console 제출: `NOT_RUN`
 
 ## 로컬 준비
 

@@ -1,8 +1,15 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-27 KST
+마지막 갱신 시각: 2026-09-28 KST
 
-## 현재 GitHub·운영 상태 — 2026-09-27
+## 현재 GitHub·운영 상태 — 2026-09-28
+
+- **제품 코드·검사:** [PR #197](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/197) merge `174aa13`(PR/main CI `36332791455`/`36333774247` PASS)와 [PR #198](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/198) merge `c5cba68`(PR/main CI `36334339405`/`36334694626` PASS). 운영 웹 tar의 검증 파일 누락과 운영 AAB의 `CI=1` Metro 캐시로 인한 Google 설정 누락을 회귀 시험으로 고쳤다. 현재 문서 후속 브랜치는 `docs/release-deployment-evidence`다.
+- **공개 웹:** 기존 Lightsail의 웹만 `174aa13`으로 배포했다. 첫 `22283d7` 시도는 `/verify.mjs` 누락으로 자동 복구됐고, 수정 후 재배포는 exit 0이다. `www.masscom.kr`의 `/`, `/preview/`, `/app/`, `/account-deletion.html`과 두 API health HTTPS 200/TLS, 삭제 안내 소스 해시 일치, 운영 점포 0·시연 가상 3, 운영·시연 API/DB 이미지 보존을 [실측](evidence/web-only-deployment-2026-09-28.json)했다. 운영 API/DB 전체 배포와 migration은 수행하지 않았다.
+- **두 설치본:** [운영 test.3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.3)는 source `c5cba68`의 업로드 키 서명본이다. AAB/APK 번들에 운영 API URL·Google Web client가 들어 있고 GitHub digest·익명 다운로드를 확인했다. Samsung 4KB 설치·운영 빈 점포·승인된 계정의 새 Google 로그인·콜드 복원, Android 36 16KB AVD 설치·콜드 실행을 [기록](evidence/operating-android-test3-2026-09-28.json)했다. 이전 `22283d7` AAB는 서명됐지만 설정 누락 실기 때문에 배포하지 않았다. [시연 Preview 3](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)은 [Samsung 설치·가상 3점포·Google 취소 후 재진입](evidence/showcase-preview3-phone-2026-09-28.json)까지만 확인했다.
+- **남은 게이트:** 초대 밖 실제 Google 계정의 시연 새 로그인(#191/B-019), 운영 release 외부 지갑·실제 QR 수령, 16KB 화면 캡처/TalkBack, 사용자 설정상 자동 App Link 열기, 실제 점주·현장 자료는 별도 미검증이다. 운영 계정 삭제의 안전한 계정 매핑·실제 처리 [#194/B-020](BLOCKERS.md)과 Play 제출은 `BLOCKED/NOT_RUN`. APK 내부 `versionCode`는 아직 2라 test.3 태그를 Play 버전 증가로 보지 않는다. 비밀번호·복구 문구·OAuth secret은 Git·문서에 없다.
+
+## 이전 GitHub·운영 상태 — 2026-09-27 당시 기록
 
 - **최신 시연 앱·운영 준비:** [PR #195](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/195) merge `128ce5f`, PR CI `36322060841`·main CI `36322378979` PASS. 로그인 시간초과/안내, 웹 삭제 요청 링크, 시연 그림의 운영 Android bundle 제외, PG16·두 variant CI, 운영 전체 배포 실패 복구를 반영했다. 기존 시연 전용 키로 [Preview 3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)를 서명·게시하고 GitHub digest/익명 HTTPS 200을 [확인](evidence/showcase-preview3-release-2026-09-27.json)했다. **현재 폰은 `adb` 미연결**이라 Preview 3 설치·초대 밖 실계정 로그인은 `NOT_RUN`; 운영 최신 AAB/APK·전체 운영 재배포도 미실행이다. 삭제 이메일 요청은 검증된 Google 계정 ID에 안전하게 연결되지 않아 [Issue #194](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/194) 출시 차단을 유지한다. 문서·배포 증거는 [PR #196](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/196)에서 추적한다. 재개 시 `git status -sb`, `gh pr list`, `gh run list`, `adb devices`를 다시 확인한다.
 

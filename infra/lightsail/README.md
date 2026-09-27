@@ -1,5 +1,7 @@
 # 기존 Lightsail의 포털·운영 웹 이관
 
+**최신 웹 전용 배포(2026-09-28):** [PR #197](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/197) merge `174aa13`과 PR/main CI PASS 뒤 기존 Lightsail의 웹·Caddy만 갱신했습니다. 첫 시도는 edge 검증 파일이 tar에서 빠져 자동 복구됐고 수정 후 exit 0입니다. `www.masscom.kr`의 `/`, `/preview/`, `/app/`, `/account-deletion.html`과 두 API health는 HTTPS 200/TLS, 계정 삭제 안내 파일은 소스와 SHA-256 일치, 운영 점포 0·시연 가상 3과 API/DB 이미지 불변을 [실측](../../docs/evidence/web-only-deployment-2026-09-28.json)했습니다. 실제 삭제 대상 식별·처리는 [B-020](../../docs/BLOCKERS.md)으로 계속 차단됩니다.
+
 `www.masscom.kr` 추가 전환은 [승인 설계](../../docs/superpowers/specs/2026-09-25-www-web-consolidation-design.md)를 따른다. PR #169의 정적 `/preview/`와 호스트별 인증 코드를 기존 서버에 배포했고 apex 경로·DB migration·백업·Google `www` 승인 URI·가비아 www A·공인 TLS·휴대전화 한 계정 로그인을 확인했다([전환 증거](../../docs/evidence/www-web-cutover-2026-09-25.json)). apex DNS와 `/open`·Reown 출처는 유지한다. www 두 번째 계정과 기록이 있는 도감 격리는 미검증이며, [최신 시험 원장](../../docs/TEST_STATUS.md)에 별도로 남긴다.
 
 **이전 운영 웹 실증(2026-09-25):** 당시 운영 배포 `d787471`, 기존 PostgreSQL 컨테이너 유지, Google 로그인 시작 302와 데스크톱의 기존 계정 빈 도감·새로고침·로그아웃 및 익명 401을 확인했다. Samsung Android Chrome에서도 서로 다른 Google 계정 2개를 순차 로그인하고 A 로그아웃 후 B 세션 유지를 확인했다. OAuth 비밀값은 Git 밖 mode 600 파일에만 저장했고 클립보드를 비웠다. 두 계정 모두 기록 0건이라 실제 데이터가 있는 도감의 교차 노출과 최신 운영 APK는 `NOT_RUN`이다. [최신 시험 원장](../../docs/TEST_STATUS.md)을 우선한다.

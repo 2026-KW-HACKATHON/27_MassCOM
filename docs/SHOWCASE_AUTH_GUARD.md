@@ -1,6 +1,6 @@
 # 시연 고객 로그인·점주 권한 경계
 
-**현재 배포 상태:** `demo-api.masscom.kr`은 [PR #192 병합 커밋의 새 고객 로그인 코드로 교체](evidence/showcase-open-login-api-deployment-2026-09-27.json)했고 [Preview 3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)를 서명·게시했습니다. 초대 밖 실제 Google 계정과 **이 APK의 물리 기기 로그인은 아직 `NOT_RUN`**입니다. 이전 [두 계정·STAFF·운영 audience 교차 증거](evidence/showcase-internal-auth-claim-2026-09-27.json)는 이전 설치본의 기록입니다.
+**현재 배포 상태:** `demo-api.masscom.kr`은 [PR #192 병합 커밋의 새 고객 로그인 코드로 교체](evidence/showcase-open-login-api-deployment-2026-09-27.json)했고 [Preview 3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)를 서명·게시했습니다. [Samsung 설치·가상 3점포·Google 취소 후 재진입](evidence/showcase-preview3-phone-2026-09-28.json)은 확인했지만, **초대 밖 실제 Google 계정의 새 로그인은 아직 `NOT_RUN`**입니다. 이전 [두 계정·STAFF·운영 audience 교차 증거](evidence/showcase-internal-auth-claim-2026-09-27.json)는 이전 설치본의 기록입니다.
 
 ## 승인된 새 정책
 
@@ -22,6 +22,6 @@ Google Cloud의 현재 시연 프로젝트는 `Testing`, 기록된 시험 사용
 1. 로컬 실제 PostgreSQL에서 초대 목록 밖 검증된 고객의 세션 200·본인 도감, STAFF 권한 403, 명시적 STAFF 200을 확인합니다. 기록 있는 다른 고객과의 도감 격리, 잘못된/운영 Google audience 401, 로그인 제한(429), 로그아웃·계정 삭제·재인증은 각 기존 회귀 시험과 새 배포 검증에서 확인합니다.
 2. 시연/운영 package·API·DB·Google client·데이터 분리 검사를 통과하고, 공통 고객 UI 오류 수정이 두 Android variant에 반영되는지 확인합니다. 운영 점포에 가상 데이터 0건을 재확인합니다.
 3. 한국어 PR의 필수 CI·리뷰를 우회하지 않고 병합한 뒤, 기존 Lightsail의 시연 API **만** 검증된 커밋으로 배포합니다. 이 단계는 PR #192에서 [완료](evidence/showcase-open-login-api-deployment-2026-09-27.json)했으며 운영 컨테이너·DB·Caddy가 보존됐습니다. 실제 rollback 실행은 `NOT_RUN`이고 이전 시연 API 이미지는 유지합니다.
-4. 초대 밖 실제 Google 계정으로 Android 고객 로그인→빈 도감→로그아웃을 확인하고, STAFF 진입 거절과 기존 두 계정의 기록 격리도 확인합니다. 새 Preview 3 APK의 서명·게시만 [완료](evidence/showcase-preview3-release-2026-09-27.json)했고 물리 기기 설치·검증은 `NOT_RUN`입니다. Preview 2는 변경 전 오류 복구 코드를 담습니다.
+4. 초대 밖 실제 Google 계정으로 Android 고객 로그인→빈 도감→로그아웃을 확인하고, STAFF 진입 거절과 기존 두 계정의 기록 격리도 확인합니다. Preview 3 APK의 [서명·게시](evidence/showcase-preview3-release-2026-09-27.json)와 [폰 설치·취소 후 재진입](evidence/showcase-preview3-phone-2026-09-28.json)은 완료했지만 이 전체 새 계정 흐름은 `NOT_RUN`입니다. Preview 2는 변경 전 오류 복구 코드를 담습니다.
 
 Google `sub`·이메일·ID 토큰·세션 토큰·QR 원문은 로그·Git·증거 파일에 기록하지 않습니다. 카메라 QR 촬영→수령·외부 지갑/NFT는 이 로그인 정책 변경만으로 완료되지 않습니다.

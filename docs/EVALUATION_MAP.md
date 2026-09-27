@@ -2,6 +2,12 @@
 
 Phase 2 핵심 loopback DEMO와 Phase 3 Local Anvil 발행·복구 흐름은 구현·검증됐습니다. 존재하지 않는 현장 실증·발표·공개 체인 증거를 만들지 않으며 `생성 전`, `없음`, `NOT_RUN`도 현재 상태를 추적하는 값입니다.
 
+## 2026-09-28 공개 전달·재현 증거
+
+- **중간 실현·상용화 가능성 20점 / 최종 실현·상용화 가능성 30점:** [PR #197](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/197)의 웹 전용 복구 시험과 [기존 Lightsail HTTPS 배포](evidence/web-only-deployment-2026-09-28.json)를 연결한다. 새 유료 자원 없이 운영·시연 API/DB를 보존했지만 실제 점주·매출·Play 승인은 증거가 아니다.
+- **중간 기획 재현성 20점 / 최종 구현 완성도·기술력 20점:** [PR #198](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/198)의 빌드 캐시 RED→GREEN, [운영 test.3 APK·Samsung Google 로그인·16KB 설치](evidence/operating-android-test3-2026-09-28.json), [시연 Preview 3 폰 기본 경로](evidence/showcase-preview3-phone-2026-09-28.json)를 연결한다. 공개 릴리스 해시와 코드 커밋을 재현 가능하게 대조하되 운영 지갑·QR/NFT·초대 밖 고객 로그인은 `NOT_RUN`이다.
+- **최종 지역 문제 적합성 20점·참여도 5점:** 운영 목록 0곳과 시연 가상 3곳을 분리한다. 이 자료는 지역 점포 확보·현장 참여·실제 매출 변화의 증거가 아니다. 팀원의 직접 설명·현장 검증은 별도 수집해야 한다.
+
 | 단계 | 항목 | 배점 | 요구사항 | Issue | PR | 코드·문서 | 테스트 | 실증 | 발표 자료 | 상태 |
 | --- | --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- |
 | 중간 | 논리의 연결성 | 30 | `RQ-001`~`RQ-006` | [#13](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/13), [#17](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/17), [#19](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/19), [#21](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/21), [#44](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/44) | [#14](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/14), [#18](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/18), [#20](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/20), [#22](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/22), [#45](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/45), [#46](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/46), [#47](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/47) | 카탈로그·권한·claim slot·방문·보상·도감·추천 API와 Android 탐색→수령→도감→다음 탐색 | Q01·Q02·Q03·Q05·R01·R03·중복 수령·추천 정책 `PASS`, 모바일 54개·Android 전체 흐름 PASS | Android DEMO 목록·상세·수령·도감·추천 증거, 인터뷰·행동 자료 없음 | 3분 원고 생성 전 | `IN_PROGRESS` |
