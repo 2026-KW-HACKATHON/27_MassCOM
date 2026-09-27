@@ -78,7 +78,9 @@ if (JSON.stringify(fingerprints) !== JSON.stringify([
   '5E:5E:D3:C3:19:71:E5:A8:8E:A7:52:B3:A2:AE:50:77:2F:EA:1C:95:6B:9D:97:A8:2D:D5:CA:71:30:CF:A3:95',
 ])) throw new Error('wrong App Link certificate fingerprint');
 NODE
-grep -qF 'android-v0.1.0-test.2' "$repo_root/docs/open.html"
+grep -qF 'android-v0.1.0-test.3' "$repo_root/docs/open.html"
+grep -qF 'showcase-android-v0.1.0-preview.3' "$repo_root/docs/open.html"
+! grep -Eq 'private GitHub|아직 GitHub에 APK가 없습니다' "$repo_root/docs/open.html"
 
 fixture_root="$(mktemp -d)"
 trap 'rm -rf "$fixture_root"' EXIT

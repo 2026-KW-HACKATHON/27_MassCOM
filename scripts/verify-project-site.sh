@@ -50,7 +50,11 @@ done
 grep -q 'assets/project.css' "$html" || fail "local stylesheet is not linked"
 grep -q 'href="privacy.html"' "$html" || fail "privacy policy is not linked"
 grep -q 'href="account-deletion.html"' "$html" || fail "account deletion page is not linked"
-grep -q 'android-v0.1.0-test.2' "$open_html" || fail "Android install fallback release is not linked"
+grep -q 'android-v0.1.0-test.3' "$open_html" || fail "current operating Android release is not linked"
+grep -q 'showcase-android-v0.1.0-preview.3' "$open_html" || fail "current showcase Android release is not linked"
+if grep -Eq 'private GitHub|아직 GitHub에 APK가 없습니다' "$open_html"; then
+  fail "public Android install page still describes private or unavailable releases"
+fi
 node -e "const x=JSON.parse(require('node:fs').readFileSync(process.argv[1],'utf8')); if(!Array.isArray(x)||x.length!==1||x[0]?.target?.package_name!=='kr.masscom.wolgye') process.exit(1)" "$assetlinks_json" \
   || fail "App Link association is invalid"
 grep -q '외부 지갑 비밀번호, 개인키, 복구 문구' "$deletion_html" || fail "wallet secret warning is missing"
