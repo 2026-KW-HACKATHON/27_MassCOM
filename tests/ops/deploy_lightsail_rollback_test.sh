@@ -71,7 +71,7 @@ run_remote_case() {
     elif [[ "$1" == install && "$2" == -o ]]; then
       shift 5
       command install "$@"
-      return
+      return $?
     fi
     "$@"
   }
@@ -128,7 +128,10 @@ run_remote_case() {
     if [[ "$failure" == showcase && "$*" == *https://demo-api.masscom.kr/health* &&
           "$caddy_mount_source" == "$new_release/infra/lightsail/Caddyfile" ]]; then return 22; fi
   }
-  source "$scratch/remote.sh" "$new_release" "$runtime" "$temporary" \
+  export scratch old_commit new_commit old_release new_release showcase_caddyfile \
+    failure caddy_mount_source site_mount_source showcase_failed
+  export -f sudo docker curl sleep
+  bash "$scratch/remote.sh" "$new_release" "$runtime" "$temporary" \
     "${new_commit:0:12}" "$new_commit" "$old_commit"
   ) >"$scratch/out" 2>&1 || status=$?
   out="$(<"$scratch/out")"
