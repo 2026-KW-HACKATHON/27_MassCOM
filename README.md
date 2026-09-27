@@ -48,6 +48,8 @@
 
 [Issue #202](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/202)의 새 Android 소스는 로그아웃 상태의 공개 점포 탐색과 개인 화면의 로그인 안내를 구현했습니다. 위에 링크한 운영 test.3·시연 Preview 3 APK는 **변경 전 설치본**입니다. 새 소스의 실제 기기 로그인 복귀·계정 전환은 별도 검증 전까지 `NOT_RUN`입니다.
 
+[Issue #205](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/205)의 Android 소스는 도감에서 현재 캠페인의 인정된 방문만 보상 진행으로 세고, 다음 수집품까지 남은 방문과 점포 상세 이동을 표시합니다. 이 화면도 위 공개 APK에는 아직 반영되지 않았으며 실제 기기·TalkBack 확인은 `NOT_RUN`입니다.
+
 `www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 저장소와 APK 사전 릴리스는 공개됐지만 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
 
 ## 한눈에 보기
