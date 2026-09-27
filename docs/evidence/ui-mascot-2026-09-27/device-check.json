@@ -1,0 +1,28 @@
+{
+  "recordedAt": "2026-09-27 17:35 KST",
+  "issues": [183, 184],
+  "device": { "model": "Samsung SM-S928N", "android": "16", "screen": "1080x2340 @450dpi" },
+  "apk": {
+    "package": "kr.masscom.wolgye.demo",
+    "sourceCommit": "c956d1f",
+    "sha256": "636d329af0cb2808bdb7449736a964db4ed557fbee8e929ac9b1164287d18b5c",
+    "signing": "scripts/build-showcase-apk.sh verified the approved showcase certificate pin",
+    "api": "existing showcase API; no server, DB or seed change"
+  },
+  "results": {
+    "PASS": [
+      "role screen shows the #183 copy and smaller title",
+      "explore banner renders at screen width with the mascot visible; first store card stays on the first screen",
+      "collection stamp board shows 1/3: store A visited 2 times (matches the collection visit list), B and C faded",
+      "recommendations show the mascot stamp only for the visited store A and order numbers for B and C",
+      "visit record rows show the full store name"
+    ],
+    "fixedAfterDeviceCheck": [
+      "build 2160ad0: banner drew at the asset's intrinsic size and overflowed the screen",
+      "build 2160ad0: visit record row clipped the last character of the store name (also present before #184)",
+      "build 2160ad0: initial-letter marks were all the same because every showcase store name starts with the same word"
+    ],
+    "NOT_RUN": ["dark mode", "200% system font", "TalkBack", "360dp-wide device", "camera QR claim"]
+  },
+  "privacy": "screens show showcase virtual data only; no account identifier, one-time code or wallet secret"
+}
