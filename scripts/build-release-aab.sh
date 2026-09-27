@@ -124,7 +124,8 @@ CI=1 APP_VARIANT=production MASSCOM_BUILD_SOURCE_COMMIT="$commit" \
   EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION= \
   npx --no-install expo prebuild --platform android --clean --no-install
 (cd android && \
-  CI=1 NODE_ENV=production APP_VARIANT=production MASSCOM_BUILD_SOURCE_COMMIT="$commit" \
+  # Expo ignores Gradle's --reset-cache when CI=1, which can embed stale public config.
+  CI=0 NODE_ENV=production APP_VARIANT=production MASSCOM_BUILD_SOURCE_COMMIT="$commit" \
   EXPO_PUBLIC_DEMO_ACCOUNT_ID= \
   EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID= \
   EXPO_PUBLIC_DEMO_MERCHANT_ID= \
