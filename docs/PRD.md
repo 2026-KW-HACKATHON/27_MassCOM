@@ -32,7 +32,7 @@
 
 계정 삭제·개인정보·출시 경계의 상세 수용 기준은 [PRIVACY_DELETION.md](PRIVACY_DELETION.md)와 [RELEASE_READINESS.md](RELEASE_READINESS.md)에 연결합니다. 외부 HTTPS·첫 모바일 Google 로그인·upload-key 서명 AAB 자동 gate와 A02 설치·App Links는 PASS했습니다. 운영 fresh reauthentication 삭제·두 계정 전환·Play 제출은 완료로 간주하지 않습니다.
 
-RQ-001은 공개 API의 무로그인 점포 조회와 앱 사용 경험을 분리해 평가합니다. API는 무로그인 조회가 가능하지만 현재 `apps/mobile/src/app/_layout.tsx`는 비로그인 상태에서 모든 앱 화면을 인증 안내로 대체하므로 앱 수준은 미완료입니다. 로그인 정책 변경은 별도 승인·보안 검증 없이 UI 작업에 섞지 않습니다.
+RQ-001은 공개 API의 무로그인 점포 조회와 앱 사용 경험을 분리해 평가합니다. [Issue #202](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/202)의 Android 소스에서 공개 목록·상세를 비로그인 고객에게 열고 방문 수령·도감·계정은 인증 상태로 분리했습니다. 기존 공개 운영 test.3·시연 Preview 3 APK에는 아직 이 변경이 없고, 새 설치본 실기 전까지 앱 요구사항은 `IN_PROGRESS`입니다.
 
 ## 범위 밖
 
