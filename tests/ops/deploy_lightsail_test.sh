@@ -159,5 +159,9 @@ grep -q 'DB_MIGRATION_MANUAL_RECOVERY_REQUIRED' "$deploy" || {
   echo 'full deployment omits the migration recovery warning' >&2
   exit 1
 }
+awk '/REMOTE_RELEASE_PREFLIGHT/ { if (!gate) gate=NR } /sudo mkdir/ { if (!write) write=NR } END { exit !(gate && write && gate < write) }' "$deploy" || {
+  echo 'release collision gate must run before remote release creation' >&2
+  exit 1
+}
 bash "$repo_root/tests/ops/deploy_lightsail_rollback_test.sh"
 echo "Lightsail deployment script tests passed"
