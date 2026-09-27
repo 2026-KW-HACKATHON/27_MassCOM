@@ -132,4 +132,37 @@ if [[ "$status" == '0' || "$output" != *'web deployment source paths must match 
   exit 1
 fi
 
+archive_checkout="$scratch/archive-checkout"
+mkdir -p "$archive_checkout"
+git -C "$repo_root" archive HEAD | tar -xf - -C "$archive_checkout"
+cp "$deploy" "$archive_checkout/scripts/deploy-lightsail-web.sh"
+git -C "$archive_checkout" init -q -b main
+git -C "$archive_checkout" add .
+git -C "$archive_checkout" -c user.name=Fixture -c user.email=fixture@example.invalid \
+  commit -qm 'web archive fixture'
+cat > "$scratch/bin/ssh" <<'SSH'
+#!/usr/bin/env bash
+case "$*" in
+  *'/opt/masscom/web/DEPLOYED_COMMIT'*) printf '%040d\n' 1 ;;
+  *'sudo install -d'*) ;;
+  *'tar -xzf - -C'*) cat > "$CAPTURE_TAR" ;;
+  *'bash -s --'*) exit 73 ;;
+  *) cat >/dev/null ;;
+esac
+SSH
+chmod +x "$scratch/bin/ssh"
+status=0
+CAPTURE_TAR="$scratch/release.tar.gz" \
+  env PATH="$scratch/bin:$PATH" "${common_env[@]}" \
+  bash "$archive_checkout/scripts/deploy-lightsail-web.sh" --deploy >/dev/null 2>&1 || status=$?
+if [[ "$status" != '73' || ! -f "$scratch/release.tar.gz" ]]; then
+  echo 'web release archive was not captured' >&2
+  exit 1
+fi
+tar -tzf "$scratch/release.tar.gz" > "$scratch/archive-members.txt"
+if ! grep -Fxq 'scripts/verify-showcase-edge-routes.mjs' "$scratch/archive-members.txt"; then
+  echo 'web release archive omitted the remote edge verifier' >&2
+  exit 1
+fi
+
 echo 'Lightsail web-only deploy preflight verified'

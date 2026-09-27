@@ -146,6 +146,7 @@ ssh "${ssh_options[@]}" "$target" \
   "sudo install -d -m 0755 '$remote_release' && sudo chown ubuntu:ubuntu '$remote_release'"
 COPYFILE_DISABLE=1 tar -C "$repo_root" -czf - apps/production-web infra/lightsail \
   scripts/lightsail-web-rollback.sh scripts/lightsail-web-probe-guard.sh \
+  scripts/verify-showcase-edge-routes.mjs \
   -C "$scratch" site \
   | ssh "${ssh_options[@]}" "$target" "tar -xzf - -C '$remote_release'"
 
