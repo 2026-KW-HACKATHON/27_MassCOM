@@ -2,14 +2,14 @@
 
 마지막 갱신 시각: 2026-09-28 KST
 
-## 2026-09-28 보관된 조직 저장소와 개인 작업 이관 대기
+## 2026-09-28 보관된 조직 저장소와 개인 비공개 저장소
 
-- **원격 상태:** `2026-KW-HACKATHON/27_MassCOM`은 `PUBLIC`·`Archived`다. 사용자는 조직 저장소 보관 해제를 원하지 않고 개인 계정 쪽에만 작업을 두라고 요청했다. 이 상태를 바꾸거나 조직 `main`에 새로 push·merge하지 않는다. 현재 `choijunhuk` 계정의 저장소 목록에는 MassCOM 저장소가 없어 개인 저장소 이름·가시성은 아직 확정되지 않았다. 확인 전 임의 저장소를 만들거나 다른 프로젝트 저장소를 쓰지 않는다.
+- **원격 상태:** `2026-KW-HACKATHON/27_MassCOM`은 `PUBLIC`·`Archived`다. 사용자는 보관 해제 대신 개인 GitHub를 선택했다. [개인 `choijunhuk/MassCOM`](https://github.com/choijunhuk/MassCOM)을 `PRIVATE`로 생성하고 기존 Git 커밋 이력을 보존한 `main`(`9706e61`)을 push했다. 원격 이름 `personal`이며 기존 조직 `origin`은 보존하되 더 이상 push·merge하지 않는다. 개인 저장소의 default branch는 `main`, 보관 상태는 false로 확인했다.
 - **마지막 조직 통합 기준선:** [PR #204](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/204) merge `9706e61`, PR/main CI PASS. 비로그인 공개 점포 탐색과 개인 화면 로그인 안내의 **소스**만 통합됐고 공개 운영 test.3·시연 Preview 3 APK는 이전 코드다. Issue #202의 새 APK 로그인 복귀·두 계정 격리는 `NOT_RUN`으로 유지한다.
 - **보관으로 중단된 PR:** [PR #207](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/207)은 도감 다음 목표 소스 브랜치 `feat/205-collection-next-goal`의 HEAD `dd769ae`다. 로컬 모바일 230/230·타입·린트·Android export PASS, 독립 리뷰 CLEAR. GitHub CI run `36353558484`는 Android 단계 도중 **`repository archived`로 CANCELLED**됐으므로 PR은 OPEN·미병합이고 CI PASS로 표시하지 않는다. 조직 설정을 우회하지 않는다.
-- **로컬 QR 브랜치:** `.worktrees/203-customer-identity-qr`, `feat/203-customer-identity-qr` HEAD `90fa019`, 미push·미PR. 2분 고객 식별 QR→시연 직원 촬영·실제 이용 확인→기존 계정 귀속 1회 수령 QR 코드·문서가 있다. API 109/109, PostgreSQL 16 전용 `_test` DB migration 후 52 PASS/2 SKIP, 모바일 231/231·타입·린트·build/export PASS; 서버 HIGH 2·모바일 MEDIUM 2 리뷰 수정 후 재검토. 처음 PostgreSQL 테스트는 migration 선행 누락으로 FAIL했고 같은 코드로 migration 후 PASS했다. 새 APK·외부 API 배포·실제 카메라 수령은 `NOT_RUN`; **구 시연 Preview 3 STAFF 발급과 새 API는 호환되지 않으므로 서버만 먼저 배포하지 않는다.**
-- **로컬 삭제 접수 브랜치:** `.worktrees/194-deletion-intake`, `feat/194-verified-deletion-intake` HEAD `d051ef3`, 미push·미PR. 기존 웹 세션에 묶인 내부 접수 코드·migration 0018만 구현했고 공개 Caddy 경로·UI는 연결하지 않았다. API 110/110·PostgreSQL 52 PASS/2 SKIP·웹 14/14·타입/build PASS. 운영자 신원 확인·실제 처리·결과 통지 및 폐기용 실계정 증거가 없어 [Issue #194](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/194)는 OPEN/BLOCKED; 기존 `auth_time` 5분 기준을 완화하지 않는다.
-- **개인 저장소 대상이 확정되면:** 사용자 지정 `choijunhuk/<이름>`과 가시성을 확인한 뒤, 조직 원격 `origin`은 읽기 전용으로 남기고 개인 원격을 별도 이름으로 추가한다. `main`의 기존 커밋 이력을 보존해 옮기며 QR·도감·삭제 브랜치는 각각 독립 검토한다. 개인 저장소의 한국어 PR·CI/리뷰를 통과하기 전 통합·배포 완료로 쓰지 않는다. 개인 저장소를 만들지 않는 결정이면 이 로컬 브랜치·커밋을 그대로 보존한다.
+- **개인 작업 브랜치:** `feat/205-collection-next-goal` `dd769ae`, `feat/203-customer-identity-qr` `90fa019`, `feat/194-verified-deletion-intake` `d051ef3`, `docs/personal-handoff-archive` `6932649`를 모두 `personal`에 push하고 원격 SHA를 일치 확인했다. QR은 API 109/109·PostgreSQL 16 전용 `_test` migration 후 52 PASS/2 SKIP·모바일 231/231·타입·린트·build/export PASS, 리뷰 HIGH 2·MEDIUM 2 수정 후 재검토. 처음 PostgreSQL 테스트는 migration 선행 누락으로 FAIL했고 같은 코드로 PASS했다. 도감은 모바일 230/230·타입·린트·export 및 독립 리뷰 CLEAR. 새 APK·외부 API 배포·실제 QR 촬영은 `NOT_RUN`; **구 Preview 3 STAFF 발급과 새 API는 호환되지 않으므로 서버만 먼저 배포하지 않는다.**
+- **삭제 접수 범위:** 개인 브랜치 `feat/194-verified-deletion-intake`는 웹 세션에 묶인 내부 접수 코드·migration 0018만 구현했고 공개 Caddy 경로·UI는 연결하지 않았다. API 110/110·PostgreSQL 52 PASS/2 SKIP·웹 14/14·타입/build PASS. 운영자 신원 확인·실제 처리·결과 통지 및 폐기용 실계정 증거가 없어 [Issue #194](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/194)는 OPEN/BLOCKED; 기존 `auth_time` 5분 기준을 완화하지 않는다.
+- **다음 통합 경계:** 개인 `main` `9706e61`의 첫 [CI run `36354490206`](https://github.com/choijunhuk/MassCOM/actions/runs/36354490206)은 `SUCCESS`다. 현재 개인 저장소에는 새 PR·병합·Release가 없다. private Actions는 무료 포함 분량 초과 시 과금될 수 있지만 현재 사용량 API가 권한 부족(404)이라 추가 PR CI의 비용 상한을 확인하지 못했다. 기존 조직 PR #207은 열려 있으나 보관 때문에 중단됐고 개인 PR로 자동 이관되지 않는다. 개인 저장소에서 PR·CI/리뷰를 별도로 통과하기 전 QR·도감·삭제 브랜치를 `main` 완료로 쓰지 않는다.
 
 ## 현재 GitHub·운영 상태 — 2026-09-28
 
