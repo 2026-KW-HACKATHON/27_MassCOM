@@ -1,11 +1,15 @@
 import type { AccountCredential } from './account-credential';
-import type { AuthApiClient } from './auth-api';
-import type { GoogleSignInAdapter } from './google-sign-in';
+import { AuthApiError, type AuthApiClient } from './auth-api';
+import { GoogleSignInAdapterError, type GoogleSignInAdapter } from './google-sign-in';
 import type { StoredAuthSessionV1, createSessionStore } from './session-store';
 
 export type SignedOutReason =
   | 'SECURE_STORAGE_UNAVAILABLE'
   | 'GOOGLE_SIGN_IN_CANCELLED'
+  | 'ACCOUNT_NOT_INVITED'
+  | 'NETWORK_ERROR'
+  | 'GOOGLE_SIGN_IN_FAILED'
+  | 'LOGIN_RATE_LIMITED'
   | 'SIGN_IN_FAILED'
   | 'SERVER_SESSION_REVOCATION_FAILED'
   | 'WALLET_STORAGE_CLEANUP_FAILED'
@@ -158,6 +162,12 @@ function signedIn(session: StoredAuthSessionV1): Extract<AuthState, { status: 's
 
 function authFailureReason(error: unknown): SignedOutReason {
   if (error instanceof AuthControllerError) return error.code;
+  if (error instanceof AuthApiError && error.code === 'INVITE_REQUIRED') return 'ACCOUNT_NOT_INVITED';
+  if (error instanceof AuthApiError && error.code === 'NETWORK_ERROR') return 'NETWORK_ERROR';
+  if (error instanceof AuthApiError && error.code === 'LOGIN_RATE_LIMITED') return 'LOGIN_RATE_LIMITED';
+  if (error instanceof GoogleSignInAdapterError && error.code === 'GOOGLE_SIGN_IN_FAILED') {
+    return 'GOOGLE_SIGN_IN_FAILED';
+  }
   if (
     typeof error === 'object'
     && error !== null

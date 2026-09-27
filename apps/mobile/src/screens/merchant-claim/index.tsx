@@ -155,7 +155,7 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
           label={credential?.kind === 'bearer' ? '체험 고객 계정 ID' : '고객 데모 계정'}
           value={customerAccountId}
           onChangeText={setCustomerAccountId}
-          placeholder={credential?.kind === 'bearer' ? '초대된 체험 고객 계정 ID' : 'customer-account-id'}
+          placeholder={credential?.kind === 'bearer' ? '체험 고객 계정 ID' : 'customer-account-id'}
         />
         <LabeledInput
           styles={styles}

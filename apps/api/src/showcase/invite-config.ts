@@ -1,5 +1,7 @@
 type ShowcaseEnvironment = Record<string, string | undefined>;
 
+// The variable name is retained for existing hosted runtime files. These hashes now
+// gate only explicit STAFF grants; verified customer sign-in never reads this list.
 export function resolveShowcaseInviteConfig(environment: ShowcaseEnvironment):
   { allowedSubjectHashes: ReadonlySet<string> } | undefined {
   if (environment.SHOWCASE_MODE !== 'true') {

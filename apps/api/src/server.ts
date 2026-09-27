@@ -912,6 +912,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       })
     : undefined;
   const authMode = resolveAuthMode(process.env);
+  // Showcase staff eligibility is separate from customer login: every verified
+  // subject of the dedicated Google audience may receive a customer session.
   const authSessions =
     pool && authMode.kind === 'production'
       ? new PostgresAuthSessionService(pool, {
@@ -923,7 +925,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           cleanupBatchSize: authSessionCleanupBatchSize(
             process.env.AUTH_SESSION_CLEANUP_BATCH_SIZE,
           ),
-          ...(showcaseInvites ? { allowedSubjectHashes: showcaseInvites.allowedSubjectHashes } : {}),
           ...(accountLifecycle ? { accountLifecycle } : {}),
         })
       : undefined;
