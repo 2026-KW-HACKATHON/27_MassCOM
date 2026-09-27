@@ -4,7 +4,7 @@ Phase 2 핵심 loopback DEMO와 Phase 3 Local Anvil 발행·복구 흐름은 구
 
 ## 2026-09-28 공개 전달·재현 증거
 
-- **중간 실현·상용화 가능성 20점 / 최종 실현·상용화 가능성 30점:** [PR #197](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/197)의 웹 전용 복구 시험과 [기존 Lightsail HTTPS 배포](evidence/web-only-deployment-2026-09-28.json)를 연결한다. 새 유료 자원 없이 운영·시연 API/DB를 보존했지만 실제 점주·매출·Play 승인은 증거가 아니다.
+- **중간 실현·상용화 가능성 20점 / 최종 실현·상용화 가능성 30점:** [PR #197](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/197)의 웹 전용 복구 시험, [기존 Lightsail HTTPS 배포](evidence/web-only-deployment-2026-09-28.json)와 [PR #200의 공개 설치 페이지·apex/www 실측](evidence/public-open-page-2026-09-28.json)을 연결한다. 새 유료 자원 없이 운영·시연 API/DB를 보존했지만 실제 점주·매출·Play 승인은 증거가 아니다.
 - **중간 기획 재현성 20점 / 최종 구현 완성도·기술력 20점:** [PR #198](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/198)의 빌드 캐시 RED→GREEN, [운영 test.3 APK·Samsung Google 로그인·16KB 설치](evidence/operating-android-test3-2026-09-28.json), [시연 Preview 3 폰 기본 경로](evidence/showcase-preview3-phone-2026-09-28.json)를 연결한다. 공개 릴리스 해시와 코드 커밋을 재현 가능하게 대조하되 운영 지갑·QR/NFT·초대 밖 고객 로그인은 `NOT_RUN`이다.
 - **최종 지역 문제 적합성 20점·참여도 5점:** 운영 목록 0곳과 시연 가상 3곳을 분리한다. 이 자료는 지역 점포 확보·현장 참여·실제 매출 변화의 증거가 아니다. 팀원의 직접 설명·현장 검증은 별도 수집해야 한다.
 

@@ -1,6 +1,6 @@
 # 기존 Lightsail의 포털·운영 웹 이관
 
-**최신 웹 전용 배포(2026-09-28):** [PR #197](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/197) merge `174aa13`과 PR/main CI PASS 뒤 기존 Lightsail의 웹·Caddy만 갱신했습니다. 첫 시도는 edge 검증 파일이 tar에서 빠져 자동 복구됐고 수정 후 exit 0입니다. `www.masscom.kr`의 `/`, `/preview/`, `/app/`, `/account-deletion.html`과 두 API health는 HTTPS 200/TLS, 계정 삭제 안내 파일은 소스와 SHA-256 일치, 운영 점포 0·시연 가상 3과 API/DB 이미지 불변을 [실측](../../docs/evidence/web-only-deployment-2026-09-28.json)했습니다. 실제 삭제 대상 식별·처리는 [B-020](../../docs/BLOCKERS.md)으로 계속 차단됩니다.
+**최신 웹 전용 배포(2026-09-28):** [PR #200](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/200) merge `088cebe`의 PR/main CI PASS 뒤 기존 Lightsail의 웹·Caddy만 갱신했습니다. 첫 전송은 SSH exit 255로 중단돼 기존 웹 `174aa13`이 유지됐고 재시도는 exit 0입니다. apex/www `/open`은 운영 test.3·시연 Preview 3의 공개 APK를 안내하며 외부 HTTPS 200/TLS·소스 해시 일치, 다른 www 경로·두 API 정상과 API/DB 이미지 불변을 [실측](../../docs/evidence/public-open-page-2026-09-28.json)했습니다. 이전 `174aa13`에서는 [계정 삭제 안내](../../docs/evidence/web-only-deployment-2026-09-28.json)를 갱신했습니다. 실제 삭제 대상 식별·처리는 [B-020](../../docs/BLOCKERS.md)으로 계속 차단됩니다.
 
 `www.masscom.kr` 추가 전환은 [승인 설계](../../docs/superpowers/specs/2026-09-25-www-web-consolidation-design.md)를 따른다. PR #169의 정적 `/preview/`와 호스트별 인증 코드를 기존 서버에 배포했고 apex 경로·DB migration·백업·Google `www` 승인 URI·가비아 www A·공인 TLS·휴대전화 한 계정 로그인을 확인했다([전환 증거](../../docs/evidence/www-web-cutover-2026-09-25.json)). apex DNS와 `/open`·Reown 출처는 유지한다. www 두 번째 계정과 기록이 있는 도감 격리는 미검증이며, [최신 시험 원장](../../docs/TEST_STATUS.md)에 별도로 남긴다.
 
