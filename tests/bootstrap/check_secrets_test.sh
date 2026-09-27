@@ -22,6 +22,10 @@ printf '%s\n' \
   > "$fixture_root/safe.txt"
 "$scanner" "$fixture_root"
 
+mkdir -p "$fixture_root/.superpowers/sdd"
+printf '%s\n' 'API_TOKEN=ignored-review-fixture' > "$fixture_root/.superpowers/sdd/review.diff"
+"$scanner" "$fixture_root"
+
 printf '%s\n' 'API_TOKEN=example-nonempty-value' > "$fixture_root/leaked.env"
 
 if "$scanner" "$fixture_root" >/dev/null 2>&1; then
