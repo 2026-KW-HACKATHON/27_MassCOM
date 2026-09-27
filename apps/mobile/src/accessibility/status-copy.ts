@@ -22,7 +22,7 @@ export function statusAnnouncement(
     'wallet-disconnected': '외부 지갑 연결을 해제했습니다.',
     'logout-complete': '로그아웃했습니다.',
     'account-switch-complete': '새 Google 계정으로 전환했습니다.',
-    'deletion-blocked': '운영 계정 삭제는 최근 사용자 확인 수단이 확정되지 않아 아직 요청할 수 없습니다.',
+    'deletion-blocked': '앱 내 자동 삭제는 아직 사용할 수 없습니다. 웹에서 계정 삭제를 요청할 수 있습니다.',
   };
   return copy[kind];
 }
@@ -36,6 +36,9 @@ function loginFailureCopy(reason: string | undefined): string {
   }
   if (reason === 'NETWORK_ERROR') {
     return '로그인 서버에 연결하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.';
+  }
+  if (reason === 'REQUEST_TIMEOUT') {
+    return '로그인 서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.';
   }
   if (reason === 'GOOGLE_SIGN_IN_FAILED') {
     return 'Google 계정 선택을 완료하지 못했습니다. 다시 계정을 선택해 주세요.';

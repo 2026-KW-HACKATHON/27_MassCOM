@@ -144,6 +144,20 @@ test('network failure is not confused with a Google account picker failure', asy
   assert.deepEqual(controller.getState(), { status: 'signedOut', reason: 'NETWORK_ERROR' });
 });
 
+test('a stalled login reports response delay rather than a disconnected network', async () => {
+  const f = fixture({
+    authApi: {
+      async signIn() { throw new AuthApiError(0, 'REQUEST_TIMEOUT'); },
+      async logout() { throw new Error('unexpected logout'); },
+    },
+  });
+  f.setStored(undefined);
+  const controller = createAuthController(f.dependencies);
+  await assert.rejects(controller.signIn(), (error) =>
+    error instanceof AuthControllerError && error.code === 'REQUEST_TIMEOUT');
+  assert.deepEqual(controller.getState(), { status: 'signedOut', reason: 'REQUEST_TIMEOUT' });
+});
+
 test('native Google picker failure stays distinct from a network failure', async () => {
   const f = fixture({
     google: {
