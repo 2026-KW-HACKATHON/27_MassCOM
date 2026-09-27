@@ -25,3 +25,21 @@ for (const [kind, context, expected] of cases) {
     assert.doesNotMatch(copy, /merchant-|campaign-|binding-|job-|SESSION_|[0-9a-f]{8}-[0-9a-f-]{27}/i);
   });
 }
+
+test('uninvited showcase login asks for an invited account rather than blaming the network', () => {
+  const copy = statusAnnouncement('login-failed', { reason: 'ACCOUNT_NOT_INVITED' });
+  assert.match(copy, /초대된.*계정/);
+  assert.doesNotMatch(copy, /네트워크|토큰|이메일/);
+});
+
+test('a cancelled Google picker remains a user-controlled retry', () => {
+  const copy = statusAnnouncement('login-failed', { reason: 'GOOGLE_SIGN_IN_CANCELLED' });
+  assert.match(copy, /취소/);
+  assert.match(copy, /다시/);
+});
+
+test('only a true connection failure suggests checking the network', () => {
+  assert.match(statusAnnouncement('login-failed', { reason: 'NETWORK_ERROR' }), /네트워크/);
+  assert.doesNotMatch(statusAnnouncement('login-failed', { reason: 'GOOGLE_SIGN_IN_FAILED' }), /네트워크/);
+  assert.match(statusAnnouncement('login-failed', { reason: 'LOGIN_RATE_LIMITED' }), /잠시 후/);
+});

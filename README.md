@@ -39,7 +39,7 @@
 | 운영 웹 | [www.masscom.kr/app/](https://www.masscom.kr/app/) | 실제 운영 데이터, Google 로그인·읽기 전용 본인 도감. Samsung Chrome의 www 로그인·재열기·로그아웃 확인 |
 | **시연 웹** | [설치 없이 바로 보기](https://www.masscom.kr/preview/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | 가상 점포 A·B·C와 예시 수집품을 표시하는 정적 시연, 실제 방문·NFT 실적 아님 |
 | 운영 Android 앱 | [test.2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2) | 설치 가능하지만 최신 `main` 코드가 아닌 이전 테스트본 |
-| **시연 Android 앱** | [private Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | 별도 package·키·API의 설치본. 최신 점포별 그림은 Samsung 라이트·다크·200% 글자 확인; 두 계정 직접 코드 수령·중복 거절은 이전 설치본 실증. 카메라 QR 촬영 수령·지갑·NFT는 미검증 |
+| **시연 Android 앱** | [private Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | 별도 package·키·API의 설치본. 점포별 그림은 Samsung 라이트·다크·200% 글자 확인; 두 계정 직접 코드 수령은 이전 설치본 실증. **현재 배포본은 아직 초대 제한**이며 [모든 Google 고객 로그인 변경](docs/SHOWCASE_AUTH_GUARD.md)은 로컬 시험 단계. 카메라 QR 촬영 수령·지갑·NFT는 미검증 |
 
 저장소는 비공개라 GitHub Release를 보려면 접근 권한이 필요합니다. 시연 웹의 공개 주소는 GitHub 로그인·다운로드 없이 열립니다.
 

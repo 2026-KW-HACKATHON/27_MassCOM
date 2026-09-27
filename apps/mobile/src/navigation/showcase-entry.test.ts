@@ -39,6 +39,7 @@ test('showcase role chooses a destination without bypassing authentication', () 
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye.demo', 'customer', true), 'customer');
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye.demo', 'merchant', true), 'merchant');
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye', undefined, true), 'customer');
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye', 'merchant', true), 'customer');
 });
 
 test('the empty five-space tour is available only to the installed showcase app', () => {

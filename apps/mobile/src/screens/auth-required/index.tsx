@@ -5,6 +5,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useCo
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AuthSessionState } from '@/auth/auth-provider';
+import { AuthControllerError } from '@/auth/auth-controller';
+import { statusAnnouncement } from '@/accessibility/status-copy';
 import { accountContextLabel } from '@/config/app-context';
 import { colorsForScheme } from '@/theme/palette';
 import { makeAuthRequiredStyles } from './styles';
@@ -31,7 +33,10 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole }:
     try {
       await onSignIn();
     } catch (caught) {
-      setError(messageFor(caught));
+      // The controller publishes known failure reasons; a local fallback must not hide them.
+      if (!(caught instanceof AuthControllerError)) {
+        setError('로그인을 완료하지 못했습니다. 다시 시도해 주세요.');
+      }
     } finally {
       setBusy(false);
     }
@@ -83,18 +88,14 @@ function reasonMessage(state: Props['state']): string {
   if (state.reason === 'SERVER_SESSION_REVOCATION_FAILED') {
     return '이 기기에서는 로그아웃됐지만 로그인 해지 확인은 아직 받지 못했어요. 이전 로그인이 만료 전까지 유효할 수 있어요.';
   }
-  if (state.reason === 'GOOGLE_SIGN_IN_CANCELLED') return 'Google 로그인을 취소했습니다.';
+  if (state.reason === 'GOOGLE_SIGN_IN_CANCELLED') {
+    return statusAnnouncement('login-failed', { reason: state.reason });
+  }
   if (state.reason === 'ACCOUNT_SWITCH_UNCHANGED') {
     return '같은 Google 계정을 다시 선택했습니다. 다른 계정으로 바꾸려면 다시 시도해 주세요.';
   }
   if (state.reason === 'WALLET_STORAGE_CLEANUP_FAILED') {
     return '이 기기의 이전 지갑 연결 정보를 모두 지우지 못해 계정 전환을 중지했습니다.';
   }
-  return '로그인을 완료하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.';
-}
-
-function messageFor(error: unknown): string {
-  return error instanceof Error && error.message === 'GOOGLE_SIGN_IN_CANCELLED'
-    ? 'Google 로그인을 취소했습니다.'
-    : '로그인을 완료하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.';
+  return statusAnnouncement('login-failed', { reason: state.reason });
 }

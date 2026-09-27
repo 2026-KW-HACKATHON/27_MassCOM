@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createAuthController, type AuthControllerDependencies, type AuthState } from './auth-controller';
+import { AuthApiError } from './auth-api';
+import { AuthControllerError, createAuthController, type AuthControllerDependencies, type AuthState } from './auth-controller';
 import { GoogleSignInAdapterError } from './google-sign-in';
 import { AuthStorageError, type StoredAuthSessionV1 } from './session-store';
 
@@ -111,6 +112,64 @@ test('orders Google sign in, server exchange, and secure storage save', async ()
   await controller.signIn();
   assert.deepEqual(f.calls, ['google.signIn', 'api.signIn', 'store.save:new-account']);
   assert.equal(controller.getState().status, 'signedIn');
+});
+
+test('uninvited showcase account stays signed out with a distinct reason', async () => {
+  const f = fixture({
+    authApi: {
+      async signIn() { throw new AuthApiError(403, 'INVITE_REQUIRED'); },
+      async logout() { throw new Error('unexpected logout'); },
+    },
+  });
+  f.setStored(undefined);
+  const controller = createAuthController(f.dependencies);
+
+  await assert.rejects(controller.signIn(), (error) =>
+    error instanceof AuthControllerError && error.code === 'ACCOUNT_NOT_INVITED');
+  assert.deepEqual(controller.getState(), { status: 'signedOut', reason: 'ACCOUNT_NOT_INVITED' });
+  assert.equal(f.stored(), undefined);
+});
+
+test('network failure is not confused with a Google account picker failure', async () => {
+  const f = fixture({
+    authApi: {
+      async signIn() { throw new AuthApiError(0, 'NETWORK_ERROR'); },
+      async logout() { throw new Error('unexpected logout'); },
+    },
+  });
+  f.setStored(undefined);
+  const controller = createAuthController(f.dependencies);
+  await assert.rejects(controller.signIn(), (error) =>
+    error instanceof AuthControllerError && error.code === 'NETWORK_ERROR');
+  assert.deepEqual(controller.getState(), { status: 'signedOut', reason: 'NETWORK_ERROR' });
+});
+
+test('native Google picker failure stays distinct from a network failure', async () => {
+  const f = fixture({
+    google: {
+      async signIn() { throw new GoogleSignInAdapterError('GOOGLE_SIGN_IN_FAILED'); },
+      async signOut() {},
+    },
+  });
+  f.setStored(undefined);
+  const controller = createAuthController(f.dependencies);
+  await assert.rejects(controller.signIn(), (error) =>
+    error instanceof AuthControllerError && error.code === 'GOOGLE_SIGN_IN_FAILED');
+  assert.deepEqual(controller.getState(), { status: 'signedOut', reason: 'GOOGLE_SIGN_IN_FAILED' });
+});
+
+test('server login rate limit asks for a later retry', async () => {
+  const f = fixture({
+    authApi: {
+      async signIn() { throw new AuthApiError(429, 'LOGIN_RATE_LIMITED'); },
+      async logout() { throw new Error('unexpected logout'); },
+    },
+  });
+  f.setStored(undefined);
+  const controller = createAuthController(f.dependencies);
+  await assert.rejects(controller.signIn(), (error) =>
+    error instanceof AuthControllerError && error.code === 'LOGIN_RATE_LIMITED');
+  assert.deepEqual(controller.getState(), { status: 'signedOut', reason: 'LOGIN_RATE_LIMITED' });
 });
 
 test('revokes a newly issued server session if secure storage save fails', async () => {

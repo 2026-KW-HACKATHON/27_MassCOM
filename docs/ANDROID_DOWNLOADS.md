@@ -22,6 +22,8 @@
 
 Issue #189의 새 점포별 그림은 [Preview 2 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)의 `MassCOM-showcase-android-7322470.apk`(SHA-256 `cdc30ef9222c0b2557dc934958e99dce0d4dcd69df6cb7d12916cc57503184e1`)에 포함됩니다. Samsung의 [라이트·다크·200% 글자](evidence/showcase-collectible-art-2026-09-27/device-check.json)를 확인했고 GitHub에서 APK·체크섬을 다시 내려받아 SHA-256 및 로컬 원본과 바이트 일치를 검증했습니다. Preview 1은 이전 그림 없는 설치본으로 보존합니다. 두 버전 모두 카메라 QR 촬영 수령·App Link·외부 지갑/NFT는 미검증입니다.
 
+**로그인 제한 주의:** 현재 Preview 2와 연결된 시연 서버는 두 초대 계정만 허용합니다. Issue #191의 모든 유효 Google 고객 로그인 변경은 로컬 코드·시험 상태이며, PR·서버 배포·새 서명 APK 실기 전에는 이 다운로드로 임의 계정 로그인이 된다고 안내하지 않습니다([정책·게이트](SHOWCASE_AUTH_GUARD.md)). 운영 앱은 고객 화면만 제공하고, 시연 가상 데이터는 운영 API/DB에 넣지 않습니다.
+
 ## 두 앱을 각각 게시하기 전 조건
 
 - 운영: 현재 `main` 기준 운영 AAB/APK를 upload key로 빌드하고 source commit·package·서명·SHA-256을 확인한 뒤 실제 기기에 설치해 로그인·탐색·지갑 복귀를 확인합니다. Google Play 설치본은 별도 서명 인증서를 사용하므로 GitHub APK와 구분합니다.

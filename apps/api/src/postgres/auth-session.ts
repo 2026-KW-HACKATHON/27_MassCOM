@@ -23,7 +23,6 @@ type Options = {
   now: () => Date;
   cleanupBatchSize: number;
   accountLifecycle?: PostgresAccountLifecycle;
-  allowedSubjectHashes?: ReadonlySet<string>;
 };
 
 type ServiceOptions = Pick<Options, 'verifier'> & Partial<Options>;
@@ -58,17 +57,10 @@ export class PostgresAuthSessionService implements AuthSessionService {
     if (!Number.isSafeInteger(this.options.cleanupBatchSize) || this.options.cleanupBatchSize <= 0) {
       throw new Error('auth session cleanup batch size must be a positive safe integer');
     }
-    if (this.options.allowedSubjectHashes && (
-      this.options.allowedSubjectHashes.size === 0 ||
-      [...this.options.allowedSubjectHashes].some((value) => !/^[0-9a-f]{64}$/.test(value))
-    )) {
-      throw new Error('showcase invited Google subject hashes must be nonempty SHA-256 values');
-    }
   }
 
   async signInWithGoogle(idToken: string): Promise<IssuedSession> {
     const { subject, authTime } = await this.options.verifier.verify(idToken);
-    if (!this.isInvited(subject)) throw new AuthSessionError('INVITE_REQUIRED');
     const now = this.options.now();
     const sessionToken = this.options.nextSessionToken();
     const expiresAt = new Date(now.getTime() + this.options.sessionTtlMs);
@@ -113,7 +105,6 @@ export class PostgresAuthSessionService implements AuthSessionService {
     const client = await this.pool.connect();
     try {
       const session = await activeSession(client, sessionToken, this.options.now());
-      await this.assertAccountInvited(client, session.account_id);
       await this.assertAccountActive(client, session.account_id);
       return session.account_id;
     } finally {
@@ -140,7 +131,6 @@ export class PostgresAuthSessionService implements AuthSessionService {
     const client = await this.pool.connect();
     try {
       const session = await activeSession(client, sessionToken, now);
-      await this.assertAccountInvited(client, session.account_id);
       await this.assertAccountActive(client, session.account_id);
       const owner = await client.query<{ account_id: string }>(
         `SELECT account_id FROM auth_identities WHERE provider = 'google' AND subject = $1`,
@@ -166,7 +156,6 @@ export class PostgresAuthSessionService implements AuthSessionService {
     const client = await this.pool.connect();
     try {
       const session = await activeSession(client, sessionToken, now);
-      await this.assertAccountInvited(client, session.account_id);
       await this.assertAccountActive(client, session.account_id);
       if (session.last_authenticated_at.getTime() < now.getTime() - windowMs) {
         throw new AuthSessionError('REAUTHENTICATION_REQUIRED');
@@ -187,23 +176,6 @@ export class PostgresAuthSessionService implements AuthSessionService {
     }
   }
 
-  private isInvited(subject: string): boolean {
-    return !this.options.allowedSubjectHashes || this.options.allowedSubjectHashes.has(
-      createHash('sha256').update(subject).digest('hex'),
-    );
-  }
-
-  private async assertAccountInvited(client: PoolClient, accountId: string): Promise<void> {
-    if (!this.options.allowedSubjectHashes) return;
-    const identity = await client.query<{ subject: string }>(
-      `SELECT subject FROM auth_identities
-       WHERE provider = 'google' AND account_id = $1`,
-      [accountId],
-    );
-    if (!identity.rows[0] || !this.isInvited(identity.rows[0].subject)) {
-      throw new AuthSessionError('INVITE_REQUIRED');
-    }
-  }
 }
 
 async function cleanupStaleSessions(
