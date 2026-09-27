@@ -39,13 +39,13 @@
 | 운영 웹 | [www.masscom.kr/app/](https://www.masscom.kr/app/) | 실제 운영 데이터, Google 로그인·읽기 전용 본인 도감. Samsung Chrome의 www 로그인·재열기·로그아웃 확인 |
 | **시연 웹** | [설치 없이 바로 보기](https://www.masscom.kr/preview/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | 가상 점포 A·B·C와 예시 수집품을 표시하는 정적 시연, 실제 방문·NFT 실적 아님 |
 | 운영 Android 앱 | [test.2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2) | 설치 가능하지만 최신 `main` 코드가 아닌 이전 테스트본 |
-| **시연 Android 앱** | [Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | 별도 package·키·API의 설치본. 점포별 그림은 Samsung 라이트·다크·200% 글자 확인; 두 계정 직접 코드 수령은 이전 설치본 실증. **현재 배포본은 아직 초대 제한**이며 [모든 Google 고객 로그인 변경](docs/SHOWCASE_AUTH_GUARD.md)은 PR CI 통과·미병합 단계. 카메라 QR 촬영 수령·지갑·NFT는 미검증 |
+| **시연 Android 앱** | [Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | 별도 package·키·API의 이전 설치본. 연결된 시연 API는 [새 로그인 정책으로 배포](docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)됐지만 **APK의 새 오류 안내·초대 밖 실제 계정 로그인은 미검증**. 두 계정 직접 코드 수령은 이전 설치본 실증이며 카메라 QR 촬영 수령·지갑·NFT는 미검증 |
 
-저장소는 비공개라 GitHub Release를 보려면 접근 권한이 필요합니다. 시연 웹의 공개 주소는 GitHub 로그인·다운로드 없이 열립니다.
+저장소는 사용자가 공개로 전환했습니다. GitHub Release와 시연 웹은 GitHub 로그인·소스 다운로드 없이 열 수 있습니다.
 
 **현재 판정:** 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`입니다. Base Sepolia 발행과 운영 지갑 검증은 [별도 증거](docs/TEST_STATUS.md)가 있고, 시연 APK에는 전용 지갑·발행 기능을 자동으로 포함하지 않았습니다. [시연 APK 세부 상태](docs/ANDROID_DOWNLOADS.md)와 [현재 차단 항목](docs/BLOCKERS.md)이 아래 그림보다 우선합니다.
 
-`www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 저장소와 APK Release는 비공개이며, 시연 웹만 GitHub 로그인 없이 열립니다.
+`www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 저장소와 APK 사전 릴리스는 공개됐지만 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
 
 ## 한눈에 보기
 
@@ -55,7 +55,7 @@
 
 - [모바일 개발용 UI 시안·로컬 실행](apps/mobile/README.md): 개발용 미리보기를 보존하고 시연 APK에는 첫 역할 선택·권한 확인·빈 공간 투어를 분리했다. 운영 앱의 네 기능 탭은 유지하며 [시연 설치본 실기 범위](docs/evidence/showcase-android-apk-2026-09-27.json)를 따로 기록했다.
 - 시연 Android 빌드·배포: `kr.masscom.wolgye.demo`/`masscom-demo`, 전용 Google·Keychain 서명·[공개 API](https://demo-api.masscom.kr/health)를 사용한다. [최신 Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)는 재다운로드 SHA-256/바이트와 Samsung 그림 화면을 확인했다. 두 계정 로그인·직접 코드 수령/중복 거절은 이전 Preview 1 설치본의 [폰 실증](docs/evidence/showcase-two-account-phone-2026-09-27.json)이며, 최신 APK에서 재실행하지 않았다. 실제 카메라 QR 촬영→수령은 `NOT_RUN`이다.
-- [시연 호스트 격리](infra/showcase-host/README.md): 기존 Lightsail의 독립 API/DB에 가상 A/B/C를 기동하고 두 초대 계정의 내부 발급→수령→도감·중복 방지를 [내부 API 증거](docs/evidence/showcase-internal-auth-claim-2026-09-27.json)로 확인했다. [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) 이후 **[공개 시연 API HTTPS](https://demo-api.masscom.kr/health)**와 운영 API/웹 분리는 [외부 실측](docs/evidence/showcase-public-edge-2026-09-27.json)했다. 폰에서는 로그인·점주 발급까지 확인했으며 지갑/NFT는 별도 미검증이다.
+- [시연 호스트 격리](infra/showcase-host/README.md): 기존 Lightsail의 독립 API/DB에 가상 A/B/C를 기동하고 두 초대 계정의 내부 발급→수령→도감·중복 방지를 [당시 내부 API 증거](docs/evidence/showcase-internal-auth-claim-2026-09-27.json)로 확인했다. [PR #192](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/192) 병합 뒤 **시연 API만** 새 고객 로그인 코드로 [배포](docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)했다. 초대 밖 실계정·새 APK 폰 로그인과 지갑/NFT는 별도 미검증이다.
 - [기존 Lightsail의 포털·운영 웹 이관](infra/lightsail/README.md): AWS DNS·공인 TLS와 운영 웹 Google 로그인을 확인했습니다. Samsung Android Chrome에서 서로 다른 Google 계정 2개로 순차 로그인·빈 도감·세션 전환을 확인했고, 실제 기록이 있는 계정 간 격리와 최신 APK는 별도 미검증
 - [기존 서버 SSH 접속](docs/SERVER_ACCESS.md): 이 Mac의 `ssh masscom` 및 더블클릭 접속 파일 사용법. AWS 콘솔 로그인과 별개이며 개인키는 Git 밖에 보관
 
@@ -67,7 +67,7 @@
 - [Android 설치본 상태](docs/ANDROID_DOWNLOADS.md): 운영 테스트 APK와 별도 시연 APK의 설치 링크·패키지·미검증 범위
 - [시연용 읽기 전용 웹](apps/showcase-web/README.md) · [운영용 읽기 전용 웹](apps/production-web/README.md): 별도 코드·데이터 경계. 기존 apex에서 Android Chrome의 서로 다른 2계정 순차 로그인은 확인했고, 새 www에서는 1계정 로그인·로그아웃과 apex 세션 유지까지 확인했습니다. www의 두 번째 계정과 기록이 있는 도감의 교차 노출은 미검증입니다.
 - [현재 HTTPS 시연 웹](https://www.masscom.kr/preview/): 가상 점포 A·B·C 고정 예시. 기존 Vercel 주소는 장애 복구용으로 보존
-- [공개 계정 삭제 안내](https://www.masscom.kr/account-deletion): 삭제 요청·보존 정보·지갑 비밀 경계
+- [공개 계정 삭제 안내](https://www.masscom.kr/account-deletion): 이메일 요청·보존 정보·지갑 비밀 경계. 안전한 계정 대상 확인·실제 삭제 처리 절차는 [미완료](docs/BLOCKERS.md)
 - [발표·시연 페이지](docs/presentation.html): 3분·5분 발표 장면과 실제/미실행 증거 경계
 - [현장 검증 빈 기록지](docs/FIELD_VALIDATION.md): 동의·과업·결과를 미리 채우지 않은 양식
 - [제출 체크리스트](docs/SUBMISSION_CHECKLIST.md): 승인 전 공개·태그·제출 금지 경계
@@ -187,7 +187,7 @@ sequenceDiagram
 | 외부 지갑에 표시할 서비스 출처 | `IN_PROGRESS` | [PR #134](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/134)에서 메타데이터를 `https://masscom.kr`과 기존 포털 표식으로 변경. 공개 자산 HTTPS는 `VERIFIED`; MetaMask 재연결은 지갑 잠금으로 `BLOCKED`, 운영 APK 반영은 `NOT_RUN` |
 | 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름·W06 PASS; W04 동일 세션 주소 전환과 W05 미지원 스마트지갑은 준비된 외부 환경 부재로 `BLOCKED` |
 | NFT 발행 전체 흐름 | `VERIFIED` | Local Anvil 장애·복구와 Base Sepolia PostgreSQL job/Outbox→암호화 service minter→receipt/event/owner/locked→DB FINALIZED·재실행 무작업 PASS |
-| 계정 삭제·개인정보 | `IN_PROGRESS` | D01·D03 로컬 PASS, 공개 삭제·개인정보 HTTPS 페이지 PASS; 운영 fresh reauthentication 삭제와 D02 계정 전환은 미완료 |
+| 계정 삭제·개인정보 | `IN_PROGRESS` | D01·D03 로컬 PASS, 공개 안내 HTTPS 200·앱의 웹 요청 링크는 로컬 구현. 이메일 요청을 검증된 계정과 연결하는 절차 및 운영 fresh reauthentication 삭제·D02 계정 전환은 미완료([B-020](docs/BLOCKERS.md)) |
 | 외부 HTTPS·Play 제출 | `IN_PROGRESS` | 외부 API·포털, private GitHub test.2 APK, 4KB/16KB 설치·`masscom.kr/open` verified App Link PASS. Play App Signing OAuth·Console 제출은 `NOT_RUN/BLOCKED` |
 
 상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED / NOT_RUN`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.

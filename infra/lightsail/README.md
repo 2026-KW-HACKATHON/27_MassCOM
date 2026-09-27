@@ -19,4 +19,10 @@
 
 실패하면 먼저 웹 전용 스크립트의 이전 Caddy release 복귀 결과와 운영 API health를 확인한다. DNS를 이미 바꿨다면 기록한 Vercel 목적지로 되돌리되 TTL 지연을 `BLOCKED` 증거로 남긴다. 운영 DB 볼륨 삭제·`/opt/masscom/DEPLOYED_COMMIT` 수정은 복구 절차에 포함하지 않는다.
 
+## 운영 전체 API·웹 배포 안전장치 (후속 코드, 원격 미실행)
+
+정적 페이지 변경은 위의 웹 전용 배포를 사용한다. API와 웹을 함께 교체해야 할 때만 `scripts/deploy-lightsail.sh`를 사용한다. 후속 `fix/release-readiness` 변경은 기존 운영 API의 40자리 배포 커밋, 대상 `HEAD`, `backward_compatible=yes`가 들어간 Git 밖 mode 600 호환성 증거 파일을 `MASSCOM_MIGRATION_COMPATIBILITY_EVIDENCE_FILE`로 요구한다. 이 표시는 실제 migration을 검토했다는 기록이지 DB 복구를 자동화하지 않는다.
+
+전체 배포는 기존 런타임 환경·Caddyfile·운영 DB의 custom-format 백업과 복원 목록 검증을 **migration 전에** 수행한다. 실패하면 이전 API·웹·Caddy 이미지와 시연 edge 연결, 환경 파일·배포 포인터·커밋 마커를 되돌리고 운영/시연 HTTPS를 다시 확인한다. migration이 시작된 뒤의 DB 변경은 자동 되돌리지 않는다. 백업 경로와 적용된 migration을 대조해 별도로 수동 복구를 판단해야 하며, 이 코드의 실제 원격 롤백은 아직 `NOT_RUN`이다. 운영 DB 볼륨 삭제나 테스트 데이터 삽입은 복구 방법이 아니다.
+
 **다음 행동:** 운영 기록이 있는 두 계정의 도감 격리와 최신 APK를 별도로 검증한다. 시연 API/앱·`demo.masscom.kr`와 일반 링크 탭 동작도 미완료 게이트다.

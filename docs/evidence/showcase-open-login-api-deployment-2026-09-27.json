@@ -1,0 +1,51 @@
+{
+  "observedAt": "2026-09-27T12:23:33Z",
+  "sourceCommit": "7455791416722dfaaf1ff52e2581b03d8e881fb0",
+  "pullRequest": 192,
+  "pullRequestCi": {
+    "runId": 36317835566,
+    "result": "PASS"
+  },
+  "mainCi": {
+    "runId": 36318169134,
+    "result": "PASS"
+  },
+  "scope": "existing Lightsail showcase API container only",
+  "previousImage": "masscom-showcase-api:7dba450",
+  "deployedImage": "masscom-showcase-api:7455791",
+  "sourceTransfer": "package lock, API server source, and showcase Compose SHA-256 matched the local merged commit",
+  "databaseMigration": "NOT_RUN: no migration file changed between the previously deployed API and source commit",
+  "before": {
+    "showcaseMerchants": 3,
+    "showcaseVisits": 2,
+    "showcaseRewardEntitlements": 1,
+    "showcaseActiveSessions": 2,
+    "operatingVirtualMerchants": 0
+  },
+  "after": {
+    "showcaseApiContainer": "healthy, zero restarts",
+    "showcaseMerchants": 3,
+    "showcaseVisits": 2,
+    "showcaseRewardEntitlements": 1,
+    "showcaseActiveSessions": 2,
+    "operatingVirtualMerchants": 0,
+    "demoApiHealthHttps": 200,
+    "operatingApiHealthHttps": 200,
+    "wwwWebHttps": 200,
+    "wwwPreviewHttps": 200,
+    "wwwAppPageHttps": 200,
+    "anonymousShowcaseCollection": 401,
+    "invalidGoogleIdToken": 401,
+    "showcaseIdentityCountAfterInvalidToken": 2,
+    "showcaseSessionCountAfterInvalidToken": 2,
+    "operatingContainers": "Caddy, API, PostgreSQL, and web remained running on their prior images with zero restarts",
+    "showcasePostgres": "prior postgres:16.10-alpine container remained running with zero restarts"
+  },
+  "notRun": [
+    "real Google account outside the previous staff hash list",
+    "new signed Android APK installation and login",
+    "camera QR redemption",
+    "actual rollback execution"
+  ],
+  "recovery": "The previous showcase API image remains available; do not change operating API, PostgreSQL, web, or Caddy to revert this API-only release."
+}

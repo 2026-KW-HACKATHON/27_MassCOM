@@ -8,7 +8,7 @@
 | `showcase` | `kr.masscom.wolgye.demo` | `masscom-demo` | 정확히 `https://demo-api.masscom.kr` | [두 계정 폰 로그인·점주 발급→고객 직접 코드 수령·재입력 거절](../../docs/evidence/showcase-two-account-phone-2026-09-27.json) PASS, 카메라 QR 촬영 수령 `NOT_RUN` |
 | `production` | `kr.masscom.wolgye` | `masscom` | 정확히 `https://api.masscom.kr` | 기존 release 검증 유지 |
 
-시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 정적 시연 웹은 [www 공개 HTTPS](https://www.masscom.kr/preview/)에서 열립니다. **[전용 시연 API/DB의 공인 HTTPS](https://demo-api.masscom.kr/health)와 [설치용 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1), 두 계정의 직접 코드 수령은 확인했지만 `demo.masscom.kr` App Link DNS·카메라 QR 촬영 수령·지갑 연결은 미검증**입니다. 로컬 개발 앱과 `_test` DB의 이전 실기는 별도 기록입니다. 런타임의 개발 DEMO 인증도 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
+시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 정적 시연 웹은 [www 공개 HTTPS](https://www.masscom.kr/preview/)에서 열립니다. **[전용 시연 API/DB](https://demo-api.masscom.kr/health)는 [새 고객 로그인 코드로 교체](../../docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)했고 이전 [설치용 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)의 두 계정 직접 코드 수령은 확인했지만 초대 밖 실계정 로그인·`demo.masscom.kr` App Link·카메라 QR 촬영 수령·지갑 연결은 미검증**입니다. 로컬 개발 앱과 `_test` DB의 이전 실기는 별도 기록입니다. 런타임의 개발 DEMO 인증도 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
 
 `APP_VARIANT=showcase`는 기존 `.env.local`의 운영 Google/Reown ID 또는 개발 DEMO 변수가 있으면 빌드 설정을 거절합니다. 시연 전용 Google Web client ID를 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`로 요구하고, 설치 package가 `.demo`일 때만 앱 설정의 이 값을 읽습니다. 별도 Reown 프로젝트는 미설정이라 시연 지갑 연결은 비활성입니다. 현재 환경 경계만 확인하려면 로컬 dotenv 로드를 끄고 실제 발급받은 시연 전용 공개 ID를 명시합니다(실제 API 요청·APK 빌드 아님).
 
@@ -21,6 +21,10 @@ EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
 ```
 
 Expo의 [앱 variant 안내](https://docs.expo.dev/build-reference/variants/)대로 package를 바꿔 설치할 때는 격리된 checkout에서 해당 `APP_VARIANT`로 native `prebuild --clean`을 먼저 해야 합니다. 기존 `apps/mobile/android`를 다른 variant로 덮어쓰지 않습니다. 실제 시연 앱의 운영 앱 동시 설치·공개 HTTPS·Google 로그인과 고객 직접 코드 수령→도감은 [폰 실기](../../docs/evidence/showcase-two-account-phone-2026-09-27.json)에서 PASS, 지갑 복귀와 카메라 QR 촬영→수령은 `NOT_RUN`입니다.
+
+도감의 가상 점포 그림은 `.demo` package에서만 표시합니다. `metro.config.js`는 시연 빌드에만 그림 모듈을 선택하고, CI는 운영·시연 Android export 뒤 `node scripts/verify-mobile-variant-assets.mjs`로 원본 PNG 바이트가 운영 bundle에는 없고 시연 bundle에는 있는지 확인합니다. 이 JS export와 자산 검사는 서명 APK 설치·실기 검증을 대신하지 않습니다.
+
+Expo SDK 57의 같은 계열 권장 패치와 개발 도구 `tsx`를 lockfile과 함께 갱신했습니다. `CI=1 npx expo install --check`와 두 Android export는 PASS지만 `npm audit` 중간 등급 15건은 상위 CommonJS·Expo 호환 수정이 필요해 [B-008](../../docs/BLOCKERS.md)에 남깁니다. `npm audit fix --force`로 SDK를 임의 변경하지 않습니다.
 
 시연 APK 빌드 게이트는 저장소 루트의 `scripts/build-showcase-apk.sh`입니다. `--check`는 **로컬 설정만** 확인하며 APK를 만들지 않습니다. 전용 Google Web client ID와 운영 Web client ID, 저장소 밖 mode 600 전용 keystore·별칭·공개 SHA-256 지문을 요구하고 운영/개발 값 재사용을 거절합니다. 두 ID와 지문은 공개 식별자지만 비밀번호는 채팅·Git에 넣지 않습니다. `--build`는 기본적으로 키 비밀번호를 로컬 터미널에서 받으며, 이 Mac의 명시적 `MASSCOM_SHOWCASE_USE_KEYCHAIN=1` 모드에서만 고정된 시연 Keychain 항목을 읽습니다. 셸 추적을 켠 빌드는 비밀번호 조회 전에 거절합니다. [실제 빌드·폰 설치·Release 재다운로드](../../docs/evidence/showcase-android-apk-2026-09-27.json)에서 `.demo` package·소스 커밋·인증서·SHA-256·지갑 금지 표면을 검증했습니다. 시연 키의 로컬 Keychain 보관은 백업 완료를 뜻하지 않습니다.
 
@@ -57,7 +61,7 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 - 미방문·다음 보상 이유가 보이는 다음 가게 추천과 상세 복귀: `VERIFIED` (loopback DEMO)
 - 외부 지갑 확인 뒤 NFT 공개 안내→접수→Worker 이벤트 대조→도감 등록 완료: `VERIFIED` (Local Anvil)
 - 앱 수집품과 실제 NFT, 접수·확인 중·등록 완료·확인 필요 상태 분리: `VERIFIED`
-- 계정 삭제 전 공개 장부·외부 지갑·제출 거래 보존 안내와 loopback DEMO 요청: `VERIFIED`; 외부 삭제 안내 URL은 HTTPS 확인, 운영 fresh reauthentication은 `BLOCKED`
+- 계정 삭제 전 공개 장부·외부 지갑·제출 거래 보존 안내와 loopback DEMO 요청: `VERIFIED`; bearer 계정에는 외부 웹 삭제 요청 링크를 제공하지만 계정 대상 식별·실제 처리·운영 fresh reauthentication은 `BLOCKED`([B-020](../../docs/BLOCKERS.md))
 - Google ID token→서버 Bearer session→SecureStore 복원·로그아웃 코드와 실제 Samsung 첫 로그인·복원·logout revoke: `VERIFIED`; 두 Google 계정의 전체 전환·이전 데이터 부재 D02는 `NOT_RUN`
 - MetaMask 8.11.0 설치·첫 화면 실행: `VERIFIED` — 지갑 생성·가져오기는 수행하지 않음
 - 실제 Reown project ID·`kr.masscom.wolgye.dev` MetaMask 연결·서명·자동 복귀·콜드 스타트 서버 binding 복원: `VERIFIED`; 운영 release package와 W04·W05 외부 환경은 `NOT_RUN/BLOCKED`
