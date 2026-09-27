@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { canOpenShowcaseTour, reconcileShowcaseAccount, showcaseEntryDestination, showShowcaseRoleEntry } from './showcase-entry';
+import { canOpenShowcaseTour, consumeMerchantReturn, rememberMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, showShowcaseRoleEntry } from './showcase-entry';
 
 test('only the installed showcase app opens role selection before a role is chosen', () => {
   assert.equal(showShowcaseRoleEntry('kr.masscom.wolgye.demo'), true);
@@ -32,13 +32,14 @@ test('role choice survives first sign-in but clears on sign-out or account chang
   });
 });
 
-test('showcase role chooses a destination without bypassing authentication', () => {
+test('signed-out customers browse while merchant entry still requires authentication', () => {
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye.demo', undefined, false), 'role');
-  assert.equal(showcaseEntryDestination('kr.masscom.wolgye.demo', 'customer', false), 'auth');
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye.demo', 'customer', false), 'customer');
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye.demo', 'merchant', false), 'auth');
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye.demo', 'customer', true), 'customer');
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye.demo', 'merchant', true), 'merchant');
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye', undefined, true), 'customer');
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye', undefined, false), 'customer');
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye', 'merchant', true), 'customer');
 });
 
@@ -46,4 +47,13 @@ test('the empty five-space tour is available only to the installed showcase app'
   assert.equal(canOpenShowcaseTour('kr.masscom.wolgye.demo'), true);
   assert.equal(canOpenShowcaseTour('kr.masscom.wolgye'), false);
   assert.equal(canOpenShowcaseTour('kr.masscom.wolgye.dev'), false);
+});
+
+test('merchant return survives one navigation remount and cannot replay for another account', () => {
+  rememberMerchantReturn('store-a');
+  assert.equal(consumeMerchantReturn(), 'store-a');
+  assert.equal(consumeMerchantReturn(), undefined);
+  rememberMerchantReturn('store-b');
+  rememberMerchantReturn(undefined);
+  assert.equal(consumeMerchantReturn(), undefined);
 });

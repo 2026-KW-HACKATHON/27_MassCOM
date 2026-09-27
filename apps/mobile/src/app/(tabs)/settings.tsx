@@ -2,14 +2,15 @@ import { useAuthSession } from '@/auth/auth-provider';
 import { publicApiConfig } from '@/config/public-api-runtime';
 import { DemoConfigurationRequired } from '@/screens/demo-configuration-required';
 import { AccountSettingsScreen } from '@/screens/account-settings';
+import { AuthRequiredRoute } from '@/screens/auth-required/route';
 
 export default function SettingsRoute() {
   const auth = useAuthSession();
+  if (!auth.credential || !auth.accountId) return <AuthRequiredRoute />;
   const missing = [
     ...(!publicApiConfig.available ? ['EXPO_PUBLIC_API_URL'] : []),
-    ...(!auth.credential ? ['AUTH_SESSION'] : []),
   ];
-  if (!publicApiConfig.available || !auth.credential || !auth.accountId) {
+  if (!publicApiConfig.available) {
     return <DemoConfigurationRequired title="계정 설정에 API 연결이 필요합니다." missing={missing} />;
   }
   return (

@@ -84,7 +84,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
           음식점 탐색·방문 인증·앱 도감은 외부 지갑 없이 사용할 수 있습니다. 앱 수집품과 실제 NFT는
           별도 상태로 표시합니다.
         </Text>
-        <Link href="/wallet" asChild>
+        <Link href={{ pathname: '/wallet', params: { merchantId } }} asChild>
           <Pressable accessibilityRole="button" style={styles.walletAction}>
             <Text style={styles.walletActionText}>외부 지갑 연결 화면 보기</Text>
           </Pressable>
@@ -94,7 +94,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
       <View style={styles.nextStep}>
         <Text style={styles.nextStepLabel}>이용했다면</Text>
         <Text style={styles.nextStepText}>점주가 만든 1회 코드로 방문과 보상권을 안전하게 받습니다.</Text>
-        <Link href="/claim" asChild>
+        <Link href={{ pathname: '/claim', params: { merchantId } }} asChild>
           <Pressable accessibilityRole="button" style={styles.walletAction}>
             <Text style={styles.walletActionText}>방문 코드 받기</Text>
           </Pressable>
