@@ -59,6 +59,12 @@ type ClaimSlotFixture = {
     merchantReference: string;
     createdByAccountId: string;
   }): Promise<{ claimSlotId: string; token: string; tokenVersion: number; expiresAt: string }>;
+  issue(input: {
+    merchantId: string;
+    customerIdentityToken: string;
+    merchantReference: string;
+    createdByAccountId: string;
+  }): Promise<{ claimSlotId: string; token: string; tokenVersion: number; expiresAt: string }>;
   reissue(input: {
     merchantId: string;
     claimSlotId: string;
