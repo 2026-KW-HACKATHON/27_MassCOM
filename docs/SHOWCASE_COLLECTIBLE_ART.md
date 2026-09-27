@@ -22,4 +22,4 @@
 
 ## 검증 경계
 
-점포 ID·화면 여백 단위 시험 2/2, 모바일 전체 206/206·타입·린트·Android JS 번들, 서명 APK 빌드·Samsung 설치·라이트/다크/200% 글자 화면을 확인했습니다([실기 증거](evidence/showcase-collectible-art-2026-09-27/device-check.json)). 첫 APK에서 이미지가 오른쪽으로 넘치는 결함을 찾았고, 숫자 폭 계산으로 고친 뒤 같은 기기에서 재확인했습니다. 미방문 B·C는 그림을 받은 수집품으로 표시하지 않습니다. TalkBack 낭독·360dp 기기·외부 지갑 썸네일은 `NOT_RUN`입니다.
+점포 ID·화면 여백 단위 시험 2/2, 모바일 전체 206/206·타입·린트·Android JS 번들, 서명 APK 빌드·Samsung 설치·라이트/다크/200% 글자 화면을 확인했습니다([실기 증거](evidence/showcase-collectible-art-2026-09-27/device-check.json)). 첫 APK에서 이미지가 오른쪽으로 넘치는 결함을 찾았고, 숫자 폭 계산으로 고친 뒤 같은 기기에서 재확인했습니다. 미방문 B·C는 그림을 받은 수집품으로 표시하지 않습니다. [비공개 Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)의 재다운로드 SHA-256·바이트도 로컬 설치본과 일치합니다. TalkBack 낭독·360dp 기기·외부 지갑 썸네일은 `NOT_RUN`입니다.

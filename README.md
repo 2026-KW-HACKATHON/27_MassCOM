@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://www.masscom.kr/preview/">시연 웹 보기</a> ·
-  <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1">시연 APK 받기</a> ·
+  <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2">시연 APK 받기</a> ·
   <a href="https://www.masscom.kr/app/">운영 웹 보기</a> ·
   <a href="docs/TEST_STATUS.md">검증 현황</a> ·
   <a href="#설치검증">직접 실행</a>
@@ -39,7 +39,7 @@
 | 운영 웹 | [www.masscom.kr/app/](https://www.masscom.kr/app/) | 실제 운영 데이터, Google 로그인·읽기 전용 본인 도감. Samsung Chrome의 www 로그인·재열기·로그아웃 확인 |
 | **시연 웹** | [설치 없이 바로 보기](https://www.masscom.kr/preview/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | 가상 점포 A·B·C와 예시 수집품을 표시하는 정적 시연, 실제 방문·NFT 실적 아님 |
 | 운영 Android 앱 | [test.2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2) | 설치 가능하지만 최신 `main` 코드가 아닌 이전 테스트본 |
-| **시연 Android 앱** | [private 시연 APK 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | 별도 package·키·API의 설치본. 두 계정의 폰 직접 코드 수령·중복 거절 확인; 카메라 QR 촬영 수령·지갑·NFT는 미검증 |
+| **시연 Android 앱** | [private Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | 별도 package·키·API의 설치본. 최신 점포별 그림은 Samsung 라이트·다크·200% 글자 확인; 두 계정 직접 코드 수령·중복 거절은 이전 설치본 실증. 카메라 QR 촬영 수령·지갑·NFT는 미검증 |
 
 저장소는 비공개라 GitHub Release를 보려면 접근 권한이 필요합니다. 시연 웹의 공개 주소는 GitHub 로그인·다운로드 없이 열립니다.
 
@@ -54,7 +54,7 @@
 
 
 - [모바일 개발용 UI 시안·로컬 실행](apps/mobile/README.md): 개발용 미리보기를 보존하고 시연 APK에는 첫 역할 선택·권한 확인·빈 공간 투어를 분리했다. 운영 앱의 네 기능 탭은 유지하며 [시연 설치본 실기 범위](docs/evidence/showcase-android-apk-2026-09-27.json)를 따로 기록했다.
-- 시연 Android 빌드·배포: `kr.masscom.wolgye.demo`/`masscom-demo`, 전용 Google·Keychain 서명·[공개 API](https://demo-api.masscom.kr/health)를 사용한다. [private APK 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)의 재다운로드 SHA-256과 Samsung 설치·두 계정 로그인·가상 점포 3곳·직접 코드 수령/중복 거절을 확인했다. 실제 카메라 QR 촬영→수령은 `NOT_RUN`이다([폰 실증](docs/evidence/showcase-two-account-phone-2026-09-27.json)).
+- 시연 Android 빌드·배포: `kr.masscom.wolgye.demo`/`masscom-demo`, 전용 Google·Keychain 서명·[공개 API](https://demo-api.masscom.kr/health)를 사용한다. [최신 private Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)는 재다운로드 SHA-256/바이트와 Samsung 그림 화면을 확인했다. 두 계정 로그인·직접 코드 수령/중복 거절은 이전 Preview 1 설치본의 [폰 실증](docs/evidence/showcase-two-account-phone-2026-09-27.json)이며, 최신 APK에서 재실행하지 않았다. 실제 카메라 QR 촬영→수령은 `NOT_RUN`이다.
 - [시연 호스트 격리](infra/showcase-host/README.md): 기존 Lightsail의 독립 API/DB에 가상 A/B/C를 기동하고 두 초대 계정의 내부 발급→수령→도감·중복 방지를 [내부 API 증거](docs/evidence/showcase-internal-auth-claim-2026-09-27.json)로 확인했다. [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) 이후 **[공개 시연 API HTTPS](https://demo-api.masscom.kr/health)**와 운영 API/웹 분리는 [외부 실측](docs/evidence/showcase-public-edge-2026-09-27.json)했다. 폰에서는 로그인·점주 발급까지 확인했으며 지갑/NFT는 별도 미검증이다.
 - [기존 Lightsail의 포털·운영 웹 이관](infra/lightsail/README.md): AWS DNS·공인 TLS와 운영 웹 Google 로그인을 확인했습니다. Samsung Android Chrome에서 서로 다른 Google 계정 2개로 순차 로그인·빈 도감·세션 전환을 확인했고, 실제 기록이 있는 계정 간 격리와 최신 APK는 별도 미검증
 - [기존 서버 SSH 접속](docs/SERVER_ACCESS.md): 이 Mac의 `ssh masscom` 및 더블클릭 접속 파일 사용법. AWS 콘솔 로그인과 별개이며 개인키는 Git 밖에 보관
@@ -139,7 +139,7 @@ sequenceDiagram
 
 ### 가상 점포별 수집품 그림
 
-가상 점포 A·B·C의 [카드 그림 3종과 적용 기준](docs/SHOWCASE_COLLECTIBLE_ART.md)을 만들었습니다. 앱에서는 해당 점포의 **본인 도감에 존재하는 가상 보상권 카드에만** 그림을 보여줍니다([새 APK 실기](docs/evidence/showcase-collectible-art-2026-09-27/device-check.json)). 아래는 이미지 자산 미리보기이지 발행 완료 NFT나 세 점포의 수집 실적이 아닙니다.
+가상 점포 A·B·C의 [카드 그림 3종과 적용 기준](docs/SHOWCASE_COLLECTIBLE_ART.md)을 만들었습니다. [Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)에서는 해당 점포의 **본인 도감에 존재하는 가상 보상권 카드에만** 그림을 보여줍니다([새 APK 실기](docs/evidence/showcase-collectible-art-2026-09-27/device-check.json)). 아래는 이미지 자산 미리보기이지 발행 완료 NFT나 세 점포의 수집 실적이 아닙니다.
 
 | A | B | C |
 | :---: | :---: | :---: |

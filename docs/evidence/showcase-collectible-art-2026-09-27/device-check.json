@@ -12,7 +12,7 @@
     "sha256": "cdc30ef9222c0b2557dc934958e99dce0d4dcd69df6cb7d12916cc57503184e1",
     "signedBuild": "PASS",
     "adbInstallReplacePreservingData": "PASS",
-    "githubRelease": "NOT_RUN"
+    "githubRelease": "PASS: private showcase-android-v0.1.0-preview.2, three assets, downloaded APK SHA-256 and bytes match local source"
   },
   "checks": {
     "mappingUnit": "PASS 2/2",
