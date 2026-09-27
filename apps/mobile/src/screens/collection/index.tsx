@@ -18,7 +18,7 @@ import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wall
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { buildStampSlots, stampColumnCount, type StampSlot } from './collection-stamps';
-import { showcaseCollectibleArtKey } from './showcase-collectible-art';
+import { collectibleArtSize, showcaseCollectibleArtKey } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
 
 const mascotStamp = require('../../../assets/images/mascot/mascot-stamp.png');
@@ -69,6 +69,7 @@ export function CollectionScreen({
   const stampColumns = stampColumnCount(width, fontScale);
   const stampGap = 10;
   const stampSlotWidth = (width - uiMetrics.pageInset * 2 - stampGap * (stampColumns - 1)) / stampColumns;
+  const artSize = collectibleArtSize(width, uiMetrics.pageInset, styles.collectibleCard.padding);
 
   useEffect(() => {
     let active = true;
@@ -308,7 +309,7 @@ export function CollectionScreen({
               <View key={item.entitlementId} style={[styles.collectibleCard, { backgroundColor: palette.surface }]}>
               {artKey ? (
                 <>
-                  <Image source={showcaseCollectibleArt[artKey]} accessible={false} style={styles.collectibleArt} />
+                  <Image source={showcaseCollectibleArt[artKey]} accessible={false} style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
                   <Text style={[styles.collectibleArtNote, { color: palette.secondaryLabel }]}>가상 점포 시연 그림 · 실제 NFT 발행 증거 아님</Text>
                 </>
               ) : null}
