@@ -1,0 +1,46 @@
+{
+  "observedAt": "2026-09-27T13:42:46Z",
+  "sourceCommit": "128ce5f7e6e9d7e1e079a079d59fc90b8fbf4678",
+  "pullRequests": [192, 195],
+  "mainCi": {
+    "runId": 36322378979,
+    "result": "PASS"
+  },
+  "release": {
+    "tag": "showcase-android-v0.1.0-preview.3",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3",
+    "prerelease": true,
+    "targetCommit": "128ce5f7e6e9d7e1e079a079d59fc90b8fbf4678",
+    "anonymousApkHeadHttpStatus": 200,
+    "tlsVerified": true
+  },
+  "android": {
+    "package": "kr.masscom.wolgye.demo",
+    "internalVersionName": "0.1.0-test.2",
+    "internalVersionCode": 2,
+    "apkFilename": "MassCOM-showcase-android-128ce5f.apk",
+    "apkBytes": 154102861,
+    "apkSha256": "c47104ce3fc7f6bf27f83120731f07fd89ebf84165a23d548059160a25b64fae",
+    "githubApkDigestMatchesLocal": true,
+    "provenanceSha256": "6c069bd81a88a7eb3507287ccb1831f6bb07adf949444a6bef4ad38eb63a8663",
+    "signingCertificateSha256": "cdb0dc37750c907eaa2f1b9eb172b0911f14b9c9f2dab78b481f1751d8ebf28a",
+    "sourceMarker": "PASS",
+    "signature": "PASS",
+    "walletSurface": "PASS",
+    "deviceInstall": "NOT_RUN",
+    "realGoogleAccountOutsidePreviousStaffList": "NOT_RUN"
+  },
+  "variantBoundary": {
+    "operatingJsExportShowcaseArtAssets": 0,
+    "showcaseJsExportShowcaseArtAssets": 3,
+    "signedOperatingApkFromThisCommit": "NOT_RUN"
+  },
+  "notRun": [
+    "Samsung physical-device installation and app launch",
+    "Google login with an account outside the previous staff eligibility list",
+    "camera QR scan and redemption",
+    "showcase external wallet and NFT flow",
+    "operating APK/AAB build from this commit",
+    "Google Play submission"
+  ]
+}

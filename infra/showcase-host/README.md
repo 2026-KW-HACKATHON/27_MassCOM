@@ -1,6 +1,6 @@
 # 시연 API·DB 호스트
 
-현재 배포 상태: 별도 Compose·DB의 가상 점포 A/B/C와 두 초대 계정의 로그인·가상 수령·운영 audience 거절을 확인했다([당시 내부 증거](../../docs/evidence/showcase-internal-auth-claim-2026-09-27.json)). [PR #192](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/192) 병합과 PR/main CI PASS 후 **시연 API만** `7455791` 이미지로 교체하고 운영 API/DB/웹·Caddy 보존을 [실측](../../docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)했다. [Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)는 변경 전 모바일 코드라 초대 밖 실제 계정 로그인·새 오류 복구는 아직 실증하지 않았다. 카메라 QR 촬영 수령·외부 지갑도 미검증이다.
+현재 배포 상태: 별도 Compose·DB의 가상 점포 A/B/C와 두 초대 계정의 로그인·가상 수령·운영 audience 거절을 확인했다([당시 내부 증거](../../docs/evidence/showcase-internal-auth-claim-2026-09-27.json)). [PR #192](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/192) 병합과 PR/main CI PASS 후 **시연 API만** `7455791` 이미지로 교체하고 운영 API/DB/웹·Caddy 보존을 [실측](../../docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)했다. [Preview 3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)는 새 모바일 코드를 담아 서명·게시했으나 초대 밖 실제 계정의 폰 로그인·카메라 QR 촬영 수령·외부 지갑은 미검증이다.
 
 ## 실행 순서
 

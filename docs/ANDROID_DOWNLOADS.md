@@ -5,7 +5,8 @@
 | 구분 | package | GitHub 다운로드 | 실제 상태 |
 | --- | --- | --- | --- |
 | 운영 테스트 앱 | `kr.masscom.wolgye` | [test.2 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2) | `VERIFIED` — 당시 APK 재다운로드 해시·Samsung/AVD 설치·App Link 확인. **최신 `main` UI와 동일한 빌드가 아님** |
-| 시연 앱 최신 | `kr.masscom.wolgye.demo` | [Preview 2 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2) | `VERIFIED` — 점포별 그림 카드의 [Samsung 라이트·다크·200% 글자](evidence/showcase-collectible-art-2026-09-27/device-check.json)와 재다운로드 해시·바이트 일치. 이 APK에서 방문 수령은 재실행하지 않음 |
+| 시연 앱 최신 | `kr.masscom.wolgye.demo` | [Preview 3 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3) | `IMPLEMENTED` — source `128ce5f`, 전용 서명·패키지·소스 표시와 [GitHub 원격 digest·익명 다운로드 200](evidence/showcase-preview3-release-2026-09-27.json) 확인. **이 APK의 휴대전화 설치·실제 로그인은 `NOT_RUN`** |
+| 시연 앱 이전 | `kr.masscom.wolgye.demo` | [Preview 2 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2) | `VERIFIED` — 점포별 그림 카드의 [Samsung 라이트·다크·200% 글자](evidence/showcase-collectible-art-2026-09-27/device-check.json)와 재다운로드 해시·바이트 일치. 이 APK에서 방문 수령은 재실행하지 않음 |
 | 시연 앱 이전 | `kr.masscom.wolgye.demo` | [Preview 1 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1) | `VERIFIED` — [두 계정 실기](evidence/showcase-two-account-phone-2026-09-27.json)의 점주 발급→고객 직접 코드 수령→중복 거절·도감. 새 점포별 그림은 없음 |
 
 시연 **웹**은 앱 설치와 별개입니다. [공개 주소](https://www.masscom.kr/preview/)에서 다운로드 없이 볼 수 있고, [웹 전용 GitHub 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1)에는 정적 HTML/CSS ZIP만 있습니다. 이 태그에 Android APK는 없으며 가상 점포·예시 수집품을 실제 방문·NFT 발행 실적으로 보지 않습니다. [www 전환 증거](evidence/www-web-cutover-2026-09-25.json)를 참고하세요. 기존 Vercel 주소는 복구용으로 보존합니다.
@@ -14,7 +15,7 @@
 
 ## 설치 방법
 
-1. 접근 권한이 있는 GitHub 계정으로 로그인하고 원하는 앱의 Release에서 `.apk`를 내려받습니다. 운영 테스트 앱과 시연 앱은 이름·package·데이터가 다릅니다. `.aab` 또는 소스 ZIP은 직접 설치 파일이 아닙니다.
+1. 공개 GitHub Release에서 원하는 앱의 `.apk`를 내려받습니다. 운영 테스트 앱과 시연 앱은 이름·package·데이터가 다릅니다. `.aab` 또는 소스 ZIP은 직접 설치 파일이 아닙니다.
 2. APK의 SHA-256을 Release의 `SHA256SUMS.txt`와 비교합니다. 파일과 체크섬을 모두 신뢰할 수 있는 같은 Release에서 받습니다.
 3. Android에서 브라우저의 ‘알 수 없는 앱 설치’ 권한을 이 설치에만 허용하고 설치합니다. 필요하지 않으면 권한을 다시 끕니다.
 
@@ -22,7 +23,9 @@
 
 Issue #189의 새 점포별 그림은 [Preview 2 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)의 `MassCOM-showcase-android-7322470.apk`(SHA-256 `cdc30ef9222c0b2557dc934958e99dce0d4dcd69df6cb7d12916cc57503184e1`)에 포함됩니다. Samsung의 [라이트·다크·200% 글자](evidence/showcase-collectible-art-2026-09-27/device-check.json)를 확인했고 GitHub에서 APK·체크섬을 다시 내려받아 SHA-256 및 로컬 원본과 바이트 일치를 검증했습니다. Preview 1은 이전 그림 없는 설치본으로 보존합니다. 두 버전 모두 카메라 QR 촬영 수령·App Link·외부 지갑/NFT는 미검증입니다.
 
-**로그인 검증 주의:** Preview 2는 이전 APK이지만 연결된 시연 API는 PR #192의 고객 로그인 정책으로 [교체](evidence/showcase-open-login-api-deployment-2026-09-27.json)됐습니다. 초대 밖 **실제** Google 계정의 Android 로그인과 새 APK 오류 복구는 아직 시험하지 않았으므로 임의 계정 로그인 완료라고 안내하지 않습니다([정책·게이트](SHOWCASE_AUTH_GUARD.md)). 운영 앱은 고객 화면만 제공하고, 시연 가상 데이터는 운영 API/DB에 넣지 않습니다.
+새 [Preview 3 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)는 `MassCOM-showcase-android-128ce5f.apk`(SHA-256 `c47104ce3fc7f6bf27f83120731f07fd89ebf84165a23d548059160a25b64fae`)입니다. APK 내부 버전 이름·코드는 아직 `0.1.0-test.2`·`2`이며 Release의 Preview 3은 배포 순서 표시입니다. [원격 digest와 서명 근거](evidence/showcase-preview3-release-2026-09-27.json)는 PASS지만 물리 기기 설치·초대 밖 계정 로그인은 `NOT_RUN`입니다.
+
+**로그인 검증 주의:** 시연 API는 PR #192의 고객 로그인 정책으로 [교체](evidence/showcase-open-login-api-deployment-2026-09-27.json)됐고 Preview 3에 새 오류 복구 코드가 들어 있습니다. 초대 밖 **실제** Google 계정의 Android 로그인은 아직 시험하지 않았으므로 임의 계정 로그인 완료라고 안내하지 않습니다([정책·게이트](SHOWCASE_AUTH_GUARD.md)). 운영 앱은 고객 화면만 제공하고, 시연 가상 데이터는 운영 API/DB에 넣지 않습니다.
 
 ## 두 앱을 각각 게시하기 전 조건
 
