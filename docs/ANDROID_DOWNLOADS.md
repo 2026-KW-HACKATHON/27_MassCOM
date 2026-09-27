@@ -19,6 +19,8 @@
 
 시연 APK `MassCOM-showcase-android-c53c199.apk`의 SHA-256은 `9e645198fd955602bdb25beedf8411f81e9be11280488af11d32f4da169bd063`이며, 앱 소스는 `c53c199`, 서명 인증서는 시연 전용입니다. APK 내부 버전 이름은 `0.1.0-test.2`이고 Release의 `Preview 1`은 배포 단계 표시입니다. 이 설치본은 Google Play 승인본이 아니고, 최신 운영 코드의 QA 결과를 대신하지 않습니다. 기기에서 지갑 비밀번호·복구 문구를 GitHub 페이지나 이 프로젝트 웹에 입력하지 마세요.
 
+Issue #189의 새 점포별 그림은 **로컬** 시연 서명 APK `MassCOM-showcase-android-7322470.apk`(SHA-256 `cdc30ef9222c0b2557dc934958e99dce0d4dcd69df6cb7d12916cc57503184e1`)로 Samsung에서 [라이트·다크·200% 글자](evidence/showcase-collectible-art-2026-09-27/device-check.json)를 확인했습니다. 현재 위 Preview 1 GitHub 다운로드는 **이전 그림 없는 APK**입니다. 새 설치본을 GitHub에 게시하기 전까지 두 APK를 혼동하지 마세요.
+
 ## 두 앱을 각각 게시하기 전 조건
 
 - 운영: 현재 `main` 기준 운영 AAB/APK를 upload key로 빌드하고 source commit·package·서명·SHA-256을 확인한 뒤 실제 기기에 설치해 로그인·탐색·지갑 복귀를 확인합니다. Google Play 설치본은 별도 서명 인증서를 사용하므로 GitHub APK와 구분합니다.

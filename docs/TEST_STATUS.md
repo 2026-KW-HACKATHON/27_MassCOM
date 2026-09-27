@@ -1,6 +1,6 @@
 # 테스트 상태
 
-2026-09-27 Issue #189 가상 점포 수집품 카드 그림: 고정 시연 점포 ID A·B·C만 그림을 선택하고 미등록/운영 점포 ID에는 선택하지 않는 단위 시험을 RED(모듈 없음)→GREEN 1/1로 확인했다. 모바일 전체 205/205·typecheck·lint·Android JS export PASS. 이 변경은 서버가 반환한 보상권 카드의 앱 그림만 추가하며 NFT 발행 상태·계약·시연/운영 DB는 변경하지 않았다. 새 APK 실기·다크·200% 글자·TalkBack·외부 지갑의 NFT 썸네일은 `NOT_RUN`; 필수 36개 판정 변화 없음. [그림과 공개 메타데이터의 경계](SHOWCASE_COLLECTIBLE_ART.md).
+2026-09-27 Issue #189 가상 점포 수집품 카드 그림: 고정 시연 점포 ID A·B·C만 그림을 선택하고 미등록/운영 점포 ID에는 선택하지 않는 단위 시험을 RED(모듈 없음)→GREEN 1/1로 확인했다. 첫 APK의 이미지 퍼센트 폭 넘침을 Samsung에서 발견하고 화면·카드 여백의 숫자 크기 계산과 회귀 시험을 추가했다. 최종 단위 2/2·모바일 전체 206/206·typecheck·lint·Android JS export, 시연 서명 APK source `7322470` 빌드·Samsung SM-S928N Android 16 설치·라이트/다크/200% 글자 도감 화면 PASS([실기 증거](evidence/showcase-collectible-art-2026-09-27/device-check.json)). 방문 2·앱 수집품 1·실제 NFT 0, 미방문 B/C, 발행하지 않음 문구가 유지됐다. 서버·계약·시연/운영 DB는 변경하지 않았다. TalkBack·360dp·외부 지갑 NFT 썸네일·새 GitHub Release는 `NOT_RUN`; 필수 36개 판정 변화 없음. [그림과 공개 메타데이터의 경계](SHOWCASE_COLLECTIBLE_ART.md).
 
 2026-09-27 Issue #187 README 화면 교체: README의 실제 Android 화면 네 장을 [마스코트 UI 실기 캡처](evidence/ui-mascot-2026-09-27/device-check.json)로 바꾸고, 시연 웹 사실성 시험의 README 이미지 경로 기대값을 새 폴더로 갱신했다(PNG 형식·1080px 이상·실제 폰 화면 문구 검사는 유지). 필수 36개 판정 변화 없음.
 

@@ -6,7 +6,7 @@
 
 - **UI 2차 개편(Issue #184):** [PR #186](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/186)을 병합해 승인된 마스코트(D-036)의 탐색 배너, 도감 스탬프판, 가게 카드 표식을 추가했다. [Samsung 실기](evidence/ui-mascot-2026-09-27/device-check.json)에서 라이트 모드 화면을 확인했다. 스탬프는 앱 방문 기록일 뿐 NFT가 아니며 다크·200% 글자·TalkBack·360dp는 `NOT_RUN`이다.
 - **UI 1차 정리(Issue #183):** [PR #185](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/185)를 병합해 제목 크기와 개발자 말투 문구를 정리했다. 시연 서버 점포 설명의 반복 경고 문구는 재seed(배포)가 필요하며, 이번 수집품 그림 작업에서 서버 데이터를 변경하지 않는다.
-- **가상 점포 수집품 그림(Issue #189):** A·B·C 별도 그림 3종을 서버가 반환한 실제 보상권 카드에만 연결했다([그림·경계](SHOWCASE_COLLECTIBLE_ART.md)). 단위 시험·모바일 타입·린트·Android JS 번들은 로컬 `PASS`; 새 APK 실기와 외부 지갑 NFT 이미지 URI는 별도 `NOT_RUN`이다. 운영 점포·NFT 발행/계약은 변경하지 않았다.
+- **가상 점포 수집품 그림(Issue #189):** A·B·C 별도 그림 3종을 서버가 반환한 본인 가상 보상권 카드에만 연결했다([그림·경계](SHOWCASE_COLLECTIBLE_ART.md)). 모바일 206/206·타입·린트·Android JS 번들, 새 시연 전용 서명 APK의 Samsung 설치와 라이트/다크/200% 글자 화면을 `PASS`로 [실측](evidence/showcase-collectible-art-2026-09-27/device-check.json)했다. GitHub 새 설치본 게시·TalkBack·외부 지갑 NFT 이미지 URI는 `NOT_RUN`이다. 운영 점포·NFT 발행/계약은 변경하지 않았다.
 - **문서·AI 규칙 정합(Issue #181):** 기획·완성도·README·AI 규칙 전체 점검 결과 중 문서·설정으로 고칠 수 있는 항목(09-24~27 AI 사용 기록 공백, Lore trailer 정의, AI 공동 작성자 금지, `CLAUDE.md`, `tools/gate.sh`, `.gitignore`, PR 템플릿, 닫힌 PR #180 출처 문구)을 반영했다. 제품 코드·시험 기대값은 바꾸지 않았다. 무로그인 탐색(B-017)·현장 파일럿·저장소 공개·발표 리허설은 사용자 결정으로 남는다.
 - **두 계정 폰 실기 판정:** [시연 APK·폰·DB 근거](evidence/showcase-two-account-phone-2026-09-27.json)에서 STAFF 발급→다른 초대 Google 계정의 직접 코드 미리보기·수령→도감 방문 2/앱 수집품1/NFT0→같은 코드 재입력 추가 효과 0을 확인했다. 운영 DB 가상 점포 0, 시연 DB 방문 2·보상권 1·mint 0이다. 실제 카메라 QR 촬영 수령·시연 앱 별도 지갑·App Link·NFT는 `NOT_RUN`, Issue #137은 OPEN이다. README는 콘셉트 일러스트와 실제 폰 화면을 구분하고 최신 검증을 우선 표기한다.
 
