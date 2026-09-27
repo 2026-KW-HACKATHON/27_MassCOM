@@ -13,7 +13,7 @@
 | D-007 | 앱·체인·연결 | React Native+Expo development build, Base Sepolia→Base, Reown 외부 지갑만 사용 | `USER_CONFIRMED` | 2026-09-18 사용자 ‘ㄱㄱ’, Phase 1 의존성·실기 기준 |
 | D-008 | 배포 환경 | AWS 서울 리전 + Docker Compose + Nginx + PostgreSQL | `USER_CONFIRMED` | 2026-09-18 사용자 ‘ㄱㄱ’, 설계만 승인; 유료 자원 생성은 별도 승인 |
 | D-009 | 저장소 | `2026-KW-HACKATHON/27_MassCOM`, 기본 브랜치 `main` | `USER_CONFIRMED` | 운영진 조직 저장소와 현재 작업 디렉터리 일치 |
-| D-010 | 저장소 공개 | 심사 전 public 전환 | `BLOCKED` | 대회 규칙상 필요하나 가시성 변경은 명시 승인 대상 |
+| D-010 | 저장소 공개 | 심사 전 public 전환 | `USER_CONFIRMED` | 2026-09-27 사용자가 직접 조직 저장소를 PUBLIC으로 전환하고 이후 배포 진행을 요청. GitHub API에서 PUBLIC 재확인; 이미지·라이선스와 제출 적격성은 별도 검증 |
 | D-011 | Play·법률·공급업체 | 실제 기능·계정·약관 기준 재확인 | `EXTERNAL_CHECK_REQUIRED` | 개인 계정 승인·사업자 불필요를 보장하지 않음 |
 | D-012 | 프로젝트 포털 공개 | GitHub Pages 또는 승인된 정적 호스팅 | `BLOCKED` | private 조직 저장소 지원 확인과 공개 배포 승인이 필요 |
 | D-013 | 개인 GitHub 복제 | `choijunhuk` 계정의 private mirror | `USER_CONFIRMED` | 나중에 진행; 조직 저장소 private 코드의 public 복제 금지 |
@@ -41,6 +41,8 @@
 | D-035 | 시연 APK 전용 서명 키 생성 1회 예외 | `kr.masscom.wolgye.demo`만을 위한 새 키를 Git 밖에 만들고 로컬 Keychain에 비밀번호를 보관. 운영 키 재사용·변경 금지 | `USER_CONFIRMED` | 2026-09-26 사용자가 저장소의 에이전트 키 생성 금지 규칙에 대해 **이번 시연 전용 키만** 명시적으로 예외 승인. 키 파일 mode 600·Keychain 조회로 인증서 열기 확인. 비밀번호·개인키는 문서·Git에 기록하지 않음; 백업과 실제 APK 서명은 별도 검증 |
 | D-036 | 앱 안 마스코트 사용 | README Hero의 파란 펭귄 마스코트·거리 그림(`docs/assets/readme/hero.png`)을 잘라 Android 앱의 탐색 배너와 도감 스탬프로 사용. 가짜 음식점 사진·실제 보유하지 않은 수집품 표시는 계속 금지 | `USER_CONFIRMED` | 2026-09-27 사용자가 채팅에서 "마스코트 써도 돼"로 사용을 승인. README와 앱의 같은 그림 사용 근거로 삼고, 공개 전환 자체는 D-010 승인에 따름 |
 | D-037 | 가상 점포 수집품 카드 그림 | 기존 MassCOM 마스코트를 시각 참고로 A·B·C 전용 그림을 만들고 실제 시연 보상권 카드에서만 사용. 앱 수집품과 발행 NFT 상태·외부 지갑 이미지는 별도로 유지 | `USER_CONFIRMED` | 2026-09-27 사용자가 "잘라써도 돼 nft를 만들어달라고 음식점들의 nft"를 설명하고 가상 점포 카드 설계에 "ㄱㄱ"로 답함. 운영 점포·온체인 메타데이터·공개 권리 확인은 별도 범위 |
+| D-038 | 시연 고객 로그인·운영 고객 앱 | 시연 앱은 유효한 Google 계정 모두에 고객 로그인 허용, 점주 권한은 서버 역할로만 부여. 운영 Android 앱은 고객용 화면만 제공 | `USER_CONFIRMED` | 2026-09-27 사용자가 시연 접근 제한 해제를 명시하고 "시연앱도 다 허용", "실제 운영 앱에서는 고객만"이라고 결정. 기존 Preview 2·배포 시연 API는 새 코드 배포 전까지 초대 제한 상태 |
+| D-039 | 두 앱 공통 기능·가상 데이터 경계 | 공통 고객 기능 수정은 시연·운영 앱 모두에 적용·검증하고, 시연 가상 점포·방문·보상 데이터는 운영에 넣지 않음 | `USER_CONFIRMED` | 2026-09-27 사용자의 명시 요청. `AGENTS.md` 작업 규칙과 환경별 회귀 시험에 반영 |
 
 ## 2026-09-23 UI 기초 작업 범위 (Issue #136)
 

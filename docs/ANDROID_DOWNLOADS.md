@@ -1,6 +1,6 @@
 # Android 설치본과 GitHub 배포 상태
 
-상태 확인일: 2026-09-27. 저장소는 `PRIVATE`이며, GitHub Release 파일은 저장소 읽기 권한이 있는 계정에서만 내려받을 수 있습니다. GitHub 소스 ZIP은 설치용 APK가 아닙니다.
+상태 확인일: 2026-09-27. 사용자가 저장소를 `PUBLIC`으로 전환했으며 GitHub Release 파일은 로그인 없이 볼 수 있습니다. GitHub 소스 ZIP은 설치용 APK가 아닙니다.
 
 | 구분 | package | GitHub 다운로드 | 실제 상태 |
 | --- | --- | --- | --- |
@@ -22,10 +22,12 @@
 
 Issue #189의 새 점포별 그림은 [Preview 2 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)의 `MassCOM-showcase-android-7322470.apk`(SHA-256 `cdc30ef9222c0b2557dc934958e99dce0d4dcd69df6cb7d12916cc57503184e1`)에 포함됩니다. Samsung의 [라이트·다크·200% 글자](evidence/showcase-collectible-art-2026-09-27/device-check.json)를 확인했고 GitHub에서 APK·체크섬을 다시 내려받아 SHA-256 및 로컬 원본과 바이트 일치를 검증했습니다. Preview 1은 이전 그림 없는 설치본으로 보존합니다. 두 버전 모두 카메라 QR 촬영 수령·App Link·외부 지갑/NFT는 미검증입니다.
 
+**로그인 제한 주의:** 현재 Preview 2와 연결된 시연 서버는 두 초대 계정만 허용합니다. Issue #191의 모든 유효 Google 고객 로그인 변경은 로컬 코드·시험 상태이며, PR·서버 배포·새 서명 APK 실기 전에는 이 다운로드로 임의 계정 로그인이 된다고 안내하지 않습니다([정책·게이트](SHOWCASE_AUTH_GUARD.md)). 운영 앱은 고객 화면만 제공하고, 시연 가상 데이터는 운영 API/DB에 넣지 않습니다.
+
 ## 두 앱을 각각 게시하기 전 조건
 
 - 운영: 현재 `main` 기준 운영 AAB/APK를 upload key로 빌드하고 source commit·package·서명·SHA-256을 확인한 뒤 실제 기기에 설치해 로그인·탐색·지갑 복귀를 확인합니다. Google Play 설치본은 별도 서명 인증서를 사용하므로 GitHub APK와 구분합니다.
-- 시연: 전용 인증·DB의 공개 HTTPS, `kr.masscom.wolgye.demo` 서명·운영 앱과 동시 설치, 실제 기기 두 Google 계정의 점주 발급→고객 직접 코드 수령·도감·중복 거절과 private Release는 확인했습니다. 카메라로 QR을 촬영해 수령하는 경로, 별도 Reown 지갑·NFT, `demo.masscom.kr` App Link는 여전히 미검증입니다.
-- 운영 테스트본과 시연 설치본은 각각 다른 private Release에 게시했습니다. 시연 앱의 미완료 기능을 운영 기능으로 표기하지 않습니다. 저장소 공개·Play 제출·일반 공개는 별도 결정입니다.
+- 시연: 전용 인증·DB의 공개 HTTPS, `kr.masscom.wolgye.demo` 서명·운영 앱과 동시 설치, 실제 기기 두 Google 계정의 점주 발급→고객 직접 코드 수령·도감·중복 거절과 GitHub 사전 릴리스는 확인했습니다. 카메라로 QR을 촬영해 수령하는 경로, 별도 Reown 지갑·NFT, `demo.masscom.kr` App Link는 여전히 미검증입니다.
+- 운영 테스트본과 시연 설치본은 각각 다른 GitHub 사전 릴리스에 게시했습니다. 시연 앱의 미완료 기능을 운영 기능으로 표기하지 않습니다. 저장소 공개는 완료됐지만 Play 제출·일반 공개 승인은 별도입니다.
 
 개발 절차와 분리 기준은 [모바일 README](../apps/mobile/README.md)와 [시연·운영 분리 설계](superpowers/specs/2026-09-23-showcase-production-separation-design.md)를 따릅니다.

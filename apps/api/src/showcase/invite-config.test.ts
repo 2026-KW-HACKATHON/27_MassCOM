@@ -11,7 +11,7 @@ const valid = {
   ALLOW_INSECURE_DEMO_ACCOUNT: 'false',
 };
 
-test('showcase mode requires an isolated database and a nonempty invited-subject list', () => {
+test('showcase mode requires an isolated database and a nonempty staff-eligibility list', () => {
   const config = resolveShowcaseInviteConfig(valid);
   assert.deepEqual(config?.allowedSubjectHashes, new Set(['a'.repeat(64)]));
   for (const [name, override] of [
@@ -19,7 +19,7 @@ test('showcase mode requires an isolated database and a nonempty invited-subject
     ['missing DB', { DATABASE_URL: undefined }],
     ['missing audience', { GOOGLE_OAUTH_CLIENT_IDS: undefined }],
     ['multiple audiences', { GOOGLE_OAUTH_CLIENT_IDS: '123-showcase.apps.googleusercontent.com,456-other.apps.googleusercontent.com' }],
-    ['missing invite list', { SHOWCASE_INVITED_SUBJECT_SHA256: undefined }],
+    ['missing staff-eligibility list', { SHOWCASE_INVITED_SUBJECT_SHA256: undefined }],
     ['bad hash', { SHOWCASE_INVITED_SUBJECT_SHA256: 'not-a-hash' }],
     ['unsafe demo header', { ALLOW_INSECURE_DEMO_ACCOUNT: 'true' }],
   ] as const) {

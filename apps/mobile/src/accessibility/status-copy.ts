@@ -12,7 +12,7 @@ export function statusAnnouncement(
   const campaignTitle = context.campaignTitle ?? '캠페인';
   const copy: Record<StatusAnnouncementKind, string> = {
     'login-restoring': '저장된 로그인을 확인하는 중입니다.',
-    'login-failed': '로그인을 완료하지 못했습니다. 다시 시도해 주세요.',
+    'login-failed': loginFailureCopy(context.reason),
     'claim-preview': `${merchantName}의 ${campaignTitle} 방문 수령 내용을 확인했습니다.`,
     'claim-replayed': `${merchantName}에서 이미 완료된 방문 수령 결과를 복구했습니다.`,
     'collection-binding-outage': '앱 수집품은 표시하지만 외부 지갑 주소 확인 상태는 불러오지 못했습니다.',
@@ -25,4 +25,23 @@ export function statusAnnouncement(
     'deletion-blocked': '운영 계정 삭제는 최근 사용자 확인 수단이 확정되지 않아 아직 요청할 수 없습니다.',
   };
   return copy[kind];
+}
+
+function loginFailureCopy(reason: string | undefined): string {
+  if (reason === 'ACCOUNT_NOT_INVITED') {
+    return '이 Google 계정은 시연에 초대되지 않았습니다. 초대된 다른 계정을 선택해 주세요.';
+  }
+  if (reason === 'GOOGLE_SIGN_IN_CANCELLED') {
+    return 'Google 계정 선택을 취소했습니다. 다른 계정으로 로그인하려면 다시 눌러 주세요.';
+  }
+  if (reason === 'NETWORK_ERROR') {
+    return '로그인 서버에 연결하지 못했습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.';
+  }
+  if (reason === 'GOOGLE_SIGN_IN_FAILED') {
+    return 'Google 계정 선택을 완료하지 못했습니다. 다시 계정을 선택해 주세요.';
+  }
+  if (reason === 'LOGIN_RATE_LIMITED') {
+    return '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.';
+  }
+  return '로그인을 완료하지 못했습니다. 다시 시도해 주세요.';
 }

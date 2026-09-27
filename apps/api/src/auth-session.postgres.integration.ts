@@ -9,7 +9,11 @@ import { GoogleIdTokenError } from './google-id-token.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
+import { PostgresCollectionReader } from './postgres/collection.js';
+import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { runMigrations } from './postgres/migrate.js';
+import { createApiServer, createBearerAccountResolver } from './server.js';
+import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 const lifecycleSecret = 'test-only-account-deletion-secret-at-least-32-bytes';
 const signInAt = new Date('2026-09-21T00:00:00.000Z');
@@ -90,44 +94,82 @@ test('a second sign-in for the same Google subject reuses the account and issues
   assert.equal(await service.resolve(second.sessionToken), first.accountId);
 });
 
-test('showcase invite guard rejects uninvited Google subjects before any account or session write', async (t) => {
+test('showcase customer can sign in and read own collection, but cannot use merchant routes without a grant', async (t) => {
   const pool = await freshPool(t);
-  const invitedHash = createHash('sha256').update('invited-google-subject').digest('hex');
-  const service = new PostgresAuthSessionService(pool, {
-    verifier: fakeVerifier(() => signInAt),
-    allowedSubjectHashes: new Set([invitedHash]),
-    now: () => signInAt,
+  await pool.query("DELETE FROM merchants WHERE id = 'showcase-test-merchant'");
+  await pool.query(
+    `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
+     VALUES ('showcase-test-merchant', '시연 전용 점포', '', '시연 주소', 0, 'ACTIVE', true)`,
+  );
+  const service = sessionService(pool);
+  const server = createApiServer(
+    new WalletChallengeService({
+      store: new InMemoryChallengeStore(),
+      domain: 'api.masscom.local',
+      uri: 'https://api.masscom.local/wallet/verify',
+      chainId: 84532,
+      ttlMs: 5 * 60 * 1000,
+    }),
+    createBearerAccountResolver(service),
+    undefined,
+    new PostgresMerchantAccessControl(pool),
+    undefined,
+    new PostgresCollectionReader(pool),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    service,
+  );
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve()))));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('server did not bind a TCP port');
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  const login = async (subject: string) => {
+    const response = await fetch(`${baseUrl}/auth/google`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ idToken: `subject:${subject}` }),
+    });
+    assert.equal(response.status, 200);
+    return response.json() as Promise<{ accountId: string; sessionToken: string }>;
+  };
+  const customer = await login('customer-not-in-staff-list');
+  const staff = await login('staff-google-subject');
+  assert.notEqual(customer.accountId, staff.accountId);
+  const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
+  const collection = await fetch(`${baseUrl}/collection`, {
+    headers: bearer(customer.sessionToken),
   });
-
-  await assert.rejects(service.signInWithGoogle('subject:outsider'), (error: unknown) =>
-    error instanceof AuthSessionError && error.code === 'INVITE_REQUIRED');
+  assert.equal(collection.status, 200);
+  assert.deepEqual(await collection.json(), { visits: [], collectibles: [] });
+  const merchantUrl = `${baseUrl}/merchant/merchants/showcase-test-merchant/context`;
+  const denied = await fetch(merchantUrl, { headers: bearer(customer.sessionToken) });
+  assert.equal(denied.status, 403);
+  assert.deepEqual(await denied.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  await pool.query(
+    `INSERT INTO merchant_members (merchant_id, account_id, role, status)
+     VALUES ('showcase-test-merchant', $1, 'STAFF', 'ACTIVE')`,
+    [staff.accountId],
+  );
+  const staffContext = await fetch(merchantUrl, { headers: bearer(staff.sessionToken) });
+  assert.equal(staffContext.status, 200);
+  assert.deepEqual(await staffContext.json(), {
+    merchantId: 'showcase-test-merchant',
+    role: 'STAFF',
+    permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT'],
+  });
+  const stillDenied = await fetch(merchantUrl, { headers: bearer(customer.sessionToken) });
+  assert.equal(stillDenied.status, 403);
   const counts = await pool.query<{ identities: string; sessions: string }>(
     `SELECT (SELECT count(*) FROM auth_identities)::text AS identities,
             (SELECT count(*) FROM auth_sessions)::text AS sessions`,
   );
-  assert.deepEqual(counts.rows[0], { identities: '0', sessions: '0' });
-
-  const invited = await service.signInWithGoogle('subject:invited-google-subject');
-  assert.equal(await service.resolve(invited.sessionToken), invited.accountId);
-});
-
-test('showcase invite removal blocks an old session without changing normal production sessions', async (t) => {
-  const pool = await freshPool(t);
-  const invitedHash = createHash('sha256').update('invited-google-subject').digest('hex');
-  const service = new PostgresAuthSessionService(pool, {
-    verifier: fakeVerifier(() => signInAt),
-    allowedSubjectHashes: new Set([invitedHash]),
-    now: () => signInAt,
-  });
-  const invited = await service.signInWithGoogle('subject:invited-google-subject');
-  const removed = new PostgresAuthSessionService(pool, {
-    verifier: fakeVerifier(() => signInAt),
-    allowedSubjectHashes: new Set(['f'.repeat(64)]),
-    now: () => signInAt,
-  });
-  await assert.rejects(removed.resolve(invited.sessionToken), (error: unknown) =>
-    error instanceof AuthSessionError && error.code === 'INVITE_REQUIRED');
-  assert.equal(await sessionService(pool).resolve(invited.sessionToken), invited.accountId);
+  assert.deepEqual(counts.rows[0], { identities: '2', sessions: '2' });
+  await pool.query("DELETE FROM merchants WHERE id = 'showcase-test-merchant'");
 });
 
 test('resolve rejects unknown, expired and revoked session tokens', async (t) => {
