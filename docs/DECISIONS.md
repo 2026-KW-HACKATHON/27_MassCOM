@@ -13,7 +13,7 @@
 | D-007 | 앱·체인·연결 | React Native+Expo development build, Base Sepolia→Base, Reown 외부 지갑만 사용 | `USER_CONFIRMED` | 2026-09-18 사용자 ‘ㄱㄱ’, Phase 1 의존성·실기 기준 |
 | D-008 | 배포 환경 | AWS 서울 리전 + Docker Compose + Nginx + PostgreSQL | `USER_CONFIRMED` | 2026-09-18 사용자 ‘ㄱㄱ’, 설계만 승인; 유료 자원 생성은 별도 승인 |
 | D-009 | 저장소 | `2026-KW-HACKATHON/27_MassCOM`, 기본 브랜치 `main` | `USER_CONFIRMED` | 운영진 조직 저장소와 현재 작업 디렉터리 일치 |
-| D-010 | 저장소 공개 | 심사 전 public 전환 | `BLOCKED` | 대회 규칙상 필요하나 가시성 변경은 명시 승인 대상 |
+| D-010 | 저장소 공개 | 심사 전 public 전환 | `USER_CONFIRMED` | 2026-09-27 사용자가 직접 조직 저장소를 PUBLIC으로 전환하고 이후 배포 진행을 요청. GitHub API에서 PUBLIC 재확인; 이미지·라이선스와 제출 적격성은 별도 검증 |
 | D-011 | Play·법률·공급업체 | 실제 기능·계정·약관 기준 재확인 | `EXTERNAL_CHECK_REQUIRED` | 개인 계정 승인·사업자 불필요를 보장하지 않음 |
 | D-012 | 프로젝트 포털 공개 | GitHub Pages 또는 승인된 정적 호스팅 | `BLOCKED` | private 조직 저장소 지원 확인과 공개 배포 승인이 필요 |
 | D-013 | 개인 GitHub 복제 | `choijunhuk` 계정의 private mirror | `USER_CONFIRMED` | 나중에 진행; 조직 저장소 private 코드의 public 복제 금지 |

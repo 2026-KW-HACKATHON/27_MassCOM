@@ -1,6 +1,6 @@
 # 시연 고객 로그인·점주 권한 경계
 
-**현재 배포 상태:** [private Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)와 `demo-api.masscom.kr`은 이전 초대 계정 제한 버전입니다. 이 문서의 새 고객 정책은 Issue #191 작업 브랜치의 **로컬 구현**이며, PR 검사·서버 재배포·새 APK 실기 전까지 외부 서비스에 적용됐다고 말하지 않습니다. 기존 [두 계정·STAFF·운영 audience 교차 증거](evidence/showcase-internal-auth-claim-2026-09-27.json)는 당시 버전의 기록입니다.
+**현재 배포 상태:** [Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)와 `demo-api.masscom.kr`은 이전 초대 계정 제한 버전입니다. 이 문서의 새 고객 정책은 Issue #191의 **PR CI 통과·미병합 구현**이며, 서버 재배포·새 APK 실기 전까지 외부 서비스에 적용됐다고 말하지 않습니다. 기존 [두 계정·STAFF·운영 audience 교차 증거](evidence/showcase-internal-auth-claim-2026-09-27.json)는 당시 버전의 기록입니다.
 
 ## 승인된 새 정책
 

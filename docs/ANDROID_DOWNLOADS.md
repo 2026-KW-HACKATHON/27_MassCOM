@@ -1,6 +1,6 @@
 # Android 설치본과 GitHub 배포 상태
 
-상태 확인일: 2026-09-27. 저장소는 `PRIVATE`이며, GitHub Release 파일은 저장소 읽기 권한이 있는 계정에서만 내려받을 수 있습니다. GitHub 소스 ZIP은 설치용 APK가 아닙니다.
+상태 확인일: 2026-09-27. 사용자가 저장소를 `PUBLIC`으로 전환했으며 GitHub Release 파일은 로그인 없이 볼 수 있습니다. GitHub 소스 ZIP은 설치용 APK가 아닙니다.
 
 | 구분 | package | GitHub 다운로드 | 실제 상태 |
 | --- | --- | --- | --- |
@@ -27,7 +27,7 @@ Issue #189의 새 점포별 그림은 [Preview 2 사전 릴리스](https://githu
 ## 두 앱을 각각 게시하기 전 조건
 
 - 운영: 현재 `main` 기준 운영 AAB/APK를 upload key로 빌드하고 source commit·package·서명·SHA-256을 확인한 뒤 실제 기기에 설치해 로그인·탐색·지갑 복귀를 확인합니다. Google Play 설치본은 별도 서명 인증서를 사용하므로 GitHub APK와 구분합니다.
-- 시연: 전용 인증·DB의 공개 HTTPS, `kr.masscom.wolgye.demo` 서명·운영 앱과 동시 설치, 실제 기기 두 Google 계정의 점주 발급→고객 직접 코드 수령·도감·중복 거절과 private Release는 확인했습니다. 카메라로 QR을 촬영해 수령하는 경로, 별도 Reown 지갑·NFT, `demo.masscom.kr` App Link는 여전히 미검증입니다.
-- 운영 테스트본과 시연 설치본은 각각 다른 private Release에 게시했습니다. 시연 앱의 미완료 기능을 운영 기능으로 표기하지 않습니다. 저장소 공개·Play 제출·일반 공개는 별도 결정입니다.
+- 시연: 전용 인증·DB의 공개 HTTPS, `kr.masscom.wolgye.demo` 서명·운영 앱과 동시 설치, 실제 기기 두 Google 계정의 점주 발급→고객 직접 코드 수령·도감·중복 거절과 GitHub 사전 릴리스는 확인했습니다. 카메라로 QR을 촬영해 수령하는 경로, 별도 Reown 지갑·NFT, `demo.masscom.kr` App Link는 여전히 미검증입니다.
+- 운영 테스트본과 시연 설치본은 각각 다른 GitHub 사전 릴리스에 게시했습니다. 시연 앱의 미완료 기능을 운영 기능으로 표기하지 않습니다. 저장소 공개는 완료됐지만 Play 제출·일반 공개 승인은 별도입니다.
 
 개발 절차와 분리 기준은 [모바일 README](../apps/mobile/README.md)와 [시연·운영 분리 설계](superpowers/specs/2026-09-23-showcase-production-separation-design.md)를 따릅니다.

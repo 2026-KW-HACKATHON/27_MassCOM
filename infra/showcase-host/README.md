@@ -1,6 +1,6 @@
 # 시연 API·DB 호스트
 
-현재 배포 상태: 별도 Compose·DB의 가상 점포 A/B/C와 두 초대 계정의 로그인·가상 수령·운영 audience 거절을 확인했다([당시 내부 증거](../../docs/evidence/showcase-internal-auth-claim-2026-09-27.json)). [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) 병합·CI 뒤 기존 AWS 호스트에서 Caddy만 재생성해 **[공개 `demo-api.masscom.kr` HTTPS](https://demo-api.masscom.kr/health)**와 운영 API/웹 보존을 [실측](../../docs/evidence/showcase-public-edge-2026-09-27.json)했다. [private Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)는 아직 이 초대 제한 서버를 사용한다. Issue #191의 **모든 유효 Google 고객 로그인** 변경은 로컬 시험 중이며, 병합·배포 전에는 외부 로그인 완료로 표시하지 않는다. 카메라 QR 촬영 수령·외부 지갑은 미검증이다.
+현재 배포 상태: 별도 Compose·DB의 가상 점포 A/B/C와 두 초대 계정의 로그인·가상 수령·운영 audience 거절을 확인했다([당시 내부 증거](../../docs/evidence/showcase-internal-auth-claim-2026-09-27.json)). [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) 병합·CI 뒤 기존 AWS 호스트에서 Caddy만 재생성해 **[공개 `demo-api.masscom.kr` HTTPS](https://demo-api.masscom.kr/health)**와 운영 API/웹 보존을 [실측](../../docs/evidence/showcase-public-edge-2026-09-27.json)했다. [Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)는 아직 이 초대 제한 서버를 사용한다. Issue #191의 **모든 유효 Google 고객 로그인** 변경은 PR CI만 통과했으며, 병합·배포 전에는 외부 로그인 완료로 표시하지 않는다. 카메라 QR 촬영 수령·외부 지갑은 미검증이다.
 
 ## 실행 순서
 
