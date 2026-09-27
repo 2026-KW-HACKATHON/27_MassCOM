@@ -215,7 +215,7 @@ export function AccountSettingsScreen({
         <View style={[styles.blockedCard, { backgroundColor: palette.errorContainer }]}>
           <Text style={[styles.blockedTitle, { color: palette.onErrorContainer }]}>계정 삭제 요청 준비 중</Text>
           <Text selectable style={[styles.blockedBody, { color: palette.onErrorContainer }]}>
-            최근 본인 확인 수단이 확정되지 않아 아직 요청할 수 없습니다. Google 모바일 로그인만으로 삭제 재인증을 보장하지 않아 서버 검사를 완화하지 않습니다.
+            최근 본인 확인 방법이 아직 정해지지 않아 지금은 삭제를 요청할 수 없어요. 안전을 위해 Google 로그인만으로는 재인증으로 인정하지 않아요.
           </Text>
         </View>
       )}

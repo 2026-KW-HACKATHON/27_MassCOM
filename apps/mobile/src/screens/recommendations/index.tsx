@@ -88,16 +88,13 @@ export function RecommendationsScreen({
     >
       <View style={styles.hero}>
         <Text style={styles.eyebrow}>다음 월계 맛길</Text>
-        <Text selectable style={styles.title}>추천 이유를 보고{`\n`}다음 가게를 고릅니다.</Text>
+        <Text selectable style={styles.title}>다음에 가볼 가게</Text>
         <Text selectable style={styles.body}>
-          정원 마감 점포는 빼고, 미방문 점포와 다음 고정 보상까지 가까운 점포를 먼저 보여줍니다.
+          아직 안 가본 가게와 다음 보상이 가까운 가게를 먼저 보여줘요. 자리가 다 찬 가게는 빼요.
         </Text>
       </View>
 
-      <View style={styles.policyCard}>
-        <Text style={styles.policyTitle}>추천 정책</Text>
-        <Text style={styles.policyBody}>미방문 우선 · 이유 공개 · 한국 날짜별 동일 순위 회전</Text>
-      </View>
+      <Text style={styles.rotationNote}>순위가 같은 가게는 날마다 순서를 바꿔 보여줘요.</Text>
 
       {error ? <Text accessibilityLiveRegion="polite" style={styles.inlineError}>{error}</Text> : null}
 

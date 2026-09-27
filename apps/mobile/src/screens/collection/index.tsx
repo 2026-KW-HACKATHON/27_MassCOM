@@ -313,7 +313,7 @@ export function CollectionScreen({
         )}
       </Section>
 
-      <Section palette={palette} title="방문 기록" note="정확한 식사 시각 대신 한국 날짜만 표시합니다.">
+      <Section palette={palette} title="방문 기록" note="방문한 날짜(한국 기준)만 기록하고, 식사 시각은 남기지 않아요.">
         {collection.visits.length === 0 ? (
           <EmptyCopy palette={palette} text="아직 인증한 방문이 없습니다." />
         ) : (

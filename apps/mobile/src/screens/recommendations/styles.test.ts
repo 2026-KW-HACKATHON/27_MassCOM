@@ -12,7 +12,7 @@ test('makeRecommendationsStyles gives rendered light and dark content and states
     assert.equal(styles.centeredTitle.color, palette.label);
     assert.equal(styles.centeredBody.color, palette.secondaryLabel);
     assert.equal(styles.title.color, palette.label);
-    assert.equal(styles.policyCard.backgroundColor, palette.primaryContainer);
+    assert.equal(styles.rotationNote.color, palette.secondaryLabel);
     assert.equal(styles.retryButton.backgroundColor, palette.primary);
     assert.equal(styles.inlineError.backgroundColor, palette.errorContainer);
     assert.equal(styles.inlineError.color, palette.onErrorContainer);

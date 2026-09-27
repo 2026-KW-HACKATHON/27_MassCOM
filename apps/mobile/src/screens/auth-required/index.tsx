@@ -47,7 +47,7 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole }:
       <Text style={styles.eyebrow}>{accountContextLabel(Application.applicationId)}</Text>
       <Text selectable style={styles.title}>방문 기록을 안전하게{`\n`}이어서 확인합니다.</Text>
       <Text selectable style={styles.body}>
-        Google 계정 확인 뒤 서버가 발급한 session만 기기의 보안 저장소에 보관합니다. 지갑이 없어도 음식점 탐색과 방문 도감은 사용할 수 있습니다.
+        Google 계정으로 로그인하면 로그인 후 서버가 발급한 보안 토큰만 기기의 보안 저장소에 보관해요. 지갑이 없어도 음식점 탐색과 방문 도감은 사용할 수 있어요.
       </Text>
 
       <View accessibilityLiveRegion="polite" style={styles.statusCard}>
@@ -81,7 +81,7 @@ function reasonMessage(state: Props['state']): string {
     return '기기 보안 저장소를 사용할 수 없어 로그인 정보를 복원하지 않았습니다.';
   }
   if (state.reason === 'SERVER_SESSION_REVOCATION_FAILED') {
-    return '이 기기에서는 로그아웃됐지만 서버 세션 해지를 확인하지 못했습니다. 이전 세션은 만료 전까지 유효할 수 있습니다.';
+    return '이 기기에서는 로그아웃됐지만 로그인 해지 확인은 아직 받지 못했어요. 이전 로그인이 만료 전까지 유효할 수 있어요.';
   }
   if (state.reason === 'GOOGLE_SIGN_IN_CANCELLED') return 'Google 로그인을 취소했습니다.';
   if (state.reason === 'ACCOUNT_SWITCH_UNCHANGED') {
