@@ -1,14 +1,70 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import type { PublicMerchant } from '@/merchant/merchant-api';
-import { buildStampSlots, stampColumnCount } from './collection-stamps';
+import { buildMerchantGoals, buildStampSlots, stampColumnCount } from './collection-stamps';
 
 const merchants: readonly Pick<PublicMerchant, 'id' | 'name'>[] = [
   { id: 'one', name: '가상 점포 A' },
   { id: 'two', name: '가상 점포 B' },
   { id: 'three', name: '가상 점포 C' },
 ];
+
+const campaignMerchants: readonly Pick<PublicMerchant, 'id' | 'name' | 'campaign'>[] = [{
+  id: 'one', name: '가상 점포 A', campaign: {
+    id: 'current', title: '현재 캠페인', startsAt: '2026-09-01T00:00:00Z',
+    endsAt: '2026-10-01T00:00:00Z', enrollmentStatus: 'OPEN',
+    rewardGoals: [
+      { targetVisitCount: 1, displayName: '첫 방문' },
+      { targetVisitCount: 3, displayName: '세 번째 방문' },
+    ],
+  },
+}];
+
+test('reward progress counts only current campaign visits marked progressCounted', () => {
+  const visits = [
+    { merchantId: 'one', campaignId: 'current', progressCounted: true },
+    { merchantId: 'one', campaignId: 'current', progressCounted: false },
+    { merchantId: 'one', campaignId: 'old', progressCounted: true },
+  ];
+  const slots = buildMerchantGoals(campaignMerchants, visits, [], '2026-09-28T00:00:00Z');
+  assert.equal(slots[0]?.progressCount, 1);
+  assert.deepEqual(slots[0]?.nextGoal, { targetVisitCount: 1, displayName: '첫 방문' });
+});
+
+test('earned app collectible advances the next goal without implying NFT issuance', () => {
+  const collectibles = [{
+    merchantId: 'one', campaignId: 'current', targetVisitCount: 1,
+    appCollectibleStatus: 'COLLECTED', nftStatus: 'NOT_REQUESTED',
+  }] as const satisfies readonly Pick<CollectionSnapshot['collectibles'][number], 'merchantId' | 'campaignId' | 'targetVisitCount' | 'appCollectibleStatus' | 'nftStatus'>[];
+  const slots = buildMerchantGoals(campaignMerchants, [
+    { merchantId: 'one', campaignId: 'current', progressCounted: true },
+  ], collectibles, '2026-09-28T00:00:00Z');
+  assert.deepEqual(slots[0]?.earnedGoals, [1]);
+  assert.deepEqual(slots[0]?.nextGoal, { targetVisitCount: 3, displayName: '세 번째 방문' });
+});
+
+test('old campaign collectibles do not unlock current campaign goals', () => {
+  const slots = buildMerchantGoals(campaignMerchants, [], [
+    { merchantId: 'one', campaignId: 'old', targetVisitCount: 1, appCollectibleStatus: 'COLLECTED' },
+  ], '2026-09-28T00:00:00Z');
+  assert.deepEqual(slots[0]?.earnedGoals, []);
+  assert.equal(slots[0]?.nextGoal?.targetVisitCount, 1);
+});
+
+test('completed, ended and full campaigns retain honest goal state', () => {
+  const earned = [1, 3].map((targetVisitCount) => ({
+    merchantId: 'one', campaignId: 'current', targetVisitCount: targetVisitCount as 1 | 3,
+    appCollectibleStatus: 'COLLECTED' as const,
+  }));
+  assert.equal(buildMerchantGoals(campaignMerchants, [], earned, '2026-09-28T00:00:00Z')[0]?.nextGoal, null);
+  assert.equal(buildMerchantGoals(campaignMerchants, [], [], '2026-10-02T00:00:00Z')[0]?.campaignStatus, 'ended');
+  assert.equal(buildMerchantGoals([{
+    ...campaignMerchants[0]!, campaign: { ...campaignMerchants[0]!.campaign, enrollmentStatus: 'FULL' },
+  }], [], [], '2026-09-28T00:00:00Z')[0]?.campaignStatus, 'full');
+  assert.deepEqual(buildMerchantGoals([], [], [], '2026-09-28T00:00:00Z'), []);
+});
 
 test('a merchant with one or more matching visits is marked visited with a visit count', () => {
   const slots = buildStampSlots(merchants, [

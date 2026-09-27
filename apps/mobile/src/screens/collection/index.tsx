@@ -18,7 +18,7 @@ import { uiMetrics } from '@/theme/ui-metrics';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
-import { buildStampSlots, stampColumnCount, type StampSlot } from './collection-stamps';
+import { buildMerchantGoals, buildStampSlots, stampColumnCount, type MerchantGoal, type StampSlot } from './collection-stamps';
 import { showcaseCollectibleArtSource } from './showcase-collectible-art-assets';
 import { collectibleArtSize, showcaseCollectibleArtKey } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
@@ -58,11 +58,12 @@ export function CollectionScreen({
   const [message, setMessage] = useState<string>();
   const [pollingRetrying, setPollingRetrying] = useState(false);
   const collection = polling?.snapshot;
-  const { merchants: publicMerchants } = useMerchantCatalog(apiUrl);
+  const { merchants: publicMerchants, loading: merchantsLoading, error: merchantsError, retry: retryMerchants } = useMerchantCatalog(apiUrl);
   const stampSlots = useMemo(
     () => buildStampSlots(publicMerchants, collection?.visits ?? []),
     [publicMerchants, collection],
   );
+  const merchantGoals = buildMerchantGoals(publicMerchants, collection?.visits ?? [], collection?.collectibles ?? [], new Date().toISOString());
   const stampColumns = stampColumnCount(width, fontScale);
   const stampGap = 10;
   const stampSlotWidth = (width - uiMetrics.pageInset * 2 - stampGap * (stampColumns - 1)) / stampColumns;
@@ -256,15 +257,25 @@ export function CollectionScreen({
         <Section
           palette={palette}
           title="스탬프판"
-          note={`스탬프 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length}`}
+          note={`스탬프 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length} · 보상 진행은 현재 캠페인의 인정된 방문만 셉니다.`}
         >
           <View style={styles.stampGrid}>
-            {stampSlots.map((slot) => (
-              <StampCard key={slot.merchantId} slot={slot} width={stampSlotWidth} palette={palette} />
+            {stampSlots.map((slot, index) => (
+              <StampCard key={slot.merchantId} slot={slot} goal={merchantGoals[index]!} width={stampSlotWidth} palette={palette} />
             ))}
           </View>
         </Section>
-      ) : null}
+      ) : merchantsLoading ? (
+        <Section palette={palette} title="스탬프판"><EmptyCopy palette={palette} text="공개 음식점을 불러오는 중입니다." /></Section>
+      ) : merchantsError ? (
+        <Section palette={palette} title="스탬프판">
+          <Pressable accessibilityRole="button" onPress={retryMerchants} style={[styles.recoveryButton, { backgroundColor: palette.surface }]}>
+            <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>음식점 목록을 불러오지 못했습니다. 다시 시도</Text>
+          </Pressable>
+        </Section>
+      ) : (
+        <Section palette={palette} title="스탬프판"><EmptyCopy palette={palette} text="현재 공개된 음식점이 없습니다." /></Section>
+      )}
 
       {error ? <Text style={[styles.inlineError, { color: palette.onErrorContainer, backgroundColor: palette.errorContainer }]}>{error}</Text> : null}
       {bindingError ? (
@@ -383,27 +394,28 @@ export function CollectionScreen({
   );
 }
 
-function StampCard({ slot, width, palette }: { slot: StampSlot; width: number; palette: AppColors }) {
+function StampCard({ slot, goal, width, palette }: { slot: StampSlot; goal: MerchantGoal; width: number; palette: AppColors }) {
   const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
   const statusText = slot.visited ? `방문 ${slot.visitCount}회` : '아직 안 가봤어요';
-  const accessibilityLabel = slot.visited
-    ? `${slot.merchantName}, 방문 ${slot.visitCount}회`
-    : `${slot.merchantName}, 아직 방문하지 않음`;
+  const campaignText = goal.campaignStatus === 'ended' ? '캠페인 종료'
+    : goal.campaignStatus === 'full' ? '참여 정원 마감'
+    : goal.campaignStatus === 'upcoming' ? '캠페인 시작 전' : '';
+  const nextGoalText = !goal.totalGoals ? '설정된 보상 목표 없음'
+    : !goal.nextGoal ? '앱 수집품 목표 완료'
+    : goal.progressCount >= goal.nextGoal.targetVisitCount ? '앱 수집품 반영 확인 중'
+    : `다음 목표 ${goal.nextGoal.targetVisitCount}회 · ${goal.nextGoal.displayName}`;
+  const progressText = `보상 진행 ${goal.progressCount}${goal.nextGoal ? `/${goal.nextGoal.targetVisitCount}` : ''}회 · 앱 수집품 ${goal.earnedGoals.length}/${goal.totalGoals}`;
+  const accessibilityLabel = `${slot.merchantName}, ${statusText}, ${progressText}, ${campaignText || nextGoalText}, 음식점 상세 보기`;
   return (
-    <View
-      accessible
-      accessibilityLabel={accessibilityLabel}
-      style={[styles.stampSlot, { width, backgroundColor: palette.surface }]}
-    >
-      <Image
-        source={slot.visited ? mascotStamp : mascotStampEmpty}
-        accessible={false}
-        accessibilityIgnoresInvertColors
-        style={styles.stampImage}
-      />
-      <Text numberOfLines={1} style={[styles.stampName, { color: palette.label }]}>{slot.merchantName}</Text>
-      <Text style={[styles.stampStatus, { color: palette.secondaryLabel }]}>{statusText}</Text>
-    </View>
+    <Link href={{ pathname: '/merchants/[merchantId]', params: { merchantId: slot.merchantId } }} asChild>
+      <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={[styles.stampSlot, { width, backgroundColor: palette.surface }]}>
+        <Image source={slot.visited ? mascotStamp : mascotStampEmpty} accessible={false} accessibilityIgnoresInvertColors style={styles.stampImage} />
+        <Text numberOfLines={2} style={[styles.stampName, { color: palette.label }]}>{slot.merchantName}</Text>
+        <Text style={[styles.stampStatus, { color: palette.secondaryLabel }]}>{statusText}</Text>
+        <Text style={[styles.stampStatus, { color: palette.primary }]}>{progressText}</Text>
+        <Text style={[styles.stampStatus, { color: palette.secondaryLabel }]}>{campaignText || nextGoalText}</Text>
+      </Pressable>
+    </Link>
   );
 }
 
@@ -417,12 +429,12 @@ function Count({ label, value, stacked, palette }: { label: string; value: numbe
   );
 }
 
-function Section({ title, note, children, palette }: { title: string; note: string; children: React.ReactNode; palette: AppColors }) {
+function Section({ title, note, children, palette }: { title: string; note?: string; children: React.ReactNode; palette: AppColors }) {
   const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
   return (
     <View style={styles.section}>
       <Text style={[styles.sectionTitle, { color: palette.label }]}>{title}</Text>
-      <Text style={[styles.sectionNote, { color: palette.secondaryLabel }]}>{note}</Text>
+      {note ? <Text style={[styles.sectionNote, { color: palette.secondaryLabel }]}>{note}</Text> : null}
       <View style={styles.sectionBody}>{children}</View>
     </View>
   );
