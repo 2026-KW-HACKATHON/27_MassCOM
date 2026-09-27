@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -11,11 +11,17 @@ import {
   type PollingState,
 } from '@/commerce/collection-recovery';
 import { CommerceApiError, createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
+import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
+import { uiMetrics } from '@/theme/ui-metrics';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
+import { buildStampSlots, stampColumnCount, type StampSlot } from './collection-stamps';
 import { makeCollectionStyles } from './styles';
+
+const mascotStamp = require('../../../assets/images/mascot/mascot-stamp.png');
+const mascotStampEmpty = require('../../../assets/images/mascot/mascot-stamp-empty.png');
 
 export function CollectionScreen({
   apiUrl,
@@ -49,6 +55,14 @@ export function CollectionScreen({
   const [message, setMessage] = useState<string>();
   const [pollingRetrying, setPollingRetrying] = useState(false);
   const collection = polling?.snapshot;
+  const { merchants: publicMerchants } = useMerchantCatalog(apiUrl);
+  const stampSlots = useMemo(
+    () => buildStampSlots(publicMerchants, collection?.visits ?? []),
+    [publicMerchants, collection],
+  );
+  const stampColumns = stampColumnCount(width, fontScale);
+  const stampGap = 10;
+  const stampSlotWidth = (width - uiMetrics.pageInset * 2 - stampGap * (stampColumns - 1)) / stampColumns;
 
   useEffect(() => {
     let active = true;
@@ -234,6 +248,20 @@ export function CollectionScreen({
         </View>
       </View>
 
+      {stampSlots.length > 0 ? (
+        <Section
+          palette={palette}
+          title="스탬프판"
+          note={`스탬프 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length}`}
+        >
+          <View style={styles.stampGrid}>
+            {stampSlots.map((slot) => (
+              <StampCard key={slot.merchantId} slot={slot} width={stampSlotWidth} palette={palette} />
+            ))}
+          </View>
+        </Section>
+      ) : null}
+
       {error ? <Text style={[styles.inlineError, { color: palette.onErrorContainer, backgroundColor: palette.errorContainer }]}>{error}</Text> : null}
       {bindingError ? (
         <View style={[styles.recoveryBanner, { backgroundColor: palette.errorContainer }]}>
@@ -319,7 +347,7 @@ export function CollectionScreen({
         ) : (
           collection.visits.map((visit) => (
             <View key={visit.visitEventId} style={[styles.visitRow, { backgroundColor: palette.surface }]}>
-              <View>
+              <View style={styles.visitLeft}>
                 <Text selectable style={[styles.visitMerchant, { color: palette.label }]}>{visit.merchantName}</Text>
                 <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{visit.campaignTitle}</Text>
               </View>
@@ -338,6 +366,30 @@ export function CollectionScreen({
         </Pressable>
       </Link>
     </ScrollView>
+  );
+}
+
+function StampCard({ slot, width, palette }: { slot: StampSlot; width: number; palette: AppColors }) {
+  const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
+  const statusText = slot.visited ? `방문 ${slot.visitCount}회` : '아직 안 가봤어요';
+  const accessibilityLabel = slot.visited
+    ? `${slot.merchantName}, 방문 ${slot.visitCount}회`
+    : `${slot.merchantName}, 아직 방문하지 않음`;
+  return (
+    <View
+      accessible
+      accessibilityLabel={accessibilityLabel}
+      style={[styles.stampSlot, { width, backgroundColor: palette.surface }]}
+    >
+      <Image
+        source={slot.visited ? mascotStamp : mascotStampEmpty}
+        accessible={false}
+        accessibilityIgnoresInvertColors
+        style={styles.stampImage}
+      />
+      <Text numberOfLines={1} style={[styles.stampName, { color: palette.label }]}>{slot.merchantName}</Text>
+      <Text style={[styles.stampStatus, { color: palette.secondaryLabel }]}>{statusText}</Text>
+    </View>
   );
 }
 

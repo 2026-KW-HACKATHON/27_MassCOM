@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -10,16 +11,21 @@ import {
   TextInput,
   View,
   useColorScheme,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PublicMerchant } from '@/merchant/merchant-api';
 import { filterMerchants, type MerchantAvailabilityFilter } from '@/merchant/filter-merchants';
+import { MerchantMark } from '@/merchant/merchant-mark';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
+import { uiMetrics } from '@/theme/ui-metrics';
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
 
 import { makeMerchantListStyles } from './styles';
+
+const exploreBanner = require('../../../assets/images/mascot/explore-banner.jpg');
 
 type Props = {
   apiUrl: string;
@@ -30,6 +36,8 @@ export function MerchantListScreen({ apiUrl }: Props) {
   const palette = colorsForScheme(scheme);
   const styles = StyleSheet.create(makeMerchantListStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
+  // ponytail: explicit size — percentage width + aspectRatio rendered at the asset's intrinsic size inside the FlatList header on a real Android device.
+  const bannerWidth = useWindowDimensions().width - uiMetrics.pageInset * 2;
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const [query, setQuery] = useState('');
   const [availability, setAvailability] = useState<MerchantAvailabilityFilter>('all');
@@ -48,11 +56,13 @@ export function MerchantListScreen({ apiUrl }: Props) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={palette.primary} />}
       ListHeaderComponent={
         <View style={styles.header}>
-          <View style={[styles.routeMarker, { backgroundColor: palette.accentContainer }]}>
-            <Text style={[styles.routeMarkerText, { color: palette.onAccentContainer }]}>
-              월계1동 · 동네 한 바퀴
-            </Text>
-          </View>
+          <Image
+            source={exploreBanner}
+            accessible={false}
+            accessibilityIgnoresInvertColors
+            resizeMode="cover"
+            style={[styles.banner, { width: bannerWidth, height: bannerWidth / 2.6 }]}
+          />
           <Text selectable style={[styles.title, { color: palette.label }]}>월계에서 만나는 오늘의 한 끼.</Text>
           <Text selectable style={[styles.intro, { color: palette.secondaryLabel }]}>
             공개된 음식점을 찾고, 방문을 도감에 모아보세요.
@@ -215,7 +225,6 @@ function MerchantCard({ merchant, index, palette }: { merchant: PublicMerchant; 
     >
       <Pressable accessibilityRole="button" style={({ pressed }) => [styles.card, { backgroundColor: palette.surface, borderColor: palette.separator }, pressed && styles.cardPressed]}>
         <View style={styles.cardTopline}>
-          <Text style={[styles.routeNumber, { color: palette.primary }]}>{String(index + 1).padStart(2, '0')}</Text>
           <View style={[styles.statusBadge, { backgroundColor: merchant.campaign.enrollmentStatus === 'FULL' ? palette.errorContainer : palette.successContainer }]}>
             <Text style={[styles.statusBadgeText, { color: merchant.campaign.enrollmentStatus === 'FULL' ? palette.onErrorContainer : palette.onSuccessContainer }]}>
               {merchant.campaign.enrollmentStatus === 'OPEN' ? '참여 가능' : '정원 마감'}
@@ -227,7 +236,10 @@ function MerchantCard({ merchant, index, palette }: { merchant: PublicMerchant; 
             </View>
           ) : null}
         </View>
-        <Text selectable style={[styles.cardTitle, { color: palette.label }]}>{merchant.name}</Text>
+        <View style={styles.cardNameRow}>
+          <MerchantMark label={String(index + 1)} visited={false} palette={palette} />
+          <Text selectable style={[styles.cardTitle, { color: palette.label, flex: 1 }]}>{merchant.name}</Text>
+        </View>
         <Text selectable numberOfLines={2} style={[styles.cardStory, { color: palette.secondaryLabel }]}>{merchant.story}</Text>
         <View style={[styles.cardRule, { backgroundColor: palette.separator }]} />
         <View style={styles.cardMeta}>

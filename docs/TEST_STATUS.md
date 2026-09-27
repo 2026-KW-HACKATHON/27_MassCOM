@@ -1,5 +1,7 @@
 # 테스트 상태
 
+2026-09-27 Issue #184 마스코트 배너·도감 스탬프판: 공개 점포별 스탬프를 `merchantId`로 본인 방문과 맞추는 순수 로직 시험 7개 추가(방문/미방문/빈 목록 숨김/목록 밖 방문 무시/이름이 아닌 id 매칭/폭·글자 배율별 열 수). 모바일 204/204·typecheck·lint·Android JS export·접근성 semantics PASS. [Samsung SM-S928N 실기](evidence/ui-mascot-2026-09-27/device-check.json)에서 시연 APK `c956d1f`로 역할 선택·탐색 배너·스탬프판 1/3(점포 A 방문 2회)·추천 스탬프·방문 기록 이름 표시 PASS. 첫 빌드 `2160ad0`에서 찾은 배너 원본 크기 넘침·방문 기록 이름 잘림·같은 첫 글자 표식은 고친 뒤 재확인했다. 다크·200% 글자·TalkBack·360dp는 `NOT_RUN`. 필수 36개 판정 변화 없음.
+
 2026-09-27 Issue #183 앱 문구·제목 크기 정리: 탐색·추천 제목 25pt, 역할 선택 32pt, 개발자 말투 문구 9곳을 해요체로 교체(사실 유지). 모바일 197/197·typecheck·lint·Android JS export·접근성 semantics PASS. 바뀐 화면의 실기 캡처는 시연 APK 재빌드 뒤 기록하며 현재 `NOT_RUN`. 필수 36개 판정 변화 없음.
 
 2026-09-27 Issue #181 문서·규칙 정합: 필수 36개 시험 ID와 판정(31 PASS·2 BLOCKED·3 NOT_RUN)은 변경 없음. 새 `tools/gate.sh`(비밀값·bootstrap·운영 문서·증거 정합) 로컬 PASS, 전체 판정은 PR CI를 따른다.

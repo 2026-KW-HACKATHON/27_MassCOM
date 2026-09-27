@@ -33,6 +33,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-27 | Codex + imagegen | README 시각 개편과 두 계정 폰 실기 정리 | 사용자 제공 MassCOM 콘셉트 그림에서 Play 배지·목업·성과 문구를 제거한 장식용 Hero, 시연 APK 실제 화면 4장, 상태가 구분된 Mermaid·문서 | 배너 2172×724, Samsung SM-S928N 실기 화면·DB 수치·링크·README 검사; 직접 코드 수령 PASS, 카메라 QR 촬영 수령 NOT_RUN | AI 생성·편집과 ADB 캡처를 팀원의 수작업으로 표시하지 않음. 원본의 공개 사용 권리는 저장소 공개 전 사용자 확인 필요 |
 | 2026-09-27 | Claude Code + 독립 점검 에이전트 | 기획·완성도·README·AI 규칙 전체 점검(Issue #181) | 닫힌 PR #180 변경 포함, 09-24~27 AI 사용 기록, `AGENTS.md` Lore trailer·AI 공동 작성자 금지, `CLAUDE.md`·`tools/gate.sh`·`.gitignore`·PR 템플릿·HANDOFF 기준 정리 | `tools/gate.sh`(비밀값·bootstrap 36 IDs·운영 문서·증거 정합) PASS | 문서·설정만 변경. 무로그인 탐색(B-017)·현장 파일럿·저장소 공개는 사용자 결정으로 남김 |
 | 2026-09-27 | Claude Code + 독립 리뷰 | 앱 문구·제목 크기 정리(Issue #183) | 탐색·추천·역할 선택 제목 축소, 추천 정책·도감·로그인·삭제·지갑·점주 화면의 개발자 말투 문구 교체, `DESIGN.md` 글자 기준 | 모바일 197/197·typecheck·lint·Android JS export·접근성 semantics PASS | 사용자가 UI 품질 문제를 제기하고 C안(빠른 정리+마스코트 개편)을 선택. 실기 캡처는 NOT_RUN |
+| 2026-09-27 | Claude Code + 독립 리뷰 | 마스코트 배너·도감 스탬프판(Issue #184) | 사용자 승인 마스코트를 README Hero에서 잘라 탐색 배너·스탬프·빈 칸 자산 생성(PIL), 스탬프판·가게 표식 컴포넌트와 순수 로직 시험, `DESIGN.md` 이미지 기준 | 모바일 204/204·typecheck·lint·Android JS export·접근성 semantics PASS; 리뷰 APPROVE 후 글자 배율 열 수·문서 모순 수정 | 사용자가 마스코트 사용을 승인(D-036). AI가 자른 이미지를 새 원본 창작으로 표시하지 않음. 실기 캡처 NOT_RUN |
 
 ## 팀 설명 체크리스트
 
