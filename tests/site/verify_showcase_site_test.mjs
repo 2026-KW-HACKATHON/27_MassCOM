@@ -72,8 +72,8 @@ test('README의 콘셉트 배너와 실제 폰 화면 네 장은 저장소 PNG�
   const readme = readFileSync(join(repo, 'README.md'), 'utf8');
   const assets = [
     'docs/assets/readme/hero.png',
-    ...['role', 'discovery', 'collection', 'recommendations']
-      .map((name) => `docs/evidence/readme-showcase-2026-09-27/${name}.png`),
+    ...['role', 'explore', 'collection', 'recommendations']
+      .map((name) => `docs/evidence/ui-mascot-2026-09-27/${name}.png`),
   ];
   for (const asset of assets) {
     assert.ok(readme.includes(`src="${asset}"`), asset);
