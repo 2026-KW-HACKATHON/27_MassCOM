@@ -3,6 +3,82 @@ import { test } from 'node:test';
 
 import { CommerceApiError, createCommerceApiClient } from './commerce-api';
 
+const identityToken = `masscom-customer:v1:${'A'.repeat(43)}`;
+
+test('creates, resolves, and revokes customer identity only through authenticated POST bodies', async () => {
+  const requests: { url: string; body: unknown }[] = [];
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (input, init) => {
+      assert.equal(init?.method, 'POST');
+      assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer session');
+      const url = String(input);
+      requests.push({ url, body: JSON.parse(String(init?.body)) });
+      if (url.endsWith('/resolve')) return Response.json({ expiresAt: '2026-09-28T10:00:00.000Z' });
+      if (url.endsWith('/revoke')) return Response.json({ status: 'REVOKED' });
+      return Response.json({ token: identityToken, expiresAt: '2026-09-28T10:00:00.000Z' }, { status: 201 });
+    },
+  });
+  assert.deepEqual(await client.createCustomerIdentity(), { token: identityToken, expiresAt: '2026-09-28T10:00:00.000Z' });
+  assert.deepEqual(await client.resolveCustomerIdentity('merchant-1', identityToken), { expiresAt: '2026-09-28T10:00:00.000Z' });
+  await client.revokeCustomerIdentity(identityToken);
+  assert.deepEqual(requests, [
+    { url: 'https://api.example.test/customer/identity-tokens', body: {} },
+    { url: 'https://api.example.test/merchant/merchants/merchant-1/customer-identities/resolve', body: { customerIdentityToken: identityToken } },
+    { url: 'https://api.example.test/customer/identity-tokens/revoke', body: { token: identityToken } },
+  ]);
+});
+
+test('issues a confirmed identity claim without account ID and accepts replay without a token', async () => {
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (input, init) => {
+      assert.equal(input, 'https://api.example.test/merchant/merchants/merchant-1/claim-slots');
+      assert.deepEqual(JSON.parse(String(init?.body)), {
+        customerIdentityToken: identityToken, merchantReference: identityToken, useConfirmed: true,
+      });
+      return Response.json({ claimSlotId: 'slot-1', tokenVersion: 1, expiresAt: '2026-09-28T10:00:00.000Z', replayed: true });
+    },
+  });
+  assert.deepEqual(await client.issueIdentityClaim({ merchantId: 'merchant-1', customerIdentityToken: identityToken }), {
+    claimSlotId: 'slot-1', tokenVersion: 1, expiresAt: '2026-09-28T10:00:00.000Z', replayed: true,
+  });
+});
+
+test('recovers a lost issue response by reissuing the existing slot', async () => {
+  const urls: string[] = [];
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (input, init) => {
+      urls.push(String(input));
+      if (urls.length === 1) {
+        // The same identity token is the stable reference across retry; the server stores only its merchant-scoped HMAC.
+        assert.deepEqual(JSON.parse(String(init?.body)), {
+          customerIdentityToken: identityToken, merchantReference: identityToken, useConfirmed: true,
+        });
+        return Response.json({ claimSlotId: 'slot-1', tokenVersion: 2, expiresAt: '2026-09-28T10:00:00.000Z', replayed: true });
+      }
+      assert.deepEqual(JSON.parse(String(init?.body)), { expectedTokenVersion: 2 });
+      return Response.json({ claimSlotId: 'slot-1', token: 'B'.repeat(43), tokenVersion: 3, expiresAt: '2026-09-28T10:02:00.000Z' });
+    },
+  });
+  assert.equal((await client.issueOrReissueIdentityClaim({ merchantId: 'merchant-1', customerIdentityToken: identityToken })).tokenVersion, 3);
+  assert.deepEqual(urls, [
+    'https://api.example.test/merchant/merchants/merchant-1/claim-slots',
+    'https://api.example.test/merchant/merchants/merchant-1/claim-slots/slot-1/reissue',
+  ]);
+});
+
+test('rejects malformed identity responses before displaying them', async () => {
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ token: 'bad', expiresAt: 'not-a-date' }),
+  });
+  await assert.rejects(client.createCustomerIdentity(), /응답 형식/);
+});
+
 test('reads merchant context through the explicit demo account boundary', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
