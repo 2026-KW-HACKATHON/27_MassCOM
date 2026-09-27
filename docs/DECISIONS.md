@@ -40,6 +40,7 @@
 | D-034 | `www` 웹 대표 주소·apex 호환 | 기존 Lightsail의 `www.masscom.kr/app/`·`/preview/`을 웹 대표 경로로 사용하고, `masscom.kr`은 Android App Link·Reown 출처·기존 로그인 호환을 위해 유지. 웹 세션은 호스트별로 분리 | `USER_CONFIRMED` | 2026-09-25 사용자가 [설계](superpowers/specs/2026-09-25-www-web-consolidation-design.md)·[계획](superpowers/plans/2026-09-25-www-web-consolidation.md)을 승인. PR #169·main CI, Google 콜백, 가비아 DNS, 공인 TLS와 휴대전화 한 계정 로그인은 [실증](evidence/www-web-cutover-2026-09-25.json)으로 확인; www 두 번째 계정·시연 Android는 별도 미완료 |
 | D-035 | 시연 APK 전용 서명 키 생성 1회 예외 | `kr.masscom.wolgye.demo`만을 위한 새 키를 Git 밖에 만들고 로컬 Keychain에 비밀번호를 보관. 운영 키 재사용·변경 금지 | `USER_CONFIRMED` | 2026-09-26 사용자가 저장소의 에이전트 키 생성 금지 규칙에 대해 **이번 시연 전용 키만** 명시적으로 예외 승인. 키 파일 mode 600·Keychain 조회로 인증서 열기 확인. 비밀번호·개인키는 문서·Git에 기록하지 않음; 백업과 실제 APK 서명은 별도 검증 |
 | D-036 | 앱 안 마스코트 사용 | README Hero의 파란 펭귄 마스코트·거리 그림(`docs/assets/readme/hero.png`)을 잘라 Android 앱의 탐색 배너와 도감 스탬프로 사용. 가짜 음식점 사진·실제 보유하지 않은 수집품 표시는 계속 금지 | `USER_CONFIRMED` | 2026-09-27 사용자가 채팅에서 "마스코트 써도 돼"로 사용을 승인. README와 앱의 같은 그림 사용 근거로 삼고, 공개 전환 자체는 D-010 승인에 따름 |
+| D-037 | 가상 점포 수집품 카드 그림 | 기존 MassCOM 마스코트를 시각 참고로 A·B·C 전용 그림을 만들고 실제 시연 보상권 카드에서만 사용. 앱 수집품과 발행 NFT 상태·외부 지갑 이미지는 별도로 유지 | `USER_CONFIRMED` | 2026-09-27 사용자가 "잘라써도 돼 nft를 만들어달라고 음식점들의 nft"를 설명하고 가상 점포 카드 설계에 "ㄱㄱ"로 답함. 운영 점포·온체인 메타데이터·공개 권리 확인은 별도 범위 |
 
 ## 2026-09-23 UI 기초 작업 범위 (Issue #136)
 

@@ -35,6 +35,8 @@ export function makeCollectionStyles(palette: AppColors, hairlineWidth = 1) {
   stampName: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
   stampStatus: { fontSize: 11, textAlign: 'center' },
   collectibleCard: { gap: 9, padding: 18, borderRadius: 20, backgroundColor: palette.surface },
+  collectibleArt: { borderRadius: 16 } as ImageStyle,
+  collectibleArtNote: { color: palette.secondaryLabel, fontSize: 11, lineHeight: 16 } as TextStyle,
   collectibleTopline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   goalBadge: { color: palette.primary, fontSize: 12, fontWeight: '900' },
   appStatus: { color: palette.onSuccessContainer, fontSize: 11, fontWeight: '900' },

@@ -37,3 +37,4 @@ GitHub Actions의 공식 `actions/checkout`은 CI에서 커밋 SHA로 고정해 
 
 - `docs/assets/readme/hero.png`: 사용자가 제공한 MassCOM 콘셉트 이미지를 imagegen으로 편집한 장식용 배너입니다. 원본의 Play 배지·앱 목업·성과 문구를 제거했으며 실제 점포나 출시 증거로 사용하지 않습니다. 원본의 공개 사용 권리는 저장소 공개 전에 사용자가 확인해야 합니다.
 - `docs/evidence/readme-showcase-2026-09-27/*.png`: 사용자가 연결한 Samsung SM-S928N의 비공개 시연 APK 화면을 ADB로 촬영했습니다. 가상 데이터만 보이는 역할·탐색·도감·추천 화면이며 계정 선택, 일회용 코드, 지갑 비밀은 포함하지 않습니다.
+- `apps/mobile/assets/images/collectibles/showcase-{a,b,c}.png`: 사용자가 앱 사용을 승인한 MassCOM 마스코트 그림을 시각 참고로 imagegen에서 새로 만든 가상 점포 카드 그림입니다. 기존 마스코트 원본의 공개 웹·NFT 메타데이터 이용 권리는 별도로 확인해야 하며, 현재 외부 지갑용 공개 이미지 URI는 없습니다.

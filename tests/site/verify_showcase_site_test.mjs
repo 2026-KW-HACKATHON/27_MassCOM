@@ -63,9 +63,20 @@ test('README는 시연 웹과 APK의 직접 코드 수령 및 미실행 QR 촬�
   assert.ok(readme.includes('apps/showcase-web'));
   assert.ok(readme.includes('https://www.masscom.kr/preview/'));
   assert.ok(readme.includes('시연 Android 앱'));
-  assert.ok(readme.includes('https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1'));
-  assert.ok(readme.includes('두 계정의 폰 직접 코드 수령·중복 거절 확인'));
+  assert.ok(readme.includes('https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2'));
+  assert.match(readme, /두 계정[^\n]*직접 코드 수령[^\n]*이전 설치본 실증/);
   assert.ok(readme.includes('카메라 QR 촬영 수령·지갑·NFT는 미검증'));
+});
+
+test('README의 점포별 수집품 그림은 저장소의 정사각 PNG를 가리킨다', () => {
+  const readme = readFileSync(join(repo, 'README.md'), 'utf8');
+  for (const merchant of ['a', 'b', 'c']) {
+    const asset = `apps/mobile/assets/images/collectibles/showcase-${merchant}.png`;
+    assert.ok(readme.includes(`src="${asset}"`), asset);
+    const image = readFileSync(join(repo, asset));
+    assert.equal(image.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', asset);
+    assert.equal(image.readUInt32BE(16), image.readUInt32BE(20), asset);
+  }
 });
 
 test('README의 콘셉트 배너와 실제 폰 화면 네 장은 저장소 PNG를 가리킨다', () => {

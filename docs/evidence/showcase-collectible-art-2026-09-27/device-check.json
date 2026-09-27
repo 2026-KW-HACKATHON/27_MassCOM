@@ -1,0 +1,36 @@
+{
+  "recordedAt": "2026-09-27 KST",
+  "issue": 189,
+  "device": {
+    "model": "Samsung SM-S928N",
+    "android": "16",
+    "screen": "1080x2340 @450dpi"
+  },
+  "apk": {
+    "package": "kr.masscom.wolgye.demo",
+    "sourceCommit": "7322470",
+    "sha256": "cdc30ef9222c0b2557dc934958e99dce0d4dcd69df6cb7d12916cc57503184e1",
+    "signedBuild": "PASS",
+    "adbInstallReplacePreservingData": "PASS",
+    "githubRelease": "PASS: private showcase-android-v0.1.0-preview.2, three assets, downloaded APK SHA-256 and bytes match local source"
+  },
+  "checks": {
+    "mappingUnit": "PASS 2/2",
+    "mobileTests": "PASS 206/206",
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "androidJsExport": "PASS",
+    "lightCardAndStatus": "PASS: only collected virtual merchant A has artwork; visit 2, app collectible 1, actual NFT 0; NFT not issued label remains",
+    "darkAnd200PercentFont": "PASS: artwork is within card width and virtual B/C remain unvisited; content can be scrolled",
+    "settingsRestored": "PASS: font_scale 1.0 and night mode no",
+    "operatingMerchantArtwork": "NOT_RUN: operating catalog has no merchants; exact-ID unit test rejects unmatched merchant IDs",
+    "talkBack": "NOT_RUN",
+    "externalWalletNftImage": "NOT_RUN: metadata image URI is absent"
+  },
+  "firstDeviceFinding": "Initial source 71a569a used percentage image width and overflowed horizontally; numeric width using screen and card insets fixed in 7322470 and checked on the same device.",
+  "screenshots": {
+    "light": "collection-light.png",
+    "darkLargeText": "collection-dark-large.png"
+  },
+  "dataBoundary": "Screens contain only virtual merchant names and counts. No email, account ID, one-time claim code, wallet address or secret is stored. No new visit or mint was made during this check."
+}
