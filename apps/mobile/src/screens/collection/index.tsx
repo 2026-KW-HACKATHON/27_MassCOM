@@ -18,7 +18,7 @@ import { uiMetrics } from '@/theme/ui-metrics';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
-import { buildMerchantGoals, buildStampSlots, stampColumnCount, type MerchantGoal, type StampSlot } from './collection-stamps';
+import { buildMerchantGoals, buildStampSlots, describeMerchantGoal, stampColumnCount, type MerchantGoal, type StampSlot } from './collection-stamps';
 import { showcaseCollectibleArtSource } from './showcase-collectible-art-assets';
 import { collectibleArtSize, showcaseCollectibleArtKey } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
@@ -58,7 +58,7 @@ export function CollectionScreen({
   const [message, setMessage] = useState<string>();
   const [pollingRetrying, setPollingRetrying] = useState(false);
   const collection = polling?.snapshot;
-  const { merchants: publicMerchants, loading: merchantsLoading, error: merchantsError, retry: retryMerchants } = useMerchantCatalog(apiUrl);
+  const { merchants: publicMerchants, loading: merchantsLoading, error: merchantsError, retry: retryMerchants, refresh: refreshMerchants } = useMerchantCatalog(apiUrl);
   const stampSlots = useMemo(
     () => buildStampSlots(publicMerchants, collection?.visits ?? []),
     [publicMerchants, collection],
@@ -129,6 +129,7 @@ export function CollectionScreen({
       const [collectionResult, bindingResult] = await Promise.allSettled([
         api.getCollection(),
         walletApi.getActiveBinding(),
+        refreshMerchants(),
       ]);
       const resolved = resolveCollectionLoad(collectionResult, bindingResult);
       if (!resolved.ok) {
@@ -253,7 +254,15 @@ export function CollectionScreen({
         </View>
       </View>
 
-      {stampSlots.length > 0 ? (
+      {merchantsError ? (
+        <Section palette={palette} title="스탬프판">
+          <Pressable accessibilityRole="button" onPress={retryMerchants} style={[styles.recoveryButton, { backgroundColor: palette.surface }]}>
+            <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>음식점 목록을 불러오지 못했습니다. 다시 시도</Text>
+          </Pressable>
+        </Section>
+      ) : merchantsLoading ? (
+        <Section palette={palette} title="스탬프판"><EmptyCopy palette={palette} text="공개 음식점을 불러오는 중입니다." /></Section>
+      ) : stampSlots.length > 0 ? (
         <Section
           palette={palette}
           title="스탬프판"
@@ -264,14 +273,6 @@ export function CollectionScreen({
               <StampCard key={slot.merchantId} slot={slot} goal={merchantGoals[index]!} width={stampSlotWidth} palette={palette} />
             ))}
           </View>
-        </Section>
-      ) : merchantsLoading ? (
-        <Section palette={palette} title="스탬프판"><EmptyCopy palette={palette} text="공개 음식점을 불러오는 중입니다." /></Section>
-      ) : merchantsError ? (
-        <Section palette={palette} title="스탬프판">
-          <Pressable accessibilityRole="button" onPress={retryMerchants} style={[styles.recoveryButton, { backgroundColor: palette.surface }]}>
-            <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>음식점 목록을 불러오지 못했습니다. 다시 시도</Text>
-          </Pressable>
         </Section>
       ) : (
         <Section palette={palette} title="스탬프판"><EmptyCopy palette={palette} text="현재 공개된 음식점이 없습니다." /></Section>
@@ -397,15 +398,9 @@ export function CollectionScreen({
 function StampCard({ slot, goal, width, palette }: { slot: StampSlot; goal: MerchantGoal; width: number; palette: AppColors }) {
   const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
   const statusText = slot.visited ? `방문 ${slot.visitCount}회` : '아직 안 가봤어요';
-  const campaignText = goal.campaignStatus === 'ended' ? '캠페인 종료'
-    : goal.campaignStatus === 'full' ? '참여 정원 마감'
-    : goal.campaignStatus === 'upcoming' ? '캠페인 시작 전' : '';
-  const nextGoalText = !goal.totalGoals ? '설정된 보상 목표 없음'
-    : !goal.nextGoal ? '앱 수집품 목표 완료'
-    : goal.progressCount >= goal.nextGoal.targetVisitCount ? '앱 수집품 반영 확인 중'
-    : `다음 목표 ${goal.nextGoal.targetVisitCount}회 · ${goal.nextGoal.displayName}`;
+  const goalText = describeMerchantGoal(goal);
   const progressText = `보상 진행 ${goal.progressCount}${goal.nextGoal ? `/${goal.nextGoal.targetVisitCount}` : ''}회 · 앱 수집품 ${goal.earnedGoals.length}/${goal.totalGoals}`;
-  const accessibilityLabel = `${slot.merchantName}, ${statusText}, ${progressText}, ${campaignText || nextGoalText}, 음식점 상세 보기`;
+  const accessibilityLabel = `${slot.merchantName}, ${statusText}, ${progressText}, ${goalText}, 음식점 상세 보기`;
   return (
     <Link href={{ pathname: '/merchants/[merchantId]', params: { merchantId: slot.merchantId } }} asChild>
       <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={[styles.stampSlot, { width, backgroundColor: palette.surface }]}>
@@ -413,7 +408,7 @@ function StampCard({ slot, goal, width, palette }: { slot: StampSlot; goal: Merc
         <Text numberOfLines={2} style={[styles.stampName, { color: palette.label }]}>{slot.merchantName}</Text>
         <Text style={[styles.stampStatus, { color: palette.secondaryLabel }]}>{statusText}</Text>
         <Text style={[styles.stampStatus, { color: palette.primary }]}>{progressText}</Text>
-        <Text style={[styles.stampStatus, { color: palette.secondaryLabel }]}>{campaignText || nextGoalText}</Text>
+        <Text style={[styles.stampStatus, { color: palette.secondaryLabel }]}>{goalText}</Text>
       </Pressable>
     </Link>
   );
