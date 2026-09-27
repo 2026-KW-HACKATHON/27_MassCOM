@@ -3,7 +3,7 @@
 ## 목적과 연관 요구사항
 
 - 요구사항:
-- Issue:
+- Issue: (완료하면 `Closes #번호`, 계속 열어 둘 Issue는 `Related #번호`)
 - 평가 항목:
 
 ## 변경 내용
@@ -33,3 +33,8 @@
 
 - 알려진 한계·BLOCKER:
 - 되돌리는 방법:
+
+## 문서 동기화
+
+- [ ] README·`docs/TEST_STATUS.md`·`docs/PROJECT_STATE.md`·`docs/HANDOFF.md`를 갱신했거나, 영향이 없는 이유를 적었다
+- [ ] 로컬 `tools/gate.sh` PASS

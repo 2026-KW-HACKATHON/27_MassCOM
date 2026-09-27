@@ -9,6 +9,8 @@
 | 문서 초안·상태 동기화 | GPT‑6 Luna · medium | 보안·법적 표현이나 근거 충돌은 Sol · medium |
 | 보안 경계·체인·인증 아키텍처와 최종 독립 리뷰 | GPT‑6 Astra · medium | 실제 자산·운영 배포의 복잡한 실패 분석만 high |
 
+Claude Code를 사용할 때도 같은 역할 구분을 따릅니다. 탐색·단순 정리는 가벼운 모델, 일반 구현·문서는 중간 모델, 보안 경계·체인·인증의 최종 독립 리뷰는 구현과 다른 세션의 상위 모델에 맡깁니다. 저장소 규칙은 [`CLAUDE.md`](../CLAUDE.md)가 `AGENTS.md`를 불러와 두 도구가 같은 기준을 읽습니다.
+
 모델을 높였다는 사실은 검증 증거가 아닙니다. 테스트 명령, 실제 기기, CI, PR 리뷰를 별도로 기록합니다. 모델 사용량과 남은 한도는 계정 전체에서 변하며 “일주일 뒤 10% 보장”처럼 약속하지 않습니다. 같은 결과를 얻는 데 필요한 최소한의 탐색·재실행을 선택합니다.
 
 공식 근거: [OpenAI Docs 모델 선택](https://developers.openai.com/api/docs/guides/model-selection), [Codex 모델별 사용처](https://learn.chatgpt.com/docs/models), [Codex 설정 키](https://learn.chatgpt.com/docs/config-file/config-reference).
