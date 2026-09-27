@@ -4,7 +4,7 @@
 
 ## 현재 GitHub·운영 상태 — 2026-09-27
 
-- **UI 개편 진행:** Issue #183(문구·제목 크기, 중간 제출 전 병합 대상)과 Issue #184(승인된 마스코트 배너·도감 스탬프판, 중간 제출 뒤 병합)는 각각 `ui/183-copy-cleanup`, `ui/184-mascot-collection` 브랜치다. #184는 #183 위에 쌓았다. 새 화면을 폰에 보이려면 시연 APK를 해당 커밋에서 다시 빌드·설치해야 한다(Keychain 승인은 사용자).
+- **UI 개편 완료:** Issue #183·#184를 [PR #185](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/185)·[PR #186](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/186)으로 병합했다(main `95aaba1`). Samsung에는 같은 코드의 시연 APK `c956d1f`가 설치돼 있고 라이트 모드 네 화면을 [실기 기록](evidence/ui-mascot-2026-09-27/device-check.json)으로 남겼다. 다크·200% 글자·TalkBack은 `NOT_RUN`. 빌드 도우미 `/Users/choi/Desktop/MassCOM/run-showcase-build.command`는 첫 인자로 worktree 경로를 받고 기본값은 `.worktrees/184-mascot`이다(Keychain 승인은 사용자). README 화면은 Issue #187에서 새 캡처로 교체했다.
 - **재개 기준:** main은 [PR #179](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/179) merge `3b81530` 뒤 Issue #181 문서·규칙 정합 PR을 병합한 상태다. 닫힌 PR #180의 출처 문구 정리는 이 정합 PR에 포함했다. 병합 뒤 열린 PR은 없고 열린 Issue는 #136·#137이다. 재개 시 `git log origin/main -1`, `gh pr list`, `gh issue list`로 실제 상태를 먼저 확인하고 로컬 빠른 검사는 `tools/gate.sh`로 한다.
 - **사용자 결정 대기:** 중간 제출(2026-09-28 07:00 KST) 발표·리허설, 저장소 public 전환(D-010), 무로그인 탐색 유지 여부(B-017), 실제 점주 현장 파일럿(`docs/FIELD_VALIDATION.md`), 팀원별 기여 설명. 에이전트가 대신 결정·제출하지 않는다.
 - **최신 시연 실기:** [두 초대 계정 폰·DB 근거](evidence/showcase-two-account-phone-2026-09-27.json)에서 같은 Samsung·시연 APK `c53c199`로 STAFF 발급→다른 초대 Google 계정 로그인→직접 코드 미리보기·수령→도감 방문 2/앱 수집품1/NFT0→재입력 추가 효과 0을 확인했다. 시연 DB 슬롯 3·방문 2·보상권 1·mint 0, 운영 DB 가상 점포 0. 실제 카메라 QR 촬영 수령·시연 지갑·`demo.masscom.kr` App Link는 `NOT_RUN`; Issue #137은 OPEN. 이번 README 개편은 user-provided MassCOM 콘셉트 그림을 오해 없는 Hero로 편집하고 실제 Android 화면 4장·Mermaid·최신 근거를 연결한다. 일회용 코드·계정 식별자는 문서/이미지에 넣지 않는다.

@@ -129,13 +129,13 @@ sequenceDiagram
 
 ## 실제 Android 화면
 
-아래는 [private 시연 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)(source `c53c199`)를 Samsung SM-S928N·Android 16에서 촬영한 화면입니다. 점포·방문·수집품은 모두 **가상 시연 데이터**이며 화면 이미지는 기획 목업이 아닙니다.
+아래는 마스코트 UI를 반영한 시연 APK(source `c956d1f`, [#185](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/185)·[#186](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/186))를 Samsung SM-S928N·Android 16에서 촬영한 화면입니다([실기 기록](docs/evidence/ui-mascot-2026-09-27/device-check.json)). [private Preview 1 Release](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)의 APK는 이전 UI(source `c53c199`)이며, 이전 화면은 [기록 폴더](docs/evidence/readme-showcase-2026-09-27/)에 보존합니다. 점포·방문·수집품은 모두 **가상 시연 데이터**이며 화면 이미지는 기획 목업이 아닙니다.
 
-| 시연 진입 | 가상 점포 탐색 |
+| 시연 진입 | 가상 점포 탐색·마스코트 배너 |
 | :---: | :---: |
-| <img src="docs/evidence/readme-showcase-2026-09-27/role.png" width="250" alt="실제 시연 앱의 사용자·점주 역할 선택 화면"> | <img src="docs/evidence/readme-showcase-2026-09-27/discovery.png" width="250" alt="실제 시연 앱의 가상 점포 세 곳 탐색 화면"> |
-| **도감: 방문 2 · 앱 수집품 1 · 실제 NFT 0** | **다음 가게 추천** |
-| <img src="docs/evidence/readme-showcase-2026-09-27/collection.png" width="250" alt="실제 시연 앱의 가상 방문 2건과 앱 수집품 1개, NFT 0개 도감 화면"> | <img src="docs/evidence/readme-showcase-2026-09-27/recommendations.png" width="250" alt="실제 시연 앱의 미방문 가상 점포 우선 추천 화면"> |
+| <img src="docs/evidence/ui-mascot-2026-09-27/role.png" width="250" alt="실제 시연 앱의 사용자·점주 역할 선택 화면"> | <img src="docs/evidence/ui-mascot-2026-09-27/explore.png" width="250" alt="실제 시연 앱의 마스코트 배너와 가상 점포 목록 탐색 화면"> |
+| **도감 스탬프판: 방문 2 · 앱 수집품 1 · 실제 NFT 0** | **다음 가게 추천: 가본 곳만 스탬프** |
+| <img src="docs/evidence/ui-mascot-2026-09-27/collection.png" width="250" alt="실제 시연 앱의 방문 2건, 앱 수집품 1개, NFT 0개와 스탬프 1/3 도감 화면"> | <img src="docs/evidence/ui-mascot-2026-09-27/recommendations.png" width="250" alt="실제 시연 앱의 미방문 가상 점포 우선 추천 화면, 방문한 점포에만 마스코트 스탬프"> |
 
 ## 단계별 진행
 
