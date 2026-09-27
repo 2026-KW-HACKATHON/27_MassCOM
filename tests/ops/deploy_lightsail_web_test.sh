@@ -152,7 +152,9 @@ esac
 SSH
 chmod +x "$scratch/bin/ssh"
 status=0
+: > "$scratch/known_hosts"
 CAPTURE_TAR="$scratch/release.tar.gz" \
+  MASSCOM_KNOWN_HOSTS_FILE="$scratch/known_hosts" \
   env PATH="$scratch/bin:$PATH" "${common_env[@]}" \
   bash "$archive_checkout/scripts/deploy-lightsail-web.sh" --deploy >/dev/null 2>&1 || status=$?
 if [[ "$status" != '73' || ! -f "$scratch/release.tar.gz" ]]; then
