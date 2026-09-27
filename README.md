@@ -137,6 +137,16 @@ sequenceDiagram
 | **도감 스탬프판: 방문 2 · 앱 수집품 1 · 실제 NFT 0** | **다음 가게 추천: 가본 곳만 스탬프** |
 | <img src="docs/evidence/ui-mascot-2026-09-27/collection.png" width="250" alt="실제 시연 앱의 방문 2건, 앱 수집품 1개, NFT 0개와 스탬프 1/3 도감 화면"> | <img src="docs/evidence/ui-mascot-2026-09-27/recommendations.png" width="250" alt="실제 시연 앱의 미방문 가상 점포 우선 추천 화면, 방문한 점포에만 마스코트 스탬프"> |
 
+### 가상 점포별 수집품 그림
+
+가상 점포 A·B·C의 [카드 그림 3종과 적용 기준](docs/SHOWCASE_COLLECTIBLE_ART.md)을 만들었습니다. 앱에서는 해당 점포의 **실제 보상권이 있는 카드에만** 그림을 보여줍니다. 아래는 이미지 자산 미리보기이지 발행 완료 NFT나 세 점포의 수집 실적이 아닙니다.
+
+| A | B | C |
+| :---: | :---: | :---: |
+| <img src="apps/mobile/assets/images/collectibles/showcase-a.png" width="180" alt="가상 점포 A 수집품용 마스코트 그림"> | <img src="apps/mobile/assets/images/collectibles/showcase-b.png" width="180" alt="가상 점포 B 수집품용 마스코트 그림"> | <img src="apps/mobile/assets/images/collectibles/showcase-c.png" width="180" alt="가상 점포 C 수집품용 마스코트 그림"> |
+
+외부 지갑의 NFT 썸네일은 별개입니다. 현재 실증 메타데이터에 이미지 URI가 없어 이번 앱 그림을 온체인 표시 완료로 계산하지 않습니다.
+
 ## 단계별 진행
 
 | 단계 | 확인된 것 | 아직 남은 것 |

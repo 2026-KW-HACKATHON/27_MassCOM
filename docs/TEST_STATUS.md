@@ -1,5 +1,7 @@
 # 테스트 상태
 
+2026-09-27 Issue #189 가상 점포 수집품 카드 그림: 고정 시연 점포 ID A·B·C만 그림을 선택하고 미등록/운영 점포 ID에는 선택하지 않는 단위 시험을 RED(모듈 없음)→GREEN 1/1로 확인했다. 모바일 전체 205/205·typecheck·lint·Android JS export PASS. 이 변경은 서버가 반환한 보상권 카드의 앱 그림만 추가하며 NFT 발행 상태·계약·시연/운영 DB는 변경하지 않았다. 새 APK 실기·다크·200% 글자·TalkBack·외부 지갑의 NFT 썸네일은 `NOT_RUN`; 필수 36개 판정 변화 없음. [그림과 공개 메타데이터의 경계](SHOWCASE_COLLECTIBLE_ART.md).
+
 2026-09-27 Issue #187 README 화면 교체: README의 실제 Android 화면 네 장을 [마스코트 UI 실기 캡처](evidence/ui-mascot-2026-09-27/device-check.json)로 바꾸고, 시연 웹 사실성 시험의 README 이미지 경로 기대값을 새 폴더로 갱신했다(PNG 형식·1080px 이상·실제 폰 화면 문구 검사는 유지). 필수 36개 판정 변화 없음.
 
 2026-09-27 Issue #184 마스코트 배너·도감 스탬프판: 공개 점포별 스탬프를 `merchantId`로 본인 방문과 맞추는 순수 로직 시험 7개 추가(방문/미방문/빈 목록 숨김/목록 밖 방문 무시/이름이 아닌 id 매칭/폭·글자 배율별 열 수). 모바일 204/204·typecheck·lint·Android JS export·접근성 semantics PASS. [Samsung SM-S928N 실기](evidence/ui-mascot-2026-09-27/device-check.json)에서 시연 APK `c956d1f`로 역할 선택·탐색 배너·스탬프판 1/3(점포 A 방문 2회)·추천 스탬프·방문 기록 이름 표시 PASS. 첫 빌드 `2160ad0`에서 찾은 배너 원본 크기 넘침·방문 기록 이름 잘림·같은 첫 글자 표식은 고친 뒤 재확인했다. 다크·200% 글자·TalkBack·360dp는 `NOT_RUN`. 필수 36개 판정 변화 없음.

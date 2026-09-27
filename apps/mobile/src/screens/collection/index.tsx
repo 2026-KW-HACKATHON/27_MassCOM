@@ -18,10 +18,16 @@ import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wall
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { buildStampSlots, stampColumnCount, type StampSlot } from './collection-stamps';
+import { showcaseCollectibleArtKey } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
 
 const mascotStamp = require('../../../assets/images/mascot/mascot-stamp.png');
 const mascotStampEmpty = require('../../../assets/images/mascot/mascot-stamp-empty.png');
+const showcaseCollectibleArt = {
+  a: require('../../../assets/images/collectibles/showcase-a.png'),
+  b: require('../../../assets/images/collectibles/showcase-b.png'),
+  c: require('../../../assets/images/collectibles/showcase-c.png'),
+} as const;
 
 export function CollectionScreen({
   apiUrl,
@@ -296,8 +302,16 @@ export function CollectionScreen({
         {collection.collectibles.length === 0 ? (
           <EmptyCopy palette={palette} text="아직 받은 수집품이 없습니다. 첫 방문을 인증해 보세요." />
         ) : (
-          collection.collectibles.map((item) => (
-            <View key={item.entitlementId} style={[styles.collectibleCard, { backgroundColor: palette.surface }]}>
+          collection.collectibles.map((item) => {
+            const artKey = showcaseCollectibleArtKey(item.merchantId);
+            return (
+              <View key={item.entitlementId} style={[styles.collectibleCard, { backgroundColor: palette.surface }]}>
+              {artKey ? (
+                <>
+                  <Image source={showcaseCollectibleArt[artKey]} accessible={false} style={styles.collectibleArt} />
+                  <Text style={[styles.collectibleArtNote, { color: palette.secondaryLabel }]}>가상 점포 시연 그림 · 실제 NFT 발행 증거 아님</Text>
+                </>
+              ) : null}
               <View style={styles.collectibleTopline}>
                 <Text style={[styles.goalBadge, { color: palette.primary }]}>{item.targetVisitCount}회</Text>
                 <Text style={[styles.appStatus, { color: palette.onSuccessContainer }]}>APP · 수집 완료</Text>
@@ -336,8 +350,9 @@ export function CollectionScreen({
                   </Link>
                 )
               ) : null}
-            </View>
-          ))
+              </View>
+            );
+          })
         )}
       </Section>
 

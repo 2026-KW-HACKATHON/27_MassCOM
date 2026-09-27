@@ -4,6 +4,7 @@
 
 ## 현재 GitHub·운영 상태 — 2026-09-27
 
+- **가상 점포 수집품 그림(Issue #189):** `feat/showcase-merchant-collectible-art`에서 A·B·C 그림 3종을 본인 보상권 카드에만 연결했다. 모바일 205/205·typecheck·lint·Android JS export와 README/시연 웹 시험은 로컬 PASS. 기존 시연 APK에는 새 그림이 없으므로 새 서명 APK 설치·다크·200% 글자·TalkBack·외부 지갑 썸네일은 후속 실기 전까지 `NOT_RUN`이다. 실제 `image` 없는 Base Sepolia 실증 메타데이터는 변경하지 않았다([범위](SHOWCASE_COLLECTIBLE_ART.md)). PR·CI·병합 상태는 `gh pr list`, `gh run list`, `git log origin/main -1`로 확인한다.
 - **UI 개편 완료:** Issue #183·#184를 [PR #185](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/185)·[PR #186](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/186)으로 병합했다(main `95aaba1`). Samsung에는 같은 코드의 시연 APK `c956d1f`가 설치돼 있고 라이트 모드 네 화면을 [실기 기록](evidence/ui-mascot-2026-09-27/device-check.json)으로 남겼다. 다크·200% 글자·TalkBack은 `NOT_RUN`. 빌드 도우미 `/Users/choi/Desktop/MassCOM/run-showcase-build.command`는 첫 인자로 worktree 경로를 받고 기본값은 `.worktrees/184-mascot`이다(Keychain 승인은 사용자). README 화면은 Issue #187에서 새 캡처로 교체했다.
 - **재개 기준:** main은 [PR #179](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/179) merge `3b81530` 뒤 Issue #181 문서·규칙 정합 PR을 병합한 상태다. 닫힌 PR #180의 출처 문구 정리는 이 정합 PR에 포함했다. 병합 뒤 열린 PR은 없고 열린 Issue는 #136·#137이다. 재개 시 `git log origin/main -1`, `gh pr list`, `gh issue list`로 실제 상태를 먼저 확인하고 로컬 빠른 검사는 `tools/gate.sh`로 한다.
 - **사용자 결정 대기:** 중간 제출(2026-09-28 07:00 KST) 발표·리허설, 저장소 public 전환(D-010), 무로그인 탐색 유지 여부(B-017), 실제 점주 현장 파일럿(`docs/FIELD_VALIDATION.md`), 팀원별 기여 설명. 에이전트가 대신 결정·제출하지 않는다.
