@@ -182,4 +182,5 @@ jobs:
             MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID=123-ci.apps.googleusercontent.com \
             EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
             npm run export:android --prefix apps/mobile -- --output-dir dist/showcase
+          node scripts/verify-mobile-variant-assets.mjs
           npm run audit:ci --prefix apps/mobile

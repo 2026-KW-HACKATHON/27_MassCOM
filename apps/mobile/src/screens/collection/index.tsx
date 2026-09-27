@@ -19,16 +19,12 @@ import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wall
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { buildStampSlots, stampColumnCount, type StampSlot } from './collection-stamps';
+import { showcaseCollectibleArtSource } from './showcase-collectible-art-assets';
 import { collectibleArtSize, showcaseCollectibleArtKey } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
 
 const mascotStamp = require('../../../assets/images/mascot/mascot-stamp.png');
 const mascotStampEmpty = require('../../../assets/images/mascot/mascot-stamp-empty.png');
-const showcaseCollectibleArt = {
-  a: require('../../../assets/images/collectibles/showcase-a.png'),
-  b: require('../../../assets/images/collectibles/showcase-b.png'),
-  c: require('../../../assets/images/collectibles/showcase-c.png'),
-} as const;
 
 export function CollectionScreen({
   apiUrl,
@@ -306,11 +302,12 @@ export function CollectionScreen({
         ) : (
           collection.collectibles.map((item) => {
             const artKey = showcaseCollectibleArtKey(Application.applicationId, item.merchantId);
+            const artSource = artKey ? showcaseCollectibleArtSource(artKey) : undefined;
             return (
               <View key={item.entitlementId} style={[styles.collectibleCard, { backgroundColor: palette.surface }]}>
-              {artKey ? (
+              {artSource ? (
                 <>
-                  <Image source={showcaseCollectibleArt[artKey]} accessible={false} style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
+                  <Image source={artSource} accessible={false} style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
                   <Text style={[styles.collectibleArtNote, { color: palette.secondaryLabel }]}>가상 점포 시연 그림 · 실제 NFT 발행 증거 아님</Text>
                 </>
               ) : null}
