@@ -41,6 +41,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-28 | Codex + 독립 code-reviewer | 웹 전용 배포 복구·운영 AAB 설정 결함 수정·두 APK 배포 | PR #197의 누락된 tar 파일과 실제 묶음 회귀 시험, PR #198의 Expo CI 캐시 경계와 서명 빌드 시험, README·인수인계·검증 증거 갱신 | 두 PR/main CI PASS, [웹 HTTPS·API/DB 불변](evidence/web-only-deployment-2026-09-28.json), [운영 Samsung 로그인·16KB 설치·GitHub 해시](evidence/operating-android-test3-2026-09-28.json), [시연 Preview 3 폰 기본 흐름](evidence/showcase-preview3-phone-2026-09-28.json) | AI 작성·ADB 조작을 팀원 수작업이나 실제 점주 실적으로 표시하지 않음. 초대 밖 계정·QR·운영 지갑·Play·안전한 계정 삭제는 별도 미검증/차단 |
 | 2026-09-28 | Codex + 독립 verifier | 공개 Android `/open` 설치 안내와 배포 검증 | PR #200의 오래된 private test.2·시연 미배포 문구 수정, 운영/시연 최신 GitHub 릴리스 링크·사이트 검사, 기존 Lightsail 웹 전용 갱신 | 사이트 RED→GREEN·PR/main CI PASS, [apex/www `/open` 소스 해시·HTTPS와 API/DB 보존](evidence/public-open-page-2026-09-28.json) | AI 검증을 팀원 기여로 표시하지 않음. 첫 SSH 전송 실패를 성공으로 숨기지 않고 이전 웹 유지·재시도 결과를 분리 기록 |
 | 2026-09-28 | Codex 구현·독립 코드 리뷰 | 비로그인 공개 탐색과 개인 화면 로그인 분리(Issue #202) | Android 루트 진입·방문/도감/계정/추천/지갑 경계, 개발용 점주 직접 경로, 상세 복귀 경로와 회귀 시험 | 로컬 모바일 222/222·타입·린트·Android export PASS; 실제 새 APK 로그인 복귀·계정 전환 NOT_RUN | AI 코드·검토를 사람 작업으로 기록하지 않음. 기존 test.3/Preview 3 APK에는 이번 소스 변경이 없음 |
+| 2026-09-28 | Codex 구현·독립 보안/코드 리뷰 | 2분 고객 식별 QR과 계정 귀속 발급(Issue #203) | API migration·계정/직원/점포 귀속·원자 슬롯 발급, 공통 고객 QR·시연 STAFF 촬영, 유실 복구와 회귀 시험 | API 단위 109/109·PostgreSQL 52 PASS/2 SKIP·모바일 231/231·타입·린트·Android export PASS; 새 APK/공개 API 실기 NOT_RUN | AI 구현을 사람 점주 검증으로 표시하지 않음. 리뷰 HIGH 2·MEDIUM 2를 수정했고 운영 DB에는 가상 자료를 넣지 않음 |
 
 ## 팀 설명 체크리스트
 

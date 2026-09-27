@@ -49,7 +49,10 @@ npm run start:local
 - `POST /campaigns/:id/enrollments`: 공개·진행 중·기간 내 캠페인의 참여 정원을 단일 조건부 UPDATE로 예약합니다. 신규 `201`, 같은 계정 재요청 `200`(자리 추가 사용 없음), 정원 마감·참여 불가 `409`, 없는·비공개 캠페인 `404`, 삭제된 계정 `410`. 삭제·취소로 자리를 반환하지 않습니다.
 - 경로 값의 percent-encoding이 잘못되면 모든 라우트가 `400 INVALID_PATH_PARAMETER`로 응답합니다.
 - `GET /merchant/merchants/:merchantId/context`: 서버가 확인한 계정의 활성 점포 멤버십과 허용 권한 조회
-- `POST /merchant/merchants/:merchantId/claim-slots`: 대상 계정의 1인용 수령 슬롯과 일회용 token 발급
+- `POST /customer/identity-tokens`(Bearer) → 고객의 2분 식별 QR token 발급. 새 발급은 이전 미사용 token을 폐기하며 DB에는 해시와 내부 계정 귀속만 저장
+- `POST /customer/identity-tokens/revoke`(Bearer) → 본인의 미사용 식별 QR 폐기
+- `POST /merchant/merchants/:merchantId/customer-identities/resolve`(Bearer STAFF) → 식별 QR을 해당 점포·직원에게 묶고 만료 시각만 반환. 이 단계에서는 방문·보상 효과 없음
+- `POST /merchant/merchants/:merchantId/claim-slots`(Bearer STAFF) → `{customerIdentityToken, merchantReference, useConfirmed: true}`로 대상 계정을 서버에서 정해 1인용 수령 슬롯 발급. 응답 유실 재요청은 기존 슬롯 ID·버전만 반환하므로 아래 재발급으로 새 수령 QR을 받음. 원시 `customerAccountId` 발급은 loopback DEMO 인증에서만 허용
 - `POST /merchant/merchants/:merchantId/claim-slots/:claimSlotId/reissue`: 본문의 `expectedTokenVersion`이 현재 버전과 같을 때만 이전 token을 폐기하고 재발급
 - `POST /claim-slots/preview`: 로그인한 대상 계정이 token을 소비하지 않고 상태와 DB에서 조회한 점포명·캠페인명 확인
 - `POST /claim-slots/redeem`: 최초 요청은 방문·한국 날짜 진행도·고정 보상권을 원자 확정하고 `replayed: false` 반환. 응답 유실 뒤 같은 account/token 재요청은 새 쓰기 없이 같은 visit/reward ID와 `replayed: true` 반환. 다른 account는 계속 거절
@@ -100,6 +103,8 @@ npm run test:postgres
 ```
 
 통합 테스트는 테이블을 비우므로 DB 이름이 `_test`로 끝나는 전용 데이터베이스만 허용합니다. PostgreSQL 18에서 카탈로그, Q01~Q05와 R01~R03을 확인합니다. 단체 주문은 별도 테이블 없이 같은 주문 참조 아래 사람별 슬롯으로 표현하며(고유 제약이 점포·고객·주문 참조), 한 사람의 수령·만료가 다른 사람 슬롯을 바꾸지 않습니다(Q04). 단체 인원·금액 한도는 아직 없습니다. QR token은 SHA-256, 점포 주문 참조는 점포 ID를 함께 넣은 HMAC-SHA-256만 저장하며 token 원문은 발급·재발급 응답에서 한 번만 반환합니다. 재발급은 `tokenVersion` 낙관적 잠금으로 같은 버전의 동시 요청 중 한 건만 성공합니다. preview는 상태를 바꾸지 않으며, 최초 redeem은 슬롯·방문·보상권 중 일부만 성공하면 전체를 롤백합니다. 이미 확정된 같은 account/token replay는 기존 결과를 읽기만 하며 새 방문·보상 효과를 만들지 않습니다.
+
+고객 **식별** QR은 `masscom-customer:v1:` 형식의 2분짜리 token이고 기존 **수령** QR은 별도의 15분짜리 token입니다. 식별 QR 해시·점포/직원 귀속·소비와 수령 슬롯 발급은 같은 PostgreSQL 트랜잭션에서 확인합니다. 식별 QR만으로 실제 이용이나 결제가 증명되지는 않으며 점주의 확인과 고객의 수령 확정이 필요합니다. 이 새 계약은 현재 공개 시연 Preview 3 APK와 호환되지 않으므로 새 Android 설치본 검증 전에는 외부 API만 먼저 교체하지 않습니다.
 
 지갑 challenge 원문·nonce claim은 `DATABASE_URL`이 설정되면 PostgreSQL `wallet_challenges` 테이블(migration 0008)에 원자적 claim으로 저장되어 프로세스 재시작에도 남습니다. `DATABASE_URL`이 없으면 DEMO 전용 in-memory 저장소로 대체되며 이 경우에만 재시작 시 사라집니다. 계정 삭제 요청은 남은 challenge를 저장소 종류와 무관하게 즉시 제거합니다. 성공한 주소 연결과 mint job·Outbox·체인 이벤트·NFT 자산은 PostgreSQL에 남습니다. Worker 실행과 Local Anvil 재현은 [`../worker/README.md`](../worker/README.md)를 따르며 운영 signer·Base Sepolia는 포함하지 않습니다.
 
