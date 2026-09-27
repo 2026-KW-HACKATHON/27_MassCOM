@@ -14,6 +14,10 @@ export function isCustomerIdentityExpired(expiresAt: string, now = Date.now()): 
   return Date.parse(expiresAt) <= now;
 }
 
+export function canIssueCustomerIdentity(expiresAt: string, attempted: boolean, now = Date.now()): boolean {
+  return attempted || !isCustomerIdentityExpired(expiresAt, now);
+}
+
 export function createIdentityRequestGate() {
   let generation = 0;
   return {

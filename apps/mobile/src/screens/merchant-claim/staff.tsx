@@ -7,7 +7,7 @@ import type { AccountCredential } from '@/auth/account-credential';
 import { createScanGate } from '@/commerce/claim-code';
 import { ClaimQr } from '@/commerce/claim-qr';
 import { CommerceApiError, createCommerceApiClient, type IssuedClaim, type ResolvedCustomerIdentity } from '@/commerce/commerce-api';
-import { createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired, parseCustomerIdentityToken } from '@/commerce/customer-identity';
+import { canIssueCustomerIdentity, createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired, parseCustomerIdentityToken } from '@/commerce/customer-identity';
 import { colorsForScheme } from '@/theme/palette';
 import { makeMerchantClaimStyles } from './styles';
 
@@ -29,6 +29,8 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
   const [token, setToken] = useState<string>();
   const [resolved, setResolved] = useState<ResolvedCustomerIdentity>();
   const [issued, setIssued] = useState<IssuedClaim>();
+  const [issueAttempted, setIssueAttempted] = useState(false);
+  const [issuedUncertain, setIssuedUncertain] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
 
@@ -43,6 +45,8 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
     setToken(undefined);
     setResolved(undefined);
     setIssued(undefined);
+    setIssueAttempted(false);
+    setIssuedUncertain(false);
     setMessage(undefined);
     setScanning(true);
   }
@@ -91,21 +95,24 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
 
   async function issue() {
     if (!token || !resolved || busy) return;
-    if (isCustomerIdentityExpired(resolved.expiresAt)) {
-      setResolved(undefined);
+    if (!canIssueCustomerIdentity(resolved.expiresAt, issueAttempted)) {
       setMessage('고객 식별 QR이 만료됐습니다. 새 QR을 요청해 주세요.');
       return;
     }
     setBusy(true);
     setMessage(undefined);
+    setIssueAttempted(true);
     try {
       const next = await api.issueOrReissueIdentityClaim({ merchantId, customerIdentityToken: token });
       setIssued(next);
       setResolved(undefined);
-      setToken(undefined);
       setMessage('방문 코드를 발급했습니다. 고객이 아래 QR을 촬영해 수령을 확정합니다.');
       requestAnimationFrame(() => scrollView.current?.scrollToEnd({ animated: true }));
     } catch (error) {
+      if (error instanceof CommerceApiError && error.code === 'CUSTOMER_IDENTITY_EXPIRED') {
+        setResolved(undefined);
+        setToken(undefined);
+      }
       setMessage(messageFor(error));
     } finally {
       setBusy(false);
@@ -115,13 +122,32 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
   async function reissue() {
     if (!issued || busy) return;
     setBusy(true);
+    setIssuedUncertain(true);
     setMessage(undefined);
     try {
       const next = await api.reissueClaim({ merchantId, claimSlotId: issued.claimSlotId, expectedTokenVersion: issued.tokenVersion });
       setIssued(next);
+      setIssuedUncertain(false);
       setMessage('이전 코드를 폐기하고 새 코드로 교체했습니다.');
     } catch (error) {
-      setMessage(messageFor(error));
+      setMessage(`${messageFor(error)} 재발급 결과가 불확실합니다. 아래에서 현재 코드를 복구해 주세요.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function recoverCurrent() {
+    if (!token || busy) return;
+    setBusy(true);
+    setIssuedUncertain(true);
+    setMessage(undefined);
+    try {
+      const next = await api.issueOrReissueIdentityClaim({ merchantId, customerIdentityToken: token });
+      setIssued(next);
+      setIssuedUncertain(false);
+      setMessage('현재 방문 코드를 복구했습니다. 고객에게 아래 QR을 보여주세요.');
+    } catch (error) {
+      setMessage(`${messageFor(error)} 현재 코드를 확인하지 못했습니다. 다시 시도하거나 고객에게 새 QR을 요청해 주세요.`);
     } finally {
       setBusy(false);
     }
@@ -139,11 +165,11 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
         <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => scanned(data)} />
       </View> : null}
       <Button styles={styles} label={scanning ? '촬영 취소' : '고객 식별 QR 촬영'} disabled={busy} onPress={scanning ? cancel : () => void startScan()} />
-      {token ? <>
+      {token && !issued ? <>
         <Text selectable style={styles.cardLabel}>확인 코드 {customerIdentityCode(token)}</Text>
         <Text style={styles.help}>고객 화면의 코드와 일치하는지 확인하세요. 일치하지 않으면 취소하고 다시 촬영하세요.</Text>
         {resolved ? <Text style={styles.expiry}>식별 QR 만료: {new Date(resolved.expiresAt).toLocaleTimeString('ko-KR')}</Text> : null}
-        {resolved ? <Button styles={styles} label={busy ? '발급 중…' : '실제 사용 확인 · 방문 코드 발급'} disabled={busy} onPress={() => void issue()} /> : null}
+        {resolved ? <Button styles={styles} label={busy ? '확인 중…' : issueAttempted ? '발급 결과 확인·복구' : '실제 사용 확인 · 방문 코드 발급'} disabled={busy} onPress={() => void issue()} /> : null}
         <Button styles={styles} label="이 고객 취소" variant="secondary" disabled={busy && Boolean(resolved)} onPress={cancel} />
       </> : null}
     </View>
@@ -151,12 +177,16 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
     {issued ? <View style={styles.tokenCard}>
       <Text style={styles.tokenLabel}>2 · 고객 수령 QR · v{issued.tokenVersion}</Text>
       <Text style={styles.expiry}>만료: {new Date(issued.expiresAt).toLocaleString('ko-KR')}</Text>
-      <View style={styles.qr}><ClaimQr code={issued.token} /></View>
-      <Text selectable style={styles.token}>{issued.token}</Text>
-      <Text style={styles.help}>고객이 자신의 방문 수령 화면에서 촬영하고 확정해야 방문이 기록됩니다.</Text>
+      {issuedUncertain ? <Text style={styles.help}>이전 QR이 폐기됐을 수 있습니다. 현재 코드를 복구한 뒤 고객에게 보여주세요.</Text> : <>
+        <View style={styles.qr}><ClaimQr code={issued.token} /></View>
+        <Text selectable style={styles.token}>{issued.token}</Text>
+        <Text style={styles.help}>고객이 자신의 방문 수령 화면에서 촬영하고 확정해야 방문이 기록됩니다.</Text>
+      </>}
       <View style={styles.actions}>
-        <Button styles={styles} label="안전하게 공유" onPress={() => void Share.share({ title: '월계 마스코트 1회 수령 코드', message: issued.token })} />
-        <Button styles={styles} label="이전 코드 폐기·재발급" variant="secondary" disabled={busy} onPress={() => void reissue()} />
+        {issuedUncertain ? <Button styles={styles} label={busy ? '복구 중…' : '현재 코드 복구'} disabled={busy} onPress={() => void recoverCurrent()} /> : <>
+          <Button styles={styles} label="안전하게 공유" onPress={() => void Share.share({ title: '월계 마스코트 1회 수령 코드', message: issued.token })} />
+          <Button styles={styles} label="이전 코드 폐기·재발급" variant="secondary" disabled={busy} onPress={() => void reissue()} />
+        </>}
       </View>
     </View> : null}
   </ScrollView>;

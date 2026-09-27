@@ -91,7 +91,7 @@ export function ClaimRedeemScreen({
       await api.revokeCustomerIdentity(identity.token);
       setIdentityMessage('식별 QR을 폐기했습니다.');
     } catch (error) {
-      setIdentityMessage(messageFor(error));
+      setIdentityMessage(`${messageFor(error)} 폐기 결과를 확인할 수 없어 이전 QR이 아직 유효할 수 있습니다. 새 QR을 발급해 주세요.`);
     } finally {
       setIdentityBusy(false);
     }

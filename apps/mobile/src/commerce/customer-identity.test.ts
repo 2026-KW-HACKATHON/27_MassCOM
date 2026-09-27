@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired, parseCustomerIdentityToken } from './customer-identity';
+import { canIssueCustomerIdentity, createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired, parseCustomerIdentityToken } from './customer-identity';
 
 const token = `masscom-customer:v1:${'A'.repeat(43)}`;
 
@@ -25,4 +25,12 @@ test('cancelling a pending identity resolve ignores its late result and permits 
   assert.equal(gate.isCurrent(pending), false);
   const retry = gate.start();
   assert.equal(gate.isCurrent(retry), true);
+});
+
+test('allows expired identity only for a previously attempted issue recovery', () => {
+  const expiry = '2026-09-28T10:00:00.000Z';
+  const now = Date.parse(expiry);
+  assert.equal(canIssueCustomerIdentity(expiry, false, now - 1), true);
+  assert.equal(canIssueCustomerIdentity(expiry, false, now), false);
+  assert.equal(canIssueCustomerIdentity(expiry, true, now), true);
 });

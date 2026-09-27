@@ -71,6 +71,33 @@ test('recovers a lost issue response by reissuing the existing slot', async () =
   ]);
 });
 
+test('recovers a lost reissue response through the same identity reference and server replay', async () => {
+  const requests: string[] = [];
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (input, init) => {
+      const url = String(input);
+      requests.push(url);
+      if (url.endsWith('/reissue') && requests.length === 1) throw new TypeError('response lost');
+      if (url.endsWith('/reissue')) {
+        assert.deepEqual(JSON.parse(String(init?.body)), { expectedTokenVersion: 2 });
+        return Response.json({ claimSlotId: 'slot-1', token: 'C'.repeat(43), tokenVersion: 3, expiresAt: '2026-09-28T10:02:00.000Z' });
+      }
+      assert.deepEqual(JSON.parse(String(init?.body)), {
+        customerIdentityToken: identityToken, merchantReference: identityToken, useConfirmed: true,
+      });
+      return Response.json({ claimSlotId: 'slot-1', tokenVersion: 2, expiresAt: '2026-09-28T10:00:00.000Z', replayed: true });
+    },
+  });
+  await assert.rejects(client.reissueClaim({ merchantId: 'merchant-1', claimSlotId: 'slot-1', expectedTokenVersion: 1 }), /response lost/);
+  assert.equal((await client.issueOrReissueIdentityClaim({ merchantId: 'merchant-1', customerIdentityToken: identityToken })).tokenVersion, 3);
+  assert.deepEqual(requests, [
+    'https://api.example.test/merchant/merchants/merchant-1/claim-slots/slot-1/reissue',
+    'https://api.example.test/merchant/merchants/merchant-1/claim-slots',
+    'https://api.example.test/merchant/merchants/merchant-1/claim-slots/slot-1/reissue',
+  ]);
+});
+
 test('rejects malformed identity responses before displaying them', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
