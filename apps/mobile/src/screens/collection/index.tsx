@@ -1,3 +1,4 @@
+import * as Application from 'expo-application';
 import { Link } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
@@ -18,16 +19,12 @@ import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wall
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { buildStampSlots, stampColumnCount, type StampSlot } from './collection-stamps';
+import { showcaseCollectibleArtSource } from './showcase-collectible-art-assets';
 import { collectibleArtSize, showcaseCollectibleArtKey } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
 
 const mascotStamp = require('../../../assets/images/mascot/mascot-stamp.png');
 const mascotStampEmpty = require('../../../assets/images/mascot/mascot-stamp-empty.png');
-const showcaseCollectibleArt = {
-  a: require('../../../assets/images/collectibles/showcase-a.png'),
-  b: require('../../../assets/images/collectibles/showcase-b.png'),
-  c: require('../../../assets/images/collectibles/showcase-c.png'),
-} as const;
 
 export function CollectionScreen({
   apiUrl,
@@ -304,12 +301,13 @@ export function CollectionScreen({
           <EmptyCopy palette={palette} text="아직 받은 수집품이 없습니다. 첫 방문을 인증해 보세요." />
         ) : (
           collection.collectibles.map((item) => {
-            const artKey = showcaseCollectibleArtKey(item.merchantId);
+            const artKey = showcaseCollectibleArtKey(Application.applicationId, item.merchantId);
+            const artSource = artKey ? showcaseCollectibleArtSource(artKey) : undefined;
             return (
               <View key={item.entitlementId} style={[styles.collectibleCard, { backgroundColor: palette.surface }]}>
-              {artKey ? (
+              {artSource ? (
                 <>
-                  <Image source={showcaseCollectibleArt[artKey]} accessible={false} style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
+                  <Image source={artSource} accessible={false} style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
                   <Text style={[styles.collectibleArtNote, { color: palette.secondaryLabel }]}>가상 점포 시연 그림 · 실제 NFT 발행 증거 아님</Text>
                 </>
               ) : null}

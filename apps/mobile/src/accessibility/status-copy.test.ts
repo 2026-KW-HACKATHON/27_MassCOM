@@ -43,3 +43,10 @@ test('only a true connection failure suggests checking the network', () => {
   assert.doesNotMatch(statusAnnouncement('login-failed', { reason: 'GOOGLE_SIGN_IN_FAILED' }), /네트워크/);
   assert.match(statusAnnouncement('login-failed', { reason: 'LOGIN_RATE_LIMITED' }), /잠시 후/);
 });
+
+test('a slow login response and blocked automatic deletion offer the right recovery', () => {
+  const timeout = statusAnnouncement('login-failed', { reason: 'REQUEST_TIMEOUT' });
+  assert.match(timeout, /응답.*지연/);
+  assert.doesNotMatch(timeout, /네트워크.*확인/);
+  assert.match(statusAnnouncement('deletion-blocked'), /웹.*삭제.*요청/);
+});

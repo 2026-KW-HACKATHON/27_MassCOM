@@ -2,7 +2,7 @@ import * as Application from 'expo-application';
 import { Button, Host } from '@expo/ui';
 import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -96,6 +96,15 @@ export function AccountSettingsScreen({
         : '계정 전환을 완료하지 못했습니다. 이전 로그인은 복원하지 않았습니다.');
     } finally {
       setBusy(undefined);
+    }
+  }
+
+  async function openDeletionRequestPage() {
+    setError(undefined);
+    try {
+      await Linking.openURL('https://www.masscom.kr/account-deletion');
+    } catch {
+      setError('삭제 요청 페이지를 열지 못했습니다. 브라우저에서 www.masscom.kr/account-deletion을 열어 주세요.');
     }
   }
 
@@ -213,10 +222,18 @@ export function AccountSettingsScreen({
         </>
       ) : (
         <View style={[styles.blockedCard, { backgroundColor: palette.errorContainer }]}>
-          <Text style={[styles.blockedTitle, { color: palette.onErrorContainer }]}>계정 삭제 요청 준비 중</Text>
+          <Text style={[styles.blockedTitle, { color: palette.onErrorContainer }]}>앱 내 자동 삭제를 사용할 수 없어요</Text>
           <Text selectable style={[styles.blockedBody, { color: palette.onErrorContainer }]}>
-            최근 본인 확인 방법이 아직 정해지지 않아 지금은 삭제를 요청할 수 없어요. 안전을 위해 Google 로그인만으로는 재인증으로 인정하지 않아요.
+            웹에서 이메일로 계정 삭제를 요청할 수 있습니다. 본인 확인이 끝난 뒤 처리하며, Google 로그인만으로 삭제가 완료되지는 않습니다.
           </Text>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityHint="계정 삭제 요청 안내 페이지를 브라우저에서 엽니다."
+            onPress={() => void openDeletionRequestPage()}
+            style={[styles.secondaryLink, { borderColor: palette.onErrorContainer }]}
+          >
+            <Text style={[styles.secondaryLinkText, { color: palette.onErrorContainer }]}>웹에서 계정 삭제 요청 →</Text>
+          </Pressable>
         </View>
       )}
     </ScrollView>

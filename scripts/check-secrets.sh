@@ -27,6 +27,7 @@ done < <(
     -type d \( \
       -name .git -o \
       -name .worktrees -o \
+      -name .superpowers -o \
       -name .claude -o \
       -name .omx -o \
       -name .omc -o \

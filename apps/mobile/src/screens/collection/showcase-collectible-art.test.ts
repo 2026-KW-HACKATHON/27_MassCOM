@@ -4,12 +4,16 @@ import test from 'node:test';
 import { collectibleArtSize, showcaseCollectibleArtKey } from './showcase-collectible-art';
 
 test('only fixed virtual merchant IDs receive showcase collectible artwork', () => {
-  assert.equal(showcaseCollectibleArtKey('showcase-local-merchant'), 'a');
-  assert.equal(showcaseCollectibleArtKey('showcase-local-merchant-b'), 'b');
-  assert.equal(showcaseCollectibleArtKey('showcase-local-merchant-c'), 'c');
-  assert.equal(showcaseCollectibleArtKey('merchant-1'), undefined);
-  assert.equal(showcaseCollectibleArtKey('showcase-local-merchant-d'), undefined);
-  assert.equal(showcaseCollectibleArtKey(''), undefined);
+  const showcasePackage = 'kr.masscom.wolgye.demo';
+  assert.equal(showcaseCollectibleArtKey(showcasePackage, 'showcase-local-merchant'), 'a');
+  assert.equal(showcaseCollectibleArtKey(showcasePackage, 'showcase-local-merchant-b'), 'b');
+  assert.equal(showcaseCollectibleArtKey(showcasePackage, 'showcase-local-merchant-c'), 'c');
+  assert.equal(showcaseCollectibleArtKey(showcasePackage, 'merchant-1'), undefined);
+  assert.equal(showcaseCollectibleArtKey(showcasePackage, 'showcase-local-merchant-d'), undefined);
+  assert.equal(showcaseCollectibleArtKey(showcasePackage, ''), undefined);
+  for (const packageId of ['kr.masscom.wolgye', 'kr.masscom.wolgye.dev', null, undefined]) {
+    assert.equal(showcaseCollectibleArtKey(packageId, 'showcase-local-merchant'), undefined);
+  }
 });
 
 test('artwork fits inside the screen and both card insets', () => {

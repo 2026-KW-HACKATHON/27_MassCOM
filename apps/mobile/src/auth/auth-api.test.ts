@@ -74,3 +74,50 @@ test('logs out with the server Bearer session only', async () => {
   assert.equal(receivedHeaders?.get('authorization'), 'Bearer server-session');
   assert.equal(receivedHeaders?.has('x-account-id'), false);
 });
+
+test('times out a stalled request and aborts its fetch', async () => {
+  let signal: AbortSignal | undefined;
+  const client = new AuthApiClient({
+    apiUrl: 'https://api.example.test',
+    timeoutMs: 10,
+    fetcher: async (_input, init) => {
+      signal = init?.signal ?? undefined;
+      return new Promise<Response>(() => undefined);
+    },
+  });
+
+  await assert.rejects(client.signIn('google-id-token'), (error) =>
+    error instanceof AuthApiError && error.status === 0 && error.code === 'REQUEST_TIMEOUT');
+  assert.equal(signal?.aborted, true);
+});
+
+test('times out when the response body stalls', async () => {
+  let signal: AbortSignal | undefined;
+  const client = new AuthApiClient({
+    apiUrl: 'https://api.example.test',
+    timeoutMs: 10,
+    fetcher: async (_input, init) => {
+      signal = init?.signal ?? undefined;
+      return {
+        status: 200,
+        ok: true,
+        json: async () => new Promise<unknown>(() => undefined),
+      } as Response;
+    },
+  });
+
+  await assert.rejects(client.signIn('google-id-token'), (error) =>
+    error instanceof AuthApiError && error.status === 0 && error.code === 'REQUEST_TIMEOUT');
+  assert.equal(signal?.aborted, true);
+});
+
+test('keeps network failures distinct from timeouts', async () => {
+  const client = new AuthApiClient({
+    apiUrl: 'https://api.example.test',
+    timeoutMs: 10,
+    fetcher: async () => { throw new Error('offline'); },
+  });
+
+  await assert.rejects(client.signIn('google-id-token'), (error) =>
+    error instanceof AuthApiError && error.status === 0 && error.code === 'NETWORK_ERROR');
+});

@@ -1,6 +1,6 @@
 # 시연 API·DB 호스트
 
-현재 배포 상태: 별도 Compose·DB의 가상 점포 A/B/C와 두 초대 계정의 로그인·가상 수령·운영 audience 거절을 확인했다([당시 내부 증거](../../docs/evidence/showcase-internal-auth-claim-2026-09-27.json)). [PR #175](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/175) 병합·CI 뒤 기존 AWS 호스트에서 Caddy만 재생성해 **[공개 `demo-api.masscom.kr` HTTPS](https://demo-api.masscom.kr/health)**와 운영 API/웹 보존을 [실측](../../docs/evidence/showcase-public-edge-2026-09-27.json)했다. [Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)는 아직 이 초대 제한 서버를 사용한다. Issue #191의 **모든 유효 Google 고객 로그인** 변경은 PR CI만 통과했으며, 병합·배포 전에는 외부 로그인 완료로 표시하지 않는다. 카메라 QR 촬영 수령·외부 지갑은 미검증이다.
+현재 배포 상태: 별도 Compose·DB의 가상 점포 A/B/C와 두 초대 계정의 로그인·가상 수령·운영 audience 거절을 확인했다([당시 내부 증거](../../docs/evidence/showcase-internal-auth-claim-2026-09-27.json)). [PR #192](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/192) 병합과 PR/main CI PASS 후 **시연 API만** `7455791` 이미지로 교체하고 운영 API/DB/웹·Caddy 보존을 [실측](../../docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)했다. [Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)는 변경 전 모바일 코드라 초대 밖 실제 계정 로그인·새 오류 복구는 아직 실증하지 않았다. 카메라 QR 촬영 수령·외부 지갑도 미검증이다.
 
 ## 실행 순서
 
@@ -9,6 +9,8 @@
 3. 운영 Web client ID를 `MASSCOM_OPERATING_GOOGLE_WEB_CLIENT_ID` 환경 변수로 주고 `node scripts/verify-showcase-host.mjs --runtime-env <저장소 밖의 파일>`을 실행한다. 이는 실제 설정을 렌더해 격리 경계를 검사할 뿐 배포하지 않는다. 완료 기준: `showcase host runtime boundary verified (not deployed)`가 표시된다. 운영 ID 비교 입력이 없거나 같은 ID면 실패한다.
 4. 한국어 PR의 CI·독립 보안 리뷰와 1~3단계가 통과한 뒤에만 별도 `/opt/masscom-showcase` 경로에서 시연 Compose를 기동한다. 운영 `/opt/masscom/current`, 운영 DB 볼륨과 Caddy 설정은 이 단계에서 건드리지 않는다. 완료 기준: 시연 API/DB만 healthy, API `127.0.0.1:3301`, DB는 host port 없음, 운영 health·컨테이너 ID가 전후 동일하다.
 5. 시연 DB 마이그레이션 완료 후 API 컨테이너에서 `node dist/showcase/host-seed-command.js`를 실행한다. 초대된 직원이 실제 Google 로그인을 완료한 후에만 `SHOWCASE_STAFF_SUBJECT_SHA256`을 별도 설정하고 `node dist/showcase/grant-staff-command.js`로 A점포 STAFF를 부여한다. 완료 기준: A/B/C·1/3/5 목표와 초대된 계정 한 명의 권한을 읽기 전용 조회로 확인한다. 로그인 전 고정 개발 STAFF ID는 hosted DB에 넣지 않는다.
+
+STAFF 적격 해시를 삭제해도 이미 활성화된 점주 권한은 사라지지 않는다. 권한 회수는 시연 DB의 정확한 멤버십 한 건을 `REVOKED`·`revoked_at`으로 변경하고 기존 세션의 점주 요청 403을 확인하는 별도 운영 작업이다. 고객 로그인 자체는 이 권한 회수와 무관하다.
 
 아래는 첫 배포 때 적용한 순서와 복구 절차입니다. `demo-api.masscom.kr` 연결·Caddy 변경은 [공개 실측](../../docs/evidence/showcase-public-edge-2026-09-27.json)에서, Android APK 설치·로그인은 [폰 실증](../../docs/evidence/showcase-android-apk-2026-09-27.json)에서 PASS입니다. 고객 QR 수령은 후속 게이트입니다. 실패 시 운영 Caddy의 이전 Compose/Caddyfile 마운트로 복귀한 뒤 운영 health를 확인합니다. 볼륨 삭제·운영 자료 변경은 이 절차에 포함하지 않습니다.
 

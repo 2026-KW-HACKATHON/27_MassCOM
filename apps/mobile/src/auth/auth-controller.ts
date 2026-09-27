@@ -8,6 +8,7 @@ export type SignedOutReason =
   | 'GOOGLE_SIGN_IN_CANCELLED'
   | 'ACCOUNT_NOT_INVITED'
   | 'NETWORK_ERROR'
+  | 'REQUEST_TIMEOUT'
   | 'GOOGLE_SIGN_IN_FAILED'
   | 'LOGIN_RATE_LIMITED'
   | 'SIGN_IN_FAILED'
@@ -164,6 +165,7 @@ function authFailureReason(error: unknown): SignedOutReason {
   if (error instanceof AuthControllerError) return error.code;
   if (error instanceof AuthApiError && error.code === 'INVITE_REQUIRED') return 'ACCOUNT_NOT_INVITED';
   if (error instanceof AuthApiError && error.code === 'NETWORK_ERROR') return 'NETWORK_ERROR';
+  if (error instanceof AuthApiError && error.code === 'REQUEST_TIMEOUT') return 'REQUEST_TIMEOUT';
   if (error instanceof AuthApiError && error.code === 'LOGIN_RATE_LIMITED') return 'LOGIN_RATE_LIMITED';
   if (error instanceof GoogleSignInAdapterError && error.code === 'GOOGLE_SIGN_IN_FAILED') {
     return 'GOOGLE_SIGN_IN_FAILED';

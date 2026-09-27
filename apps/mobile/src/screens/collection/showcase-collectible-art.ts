@@ -4,7 +4,8 @@ export function collectibleArtSize(viewportWidth: number, pageInset: number, car
   return Math.max(1, viewportWidth - pageInset * 2 - cardPadding * 2);
 }
 
-export function showcaseCollectibleArtKey(merchantId: string): ShowcaseCollectibleArtKey | undefined {
+export function showcaseCollectibleArtKey(packageId: string | null | undefined, merchantId: string): ShowcaseCollectibleArtKey | undefined {
+  if (packageId !== 'kr.masscom.wolgye.demo') return undefined;
   switch (merchantId) {
     case 'showcase-local-merchant': return 'a';
     case 'showcase-local-merchant-b': return 'b';

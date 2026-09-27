@@ -10,8 +10,8 @@
 | 16KB page size | `VERIFIED` 정적·runtime | 64비트 각 29개 라이브러리/87 LOAD 최소 `0x4000`, 미달 0. Android 36 ps16k arm64 AVD에서 page size `16384`, 설치·cold 2345ms·FATAL 0 PASS |
 | App Links | `VERIFIED` 직접 설치본 | `masscom.kr/open`만 autoVerify, upload 인증서 assetlinks HTTPS 200·무리디렉션. Samsung 4KB·Android 36 16KB에서 domain `verified`와 앱 cold 복귀 PASS; `/privacy`는 앱 미매칭. Play App Signing 인증서는 Play 단계에서 추가 |
 | 지갑 승인 화면 출처 | `IN_PROGRESS` | PR #134 메타데이터와 공개 HTTPS 아이콘 URL은 검증. 개발 앱 MetaMask 재연결은 기기 지갑 잠금으로 `BLOCKED`; 운영 package의 새 APK·실제 승인 화면과 자동 복귀는 `NOT_RUN`. 기존 test.2 APK에는 변경 전 메타데이터가 남음([증거](evidence/domain-wallet-origin-2026-09-23.json)) |
-| 계정 삭제 앱 경로 | `VERIFIED` Local DEMO | 운영 재인증·실제 계정으로 동일 처리 검증 |
-| 외부 삭제 웹 경로 | `VERIFIED` | `https://masscom.kr/account-deletion` HTTPS 200과 삭제·보존·지갑 비밀 경고 확인. 현재 웹 경로는 수동 요청 접수이며 자동 삭제로 표현하지 않음 |
+| 계정 삭제 앱 경로 | `IN_PROGRESS` | 계정 설정에서 외부 삭제 요청 페이지로 연결하는 공통 코드는 추가. 새 APK 실기·실제 접수 및 계정 연결·삭제 결과 검증은 `NOT_RUN`([B-020](BLOCKERS.md)) |
+| 외부 삭제 웹 경로 | `IN_PROGRESS` | `https://www.masscom.kr/account-deletion` HTTPS 200과 이메일 링크는 확인. 요청을 Google `sub`·계정에 안전하게 연결해 처리하는 절차는 미구현이며, 수정된 안내 페이지도 배포·재검증 전 |
 | Console 제출 초안 | `DRAFT` | `docs/PLAY_CONSOLE_DRAFT.md`의 초안을 소유자가 Console 문항과 대조해 확정 |
 | Data safety | `IN_PROGRESS` | 실제 로그인·Reown relay·RPC·서버·분석 전송과 일치하게 Console 제출 |
 | 금융 기능 선언 | `NOT_RUN` | 실제 NFT 보상 기능 기준으로 Console 항목 확인, 자동으로 “없음” 선택 금지 |

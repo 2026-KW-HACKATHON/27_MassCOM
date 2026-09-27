@@ -5,7 +5,10 @@ import type { StoredAuthSessionV1 } from './session-store';
 type AuthApiClientOptions = {
   apiUrl: string;
   fetcher?: typeof fetch;
+  timeoutMs?: number;
 };
+
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 export class AuthApiError extends Error {
   constructor(
@@ -20,10 +23,12 @@ export class AuthApiError extends Error {
 export class AuthApiClient {
   readonly #apiUrl: string;
   readonly #fetcher: typeof fetch;
+  readonly #timeoutMs: number;
 
   constructor(options: AuthApiClientOptions) {
     this.#apiUrl = normalizePublicApiUrl(options.apiUrl);
     this.#fetcher = options.fetcher ?? fetch;
+    this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
   async signIn(idToken: string): Promise<StoredAuthSessionV1> {
@@ -55,25 +60,42 @@ export class AuthApiClient {
   }
 
   async #request(path: string, init: RequestInit): Promise<unknown> {
-    let response: Response;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new AuthApiError(0, 'REQUEST_TIMEOUT'));
+        controller.abort();
+      }, this.#timeoutMs);
+    });
     try {
-      response = await this.#fetcher(`${this.#apiUrl}${path}`, init);
-    } catch {
-      throw new AuthApiError(0, 'NETWORK_ERROR');
+      return await Promise.race([deadline, (async () => {
+        let response: Response;
+        try {
+          response = await this.#fetcher(`${this.#apiUrl}${path}`, {
+            ...init,
+            signal: controller.signal,
+          });
+        } catch {
+          throw new AuthApiError(0, 'NETWORK_ERROR');
+        }
+        let payload: unknown;
+        try {
+          payload = await response.json();
+        } catch {
+          throw new AuthApiError(response.status, 'INVALID_RESPONSE');
+        }
+        if (!response.ok) {
+          const code = isRecord(payload) && typeof payload.code === 'string'
+            ? payload.code
+            : `HTTP_${response.status}`;
+          throw new AuthApiError(response.status, code);
+        }
+        return payload;
+      })()]);
+    } finally {
+      clearTimeout(timer!);
     }
-    let payload: unknown;
-    try {
-      payload = await response.json();
-    } catch {
-      throw new AuthApiError(response.status, 'INVALID_RESPONSE');
-    }
-    if (!response.ok) {
-      const code = isRecord(payload) && typeof payload.code === 'string'
-        ? payload.code
-        : `HTTP_${response.status}`;
-      throw new AuthApiError(response.status, code);
-    }
-    return payload;
   }
 }
 
