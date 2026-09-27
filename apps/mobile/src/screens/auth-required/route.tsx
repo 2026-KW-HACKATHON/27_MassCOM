@@ -18,6 +18,6 @@ export function AuthRequiredRoute() {
         throw error;
       }
     }}
-    onBackToBrowse={merchantId ? () => router.back() : undefined}
+    onBackToBrowse={merchantId ? () => router.replace({ pathname: '/merchants/[merchantId]', params: { merchantId } }) : undefined}
   />;
 }

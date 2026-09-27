@@ -1,3 +1,6 @@
+import type { AccountCredential } from '@/auth/account-credential';
+import { canOpenMerchantDemo, isDevelopmentDemoBuild, type DemoRuntimeConfig } from '@/config/demo-runtime';
+
 export type ShowcaseRole = 'customer' | 'merchant';
 export type ShowcaseRoleState = { role?: ShowcaseRole; accountId?: string };
 
@@ -45,4 +48,12 @@ export function showcaseEntryDestination(
 
 export function canOpenShowcaseTour(packageId: string | null | undefined): boolean {
   return packageId === 'kr.masscom.wolgye.demo';
+}
+
+export function canOpenDeveloperMerchantRoute(
+  packageId: string | null | undefined,
+  credential: AccountCredential | undefined,
+  config: DemoRuntimeConfig,
+): boolean {
+  return isDevelopmentDemoBuild(packageId) && Boolean(credential && canOpenMerchantDemo(credential, config));
 }
