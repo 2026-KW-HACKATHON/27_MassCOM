@@ -2,6 +2,15 @@
 
 마지막 갱신 시각: 2026-09-28 KST
 
+## 2026-09-28 보관된 조직 저장소와 개인 작업 이관 대기
+
+- **원격 상태:** `2026-KW-HACKATHON/27_MassCOM`은 `PUBLIC`·`Archived`다. 사용자는 조직 저장소 보관 해제를 원하지 않고 개인 계정 쪽에만 작업을 두라고 요청했다. 이 상태를 바꾸거나 조직 `main`에 새로 push·merge하지 않는다. 현재 `choijunhuk` 계정의 저장소 목록에는 MassCOM 저장소가 없어 개인 저장소 이름·가시성은 아직 확정되지 않았다. 확인 전 임의 저장소를 만들거나 다른 프로젝트 저장소를 쓰지 않는다.
+- **마지막 조직 통합 기준선:** [PR #204](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/204) merge `9706e61`, PR/main CI PASS. 비로그인 공개 점포 탐색과 개인 화면 로그인 안내의 **소스**만 통합됐고 공개 운영 test.3·시연 Preview 3 APK는 이전 코드다. Issue #202의 새 APK 로그인 복귀·두 계정 격리는 `NOT_RUN`으로 유지한다.
+- **보관으로 중단된 PR:** [PR #207](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/207)은 도감 다음 목표 소스 브랜치 `feat/205-collection-next-goal`의 HEAD `dd769ae`다. 로컬 모바일 230/230·타입·린트·Android export PASS, 독립 리뷰 CLEAR. GitHub CI run `36353558484`는 Android 단계 도중 **`repository archived`로 CANCELLED**됐으므로 PR은 OPEN·미병합이고 CI PASS로 표시하지 않는다. 조직 설정을 우회하지 않는다.
+- **로컬 QR 브랜치:** `.worktrees/203-customer-identity-qr`, `feat/203-customer-identity-qr` HEAD `90fa019`, 미push·미PR. 2분 고객 식별 QR→시연 직원 촬영·실제 이용 확인→기존 계정 귀속 1회 수령 QR 코드·문서가 있다. API 109/109, PostgreSQL 16 전용 `_test` DB migration 후 52 PASS/2 SKIP, 모바일 231/231·타입·린트·build/export PASS; 서버 HIGH 2·모바일 MEDIUM 2 리뷰 수정 후 재검토. 처음 PostgreSQL 테스트는 migration 선행 누락으로 FAIL했고 같은 코드로 migration 후 PASS했다. 새 APK·외부 API 배포·실제 카메라 수령은 `NOT_RUN`; **구 시연 Preview 3 STAFF 발급과 새 API는 호환되지 않으므로 서버만 먼저 배포하지 않는다.**
+- **로컬 삭제 접수 브랜치:** `.worktrees/194-deletion-intake`, `feat/194-verified-deletion-intake` HEAD `d051ef3`, 미push·미PR. 기존 웹 세션에 묶인 내부 접수 코드·migration 0018만 구현했고 공개 Caddy 경로·UI는 연결하지 않았다. API 110/110·PostgreSQL 52 PASS/2 SKIP·웹 14/14·타입/build PASS. 운영자 신원 확인·실제 처리·결과 통지 및 폐기용 실계정 증거가 없어 [Issue #194](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/194)는 OPEN/BLOCKED; 기존 `auth_time` 5분 기준을 완화하지 않는다.
+- **개인 저장소 대상이 확정되면:** 사용자 지정 `choijunhuk/<이름>`과 가시성을 확인한 뒤, 조직 원격 `origin`은 읽기 전용으로 남기고 개인 원격을 별도 이름으로 추가한다. `main`의 기존 커밋 이력을 보존해 옮기며 QR·도감·삭제 브랜치는 각각 독립 검토한다. 개인 저장소의 한국어 PR·CI/리뷰를 통과하기 전 통합·배포 완료로 쓰지 않는다. 개인 저장소를 만들지 않는 결정이면 이 로컬 브랜치·커밋을 그대로 보존한다.
+
 ## 현재 GitHub·운영 상태 — 2026-09-28
 
 - **제품 코드·검사:** [PR #197](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/197) merge `174aa13`(PR/main CI `36332791455`/`36333774247` PASS)와 [PR #198](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/198) merge `c5cba68`(PR/main CI `36334339405`/`36334694626` PASS). 운영 웹 tar의 검증 파일 누락과 운영 AAB의 `CI=1` Metro 캐시로 인한 Google 설정 누락을 회귀 시험으로 고쳤다. [PR #199](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/199)의 출시 증거와 [PR #200](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/200)의 공개 설치 페이지도 PR/main CI 뒤 병합했다.
