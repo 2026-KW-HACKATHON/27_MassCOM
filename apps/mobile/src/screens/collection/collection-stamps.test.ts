@@ -76,6 +76,20 @@ test('full campaign shows capacity and the unearned goal without promising anoth
   assert.equal(describeMerchantGoal(goal!), '참여 정원 마감 · 미획득 목표 1회 · 첫 방문');
 });
 
+test('full campaign retains remaining counted visits for an existing participant', () => {
+  const full = [{
+    ...campaignMerchants[0]!, campaign: { ...campaignMerchants[0]!.campaign, enrollmentStatus: 'FULL' as const },
+  }];
+  const visits = [
+    { merchantId: 'one', campaignId: 'current', progressCounted: true },
+    { merchantId: 'one', campaignId: 'current', progressCounted: false },
+  ];
+  const earned = [{ merchantId: 'one', campaignId: 'current', targetVisitCount: 1, appCollectibleStatus: 'COLLECTED' }] as const;
+  const [goal] = buildMerchantGoals(full, visits, earned, '2026-09-28T00:00:00Z');
+  assert.equal(goal?.remainingVisits, 2);
+  assert.equal(describeMerchantGoal(goal!), '참여 정원 마감 · 미획득 목표 3회 · 세 번째 방문 · 기존 참여자라면 2회 남음');
+});
+
 test('ended campaign still shows earned completion and pending collectible state', () => {
   const ended = '2026-10-02T00:00:00Z';
   const earned = [{ merchantId: 'one', campaignId: 'current', targetVisitCount: 1, appCollectibleStatus: 'COLLECTED' }] as const;

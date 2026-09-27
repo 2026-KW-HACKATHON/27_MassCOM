@@ -27,7 +27,7 @@ export function describeMerchantGoal(goal: MerchantGoal): string {
     : goal.remainingVisits === 0 ? '앱 수집품 반영 확인 중'
     : goal.campaignStatus === 'open'
       ? `다음 목표 ${goal.nextGoal.targetVisitCount}회 · ${goal.nextGoal.displayName} · ${goal.remainingVisits}회 남음`
-      : `${goal.campaignStatus === 'upcoming' ? '예정 목표' : '미획득 목표'} ${goal.nextGoal.targetVisitCount}회 · ${goal.nextGoal.displayName}`;
+      : `${goal.campaignStatus === 'upcoming' ? '예정 목표' : '미획득 목표'} ${goal.nextGoal.targetVisitCount}회 · ${goal.nextGoal.displayName}${goal.campaignStatus === 'full' && (goal.progressCount > 0 || goal.earnedGoals.length > 0) ? ` · 기존 참여자라면 ${goal.remainingVisits}회 남음` : ''}`;
   return status ? `${status} · ${target}` : target;
 }
 
