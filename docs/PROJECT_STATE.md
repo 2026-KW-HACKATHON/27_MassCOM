@@ -4,7 +4,7 @@
 
 ## 최신 작업 경계
 
-- **2026-09-28 개인 통합 작업:** [Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 `feat/customer-first-loop`에 2분 고객 식별 QR·현재 캠페인 도감 목표·기존 시연 카메라 증거를 합쳤다. 결합 소스의 API 109/109·모바일 239/239·PostgreSQL 52 PASS/2 SKIP, 타입·린트·build/export·문서 검사 PASS. 개인 PR/CI·main 병합, 새 시연 APK/외부 API 배포와 그 설치본의 전체 QR 수령은 `NOT_RUN`. Google Play 목표는 D-040으로 유지하지만 제출은 별도다.
+- **2026-09-28 개인 통합 작업:** [Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 [PR #2](https://github.com/choijunhuk/MassCOM/pull/2)에 2분 고객 식별 QR·현재 캠페인 도감 목표·기존 시연 카메라 증거를 합쳤다. 결합 소스의 API 109/109·모바일 239/239·PostgreSQL 52 PASS/2 SKIP, 타입·린트·build/export·문서 검사 PASS. 첫 PR CI는 README의 낡은 문구 시험으로 FAIL해 로컬 수정·21/21 PASS 뒤 원격 재검사 전이다. 개인 main 병합, 새 시연 APK/외부 API 배포와 그 설치본의 전체 QR 수령은 `NOT_RUN`. Google Play 목표는 D-040으로 유지하지만 제출은 별도다.
 
 - **2026-09-28 시연 APK 카메라 수령:** [Preview 3 동일 SHA 설치본 실측](evidence/showcase-preview3-camera-claim-2026-09-28.json)에서 가상 점포 A의 점주 발급 QR을 Mac에 띄우고 Samsung 카메라로 스캔→미리보기→별도 수령 확정→도감 이동을 완료했다. 시연 DB에서 같은 계정 슬롯 1(`CLAIMED`)·방문 1·보상권 1·mint 0을 확인했다. 처음의 다른 계정용 QR 거절은 미사용·미만료 상태에서 계정 불일치였다. 이는 **같은 계정의 역할 전환 시험**이며 서로 다른 두 계정·두 휴대전화, 오프라인·권한 거부, 새 2분 식별 QR 소스, 운영 앱의 QR 검증은 별도 미완료다.
 
