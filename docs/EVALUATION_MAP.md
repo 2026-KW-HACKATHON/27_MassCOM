@@ -12,7 +12,7 @@ Phase 2 핵심 loopback DEMO와 Phase 3 Local Anvil 발행·복구 흐름은 구
 
 - **중간 논리의 연결성 30점 / 최종 구현 완성도·기술력 20점:** 개인 [Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 [PR #12](https://github.com/choijunhuk/MassCOM/pull/12)·[#13](https://github.com/choijunhuk/MassCOM/pull/13)은 고객 식별 QR 확인→점주 이용 확정→계정 귀속 방문 QR→응답 손실 후 명시적 재발급의 코드·CI·[운영 배포](evidence/operating-merchant-reissue-deployment-2026-09-28.json)를 잇는다. 실제 점주·고객 두 휴대전화 수령은 `NOT_RUN`이다.
 - **중간 실현·상용화 가능성 20점 / 최종 실현·상용화 가능성 30점:** 개인 [PR #14](https://github.com/choijunhuk/MassCOM/pull/14)·[#15](https://github.com/choijunhuk/MassCOM/pull/15)의 관리자 권한·읽기 전용 현황·비공개 캠페인 초안, [기존 서버 배포](evidence/operating-campaign-draft-deployment-2026-09-29.json), 별도 PostgreSQL 시험·백업을 연결한다. 운영 점포/캠페인 0곳/0건이고 D-023 정원·수령 정책은 미정이라 실제 영업·고객 보상 실증이 아니다.
-- **중간 기획 재현 가능성 20점 / 최종 발표 5점:** [시연 Preview 5](evidence/showcase-preview5-release-2026-09-29.json)는 소스 커밋·전용 서명·GitHub APK SHA-256을 연결한다. 개인 저장소는 비공개이므로 심사 접근·공개 전환은 별도 준비가 필요하며, 휴대전화 설치·두 계정 QR 장면은 `NOT_RUN`이다.
+- **중간 기획 재현 가능성 20점 / 최종 발표 5점:** [시연 Preview 5](evidence/showcase-preview5-release-2026-09-29.json)는 소스 커밋·전용 서명·GitHub APK SHA-256을 연결한다. 해당 개인 PR들은 [조직 공개 PR로 이력을 보존해 통합](PUBLIC_SYNC.md)했고 [Preview 5 공개 APK](evidence/showcase-preview5-public-release-2026-09-29.json)를 게시했다. 휴대전화 설치·두 계정 QR 장면은 `NOT_RUN`이다.
 - **최종 지역 문제 적합성 20점 / 참여도 5점:** 시연 가상 점포 3곳과 운영 실제 점포 0곳을 구분한다. [AI 사용 기록](AI_USAGE.md)은 도구 작업을 팀원의 현장 기여로 바꾸지 않으며 실제 점주 모집·이미지 사용 허락·참여 관찰은 별도 증거가 필요하다.
 
 | 단계 | 항목 | 배점 | 요구사항 | Issue | PR | 코드·문서 | 테스트 | 실증 | 발표 자료 | 상태 |

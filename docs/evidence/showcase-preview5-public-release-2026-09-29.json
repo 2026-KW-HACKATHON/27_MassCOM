@@ -1,0 +1,26 @@
+{
+  "observedAt": "2026-09-28T17:53:22Z",
+  "repository": "2026-KW-HACKATHON/27_MassCOM",
+  "repositoryVisibility": "PUBLIC",
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.5",
+  "sourceCommit": "88932cb8907ec2fd579f1f9a27f3063efc691645",
+  "artifact": {
+    "name": "MassCOM-showcase-android-88932cb.apk",
+    "package": "kr.masscom.wolgye.demo",
+    "bytes": 154132481,
+    "sha256": "bc8c5bd6e0cd1ac0ae6a53db806dbad70714169f9c5573483c01386173ed19e0",
+    "githubAssetDigest": "sha256:bc8c5bd6e0cd1ac0ae6a53db806dbad70714169f9c5573483c01386173ed19e0"
+  },
+  "checks": {
+    "publicReleaseAndSourceTarget": "PASS: GitHub release prerelease and targetCommitish match sourceCommit",
+    "publicAssetDigestAndSize": "PASS: GitHub asset digest and byte count match original private Preview 5 evidence",
+    "releaseChecksumAsset": "PASS: published SHA256SUMS.txt lists the same APK SHA-256",
+    "anonymousDownloadHead": "PASS: unauthenticated HTTPS redirect chain returned 200"
+  },
+  "notRun": [
+    "physical phone installation or upgrade from Preview 4",
+    "new two-minute customer identity QR and two-phone redemption",
+    "Google Play submission"
+  ],
+  "priorBuildEvidence": "showcase-preview5-release-2026-09-29.json"
+}

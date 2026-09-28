@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://www.masscom.kr/preview/">시연 웹 보기</a> ·
-  <a href="https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.5">시연 APK 받기</a> ·
+  <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.5">시연 APK 받기</a> ·
   <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.3">운영 테스트 APK 받기</a> ·
   <a href="https://www.masscom.kr/app/">운영 웹 보기</a> ·
   <a href="docs/TEST_STATUS.md">검증 현황</a> ·
@@ -41,29 +41,29 @@
 | 운영 관리자 웹 | [www.masscom.kr/admin/](https://www.masscom.kr/admin/) | 별도 서버 관리자 권한으로 실제 점포만 관리. [주 계정·빈 운영 현황](docs/evidence/operating-admin-status-deployment-2026-09-29.json)과 [비공개 캠페인 초안 빈 상태](docs/evidence/operating-campaign-draft-deployment-2026-09-29.json)는 인증 브라우저 확인. 실제 점포 등록·캠페인 입력은 `NOT_RUN` |
 | **시연 웹** | [설치 없이 바로 보기](https://www.masscom.kr/preview/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | 가상 점포 A·B·C와 예시 수집품을 표시하는 정적 시연, 실제 방문·NFT 실적 아님 |
 | 운영 Android 테스트 앱 | [test.3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.3) | 운영 package·업로드 키 사전 릴리스. [Samsung 로그인·복원과 16KB 설치](docs/evidence/operating-android-test3-2026-09-28.json)는 확인했지만 Play 승인·실제 점포·현장 QR·운영 지갑 재검증은 아님 |
-| **시연 Android 앱** | [개인 비공개 Preview 5 APK](https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.5) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | [소스·서명·원격 SHA-256](docs/evidence/showcase-preview5-release-2026-09-29.json) 일치. **Preview 5 휴대전화 설치·새 2분 고객 식별 QR·서로 다른 두 계정/두 휴대전화 수령은 아직 `NOT_RUN`**. [Preview 3의 같은 계정 카메라 수령](docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)은 이전 설치본 증거 |
+| **시연 Android 앱** | [공개 Preview 5 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.5) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | [공개 자산의 소스·원격 SHA-256](docs/evidence/showcase-preview5-public-release-2026-09-29.json) 일치. **Preview 5 휴대전화 설치·새 2분 고객 식별 QR·서로 다른 두 계정/두 휴대전화 수령은 아직 `NOT_RUN`**. [Preview 3의 같은 계정 카메라 수령](docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)은 이전 설치본 증거 |
 
-대회 조직 저장소는 사용자가 공개로 전환한 뒤 보관됐습니다. 현재 개발 저장소는 [개인 비공개 `choijunhuk/MassCOM`](https://github.com/choijunhuk/MassCOM)이고, 위 기존 GitHub Release와 시연 웹만 별도 공개 상태입니다.
+대회 [조직 저장소](https://github.com/2026-KW-HACKATHON/27_MassCOM)는 공개·활성 상태이며, 개인 비공개 저장소에서 진행한 작업을 원래 커밋 이력을 보존해 [조직 PR로 통합](docs/PUBLIC_SYNC.md)했습니다. 개인 저장소는 당시 개발 이력으로 남겨 둡니다.
 
 **현재 판정:** 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`입니다. Base Sepolia 발행과 운영 지갑 검증은 [별도 증거](docs/TEST_STATUS.md)가 있고, 시연 APK에는 전용 지갑·발행 기능을 자동으로 포함하지 않았습니다. [시연 APK 세부 상태](docs/ANDROID_DOWNLOADS.md)와 [현재 차단 항목](docs/BLOCKERS.md)이 아래 그림보다 우선합니다.
 
-[Issue #202](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/202)의 새 Android 소스는 로그아웃 상태의 공개 점포 탐색과 개인 화면의 로그인 안내를 구현했습니다. 위에 링크한 운영 test.3·시연 Preview 3 APK는 **변경 전 설치본**입니다. 새 소스의 실제 기기 로그인 복귀·계정 전환은 별도 검증 전까지 `NOT_RUN`입니다.
+[Issue #202](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/202)의 Android 소스는 로그아웃 상태의 공개 점포 탐색과 개인 화면의 로그인 안내를 구현했습니다. 위 운영 test.3은 **변경 전 설치본**이고, 시연 Preview 5에는 새 소스가 포함됐지만 실제 기기 로그인 복귀·계정 전환은 `NOT_RUN`입니다.
 
-[개인 Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 새 소스는 고객의 2분 식별 QR → 체험용 점주의 카메라 확인·실제 이용 확인 → 계정에 묶인 기존 1회 수령 QR을 연결합니다. QR 두 종류는 용도·만료가 다르며 식별 QR 촬영만으로 방문·보상은 생성되지 않습니다. [PR #2](https://github.com/choijunhuk/MassCOM/pull/2)를 병합해 Preview 4 APK와 같은 커밋의 [시연 API](docs/evidence/showcase-customer-qr-deployment-2026-09-28.json)를 배포했지만 새 APK의 휴대전화 설치·전체 QR 흐름은 `NOT_RUN`입니다. Preview 3 PASS는 **기존 15분 수령 QR**의 이전 실기입니다.
+[조직 PR #208](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/208)의 새 소스는 고객의 2분 식별 QR → 체험용 점주의 카메라 확인·실제 이용 확인 → 계정에 묶인 기존 1회 수령 QR을 연결합니다. QR 두 종류는 용도·만료가 다르며 식별 QR 촬영만으로 방문·보상은 생성되지 않습니다. 원래 개인 PR #2를 조직 PR #208에 통합해 Preview 4 APK와 같은 커밋의 [시연 API](docs/evidence/showcase-customer-qr-deployment-2026-09-28.json)를 배포했지만 새 APK의 휴대전화 설치·전체 QR 흐름은 `NOT_RUN`입니다. Preview 3 PASS는 **기존 15분 수령 QR**의 이전 실기입니다.
 
 [Issue #205](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/205)의 Android 소스는 도감에서 현재 캠페인의 인정된 방문만 보상 진행으로 세고, 다음 수집품까지 남은 방문과 점포 상세 이동을 표시합니다. Preview 5 APK에도 이 코드가 포함되지만 실제 기기·TalkBack 확인은 `NOT_RUN`입니다.
 
-[운영 관리자 Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 첫 구간은 기존 Google 웹 세션에 독립적인 서버 관리자 권한을 붙이고, 별도 [운영 관리자 웹](https://www.masscom.kr/admin/)에서 **실제 점포만** 비공개 생성·수정·숨김 처리합니다. 유효한 미수령 QR이 있으면 숨김을 거절하고, 숨긴 뒤 새 QR 발급·재발급을 막습니다. [운영 배포·권한 1명 검증](docs/evidence/operating-admin-deployment-2026-09-28.json)은 완료했지만 로그인한 브라우저의 실제 점포 업무는 `NOT_RUN`이고 운영 점포는 0곳입니다. 캠페인·그림 관리는 후속 범위입니다.
+[조직 PR #209](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/209)의 운영 관리자 첫 구간은 기존 Google 웹 세션에 독립적인 서버 관리자 권한을 붙이고, 별도 [운영 관리자 웹](https://www.masscom.kr/admin/)에서 **실제 점포만** 비공개 생성·수정·숨김 처리합니다. 유효한 미수령 QR이 있으면 숨김을 거절하고, 숨긴 뒤 새 QR 발급·재발급을 막습니다. [운영 배포·권한 1명 검증](docs/evidence/operating-admin-deployment-2026-09-28.json)은 완료했지만 로그인한 브라우저의 실제 점포 업무는 `NOT_RUN`이고 운영 점포는 0곳입니다. 캠페인·그림 관리는 후속 범위입니다.
 
 [운영 직원 등록](docs/OPERATING_STAFF_REGISTRATION.md)은 직원 자신의 Google 웹 계정과 실제 점포에 묶인 15분 코드를 운영자가 같은 점포에서 승인·회수하도록 연결합니다. 관리자에게 이메일이나 Google 식별자를 직접 입력시키지 않습니다. [STAFF 운영 배포](docs/evidence/operating-staff-deployment-2026-09-28.json)는 완료했고 `/merchant/` 외부 HTTPS·익명 접근 차단을 확인했습니다. 실제 직원 승인·고객 QR 촬영은 `NOT_RUN`입니다.
 
-운영 점포별 QR 활성·만료·수령, 유효 방문·보상, NFT 작업·오류 코드의 **개인정보 없는 읽기 전용 집계**는 [PR #14의 운영 배포](docs/evidence/operating-admin-status-deployment-2026-09-29.json)까지 완료했습니다. 지정한 관리자 계정에서 실제 ‘집계할 실제 점포가 없습니다’ 화면을 확인했으며, 운영 점포는 0곳입니다. [PR #15의 비공개 캠페인 초안](docs/evidence/operating-campaign-draft-deployment-2026-09-29.json)도 배포됐지만 실제 입력은 `NOT_RUN`이고 참여·보상·NFT를 시작하거나 공개하지 않습니다.
+운영 점포별 QR 활성·만료·수령, 유효 방문·보상, NFT 작업·오류 코드의 **개인정보 없는 읽기 전용 집계**는 [조직 PR #210에 통합된 운영 배포](docs/evidence/operating-admin-status-deployment-2026-09-29.json)까지 완료했습니다. 지정한 관리자 계정에서 실제 ‘집계할 실제 점포가 없습니다’ 화면을 확인했으며, 운영 점포는 0곳입니다. [조직 PR #210에 통합된 비공개 캠페인 초안](docs/evidence/operating-campaign-draft-deployment-2026-09-29.json)도 배포됐지만 실제 입력은 `NOT_RUN`이고 참여·보상·NFT를 시작하거나 공개하지 않습니다.
 
-운영 점주 웹의 고객 식별 QR 확인·실제 이용 확인·방문 수령 QR 표시는 [PR #12의 운영 배포](docs/evidence/operating-merchant-qr-deployment-2026-09-28.json)까지 완료했습니다. QR을 읽었다는 것만으로 방문·보상이 생성되지는 않습니다. 첫 발급 응답 손실 뒤 기존 슬롯을 확인하고 이전 코드를 폐기해 새 QR을 만드는 [PR #13의 재발급 화면](docs/evidence/operating-merchant-reissue-deployment-2026-09-28.json)도 배포했습니다. 실제 직원 로그인·두 휴대전화 촬영·수령·재발급은 `NOT_RUN`입니다.
+운영 점주 웹의 고객 식별 QR 확인·실제 이용 확인·방문 수령 QR 표시는 [조직 PR #210에 통합된 운영 배포](docs/evidence/operating-merchant-qr-deployment-2026-09-28.json)까지 완료했습니다. QR을 읽었다는 것만으로 방문·보상이 생성되지는 않습니다. 첫 발급 응답 손실 뒤 기존 슬롯을 확인하고 이전 코드를 폐기해 새 QR을 만드는 [조직 PR #210에 통합된 재발급 화면](docs/evidence/operating-merchant-reissue-deployment-2026-09-28.json)도 배포했습니다. 실제 직원 로그인·두 휴대전화 촬영·수령·재발급은 `NOT_RUN`입니다.
 
 메뉴·가격과 점포 제공 영업시간은 관리자 입력 후 공개 캠페인이 활성화된 점포의 운영 웹 목록과 Android 점포 상세에 표시합니다. [운영 API·웹 배포](docs/evidence/operating-merchant-menu-deployment-2026-09-28.json)는 완료했으며 입력 전에는 빈 상태를 표시하고 운영 점포 자료를 임의로 채우지 않습니다. 실제 점포 입력·공개 캠페인·최신 Android 설치본의 표시와 현장 확인은 `NOT_RUN`입니다.
 
-`www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 대회 조직의 과거 소스·APK 사전 릴리스는 공개됐지만 현재 개인 개발 저장소는 비공개이며, 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
+`www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 조직 저장소와 Preview 5 시연 APK는 공개됐지만, 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
 
 ## 한눈에 보기
 
@@ -72,9 +72,9 @@
 
 
 - [모바일 개발용 UI 시안·로컬 실행](apps/mobile/README.md): 개발용 미리보기를 보존하고 시연 APK에는 첫 역할 선택·권한 확인·빈 공간 투어를 분리했다. 운영 앱의 네 기능 탭은 유지하며 [시연 설치본 실기 범위](docs/evidence/showcase-android-apk-2026-09-27.json)를 따로 기록했다.
-- 시연 Android 빌드·배포: `kr.masscom.wolgye.demo`/`masscom-demo`, 전용 Google·Keychain 서명·[공개 API](https://demo-api.masscom.kr/health)를 사용한다. [최신 개인 비공개 Preview 5 APK](https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.5)는 [소스·서명·원격 digest](docs/evidence/showcase-preview5-release-2026-09-29.json)를 확인했고 휴대전화 설치는 `NOT_RUN`이다. [Preview 3](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)의 [Samsung 같은 계정 카메라 수령](docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)과 Preview 1의 [두 계정 직접 코드 수령](docs/evidence/showcase-two-account-phone-2026-09-27.json)은 이전 설치본 실증이다. 새 2분 식별 QR의 두 계정·두 휴대전화 촬영→수령은 `NOT_RUN`이다.
+- 시연 Android 빌드·배포: `kr.masscom.wolgye.demo`/`masscom-demo`, 전용 Google·Keychain 서명·[공개 API](https://demo-api.masscom.kr/health)를 사용한다. [최신 공개 Preview 5 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.5)는 [소스·서명·공개 자산 digest](docs/evidence/showcase-preview5-public-release-2026-09-29.json)를 확인했고 휴대전화 설치는 `NOT_RUN`이다. [Preview 3](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)의 [Samsung 같은 계정 카메라 수령](docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)과 Preview 1의 [두 계정 직접 코드 수령](docs/evidence/showcase-two-account-phone-2026-09-27.json)은 이전 설치본 실증이다. 새 2분 식별 QR의 두 계정·두 휴대전화 촬영→수령은 `NOT_RUN`이다.
 - [시연 호스트 격리](infra/showcase-host/README.md): 기존 Lightsail의 독립 API/DB에 가상 A/B/C를 기동하고 두 초대 계정의 내부 발급→수령→도감·중복 방지를 [당시 내부 API 증거](docs/evidence/showcase-internal-auth-claim-2026-09-27.json)로 확인했다. [PR #192](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/192) 병합 뒤 **시연 API만** 새 고객 로그인 코드로 [배포](docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)했다. 새 APK 기본 화면은 폰에서 확인했지만 초대 밖 실계정 로그인과 지갑/NFT는 별도 미검증이다.
-- [기존 Lightsail의 포털·운영 웹 이관](infra/lightsail/README.md): AWS DNS·공인 TLS와 운영 웹 Google 로그인을 확인했습니다. [최신 apex/www 설치 안내](docs/evidence/public-open-page-2026-09-28.json)는 운영 test.3·시연 Preview 3을 공개 연결하며 이전 [삭제 안내·www 배포](docs/evidence/web-only-deployment-2026-09-28.json)를 유지합니다. Samsung Android Chrome의 서로 다른 Google 계정 2개 순차 로그인·빈 도감·세션 전환은 이전 웹 실증이고 [최신 운영 APK의 폰 로그인](docs/evidence/operating-android-test3-2026-09-28.json)은 별도 확인했습니다. 실제 기록이 있는 계정 간 도감 격리는 미검증입니다.
+- [기존 Lightsail의 포털·운영 웹 이관](infra/lightsail/README.md): AWS DNS·공인 TLS와 운영 웹 Google 로그인을 확인했습니다. [이전 apex/www 설치 안내](docs/evidence/public-open-page-2026-09-28.json)는 운영 test.3·시연 Preview 3을 공개 연결했습니다. 이번 소스는 Preview 5 링크로 고쳤으며 공개 서버 반영은 별도 확인합니다. Samsung Android Chrome의 서로 다른 Google 계정 2개 순차 로그인·빈 도감·세션 전환은 이전 웹 실증이고 [운영 test.3 APK의 폰 로그인](docs/evidence/operating-android-test3-2026-09-28.json)은 별도 확인했습니다. 실제 기록이 있는 계정 간 도감 격리는 미검증입니다.
 - [기존 서버 SSH 접속](docs/SERVER_ACCESS.md): 이 Mac의 `ssh masscom` 및 더블클릭 접속 파일 사용법. AWS 콘솔 로그인과 별개이며 개인키는 Git 밖에 보관
 
 - [모바일 디자인 기준](DESIGN.md): 탐색·방문 인증·도감·내 정보와 읽기 전용 시연 웹의 파란 팔레트·접근성 원칙
@@ -362,7 +362,7 @@ npm run test:postgres --prefix apps/api
 - NFT 계약: 고정 Docker Foundry로 C01~C04와 로컬 Anvil 발행 검증; 테스트넷·메인넷으로 표현하지 않음
 - NFT 발행 요청: 클라이언트 주소·series 입력을 무시하고 검증된 binding/version에서 수령인을 고정해 보상권·job·Outbox 원자 저장
 - NFT 발행 Worker: Local Anvil에서 중복 Worker·응답 유실·설정 오류·이벤트 불일치·확정 전 재조직·DB 복구와 RPC 중단·발행 중지·민터 잔액 부족·DB 장애 뒤 자동 복구(O02, Issue #77)를 검증하고 Android가 접수/확인 중/등록 완료를 구분
-- 공개 GitHub 설치본: [운영 test.3](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.3)과 [시연 Preview 3](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)은 로그인 없이 각각 내려받습니다. APK SHA-256·서명·source marker는 [운영](docs/evidence/operating-android-test3-2026-09-28.json)·[시연](docs/evidence/showcase-preview3-release-2026-09-27.json) 증거를 따릅니다.
+- 공개 GitHub 설치본: [운영 test.3](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.3)과 [시연 Preview 5](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.5)은 로그인 없이 각각 내려받습니다. APK SHA-256·서명·source marker는 [운영](docs/evidence/operating-android-test3-2026-09-28.json)·[시연](docs/evidence/showcase-preview5-public-release-2026-09-29.json) 증거를 따릅니다.
 - 운영 package ID `kr.masscom.wolgye`(개발 `kr.masscom.wolgye.dev`), scheme `masscom`/`masscom-dev`: `IMPLEMENTED`; 시연 `kr.masscom.wolgye.demo`/`masscom-demo`는 별도 API·키로 서명·Samsung 동시 설치 PASS. 운영 test.3은 4KB Samsung 로그인·16KB AVD 설치/콜드 실행 PASS이며 시연 가상 데이터는 운영에 없음
 - 백업·복원 drill: `scripts/db-restore-drill.sh`로 dump→scratch DB 복원→행 수·migration 대조를 로컬 PostgreSQL 18에서 PASS. 운영 DB·외부 백업 저장소는 `NOT_RUN`
 - 실기 시험 절차는 [`docs/DEVICE_TEST_PLAN.md`](docs/DEVICE_TEST_PLAN.md), 외부 HTTPS·로그인 실제 결정은 [`docs/HOSTING_LOGIN_PROPOSAL.md`](docs/HOSTING_LOGIN_PROPOSAL.md)를 따릅니다.
@@ -372,7 +372,7 @@ npm run test:postgres --prefix apps/api
 - 실제 Reown 지갑 흐름: 개발 package MetaMask 연결·서명·자동 복귀·콜드 스타트 서버 binding 복원과 W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 운영 release package, 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `NOT_RUN/BLOCKED`
 - 테스트넷 계약·Worker 발행 1건: `VERIFIED` Base Sepolia, [구조화 증거](docs/evidence/base-sepolia-deployment.json)
 - 메인넷·Google Play·대회 제출: 명시 승인 전 실행 금지
-- 저장소: 현재 개발 기준은 개인 `PRIVATE`, 대회 조직 저장소는 `PUBLIC`·`Archived`. 심사 공개·제출 방식은 [대회 규칙](docs/COMPETITION.md)과 실제 제출 공지를 재확인
+- 저장소: 대회 조직 저장소 `PUBLIC`·활성, 개인 저장소 `PRIVATE`. [통합 이력](docs/PUBLIC_SYNC.md)을 보존하며 심사 공개·최종 제출 방식은 [대회 규칙](docs/COMPETITION.md)과 실제 제출 공지를 재확인
 
 개인 Google Play 계정 적격성, 사업자·법률·개인정보·금융 기능 신고는 실제 기능과 Console 기준으로 다시 확인합니다.
 
