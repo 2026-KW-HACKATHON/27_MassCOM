@@ -32,14 +32,18 @@
         <ol>
           <li>월계 마스코트 앱에서 <strong>계정 설정</strong>을 엽니다.</li>
           <li><strong>웹에서 계정 삭제 요청</strong>을 선택합니다.</li>
-          <li>열린 페이지에서 이메일로 삭제를 요청합니다. 본인 확인은 접수 후 별도로 진행됩니다.</li>
+          <li>운영 앱 계정으로 Google 로그인한 뒤 이 페이지에서 삭제 요청을 접수합니다.</li>
         </ol>
       </div>
 
       <h2>웹에서 요청하기</h2>
-      <p>앱 사용 여부와 관계없이 아래 이메일로 삭제를 요청할 수 있습니다. 계정에 사용한 Google 이메일 주소를 알려 주세요. 요청 접수 후 본인 확인 절차를 안내하며, 본인 확인이 끝나기 전에는 삭제가 실행되지 않습니다.</p>
-      <a class="legal-action" href="mailto:choijunhuk2007@gmail.com?subject=%EC%9B%94%EA%B3%84%20%EB%A7%88%EC%8A%A4%EC%BD%94%ED%8A%B8%20%EA%B3%84%EC%A0%95%20%EC%82%AD%EC%A0%9C%20%EC%9A%94%EC%B2%AD">이메일로 삭제 요청하기</a>
-      <p class="legal-meta">문의 주소: choijunhuk2007@gmail.com</p>
+      <p>운영 앱에서 사용한 Google 계정으로 로그인하세요. 같은 브라우저·주소에서 요청을 접수할 수 있습니다. 시연 앱 계정과 가상 기록은 이 운영 요청에 포함되지 않습니다.</p>
+      <a class="legal-action" id="deletion-login" href="/api/web/auth/start?returnTo=account-deletion">Google 계정으로 로그인</a>
+      <form id="deletion-request">
+        <button class="legal-action" type="submit">계정 삭제 요청 접수</button>
+      </form>
+      <p id="deletion-status" role="status" aria-live="polite">로그인 후 접수 버튼을 누르세요. 접수만으로 계정이나 보상 기록은 삭제되지 않습니다.</p>
+      <p class="legal-meta">접수에 문제가 있으면 <a href="mailto:choijunhuk2007@gmail.com?subject=%EA%B3%84%EC%A0%95%20%EC%82%AD%EC%A0%9C%20%EB%AC%B8%EC%9D%98">문의 이메일</a>로 연락해 주세요. 비밀번호나 복구 문구는 보내지 마세요.</p>
 
       <h2>삭제되는 정보</h2>
       <ul>
@@ -59,12 +63,44 @@
       <p class="legal-warning"><strong>절대 보내지 마세요:</strong> 외부 지갑 비밀번호, 개인키, 복구 문구, 송금 서명. 고객지원은 이런 정보를 요구하지 않습니다.</p>
 
       <h2>처리 상태</h2>
-      <p>미전송 발행 작업은 삭제 요청과 함께 취소됩니다. 이미 거래가 제출됐다면 체인 결과를 확인할 때까지 삭제가 완료된 것으로 표시하지 않습니다. 개발·심사 환경의 구체적인 처리 기한은 아직 운영·법률 확인 전이며, 확인되지 않은 기간을 보장하지 않습니다.</p>
+      <p>웹 접수는 삭제 의사를 계정에 연결해 보관하는 단계입니다. 이 단계에서는 세션·보상·NFT 발행 작업을 취소하거나 삭제하지 않습니다. 실제 삭제는 별도 본인 확인과 최근 5분 이내 재인증 경로가 확인된 뒤에만 진행됩니다. 제출된 거래가 있다면 체인 결과도 확인해야 합니다. 처리 기한은 아직 운영·법률 확인 전이며, 확인되지 않은 기간을 보장하지 않습니다.</p>
     </main>
 
     <footer class="legal-footer">
-      <p>월계 마스코트(가칭) · 마지막 갱신 2026-09-27 KST</p>
+      <p>월계 마스코트(가칭) · 마지막 갱신 2026-09-28 KST</p>
       <div class="footer-links"><a href="index.html">프로젝트 포털</a><a href="privacy.html">개인정보처리방침</a></div>
     </footer>
+    <script>
+    const form = document.getElementById('deletion-request');
+    const status = document.getElementById('deletion-status');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button');
+      button.disabled = true;
+      status.textContent = '요청을 접수하고 있습니다.';
+      try {
+        const response = await fetch('/api/web/account-deletion-intake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        if (response.status === 202 && (await response.json()).status === 'REQUESTED') {
+          status.textContent = '삭제 요청이 접수되어 있습니다. 중복 요청은 한 건으로 보관됩니다. 실제 계정 삭제는 아직 진행되지 않았습니다.';
+        } else if (response.status === 401) {
+          status.textContent = '운영 앱에서 사용한 Google 계정으로 로그인한 뒤 다시 요청해 주세요.';
+        } else if (response.status === 403) {
+          status.textContent = '이 주소에서는 접수할 수 없습니다. 공식 계정 삭제 페이지를 다시 열어 주세요.';
+        } else {
+          status.textContent = '현재 요청을 접수할 수 없습니다. 잠시 후 다시 시도하거나 문의 이메일로 연락해 주세요.';
+        }
+      } catch {
+        status.textContent = '연결을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.';
+      } finally {
+        button.disabled = false;
+      }
+    });
+    </script>
   </body>
 </html>

@@ -38,6 +38,7 @@
 | 구분 | 바로 열기·받기 | 현재 상태 |
 | --- | --- | --- |
 | 운영 웹 | [www.masscom.kr/app/](https://www.masscom.kr/app/) | 실제 운영 데이터, Google 로그인·읽기 전용 본인 도감. Samsung Chrome의 www 로그인·재열기·로그아웃 확인 |
+| 운영 관리자 웹 | [www.masscom.kr/admin/](https://www.masscom.kr/admin/) | 별도 서버 관리자 권한으로 실제 점포만 관리. [운영 배포·주 계정 권한 1명](docs/evidence/operating-admin-deployment-2026-09-28.json) 확인, 인증된 브라우저의 점포 변경과 실제 점포 등록은 아직 `NOT_RUN` |
 | **시연 웹** | [설치 없이 바로 보기](https://www.masscom.kr/preview/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | 가상 점포 A·B·C와 예시 수집품을 표시하는 정적 시연, 실제 방문·NFT 실적 아님 |
 | 운영 Android 테스트 앱 | [test.3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.3) | 운영 package·업로드 키 사전 릴리스. [Samsung 로그인·복원과 16KB 설치](docs/evidence/operating-android-test3-2026-09-28.json)는 확인했지만 Play 승인·실제 점포·현장 QR·운영 지갑 재검증은 아님 |
 | **시연 Android 앱** | [개인 비공개 Preview 4 APK](https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.4) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | 소스·서명·GitHub 해시와 같은 소스의 시연 API HTTPS는 확인. **Preview 4 휴대전화 설치·새 2분 고객 식별 QR·서로 다른 두 계정/두 휴대전화 수령은 아직 `NOT_RUN`**. [Preview 3의 같은 계정 카메라 수령](docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)은 이전 설치본 증거 |
@@ -52,7 +53,7 @@
 
 [Issue #205](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/205)의 Android 소스는 도감에서 현재 캠페인의 인정된 방문만 보상 진행으로 세고, 다음 수집품까지 남은 방문과 점포 상세 이동을 표시합니다. Preview 4 APK에는 이 코드가 포함되지만 실제 기기·TalkBack 확인은 `NOT_RUN`입니다.
 
-[운영 관리자 Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 첫 소스 구간은 기존 Google 웹 세션에 독립적인 서버 관리자 권한을 붙이고, 별도 `/admin/` 화면에서 **실제 점포만** 비공개 생성·수정·숨김 처리합니다. 유효한 미수령 QR이 있으면 숨김을 거절하고, 숨긴 뒤 새 QR 발급·재발급을 막습니다. 직원·캠페인·그림 관리와 실제 운영 계정 권한 부여·운영 HTTPS 배포는 이 브랜치의 완료 항목이 아니므로 현재 공개 웹 기능으로 안내하지 않습니다.
+[운영 관리자 Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 첫 구간은 기존 Google 웹 세션에 독립적인 서버 관리자 권한을 붙이고, 별도 [운영 관리자 웹](https://www.masscom.kr/admin/)에서 **실제 점포만** 비공개 생성·수정·숨김 처리합니다. 유효한 미수령 QR이 있으면 숨김을 거절하고, 숨긴 뒤 새 QR 발급·재발급을 막습니다. [운영 배포·권한 1명 검증](docs/evidence/operating-admin-deployment-2026-09-28.json)은 완료했지만 로그인한 브라우저의 실제 점포 업무는 `NOT_RUN`이고 운영 점포는 0곳입니다. 직원·캠페인·그림 관리는 후속 범위입니다.
 
 `www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 대회 조직의 과거 소스·APK 사전 릴리스는 공개됐지만 현재 개인 개발 저장소는 비공개이며, 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
 
@@ -76,7 +77,7 @@
 - [Android 설치본 상태](docs/ANDROID_DOWNLOADS.md): 운영 테스트 APK와 별도 시연 APK의 설치 링크·패키지·미검증 범위
 - [시연용 읽기 전용 웹](apps/showcase-web/README.md) · [운영용 읽기 전용 웹](apps/production-web/README.md): 별도 코드·데이터 경계. 기존 apex에서 Android Chrome의 서로 다른 2계정 순차 로그인은 확인했고, 새 www에서는 1계정 로그인·로그아웃과 apex 세션 유지까지 확인했습니다. www의 두 번째 계정과 기록이 있는 도감의 교차 노출은 미검증입니다.
 - [현재 HTTPS 시연 웹](https://www.masscom.kr/preview/): 가상 점포 A·B·C 고정 예시. 기존 Vercel 주소는 장애 복구용으로 보존
-- [공개 계정 삭제 안내](https://www.masscom.kr/account-deletion): 이메일 요청·보존 정보·지갑 비밀 경계. 안전한 계정 대상 확인·실제 삭제 처리 절차는 [미완료](docs/BLOCKERS.md)
+- [공개 계정 삭제 안내](https://www.masscom.kr/account-deletion): 현재 배포본은 이메일 문의 안내입니다. [개인 Issue #6](https://github.com/choijunhuk/MassCOM/issues/6)의 이 브랜치에는 Google 웹 세션에 묶인 접수 UI·API가 구현됐지만 공개 HTTPS·실계정 접수는 `NOT_RUN`, 실제 삭제 처리는 [미완료](docs/BLOCKERS.md)입니다.
 - [발표·시연 페이지](docs/presentation.html): 3분·5분 발표 장면과 실제/미실행 증거 경계
 - [현장 검증 빈 기록지](docs/FIELD_VALIDATION.md): 동의·과업·결과를 미리 채우지 않은 양식
 - [제출 체크리스트](docs/SUBMISSION_CHECKLIST.md): 승인 전 공개·태그·제출 금지 경계
@@ -196,7 +197,7 @@ sequenceDiagram
 | 외부 지갑에 표시할 서비스 출처 | `IN_PROGRESS` | [PR #134](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/134)에서 메타데이터를 `https://masscom.kr`과 기존 포털 표식으로 변경. 공개 자산 HTTPS는 `VERIFIED`; MetaMask 재연결은 지갑 잠금으로 `BLOCKED`, 운영 APK 반영은 `NOT_RUN` |
 | 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름·W06 PASS; W04 동일 세션 주소 전환과 W05 미지원 스마트지갑은 준비된 외부 환경 부재로 `BLOCKED` |
 | NFT 발행 전체 흐름 | `VERIFIED` | Local Anvil 장애·복구와 Base Sepolia PostgreSQL job/Outbox→암호화 service minter→receipt/event/owner/locked→DB FINALIZED·재실행 무작업 PASS |
-| 계정 삭제·개인정보 | `IN_PROGRESS` | D01·D03 로컬 PASS, 공개 안내 HTTPS 200·앱의 웹 요청 링크는 로컬 구현. 이메일 요청을 검증된 계정과 연결하는 절차 및 운영 fresh reauthentication 삭제·D02 계정 전환은 미완료([B-020](docs/BLOCKERS.md)) |
+| 계정 삭제·개인정보 | `IN_PROGRESS` | D01·D03 로컬 PASS, 공개 안내 HTTPS 200·앱의 웹 요청 링크는 로컬 구현. 검증된 Google 웹 세션에 묶인 **삭제 의사 접수**는 이 브랜치 소스·PostgreSQL 시험까지 PASS지만 운영 HTTPS 접수·최근 재인증을 거친 실제 삭제·결과 통지는 미완료([B-020](docs/BLOCKERS.md)) |
 | 외부 HTTPS·Play 제출 | `IN_PROGRESS` | [웹 전용 배포](docs/evidence/web-only-deployment-2026-09-28.json)와 공개 API·포털 HTTPS, [GitHub 운영 test.3 APK](docs/evidence/operating-android-test3-2026-09-28.json)의 Samsung 로그인·16KB 설치 PASS. 폰의 App Link 도메인은 verified지만 자동 열기는 사용자 설정으로 비활성화. Play App Signing OAuth·Console 제출은 `NOT_RUN/BLOCKED` |
 
 상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED / NOT_RUN`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.

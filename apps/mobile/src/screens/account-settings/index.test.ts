@@ -13,8 +13,11 @@ test('blocked account deletion offers the HTTPS request page with a link role an
   assert.match(screen, /삭제 요청 페이지를 열지 못했습니다/);
 });
 
-test('deletion page directs app users to email and identity verification instead of automatic deletion', () => {
-  assert.match(page, /앱에서 요청 페이지 열기[\s\S]*이메일로 삭제 요청하기/);
-  assert.match(page, /본인 확인이 끝나기 전에는 삭제가 실행되지 않습니다/);
+test('deletion page directs app users to account-bound intake without claiming automatic deletion', () => {
+  assert.match(page, /앱에서 요청 페이지 열기[\s\S]*Google 계정으로 로그인/);
+  assert.match(page, /계정 삭제 요청 접수/);
+  assert.match(page, /접수만으로 계정이나 보상 기록은 삭제되지 않습니다/);
+  assert.match(page, /최근 5분 이내 재인증/);
+  assert.match(page, /문의 이메일/);
   assert.doesNotMatch(page, /같은 Google 계정으로 다시 확인한 뒤 삭제를 접수합니다/);
 });

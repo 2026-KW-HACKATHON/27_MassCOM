@@ -231,6 +231,7 @@ async function pseudonymizeAccount(
     [now, accountId],
   );
   await client.query('DELETE FROM auth_identities WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM account_deletion_intake_requests WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM platform_admins WHERE account_id = $1', [accountId]);
   await client.query(
     'UPDATE platform_admin_role_audit SET target_account_id = $1 WHERE target_account_id = $2',

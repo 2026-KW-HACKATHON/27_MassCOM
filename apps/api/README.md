@@ -63,6 +63,8 @@ npm run start:local
 - `POST /entitlements/:id/mint`: `Idempotency-Key`와 binding/version/동의만 받아 고정 수령인 job·Outbox 원자 생성
 - `GET /mint-jobs/:id`: 해당 계정 소유 작업의 고정 수령인·체인·상태 조회
 - `POST /account-deletion-requests`: 재인증된 계정의 삭제 요청; 미전송 작업 취소와 제출된 거래 결과 확인을 분리
+- `GET /api/web/auth/start?returnTo=account-deletion`: 운영 웹 Google 로그인 뒤 고정 `/account-deletion` 경로로 복귀. 임의 URL은 복귀 경로가 될 수 없음(migration 0023)
+- `POST /api/web/account-deletion-intake`(호스트 바인딩 `web_session`, 동일 `Origin`, `Content-Type: application/json`, 본문 `{}`) → `202 {"status":"REQUESTED"}`. 운영 Google 신원에 연결된 계정 ID만 migration 0018에 한 건으로 보관하며 중복 요청도 같은 결과. 고객·시연 계정의 모바일 Bearer token은 받지 않음. **접수는 실제 삭제, 세션 폐기, 보상·mint 취소를 실행하지 않음.** 최종 삭제가 별도 승인 경로에서 실행되면 이 접수 행도 같은 트랜잭션에서 지움. D-026 최근 5분 `auth_time` 검사는 기존 `POST /account-deletion-requests`에 그대로 적용됨
 
 두 POST 요청의 계정은 서버 `AccountResolver`가 결정합니다. `x-account-id`는 loopback 서버의 명시적 insecure demo 모드에서만 읽으며 실제 로그인 인증을 대신하지 않습니다.
 

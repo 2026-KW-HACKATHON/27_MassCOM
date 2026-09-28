@@ -15,6 +15,7 @@ import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js'
 import { WebAuthError, WebAuthService, resolveWebAuthConfig, type WebAuthHandler } from './web-auth.js';
 import { WebSessionError } from './web-session.js';
 import { WebOriginError, resolveWebOrigin } from './web-origin.js';
+import type { AccountDeletionIntakeService } from './account-deletion-intake.js';
 import {
   CampaignEnrollmentError,
   type CampaignEnrollmentService,
@@ -41,6 +42,7 @@ import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCustomerIdentityService } from './postgres/customer-identity.js';
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
+import { PostgresAccountDeletionIntakeService } from './postgres/account-deletion-intake.js';
 import { AdminError, PostgresAdminService, type MerchantInput } from './postgres/admin.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
@@ -153,6 +155,7 @@ export function createApiServer(
   webWwwEnabled = false,
   customerIdentities?: CustomerIdentityService,
   admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>,
+  deletionIntake?: AccountDeletionIntakeService,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -175,7 +178,9 @@ export function createApiServer(
             return;
           }
         }
-        const started = await webAuth.start(origin);
+        const returnTo = new URL(request.url!, 'http://localhost').searchParams.get('returnTo') === 'account-deletion'
+          ? '/account-deletion' : undefined;
+        const started = await webAuth.start(origin, returnTo);
         response.setHeader('x-robots-tag', 'noindex, nofollow');
         response.setHeader('set-cookie', `web_auth_state=${started.state}; Path=/api/web/auth; Max-Age=300; HttpOnly; Secure; SameSite=Lax`);
         response.setHeader('location', started.location);
@@ -200,7 +205,8 @@ export function createApiServer(
           'web_auth_state=; Path=/api/web/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax',
           `web_session=${session.token}; Path=/api/web; HttpOnly; Secure; SameSite=Lax`,
         ]);
-        response.setHeader('location', session.returnTo === '/admin/' ? '/admin/' : '/app/');
+        response.setHeader('location', session.returnTo === '/admin/' ? '/admin/'
+          : session.returnTo === '/account-deletion' ? '/account-deletion' : '/app/');
         response.writeHead(303);
         response.end();
         return;
@@ -284,6 +290,20 @@ export function createApiServer(
         response.setHeader('set-cookie', 'web_session=; Path=/api/web; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
         response.writeHead(204);
         response.end();
+        return;
+      }
+      if (path === '/api/web/account-deletion-intake') {
+        if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
+        if (request.headers.origin !== origin ||
+            !/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '')) {
+          throw new RequestError(403, 'ORIGIN_FORBIDDEN');
+        }
+        if (!webAuth || !deletionIntake) throw new RequestError(503, 'WEB_DELETION_INTAKE_NOT_CONFIGURED');
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        await readJson(request);
+        sendJson(response, 202, await deletionIntake.request(accountId));
         return;
       }
 
@@ -1117,6 +1137,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     customerIdentities,
     pool && accountDeletionHmacSecret && webAuthConfig && !showcaseInvites
       ? new PostgresAdminService(pool, accountDeletionHmacSecret) : undefined,
+    pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
+      ? new PostgresAccountDeletionIntakeService(pool, accountDeletionHmacSecret) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });
