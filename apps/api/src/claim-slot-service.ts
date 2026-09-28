@@ -5,6 +5,8 @@ export type IssuedClaimSlot = {
   expiresAt: string;
 };
 
+export type ExistingClaimSlot = Omit<IssuedClaimSlot, 'token'> & { replayed: true };
+
 export type RedeemedClaimSlot = {
   claimSlotId: string;
   merchantId: string;
@@ -45,6 +47,12 @@ export interface ClaimSlotService {
     merchantReference: string;
     createdByAccountId: string;
   }): Promise<IssuedClaimSlot>;
+  issue(input: {
+    merchantId: string;
+    customerIdentityToken: string;
+    merchantReference: string;
+    createdByAccountId: string;
+  }): Promise<IssuedClaimSlot | ExistingClaimSlot>;
   reissue(input: {
     merchantId: string;
     claimSlotId: string;
@@ -61,6 +69,8 @@ export type ClaimSlotErrorCode =
   | 'CLAIM_TOKEN_UNAVAILABLE'
   | 'CLAIM_TOKEN_EXPIRED'
   | 'CLAIM_CAMPAIGN_UNAVAILABLE'
+  | 'CUSTOMER_IDENTITY_UNAVAILABLE'
+  | 'CUSTOMER_IDENTITY_EXPIRED'
   | 'ACCOUNT_DELETED';
 
 export class ClaimSlotError extends Error {

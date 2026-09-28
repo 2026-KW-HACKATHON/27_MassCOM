@@ -1,5 +1,6 @@
 import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
 import { shouldInvalidateSession } from '@/auth/session-invalid';
+import { parseCustomerIdentityToken } from './customer-identity';
 
 export type MerchantContext = {
   merchantId: string;
@@ -13,6 +14,10 @@ export type IssuedClaim = {
   tokenVersion: number;
   expiresAt: string;
 };
+
+export type CustomerIdentity = { token: string; expiresAt: string };
+export type ResolvedCustomerIdentity = { expiresAt: string };
+export type IdentityClaim = IssuedClaim | { claimSlotId: string; tokenVersion: number; expiresAt: string; replayed: true };
 
 export type ClaimPreview = {
   claimSlotId: string;
@@ -140,6 +145,44 @@ export function createCommerceApiClient(options: Options) {
   }
 
   return {
+    async createCustomerIdentity(): Promise<CustomerIdentity> {
+      return parseCustomerIdentity(await post('/customer/identity-tokens', {}));
+    },
+
+    async revokeCustomerIdentity(token: string): Promise<void> {
+      const response = await post('/customer/identity-tokens/revoke', { token });
+      if (!isRecord(response) || response.status !== 'REVOKED') throw invalidResponse('식별 QR 폐기');
+    },
+
+    async resolveCustomerIdentity(merchantId: string, customerIdentityToken: string): Promise<ResolvedCustomerIdentity> {
+      const response = await post(`/merchant/merchants/${encodeURIComponent(merchantId)}/customer-identities/resolve`, { customerIdentityToken });
+      if (!isRecord(response) || !isDate(response.expiresAt)) throw invalidResponse('고객 식별');
+      return { expiresAt: response.expiresAt };
+    },
+
+    async issueIdentityClaim(input: { merchantId: string; customerIdentityToken: string }): Promise<IdentityClaim> {
+      // The identity token stays stable across a retry. Only its merchant-scoped HMAC is persisted as the reference.
+      const response = await post(`/merchant/merchants/${encodeURIComponent(input.merchantId)}/claim-slots`, {
+        customerIdentityToken: input.customerIdentityToken,
+        merchantReference: input.customerIdentityToken,
+        useConfirmed: true,
+      });
+      if (isRecord(response) && response.replayed === true) {
+        if (!isString(response.claimSlotId) || !isPositiveInteger(response.tokenVersion) || !isDate(response.expiresAt) || 'token' in response) {
+          throw invalidResponse('기존 수령 코드');
+        }
+        return { claimSlotId: response.claimSlotId, tokenVersion: response.tokenVersion, expiresAt: response.expiresAt, replayed: true };
+      }
+      return parseIssuedClaim(response);
+    },
+
+    async issueOrReissueIdentityClaim(input: { merchantId: string; customerIdentityToken: string }): Promise<IssuedClaim> {
+      const issued = await this.issueIdentityClaim(input);
+      return 'replayed' in issued
+        ? this.reissueClaim({ merchantId: input.merchantId, claimSlotId: issued.claimSlotId, expectedTokenVersion: issued.tokenVersion })
+        : issued;
+    },
+
     async getMerchantContext(merchantId: string): Promise<MerchantContext> {
       return parseMerchantContext(
         await request(`/merchant/merchants/${encodeURIComponent(merchantId)}/context`),
@@ -211,6 +254,13 @@ export function createCommerceApiClient(options: Options) {
       return parseMintJob(await request(`/mint-jobs/${encodeURIComponent(jobId)}`));
     },
   };
+}
+
+function parseCustomerIdentity(value: unknown): CustomerIdentity {
+  if (!isRecord(value) || typeof value.token !== 'string' || !parseCustomerIdentityToken(value.token) || !isDate(value.expiresAt)) {
+    throw invalidResponse('식별 QR');
+  }
+  return { token: value.token, expiresAt: value.expiresAt };
 }
 
 function parseMerchantContext(value: unknown): MerchantContext {

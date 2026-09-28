@@ -1,12 +1,12 @@
 # Android 설치본과 GitHub 배포 상태
 
-상태 확인일: 2026-09-28. 사용자가 저장소를 `PUBLIC`으로 전환했으며 GitHub Release 파일은 로그인 없이 볼 수 있습니다. GitHub 소스 ZIP은 설치용 APK가 아닙니다.
+상태 확인일: 2026-09-28. 기존 대회 조직 저장소는 `PUBLIC`·`Archived`이며 아래 이전 GitHub Release 파일은 로그인 없이 볼 수 있습니다. 현재 개발 저장소 `choijunhuk/MassCOM`은 `PRIVATE`이고 새 설치본은 아직 게시하지 않았습니다. GitHub 소스 ZIP은 설치용 APK가 아닙니다.
 
 | 구분 | package | GitHub 다운로드 | 실제 상태 |
 | --- | --- | --- | --- |
 | 운영 테스트 앱 최신 | `kr.masscom.wolgye` | [test.3 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.3) | `VERIFIED` — source `c5cba68`, [서명·GitHub digest·Samsung Google 로그인/복원·16KB 설치](evidence/operating-android-test3-2026-09-28.json) 확인. Play 승인·현장 QR·운영 지갑 실기는 아님 |
 | 운영 테스트 앱 이전 | `kr.masscom.wolgye` | [test.2 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2) | `VERIFIED` — 당시 APK 재다운로드 해시·Samsung/AVD 설치·App Link 확인. 최신 코드가 아님 |
-| 시연 앱 최신 | `kr.masscom.wolgye.demo` | [Preview 3 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3) | `VERIFIED` — source `128ce5f`, [서명·GitHub digest](evidence/showcase-preview3-release-2026-09-27.json)와 [Samsung 설치·가상 3점포·Google 취소 후 재진입](evidence/showcase-preview3-phone-2026-09-28.json) 확인. 초대 밖 실계정 로그인은 `NOT_RUN` |
+| 시연 앱 최신 | `kr.masscom.wolgye.demo` | [Preview 3 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3) | `VERIFIED` — source `128ce5f`, [서명·GitHub digest](evidence/showcase-preview3-release-2026-09-27.json)와 [같은 계정 Samsung 카메라 QR 촬영→수령](evidence/showcase-preview3-camera-claim-2026-09-28.json) 확인. 초대 밖 실계정·두 계정 QR 로그인은 `NOT_RUN` |
 | 시연 앱 이전 | `kr.masscom.wolgye.demo` | [Preview 2 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2) | `VERIFIED` — 점포별 그림 카드의 [Samsung 라이트·다크·200% 글자](evidence/showcase-collectible-art-2026-09-27/device-check.json)와 재다운로드 해시·바이트 일치. 이 APK에서 방문 수령은 재실행하지 않음 |
 | 시연 앱 이전 | `kr.masscom.wolgye.demo` | [Preview 1 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1) | `VERIFIED` — [두 계정 실기](evidence/showcase-two-account-phone-2026-09-27.json)의 점주 발급→고객 직접 코드 수령→중복 거절·도감. 새 점포별 그림은 없음 |
 
@@ -26,7 +26,7 @@
 
 Issue #189의 새 점포별 그림은 [Preview 2 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)의 `MassCOM-showcase-android-7322470.apk`(SHA-256 `cdc30ef9222c0b2557dc934958e99dce0d4dcd69df6cb7d12916cc57503184e1`)에 포함됩니다. Samsung의 [라이트·다크·200% 글자](evidence/showcase-collectible-art-2026-09-27/device-check.json)를 확인했고 GitHub에서 APK·체크섬을 다시 내려받아 SHA-256 및 로컬 원본과 바이트 일치를 검증했습니다. Preview 1은 이전 그림 없는 설치본으로 보존합니다. 두 버전 모두 카메라 QR 촬영 수령·App Link·외부 지갑/NFT는 미검증입니다.
 
-새 [Preview 3 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)는 `MassCOM-showcase-android-128ce5f.apk`(SHA-256 `c47104ce3fc7f6bf27f83120731f07fd89ebf84165a23d548059160a25b64fae`)입니다. APK 내부 버전 이름·코드는 아직 `0.1.0-test.2`·`2`이며 Release의 Preview 3은 배포 순서 표시입니다. [원격 digest·서명](evidence/showcase-preview3-release-2026-09-27.json)과 [Samsung 설치·화면 복귀](evidence/showcase-preview3-phone-2026-09-28.json)는 PASS, 초대 밖 계정 로그인은 `NOT_RUN`입니다.
+새 [Preview 3 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)는 `MassCOM-showcase-android-128ce5f.apk`(SHA-256 `c47104ce3fc7f6bf27f83120731f07fd89ebf84165a23d548059160a25b64fae`)입니다. APK 내부 버전 이름·코드는 아직 `0.1.0-test.2`·`2`이며 Release의 Preview 3은 배포 순서 표시입니다. [원격 digest·서명](evidence/showcase-preview3-release-2026-09-27.json)과 [Samsung의 같은 계정 카메라 QR 촬영·별도 수령 확정·도감](evidence/showcase-preview3-camera-claim-2026-09-28.json)은 PASS, 초대 밖 계정 및 서로 다른 두 계정·두 휴대전화 QR 수령은 `NOT_RUN`입니다.
 
 새 [운영 test.3 사전 릴리스](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.3)는 `MassCOM-operating-android-c5cba68.apk`(SHA-256 `69fe089ce3c7bee8cb4ec2239254dca9b9de2736f2479e7a10fad32950890185`)입니다. 이전 로컬 AAB `22283d7`은 서명됐지만 Android 번들의 Google 설정이 빠져 배포하지 않았습니다. test.3은 [설정 값 포함·Samsung 로그인/복원·16KB 설치](evidence/operating-android-test3-2026-09-28.json)를 확인했습니다. 내부 버전 이름·코드는 여전히 `0.1.0-test.2`·`2`로, test.3 태그는 GitHub 배포 순서입니다.
 
@@ -35,7 +35,7 @@ Issue #189의 새 점포별 그림은 [Preview 2 사전 릴리스](https://githu
 ## 두 앱을 각각 게시하기 전 조건
 
 - 운영: upload key AAB/APK의 source commit·package·서명·SHA-256과 Samsung 로그인·빈 점포 탐색, 16KB 설치·콜드 실행은 확인했습니다. **운영 release의 외부 지갑 복귀와 실제 점포·QR 수령은 아직 미검증**이며 Google Play 설치본은 별도 서명 인증서를 사용하므로 GitHub APK와 구분합니다.
-- 시연: 전용 인증·DB의 공개 HTTPS, `kr.masscom.wolgye.demo` 서명·운영 앱과 동시 설치, 실제 기기 두 Google 계정의 점주 발급→고객 직접 코드 수령·도감·중복 거절과 GitHub 사전 릴리스는 확인했습니다. 카메라로 QR을 촬영해 수령하는 경로, 별도 Reown 지갑·NFT, `demo.masscom.kr` App Link는 여전히 미검증입니다.
+- 시연: 전용 인증·DB의 공개 HTTPS, `kr.masscom.wolgye.demo` 서명·운영 앱과 동시 설치, 두 Google 계정의 점주 발급→고객 **직접 코드** 수령 및 같은 계정의 **카메라 QR** 촬영→수령·도감을 각각 확인했습니다. 두 계정·두 휴대전화의 카메라 QR, 별도 Reown 지갑·NFT, `demo.masscom.kr` App Link는 미검증입니다.
 - 운영 테스트본과 시연 설치본은 각각 다른 GitHub 사전 릴리스에 게시했습니다. 시연 앱의 미완료 기능을 운영 기능으로 표기하지 않습니다. 저장소 공개는 완료됐지만 Play 제출·일반 공개 승인은 별도입니다.
 
 개발 절차와 분리 기준은 [모바일 README](../apps/mobile/README.md)와 [시연·운영 분리 설계](superpowers/specs/2026-09-23-showcase-production-separation-design.md)를 따릅니다.

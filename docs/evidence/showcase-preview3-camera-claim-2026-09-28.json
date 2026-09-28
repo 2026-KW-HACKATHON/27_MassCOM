@@ -1,0 +1,35 @@
+{
+  "recordedAtUtc": "2026-09-28T01:50:23Z",
+  "scope": "시연 가상 점포의 실제 Android 카메라 QR 촬영·방문 수령",
+  "environment": {
+    "device": "Samsung SM-S928N, Android 16, USB ADB",
+    "installedPackage": "kr.masscom.wolgye.demo",
+    "installedVersion": "0.1.0-test.2 (versionCode 2)",
+    "installedApkSha256": "c47104ce3fc7f6bf27f83120731f07fd89ebf84165a23d548059160a25b64fae",
+    "matchesRelease": "showcase-android-v0.1.0-preview.3",
+    "api": "https://demo-api.masscom.kr",
+    "merchantData": "가상 점포 A/B/C 3곳, 모두 demo=true"
+  },
+  "stepsAndResults": {
+    "firstQrWrongAccount": "PASS: 수령 대상과 현재 Google 계정이 달라 미리보기 거절. 서버 슬롯은 ISSUED, 미사용, 미만료였고 방문 효과 0건",
+    "firstQrAfterTest": "미수령 ISSUED 행은 남아 있으나 만료 시각이 지났고 방문·보상 효과는 0건",
+    "replacementQrIssuedToCurrentAccount": "PASS: STAFF 권한으로 동일 계정의 가상 점포 A 1회 수령 코드 발급. 계정 ID 입력값과 코드 원문은 기록하지 않음",
+    "qrDisplayedOnMac": "PASS: 휴대전화 점주 화면의 QR 영역만 일시적으로 표시",
+    "physicalCameraScan": "PASS: 같은 휴대전화의 고객 역할에서 Mac 화면 QR 촬영 후 점포·캠페인 미리보기와 '방문 수령 확정' 버튼 표시",
+    "confirmation": "PASS: 별도 수령 확정 후 앱에 가상 점포 A 방문 인증 완료·새 앱 보상권 1개·NFT 미발행 안내 표시",
+    "databaseBeforeIssue": "STAFF 계정 대상 슬롯 0 / 방문 0 / 보상권 0",
+    "databaseAfterIssueBeforeConfirm": "슬롯 1 / 방문 0 / 보상권 0",
+    "databaseAfterConfirm": "슬롯 1 (CLAIMED) / 유효 방문 1 (progress_counted=true) / 보상권 1 / mint 작업 0",
+    "operatingDemoMerchants": 0,
+    "collectionNavigation": "PASS: 수령 완료 화면에서 도감 이동 후 가상 점포 A 방문 1회 표시"
+  },
+  "limits": {
+    "sameAccountSwitchedBetweenStaffAndCustomerRoles": true,
+    "twoDifferentAccountsOrTwoPhones": "NOT_RUN",
+    "newTwoMinuteCustomerIdentityQrBranch": "NOT_RUN: 개인 브랜치 소스이며 이 설치본·외부 API에 미배포",
+    "offlineAndCameraPermissionDenial": "NOT_RUN: 필수 A01 전체 상태는 변경하지 않음",
+    "sameQrReplayAfterClaim": "NOT_RUN",
+    "realMerchantOrRevenueOrOnChainNft": false,
+    "noRawQrTokenAccountIdEmailOrSessionSaved": true
+  }
+}

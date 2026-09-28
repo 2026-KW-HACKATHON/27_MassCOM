@@ -232,6 +232,11 @@ async function pseudonymizeAccount(
   );
   await client.query('DELETE FROM auth_identities WHERE account_id = $1', [accountId]);
   await client.query(
+    `DELETE FROM customer_identity_tokens
+     WHERE customer_account_id = $1 OR bound_staff_account_id = $1`,
+    [accountId],
+  );
+  await client.query(
     `INSERT INTO merchant_members (
        merchant_id, account_id, role, status, granted_at, revoked_at, updated_at
      )

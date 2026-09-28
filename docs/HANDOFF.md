@@ -2,6 +2,19 @@
 
 마지막 갱신 시각: 2026-09-28 KST
 
+## 2026-09-28 보관된 조직 저장소와 개인 비공개 저장소
+
+- **진행 중 통합 PR:** 개인 [Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 `feat/customer-first-loop`를 [PR #2](https://github.com/choijunhuk/MassCOM/pull/2)로 열었다. QR 소스·도감 다음 목표·이전 시연 카메라 증거를 merge commit `698af5b`·`8c6feb3`으로 결합했고 로컬 API 109/109·모바일 239/239·PostgreSQL 16 전용 `_test` 52 PASS/2 SKIP·타입·린트·API build·Android export·문서 검사 PASS. 첫 PR CI `36369704684`는 README의 오래된 문구 assertion으로 FAIL했고 로컬 RED→GREEN 21/21 수정은 원격 재검증 전이다. 병합·새 APK/API 배포와 새 고객 식별 QR 실기는 `NOT_RUN`. Play 목표는 [D-040](DECISIONS.md)대로 유지하되 제출하지 않는다.
+
+- **실제 시연 카메라 QR 결과:** [Preview 3 Samsung 실측](evidence/showcase-preview3-camera-claim-2026-09-28.json)은 같은 Google 계정의 시연 STAFF·고객 역할 전환으로 점주 발급 QR을 Mac에 표시하고 휴대전화 카메라로 촬영→미리보기→수령 확정→도감 가상 점포 A 방문 1회를 확인했다. 시연 DB 슬롯 1(`CLAIMED`)·유효 방문 1·보상권 1·mint 0, 운영 가상 점포 0. 앞선 다른 계정용 QR 거절은 슬롯이 미사용·미만료였고 계정 불일치가 원인이다. 코드·계정 ID·이메일·세션은 증거에 없다. 두 계정·두 휴대전화, 새 2분 고객 식별 QR 브랜치, 오프라인/권한 거부는 `NOT_RUN`; A01 전체 상태는 유지한다.
+
+- **원격 상태:** `2026-KW-HACKATHON/27_MassCOM`은 `PUBLIC`·`Archived`다. 사용자는 보관 해제 대신 개인 GitHub를 선택했다. [개인 `choijunhuk/MassCOM`](https://github.com/choijunhuk/MassCOM)을 `PRIVATE`로 생성하고 기존 Git 커밋 이력을 보존한 `main`(`9706e61`)을 push했다. 원격 이름 `personal`이며 기존 조직 `origin`은 보존하되 더 이상 push·merge하지 않는다. 개인 저장소의 default branch는 `main`, 보관 상태는 false로 확인했다.
+- **마지막 조직 통합 기준선:** [PR #204](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/204) merge `9706e61`, PR/main CI PASS. 비로그인 공개 점포 탐색과 개인 화면 로그인 안내의 **소스**만 통합됐고 공개 운영 test.3·시연 Preview 3 APK는 이전 코드다. Issue #202의 새 APK 로그인 복귀·두 계정 격리는 `NOT_RUN`으로 유지한다.
+- **보관으로 중단된 PR:** [PR #207](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/207)은 도감 다음 목표 소스 브랜치 `feat/205-collection-next-goal`의 HEAD `dd769ae`다. 로컬 모바일 230/230·타입·린트·Android export PASS, 독립 리뷰 CLEAR. GitHub CI run `36353558484`는 Android 단계 도중 **`repository archived`로 CANCELLED**됐으므로 PR은 OPEN·미병합이고 CI PASS로 표시하지 않는다. 조직 설정을 우회하지 않는다.
+- **개인 작업 브랜치:** `feat/205-collection-next-goal` `dd769ae`, `feat/203-customer-identity-qr` `90fa019`, `feat/194-verified-deletion-intake` `d051ef3`, `docs/personal-handoff-archive` `6932649`를 모두 `personal`에 push하고 원격 SHA를 일치 확인했다. QR은 API 109/109·PostgreSQL 16 전용 `_test` migration 후 52 PASS/2 SKIP·모바일 231/231·타입·린트·build/export PASS, 리뷰 HIGH 2·MEDIUM 2 수정 후 재검토. 처음 PostgreSQL 테스트는 migration 선행 누락으로 FAIL했고 같은 코드로 PASS했다. 도감은 모바일 230/230·타입·린트·export 및 독립 리뷰 CLEAR. 새 APK·외부 API 배포·실제 QR 촬영은 `NOT_RUN`; **구 Preview 3 STAFF 발급과 새 API는 호환되지 않으므로 서버만 먼저 배포하지 않는다.**
+- **삭제 접수 범위:** 개인 브랜치 `feat/194-verified-deletion-intake`는 웹 세션에 묶인 내부 접수 코드·migration 0018만 구현했고 공개 Caddy 경로·UI는 연결하지 않았다. API 110/110·PostgreSQL 52 PASS/2 SKIP·웹 14/14·타입/build PASS. 운영자 신원 확인·실제 처리·결과 통지 및 폐기용 실계정 증거가 없어 [Issue #194](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/194)는 OPEN/BLOCKED; 기존 `auth_time` 5분 기준을 완화하지 않는다.
+- **다음 통합 경계:** 개인 `main` `9706e61`의 첫 [CI run `36354490206`](https://github.com/choijunhuk/MassCOM/actions/runs/36354490206)은 `SUCCESS`다. 개인 [PR #2](https://github.com/choijunhuk/MassCOM/pull/2)는 열려 있고 현재 첫 CI 실패를 수정해 재검사 전이며 개인 병합·Release는 없다. private Actions는 무료 포함 분량 초과 시 과금될 수 있지만 현재 사용량 API가 권한 부족(404)이라 추가 PR CI의 비용 상한을 확인하지 못했다. 기존 조직 PR #207은 보관 때문에 중단됐다. 개인 PR CI/리뷰가 통과하기 전 QR·도감을 `main` 완료로 쓰지 않는다.
+
 ## 현재 GitHub·운영 상태 — 2026-09-28
 
 - **제품 코드·검사:** [PR #197](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/197) merge `174aa13`(PR/main CI `36332791455`/`36333774247` PASS)와 [PR #198](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/198) merge `c5cba68`(PR/main CI `36334339405`/`36334694626` PASS). 운영 웹 tar의 검증 파일 누락과 운영 AAB의 `CI=1` Metro 캐시로 인한 Google 설정 누락을 회귀 시험으로 고쳤다. [PR #199](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/199)의 출시 증거와 [PR #200](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/200)의 공개 설치 페이지도 PR/main CI 뒤 병합했다.
