@@ -1,7 +1,7 @@
 import * as Application from 'expo-application';
-import { Link } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { Link, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -12,19 +12,45 @@ import {
   type PollingState,
 } from '@/commerce/collection-recovery';
 import { CommerceApiError, createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
+import { createBadgeApiClient, type Coupon, type MedalKind, type OpenedReward, type RewardMilestone } from '@/gamification/badge-api';
+import { couponsOf, shouldStackTrio, type ShareVariant } from '@/gamification/badge-rules';
+import { CouponTicket } from '@/gamification/coupon-ticket';
+import { CouponUseSheet } from '@/gamification/coupon-use-sheet';
+import { MedalDetail } from '@/gamification/medal-detail';
+import { MedalShelf, MedalShelfSkeleton, SectionRetry } from '@/gamification/medal-shelf';
+import { PassportHero } from '@/gamification/passport-hero';
+import { RewardReveal } from '@/gamification/reward-reveal';
+import { RewardTrack } from '@/gamification/reward-track';
+import { useBadgeBook } from '@/gamification/use-badge-book';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { uiMetrics } from '@/theme/ui-metrics';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
-import { badgeShareMessage, buildMerchantGoals, buildNeighborhoodJourney, buildStampSlots, describeMerchantGoal, stampColumnCount, type MerchantGoal, type NeighborhoodBadge, type StampSlot } from './collection-stamps';
+import { buildMerchantGoals, buildStampSlots, describeMerchantGoal, shortMerchantGoal, stampColumnCount, stampRotation, type MerchantGoal, type StampSlot } from './collection-stamps';
 import { showcaseCollectibleArtSource } from './showcase-collectible-art-assets';
 import { collectibleArtSize, showcaseCollectibleArtKey } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
 
 const mascotStamp = require('../../../assets/images/mascot/mascot-stamp.png');
 const mascotStampEmpty = require('../../../assets/images/mascot/mascot-stamp-empty.png');
+
+// One StyleSheet per palette instead of one per render of every card.
+const styleCache = new Map<AppColors, ReturnType<typeof createCollectionStyles>>();
+function createCollectionStyles(palette: AppColors) {
+  return StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
+}
+function collectionStyles(palette: AppColors) {
+  let styles = styleCache.get(palette);
+  if (!styles) {
+    styles = createCollectionStyles(palette);
+    styleCache.set(palette, styles);
+  }
+  return styles;
+}
+
+const quietBadgeRefreshCodes = new Set(['REWARD_LOCKED', 'REWARD_OFFER_UNAVAILABLE', 'REWARD_CAPACITY_EXHAUSTED', 'INVALID_RESPONSE']);
 
 export function CollectionScreen({
   apiUrl,
@@ -37,10 +63,12 @@ export function CollectionScreen({
 }) {
   const insets = useSafeAreaInsets();
   const isShowcase = Application.applicationId === 'kr.masscom.wolgye.demo';
+  const variant: ShareVariant = isShowcase ? 'showcase' : 'production';
   const palette = colorsForScheme(useColorScheme());
-  const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
+  const styles = collectionStyles(palette);
   const { width, fontScale } = useWindowDimensions();
   const stackCounts = shouldStackCounts(width, fontScale);
+  const stackTrio = shouldStackTrio(width, fontScale);
   const api = useMemo(
     () => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
@@ -49,6 +77,18 @@ export function CollectionScreen({
     () => new WalletApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
   );
+  const badgeApi = useMemo(
+    () => createBadgeApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
+  const badges = useBadgeBook(badgeApi);
+  const router = useRouter();
+  const { focus } = useLocalSearchParams<{ focus?: string }>();
+  const scrollView = useRef<ScrollView>(null);
+  const [rewardsY, setRewardsY] = useState<number>();
+  const [detailKind, setDetailKind] = useState<MedalKind>();
+  const [revealed, setRevealed] = useState<OpenedReward>();
+  const [usingCoupon, setUsingCoupon] = useState<Coupon>();
   const [polling, setPolling] = useState<PollingState>();
   const [binding, setBinding] = useState<ActiveWalletBindingResponse['binding']>();
   const [bindingError, setBindingError] = useState<string>();
@@ -69,6 +109,8 @@ export function CollectionScreen({
   const stampGap = 10;
   const stampSlotWidth = (width - uiMetrics.pageInset * 2 - stampGap * (stampColumns - 1)) / stampColumns;
   const artSize = collectibleArtSize(width, uiMetrics.pageInset, styles.collectibleCard.padding);
+  const detailMedal = badges.book?.medals.find((medal) => medal.kind === detailKind);
+  const coupons = couponsOf(badges.book);
 
   useEffect(() => {
     let active = true;
@@ -123,6 +165,33 @@ export function CollectionScreen({
     };
   }, [api, polling?.mode]);
 
+  // The tab stays mounted; coming back after a visit claim quietly picks up new stamps and badges.
+  const focusCount = useRef(0);
+  const { refreshQuietly: refreshBadgesQuietly } = badges;
+
+  // "도감에서 상자 열기" arrives with ?focus=rewards; scroll once the reward section is laid out.
+  useEffect(() => {
+    if (focus !== 'rewards' || rewardsY === undefined) return;
+    const frame = requestAnimationFrame(() => scrollView.current?.scrollTo({ y: Math.max(0, rewardsY - 12), animated: true }));
+    router.setParams({ focus: undefined });
+    return () => cancelAnimationFrame(frame);
+  }, [focus, rewardsY, router]);
+
+  useFocusEffect(useCallback(() => {
+    focusCount.current += 1;
+    if (focusCount.current === 1) return;
+    void refreshBadgesQuietly();
+    void Promise.allSettled([api.getCollection(), walletApi.getActiveBinding()]).then(([collectionResult, bindingResult]) => {
+      const resolved = resolveCollectionLoad(collectionResult, bindingResult);
+      if (!resolved.ok) return;
+      setPolling((current) => current
+        ? nextPollingState(current, { type: 'success', snapshot: resolved.collection })
+        : initialPollingState(resolved.collection));
+      setBinding(resolved.binding);
+      if (!resolved.bindingError) setBindingError(undefined);
+    });
+  }, [api, walletApi, refreshBadgesQuietly]));
+
   async function refresh() {
     setRefreshing(true);
     setError(undefined);
@@ -131,6 +200,7 @@ export function CollectionScreen({
         api.getCollection(),
         walletApi.getActiveBinding(),
         refreshMerchants(),
+        badges.status === 'ready' ? badges.refreshQuietly() : badges.retry(),
       ]);
       const resolved = resolveCollectionLoad(collectionResult, bindingResult);
       if (!resolved.ok) {
@@ -170,14 +240,6 @@ export function CollectionScreen({
       setError('NFT 등록 작업 결과를 다시 확인하지 못했습니다. 접수는 취소되지 않았습니다.');
     } finally {
       setPollingRetrying(false);
-    }
-  }
-
-  async function shareBadge(badge: NeighborhoodBadge) {
-    try {
-      await Share.share({ title: badge.title, message: badgeShareMessage(badge, isShowcase ? 'showcase' : 'production') });
-    } catch {
-      setError('공유창을 열지 못했습니다. 다시 시도해 주세요.');
     }
   }
 
@@ -224,6 +286,19 @@ export function CollectionScreen({
     }
   }
 
+  const openReward = useCallback((milestone: RewardMilestone) => badgeApi.openReward(milestone), [badgeApi]);
+  const { applyOpened, replace: replaceBadgeBook } = badges;
+  const onRevealed = useCallback((result: OpenedReward) => {
+    applyOpened(result);
+    setRevealed(result);
+  }, [applyOpened, setRevealed]);
+  const onOpenFailed = useCallback((code: string | undefined) => {
+    if (code && quietBadgeRefreshCodes.has(code)) void refreshBadgesQuietly();
+  }, [refreshBadgesQuietly]);
+  const loadBadgeBook = useCallback(() => badgeApi.getBadgeBook(), [badgeApi]);
+  const createIdentity = useCallback(() => api.createCustomerIdentity(), [api]);
+  const revokeIdentity = useCallback((token: string) => api.revokeCustomerIdentity(token), [api]);
+
   if (loading && !collection) {
     return (
       <View style={[styles.centered, { backgroundColor: palette.background }]}>
@@ -246,237 +321,252 @@ export function CollectionScreen({
   }
 
   const summary = collectionCounts(collection);
-  const journey = buildNeighborhoodJourney(collection.visits);
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom, backgroundColor: palette.background }]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
-    >
-      <View style={[styles.hero, { backgroundColor: palette.accentContainer }]}>
-        <Text style={[styles.eyebrow, { color: palette.onAccentContainer }]}>나의 월계 기록</Text>
-        <Text selectable style={[styles.title, { color: palette.onAccentContainer }]}>방문 기록과 수집품</Text>
-        <View style={[styles.countRow, stackCounts && styles.countRowStacked]}>
-          <Count label="방문" value={summary.visits} stacked={stackCounts} palette={palette} />
-          <Count label="앱 수집품" value={summary.appCollectibles} stacked={stackCounts} palette={palette} />
-          <Count label="실제 NFT" value={summary.finalizedNfts} stacked={stackCounts} palette={palette} />
-        </View>
-      </View>
+    <>
+      <ScrollView
+        ref={scrollView}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom, backgroundColor: palette.background }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      >
+        <PassportHero
+          book={badges.book}
+          counts={summary}
+          isShowcase={isShowcase}
+          stackCounts={stackCounts}
+          stackMain={fontScale >= 1.5}
+          onOpenRewards={() => scrollView.current?.scrollTo({ y: Math.max(0, (rewardsY ?? 0) - 12), animated: true })}
+        />
 
-      <Section palette={palette} title="동네 탐험 배지" note="인정된 방문에서 서로 다른 가게를 발견할 때 열려요. 기존 앱 수집품·NFT와 별개예요.">
-        <View style={[styles.journeyPanel, { backgroundColor: palette.surface }]}>
-          <Text style={[styles.journeyLead, { color: palette.label }]}>
-            {journey.distinctStores === 0 ? '첫 가게에서 이야기를 시작해 보세요.' : `새로운 가게 ${journey.distinctStores}곳을 만났어요.`}
-          </Text>
-          <View accessibilityRole="progressbar" accessibilityLabel="동네 탐험 진행" accessibilityValue={{ min: 0, max: 3, now: Math.min(3, journey.distinctStores) }} style={[styles.journeyTrack, { backgroundColor: palette.primaryContainer }]}>
-            <View style={[styles.journeyFill, { backgroundColor: palette.primary, width: `${Math.min(100, journey.distinctStores / 3 * 100)}%` as const }]} />
-          </View>
-          {journey.badges.map((badge) => (
-            <View key={badge.id} style={[styles.badgeRow, { borderBottomColor: palette.separator }]}>
-              <Image source={badge.earned ? mascotStamp : mascotStampEmpty} accessible={false} style={[styles.badgeImage, !badge.earned && styles.badgeLocked]} />
-              <View style={styles.badgeCopy}>
-                <Text style={[styles.badgeTitle, { color: palette.label }]}>{badge.title}</Text>
-                <Text style={[styles.badgeDetail, { color: palette.secondaryLabel }]}>
-                  {badge.earned ? '획득 · 동네 이야기가 하나 더 생겼어요' : `서로 다른 가게 ${badge.targetStores}곳 · ${badge.remaining}곳 남음`}
-                </Text>
-              </View>
-              {badge.earned ? (
-                <Pressable accessibilityRole="button" accessibilityLabel={`${badge.title} 배지 공유`} onPress={() => void shareBadge(badge)} style={[styles.badgeShare, { borderColor: palette.primary }]}>
-                  <Text style={[styles.badgeShareText, { color: palette.primary }]}>공유</Text>
-                </Pressable>
-              ) : null}
+        <Section palette={palette} title="배지">
+          {badges.book ? (
+            <MedalShelf medals={badges.book.medals} stacked={stackTrio} onSelect={setDetailKind} />
+          ) : badges.status === 'error' ? (
+            <SectionRetry message="배지를 불러오지 못했어요. 도감의 다른 기록은 그대로예요." onRetry={() => void badges.retry()} busy={badges.retrying} />
+          ) : (
+            <MedalShelfSkeleton stacked={stackTrio} />
+          )}
+        </Section>
+
+        {badges.book ? (
+          <Section palette={palette} title="보상 상자" note="배지 3개마다 상자가 하나씩 열려요." onLayout={setRewardsY}>
+            <RewardTrack
+              book={badges.book}
+              onOpen={openReward}
+              onRevealed={onRevealed}
+              onOpenFailed={onOpenFailed}
+            />
+            <Text style={styles.subsectionTitle}>내 쿠폰</Text>
+            {coupons.length === 0 ? (
+              <EmptyCopy palette={palette} text="상자를 열면 쿠폰이 여기에 모여요." />
+            ) : (
+              coupons.map((coupon) => <CouponTicket key={coupon.couponId} coupon={coupon} onUse={setUsingCoupon} />)
+            )}
+          </Section>
+        ) : null}
+
+        {merchantsError ? (
+          <Section palette={palette} title="스탬프판">
+            <Pressable accessibilityRole="button" onPress={retryMerchants} style={[styles.recoveryButton, { backgroundColor: palette.surface }]}>
+              <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>음식점 목록을 불러오지 못했습니다. 다시 시도</Text>
+            </Pressable>
+          </Section>
+        ) : merchantsLoading ? (
+          <Section palette={palette} title="스탬프판"><EmptyCopy palette={palette} text="공개 음식점을 불러오는 중입니다." /></Section>
+        ) : stampSlots.length > 0 ? (
+          <Section
+            palette={palette}
+            title="스탬프판"
+            note={`스탬프 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length} · 보상 진행은 현재 캠페인의 인정된 방문만 셉니다.`}
+          >
+            <View style={styles.stampGrid}>
+              {stampSlots.map((slot, index) => (
+                <StampCard key={slot.merchantId} slot={slot} goal={merchantGoals[index]!} index={index} width={stampSlotWidth} palette={palette} />
+              ))}
             </View>
-          ))}
-        </View>
-        {isShowcase ? (
-          <View style={[styles.couponPreview, { backgroundColor: palette.accentContainer }]}>
-            <Text style={[styles.couponTitle, { color: palette.onAccentContainer }]}>시연 쿠폰 예시</Text>
-            <Text style={[styles.couponBody, { color: palette.onAccentContainer }]}>
-              {journey.badges[2]?.earned
-                ? '세 가게 탐험을 채웠어요. 실제 쿠폰은 발급되지 않습니다.'
-                : `서로 다른 세 가게를 방문하면 보이는 보상 화면 예시 · ${journey.badges[2]?.remaining ?? 3}곳 남음`}
-            </Text>
-            <Text style={[styles.couponWarning, { color: palette.onAccentContainer }]}>가상 시연 · 실제 매장 사용 불가 · 할인 코드 없음</Text>
+          </Section>
+        ) : (
+          <Section palette={palette} title="스탬프판"><EmptyCopy palette={palette} text="현재 공개된 음식점이 없습니다." /></Section>
+        )}
+
+        {error ? <Text style={[styles.inlineError, { color: palette.onErrorContainer, backgroundColor: palette.errorContainer }]}>{error}</Text> : null}
+        {bindingError ? (
+          <View style={[styles.recoveryBanner, { backgroundColor: palette.errorContainer }]}>
+            <Text selectable style={[styles.recoveryText, { color: palette.onErrorContainer }]}>{bindingError}</Text>
+            <Pressable accessibilityRole="button" onPress={() => void refreshBinding()} style={[styles.recoveryButton, { backgroundColor: palette.surface }]}>
+              <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>지갑 상태 다시 확인</Text>
+            </Pressable>
           </View>
         ) : null}
-      </Section>
-
-      {merchantsError ? (
-        <Section palette={palette} title="스탬프판">
-          <Pressable accessibilityRole="button" onPress={retryMerchants} style={[styles.recoveryButton, { backgroundColor: palette.surface }]}>
-            <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>음식점 목록을 불러오지 못했습니다. 다시 시도</Text>
-          </Pressable>
-        </Section>
-      ) : merchantsLoading ? (
-        <Section palette={palette} title="스탬프판"><EmptyCopy palette={palette} text="공개 음식점을 불러오는 중입니다." /></Section>
-      ) : stampSlots.length > 0 ? (
-        <Section
-          palette={palette}
-          title="스탬프판"
-          note={`스탬프 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length} · 보상 진행은 현재 캠페인의 인정된 방문만 셉니다.`}
-        >
-          <View style={styles.stampGrid}>
-            {stampSlots.map((slot, index) => (
-              <StampCard key={slot.merchantId} slot={slot} goal={merchantGoals[index]!} width={stampSlotWidth} palette={palette} />
-            ))}
+        {polling?.mode === 'manual-retry' ? (
+          <View accessibilityLiveRegion="polite" style={[styles.recoveryBanner, { backgroundColor: palette.errorContainer }]}>
+            <Text selectable style={[styles.recoveryText, { color: palette.onErrorContainer }]}>
+              NFT 등록 작업 결과를 확인하지 못했습니다. 접수는 취소되지 않았습니다.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              disabled={pollingRetrying}
+              onPress={() => void retryPolling()}
+              style={[styles.recoveryButton, { backgroundColor: palette.surface }, pollingRetrying && styles.disabled]}
+            >
+              <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>{pollingRetrying ? '확인 중…' : '지금 다시 확인'}</Text>
+            </Pressable>
           </View>
-        </Section>
-      ) : (
-        <Section palette={palette} title="스탬프판"><EmptyCopy palette={palette} text="현재 공개된 음식점이 없습니다." /></Section>
-      )}
-
-      {error ? <Text style={[styles.inlineError, { color: palette.onErrorContainer, backgroundColor: palette.errorContainer }]}>{error}</Text> : null}
-      {bindingError ? (
-        <View style={[styles.recoveryBanner, { backgroundColor: palette.errorContainer }]}>
-          <Text selectable style={[styles.recoveryText, { color: palette.onErrorContainer }]}>{bindingError}</Text>
-          <Pressable accessibilityRole="button" onPress={() => void refreshBinding()} style={[styles.recoveryButton, { backgroundColor: palette.surface }]}>
-            <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>지갑 상태 다시 확인</Text>
-          </Pressable>
-        </View>
-      ) : null}
-      {polling?.mode === 'manual-retry' ? (
-        <View accessibilityLiveRegion="polite" style={[styles.recoveryBanner, { backgroundColor: palette.errorContainer }]}>
-          <Text selectable style={[styles.recoveryText, { color: palette.onErrorContainer }]}>
-            NFT 등록 작업 결과를 확인하지 못했습니다. 접수는 취소되지 않았습니다.
+        ) : null}
+        {polling?.message === 'NFT_FINALIZED' ? (
+          <Text accessibilityLiveRegion="polite" style={[styles.inlineMessage, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>
+            NFT가 블록체인 이벤트 대조를 거쳐 등록 완료됐습니다.
           </Text>
-          <Pressable
-            accessibilityRole="button"
-            disabled={pollingRetrying}
-            onPress={() => void retryPolling()}
-            style={[styles.recoveryButton, { backgroundColor: palette.surface }, pollingRetrying && styles.disabled]}
-          >
-            <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>{pollingRetrying ? '확인 중…' : '지금 다시 확인'}</Text>
-          </Pressable>
-        </View>
-      ) : null}
-      {polling?.message === 'NFT_FINALIZED' ? (
-        <Text accessibilityLiveRegion="polite" style={[styles.inlineMessage, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>
-          NFT가 블록체인 이벤트 대조를 거쳐 등록 완료됐습니다.
-        </Text>
-      ) : message ? <Text style={[styles.inlineMessage, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
+        ) : message ? <Text style={[styles.inlineMessage, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
 
-      <Section palette={palette} title="앱에서 받은 수집품" note="보상권을 받으면 앱 도감에 먼저 기록됩니다.">
-        {collection.collectibles.length === 0 ? (
-          <EmptyCopy palette={palette} text="아직 받은 수집품이 없습니다. 첫 방문을 인증해 보세요." />
-        ) : (
-          collection.collectibles.map((item) => {
-            const artKey = showcaseCollectibleArtKey(Application.applicationId, item.merchantId);
-            const artSource = artKey ? showcaseCollectibleArtSource(artKey) : undefined;
-            return (
-              <View key={item.entitlementId} style={[styles.collectibleCard, { backgroundColor: palette.surface }]}>
-              {artSource ? (
-                <>
-                  <Image source={artSource} accessible={false} style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
-                  <Text style={[styles.collectibleArtNote, { color: palette.secondaryLabel }]}>가상 점포 시연 그림 · 실제 NFT 발행 증거 아님</Text>
-                </>
-              ) : null}
-              <View style={styles.collectibleTopline}>
-                <Text style={[styles.goalBadge, { color: palette.primary }]}>{item.targetVisitCount}회</Text>
-                <Text style={[styles.appStatus, { color: palette.onSuccessContainer }]}>APP · 수집 완료</Text>
-              </View>
-              <Text selectable style={[styles.itemTitle, { color: palette.label }]}>{item.displayName}</Text>
-              <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{item.merchantName} · {item.campaignTitle}</Text>
-              <View style={[styles.nftRow, { borderTopColor: palette.separator }]}>
-                <Text style={[styles.nftLabel, { color: palette.secondaryLabel }]}>실제 NFT</Text>
-                <Text style={[styles.nftValue, { color: palette.label }]}>{nftLabel(item.nftStatus)}</Text>
-              </View>
-              {item.recipient ? (
-                <Text selectable style={[styles.recipient, { color: palette.secondaryLabel }]}>수령인 {shortAddress(item.recipient)}</Text>
-              ) : null}
-              {item.nft ? (
-                <Text selectable style={[styles.nftIdentity, { color: palette.primary }]}>
-                  {chainLabel(item.nft.chainId)} · {shortAddress(item.nft.contractAddress)} · #{item.nft.tokenId}
-                </Text>
-              ) : null}
-              {item.nftStatus === 'NOT_REQUESTED' ? (
-                binding ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={busyEntitlementId === item.entitlementId}
-                    onPress={() => confirmMint(item)}
-                    style={[styles.mintButton, { backgroundColor: palette.primary }, busyEntitlementId === item.entitlementId && styles.disabled]}
-                  >
-                    <Text style={[styles.mintButtonText, { color: palette.onPrimary }]}>
-                      {busyEntitlementId === item.entitlementId ? '접수 중…' : '양도 제한 NFT 받기'}
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <Link href="/wallet" asChild>
-                    <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.walletButton, { borderColor: palette.primary }])}>
-                      <Text style={[styles.walletButtonText, { color: palette.primary }]}>외부 지갑 주소 확인</Text>
+        <Section palette={palette} title="앱에서 받은 수집품" note="보상권을 받으면 앱 도감에 먼저 기록됩니다.">
+          {collection.collectibles.length === 0 ? (
+            <EmptyCopy palette={palette} text="아직 받은 수집품이 없습니다. 첫 방문을 인증해 보세요." />
+          ) : (
+            collection.collectibles.map((item) => {
+              const artKey = showcaseCollectibleArtKey(Application.applicationId, item.merchantId);
+              const artSource = artKey ? showcaseCollectibleArtSource(artKey) : undefined;
+              return (
+                <View key={item.entitlementId} style={[styles.collectibleCard, { backgroundColor: palette.surface }]}>
+                {artSource ? (
+                  <>
+                    <Image source={artSource} accessible={false} style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
+                    <Text style={[styles.collectibleArtNote, { color: palette.secondaryLabel }]}>가상 점포 시연 그림 · 실제 NFT 발행 증거 아님</Text>
+                  </>
+                ) : null}
+                <View style={styles.collectibleTopline}>
+                  <Text style={[styles.goalBadge, { color: palette.primary }]}>{item.targetVisitCount}회</Text>
+                  <Text style={[styles.appStatus, { color: palette.onSuccessContainer }]}>APP · 수집 완료</Text>
+                </View>
+                <Text selectable style={[styles.itemTitle, { color: palette.label }]}>{item.displayName}</Text>
+                <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{item.merchantName} · {item.campaignTitle}</Text>
+                <View style={[styles.nftRow, { borderTopColor: palette.separator }]}>
+                  <Text style={[styles.nftLabel, { color: palette.secondaryLabel }]}>실제 NFT</Text>
+                  <Text style={[styles.nftValue, { color: palette.label }]}>{nftLabel(item.nftStatus)}</Text>
+                </View>
+                {item.recipient ? (
+                  <Text selectable style={[styles.recipient, { color: palette.secondaryLabel }]}>수령인 {shortAddress(item.recipient)}</Text>
+                ) : null}
+                {item.nft ? (
+                  <Text selectable style={[styles.nftIdentity, { color: palette.primary }]}>
+                    {chainLabel(item.nft.chainId)} · {shortAddress(item.nft.contractAddress)} · #{item.nft.tokenId}
+                  </Text>
+                ) : null}
+                {item.nftStatus === 'NOT_REQUESTED' ? (
+                  binding ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={busyEntitlementId === item.entitlementId}
+                      onPress={() => confirmMint(item)}
+                      style={[styles.mintButton, { backgroundColor: palette.primary }, busyEntitlementId === item.entitlementId && styles.disabled]}
+                    >
+                      <Text style={[styles.mintButtonText, { color: palette.onPrimary }]}>
+                        {busyEntitlementId === item.entitlementId ? '접수 중…' : '양도 제한 NFT 받기'}
+                      </Text>
                     </Pressable>
-                  </Link>
-                )
-              ) : null}
-              </View>
-            );
-          })
-        )}
-      </Section>
+                  ) : (
+                    <Link href="/wallet" asChild>
+                      <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.walletButton, { borderColor: palette.primary }])}>
+                        <Text style={[styles.walletButtonText, { color: palette.primary }]}>외부 지갑 주소 확인</Text>
+                      </Pressable>
+                    </Link>
+                  )
+                ) : null}
+                </View>
+              );
+            })
+          )}
+        </Section>
 
-      <Section palette={palette} title="방문 기록" note="방문한 날짜(한국 기준)만 기록하고, 식사 시각은 남기지 않아요.">
-        {collection.visits.length === 0 ? (
-          <EmptyCopy palette={palette} text="아직 인증한 방문이 없습니다." />
-        ) : (
-          collection.visits.map((visit) => (
-            <View key={visit.visitEventId} style={[styles.visitRow, { backgroundColor: palette.surface }]}>
-              <View style={styles.visitLeft}>
-                <Text selectable style={[styles.visitMerchant, { color: palette.label }]}>{visit.merchantName}</Text>
-                <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{visit.campaignTitle}</Text>
+        <Section palette={palette} title="방문 기록" note="방문한 날짜(한국 기준)만 기록하고, 식사 시각은 남기지 않아요.">
+          {collection.visits.length === 0 ? (
+            <EmptyCopy palette={palette} text="아직 인증한 방문이 없습니다." />
+          ) : (
+            collection.visits.map((visit) => (
+              <View key={visit.visitEventId} style={[styles.visitRow, { backgroundColor: palette.surface }]}>
+                <View style={styles.visitLeft}>
+                  <Text selectable style={[styles.visitMerchant, { color: palette.label }]}>{visit.merchantName}</Text>
+                  <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{visit.campaignTitle}</Text>
+                </View>
+                <View style={styles.visitRight}>
+                  <Text style={[styles.visitDate, { color: palette.label }]}>{visit.businessDate}</Text>
+                  <Text style={[styles.progressLabel, { color: palette.primary }]}>{visit.progressCounted ? '진행 반영' : '방문만 기록'}</Text>
+                </View>
               </View>
-              <View style={styles.visitRight}>
-                <Text style={[styles.visitDate, { color: palette.label }]}>{visit.businessDate}</Text>
-                <Text style={[styles.progressLabel, { color: palette.primary }]}>{visit.progressCounted ? '진행 반영' : '방문만 기록'}</Text>
-              </View>
-            </View>
-          ))
-        )}
-      </Section>
+            ))
+          )}
+        </Section>
 
-      <Link href="/recommendations" asChild>
-        <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.primaryButton, { backgroundColor: palette.primary }])}>
-          <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>다음 음식점 추천 보기</Text>
-        </Pressable>
-      </Link>
-    </ScrollView>
+        <Link href="/recommendations" asChild>
+          <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.primaryButton, { backgroundColor: palette.primary }])}>
+            <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>다음 음식점 추천 보기</Text>
+          </Pressable>
+        </Link>
+      </ScrollView>
+
+      <MedalDetail medal={detailMedal} variant={variant} onClose={() => setDetailKind(undefined)} />
+      <RewardReveal
+        result={revealed}
+        onClose={() => setRevealed(undefined)}
+        onUse={(coupon) => {
+          setRevealed(undefined);
+          setUsingCoupon(coupon);
+        }}
+      />
+      <CouponUseSheet
+        coupon={usingCoupon}
+        variant={variant}
+        createIdentity={createIdentity}
+        revokeIdentity={revokeIdentity}
+        loadBadgeBook={loadBadgeBook}
+        onBadgeBook={replaceBadgeBook}
+        onClose={() => setUsingCoupon(undefined)}
+      />
+    </>
   );
 }
 
-function StampCard({ slot, goal, width, palette }: { slot: StampSlot; goal: MerchantGoal; width: number; palette: AppColors }) {
-  const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
+function StampCard({ slot, goal, index, width, palette }: { slot: StampSlot; goal: MerchantGoal; index: number; width: number; palette: AppColors }) {
+  const styles = collectionStyles(palette);
   const statusText = slot.visited ? `방문 ${slot.visitCount}회` : '아직 안 가봤어요';
   const goalText = describeMerchantGoal(goal);
+  const shortGoal = shortMerchantGoal(goal);
   const progressText = `보상 진행 ${goal.progressCount}${goal.nextGoal ? `/${goal.nextGoal.targetVisitCount}` : ''}회 · 앱 수집품 ${goal.earnedGoals.length}/${goal.totalGoals}`;
   const accessibilityLabel = `${slot.merchantName}, ${statusText}, ${progressText}, ${goalText}, 음식점 상세 보기`;
   return (
     <Link href={{ pathname: '/merchants/[merchantId]', params: { merchantId: slot.merchantId } }} asChild>
-      <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={[styles.stampSlot, { width, backgroundColor: palette.surface }]}>
-        <Image source={slot.visited ? mascotStamp : mascotStampEmpty} accessible={false} accessibilityIgnoresInvertColors style={styles.stampImage} />
+      <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={StyleSheet.flatten([styles.stampSlot, { width, backgroundColor: palette.surface }])}>
+        {slot.visited ? (
+          <View style={[styles.stampInk, { borderColor: palette.primary, transform: [{ rotate: `${stampRotation(index)}deg` }] }]}>
+            <Image source={mascotStamp} accessible={false} accessibilityIgnoresInvertColors style={styles.stampImage} />
+          </View>
+        ) : (
+          <View style={[styles.stampInk, styles.stampInkEmpty, { borderColor: palette.separator }]}>
+            <Image source={mascotStampEmpty} accessible={false} accessibilityIgnoresInvertColors style={[styles.stampImage, styles.stampImageEmpty]} />
+            <Text style={[styles.stampMystery, { color: palette.secondaryLabel }]}>?</Text>
+          </View>
+        )}
         <Text numberOfLines={2} style={[styles.stampName, { color: palette.label }]}>{slot.merchantName}</Text>
-        <Text style={[styles.stampStatus, { color: palette.secondaryLabel }]}>{statusText}</Text>
-        <Text style={[styles.stampStatus, { color: palette.primary }]}>{progressText}</Text>
-        <Text style={[styles.stampStatus, { color: palette.secondaryLabel }]}>{goalText}</Text>
+        <Text style={[styles.stampStatus, { color: slot.visited ? palette.primary : palette.secondaryLabel }]}>{statusText}</Text>
+        <Text style={[styles.stampStatus, { color: palette.secondaryLabel }]}>{shortGoal}</Text>
       </Pressable>
     </Link>
   );
 }
 
-function Count({ label, value, stacked, palette }: { label: string; value: number; stacked: boolean; palette: AppColors }) {
-  const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
+function Section({ title, note, children, palette, onLayout }: {
+  title: string;
+  note?: string;
+  children: React.ReactNode;
+  palette: AppColors;
+  /** Reports the section's y inside the scroll content (for scroll-to). */
+  onLayout?: (y: number) => void;
+}) {
+  const styles = collectionStyles(palette);
   return (
-    <View style={[styles.countItem, stacked && styles.countItemStacked, { backgroundColor: palette.surface }]}>
-      <Text style={[styles.countValue, { color: palette.primary }]}>{value}</Text>
-      <Text style={[styles.countLabel, { color: palette.secondaryLabel }]}>{label}</Text>
-    </View>
-  );
-}
-
-function Section({ title, note, children, palette }: { title: string; note?: string; children: React.ReactNode; palette: AppColors }) {
-  const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
-  return (
-    <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: palette.label }]}>{title}</Text>
+    <View style={styles.section} onLayout={onLayout ? (event) => onLayout(event.nativeEvent.layout.y) : undefined}>
+      <Text accessibilityRole="header" style={[styles.sectionTitle, { color: palette.label }]}>{title}</Text>
       {note ? <Text style={[styles.sectionNote, { color: palette.secondaryLabel }]}>{note}</Text> : null}
       <View style={styles.sectionBody}>{children}</View>
     </View>
@@ -484,7 +574,7 @@ function Section({ title, note, children, palette }: { title: string; note?: str
 }
 
 function EmptyCopy({ text, palette }: { text: string; palette: AppColors }) {
-  const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
+  const styles = collectionStyles(palette);
   return <Text style={[styles.emptyCopy, { color: palette.secondaryLabel, backgroundColor: palette.surface }]}>{text}</Text>;
 }
 

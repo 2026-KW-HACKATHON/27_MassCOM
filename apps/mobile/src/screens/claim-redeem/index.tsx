@@ -1,5 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Link } from 'expo-router';
+import * as Application from 'expo-application';
+import { Link, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +21,9 @@ import {
   claimSuccessCopy,
   type ClaimRecoveryAction,
 } from '@/commerce/claim-recovery';
+import { createBadgeApiClient, type BadgeBook } from '@/gamification/badge-api';
+import { diffBadgeBooks } from '@/gamification/badge-rules';
+import { Celebration, type CelebrationContent } from '@/gamification/celebration';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
 
 import { makeClaimRedeemStyles } from './styles';
@@ -55,6 +59,14 @@ export function ClaimRedeemScreen({
   const [now, setNow] = useState(Date.now());
   const [, requestCameraPermission] = useCameraPermissions();
   const scanGate = useRef(createScanGate()).current;
+  const router = useRouter();
+  const badgeApi = useMemo(
+    () => createBadgeApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
+  // Badge book seen when the code was checked; compared after the claim for the celebration.
+  const badgesBeforeClaim = useRef<Promise<BadgeBook | undefined> | undefined>(undefined);
+  const [celebration, setCelebration] = useState<CelebrationContent>();
 
   useEffect(() => {
     if (!identity) return;
@@ -98,6 +110,7 @@ export function ClaimRedeemScreen({
   }
 
   function changeToken(value: string) {
+    badgesBeforeClaim.current = undefined;
     setToken(value);
     setPreview(undefined);
     setRedeemed(undefined);
@@ -139,6 +152,9 @@ export function ClaimRedeemScreen({
     setMessage(undefined);
     try {
       const next = await api.previewClaim(code);
+      badgesBeforeClaim.current = next.status === 'AVAILABLE'
+        ? badgeApi.getBadgeBook().catch(() => undefined)
+        : undefined;
       setPreview(next);
       setPendingRedeemToken(code);
       setRecoveryAction(undefined);
@@ -164,6 +180,9 @@ export function ClaimRedeemScreen({
       setRecoveryAction(undefined);
       setMessage(claimSuccessCopy(result).body);
       requestAnimationFrame(() => scrollView.current?.scrollToEnd({ animated: true }));
+      const before = badgesBeforeClaim.current;
+      badgesBeforeClaim.current = undefined;
+      if (!result.replayed) void celebrate(result, before);
     } catch (error) {
       const action = claimFailureAction(error, preview);
       setRecoveryAction(action);
@@ -177,126 +196,151 @@ export function ClaimRedeemScreen({
     }
   }
 
+  // Runs after the claim is final; a badge lookup failure only trims the celebration, never the claim.
+  async function celebrate(result: RedeemedClaim, before: Promise<BadgeBook | undefined> | undefined) {
+    const [previous, after] = await Promise.all([
+      before ?? Promise.resolve(undefined),
+      badgeApi.getBadgeBook().catch(() => undefined),
+    ]);
+    setCelebration({
+      merchantName: result.merchantName,
+      progressCounted: result.visit.progressCounted,
+      diff: diffBadgeBooks(previous, after),
+      after,
+    });
+  }
+
   return (
-    <ScrollView
-      ref={scrollView}
-      contentInsetAdjustmentBehavior="automatic"
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom, backgroundColor: palette.background }]}
-    >
-      <View style={styles.hero}>
-        <Text style={[styles.eyebrow, { color: palette.primary }]}>방문 인증</Text>
-        <Text selectable style={[styles.title, { color: palette.label }]}>방문을 인증해요.</Text>
-        <Text selectable style={[styles.body, { color: palette.secondaryLabel }]}>점주에게 받은 QR을 촬영하거나 1회 코드를 입력하세요.</Text>
-      </View>
-
-      <View style={[styles.formCard, { backgroundColor: palette.surface }]}>
-        <Text style={[styles.sectionTitle, { color: palette.label }]}>내 2분 식별 QR</Text>
-        <Text selectable style={[styles.securityNote, { color: palette.secondaryLabel }]}>직원에게 이 QR을 보여주세요. 직원이 식별 후 실제 사용을 확인해야 방문 코드가 발급됩니다.</Text>
-        {identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? (
-          <View style={{ alignItems: 'center', gap: 10 }}>
-            <ClaimQr code={identity.token} accessibilityLabel="직원에게 보여줄 고객 식별 QR 코드" />
-            <Text selectable style={[styles.sectionTitle, { color: palette.label }]}>확인 코드 {customerIdentityCode(identity.token)}</Text>
-            <Text style={[styles.securityNote, { color: palette.secondaryLabel }]}>{Math.ceil((Date.parse(identity.expiresAt) - now) / 1000)}초 뒤 만료</Text>
-          </View>
-        ) : identity ? <Text accessibilityLiveRegion="polite" style={[styles.securityNote, { color: palette.secondaryLabel }]}>식별 QR이 만료됐습니다. 새 QR을 발급해 주세요.</Text> : null}
-        {identityMessage ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{identityMessage}</Text> : null}
-        <Pressable accessibilityRole="button" disabled={identityBusy} onPress={() => void refreshIdentity()} style={[styles.button, { backgroundColor: palette.primary }, identityBusy && styles.disabled]}>
-          <Text style={[styles.buttonText, { color: palette.onPrimary }]}>{identityBusy ? '처리 중…' : identity ? '새 식별 QR 발급' : '식별 QR 발급'}</Text>
-        </Pressable>
-        {identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? <Pressable accessibilityRole="button" disabled={identityBusy} onPress={() => void revokeIdentity()} style={[styles.button, { backgroundColor: palette.primaryContainer }, identityBusy && styles.disabled]}>
-          <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>이 QR 폐기</Text>
-        </Pressable> : null}
-      </View>
-
-      <View style={[styles.formCard, { backgroundColor: palette.surface }]}>
-        <Text style={[styles.sectionTitle, { color: palette.label }]}>1 · 코드 확인</Text>
-        {scanning ? (
-          <View style={styles.camera}>
-            <CameraView
-              style={StyleSheet.absoluteFill}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              onBarcodeScanned={({ data }) => handleScanned(data)}
-            />
-          </View>
-        ) : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="QR 코드 촬영"
-          accessibilityHint="점주 화면의 방문 수령 QR 코드를 카메라로 읽습니다."
-          disabled={busy}
-          onPress={scanning ? () => setScanning(false) : () => void startScan()}
-          style={[styles.button, styles.scanButton, { backgroundColor: palette.surface, borderColor: palette.primary }, busy && styles.disabled]}
-        >
-          <Text style={[styles.buttonText, styles.scanButtonText, { color: palette.primary }]}>{scanning ? '촬영 닫기' : 'QR 촬영'}</Text>
-        </Pressable>
-        <Text style={[styles.inputLabel, { color: palette.label }]}>수령 코드</Text>
-        <TextInput
-          value={token}
-          onChangeText={changeToken}
-          autoCapitalize="none"
-          autoCorrect={false}
-          multiline
-          placeholder="점주 화면의 1회 코드를 입력"
-          placeholderTextColor={palette.secondaryLabel}
-          style={[styles.input, { color: palette.label, backgroundColor: palette.background, borderColor: palette.separator }]}
-        />
-        <Text selectable style={[styles.securityNote, { color: palette.secondaryLabel }]}>코드는 URL이나 로그에 남기지 않고 안전하게 전송합니다.</Text>
-        <Pressable accessibilityRole="button" disabled={!token.trim() || busy} onPress={() => void inspect()} style={[styles.button, { backgroundColor: !token.trim() || busy ? palette.primaryContainer : palette.primary }]}>
-          <Text style={[styles.buttonText, { color: !token.trim() || busy ? palette.onPrimaryContainer : palette.onPrimary }]}>{busy ? '확인 중…' : '코드 상태 확인'}</Text>
-        </Pressable>
-      </View>
-
-      {message ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
-
-      {preview ? (
-        <View style={[styles.previewCard, { backgroundColor: palette.surface }]}>
-          <Text style={[styles.sectionTitle, { color: palette.label }]}>2 · 방문 확정</Text>
-          <StatusRow palette={palette} label="상태" value={preview.status === 'AVAILABLE' ? '수령 가능' : '만료'} />
-          <StatusRow palette={palette} label="가게" value={preview.merchantName} />
-          <StatusRow palette={palette} label="캠페인" value={preview.campaignTitle} />
-          <StatusRow palette={palette} label="만료" value={formatDateTime(preview.expiresAt)} />
-          {recoveryAction?.kind === 'collection-check' ? (
-            <Link href="/collection" asChild>
-              <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.button, { backgroundColor: palette.primary }])}>
-                <Text style={[styles.buttonText, { color: palette.onPrimary }]}>{recoveryAction.label}</Text>
-              </Pressable>
-            </Link>
-          ) : (
-            <Pressable accessibilityRole="button" disabled={preview.status !== 'AVAILABLE' || busy} onPress={redeem} style={[styles.button, { backgroundColor: preview.status !== 'AVAILABLE' || busy ? palette.primaryContainer : palette.primary }]}>
-              <Text style={[styles.buttonText, { color: preview.status !== 'AVAILABLE' || busy ? palette.onPrimaryContainer : palette.onPrimary }]}>
-                {recoveryAction?.kind === 'retry' ? recoveryAction.label : '방문 수령 확정'}
-              </Text>
-            </Pressable>
-          )}
+    <>
+      <ScrollView
+        ref={scrollView}
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom, backgroundColor: palette.background }]}
+      >
+        <View style={styles.hero}>
+          <Text style={[styles.eyebrow, { color: palette.primary }]}>방문 인증</Text>
+          <Text selectable style={[styles.title, { color: palette.label }]}>방문을 인증해요.</Text>
+          <Text selectable style={[styles.body, { color: palette.secondaryLabel }]}>점주에게 받은 QR을 촬영하거나 1회 코드를 입력하세요.</Text>
         </View>
-      ) : null}
 
-      {redeemed ? (
-        <View accessibilityLiveRegion="polite" style={[styles.successCard, { backgroundColor: palette.successContainer }]}>
-          <Text style={[styles.successEyebrow, { color: palette.onSuccessContainer }]}>3 · 방문 완료</Text>
-          <Text selectable style={[styles.successTitle, { color: palette.onSuccessContainer }]}>{claimSuccessCopy(redeemed).title}</Text>
-          <Text selectable style={[styles.successBody, { color: palette.onSuccessContainer }]}>{claimSuccessCopy(redeemed).body}</Text>
-          <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>{redeemed.visit.businessDate} · {redeemed.visit.progressVisitCount}회 진행</Text>
-          <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
-            {redeemed.visit.progressCounted ? '오늘 방문이 진행 횟수에 반영됐습니다.' : '방문은 기록됐지만 같은 한국 날짜의 진행은 한 번만 셉니다.'}
-          </Text>
-          <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
-            새 보상권 {redeemed.grantedRewards.length}개 · NFT 발행은 아직 요청하지 않았습니다.
-          </Text>
-          <View style={styles.successActions}>
-            {claimSuccessCopy(redeemed).destinations.map((destination) => (
-              <Link key={destination.href} href={destination.href} asChild>
-                <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.collectionButton, { backgroundColor: palette.primary }])}>
-                  <Text style={[styles.collectionButtonText, { color: palette.onPrimary }]}>{destination.label}</Text>
+        <View style={[styles.formCard, { backgroundColor: palette.surface }]}>
+          <Text style={[styles.sectionTitle, { color: palette.label }]}>내 2분 식별 QR</Text>
+          <Text selectable style={[styles.securityNote, { color: palette.secondaryLabel }]}>직원에게 이 QR을 보여주세요. 직원이 식별 후 실제 사용을 확인해야 방문 코드가 발급됩니다.</Text>
+          {identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? (
+            <View style={{ alignItems: 'center', gap: 10 }}>
+              <ClaimQr code={identity.token} accessibilityLabel="직원에게 보여줄 고객 식별 QR 코드" />
+              <Text selectable style={[styles.sectionTitle, { color: palette.label }]}>확인 코드 {customerIdentityCode(identity.token)}</Text>
+              <Text style={[styles.securityNote, { color: palette.secondaryLabel }]}>{Math.ceil((Date.parse(identity.expiresAt) - now) / 1000)}초 뒤 만료</Text>
+            </View>
+          ) : identity ? <Text accessibilityLiveRegion="polite" style={[styles.securityNote, { color: palette.secondaryLabel }]}>식별 QR이 만료됐습니다. 새 QR을 발급해 주세요.</Text> : null}
+          {identityMessage ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{identityMessage}</Text> : null}
+          <Pressable accessibilityRole="button" disabled={identityBusy} onPress={() => void refreshIdentity()} style={[styles.button, { backgroundColor: palette.primary }, identityBusy && styles.disabled]}>
+            <Text style={[styles.buttonText, { color: palette.onPrimary }]}>{identityBusy ? '처리 중…' : identity ? '새 식별 QR 발급' : '식별 QR 발급'}</Text>
+          </Pressable>
+          {identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? <Pressable accessibilityRole="button" disabled={identityBusy} onPress={() => void revokeIdentity()} style={[styles.button, { backgroundColor: palette.primaryContainer }, identityBusy && styles.disabled]}>
+            <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>이 QR 폐기</Text>
+          </Pressable> : null}
+        </View>
+
+        <View style={[styles.formCard, { backgroundColor: palette.surface }]}>
+          <Text style={[styles.sectionTitle, { color: palette.label }]}>1 · 코드 확인</Text>
+          {scanning ? (
+            <View style={styles.camera}>
+              <CameraView
+                style={StyleSheet.absoluteFill}
+                facing="back"
+                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                onBarcodeScanned={({ data }) => handleScanned(data)}
+              />
+            </View>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="QR 코드 촬영"
+            accessibilityHint="점주 화면의 방문 수령 QR 코드를 카메라로 읽습니다."
+            disabled={busy}
+            onPress={scanning ? () => setScanning(false) : () => void startScan()}
+            style={[styles.button, styles.scanButton, { backgroundColor: palette.surface, borderColor: palette.primary }, busy && styles.disabled]}
+          >
+            <Text style={[styles.buttonText, styles.scanButtonText, { color: palette.primary }]}>{scanning ? '촬영 닫기' : 'QR 촬영'}</Text>
+          </Pressable>
+          <Text style={[styles.inputLabel, { color: palette.label }]}>수령 코드</Text>
+          <TextInput
+            value={token}
+            onChangeText={changeToken}
+            autoCapitalize="none"
+            autoCorrect={false}
+            multiline
+            placeholder="점주 화면의 1회 코드를 입력"
+            placeholderTextColor={palette.secondaryLabel}
+            style={[styles.input, { color: palette.label, backgroundColor: palette.background, borderColor: palette.separator }]}
+          />
+          <Text selectable style={[styles.securityNote, { color: palette.secondaryLabel }]}>코드는 URL이나 로그에 남기지 않고 안전하게 전송합니다.</Text>
+          <Pressable accessibilityRole="button" disabled={!token.trim() || busy} onPress={() => void inspect()} style={[styles.button, { backgroundColor: !token.trim() || busy ? palette.primaryContainer : palette.primary }]}>
+            <Text style={[styles.buttonText, { color: !token.trim() || busy ? palette.onPrimaryContainer : palette.onPrimary }]}>{busy ? '확인 중…' : '코드 상태 확인'}</Text>
+          </Pressable>
+        </View>
+
+        {message ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
+
+        {preview ? (
+          <View style={[styles.previewCard, { backgroundColor: palette.surface }]}>
+            <Text style={[styles.sectionTitle, { color: palette.label }]}>2 · 방문 확정</Text>
+            <StatusRow palette={palette} label="상태" value={preview.status === 'AVAILABLE' ? '수령 가능' : '만료'} />
+            <StatusRow palette={palette} label="가게" value={preview.merchantName} />
+            <StatusRow palette={palette} label="캠페인" value={preview.campaignTitle} />
+            <StatusRow palette={palette} label="만료" value={formatDateTime(preview.expiresAt)} />
+            {recoveryAction?.kind === 'collection-check' ? (
+              <Link href="/collection" asChild>
+                <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.button, { backgroundColor: palette.primary }])}>
+                  <Text style={[styles.buttonText, { color: palette.onPrimary }]}>{recoveryAction.label}</Text>
                 </Pressable>
               </Link>
-            ))}
+            ) : (
+              <Pressable accessibilityRole="button" disabled={preview.status !== 'AVAILABLE' || busy} onPress={redeem} style={[styles.button, { backgroundColor: preview.status !== 'AVAILABLE' || busy ? palette.primaryContainer : palette.primary }]}>
+                <Text style={[styles.buttonText, { color: preview.status !== 'AVAILABLE' || busy ? palette.onPrimaryContainer : palette.onPrimary }]}>
+                  {recoveryAction?.kind === 'retry' ? recoveryAction.label : '방문 수령 확정'}
+                </Text>
+              </Pressable>
+            )}
           </View>
-        </View>
-      ) : null}
-    </ScrollView>
+        ) : null}
+
+        {redeemed ? (
+          <View accessibilityLiveRegion="polite" style={[styles.successCard, { backgroundColor: palette.successContainer }]}>
+            <Text style={[styles.successEyebrow, { color: palette.onSuccessContainer }]}>3 · 방문 완료</Text>
+            <Text selectable style={[styles.successTitle, { color: palette.onSuccessContainer }]}>{claimSuccessCopy(redeemed).title}</Text>
+            <Text selectable style={[styles.successBody, { color: palette.onSuccessContainer }]}>{claimSuccessCopy(redeemed).body}</Text>
+            <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>{redeemed.visit.businessDate} · {redeemed.visit.progressVisitCount}회 진행</Text>
+            <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
+              {redeemed.visit.progressCounted ? '오늘 방문이 진행 횟수에 반영됐습니다.' : '방문은 기록됐지만 같은 한국 날짜의 진행은 한 번만 셉니다.'}
+            </Text>
+            <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
+              새 보상권 {redeemed.grantedRewards.length}개 · NFT 발행은 아직 요청하지 않았습니다.
+            </Text>
+            <View style={styles.successActions}>
+              {claimSuccessCopy(redeemed).destinations.map((destination) => (
+                <Link key={destination.href} href={destination.href} asChild>
+                  <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.collectionButton, { backgroundColor: palette.primary }])}>
+                    <Text style={[styles.collectionButtonText, { color: palette.onPrimary }]}>{destination.label}</Text>
+                  </Pressable>
+                </Link>
+              ))}
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+      <Celebration
+        content={celebration}
+        variant={Application.applicationId === 'kr.masscom.wolgye.demo' ? 'showcase' : 'production'}
+        onClose={() => setCelebration(undefined)}
+        onOpenCollection={(focusRewards) => {
+          setCelebration(undefined);
+          router.navigate(focusRewards ? { pathname: '/collection', params: { focus: 'rewards' } } : '/collection');
+        }}
+      />
+    </>
   );
 }
 
