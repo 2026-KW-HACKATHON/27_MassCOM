@@ -1,6 +1,6 @@
 // 웹 디자인 토큰 정합 검사 (Issue #218, docs/superpowers/specs/2026-09-29-web-design-system.md §1·§2)
 // 앱 색 정본(apps/mobile/src/theme/palette.ts·medal-colors.ts)과 모든 공개·운영 웹 CSS의 --mc-* 라이트·다크 값을 대조한다.
-// 작업 중 일부 파일만 보려면: DESIGN_TOKEN_FILES=docs/assets/project.css,docs/assets/legal.css node --test tests/site/verify_design_tokens_test.mjs
+// 작업 중 일부 파일만 보려면: DESIGN_STYLE_FILES=docs/assets/project.css,docs/assets/legal.css node --test tests/site/verify_design_tokens_test.mjs
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -124,7 +124,7 @@ function declarations(body) {
   return Object.fromEntries([...body.matchAll(/(--mc-[a-z0-9-]+)\s*:\s*([^;]+);/gi)].map((m) => [m[1], m[2].trim()]));
 }
 
-const only = process.env.DESIGN_TOKEN_FILES?.split(',').map((file) => file.trim()).filter(Boolean);
+const only = process.env.DESIGN_STYLE_FILES?.split(',').map((file) => file.trim()).filter(Boolean);
 
 test('앱 색 정본에서 사양 §1 색 토큰 37개를 모두 읽는다', () => {
   assert.equal(Object.keys(expected.light).length, 37);
