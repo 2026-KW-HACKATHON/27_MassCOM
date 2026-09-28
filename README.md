@@ -55,6 +55,8 @@
 
 [운영 관리자 Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 첫 구간은 기존 Google 웹 세션에 독립적인 서버 관리자 권한을 붙이고, 별도 [운영 관리자 웹](https://www.masscom.kr/admin/)에서 **실제 점포만** 비공개 생성·수정·숨김 처리합니다. 유효한 미수령 QR이 있으면 숨김을 거절하고, 숨긴 뒤 새 QR 발급·재발급을 막습니다. [운영 배포·권한 1명 검증](docs/evidence/operating-admin-deployment-2026-09-28.json)은 완료했지만 로그인한 브라우저의 실제 점포 업무는 `NOT_RUN`이고 운영 점포는 0곳입니다. 직원·캠페인·그림 관리는 후속 범위입니다.
 
+[운영 직원 등록 소스](docs/OPERATING_STAFF_REGISTRATION.md)는 직원 자신의 Google 웹 계정과 실제 점포에 묶인 15분 코드를 운영자가 같은 점포에서 승인·회수하도록 연결합니다. 관리자에게 이메일이나 Google 식별자를 직접 입력시키지 않습니다. 이 브랜치에서는 API·PostgreSQL·웹·Caddy 자동 시험까지만 완료했고 `/merchant/` 운영 배포·실제 직원 승인·고객 QR 촬영은 `NOT_RUN`입니다.
+
 `www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 대회 조직의 과거 소스·APK 사전 릴리스는 공개됐지만 현재 개인 개발 저장소는 비공개이며, 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
 
 ## 한눈에 보기
