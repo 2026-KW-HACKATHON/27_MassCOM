@@ -44,12 +44,14 @@ export async function loadAdmin(fetcher, doc) {
   adminRequests.set(doc, requestId);
   const status = doc.getElementById('admin-status');
   const login = doc.getElementById('admin-login');
+  const logout = doc.getElementById('admin-logout');
   const content = doc.getElementById('admin-content');
   const list = doc.getElementById('admin-merchants');
   const create = doc.getElementById('admin-create');
-  if (!status || !login || !content || !list || !create) return;
+  if (!status || !login || !logout || !content || !list || !create) return;
   content.hidden = true;
   login.hidden = true;
+  logout.hidden = true;
   list.replaceChildren();
   try {
     await jsonRequest(fetcher, '/api/web/admin/me');
@@ -108,13 +110,17 @@ export async function loadAdmin(fetcher, doc) {
     }
     status.textContent = payload.merchants.length ? `${payload.merchants.length}곳의 실제 상점입니다.` : '등록된 실제 상점이 없습니다.';
     content.hidden = false;
+    logout.textContent = '로그아웃';
+    logout.hidden = false;
   } catch (error) {
     if (adminRequests.get(doc) !== requestId) return;
     if (error.status === 401) {
       status.textContent = '관리자 계정으로 로그인해 주세요.';
       login.hidden = false;
     } else if (error.status === 403) {
-      status.textContent = '관리자 권한이 없습니다.';
+      status.textContent = '이 Google 계정에는 관리자 권한이 없습니다.';
+      logout.textContent = '다른 계정으로 로그인';
+      logout.hidden = false;
     } else {
       status.textContent = '관리자 정보를 불러오지 못했습니다. 새로고침해 주세요.';
     }
@@ -124,6 +130,8 @@ export async function loadAdmin(fetcher, doc) {
 export function bindAdmin(fetcher, doc) {
   const form = doc.getElementById('admin-create');
   const status = doc.getElementById('admin-status');
+  const login = doc.getElementById('admin-login');
+  const logout = doc.getElementById('admin-logout');
   const clear = () => {
     adminRequests.set(doc, (adminRequests.get(doc) ?? 0) + 1);
     doc.getElementById('admin-merchants')?.replaceChildren();
@@ -136,6 +144,24 @@ export function bindAdmin(fetcher, doc) {
   doc.addEventListener?.('visibilitychange', () => {
     if (doc.hidden) clear();
     else void loadAdmin(fetcher, doc);
+  });
+  logout?.addEventListener('click', async () => {
+    clear();
+    login.hidden = true;
+    logout.disabled = true;
+    status.textContent = '로그아웃하는 중입니다.';
+    try {
+      const response = await fetcher('/api/web/logout', {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      });
+      if (!response.ok) throw new Error('logout failed');
+      logout.hidden = true;
+      login.textContent = '다른 Google 계정으로 로그인';
+      login.hidden = false;
+      status.textContent = '로그아웃했습니다. 다른 Google 계정으로 로그인할 수 있습니다.';
+    } catch {
+      status.textContent = '로그아웃을 확인하지 못했습니다. 다시 시도해 주세요.';
+    } finally { logout.disabled = false; }
   });
   form?.addEventListener('submit', async event => {
     event.preventDefault();

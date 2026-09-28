@@ -284,28 +284,69 @@ test('관리 화면은 별도 경로에서 제공하고 검색 색인 및 캐시
 
 test('관리 화면은 로그인·권한 거부·실제 상점 목록을 구분하고 상점 이름을 텍스트로 표시한다', async () => {
   const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
-    'admin-merchants', 'admin-create'].map(id => [id, { ...element(), hidden: true }]));
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
   const doc = {
     getElementById(id) { return nodes[id]; },
     createElement: element,
   };
   await loadAdmin(async () => ({ status: 401, ok: false }), doc);
   assert.equal(nodes['admin-login'].hidden, false);
+  assert.equal(nodes['admin-logout'].hidden, true);
   assert.equal(nodes['admin-content'].hidden, true);
   await loadAdmin(async () => ({ status: 403, ok: false }), doc);
   assert.match(nodes['admin-status'].textContent, /권한이 없습니다/);
+  assert.equal(nodes['admin-logout'].hidden, false);
   assert.equal(nodes['admin-content'].hidden, true);
   await loadAdmin(async path => ({ ok: true, json: async () => path.endsWith('/me')
     ? { admin: true } : { merchants: [{ id: 'real-1', name: '<script>alert(1)</script>',
       story: '소개', roadAddress: '서울', minimumSpendWon: 1000, status: 'PAUSED', demo: false, version: 1 }] } }), doc);
   assert.equal(nodes['admin-content'].hidden, false);
+  assert.equal(nodes['admin-logout'].hidden, false);
   assert.equal(nodes['admin-merchants'].children.length, 1);
   assert.equal(nodes['admin-merchants'].children[0].children[0].textContent, '<script>alert(1)</script>');
 });
 
+test('권한 없음과 정상 관리 화면에서 로그아웃 후 다른 Google 계정 로그인을 안내한다', async () => {
+  for (const authorized of [false, true]) {
+    const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+      'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+    const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+    const calls = [];
+    await bindAdmin(async (path, options) => {
+      calls.push({ path, options });
+      if (path === '/api/web/logout') return { ok: true, status: 204 };
+      if (path.endsWith('/me')) return authorized
+        ? { ok: true, json: async () => ({ admin: true }) } : { ok: false, status: 403 };
+      return { ok: true, json: async () => ({ merchants: [] }) };
+    }, doc);
+    assert.equal(nodes['admin-logout'].hidden, false);
+    await nodes['admin-logout'].click();
+    assert.equal(calls.at(-1).path, '/api/web/logout');
+    assert.equal(calls.at(-1).options.method, 'POST');
+    assert.equal(calls.at(-1).options.credentials, 'same-origin');
+    assert.equal(nodes['admin-content'].hidden, true);
+    assert.equal(nodes['admin-logout'].hidden, true);
+    assert.equal(nodes['admin-login'].hidden, false);
+    assert.match(nodes['admin-status'].textContent, /다른 Google 계정/);
+  }
+});
+
+test('로그아웃 실패를 성공으로 표시하지 않고 계정 전환 재시도를 허용한다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+  const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+  await bindAdmin(async path => path === '/api/web/logout'
+    ? { ok: false, status: 503 } : { ok: false, status: 403 }, doc);
+  await nodes['admin-logout'].click();
+  assert.equal(nodes['admin-logout'].hidden, false);
+  assert.equal(nodes['admin-logout'].disabled, false);
+  assert.equal(nodes['admin-login'].hidden, true);
+  assert.match(nodes['admin-status'].textContent, /다시 시도/);
+});
+
 test('관리 화면은 탭을 떠날 때 이전 계정의 상점 내용을 지운다', async () => {
   const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
-    'admin-merchants', 'admin-create'].map(id => [id, { ...element(), hidden: true }]));
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
   const listeners = new Map();
   const doc = {
     getElementById(id) { return nodes[id]; }, createElement: element,
@@ -322,7 +363,7 @@ test('관리 화면은 탭을 떠날 때 이전 계정의 상점 내용을 지�
 
 test('관리 권한 조회가 늦게 끝나도 닫힌 탭에 상점 내용을 다시 표시하지 않는다', async () => {
   const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
-    'admin-merchants', 'admin-create'].map(id => [id, { ...element(), hidden: true }]));
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
   const listeners = new Map();
   const doc = {
     getElementById(id) { return nodes[id]; }, createElement: element,
