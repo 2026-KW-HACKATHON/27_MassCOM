@@ -32,7 +32,9 @@
     "merchantPageOneTimeQrAndCsp": "PASS: first-issue QR image element and data-image CSP present",
     "unauthenticatedMerchantMe": 401,
     "issueWithoutOrigin": 403,
-    "issueWithOriginWithoutSession": 401
+    "issueWithOriginWithoutSession": 401,
+    "authenticatedAdminBrowser": "PASS: the user-designated primary Google account returned to /admin/ and showed the real-merchant registration form and an empty real-merchant list; no merchant was created",
+    "merchantRoleSeparationBrowser": "PASS: the same logged-in account showed no approved operating merchant in /merchant/; administrator role was not treated as STAFF"
   },
   "notRun": [
     "actual authorized employee browser claim issuance",
