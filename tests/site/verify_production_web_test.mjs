@@ -396,6 +396,24 @@ test('운영 현황은 실제 집계와 빈 상태를 텍스트로 표시한다'
   assert.match(nodes['admin-operations'].textContent, /집계할 실제 점포가 없습니다/);
 });
 
+test('운영 현황 조회 중 관리자 권한이 사라지면 점포 목록도 지운다', async () => {
+  for (const denialStatus of [401, 403]) {
+    const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+      'admin-merchants', 'admin-operations', 'admin-create', 'admin-logout']
+      .map(id => [id, { ...element(), hidden: true }]));
+    const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+    await loadAdmin(async path => path.endsWith('/operations-status')
+      ? { ok: false, status: denialStatus, json: async () => ({ code: 'ADMIN_FORBIDDEN' }) }
+      : { ok: true, json: async () => path.endsWith('/me') ? { admin: true } : { merchants: [
+        { id: 'real-1', name: '실제 점포', story: '', roadAddress: '서울', minimumSpendWon: 0,
+          status: 'ACTIVE', demo: false, version: 1 },
+      ] } }, doc);
+    assert.equal(nodes['admin-content'].hidden, true);
+    assert.equal(nodes['admin-merchants'].children.length, 0);
+    assert.match(nodes['admin-status'].textContent, denialStatus === 401 ? /로그인해 주세요/ : /권한이 없습니다/);
+  }
+});
+
 test('관리자 메뉴 입력은 실제 가격 행만 만들고 잘못된 형식은 거부한다', () => {
   assert.deepEqual(parseMenuLines('김밥 | 4500\n라면 | 6000\n'), [
     { name: '김밥', priceWon: 4500 }, { name: '라면', priceWon: 6000 },

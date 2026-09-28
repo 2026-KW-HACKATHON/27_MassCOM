@@ -223,8 +223,9 @@ export async function loadAdmin(fetcher, doc) {
           failures.textContent = `민팅 오류 코드: ${merchant.mintFailures.length ? merchant.mintFailures.map(item => `${item.code} ${item.count}건`).join(', ') : '없음'}`;
           operations.append(failures);
         }
-      } catch {
+      } catch (error) {
         if (adminRequests.get(doc) !== requestId) return;
+        if (error.status === 401 || error.status === 403) throw error;
         operations.textContent = '운영 현황을 불러오지 못했습니다.';
       }
     }
@@ -234,6 +235,8 @@ export async function loadAdmin(fetcher, doc) {
     logout.hidden = false;
   } catch (error) {
     if (adminRequests.get(doc) !== requestId) return;
+    list.replaceChildren();
+    operations?.replaceChildren();
     if (error.status === 401) {
       status.textContent = '관리자 계정으로 로그인해 주세요.';
       login.hidden = false;

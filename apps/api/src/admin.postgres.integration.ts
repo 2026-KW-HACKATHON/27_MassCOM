@@ -105,6 +105,15 @@ test('operations status counts only real merchants without exposing customer or 
       (SELECT count(*) FROM visit_events) AS visits,
       (SELECT count(*) FROM reward_entitlements) AS rewards,
       (SELECT count(*) FROM mint_jobs) AS jobs`)).rows, before.rows);
+    await pool.query('UPDATE mint_jobs SET last_error_code = $2 WHERE id = $1', [jobId, 'secret@example.com']);
+    assert.deepEqual((await admin.operationsStatus(accountId)).merchants.find(item => item.id === id)?.mintFailures,
+      [{ code: 'OTHER', count: 1 }]);
+    await pool.query(`UPDATE visit_events SET status = 'CANCELED', cancellation_reason = 'test'
+      WHERE id = $1`, [visitId]);
+    await pool.query("UPDATE reward_entitlements SET status = 'CANCELED' WHERE id = $1", [entitlementId]);
+    const canceled = (await admin.operationsStatus(accountId)).merchants.find(item => item.id === id);
+    assert.equal(canceled?.visits, 0);
+    assert.equal(canceled?.rewards, 0);
   } finally { await pool.end(); }
 });
 

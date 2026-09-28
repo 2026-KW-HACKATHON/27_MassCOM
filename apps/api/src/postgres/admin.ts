@@ -134,46 +134,68 @@ export class PostgresAdminService {
 
   async operationsStatus(accountId: string): Promise<AdminOperationsStatus> {
     return this.transaction(async client => {
+      await client.query("SET LOCAL statement_timeout = '5s'");
       await this.requireAdmin(client, accountId);
       const result = await client.query<{
-      id: string; name: string; status: 'ACTIVE' | 'PAUSED';
-      active: number; expired: number; claimed: number; visits: number; rewards: number;
-      mint_jobs: { status: string; count: number }[];
-      mint_failures: { code: string; count: number }[];
-    }>(`SELECT merchant.id, merchant.name, merchant.status,
-        claims.active, claims.expired, claims.claimed, visits.count AS visits,
-        rewards.count AS rewards, mint_jobs.items AS mint_jobs, mint_failures.items AS mint_failures
-      FROM (SELECT id, name, status FROM merchants WHERE NOT is_demo ORDER BY name, id LIMIT 100) AS merchant
-      CROSS JOIN LATERAL (
-        SELECT count(*) FILTER (WHERE status = 'ISSUED' AND expires_at > now())::int AS active,
-          count(*) FILTER (WHERE status = 'EXPIRED' OR (status = 'ISSUED' AND expires_at <= now()))::int AS expired,
-          count(*) FILTER (WHERE status = 'CLAIMED')::int AS claimed
-        FROM claim_slots WHERE merchant_id = merchant.id
-      ) AS claims
-      CROSS JOIN LATERAL (
-        SELECT count(*)::int AS count FROM visit_events WHERE merchant_id = merchant.id AND status = 'VALID'
-      ) AS visits
-      CROSS JOIN LATERAL (
-        SELECT count(*)::int AS count FROM reward_entitlements AS entitlement
-        JOIN campaigns AS campaign ON campaign.id = entitlement.campaign_id
-        WHERE campaign.merchant_id = merchant.id AND entitlement.status <> 'CANCELED'
-      ) AS rewards
-      CROSS JOIN LATERAL (
-        SELECT COALESCE(jsonb_agg(jsonb_build_object('status', status, 'count', count) ORDER BY status), '[]'::jsonb) AS items
-        FROM (SELECT job.status, count(*)::int AS count FROM mint_jobs AS job
+        id: string; name: string; status: 'ACTIVE' | 'PAUSED';
+        active: number; expired: number; claimed: number; visits: number; rewards: number;
+        mint_jobs: { status: string; count: number }[];
+        mint_failures: { code: string; count: number }[];
+      }>(`WITH selected AS MATERIALIZED (
+          SELECT id, name, status FROM merchants WHERE NOT is_demo ORDER BY name, id LIMIT 100
+        ), claims AS (
+          SELECT merchant_id,
+            count(*) FILTER (WHERE status = 'ISSUED' AND expires_at > statement_timestamp())::int AS active,
+            count(*) FILTER (WHERE status = 'EXPIRED' OR
+              (status = 'ISSUED' AND expires_at <= statement_timestamp()))::int AS expired,
+            count(*) FILTER (WHERE status = 'CLAIMED')::int AS claimed
+          FROM claim_slots WHERE merchant_id IN (SELECT id FROM selected) GROUP BY merchant_id
+        ), visits AS (
+          SELECT merchant_id, count(*)::int AS count FROM visit_events
+          WHERE status = 'VALID' AND merchant_id IN (SELECT id FROM selected) GROUP BY merchant_id
+        ), rewards AS (
+          SELECT campaign.merchant_id, count(*)::int AS count FROM reward_entitlements AS entitlement
+          JOIN campaigns AS campaign ON campaign.id = entitlement.campaign_id
+          WHERE entitlement.status <> 'CANCELED' AND campaign.merchant_id IN (SELECT id FROM selected)
+          GROUP BY campaign.merchant_id
+        ), mint_base AS MATERIALIZED (
+          SELECT campaign.merchant_id, job.status,
+            CASE WHEN job.last_error_code IS NULL THEN NULL
+              WHEN job.last_error_code ~ '^[A-Z][A-Z0-9_]{0,63}$' THEN job.last_error_code
+              ELSE 'OTHER' END AS code
+          FROM mint_jobs AS job
           JOIN reward_entitlements AS entitlement ON entitlement.id = job.entitlement_id
           JOIN campaigns AS campaign ON campaign.id = entitlement.campaign_id
-          WHERE campaign.merchant_id = merchant.id GROUP BY job.status) AS grouped
-      ) AS mint_jobs
-      CROSS JOIN LATERAL (
-        SELECT COALESCE(jsonb_agg(jsonb_build_object('code', code, 'count', count) ORDER BY count DESC, code), '[]'::jsonb) AS items
-        FROM (SELECT job.last_error_code AS code, count(*)::int AS count FROM mint_jobs AS job
-          JOIN reward_entitlements AS entitlement ON entitlement.id = job.entitlement_id
-          JOIN campaigns AS campaign ON campaign.id = entitlement.campaign_id
-          WHERE campaign.merchant_id = merchant.id AND job.last_error_code IS NOT NULL
-          GROUP BY job.last_error_code ORDER BY count DESC, code LIMIT 10) AS grouped
-      ) AS mint_failures
-      ORDER BY merchant.name, merchant.id`);
+          WHERE campaign.merchant_id IN (SELECT id FROM selected)
+        ), mint_status_counts AS (
+          SELECT merchant_id, status, count(*)::int AS count FROM mint_base GROUP BY merchant_id, status
+        ), mint_status AS (
+          SELECT merchant_id, jsonb_agg(jsonb_build_object('status', status, 'count', count)
+            ORDER BY status) AS items FROM mint_status_counts GROUP BY merchant_id
+        ), mint_failure_counts AS (
+          SELECT merchant_id, code, count(*)::int AS count FROM mint_base
+          WHERE code IS NOT NULL GROUP BY merchant_id, code
+        ), mint_failure_ranked AS (
+          SELECT merchant_id, code, count,
+            row_number() OVER (PARTITION BY merchant_id ORDER BY count DESC, code) AS position
+          FROM mint_failure_counts
+        ), mint_failures AS (
+          SELECT merchant_id, jsonb_agg(jsonb_build_object('code', code, 'count', count)
+            ORDER BY count DESC, code) AS items FROM mint_failure_ranked
+          WHERE position <= 10 GROUP BY merchant_id
+        )
+        SELECT selected.id, selected.name, selected.status,
+          COALESCE(claims.active, 0) AS active, COALESCE(claims.expired, 0) AS expired,
+          COALESCE(claims.claimed, 0) AS claimed, COALESCE(visits.count, 0) AS visits,
+          COALESCE(rewards.count, 0) AS rewards,
+          COALESCE(mint_status.items, '[]'::jsonb) AS mint_jobs,
+          COALESCE(mint_failures.items, '[]'::jsonb) AS mint_failures
+        FROM selected LEFT JOIN claims ON claims.merchant_id = selected.id
+          LEFT JOIN visits ON visits.merchant_id = selected.id
+          LEFT JOIN rewards ON rewards.merchant_id = selected.id
+          LEFT JOIN mint_status ON mint_status.merchant_id = selected.id
+          LEFT JOIN mint_failures ON mint_failures.merchant_id = selected.id
+        ORDER BY selected.name, selected.id`);
       return { merchants: result.rows.map(row => ({
         id: row.id, name: row.name, status: row.status,
         claims: { active: row.active, expired: row.expired, claimed: row.claimed },
