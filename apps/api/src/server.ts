@@ -170,7 +170,8 @@ export function createApiServer(
   webAuth?: WebAuthHandler,
   webWwwEnabled = false,
   customerIdentities?: CustomerIdentityService,
-  admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>,
+  admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'> &
+    Partial<Pick<PostgresAdminService, 'operationsStatus'>>,
   deletionIntake?: AccountDeletionIntakeService,
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
 ) {
@@ -266,6 +267,11 @@ export function createApiServer(
         if (!(await admin.isAdmin(accountId))) throw new AdminError('ADMIN_FORBIDDEN');
         if (path === '/api/web/admin/me' && request.method === 'GET') {
           sendJson(response, 200, { admin: true });
+          return;
+        }
+        if (path === '/api/web/admin/operations-status' && request.method === 'GET') {
+          if (!admin.operationsStatus) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          sendJson(response, 200, await admin.operationsStatus(accountId));
           return;
         }
         const staffMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/staff$/);

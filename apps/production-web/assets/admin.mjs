@@ -66,12 +66,14 @@ export async function loadAdmin(fetcher, doc) {
   const logout = doc.getElementById('admin-logout');
   const content = doc.getElementById('admin-content');
   const list = doc.getElementById('admin-merchants');
+  const operations = doc.getElementById('admin-operations');
   const create = doc.getElementById('admin-create');
   if (!status || !login || !logout || !content || !list || !create) return;
   content.hidden = true;
   login.hidden = true;
   logout.hidden = true;
   list.replaceChildren();
+  operations?.replaceChildren();
   try {
     await jsonRequest(fetcher, '/api/web/admin/me');
     if (adminRequests.get(doc) !== requestId) return;
@@ -204,6 +206,28 @@ export async function loadAdmin(fetcher, doc) {
       empty.textContent = '등록된 점포가 없습니다. 점포 등록 양식에서 첫 점포를 비공개로 등록하세요.';
       list.append(empty);
     }
+    if (operations) {
+      try {
+        const summary = await jsonRequest(fetcher, '/api/web/admin/operations-status');
+        if (adminRequests.get(doc) !== requestId) return;
+        if (!Array.isArray(summary.merchants)) throw new Error('invalid operations status');
+        if (!summary.merchants.length) operations.textContent = '집계할 실제 점포가 없습니다.';
+        for (const merchant of summary.merchants) {
+          const row = doc.createElement('p');
+          row.textContent = `${merchant.name} · QR 활성 ${merchant.claims.active}건 · 만료 ${merchant.claims.expired}건 · 수령 ${merchant.claims.claimed}건 · 방문 ${merchant.visits}건 · 보상 ${merchant.rewards}건`;
+          operations.append(row);
+          const jobs = doc.createElement('p');
+          jobs.textContent = `민팅 작업: ${merchant.mintJobs.length ? merchant.mintJobs.map(item => `${item.status} ${item.count}건`).join(', ') : '없음'}`;
+          operations.append(jobs);
+          const failures = doc.createElement('p');
+          failures.textContent = `민팅 오류 코드: ${merchant.mintFailures.length ? merchant.mintFailures.map(item => `${item.code} ${item.count}건`).join(', ') : '없음'}`;
+          operations.append(failures);
+        }
+      } catch {
+        if (adminRequests.get(doc) !== requestId) return;
+        operations.textContent = '운영 현황을 불러오지 못했습니다.';
+      }
+    }
     status.textContent = payload.merchants.length ? `${payload.merchants.length}곳의 실제 상점입니다.` : '등록된 실제 상점이 없습니다.';
     content.hidden = false;
     logout.textContent = '로그아웃';
@@ -231,6 +255,7 @@ export function bindAdmin(fetcher, doc) {
   const clear = () => {
     adminRequests.set(doc, (adminRequests.get(doc) ?? 0) + 1);
     doc.getElementById('admin-merchants')?.replaceChildren();
+    doc.getElementById('admin-operations')?.replaceChildren();
     doc.getElementById('admin-content').hidden = true;
   };
   doc.defaultView?.addEventListener('pagehide', clear);

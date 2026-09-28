@@ -20,6 +20,16 @@ export type AdminMerchant = {
 export type MerchantInput = Pick<AdminMerchant, 'name' | 'story' | 'roadAddress' | 'minimumSpendWon'> &
   Partial<Pick<AdminMerchant, 'menuItems' | 'businessHours'>>;
 
+export type AdminOperationsStatus = {
+  merchants: {
+    id: string; name: string; status: 'ACTIVE' | 'PAUSED';
+    claims: { active: number; expired: number; claimed: number };
+    visits: number; rewards: number;
+    mintJobs: { status: string; count: number }[];
+    mintFailures: { code: string; count: number }[];
+  }[];
+};
+
 type MerchantRow = {
   id: string;
   name: string;
@@ -119,6 +129,57 @@ export class PostgresAdminService {
         `SELECT ${columns} FROM merchants WHERE NOT is_demo ORDER BY name, id`,
       );
       return result.rows.map(merchant);
+    });
+  }
+
+  async operationsStatus(accountId: string): Promise<AdminOperationsStatus> {
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      const result = await client.query<{
+      id: string; name: string; status: 'ACTIVE' | 'PAUSED';
+      active: number; expired: number; claimed: number; visits: number; rewards: number;
+      mint_jobs: { status: string; count: number }[];
+      mint_failures: { code: string; count: number }[];
+    }>(`SELECT merchant.id, merchant.name, merchant.status,
+        claims.active, claims.expired, claims.claimed, visits.count AS visits,
+        rewards.count AS rewards, mint_jobs.items AS mint_jobs, mint_failures.items AS mint_failures
+      FROM (SELECT id, name, status FROM merchants WHERE NOT is_demo ORDER BY name, id LIMIT 100) AS merchant
+      CROSS JOIN LATERAL (
+        SELECT count(*) FILTER (WHERE status = 'ISSUED' AND expires_at > now())::int AS active,
+          count(*) FILTER (WHERE status = 'EXPIRED' OR (status = 'ISSUED' AND expires_at <= now()))::int AS expired,
+          count(*) FILTER (WHERE status = 'CLAIMED')::int AS claimed
+        FROM claim_slots WHERE merchant_id = merchant.id
+      ) AS claims
+      CROSS JOIN LATERAL (
+        SELECT count(*)::int AS count FROM visit_events WHERE merchant_id = merchant.id AND status = 'VALID'
+      ) AS visits
+      CROSS JOIN LATERAL (
+        SELECT count(*)::int AS count FROM reward_entitlements AS entitlement
+        JOIN campaigns AS campaign ON campaign.id = entitlement.campaign_id
+        WHERE campaign.merchant_id = merchant.id AND entitlement.status <> 'CANCELED'
+      ) AS rewards
+      CROSS JOIN LATERAL (
+        SELECT COALESCE(jsonb_agg(jsonb_build_object('status', status, 'count', count) ORDER BY status), '[]'::jsonb) AS items
+        FROM (SELECT job.status, count(*)::int AS count FROM mint_jobs AS job
+          JOIN reward_entitlements AS entitlement ON entitlement.id = job.entitlement_id
+          JOIN campaigns AS campaign ON campaign.id = entitlement.campaign_id
+          WHERE campaign.merchant_id = merchant.id GROUP BY job.status) AS grouped
+      ) AS mint_jobs
+      CROSS JOIN LATERAL (
+        SELECT COALESCE(jsonb_agg(jsonb_build_object('code', code, 'count', count) ORDER BY count DESC, code), '[]'::jsonb) AS items
+        FROM (SELECT job.last_error_code AS code, count(*)::int AS count FROM mint_jobs AS job
+          JOIN reward_entitlements AS entitlement ON entitlement.id = job.entitlement_id
+          JOIN campaigns AS campaign ON campaign.id = entitlement.campaign_id
+          WHERE campaign.merchant_id = merchant.id AND job.last_error_code IS NOT NULL
+          GROUP BY job.last_error_code ORDER BY count DESC, code LIMIT 10) AS grouped
+      ) AS mint_failures
+      ORDER BY merchant.name, merchant.id`);
+      return { merchants: result.rows.map(row => ({
+        id: row.id, name: row.name, status: row.status,
+        claims: { active: row.active, expired: row.expired, claimed: row.claimed },
+        visits: row.visits, rewards: row.rewards,
+        mintJobs: row.mint_jobs, mintFailures: row.mint_failures,
+      })) };
     });
   }
 

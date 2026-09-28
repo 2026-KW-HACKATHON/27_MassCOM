@@ -372,6 +372,30 @@ test('관리 화면의 빈 점포 목록은 예시 자료 없이 등록 행동�
   assert.doesNotMatch(nodes['admin-merchants'].children[0].textContent, /왼쪽/);
 });
 
+test('운영 현황은 실제 집계와 빈 상태를 텍스트로 표시한다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-operations', 'admin-create', 'admin-logout']
+    .map(id => [id, { ...element(), hidden: true }]));
+  const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+  const merchant = { id: 'real-1', name: '<script>실제 상점</script>', story: '', roadAddress: '서울',
+    minimumSpendWon: 0, status: 'ACTIVE', demo: false, version: 1 };
+  await loadAdmin(async path => ({ ok: true, json: async () => path.endsWith('/me')
+    ? { admin: true } : path.endsWith('/operations-status')
+      ? { merchants: [{ id: merchant.id, name: merchant.name, status: merchant.status,
+        claims: { active: 1, expired: 2, claimed: 3 }, visits: 4, rewards: 1,
+        mintJobs: [{ status: 'RETRYABLE', count: 1 }],
+        mintFailures: [{ code: 'RPC_TIMEOUT', count: 1 }] }] }
+      : { merchants: [merchant] } }), doc);
+  assert.match(nodes['admin-operations'].children[0].textContent, /QR 활성 1건 · 만료 2건 · 수령 3건 · 방문 4건 · 보상 1건/);
+  assert.match(nodes['admin-operations'].children[1].textContent, /RETRYABLE 1건/);
+  assert.match(nodes['admin-operations'].children[2].textContent, /RPC_TIMEOUT 1건/);
+  assert.match(nodes['admin-operations'].children[0].textContent, /<script>실제 상점<\/script>/);
+  await loadAdmin(async path => ({ ok: true, json: async () => path.endsWith('/me')
+    ? { admin: true } : { merchants: [] } }), doc);
+  assert.equal(nodes['admin-operations'].children.length, 0);
+  assert.match(nodes['admin-operations'].textContent, /집계할 실제 점포가 없습니다/);
+});
+
 test('관리자 메뉴 입력은 실제 가격 행만 만들고 잘못된 형식은 거부한다', () => {
   assert.deepEqual(parseMenuLines('김밥 | 4500\n라면 | 6000\n'), [
     { name: '김밥', priceWon: 4500 }, { name: '라면', priceWon: 6000 },
