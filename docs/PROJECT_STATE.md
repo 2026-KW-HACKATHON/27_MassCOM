@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- **2026-09-28 운영 관리자 첫 구간 소스:** 개인 [Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 `feat/admin-foundation`은 기존 Google 웹 세션과 독립 서버 관리자 권한, 감사 거래, 실제 점포 비공개 생성·수정·숨김, 별도 `/admin/` 화면과 계정 전환을 구현했다. 독립 보안 검토에서 확인된 HIGH/MEDIUM 결함은 없었지만 실제 권한 부여·운영 배포·브라우저 수락은 `NOT_RUN`; 직원·캠페인·자산·상태 관리는 후속 범위다. 시연 STAFF 자격을 운영 관리자 권한으로 재사용하지 않는다.
+
 - **2026-09-28 개인 main·시연 Preview 4:** [PR #2](https://github.com/choijunhuk/MassCOM/pull/2) merge `6585614`, PR CI `36370159651`·main CI `36370675407` PASS. [시연 APK](https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.4)의 source/package/서명/원격 digest와 같은 커밋의 [시연 API 이미지·migration 0019·외부 HTTPS](evidence/showcase-customer-qr-deployment-2026-09-28.json)를 확인했다. 기존 시연 데이터 3점포/3방문/2보상권, 운영 가상 점포 0건을 보존했다. 새 APK의 실제 휴대전화 설치·2분 고객 식별 QR 전체 흐름은 `NOT_RUN`; 구 Preview 3 STAFF 발급은 새 API에 맞지 않는다. 운영 관리자 [개인 Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)는 구현 중이며 운영 권한 부여·웹 배포를 완료로 표시하지 않는다.
 
 - **2026-09-28 개인 통합 작업 당시:** [Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 [PR #2](https://github.com/choijunhuk/MassCOM/pull/2)에 2분 고객 식별 QR·현재 캠페인 도감 목표·기존 시연 카메라 증거를 합쳤다. 결합 소스의 API 109/109·모바일 239/239·PostgreSQL 52 PASS/2 SKIP, 타입·린트·build/export·문서 검사 PASS. 첫 PR CI의 낡은 README 문구 시험을 RED→GREEN으로 고친 뒤 재검사·병합했다. 당시 새 APK/API·실기는 미완료였고 최신 판정은 위 기록을 따른다. Google Play 목표는 D-040으로 유지하지만 제출은 별도다.
