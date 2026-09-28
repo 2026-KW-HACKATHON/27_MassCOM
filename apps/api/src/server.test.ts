@@ -34,6 +34,7 @@ import {
 } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
 import { AdminError, type PostgresAdminService } from './postgres/admin.js';
+import type { PostgresStaffRegistration } from './postgres/staff-registration.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import type {
   MintJobView,
@@ -181,6 +182,7 @@ async function startFixture(
   wwwEnabled = false,
   admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>,
   deletionIntake?: AccountDeletionIntakeService,
+  staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -211,6 +213,7 @@ async function startFixture(
     undefined,
     admin,
     deletionIntake,
+    staffRegistration,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -472,6 +475,94 @@ test('admin Google sign-in returns to the fixed admin path without a caller-cont
   });
   assert.equal(callback.status, 303);
   assert.equal(callback.headers.get('location'), '/admin/');
+});
+
+test('merchant registration uses host-bound web cookie and rejects foreign-origin writes', async (t) => {
+  const returns: (string | undefined)[] = [];
+  const webAuth: WebAuthHandler = {
+    start: async (_origin, returnTo) => {
+      returns.push(returnTo);
+      return { location: 'https://accounts.google.com/', state: 'merchant-state' };
+    },
+    complete: async () => ({ token: 'merchant-cookie', returnTo: '/merchant/' }),
+    resolveSession: async token => {
+      if (token !== 'merchant-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'staff-account';
+    },
+    logout: async () => {},
+  };
+  let writes = 0;
+  const staff = {
+    mine: async () => [], eligible: async () => [{ id: 'real-merchant', name: '실제 점포' }],
+    request: async (accountId: string, merchantId: string) => {
+      assert.equal(accountId, 'staff-account');
+      assert.equal(merchantId, 'real-merchant');
+      writes += 1;
+      return { requestId: 'request-id', code: '1234567890123456789012', expiresAt: new Date().toISOString() };
+    },
+  } as unknown as Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    undefined, undefined, staff);
+  const start = await webRequest(base, '/api/web/merchant/auth/start?returnTo=https://evil.example');
+  assert.equal(start.status, 302);
+  assert.deepEqual(returns, ['/merchant/']);
+  const callback = await webRequest(base, '/api/web/auth/callback?code=once&state=merchant-state', {
+    headers: { cookie: 'web_auth_state=merchant-state' },
+  });
+  assert.equal(callback.headers.get('location'), '/merchant/');
+  assert.equal((await webRequest(base, '/api/web/merchant/me')).status, 401);
+  assert.equal((await webRequest(base, '/api/web/merchant/me', {
+    headers: { cookie: 'web_session=merchant-cookie' }, host: 'api.masscom.kr',
+  })).status, 403);
+  for (const headers of [
+    { cookie: 'web_session=merchant-cookie', 'content-type': 'application/json' },
+    { cookie: 'web_session=merchant-cookie', origin: 'https://evil.example', 'content-type': 'application/json' },
+    { cookie: 'web_session=merchant-cookie', origin: 'https://masscom.kr', 'content-type': 'text/plain' },
+  ]) {
+    assert.equal((await webRequest(base, '/api/web/merchant/registration-requests', {
+      method: 'POST', headers, body: '{"merchantId":"real-merchant"}',
+    })).status, 403);
+  }
+  assert.equal(writes, 0);
+  const issued = await webRequest(base, '/api/web/merchant/registration-requests', {
+    method: 'POST', headers: { cookie: 'web_session=merchant-cookie', origin: 'https://masscom.kr',
+      'content-type': 'application/json' }, body: '{"merchantId":"real-merchant"}',
+  });
+  assert.equal(issued.status, 201);
+  assert.equal(writes, 1);
+});
+
+test('admin staff approval and revoke derive the actor from the web session', async (t) => {
+  const webAuth: WebAuthHandler = {
+    start: async () => ({ location: 'https://accounts.google.com/', state: 'state' }),
+    complete: async () => ({ token: 'token' }),
+    resolveSession: async () => 'admin-account', logout: async () => {},
+  };
+  const calls: unknown[][] = [];
+  const staff = {
+    approve: async (...args: unknown[]) => { calls.push(['approve', ...args]); },
+    revoke: async (...args: unknown[]) => { calls.push(['revoke', ...args]); },
+  } as unknown as Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const admin = { isAdmin: async () => true } as unknown as Pick<PostgresAdminService,
+    'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    admin, undefined, staff);
+  const headers = { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr',
+    'content-type': 'application/json' };
+  const approved = await webRequest(base, '/api/web/admin/merchants/real-merchant/staff', {
+    method: 'POST', headers, body: '{"code":"1234567890123456789012","accountId":"forged"}',
+  });
+  assert.equal(approved.status, 200);
+  const revoked = await webRequest(base, '/api/web/admin/merchants/real-merchant/staff/staff-account/revoke', {
+    method: 'POST', headers, body: '{}',
+  });
+  assert.equal(revoked.status, 200);
+  assert.deepEqual(calls, [
+    ['approve', 'admin-account', 'real-merchant', '1234567890123456789012'],
+    ['revoke', 'admin-account', 'real-merchant', 'staff-account'],
+  ]);
 });
 
 test('admin hide returns a distinct 409 while valid QR claims are pending', async (t) => {

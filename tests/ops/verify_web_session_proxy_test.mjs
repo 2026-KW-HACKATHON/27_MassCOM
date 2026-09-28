@@ -194,6 +194,13 @@ test('Caddy serves the same limited web surface for exact apex and www hosts', a
       assert.equal(adminPage.body, 'web:/admin/', host);
       assert.equal(adminPage.headers['x-robots-tag'], 'noindex, nofollow', host);
       assert.equal(adminPage.headers['cache-control'], 'no-store', host);
+      const merchantPage = await requestForHost(url, '/merchant/', host);
+      assert.equal(merchantPage.body, 'web:/merchant/', host);
+      assert.equal(merchantPage.headers['x-robots-tag'], 'noindex, nofollow', host);
+      assert.equal(merchantPage.headers['cache-control'], 'no-store', host);
+      const merchantRedirect = await requestForHost(url, '/merchant', host);
+      assert.equal(merchantRedirect.status, 308, host);
+      assert.equal(merchantRedirect.headers.location, '/merchant/', host);
       const login = await requestForHost(url, '/api/web/auth/start', host);
       assert.equal(login.status, 302, host);
       assert.equal(login.headers['x-observed-host'], host, host);
@@ -201,6 +208,9 @@ test('Caddy serves the same limited web surface for exact apex and www hosts', a
       const adminApi = await requestForHost(url, '/api/web/admin/merchants', host);
       assert.equal(adminApi.headers['x-observed-host'], host, host);
       assert.equal(adminApi.headers['x-robots-tag'], 'noindex, nofollow', host);
+      const merchantApi = await requestForHost(url, '/api/web/merchant/me', host);
+      assert.equal(merchantApi.headers['x-observed-host'], host, host);
+      assert.equal(merchantApi.headers['x-robots-tag'], 'noindex, nofollow', host);
       const intake = await requestForHost(url, '/api/web/account-deletion-intake', host, 'POST');
       assert.equal(intake.status, 202, host);
       assert.equal(intake.headers['x-observed-host'], host, host);

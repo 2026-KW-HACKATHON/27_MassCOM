@@ -51,6 +51,7 @@ import { resolveShowcaseInviteConfig } from './showcase/invite-config.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
+import { PostgresStaffRegistration, StaffRegistrationError } from './postgres/staff-registration.js';
 import { PostgresMintRequestService } from './postgres/mint-request-service.js';
 import { PostgresRecommendationSource } from './postgres/recommendation.js';
 import { PostgresChallengeStore } from './postgres/wallet-challenge-store.js';
@@ -156,6 +157,7 @@ export function createApiServer(
   customerIdentities?: CustomerIdentityService,
   admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>,
   deletionIntake?: AccountDeletionIntakeService,
+  staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -205,7 +207,8 @@ export function createApiServer(
           'web_auth_state=; Path=/api/web/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax',
           `web_session=${session.token}; Path=/api/web; HttpOnly; Secure; SameSite=Lax`,
         ]);
-        response.setHeader('location', session.returnTo === '/admin/' ? '/admin/'
+        response.setHeader('location', session.returnTo === '/merchant/' ? '/merchant/'
+          : session.returnTo === '/admin/' ? '/admin/'
           : session.returnTo === '/account-deletion' ? '/account-deletion' : '/app/');
         response.writeHead(303);
         response.end();
@@ -250,6 +253,27 @@ export function createApiServer(
           sendJson(response, 200, { admin: true });
           return;
         }
+        const staffMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/staff$/);
+        if (staffMatch && staffRegistration) {
+          const merchantId = decodePathParameter(staffMatch[1]!);
+          if (request.method === 'GET') {
+            sendJson(response, 200, { staff: await staffRegistration.list(accountId, merchantId) });
+            return;
+          }
+          if (request.method === 'POST') {
+            const body = await readJson(request);
+            await staffRegistration.approve(accountId, merchantId, requireString(body, 'code'));
+            sendJson(response, 200, { status: 'APPROVED' });
+            return;
+          }
+        }
+        const revokeMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/staff\/([^/]+)\/revoke$/);
+        if (revokeMatch && request.method === 'POST' && staffRegistration) {
+          await readJson(request);
+          await staffRegistration.revoke(accountId, decodePathParameter(revokeMatch[1]!), decodePathParameter(revokeMatch[2]!));
+          sendJson(response, 200, { status: 'REVOKED' });
+          return;
+        }
         if (path === '/api/web/admin/merchants') {
           if (request.method === 'GET') {
             sendJson(response, 200, { merchants: await admin.listMerchants(accountId) });
@@ -275,6 +299,45 @@ export function createApiServer(
           sendJson(response, 200, { merchant: await admin.hideMerchant(
             accountId, decodePathParameter(hideMatch[1]!), requireNumber(body, 'expectedVersion'),
           ) });
+          return;
+        }
+        throw new RequestError(404, 'NOT_FOUND');
+      }
+      if (path.startsWith('/api/web/merchant/')) {
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        if (!webAuth || !staffRegistration) throw new RequestError(503, 'WEB_MERCHANT_NOT_CONFIGURED');
+        if (path === '/api/web/merchant/auth/start' && request.method === 'GET') {
+          if (authLoginLimiter) {
+            const decision = authLoginLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
+            if (!decision.allowed) {
+              response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+              sendJson(response, 429, { code: 'LOGIN_RATE_LIMITED' });
+              return;
+            }
+          }
+          const started = await webAuth.start(origin, '/merchant/');
+          response.setHeader('set-cookie', `web_auth_state=${started.state}; Path=/api/web/auth; Max-Age=300; HttpOnly; Secure; SameSite=Lax`);
+          response.setHeader('location', started.location);
+          response.writeHead(302).end();
+          return;
+        }
+        if (request.method !== 'GET' && (request.headers.origin !== origin ||
+            !/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? ''))) {
+          throw new RequestError(403, 'MERCHANT_CSRF_FORBIDDEN');
+        }
+        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        if (path === '/api/web/merchant/me' && request.method === 'GET') {
+          sendJson(response, 200, { merchants: await staffRegistration.mine(accountId) });
+          return;
+        }
+        if (path === '/api/web/merchant/registration-merchants' && request.method === 'GET') {
+          sendJson(response, 200, { merchants: await staffRegistration.eligible(accountId) });
+          return;
+        }
+        if (path === '/api/web/merchant/registration-requests' && request.method === 'POST') {
+          const body = await readJson(request);
+          sendJson(response, 201, await staffRegistration.request(accountId, requireString(body, 'merchantId')));
           return;
         }
         throw new RequestError(404, 'NOT_FOUND');
@@ -637,6 +700,13 @@ export function createApiServer(
         const status = error.code === 'ADMIN_FORBIDDEN' ? 403
           : error.code === 'ADMIN_MERCHANT_NOT_FOUND' || error.code === 'ADMIN_IDENTITY_NOT_FOUND' ? 404
             : error.code === 'ADMIN_VERSION_CONFLICT' || error.code === 'ADMIN_PENDING_CLAIMS' ? 409 : 400;
+        sendJson(response, status, { code: error.code });
+        return;
+      }
+      if (error instanceof StaffRegistrationError) {
+        const status = error.code === 'STAFF_FORBIDDEN' ? 403
+          : error.code === 'STAFF_MERCHANT_NOT_FOUND' || error.code === 'STAFF_NOT_FOUND' ? 404
+            : error.code === 'STAFF_CODE_INVALID' ? 400 : 409;
         sendJson(response, status, { code: error.code });
         return;
       }
@@ -1139,6 +1209,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ? new PostgresAdminService(pool, accountDeletionHmacSecret) : undefined,
     pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
       ? new PostgresAccountDeletionIntakeService(pool, accountDeletionHmacSecret) : undefined,
+    pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
+      ? new PostgresStaffRegistration(pool, accountDeletionHmacSecret) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

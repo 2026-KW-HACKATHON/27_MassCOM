@@ -44,9 +44,9 @@ export class WebAuthError extends Error {
 }
 
 export type WebAuthHandler = {
-  start(origin: WebOrigin, returnTo?: '/app/' | '/admin/' | '/account-deletion'): Promise<{ location: string; state: string }>;
+  start(origin: WebOrigin, returnTo?: '/app/' | '/admin/' | '/account-deletion' | '/merchant/'): Promise<{ location: string; state: string }>;
   complete(code: string, state: string, cookieState: string, origin: WebOrigin): Promise<{
-    token: string; returnTo?: '/app/' | '/admin/' | '/account-deletion';
+    token: string; returnTo?: '/app/' | '/admin/' | '/account-deletion' | '/merchant/';
   }>;
   resolveSession(token: string, origin: WebOrigin): Promise<string>;
   logout(token: string, origin: WebOrigin): Promise<void>;
@@ -122,7 +122,7 @@ export class WebAuthService {
     return origin === 'https://masscom.kr' ? 'masscom.kr' : 'www.masscom.kr';
   }
 
-  async start(origin: WebOrigin, returnTo: '/app/' | '/admin/' | '/account-deletion' = '/app/'): Promise<{ location: string; state: string }> {
+  async start(origin: WebOrigin, returnTo: '/app/' | '/admin/' | '/account-deletion' | '/merchant/' = '/app/'): Promise<{ location: string; state: string }> {
     const redirectUri = this.redirectUriFor(origin);
     await this.pool.query(
       `WITH stale AS (
@@ -147,7 +147,7 @@ export class WebAuthService {
     location.searchParams.set('redirect_uri', redirectUri);
     location.searchParams.set('response_type', 'code');
     location.searchParams.set('scope', 'openid');
-    if (returnTo === '/admin/' || returnTo === '/account-deletion') location.searchParams.set('prompt', 'select_account');
+    if (returnTo !== '/app/') location.searchParams.set('prompt', 'select_account');
     location.searchParams.set('state', state);
     location.searchParams.set('nonce', nonce);
     location.searchParams.set('code_challenge', digest(verifier).toString('base64url'));
@@ -155,13 +155,13 @@ export class WebAuthService {
     return { location: location.toString(), state };
   }
 
-  async complete(code: string, state: string, cookieState: string, origin: WebOrigin): Promise<{ token: string; returnTo: '/app/' | '/admin/' | '/account-deletion' }> {
+  async complete(code: string, state: string, cookieState: string, origin: WebOrigin): Promise<{ token: string; returnTo: '/app/' | '/admin/' | '/account-deletion' | '/merchant/' }> {
     const redirectUri = this.redirectUriFor(origin);
     if (!code || !tokenPattern.test(state) || !tokenPattern.test(cookieState) ||
       !timingSafeEqual(Buffer.from(state), Buffer.from(cookieState))) {
       throw new WebAuthError('WEB_AUTH_STATE_INVALID');
     }
-    const consumed = await this.pool.query<{ code_verifier: string; nonce: string; return_to: '/app/' | '/admin/' | '/account-deletion' }>(
+    const consumed = await this.pool.query<{ code_verifier: string; nonce: string; return_to: '/app/' | '/admin/' | '/account-deletion' | '/merchant/' }>(
       `DELETE FROM web_oauth_states
        WHERE state_hash = $1 AND redirect_uri = $2 AND expires_at > $3
        RETURNING code_verifier, nonce, return_to`,

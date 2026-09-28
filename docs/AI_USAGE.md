@@ -49,6 +49,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-28 | Codex 구현·독립 보안 검토 | 운영 관리자 기반(Issue #3) | 기존 운영 Google 웹 세션의 독립 관리자 권한·grant/revoke 감사 거래, 미수령 QR 보호, 실제 점포 비공개 생성·수정·숨김, `/admin/` 계정 전환·빈 상태와 Caddy 경계 | API 112/112·PostgreSQL 60 PASS/2 SKIP·웹 23/23·Caddy 2/2·타입/build/gate PASS. 독립 검토에서 로그아웃 중 이전 목록 재노출 MEDIUM을 재현해 RED→GREEN으로 수정·재검사 | 운영 권한 부여·실제 HTTPS·브라우저 수락, 직원/캠페인/그림 관리는 미실행/후속이며 AI 구현을 팀원 기여로 표시하지 않음 |
 | 2026-09-28 | Codex 구현·독립 코드 검토 | 운영 계정 삭제 의사 접수(Issue #6) | 기존 backend-only 접수를 현재 Google 웹 세션·고정 OAuth 복귀·안내 페이지·Caddy에 연결하고 0018/0023 늦은 migration 회귀 추가 | API 114/114·PostgreSQL 62 PASS/2 SKIP·페이지 3/3·Caddy 2/2·타입/build/gate PASS; 독립 검토 HIGH/MEDIUM 발견 없음 | 접수는 실제 삭제가 아니며 AI가 운영자·고객의 본인 확인이나 Play 정책 완료를 수행했다고 표시하지 않음. 운영 HTTPS·실계정·결과 통지는 미검증 |
 | 2026-09-28 | Codex + 독립 웹 이미지 검토 | 운영 관리자 API·웹 배포와 권한 부여(Issue #3) | PR #5 병합 후 기존 Lightsail API·웹·Caddy 배포, `/admin/` 500 원인인 Dockerfile 누락을 PR #7로 수리·웹 전용 재배포, 주 Google 계정 관리자 역할 1건 부여 | 두 PR/main CI PASS, DB 백업 목록·migration·관리자 route 200/미로그인 401/Origin 없는 쓰기 403·두 API 200·운영 점포 0/시연 3 [실측](evidence/operating-admin-deployment-2026-09-28.json) | AI의 서버 조작·권한 부여를 팀원 기여로 표시하지 않음. 사용자 Google subject·계정 ID는 출력/기록하지 않았고 실제 인증 브라우저 점포 업무·점주 현장은 미검증 |
+| 2026-09-28 | Codex 구현 | 운영 직원 등록·승인·회수 소스 | 계정·점포 귀속 15분 코드와 거래 감사, 관리자·점포 웹 경로 및 Caddy 허용 목록 | 로컬 API 116/116·PostgreSQL 65 PASS/2 SKIP·웹 25/25·Caddy 2/2·타입/build·비밀 검사 PASS | 실제 STAFF 부여·운영 배포·실계정 브라우저 및 점포 QR 화면은 미실행. AI 구현을 사람 점주 확인으로 표시하지 않음 |
 
 ## 팀 설명 체크리스트
 

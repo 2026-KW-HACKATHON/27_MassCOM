@@ -291,6 +291,18 @@ test('관리 화면은 별도 경로에서 제공하고 검색 색인 및 캐시
   assert.match(stylesheet.headers.get('content-type'), /text\/css/);
 });
 
+test('점포 화면은 별도 경로에서 제공하고 검색 색인 및 캐시를 막는다', async () => {
+  const page = await fetch(`${base}/merchant/`);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /직원 등록 요청/);
+  assert.equal(page.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.equal(page.headers.get('cache-control'), 'no-store');
+  const script = await fetch(`${base}/merchant/assets/merchant.mjs`);
+  assert.equal(script.status, 200);
+  assert.match(script.headers.get('content-type'), /javascript/);
+  assert.equal(script.headers.get('x-robots-tag'), 'noindex, nofollow');
+});
+
 test('관리 화면은 로그인·권한 거부·실제 상점 목록을 구분하고 상점 이름을 텍스트로 표시한다', async () => {
   const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
     'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
@@ -311,7 +323,7 @@ test('관리 화면은 로그인·권한 거부·실제 상점 목록을 구분�
       story: '소개', roadAddress: '서울', minimumSpendWon: 1000, status: 'PAUSED', demo: false, version: 1 }] } }), doc);
   assert.equal(nodes['admin-content'].hidden, false);
   assert.equal(nodes['admin-logout'].hidden, false);
-  assert.equal(nodes['admin-merchants'].children.length, 1);
+  assert.equal(nodes['admin-merchants'].children.length, 2);
   assert.equal(nodes['admin-merchants'].children[0].children[0].textContent, '<script>alert(1)</script>');
 });
 
@@ -381,7 +393,7 @@ test('로그아웃 응답 대기 중 다시 읽은 관리자 목록도 성공 �
   await bindAdmin(fetcher, doc);
   const logout = nodes['admin-logout'].click();
   await loadAdmin(fetcher, doc);
-  assert.equal(nodes['admin-merchants'].children.length, 1);
+  assert.equal(nodes['admin-merchants'].children.length, 2);
   finishLogout({ ok: true });
   await logout;
   assert.equal(nodes['admin-content'].hidden, true);
@@ -420,7 +432,7 @@ test('관리 화면은 탭을 떠날 때 이전 계정의 상점 내용을 지�
   await bindAdmin(async path => ({ ok: true, json: async () => path.endsWith('/me')
     ? { admin: true } : { merchants: [{ id: 'real-2', name: '이전 계정 상점', story: '',
       roadAddress: '서울', minimumSpendWon: 0, status: 'PAUSED', demo: false, version: 1 }] } }), doc);
-  assert.equal(nodes['admin-merchants'].children.length, 1);
+  assert.equal(nodes['admin-merchants'].children.length, 2);
   listeners.get('pagehide')();
   assert.equal(nodes['admin-merchants'].children.length, 0);
   assert.equal(nodes['admin-content'].hidden, true);
