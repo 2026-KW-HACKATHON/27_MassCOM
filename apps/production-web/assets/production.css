@@ -33,14 +33,14 @@
 :root {
   --gift-paper: #F7E8C9; --gift-paper-shade: #E6CFA0; --gift-gold: #F2C94C; --gift-gold-shade: #C99A1E;
   --gift-ribbon: #2456D6; --gift-ribbon-shade: #173A99;
-  --ticket-top: #FBF1DC; --ticket-dash: rgba(77, 53, 22, .4);
+  --ticket-top: #FBF1DC; --ticket-dash: rgba(77, 53, 22, .4); --ticket-muted: #6B573B;
   --sky-pill: rgba(255, 255, 255, .72); --sky-ring: #FFFFFF; --sky-cta: #FFFFFF; --cloud: .6;
   --section-gap: 32px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --gift-paper-shade: #D9BF8C; --gift-ribbon: #4E7BEF; --gift-ribbon-shade: #2456D6;
-    --ticket-top: #4D3E20; --ticket-dash: rgba(248, 233, 204, .4);
+    --ticket-top: #4D3E20; --ticket-dash: rgba(248, 233, 204, .4); --ticket-muted: #C9B690;
     --sky-pill: rgba(255, 255, 255, .08); --sky-ring: rgba(255, 255, 255, .2); --sky-cta: var(--mc-primary-container); --cloud: .06;
   }
 }
@@ -318,7 +318,8 @@ video { width: 100%; max-width: 28rem; aspect-ratio: 4 / 3; object-fit: cover; b
 .ticket-issued .ticket-chip { background: var(--mc-success-container); color: var(--mc-on-success-container); }
 .ticket-redeemed .ticket-chip { background: var(--mc-bg); color: var(--mc-stamp-ink); }
 .ticket-expired .ticket-chip { background: var(--mc-surface); color: var(--mc-secondary); }
-.ticket-redeemed .ticket-main, .ticket-redeemed .ticket-expiry, .ticket-expired .ticket-main, .ticket-expired .ticket-foot { opacity: .62; }
+.ticket-redeemed .ticket-main, .ticket-redeemed .ticket-expiry, .ticket-expired .ticket-main, .ticket-expired .ticket-expiry { color: var(--ticket-muted); }
+.ticket-redeemed .ticket-eyebrow, .ticket-expired .ticket-eyebrow { opacity: 1; }
 .ticket-redeemed .ticket-main { padding-right: 132px; }
 .ticket-stamp {
   position: absolute; right: 20px; top: calc((100% - var(--foot)) / 2 - 46px); z-index: 1; display: grid; place-items: center;

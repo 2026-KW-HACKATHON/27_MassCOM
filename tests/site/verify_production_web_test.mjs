@@ -275,6 +275,13 @@ test('운영 웹 보상 상자 상태와 쿠폰은 색이 아닌 글자로 표�
   assert.deepEqual(tickets.map((ticket) => findAll(ticket, 'ticket-stamp').length), [0, 1, 0]);
   assert.equal(first(tickets[1], 'ticket-stamp').textContent, '사용 완료');
   assert.equal(first(tickets[1], 'ticket-stamp').getAttribute('aria-hidden'), 'true');
+
+  // 긴 안내는 사용 가능한 쿠폰에만 보이고, 사용·만료 티켓에서는 도장 아래로 숨지 않도록 뺀다.
+  const detailed = opened.map((reward) => ({ ...reward, coupon: { ...reward.coupon, detail: '매장 안내 <i>문구</i>' } }));
+  await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture({ rewards: detailed })) }).fetcher, doc);
+  const detailedTickets = nodes['coupon-list'].children;
+  assert.deepEqual(detailedTickets.map((ticket) => findAll(ticket, 'ticket-detail').length), [1, 0, 0]);
+  assert.equal(first(detailedTickets[0], 'ticket-detail').textContent, '매장 안내 <i>문구</i>');
 });
 
 test('운영 웹 메달 조회 실패는 메달 영역만 숨기고 재시도 없이 도감을 그대로 표시한다', async () => {
