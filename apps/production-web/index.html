@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="월계 마스코트 운영 서비스의 공개 음식점 목록과 웹 도감 이용 안내">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
     <title>월계 마스코트 · 음식점 찾기</title>
     <link rel="stylesheet" href="assets/production.css">
     <script type="module" src="assets/production.mjs"></script>
@@ -12,7 +12,7 @@
   <body>
     <a class="skip-link" href="#main">본문으로 건너뛰기</a>
     <header class="site-header">
-      <p class="brand"><span class="brand-mark" aria-hidden="true">月</span> 월계 마스코트</p>
+      <p class="brand"><img class="brand-mark" src="assets/mascot-stamp.png" alt="" width="36" height="36"> 월계 마스코트</p>
       <nav aria-label="페이지 이동">
         <a href="#merchants">음식점 찾기</a>
         <a href="#collection">내 도감</a>
@@ -36,12 +36,12 @@
       </section>
 
       <section class="collection-section" id="collection" aria-labelledby="collection-title">
-        <div>
+        <div class="collection-head">
           <p class="context">본인에게만 보이는 기록</p>
           <h2 id="collection-title">내 도감</h2>
           <p class="collection-message">앱에서 인증한 방문과 수집품을 여기서 읽을 수 있습니다. QR 인증과 NFT 발행은 앱에서만 진행합니다.</p>
         </div>
-        <div>
+        <div class="collection-body">
           <p id="collection-status" class="status" role="status" aria-live="polite">내 도감을 확인하는 중입니다.</p>
           <div class="collection-actions">
             <a id="collection-login" class="collection-action" href="/api/web/auth/start" hidden>Google 계정으로 로그인</a>
@@ -53,13 +53,22 @@
               <h3 id="badges-title">탐험 메달과 보상 상자</h3>
               <p id="badge-note" role="status" aria-live="polite"></p>
               <div id="badge-content" hidden>
-                <p>인정된 방문으로 메달 등급이 오르고, 배지 3·6·9개를 모으면 보상 상자가 열려요. 상자는 앱에서 열어요. 앱 수집품·NFT와는 별개입니다.</p>
-                <h4>메달</h4>
-                <ol id="badge-list" class="badge-list"></ol>
-                <h4>보상 상자</h4>
-                <ol id="reward-list" class="badge-list"></ol>
-                <h4>내 쿠폰</h4>
-                <div id="coupon-list" class="collection-list"></div>
+                <div id="badge-passport" class="passport"></div>
+                <p class="note">인정된 방문으로 메달 등급이 오르고, 배지 3·6·9개를 모으면 보상 상자가 열려요. 상자는 앱에서 열어요. 앱 수집품·NFT와는 별개입니다.</p>
+                <div class="badge-block">
+                  <h4>메달</h4>
+                  <ol id="badge-list" class="medal-grid"></ol>
+                </div>
+                <div class="badge-split">
+                  <div class="badge-block">
+                    <h4>보상 상자</h4>
+                    <ol id="reward-list" class="reward-rows"></ol>
+                  </div>
+                  <div class="badge-block">
+                    <h4>내 쿠폰</h4>
+                    <div id="coupon-list" class="ticket-list"></div>
+                  </div>
+                </div>
               </div>
             </section>
             <section aria-labelledby="visits-title">

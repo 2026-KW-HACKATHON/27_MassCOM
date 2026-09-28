@@ -123,6 +123,7 @@ export async function loadAdmin(fetcher, doc) {
       const hide = doc.createElement('button');
       hide.type = 'button';
       hide.textContent = '비공개 및 신규 참여 중지';
+      hide.className = 'danger';
       form.append(title, state,
         editField(doc, '상점 이름', 'name', merchant.name),
         editField(doc, '소개', 'story', merchant.story),
@@ -161,6 +162,7 @@ export async function loadAdmin(fetcher, doc) {
           const revoke = doc.createElement('button');
           revoke.type = 'button';
           revoke.textContent = '권한 회수';
+          revoke.className = 'danger';
           revoke.addEventListener('click', async () => {
             revoke.disabled = true;
             try {
