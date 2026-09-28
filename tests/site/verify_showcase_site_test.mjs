@@ -58,14 +58,15 @@ test('실제 시연 웹은 서로 다른 가상 점포 세 곳을 표시한다',
   assert.match(html, /실제 영업점이나 방문 혜택과 연결되지 않습니다/);
 });
 
-test('README는 시연 웹과 APK의 직접 코드 수령 및 미실행 QR 촬영을 구분한다', () => {
+test('README는 시연 웹·기존 수령 QR 실기와 새 식별 QR 미검증을 구분한다', () => {
   const readme = readFileSync(join(repo, 'README.md'), 'utf8');
   assert.ok(readme.includes('apps/showcase-web'));
   assert.ok(readme.includes('https://www.masscom.kr/preview/'));
   assert.ok(readme.includes('시연 Android 앱'));
   assert.ok(readme.includes('https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2'));
   assert.match(readme, /두 계정[^\n]*직접 코드 수령[^\n]*이전 설치본 실증/);
-  assert.ok(readme.includes('카메라 QR 촬영 수령·지갑·NFT는 미검증'));
+  assert.ok(readme.includes('docs/evidence/showcase-preview3-camera-claim-2026-09-28.json'));
+  assert.match(readme, /새 2분 식별 QR[^\n]*`NOT_RUN`/);
 });
 
 test('README의 점포별 수집품 그림은 저장소의 정사각 PNG를 가리킨다', () => {

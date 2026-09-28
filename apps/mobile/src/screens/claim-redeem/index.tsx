@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Link } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,9 +9,12 @@ import {
   CommerceApiError,
   createCommerceApiClient,
   type ClaimPreview,
+  type CustomerIdentity,
   type RedeemedClaim,
 } from '@/commerce/commerce-api';
 import { createScanGate, parseScannedClaimCode } from '@/commerce/claim-code';
+import { ClaimQr } from '@/commerce/claim-qr';
+import { customerIdentityCode, isCustomerIdentityExpired } from '@/commerce/customer-identity';
 import {
   claimFailureAction,
   claimSuccessCopy,
@@ -46,8 +49,53 @@ export function ClaimRedeemScreen({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
   const [scanning, setScanning] = useState(false);
+  const [identity, setIdentity] = useState<CustomerIdentity>();
+  const [identityBusy, setIdentityBusy] = useState(false);
+  const [identityMessage, setIdentityMessage] = useState<string>();
+  const [now, setNow] = useState(Date.now());
   const [, requestCameraPermission] = useCameraPermissions();
   const scanGate = useRef(createScanGate()).current;
+
+  useEffect(() => {
+    if (!identity) return;
+    const timer = setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (isCustomerIdentityExpired(identity.expiresAt, current)) clearInterval(timer);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [identity]);
+
+  async function refreshIdentity() {
+    if (identityBusy) return;
+    setIdentityBusy(true);
+    setIdentityMessage(undefined);
+    setIdentity(undefined);
+    try {
+      const next = await api.createCustomerIdentity();
+      setIdentity(next);
+      setNow(Date.now());
+    } catch (error) {
+      setIdentityMessage(messageFor(error));
+    } finally {
+      setIdentityBusy(false);
+    }
+  }
+
+  async function revokeIdentity() {
+    if (!identity || identityBusy) return;
+    setIdentityBusy(true);
+    setIdentityMessage(undefined);
+    setIdentity(undefined);
+    try {
+      await api.revokeCustomerIdentity(identity.token);
+      setIdentityMessage('식별 QR을 폐기했습니다.');
+    } catch (error) {
+      setIdentityMessage(`${messageFor(error)} 폐기 결과를 확인할 수 없어 이전 QR이 아직 유효할 수 있습니다. 새 QR을 발급해 주세요.`);
+    } finally {
+      setIdentityBusy(false);
+    }
+  }
 
   function changeToken(value: string) {
     setToken(value);
@@ -140,6 +188,25 @@ export function ClaimRedeemScreen({
         <Text style={[styles.eyebrow, { color: palette.primary }]}>방문 인증</Text>
         <Text selectable style={[styles.title, { color: palette.label }]}>방문을 인증해요.</Text>
         <Text selectable style={[styles.body, { color: palette.secondaryLabel }]}>점주에게 받은 QR을 촬영하거나 1회 코드를 입력하세요.</Text>
+      </View>
+
+      <View style={[styles.formCard, { backgroundColor: palette.surface }]}>
+        <Text style={[styles.sectionTitle, { color: palette.label }]}>내 2분 식별 QR</Text>
+        <Text selectable style={[styles.securityNote, { color: palette.secondaryLabel }]}>직원에게 이 QR을 보여주세요. 직원이 식별 후 실제 사용을 확인해야 방문 코드가 발급됩니다.</Text>
+        {identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? (
+          <View style={{ alignItems: 'center', gap: 10 }}>
+            <ClaimQr code={identity.token} accessibilityLabel="직원에게 보여줄 고객 식별 QR 코드" />
+            <Text selectable style={[styles.sectionTitle, { color: palette.label }]}>확인 코드 {customerIdentityCode(identity.token)}</Text>
+            <Text style={[styles.securityNote, { color: palette.secondaryLabel }]}>{Math.ceil((Date.parse(identity.expiresAt) - now) / 1000)}초 뒤 만료</Text>
+          </View>
+        ) : identity ? <Text accessibilityLiveRegion="polite" style={[styles.securityNote, { color: palette.secondaryLabel }]}>식별 QR이 만료됐습니다. 새 QR을 발급해 주세요.</Text> : null}
+        {identityMessage ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{identityMessage}</Text> : null}
+        <Pressable accessibilityRole="button" disabled={identityBusy} onPress={() => void refreshIdentity()} style={[styles.button, { backgroundColor: palette.primary }, identityBusy && styles.disabled]}>
+          <Text style={[styles.buttonText, { color: palette.onPrimary }]}>{identityBusy ? '처리 중…' : identity ? '새 식별 QR 발급' : '식별 QR 발급'}</Text>
+        </Pressable>
+        {identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? <Pressable accessibilityRole="button" disabled={identityBusy} onPress={() => void revokeIdentity()} style={[styles.button, { backgroundColor: palette.primaryContainer }, identityBusy && styles.disabled]}>
+          <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>이 QR 폐기</Text>
+        </Pressable> : null}
       </View>
 
       <View style={[styles.formCard, { backgroundColor: palette.surface }]}>

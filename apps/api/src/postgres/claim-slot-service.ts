@@ -6,10 +6,12 @@ import {
   ClaimSlotError,
   type ClaimSlotPreview,
   type ClaimSlotService,
+  type ExistingClaimSlot,
   type IssuedClaimSlot,
   type RedeemedClaimSlot,
 } from '../claim-slot-service.js';
 import { MerchantAccessError } from '../merchant-access.js';
+import { hashCustomerIdentityToken, isCustomerIdentityToken } from './customer-identity.js';
 import {
   AccountLifecycleError,
   type PostgresAccountLifecycle,
@@ -131,7 +133,20 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     customerAccountId: string;
     merchantReference: string;
     createdByAccountId: string;
-  }): Promise<IssuedClaimSlot> {
+  }): Promise<IssuedClaimSlot>;
+  async issue(input: {
+    merchantId: string;
+    customerIdentityToken: string;
+    merchantReference: string;
+    createdByAccountId: string;
+  }): Promise<IssuedClaimSlot | ExistingClaimSlot>;
+  async issue(input: {
+    merchantId: string;
+    customerAccountId?: string;
+    customerIdentityToken?: string;
+    merchantReference: string;
+    createdByAccountId: string;
+  }): Promise<IssuedClaimSlot | ExistingClaimSlot> {
     const referenceHash = hashMerchantReference(
       this.options.referenceHmacSecret,
       input.merchantId,
@@ -139,14 +154,66 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     );
     const issuedAt = this.options.now();
     const expiresAt = new Date(issuedAt.getTime() + this.options.ttlMs);
-    let issued: IssuedClaimSlot | undefined;
+    let issued: IssuedClaimSlot | ExistingClaimSlot | undefined;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      let customerAccountId = input.customerAccountId;
+      let identityHash: Buffer | undefined;
+      if (input.customerIdentityToken !== undefined) {
+        if (!isCustomerIdentityToken(input.customerIdentityToken)) throw new ClaimSlotError('CUSTOMER_IDENTITY_UNAVAILABLE');
+        identityHash = hashCustomerIdentityToken(input.customerIdentityToken);
+        const identity = await client.query<{ customer_account_id: string }>(
+          `SELECT customer_account_id FROM customer_identity_tokens WHERE token_hash = $1`,
+          [identityHash],
+        );
+        if (!identity.rows[0]) throw new ClaimSlotError('CUSTOMER_IDENTITY_UNAVAILABLE');
+        customerAccountId = identity.rows[0].customer_account_id;
+      }
+      if (!customerAccountId) throw new ClaimSlotError('CUSTOMER_IDENTITY_UNAVAILABLE');
       await this.options.accountLifecycle?.assertAllActive(client, [
         input.createdByAccountId,
-        input.customerAccountId,
+        customerAccountId,
       ]);
+      if (identityHash) {
+        const identity = await client.query<{
+          customer_account_id: string;
+          bound_merchant_id: string | null;
+          bound_staff_account_id: string | null;
+          expires_at: Date;
+          consumed_at: Date | null;
+          revoked_at: Date | null;
+        }>(
+          `SELECT customer_account_id, bound_merchant_id, bound_staff_account_id,
+                  expires_at, consumed_at, revoked_at
+           FROM customer_identity_tokens WHERE token_hash = $1 FOR UPDATE`,
+          [identityHash],
+        );
+        const row = identity.rows[0];
+        if (!row || row.customer_account_id !== customerAccountId || row.revoked_at ||
+            row.bound_merchant_id !== input.merchantId || row.bound_staff_account_id !== input.createdByAccountId) {
+          throw new ClaimSlotError('CUSTOMER_IDENTITY_UNAVAILABLE');
+        }
+        if (row.consumed_at) {
+          const membership = await client.query(
+            `SELECT 1 FROM merchant_members
+             WHERE merchant_id = $1 AND account_id = $2 AND status = 'ACTIVE'`,
+            [input.merchantId, input.createdByAccountId],
+          );
+          if (!membership.rowCount) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+          const existing = await client.query<{ id: string; token_version: number; expires_at: Date }>(
+            `SELECT id, token_version, expires_at FROM claim_slots
+             WHERE merchant_id = $1 AND customer_account_id = $2
+               AND merchant_reference_hash = $3 AND created_by_account_id = $4`,
+            [input.merchantId, customerAccountId, referenceHash, input.createdByAccountId],
+          );
+          if (!existing.rows[0]) throw new ClaimSlotError('CUSTOMER_IDENTITY_UNAVAILABLE');
+          await client.query('COMMIT');
+          return { claimSlotId: existing.rows[0].id, tokenVersion: existing.rows[0].token_version,
+            expiresAt: existing.rows[0].expires_at.toISOString(), replayed: true };
+        }
+        if (row.expires_at.getTime() <= this.options.now().getTime()) throw new ClaimSlotError('CUSTOMER_IDENTITY_EXPIRED');
+      }
       const access = await client.query<AccessAndDuplicateRow>(
         `SELECT
            EXISTS (
@@ -163,7 +230,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
                AND customer_account_id = $3
                AND merchant_reference_hash = $4
            ) AS duplicate`,
-        [input.merchantId, input.createdByAccountId, input.customerAccountId, referenceHash],
+        [input.merchantId, input.createdByAccountId, customerAccountId, referenceHash],
       );
       if (!access.rows[0]?.authorized) {
         throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
@@ -196,7 +263,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
         [
           claimSlotId,
           input.merchantId,
-          input.customerAccountId,
+          customerAccountId,
           referenceHash,
           input.createdByAccountId,
           hashValue(token),
@@ -206,6 +273,12 @@ export class PostgresClaimSlotService implements ClaimSlotService {
       );
       if (inserted.rowCount !== 1) {
         throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+      }
+      if (identityHash) {
+        await client.query(
+          `UPDATE customer_identity_tokens SET consumed_at = $2 WHERE token_hash = $1`,
+          [identityHash, issuedAt],
+        );
       }
       issued = {
         claimSlotId,

@@ -5,7 +5,7 @@ import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { createMerchantApiClient } from '@/merchant/merchant-api';
 import { findShowcaseStaffMerchant } from '@/merchant/showcase-staff';
-import { MerchantClaimScreen } from '@/screens/merchant-claim';
+import { StaffClaimScreen } from '@/screens/merchant-claim/staff';
 import { FoundationScreen } from '@/screens/foundation';
 import { colorsForScheme } from '@/theme/palette';
 
@@ -78,9 +78,8 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
         </Pressable>
       </View>
       {logoutError ? <Text accessibilityLiveRegion="polite" style={{ paddingHorizontal: 20, color: colors.label }}>로그아웃을 완료하지 못했습니다. 다시 시도해 주세요.</Text> : null}
-      <MerchantClaimScreen
+      <StaffClaimScreen
         apiUrl={apiUrl}
-        accountId={accountId}
         merchantId={state.merchantId}
         credential={credential}
         onSessionInvalid={onSessionInvalid}

@@ -59,6 +59,12 @@ type ClaimSlotFixture = {
     merchantReference: string;
     createdByAccountId: string;
   }): Promise<{ claimSlotId: string; token: string; tokenVersion: number; expiresAt: string }>;
+  issue(input: {
+    merchantId: string;
+    customerIdentityToken: string;
+    merchantReference: string;
+    createdByAccountId: string;
+  }): Promise<{ claimSlotId: string; token: string; tokenVersion: number; expiresAt: string }>;
   reissue(input: {
     merchantId: string;
     claimSlotId: string;
@@ -540,7 +546,7 @@ test('does not issue claim slots when the claim service is unconfigured', async 
 test('issues a one-time claim token after merchant permission succeeds', async (t) => {
   const baseUrl = await startFixture(
     t,
-    () => 'merchant-staff-1',
+    developmentHeaderAccountResolver,
     undefined,
     {
       requirePermission: async ({ merchantId }) => ({
@@ -560,7 +566,7 @@ test('issues a one-time claim token after merchant permission succeeds', async (
   );
   const response = await fetch(`${baseUrl}/merchant/merchants/merchant-visible/claim-slots`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-account-id': 'merchant-staff-1' },
     body: JSON.stringify({
       customerAccountId: 'customer-1',
       merchantReference: 'demo-order-1',
@@ -834,7 +840,7 @@ test('maps claim slot conflicts and expiration without exposing stored data', as
   };
   const baseUrl = await startFixture(
     t,
-    () => 'account-1',
+    developmentHeaderAccountResolver,
     undefined,
     {
       requirePermission: async ({ merchantId }) => ({
@@ -883,7 +889,7 @@ test('maps claim slot conflicts and expiration without exposing stored data', as
     failure = scenario.code;
     const response = await fetch(`${baseUrl}${scenario.url}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-account-id': 'account-1' },
       ...(scenario.body ? { body: JSON.stringify(scenario.body) } : {}),
     });
     assert.equal(response.status, scenario.expectedStatus, scenario.code);
