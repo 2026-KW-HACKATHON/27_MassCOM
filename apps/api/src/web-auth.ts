@@ -147,6 +147,7 @@ export class WebAuthService {
     location.searchParams.set('redirect_uri', redirectUri);
     location.searchParams.set('response_type', 'code');
     location.searchParams.set('scope', 'openid');
+    if (returnTo === '/admin/') location.searchParams.set('prompt', 'select_account');
     location.searchParams.set('state', state);
     location.searchParams.set('nonce', nonce);
     location.searchParams.set('code_challenge', digest(verifier).toString('base64url'));

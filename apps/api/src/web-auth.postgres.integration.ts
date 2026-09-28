@@ -60,12 +60,14 @@ test('OIDC callback consumes browser-bound state once and creates only a web ses
     verifiedNonce = authorization.searchParams.get('nonce')!;
     assert.equal(authorization.searchParams.get('state'), started.state);
     assert.equal(authorization.searchParams.get('scope'), 'openid');
+    assert.equal(authorization.searchParams.has('prompt'), false);
 
     await assert.rejects(service.complete('one-time-code', started.state, 'another-browser', 'https://masscom.kr'), /WEB_AUTH_STATE_INVALID/);
     const session = await service.complete('one-time-code', started.state, started.state, 'https://masscom.kr');
     assert.equal(session.returnTo, '/app/');
     assert.equal(await service.resolveSession(session.token, 'https://masscom.kr'), accountId);
     const adminStart = await service.start('https://masscom.kr', '/admin/');
+    assert.equal(new URL(adminStart.location).searchParams.get('prompt'), 'select_account');
     verifiedNonce = new URL(adminStart.location).searchParams.get('nonce')!;
     const adminSession = await service.complete('one-time-code', adminStart.state, adminStart.state, 'https://masscom.kr');
     assert.equal(adminSession.returnTo, '/admin/');

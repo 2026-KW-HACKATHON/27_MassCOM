@@ -280,6 +280,9 @@ test('관리 화면은 별도 경로에서 제공하고 검색 색인 및 캐시
   assert.equal(script.status, 200);
   assert.match(script.headers.get('content-type'), /javascript/);
   assert.equal(script.headers.get('x-robots-tag'), 'noindex, nofollow');
+  const stylesheet = await fetch(`${base}/app/assets/production.css`);
+  assert.equal(stylesheet.status, 200);
+  assert.match(stylesheet.headers.get('content-type'), /text\/css/);
 });
 
 test('관리 화면은 로그인·권한 거부·실제 상점 목록을 구분하고 상점 이름을 텍스트로 표시한다', async () => {
