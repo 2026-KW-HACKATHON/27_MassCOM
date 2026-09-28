@@ -10,6 +10,7 @@ import type { AccountDeletionService } from './account-deletion.js';
 import type { AccountDeletionIntakeService } from './account-deletion-intake.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { GoogleIdTokenError } from './google-id-token.js';
+import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
 import { WebAuthError, type WebAuthHandler } from './web-auth.js';
 import {
   createApiServer,
@@ -183,6 +184,7 @@ async function startFixture(
   admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>,
   deletionIntake?: AccountDeletionIntakeService,
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
+  customerIdentities?: CustomerIdentityService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -210,7 +212,7 @@ async function startFixture(
     trustProxyClientIp,
     webAuth,
     wwwEnabled,
-    undefined,
+    customerIdentities,
     admin,
     deletionIntake,
     staffRegistration,
@@ -564,6 +566,127 @@ test('merchant registration uses host-bound web cookie and rejects foreign-origi
   });
   assert.equal(issued.status, 201);
   assert.equal(writes, 1);
+});
+
+test('merchant web resolves a customer QR and issues a confirmed claim without exposing a replay token', async (t) => {
+  const calls: unknown[][] = [];
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async token => {
+      if (token !== 'staff-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'staff-account';
+    }, logout: async () => {},
+  };
+  const staff = { mine: async () => [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF' }] } as unknown as
+    Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const access: MerchantAccessFixture = { requirePermission: async input => {
+    calls.push(['permission', input]);
+    return { merchantId: input.merchantId, role: 'STAFF', permissions: ['CONFIRM_VISIT'] };
+  } };
+  const identities = { resolve: async input => {
+    calls.push(['resolve', input]);
+    return { expiresAt: '2026-09-28T12:00:00.000Z' };
+  } } as CustomerIdentityService;
+  let issued = false;
+  const claims = claimSlotFixture({ issue: (async input => {
+    calls.push(['issue', input]);
+    if (issued) return { claimSlotId: 'slot-1', tokenVersion: 1,
+      expiresAt: '2026-09-28T12:10:00.000Z', replayed: true };
+    issued = true;
+    return { claimSlotId: 'slot-1', token: 'private-claim-token', tokenVersion: 1,
+      expiresAt: '2026-09-28T12:10:00.000Z' };
+  }) as ClaimSlotFixture['issue'] });
+  const base = await startFixture(t, undefined, undefined, access, claims, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
+    webAuth, false, undefined, undefined, staff, identities);
+  const headers = { cookie: 'web_session=staff-cookie', origin: 'https://masscom.kr',
+    'content-type': 'application/json' };
+  const prefix = '/api/web/merchant/merchants/real-merchant';
+  const resolved = await webRequest(base, `${prefix}/customer-identities/resolve`, {
+    method: 'POST', headers, body: JSON.stringify({ customerIdentityToken: 'customer-qr' }),
+  });
+  assert.equal(resolved.status, 200);
+  assert.deepEqual(await resolved.json(), { expiresAt: '2026-09-28T12:00:00.000Z' });
+  const body = JSON.stringify({ customerIdentityToken: 'customer-qr', merchantReference: 'sale-1', useConfirmed: true });
+  const first = await webRequest(base, `${prefix}/claim-slots`, { method: 'POST', headers, body });
+  assert.equal(first.status, 201);
+  assert.equal((await first.json()).token, 'private-claim-token');
+  const replay = await webRequest(base, `${prefix}/claim-slots`, { method: 'POST', headers, body });
+  assert.equal(replay.status, 200);
+  assert.deepEqual(await replay.json(), { claimSlotId: 'slot-1', tokenVersion: 1,
+    expiresAt: '2026-09-28T12:10:00.000Z', replayed: true });
+  assert.deepEqual(calls, [
+    ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'CONFIRM_VISIT' }],
+    ['resolve', { token: 'customer-qr', merchantId: 'real-merchant', staffAccountId: 'staff-account' }],
+    ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'CONFIRM_VISIT' }],
+    ['issue', { merchantId: 'real-merchant', customerIdentityToken: 'customer-qr',
+      merchantReference: 'sale-1', createdByAccountId: 'staff-account' }],
+    ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'CONFIRM_VISIT' }],
+    ['issue', { merchantId: 'real-merchant', customerIdentityToken: 'customer-qr',
+      merchantReference: 'sale-1', createdByAccountId: 'staff-account' }],
+  ]);
+});
+
+test('merchant web rejects invalid QR, foreign origin, missing confirmation and non-real merchant', async (t) => {
+  let allowed = true;
+  let real = true;
+  let issueCalls = 0;
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async token => {
+      if (token !== 'staff-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'staff-account';
+    }, logout: async () => {},
+  };
+  const access: MerchantAccessFixture = { requirePermission: async input => {
+    if (!allowed) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    return { merchantId: input.merchantId, role: 'STAFF', permissions: ['CONFIRM_VISIT'] };
+  } };
+  const staff = { mine: async () => real ? [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF' }] : [] } as unknown as
+    Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const identities = { resolve: async ({ token }: { token: string }) => {
+    if (token === 'expired') throw new CustomerIdentityError('CUSTOMER_IDENTITY_EXPIRED');
+    throw new CustomerIdentityError('CUSTOMER_IDENTITY_UNAVAILABLE');
+  } } as unknown as CustomerIdentityService;
+  const claims = claimSlotFixture({ issue: (async () => {
+    issueCalls += 1;
+    throw new Error('unexpected issue');
+  }) as ClaimSlotFixture['issue'] });
+  const base = await startFixture(t, undefined, undefined, access, claims, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
+    webAuth, false, undefined, undefined, staff, identities);
+  const prefix = '/api/web/merchant/merchants/real-merchant';
+  const headers = { cookie: 'web_session=staff-cookie', origin: 'https://masscom.kr',
+    'content-type': 'application/json' };
+  const post = (suffix: string, body: object, customHeaders = headers, host = 'masscom.kr') =>
+    webRequest(base, `${prefix}/${suffix}`, { method: 'POST', headers: customHeaders,
+      host, body: JSON.stringify(body) });
+  for (const [token, status, code] of [
+    ['missing', 409, 'CUSTOMER_IDENTITY_UNAVAILABLE'],
+    ['expired', 410, 'CUSTOMER_IDENTITY_EXPIRED'],
+    ['other-account', 409, 'CUSTOMER_IDENTITY_UNAVAILABLE'],
+  ] as const) {
+    const response = await post('customer-identities/resolve', { customerIdentityToken: token });
+    assert.equal(response.status, status);
+    assert.deepEqual(await response.json(), { code });
+  }
+  assert.equal((await post('claim-slots', { customerIdentityToken: 'qr', merchantReference: 'sale-1' })).status, 400);
+  assert.equal((await post('claim-slots', { customerAccountId: 'forged', customerIdentityToken: 'qr',
+    merchantReference: 'sale-1', useConfirmed: true })).status, 400);
+  assert.equal((await post('customer-identities/resolve', { customerAccountId: 'forged', customerIdentityToken: 'qr' })).status, 400);
+  assert.equal((await post('claim-slots', { customerIdentityToken: 'qr', merchantReference: 'sale-1',
+    useConfirmed: true }, { ...headers, origin: 'https://evil.example' })).status, 403);
+  assert.equal((await post('customer-identities/resolve', { customerIdentityToken: 'qr' }, headers,
+    'api.masscom.kr')).status, 403);
+  assert.equal((await post('claim-slots', { customerIdentityToken: 'qr', merchantReference: 'sale-1',
+    useConfirmed: true }, { ...headers, cookie: '' })).status, 401);
+  allowed = false;
+  assert.equal((await post('customer-identities/resolve', { customerIdentityToken: 'qr' })).status, 403);
+  allowed = true;
+  real = false;
+  assert.equal((await post('claim-slots', { customerIdentityToken: 'qr', merchantReference: 'sale-1',
+    useConfirmed: true })).status, 403);
+  assert.equal(issueCalls, 0);
 });
 
 test('admin staff approval and revoke derive the actor from the web session', async (t) => {

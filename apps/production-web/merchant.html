@@ -31,6 +31,20 @@
         <button type="submit">등록 코드 발급</button>
       </form>
       <p id="merchant-code" class="status" role="status" aria-live="polite"></p>
+      <h2>고객 방문 확인</h2>
+      <p>고객 앱의 QR을 확인하고 실제 이용을 확인한 뒤 방문 코드를 발급하세요. 이미 처리한 요청의 코드는 다시 표시되지 않습니다.</p>
+      <form id="merchant-claim-form" hidden>
+        <label>점포 <select id="merchant-claim-merchant" required></select></label>
+        <label>고객 QR 내용 <input id="merchant-claim-token" type="text" autocomplete="off" required></label>
+        <button id="merchant-claim-scan" type="button">카메라로 QR 읽기</button>
+        <video id="merchant-claim-video" autoplay playsinline muted hidden aria-label="고객 QR 스캔 화면"></video>
+        <button id="merchant-claim-scan-cancel" type="button" hidden>스캔 취소</button>
+        <button id="merchant-claim-resolve" type="button">고객 QR 확인</button>
+        <label>이용 식별 번호 <input id="merchant-claim-reference" type="text" autocomplete="off" required></label>
+        <label><input id="merchant-claim-confirm" type="checkbox"> 실제 이용을 확인했고 이 QR을 사용합니다.</label>
+        <button id="merchant-claim-submit" type="submit" disabled>방문 코드 발급</button>
+      </form>
+      <p id="merchant-claim-result" class="status" role="status" aria-live="polite"></p>
     </section>
   </main>
 </body>
