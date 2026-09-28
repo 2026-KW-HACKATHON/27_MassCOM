@@ -4,7 +4,10 @@
 
 ## 최신 작업 경계
 
-- **2026-09-29 조직 저장소 복귀:** 조직 저장소는 `PUBLIC`·활성이고 [PR #207~#210](PUBLIC_SYNC.md)을 PR/main CI 통과 뒤 병합했다. [시연 Preview 5 APK](evidence/showcase-preview5-public-release-2026-09-29.json)를 조직 공개 Release에 같은 SHA-256으로 게시했다. 이전 개인 PR 문서·배포 기록은 당시 사실로 보존한다. 이 문서 동기화 PR의 CI·병합 및 공개 `/open` 서버 반영은 별도 확인한다.
+- **동네 탐험 배지·공유 소스:** [Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212), 커밋 6c47423. 인정된 서로 다른 점포 방문으로 배지를 계산하며 시연 쿠폰은 실제 사용 불가 예시다. 모바일 244/244·웹 48/48·타입·린트·Android 개발 export PASS. 새 APK/휴대전화 화면과 공개 웹 적용은 NOT_RUN이고 실제 쿠폰 발급은 구현하지 않았다.
+- **Preview 5 설치 안내 웹 배포:** 첫 두 SSH exit 255 때 이전 웹을 보존했고, 호스트 한정 keepalive와 기존 롤백·경로 검사로 main 19c5ae4의 /open을 [기존 Lightsail에 반영](evidence/public-open-preview5-deployment-2026-09-29.json)했다. apex/www HTTPS 200·소스 SHA-256 일치, API/DB 불변을 확인했다. 신규 배지 웹 소스는 아직 배포하지 않았다.
+
+- **2026-09-29 조직 저장소 복귀:** 조직 저장소는 `PUBLIC`·활성이고 [PR #207~#210](PUBLIC_SYNC.md)을 PR/main CI 통과 뒤 병합했다. [시연 Preview 5 APK](evidence/showcase-preview5-public-release-2026-09-29.json)를 조직 공개 Release에 같은 SHA-256으로 게시했다. 이전 개인 PR 문서·배포 기록은 당시 사실로 보존한다. [PR #211](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/211)·main CI는 PASS, 공개 /open 서버 반영은 [실측 완료](evidence/public-open-preview5-deployment-2026-09-29.json)됐다.
 
 - **2026-09-29 시연 Preview 5:** [개인 비공개 Release](https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.5)의 APK는 `88932cb` 소스·시연 전용 서명·원격 SHA-256이 [일치](evidence/showcase-preview5-release-2026-09-29.json)한다. 내부 versionName/code는 `0.1.0-test.2`/`2`; 휴대전화 설치와 새 고객 QR 실기는 `NOT_RUN`. 운영 test.3과 데이터·키·패키지는 별도다.
 

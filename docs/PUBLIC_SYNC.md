@@ -8,7 +8,7 @@
 | 개인 PR #2·#4: 고객 식별 QR·첫 방문 흐름 | [#208](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/208) | `ac0e417` | [PASS](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/36455380759) |
 | 개인 PR #5·#7–#10: 운영 관리자·직원·삭제 접수 | [#209](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/209) | `6ae7ede` | [PASS](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/36457365304) |
 | 개인 PR #11–#15: 점포 정보·QR 발급/재발급·현황·캠페인 초안 | [#210](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/210) | `1cce579` | [PASS](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/36459385401) |
-| 개인 PR #16: Preview 5·캠페인 배포 기록 | 이 문서가 포함된 조직 문서 PR | 병합·CI 별도 확인 | 별도 확인 |
+| 개인 PR #16: Preview 5·캠페인 배포 기록 | [#211](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/211) | `19c5ae4` | [PASS](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/36462497972) |
 
 [시연 Preview 5 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.5)는 개인 비공개 Release와 같은 소스 `88932cb` 및 [같은 SHA-256](evidence/showcase-preview5-public-release-2026-09-29.json)으로 조직에 공개했다. 공개 게시와 실제 휴대전화 설치·신규 QR 흐름 검증은 서로 다른 상태이며, 후자는 `NOT_RUN`이다. 운영 test.3과 시연 앱은 서로 다른 package·API·데이터를 사용한다.
 

@@ -1,7 +1,7 @@
 import * as Application from 'expo-application';
 import { Link } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -18,7 +18,7 @@ import { uiMetrics } from '@/theme/ui-metrics';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
-import { buildMerchantGoals, buildStampSlots, describeMerchantGoal, stampColumnCount, type MerchantGoal, type StampSlot } from './collection-stamps';
+import { badgeShareMessage, buildMerchantGoals, buildNeighborhoodJourney, buildStampSlots, describeMerchantGoal, stampColumnCount, type MerchantGoal, type NeighborhoodBadge, type StampSlot } from './collection-stamps';
 import { showcaseCollectibleArtSource } from './showcase-collectible-art-assets';
 import { collectibleArtSize, showcaseCollectibleArtKey } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
@@ -36,6 +36,7 @@ export function CollectionScreen({
   onSessionInvalid: () => Promise<void>;
 }) {
   const insets = useSafeAreaInsets();
+  const isShowcase = Application.applicationId === 'kr.masscom.wolgye.demo';
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
   const { width, fontScale } = useWindowDimensions();
@@ -172,6 +173,14 @@ export function CollectionScreen({
     }
   }
 
+  async function shareBadge(badge: NeighborhoodBadge) {
+    try {
+      await Share.share({ title: badge.title, message: badgeShareMessage(badge, isShowcase ? 'showcase' : 'production') });
+    } catch {
+      setError('공유창을 열지 못했습니다. 다시 시도해 주세요.');
+    }
+  }
+
   function confirmMint(item: CollectionSnapshot['collectibles'][number]) {
     if (!binding) return;
     Alert.alert(
@@ -237,6 +246,7 @@ export function CollectionScreen({
   }
 
   const summary = collectionCounts(collection);
+  const journey = buildNeighborhoodJourney(collection.visits);
 
   return (
     <ScrollView
@@ -253,6 +263,44 @@ export function CollectionScreen({
           <Count label="실제 NFT" value={summary.finalizedNfts} stacked={stackCounts} palette={palette} />
         </View>
       </View>
+
+      <Section palette={palette} title="동네 탐험 배지" note="인정된 방문에서 서로 다른 가게를 발견할 때 열려요. 기존 앱 수집품·NFT와 별개예요.">
+        <View style={[styles.journeyPanel, { backgroundColor: palette.surface }]}>
+          <Text style={[styles.journeyLead, { color: palette.label }]}>
+            {journey.distinctStores === 0 ? '첫 가게에서 이야기를 시작해 보세요.' : `새로운 가게 ${journey.distinctStores}곳을 만났어요.`}
+          </Text>
+          <View accessibilityRole="progressbar" accessibilityLabel="동네 탐험 진행" accessibilityValue={{ min: 0, max: 3, now: Math.min(3, journey.distinctStores) }} style={[styles.journeyTrack, { backgroundColor: palette.primaryContainer }]}>
+            <View style={[styles.journeyFill, { backgroundColor: palette.primary, width: `${Math.min(100, journey.distinctStores / 3 * 100)}%` as const }]} />
+          </View>
+          {journey.badges.map((badge) => (
+            <View key={badge.id} style={[styles.badgeRow, { borderBottomColor: palette.separator }]}>
+              <Image source={badge.earned ? mascotStamp : mascotStampEmpty} accessible={false} style={[styles.badgeImage, !badge.earned && styles.badgeLocked]} />
+              <View style={styles.badgeCopy}>
+                <Text style={[styles.badgeTitle, { color: palette.label }]}>{badge.title}</Text>
+                <Text style={[styles.badgeDetail, { color: palette.secondaryLabel }]}>
+                  {badge.earned ? '획득 · 동네 이야기가 하나 더 생겼어요' : `서로 다른 가게 ${badge.targetStores}곳 · ${badge.remaining}곳 남음`}
+                </Text>
+              </View>
+              {badge.earned ? (
+                <Pressable accessibilityRole="button" accessibilityLabel={`${badge.title} 배지 공유`} onPress={() => void shareBadge(badge)} style={[styles.badgeShare, { borderColor: palette.primary }]}>
+                  <Text style={[styles.badgeShareText, { color: palette.primary }]}>공유</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ))}
+        </View>
+        {isShowcase ? (
+          <View style={[styles.couponPreview, { backgroundColor: palette.accentContainer }]}>
+            <Text style={[styles.couponTitle, { color: palette.onAccentContainer }]}>시연 쿠폰 예시</Text>
+            <Text style={[styles.couponBody, { color: palette.onAccentContainer }]}>
+              {journey.badges[2]?.earned
+                ? '세 가게 탐험을 채웠어요. 실제 쿠폰은 발급되지 않습니다.'
+                : `서로 다른 세 가게를 방문하면 보이는 보상 화면 예시 · ${journey.badges[2]?.remaining ?? 3}곳 남음`}
+            </Text>
+            <Text style={[styles.couponWarning, { color: palette.onAccentContainer }]}>가상 시연 · 실제 매장 사용 불가 · 할인 코드 없음</Text>
+          </View>
+        ) : null}
+      </Section>
 
       {merchantsError ? (
         <Section palette={palette} title="스탬프판">

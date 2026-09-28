@@ -8,7 +8,11 @@ Phase 2 핵심 loopback DEMO와 Phase 3 Local Anvil 발행·복구 흐름은 구
 - **중간 기획 재현성 20점 / 최종 구현 완성도·기술력 20점:** [PR #198](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/198)의 빌드 캐시 RED→GREEN, [운영 test.3 APK·Samsung Google 로그인·16KB 설치](evidence/operating-android-test3-2026-09-28.json), [시연 Preview 3 폰 기본 경로](evidence/showcase-preview3-phone-2026-09-28.json)를 연결한다. 공개 릴리스 해시와 코드 커밋을 재현 가능하게 대조하되 운영 지갑·QR/NFT·초대 밖 고객 로그인은 `NOT_RUN`이다.
 - **최종 지역 문제 적합성 20점·참여도 5점:** 운영 목록 0곳과 시연 가상 3곳을 분리한다. 이 자료는 지역 점포 확보·현장 참여·실제 매출 변화의 증거가 아니다. 팀원의 직접 설명·현장 검증은 별도 수집해야 한다.
 
-## 2026-09-29 개인 저장소의 추가 증거
+## 2026-09-29 추가 증거
+
+- **중간 기획 재현 가능성 20점 / 최종 실현·상용화 가능성 30점:** [조직 PR #211](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/211)의 공개 Preview 5 APK 연결은 [apex/www 설치 안내 실측](evidence/public-open-preview5-deployment-2026-09-29.json)에서 HTTPS·소스 해시와 운영/시연 API·DB 보존까지 확인했다. 이는 Android Preview 5 설치·실제 가게·쿠폰 사용의 증거가 아니다.
+
+- **중간 창의성·차별성 20점 / 최종 창의성·차별성 20점:** [Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212)의 [동네 배지 설계·검증](NEIGHBORHOOD_BADGES.md)은 인정 방문→서로 다른 가게 탐험→배지 공유의 연결을 보여준다. 모바일·웹 자동 시험은 PASS지만 새 화면의 실기·사람의 재방문 행동·실제 점주 쿠폰 사용은 NOT_RUN이다. 시연 쿠폰 예시는 할인 실적이 아니다.
 
 - **중간 논리의 연결성 30점 / 최종 구현 완성도·기술력 20점:** 개인 [Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 [PR #12](https://github.com/choijunhuk/MassCOM/pull/12)·[#13](https://github.com/choijunhuk/MassCOM/pull/13)은 고객 식별 QR 확인→점주 이용 확정→계정 귀속 방문 QR→응답 손실 후 명시적 재발급의 코드·CI·[운영 배포](evidence/operating-merchant-reissue-deployment-2026-09-28.json)를 잇는다. 실제 점주·고객 두 휴대전화 수령은 `NOT_RUN`이다.
 - **중간 실현·상용화 가능성 20점 / 최종 실현·상용화 가능성 30점:** 개인 [PR #14](https://github.com/choijunhuk/MassCOM/pull/14)·[#15](https://github.com/choijunhuk/MassCOM/pull/15)의 관리자 권한·읽기 전용 현황·비공개 캠페인 초안, [기존 서버 배포](evidence/operating-campaign-draft-deployment-2026-09-29.json), 별도 PostgreSQL 시험·백업을 연결한다. 운영 점포/캠페인 0곳/0건이고 D-023 정원·수령 정책은 미정이라 실제 영업·고객 보상 실증이 아니다.

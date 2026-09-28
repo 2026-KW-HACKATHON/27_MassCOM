@@ -1,5 +1,9 @@
 # 테스트 상태
 
+2026-09-29 [Preview 5 공개 설치 안내 배포](evidence/public-open-preview5-deployment-2026-09-29.json): scripts/deploy-lightsail-web.sh --dry-run PASS, 첫 두 --deploy SSH exit 255는 웹/Caddy 전환 전 종료되어 이전 fd0a9b2 보존, 작은 tar→SSH와 원격 사전검사·단독 웹 이미지 build PASS. 해당 SSH 호스트에만 keepalive를 적용한 뒤 같은 배포 스크립트 exit 0. apex/www /open HTTPS 200와 docs/open.html SHA-256 b25fe17edfcedd27f158973b4ca76ae7d0dd68ee7b62477eda085bd94b5e2762 일치, www 앱/시연/관리자/점주와 두 API health 200, 운영 API fd0a9b2·DB 유지. 신규 배지 웹 UI·Android 실기는 이 배포에 포함되지 않으며 필수 36개 ID 판정은 불변.
+
+2026-09-29 [동네 탐험 배지·공유](NEIGHBORHOOD_BADGES.md), 소스 6c47423: macOS/Node v25.9.0에서 npm test --prefix apps/mobile RED 2건→244/244 PASS, node --test tests/site/verify_production_web_test.mjs RED 1건→48/48 PASS. npm run typecheck --prefix apps/mobile, npm run lint --prefix apps/mobile, APP_VARIANT=development EXPO_PUBLIC_API_URL=http://127.0.0.1:3000 npm run export:android --prefix apps/mobile, bash tools/gate.sh PASS. 반복·미인정 방문 제외와 웹 로그아웃의 배지 제거를 검증했다. 새 Android 설치본의 화면/공유창/TalkBack, 공개 웹 반영, 실제 쿠폰 발급·사용은 NOT_RUN이며 필수 36개 제품 시험 ID 판정은 바꾸지 않는다.
+
 2026-09-29 [시연 Preview 5 GitHub Release](evidence/showcase-preview5-release-2026-09-29.json): `88932cb` 소스의 Gradle release APK/AAB BUILD SUCCESSFUL, 시연 package·전용 서명·source marker·지갑 표면 PASS. 로컬 APK 154132481바이트 SHA-256 `bc8c5bd6e0cd1ac0ae6a53db806dbad70714169f9c5573483c01386173ed19e0`과 원격 GitHub 자산 digest·태그 커밋이 일치한다. `adb devices -l`은 비어 있어 실기 설치·업데이트·카메라 QR·두 휴대전화 수령은 `NOT_RUN`. 이 빌드·업로드 결과로 필수 36개 제품 시험 ID를 자동 상향하지 않는다.
 
 2026-09-29 [운영 캠페인 초안 배포](evidence/operating-campaign-draft-deployment-2026-09-29.json): 개인 PR #15 PR/main CI PASS, 소스 API 122/122·운영 웹 47/47·별도 `_test` PostgreSQL 관리자 12/12·타입/build/gate PASS. 기존 Lightsail API·웹 `fd0a9b2`, migration 26건, mode 600 백업 archive 목록 PASS. 운영/시연 API health·www 핵심 경로 200, 미로그인 초안 401·Origin 없는 생성 403, 지정 관리자 계정의 비공개 빈 상태 화면 PASS. 운영 점포·캠페인·mint 0, 시연 3/3/2 유지. 실제 점포 초안 생성과 공개·정원 정책·방문 보상은 `NOT_RUN`.

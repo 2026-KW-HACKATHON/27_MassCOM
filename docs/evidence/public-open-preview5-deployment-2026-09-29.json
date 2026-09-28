@@ -1,0 +1,41 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-09-28T19:14:24Z",
+  "purpose": "publish the already-merged public Preview 5 Android download guidance on the existing Lightsail web host",
+  "sourceCommit": "19c5ae408969b19950df3ccaf51efd91c757c90d",
+  "firstTwoAttempts": {
+    "result": "SSH exit 255 at transfer/remote execution boundary; no web or Caddy cutover",
+    "preservedWebCommit": "fd0a9b2ebfc8ca73b582230aac778c84863bb614"
+  },
+  "recovery": {
+    "smallTarSshReadOnlyProbe": "PASS",
+    "remotePrebuildReadOnlyProbe": "PASS",
+    "isolatedProductionWebImageBuild": "PASS",
+    "localSshKeepalive": "ServerAliveInterval 15; host-scoped outside Git",
+    "thirdScriptedDeploy": "PASS; scripts/deploy-lightsail-web.sh --deploy with built-in rollback and route probes"
+  },
+  "publicPage": {
+    "https://masscom.kr/open": "200; SHA-256 b25fe17edfcedd27f158973b4ca76ae7d0dd68ee7b62477eda085bd94b5e2762",
+    "https://www.masscom.kr/open": "200; same SHA-256 as docs/open.html",
+    "operatingApkLink": "android-v0.1.0-test.3 present",
+    "showcaseApkLink": "showcase-android-v0.1.0-preview.5 present",
+    "oldPreview3": "historical warning only; not offered as current staff flow"
+  },
+  "otherRoutes": {
+    "wwwAppPreviewAdminMerchant": "200 each",
+    "productionAndShowcaseApiHealth": "200 each"
+  },
+  "serverBoundary": {
+    "webMarker": "19c5ae408969b19950df3ccaf51efd91c757c90d",
+    "webImage": "masscom-production-web:19c5ae408969 healthy",
+    "productionApiImage": "masscom-api:fd0a9b2ebfc8 unchanged",
+    "productionPostgres": "existing postgres:16.10-alpine remained running",
+    "showcaseApiImage": "masscom-showcase-api:6585614 unchanged",
+    "databaseMigration": "NOT_RUN; web-only deployment",
+    "newPaidResource": "NOT_RUN"
+  },
+  "notClaimed": [
+    "new neighborhood badge UI live deployment; this source predates Issue 212",
+    "Preview 5 physical Android installation, two-phone QR redemption, real coupons, Play approval"
+  ]
+}
