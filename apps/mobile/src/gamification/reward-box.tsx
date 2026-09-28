@@ -37,7 +37,7 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
     ? `${reward.offer.merchantName} · ${reward.offer.title}`
     : null;
 
-  async function open() {
+  async function openBox() {
     if (busy) return;
     setBusy(true);
     setError(undefined);
@@ -79,7 +79,7 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
             accessibilityLabel={`${rewardBoxName(reward.milestone)} 열기`}
             accessibilityState={{ busy, disabled: busy }}
             disabled={busy}
-            onPress={() => void open()}
+            onPress={() => void openBox()}
             style={({ pressed }) => [styles.boxButton, pressed && styles.pressed, busy && styles.disabled]}
           >
             <Text style={styles.boxButtonText}>{busy ? '여는 중…' : '상자 열기'}</Text>
