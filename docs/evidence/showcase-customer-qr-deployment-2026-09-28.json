@@ -1,0 +1,38 @@
+{
+  "observedAt": "2026-09-28T03:04:48Z",
+  "sourceCommit": "65856142c8422f54cd40ef1824c57ca931052079",
+  "personalPullRequest": "https://github.com/choijunhuk/MassCOM/pull/2",
+  "pullRequestCi": { "runId": 36370159651, "result": "PASS" },
+  "mainCi": { "runId": 36370675407, "result": "PASS" },
+  "release": {
+    "url": "https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.4",
+    "repositoryVisibility": "PRIVATE",
+    "package": "kr.masscom.wolgye.demo",
+    "apk": "MassCOM-showcase-android-6585614.apk",
+    "apkSha256": "a0d1fb76bed70547c1291f05534264e0312460c7586173512aee0dbbea6d4c21",
+    "bytes": 154131549,
+    "signingCertificateSha256": "cdb0dc37750c907eaa2f1b9eb172b0911f14b9c9f2dab78b481f1751d8ebf28a",
+    "build": "PASS: Gradle assembleRelease and bundleRelease; package, source marker, signing, API URL, and wallet-surface checks",
+    "githubAssetDigest": "PASS: sha256 digest and size matched local APK",
+    "deviceInstall": "NOT_RUN: adb listed no device",
+    "cameraCustomerIdentityQr": "NOT_RUN: two-minute customer identity QR has not been scanned on the new APK"
+  },
+  "showcaseApi": {
+    "previousImage": "masscom-showcase-api:7455791",
+    "deployedImage": "masscom-showcase-api:6585614",
+    "sourceTransfer": "PASS: rsync checksum dry run reported no difference for API source, lockfile, migrations, Dockerfile and showcase Compose",
+    "backup": "PASS: /opt/masscom-showcase/backups/pre-6585614-20260928.dump, mode 600, custom-format archive, pg_restore --list readable; actual restore NOT_RUN",
+    "migration": "PASS: 0019_customer_identity_tokens.sql applied; schema_migrations count 17 to 18",
+    "container": "PASS: showcase API healthy, restart count 0; showcase PostgreSQL, operating Caddy/API/DB/web container IDs and restart counts unchanged",
+    "https": "PASS: demo-api and operating API health, www root/preview/app returned 200; anonymous new identity-token POST returned 401",
+    "showcaseDbCountsBeforeAndAfter": { "merchants": 3, "visitEvents": 3, "rewardEntitlements": 2, "authSessions": 2, "customerIdentityTokens": 0 },
+    "operatingDemoMerchants": 0,
+    "realGoogleAndQrFlow": "NOT_RUN: no new APK device install or two-account physical QR test"
+  },
+  "limits": [
+    "Previous Preview 3 staff issue request is not compatible with the new identity-token-required API; update to Preview 4 is needed for staff issuance.",
+    "Private GitHub Release is accessible to repository-authorized users, not the general public.",
+    "No Google Play submission, real partner-merchant visit, wallet or NFT mint was performed."
+  ],
+  "recovery": "The prior showcase API image 7455791 and the pre-migration DB backup are retained. Image rollback does not reverse migration 0019; restore was not rehearsed. Do not touch operating containers or seed demo data into the operating DB."
+}

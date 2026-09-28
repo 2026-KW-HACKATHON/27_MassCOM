@@ -4,7 +4,9 @@
 
 ## 최신 작업 경계
 
-- **2026-09-28 개인 통합 작업:** [Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 [PR #2](https://github.com/choijunhuk/MassCOM/pull/2)에 2분 고객 식별 QR·현재 캠페인 도감 목표·기존 시연 카메라 증거를 합쳤다. 결합 소스의 API 109/109·모바일 239/239·PostgreSQL 52 PASS/2 SKIP, 타입·린트·build/export·문서 검사 PASS. 첫 PR CI는 README의 낡은 문구 시험으로 FAIL해 로컬 수정·21/21 PASS 뒤 원격 재검사 전이다. 개인 main 병합, 새 시연 APK/외부 API 배포와 그 설치본의 전체 QR 수령은 `NOT_RUN`. Google Play 목표는 D-040으로 유지하지만 제출은 별도다.
+- **2026-09-28 개인 main·시연 Preview 4:** [PR #2](https://github.com/choijunhuk/MassCOM/pull/2) merge `6585614`, PR CI `36370159651`·main CI `36370675407` PASS. [시연 APK](https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.4)의 source/package/서명/원격 digest와 같은 커밋의 [시연 API 이미지·migration 0019·외부 HTTPS](evidence/showcase-customer-qr-deployment-2026-09-28.json)를 확인했다. 기존 시연 데이터 3점포/3방문/2보상권, 운영 가상 점포 0건을 보존했다. 새 APK의 실제 휴대전화 설치·2분 고객 식별 QR 전체 흐름은 `NOT_RUN`; 구 Preview 3 STAFF 발급은 새 API에 맞지 않는다. 운영 관리자 [개인 Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)는 구현 중이며 운영 권한 부여·웹 배포를 완료로 표시하지 않는다.
+
+- **2026-09-28 개인 통합 작업 당시:** [Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 [PR #2](https://github.com/choijunhuk/MassCOM/pull/2)에 2분 고객 식별 QR·현재 캠페인 도감 목표·기존 시연 카메라 증거를 합쳤다. 결합 소스의 API 109/109·모바일 239/239·PostgreSQL 52 PASS/2 SKIP, 타입·린트·build/export·문서 검사 PASS. 첫 PR CI의 낡은 README 문구 시험을 RED→GREEN으로 고친 뒤 재검사·병합했다. 당시 새 APK/API·실기는 미완료였고 최신 판정은 위 기록을 따른다. Google Play 목표는 D-040으로 유지하지만 제출은 별도다.
 
 - **2026-09-28 시연 APK 카메라 수령:** [Preview 3 동일 SHA 설치본 실측](evidence/showcase-preview3-camera-claim-2026-09-28.json)에서 가상 점포 A의 점주 발급 QR을 Mac에 띄우고 Samsung 카메라로 스캔→미리보기→별도 수령 확정→도감 이동을 완료했다. 시연 DB에서 같은 계정 슬롯 1(`CLAIMED`)·방문 1·보상권 1·mint 0을 확인했다. 처음의 다른 계정용 QR 거절은 미사용·미만료 상태에서 계정 불일치였다. 이는 **같은 계정의 역할 전환 시험**이며 서로 다른 두 계정·두 휴대전화, 오프라인·권한 거부, 새 2분 식별 QR 소스, 운영 앱의 QR 검증은 별도 미완료다.
 
