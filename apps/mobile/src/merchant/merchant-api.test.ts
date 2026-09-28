@@ -8,9 +8,11 @@ const merchantPayload = {
     {
       id: 'merchant-1',
       name: '월계식당',
-      story: '동네에서 오래 이어온 한 끼',
+      story: '',
       roadAddress: '서울 노원구 월계로 1',
       minimumSpendWon: 10_000,
+      businessHours: '월–금 10:00–18:00',
+      menuItems: [{ name: '김밥', priceWon: 4500 }],
       demo: true,
       campaign: {
         id: 'campaign-1',
@@ -35,6 +37,24 @@ test('returns a validated public merchant list', async () => {
   });
 
   assert.deepEqual(await client.listMerchants(), merchantPayload.merchants);
+});
+
+test('accepts genuinely empty story, menu, and hours without inventing operating content', async () => {
+  const client = createMerchantApiClient('https://api.example.test', async () => Response.json({
+    merchants: [{ ...merchantPayload.merchants[0], menuItems: [], businessHours: '' }],
+  }));
+  assert.deepEqual((await client.listMerchants())[0]?.menuItems, []);
+  assert.equal((await client.listMerchants())[0]?.businessHours, '');
+});
+
+test('rejects malformed menu prices and hours', async () => {
+  for (const merchant of [
+    { ...merchantPayload.merchants[0], menuItems: [{ name: '김밥', priceWon: '4500' }] },
+    { ...merchantPayload.merchants[0], businessHours: null },
+  ]) {
+    const client = createMerchantApiClient('https://api.example.test', async () => Response.json({ merchants: [merchant] }));
+    await assert.rejects(client.listMerchants(), /음식점 응답 형식/);
+  }
 });
 
 test('rejects malformed merchant payloads instead of rendering unknown data', async () => {

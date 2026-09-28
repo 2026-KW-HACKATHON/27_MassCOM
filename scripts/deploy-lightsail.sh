@@ -301,6 +301,7 @@ compose_no_stdin exec -T production-web node -e \
   "fetch('http://127.0.0.1:4173/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 retry_health curl -fsS --max-time 8 https://api.masscom.kr/health
 retry_health curl -fsS --max-time 8 https://www.masscom.kr/app/
+retry_health curl -fsS --max-time 8 https://www.masscom.kr/merchant/
 retry_health curl -fsS --max-time 8 https://demo-api.masscom.kr/health
 
 sudo ln -sfn "$release" /opt/masscom/current

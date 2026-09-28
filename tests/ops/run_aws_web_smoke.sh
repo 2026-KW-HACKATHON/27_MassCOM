@@ -26,7 +26,7 @@ for _attempt in $(seq 1 30); do
 done
 [[ "$ready" == 'true' ]] || { echo 'web smoke Caddy did not become ready' >&2; exit 1; }
 
-for path in / /open /privacy /account-deletion /presentation /app/ /app/assets/production.mjs /preview/ /preview/assets/showcase.css; do
+for path in / /open /privacy /account-deletion /presentation /app/ /app/assets/production.mjs /admin/ /merchant/ /merchant/assets/merchant.mjs /preview/ /preview/assets/showcase.css; do
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:8089$path")"
   [[ "$status" == '200' ]] || { echo "$path returned $status" >&2; exit 1; }
 done
@@ -66,7 +66,7 @@ merchant_status="$(curl -s -o "$scratch/merchants.json" -w '%{http_code}' --max-
   exit 1
 }
 if [[ "$merchant_status" == '200' ]]; then
-  node -e "const p=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));if(!Array.isArray(p.merchants)||p.merchants.some(m=>m.demo!==false||Object.keys(m).sort().join(',')!=='demo,name,roadAddress,story'))process.exit(1)" "$scratch/merchants.json"
+  node -e "const p=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));if(!Array.isArray(p.merchants)||p.merchants.some(m=>m.demo!==false||Object.keys(m).sort().join(',')!=='businessHours,demo,menuItems,name,roadAddress,story'))process.exit(1)" "$scratch/merchants.json"
 fi
 
 status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 -X POST http://127.0.0.1:8089/merchants)"

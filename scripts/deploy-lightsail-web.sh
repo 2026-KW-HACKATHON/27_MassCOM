@@ -239,6 +239,8 @@ probe_web_routes() {
   done
   curl -fsS --max-time 8 "http://$address/admin/" | grep -qF '실제 점포 관리'
   curl -fsS --max-time 8 "http://$address/admin/assets/admin.mjs" >/dev/null
+  curl -fsS --max-time 8 "http://$address/merchant/" | grep -qF '점포 운영'
+  curl -fsS --max-time 8 "http://$address/merchant/assets/merchant.mjs" >/dev/null
   curl -fsS --max-time 8 "http://$address/.well-known/assetlinks.json" \
     | cmp - "$release/site/public/.well-known/assetlinks.json"
   curl -fsSI --max-time 8 "http://$address/.well-known/assetlinks.json" \
@@ -292,6 +294,7 @@ sudo docker exec "$live_caddy_id" caddy adapt --config /etc/caddy/Caddyfile --ad
 curl -fsS --max-time 8 https://api.masscom.kr/health >/dev/null
 curl -fsS --max-time 8 https://www.masscom.kr/app/ >/dev/null
 curl -fsS --max-time 8 https://www.masscom.kr/admin/ | grep -qF '실제 점포 관리'
+curl -fsS --max-time 8 https://www.masscom.kr/merchant/ | grep -qF '점포 운영'
 curl -fsS --max-time 8 https://api.masscom.kr/merchants |
   jq -e '.merchants | (type == "array") and all(.[]; .demo == false)' >/dev/null
 showcase_https_ready='false'

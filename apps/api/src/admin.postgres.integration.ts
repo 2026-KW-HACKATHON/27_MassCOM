@@ -15,6 +15,20 @@ const testUrl = process.env.TEST_DATABASE_URL;
 const safeTestTarget = testUrl && decodeURIComponent(new URL(testUrl).pathname.slice(1)).endsWith('_test');
 const hmacSecret = 'admin-test-account-deletion-hmac-secret-32-bytes';
 
+test('rejects overlong hours, menu names, and invalid won prices before database access', async () => {
+  const service = new PostgresAdminService({} as Pool, hmacSecret);
+  const base = { name: '상점', story: '', roadAddress: '서울', minimumSpendWon: 0 };
+  for (const fields of [
+    { businessHours: '가'.repeat(1001) },
+    { menuItems: [{ name: '가'.repeat(201), priceWon: 1000 }] },
+    { menuItems: [{ name: '김밥', priceWon: -1 }] },
+    { menuItems: [{ name: '김밥', priceWon: 1.5 }] },
+    { menuItems: [{ name: '김밥', priceWon: 1_000_000_001 }] },
+  ]) {
+    await assert.rejects(service.createMerchant('admin', { ...base, ...fields }), /ADMIN_INVALID_INPUT/);
+  }
+});
+
 test('operator grant and revoke create role audit in the same transaction', {
   skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
 }, async () => {
@@ -214,6 +228,60 @@ test('only a granted active Google account can create, edit, and hide a real mer
     await assert.rejects(service.createMerchant(accountId, {
       name: '거부', story: '', roadAddress: '서울시', minimumSpendWon: 0,
     }), /ADMIN_FORBIDDEN/);
+  } finally { await pool.end(); }
+});
+
+test('menu and merchant-provided hours stay isolated and roll back with failed audit', {
+  skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
+}, async () => {
+  const pool = new Pool({ connectionString: testUrl });
+  const subject = `admin-${randomUUID()}`;
+  const accountId = `acct_${randomUUID()}`;
+  const service = new PostgresAdminService(pool, hmacSecret);
+  try {
+    await runMigrations(pool);
+    await pool.query(`INSERT INTO auth_identities(provider, subject, account_id, created_at)
+      VALUES ('google', $1, $2, now())`, [subject, accountId]);
+    await service.grant(subject);
+    const first = await service.createMerchant(accountId, {
+      name: `메뉴 상점 ${randomUUID()}`, story: '', roadAddress: '서울', minimumSpendWon: 0,
+      menuItems: [{ name: '김밥', priceWon: 4500 }], businessHours: '월–금 10:00–18:00',
+    });
+    const second = await service.createMerchant(accountId, {
+      name: `빈 상점 ${randomUUID()}`, story: '', roadAddress: '서울', minimumSpendWon: 0,
+    });
+    assert.deepEqual(first.menuItems, [{ name: '김밥', priceWon: 4500 }]);
+    assert.equal(first.businessHours, '월–금 10:00–18:00');
+    const audit = await pool.query('SELECT after_state FROM platform_admin_audit WHERE merchant_id = $1', [first.id]);
+    assert.deepEqual(audit.rows[0]?.after_state.menuItems, [{ name: '김밥', priceWon: 4500 }]);
+    assert.equal(audit.rows[0]?.after_state.businessHours, '월–금 10:00–18:00');
+    assert.deepEqual(second.menuItems, []);
+    assert.equal(second.businessHours, '');
+    const retained = await service.updateMerchant(accountId, first.id, first.version, {
+      name: first.name, story: '', roadAddress: '서울', minimumSpendWon: 0,
+    });
+    assert.deepEqual(retained.menuItems, first.menuItems);
+    assert.equal(retained.businessHours, first.businessHours);
+    await assert.rejects(service.updateMerchant(accountId, second.id, second.version + 1, {
+      name: '다른 상점', story: '', roadAddress: '서울', minimumSpendWon: 0,
+      menuItems: [{ name: '오염', priceWon: 1 }], businessHours: '매일',
+    }), /ADMIN_VERSION_CONFLICT/);
+    await pool.query(`CREATE FUNCTION menu_audit_fail_test() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'forced menu audit failure'; END $$`);
+    await pool.query(`CREATE TRIGGER menu_audit_fail_test BEFORE INSERT ON platform_admin_audit
+      FOR EACH ROW EXECUTE FUNCTION menu_audit_fail_test()`);
+    try {
+      await assert.rejects(service.updateMerchant(accountId, first.id, retained.version, {
+        name: first.name, story: '', roadAddress: '서울', minimumSpendWon: 0,
+        menuItems: [{ name: '라면', priceWon: 6000 }], businessHours: '토요일만',
+      }), /forced menu audit failure/);
+      const persisted = await pool.query('SELECT menu_items, business_hours, version FROM merchants WHERE id = $1', [first.id]);
+      assert.deepEqual(persisted.rows, [{ menu_items: [{ name: '김밥', priceWon: 4500 }], business_hours: '월–금 10:00–18:00', version: retained.version }]);
+    } finally {
+      await pool.query('DROP TRIGGER menu_audit_fail_test ON platform_admin_audit');
+      await pool.query('DROP FUNCTION menu_audit_fail_test()');
+    }
+    assert.deepEqual((await service.listMerchants(accountId)).find(row => row.id === second.id)?.menuItems, []);
   } finally { await pool.end(); }
 });
 
