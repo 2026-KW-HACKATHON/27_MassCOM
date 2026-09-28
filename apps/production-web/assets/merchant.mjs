@@ -76,14 +76,19 @@ export function bindMerchant(fetcher, doc) {
     const button = form.querySelector('button');
     button.disabled = true;
     code.textContent = '';
+    const requestId = merchantRequests.get(doc);
     try {
       const issued = await request(fetcher, '/api/web/merchant/registration-requests', 'POST', {
         merchantId: form.querySelector('select').value,
       });
+      if (merchantRequests.get(doc) !== requestId) return;
       code.textContent = `등록 코드: ${issued.code} · 만료: ${new Date(issued.expiresAt).toLocaleTimeString('ko-KR')}`;
       status.textContent = '등록 코드를 확인된 경로로 관리자에게 전달해 주세요.';
-    } catch { status.textContent = '등록 코드를 발급하지 못했습니다.'; }
-    finally { button.disabled = false; }
+    } catch {
+      if (merchantRequests.get(doc) === requestId) status.textContent = '등록 코드를 발급하지 못했습니다.';
+    } finally {
+      if (merchantRequests.get(doc) === requestId) button.disabled = false;
+    }
   });
   doc.getElementById('merchant-logout')?.addEventListener('click', async () => {
     merchantRequests.set(doc, (merchantRequests.get(doc) ?? 0) + 1);

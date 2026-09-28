@@ -6,6 +6,7 @@ import { after, before, test } from 'node:test';
 
 import { bindCollectionControls, loadCollection, loadMerchants } from '../../apps/production-web/assets/production.mjs';
 import { bindAdmin, loadAdmin } from '../../apps/production-web/assets/admin.mjs';
+import { bindMerchant, loadMerchant } from '../../apps/production-web/assets/merchant.mjs';
 import { createProductionServer, resolveProductionBindHost } from '../../apps/production-web/server.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -38,6 +39,7 @@ function element() {
     replaceChildren() { this.children = []; },
     addEventListener(type, callback) { listeners.set(type, callback); },
     async click() { return listeners.get('click')?.(); },
+    async submit() { return listeners.get('submit')?.({ preventDefault() {}, currentTarget: this }); },
   };
 }
 
@@ -460,6 +462,75 @@ test('관리 권한 조회가 늦게 끝나도 닫힌 탭에 상점 내용을 �
   await loaded;
   assert.equal(nodes['admin-merchants'].children.length, 0);
   assert.equal(nodes['admin-content'].hidden, true);
+});
+
+test('직원 목록 실패가 늦게 도착해도 닫힌 관리자 탭을 다시 채우지 않는다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+  const listeners = new Map();
+  const doc = {
+    getElementById(id) { return nodes[id]; }, createElement: element,
+    defaultView: { addEventListener(type, callback) { listeners.set(type, callback); } },
+  };
+  let rejectStaff;
+  let staffStarted;
+  const started = new Promise(resolve => { staffStarted = resolve; });
+  const staffResponse = new Promise((_resolve, reject) => { rejectStaff = reject; });
+  const loaded = bindAdmin(async path => {
+    if (path.endsWith('/me')) return { ok: true, json: async () => ({ admin: true }) };
+    if (path.endsWith('/staff')) {
+      staffStarted();
+      return staffResponse;
+    }
+    return { ok: true, json: async () => ({ merchants: [{ id: 'real-closed', name: '닫힌 점포',
+      story: '', roadAddress: '서울', minimumSpendWon: 0, status: 'ACTIVE', demo: false, version: 1 }] }) };
+  }, doc);
+  await started;
+  listeners.get('pagehide')();
+  rejectStaff(new Error('late staff failure'));
+  await loaded;
+  assert.equal(nodes['admin-merchants'].children.length, 0);
+  assert.equal(nodes['admin-content'].hidden, true);
+});
+
+function merchantDocument() {
+  const nodes = Object.fromEntries(['merchant-status', 'merchant-login', 'merchant-logout',
+    'merchant-content', 'merchant-memberships', 'merchant-code', 'merchant-registration']
+    .map(id => [id, { ...element(), hidden: true }]));
+  const select = { ...element(), value: 'real-merchant' };
+  const button = element();
+  nodes['merchant-registration'].querySelector = name => name === 'select' ? select : button;
+  const listeners = new Map();
+  const doc = {
+    getElementById(id) { return nodes[id]; },
+    querySelector() { return select; },
+    createElement() { return element(); },
+    defaultView: { addEventListener(type, callback) { listeners.set(type, callback); } },
+  };
+  return { nodes, select, button, listeners, doc };
+}
+
+test('늦은 등록 코드 성공·실패는 페이지를 떠난 뒤 새 계정 화면에 표시하지 않는다', async () => {
+  for (const fails of [false, true]) {
+    const { nodes, listeners, doc } = merchantDocument();
+    let finish;
+    const pending = new Promise((resolve, reject) => { finish = fails ? reject : resolve; });
+    const fetcher = async path => {
+      if (path.endsWith('/registration-requests')) return pending;
+      return { ok: true, json: async () => ({ merchants: path.endsWith('/me') ? []
+        : [{ id: 'real-merchant', name: '실제 상점' }] }) };
+    };
+    await bindMerchant(fetcher, doc);
+    const submit = nodes['merchant-registration'].submit();
+    listeners.get('pagehide')();
+    const previousStatus = nodes['merchant-status'].textContent;
+    finish(fails ? new Error('late failure') : { ok: true,
+      json: async () => ({ code: 'OLD_ACCOUNT_CODE', expiresAt: new Date().toISOString() }) });
+    await submit;
+    assert.equal(nodes['merchant-code'].textContent, '');
+    assert.equal(nodes['merchant-status'].textContent, previousStatus);
+    assert.equal(nodes['merchant-content'].hidden, true);
+  }
 });
 
 test('운영 API 오류는 502로 전달하고 임의 데이터가 없다', async () => {

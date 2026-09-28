@@ -126,7 +126,10 @@ export async function loadAdmin(fetcher, doc) {
           staffList.append(row);
         }
         if (!staff.staff.length) staffList.textContent = '승인된 직원이 없습니다.';
-      } catch { staffList.textContent = '직원 목록을 불러오지 못했습니다.'; }
+      } catch {
+        if (adminRequests.get(doc) !== requestId) return;
+        staffList.textContent = '직원 목록을 불러오지 못했습니다.';
+      }
       approve.addEventListener('submit', async event => {
         event.preventDefault();
         approveButton.disabled = true;
