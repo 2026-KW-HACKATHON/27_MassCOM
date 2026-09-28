@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 
 import { CustomerIdentityError, type CustomerIdentityService } from '../customer-identity.js';
 import { MerchantAccessError } from '../merchant-access.js';
@@ -11,6 +11,48 @@ export const hashCustomerIdentityToken = (token: string): Buffer =>
 
 export const isCustomerIdentityToken = (token: string): boolean =>
   /^masscom-customer:v1:[A-Za-z0-9_-]{43}$/.test(token);
+
+// 호출자의 트랜잭션 안에서 식별 토큰을 검증하고 이 점포·점원에 결합한다. 토큰은 소모하지 않으며
+// 고객 계정 ID는 서버 내부(쿠폰 조회·사용)에서만 쓰고 점원에게 돌려주지 않는다.
+export async function resolveBoundCustomerIdentity(
+  client: PoolClient,
+  input: {
+    token: string;
+    merchantId: string;
+    staffAccountId: string;
+    now: Date;
+    accountLifecycle: PostgresAccountLifecycle;
+  },
+): Promise<{ customerAccountId: string; expiresAt: Date }> {
+  if (!isCustomerIdentityToken(input.token)) throw new CustomerIdentityError('CUSTOMER_IDENTITY_UNAVAILABLE');
+  const membership = await client.query(
+    `SELECT 1 FROM merchant_members WHERE merchant_id = $1 AND account_id = $2 AND status = 'ACTIVE'`,
+    [input.merchantId, input.staffAccountId],
+  );
+  if (!membership.rowCount) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+  const tokenHash = hashCustomerIdentityToken(input.token);
+  const found = await client.query<{ customer_account_id: string; expires_at: Date; revoked_at: Date | null; consumed_at: Date | null; bound_merchant_id: string | null; bound_staff_account_id: string | null }>(
+    `SELECT customer_account_id, expires_at, revoked_at, consumed_at, bound_merchant_id, bound_staff_account_id
+     FROM customer_identity_tokens WHERE token_hash = $1`,
+    [tokenHash],
+  );
+  const row = found.rows[0];
+  if (!row || row.revoked_at || row.consumed_at ||
+      (row.bound_merchant_id && (row.bound_merchant_id !== input.merchantId || row.bound_staff_account_id !== input.staffAccountId))) {
+    throw new CustomerIdentityError('CUSTOMER_IDENTITY_UNAVAILABLE');
+  }
+  if (row.expires_at.getTime() <= input.now.getTime()) throw new CustomerIdentityError('CUSTOMER_IDENTITY_EXPIRED');
+  await input.accountLifecycle.assertAllActive(client, [input.staffAccountId, row.customer_account_id]);
+  const bound = await client.query(
+    `UPDATE customer_identity_tokens SET bound_merchant_id = $2, bound_staff_account_id = $3
+     WHERE token_hash = $1 AND revoked_at IS NULL AND consumed_at IS NULL AND expires_at > $4
+       AND (bound_merchant_id IS NULL OR (bound_merchant_id = $2 AND bound_staff_account_id = $3))
+       AND EXISTS (SELECT 1 FROM merchant_members WHERE merchant_id = $2 AND account_id = $3 AND status = 'ACTIVE')`,
+    [tokenHash, input.merchantId, input.staffAccountId, input.now],
+  );
+  if (!bound.rowCount) throw new CustomerIdentityError('CUSTOMER_IDENTITY_UNAVAILABLE');
+  return { customerAccountId: row.customer_account_id, expiresAt: row.expires_at };
+}
 
 export class PostgresCustomerIdentityService implements CustomerIdentityService {
   private readonly now: () => Date;
@@ -62,34 +104,11 @@ export class PostgresCustomerIdentityService implements CustomerIdentityService 
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const membership = await client.query(
-        `SELECT 1 FROM merchant_members WHERE merchant_id = $1 AND account_id = $2 AND status = 'ACTIVE'`,
-        [input.merchantId, input.staffAccountId],
-      );
-      if (!membership.rowCount) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
-      const tokenHash = hashCustomerIdentityToken(input.token);
-      const found = await client.query<{ customer_account_id: string; expires_at: Date; revoked_at: Date | null; consumed_at: Date | null; bound_merchant_id: string | null; bound_staff_account_id: string | null }>(
-        `SELECT customer_account_id, expires_at, revoked_at, consumed_at, bound_merchant_id, bound_staff_account_id
-         FROM customer_identity_tokens WHERE token_hash = $1`,
-        [tokenHash],
-      );
-      const row = found.rows[0];
-      if (!row || row.revoked_at || row.consumed_at ||
-          (row.bound_merchant_id && (row.bound_merchant_id !== input.merchantId || row.bound_staff_account_id !== input.staffAccountId))) {
-        throw new CustomerIdentityError('CUSTOMER_IDENTITY_UNAVAILABLE');
-      }
-      if (row.expires_at.getTime() <= this.now().getTime()) throw new CustomerIdentityError('CUSTOMER_IDENTITY_EXPIRED');
-      await this.accountLifecycle.assertAllActive(client, [input.staffAccountId, row.customer_account_id]);
-      const bound = await client.query(
-        `UPDATE customer_identity_tokens SET bound_merchant_id = $2, bound_staff_account_id = $3
-         WHERE token_hash = $1 AND revoked_at IS NULL AND consumed_at IS NULL AND expires_at > $4
-           AND (bound_merchant_id IS NULL OR (bound_merchant_id = $2 AND bound_staff_account_id = $3))
-           AND EXISTS (SELECT 1 FROM merchant_members WHERE merchant_id = $2 AND account_id = $3 AND status = 'ACTIVE')`,
-        [tokenHash, input.merchantId, input.staffAccountId, this.now()],
-      );
-      if (!bound.rowCount) throw new CustomerIdentityError('CUSTOMER_IDENTITY_UNAVAILABLE');
+      const { expiresAt } = await resolveBoundCustomerIdentity(client, {
+        ...input, now: this.now(), accountLifecycle: this.accountLifecycle,
+      });
       await client.query('COMMIT');
-      return { expiresAt: row.expires_at.toISOString() };
+      return { expiresAt: expiresAt.toISOString() };
     } catch (error) {
       await client.query('ROLLBACK');
       if (error instanceof AccountLifecycleError) throw new CustomerIdentityError('ACCOUNT_DELETED');

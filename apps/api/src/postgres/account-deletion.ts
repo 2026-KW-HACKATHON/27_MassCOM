@@ -327,6 +327,15 @@ async function pseudonymizeAccount(
      WHERE customer_account_id = $3`,
     [deletedAlias, now, accountId],
   );
+  // 보상 쿠폰은 지우지 않고 계정 열만 가명으로 바꾼다. 발급 수(issued_count)와 사용 감사 기록을 유지한다.
+  await client.query(
+    'UPDATE badge_coupons SET customer_account_id = $1 WHERE customer_account_id = $2',
+    [deletedAlias, accountId],
+  );
+  await client.query(
+    'UPDATE badge_coupons SET redeemed_by_account_id = $1 WHERE redeemed_by_account_id = $2',
+    [deletedAlias, accountId],
+  );
   // Enrollment rows are re-aliased, not deleted; the campaign slot they reserved is not
   // returned so enrolled_count never exceeds the promised enrollment_capacity.
   await client.query(

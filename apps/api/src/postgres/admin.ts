@@ -353,6 +353,11 @@ export class PostgresAdminService {
         `UPDATE campaigns SET status = 'PAUSED', is_public = false, updated_at = now()
          WHERE merchant_id = $1 AND status = 'ACTIVE'`, [id],
       );
+      // 숨긴 점포의 보상 혜택은 더 발급하지 않는다. 이미 연 쿠폰은 그대로 남는다.
+      await client.query(
+        `UPDATE badge_reward_offers SET status = 'PAUSED'
+         WHERE merchant_id = $1 AND status = 'ACTIVE'`, [id],
+      );
       const hidden = merchant(row);
       await this.audit(client, accountId, id, 'MERCHANT_HIDDEN', before, hidden);
       return hidden;

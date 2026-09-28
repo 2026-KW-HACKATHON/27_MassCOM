@@ -80,7 +80,9 @@ test('D01 concurrent deletion cancels only unsent mint work and pseudonymizes th
          (SELECT count(*) FROM wallet_bindings WHERE account_id = 'delete-me') +
          (SELECT count(*) FROM wallet_challenges WHERE account_id = 'delete-me') +
          (SELECT count(*) FROM mint_jobs WHERE account_id = 'delete-me') +
-         (SELECT count(*) FROM campaign_enrollments WHERE account_id = 'delete-me')
+         (SELECT count(*) FROM campaign_enrollments WHERE account_id = 'delete-me') +
+         (SELECT count(*) FROM badge_coupons
+          WHERE customer_account_id = 'delete-me' OR redeemed_by_account_id = 'delete-me')
        )::integer AS raw_account_references,
        (SELECT count(*)::integer FROM wallet_bindings WHERE status = 'DISCONNECTED') AS disconnected_bindings,
        (SELECT status FROM mint_jobs WHERE id = '40000000-0000-4000-8004-000000000001') AS queued_status,
@@ -623,6 +625,25 @@ async function seedDeletionFixture(pool: Pool): Promise<void> {
   await pool.query(
     `INSERT INTO campaign_enrollments (id, campaign_id, account_id, enrolled_at)
      VALUES ('60000000-0000-4000-8004-000000000001', 'campaign-delete', 'delete-me', '2026-09-10T03:00:00Z')`,
+  );
+  // 보상 쿠폰의 고객·사용 처리자 두 계정 열이 모두 가명 처리되는지 확인하는 고정 행.
+  await pool.query(
+    `INSERT INTO badge_reward_offers (
+       id, milestone, merchant_id, title, detail, valid_days, issued_count, status, consent_note
+     ) VALUES (
+       '50000000-0000-4000-8004-000000000001', 1, 'merchant-delete', '삭제 시험 혜택', '시험', 30, 1,
+       'ACTIVE', '시험 동의 기록'
+     )`,
+  );
+  await pool.query(
+    `INSERT INTO badge_coupons (
+       id, customer_account_id, milestone, offer_id, merchant_id, title, detail, status,
+       issued_at, expires_at, redeemed_at, redeemed_by_account_id
+     ) VALUES (
+       '50000000-0000-4000-8004-000000000002', 'delete-me', 1,
+       '50000000-0000-4000-8004-000000000001', 'merchant-delete', '삭제 시험 혜택', '시험', 'REDEEMED',
+       '2026-09-10T03:00:00Z', '2026-10-10T03:00:00Z', '2026-09-11T03:00:00Z', 'delete-me'
+     )`,
   );
   await pool.query(
     `INSERT INTO nft_series (

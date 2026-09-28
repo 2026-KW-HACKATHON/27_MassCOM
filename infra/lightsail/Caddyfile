@@ -46,7 +46,7 @@
 	redir @merchantRoot /merchant/ 308
 	@previewRoot path /preview
 	redir @previewRoot /preview/ 308
-	@webSession path /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection /api/web/admin/* /api/web/merchant/* /api/web/account-deletion-intake
+	@webSession path /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection /api/web/badges /api/web/admin/* /api/web/merchant/* /api/web/account-deletion-intake
 	handle @webSession {
 		reverse_proxy api:3000 {
 			header_up X-Forwarded-For {remote_host}

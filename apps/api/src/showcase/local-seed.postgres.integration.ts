@@ -85,6 +85,26 @@ test('local showcase seed is repeatable with three visible demo merchants', asyn
     assert.equal(rows.goals.length, 9);
     assert.equal(rows.members.length, 3);
 
+    // 보상 상자 체험 혜택은 가상 점포 A·B·C에 milestone별 하나씩, 재실행해도 늘거나 초기화되지 않는다.
+    await pool.query(`UPDATE badge_reward_offers SET issued_count = 3 WHERE milestone = 2`);
+    await seedLocalShowcase(pool);
+    const offers = await pool.query<{
+      milestone: number; merchant_id: string; title: string; detail: string; valid_days: number;
+      status: string; issued_count: number; issuance_cap: number | null; consent_note: string;
+    }>('SELECT * FROM badge_reward_offers ORDER BY milestone');
+    assert.deepEqual(
+      offers.rows.map((offer) => [offer.milestone, offer.merchant_id, offer.title, offer.valid_days, offer.status]),
+      [
+        [1, SHOWCASE_MERCHANT_ID, '체험 음료 1잔', 30, 'ACTIVE'],
+        [2, 'showcase-local-merchant-b', '체험 디저트 한 접시', 30, 'ACTIVE'],
+        [3, 'showcase-local-merchant-c', '체험 세트 20% 할인', 30, 'ACTIVE'],
+      ],
+    );
+    assert.deepEqual(offers.rows.map((offer) => offer.issued_count), [0, 3, 0]);
+    assert.ok(offers.rows.every((offer) => offer.issuance_cap === null
+      && offer.consent_note === '시연 가상 점포 체험 혜택 — 실제 매장 혜택 아님'
+      && offer.detail.includes('실제 매장에서는 사용할 수 없습니다')));
+
     await pool.query('UPDATE campaigns SET enrolled_count = 2 WHERE id = $1', [SHOWCASE_CAMPAIGN_ID]);
     await seedLocalShowcase(pool);
     const progress = await pool.query<{ enrolled_count: number }>(
@@ -172,6 +192,8 @@ test('damaged existing fixture is refused without changing any of its four table
       ['UPDATE campaign_goals SET display_name = \'wrong\' WHERE campaign_id = $1 AND target_visit_count = 3', [SHOWCASE_CAMPAIGN_ID]],
       ['DELETE FROM campaign_goals WHERE campaign_id = $1 AND target_visit_count = 5', [SHOWCASE_CAMPAIGN_ID]],
       ['UPDATE merchant_members SET role = \'OWNER\' WHERE merchant_id = $1', [SHOWCASE_MERCHANT_ID]],
+      ['UPDATE badge_reward_offers SET title = \'wrong\' WHERE milestone = 2 AND $1::text IS NOT NULL', [SHOWCASE_MERCHANT_ID]],
+      ['UPDATE badge_reward_offers SET merchant_id = \'showcase-local-merchant\' WHERE milestone = 3 AND $1::text IS NOT NULL', [SHOWCASE_MERCHANT_ID]],
     ] as const) {
       const before = await snapshot(pool);
       await pool.query(query, [...values]);

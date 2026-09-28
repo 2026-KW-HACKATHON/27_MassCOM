@@ -26,6 +26,9 @@ createServer((request, response) => {
     });
   } else if (request.url === '/api/web/collection') {
     response.writeHead(401);
+  } else if (request.url === '/api/web/badges') {
+    response.setHeader('X-Observed-Cookie', request.headers.cookie || '');
+    response.writeHead(request.headers.cookie ? 200 : 401);
   } else if (request.url === '/api/web/logout') {
     response.writeHead(204);
   } else if (request.url === '/api/web/account-deletion-intake') {
@@ -51,9 +54,9 @@ async function freePort() {
   });
 }
 
-async function requestForHost(url, path, host, method = 'GET') {
+async function requestForHost(url, path, host, method = 'GET', headers = {}) {
   return new Promise((resolveResponse, reject) => {
-    const request = httpRequest(`${url}${path}`, { method, headers: { Host: host } }, (response) => {
+    const request = httpRequest(`${url}${path}`, { method, headers: { Host: host, ...headers } }, (response) => {
       const chunks = [];
       response.on('data', (chunk) => chunks.push(chunk));
       response.on('end', () => resolveResponse({
@@ -121,12 +124,18 @@ test('Caddy forwards allowlisted browser-session routes, preserving redirects an
     const collection = await fetch(`${url}/api/web/collection`);
     assert.equal(collection.status, 401);
     assert.equal(collection.headers.get('cache-control'), 'no-store');
+    assert.equal((await fetch(`${url}/api/web/badges`)).status, 401);
+    const badges = await fetch(`${url}/api/web/badges`, { headers: { cookie: 'web_session=fixture' } });
+    assert.equal(badges.status, 200);
+    assert.equal(badges.headers.get('x-observed-cookie'), 'web_session=fixture');
+    assert.equal(badges.headers.get('cache-control'), 'no-store');
     assert.equal((await fetch(`${url}/api/web/logout`, { method: 'POST' })).status, 204);
     const intake = await fetch(`${url}/api/web/account-deletion-intake`, { method: 'POST' });
     assert.equal(intake.status, 202);
     assert.match(intake.headers.get('cache-control') ?? '', /no-store/);
 
-    for (const path of ['/api/web/unknown', '/api/claim', '/api/mint']) {
+    // 도감 메달은 읽기 전용 GET 한 경로만 열고 상자 열기 같은 쓰기 경로는 프록시하지 않는다.
+    for (const path of ['/api/web/unknown', '/api/claim', '/api/mint', '/api/web/badges/rewards/1/open']) {
       assert.equal((await fetch(`${url}${path}`)).status, 404, path);
     }
   } finally {
@@ -205,6 +214,12 @@ test('Caddy serves the same limited web surface for exact apex and www hosts', a
       assert.equal(login.status, 302, host);
       assert.equal(login.headers['x-observed-host'], host, host);
       assert.equal((await requestForHost(url, '/api/web/collection', host)).status, 401, host);
+      assert.equal((await requestForHost(url, '/api/web/badges', host)).status, 401, host);
+      const badges = await requestForHost(url, '/api/web/badges', host, 'GET', { cookie: 'web_session=fixture' });
+      assert.equal(badges.status, 200, host);
+      assert.equal(badges.headers['x-observed-host'], host, host);
+      assert.equal(badges.headers['x-observed-cookie'], 'web_session=fixture', host);
+      assert.equal(badges.headers['cache-control'], 'no-store', host);
       const adminApi = await requestForHost(url, '/api/web/admin/merchants', host);
       assert.equal(adminApi.headers['x-observed-host'], host, host);
       assert.equal(adminApi.headers['x-robots-tag'], 'noindex, nofollow', host);
@@ -215,7 +230,8 @@ test('Caddy serves the same limited web surface for exact apex and www hosts', a
       assert.equal(intake.status, 202, host);
       assert.equal(intake.headers['x-observed-host'], host, host);
       assert.equal(intake.headers['x-robots-tag'], 'noindex, nofollow', host);
-      for (const blocked of ['/HANDOFF.md', '/preview/.vercel/project.json', '/claim', '/mint', '/api/web/unknown']) {
+      for (const blocked of ['/HANDOFF.md', '/preview/.vercel/project.json', '/claim', '/mint', '/api/web/unknown',
+        '/api/web/badges/rewards/1/open']) {
         assert.equal((await requestForHost(url, blocked, host)).status, 404, `${host}${blocked}`);
       }
     }
