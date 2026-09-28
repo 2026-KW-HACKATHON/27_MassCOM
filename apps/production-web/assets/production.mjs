@@ -22,7 +22,7 @@ function isCollection(value) {
 
 function collectionNodes(doc) {
   const names = ['collection-status', 'collection-login', 'collection-retry', 'collection-logout',
-    'collection-content', 'visit-list', 'collectible-list'];
+    'collection-content', 'visit-list', 'collectible-list', 'badge-list'];
   const nodes = Object.fromEntries(names.map((name) => [name, doc.getElementById(name)]));
   return names.every((name) => nodes[name]) ? nodes : null;
 }
@@ -30,6 +30,7 @@ function collectionNodes(doc) {
 function clearCollection(nodes) {
   nodes['visit-list'].replaceChildren();
   nodes['collectible-list'].replaceChildren();
+  nodes['badge-list'].replaceChildren();
   nodes['collection-content'].hidden = true;
   nodes['collection-login'].hidden = true;
   nodes['collection-retry'].hidden = true;
@@ -40,6 +41,17 @@ function detail(doc, text) {
   const item = doc.createElement('p');
   item.textContent = text;
   return item;
+}
+
+function neighborhoodBadges(visits) {
+  const distinctStores = new Set(visits
+    .filter(visit => visit?.progressCounted === true && typeof visit.merchantId === 'string')
+    .map(visit => visit.merchantId)).size;
+  return [
+    ['첫 발걸음', 1], ['두 번째 골목', 2], ['월계 탐험가', 3],
+  ].map(([title, target]) => ({
+    title, earned: distinctStores >= target, remaining: Math.max(0, target - distinctStores),
+  }));
 }
 
 export async function loadCollection(fetcher, doc) {
@@ -65,6 +77,13 @@ export async function loadCollection(fetcher, doc) {
     const data = await response.json();
     if (collectionRequests.get(doc) !== requestId) return;
     if (!isCollection(data)) throw new Error('invalid collection');
+
+    for (const badge of neighborhoodBadges(data.visits)) {
+      const row = doc.createElement('li');
+      row.className = badge.earned ? 'badge-step earned' : 'badge-step';
+      row.textContent = badge.title + ' · ' + (badge.earned ? '획득' : badge.remaining + '곳 남음');
+      nodes['badge-list'].append(row);
+    }
 
     for (const visit of data.visits) {
       const card = doc.createElement('article');

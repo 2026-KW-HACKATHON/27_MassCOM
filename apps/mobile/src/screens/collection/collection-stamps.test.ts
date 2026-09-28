@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import type { PublicMerchant } from '@/merchant/merchant-api';
-import { buildMerchantGoals, buildStampSlots, describeMerchantGoal, stampColumnCount } from './collection-stamps';
+import { badgeShareMessage, buildMerchantGoals, buildNeighborhoodJourney, buildStampSlots, describeMerchantGoal, stampColumnCount } from './collection-stamps';
 
 const merchants: readonly Pick<PublicMerchant, 'id' | 'name'>[] = [
   { id: 'one', name: '가상 점포 A' },
@@ -21,6 +21,28 @@ const campaignMerchants: readonly Pick<PublicMerchant, 'id' | 'name' | 'campaign
     ],
   },
 }];
+
+test('동네 배지는 인정된 서로 다른 점포만 세고 반복·미인정 방문을 제외한다', () => {
+  const journey = buildNeighborhoodJourney([
+    { merchantId: 'one', progressCounted: true },
+    { merchantId: 'one', progressCounted: true },
+    { merchantId: 'two', progressCounted: false },
+    { merchantId: 'two', progressCounted: true },
+    { merchantId: 'three', progressCounted: false },
+  ]);
+  assert.equal(journey.distinctStores, 2);
+  assert.deepEqual(journey.badges.map((badge) => [badge.id, badge.earned, badge.remaining]), [
+    ['first', true, 0], ['second', true, 0], ['third', false, 1],
+  ]);
+});
+
+test('배지 공유 문구는 획득 여부를 검사하고 개인정보 없이 시연·운영을 구분한다', () => {
+  const journey = buildNeighborhoodJourney([{ merchantId: 'one', progressCounted: true }]);
+  assert.match(badgeShareMessage(journey.badges[0]!, 'showcase'), /시연용 가상 데이터.*www\.masscom\.kr\/preview\//s);
+  assert.match(badgeShareMessage(journey.badges[0]!, 'production'), /www\.masscom\.kr\/app\//);
+  assert.doesNotMatch(badgeShareMessage(journey.badges[0]!, 'production'), /merchantId|account|wallet|QR|쿠폰/);
+  assert.throws(() => badgeShareMessage(journey.badges[2]!, 'showcase'), /BADGE_NOT_EARNED/);
+});
 
 test('reward progress counts only current campaign visits marked progressCounted', () => {
   const visits = [

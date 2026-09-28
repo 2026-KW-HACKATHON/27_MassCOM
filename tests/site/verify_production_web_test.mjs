@@ -74,7 +74,7 @@ test('운영 웹은 시연 데이터와 쓰기 UI 없이 개인 도감을 읽기
 function collectionFixture() {
   const ids = [
     'collection-status', 'collection-login', 'collection-retry', 'collection-logout',
-    'collection-content', 'visit-list', 'collectible-list',
+    'collection-content', 'visit-list', 'collectible-list', 'badge-list',
   ];
   const nodes = Object.fromEntries(ids.map((id) => [id, { ...element(), hidden: true }]));
   return {
@@ -89,6 +89,24 @@ function collectionFixture() {
     },
   };
 }
+
+test('운영 웹 배지는 인정된 서로 다른 방문만 세고 로그아웃 때 이전 계정 배지를 지운다', async () => {
+  const { nodes, doc } = collectionFixture();
+  const visit = (merchantId, progressCounted) => ({
+    visitEventId: merchantId + String(progressCounted), merchantId, merchantName: merchantId,
+    campaignId: 'campaign', campaignTitle: '동네 탐험', businessDate: '2026-09-28',
+    progressCounted, verificationLevel: 'MERCHANT_CONFIRMED',
+  });
+  await loadCollection(async () => ({ ok: true, json: async () => ({
+    visits: [visit('one', true), visit('one', true), visit('two', false), visit('two', true)],
+    collectibles: [],
+  }) }), doc);
+  assert.equal(nodes['badge-list'].children.length, 3);
+  assert.match(nodes['badge-list'].children[1].textContent, /획득/);
+  assert.match(nodes['badge-list'].children[2].textContent, /1곳 남음/);
+  await loadCollection(async () => ({ ok: false, status: 401 }), doc);
+  assert.equal(nodes['badge-list'].children.length, 0);
+});
 
 function sharedWindows(...docs) {
   const channels = new Set();
