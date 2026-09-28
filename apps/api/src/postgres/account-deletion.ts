@@ -80,10 +80,9 @@ export class PostgresAccountDeletionService implements AccountDeletionService {
     try {
       await client.query('BEGIN');
       await this.accountLifecycle.lockForDeletion(client, input.accountId);
-      const now = this.options.now();
-      if (input.sessionToken) {
-        await assertRecentSession(client, input.accountId, input.sessionToken, now);
-      }
+      const now = input.sessionToken
+        ? await assertRecentSession(client, input.accountId, input.sessionToken, this.options.now)
+        : this.options.now();
 
       const existing = await findRequest(client, referenceHash);
       if (existing) {
@@ -136,23 +135,35 @@ async function assertRecentSession(
   client: PoolClient,
   accountId: string,
   sessionToken: string,
-  now: Date,
-): Promise<void> {
+  now: () => Date,
+): Promise<Date> {
   const session = (
-    await client.query<{ account_id: string; last_authenticated_at: Date }>(
-      `SELECT account_id, last_authenticated_at
+    await client.query<{
+      account_id: string;
+      last_authenticated_at: Date;
+      expires_at: Date;
+      revoked_at: Date | null;
+    }>(
+      `SELECT account_id, last_authenticated_at, expires_at, revoked_at
        FROM auth_sessions
-       WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > $2
+       WHERE token_hash = $1
        FOR UPDATE`,
-      [createHash('sha256').update(sessionToken).digest(), now],
+      [createHash('sha256').update(sessionToken).digest()],
     )
   ).rows[0];
-  if (!session) throw new AuthSessionError('SESSION_INVALID');
+  const checkedAt = now();
+  if (!session || session.revoked_at || session.expires_at <= checkedAt) {
+    throw new AuthSessionError('SESSION_INVALID');
+  }
   if (session.account_id !== accountId) throw new AuthSessionError('IDENTITY_MISMATCH');
   const authenticatedAt = session.last_authenticated_at.getTime();
-  if (authenticatedAt > now.getTime() || authenticatedAt < now.getTime() - 5 * 60 * 1000) {
+  if (
+    authenticatedAt > checkedAt.getTime() ||
+    authenticatedAt < checkedAt.getTime() - 5 * 60 * 1000
+  ) {
     throw new AuthSessionError('REAUTHENTICATION_REQUIRED');
   }
+  return checkedAt;
 }
 
 async function mintCounts(
