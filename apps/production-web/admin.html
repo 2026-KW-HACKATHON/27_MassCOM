@@ -25,12 +25,19 @@
     <button id="admin-logout" class="collection-action secondary" type="button" hidden>로그아웃</button>
     <section id="admin-content" hidden>
       <h2>점포 운영</h2>
+      <section class="admin-panel" aria-labelledby="operations-heading">
+        <h3 id="operations-heading">운영 현황</h3>
+        <p>실제 점포 최대 100곳의 현재 집계입니다. 방문은 유효한 기록, 보상은 취소되지 않은 기록만 셉니다.</p>
+        <div id="admin-operations"></div>
+      </section>
       <p class="admin-intro">새 점포는 비공개로 저장됩니다. 점포를 숨기면 활성 캠페인의 신규 참여도 중지됩니다. 유효한 미수령 QR이 있으면 숨김은 보류됩니다.</p>
       <div class="admin-grid">
         <form id="admin-create" class="admin-panel">
           <h3>점포 등록</h3>
           <label>점포 이름 <input name="name" required maxlength="200"></label>
           <label>소개 <textarea name="story" maxlength="4000"></textarea></label>
+          <label>메뉴·가격 (한 줄에 메뉴명 | 가격, 최대 30개) <textarea name="menuItems" maxlength="8000"></textarea></label>
+          <label>점포 제공 영업시간 <textarea name="businessHours" maxlength="1000" placeholder="점포가 확인한 실제 영업시간을 입력하세요"></textarea></label>
           <label>도로명 주소 <input name="roadAddress" required maxlength="500"></label>
           <label>최소 결제 금액(원) <input name="minimumSpendWon" type="number" min="0" max="1000000000" step="1" required></label>
           <button type="submit">비공개로 등록</button>
@@ -40,6 +47,22 @@
           <div id="admin-merchants" class="admin-merchant-list"></div>
         </section>
       </div>
+      <section class="admin-panel" aria-labelledby="campaign-drafts-heading">
+        <h3 id="campaign-drafts-heading">캠페인 초안</h3>
+        <p>초안은 비공개이며 참여 등록·방문 보상·NFT 발행을 시작하지 않습니다. 정원 적용 규칙이 확정되기 전에는 공개할 수 없습니다.</p>
+        <form id="admin-campaign-draft" hidden>
+          <label>실제 점포 <select name="merchantId" required></select></label>
+          <label>캠페인 이름 <input name="title" required maxlength="200"></label>
+          <label>시작 시각 <input name="startsAt" type="datetime-local" required></label>
+          <label>종료 시각 <input name="endsAt" type="datetime-local" required></label>
+          <label>참여 정원 <input name="enrollmentCapacity" type="number" min="1" max="2147483647" step="1" required></label>
+          <label>첫 방문 수집품 이름 <input name="goal1" required maxlength="100"></label>
+          <label>3회 방문 수집품 이름 <input name="goal3" required maxlength="100"></label>
+          <label>5회 방문 수집품 이름 <input name="goal5" required maxlength="100"></label>
+          <button type="submit">비공개 초안 저장</button>
+        </form>
+        <div id="admin-campaign-drafts" role="status" aria-live="polite"></div>
+      </section>
     </section>
   </main>
 </body>

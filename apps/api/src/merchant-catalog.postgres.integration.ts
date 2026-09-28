@@ -24,13 +24,14 @@ test('GET /merchants reads only active merchants with a public current campaign 
 
   await pool.query(
     `INSERT INTO merchants
-       (id, name, story, road_address, minimum_spend_won, status, is_demo)
+       (id, name, story, road_address, minimum_spend_won, status, is_demo, menu_items, business_hours)
      VALUES
-       ('merchant-visible', 'A 데모 국수집', '실제 협약 점포가 아닌 개발용 예시입니다.', '서울 노원구 데모로 1', 10000, 'ACTIVE', true),
-       ('merchant-full', 'B 정원 마감 데모 식당', '정원 상태 확인용 예시입니다.', '서울 노원구 데모로 2', 12000, 'ACTIVE', true),
-       ('merchant-paused', 'C 중단된 데모 식당', '공개되면 안 됩니다.', '서울 노원구 데모로 3', 9000, 'PAUSED', true),
-       ('merchant-future', 'D 미래 데모 식당', '캠페인 시작 전입니다.', '서울 노원구 데모로 4', 11000, 'ACTIVE', true),
-       ('merchant-private', 'E 비공개 데모 식당', '비공개 캠페인입니다.', '서울 노원구 데모로 5', 8000, 'ACTIVE', true)`,
+       ('merchant-visible', 'A 실제 국수집', '', '서울 노원구 데모로 1', 10000, 'ACTIVE', false,
+         '[{"name":"국수","priceWon":7000}]', '월–금 10:00–18:00'),
+       ('merchant-full', 'B 정원 마감 데모 식당', '정원 상태 확인용 예시입니다.', '서울 노원구 데모로 2', 12000, 'ACTIVE', true, '[]', ''),
+       ('merchant-paused', 'C 중단된 데모 식당', '공개되면 안 됩니다.', '서울 노원구 데모로 3', 9000, 'PAUSED', true, '[]', ''),
+       ('merchant-future', 'D 미래 데모 식당', '캠페인 시작 전입니다.', '서울 노원구 데모로 4', 11000, 'ACTIVE', true, '[]', ''),
+       ('merchant-private', 'E 비공개 데모 식당', '비공개 캠페인입니다.', '서울 노원구 데모로 5', 8000, 'ACTIVE', true, '[]', '')`,
   );
   await pool.query(
     `INSERT INTO campaigns
@@ -89,10 +90,12 @@ test('GET /merchants reads only active merchants with a public current campaign 
     merchants: [
       {
         id: 'merchant-visible',
-        name: 'A 데모 국수집',
-        story: '실제 협약 점포가 아닌 개발용 예시입니다.',
+        name: 'A 실제 국수집',
+        story: '',
         roadAddress: '서울 노원구 데모로 1',
         minimumSpendWon: 10_000,
+        menuItems: [{ name: '국수', priceWon: 7000 }],
+        businessHours: '월–금 10:00–18:00',
         campaign: {
           id: 'campaign-visible',
           title: '가을 방문 도감',
@@ -105,7 +108,7 @@ test('GET /merchants reads only active merchants with a public current campaign 
             { targetVisitCount: 5, displayName: '다섯 번째 방문 마스코트' },
           ],
         },
-        demo: true,
+        demo: false,
       },
       {
         id: 'merchant-full',
@@ -113,6 +116,8 @@ test('GET /merchants reads only active merchants with a public current campaign 
         story: '정원 상태 확인용 예시입니다.',
         roadAddress: '서울 노원구 데모로 2',
         minimumSpendWon: 12_000,
+        menuItems: [],
+        businessHours: '',
         campaign: {
           id: 'campaign-full',
           title: '정원 마감 방문 도감',

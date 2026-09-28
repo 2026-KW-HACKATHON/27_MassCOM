@@ -1,0 +1,41 @@
+{
+  "observedAt": "2026-09-28T15:14:31Z",
+  "sourceCommit": "88932cb8907ec2fd579f1f9a27f3063efc691645",
+  "repositoryVisibility": "PRIVATE",
+  "pullRequest": "https://github.com/choijunhuk/MassCOM/pull/14",
+  "pullRequestCi": { "runId": 36439733434, "result": "PASS" },
+  "mainCi": { "runId": 36440718807, "result": "PASS" },
+  "operatingRuntime": {
+    "apiImage": "masscom-api:88932cb8907e",
+    "webImage": "masscom-production-web:88932cb8907e",
+    "health": "PASS: both healthy",
+    "databaseMigration": "PASS: 25 schema_migrations, unchanged by this release",
+    "backup": "PASS: /opt/masscom/backups/database-before-88932cb8907e.dump.G84Waj, 87486 bytes, mode 600, custom-format pg_restore --list readable; restore of this backup NOT_RUN",
+    "activePlatformAdmins": 1,
+    "operatingMerchants": 0,
+    "operatingMerchantMembers": 0,
+    "operatingClaimSlots": 0,
+    "operatingMintJobs": 0,
+    "showcaseMerchantsVisitsEntitlements": [3, 3, 2],
+    "showcaseApiImage": "masscom-showcase-api:6585614"
+  },
+  "externalHttps": {
+    "operatingApiHealth": 200,
+    "showcaseApiHealth": 200,
+    "wwwHome": 200,
+    "wwwApp": 200,
+    "wwwPreview": 200,
+    "wwwAdmin": 200,
+    "wwwMerchant": 200,
+    "unauthenticatedOperationsStatus": 401,
+    "authenticatedAdminBrowser": "PASS: the user-designated primary Google account saw the operations panel and an empty real-merchant summary after reload; no merchant was created"
+  },
+  "notRun": [
+    "status display and query performance with actual operating merchant records",
+    "authorized employee claim and reissue on two real devices",
+    "production-scale aggregation load benchmark",
+    "new Android installer verification",
+    "Google Play submission"
+  ],
+  "recovery": "Previous API/web images and the mode-600 backup remain available. This release added no migration and made no operating data writes."
+}

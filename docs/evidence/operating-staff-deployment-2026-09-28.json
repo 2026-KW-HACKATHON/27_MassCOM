@@ -1,0 +1,50 @@
+{
+  "observedAt": "2026-09-28T06:25:44Z",
+  "sourceCommit": "83357d6e0b34587989924d09d3f67e459b92fede",
+  "repositoryVisibility": "PRIVATE",
+  "pullRequest": "https://github.com/choijunhuk/MassCOM/pull/10",
+  "pullRequestCi": { "runId": 36384898659, "result": "PASS" },
+  "mainCi": { "runId": 36385493326, "result": "PASS" },
+  "operatingRuntime": {
+    "apiImage": "masscom-api:83357d6e0b34",
+    "webImage": "masscom-production-web:83357d6e0b34",
+    "apiAndWebHealth": "PASS: healthy",
+    "databaseMigration": "PASS: schema_migrations 23 to 24; newest 0024_staff_registration.sql",
+    "backup": "PASS: /opt/masscom/backups/database-before-83357d6e0b34.dump.BVr6qo, 81865 bytes, mode 600, custom-format pg_restore --list readable; actual restore NOT_RUN",
+    "activePlatformAdmins": 1,
+    "staffRegistrationRequests": 0,
+    "staffRegistrationAuditRows": 0,
+    "operatingMerchantMembers": 0,
+    "operatingMerchants": 0,
+    "accountDeletionIntakeRequests": 0,
+    "operatingMintJobs": 0,
+    "showcaseMerchantsVisitsEntitlements": [3, 3, 2],
+    "postgresAndShowcase": "PASS: operating/showcase PostgreSQL and showcase API retained prior container IDs with zero restarts"
+  },
+  "externalHttps": {
+    "wwwMerchantPage": 200,
+    "apexMerchantPage": 200,
+    "merchantJavaScript": 200,
+    "wwwAdminPage": 200,
+    "wwwDeletionPage": 200,
+    "wwwCustomerApp": 200,
+    "wwwPreview": 200,
+    "operatingApiHealth": 200,
+    "showcaseApiHealth": 200,
+    "unauthenticatedMerchantMe": 401,
+    "unauthenticatedRegistrationMerchantList": 401,
+    "registrationPostWithoutOrigin": 403,
+    "staffGoogleStart": "302 with prompt=select_account",
+    "merchantNoindexNoStore": "PASS",
+    "browserUnauthenticatedState": "PASS: Playwright showed the Korean Google login link; no authenticated staff flow was inferred"
+  },
+  "notRun": [
+    "actual operating employee Google login, registration code and administrator approval",
+    "real partner merchant creation, campaign activation and staff assignment",
+    "merchant-side customer identity QR and visit-claim issuance",
+    "physical Android customer QR redemption",
+    "rollback execution and separate database restore drill",
+    "Google Play submission"
+  ],
+  "recovery": "Previous API/web images and the mode-600 DB backup are retained. Code rollback does not automatically reverse additive migration 0024 or undo an explicitly approved STAFF membership."
+}

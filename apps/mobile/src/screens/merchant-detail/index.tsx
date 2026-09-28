@@ -39,7 +39,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
           {merchant.demo ? <Text style={styles.demoBadge}>DEMO DATA</Text> : null}
         </View>
         <Text selectable style={styles.title}>{merchant.name}</Text>
-        <Text selectable style={styles.story}>{merchant.story}</Text>
+        {merchant.story ? <Text selectable style={styles.story}>{merchant.story}</Text> : null}
       </View>
 
       {error ? (
@@ -52,6 +52,16 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
         <InfoRow styles={styles} label="주소" value={merchant.roadAddress} />
         <InfoRow styles={styles} label="최소 이용" value={`${merchant.minimumSpendWon.toLocaleString('ko-KR')}원`} />
         <InfoRow styles={styles} label="참여 상태" value={merchant.campaign.enrollmentStatus === 'OPEN' ? '참여 가능' : '정원 마감'} />
+      </View>
+
+      <View style={styles.infoCard}>
+        <InfoRow styles={styles} label="점포 제공 영업시간" value={merchant.businessHours || '영업시간 정보가 아직 없습니다.'} />
+      </View>
+      <View style={styles.infoCard}>
+        <Text accessibilityRole="header" style={styles.sectionEyebrow}>메뉴·가격</Text>
+        {merchant.menuItems.length ? merchant.menuItems.map((item, index) =>
+          <InfoRow key={index} styles={styles} label={item.name} value={`${item.priceWon.toLocaleString('ko-KR')}원`} />)
+          : <Text style={styles.infoValue}>메뉴 정보가 아직 없습니다.</Text>}
       </View>
 
       <View style={styles.campaignHeader}>

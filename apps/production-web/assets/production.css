@@ -79,11 +79,12 @@ h2 { margin: 0; font-size: clamp(1.8rem, 3vw, 2.65rem); line-height: 1.2; letter
 #admin-content { margin-top: 2rem; }
 .admin-grid { display: grid; gap: 1rem; margin-top: 1.5rem; align-items: start; }
 .admin-panel { display: grid; gap: 1rem; min-width: 0; padding: clamp(1.25rem, 3vw, 2rem); border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); }
+.admin-panel > form { display: grid; gap: .8rem; }
 .admin-panel h3 { margin: 0; font-size: 1.3rem; }
 .admin-panel label { display: grid; gap: .35rem; font-weight: 700; }
-.admin-panel input, .admin-panel textarea { width: 100%; min-height: 2.8rem; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: .6rem; background: var(--paper); color: var(--ink); font: inherit; }
+.admin-panel input, .admin-panel select, .admin-panel textarea { width: 100%; min-height: 2.8rem; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: .6rem; background: var(--paper); color: var(--ink); font: inherit; }
 .admin-panel textarea { min-height: 6rem; resize: vertical; }
-.admin-panel input:focus-visible, .admin-panel textarea:focus-visible { outline: .2rem solid var(--focus); outline-offset: .12rem; }
+.admin-panel input:focus-visible, .admin-panel select:focus-visible, .admin-panel textarea:focus-visible { outline: .2rem solid var(--focus); outline-offset: .12rem; }
 .admin-panel button { min-height: 2.8rem; padding: .6rem 1rem; border: 1px solid var(--stream); border-radius: .65rem; background: var(--stream); color: var(--paper); font: inherit; font-weight: 750; cursor: pointer; }
 .admin-panel button:disabled { cursor: wait; opacity: .55; }
 .admin-panel button:focus-visible { outline: .2rem solid var(--focus); outline-offset: .12rem; }

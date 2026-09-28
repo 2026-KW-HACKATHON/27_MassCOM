@@ -25,16 +25,57 @@ function fields(form) {
     story: String(data.get('story') ?? ''),
     roadAddress: String(data.get('roadAddress') ?? ''),
     minimumSpendWon: Number(data.get('minimumSpendWon')),
+    menuItems: parseMenuLines(String(data.get('menuItems') ?? '')),
+    businessHours: String(data.get('businessHours') ?? ''),
   };
+}
+
+export function parseMenuLines(value) {
+  const lines = value.split('\n').map(line => line.trim()).filter(Boolean);
+  if (lines.length > 30) throw new Error('메뉴는 최대 30개까지 입력할 수 있습니다.');
+  return lines.map(line => {
+    const match = /^(.+?)\s*\|\s*(\d+)$/.exec(line);
+    const name = match?.[1]?.trim();
+    const priceWon = Number(match?.[2]);
+    if (!name || name.length > 200 || !Number.isSafeInteger(priceWon) || priceWon > 1_000_000_000) {
+      throw new Error('메뉴는 메뉴명 | 가격(원) 형식으로 입력해 주세요.');
+    }
+    return { name, priceWon };
+  });
+}
+
+export function campaignDraftPayload(data) {
+  const utc = name => {
+    const time = Date.parse(String(data.get(name) ?? ''));
+    if (!Number.isFinite(time)) throw new Error('시작과 종료 시각을 확인해 주세요.');
+    return new Date(time).toISOString();
+  };
+  const startsAt = utc('startsAt');
+  const endsAt = utc('endsAt');
+  if (endsAt <= startsAt) throw new Error('종료 시각은 시작 시각보다 늦어야 합니다.');
+  const enrollmentCapacity = Number(data.get('enrollmentCapacity'));
+  if (!Number.isSafeInteger(enrollmentCapacity) || enrollmentCapacity < 1 || enrollmentCapacity > 2_147_483_647) {
+    throw new Error('참여 정원은 1 이상의 정수로 입력해 주세요.');
+  }
+  const rewardGoals = [1, 3, 5].map(targetVisitCount => ({
+    targetVisitCount, displayName: String(data.get(`goal${targetVisitCount}`) ?? '').trim(),
+  }));
+  if (rewardGoals.some(goal => !goal.displayName || goal.displayName.length > 100)) {
+    throw new Error('세 목표의 수집품 이름을 모두 입력해 주세요.');
+  }
+  return { merchantId: String(data.get('merchantId') ?? ''), title: String(data.get('title') ?? '').trim(),
+    startsAt, endsAt, enrollmentCapacity, rewardGoals };
 }
 
 function editField(doc, label, name, value, type = 'text') {
   const wrapper = doc.createElement('label');
   wrapper.textContent = label + ' ';
-  const input = doc.createElement(name === 'story' ? 'textarea' : 'input');
+  const input = doc.createElement(['story', 'menuItems', 'businessHours'].includes(name) ? 'textarea' : 'input');
   input.name = name;
   if (input.tagName === 'INPUT') input.type = type;
   input.value = String(value);
+  if (name === 'businessHours') input.maxLength = 1000;
+  if (name === 'menuItems') input.maxLength = 8000;
   input.required = name === 'name' || name === 'roadAddress' || name === 'minimumSpendWon';
   wrapper.append(input);
   return wrapper;
@@ -48,12 +89,20 @@ export async function loadAdmin(fetcher, doc) {
   const logout = doc.getElementById('admin-logout');
   const content = doc.getElementById('admin-content');
   const list = doc.getElementById('admin-merchants');
+  const operations = doc.getElementById('admin-operations');
+  const draftForm = doc.getElementById('admin-campaign-draft');
+  const draftList = doc.getElementById('admin-campaign-drafts');
+  const draftMerchant = draftForm?.querySelector('select');
   const create = doc.getElementById('admin-create');
   if (!status || !login || !logout || !content || !list || !create) return;
   content.hidden = true;
   login.hidden = true;
   logout.hidden = true;
   list.replaceChildren();
+  operations?.replaceChildren();
+  draftList?.replaceChildren();
+  draftMerchant?.replaceChildren();
+  if (draftForm) draftForm.hidden = true;
   try {
     await jsonRequest(fetcher, '/api/web/admin/me');
     if (adminRequests.get(doc) !== requestId) return;
@@ -77,6 +126,9 @@ export async function loadAdmin(fetcher, doc) {
       form.append(title, state,
         editField(doc, '상점 이름', 'name', merchant.name),
         editField(doc, '소개', 'story', merchant.story),
+        editField(doc, '메뉴·가격 (한 줄에 메뉴명 | 가격)', 'menuItems',
+          (merchant.menuItems ?? []).map(item => `${item.name} | ${item.priceWon}`).join('\n')),
+        editField(doc, '점포 제공 영업시간', 'businessHours', merchant.businessHours ?? ''),
         editField(doc, '도로명 주소', 'roadAddress', merchant.roadAddress),
         editField(doc, '최소 결제 금액(원)', 'minimumSpendWon', merchant.minimumSpendWon, 'number'),
         save, hide);
@@ -156,7 +208,8 @@ export async function loadAdmin(fetcher, doc) {
           await loadAdmin(fetcher, doc);
           status.textContent = '상점을 수정했습니다.';
         } catch (error) {
-          status.textContent = error.status === 409 ? '다른 변경이 먼저 저장되었습니다. 새로고침해 주세요.' : '수정하지 못했습니다.';
+          status.textContent = error.message?.startsWith('메뉴') ? error.message
+            : error.status === 409 ? '다른 변경이 먼저 저장되었습니다. 새로고침해 주세요.' : '수정하지 못했습니다.';
           save.disabled = false;
         }
       });
@@ -176,11 +229,58 @@ export async function loadAdmin(fetcher, doc) {
         }
       });
       list.append(form, staffPanel);
+      if (draftMerchant) {
+        const option = doc.createElement('option');
+        option.value = merchant.id;
+        option.textContent = merchant.name;
+        draftMerchant.append(option);
+      }
     }
+    if (draftForm) draftForm.hidden = payload.merchants.length === 0;
     if (payload.merchants.length === 0) {
       const empty = doc.createElement('p');
       empty.textContent = '등록된 점포가 없습니다. 점포 등록 양식에서 첫 점포를 비공개로 등록하세요.';
       list.append(empty);
+    }
+    if (operations) {
+      try {
+        const summary = await jsonRequest(fetcher, '/api/web/admin/operations-status');
+        if (adminRequests.get(doc) !== requestId) return;
+        if (!Array.isArray(summary.merchants)) throw new Error('invalid operations status');
+        if (!summary.merchants.length) operations.textContent = '집계할 실제 점포가 없습니다.';
+        for (const merchant of summary.merchants) {
+          const row = doc.createElement('p');
+          row.textContent = `${merchant.name} · QR 활성 ${merchant.claims.active}건 · 만료 ${merchant.claims.expired}건 · 수령 ${merchant.claims.claimed}건 · 방문 ${merchant.visits}건 · 보상 ${merchant.rewards}건`;
+          operations.append(row);
+          const jobs = doc.createElement('p');
+          jobs.textContent = `민팅 작업: ${merchant.mintJobs.length ? merchant.mintJobs.map(item => `${item.status} ${item.count}건`).join(', ') : '없음'}`;
+          operations.append(jobs);
+          const failures = doc.createElement('p');
+          failures.textContent = `민팅 오류 코드: ${merchant.mintFailures.length ? merchant.mintFailures.map(item => `${item.code} ${item.count}건`).join(', ') : '없음'}`;
+          operations.append(failures);
+        }
+      } catch (error) {
+        if (adminRequests.get(doc) !== requestId) return;
+        if (error.status === 401 || error.status === 403) throw error;
+        operations.textContent = '운영 현황을 불러오지 못했습니다.';
+      }
+    }
+    if (draftList) {
+      try {
+        const campaigns = await jsonRequest(fetcher, '/api/web/admin/campaign-drafts');
+        if (adminRequests.get(doc) !== requestId) return;
+        if (!Array.isArray(campaigns.drafts)) throw new Error('invalid campaign drafts');
+        if (!campaigns.drafts.length) draftList.textContent = '저장된 비공개 초안이 없습니다.';
+        for (const draft of campaigns.drafts) {
+          const item = doc.createElement('p');
+          item.textContent = `${draft.merchantName} · ${draft.title} · 비공개 초안 · 정원 ${draft.enrollmentCapacity}명`;
+          draftList.append(item);
+        }
+      } catch (error) {
+        if (adminRequests.get(doc) !== requestId) return;
+        if (error.status === 401 || error.status === 403) throw error;
+        draftList.textContent = '캠페인 초안 목록을 불러오지 못했습니다.';
+      }
     }
     status.textContent = payload.merchants.length ? `${payload.merchants.length}곳의 실제 상점입니다.` : '등록된 실제 상점이 없습니다.';
     content.hidden = false;
@@ -188,6 +288,11 @@ export async function loadAdmin(fetcher, doc) {
     logout.hidden = false;
   } catch (error) {
     if (adminRequests.get(doc) !== requestId) return;
+    list.replaceChildren();
+    operations?.replaceChildren();
+    draftList?.replaceChildren();
+    draftMerchant?.replaceChildren();
+    if (draftForm) draftForm.hidden = true;
     if (error.status === 401) {
       status.textContent = '관리자 계정으로 로그인해 주세요.';
       login.hidden = false;
@@ -209,6 +314,11 @@ export function bindAdmin(fetcher, doc) {
   const clear = () => {
     adminRequests.set(doc, (adminRequests.get(doc) ?? 0) + 1);
     doc.getElementById('admin-merchants')?.replaceChildren();
+    doc.getElementById('admin-operations')?.replaceChildren();
+    doc.getElementById('admin-campaign-drafts')?.replaceChildren();
+    const draftForm = doc.getElementById('admin-campaign-draft');
+    draftForm?.querySelector('select')?.replaceChildren();
+    if (draftForm) draftForm.hidden = true;
     doc.getElementById('admin-content').hidden = true;
   };
   doc.defaultView?.addEventListener('pagehide', clear);
@@ -247,9 +357,30 @@ export function bindAdmin(fetcher, doc) {
       form.reset();
       await loadAdmin(fetcher, doc);
       status.textContent = '상점을 비공개로 저장했습니다.';
-    } catch {
-      status.textContent = '상점을 저장하지 못했습니다.';
+    } catch (error) {
+      status.textContent = error.message?.startsWith('메뉴') ? error.message : '상점을 저장하지 못했습니다.';
     } finally { button.disabled = false; }
+  });
+  const draftForm = doc.getElementById('admin-campaign-draft');
+  let draftSaving = false;
+  draftForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (draftSaving) return;
+    const requestId = adminRequests.get(doc);
+    const button = draftForm.querySelector('button[type="submit"]');
+    draftSaving = true;
+    button.disabled = true;
+    try {
+      await jsonRequest(fetcher, '/api/web/admin/campaign-drafts', 'POST',
+        campaignDraftPayload(new FormData(draftForm)));
+      if (adminRequests.get(doc) !== requestId) return;
+      draftForm.reset();
+      await loadAdmin(fetcher, doc);
+      if (!doc.getElementById('admin-content').hidden) status.textContent = '비공개 캠페인 초안을 저장했습니다.';
+    } catch (error) {
+      if (adminRequests.get(doc) === requestId) status.textContent = error.message?.includes('주세요')
+        ? error.message : '초안을 저장하지 못했습니다.';
+    } finally { draftSaving = false; button.disabled = false; }
   });
   return loadAdmin(fetcher, doc);
 }

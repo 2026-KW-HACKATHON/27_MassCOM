@@ -146,6 +146,11 @@ function isMerchant(value) {
     && typeof value.name === 'string' && value.name.trim() !== ''
     && typeof value.story === 'string'
     && typeof value.roadAddress === 'string'
+    && (value.businessHours === undefined || (typeof value.businessHours === 'string' && value.businessHours.length <= 1000))
+    && (value.menuItems === undefined || (Array.isArray(value.menuItems) && value.menuItems.length <= 30 &&
+      value.menuItems.every(item => item && typeof item.name === 'string' && item.name.trim() &&
+        item.name.length <= 200 && Number.isSafeInteger(item.priceWon) &&
+        item.priceWon >= 0 && item.priceWon <= 1_000_000_000)))
     && typeof value.demo === 'boolean';
 }
 
@@ -179,7 +184,25 @@ export async function loadMerchants(fetcher, doc) {
       const story = doc.createElement('p');
       story.className = 'merchant-story';
       story.textContent = merchant.story;
-      card.append(name, address, story);
+      card.append(name, address);
+      if (merchant.story) card.append(story);
+      const hours = doc.createElement('p');
+      hours.textContent = `점포 제공 영업시간 · ${merchant.businessHours || '영업시간 정보가 아직 없습니다.'}`;
+      card.append(hours);
+      const menu = doc.createElement('h4');
+      menu.textContent = '메뉴·가격';
+      card.append(menu);
+      if (merchant.menuItems?.length) {
+        for (const item of merchant.menuItems) {
+          const row = doc.createElement('p');
+          row.textContent = `${item.name} · ${item.priceWon.toLocaleString('ko-KR')}원`;
+          card.append(row);
+        }
+      } else {
+        const empty = doc.createElement('p');
+        empty.textContent = '메뉴 정보가 아직 없습니다.';
+        card.append(empty);
+      }
       list.append(card);
     }
     status.textContent = merchants.length === 0

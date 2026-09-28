@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
+import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
@@ -43,7 +44,7 @@ import { PostgresCustomerIdentityService } from './postgres/customer-identity.js
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountDeletionIntakeService } from './postgres/account-deletion-intake.js';
-import { AdminError, PostgresAdminService, type MerchantInput } from './postgres/admin.js';
+import { AdminError, PostgresAdminService, type AdminCampaignDraftInput, type MerchantInput } from './postgres/admin.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
 import { PostgresWebSessionStore } from './postgres/web-session.js';
@@ -59,6 +60,18 @@ import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
 import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-binding.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
+const qrCode = createRequire(import.meta.url)('qrcode') as {
+  toString(value: string, options: { type: 'svg'; margin: number }): Promise<string>;
+};
+
+export async function renderClaimQr(token: string, render = qrCode.toString): Promise<
+  { qrSvgDataUrl: string } | { qrRenderFailed: true }
+> {
+  try {
+    const svg = await render(token, { type: 'svg', margin: 2 });
+    return { qrSvgDataUrl: `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}` };
+  } catch { return { qrRenderFailed: true }; }
+}
 
 export type AuthLoginLimiter = {
   consume(key: string): { allowed: boolean; retryAfterSeconds: number };
@@ -157,7 +170,8 @@ export function createApiServer(
   webAuth?: WebAuthHandler,
   webWwwEnabled = false,
   customerIdentities?: CustomerIdentityService,
-  admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>,
+  admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'> &
+    Partial<Pick<PostgresAdminService, 'operationsStatus' | 'listCampaignDrafts' | 'createCampaignDraft'>>,
   deletionIntake?: AccountDeletionIntakeService,
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
 ) {
@@ -255,6 +269,34 @@ export function createApiServer(
           sendJson(response, 200, { admin: true });
           return;
         }
+        if (path === '/api/web/admin/operations-status' && request.method === 'GET') {
+          if (!admin.operationsStatus) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          sendJson(response, 200, await admin.operationsStatus(accountId));
+          return;
+        }
+        if (path === '/api/web/admin/campaign-drafts') {
+          if (request.method === 'GET') {
+            if (!admin.listCampaignDrafts) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+            sendJson(response, 200, { drafts: await admin.listCampaignDrafts(accountId) });
+            return;
+          }
+          if (request.method === 'POST') {
+            if (!admin.createCampaignDraft) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+            const body = await readJson(request);
+            if (Object.keys(body).some(key => !['merchantId', 'title', 'startsAt', 'endsAt',
+              'enrollmentCapacity', 'rewardGoals'].includes(key)) || !Array.isArray(body.rewardGoals)) {
+              throw new RequestError(400, 'INVALID_REQUEST');
+            }
+            const input: AdminCampaignDraftInput = {
+              merchantId: requireString(body, 'merchantId'), title: requireString(body, 'title'),
+              startsAt: requireString(body, 'startsAt'), endsAt: requireString(body, 'endsAt'),
+              enrollmentCapacity: requirePositiveInteger(body, 'enrollmentCapacity'),
+              rewardGoals: body.rewardGoals as AdminCampaignDraftInput['rewardGoals'],
+            };
+            sendJson(response, 201, { draft: await admin.createCampaignDraft(accountId, input) });
+            return;
+          }
+        }
         const staffMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/staff$/);
         if (staffMatch && staffRegistration) {
           const merchantId = decodePathParameter(staffMatch[1]!);
@@ -340,6 +382,59 @@ export function createApiServer(
         if (path === '/api/web/merchant/registration-requests' && request.method === 'POST') {
           const body = await readJson(request);
           sendJson(response, 201, await staffRegistration.request(accountId, requireString(body, 'merchantId')));
+          return;
+        }
+        const claimMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/(customer-identities\/resolve|claim-slots)$/);
+        const reissueMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/claim-slots\/([^/]+)\/reissue$/);
+        if (reissueMatch && request.method === 'POST') {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          if (!claimSlots) throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+          const merchantId = decodePathParameter(reissueMatch[1]!);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+          if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) {
+            throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+          }
+          const body = await readJson(request);
+          if (Object.keys(body).some(key => key !== 'expectedTokenVersion')) {
+            throw new RequestError(400, 'INVALID_REQUEST');
+          }
+          const issued = await claimSlots.reissue({
+            merchantId, claimSlotId: decodePathParameter(reissueMatch[2]!),
+            expectedTokenVersion: requirePositiveInteger(body, 'expectedTokenVersion'),
+            requestedByAccountId: accountId,
+          });
+          sendJson(response, 200, { ...issued, ...await renderClaimQr(issued.token) });
+          return;
+        }
+        if (claimMatch && request.method === 'POST') {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          const merchantId = decodePathParameter(claimMatch[1]!);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+          if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) {
+            throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+          }
+          const body = await readJson(request);
+          if ('customerAccountId' in body) throw new RequestError(400, 'INVALID_REQUEST');
+          const customerIdentityToken = requireString(body, 'customerIdentityToken');
+          if (claimMatch[2] === 'customer-identities/resolve') {
+            if (!customerIdentities) throw new RequestError(503, 'CUSTOMER_IDENTITY_NOT_CONFIGURED');
+            sendJson(response, 200, await customerIdentities.resolve({
+              token: customerIdentityToken, merchantId, staffAccountId: accountId,
+            }));
+          } else {
+            if (!claimSlots) throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+            if (body.useConfirmed !== true) throw new RequestError(400, 'INVALID_REQUEST');
+            const issued = await claimSlots.issue({
+              merchantId, customerIdentityToken, merchantReference: requireString(body, 'merchantReference'),
+              createdByAccountId: accountId,
+            });
+            if ('replayed' in issued) {
+              sendJson(response, 200, { claimSlotId: issued.claimSlotId, tokenVersion: issued.tokenVersion,
+                expiresAt: issued.expiresAt, replayed: true });
+            } else {
+              sendJson(response, 201, { ...issued, ...await renderClaimQr(issued.token) });
+            }
+          }
           return;
         }
         throw new RequestError(404, 'NOT_FOUND');
@@ -858,12 +953,14 @@ function requireNumber(body: Record<string, unknown>, field: string): number {
 }
 
 function adminMerchantInput(body: Record<string, unknown>): MerchantInput {
-  if (Object.keys(body).some(key => !['name', 'story', 'roadAddress', 'minimumSpendWon', 'expectedVersion'].includes(key))) {
+  if (Object.keys(body).some(key => !['name', 'story', 'roadAddress', 'minimumSpendWon', 'menuItems', 'businessHours', 'expectedVersion'].includes(key))) {
     throw new RequestError(400, 'INVALID_REQUEST');
   }
   return {
     name: requireString(body, 'name'), story: requireString(body, 'story', true),
     roadAddress: requireString(body, 'roadAddress'), minimumSpendWon: requireNumber(body, 'minimumSpendWon'),
+    ...(body.menuItems === undefined ? {} : { menuItems: body.menuItems as NonNullable<MerchantInput['menuItems']> }),
+    ...(body.businessHours === undefined ? {} : { businessHours: body.businessHours as string }),
   };
 }
 

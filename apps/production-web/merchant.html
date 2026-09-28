@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
   <title>MassCOM 점포 운영</title>
   <link rel="stylesheet" href="/app/assets/production.css">
   <script type="module" src="/merchant/assets/merchant.mjs"></script>
@@ -31,6 +31,25 @@
         <button type="submit">등록 코드 발급</button>
       </form>
       <p id="merchant-code" class="status" role="status" aria-live="polite"></p>
+      <h2>고객 방문 확인</h2>
+      <p>고객 앱의 QR을 확인하고 실제 이용을 확인한 뒤 방문 수령 QR을 발급하세요. 발급된 QR은 한 번만 표시됩니다. 발급 응답을 잃었다면 같은 요청을 다시 보내 슬롯을 확인한 뒤 새 코드로 재발급할 수 있습니다.</p>
+      <form id="merchant-claim-form" hidden>
+        <label>점포 <select id="merchant-claim-merchant" required></select></label>
+        <label>고객 QR 내용 <input id="merchant-claim-token" type="text" autocomplete="off" required></label>
+        <button id="merchant-claim-scan" type="button">카메라로 QR 읽기</button>
+        <video id="merchant-claim-video" autoplay playsinline muted hidden aria-label="고객 QR 스캔 화면"></video>
+        <button id="merchant-claim-scan-cancel" type="button" hidden>스캔 취소</button>
+        <button id="merchant-claim-resolve" type="button">고객 QR 확인</button>
+        <label>이용 식별 번호 <input id="merchant-claim-reference" type="text" autocomplete="off" required></label>
+        <label><input id="merchant-claim-confirm" type="checkbox"> 실제 이용을 확인했고 이 QR을 사용합니다.</label>
+        <button id="merchant-claim-submit" type="submit" disabled>방문 코드 발급</button>
+      </form>
+      <p id="merchant-claim-result" class="status" role="status" aria-live="polite"></p>
+      <img id="merchant-claim-issued-qr" alt="고객이 촬영할 방문 수령 QR" width="240" height="240" hidden>
+      <div id="merchant-claim-reissue" hidden>
+        <label><input id="merchant-claim-reissue-confirm" type="checkbox"> 이전 방문 코드를 무효화하고 새 QR을 발급합니다.</label>
+        <button id="merchant-claim-reissue-submit" type="button" disabled>방문 코드 재발급</button>
+      </div>
     </section>
   </main>
 </body>

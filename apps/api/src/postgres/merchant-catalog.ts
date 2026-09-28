@@ -12,6 +12,8 @@ type MerchantCatalogRow = {
   merchant_story: string;
   road_address: string;
   minimum_spend_won: number;
+  menu_items: PublicMerchant['menuItems'];
+  business_hours: string;
   is_demo: boolean;
   campaign_id: string;
   campaign_title: string;
@@ -35,6 +37,8 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
          m.story AS merchant_story,
          m.road_address,
          m.minimum_spend_won,
+         m.menu_items,
+         m.business_hours,
          m.is_demo,
          c.id AS campaign_id,
          c.title AS campaign_title,
@@ -67,6 +71,8 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
       story: row.merchant_story,
       roadAddress: row.road_address,
       minimumSpendWon: row.minimum_spend_won,
+      menuItems: row.menu_items,
+      businessHours: row.business_hours,
       campaign: {
         id: row.campaign_id,
         title: row.campaign_title,

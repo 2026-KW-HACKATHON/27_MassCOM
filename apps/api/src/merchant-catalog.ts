@@ -18,6 +18,8 @@ export type PublicMerchant = {
   story: string;
   roadAddress: string;
   minimumSpendWon: number;
+  menuItems: readonly { name: string; priceWon: number }[];
+  businessHours: string;
   campaign: PublicCampaign;
   demo: boolean;
 };

@@ -1,0 +1,44 @@
+{
+  "observedAt": "2026-09-28T13:41:05Z",
+  "sourceCommit": "c02da0f604bf7a922574e56da789f0be02a39f52",
+  "repositoryVisibility": "PRIVATE",
+  "pullRequest": "https://github.com/choijunhuk/MassCOM/pull/13",
+  "pullRequestCi": { "runId": 36427481638, "result": "PASS" },
+  "mainCi": { "runId": 36428510029, "result": "PASS" },
+  "operatingRuntime": {
+    "apiImage": "masscom-api:c02da0f604bf",
+    "webImage": "masscom-production-web:c02da0f604bf",
+    "health": "PASS: both healthy",
+    "databaseMigration": "PASS: 25 schema_migrations, unchanged by this release",
+    "backup": "PASS: /opt/masscom/backups/database-before-c02da0f604bf.dump.7icFjI, 87486 bytes, mode 600, custom-format pg_restore --list readable; actual restore for this release NOT_RUN",
+    "activePlatformAdmins": 1,
+    "operatingMerchants": 0,
+    "operatingMerchantMembers": 0,
+    "operatingClaimSlots": 0,
+    "operatingMintJobs": 0,
+    "showcaseMerchantsVisitsEntitlements": [3, 3, 2],
+    "showcaseApiImage": "masscom-showcase-api:6585614"
+  },
+  "externalHttps": {
+    "operatingApiHealth": 200,
+    "showcaseApiHealth": 200,
+    "wwwHome": 200,
+    "wwwApp": 200,
+    "wwwPreview": 200,
+    "wwwAdmin": 200,
+    "wwwMerchant": 200,
+    "merchantJavaScript": 200,
+    "reissueControlPresent": "PASS: explicit old-code invalidation checkbox and reissue button present",
+    "reissueWithoutOrigin": 403,
+    "reissueWithOriginWithoutSession": 401,
+    "authenticatedAdminBrowserAfterDeploy": "PASS: the designated primary Google account still showed the empty real-merchant administrator screen after reload"
+  },
+  "notRun": [
+    "actual authorized employee reissue and previous QR invalidation in a browser",
+    "physical customer QR scan and two-device visit claim",
+    "new Android installer verification",
+    "lost reissue response server-state reconciliation",
+    "Google Play submission"
+  ],
+  "recovery": "Previous API/web images and the mode-600 backup remain available. No migration was added. Code rollback cannot restore a claim token already invalidated by a real reissue."
+}
