@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
+import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
@@ -59,6 +60,9 @@ import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
 import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-binding.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
+const qrCode = createRequire(import.meta.url)('qrcode') as {
+  toString(value: string, options: { type: 'svg'; margin: number }): Promise<string>;
+};
 
 export type AuthLoginLimiter = {
   consume(key: string): { allowed: boolean; retryAfterSeconds: number };
@@ -368,7 +372,14 @@ export function createApiServer(
             if ('replayed' in issued) {
               sendJson(response, 200, { claimSlotId: issued.claimSlotId, tokenVersion: issued.tokenVersion,
                 expiresAt: issued.expiresAt, replayed: true });
-            } else sendJson(response, 201, issued);
+            } else {
+              let qrSvgDataUrl: string | undefined;
+              try {
+                const svg = await qrCode.toString(issued.token, { type: 'svg', margin: 2 });
+                qrSvgDataUrl = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+              } catch { /* Keep the one-time text token available if QR rendering fails after issuance. */ }
+              sendJson(response, 201, { ...issued, ...(qrSvgDataUrl ? { qrSvgDataUrl } : {}) });
+            }
           }
           return;
         }

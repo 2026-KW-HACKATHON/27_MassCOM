@@ -610,7 +610,10 @@ test('merchant web resolves a customer QR and issues a confirmed claim without e
   const body = JSON.stringify({ customerIdentityToken: 'customer-qr', merchantReference: 'sale-1', useConfirmed: true });
   const first = await webRequest(base, `${prefix}/claim-slots`, { method: 'POST', headers, body });
   assert.equal(first.status, 201);
-  assert.equal((await first.json()).token, 'private-claim-token');
+  const firstBody = await first.json();
+  assert.equal(firstBody.token, 'private-claim-token');
+  assert.match(firstBody.qrSvgDataUrl, /^data:image\/svg\+xml;base64,/);
+  assert.match(Buffer.from(firstBody.qrSvgDataUrl.split(',')[1], 'base64').toString(), /^<svg/);
   const replay = await webRequest(base, `${prefix}/claim-slots`, { method: 'POST', headers, body });
   assert.equal(replay.status, 200);
   assert.deepEqual(await replay.json(), { claimSlotId: 'slot-1', tokenVersion: 1,

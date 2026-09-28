@@ -539,7 +539,7 @@ function merchantDocument() {
     'merchant-claim-form', 'merchant-claim-merchant', 'merchant-claim-token',
     'merchant-claim-reference', 'merchant-claim-confirm', 'merchant-claim-resolve',
     'merchant-claim-submit', 'merchant-claim-result', 'merchant-claim-scan',
-    'merchant-claim-scan-cancel', 'merchant-claim-video']
+    'merchant-claim-scan-cancel', 'merchant-claim-video', 'merchant-claim-issued-qr']
     .map(id => [id, { ...element(), hidden: true }]));
   const select = { ...element(), value: 'real-merchant' };
   const button = element();
@@ -555,7 +555,7 @@ function merchantDocument() {
 }
 
 test('점포 웹은 고객 QR 확인 후 명시적 사용 동의로만 방문 코드를 발급한다', async () => {
-  const { nodes, doc } = merchantDocument();
+  const { nodes, doc, listeners } = merchantDocument();
   const calls = [];
   const fetcher = async (path, options) => {
     calls.push({ path, options });
@@ -566,7 +566,8 @@ test('점포 웹은 고객 QR 확인 후 명시적 사용 동의로만 방문 �
       json: async () => ({ merchants: [] }) };
     if (path.endsWith('/customer-identities/resolve')) return { ok: true,
       json: async () => ({ expiresAt: '2026-09-28T12:00:00.000Z' }) };
-    return { ok: true, status: 201, json: async () => ({ token: 'first-claim-token', claimSlotId: 'slot-1' }) };
+    return { ok: true, status: 201, json: async () => ({ token: 'first-claim-token', claimSlotId: 'slot-1',
+      qrSvgDataUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' }) };
   };
   await bindMerchant(fetcher, doc);
   nodes['merchant-claim-merchant'].value = 'real-merchant';
@@ -586,6 +587,11 @@ test('점포 웹은 고객 QR 확인 후 명시적 사용 동의로만 방문 �
     customerIdentityToken: 'customer-qr', merchantReference: 'sale-1', useConfirmed: true,
   });
   assert.match(nodes['merchant-claim-result'].textContent, /first-claim-token/);
+  assert.equal(nodes['merchant-claim-issued-qr'].hidden, false);
+  assert.match(nodes['merchant-claim-issued-qr'].src, /^data:image\/svg\+xml;base64,/);
+  listeners.get('pagehide')();
+  assert.equal(nodes['merchant-claim-issued-qr'].hidden, true);
+  assert.equal(nodes['merchant-claim-issued-qr'].src, '');
 });
 
 test('QR 카메라 미지원·권한 거부 시 입력을 유지하고 취소하면 카메라 트랙을 끈다', async () => {
@@ -711,6 +717,47 @@ test('발급 응답 실패 뒤 재확인한 재시도는 같은 요청을 보내
   assert.deepEqual(bodies[1], bodies[0]);
   assert.match(nodes['merchant-claim-result'].textContent, /다시 표시되지 않습니다/);
   assert.doesNotMatch(nodes['merchant-claim-result'].textContent, /방문 코드:/);
+});
+
+test('방문 코드 발급 중 중복 제출과 QR 재확인은 첫 발급 토큰을 덮어쓰지 않는다', async () => {
+  const { nodes, doc } = merchantDocument();
+  let release;
+  const firstIssue = new Promise(resolve => { release = resolve; });
+  let resolveCalls = 0;
+  let issueCalls = 0;
+  const fetcher = async path => {
+    if (path.endsWith('/me')) return { ok: true, json: async () => ({ merchants: [
+      { id: 'real-merchant', name: '실제 점포', role: 'STAFF' },
+    ] }) };
+    if (path.endsWith('/registration-merchants')) return { ok: true, json: async () => ({ merchants: [] }) };
+    if (path.endsWith('/customer-identities/resolve')) {
+      resolveCalls += 1;
+      return { ok: true, json: async () => ({ expiresAt: '2026-09-28T12:00:00.000Z' }) };
+    }
+    issueCalls += 1;
+    return issueCalls === 1 ? firstIssue : { ok: true, status: 200,
+      json: async () => ({ claimSlotId: 'slot-1', replayed: true }) };
+  };
+  await bindMerchant(fetcher, doc);
+  nodes['merchant-claim-merchant'].value = 'real-merchant';
+  nodes['merchant-claim-token'].value = 'customer-qr';
+  nodes['merchant-claim-reference'].value = 'sale-1';
+  await nodes['merchant-claim-resolve'].click();
+  nodes['merchant-claim-confirm'].checked = true;
+  const issuing = nodes['merchant-claim-form'].submit();
+  assert.equal(nodes['merchant-claim-reference'].disabled, true);
+  assert.equal(nodes['merchant-claim-resolve'].disabled, true);
+  nodes['merchant-claim-confirm'].checked = false;
+  nodes['merchant-claim-confirm'].checked = true;
+  const duplicate = nodes['merchant-claim-form'].submit();
+  await nodes['merchant-claim-resolve'].click();
+  assert.equal(issueCalls, 1);
+  assert.equal(resolveCalls, 1);
+  release({ ok: true, status: 201, json: async () => ({ token: 'FIRST_TOKEN',
+    expiresAt: '2026-09-28T12:10:00.000Z' }) });
+  await Promise.all([issuing, duplicate]);
+  assert.match(nodes['merchant-claim-result'].textContent, /FIRST_TOKEN/);
+  assert.equal(nodes['merchant-claim-reference'].disabled, false);
 });
 
 test('로그아웃 뒤 늦게 도착한 방문 코드 응답은 새 화면에 표시하지 않는다', async () => {

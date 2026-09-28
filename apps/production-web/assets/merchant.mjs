@@ -44,6 +44,8 @@ export async function loadMerchant(fetcher, doc) {
   doc.getElementById('merchant-claim-confirm').checked = false;
   doc.getElementById('merchant-claim-submit').disabled = true;
   doc.getElementById('merchant-claim-result').textContent = '';
+  doc.getElementById('merchant-claim-issued-qr').src = '';
+  doc.getElementById('merchant-claim-issued-qr').hidden = true;
   try {
     const [mine, eligible] = await Promise.all([
       request(fetcher, '/api/web/merchant/me'),
@@ -94,12 +96,22 @@ export function bindMerchant(fetcher, doc) {
   const claimReference = doc.getElementById('merchant-claim-reference');
   const claimConfirm = doc.getElementById('merchant-claim-confirm');
   const claimSubmit = doc.getElementById('merchant-claim-submit');
+  const claimResolve = doc.getElementById('merchant-claim-resolve');
   const claimResult = doc.getElementById('merchant-claim-result');
+  const claimQr = doc.getElementById('merchant-claim-issued-qr');
   const scanButton = doc.getElementById('merchant-claim-scan');
   const scanCancel = doc.getElementById('merchant-claim-scan-cancel');
   const video = doc.getElementById('merchant-claim-video');
   let cameraStream;
   let scanId = 0;
+  let issuing = false;
+  const setIssuing = active => {
+    issuing = active;
+    for (const control of [claimMerchant, claimToken, claimReference, claimConfirm, claimResolve, scanButton]) {
+      control.disabled = active;
+    }
+    claimSubmit.disabled = active || !merchantClaimResolutions.has(doc) || !claimConfirm.checked;
+  };
   const stopCamera = () => {
     scanId += 1;
     cameraStream?.getTracks().forEach(track => track.stop());
@@ -113,11 +125,14 @@ export function bindMerchant(fetcher, doc) {
     merchantClaimResolutions.delete(doc);
     claimConfirm.checked = false;
     claimSubmit.disabled = true;
+    claimQr.src = '';
+    claimQr.hidden = true;
   };
   claimMerchant.addEventListener('change', invalidateClaim);
   claimToken.addEventListener('input', invalidateClaim);
   scanCancel.addEventListener('click', stopCamera);
   scanButton.addEventListener('click', async () => {
+    if (issuing) return;
     stopCamera();
     invalidateClaim();
     const view = doc.defaultView;
@@ -158,6 +173,7 @@ export function bindMerchant(fetcher, doc) {
             claimResult.textContent = '고객 QR을 읽었습니다. 고객 QR 확인을 눌러 주세요.';
           } else view.requestAnimationFrame(scan);
         } catch {
+          if (currentScan !== scanId) return;
           stopCamera();
           claimResult.textContent = '카메라로 QR을 읽지 못했습니다. QR 내용을 직접 입력해 주세요.';
         }
@@ -170,9 +186,10 @@ export function bindMerchant(fetcher, doc) {
     }
   });
   claimConfirm.addEventListener('change', () => {
-    claimSubmit.disabled = !merchantClaimResolutions.has(doc) || !claimConfirm.checked;
+    claimSubmit.disabled = issuing || !merchantClaimResolutions.has(doc) || !claimConfirm.checked;
   });
-  doc.getElementById('merchant-claim-resolve').addEventListener('click', async () => {
+  claimResolve.addEventListener('click', async () => {
+    if (issuing) return;
     invalidateClaim();
     claimResult.textContent = '';
     const merchantId = claimMerchant.value;
@@ -198,11 +215,13 @@ export function bindMerchant(fetcher, doc) {
   });
   claimForm.addEventListener('submit', async event => {
     event.preventDefault();
+    if (issuing) return;
     const resolved = merchantClaimResolutions.get(doc);
     if (!resolved || !claimConfirm.checked || resolved.merchantId !== claimMerchant.value ||
         resolved.token !== claimToken.value.trim() || !claimReference.value.trim()) return;
     const requestId = merchantRequests.get(doc);
-    claimSubmit.disabled = true;
+    stopCamera();
+    setIssuing(true);
     try {
       const issued = await request(fetcher,
         `/api/web/merchant/merchants/${encodeURIComponent(resolved.merchantId)}/claim-slots`,
@@ -214,6 +233,10 @@ export function bindMerchant(fetcher, doc) {
         : `방문 코드: ${issued.token} · 만료: ${new Date(issued.expiresAt).toLocaleTimeString('ko-KR')}`;
       claimToken.value = '';
       invalidateClaim();
+      if (!issued.replayed && /^data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+$/.test(issued.qrSvgDataUrl ?? '')) {
+        claimQr.src = issued.qrSvgDataUrl;
+        claimQr.hidden = false;
+      }
     } catch (error) {
       if (merchantRequests.get(doc) === requestId) {
         claimResult.textContent = error.code === 'CUSTOMER_IDENTITY_EXPIRED'
@@ -225,6 +248,8 @@ export function bindMerchant(fetcher, doc) {
           invalidateClaim();
         }
       }
+    } finally {
+      if (merchantRequests.get(doc) === requestId) setIssuing(false);
     }
   });
   doc.getElementById('merchant-registration')?.addEventListener('submit', async event => {
@@ -257,6 +282,7 @@ export function bindMerchant(fetcher, doc) {
     claimReference.value = '';
     claimResult.textContent = '';
     invalidateClaim();
+    setIssuing(false);
     try {
       await request(fetcher, '/api/web/logout', 'POST');
       await loadMerchant(fetcher, doc);
@@ -272,6 +298,7 @@ export function bindMerchant(fetcher, doc) {
     claimReference.value = '';
     claimResult.textContent = '';
     invalidateClaim();
+    setIssuing(false);
   };
   doc.defaultView?.addEventListener('pagehide', clear);
   doc.defaultView?.addEventListener('pageshow', event => {
