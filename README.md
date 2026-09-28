@@ -57,7 +57,9 @@
 
 [운영 직원 등록](docs/OPERATING_STAFF_REGISTRATION.md)은 직원 자신의 Google 웹 계정과 실제 점포에 묶인 15분 코드를 운영자가 같은 점포에서 승인·회수하도록 연결합니다. 관리자에게 이메일이나 Google 식별자를 직접 입력시키지 않습니다. [STAFF 운영 배포](docs/evidence/operating-staff-deployment-2026-09-28.json)는 완료했고 `/merchant/` 외부 HTTPS·익명 접근 차단을 확인했습니다. 실제 직원 승인·고객 QR 촬영은 `NOT_RUN`입니다.
 
-메뉴·가격과 점포 제공 영업시간은 관리자 입력 후 공개 캠페인이 활성화된 점포의 운영 웹 목록과 Android 점포 상세에 표시하는 소스입니다. 입력 전에는 빈 상태를 표시하며 운영 점포 자료를 임의로 채우지 않습니다. 이 기능의 운영 배포와 실제 점포 입력·현장 확인은 `NOT_RUN`입니다.
+운영 점주 웹의 고객 식별 QR 확인·실제 이용 확인·방문 수령 QR 표시는 `feat/merchant-web-claims` 소스 작업입니다. 운영 배포와 두 휴대전화의 촬영·수령은 아직 `NOT_RUN`이며, QR을 읽었다는 것만으로 보상이 생성되지는 않습니다.
+
+메뉴·가격과 점포 제공 영업시간은 관리자 입력 후 공개 캠페인이 활성화된 점포의 운영 웹 목록과 Android 점포 상세에 표시합니다. [운영 API·웹 배포](docs/evidence/operating-merchant-menu-deployment-2026-09-28.json)는 완료했으며 입력 전에는 빈 상태를 표시하고 운영 점포 자료를 임의로 채우지 않습니다. 실제 점포 입력·공개 캠페인·최신 Android 설치본의 표시와 현장 확인은 `NOT_RUN`입니다.
 
 `www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 대회 조직의 과거 소스·APK 사전 릴리스는 공개됐지만 현재 개인 개발 저장소는 비공개이며, 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
 

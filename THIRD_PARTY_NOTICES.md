@@ -11,6 +11,7 @@
 | SIWE | 3.0.0 | [SpruceID SIWE](https://github.com/spruceid/siwe), MIT | ERC-4361 메시지 생성·파싱·검증 |
 | ethers | 6.17.0 | [ethers.js](https://github.com/ethers-io/ethers.js), MIT | 서명 복구·주소 정규화 |
 | node-postgres (`pg`) | 8.23.0 | [node-postgres](https://github.com/brianc/node-postgres), MIT | PostgreSQL 연결·parameterized query·migration 실행 |
+| qrcode | 1.5.3 | [node-qrcode](https://github.com/soldair/node-qrcode), MIT | Android·운영 점주 웹의 일회성 QR 표시용 서버 이미지 생성 |
 | PostgreSQL | 18 Alpine(개발·CI) | [PostgreSQL](https://www.postgresql.org/), PostgreSQL License | 점포·캠페인 영속 저장과 실제 통합 테스트 |
 
 ## Phase 3 NFT 계약 의존성

@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
+import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
@@ -59,6 +60,18 @@ import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
 import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-binding.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
+const qrCode = createRequire(import.meta.url)('qrcode') as {
+  toString(value: string, options: { type: 'svg'; margin: number }): Promise<string>;
+};
+
+export async function renderClaimQr(token: string, render = qrCode.toString): Promise<
+  { qrSvgDataUrl: string } | { qrRenderFailed: true }
+> {
+  try {
+    const svg = await render(token, { type: 'svg', margin: 2 });
+    return { qrSvgDataUrl: `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}` };
+  } catch { return { qrRenderFailed: true }; }
+}
 
 export type AuthLoginLimiter = {
   consume(key: string): { allowed: boolean; retryAfterSeconds: number };
@@ -340,6 +353,38 @@ export function createApiServer(
         if (path === '/api/web/merchant/registration-requests' && request.method === 'POST') {
           const body = await readJson(request);
           sendJson(response, 201, await staffRegistration.request(accountId, requireString(body, 'merchantId')));
+          return;
+        }
+        const claimMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/(customer-identities\/resolve|claim-slots)$/);
+        if (claimMatch && request.method === 'POST') {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          const merchantId = decodePathParameter(claimMatch[1]!);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+          if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) {
+            throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+          }
+          const body = await readJson(request);
+          if ('customerAccountId' in body) throw new RequestError(400, 'INVALID_REQUEST');
+          const customerIdentityToken = requireString(body, 'customerIdentityToken');
+          if (claimMatch[2] === 'customer-identities/resolve') {
+            if (!customerIdentities) throw new RequestError(503, 'CUSTOMER_IDENTITY_NOT_CONFIGURED');
+            sendJson(response, 200, await customerIdentities.resolve({
+              token: customerIdentityToken, merchantId, staffAccountId: accountId,
+            }));
+          } else {
+            if (!claimSlots) throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+            if (body.useConfirmed !== true) throw new RequestError(400, 'INVALID_REQUEST');
+            const issued = await claimSlots.issue({
+              merchantId, customerIdentityToken, merchantReference: requireString(body, 'merchantReference'),
+              createdByAccountId: accountId,
+            });
+            if ('replayed' in issued) {
+              sendJson(response, 200, { claimSlotId: issued.claimSlotId, tokenVersion: issued.tokenVersion,
+                expiresAt: issued.expiresAt, replayed: true });
+            } else {
+              sendJson(response, 201, { ...issued, ...await renderClaimQr(issued.token) });
+            }
+          }
           return;
         }
         throw new RequestError(404, 'NOT_FOUND');
