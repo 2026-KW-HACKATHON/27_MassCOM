@@ -10,6 +10,8 @@ import {
   type AccountDeletionService,
 } from './account-deletion.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
+import { BadgeRewardError, type BadgeRewardService } from './badge-rewards.js';
+import { isRewardMilestone } from './badge-rules.js';
 import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
 import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
 import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js';
@@ -44,6 +46,7 @@ import { PostgresCustomerIdentityService } from './postgres/customer-identity.js
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountDeletionIntakeService } from './postgres/account-deletion-intake.js';
+import { PostgresBadgeRewardService } from './postgres/badge-rewards.js';
 import { AdminError, PostgresAdminService, type AdminCampaignDraftInput, type MerchantInput } from './postgres/admin.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
@@ -174,6 +177,7 @@ export function createApiServer(
     Partial<Pick<PostgresAdminService, 'operationsStatus' | 'listCampaignDrafts' | 'createCampaignDraft'>>,
   deletionIntake?: AccountDeletionIntakeService,
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
+  badges?: BadgeRewardService,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -236,6 +240,14 @@ export function createApiServer(
         response.setHeader('x-robots-tag', 'noindex, nofollow');
         const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
         sendJson(response, 200, await collection.getCollection(accountId));
+        return;
+      }
+      if (path === '/api/web/badges' && request.method === 'GET') {
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
+        if (!webAuth || !badges) throw new RequestError(503, 'WEB_BADGES_NOT_CONFIGURED');
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        sendJson(response, 200, await badges.getBadges(accountId));
         return;
       }
       if (path.startsWith('/api/web/admin/')) {
@@ -406,6 +418,29 @@ export function createApiServer(
           sendJson(response, 200, { ...issued, ...await renderClaimQr(issued.token) });
           return;
         }
+        const couponLookupMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/coupons\/lookup$/);
+        const couponRedeemMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/coupons\/([^/]+)\/redeem$/);
+        if ((couponLookupMatch || couponRedeemMatch) && request.method === 'POST') {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          if (!badges) throw new RequestError(503, 'BADGE_REWARDS_NOT_CONFIGURED');
+          const merchantId = decodePathParameter((couponLookupMatch ?? couponRedeemMatch)![1]!);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+          if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) {
+            throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+          }
+          const customerIdentityToken = requireIdentityTokenBody(await readJson(request));
+          if (couponLookupMatch) {
+            sendJson(response, 200, await badges.lookupCoupons({
+              token: customerIdentityToken, merchantId, staffAccountId: accountId,
+            }));
+          } else {
+            sendJson(response, 200, await badges.redeemCoupon({
+              token: customerIdentityToken, merchantId, staffAccountId: accountId,
+              couponId: decodePathParameter(couponRedeemMatch![2]!),
+            }));
+          }
+          return;
+        }
         if (claimMatch && request.method === 'POST') {
           if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
           const merchantId = decodePathParameter(claimMatch[1]!);
@@ -531,6 +566,27 @@ export function createApiServer(
         return;
       }
 
+      if (request.method === 'GET' && request.url === '/me/badges') {
+        if (!badges) throw new RequestError(503, 'BADGE_REWARDS_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        sendJson(response, 200, await badges.getBadges(accountId));
+        return;
+      }
+
+      const openRewardMatch = request.url?.match(/^\/me\/badges\/rewards\/([^/]+)\/open$/);
+      if (request.method === 'POST' && openRewardMatch) {
+        if (!badges) throw new RequestError(503, 'BADGE_REWARDS_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const milestoneText = decodePathParameter(openRewardMatch[1]!);
+        const milestone = Number(milestoneText);
+        const body = await readJson(request, true);
+        if (Object.keys(body).length > 0 || !/^[1-9]$/.test(milestoneText) || !isRewardMilestone(milestone)) {
+          throw new RequestError(400, 'INVALID_REQUEST');
+        }
+        sendJson(response, 200, await badges.openReward({ accountId, milestone }));
+        return;
+      }
+
       if (request.method === 'GET' && request.url === '/recommendations') {
         if (!recommendations) {
           throw new RequestError(503, 'RECOMMENDATIONS_NOT_CONFIGURED');
@@ -608,6 +664,28 @@ export function createApiServer(
         sendJson(response, 200, await customerIdentities.resolve({
           token: requireString(body, 'customerIdentityToken'), merchantId, staffAccountId,
         }));
+        return;
+      }
+
+      const couponLookupMatch = request.url?.match(/^\/merchant\/merchants\/([^/]+)\/coupons\/lookup$/);
+      const couponRedeemMatch = request.url?.match(/^\/merchant\/merchants\/([^/]+)\/coupons\/([^/]+)\/redeem$/);
+      if (request.method === 'POST' && (couponLookupMatch || couponRedeemMatch)) {
+        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+        if (!badges) throw new RequestError(503, 'BADGE_REWARDS_NOT_CONFIGURED');
+        const staffAccountId = await resolveAccountId(request);
+        const merchantId = decodePathParameter((couponLookupMatch ?? couponRedeemMatch)![1]!);
+        await merchantAccess.requirePermission({ accountId: staffAccountId, merchantId, permission: 'CONFIRM_VISIT' });
+        const customerIdentityToken = requireIdentityTokenBody(await readJson(request));
+        if (couponLookupMatch) {
+          sendJson(response, 200, await badges.lookupCoupons({
+            token: customerIdentityToken, merchantId, staffAccountId,
+          }));
+        } else {
+          sendJson(response, 200, await badges.redeemCoupon({
+            token: customerIdentityToken, merchantId, staffAccountId,
+            couponId: decodePathParameter(couponRedeemMatch![2]!),
+          }));
+        }
         return;
       }
 
@@ -790,6 +868,10 @@ export function createApiServer(
         sendJson(response, error.code === 'ACCOUNT_DELETED' || error.code === 'CUSTOMER_IDENTITY_EXPIRED' ? 410 : 409, { code: error.code });
         return;
       }
+      if (error instanceof BadgeRewardError) {
+        sendJson(response, statusForBadgeReward(error.code), { code: error.code });
+        return;
+      }
       if (error instanceof MerchantAccessError) {
         sendJson(response, 403, { code: error.code });
         return;
@@ -909,7 +991,7 @@ function requireAccountId(request: IncomingMessage): string {
   return accountId;
 }
 
-async function readJson(request: IncomingMessage): Promise<Record<string, unknown>> {
+async function readJson(request: IncomingMessage, allowEmpty = false): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let totalBytes = 0;
 
@@ -921,6 +1003,8 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
     }
     chunks.push(buffer);
   }
+
+  if (allowEmpty && totalBytes === 0) return {};
 
   try {
     const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -962,6 +1046,14 @@ function adminMerchantInput(body: Record<string, unknown>): MerchantInput {
     ...(body.menuItems === undefined ? {} : { menuItems: body.menuItems as NonNullable<MerchantInput['menuItems']> }),
     ...(body.businessHours === undefined ? {} : { businessHours: body.businessHours as string }),
   };
+}
+
+// 쿠폰 조회·사용은 식별 토큰 하나만 받는다. 계정 ID 같은 알 수 없는 키는 거절한다.
+function requireIdentityTokenBody(body: Record<string, unknown>): string {
+  if (Object.keys(body).some(key => key !== 'customerIdentityToken')) {
+    throw new RequestError(400, 'INVALID_REQUEST');
+  }
+  return requireString(body, 'customerIdentityToken');
 }
 
 function requirePositiveInteger(body: Record<string, unknown>, field: string): number {
@@ -1018,6 +1110,13 @@ function statusFor(code: string): number {
 
 function statusForClaimSlot(code: string): number {
   if (code === 'CLAIM_TOKEN_EXPIRED' || code === 'CUSTOMER_IDENTITY_EXPIRED') return 410;
+  if (code === 'ACCOUNT_DELETED') return 410;
+  return 409;
+}
+
+function statusForBadgeReward(code: string): number {
+  if (code === 'COUPON_NOT_FOUND') return 404;
+  if (code === 'COUPON_SELF_REDEEM') return 403;
   if (code === 'ACCOUNT_DELETED') return 410;
   return 409;
 }
@@ -1228,6 +1327,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         accountLifecycle,
       })
     : undefined;
+  const badges = pool && accountLifecycle
+    ? new PostgresBadgeRewardService(pool, { accountLifecycle })
+    : undefined;
   const campaignEnrollments = pool
     ? new PostgresCampaignEnrollmentService(pool, {
         ...(accountLifecycle ? { accountLifecycle } : {}),
@@ -1312,6 +1414,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ? new PostgresAccountDeletionIntakeService(pool, accountDeletionHmacSecret) : undefined,
     pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
       ? new PostgresStaffRegistration(pool, accountDeletionHmacSecret) : undefined,
+    badges,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

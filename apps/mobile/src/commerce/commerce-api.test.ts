@@ -30,6 +30,103 @@ test('creates, resolves, and revokes customer identity only through authenticate
   ]);
 });
 
+test('looks up and redeems staff coupons with the identity token only in encoded POST paths and bodies', async () => {
+  const requests: { url: string; body: unknown }[] = [];
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (input, init) => {
+      assert.equal(init?.method, 'POST');
+      assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer session');
+      const url = String(input);
+      requests.push({ url, body: JSON.parse(String(init?.body)) });
+      if (url.endsWith('/lookup')) {
+        return Response.json({
+          identityExpiresAt: '2026-09-28T10:00:00.000Z',
+          coupons: [{ couponId: 'coupon-1', title: '체험 음료 1잔', detail: '가상 점포 체험 혜택', expiresAt: '2026-10-28T10:00:00.000Z', extra: 'ignored' }],
+        });
+      }
+      return Response.json({ couponId: 'coupon/1', status: 'REDEEMED', redeemedAt: '2026-09-28T09:00:00.000Z', replayed: false });
+    },
+  });
+  assert.deepEqual(await client.lookupCustomerCoupons('merchant/1', identityToken), {
+    identityExpiresAt: '2026-09-28T10:00:00.000Z',
+    coupons: [{ couponId: 'coupon-1', title: '체험 음료 1잔', detail: '가상 점포 체험 혜택', expiresAt: '2026-10-28T10:00:00.000Z' }],
+  });
+  assert.deepEqual(await client.redeemCustomerCoupon({ merchantId: 'merchant/1', couponId: 'coupon/1', customerIdentityToken: identityToken }), {
+    couponId: 'coupon/1', status: 'REDEEMED', redeemedAt: '2026-09-28T09:00:00.000Z', replayed: false,
+  });
+  assert.deepEqual(requests, [
+    { url: 'https://api.example.test/merchant/merchants/merchant%2F1/coupons/lookup', body: { customerIdentityToken: identityToken } },
+    { url: 'https://api.example.test/merchant/merchants/merchant%2F1/coupons/coupon%2F1/redeem', body: { customerIdentityToken: identityToken } },
+  ]);
+});
+
+test('accepts an empty coupon list and a replayed redeem', async () => {
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (input) => String(input).endsWith('/lookup')
+      ? Response.json({ identityExpiresAt: '2026-09-28T10:00:00.000Z', coupons: [] })
+      : Response.json({ couponId: 'coupon-1', status: 'REDEEMED', redeemedAt: '2026-09-28T09:00:00.000Z', replayed: true }),
+  });
+  assert.deepEqual((await client.lookupCustomerCoupons('merchant-1', identityToken)).coupons, []);
+  assert.equal((await client.redeemCustomerCoupon({ merchantId: 'merchant-1', couponId: 'coupon-1', customerIdentityToken: identityToken })).replayed, true);
+});
+
+test('rejects malformed coupon lookup and redeem responses before displaying them', async () => {
+  const lookupBodies = [
+    {},
+    { identityExpiresAt: 'not-a-date', coupons: [] },
+    { identityExpiresAt: '2026-09-28T10:00:00.000Z', coupons: 'none' },
+    { identityExpiresAt: '2026-09-28T10:00:00.000Z', coupons: [{ couponId: '', title: '음료', detail: '', expiresAt: '2026-10-28T10:00:00.000Z' }] },
+    { identityExpiresAt: '2026-09-28T10:00:00.000Z', coupons: [{ couponId: 'c1', title: '음료', detail: '', expiresAt: 'soon' }] },
+  ];
+  for (const body of lookupBodies) {
+    const client = createCommerceApiClient({
+      apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+      fetcher: async () => Response.json(body),
+    });
+    await assert.rejects(client.lookupCustomerCoupons('merchant-1', identityToken), /쿠폰 조회 응답 형식/);
+  }
+  const redeemBodies = [
+    {},
+    { couponId: 'c1', status: 'ISSUED', redeemedAt: '2026-09-28T09:00:00.000Z', replayed: false },
+    { couponId: 'c1', status: 'REDEEMED', redeemedAt: 'nope', replayed: false },
+    { couponId: 'c1', status: 'REDEEMED', redeemedAt: '2026-09-28T09:00:00.000Z' },
+  ];
+  for (const body of redeemBodies) {
+    const client = createCommerceApiClient({
+      apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+      fetcher: async () => Response.json(body),
+    });
+    await assert.rejects(
+      client.redeemCustomerCoupon({ merchantId: 'merchant-1', couponId: 'c1', customerIdentityToken: identityToken }),
+      /쿠폰 사용 응답 형식/,
+    );
+  }
+});
+
+test('propagates coupon error codes and statuses for staff recovery messages', async () => {
+  const cases: [number, string][] = [[404, 'COUPON_NOT_FOUND'], [409, 'COUPON_EXPIRED'], [403, 'MERCHANT_ACCESS_DENIED'], [403, 'COUPON_SELF_REDEEM'], [410, 'CUSTOMER_IDENTITY_EXPIRED']];
+  for (const [status, code] of cases) {
+    const client = createCommerceApiClient({
+      apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+      fetcher: async () => Response.json({ code }, { status }),
+    });
+    for (const call of [
+      () => client.lookupCustomerCoupons('merchant-1', identityToken),
+      () => client.redeemCustomerCoupon({ merchantId: 'merchant-1', couponId: 'coupon-1', customerIdentityToken: identityToken }),
+    ]) {
+      await assert.rejects(call(), (error: unknown) => {
+        assert.ok(error instanceof CommerceApiError);
+        assert.equal(error.status, status);
+        assert.equal(error.code, code);
+        return true;
+      });
+    }
+  }
+});
+
 test('issues a confirmed identity claim without account ID and accepts replay without a token', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',

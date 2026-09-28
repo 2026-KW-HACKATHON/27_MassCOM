@@ -29,7 +29,7 @@
 | RQ-019 | 발표·시연 | 실제/가상/테스트넷/사전 촬영을 구분 | `PLANNED` |
 | RQ-020 | 현장 검증 | 허락받은 점주·이용자 자료만 실적으로 기록 | `PLANNED` |
 | RQ-021 | 기여 추적 | 실제 사람·AI 역할을 Issue·PR·커밋과 연결 | `IN_PROGRESS` |
-| RQ-022 | 동네 탐험 배지·안전한 공유 | 본인 인정 방문의 서로 다른 점포만 세고, 개인정보 없이 획득 배지만 자발적으로 공유. 시연 쿠폰은 실제 사용 불가 예시 | `IN_PROGRESS` |
+| RQ-022 | 탐험 메달·보상 쿠폰·안전한 공유 | 본인 인정 방문으로 서버가 메달 3종·등급을 계산하고, 배지 3·6·9개 상자에서 점주 동의 혜택이 있을 때만 쿠폰을 1회 발급·점원 확인으로 사용. 개인정보 없이 획득 메달만 이미지로 공유 | `IN_PROGRESS` |
 
 계정 삭제·개인정보·출시 경계의 상세 수용 기준은 [PRIVACY_DELETION.md](PRIVACY_DELETION.md)와 [RELEASE_READINESS.md](RELEASE_READINESS.md)에 연결합니다. 외부 HTTPS·첫 모바일 Google 로그인·upload-key 서명 AAB 자동 gate와 A02 설치·App Links는 PASS했습니다. 운영 fresh reauthentication 삭제·두 계정 전환·Play 제출은 완료로 간주하지 않습니다.
 

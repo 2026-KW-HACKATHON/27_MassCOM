@@ -2,6 +2,11 @@ const merchantRequests = new WeakMap();
 const merchantClaimResolutions = new WeakMap();
 const merchantClaimSlots = new WeakMap();
 
+const isStaffCoupon = coupon => coupon !== null && typeof coupon === 'object'
+  && typeof coupon.couponId === 'string' && coupon.couponId !== ''
+  && typeof coupon.title === 'string' && coupon.title !== '' && typeof coupon.detail === 'string'
+  && typeof coupon.expiresAt === 'string' && !Number.isNaN(Date.parse(coupon.expiresAt));
+
 async function request(fetcher, path, method = 'GET', body) {
   const response = await fetcher(path, {
     method, credentials: 'same-origin', cache: 'no-store',
@@ -46,6 +51,9 @@ export async function loadMerchant(fetcher, doc) {
   doc.getElementById('merchant-claim-confirm').checked = false;
   doc.getElementById('merchant-claim-submit').disabled = true;
   doc.getElementById('merchant-claim-result').textContent = '';
+  doc.getElementById('merchant-coupon').hidden = true;
+  doc.getElementById('merchant-coupon-list').replaceChildren();
+  doc.getElementById('merchant-coupon-status').textContent = '';
   doc.getElementById('merchant-claim-issued-qr').src = '';
   doc.getElementById('merchant-claim-issued-qr').hidden = true;
   doc.getElementById('merchant-claim-reissue').hidden = true;
@@ -110,9 +118,20 @@ export function bindMerchant(fetcher, doc) {
   const scanButton = doc.getElementById('merchant-claim-scan');
   const scanCancel = doc.getElementById('merchant-claim-scan-cancel');
   const video = doc.getElementById('merchant-claim-video');
+  const couponPanel = doc.getElementById('merchant-coupon');
+  const couponLookup = doc.getElementById('merchant-coupon-lookup');
+  const couponList = doc.getElementById('merchant-coupon-list');
+  const couponStatus = doc.getElementById('merchant-coupon-status');
   let cameraStream;
   let scanId = 0;
   let issuing = false;
+  let couponBusy = false;
+  let coupons = [];
+  let couponButtons = [];
+  const syncCouponControls = () => {
+    couponLookup.disabled = issuing || couponBusy;
+    for (const button of couponButtons) button.disabled = issuing || couponBusy;
+  };
   const setIssuing = active => {
     issuing = active;
     for (const control of [claimMerchant, claimToken, claimReference, claimConfirm, claimResolve, scanButton]) {
@@ -120,6 +139,16 @@ export function bindMerchant(fetcher, doc) {
     }
     claimSubmit.disabled = active || !merchantClaimResolutions.has(doc) || !claimConfirm.checked;
     reissueSubmit.disabled = active || !merchantClaimSlots.has(doc) || !reissueConfirm.checked;
+    syncCouponControls();
+  };
+  const resetCoupons = () => {
+    couponBusy = false;
+    coupons = [];
+    couponButtons = [];
+    couponPanel.hidden = true;
+    couponList.replaceChildren();
+    couponStatus.textContent = '';
+    syncCouponControls();
   };
   const clearSlot = () => {
     if (merchantClaimSlots.has(doc)) {
@@ -157,6 +186,7 @@ export function bindMerchant(fetcher, doc) {
   };
   const invalidateClaim = () => {
     merchantClaimResolutions.delete(doc);
+    resetCoupons();
     claimConfirm.checked = false;
     claimSubmit.disabled = true;
     claimQr.src = '';
@@ -245,6 +275,7 @@ export function bindMerchant(fetcher, doc) {
       if (merchantRequests.get(doc) !== requestId || claimMerchant.value !== merchantId || claimToken.value.trim() !== token) return;
       merchantClaimResolutions.set(doc, { merchantId, token });
       claimResult.textContent = `고객 QR 확인 완료 · 만료: ${new Date(result.expiresAt).toLocaleTimeString('ko-KR')}`;
+      couponPanel.hidden = false;
     } catch (error) {
       if (merchantRequests.get(doc) !== requestId) return;
       claimResult.textContent = error.code === 'CUSTOMER_IDENTITY_EXPIRED'
@@ -252,15 +283,111 @@ export function bindMerchant(fetcher, doc) {
         : '고객 QR을 확인하지 못했습니다. 새 QR이나 점포 권한을 확인해 주세요.';
     }
   });
+  const renderCoupons = () => {
+    couponList.replaceChildren();
+    couponButtons = coupons.map(coupon => {
+      const item = doc.createElement('li');
+      const text = doc.createElement('p');
+      text.textContent = `${coupon.title}${coupon.detail ? ` · ${coupon.detail}` : ''} · 만료: ${new Date(coupon.expiresAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}`;
+      const button = doc.createElement('button');
+      button.type = 'button';
+      button.className = 'collection-action';
+      button.textContent = `${coupon.title} 사용 처리`;
+      button.disabled = issuing || couponBusy;
+      button.addEventListener('click', () => redeemCoupon(coupon));
+      item.append(text, button);
+      couponList.append(item);
+      return button;
+    });
+  };
+  const couponContext = () => {
+    const resolved = merchantClaimResolutions.get(doc);
+    return resolved && resolved.merchantId === claimMerchant.value && resolved.token === claimToken.value.trim()
+      ? { resolved, requestId: merchantRequests.get(doc) } : undefined;
+  };
+  const couponFailure = (error, coupon) => {
+    if (error.code === 'CUSTOMER_IDENTITY_EXPIRED' || error.code === 'CUSTOMER_IDENTITY_UNAVAILABLE') {
+      invalidateClaim();
+      claimResult.textContent = error.code === 'CUSTOMER_IDENTITY_EXPIRED'
+        ? '고객 QR이 만료되었습니다. 고객에게 새 QR을 요청해 주세요.'
+        : '이 고객 QR은 사용할 수 없습니다. 고객에게 새 QR을 요청해 주세요.';
+      return;
+    }
+    if (error.code === 'COUPON_EXPIRED' && coupon) {
+      coupons = coupons.filter(item => item.couponId !== coupon.couponId);
+      renderCoupons();
+    }
+    couponStatus.textContent = error.code === 'COUPON_EXPIRED' ? '유효기간이 지난 쿠폰이에요.'
+      : error.code === 'COUPON_NOT_FOUND' ? '이 점포에서 쓸 수 없는 쿠폰이에요. 쿠폰을 다시 확인해 주세요.'
+        : error.code === 'COUPON_SELF_REDEEM' ? '본인 쿠폰은 직접 사용 처리할 수 없어요. 다른 직원에게 요청해 주세요.'
+          : error.code === 'ACCOUNT_DELETED' ? '고객 계정이 삭제돼 쿠폰을 사용할 수 없어요.'
+            : error.status === 401 ? '점포 권한을 확인하지 못했습니다. 다시 로그인해 주세요.'
+              : error.code === 'MERCHANT_ACCESS_DENIED' ? '이 점포의 쿠폰 처리 권한이 없어요.'
+                : '쿠폰을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.';
+  };
+  const couponStale = context => merchantRequests.get(doc) !== context.requestId
+    || merchantClaimResolutions.get(doc) !== context.resolved;
+  const redeemCoupon = async coupon => {
+    const context = couponContext();
+    if (!context || issuing || couponBusy) return;
+    const confirmed = doc.defaultView?.confirm?.(`${coupon.title}\n고객이 이 혜택을 지금 받나요? 되돌릴 수 없어요.`);
+    if (confirmed !== true) return;
+    couponBusy = true;
+    syncCouponControls();
+    couponStatus.textContent = '쿠폰을 처리하는 중이에요.';
+    try {
+      const result = await request(fetcher,
+        `/api/web/merchant/merchants/${encodeURIComponent(context.resolved.merchantId)}/coupons/${encodeURIComponent(coupon.couponId)}/redeem`,
+        'POST', { customerIdentityToken: context.resolved.token });
+      if (couponStale(context)) return;
+      if (!result || result.status !== 'REDEEMED') throw new Error('invalid coupon redeem response');
+      coupons = coupons.filter(item => item.couponId !== coupon.couponId);
+      renderCoupons();
+      couponBusy = false;
+      syncCouponControls();
+      couponStatus.textContent = result.replayed === true ? '이미 사용 처리된 쿠폰이에요.' : '쿠폰 사용을 처리했어요.';
+      couponLookup.focus?.();
+    } catch (error) {
+      if (!couponStale(context)) couponFailure(error, coupon);
+    } finally {
+      if (!couponStale(context)) { couponBusy = false; syncCouponControls(); }
+    }
+  };
+  couponLookup.addEventListener('click', async () => {
+    const context = couponContext();
+    if (!context || issuing || couponBusy) return;
+    couponBusy = true;
+    coupons = [];
+    renderCoupons();
+    syncCouponControls();
+    couponStatus.textContent = '쿠폰을 확인하는 중이에요.';
+    try {
+      const result = await request(fetcher,
+        `/api/web/merchant/merchants/${encodeURIComponent(context.resolved.merchantId)}/coupons/lookup`,
+        'POST', { customerIdentityToken: context.resolved.token });
+      if (couponStale(context)) return;
+      if (!result || !Array.isArray(result.coupons) || !result.coupons.every(isStaffCoupon)) {
+        throw new Error('invalid coupon lookup response');
+      }
+      coupons = result.coupons.map(({ couponId, title, detail, expiresAt }) => ({ couponId, title, detail, expiresAt }));
+      renderCoupons();
+      couponStatus.textContent = coupons.length ? `사용할 수 있는 쿠폰 ${coupons.length}장을 찾았어요.` : '이 점포에서 쓸 수 있는 쿠폰이 없어요';
+    } catch (error) {
+      if (!couponStale(context)) couponFailure(error);
+    } finally {
+      if (!couponStale(context)) { couponBusy = false; syncCouponControls(); }
+    }
+  });
   claimForm.addEventListener('submit', async event => {
     event.preventDefault();
-    if (issuing) return;
+    if (issuing || couponBusy) return;
     const resolved = merchantClaimResolutions.get(doc);
     if (!resolved || !claimConfirm.checked || resolved.merchantId !== claimMerchant.value ||
         resolved.token !== claimToken.value.trim() || !claimReference.value.trim()) return;
     const requestId = merchantRequests.get(doc);
     stopCamera();
     setIssuing(true);
+    resetCoupons();
     try {
       const issued = await request(fetcher,
         `/api/web/merchant/merchants/${encodeURIComponent(resolved.merchantId)}/claim-slots`,

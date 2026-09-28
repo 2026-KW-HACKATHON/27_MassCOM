@@ -50,9 +50,17 @@
           </div>
           <div id="collection-content" class="collection-content" hidden>
             <section class="badge-section" aria-labelledby="badges-title">
-              <h3 id="badges-title">동네 탐험 배지</h3>
-              <p>인정된 방문으로 서로 다른 가게를 만날 때 열립니다. 앱 수집품·NFT와는 별개입니다.</p>
-              <ol id="badge-list" class="badge-list"></ol>
+              <h3 id="badges-title">탐험 메달과 보상 상자</h3>
+              <p id="badge-note" role="status" aria-live="polite"></p>
+              <div id="badge-content" hidden>
+                <p>인정된 방문으로 메달 등급이 오르고, 배지 3·6·9개를 모으면 보상 상자가 열려요. 상자는 앱에서 열어요. 앱 수집품·NFT와는 별개입니다.</p>
+                <h4>메달</h4>
+                <ol id="badge-list" class="badge-list"></ol>
+                <h4>보상 상자</h4>
+                <ol id="reward-list" class="badge-list"></ol>
+                <h4>내 쿠폰</h4>
+                <div id="coupon-list" class="collection-list"></div>
+              </div>
             </section>
             <section aria-labelledby="visits-title">
               <h3 id="visits-title">방문 기록</h3>

@@ -1,12 +1,12 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { createScanGate } from '@/commerce/claim-code';
 import { ClaimQr } from '@/commerce/claim-qr';
-import { CommerceApiError, createCommerceApiClient, type IssuedClaim, type ResolvedCustomerIdentity } from '@/commerce/commerce-api';
+import { CommerceApiError, createCommerceApiClient, type IssuedClaim, type ResolvedCustomerIdentity, type StaffCoupon } from '@/commerce/commerce-api';
 import { canIssueCustomerIdentity, createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired, parseCustomerIdentityToken } from '@/commerce/customer-identity';
 import { colorsForScheme } from '@/theme/palette';
 import { makeMerchantClaimStyles } from './styles';
@@ -31,6 +31,8 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
   const [issued, setIssued] = useState<IssuedClaim>();
   const [issueAttempted, setIssueAttempted] = useState(false);
   const [issuedUncertain, setIssuedUncertain] = useState(false);
+  const [coupons, setCoupons] = useState<readonly StaffCoupon[]>();
+  const [couponMessage, setCouponMessage] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
 
@@ -47,6 +49,8 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
     setIssued(undefined);
     setIssueAttempted(false);
     setIssuedUncertain(false);
+    setCoupons(undefined);
+    setCouponMessage(undefined);
     setMessage(undefined);
     setScanning(true);
   }
@@ -57,6 +61,8 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
     setScanning(false);
     setToken(undefined);
     setResolved(undefined);
+    setCoupons(undefined);
+    setCouponMessage(undefined);
     setMessage(undefined);
   }
 
@@ -91,6 +97,70 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
     setScanning(false);
     setToken(nextToken);
     void resolve(nextToken);
+  }
+
+  async function lookupCoupons() {
+    if (!token || !resolved || busy) return;
+    if (isCustomerIdentityExpired(resolved.expiresAt)) {
+      setCouponMessage('고객 식별 QR이 만료됐습니다. 새 QR을 요청해 주세요.');
+      return;
+    }
+    const current = requestGate.start();
+    setBusy(true);
+    setCouponMessage(undefined);
+    try {
+      const next = await api.lookupCustomerCoupons(merchantId, token);
+      if (!requestGate.isCurrent(current)) return;
+      setCoupons(next.coupons);
+      setCouponMessage(next.coupons.length ? undefined : '이 점포에서 쓸 수 있는 쿠폰이 없어요');
+    } catch (error) {
+      if (requestGate.isCurrent(current) && !closeExpiredIdentity(error)) setCouponMessage(messageFor(error));
+    } finally {
+      if (requestGate.isCurrent(current)) setBusy(false);
+    }
+  }
+
+  // 식별 QR이 만료·무효가 되면 쿠폰 목록과 "사용 처리" 버튼을 남기지 않고 새 QR 촬영으로 돌아가게 한다.
+  function closeExpiredIdentity(error: unknown): boolean {
+    if (!(error instanceof CommerceApiError)
+      || (error.code !== 'CUSTOMER_IDENTITY_EXPIRED' && error.code !== 'CUSTOMER_IDENTITY_UNAVAILABLE')) return false;
+    setResolved(undefined);
+    setToken(undefined);
+    setCoupons(undefined);
+    setCouponMessage(undefined);
+    setMessage(messageFor(error));
+    return true;
+  }
+
+  function confirmRedeem(coupon: StaffCoupon) {
+    if (busy) return;
+    // Advancing the gate invalidates this confirmation if staff cancels or rescans while the alert is open.
+    const current = requestGate.start();
+    Alert.alert(coupon.title, '고객이 이 혜택을 지금 받나요? 되돌릴 수 없어요', [
+      { text: '취소', style: 'cancel' },
+      { text: '사용 처리', style: 'destructive', onPress: () => void redeem(coupon, current) },
+    ]);
+  }
+
+  async function redeem(coupon: StaffCoupon, current: number) {
+    if (!token || !requestGate.isCurrent(current)) return;
+    setBusy(true);
+    setCouponMessage(undefined);
+    try {
+      const result = await api.redeemCustomerCoupon({ merchantId, couponId: coupon.couponId, customerIdentityToken: token });
+      if (!requestGate.isCurrent(current)) return;
+      setCoupons((list) => list?.filter((item) => item.couponId !== coupon.couponId));
+      setCouponMessage(result.replayed ? '이미 사용 처리된 쿠폰이에요' : '쿠폰 사용을 처리했어요');
+    } catch (error) {
+      if (!requestGate.isCurrent(current)) return;
+      if (closeExpiredIdentity(error)) return;
+      if (error instanceof CommerceApiError && error.code === 'COUPON_EXPIRED') {
+        setCoupons((list) => list?.filter((item) => item.couponId !== coupon.couponId));
+      }
+      setCouponMessage(messageFor(error));
+    } finally {
+      if (requestGate.isCurrent(current)) setBusy(false);
+    }
   }
 
   async function issue() {
@@ -174,6 +244,18 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
       </> : null}
     </View>
     {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
+    {resolved && !issued && !issueAttempted ? <View style={styles.formCard}>
+      <Text style={styles.cardLabel}>쿠폰 사용</Text>
+      <Text style={styles.help}>이 고객이 이 점포에서 쓸 쿠폰을 확인해요. 방문 코드를 발급하면 이 식별 QR은 다시 쓸 수 없으니 쿠폰을 먼저 처리해 주세요.</Text>
+      <Button styles={styles} label={busy ? '확인 중…' : coupons ? '쿠폰 다시 확인' : '이 고객 쿠폰 확인'} disabled={busy} onPress={() => void lookupCoupons()} />
+      {couponMessage ? <Text accessibilityLiveRegion="polite" style={styles.message}>{couponMessage}</Text> : null}
+      {coupons?.map((coupon) => <View key={coupon.couponId} style={styles.couponRow}>
+        <Text selectable style={styles.couponTitle}>{coupon.title}</Text>
+        {coupon.detail ? <Text selectable style={styles.help}>{coupon.detail}</Text> : null}
+        <Text style={styles.expiry}>만료: {new Date(coupon.expiresAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</Text>
+        <Button styles={styles} label="사용 처리" accessibilityLabel={`${coupon.title} 사용 처리`} disabled={busy} onPress={() => confirmRedeem(coupon)} />
+      </View>)}
+    </View> : null}
     {issued ? <View style={styles.tokenCard}>
       <Text style={styles.tokenLabel}>2 · 고객 수령 QR · v{issued.tokenVersion}</Text>
       <Text style={styles.expiry}>만료: {new Date(issued.expiresAt).toLocaleString('ko-KR')}</Text>
@@ -192,14 +274,15 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
   </ScrollView>;
 }
 
-function Button({ styles, label, onPress, disabled = false, variant = 'primary' }: {
+function Button({ styles, label, accessibilityLabel, onPress, disabled = false, variant = 'primary' }: {
   styles: ReturnType<typeof makeMerchantClaimStyles>;
   label: string;
+  accessibilityLabel?: string;
   onPress(): void;
   disabled?: boolean;
   variant?: 'primary' | 'secondary';
 }) {
-  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, variant === 'secondary' && styles.secondaryButton, disabled && styles.disabled]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} disabled={disabled} onPress={onPress} style={[styles.button, variant === 'secondary' && styles.secondaryButton, disabled && styles.disabled]}>
     <Text style={[styles.buttonText, variant === 'secondary' && styles.secondaryButtonText]}>{label}</Text>
   </Pressable>;
 }
@@ -212,6 +295,10 @@ function messageFor(error: unknown): string {
       CLAIM_SLOT_ALREADY_EXISTS: '이 고객의 방문 코드가 이미 있습니다. 점포에서 발급 상태를 확인해 주세요.',
       CLAIM_SLOT_NOT_REISSUABLE: '이미 사용됐거나 만료된 코드는 재발급할 수 없습니다.',
       MERCHANT_ACCESS_DENIED: '이 점포의 방문 확인 권한이 없습니다.',
+      COUPON_NOT_FOUND: '이 점포에서 쓸 수 없는 쿠폰이에요. 쿠폰을 다시 확인해 주세요.',
+      COUPON_EXPIRED: '유효기간이 지난 쿠폰이에요.',
+      COUPON_SELF_REDEEM: '본인 쿠폰은 직접 사용 처리할 수 없어요. 다른 직원에게 요청해 주세요.',
+      ACCOUNT_DELETED: '고객 계정이 삭제돼 쿠폰을 사용할 수 없어요.',
     };
     return messages[error.code] ?? `요청 실패: ${error.code}`;
   }

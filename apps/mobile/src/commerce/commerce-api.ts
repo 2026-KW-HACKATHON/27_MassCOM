@@ -17,6 +17,10 @@ export type IssuedClaim = {
 
 export type CustomerIdentity = { token: string; expiresAt: string };
 export type ResolvedCustomerIdentity = { expiresAt: string };
+
+export type StaffCoupon = { couponId: string; title: string; detail: string; expiresAt: string };
+export type CustomerCouponLookup = { identityExpiresAt: string; coupons: readonly StaffCoupon[] };
+export type RedeemedCustomerCoupon = { couponId: string; status: 'REDEEMED'; redeemedAt: string; replayed: boolean };
 export type IdentityClaim = IssuedClaim | { claimSlotId: string; tokenVersion: number; expiresAt: string; replayed: true };
 
 export type ClaimPreview = {
@@ -160,6 +164,19 @@ export function createCommerceApiClient(options: Options) {
       return { expiresAt: response.expiresAt };
     },
 
+    async lookupCustomerCoupons(merchantId: string, customerIdentityToken: string): Promise<CustomerCouponLookup> {
+      return parseCouponLookup(await post(`/merchant/merchants/${encodeURIComponent(merchantId)}/coupons/lookup`, { customerIdentityToken }));
+    },
+
+    async redeemCustomerCoupon(input: { merchantId: string; couponId: string; customerIdentityToken: string }): Promise<RedeemedCustomerCoupon> {
+      return parseRedeemedCoupon(
+        await post(
+          `/merchant/merchants/${encodeURIComponent(input.merchantId)}/coupons/${encodeURIComponent(input.couponId)}/redeem`,
+          { customerIdentityToken: input.customerIdentityToken },
+        ),
+      );
+    },
+
     async issueIdentityClaim(input: { merchantId: string; customerIdentityToken: string }): Promise<IdentityClaim> {
       // The identity token stays stable across a retry. Only its merchant-scoped HMAC is persisted as the reference.
       const response = await post(`/merchant/merchants/${encodeURIComponent(input.merchantId)}/claim-slots`, {
@@ -261,6 +278,27 @@ function parseCustomerIdentity(value: unknown): CustomerIdentity {
     throw invalidResponse('식별 QR');
   }
   return { token: value.token, expiresAt: value.expiresAt };
+}
+
+function parseCouponLookup(value: unknown): CustomerCouponLookup {
+  if (!isRecord(value) || !isDate(value.identityExpiresAt) || !Array.isArray(value.coupons)) {
+    throw invalidResponse('쿠폰 조회');
+  }
+  return { identityExpiresAt: value.identityExpiresAt, coupons: value.coupons.map(parseStaffCoupon) };
+}
+
+function parseStaffCoupon(value: unknown): StaffCoupon {
+  if (!isRecord(value) || !isString(value.couponId) || !isString(value.title) || typeof value.detail !== 'string' || !isDate(value.expiresAt)) {
+    throw invalidResponse('쿠폰 조회');
+  }
+  return { couponId: value.couponId, title: value.title, detail: value.detail, expiresAt: value.expiresAt };
+}
+
+function parseRedeemedCoupon(value: unknown): RedeemedCustomerCoupon {
+  if (!isRecord(value) || !isString(value.couponId) || value.status !== 'REDEEMED' || !isDate(value.redeemedAt) || typeof value.replayed !== 'boolean') {
+    throw invalidResponse('쿠폰 사용');
+  }
+  return { couponId: value.couponId, status: 'REDEEMED', redeemedAt: value.redeemedAt, replayed: value.replayed };
 }
 
 function parseMerchantContext(value: unknown): MerchantContext {

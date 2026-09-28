@@ -18,41 +18,6 @@ export type MerchantGoal = {
   campaignStatus: 'open' | 'upcoming' | 'ended' | 'full';
 };
 
-export type NeighborhoodBadge = {
-  id: 'first' | 'second' | 'third';
-  title: string;
-  targetStores: 1 | 2 | 3;
-  earned: boolean;
-  remaining: number;
-};
-
-const neighborhoodMilestones = [
-  { id: 'first', title: '첫 발걸음', targetStores: 1 },
-  { id: 'second', title: '두 번째 골목', targetStores: 2 },
-  { id: 'third', title: '월계 탐험가', targetStores: 3 },
-] as const;
-
-export function buildNeighborhoodJourney(
-  visits: readonly Pick<CollectionSnapshot['visits'][number], 'merchantId' | 'progressCounted'>[],
-): { distinctStores: number; badges: readonly NeighborhoodBadge[] } {
-  const distinctStores = new Set(visits.filter((visit) => visit.progressCounted).map((visit) => visit.merchantId)).size;
-  return {
-    distinctStores,
-    badges: neighborhoodMilestones.map(({ id, title, targetStores }) => ({
-      id, title, targetStores, earned: distinctStores >= targetStores,
-      remaining: Math.max(0, targetStores - distinctStores),
-    })),
-  };
-}
-
-export function badgeShareMessage(badge: NeighborhoodBadge, variant: 'showcase' | 'production'): string {
-  if (!badge.earned) throw new Error('BADGE_NOT_EARNED');
-  const destination = variant === 'showcase'
-    ? 'https://www.masscom.kr/preview/' : 'https://www.masscom.kr/app/';
-  const demoNotice = variant === 'showcase' ? '시연용 가상 데이터입니다. 실제 방문·혜택이 아닙니다.\n' : '';
-  return `MassCOM에서 ${badge.title} 배지를 모았어요.\n동네의 새로운 가게를 함께 발견해요.\n${demoNotice}${destination}`;
-}
-
 export function describeMerchantGoal(goal: MerchantGoal): string {
   const status = goal.campaignStatus === 'ended' ? '캠페인 종료'
     : goal.campaignStatus === 'full' ? '참여 정원 마감'
@@ -64,6 +29,18 @@ export function describeMerchantGoal(goal: MerchantGoal): string {
       ? `다음 목표 ${goal.nextGoal.targetVisitCount}회 · ${goal.nextGoal.displayName} · ${goal.remainingVisits}회 남음`
       : `${goal.campaignStatus === 'upcoming' ? '예정 목표' : '미획득 목표'} ${goal.nextGoal.targetVisitCount}회 · ${goal.nextGoal.displayName}${goal.campaignStatus === 'full' && (goal.progressCount > 0 || goal.earnedGoals.length > 0) ? ` · 기존 참여자라면 ${goal.remainingVisits}회 남음` : ''}`;
   return status ? `${status} · ${target}` : target;
+}
+
+/** One short visible line for a stamp card; the full sentence stays in describeMerchantGoal. */
+export function shortMerchantGoal(goal: MerchantGoal): string {
+  if (!goal.totalGoals) return '보상 목표 없음';
+  if (!goal.nextGoal) return '수집품 모두 모음';
+  if (goal.campaignStatus === 'ended') return '캠페인 종료';
+  if (goal.remainingVisits === 0) return '수집품 반영 중';
+  if (goal.campaignStatus === 'upcoming') return '캠페인 시작 전';
+  const participating = goal.progressCount > 0 || goal.earnedGoals.length > 0;
+  if (goal.campaignStatus === 'full' && !participating) return '참여 정원 마감';
+  return `수집품까지 ${goal.remainingVisits}번`;
 }
 
 export function buildMerchantGoals(
@@ -123,4 +100,11 @@ export function stampColumnCount(width: number, fontScale = 1): number {
   const effectiveWidth = width / Math.max(fontScale, 1);
   if (effectiveWidth < 220) return 1;
   return effectiveWidth < 340 ? 2 : 3;
+}
+
+const stampAngles = [-7, 5, -3, 8, -5, 3, -8, 6] as const;
+
+/** Visited stamps lean a little, like real ink stamps; stable per slot position. */
+export function stampRotation(index: number): number {
+  return stampAngles[((index % stampAngles.length) + stampAngles.length) % stampAngles.length]!;
 }

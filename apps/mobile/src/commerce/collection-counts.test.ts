@@ -21,8 +21,11 @@ test('queued and confirming collectibles are not finalized NFTs', () => {
   });
 });
 
-test('collection counts stack on narrow screens or large system text', () => {
-  assert.equal(shouldStackCounts(360, 1), true);
+test('collection counts stay in one row and stack only for very narrow screens or large system text', () => {
+  assert.equal(shouldStackCounts(360, 1), false);
   assert.equal(shouldStackCounts(412, 1), false);
+  assert.equal(shouldStackCounts(290, 1), true);
+  assert.equal(shouldStackCounts(412, 1.3), false);
+  assert.equal(shouldStackCounts(412, 1.4), true);
   assert.equal(shouldStackCounts(412, 2), true);
 });

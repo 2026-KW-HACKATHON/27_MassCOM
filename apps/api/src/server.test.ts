@@ -9,6 +9,7 @@ import * as serverModule from './server.js';
 import type { AccountDeletionService } from './account-deletion.js';
 import type { AccountDeletionIntakeService } from './account-deletion-intake.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
+import { BadgeRewardError, type BadgeRewardErrorCode, type BadgeRewardService } from './badge-rewards.js';
 import { GoogleIdTokenError } from './google-id-token.js';
 import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
 import { WebAuthError, type WebAuthHandler } from './web-auth.js';
@@ -186,6 +187,7 @@ async function startFixture(
   deletionIntake?: AccountDeletionIntakeService,
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
   customerIdentities?: CustomerIdentityService,
+  badges?: BadgeRewardService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -217,6 +219,7 @@ async function startFixture(
     admin,
     deletionIntake,
     staffRegistration,
+    badges,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -2388,4 +2391,351 @@ test('API bind host stays loopback by default and only permits the container wil
   for (const raw of ['', 'localhost', '::', '192.0.2.10', 'api']) {
     assert.throws(() => resolveApiBindHost(raw), /API_BIND_HOST/, raw);
   }
+});
+
+const sampleCoupon = {
+  couponId: '00000000-0000-4000-8000-000000000001', milestone: 1 as const, merchantId: 'm',
+  merchantName: '가상 점포 A', title: '체험 음료 1잔', detail: '시연 혜택', status: 'ISSUED' as const,
+  issuedAt: '2026-09-29T00:00:00.000Z', expiresAt: '2026-10-29T00:00:00.000Z', redeemedAt: null,
+};
+const sampleSnapshot = {
+  medals: [
+    { kind: 'explorer' as const, value: 2, tier: 2 as const, thresholds: [1, 2, 3] as const },
+    { kind: 'regular' as const, value: 1, tier: 0 as const, thresholds: [2, 3, 5] as const },
+    { kind: 'steady' as const, value: 1, tier: 0 as const, thresholds: [2, 4, 7] as const },
+  ],
+  earnedTiers: 2,
+  rewards: [1, 2, 3].map((milestone) => ({
+    milestone: milestone as 1 | 2 | 3, requiredTiers: milestone * 3, state: 'LOCKED' as const,
+    offer: null, coupon: null,
+  })),
+};
+
+function badgeFixture(overrides: Partial<BadgeRewardService> = {}): BadgeRewardService {
+  const unexpected = (name: string) => async () => { throw new Error(`unexpected badge ${name} call`); };
+  return {
+    getBadges: unexpected('getBadges'), openReward: unexpected('openReward'),
+    lookupCoupons: unexpected('lookupCoupons'), redeemCoupon: unexpected('redeemCoupon'),
+    ...overrides,
+  } as BadgeRewardService;
+}
+
+test('GET /me/badges returns the snapshot for the authenticated account only', async (t) => {
+  const accounts: string[] = [];
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, undefined, false,
+    undefined, undefined, undefined, undefined, badgeFixture({
+      getBadges: async (accountId) => { accounts.push(accountId); return sampleSnapshot; },
+    }));
+  assert.equal((await fetch(`${base}/me/badges`)).status, 401);
+  const response = await fetch(`${base}/me/badges`, { headers: { 'x-account-id': 'customer-1' } });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await response.json(), sampleSnapshot);
+  assert.deepEqual(accounts, ['customer-1']);
+
+  const unconfigured = await startFixture(t);
+  const missing = await fetch(`${unconfigured}/me/badges`, { headers: { 'x-account-id': 'customer-1' } });
+  assert.equal(missing.status, 503);
+  assert.deepEqual(await missing.json(), { code: 'BADGE_REWARDS_NOT_CONFIGURED' });
+});
+
+test('opening a reward box validates the milestone and body and maps reward errors', async (t) => {
+  const calls: unknown[] = [];
+  let failure: BadgeRewardErrorCode | undefined;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, undefined, false,
+    undefined, undefined, undefined, undefined, badgeFixture({
+      openReward: async (input) => {
+        calls.push(input);
+        if (failure) throw new BadgeRewardError(failure);
+        return { coupon: sampleCoupon, replayed: calls.length > 1 };
+      },
+    }));
+  const open = (milestone: string, options: { body?: string; account?: string } = {}) =>
+    fetch(`${base}/me/badges/rewards/${milestone}/open`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(options.account === '' ? {} : { 'x-account-id': options.account ?? 'customer-1' }) },
+      ...(options.body === undefined ? {} : { body: options.body }),
+    });
+
+  assert.equal((await open('1', { account: '' })).status, 401);
+  const first = await open('1');
+  assert.equal(first.status, 200);
+  assert.deepEqual(await first.json(), { coupon: sampleCoupon, replayed: false });
+  const replay = await open('1', { body: '{}' });
+  assert.equal(replay.status, 200);
+  assert.deepEqual(await replay.json(), { coupon: sampleCoupon, replayed: true });
+  assert.deepEqual(calls, [
+    { accountId: 'customer-1', milestone: 1 },
+    { accountId: 'customer-1', milestone: 1 },
+  ]);
+
+  for (const milestone of ['0', '4', 'x', '1.5', '%201', '01', '10']) {
+    const response = await open(milestone);
+    assert.equal(response.status, 400, milestone);
+    assert.deepEqual(await response.json(), { code: 'INVALID_REQUEST' });
+  }
+  for (const body of ['{"milestone":2}', '{"customerAccountId":"forged"}']) {
+    const response = await open('2', { body });
+    assert.equal(response.status, 400, body);
+    assert.deepEqual(await response.json(), { code: 'INVALID_REQUEST' });
+  }
+  assert.equal((await open('2', { body: '[]' })).status, 400);
+  assert.equal((await open('%E0%A4%A')).status, 400);
+  assert.equal(calls.length, 2);
+
+  for (const [code, status] of [
+    ['REWARD_LOCKED', 409], ['REWARD_OFFER_UNAVAILABLE', 409],
+    ['REWARD_CAPACITY_EXHAUSTED', 409], ['ACCOUNT_DELETED', 410],
+  ] as const) {
+    failure = code;
+    const response = await open('3');
+    assert.equal(response.status, status, code);
+    assert.deepEqual(await response.json(), { code });
+  }
+
+  const unconfigured = await startFixture(t);
+  assert.equal((await fetch(`${unconfigured}/me/badges/rewards/1/open`, {
+    method: 'POST', headers: { 'x-account-id': 'customer-1' },
+  })).status, 503);
+});
+
+test('staff coupon lookup and redeem check permission, body shape and map coupon errors', async (t) => {
+  const calls: unknown[][] = [];
+  let allowed = true;
+  let failure: BadgeRewardError | CustomerIdentityError | MerchantAccessError | undefined;
+  const access: MerchantAccessFixture = { requirePermission: async input => {
+    calls.push(['permission', input]);
+    if (!allowed) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    return { merchantId: input.merchantId, role: 'STAFF', permissions: ['CONFIRM_VISIT'] };
+  } };
+  const badges = badgeFixture({
+    lookupCoupons: async input => {
+      calls.push(['lookup', input]);
+      if (failure) throw failure;
+      return { identityExpiresAt: '2026-09-29T00:02:00.000Z', coupons: [
+        { couponId: sampleCoupon.couponId, title: sampleCoupon.title, detail: sampleCoupon.detail,
+          expiresAt: sampleCoupon.expiresAt },
+      ] };
+    },
+    redeemCoupon: async input => {
+      calls.push(['redeem', input]);
+      if (failure) throw failure;
+      return { couponId: input.couponId, status: 'REDEEMED', redeemedAt: '2026-09-29T00:01:00.000Z', replayed: false };
+    },
+  });
+  const base = await startFixture(t, undefined, undefined, access, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, undefined, false,
+    undefined, undefined, undefined, undefined, badges);
+  const token = 'masscom-customer:v1:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFX';
+  const post = (path: string, body: object | string, account = 'staff-1') =>
+    fetch(`${base}/merchant/merchants/m/coupons/${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(account ? { 'x-account-id': account } : {}) },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    });
+
+  assert.equal((await post('lookup', { customerIdentityToken: token }, '')).status, 401);
+  const lookup = await post('lookup', { customerIdentityToken: token });
+  assert.equal(lookup.status, 200);
+  const lookupBody = await lookup.json();
+  assert.deepEqual(lookupBody, { identityExpiresAt: '2026-09-29T00:02:00.000Z', coupons: [
+    { couponId: sampleCoupon.couponId, title: sampleCoupon.title, detail: sampleCoupon.detail,
+      expiresAt: sampleCoupon.expiresAt },
+  ] });
+  assert.equal(JSON.stringify(lookupBody).includes('customer'), false);
+  const redeem = await post(`${sampleCoupon.couponId}/redeem`, { customerIdentityToken: token });
+  assert.equal(redeem.status, 200);
+  assert.deepEqual(await redeem.json(), { couponId: sampleCoupon.couponId, status: 'REDEEMED',
+    redeemedAt: '2026-09-29T00:01:00.000Z', replayed: false });
+  assert.deepEqual(calls, [
+    ['permission', { accountId: 'staff-1', merchantId: 'm', permission: 'CONFIRM_VISIT' }],
+    ['lookup', { token, merchantId: 'm', staffAccountId: 'staff-1' }],
+    ['permission', { accountId: 'staff-1', merchantId: 'm', permission: 'CONFIRM_VISIT' }],
+    ['redeem', { token, merchantId: 'm', staffAccountId: 'staff-1', couponId: sampleCoupon.couponId }],
+  ]);
+
+  const before = calls.length;
+  for (const suffix of ['lookup', `${sampleCoupon.couponId}/redeem`]) {
+    for (const body of [
+      {}, { customerIdentityToken: '' }, { customerIdentityToken: 7 },
+      { customerIdentityToken: token, customerAccountId: 'forged' },
+      { customerIdentityToken: token, useConfirmed: true },
+    ]) {
+      const response = await post(suffix, body);
+      assert.equal(response.status, 400, `${suffix} ${JSON.stringify(body)}`);
+      assert.deepEqual(await response.json(), { code: 'INVALID_REQUEST' });
+    }
+    assert.equal((await post(suffix, '[]')).status, 400);
+  }
+  assert.equal(calls.filter(call => call[0] !== 'permission').length, 2);
+  assert.ok(calls.length > before);
+
+  for (const [error, status] of [
+    [new BadgeRewardError('COUPON_NOT_FOUND'), 404],
+    [new BadgeRewardError('COUPON_EXPIRED'), 409],
+    [new BadgeRewardError('COUPON_SELF_REDEEM'), 403],
+    [new BadgeRewardError('ACCOUNT_DELETED'), 410],
+    [new CustomerIdentityError('CUSTOMER_IDENTITY_UNAVAILABLE'), 409],
+    [new CustomerIdentityError('CUSTOMER_IDENTITY_EXPIRED'), 410],
+    [new MerchantAccessError('MERCHANT_ACCESS_DENIED'), 403],
+  ] as const) {
+    failure = error;
+    for (const suffix of ['lookup', `${sampleCoupon.couponId}/redeem`]) {
+      const response = await post(suffix, { customerIdentityToken: token });
+      assert.equal(response.status, status, `${error.code} ${suffix}`);
+      assert.deepEqual(await response.json(), { code: error.code });
+    }
+  }
+  failure = undefined;
+
+  allowed = false;
+  const served = calls.filter(call => call[0] === 'lookup' || call[0] === 'redeem').length;
+  for (const suffix of ['lookup', `${sampleCoupon.couponId}/redeem`]) {
+    const response = await post(suffix, { customerIdentityToken: token });
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  }
+  assert.equal(calls.filter(call => call[0] === 'lookup' || call[0] === 'redeem').length, served);
+
+  const percent = await fetch(`${base}/merchant/merchants/%E0%A4%A/coupons/lookup`, {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-account-id': 'staff-1' }, body: '{}',
+  });
+  assert.equal(percent.status, 400);
+  assert.deepEqual(await percent.json(), { code: 'INVALID_PATH_PARAMETER' });
+
+  const unconfigured = await startFixture(t, undefined, undefined, access);
+  assert.equal((await fetch(`${unconfigured}/merchant/merchants/m/coupons/lookup`, {
+    method: 'POST', headers: { 'x-account-id': 'staff-1' }, body: '{}',
+  })).status, 503);
+});
+
+test('web badges are read-only, cookie-bound and closed without configuration', async (t) => {
+  const accounts: string[] = [];
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async token => {
+      if (token !== 'valid-web-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'web-account';
+    }, logout: async () => {},
+  };
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    undefined, undefined, undefined, undefined, badgeFixture({
+      getBadges: async (accountId) => { accounts.push(accountId); return sampleSnapshot; },
+    }));
+  assert.equal((await webRequest(base, '/api/web/badges')).status, 401);
+  assert.equal((await webRequest(base, '/api/web/badges', {
+    headers: { cookie: 'web_session=valid-web-cookie' }, host: 'evil.example',
+  })).status, 403);
+  const response = await webRequest(base, '/api/web/badges', {
+    headers: { cookie: 'web_session=valid-web-cookie' },
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), sampleSnapshot);
+  assert.deepEqual(accounts, ['web-account']);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
+  // 웹은 읽기 전용이므로 상자 열기 경로를 열지 않는다.
+  assert.equal((await webRequest(base, '/api/web/badges/rewards/1/open', {
+    method: 'POST', headers: { cookie: 'web_session=valid-web-cookie', origin: 'https://masscom.kr',
+      'content-type': 'application/json' }, body: '{}',
+  })).status, 404);
+
+  const unconfigured = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth);
+  const missing = await webRequest(unconfigured, '/api/web/badges', {
+    headers: { cookie: 'web_session=valid-web-cookie' },
+  });
+  assert.equal(missing.status, 503);
+  assert.deepEqual(await missing.json(), { code: 'WEB_BADGES_NOT_CONFIGURED' });
+});
+
+test('web merchant coupon routes require origin, JSON, session, permission and membership', async (t) => {
+  const calls: unknown[][] = [];
+  let allowed = true;
+  let member = true;
+  let failure: BadgeRewardError | undefined;
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async token => {
+      if (token !== 'staff-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'staff-account';
+    }, logout: async () => {},
+  };
+  const staff = { mine: async () => member ? [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF' }] : [] } as unknown as
+    Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const access: MerchantAccessFixture = { requirePermission: async input => {
+    calls.push(['permission', input]);
+    if (!allowed) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    return { merchantId: input.merchantId, role: 'STAFF', permissions: ['CONFIRM_VISIT'] };
+  } };
+  const badges = badgeFixture({
+    lookupCoupons: async input => {
+      calls.push(['lookup', input]);
+      if (failure) throw failure;
+      return { identityExpiresAt: '2026-09-29T00:02:00.000Z', coupons: [] };
+    },
+    redeemCoupon: async input => {
+      calls.push(['redeem', input]);
+      if (failure) throw failure;
+      return { couponId: input.couponId, status: 'REDEEMED', redeemedAt: '2026-09-29T00:01:00.000Z', replayed: true };
+    },
+  });
+  const base = await startFixture(t, undefined, undefined, access, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
+    webAuth, false, undefined, undefined, staff, undefined, badges);
+  const headers = { cookie: 'web_session=staff-cookie', origin: 'https://masscom.kr',
+    'content-type': 'application/json' };
+  const prefix = '/api/web/merchant/merchants/real-merchant/coupons';
+  const couponId = sampleCoupon.couponId;
+  const post = (suffix: string, body: object | string, customHeaders: Record<string, string> = headers,
+    host = 'masscom.kr') => webRequest(base, `${prefix}/${suffix}`, { method: 'POST', headers: customHeaders,
+    host, body: typeof body === 'string' ? body : JSON.stringify(body) });
+  const token = { customerIdentityToken: 'masscom-customer:v1:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFX' };
+
+  const lookup = await post('lookup', token);
+  assert.equal(lookup.status, 200);
+  assert.deepEqual(await lookup.json(), { identityExpiresAt: '2026-09-29T00:02:00.000Z', coupons: [] });
+  const redeem = await post(`${couponId}/redeem`, token);
+  assert.equal(redeem.status, 200);
+  assert.deepEqual(await redeem.json(), { couponId, status: 'REDEEMED',
+    redeemedAt: '2026-09-29T00:01:00.000Z', replayed: true });
+  assert.deepEqual(calls, [
+    ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'CONFIRM_VISIT' }],
+    ['lookup', { token: token.customerIdentityToken, merchantId: 'real-merchant', staffAccountId: 'staff-account' }],
+    ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'CONFIRM_VISIT' }],
+    ['redeem', { token: token.customerIdentityToken, merchantId: 'real-merchant',
+      staffAccountId: 'staff-account', couponId }],
+  ]);
+  const served = () => calls.filter(call => call[0] === 'lookup' || call[0] === 'redeem').length;
+  const servedBefore = served();
+
+  for (const suffix of ['lookup', `${couponId}/redeem`]) {
+    assert.equal((await post(suffix, token, { ...headers, origin: 'https://evil.example' })).status, 403);
+    assert.equal((await post(suffix, token, { ...headers, 'content-type': 'text/plain' })).status, 403);
+    assert.equal((await post(suffix, token, headers, 'api.masscom.kr')).status, 403);
+    assert.equal((await post(suffix, token, { ...headers, cookie: '' })).status, 401);
+    assert.equal((await post(suffix, { ...token, customerAccountId: 'forged' })).status, 400);
+    assert.equal((await post(suffix, {})).status, 400);
+  }
+  allowed = false;
+  for (const suffix of ['lookup', `${couponId}/redeem`]) assert.equal((await post(suffix, token)).status, 403);
+  allowed = true;
+  member = false;
+  for (const suffix of ['lookup', `${couponId}/redeem`]) assert.equal((await post(suffix, token)).status, 403);
+  member = true;
+  assert.equal(served(), servedBefore);
+
+  failure = new BadgeRewardError('COUPON_NOT_FOUND');
+  assert.equal((await post(`${couponId}/redeem`, token)).status, 404);
+  failure = new BadgeRewardError('COUPON_EXPIRED');
+  const expired = await post(`${couponId}/redeem`, token);
+  assert.equal(expired.status, 409);
+  assert.deepEqual(await expired.json(), { code: 'COUPON_EXPIRED' });
+  failure = new BadgeRewardError('COUPON_SELF_REDEEM');
+  const own = await post(`${couponId}/redeem`, token);
+  assert.equal(own.status, 403);
+  assert.deepEqual(await own.json(), { code: 'COUPON_SELF_REDEEM' });
 });

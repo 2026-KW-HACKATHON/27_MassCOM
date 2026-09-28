@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import type { PublicMerchant } from '@/merchant/merchant-api';
-import { badgeShareMessage, buildMerchantGoals, buildNeighborhoodJourney, buildStampSlots, describeMerchantGoal, stampColumnCount } from './collection-stamps';
+import { buildMerchantGoals, buildStampSlots, describeMerchantGoal, shortMerchantGoal, stampColumnCount, stampRotation } from './collection-stamps';
 
 const merchants: readonly Pick<PublicMerchant, 'id' | 'name'>[] = [
   { id: 'one', name: '가상 점포 A' },
@@ -21,28 +21,6 @@ const campaignMerchants: readonly Pick<PublicMerchant, 'id' | 'name' | 'campaign
     ],
   },
 }];
-
-test('동네 배지는 인정된 서로 다른 점포만 세고 반복·미인정 방문을 제외한다', () => {
-  const journey = buildNeighborhoodJourney([
-    { merchantId: 'one', progressCounted: true },
-    { merchantId: 'one', progressCounted: true },
-    { merchantId: 'two', progressCounted: false },
-    { merchantId: 'two', progressCounted: true },
-    { merchantId: 'three', progressCounted: false },
-  ]);
-  assert.equal(journey.distinctStores, 2);
-  assert.deepEqual(journey.badges.map((badge) => [badge.id, badge.earned, badge.remaining]), [
-    ['first', true, 0], ['second', true, 0], ['third', false, 1],
-  ]);
-});
-
-test('배지 공유 문구는 획득 여부를 검사하고 개인정보 없이 시연·운영을 구분한다', () => {
-  const journey = buildNeighborhoodJourney([{ merchantId: 'one', progressCounted: true }]);
-  assert.match(badgeShareMessage(journey.badges[0]!, 'showcase'), /시연용 가상 데이터.*www\.masscom\.kr\/preview\//s);
-  assert.match(badgeShareMessage(journey.badges[0]!, 'production'), /www\.masscom\.kr\/app\//);
-  assert.doesNotMatch(badgeShareMessage(journey.badges[0]!, 'production'), /merchantId|account|wallet|QR|쿠폰/);
-  assert.throws(() => badgeShareMessage(journey.badges[2]!, 'showcase'), /BADGE_NOT_EARNED/);
-});
 
 test('reward progress counts only current campaign visits marked progressCounted', () => {
   const visits = [
@@ -186,4 +164,36 @@ test('stamp grid uses fewer columns when system font scale grows', () => {
   assert.equal(stampColumnCount(412, 2), 1);
   assert.equal(stampColumnCount(360, 2), 1);
   assert.equal(stampColumnCount(412, 0.85), 3);
+});
+
+test('visited stamps lean by slot position and repeat the same pattern', () => {
+  const angles = Array.from({ length: 10 }, (_, index) => stampRotation(index));
+  assert.ok(angles.every((angle) => Math.abs(angle) <= 8 && angle !== 0));
+  assert.equal(stampRotation(8), stampRotation(0));
+  assert.notEqual(stampRotation(0), stampRotation(1));
+});
+
+test('stamp cards show one short goal line while the full sentence stays available', () => {
+  const now = '2026-09-28T00:00:00Z';
+  const counted = { merchantId: 'one', campaignId: 'current', progressCounted: true };
+  const firstEarned = [{ merchantId: 'one', campaignId: 'current', targetVisitCount: 1, appCollectibleStatus: 'COLLECTED' }] as const;
+  const [open] = buildMerchantGoals(campaignMerchants, [counted], firstEarned, now);
+  assert.equal(shortMerchantGoal(open!), '수집품까지 2번');
+  assert.equal(describeMerchantGoal(open!), '다음 목표 3회 · 세 번째 방문 · 2회 남음');
+
+  const [pending] = buildMerchantGoals(campaignMerchants, [counted], [], now);
+  assert.equal(shortMerchantGoal(pending!), '수집품 반영 중');
+
+  const allEarned = [...firstEarned, { merchantId: 'one', campaignId: 'current', targetVisitCount: 3, appCollectibleStatus: 'COLLECTED' }] as const;
+  assert.equal(shortMerchantGoal(buildMerchantGoals(campaignMerchants, [], allEarned, now)[0]!), '수집품 모두 모음');
+  assert.equal(shortMerchantGoal(buildMerchantGoals(campaignMerchants, [], [], '2026-10-02T00:00:00Z')[0]!), '캠페인 종료');
+  assert.equal(shortMerchantGoal(buildMerchantGoals(campaignMerchants, [], [], '2026-08-01T00:00:00Z')[0]!), '캠페인 시작 전');
+
+  const full = [{ ...campaignMerchants[0]!, campaign: { ...campaignMerchants[0]!.campaign, enrollmentStatus: 'FULL' as const } }];
+  assert.equal(shortMerchantGoal(buildMerchantGoals(full, [], [], now)[0]!), '참여 정원 마감');
+  assert.equal(shortMerchantGoal(buildMerchantGoals(full, [counted], firstEarned, now)[0]!), '수집품까지 2번');
+
+  const noGoals = [{ ...campaignMerchants[0]!, campaign: { ...campaignMerchants[0]!.campaign, rewardGoals: [] } }];
+  assert.equal(shortMerchantGoal(buildMerchantGoals(noGoals, [], [], now)[0]!), '보상 목표 없음');
+  for (const goal of [open!, pending!]) assert.ok(shortMerchantGoal(goal).length <= 9);
 });

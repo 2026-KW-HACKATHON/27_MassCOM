@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { Pool, PoolClient } from 'pg';
 
 export const SHOWCASE_MERCHANT_ID = 'showcase-local-merchant';
@@ -35,6 +37,16 @@ const goals = [
   [1, '가상 첫 방문 수집품'],
   [3, '가상 세 번째 방문 수집품'],
   [5, '가상 다섯 번째 방문 수집품'],
+] as const;
+
+// 시연 DB 전용 체험 혜택. 운영 DB에는 점주 동의 뒤 수동 등록 전까지 넣지 않는다(D-043).
+const offerDetail = '시연용 가상 점포 체험 혜택입니다. 실제 매장에서는 사용할 수 없습니다.';
+const offerConsentNote = '시연 가상 점포 체험 혜택 — 실제 매장 혜택 아님';
+const offerValidDays = 30;
+const rewardOffers = [
+  { milestone: 1, merchantId: SHOWCASE_MERCHANT_ID, title: '체험 음료 1잔' },
+  { milestone: 2, merchantId: 'showcase-local-merchant-b', title: '체험 디저트 한 접시' },
+  { milestone: 3, merchantId: 'showcase-local-merchant-c', title: '체험 세트 20% 할인' },
 ] as const;
 
 export function isPermittedShowcaseDatabaseName(name: string): boolean {
@@ -234,6 +246,7 @@ export async function seedShowcaseFixtureData(
         await readFixture(client, entry, staffAccountId), entry, now, Boolean(staffAccountId),
       );
     }
+    await seedRewardOffers(client);
     await client.query('COMMIT');
     transactionStarted = false;
     return { merchantId: SHOWCASE_MERCHANT_ID, campaignId: SHOWCASE_CAMPAIGN_ID };
@@ -242,5 +255,35 @@ export async function seedShowcaseFixtureData(
     throw error;
   } finally {
     client.release();
+  }
+}
+
+async function seedRewardOffers(client: PoolClient): Promise<void> {
+  for (const offer of rewardOffers) {
+    const existing = await client.query<{
+      merchant_id: string; title: string; detail: string; valid_days: number; consent_note: string;
+    }>(
+      `SELECT merchant_id, title, detail, valid_days, consent_note
+       FROM badge_reward_offers WHERE milestone = $1 AND status = 'ACTIVE'`,
+      [offer.milestone],
+    );
+    const row = existing.rows[0];
+    if (row) {
+      if (
+        row.merchant_id !== offer.merchantId || row.title !== offer.title ||
+        row.detail !== offerDetail || row.valid_days !== offerValidDays ||
+        row.consent_note !== offerConsentNote
+      ) {
+        throw new Error(fixtureError);
+      }
+      continue;
+    }
+    await client.query(
+      `INSERT INTO badge_reward_offers
+       (id, milestone, merchant_id, title, detail, valid_days, status, consent_note)
+       VALUES ($1, $2, $3, $4, $5, $6, 'ACTIVE', $7)`,
+      [randomUUID(), offer.milestone, offer.merchantId, offer.title, offerDetail,
+        offerValidDays, offerConsentNote],
+    );
   }
 }

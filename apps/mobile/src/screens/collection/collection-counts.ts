@@ -13,6 +13,7 @@ export function collectionCounts(snapshot: CountInput) {
   };
 }
 
+/** Counts stay one compact row of three unless the text really cannot fit. */
 export function shouldStackCounts(width: number, fontScale: number): boolean {
-  return width < 380 || fontScale >= 1.5;
+  return width / Math.max(fontScale, 1) < 300 || fontScale >= 1.5;
 }

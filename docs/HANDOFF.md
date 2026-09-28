@@ -2,6 +2,11 @@
 
 마지막 갱신 시각: 2026-09-29 KST
 
+## 2026-09-29 탐험 여권(Issue #216)
+
+- 브랜치 `feat/216-explorer-passport`: 서버 메달·보상 상자·쿠폰(`apps/api/src/badge-*`, `postgres/badge-rewards.ts`, migration 0027), 고객 앱 `apps/mobile/src/gamification/`·도감·방문 축하, 시연 점원 쿠폰 처리(`screens/merchant-claim/staff.tsx`), 운영 점주 웹 쿠폰 처리와 웹 도감 서버 배지(`apps/production-web`), Caddy `/api/web/badges`. 모바일 276/276·API 단위 133/133·PostgreSQL 89 PASS/2 SKIP·운영 웹 66/66 PASS, opus 보안·sonnet 코드 리뷰 🔴 0([설계](superpowers/specs/2026-09-29-explorer-passport-design.md), [규칙](NEIGHBORHOOD_BADGES.md), [실측](evidence/explorer-passport-emulator-2026-09-29/README.md)).
+- 다음 작업: PR 병합 뒤 ① 시연 API 배포(migration 0027 + `npm run seed:showcase:host`로 체험 혜택 3건) ② 새 네이티브 모듈이 들어간 시연 Preview 7 APK 빌드·실기(공유창·햅틱·TalkBack) ③ 운영 API/웹 배포(혜택 0건 확인) ④ 점주와 혜택·비용·기간·상한 합의 후에만 운영 혜택 수동 등록([절차](NEIGHBORHOOD_BADGES.md)). 운영 등록 전 과제: 점원 본인 방문 제외 규칙은 실제 점포에 적용됨, 숨긴 점포의 기존 쿠폰은 유효.
+
 ## 2026-09-29 동네 탐험 배지와 웹 배포 상태
 
 - [PR #214](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/214) merge 2dda864·PR/main CI PASS 뒤 기존 웹 전용 스크립트로 [apex/www /open Preview 6 링크](evidence/public-open-preview6-deployment-2026-09-29.json)를 반영했다. 두 URL HTTPS 200·docs/open.html SHA-256 일치, 웹 이미지 2dda864 healthy, 운영 API fd0a9b2·시연 API 6585614·PostgreSQL 불변. 이 웹 배포는 실제 Preview 6 Android 설치·쿠폰 사용 검증이 아니다.
