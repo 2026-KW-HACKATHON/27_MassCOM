@@ -1,5 +1,7 @@
 # 테스트 상태
 
+2026-09-29 [Preview 6 공개 설치 안내 실측](evidence/public-open-preview6-deployment-2026-09-29.json): PR #214 merge 2dda864·PR/main CI PASS 뒤 scripts/deploy-lightsail-web.sh --dry-run·--deploy exit 0. apex/www /open HTTPS 200, 최신 Preview 6 링크, 저장소 docs/open.html과 SHA-256 6916d3d39ebb975066063f902d9a1605b37bc4f3f89dab07f9c63f71b9aa9e8e 일치. 웹 이미지 2dda864 healthy, 운영 API fd0a9b2·시연 API 6585614·PostgreSQL 기존 상태 보존, 새 migration·유료 자원 없음. Android 설치·배지 공유창·실제 쿠폰은 NOT_RUN이다.
+
 2026-09-29 [시연 Preview 6 공개 Release](evidence/showcase-preview6-release-2026-09-29.json): 조직 PR #213 merge 5caec3a·PR/main CI PASS 뒤 기존 시연 전용 Keychain 키로 assembleRelease·bundleRelease BUILD SUCCESSFUL. package kr.masscom.wolgye.demo·소스 마커·서명·지갑 요청 표면 PASS. APK 154137109바이트의 SHA-256 86c935a381303e79a0ee186c3cb0e3d36ca69278017322157250d84adfe344a7이 로컬·GitHub digest·공개 체크섬과 일치하고 익명 다운로드 HEAD 200이다. adb devices -l에는 휴대전화가 없어 설치·업데이트·배지 공유창·TalkBack·두 기기 QR은 NOT_RUN이며 실제 쿠폰은 발급하지 않았다.
 
 2026-09-29 [동네 배지 운영 웹 배포](evidence/neighborhood-badges-web-deployment-2026-09-29.json): 기존 Lightsail 웹 전용 스크립트로 5caec3a를 배포했다. 외부 /app/ HTML·JS에 배지 3단계, 기존 인증 브라우저의 방문 0건·잠긴 배지 3개, 익명 도감 401·Cache-Control no-store PASS. /open 소스 해시와 www 시연 웹·두 API health 200, 운영 API fd0a9b2·시연 API 6585614·PostgreSQL 불변. 실제 방문이 있는 계정의 배지·계정 전환과 새 Android 공유 실기는 NOT_RUN이다.

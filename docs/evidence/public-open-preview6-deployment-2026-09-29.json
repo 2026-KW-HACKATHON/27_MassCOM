@@ -1,0 +1,34 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-09-28T20:01:09Z",
+  "purpose": "publish the public Preview 6 APK link at both existing Android fallback pages",
+  "sourceCommit": "2dda864ed5ee4615afc4c425e9414ca9fcc7a9e2",
+  "pullRequest": 214,
+  "mainCI": "36475038633 SUCCESS",
+  "deployment": "existing Lightsail web-only script with capacity check, rollback and route probes",
+  "publicPage": {
+    "https://masscom.kr/open": "HTTPS 200; SHA-256 6916d3d39ebb975066063f902d9a1605b37bc4f3f89dab07f9c63f71b9aa9e8e",
+    "https://www.masscom.kr/open": "HTTPS 200; same SHA-256 as docs/open.html",
+    "latestShowcaseLink": "showcase-android-v0.1.0-preview.6 present",
+    "oldPreview5CurrentCopy": "absent"
+  },
+  "serverBoundary": {
+    "webMarker": "2dda864ed5ee4615afc4c425e9414ca9fcc7a9e2",
+    "webImage": "masscom-production-web:2dda864ed5ee healthy",
+    "productionApi": "masscom-api:fd0a9b2ebfc8 healthy and unchanged",
+    "showcaseApi": "masscom-showcase-api:6585614 healthy and unchanged",
+    "productionPostgres": "existing postgres:16.10-alpine stayed running",
+    "databaseMigration": "NOT_RUN; web-only deployment",
+    "newPaidResource": "NOT_RUN"
+  },
+  "otherRoutes": {
+    "wwwAppPreviewAdmin": "HTTPS 200 each",
+    "productionAndShowcaseApiHealth": "HTTPS 200 each",
+    "anonymousWebCollection": "401"
+  },
+  "notClaimed": [
+    "Preview 6 physical Android install, badge share sheet, TalkBack or two-phone QR",
+    "real merchant coupon issuance or redemption",
+    "Google Play approval or general operating launch"
+  ]
+}

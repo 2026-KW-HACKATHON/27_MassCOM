@@ -15,7 +15,7 @@
 
 시연 **웹**은 앱 설치와 별개입니다. [공개 주소](https://www.masscom.kr/preview/)에서 다운로드 없이 볼 수 있고, [웹 전용 GitHub 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1)에는 정적 HTML/CSS ZIP만 있습니다. 이 태그에 Android APK는 없으며 가상 점포·예시 수집품을 실제 방문·NFT 발행 실적으로 보지 않습니다. [www 전환 증거](evidence/www-web-cutover-2026-09-25.json)를 참고하세요. 기존 Vercel 주소는 복구용으로 보존합니다.
 
-휴대전화 브라우저에서 바로 확인하려면 [운영 App Link의 웹 대체 설치 안내](https://masscom.kr/open)를 여세요. 운영 test.3과 시연 Preview 6을 각각 받도록 소스를 수정했습니다. 최신 APK는 위 GitHub Release에서 바로 받을 수 있고, /open의 새 링크는 이 문서 PR 병합·웹 전용 배포 뒤 별도 실측합니다. [기존 Preview 5 /open 실측](evidence/public-open-preview5-deployment-2026-09-29.json)은 이전 결과입니다. [이전 Preview 3 페이지 실측](evidence/public-open-page-2026-09-28.json)은 과거 결과입니다.
+휴대전화 브라우저에서 바로 확인하려면 [운영 App Link의 웹 대체 설치 안내](https://masscom.kr/open)를 여세요. 운영 test.3과 시연 Preview 6의 링크를 [apex/www HTTPS 200·소스 해시 일치](evidence/public-open-preview6-deployment-2026-09-29.json)로 확인했습니다. [기존 Preview 5 /open 실측](evidence/public-open-preview5-deployment-2026-09-29.json)과 [Preview 3 페이지 실측](evidence/public-open-page-2026-09-28.json)은 과거 결과입니다.
 
 시연 앱을 운영 API에 연결하거나, 운영 APK를 시연용으로 이름만 바꾸어 게시하지 않습니다. 로컬 개발 앱 `kr.masscom.wolgye.dev`에서 가상 점포의 수동 코드 흐름을 확인한 결과도 시연 APK 완성과 다릅니다.
 
