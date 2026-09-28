@@ -1,0 +1,41 @@
+{
+  "observedAt": "2026-09-28T16:03:05Z",
+  "sourceCommit": "fd0a9b2ebfc8ca73b582230aac778c84863bb614",
+  "repositoryVisibility": "PRIVATE",
+  "pullRequest": "https://github.com/choijunhuk/MassCOM/pull/15",
+  "pullRequestCi": { "runId": 36445599322, "result": "PASS" },
+  "mainCi": { "runId": 36446643059, "result": "PASS" },
+  "operatingRuntime": {
+    "apiImage": "masscom-api:fd0a9b2ebfc8",
+    "webImage": "masscom-production-web:fd0a9b2ebfc8",
+    "health": "PASS: both healthy",
+    "databaseMigration": "PASS: 26 schema_migrations; newest 0026_admin_campaign_draft_audit.sql",
+    "backup": "PASS: /opt/masscom/backups/database-before-fd0a9b2ebfc8.dump.jpBEu9, 87486 bytes, mode 600, custom-format pg_restore --list readable; actual restore of this backup NOT_RUN",
+    "activePlatformAdmins": 1,
+    "operatingMerchants": 0,
+    "operatingCampaigns": 0,
+    "operatingMerchantMembers": 0,
+    "operatingMintJobs": 0,
+    "showcaseMerchantsVisitsEntitlements": [3, 3, 2],
+    "showcaseApiImage": "masscom-showcase-api:6585614"
+  },
+  "externalHttps": {
+    "operatingApiHealth": 200,
+    "showcaseApiHealth": 200,
+    "wwwHome": 200,
+    "wwwApp": 200,
+    "wwwPreview": 200,
+    "wwwAdmin": 200,
+    "wwwMerchant": 200,
+    "unauthenticatedDraftList": 401,
+    "draftCreateWithoutOrigin": 403,
+    "authenticatedAdminBrowser": "PASS: designated primary Google account saw campaign draft guidance and 'no saved private drafts'; creation form stayed hidden because there are zero real merchants"
+  },
+  "notRun": [
+    "actual real-merchant draft creation through authenticated browser",
+    "D-023 capacity/redeem policy choice, public campaign activation and enrollment",
+    "real partner shop and two-device visit acceptance",
+    "production-scale load and Google Play submission"
+  ],
+  "recovery": "Previous API/web images and the mode-600 backup remain available. Migration 0026 only expands accepted audit action values; code rollback does not automatically reverse it. No operating campaign data was created."
+}

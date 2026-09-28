@@ -1,0 +1,34 @@
+{
+  "observedAt": "2026-09-28T16:03:05Z",
+  "sourceCommit": "88932cb8907ec2fd579f1f9a27f3063efc691645",
+  "release": "https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.5",
+  "repositoryVisibility": "PRIVATE",
+  "tagTarget": "88932cb8907ec2fd579f1f9a27f3063efc691645",
+  "artifact": {
+    "name": "MassCOM-showcase-android-88932cb.apk",
+    "package": "kr.masscom.wolgye.demo",
+    "versionName": "0.1.0-test.2",
+    "versionCode": 2,
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "bytes": 154132481,
+    "sha256": "bc8c5bd6e0cd1ac0ae6a53db806dbad70714169f9c5573483c01386173ed19e0",
+    "githubAssetDigest": "sha256:bc8c5bd6e0cd1ac0ae6a53db806dbad70714169f9c5573483c01386173ed19e0",
+    "signingCertificateSha256": "cdb0dc37750c907eaa2f1b9eb172b0911f14b9c9f2dab78b481f1751d8ebf28a"
+  },
+  "checks": {
+    "showcaseApiHealthAndVirtualCatalog": "PASS: demo-api health and at least three demo-only merchants before build",
+    "cleanIsolatedWorktree": "PASS",
+    "gradleReleaseApkAndAab": "PASS: BUILD SUCCESSFUL",
+    "packageAndSourceMarker": "PASS",
+    "signatureAndWalletSurface": "PASS",
+    "localVsGithubSha256": "PASS",
+    "remoteTagAndTwoAssets": "PASS: tag points to source commit; APK and provenance assets uploaded"
+  },
+  "notRun": [
+    "physical phone installation, first launch and upgrade from Preview 4",
+    "two-account two-phone customer identity QR and claim redemption",
+    "TalkBack, large text and external-wallet return on this APK",
+    "Google Play submission"
+  ],
+  "limitations": "The internal versionName/versionCode remain 0.1.0-test.2/2; Preview 5 names the GitHub release order. This is a demo-only app and private repository asset, not a public or Play release."
+}
