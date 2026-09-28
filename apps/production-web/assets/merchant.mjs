@@ -1,5 +1,6 @@
 const merchantRequests = new WeakMap();
 const merchantClaimResolutions = new WeakMap();
+const merchantClaimSlots = new WeakMap();
 
 async function request(fetcher, path, method = 'GET', body) {
   const response = await fetcher(path, {
@@ -22,6 +23,7 @@ export async function loadMerchant(fetcher, doc) {
   const requestId = (merchantRequests.get(doc) ?? 0) + 1;
   merchantRequests.set(doc, requestId);
   merchantClaimResolutions.delete(doc);
+  merchantClaimSlots.delete(doc);
   const status = doc.getElementById('merchant-status');
   const login = doc.getElementById('merchant-login');
   const logout = doc.getElementById('merchant-logout');
@@ -46,6 +48,9 @@ export async function loadMerchant(fetcher, doc) {
   doc.getElementById('merchant-claim-result').textContent = '';
   doc.getElementById('merchant-claim-issued-qr').src = '';
   doc.getElementById('merchant-claim-issued-qr').hidden = true;
+  doc.getElementById('merchant-claim-reissue').hidden = true;
+  doc.getElementById('merchant-claim-reissue-confirm').checked = false;
+  doc.getElementById('merchant-claim-reissue-submit').disabled = true;
   try {
     const [mine, eligible] = await Promise.all([
       request(fetcher, '/api/web/merchant/me'),
@@ -99,6 +104,9 @@ export function bindMerchant(fetcher, doc) {
   const claimResolve = doc.getElementById('merchant-claim-resolve');
   const claimResult = doc.getElementById('merchant-claim-result');
   const claimQr = doc.getElementById('merchant-claim-issued-qr');
+  const reissue = doc.getElementById('merchant-claim-reissue');
+  const reissueConfirm = doc.getElementById('merchant-claim-reissue-confirm');
+  const reissueSubmit = doc.getElementById('merchant-claim-reissue-submit');
   const scanButton = doc.getElementById('merchant-claim-scan');
   const scanCancel = doc.getElementById('merchant-claim-scan-cancel');
   const video = doc.getElementById('merchant-claim-video');
@@ -111,6 +119,32 @@ export function bindMerchant(fetcher, doc) {
       control.disabled = active;
     }
     claimSubmit.disabled = active || !merchantClaimResolutions.has(doc) || !claimConfirm.checked;
+    reissueSubmit.disabled = active || !merchantClaimSlots.has(doc) || !reissueConfirm.checked;
+  };
+  const clearSlot = () => {
+    if (merchantClaimSlots.has(doc)) {
+      claimQr.src = '';
+      claimQr.hidden = true;
+    }
+    merchantClaimSlots.delete(doc);
+    reissue.hidden = true;
+    reissueConfirm.checked = false;
+    reissueSubmit.disabled = true;
+  };
+  const showSlot = (issued, merchantId) => {
+    if (typeof issued.claimSlotId !== 'string' || !Number.isSafeInteger(issued.tokenVersion) || issued.tokenVersion < 1) return;
+    merchantClaimSlots.set(doc, { merchantId, claimSlotId: issued.claimSlotId, tokenVersion: issued.tokenVersion });
+    reissueConfirm.checked = false;
+    reissueSubmit.disabled = true;
+    reissue.hidden = false;
+  };
+  const showToken = issued => {
+    claimResult.textContent = `방문 코드: ${issued.token} · 만료: ${new Date(issued.expiresAt).toLocaleTimeString('ko-KR')}${
+      issued.qrRenderFailed || !issued.qrSvgDataUrl ? ' · QR 그림을 만들지 못했습니다. 방문 코드를 고객 앱에 직접 입력해 주세요.' : ''}`;
+    if (/^data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+$/.test(issued.qrSvgDataUrl ?? '')) {
+      claimQr.src = issued.qrSvgDataUrl;
+      claimQr.hidden = false;
+    }
   };
   const stopCamera = () => {
     scanId += 1;
@@ -128,13 +162,18 @@ export function bindMerchant(fetcher, doc) {
     claimQr.src = '';
     claimQr.hidden = true;
   };
-  claimMerchant.addEventListener('change', invalidateClaim);
-  claimToken.addEventListener('input', invalidateClaim);
+  claimMerchant.addEventListener('change', () => { invalidateClaim(); clearSlot(); });
+  claimToken.addEventListener('input', () => { invalidateClaim(); clearSlot(); });
+  claimReference.addEventListener('input', clearSlot);
+  reissueConfirm.addEventListener('change', () => {
+    reissueSubmit.disabled = issuing || !merchantClaimSlots.has(doc) || !reissueConfirm.checked;
+  });
   scanCancel.addEventListener('click', stopCamera);
   scanButton.addEventListener('click', async () => {
     if (issuing) return;
     stopCamera();
     invalidateClaim();
+    clearSlot();
     const view = doc.defaultView;
     const Detector = view?.BarcodeDetector;
     if (!Detector?.getSupportedFormats || !view?.navigator?.mediaDevices?.getUserMedia) {
@@ -229,15 +268,11 @@ export function bindMerchant(fetcher, doc) {
           merchantReference: claimReference.value.trim(), useConfirmed: true });
       if (merchantRequests.get(doc) !== requestId) return;
       claimResult.textContent = issued.replayed
-        ? '이미 처리한 요청입니다. 기존 방문 코드는 다시 표시되지 않습니다.'
-        : `방문 코드: ${issued.token} · 만료: ${new Date(issued.expiresAt).toLocaleTimeString('ko-KR')}${
-          issued.qrRenderFailed || !issued.qrSvgDataUrl ? ' · QR 그림을 만들지 못했습니다. 방문 코드를 고객 앱에 직접 입력해 주세요.' : ''}`;
+        ? '이미 처리한 요청입니다. 기존 방문 코드는 다시 표시되지 않습니다. 아래에서 새 코드를 발급할 수 있습니다.' : '';
       claimToken.value = '';
       invalidateClaim();
-      if (!issued.replayed && /^data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+$/.test(issued.qrSvgDataUrl ?? '')) {
-        claimQr.src = issued.qrSvgDataUrl;
-        claimQr.hidden = false;
-      }
+      if (!issued.replayed) showToken(issued);
+      showSlot(issued, resolved.merchantId);
     } catch (error) {
       if (merchantRequests.get(doc) === requestId) {
         claimResult.textContent = error.code === 'CUSTOMER_IDENTITY_EXPIRED'
@@ -249,6 +284,34 @@ export function bindMerchant(fetcher, doc) {
           invalidateClaim();
         }
       }
+    } finally {
+      if (merchantRequests.get(doc) === requestId) setIssuing(false);
+    }
+  });
+  reissueSubmit.addEventListener('click', async () => {
+    if (issuing || !reissueConfirm.checked) return;
+    const slot = merchantClaimSlots.get(doc);
+    if (!slot) return;
+    const requestId = merchantRequests.get(doc);
+    setIssuing(true);
+    claimQr.src = '';
+    claimQr.hidden = true;
+    claimResult.textContent = '새 방문 코드 발급 결과를 기다리는 중입니다.';
+    try {
+      const issued = await request(fetcher,
+        `/api/web/merchant/merchants/${encodeURIComponent(slot.merchantId)}/claim-slots/${encodeURIComponent(slot.claimSlotId)}/reissue`,
+        'POST', { expectedTokenVersion: slot.tokenVersion });
+      if (merchantRequests.get(doc) !== requestId) return;
+      showToken(issued);
+      showSlot(issued, slot.merchantId);
+    } catch (error) {
+      if (merchantRequests.get(doc) !== requestId) return;
+      clearSlot();
+      claimResult.textContent = error.status === 401 || error.status === 403
+        ? '점포 권한을 확인하지 못했습니다. 다시 로그인해 주세요.'
+        : error.status === 409
+          ? '방문 코드를 재발급할 수 없습니다. 현재 상태를 확인해 주세요.'
+          : '재발급 결과를 확인하지 못했습니다. 이전 코드의 유효 여부도 알 수 없습니다. 현재 상태를 확인해 주세요.';
     } finally {
       if (merchantRequests.get(doc) === requestId) setIssuing(false);
     }
@@ -283,6 +346,7 @@ export function bindMerchant(fetcher, doc) {
     claimReference.value = '';
     claimResult.textContent = '';
     invalidateClaim();
+    clearSlot();
     setIssuing(false);
     try {
       await request(fetcher, '/api/web/logout', 'POST');
@@ -299,15 +363,16 @@ export function bindMerchant(fetcher, doc) {
     claimReference.value = '';
     claimResult.textContent = '';
     invalidateClaim();
+    clearSlot();
     setIssuing(false);
   };
   doc.defaultView?.addEventListener('pagehide', clear);
   doc.defaultView?.addEventListener('pageshow', event => {
-    if (event.persisted) { invalidateClaim(); void loadMerchant(fetcher, doc); }
+    if (event.persisted) { invalidateClaim(); clearSlot(); void loadMerchant(fetcher, doc); }
   });
   doc.addEventListener?.('visibilitychange', () => {
     if (doc.hidden) clear();
-    else { invalidateClaim(); void loadMerchant(fetcher, doc); }
+    else { invalidateClaim(); clearSlot(); void loadMerchant(fetcher, doc); }
   });
   return loadMerchant(fetcher, doc);
 }

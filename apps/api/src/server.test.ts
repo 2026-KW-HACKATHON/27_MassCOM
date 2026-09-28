@@ -596,7 +596,11 @@ test('merchant web resolves a customer QR and issues a confirmed claim without e
     issued = true;
     return { claimSlotId: 'slot-1', token: 'private-claim-token', tokenVersion: 1,
       expiresAt: '2026-09-28T12:10:00.000Z' };
-  }) as ClaimSlotFixture['issue'] });
+  }) as ClaimSlotFixture['issue'], reissue: async input => {
+    calls.push(['reissue', input]);
+    return { claimSlotId: input.claimSlotId, token: 'replacement-token', tokenVersion: 2,
+      expiresAt: '2026-09-28T12:20:00.000Z' };
+  } });
   const base = await startFixture(t, undefined, undefined, access, claims, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
     webAuth, false, undefined, undefined, staff, identities);
@@ -619,6 +623,14 @@ test('merchant web resolves a customer QR and issues a confirmed claim without e
   assert.equal(replay.status, 200);
   assert.deepEqual(await replay.json(), { claimSlotId: 'slot-1', tokenVersion: 1,
     expiresAt: '2026-09-28T12:10:00.000Z', replayed: true });
+  const reissued = await webRequest(base, `${prefix}/claim-slots/slot-1/reissue`, {
+    method: 'POST', headers, body: JSON.stringify({ expectedTokenVersion: 1 }),
+  });
+  assert.equal(reissued.status, 200);
+  const reissuedBody = await reissued.json();
+  assert.equal(reissuedBody.token, 'replacement-token');
+  assert.equal(reissuedBody.tokenVersion, 2);
+  assert.match(reissuedBody.qrSvgDataUrl, /^data:image\/svg\+xml;base64,/);
   assert.deepEqual(calls, [
     ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'CONFIRM_VISIT' }],
     ['resolve', { token: 'customer-qr', merchantId: 'real-merchant', staffAccountId: 'staff-account' }],
@@ -628,6 +640,9 @@ test('merchant web resolves a customer QR and issues a confirmed claim without e
     ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'CONFIRM_VISIT' }],
     ['issue', { merchantId: 'real-merchant', customerIdentityToken: 'customer-qr',
       merchantReference: 'sale-1', createdByAccountId: 'staff-account' }],
+    ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'CONFIRM_VISIT' }],
+    ['reissue', { merchantId: 'real-merchant', claimSlotId: 'slot-1', expectedTokenVersion: 1,
+      requestedByAccountId: 'staff-account' }],
   ]);
 });
 
@@ -640,6 +655,7 @@ test('merchant web rejects invalid QR, foreign origin, missing confirmation and 
   let allowed = true;
   let real = true;
   let issueCalls = 0;
+  let reissueCalls = 0;
   const webAuth: WebAuthHandler = {
     start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
     resolveSession: async token => {
@@ -660,7 +676,10 @@ test('merchant web rejects invalid QR, foreign origin, missing confirmation and 
   const claims = claimSlotFixture({ issue: (async () => {
     issueCalls += 1;
     throw new Error('unexpected issue');
-  }) as ClaimSlotFixture['issue'] });
+  }) as ClaimSlotFixture['issue'], reissue: async () => {
+    reissueCalls += 1;
+    throw new Error('unexpected reissue');
+  } });
   const base = await startFixture(t, undefined, undefined, access, claims, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
     webAuth, false, undefined, undefined, staff, identities);
@@ -689,13 +708,24 @@ test('merchant web rejects invalid QR, foreign origin, missing confirmation and 
     'api.masscom.kr')).status, 403);
   assert.equal((await post('claim-slots', { customerIdentityToken: 'qr', merchantReference: 'sale-1',
     useConfirmed: true }, { ...headers, cookie: '' })).status, 401);
+  const reissuePath = 'claim-slots/slot-1/reissue';
+  assert.equal((await post(reissuePath, { expectedTokenVersion: 1 }, { ...headers, cookie: '' })).status, 401);
+  assert.equal((await post(reissuePath, { expectedTokenVersion: 1 },
+    { ...headers, origin: 'https://evil.example' })).status, 403);
+  assert.equal((await post(reissuePath, { expectedTokenVersion: 1 }, headers, 'api.masscom.kr')).status, 403);
+  assert.equal((await post(reissuePath, { expectedTokenVersion: 0 })).status, 400);
+  assert.equal((await post(reissuePath, { expectedTokenVersion: '1' })).status, 400);
+  assert.equal((await post(reissuePath, { expectedTokenVersion: 1, requestedByAccountId: 'forged' })).status, 400);
   allowed = false;
   assert.equal((await post('customer-identities/resolve', { customerIdentityToken: 'qr' })).status, 403);
+  assert.equal((await post(reissuePath, { expectedTokenVersion: 1 })).status, 403);
   allowed = true;
   real = false;
   assert.equal((await post('claim-slots', { customerIdentityToken: 'qr', merchantReference: 'sale-1',
     useConfirmed: true })).status, 403);
+  assert.equal((await post(reissuePath, { expectedTokenVersion: 1 })).status, 403);
   assert.equal(issueCalls, 0);
+  assert.equal(reissueCalls, 0);
 });
 
 test('admin staff approval and revoke derive the actor from the web session', async (t) => {

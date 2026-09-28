@@ -4,7 +4,9 @@
 
 ## 최신 작업 경계
 
-- **2026-09-28 운영 점포 상세 배포:** 개인 [PR #11](https://github.com/choijunhuk/MassCOM/pull/11) merge `8a8ba78`의 PR/main CI PASS 뒤 [기존 운영 API·웹](evidence/operating-merchant-menu-deployment-2026-09-28.json)에 메뉴·가격·점포 제공 영업시간과 migration 0025를 배포했다. 운영 점포·직원·슬롯·mint는 0, 관리자 1명·시연 3/3/2를 보존했다. 외부 HTTPS와 미로그인 차단은 확인했지만 실제 점포 등록·메뉴 표시·Android 기기 실기는 `NOT_RUN`. 새 모바일은 구형 API의 새 필드 부재를 허용하며 잘못된 명시값은 거절한다. `feat/merchant-web-claims`는 개발 중인 별도 소스이며 운영 배포로 취급하지 않는다.
+- **2026-09-28 운영 점주 QR 발급 배포:** 개인 [PR #12](https://github.com/choijunhuk/MassCOM/pull/12) merge `c1ea375`의 PR/main CI PASS 뒤 [운영 API·웹](evidence/operating-merchant-qr-deployment-2026-09-28.json)에 점주 웹의 고객 QR 확인·실제 이용 확정·일회성 방문 수령 QR을 배포했다. DB migration은 없고 mode 600 백업을 임시 DB에 복원해 핵심 수량을 확인한 뒤 임시 DB를 삭제했다. 관리자 1명, 운영 점포·직원·슬롯·mint 0, 시연 3/3/2 불변. 외부 HTTPS·미로그인/Origin 차단은 PASS이나 실제 점주 브라우저·두 휴대전화 촬영/수령은 `NOT_RUN`. 재발급 복구는 별도 소스 브랜치로 운영 배포 전이다.
+
+- **2026-09-28 운영 점포 상세 배포:** 개인 [PR #11](https://github.com/choijunhuk/MassCOM/pull/11) merge `8a8ba78`의 PR/main CI PASS 뒤 [기존 운영 API·웹](evidence/operating-merchant-menu-deployment-2026-09-28.json)에 메뉴·가격·점포 제공 영업시간과 migration 0025를 배포했다. 운영 점포·직원·슬롯·mint는 0, 관리자 1명·시연 3/3/2를 보존했다. 외부 HTTPS와 미로그인 차단은 확인했지만 실제 점포 등록·메뉴 표시·Android 기기 실기는 `NOT_RUN`. 새 모바일은 구형 API의 새 필드 부재를 허용하며 잘못된 명시값은 거절한다. 이후 QR 발급 소스는 위 PR #12로 별도 병합·배포했다.
 
 - **2026-09-28 운영 직원 등록 배포:** 개인 [PR #10](https://github.com/choijunhuk/MassCOM/pull/10) merge `83357d6`의 PR/main CI PASS 뒤 [운영 API·웹](evidence/operating-staff-deployment-2026-09-28.json)에 15분 계정·점포 귀속 코드, 관리자 명시 승인·회수와 `/merchant/`를 배포했다. 운영 DB migration 0024, 관리자 1명·직원/점포/발행 0, 시연 3/3/2 보존. 외부 apex/www `/merchant/` 200·미로그인 401·Origin 없는 등록 403이며 실제 직원 승인·점포 QR 발급 화면·방문 수령은 `NOT_RUN`이다. 통합 로컬 API 116/116·PostgreSQL 73 PASS/2 SKIP·웹 28/28·Caddy 2/2는 이 외부 수락을 대신하지 않는다.
 
