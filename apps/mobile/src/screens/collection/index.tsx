@@ -172,8 +172,11 @@ export function CollectionScreen({
   // "도감에서 상자 열기" arrives with ?focus=rewards; scroll once the reward section is laid out.
   useEffect(() => {
     if (focus !== 'rewards' || rewardsY === undefined) return;
-    const frame = requestAnimationFrame(() => scrollView.current?.scrollTo({ y: Math.max(0, rewardsY - 12), animated: true }));
-    router.setParams({ focus: undefined });
+    // Clear the param inside the frame: clearing it first re-runs this effect and cancels the scroll.
+    const frame = requestAnimationFrame(() => {
+      scrollView.current?.scrollTo({ y: Math.max(0, rewardsY - 12), animated: true });
+      router.setParams({ focus: undefined });
+    });
     return () => cancelAnimationFrame(frame);
   }, [focus, rewardsY, router]);
 

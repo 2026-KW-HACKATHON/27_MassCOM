@@ -61,7 +61,7 @@ export function useBadgeBook(api: BadgeApiClient) {
     setBook((current) => current && {
       ...current,
       rewards: current.rewards.map((reward) => reward.milestone === result.coupon.milestone
-        ? { ...reward, state: 'OPENED', coupon: result.coupon }
+        ? { ...reward, state: 'OPENED', offer: null, coupon: result.coupon }
         : reward),
     });
     void refreshQuietly();

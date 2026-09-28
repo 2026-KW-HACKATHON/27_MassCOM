@@ -64,7 +64,7 @@ export function PassportHero({ book, counts, isShowcase, stackCounts, stackMain,
           accessible
           accessibilityRole="progressbar"
           accessibilityLabel="탐험 배지"
-          accessibilityValue={{ min: 0, max: maxTiers, now: earned, text: `배지 ${earned}개 중 ${maxTiers}개, ${nextLine}` }}
+          accessibilityValue={{ min: 0, max: maxTiers, now: earned, text: `배지 ${maxTiers}개 중 ${earned}개, ${nextLine}` }}
           style={styles.pipRow}
         >
           {[0, 1, 2].map((group) => {

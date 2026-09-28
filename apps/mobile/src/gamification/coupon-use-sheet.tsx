@@ -115,9 +115,10 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
       try {
         const book = await loadBadgeBook();
         if (!active) return;
-        onBadgeBook(book);
         const next = findCoupon(book, initial.couponId);
         if (next && next.status !== 'ISSUED') {
+          // Hand the book to the collection only on a change, so the screen behind does not re-render every poll.
+          onBadgeBook(book);
           setCoupon(next);
           if (next.status === 'REDEEMED') void successHaptic();
           return;
@@ -169,7 +170,7 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
                     <ClaimQr code={identity.token} size={qrSize} accessibilityLabel="직원에게 보여줄 쿠폰 사용 QR 코드" />
                     <Text style={styles.qrCodeLabel}>확인 코드</Text>
                     <Text selectable style={styles.qrCode}>{customerIdentityCode(identity.token)}</Text>
-                    <Text accessibilityLiveRegion="polite" style={styles.qrTimer}>{remainingLabel(identity.expiresAt, now)}</Text>
+                    <Text style={styles.qrTimer}>{remainingLabel(identity.expiresAt, now)}</Text>
                   </>
                 ) : identityBusy ? (
                   <View style={[styles.qrPlaceholder, { width: qrSize, height: qrSize }]}>

@@ -115,26 +115,29 @@ export function useBadgeShare(variant: ShareVariant): {
     });
     setMedal(target);
     try {
-      await loaded;
-      // Two frames so the medal ring and text are laid out before the snapshot.
-      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-      await new Promise((resolve) => setTimeout(resolve, 120));
-      if (card.current) {
-        const uri = await captureViewAsPng(card.current);
-        if (await shareImageFile(uri, '배지 공유')) return 'image';
+      try {
+        await loaded;
+        // Two frames so the medal ring and text are laid out before the snapshot.
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        if (card.current) {
+          const uri = await captureViewAsPng(card.current);
+          if (await shareImageFile(uri, '배지 공유')) return 'image';
+        }
+      } catch {
+        // Image capture or the file share sheet is unavailable on this build; share text instead.
+      } finally {
+        setMedal(undefined);
+        imageReady.current = undefined;
       }
-    } catch {
-      // Image capture or the file share sheet is unavailable on this build; share text instead.
+      try {
+        await Share.share({ message: shareMessage(target, variant) });
+        return 'text';
+      } catch {
+        return 'failed';
+      }
     } finally {
-      setMedal(undefined);
-      imageReady.current = undefined;
-    }
-    try {
-      await Share.share({ message: shareMessage(target, variant) });
-      return 'text';
-    } catch {
-      return 'failed';
-    } finally {
+      // Every outcome, including a successful image share, re-enables the share buttons.
       setSharing(false);
     }
   }, [variant]);
