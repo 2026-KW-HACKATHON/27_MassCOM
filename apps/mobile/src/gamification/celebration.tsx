@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -11,7 +11,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Ellipse, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { tierColors } from '@/theme/medal-colors';
@@ -27,6 +27,7 @@ import {
   type ShareVariant,
 } from './badge-rules';
 import { ConfettiBurst } from './confetti';
+import { FullScreenModal } from './full-screen-modal';
 import { CloseGlyph, GiftGlyph, MedalGlyph, mascotStamp } from './glyphs';
 import { successHaptic } from './native-effects';
 import { useBadgeShare } from './share-card';
@@ -52,18 +53,9 @@ const impactAt = 420;
 /** "도장 쾅!" — full-screen celebration after a confirmed visit. Static under reduced motion. */
 export function Celebration({ content, variant, onClose, onOpenCollection }: Props) {
   return (
-    <Modal
-      visible={content !== undefined}
-      animationType="fade"
-      transparent
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
-      {/* Modal is its own window: measure its insets instead of the app root's. */}
-      <SafeAreaProvider>
+    <FullScreenModal visible={content !== undefined} animationType="fade" onRequestClose={onClose}>
         {content ? <CelebrationBody content={content} variant={variant} onClose={onClose} onOpenCollection={onOpenCollection} /> : null}
-      </SafeAreaProvider>
-    </Modal>
+      </FullScreenModal>
   );
 }
 

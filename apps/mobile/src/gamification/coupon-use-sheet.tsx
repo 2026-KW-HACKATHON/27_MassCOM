@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ClaimQr } from '@/commerce/claim-qr';
 import type { CustomerIdentity } from '@/commerce/commerce-api';
@@ -12,6 +12,7 @@ import { couponExpiryLabel, couponQrSize, findCoupon, remainingLabel, type Share
 import { InkStamp } from './coupon-ticket';
 import { CloseGlyph, GiftGlyph } from './glyphs';
 import { successHaptic } from './native-effects';
+import { FullScreenModal } from './full-screen-modal';
 import { useGamificationTheme } from './theme';
 
 type Props = {
@@ -33,11 +34,9 @@ const pollMs = 3_000;
  */
 export function CouponUseSheet(props: Props) {
   return (
-    <Modal visible={props.coupon !== undefined} transparent animationType="slide" statusBarTranslucent onRequestClose={props.onClose}>
-      <SafeAreaProvider>
+    <FullScreenModal visible={props.coupon !== undefined} animationType="slide" onRequestClose={props.onClose}>
         {props.coupon ? <SheetBody {...props} coupon={props.coupon} /> : null}
-      </SafeAreaProvider>
-    </Modal>
+      </FullScreenModal>
   );
 }
 

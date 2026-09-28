@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Modal, Pressable, ScrollView, Text, View } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AccessibilityInfo, Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -16,6 +16,7 @@ import { rewardBoxName } from './badge-rules';
 import { CouponTicket } from './coupon-ticket';
 import { SparkleGlyph } from './glyphs';
 import { successHaptic } from './native-effects';
+import { FullScreenModal } from './full-screen-modal';
 import { useGamificationTheme } from './theme';
 
 /** The coupon that came out of a box, sliding up out of a burst of sparkles. */
@@ -25,11 +26,9 @@ export function RewardReveal({ result, onClose, onUse }: {
   onUse: (coupon: Coupon) => void;
 }) {
   return (
-    <Modal visible={result !== undefined} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-      <SafeAreaProvider>
+    <FullScreenModal visible={result !== undefined} animationType="fade" onRequestClose={onClose}>
         {result ? <RevealBody result={result} onClose={onClose} onUse={onUse} /> : null}
-      </SafeAreaProvider>
-    </Modal>
+      </FullScreenModal>
   );
 }
 

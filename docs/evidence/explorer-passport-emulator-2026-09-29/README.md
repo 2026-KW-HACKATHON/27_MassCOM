@@ -1,6 +1,6 @@
-# 탐험 여권 · Android 에뮬레이터 로컬 실측 (Issue #216)
+# 탐험 여권 · Android 에뮬레이터·실제 휴대전화 로컬 실측 (Issue #216)
 
-2026-09-29 KST, 이 Mac의 Android 에뮬레이터 `MassCOM_Design_QA`(720×1280, 360dp)에 새 네이티브 모듈(`expo-haptics`·`expo-sharing`·`react-native-view-shot`)을 포함해 다시 빌드한 개발 앱 `kr.masscom.wolgye.dev`로 확인했습니다. API는 같은 브랜치 코드를 `127.0.0.1:3000`에서 개발 DEMO 계정 헤더로 실행했고, DB는 일회용 Docker PostgreSQL 16.10의 `masscom_showcase_test`(시연 seed: 가상 점포 A·B·C와 체험 혜택 3건)입니다. 운영·시연 공개 API/DB, 실제 점포, 실제 휴대전화에는 요청하지 않았습니다.
+2026-09-29 KST, 이 Mac의 Android 에뮬레이터 `MassCOM_Design_QA`(720×1280, 360dp)에 새 네이티브 모듈(`expo-haptics`·`expo-sharing`·`react-native-view-shot`)을 포함해 다시 빌드한 개발 앱 `kr.masscom.wolgye.dev`로 확인했습니다. API는 같은 브랜치 코드를 `127.0.0.1:3000`에서 개발 DEMO 계정 헤더로 실행했고, DB는 일회용 Docker PostgreSQL 16.10의 `masscom_showcase_test`(시연 seed: 가상 점포 A·B·C와 체험 혜택 3건)입니다. 운영·시연 공개 API/DB와 실제 점포에는 요청하지 않았습니다.
 
 | 단계 | 상태 | 확인 내용 | 화면 |
 | --- | --- | --- | --- |
@@ -16,6 +16,19 @@
 | 글자 200% | PASS | 메달·상자·요약이 세로로 쌓이고 잘림 없음 | [11](11-font-200-strip.png) |
 | 운영 웹 도감 | PASS | 같은 로컬 API를 대리한 `apps/production-web`에서 메달 3종·상자 상태·사용한 쿠폰을 글자로 표시 | — |
 | 시연 점원 화면(`.demo` STAFF) 쿠폰 카드 | NOT_RUN | 시연 전용 OAuth 빌드가 필요해 단위 시험만 수행 | — |
-| 실제 휴대전화·TalkBack 낭독·실제 점포 쿠폰·공개 서버 배포 | NOT_RUN | 이번 실측 범위 밖 | — |
+| TalkBack 낭독·실제 점포 쿠폰·공개 서버 배포 | NOT_RUN | 이번 실측 범위 밖(휴대전화 접근성 설정은 바꾸지 않음) | — |
 
-검수 중 발견해 같은 브랜치에서 고친 결함: 점포가 있으면 개발 빌드 도감 탭이 `Link asChild` 스타일 배열로 렌더 오류(기존 main에도 존재), 축하 모달이 하단 탭을 덮지 못함(`navigationBarTranslucent` 제거), 공유 카드 투명 영역이 검은 띠로 캡처됨, 좁은 화면의 메달·상자 글자 줄바꿈, 사용 완료 도장의 글자 가림.
+검수 중 발견해 같은 브랜치에서 고친 결함: 점포가 있으면 개발 빌드 도감 탭이 `Link asChild` 스타일 배열로 렌더 오류(기존 main에도 존재), 축하 모달이 하단 탭을 덮지 못함(아래 공용 `FullScreenModal`로 최종 수정), 공유 카드 투명 영역이 검은 띠로 캡처됨, 좁은 화면의 메달·상자 글자 줄바꿈, 사용 완료 도장의 글자 가림.
+
+## 실제 휴대전화 (Samsung SM-S928N, 3버튼 내비게이션)
+
+같은 개발 APK를 USB로 설치하고 `adb reverse`로 같은 로컬 API에 연결했습니다. 화면의 상단 상태 표시줄은 개인 알림이 보이지 않게 잘랐습니다.
+
+| 단계 | 상태 | 확인 내용 | 화면 |
+| --- | --- | --- | --- |
+| 여권·메달 | PASS | 라이트 모드 여권·잠긴 메달 | [phone-01](phone-01-passport.png) |
+| 방문 축하 | PASS | 도장 낙하·새 등급 칩, 모달이 하단 탭까지 덮음 | [phone-02](phone-02-celebration.png) |
+| 상자→쿠폰→사용 QR→점원 처리 | PASS | 쿠폰 공개, 사용 QR 시트, 3초 확인 뒤 "사용 완료!" | [phone-03](phone-03-coupon-reveal.png) · [phone-04](phone-04-coupon-redeemed.png) |
+| 이미지 공유 | PASS | 실제 공유창에 이미지 1개 미리보기, 공유창을 닫은 뒤 버튼 복구. 받는 사람 목록이 보이는 화면은 개인정보라 저장하지 않았고 아무에게도 보내지 않음 | — |
+
+실폰에서 새로 찾아 고친 결함: 3버튼 내비게이션에서 전체 화면 모달의 루트 높이가 상태 표시줄만큼 짧아 하단 탭이 비치던 문제 → 공용 `FullScreenModal`이 실제 화면 높이로 고정(에뮬레이터 제스처 내비에서도 재확인).

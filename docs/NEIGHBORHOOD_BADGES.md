@@ -54,4 +54,4 @@ VALUES
 
 ## 검증
 
-모바일 276/276·API 단위 133/133·PostgreSQL 89 PASS/2 SKIP·운영 웹 66/66 PASS, 운영/시연 Android export·자산 분리·개인정보 검사 PASS. [Android 에뮬레이터 로컬 실측](evidence/explorer-passport-emulator-2026-09-29/README.md)에서 방문→축하→상자→쿠폰→점원 사용 처리와 이미지 공유를 확인했다. 실제 휴대전화·TalkBack 낭독·실제 점포 쿠폰·서버 배포는 NOT_RUN이다.
+모바일 276/276·API 단위 133/133·PostgreSQL 89 PASS/2 SKIP·운영 웹 66/66 PASS, 운영/시연 Android export·자산 분리·개인정보 검사 PASS. [Android 에뮬레이터와 Samsung SM-S928N 로컬 실측](evidence/explorer-passport-emulator-2026-09-29/README.md)에서 방문→축하→상자→쿠폰→점원 사용 처리와 이미지 공유를 확인했다. TalkBack 낭독·실제 점포 쿠폰·서버 배포는 NOT_RUN이다.

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { tierColors } from '@/theme/medal-colors';
 
@@ -18,16 +18,15 @@ import { CheckGlyph, CloseGlyph } from './glyphs';
 import { TierChip } from './medal-shelf';
 import { Medallion, medallionSizes } from './medallion';
 import { useBadgeShare } from './share-card';
+import { FullScreenModal } from './full-screen-modal';
 import { useGamificationTheme } from './theme';
 
 /** Medal detail sheet: big medal, tier table, progress, and "이미지로 공유" once a tier is earned. */
 export function MedalDetail({ medal, variant, onClose }: { medal: Medal | undefined; variant: ShareVariant; onClose: () => void }) {
   return (
-    <Modal visible={medal !== undefined} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      <SafeAreaProvider>
+    <FullScreenModal visible={medal !== undefined} animationType="slide" onRequestClose={onClose}>
         {medal ? <DetailBody medal={medal} variant={variant} onClose={onClose} /> : null}
-      </SafeAreaProvider>
-    </Modal>
+      </FullScreenModal>
   );
 }
 
