@@ -15,6 +15,50 @@ const testUrl = process.env.TEST_DATABASE_URL;
 const safeTestTarget = testUrl && decodeURIComponent(new URL(testUrl).pathname.slice(1)).endsWith('_test');
 const hmacSecret = 'admin-test-account-deletion-hmac-secret-32-bytes';
 
+test('operator grant and revoke create role audit in the same transaction', {
+  skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
+}, async () => {
+  const pool = new Pool({ connectionString: testUrl });
+  const subject = `admin-${randomUUID()}`;
+  const accountId = `acct_${randomUUID()}`;
+  const admin = new PostgresAdminService(pool, hmacSecret);
+  try {
+    await runMigrations(pool);
+    await pool.query(`INSERT INTO auth_identities(provider, subject, account_id, created_at)
+      VALUES ('google', $1, $2, now())`, [subject, accountId]);
+    await pool.query(`CREATE FUNCTION admin_role_audit_fail_test() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'forced role audit failure'; END $$`);
+    await pool.query(`CREATE TRIGGER admin_role_audit_fail_test BEFORE INSERT ON platform_admin_role_audit
+      FOR EACH ROW EXECUTE FUNCTION admin_role_audit_fail_test()`);
+    try {
+      await assert.rejects(admin.grant(subject), /forced role audit failure/);
+      assert.equal((await pool.query('SELECT 1 FROM platform_admins WHERE account_id = $1', [accountId])).rowCount, 0);
+    } finally {
+      await pool.query('DROP TRIGGER admin_role_audit_fail_test ON platform_admin_role_audit');
+      await pool.query('DROP FUNCTION admin_role_audit_fail_test()');
+    }
+    await admin.grant(subject);
+    await pool.query(`CREATE FUNCTION admin_role_audit_fail_test() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION 'forced role audit failure'; END $$`);
+    await pool.query(`CREATE TRIGGER admin_role_audit_fail_test BEFORE INSERT ON platform_admin_role_audit
+      FOR EACH ROW WHEN (NEW.action = 'REVOKE') EXECUTE FUNCTION admin_role_audit_fail_test()`);
+    try {
+      await assert.rejects(admin.revoke(subject), /forced role audit failure/);
+      assert.equal(await admin.isAdmin(accountId), true);
+    } finally {
+      await pool.query('DROP TRIGGER admin_role_audit_fail_test ON platform_admin_role_audit');
+      await pool.query('DROP FUNCTION admin_role_audit_fail_test()');
+    }
+    await admin.revoke(subject);
+    const audit = await pool.query(
+      'SELECT action, db_user FROM platform_admin_role_audit WHERE target_account_id = $1 ORDER BY created_at, id',
+      [accountId],
+    );
+    assert.deepEqual(audit.rows.map(row => row.action), ['GRANT', 'REVOKE']);
+    assert.ok(audit.rows.every(row => typeof row.db_user === 'string' && row.db_user.length > 0));
+  } finally { await pool.end(); }
+});
+
 test('pending QR blocks hide until redeemed, then hide pauses campaign and prevents new QR', {
   skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
 }, async () => {
@@ -235,6 +279,9 @@ test('account deletion removes admin grant and pseudonymizes the audit actor', {
     assert.equal(role.rowCount, 0);
     const actor = await pool.query('SELECT actor_account_id FROM platform_admin_audit WHERE merchant_id = $1', [created.id]);
     assert.match(actor.rows[0]?.actor_account_id, /^deleted:[0-9a-f]{64}$/);
+    const roleAudit = await pool.query('SELECT target_account_id FROM platform_admin_role_audit WHERE target_account_id LIKE $1',
+      ['deleted:%']);
+    assert.ok(roleAudit.rows.some(row => row.target_account_id === actor.rows[0]?.actor_account_id));
     await assert.rejects(service.grant(subject), /ADMIN_IDENTITY_NOT_FOUND/);
   } finally { await pool.end(); }
 });

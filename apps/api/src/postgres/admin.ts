@@ -182,6 +182,13 @@ export class PostgresAdminService {
     );
   }
 
+  private async auditRole(client: PoolClient, accountId: string, action: 'GRANT' | 'REVOKE'): Promise<void> {
+    await client.query(
+      `INSERT INTO platform_admin_role_audit(id, target_account_id, action)
+       VALUES ($1, $2, $3)`, [randomUUID(), accountId, action],
+    );
+  }
+
   async grant(subject: string): Promise<void> {
     if (!subject.trim()) throw new AdminError('ADMIN_IDENTITY_NOT_FOUND');
     await this.transaction(async client => {
@@ -200,6 +207,7 @@ export class PostgresAdminService {
         `INSERT INTO platform_admins(account_id) VALUES ($1)
          ON CONFLICT (account_id) DO UPDATE SET granted_at = now(), revoked_at = NULL`, [accountId],
       );
+      await this.auditRole(client, accountId, 'GRANT');
     });
   }
 
@@ -211,7 +219,11 @@ export class PostgresAdminService {
       const accountId = identity.rows[0]?.account_id;
       if (!accountId) throw new AdminError('ADMIN_IDENTITY_NOT_FOUND');
       await this.lifecycle.assertActive(client, accountId);
-      await client.query(`UPDATE platform_admins SET revoked_at = now() WHERE account_id = $1`, [accountId]);
+      const revoked = await client.query(
+        `UPDATE platform_admins SET revoked_at = now()
+         WHERE account_id = $1 AND revoked_at IS NULL`, [accountId],
+      );
+      if (revoked.rowCount) await this.auditRole(client, accountId, 'REVOKE');
     });
   }
 }
