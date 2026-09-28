@@ -2,8 +2,15 @@
 
 마지막 갱신 시각: 2026-09-29 KST
 
-## 2026-09-28~29 개인 비공개 저장소의 최신 작업
+## 2026-09-29 조직 저장소 복귀
 
+- 조직 저장소가 `PUBLIC`·활성으로 재개됐고 [PR #207~#210](PUBLIC_SYNC.md)의 PR/main CI 통과와 병합을 확인했다. 개인 PR의 원래 커밋·작성 이력을 유지한 채 기능 묶음으로 옮겼으며, [공개 시연 Preview 5](evidence/showcase-preview5-public-release-2026-09-29.json)는 개인 비공개 자산과 SHA-256이 같다. 이 문서 동기화 PR·공개 `/open` 배포·Preview 5 휴대전화 설치는 별도 상태다.
+- [원래 개인 PR과 조직 PR 대응](PUBLIC_SYNC.md), [Android 설치본](ANDROID_DOWNLOADS.md), [남은 차단 항목](BLOCKERS.md)을 재개 기준으로 사용한다. `feat/merchant-claim-status`의 응답 유실 조정은 별도 로컬 작업이며 이번 이력 통합에 포함하지 않는다.
+
+## 2026-09-28~29 개인 비공개 저장소의 당시 작업
+
+- **시연 Preview 5 GitHub Release:** `main` 소스 `88932cb`에서 [시연 전용 APK](https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.5)와 AAB를 빌드했다. [증거](evidence/showcase-preview5-release-2026-09-29.json): 전용 package·Keychain 서명·source marker·지갑 표면 PASS, APK 154132481바이트의 SHA-256 `bc8c5bd6e0cd1ac0ae6a53db806dbad70714169f9c5573483c01386173ed19e0`이 GitHub 자산 digest와 일치한다. 개인 저장소는 `PRIVATE`이고 내부 versionName/code는 `0.1.0-test.2`/`2`; 실제 휴대전화 설치·새 2분 고객 QR·두 기기 수령은 `NOT_RUN`이다. 기존 Preview 4와 운영 test.3은 대체/삭제하지 않았다.
+- **운영 캠페인 초안 배포:** 개인 [Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 [PR #15](https://github.com/choijunhuk/MassCOM/pull/15) merge `fd0a9b2`를 PR/main CI PASS 뒤 [기존 Lightsail API·웹](evidence/operating-campaign-draft-deployment-2026-09-29.json)에 배포했다. migration 0026은 관리자 감사 작업 허용값만 확장하고 DRAFT 캠페인의 기간·정원·목표 1·3·5·감사를 한 거래로 저장한다. API 122/122·웹 47/47·별도 `_test` PostgreSQL 관리자 12/12 PASS, mode 600 백업 목록, 운영/시연 API health·주요 www 200, 미로그인 목록 401·Origin 없는 생성 403. 지정 관리자 계정에는 '저장된 비공개 초안이 없습니다'가 표시되고 점포 0곳이라 입력 폼은 숨김. 운영 점포·캠페인·mint 0, 시연 3/3/2 유지. **실제 점포 초안 입력·공개·정원 적용은 `NOT_RUN`**이며 D-023 정책은 미정이다.
 - **운영 재발급 배포:** 개인 [Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 [PR #13](https://github.com/choijunhuk/MassCOM/pull/13) merge `c02da0f`를 PR/main CI PASS 뒤 [기존 Lightsail API·웹](evidence/operating-merchant-reissue-deployment-2026-09-28.json)에 배포했다. 첫 발급 응답 손실 시 재생 응답의 슬롯 버전을 이용해 기존 코드를 명시적으로 폐기하고 새 QR을 발급하는 화면이며, 응답 불명 상태는 성공으로 꾸미거나 자동 반복하지 않는다. mode 600 백업 목록 PASS, migration 25건 불변, 두 API health·주요 www 페이지 200, 미로그인 재발급 401·Origin 없는 요청 403, 운영 관리자 1명/점포·직원·슬롯·mint 0과 시연 3/3/2 유지. 지정 계정의 `/admin/` 로그인 화면은 재배포 후에도 정상이다. 실제 직원·고객의 재발급 및 두 휴대전화 수령은 `NOT_RUN`, 재발급 응답 자체가 유실된 뒤 서버 상태 조정은 후속이다.
 - **운영 현황 조회 배포:** 개인 [Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 [PR #14](https://github.com/choijunhuk/MassCOM/pull/14) merge `88932cb`를 PR/main CI PASS 뒤 [기존 Lightsail API·웹](evidence/operating-admin-status-deployment-2026-09-29.json)에 배포했다. 최대 100개 실제 점포의 QR·방문·보상·NFT 작업·오류 코드 수만 반환하고 고객 ID·지갑 주소·QR/주문 원문은 제외한다. 별도 `_test` PostgreSQL 11/11과 리뷰 MEDIUM 2건 수리, 작은 DB EXPLAIN 약 1.847ms는 PASS이나 대량 부하는 미측정. mode 600 백업 목록, API·웹 건강, 미로그인 현황 401, 관리자 주 Google 계정의 빈 점포 현황 화면 PASS; 운영 점포·직원·슬롯·mint 0, 시연 3/3/2 유지. 실제 운영 점포 수치 화면은 `NOT_RUN`이다.
 - **비공개 캠페인 초안 소스:** `feat/admin-campaign-drafts`는 기존 DRAFT DB 상태와 관리자 감사를 써서 실제 점포의 기간·정원·목표 1·3·5를 저장·조회한다. 공개·참여·보상·NFT 작업은 시작하지 않으며 D-023 미확정 수령 규칙을 적용하지 않는다. API 122/122·운영 웹 47/47·별도 `_test` PostgreSQL 관리자 12/12·타입/build/gate PASS; 첫 fixture 필수 점포 상태 누락을 수정했다. 시험 DB는 제거했고 운영 점포·캠페인·mint는 0이다. PR·배포·실계정 초안 입력은 `NOT_RUN`.

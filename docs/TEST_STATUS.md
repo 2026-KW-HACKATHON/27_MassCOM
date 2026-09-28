@@ -1,5 +1,9 @@
 # 테스트 상태
 
+2026-09-29 [시연 Preview 5 GitHub Release](evidence/showcase-preview5-release-2026-09-29.json): `88932cb` 소스의 Gradle release APK/AAB BUILD SUCCESSFUL, 시연 package·전용 서명·source marker·지갑 표면 PASS. 로컬 APK 154132481바이트 SHA-256 `bc8c5bd6e0cd1ac0ae6a53db806dbad70714169f9c5573483c01386173ed19e0`과 원격 GitHub 자산 digest·태그 커밋이 일치한다. `adb devices -l`은 비어 있어 실기 설치·업데이트·카메라 QR·두 휴대전화 수령은 `NOT_RUN`. 이 빌드·업로드 결과로 필수 36개 제품 시험 ID를 자동 상향하지 않는다.
+
+2026-09-29 [운영 캠페인 초안 배포](evidence/operating-campaign-draft-deployment-2026-09-29.json): 개인 PR #15 PR/main CI PASS, 소스 API 122/122·운영 웹 47/47·별도 `_test` PostgreSQL 관리자 12/12·타입/build/gate PASS. 기존 Lightsail API·웹 `fd0a9b2`, migration 26건, mode 600 백업 archive 목록 PASS. 운영/시연 API health·www 핵심 경로 200, 미로그인 초안 401·Origin 없는 생성 403, 지정 관리자 계정의 비공개 빈 상태 화면 PASS. 운영 점포·캠페인·mint 0, 시연 3/3/2 유지. 실제 점포 초안 생성과 공개·정원 정책·방문 보상은 `NOT_RUN`.
+
 2026-09-28 [운영 재발급 배포](evidence/operating-merchant-reissue-deployment-2026-09-28.json): 개인 PR #13 PR/main CI PASS, 소스 API 120/120·운영 웹 43/43·타입/build/gate PASS. 기존 Lightsail API·웹 `c02da0f` 건강, migration 25건 불변, mode 600 백업 archive 목록 PASS. 운영/시연 API health·www 핵심 경로 200, 미로그인 재발급 401·Origin 없는 재발급 403, 운영 점포·직원·슬롯·mint 0과 시연 3/3/2 유지, 지정 주 Google 계정 관리자 화면 재로드 PASS. 실제 직원의 구코드 폐기·새 QR과 두 휴대전화 수령, 재발급 응답 유실 후 서버 상태 조정은 `NOT_RUN`; 필수 36개 제품 시험 ID를 자동 상향하지 않는다.
 
 2026-09-29 [운영 현황 배포](evidence/operating-admin-status-deployment-2026-09-29.json): 개인 PR #14 PR/main CI PASS 후 기존 API·웹 `88932cb` 건강, mode 600 DB 백업 custom archive 목록 PASS, migration 25건 불변. 운영/시연 API와 www 주요 화면 200, 미로그인 현황 401, 지정 관리자 주 Google 계정의 ‘운영 현황·집계할 실제 점포가 없습니다’ 실제 브라우저 PASS. 운영 점포·직원·슬롯·mint 0과 시연 3/3/2 불변. 로컬 API 121/121·웹 45/45·별도 `_test` PostgreSQL 관리자 11/11, 리뷰 MEDIUM 2건 RED→GREEN과 작은 DB EXPLAIN 약 1.847ms PASS. 대량 부하·실제 점포 수치 화면은 `NOT_RUN`; 필수 36개 제품 시험 ID를 자동 상향하지 않는다.
