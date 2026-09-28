@@ -359,6 +359,30 @@ test('로그아웃 실패를 성공으로 표시하지 않고 계정 전환 재�
   assert.match(nodes['admin-status'].textContent, /다시 시도/);
 });
 
+test('로그아웃 응답 대기 중 다시 읽은 관리자 목록도 성공 뒤 지운다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+  const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+  let finishLogout;
+  const logoutResponse = new Promise(resolve => { finishLogout = resolve; });
+  const fetcher = async path => {
+    if (path === '/api/web/logout') return logoutResponse;
+    return { ok: true, json: async () => path.endsWith('/me') ? { admin: true } : {
+      merchants: [{ id: 'real-logout-race', name: '이전 계정 점포', story: '', roadAddress: '서울',
+        minimumSpendWon: 0, status: 'PAUSED', demo: false, version: 1 }],
+    } };
+  };
+  await bindAdmin(fetcher, doc);
+  const logout = nodes['admin-logout'].click();
+  await loadAdmin(fetcher, doc);
+  assert.equal(nodes['admin-merchants'].children.length, 1);
+  finishLogout({ ok: true });
+  await logout;
+  assert.equal(nodes['admin-content'].hidden, true);
+  assert.equal(nodes['admin-merchants'].children.length, 0);
+  assert.equal(nodes['admin-login'].hidden, false);
+});
+
 test('미수령 QR 때문에 숨김이 거부되면 수령 또는 만료 후 재시도를 안내한다', async () => {
   const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
     'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));

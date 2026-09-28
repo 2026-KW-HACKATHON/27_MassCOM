@@ -46,7 +46,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-28 | Codex 구현·독립 코드 리뷰 | 도감 다음 보상 목표(Issue #205) | 현재 캠페인 인정 방문·앱 수집품 기준의 남은 방문 안내, 정원/종료/오류 상태와 점포 상세 이동 | 계산 시험 RED→GREEN, 모바일 230/230·타입·린트·Android export PASS; 새 설치본 화면·TalkBack NOT_RUN | AI 화면·테스트를 사람 수작업이나 실제 방문 성과로 표시하지 않음. 가상 A/B/C는 시연 환경에만 남김 |
 | 2026-09-28 | Codex | 개인 저장소 첫 이용·QR·도감 통합(Issue #1) | 이전 기능 브랜치와 시연 실기 문서 충돌 해소, Google Play 목표 유지 결정, 결합 시험 | API 109/109·모바일 239/239·PostgreSQL 52 PASS/2 SKIP·타입·린트·build/export·문서 검사 PASS; 개인 PR/새 APK 실기 NOT_RUN | AI 병합·시험을 사람의 구현·현장 검증으로 표시하지 않음. 운영 데이터·키·메인넷·Play 제출은 미변경 |
 | 2026-09-28 | Codex + 독립 코드 검토 | 개인 PR #2 병합과 시연 Preview 4·API 배포 | 낡은 README assertion 회귀 수정, GitHub CI/병합, 기존 시연 키로 APK 빌드·비공개 Release, 시연 DB 백업·migration 0019·시연 API만 교체 | 수정 후 PR/main CI PASS, APK 서명/원격 digest·시연 API HTTPS·운영 컨테이너/DB 불변 [검증](evidence/showcase-customer-qr-deployment-2026-09-28.json); 새 APK 휴대전화 QR 실기 NOT_RUN | AI 빌드·서버 조작을 팀원 수작업·실제 점주 실적으로 표시하지 않음. 사용자 자격증명·운영 키·메인넷·Play 제출 미변경 |
-| 2026-09-28 | Codex 구현·독립 보안 검토 | 운영 관리자 기반(Issue #3) | 기존 운영 Google 웹 세션의 독립 관리자 권한·grant/revoke 감사 거래, 미수령 QR 보호, 실제 점포 비공개 생성·수정·숨김, `/admin/` 계정 전환·빈 상태와 Caddy 경계 | API 112/112·PostgreSQL 60 PASS/2 SKIP·웹 22/22·Caddy 2/2·타입/build/gate PASS, 최초 독립 검토 HIGH/MEDIUM 발견 없음. 후속 QR/hide 경계 수리 후 최종 재검토는 별도 | 운영 권한 부여·실제 HTTPS·브라우저 수락, 직원/캠페인/그림 관리는 미실행/후속이며 AI 구현을 팀원 기여로 표시하지 않음 |
+| 2026-09-28 | Codex 구현·독립 보안 검토 | 운영 관리자 기반(Issue #3) | 기존 운영 Google 웹 세션의 독립 관리자 권한·grant/revoke 감사 거래, 미수령 QR 보호, 실제 점포 비공개 생성·수정·숨김, `/admin/` 계정 전환·빈 상태와 Caddy 경계 | API 112/112·PostgreSQL 60 PASS/2 SKIP·웹 23/23·Caddy 2/2·타입/build/gate PASS. 독립 검토에서 로그아웃 중 이전 목록 재노출 MEDIUM을 재현해 RED→GREEN으로 수정·재검사 | 운영 권한 부여·실제 HTTPS·브라우저 수락, 직원/캠페인/그림 관리는 미실행/후속이며 AI 구현을 팀원 기여로 표시하지 않음 |
 
 ## 팀 설명 체크리스트
 

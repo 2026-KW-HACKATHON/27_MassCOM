@@ -163,6 +163,7 @@ export function bindAdmin(fetcher, doc) {
         method: 'POST', credentials: 'same-origin', cache: 'no-store',
       });
       if (!response.ok) throw new Error('logout failed');
+      clear();
       logout.hidden = true;
       login.textContent = '다른 Google 계정으로 로그인';
       login.hidden = false;
