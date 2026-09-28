@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- **2026-09-28 삭제 요청 접수 소스:** 개인 [Issue #6](https://github.com/choijunhuk/MassCOM/issues/6)의 `feat/account-deletion-request-web`은 운영 Google 웹 세션에 대상 계정을 묶어 중복 없이 **삭제 의사만** 접수한다. 고정 OAuth 복귀·Caddy 경로·안내 화면과 늦은 migration 0018/0023을 구현했고 PostgreSQL 16 upgrade 회귀를 포함해 62 PASS/2 호스트 전용 SKIP이다. 개인 main 통합·공개 HTTPS·실계정 접수와 실제 삭제·결과 통지는 `NOT_RUN/BLOCKED`; 기존 5분 재인증 정책은 유지한다. 시연 DB 계정을 운영 접수로 처리하지 않는다.
+
 - **2026-09-28 운영 관리자 첫 구간 소스:** 개인 [Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 `feat/admin-foundation`은 기존 Google 웹 세션과 독립 서버 관리자 권한, 감사 거래, 실제 점포 비공개 생성·수정·숨김, 별도 `/admin/` 화면과 계정 전환을 구현했다. 독립 보안 검토에서 확인된 HIGH/MEDIUM 결함은 없었지만 실제 권한 부여·운영 배포·브라우저 수락은 `NOT_RUN`; 직원·캠페인·자산·상태 관리는 후속 범위다. 시연 STAFF 자격을 운영 관리자 권한으로 재사용하지 않는다.
 
 - **2026-09-28 개인 main·시연 Preview 4:** [PR #2](https://github.com/choijunhuk/MassCOM/pull/2) merge `6585614`, PR CI `36370159651`·main CI `36370675407` PASS. [시연 APK](https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.4)의 source/package/서명/원격 digest와 같은 커밋의 [시연 API 이미지·migration 0019·외부 HTTPS](evidence/showcase-customer-qr-deployment-2026-09-28.json)를 확인했다. 기존 시연 데이터 3점포/3방문/2보상권, 운영 가상 점포 0건을 보존했다. 새 APK의 실제 휴대전화 설치·2분 고객 식별 QR 전체 흐름은 `NOT_RUN`; 구 Preview 3 STAFF 발급은 새 API에 맞지 않는다. 운영 관리자 [개인 Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)는 구현 중이며 운영 권한 부여·웹 배포를 완료로 표시하지 않는다.
