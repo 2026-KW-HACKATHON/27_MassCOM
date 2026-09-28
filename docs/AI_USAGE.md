@@ -53,6 +53,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-28 | Codex 구현·독립 보안 검토 | 삭제 재인증·민팅 최종성 경계(Issue #6) | Google 서명 `auth_time` 원시각 저장, 운영 삭제 거래의 잠긴 세션 행과 최신 시각 재확인, 임대 만료 비종결 mint 대기 유지 | API 114/114·PostgreSQL 67 PASS/2 SKIP·타입/build/gate PASS. 독립 검토 HIGH 잠금 대기 TOCTOU 재현 후 RED→GREEN 수리·재검토 CLEAR | Google 실계정의 최근 `auth_time` 제공 여부, 삭제 후 결과 통지/자동 재정산, 운영 배포는 미검증이며 AI를 사람 본인 확인으로 표시하지 않음 |
 | 2026-09-28 | Codex | 운영 삭제 의사 접수·재인증 보안 배포(Issue #6) | PR #8·#9 병합 뒤 기존 Lightsail API·웹·Caddy와 migration 0018/0023 적용, 웹 미로그인·Origin 거절·DB 분리 실증 | [운영 근거](evidence/operating-deletion-intake-deployment-2026-09-28.json): PR/main CI PASS, HTTPS 안내 200·미로그인 401·Origin 없음 403, 백업 archive 목록 PASS, 운영 접수 0·관리자 1·시연 점포 3 유지 | 실제 Google 계정 접수·삭제/결과 통지는 미검증이며 AI가 고객 본인 확인이나 Play 정책 완료를 수행했다고 표시하지 않음 |
 | 2026-09-28 | Codex | 운영 직원 등록 API·웹 배포(Issue #3) | PR #10 병합 뒤 기존 Lightsail API·웹·Caddy와 migration 0024 적용, `/merchant/` 계정 선택·권한 경계 확인 | [운영 근거](evidence/operating-staff-deployment-2026-09-28.json): PR/main CI PASS, apex/www 직원 웹 200·미로그인 401·Origin 없는 등록 403, DB 백업 목록 PASS, 운영 직원/점포 0·시연 점포 3 유지 | 실제 직원 승인·QR 방문 수령/현장 검증은 미실행이고 AI 배포를 점주 수작업이나 영업 성과로 표시하지 않음 |
+| 2026-09-28 | Codex 구현·독립 리뷰 수리 | 운영 점포 메뉴·영업시간(Issue #3) | 기존 관리자 잠금·감사 경계에 실제 점포 콘텐츠 필드를 더하고 운영 웹·고객 Android 상세로 전달, 구형 API 응답 호환성을 RED→GREEN 수리 | [운영 배포](evidence/operating-merchant-menu-deployment-2026-09-28.json): PR/main CI PASS, API 117/117·PostgreSQL 75 PASS/2 SKIP·웹 31/31·모바일 242/242·외부 HTTPS health PASS | 실제 점주 메뉴 확인·운영 점포 등록·Android 설치 화면은 미실행; AI 입력을 사람 점주 협약이나 현장 이용 실적으로 표시하지 않음 |
 
 ## 팀 설명 체크리스트
 

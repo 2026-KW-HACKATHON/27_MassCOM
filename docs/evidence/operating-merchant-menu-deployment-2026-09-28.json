@@ -1,0 +1,41 @@
+{
+  "observedAt": "2026-09-28T07:26:58Z",
+  "sourceCommit": "8a8ba789f0083399f084f04f5c036df41cbdb0e0",
+  "repositoryVisibility": "PRIVATE",
+  "pullRequest": "https://github.com/choijunhuk/MassCOM/pull/11",
+  "pullRequestCi": { "runId": 36389488495, "result": "PASS" },
+  "mainCi": { "runId": 36390278846, "result": "PASS" },
+  "operatingRuntime": {
+    "apiImage": "masscom-api:8a8ba789f008",
+    "webImage": "masscom-production-web:8a8ba789f008",
+    "health": "PASS: both healthy",
+    "databaseMigration": "PASS: 25 schema_migrations; newest 0025_merchant_menu_hours.sql",
+    "backup": "PASS: /opt/masscom/backups/database-before-8a8ba789f008.dump.1MKhy9, 87281 bytes, mode 600, custom-format pg_restore --list readable; actual restore NOT_RUN",
+    "activePlatformAdmins": 1,
+    "operatingMerchants": 0,
+    "operatingMerchantMembers": 0,
+    "operatingClaimSlots": 0,
+    "operatingMintJobs": 0,
+    "showcaseMerchantsVisitsEntitlements": [3, 3, 2],
+    "showcaseApiImage": "masscom-showcase-api:6585614",
+    "postgresAndShowcase": "PASS: operating/showcase PostgreSQL and showcase API remained healthy"
+  },
+  "externalHttps": {
+    "wwwHome": 200,
+    "wwwAdmin": 200,
+    "wwwMerchant": 200,
+    "wwwDeletion": 200,
+    "operatingApiHealth": 200,
+    "showcaseApiHealth": 200,
+    "unauthenticatedAdminMe": 401,
+    "unauthenticatedMerchantMe": 401
+  },
+  "notRun": [
+    "authenticated administrator entry of actual merchant menus and hours",
+    "public campaign activation and live merchant detail with real content",
+    "new Android build installation and physical display acceptance",
+    "separate database restore drill and rollback execution",
+    "Google Play submission"
+  ],
+  "recovery": "Previous API/web images and the mode-600 DB backup are retained. Code rollback does not automatically remove additive migration 0025 or undo later merchant edits."
+}

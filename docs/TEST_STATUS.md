@@ -1,5 +1,7 @@
 # 테스트 상태
 
+2026-09-28 [운영 점포 메뉴·영업시간 배포](evidence/operating-merchant-menu-deployment-2026-09-28.json): 개인 PR #11 PR/main CI PASS, 소스 API 117/117·PostgreSQL 75 PASS/2 SKIP·웹 31/31·모바일 242/242·타입/lint/Android export/빠른 게이트 PASS, 독립 호환성 재검토 CLEAR. 기존 Lightsail API·웹 `8a8ba78`, migration 25건, mode 600 DB 백업 archive 목록 PASS. 외부 운영/시연 API health 200, www 홈·관리자·직원·삭제 안내 200, 미로그인 관리/직원 401, 공개 점포 목록은 빈 배열. 운영 관리자 1명·점포/직원/슬롯/mint 0, 시연 3/3/2 유지. 실제 점포 정보 입력·공개 캠페인·최신 Android 설치본/현장 검증·백업 복원 실행은 `NOT_RUN`; 기존 36개 제품 시험 ID 상태는 자동 상향하지 않는다.
+
 2026-09-28 [운영 직원 등록 배포](evidence/operating-staff-deployment-2026-09-28.json): 개인 PR #10 PR/main CI PASS 후 API·웹 `83357d6` 배포. mode 600 DB 백업 custom archive 목록 PASS, migration 23→24, apex/www `/merchant/`·JS 200, 미로그인 직원·등록 점포 조회 401, Origin 없는 등록 403, Google 계정 선택 302, noindex/no-store를 확인했다. 운영 관리자 1명, 직원 요청/감사/권한·점포·mint 0, 시연 가상 점포/방문/보상 3/3/2 유지. Playwright는 미로그인 화면만 확인했으며 실제 직원 승인·고객 QR 촬영/수령·Android 실기는 `NOT_RUN`; 필수 36개 시험 ID를 이 경계 검사로 승격하지 않는다.
 
 2026-09-28 [운영 계정 삭제 접수·보안 배포](evidence/operating-deletion-intake-deployment-2026-09-28.json): 개인 PR #8·#9의 PR/main CI가 모두 PASS한 뒤 운영 API·웹 `4d59347` 배포. mode 600 DB 백업의 `pg_restore --list` PASS, migration 21→23, apex/www `/account-deletion` 200, 미로그인 접수 POST 401·Origin 없는 요청 403·GET 405, Google 계정 선택 302, Playwright 미로그인 제출의 로그인 안내와 DB 접수 0건을 확인했다. 운영 관리자/감사 1/1, 점포/mint 0/0, 시연 점포/방문/보상 3/3/2가 유지됐다. signed `auth_time`과 삭제 거래 행 잠금·비종결 mint 대기는 PostgreSQL 회귀 PASS이나 실계정 Google `auth_time`·인증된 접수·실제 삭제/결과 통지·롤백 실행은 `NOT_RUN/BLOCKED`. 필수 36개 제품 ID는 이 공개 경계 검사만으로 승격하지 않는다.
