@@ -23,7 +23,7 @@
   <a href="#설치검증">직접 실행</a>
 </p>
 
-> 배너는 콘셉트 일러스트입니다. 시연 점포·방문은 가상 데이터이며 협약 점포, Google Play 승인, 매출 증가를 뜻하지 않습니다. 현재 시연 APK에서는 두 초대 계정의 로그인·점주 발급·고객 **직접 코드 입력 수령·중복 거절**까지 폰에서 확인했습니다. 실제 카메라 QR 촬영→수령, 시연 앱 외부 지갑·NFT 발행은 별도 `NOT_RUN`입니다.
+> 배너는 콘셉트 일러스트입니다. 시연 점포·방문은 가상 데이터이며 협약 점포, Google Play 승인, 매출 증가를 뜻하지 않습니다. 시연 Preview 3 APK에서는 기존의 두 계정 **직접 코드 입력 수령**과 별도로, [같은 계정의 점주·고객 역할 전환 후 실제 카메라 QR 촬영→수령](docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)을 확인했습니다. 다른 두 계정·두 휴대전화의 QR 수령, 시연 앱 외부 지갑·NFT 발행은 별도 `NOT_RUN`입니다.
 
 ## 왜 만드는가
 
@@ -40,7 +40,7 @@
 | 운영 웹 | [www.masscom.kr/app/](https://www.masscom.kr/app/) | 실제 운영 데이터, Google 로그인·읽기 전용 본인 도감. Samsung Chrome의 www 로그인·재열기·로그아웃 확인 |
 | **시연 웹** | [설치 없이 바로 보기](https://www.masscom.kr/preview/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | 가상 점포 A·B·C와 예시 수집품을 표시하는 정적 시연, 실제 방문·NFT 실적 아님 |
 | 운영 Android 테스트 앱 | [test.3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.3) | 운영 package·업로드 키 사전 릴리스. [Samsung 로그인·복원과 16KB 설치](docs/evidence/operating-android-test3-2026-09-28.json)는 확인했지만 Play 승인·실제 점포·현장 QR·운영 지갑 재검증은 아님 |
-| **시연 Android 앱** | [Preview 3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | 별도 package·키·API의 사전 릴리스. [서명·GitHub digest](docs/evidence/showcase-preview3-release-2026-09-27.json)와 [Samsung 설치·가상 3점포·Google 취소 후 재진입](docs/evidence/showcase-preview3-phone-2026-09-28.json)은 확인. **초대 밖 실제 계정 로그인·카메라 QR 촬영 수령·지갑·NFT는 미검증** |
+| **시연 Android 앱** | [Preview 3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | 별도 package·키·API의 사전 릴리스. [Samsung의 같은 계정 실제 카메라 QR 촬영→수령](docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)은 확인. **초대 밖 실제 계정·서로 다른 두 계정/두 휴대전화 QR·지갑·NFT는 미검증** |
 
 저장소는 사용자가 공개로 전환했습니다. GitHub Release와 시연 웹은 GitHub 로그인·소스 다운로드 없이 열 수 있습니다.
 
@@ -57,7 +57,7 @@
 
 
 - [모바일 개발용 UI 시안·로컬 실행](apps/mobile/README.md): 개발용 미리보기를 보존하고 시연 APK에는 첫 역할 선택·권한 확인·빈 공간 투어를 분리했다. 운영 앱의 네 기능 탭은 유지하며 [시연 설치본 실기 범위](docs/evidence/showcase-android-apk-2026-09-27.json)를 따로 기록했다.
-- 시연 Android 빌드·배포: `kr.masscom.wolgye.demo`/`masscom-demo`, 전용 Google·Keychain 서명·[공개 API](https://demo-api.masscom.kr/health)를 사용한다. [최신 Preview 3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)는 [서명·GitHub digest](docs/evidence/showcase-preview3-release-2026-09-27.json)와 [Samsung 설치·기본 화면](docs/evidence/showcase-preview3-phone-2026-09-28.json)까지 확인했다. [Preview 2](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)의 그림 화면과 Preview 1의 [두 계정 직접 코드 수령](docs/evidence/showcase-two-account-phone-2026-09-27.json)은 이전 설치본 실증이다. 초대 밖 계정 로그인·실제 카메라 QR 촬영→수령은 `NOT_RUN`이다.
+- 시연 Android 빌드·배포: `kr.masscom.wolgye.demo`/`masscom-demo`, 전용 Google·Keychain 서명·[공개 API](https://demo-api.masscom.kr/health)를 사용한다. [최신 Preview 3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)는 [서명·GitHub digest](docs/evidence/showcase-preview3-release-2026-09-27.json)와 [Samsung 같은 계정의 실제 카메라 QR 촬영→수령](docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)까지 확인했다. [Preview 2](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)의 그림 화면과 Preview 1의 [두 계정 직접 코드 수령](docs/evidence/showcase-two-account-phone-2026-09-27.json)은 이전 설치본 실증이다. 초대 밖 계정 로그인·서로 다른 두 계정/두 휴대전화 QR 촬영→수령은 `NOT_RUN`이다.
 - [시연 호스트 격리](infra/showcase-host/README.md): 기존 Lightsail의 독립 API/DB에 가상 A/B/C를 기동하고 두 초대 계정의 내부 발급→수령→도감·중복 방지를 [당시 내부 API 증거](docs/evidence/showcase-internal-auth-claim-2026-09-27.json)로 확인했다. [PR #192](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/192) 병합 뒤 **시연 API만** 새 고객 로그인 코드로 [배포](docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)했다. 새 APK 기본 화면은 폰에서 확인했지만 초대 밖 실계정 로그인과 지갑/NFT는 별도 미검증이다.
 - [기존 Lightsail의 포털·운영 웹 이관](infra/lightsail/README.md): AWS DNS·공인 TLS와 운영 웹 Google 로그인을 확인했습니다. [최신 apex/www 설치 안내](docs/evidence/public-open-page-2026-09-28.json)는 운영 test.3·시연 Preview 3을 공개 연결하며 이전 [삭제 안내·www 배포](docs/evidence/web-only-deployment-2026-09-28.json)를 유지합니다. Samsung Android Chrome의 서로 다른 Google 계정 2개 순차 로그인·빈 도감·세션 전환은 이전 웹 실증이고 [최신 운영 APK의 폰 로그인](docs/evidence/operating-android-test3-2026-09-28.json)은 별도 확인했습니다. 실제 기록이 있는 계정 간 도감 격리는 미검증입니다.
 - [기존 서버 SSH 접속](docs/SERVER_ACCESS.md): 이 Mac의 `ssh masscom` 및 더블클릭 접속 파일 사용법. AWS 콘솔 로그인과 별개이며 개인키는 Git 밖에 보관
@@ -125,7 +125,7 @@ sequenceDiagram
     API-->>Customer: 도감과 다음 가게 추천
     Customer->>API: 같은 코드 재확인
     API-->>Customer: 이미 사용됨 · 추가 효과 0
-    Note over Staff,Customer: 실제 카메라 QR 촬영→수령은 아직 NOT_RUN
+    Note over Staff,Customer: 시연 Preview 3 같은 계정 카메라 수령 PASS, 두 계정·두 기기 QR은 NOT_RUN
 ```
 
 두 초대 계정의 Android **직접 코드 입력** 흐름은 [폰·DB 실측](docs/evidence/showcase-two-account-phone-2026-09-27.json)에서 확인했습니다. 지갑은 선택 기능이라 시연 앱에서 없어도 탐색·방문 인증·도감을 사용합니다. 앱 수집품과 실제 발행 NFT는 별도 상태이며, 시연 앱의 지갑·NFT는 아직 활성화하지 않았습니다.
@@ -156,7 +156,7 @@ sequenceDiagram
 | --- | --- | --- |
 | 0 · 기반 | 저장소·CI·요구사항·평가 근거 | 심사 시 공개 전환은 별도 승인 |
 | 1 · 외부 지갑 | 개발 앱의 MetaMask 주소 확인 서명·서버 검증 | 시연 APK의 전용 Reown 연동, 동일 세션 주소 변경·미지원 지갑 실기 |
-| 2 · 방문·도감 | 시연 APK 두 계정의 코드 발급→직접 입력 수령→중복 거절, 앱 도감 | 실제 카메라 QR 촬영→수령, 실제 제휴 점포 |
+| 2 · 방문·도감 | 시연 APK 두 계정 직접 코드 수령과 같은 계정 카메라 QR 촬영→수령·앱 도감 | 서로 다른 두 계정/두 휴대전화 QR, 실제 제휴 점포 |
 | 3 · NFT | Local Anvil·Base Sepolia 발행/복구 검증 | 시연 앱 별도 지갑·발행 연동, 메인넷은 별도 승인 |
 | 4–5 · 출시·실증 | 개인정보 안내·발표 자료·private 시연 APK | Play 제출·현장 실증·최종 제출 |
 

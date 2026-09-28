@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- **2026-09-28 시연 APK 카메라 수령:** [Preview 3 동일 SHA 설치본 실측](evidence/showcase-preview3-camera-claim-2026-09-28.json)에서 가상 점포 A의 점주 발급 QR을 Mac에 띄우고 Samsung 카메라로 스캔→미리보기→별도 수령 확정→도감 이동을 완료했다. 시연 DB에서 같은 계정 슬롯 1(`CLAIMED`)·방문 1·보상권 1·mint 0을 확인했다. 처음의 다른 계정용 QR 거절은 미사용·미만료 상태에서 계정 불일치였다. 이는 **같은 계정의 역할 전환 시험**이며 서로 다른 두 계정·두 휴대전화, 오프라인·권한 거부, 새 2분 식별 QR 소스, 운영 앱의 QR 검증은 별도 미완료다.
+
 - **2026-09-28 개인 비공개 이관:** 조직 저장소는 `PUBLIC`·`Archived`이며 사용자는 보관 해제 대신 [개인 비공개 저장소](https://github.com/choijunhuk/MassCOM)를 선택했다. [PR #204](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/204) merge `9706e61`의 PR/main CI와 같은 이력을 옮긴 개인 main [CI `36354490206`](https://github.com/choijunhuk/MassCOM/actions/runs/36354490206)이 PASS다. 이후 조직 [PR #207](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/207)의 CI는 `repository archived`로 CANCELLED되어 OPEN·미병합이다. QR `90fa019`·도감 `dd769ae`·삭제 접수 `d051ef3`·인수인계 `6932649`를 개인 브랜치에 push했지만 **개인 main에 미병합**이며 공개 API/APK에는 반영되지 않았다. 정확한 브랜치·시험·배포 경계는 [HANDOFF](HANDOFF.md) 맨 위를 따른다.
 
 - **2026-09-28 운영 웹·두 앱 사전 릴리스:** [이전 웹 전용 배포](evidence/web-only-deployment-2026-09-28.json)는 `174aa13`에서 삭제 안내와 www 경로를 갱신했고, [최신 `/open` 배포](evidence/public-open-page-2026-09-28.json)는 `088cebe`에서 apex/www 두 앱 공개 다운로드 링크·HTTPS 200·소스 해시 일치와 API/DB 불변을 확인했다. [운영 test.3](evidence/operating-android-test3-2026-09-28.json)는 source `c5cba68`의 서명·GitHub 공개 다운로드·Samsung 새 Google 로그인/복원·16KB AVD 설치/콜드 실행 PASS; 운영 실제 점포는 0곳이고 App Link 자동 열기는 폰 설정상 BLOCKED다. [시연 Preview 3](evidence/showcase-preview3-phone-2026-09-28.json)은 Samsung 설치·가상 3점포·Google 취소 후 재진입 PASS지만 초대 밖 계정의 실제 새 로그인·QR 촬영 수령은 NOT_RUN. Play 제출·실제 계정 삭제([#194](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/194))는 완료가 아니다.
