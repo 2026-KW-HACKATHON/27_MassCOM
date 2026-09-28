@@ -53,7 +53,9 @@ export async function loadMerchant(fetcher, doc) {
       option.textContent = merchant.name;
       select.append(option);
     }
-    doc.getElementById('merchant-registration').hidden = select.children.length === 0;
+    const registration = doc.getElementById('merchant-registration');
+    registration.hidden = select.children.length === 0;
+    registration.querySelector('button').disabled = false;
     content.hidden = false;
     logout.hidden = false;
     status.textContent = '점포 권한을 확인했습니다.';

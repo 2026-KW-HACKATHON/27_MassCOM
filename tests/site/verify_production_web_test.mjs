@@ -533,6 +533,38 @@ test('늦은 등록 코드 성공·실패는 페이지를 떠난 뒤 새 계정 
   }
 });
 
+test('등록 요청 중 이탈했다 돌아오면 이전 응답과 무관하게 다시 발급할 수 있다', async () => {
+  for (const fails of [false, true]) {
+    const { nodes, button, listeners, doc } = merchantDocument();
+    let finishOld;
+    const oldResponse = new Promise((resolve, reject) => { finishOld = fails ? reject : resolve; });
+    let requests = 0;
+    const fetcher = async path => {
+      if (path.endsWith('/registration-requests')) {
+        requests += 1;
+        return requests === 1 ? oldResponse : { ok: true,
+          json: async () => ({ code: 'NEW_CODE', expiresAt: new Date().toISOString() }) };
+      }
+      return { ok: true, json: async () => ({ merchants: path.endsWith('/me') ? []
+        : [{ id: 'real-merchant', name: '실제 상점' }] }) };
+    };
+    await bindMerchant(fetcher, doc);
+    const oldSubmit = nodes['merchant-registration'].submit();
+    assert.equal(button.disabled, true);
+    listeners.get('pagehide')();
+    await loadMerchant(fetcher, doc);
+    assert.equal(button.disabled, false);
+    finishOld(fails ? new Error('late failure') : { ok: true,
+      json: async () => ({ code: 'OLD_ACCOUNT_CODE', expiresAt: new Date().toISOString() }) });
+    await oldSubmit;
+    assert.equal(nodes['merchant-code'].textContent, '');
+    assert.equal(button.disabled, false);
+    await nodes['merchant-registration'].submit();
+    assert.match(nodes['merchant-code'].textContent, /NEW_CODE/);
+    assert.equal(requests, 2);
+  }
+});
+
 test('운영 API 오류는 502로 전달하고 임의 데이터가 없다', async () => {
   const failing = createProductionServer(async () => { throw new Error('offline'); });
   await new Promise((done) => failing.listen(0, '127.0.0.1', done));
