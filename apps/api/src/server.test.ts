@@ -7,6 +7,7 @@ import { Wallet } from 'ethers';
 import * as serverModule from './server.js';
 
 import type { AccountDeletionService } from './account-deletion.js';
+import type { AccountDeletionIntakeService } from './account-deletion-intake.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { GoogleIdTokenError } from './google-id-token.js';
 import { WebAuthError, type WebAuthHandler } from './web-auth.js';
@@ -32,6 +33,8 @@ import {
   type RedeemedClaimSlot,
 } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
+import { AdminError, type PostgresAdminService } from './postgres/admin.js';
+import type { PostgresStaffRegistration } from './postgres/staff-registration.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import type {
   MintJobView,
@@ -177,6 +180,9 @@ async function startFixture(
   trustProxyClientIp = false,
   webAuth?: WebAuthHandler,
   wwwEnabled = false,
+  admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>,
+  deletionIntake?: AccountDeletionIntakeService,
+  staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -204,6 +210,10 @@ async function startFixture(
     trustProxyClientIp,
     webAuth,
     wwwEnabled,
+    undefined,
+    admin,
+    deletionIntake,
+    staffRegistration,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -221,6 +231,7 @@ async function webRequest(baseUrl: string, path: string, options: {
   host?: string;
   method?: string;
   headers?: Record<string, string>;
+  body?: string;
 } = {}): Promise<Response> {
   return new Promise((resolve, reject) => {
     const request = httpRequest(new URL(path, baseUrl), {
@@ -243,7 +254,7 @@ async function webRequest(baseUrl: string, path: string, options: {
       response.on('error', reject);
     });
     request.on('error', reject);
-    request.end();
+    request.end(options.body);
   });
 }
 
@@ -332,6 +343,248 @@ test('web logout rejects GET and missing or foreign Origin before revoking a coo
   assert.equal(response.status, 204);
   assert.deepEqual(revoked, ['token']);
   assert.match(response.headers.get('set-cookie') ?? '', /web_session=; Path=\/api\/web; Max-Age=0/);
+});
+
+test('web deletion intake accepts only same-origin JSON with the host-bound session', async (t) => {
+  const requested: string[] = [];
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('unused'); },
+    complete: async () => { throw new Error('unused'); },
+    resolveSession: async (token, origin) => {
+      if (token !== 'valid-cookie' || origin !== 'https://masscom.kr') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'session-account';
+    },
+    logout: async () => {},
+  };
+  const intake: AccountDeletionIntakeService = {
+    request: async (accountId) => { requested.push(accountId); return { status: 'REQUESTED' }; },
+  };
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, { requestDeletion: async () => { throw new Error('must not delete'); } },
+    undefined, undefined, undefined, undefined, false, webAuth, true, undefined, intake);
+  const path = '/api/web/account-deletion-intake';
+  assert.equal((await webRequest(base, path)).status, 405);
+  for (const headers of [
+    { cookie: 'web_session=valid-cookie', 'content-type': 'application/json' },
+    { cookie: 'web_session=valid-cookie', origin: 'https://evil.example', 'content-type': 'application/json' },
+    { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr', 'content-type': 'text/plain' },
+  ]) {
+    assert.equal((await webRequest(base, path, { method: 'POST', headers })).status, 403);
+  }
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: {
+    origin: 'https://masscom.kr', 'content-type': 'application/json',
+  } })).status, 401);
+  assert.equal((await webRequest(base, path, { host: 'www.masscom.kr', method: 'POST', headers: {
+    origin: 'https://www.masscom.kr', cookie: 'web_session=valid-cookie', 'content-type': 'application/json',
+  } })).status, 401);
+  assert.deepEqual(requested, []);
+  const response = await webRequest(base, path, { method: 'POST', headers: {
+    origin: 'https://masscom.kr', cookie: 'web_session=valid-cookie', 'content-type': 'application/json',
+  }, body: JSON.stringify({ accountId: 'different-account' }) });
+  assert.equal(response.status, 202);
+  assert.deepEqual(await response.json(), { status: 'REQUESTED' });
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(requested, ['session-account']);
+});
+
+test('deletion Google sign-in returns to a fixed path', async (t) => {
+  const destinations: (string | undefined)[] = [];
+  const webAuth: WebAuthHandler = {
+    start: async (_origin, returnTo) => {
+      destinations.push(returnTo);
+      return { location: 'https://accounts.google.com/', state: 'deletion-state' };
+    },
+    complete: async () => ({ token: 'cookie', returnTo: '/account-deletion' }),
+    resolveSession: async () => 'account-1', logout: async () => {},
+  };
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth);
+  const started = await webRequest(base, '/api/web/auth/start?returnTo=account-deletion&next=https://evil.example');
+  assert.equal(started.status, 302);
+  assert.deepEqual(destinations, ['/account-deletion']);
+  const callback = await webRequest(base, '/api/web/auth/callback?code=once&state=deletion-state', {
+    headers: { cookie: 'web_auth_state=deletion-state' },
+  });
+  assert.equal(callback.headers.get('location'), '/account-deletion');
+});
+
+test('admin API uses only the host-bound web cookie and rejects unauthorized, foreign-origin, and non-JSON writes', async (t) => {
+  const webAuth: WebAuthHandler = {
+    start: async () => ({ location: 'https://accounts.google.com/', state: 'state' }),
+    complete: async () => ({ token: 'token' }),
+    resolveSession: async token => {
+      if (token !== 'valid-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'account-1';
+    },
+    logout: async () => {},
+  };
+  let writes = 0;
+  const admin = {
+    isAdmin: async () => true,
+    listMerchants: async () => [],
+    createMerchant: async () => { writes += 1; throw new Error('unexpected write'); },
+    updateMerchant: async () => { writes += 1; throw new Error('unexpected write'); },
+    hideMerchant: async () => { writes += 1; throw new Error('unexpected write'); },
+  } as unknown as Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  assert.equal((await webRequest(base, '/api/web/admin/merchants')).status, 401);
+  assert.equal((await webRequest(base, '/api/web/admin/merchants', { headers: { authorization: 'Bearer valid-cookie' } })).status, 401);
+  assert.equal((await webRequest(base, '/api/web/admin/merchants', { headers: { cookie: 'web_session=valid-cookie' } })).status, 200);
+  assert.equal((await webRequest(base, '/api/web/admin/merchants', {
+    host: 'api.masscom.kr', headers: { cookie: 'web_session=valid-cookie' },
+  })).status, 403);
+  for (const headers of [
+    { cookie: 'web_session=valid-cookie', 'content-type': 'application/json' },
+    { cookie: 'web_session=valid-cookie', origin: 'https://evil.example', 'content-type': 'application/json' },
+    { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr', 'content-type': 'text/plain' },
+  ]) {
+    const response = await webRequest(base, '/api/web/admin/merchants', {
+      method: 'POST', headers,
+    });
+    assert.equal(response.status, 403);
+  }
+  assert.equal(writes, 0);
+  const denied = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    { ...admin, isAdmin: async () => false });
+  assert.equal((await webRequest(denied, '/api/web/admin/merchants', {
+    headers: { cookie: 'web_session=valid-cookie' },
+  })).status, 403);
+});
+
+test('admin Google sign-in returns to the fixed admin path without a caller-controlled redirect', async (t) => {
+  const destinations: (string | undefined)[] = [];
+  const webAuth: WebAuthHandler = {
+    start: async (_origin, returnTo) => {
+      destinations.push(returnTo);
+      return { location: 'https://accounts.google.com/', state: 'admin-state' };
+    },
+    complete: async () => ({ token: 'admin-cookie', returnTo: '/admin/' }),
+    resolveSession: async () => 'account-1', logout: async () => {},
+  };
+  const admin = { isAdmin: async () => true } as unknown as Pick<PostgresAdminService,
+    'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const start = await webRequest(base, '/api/web/admin/auth/start?returnTo=https://evil.example');
+  assert.equal(start.status, 302);
+  assert.deepEqual(destinations, ['/admin/']);
+  const callback = await webRequest(base, '/api/web/auth/callback?code=once&state=admin-state', {
+    headers: { cookie: 'web_auth_state=admin-state' },
+  });
+  assert.equal(callback.status, 303);
+  assert.equal(callback.headers.get('location'), '/admin/');
+});
+
+test('merchant registration uses host-bound web cookie and rejects foreign-origin writes', async (t) => {
+  const returns: (string | undefined)[] = [];
+  const webAuth: WebAuthHandler = {
+    start: async (_origin, returnTo) => {
+      returns.push(returnTo);
+      return { location: 'https://accounts.google.com/', state: 'merchant-state' };
+    },
+    complete: async () => ({ token: 'merchant-cookie', returnTo: '/merchant/' }),
+    resolveSession: async token => {
+      if (token !== 'merchant-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'staff-account';
+    },
+    logout: async () => {},
+  };
+  let writes = 0;
+  const staff = {
+    mine: async () => [], eligible: async () => [{ id: 'real-merchant', name: '실제 점포' }],
+    request: async (accountId: string, merchantId: string) => {
+      assert.equal(accountId, 'staff-account');
+      assert.equal(merchantId, 'real-merchant');
+      writes += 1;
+      return { requestId: 'request-id', code: '1234567890123456789012', expiresAt: new Date().toISOString() };
+    },
+  } as unknown as Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    undefined, undefined, staff);
+  const start = await webRequest(base, '/api/web/merchant/auth/start?returnTo=https://evil.example');
+  assert.equal(start.status, 302);
+  assert.deepEqual(returns, ['/merchant/']);
+  const callback = await webRequest(base, '/api/web/auth/callback?code=once&state=merchant-state', {
+    headers: { cookie: 'web_auth_state=merchant-state' },
+  });
+  assert.equal(callback.headers.get('location'), '/merchant/');
+  assert.equal((await webRequest(base, '/api/web/merchant/me')).status, 401);
+  assert.equal((await webRequest(base, '/api/web/merchant/me', {
+    headers: { cookie: 'web_session=merchant-cookie' }, host: 'api.masscom.kr',
+  })).status, 403);
+  for (const headers of [
+    { cookie: 'web_session=merchant-cookie', 'content-type': 'application/json' },
+    { cookie: 'web_session=merchant-cookie', origin: 'https://evil.example', 'content-type': 'application/json' },
+    { cookie: 'web_session=merchant-cookie', origin: 'https://masscom.kr', 'content-type': 'text/plain' },
+  ]) {
+    assert.equal((await webRequest(base, '/api/web/merchant/registration-requests', {
+      method: 'POST', headers, body: '{"merchantId":"real-merchant"}',
+    })).status, 403);
+  }
+  assert.equal(writes, 0);
+  const issued = await webRequest(base, '/api/web/merchant/registration-requests', {
+    method: 'POST', headers: { cookie: 'web_session=merchant-cookie', origin: 'https://masscom.kr',
+      'content-type': 'application/json' }, body: '{"merchantId":"real-merchant"}',
+  });
+  assert.equal(issued.status, 201);
+  assert.equal(writes, 1);
+});
+
+test('admin staff approval and revoke derive the actor from the web session', async (t) => {
+  const webAuth: WebAuthHandler = {
+    start: async () => ({ location: 'https://accounts.google.com/', state: 'state' }),
+    complete: async () => ({ token: 'token' }),
+    resolveSession: async () => 'admin-account', logout: async () => {},
+  };
+  const calls: unknown[][] = [];
+  const staff = {
+    approve: async (...args: unknown[]) => { calls.push(['approve', ...args]); },
+    revoke: async (...args: unknown[]) => { calls.push(['revoke', ...args]); },
+  } as unknown as Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const admin = { isAdmin: async () => true } as unknown as Pick<PostgresAdminService,
+    'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    admin, undefined, staff);
+  const headers = { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr',
+    'content-type': 'application/json' };
+  const approved = await webRequest(base, '/api/web/admin/merchants/real-merchant/staff', {
+    method: 'POST', headers, body: '{"code":"1234567890123456789012","accountId":"forged"}',
+  });
+  assert.equal(approved.status, 200);
+  const revoked = await webRequest(base, '/api/web/admin/merchants/real-merchant/staff/staff-account/revoke', {
+    method: 'POST', headers, body: '{}',
+  });
+  assert.equal(revoked.status, 200);
+  assert.deepEqual(calls, [
+    ['approve', 'admin-account', 'real-merchant', '1234567890123456789012'],
+    ['revoke', 'admin-account', 'real-merchant', 'staff-account'],
+  ]);
+});
+
+test('admin hide returns a distinct 409 while valid QR claims are pending', async (t) => {
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('not used'); },
+    complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'admin-account', logout: async () => {},
+  };
+  const admin = {
+    isAdmin: async () => true,
+    hideMerchant: async () => { throw new AdminError('ADMIN_PENDING_CLAIMS'); },
+  } as unknown as Pick<PostgresAdminService,
+    'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const response = await webRequest(base, '/api/web/admin/merchants/merchant-1/hide', {
+    method: 'POST', headers: {
+      cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr', 'content-type': 'application/json',
+    }, body: '{"expectedVersion":1}',
+  });
+  assert.equal(response.status, 409);
+  assert.deepEqual(await response.json(), { code: 'ADMIN_PENDING_CLAIMS' });
 });
 
 test('web login start obeys the existing per-client login limiter before storing a state', async (t) => {
@@ -1709,6 +1962,7 @@ test('D25 logout revokes the presented session and reauthentication refreshes it
 });
 
 test('D26 account deletion ignores the DEMO header and requires a recent session authentication', async (t) => {
+  let deletionSessionToken: string | undefined;
   const sessions = authSessionFixture({
     resolve: async () => 'acct_33333333-3333-4333-8333-333333333333',
     assertRecentlyAuthenticated: async (sessionToken) => {
@@ -1737,7 +1991,10 @@ test('D26 account deletion ignores the DEMO header and requires a recent session
     undefined,
     undefined,
     undefined,
-    { requestDeletion: async () => result },
+    { requestDeletion: async (input) => {
+      deletionSessionToken = input.sessionToken;
+      return result;
+    } },
     createSessionReauthenticationGuard(sessions),
     undefined,
     sessions,
@@ -1762,6 +2019,7 @@ test('D26 account deletion ignores the DEMO header and requires a recent session
   });
   assert.equal(authorized.status, 202);
   assert.deepEqual(await authorized.json(), result);
+  assert.equal(deletionSessionToken, 'recently-authenticated');
 });
 
 test('D24 refuses to start when the DEMO account header and production login are both configured', () => {

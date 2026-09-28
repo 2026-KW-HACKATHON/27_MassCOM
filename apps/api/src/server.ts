@@ -15,6 +15,7 @@ import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js'
 import { WebAuthError, WebAuthService, resolveWebAuthConfig, type WebAuthHandler } from './web-auth.js';
 import { WebSessionError } from './web-session.js';
 import { WebOriginError, resolveWebOrigin } from './web-origin.js';
+import type { AccountDeletionIntakeService } from './account-deletion-intake.js';
 import {
   CampaignEnrollmentError,
   type CampaignEnrollmentService,
@@ -41,6 +42,8 @@ import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCustomerIdentityService } from './postgres/customer-identity.js';
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
+import { PostgresAccountDeletionIntakeService } from './postgres/account-deletion-intake.js';
+import { AdminError, PostgresAdminService, type MerchantInput } from './postgres/admin.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
 import { PostgresWebSessionStore } from './postgres/web-session.js';
@@ -48,6 +51,7 @@ import { resolveShowcaseInviteConfig } from './showcase/invite-config.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
+import { PostgresStaffRegistration, StaffRegistrationError } from './postgres/staff-registration.js';
 import { PostgresMintRequestService } from './postgres/mint-request-service.js';
 import { PostgresRecommendationSource } from './postgres/recommendation.js';
 import { PostgresChallengeStore } from './postgres/wallet-challenge-store.js';
@@ -112,7 +116,7 @@ export type AccountResolver = (request: IncomingMessage) => string | Promise<str
 export type ReauthenticationGuard = (
   accountId: string,
   request: IncomingMessage,
-) => void | Promise<void>;
+) => string | void | Promise<string | void>;
 
 export const developmentHeaderAccountResolver: AccountResolver = requireAccountId;
 export const createBearerAccountResolver =
@@ -122,7 +126,9 @@ export const createBearerAccountResolver =
 export const createSessionReauthenticationGuard =
   (sessions: AuthSessionService): ReauthenticationGuard =>
   async (_accountId, request) => {
-    await sessions.assertRecentlyAuthenticated(requireBearerToken(request));
+    const sessionToken = requireBearerToken(request);
+    await sessions.assertRecentlyAuthenticated(sessionToken);
+    return sessionToken;
   };
 export const developmentHeaderReauthenticationGuard: ReauthenticationGuard = (
   _accountId,
@@ -151,6 +157,9 @@ export function createApiServer(
   webAuth?: WebAuthHandler,
   webWwwEnabled = false,
   customerIdentities?: CustomerIdentityService,
+  admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>,
+  deletionIntake?: AccountDeletionIntakeService,
+  staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -173,7 +182,9 @@ export function createApiServer(
             return;
           }
         }
-        const started = await webAuth.start(origin);
+        const returnTo = new URL(request.url!, 'http://localhost').searchParams.get('returnTo') === 'account-deletion'
+          ? '/account-deletion' : undefined;
+        const started = await webAuth.start(origin, returnTo);
         response.setHeader('x-robots-tag', 'noindex, nofollow');
         response.setHeader('set-cookie', `web_auth_state=${started.state}; Path=/api/web/auth; Max-Age=300; HttpOnly; Secure; SameSite=Lax`);
         response.setHeader('location', started.location);
@@ -198,7 +209,9 @@ export function createApiServer(
           'web_auth_state=; Path=/api/web/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax',
           `web_session=${session.token}; Path=/api/web; HttpOnly; Secure; SameSite=Lax`,
         ]);
-        response.setHeader('location', '/app/');
+        response.setHeader('location', session.returnTo === '/merchant/' ? '/merchant/'
+          : session.returnTo === '/admin/' ? '/admin/'
+          : session.returnTo === '/account-deletion' ? '/account-deletion' : '/app/');
         response.writeHead(303);
         response.end();
         return;
@@ -211,6 +224,126 @@ export function createApiServer(
         sendJson(response, 200, await collection.getCollection(accountId));
         return;
       }
+      if (path.startsWith('/api/web/admin/')) {
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        if (!webAuth || !admin) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+        if (path === '/api/web/admin/auth/start' && request.method === 'GET') {
+          if (authLoginLimiter) {
+            const decision = authLoginLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
+            if (!decision.allowed) {
+              response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+              sendJson(response, 429, { code: 'LOGIN_RATE_LIMITED' });
+              return;
+            }
+          }
+          const started = await webAuth.start(origin, '/admin/');
+          response.setHeader('set-cookie', `web_auth_state=${started.state}; Path=/api/web/auth; Max-Age=300; HttpOnly; Secure; SameSite=Lax`);
+          response.setHeader('location', started.location);
+          response.writeHead(302).end();
+          return;
+        }
+        if (request.method !== 'GET') {
+          if (request.headers.origin !== origin ||
+              !/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '')) {
+            throw new RequestError(403, 'ADMIN_CSRF_FORBIDDEN');
+          }
+        }
+        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        if (!(await admin.isAdmin(accountId))) throw new AdminError('ADMIN_FORBIDDEN');
+        if (path === '/api/web/admin/me' && request.method === 'GET') {
+          sendJson(response, 200, { admin: true });
+          return;
+        }
+        const staffMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/staff$/);
+        if (staffMatch && staffRegistration) {
+          const merchantId = decodePathParameter(staffMatch[1]!);
+          if (request.method === 'GET') {
+            sendJson(response, 200, { staff: await staffRegistration.list(accountId, merchantId) });
+            return;
+          }
+          if (request.method === 'POST') {
+            const body = await readJson(request);
+            await staffRegistration.approve(accountId, merchantId, requireString(body, 'code'));
+            sendJson(response, 200, { status: 'APPROVED' });
+            return;
+          }
+        }
+        const revokeMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/staff\/([^/]+)\/revoke$/);
+        if (revokeMatch && request.method === 'POST' && staffRegistration) {
+          await readJson(request);
+          await staffRegistration.revoke(accountId, decodePathParameter(revokeMatch[1]!), decodePathParameter(revokeMatch[2]!));
+          sendJson(response, 200, { status: 'REVOKED' });
+          return;
+        }
+        if (path === '/api/web/admin/merchants') {
+          if (request.method === 'GET') {
+            sendJson(response, 200, { merchants: await admin.listMerchants(accountId) });
+            return;
+          }
+          if (request.method === 'POST') {
+            const body = await readJson(request);
+            sendJson(response, 201, { merchant: await admin.createMerchant(accountId, adminMerchantInput(body)) });
+            return;
+          }
+        }
+        const editMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)$/);
+        if (editMatch && request.method === 'PATCH') {
+          const body = await readJson(request);
+          sendJson(response, 200, { merchant: await admin.updateMerchant(
+            accountId, decodePathParameter(editMatch[1]!), requireNumber(body, 'expectedVersion'), adminMerchantInput(body),
+          ) });
+          return;
+        }
+        const hideMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/hide$/);
+        if (hideMatch && request.method === 'POST') {
+          const body = await readJson(request);
+          sendJson(response, 200, { merchant: await admin.hideMerchant(
+            accountId, decodePathParameter(hideMatch[1]!), requireNumber(body, 'expectedVersion'),
+          ) });
+          return;
+        }
+        throw new RequestError(404, 'NOT_FOUND');
+      }
+      if (path.startsWith('/api/web/merchant/')) {
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        if (!webAuth || !staffRegistration) throw new RequestError(503, 'WEB_MERCHANT_NOT_CONFIGURED');
+        if (path === '/api/web/merchant/auth/start' && request.method === 'GET') {
+          if (authLoginLimiter) {
+            const decision = authLoginLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
+            if (!decision.allowed) {
+              response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+              sendJson(response, 429, { code: 'LOGIN_RATE_LIMITED' });
+              return;
+            }
+          }
+          const started = await webAuth.start(origin, '/merchant/');
+          response.setHeader('set-cookie', `web_auth_state=${started.state}; Path=/api/web/auth; Max-Age=300; HttpOnly; Secure; SameSite=Lax`);
+          response.setHeader('location', started.location);
+          response.writeHead(302).end();
+          return;
+        }
+        if (request.method !== 'GET' && (request.headers.origin !== origin ||
+            !/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? ''))) {
+          throw new RequestError(403, 'MERCHANT_CSRF_FORBIDDEN');
+        }
+        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        if (path === '/api/web/merchant/me' && request.method === 'GET') {
+          sendJson(response, 200, { merchants: await staffRegistration.mine(accountId) });
+          return;
+        }
+        if (path === '/api/web/merchant/registration-merchants' && request.method === 'GET') {
+          sendJson(response, 200, { merchants: await staffRegistration.eligible(accountId) });
+          return;
+        }
+        if (path === '/api/web/merchant/registration-requests' && request.method === 'POST') {
+          const body = await readJson(request);
+          sendJson(response, 201, await staffRegistration.request(accountId, requireString(body, 'merchantId')));
+          return;
+        }
+        throw new RequestError(404, 'NOT_FOUND');
+      }
       if (path === '/api/web/logout') {
         if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
         const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
@@ -222,6 +355,20 @@ export function createApiServer(
         response.setHeader('set-cookie', 'web_session=; Path=/api/web; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
         response.writeHead(204);
         response.end();
+        return;
+      }
+      if (path === '/api/web/account-deletion-intake') {
+        if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
+        if (request.headers.origin !== origin ||
+            !/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '')) {
+          throw new RequestError(403, 'ORIGIN_FORBIDDEN');
+        }
+        if (!webAuth || !deletionIntake) throw new RequestError(503, 'WEB_DELETION_INTAKE_NOT_CONFIGURED');
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        await readJson(request);
+        sendJson(response, 202, await deletionIntake.request(accountId));
         return;
       }
 
@@ -514,11 +661,12 @@ export function createApiServer(
           throw new RequestError(503, 'REAUTHENTICATION_NOT_CONFIGURED');
         }
         const accountId = await resolveAccountId(request);
-        await requireReauthentication(accountId, request);
+        const sessionToken = await requireReauthentication(accountId, request);
         const body = await readJson(request);
         const result = await accountDeletions.requestDeletion({
           accountId,
           confirmation: requireString(body, 'confirmation'),
+          ...(sessionToken ? { sessionToken } : {}),
         });
         await service.forgetAccount(accountId);
         sendJson(response, 202, result);
@@ -549,6 +697,20 @@ export function createApiServer(
       }
       if (error instanceof MerchantAccessError) {
         sendJson(response, 403, { code: error.code });
+        return;
+      }
+      if (error instanceof AdminError) {
+        const status = error.code === 'ADMIN_FORBIDDEN' ? 403
+          : error.code === 'ADMIN_MERCHANT_NOT_FOUND' || error.code === 'ADMIN_IDENTITY_NOT_FOUND' ? 404
+            : error.code === 'ADMIN_VERSION_CONFLICT' || error.code === 'ADMIN_PENDING_CLAIMS' ? 409 : 400;
+        sendJson(response, status, { code: error.code });
+        return;
+      }
+      if (error instanceof StaffRegistrationError) {
+        const status = error.code === 'STAFF_FORBIDDEN' ? 403
+          : error.code === 'STAFF_MERCHANT_NOT_FOUND' || error.code === 'STAFF_NOT_FOUND' ? 404
+            : error.code === 'STAFF_CODE_INVALID' ? 400 : 409;
+        sendJson(response, status, { code: error.code });
         return;
       }
       if (error instanceof WalletChallengeError) {
@@ -693,6 +855,16 @@ function requireNumber(body: Record<string, unknown>, field: string): number {
     throw new RequestError(400, 'INVALID_REQUEST');
   }
   return value;
+}
+
+function adminMerchantInput(body: Record<string, unknown>): MerchantInput {
+  if (Object.keys(body).some(key => !['name', 'story', 'roadAddress', 'minimumSpendWon', 'expectedVersion'].includes(key))) {
+    throw new RequestError(400, 'INVALID_REQUEST');
+  }
+  return {
+    name: requireString(body, 'name'), story: requireString(body, 'story', true),
+    roadAddress: requireString(body, 'roadAddress'), minimumSpendWon: requireNumber(body, 'minimumSpendWon'),
+  };
 }
 
 function requirePositiveInteger(body: Record<string, unknown>, field: string): number {
@@ -937,11 +1109,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;
+  const authMode = resolveAuthMode(process.env);
   const accountDeletions =
     pool && accountDeletionHmacSecret
       ? new PostgresAccountDeletionService(pool, {
           hmacSecret: accountDeletionHmacSecret,
           policyVersion: process.env.ACCOUNT_DELETION_POLICY_VERSION ?? 'account-deletion-v1',
+          requireRecentSession: authMode.kind === 'production',
           ...(accountLifecycle ? { accountLifecycle } : {}),
         })
       : undefined;
@@ -962,7 +1136,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;
-  const authMode = resolveAuthMode(process.env);
   // Showcase staff eligibility is separate from customer login: every verified
   // subject of the dedicated Google audience may receive a customer session.
   const authSessions =
@@ -1036,6 +1209,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     webAuth,
     webAuthConfig?.wwwEnabled ?? false,
     customerIdentities,
+    pool && accountDeletionHmacSecret && webAuthConfig && !showcaseInvites
+      ? new PostgresAdminService(pool, accountDeletionHmacSecret) : undefined,
+    pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
+      ? new PostgresAccountDeletionIntakeService(pool, accountDeletionHmacSecret) : undefined,
+    pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
+      ? new PostgresStaffRegistration(pool, accountDeletionHmacSecret) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

@@ -80,6 +80,8 @@ if (JSON.stringify(fingerprints) !== JSON.stringify([
 NODE
 grep -qF 'android-v0.1.0-test.3' "$repo_root/docs/open.html"
 grep -qF 'showcase-android-v0.1.0-preview.3' "$repo_root/docs/open.html"
+grep -qF 'showcase-android-v0.1.0-preview.4' "$repo_root/docs/open.html"
+grep -qF '새 시연 API에서는 이 버전의 직원 발급 요청이 호환되지 않으므로' "$repo_root/docs/open.html"
 ! grep -Eq 'private GitHub|아직 GitHub에 APK가 없습니다' "$repo_root/docs/open.html"
 
 fixture_root="$(mktemp -d)"

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+  <title>MassCOM 점포 운영</title>
+  <link rel="stylesheet" href="/app/assets/production.css">
+  <script type="module" src="/merchant/assets/merchant.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+  <header class="site-header">
+    <p class="brand"><span class="brand-mark" aria-hidden="true">月</span> MassCOM</p>
+    <nav aria-label="페이지 이동"><a href="/app/">고객용 운영 웹</a></nav>
+  </header>
+  <main id="main">
+    <h1>점포 운영</h1>
+    <p>고객 앱에서 사용한 Google 계정으로 로그인해 주세요. 첫 이용이면 고객 앱에서 먼저 로그인해야 합니다.</p>
+    <p id="merchant-status" class="status" role="status" aria-live="polite">권한을 확인하는 중입니다.</p>
+    <a id="merchant-login" class="collection-action" href="/api/web/merchant/auth/start" hidden>Google 계정으로 로그인</a>
+    <button id="merchant-logout" class="collection-action secondary" type="button" hidden>로그아웃</button>
+    <section id="merchant-content" hidden>
+      <h2>내 점포</h2>
+      <div id="merchant-memberships"></div>
+      <h2>직원 등록 요청</h2>
+      <p>실제 점포를 선택하면 현재 계정에 묶인 15분짜리 등록 코드가 나옵니다. 운영 관리자에게 확인된 연락 경로로 전달하세요.</p>
+      <form id="merchant-registration">
+        <label>점포 <select name="merchantId" required></select></label>
+        <button type="submit">등록 코드 발급</button>
+      </form>
+      <p id="merchant-code" class="status" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+</body>
+</html>

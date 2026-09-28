@@ -1,0 +1,257 @@
+const endpoint = '/api/web/admin/merchants';
+const adminRequests = new WeakMap();
+
+async function jsonRequest(fetcher, path, method = 'GET', body) {
+  const response = await fetcher(path, {
+    method, credentials: 'same-origin', cache: 'no-store',
+    headers: body === undefined ? { Accept: 'application/json' } : {
+      Accept: 'application/json', 'Content-Type': 'application/json',
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  if (!response.ok) {
+    const error = new Error('admin request failed');
+    error.status = response.status;
+    try { error.code = (await response.json()).code; } catch { /* Keep the status when no JSON body is available. */ }
+    throw error;
+  }
+  return response.json();
+}
+
+function fields(form) {
+  const data = new FormData(form);
+  return {
+    name: String(data.get('name') ?? ''),
+    story: String(data.get('story') ?? ''),
+    roadAddress: String(data.get('roadAddress') ?? ''),
+    minimumSpendWon: Number(data.get('minimumSpendWon')),
+  };
+}
+
+function editField(doc, label, name, value, type = 'text') {
+  const wrapper = doc.createElement('label');
+  wrapper.textContent = label + ' ';
+  const input = doc.createElement(name === 'story' ? 'textarea' : 'input');
+  input.name = name;
+  if (input.tagName === 'INPUT') input.type = type;
+  input.value = String(value);
+  input.required = name === 'name' || name === 'roadAddress' || name === 'minimumSpendWon';
+  wrapper.append(input);
+  return wrapper;
+}
+
+export async function loadAdmin(fetcher, doc) {
+  const requestId = (adminRequests.get(doc) ?? 0) + 1;
+  adminRequests.set(doc, requestId);
+  const status = doc.getElementById('admin-status');
+  const login = doc.getElementById('admin-login');
+  const logout = doc.getElementById('admin-logout');
+  const content = doc.getElementById('admin-content');
+  const list = doc.getElementById('admin-merchants');
+  const create = doc.getElementById('admin-create');
+  if (!status || !login || !logout || !content || !list || !create) return;
+  content.hidden = true;
+  login.hidden = true;
+  logout.hidden = true;
+  list.replaceChildren();
+  try {
+    await jsonRequest(fetcher, '/api/web/admin/me');
+    if (adminRequests.get(doc) !== requestId) return;
+    const payload = await jsonRequest(fetcher, endpoint);
+    if (adminRequests.get(doc) !== requestId) return;
+    if (!Array.isArray(payload.merchants)) throw new Error('invalid merchants');
+    for (const merchant of payload.merchants) {
+      if (merchant.demo !== false || typeof merchant.id !== 'string' ||
+          !Number.isSafeInteger(merchant.version)) throw new Error('invalid merchant');
+      const form = doc.createElement('form');
+      const title = doc.createElement('h3');
+      title.textContent = merchant.name;
+      const state = doc.createElement('p');
+      state.textContent = merchant.status === 'PAUSED' ? '비공개' : '공개 가능';
+      const save = doc.createElement('button');
+      save.type = 'submit';
+      save.textContent = '수정 저장';
+      const hide = doc.createElement('button');
+      hide.type = 'button';
+      hide.textContent = '비공개 및 신규 참여 중지';
+      form.append(title, state,
+        editField(doc, '상점 이름', 'name', merchant.name),
+        editField(doc, '소개', 'story', merchant.story),
+        editField(doc, '도로명 주소', 'roadAddress', merchant.roadAddress),
+        editField(doc, '최소 결제 금액(원)', 'minimumSpendWon', merchant.minimumSpendWon, 'number'),
+        save, hide);
+      const staffPanel = doc.createElement('section');
+      const staffTitle = doc.createElement('h4');
+      staffTitle.textContent = '직원 권한';
+      const staffList = doc.createElement('div');
+      const approve = doc.createElement('form');
+      const codeLabel = doc.createElement('label');
+      codeLabel.textContent = '직원이 전달한 등록 코드 ';
+      const codeInput = doc.createElement('input');
+      codeInput.name = 'code';
+      codeInput.required = true;
+      codeInput.maxLength = 22;
+      codeInput.autocomplete = 'off';
+      codeLabel.append(codeInput);
+      const approveButton = doc.createElement('button');
+      approveButton.type = 'submit';
+      approveButton.textContent = '이 점포 직원 승인';
+      approve.append(codeLabel, approveButton);
+      staffPanel.append(staffTitle, staffList, approve);
+      try {
+        const staff = await jsonRequest(fetcher, `${endpoint}/${encodeURIComponent(merchant.id)}/staff`);
+        if (adminRequests.get(doc) !== requestId) return;
+        if (!Array.isArray(staff.staff)) throw new Error('invalid staff');
+        for (const member of staff.staff) {
+          const row = doc.createElement('p');
+          const label = doc.createElement('span');
+          label.textContent = `계정 ${member.accountId} · 직원 `;
+          const revoke = doc.createElement('button');
+          revoke.type = 'button';
+          revoke.textContent = '권한 회수';
+          revoke.addEventListener('click', async () => {
+            revoke.disabled = true;
+            try {
+              await jsonRequest(fetcher,
+                `${endpoint}/${encodeURIComponent(merchant.id)}/staff/${encodeURIComponent(member.accountId)}/revoke`,
+                'POST', {});
+              await loadAdmin(fetcher, doc);
+              status.textContent = '직원 권한을 회수했습니다.';
+            } catch {
+              status.textContent = '직원 권한을 회수하지 못했습니다.';
+              revoke.disabled = false;
+            }
+          });
+          row.append(label, revoke);
+          staffList.append(row);
+        }
+        if (!staff.staff.length) staffList.textContent = '승인된 직원이 없습니다.';
+      } catch {
+        if (adminRequests.get(doc) !== requestId) return;
+        staffList.textContent = '직원 목록을 불러오지 못했습니다.';
+      }
+      approve.addEventListener('submit', async event => {
+        event.preventDefault();
+        approveButton.disabled = true;
+        try {
+          await jsonRequest(fetcher, `${endpoint}/${encodeURIComponent(merchant.id)}/staff`, 'POST', {
+            code: codeInput.value,
+          });
+          codeInput.value = '';
+          await loadAdmin(fetcher, doc);
+          status.textContent = '직원 권한을 승인했습니다.';
+        } catch (error) {
+          status.textContent = error.code === 'STAFF_CODE_INVALID'
+            ? '코드가 만료되었거나 이미 사용되었습니다.' : '직원 권한을 승인하지 못했습니다.';
+          approveButton.disabled = false;
+        }
+      });
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        save.disabled = true;
+        try {
+          await jsonRequest(fetcher, `${endpoint}/${encodeURIComponent(merchant.id)}`, 'PATCH', {
+            ...fields(form), expectedVersion: merchant.version,
+          });
+          await loadAdmin(fetcher, doc);
+          status.textContent = '상점을 수정했습니다.';
+        } catch (error) {
+          status.textContent = error.status === 409 ? '다른 변경이 먼저 저장되었습니다. 새로고침해 주세요.' : '수정하지 못했습니다.';
+          save.disabled = false;
+        }
+      });
+      hide.addEventListener('click', async () => {
+        hide.disabled = true;
+        try {
+          await jsonRequest(fetcher, `${endpoint}/${encodeURIComponent(merchant.id)}/hide`, 'POST', {
+            expectedVersion: merchant.version,
+          });
+          await loadAdmin(fetcher, doc);
+          status.textContent = '상점을 비공개로 전환하고 신규 참여를 중지했습니다.';
+        } catch (error) {
+          status.textContent = error.code === 'ADMIN_PENDING_CLAIMS'
+            ? '미수령 QR이 있습니다. 수령 완료 또는 만료 후 다시 시도해 주세요.'
+            : error.status === 409 ? '다른 변경이 먼저 저장되었습니다. 새로고침해 주세요.' : '비공개로 전환하지 못했습니다.';
+          hide.disabled = false;
+        }
+      });
+      list.append(form, staffPanel);
+    }
+    if (payload.merchants.length === 0) {
+      const empty = doc.createElement('p');
+      empty.textContent = '등록된 점포가 없습니다. 점포 등록 양식에서 첫 점포를 비공개로 등록하세요.';
+      list.append(empty);
+    }
+    status.textContent = payload.merchants.length ? `${payload.merchants.length}곳의 실제 상점입니다.` : '등록된 실제 상점이 없습니다.';
+    content.hidden = false;
+    logout.textContent = '로그아웃';
+    logout.hidden = false;
+  } catch (error) {
+    if (adminRequests.get(doc) !== requestId) return;
+    if (error.status === 401) {
+      status.textContent = '관리자 계정으로 로그인해 주세요.';
+      login.hidden = false;
+    } else if (error.status === 403) {
+      status.textContent = '이 Google 계정에는 관리자 권한이 없습니다.';
+      logout.textContent = '다른 계정으로 로그인';
+      logout.hidden = false;
+    } else {
+      status.textContent = '관리자 정보를 불러오지 못했습니다. 새로고침해 주세요.';
+    }
+  }
+}
+
+export function bindAdmin(fetcher, doc) {
+  const form = doc.getElementById('admin-create');
+  const status = doc.getElementById('admin-status');
+  const login = doc.getElementById('admin-login');
+  const logout = doc.getElementById('admin-logout');
+  const clear = () => {
+    adminRequests.set(doc, (adminRequests.get(doc) ?? 0) + 1);
+    doc.getElementById('admin-merchants')?.replaceChildren();
+    doc.getElementById('admin-content').hidden = true;
+  };
+  doc.defaultView?.addEventListener('pagehide', clear);
+  doc.defaultView?.addEventListener('pageshow', event => {
+    if (event.persisted) void loadAdmin(fetcher, doc);
+  });
+  doc.addEventListener?.('visibilitychange', () => {
+    if (doc.hidden) clear();
+    else void loadAdmin(fetcher, doc);
+  });
+  logout?.addEventListener('click', async () => {
+    clear();
+    login.hidden = true;
+    logout.disabled = true;
+    status.textContent = '로그아웃하는 중입니다.';
+    try {
+      const response = await fetcher('/api/web/logout', {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      });
+      if (!response.ok) throw new Error('logout failed');
+      clear();
+      logout.hidden = true;
+      login.textContent = '다른 Google 계정으로 로그인';
+      login.hidden = false;
+      status.textContent = '로그아웃했습니다. 다른 Google 계정으로 로그인할 수 있습니다.';
+    } catch {
+      status.textContent = '로그아웃을 확인하지 못했습니다. 다시 시도해 주세요.';
+    } finally { logout.disabled = false; }
+  });
+  form?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await jsonRequest(fetcher, endpoint, 'POST', fields(form));
+      form.reset();
+      await loadAdmin(fetcher, doc);
+      status.textContent = '상점을 비공개로 저장했습니다.';
+    } catch {
+      status.textContent = '상점을 저장하지 못했습니다.';
+    } finally { button.disabled = false; }
+  });
+  return loadAdmin(fetcher, doc);
+}
+
+if (typeof document !== 'undefined') void bindAdmin(fetch, document);

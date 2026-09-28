@@ -1,7 +1,8 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
+import { AuthSessionError } from '../auth-session.js';
 import {
   AccountDeletionError,
   type AccountDeletionResult,
@@ -13,6 +14,7 @@ import { PostgresAccountLifecycle } from './account-lifecycle.js';
 type Options = {
   hmacSecret: string;
   policyVersion: string;
+  requireRecentSession: boolean;
   nextRequestId: () => string;
   now: () => Date;
 };
@@ -36,6 +38,7 @@ type RequestRow = {
 const defaultOptions = {
   nextRequestId: () => randomUUID(),
   now: () => new Date(),
+  requireRecentSession: false,
 };
 
 export class PostgresAccountDeletionService implements AccountDeletionService {
@@ -61,19 +64,25 @@ export class PostgresAccountDeletionService implements AccountDeletionService {
   async requestDeletion(input: {
     accountId: string;
     confirmation: string;
+    sessionToken?: string;
   }): Promise<AccountDeletionResult> {
     if (!input.accountId.trim()) throw new AccountDeletionError('ACCOUNT_REQUIRED');
     if (input.confirmation !== 'DELETE MY ACCOUNT') {
       throw new AccountDeletionError('DELETION_CONFIRMATION_REQUIRED');
     }
+    if (this.options.requireRecentSession && !input.sessionToken?.trim()) {
+      throw new AuthSessionError('SESSION_REQUIRED');
+    }
 
     const referenceHash = this.accountLifecycle.referenceHash(input.accountId);
     const deletedAlias = `deleted:${referenceHash.toString('hex')}`;
-    const now = this.options.now();
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       await this.accountLifecycle.lockForDeletion(client, input.accountId);
+      const now = input.sessionToken
+        ? await assertRecentSession(client, input.accountId, input.sessionToken, this.options.now)
+        : this.options.now();
 
       const existing = await findRequest(client, referenceHash);
       if (existing) {
@@ -120,6 +129,41 @@ export class PostgresAccountDeletionService implements AccountDeletionService {
       client.release();
     }
   }
+}
+
+async function assertRecentSession(
+  client: PoolClient,
+  accountId: string,
+  sessionToken: string,
+  now: () => Date,
+): Promise<Date> {
+  const session = (
+    await client.query<{
+      account_id: string;
+      last_authenticated_at: Date;
+      expires_at: Date;
+      revoked_at: Date | null;
+    }>(
+      `SELECT account_id, last_authenticated_at, expires_at, revoked_at
+       FROM auth_sessions
+       WHERE token_hash = $1
+       FOR UPDATE`,
+      [createHash('sha256').update(sessionToken).digest()],
+    )
+  ).rows[0];
+  const checkedAt = now();
+  if (!session || session.revoked_at || session.expires_at <= checkedAt) {
+    throw new AuthSessionError('SESSION_INVALID');
+  }
+  if (session.account_id !== accountId) throw new AuthSessionError('IDENTITY_MISMATCH');
+  const authenticatedAt = session.last_authenticated_at.getTime();
+  if (
+    authenticatedAt > checkedAt.getTime() ||
+    authenticatedAt < checkedAt.getTime() - 5 * 60 * 1000
+  ) {
+    throw new AuthSessionError('REAUTHENTICATION_REQUIRED');
+  }
+  return checkedAt;
 }
 
 async function mintCounts(
@@ -231,6 +275,21 @@ async function pseudonymizeAccount(
     [now, accountId],
   );
   await client.query('DELETE FROM auth_identities WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM account_deletion_intake_requests WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM platform_admins WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM staff_registration_requests WHERE account_id = $1', [accountId]);
+  await client.query(`UPDATE staff_registration_audit SET actor_account_id = $1
+    WHERE actor_account_id = $2`, [deletedAlias, accountId]);
+  await client.query(`UPDATE staff_registration_audit SET target_account_id = $1
+    WHERE target_account_id = $2`, [deletedAlias, accountId]);
+  await client.query(
+    'UPDATE platform_admin_role_audit SET target_account_id = $1 WHERE target_account_id = $2',
+    [deletedAlias, accountId],
+  );
+  await client.query(
+    'UPDATE platform_admin_audit SET actor_account_id = $1 WHERE actor_account_id = $2',
+    [deletedAlias, accountId],
+  );
   await client.query(
     `DELETE FROM customer_identity_tokens
      WHERE customer_account_id = $1 OR bound_staff_account_id = $1`,
@@ -314,23 +373,11 @@ async function reconcileExistingRequest(
   const counts = (
     await client.query<{ pending: number; finalized: number }>(
       `SELECT
-         count(*) FILTER (
-           WHERE status NOT IN ('FINALIZED', 'CANCELLED')
-             AND (
-               transaction_hash IS NOT NULL
-               OR last_error_code = 'MINT_SUBMISSION_RESPONSE_LOST'
-               OR EXISTS (
-                 SELECT 1 FROM outbox_events AS outbox
-                 WHERE outbox.aggregate_id = mint_jobs.id
-                   AND outbox.status = 'LEASED'
-                   AND outbox.lease_expires_at > $2
-               )
-             )
-         )::integer AS pending,
+         count(*) FILTER (WHERE status NOT IN ('FINALIZED', 'CANCELLED'))::integer AS pending,
          count(*) FILTER (WHERE status = 'FINALIZED')::integer AS finalized
        FROM mint_jobs
        WHERE account_id = $1`,
-      [request.deleted_account_alias, now],
+      [request.deleted_account_alias],
     )
   ).rows[0]!;
   const status: AccountDeletionStatus = counts.pending > 0

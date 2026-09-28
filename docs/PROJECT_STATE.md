@@ -4,6 +4,12 @@
 
 ## 최신 작업 경계
 
+- **2026-09-28 운영 직원 등록 소스:** `feat/admin-staff-operations`는 직원 자신의 운영 Google 계정과 실제 점포에만 묶이는 15분 코드, 운영 관리자 명시 승인·회수, 감사·계정 삭제 정리, 별도 `/merchant/` 웹을 구현했다. 늦은 웹 응답·직원 회수/QR 발급·잠금 중 코드 만료 경합과 복귀 버튼 재시도를 보완해 로컬 API 116/116·PostgreSQL 68 PASS/2 SKIP·웹 28/28·Caddy 2/2·타입/build/비밀 검사 PASS. 운영 배포·실계정 직원 승인·점포 QR 발급 화면과 실제 방문 수령은 `NOT_RUN`; 시연 가상 점포를 운영에 넣지 않는다.
+
+- **2026-09-28 삭제 요청 접수·보안 운영 배포:** 개인 [PR #8](https://github.com/choijunhuk/MassCOM/pull/8) merge `183d5ed`·[PR #9](https://github.com/choijunhuk/MassCOM/pull/9) merge `4d59347`은 PR/main CI PASS 뒤 [운영 배포](evidence/operating-deletion-intake-deployment-2026-09-28.json)를 완료했다. DB 백업·migration 0018/0023, apex/www 안내 200·미로그인 접수 401·Origin 없는 요청 403을 확인했고 접수 행은 0이다. 서명된 Google `auth_time` 5분과 mint 비종결 판정은 코드·PostgreSQL에서 수리됐지만 실계정 인증/접수·실제 삭제·삭제 후 결과 통지는 `NOT_RUN/BLOCKED`; 시연 DB 계정을 운영 접수로 처리하지 않는다.
+
+- **2026-09-28 운영 관리자 첫 구간 배포:** 개인 [Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 [PR #5](https://github.com/choijunhuk/MassCOM/pull/5) merge `139e122`와 웹 이미지 누락 복구 [PR #7](https://github.com/choijunhuk/MassCOM/pull/7) merge `977a385`는 PR/main CI가 모두 PASS했다. [운영 배포](evidence/operating-admin-deployment-2026-09-28.json)에서 `/admin/`의 첫 `500`을 이미지 누락으로 진단·수정해 apex/www `200`, 미로그인 `401`, Origin 없는 쓰기 `403`과 주 Google 계정 관리자 1명·감사 1건을 확인했다. 실제 운영 점포 0곳, 가상 점포 0곳이며 권한 있는 브라우저의 실제 점포 업무는 `NOT_RUN`; 직원·캠페인·자산·상태 관리는 후속 범위다. 시연 STAFF 자격 자체를 운영 관리자 권한으로 재사용하지 않았다.
+
 - **2026-09-28 개인 main·시연 Preview 4:** [PR #2](https://github.com/choijunhuk/MassCOM/pull/2) merge `6585614`, PR CI `36370159651`·main CI `36370675407` PASS. [시연 APK](https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.4)의 source/package/서명/원격 digest와 같은 커밋의 [시연 API 이미지·migration 0019·외부 HTTPS](evidence/showcase-customer-qr-deployment-2026-09-28.json)를 확인했다. 기존 시연 데이터 3점포/3방문/2보상권, 운영 가상 점포 0건을 보존했다. 새 APK의 실제 휴대전화 설치·2분 고객 식별 QR 전체 흐름은 `NOT_RUN`; 구 Preview 3 STAFF 발급은 새 API에 맞지 않는다. 운영 관리자 [개인 Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)는 구현 중이며 운영 권한 부여·웹 배포를 완료로 표시하지 않는다.
 
 - **2026-09-28 개인 통합 작업 당시:** [Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 [PR #2](https://github.com/choijunhuk/MassCOM/pull/2)에 2분 고객 식별 QR·현재 캠페인 도감 목표·기존 시연 카메라 증거를 합쳤다. 결합 소스의 API 109/109·모바일 239/239·PostgreSQL 52 PASS/2 SKIP, 타입·린트·build/export·문서 검사 PASS. 첫 PR CI의 낡은 README 문구 시험을 RED→GREEN으로 고친 뒤 재검사·병합했다. 당시 새 APK/API·실기는 미완료였고 최신 판정은 위 기록을 따른다. Google Play 목표는 D-040으로 유지하지만 제출은 별도다.

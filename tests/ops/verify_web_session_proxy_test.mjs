@@ -28,6 +28,8 @@ createServer((request, response) => {
     response.writeHead(401);
   } else if (request.url === '/api/web/logout') {
     response.writeHead(204);
+  } else if (request.url === '/api/web/account-deletion-intake') {
+    response.writeHead(202);
   } else {
     response.writeHead(200);
   }
@@ -66,7 +68,7 @@ async function requestForHost(url, path, host, method = 'GET') {
   });
 }
 
-test('Caddy forwards only the four browser-session routes, preserving redirects and cookies', async () => {
+test('Caddy forwards allowlisted browser-session routes, preserving redirects and cookies', async () => {
   const suffix = `${process.pid}-${Date.now()}`;
   const network = `masscom-web-proxy-test-${suffix}`;
   const api = `masscom-web-api-test-${suffix}`;
@@ -120,6 +122,9 @@ test('Caddy forwards only the four browser-session routes, preserving redirects 
     assert.equal(collection.status, 401);
     assert.equal(collection.headers.get('cache-control'), 'no-store');
     assert.equal((await fetch(`${url}/api/web/logout`, { method: 'POST' })).status, 204);
+    const intake = await fetch(`${url}/api/web/account-deletion-intake`, { method: 'POST' });
+    assert.equal(intake.status, 202);
+    assert.match(intake.headers.get('cache-control') ?? '', /no-store/);
 
     for (const path of ['/api/web/unknown', '/api/claim', '/api/mint']) {
       assert.equal((await fetch(`${url}${path}`)).status, 404, path);
@@ -185,10 +190,31 @@ test('Caddy serves the same limited web surface for exact apex and www hosts', a
       assert.equal(previewRedirect.status, 308, host);
       assert.equal(previewRedirect.headers.location, '/preview/', host);
       assert.equal((await requestForHost(url, '/app/', host)).body, 'web:/', host);
+      const adminPage = await requestForHost(url, '/admin/', host);
+      assert.equal(adminPage.body, 'web:/admin/', host);
+      assert.equal(adminPage.headers['x-robots-tag'], 'noindex, nofollow', host);
+      assert.equal(adminPage.headers['cache-control'], 'no-store', host);
+      const merchantPage = await requestForHost(url, '/merchant/', host);
+      assert.equal(merchantPage.body, 'web:/merchant/', host);
+      assert.equal(merchantPage.headers['x-robots-tag'], 'noindex, nofollow', host);
+      assert.equal(merchantPage.headers['cache-control'], 'no-store', host);
+      const merchantRedirect = await requestForHost(url, '/merchant', host);
+      assert.equal(merchantRedirect.status, 308, host);
+      assert.equal(merchantRedirect.headers.location, '/merchant/', host);
       const login = await requestForHost(url, '/api/web/auth/start', host);
       assert.equal(login.status, 302, host);
       assert.equal(login.headers['x-observed-host'], host, host);
       assert.equal((await requestForHost(url, '/api/web/collection', host)).status, 401, host);
+      const adminApi = await requestForHost(url, '/api/web/admin/merchants', host);
+      assert.equal(adminApi.headers['x-observed-host'], host, host);
+      assert.equal(adminApi.headers['x-robots-tag'], 'noindex, nofollow', host);
+      const merchantApi = await requestForHost(url, '/api/web/merchant/me', host);
+      assert.equal(merchantApi.headers['x-observed-host'], host, host);
+      assert.equal(merchantApi.headers['x-robots-tag'], 'noindex, nofollow', host);
+      const intake = await requestForHost(url, '/api/web/account-deletion-intake', host, 'POST');
+      assert.equal(intake.status, 202, host);
+      assert.equal(intake.headers['x-observed-host'], host, host);
+      assert.equal(intake.headers['x-robots-tag'], 'noindex, nofollow', host);
       for (const blocked of ['/HANDOFF.md', '/preview/.vercel/project.json', '/claim', '/mint', '/api/web/unknown']) {
         assert.equal((await requestForHost(url, blocked, host)).status, 404, `${host}${blocked}`);
       }
