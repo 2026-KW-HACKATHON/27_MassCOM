@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- **Preview 6 설치 안내 외부 반영:** [PR #214](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/214) merge 2dda864·main CI PASS 뒤 [apex/www /open](evidence/public-open-preview6-deployment-2026-09-29.json)은 HTTPS 200·저장소 소스 SHA-256 일치·최신 시연 Preview 6 링크를 확인했다. 웹 전용 배포이며 API/DB·운영 앱은 바꾸지 않았다.
+
 - **동네 탐험 배지·공유 배포 경계:** [Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212)의 [PR #213](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/213) merge 5caec3a, PR/main CI PASS. 모바일 244/244·웹 48/48·타입·린트·Android 개발 export PASS. [운영 배지 웹](evidence/neighborhood-badges-web-deployment-2026-09-29.json)은 기존 서버에서 로그인한 0방문 계정의 잠긴 배지 3개, 익명 401/no-store를 확인했다. [시연 Preview 6 APK](evidence/showcase-preview6-release-2026-09-29.json)는 서명·GitHub digest 확인 후 공개했다. 실제 휴대전화 화면·공유·쿠폰 발급은 NOT_RUN이다.
 - **Preview 5 설치 안내 웹 배포:** 첫 두 SSH exit 255 때 이전 웹을 보존했고, 호스트 한정 keepalive와 기존 롤백·경로 검사로 main 19c5ae4의 /open을 [기존 Lightsail에 반영](evidence/public-open-preview5-deployment-2026-09-29.json)했다. apex/www HTTPS 200·소스 SHA-256 일치, API/DB 불변을 확인했다. 신규 배지 웹 소스는 아직 배포하지 않았다.
 

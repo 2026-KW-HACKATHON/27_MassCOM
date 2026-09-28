@@ -62,6 +62,8 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 
 | 2026-09-29 | Codex | 동네 탐험 배지·공유와 웹 배포 진단(Issue #212) | 기존 도감의 인정 방문으로 앱/운영 웹 배지를 표시하고 시연 앱에 사용 불가 쿠폰 예시를 추가. 기존 Lightsail 웹 배포 SSH 종료 2회를 분리 진단 | 모바일 244/244·웹 48/48·타입·린트·Android 개발 export·gate PASS; 첫 두 SSH 실패의 이전 서비스 보존과 keepalive 후 /open HTTPS·소스 해시 일치·API/DB 불변 확인 | AI 구현을 실제 점주 쿠폰 합의·현장 참여로 표시하지 않음. [배지 운영 웹](evidence/neighborhood-badges-web-deployment-2026-09-29.json) 배포·[시연 Preview 6](evidence/showcase-preview6-release-2026-09-29.json) 공개는 Codex/도구 작업이며 새 APK 실기·공유창·TalkBack·실제 쿠폰은 미검증 |
 
+| 2026-09-29 | Codex | Preview 6 공개 설치 안내 반영 | PR #214 병합·CI 확인 후 기존 Lightsail 웹 전용 스크립트로 apex/www /open 링크 교체 | [외부 HTTPS·소스 해시·API/DB 보존](evidence/public-open-preview6-deployment-2026-09-29.json) PASS | AI 배포를 팀원 현장 실증이나 실제 쿠폰 사용으로 표시하지 않음. 새 APK 휴대전화 실기는 NOT_RUN |
+
 ## 팀 설명 체크리스트
 
 각 컴포넌트가 구현될 때 팀원이 다음을 설명할 수 있도록 Issue 또는 문서에 기록합니다.

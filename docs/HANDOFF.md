@@ -4,6 +4,8 @@
 
 ## 2026-09-29 동네 탐험 배지와 웹 배포 상태
 
+- [PR #214](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/214) merge 2dda864·PR/main CI PASS 뒤 기존 웹 전용 스크립트로 [apex/www /open Preview 6 링크](evidence/public-open-preview6-deployment-2026-09-29.json)를 반영했다. 두 URL HTTPS 200·docs/open.html SHA-256 일치, 웹 이미지 2dda864 healthy, 운영 API fd0a9b2·시연 API 6585614·PostgreSQL 불변. 이 웹 배포는 실제 Preview 6 Android 설치·쿠폰 사용 검증이 아니다.
+
 - [Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212)의 [PR #213](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/213) merge 5caec3a·PR/main CI PASS로 인정된 서로 다른 점포 1·2·3곳 배지, 안전한 Android 공유, 시연 전용 사용 불가 쿠폰 예시와 운영 읽기 전용 웹 배지를 통합했다([규칙](NEIGHBORHOOD_BADGES.md)). 모바일 244/244·웹 48/48·타입·린트·Android 개발 export PASS. [운영 웹](evidence/neighborhood-badges-web-deployment-2026-09-29.json)은 실계정 빈 배지 3개와 익명 401/no-store를 확인했다. [시연 Preview 6 APK](evidence/showcase-preview6-release-2026-09-29.json)는 서명·원격 digest 확인 후 공개했으나 휴대전화 화면·공유창·TalkBack은 NOT_RUN. 실제 쿠폰 발급은 없다.
 - 기존 조직 main 19c5ae4의 /open Preview 5 소스는 첫 두 SSH exit 255 때 이전 웹을 보존했고, 작은 tar→SSH·원격 사전검사·단독 빌드 PASS 뒤 이 Mac의 해당 호스트에만 keepalive를 설정해 [기존 웹 전용 스크립트로 배포](evidence/public-open-preview5-deployment-2026-09-29.json)했다. apex/www /open HTTPS 200·소스 SHA-256 일치, 운영/시연 API·DB 불변을 확인했다. 새 유료 자원은 만들지 않았다. 이 배포는 아직 PR 전인 신규 배지 웹 UI를 포함하지 않는다.
 

@@ -10,6 +10,8 @@ Phase 2 핵심 loopback DEMO와 Phase 3 Local Anvil 발행·복구 흐름은 구
 
 ## 2026-09-29 추가 증거
 
+- **중간 기획 재현 가능성 20점 / 최종 실현·상용화 가능성 30점:** [PR #214](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/214)의 [Preview 6 apex/www 설치 안내](evidence/public-open-preview6-deployment-2026-09-29.json)는 실제 HTTPS·소스 SHA-256·기존 API/DB 보존으로 재현했다. APK의 실제 폰 실행이나 점주 쿠폰 사용을 입증하지 않는다.
+
 - **중간 기획 재현 가능성 20점 / 최종 실현·상용화 가능성 30점:** [조직 PR #211](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/211)의 공개 Preview 5 APK 연결은 [apex/www 설치 안내 실측](evidence/public-open-preview5-deployment-2026-09-29.json)에서 HTTPS·소스 해시와 운영/시연 API·DB 보존까지 확인했다. 이는 Android Preview 5 설치·실제 가게·쿠폰 사용의 증거가 아니다.
 
 - **중간 창의성·차별성 20점 / 최종 창의성·차별성 20점:** [Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212)의 [동네 배지 설계·검증](NEIGHBORHOOD_BADGES.md)은 인정 방문→서로 다른 가게 탐험→배지 공유의 연결을 보여준다. 모바일·웹 자동 시험과 [운영 배지 웹 HTTPS·익명 경계](evidence/neighborhood-badges-web-deployment-2026-09-29.json), [시연 Preview 6 서명 APK](evidence/showcase-preview6-release-2026-09-29.json)는 PASS다. Android 새 화면·사람의 재방문 행동·실제 점주 쿠폰 사용은 NOT_RUN이며 시연 쿠폰은 할인 실적이 아니다.
