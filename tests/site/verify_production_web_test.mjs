@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 
 import { bindCollectionControls, loadCollection, loadMerchants } from '../../apps/production-web/assets/production.mjs';
+import { bindAdmin, loadAdmin } from '../../apps/production-web/assets/admin.mjs';
 import { createProductionServer, resolveProductionBindHost } from '../../apps/production-web/server.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -267,6 +268,80 @@ test('로컬 서버는 공개 GET /merchants만 운영 API에 전달한다', asy
     assert.ok(blocked.status === 404 || blocked.status === 405);
   }
   assert.equal(calls.length, 1);
+});
+
+test('관리 화면은 별도 경로에서 제공하고 검색 색인 및 캐시를 막는다', async () => {
+  const page = await fetch(`${base}/admin/`);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /관리자/);
+  assert.equal(page.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.equal(page.headers.get('cache-control'), 'no-store');
+  const script = await fetch(`${base}/admin/assets/admin.mjs`);
+  assert.equal(script.status, 200);
+  assert.match(script.headers.get('content-type'), /javascript/);
+  assert.equal(script.headers.get('x-robots-tag'), 'noindex, nofollow');
+});
+
+test('관리 화면은 로그인·권한 거부·실제 상점 목록을 구분하고 상점 이름을 텍스트로 표시한다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create'].map(id => [id, { ...element(), hidden: true }]));
+  const doc = {
+    getElementById(id) { return nodes[id]; },
+    createElement: element,
+  };
+  await loadAdmin(async () => ({ status: 401, ok: false }), doc);
+  assert.equal(nodes['admin-login'].hidden, false);
+  assert.equal(nodes['admin-content'].hidden, true);
+  await loadAdmin(async () => ({ status: 403, ok: false }), doc);
+  assert.match(nodes['admin-status'].textContent, /권한이 없습니다/);
+  assert.equal(nodes['admin-content'].hidden, true);
+  await loadAdmin(async path => ({ ok: true, json: async () => path.endsWith('/me')
+    ? { admin: true } : { merchants: [{ id: 'real-1', name: '<script>alert(1)</script>',
+      story: '소개', roadAddress: '서울', minimumSpendWon: 1000, status: 'PAUSED', demo: false, version: 1 }] } }), doc);
+  assert.equal(nodes['admin-content'].hidden, false);
+  assert.equal(nodes['admin-merchants'].children.length, 1);
+  assert.equal(nodes['admin-merchants'].children[0].children[0].textContent, '<script>alert(1)</script>');
+});
+
+test('관리 화면은 탭을 떠날 때 이전 계정의 상점 내용을 지운다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create'].map(id => [id, { ...element(), hidden: true }]));
+  const listeners = new Map();
+  const doc = {
+    getElementById(id) { return nodes[id]; }, createElement: element,
+    defaultView: { addEventListener(type, callback) { listeners.set(type, callback); } },
+  };
+  await bindAdmin(async path => ({ ok: true, json: async () => path.endsWith('/me')
+    ? { admin: true } : { merchants: [{ id: 'real-2', name: '이전 계정 상점', story: '',
+      roadAddress: '서울', minimumSpendWon: 0, status: 'PAUSED', demo: false, version: 1 }] } }), doc);
+  assert.equal(nodes['admin-merchants'].children.length, 1);
+  listeners.get('pagehide')();
+  assert.equal(nodes['admin-merchants'].children.length, 0);
+  assert.equal(nodes['admin-content'].hidden, true);
+});
+
+test('관리 권한 조회가 늦게 끝나도 닫힌 탭에 상점 내용을 다시 표시하지 않는다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create'].map(id => [id, { ...element(), hidden: true }]));
+  const listeners = new Map();
+  const doc = {
+    getElementById(id) { return nodes[id]; }, createElement: element,
+    defaultView: { addEventListener(type, callback) { listeners.set(type, callback); } },
+  };
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const loaded = bindAdmin(async path => {
+    if (path.endsWith('/me')) await pending;
+    return { ok: true, json: async () => path.endsWith('/me') ? { admin: true } : {
+      merchants: [{ id: 'late', name: '늦은 상점', story: '', roadAddress: '서울',
+        minimumSpendWon: 0, status: 'PAUSED', demo: false, version: 1 }],
+    } };
+  }, doc);
+  listeners.get('pagehide')();
+  release();
+  await loaded;
+  assert.equal(nodes['admin-merchants'].children.length, 0);
+  assert.equal(nodes['admin-content'].hidden, true);
 });
 
 test('운영 API 오류는 502로 전달하고 임의 데이터가 없다', async () => {
