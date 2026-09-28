@@ -32,7 +32,7 @@ import {
   type RedeemedClaimSlot,
 } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
-import type { PostgresAdminService } from './postgres/admin.js';
+import { AdminError, type PostgresAdminService } from './postgres/admin.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import type {
   MintJobView,
@@ -225,6 +225,7 @@ async function webRequest(baseUrl: string, path: string, options: {
   host?: string;
   method?: string;
   headers?: Record<string, string>;
+  body?: string;
 } = {}): Promise<Response> {
   return new Promise((resolve, reject) => {
     const request = httpRequest(new URL(path, baseUrl), {
@@ -247,7 +248,7 @@ async function webRequest(baseUrl: string, path: string, options: {
       response.on('error', reject);
     });
     request.on('error', reject);
-    request.end();
+    request.end(options.body);
   });
 }
 
@@ -405,6 +406,28 @@ test('admin Google sign-in returns to the fixed admin path without a caller-cont
   });
   assert.equal(callback.status, 303);
   assert.equal(callback.headers.get('location'), '/admin/');
+});
+
+test('admin hide returns a distinct 409 while valid QR claims are pending', async (t) => {
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('not used'); },
+    complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'admin-account', logout: async () => {},
+  };
+  const admin = {
+    isAdmin: async () => true,
+    hideMerchant: async () => { throw new AdminError('ADMIN_PENDING_CLAIMS'); },
+  } as unknown as Pick<PostgresAdminService,
+    'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const response = await webRequest(base, '/api/web/admin/merchants/merchant-1/hide', {
+    method: 'POST', headers: {
+      cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr', 'content-type': 'application/json',
+    }, body: '{"expectedVersion":1}',
+  });
+  assert.equal(response.status, 409);
+  assert.deepEqual(await response.json(), { code: 'ADMIN_PENDING_CLAIMS' });
 });
 
 test('web login start obeys the existing per-client login limiter before storing a state', async (t) => {

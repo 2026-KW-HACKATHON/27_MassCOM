@@ -6,11 +6,125 @@ import { Pool } from 'pg';
 
 import { PostgresAdminService } from './postgres/admin.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
+import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
+import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
+import { PostgresCustomerIdentityService } from './postgres/customer-identity.js';
 import { runMigrations } from './postgres/migrate.js';
 
 const testUrl = process.env.TEST_DATABASE_URL;
 const safeTestTarget = testUrl && decodeURIComponent(new URL(testUrl).pathname.slice(1)).endsWith('_test');
 const hmacSecret = 'admin-test-account-deletion-hmac-secret-32-bytes';
+
+test('pending QR blocks hide until redeemed, then hide pauses campaign and prevents new QR', {
+  skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
+}, async () => {
+  const pool = new Pool({ connectionString: testUrl });
+  const subject = `admin-${randomUUID()}`;
+  const accountId = `acct_${randomUUID()}`;
+  const merchantId = randomUUID();
+  const campaignId = randomUUID();
+  const staffId = `staff-${randomUUID()}`;
+  const customerId = `customer-${randomUUID()}`;
+  const admin = new PostgresAdminService(pool, hmacSecret);
+  const claims = new PostgresClaimSlotService(pool, {
+    referenceHmacSecret: 'admin-test-claim-reference-secret-32-bytes',
+  });
+  const identity = new PostgresCustomerIdentityService(pool, {
+    accountLifecycle: new PostgresAccountLifecycle({ hmacSecret }),
+  });
+  try {
+    await runMigrations(pool);
+    await pool.query(`INSERT INTO auth_identities(provider, subject, account_id, created_at)
+      VALUES ('google', $1, $2, now())`, [subject, accountId]);
+    await admin.grant(subject);
+    await pool.query(`INSERT INTO merchants(id, name, story, road_address, minimum_spend_won, status)
+      VALUES ($1, '실제 상점', '', '서울', 0, 'ACTIVE')`, [merchantId]);
+    await pool.query(`INSERT INTO merchant_members(merchant_id, account_id, role, status)
+      VALUES ($1, $2, 'STAFF', 'ACTIVE')`, [merchantId, staffId]);
+    await pool.query(`INSERT INTO campaigns(id, merchant_id, title, starts_at, ends_at, status,
+      is_public, enrollment_capacity) VALUES ($1, $2, '방문', now() - interval '1 day',
+      now() + interval '1 day', 'ACTIVE', true, 10)`, [campaignId, merchantId]);
+    await pool.query(`INSERT INTO campaign_goals(campaign_id, target_visit_count, display_name)
+      VALUES ($1, 1, '첫 방문'), ($1, 3, '세 번째 방문'), ($1, 5, '다섯 번째 방문')`, [campaignId]);
+    const identityToken = await identity.create(customerId);
+    await identity.resolve({ token: identityToken.token, merchantId, staffAccountId: staffId });
+    const issueInput = { merchantId, customerIdentityToken: identityToken.token,
+      merchantReference: `order-${randomUUID()}`, createdByAccountId: staffId };
+    const slot = await claims.issue(issueInput);
+    if (!('token' in slot)) throw new Error('first issue must contain a QR token');
+    await assert.rejects(admin.hideMerchant(accountId, merchantId, 1), { code: 'ADMIN_PENDING_CLAIMS' });
+    const before = await pool.query('SELECT status, is_public FROM campaigns WHERE id = $1', [campaignId]);
+    assert.deepEqual(before.rows, [{ status: 'ACTIVE', is_public: true }]);
+    assert.equal((await claims.preview({ accountId: customerId, token: slot.token })).status, 'AVAILABLE');
+    assert.equal((await claims.redeem({ accountId: customerId, token: slot.token })).status, 'CLAIMED');
+    const expired = await claims.issue({ merchantId, customerAccountId: `customer-${randomUUID()}`,
+      merchantReference: `order-${randomUUID()}`, createdByAccountId: staffId });
+    await pool.query(`UPDATE claim_slots SET created_at = now() - interval '1 day',
+      expires_at = now() - interval '1 minute' WHERE id = $1`, [expired.claimSlotId]);
+    const hidden = await admin.hideMerchant(accountId, merchantId, 1);
+    assert.equal(hidden.status, 'PAUSED');
+    assert.deepEqual(await claims.issue(issueInput), {
+      claimSlotId: slot.claimSlotId, tokenVersion: slot.tokenVersion,
+      expiresAt: slot.expiresAt, replayed: true,
+    });
+    await assert.rejects(claims.reissue({ merchantId, claimSlotId: expired.claimSlotId,
+      expectedTokenVersion: expired.tokenVersion, requestedByAccountId: staffId }),
+    { code: 'CLAIM_MERCHANT_INACTIVE' });
+    assert.deepEqual((await pool.query('SELECT status, is_public FROM campaigns WHERE id = $1',
+      [campaignId])).rows, [{ status: 'PAUSED', is_public: false }]);
+    await assert.rejects(claims.issue({ merchantId, customerAccountId: `customer-${randomUUID()}`,
+      merchantReference: `order-${randomUUID()}`, createdByAccountId: staffId }),
+    { code: 'CLAIM_MERCHANT_INACTIVE' });
+  } finally { await pool.end(); }
+});
+
+test('concurrent QR issue and hide allow only a safe winner', {
+  skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
+}, async () => {
+  const pool = new Pool({ connectionString: testUrl });
+  const subject = `admin-${randomUUID()}`;
+  const accountId = `acct_${randomUUID()}`;
+  const merchantId = randomUUID();
+  const campaignId = randomUUID();
+  const staffId = `staff-${randomUUID()}`;
+  const admin = new PostgresAdminService(pool, hmacSecret);
+  const claims = new PostgresClaimSlotService(pool, {
+    referenceHmacSecret: 'admin-test-claim-reference-secret-32-bytes',
+  });
+  try {
+    await runMigrations(pool);
+    await pool.query(`INSERT INTO auth_identities(provider, subject, account_id, created_at)
+      VALUES ('google', $1, $2, now())`, [subject, accountId]);
+    await admin.grant(subject);
+    await pool.query(`INSERT INTO merchants(id, name, story, road_address, minimum_spend_won, status)
+      VALUES ($1, '경합 상점', '', '서울', 0, 'ACTIVE')`, [merchantId]);
+    await pool.query(`INSERT INTO merchant_members(merchant_id, account_id, role, status)
+      VALUES ($1, $2, 'STAFF', 'ACTIVE')`, [merchantId, staffId]);
+    await pool.query(`INSERT INTO campaigns(id, merchant_id, title, starts_at, ends_at, status,
+      is_public, enrollment_capacity) VALUES ($1, $2, '방문', now() - interval '1 day',
+      now() + interval '1 day', 'ACTIVE', true, 10)`, [campaignId, merchantId]);
+    await pool.query(`INSERT INTO campaign_goals(campaign_id, target_visit_count, display_name)
+      VALUES ($1, 1, '첫 방문'), ($1, 3, '세 번째 방문'), ($1, 5, '다섯 번째 방문')`, [campaignId]);
+    const [issue, hide] = await Promise.allSettled([
+      claims.issue({ merchantId, customerAccountId: `customer-${randomUUID()}`,
+        merchantReference: `order-${randomUUID()}`, createdByAccountId: staffId }),
+      admin.hideMerchant(accountId, merchantId, 1),
+    ]);
+    assert.equal([issue, hide].filter(result => result.status === 'fulfilled').length, 1);
+    if (issue.status === 'fulfilled') {
+      assert.equal(hide.status, 'rejected');
+      assert.equal(hide.reason.code, 'ADMIN_PENDING_CLAIMS');
+      assert.equal((await pool.query('SELECT status FROM merchants WHERE id = $1', [merchantId])).rows[0]?.status, 'ACTIVE');
+      assert.equal((await pool.query('SELECT status FROM campaigns WHERE id = $1', [campaignId])).rows[0]?.status, 'ACTIVE');
+    } else {
+      assert.equal(issue.reason.code, 'CLAIM_MERCHANT_INACTIVE');
+      assert.equal(hide.status, 'fulfilled');
+      assert.equal((await pool.query('SELECT count(*)::int AS count FROM claim_slots WHERE merchant_id = $1',
+        [merchantId])).rows[0]?.count, 0);
+      assert.equal((await pool.query('SELECT status FROM campaigns WHERE id = $1', [campaignId])).rows[0]?.status, 'PAUSED');
+    }
+  } finally { await pool.end(); }
+});
 
 test('only a granted active Google account can create, edit, and hide a real merchant', {
   skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',

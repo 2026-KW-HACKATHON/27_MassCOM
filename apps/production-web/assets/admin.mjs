@@ -12,6 +12,7 @@ async function jsonRequest(fetcher, path, method = 'GET', body) {
   if (!response.ok) {
     const error = new Error('admin request failed');
     error.status = response.status;
+    try { error.code = (await response.json()).code; } catch { /* Keep the status when no JSON body is available. */ }
     throw error;
   }
   return response.json();
@@ -102,7 +103,9 @@ export async function loadAdmin(fetcher, doc) {
           await loadAdmin(fetcher, doc);
           status.textContent = '상점을 비공개로 전환하고 신규 참여를 중지했습니다.';
         } catch (error) {
-          status.textContent = error.status === 409 ? '다른 변경이 먼저 저장되었습니다. 새로고침해 주세요.' : '비공개로 전환하지 못했습니다.';
+          status.textContent = error.code === 'ADMIN_PENDING_CLAIMS'
+            ? '미수령 QR이 있습니다. 수령 완료 또는 만료 후 다시 시도해 주세요.'
+            : error.status === 409 ? '다른 변경이 먼저 저장되었습니다. 새로고침해 주세요.' : '비공개로 전환하지 못했습니다.';
           hide.disabled = false;
         }
       });

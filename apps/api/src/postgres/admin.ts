@@ -30,7 +30,7 @@ type MerchantRow = {
 
 export class AdminError extends Error {
   constructor(readonly code: 'ADMIN_FORBIDDEN' | 'ADMIN_IDENTITY_NOT_FOUND' |
-    'ADMIN_MERCHANT_NOT_FOUND' | 'ADMIN_VERSION_CONFLICT' | 'ADMIN_INVALID_INPUT') {
+    'ADMIN_MERCHANT_NOT_FOUND' | 'ADMIN_VERSION_CONFLICT' | 'ADMIN_PENDING_CLAIMS' | 'ADMIN_INVALID_INPUT') {
     super(code);
     this.name = 'AdminError';
   }
@@ -143,6 +143,12 @@ export class PostgresAdminService {
     return this.transaction(async client => {
       await this.requireAdmin(client, accountId);
       const before = await this.lockMerchant(client, id, expectedVersion);
+      const pending = await client.query(
+        `SELECT 1 FROM claim_slots
+         WHERE merchant_id = $1 AND status = 'ISSUED' AND expires_at > now()
+         LIMIT 1`, [id],
+      );
+      if (pending.rowCount) throw new AdminError('ADMIN_PENDING_CLAIMS');
       const row = (await client.query<MerchantRow>(
         `UPDATE merchants SET status = 'PAUSED', version = version + 1, updated_at = now()
          WHERE id = $1 RETURNING ${columns}`, [id],

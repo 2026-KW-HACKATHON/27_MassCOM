@@ -616,7 +616,7 @@ export function createApiServer(
       if (error instanceof AdminError) {
         const status = error.code === 'ADMIN_FORBIDDEN' ? 403
           : error.code === 'ADMIN_MERCHANT_NOT_FOUND' || error.code === 'ADMIN_IDENTITY_NOT_FOUND' ? 404
-            : error.code === 'ADMIN_VERSION_CONFLICT' ? 409 : 400;
+            : error.code === 'ADMIN_VERSION_CONFLICT' || error.code === 'ADMIN_PENDING_CLAIMS' ? 409 : 400;
         sendJson(response, status, { code: error.code });
         return;
       }

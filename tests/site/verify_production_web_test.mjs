@@ -344,6 +344,26 @@ test('로그아웃 실패를 성공으로 표시하지 않고 계정 전환 재�
   assert.match(nodes['admin-status'].textContent, /다시 시도/);
 });
 
+test('미수령 QR 때문에 숨김이 거부되면 수령 또는 만료 후 재시도를 안내한다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+  const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+  const fetcher = async (path, options) => {
+    if (path.endsWith('/me')) return { ok: true, json: async () => ({ admin: true }) };
+    if (options.method === 'POST') return { ok: false, status: 409,
+      json: async () => ({ code: 'ADMIN_PENDING_CLAIMS' }) };
+    return { ok: true, json: async () => ({ merchants: [{ id: 'real-claim', name: '실제 상점',
+      story: '', roadAddress: '서울', minimumSpendWon: 0, status: 'ACTIVE', demo: false, version: 1 }] }) };
+  };
+  await loadAdmin(fetcher, doc);
+  const hide = nodes['admin-merchants'].children[0].children.at(-1);
+  await hide.click();
+  assert.match(nodes['admin-status'].textContent, /미수령 QR/);
+  assert.match(nodes['admin-status'].textContent, /수령.*만료/);
+  assert.equal(hide.disabled, false);
+  assert.equal(nodes['admin-content'].hidden, false);
+});
+
 test('관리 화면은 탭을 떠날 때 이전 계정의 상점 내용을 지운다', async () => {
   const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
     'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));

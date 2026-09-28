@@ -15,7 +15,8 @@
 - `GET /api/web/admin/merchants` → `200 {"merchants":[...]}`. 시연 상점은 제외한다.
 - `POST /api/web/admin/merchants` → 이름, 소개, 도로명 주소, 최소 결제 금액을 받아 `201 {"merchant":...}`. 새 상점은 `is_demo=false`, `status=PAUSED`, 캠페인 없음으로 저장한다. 자동 공개하지 않는다.
 - `PATCH /api/web/admin/merchants/:id` → 위 필드와 `expectedVersion`을 받아 `200 {"merchant":...}`. 버전 충돌은 `409`.
-- `POST /api/web/admin/merchants/:id/hide` → `expectedVersion`을 받아 `200 {"merchant":...}`. 상점을 비공개로 만들고 활성 캠페인을 같은 트랜잭션에서 `PAUSED`, `is_public=false`로 바꿔 신규 참여를 중지한다. 이미 발급된 권리는 삭제하지 않는다.
+- `POST /api/web/admin/merchants/:id/hide` → `expectedVersion`을 받아 `200 {"merchant":...}`. 유효한 미수령 QR이 있으면 캠페인을 유지하고 `409 ADMIN_PENDING_CLAIMS`로 거부한다. 수령 완료 또는 만료 후 재시도할 수 있다. 성공 시 상점을 비공개로 만들고 활성 캠페인을 같은 트랜잭션에서 `PAUSED`, `is_public=false`로 바꿔 신규 참여를 중지한다. 이미 수령한 권리는 삭제하지 않는다.
+- QR 신규 발급과 재발급은 활성 상점 행을 공유 잠금으로 확인해 숨김과 직렬화한다. 숨김 완료 후 새 발급·재발급은 `409 CLAIM_MERCHANT_INACTIVE`로 거부한다. 이미 소비한 고객 신원 토큰의 동일 요청 재시도는 새 QR을 만들지 않고 기존 `claimSlotId`만 반환한다.
 - 생성·수정·숨김 감사 행은 해당 변경과 동일 트랜잭션에 기록된다. 감사 기록 실패 시 업무 변경도 롤백한다. 계정 삭제는 관리자 권한을 제거하고 감사 행의 행위자 계정을 익명 별칭으로 바꾼다.
 
 ## 운영자 권한 부여
