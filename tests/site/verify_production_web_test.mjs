@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 
 import { bindCollectionControls, loadCollection, loadMerchants } from '../../apps/production-web/assets/production.mjs';
-import { bindAdmin, loadAdmin, parseMenuLines } from '../../apps/production-web/assets/admin.mjs';
+import { bindAdmin, campaignDraftPayload, loadAdmin, parseMenuLines } from '../../apps/production-web/assets/admin.mjs';
 import { bindMerchant, loadMerchant } from '../../apps/production-web/assets/merchant.mjs';
 import { createProductionServer, resolveProductionBindHost } from '../../apps/production-web/server.mjs';
 
@@ -421,6 +421,47 @@ test('관리자 메뉴 입력은 실제 가격 행만 만들고 잘못된 형식
   assert.deepEqual(parseMenuLines(''), []);
   assert.throws(() => parseMenuLines('김밥 | 4,500'), /메뉴/);
   assert.throws(() => parseMenuLines('김밥 | -1'), /메뉴/);
+});
+
+test('캠페인 초안 입력은 기간·정원·목표 1·3·5를 검증한다', () => {
+  const values = new Map([
+    ['merchantId', 'real-1'], ['title', '첫 탐험'], ['startsAt', '2026-10-01T09:00'],
+    ['endsAt', '2026-11-01T09:00'], ['enrollmentCapacity', '15'],
+    ['goal1', '첫 방문'], ['goal3', '세 번째 방문'], ['goal5', '다섯 번째 방문'],
+  ]);
+  const parsed = campaignDraftPayload(values);
+  assert.equal(parsed.enrollmentCapacity, 15);
+  assert.deepEqual(parsed.rewardGoals.map(goal => goal.targetVisitCount), [1, 3, 5]);
+  assert.equal(parsed.startsAt, new Date('2026-10-01T09:00').toISOString());
+  values.set('endsAt', '2026-09-01T09:00');
+  assert.throws(() => campaignDraftPayload(values), /종료 시각/);
+  values.set('endsAt', '2026-11-01T09:00');
+  values.set('goal3', '');
+  assert.throws(() => campaignDraftPayload(values), /세 목표/);
+});
+
+test('운영 캠페인 초안은 실제 점포만 선택하고 비공개 목록만 표시한다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-operations', 'admin-create', 'admin-logout',
+    'admin-campaign-draft', 'admin-campaign-drafts']
+    .map(id => [id, { ...element(), hidden: true }]));
+  const select = element();
+  nodes['admin-campaign-draft'].querySelector = () => select;
+  const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+  const merchant = { id: 'real-1', name: '실제 점포', story: '', roadAddress: '서울',
+    minimumSpendWon: 0, status: 'PAUSED', demo: false, version: 1 };
+  await loadAdmin(async path => ({ ok: true, json: async () => path.endsWith('/me') ? { admin: true }
+    : path.endsWith('/operations-status') ? { merchants: [] }
+      : path.endsWith('/campaign-drafts') ? { drafts: [{ merchantName: merchant.name,
+        title: '첫 탐험', enrollmentCapacity: 15 }] } : { merchants: [merchant] } }), doc);
+  assert.equal(nodes['admin-campaign-draft'].hidden, false);
+  assert.equal(select.children.length, 1);
+  assert.equal(select.children[0].value, 'real-1');
+  assert.match(nodes['admin-campaign-drafts'].children[0].textContent, /비공개 초안 · 정원 15명/);
+  await loadAdmin(async path => ({ ok: true, json: async () => path.endsWith('/me') ? { admin: true }
+    : path.endsWith('/campaign-drafts') ? { drafts: [] } : { merchants: [] } }), doc);
+  assert.equal(nodes['admin-campaign-draft'].hidden, true);
+  assert.match(nodes['admin-campaign-drafts'].textContent, /저장된 비공개 초안이 없습니다/);
 });
 
 test('권한 없음과 정상 관리 화면에서 로그아웃 후 다른 Google 계정 로그인을 안내한다', async () => {

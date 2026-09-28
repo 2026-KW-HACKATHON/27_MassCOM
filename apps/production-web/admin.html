@@ -47,6 +47,22 @@
           <div id="admin-merchants" class="admin-merchant-list"></div>
         </section>
       </div>
+      <section class="admin-panel" aria-labelledby="campaign-drafts-heading">
+        <h3 id="campaign-drafts-heading">캠페인 초안</h3>
+        <p>초안은 비공개이며 참여 등록·방문 보상·NFT 발행을 시작하지 않습니다. 정원 적용 규칙이 확정되기 전에는 공개할 수 없습니다.</p>
+        <form id="admin-campaign-draft" hidden>
+          <label>실제 점포 <select name="merchantId" required></select></label>
+          <label>캠페인 이름 <input name="title" required maxlength="200"></label>
+          <label>시작 시각 <input name="startsAt" type="datetime-local" required></label>
+          <label>종료 시각 <input name="endsAt" type="datetime-local" required></label>
+          <label>참여 정원 <input name="enrollmentCapacity" type="number" min="1" max="2147483647" step="1" required></label>
+          <label>첫 방문 수집품 이름 <input name="goal1" required maxlength="100"></label>
+          <label>3회 방문 수집품 이름 <input name="goal3" required maxlength="100"></label>
+          <label>5회 방문 수집품 이름 <input name="goal5" required maxlength="100"></label>
+          <button type="submit">비공개 초안 저장</button>
+        </form>
+        <div id="admin-campaign-drafts" role="status" aria-live="polite"></div>
+      </section>
     </section>
   </main>
 </body>

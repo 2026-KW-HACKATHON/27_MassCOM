@@ -44,7 +44,7 @@ import { PostgresCustomerIdentityService } from './postgres/customer-identity.js
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountDeletionIntakeService } from './postgres/account-deletion-intake.js';
-import { AdminError, PostgresAdminService, type MerchantInput } from './postgres/admin.js';
+import { AdminError, PostgresAdminService, type AdminCampaignDraftInput, type MerchantInput } from './postgres/admin.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
 import { PostgresWebSessionStore } from './postgres/web-session.js';
@@ -171,7 +171,7 @@ export function createApiServer(
   webWwwEnabled = false,
   customerIdentities?: CustomerIdentityService,
   admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'> &
-    Partial<Pick<PostgresAdminService, 'operationsStatus'>>,
+    Partial<Pick<PostgresAdminService, 'operationsStatus' | 'listCampaignDrafts' | 'createCampaignDraft'>>,
   deletionIntake?: AccountDeletionIntakeService,
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
 ) {
@@ -273,6 +273,29 @@ export function createApiServer(
           if (!admin.operationsStatus) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
           sendJson(response, 200, await admin.operationsStatus(accountId));
           return;
+        }
+        if (path === '/api/web/admin/campaign-drafts') {
+          if (request.method === 'GET') {
+            if (!admin.listCampaignDrafts) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+            sendJson(response, 200, { drafts: await admin.listCampaignDrafts(accountId) });
+            return;
+          }
+          if (request.method === 'POST') {
+            if (!admin.createCampaignDraft) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+            const body = await readJson(request);
+            if (Object.keys(body).some(key => !['merchantId', 'title', 'startsAt', 'endsAt',
+              'enrollmentCapacity', 'rewardGoals'].includes(key)) || !Array.isArray(body.rewardGoals)) {
+              throw new RequestError(400, 'INVALID_REQUEST');
+            }
+            const input: AdminCampaignDraftInput = {
+              merchantId: requireString(body, 'merchantId'), title: requireString(body, 'title'),
+              startsAt: requireString(body, 'startsAt'), endsAt: requireString(body, 'endsAt'),
+              enrollmentCapacity: requirePositiveInteger(body, 'enrollmentCapacity'),
+              rewardGoals: body.rewardGoals as AdminCampaignDraftInput['rewardGoals'],
+            };
+            sendJson(response, 201, { draft: await admin.createCampaignDraft(accountId, input) });
+            return;
+          }
         }
         const staffMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/staff$/);
         if (staffMatch && staffRegistration) {
