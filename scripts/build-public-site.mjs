@@ -6,6 +6,10 @@ const publicFiles = [
   '.well-known/assetlinks.json',
   'account-deletion.html',
   'assets/legal.css',
+  'assets/mascot-stamp.png',
+  'assets/passport/phone-coupon.png',
+  'assets/passport/phone-passport.png',
+  'assets/passport/phone-stamp.png',
   'assets/presentation.css',
   'assets/project.css',
   'assets/wallet-mark.svg',
@@ -22,6 +26,7 @@ const sources = [
   ...publicFiles.map((file) => ({ source: join('docs', file), target: file })),
   { source: join('apps', 'showcase-web', 'index.html'), target: join('preview', 'index.html') },
   { source: join('apps', 'showcase-web', 'assets', 'showcase.css'), target: join('preview', 'assets', 'showcase.css') },
+  { source: join('apps', 'showcase-web', 'assets', 'mascot-stamp.png'), target: join('preview', 'assets', 'mascot-stamp.png') },
 ];
 
 export async function buildPublicSite(repoRoot, targetDirectory) {

@@ -17,9 +17,13 @@ function fail(message) {
   process.exit(1);
 }
 
-function cssVariable(name) {
+// Resolves the first (light) declaration, following `--alias: var(--token)` chains to a hex color.
+function cssVariable(name, seen = new Set()) {
+  if (seen.has(name)) return undefined;
+  seen.add(name);
   const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = css.match(new RegExp(`${escapedName}\\s*:\\s*(#[0-9a-f]{6})`, 'i'));
+  const match = css.match(new RegExp(`${escapedName}\\s*:\\s*(?:(#[0-9a-f]{6})|var\\(\\s*(--[\\w-]+)\\s*\\))`, 'i'));
+  if (match?.[2]) return cssVariable(match[2], seen);
   return match?.[1];
 }
 

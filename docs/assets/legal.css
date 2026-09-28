@@ -1,114 +1,249 @@
+/* 공개 문서(앱 열기·개인정보처리방침·계정 삭제) · project.css 다음에 읽는다. 토큰은 사양 §1 그대로 둔다. */
+:root {
+  color-scheme: light dark;
+  --mc-bg: #FFFFFF; --mc-surface: #F5F7FA; --mc-label: #192331; --mc-secondary: #58677D; --mc-separator: #DDE3EC;
+  --mc-primary: #2456D6; --mc-on-primary: #FFFFFF; --mc-primary-container: #EBF1FF; --mc-on-primary-container: #192331;
+  --mc-success: #2D6A4F; --mc-success-container: #DDEFE5; --mc-on-success-container: #174D35;
+  --mc-error: #9A371D; --mc-error-container: #FCE4DA; --mc-on-error-container: #7B2718;
+  --mc-accent-container: #F7E8C9; --mc-on-accent-container: #4D3516;
+  --mc-sky-1: #BFE3FF; --mc-sky-2: #E4F3FF; --mc-sky-3: #F7FBFF; --mc-sky-ink: #192331; --mc-sky-muted: #3B4A5E;
+  --mc-bronze: #C47A3F; --mc-bronze-edge: #8A5226; --mc-bronze-container: #F6E6D6; --mc-on-bronze-container: #7A4A1E;
+  --mc-silver: #B8C3D0; --mc-silver-edge: #6F7C8C; --mc-silver-container: #E8EDF3; --mc-on-silver-container: #3F4A5A;
+  --mc-gold: #E2B33A; --mc-gold-edge: #8F6708; --mc-gold-container: #FBEFC4; --mc-on-gold-container: #6B4E00;
+  --mc-locked-edge: #7A8595; --mc-locked-fill: #EEF1F5; --mc-stamp-ink: #A3401F;
+  --mc-radius-card: 20px; --mc-radius-control: 14px; --mc-radius-pill: 999px;
+  --mc-page: min(72rem, calc(100vw - 40px));
+  --mc-font: Pretendard, system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --mc-bg: #14171D; --mc-surface: #20252F; --mc-label: #F3F5F9; --mc-secondary: #A6B0C0; --mc-separator: #343C49;
+    --mc-primary: #9BB8FF; --mc-on-primary: #14254A; --mc-primary-container: #25334F; --mc-on-primary-container: #D9F2FC;
+    --mc-success: #75D6A2; --mc-success-container: #163A29; --mc-on-success-container: #D8F8E5;
+    --mc-error: #FFB4A1; --mc-error-container: #512015; --mc-on-error-container: #FFE2DA;
+    --mc-accent-container: #45371B; --mc-on-accent-container: #F8E9CC;
+    --mc-sky-1: #1D3A63; --mc-sky-2: #1A2A45; --mc-sky-3: #182131; --mc-sky-ink: #F3F5F9; --mc-sky-muted: #C4D0E0;
+    --mc-bronze: #D08A4E; --mc-bronze-edge: #D08A4E; --mc-bronze-container: #3A2716; --mc-on-bronze-container: #F2C8A0;
+    --mc-silver: #B7C2CF; --mc-silver-edge: #B7C2CF; --mc-silver-container: #2A313C; --mc-on-silver-container: #D6DEE8;
+    --mc-gold: #E6B93A; --mc-gold-edge: #E6B93A; --mc-gold-container: #3A3012; --mc-on-gold-container: #F7D774;
+    --mc-locked-edge: #7E8A9A; --mc-locked-fill: #262C37; --mc-stamp-ink: #FFB09A;
+  }
+}
+
+:root {
+  --legal-page: min(50rem, calc(100vw - 40px));
+}
+
 .legal-header {
   position: sticky;
   z-index: 20;
   top: 0;
   display: flex;
-  min-height: 4.5rem;
+  flex-wrap: wrap;
+  min-height: 4rem;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.7rem max(1.25rem, calc((100vw - 58rem) / 2));
-  border-bottom: 1px solid rgb(201 217 222 / 80%);
-  background: rgb(244 249 250 / 94%);
-  backdrop-filter: blur(1rem);
+  gap: 0.5rem 1rem;
+  padding: 0.6rem max(20px, calc((100vw - 50rem) / 2));
+  border-bottom: 1px solid var(--mc-separator);
+  background: var(--mc-bg);
 }
 
-.legal-header a:last-child {
-  color: var(--stream-deep);
-  font-size: 0.9rem;
-  font-weight: 720;
+.legal-header > a:last-child {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  padding: 0 0.95rem;
+  border-radius: var(--mc-radius-pill);
+  background: var(--mc-surface);
+  color: var(--mc-label);
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.legal-header > a:last-child:hover {
+  background: var(--mc-primary-container);
 }
 
 .legal-main {
-  width: min(58rem, calc(100vw - 2.5rem));
+  width: var(--legal-page);
   margin-inline: auto;
-  padding-block: clamp(3rem, 8vw, 6rem);
+  padding-block: 28px 48px;
 }
 
 .legal-main > header {
-  margin-bottom: 3rem;
-  padding-bottom: 2rem;
-  border-bottom: 1px solid var(--line);
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+  margin-bottom: 1.75rem;
+  padding: clamp(24px, 4vw, 36px);
+  border-radius: var(--mc-radius-card);
+  background: linear-gradient(180deg, var(--mc-sky-1), var(--mc-sky-2) 55%, var(--mc-sky-3));
+  color: var(--mc-sky-ink);
+}
+
+.legal-main > header::after {
+  position: absolute;
+  z-index: -1;
+  top: -2rem;
+  right: -2.5rem;
+  width: 16rem;
+  height: 5.5rem;
+  border-radius: 50%;
+  background: var(--cloud, rgb(255 255 255 / 55%));
+  content: "";
+}
+
+.legal-main > header .context {
+  color: var(--mc-sky-muted);
+}
+
+.legal-main > header .lede {
+  margin-bottom: 0;
+  color: var(--mc-sky-muted);
 }
 
 .legal-main h1 {
   max-width: none;
-  margin-bottom: 1rem;
-  font-size: clamp(2.5rem, 7vw, 5rem);
-  line-height: 1.05;
+  margin-bottom: 0.75rem;
+  color: var(--mc-sky-ink);
 }
 
 .legal-main h2 {
-  margin: 2.8rem 0 0.8rem;
-  font-size: clamp(1.35rem, 3vw, 1.8rem);
+  margin: 2.25rem 0 0.7rem;
+  font-size: clamp(1.35rem, 2.6vw, 1.6rem);
 }
 
 .legal-main h3 {
-  margin: 1.8rem 0 0.5rem;
-  font-size: 1.05rem;
+  margin: 1.6rem 0 0.5rem;
 }
 
 .legal-main p,
 .legal-main li {
-  max-width: 48rem;
+  max-width: 46rem;
+}
+
+.legal-main .legal-warning,
+.legal-main #deletion-status {
+  max-width: none;
 }
 
 .legal-main ul,
 .legal-main ol {
-  padding-left: 1.35rem;
+  padding-left: 1.3rem;
 }
 
 .legal-main li + li {
-  margin-top: 0.5rem;
+  margin-top: 0.45rem;
+}
+
+.legal-main li::marker {
+  color: var(--mc-primary);
+  font-weight: 800;
 }
 
 .legal-summary,
 .legal-warning {
-  padding: 1.2rem 1.3rem;
-  border-radius: var(--radius);
+  margin-block: 1rem;
+  padding: 1rem 1.15rem;
 }
 
 .legal-summary {
-  border: 1px solid var(--line);
-  background: var(--surface);
+  padding: 1.25rem 1.4rem;
+  border-radius: var(--mc-radius-card);
+  background: var(--mc-surface);
+}
+
+.legal-summary h2 {
+  margin-top: 0;
+}
+
+.legal-summary ol {
+  margin-bottom: 0;
 }
 
 .legal-warning {
-  border-left: 0.45rem solid var(--food);
-  background: #fff0ea;
+  border-radius: var(--mc-radius-control);
+  background: var(--mc-accent-container);
+  color: var(--mc-on-accent-container);
+}
+
+.legal-warning a {
+  color: inherit;
+}
+
+.legal-warning strong {
+  font-weight: 800;
 }
 
 .legal-action {
   display: inline-flex;
-  min-height: 3rem;
+  min-height: 48px;
   align-items: center;
-  margin-top: 0.7rem;
-  padding: 0.65rem 1rem;
-  border-radius: 0.7rem;
-  background: var(--night);
-  color: #fff;
-  font-weight: 720;
+  justify-content: center;
+  margin-top: 0.6rem;
+  padding: 0 1.25rem;
+  border: 0;
+  border-radius: var(--mc-radius-control);
+  background: var(--mc-primary);
+  color: var(--mc-on-primary);
+  font: inherit;
+  font-weight: 800;
   text-decoration: none;
+  cursor: pointer;
+}
+
+.legal-action:hover {
+  filter: brightness(1.06);
+}
+
+.legal-action:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+#deletion-request .legal-action {
+  background: var(--mc-primary-container);
+  box-shadow: inset 0 0 0 1px var(--mc-separator);
+  color: var(--mc-on-primary-container);
+}
+
+#deletion-status {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--mc-radius-control);
+  background: var(--mc-surface);
+  color: var(--mc-secondary);
+  font-size: 0.93rem;
 }
 
 .legal-meta {
-  color: var(--muted);
+  color: var(--mc-secondary);
   font-size: 0.9rem;
 }
 
 .legal-footer {
-  width: min(58rem, calc(100vw - 2.5rem));
-  margin-inline: auto;
-  border-top: 1px solid var(--line);
+  width: var(--legal-page);
+  margin-top: 0;
 }
 
 @media (max-width: 38rem) {
   .legal-header {
-    min-height: 4rem;
-    padding-inline: 0.7rem;
+    min-height: 3.5rem;
+    gap: 0.5rem;
   }
 
-  .legal-header .brand span:last-child {
-    font-size: 0.9rem;
+  .legal-header .brand span {
+    font-size: 0.95rem;
+  }
+
+  .legal-header > a:last-child {
+    padding: 0 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .legal-main {
+    padding-top: 20px;
   }
 }

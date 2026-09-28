@@ -12,6 +12,10 @@ const expected = [
   '.well-known/assetlinks.json',
   'account-deletion.html',
   'assets/legal.css',
+  'assets/mascot-stamp.png',
+  'assets/passport/phone-coupon.png',
+  'assets/passport/phone-passport.png',
+  'assets/passport/phone-stamp.png',
   'assets/presentation.css',
   'assets/project.css',
   'assets/wallet-mark.svg',
@@ -22,6 +26,7 @@ const expected = [
   'index.html',
   'open.html',
   'presentation.html',
+  'preview/assets/mascot-stamp.png',
   'preview/assets/showcase.css',
   'preview/index.html',
   'privacy.html',
@@ -29,6 +34,7 @@ const expected = [
 const previewSources = new Map([
   ['preview/index.html', 'apps/showcase-web/index.html'],
   ['preview/assets/showcase.css', 'apps/showcase-web/assets/showcase.css'],
+  ['preview/assets/mascot-stamp.png', 'apps/showcase-web/assets/mascot-stamp.png'],
 ]);
 
 test('public bundle copies only the approved pages and matching bytes', async () => {
