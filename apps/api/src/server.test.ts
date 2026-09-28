@@ -32,6 +32,7 @@ import {
   type RedeemedClaimSlot,
 } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
+import type { PostgresAdminService } from './postgres/admin.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import type {
   MintJobView,
@@ -177,6 +178,7 @@ async function startFixture(
   trustProxyClientIp = false,
   webAuth?: WebAuthHandler,
   wwwEnabled = false,
+  admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -204,6 +206,8 @@ async function startFixture(
     trustProxyClientIp,
     webAuth,
     wwwEnabled,
+    undefined,
+    admin,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -332,6 +336,75 @@ test('web logout rejects GET and missing or foreign Origin before revoking a coo
   assert.equal(response.status, 204);
   assert.deepEqual(revoked, ['token']);
   assert.match(response.headers.get('set-cookie') ?? '', /web_session=; Path=\/api\/web; Max-Age=0/);
+});
+
+test('admin API uses only the host-bound web cookie and rejects unauthorized, foreign-origin, and non-JSON writes', async (t) => {
+  const webAuth: WebAuthHandler = {
+    start: async () => ({ location: 'https://accounts.google.com/', state: 'state' }),
+    complete: async () => ({ token: 'token' }),
+    resolveSession: async token => {
+      if (token !== 'valid-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'account-1';
+    },
+    logout: async () => {},
+  };
+  let writes = 0;
+  const admin = {
+    isAdmin: async () => true,
+    listMerchants: async () => [],
+    createMerchant: async () => { writes += 1; throw new Error('unexpected write'); },
+    updateMerchant: async () => { writes += 1; throw new Error('unexpected write'); },
+    hideMerchant: async () => { writes += 1; throw new Error('unexpected write'); },
+  } as unknown as Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  assert.equal((await webRequest(base, '/api/web/admin/merchants')).status, 401);
+  assert.equal((await webRequest(base, '/api/web/admin/merchants', { headers: { authorization: 'Bearer valid-cookie' } })).status, 401);
+  assert.equal((await webRequest(base, '/api/web/admin/merchants', { headers: { cookie: 'web_session=valid-cookie' } })).status, 200);
+  assert.equal((await webRequest(base, '/api/web/admin/merchants', {
+    host: 'api.masscom.kr', headers: { cookie: 'web_session=valid-cookie' },
+  })).status, 403);
+  for (const headers of [
+    { cookie: 'web_session=valid-cookie', 'content-type': 'application/json' },
+    { cookie: 'web_session=valid-cookie', origin: 'https://evil.example', 'content-type': 'application/json' },
+    { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr', 'content-type': 'text/plain' },
+  ]) {
+    const response = await webRequest(base, '/api/web/admin/merchants', {
+      method: 'POST', headers,
+    });
+    assert.equal(response.status, 403);
+  }
+  assert.equal(writes, 0);
+  const denied = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    { ...admin, isAdmin: async () => false });
+  assert.equal((await webRequest(denied, '/api/web/admin/merchants', {
+    headers: { cookie: 'web_session=valid-cookie' },
+  })).status, 403);
+});
+
+test('admin Google sign-in returns to the fixed admin path without a caller-controlled redirect', async (t) => {
+  const destinations: (string | undefined)[] = [];
+  const webAuth: WebAuthHandler = {
+    start: async (_origin, returnTo) => {
+      destinations.push(returnTo);
+      return { location: 'https://accounts.google.com/', state: 'admin-state' };
+    },
+    complete: async () => ({ token: 'admin-cookie', returnTo: '/admin/' }),
+    resolveSession: async () => 'account-1', logout: async () => {},
+  };
+  const admin = { isAdmin: async () => true } as unknown as Pick<PostgresAdminService,
+    'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const start = await webRequest(base, '/api/web/admin/auth/start?returnTo=https://evil.example');
+  assert.equal(start.status, 302);
+  assert.deepEqual(destinations, ['/admin/']);
+  const callback = await webRequest(base, '/api/web/auth/callback?code=once&state=admin-state', {
+    headers: { cookie: 'web_auth_state=admin-state' },
+  });
+  assert.equal(callback.status, 303);
+  assert.equal(callback.headers.get('location'), '/admin/');
 });
 
 test('web login start obeys the existing per-client login limiter before storing a state', async (t) => {

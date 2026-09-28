@@ -63,10 +63,16 @@ test('OIDC callback consumes browser-bound state once and creates only a web ses
 
     await assert.rejects(service.complete('one-time-code', started.state, 'another-browser', 'https://masscom.kr'), /WEB_AUTH_STATE_INVALID/);
     const session = await service.complete('one-time-code', started.state, started.state, 'https://masscom.kr');
+    assert.equal(session.returnTo, '/app/');
     assert.equal(await service.resolveSession(session.token, 'https://masscom.kr'), accountId);
+    const adminStart = await service.start('https://masscom.kr', '/admin/');
+    verifiedNonce = new URL(adminStart.location).searchParams.get('nonce')!;
+    const adminSession = await service.complete('one-time-code', adminStart.state, adminStart.state, 'https://masscom.kr');
+    assert.equal(adminSession.returnTo, '/admin/');
     await assert.rejects(service.complete('one-time-code', started.state, started.state, 'https://masscom.kr'), /WEB_AUTH_STATE_INVALID/);
     const stored = await pool.query<{ token_hash: Buffer }>(
-      'SELECT token_hash FROM web_sessions WHERE account_id = $1', [accountId],
+      'SELECT token_hash FROM web_sessions WHERE account_id = $1 AND token_hash = $2',
+      [accountId, createHash('sha256').update(session.token).digest()],
     );
     assert.equal(stored.rows.length, 1);
     assert.equal(stored.rows[0]?.token_hash.toString('hex'), createHash('sha256').update(session.token).digest('hex'));
