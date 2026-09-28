@@ -1,6 +1,6 @@
 # Android 설치본과 GitHub 배포 상태
 
-상태 확인일: 2026-09-28. 사용자가 저장소를 `PUBLIC`으로 전환했으며 GitHub Release 파일은 로그인 없이 볼 수 있습니다. GitHub 소스 ZIP은 설치용 APK가 아닙니다.
+상태 확인일: 2026-09-28. 기존 대회 조직 저장소는 `PUBLIC`·`Archived`이며 아래 이전 GitHub Release 파일은 로그인 없이 볼 수 있습니다. 현재 개발 저장소 `choijunhuk/MassCOM`은 `PRIVATE`이고 새 설치본은 아직 게시하지 않았습니다. GitHub 소스 ZIP은 설치용 APK가 아닙니다.
 
 | 구분 | package | GitHub 다운로드 | 실제 상태 |
 | --- | --- | --- | --- |

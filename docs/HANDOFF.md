@@ -4,6 +4,8 @@
 
 ## 2026-09-28 보관된 조직 저장소와 개인 비공개 저장소
 
+- **진행 중 통합 브랜치:** 개인 [Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 `feat/customer-first-loop`에서 최신 QR 소스·도감 다음 목표·이전 시연 카메라 증거를 merge commit `698af5b`·`8c6feb3`으로 결합했다. 개인 PR·병합·새 APK/API 배포는 아직 없다. 결합 상태에서 API 109/109·모바일 239/239·PostgreSQL 16 전용 `_test` 52 PASS/2 SKIP·타입·린트·API build·Android export·문서 검사 PASS. 새 고객 식별 QR의 실제 설치본 실기는 `NOT_RUN`. Play 목표는 [D-040](DECISIONS.md)대로 유지하되 제출하지 않는다.
+
 - **실제 시연 카메라 QR 결과:** [Preview 3 Samsung 실측](evidence/showcase-preview3-camera-claim-2026-09-28.json)은 같은 Google 계정의 시연 STAFF·고객 역할 전환으로 점주 발급 QR을 Mac에 표시하고 휴대전화 카메라로 촬영→미리보기→수령 확정→도감 가상 점포 A 방문 1회를 확인했다. 시연 DB 슬롯 1(`CLAIMED`)·유효 방문 1·보상권 1·mint 0, 운영 가상 점포 0. 앞선 다른 계정용 QR 거절은 슬롯이 미사용·미만료였고 계정 불일치가 원인이다. 코드·계정 ID·이메일·세션은 증거에 없다. 두 계정·두 휴대전화, 새 2분 고객 식별 QR 브랜치, 오프라인/권한 거부는 `NOT_RUN`; A01 전체 상태는 유지한다.
 
 - **원격 상태:** `2026-KW-HACKATHON/27_MassCOM`은 `PUBLIC`·`Archived`다. 사용자는 보관 해제 대신 개인 GitHub를 선택했다. [개인 `choijunhuk/MassCOM`](https://github.com/choijunhuk/MassCOM)을 `PRIVATE`로 생성하고 기존 Git 커밋 이력을 보존한 `main`(`9706e61`)을 push했다. 원격 이름 `personal`이며 기존 조직 `origin`은 보존하되 더 이상 push·merge하지 않는다. 개인 저장소의 default branch는 `main`, 보관 상태는 false로 확인했다.

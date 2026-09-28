@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- **2026-09-28 개인 통합 작업:** [Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 `feat/customer-first-loop`에 2분 고객 식별 QR·현재 캠페인 도감 목표·기존 시연 카메라 증거를 합쳤다. 결합 소스의 API 109/109·모바일 239/239·PostgreSQL 52 PASS/2 SKIP, 타입·린트·build/export·문서 검사 PASS. 개인 PR/CI·main 병합, 새 시연 APK/외부 API 배포와 그 설치본의 전체 QR 수령은 `NOT_RUN`. Google Play 목표는 D-040으로 유지하지만 제출은 별도다.
+
 - **2026-09-28 시연 APK 카메라 수령:** [Preview 3 동일 SHA 설치본 실측](evidence/showcase-preview3-camera-claim-2026-09-28.json)에서 가상 점포 A의 점주 발급 QR을 Mac에 띄우고 Samsung 카메라로 스캔→미리보기→별도 수령 확정→도감 이동을 완료했다. 시연 DB에서 같은 계정 슬롯 1(`CLAIMED`)·방문 1·보상권 1·mint 0을 확인했다. 처음의 다른 계정용 QR 거절은 미사용·미만료 상태에서 계정 불일치였다. 이는 **같은 계정의 역할 전환 시험**이며 서로 다른 두 계정·두 휴대전화, 오프라인·권한 거부, 새 2분 식별 QR 소스, 운영 앱의 QR 검증은 별도 미완료다.
 
 - **2026-09-28 개인 비공개 이관:** 조직 저장소는 `PUBLIC`·`Archived`이며 사용자는 보관 해제 대신 [개인 비공개 저장소](https://github.com/choijunhuk/MassCOM)를 선택했다. [PR #204](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/204) merge `9706e61`의 PR/main CI와 같은 이력을 옮긴 개인 main [CI `36354490206`](https://github.com/choijunhuk/MassCOM/actions/runs/36354490206)이 PASS다. 이후 조직 [PR #207](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/207)의 CI는 `repository archived`로 CANCELLED되어 OPEN·미병합이다. QR `90fa019`·도감 `dd769ae`·삭제 접수 `d051ef3`·인수인계 `6932649`를 개인 브랜치에 push했지만 **개인 main에 미병합**이며 공개 API/APK에는 반영되지 않았다. 정확한 브랜치·시험·배포 경계는 [HANDOFF](HANDOFF.md) 맨 위를 따른다.
@@ -77,14 +79,14 @@
 - 후속 `feat/137-showcase-local-runtime`은 별도 로컬 Docker API·DB를 인증 없이 실행해 가상 점포 공개 조회와 계정 요청 거절을 검증했다. 로컬 환경은 외부 시연 API/DB 배포·시연 앱 연결 완료가 아니다. 실제 PR·CI·병합 상태는 `gh pr list`로 확인한다.
 - Issue #142의 개발용 파란 시안 기준을 운영 11개 화면과 읽기 전용 시연 웹의 라이트/다크 의미색에 적용했다. 한글 PR #143의 현재 CI·병합 상태는 `gh pr view 143`과 `git log origin/main -1`로 확인한다. 모바일 자동 180/180, typecheck·lint·Android 개발 JS export, 시연 웹 19/19·접근성·정적 검사, 테스트 AVD의 로그인 화면 라이트/다크·200%는 PASS. 로그인 후 네 탭·실제 휴대전화·공개 HTTPS는 NOT_RUN([증거](evidence/design-consistency-2026-09-24/README.md)). 아래 2026-09-23 수치를 이번 작업의 최신 결과로 오인하지 않는다.
 
-## 기준선
+## 2026-09-23 당시 기준선 (역사 기록)
 
 | 항목 | 값 |
 | --- | --- |
-| 저장소 | `2026-KW-HACKATHON/27_MassCOM` (`PRIVATE`) |
+| 저장소 | `2026-KW-HACKATHON/27_MassCOM` (당시 `PRIVATE`, 현재 `PUBLIC`·`Archived`; 개인 개발 기준은 `choijunhuk/MassCOM` `PRIVATE`) |
 | 기본 브랜치 | `main` |
-| 기준 커밋 | 이 문서는 SHA를 고정하지 않는다. 실제 기준은 `git log origin/main -1`, 직전 검증 기준은 `docs/HANDOFF.md` 머리말 |
-| 현재 작업·열린 PR | `gh pr list`, `gh issue list`가 기준. 인수인계 요약은 `docs/HANDOFF.md` |
+| 기준 커밋 | 당시 상태를 설명하는 표이며 최신 SHA·배포는 `docs/HANDOFF.md` 머리말과 `git log personal/main -1`을 따른다 |
+| 현재 작업·열린 PR | 개인 저장소는 `gh pr list --repo choijunhuk/MassCOM`, 조직의 옛 PR은 별도. 인수인계 요약은 `docs/HANDOFF.md` |
 | 현재 검증 기준 | PR #134 merge `e9f5b58`, main CI `35809960551` PASS, 기존 Vercel 도메인 새 SVG·`/open` HTTPS PASS. API 단위 82·PostgreSQL 37·Worker 단위 47/PG 23·모바일 149. MetaMask 재연결은 지갑 잠금으로 `BLOCKED`; 검색·필터 조작과 외부 두 IP 제한은 `NOT_RUN` |
 
 ## Issue #133 공식 서비스 URL·지갑 출처 진행
