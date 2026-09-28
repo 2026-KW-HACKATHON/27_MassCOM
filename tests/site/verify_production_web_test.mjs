@@ -40,6 +40,7 @@ function element() {
     replaceChildren() { this.children = []; },
     addEventListener(type, callback) { listeners.set(type, callback); },
     async click() { return listeners.get('click')?.(); },
+    async dispatch(type) { return listeners.get(type)?.(); },
     async submit() { return listeners.get('submit')?.({ preventDefault() {}, currentTarget: this }); },
   };
 }
@@ -75,6 +76,7 @@ function collectionFixture() {
   const ids = [
     'collection-status', 'collection-login', 'collection-retry', 'collection-logout',
     'collection-content', 'visit-list', 'collectible-list', 'badge-list',
+    'badge-note', 'badge-content', 'reward-list', 'coupon-list',
   ];
   const nodes = Object.fromEntries(ids.map((id) => [id, { ...element(), hidden: true }]));
   return {
@@ -90,22 +92,227 @@ function collectionFixture() {
   };
 }
 
-test('운영 웹 배지는 인정된 서로 다른 방문만 세고 로그아웃 때 이전 계정 배지를 지운다', async () => {
+const badgesFixture = (overrides = {}) => ({
+  medals: [
+    { kind: 'explorer', value: 2, tier: 2, thresholds: [1, 2, 3] },
+    { kind: 'regular', value: 1, tier: 0, thresholds: [2, 3, 5] },
+    { kind: 'steady', value: 7, tier: 3, thresholds: [2, 4, 7] },
+  ],
+  earnedTiers: 5,
+  rewards: [
+    { milestone: 1, requiredTiers: 3, state: 'OPENED',
+      offer: { merchantId: 'm1', merchantName: '<b>운영 점포</b>', title: '음료 1잔', detail: '', validDays: 30 },
+      coupon: { couponId: 'c1', milestone: 1, merchantId: 'm1', merchantName: '<b>운영 점포</b>', title: '음료 1잔',
+        detail: '', status: 'ISSUED', issuedAt: '2026-09-29T00:00:00.000Z', expiresAt: '2026-10-29T00:00:00.000Z', redeemedAt: null } },
+    { milestone: 2, requiredTiers: 6, state: 'LOCKED', offer: null, coupon: null },
+    { milestone: 3, requiredTiers: 9, state: 'LOCKED', offer: null, coupon: null },
+  ],
+  ...overrides,
+});
+
+const emptyCollection = { visits: [], collectibles: [] };
+
+function collectionAndBadges({ badges, collection = emptyCollection } = {}) {
+  const calls = [];
+  const fetcher = async (url, options) => {
+    calls.push({ url, options });
+    if (url === '/api/web/badges') return badges();
+    if (url === '/api/web/collection') return { ok: true, json: async () => collection };
+    throw new Error(`unexpected ${url}`);
+  };
+  return { calls, fetcher };
+}
+
+const okJson = (value) => ({ ok: true, json: async () => value });
+
+test('운영 웹 메달은 서버가 계산한 등급·값·다음 등급을 글자로 표시하고 도감과 함께 읽는다', async () => {
   const { nodes, doc } = collectionFixture();
-  const visit = (merchantId, progressCounted) => ({
-    visitEventId: merchantId + String(progressCounted), merchantId, merchantName: merchantId,
-    campaignId: 'campaign', campaignTitle: '동네 탐험', businessDate: '2026-09-28',
-    progressCounted, verificationLevel: 'MERCHANT_CONFIRMED',
-  });
-  await loadCollection(async () => ({ ok: true, json: async () => ({
-    visits: [visit('one', true), visit('one', true), visit('two', false), visit('two', true)],
-    collectibles: [],
-  }) }), doc);
+  const { calls, fetcher } = collectionAndBadges({ badges: () => okJson(badgesFixture()) });
+  await loadCollection(fetcher, doc);
+  const badgeCall = calls.find((call) => call.url === '/api/web/badges');
+  assert.equal(badgeCall.options.method, 'GET');
+  assert.equal(badgeCall.options.credentials, 'same-origin');
+  assert.equal(badgeCall.options.cache, 'no-store');
+  assert.equal(calls.filter((call) => call.url === '/api/web/collection').length, 1);
+  const medals = nodes['badge-list'].children.map((row) => row.textContent);
+  assert.deepEqual(medals, [
+    '동네 탐험가 · 실버 · 서로 다른 가게 2곳 · 다음 등급까지 1곳 남음',
+    '단골손님 · 미획득 · 한 가게 최다 방문 1일 · 다음 등급까지 1일 남음',
+    '꾸준한 걸음 · 골드 · 방문한 날 7일 · 최고 등급이에요',
+  ]);
+  assert.equal(nodes['badge-list'].children[0].className, 'badge-step earned');
+  assert.equal(nodes['badge-list'].children[1].className, 'badge-step');
+  assert.match(nodes['badge-note'].textContent, /5\/9/);
+  assert.equal(nodes['badge-content'].hidden, false);
+  assert.equal(nodes['collection-content'].hidden, false);
+});
+
+test('운영 웹 보상 상자 상태와 쿠폰은 색이 아닌 글자로 표시하고 가상 쿠폰을 만들지 않는다', async () => {
+  const { nodes, doc } = collectionFixture();
+  const rewards = badgesFixture().rewards;
+  const coupon = rewards[0].coupon;
+  const states = [
+    { ...rewards[0], state: 'LOCKED', coupon: null },
+    { milestone: 2, requiredTiers: 6, state: 'READY', offer: { merchantId: 'm2', merchantName: '가게 둘', title: '디저트', detail: '', validDays: 7 }, coupon: null },
+    { milestone: 3, requiredTiers: 9, state: 'UNAVAILABLE', offer: null, coupon: null },
+  ];
+  await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture({ rewards: states })) }).fetcher, doc);
+  assert.deepEqual(nodes['reward-list'].children.map((row) => row.textContent), [
+    '첫 번째 상자 · 배지 3개 · 잠김 · <b>운영 점포</b> 음료 1잔',
+    '두 번째 상자 · 배지 6개 · 열 수 있어요 (앱에서 열기) · 가게 둘 디저트',
+    '황금 상자 · 배지 9개 · 혜택 준비 중',
+  ]);
+  assert.match(nodes['coupon-list'].children[0].textContent, /아직 받은 쿠폰이 없어요/);
+
+  const opened = [
+    { ...rewards[0] },
+    { milestone: 2, requiredTiers: 6, state: 'OPENED', offer: null, coupon: { ...coupon, couponId: 'c2', milestone: 2, title: '디저트', status: 'REDEEMED', redeemedAt: '2026-09-30T00:00:00.000Z' } },
+    { milestone: 3, requiredTiers: 9, state: 'OPENED', offer: null, coupon: { ...coupon, couponId: 'c3', milestone: 3, title: '만료 쿠폰', status: 'EXPIRED' } },
+  ];
+  await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture({ rewards: opened })) }).fetcher, doc);
+  assert.match(nodes['reward-list'].children[0].textContent, /받음/);
+  assert.equal(nodes['coupon-list'].children.length, 3);
+  const cardTexts = nodes['coupon-list'].children.map((card) => card.children.map((child) => child.textContent).join(' | '));
+  assert.match(cardTexts[0], /^음료 1잔 \| <b>운영 점포<\/b> · 만료: .+ \| 사용 가능$/);
+  assert.match(cardTexts[1], /사용 완료$/);
+  assert.match(cardTexts[2], /기간 만료$/);
+  assert.equal(nodes['coupon-list'].children[0].children[0].textContent, '음료 1잔');
+});
+
+test('운영 웹 메달 조회 실패는 메달 영역만 숨기고 재시도 없이 도감을 그대로 표시한다', async () => {
+  const visit = { merchantName: '실제 방문 점포', businessDate: '2026-09-25' };
+  const failures = [
+    () => ({ ok: false, status: 500 }),
+    () => { throw new Error('offline'); },
+    () => okJson({ medals: [], earnedTiers: 0, rewards: [] }),
+    () => okJson(badgesFixture({ earnedTiers: 12 })),
+    () => okJson(badgesFixture({ medals: [{ kind: 'unknown', value: 1, tier: 1, thresholds: [1, 2, 3] }, ...badgesFixture().medals.slice(1)] })),
+    () => okJson(badgesFixture({ rewards: badgesFixture().rewards.map((reward) => ({ ...reward, state: 'MYSTERY' })) })),
+    () => okJson(badgesFixture({ rewards: badgesFixture().rewards.map(({ offer, ...reward }) => reward) })),
+  ];
+  for (const badges of failures) {
+    const { nodes, doc } = collectionFixture();
+    const { calls, fetcher } = collectionAndBadges({ badges, collection: { visits: [visit], collectibles: [] } });
+    await loadCollection(fetcher, doc);
+    assert.equal(nodes['visit-list'].children.length, 1);
+    assert.equal(nodes['collection-content'].hidden, false);
+    assert.equal(nodes['collection-logout'].hidden, false);
+    assert.equal(nodes['collection-retry'].hidden, true);
+    assert.equal(nodes['badge-content'].hidden, true);
+    assert.equal(nodes['badge-list'].children.length, 0);
+    assert.equal(nodes['reward-list'].children.length, 0);
+    assert.equal(nodes['coupon-list'].children.length, 0);
+    assert.match(nodes['badge-note'].textContent, /불러오지 못했어요/);
+    assert.equal(calls.filter((call) => call.url === '/api/web/badges').length, 1);
+  }
+});
+
+const oneVisit = { visits: [{ merchantName: '실제 방문 점포', businessDate: '2026-09-25' }], collectibles: [] };
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+test('운영 웹은 방문·수집품을 먼저 그리고 메달은 도착하면 그때 그린다', async () => {
+  const { nodes, doc } = collectionFixture();
+  let releaseBadges;
+  const gate = new Promise((resolve) => { releaseBadges = resolve; });
+  const fetcher = async (url) => {
+    if (url === '/api/web/badges') { await gate; return okJson(badgesFixture()); }
+    return { ok: true, json: async () => oneVisit };
+  };
+  const loading = loadCollection(fetcher, doc);
+  await tick();
+  assert.equal(nodes['visit-list'].children.length, 1);
+  assert.equal(nodes['collection-content'].hidden, false);
+  assert.equal(nodes['collection-logout'].hidden, false);
+  assert.match(nodes['collection-status'].textContent, /방문 1건/);
+  assert.equal(nodes['badge-content'].hidden, true);
+  assert.match(nodes['badge-note'].textContent, /메달을 확인하는 중/);
+  releaseBadges();
+  await loading;
+  assert.equal(nodes['badge-content'].hidden, false);
   assert.equal(nodes['badge-list'].children.length, 3);
-  assert.match(nodes['badge-list'].children[1].textContent, /획득/);
-  assert.match(nodes['badge-list'].children[2].textContent, /1곳 남음/);
-  await loadCollection(async () => ({ ok: false, status: 401 }), doc);
+  assert.match(nodes['badge-note'].textContent, /5\/9/);
+});
+
+test('운영 웹 메달 요청은 제한 시간이 지나면 끊고 도감은 그대로 두며 늦은 응답은 그리지 않는다', async () => {
+  const { nodes, doc } = collectionFixture();
+  let signal;
+  let lateBadges;
+  const fetcher = async (url, options) => {
+    if (url === '/api/web/badges') {
+      signal = options.signal;
+      return new Promise((resolve) => { lateBadges = () => resolve(okJson(badgesFixture())); });
+    }
+    return { ok: true, json: async () => oneVisit };
+  };
+  await loadCollection(fetcher, doc, { badgesTimeoutMs: 20 });
+  assert.ok(signal instanceof AbortSignal);
+  assert.equal(signal.aborted, true);
+  assert.equal(nodes['visit-list'].children.length, 1);
+  assert.equal(nodes['collection-content'].hidden, false);
+  assert.equal(nodes['collection-retry'].hidden, true);
+  assert.equal(nodes['badge-content'].hidden, true);
+  assert.match(nodes['badge-note'].textContent, /메달을 불러오지 못했어요/);
+  lateBadges();
+  await tick();
   assert.equal(nodes['badge-list'].children.length, 0);
+  assert.equal(nodes['badge-content'].hidden, true);
+  assert.match(nodes['badge-note'].textContent, /메달을 불러오지 못했어요/);
+});
+
+test('운영 웹은 메달 응답을 기다리는 사이 다시 조회하거나 로그아웃하면 이전 요청의 메달을 버린다', async () => {
+  const { nodes, doc } = collectionFixture();
+  let releaseBadges;
+  const gate = new Promise((resolve) => { releaseBadges = resolve; });
+  const first = loadCollection(async (url) => {
+    if (url === '/api/web/badges') { await gate; return okJson(badgesFixture()); }
+    return { ok: true, json: async () => oneVisit };
+  }, doc);
+  await tick();
+  assert.equal(nodes['visit-list'].children.length, 1);
+  await loadCollection(async () => ({ ok: false, status: 401 }), doc);
+  releaseBadges();
+  await first;
+  for (const id of ['visit-list', 'badge-list', 'reward-list', 'coupon-list']) assert.equal(nodes[id].children.length, 0, id);
+  assert.equal(nodes['badge-content'].hidden, true);
+  assert.equal(nodes['badge-note'].textContent, '');
+  assert.equal(nodes['collection-login'].hidden, false);
+});
+
+test('운영 웹 쿠폰 만료일은 브라우저 시간대가 아니라 한국 날짜로 표시한다', async () => {
+  const { nodes, doc } = collectionFixture();
+  const rewards = badgesFixture().rewards;
+  const at = (expiresAt) => ({ ...rewards[0].coupon, expiresAt });
+  const opened = [
+    { ...rewards[0], coupon: at('2026-10-29T14:59:59.999Z') },
+    { milestone: 2, requiredTiers: 6, state: 'OPENED', offer: null, coupon: { ...at('2026-10-29T15:00:00.000Z'), couponId: 'c2', milestone: 2 } },
+    rewards[2],
+  ];
+  await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture({ rewards: opened })) }).fetcher, doc);
+  const dates = nodes['coupon-list'].children.map((card) => card.children[1].textContent);
+  assert.match(dates[0], /만료: 2026\. 10\. 29\.$/);
+  assert.match(dates[1], /만료: 2026\. 10\. 30\.$/);
+});
+
+test('운영 웹은 메달이 성공해도 도감 실패나 로그아웃 때 이전 메달·쿠폰을 모두 지운다', async () => {
+  const { nodes, doc } = collectionFixture();
+  await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture()) }).fetcher, doc);
+  assert.equal(nodes['coupon-list'].children.length, 1);
+  await loadCollection(async (url) => (url === '/api/web/badges' ? okJson(badgesFixture()) : { ok: false, status: 401 }), doc);
+  for (const id of ['badge-list', 'reward-list', 'coupon-list']) assert.equal(nodes[id].children.length, 0, id);
+  assert.equal(nodes['badge-content'].hidden, true);
+  assert.equal(nodes['badge-note'].textContent, '');
+  assert.equal(nodes['collection-login'].hidden, false);
+});
+
+test('운영 웹은 브라우저에서 계산한 배지와 하드코딩된 가상 혜택을 두지 않는다', () => {
+  assert.doesNotMatch(script, /neighborhoodBadges|첫 발걸음|두 번째 골목|월계 탐험가|체험 음료|가상 점포/);
+  assert.match(script, /'\/api\/web\/badges'/);
+  assert.match(html, /id="badge-content"[^>]*hidden/);
+  assert.match(html, /id="badge-note" role="status" aria-live="polite"/);
+  assert.match(html, /<ol id="reward-list"/);
+  assert.match(html, /id="coupon-list"/);
+  assert.match(html, /상자는 앱에서 열어요/);
+  assert.doesNotMatch(html, /<button[^>]*(?:reward|coupon|open)/i);
 });
 
 function sharedWindows(...docs) {
@@ -180,7 +387,7 @@ test('숨긴 탭과 뒤로 가기로 보존된 문서는 개인 DOM을 즉시 �
 test('운영 도감은 미로그인과 실제 기록 0건을 구분하고 다른 계정의 이전 화면을 지운다', async () => {
   const { nodes, doc } = collectionFixture();
   await loadCollection(async (url, options) => {
-    assert.equal(url, '/api/web/collection');
+    assert.ok(['/api/web/collection', '/api/web/badges'].includes(url));
     assert.equal(options.credentials, 'same-origin');
     assert.equal(options.cache, 'no-store');
     return { status: 401, ok: false };
@@ -641,7 +848,8 @@ function merchantDocument() {
     'merchant-claim-reference', 'merchant-claim-confirm', 'merchant-claim-resolve',
     'merchant-claim-submit', 'merchant-claim-result', 'merchant-claim-scan',
     'merchant-claim-scan-cancel', 'merchant-claim-video', 'merchant-claim-issued-qr',
-    'merchant-claim-reissue', 'merchant-claim-reissue-confirm', 'merchant-claim-reissue-submit']
+    'merchant-claim-reissue', 'merchant-claim-reissue-confirm', 'merchant-claim-reissue-submit',
+    'merchant-coupon', 'merchant-coupon-lookup', 'merchant-coupon-list', 'merchant-coupon-status']
     .map(id => [id, { ...element(), hidden: true }]));
   const select = { ...element(), value: 'real-merchant' };
   const button = element();
@@ -1110,6 +1318,258 @@ test('등록 요청 중 이탈했다 돌아오면 이전 응답과 무관하게 
     assert.match(nodes['merchant-code'].textContent, /NEW_CODE/);
     assert.equal(requests, 2);
   }
+});
+
+const lookupPath = '/api/web/merchant/merchants/real-merchant/coupons/lookup';
+const redeemPath = (couponId) => `/api/web/merchant/merchants/real-merchant/coupons/${encodeURIComponent(couponId)}/redeem`;
+const staffCoupons = () => [
+  { couponId: 'coupon/1', title: '<b>체험 음료</b>', detail: '한 잔', expiresAt: '2026-10-28T00:00:00.000Z' },
+  { couponId: 'coupon-2', title: '체험 디저트', detail: '', expiresAt: '2026-10-30T00:00:00.000Z' },
+];
+const apiError = (status, code) => ({ ok: false, status, json: async () => ({ code }) });
+
+async function couponMerchant({ lookup = () => okJson({ identityExpiresAt: '2026-09-28T12:00:00.000Z', coupons: staffCoupons() }),
+  redeem = () => okJson({ couponId: 'coupon/1', status: 'REDEEMED', redeemedAt: '2026-09-28T11:00:00.000Z', replayed: false }),
+  confirmed = true } = {}) {
+  const { nodes, doc, listeners } = merchantDocument();
+  const calls = [];
+  doc.defaultView.confirm = (message) => { calls.push({ confirm: message }); return confirmed; };
+  const fetcher = async (path, options) => {
+    if (path === '/api/web/merchant/me') return okJson({ merchants: [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF' }] });
+    if (path === '/api/web/merchant/registration-merchants') return okJson({ merchants: [] });
+    if (path === '/api/web/logout') return { ok: true, status: 204 };
+    if (path.endsWith('/customer-identities/resolve')) return okJson({ expiresAt: '2026-09-28T12:00:00.000Z' });
+    calls.push({ path, options });
+    if (path === lookupPath) return lookup();
+    if (path.endsWith('/redeem')) return redeem();
+    if (path.endsWith('/claim-slots')) return okJson({ token: 'claim-token', claimSlotId: 'slot-1', tokenVersion: 1,
+      expiresAt: '2026-09-28T12:10:00.000Z' });
+    throw new Error(`unexpected ${path}`);
+  };
+  await bindMerchant(fetcher, doc);
+  nodes['merchant-claim-merchant'].value = 'real-merchant';
+  nodes['merchant-claim-token'].value = 'customer-qr';
+  return { nodes, doc, listeners, calls, fetcher, resolve: () => nodes['merchant-claim-resolve'].click() };
+}
+
+const couponButton = (nodes, index) => nodes['merchant-coupon-list'].children[index].children[1];
+
+test('점포 웹 쿠폰 영역은 고객 QR 확인 뒤에만 열리고 확인 요청은 같은 출처 JSON POST다', async () => {
+  const { nodes, calls, resolve } = await couponMerchant();
+  assert.equal(nodes['merchant-coupon'].hidden, true);
+  await nodes['merchant-coupon-lookup'].click();
+  assert.deepEqual(calls, []);
+  await resolve();
+  assert.equal(nodes['merchant-coupon'].hidden, false);
+  assert.equal(nodes['merchant-coupon-list'].children.length, 0);
+
+  await nodes['merchant-coupon-lookup'].click();
+  const [call] = calls;
+  assert.equal(call.path, lookupPath);
+  assert.equal(call.options.method, 'POST');
+  assert.equal(call.options.credentials, 'same-origin');
+  assert.equal(call.options.cache, 'no-store');
+  assert.equal(call.options.headers['Content-Type'], 'application/json');
+  assert.deepEqual(JSON.parse(call.options.body), { customerIdentityToken: 'customer-qr' });
+  const rows = nodes['merchant-coupon-list'].children;
+  assert.equal(rows.length, 2);
+  assert.match(rows[0].children[0].textContent, /^<b>체험 음료<\/b> · 한 잔 · 만료: /);
+  assert.doesNotMatch(rows[1].children[0].textContent, /· ·/);
+  assert.equal(couponButton(nodes, 0).textContent, '<b>체험 음료</b> 사용 처리');
+  assert.equal(couponButton(nodes, 0).type, 'button');
+  assert.match(nodes['merchant-coupon-status'].textContent, /2장/);
+  assert.equal(nodes['merchant-coupon-lookup'].disabled, false);
+});
+
+test('점포 웹은 확인창에서 동의한 쿠폰만 사용 처리하고 성공한 쿠폰은 목록에서 뺀다', async () => {
+  const declined = await couponMerchant({ confirmed: false });
+  await declined.resolve();
+  await declined.nodes['merchant-coupon-lookup'].click();
+  await couponButton(declined.nodes, 0).click();
+  assert.equal(declined.calls.some((call) => call.path?.endsWith('/redeem')), false);
+  assert.match(declined.calls.find((call) => call.confirm).confirm, /고객이 이 혜택을 지금 받나요\? 되돌릴 수 없어요/);
+  assert.equal(declined.nodes['merchant-coupon-list'].children.length, 2);
+
+  const { nodes, calls, resolve } = await couponMerchant();
+  await resolve();
+  await nodes['merchant-coupon-lookup'].click();
+  await couponButton(nodes, 0).click();
+  const redeem = calls.find((call) => call.path?.endsWith('/redeem'));
+  assert.equal(redeem.path, redeemPath('coupon/1'));
+  assert.equal(redeem.path, '/api/web/merchant/merchants/real-merchant/coupons/coupon%2F1/redeem');
+  assert.equal(redeem.options.method, 'POST');
+  assert.equal(redeem.options.credentials, 'same-origin');
+  assert.deepEqual(JSON.parse(redeem.options.body), { customerIdentityToken: 'customer-qr' });
+  assert.equal(nodes['merchant-coupon-list'].children.length, 1);
+  assert.equal(couponButton(nodes, 0).textContent, '체험 디저트 사용 처리');
+  assert.equal(nodes['merchant-coupon-status'].textContent, '쿠폰 사용을 처리했어요.');
+  assert.equal(nodes['merchant-coupon-lookup'].disabled, false);
+});
+
+test('점포 웹 쿠폰은 이미 사용한 재요청과 빈 목록을 구분해 안내한다', async () => {
+  const replay = await couponMerchant({ redeem: () => okJson({ couponId: 'coupon/1', status: 'REDEEMED',
+    redeemedAt: '2026-09-28T11:00:00.000Z', replayed: true }) });
+  await replay.resolve();
+  await replay.nodes['merchant-coupon-lookup'].click();
+  await couponButton(replay.nodes, 0).click();
+  assert.equal(replay.nodes['merchant-coupon-status'].textContent, '이미 사용 처리된 쿠폰이에요.');
+  assert.equal(replay.nodes['merchant-coupon-list'].children.length, 1);
+
+  const empty = await couponMerchant({ lookup: () => okJson({ identityExpiresAt: '2026-09-28T12:00:00.000Z', coupons: [] }) });
+  await empty.resolve();
+  await empty.nodes['merchant-coupon-lookup'].click();
+  assert.equal(empty.nodes['merchant-coupon-status'].textContent, '이 점포에서 쓸 수 있는 쿠폰이 없어요');
+  assert.equal(empty.nodes['merchant-coupon-list'].children.length, 0);
+});
+
+test('점포 웹 쿠폰 만료일은 브라우저 시간대가 아니라 한국 날짜로 표시한다', async () => {
+  const { nodes, resolve } = await couponMerchant({ lookup: () => okJson({ identityExpiresAt: '2026-09-28T12:00:00.000Z', coupons: [
+    { couponId: 'a', title: '음료', detail: '', expiresAt: '2026-10-29T14:59:59.999Z' },
+    { couponId: 'b', title: '디저트', detail: '', expiresAt: '2026-10-29T15:00:00.000Z' },
+  ] }) });
+  await resolve();
+  await nodes['merchant-coupon-lookup'].click();
+  const texts = nodes['merchant-coupon-list'].children.map((item) => item.children[0].textContent);
+  assert.match(texts[0], /만료: 2026\. 10\. 29\.$/);
+  assert.match(texts[1], /만료: 2026\. 10\. 30\.$/);
+});
+
+test('점포 웹 쿠폰 오류는 친절한 안내로 바꾸고 만료 쿠폰만 목록에서 뺀다', async () => {
+  const cases = [
+    ['COUPON_NOT_FOUND', 404, /쓸 수 없는 쿠폰이에요/, 2],
+    ['COUPON_EXPIRED', 409, /유효기간이 지난 쿠폰이에요/, 1],
+    ['COUPON_SELF_REDEEM', 403, /본인 쿠폰은 직접 사용 처리할 수 없어요\. 다른 직원에게 요청해 주세요/, 2],
+    ['ACCOUNT_DELETED', 410, /고객 계정이 삭제돼 쿠폰을 사용할 수 없어요/, 2],
+    ['MERCHANT_ACCESS_DENIED', 403, /권한이 없어요/, 2],
+    ['SOMETHING_ELSE', 500, /쿠폰을 처리하지 못했어요/, 2],
+  ];
+  for (const [code, status, message, remaining] of cases) {
+    const { nodes, resolve } = await couponMerchant({ redeem: () => apiError(status, code) });
+    await resolve();
+    await nodes['merchant-coupon-lookup'].click();
+    await couponButton(nodes, 0).click();
+    assert.match(nodes['merchant-coupon-status'].textContent, message, code);
+    assert.equal(nodes['merchant-coupon-list'].children.length, remaining, code);
+    assert.equal(nodes['merchant-coupon-lookup'].disabled, false, code);
+    assert.equal(couponButton(nodes, 0).disabled, false, code);
+  }
+  const lookupDenied = await couponMerchant({ lookup: () => apiError(403, 'MERCHANT_ACCESS_DENIED') });
+  await lookupDenied.resolve();
+  await lookupDenied.nodes['merchant-coupon-lookup'].click();
+  assert.match(lookupDenied.nodes['merchant-coupon-status'].textContent, /권한이 없어요/);
+  assert.equal(lookupDenied.nodes['merchant-coupon-list'].children.length, 0);
+});
+
+test('점포 웹 쿠폰은 만료·사용 불가 고객 QR을 닫고 새 QR 요청을 안내하며 잘못된 응답은 표시하지 않는다', async () => {
+  for (const [code, message] of [
+    ['CUSTOMER_IDENTITY_EXPIRED', /고객 QR이 만료되었습니다/],
+    ['CUSTOMER_IDENTITY_UNAVAILABLE', /사용할 수 없습니다/],
+  ]) {
+    const { nodes, resolve } = await couponMerchant({ lookup: () => apiError(410, code) });
+    await resolve();
+    await nodes['merchant-coupon-lookup'].click();
+    assert.match(nodes['merchant-claim-result'].textContent, message, code);
+    assert.match(nodes['merchant-claim-result'].textContent, /새 QR/, code);
+    assert.equal(nodes['merchant-coupon'].hidden, true, code);
+    assert.equal(nodes['merchant-coupon-list'].children.length, 0, code);
+  }
+  for (const body of [{}, { coupons: 'none' }, { coupons: [{ couponId: 'x', title: '', detail: '', expiresAt: '2026-10-28T00:00:00.000Z' }] },
+    { coupons: [{ couponId: 'x', title: '음료', detail: '', expiresAt: 'soon' }] }, { coupons: [null] }]) {
+    const { nodes, resolve } = await couponMerchant({ lookup: () => okJson(body) });
+    await resolve();
+    await nodes['merchant-coupon-lookup'].click();
+    assert.equal(nodes['merchant-coupon-list'].children.length, 0);
+    assert.match(nodes['merchant-coupon-status'].textContent, /쿠폰을 처리하지 못했어요/);
+  }
+});
+
+test('점포 웹 쿠폰 영역은 QR 변경·방문 코드 발급·로그아웃·이탈 때 이전 고객 쿠폰을 지운다', async () => {
+  const opened = async () => {
+    const fixture = await couponMerchant();
+    await fixture.resolve();
+    await fixture.nodes['merchant-coupon-lookup'].click();
+    assert.equal(fixture.nodes['merchant-coupon-list'].children.length, 2);
+    return fixture;
+  };
+  const cleared = (nodes) => {
+    assert.equal(nodes['merchant-coupon'].hidden, true);
+    assert.equal(nodes['merchant-coupon-list'].children.length, 0);
+    assert.equal(nodes['merchant-coupon-status'].textContent, '');
+  };
+
+  let fixture = await opened();
+  fixture.nodes['merchant-claim-token'].value = 'other-qr';
+  await fixture.nodes['merchant-claim-token'].dispatch('input');
+  cleared(fixture.nodes);
+
+  fixture = await opened();
+  await fixture.nodes['merchant-claim-merchant'].dispatch('change');
+  cleared(fixture.nodes);
+
+  fixture = await opened();
+  await fixture.nodes['merchant-logout'].click();
+  cleared(fixture.nodes);
+
+  fixture = await opened();
+  fixture.listeners.get('pagehide')();
+  cleared(fixture.nodes);
+
+  fixture = await opened();
+  await fixture.nodes['merchant-claim-resolve'].click();
+  assert.equal(fixture.nodes['merchant-coupon-list'].children.length, 0);
+  assert.equal(fixture.nodes['merchant-coupon'].hidden, false);
+
+  fixture = await opened();
+  fixture.nodes['merchant-claim-reference'].value = 'sale-1';
+  fixture.nodes['merchant-claim-confirm'].checked = true;
+  await fixture.nodes['merchant-claim-form'].submit();
+  cleared(fixture.nodes);
+  assert.equal(fixture.calls.filter((call) => call.path?.endsWith('/claim-slots')).length, 1);
+});
+
+test('점포 웹은 늦게 도착한 쿠폰 응답을 페이지 이탈 뒤 새 화면에 표시하지 않는다', async () => {
+  let release;
+  const pending = new Promise((resolve) => { release = resolve; });
+  const { nodes, listeners, resolve } = await couponMerchant({ lookup: () => pending });
+  await resolve();
+  const lookingUp = nodes['merchant-coupon-lookup'].click();
+  assert.equal(nodes['merchant-coupon-lookup'].disabled, true);
+  listeners.get('pagehide')();
+  release(okJson({ identityExpiresAt: '2026-09-28T12:00:00.000Z', coupons: staffCoupons() }));
+  await lookingUp;
+  assert.equal(nodes['merchant-coupon-list'].children.length, 0);
+  assert.equal(nodes['merchant-coupon-status'].textContent, '');
+  assert.equal(nodes['merchant-coupon-lookup'].disabled, false);
+});
+
+test('점포 웹 쿠폰 처리는 진행 중 중복 요청을 보내지 않는다', async () => {
+  let release;
+  const pending = new Promise((resolve) => { release = resolve; });
+  const { nodes, calls, resolve } = await couponMerchant({ redeem: () => pending });
+  await resolve();
+  await nodes['merchant-coupon-lookup'].click();
+  const first = couponButton(nodes, 0);
+  const redeeming = first.click();
+  assert.equal(first.disabled, true);
+  assert.equal(couponButton(nodes, 1).disabled, true);
+  assert.equal(nodes['merchant-coupon-lookup'].disabled, true);
+  await couponButton(nodes, 1).click();
+  await nodes['merchant-coupon-lookup'].click();
+  release(okJson({ couponId: 'coupon/1', status: 'REDEEMED', redeemedAt: '2026-09-28T11:00:00.000Z', replayed: false }));
+  await redeeming;
+  assert.equal(calls.filter((call) => call.path?.endsWith('/redeem')).length, 1);
+  assert.equal(calls.filter((call) => call.path === lookupPath).length, 1);
+});
+
+test('점포 웹 쿠폰 화면은 접근 가능한 마크업과 텍스트 노드 렌더링만 사용한다', () => {
+  const merchantHtml = readFileSync(join(web, 'merchant.html'), 'utf8');
+  const merchantScript = readFileSync(join(web, 'assets/merchant.mjs'), 'utf8');
+  assert.match(merchantHtml, /<section id="merchant-coupon" aria-labelledby="merchant-coupon-title" hidden>/);
+  assert.match(merchantHtml, /<button id="merchant-coupon-lookup"[^>]*type="button">이 고객 쿠폰 확인<\/button>/);
+  assert.match(merchantHtml, /<ul id="merchant-coupon-list"/);
+  assert.match(merchantHtml, /id="merchant-coupon-status" class="status" role="status" aria-live="polite"/);
+  assert.doesNotMatch(merchantHtml + merchantScript, /innerHTML|outerHTML|insertAdjacentHTML|localStorage/);
+  assert.match(merchantScript, /textContent = `\$\{coupon\.title\}/);
 });
 
 test('운영 API 오류는 502로 전달하고 임의 데이터가 없다', async () => {

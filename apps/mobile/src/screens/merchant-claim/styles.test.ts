@@ -16,5 +16,7 @@ test('makeMerchantClaimStyles gives rendered light and dark content and states t
     assert.equal(styles.button.backgroundColor, palette.primary);
     assert.equal(styles.buttonText.color, palette.onPrimary);
     assert.equal(styles.errorText.color, palette.onErrorContainer);
+    assert.equal(styles.couponRow.backgroundColor, palette.background);
+    assert.equal(styles.couponTitle.color, palette.label);
   }
 });

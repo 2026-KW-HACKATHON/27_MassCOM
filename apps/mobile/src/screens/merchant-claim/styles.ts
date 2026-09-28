@@ -33,5 +33,7 @@ export function makeMerchantClaimStyles(palette: AppColors, hairlineWidth = 1) {
   expiry: { color: palette.secondaryLabel, fontSize: 12 },
   token: { padding: 13, borderRadius: 12, color: palette.label, backgroundColor: palette.background, fontFamily: 'monospace', fontSize: 13, lineHeight: 20 },
   actions: { gap: 10 },
+  couponRow: { gap: 8, padding: 14, borderRadius: 14, backgroundColor: palette.background },
+  couponTitle: { color: palette.label, fontSize: 15, fontWeight: '900' },
 } satisfies Record<string, ImageStyle | TextStyle | ViewStyle>;
 }

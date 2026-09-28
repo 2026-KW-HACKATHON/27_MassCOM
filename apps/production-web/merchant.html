@@ -45,6 +45,13 @@
         <button id="merchant-claim-submit" type="submit" disabled>방문 코드 발급</button>
       </form>
       <p id="merchant-claim-result" class="status" role="status" aria-live="polite"></p>
+      <section id="merchant-coupon" aria-labelledby="merchant-coupon-title" hidden>
+        <h2 id="merchant-coupon-title">쿠폰 사용</h2>
+        <p>고객 QR을 확인한 뒤 이 점포에서 쓸 수 있는 쿠폰을 확인하세요. 방문 코드를 발급하면 이 QR은 다시 쓸 수 없으니 쿠폰을 먼저 처리해 주세요.</p>
+        <button id="merchant-coupon-lookup" class="collection-action" type="button">이 고객 쿠폰 확인</button>
+        <ul id="merchant-coupon-list" class="coupon-list"></ul>
+        <p id="merchant-coupon-status" class="status" role="status" aria-live="polite"></p>
+      </section>
       <img id="merchant-claim-issued-qr" alt="고객이 촬영할 방문 수령 QR" width="240" height="240" hidden>
       <div id="merchant-claim-reissue" hidden>
         <label><input id="merchant-claim-reissue-confirm" type="checkbox"> 이전 방문 코드를 무효화하고 새 QR을 발급합니다.</label>
