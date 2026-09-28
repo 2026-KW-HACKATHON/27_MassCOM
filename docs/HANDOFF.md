@@ -2,7 +2,12 @@
 
 마지막 갱신 시각: 2026-09-28 KST
 
-## 2026-09-28 보관된 조직 저장소와 개인 비공개 저장소
+## 2026-09-28 개인 비공개 저장소의 최신 작업
+
+- **최신 개인 통합·시연 배포:** [Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 [PR #2](https://github.com/choijunhuk/MassCOM/pull/2)를 `main` merge `6585614`로 병합했고 PR CI `36370159651`·병합 후 main CI `36370675407`이 PASS했다. 첫 CI `36369704684`는 README 문구 시험이 낡아 FAIL했으며 21/21 RED→GREEN 수정 뒤 재검사했다. [Preview 4 APK](https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.4)는 같은 커밋의 전용 서명·원격 SHA-256 확인까지 완료했고, 별도 Lightsail 시연 API만 이미지 `6585614`로 교체·migration 0019 적용했다([증거](evidence/showcase-customer-qr-deployment-2026-09-28.json)). 백업 custom archive 목록 PASS, 시연 DB 가상 점포/방문/보상권 3/3/2 불변, 운영 가상 점포 0·운영 컨테이너 불변, 두 API와 www HTTPS 200. **휴대전화가 adb에 없어 새 APK 설치·2분 고객 식별 QR 실기는 `NOT_RUN`**. 구 Preview 3 STAFF 발급은 새 API와 호환되지 않으므로 직원 실기는 Preview 4로 수행한다. Issue #1은 실기까지 열어 둔다.
+- **운영 관리자 진행 중:** 개인 [Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)에서 운영 웹 별도 관리자 권한·계정/점포 관리 기반을 작업 중이다. 사용자는 기존 주 Google 계정 1명을 운영 관리자로 지정했다. 실제 권한 부여는 운영 DB의 검증된 Google subject 확인과 코드·검사·배포가 끝난 뒤에만 수행한다. 운영 Android는 고객 전용, 시연 가상 자료는 운영 DB로 옮기지 않는다.
+
+## 2026-09-28 보관된 조직 저장소와 개인 비공개 저장소 — 당시 기록
 
 - **진행 중 통합 PR:** 개인 [Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 `feat/customer-first-loop`를 [PR #2](https://github.com/choijunhuk/MassCOM/pull/2)로 열었다. QR 소스·도감 다음 목표·이전 시연 카메라 증거를 merge commit `698af5b`·`8c6feb3`으로 결합했고 로컬 API 109/109·모바일 239/239·PostgreSQL 16 전용 `_test` 52 PASS/2 SKIP·타입·린트·API build·Android export·문서 검사 PASS. 첫 PR CI `36369704684`는 README의 오래된 문구 assertion으로 FAIL했고 로컬 RED→GREEN 21/21 수정은 원격 재검증 전이다. 병합·새 APK/API 배포와 새 고객 식별 QR 실기는 `NOT_RUN`. Play 목표는 [D-040](DECISIONS.md)대로 유지하되 제출하지 않는다.
 
