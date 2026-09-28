@@ -43,8 +43,20 @@ export class PostgresStaffRegistration {
     }
   }
 
+  private async activePair(client: PoolClient, first: string, second: string): Promise<void> {
+    try { await this.lifecycle.assertAllActive(client, [first, second]); }
+    catch (error) {
+      if (error instanceof AccountLifecycleError) throw new StaffRegistrationError('STAFF_FORBIDDEN');
+      throw error;
+    }
+  }
+
   private async admin(client: PoolClient, accountId: string): Promise<void> {
     await this.active(client, accountId);
+    await this.adminRole(client, accountId);
+  }
+
+  private async adminRole(client: PoolClient, accountId: string): Promise<void> {
     const result = await client.query(`SELECT 1 FROM platform_admins AS admin
       JOIN auth_identities AS identity ON identity.account_id = admin.account_id
       WHERE admin.account_id = $1 AND admin.revoked_at IS NULL AND identity.provider = 'google'
@@ -85,22 +97,27 @@ export class PostgresStaffRegistration {
   async approve(adminId: string, merchantId: string, code: string): Promise<void> {
     if (!/^[A-Za-z0-9_-]{22}$/.test(code)) throw new StaffRegistrationError('STAFF_CODE_INVALID');
     await this.transaction(async client => {
-      await this.admin(client, adminId);
       const candidate = await client.query<{ account_id: string }>(
         `SELECT account_id FROM staff_registration_requests
-         WHERE merchant_id = $1 AND code_hash = $2 AND consumed_at IS NULL AND expires_at > now()`,
+         WHERE merchant_id = $1 AND code_hash = $2 AND consumed_at IS NULL`,
         [merchantId, codeHash(code)]);
-      if (!candidate.rows[0]) throw new StaffRegistrationError('STAFF_CODE_INVALID');
-      await this.active(client, candidate.rows[0].account_id);
+      if (!candidate.rows[0]) {
+        await this.admin(client, adminId);
+        throw new StaffRegistrationError('STAFF_CODE_INVALID');
+      }
+      await this.activePair(client, adminId, candidate.rows[0].account_id);
+      await this.adminRole(client, adminId);
       // This row lock is shared with claim issuance/reissue, so revocation cannot race a claim.
       await this.merchant(client, merchantId);
-      const request = await client.query<{ id: string; account_id: string }>(
-        `SELECT id, account_id FROM staff_registration_requests
-         WHERE merchant_id = $1 AND code_hash = $2 AND consumed_at IS NULL AND expires_at > now()
+      const request = await client.query<{ id: string; account_id: string; expires_at: Date }>(
+        `SELECT id, account_id, expires_at FROM staff_registration_requests
+         WHERE merchant_id = $1 AND code_hash = $2 AND consumed_at IS NULL
          FOR UPDATE`, [merchantId, codeHash(code)]);
       const row = request.rows[0];
       if (!row) throw new StaffRegistrationError('STAFF_CODE_INVALID');
       if (row.account_id !== candidate.rows[0].account_id) throw new StaffRegistrationError('STAFF_CODE_INVALID');
+      const current = await client.query<{ current_time: Date }>('SELECT clock_timestamp() AS current_time');
+      if (row.expires_at <= current.rows[0]!.current_time) throw new StaffRegistrationError('STAFF_CODE_INVALID');
       const identity = await client.query(`SELECT 1 FROM auth_identities
         WHERE account_id = $1 AND provider = 'google'`, [row.account_id]);
       if (identity.rowCount !== 1) throw new StaffRegistrationError('STAFF_CODE_INVALID');
@@ -124,8 +141,8 @@ export class PostgresStaffRegistration {
 
   async revoke(adminId: string, merchantId: string, accountId: string): Promise<void> {
     await this.transaction(async client => {
-      await this.admin(client, adminId);
-      await this.active(client, accountId);
+      await this.activePair(client, adminId, accountId);
+      await this.adminRole(client, adminId);
       await this.merchant(client, merchantId, false);
       const result = await client.query(`UPDATE merchant_members
         SET status = 'REVOKED', revoked_at = now(), updated_at = now()

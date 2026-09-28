@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { Pool } from 'pg';
 
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
+import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresStaffRegistration } from './postgres/staff-registration.js';
 import { runMigrations } from './postgres/migrate.js';
@@ -110,6 +111,7 @@ test('claim issue racing STAFF revoke leaves no usable membership after revoke',
   const staff = new PostgresStaffRegistration(pool, secret);
   const claims = new PostgresClaimSlotService(pool, {
     referenceHmacSecret: 'staff-claim-reference-hmac-secret-32-bytes',
+    accountLifecycle: new PostgresAccountLifecycle({ hmacSecret: secret }),
   });
   const adminId = `admin-${randomUUID()}`;
   const accountId = `staff-${randomUUID()}`;
@@ -140,4 +142,145 @@ test('claim issue racing STAFF revoke leaves no usable membership after revoke',
       merchantReference: `order-${randomUUID()}`, createdByAccountId: accountId }),
     { code: 'MERCHANT_ACCESS_DENIED' });
   } finally { await pool.end(); }
+});
+
+test('STAFF approval and revoke serialize with claim issue and reissue using production lifecycle locks', {
+  skip: enabled ? false : 'requires a disposable _test PostgreSQL database',
+}, async () => {
+  const pool = new Pool({ connectionString: url });
+  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+  const staff = new PostgresStaffRegistration(pool, secret);
+  const claims = new PostgresClaimSlotService(pool, {
+    referenceHmacSecret: 'staff-claim-reference-hmac-secret-32-bytes', accountLifecycle: lifecycle,
+  });
+  const adminId = `admin-${randomUUID()}`;
+  const accountId = `staff-${randomUUID()}`;
+  const merchantId = randomUUID();
+  try {
+    await runMigrations(pool);
+    await pool.query(`INSERT INTO auth_identities(provider, subject, account_id, created_at)
+      VALUES ('google', $1, $2, now()), ('google', $3, $4, now())`,
+      [`admin-sub-${randomUUID()}`, adminId, `staff-sub-${randomUUID()}`, accountId]);
+    await pool.query('INSERT INTO platform_admins(account_id) VALUES ($1)', [adminId]);
+    await pool.query(`INSERT INTO merchants(id, name, story, road_address, minimum_spend_won, status)
+      VALUES ($1, '실제 상점', '', '서울', 0, 'ACTIVE')`, [merchantId]);
+    await pool.query(`INSERT INTO campaigns(id, merchant_id, title, starts_at, ends_at, status,
+      is_public, enrollment_capacity) VALUES ($1, $2, '방문', now() - interval '1 day',
+      now() + interval '1 day', 'ACTIVE', true, 10)`, [randomUUID(), merchantId]);
+    const code = await staff.request(accountId, merchantId);
+    const [approval, earlyIssue] = await Promise.allSettled([
+      staff.approve(adminId, merchantId, code.code),
+      claims.issue({ merchantId, customerAccountId: `customer-${randomUUID()}`,
+        merchantReference: `order-${randomUUID()}`, createdByAccountId: accountId }),
+    ]);
+    assert.equal(approval.status, 'fulfilled');
+    if (earlyIssue.status === 'rejected') assert.equal(earlyIssue.reason.code, 'MERCHANT_ACCESS_DENIED');
+    const slot = await claims.issue({ merchantId, customerAccountId: `customer-${randomUUID()}`,
+      merchantReference: `order-${randomUUID()}`, createdByAccountId: accountId });
+    const [reissue, revoke] = await Promise.allSettled([
+      claims.reissue({ merchantId, claimSlotId: slot.claimSlotId,
+        expectedTokenVersion: slot.tokenVersion, requestedByAccountId: accountId }),
+      staff.revoke(adminId, merchantId, accountId),
+    ]);
+    assert.equal(revoke.status, 'fulfilled');
+    if (reissue.status === 'rejected') assert.equal(reissue.reason.code, 'MERCHANT_ACCESS_DENIED');
+    await assert.rejects(claims.reissue({ merchantId, claimSlotId: slot.claimSlotId,
+      expectedTokenVersion: reissue.status === 'fulfilled' ? reissue.value.tokenVersion : slot.tokenVersion,
+      requestedByAccountId: accountId }), { code: 'MERCHANT_ACCESS_DENIED' });
+  } finally { await pool.end(); }
+});
+
+test('opposite admin and target STAFF revokes complete without lifecycle deadlock', {
+  skip: enabled ? false : 'requires a disposable _test PostgreSQL database',
+}, async () => {
+  const pool = new Pool({ connectionString: url });
+  const merchantId = randomUUID();
+  const accounts = [`admin-${randomUUID()}`, `admin-${randomUUID()}`] as const;
+  try {
+    await runMigrations(pool);
+    for (const accountId of accounts) {
+      await pool.query(`INSERT INTO auth_identities(provider, subject, account_id, created_at)
+        VALUES ('google', $1, $2, now())`, [`sub-${randomUUID()}`, accountId]);
+      await pool.query('INSERT INTO platform_admins(account_id) VALUES ($1)', [accountId]);
+    }
+    await pool.query(`INSERT INTO merchants(id, name, story, road_address, minimum_spend_won, status)
+      VALUES ($1, '실제 상점', '', '서울', 0, 'ACTIVE')`, [merchantId]);
+    for (const accountId of accounts) {
+      await pool.query(`INSERT INTO merchant_members(merchant_id, account_id, role, status)
+        VALUES ($1, $2, 'STAFF', 'ACTIVE')`, [merchantId, accountId]);
+    }
+    let firstLocks = 0;
+    let releaseGate: () => void = () => {};
+    const gate = new Promise<void>(resolve => { releaseGate = resolve; });
+    const coordinatedPool = {
+      connect: async () => {
+        const client = await pool.connect();
+        let firstLock = true;
+        return {
+          query: async (...args: Parameters<typeof client.query>) => {
+            const result = await client.query(...args);
+            if (firstLock && typeof args[0] === 'string' && args[0].startsWith('SELECT pg_advisory_xact_lock')) {
+              firstLock = false;
+              firstLocks += 1;
+              if (firstLocks === 2) releaseGate();
+              await Promise.race([gate, new Promise(resolve => setTimeout(resolve, 150))]);
+            }
+            return result;
+          },
+          release: () => client.release(),
+        };
+      },
+    } as unknown as Pool;
+    const staff = new PostgresStaffRegistration(coordinatedPool, secret);
+    const results = await Promise.allSettled([
+      staff.revoke(accounts[0], merchantId, accounts[1]),
+      staff.revoke(accounts[1], merchantId, accounts[0]),
+    ]);
+    assert.deepEqual(results.map(result => result.status), ['fulfilled', 'fulfilled']);
+  } finally { await pool.end(); }
+});
+
+test('approval fails when code expires while waiting for the merchant lock', {
+  skip: enabled ? false : 'requires a disposable _test PostgreSQL database',
+}, async () => {
+  const pool = new Pool({ connectionString: url });
+  const staff = new PostgresStaffRegistration(pool, secret);
+  const adminId = `admin-${randomUUID()}`;
+  const accountId = `staff-${randomUUID()}`;
+  const merchantId = randomUUID();
+  const blocker = await pool.connect();
+  try {
+    await runMigrations(pool);
+    await pool.query(`INSERT INTO auth_identities(provider, subject, account_id, created_at)
+      VALUES ('google', $1, $2, now()), ('google', $3, $4, now())`,
+      [`admin-sub-${randomUUID()}`, adminId, `staff-sub-${randomUUID()}`, accountId]);
+    await pool.query('INSERT INTO platform_admins(account_id) VALUES ($1)', [adminId]);
+    await pool.query(`INSERT INTO merchants(id, name, story, road_address, minimum_spend_won, status)
+      VALUES ($1, '실제 상점', '', '서울', 0, 'ACTIVE')`, [merchantId]);
+    const issued = await staff.request(accountId, merchantId);
+    const expiresAt = (await pool.query<{ expires_at: Date }>(
+      `UPDATE staff_registration_requests SET expires_at = clock_timestamp() + interval '2 seconds'
+       WHERE id = $1 RETURNING expires_at`, [issued.requestId])).rows[0]!.expires_at;
+    await blocker.query('BEGIN');
+    const blockerPid = (await blocker.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid;
+    await blocker.query('SELECT 1 FROM merchants WHERE id = $1 FOR UPDATE', [merchantId]);
+    const approval = staff.approve(adminId, merchantId, issued.code);
+    let waiting = false;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      waiting = (await pool.query<{ waiting: boolean }>(`SELECT EXISTS (
+        SELECT 1 FROM pg_stat_activity WHERE pid <> $1 AND $1 = ANY(pg_blocking_pids(pid))
+      ) AS waiting`, [blockerPid])).rows[0]!.waiting;
+      if (waiting) break;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.equal(waiting, true);
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, expiresAt.getTime() - Date.now() + 100)));
+    await blocker.query('COMMIT');
+    await assert.rejects(approval, { code: 'STAFF_CODE_INVALID' });
+    assert.equal((await pool.query('SELECT 1 FROM merchant_members WHERE account_id = $1', [accountId])).rowCount, 0);
+  } finally {
+    await blocker.query('ROLLBACK');
+    blocker.release();
+    await pool.end();
+  }
 });
