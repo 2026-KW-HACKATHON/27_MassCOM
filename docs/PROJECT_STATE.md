@@ -4,7 +4,7 @@
 
 ## 최신 작업 경계
 
-- **동네 탐험 배지·공유 소스:** [Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212), 커밋 6c47423. 인정된 서로 다른 점포 방문으로 배지를 계산하며 시연 쿠폰은 실제 사용 불가 예시다. 모바일 244/244·웹 48/48·타입·린트·Android 개발 export PASS. 새 APK/휴대전화 화면과 공개 웹 적용은 NOT_RUN이고 실제 쿠폰 발급은 구현하지 않았다.
+- **동네 탐험 배지·공유 배포 경계:** [Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212)의 [PR #213](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/213) merge 5caec3a, PR/main CI PASS. 모바일 244/244·웹 48/48·타입·린트·Android 개발 export PASS. [운영 배지 웹](evidence/neighborhood-badges-web-deployment-2026-09-29.json)은 기존 서버에서 로그인한 0방문 계정의 잠긴 배지 3개, 익명 401/no-store를 확인했다. [시연 Preview 6 APK](evidence/showcase-preview6-release-2026-09-29.json)는 서명·GitHub digest 확인 후 공개했다. 실제 휴대전화 화면·공유·쿠폰 발급은 NOT_RUN이다.
 - **Preview 5 설치 안내 웹 배포:** 첫 두 SSH exit 255 때 이전 웹을 보존했고, 호스트 한정 keepalive와 기존 롤백·경로 검사로 main 19c5ae4의 /open을 [기존 Lightsail에 반영](evidence/public-open-preview5-deployment-2026-09-29.json)했다. apex/www HTTPS 200·소스 SHA-256 일치, API/DB 불변을 확인했다. 신규 배지 웹 소스는 아직 배포하지 않았다.
 
 - **2026-09-29 조직 저장소 복귀:** 조직 저장소는 `PUBLIC`·활성이고 [PR #207~#210](PUBLIC_SYNC.md)을 PR/main CI 통과 뒤 병합했다. [시연 Preview 5 APK](evidence/showcase-preview5-public-release-2026-09-29.json)를 조직 공개 Release에 같은 SHA-256으로 게시했다. 이전 개인 PR 문서·배포 기록은 당시 사실로 보존한다. [PR #211](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/211)·main CI는 PASS, 공개 /open 서버 반영은 [실측 완료](evidence/public-open-preview5-deployment-2026-09-29.json)됐다.

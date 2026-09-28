@@ -16,4 +16,4 @@ Android 공유 버튼은 획득한 배지에서만 나타난다. 시스템 공�
 
 기존 파랑·크림·초록 팔레트와 마스코트 스탬프를 사용해 세 단계를 하나의 세로 탐험 길로 묶는다. 큰 글씨에서 줄이 늘어날 수 있게 하고 의미를 색상에만 맡기지 않는다. 이번 구간에 자동 움직임은 없으며 이후 움직임을 추가하면 감소된 동작 설정을 존중한다([W3C 접근성 지침](https://www.w3.org/WAI/WCAG22/Techniques/css/C39)).
 
-소스 검증: 모바일 244/244, 운영 웹 48/48, 모바일 타입·린트·Android 개발 export, 문서 게이트 PASS. 새 Android 설치본의 화면·공유창·TalkBack, 새 배지 UI의 공개 웹 배포·실제 쿠폰 사용은 NOT_RUN이다. 이전 /open 설치 안내만 [별도 배포](evidence/public-open-preview5-deployment-2026-09-29.json)됐으며 배지 UI가 실서버에 반영됐다는 뜻은 아니다.
+소스 검증: 모바일 244/244, 운영 웹 48/48, 모바일 타입·린트·Android 개발 export, 문서 게이트 PASS. [배지 운영 웹](evidence/neighborhood-badges-web-deployment-2026-09-29.json)은 기존 서버에 배포됐고, [Preview 6 시연 APK](evidence/showcase-preview6-release-2026-09-29.json)는 공개 사전 릴리스로 게시됐다. 그러나 APK의 휴대전화 화면·공유창·TalkBack과 실제 쿠폰 사용은 NOT_RUN이다.
