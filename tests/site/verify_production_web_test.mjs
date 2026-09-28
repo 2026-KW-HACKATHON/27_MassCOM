@@ -14,6 +14,12 @@ const html = readFileSync(join(web, 'index.html'), 'utf8');
 const script = readFileSync(join(web, 'assets/production.mjs'), 'utf8');
 const css = readFileSync(join(web, 'assets/production.css'), 'utf8');
 const serverSource = readFileSync(join(web, 'server.mjs'), 'utf8');
+const webDockerfile = readFileSync(join(repo, 'infra/lightsail/production-web.Dockerfile'), 'utf8');
+
+test('운영 웹 이미지는 관리자 HTML과 자산을 함께 포함한다', () => {
+  assert.match(webDockerfile, /COPY apps\/production-web\/admin\.html \.\/admin\.html/);
+  assert.match(webDockerfile, /COPY apps\/production-web\/assets \.\/assets/);
+});
 
 test('운영 웹은 로컬 기본 바인딩을 유지하고 명시한 컨테이너 바인딩만 허용한다', () => {
   assert.equal(resolveProductionBindHost(undefined), '127.0.0.1');
