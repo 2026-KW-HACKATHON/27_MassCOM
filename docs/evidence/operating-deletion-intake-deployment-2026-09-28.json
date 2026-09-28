@@ -1,0 +1,46 @@
+{
+  "observedAt": "2026-09-28T06:01:03Z",
+  "sourceCommit": "4d59347ba1691da8779364dfdaf20c909f52958f",
+  "repositoryVisibility": "PRIVATE",
+  "sourcePullRequests": [
+    { "url": "https://github.com/choijunhuk/MassCOM/pull/8", "mergeCommit": "183d5ed697fd58b28c5f9318758f30162100bb5e", "pullRequestCi": 36380444326, "mainCi": 36380938911 },
+    { "url": "https://github.com/choijunhuk/MassCOM/pull/9", "mergeCommit": "4d59347ba1691da8779364dfdaf20c909f52958f", "pullRequestCi": 36382989025, "mainCi": 36383499364 }
+  ],
+  "operatingRuntime": {
+    "apiImage": "masscom-api:4d59347ba169",
+    "webImage": "masscom-production-web:4d59347ba169",
+    "apiAndWebHealth": "PASS: healthy; showcase API and both PostgreSQL containers retained prior IDs with zero restarts",
+    "databaseMigration": "PASS: schema_migrations 21 to 23; newest 0023_web_deletion_return.sql; late 0018_account_deletion_intake.sql applied",
+    "backup": "PASS: /opt/masscom/backups/database-before-4d59347ba169.dump.5GbAu5, 80716 bytes, mode 600, custom-format pg_restore --list readable; actual restore NOT_RUN",
+    "activePlatformAdmins": 1,
+    "platformAdminGrantAuditRows": 1,
+    "deletionIntakeRowsAfterUnauthenticatedTest": 0,
+    "operatingMerchants": 0,
+    "operatingMintJobs": 0,
+    "showcaseMerchantsVisitsEntitlements": [3, 3, 2],
+    "runtimeConfiguration": "PASS: local and server runtime environment SHA-256 matched before deployment; values not recorded"
+  },
+  "externalHttps": {
+    "wwwDeletionPage": 200,
+    "apexDeletionPage": 200,
+    "wwwAdminPage": 200,
+    "wwwApp": 200,
+    "wwwPreview": 200,
+    "operatingApiHealth": 200,
+    "showcaseApiHealth": 200,
+    "unauthenticatedDeletionIntakePost": 401,
+    "missingOriginDeletionIntakePost": 403,
+    "deletionIntakeGet": 405,
+    "fixedGoogleAccountSelectionStart": "302 with prompt=select_account",
+    "deletionIntakeNoStoreNoindex": "PASS",
+    "browserUnauthenticatedState": "PASS: Playwright showed Google login and explained that intake is not deletion; clicking without a session showed login guidance and created no intake row"
+  },
+  "notRun": [
+    "authenticated real Google account deletion-intake submission",
+    "actual account deletion or finality reconciliation after session revocation",
+    "signed recent Google auth_time availability on a real device",
+    "rollback execution and separate restore drill",
+    "Google Play submission"
+  ],
+  "recovery": "Previous operating API/web images and a mode-600 DB backup are retained. Code rollback does not automatically reverse additive migrations; reversing the signed-auth_time safety check would broaden deletion eligibility and must not be done blindly."
+}

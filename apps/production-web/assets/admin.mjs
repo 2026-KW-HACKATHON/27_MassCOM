@@ -80,6 +80,72 @@ export async function loadAdmin(fetcher, doc) {
         editField(doc, '도로명 주소', 'roadAddress', merchant.roadAddress),
         editField(doc, '최소 결제 금액(원)', 'minimumSpendWon', merchant.minimumSpendWon, 'number'),
         save, hide);
+      const staffPanel = doc.createElement('section');
+      const staffTitle = doc.createElement('h4');
+      staffTitle.textContent = '직원 권한';
+      const staffList = doc.createElement('div');
+      const approve = doc.createElement('form');
+      const codeLabel = doc.createElement('label');
+      codeLabel.textContent = '직원이 전달한 등록 코드 ';
+      const codeInput = doc.createElement('input');
+      codeInput.name = 'code';
+      codeInput.required = true;
+      codeInput.maxLength = 22;
+      codeInput.autocomplete = 'off';
+      codeLabel.append(codeInput);
+      const approveButton = doc.createElement('button');
+      approveButton.type = 'submit';
+      approveButton.textContent = '이 점포 직원 승인';
+      approve.append(codeLabel, approveButton);
+      staffPanel.append(staffTitle, staffList, approve);
+      try {
+        const staff = await jsonRequest(fetcher, `${endpoint}/${encodeURIComponent(merchant.id)}/staff`);
+        if (adminRequests.get(doc) !== requestId) return;
+        if (!Array.isArray(staff.staff)) throw new Error('invalid staff');
+        for (const member of staff.staff) {
+          const row = doc.createElement('p');
+          const label = doc.createElement('span');
+          label.textContent = `계정 ${member.accountId} · 직원 `;
+          const revoke = doc.createElement('button');
+          revoke.type = 'button';
+          revoke.textContent = '권한 회수';
+          revoke.addEventListener('click', async () => {
+            revoke.disabled = true;
+            try {
+              await jsonRequest(fetcher,
+                `${endpoint}/${encodeURIComponent(merchant.id)}/staff/${encodeURIComponent(member.accountId)}/revoke`,
+                'POST', {});
+              await loadAdmin(fetcher, doc);
+              status.textContent = '직원 권한을 회수했습니다.';
+            } catch {
+              status.textContent = '직원 권한을 회수하지 못했습니다.';
+              revoke.disabled = false;
+            }
+          });
+          row.append(label, revoke);
+          staffList.append(row);
+        }
+        if (!staff.staff.length) staffList.textContent = '승인된 직원이 없습니다.';
+      } catch {
+        if (adminRequests.get(doc) !== requestId) return;
+        staffList.textContent = '직원 목록을 불러오지 못했습니다.';
+      }
+      approve.addEventListener('submit', async event => {
+        event.preventDefault();
+        approveButton.disabled = true;
+        try {
+          await jsonRequest(fetcher, `${endpoint}/${encodeURIComponent(merchant.id)}/staff`, 'POST', {
+            code: codeInput.value,
+          });
+          codeInput.value = '';
+          await loadAdmin(fetcher, doc);
+          status.textContent = '직원 권한을 승인했습니다.';
+        } catch (error) {
+          status.textContent = error.code === 'STAFF_CODE_INVALID'
+            ? '코드가 만료되었거나 이미 사용되었습니다.' : '직원 권한을 승인하지 못했습니다.';
+          approveButton.disabled = false;
+        }
+      });
       form.addEventListener('submit', async event => {
         event.preventDefault();
         save.disabled = true;
@@ -109,7 +175,7 @@ export async function loadAdmin(fetcher, doc) {
           hide.disabled = false;
         }
       });
-      list.append(form);
+      list.append(form, staffPanel);
     }
     if (payload.merchants.length === 0) {
       const empty = doc.createElement('p');

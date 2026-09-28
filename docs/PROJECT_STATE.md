@@ -4,7 +4,9 @@
 
 ## 최신 작업 경계
 
-- **2026-09-28 삭제 요청 접수·보안 수리:** 개인 [PR #8](https://github.com/choijunhuk/MassCOM/pull/8)은 merge `183d5ed`·PR/main CI PASS로 **삭제 의사만** 본인 Google 웹 세션에 연결한다. 고정 OAuth 복귀·migration 0018/0023·PostgreSQL 16 upgrade 회귀 62 PASS/2 SKIP를 확인했지만 운영 HTTPS 접수는 미배포다. `fix/deletion-recent-auth-and-finality`는 실제 서명 `auth_time`과 삭제 거래의 세션 행 잠금 후 5분 검사, 임대 만료 mint의 대기 판정을 로컬 67 PASS/2 SKIP·독립 검토 CLEAR로 보완했다. 보안 수리 PR/배포·실계정 접수·실제 삭제·결과 통지는 `NOT_RUN/BLOCKED`; 시연 DB 계정을 운영 접수로 처리하지 않는다.
+- **2026-09-28 운영 직원 등록 소스:** `feat/admin-staff-operations`는 직원 자신의 운영 Google 계정과 실제 점포에만 묶이는 15분 코드, 운영 관리자 명시 승인·회수, 감사·계정 삭제 정리, 별도 `/merchant/` 웹을 구현했다. 늦은 웹 응답·직원 회수/QR 발급·잠금 중 코드 만료 경합과 복귀 버튼 재시도를 보완해 로컬 API 116/116·PostgreSQL 68 PASS/2 SKIP·웹 28/28·Caddy 2/2·타입/build/비밀 검사 PASS. 운영 배포·실계정 직원 승인·점포 QR 발급 화면과 실제 방문 수령은 `NOT_RUN`; 시연 가상 점포를 운영에 넣지 않는다.
+
+- **2026-09-28 삭제 요청 접수·보안 운영 배포:** 개인 [PR #8](https://github.com/choijunhuk/MassCOM/pull/8) merge `183d5ed`·[PR #9](https://github.com/choijunhuk/MassCOM/pull/9) merge `4d59347`은 PR/main CI PASS 뒤 [운영 배포](evidence/operating-deletion-intake-deployment-2026-09-28.json)를 완료했다. DB 백업·migration 0018/0023, apex/www 안내 200·미로그인 접수 401·Origin 없는 요청 403을 확인했고 접수 행은 0이다. 서명된 Google `auth_time` 5분과 mint 비종결 판정은 코드·PostgreSQL에서 수리됐지만 실계정 인증/접수·실제 삭제·삭제 후 결과 통지는 `NOT_RUN/BLOCKED`; 시연 DB 계정을 운영 접수로 처리하지 않는다.
 
 - **2026-09-28 운영 관리자 첫 구간 배포:** 개인 [Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 [PR #5](https://github.com/choijunhuk/MassCOM/pull/5) merge `139e122`와 웹 이미지 누락 복구 [PR #7](https://github.com/choijunhuk/MassCOM/pull/7) merge `977a385`는 PR/main CI가 모두 PASS했다. [운영 배포](evidence/operating-admin-deployment-2026-09-28.json)에서 `/admin/`의 첫 `500`을 이미지 누락으로 진단·수정해 apex/www `200`, 미로그인 `401`, Origin 없는 쓰기 `403`과 주 Google 계정 관리자 1명·감사 1건을 확인했다. 실제 운영 점포 0곳, 가상 점포 0곳이며 권한 있는 브라우저의 실제 점포 업무는 `NOT_RUN`; 직원·캠페인·자산·상태 관리는 후속 범위다. 시연 STAFF 자격 자체를 운영 관리자 권한으로 재사용하지 않았다.
 
