@@ -15,6 +15,7 @@ export interface AccountDeletionService {
   requestDeletion(input: {
     accountId: string;
     confirmation: string;
+    sessionToken?: string;
   }): Promise<AccountDeletionResult>;
 }
 

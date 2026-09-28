@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 
 import { Pool } from 'pg';
 
+import { AuthSessionError } from './auth-session.js';
 import { ClaimSlotError } from './claim-slot-service.js';
 import { MintRequestError } from './mint-request-service.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
@@ -191,6 +193,127 @@ test('D01 keeps an actively leased prepared job pending instead of cancelling it
     outbox_status: 'LEASED',
     lease_owner: 'active-worker',
   });
+});
+
+test('D01 keeps a prepared mint pending after its lease expires until terminal mint outcomes', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedDeletionFixture(pool);
+  await pool.query(
+    `UPDATE mint_jobs SET status = 'PREPARED'
+     WHERE id = '40000000-0000-4000-8004-000000000001'`,
+  );
+  await pool.query(
+    `UPDATE outbox_events
+     SET status = 'LEASED', lease_owner = 'active-worker',
+         lease_expires_at = '2026-09-19T15:05:00Z'
+     WHERE aggregate_id = '40000000-0000-4000-8004-000000000001'`,
+  );
+  let now = new Date('2026-09-19T15:00:00.000Z');
+  const service = new PostgresAccountDeletionService(pool, {
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+    nextRequestId: () => '90000000-0000-4000-8000-000000000007',
+    now: () => now,
+    policyVersion: 'account-deletion-v1',
+  });
+
+  const initial = await service.requestDeletion({ accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT' });
+  assert.equal(initial.status, 'WAITING_FOR_MINT_FINALITY');
+  assert.equal(initial.pendingMintJobs, 2);
+
+  now = new Date('2026-09-19T15:06:00.000Z');
+  const expired = await service.requestDeletion({ accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT' });
+  assert.equal(expired.status, 'WAITING_FOR_MINT_FINALITY');
+  assert.equal(expired.pendingMintJobs, 2);
+  assert.equal(expired.completedAt, null);
+
+  await pool.query(
+    `UPDATE mint_jobs SET status = 'CANCELLED'
+     WHERE id = '40000000-0000-4000-8004-000000000001'`,
+  );
+  const remaining = await service.requestDeletion({ accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT' });
+  assert.equal(remaining.status, 'WAITING_FOR_MINT_FINALITY');
+  assert.equal(remaining.pendingMintJobs, 1);
+
+  await pool.query(
+    `UPDATE mint_jobs
+     SET status = 'FINALIZED', finalized_at = $1
+     WHERE id = '40000000-0000-4000-8004-000000000002'`,
+    [now],
+  );
+  const completed = await service.requestDeletion({ accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT' });
+  assert.equal(completed.status, 'COMPLETED');
+  assert.equal(completed.pendingMintJobs, 0);
+  assert.equal(completed.completedAt, now.toISOString());
+});
+
+test('D26 deletion transaction rechecks the bearer session before changing account data', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedDeletionFixture(pool);
+  await pool.query('TRUNCATE auth_sessions CASCADE');
+  const token = 'signed-recent-auth-test-token';
+  const authTime = new Date('2026-09-19T14:55:01.000Z');
+  await pool.query(
+    `INSERT INTO auth_sessions (
+       id, account_id, token_hash, created_at, expires_at, last_authenticated_at
+     ) VALUES ($1, 'delete-me', $2, $3, $4, $5)`,
+    [
+      '80000000-0000-4000-8000-000000000001',
+      createHash('sha256').update(token).digest(),
+      new Date('2026-09-19T14:00:00.000Z'),
+      new Date('2026-09-20T15:00:00.000Z'),
+      authTime,
+    ],
+  );
+  let now = new Date('2026-09-19T15:00:00.000Z');
+  const service = new PostgresAccountDeletionService(pool, {
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+    nextRequestId: () => '90000000-0000-4000-8000-000000000008',
+    now: () => now,
+    policyVersion: 'account-deletion-v1',
+    requireRecentSession: true,
+  });
+
+  // The bearer was recent when the HTTP guard ran; time advances before the DB transaction.
+  now = new Date('2026-09-19T15:00:02.000Z');
+  await assert.rejects(
+    service.requestDeletion({ accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT', sessionToken: token }),
+    (error: unknown) => error instanceof AuthSessionError && error.code === 'REAUTHENTICATION_REQUIRED',
+  );
+  await assert.rejects(
+    service.requestDeletion({ accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT' }),
+    (error: unknown) => error instanceof AuthSessionError && error.code === 'SESSION_REQUIRED',
+  );
+  await pool.query(
+    `UPDATE auth_sessions SET last_authenticated_at = $1, account_id = 'other-account'
+     WHERE id = '80000000-0000-4000-8000-000000000001'`,
+    [now],
+  );
+  await assert.rejects(
+    service.requestDeletion({ accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT', sessionToken: token }),
+    (error: unknown) => error instanceof AuthSessionError && error.code === 'IDENTITY_MISMATCH',
+  );
+  await pool.query(
+    `UPDATE auth_sessions SET account_id = 'delete-me', revoked_at = $1
+     WHERE id = '80000000-0000-4000-8000-000000000001'`,
+    [now],
+  );
+  await assert.rejects(
+    service.requestDeletion({ accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT', sessionToken: token }),
+    (error: unknown) => error instanceof AuthSessionError && error.code === 'SESSION_INVALID',
+  );
+  const unchanged = await pool.query('SELECT 1 FROM account_deletion_requests');
+  assert.equal(unchanged.rowCount, 0);
+
+  await pool.query(
+    `UPDATE auth_sessions SET revoked_at = NULL
+     WHERE id = '80000000-0000-4000-8000-000000000001'`,
+  );
+  const accepted = await service.requestDeletion({
+    accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT', sessionToken: token,
+  });
+  assert.equal(accepted.status, 'WAITING_FOR_MINT_FINALITY');
 });
 
 test('deleted account tombstone rejects wallet, claim, redeem, and mint writes', async (t) => {

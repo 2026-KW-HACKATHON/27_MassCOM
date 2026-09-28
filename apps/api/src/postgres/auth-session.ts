@@ -124,6 +124,8 @@ export class PostgresAuthSessionService implements AuthSessionService {
     const now = this.options.now();
     if (
       !authTime ||
+      !Number.isFinite(authTime.getTime()) ||
+      authTime.getTime() > now.getTime() ||
       authTime.getTime() < now.getTime() - this.options.reauthenticationWindowMs
     ) {
       throw new AuthSessionError('REAUTHENTICATION_REQUIRED');
@@ -141,7 +143,7 @@ export class PostgresAuthSessionService implements AuthSessionService {
       }
       await client.query(
         'UPDATE auth_sessions SET last_authenticated_at = $1 WHERE token_hash = $2',
-        [now, tokenHash(sessionToken)],
+        [authTime, tokenHash(sessionToken)],
       );
     } finally {
       client.release();
@@ -157,7 +159,10 @@ export class PostgresAuthSessionService implements AuthSessionService {
     try {
       const session = await activeSession(client, sessionToken, now);
       await this.assertAccountActive(client, session.account_id);
-      if (session.last_authenticated_at.getTime() < now.getTime() - windowMs) {
+      if (
+        session.last_authenticated_at.getTime() > now.getTime() ||
+        session.last_authenticated_at.getTime() < now.getTime() - windowMs
+      ) {
         throw new AuthSessionError('REAUTHENTICATION_REQUIRED');
       }
       return session.account_id;

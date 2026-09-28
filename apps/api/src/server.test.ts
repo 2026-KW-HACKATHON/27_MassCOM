@@ -1871,6 +1871,7 @@ test('D25 logout revokes the presented session and reauthentication refreshes it
 });
 
 test('D26 account deletion ignores the DEMO header and requires a recent session authentication', async (t) => {
+  let deletionSessionToken: string | undefined;
   const sessions = authSessionFixture({
     resolve: async () => 'acct_33333333-3333-4333-8333-333333333333',
     assertRecentlyAuthenticated: async (sessionToken) => {
@@ -1899,7 +1900,10 @@ test('D26 account deletion ignores the DEMO header and requires a recent session
     undefined,
     undefined,
     undefined,
-    { requestDeletion: async () => result },
+    { requestDeletion: async (input) => {
+      deletionSessionToken = input.sessionToken;
+      return result;
+    } },
     createSessionReauthenticationGuard(sessions),
     undefined,
     sessions,
@@ -1924,6 +1928,7 @@ test('D26 account deletion ignores the DEMO header and requires a recent session
   });
   assert.equal(authorized.status, 202);
   assert.deepEqual(await authorized.json(), result);
+  assert.equal(deletionSessionToken, 'recently-authenticated');
 });
 
 test('D24 refuses to start when the DEMO account header and production login are both configured', () => {
