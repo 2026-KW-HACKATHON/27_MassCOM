@@ -230,7 +230,8 @@ export function bindMerchant(fetcher, doc) {
       if (merchantRequests.get(doc) !== requestId) return;
       claimResult.textContent = issued.replayed
         ? '이미 처리한 요청입니다. 기존 방문 코드는 다시 표시되지 않습니다.'
-        : `방문 코드: ${issued.token} · 만료: ${new Date(issued.expiresAt).toLocaleTimeString('ko-KR')}`;
+        : `방문 코드: ${issued.token} · 만료: ${new Date(issued.expiresAt).toLocaleTimeString('ko-KR')}${
+          issued.qrRenderFailed || !issued.qrSvgDataUrl ? ' · QR 그림을 만들지 못했습니다. 방문 코드를 고객 앱에 직접 입력해 주세요.' : ''}`;
       claimToken.value = '';
       invalidateClaim();
       if (!issued.replayed && /^data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+$/.test(issued.qrSvgDataUrl ?? '')) {

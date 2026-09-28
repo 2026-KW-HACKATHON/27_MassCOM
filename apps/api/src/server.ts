@@ -64,6 +64,15 @@ const qrCode = createRequire(import.meta.url)('qrcode') as {
   toString(value: string, options: { type: 'svg'; margin: number }): Promise<string>;
 };
 
+export async function renderClaimQr(token: string, render = qrCode.toString): Promise<
+  { qrSvgDataUrl: string } | { qrRenderFailed: true }
+> {
+  try {
+    const svg = await render(token, { type: 'svg', margin: 2 });
+    return { qrSvgDataUrl: `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}` };
+  } catch { return { qrRenderFailed: true }; }
+}
+
 export type AuthLoginLimiter = {
   consume(key: string): { allowed: boolean; retryAfterSeconds: number };
 };
@@ -373,12 +382,7 @@ export function createApiServer(
               sendJson(response, 200, { claimSlotId: issued.claimSlotId, tokenVersion: issued.tokenVersion,
                 expiresAt: issued.expiresAt, replayed: true });
             } else {
-              let qrSvgDataUrl: string | undefined;
-              try {
-                const svg = await qrCode.toString(issued.token, { type: 'svg', margin: 2 });
-                qrSvgDataUrl = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
-              } catch { /* Keep the one-time text token available if QR rendering fails after issuance. */ }
-              sendJson(response, 201, { ...issued, ...(qrSvgDataUrl ? { qrSvgDataUrl } : {}) });
+              sendJson(response, 201, { ...issued, ...await renderClaimQr(issued.token) });
             }
           }
           return;

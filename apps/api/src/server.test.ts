@@ -17,6 +17,7 @@ import {
   createBearerAccountResolver,
   createSessionReauthenticationGuard,
   developmentHeaderAccountResolver,
+  renderClaimQr,
   resolveApiBindHost,
   resolveAuthMode,
   sessionTtlMs,
@@ -628,6 +629,11 @@ test('merchant web resolves a customer QR and issues a confirmed claim without e
     ['issue', { merchantId: 'real-merchant', customerIdentityToken: 'customer-qr',
       merchantReference: 'sale-1', createdByAccountId: 'staff-account' }],
   ]);
+});
+
+test('a QR rendering failure preserves the issued token path without hiding the failure', async () => {
+  assert.deepEqual(await renderClaimQr('one-time-token', async () => { throw new Error('renderer failed'); }),
+    { qrRenderFailed: true });
 });
 
 test('merchant web rejects invalid QR, foreign origin, missing confirmation and non-real merchant', async (t) => {

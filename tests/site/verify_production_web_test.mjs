@@ -594,6 +594,30 @@ test('점포 웹은 고객 QR 확인 후 명시적 사용 동의로만 방문 �
   assert.equal(nodes['merchant-claim-issued-qr'].src, '');
 });
 
+test('QR 그림 생성 실패는 원래 발급 코드를 남기고 직접 입력을 안내한다', async () => {
+  const { nodes, doc } = merchantDocument();
+  const fetcher = async path => {
+    if (path.endsWith('/me')) return { ok: true, json: async () => ({ merchants: [
+      { id: 'real-merchant', name: '실제 점포', role: 'STAFF' },
+    ] }) };
+    if (path.endsWith('/registration-merchants')) return { ok: true, json: async () => ({ merchants: [] }) };
+    if (path.endsWith('/customer-identities/resolve')) return { ok: true,
+      json: async () => ({ expiresAt: '2026-09-28T12:00:00.000Z' }) };
+    return { ok: true, status: 201,
+      json: async () => ({ token: 'ONLY_TOKEN', expiresAt: '2026-09-28T12:10:00.000Z', qrRenderFailed: true }) };
+  };
+  await bindMerchant(fetcher, doc);
+  nodes['merchant-claim-merchant'].value = 'real-merchant';
+  nodes['merchant-claim-token'].value = 'customer-qr';
+  nodes['merchant-claim-reference'].value = 'sale-1';
+  await nodes['merchant-claim-resolve'].click();
+  nodes['merchant-claim-confirm'].checked = true;
+  await nodes['merchant-claim-form'].submit();
+  assert.match(nodes['merchant-claim-result'].textContent, /ONLY_TOKEN/);
+  assert.match(nodes['merchant-claim-result'].textContent, /직접 입력/);
+  assert.equal(nodes['merchant-claim-issued-qr'].hidden, true);
+});
+
 test('QR 카메라 미지원·권한 거부 시 입력을 유지하고 취소하면 카메라 트랙을 끈다', async () => {
   const { nodes, doc, listeners } = merchantDocument();
   const fetcher = async path => ({ ok: true, json: async () => ({ merchants: path.endsWith('/me')
