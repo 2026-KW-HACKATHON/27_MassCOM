@@ -33,7 +33,7 @@
 
 ## Google Play 확인
 
-Google Play 공식 도움말은 앱에서 계정을 만들 수 있으면 앱 안 삭제 경로와 기능하는 외부 웹 삭제 경로를 요구합니다. 웹 경로는 앱/개발자와 관련성이 분명하고 찾기 쉬워야 합니다. `https://www.masscom.kr/account-deletion` 공개 안내는 있지만 계정 귀속 웹 접수 소스의 운영 배포·실계정 확인과 실제 삭제 처리/결과 통지는 미완료이므로 출시 준비 상태는 `BLOCKED`입니다. Google의 공식 OIDC 문서는 `auth_time` 요청을 설명하지만 강제 재인증 수단을 보장하지 않으므로, 서명된 최근 `auth_time`을 얻지 못하면 D-026에 따라 삭제를 거절합니다.
+Google Play 공식 도움말은 앱에서 계정을 만들 수 있으면 앱 안 삭제 경로와 기능하는 외부 웹 삭제 경로를 요구합니다. 웹 경로는 앱/개발자와 관련성이 분명하고 찾기 쉬워야 합니다. `https://www.masscom.kr/account-deletion`의 계정 귀속 접수는 [운영 HTTPS](evidence/operating-deletion-intake-deployment-2026-09-28.json)에 배포됐지만 실계정 접수·실제 삭제 처리/결과 통지는 미검증이므로 출시 준비 상태는 `BLOCKED`입니다. Google의 공식 OIDC 문서는 `auth_time` 요청을 설명하지만 강제 재인증 수단을 보장하지 않으므로, 서명된 최근 `auth_time`을 얻지 못하면 D-026에 따라 삭제를 거절합니다.
 
 - [Google Play 계정 삭제 요구사항](https://support.google.com/googleplay/android-developer/answer/13327111?hl=en)
 
