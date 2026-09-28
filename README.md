@@ -49,6 +49,7 @@
 [Issue #202](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/202)의 새 Android 소스는 로그아웃 상태의 공개 점포 탐색과 개인 화면의 로그인 안내를 구현했습니다. 위에 링크한 운영 test.3·시연 Preview 3 APK는 **변경 전 설치본**입니다. 새 소스의 실제 기기 로그인 복귀·계정 전환은 별도 검증 전까지 `NOT_RUN`입니다.
 
 [개인 Issue #1](https://github.com/choijunhuk/MassCOM/issues/1)의 새 소스는 고객의 2분 식별 QR → 체험용 점주의 카메라 확인·실제 이용 확인 → 계정에 묶인 기존 1회 수령 QR을 연결합니다. QR 두 종류는 용도·만료가 다르며 식별 QR 촬영만으로 방문·보상은 생성되지 않습니다. 위 Preview 3 PASS는 **기존 15분 수령 QR** 실기이며, 새 2분 식별 QR을 포함한 전체 흐름은 아직 APK·API에 미배포라 `NOT_RUN`입니다.
+[Issue #205](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/205)의 Android 소스는 도감에서 현재 캠페인의 인정된 방문만 보상 진행으로 세고, 다음 수집품까지 남은 방문과 점포 상세 이동을 표시합니다. 이 화면도 위 공개 APK에는 아직 반영되지 않았으며 실제 기기·TalkBack 확인은 `NOT_RUN`입니다.
 
 `www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 저장소와 APK 사전 릴리스는 공개됐지만 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
 
