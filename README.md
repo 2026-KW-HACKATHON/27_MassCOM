@@ -65,7 +65,7 @@
 
 `www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 조직 저장소와 Preview 6 시연 APK는 공개됐지만, 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
 
-[동네 탐험 배지](docs/NEIGHBORHOOD_BADGES.md)는 본인 도감의 인정된 서로 다른 점포 방문에서 1·2·3곳 단계를 보여주고, 획득한 배지만 개인정보 없이 공유합니다([Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212)). 시연 앱의 쿠폰은 **실제 사용 불가·코드 없음**인 예시이며 운영 앱에는 가상 혜택을 넣지 않습니다. 모바일 244/244·운영 웹 48/48 등 소스 검사를 통과했고 [배지 운영 웹](docs/evidence/neighborhood-badges-web-deployment-2026-09-29.json)과 [시연 Preview 6 APK](docs/evidence/showcase-preview6-release-2026-09-29.json)를 공개했습니다. 새 설치본의 휴대전화 실기와 실제 쿠폰은 별도입니다.
+[탐험 여권](docs/NEIGHBORHOOD_BADGES.md)은 인정된 방문으로 서버가 계산하는 메달 3종(동네 탐험가·단골손님·꾸준한 걸음)×브론즈·실버·골드를 보여주고, 배지 3·6·9개마다 보상 상자를 엽니다([Issue #216](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/216)). 상자의 쿠폰은 **점주 동의 기록이 있는 혜택이 등록된 경우에만** 서버가 계정당 1회 발급하고, 점원이 고객 식별 QR로 해당 점포 쿠폰만 사용 처리합니다(D-043). 시연 DB에만 가상 점포 체험 혜택을 넣었고 운영 혜택은 0건입니다. 방문 인증 직후 도장·색종이 축하, 획득 메달의 개인정보 없는 이미지 공유 카드도 포함합니다. [Android 에뮬레이터 로컬 실측](docs/evidence/explorer-passport-emulator-2026-09-29/README.md)에서 방문→축하→상자→쿠폰→점원 사용 처리까지 확인했고, 실제 휴대전화·실제 점포 쿠폰 사용·서버 배포는 별도입니다.
 
 ## 한눈에 보기
 
