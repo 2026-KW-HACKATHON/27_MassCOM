@@ -45,6 +45,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-28 | Codex 구현·독립 보안/코드 리뷰 | 2분 고객 식별 QR과 계정 귀속 발급(Issue #203) | API migration·계정/직원/점포 귀속·원자 슬롯 발급, 공통 고객 QR·시연 STAFF 촬영, 유실 복구와 회귀 시험 | API 단위 109/109·PostgreSQL 52 PASS/2 SKIP·모바일 231/231·타입·린트·Android export PASS; 새 APK/공개 API 실기 NOT_RUN | AI 구현을 사람 점주 검증으로 표시하지 않음. 리뷰 HIGH 2·MEDIUM 2를 수정했고 운영 DB에는 가상 자료를 넣지 않음 |
 | 2026-09-28 | Codex 구현·독립 코드 리뷰 | 도감 다음 보상 목표(Issue #205) | 현재 캠페인 인정 방문·앱 수집품 기준의 남은 방문 안내, 정원/종료/오류 상태와 점포 상세 이동 | 계산 시험 RED→GREEN, 모바일 230/230·타입·린트·Android export PASS; 새 설치본 화면·TalkBack NOT_RUN | AI 화면·테스트를 사람 수작업이나 실제 방문 성과로 표시하지 않음. 가상 A/B/C는 시연 환경에만 남김 |
 | 2026-09-28 | Codex | 개인 저장소 첫 이용·QR·도감 통합(Issue #1) | 이전 기능 브랜치와 시연 실기 문서 충돌 해소, Google Play 목표 유지 결정, 결합 시험 | API 109/109·모바일 239/239·PostgreSQL 52 PASS/2 SKIP·타입·린트·build/export·문서 검사 PASS; 개인 PR/새 APK 실기 NOT_RUN | AI 병합·시험을 사람의 구현·현장 검증으로 표시하지 않음. 운영 데이터·키·메인넷·Play 제출은 미변경 |
+| 2026-09-28 | Codex + 독립 코드 검토 | 개인 PR #2 병합과 시연 Preview 4·API 배포 | 낡은 README assertion 회귀 수정, GitHub CI/병합, 기존 시연 키로 APK 빌드·비공개 Release, 시연 DB 백업·migration 0019·시연 API만 교체 | 수정 후 PR/main CI PASS, APK 서명/원격 digest·시연 API HTTPS·운영 컨테이너/DB 불변 [검증](evidence/showcase-customer-qr-deployment-2026-09-28.json); 새 APK 휴대전화 QR 실기 NOT_RUN | AI 빌드·서버 조작을 팀원 수작업·실제 점주 실적으로 표시하지 않음. 사용자 자격증명·운영 키·메인넷·Play 제출 미변경 |
 
 ## 팀 설명 체크리스트
 
