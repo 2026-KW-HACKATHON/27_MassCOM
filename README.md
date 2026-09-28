@@ -65,6 +65,8 @@
 
 `www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 조직 저장소와 Preview 5 시연 APK는 공개됐지만, 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
 
+[동네 탐험 배지](docs/NEIGHBORHOOD_BADGES.md)는 본인 도감의 인정된 서로 다른 점포 방문에서 1·2·3곳 단계를 보여주고, 획득한 배지만 개인정보 없이 공유합니다([Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212)). 시연 앱의 쿠폰은 **실제 사용 불가·코드 없음**인 예시이며 운영 앱에는 가상 혜택을 넣지 않습니다. 모바일 244/244·운영 웹 48/48 등 소스 검사는 통과했지만 새 설치본 실기와 신규 배지 웹 배포는 아직 별도입니다.
+
 ## 한눈에 보기
 
 <details>
@@ -74,7 +76,7 @@
 - [모바일 개발용 UI 시안·로컬 실행](apps/mobile/README.md): 개발용 미리보기를 보존하고 시연 APK에는 첫 역할 선택·권한 확인·빈 공간 투어를 분리했다. 운영 앱의 네 기능 탭은 유지하며 [시연 설치본 실기 범위](docs/evidence/showcase-android-apk-2026-09-27.json)를 따로 기록했다.
 - 시연 Android 빌드·배포: `kr.masscom.wolgye.demo`/`masscom-demo`, 전용 Google·Keychain 서명·[공개 API](https://demo-api.masscom.kr/health)를 사용한다. [최신 공개 Preview 5 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.5)는 [소스·서명·공개 자산 digest](docs/evidence/showcase-preview5-public-release-2026-09-29.json)를 확인했고 휴대전화 설치는 `NOT_RUN`이다. [Preview 3](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)의 [Samsung 같은 계정 카메라 수령](docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)과 Preview 1의 [두 계정 직접 코드 수령](docs/evidence/showcase-two-account-phone-2026-09-27.json)은 이전 설치본 실증이다. 새 2분 식별 QR의 두 계정·두 휴대전화 촬영→수령은 `NOT_RUN`이다.
 - [시연 호스트 격리](infra/showcase-host/README.md): 기존 Lightsail의 독립 API/DB에 가상 A/B/C를 기동하고 두 초대 계정의 내부 발급→수령→도감·중복 방지를 [당시 내부 API 증거](docs/evidence/showcase-internal-auth-claim-2026-09-27.json)로 확인했다. [PR #192](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/192) 병합 뒤 **시연 API만** 새 고객 로그인 코드로 [배포](docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)했다. 새 APK 기본 화면은 폰에서 확인했지만 초대 밖 실계정 로그인과 지갑/NFT는 별도 미검증이다.
-- [기존 Lightsail의 포털·운영 웹 이관](infra/lightsail/README.md): AWS DNS·공인 TLS와 운영 웹 Google 로그인을 확인했습니다. [이전 apex/www 설치 안내](docs/evidence/public-open-page-2026-09-28.json)는 운영 test.3·시연 Preview 3을 공개 연결했습니다. 이번 소스는 Preview 5 링크로 고쳤으며 공개 서버 반영은 별도 확인합니다. Samsung Android Chrome의 서로 다른 Google 계정 2개 순차 로그인·빈 도감·세션 전환은 이전 웹 실증이고 [운영 test.3 APK의 폰 로그인](docs/evidence/operating-android-test3-2026-09-28.json)은 별도 확인했습니다. 실제 기록이 있는 계정 간 도감 격리는 미검증입니다.
+- [기존 Lightsail의 포털·운영 웹 이관](infra/lightsail/README.md): AWS DNS·공인 TLS와 운영 웹 Google 로그인을 확인했습니다. [이전 apex/www 설치 안내](docs/evidence/public-open-page-2026-09-28.json)는 운영 test.3·시연 Preview 3을 공개 연결했습니다. [Preview 5 설치 안내](docs/evidence/public-open-preview5-deployment-2026-09-29.json)는 apex/www 공개 HTTPS에 반영됐고 소스 해시가 일치합니다. Samsung Android Chrome의 서로 다른 Google 계정 2개 순차 로그인·빈 도감·세션 전환은 이전 웹 실증이고 [운영 test.3 APK의 폰 로그인](docs/evidence/operating-android-test3-2026-09-28.json)은 별도 확인했습니다. 실제 기록이 있는 계정 간 도감 격리는 미검증입니다.
 - [기존 서버 SSH 접속](docs/SERVER_ACCESS.md): 이 Mac의 `ssh masscom` 및 더블클릭 접속 파일 사용법. AWS 콘솔 로그인과 별개이며 개인키는 Git 밖에 보관
 
 - [모바일 디자인 기준](DESIGN.md): 탐색·방문 인증·도감·내 정보와 읽기 전용 시연 웹의 파란 팔레트·접근성 원칙

@@ -60,6 +60,8 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-28 | Codex | 운영 점주 방문 코드 재발급(Issue #3) | PR #13 병합 뒤 기존 Lightsail에 명시적 구코드 폐기·새 QR 발급 경로 배포, 미로그인·Origin 경계 확인 | [운영 근거](evidence/operating-merchant-reissue-deployment-2026-09-28.json): PR/main CI PASS, API/웹 건강·www 200, 거부 401/403, 백업 목록 PASS, 시연/운영 수량 보존 | 실제 점주·고객 재발급과 현장 두 기기 시험은 미실행; AI 배포를 점주 이용 성과로 표시하지 않음 |
 | 2026-09-29 | Codex | 시연 Android Preview 5 GitHub Release | 기존 시연 전용 Keychain 서명과 격리 API로 `88932cb` APK/AAB를 빌드해 개인 비공개 Release에 업로드 | [릴리스 근거](evidence/showcase-preview5-release-2026-09-29.json): 패키지·소스·서명·GitHub 자산 SHA-256 일치 | 실제 휴대전화 설치·두 계정 QR 수령은 미실행이며 AI 빌드를 팀원 현장 검증으로 표시하지 않음 |
 
+| 2026-09-29 | Codex | 동네 탐험 배지·공유와 웹 배포 진단(Issue #212) | 기존 도감의 인정 방문으로 앱/운영 웹 배지를 표시하고 시연 앱에 사용 불가 쿠폰 예시를 추가. 기존 Lightsail 웹 배포 SSH 종료 2회를 분리 진단 | 모바일 244/244·웹 48/48·타입·린트·Android 개발 export·gate PASS; 첫 두 SSH 실패의 이전 서비스 보존과 keepalive 후 /open HTTPS·소스 해시 일치·API/DB 불변 확인 | AI 구현을 실제 점주 쿠폰 합의·현장 참여로 표시하지 않음. 새 앱 설치·공유창·TalkBack·실제 쿠폰은 미검증 |
+
 ## 팀 설명 체크리스트
 
 각 컴포넌트가 구현될 때 팀원이 다음을 설명할 수 있도록 Issue 또는 문서에 기록합니다.
