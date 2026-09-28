@@ -1,6 +1,6 @@
 # 개인정보·계정 삭제 경계
 
-마지막 확인: 2026-09-19 KST
+마지막 확인: 2026-09-28 KST
 
 ## 사용자에게 먼저 알릴 내용
 
@@ -23,6 +23,8 @@
 5. 점주 권한을 철회하고 customer/staff account ID를 `deleted:<HMAC>` 별칭으로 교체합니다.
 6. 제출·확정 mint job, chain event, NFT asset, 수령 주소는 중복 방지와 공개 장부 대조를 위해 보존합니다.
 
+임대 시간이 지났다는 이유만으로 발행 작업을 삭제 완료로 세지 않습니다. `FINALIZED`·`CANCELLED`가 아닌 모든 작업은 재정산에서 계속 대기 상태입니다. 삭제 뒤 세션이 폐기된 상태의 자동 재정산·고객 결과 조회/통지는 아직 구현·검증되지 않았습니다.
+
 삭제 ledger에는 원 account ID를 저장하지 않습니다. 같은 account의 동시 10요청은 같은 request ID 하나로 수렴하는 PostgreSQL 통합 시험을 통과했습니다.
 
 ## 아직 확정하지 않은 보관 정책
@@ -31,7 +33,7 @@
 
 ## Google Play 확인
 
-Google Play 공식 도움말은 앱에서 계정을 만들 수 있으면 앱 안 삭제 경로와 기능하는 외부 웹 삭제 경로를 요구합니다. 웹 경로는 앱/개발자와 관련성이 분명하고 찾기 쉬워야 합니다. 현재 앱 내부 로컬 흐름은 구현했지만 운영 인증이 연결된 외부 HTTPS URL은 없으므로 출시 준비 상태는 `BLOCKED`입니다.
+Google Play 공식 도움말은 앱에서 계정을 만들 수 있으면 앱 안 삭제 경로와 기능하는 외부 웹 삭제 경로를 요구합니다. 웹 경로는 앱/개발자와 관련성이 분명하고 찾기 쉬워야 합니다. `https://www.masscom.kr/account-deletion` 공개 안내는 있지만 계정 귀속 웹 접수 소스의 운영 배포·실계정 확인과 실제 삭제 처리/결과 통지는 미완료이므로 출시 준비 상태는 `BLOCKED`입니다. Google의 공식 OIDC 문서는 `auth_time` 요청을 설명하지만 강제 재인증 수단을 보장하지 않으므로, 서명된 최근 `auth_time`을 얻지 못하면 D-026에 따라 삭제를 거절합니다.
 
 - [Google Play 계정 삭제 요구사항](https://support.google.com/googleplay/android-developer/answer/13327111?hl=en)
 

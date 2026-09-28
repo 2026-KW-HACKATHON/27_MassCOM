@@ -197,7 +197,7 @@ sequenceDiagram
 | 외부 지갑에 표시할 서비스 출처 | `IN_PROGRESS` | [PR #134](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/134)에서 메타데이터를 `https://masscom.kr`과 기존 포털 표식으로 변경. 공개 자산 HTTPS는 `VERIFIED`; MetaMask 재연결은 지갑 잠금으로 `BLOCKED`, 운영 APK 반영은 `NOT_RUN` |
 | 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름·W06 PASS; W04 동일 세션 주소 전환과 W05 미지원 스마트지갑은 준비된 외부 환경 부재로 `BLOCKED` |
 | NFT 발행 전체 흐름 | `VERIFIED` | Local Anvil 장애·복구와 Base Sepolia PostgreSQL job/Outbox→암호화 service minter→receipt/event/owner/locked→DB FINALIZED·재실행 무작업 PASS |
-| 계정 삭제·개인정보 | `IN_PROGRESS` | D01·D03 로컬 PASS, 공개 안내 HTTPS 200·앱의 웹 요청 링크는 로컬 구현. 검증된 Google 웹 세션에 묶인 **삭제 의사 접수**는 이 브랜치 소스·PostgreSQL 시험까지 PASS지만 운영 HTTPS 접수·최근 재인증을 거친 실제 삭제·결과 통지는 미완료([B-020](docs/BLOCKERS.md)) |
+| 계정 삭제·개인정보 | `IN_PROGRESS` | D01·D03 로컬 PASS, 공개 안내 HTTPS 200·앱의 웹 요청 링크는 로컬 구현. 검증된 Google 웹 세션에 묶인 **삭제 의사 접수**는 개인 main 소스·PostgreSQL 시험까지 PASS지만 운영 HTTPS 접수는 미배포. [5분 재인증·발행 최종성 보안 수리](docs/PRIVACY_DELETION.md)는 이 브랜치에서 자동 시험까지 완료했으며 실계정 삭제·결과 통지는 미완료([B-020](docs/BLOCKERS.md)) |
 | 외부 HTTPS·Play 제출 | `IN_PROGRESS` | [웹 전용 배포](docs/evidence/web-only-deployment-2026-09-28.json)와 공개 API·포털 HTTPS, [GitHub 운영 test.3 APK](docs/evidence/operating-android-test3-2026-09-28.json)의 Samsung 로그인·16KB 설치 PASS. 폰의 App Link 도메인은 verified지만 자동 열기는 사용자 설정으로 비활성화. Play App Signing OAuth·Console 제출은 `NOT_RUN/BLOCKED` |
 
 상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED / NOT_RUN`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
