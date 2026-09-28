@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- **2026-09-28 운영 현황 소스:** `feat/admin-operations-status`는 기존 운영 관리자 웹 경계에 실제 점포의 QR·방문·보상·NFT 작업 집계를 읽기 전용으로 연결했다. API 121/121·웹 40/40·별도 `_test` PostgreSQL 관리자 통합 11/11·타입/build/게이트 PASS. 권한 확인과 조회를 한 거래로 묶고 시연 점포·고객 ID·지갑 주소·QR 원문을 제외했다. 시험 DB는 삭제했으며 PR·운영 배포와 실제 관리자 화면 확인은 `NOT_RUN`이다.
+
 - **2026-09-28 운영 점주 QR 발급 배포:** 개인 [PR #12](https://github.com/choijunhuk/MassCOM/pull/12) merge `c1ea375`의 PR/main CI PASS 뒤 [운영 API·웹](evidence/operating-merchant-qr-deployment-2026-09-28.json)에 점주 웹의 고객 QR 확인·실제 이용 확정·일회성 방문 수령 QR을 배포했다. DB migration은 없고 mode 600 백업을 임시 DB에 복원해 핵심 수량을 확인한 뒤 임시 DB를 삭제했다. 관리자 1명, 운영 점포·직원·슬롯·mint 0, 시연 3/3/2 불변. 외부 HTTPS·미로그인/Origin 차단은 PASS이나 실제 점주 브라우저·두 휴대전화 촬영/수령은 `NOT_RUN`. 재발급 복구는 별도 소스 브랜치로 운영 배포 전이다.
 
 - **2026-09-28 운영 점포 상세 배포:** 개인 [PR #11](https://github.com/choijunhuk/MassCOM/pull/11) merge `8a8ba78`의 PR/main CI PASS 뒤 [기존 운영 API·웹](evidence/operating-merchant-menu-deployment-2026-09-28.json)에 메뉴·가격·점포 제공 영업시간과 migration 0025를 배포했다. 운영 점포·직원·슬롯·mint는 0, 관리자 1명·시연 3/3/2를 보존했다. 외부 HTTPS와 미로그인 차단은 확인했지만 실제 점포 등록·메뉴 표시·Android 기기 실기는 `NOT_RUN`. 새 모바일은 구형 API의 새 필드 부재를 허용하며 잘못된 명시값은 거절한다. 이후 QR 발급 소스는 위 PR #12로 별도 병합·배포했다.

@@ -55,6 +55,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-28 | Codex | 운영 직원 등록 API·웹 배포(Issue #3) | PR #10 병합 뒤 기존 Lightsail API·웹·Caddy와 migration 0024 적용, `/merchant/` 계정 선택·권한 경계 확인 | [운영 근거](evidence/operating-staff-deployment-2026-09-28.json): PR/main CI PASS, apex/www 직원 웹 200·미로그인 401·Origin 없는 등록 403, DB 백업 목록 PASS, 운영 직원/점포 0·시연 점포 3 유지 | 실제 직원 승인·QR 방문 수령/현장 검증은 미실행이고 AI 배포를 점주 수작업이나 영업 성과로 표시하지 않음 |
 | 2026-09-28 | Codex 구현·독립 리뷰 수리 | 운영 점포 메뉴·영업시간(Issue #3) | 기존 관리자 잠금·감사 경계에 실제 점포 콘텐츠 필드를 더하고 운영 웹·고객 Android 상세로 전달, 구형 API 응답 호환성을 RED→GREEN 수리 | [운영 배포](evidence/operating-merchant-menu-deployment-2026-09-28.json): PR/main CI PASS, API 117/117·PostgreSQL 75 PASS/2 SKIP·웹 31/31·모바일 242/242·외부 HTTPS health PASS | 실제 점주 메뉴 확인·운영 점포 등록·Android 설치 화면은 미실행; AI 입력을 사람 점주 협약이나 현장 이용 실적으로 표시하지 않음 |
 | 2026-09-28 | Codex 구현·독립 보안 검토 | 운영 점주 웹의 일회성 방문 QR(Issue #3) | 기존 계정 귀속 발급 서비스·카메라 지원 감지·일회성 SVG QR, 발급 중 중복 제출·QR 생성 실패 회귀를 수리해 PR #12 병합·운영 배포 | [운영 근거](evidence/operating-merchant-qr-deployment-2026-09-28.json): PR/main CI PASS, API 120/120·웹 39/39, 백업 임시 DB 복원·외부 HTTPS 경계 PASS | 실제 STAFF 브라우저와 두 휴대전화 수령은 미실행; AI 배포를 점주 확인·현장 성과로 표시하지 않음 |
+| 2026-09-28 | Codex 구현·실제 PostgreSQL 회귀 | 운영 관리자 읽기 전용 현황(Issue #3) | 실제 점포별 QR·방문·보상·민팅 집계를 기존 관리자 권한 거래에 연결하고 고객 ID·주소·QR 원문을 제외 | API 121/121·웹 40/40·별도 임시 `_test` DB 관리자 통합 11/11·타입/build/gate PASS; 시험 DB 삭제 | PR·운영 배포·실제 관리자 현황 화면은 미실행이며 AI 시험 자료를 영업 성과로 표시하지 않음 |
 
 ## 팀 설명 체크리스트
 
