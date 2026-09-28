@@ -47,9 +47,23 @@ test('accepts genuinely empty story, menu, and hours without inventing operating
   assert.equal((await client.listMerchants())[0]?.businessHours, '');
 });
 
+test('older operating and demo catalogs without menu or hours remain readable', async () => {
+  const legacyMerchants = [false, true].map(demo => ({
+    id: demo ? 'demo-old' : 'real-old', name: '기존 점포', story: '기존 소개',
+    roadAddress: '서울 노원구', minimumSpendWon: 1000, demo,
+    campaign: merchantPayload.merchants[0]!.campaign,
+  }));
+  const client = createMerchantApiClient('https://api.example.test', async () =>
+    Response.json({ merchants: legacyMerchants }));
+  assert.deepEqual(await client.listMerchants(), legacyMerchants.map(merchant => ({
+    ...merchant, menuItems: [], businessHours: '',
+  })));
+});
+
 test('rejects malformed menu prices and hours', async () => {
   for (const merchant of [
     { ...merchantPayload.merchants[0], menuItems: [{ name: '김밥', priceWon: '4500' }] },
+    { ...merchantPayload.merchants[0], menuItems: null },
     { ...merchantPayload.merchants[0], businessHours: null },
   ]) {
     const client = createMerchantApiClient('https://api.example.test', async () => Response.json({ merchants: [merchant] }));

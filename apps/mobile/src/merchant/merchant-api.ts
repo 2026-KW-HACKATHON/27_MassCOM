@@ -71,11 +71,11 @@ function parseMerchant(value: unknown): PublicMerchant {
     !Number.isInteger(value.minimumSpendWon) ||
     (value.minimumSpendWon as number) < 0 ||
     typeof value.demo !== 'boolean' ||
-    typeof value.businessHours !== 'string' ||
-    !Array.isArray(value.menuItems) ||
-    !value.menuItems.every((item: unknown) => isRecord(item) && isNonEmptyString(item.name) &&
-      Number.isSafeInteger(item.priceWon) && (item.priceWon as number) >= 0 &&
-      (item.priceWon as number) <= 1_000_000_000)
+    (value.businessHours !== undefined && typeof value.businessHours !== 'string') ||
+    (value.menuItems !== undefined && (!Array.isArray(value.menuItems) ||
+      !value.menuItems.every((item: unknown) => isRecord(item) && isNonEmptyString(item.name) &&
+        Number.isSafeInteger(item.priceWon) && (item.priceWon as number) >= 0 &&
+        (item.priceWon as number) <= 1_000_000_000)))
   ) {
     throw invalidPayload();
   }
@@ -86,8 +86,8 @@ function parseMerchant(value: unknown): PublicMerchant {
     story: value.story,
     roadAddress: value.roadAddress,
     minimumSpendWon: value.minimumSpendWon as number,
-    menuItems: value.menuItems as PublicMerchant['menuItems'],
-    businessHours: value.businessHours,
+    menuItems: (value.menuItems ?? []) as PublicMerchant['menuItems'],
+    businessHours: typeof value.businessHours === 'string' ? value.businessHours : '',
     demo: value.demo,
     campaign: parseCampaign(value.campaign),
   };
