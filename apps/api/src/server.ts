@@ -356,6 +356,27 @@ export function createApiServer(
           return;
         }
         const claimMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/(customer-identities\/resolve|claim-slots)$/);
+        const reissueMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/claim-slots\/([^/]+)\/reissue$/);
+        if (reissueMatch && request.method === 'POST') {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          if (!claimSlots) throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+          const merchantId = decodePathParameter(reissueMatch[1]!);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+          if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) {
+            throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+          }
+          const body = await readJson(request);
+          if (Object.keys(body).some(key => key !== 'expectedTokenVersion')) {
+            throw new RequestError(400, 'INVALID_REQUEST');
+          }
+          const issued = await claimSlots.reissue({
+            merchantId, claimSlotId: decodePathParameter(reissueMatch[2]!),
+            expectedTokenVersion: requirePositiveInteger(body, 'expectedTokenVersion'),
+            requestedByAccountId: accountId,
+          });
+          sendJson(response, 200, { ...issued, ...await renderClaimQr(issued.token) });
+          return;
+        }
         if (claimMatch && request.method === 'POST') {
           if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
           const merchantId = decodePathParameter(claimMatch[1]!);

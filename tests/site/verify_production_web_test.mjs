@@ -539,7 +539,8 @@ function merchantDocument() {
     'merchant-claim-form', 'merchant-claim-merchant', 'merchant-claim-token',
     'merchant-claim-reference', 'merchant-claim-confirm', 'merchant-claim-resolve',
     'merchant-claim-submit', 'merchant-claim-result', 'merchant-claim-scan',
-    'merchant-claim-scan-cancel', 'merchant-claim-video', 'merchant-claim-issued-qr']
+    'merchant-claim-scan-cancel', 'merchant-claim-video', 'merchant-claim-issued-qr',
+    'merchant-claim-reissue', 'merchant-claim-reissue-confirm', 'merchant-claim-reissue-submit']
     .map(id => [id, { ...element(), hidden: true }]));
   const select = { ...element(), value: 'real-merchant' };
   const button = element();
@@ -741,6 +742,148 @@ test('발급 응답 실패 뒤 재확인한 재시도는 같은 요청을 보내
   assert.deepEqual(bodies[1], bodies[0]);
   assert.match(nodes['merchant-claim-result'].textContent, /다시 표시되지 않습니다/);
   assert.doesNotMatch(nodes['merchant-claim-result'].textContent, /방문 코드:/);
+  assert.equal(nodes['merchant-claim-reissue'].hidden, false);
+});
+
+test('처음 발급 응답을 잃어도 재전송으로 슬롯을 찾아 명시적 확인 뒤 새 QR을 발급한다', async () => {
+  const { nodes, doc } = merchantDocument();
+  const calls = [];
+  let finishReissue;
+  const pendingReissue = new Promise(resolve => { finishReissue = resolve; });
+  const fetcher = async (path, options) => {
+    if (path.endsWith('/me')) return { ok: true, json: async () => ({ merchants: [
+      { id: 'real-merchant', name: '실제 점포', role: 'STAFF' },
+    ] }) };
+    if (path.endsWith('/registration-merchants')) return { ok: true, json: async () => ({ merchants: [] }) };
+    if (path.endsWith('/customer-identities/resolve')) return { ok: true,
+      json: async () => ({ expiresAt: '2026-09-28T12:00:00.000Z' }) };
+    calls.push({ path, options });
+    if (path.endsWith('/reissue')) return pendingReissue;
+    if (calls.length === 1) throw new Error('first response lost');
+    return { ok: true, status: 200, json: async () => ({ claimSlotId: 'slot-1', replayed: true,
+      tokenVersion: 1, expiresAt: '2026-09-28T12:10:00.000Z' }) };
+  };
+  await bindMerchant(fetcher, doc);
+  nodes['merchant-claim-merchant'].value = 'real-merchant';
+  nodes['merchant-claim-token'].value = 'customer-qr';
+  nodes['merchant-claim-reference'].value = 'sale-1';
+  await nodes['merchant-claim-resolve'].click();
+  nodes['merchant-claim-confirm'].checked = true;
+  await nodes['merchant-claim-form'].submit();
+  nodes['merchant-claim-confirm'].checked = true;
+  await nodes['merchant-claim-form'].submit();
+  assert.equal(nodes['merchant-claim-reissue'].hidden, false);
+  assert.equal(nodes['merchant-claim-reissue-submit'].disabled, true);
+  await nodes['merchant-claim-reissue-submit'].click();
+  assert.equal(calls.length, 2);
+  nodes['merchant-claim-reissue-confirm'].checked = true;
+  const reissuing = nodes['merchant-claim-reissue-submit'].click();
+  await nodes['merchant-claim-reissue-submit'].click();
+  assert.equal(calls.length, 3);
+  assert.match(calls[2].path, /real-merchant\/claim-slots\/slot-1\/reissue$/);
+  assert.deepEqual(JSON.parse(calls[2].options.body), { expectedTokenVersion: 1 });
+  assert.equal(nodes['merchant-claim-issued-qr'].hidden, true);
+  finishReissue({ ok: true, status: 200, json: async () => ({ claimSlotId: 'slot-1',
+    token: 'NEW_TOKEN', tokenVersion: 2, expiresAt: '2026-09-28T12:20:00.000Z',
+    qrSvgDataUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' }) });
+  await reissuing;
+  assert.match(nodes['merchant-claim-result'].textContent, /NEW_TOKEN/);
+  assert.equal(nodes['merchant-claim-issued-qr'].hidden, false);
+  assert.equal(nodes['merchant-claim-reissue-submit'].disabled, true);
+});
+
+test('재발급 응답을 잃으면 이전 QR을 숨기고 결과 불명으로 표시하며 자동 반복하지 않는다', async () => {
+  const { nodes, doc } = merchantDocument();
+  let reissueCalls = 0;
+  const fetcher = async path => {
+    if (path.endsWith('/me')) return { ok: true, json: async () => ({ merchants: [
+      { id: 'real-merchant', name: '실제 점포', role: 'STAFF' },
+    ] }) };
+    if (path.endsWith('/registration-merchants')) return { ok: true, json: async () => ({ merchants: [] }) };
+    if (path.endsWith('/customer-identities/resolve')) return { ok: true,
+      json: async () => ({ expiresAt: '2026-09-28T12:00:00.000Z' }) };
+    if (path.endsWith('/reissue')) { reissueCalls += 1; throw new Error('response lost'); }
+    return { ok: true, status: 201, json: async () => ({ claimSlotId: 'slot-1', tokenVersion: 1,
+      token: 'OLD_TOKEN', expiresAt: '2026-09-28T12:10:00.000Z',
+      qrSvgDataUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' }) };
+  };
+  await bindMerchant(fetcher, doc);
+  nodes['merchant-claim-merchant'].value = 'real-merchant';
+  nodes['merchant-claim-token'].value = 'customer-qr';
+  nodes['merchant-claim-reference'].value = 'sale-1';
+  await nodes['merchant-claim-resolve'].click();
+  nodes['merchant-claim-confirm'].checked = true;
+  await nodes['merchant-claim-form'].submit();
+  assert.equal(nodes['merchant-claim-issued-qr'].hidden, false);
+  nodes['merchant-claim-reissue-confirm'].checked = true;
+  await nodes['merchant-claim-reissue-submit'].click();
+  assert.equal(nodes['merchant-claim-issued-qr'].hidden, true);
+  assert.equal(nodes['merchant-claim-issued-qr'].src, '');
+  assert.match(nodes['merchant-claim-result'].textContent, /결과를 확인하지 못했습니다/);
+  assert.equal(nodes['merchant-claim-reissue'].hidden, true);
+  await nodes['merchant-claim-reissue-submit'].click();
+  assert.equal(reissueCalls, 1);
+});
+
+test('재발급 QR 그림 실패는 새 코드를 직접 입력하도록 안내한다', async () => {
+  const { nodes, doc } = merchantDocument();
+  const fetcher = async path => {
+    if (path.endsWith('/me')) return { ok: true, json: async () => ({ merchants: [
+      { id: 'real-merchant', name: '실제 점포', role: 'STAFF' },
+    ] }) };
+    if (path.endsWith('/registration-merchants')) return { ok: true, json: async () => ({ merchants: [] }) };
+    if (path.endsWith('/customer-identities/resolve')) return { ok: true,
+      json: async () => ({ expiresAt: '2026-09-28T12:00:00.000Z' }) };
+    return { ok: true, status: 200, json: async () => path.endsWith('/reissue')
+      ? { claimSlotId: 'slot-1', tokenVersion: 2, token: 'NEW_MANUAL_TOKEN',
+        expiresAt: '2026-09-28T12:20:00.000Z', qrRenderFailed: true }
+      : { claimSlotId: 'slot-1', tokenVersion: 1, token: 'OLD_TOKEN',
+        expiresAt: '2026-09-28T12:10:00.000Z', qrSvgDataUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' } };
+  };
+  await bindMerchant(fetcher, doc);
+  nodes['merchant-claim-merchant'].value = 'real-merchant';
+  nodes['merchant-claim-token'].value = 'customer-qr';
+  nodes['merchant-claim-reference'].value = 'sale-1';
+  await nodes['merchant-claim-resolve'].click();
+  nodes['merchant-claim-confirm'].checked = true;
+  await nodes['merchant-claim-form'].submit();
+  nodes['merchant-claim-reissue-confirm'].checked = true;
+  await nodes['merchant-claim-reissue-submit'].click();
+  assert.match(nodes['merchant-claim-result'].textContent, /NEW_MANUAL_TOKEN.*직접 입력/);
+  assert.equal(nodes['merchant-claim-issued-qr'].hidden, true);
+});
+
+test('로그아웃 뒤 늦은 재발급 응답은 새 계정 화면에 나타나지 않는다', async () => {
+  const { nodes, doc } = merchantDocument();
+  let finishReissue;
+  const pendingReissue = new Promise(resolve => { finishReissue = resolve; });
+  const fetcher = async path => {
+    if (path === '/api/web/logout') return { ok: true, status: 204 };
+    if (path.endsWith('/me')) return { ok: true, json: async () => ({ merchants: [
+      { id: 'real-merchant', name: '실제 점포', role: 'STAFF' },
+    ] }) };
+    if (path.endsWith('/registration-merchants')) return { ok: true, json: async () => ({ merchants: [] }) };
+    if (path.endsWith('/customer-identities/resolve')) return { ok: true,
+      json: async () => ({ expiresAt: '2026-09-28T12:00:00.000Z' }) };
+    if (path.endsWith('/reissue')) return pendingReissue;
+    return { ok: true, status: 201, json: async () => ({ claimSlotId: 'slot-1', tokenVersion: 1,
+      token: 'OLD_TOKEN', expiresAt: '2026-09-28T12:10:00.000Z' }) };
+  };
+  await bindMerchant(fetcher, doc);
+  nodes['merchant-claim-merchant'].value = 'real-merchant';
+  nodes['merchant-claim-token'].value = 'customer-qr';
+  nodes['merchant-claim-reference'].value = 'sale-1';
+  await nodes['merchant-claim-resolve'].click();
+  nodes['merchant-claim-confirm'].checked = true;
+  await nodes['merchant-claim-form'].submit();
+  nodes['merchant-claim-reissue-confirm'].checked = true;
+  const reissuing = nodes['merchant-claim-reissue-submit'].click();
+  await nodes['merchant-logout'].click();
+  finishReissue({ ok: true, status: 200, json: async () => ({ claimSlotId: 'slot-1',
+    tokenVersion: 2, token: 'LATE_TOKEN', expiresAt: '2026-09-28T12:20:00.000Z' }) });
+  await reissuing;
+  assert.doesNotMatch(nodes['merchant-claim-result'].textContent, /LATE_TOKEN/);
+  assert.equal(nodes['merchant-claim-reissue'].hidden, true);
 });
 
 test('방문 코드 발급 중 중복 제출과 QR 재확인은 첫 발급 토큰을 덮어쓰지 않는다', async () => {
