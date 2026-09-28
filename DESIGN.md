@@ -67,6 +67,12 @@ PR #138의 역할 선택·선택적 외부지갑·다섯 빈 공간은 **개발 
 - 상태: 기본·누름·비활성·로딩·오류·빈 상태·성공. NFT는 앱 수집·접수·확인 중·최종 완료를 텍스트로 구분한다.
 - 소유: 토큰은 `apps/mobile/src/theme/`, 화면별 조합은 `apps/mobile/src/screens/`; API 데이터 모델은 UI 작업에서 바꾸지 않는다.
 
+## Web surfaces (Issue #218)
+
+- 공개 포털·설치·개인정보·계정 삭제 안내·읽기 전용 시연 웹(`/preview/`)·운영 웹(`/app/`·`/merchant/`·`/admin/`)은 [웹 디자인 체계](docs/superpowers/specs/2026-09-29-web-design-system.md)의 `--mc-*` 토큰을 쓰고 값은 `apps/mobile/src/theme/palette.ts`·`medal-colors.ts`와 같다. `tests/site/verify_design_tokens_test.mjs`가 어긋남을 막는다.
+- 웹 머리글 브랜드는 승인된 마스코트 스탬프(D-036)와 "월계 마스코트"다. 외부 지갑 승인 화면용 `docs/assets/wallet-mark.svg`는 기존 표식 그대로 두며 사이트 로고로는 쓰지 않는다.
+- 제목은 h1 최대 3.2rem, 카드 반경 20px, 버튼 14px·48px, 칩 pill, 시스템 다크 모드를 따른다. 운영 웹 도감은 앱과 같은 여권·메달 링·상자 행·쿠폰 티켓을 글자 상태와 함께 보여주고 상자 열기는 앱에서만 한다.
+
 ## Accessibility
 
 - 목표: 본문 텍스트 WCAG AA 대비 4.5:1, 큰 텍스트·핵심 UI 3:1 이상을 지향하고 현재 대비 시험을 유지한다.

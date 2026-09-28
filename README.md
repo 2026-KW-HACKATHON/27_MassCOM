@@ -67,6 +67,9 @@
 
 [탐험 여권](docs/NEIGHBORHOOD_BADGES.md)은 인정된 방문으로 서버가 계산하는 메달 3종(동네 탐험가·단골손님·꾸준한 걸음)×브론즈·실버·골드를 보여주고, 배지 3·6·9개마다 보상 상자를 엽니다([Issue #216](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/216)). 상자의 쿠폰은 **점주 동의 기록이 있는 혜택이 등록된 경우에만** 서버가 계정당 1회 발급하고, 점원이 고객 식별 QR로 해당 점포 쿠폰만 사용 처리합니다(D-043). 시연 DB에만 가상 점포 체험 혜택을 넣었고 운영 혜택은 0건입니다. 방문 인증 직후 도장·색종이 축하, 획득 메달의 개인정보 없는 이미지 공유 카드도 포함합니다. [Android 에뮬레이터와 Samsung 휴대전화 로컬 실측](docs/evidence/explorer-passport-emulator-2026-09-29/README.md)에서 방문→축하→상자→쿠폰→점원 사용 처리와 이미지 공유창까지 확인했고, TalkBack 낭독·실제 점포 쿠폰 사용·서버 배포는 별도입니다.
 
+
+모든 웹 화면(포털·설치·개인정보·계정 삭제 안내·읽기 전용 시연 웹·운영 웹 도감·점주·관리자)은 앱과 같은 색 토큰·마스코트 머리글·카드·버튼·다크 모드를 씁니다([Issue #218](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/218), [웹 디자인 체계](docs/superpowers/specs/2026-09-29-web-design-system.md), [전후 화면](docs/evidence/web-design-system-2026-09-29/README.md)). 웹 색이 앱 `palette.ts`와 어긋나면 `tests/site/verify_design_tokens_test.mjs`가 실패합니다.
+
 ## 한눈에 보기
 
 <details>
