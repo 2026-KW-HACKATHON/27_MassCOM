@@ -549,6 +549,49 @@ test('authenticated admin API accepts menu and hours without changing the mercha
   ]);
 });
 
+test('admin campaign draft remains private and requires the web administrator session', async (t) => {
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'admin-account', logout: async () => {},
+  };
+  const writes: unknown[][] = [];
+  const draft = { id: 'draft-1', merchantId: 'real-1', merchantName: '실제 점포', title: '첫 탐험',
+    startsAt: '2026-10-01T00:00:00.000Z', endsAt: '2026-11-01T00:00:00.000Z',
+    enrollmentCapacity: 15, rewardGoals: [
+      { targetVisitCount: 1, displayName: '첫 방문' },
+      { targetVisitCount: 3, displayName: '세 번째 방문' },
+      { targetVisitCount: 5, displayName: '다섯 번째 방문' },
+    ], status: 'DRAFT', public: false };
+  const admin = { isAdmin: async () => true,
+    listCampaignDrafts: async () => [draft],
+    createCampaignDraft: async (...args: unknown[]) => { writes.push(args); return draft; },
+  } as unknown as PostgresAdminService;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const path = '/api/web/admin/campaign-drafts';
+  assert.equal((await webRequest(base, path)).status, 401);
+  const listed = await webRequest(base, path, { headers: { cookie: 'web_session=valid-cookie' } });
+  assert.deepEqual(await listed.json(), { drafts: [draft] });
+  const body = { merchantId: 'real-1', title: '첫 탐험', startsAt: draft.startsAt,
+    endsAt: draft.endsAt, enrollmentCapacity: 15, rewardGoals: draft.rewardGoals };
+  const headers = { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr',
+    'content-type': 'application/json' };
+  assert.equal((await webRequest(base, path, { method: 'POST',
+    headers: { ...headers, origin: 'https://other.example' }, body: JSON.stringify(body) })).status, 403);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers,
+    body: JSON.stringify({ ...body, is_public: true }) })).status, 400);
+  const created = await webRequest(base, path, { method: 'POST', headers, body: JSON.stringify(body) });
+  assert.equal(created.status, 201);
+  assert.deepEqual(await created.json(), { draft });
+  assert.deepEqual(writes, [['admin-account', body]]);
+  const denied = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    { ...admin, isAdmin: async () => false } as unknown as PostgresAdminService);
+  assert.equal((await webRequest(denied, path, { headers: { cookie: 'web_session=valid-cookie' } })).status, 403);
+  assert.equal((await webRequest(denied, path, { method: 'POST', headers, body: JSON.stringify(body) })).status, 403);
+  assert.equal(writes.length, 1);
+});
+
 test('merchant registration uses host-bound web cookie and rejects foreign-origin writes', async (t) => {
   const returns: (string | undefined)[] = [];
   const webAuth: WebAuthHandler = {

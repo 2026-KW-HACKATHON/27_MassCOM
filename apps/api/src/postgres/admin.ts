@@ -30,6 +30,24 @@ export type AdminOperationsStatus = {
   }[];
 };
 
+type AdminRewardGoal = { targetVisitCount: 1 | 3 | 5; displayName: string };
+
+export type AdminCampaignDraftInput = {
+  merchantId: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  enrollmentCapacity: number;
+  rewardGoals: AdminRewardGoal[];
+};
+
+export type AdminCampaignDraft = AdminCampaignDraftInput & {
+  id: string;
+  merchantName: string;
+  status: 'DRAFT';
+  public: false;
+};
+
 type MerchantRow = {
   id: string;
   name: string;
@@ -80,6 +98,27 @@ function validate(input: MerchantInput): MerchantInput {
       menuItems: input.menuItems.map(item => ({ name: item.name.trim(), priceWon: item.priceWon })),
     }),
     ...(input.businessHours === undefined ? {} : { businessHours: input.businessHours.trim() }) };
+}
+
+function validateCampaignDraft(raw: AdminCampaignDraftInput): AdminCampaignDraftInput {
+  const goals = Array.isArray(raw.rewardGoals) ? [...raw.rewardGoals] : [];
+  goals.sort((a, b) => (a?.targetVisitCount ?? 0) - (b?.targetVisitCount ?? 0));
+  const validUtc = (value: unknown): value is string =>
+    typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(value) &&
+    Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 19) === value.slice(0, 19);
+  if (typeof raw.merchantId !== 'string' || !raw.merchantId.trim() || raw.merchantId.length > 200 ||
+      typeof raw.title !== 'string' || !raw.title.trim() || raw.title.length > 200 ||
+      !validUtc(raw.startsAt) || !validUtc(raw.endsAt) ||
+      Date.parse(raw.endsAt) <= Date.parse(raw.startsAt) ||
+      !Number.isSafeInteger(raw.enrollmentCapacity) || raw.enrollmentCapacity < 1 ||
+      raw.enrollmentCapacity > 2_147_483_647 ||
+      goals.length !== 3 || goals.some((goal, index) => !goal || goal.targetVisitCount !== [1, 3, 5][index] ||
+        typeof goal.displayName !== 'string' || !goal.displayName.trim() || goal.displayName.length > 100)) {
+    throw new AdminError('ADMIN_INVALID_INPUT');
+  }
+  return { merchantId: raw.merchantId.trim(), title: raw.title.trim(), startsAt: new Date(raw.startsAt).toISOString(),
+    endsAt: new Date(raw.endsAt).toISOString(), enrollmentCapacity: raw.enrollmentCapacity,
+    rewardGoals: goals.map(goal => ({ targetVisitCount: goal.targetVisitCount, displayName: goal.displayName.trim() })) };
 }
 
 export class PostgresAdminService {
@@ -202,6 +241,62 @@ export class PostgresAdminService {
         visits: row.visits, rewards: row.rewards,
         mintJobs: row.mint_jobs, mintFailures: row.mint_failures,
       })) };
+    });
+  }
+
+  async listCampaignDrafts(accountId: string): Promise<AdminCampaignDraft[]> {
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      const result = await client.query<{
+        id: string; merchant_id: string; merchant_name: string; title: string;
+        starts_at: Date; ends_at: Date; enrollment_capacity: number; reward_goals: AdminRewardGoal[];
+      }>(`SELECT campaign.id, campaign.merchant_id, merchant.name AS merchant_name,
+          campaign.title, campaign.starts_at, campaign.ends_at, campaign.enrollment_capacity,
+          COALESCE(jsonb_agg(jsonb_build_object('targetVisitCount', goal.target_visit_count,
+            'displayName', goal.display_name) ORDER BY goal.target_visit_count)
+            FILTER (WHERE goal.campaign_id IS NOT NULL), '[]'::jsonb) AS reward_goals
+        FROM campaigns AS campaign
+        JOIN merchants AS merchant ON merchant.id = campaign.merchant_id
+        LEFT JOIN campaign_goals AS goal ON goal.campaign_id = campaign.id
+        WHERE campaign.status = 'DRAFT' AND NOT campaign.is_public AND NOT merchant.is_demo
+        GROUP BY campaign.id, merchant.id
+        ORDER BY campaign.created_at DESC, campaign.id LIMIT 100`);
+      return result.rows.map(row => ({
+        id: row.id, merchantId: row.merchant_id, merchantName: row.merchant_name,
+        title: row.title, startsAt: row.starts_at.toISOString(), endsAt: row.ends_at.toISOString(),
+        enrollmentCapacity: row.enrollment_capacity, rewardGoals: row.reward_goals,
+        status: 'DRAFT', public: false,
+      }));
+    });
+  }
+
+  async createCampaignDraft(accountId: string, raw: AdminCampaignDraftInput): Promise<AdminCampaignDraft> {
+    const input = validateCampaignDraft(raw);
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      const merchantRow = await client.query<{ name: string }>(
+        `SELECT name FROM merchants WHERE id = $1 AND NOT is_demo FOR UPDATE`, [input.merchantId],
+      );
+      if (!merchantRow.rows[0]) throw new AdminError('ADMIN_MERCHANT_NOT_FOUND');
+      const id = randomUUID();
+      await client.query(
+        `INSERT INTO campaigns(id, merchant_id, title, starts_at, ends_at, status, is_public, enrollment_capacity)
+         VALUES ($1, $2, $3, $4, $5, 'DRAFT', false, $6)`,
+        [id, input.merchantId, input.title, input.startsAt, input.endsAt, input.enrollmentCapacity],
+      );
+      await client.query(
+        `INSERT INTO campaign_goals(campaign_id, target_visit_count, display_name)
+         VALUES ($1, 1, $2), ($1, 3, $3), ($1, 5, $4)`,
+        [id, ...input.rewardGoals.map(goal => goal.displayName)],
+      );
+      const draft: AdminCampaignDraft = { ...input, id, merchantName: merchantRow.rows[0].name,
+        status: 'DRAFT', public: false };
+      await client.query(
+        `INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, before_state, after_state)
+         VALUES ($1, $2, $3, 'CAMPAIGN_DRAFT_CREATED', NULL, $4)`,
+        [randomUUID(), accountId, input.merchantId, JSON.stringify(draft)],
+      );
+      return draft;
     });
   }
 

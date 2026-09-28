@@ -1,12 +1,14 @@
 # 프로젝트 상태
 
-마지막 갱신 시각: 2026-09-28 KST
+마지막 갱신 시각: 2026-09-29 KST
 
 ## 최신 작업 경계
 
 - **2026-09-28 운영 재발급 배포:** 개인 [PR #13](https://github.com/choijunhuk/MassCOM/pull/13) merge `c02da0f`의 PR/main CI PASS 뒤 [기존 운영 API·웹](evidence/operating-merchant-reissue-deployment-2026-09-28.json)에 첫 발급 응답 손실 복구와 명시적 이전 코드 폐기·새 QR 발급을 배포했다. 새 migration 없이 관리자 1명/운영 점포·직원·슬롯·mint 0, 시연 3/3/2를 유지했다. 외부 HTTPS·인증 경계는 PASS, 실제 점주 재발급·두 휴대전화 수령과 재발급 응답 유실 후 상태 조정은 `NOT_RUN/후속`이다.
 
-- **2026-09-28 운영 현황 소스:** `feat/admin-operations-status`는 기존 운영 관리자 웹 경계에 실제 점포의 QR·방문·보상·NFT 작업 집계를 읽기 전용으로 연결했다. API 121/121·웹 45/45·별도 `_test` PostgreSQL 관리자 통합 11/11·타입/build/게이트 PASS. 권한 확인과 조회를 한 거래로 묶고 시연 점포·고객 ID·지갑 주소·QR 원문을 제외했다. 독립 검토의 권한 거부 화면·점포별 반복 집계 MEDIUM을 RED→GREEN 수리하고 작은 시험 DB 실행 계획을 확인했다. 시험 DB는 삭제했으며 PR·운영 배포와 실제 관리자 현황 화면은 `NOT_RUN`, 대량 부하는 미측정이다.
+- **2026-09-29 운영 현황 배포:** 개인 [PR #14](https://github.com/choijunhuk/MassCOM/pull/14) merge `88932cb`의 PR/main CI PASS 뒤 [운영 API·웹](evidence/operating-admin-status-deployment-2026-09-29.json)에 점포별 읽기 전용 QR·방문·보상·NFT 작업 집계를 배포했다. 관리자 주 Google 계정의 빈 점포 현황 화면은 실제 브라우저 PASS, 운영 점포·직원·슬롯·mint 0과 시연 3/3/2를 유지했다. 별도 `_test` PostgreSQL 관리자 11/11·웹 45/45, 리뷰 MEDIUM 2건 수리는 PASS이나 대량 이력 부하는 미측정이다.
+
+- **2026-09-29 비공개 캠페인 초안 소스:** `feat/admin-campaign-drafts`는 실제 점포의 기간·정원·목표 1·3·5를 DRAFT/비공개로만 저장·조회하고 관리자 감사와 한 거래로 묶는다. 로컬 API 122/122·웹 47/47·별도 `_test` PostgreSQL 관리자 12/12·타입/build/gate PASS, 시험 DB 삭제. D-023의 방문 수령 정책은 미확정이라 공개·참여·보상·NFT는 자동 활성화하지 않는다. PR·운영 배포·실계정 입력은 `NOT_RUN`이다.
 
 - **2026-09-28 운영 점주 QR 발급 배포:** 개인 [PR #12](https://github.com/choijunhuk/MassCOM/pull/12) merge `c1ea375`의 PR/main CI PASS 뒤 [운영 API·웹](evidence/operating-merchant-qr-deployment-2026-09-28.json)에 점주 웹의 고객 QR 확인·실제 이용 확정·일회성 방문 수령 QR을 배포했다. DB migration은 없고 mode 600 백업을 임시 DB에 복원해 핵심 수량을 확인한 뒤 임시 DB를 삭제했다. 관리자 1명, 운영 점포·직원·슬롯·mint 0, 시연 3/3/2 불변. 외부 HTTPS·미로그인/Origin 차단은 PASS이나 실제 점주 브라우저·두 휴대전화 촬영/수령은 `NOT_RUN`. 재발급 복구는 별도 소스 브랜치로 운영 배포 전이다.
 

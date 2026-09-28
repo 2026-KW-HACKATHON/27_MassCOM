@@ -117,6 +117,71 @@ test('operations status counts only real merchants without exposing customer or 
   } finally { await pool.end(); }
 });
 
+test('campaign draft saves exact goals and audit atomically without publishing or using demo merchants', {
+  skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
+}, async () => {
+  const pool = new Pool({ connectionString: testUrl });
+  const admin = new PostgresAdminService(pool, hmacSecret);
+  const accountId = `acct_${randomUUID()}`;
+  const merchantId = randomUUID();
+  const demoId = randomUUID();
+  const input = { merchantId, title: '월계 첫 탐험', startsAt: '2026-10-01T00:00:00.000Z',
+    endsAt: '2026-11-01T00:00:00.000Z', enrollmentCapacity: 15,
+    rewardGoals: [
+      { targetVisitCount: 5 as const, displayName: '다섯 번째 방문' },
+      { targetVisitCount: 1 as const, displayName: '첫 방문' },
+      { targetVisitCount: 3 as const, displayName: '세 번째 방문' },
+    ] };
+  try {
+    await runMigrations(pool);
+    await pool.query(`INSERT INTO auth_identities(provider, subject, account_id, created_at)
+      VALUES ('google', $1, $2, now())`, [`draft-${randomUUID()}`, accountId]);
+    await pool.query('INSERT INTO platform_admins(account_id) VALUES ($1)', [accountId]);
+    await pool.query(`INSERT INTO merchants(id, name, story, road_address, minimum_spend_won, status, is_demo)
+      VALUES ($1, '초안 실제 점포', '', '서울', 0, 'PAUSED', false),
+        ($2, '초안 시연 점포', '', '서울', 0, 'PAUSED', true)`,
+      [merchantId, demoId]);
+    await assert.rejects(admin.createCampaignDraft('not-an-admin', input), /ADMIN_FORBIDDEN/);
+    await assert.rejects(admin.createCampaignDraft(accountId, { ...input, merchantId: demoId }),
+      /ADMIN_MERCHANT_NOT_FOUND/);
+    for (const invalid of [
+      { ...input, enrollmentCapacity: 0 },
+      { ...input, endsAt: input.startsAt },
+      { ...input, rewardGoals: input.rewardGoals.slice(0, 2) },
+      { ...input, rewardGoals: [input.rewardGoals[0]!, input.rewardGoals[0]!, input.rewardGoals[2]!] },
+    ]) await assert.rejects(admin.createCampaignDraft(accountId, invalid), /ADMIN_INVALID_INPUT/);
+    const created = await admin.createCampaignDraft(accountId, input);
+    assert.equal(created.status, 'DRAFT');
+    assert.equal(created.public, false);
+    assert.deepEqual(created.rewardGoals.map(goal => goal.targetVisitCount), [1, 3, 5]);
+    assert.deepEqual((await admin.listCampaignDrafts(accountId)).find(draft => draft.id === created.id), created);
+    const rows = await pool.query(`SELECT status, is_public, enrolled_count FROM campaigns WHERE id = $1`, [created.id]);
+    assert.deepEqual(rows.rows[0], { status: 'DRAFT', is_public: false, enrolled_count: 0 });
+    assert.equal((await pool.query(`SELECT count(*)::int AS count FROM campaign_goals WHERE campaign_id = $1`,
+      [created.id])).rows[0]?.count, 3);
+    assert.equal((await pool.query(`SELECT count(*)::int AS count FROM platform_admin_audit
+      WHERE merchant_id = $1 AND action = 'CAMPAIGN_DRAFT_CREATED'`, [merchantId])).rows[0]?.count, 1);
+    await pool.query(`INSERT INTO campaigns(id, merchant_id, title, starts_at, ends_at, status,
+      enrollment_capacity) VALUES ($1, $2, '시연 초안', now(), now() + interval '1 day', 'DRAFT', 1)`,
+      [randomUUID(), demoId]);
+    assert.equal((await admin.listCampaignDrafts(accountId)).some(draft => draft.merchantId === demoId), false);
+    await pool.query(`CREATE OR REPLACE FUNCTION campaign_draft_audit_fail_test() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.action = 'CAMPAIGN_DRAFT_CREATED' THEN RAISE EXCEPTION 'forced draft audit failure'; END IF;
+      RETURN NEW; END $$`);
+    await pool.query(`CREATE TRIGGER campaign_draft_audit_fail_test BEFORE INSERT ON platform_admin_audit
+      FOR EACH ROW EXECUTE FUNCTION campaign_draft_audit_fail_test()`);
+    try {
+      await assert.rejects(admin.createCampaignDraft(accountId, { ...input, title: '롤백 확인 초안' }),
+        /forced draft audit failure/);
+      assert.equal((await pool.query(`SELECT count(*)::int AS count FROM campaigns
+        WHERE merchant_id = $1 AND title = '롤백 확인 초안'`, [merchantId])).rows[0]?.count, 0);
+    } finally {
+      await pool.query('DROP TRIGGER campaign_draft_audit_fail_test ON platform_admin_audit');
+      await pool.query('DROP FUNCTION campaign_draft_audit_fail_test()');
+    }
+  } finally { await pool.end(); }
+});
+
 test('rejects overlong hours, menu names, and invalid won prices before database access', async () => {
   const service = new PostgresAdminService({} as Pool, hmacSecret);
   const base = { name: '상점', story: '', roadAddress: '서울', minimumSpendWon: 0 };
