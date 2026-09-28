@@ -4,7 +4,7 @@ import { create } from 'qrcode/lib/core/qrcode';
 import Svg, { Path, Rect } from 'react-native-svg';
 
 /** Draws the one-time code as a QR. The code never leaves the device through this component. */
-export function ClaimQr({ code, size = 240 }: { code: string; size?: number }) {
+export function ClaimQr({ code, size = 240, accessibilityLabel = '고객이 촬영할 1회 수령 QR 코드' }: { code: string; size?: number; accessibilityLabel?: string }) {
   const { path, count } = useMemo(() => {
     const { modules } = create(code, { errorCorrectionLevel: 'M' });
     let d = '';
@@ -18,7 +18,7 @@ export function ClaimQr({ code, size = 240 }: { code: string; size?: number }) {
   const quiet = 4;
 
   return (
-    <View accessible accessibilityRole="image" accessibilityLabel="고객이 촬영할 1회 수령 QR 코드">
+    <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel}>
       <Svg width={size} height={size} viewBox={`${-quiet} ${-quiet} ${count + quiet * 2} ${count + quiet * 2}`}>
         <Rect x={-quiet} y={-quiet} width={count + quiet * 2} height={count + quiet * 2} fill="#ffffff" />
         <Path d={path} fill="#000000" />

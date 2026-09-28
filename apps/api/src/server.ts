@@ -10,6 +10,7 @@ import {
 } from './account-deletion.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
+import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
 import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js';
 import { WebAuthError, WebAuthService, resolveWebAuthConfig, type WebAuthHandler } from './web-auth.js';
 import { WebSessionError } from './web-session.js';
@@ -37,6 +38,7 @@ import {
 } from './recommendation-service.js';
 import { safeErrorMetadata } from './security-log.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
+import { PostgresCustomerIdentityService } from './postgres/customer-identity.js';
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
@@ -148,6 +150,7 @@ export function createApiServer(
   trustProxyClientIp = false,
   webAuth?: WebAuthHandler,
   webWwwEnabled = false,
+  customerIdentities?: CustomerIdentityService,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -270,6 +273,22 @@ export function createApiServer(
         return;
       }
 
+      if (request.method === 'POST' && request.url === '/customer/identity-tokens') {
+        if (!customerIdentities) throw new RequestError(503, 'CUSTOMER_IDENTITY_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        sendJson(response, 201, await customerIdentities.create(accountId));
+        return;
+      }
+
+      if (request.method === 'POST' && request.url === '/customer/identity-tokens/revoke') {
+        if (!customerIdentities) throw new RequestError(503, 'CUSTOMER_IDENTITY_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        await customerIdentities.revoke({ accountId, token: requireString(body, 'token') });
+        sendJson(response, 200, { status: 'REVOKED' });
+        return;
+      }
+
       if (request.method === 'GET' && request.url === '/recommendations') {
         if (!recommendations) {
           throw new RequestError(503, 'RECOMMENDATIONS_NOT_CONFIGURED');
@@ -317,13 +336,36 @@ export function createApiServer(
           throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
         }
         const body = await readJson(request);
-        const issued = await claimSlots.issue({
-          merchantId,
-          customerAccountId: requireString(body, 'customerAccountId'),
-          merchantReference: requireString(body, 'merchantReference'),
-          createdByAccountId: accountId,
-        });
-        sendJson(response, 201, issued);
+        if ('customerIdentityToken' in body) {
+          if (body.useConfirmed !== true || 'customerAccountId' in body) throw new RequestError(400, 'INVALID_REQUEST');
+          const issued = await claimSlots.issue({ merchantId,
+            customerIdentityToken: requireString(body, 'customerIdentityToken'),
+            merchantReference: requireString(body, 'merchantReference'),
+            createdByAccountId: accountId });
+          sendJson(response, 'replayed' in issued ? 200 : 201, issued);
+        } else {
+          if ('useConfirmed' in body) throw new RequestError(400, 'INVALID_REQUEST');
+          if (resolveAccountId !== developmentHeaderAccountResolver) throw new RequestError(403, 'CUSTOMER_IDENTITY_REQUIRED');
+          const issued = await claimSlots.issue({ merchantId,
+            customerAccountId: requireString(body, 'customerAccountId'),
+            merchantReference: requireString(body, 'merchantReference'),
+            createdByAccountId: accountId });
+          sendJson(response, 201, issued);
+        }
+        return;
+      }
+
+      const identityResolveMatch = request.url?.match(/^\/merchant\/merchants\/([^/]+)\/customer-identities\/resolve$/);
+      if (request.method === 'POST' && identityResolveMatch) {
+        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+        if (!customerIdentities) throw new RequestError(503, 'CUSTOMER_IDENTITY_NOT_CONFIGURED');
+        const staffAccountId = await resolveAccountId(request);
+        const merchantId = decodePathParameter(identityResolveMatch[1]!);
+        await merchantAccess.requirePermission({ accountId: staffAccountId, merchantId, permission: 'CONFIRM_VISIT' });
+        const body = await readJson(request);
+        sendJson(response, 200, await customerIdentities.resolve({
+          token: requireString(body, 'customerIdentityToken'), merchantId, staffAccountId,
+        }));
         return;
       }
 
@@ -499,6 +541,10 @@ export function createApiServer(
     } catch (error) {
       if (error instanceof ClaimSlotError) {
         sendJson(response, statusForClaimSlot(error.code), { code: error.code });
+        return;
+      }
+      if (error instanceof CustomerIdentityError) {
+        sendJson(response, error.code === 'ACCOUNT_DELETED' || error.code === 'CUSTOMER_IDENTITY_EXPIRED' ? 410 : 409, { code: error.code });
         return;
       }
       if (error instanceof MerchantAccessError) {
@@ -702,7 +748,7 @@ function statusFor(code: string): number {
 }
 
 function statusForClaimSlot(code: string): number {
-  if (code === 'CLAIM_TOKEN_EXPIRED') return 410;
+  if (code === 'CLAIM_TOKEN_EXPIRED' || code === 'CUSTOMER_IDENTITY_EXPIRED') return 410;
   if (code === 'ACCOUNT_DELETED') return 410;
   return 409;
 }
@@ -906,6 +952,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           ...(accountLifecycle ? { accountLifecycle } : {}),
         })
       : undefined;
+  const customerIdentities = pool && accountLifecycle
+    ? new PostgresCustomerIdentityService(pool, {
+        accountLifecycle,
+      })
+    : undefined;
   const campaignEnrollments = pool
     ? new PostgresCampaignEnrollmentService(pool, {
         ...(accountLifecycle ? { accountLifecycle } : {}),
@@ -984,6 +1035,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     authMode.kind === 'production' && process.env.AUTH_TRUST_CADDY_FORWARDED_FOR === 'true',
     webAuth,
     webAuthConfig?.wwwEnabled ?? false,
+    customerIdentities,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });
