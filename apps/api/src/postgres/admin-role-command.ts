@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 
-import { AdminError, PostgresAdminService } from './admin.js';
+import { PostgresAdminService } from './admin.js';
 
 async function main(): Promise<void> {
   const [action, subject, extra] = process.argv.slice(2);
@@ -19,7 +19,7 @@ async function main(): Promise<void> {
   } finally { await pool.end(); }
 }
 
-main().catch(error => {
-  console.error(error instanceof AdminError ? error.code : 'ADMIN_ROLE_FAILED');
+main().catch(() => {
+  console.error('ADMIN_ROLE_FAILED');
   process.exitCode = 1;
 });
