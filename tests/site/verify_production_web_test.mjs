@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 
 import { bindCollectionControls, loadCollection, loadMerchants } from '../../apps/production-web/assets/production.mjs';
-import { bindAdmin, loadAdmin } from '../../apps/production-web/assets/admin.mjs';
+import { bindAdmin, loadAdmin, parseMenuLines } from '../../apps/production-web/assets/admin.mjs';
 import { bindMerchant, loadMerchant } from '../../apps/production-web/assets/merchant.mjs';
 import { createProductionServer, resolveProductionBindHost } from '../../apps/production-web/server.mjs';
 
@@ -19,6 +19,7 @@ const webDockerfile = readFileSync(join(repo, 'infra/lightsail/production-web.Do
 
 test('운영 웹 이미지는 관리자 HTML과 자산을 함께 포함한다', () => {
   assert.match(webDockerfile, /COPY apps\/production-web\/admin\.html \.\/admin\.html/);
+  assert.match(webDockerfile, /COPY apps\/production-web\/merchant\.html \.\/merchant\.html/);
   assert.match(webDockerfile, /COPY apps\/production-web\/assets \.\/assets/);
 });
 
@@ -237,6 +238,36 @@ test('운영 응답만 안전한 텍스트 노드로 렌더링한다', async () 
   assert.equal(list.children[0].children[0].textContent, '<img src=x onerror=alert(1)>');
 });
 
+test('실제 메뉴 가격과 점포 제공 영업시간을 표시하고 없는 값은 안내한다', async () => {
+  const { list, doc } = documentFixture();
+  await loadMerchants(async () => ({ ok: true, json: async () => ({ merchants: [
+    { name: '실제 점포', story: '', roadAddress: '서울', demo: false,
+      menuItems: [{ name: '<김밥>', priceWon: 4500 }], businessHours: '월–금 10:00–18:00' },
+    { name: '미입력 점포', story: '', roadAddress: '서울', demo: false,
+      menuItems: [], businessHours: '' },
+  ] }) }), doc);
+  assert.equal(list.children.length, 2);
+  assert.match(list.children[0].children.map(child => child.textContent).join(' '), /<김밥>.*4,500원/);
+  assert.match(list.children[0].children.map(child => child.textContent).join(' '), /점포 제공 영업시간.*월–금/);
+  assert.match(list.children[1].children.map(child => child.textContent).join(' '), /메뉴 정보가 아직 없습니다/);
+  assert.match(list.children[1].children.map(child => child.textContent).join(' '), /영업시간 정보가 아직 없습니다/);
+});
+
+test('운영 프록시는 시연 점포를 제외하고 메뉴와 영업시간만 전달한다', async () => {
+  const server = createProductionServer(async () => Response.json({ merchants: [
+    { name: '실제 점포', story: '', roadAddress: '서울', demo: false,
+      menuItems: [{ name: '김밥', priceWon: 4500 }], businessHours: '월–금 10:00–18:00' },
+    { name: '시연 점포', story: '', roadAddress: '가상', demo: true,
+      menuItems: [{ name: '가상 메뉴', priceWon: 100 }], businessHours: '가상 시간' },
+  ] }));
+  await new Promise(done => server.listen(0, '127.0.0.1', done));
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/merchants`);
+    assert.deepEqual(await response.json(), { merchants: [{ name: '실제 점포', story: '', roadAddress: '서울', demo: false,
+      menuItems: [{ name: '김밥', priceWon: 4500 }], businessHours: '월–금 10:00–18:00' }] });
+  } finally { await new Promise(done => server.close(done)); }
+});
+
 test('연결 실패와 잘못된 응답은 목록 없이 이용 불가 상태를 표시한다', async () => {
   for (const fetcher of [
     async () => { throw new TypeError('Failed to fetch'); },
@@ -339,6 +370,15 @@ test('관리 화면의 빈 점포 목록은 예시 자료 없이 등록 행동�
   assert.match(nodes['admin-merchants'].children[0].textContent, /등록된 점포가 없습니다/);
   assert.match(nodes['admin-merchants'].children[0].textContent, /비공개로 등록/);
   assert.doesNotMatch(nodes['admin-merchants'].children[0].textContent, /왼쪽/);
+});
+
+test('관리자 메뉴 입력은 실제 가격 행만 만들고 잘못된 형식은 거부한다', () => {
+  assert.deepEqual(parseMenuLines('김밥 | 4500\n라면 | 6000\n'), [
+    { name: '김밥', priceWon: 4500 }, { name: '라면', priceWon: 6000 },
+  ]);
+  assert.deepEqual(parseMenuLines(''), []);
+  assert.throws(() => parseMenuLines('김밥 | 4,500'), /메뉴/);
+  assert.throws(() => parseMenuLines('김밥 | -1'), /메뉴/);
 });
 
 test('권한 없음과 정상 관리 화면에서 로그아웃 후 다른 Google 계정 로그인을 안내한다', async () => {
@@ -587,7 +627,7 @@ test('운영 웹 프록시는 시연 행과 불필요한 필드를 응답에서 
     const response = await fetch(`http://127.0.0.1:${guarded.address().port}/merchants`);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { merchants: [
-      { name: '실제 점포', story: '가게 소개', roadAddress: '서울', demo: false },
+      { name: '실제 점포', story: '가게 소개', roadAddress: '서울', menuItems: [], businessHours: '', demo: false },
     ] });
   } finally {
     await new Promise((done) => guarded.close(done));
@@ -600,6 +640,10 @@ test('운영 웹 프록시는 불완전한 공개 목록을 0곳으로 오인하
     { name: '불완전', story: '', roadAddress: '서울' },
     { name: '잘못된 시연값', story: '', roadAddress: '서울', demo: 'false' },
     { name: '주소 누락', story: '', demo: false },
+    { name: '가격 범위 초과', story: '', roadAddress: '서울', demo: false,
+      menuItems: [{ name: '메뉴', priceWon: 1_000_000_001 }], businessHours: '' },
+    { name: '시간 길이 초과', story: '', roadAddress: '서울', demo: false,
+      menuItems: [], businessHours: '가'.repeat(1001) },
   ]) {
     const guarded = createProductionServer(async () => new Response(JSON.stringify({ merchants: [
       { name: '정상', story: '', roadAddress: '서울', demo: false }, invalidMerchant,

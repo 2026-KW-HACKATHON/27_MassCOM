@@ -25,16 +25,34 @@ function fields(form) {
     story: String(data.get('story') ?? ''),
     roadAddress: String(data.get('roadAddress') ?? ''),
     minimumSpendWon: Number(data.get('minimumSpendWon')),
+    menuItems: parseMenuLines(String(data.get('menuItems') ?? '')),
+    businessHours: String(data.get('businessHours') ?? ''),
   };
+}
+
+export function parseMenuLines(value) {
+  const lines = value.split('\n').map(line => line.trim()).filter(Boolean);
+  if (lines.length > 30) throw new Error('메뉴는 최대 30개까지 입력할 수 있습니다.');
+  return lines.map(line => {
+    const match = /^(.+?)\s*\|\s*(\d+)$/.exec(line);
+    const name = match?.[1]?.trim();
+    const priceWon = Number(match?.[2]);
+    if (!name || name.length > 200 || !Number.isSafeInteger(priceWon) || priceWon > 1_000_000_000) {
+      throw new Error('메뉴는 메뉴명 | 가격(원) 형식으로 입력해 주세요.');
+    }
+    return { name, priceWon };
+  });
 }
 
 function editField(doc, label, name, value, type = 'text') {
   const wrapper = doc.createElement('label');
   wrapper.textContent = label + ' ';
-  const input = doc.createElement(name === 'story' ? 'textarea' : 'input');
+  const input = doc.createElement(['story', 'menuItems', 'businessHours'].includes(name) ? 'textarea' : 'input');
   input.name = name;
   if (input.tagName === 'INPUT') input.type = type;
   input.value = String(value);
+  if (name === 'businessHours') input.maxLength = 1000;
+  if (name === 'menuItems') input.maxLength = 8000;
   input.required = name === 'name' || name === 'roadAddress' || name === 'minimumSpendWon';
   wrapper.append(input);
   return wrapper;
@@ -77,6 +95,9 @@ export async function loadAdmin(fetcher, doc) {
       form.append(title, state,
         editField(doc, '상점 이름', 'name', merchant.name),
         editField(doc, '소개', 'story', merchant.story),
+        editField(doc, '메뉴·가격 (한 줄에 메뉴명 | 가격)', 'menuItems',
+          (merchant.menuItems ?? []).map(item => `${item.name} | ${item.priceWon}`).join('\n')),
+        editField(doc, '점포 제공 영업시간', 'businessHours', merchant.businessHours ?? ''),
         editField(doc, '도로명 주소', 'roadAddress', merchant.roadAddress),
         editField(doc, '최소 결제 금액(원)', 'minimumSpendWon', merchant.minimumSpendWon, 'number'),
         save, hide);
@@ -156,7 +177,8 @@ export async function loadAdmin(fetcher, doc) {
           await loadAdmin(fetcher, doc);
           status.textContent = '상점을 수정했습니다.';
         } catch (error) {
-          status.textContent = error.status === 409 ? '다른 변경이 먼저 저장되었습니다. 새로고침해 주세요.' : '수정하지 못했습니다.';
+          status.textContent = error.message?.startsWith('메뉴') ? error.message
+            : error.status === 409 ? '다른 변경이 먼저 저장되었습니다. 새로고침해 주세요.' : '수정하지 못했습니다.';
           save.disabled = false;
         }
       });
@@ -247,8 +269,8 @@ export function bindAdmin(fetcher, doc) {
       form.reset();
       await loadAdmin(fetcher, doc);
       status.textContent = '상점을 비공개로 저장했습니다.';
-    } catch {
-      status.textContent = '상점을 저장하지 못했습니다.';
+    } catch (error) {
+      status.textContent = error.message?.startsWith('메뉴') ? error.message : '상점을 저장하지 못했습니다.';
     } finally { button.disabled = false; }
   });
   return loadAdmin(fetcher, doc);

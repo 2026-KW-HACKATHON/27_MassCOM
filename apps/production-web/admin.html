@@ -31,6 +31,8 @@
           <h3>점포 등록</h3>
           <label>점포 이름 <input name="name" required maxlength="200"></label>
           <label>소개 <textarea name="story" maxlength="4000"></textarea></label>
+          <label>메뉴·가격 (한 줄에 메뉴명 | 가격, 최대 30개) <textarea name="menuItems" maxlength="8000"></textarea></label>
+          <label>점포 제공 영업시간 <textarea name="businessHours" maxlength="1000" placeholder="점포가 확인한 실제 영업시간을 입력하세요"></textarea></label>
           <label>도로명 주소 <input name="roadAddress" required maxlength="500"></label>
           <label>최소 결제 금액(원) <input name="minimumSpendWon" type="number" min="0" max="1000000000" step="1" required></label>
           <button type="submit">비공개로 등록</button>

@@ -10,12 +10,15 @@ export type AdminMerchant = {
   story: string;
   roadAddress: string;
   minimumSpendWon: number;
+  menuItems: { name: string; priceWon: number }[];
+  businessHours: string;
   status: 'ACTIVE' | 'PAUSED';
   demo: false;
   version: number;
 };
 
-export type MerchantInput = Pick<AdminMerchant, 'name' | 'story' | 'roadAddress' | 'minimumSpendWon'>;
+export type MerchantInput = Pick<AdminMerchant, 'name' | 'story' | 'roadAddress' | 'minimumSpendWon'> &
+  Partial<Pick<AdminMerchant, 'menuItems' | 'businessHours'>>;
 
 type MerchantRow = {
   id: string;
@@ -23,6 +26,8 @@ type MerchantRow = {
   story: string;
   road_address: string;
   minimum_spend_won: number;
+  menu_items: AdminMerchant['menuItems'];
+  business_hours: string;
   status: 'ACTIVE' | 'PAUSED';
   is_demo: boolean;
   version: number;
@@ -36,13 +41,14 @@ export class AdminError extends Error {
   }
 }
 
-const columns = 'id, name, story, road_address, minimum_spend_won, status, is_demo, version';
+const columns = 'id, name, story, road_address, minimum_spend_won, menu_items, business_hours, status, is_demo, version';
 
 function merchant(row: MerchantRow): AdminMerchant {
   if (row.is_demo) throw new AdminError('ADMIN_MERCHANT_NOT_FOUND');
   return {
     id: row.id, name: row.name, story: row.story, roadAddress: row.road_address,
-    minimumSpendWon: row.minimum_spend_won, status: row.status, demo: false, version: row.version,
+    minimumSpendWon: row.minimum_spend_won, menuItems: row.menu_items, businessHours: row.business_hours,
+    status: row.status, demo: false, version: row.version,
   };
 }
 
@@ -50,11 +56,20 @@ function validate(input: MerchantInput): MerchantInput {
   if (typeof input.name !== 'string' || !input.name.trim() || input.name.length > 200 ||
       typeof input.story !== 'string' || input.story.length > 4000 ||
       typeof input.roadAddress !== 'string' || !input.roadAddress.trim() || input.roadAddress.length > 500 ||
-      !Number.isSafeInteger(input.minimumSpendWon) || input.minimumSpendWon < 0 || input.minimumSpendWon > 1_000_000_000) {
+      !Number.isSafeInteger(input.minimumSpendWon) || input.minimumSpendWon < 0 || input.minimumSpendWon > 1_000_000_000 ||
+      (input.businessHours !== undefined && (typeof input.businessHours !== 'string' || input.businessHours.length > 1000)) ||
+      (input.menuItems !== undefined && (!Array.isArray(input.menuItems) || input.menuItems.length > 30 ||
+        input.menuItems.some(item => !item || typeof item.name !== 'string' || !item.name.trim() ||
+          item.name.length > 200 || !Number.isSafeInteger(item.priceWon) || item.priceWon < 0 ||
+          item.priceWon > 1_000_000_000)))) {
     throw new AdminError('ADMIN_INVALID_INPUT');
   }
   return { name: input.name.trim(), story: input.story.trim(),
-    roadAddress: input.roadAddress.trim(), minimumSpendWon: input.minimumSpendWon };
+    roadAddress: input.roadAddress.trim(), minimumSpendWon: input.minimumSpendWon,
+    ...(input.menuItems === undefined ? {} : {
+      menuItems: input.menuItems.map(item => ({ name: item.name.trim(), priceWon: item.priceWon })),
+    }),
+    ...(input.businessHours === undefined ? {} : { businessHours: input.businessHours.trim() }) };
 }
 
 export class PostgresAdminService {
@@ -112,9 +127,10 @@ export class PostgresAdminService {
     return this.transaction(async client => {
       await this.requireAdmin(client, accountId);
       const row = (await client.query<MerchantRow>(
-        `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
-         VALUES ($1, $2, $3, $4, $5, 'PAUSED', false) RETURNING ${columns}`,
-        [randomUUID(), input.name, input.story, input.roadAddress, input.minimumSpendWon],
+        `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, menu_items, business_hours, status, is_demo)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'PAUSED', false) RETURNING ${columns}`,
+        [randomUUID(), input.name, input.story, input.roadAddress, input.minimumSpendWon,
+          JSON.stringify(input.menuItems ?? []), input.businessHours ?? ''],
       )).rows[0]!;
       const created = merchant(row);
       await this.audit(client, accountId, created.id, 'MERCHANT_CREATED', null, created);
@@ -129,9 +145,11 @@ export class PostgresAdminService {
       const before = await this.lockMerchant(client, id, expectedVersion);
       const row = (await client.query<MerchantRow>(
         `UPDATE merchants SET name = $2, story = $3, road_address = $4,
-         minimum_spend_won = $5, version = version + 1, updated_at = now()
+         minimum_spend_won = $5, menu_items = COALESCE($6::jsonb, menu_items),
+         business_hours = COALESCE($7::text, business_hours), version = version + 1, updated_at = now()
          WHERE id = $1 RETURNING ${columns}`,
-        [id, input.name, input.story, input.roadAddress, input.minimumSpendWon],
+        [id, input.name, input.story, input.roadAddress, input.minimumSpendWon,
+          input.menuItems === undefined ? null : JSON.stringify(input.menuItems), input.businessHours ?? null],
       )).rows[0]!;
       const updated = merchant(row);
       await this.audit(client, accountId, id, 'MERCHANT_UPDATED', before, updated);

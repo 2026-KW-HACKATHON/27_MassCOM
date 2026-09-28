@@ -50,12 +50,19 @@ export function createProductionServer(fetcher = fetch) {
           typeof merchant.demo === 'boolean' &&
           typeof merchant.name === 'string' &&
           typeof merchant.story === 'string' &&
-          typeof merchant.roadAddress === 'string')) {
+          typeof merchant.roadAddress === 'string' &&
+          (merchant.businessHours === undefined || (typeof merchant.businessHours === 'string' &&
+            merchant.businessHours.length <= 1000)) &&
+          (merchant.menuItems === undefined || (Array.isArray(merchant.menuItems) &&
+            merchant.menuItems.length <= 30 && merchant.menuItems.every(item => item &&
+              typeof item.name === 'string' && item.name.trim() && item.name.length <= 200 &&
+              Number.isSafeInteger(item.priceWon) && item.priceWon >= 0 && item.priceWon <= 1_000_000_000))))) {
           throw new Error('invalid merchant response');
         }
         const merchants = payload.merchants
           .filter((merchant) => merchant?.demo === false)
-          .map(({ name, story, roadAddress }) => ({ name, story, roadAddress, demo: false }));
+          .map(({ name, story, roadAddress, menuItems = [], businessHours = '' }) =>
+            ({ name, story, roadAddress, menuItems, businessHours, demo: false }));
         response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
           .end(JSON.stringify({ merchants }));
       } catch {

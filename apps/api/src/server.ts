@@ -858,12 +858,14 @@ function requireNumber(body: Record<string, unknown>, field: string): number {
 }
 
 function adminMerchantInput(body: Record<string, unknown>): MerchantInput {
-  if (Object.keys(body).some(key => !['name', 'story', 'roadAddress', 'minimumSpendWon', 'expectedVersion'].includes(key))) {
+  if (Object.keys(body).some(key => !['name', 'story', 'roadAddress', 'minimumSpendWon', 'menuItems', 'businessHours', 'expectedVersion'].includes(key))) {
     throw new RequestError(400, 'INVALID_REQUEST');
   }
   return {
     name: requireString(body, 'name'), story: requireString(body, 'story', true),
     roadAddress: requireString(body, 'roadAddress'), minimumSpendWon: requireNumber(body, 'minimumSpendWon'),
+    ...(body.menuItems === undefined ? {} : { menuItems: body.menuItems as NonNullable<MerchantInput['menuItems']> }),
+    ...(body.businessHours === undefined ? {} : { businessHours: body.businessHours as string }),
   };
 }
 

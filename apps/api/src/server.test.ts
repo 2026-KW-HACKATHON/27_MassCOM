@@ -477,6 +477,39 @@ test('admin Google sign-in returns to the fixed admin path without a caller-cont
   assert.equal(callback.headers.get('location'), '/admin/');
 });
 
+test('authenticated admin API accepts menu and hours without changing the merchant version contract', async (t) => {
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('not used'); },
+    complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'admin-account', logout: async () => {},
+  };
+  const writes: unknown[][] = [];
+  const admin = {
+    isAdmin: async () => true,
+    createMerchant: async (...args: unknown[]) => { writes.push(['create', ...args]); return { id: 'real-1' }; },
+    updateMerchant: async (...args: unknown[]) => { writes.push(['update', ...args]); return { id: 'real-1' }; },
+  } as unknown as Pick<PostgresAdminService,
+    'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const headers = { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr',
+    'content-type': 'application/json' };
+  const input = { name: '실제 점포', story: '', roadAddress: '서울', minimumSpendWon: 0,
+    menuItems: [{ name: '국수', priceWon: 7000 }], businessHours: '월–금 10:00–18:00' };
+  const created = await webRequest(base, '/api/web/admin/merchants', {
+    method: 'POST', headers, body: JSON.stringify(input),
+  });
+  assert.equal(created.status, 201);
+  const updated = await webRequest(base, '/api/web/admin/merchants/real-1', {
+    method: 'PATCH', headers, body: JSON.stringify({ ...input, expectedVersion: 3 }),
+  });
+  assert.equal(updated.status, 200);
+  assert.deepEqual(writes, [
+    ['create', 'admin-account', input],
+    ['update', 'admin-account', 'real-1', 3, input],
+  ]);
+});
+
 test('merchant registration uses host-bound web cookie and rejects foreign-origin writes', async (t) => {
   const returns: (string | undefined)[] = [];
   const webAuth: WebAuthHandler = {
@@ -711,6 +744,8 @@ test('lists public merchants without requiring login or a wallet', async (t) => 
     story: '실제 협약 점포가 아닌 개발용 예시입니다.',
     roadAddress: '서울 노원구 데모로 1',
     minimumSpendWon: 10_000,
+    menuItems: [],
+    businessHours: '',
     campaign: {
       id: 'campaign-demo-autumn',
       title: '가을 방문 도감',
