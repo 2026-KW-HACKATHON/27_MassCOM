@@ -115,7 +115,7 @@ export type AccountResolver = (request: IncomingMessage) => string | Promise<str
 export type ReauthenticationGuard = (
   accountId: string,
   request: IncomingMessage,
-) => void | Promise<void>;
+) => string | void | Promise<string | void>;
 
 export const developmentHeaderAccountResolver: AccountResolver = requireAccountId;
 export const createBearerAccountResolver =
@@ -125,7 +125,9 @@ export const createBearerAccountResolver =
 export const createSessionReauthenticationGuard =
   (sessions: AuthSessionService): ReauthenticationGuard =>
   async (_accountId, request) => {
-    await sessions.assertRecentlyAuthenticated(requireBearerToken(request));
+    const sessionToken = requireBearerToken(request);
+    await sessions.assertRecentlyAuthenticated(sessionToken);
+    return sessionToken;
   };
 export const developmentHeaderReauthenticationGuard: ReauthenticationGuard = (
   _accountId,
@@ -596,11 +598,12 @@ export function createApiServer(
           throw new RequestError(503, 'REAUTHENTICATION_NOT_CONFIGURED');
         }
         const accountId = await resolveAccountId(request);
-        await requireReauthentication(accountId, request);
+        const sessionToken = await requireReauthentication(accountId, request);
         const body = await readJson(request);
         const result = await accountDeletions.requestDeletion({
           accountId,
           confirmation: requireString(body, 'confirmation'),
+          ...(sessionToken ? { sessionToken } : {}),
         });
         await service.forgetAccount(accountId);
         sendJson(response, 202, result);
@@ -1036,11 +1039,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;
+  const authMode = resolveAuthMode(process.env);
   const accountDeletions =
     pool && accountDeletionHmacSecret
       ? new PostgresAccountDeletionService(pool, {
           hmacSecret: accountDeletionHmacSecret,
           policyVersion: process.env.ACCOUNT_DELETION_POLICY_VERSION ?? 'account-deletion-v1',
+          requireRecentSession: authMode.kind === 'production',
           ...(accountLifecycle ? { accountLifecycle } : {}),
         })
       : undefined;
@@ -1061,7 +1066,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;
-  const authMode = resolveAuthMode(process.env);
   // Showcase staff eligibility is separate from customer login: every verified
   // subject of the dedicated Google audience may receive a customer session.
   const authSessions =

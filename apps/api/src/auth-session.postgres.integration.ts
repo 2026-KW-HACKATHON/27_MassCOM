@@ -254,6 +254,52 @@ test('reauthentication rejects a missing or stale Google authentication time', a
   }
 });
 
+test('reauthentication expires five minutes after signed Google auth_time', async (t) => {
+  const pool = await freshPool(t);
+  const session = await sessionService(pool).signInWithGoogle('subject:google-user-1');
+  let now = new Date('2026-09-21T01:00:00.000Z');
+  const authTime = new Date('2026-09-21T00:55:01.000Z');
+  const service = sessionService(pool, () => now, {
+    verify: async () => ({ subject: 'google-user-1', authTime }),
+  });
+
+  await service.reauthenticate(session.sessionToken, 'signed-token');
+  assert.equal(await service.assertRecentlyAuthenticated(session.sessionToken), session.accountId);
+  const stored = await pool.query<{ last_authenticated_at: Date }>(
+    'SELECT last_authenticated_at FROM auth_sessions WHERE account_id = $1',
+    [session.accountId],
+  );
+  assert.equal(stored.rows[0]!.last_authenticated_at.toISOString(), authTime.toISOString());
+
+  now = new Date('2026-09-21T01:00:02.000Z');
+  await assert.rejects(
+    service.assertRecentlyAuthenticated(session.sessionToken),
+    (error: unknown) =>
+      error instanceof AuthSessionError && error.code === 'REAUTHENTICATION_REQUIRED',
+  );
+});
+
+test('reauthentication rejects Google authentication time in the future', async (t) => {
+  const pool = await freshPool(t);
+  const session = await sessionService(pool).signInWithGoogle('subject:google-user-1');
+  const now = new Date('2026-09-21T01:00:00.000Z');
+  const service = sessionService(pool, () => now, {
+    verify: async () => ({ subject: 'google-user-1', authTime: new Date(now.getTime() + 1000) }),
+  });
+
+  await assert.rejects(
+    service.reauthenticate(session.sessionToken, 'signed-token'),
+    (error: unknown) =>
+      error instanceof AuthSessionError && error.code === 'REAUTHENTICATION_REQUIRED',
+  );
+  const futureSignIn = await service.signInWithGoogle('signed-token');
+  await assert.rejects(
+    service.assertRecentlyAuthenticated(futureSignIn.sessionToken),
+    (error: unknown) =>
+      error instanceof AuthSessionError && error.code === 'REAUTHENTICATION_REQUIRED',
+  );
+});
+
 test('sign-in without Google authentication time does not grant recent-authentication privilege', async (t) => {
   const pool = await freshPool(t);
   const service = sessionService(pool, () => signInAt, {
