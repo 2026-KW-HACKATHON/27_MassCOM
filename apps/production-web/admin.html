@@ -25,6 +25,11 @@
     <button id="admin-logout" class="collection-action secondary" type="button" hidden>로그아웃</button>
     <section id="admin-content" hidden>
       <h2>점포 운영</h2>
+      <section class="admin-panel" aria-labelledby="operations-heading">
+        <h3 id="operations-heading">운영 현황</h3>
+        <p>실제 점포 최대 100곳의 현재 집계입니다. 방문은 유효한 기록, 보상은 취소되지 않은 기록만 셉니다.</p>
+        <div id="admin-operations"></div>
+      </section>
       <p class="admin-intro">새 점포는 비공개로 저장됩니다. 점포를 숨기면 활성 캠페인의 신규 참여도 중지됩니다. 유효한 미수령 QR이 있으면 숨김은 보류됩니다.</p>
       <div class="admin-grid">
         <form id="admin-create" class="admin-panel">

@@ -15,6 +15,108 @@ const testUrl = process.env.TEST_DATABASE_URL;
 const safeTestTarget = testUrl && decodeURIComponent(new URL(testUrl).pathname.slice(1)).endsWith('_test');
 const hmacSecret = 'admin-test-account-deletion-hmac-secret-32-bytes';
 
+test('operations status counts only real merchants without exposing customer or mint payloads or changing rows', {
+  skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
+}, async () => {
+  const pool = new Pool({ connectionString: testUrl });
+  const admin = new PostgresAdminService(pool, hmacSecret);
+  const id = randomUUID();
+  const demoId = randomUUID();
+  const campaignId = randomUUID();
+  const demoCampaignId = randomUUID();
+  const accountId = `acct_${randomUUID()}`;
+  const customerId = `customer-${randomUUID()}`;
+  const staffId = `staff-${randomUUID()}`;
+  const slotIds = Array.from({ length: 4 }, () => randomUUID());
+  const visitId = randomUUID();
+  const entitlementId = randomUUID();
+  const bindingId = randomUUID();
+  const seriesId = randomUUID();
+  const jobId = randomUUID();
+  const address = `0x${randomUUID().replaceAll('-', '')}00000000`;
+  const contract = `0x${randomUUID().replaceAll('-', '')}00000000`;
+  try {
+    await runMigrations(pool);
+    await pool.query(`INSERT INTO auth_identities(provider, subject, account_id, created_at)
+      VALUES ('google', $1, $2, now())`, [`admin-${randomUUID()}`, accountId]);
+    await pool.query('INSERT INTO platform_admins(account_id) VALUES ($1)', [accountId]);
+    await pool.query(`INSERT INTO merchants(id, name, story, road_address, minimum_spend_won, status, is_demo)
+      VALUES ($1, '운영 현황 실제 상점', '', '서울', 0, 'ACTIVE', false),
+        ($2, '운영 현황 시연 상점', '', '서울', 0, 'ACTIVE', true)`, [id, demoId]);
+    await pool.query(`INSERT INTO merchant_members(merchant_id, account_id, role, status)
+      VALUES ($1, $3, 'STAFF', 'ACTIVE'), ($2, $3, 'STAFF', 'ACTIVE')`, [id, demoId, staffId]);
+    await pool.query(`INSERT INTO campaigns(id, merchant_id, title, starts_at, ends_at, status, enrollment_capacity)
+      VALUES ($1, $3, '실제 캠페인', now() - interval '1 day', now() + interval '1 day', 'ACTIVE', 10),
+        ($2, $4, '시연 캠페인', now() - interval '1 day', now() + interval '1 day', 'ACTIVE', 10)`,
+      [campaignId, demoCampaignId, id, demoId]);
+    await pool.query(`INSERT INTO campaign_goals(campaign_id, target_visit_count, display_name)
+      VALUES ($1, 1, '첫 방문')`, [campaignId]);
+    await pool.query(`INSERT INTO claim_slots(id, merchant_id, customer_account_id, merchant_reference_hash,
+      created_by_account_id, token_hash, status, expires_at, claimed_at, created_at)
+      VALUES ($1::uuid, $5, $7, decode(replace(($1::uuid)::text,'-','') || repeat('1',32),'hex'), $8, decode(repeat('2',32) || replace(($1::uuid)::text,'-',''),'hex'), 'ISSUED', now() + interval '1 hour', NULL, now() - interval '1 hour'),
+        ($2::uuid, $5, $7, decode(replace(($2::uuid)::text,'-','') || repeat('1',32),'hex'), $8, decode(repeat('2',32) || replace(($2::uuid)::text,'-',''),'hex'), 'ISSUED', now() - interval '1 minute', NULL, now() - interval '1 hour'),
+        ($3::uuid, $5, $7, decode(replace(($3::uuid)::text,'-','') || repeat('1',32),'hex'), $8, decode(repeat('2',32) || replace(($3::uuid)::text,'-',''),'hex'), 'CLAIMED', now() + interval '1 hour', now(), now() - interval '1 hour'),
+        ($4::uuid, $6, $7, decode(replace(($4::uuid)::text,'-','') || repeat('1',32),'hex'), $8, decode(repeat('2',32) || replace(($4::uuid)::text,'-',''),'hex'), 'ISSUED', now() + interval '1 hour', NULL, now() - interval '1 hour')`,
+      [...slotIds, id, demoId, customerId, staffId]);
+    await pool.query(`INSERT INTO visit_events(id, claim_slot_id, merchant_id, campaign_id,
+      customer_account_id, occurred_at, business_date, verification_level, status, progress_counted)
+      VALUES ($1, $2, $3, $4, $5, now(), current_date, 'MERCHANT_CONFIRMED', 'VALID', true)`,
+      [visitId, slotIds[2], id, campaignId, customerId]);
+    await pool.query(`INSERT INTO reward_entitlements(id, customer_account_id, campaign_id,
+      target_visit_count, source_visit_event_id, status, policy_version, earned_at, claim_expires_at)
+      VALUES ($1, $2, $3, 1, $4, 'MINT_REQUESTED', 'fixed-1', now(), now() + interval '1 day')`,
+      [entitlementId, customerId, campaignId, visitId]);
+    await pool.query(`INSERT INTO wallet_bindings(id, account_id, address_checksum, address_normalized,
+      chain_id, binding_version, status, verified_at)
+      VALUES ($1, $2, $3, $3, 84532, 1, 'VERIFIED', now())`, [bindingId, customerId, address]);
+    await pool.query(`INSERT INTO nft_series(id, campaign_id, target_visit_count, chain_id,
+      contract_address, contract_address_normalized, series_key, max_ever_minted, status)
+      VALUES ($1::uuid, $2, 1, 84532, $3, $3,
+        decode(replace(($1::uuid)::text,'-','') || repeat('3',32),'hex'), 10, 'ACTIVE')`,
+      [seriesId, campaignId, contract]);
+    await pool.query(`INSERT INTO mint_jobs(id, entitlement_id, account_id, nft_series_id,
+      reward_key, wallet_binding_id, binding_version, recipient_address,
+      recipient_address_normalized, chain_id, contract_address, contract_address_normalized,
+      series_key, consent_version, idempotency_key, request_fingerprint, status,
+      last_error_code, created_at, updated_at)
+      VALUES ($1::uuid, $2, $3, $4::uuid, decode(replace(($1::uuid)::text,'-','') || repeat('4',32),'hex'), $5, 1,
+        $7, $7, 84532, $8, $8,
+        decode(replace(($4::uuid)::text,'-','') || repeat('3',32),'hex'), 'nft-mint-v1', $6, decode(repeat('5',64),'hex'),
+        'RETRYABLE', 'RPC_TIMEOUT', now(), now())`,
+      [jobId, entitlementId, customerId, seriesId, bindingId, `status-${randomUUID()}`, address, contract]);
+    const before = await pool.query(`SELECT
+      (SELECT count(*) FROM claim_slots) AS claims,
+      (SELECT count(*) FROM visit_events) AS visits,
+      (SELECT count(*) FROM reward_entitlements) AS rewards,
+      (SELECT count(*) FROM mint_jobs) AS jobs`);
+    await assert.rejects(admin.operationsStatus('not-an-admin'), /ADMIN_FORBIDDEN/);
+    const summary = await admin.operationsStatus(accountId);
+    const actual = summary.merchants.find(item => item.id === id);
+    assert.deepEqual(actual, { id, name: '운영 현황 실제 상점', status: 'ACTIVE',
+      claims: { active: 1, expired: 1, claimed: 1 }, visits: 1, rewards: 1,
+      mintJobs: [{ status: 'RETRYABLE', count: 1 }], mintFailures: [{ code: 'RPC_TIMEOUT', count: 1 }] });
+    assert.equal(summary.merchants.some(item => item.id === demoId), false);
+    const json = JSON.stringify(summary);
+    assert.equal(json.includes(customerId), false);
+    assert.equal(json.includes(address), false);
+    assert.equal(json.includes('merchant_reference_hash'), false);
+    assert.deepEqual((await pool.query(`SELECT
+      (SELECT count(*) FROM claim_slots) AS claims,
+      (SELECT count(*) FROM visit_events) AS visits,
+      (SELECT count(*) FROM reward_entitlements) AS rewards,
+      (SELECT count(*) FROM mint_jobs) AS jobs`)).rows, before.rows);
+    await pool.query('UPDATE mint_jobs SET last_error_code = $2 WHERE id = $1', [jobId, 'secret@example.com']);
+    assert.deepEqual((await admin.operationsStatus(accountId)).merchants.find(item => item.id === id)?.mintFailures,
+      [{ code: 'OTHER', count: 1 }]);
+    await pool.query(`UPDATE visit_events SET status = 'CANCELED', cancellation_reason = 'test'
+      WHERE id = $1`, [visitId]);
+    await pool.query("UPDATE reward_entitlements SET status = 'CANCELED' WHERE id = $1", [entitlementId]);
+    const canceled = (await admin.operationsStatus(accountId)).merchants.find(item => item.id === id);
+    assert.equal(canceled?.visits, 0);
+    assert.equal(canceled?.rewards, 0);
+  } finally { await pool.end(); }
+});
+
 test('rejects overlong hours, menu names, and invalid won prices before database access', async () => {
   const service = new PostgresAdminService({} as Pool, hmacSecret);
   const base = { name: '상점', story: '', roadAddress: '서울', minimumSpendWon: 0 };

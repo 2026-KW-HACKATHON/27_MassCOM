@@ -456,6 +456,42 @@ test('admin API uses only the host-bound web cookie and rejects unauthorized, fo
   })).status, 403);
 });
 
+test('admin operations status requires the host-bound admin session and returns only counts', async (t) => {
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('not used'); },
+    complete: async () => { throw new Error('not used'); },
+    resolveSession: async token => {
+      if (token !== 'valid-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'admin-account';
+    },
+    logout: async () => {},
+  };
+  let reads = 0;
+  const summary = { merchants: [{ id: 'real-1', name: '실제 점포', status: 'ACTIVE',
+    claims: { active: 1, expired: 2, claimed: 3 }, visits: 4, rewards: 1,
+    mintJobs: [{ status: 'RETRYABLE', count: 1 }], mintFailures: [{ code: 'RPC_TIMEOUT', count: 1 }] }] };
+  const admin = {
+    isAdmin: async () => true,
+    operationsStatus: async () => { reads += 1; return summary; },
+  } as unknown as Pick<PostgresAdminService,
+    'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const path = '/api/web/admin/operations-status';
+  assert.equal((await webRequest(base, path)).status, 401);
+  assert.equal((await webRequest(base, path, { host: 'api.masscom.kr',
+    headers: { cookie: 'web_session=valid-cookie' } })).status, 403);
+  const response = await webRequest(base, path, { headers: { cookie: 'web_session=valid-cookie' } });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), summary);
+  assert.equal(reads, 1);
+  const denied = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    { ...admin, isAdmin: async () => false });
+  assert.equal((await webRequest(denied, path, { headers: { cookie: 'web_session=valid-cookie' } })).status, 403);
+  assert.equal(reads, 1);
+});
+
 test('admin Google sign-in returns to the fixed admin path without a caller-controlled redirect', async (t) => {
   const destinations: (string | undefined)[] = [];
   const webAuth: WebAuthHandler = {
