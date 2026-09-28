@@ -4,7 +4,7 @@
 
 ## 2026-09-29 동네 탐험 배지와 웹 배포 상태
 
-- [Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212)의 브랜치 feat/212-neighborhood-badges에 소스 커밋 6c47423을 남겼다. 인정된 서로 다른 점포 1·2·3곳 배지, Android의 공개 문구 공유, 시연 전용 실제 사용 불가 쿠폰 예시와 운영 읽기 전용 웹 배지를 구현했다([규칙](NEIGHBORHOOD_BADGES.md)). 모바일 244/244·웹 48/48·타입·린트·Android 개발 export·문서 게이트 PASS. Android 휴대전화가 adb에 없어 새 화면·공유창·TalkBack 실기는 NOT_RUN; 새 APK·실제 쿠폰 발급은 없다.
+- [Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212)의 [PR #213](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/213) merge 5caec3a·PR/main CI PASS로 인정된 서로 다른 점포 1·2·3곳 배지, 안전한 Android 공유, 시연 전용 사용 불가 쿠폰 예시와 운영 읽기 전용 웹 배지를 통합했다([규칙](NEIGHBORHOOD_BADGES.md)). 모바일 244/244·웹 48/48·타입·린트·Android 개발 export PASS. [운영 웹](evidence/neighborhood-badges-web-deployment-2026-09-29.json)은 실계정 빈 배지 3개와 익명 401/no-store를 확인했다. [시연 Preview 6 APK](evidence/showcase-preview6-release-2026-09-29.json)는 서명·원격 digest 확인 후 공개했으나 휴대전화 화면·공유창·TalkBack은 NOT_RUN. 실제 쿠폰 발급은 없다.
 - 기존 조직 main 19c5ae4의 /open Preview 5 소스는 첫 두 SSH exit 255 때 이전 웹을 보존했고, 작은 tar→SSH·원격 사전검사·단독 빌드 PASS 뒤 이 Mac의 해당 호스트에만 keepalive를 설정해 [기존 웹 전용 스크립트로 배포](evidence/public-open-preview5-deployment-2026-09-29.json)했다. apex/www /open HTTPS 200·소스 SHA-256 일치, 운영/시연 API·DB 불변을 확인했다. 새 유료 자원은 만들지 않았다. 이 배포는 아직 PR 전인 신규 배지 웹 UI를 포함하지 않는다.
 
 ## 2026-09-29 조직 저장소 복귀

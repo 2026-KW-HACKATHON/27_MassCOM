@@ -1,0 +1,24 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-09-28T19:38:47Z",
+  "sourceCommit": "5caec3a106bd72533bba1579719458c9b044d5b6",
+  "deployment": "existing Lightsail web-only script with rollback and route probes",
+  "webMarker": "5caec3a106bd72533bba1579719458c9b044d5b6",
+  "webImage": "masscom-production-web:5caec3a106bd healthy",
+  "checks": {
+    "publicHtmlAndJs": "PASS: /app/ includes badge-list and production.mjs includes all three badge titles",
+    "authenticatedEmptyCollection": "PASS: existing signed-in browser showed zero visits and three locked badges; no demo merchant inserted",
+    "anonymousCollection": "PASS: HTTP 401, Cache-Control no-store",
+    "wwwPreviewAndBothApiHealth": "PASS: HTTPS 200 each",
+    "openPagePreserved": "PASS: public /open SHA-256 matches docs/open.html b25fe17edfcedd27f158973b4ca76ae7d0dd68ee7b62477eda085bd94b5e2762",
+    "operatingApiUnchanged": "PASS: masscom-api:fd0a9b2ebfc8 still healthy",
+    "showcaseApiUnchanged": "PASS: masscom-showcase-api:6585614 still healthy",
+    "postgresUnchanged": "PASS: existing PostgreSQL container stayed running",
+    "databaseMigration": "NOT_RUN: web-only deployment"
+  },
+  "notRun": [
+    "real customer with earned badges and web account switching after this deployment",
+    "physical Android badge sharing and accessibility",
+    "real merchant coupon issue or redemption"
+  ]
+}
