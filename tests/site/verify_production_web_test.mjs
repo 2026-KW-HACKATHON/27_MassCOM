@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 
 import { bindCollectionControls, loadCollection, loadMerchants } from '../../apps/production-web/assets/production.mjs';
+import { bindAdmin, loadAdmin } from '../../apps/production-web/assets/admin.mjs';
 import { createProductionServer, resolveProductionBindHost } from '../../apps/production-web/server.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -267,6 +268,180 @@ test('로컬 서버는 공개 GET /merchants만 운영 API에 전달한다', asy
     assert.ok(blocked.status === 404 || blocked.status === 405);
   }
   assert.equal(calls.length, 1);
+});
+
+test('관리 화면은 별도 경로에서 제공하고 검색 색인 및 캐시를 막는다', async () => {
+  const page = await fetch(`${base}/admin/`);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /관리자/);
+  assert.equal(page.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.equal(page.headers.get('cache-control'), 'no-store');
+  const script = await fetch(`${base}/admin/assets/admin.mjs`);
+  assert.equal(script.status, 200);
+  assert.match(script.headers.get('content-type'), /javascript/);
+  assert.equal(script.headers.get('x-robots-tag'), 'noindex, nofollow');
+  const stylesheet = await fetch(`${base}/app/assets/production.css`);
+  assert.equal(stylesheet.status, 200);
+  assert.match(stylesheet.headers.get('content-type'), /text\/css/);
+});
+
+test('관리 화면은 로그인·권한 거부·실제 상점 목록을 구분하고 상점 이름을 텍스트로 표시한다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+  const doc = {
+    getElementById(id) { return nodes[id]; },
+    createElement: element,
+  };
+  await loadAdmin(async () => ({ status: 401, ok: false }), doc);
+  assert.equal(nodes['admin-login'].hidden, false);
+  assert.equal(nodes['admin-logout'].hidden, true);
+  assert.equal(nodes['admin-content'].hidden, true);
+  await loadAdmin(async () => ({ status: 403, ok: false }), doc);
+  assert.match(nodes['admin-status'].textContent, /권한이 없습니다/);
+  assert.equal(nodes['admin-logout'].hidden, false);
+  assert.equal(nodes['admin-content'].hidden, true);
+  await loadAdmin(async path => ({ ok: true, json: async () => path.endsWith('/me')
+    ? { admin: true } : { merchants: [{ id: 'real-1', name: '<script>alert(1)</script>',
+      story: '소개', roadAddress: '서울', minimumSpendWon: 1000, status: 'PAUSED', demo: false, version: 1 }] } }), doc);
+  assert.equal(nodes['admin-content'].hidden, false);
+  assert.equal(nodes['admin-logout'].hidden, false);
+  assert.equal(nodes['admin-merchants'].children.length, 1);
+  assert.equal(nodes['admin-merchants'].children[0].children[0].textContent, '<script>alert(1)</script>');
+});
+
+test('관리 화면의 빈 점포 목록은 예시 자료 없이 등록 행동을 안내한다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+  const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+  await loadAdmin(async path => ({ ok: true, json: async () => path.endsWith('/me')
+    ? { admin: true } : { merchants: [] } }), doc);
+  assert.equal(nodes['admin-merchants'].children.length, 1);
+  assert.match(nodes['admin-merchants'].children[0].textContent, /등록된 점포가 없습니다/);
+  assert.match(nodes['admin-merchants'].children[0].textContent, /비공개로 등록/);
+  assert.doesNotMatch(nodes['admin-merchants'].children[0].textContent, /왼쪽/);
+});
+
+test('권한 없음과 정상 관리 화면에서 로그아웃 후 다른 Google 계정 로그인을 안내한다', async () => {
+  for (const authorized of [false, true]) {
+    const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+      'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+    const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+    const calls = [];
+    await bindAdmin(async (path, options) => {
+      calls.push({ path, options });
+      if (path === '/api/web/logout') return { ok: true, status: 204 };
+      if (path.endsWith('/me')) return authorized
+        ? { ok: true, json: async () => ({ admin: true }) } : { ok: false, status: 403 };
+      return { ok: true, json: async () => ({ merchants: [] }) };
+    }, doc);
+    assert.equal(nodes['admin-logout'].hidden, false);
+    await nodes['admin-logout'].click();
+    assert.equal(calls.at(-1).path, '/api/web/logout');
+    assert.equal(calls.at(-1).options.method, 'POST');
+    assert.equal(calls.at(-1).options.credentials, 'same-origin');
+    assert.equal(nodes['admin-content'].hidden, true);
+    assert.equal(nodes['admin-logout'].hidden, true);
+    assert.equal(nodes['admin-login'].hidden, false);
+    assert.match(nodes['admin-status'].textContent, /다른 Google 계정/);
+  }
+});
+
+test('로그아웃 실패를 성공으로 표시하지 않고 계정 전환 재시도를 허용한다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+  const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+  await bindAdmin(async path => path === '/api/web/logout'
+    ? { ok: false, status: 503 } : { ok: false, status: 403 }, doc);
+  await nodes['admin-logout'].click();
+  assert.equal(nodes['admin-logout'].hidden, false);
+  assert.equal(nodes['admin-logout'].disabled, false);
+  assert.equal(nodes['admin-login'].hidden, true);
+  assert.match(nodes['admin-status'].textContent, /다시 시도/);
+});
+
+test('로그아웃 응답 대기 중 다시 읽은 관리자 목록도 성공 뒤 지운다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+  const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+  let finishLogout;
+  const logoutResponse = new Promise(resolve => { finishLogout = resolve; });
+  const fetcher = async path => {
+    if (path === '/api/web/logout') return logoutResponse;
+    return { ok: true, json: async () => path.endsWith('/me') ? { admin: true } : {
+      merchants: [{ id: 'real-logout-race', name: '이전 계정 점포', story: '', roadAddress: '서울',
+        minimumSpendWon: 0, status: 'PAUSED', demo: false, version: 1 }],
+    } };
+  };
+  await bindAdmin(fetcher, doc);
+  const logout = nodes['admin-logout'].click();
+  await loadAdmin(fetcher, doc);
+  assert.equal(nodes['admin-merchants'].children.length, 1);
+  finishLogout({ ok: true });
+  await logout;
+  assert.equal(nodes['admin-content'].hidden, true);
+  assert.equal(nodes['admin-merchants'].children.length, 0);
+  assert.equal(nodes['admin-login'].hidden, false);
+});
+
+test('미수령 QR 때문에 숨김이 거부되면 수령 또는 만료 후 재시도를 안내한다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+  const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+  const fetcher = async (path, options) => {
+    if (path.endsWith('/me')) return { ok: true, json: async () => ({ admin: true }) };
+    if (options.method === 'POST') return { ok: false, status: 409,
+      json: async () => ({ code: 'ADMIN_PENDING_CLAIMS' }) };
+    return { ok: true, json: async () => ({ merchants: [{ id: 'real-claim', name: '실제 상점',
+      story: '', roadAddress: '서울', minimumSpendWon: 0, status: 'ACTIVE', demo: false, version: 1 }] }) };
+  };
+  await loadAdmin(fetcher, doc);
+  const hide = nodes['admin-merchants'].children[0].children.at(-1);
+  await hide.click();
+  assert.match(nodes['admin-status'].textContent, /미수령 QR/);
+  assert.match(nodes['admin-status'].textContent, /수령.*만료/);
+  assert.equal(hide.disabled, false);
+  assert.equal(nodes['admin-content'].hidden, false);
+});
+
+test('관리 화면은 탭을 떠날 때 이전 계정의 상점 내용을 지운다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+  const listeners = new Map();
+  const doc = {
+    getElementById(id) { return nodes[id]; }, createElement: element,
+    defaultView: { addEventListener(type, callback) { listeners.set(type, callback); } },
+  };
+  await bindAdmin(async path => ({ ok: true, json: async () => path.endsWith('/me')
+    ? { admin: true } : { merchants: [{ id: 'real-2', name: '이전 계정 상점', story: '',
+      roadAddress: '서울', minimumSpendWon: 0, status: 'PAUSED', demo: false, version: 1 }] } }), doc);
+  assert.equal(nodes['admin-merchants'].children.length, 1);
+  listeners.get('pagehide')();
+  assert.equal(nodes['admin-merchants'].children.length, 0);
+  assert.equal(nodes['admin-content'].hidden, true);
+});
+
+test('관리 권한 조회가 늦게 끝나도 닫힌 탭에 상점 내용을 다시 표시하지 않는다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+  const listeners = new Map();
+  const doc = {
+    getElementById(id) { return nodes[id]; }, createElement: element,
+    defaultView: { addEventListener(type, callback) { listeners.set(type, callback); } },
+  };
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const loaded = bindAdmin(async path => {
+    if (path.endsWith('/me')) await pending;
+    return { ok: true, json: async () => path.endsWith('/me') ? { admin: true } : {
+      merchants: [{ id: 'late', name: '늦은 상점', story: '', roadAddress: '서울',
+        minimumSpendWon: 0, status: 'PAUSED', demo: false, version: 1 }],
+    } };
+  }, doc);
+  listeners.get('pagehide')();
+  release();
+  await loaded;
+  assert.equal(nodes['admin-merchants'].children.length, 0);
+  assert.equal(nodes['admin-content'].hidden, true);
 });
 
 test('운영 API 오류는 502로 전달하고 임의 데이터가 없다', async () => {

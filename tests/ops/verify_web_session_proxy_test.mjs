@@ -66,7 +66,7 @@ async function requestForHost(url, path, host, method = 'GET') {
   });
 }
 
-test('Caddy forwards only the four browser-session routes, preserving redirects and cookies', async () => {
+test('Caddy forwards allowlisted browser-session routes, preserving redirects and cookies', async () => {
   const suffix = `${process.pid}-${Date.now()}`;
   const network = `masscom-web-proxy-test-${suffix}`;
   const api = `masscom-web-api-test-${suffix}`;
@@ -185,10 +185,17 @@ test('Caddy serves the same limited web surface for exact apex and www hosts', a
       assert.equal(previewRedirect.status, 308, host);
       assert.equal(previewRedirect.headers.location, '/preview/', host);
       assert.equal((await requestForHost(url, '/app/', host)).body, 'web:/', host);
+      const adminPage = await requestForHost(url, '/admin/', host);
+      assert.equal(adminPage.body, 'web:/admin/', host);
+      assert.equal(adminPage.headers['x-robots-tag'], 'noindex, nofollow', host);
+      assert.equal(adminPage.headers['cache-control'], 'no-store', host);
       const login = await requestForHost(url, '/api/web/auth/start', host);
       assert.equal(login.status, 302, host);
       assert.equal(login.headers['x-observed-host'], host, host);
       assert.equal((await requestForHost(url, '/api/web/collection', host)).status, 401, host);
+      const adminApi = await requestForHost(url, '/api/web/admin/merchants', host);
+      assert.equal(adminApi.headers['x-observed-host'], host, host);
+      assert.equal(adminApi.headers['x-robots-tag'], 'noindex, nofollow', host);
       for (const blocked of ['/HANDOFF.md', '/preview/.vercel/project.json', '/claim', '/mint', '/api/web/unknown']) {
         assert.equal((await requestForHost(url, blocked, host)).status, 404, `${host}${blocked}`);
       }

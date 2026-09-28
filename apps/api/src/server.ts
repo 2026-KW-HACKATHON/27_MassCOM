@@ -41,6 +41,7 @@ import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCustomerIdentityService } from './postgres/customer-identity.js';
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
+import { AdminError, PostgresAdminService, type MerchantInput } from './postgres/admin.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
 import { PostgresWebSessionStore } from './postgres/web-session.js';
@@ -151,6 +152,7 @@ export function createApiServer(
   webAuth?: WebAuthHandler,
   webWwwEnabled = false,
   customerIdentities?: CustomerIdentityService,
+  admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -198,7 +200,7 @@ export function createApiServer(
           'web_auth_state=; Path=/api/web/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax',
           `web_session=${session.token}; Path=/api/web; HttpOnly; Secure; SameSite=Lax`,
         ]);
-        response.setHeader('location', '/app/');
+        response.setHeader('location', session.returnTo === '/admin/' ? '/admin/' : '/app/');
         response.writeHead(303);
         response.end();
         return;
@@ -210,6 +212,66 @@ export function createApiServer(
         const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
         sendJson(response, 200, await collection.getCollection(accountId));
         return;
+      }
+      if (path.startsWith('/api/web/admin/')) {
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        if (!webAuth || !admin) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+        if (path === '/api/web/admin/auth/start' && request.method === 'GET') {
+          if (authLoginLimiter) {
+            const decision = authLoginLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
+            if (!decision.allowed) {
+              response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+              sendJson(response, 429, { code: 'LOGIN_RATE_LIMITED' });
+              return;
+            }
+          }
+          const started = await webAuth.start(origin, '/admin/');
+          response.setHeader('set-cookie', `web_auth_state=${started.state}; Path=/api/web/auth; Max-Age=300; HttpOnly; Secure; SameSite=Lax`);
+          response.setHeader('location', started.location);
+          response.writeHead(302).end();
+          return;
+        }
+        if (request.method !== 'GET') {
+          if (request.headers.origin !== origin ||
+              !/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '')) {
+            throw new RequestError(403, 'ADMIN_CSRF_FORBIDDEN');
+          }
+        }
+        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        if (!(await admin.isAdmin(accountId))) throw new AdminError('ADMIN_FORBIDDEN');
+        if (path === '/api/web/admin/me' && request.method === 'GET') {
+          sendJson(response, 200, { admin: true });
+          return;
+        }
+        if (path === '/api/web/admin/merchants') {
+          if (request.method === 'GET') {
+            sendJson(response, 200, { merchants: await admin.listMerchants(accountId) });
+            return;
+          }
+          if (request.method === 'POST') {
+            const body = await readJson(request);
+            sendJson(response, 201, { merchant: await admin.createMerchant(accountId, adminMerchantInput(body)) });
+            return;
+          }
+        }
+        const editMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)$/);
+        if (editMatch && request.method === 'PATCH') {
+          const body = await readJson(request);
+          sendJson(response, 200, { merchant: await admin.updateMerchant(
+            accountId, decodePathParameter(editMatch[1]!), requireNumber(body, 'expectedVersion'), adminMerchantInput(body),
+          ) });
+          return;
+        }
+        const hideMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/hide$/);
+        if (hideMatch && request.method === 'POST') {
+          const body = await readJson(request);
+          sendJson(response, 200, { merchant: await admin.hideMerchant(
+            accountId, decodePathParameter(hideMatch[1]!), requireNumber(body, 'expectedVersion'),
+          ) });
+          return;
+        }
+        throw new RequestError(404, 'NOT_FOUND');
       }
       if (path === '/api/web/logout') {
         if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
@@ -551,6 +613,13 @@ export function createApiServer(
         sendJson(response, 403, { code: error.code });
         return;
       }
+      if (error instanceof AdminError) {
+        const status = error.code === 'ADMIN_FORBIDDEN' ? 403
+          : error.code === 'ADMIN_MERCHANT_NOT_FOUND' || error.code === 'ADMIN_IDENTITY_NOT_FOUND' ? 404
+            : error.code === 'ADMIN_VERSION_CONFLICT' || error.code === 'ADMIN_PENDING_CLAIMS' ? 409 : 400;
+        sendJson(response, status, { code: error.code });
+        return;
+      }
       if (error instanceof WalletChallengeError) {
         sendJson(response, statusFor(error.code), { code: error.code });
         return;
@@ -693,6 +762,16 @@ function requireNumber(body: Record<string, unknown>, field: string): number {
     throw new RequestError(400, 'INVALID_REQUEST');
   }
   return value;
+}
+
+function adminMerchantInput(body: Record<string, unknown>): MerchantInput {
+  if (Object.keys(body).some(key => !['name', 'story', 'roadAddress', 'minimumSpendWon', 'expectedVersion'].includes(key))) {
+    throw new RequestError(400, 'INVALID_REQUEST');
+  }
+  return {
+    name: requireString(body, 'name'), story: requireString(body, 'story', true),
+    roadAddress: requireString(body, 'roadAddress'), minimumSpendWon: requireNumber(body, 'minimumSpendWon'),
+  };
 }
 
 function requirePositiveInteger(body: Record<string, unknown>, field: string): number {
@@ -1036,6 +1115,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     webAuth,
     webAuthConfig?.wwwEnabled ?? false,
     customerIdentities,
+    pool && accountDeletionHmacSecret && webAuthConfig && !showcaseInvites
+      ? new PostgresAdminService(pool, accountDeletionHmacSecret) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

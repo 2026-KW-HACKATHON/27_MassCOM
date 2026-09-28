@@ -7,7 +7,10 @@ const root = dirname(fileURLToPath(import.meta.url));
 const files = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/assets/production.css', ['assets/production.css', 'text/css; charset=utf-8']],
+  ['/app/assets/production.css', ['assets/production.css', 'text/css; charset=utf-8']],
   ['/assets/production.mjs', ['assets/production.mjs', 'text/javascript; charset=utf-8']],
+  ['/admin/', ['admin.html', 'text/html; charset=utf-8']],
+  ['/admin/assets/admin.mjs', ['assets/admin.mjs', 'text/javascript; charset=utf-8']],
 ]);
 
 export function resolveProductionBindHost(raw) {
@@ -26,6 +29,7 @@ export function createProductionServer(fetcher = fetch) {
     }
 
     const path = request.url?.split('?')[0];
+    if (path?.startsWith('/admin/')) response.setHeader('X-Robots-Tag', 'noindex, nofollow');
     if (path === '/merchants') {
       try {
         const upstream = await fetcher('https://api.masscom.kr/merchants', {

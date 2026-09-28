@@ -214,6 +214,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
         }
         if (row.expires_at.getTime() <= this.options.now().getTime()) throw new ClaimSlotError('CUSTOMER_IDENTITY_EXPIRED');
       }
+      await requireActiveMerchantForStaff(client, input.merchantId, input.createdByAccountId);
       const access = await client.query<AccessAndDuplicateRow>(
         `SELECT
            EXISTS (
@@ -320,6 +321,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     try {
       await client.query('BEGIN');
       await this.options.accountLifecycle?.assertActive(client, input.requestedByAccountId);
+      await requireActiveMerchantForStaff(client, input.merchantId, input.requestedByAccountId);
       const token = this.options.nextToken();
       const updated = await client.query<IssuedClaimSlotRow>(
         `UPDATE claim_slots AS slot
@@ -651,6 +653,20 @@ export class PostgresClaimSlotService implements ClaimSlotService {
       client.release();
     }
   }
+}
+
+async function requireActiveMerchantForStaff(
+  client: PoolClient, merchantId: string, staffAccountId: string,
+): Promise<void> {
+  const merchant = await client.query<{ status: string }>(
+    `SELECT merchant.status FROM merchants AS merchant
+     JOIN merchant_members AS member ON member.merchant_id = merchant.id
+     WHERE merchant.id = $1 AND member.account_id = $2 AND member.status = 'ACTIVE'
+     FOR SHARE OF merchant`,
+    [merchantId, staffAccountId],
+  );
+  if (!merchant.rows[0]) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+  if (merchant.rows[0].status !== 'ACTIVE') throw new ClaimSlotError('CLAIM_MERCHANT_INACTIVE');
 }
 
 async function findActiveCampaign(

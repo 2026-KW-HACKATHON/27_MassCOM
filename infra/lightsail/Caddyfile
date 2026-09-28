@@ -40,15 +40,20 @@
 
 	@appRoot path /app
 	redir @appRoot /app/ 308
+	@adminRoot path /admin
+	redir @adminRoot /admin/ 308
 	@previewRoot path /preview
 	redir @previewRoot /preview/ 308
-	@webSession path /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection
+	@webSession path /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection /api/web/admin/*
 	handle @webSession {
 		reverse_proxy api:3000 {
 			header_up X-Forwarded-For {remote_host}
 		}
 	}
 	handle_path /app/* {
+		reverse_proxy production-web:4173
+	}
+	handle /admin/* {
 		reverse_proxy production-web:4173
 	}
 	handle /merchants {
@@ -72,5 +77,10 @@
 		X-Frame-Options "DENY"
 		Referrer-Policy "no-referrer"
 		-Server
+	}
+	@adminSurface path /admin/* /api/web/admin/*
+	header @adminSurface {
+		Cache-Control "no-store"
+		X-Robots-Tag "noindex, nofollow"
 	}
 }

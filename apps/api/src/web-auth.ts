@@ -43,7 +43,14 @@ export class WebAuthError extends Error {
   }
 }
 
-export type WebAuthHandler = Pick<WebAuthService, 'start' | 'complete' | 'resolveSession' | 'logout'>;
+export type WebAuthHandler = {
+  start(origin: WebOrigin, returnTo?: '/app/' | '/admin/'): Promise<{ location: string; state: string }>;
+  complete(code: string, state: string, cookieState: string, origin: WebOrigin): Promise<{
+    token: string; returnTo?: '/app/' | '/admin/';
+  }>;
+  resolveSession(token: string, origin: WebOrigin): Promise<string>;
+  logout(token: string, origin: WebOrigin): Promise<void>;
+};
 
 const stateTtlMs = 5 * 60 * 1000;
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
@@ -115,7 +122,7 @@ export class WebAuthService {
     return origin === 'https://masscom.kr' ? 'masscom.kr' : 'www.masscom.kr';
   }
 
-  async start(origin: WebOrigin): Promise<{ location: string; state: string }> {
+  async start(origin: WebOrigin, returnTo: '/app/' | '/admin/' = '/app/'): Promise<{ location: string; state: string }> {
     const redirectUri = this.redirectUriFor(origin);
     await this.pool.query(
       `WITH stale AS (
@@ -131,15 +138,16 @@ export class WebAuthService {
     const nonce = randomToken();
     const expiresAt = new Date(Date.now() + stateTtlMs);
     await this.pool.query(
-      `INSERT INTO web_oauth_states(state_hash, code_verifier, nonce, expires_at, redirect_uri)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [digest(state), verifier, nonce, expiresAt, redirectUri],
+      `INSERT INTO web_oauth_states(state_hash, code_verifier, nonce, expires_at, redirect_uri, return_to)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [digest(state), verifier, nonce, expiresAt, redirectUri, returnTo],
     );
     const location = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     location.searchParams.set('client_id', this.options.clientId);
     location.searchParams.set('redirect_uri', redirectUri);
     location.searchParams.set('response_type', 'code');
     location.searchParams.set('scope', 'openid');
+    if (returnTo === '/admin/') location.searchParams.set('prompt', 'select_account');
     location.searchParams.set('state', state);
     location.searchParams.set('nonce', nonce);
     location.searchParams.set('code_challenge', digest(verifier).toString('base64url'));
@@ -147,16 +155,16 @@ export class WebAuthService {
     return { location: location.toString(), state };
   }
 
-  async complete(code: string, state: string, cookieState: string, origin: WebOrigin): Promise<{ token: string }> {
+  async complete(code: string, state: string, cookieState: string, origin: WebOrigin): Promise<{ token: string; returnTo: '/app/' | '/admin/' }> {
     const redirectUri = this.redirectUriFor(origin);
     if (!code || !tokenPattern.test(state) || !tokenPattern.test(cookieState) ||
       !timingSafeEqual(Buffer.from(state), Buffer.from(cookieState))) {
       throw new WebAuthError('WEB_AUTH_STATE_INVALID');
     }
-    const consumed = await this.pool.query<{ code_verifier: string; nonce: string }>(
+    const consumed = await this.pool.query<{ code_verifier: string; nonce: string; return_to: '/app/' | '/admin/' }>(
       `DELETE FROM web_oauth_states
        WHERE state_hash = $1 AND redirect_uri = $2 AND expires_at > $3
-       RETURNING code_verifier, nonce`,
+       RETURNING code_verifier, nonce, return_to`,
       [digest(state), redirectUri, new Date()],
     );
     const pending = consumed.rows[0];
@@ -173,7 +181,7 @@ export class WebAuthService {
     const accountId = account.rows[0]?.account_id;
     if (!accountId) throw new WebAuthError('WEB_AUTH_ACCOUNT_NOT_FOUND');
     const session = await this.sessions.create(accountId, this.originHost(origin));
-    return { token: session.token };
+    return { token: session.token, returnTo: pending.return_to };
   }
 
   async resolveSession(token: string, origin: WebOrigin): Promise<string> {
