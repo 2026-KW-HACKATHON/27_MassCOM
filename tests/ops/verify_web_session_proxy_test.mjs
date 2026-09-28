@@ -28,6 +28,8 @@ createServer((request, response) => {
     response.writeHead(401);
   } else if (request.url === '/api/web/logout') {
     response.writeHead(204);
+  } else if (request.url === '/api/web/account-deletion-intake') {
+    response.writeHead(202);
   } else {
     response.writeHead(200);
   }
@@ -120,6 +122,9 @@ test('Caddy forwards allowlisted browser-session routes, preserving redirects an
     assert.equal(collection.status, 401);
     assert.equal(collection.headers.get('cache-control'), 'no-store');
     assert.equal((await fetch(`${url}/api/web/logout`, { method: 'POST' })).status, 204);
+    const intake = await fetch(`${url}/api/web/account-deletion-intake`, { method: 'POST' });
+    assert.equal(intake.status, 202);
+    assert.match(intake.headers.get('cache-control') ?? '', /no-store/);
 
     for (const path of ['/api/web/unknown', '/api/claim', '/api/mint']) {
       assert.equal((await fetch(`${url}${path}`)).status, 404, path);
@@ -196,6 +201,10 @@ test('Caddy serves the same limited web surface for exact apex and www hosts', a
       const adminApi = await requestForHost(url, '/api/web/admin/merchants', host);
       assert.equal(adminApi.headers['x-observed-host'], host, host);
       assert.equal(adminApi.headers['x-robots-tag'], 'noindex, nofollow', host);
+      const intake = await requestForHost(url, '/api/web/account-deletion-intake', host, 'POST');
+      assert.equal(intake.status, 202, host);
+      assert.equal(intake.headers['x-observed-host'], host, host);
+      assert.equal(intake.headers['x-robots-tag'], 'noindex, nofollow', host);
       for (const blocked of ['/HANDOFF.md', '/preview/.vercel/project.json', '/claim', '/mint', '/api/web/unknown']) {
         assert.equal((await requestForHost(url, blocked, host)).status, 404, `${host}${blocked}`);
       }

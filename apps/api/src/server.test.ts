@@ -7,6 +7,7 @@ import { Wallet } from 'ethers';
 import * as serverModule from './server.js';
 
 import type { AccountDeletionService } from './account-deletion.js';
+import type { AccountDeletionIntakeService } from './account-deletion-intake.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { GoogleIdTokenError } from './google-id-token.js';
 import { WebAuthError, type WebAuthHandler } from './web-auth.js';
@@ -179,6 +180,7 @@ async function startFixture(
   webAuth?: WebAuthHandler,
   wwwEnabled = false,
   admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>,
+  deletionIntake?: AccountDeletionIntakeService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -208,6 +210,7 @@ async function startFixture(
     wwwEnabled,
     undefined,
     admin,
+    deletionIntake,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -337,6 +340,69 @@ test('web logout rejects GET and missing or foreign Origin before revoking a coo
   assert.equal(response.status, 204);
   assert.deepEqual(revoked, ['token']);
   assert.match(response.headers.get('set-cookie') ?? '', /web_session=; Path=\/api\/web; Max-Age=0/);
+});
+
+test('web deletion intake accepts only same-origin JSON with the host-bound session', async (t) => {
+  const requested: string[] = [];
+  const webAuth: WebAuthHandler = {
+    start: async () => { throw new Error('unused'); },
+    complete: async () => { throw new Error('unused'); },
+    resolveSession: async (token, origin) => {
+      if (token !== 'valid-cookie' || origin !== 'https://masscom.kr') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'session-account';
+    },
+    logout: async () => {},
+  };
+  const intake: AccountDeletionIntakeService = {
+    request: async (accountId) => { requested.push(accountId); return { status: 'REQUESTED' }; },
+  };
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, { requestDeletion: async () => { throw new Error('must not delete'); } },
+    undefined, undefined, undefined, undefined, false, webAuth, true, undefined, intake);
+  const path = '/api/web/account-deletion-intake';
+  assert.equal((await webRequest(base, path)).status, 405);
+  for (const headers of [
+    { cookie: 'web_session=valid-cookie', 'content-type': 'application/json' },
+    { cookie: 'web_session=valid-cookie', origin: 'https://evil.example', 'content-type': 'application/json' },
+    { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr', 'content-type': 'text/plain' },
+  ]) {
+    assert.equal((await webRequest(base, path, { method: 'POST', headers })).status, 403);
+  }
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: {
+    origin: 'https://masscom.kr', 'content-type': 'application/json',
+  } })).status, 401);
+  assert.equal((await webRequest(base, path, { host: 'www.masscom.kr', method: 'POST', headers: {
+    origin: 'https://www.masscom.kr', cookie: 'web_session=valid-cookie', 'content-type': 'application/json',
+  } })).status, 401);
+  assert.deepEqual(requested, []);
+  const response = await webRequest(base, path, { method: 'POST', headers: {
+    origin: 'https://masscom.kr', cookie: 'web_session=valid-cookie', 'content-type': 'application/json',
+  }, body: JSON.stringify({ accountId: 'different-account' }) });
+  assert.equal(response.status, 202);
+  assert.deepEqual(await response.json(), { status: 'REQUESTED' });
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(requested, ['session-account']);
+});
+
+test('deletion Google sign-in returns to a fixed path', async (t) => {
+  const destinations: (string | undefined)[] = [];
+  const webAuth: WebAuthHandler = {
+    start: async (_origin, returnTo) => {
+      destinations.push(returnTo);
+      return { location: 'https://accounts.google.com/', state: 'deletion-state' };
+    },
+    complete: async () => ({ token: 'cookie', returnTo: '/account-deletion' }),
+    resolveSession: async () => 'account-1', logout: async () => {},
+  };
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth);
+  const started = await webRequest(base, '/api/web/auth/start?returnTo=account-deletion&next=https://evil.example');
+  assert.equal(started.status, 302);
+  assert.deepEqual(destinations, ['/account-deletion']);
+  const callback = await webRequest(base, '/api/web/auth/callback?code=once&state=deletion-state', {
+    headers: { cookie: 'web_auth_state=deletion-state' },
+  });
+  assert.equal(callback.headers.get('location'), '/account-deletion');
 });
 
 test('admin API uses only the host-bound web cookie and rejects unauthorized, foreign-origin, and non-JSON writes', async (t) => {
