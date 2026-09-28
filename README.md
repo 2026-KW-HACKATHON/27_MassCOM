@@ -38,6 +38,7 @@
 | 구분 | 바로 열기·받기 | 현재 상태 |
 | --- | --- | --- |
 | 운영 웹 | [www.masscom.kr/app/](https://www.masscom.kr/app/) | 실제 운영 데이터, Google 로그인·읽기 전용 본인 도감. Samsung Chrome의 www 로그인·재열기·로그아웃 확인 |
+| 운영 관리자 웹 | [www.masscom.kr/admin/](https://www.masscom.kr/admin/) | 별도 서버 관리자 권한으로 실제 점포만 관리. [운영 배포·주 계정 권한 1명](docs/evidence/operating-admin-deployment-2026-09-28.json) 확인, 인증된 브라우저의 점포 변경과 실제 점포 등록은 아직 `NOT_RUN` |
 | **시연 웹** | [설치 없이 바로 보기](https://www.masscom.kr/preview/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | 가상 점포 A·B·C와 예시 수집품을 표시하는 정적 시연, 실제 방문·NFT 실적 아님 |
 | 운영 Android 테스트 앱 | [test.3 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.3) | 운영 package·업로드 키 사전 릴리스. [Samsung 로그인·복원과 16KB 설치](docs/evidence/operating-android-test3-2026-09-28.json)는 확인했지만 Play 승인·실제 점포·현장 QR·운영 지갑 재검증은 아님 |
 | **시연 Android 앱** | [개인 비공개 Preview 4 APK](https://github.com/choijunhuk/MassCOM/releases/tag/showcase-android-v0.1.0-preview.4) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | 소스·서명·GitHub 해시와 같은 소스의 시연 API HTTPS는 확인. **Preview 4 휴대전화 설치·새 2분 고객 식별 QR·서로 다른 두 계정/두 휴대전화 수령은 아직 `NOT_RUN`**. [Preview 3의 같은 계정 카메라 수령](docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)은 이전 설치본 증거 |
@@ -52,7 +53,7 @@
 
 [Issue #205](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/205)의 Android 소스는 도감에서 현재 캠페인의 인정된 방문만 보상 진행으로 세고, 다음 수집품까지 남은 방문과 점포 상세 이동을 표시합니다. Preview 4 APK에는 이 코드가 포함되지만 실제 기기·TalkBack 확인은 `NOT_RUN`입니다.
 
-[운영 관리자 Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 첫 소스 구간은 기존 Google 웹 세션에 독립적인 서버 관리자 권한을 붙이고, 별도 `/admin/` 화면에서 **실제 점포만** 비공개 생성·수정·숨김 처리합니다. 유효한 미수령 QR이 있으면 숨김을 거절하고, 숨긴 뒤 새 QR 발급·재발급을 막습니다. 직원·캠페인·그림 관리와 실제 운영 계정 권한 부여·운영 HTTPS 배포는 이 브랜치의 완료 항목이 아니므로 현재 공개 웹 기능으로 안내하지 않습니다.
+[운영 관리자 Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 첫 구간은 기존 Google 웹 세션에 독립적인 서버 관리자 권한을 붙이고, 별도 [운영 관리자 웹](https://www.masscom.kr/admin/)에서 **실제 점포만** 비공개 생성·수정·숨김 처리합니다. 유효한 미수령 QR이 있으면 숨김을 거절하고, 숨긴 뒤 새 QR 발급·재발급을 막습니다. [운영 배포·권한 1명 검증](docs/evidence/operating-admin-deployment-2026-09-28.json)은 완료했지만 로그인한 브라우저의 실제 점포 업무는 `NOT_RUN`이고 운영 점포는 0곳입니다. 직원·캠페인·그림 관리는 후속 범위입니다.
 
 `www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 대회 조직의 과거 소스·APK 사전 릴리스는 공개됐지만 현재 개인 개발 저장소는 비공개이며, 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
 

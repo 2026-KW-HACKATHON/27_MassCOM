@@ -1,0 +1,55 @@
+{
+  "observedAt": "2026-09-28T04:52:25Z",
+  "repository": "choijunhuk/MassCOM (PRIVATE)",
+  "adminFoundation": {
+    "pullRequest": "https://github.com/choijunhuk/MassCOM/pull/5",
+    "mergeCommit": "139e12281ba45fda5bfe8a0e38d55e003d14ce4c",
+    "pullRequestCi": { "runId": 36376459806, "result": "PASS" },
+    "mainCi": { "runId": 36376966117, "result": "PASS" },
+    "firstCiFailure": "privacy log scanner rejected a dynamic CLI error code; fixed before merge"
+  },
+  "webImageRecovery": {
+    "pullRequest": "https://github.com/choijunhuk/MassCOM/pull/7",
+    "mergeCommit": "977a3859cd42cd739f8d15717ce66ce166e037f0",
+    "pullRequestCi": { "runId": 36378188546, "result": "PASS" },
+    "mainCi": { "runId": 36378762200, "result": "PASS" },
+    "initialFailure": "First operating deploy returned HTTP 500 on /admin/ because the production-web Docker image omitted admin.html; other public routes and both APIs returned 200.",
+    "repair": "Dockerfile includes admin.html; actual minimal Docker image contained admin HTML, JS and CSS; web-only rollout probed admin HTML before and after Caddy cutover."
+  },
+  "operatingServer": {
+    "apiImage": "masscom-api:139e12281ba4",
+    "webImage": "masscom-production-web:977a3859cd42",
+    "apiAndWebHealth": "PASS: healthy, restart count 0",
+    "databaseMigration": "PASS: schema_migrations count 17 to 21; newest 0022_platform_admin_role_audit.sql",
+    "backup": "PASS: /opt/masscom/backups/database-before-139e12281ba4.dump.fY9MIs, mode 600, custom-format archive, pg_restore --list readable; actual restore NOT_RUN",
+    "adminRole": "PASS: exactly one active platform admin matched the previously verified primary showcase STAFF Google subject to an existing operating Google identity, with one GRANT audit row; subject and account ID not printed or stored in this evidence",
+    "operatingMerchants": 0,
+    "operatingDemoMerchants": 0,
+    "showcaseMerchantsVisitsEntitlements": [3, 3, 2],
+    "showcaseApiAndDatabase": "PASS: original container IDs retained and restart counts stayed 0 during operating web-only recovery",
+    "runtimeConfig": "PASS: local deployment runtime file and server runtime file SHA-256 matched before full deploy"
+  },
+  "externalChecks": {
+    "wwwAdmin": 200,
+    "apexAdmin": 200,
+    "adminJavaScript": 200,
+    "adminCss": 200,
+    "unauthenticatedAdminMe": 401,
+    "adminWriteWithoutOrigin": 403,
+    "adminGoogleStart": "302 with prompt=select_account",
+    "wwwApp": 200,
+    "wwwPreview": 200,
+    "operatingApiHealth": 200,
+    "showcaseApiHealth": 200,
+    "adminNoindexNoStore": "PASS",
+    "unauthenticatedBrowserPage": "PASS: Playwright showed the Korean Google login link; no authenticated admin workflow was inferred"
+  },
+  "notRun": [
+    "authenticated primary Google account browser acceptance and actual merchant create/edit/hide",
+    "real merchant agreement and operational data entry",
+    "staff, campaign, collectible-art and status-management workflows",
+    "rollback execution and separate database restore drill",
+    "Google Play submission"
+  ],
+  "recovery": "Previous API and web images and a mode-600 database backup are retained. Web-only rollback can restore the earlier web image; reverting code does not automatically reverse additive database migrations."
+}
