@@ -1,0 +1,45 @@
+{
+  "observedAt": "2026-09-28T13:06:52Z",
+  "sourceCommit": "c1ea375e8b93918bd7a6fe62fda001e11b53c110",
+  "repositoryVisibility": "PRIVATE",
+  "pullRequest": "https://github.com/choijunhuk/MassCOM/pull/12",
+  "pullRequestCi": { "runId": 36424534075, "result": "PASS" },
+  "mainCi": { "runId": 36425274624, "result": "PASS" },
+  "operatingRuntime": {
+    "apiImage": "masscom-api:c1ea375e8b93",
+    "webImage": "masscom-production-web:c1ea375e8b93",
+    "health": "PASS: both healthy",
+    "databaseMigration": "PASS: 25 schema_migrations, unchanged by this release",
+    "backup": "PASS: /opt/masscom/backups/database-before-c1ea375e8b93.dump.6E7hvT, 87616 bytes, mode 600, custom-format pg_restore --list readable",
+    "restoreDrill": "PASS: restored backup into masscom_restore_check_c1ea375; migration count and 8 operating table counts matched the live source; temporary database dropped and absence verified",
+    "activePlatformAdmins": 1,
+    "operatingMerchants": 0,
+    "operatingMerchantMembers": 0,
+    "operatingClaimSlots": 0,
+    "operatingMintJobs": 0,
+    "showcaseMerchantsVisitsEntitlements": [3, 3, 2],
+    "showcaseApiImage": "masscom-showcase-api:6585614"
+  },
+  "externalHttps": {
+    "operatingApiHealth": 200,
+    "showcaseApiHealth": 200,
+    "wwwHome": 200,
+    "wwwApp": 200,
+    "wwwPreview": 200,
+    "wwwAdmin": 200,
+    "wwwMerchant": 200,
+    "merchantJavaScript": 200,
+    "merchantPageOneTimeQrAndCsp": "PASS: first-issue QR image element and data-image CSP present",
+    "unauthenticatedMerchantMe": 401,
+    "issueWithoutOrigin": 403,
+    "issueWithOriginWithoutSession": 401
+  },
+  "notRun": [
+    "actual authorized employee browser claim issuance",
+    "physical customer QR scan and two-device claim redemption",
+    "new Android installer verification",
+    "same-screen reissue source from feat/merchant-claim-reissue, not part of this deployed commit",
+    "Google Play submission"
+  ],
+  "recovery": "Previous API/web images and the mode-600 backup remain available. This release added no migration. A lost first issuance response returns replay metadata without the raw token; reissue is still follow-on source."
+}

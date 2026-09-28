@@ -57,7 +57,7 @@
 
 [운영 직원 등록](docs/OPERATING_STAFF_REGISTRATION.md)은 직원 자신의 Google 웹 계정과 실제 점포에 묶인 15분 코드를 운영자가 같은 점포에서 승인·회수하도록 연결합니다. 관리자에게 이메일이나 Google 식별자를 직접 입력시키지 않습니다. [STAFF 운영 배포](docs/evidence/operating-staff-deployment-2026-09-28.json)는 완료했고 `/merchant/` 외부 HTTPS·익명 접근 차단을 확인했습니다. 실제 직원 승인·고객 QR 촬영은 `NOT_RUN`입니다.
 
-운영 점주 웹의 고객 식별 QR 확인·실제 이용 확인·방문 수령 QR 표시는 `feat/merchant-web-claims` 소스 작업입니다. 운영 배포와 두 휴대전화의 촬영·수령은 아직 `NOT_RUN`이며, QR을 읽었다는 것만으로 보상이 생성되지는 않습니다.
+운영 점주 웹의 고객 식별 QR 확인·실제 이용 확인·방문 수령 QR 표시는 [PR #12의 운영 배포](docs/evidence/operating-merchant-qr-deployment-2026-09-28.json)까지 완료했습니다. QR을 읽었다는 것만으로 방문·보상이 생성되지는 않습니다. 실제 직원 로그인·두 휴대전화의 촬영과 수령은 `NOT_RUN`이며, 응답 손실 뒤 안전한 재발급 화면은 `feat/merchant-claim-reissue` 후속 소스입니다.
 
 메뉴·가격과 점포 제공 영업시간은 관리자 입력 후 공개 캠페인이 활성화된 점포의 운영 웹 목록과 Android 점포 상세에 표시합니다. [운영 API·웹 배포](docs/evidence/operating-merchant-menu-deployment-2026-09-28.json)는 완료했으며 입력 전에는 빈 상태를 표시하고 운영 점포 자료를 임의로 채우지 않습니다. 실제 점포 입력·공개 캠페인·최신 Android 설치본의 표시와 현장 확인은 `NOT_RUN`입니다.
 
