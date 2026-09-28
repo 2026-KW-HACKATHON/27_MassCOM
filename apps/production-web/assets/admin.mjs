@@ -111,6 +111,11 @@ export async function loadAdmin(fetcher, doc) {
       });
       list.append(form);
     }
+    if (payload.merchants.length === 0) {
+      const empty = doc.createElement('p');
+      empty.textContent = '등록된 점포가 없습니다. 점포 등록 양식에서 첫 점포를 비공개로 등록하세요.';
+      list.append(empty);
+    }
     status.textContent = payload.merchants.length ? `${payload.merchants.length}곳의 실제 상점입니다.` : '등록된 실제 상점이 없습니다.';
     content.hidden = false;
     logout.textContent = '로그아웃';

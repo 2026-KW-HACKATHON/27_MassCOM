@@ -11,23 +11,35 @@
 </head>
 <body>
   <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+  <header class="site-header">
+    <p class="brand"><span class="brand-mark" aria-hidden="true">月</span> MassCOM</p>
+    <nav aria-label="페이지 이동"><a href="/app/">고객용 운영 웹</a></nav>
+  </header>
   <main id="main">
-    <h1>MassCOM 관리자</h1>
-    <p id="admin-status" role="status" aria-live="polite">권한을 확인하는 중입니다.</p>
-    <a id="admin-login" href="/api/web/admin/auth/start" hidden>Google 계정으로 로그인</a>
-    <button id="admin-logout" type="button" hidden>로그아웃</button>
+    <div class="admin-heading">
+      <h1>실제 점포 관리</h1>
+      <p>운영 점포만 관리합니다. 시연 점포와 고객 방문 기록은 이 화면에 표시하지 않습니다.</p>
+    </div>
+    <p id="admin-status" class="status" role="status" aria-live="polite">권한을 확인하는 중입니다.</p>
+    <a id="admin-login" class="collection-action" href="/api/web/admin/auth/start" hidden>Google 계정으로 로그인</a>
+    <button id="admin-logout" class="collection-action secondary" type="button" hidden>로그아웃</button>
     <section id="admin-content" hidden>
-      <h2>실제 상점</h2>
-      <p>새 상점은 비공개로 저장됩니다. 비공개 및 신규 참여 중지는 활성 캠페인도 일시 중지합니다.</p>
-      <form id="admin-create">
-        <h3>상점 추가</h3>
-        <label>상점 이름 <input name="name" required maxlength="200"></label>
-        <label>소개 <textarea name="story" maxlength="4000"></textarea></label>
-        <label>도로명 주소 <input name="roadAddress" required maxlength="500"></label>
-        <label>최소 결제 금액(원) <input name="minimumSpendWon" type="number" min="0" max="1000000000" step="1" required></label>
-        <button type="submit">비공개로 저장</button>
-      </form>
-      <div id="admin-merchants"></div>
+      <h2>점포 운영</h2>
+      <p class="admin-intro">새 점포는 비공개로 저장됩니다. 점포를 숨기면 활성 캠페인의 신규 참여도 중지됩니다. 유효한 미수령 QR이 있으면 숨김은 보류됩니다.</p>
+      <div class="admin-grid">
+        <form id="admin-create" class="admin-panel">
+          <h3>점포 등록</h3>
+          <label>점포 이름 <input name="name" required maxlength="200"></label>
+          <label>소개 <textarea name="story" maxlength="4000"></textarea></label>
+          <label>도로명 주소 <input name="roadAddress" required maxlength="500"></label>
+          <label>최소 결제 금액(원) <input name="minimumSpendWon" type="number" min="0" max="1000000000" step="1" required></label>
+          <button type="submit">비공개로 등록</button>
+        </form>
+        <section class="admin-panel" aria-labelledby="registered-merchants">
+          <h3 id="registered-merchants">등록된 점포</h3>
+          <div id="admin-merchants" class="admin-merchant-list"></div>
+        </section>
+      </div>
     </section>
   </main>
 </body>

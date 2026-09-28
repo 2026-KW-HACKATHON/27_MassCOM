@@ -52,7 +52,7 @@
 
 [Issue #205](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/205)의 Android 소스는 도감에서 현재 캠페인의 인정된 방문만 보상 진행으로 세고, 다음 수집품까지 남은 방문과 점포 상세 이동을 표시합니다. Preview 4 APK에는 이 코드가 포함되지만 실제 기기·TalkBack 확인은 `NOT_RUN`입니다.
 
-[운영 관리자 Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 첫 소스 구간은 기존 Google 웹 세션에 독립적인 서버 관리자 권한을 붙이고, 별도 `/admin/` 화면에서 **실제 점포만** 비공개 생성·수정·숨김 처리합니다. 직원·캠페인·그림 관리와 실제 운영 계정 권한 부여·운영 HTTPS 배포는 이 브랜치의 완료 항목이 아니므로 현재 공개 웹 기능으로 안내하지 않습니다.
+[운영 관리자 Issue #3](https://github.com/choijunhuk/MassCOM/issues/3)의 첫 소스 구간은 기존 Google 웹 세션에 독립적인 서버 관리자 권한을 붙이고, 별도 `/admin/` 화면에서 **실제 점포만** 비공개 생성·수정·숨김 처리합니다. 유효한 미수령 QR이 있으면 숨김을 거절하고, 숨긴 뒤 새 QR 발급·재발급을 막습니다. 직원·캠페인·그림 관리와 실제 운영 계정 권한 부여·운영 HTTPS 배포는 이 브랜치의 완료 항목이 아니므로 현재 공개 웹 기능으로 안내하지 않습니다.
 
 `www.masscom.kr`은 포털·운영 웹(`/app/`)·읽기 전용 시연 웹(`/preview/`)의 대표 주소입니다. `api.masscom.kr`과 `demo-api.masscom.kr`은 서로 다른 운영/가상 데이터베이스에 연결됩니다. 대회 조직의 과거 소스·APK 사전 릴리스는 공개됐지만 현재 개인 개발 저장소는 비공개이며, 테스트 설치본을 Google Play 승인·일반 운영 출시로 보지 않습니다.
 

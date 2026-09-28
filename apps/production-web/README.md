@@ -6,4 +6,4 @@
 
 로컬 검사: `node --test tests/site/verify_production_web_test.mjs`, `node --test tests/ops/verify_web_session_proxy_test.mjs`, `bash tests/ops/run_aws_web_smoke.sh`. 외부 www `/app/`의 Android Chrome 단일 계정·호스트별 로그아웃과 기존 apex의 A/B 순차 로그인은 `PASS`; www의 별도 두 번째 계정과 실제 기록이 있는 두 계정의 교차 노출은 `NOT_RUN`입니다.
 
-별도 `/admin/` 소스는 기존 Google 웹 로그인 뒤 서버가 운영 관리자 권한을 다시 검사합니다. 실제 점포의 비공개 생성·수정·숨김만 제공하고, 숨길 때 활성 캠페인의 신규 참여도 멈춥니다. 모바일 고객 토큰이나 시연 STAFF 역할은 관리자 권한이 아닙니다. 권한 없는 계정에는 계정 전환 경로가 있습니다. 실제 권한 부여·운영 배포 전까지 공개 관리자 서비스로 표시하지 않습니다. [설계·남은 업무](../../docs/superpowers/specs/2026-09-28-admin-foundation-design.md)를 참고하세요.
+별도 `/admin/` 소스는 기존 Google 웹 로그인 뒤 서버가 운영 관리자 권한을 다시 검사합니다. 실제 점포의 비공개 생성·수정·숨김만 제공하고, 숨길 때 활성 캠페인의 신규 참여도 멈춥니다. 유효한 미수령 QR이 있으면 숨김은 거절되고 수령·만료 뒤 다시 시도할 수 있습니다. 모바일 고객 토큰이나 시연 STAFF 역할은 관리자 권한이 아닙니다. 권한 없는 계정에는 계정 전환 경로가 있습니다. 실제 권한 부여·운영 배포 전까지 공개 관리자 서비스로 표시하지 않습니다. [설계·남은 업무](../../docs/superpowers/specs/2026-09-28-admin-foundation-design.md)를 참고하세요.

@@ -309,6 +309,18 @@ test('관리 화면은 로그인·권한 거부·실제 상점 목록을 구분�
   assert.equal(nodes['admin-merchants'].children[0].children[0].textContent, '<script>alert(1)</script>');
 });
 
+test('관리 화면의 빈 점포 목록은 예시 자료 없이 등록 행동을 안내한다', async () => {
+  const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
+    'admin-merchants', 'admin-create', 'admin-logout'].map(id => [id, { ...element(), hidden: true }]));
+  const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+  await loadAdmin(async path => ({ ok: true, json: async () => path.endsWith('/me')
+    ? { admin: true } : { merchants: [] } }), doc);
+  assert.equal(nodes['admin-merchants'].children.length, 1);
+  assert.match(nodes['admin-merchants'].children[0].textContent, /등록된 점포가 없습니다/);
+  assert.match(nodes['admin-merchants'].children[0].textContent, /비공개로 등록/);
+  assert.doesNotMatch(nodes['admin-merchants'].children[0].textContent, /왼쪽/);
+});
+
 test('권한 없음과 정상 관리 화면에서 로그아웃 후 다른 Google 계정 로그인을 안내한다', async () => {
   for (const authorized of [false, true]) {
     const nodes = Object.fromEntries(['admin-status', 'admin-login', 'admin-content',
