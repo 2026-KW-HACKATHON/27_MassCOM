@@ -1,24 +1,28 @@
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
 import type { AppColors } from '../../theme/palette';
 import { uiMetrics } from '../../theme/ui-metrics';
+import type { WorldTheme } from '../../theme/world';
 
-export function makeAccountSettingsStyles(palette: AppColors, hairlineWidth = 1) {
+export function makeAccountSettingsStyles(palette: AppColors, world: WorldTheme, hairlineWidth = 1) {
   return {
-  content: { gap: 14, padding: uiMetrics.pageInset, paddingBottom: 52, backgroundColor: palette.background },
-  eyebrow: { color: palette.primary, fontSize: 14, fontWeight: '800' },
-  title: { color: palette.label, fontSize: 26, lineHeight: 34, fontWeight: '800', letterSpacing: -0.4 },
-  intro: { color: palette.secondaryLabel, fontSize: 14, lineHeight: 21 },
-  accountDiagnostic: { color: palette.secondaryLabel, fontSize: 12, lineHeight: 18 },
-  sessionActions: { gap: 10 },
+  // No background: the sky backdrop shows through.
+  content: { gap: 14, paddingHorizontal: uiMetrics.pageInset, paddingTop: 4 },
+  profile: { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, backgroundColor: world.card, borderRadius: world.radius.card },
+  profileCopy: { flex: 1, minWidth: 176, gap: 6 },
+  profileBadge: { width: 64, height: 64 } as ImageStyle,
+  title: { color: world.cardInk, fontSize: 22, lineHeight: 30, fontWeight: '800', letterSpacing: -0.3 },
+  intro: { color: world.cardMuted, fontSize: 14, lineHeight: 21 },
+  accountDiagnostic: { color: world.cardMuted, fontSize: 12, lineHeight: 18 },
+  sessionActions: { alignSelf: 'stretch', gap: 10, paddingTop: 4 },
   sessionButtonHost: { minHeight: uiMetrics.minTouch },
-  toolsSection: { gap: 8, paddingVertical: 10 },
-  sectionTitle: { color: palette.label, fontSize: 18, fontWeight: '800' },
+  groupCard: { gap: 8, backgroundColor: world.card, borderRadius: world.radius.card },
+  sectionTitle: { color: world.cardInk, fontSize: 18, fontWeight: '800' },
   secondaryLink: { minHeight: uiMetrics.minTouch, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: palette.primary },
   secondaryLinkText: { color: palette.primary, fontSize: 14, fontWeight: '800' },
   card: { gap: 7, paddingVertical: 14, borderTopWidth: hairlineWidth, borderTopColor: palette.separator },
-  cardTitle: { color: palette.label, fontSize: 16, fontWeight: '900' },
-  cardBody: { color: palette.secondaryLabel, fontSize: 14, lineHeight: 22 },
-  statusCard: { gap: 7, padding: 18, borderRadius: 18, backgroundColor: palette.primaryContainer },
+  cardTitle: { color: world.cardInk, fontSize: 16, fontWeight: '900' },
+  cardBody: { color: world.cardMuted, fontSize: 14, lineHeight: 22 },
+  statusCard: { gap: 7, padding: 18, borderRadius: world.radius.card, backgroundColor: palette.primaryContainer },
   statusTitle: { color: palette.onPrimaryContainer, fontSize: 16, fontWeight: '900' },
   statusBody: { color: palette.onPrimaryContainer, fontSize: 13, lineHeight: 20 },
   error: { padding: 14, borderRadius: 14, color: palette.onErrorContainer, backgroundColor: palette.errorContainer, lineHeight: 20 },
@@ -27,8 +31,8 @@ export function makeAccountSettingsStyles(palette: AppColors, hairlineWidth = 1)
   deleteButton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: palette.errorContainer },
   deleteButtonText: { color: palette.onErrorContainer, fontSize: 15, fontWeight: '900' },
   disabled: { opacity: 0.45 },
-  note: { color: palette.secondaryLabel, fontSize: 12, lineHeight: 19 },
-  blockedCard: { gap: 8, padding: 18, borderRadius: 18, backgroundColor: palette.errorContainer },
+  note: { color: world.skyMuted, fontSize: 12, lineHeight: 19 },
+  blockedCard: { gap: 8, padding: 18, borderRadius: world.radius.card, backgroundColor: palette.errorContainer },
   blockedTitle: { color: palette.onErrorContainer, fontSize: 15, fontWeight: '900' },
   blockedBody: { color: palette.onErrorContainer, fontSize: 13, lineHeight: 21 },
   } satisfies Record<string, ImageStyle | TextStyle | ViewStyle>;

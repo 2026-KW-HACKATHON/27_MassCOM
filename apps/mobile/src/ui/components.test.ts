@@ -44,3 +44,39 @@ test('passport stamp page reuses the collection stamp grid model and honours red
   // A slot's Link child must not receive a style array (#216).
   assert.match(page, /StyleSheet\.flatten\(/);
 });
+
+const readSource = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8');
+
+test('the role screen greets with the waving mascot and the logo badge instead of the blue square', () => {
+  const foundation = readSource('screens/foundation/index.tsx');
+  assert.match(foundation, /<Mascot pose="wave"/);
+  assert.match(foundation, /logo-badge/);
+  assert.match(foundation, /accessibilityLabel="손을 흔드는 마스코트"/);
+  assert.match(foundation, /월계 마스코트/);
+  assert.doesNotMatch(foundation, />masscom</);
+  // Role cards keep the existing hand-off to the caller.
+  assert.match(foundation, /onChooseRole\(nextRole\)/);
+});
+
+test('celebration cheers with the mascot and the reward reveal shows the gift pose', () => {
+  assert.match(readSource('gamification/celebration.tsx'), /pose="cheer"/);
+  assert.match(readSource('gamification/reward-reveal.tsx'), /pose="gift"/);
+});
+
+test('the account page can always be left: a back button sits on every state of the settings route', () => {
+  const back = read('back-header.tsx');
+  assert.match(back, /accessibilityLabel="뒤로"/);
+  assert.match(back, /router\.canGoBack\(\)/);
+  assert.match(back, /router\.replace\('\/'\)/);
+  const route = readSource('app/(tabs)/settings.tsx');
+  assert.match(route, /<BackHeader/);
+  assert.match(route, /<AuthRequiredRoute \/>/);
+});
+
+test('the account screen keeps deletion, logout and the development preview rules', () => {
+  const settings = readSource('screens/account-settings/index.tsx');
+  assert.match(settings, /deletionCapability\(credential, destructiveReauthentication\)/);
+  assert.match(settings, /runSessionAction\('logout'\)/);
+  assert.match(settings, /__DEV__\s*\?\s*\(/);
+  assert.match(settings, /<FloatingCard/);
+});

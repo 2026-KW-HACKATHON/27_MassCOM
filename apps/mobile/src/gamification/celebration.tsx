@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Ellipse, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { tierColors } from '@/theme/medal-colors';
+import { Mascot } from '@/ui/mascot';
 
 import type { BadgeBook } from './badge-api';
 import {
@@ -71,6 +72,9 @@ function CelebrationBody({ content, variant, onClose, onOpenCollection }: Props 
   const [stageCenterY, setStageCenterY] = useState<number>();
   const stage = celebrationStageSize(width, height);
   const featured = featuredRaisedMedal(content.diff);
+  // A rank-up brings the cheering mascot; the stamp shrinks a little so the buttons stay in reach.
+  const cheering = content.diff.raisedMedals.length > 0;
+  const stageSize = cheering ? Math.round(stage * 0.78) : stage;
   const openable = content.diff.newlyReady.length > 0;
   const hint = content.diff.raisedMedals.length === 0 && !openable
     ? closestNextGoal(content.after)
@@ -103,8 +107,9 @@ function CelebrationBody({ content, variant, onClose, onOpenCollection }: Props 
           const { y, height: stageHeight } = event.nativeEvent.layout;
           setStageCenterY(y + stageHeight / 2);
         }}>
-          <StampStage theme={theme} reduceMotion={reduceMotion} size={stage} />
+          <StampStage theme={theme} reduceMotion={reduceMotion} size={stageSize} />
         </View>
+        {cheering ? <Mascot pose="cheer" size={Math.min(140, Math.round(stage * 0.62))} /> : null}
 
         <Text ref={title} accessibilityRole="header" style={styles.celebrationTitle}>
           {content.merchantName} 도장 쾅!

@@ -41,3 +41,14 @@ test('the passport page keeps names, status lines and stamp ink readable on the 
     assert.ok((styles.stampSlot.minHeight as number) >= uiMetrics.minTouch);
   }
 });
+
+test('the back button is a touchable floating disc with a readable glyph and title', () => {
+  for (const [palette, world] of [[lightColors, lightWorld], [darkColors, darkWorld]] as const) {
+    const styles = makeUiStyles(palette, world);
+    assert.equal(styles.backButton.backgroundColor, world.card);
+    assert.ok((styles.backButton.minWidth as number) >= uiMetrics.minTouch);
+    assert.ok((styles.backButton.minHeight as number) >= uiMetrics.minTouch);
+    assert.ok(contrast(styles.backGlyph.color as string, world.card) >= 4.5);
+    for (const sky of world.sky) assert.ok(contrast(styles.backTitle.color as string, sky) >= 4.5);
+  }
+});

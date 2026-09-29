@@ -28,6 +28,13 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
       minWidth: uiMetrics.minTouch, minHeight: uiMetrics.minTouch, borderRadius: 999,
       alignItems: 'center', justifyContent: 'center',
     },
+    backButton: {
+      minWidth: uiMetrics.minTouch, minHeight: uiMetrics.minTouch, borderRadius: 999, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: world.card,
+      shadowColor: world.cardShadow, shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    },
+    backGlyph: { color: world.cardInk, fontSize: 28, fontWeight: '700', lineHeight: 32 },
+    backTitle: { color: world.skyInk, fontSize: 22, fontWeight: '800', lineHeight: 30 },
     sceneTitle: { color: world.cardInk, fontSize: 18, fontWeight: '800', textAlign: 'center' },
     sceneBody: { color: world.cardMuted, fontSize: 15, lineHeight: 22, textAlign: 'center' },
     // Passport stamp page: a cream paper card with a dashed edge; every slot is a round ink stamp.
