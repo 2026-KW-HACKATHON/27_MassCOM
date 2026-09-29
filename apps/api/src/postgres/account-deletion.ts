@@ -350,6 +350,11 @@ async function pseudonymizeAccount(
   await client.query('DELETE FROM friend_codes WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM explorer_profiles WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM friend_code_attempts WHERE account_id = $1', [accountId]);
+  // AI 가게 그림 라운드는 가게의 자산이라 지우지 않고 요청자 열만 비운다(가게 그림·비용 기록에는 계정 ID가 없다).
+  await client.query(
+    'UPDATE merchant_art_rounds SET requested_by_account_id = NULL WHERE requested_by_account_id = $1',
+    [accountId],
+  );
   // Enrollment rows are re-aliased, not deleted; the campaign slot they reserved is not
   // returned so enrolled_count never exceeds the promised enrollment_capacity.
   await client.query(

@@ -3,6 +3,7 @@ import type { Pool } from 'pg';
 import {
   MerchantAccessError,
   merchantPermissions,
+  merchantServerPermissions,
   type MerchantAccessControl,
   type MerchantAccessGrant,
   type MerchantPermission,
@@ -31,7 +32,8 @@ export class PostgresMerchantAccessControl implements MerchantAccessControl {
       [input.merchantId, input.accountId],
     );
     const membership = result.rows[0];
-    if (!membership || !merchantPermissions.includes(input.permission)) {
+    const known: readonly MerchantPermission[] = [...merchantPermissions, ...merchantServerPermissions];
+    if (!membership || !known.includes(input.permission)) {
       throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
     }
 

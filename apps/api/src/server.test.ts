@@ -1006,6 +1006,7 @@ test('lists public merchants without requiring login or a wallet', async (t) => 
       ],
     },
     demo: true,
+    artUrl: null,
   } as const;
   const baseUrl = await startFixture(t, developmentHeaderAccountResolver, {
     listPublicMerchants: async () => [merchant],

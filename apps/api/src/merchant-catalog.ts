@@ -22,6 +22,8 @@ export type PublicMerchant = {
   businessHours: string;
   campaign: PublicCampaign;
   demo: boolean;
+  // 사장님이 적용한 AI 그림의 상대 경로(`/merchant-art/<sha256>.webp`). 없으면 null이라 앱이 기본 그림을 쓴다.
+  artUrl: string | null;
 };
 
 export interface MerchantCatalog {
