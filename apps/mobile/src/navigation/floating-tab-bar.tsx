@@ -1,8 +1,7 @@
-import type { BottomTabBarProps } from 'expo-router/tabs';
-import { useEffect, useState, type ComponentProps } from 'react';
+import { BottomTabBarHeightCallbackContext, type BottomTabBarProps } from 'expo-router/tabs';
+import { useContext, useEffect, useState, type ComponentProps } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { lightHaptic } from '@/gamification/native-effects';
 import { motion } from '@/motion/timing';
@@ -26,13 +25,6 @@ function barHeightFor(fontScale: number): number {
   return fontScale >= 1.5 ? 76 : 64;
 }
 
-/** Space a scrolling screen must leave at its bottom so nothing hides behind the floating bar. */
-export function useTabBarClearance(): number {
-  const { fontScale } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  return barHeightFor(fontScale) + LIFT + GAP + insets.bottom + 16;
-}
-
 function useKeyboardShown(): boolean {
   const [shown, setShown] = useState(false);
   useEffect(() => {
@@ -48,12 +40,16 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
   const world = worldForScheme(useColorScheme());
   const { fontScale } = useWindowDimensions();
   const keyboardShown = useKeyboardShown();
+  const reportFootprint = useContext(BottomTabBarHeightCallbackContext);
   const height = barHeightFor(fontScale);
 
   const visible = state.routes.filter((route) => !isHidden(descriptors[route.key]?.options));
   const focusedKey = state.routes[state.index]?.key;
   // A screen reached through a hidden route (내 정보) reads as its own page, so the bar steps aside.
-  if (keyboardShown || !visible.some((route) => route.key === focusedKey)) return null;
+  const away = keyboardShown || !visible.some((route) => route.key === focusedKey);
+  const footprint = away ? 0 : height + LIFT + GAP + insets.bottom;
+  useEffect(() => { reportFootprint?.(footprint); }, [reportFootprint, footprint]);
+  if (away) return null;
 
   return (
     <View pointerEvents="box-none" style={[styles.wrapper, { height: height + LIFT, bottom: GAP + insets.bottom }]}>

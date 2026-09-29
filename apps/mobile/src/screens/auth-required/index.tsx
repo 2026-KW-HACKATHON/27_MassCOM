@@ -8,6 +8,7 @@ import type { AuthSessionState } from '@/auth/auth-provider';
 import { AuthControllerError } from '@/auth/auth-controller';
 import { statusAnnouncement } from '@/accessibility/status-copy';
 import { accountContextLabel } from '@/config/app-context';
+import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
 import { makeAuthRequiredStyles } from './styles';
 
@@ -23,6 +24,8 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole, o
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeAuthRequiredStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
+  // Inside the tabs the floating bar covers the bottom edge; at the root there is no bar and this stays 40 + inset.
+  const clearance = useTabBarClearance();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const restoring = state.status === 'restoring' || state.status === 'switchingAccount';
@@ -48,7 +51,7 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole, o
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}
+      contentContainerStyle={[styles.content, { paddingBottom: Math.max(40 + insets.bottom, clearance) }]}
     >
       <Text style={styles.eyebrow}>{accountContextLabel(Application.applicationId)}</Text>
       <Text selectable style={styles.title}>방문 기록을 안전하게{`\n`}이어서 확인합니다.</Text>

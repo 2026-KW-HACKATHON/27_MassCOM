@@ -38,6 +38,10 @@ test('the floating bar skips hidden routes and steps aside for the keyboard', ()
   assert.match(bar, /display === 'none'/);
   assert.match(bar, /keyboardDidShow/);
   assert.match(bar, /navigation\.emit\(\{ type: 'tabPress'/);
+  // Screens (including the sign-in and setup notices) size their bottom padding from the height the bar reports.
+  assert.match(bar, /BottomTabBarHeightCallbackContext/);
+  const clearance = readFileSync(fileURLToPath(new URL('./use-tab-bar-clearance.ts', import.meta.url)), 'utf8');
+  assert.match(clearance, /useContext\(BottomTabBarHeightContext\)/);
 });
 
 test('every primary screen offers the account avatar', () => {
@@ -45,6 +49,8 @@ test('every primary screen offers the account avatar', () => {
     const source = readFileSync(fileURLToPath(new URL(`../screens/${screen}/index.tsx`, import.meta.url)), 'utf8');
     assert.match(source, /<AppHeader/, screen);
   }
+  const claim = readFileSync(join(app, '(tabs)', 'claim.tsx'), 'utf8');
+  assert.match(claim, /<AppHeader/);
 });
 
 test('the UI preview entry is development-only and cannot replace account tools', () => {

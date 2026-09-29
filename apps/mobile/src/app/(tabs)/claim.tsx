@@ -3,6 +3,8 @@ import { publicApiConfig } from '@/config/public-api-runtime';
 import { ClaimRedeemScreen } from '@/screens/claim-redeem';
 import { DemoConfigurationRequired } from '@/screens/demo-configuration-required';
 import { AuthRequiredRoute } from '@/screens/auth-required/route';
+import { AppHeader } from '@/ui/app-header';
+import { SkyBackdrop } from '@/ui/sky-backdrop';
 
 export default function ClaimRedeemRoute() {
   const auth = useAuthSession();
@@ -15,11 +17,14 @@ export default function ClaimRedeemRoute() {
   }
 
   return (
-    <ClaimRedeemScreen
-      key={auth.accountId}
-      apiUrl={publicApiConfig.apiUrl}
-      credential={auth.credential}
-      onSessionInvalid={auth.invalidateSession}
-    />
+    <SkyBackdrop>
+      <AppHeader title="방문 인증" subtitle="가게에서 도장을 받아요" />
+      <ClaimRedeemScreen
+        key={auth.accountId}
+        apiUrl={publicApiConfig.apiUrl}
+        credential={auth.credential}
+        onSessionInvalid={auth.invalidateSession}
+      />
+    </SkyBackdrop>
   );
 }

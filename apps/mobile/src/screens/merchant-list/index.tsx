@@ -17,7 +17,7 @@ import type { PublicMerchant } from '@/merchant/merchant-api';
 import { filterMerchants, type MerchantAvailabilityFilter } from '@/merchant/filter-merchants';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { TabGlyph } from '@/navigation/tab-glyph';
-import { useTabBarClearance } from '@/navigation/floating-tab-bar';
+import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
