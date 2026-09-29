@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- **탐험 여권 운영·시연 배포와 Preview 7:** [Issue #222](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/222)에서 main `758f214`를 기존 Lightsail의 운영 API·웹(migration 27, 혜택·쿠폰·점주 0건)과 시연 API(migration 27, 가상 체험 혜택 3건)에 [배포](evidence/explorer-passport-deployment-2026-09-29.json)했다. `/presentation` 404·익명 `/api/web/badges` 401 no-store·두 API health 200을 외부 HTTPS로 확인했다. [시연 Preview 7 APK](evidence/showcase-preview7-release-2026-09-29.json)는 서명·GitHub digest 확인 뒤 공개 사전 릴리스로 게시했고 Samsung의 기존 앱 위 설치·첫 실행은 PASS, 로그인 뒤 메달→상자→쿠폰→점원 사용 처리·TalkBack은 NOT_RUN이다. 운영 실제 혜택은 점주 합의 전까지 0건을 유지하고, 공개 /open의 Preview 7 링크는 병합 뒤 웹 전용 재배포로 반영한다.
+
 - **발표 페이지 제거:** [Issue #220](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/220)에서 소유자 결정에 따라 공개 발표 페이지(`/presentation`)·발표 원고·발표 검사기를 제거했다. 팀은 발표 자료를 저장소 밖에서 준비하며, 발표 리허설·최종 영상은 계속 `NOT_RUN`이다. 발표와 무관한 필수 시험 합계·현장 성과 부풀림 금지 검사는 증거 정합 검사기로 옮겼고 과거 증거 파일은 기록으로 유지한다. 운영 Caddy의 `/presentation`은 다음 웹 배포 때 404가 된다. [결정 D-044](DECISIONS.md)
 
 - **웹 디자인 체계 통일:** [PR #217](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/217) merge bd8fc1a로 탐험 여권을 main에 넣은 뒤 [Issue #218](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/218)에서 모든 웹 화면을 앱 토큰·마스코트 머리글·카드·다크 모드로 맞추고, 운영 웹 도감을 앱과 같은 메달·상자·쿠폰 표현으로, 시연 웹에 탐험 여권 미리보기를 더했다. 디자인 토큰 5/5·운영 웹 74/74·시연 웹 30/30·시연 테마 1/1·웹 빌드/경로 4/4·세션 프록시 2/2 PASS, [전후 화면](evidence/web-design-system-2026-09-29/README.md). 공개 서버 반영은 NOT_RUN이다.

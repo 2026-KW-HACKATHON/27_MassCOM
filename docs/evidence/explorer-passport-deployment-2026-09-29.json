@@ -1,0 +1,86 @@
+{
+  "observedAt": "2026-09-29T01:24:00Z",
+  "sourceCommit": "758f214c68163bffdf83e30907182e639ac8146d",
+  "repositoryVisibility": "PUBLIC",
+  "pullRequests": [217, 219, 221],
+  "mainCi": { "runId": 36503411981, "result": "PASS" },
+  "ownerDecision": "2026-09-29 소유자가 운영 API+웹 함께 배포, 시연 API+Preview 7 진행을 선택",
+  "operating": {
+    "method": "scripts/deploy-lightsail.sh --dry-run 후 --deploy (기존 Lightsail masscom-api-seoul)",
+    "migrationCompatibility": "from fd0a9b2 to 758f214, backward_compatible=yes: API 변경은 PR #217 하나, 0027은 새 테이블 2개와 색인 3개만 추가",
+    "before": {
+      "apiImage": "masscom-api:fd0a9b2ebfc8",
+      "webImage": "masscom-production-web:2dda864ed5ee",
+      "schemaMigrations": "26 (0026_admin_campaign_draft_audit.sql)",
+      "merchants": 0
+    },
+    "after": {
+      "apiImage": "masscom-api:758f214c6816",
+      "webImage": "masscom-production-web:758f214c6816",
+      "deployedCommitMarker": "758f214c68163bffdf83e30907182e639ac8146d",
+      "schemaMigrations": "27 (0027_badge_rewards.sql)",
+      "badgeRewardOffers": 0,
+      "badgeCoupons": 0,
+      "merchants": 0,
+      "demoMerchants": 0
+    },
+    "backup": "PASS: /opt/masscom/backups/database-before-758f214c6816.dump.*, 87540 bytes, mode 600, 스크립트가 migration 전에 pg_restore --list 확인; 실제 복원 NOT_RUN",
+    "postgresContainerUnchanged": "PASS: e0d14fb7c803 전후 동일"
+  },
+  "showcase": {
+    "method": "기존 /opt/masscom-showcase 수동 절차: 소스 전송 → DB 백업 → 이미지 빌드 → migrate → showcase-api만 교체 → host seed",
+    "release": "/opt/masscom-showcase/releases/758f214c68163bffdf83e30907182e639ac8146d",
+    "before": {
+      "apiImage": "masscom-showcase-api:6585614",
+      "schemaMigrations": "18 (0019_customer_identity_tokens.sql, 0018 미적용)",
+      "merchants": "3 (모두 is_demo)"
+    },
+    "after": {
+      "apiImage": "masscom-showcase-api:758f214",
+      "schemaMigrations": "27: 0018과 0020~0027 적용. 0018은 독립 새 테이블 하나라 0019 뒤 적용도 안전",
+      "merchants": "3 (모두 is_demo)",
+      "badgeRewardOffers": [
+        "m1 ACTIVE 가상 점포 A / 체험 음료 1잔 / 30일",
+        "m2 ACTIVE 가상 점포 B / 체험 디저트 한 접시 / 30일",
+        "m3 ACTIVE 가상 점포 C / 체험 세트 20% 할인 / 30일"
+      ],
+      "badgeCoupons": 0,
+      "seed": "SHOWCASE_HOST_SEEDED (node dist/showcase/host-seed-command.js)"
+    },
+    "backup": "PASS: /opt/masscom-showcase/backups/pre-758f214-20260929.dump, 76638 bytes, mode 600, pg_restore --list 154 항목; 실제 복원 NOT_RUN",
+    "rollbackCompatibility": "0018·0020~0027은 모두 새 테이블·기본값 있는 열·CHECK 확장이라 이전 이미지 6585614로 되돌려도 스키마와 호환",
+    "postgresContainerUnchanged": "PASS: 7566e7c72cec 전후 동일",
+    "runtimeEnvNote": "서버 runtime.env의 MASSCOM_SHOWCASE_IMAGE_TAG는 이전 배포부터 7dba450으로 남아 있고 실제 태그는 명령 환경 변수로 지정했다. 이번에도 runtime.env는 수정하지 않았다."
+  },
+  "externalHttps": {
+    "operatingApiHealth": 200,
+    "showcaseApiHealth": 200,
+    "wwwHome": 200,
+    "apexHome": 200,
+    "open": 200,
+    "privacy": 200,
+    "accountDeletion": 200,
+    "presentation": 404,
+    "presentationHtml": 404,
+    "app": 200,
+    "appMascot": 200,
+    "merchant": 200,
+    "admin": 200,
+    "preview": 200,
+    "anonymousWebBadges": "401, cache-control no-store",
+    "anonymousWebCollection": 401,
+    "privateHandoffMarkdown": 404,
+    "assetlinks": 200,
+    "showcaseMerchants": "200, 가상 점포 A·B·C",
+    "showcaseAnonymousMeBadges": 401,
+    "operatingAnonymousMeBadges": 401,
+    "operatingMerchants": "200, 빈 목록"
+  },
+  "notRun": [
+    "실제 로그인 계정으로 운영 웹 탐험 여권 화면 확인",
+    "운영 실제 점주 혜택 등록과 쿠폰 발급 (D-043: 점주 합의 전 0건 유지)",
+    "시연 서버에서 메달→상자 열기→쿠폰 발급→점원 사용 처리 전 과정",
+    "DB 백업의 실제 복원"
+  ],
+  "recovery": "운영: 이전 API fd0a9b2·웹 2dda864 이미지와 runtime·Caddyfile·DB 백업이 남아 있다. 시연: 이전 이미지 6585614·7455791과 DB 백업이 남아 있다. migration은 자동으로 되돌리지 않으며, 볼륨 삭제는 복구 방법이 아니다."
+}
