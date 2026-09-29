@@ -173,4 +173,31 @@ if ! grep -Fxq 'scripts/verify-showcase-edge-routes.mjs' "$scratch/archive-membe
   exit 1
 fi
 
+# Issue #225: under pipefail, curl exits 23 when the reader on its pipe stops early
+# (grep -q/--quiet/-m, head, sed q). Join backslash continuations so multi-line pipes count too.
+early_exit_pipe='curl[^|]*\|[[:space:]]*(grep[^|]*(-[A-Za-z]*[qm]|--quiet|--max-count)|head|sed[^|]*[[:space:]]q)'
+joined_deploy="$(sed -e ':a' -e '/\\$/N' -e 's/\\\n//' -e 'ta' "$deploy")"
+if grep -En "$early_exit_pipe" <<< "$joined_deploy"; then
+  echo 'web deploy pipes curl into an early-exit reader; capture the body first (web_page_contains)' >&2
+  exit 1
+fi
+(
+  set -o pipefail
+  curl() {
+    [[ "$*" == *fail.invalid* ]] && return 22
+    head -c 200000 /dev/zero | tr '\0' 'a'
+    printf '\n실제 점포 관리\n'
+    head -c 200000 /dev/zero | tr '\0' 'b'
+  }
+  web_page_contains 'http://page.invalid/admin/' '실제 점포 관리'
+  if web_page_contains 'http://page.invalid/admin/' '점포 운영'; then
+    echo 'web_page_contains accepted a missing phrase' >&2
+    exit 1
+  fi
+  if web_page_contains 'http://fail.invalid/admin/' '실제 점포 관리'; then
+    echo 'web_page_contains ignored a failed request' >&2
+    exit 1
+  fi
+)
+
 echo 'Lightsail web-only deploy preflight verified'

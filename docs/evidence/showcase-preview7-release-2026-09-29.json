@@ -1,0 +1,36 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-09-29T01:32:00Z",
+  "sourceCommit": "758f214c68163bffdf83e30907182e639ac8146d",
+  "pullRequests": [217, 219, 221],
+  "mainCI": "36503411981 SUCCESS",
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.7",
+  "repositoryVisibility": "PUBLIC",
+  "releaseKind": "prerelease",
+  "artifact": {
+    "name": "MassCOM-showcase-android-758f214.apk",
+    "package": "kr.masscom.wolgye.demo",
+    "versionName": "0.1.0-test.2",
+    "versionCode": 2,
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "bytes": 155101897,
+    "sha256": "4a1d6b81ba535f5408b9e25ea5e2664f396d3e147b2969dc14cb2505a2584c9b",
+    "githubAssetDigest": "sha256:4a1d6b81ba535f5408b9e25ea5e2664f396d3e147b2969dc14cb2505a2584c9b",
+    "provenanceSha256": "b5aec6a603e2f7d760997fb37a28d8c5e971a905f36511cfba088d8f0146940a",
+    "signingCertificateSha256": "cdb0dc37750c907eaa2f1b9eb172b0911f14b9c9f2dab78b481f1751d8ebf28a"
+  },
+  "checks": {
+    "buildChecks": "PASS: api, package, sourceMarker, signature and walletSurface",
+    "localVsGithubSha256AndBytes": "PASS",
+    "remoteTagAndAssets": "PASS: APK, SHA256SUMS.txt and build-time provenance uploaded; tag targets 758f214",
+    "anonymousApkDownload": "PASS: HTTPS 200",
+    "deviceInstall": "PASS: Samsung SM-S928N adb install -r over the existing kr.masscom.wolgye.demo app returned Success and the first launch showed the role-selection screen"
+  },
+  "notRun": [
+    "logged-in flow on the phone: medal, reward box, coupon issue and staff redemption",
+    "TalkBack and large text on this APK",
+    "new two-minute customer identity QR and two-phone redemption",
+    "real coupon issue or redemption and Google Play submission"
+  ],
+  "limitations": "Preview 7 denotes GitHub release order; internal versionName/versionCode remain 0.1.0-test.2/2. This is a demo-only prerelease. Device evidence covers installation over the existing demo app and the first-launch role-selection screen only; the three seeded showcase offers are demo examples, not partner-store benefits."
+}

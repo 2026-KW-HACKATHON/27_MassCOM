@@ -14,7 +14,7 @@ Phase 2 핵심 loopback DEMO와 Phase 3 Local Anvil 발행·복구 흐름은 구
 
 - **중간 기획 재현 가능성 20점 / 최종 실현·상용화 가능성 30점:** [조직 PR #211](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/211)의 공개 Preview 5 APK 연결은 [apex/www 설치 안내 실측](evidence/public-open-preview5-deployment-2026-09-29.json)에서 HTTPS·소스 해시와 운영/시연 API·DB 보존까지 확인했다. 이는 Android Preview 5 설치·실제 가게·쿠폰 사용의 증거가 아니다.
 
-- **중간 창의성·차별성 20점 / 최종 창의성·차별성 20점:** [Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212)의 [동네 배지 설계·검증](NEIGHBORHOOD_BADGES.md)은 인정 방문→서로 다른 가게 탐험→배지 공유의 연결을 보여준다. 모바일·웹 자동 시험과 [운영 배지 웹 HTTPS·익명 경계](evidence/neighborhood-badges-web-deployment-2026-09-29.json), [시연 Preview 6 서명 APK](evidence/showcase-preview6-release-2026-09-29.json)는 PASS다. Android 새 화면·사람의 재방문 행동·실제 점주 쿠폰 사용은 NOT_RUN이며 시연 쿠폰은 할인 실적이 아니다.
+- **중간 창의성·차별성 20점 / 최종 창의성·차별성 20점:** [Issue #212](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/212)의 [동네 배지 설계·검증](NEIGHBORHOOD_BADGES.md)은 인정 방문→서로 다른 가게 탐험→배지 공유의 연결을 보여준다. 모바일·웹 자동 시험과 [운영 배지 웹 HTTPS·익명 경계](evidence/neighborhood-badges-web-deployment-2026-09-29.json), [시연 Preview 6 서명 APK](evidence/showcase-preview6-release-2026-09-29.json)는 PASS다. 이후 [운영·시연 배포](evidence/explorer-passport-deployment-2026-09-29.json)와 [시연 Preview 7](evidence/showcase-preview7-release-2026-09-29.json)의 서명·설치도 확인했다. Android 새 화면·사람의 재방문 행동·실제 점주 쿠폰 사용은 NOT_RUN이며 시연 쿠폰은 할인 실적이 아니다.
 
 - **중간 창의성·차별성 20점 / 최종 창의성·차별성 20점:** [Issue #216](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/216)의 [탐험 여권](NEIGHBORHOOD_BADGES.md)은 인정 방문→도장 축하→메달 등급→보상 상자→점원 확인 쿠폰→다음 가게로 이어지는 수집 순환을 서버 판정으로 구현했다. 쿠폰은 점주 동의 혜택이 있을 때만 발급해 상용화 시 비용 책임을 분리한다(D-043). [에뮬레이터·휴대전화 실측](evidence/explorer-passport-emulator-2026-09-29/README.md)으로 확인했고 실제 점포 쿠폰은 별도다.
 
