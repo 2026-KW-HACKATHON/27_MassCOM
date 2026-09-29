@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { blend, contrast, withAlpha } from '../theme/contrast';
 import { darkColors, lightColors } from '../theme/palette';
@@ -129,4 +131,19 @@ test('the caption on a store picture stays readable on its own pill', () => {
     assert.equal(styles.artNote.backgroundColor, world.card);
     assert.ok(contrast(styles.artNoteText.color as string, styles.artNote.backgroundColor as string) >= 4.5, 'picture caption');
   }
+});
+
+test('the passport stamp name keeps its second line on a real phone (411dp): simple line breaking and a little slack', () => {
+  // "가상 점포 A" lost its "A" on the Galaxy S24 Ultra: the 800-weight name measured to one line but painted wider, so the wrapped
+  // second line fell outside the measured box. Simple breaking makes measuring and painting agree, and the slack absorbs the rest.
+  for (const [palette, world] of [[lightColors, lightWorld], [darkColors, darkWorld]] as const) {
+    const styles = makeUiStyles(palette, world);
+    assert.ok((styles.stampName.paddingHorizontal as number) >= 2, 'horizontal slack on the name');
+    assert.equal(styles.stampName.lineHeight, 18);
+  }
+  const source = readFileSync(fileURLToPath(new URL('./passport-stamp-page.tsx', import.meta.url)), 'utf8');
+  const name = source.match(/<Text[^>]*style=\{styles\.stampName\}[^>]*>/)?.[0];
+  assert.ok(name, 'the stamp name Text');
+  assert.match(name, /textBreakStrategy="simple"/);
+  assert.match(name, /numberOfLines=\{2\}/);
 });

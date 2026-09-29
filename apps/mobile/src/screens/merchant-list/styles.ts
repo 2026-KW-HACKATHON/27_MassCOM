@@ -19,6 +19,13 @@ export function makeMerchantListStyles(palette: AppColors, world: WorldTheme, ha
   // Medal-coloured dot of the best tier; the fill and outline come from the tier, and it only exists with badge data.
   passportChipDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5 },
   passportChipText: { flexShrink: 1, color: world.cardInk, fontSize: 14, fontWeight: '800', lineHeight: 20 },
+  // The passport chip and the map link share one row; a narrow hero column wraps the second onto the next line.
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  mapChip: {
+    minHeight: uiMetrics.minTouch, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: world.radius.chip, backgroundColor: palette.primaryContainer,
+  },
+  mapChipText: { flexShrink: 1, color: palette.onPrimaryContainer, fontSize: 14, fontWeight: '800', lineHeight: 20 },
   discoveryTools: { gap: 12 },
   searchField: {
     minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 16,
