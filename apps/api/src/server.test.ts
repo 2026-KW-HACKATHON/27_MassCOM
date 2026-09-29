@@ -933,6 +933,128 @@ test('admin campaign draft remains private and requires the web administrator se
   assert.equal(writes.length, 1);
 });
 
+test('admin store go-live routes need the admin session, same-origin JSON and known keys, and map refusals', async (t) => {
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async token => {
+      if (token !== 'valid-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'admin-account';
+    },
+    logout: async () => {},
+  };
+  const calls: unknown[][] = [];
+  let refusal: AdminError | undefined;
+  const record = (name: string, result: unknown) => async (...args: unknown[]) => {
+    calls.push([name, ...args]);
+    if (refusal) throw refusal;
+    return result;
+  };
+  const merchant = { id: 'real-1', status: 'ACTIVE', consentDocumentRef: 'CS-2609-01' };
+  const offer = { id: '00000000-0000-4000-8000-000000000001', status: 'ACTIVE' };
+  const campaign = { id: 'campaign-1', status: 'ACTIVE', public: true };
+  const admin = {
+    isAdmin: async () => true,
+    publishMerchant: record('publishMerchant', merchant),
+    listOwners: record('listOwners', [{ accountId: 'owner-1', role: 'OWNER', grantedAt: '2026-09-30T00:00:00.000Z' }]),
+    promoteOwner: record('promoteOwner', { accountId: 'staff-1', role: 'OWNER' }),
+    demoteOwner: record('demoteOwner', { accountId: 'staff-1', role: 'STAFF' }),
+    listRewardOffers: record('listRewardOffers', [offer]),
+    createRewardOffer: record('createRewardOffer', offer),
+    pauseRewardOffer: record('pauseRewardOffer', { offer, replayed: false }),
+    listCampaigns: record('listCampaigns', [campaign]),
+    publishCampaign: record('publishCampaign', { campaign, replayed: false }),
+    pauseCampaign: record('pauseCampaign', { campaign, replayed: true }),
+  } as unknown as PostgresAdminService;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const cookie = { cookie: 'web_session=valid-cookie' };
+  const json = { ...cookie, origin: 'https://masscom.kr', 'content-type': 'application/json' };
+  const post = (path: string, body: unknown, headers: Record<string, string> = json) =>
+    webRequest(base, path, { method: 'POST', headers, body: JSON.stringify(body) });
+
+  assert.equal((await webRequest(base, '/api/web/admin/reward-offers')).status, 401);
+  assert.equal((await post('/api/web/admin/merchants/real-1/publish', { expectedVersion: 3, consentDocumentRef: 'CS-2609-01' },
+    { ...json, origin: 'https://evil.example' })).status, 403);
+  assert.equal((await post('/api/web/admin/merchants/real-1/publish', { expectedVersion: 3, consentDocumentRef: 'CS-2609-01' },
+    { ...json, 'content-type': 'text/plain' })).status, 403);
+  assert.equal((await post('/api/web/admin/merchants/real-1/publish',
+    { expectedVersion: 3, consentDocumentRef: 'CS-2609-01', status: 'ACTIVE' })).status, 400);
+  assert.equal((await post('/api/web/admin/merchants/real-1/publish', { consentDocumentRef: 'CS-2609-01' })).status, 400);
+  assert.equal(calls.length, 0);
+
+  const published = await post('/api/web/admin/merchants/real-1/publish', { expectedVersion: 3, consentDocumentRef: 'CS-2609-01' });
+  assert.equal(published.status, 200);
+  assert.deepEqual(await published.json(), { merchant });
+  const owners = await webRequest(base, '/api/web/admin/merchants/real-1/owners', { headers: cookie });
+  assert.deepEqual(await owners.json(), { owners: [{ accountId: 'owner-1', role: 'OWNER', grantedAt: '2026-09-30T00:00:00.000Z' }] });
+  assert.equal((await post('/api/web/admin/merchants/real-1/members/staff-1/promote-owner',
+    { verificationDocumentRef: 'OWN-01', businessNumber: '123-45-67890' })).status, 400);
+  const promoted = await post('/api/web/admin/merchants/real-1/members/staff-1/promote-owner', { verificationDocumentRef: 'OWN-01' });
+  assert.deepEqual(await promoted.json(), { member: { accountId: 'staff-1', role: 'OWNER' } });
+  const demoted = await post('/api/web/admin/merchants/real-1/members/staff-1/demote-owner',
+    { reason: 'OWNER_REQUEST', verificationDocumentRef: 'OWN-02' });
+  assert.deepEqual(await demoted.json(), { member: { accountId: 'staff-1', role: 'STAFF' } });
+  const offerBody = { merchantId: 'real-1', milestone: 1, title: '김밥', detail: '', validDays: 30, issuanceCap: 100,
+    consentDocumentRef: 'OF-01', consent: { benefit: true, ownerPaysCost: true, validity: true, issuanceCap: true, duplicateUse: true } };
+  assert.equal((await post('/api/web/admin/reward-offers', { ...offerBody, consentNote: '직접 적기' })).status, 400);
+  const created = await post('/api/web/admin/reward-offers', offerBody);
+  assert.equal(created.status, 201);
+  assert.deepEqual(await created.json(), { offer });
+  assert.deepEqual(await (await webRequest(base, '/api/web/admin/reward-offers', { headers: cookie })).json(), { offers: [offer] });
+  assert.equal((await post(`/api/web/admin/reward-offers/${offer.id}/pause`, { force: true })).status, 400);
+  assert.deepEqual(await (await post(`/api/web/admin/reward-offers/${offer.id}/pause`, {})).json(), { offer, replayed: false });
+  assert.deepEqual(await (await webRequest(base, '/api/web/admin/campaigns', { headers: cookie })).json(), { campaigns: [campaign] });
+  assert.deepEqual(await (await post('/api/web/admin/campaigns/campaign-1/publish', {})).json(), { campaign, replayed: false });
+  assert.deepEqual(await (await post('/api/web/admin/campaigns/campaign-1/pause', {})).json(), { campaign, replayed: true });
+  assert.deepEqual(calls, [
+    ['publishMerchant', 'admin-account', 'real-1', 3, 'CS-2609-01'],
+    ['listOwners', 'admin-account', 'real-1'],
+    ['promoteOwner', 'admin-account', 'real-1', 'staff-1', 'OWN-01'],
+    ['demoteOwner', 'admin-account', 'real-1', 'staff-1', { reason: 'OWNER_REQUEST', verificationDocumentRef: 'OWN-02' }],
+    ['createRewardOffer', 'admin-account', offerBody],
+    ['listRewardOffers', 'admin-account'],
+    ['pauseRewardOffer', 'admin-account', offer.id],
+    ['listCampaigns', 'admin-account'],
+    ['publishCampaign', 'admin-account', 'campaign-1'],
+    ['pauseCampaign', 'admin-account', 'campaign-1'],
+  ]);
+
+  for (const [code, status] of [['ADMIN_SELF_ROLE_CHANGE', 403], ['ADMIN_MEMBER_NOT_FOUND', 404], ['ADMIN_OWNER_LIMIT', 409],
+    ['ADMIN_ALREADY_OWNER', 409], ['ADMIN_MERCHANT_NOT_ACTIVE', 409], ['ADMIN_DOCUMENT_REF_INVALID', 400]] as const) {
+    refusal = new AdminError(code);
+    const response = await post('/api/web/admin/merchants/real-1/members/staff-1/promote-owner', { verificationDocumentRef: 'OWN-01' });
+    assert.equal(response.status, status, code);
+    assert.deepEqual(await response.json(), { code });
+  }
+  for (const [code, status] of [['ADMIN_MERCHANT_NOT_READY', 409], ['ADMIN_MERCHANT_ALREADY_ACTIVE', 409]] as const) {
+    refusal = new AdminError(code);
+    assert.equal((await post('/api/web/admin/merchants/real-1/publish', { expectedVersion: 3, consentDocumentRef: 'CS-01' })).status,
+      status);
+  }
+  for (const [code, status] of [['ADMIN_CONSENT_INCOMPLETE', 400], ['ADMIN_OFFER_MILESTONE_TAKEN', 409]] as const) {
+    refusal = new AdminError(code);
+    assert.equal((await post('/api/web/admin/reward-offers', offerBody)).status, status);
+  }
+  for (const [code, status] of [['ADMIN_CAMPAIGN_NOT_PUBLISHABLE', 409], ['ADMIN_CAMPAIGN_ACTIVE_EXISTS', 409],
+    ['ADMIN_CAMPAIGN_NOT_FOUND', 404], ['ADMIN_OFFER_NOT_FOUND', 404]] as const) {
+    refusal = new AdminError(code);
+    assert.equal((await post('/api/web/admin/campaigns/campaign-1/publish', {})).status, status);
+  }
+  refusal = undefined;
+
+  const denied = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    { ...admin, isAdmin: async () => false } as unknown as PostgresAdminService);
+  const before = calls.length;
+  for (const path of ['/api/web/admin/reward-offers', '/api/web/admin/campaigns', '/api/web/admin/merchants/real-1/owners']) {
+    assert.equal((await webRequest(denied, path, { headers: cookie })).status, 403);
+  }
+  assert.equal((await webRequest(denied, '/api/web/admin/merchants/real-1/members/staff-1/promote-owner', {
+    method: 'POST', headers: json, body: JSON.stringify({ verificationDocumentRef: 'OWN-01' }),
+  })).status, 403);
+  assert.equal(calls.length, before);
+});
+
 test('merchant registration uses host-bound web cookie and rejects foreign-origin writes', async (t) => {
   const returns: (string | undefined)[] = [];
   const webAuth: TestWebAuth = {
