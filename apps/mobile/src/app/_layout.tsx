@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthSessionProvider, useAuthSession } from '@/auth/auth-provider';
 import { AuthRequiredScreen } from '@/screens/auth-required';
 import { publicApiConfig } from '@/config/public-api-runtime';
+import { peekPendingFriendCode } from '@/friends/pending-friend-link';
 import { consumeMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, type ShowcaseRoleState } from '@/navigation/showcase-entry';
 import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseMerchantScreen } from '@/screens/showcase-merchant';
@@ -23,6 +24,8 @@ function Routes() {
     if (auth.state.status !== 'signedIn') return;
     const merchantId = consumeMerchantReturn();
     if (merchantId) router.replace({ pathname: '/merchants/[merchantId]', params: { merchantId } });
+    // A friend link opened while signed out continues at the friends tab, which asks about the code (it consumes it there).
+    else if (peekPendingFriendCode()) router.replace('/friends');
   }, [auth.state.status, router]);
   return (
     <Stack

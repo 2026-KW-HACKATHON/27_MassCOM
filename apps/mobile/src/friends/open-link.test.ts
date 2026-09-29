@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { parseOpenFragment, parseOpenLink } from './open-link';
+import { parseOpenFragment, parseOpenLink, resolveOpenTarget } from './open-link';
 
 test('routes a friend link and a merchant link, and nothing else', () => {
   assert.deepEqual(parseOpenLink('https://masscom.kr/open#friend=K7M2Q9XP'), { kind: 'friend', code: 'K7M2Q9XP' });
@@ -30,4 +30,14 @@ test('reads the fragment the router hands over without the leading #', () => {
   assert.deepEqual(parseOpenFragment('merchant=m1'), { kind: 'merchant', merchantId: 'm1' });
   assert.deepEqual(parseOpenFragment(''), { kind: 'none' });
   assert.deepEqual(parseOpenFragment(undefined), { kind: 'none' });
+});
+
+test('the full link wins, and the router fragment covers a platform that only hands over the route', () => {
+  assert.deepEqual(resolveOpenTarget('https://masscom.kr/open#friend=K7M2Q9XP', undefined), { kind: 'friend', code: 'K7M2Q9XP' });
+  assert.deepEqual(resolveOpenTarget('https://masscom.kr/open#merchant=m1', 'friend=K7M2Q9XP'), { kind: 'merchant', merchantId: 'm1' });
+  // Android may deliver the link with its fragment stripped while the router still parsed it into the route.
+  assert.deepEqual(resolveOpenTarget('https://masscom.kr/open', 'friend=K7M2Q9XP'), { kind: 'friend', code: 'K7M2Q9XP' });
+  assert.deepEqual(resolveOpenTarget(null, 'merchant=m1'), { kind: 'merchant', merchantId: 'm1' });
+  assert.deepEqual(resolveOpenTarget(null, undefined), { kind: 'none' });
+  assert.deepEqual(resolveOpenTarget('https://masscom.kr/open', undefined), { kind: 'none' });
 });

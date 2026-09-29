@@ -24,3 +24,9 @@ export function parseOpenFragment(fragment: string | null | undefined): OpenTarg
   if (!fragment) return none;
   return parseOpenLink(`${DEFAULT_LINK_ORIGIN}/open#${fragment.replace(/^#/, '')}`);
 }
+
+/** What the open route should do: the link the OS delivered first, then the fragment the router parsed out of the same link. */
+export function resolveOpenTarget(url: string | null | undefined, routerFragment: string | null | undefined): OpenTarget {
+  const fromUrl = parseOpenLink(url);
+  return fromUrl.kind !== 'none' ? fromUrl : parseOpenFragment(routerFragment);
+}
