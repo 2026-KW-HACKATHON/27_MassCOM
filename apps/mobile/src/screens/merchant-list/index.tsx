@@ -35,9 +35,6 @@ type Props = {
   apiUrl: string;
 };
 
-// Only the first screenful floats in one by one; rows that scroll into view later appear at once.
-const STAGGERED_ROWS = 8;
-
 export function MerchantListScreen({ apiUrl }: Props) {
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
@@ -192,12 +189,14 @@ export function MerchantListScreen({ apiUrl }: Props) {
           </View>
         }
         renderItem={({ item, index }) => {
-          const row = (
-            <View style={styles.itemWrap}>
-              <MerchantCard merchant={item} onOpen={openMerchant} />
-            </View>
+          // Stagger lets rows past the first screenful appear at once.
+          return (
+            <Stagger index={index}>
+              <View style={styles.itemWrap}>
+                <MerchantCard merchant={item} onOpen={openMerchant} />
+              </View>
+            </Stagger>
           );
-          return index < STAGGERED_ROWS ? <Stagger index={index}>{row}</Stagger> : row;
         }}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />

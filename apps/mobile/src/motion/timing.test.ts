@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { motion, stampTilt, staggerDelay } from './timing';
+import { motion, STAGGER_LIMIT, stampTilt, staggerDelay } from './timing';
 
 test('stagger delay grows by 50ms and stops growing after the eighth item', () => {
   assert.equal(staggerDelay(0), 0);
@@ -12,6 +12,17 @@ test('stagger delay grows by 50ms and stops growing after the eighth item', () =
   assert.equal(staggerDelay(8), 350);
   assert.equal(staggerDelay(120), 350);
   assert.equal(staggerDelay(-3), 0);
+});
+
+test('stagger delay ignores input that is not a finite number', () => {
+  assert.equal(staggerDelay(Number.NaN), 0);
+  assert.equal(staggerDelay(Number.POSITIVE_INFINITY), 0);
+  assert.equal(staggerDelay(Number.NEGATIVE_INFINITY), 0);
+});
+
+test('only the first screenful staggers in', () => {
+  assert.equal(STAGGER_LIMIT, 8);
+  assert.equal(staggerDelay(STAGGER_LIMIT - 1), 350);
 });
 
 test('stamp tilt is stable per merchant and stays within 12 degrees', () => {

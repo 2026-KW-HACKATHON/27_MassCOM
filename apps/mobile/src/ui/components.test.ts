@@ -11,6 +11,15 @@ test('every animated piece respects reduced motion', () => {
   }
 });
 
+test('stagger never strands content: no layout animation, a failsafe, and late rows render at once', () => {
+  const stagger = read('stagger.tsx');
+  // The claim tab once rendered only its header: content wrapped in an `entering` layout animation stayed at opacity 0.
+  assert.doesNotMatch(stagger, /entering=/);
+  assert.match(stagger, /index >= STAGGER_LIMIT/);
+  assert.match(stagger, /setTimeout\(\(\) => progress\.set\(1\)/);
+  assert.match(stagger, /clearTimeout\(/);
+});
+
 test('the header keeps account tools one tap away', () => {
   const header = read('app-header.tsx');
   assert.match(header, /href="\/settings"/);

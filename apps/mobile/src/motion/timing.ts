@@ -4,13 +4,19 @@ export const motion = {
   breatheMs: 3000,
   cloudMs: 40000,
   enterOffset: 12,
+  /** An entrance must be finished this long after it should have ended, even if the animation never ran. */
+  enterFailsafeMs: 1200,
 } as const;
 
-const STEP_MS = 50;
-const MAX_STEPS = 7;
+/** Only the first screenful floats in one by one; later rows (windowed lists) appear at once. */
+export const STAGGER_LIMIT = 8;
 
-/** Entry delay for the index-th list item; long lists never wait more than 350ms. */
+const STEP_MS = 50;
+const MAX_STEPS = STAGGER_LIMIT - 1;
+
+/** Entry delay for the index-th list item; long lists never wait more than 350ms, and a non-finite index waits not at all. */
 export function staggerDelay(index: number): number {
+  if (!Number.isFinite(index)) return 0;
   return Math.min(Math.max(0, Math.floor(index)), MAX_STEPS) * STEP_MS;
 }
 
