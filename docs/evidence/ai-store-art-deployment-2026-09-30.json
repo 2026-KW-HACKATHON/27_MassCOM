@@ -1,0 +1,70 @@
+{
+  "observedAt": "2026-09-30",
+  "sourceCommit": "f1bba2dd347f3b5e404203434343c8164a4fad7f",
+  "repositoryVisibility": "PUBLIC",
+  "pullRequests": [239],
+  "issue": 236,
+  "mainCi": { "runId": 36598828345, "result": "PASS" },
+  "operating": {
+    "method": "scripts/deploy-lightsail.sh --deploy (existing production Lightsail); the api container started 2026-09-29T16:36:27Z",
+    "migrationCompatibility": "from 87e98f4 to f1bba2d, backward_compatible=yes: 0029 is additive only (the migration diff 87e98f4..f1bba2d is only 0029_merchant_art.sql)",
+    "before": {
+      "compatibilityBaseCommit": "87e98f4 (the previous full deploy, friends-deployment-2026-09-29.json)"
+    },
+    "after": {
+      "deployedCommitMarker": "f1bba2d",
+      "containers": "api, production-web and caddy healthy",
+      "aiArtTables": [
+        "ai_art_spend",
+        "merchant_art",
+        "merchant_art_images",
+        "merchant_art_rounds"
+      ],
+      "aiArtStartupLog": "AI store art: disabled (OPENAI_API_KEY is empty)"
+    },
+    "backup": "PASS: two pre-migration dumps under /opt/masscom/backups, both listed on the host by the orchestrator: (1) scripts/deploy-lightsail.sh's own database-before-f1bba2dd347f.dump.dnZkTu, 103256 bytes, 2026-09-29 16:35Z; (2) a manual pre-f1bba2d-20260930.dump that the orchestrator took just before the deploy, 218 entries, 103256 bytes, mode 600; actual restore NOT_RUN",
+    "note": "Production OPENAI_API_KEY stays empty by decision (D-050: production has no owner channel), so AI store art is disabled in production and no OpenAI call can be made from it. /merchants returns {\"merchants\":[]}."
+  },
+  "showcase": {
+    "method": "manual compose under /opt/masscom-showcase: source transfer, pre-deploy DB backup, image build, migrate, showcase-api replaced, host seed",
+    "release": "/opt/masscom-showcase/releases/f1bba2d…",
+    "before": {
+      "apiImage": "masscom-showcase-api:87e98f4 (last recorded deployment, friends-deployment-2026-09-29.json)"
+    },
+    "after": {
+      "apiImage": "masscom-showcase-api:f1bba2d",
+      "migrationOutput": "database migrations applied",
+      "container": "showcase-api recreated and healthy (started 2026-09-29T16:37:15Z)",
+      "seed": "SHOWCASE_HOST_SEEDED",
+      "aiArtTables": [
+        "ai_art_spend",
+        "merchant_art",
+        "merchant_art_images",
+        "merchant_art_rounds"
+      ],
+      "aiArtStartupLog": "AI store art: disabled (OPENAI_API_KEY is empty)",
+      "staffMayManage": "the showcase compose sets AI_ART_STAFF_MAY_MANAGE=true; no key yet"
+    },
+    "backup": "PASS: /opt/masscom-showcase/backups/pre-f1bba2d-20260930.dump, 218 entries, 105671 bytes, mode 600; actual restore NOT_RUN"
+  },
+  "externalHttps": {
+    "operatingApiHealth": 200,
+    "operatingMerchantArtUnknownSha": "404 for GET /merchant-art/<64 hex>.webp with a sha that does not exist",
+    "operatingMerchants": "{\"merchants\":[]}",
+    "showcaseApiHealth": 200,
+    "privacyBodySha256Prefix": "301e8cb0fa428664, the same on https://masscom.kr/privacy and https://www.masscom.kr/privacy and equal to the repository docs/privacy.html (which includes the OpenAI processor and overseas-transfer notice)"
+  },
+  "pendingOwnerSteps": [
+    "put SHOWCASE_OPENAI_API_KEY into /opt/masscom-showcase/runtime.env and confirm the monthly budget (default USD 5)",
+    "confirm the OpenAI privacy contact and fill it into docs/privacy.html",
+    "recreate showcase-api and check that the startup log reads 'AI store art: enabled'",
+    "measure the cost and latency of the first real calls and recalibrate the $0.18 estimate"
+  ],
+  "notRun": [
+    "real AI generation on either server (no OpenAI key): drafts, final image, apply and customer display of a real AI image, real per-call cost and latency",
+    "a real owner flow on production (production has no owner-grant path, the key is empty and /merchants is empty)",
+    "restoring the production or showcase DB backups",
+    "public /open showing the Preview 10 link (needs a web-only redeploy after the docs change merges)"
+  ],
+  "recovery": "Migration 0029 is additive and is not reverted automatically; volume deletion is not a recovery method. Production has the deploy script's dump and the manual dump above, and the showcase DB has the pre-f1bba2d dump above; no restore was run."
+}
