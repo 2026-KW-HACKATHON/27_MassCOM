@@ -674,14 +674,15 @@ test('the audit action CHECK accepts the actions of every migration so 0030 and 
        VALUES ($1, '감사 기록 시험 식당', '', '서울', 0, 'ACTIVE', true)`, [merchant]);
     const storeActions = ['MERCHANT_CREATED', 'MERCHANT_UPDATED', 'MERCHANT_HIDDEN', 'CAMPAIGN_DRAFT_CREATED', 'COUPON_VOIDED'];
     const deletionActions = ['ACCOUNT_DELETION_PROCESSED', 'ACCOUNT_DELETION_REJECTED', 'ACCOUNT_DELETION_RECONCILED'];
+    const actor = `audit-check-${randomUUID()}`;
     const insert = `INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, after_state)
-                    VALUES (gen_random_uuid(), 'audit-check', $1, $2, '{}')`;
+                    VALUES (gen_random_uuid(), '${actor}', $1, $2, '{}')`;
     for (const action of storeActions) await pool.query(insert, [merchant, action]);
     for (const action of deletionActions) await pool.query(insert, [null, action]);
     await assert.rejects(pool.query(insert, [merchant, 'MERCHANT_DELETED']), /platform_admin_audit_action_check/);
     await assert.rejects(pool.query(insert, [null, 'ACCOUNT_DELETION_UNKNOWN']), /platform_admin_audit_action_check/);
     assert.equal((await pool.query(
-      `SELECT count(*)::int AS n FROM platform_admin_audit WHERE actor_account_id = 'audit-check'`)).rows[0].n,
+      `SELECT count(*)::int AS n FROM platform_admin_audit WHERE actor_account_id = $1`, [actor])).rows[0].n,
       storeActions.length + deletionActions.length);
   });
 });

@@ -20,7 +20,7 @@
 4. **결과 확인:** 처리 뒤에는 계정과 로그인이 없으므로 접수번호가 결과를 확인하는 유일한 수단입니다(`POST /api/web/account-deletion-status`, 로그인 불필요, IP당 분당 30회). 상태·날짜·거절 사유·삭제 ledger 상태만 돌려주고 계정 ID·이메일은 없습니다. 제출된 거래가 있으면 ledger가 `WAITING_FOR_MINT_FINALITY`로 보이고, 관리자 화면을 열 때(또는 시연 CLI `reconcile`) 다시 세어 `COMPLETED`로 진행합니다(이전에는 삭제한 계정이 다시 요청할 때만 진행돼 영원히 진행되지 않았습니다).
 5. **시연 앱:** 시연 앱은 웹 삭제 페이지가 없어 앱 안(Bearer 세션)에서 접수하고 접수번호를 봅니다. 운영자는 시연 서버의 CLI(`admin:deletion`)로 같은 서비스 코드(취소 기간·감사 기록 동일, `processed_by='cli:<운영자>'`)를 써 처리합니다.
 
-접수 표에는 처리·취소·거절 뒤 원 계정 ID가 남지 않습니다(CHECK). 접수번호 해시와 접수·처리 날짜·결과만 남습니다. 자세한 설계는 [설계 문서](superpowers/specs/2026-09-30-account-deletion-processing-design.md)에 있습니다.
+접수 표에는 처리·취소·거절 뒤 원 계정 ID가 남지 않습니다(CHECK). 남는 것은 접수번호 해시, 접수·취소 마감·처리 기한·취소·처리 날짜, 결과, 접수 경로(`source`), 처리한 방식(`processed_by`: `admin-web` 또는 `cli:<운영자>`), 운영자가 처리하지 않기로 할 때 직접 적은 `reject_reason`, 삭제 ledger 연결이며, 처리·거절은 `platform_admin_audit`에 요청 번호(intake ID)와 처리한 운영자로 남습니다. 처리 기한 7일은 운영자가 직접 처리해야 지켜지는 약속이라 자동으로 보장되지 않고, 관리자 목록이 기한 초과를 표시합니다. 자세한 설계는 [설계 문서](superpowers/specs/2026-09-30-account-deletion-processing-design.md)에 있습니다.
 
 ## 구현된 로컬 처리
 
