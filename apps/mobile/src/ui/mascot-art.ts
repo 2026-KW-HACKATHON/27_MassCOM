@@ -1,4 +1,4 @@
-// D-045: 승인된 마스코트와 같은 화풍으로 Codex가 그린 포즈 세트. 출처는 v2/SOURCES.md.
+// D-045: 승인된 마스코트와 같은 화풍으로 Codex(내장 이미지 생성)으로 그린 포즈 세트. 출처는 v2/SOURCES.md.
 export type MascotPose =
   | 'wave' | 'explore-map' | 'stamp' | 'gift' | 'sleep'
   | 'puzzled' | 'friends' | 'search' | 'cheer' | 'logo-badge';

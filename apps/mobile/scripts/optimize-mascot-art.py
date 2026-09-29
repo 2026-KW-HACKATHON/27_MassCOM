@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Codex 원본을 앱용 크기로 줄인다. 포즈는 긴 변 512px·팔레트 PNG(알파 유지), 배경은 1080px."""
+"""Codex(내장 이미지 생성)으로 그린 원본을 앱용 크기로 줄인다. 포즈는 긴 변 512px·팔레트 PNG(알파 유지), 배경은 1080px."""
 import sys
 from pathlib import Path
 from PIL import Image

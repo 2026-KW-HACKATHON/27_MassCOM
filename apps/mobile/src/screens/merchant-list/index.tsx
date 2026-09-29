@@ -81,7 +81,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
                     <Pressable accessibilityRole="button" style={styles.passportChip}>
                       <View accessible={false} style={styles.passportChipDot} />
                       <Text style={styles.passportChipText}>
-                        {auth.accountId ? '탐험 여권 · 도감에서 내 도장 보기' : '로그인하면 여권이 열려요'}
+                        {auth.accountId ? '내 탐험 여권 보기' : '로그인하면 여권이 열려요'}
                       </Text>
                     </Pressable>
                   </Link>

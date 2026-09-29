@@ -37,6 +37,17 @@ test('a pressable card lays out like a static one: layout props on the Pressable
   assert.match(card, /styles\.card, inner/);
 });
 
+test('screen copy fits its space and does not repeat the heading below it', () => {
+  const list = readSource('screens/merchant-list/index.tsx');
+  // The longer chip text wrapped to two lines at 360dp.
+  assert.match(list, /auth\.accountId \? '내 탐험 여권 보기' : '로그인하면 여권이 열려요'/);
+  assert.doesNotMatch(list, /도감에서 내 도장 보기/);
+  const collection = readSource('screens/collection/index.tsx');
+  assert.match(collection, /<AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" \/>/);
+  // The passport hero under the header already says "나의 탐험 여권".
+  assert.doesNotMatch(collection, /<AppHeader title="나의 탐험 여권"/);
+});
+
 test('the header keeps account tools one tap away', () => {
   const header = read('app-header.tsx');
   assert.match(header, /href="\/settings"/);

@@ -305,7 +305,7 @@ export function CollectionScreen({
 
   const sky = (body: ReactNode) => (
     <SkyBackdrop>
-      <AppHeader title="나의 탐험 여권" subtitle="가본 가게마다 도장이 찍혀요" />
+      <AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" />
       {body}
     </SkyBackdrop>
   );

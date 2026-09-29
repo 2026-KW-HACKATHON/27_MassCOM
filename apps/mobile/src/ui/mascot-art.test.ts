@@ -23,3 +23,11 @@ test('mascot art sources are recorded', () => {
   const sources = readFileSync(dir + 'SOURCES.md', 'utf8');
   for (const pose of poses) assert.ok(sources.includes(pose), pose);
 });
+
+test('the art provenance comments say the same thing as SOURCES.md: drawn by Codex with built-in image generation', () => {
+  const sources = readFileSync(dir + 'SOURCES.md', 'utf8');
+  assert.match(sources, /built-in `image_gen`/);
+  const art = readFileSync(fileURLToPath(new URL('./mascot-art.ts', import.meta.url)), 'utf8');
+  const script = readFileSync(fileURLToPath(new URL('../../scripts/optimize-mascot-art.py', import.meta.url)), 'utf8');
+  for (const source of [art, script]) assert.match(source, /Codex\(내장 이미지 생성\)으로 그/);
+});
