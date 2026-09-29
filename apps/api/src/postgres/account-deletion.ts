@@ -24,7 +24,7 @@ type ServiceOptions = Pick<Options, 'hmacSecret' | 'policyVersion'> &
     accountLifecycle?: PostgresAccountLifecycle;
   };
 
-type RequestRow = {
+export type RequestRow = {
   id: string;
   deleted_account_alias: string;
   status: AccountDeletionStatus;
@@ -36,7 +36,7 @@ type RequestRow = {
 };
 
 const defaultOptions = {
-  nextRequestId: () => randomUUID(),
+  nextRequestId: (): string => randomUUID(),
   now: () => new Date(),
   requireRecentSession: false,
 };
@@ -74,8 +74,6 @@ export class PostgresAccountDeletionService implements AccountDeletionService {
       throw new AuthSessionError('SESSION_REQUIRED');
     }
 
-    const referenceHash = this.accountLifecycle.referenceHash(input.accountId);
-    const deletedAlias = `deleted:${referenceHash.toString('hex')}`;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -83,51 +81,65 @@ export class PostgresAccountDeletionService implements AccountDeletionService {
       const now = input.sessionToken
         ? await assertRecentSession(client, input.accountId, input.sessionToken, this.options.now)
         : this.options.now();
-
-      const existing = await findRequest(client, referenceHash);
-      if (existing) {
-        const reconciled = await reconcileExistingRequest(client, existing, now);
-        await client.query('COMMIT');
-        return mapResult(reconciled, true);
-      }
-
-      const counts = await mintCounts(client, input.accountId, now);
-      await cancelUnsentMintJobs(client, input.accountId, now);
-      await pseudonymizeAccount(client, input.accountId, deletedAlias, now);
-
-      const status: AccountDeletionStatus =
-        counts.pendingMintJobs > 0 ? 'WAITING_FOR_MINT_FINALITY' : 'COMPLETED';
-      const inserted = (
-        await client.query<RequestRow>(
-          `INSERT INTO account_deletion_requests (
-             id, account_reference_hash, deleted_account_alias, status, policy_version,
-             cancelled_mint_jobs, pending_mint_jobs, retained_finalized_nfts,
-             requested_at, completed_at, updated_at
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $9)
-           RETURNING id, deleted_account_alias, status, cancelled_mint_jobs,
-                     pending_mint_jobs, retained_finalized_nfts, requested_at, completed_at`,
-          [
-            this.options.nextRequestId(),
-            referenceHash,
-            deletedAlias,
-            status,
-            this.options.policyVersion,
-            counts.cancelledMintJobs,
-            counts.pendingMintJobs,
-            counts.retainedFinalizedNfts,
-            now,
-            status === 'COMPLETED' ? now : null,
-          ],
-        )
-      ).rows[0]!;
+      const { row, replayed } = await this.forgetInTransaction(client, input.accountId, now);
+      // A filing made through the web page is closed by the deletion itself, so no raw account ID stays behind (#194).
+      await markIntakeProcessed(client, input.accountId, row.id, now, 'self-service');
       await client.query('COMMIT');
-      return mapResult(inserted, false);
+      return mapResult(row, replayed);
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * The forget core, shared by the D-026 self-service path above and the operator path (#194, D-051).
+   * The caller owns the transaction and already holds `lockForDeletion` for this account; the recent-session
+   * check is the self-service path's concern only.
+   */
+  async forgetInTransaction(
+    client: PoolClient,
+    accountId: string,
+    now: Date,
+  ): Promise<{ row: RequestRow; replayed: boolean }> {
+    const referenceHash = this.accountLifecycle.referenceHash(accountId);
+    const deletedAlias = `deleted:${referenceHash.toString('hex')}`;
+
+    const existing = await findRequest(client, referenceHash);
+    if (existing) return { row: await reconcileExistingRequest(client, existing, now), replayed: true };
+
+    const counts = await mintCounts(client, accountId, now);
+    await cancelUnsentMintJobs(client, accountId, now);
+    await pseudonymizeAccount(client, accountId, deletedAlias, now);
+
+    const status: AccountDeletionStatus =
+      counts.pendingMintJobs > 0 ? 'WAITING_FOR_MINT_FINALITY' : 'COMPLETED';
+    const inserted = (
+      await client.query<RequestRow>(
+        `INSERT INTO account_deletion_requests (
+           id, account_reference_hash, deleted_account_alias, status, policy_version,
+           cancelled_mint_jobs, pending_mint_jobs, retained_finalized_nfts,
+           requested_at, completed_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $9)
+         RETURNING id, deleted_account_alias, status, cancelled_mint_jobs,
+                   pending_mint_jobs, retained_finalized_nfts, requested_at, completed_at`,
+        [
+          this.options.nextRequestId(),
+          referenceHash,
+          deletedAlias,
+          status,
+          this.options.policyVersion,
+          counts.cancelledMintJobs,
+          counts.pendingMintJobs,
+          counts.retainedFinalizedNfts,
+          now,
+          status === 'COMPLETED' ? now : null,
+        ],
+      )
+    ).rows[0]!;
+    return { row: inserted, replayed: false };
   }
 }
 
@@ -275,7 +287,7 @@ async function pseudonymizeAccount(
     [now, accountId],
   );
   await client.query('DELETE FROM auth_identities WHERE account_id = $1', [accountId]);
-  await client.query('DELETE FROM account_deletion_intake_requests WHERE account_id = $1', [accountId]);
+  // The web/app filing row for this account is closed by markIntakeProcessed once the ledger row exists (#194).
   await client.query('DELETE FROM platform_admins WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM staff_registration_requests WHERE account_id = $1', [accountId]);
   await client.query(`UPDATE staff_registration_audit SET actor_account_id = $1
@@ -390,6 +402,51 @@ async function findRequest(
       [referenceHash],
     )
   ).rows[0];
+}
+
+/** Closes the account's active filing (if any) as processed and drops its raw account ID; returns whether one existed. */
+export async function markIntakeProcessed(
+  client: PoolClient,
+  accountId: string,
+  ledgerId: string,
+  now: Date,
+  processedBy: string,
+): Promise<boolean> {
+  const closed = await client.query(
+    `UPDATE account_deletion_intake_requests
+     SET status = 'PROCESSED', account_id = NULL, processed_at = $3, processed_by = $4, deletion_request_id = $2
+     WHERE account_id = $1`,
+    [accountId, ledgerId, now, processedBy],
+  );
+  return closed.rowCount === 1;
+}
+
+/**
+ * Advances ledgers that were left at WAITING_FOR_MINT_FINALITY. Before #194 this only ran when the deleted account
+ * itself replayed its request, which cannot happen once its sessions are revoked, so a ledger never completed.
+ */
+export async function reconcileWaitingRequests(
+  client: PoolClient,
+  now: Date,
+  limit = 100,
+): Promise<{ checked: number; completed: number; waiting: number }> {
+  const rows = (
+    await client.query<RequestRow>(
+      `SELECT id, deleted_account_alias, status, cancelled_mint_jobs,
+              pending_mint_jobs, retained_finalized_nfts, requested_at, completed_at
+       FROM account_deletion_requests
+       WHERE status = 'WAITING_FOR_MINT_FINALITY'
+       ORDER BY updated_at, id
+       LIMIT $1
+       FOR UPDATE SKIP LOCKED`,
+      [limit],
+    )
+  ).rows;
+  let completed = 0;
+  for (const row of rows) {
+    if ((await reconcileExistingRequest(client, row, now)).status === 'COMPLETED') completed += 1;
+  }
+  return { checked: rows.length, completed, waiting: rows.length - completed };
 }
 
 async function reconcileExistingRequest(

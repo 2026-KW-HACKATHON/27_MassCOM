@@ -121,6 +121,24 @@ function validateCampaignDraft(raw: AdminCampaignDraftInput): AdminCampaignDraft
     rewardGoals: goals.map(goal => ({ targetVisitCount: goal.targetVisitCount, displayName: goal.displayName.trim() })) };
 }
 
+// Shared with the account-deletion processing service (#194) so operator actions use the same admin check.
+export async function assertPlatformAdmin(
+  client: PoolClient, lifecycle: PostgresAccountLifecycle, accountId: string,
+): Promise<void> {
+  try { await lifecycle.assertActive(client, accountId); }
+  catch (error) {
+    if (error instanceof AccountLifecycleError) throw new AdminError('ADMIN_FORBIDDEN');
+    throw error;
+  }
+  const result = await client.query(
+    `SELECT 1 FROM platform_admins AS admin
+     JOIN auth_identities AS identity ON identity.account_id = admin.account_id
+     WHERE admin.account_id = $1 AND admin.revoked_at IS NULL AND identity.provider = 'google'
+     FOR UPDATE OF admin`, [accountId],
+  );
+  if (result.rowCount !== 1) throw new AdminError('ADMIN_FORBIDDEN');
+}
+
 export class PostgresAdminService {
   private readonly lifecycle: PostgresAccountLifecycle;
 
@@ -142,18 +160,7 @@ export class PostgresAdminService {
   }
 
   private async requireAdmin(client: PoolClient, accountId: string): Promise<void> {
-    try { await this.lifecycle.assertActive(client, accountId); }
-    catch (error) {
-      if (error instanceof AccountLifecycleError) throw new AdminError('ADMIN_FORBIDDEN');
-      throw error;
-    }
-    const result = await client.query(
-      `SELECT 1 FROM platform_admins AS admin
-       JOIN auth_identities AS identity ON identity.account_id = admin.account_id
-       WHERE admin.account_id = $1 AND admin.revoked_at IS NULL AND identity.provider = 'google'
-       FOR UPDATE OF admin`, [accountId],
-    );
-    if (result.rowCount !== 1) throw new AdminError('ADMIN_FORBIDDEN');
+    await assertPlatformAdmin(client, this.lifecycle, accountId);
   }
 
   async isAdmin(accountId: string): Promise<boolean> {

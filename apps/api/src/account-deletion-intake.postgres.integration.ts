@@ -55,8 +55,13 @@ test('an existing 0019–0022 database accepts late 0018/0023 migrations and one
        VALUES ('google', $1, $2, now())`, [accountId, accountId],
     );
     const intake = new PostgresAccountDeletionIntakeService(pool, hmacSecret);
-    assert.deepEqual(await intake.request(accountId), { status: 'REQUESTED' });
-    assert.deepEqual(await intake.request(accountId), { status: 'REQUESTED' });
+    const first = await intake.request(accountId);
+    assert.equal(first.status, 'REQUESTED');
+    assert.equal(first.receiptIssued, true);
+    const second = await intake.request(accountId);
+    assert.equal(second.status, 'REQUESTED');
+    assert.equal(second.receiptIssued, false);
+    assert.equal(second.receipt, undefined);
     assert.equal((await pool.query('SELECT count(*)::int AS total FROM account_deletion_intake_requests'))
       .rows[0]?.total, 1);
     await pool.query(
@@ -71,7 +76,7 @@ test('an existing 0019–0022 database accepts late 0018/0023 migrations and one
   }
 });
 
-test('web intake is duplicate-safe, changes no account state, and is removed by final deletion', {
+test('web intake is duplicate-safe, changes no account state, and is closed without a raw account ID by final deletion', {
   skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
 }, async () => {
   const pool = new Pool({ connectionString: testUrl });
@@ -85,7 +90,10 @@ test('web intake is duplicate-safe, changes no account state, and is removed by 
     );
     const intake = new PostgresAccountDeletionIntakeService(pool, hmacSecret);
     const results = await Promise.all(Array.from({ length: 10 }, () => intake.request(accountId)));
-    assert.deepEqual(results, Array.from({ length: 10 }, () => ({ status: 'REQUESTED' })));
+    assert.deepEqual(results.map((result) => result.status), Array.from({ length: 10 }, () => 'REQUESTED'));
+    assert.equal(results.filter((result) => result.receiptIssued).length, 1);
+    assert.equal(new Set(results.map((result) => result.cancelUntil)).size, 1);
+    const receipt = results.find((result) => result.receipt)!.receipt!;
     assert.equal((await pool.query(
       'SELECT 1 FROM account_deletion_intake_requests WHERE account_id = $1', [accountId],
     )).rowCount, 1);
@@ -96,10 +104,17 @@ test('web intake is duplicate-safe, changes no account state, and is removed by 
     const deletion = new PostgresAccountDeletionService(pool, {
       hmacSecret, policyVersion: 'account-deletion-v1',
     });
-    await deletion.requestDeletion({ accountId, confirmation: 'DELETE MY ACCOUNT' });
+    const deleted = await deletion.requestDeletion({ accountId, confirmation: 'DELETE MY ACCOUNT' });
     assert.equal((await pool.query(
       'SELECT 1 FROM account_deletion_intake_requests WHERE account_id = $1', [accountId],
     )).rowCount, 0);
+    // The filing is closed, not erased: the receipt still answers after the account and its sessions are gone.
+    const closed = await intake.status(receipt);
+    assert.equal(closed.status, 'PROCESSED');
+    assert.equal(closed.deletion?.status, 'COMPLETED');
+    assert.equal((await pool.query(
+      `SELECT processed_by, deletion_request_id FROM account_deletion_intake_requests
+       WHERE status = 'PROCESSED' AND deletion_request_id = $1`, [deleted.requestId])).rows[0]?.processed_by, 'self-service');
     await assert.rejects(intake.request(accountId), /WEB_SESSION_INVALID/);
 
     const racingAccount = `intake-race-${randomUUID()}`;

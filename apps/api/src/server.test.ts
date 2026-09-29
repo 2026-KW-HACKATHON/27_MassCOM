@@ -7,7 +7,14 @@ import { Wallet } from 'ethers';
 import * as serverModule from './server.js';
 
 import type { AccountDeletionService } from './account-deletion.js';
-import type { AccountDeletionIntakeService } from './account-deletion-intake.js';
+import {
+  AccountDeletionIntakeError,
+  type AccountDeletionIntakeErrorCode,
+  type AccountDeletionIntakeService,
+  type AccountDeletionProcessingService,
+  type AdminDeletionIntake,
+  type DeletionIntakeStatusView,
+} from './account-deletion-intake.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardErrorCode, type BadgeRewardService } from './badge-rewards.js';
 import { FriendError, type FriendErrorCode, type FriendService } from './friends.js';
@@ -197,6 +204,8 @@ async function startFixture(
   badges?: BadgeRewardService,
   friends?: FriendService,
   merchantArt?: MerchantArtService,
+  showcaseDeletionIntake?: AccountDeletionIntakeService,
+  deletionProcessing?: AccountDeletionProcessingService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -231,6 +240,8 @@ async function startFixture(
     badges,
     friends,
     merchantArt,
+    showcaseDeletionIntake,
+    deletionProcessing,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -362,23 +373,43 @@ test('web logout rejects GET and missing or foreign Origin before revoking a coo
   assert.match(response.headers.get('set-cookie') ?? '', /web_session=; Path=\/api\/web; Max-Age=0/);
 });
 
-test('web deletion intake accepts only same-origin JSON with the host-bound session', async (t) => {
-  const requested: string[] = [];
-  const webAuth: WebAuthHandler = {
+const intakeDates = {
+  status: 'REQUESTED' as const,
+  requestedAt: '2026-09-30T00:00:00.000Z',
+  cancelUntil: '2026-10-01T00:00:00.000Z',
+  dueAt: '2026-10-07T00:00:00.000Z',
+};
+const intakeView: DeletionIntakeStatusView = {
+  ...intakeDates, cancelledAt: null, processedAt: null, rejectReason: null, deletion: null,
+};
+const webJson = { origin: 'https://masscom.kr', 'content-type': 'application/json' };
+
+function intakeWebAuth(account = 'session-account'): WebAuthHandler {
+  return {
     start: async () => { throw new Error('unused'); },
     complete: async () => { throw new Error('unused'); },
     resolveSession: async (token, origin) => {
       if (token !== 'valid-cookie' || origin !== 'https://masscom.kr') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
-      return 'session-account';
+      return account;
     },
     logout: async () => {},
   };
+}
+
+test('web deletion intake accepts only same-origin JSON with the host-bound session', async (t) => {
+  const requested: { accountId: string; reissue: boolean | undefined }[] = [];
   const intake: AccountDeletionIntakeService = {
-    request: async (accountId) => { requested.push(accountId); return { status: 'REQUESTED' }; },
+    request: async (accountId, options) => {
+      requested.push({ accountId, reissue: options?.reissue });
+      return { receipt: '7K2M-Q9XD-4HTB-0RWE', receiptIssued: true, ...intakeDates };
+    },
+    current: async () => { throw new Error('unused'); },
+    cancel: async () => { throw new Error('unused'); },
+    status: async () => { throw new Error('unused'); },
   };
   const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
     undefined, undefined, { requestDeletion: async () => { throw new Error('must not delete'); } },
-    undefined, undefined, undefined, undefined, false, webAuth, true, undefined, intake);
+    undefined, undefined, undefined, undefined, false, intakeWebAuth(), true, undefined, intake);
   const path = '/api/web/account-deletion-intake';
   assert.equal((await webRequest(base, path)).status, 405);
   for (const headers of [
@@ -388,20 +419,244 @@ test('web deletion intake accepts only same-origin JSON with the host-bound sess
   ]) {
     assert.equal((await webRequest(base, path, { method: 'POST', headers })).status, 403);
   }
-  assert.equal((await webRequest(base, path, { method: 'POST', headers: {
-    origin: 'https://masscom.kr', 'content-type': 'application/json',
-  } })).status, 401);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: webJson })).status, 401);
   assert.equal((await webRequest(base, path, { host: 'www.masscom.kr', method: 'POST', headers: {
     origin: 'https://www.masscom.kr', cookie: 'web_session=valid-cookie', 'content-type': 'application/json',
   } })).status, 401);
   assert.deepEqual(requested, []);
   const response = await webRequest(base, path, { method: 'POST', headers: {
-    origin: 'https://masscom.kr', cookie: 'web_session=valid-cookie', 'content-type': 'application/json',
+    ...webJson, cookie: 'web_session=valid-cookie',
   }, body: JSON.stringify({ accountId: 'different-account' }) });
   assert.equal(response.status, 202);
-  assert.deepEqual(await response.json(), { status: 'REQUESTED' });
+  assert.deepEqual(await response.json(), { receipt: '7K2M-Q9XD-4HTB-0RWE', receiptIssued: true, ...intakeDates });
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(requested, ['session-account']);
+  assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.deepEqual(requested, [{ accountId: 'session-account', reissue: false }]);
+  await webRequest(base, path, { method: 'POST', headers: { ...webJson, cookie: 'web_session=valid-cookie' },
+    body: JSON.stringify({ reissue: true }) });
+  assert.deepEqual(requested.at(-1), { accountId: 'session-account', reissue: true });
+});
+
+test('web deletion cancel is a same-origin JSON POST for the session account and maps its refusals', async (t) => {
+  const cancelled: string[] = [];
+  let failure: AccountDeletionIntakeErrorCode | undefined;
+  const intake: AccountDeletionIntakeService = {
+    request: async () => { throw new Error('unused'); },
+    current: async () => { throw new Error('unused'); },
+    cancel: async (accountId) => {
+      if (failure) throw new AccountDeletionIntakeError(failure);
+      cancelled.push(accountId);
+      return { status: 'CANCELLED' };
+    },
+    status: async () => { throw new Error('unused'); },
+  };
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, intakeWebAuth(), false,
+    undefined, intake);
+  const path = '/api/web/account-deletion-intake/cancel';
+  assert.equal((await webRequest(base, path)).status, 405);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: {
+    cookie: 'web_session=valid-cookie', 'content-type': 'application/json' } })).status, 403);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: webJson })).status, 401);
+  assert.deepEqual(cancelled, []);
+  const headers = { ...webJson, cookie: 'web_session=valid-cookie' };
+  const ok = await webRequest(base, path, { method: 'POST', headers, body: JSON.stringify({ accountId: 'other' }) });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(await ok.json(), { status: 'CANCELLED' });
+  assert.deepEqual(cancelled, ['session-account']);
+  for (const [code, status] of [['DELETION_CANCEL_WINDOW_CLOSED', 409], ['DELETION_NO_ACTIVE_REQUEST', 404]] as const) {
+    failure = code;
+    const refused = await webRequest(base, path, { method: 'POST', headers, body: '{}' });
+    assert.equal(refused.status, status);
+    assert.deepEqual(await refused.json(), { code });
+  }
+});
+
+test('receipt status needs no login, keeps the receipt in the body, is throttled and reveals nothing for unknown receipts', async (t) => {
+  const looked: string[] = [];
+  const intake: AccountDeletionIntakeService = {
+    request: async () => { throw new Error('unused'); },
+    current: async () => { throw new Error('unused'); },
+    cancel: async () => { throw new Error('unused'); },
+    status: async (receipt) => {
+      looked.push(receipt);
+      if (receipt !== '7K2M-Q9XD-4HTB-0RWE') throw new AccountDeletionIntakeError('DELETION_RECEIPT_NOT_FOUND');
+      return intakeView;
+    },
+  };
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, undefined, false,
+    undefined, intake);
+  const path = '/api/web/account-deletion-status';
+  assert.equal((await webRequest(base, path)).status, 405);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: '{"receipt":"7K2M-Q9XD-4HTB-0RWE"}' })).status, 403);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: { ...webJson, 'content-type': 'text/plain' },
+    body: '{"receipt":"7K2M-Q9XD-4HTB-0RWE"}' })).status, 403);
+  assert.equal((await webRequest(base, `${path}?receipt=7K2M-Q9XD-4HTB-0RWE`, { method: 'POST', headers: webJson,
+    body: '{}' })).status, 400);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: webJson,
+    body: '{"receipt":"7K2M-Q9XD-4HTB-0RWE","accountId":"x"}' })).status, 400);
+  assert.deepEqual(looked, []);
+  const found = await webRequest(base, path, { method: 'POST', headers: webJson, body: '{"receipt":"7K2M-Q9XD-4HTB-0RWE"}' });
+  assert.equal(found.status, 200);
+  assert.deepEqual(await found.json(), intakeView);
+  assert.equal(found.headers.get('cache-control'), 'no-store');
+  assert.equal(found.headers.get('set-cookie'), null);
+  const missing = await webRequest(base, path, { method: 'POST', headers: webJson, body: '{"receipt":"AAAA-AAAA-AAAA-AAAA"}' });
+  assert.equal(missing.status, 404);
+  assert.deepEqual(await missing.json(), { code: 'DELETION_RECEIPT_NOT_FOUND' });
+  let limited: Response | undefined;
+  for (let attempt = 0; attempt < 40 && !limited; attempt += 1) {
+    const response = await webRequest(base, path, { method: 'POST', headers: webJson, body: '{"receipt":"ZZZZ-ZZZZ-ZZZZ-ZZZZ"}' });
+    if (response.status === 429) limited = response;
+  }
+  assert.ok(limited, 'the lookup must be throttled');
+  assert.deepEqual(await limited.json(), { code: 'DELETION_STATUS_RATE_LIMITED' });
+  assert.match(limited.headers.get('retry-after') ?? '', /^\d+$/);
+});
+
+test('showcase Bearer deletion intake exists only when the showcase service is wired and never trusts a body account', async (t) => {
+  const calls: string[] = [];
+  const intake: AccountDeletionIntakeService = {
+    request: async (accountId, options) => {
+      calls.push(`request:${accountId}:${options?.reissue}`);
+      return { receipt: '7K2M-Q9XD-4HTB-0RWE', receiptIssued: true, ...intakeDates };
+    },
+    current: async (accountId) => { calls.push(`current:${accountId}`); return intakeView; },
+    cancel: async (accountId) => { calls.push(`cancel:${accountId}`); return { status: 'CANCELLED' }; },
+    status: async (receipt) => { calls.push(`status:${receipt}`); return intakeView; },
+  };
+  const sessions = authSessionFixture({
+    resolve: async (token) => {
+      if (token !== 'live') throw new AuthSessionError('SESSION_INVALID');
+      return 'acct_showcase';
+    },
+  });
+  const production = await startFixture(t, createBearerAccountResolver(sessions), undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, sessions);
+  for (const path of ['/account-deletion-intake', '/account-deletion-intake/cancel', '/account-deletion-status']) {
+    assert.equal((await fetch(`${production}${path}`, { method: 'POST', headers: { authorization: 'Bearer live' } })).status,
+      404, path);
+  }
+  const showcase = await startFixture(t, createBearerAccountResolver(sessions), undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, sessions, undefined, false, undefined, false,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, intake);
+  const json = { 'content-type': 'application/json', authorization: 'Bearer live' };
+  assert.equal((await fetch(`${showcase}/account-deletion-intake`, { method: 'POST', body: '{}',
+    headers: { 'content-type': 'application/json' } })).status, 401);
+  assert.equal((await fetch(`${showcase}/account-deletion-intake`, { headers: { authorization: 'Bearer stale' } })).status, 401);
+  assert.deepEqual(calls, []);
+  const filed = await fetch(`${showcase}/account-deletion-intake`, { method: 'POST', headers: json,
+    body: JSON.stringify({ accountId: 'someone-else' }) });
+  assert.equal(filed.status, 202);
+  assert.deepEqual(await filed.json(), { receipt: '7K2M-Q9XD-4HTB-0RWE', receiptIssued: true, ...intakeDates });
+  assert.equal((await fetch(`${showcase}/account-deletion-intake`, { method: 'POST', headers: json,
+    body: '{"reissue":true}' })).status, 202);
+  assert.equal((await fetch(`${showcase}/account-deletion-intake`, { method: 'POST', headers: json })).status, 202);
+  const current = await fetch(`${showcase}/account-deletion-intake`, { headers: json });
+  assert.deepEqual(await current.json(), { request: intakeView });
+  assert.equal((await fetch(`${showcase}/account-deletion-intake/cancel`, { method: 'POST', headers: json })).status, 200);
+  assert.equal((await fetch(`${showcase}/account-deletion-intake`, { method: 'PUT', headers: json })).status, 405);
+  const status = await fetch(`${showcase}/account-deletion-status`, { method: 'POST',
+    headers: { 'content-type': 'application/json' }, body: '{"receipt":"7K2M-Q9XD-4HTB-0RWE"}' });
+  assert.equal(status.status, 200);
+  assert.deepEqual(calls, [
+    'request:acct_showcase:false', 'request:acct_showcase:true', 'request:acct_showcase:false',
+    'current:acct_showcase', 'cancel:acct_showcase', 'status:7K2M-Q9XD-4HTB-0RWE',
+  ]);
+});
+
+const adminIntake: AdminDeletionIntake = {
+  id: '11111111-1111-4111-8111-111111111111', status: 'REQUESTED', source: 'WEB',
+  requestedAt: intakeDates.requestedAt, cancelUntil: intakeDates.cancelUntil, dueAt: intakeDates.dueAt,
+  canProcess: true, overdue: false, accountLabel: 'acct_1a2b…9f0e', processedAt: null, processedBy: null,
+  rejectReason: null, deletion: null,
+};
+
+test('admin deletion routes need the admin session and same-origin JSON, and never carry an account ID', async (t) => {
+  const seen: string[] = [];
+  let failure: AccountDeletionIntakeErrorCode | undefined;
+  const processing: AccountDeletionProcessingService = {
+    list: async (operator) => { seen.push(`list:${JSON.stringify(operator)}`); return [adminIntake]; },
+    process: async (operator, id) => {
+      if (failure) throw new AccountDeletionIntakeError(failure);
+      seen.push(`process:${JSON.stringify(operator)}:${id}`);
+      return { ...adminIntake, status: 'PROCESSED', canProcess: false };
+    },
+    reject: async (operator, id, reason) => {
+      if (failure) throw new AccountDeletionIntakeError(failure);
+      seen.push(`reject:${JSON.stringify(operator)}:${id}:${reason}`);
+      return { ...adminIntake, status: 'REJECTED', canProcess: false, rejectReason: reason };
+    },
+    reconcile: async (operator) => { seen.push(`reconcile:${JSON.stringify(operator)}`); return { checked: 2, completed: 1, waiting: 1 }; },
+  };
+  const admin = {
+    isAdmin: async (accountId: string) => accountId === 'admin-account',
+    listMerchants: async () => [],
+    createMerchant: async () => { throw new Error('unused'); },
+    updateMerchant: async () => { throw new Error('unused'); },
+    hideMerchant: async () => { throw new Error('unused'); },
+  } as unknown as Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const fixture = (account: string) => startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, intakeWebAuth(account), false,
+    admin, undefined, undefined, undefined, undefined, undefined, undefined, undefined, processing);
+  const base = await fixture('admin-account');
+  const cookie = { cookie: 'web_session=valid-cookie' };
+  const json = { ...webJson, ...cookie };
+  const listPath = '/api/web/admin/account-deletion-intakes';
+  const processPath = `${listPath}/${adminIntake.id}/process`;
+  const rejectPath = `${listPath}/${adminIntake.id}/reject`;
+  const reconcilePath = '/api/web/admin/account-deletions/reconcile';
+
+  assert.equal((await webRequest(base, listPath)).status, 401);
+  const nonAdmin = await fixture('someone');
+  for (const [path, method] of [[listPath, 'GET'], [processPath, 'POST'], [rejectPath, 'POST'], [reconcilePath, 'POST']] as const) {
+    assert.equal((await webRequest(nonAdmin, path, method === 'GET' ? { headers: cookie }
+      : { method, headers: json, body: '{"reason":"x"}' })).status, 403, path);
+  }
+  for (const path of [processPath, rejectPath, reconcilePath]) {
+    assert.equal((await webRequest(base, path, { method: 'POST', headers: cookie, body: '{}' })).status, 403, path);
+    assert.equal((await webRequest(base, path, { method: 'POST', headers: { ...cookie, origin: 'https://evil.example',
+      'content-type': 'application/json' }, body: '{}' })).status, 403, path);
+  }
+  assert.deepEqual(seen, []);
+
+  const listed = await webRequest(base, listPath, { headers: cookie });
+  assert.equal(listed.status, 200);
+  const listedBody = await listed.json() as { intakes: AdminDeletionIntake[] };
+  assert.deepEqual(listedBody, { intakes: [adminIntake] });
+  assert.doesNotMatch(JSON.stringify(listedBody), /@|"accountId"/);
+
+  const processed = await webRequest(base, processPath, { method: 'POST', headers: json, body: '{}' });
+  assert.equal(processed.status, 200);
+  assert.equal(((await processed.json()) as { intake: AdminDeletionIntake }).intake.status, 'PROCESSED');
+  assert.equal((await webRequest(base, processPath, { method: 'POST', headers: json, body: '{"accountId":"x"}' })).status, 400);
+  const rejected = await webRequest(base, rejectPath, { method: 'POST', headers: json, body: '{"reason":"본인 확인 불가"}' });
+  assert.equal(rejected.status, 200);
+  assert.equal(((await rejected.json()) as { intake: AdminDeletionIntake }).intake.rejectReason, '본인 확인 불가');
+  assert.equal((await webRequest(base, rejectPath, { method: 'POST', headers: json, body: '{}' })).status, 400);
+  assert.equal((await webRequest(base, rejectPath, { method: 'POST', headers: json, body: '{"reason":"a","x":1}' })).status, 400);
+  const reconciled = await webRequest(base, reconcilePath, { method: 'POST', headers: json, body: '{}' });
+  assert.deepEqual(await reconciled.json(), { checked: 2, completed: 1, waiting: 1 });
+  const operator = JSON.stringify({ kind: 'admin', accountId: 'admin-account' });
+  assert.deepEqual(seen, [
+    `list:${operator}`, `process:${operator}:${adminIntake.id}`, `reject:${operator}:${adminIntake.id}:본인 확인 불가`,
+    `reconcile:${operator}`,
+  ]);
+
+  for (const [code, status] of [
+    ['DELETION_COOLING_OFF', 409], ['DELETION_INTAKE_NOT_PENDING', 409], ['DELETION_SELF_PROCESSING_REFUSED', 403],
+    ['DELETION_INTAKE_NOT_FOUND', 404], ['DELETION_REJECT_REASON_INVALID', 400],
+  ] as const) {
+    failure = code;
+    const refused = await webRequest(base, processPath, { method: 'POST', headers: json, body: '{}' });
+    assert.equal(refused.status, status, code);
+    assert.deepEqual(await refused.json(), { code });
+  }
+  const closed = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, intakeWebAuth('admin-account'), false, admin);
+  assert.equal((await webRequest(closed, listPath, { headers: cookie })).status, 503);
 });
 
 test('deletion Google sign-in returns to a fixed path', async (t) => {

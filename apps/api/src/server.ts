@@ -21,7 +21,11 @@ import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js'
 import { WebAuthError, WebAuthService, resolveWebAuthConfig, type WebAuthHandler } from './web-auth.js';
 import { WebSessionError } from './web-session.js';
 import { WebOriginError, resolveWebOrigin } from './web-origin.js';
-import type { AccountDeletionIntakeService } from './account-deletion-intake.js';
+import {
+  AccountDeletionIntakeError,
+  type AccountDeletionIntakeService,
+  type AccountDeletionProcessingService,
+} from './account-deletion-intake.js';
 import {
   CampaignEnrollmentError,
   type CampaignEnrollmentService,
@@ -50,6 +54,7 @@ import { PostgresCustomerIdentityService } from './postgres/customer-identity.js
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountDeletionIntakeService } from './postgres/account-deletion-intake.js';
+import { PostgresAccountDeletionProcessingService } from './postgres/account-deletion-processing.js';
 import { PostgresBadgeRewardService } from './postgres/badge-rewards.js';
 import { PostgresFriendService } from './postgres/friends.js';
 import { AdminError, PostgresAdminService, type AdminCampaignDraftInput, type MerchantInput } from './postgres/admin.js';
@@ -186,7 +191,18 @@ export function createApiServer(
   badges?: BadgeRewardService,
   friends?: FriendService,
   merchantArt?: MerchantArtService,
+  showcaseDeletionIntake?: AccountDeletionIntakeService,
+  deletionProcessing?: AccountDeletionProcessingService,
 ) {
+  // The receipt lookup needs no login, so it is throttled per client instead (a receipt has 80 bits, this only stops floods).
+  const deletionStatusLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60_000 });
+  const consumeDeletionStatus = (request: IncomingMessage, response: ServerResponse): boolean => {
+    const decision = deletionStatusLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
+    if (decision.allowed) return true;
+    response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+    sendJson(response, 429, { code: 'DELETION_STATUS_RATE_LIMITED' });
+    return false;
+  };
   return createServer(async (request, response) => {
     setCommonHeaders(response);
 
@@ -316,6 +332,33 @@ export function createApiServer(
             sendJson(response, 201, { draft: await admin.createCampaignDraft(accountId, input) });
             return;
           }
+        }
+        // 계정 삭제 요청 처리(#194, D-051): 웹 로그인으로 접수된 요청만 운영자가 처리한다. 화면에는 마스킹한 계정 표지만 나간다.
+        if (path === '/api/web/admin/account-deletion-intakes' && request.method === 'GET') {
+          if (!deletionProcessing) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          sendJson(response, 200, { intakes: await deletionProcessing.list({ kind: 'admin', accountId }) });
+          return;
+        }
+        const deletionActionMatch = path.match(/^\/api\/web\/admin\/account-deletion-intakes\/([^/]+)\/(process|reject)$/);
+        if (deletionActionMatch && request.method === 'POST') {
+          if (!deletionProcessing) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          const body = await readJson(request);
+          const intakeId = decodePathParameter(deletionActionMatch[1]!);
+          const operator = { kind: 'admin' as const, accountId };
+          if (deletionActionMatch[2] === 'process') {
+            requireEmptyBody(body);
+            sendJson(response, 200, { intake: await deletionProcessing.process(operator, intakeId) });
+          } else {
+            if (Object.keys(body).some(key => key !== 'reason')) throw new RequestError(400, 'INVALID_REQUEST');
+            sendJson(response, 200, { intake: await deletionProcessing.reject(operator, intakeId, requireString(body, 'reason')) });
+          }
+          return;
+        }
+        if (path === '/api/web/admin/account-deletions/reconcile' && request.method === 'POST') {
+          if (!deletionProcessing) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          requireEmptyBody(await readJson(request));
+          sendJson(response, 200, await deletionProcessing.reconcile({ kind: 'admin', accountId }));
+          return;
         }
         const staffMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/staff$/);
         if (staffMatch && staffRegistration) {
@@ -495,18 +538,59 @@ export function createApiServer(
         response.end();
         return;
       }
-      if (path === '/api/web/account-deletion-intake') {
+      if (path === '/api/web/account-deletion-intake' || path === '/api/web/account-deletion-intake/cancel' ||
+          path === '/api/web/account-deletion-status') {
         if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
         const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
         if (request.headers.origin !== origin ||
             !/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '')) {
           throw new RequestError(403, 'ORIGIN_FORBIDDEN');
         }
-        if (!webAuth || !deletionIntake) throw new RequestError(503, 'WEB_DELETION_INTAKE_NOT_CONFIGURED');
+        if (!deletionIntake) throw new RequestError(503, 'WEB_DELETION_INTAKE_NOT_CONFIGURED');
         response.setHeader('x-robots-tag', 'noindex, nofollow');
+        if (path === '/api/web/account-deletion-status') {
+          // 접수번호만으로 조회한다(삭제 뒤에는 로그인할 계정이 없다). 접수번호는 본문에서만 받고 URL에는 두지 않는다.
+          if (!consumeDeletionStatus(request, response)) return;
+          const body = await readJson(request);
+          if (Object.keys(body).some(key => key !== 'receipt')) throw new RequestError(400, 'INVALID_REQUEST');
+          sendJson(response, 200, await deletionIntake.status(requireString(body, 'receipt')));
+          return;
+        }
+        if (!webAuth) throw new RequestError(503, 'WEB_DELETION_INTAKE_NOT_CONFIGURED');
         const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
-        await readJson(request);
-        sendJson(response, 202, await deletionIntake.request(accountId));
+        const body = await readJson(request);
+        if (path === '/api/web/account-deletion-intake/cancel') {
+          sendJson(response, 200, await deletionIntake.cancel(accountId));
+        } else {
+          sendJson(response, 202, await deletionIntake.request(accountId, { reissue: body.reissue === true }));
+        }
+        return;
+      }
+
+      // 시연 앱 전용(#194, D-051): 시연 서버에서만 서비스가 만들어진다. 운영 API에는 이 경로가 없고 운영 앱은 웹 페이지를 쓴다.
+      if (showcaseDeletionIntake && (path === '/account-deletion-intake' ||
+          path === '/account-deletion-intake/cancel' || path === '/account-deletion-status')) {
+        if (path === '/account-deletion-status') {
+          if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+          if (!consumeDeletionStatus(request, response)) return;
+          const body = await readJson(request);
+          if (Object.keys(body).some(key => key !== 'receipt')) throw new RequestError(400, 'INVALID_REQUEST');
+          sendJson(response, 200, await showcaseDeletionIntake.status(requireString(body, 'receipt')));
+          return;
+        }
+        if (path === '/account-deletion-intake' && request.method === 'GET') {
+          const accountId = await resolveAccountId(request);
+          sendJson(response, 200, { request: await showcaseDeletionIntake.current(accountId) });
+          return;
+        }
+        if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request, true);
+        if (path === '/account-deletion-intake/cancel') {
+          sendJson(response, 200, await showcaseDeletionIntake.cancel(accountId));
+        } else {
+          sendJson(response, 202, await showcaseDeletionIntake.request(accountId, { reissue: body.reissue === true }));
+        }
         return;
       }
 
@@ -1041,6 +1125,10 @@ export function createApiServer(
         sendJson(response, statusForAccountDeletion(error.code), { code: error.code });
         return;
       }
+      if (error instanceof AccountDeletionIntakeError) {
+        sendJson(response, statusForDeletionIntake(error.code), { code: error.code });
+        return;
+      }
       if (error instanceof CampaignEnrollmentError) {
         sendJson(response, statusForCampaignEnrollment(error.code), { code: error.code });
         return;
@@ -1202,6 +1290,13 @@ function statusForAccountDeletion(code: string): number {
   if (code === 'REAUTHENTICATION_REQUIRED') return 401;
   if (code === 'ACCOUNT_REQUIRED') return 401;
   return 400;
+}
+
+function statusForDeletionIntake(code: string): number {
+  if (code === 'DELETION_NO_ACTIVE_REQUEST' || code === 'DELETION_RECEIPT_NOT_FOUND' || code === 'DELETION_INTAKE_NOT_FOUND') return 404;
+  if (code === 'DELETION_SELF_PROCESSING_REFUSED') return 403;
+  if (code === 'DELETION_REJECT_REASON_INVALID') return 400;
+  return 409;
 }
 
 function requireHeader(request: IncomingMessage, name: string): string {
@@ -1605,6 +1700,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     badges,
     friends,
     merchantArt,
+    pool && accountDeletionHmacSecret && showcaseInvites
+      ? new PostgresAccountDeletionIntakeService(pool, accountDeletionHmacSecret, { source: 'SHOWCASE_APP' }) : undefined,
+    pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
+      ? new PostgresAccountDeletionProcessingService(pool, {
+          hmacSecret: accountDeletionHmacSecret,
+          policyVersion: process.env.ACCOUNT_DELETION_POLICY_VERSION ?? 'account-deletion-v1',
+        }) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });
