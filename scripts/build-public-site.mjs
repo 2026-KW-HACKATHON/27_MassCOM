@@ -17,6 +17,8 @@ const publicFiles = [
   'evidence/screenshots/android-account-settings.png',
   'evidence/screenshots/android-nft-finalized.png',
   'index.html',
+  // The minted Base Sepolia proof token points here; the contract's series base URL cannot change, so this must stay served.
+  'nft-metadata/base-sepolia-proof/1.json',
   'open.html',
   'privacy.html',
 ];
