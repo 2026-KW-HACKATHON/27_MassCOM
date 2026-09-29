@@ -5,6 +5,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import { lightHaptic } from '../gamification/native-effects';
 import { motion } from '../motion/timing';
 import { useMotionEnabled } from '../motion/use-motion';
+import { splitCardStyle } from './card-style';
 import { useUiStyles } from './use-ui-styles';
 
 type Props = {
@@ -14,17 +15,22 @@ type Props = {
   children: ReactNode;
 };
 
-/** White card floating over the sky. Shrinks slightly and gives a light haptic when pressable. */
+// Fills the Pressable when it is taller than the card's content, as a static card would fill its own slot.
+const fillWrapper = { flexGrow: 1 } as const;
+
+/** White card floating over the sky. Shrinks slightly, tints while pressed and gives a light haptic when pressable. */
 export function FloatingCard({ onPress, accessibilityLabel, style, children }: Props) {
   const styles = useUiStyles();
   const enabled = useMotionEnabled();
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   // Flatten so a Slot/Link parent never receives a style array (#216).
-  const card = StyleSheet.flatten([styles.card, style]);
+  const flat = StyleSheet.flatten(style);
 
-  if (!onPress) return <View style={card}>{children}</View>;
+  if (!onPress) return <View style={StyleSheet.flatten([styles.card, flat])}>{children}</View>;
 
+  // Where the card sits (margin, flex, width, position…) belongs on the Pressable so it lays out like the static card above.
+  const { outer, inner } = splitCardStyle(flat);
   return (
     <Pressable
       accessibilityRole="button"
@@ -32,8 +38,11 @@ export function FloatingCard({ onPress, accessibilityLabel, style, children }: P
       onPressIn={() => { if (enabled) scale.set(withSpring(motion.pressScale, motion.spring)); }}
       onPressOut={() => { if (enabled) scale.set(withSpring(1, motion.spring)); }}
       onPress={() => { void lightHaptic(); onPress(); }}
+      style={outer}
     >
-      <Animated.View style={[card, animated]}>{children}</Animated.View>
+      {({ pressed }) => (
+        <Animated.View style={[styles.card, inner, fillWrapper, pressed ? styles.cardPressed : null, animated]}>{children}</Animated.View>
+      )}
     </Pressable>
   );
 }

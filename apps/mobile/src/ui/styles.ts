@@ -1,9 +1,14 @@
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
 
-import { withAlpha } from '../theme/contrast';
+import { blend, contrast, withAlpha } from '../theme/contrast';
 import type { AppColors } from '../theme/palette';
 import { uiMetrics } from '../theme/ui-metrics';
 import type { WorldTheme } from '../theme/world';
+
+// Pressed fill for a solid button: move away from the label colour so the label keeps its contrast.
+function pressedFill(fill: string, label: string): string {
+  return blend(contrast(label, '#000000') > contrast(label, '#FFFFFF') ? '#000000' : '#FFFFFF', fill, 0.2);
+}
 
 export function makeUiStyles(palette: AppColors, world: WorldTheme) {
   return {
@@ -11,17 +16,21 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
       backgroundColor: world.card, borderRadius: world.radius.card, padding: 18,
       shadowColor: world.cardShadow, shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 3,
     },
+    // Press feedback that does not depend on motion: the fill shifts, the text stays fully opaque.
+    cardPressed: { backgroundColor: blend(world.cardInk, world.card, 0.08) },
     cardTitle: { color: world.cardInk, fontSize: 17, fontWeight: '800', lineHeight: 24 },
     cardBody: { color: world.cardMuted, fontSize: 15, lineHeight: 22 },
     primaryButton: {
       backgroundColor: palette.primary, borderRadius: 16, minHeight: uiMetrics.minTouch,
       paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center',
     },
+    primaryButtonPressed: { backgroundColor: pressedFill(palette.primary, palette.onPrimary) },
     primaryButtonText: { color: palette.onPrimary, fontSize: 16, fontWeight: '800' },
     secondaryButton: {
       backgroundColor: palette.primaryContainer, borderRadius: 16, minHeight: uiMetrics.minTouch,
       paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center',
     },
+    secondaryButtonPressed: { backgroundColor: blend(palette.primary, palette.primaryContainer, 0.2) },
     secondaryButtonText: { color: palette.onPrimaryContainer, fontSize: 16, fontWeight: '800' },
     headerPanel: {
       borderRadius: 20, paddingVertical: 12, paddingHorizontal: 16, gap: 4,

@@ -33,9 +33,18 @@ export function BounceButton({ label, onPress, variant = 'primary', disabled }: 
       onPressOut={() => { if (enabled) scale.set(withSpring(1, motion.spring)); }}
       onPress={() => { void lightHaptic(); onPress(); }}
     >
-      <Animated.View style={[button, disabled ? disabledLook : null, animated]}>
-        <Text maxFontSizeMultiplier={1.6} style={text}>{label}</Text>
-      </Animated.View>
+      {({ pressed }) => (
+        <Animated.View
+          style={[
+            button,
+            pressed ? (variant === 'primary' ? styles.primaryButtonPressed : styles.secondaryButtonPressed) : null,
+            disabled ? disabledLook : null,
+            animated,
+          ]}
+        >
+          <Text maxFontSizeMultiplier={1.6} style={text}>{label}</Text>
+        </Animated.View>
+      )}
     </Pressable>
   );
 }

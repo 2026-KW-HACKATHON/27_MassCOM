@@ -20,6 +20,23 @@ test('stagger never strands content: no layout animation, a failsafe, and late r
   assert.match(stagger, /clearTimeout\(/);
 });
 
+test('buttons and pressable cards tint their background while pressed, not their text', () => {
+  const button = read('bounce-button.tsx');
+  assert.match(button, /\(\{ pressed \}\) =>/);
+  assert.match(button, /pressed \? \(variant === 'primary' \? styles\.primaryButtonPressed : styles\.secondaryButtonPressed\) : null/);
+  const card = read('floating-card.tsx');
+  assert.match(card, /\(\{ pressed \}\) =>/);
+  assert.match(card, /pressed \? styles\.cardPressed : null/);
+  for (const source of [button, card]) assert.doesNotMatch(source, /opacity: pressed/);
+});
+
+test('a pressable card lays out like a static one: layout props on the Pressable, visuals on the card', () => {
+  const card = read('floating-card.tsx');
+  assert.match(card, /splitCardStyle\(/);
+  assert.match(card, /<Pressable[\s\S]*?style=\{outer\}/);
+  assert.match(card, /styles\.card, inner/);
+});
+
 test('the header keeps account tools one tap away', () => {
   const header = read('app-header.tsx');
   assert.match(header, /href="\/settings"/);

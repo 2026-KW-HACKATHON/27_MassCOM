@@ -68,3 +68,20 @@ test('header text sits on a frosted rounded panel that stays readable over any a
     }
   }
 });
+
+test('pressing shows a visible background change that keeps the text readable, even with motion off', () => {
+  const visible = (a: string, b: string) => contrast(a, b) >= 1.08;
+  for (const [palette, world] of [[lightColors, lightWorld], [darkColors, darkWorld]] as const) {
+    const styles = makeUiStyles(palette, world);
+    const primary = styles.primaryButtonPressed.backgroundColor as string;
+    const secondary = styles.secondaryButtonPressed.backgroundColor as string;
+    const card = styles.cardPressed.backgroundColor as string;
+    assert.ok(visible(primary, palette.primary), 'primary button');
+    assert.ok(visible(secondary, palette.primaryContainer), 'secondary button');
+    assert.ok(visible(card, world.card), 'card');
+    assert.ok(contrast(palette.onPrimary, primary) >= 4.5, 'primary label when pressed');
+    assert.ok(contrast(palette.onPrimaryContainer, secondary) >= 4.5, 'secondary label when pressed');
+    assert.ok(contrast(world.cardInk, card) >= 4.5, 'card title when pressed');
+    assert.ok(contrast(world.cardMuted, card) >= 4.5, 'card body when pressed');
+  }
+});
