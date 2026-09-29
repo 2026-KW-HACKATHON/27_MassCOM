@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { test } from 'node:test';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const read = (name: string) => readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8');
@@ -142,6 +143,13 @@ function callArguments(source: string, hook: string): string[] {
   return found;
 }
 
+function sourceFiles(directory: string): string[] {
+  return readdirSync(directory).flatMap((name) => {
+    const path = join(directory, name);
+    return statSync(path).isDirectory() ? sourceFiles(path) : [path];
+  });
+}
+
 /** Identifiers a file imports from anywhere but reanimated: plain JS that does not exist on the UI runtime. */
 function nonWorkletImports(source: string): string[] {
   const names: string[] = [];
@@ -155,15 +163,11 @@ function nonWorkletImports(source: string): string[] {
 test('animated style worklets only touch shared values and captured numbers, never imported JS helpers', () => {
   // Calling a plain JS function inside useAnimatedStyle crashed the collection tab on device:
   // "[Worklets] Tried to synchronously call a Remote Function stampTilt on the UI Runtime".
-  const files = [
-    ...readdirSync(fileURLToPath(new URL('./', import.meta.url))).filter((name) => name.endsWith('.tsx')).map((name) => `./${name}`),
-    '../navigation/floating-tab-bar.tsx',
-    '../gamification/celebration.tsx',
-    '../gamification/reward-reveal.tsx',
-  ];
+  // Every screen and component, not a hand-kept list: a new animated piece anywhere is covered without touching this test.
+  const files = sourceFiles(fileURLToPath(new URL('../', import.meta.url))).filter((file) => file.endsWith('.tsx'));
   let checked = 0;
   for (const file of files) {
-    const source = readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf8');
+    const source = readFileSync(file, 'utf8');
     const imported = nonWorkletImports(source);
     for (const hook of ['useAnimatedStyle', 'useAnimatedProps']) {
       for (const body of callArguments(source, hook)) {
@@ -174,7 +178,7 @@ test('animated style worklets only touch shared values and captured numbers, nev
       }
     }
   }
-  assert.ok(checked >= 12, `only ${checked} animated callbacks were inspected`);
+  assert.ok(checked >= 15, `only ${checked} animated callbacks were inspected`);
 });
 
 test('the role screen greets with the waving mascot and the logo badge instead of the blue square', () => {
