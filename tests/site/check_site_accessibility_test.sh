@@ -44,4 +44,23 @@ if node "$checker" "$fixture_root/unnamed-generic.html" "$fixture_root/site.css"
   exit 1
 fi
 
+printf '%s\n' \
+  ':root {' \
+  '  --mc-night: #12303d;' \
+  '  --night: var(--mc-night);' \
+  '  --text-on-night: #d9ecff;' \
+  '  --paper: #f4f9fa;' \
+  '  --ink: #102833;' \
+  '}' \
+  > "$fixture_root/alias.css"
+
+node "$checker" "$fixture_root/index.html" "$fixture_root/alias.css"
+
+sed 's/--mc-night: #12303d/--mc-night: #8fb3c4/' "$fixture_root/alias.css" > "$fixture_root/low-contrast-alias.css"
+
+if node "$checker" "$fixture_root/index.html" "$fixture_root/low-contrast-alias.css" >/dev/null 2>&1; then
+  echo "accessibility checker accepted low contrast behind a var() alias" >&2
+  exit 1
+fi
+
 echo "site accessibility regression tests passed"

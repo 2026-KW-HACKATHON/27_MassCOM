@@ -36,6 +36,9 @@ function element() {
     textContent: '',
     children: [],
     className: '',
+    attributes: {},
+    setAttribute(name, value) { this.attributes[name] = String(value); },
+    getAttribute(name) { return this.attributes[name] ?? null; },
     append(...children) { this.children.push(...children); },
     replaceChildren() { this.children = []; },
     addEventListener(type, callback) { listeners.set(type, callback); },
@@ -64,7 +67,7 @@ test('운영 웹은 시연 데이터와 쓰기 UI 없이 개인 도감을 읽기
   assert.match(html, /lang="ko"/);
   assert.match(html, /viewport/);
   assert.match(css, /prefers-color-scheme/);
-  assert.match(css, /#2456d6/);
+  assert.match(css, /#2456D6/i);
   assert.doesNotMatch(html + script + serverSource, /localStorage|innerHTML|dangerouslySetInnerHTML/);
   assert.doesNotMatch(html + script, /가상 점포|예시 방문|실제 NFT가 아닙니다|DEMO 배지/);
   assert.doesNotMatch(html, /<form\b|href="[^"]*(?:wallet|mint|claim|qr)|data-action="[^"]*(?:wallet|mint|claim|qr)/i);
@@ -76,7 +79,7 @@ function collectionFixture() {
   const ids = [
     'collection-status', 'collection-login', 'collection-retry', 'collection-logout',
     'collection-content', 'visit-list', 'collectible-list', 'badge-list',
-    'badge-note', 'badge-content', 'reward-list', 'coupon-list',
+    'badge-note', 'badge-content', 'badge-passport', 'reward-list', 'coupon-list',
   ];
   const nodes = Object.fromEntries(ids.map((id) => [id, { ...element(), hidden: true }]));
   return {
@@ -125,6 +128,25 @@ function collectionAndBadges({ badges, collection = emptyCollection } = {}) {
 
 const okJson = (value) => ({ ok: true, json: async () => value });
 
+// 가짜 DOM에서 자손을 클래스로 찾고 글자를 모은다. textContent를 가진 노드만 글자를 낸다.
+const classesOf = (node) => String(node?.className ?? '').split(/\s+/).filter(Boolean);
+function findAll(root, className) {
+  const found = [];
+  const walk = (current) => {
+    for (const child of current.children ?? []) {
+      if (child && typeof child === 'object') {
+        if (classesOf(child).includes(className)) found.push(child);
+        walk(child);
+      }
+    }
+  };
+  walk(root);
+  return found;
+}
+const textOf = (node) => [node.textContent, ...(node.children ?? []).map(textOf)].join('');
+const first = (root, className) => findAll(root, className)[0];
+const texts = (roots, className) => roots.map((root) => first(root, className)?.textContent);
+
 test('운영 웹 메달은 서버가 계산한 등급·값·다음 등급을 글자로 표시하고 도감과 함께 읽는다', async () => {
   const { nodes, doc } = collectionFixture();
   const { calls, fetcher } = collectionAndBadges({ badges: () => okJson(badgesFixture()) });
@@ -134,17 +156,82 @@ test('운영 웹 메달은 서버가 계산한 등급·값·다음 등급을 글
   assert.equal(badgeCall.options.credentials, 'same-origin');
   assert.equal(badgeCall.options.cache, 'no-store');
   assert.equal(calls.filter((call) => call.url === '/api/web/collection').length, 1);
-  const medals = nodes['badge-list'].children.map((row) => row.textContent);
-  assert.deepEqual(medals, [
-    '동네 탐험가 · 실버 · 서로 다른 가게 2곳 · 다음 등급까지 1곳 남음',
-    '단골손님 · 미획득 · 한 가게 최다 방문 1일 · 다음 등급까지 1일 남음',
-    '꾸준한 걸음 · 골드 · 방문한 날 7일 · 최고 등급이에요',
+  const cards = nodes['badge-list'].children;
+  assert.equal(cards.length, 3);
+  assert.deepEqual(texts(cards, 'medal-name'), ['동네 탐험가', '단골손님', '꾸준한 걸음']);
+  assert.deepEqual(texts(cards, 'tier-chip'), ['실버', '도전 전', '골드']);
+  assert.deepEqual(texts(cards, 'medal-value'), ['서로 다른 가게 2곳', '한 가게 최다 방문 1일', '방문한 날 7일']);
+  assert.deepEqual(texts(cards, 'medal-next'), ['골드까지 1곳 더', '브론즈까지 1일 더', '골드 달성! 최고 등급이에요']);
+  assert.deepEqual(cards.map((card) => card.className), [
+    'medal-card tier-2 earned', 'medal-card tier-0 locked', 'medal-card tier-3 earned',
   ]);
-  assert.equal(nodes['badge-list'].children[0].className, 'badge-step earned');
-  assert.equal(nodes['badge-list'].children[1].className, 'badge-step');
   assert.match(nodes['badge-note'].textContent, /5\/9/);
   assert.equal(nodes['badge-content'].hidden, false);
   assert.equal(nodes['collection-content'].hidden, false);
+});
+
+test('운영 웹 여권 요약은 서버의 earnedTiers로 탐험 등급과 배지 n/9를 글자로 보여 준다', async () => {
+  const ranks = ['새내기 탐험가', '동네 산책가', '동네 산책가', '골목 탐험가', '골목 탐험가', '골목 탐험가',
+    '월계 미식가', '월계 미식가', '월계 미식가', '월계 마스터'];
+  for (const [earnedTiers, title] of ranks.entries()) {
+    const { nodes, doc } = collectionFixture();
+    await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture({ earnedTiers })) }).fetcher, doc);
+    const passport = nodes['badge-passport'];
+    assert.equal(first(passport, 'passport-rank').textContent, title, `earnedTiers ${earnedTiers}`);
+    assert.equal(textOf(first(passport, 'passport-count')), `배지 ${earnedTiers} / 9`);
+    const pips = findAll(passport, 'pip');
+    assert.equal(pips.length, 9);
+    assert.equal(pips.filter((pip) => classesOf(pip).includes('filled')).length, earnedTiers);
+    assert.match(first(passport, 'passport-pips').getAttribute('aria-label'), new RegExp(`배지 9개 중 ${earnedTiers}개`));
+    assert.equal(first(passport, 'passport-stamp').getAttribute('aria-hidden'), 'true');
+  }
+  const { nodes, doc } = collectionFixture();
+  await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture()) }).fetcher, doc);
+  assert.equal(first(nodes['badge-passport'], 'passport-eyebrow').textContent, '나의 탐험 여권');
+  assert.equal(first(nodes['badge-passport'], 'passport-next').textContent, '다음 상자까지 배지 1개');
+  assert.equal(first(nodes['badge-passport'], 'passport-cta'), undefined);
+  assert.equal(findAll(nodes['badge-passport'], 'gift-icon').length, 3);
+});
+
+test('운영 웹 여권 요약은 방문·앱 수집품·실제 NFT 개수를 글자로 세고 열 수 있는 상자는 앱 안내로 알린다', async () => {
+  const { nodes, doc } = collectionFixture();
+  const collectible = (nftStatus) => ({ displayName: '마스코트', merchantName: '가게', appCollectibleStatus: 'COLLECTED', nftStatus,
+    nft: nftStatus === 'FINALIZED' ? { tokenId: '7' } : null });
+  const collection = { visits: [{ merchantName: 'A', businessDate: '2026-09-25' }, { merchantName: 'B', businessDate: '2026-09-26' }],
+    collectibles: [collectible('NOT_REQUESTED'), collectible('FINALIZED'), collectible('QUEUED')] };
+  const rewards = [
+    { milestone: 1, requiredTiers: 3, state: 'READY', offer: null, coupon: null },
+    { milestone: 2, requiredTiers: 6, state: 'LOCKED', offer: null, coupon: null },
+    { milestone: 3, requiredTiers: 9, state: 'LOCKED', offer: null, coupon: null },
+  ];
+  await loadCollection(collectionAndBadges({ collection,
+    badges: () => okJson(badgesFixture({ earnedTiers: 3, rewards })) }).fetcher, doc);
+  const pills = findAll(nodes['badge-passport'], 'count-pill');
+  assert.deepEqual(pills.map(textOf), ['2방문', '3앱 수집품', '1실제 NFT']);
+  assert.equal(textOf(first(nodes['badge-passport'], 'passport-cta')), '첫 번째 상자를 앱에서 열 수 있어요');
+  assert.equal(first(nodes['badge-passport'], 'passport-next').textContent, '다음 상자까지 배지 3개');
+  assert.equal(nodes['reward-list'].children[0].className, 'reward-row state-ready ready');
+
+  const { nodes: done, doc: doneDoc } = collectionFixture();
+  await loadCollection(collectionAndBadges({
+    badges: () => okJson(badgesFixture({ earnedTiers: 9, rewards: rewards.map((reward) => ({ ...reward, state: 'OPENED' })) })) }).fetcher, doneDoc);
+  assert.equal(first(done['badge-passport'], 'passport-next').textContent, '모든 보상 상자에 닿았어요!');
+});
+
+test('운영 웹 미획득 메달은 회색 잠김 카드와 글자 칩으로 표시하고 장식 그림은 읽지 않는다', async () => {
+  const { nodes, doc } = collectionFixture();
+  const medals = badgesFixture().medals.map((medal) => ({ ...medal, tier: 0, value: 0 }));
+  await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture({ medals, earnedTiers: 0 })) }).fetcher, doc);
+  const cards = nodes['badge-list'].children;
+  for (const card of cards) {
+    assert.deepEqual(classesOf(card), ['medal-card', 'tier-0', 'locked']);
+    assert.equal(first(card, 'tier-chip').textContent, '도전 전');
+    assert.equal(card.children[0].getAttribute('aria-hidden'), 'true');
+  }
+  assert.deepEqual(texts(cards, 'medal-next'), ['브론즈까지 1곳 더', '브론즈까지 2일 더', '브론즈까지 2일 더']);
+  assert.equal(first(nodes['badge-passport'], 'passport-rank').textContent, '새내기 탐험가');
+  assert.match(css, /\.medal-card\.locked \.medal-face \{[^}]*grayscale\(1\)[^}]*opacity: \.45/);
+  assert.match(css, /\.medal-card\.locked \.medal-ring \{[^}]*dashed var\(--mc-locked-edge\)/);
 });
 
 test('운영 웹 보상 상자 상태와 쿠폰은 색이 아닌 글자로 표시하고 가상 쿠폰을 만들지 않는다', async () => {
@@ -157,12 +244,15 @@ test('운영 웹 보상 상자 상태와 쿠폰은 색이 아닌 글자로 표�
     { milestone: 3, requiredTiers: 9, state: 'UNAVAILABLE', offer: null, coupon: null },
   ];
   await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture({ rewards: states })) }).fetcher, doc);
-  assert.deepEqual(nodes['reward-list'].children.map((row) => row.textContent), [
-    '첫 번째 상자 · 배지 3개 · 잠김 · <b>운영 점포</b> 음료 1잔',
-    '두 번째 상자 · 배지 6개 · 열 수 있어요 (앱에서 열기) · 가게 둘 디저트',
-    '황금 상자 · 배지 9개 · 혜택 준비 중',
-  ]);
+  const rows = nodes['reward-list'].children;
+  assert.deepEqual(texts(rows, 'reward-name'), ['첫 번째 상자', '두 번째 상자', '황금 상자']);
+  assert.deepEqual(texts(rows, 'reward-need'), ['배지 3개', '배지 6개', '배지 9개']);
+  assert.deepEqual(texts(rows, 'state-chip'), ['잠김', '앱에서 열 수 있어요', '혜택 준비 중']);
+  assert.deepEqual(texts(rows, 'reward-offer'), ['<b>운영 점포</b> · 음료 1잔', '가게 둘 · 디저트', undefined]);
+  assert.deepEqual(rows.map((row) => row.className), [
+    'reward-row state-locked', 'reward-row state-ready ready', 'reward-row state-unavailable']);
   assert.match(nodes['coupon-list'].children[0].textContent, /아직 받은 쿠폰이 없어요/);
+  assert.equal(nodes['coupon-list'].children.length, 1);
 
   const opened = [
     { ...rewards[0] },
@@ -170,13 +260,28 @@ test('운영 웹 보상 상자 상태와 쿠폰은 색이 아닌 글자로 표�
     { milestone: 3, requiredTiers: 9, state: 'OPENED', offer: null, coupon: { ...coupon, couponId: 'c3', milestone: 3, title: '만료 쿠폰', status: 'EXPIRED' } },
   ];
   await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture({ rewards: opened })) }).fetcher, doc);
-  assert.match(nodes['reward-list'].children[0].textContent, /받음/);
-  assert.equal(nodes['coupon-list'].children.length, 3);
-  const cardTexts = nodes['coupon-list'].children.map((card) => card.children.map((child) => child.textContent).join(' | '));
-  assert.match(cardTexts[0], /^음료 1잔 \| <b>운영 점포<\/b> · 만료: .+ \| 사용 가능$/);
-  assert.match(cardTexts[1], /사용 완료$/);
-  assert.match(cardTexts[2], /기간 만료$/);
-  assert.equal(nodes['coupon-list'].children[0].children[0].textContent, '음료 1잔');
+  assert.deepEqual(texts(nodes['reward-list'].children, 'state-chip'), ['받음', '받음', '받음']);
+  assert.equal(findAll(nodes['reward-list'], 'reward-offer').length, 0);
+  const tickets = nodes['coupon-list'].children;
+  assert.equal(tickets.length, 3);
+  assert.deepEqual(tickets.map((ticket) => ticket.className), [
+    'ticket ticket-issued', 'ticket ticket-redeemed', 'ticket ticket-expired']);
+  assert.deepEqual(texts(tickets, 'ticket-title'), ['음료 1잔', '디저트', '만료 쿠폰']);
+  assert.deepEqual(texts(tickets, 'ticket-eyebrow'), ['첫 번째 상자 쿠폰', '두 번째 상자 쿠폰', '황금 상자 쿠폰']);
+  assert.deepEqual(texts(tickets, 'ticket-merchant'), ['<b>운영 점포</b>', '<b>운영 점포</b>', '<b>운영 점포</b>']);
+  assert.deepEqual(texts(tickets, 'ticket-chip'), ['사용 가능', '사용 완료', '만료']);
+  assert.deepEqual(texts(tickets, 'ticket-expiry'), ['~10월 29일까지', '~10월 29일까지', '~10월 29일까지']);
+  // 사용 완료 도장은 글자 칩과 겹치는 장식이라 읽지 않고, 다른 상태에는 없다.
+  assert.deepEqual(tickets.map((ticket) => findAll(ticket, 'ticket-stamp').length), [0, 1, 0]);
+  assert.equal(first(tickets[1], 'ticket-stamp').textContent, '사용 완료');
+  assert.equal(first(tickets[1], 'ticket-stamp').getAttribute('aria-hidden'), 'true');
+
+  // 긴 안내는 사용 가능한 쿠폰에만 보이고, 사용·만료 티켓에서는 도장 아래로 숨지 않도록 뺀다.
+  const detailed = opened.map((reward) => ({ ...reward, coupon: { ...reward.coupon, detail: '매장 안내 <i>문구</i>' } }));
+  await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture({ rewards: detailed })) }).fetcher, doc);
+  const detailedTickets = nodes['coupon-list'].children;
+  assert.deepEqual(detailedTickets.map((ticket) => findAll(ticket, 'ticket-detail').length), [1, 0, 0]);
+  assert.equal(first(detailedTickets[0], 'ticket-detail').textContent, '매장 안내 <i>문구</i>');
 });
 
 test('운영 웹 메달 조회 실패는 메달 영역만 숨기고 재시도 없이 도감을 그대로 표시한다', async () => {
@@ -199,6 +304,7 @@ test('운영 웹 메달 조회 실패는 메달 영역만 숨기고 재시도 �
     assert.equal(nodes['collection-logout'].hidden, false);
     assert.equal(nodes['collection-retry'].hidden, true);
     assert.equal(nodes['badge-content'].hidden, true);
+    assert.equal(nodes['badge-passport'].children.length, 0);
     assert.equal(nodes['badge-list'].children.length, 0);
     assert.equal(nodes['reward-list'].children.length, 0);
     assert.equal(nodes['coupon-list'].children.length, 0);
@@ -230,6 +336,7 @@ test('운영 웹은 방문·수집품을 먼저 그리고 메달은 도착하면
   await loading;
   assert.equal(nodes['badge-content'].hidden, false);
   assert.equal(nodes['badge-list'].children.length, 3);
+  assert.equal(first(nodes['badge-passport'], 'passport-rank').textContent, '골목 탐험가');
   assert.match(nodes['badge-note'].textContent, /5\/9/);
 });
 
@@ -272,7 +379,7 @@ test('운영 웹은 메달 응답을 기다리는 사이 다시 조회하거나 
   await loadCollection(async () => ({ ok: false, status: 401 }), doc);
   releaseBadges();
   await first;
-  for (const id of ['visit-list', 'badge-list', 'reward-list', 'coupon-list']) assert.equal(nodes[id].children.length, 0, id);
+  for (const id of ['visit-list', 'badge-passport', 'badge-list', 'reward-list', 'coupon-list']) assert.equal(nodes[id].children.length, 0, id);
   assert.equal(nodes['badge-content'].hidden, true);
   assert.equal(nodes['badge-note'].textContent, '');
   assert.equal(nodes['collection-login'].hidden, false);
@@ -285,20 +392,20 @@ test('운영 웹 쿠폰 만료일은 브라우저 시간대가 아니라 한국 
   const opened = [
     { ...rewards[0], coupon: at('2026-10-29T14:59:59.999Z') },
     { milestone: 2, requiredTiers: 6, state: 'OPENED', offer: null, coupon: { ...at('2026-10-29T15:00:00.000Z'), couponId: 'c2', milestone: 2 } },
-    rewards[2],
+    { milestone: 3, requiredTiers: 9, state: 'OPENED', offer: null, coupon: { ...at('2026-12-31T15:00:00.000Z'), couponId: 'c3', milestone: 3 } },
   ];
   await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture({ rewards: opened })) }).fetcher, doc);
-  const dates = nodes['coupon-list'].children.map((card) => card.children[1].textContent);
-  assert.match(dates[0], /만료: 2026\. 10\. 29\.$/);
-  assert.match(dates[1], /만료: 2026\. 10\. 30\.$/);
+  assert.deepEqual(texts(nodes['coupon-list'].children, 'ticket-expiry'), ['~10월 29일까지', '~10월 30일까지', '~1월 1일까지']);
+  assert.match(script, /timeZone: 'Asia\/Seoul'/);
 });
 
 test('운영 웹은 메달이 성공해도 도감 실패나 로그아웃 때 이전 메달·쿠폰을 모두 지운다', async () => {
   const { nodes, doc } = collectionFixture();
   await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture()) }).fetcher, doc);
   assert.equal(nodes['coupon-list'].children.length, 1);
+  assert.ok(nodes['badge-passport'].children.length > 0);
   await loadCollection(async (url) => (url === '/api/web/badges' ? okJson(badgesFixture()) : { ok: false, status: 401 }), doc);
-  for (const id of ['badge-list', 'reward-list', 'coupon-list']) assert.equal(nodes[id].children.length, 0, id);
+  for (const id of ['badge-passport', 'badge-list', 'reward-list', 'coupon-list']) assert.equal(nodes[id].children.length, 0, id);
   assert.equal(nodes['badge-content'].hidden, true);
   assert.equal(nodes['badge-note'].textContent, '');
   assert.equal(nodes['collection-login'].hidden, false);
@@ -1373,7 +1480,7 @@ test('점포 웹 쿠폰 영역은 고객 QR 확인 뒤에만 열리고 확인 �
   assert.deepEqual(JSON.parse(call.options.body), { customerIdentityToken: 'customer-qr' });
   const rows = nodes['merchant-coupon-list'].children;
   assert.equal(rows.length, 2);
-  assert.match(rows[0].children[0].textContent, /^<b>체험 음료<\/b> · 한 잔 · 만료: /);
+  assert.match(rows[0].children[0].textContent, /^<b>체험 음료<\/b> · 한 잔 · ~10월 28일까지$/);
   assert.doesNotMatch(rows[1].children[0].textContent, /· ·/);
   assert.equal(couponButton(nodes, 0).textContent, '<b>체험 음료</b> 사용 처리');
   assert.equal(couponButton(nodes, 0).type, 'button');
@@ -1430,8 +1537,8 @@ test('점포 웹 쿠폰 만료일은 브라우저 시간대가 아니라 한국 
   await resolve();
   await nodes['merchant-coupon-lookup'].click();
   const texts = nodes['merchant-coupon-list'].children.map((item) => item.children[0].textContent);
-  assert.match(texts[0], /만료: 2026\. 10\. 29\.$/);
-  assert.match(texts[1], /만료: 2026\. 10\. 30\.$/);
+  assert.deepEqual(texts, ['음료 · ~10월 29일까지', '디저트 · ~10월 30일까지']);
+  assert.match(readFileSync(join(web, 'assets/merchant.mjs'), 'utf8'), /timeZone: 'Asia\/Seoul'/);
 });
 
 test('점포 웹 쿠폰 오류는 친절한 안내로 바꾸고 만료 쿠폰만 목록에서 뺀다', async () => {
@@ -1625,3 +1732,77 @@ test('운영 웹 프록시는 불완전한 공개 목록을 0곳으로 오인하
     }
   }
 });
+
+const pageSources = {
+  app: html,
+  merchant: readFileSync(join(web, 'merchant.html'), 'utf8'),
+  admin: readFileSync(join(web, 'admin.html'), 'utf8'),
+};
+const cspOf = (source) => /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(source)?.[1];
+
+test('웹 색·글자 토큰은 앱과 같은 --mc-* 블록으로 시작하고 옛 변수와 Georgia를 쓰지 않는다 (Issue #218)', () => {
+  assert.ok(css.trimStart().startsWith(':root {\n  color-scheme: light dark;'));
+  for (const token of ['--mc-bg: #FFFFFF', '--mc-primary: #2456D6', '--mc-sky-1: #BFE3FF', '--mc-bronze-edge: #8A5226',
+    '--mc-gold-container: #FBEFC4', '--mc-stamp-ink: #A3401F', '--mc-radius-card: 20px', '--mc-radius-control: 14px',
+    '--mc-page: min(72rem, calc(100vw - 40px))']) assert.ok(css.includes(token), token);
+  const dark = /@media \(prefers-color-scheme: dark\) \{\s*:root \{([^}]+)\}/.exec(css)?.[1] ?? '';
+  for (const token of ['--mc-bg: #14171D', '--mc-primary: #9BB8FF', '--mc-sky-1: #1D3A63', '--mc-stamp-ink: #FFB09A',
+    '--mc-locked-fill: #262C37']) assert.ok(dark.includes(token), token);
+  assert.doesNotMatch(css, /--(?:ink|muted|paper|night|moon|stream|line|focus|ribbon-ink)\b/);
+  assert.doesNotMatch(css, /Georgia|(?<!sans-)serif/);
+  assert.match(css, /h1 \{ font-size: clamp\(1\.9rem, 4\.2vw, 3\.2rem\)/);
+  assert.match(css, /button, \.collection-action \{[^}]*min-height: 48px[^}]*border-radius: var\(--mc-radius-control\)[^}]*font-weight: 800/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
+  // 외부 이미지·글꼴 없이 같은 출처의 마스코트 한 장만 CSS에서 쓴다.
+  assert.deepEqual([...new Set([...css.matchAll(/url\(([^)]+)\)/g)].map((match) => match[1].replaceAll('"', '')))], ['mascot-stamp.png']);
+  assert.doesNotMatch(css, /https?:\/\//);
+});
+
+test('세 화면 머리글은 마스코트 스탬프와 월계 마스코트를 쓰고 점주·관리자 칩을 붙인다', () => {
+  for (const [name, source] of Object.entries(pageSources)) {
+    assert.match(source, /<img class="brand-mark" src="[^"]*mascot-stamp\.png" alt="" width="36" height="36">/, name);
+    assert.match(source, /<p class="brand">[^]*월계 마스코트/, name);
+    assert.doesNotMatch(source, /月|>\s*MassCOM\s*</, name);
+  }
+  assert.match(pageSources.merchant, /<span class="chip role-chip">점주<\/span>/);
+  assert.match(pageSources.admin, /<span class="chip role-chip">관리자<\/span>/);
+  assert.doesNotMatch(pageSources.app, /role-chip/);
+});
+
+test('세 화면 CSP는 같은 출처 이미지만 더하고 나머지 지시문은 그대로다', () => {
+  const base = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; ";
+  const tail = "base-uri 'none'; form-action 'none'";
+  assert.equal(cspOf(pageSources.app), `${base}img-src 'self'; ${tail}`);
+  assert.equal(cspOf(pageSources.admin), `${base}img-src 'self'; ${tail}`);
+  assert.equal(cspOf(pageSources.merchant), `${base}img-src 'self' data:; ${tail}`);
+});
+
+test('마스코트 스탬프는 네 자산 경로에서 PNG로 제공하고 60KB를 넘지 않는다', async () => {
+  const disk = readFileSync(join(web, 'assets/mascot-stamp.png'));
+  assert.ok(disk.length <= 60 * 1024, `${disk.length} bytes`);
+  assert.deepEqual([...disk.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  for (const path of ['/assets/mascot-stamp.png', '/app/assets/mascot-stamp.png',
+    '/merchant/assets/mascot-stamp.png', '/admin/assets/mascot-stamp.png']) {
+    const response = await fetch(`${base}${path}`);
+    assert.equal(response.status, 200, path);
+    assert.equal(response.headers.get('content-type'), 'image/png', path);
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff', path);
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), disk, path);
+  }
+  const hidden = await fetch(`${base}/admin/assets/mascot-stamp.png`);
+  assert.equal(hidden.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.equal((await fetch(`${base}/assets/mascot-stamp.svg`)).status, 404);
+  assert.equal((await fetch(`${base}/assets/../server.mjs`)).status, 404);
+});
+
+test('점포 화면 쿠폰 목록은 티켓 모양 CSS를 쓰고 사용 처리 버튼은 글자 노드로만 만든다', () => {
+  assert.match(css, /\.coupon-list > li[^{]*\{[^}]*mask:/);
+  assert.match(css, /\.ticket-redeemed \.ticket-chip/);
+  assert.match(css, /main\.page-narrow \{ width: min\(52rem, var\(--mc-page\)\); \}/);
+  assert.match(pageSources.merchant, /<main id="main" class="page-narrow">/);
+  assert.match(pageSources.admin, /<main id="main" class="page-medium">/);
+  assert.match(readFileSync(join(web, 'assets/merchant.mjs'), 'utf8'), /text\.className = 'coupon-text'/);
+  assert.match(pageSources.merchant, /<label>이용 식별 번호 <input id="merchant-claim-reference"/);
+  assert.match(pageSources.merchant, /<label><input id="merchant-claim-confirm" type="checkbox"> 실제 이용을 확인했고/);
+});
+

@@ -35,9 +35,9 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
   const requests = [];
   const server = createServer((request, response) => {
     requests.push(request.url);
-    const asset = request.url === '/' ? 'index.html' : request.url === '/assets/showcase.css?v=20260924' ? 'assets/showcase.css' : null;
+    const asset = { '/': 'index.html', '/assets/showcase.css?v=20260929': 'assets/showcase.css', '/assets/mascot-stamp.png': 'assets/mascot-stamp.png' }[request.url] ?? null;
     if (!asset) { response.writeHead(404).end(); return; }
-    response.setHeader('Content-Type', asset.endsWith('.css') ? 'text/css' : 'text/html; charset=utf-8');
+    response.setHeader('Content-Type', asset.endsWith('.css') ? 'text/css' : asset.endsWith('.png') ? 'image/png' : 'text/html; charset=utf-8');
     response.end(readFileSync(join(siteRoot, asset)));
   });
   await new Promise((done) => server.listen(0, '127.0.0.1', done));
@@ -146,7 +146,7 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
         writeFileSync(join(process.env.SHOWCASE_CAPTURE_DIR, `${scheme}-focus.png`), Buffer.from(screenshot.data, 'base64'));
       }
     }
-    assert.deepEqual([...new Set(requests)].sort(), ['/', '/assets/showcase.css?v=20260924']);
+    assert.deepEqual([...new Set(requests)].sort(), ['/', '/assets/mascot-stamp.png', '/assets/showcase.css?v=20260929']);
   } finally {
     socket?.close();
     chrome.kill('SIGKILL');

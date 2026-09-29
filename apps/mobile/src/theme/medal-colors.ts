@@ -26,6 +26,8 @@ export type MedalColors = {
   skyMuted: string;
   /** "사용 완료" ink stamp, readable on surface, background and the cream ticket. */
   stampInk: string;
+  /** Text on a used or expired ticket: quieter than onAccentContainer but still ≥4.5:1 on the cream ticket. */
+  ticketMuted: string;
   /** Gift box paper and ribbon. */
   giftPaper: string;
   giftPaperShade: string;
@@ -56,6 +58,7 @@ export const lightMedalColors: MedalColors = {
   skyInk: '#192331',
   skyMuted: '#3B4A5E',
   stampInk: '#A3401F',
+  ticketMuted: '#6B573B',
   giftPaper: '#F7E8C9',
   giftPaperShade: '#E6CFA0',
   giftGold: '#F2C94C',
@@ -84,6 +87,7 @@ export const darkMedalColors: MedalColors = {
   skyInk: '#F3F5F9',
   skyMuted: '#C4D0E0',
   stampInk: '#FFB09A',
+  ticketMuted: '#C9B690',
   giftPaper: '#F7E8C9',
   giftPaperShade: '#D9BF8C',
   giftGold: '#F2C94C',

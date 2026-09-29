@@ -4,6 +4,7 @@
 
 ## 최신 작업 경계
 
+- **웹 디자인 체계 통일:** [PR #217](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/217) merge bd8fc1a로 탐험 여권을 main에 넣은 뒤 [Issue #218](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/218)에서 모든 웹 화면을 앱 토큰·마스코트 머리글·카드·다크 모드로 맞추고, 운영 웹 도감을 앱과 같은 메달·상자·쿠폰 표현으로, 시연 웹에 탐험 여권 미리보기를 더했다. 디자인 토큰 5/5·운영 웹 74/74·시연 웹 30/30·시연 테마 1/1·웹 빌드/경로 4/4·세션 프록시 2/2 PASS, [전후 화면](evidence/web-design-system-2026-09-29/README.md). 공개 서버 반영은 NOT_RUN이다.
 - **탐험 여권(메달·보상 상자·쿠폰):** UI/UX 피드백(수집 게임성·감성·공유·배지→쿠폰)으로 [Issue #216](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/216)에서 #212의 텍스트 배지를 서버 계산 메달 3종×3등급, 배지 3·6·9개 보상 상자, 점주 동의 혜택이 있을 때만 발급되는 쿠폰과 점원 사용 처리(migration 0027), 방문 축하·이미지 공유로 바꿨다(D-043). 모바일 276/276·API 단위 133/133·PostgreSQL 89 PASS/2 SKIP·운영 웹 66/66, 두 모델 교차 리뷰(opus 보안·sonnet 코드) 🔴 0, [에뮬레이터·Samsung 휴대전화 로컬 실측](evidence/explorer-passport-emulator-2026-09-29/README.md) PASS. 운영 혜택은 0건이며 서버 배포·새 APK·TalkBack 낭독은 NOT_RUN이다.
 - **Preview 6 설치 안내 외부 반영:** [PR #214](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/214) merge 2dda864·main CI PASS 뒤 [apex/www /open](evidence/public-open-preview6-deployment-2026-09-29.json)은 HTTPS 200·저장소 소스 SHA-256 일치·최신 시연 Preview 6 링크를 확인했다. 웹 전용 배포이며 API/DB·운영 앱은 바꾸지 않았다.
 

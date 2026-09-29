@@ -4,25 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
-  <title>MassCOM 관리자</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <title>월계 마스코트 · 관리자</title>
   <link rel="stylesheet" href="/app/assets/production.css">
   <script type="module" src="/admin/assets/admin.mjs"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">본문으로 건너뛰기</a>
   <header class="site-header">
-    <p class="brand"><span class="brand-mark" aria-hidden="true">月</span> MassCOM</p>
+    <p class="brand"><img class="brand-mark" src="/admin/assets/mascot-stamp.png" alt="" width="36" height="36"> 월계 마스코트 <span class="chip role-chip">관리자</span></p>
     <nav aria-label="페이지 이동"><a href="/app/">고객용 운영 웹</a> <a href="/merchant/">점포 운영</a></nav>
   </header>
-  <main id="main">
+  <main id="main" class="page-medium">
     <div class="admin-heading">
       <h1>실제 점포 관리</h1>
       <p>운영 점포만 관리합니다. 시연 점포와 고객 방문 기록은 이 화면에 표시하지 않습니다.</p>
     </div>
     <p id="admin-status" class="status" role="status" aria-live="polite">권한을 확인하는 중입니다.</p>
-    <a id="admin-login" class="collection-action" href="/api/web/admin/auth/start" hidden>Google 계정으로 로그인</a>
-    <button id="admin-logout" class="collection-action secondary" type="button" hidden>로그아웃</button>
+    <div class="collection-actions">
+      <a id="admin-login" class="collection-action" href="/api/web/admin/auth/start" hidden>Google 계정으로 로그인</a>
+      <button id="admin-logout" class="collection-action secondary" type="button" hidden>로그아웃</button>
+    </div>
     <section id="admin-content" hidden>
       <h2>점포 운영</h2>
       <section class="admin-panel" aria-labelledby="operations-heading">

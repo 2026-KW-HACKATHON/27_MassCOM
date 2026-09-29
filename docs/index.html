@@ -7,33 +7,42 @@
       name="description"
       content="월계1동 음식점 탐색·이용 인증·마스코트 수집 서비스의 개발 현황과 검증 증거를 한눈에 보는 프로젝트 포털"
     >
-    <meta name="theme-color" content="#12303d">
+    <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#14171D" media="(prefers-color-scheme: dark)">
     <title>월계 마스코트 · 프로젝트 포털</title>
     <link rel="canonical" href="https://www.masscom.kr/">
-    <link rel="icon" type="image/svg+xml" href="assets/wallet-mark.svg">
-    <link rel="stylesheet" href="assets/project.css?v=20260922">
+    <link rel="icon" type="image/png" href="assets/mascot-stamp.png">
+    <link rel="stylesheet" href="assets/project.css?v=20260929">
   </head>
   <body>
     <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
 
     <header class="site-header">
       <a class="brand" href="#overview" aria-label="월계 마스코트 프로젝트 포털 처음으로">
-        <span class="brand-mark" aria-hidden="true">月</span>
+        <img class="brand-mark" src="assets/mascot-stamp.png" alt="" width="36" height="36">
         <span>월계 마스코트</span>
       </a>
       <nav aria-label="주요 메뉴">
         <a href="#flow">서비스 흐름</a>
+        <a href="#passport">탐험 여권</a>
         <a href="#architecture">구조</a>
         <a href="#evidence">증거</a>
         <a href="presentation.html">발표</a>
         <a href="#decisions">결정</a>
       </nav>
-      <span class="header-state"><span aria-hidden="true"></span> Phase 4 삭제·출시 준비</span>
+      <span class="header-state"><span aria-hidden="true"></span><span>Phase 4 <span class="long">삭제·</span>출시 준비</span></span>
     </header>
 
     <main id="main-content">
       <section class="overview" id="overview" aria-labelledby="overview-title">
-        <div class="overview-copy">
+        <div class="passport-hero">
+          <img
+            class="passport-mascot"
+            src="assets/mascot-stamp.png"
+            alt="월계 마스코트: 도장을 든 파란 펭귄"
+            width="148"
+            height="148"
+          >
           <p class="context">월계1동 지역 상권 · Android 출시 목표</p>
           <h1 id="overview-title">가게를 발견하고,<br>방문을 수집한다.</h1>
           <p class="lede">
@@ -42,9 +51,9 @@
           </p>
           <div class="overview-actions">
             <a class="primary-action" href="#flow">전체 흐름 보기</a>
-            <a class="text-action" href="https://www.masscom.kr/app/">운영 웹 보기</a>
-            <a class="text-action" href="https://www.masscom.kr/preview/">시연 웹 보기</a>
-            <a class="text-action" href="https://masscom.kr/open">Android 테스트 앱 열기</a>
+            <a class="secondary-action" href="https://www.masscom.kr/app/">운영 웹 보기</a>
+            <a class="secondary-action" href="https://www.masscom.kr/preview/">시연 웹 보기</a>
+            <a class="secondary-action wide" href="https://masscom.kr/open">Android 테스트 앱 열기</a>
             <a class="text-action" href="presentation.html">발표 화면</a>
             <a
               class="text-action"
@@ -135,6 +144,83 @@
           <li><span>8</span><strong>도감</strong><small>앱 수집품과 구분</small></li>
           <li><span>9</span><strong>다음 가게</strong><small>지역 탐색 반복</small></li>
         </ol>
+      </section>
+
+      <section class="section passport-section" id="passport" aria-labelledby="passport-title">
+        <div class="section-heading">
+          <div>
+            <p>새 기능 · 탐험 여권</p>
+            <h2 id="passport-title">방문이 도장이 되고, 도장이 메달이 됩니다.</h2>
+          </div>
+          <p>
+            점원이 확인한 방문만 셉니다. 메달 등급이 오르면 보상 상자가 열리고,
+            점주가 동의해 등록한 혜택만 쿠폰으로 나옵니다.
+          </p>
+        </div>
+
+        <div class="passport-layout">
+          <div>
+            <ol class="passport-loop" aria-label="탐험 여권 5단계">
+              <li><span>1</span><strong>방문 인증</strong><small>점원이 확인한 방문만, 같은 가게는 하루 한 번</small></li>
+              <li><span>2</span><strong>도장</strong><small>도감 스탬프판에 가게 도장이 찍힙니다</small></li>
+              <li>
+                <span>3</span>
+                <strong>메달 등급
+                  <span class="tier-chips"><span class="chip chip-bronze">브론즈</span><span class="chip chip-silver">실버</span><span class="chip chip-gold">골드</span></span>
+                </strong>
+                <small>동네 탐험가·단골손님·꾸준한 걸음, 세 메달</small>
+              </li>
+              <li><span>4</span><strong>보상 상자</strong><small>배지 3·6·9개마다 하나씩, 여는 것은 앱에서</small></li>
+              <li><span>5</span><strong>점주 동의 쿠폰</strong><small>매장에서 식별 QR을 보여 주면 점원이 사용 처리</small></li>
+            </ol>
+            <p class="honesty-band">
+              <strong>실측 화면 안내</strong> 개발 빌드를 실제 휴대전화에서 로컬 API와 시연 가상 점포 데이터로 확인한 화면입니다(2026-09-29).
+              공개 서버 배포 전이며, 운영 DB에는 점주 동의 뒤 등록하기 전까지 혜택이 없습니다.
+            </p>
+          </div>
+
+          <ul class="phone-gallery" aria-label="탐험 여권 휴대전화 화면" tabindex="0">
+            <li>
+              <figure>
+                <img
+                  src="assets/passport/phone-passport.png"
+                  alt="도감 탭의 탐험 여권: 새내기 탐험가, 배지 0/9, 잠긴 메달 세 개"
+                  width="540"
+                  height="1115"
+                  loading="lazy"
+                  decoding="async"
+                >
+                <figcaption>탐험 여권과 잠긴 메달</figcaption>
+              </figure>
+            </li>
+            <li>
+              <figure>
+                <img
+                  src="assets/passport/phone-stamp.png"
+                  alt="방문 인증 축하 화면: 가상 점포 C 도장 쾅, 동네 탐험가 골드 달성, 첫 번째 상자를 열 수 있어요"
+                  width="540"
+                  height="1045"
+                  loading="lazy"
+                  decoding="async"
+                >
+                <figcaption>방문 도장과 메달 등급 상승</figcaption>
+              </figure>
+            </li>
+            <li>
+              <figure>
+                <img
+                  src="assets/passport/phone-coupon.png"
+                  alt="보상 상자에서 나온 쿠폰: 첫 번째 상자 쿠폰, 가상 점포 A 체험 음료 1잔, 실제 매장에서는 사용할 수 없음"
+                  width="540"
+                  height="1115"
+                  loading="lazy"
+                  decoding="async"
+                >
+                <figcaption>상자에서 나온 체험 쿠폰</figcaption>
+              </figure>
+            </li>
+          </ul>
+        </div>
       </section>
 
       <section class="section architecture-section" id="architecture" aria-labelledby="architecture-title">
@@ -257,7 +343,7 @@
           <p>확정된 구현 기준</p>
           <h2 id="decisions-title">다섯 가지 권장안을 승인했습니다.</h2>
           <p>각 결정은 별도 Issue와 PR로 구현하며, 유료 자원·공개 배포·메인넷은 계속 승인 대상입니다.</p>
-          <a class="primary-action light" href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/DECISIONS.md" rel="noreferrer">결정 원문 열기</a>
+          <a class="primary-action" href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/DECISIONS.md" rel="noreferrer">결정 원문 열기</a>
         </div>
         <ol class="decision-list">
           <li><span>D-004</span><strong>고정형 보상</strong><small>USER_CONFIRMED</small></li>

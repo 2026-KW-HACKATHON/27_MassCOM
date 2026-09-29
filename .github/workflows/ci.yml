@@ -60,6 +60,8 @@ jobs:
         run: bash tests/site/verify_project_site_test.sh
       - name: 시연 웹 사실성·읽기 전용 검사
         run: node --test tests/site/verify_showcase_site_test.mjs
+      - name: 웹 디자인 토큰·앱 색 정합 검사
+        run: node --test tests/site/verify_design_tokens_test.mjs
       - name: 운영 웹 공개 조회·읽기 전용 경계 검사
         run: node --test tests/site/verify_production_web_test.mjs
       - name: AWS 운영 웹 정적 번들·Caddy 경계 검사

@@ -40,6 +40,12 @@ test('passport text reads on every sky gradient stop', () => {
   }
 });
 
+test('used and expired ticket text stays readable instead of fading with opacity', () => {
+  for (const [scheme, medal, palette] of schemes) {
+    assert.ok(contrast(medal.ticketMuted, palette.accentContainer) >= 4.5, `${scheme} ticketMuted`);
+  }
+});
+
 test('the redeemed ink stamp is readable on tickets, surface and page', () => {
   for (const [scheme, medal, palette] of schemes) {
     for (const background of [palette.background, palette.surface, palette.accentContainer]) {

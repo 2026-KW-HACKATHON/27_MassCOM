@@ -14,10 +14,16 @@ def fail(reason: str) -> None:
 class ReadOnlyPage(HTMLParser):
     tags = {
         "html", "head", "meta", "title", "link", "body", "a", "header",
-        "main", "section", "h1", "h2", "p", "span", "div", "footer",
-        "strong", "small", "nav", "ul", "li",
+        "main", "section", "h1", "h2", "h3", "p", "span", "div", "footer",
+        "strong", "small", "nav", "ul", "li", "img",
     }
     common = {"class", "id", "aria-label", "aria-labelledby", "role"}
+    # 이미지는 시연 웹 폴더의 PNG만, 대체 글자와 함께 쓴다(CSP img-src 'self').
+    local_image = re.compile(r"assets/[a-z0-9-]+\.png")
+    csp_values = (
+        "default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'",
+        "default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'",
+    )
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -30,6 +36,9 @@ class ReadOnlyPage(HTMLParser):
         self.korean = False
         self.local_css = False
         self.csp = False
+        self.csp_allows_images = False
+        self.images: list[str] = []
+        self.image_alts: list[str] = []
 
     def handle_starttag(self, tag: str, raw_attrs: list[tuple[str, str | None]]) -> None:
         if tag not in self.tags:
@@ -46,15 +55,28 @@ class ReadOnlyPage(HTMLParser):
             allowed.update({"rel", "href"})
         if tag == "section":
             allowed.add("data-demo-merchant")
+        if tag == "img":
+            allowed.update({"src", "alt", "width", "height", "loading", "decoding"})
         if set(attrs) - allowed:
             fail(f"허용되지 않은 속성: {tag}")
+
+        if tag == "img":
+            if not self.local_image.fullmatch(attrs.get("src") or ""):
+                fail("허용되지 않은 URL")
+            if attrs.get("alt") is None:
+                fail("이미지 대체 글자 없음")
+            self.images.append(attrs["src"] or "")
+            self.image_alts.append(attrs.get("alt") or "")
 
         if tag == "a" and not (attrs.get("href") or "").startswith("#"):
             fail("허용되지 않은 URL")
         if tag == "link":
-            if attrs.get("rel") != "stylesheet" or attrs.get("href") != "assets/showcase.css?v=20260924":
+            if attrs.get("rel") == "icon" and self.local_image.fullmatch(attrs.get("href") or ""):
+                self.images.append(attrs["href"] or "")
+            elif attrs.get("rel") != "stylesheet" or attrs.get("href") != "assets/showcase.css?v=20260929":
                 fail("허용되지 않은 URL")
-            self.local_css = True
+            else:
+                self.local_css = True
         if tag == "meta":
             self._check_meta(attrs)
         if tag == "html":
@@ -86,10 +108,10 @@ class ReadOnlyPage(HTMLParser):
         if (
             set(attrs) == {"http-equiv", "content"}
             and (attrs.get("http-equiv") or "").lower() == "content-security-policy"
-            and attrs.get("content")
-            == "default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'"
+            and attrs.get("content") in self.csp_values
         ):
             self.csp = True
+            self.csp_allows_images = "img-src 'self'" in (attrs.get("content") or "")
             return
         fail("허용되지 않은 meta")
 
@@ -137,8 +159,13 @@ def main() -> None:
     for copy in required:
         if copy not in visible:
             fail(f"필수 문구 없음: {copy}")
-    if re.search(r"FINALIZED|발행 완료|0x[a-fA-F0-9]{40}", visible):
+    if re.search(r"FINALIZED|발행 완료|0x[a-fA-F0-9]{40}", " ".join([visible, *page.image_alts])):
         fail("금지 문구")
+    if page.images and not page.csp_allows_images:
+        fail("이미지에는 CSP img-src 'self'가 필요함")
+    for image in page.images:
+        if not (root / image).is_file():
+            fail(f"이미지 파일 없음: {image}")
 
     css = css_file.read_text(encoding="utf-8")
     if re.search(

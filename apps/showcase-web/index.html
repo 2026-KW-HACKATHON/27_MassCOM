@@ -3,25 +3,28 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="월계 마스코트의 가상 점포와 예시 도감을 보여주는 읽기 전용 체험 화면">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'">
+    <meta name="description" content="월계 마스코트의 가상 점포와 예시 도감·탐험 여권을 보여주는 읽기 전용 체험 화면">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
     <title>월계 마스코트 · 체험 도감</title>
-    <link rel="stylesheet" href="assets/showcase.css?v=20260924">
+    <link rel="icon" href="assets/mascot-stamp.png">
+    <link rel="stylesheet" href="assets/showcase.css?v=20260929">
   </head>
   <body>
     <a class="skip-link" href="#main">본문으로 건너뛰기</a>
     <p class="demo-ribbon">체험용 가상 데이터로 서비스 흐름을 보여드립니다. 실제 영업점이나 방문 혜택과 연결되지 않습니다.</p>
 
     <header class="site-header">
-      <p class="brand"><span class="brand-mark">月</span> 월계 마스코트</p>
+      <p class="brand"><img class="brand-mark" src="assets/mascot-stamp.png" alt="" width="36" height="36"> 월계 마스코트 <span class="brand-chip">체험</span></p>
       <nav aria-label="체험 화면 이동">
         <a href="#sample-merchants">가상 점포</a>
         <a href="#collection">예시 도감</a>
+        <a href="#passport-preview">탐험 여권</a>
       </nav>
     </header>
 
     <main id="main">
       <section class="intro" aria-labelledby="intro-title">
+        <img class="intro-mascot" src="assets/mascot-stamp.png" alt="월계 마스코트: 도장을 든 파란 펭귄" width="132" height="132">
         <p class="context">월계1동 음식점 탐색·수집 흐름 미리보기</p>
         <h1 id="intro-title">세 가게를 둘러보고 도감까지 걸어봅니다.</h1>
         <p class="intro-body">이 페이지는 기능을 이해하기 위한 보기 전용 예시입니다. 방문 코드와 QR 인증은 여기서 진행하지 않습니다.</p>
@@ -51,6 +54,23 @@
       <section class="collection-card" id="collection" aria-labelledby="collection-title">
         <p class="collection-caption">가상 점포 A를 방문했다고 가정한 고정 예시</p>
         <h2 id="collection-title">체험 도감</h2>
+        <ul class="stamp-board" aria-label="예시 스탬프판">
+          <li class="stamp stamp-filled">
+            <span class="stamp-ring"><img src="assets/mascot-stamp.png" alt="" width="72" height="72"></span>
+            <strong>가상 점포 A</strong>
+            <small>예시 도장 1개</small>
+          </li>
+          <li class="stamp">
+            <span class="stamp-ring"></span>
+            <strong>가상 점포 B</strong>
+            <small>아직 도장 없음</small>
+          </li>
+          <li class="stamp">
+            <span class="stamp-ring"></span>
+            <strong>가상 점포 C</strong>
+            <small>아직 도장 없음</small>
+          </li>
+        </ul>
         <div class="collection-entry">
           <p class="entry-heading">예시 방문 기록</p>
           <p>방문 한 번이 도감의 한 장면으로 남는 모습을 보여줍니다. 실제 방문 기록이나 이용 실적은 아닙니다.</p>
@@ -61,6 +81,94 @@
         </div>
         <p class="sync-note">이 고정 예시는 앱의 체험 진행 결과와 자동으로 동기화되지 않습니다.</p>
         <p class="sync-note">가상 점포 B·C는 다음 가게 탐색을 설명하기 위한 예시이며, 방문 완료로 표시하지 않습니다.</p>
+      </section>
+
+      <section class="passport-preview" id="passport-preview" aria-labelledby="passport-title">
+        <div class="preview-heading">
+          <p class="context">탐험 여권 미리보기</p>
+          <h2 id="passport-title">메달을 모으면 상자가 열리고, 쿠폰이 나옵니다.</h2>
+          <p class="preview-note"><strong>시연 예시 · 실제 혜택 아님</strong> 아래 메달·상자·쿠폰은 앱 화면의 모양을 설명하는 고정 그림입니다. 방문 기록이나 쿠폰으로 쓸 수 없고, 상자 열기와 쿠폰 사용은 앱에서만 합니다.</p>
+        </div>
+
+        <div class="preview-panel medal-panel">
+          <h3>메달 등급</h3>
+          <p class="panel-lead">동네 탐험가 메달은 서로 다른 가게를 찾을수록 이렇게 바뀝니다.</p>
+          <ul class="medal-row" aria-label="동네 탐험가 메달 등급 예시">
+            <li class="medal medal-locked">
+              <span class="medal-ring"><img src="assets/mascot-stamp.png" alt="" width="88" height="88"></span>
+              <span class="tier-chip">도전 전</span>
+              <small>브론즈까지 1곳 더</small>
+            </li>
+            <li class="medal medal-bronze">
+              <span class="medal-ring"><img src="assets/mascot-stamp.png" alt="" width="88" height="88"></span>
+              <span class="tier-chip">브론즈</span>
+              <small>서로 다른 가게 1곳</small>
+            </li>
+            <li class="medal medal-silver">
+              <span class="medal-ring"><img src="assets/mascot-stamp.png" alt="" width="88" height="88"></span>
+              <span class="tier-chip">실버</span>
+              <small>서로 다른 가게 2곳</small>
+            </li>
+            <li class="medal medal-gold">
+              <span class="medal-ring"><img src="assets/mascot-stamp.png" alt="" width="88" height="88"></span>
+              <span class="tier-chip">골드</span>
+              <small>서로 다른 가게 3곳 · 최고 등급</small>
+            </li>
+          </ul>
+          <p class="panel-foot">단골손님(한 가게를 여러 번)·꾸준한 걸음(방문한 날 수) 메달도 같은 모양으로 오릅니다. 등급 하나가 배지 하나입니다.</p>
+        </div>
+
+        <div class="preview-columns">
+          <div class="preview-panel">
+            <h3>보상 상자</h3>
+            <p class="panel-lead">배지 3개마다 상자가 하나씩 열려요.</p>
+            <ul class="reward-list" aria-label="보상 상자 상태 예시">
+              <li class="reward reward-opened">
+                <span class="gift"></span>
+                <div class="reward-body">
+                  <p class="reward-name"><strong>첫 번째 상자</strong> <small>배지 3개</small></p>
+                  <span class="state-chip">받음 · 쿠폰을 받았어요</span>
+                  <p class="reward-offer">가상 점포 A · 체험 음료 1잔</p>
+                </div>
+              </li>
+              <li class="reward reward-ready">
+                <span class="gift"></span>
+                <div class="reward-body">
+                  <p class="reward-name"><strong>두 번째 상자</strong> <small>배지 6개</small></p>
+                  <span class="state-chip">열 수 있어요 · 앱에서</span>
+                  <p class="reward-offer">가상 점포 B · 체험 디저트 한 접시</p>
+                </div>
+              </li>
+              <li class="reward reward-locked">
+                <span class="gift"></span>
+                <div class="reward-body">
+                  <p class="reward-name"><strong>황금 상자</strong> <small>배지 9개</small></p>
+                  <span class="state-chip">잠김 · 배지 3개 더</span>
+                  <p class="reward-offer">가상 점포 C · 체험 세트 20% 할인</p>
+                </div>
+              </li>
+            </ul>
+            <p class="panel-foot">점주가 동의해 등록한 혜택이 없으면 상자는 “혜택 준비 중”으로 보입니다.</p>
+          </div>
+
+          <div class="preview-panel">
+            <h3>내 쿠폰</h3>
+            <p class="panel-lead">상자에서 나온 쿠폰은 그 가게에서만 쓸 수 있어요.</p>
+            <div class="coupon coupon-used" role="group" aria-label="사용 완료된 쿠폰 티켓 예시">
+              <div class="coupon-top">
+                <p class="coupon-eyebrow">첫 번째 상자 쿠폰</p>
+                <p class="coupon-title">체험 음료 1잔</p>
+                <p class="coupon-store">가상 점포 A</p>
+                <p class="coupon-detail">시연용 가상 점포 체험 혜택입니다. 실제 매장에서는 사용할 수 없습니다.</p>
+              </div>
+              <div class="coupon-bottom">
+                <span class="state-chip">사용 완료</span>
+                <small>받은 날부터 30일</small>
+              </div>
+            </div>
+            <p class="panel-foot">앱에서 “매장에서 사용하기”를 누르면 2분짜리 식별 QR이 나오고, 점원이 확인하면 티켓에 사용 완료 도장이 찍힙니다.</p>
+          </div>
+        </div>
       </section>
     </main>
 

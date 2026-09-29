@@ -15,7 +15,7 @@ const fixtureHtml = `<!doctype html><html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="체험 도감">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'">
-<link rel="stylesheet" href="assets/showcase.css?v=20260924"></head><body>
+<link rel="stylesheet" href="assets/showcase.css?v=20260929"></head><body>
 <p>체험용 가상 데이터로 서비스 흐름을 보여드립니다</p>
 <main id="main"><section data-demo-merchant><p>가상 점포 · 실제 방문할 수 없습니다</p></section>
 <section data-demo-merchant><p>가상 점포 · 실제 방문할 수 없습니다</p></section>
@@ -46,7 +46,7 @@ test('실제 시연 웹은 읽기 전용 계약을 통과한다', () => {
 
 test('실제 시연 웹은 서로 다른 가상 점포 세 곳을 표시한다', () => {
   const html = readFileSync(join(source, 'index.html'), 'utf8');
-  assert.match(html, /href="assets\/showcase\.css\?v=20260924"/);
+  assert.match(html, /href="assets\/showcase\.css\?v=20260929"/);
   assert.match(html, /role="group" aria-label="가상 점포 목록"/);
   assert.equal((html.match(/data-demo-merchant/g) ?? []).length, 3);
   for (const name of ['가상 점포 A', '가상 점포 B', '가상 점포 C']) {
@@ -97,6 +97,38 @@ test('README의 콘셉트 배너와 실제 폰 화면 네 장은 저장소 PNG�
   assert.ok(readme.includes('기획 목업이 아닙니다'));
 });
 
+function withImageFixture(alt, check) {
+  withFixture((root) => {
+    const target = join(root, 'index.html');
+    writeFileSync(join(root, 'assets/mascot-stamp.png'), readFileSync(join(source, 'assets/mascot-stamp.png')));
+    writeFileSync(target, readFileSync(target, 'utf8')
+      .replace("style-src 'self';", "style-src 'self'; img-src 'self';")
+      .replace('</main>', `<img src="assets/mascot-stamp.png" alt="${alt}"></main>`));
+    check(root);
+  });
+}
+
+test('시연 웹 폴더의 PNG는 img-src self CSP와 대체 글자가 있으면 통과한다', () => {
+  withImageFixture('', (root) => assert.equal(run(root).status, 0));
+});
+
+test('이미지 대체 글자에도 가짜 발행 문구를 넣을 수 없다', () => {
+  withImageFixture('발행 완료', (root) => {
+    const result = run(root);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /금지 문구/);
+  });
+});
+
+test('없는 이미지 파일은 거부한다', () => {
+  withImageFixture('', (root) => {
+    rmSync(join(root, 'assets/mascot-stamp.png'));
+    const result = run(root);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /이미지 파일 없음/);
+  });
+});
+
 for (const [name, oldText, replacement, expectedError, file = 'index.html'] of [
   ['가상 점포 고지 제거', '가상 점포 · 실제 방문할 수 없습니다', '방문할 수 있습니다', '필수 문구 없음'],
   ['가짜 NFT 상태 추가', '</main>', '<p>FINALIZED</p></main>', '금지 문구'],
@@ -110,6 +142,12 @@ for (const [name, oldText, replacement, expectedError, file = 'index.html'] of [
   ['숨긴 고지', '가상 점포 · 실제 방문할 수 없습니다', '<span hidden>가상 점포 · 실제 방문할 수 없습니다</span>', '허용되지 않은 속성'],
   ['주석 고지', '가상 점포 · 실제 방문할 수 없습니다', '<!-- 가상 점포 · 실제 방문할 수 없습니다 -->', '필수 문구 없음'],
   ['외부 CSS 참조', '</main>', '</main>\n<link rel="stylesheet" href="https://example.com/x.css">', '허용되지 않은 URL'],
+  ['외부 이미지 삽입', '</main>', '<img src="https://example.com/x.png" alt=""></main>', '허용되지 않은 URL'],
+  ['상위 경로 이미지 삽입', '</main>', '<img src="../x.png" alt=""></main>', '허용되지 않은 URL'],
+  ['대체 글자 없는 이미지', '</main>', '<img src="assets/mascot-stamp.png"></main>', '이미지 대체 글자 없음'],
+  ['CSP 없이 이미지 삽입', '</main>', '<img src="assets/mascot-stamp.png" alt=""></main>', 'img-src'],
+  ['외부 아이콘 참조', '</head>', '<link rel="icon" href="https://example.com/x.png"></head>', '허용되지 않은 URL'],
+  ['느슨한 이미지 CSP', "form-action 'none'\">", "img-src *; form-action 'none'\">", '허용되지 않은 meta'],
   ['외부 이동 meta refresh', '</head>', '<meta http-equiv="refresh" content="0; url=https://example.com/claim"></head>', '허용되지 않은 meta'],
   ['CSS import', 'body {', '@import url(https://example.com/x.css);\nbody {', '허용되지 않은 CSS', 'assets/showcase.css'],
   ['CSS 외부 이미지', 'body {', 'body { background-image: url(https://example.com/x.png);', '허용되지 않은 CSS', 'assets/showcase.css'],

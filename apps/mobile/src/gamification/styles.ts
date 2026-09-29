@@ -124,7 +124,6 @@ export function makeGamificationStyles(palette: AppColors, medal: MedalColors) {
     ticketDetail: { color: palette.onAccentContainer, fontSize: 13, lineHeight: 19 },
     ticketMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
     ticketExpiry: { color: palette.onAccentContainer, fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
-    ticketFaded: { opacity: 0.55 },
     /** Right column kept free for the "사용 완료" stamp so it never covers text. */
     ticketStampRoom: { paddingRight: 124 },
     inkStamp: { position: 'absolute', top: '50%', marginTop: -50, right: 16, alignItems: 'center', justifyContent: 'center', padding: 3, borderWidth: 3, borderRadius: 999, borderColor: medal.stampInk },

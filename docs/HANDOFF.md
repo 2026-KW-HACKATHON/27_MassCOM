@@ -2,6 +2,11 @@
 
 마지막 갱신 시각: 2026-09-29 KST
 
+## 2026-09-29 웹 디자인 체계(Issue #218)
+
+- 기준 커밋: main `bd8fc1a`(PR #217 탐험 여권 병합). 브랜치 `feat/218-web-design-system`에서 공개 포털·법률 안내·시연 웹·운영 웹을 [웹 디자인 체계](superpowers/specs/2026-09-29-web-design-system.md)로 통일했다. 디자인 토큰 5/5·운영 웹 74/74·시연 웹 30/30·시연 테마 1/1·웹 빌드/경로 4/4·세션 프록시 2/2 PASS([전후 화면](evidence/web-design-system-2026-09-29/README.md)).
+- 다음 작업: PR 병합 뒤 `scripts/deploy-lightsail-web.sh`로 웹만 배포(마스코트 경로 3개 200 확인)하고, 시연 API migration 0027·체험 혜택 seed와 Preview 7 APK를 진행한다.
+
 ## 2026-09-29 탐험 여권(Issue #216)
 
 - 브랜치 `feat/216-explorer-passport`: 서버 메달·보상 상자·쿠폰(`apps/api/src/badge-*`, `postgres/badge-rewards.ts`, migration 0027), 고객 앱 `apps/mobile/src/gamification/`·도감·방문 축하, 시연 점원 쿠폰 처리(`screens/merchant-claim/staff.tsx`), 운영 점주 웹 쿠폰 처리와 웹 도감 서버 배지(`apps/production-web`), Caddy `/api/web/badges`. 모바일 276/276·API 단위 133/133·PostgreSQL 89 PASS/2 SKIP·운영 웹 66/66 PASS, opus 보안·sonnet 코드 리뷰 🔴 0([설계](superpowers/specs/2026-09-29-explorer-passport-design.md), [규칙](NEIGHBORHOOD_BADGES.md), [실측](evidence/explorer-passport-emulator-2026-09-29/README.md)).

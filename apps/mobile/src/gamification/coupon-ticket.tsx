@@ -18,6 +18,8 @@ export function CouponTicket({ coupon, onUse }: { coupon: Coupon; onUse?: (coupo
   const [size, setSize] = useState<{ width: number; height: number }>();
   const [perforation, setPerforation] = useState<number>();
   const faded = coupon.status !== 'ISSUED';
+  // Used/expired tickets read quieter through colour, not opacity, so the text keeps AA contrast.
+  const muted = faded ? { color: medal.ticketMuted, opacity: 1 } : undefined;
   const stamped = coupon.status === 'REDEEMED';
   const statusStyle = coupon.status === 'ISSUED'
     ? { backgroundColor: palette.successContainer, color: palette.onSuccessContainer }
@@ -65,21 +67,21 @@ export function CouponTicket({ coupon, onUse }: { coupon: Coupon; onUse?: (coupo
           const next = event.nativeEvent.layout.height;
           setPerforation((current) => (current === next ? current : next));
         }}
-        style={[styles.ticketTop, faded && styles.ticketFaded, stamped && styles.ticketStampRoom]}
+        style={[styles.ticketTop, stamped && styles.ticketStampRoom]}
       >
-        <Text style={styles.ticketEyebrow}>{rewardBoxName(coupon.milestone)} 쿠폰</Text>
-        <Text style={styles.ticketTitle}>{coupon.title}</Text>
-        <Text style={styles.ticketMerchant}>{coupon.merchantName}</Text>
+        <Text style={[styles.ticketEyebrow, muted]}>{rewardBoxName(coupon.milestone)} 쿠폰</Text>
+        <Text style={[styles.ticketTitle, muted]}>{coupon.title}</Text>
+        <Text style={[styles.ticketMerchant, muted]}>{coupon.merchantName}</Text>
         {/* Used or expired coupons drop the long detail so nothing sits under the stamp. */}
         {!faded && coupon.detail.trim() ? <Text style={styles.ticketDetail}>{coupon.detail}</Text> : null}
       </View>
 
       <View style={[styles.ticketBottom, stamped && styles.ticketStampRoom]}>
-        <View style={[styles.ticketMetaRow, faded && styles.ticketFaded]}>
+        <View style={styles.ticketMetaRow}>
           <View style={[styles.chip, { backgroundColor: statusStyle.backgroundColor }]}>
             <Text style={[styles.chipText, { color: statusStyle.color }]}>{couponStatusLabel(coupon.status)}</Text>
           </View>
-          <Text style={styles.ticketExpiry}>{couponExpiryLabel(coupon.expiresAt)}</Text>
+          <Text style={[styles.ticketExpiry, muted]}>{couponExpiryLabel(coupon.expiresAt)}</Text>
         </View>
         {coupon.status === 'ISSUED' && onUse ? (
           <Pressable

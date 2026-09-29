@@ -7,6 +7,14 @@ const isStaffCoupon = coupon => coupon !== null && typeof coupon === 'object'
   && typeof coupon.title === 'string' && coupon.title !== '' && typeof coupon.detail === 'string'
   && typeof coupon.expiresAt === 'string' && !Number.isNaN(Date.parse(coupon.expiresAt));
 
+const kstMonthDay = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' });
+// 앱·도감과 같은 "~10월 29일까지". 브라우저 시간대가 아니라 한국 날짜로 센다.
+function expiryLabel(expiresAt) {
+  const parts = kstMonthDay.formatToParts(new Date(expiresAt));
+  const part = type => parts.find(item => item.type === type)?.value;
+  return `~${part('month')}월 ${part('day')}일까지`;
+}
+
 async function request(fetcher, path, method = 'GET', body) {
   const response = await fetcher(path, {
     method, credentials: 'same-origin', cache: 'no-store',
@@ -288,7 +296,8 @@ export function bindMerchant(fetcher, doc) {
     couponButtons = coupons.map(coupon => {
       const item = doc.createElement('li');
       const text = doc.createElement('p');
-      text.textContent = `${coupon.title}${coupon.detail ? ` · ${coupon.detail}` : ''} · 만료: ${new Date(coupon.expiresAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}`;
+      text.className = 'coupon-text';
+      text.textContent = `${coupon.title}${coupon.detail ? ` · ${coupon.detail}` : ''} · ${expiryLabel(coupon.expiresAt)}`;
       const button = doc.createElement('button');
       button.type = 'button';
       button.className = 'collection-action';
