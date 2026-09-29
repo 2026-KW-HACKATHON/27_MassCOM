@@ -1,8 +1,8 @@
 import * as Application from 'expo-application';
 import { Button, Host } from '@expo/ui';
 import { Link } from 'expo-router';
-import { useMemo, useState, type ReactNode } from 'react';
-import { Alert, Image, Linking, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -15,9 +15,24 @@ import {
   type AccountDeletionResult,
 } from '@/privacy/account-deletion-api';
 import {
+  AccountDeletionIntakeApiClient,
+  AccountDeletionIntakeApiError,
+  isAmbiguousIntakeFailure,
+  recheckIntake,
+  type DeletionIntakeView,
+} from '@/privacy/account-deletion-intake-api';
+import {
   deletionCapability,
   type DestructiveReauthentication,
 } from '@/privacy/deletion-capability';
+import {
+  canRequestShowcaseDeletion,
+  describeDeletionIntake,
+  formatKstMinute,
+  intakeUnknownMessage,
+  lookupFailureMessage,
+  type IntakeDescription,
+} from '@/privacy/deletion-intake-copy';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
@@ -50,16 +65,137 @@ export function AccountSettingsScreen({
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
-  const styles = StyleSheet.create(makeAccountSettingsStyles(palette, worldForScheme(scheme), StyleSheet.hairlineWidth));
+  const world = worldForScheme(scheme);
+  const styles = StyleSheet.create(makeAccountSettingsStyles(palette, world, StyleSheet.hairlineWidth));
   const capability = deletionCapability(credential, destructiveReauthentication);
   const client = useMemo(
     () => capability.allowed ? new AccountDeletionApiClient({ apiUrl, credential }) : undefined,
     [apiUrl, capability.allowed, credential],
   );
-  const [busy, setBusy] = useState<'delete' | 'logout' | 'switch'>();
+  // 시연 앱만 앱 안에서 삭제 요청을 접수한다(D-052). 운영 앱은 웹 삭제 페이지를 쓴다.
+  const intakeClient = useMemo(
+    () => canRequestShowcaseDeletion(Application.applicationId, credential)
+      ? new AccountDeletionIntakeApiClient({ apiUrl, credential }) : undefined,
+    [apiUrl, credential],
+  );
+  const [busy, setBusy] = useState<'delete' | 'logout' | 'switch' | 'intake'>();
   const [result, setResult] = useState<AccountDeletionResult>();
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
+  // undefined는 아직 모름, null은 활성 요청 없음. 접수번호는 이 화면이 열려 있는 동안 메모리에만 둔다.
+  const [intake, setIntake] = useState<DeletionIntakeView | null>();
+  const [receipt, setReceipt] = useState<string>();
+  // 상태를 읽지 못했거나 응답 없이 실패해 접수 여부를 모를 때. 불러오는 중으로 두지 않고 다시 확인하게 한다.
+  const [intakeUnknown, setIntakeUnknown] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [lookupCode, setLookupCode] = useState('');
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const [lookupResult, setLookupResult] = useState<IntakeDescription | string>();
+
+  useEffect(() => {
+    if (!intakeClient) return undefined;
+    let current = true;
+    intakeClient.current().then(
+      (view) => { if (current) { setIntake(view ?? null); setIntakeUnknown(false); } },
+      () => { if (current) setIntakeUnknown(true); },
+    );
+    return () => { current = false; };
+  }, [intakeClient, loadAttempt]);
+
+  function checkIntakeAgain() {
+    setIntake(undefined);
+    setIntakeUnknown(false);
+    setLoadAttempt((attempt) => attempt + 1);
+  }
+
+  // 응답이 없는 실패는 서버가 접수했는지 알 수 없다. 서버에 다시 물어 실제로 있는 요청만 보여 주고, 그렇지 않으면 모른다고 한다.
+  async function settleAmbiguousFailure(action: 'file' | 'reissue' | 'cancel') {
+    if (!intakeClient) return;
+    const rechecked = await recheckIntake(intakeClient);
+    if (rechecked.kind === 'found') {
+      setIntake(rechecked.view);
+      setIntakeUnknown(false);
+      if (action === 'cancel') {
+        setError('취소되었는지 확인하지 못했어요. 삭제 요청은 아직 접수된 상태입니다.');
+      } else {
+        setMessage(action === 'file'
+          ? '삭제 요청이 접수된 것을 확인했어요. 접수번호를 이 화면에서 받지 못했다면 접수번호 다시 받기로 받아 주세요.'
+          : '접수번호가 새로 발급됐을 수 있어요. 이 화면에서 새 번호를 받지 못했다면 접수번호 다시 받기로 받아 주세요.');
+      }
+      return;
+    }
+    setIntake(undefined);
+    setIntakeUnknown(true);
+  }
+
+  async function lookUpReceipt() {
+    if (!intakeClient || lookupBusy || !lookupCode.trim()) return;
+    setLookupBusy(true);
+    setLookupResult(undefined);
+    try {
+      setLookupResult(describeDeletionIntake(await intakeClient.status(lookupCode.trim()), new Date()));
+    } catch (caught) {
+      setLookupResult(lookupFailureMessage(caught));
+    } finally {
+      setLookupBusy(false);
+    }
+  }
+
+  function confirmIntake(reissue: boolean) {
+    if (!intakeClient) return;
+    Alert.alert(
+      reissue ? '접수번호 다시 받기' : '삭제 요청',
+      reissue
+        ? '새 접수번호를 받으면 이전 접수번호는 쓸 수 없습니다. 접수 자체는 그대로입니다.'
+        : '삭제를 요청하면 접수번호를 한 번 보여 드립니다. 접수 후 24시간은 취소할 수 있고, 그 뒤 운영자가 7일 안에 처리합니다. 접수만으로 계정이 바로 삭제되지는 않습니다. 이미 제출되거나 발행된 NFT와 외부 지갑은 삭제되지 않습니다.',
+      [
+        { text: '돌아가기', style: 'cancel' },
+        { text: reissue ? '다시 받기' : '삭제 요청', style: 'destructive', onPress: () => void fileIntake(reissue) },
+      ],
+    );
+  }
+
+  async function fileIntake(reissue: boolean) {
+    if (busy || !intakeClient) return;
+    setBusy('intake');
+    setError(undefined);
+    setMessage(undefined);
+    try {
+      const filed = await intakeClient.request({ reissue });
+      setIntake({
+        status: 'REQUESTED', requestedAt: filed.requestedAt, cancelUntil: filed.cancelUntil, dueAt: filed.dueAt,
+        cancelledAt: null, processedAt: null, rejectReason: null, overdue: false, deletion: null,
+      });
+      setIntakeUnknown(false);
+      if (filed.receipt) setReceipt(filed.receipt);
+      setMessage(filed.receipt
+        ? '삭제 요청이 접수됐습니다. 접수번호를 지금 저장해 주세요.'
+        : '이미 접수된 요청이 있습니다. 접수번호를 잃어버렸다면 다시 받을 수 있습니다.');
+    } catch (caught) {
+      if (isAmbiguousIntakeFailure(caught)) await settleAmbiguousFailure(reissue ? 'reissue' : 'file');
+      else setError(intakeErrorMessage(caught));
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  async function cancelIntake() {
+    if (busy || !intakeClient) return;
+    setBusy('intake');
+    setError(undefined);
+    setMessage(undefined);
+    try {
+      await intakeClient.cancel();
+      setIntake(null);
+      setReceipt(undefined);
+      setMessage('삭제 요청을 취소했습니다. 계정은 그대로입니다.');
+    } catch (caught) {
+      if (isAmbiguousIntakeFailure(caught)) await settleAmbiguousFailure('cancel');
+      else setError(intakeErrorMessage(caught));
+    } finally {
+      setBusy(undefined);
+    }
+  }
 
   function confirmDeletion() {
     if (!capability.allowed) return;
@@ -232,11 +368,90 @@ export function AccountSettingsScreen({
             이 삭제 경로는 loopback 개발 DEMO의 명시적 재인증 시험에만 사용합니다.
           </Text>
         </>
+      ) : intakeClient ? (
+        <FloatingCard style={styles.groupCard}>
+          <Text style={styles.sectionTitle}>계정 삭제 요청</Text>
+          <Text selectable style={styles.intro}>
+            시연 앱은 앱 안에서 계정 삭제를 요청합니다. 접수하면 접수번호를 한 번 보여 드립니다. 접수 후 24시간은 취소할 수 있고, 그 뒤 운영자가 7일 안에 처리합니다.
+          </Text>
+          {intake === undefined && intakeUnknown ? (
+            <View style={styles.liveRegion}>
+              <Text selectable accessibilityLiveRegion="polite" style={styles.intro}>{intakeUnknownMessage}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityHint="삭제 요청 상태를 서버에서 다시 읽습니다."
+                onPress={checkIntakeAgain}
+                style={styles.secondaryLink}
+              >
+                <Text style={styles.secondaryLinkText}>다시 확인</Text>
+              </Pressable>
+            </View>
+          ) : intake === undefined ? (
+            <Text selectable style={styles.intro}>요청 상태를 불러오는 중입니다.</Text>
+          ) : intake ? (
+            <IntakeStatus
+              styles={styles}
+              view={intake}
+              receipt={receipt}
+              busy={busy === 'intake'}
+              onCancel={() => void cancelIntake()}
+              onReissue={() => confirmIntake(true)}
+            />
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityHint="삭제 요청을 접수하고 접수번호를 받습니다. 접수만으로 계정이 바로 삭제되지는 않습니다."
+              disabled={Boolean(busy)}
+              onPress={() => confirmIntake(false)}
+              style={[styles.deleteButton, busy && styles.disabled]}
+            >
+              <Text style={styles.deleteButtonText}>{busy === 'intake' ? '요청 중…' : '삭제 요청'}</Text>
+            </Pressable>
+          )}
+          <Text style={styles.inputLabel}>접수번호로 처리 상태 확인</Text>
+          <TextInput
+            value={lookupCode}
+            onChangeText={(text) => { setLookupCode(text.toUpperCase()); setLookupResult(undefined); }}
+            autoCapitalize="characters"
+            autoComplete="off"
+            autoCorrect={false}
+            spellCheck={false}
+            importantForAutofill="no"
+            maxLength={24}
+            accessibilityLabel="접수번호"
+            placeholder="예: 7K2M-Q9XD-4HTB-0RWE"
+            placeholderTextColor={world.cardMuted}
+            returnKeyType="done"
+            onSubmitEditing={() => void lookUpReceipt()}
+            style={styles.input}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityHint="접수번호로 취소됨·처리되지 않음·처리 완료 같은 상태를 확인합니다."
+            disabled={lookupBusy || !lookupCode.trim()}
+            onPress={() => void lookUpReceipt()}
+            style={[styles.secondaryLink, (lookupBusy || !lookupCode.trim()) && styles.disabled]}
+          >
+            <Text style={styles.secondaryLinkText}>{lookupBusy ? '확인 중…' : '처리 상태 확인'}</Text>
+          </Pressable>
+          <View accessibilityLiveRegion="polite" style={styles.liveRegion}>
+            {typeof lookupResult === 'string' ? (
+              <Text selectable style={styles.intro}>{lookupResult}</Text>
+            ) : lookupResult ? (
+              <View style={styles.statusCard}>
+                <Text style={styles.statusTitle}>{lookupResult.title}</Text>
+                {lookupResult.lines.map((line) => (
+                  <Text key={line} selectable style={styles.statusBody}>{line}</Text>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </FloatingCard>
       ) : (
         <View style={styles.blockedCard}>
           <Text style={styles.blockedTitle}>앱 내 자동 삭제를 사용할 수 없어요</Text>
           <Text selectable style={styles.blockedBody}>
-            웹에서 이메일로 계정 삭제를 요청할 수 있습니다. 본인 확인이 끝난 뒤 처리하며, Google 로그인만으로 삭제가 완료되지는 않습니다.
+            웹에서 Google 로그인으로 본인을 확인한 뒤 삭제를 요청할 수 있습니다. 접수번호를 받고, 24시간 안에는 취소할 수 있으며, 그 뒤 운영자가 7일 안에 처리합니다. 처리 결과는 접수번호로 확인합니다. 로그인만으로 삭제가 완료되지는 않습니다.
           </Text>
           <Pressable
             accessibilityRole="link"
@@ -282,6 +497,73 @@ function DeletionStatus({ result, styles }: { result: AccountDeletionResult; sty
       ) : null}
     </View>
   );
+}
+
+function IntakeStatus({
+  view, receipt, busy, onCancel, onReissue, styles,
+}: {
+  view: DeletionIntakeView;
+  receipt: string | undefined;
+  busy: boolean;
+  onCancel: () => void;
+  onReissue: () => void;
+  styles: SettingsStyles;
+}) {
+  const description = describeDeletionIntake(view, new Date());
+  return (
+    <View style={styles.statusCard}>
+      <Text style={styles.statusTitle}>{description.title}</Text>
+      {description.lines.map((line) => (
+        <Text key={line} selectable style={styles.statusBody}>{line}</Text>
+      ))}
+      {receipt ? (
+        <>
+          <Text style={styles.statusBody}>접수번호 (지금 저장하세요. 처리 뒤에는 이 번호로 결과를 확인합니다)</Text>
+          <Text selectable accessibilityLabel={`접수번호 ${receipt.replaceAll('-', ' ')}`} style={styles.receiptCode}>
+            {receipt}
+          </Text>
+        </>
+      ) : (
+        <Text selectable style={styles.statusBody}>
+          접수번호는 처음 접수할 때만 보여 드립니다. 잃어버렸다면 다시 받을 수 있습니다.
+        </Text>
+      )}
+      {view.status === 'REQUESTED' ? (
+        <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityHint="새 접수번호를 받고 이전 접수번호는 쓸 수 없게 합니다."
+            disabled={busy}
+            onPress={onReissue}
+            style={[styles.secondaryLink, busy && styles.disabled]}
+          >
+            <Text style={styles.secondaryLinkText}>접수번호 다시 받기</Text>
+          </Pressable>
+          {description.canCancel ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityHint="24시간 안에는 삭제 요청을 취소하고 계정을 그대로 둡니다."
+              disabled={busy}
+              onPress={onCancel}
+              style={[styles.secondaryLink, busy && styles.disabled]}
+            >
+              <Text style={styles.secondaryLinkText}>{busy ? '처리 중…' : `삭제 요청 취소 (${formatKstMinute(view.cancelUntil)}까지)`}</Text>
+            </Pressable>
+          ) : null}
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+function intakeErrorMessage(error: unknown): string {
+  if (error instanceof AccountDeletionIntakeApiError) {
+    if (error.code === 'DELETION_CANCEL_WINDOW_CLOSED') return '24시간 취소 기간이 지나 취소할 수 없습니다. 운영자가 처리합니다.';
+    if (error.code === 'DELETION_NO_ACTIVE_REQUEST') return '활성 삭제 요청이 없습니다. 이미 취소되었거나 처리되었습니다.';
+    if (error.status === 401) return '로그인 세션이 만료됐습니다. 다시 로그인해 주세요.';
+    return `삭제 요청 실패: ${error.code}`;
+  }
+  return intakeUnknownMessage;
 }
 
 function deletionErrorMessage(error: unknown): string {

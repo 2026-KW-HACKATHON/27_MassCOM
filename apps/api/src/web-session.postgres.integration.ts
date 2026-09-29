@@ -84,7 +84,42 @@ test('web sessions hash tokens, separate A/B, revoke one, and expire without sha
   await assert.rejects(store.resolve(tokenB, 'www.masscom.kr'), /WEB_SESSION_INVALID/);
 }));
 
-test('account deletion revokes every web session and blocks a racing new login', {
+test('resolveWithAge measures a login against the store clock, per session, and keeps the origin and revocation rules', {
+  skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
+}, async () => withPool(async (pool) => {
+  const accountId = `web-age-${randomUUID()}`;
+  await identity(pool, accountId);
+  const minute = 60_000;
+  const start = new Date('2026-09-30T00:00:00.000Z');
+  let now = start;
+  const issued = [randomBytes(32).toString('base64url'), randomBytes(32).toString('base64url')];
+  const store = new PostgresWebSessionStore(pool, {
+    hmacSecret, ttlMs: 24 * 60 * minute, now: () => now,
+    nextToken: () => issued.shift()!, nextSessionId: randomUUID,
+  });
+  const old = await store.create(accountId, 'masscom.kr');
+  assert.deepEqual(await store.resolveWithAge(old.token, 'masscom.kr'), { accountId, ageMs: 0 });
+  now = new Date(start.getTime() + 9 * minute);
+  assert.equal((await store.resolveWithAge(old.token, 'masscom.kr')).ageMs, 9 * minute);
+  now = new Date(start.getTime() + 11 * minute);
+  assert.equal((await store.resolveWithAge(old.token, 'masscom.kr')).ageMs, 11 * minute);
+  // A new login is a new session with its own age; the older session keeps growing older.
+  const fresh = await store.create(accountId, 'masscom.kr');
+  now = new Date(start.getTime() + 15 * minute);
+  assert.equal((await store.resolveWithAge(fresh.token, 'masscom.kr')).ageMs, 4 * minute);
+  assert.equal((await store.resolveWithAge(old.token, 'masscom.kr')).ageMs, 15 * minute);
+  // `resolve` still answers with the account alone.
+  assert.equal(await store.resolve(old.token, 'masscom.kr'), accountId);
+  await assert.rejects(store.resolveWithAge(old.token, 'www.masscom.kr'), /WEB_SESSION_INVALID/);
+  await assert.rejects(store.resolveWithAge('not-a-session', 'masscom.kr'), /WEB_SESSION_INVALID/);
+  // A clock that runs behind the database row never yields a negative age.
+  now = new Date(start.getTime() - minute);
+  assert.equal((await store.resolveWithAge(old.token, 'masscom.kr')).ageMs, 0);
+  await store.revoke(fresh.token, 'masscom.kr');
+  await assert.rejects(store.resolveWithAge(fresh.token, 'masscom.kr'), /WEB_SESSION_INVALID/);
+}));
+
+test('account deletion deletes every web session, leaves no row with the raw account ID and blocks a racing new login', {
   skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
 }, async () => withPool(async (pool) => {
   const accountId = `web-delete-${randomUUID()}`;
@@ -103,11 +138,13 @@ test('account deletion revokes every web session and blocks a racing new login',
   await deletion.requestDeletion({ accountId, confirmation: 'DELETE MY ACCOUNT' });
   await assert.rejects(store.resolve(first.token, 'masscom.kr'), /WEB_SESSION_INVALID/);
   await assert.rejects(store.resolve(second.token, 'www.masscom.kr'), /WEB_SESSION_INVALID/);
-  const revoked = await pool.query<{ total: number }>(
-    'SELECT count(*)::int AS total FROM web_sessions WHERE account_id = $1 AND revoked_at IS NOT NULL',
+  // Deleted, not revoked: a revoked row would keep the raw account ID after the deletion.
+  const remaining = await pool.query<{ total: number }>(
+    'SELECT count(*)::int AS total FROM web_sessions WHERE account_id = $1',
     [accountId],
   );
-  assert.equal(revoked.rows[0]?.total, 2);
+  assert.equal(remaining.rows[0]?.total, 0);
+  await assert.rejects(store.resolveWithAge(first.token, 'masscom.kr'), /WEB_SESSION_INVALID/);
   await assert.rejects(store.create(accountId, 'masscom.kr'), /ACCOUNT_DELETED/);
 
   const racingId = `web-race-${randomUUID()}`;

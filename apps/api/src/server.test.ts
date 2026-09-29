@@ -7,7 +7,14 @@ import { Wallet } from 'ethers';
 import * as serverModule from './server.js';
 
 import type { AccountDeletionService } from './account-deletion.js';
-import type { AccountDeletionIntakeService } from './account-deletion-intake.js';
+import {
+  AccountDeletionIntakeError,
+  type AccountDeletionIntakeErrorCode,
+  type AccountDeletionIntakeService,
+  type AccountDeletionProcessingService,
+  type AdminDeletionIntake,
+  type DeletionIntakeStatusView,
+} from './account-deletion-intake.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardErrorCode, type BadgeRewardService } from './badge-rewards.js';
 import { FriendError, type FriendErrorCode, type FriendService } from './friends.js';
@@ -174,6 +181,17 @@ function claimSlotFixture(overrides: Partial<ClaimSlotFixture>): ClaimSlotFixtur
   };
 }
 
+// Most fixtures only care which account a cookie means; their session counts as just logged in unless a test sets an age.
+type TestWebAuth = Omit<WebAuthHandler, 'resolveSessionWithAge'> & Partial<Pick<WebAuthHandler, 'resolveSessionWithAge'>>;
+
+function withSessionAge(webAuth: TestWebAuth): WebAuthHandler {
+  return {
+    ...webAuth,
+    resolveSessionWithAge: webAuth.resolveSessionWithAge ??
+      (async (token, origin) => ({ accountId: await webAuth.resolveSession(token, origin), ageMs: 0 })),
+  };
+}
+
 async function startFixture(
   t: TestContext,
   resolveAccountId: AccountResolver = developmentHeaderAccountResolver,
@@ -189,7 +207,7 @@ async function startFixture(
   authSessions?: AuthSessionService,
   authLoginLimiter?: AuthLoginLimiterFixture,
   trustProxyClientIp = false,
-  webAuth?: WebAuthHandler,
+  webAuth?: TestWebAuth,
   wwwEnabled = false,
   admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>,
   deletionIntake?: AccountDeletionIntakeService,
@@ -198,6 +216,8 @@ async function startFixture(
   badges?: BadgeRewardService,
   friends?: FriendService,
   merchantArt?: MerchantArtService,
+  showcaseDeletionIntake?: AccountDeletionIntakeService,
+  deletionProcessing?: AccountDeletionProcessingService,
   reversals?: ReversalService,
 ) {
   const service = new WalletChallengeService({
@@ -224,7 +244,7 @@ async function startFixture(
     authSessions,
     authLoginLimiter,
     trustProxyClientIp,
-    webAuth,
+    webAuth && withSessionAge(webAuth),
     wwwEnabled,
     customerIdentities,
     admin,
@@ -233,6 +253,8 @@ async function startFixture(
     badges,
     friends,
     merchantArt,
+    showcaseDeletionIntake,
+    deletionProcessing,
     reversals,
   );
 
@@ -287,7 +309,7 @@ test('serves health without exposing wallet data', async (t) => {
 });
 
 test('web auth starts with a browser state cookie and callback returns only a scoped session cookie', async (t) => {
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => ({ location: 'https://accounts.google.com/o/oauth2/v2/auth?state=state-1', state: 'state-1' }),
     complete: async (code, state, cookieState) => {
       assert.deepEqual([code, state, cookieState], ['one-time-code', 'state-1', 'state-1']);
@@ -315,7 +337,7 @@ test('web auth starts with a browser state cookie and callback returns only a sc
 
 test('web collection uses only the web cookie and never exposes private data without it', async (t) => {
   const accounts: string[] = [];
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); },
     complete: async () => { throw new Error('not used'); },
     resolveSession: async (token) => {
@@ -343,7 +365,7 @@ test('web collection uses only the web cookie and never exposes private data wit
 
 test('web logout rejects GET and missing or foreign Origin before revoking a cookie', async (t) => {
   const revoked: string[] = [];
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); },
     complete: async () => { throw new Error('not used'); },
     resolveSession: async () => 'account-1',
@@ -365,23 +387,43 @@ test('web logout rejects GET and missing or foreign Origin before revoking a coo
   assert.match(response.headers.get('set-cookie') ?? '', /web_session=; Path=\/api\/web; Max-Age=0/);
 });
 
-test('web deletion intake accepts only same-origin JSON with the host-bound session', async (t) => {
-  const requested: string[] = [];
-  const webAuth: WebAuthHandler = {
+const intakeDates = {
+  status: 'REQUESTED' as const,
+  requestedAt: '2026-09-30T00:00:00.000Z',
+  cancelUntil: '2026-10-01T00:00:00.000Z',
+  dueAt: '2026-10-07T00:00:00.000Z',
+};
+const intakeView: DeletionIntakeStatusView = {
+  ...intakeDates, cancelledAt: null, processedAt: null, rejectReason: null, overdue: false, deletion: null,
+};
+const webJson = { origin: 'https://masscom.kr', 'content-type': 'application/json' };
+
+function intakeWebAuth(account = 'session-account'): TestWebAuth {
+  return {
     start: async () => { throw new Error('unused'); },
     complete: async () => { throw new Error('unused'); },
     resolveSession: async (token, origin) => {
       if (token !== 'valid-cookie' || origin !== 'https://masscom.kr') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
-      return 'session-account';
+      return account;
     },
     logout: async () => {},
   };
+}
+
+test('web deletion intake accepts only same-origin JSON with the host-bound session', async (t) => {
+  const requested: { accountId: string; reissue: boolean | undefined }[] = [];
   const intake: AccountDeletionIntakeService = {
-    request: async (accountId) => { requested.push(accountId); return { status: 'REQUESTED' }; },
+    request: async (accountId, options) => {
+      requested.push({ accountId, reissue: options?.reissue });
+      return { receipt: '7K2M-Q9XD-4HTB-0RWE', receiptIssued: true, ...intakeDates };
+    },
+    current: async () => { throw new Error('unused'); },
+    cancel: async () => { throw new Error('unused'); },
+    status: async () => { throw new Error('unused'); },
   };
   const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
     undefined, undefined, { requestDeletion: async () => { throw new Error('must not delete'); } },
-    undefined, undefined, undefined, undefined, false, webAuth, true, undefined, intake);
+    undefined, undefined, undefined, undefined, false, intakeWebAuth(), true, undefined, intake);
   const path = '/api/web/account-deletion-intake';
   assert.equal((await webRequest(base, path)).status, 405);
   for (const headers of [
@@ -391,25 +433,307 @@ test('web deletion intake accepts only same-origin JSON with the host-bound sess
   ]) {
     assert.equal((await webRequest(base, path, { method: 'POST', headers })).status, 403);
   }
-  assert.equal((await webRequest(base, path, { method: 'POST', headers: {
-    origin: 'https://masscom.kr', 'content-type': 'application/json',
-  } })).status, 401);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: webJson })).status, 401);
   assert.equal((await webRequest(base, path, { host: 'www.masscom.kr', method: 'POST', headers: {
     origin: 'https://www.masscom.kr', cookie: 'web_session=valid-cookie', 'content-type': 'application/json',
   } })).status, 401);
   assert.deepEqual(requested, []);
   const response = await webRequest(base, path, { method: 'POST', headers: {
-    origin: 'https://masscom.kr', cookie: 'web_session=valid-cookie', 'content-type': 'application/json',
+    ...webJson, cookie: 'web_session=valid-cookie',
   }, body: JSON.stringify({ accountId: 'different-account' }) });
   assert.equal(response.status, 202);
-  assert.deepEqual(await response.json(), { status: 'REQUESTED' });
+  assert.deepEqual(await response.json(), { receipt: '7K2M-Q9XD-4HTB-0RWE', receiptIssued: true, ...intakeDates });
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(requested, ['session-account']);
+  assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.deepEqual(requested, [{ accountId: 'session-account', reissue: false }]);
+  await webRequest(base, path, { method: 'POST', headers: { ...webJson, cookie: 'web_session=valid-cookie' },
+    body: JSON.stringify({ reissue: true }) });
+  assert.deepEqual(requested.at(-1), { accountId: 'session-account', reissue: true });
+});
+
+test('web deletion cancel is a same-origin JSON POST for the session account and maps its refusals', async (t) => {
+  const cancelled: string[] = [];
+  let failure: AccountDeletionIntakeErrorCode | undefined;
+  const intake: AccountDeletionIntakeService = {
+    request: async () => { throw new Error('unused'); },
+    current: async () => { throw new Error('unused'); },
+    cancel: async (accountId) => {
+      if (failure) throw new AccountDeletionIntakeError(failure);
+      cancelled.push(accountId);
+      return { status: 'CANCELLED' };
+    },
+    status: async () => { throw new Error('unused'); },
+  };
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, intakeWebAuth(), false,
+    undefined, intake);
+  const path = '/api/web/account-deletion-intake/cancel';
+  assert.equal((await webRequest(base, path)).status, 405);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: {
+    cookie: 'web_session=valid-cookie', 'content-type': 'application/json' } })).status, 403);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: webJson })).status, 401);
+  assert.deepEqual(cancelled, []);
+  const headers = { ...webJson, cookie: 'web_session=valid-cookie' };
+  const ok = await webRequest(base, path, { method: 'POST', headers, body: JSON.stringify({ accountId: 'other' }) });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(await ok.json(), { status: 'CANCELLED' });
+  assert.deepEqual(cancelled, ['session-account']);
+  for (const [code, status] of [['DELETION_CANCEL_WINDOW_CLOSED', 409], ['DELETION_NO_ACTIVE_REQUEST', 404]] as const) {
+    failure = code;
+    const refused = await webRequest(base, path, { method: 'POST', headers, body: '{}' });
+    assert.equal(refused.status, status);
+    assert.deepEqual(await refused.json(), { code });
+  }
+});
+
+test('web deletion filing, re-issue and cancel need a login made within 10 minutes, and the receipt lookup needs none', async (t) => {
+  const minute = 60_000;
+  let ageMs = 9 * minute;
+  const calls: string[] = [];
+  const webAuth: TestWebAuth = {
+    ...intakeWebAuth(),
+    resolveSessionWithAge: async (token, origin) => {
+      if (token !== 'valid-cookie' || origin !== 'https://masscom.kr') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return { accountId: 'session-account', ageMs };
+    },
+  };
+  const intake: AccountDeletionIntakeService = {
+    request: async (accountId, options) => {
+      calls.push(`${options?.reissue ? 'reissue' : 'file'}:${accountId}`);
+      return { receipt: '7K2M-Q9XD-4HTB-0RWE', receiptIssued: true, ...intakeDates };
+    },
+    current: async () => { throw new Error('unused'); },
+    cancel: async (accountId) => { calls.push(`cancel:${accountId}`); return { status: 'CANCELLED' }; },
+    status: async () => intakeView,
+  };
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    undefined, intake);
+  const headers = { ...webJson, cookie: 'web_session=valid-cookie' };
+  const attempts = [
+    ['/api/web/account-deletion-intake', '{}', 202, 'file:session-account'],
+    ['/api/web/account-deletion-intake', '{"reissue":true}', 202, 'reissue:session-account'],
+    ['/api/web/account-deletion-intake/cancel', '{}', 200, 'cancel:session-account'],
+  ] as const;
+
+  for (const [path, body, ok, call] of attempts) {
+    for (const fresh of [0, 9 * minute, 10 * minute]) {
+      ageMs = fresh;
+      calls.length = 0;
+      assert.equal((await webRequest(base, path, { method: 'POST', headers, body })).status, ok, `${path} at ${fresh}`);
+      assert.deepEqual(calls, [call]);
+    }
+    for (const stale of [10 * minute + 1, 11 * minute, 24 * 60 * minute]) {
+      ageMs = stale;
+      calls.length = 0;
+      const refused = await webRequest(base, path, { method: 'POST', headers, body });
+      assert.equal(refused.status, 401, `${path} at ${stale}`);
+      assert.deepEqual(await refused.json(), { code: 'WEB_SESSION_REAUTH_REQUIRED' });
+      assert.deepEqual(calls, [], 'a stale session must not reach the service');
+    }
+  }
+  // Only the three account actions are gated: an unknown cookie is still an invalid session, not a re-login request.
+  ageMs = 0;
+  const unknown = await webRequest(base, '/api/web/account-deletion-intake', { method: 'POST',
+    headers: { ...webJson, cookie: 'web_session=other-cookie' }, body: '{}' });
+  assert.equal(unknown.status, 401);
+  assert.deepEqual(await unknown.json(), { code: 'WEB_AUTH_STATE_INVALID' });
+  ageMs = 24 * 60 * minute;
+  assert.equal((await webRequest(base, '/api/web/account-deletion-status', { method: 'POST', headers: webJson,
+    body: '{"receipt":"7K2M-Q9XD-4HTB-0RWE"}' })).status, 200);
+});
+
+test('receipt status needs no login, keeps the receipt in the body, is throttled and reveals nothing for unknown receipts', async (t) => {
+  const looked: string[] = [];
+  const intake: AccountDeletionIntakeService = {
+    request: async () => { throw new Error('unused'); },
+    current: async () => { throw new Error('unused'); },
+    cancel: async () => { throw new Error('unused'); },
+    status: async (receipt) => {
+      looked.push(receipt);
+      if (receipt !== '7K2M-Q9XD-4HTB-0RWE') throw new AccountDeletionIntakeError('DELETION_RECEIPT_NOT_FOUND');
+      return intakeView;
+    },
+  };
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, undefined, false,
+    undefined, intake);
+  const path = '/api/web/account-deletion-status';
+  assert.equal((await webRequest(base, path)).status, 405);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: '{"receipt":"7K2M-Q9XD-4HTB-0RWE"}' })).status, 403);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: { ...webJson, 'content-type': 'text/plain' },
+    body: '{"receipt":"7K2M-Q9XD-4HTB-0RWE"}' })).status, 403);
+  assert.equal((await webRequest(base, `${path}?receipt=7K2M-Q9XD-4HTB-0RWE`, { method: 'POST', headers: webJson,
+    body: '{}' })).status, 400);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: webJson,
+    body: '{"receipt":"7K2M-Q9XD-4HTB-0RWE","accountId":"x"}' })).status, 400);
+  assert.deepEqual(looked, []);
+  const found = await webRequest(base, path, { method: 'POST', headers: webJson, body: '{"receipt":"7K2M-Q9XD-4HTB-0RWE"}' });
+  assert.equal(found.status, 200);
+  assert.deepEqual(await found.json(), intakeView);
+  assert.equal(found.headers.get('cache-control'), 'no-store');
+  assert.equal(found.headers.get('set-cookie'), null);
+  const missing = await webRequest(base, path, { method: 'POST', headers: webJson, body: '{"receipt":"AAAA-AAAA-AAAA-AAAA"}' });
+  assert.equal(missing.status, 404);
+  assert.deepEqual(await missing.json(), { code: 'DELETION_RECEIPT_NOT_FOUND' });
+  let limited: Response | undefined;
+  for (let attempt = 0; attempt < 40 && !limited; attempt += 1) {
+    const response = await webRequest(base, path, { method: 'POST', headers: webJson, body: '{"receipt":"ZZZZ-ZZZZ-ZZZZ-ZZZZ"}' });
+    if (response.status === 429) limited = response;
+  }
+  assert.ok(limited, 'the lookup must be throttled');
+  assert.deepEqual(await limited.json(), { code: 'DELETION_STATUS_RATE_LIMITED' });
+  assert.match(limited.headers.get('retry-after') ?? '', /^\d+$/);
+});
+
+test('showcase Bearer deletion intake exists only when the showcase service is wired and never trusts a body account', async (t) => {
+  const calls: string[] = [];
+  const intake: AccountDeletionIntakeService = {
+    request: async (accountId, options) => {
+      calls.push(`request:${accountId}:${options?.reissue}`);
+      return { receipt: '7K2M-Q9XD-4HTB-0RWE', receiptIssued: true, ...intakeDates };
+    },
+    current: async (accountId) => { calls.push(`current:${accountId}`); return intakeView; },
+    cancel: async (accountId) => { calls.push(`cancel:${accountId}`); return { status: 'CANCELLED' }; },
+    status: async (receipt) => { calls.push(`status:${receipt}`); return intakeView; },
+  };
+  const sessions = authSessionFixture({
+    resolve: async (token) => {
+      if (token !== 'live') throw new AuthSessionError('SESSION_INVALID');
+      return 'acct_showcase';
+    },
+  });
+  const production = await startFixture(t, createBearerAccountResolver(sessions), undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, sessions);
+  for (const path of ['/account-deletion-intake', '/account-deletion-intake/cancel', '/account-deletion-status']) {
+    assert.equal((await fetch(`${production}${path}`, { method: 'POST', headers: { authorization: 'Bearer live' } })).status,
+      404, path);
+  }
+  const showcase = await startFixture(t, createBearerAccountResolver(sessions), undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, sessions, undefined, false, undefined, false,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, intake);
+  const json = { 'content-type': 'application/json', authorization: 'Bearer live' };
+  assert.equal((await fetch(`${showcase}/account-deletion-intake`, { method: 'POST', body: '{}',
+    headers: { 'content-type': 'application/json' } })).status, 401);
+  assert.equal((await fetch(`${showcase}/account-deletion-intake`, { headers: { authorization: 'Bearer stale' } })).status, 401);
+  assert.deepEqual(calls, []);
+  const filed = await fetch(`${showcase}/account-deletion-intake`, { method: 'POST', headers: json,
+    body: JSON.stringify({ accountId: 'someone-else' }) });
+  assert.equal(filed.status, 202);
+  assert.deepEqual(await filed.json(), { receipt: '7K2M-Q9XD-4HTB-0RWE', receiptIssued: true, ...intakeDates });
+  assert.equal((await fetch(`${showcase}/account-deletion-intake`, { method: 'POST', headers: json,
+    body: '{"reissue":true}' })).status, 202);
+  assert.equal((await fetch(`${showcase}/account-deletion-intake`, { method: 'POST', headers: json })).status, 202);
+  const current = await fetch(`${showcase}/account-deletion-intake`, { headers: json });
+  assert.deepEqual(await current.json(), { request: intakeView });
+  assert.equal((await fetch(`${showcase}/account-deletion-intake/cancel`, { method: 'POST', headers: json })).status, 200);
+  assert.equal((await fetch(`${showcase}/account-deletion-intake`, { method: 'PUT', headers: json })).status, 405);
+  const status = await fetch(`${showcase}/account-deletion-status`, { method: 'POST',
+    headers: { 'content-type': 'application/json' }, body: '{"receipt":"7K2M-Q9XD-4HTB-0RWE"}' });
+  assert.equal(status.status, 200);
+  assert.deepEqual(calls, [
+    'request:acct_showcase:false', 'request:acct_showcase:true', 'request:acct_showcase:false',
+    'current:acct_showcase', 'cancel:acct_showcase', 'status:7K2M-Q9XD-4HTB-0RWE',
+  ]);
+});
+
+const adminIntake: AdminDeletionIntake = {
+  id: '11111111-1111-4111-8111-111111111111', status: 'REQUESTED', source: 'WEB',
+  requestedAt: intakeDates.requestedAt, cancelUntil: intakeDates.cancelUntil, dueAt: intakeDates.dueAt,
+  canProcess: true, overdue: false, accountLabel: 'acct_1a2b…9f0e', hasReceipt: true, processedAt: null, processedBy: null,
+  rejectReason: null, deletion: null,
+};
+
+test('admin deletion routes need the admin session and same-origin JSON, and never carry an account ID', async (t) => {
+  const seen: string[] = [];
+  let failure: AccountDeletionIntakeErrorCode | undefined;
+  const processing: AccountDeletionProcessingService = {
+    list: async (operator) => { seen.push(`list:${JSON.stringify(operator)}`); return [adminIntake]; },
+    process: async (operator, id) => {
+      if (failure) throw new AccountDeletionIntakeError(failure);
+      seen.push(`process:${JSON.stringify(operator)}:${id}`);
+      return { ...adminIntake, status: 'PROCESSED', canProcess: false };
+    },
+    reject: async (operator, id, reason) => {
+      if (failure) throw new AccountDeletionIntakeError(failure);
+      seen.push(`reject:${JSON.stringify(operator)}:${id}:${reason}`);
+      return { ...adminIntake, status: 'REJECTED', canProcess: false, rejectReason: reason };
+    },
+    reconcile: async (operator) => { seen.push(`reconcile:${JSON.stringify(operator)}`); return { checked: 2, completed: 1, waiting: 1 }; },
+  };
+  const admin = {
+    isAdmin: async (accountId: string) => accountId === 'admin-account',
+    listMerchants: async () => [],
+    createMerchant: async () => { throw new Error('unused'); },
+    updateMerchant: async () => { throw new Error('unused'); },
+    hideMerchant: async () => { throw new Error('unused'); },
+  } as unknown as Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const fixture = (account: string) => startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, intakeWebAuth(account), false,
+    admin, undefined, undefined, undefined, undefined, undefined, undefined, undefined, processing);
+  const base = await fixture('admin-account');
+  const cookie = { cookie: 'web_session=valid-cookie' };
+  const json = { ...webJson, ...cookie };
+  const listPath = '/api/web/admin/account-deletion-intakes';
+  const processPath = `${listPath}/${adminIntake.id}/process`;
+  const rejectPath = `${listPath}/${adminIntake.id}/reject`;
+  const reconcilePath = '/api/web/admin/account-deletions/reconcile';
+
+  assert.equal((await webRequest(base, listPath)).status, 401);
+  const nonAdmin = await fixture('someone');
+  for (const [path, method] of [[listPath, 'GET'], [processPath, 'POST'], [rejectPath, 'POST'], [reconcilePath, 'POST']] as const) {
+    assert.equal((await webRequest(nonAdmin, path, method === 'GET' ? { headers: cookie }
+      : { method, headers: json, body: '{"reason":"x"}' })).status, 403, path);
+  }
+  for (const path of [processPath, rejectPath, reconcilePath]) {
+    assert.equal((await webRequest(base, path, { method: 'POST', headers: cookie, body: '{}' })).status, 403, path);
+    assert.equal((await webRequest(base, path, { method: 'POST', headers: { ...cookie, origin: 'https://evil.example',
+      'content-type': 'application/json' }, body: '{}' })).status, 403, path);
+  }
+  assert.deepEqual(seen, []);
+
+  const listed = await webRequest(base, listPath, { headers: cookie });
+  assert.equal(listed.status, 200);
+  const listedBody = await listed.json() as { intakes: AdminDeletionIntake[] };
+  assert.deepEqual(listedBody, { intakes: [adminIntake] });
+  assert.doesNotMatch(JSON.stringify(listedBody), /@|"accountId"/);
+
+  const processed = await webRequest(base, processPath, { method: 'POST', headers: json, body: '{}' });
+  assert.equal(processed.status, 200);
+  assert.equal(((await processed.json()) as { intake: AdminDeletionIntake }).intake.status, 'PROCESSED');
+  assert.equal((await webRequest(base, processPath, { method: 'POST', headers: json, body: '{"accountId":"x"}' })).status, 400);
+  const rejected = await webRequest(base, rejectPath, { method: 'POST', headers: json, body: '{"reason":"본인 확인 불가"}' });
+  assert.equal(rejected.status, 200);
+  assert.equal(((await rejected.json()) as { intake: AdminDeletionIntake }).intake.rejectReason, '본인 확인 불가');
+  assert.equal((await webRequest(base, rejectPath, { method: 'POST', headers: json, body: '{}' })).status, 400);
+  assert.equal((await webRequest(base, rejectPath, { method: 'POST', headers: json, body: '{"reason":"a","x":1}' })).status, 400);
+  const reconciled = await webRequest(base, reconcilePath, { method: 'POST', headers: json, body: '{}' });
+  assert.deepEqual(await reconciled.json(), { checked: 2, completed: 1, waiting: 1 });
+  const operator = JSON.stringify({ kind: 'admin', accountId: 'admin-account' });
+  assert.deepEqual(seen, [
+    `list:${operator}`, `process:${operator}:${adminIntake.id}`, `reject:${operator}:${adminIntake.id}:본인 확인 불가`,
+    `reconcile:${operator}`,
+  ]);
+
+  for (const [code, status] of [
+    ['DELETION_COOLING_OFF', 409], ['DELETION_INTAKE_NOT_PENDING', 409], ['DELETION_SELF_PROCESSING_REFUSED', 403],
+    ['DELETION_INTAKE_NOT_FOUND', 404], ['DELETION_REJECT_REASON_INVALID', 400],
+    ['DELETION_LEGACY_NEEDS_REFILE', 409], ['DELETION_BUSY', 409],
+  ] as const) {
+    failure = code;
+    const refused = await webRequest(base, processPath, { method: 'POST', headers: json, body: '{}' });
+    assert.equal(refused.status, status, code);
+    assert.deepEqual(await refused.json(), { code });
+  }
+  const closed = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, intakeWebAuth('admin-account'), false, admin);
+  assert.equal((await webRequest(closed, listPath, { headers: cookie })).status, 503);
 });
 
 test('deletion Google sign-in returns to a fixed path', async (t) => {
   const destinations: (string | undefined)[] = [];
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async (_origin, returnTo) => {
       destinations.push(returnTo);
       return { location: 'https://accounts.google.com/', state: 'deletion-state' };
@@ -429,7 +753,7 @@ test('deletion Google sign-in returns to a fixed path', async (t) => {
 });
 
 test('admin API uses only the host-bound web cookie and rejects unauthorized, foreign-origin, and non-JSON writes', async (t) => {
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => ({ location: 'https://accounts.google.com/', state: 'state' }),
     complete: async () => ({ token: 'token' }),
     resolveSession: async token => {
@@ -474,7 +798,7 @@ test('admin API uses only the host-bound web cookie and rejects unauthorized, fo
 });
 
 test('admin operations status requires the host-bound admin session and returns only counts', async (t) => {
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); },
     complete: async () => { throw new Error('not used'); },
     resolveSession: async token => {
@@ -511,7 +835,7 @@ test('admin operations status requires the host-bound admin session and returns 
 
 test('admin Google sign-in returns to the fixed admin path without a caller-controlled redirect', async (t) => {
   const destinations: (string | undefined)[] = [];
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async (_origin, returnTo) => {
       destinations.push(returnTo);
       return { location: 'https://accounts.google.com/', state: 'admin-state' };
@@ -534,7 +858,7 @@ test('admin Google sign-in returns to the fixed admin path without a caller-cont
 });
 
 test('authenticated admin API accepts menu and hours without changing the merchant version contract', async (t) => {
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); },
     complete: async () => { throw new Error('not used'); },
     resolveSession: async () => 'admin-account', logout: async () => {},
@@ -567,7 +891,7 @@ test('authenticated admin API accepts menu and hours without changing the mercha
 });
 
 test('admin campaign draft remains private and requires the web administrator session', async (t) => {
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
     resolveSession: async () => 'admin-account', logout: async () => {},
   };
@@ -611,7 +935,7 @@ test('admin campaign draft remains private and requires the web administrator se
 
 test('merchant registration uses host-bound web cookie and rejects foreign-origin writes', async (t) => {
   const returns: (string | undefined)[] = [];
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async (_origin, returnTo) => {
       returns.push(returnTo);
       return { location: 'https://accounts.google.com/', state: 'merchant-state' };
@@ -667,7 +991,7 @@ test('merchant registration uses host-bound web cookie and rejects foreign-origi
 
 test('merchant web resolves a customer QR and issues a confirmed claim without exposing a replay token', async (t) => {
   const calls: unknown[][] = [];
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
     resolveSession: async token => {
       if (token !== 'staff-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
@@ -752,7 +1076,7 @@ test('merchant web rejects invalid QR, foreign origin, missing confirmation and 
   let real = true;
   let issueCalls = 0;
   let reissueCalls = 0;
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
     resolveSession: async token => {
       if (token !== 'staff-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
@@ -825,7 +1149,7 @@ test('merchant web rejects invalid QR, foreign origin, missing confirmation and 
 });
 
 test('admin staff approval and revoke derive the actor from the web session', async (t) => {
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => ({ location: 'https://accounts.google.com/', state: 'state' }),
     complete: async () => ({ token: 'token' }),
     resolveSession: async () => 'admin-account', logout: async () => {},
@@ -857,7 +1181,7 @@ test('admin staff approval and revoke derive the actor from the web session', as
 });
 
 test('admin hide returns a distinct 409 while valid QR claims are pending', async (t) => {
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); },
     complete: async () => { throw new Error('not used'); },
     resolveSession: async () => 'admin-account', logout: async () => {},
@@ -880,7 +1204,7 @@ test('admin hide returns a distinct 409 while valid QR claims are pending', asyn
 
 test('web login start obeys the existing per-client login limiter before storing a state', async (t) => {
   let started = 0;
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => {
       started += 1;
       return { location: 'https://accounts.google.com/o/oauth2/v2/auth', state: 'state-1' };
@@ -899,7 +1223,7 @@ test('web login start obeys the existing per-client login limiter before storing
 });
 
 test('web callback maps provider outage to a retryable 503 without echoing the code', async (t) => {
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); },
     complete: async () => { throw new WebAuthError('WEB_AUTH_UPSTREAM_UNAVAILABLE'); },
     resolveSession: async () => 'account-1',
@@ -918,7 +1242,7 @@ test('web callback maps provider outage to a retryable 503 without echoing the c
 
 test('www web routes use only the exact Host and matching logout Origin', async (t) => {
   const calls: string[] = [];
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async (origin) => {
       calls.push(`start:${origin}`);
       return { location: 'https://accounts.google.com/o/oauth2/v2/auth', state: 'www-state' };
@@ -967,7 +1291,7 @@ test('www web routes use only the exact Host and matching logout Origin', async 
 
 test('www web auth remains closed when its runtime flag is off', async (t) => {
   let starts = 0;
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { starts += 1; return { location: 'https://accounts.google.com/', state: 'apex-state' }; },
     complete: async () => { throw new Error('not used'); },
     resolveSession: async () => 'account-1',
@@ -2628,7 +2952,7 @@ test('staff coupon lookup and redeem check permission, body shape and map coupon
 
 test('web badges are read-only, cookie-bound and closed without configuration', async (t) => {
   const accounts: string[] = [];
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
     resolveSession: async token => {
       if (token !== 'valid-web-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
@@ -2672,7 +2996,7 @@ test('web merchant coupon routes require origin, JSON, session, permission and m
   let allowed = true;
   let member = true;
   let failure: BadgeRewardError | undefined;
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
     resolveSession: async token => {
       if (token !== 'staff-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
@@ -3162,7 +3486,7 @@ test('staff reversal routes check permission, body shape and map reversal errors
   }, calls);
   const base = await startFixture(t, undefined, undefined, access, undefined, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, undefined, false,
-    undefined, undefined, undefined, undefined, undefined, undefined, undefined, reversals);
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, reversals);
   const visitId = sampleCancelled.visitEventId;
   const couponId = sampleRedemptions.coupons[0]!.couponId;
   const send = (path: string, method = 'GET', body?: object | string, account = 'staff-1') =>
@@ -3249,7 +3573,7 @@ test('web merchant reversal routes require origin, JSON, session, permission and
   const calls: unknown[][] = [];
   let allowed = true;
   let member = true;
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
     resolveSession: async token => {
       if (token !== 'staff-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
@@ -3265,7 +3589,8 @@ test('web merchant reversal routes require origin, JSON, session, permission and
   } };
   const base = await startFixture(t, undefined, undefined, access, undefined, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
-    webAuth, false, undefined, undefined, staff, undefined, undefined, undefined, undefined, reversalFixture({}, calls));
+    webAuth, false, undefined, undefined, staff, undefined, undefined, undefined, undefined, undefined, undefined,
+    reversalFixture({}, calls));
   const headers = { cookie: 'web_session=staff-cookie', origin: 'https://masscom.kr', 'content-type': 'application/json' };
   const prefix = '/api/web/merchant/merchants/real-merchant';
   const visitId = sampleCancelled.visitEventId;
@@ -3337,7 +3662,7 @@ test('web merchant reversal routes require origin, JSON, session, permission and
 test('admin coupon routes list and void behind the admin cookie, origin and JSON checks', async (t) => {
   const voided: unknown[][] = [];
   let failure: AdminError | undefined;
-  const webAuth: WebAuthHandler = {
+  const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
     resolveSession: async token => {
       if (token !== 'admin-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');

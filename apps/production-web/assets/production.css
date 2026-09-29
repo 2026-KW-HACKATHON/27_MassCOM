@@ -377,6 +377,11 @@ video { width: 100%; max-width: 28rem; aspect-ratio: 4 / 3; object-fit: cover; b
 #admin-operations p:first-child { margin-top: 0; }
 #admin-campaign-drafts p { padding: 10px 14px; border-radius: var(--mc-radius-control); background: var(--mc-bg); font-weight: 600; }
 #admin-campaign-drafts { display: grid; gap: 8px; }
+#admin-deletions { display: grid; gap: 12px; }
+.admin-deletion { display: grid; gap: 10px; padding: 14px; border-radius: var(--mc-radius-control); background: var(--mc-bg); }
+.admin-deletion > p { color: var(--mc-secondary); font-size: .95rem; }
+.admin-deletion > p:first-child { color: var(--mc-label); font-weight: 800; }
+.admin-deletion > input { min-height: 44px; }
 .admin-merchant-list { display: grid; gap: 14px; }
 .admin-merchant-list > form { padding-top: 24px; border-top: 1px solid var(--mc-separator); }
 .admin-merchant-list > form:first-child { padding-top: 0; border-top: 0; }

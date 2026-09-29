@@ -58,6 +58,13 @@ const personalDataPatterns = [
   /(?:\p{Nd}(?:[^\p{L}\p{Nd}]|[\u3161\u1173\u115F\u1160\u3164\uFFA0])*){8,}/u,
 ];
 
+// 이메일·웹 주소·긴 숫자열(전화번호 등)이 보이는지 본다. 방문·쿠폰 되돌리기 메모와 계정 삭제 거절 사유가 같은 기준을 쓴다(#194).
+// 이름·주소 같은 그 밖의 개인정보는 걸러 내지 못한다.
+export function looksLikePersonalData(text: string): boolean {
+  const probe = text.normalize('NFKC');
+  return personalDataPatterns.some((pattern) => pattern.test(probe));
+}
+
 // 선택 메모를 정리한다. 제어·서식 문자를 없애고 공백을 접은 뒤 100자(코드 포인트) 이하만 받는다.
 // 이메일·웹 주소·긴 숫자열(전화번호 등)이 보이면 개인정보가 들어갔을 수 있어 거절한다. 그 밖의 개인정보(이름·주소 등)는 걸러 내지 못한다.
 // 저장하는 글은 NFC 그대로다(NFKC는 호환 자모 'ㅋㅋ' 같은 글자를 바꾸므로 검사에만 쓴다). 빈 메모는 null이다.
@@ -72,8 +79,7 @@ export function normalizeReversalNote(raw: unknown): NoteResult {
     .trim();
   if (note === '') return { ok: true, note: null };
   if (Array.from(note).length > reversalNoteMaxLength) return { ok: false };
-  const probe = note.normalize('NFKC');
-  if (personalDataPatterns.some((pattern) => pattern.test(probe))) return { ok: false };
+  if (looksLikePersonalData(note)) return { ok: false };
   return { ok: true, note };
 }
 

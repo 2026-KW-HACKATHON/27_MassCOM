@@ -125,7 +125,8 @@
 }
 
 .legal-main .legal-warning,
-.legal-main #deletion-status {
+.legal-main #deletion-status,
+.legal-main .legal-result {
   max-width: none;
 }
 
@@ -203,19 +204,93 @@
   opacity: 0.6;
 }
 
-#deletion-request .legal-action {
+#deletion-request .legal-action,
+#deletion-cancel-form .legal-action,
+#deletion-reissue-form .legal-action,
+#deletion-lookup .legal-action {
   background: var(--mc-primary-container);
   box-shadow: inset 0 0 0 1px var(--mc-separator);
   color: var(--mc-on-primary-container);
 }
 
-#deletion-status {
+.legal-check {
+  display: flex;
+  max-width: 46rem;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-top: 0.9rem;
+}
+
+.legal-check input {
+  flex: none;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-top: 0.15rem;
+  accent-color: var(--mc-primary);
+}
+
+.legal-receipt {
+  margin-block: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: var(--mc-radius-card);
+  background: var(--mc-primary-container);
+  color: var(--mc-on-primary-container);
+}
+
+.legal-receipt[hidden] {
+  display: none;
+}
+
+.legal-receipt h3 {
+  margin-top: 0;
+}
+
+.legal-receipt .legal-meta {
+  color: inherit;
+}
+
+.legal-receipt-code {
+  max-width: none;
+  margin: 0.4rem 0 0.9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: clamp(1.4rem, 5.5vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+#deletion-lookup {
+  display: grid;
+  max-width: 30rem;
+  gap: 0.5rem;
+}
+
+#deletion-lookup input {
+  min-height: 48px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--mc-locked-edge);
+  border-radius: var(--mc-radius-control);
+  background: var(--mc-bg);
+  color: var(--mc-label);
+  font: inherit;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+#deletion-lookup .legal-action {
+  justify-self: start;
+}
+
+#deletion-status,
+.legal-result {
   margin-top: 1rem;
   padding: 0.85rem 1rem;
   border-radius: var(--mc-radius-control);
   background: var(--mc-surface);
   color: var(--mc-secondary);
   font-size: 0.93rem;
+  overflow-wrap: anywhere;
 }
 
 .legal-meta {

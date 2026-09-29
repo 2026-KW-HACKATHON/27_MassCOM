@@ -68,23 +68,40 @@ export class PostgresWebSessionStore {
   }
 
   async resolve(token: string, originHost: WebOriginHost): Promise<string> {
+    return (await this.lookup(token, originHost)).accountId;
+  }
+
+  /**
+   * The session's age is measured against this store's clock, the same one that stamped `created_at`, so the caller
+   * can require a recent login without trusting a browser value. A `created_at` in the future counts as age 0.
+   */
+  async resolveWithAge(token: string, originHost: WebOriginHost): Promise<{ accountId: string; ageMs: number }> {
+    const { accountId, createdAt, now } = await this.lookup(token, originHost);
+    return { accountId, ageMs: Math.max(0, now.getTime() - createdAt.getTime()) };
+  }
+
+  private async lookup(
+    token: string,
+    originHost: WebOriginHost,
+  ): Promise<{ accountId: string; createdAt: Date; now: Date }> {
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new WebSessionError('WEB_SESSION_INVALID');
     const client = await this.pool.connect();
     try {
-      const result = await client.query<{ account_id: string }>(
-        `SELECT account_id FROM web_sessions
+      const now = this.now();
+      const result = await client.query<{ account_id: string; created_at: Date }>(
+        `SELECT account_id, created_at FROM web_sessions
          WHERE token_hash = $1 AND revoked_at IS NULL AND expires_at > $2 AND origin_host = $3`,
-        [tokenHash(token), this.now(), originHost],
+        [tokenHash(token), now, originHost],
       );
-      const accountId = result.rows[0]?.account_id;
-      if (!accountId) throw new WebSessionError('WEB_SESSION_INVALID');
+      const row = result.rows[0];
+      if (!row?.account_id) throw new WebSessionError('WEB_SESSION_INVALID');
       try {
-        await this.lifecycle.assertActive(client, accountId);
+        await this.lifecycle.assertActive(client, row.account_id);
       } catch (error) {
         if (error instanceof AccountLifecycleError) throw new WebSessionError('WEB_SESSION_INVALID');
         throw error;
       }
-      return accountId;
+      return { accountId: row.account_id, createdAt: row.created_at, now };
     } finally {
       client.release();
     }

@@ -10,8 +10,8 @@
 | 16KB page size | `VERIFIED` 설치·콜드 실행 | 이전 AAB의 ELF 정렬 검사와 [새 test.3의 Android 36 ps16k AVD](evidence/operating-android-test3-2026-09-28.json) page size `16384`·설치·콜드 실행 명령 PASS. AVD 화면 캡처는 [B-021](BLOCKERS.md)로 BLOCKED라 시각 판정은 NOT_RUN |
 | App Links | `VERIFIED` 도메인, 자동 선택 `BLOCKED` | `masscom.kr/open`만 autoVerify, upload 인증서 assetlinks HTTPS. Samsung의 domain `verified`와 명시적 VIEW 앱 진입 PASS. 사용자 설정에서 자동 링크 열기가 disabled여서 일반 링크 탭 결과는 PASS가 아님; Play App Signing 인증서는 Play 단계에서 추가 |
 | 지갑 승인 화면 출처 | `IN_PROGRESS` | PR #134 메타데이터와 공개 HTTPS 아이콘 URL은 검증. 운영 test.3 APK는 실제 설치됐지만 이 설치본의 MetaMask 승인 화면·자동 복귀는 `NOT_RUN`([증거](evidence/domain-wallet-origin-2026-09-23.json)) |
-| 계정 삭제 앱 경로 | `IN_PROGRESS` | [운영 test.3 폰](evidence/operating-android-test3-2026-09-28.json)의 계정 설정에서 외부 삭제 요청 진입 버튼과 미완료 안내는 보였다. 실제 요청 접수·검증 계정 연결·삭제 결과는 `BLOCKED`([B-020](BLOCKERS.md)) |
-| 외부 삭제 웹 경로 | `IN_PROGRESS` | 수정된 `https://www.masscom.kr/account-deletion.html`이 [소스 해시 일치·HTTPS 200](evidence/web-only-deployment-2026-09-28.json)로 배포됐다. 이메일 요청을 Google `sub`·계정에 안전하게 연결해 실제 처리하는 절차는 아직 미구현 |
+| 계정 삭제 앱 경로 | `IN_PROGRESS` | [운영 test.3 폰](evidence/operating-android-test3-2026-09-28.json)의 계정 설정에서 외부 삭제 요청 진입 버튼과 미완료 안내는 보였다. 이후 [D-052](DECISIONS.md)로 앱의 링크 문구를 웹 Google 로그인 접수(접수번호·24시간 취소·7일 처리)로 바로잡았고 시연 앱은 앱 안 접수를 더했다. 새 설치본의 화면·실제 접수·삭제 결과는 `NOT_RUN`/`BLOCKED`([B-020](BLOCKERS.md)) |
+| 외부 삭제 웹 경로 | `IN_PROGRESS` | 수정된 `https://www.masscom.kr/account-deletion.html`이 [소스 해시 일치·HTTPS 200](evidence/web-only-deployment-2026-09-28.json)로 배포됐다. 이 페이지는 이후 접수번호·24시간 취소·접수번호 조회 흐름(D-052)으로 바뀌었고 서버가 웹 세션에서 계정을 정해 운영자가 처리하는 절차를 코드·로컬 시험으로 구현했다. 배포와 폐기용 실계정 종단 실행은 미완료 |
 | Console 제출 초안 | `DRAFT` | `docs/PLAY_CONSOLE_DRAFT.md`의 초안을 소유자가 Console 문항과 대조해 확정 |
 | Data safety | `IN_PROGRESS` | 실제 로그인·Reown relay·RPC·서버·분석 전송과 일치하게 Console 제출 |
 | 금융 기능 선언 | `NOT_RUN` | 실제 NFT 보상 기능 기준으로 Console 항목 확인, 자동으로 “없음” 선택 금지 |

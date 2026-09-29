@@ -36,3 +36,22 @@ STAFF 적격 해시를 삭제해도 이미 활성화된 점주 권한은 사라�
 - 이 compose는 `AI_ART_STAFF_MAY_MANAGE=true`를 켠다: 가게 그림 권한(`MANAGE_ART`)이 기본은 활성 OWNER뿐인데, 시연은 CLI(`grant:showcase:staff`)로 소유자 계정에만 STAFF를 주기 때문이다. 운영 compose에는 이 값이 없다.
 - 점주 화면은 시연 앱의 "점주예요" 모드에만 있다. 키를 넣은 뒤의 실제 호출(비용·지연 측정)은 `NOT_RUN`이며 키 입력 뒤 따로 확인한다.
 
+
+## 계정 삭제 요청 처리 (D-052, Issue #194)
+
+시연 앱은 웹 삭제 페이지와 웹 로그인이 없어 앱 안(Bearer 세션)에서 "계정 삭제 요청"을 접수하고, 접수번호로 처리 상태(취소됨·처리되지 않음과 사유·처리 완료)를 앱에서 조회한다. 접수는 실제 삭제가 아니다: 접수번호를 한 번 보여 주고 24시간은 앱에서 취소할 수 있으며, 그 뒤 **운영자(소유자)가 이 호스트의 CLI로 접수 뒤 7일 안에 처리**한다. 이 요청은 시연 DB에서만 다루고 운영 DB·운영 관리자 웹과 섞지 않는다. 운영 앱은 이 경로 대신 웹 페이지를 쓰므로 운영 API에는 앱 안 접수 경로가 없다.
+
+- **migration:** 0031이 접수 표를 넓힌다(추가·완화만, 구 API 호환). 시연 API를 새 이미지로 교체할 때 기존 절차대로 migration이 먼저 적용된다.
+- **처리 절차:** 시연 API 컨테이너 안에서 실행한다(`DATABASE_URL`과 `ACCOUNT_DELETION_HMAC_SECRET`은 컨테이너에 이미 있다). 운영자 이름은 감사 기록에 남으므로 `MASSCOM_OPERATOR`로 지정한다.
+
+  ```bash
+  # 시연 Compose를 기동할 때 쓴 것과 같은 -f/--env-file 인자를 붙인다.
+  docker compose ... exec -e MASSCOM_OPERATOR=<이름> showcase-api node dist/postgres/account-deletion-command.js list
+  docker compose ... exec -e MASSCOM_OPERATOR=<이름> showcase-api node dist/postgres/account-deletion-command.js process <id>
+  docker compose ... exec -e MASSCOM_OPERATOR=<이름> showcase-api node dist/postgres/account-deletion-command.js reject <id> "<사유>"
+  docker compose ... exec -e MASSCOM_OPERATOR=<이름> showcase-api node dist/postgres/account-deletion-command.js reconcile
+  ```
+
+  `list`는 대기 건을 기한 순으로 먼저 보이고 `READY`(처리 가능)·`COOLING_OFF`(취소 기간 중)·`OVERDUE`(기한 초과)와 마스킹한 계정 표지를 보인다(이메일·전체 ID 없음). `process`는 취소 기간이 지나기 전에는 `DELETION_COOLING_OFF`로 거절되고, 처리하면 그 계정의 로그인·세션·지갑 연결·점주 권한이 삭제 처리되며 `platform_admin_audit`에 `ACCOUNT_DELETION_PROCESSED`(`cli:<이름>`)가 남는다. 제출된 거래가 있는 계정은 `ledger=WAITING_FOR_MINT_FINALITY`로 보이고, 거래가 확정된 뒤 `reconcile`을 실행해야 `COMPLETED`로 진행한다.
+- **DB 가드:** CLI는 시연 호스트 URL(`postgresql://masscom_showcase@postgres:5432/masscom_showcase`) 또는 로컬 시연 `_test` URL만 받고, 운영 DB URL에서는 `ACCOUNT_DELETION_SHOWCASE_DATABASE_REQUIRED`로 멈춘다.
+- **결과 확인:** 시연 앱 사용자는 로그인 중에는 계정 설정에서 상태를 보고, 처리 뒤에는 접수번호로 `POST https://demo-api.masscom.kr/account-deletion-status`(본문 `{"receipt":"…"}`)를 조회할 수 있다. 실제 종단 실행(앱 안 접수→CLI 처리→접수번호 조회)은 `NOT_RUN`이다.

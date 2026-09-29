@@ -14,6 +14,8 @@
     "db:migrate:production": "node dist/postgres/migrate-command.js",
     "admin:role": "tsx src/postgres/admin-role-command.ts",
     "admin:role:production": "node dist/postgres/admin-role-command.js",
+    "admin:deletion": "tsx src/postgres/account-deletion-command.ts",
+    "admin:deletion:host": "node dist/postgres/account-deletion-command.js",
     "seed:showcase:local": "tsx src/showcase/seed-command.ts",
     "seed:showcase:host": "tsx src/showcase/host-seed-command.ts",
     "grant:showcase:staff": "tsx src/showcase/grant-staff-command.ts",

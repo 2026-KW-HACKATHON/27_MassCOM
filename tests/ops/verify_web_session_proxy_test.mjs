@@ -33,6 +33,8 @@ createServer((request, response) => {
     response.writeHead(204);
   } else if (request.url === '/api/web/account-deletion-intake') {
     response.writeHead(202);
+  } else if (request.url === '/api/web/account-deletion-intake/cancel' || request.url === '/api/web/account-deletion-status') {
+    response.writeHead(200);
   } else {
     response.writeHead(200);
   }
@@ -133,6 +135,16 @@ test('Caddy forwards allowlisted browser-session routes, preserving redirects an
     const intake = await fetch(`${url}/api/web/account-deletion-intake`, { method: 'POST' });
     assert.equal(intake.status, 202);
     assert.match(intake.headers.get('cache-control') ?? '', /no-store/);
+    for (const path of ['/api/web/account-deletion-intake/cancel', '/api/web/account-deletion-status']) {
+      const routed = await fetch(`${url}${path}`, { method: 'POST' });
+      assert.equal(routed.status, 200, path);
+      assert.match(routed.headers.get('cache-control') ?? '', /no-store/, path);
+      assert.equal(routed.headers.get('x-robots-tag'), 'noindex, nofollow', path);
+    }
+    // 접수번호는 URL이 아니라 본문으로만 오간다: 쿼리에 접수번호를 붙인 다른 경로는 프록시하지 않는다.
+    for (const path of ['/api/web/account-deletion-status/7K2M', '/api/web/account-deletion-intake/other']) {
+      assert.equal((await fetch(`${url}${path}`, { method: 'POST' })).status, 404, path);
+    }
 
     // 도감 메달은 읽기 전용 GET 한 경로만 열고 상자 열기 같은 쓰기 경로는 프록시하지 않는다.
     for (const path of ['/api/web/unknown', '/api/claim', '/api/mint', '/api/web/badges/rewards/1/open']) {
@@ -230,6 +242,13 @@ test('Caddy serves the same limited web surface for exact apex and www hosts', a
       assert.equal(intake.status, 202, host);
       assert.equal(intake.headers['x-observed-host'], host, host);
       assert.equal(intake.headers['x-robots-tag'], 'noindex, nofollow', host);
+      for (const path of ['/api/web/account-deletion-intake/cancel', '/api/web/account-deletion-status']) {
+        const routed = await requestForHost(url, path, host, 'POST');
+        assert.equal(routed.status, 200, `${host}${path}`);
+        assert.equal(routed.headers['x-observed-host'], host, `${host}${path}`);
+        assert.equal(routed.headers['x-robots-tag'], 'noindex, nofollow', `${host}${path}`);
+        assert.match(routed.headers['cache-control'] ?? '', /no-store/, `${host}${path}`);
+      }
       for (const blocked of ['/HANDOFF.md', '/preview/.vercel/project.json', '/claim', '/mint', '/api/web/unknown',
         '/api/web/badges/rewards/1/open']) {
         assert.equal((await requestForHost(url, blocked, host)).status, 404, `${host}${blocked}`);
