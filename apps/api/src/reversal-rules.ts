@@ -45,14 +45,19 @@ export function isWithinCouponUndoWindow(redeemedAt: Date, now: Date): boolean {
 
 export type NoteResult = { ok: true; note: string | null } | { ok: false };
 
+// NFKC로 바꾼 글자에서 찾는다(전각 숫자·전각 골뱅이·호환 문자가 ASCII로 접힌다).
 const personalDataPatterns = [
   /@/u, // 이메일·SNS 계정
   /https?:\/\/|www\./iu, // 주소(URL)
-  /(?:\d[\s.-]?){8,}/u, // 전화번호·카드·주문번호처럼 긴 숫자열
+  // 스킴 없는 주소(instagram.com/x). 흔한 최상위 도메인만 본다.
+  /[\p{L}\p{Nd}][\p{L}\p{Nd}-]*[.。](?:com|net|org|kr|co|io|me)(?![\p{L}\p{Nd}])/iu,
+  // 전화번호·카드·주문번호처럼 긴 숫자열. 숫자 사이에 글자가 아닌 구분자(공백·하이픈·슬래시·유니코드 붙임표…)가 3개까지 끼어도 이어진 것으로 본다.
+  /(?:\p{Nd}[^\p{L}\p{Nd}]{0,3}){8,}/u,
 ];
 
-// 선택 메모를 정리한다. 제어·서식 문자를 없애고 공백을 접은 뒤 100자(코드 포인트) 이하만 받으며
-// 이메일·주소·긴 숫자열이 보이면 개인정보가 들어갔을 수 있어 거절한다. 빈 메모는 null이다.
+// 선택 메모를 정리한다. 제어·서식 문자를 없애고 공백을 접은 뒤 100자(코드 포인트) 이하만 받는다.
+// 이메일·웹 주소·긴 숫자열(전화번호 등)이 보이면 개인정보가 들어갔을 수 있어 거절한다. 그 밖의 개인정보(이름·주소 등)는 걸러 내지 못한다.
+// 저장하는 글은 NFC 그대로다(NFKC는 호환 자모 'ㅋㅋ' 같은 글자를 바꾸므로 검사에만 쓴다). 빈 메모는 null이다.
 export function normalizeReversalNote(raw: unknown): NoteResult {
   if (raw === undefined || raw === null) return { ok: true, note: null };
   if (typeof raw !== 'string') return { ok: false };
@@ -64,18 +69,28 @@ export function normalizeReversalNote(raw: unknown): NoteResult {
     .trim();
   if (note === '') return { ok: true, note: null };
   if (Array.from(note).length > reversalNoteMaxLength) return { ok: false };
-  if (personalDataPatterns.some((pattern) => pattern.test(note))) return { ok: false };
+  const probe = note.normalize('NFKC');
+  if (personalDataPatterns.some((pattern) => pattern.test(probe))) return { ok: false };
   return { ok: true, note };
 }
 
-// 실제 점포에서 직원이 자기 계정으로 받은 방문은 기록만 하고 진행·보상·NFT·도감에 세지 않는다.
+// 세어지지 않는 이유를 응답·저장에 쓰는 값. 직원 본인 적립과 점포 직원 계정으로 받은 방문을 함께 이 값으로 알린다.
+export type ProgressExcludedReason = 'STAFF_SELF';
+export const staffProgressExcludedReason: ProgressExcludedReason = 'STAFF_SELF';
+
+// 실제 점포에서는 (1) 직원이 자기 계정으로 받은 방문과 (2) 방문한 고객 계정이 그 점포의 ACTIVE 직원인 방문(동료가 대신 발급해도)을
+// 기록만 하고 진행·보상·NFT·도감에 세지 않는다. (2)는 수령 시점의 멤버 여부로 판정한다.
 // 시연 점포는 한 사람이 점원과 고객을 함께 시연하므로 그대로 센다(메달·배지의 countedVisitFilterSql과 같은 규칙).
-export function isStaffSelfClaim(input: {
+export function isStaffAccountClaim(input: {
   merchantIsDemo: boolean;
   slotCreatedByAccountId: string;
   customerAccountId: string;
+  customerIsActiveMember: boolean;
 }): boolean {
-  return !input.merchantIsDemo && input.slotCreatedByAccountId === input.customerAccountId;
+  return (
+    !input.merchantIsDemo &&
+    (input.slotCreatedByAccountId === input.customerAccountId || input.customerIsActiveMember)
+  );
 }
 
 export type MintJobFacts = {

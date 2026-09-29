@@ -7,7 +7,7 @@ import {
   classifyMintJob,
   couponUndoDeadline,
   isCouponVoidReason,
-  isStaffSelfClaim,
+  isStaffAccountClaim,
   isVisitCancelReason,
   isWithinCouponUndoWindow,
   kstBusinessDate,
@@ -66,11 +66,51 @@ test('notes are trimmed, collapsed and limited to 100 code points without person
   assert.deepEqual(normalizeReversalNote('3번 테이블, 2명'), { ok: true, note: '3번 테이블, 2명' });
 });
 
-test('only real stores exclude a visit the staff member claimed for themselves', () => {
-  const same = { slotCreatedByAccountId: 'staff-1', customerAccountId: 'staff-1' };
-  assert.equal(isStaffSelfClaim({ merchantIsDemo: false, ...same }), true);
-  assert.equal(isStaffSelfClaim({ merchantIsDemo: true, ...same }), false);
-  assert.equal(isStaffSelfClaim({ merchantIsDemo: false, slotCreatedByAccountId: 'staff-1', customerAccountId: 'guest' }), false);
+test('notes are checked after NFKC and reject separated digit runs, bare domains and fullwidth forms', () => {
+  const rejected = [
+    '010 - 1234 - 5678', // 구분자 앞뒤 공백
+    '010/1234/5678', // 슬래시
+    '010.1234.5678',
+    '０１０１２３４５６７８', // 전각 숫자
+    '０１０－１２３４－５６７８', // 전각 숫자와 전각 하이픈
+    '010‐1234‐5678', // U+2010 붙임표
+    '010‑1234‑5678', // U+2011
+    '010–1234–5678', // U+2013
+    '010−1234−5678', // U+2212
+    '010 1234 5678',
+    '٠١٠١٢٣٤٥٦٧٨', // 아라비아 인도 숫자
+    'kim＠example.com', // 전각 골뱅이
+    '＠kim_shop',
+    'instagram.com/x',
+    'instagram。com/x',
+    '블로그는 naver.co.kr 입니다',
+    'my-shop.io',
+    'mail me: shop.NET',
+    'ｗｗｗ.example.com', // 전각 www
+    'ＨＴＴＰＳ：／／example.com', // 전각 스킴
+  ];
+  for (const bad of rejected) assert.deepEqual(normalizeReversalNote(bad), { ok: false }, bad);
+  // 날짜·시각·수량처럼 글자가 사이에 끼는 숫자와 일반 문장은 통과한다.
+  const accepted = ['3번 테이블, 2명', '주문 12번 손님이 바뀜', '메뉴 3개 중 2개 취소', '10시 30분경 확인', '커피.잔 두 개', '오후 3시 ㅋㅋ'];
+  for (const good of accepted) assert.deepEqual(normalizeReversalNote(good), { ok: true, note: good }, good);
+  // 저장하는 글은 NFC 그대로다(호환 자모가 검사 때문에 바뀌지 않는다).
+  assert.deepEqual(normalizeReversalNote('ㅋㅋ 옆자리'), { ok: true, note: 'ㅋㅋ 옆자리' });
+});
+
+test('only real stores exclude a visit received with a staff account, whether self-claimed or issued by a colleague', () => {
+  const base = { slotCreatedByAccountId: 'staff-1', customerAccountId: 'staff-1', customerIsActiveMember: false };
+  // 직원이 자기 QR을 발급해 자기 계정으로 받음: 멤버 여부와 무관하게 실제 점포에서는 제외한다.
+  assert.equal(isStaffAccountClaim({ merchantIsDemo: false, ...base }), true);
+  assert.equal(isStaffAccountClaim({ merchantIsDemo: false, ...base, customerIsActiveMember: true }), true);
+  // 동료가 발급했지만 방문한 계정이 그 점포의 ACTIVE 직원이다.
+  const colleague = { slotCreatedByAccountId: 'staff-2', customerAccountId: 'staff-1', customerIsActiveMember: true };
+  assert.equal(isStaffAccountClaim({ merchantIsDemo: false, ...colleague }), true);
+  // 시연 점포는 둘 다 그대로 센다.
+  assert.equal(isStaffAccountClaim({ merchantIsDemo: true, ...base }), false);
+  assert.equal(isStaffAccountClaim({ merchantIsDemo: true, ...colleague }), false);
+  // 일반 고객은 제외하지 않는다.
+  const guest = { slotCreatedByAccountId: 'staff-1', customerAccountId: 'guest', customerIsActiveMember: false };
+  assert.equal(isStaffAccountClaim({ merchantIsDemo: false, ...guest }), false);
 });
 
 test('a mint job is cancelable only while nothing was sent and no worker holds a lease', () => {
