@@ -317,9 +317,10 @@ video { width: 100%; max-width: 28rem; aspect-ratio: 4 / 3; object-fit: cover; b
 .ticket-expiry { font-weight: 700; font-size: .95rem; }
 .ticket-issued .ticket-chip { background: var(--mc-success-container); color: var(--mc-on-success-container); }
 .ticket-redeemed .ticket-chip { background: var(--mc-bg); color: var(--mc-stamp-ink); }
-.ticket-expired .ticket-chip { background: var(--mc-surface); color: var(--mc-secondary); }
-.ticket-redeemed .ticket-main, .ticket-redeemed .ticket-expiry, .ticket-expired .ticket-main, .ticket-expired .ticket-expiry { color: var(--ticket-muted); }
-.ticket-redeemed .ticket-eyebrow, .ticket-expired .ticket-eyebrow { opacity: 1; }
+.ticket-expired .ticket-chip, .ticket-voided .ticket-chip { background: var(--mc-surface); color: var(--mc-secondary); }
+.ticket-redeemed .ticket-main, .ticket-redeemed .ticket-expiry, .ticket-expired .ticket-main, .ticket-expired .ticket-expiry,
+.ticket-voided .ticket-main, .ticket-voided .ticket-expiry { color: var(--ticket-muted); }
+.ticket-redeemed .ticket-eyebrow, .ticket-expired .ticket-eyebrow, .ticket-voided .ticket-eyebrow { opacity: 1; }
 .ticket-redeemed .ticket-main { padding-right: 132px; }
 .ticket-stamp {
   position: absolute; right: 20px; top: calc((100% - var(--foot)) / 2 - 46px); z-index: 1; display: grid; place-items: center;
@@ -349,6 +350,23 @@ video { width: 100%; max-width: 28rem; aspect-ratio: 4 / 3; object-fit: cover; b
 #merchant-coupon > h2 { font-size: 1.2rem; letter-spacing: -.01em; }
 #merchant-coupon > p { color: var(--mc-secondary); }
 #merchant-coupon-lookup { justify-self: start; }
+/* 최근 방문·쿠폰 사용 되돌리기(점포)와 쿠폰 관리(관리자): 목록 한 줄이 카드 안의 작은 카드다 */
+#merchant-reversal > h3, .admin-coupons h4 { font-size: 1.05rem; letter-spacing: -.01em; }
+#merchant-reversal-refresh { justify-self: start; }
+.admin-coupons { display: grid; gap: 12px; margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--mc-separator); }
+.admin-coupons > p { color: var(--mc-secondary); }
+/* 비어 있는 상태 안내(role=status)는 display:none으로 지우지 않고 화면에서만 감춘다: 나중에 글이 들어올 때 보조 기술이 읽어 주도록 */
+.admin-coupons > p:empty, #merchant-visit-status:empty, #merchant-redemption-status:empty {
+  display: block; position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.admin-coupons > button { justify-self: start; }
+.reversal-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.reversal-list > li { display: grid; gap: 10px; padding: 14px 16px; border-radius: var(--mc-radius-control); background: var(--mc-bg); }
+.reversal-list .reversal-text { margin: 0; color: var(--mc-label); font-weight: 700; overflow-wrap: anywhere; }
+.reversal-list .reversal-meta { margin: 0; color: var(--mc-secondary); font-size: .9rem; }
+.reversal-list button { justify-self: start; }
+.reversal-form { display: grid; gap: 10px; }
 .admin-heading h1 { font-size: clamp(1.9rem, 4.2vw, 3.2rem); }
 #admin-content > h2 { margin-bottom: -4px; }
 .admin-grid { display: grid; gap: 20px; align-items: start; }

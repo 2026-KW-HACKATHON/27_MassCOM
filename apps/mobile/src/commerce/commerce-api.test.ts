@@ -487,3 +487,130 @@ test('merchant context and claim issue both invoke bearer session recovery on ex
   ]);
   assert.equal(invalidations, 2);
 });
+
+test('lists recent visits and cancels one with a fixed reason and a trimmed optional note', async () => {
+  const requests: { url: string; method: string | undefined; body: unknown }[] = [];
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (input, init) => {
+      const url = String(input);
+      assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer session');
+      requests.push({ url, method: init?.method, body: init?.body === undefined ? undefined : JSON.parse(String(init.body)) });
+      if (url.endsWith('/recent-visits')) {
+        return Response.json({
+          businessDate: '2026-09-30',
+          visits: [{ visitEventId: 'v/1', occurredAt: '2026-09-30T03:05:00.000Z', customerLabel: '손님 K7QM', status: 'VALID',
+            progressCounted: false, cancellationReason: null, canCancel: true, customerAccountId: 'ignored' }],
+        });
+      }
+      return Response.json({
+        visitEventId: 'v/1', status: 'CANCELED', reason: 'DUPLICATE', note: '두 번 확인',
+        canceledAt: '2026-09-30T03:06:00.000Z', revokedRewardCount: 1, voidedCouponCount: 0, replayed: false,
+      });
+    },
+  });
+  const listed = await client.listRecentVisits('merchant/1');
+  assert.deepEqual(listed, {
+    businessDate: '2026-09-30',
+    visits: [{ visitEventId: 'v/1', occurredAt: '2026-09-30T03:05:00.000Z', customerLabel: '손님 K7QM', status: 'VALID',
+      progressCounted: false, cancellationReason: null, canCancel: true }],
+  });
+  assert.equal('customerAccountId' in listed.visits[0]!, false);
+  const canceled = await client.cancelVisit({ merchantId: 'merchant/1', visitEventId: 'v/1', reason: 'DUPLICATE', note: '  두 번 확인  ' });
+  assert.equal(canceled.revokedRewardCount, 1);
+  await client.cancelVisit({ merchantId: 'merchant/1', visitEventId: 'v/1', reason: 'OTHER', note: '   ' });
+  assert.deepEqual(requests, [
+    { url: 'https://api.example.test/merchant/merchants/merchant%2F1/recent-visits', method: undefined, body: undefined },
+    { url: 'https://api.example.test/merchant/merchants/merchant%2F1/visits/v%2F1/cancel', method: 'POST', body: { reason: 'DUPLICATE', note: '두 번 확인' } },
+    { url: 'https://api.example.test/merchant/merchants/merchant%2F1/visits/v%2F1/cancel', method: 'POST', body: { reason: 'OTHER' } },
+  ]);
+});
+
+test('lists recent coupon redemptions and undoes one with an empty POST body', async () => {
+  const requests: { url: string; method: string | undefined; body: unknown }[] = [];
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (input, init) => {
+      const url = String(input);
+      requests.push({ url, method: init?.method, body: init?.body === undefined ? undefined : JSON.parse(String(init.body)) });
+      if (url.endsWith('/recent-coupon-redemptions')) {
+        return Response.json({ coupons: [{ couponId: 'c/1', title: '음료 1잔', redeemedAt: '2026-09-30T03:00:00.000Z',
+          customerLabel: '손님 K7QM', redeemedByMe: true, undoUntil: '2026-09-30T03:10:00.000Z', canUndo: true }] });
+      }
+      return Response.json({ couponId: 'c/1', status: 'ISSUED', replayed: true });
+    },
+  });
+  assert.deepEqual(await client.listRecentCouponRedemptions('merchant-1'), [{
+    couponId: 'c/1', title: '음료 1잔', redeemedAt: '2026-09-30T03:00:00.000Z', customerLabel: '손님 K7QM',
+    redeemedByMe: true, undoUntil: '2026-09-30T03:10:00.000Z', canUndo: true,
+  }]);
+  assert.deepEqual(await client.undoCouponRedemption({ merchantId: 'merchant-1', couponId: 'c/1' }),
+    { couponId: 'c/1', status: 'ISSUED', replayed: true });
+  assert.deepEqual(requests, [
+    { url: 'https://api.example.test/merchant/merchants/merchant-1/recent-coupon-redemptions', method: undefined, body: undefined },
+    { url: 'https://api.example.test/merchant/merchants/merchant-1/coupons/c%2F1/undo-redeem', method: 'POST', body: {} },
+  ]);
+});
+
+test('rejects malformed reversal responses before showing them and keeps error codes', async () => {
+  const bodies: [string, unknown, (client: ReturnType<typeof createCommerceApiClient>) => Promise<unknown>, RegExp][] = [
+    ['visits without a date', { visits: [] }, (client) => client.listRecentVisits('m'), /최근 방문 응답 형식/],
+    ['visit with a bad status', { businessDate: '2026-09-30', visits: [{ visitEventId: 'v', occurredAt: '2026-09-30T03:05:00.000Z',
+      customerLabel: '손님', status: 'DONE', progressCounted: true, cancellationReason: null, canCancel: true }] },
+      (client) => client.listRecentVisits('m'), /최근 방문 응답 형식/],
+    ['visit without a label', { businessDate: '2026-09-30', visits: [{ visitEventId: 'v', occurredAt: '2026-09-30T03:05:00.000Z',
+      customerLabel: '', status: 'VALID', progressCounted: true, cancellationReason: null, canCancel: true }] },
+      (client) => client.listRecentVisits('m'), /최근 방문 응답 형식/],
+    ['cancel with a wrong status', { visitEventId: 'v', status: 'VALID', reason: 'DUPLICATE', note: null,
+      canceledAt: '2026-09-30T03:06:00.000Z', revokedRewardCount: 0, voidedCouponCount: 0, replayed: false },
+      (client) => client.cancelVisit({ merchantId: 'm', visitEventId: 'v', reason: 'DUPLICATE' }), /방문 취소 응답 형식/],
+    ['cancel with a negative count', { visitEventId: 'v', status: 'CANCELED', reason: 'DUPLICATE', note: null,
+      canceledAt: '2026-09-30T03:06:00.000Z', revokedRewardCount: -1, voidedCouponCount: 0, replayed: false },
+      (client) => client.cancelVisit({ merchantId: 'm', visitEventId: 'v', reason: 'DUPLICATE' }), /방문 취소 응답 형식/],
+    ['redemptions not a list', { coupons: 'none' }, (client) => client.listRecentCouponRedemptions('m'), /최근 쿠폰 사용 응답 형식/],
+    ['redemption without undoUntil', { coupons: [{ couponId: 'c', title: '음료', redeemedAt: '2026-09-30T03:00:00.000Z',
+      customerLabel: '손님', redeemedByMe: true, undoUntil: 'soon', canUndo: true }] },
+      (client) => client.listRecentCouponRedemptions('m'), /최근 쿠폰 사용 응답 형식/],
+    ['undo with a wrong status', { couponId: 'c', status: 'REDEEMED', replayed: false },
+      (client) => client.undoCouponRedemption({ merchantId: 'm', couponId: 'c' }), /쿠폰 되돌리기 응답 형식/],
+  ];
+  for (const [name, body, call, message] of bodies) {
+    const client = createCommerceApiClient({
+      apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+      fetcher: async () => Response.json(body),
+    });
+    await assert.rejects(call(client), message, name);
+  }
+  for (const [status, code] of [[409, 'VISIT_REWARD_ALREADY_MINTED'], [409, 'VISIT_CANCEL_WINDOW_CLOSED'], [409, 'COUPON_UNDO_WINDOW_CLOSED'], [403, 'MERCHANT_ACCESS_DENIED']] as const) {
+    const client = createCommerceApiClient({
+      apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+      fetcher: async () => Response.json({ code }, { status }),
+    });
+    for (const call of [
+      () => client.cancelVisit({ merchantId: 'm', visitEventId: 'v', reason: 'DUPLICATE' }),
+      () => client.undoCouponRedemption({ merchantId: 'm', couponId: 'c' }),
+      () => client.listRecentVisits('m'),
+    ]) {
+      await assert.rejects(call(), (error: unknown) => error instanceof CommerceApiError && error.status === status && error.code === code);
+    }
+  }
+});
+
+test('a redeemed claim carries the staff-self reason only when the server sends it', async () => {
+  const claim = (visit: Record<string, unknown>) => Response.json({
+    claimSlotId: 'slot-1', merchantId: 'm', merchantName: '가게', campaignTitle: '캠페인', status: 'CLAIMED', replayed: false,
+    visit: { visitEventId: 'v1', campaignId: 'c1', businessDate: '2026-09-30', verificationLevel: 'MERCHANT_CONFIRMED',
+      progressCounted: false, progressVisitCount: 0, ...visit },
+    grantedRewards: [],
+  });
+  const api = (visit: Record<string, unknown>) => createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => claim(visit),
+  });
+  assert.equal((await api({ progressExcludedReason: 'STAFF_SELF' }).redeemClaim('token')).visit.progressExcludedReason, 'STAFF_SELF');
+  // 모르는 값이나 없는 값은 기존 문구로 떨어진다(오래된 서버·새 이유 코드에도 화면이 깨지지 않는다).
+  assert.equal('progressExcludedReason' in (await api({}).redeemClaim('token')).visit, false);
+  assert.equal('progressExcludedReason' in (await api({ progressExcludedReason: 'SOMETHING_NEW' }).redeemClaim('token')).visit, false);
+});

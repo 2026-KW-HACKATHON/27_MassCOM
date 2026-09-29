@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
+import { isCouponVoidReason, maskedCustomerLabel, normalizeReversalNote } from '../reversal-rules.js';
 import { AccountLifecycleError, PostgresAccountLifecycle } from './account-lifecycle.js';
 
 export type AdminMerchant = {
@@ -28,6 +29,24 @@ export type AdminOperationsStatus = {
     mintJobs: { status: string; count: number }[];
     mintFailures: { code: string; count: number }[];
   }[];
+};
+
+export type AdminCoupon = {
+  couponId: string;
+  milestone: number;
+  title: string;
+  status: 'ISSUED' | 'REDEEMED' | 'VOIDED';
+  expired: boolean;
+  issuedAt: string;
+  expiresAt: string;
+  redeemedAt: string | null;
+  voidReason: string | null;
+  customerLabel: string;
+};
+
+export type AdminVoidedCoupon = {
+  coupon: { couponId: string; status: 'VOIDED'; voidReason: string; voidedAt: string };
+  replayed: boolean;
 };
 
 type AdminRewardGoal = { targetVisitCount: 1 | 3 | 5; displayName: string };
@@ -63,7 +82,8 @@ type MerchantRow = {
 
 export class AdminError extends Error {
   constructor(readonly code: 'ADMIN_FORBIDDEN' | 'ADMIN_IDENTITY_NOT_FOUND' |
-    'ADMIN_MERCHANT_NOT_FOUND' | 'ADMIN_VERSION_CONFLICT' | 'ADMIN_PENDING_CLAIMS' | 'ADMIN_INVALID_INPUT') {
+    'ADMIN_MERCHANT_NOT_FOUND' | 'ADMIN_VERSION_CONFLICT' | 'ADMIN_PENDING_CLAIMS' | 'ADMIN_INVALID_INPUT' |
+    'ADMIN_COUPON_NOT_FOUND' | 'ADMIN_COUPON_NOT_VOIDABLE') {
     super(code);
     this.name = 'AdminError';
   }
@@ -123,9 +143,12 @@ function validateCampaignDraft(raw: AdminCampaignDraftInput): AdminCampaignDraft
 
 export class PostgresAdminService {
   private readonly lifecycle: PostgresAccountLifecycle;
+  private readonly labelSecret: string;
 
-  constructor(private readonly pool: Pool, hmacSecret: string) {
+  // labelHmacSecret은 점원 화면과 같은 고객 가림 표시를 만들려고 쓴다(점원 화면과 같은 비밀을 넘긴다).
+  constructor(private readonly pool: Pool, hmacSecret: string, labelHmacSecret: string = hmacSecret) {
     this.lifecycle = new PostgresAccountLifecycle({ hmacSecret });
+    this.labelSecret = labelHmacSecret;
   }
 
   private async transaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
@@ -297,6 +320,104 @@ export class PostgresAdminService {
         [randomUUID(), accountId, input.merchantId, JSON.stringify(draft)],
       );
       return draft;
+    });
+  }
+
+  async listMerchantCoupons(accountId: string, merchantId: string): Promise<AdminCoupon[]> {
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      const merchantRow = await client.query('SELECT 1 FROM merchants WHERE id = $1 AND NOT is_demo', [merchantId]);
+      if (!merchantRow.rowCount) throw new AdminError('ADMIN_MERCHANT_NOT_FOUND');
+      const result = await client.query<{
+        id: string; milestone: number; title: string; status: AdminCoupon['status']; customer_account_id: string;
+        issued_at: Date; expires_at: Date; redeemed_at: Date | null; void_reason: string | null; expired: boolean;
+      }>(
+        `SELECT id, milestone, title, status, customer_account_id, issued_at, expires_at, redeemed_at, void_reason,
+                expires_at <= now() AS expired
+         FROM badge_coupons WHERE merchant_id = $1
+         ORDER BY issued_at DESC, id LIMIT 100`, [merchantId],
+      );
+      return result.rows.map(row => ({
+        couponId: row.id, milestone: row.milestone, title: row.title, status: row.status,
+        expired: row.status === 'ISSUED' && row.expired,
+        issuedAt: row.issued_at.toISOString(), expiresAt: row.expires_at.toISOString(),
+        redeemedAt: row.redeemed_at ? row.redeemed_at.toISOString() : null, voidReason: row.void_reason,
+        customerLabel: maskedCustomerLabel(this.labelSecret, merchantId, row.customer_account_id),
+      }));
+    });
+  }
+
+  // 미사용 쿠폰만 사유와 함께 무효로 한다. 사용한 쿠폰은 건드리지 않고, 이미 무효면 저장된 결과를 그대로 돌려준다.
+  async voidCoupon(accountId: string, couponId: string, input: { reason: unknown; note?: unknown }): Promise<AdminVoidedCoupon> {
+    if (!isCouponVoidReason(input.reason)) throw new AdminError('ADMIN_INVALID_INPUT');
+    const reason = input.reason;
+    const note = normalizeReversalNote(input.note);
+    if (!note.ok) throw new AdminError('ADMIN_INVALID_INPUT');
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(couponId)) {
+        throw new AdminError('ADMIN_COUPON_NOT_FOUND');
+      }
+      // 잠금 순서는 쿠폰 → 혜택이다(방문 취소의 재계산 무효화와 같다).
+      const coupon = (await client.query<{
+        id: string; merchant_id: string; offer_id: string; milestone: number; title: string;
+        status: 'ISSUED' | 'REDEEMED' | 'VOIDED'; void_reason: string | null; voided_at: Date | null;
+      }>(
+        `SELECT coupon.id, coupon.merchant_id, coupon.offer_id, coupon.milestone, coupon.title, coupon.status,
+                coupon.void_reason, coupon.voided_at
+         FROM badge_coupons AS coupon JOIN merchants AS merchant ON merchant.id = coupon.merchant_id
+         WHERE coupon.id = $1 AND NOT merchant.is_demo
+         FOR UPDATE OF coupon`, [couponId],
+      )).rows[0];
+      if (!coupon) throw new AdminError('ADMIN_COUPON_NOT_FOUND');
+      // 관리자 사유로 이미 무효인 쿠폰은 저장된 결과를 그대로 돌려준다(끝 상태).
+      if (coupon.status === 'VOIDED' && coupon.void_reason !== 'VISIT_CANCELED') {
+        return { coupon: { couponId: coupon.id, status: 'VOIDED', voidReason: coupon.void_reason!,
+          voidedAt: coupon.voided_at!.toISOString() }, replayed: true };
+      }
+      // 방문 취소로 무효가 된 쿠폰(되살릴 수 있는 무효)을 관리자가 무효로 하면 끝 상태로 바꾼다: 사유·메모·처리자를 관리자 것으로
+      // 덮어 되살릴 수 없게 하고 감사 기록을 남긴다. 발급 수는 방문 취소가 이미 돌려줬으므로 다시 줄이지 않는다.
+      // 원래 방문 취소 연결(void_visit_event_id)은 추적을 위해 그대로 둔다.
+      if (coupon.status === 'VOIDED') {
+        const finalized = (await client.query<{ voided_at: Date }>(
+          `UPDATE badge_coupons
+           SET void_reason = $2, void_note = $3, voided_at = now(), voided_by_account_id = $4
+           WHERE id = $1 AND status = 'VOIDED' AND void_reason = 'VISIT_CANCELED' RETURNING voided_at`,
+          [coupon.id, reason, note.note, accountId],
+        )).rows[0]!;
+        const summary = { couponId: coupon.id, milestone: coupon.milestone, title: coupon.title };
+        await client.query(
+          `INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, before_state, after_state)
+           VALUES ($1, $2, $3, 'COUPON_VOIDED', $4, $5)`,
+          [randomUUID(), accountId, coupon.merchant_id,
+            JSON.stringify({ ...summary, status: 'VOIDED', reason: 'VISIT_CANCELED' }),
+            JSON.stringify({ ...summary, status: 'VOIDED', reason, note: note.note })],
+        );
+        return { coupon: { couponId: coupon.id, status: 'VOIDED', voidReason: reason,
+          voidedAt: finalized.voided_at.toISOString() }, replayed: false };
+      }
+      if (coupon.status !== 'ISSUED') throw new AdminError('ADMIN_COUPON_NOT_VOIDABLE');
+      const voided = (await client.query<{ voided_at: Date }>(
+        `UPDATE badge_coupons
+         SET status = 'VOIDED', void_reason = $2, void_note = $3, voided_at = now(), voided_by_account_id = $4
+         WHERE id = $1 AND status = 'ISSUED' RETURNING voided_at`,
+        [coupon.id, reason, note.note, accountId],
+      )).rows[0]!;
+      // 쓰지 않은 쿠폰이 점주가 동의한 발급 상한을 계속 차지하지 않게 한다.
+      await client.query(
+        'UPDATE badge_reward_offers SET issued_count = issued_count - 1 WHERE id = $1 AND issued_count > 0',
+        [coupon.offer_id],
+      );
+      // 감사 기록에는 고객 식별자를 넣지 않는다.
+      const summary = { couponId: coupon.id, milestone: coupon.milestone, title: coupon.title };
+      await client.query(
+        `INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, before_state, after_state)
+         VALUES ($1, $2, $3, 'COUPON_VOIDED', $4, $5)`,
+        [randomUUID(), accountId, coupon.merchant_id, JSON.stringify({ ...summary, status: 'ISSUED' }),
+          JSON.stringify({ ...summary, status: 'VOIDED', reason, note: note.note })],
+      );
+      return { coupon: { couponId: coupon.id, status: 'VOIDED', voidReason: reason,
+        voidedAt: voided.voided_at.toISOString() }, replayed: false };
     });
   }
 

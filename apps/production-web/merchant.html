@@ -67,6 +67,18 @@
           <button id="merchant-claim-reissue-submit" type="button" disabled>방문 코드 재발급</button>
         </div>
       </section>
+      <section id="merchant-reversal" class="panel" aria-labelledby="merchant-reversal-title" hidden>
+        <h2 id="merchant-reversal-title">최근 방문·쿠폰 사용</h2>
+        <p>잘못 처리한 방문이나 쿠폰은 여기서 되돌려요. 방문 취소는 방문한 날(한국 시간)이 지나기 전까지, 쿠폰 사용 되돌리기는 사용 처리 후 10분까지 가능해요. 이미 NFT를 발행 중이거나 발행한 방문은 취소할 수 없어요.</p>
+        <label>점포 <select id="merchant-reversal-merchant"></select></label>
+        <button id="merchant-reversal-refresh" class="collection-action secondary" type="button">목록 새로 고침</button>
+        <h3 id="merchant-visit-title">최근 방문 확인</h3>
+        <ul id="merchant-visit-list" class="reversal-list" aria-labelledby="merchant-visit-title"></ul>
+        <p id="merchant-visit-status" class="status" role="status" aria-live="polite"></p>
+        <h3 id="merchant-redemption-title">최근 쿠폰 사용</h3>
+        <ul id="merchant-redemption-list" class="reversal-list" aria-labelledby="merchant-redemption-title"></ul>
+        <p id="merchant-redemption-status" class="status" role="status" aria-live="polite"></p>
+      </section>
     </section>
   </main>
 </body>

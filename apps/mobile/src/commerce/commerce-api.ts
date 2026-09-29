@@ -21,6 +21,39 @@ export type ResolvedCustomerIdentity = { expiresAt: string };
 export type StaffCoupon = { couponId: string; title: string; detail: string; expiresAt: string };
 export type CustomerCouponLookup = { identityExpiresAt: string; coupons: readonly StaffCoupon[] };
 export type RedeemedCustomerCoupon = { couponId: string; status: 'REDEEMED'; redeemedAt: string; replayed: boolean };
+export type VisitCancelReason = 'WRONG_CUSTOMER' | 'DUPLICATE' | 'NOT_A_REAL_VISIT' | 'OTHER';
+
+// 점원 화면 전용 응답. 고객 계정 ID·이메일 없이 점포별 가림 표시(customerLabel)만 온다.
+export type RecentVisit = {
+  visitEventId: string;
+  occurredAt: string;
+  customerLabel: string;
+  status: 'VALID' | 'CANCELED';
+  progressCounted: boolean;
+  cancellationReason: string | null;
+  canCancel: boolean;
+};
+export type RecentVisits = { businessDate: string; visits: readonly RecentVisit[] };
+export type CanceledVisit = {
+  visitEventId: string;
+  status: 'CANCELED';
+  reason: string;
+  note: string | null;
+  canceledAt: string;
+  revokedRewardCount: number;
+  voidedCouponCount: number;
+  replayed: boolean;
+};
+export type RecentCouponRedemption = {
+  couponId: string;
+  title: string;
+  redeemedAt: string;
+  customerLabel: string;
+  redeemedByMe: boolean;
+  undoUntil: string;
+  canUndo: boolean;
+};
+export type UndoneCouponRedemption = { couponId: string; status: 'ISSUED'; replayed: boolean };
 export type IdentityClaim = IssuedClaim | { claimSlotId: string; tokenVersion: number; expiresAt: string; replayed: true };
 
 export type ClaimPreview = {
@@ -47,6 +80,8 @@ export type RedeemedClaim = {
     verificationLevel: 'MERCHANT_CONFIRMED';
     progressCounted: boolean;
     progressVisitCount: number;
+    /** 세어지지 않은 이유가 직원 본인 계정 적립일 때만 온다(실제 점포). 같은 날 두 번째 방문에는 없다. */
+    progressExcludedReason?: 'STAFF_SELF';
   };
   grantedRewards: readonly {
     entitlementId: string;
@@ -177,6 +212,33 @@ export function createCommerceApiClient(options: Options) {
       );
     },
 
+    async listRecentVisits(merchantId: string): Promise<RecentVisits> {
+      return parseRecentVisits(await request(`/merchant/merchants/${encodeURIComponent(merchantId)}/recent-visits`));
+    },
+
+    async cancelVisit(input: { merchantId: string; visitEventId: string; reason: VisitCancelReason; note?: string }): Promise<CanceledVisit> {
+      const note = input.note?.trim();
+      return parseCanceledVisit(
+        await post(
+          `/merchant/merchants/${encodeURIComponent(input.merchantId)}/visits/${encodeURIComponent(input.visitEventId)}/cancel`,
+          { reason: input.reason, ...(note ? { note } : {}) },
+        ),
+      );
+    },
+
+    async listRecentCouponRedemptions(merchantId: string): Promise<readonly RecentCouponRedemption[]> {
+      return parseRecentRedemptions(await request(`/merchant/merchants/${encodeURIComponent(merchantId)}/recent-coupon-redemptions`));
+    },
+
+    async undoCouponRedemption(input: { merchantId: string; couponId: string }): Promise<UndoneCouponRedemption> {
+      return parseUndoneRedemption(
+        await post(
+          `/merchant/merchants/${encodeURIComponent(input.merchantId)}/coupons/${encodeURIComponent(input.couponId)}/undo-redeem`,
+          {},
+        ),
+      );
+    },
+
     async issueIdentityClaim(input: { merchantId: string; customerIdentityToken: string }): Promise<IdentityClaim> {
       // The identity token stays stable across a retry. Only its merchant-scoped HMAC is persisted as the reference.
       const response = await post(`/merchant/merchants/${encodeURIComponent(input.merchantId)}/claim-slots`, {
@@ -301,6 +363,97 @@ function parseRedeemedCoupon(value: unknown): RedeemedCustomerCoupon {
   return { couponId: value.couponId, status: 'REDEEMED', redeemedAt: value.redeemedAt, replayed: value.replayed };
 }
 
+function parseRecentVisits(value: unknown): RecentVisits {
+  if (!isRecord(value) || !isBusinessDate(value.businessDate) || !Array.isArray(value.visits)) {
+    throw invalidResponse('최근 방문');
+  }
+  return { businessDate: value.businessDate, visits: value.visits.map(parseRecentVisit) };
+}
+
+function parseRecentVisit(value: unknown): RecentVisit {
+  if (
+    !isRecord(value) ||
+    !isString(value.visitEventId) ||
+    !isDate(value.occurredAt) ||
+    !isString(value.customerLabel) ||
+    (value.status !== 'VALID' && value.status !== 'CANCELED') ||
+    typeof value.progressCounted !== 'boolean' ||
+    typeof value.canCancel !== 'boolean' ||
+    (value.cancellationReason !== null && typeof value.cancellationReason !== 'string')
+  ) {
+    throw invalidResponse('최근 방문');
+  }
+  return {
+    visitEventId: value.visitEventId,
+    occurredAt: value.occurredAt,
+    customerLabel: value.customerLabel,
+    status: value.status,
+    progressCounted: value.progressCounted,
+    cancellationReason: value.cancellationReason,
+    canCancel: value.canCancel,
+  };
+}
+
+function parseCanceledVisit(value: unknown): CanceledVisit {
+  if (
+    !isRecord(value) ||
+    !isString(value.visitEventId) ||
+    value.status !== 'CANCELED' ||
+    !isString(value.reason) ||
+    (value.note !== null && typeof value.note !== 'string') ||
+    !isDate(value.canceledAt) ||
+    !isNonNegativeInteger(value.revokedRewardCount) ||
+    !isNonNegativeInteger(value.voidedCouponCount) ||
+    typeof value.replayed !== 'boolean'
+  ) {
+    throw invalidResponse('방문 취소');
+  }
+  return {
+    visitEventId: value.visitEventId,
+    status: 'CANCELED',
+    reason: value.reason,
+    note: value.note,
+    canceledAt: value.canceledAt,
+    revokedRewardCount: value.revokedRewardCount,
+    voidedCouponCount: value.voidedCouponCount,
+    replayed: value.replayed,
+  };
+}
+
+function parseRecentRedemptions(value: unknown): readonly RecentCouponRedemption[] {
+  if (!isRecord(value) || !Array.isArray(value.coupons)) throw invalidResponse('최근 쿠폰 사용');
+  return value.coupons.map((coupon): RecentCouponRedemption => {
+    if (
+      !isRecord(coupon) ||
+      !isString(coupon.couponId) ||
+      typeof coupon.title !== 'string' ||
+      !isDate(coupon.redeemedAt) ||
+      !isString(coupon.customerLabel) ||
+      typeof coupon.redeemedByMe !== 'boolean' ||
+      !isDate(coupon.undoUntil) ||
+      typeof coupon.canUndo !== 'boolean'
+    ) {
+      throw invalidResponse('최근 쿠폰 사용');
+    }
+    return {
+      couponId: coupon.couponId,
+      title: coupon.title,
+      redeemedAt: coupon.redeemedAt,
+      customerLabel: coupon.customerLabel,
+      redeemedByMe: coupon.redeemedByMe,
+      undoUntil: coupon.undoUntil,
+      canUndo: coupon.canUndo,
+    };
+  });
+}
+
+function parseUndoneRedemption(value: unknown): UndoneCouponRedemption {
+  if (!isRecord(value) || !isString(value.couponId) || value.status !== 'ISSUED' || typeof value.replayed !== 'boolean') {
+    throw invalidResponse('쿠폰 되돌리기');
+  }
+  return { couponId: value.couponId, status: 'ISSUED', replayed: value.replayed };
+}
+
 function parseMerchantContext(value: unknown): MerchantContext {
   if (
     !isRecord(value) ||
@@ -396,6 +549,7 @@ function parseRedeemedClaim(value: unknown): RedeemedClaim {
       verificationLevel: 'MERCHANT_CONFIRMED',
       progressCounted: value.visit.progressCounted,
       progressVisitCount: value.visit.progressVisitCount,
+      ...(value.visit.progressExcludedReason === 'STAFF_SELF' ? { progressExcludedReason: 'STAFF_SELF' as const } : {}),
     },
     grantedRewards: value.grantedRewards.map(parseGrantedReward),
   };

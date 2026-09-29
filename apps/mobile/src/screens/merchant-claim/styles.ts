@@ -35,5 +35,11 @@ export function makeMerchantClaimStyles(palette: AppColors, hairlineWidth = 1) {
   actions: { gap: 10 },
   couponRow: { gap: 8, padding: 14, borderRadius: 14, backgroundColor: palette.background },
   couponTitle: { color: palette.label, fontSize: 15, fontWeight: '900' },
+  dangerButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: 14, backgroundColor: palette.errorContainer },
+  dangerButtonText: { color: palette.onErrorContainer, fontSize: 14, fontWeight: '900', textAlign: 'center' },
+  reasonOption: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: palette.separator, backgroundColor: palette.surface },
+  reasonOptionSelected: { borderColor: palette.primary, backgroundColor: palette.primaryContainer },
+  reasonOptionText: { color: palette.label, fontSize: 14, fontWeight: '700', lineHeight: 20 },
+  reasonOptionTextSelected: { color: palette.onPrimaryContainer },
 } satisfies Record<string, ImageStyle | TextStyle | ViewStyle>;
 }

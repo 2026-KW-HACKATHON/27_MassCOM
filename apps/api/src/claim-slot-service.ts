@@ -21,6 +21,8 @@ export type RedeemedClaimSlot = {
     verificationLevel: 'MERCHANT_CONFIRMED';
     progressCounted: boolean;
     progressVisitCount: number;
+    // 세어지지 않은 이유가 직원 본인 계정 적립일 때만 넣는다(같은 날 두 번째 방문에는 넣지 않는다).
+    progressExcludedReason?: 'STAFF_SELF';
   };
   grantedRewards: readonly {
     entitlementId: string;

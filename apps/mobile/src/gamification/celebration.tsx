@@ -14,6 +14,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Ellipse, LinearGradient, Rect, Stop } from 'react-native-svg';
 
+import { celebrationNote } from '@/commerce/progress-note';
 import { tierColors } from '@/theme/medal-colors';
 import { Mascot } from '@/ui/mascot';
 
@@ -37,6 +38,7 @@ import { useGamificationTheme, type GamificationTheme } from './theme';
 export type CelebrationContent = {
   merchantName: string;
   progressCounted: boolean;
+  progressExcludedReason?: 'STAFF_SELF';
   diff: BadgeBookDiff;
   after?: BadgeBook;
 };
@@ -115,9 +117,7 @@ function CelebrationBody({ content, variant, onClose, onOpenCollection }: Props 
           {content.merchantName} 도장 쾅!
         </Text>
         <Text accessibilityLiveRegion="polite" style={styles.celebrationBody}>
-          {content.progressCounted
-            ? '방문 도장이 도감에 찍혔어요.'
-            : '방문은 기록됐어요. 같은 가게는 하루에 한 번만 배지에 세요.'}
+          {celebrationNote(content)}
           {hint ? `\n다음 목표 · ${hint}` : ''}
         </Text>
 

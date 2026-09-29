@@ -40,6 +40,7 @@ import {
 import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import { MintRequestError, type MintRequestService } from './mint-request-service.js';
+import { ReversalError, type ReversalService } from './reversal.js';
 import {
   RecommendationService,
   type RecommendationReader,
@@ -63,6 +64,7 @@ import { PostgresMerchantArtService } from './postgres/merchant-art.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 import { PostgresStaffRegistration, StaffRegistrationError } from './postgres/staff-registration.js';
 import { PostgresMintRequestService } from './postgres/mint-request-service.js';
+import { PostgresReversalService } from './postgres/reversal.js';
 import { PostgresRecommendationSource } from './postgres/recommendation.js';
 import { PostgresChallengeStore } from './postgres/wallet-challenge-store.js';
 import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
@@ -180,12 +182,14 @@ export function createApiServer(
   webWwwEnabled = false,
   customerIdentities?: CustomerIdentityService,
   admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'> &
-    Partial<Pick<PostgresAdminService, 'operationsStatus' | 'listCampaignDrafts' | 'createCampaignDraft'>>,
+    Partial<Pick<PostgresAdminService, 'operationsStatus' | 'listCampaignDrafts' | 'createCampaignDraft' |
+      'listMerchantCoupons' | 'voidCoupon'>>,
   deletionIntake?: AccountDeletionIntakeService,
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
   badges?: BadgeRewardService,
   friends?: FriendService,
   merchantArt?: MerchantArtService,
+  reversals?: ReversalService,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -317,6 +321,21 @@ export function createApiServer(
             return;
           }
         }
+        const couponListMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/coupons$/);
+        if (couponListMatch && request.method === 'GET') {
+          if (!admin.listMerchantCoupons) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          sendJson(response, 200, { coupons: await admin.listMerchantCoupons(accountId, decodePathParameter(couponListMatch[1]!)) });
+          return;
+        }
+        const couponVoidMatch = path.match(/^\/api\/web\/admin\/coupons\/([^/]+)\/void$/);
+        if (couponVoidMatch && request.method === 'POST') {
+          if (!admin.voidCoupon) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          const body = await readJson(request);
+          if (Object.keys(body).some(key => key !== 'reason' && key !== 'note')) throw new RequestError(400, 'INVALID_REQUEST');
+          sendJson(response, 200, await admin.voidCoupon(accountId, decodePathParameter(couponVoidMatch[1]!),
+            { reason: body.reason, note: body.note }));
+          return;
+        }
         const staffMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/staff$/);
         if (staffMatch && staffRegistration) {
           const merchantId = decodePathParameter(staffMatch[1]!);
@@ -402,6 +421,18 @@ export function createApiServer(
         if (path === '/api/web/merchant/registration-requests' && request.method === 'POST') {
           const body = await readJson(request);
           sendJson(response, 201, await staffRegistration.request(accountId, requireString(body, 'merchantId')));
+          return;
+        }
+        const webReversal = matchReversalRoute(request.method, path, '/api/web/merchant/merchants/');
+        if (webReversal) {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          if (!reversals) throw new RequestError(503, 'REVERSALS_NOT_CONFIGURED');
+          const merchantId = decodePathParameter(webReversal.merchantId);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+          if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) {
+            throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+          }
+          sendJson(response, 200, await runReversalRoute(reversals, webReversal, merchantId, accountId, request));
           return;
         }
         const claimMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/(customer-identities\/resolve|claim-slots)$/);
@@ -747,6 +778,17 @@ export function createApiServer(
         return;
       }
 
+      const mobileReversal = matchReversalRoute(request.method, path, '/merchant/merchants/');
+      if (mobileReversal) {
+        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+        if (!reversals) throw new RequestError(503, 'REVERSALS_NOT_CONFIGURED');
+        const staffAccountId = await resolveAccountId(request);
+        const merchantId = decodePathParameter(mobileReversal.merchantId);
+        await merchantAccess.requirePermission({ accountId: staffAccountId, merchantId, permission: 'CONFIRM_VISIT' });
+        sendJson(response, 200, await runReversalRoute(reversals, mobileReversal, merchantId, staffAccountId, request));
+        return;
+      }
+
       const reissueMatch = request.url?.match(
         /^\/merchant\/merchants\/([^/]+)\/claim-slots\/([^/]+)\/reissue$/,
       );
@@ -974,6 +1016,10 @@ export function createApiServer(
         sendJson(response, statusForBadgeReward(error.code), { code: error.code });
         return;
       }
+      if (error instanceof ReversalError) {
+        sendJson(response, statusForReversal(error.code), { code: error.code });
+        return;
+      }
       if (error instanceof FriendError) {
         if (error.retryAfterSeconds !== undefined) {
           response.setHeader('Retry-After', String(error.retryAfterSeconds));
@@ -994,8 +1040,10 @@ export function createApiServer(
       }
       if (error instanceof AdminError) {
         const status = error.code === 'ADMIN_FORBIDDEN' ? 403
-          : error.code === 'ADMIN_MERCHANT_NOT_FOUND' || error.code === 'ADMIN_IDENTITY_NOT_FOUND' ? 404
-            : error.code === 'ADMIN_VERSION_CONFLICT' || error.code === 'ADMIN_PENDING_CLAIMS' ? 409 : 400;
+          : error.code === 'ADMIN_MERCHANT_NOT_FOUND' || error.code === 'ADMIN_IDENTITY_NOT_FOUND' ||
+            error.code === 'ADMIN_COUPON_NOT_FOUND' ? 404
+            : error.code === 'ADMIN_VERSION_CONFLICT' || error.code === 'ADMIN_PENDING_CLAIMS' ||
+              error.code === 'ADMIN_COUPON_NOT_VOIDABLE' ? 409 : 400;
         sendJson(response, status, { code: error.code });
         return;
       }
@@ -1253,6 +1301,63 @@ function statusForMerchantArt(code: string): number {
   return 409;
 }
 
+type ReversalRoute =
+  | { kind: 'recent-visits' | 'recent-coupons'; merchantId: string }
+  | { kind: 'cancel-visit'; merchantId: string; visitId: string }
+  | { kind: 'undo-coupon'; merchantId: string; couponId: string };
+
+// 방문 취소·쿠폰 사용 되돌리기 경로표(앱과 점주 웹이 접두사만 다르다). 알 수 없는 경로·메서드는 undefined라 다른 경로처럼 처리된다.
+// ID는 아직 디코딩하지 않은 값이고 권한을 확인한 뒤에 디코딩한다.
+function matchReversalRoute(method: string | undefined, path: string, prefix: string): ReversalRoute | undefined {
+  if (!path.startsWith(prefix)) return undefined;
+  const parts = path.slice(prefix.length).split('/');
+  const [merchantId, first, second, third] = parts;
+  if (!merchantId) return undefined;
+  if (parts.length === 2 && method === 'GET') {
+    if (first === 'recent-visits') return { kind: 'recent-visits', merchantId };
+    if (first === 'recent-coupon-redemptions') return { kind: 'recent-coupons', merchantId };
+  }
+  if (parts.length === 4 && method === 'POST' && second) {
+    if (first === 'visits' && third === 'cancel') return { kind: 'cancel-visit', merchantId, visitId: second };
+    if (first === 'coupons' && third === 'undo-redeem') return { kind: 'undo-coupon', merchantId, couponId: second };
+  }
+  return undefined;
+}
+
+async function runReversalRoute(
+  reversals: ReversalService,
+  route: ReversalRoute,
+  merchantId: string,
+  staffAccountId: string,
+  request: IncomingMessage,
+): Promise<object> {
+  switch (route.kind) {
+    case 'recent-visits':
+      return reversals.listRecentVisits({ merchantId, staffAccountId });
+    case 'recent-coupons':
+      return reversals.listRecentCouponRedemptions({ merchantId, staffAccountId });
+    case 'cancel-visit': {
+      const body = await readJson(request);
+      if (Object.keys(body).some(key => key !== 'reason' && key !== 'note')) throw new RequestError(400, 'INVALID_REQUEST');
+      return reversals.cancelVisit({
+        merchantId, staffAccountId, visitEventId: decodePathParameter(route.visitId),
+        reason: body.reason, note: body.note,
+      });
+    }
+    case 'undo-coupon':
+      requireEmptyBody(await readJson(request, true));
+      return reversals.undoCouponRedemption({ merchantId, staffAccountId, couponId: decodePathParameter(route.couponId) });
+  }
+}
+
+function statusForReversal(code: string): number {
+  if (code === 'INVALID_REVERSAL_REASON' || code === 'INVALID_REVERSAL_NOTE') return 400;
+  if (code === 'COUPON_SELF_UNDO') return 403;
+  if (code === 'VISIT_NOT_FOUND' || code === 'COUPON_NOT_FOUND') return 404;
+  if (code === 'ACCOUNT_DELETED') return 410;
+  return 409;
+}
+
 type MerchantArtRoute =
   | { kind: 'state' | 'create' | 'reset' }
   | { kind: 'get' | 'choose' | 'apply'; roundId: string };
@@ -1497,6 +1602,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const badges = pool && accountLifecycle
     ? new PostgresBadgeRewardService(pool, { accountLifecycle })
     : undefined;
+  // 점원 화면의 고객 가림 표시는 수령 슬롯 참조와 같은 비밀에서 만든다(32바이트 이상은 claimSlots가 이미 요구한다).
+  const reversals = pool && accountLifecycle && process.env.MERCHANT_REFERENCE_HMAC_SECRET
+    ? new PostgresReversalService(pool, {
+        labelHmacSecret: process.env.MERCHANT_REFERENCE_HMAC_SECRET, accountLifecycle,
+      })
+    : undefined;
   const friends = pool && accountLifecycle
     ? new PostgresFriendService(pool, { accountLifecycle })
     : undefined;
@@ -1597,7 +1708,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     webAuthConfig?.wwwEnabled ?? false,
     customerIdentities,
     pool && accountDeletionHmacSecret && webAuthConfig && !showcaseInvites
-      ? new PostgresAdminService(pool, accountDeletionHmacSecret) : undefined,
+      ? new PostgresAdminService(pool, accountDeletionHmacSecret,
+        process.env.MERCHANT_REFERENCE_HMAC_SECRET || accountDeletionHmacSecret) : undefined,
     pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
       ? new PostgresAccountDeletionIntakeService(pool, accountDeletionHmacSecret) : undefined,
     pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
@@ -1605,6 +1717,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     badges,
     friends,
     merchantArt,
+    reversals,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

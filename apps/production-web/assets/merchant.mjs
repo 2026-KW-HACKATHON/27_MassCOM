@@ -1,6 +1,8 @@
 const merchantRequests = new WeakMap();
 const merchantClaimResolutions = new WeakMap();
 const merchantClaimSlots = new WeakMap();
+// bindMerchant이 둔 최근 목록 읽기 함수. loadMerchant가 점포 권한을 확인하고 구역을 연 뒤 부른다.
+const reversalRefreshers = new WeakMap();
 
 const isStaffCoupon = coupon => coupon !== null && typeof coupon === 'object'
   && typeof coupon.couponId === 'string' && coupon.couponId !== ''
@@ -13,6 +15,59 @@ function expiryLabel(expiresAt) {
   const parts = kstMonthDay.formatToParts(new Date(expiresAt));
   const part = type => parts.find(item => item.type === type)?.value;
   return `~${part('month')}월 ${part('day')}일까지`;
+}
+
+const visitCancelReasons = [
+  ['WRONG_CUSTOMER', '다른 손님으로 잘못 확인했어요'],
+  ['DUPLICATE', '같은 방문을 두 번 확인했어요'],
+  ['NOT_A_REAL_VISIT', '실제 방문·이용이 아니었어요'],
+  ['OTHER', '기타'],
+];
+const reasonLabels = new Map(visitCancelReasons);
+const kstClock = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const clockLabel = iso => kstClock.format(new Date(iso));
+const isDateText = value => typeof value === 'string' && !Number.isNaN(Date.parse(value));
+
+const isRecentVisit = visit => visit !== null && typeof visit === 'object'
+  && typeof visit.visitEventId === 'string' && visit.visitEventId !== '' && isDateText(visit.occurredAt)
+  && typeof visit.customerLabel === 'string' && visit.customerLabel !== ''
+  && (visit.status === 'VALID' || visit.status === 'CANCELED') && typeof visit.progressCounted === 'boolean'
+  && typeof visit.canCancel === 'boolean'
+  && (visit.cancellationReason === null || typeof visit.cancellationReason === 'string');
+
+const isRecentRedemption = coupon => coupon !== null && typeof coupon === 'object'
+  && typeof coupon.couponId === 'string' && coupon.couponId !== '' && typeof coupon.title === 'string'
+  && isDateText(coupon.redeemedAt) && typeof coupon.customerLabel === 'string' && coupon.customerLabel !== ''
+  && isDateText(coupon.undoUntil) && typeof coupon.canUndo === 'boolean';
+
+// 실패 코드를 점원이 바로 할 수 있는 말로 바꾼다. 원인을 모르면 재시도를 안내한다.
+export function visitCancelMessage(error) {
+  if (error.status === 401) return '점포 권한을 확인하지 못했어요. 다시 로그인해 주세요.';
+  switch (error.code) {
+    case 'MERCHANT_ACCESS_DENIED': return '이 점포의 방문 확인 권한이 없어요.';
+    case 'VISIT_NOT_FOUND': return '이 점포에서 찾을 수 없는 방문이에요. 목록을 새로 불러왔어요.';
+    case 'VISIT_CANCEL_WINDOW_CLOSED': return '방문한 날이 지나 취소할 수 없어요.';
+    case 'VISIT_REWARD_ALREADY_MINTED': return '이 방문으로 받은 NFT를 이미 발행했거나 발행 중이라 취소할 수 없어요.';
+    case 'VISIT_REWARD_MINT_IN_PROGRESS': return 'NFT 발행이 막 시작돼 지금은 취소할 수 없어요. 잠시 뒤 다시 시도해 주세요.';
+    case 'INVALID_REVERSAL_REASON': return '취소 사유를 골라 주세요.';
+    case 'INVALID_REVERSAL_NOTE': return '메모는 100자 이하로 쓰고 연락처·이메일·주소는 적지 마세요.';
+    case 'ACCOUNT_DELETED': return '계정이 삭제돼 처리할 수 없어요.';
+    default: return '방문을 취소하지 못했어요. 잠시 후 다시 시도해 주세요.';
+  }
+}
+
+export function couponUndoMessage(error) {
+  if (error.status === 401) return '점포 권한을 확인하지 못했어요. 다시 로그인해 주세요.';
+  switch (error.code) {
+    case 'MERCHANT_ACCESS_DENIED': return '이 점포의 쿠폰 처리 권한이 없어요.';
+    case 'COUPON_NOT_FOUND': return '이 점포에서 찾을 수 없는 쿠폰이에요. 목록을 새로 불러왔어요.';
+    case 'COUPON_UNDO_WINDOW_CLOSED': return '사용 처리 후 10분이 지나 되돌릴 수 없어요.';
+    case 'COUPON_NOT_REDEEMED': return '사용 처리된 쿠폰이 아니라서 되돌릴 게 없어요.';
+    case 'COUPON_SELF_UNDO': return '본인 쿠폰은 직접 되돌릴 수 없어요. 다른 직원에게 요청해 주세요.';
+    case 'COUPON_REQUIREMENT_LOST': return '방문 기록이 바뀌어 고객의 배지 조건이 사라져서 되돌릴 수 없어요. 쿠폰은 사용 완료로 남아요.';
+    case 'ACCOUNT_DELETED': return '계정이 삭제돼 처리할 수 없어요.';
+    default: return '쿠폰 사용을 되돌리지 못했어요. 잠시 후 다시 시도해 주세요.';
+  }
 }
 
 async function request(fetcher, path, method = 'GET', body) {
@@ -67,6 +122,15 @@ export async function loadMerchant(fetcher, doc) {
   doc.getElementById('merchant-claim-reissue').hidden = true;
   doc.getElementById('merchant-claim-reissue-confirm').checked = false;
   doc.getElementById('merchant-claim-reissue-submit').disabled = true;
+  const reversalPanel = doc.getElementById('merchant-reversal');
+  const reversalSelect = doc.getElementById('merchant-reversal-merchant');
+  if (reversalPanel) reversalPanel.hidden = true;
+  reversalSelect?.replaceChildren();
+  for (const id of ['merchant-visit-list', 'merchant-redemption-list']) doc.getElementById(id)?.replaceChildren();
+  for (const id of ['merchant-visit-status', 'merchant-redemption-status']) {
+    const node = doc.getElementById(id);
+    if (node) node.textContent = '';
+  }
   try {
     const [mine, eligible] = await Promise.all([
       request(fetcher, '/api/web/merchant/me'),
@@ -82,7 +146,14 @@ export async function loadMerchant(fetcher, doc) {
       option.value = merchant.id;
       option.textContent = merchant.name;
       claimSelect.append(option);
+      if (reversalSelect) {
+        const reversalOption = doc.createElement('option');
+        reversalOption.value = merchant.id;
+        reversalOption.textContent = merchant.name;
+        reversalSelect.append(reversalOption);
+      }
     }
+    if (reversalPanel) reversalPanel.hidden = mine.merchants.length === 0;
     claimForm.hidden = mine.merchants.length === 0;
     if (!mine.merchants.length) list.textContent = '아직 승인된 점포가 없습니다.';
     for (const merchant of eligible.merchants) {
@@ -98,6 +169,8 @@ export async function loadMerchant(fetcher, doc) {
     content.hidden = false;
     logout.hidden = false;
     status.textContent = '점포 권한을 확인했습니다.';
+    // 구역이 열리면 최근 방문·쿠폰 사용을 바로 읽는다(실패해도 점포 화면은 그대로다).
+    if (mine.merchants.length > 0) await reversalRefreshers.get(doc)?.();
   } catch (error) {
     if (merchantRequests.get(doc) !== requestId) return;
     if (error.status === 401) {
@@ -387,6 +460,220 @@ export function bindMerchant(fetcher, doc) {
       if (!couponStale(context)) { couponBusy = false; syncCouponControls(); }
     }
   });
+  const reversalSelect = doc.getElementById('merchant-reversal-merchant');
+  const reversalRefresh = doc.getElementById('merchant-reversal-refresh');
+  const visitList = doc.getElementById('merchant-visit-list');
+  const visitStatus = doc.getElementById('merchant-visit-status');
+  const redemptionList = doc.getElementById('merchant-redemption-list');
+  const redemptionStatus = doc.getElementById('merchant-redemption-status');
+  let reversalBusy = false;
+  let reversalGeneration = 0;
+  let reversalButtons = [];
+  const setReversalBusy = active => {
+    reversalBusy = active;
+    for (const button of reversalButtons) button.disabled = active;
+    if (reversalRefresh) reversalRefresh.disabled = active;
+  };
+  const resetReversal = () => {
+    reversalGeneration += 1;
+    reversalButtons = [];
+    visitList?.replaceChildren();
+    redemptionList?.replaceChildren();
+    if (visitStatus) visitStatus.textContent = '';
+    if (redemptionStatus) redemptionStatus.textContent = '';
+  };
+  const reversalBase = merchantId => `/api/web/merchant/merchants/${encodeURIComponent(merchantId)}`;
+  const visitLabel = visit => visit.status === 'CANCELED'
+    ? `취소됨${visit.cancellationReason ? ` · ${reasonLabels.get(visit.cancellationReason) ?? '사유 기록됨'}` : ''}`
+    : visit.progressCounted ? '진행 반영' : '기록만(진행에 세지 않음)';
+  const cancelVisit = async (merchantId, visit, reason, note) => {
+    if (reversalBusy || !merchantId) return;
+    const confirmed = doc.defaultView?.confirm?.(
+      `${clockLabel(visit.occurredAt)} ${visit.customerLabel} 방문을 취소할까요?\n이 방문으로 받은 미전송 보상 권리는 함께 취소되고 조건이 깨진 미사용 쿠폰은 무효가 돼요.`);
+    if (confirmed !== true) {
+      visitStatus.textContent = '취소했어요. 방문 기록은 그대로예요.';
+      return;
+    }
+    const requestId = merchantRequests.get(doc);
+    setReversalBusy(true);
+    visitStatus.textContent = '방문을 취소하는 중이에요.';
+    try {
+      const trimmed = note.trim();
+      const result = await request(fetcher, `${reversalBase(merchantId)}/visits/${encodeURIComponent(visit.visitEventId)}/cancel`,
+        'POST', { reason, ...(trimmed ? { note: trimmed } : {}) });
+      if (merchantRequests.get(doc) !== requestId) return;
+      if (!result || result.status !== 'CANCELED') throw new Error('invalid cancel response');
+      const effects = [];
+      if (result.revokedRewardCount > 0) effects.push(`보상 권리 ${result.revokedRewardCount}개 취소`);
+      if (result.voidedCouponCount > 0) effects.push(`미사용 쿠폰 ${result.voidedCouponCount}장 무효`);
+      visitStatus.textContent = `${result.replayed === true ? '이미 취소된 방문이에요.' : '방문을 취소했어요.'}${effects.length ? ` (${effects.join(', ')})` : ''}`;
+      setReversalBusy(false);
+      await refreshReversal({ keepVisitStatus: true });
+    } catch (error) {
+      if (merchantRequests.get(doc) === requestId) {
+        visitStatus.textContent = visitCancelMessage(error);
+        if (error.code === 'VISIT_CANCEL_WINDOW_CLOSED' || error.code === 'VISIT_NOT_FOUND') {
+          setReversalBusy(false);
+          await refreshReversal({ keepVisitStatus: true });
+        }
+      }
+    } finally {
+      if (merchantRequests.get(doc) === requestId) setReversalBusy(false);
+    }
+  };
+  const undoCoupon = async (merchantId, coupon) => {
+    if (reversalBusy || !merchantId) return;
+    const confirmed = doc.defaultView?.confirm?.(
+      `${coupon.title} · ${coupon.customerLabel}\n쿠폰 사용을 되돌릴까요? 고객이 다시 사용할 수 있게 돼요.`);
+    if (confirmed !== true) {
+      redemptionStatus.textContent = '취소했어요. 쿠폰은 사용 완료 그대로예요.';
+      return;
+    }
+    const requestId = merchantRequests.get(doc);
+    setReversalBusy(true);
+    redemptionStatus.textContent = '쿠폰 사용을 되돌리는 중이에요.';
+    try {
+      const result = await request(fetcher,
+        `${reversalBase(merchantId)}/coupons/${encodeURIComponent(coupon.couponId)}/undo-redeem`, 'POST', {});
+      if (merchantRequests.get(doc) !== requestId) return;
+      if (!result || result.status !== 'ISSUED') throw new Error('invalid undo response');
+      redemptionStatus.textContent = result.replayed === true ? '이미 되돌린 쿠폰이에요.' : '쿠폰 사용을 되돌렸어요. 고객이 다시 사용할 수 있어요.';
+      setReversalBusy(false);
+      await refreshReversal({ keepRedemptionStatus: true });
+    } catch (error) {
+      if (merchantRequests.get(doc) === requestId) {
+        redemptionStatus.textContent = couponUndoMessage(error);
+        if (['COUPON_UNDO_WINDOW_CLOSED', 'COUPON_NOT_REDEEMED', 'COUPON_NOT_FOUND', 'COUPON_REQUIREMENT_LOST'].includes(error.code)) {
+          setReversalBusy(false);
+          await refreshReversal({ keepRedemptionStatus: true });
+        }
+      }
+    } finally {
+      if (merchantRequests.get(doc) === requestId) setReversalBusy(false);
+    }
+  };
+  const renderVisits = (merchantId, visits) => {
+    visitList.replaceChildren();
+    for (const visit of visits) {
+      const item = doc.createElement('li');
+      const text = doc.createElement('p');
+      text.className = 'reversal-text';
+      text.textContent = `${clockLabel(visit.occurredAt)} · ${visit.customerLabel} · ${visitLabel(visit)}`;
+      item.append(text);
+      if (visit.canCancel) {
+        const form = doc.createElement('form');
+        form.className = 'reversal-form';
+        const reasonLabel = doc.createElement('label');
+        reasonLabel.textContent = '취소 사유 ';
+        const reason = doc.createElement('select');
+        reason.name = 'reason';
+        for (const [value, label] of visitCancelReasons) {
+          const option = doc.createElement('option');
+          option.value = value;
+          option.textContent = label;
+          reason.append(option);
+        }
+        reason.value = visitCancelReasons[0][0];
+        reasonLabel.append(reason);
+        const noteLabel = doc.createElement('label');
+        noteLabel.textContent = '메모(선택, 100자까지 · 연락처·이메일·주소·이름은 적지 마세요) ';
+        const note = doc.createElement('input');
+        note.name = 'note';
+        note.type = 'text';
+        note.maxLength = 100;
+        note.autocomplete = 'off';
+        note.value = '';
+        noteLabel.append(note);
+        const submit = doc.createElement('button');
+        submit.type = 'submit';
+        submit.className = 'danger';
+        submit.textContent = '방문 취소';
+        submit.setAttribute('aria-label', `${clockLabel(visit.occurredAt)} ${visit.customerLabel} 방문 취소`);
+        submit.disabled = reversalBusy;
+        reversalButtons.push(submit);
+        form.append(reasonLabel, noteLabel, submit);
+        form.addEventListener('submit', async event => {
+          event.preventDefault?.();
+          await cancelVisit(merchantId, visit, reason.value, note.value);
+        });
+        item.append(form);
+      }
+      visitList.append(item);
+    }
+  };
+  const renderRedemptions = (merchantId, coupons) => {
+    redemptionList.replaceChildren();
+    for (const coupon of coupons) {
+      const item = doc.createElement('li');
+      const text = doc.createElement('p');
+      text.className = 'reversal-text';
+      text.textContent = `${coupon.title} · ${coupon.customerLabel} · ${clockLabel(coupon.redeemedAt)} 사용${coupon.redeemedByMe ? ' (내가 처리)' : ''}`;
+      item.append(text);
+      if (coupon.canUndo) {
+        const hint = doc.createElement('p');
+        hint.className = 'reversal-meta';
+        hint.textContent = `${clockLabel(coupon.undoUntil)}까지 되돌릴 수 있어요.`;
+        const button = doc.createElement('button');
+        button.type = 'button';
+        button.className = 'danger';
+        button.textContent = '사용 되돌리기';
+        button.setAttribute('aria-label', `${coupon.title} ${coupon.customerLabel} 사용 되돌리기`);
+        button.disabled = reversalBusy;
+        button.addEventListener('click', () => undoCoupon(merchantId, coupon));
+        reversalButtons.push(button);
+        item.append(hint, button);
+      } else {
+        const closed = doc.createElement('p');
+        closed.className = 'reversal-meta';
+        // 기한이 남았는데 되돌릴 수 없으면 본인 쿠폰(실제 점포)이라서다.
+        closed.textContent = Date.parse(coupon.undoUntil) > Date.now() ? '본인 쿠폰은 되돌릴 수 없어요.' : '되돌리기 시간이 지났어요.';
+        item.append(closed);
+      }
+      redemptionList.append(item);
+    }
+  };
+  const refreshReversal = async (keep = {}) => {
+    if (!reversalSelect || !visitList || !redemptionList) return;
+    const merchantId = reversalSelect.value;
+    if (!merchantId) return;
+    const generation = ++reversalGeneration;
+    const requestId = merchantRequests.get(doc);
+    reversalButtons = [];
+    if (!keep.keepVisitStatus) visitStatus.textContent = '최근 방문을 불러오는 중이에요.';
+    if (!keep.keepRedemptionStatus) redemptionStatus.textContent = '최근 쿠폰 사용을 불러오는 중이에요.';
+    const stale = () => generation !== reversalGeneration || merchantRequests.get(doc) !== requestId || reversalSelect.value !== merchantId;
+    const [visitResult, redemptionResult] = await Promise.allSettled([
+      request(fetcher, `${reversalBase(merchantId)}/recent-visits`),
+      request(fetcher, `${reversalBase(merchantId)}/recent-coupon-redemptions`),
+    ]);
+    if (stale()) return;
+    try {
+      if (visitResult.status !== 'fulfilled') throw visitResult.reason;
+      const value = visitResult.value;
+      if (!value || !Array.isArray(value.visits) || !value.visits.every(isRecentVisit)) throw new Error('invalid visits');
+      renderVisits(merchantId, value.visits);
+      if (!keep.keepVisitStatus) visitStatus.textContent = value.visits.length ? `오늘 방문 ${value.visits.length}건이에요.` : '오늘 확인한 방문이 없어요.';
+    } catch (error) {
+      visitList.replaceChildren();
+      visitStatus.textContent = error.status === 403 || error.status === 401
+        ? '이 점포의 방문 목록을 볼 권한이 없어요.' : '최근 방문을 불러오지 못했어요. 다시 시도해 주세요.';
+    }
+    try {
+      if (redemptionResult.status !== 'fulfilled') throw redemptionResult.reason;
+      const value = redemptionResult.value;
+      if (!value || !Array.isArray(value.coupons) || !value.coupons.every(isRecentRedemption)) throw new Error('invalid coupons');
+      renderRedemptions(merchantId, value.coupons);
+      if (!keep.keepRedemptionStatus) redemptionStatus.textContent = value.coupons.length ? '' : '최근 24시간 안에 사용 처리한 쿠폰이 없어요.';
+    } catch (error) {
+      redemptionList.replaceChildren();
+      redemptionStatus.textContent = error.status === 403 || error.status === 401
+        ? '이 점포의 쿠폰 사용 목록을 볼 권한이 없어요.' : '최근 쿠폰 사용을 불러오지 못했어요. 다시 시도해 주세요.';
+    }
+  };
+  reversalRefresh?.addEventListener('click', () => refreshReversal());
+  // 점포를 바꾸면 이전 점포 목록을 지우고 새 점포 목록을 바로 읽는다.
+  reversalSelect?.addEventListener('change', () => { resetReversal(); void refreshReversal(); });
+  reversalRefreshers.set(doc, () => refreshReversal());
   claimForm.addEventListener('submit', async event => {
     event.preventDefault();
     if (issuing || couponBusy) return;
@@ -483,6 +770,7 @@ export function bindMerchant(fetcher, doc) {
     claimResult.textContent = '';
     invalidateClaim();
     clearSlot();
+    resetReversal();
     setIssuing(false);
     try {
       await request(fetcher, '/api/web/logout', 'POST');
@@ -500,6 +788,7 @@ export function bindMerchant(fetcher, doc) {
     claimResult.textContent = '';
     invalidateClaim();
     clearSlot();
+    resetReversal();
     setIssuing(false);
   };
   doc.defaultView?.addEventListener('pagehide', clear);
