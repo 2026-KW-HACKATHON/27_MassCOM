@@ -55,8 +55,8 @@ export function preferredAnchor(merchantId: string): number {
  *
  * Only the showcase ids are truly fixed. Every other shop keeps its spot while the set of shops stays the same, but the
  * probing depends on who else is in the list: a shop that hashes onto a taken spot moves on to the next free one, so adding a
- * colliding shop that sorts earlier (or removing one) can shift a later shop by a spot. A shop with a hashed spot of its own
- * is never moved by shops that want other spots.
+ * colliding shop that sorts earlier (or removing one) can shift a later shop by a spot, and such a shift can chain on to a
+ * shop whose own spot was free before.
  */
 export function assignAnchors(merchantIds: readonly string[]): { placed: Map<string, number>; overflow: string[] } {
   const ids = [...new Set(merchantIds)].sort();

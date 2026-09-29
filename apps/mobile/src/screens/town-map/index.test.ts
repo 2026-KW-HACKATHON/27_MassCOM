@@ -99,9 +99,11 @@ test('tapping a pin opens the sheet and the pin is scrolled clear of it', () => 
   assert.ok(reveal, 'an effect does the scrolling');
   assert.match(reveal, /sheetMeasure\?\.id !== reveal\.id/);
   assert.match(reveal, /coverHeight: sheetBottom \+ sheetMeasure\.height/);
-  assert.match(reveal, /contentHeight:/);
+  // The native ScrollView clamps scrollTo against its live content size; a JS copy of that size can lag one layout behind.
+  assert.doesNotMatch(reveal, /contentHeight:/);
+  assert.match(screen, /setSheetMeasure\(undefined\);\n  \}, \[selectedId, setSheetMeasure\]\);/);
   assert.match(reveal, /requestAnimationFrame\(/);
-  assert.match(screen, /onContentSizeChange=/);
+  assert.doesNotMatch(screen, /onContentSizeChange=/);
   assert.match(screen, /onMeasure=\{\(height\) => setSheetMeasure\(\{ id: selected\.merchantId, height \}\)\}/);
   // A keyed sheet is laid out afresh for every shop, so a card as tall as the last still reports itself.
   assert.match(screen, /<PinSheet[^>]*key=\{selected\.merchantId\}/);

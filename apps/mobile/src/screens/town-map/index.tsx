@@ -52,7 +52,6 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
 
   const scroll = useRef<ScrollView>(null);
   const scrollY = useRef(0);
-  const contentHeight = useRef(0);
   const headerHeight = useRef(0);
   const frameY = useRef(0);
   // The pin buttons by shop, so a closing card can hand screen reader focus back to the pin that opened it.
@@ -83,7 +82,10 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
     returnFocusTo.current = selectedId;
     setSelectedId(undefined);
     setReveal(undefined);
-  }, [selectedId]);
+    // A reopened card must be measured again before it can lift its pin; a height left over from last time would let the
+    // reveal run before the page has its new bottom padding.
+    setSheetMeasure(undefined);
+  }, [selectedId, setSheetMeasure]);
 
   // Android back closes the open sheet before it leaves the tab. Only while the map is the focused screen: on another tab, or
   // under the shop page that 자세히 보기 opened, the sheet must not swallow the first back press.
@@ -128,7 +130,6 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
         viewportHeight: windowHeight,
         coverHeight: sheetBottom + sheetMeasure.height,
         topInset: insets.top,
-        contentHeight: contentHeight.current > 0 ? contentHeight.current : undefined,
       });
       if (target !== null) scroll.current?.scrollTo({ y: target, animated: enabled });
       setReveal(undefined);
@@ -153,7 +154,6 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
         header={<AppHeader title={TOWN_MAP_TITLE} subtitle={TOWN_MAP_DISCLOSURE} />}
         onHeaderLayout={(height) => { headerHeight.current = height; }}
         onScroll={(event) => { scrollY.current = event.nativeEvent.contentOffset.y; }}
-        onContentSizeChange={(_, height) => { contentHeight.current = height; }}
         contentContainerStyle={[styles.content, { paddingBottom: clearance + (selected ? (sheetMeasure?.height ?? 0) + SHEET_GAP : 0) }]}
         refreshControl={
           <RefreshControl
