@@ -133,3 +133,14 @@ test('a code or nickname reply the app cannot read reloads the screen, so no sta
   assert.match(screen, /if \(replyNeedsRefresh\(error\)\) void refreshQuietly\(\);/);
   assert.equal((screen.match(/replyNeedsRefresh\(error\)/g) ?? []).length, 2, 'nickname and rotate');
 });
+
+test('the camera permission text names the friend code QR next to the visit claim QR, and still promises nothing is stored', () => {
+  const config = JSON.parse(read('../../../app.json')) as { expo: { plugins: unknown[] } };
+  const camera = config.expo.plugins.find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-camera') as [string, { cameraPermission: string }];
+  assert.ok(camera, 'the expo-camera plugin is configured');
+  const text = camera[1].cameraPermission;
+  assert.match(text, /방문 수령 QR/);
+  assert.match(text, /친구 코드 QR/);
+  assert.match(text, /읽는 데만 카메라를 사용합니다/);
+  assert.match(text, /사진이나 영상은 저장하지 않습니다/);
+});
