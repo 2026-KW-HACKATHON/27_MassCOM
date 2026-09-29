@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+const read = (name: string) => readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8');
+
+test('every animated piece respects reduced motion', () => {
+  for (const file of ['sky-backdrop.tsx', 'floating-card.tsx', 'bounce-button.tsx', 'mascot.tsx', 'stagger.tsx']) {
+    assert.match(read(file), /useMotionEnabled\(\)/, file);
+  }
+});
+
+test('the header keeps account tools one tap away', () => {
+  const header = read('app-header.tsx');
+  assert.match(header, /href="\/settings"/);
+  assert.match(header, /accessibilityLabel="내 정보"/);
+});
+
+test('state scenes map to the right mascot', () => {
+  const scene = read('state-scene.tsx');
+  assert.match(scene, /empty: 'sleep'/);
+  assert.match(scene, /error: 'puzzled'/);
+  assert.match(scene, /loading: 'search'/);
+});
+
+test('decorative mascots are hidden from screen readers unless labelled', () => {
+  const mascot = read('mascot.tsx');
+  assert.match(mascot, /importantForAccessibility=\{accessibilityLabel \? 'yes' : 'no-hide-descendants'\}/);
+});
