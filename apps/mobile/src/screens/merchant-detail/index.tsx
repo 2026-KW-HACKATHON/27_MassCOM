@@ -15,7 +15,7 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
 
-import { merchantArtSource } from '../collection/merchant-art';
+import { merchantArt } from '../collection/merchant-art';
 import { makeMerchantDetailStyles } from './styles';
 
 type MerchantDetailStyles = ReturnType<typeof makeMerchantDetailStyles>;
@@ -52,12 +52,13 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
     );
   }
 
-  const art = merchantArtSource(merchant.id);
+  const art = merchantArt(merchant, apiUrl);
+  const artNote = art ? (art.fromServer ? '사장님이 고른 AI 그림' : '가상 점포 시연 그림') : undefined;
 
   return (
     <SkyBackdrop>
       <SkyScrollView
-        header={<BackHeader title="음식점 상세" art={art} artNote={art ? '가상 점포 시연 그림' : undefined} />}
+        header={<BackHeader title="음식점 상세" art={art?.source} artNote={artNote} />}
         contentContainerStyle={{ paddingBottom: 48 + insets.bottom }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >

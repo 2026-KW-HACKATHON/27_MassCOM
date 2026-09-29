@@ -19,6 +19,8 @@ export type PassportStamp = {
   statusText: string;
   /** What the round stamp shows when there is no illustration: see stampGlyph. */
   glyph: string;
+  /** The art path the owner chose for this merchant (`/merchant-art/<sha256>.webp`), or null; the stamp page draws it through the art bridge. */
+  artUrl: string | null;
   /** What the slot is, read by screen readers: stamp state, visit status, progress and the full goal. The tap is the slot's hint. */
   label: string;
 };
@@ -69,7 +71,7 @@ export function stampGlyph(name: string): string {
   return characters.length <= 2 ? last : characters.slice(0, 2).join('');
 }
 
-export function toPassportStamp(slot: StampSlot, goal: MerchantGoal): PassportStamp {
+export function toPassportStamp(slot: StampSlot, goal: MerchantGoal, artUrl: string | null = null): PassportStamp {
   const statusText = slot.visited ? `방문 ${slot.visitCount}회` : '아직 안 가봤어요';
   const progressText = `보상 진행 ${goal.progressCount}${goal.nextGoal ? `/${goal.nextGoal.targetVisitCount}` : ''}회 · 앱 수집품 ${goal.earnedGoals.length}/${goal.totalGoals}`;
   // "도장 아직 없음" already says the visit status, so only a visited stamp adds the visit count.
@@ -81,6 +83,7 @@ export function toPassportStamp(slot: StampSlot, goal: MerchantGoal): PassportSt
     goalText: shortMerchantGoal(goal),
     statusText,
     glyph: stampGlyph(slot.merchantName),
+    artUrl,
     label: `${stampState}, ${progressText}, ${describeMerchantGoal(goal)}`,
   };
 }

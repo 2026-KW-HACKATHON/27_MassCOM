@@ -5,7 +5,7 @@ import { buildMerchantGoals, buildStampSlots, describeMerchantGoal, stampGlyph }
 import { assignAnchors } from './anchors';
 
 /** What the map needs of a public merchant. */
-export type TownMapMerchant = Pick<PublicMerchant, 'id' | 'name' | 'roadAddress' | 'demo' | 'campaign'>;
+export type TownMapMerchant = Pick<PublicMerchant, 'id' | 'name' | 'roadAddress' | 'demo' | 'campaign'> & Partial<Pick<PublicMerchant, 'artUrl'>>;
 
 /** The part of the account's collection the map reads: recognised visits and earned collectibles. */
 export type TownMapCollection = {
@@ -21,6 +21,8 @@ export type TownPin = {
   name: string;
   roadAddress: string;
   demo: boolean;
+  /** The art path the owner chose for the shop, or null; the pin draws it through the art bridge. */
+  artUrl: string | null;
   /** The round mark when the shop has no illustration: the same short glyph as the passport stamp. */
   glyph: string;
   status: StampStatus;
@@ -77,6 +79,7 @@ export function buildTownPins(
       name: merchant.name,
       roadAddress: merchant.roadAddress,
       demo: merchant.demo,
+      artUrl: merchant.artUrl ?? null,
       glyph: stampGlyph(merchant.name),
       status,
       visitCount,

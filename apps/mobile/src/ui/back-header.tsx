@@ -14,13 +14,15 @@ type Props = {
   art?: ImageSourcePropType;
   /** Caption over the picture; only drawn with `art`. */
   artNote?: string;
+  /** Where the back button goes when the page is not a router screen (the showcase owner pages replace the whole navigator). */
+  onBack?: () => void;
 };
 
 /**
  * Top of a page reached from the header avatar or a list rather than a tab: compact sky art (or the store's own picture), a round
  * back button and the title on a frosted panel. Put it first inside the ScrollView so it scrolls away with the page.
  */
-export function BackHeader({ title, art, artNote }: Props) {
+export function BackHeader({ title, art, artNote, onBack }: Props) {
   const styles = useUiStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -38,7 +40,7 @@ export function BackHeader({ title, art, artNote }: Props) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="뒤로"
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          onPress={onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/')))}
           style={styles.backButton}
         >
           <Text accessible={false} maxFontSizeMultiplier={1.2} style={styles.backGlyph}>‹</Text>

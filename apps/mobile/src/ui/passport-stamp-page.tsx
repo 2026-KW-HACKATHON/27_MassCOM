@@ -16,7 +16,7 @@ const PAGE_PADDING = 14;
 const SLOT_GAP = 10;
 
 /** Cream passport page: a round ink stamp per visited merchant, a dashed circle for the rest. Each slot opens the merchant. */
-export function PassportStampPage({ stamps }: { stamps: readonly PassportStamp[] }) {
+export function PassportStampPage({ stamps, apiUrl }: { stamps: readonly PassportStamp[]; apiUrl: string }) {
   const styles = useUiStyles();
   const { width, fontScale } = useWindowDimensions();
   const columns = stampColumnCount(width, fontScale);
@@ -25,13 +25,13 @@ export function PassportStampPage({ stamps }: { stamps: readonly PassportStamp[]
   return (
     <View style={styles.stampPage}>
       {stamps.map((stamp) => (
-        <StampSlot key={stamp.merchantId} stamp={stamp} width={slotWidth} />
+        <StampSlot key={stamp.merchantId} stamp={stamp} width={slotWidth} apiUrl={apiUrl} />
       ))}
     </View>
   );
 }
 
-function StampSlot({ stamp, width }: { stamp: PassportStamp; width: number }) {
+function StampSlot({ stamp, width, apiUrl }: { stamp: PassportStamp; width: number; apiUrl: string }) {
   const styles = useUiStyles();
   const world = worldForScheme(useColorScheme());
   const enabled = useMotionEnabled();
@@ -47,8 +47,8 @@ function StampSlot({ stamp, width }: { stamp: PassportStamp; width: number }) {
     wasVisited.current = stamp.visited;
   }, [stamp.visited, enabled, scale]);
 
-  // The showcase illustration when this merchant has one (only in the demo app); otherwise the short glyph.
-  const art = merchantArtSource(stamp.merchantId);
+  // The owner's AI picture, else the showcase illustration (only in the demo app), else the short glyph.
+  const art = merchantArtSource({ id: stamp.merchantId, artUrl: stamp.artUrl }, apiUrl);
   // Computed on the JS thread: the worklet below runs on the UI runtime, where stampTilt does not exist.
   const tilt = stampTilt(stamp.merchantId);
   const animated = useAnimatedStyle(() => ({

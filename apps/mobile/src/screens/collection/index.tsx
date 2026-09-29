@@ -37,8 +37,8 @@ import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wall
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
-import { showcaseCollectibleArtSource } from './showcase-collectible-art-assets';
-import { collectibleArtSize, showcaseCollectibleArtKey } from './showcase-collectible-art';
+import { merchantArt } from './merchant-art';
+import { collectibleArtSize } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
 
 // One StyleSheet per colour scheme instead of one per render of every card.
@@ -112,6 +112,7 @@ export function CollectionScreen({
     () => buildStampSlots(publicMerchants, collection?.visits ?? []),
     [publicMerchants, collection],
   );
+  const artUrlByMerchant = useMemo(() => new Map(publicMerchants.map((merchant) => [merchant.id, merchant.artUrl])), [publicMerchants]);
   const merchantGoals = buildMerchantGoals(publicMerchants, collection?.visits ?? [], collection?.collectibles ?? [], new Date().toISOString());
   const artSize = collectibleArtSize(width, uiMetrics.pageInset, styles.collectibleCard.padding);
   const detailMedal = badges.book?.medals.find((medal) => medal.kind === detailKind);
@@ -392,7 +393,7 @@ export function CollectionScreen({
             title="도장판"
             note={`도장 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length} · 보상 진행은 현재 캠페인의 인정된 방문만 셉니다.`}
           >
-            <PassportStampPage stamps={stampSlots.map((slot, index) => toPassportStamp(slot, merchantGoals[index]!))} />
+            <PassportStampPage apiUrl={apiUrl} stamps={stampSlots.map((slot, index) => toPassportStamp(slot, merchantGoals[index]!, artUrlByMerchant.get(slot.merchantId) ?? null))} />
           </Section>
         ) : (
           <Section title="도장판"><EmptyCopy text="현재 공개된 음식점이 없습니다." /></Section>
@@ -433,14 +434,13 @@ export function CollectionScreen({
             <EmptyCopy text="아직 받은 수집품이 없습니다. 첫 방문을 인증해 보세요." />
           ) : (
             collection.collectibles.map((item) => {
-              const artKey = showcaseCollectibleArtKey(Application.applicationId, item.merchantId);
-              const artSource = artKey ? showcaseCollectibleArtSource(artKey) : undefined;
+              const art = merchantArt({ id: item.merchantId, artUrl: artUrlByMerchant.get(item.merchantId) }, apiUrl);
               return (
                 <FloatingCard key={item.entitlementId} style={styles.collectibleCard}>
-                {artSource ? (
+                {art ? (
                   <>
-                    <Image source={artSource} accessible={false} style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
-                    <Text style={[styles.collectibleArtNote, { color: palette.secondaryLabel }]}>가상 점포 시연 그림 · 실제 NFT 발행 증거 아님</Text>
+                    <Image source={art.source} accessible={false} style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
+                    <Text style={[styles.collectibleArtNote, { color: palette.secondaryLabel }]}>{art.fromServer ? 'AI로 만든 그림' : '가상 점포 시연 그림'} · 실제 NFT 발행 증거 아님</Text>
                   </>
                 ) : null}
                 <View style={styles.collectibleTopline}>

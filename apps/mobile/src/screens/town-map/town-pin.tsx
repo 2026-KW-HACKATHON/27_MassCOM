@@ -29,6 +29,7 @@ type Props = {
   y: number;
   selected: boolean;
   onPress: () => void;
+  apiUrl: string;
   /** Lets the screen hand screen reader focus back to this pin when its card closes. */
   pressableRef?: Ref<View>;
 };
@@ -36,15 +37,15 @@ type Props = {
 /**
  * A shop on the map: a 44dp round mark inside a 48dp touch target. Visited shops get a solid double ring and a check badge (like
  * an ink stamp), the rest a dashed ring, so the state never depends on colour. The mark shows the shop's illustration in the demo
- * app (through the merchant-art bridge) or the same short glyph as its passport stamp.
+ * app or the owner's AI picture (both through the merchant-art bridge) or the same short glyph as its passport stamp.
  */
-export function TownPinButton({ pin, x, y, selected, onPress, pressableRef }: Props) {
+export function TownPinButton({ pin, x, y, selected, onPress, apiUrl, pressableRef }: Props) {
   const styles = useTownMapStyles();
   const world = worldForScheme(useColorScheme());
   const enabled = useMotionEnabled();
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
-  const art = merchantArtSource(pin.merchantId);
+  const art = merchantArtSource({ id: pin.merchantId, artUrl: pin.artUrl }, apiUrl);
   const visited = pin.status === 'visited';
   return (
     <Pressable

@@ -14,6 +14,7 @@ const merchantPayload = {
       businessHours: '월–금 10:00–18:00',
       menuItems: [{ name: '김밥', priceWon: 4500 }],
       demo: true,
+      artUrl: null,
       campaign: {
         id: 'campaign-1',
         title: '월계 한 바퀴',
@@ -56,7 +57,7 @@ test('older operating and demo catalogs without menu or hours remain readable', 
   const client = createMerchantApiClient('https://api.example.test', async () =>
     Response.json({ merchants: legacyMerchants }));
   assert.deepEqual(await client.listMerchants(), legacyMerchants.map(merchant => ({
-    ...merchant, menuItems: [], businessHours: '',
+    ...merchant, menuItems: [], businessHours: '', artUrl: null,
   })));
 });
 
@@ -99,4 +100,23 @@ test('forwards an abort signal to the network request', async () => {
   });
 
   await client.listMerchants(controller.signal);
+});
+
+const artPath = `/merchant-art/${'ab'.repeat(32)}.webp`;
+
+test('keeps an owner-picked art path and turns a missing or foreign one into null', async () => {
+  const artUrls = [artPath, undefined, null, '', 'https://evil.example/merchant-art/x.webp', `/merchant-art/${'AB'.repeat(32)}.webp`,
+    `/merchant-art/${'ab'.repeat(31)}.webp`, `/merchant-art/${'ab'.repeat(32)}.png`, `${artPath}?x=1`, `/other/${'ab'.repeat(32)}.webp`, `//evil.example${artPath}`, 42, {}];
+  const client = createMerchantApiClient('https://api.example.test', async () => Response.json({
+    merchants: artUrls.map((artUrl, index) => ({ ...merchantPayload.merchants[0], id: `merchant-${index}`, artUrl })),
+  }));
+  const parsed = await client.listMerchants();
+  assert.equal(parsed[0]?.artUrl, artPath);
+  assert.deepEqual(parsed.slice(1).map((merchant) => merchant.artUrl), artUrls.slice(1).map(() => null));
+});
+
+test('an older catalog that has no artUrl field still reads, with no art', async () => {
+  const { artUrl: _omitted, ...legacy } = merchantPayload.merchants[0]!;
+  const client = createMerchantApiClient('https://api.example.test', async () => Response.json({ merchants: [legacy] }));
+  assert.equal((await client.listMerchants())[0]?.artUrl, null);
 });

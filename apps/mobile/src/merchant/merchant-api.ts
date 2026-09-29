@@ -1,3 +1,5 @@
+import { parseMerchantArtPath } from '../merchant-art/art-source';
+
 export type RewardGoal = {
   targetVisitCount: 1 | 3 | 5;
   displayName: string;
@@ -21,6 +23,8 @@ export type PublicMerchant = {
   menuItems: readonly { name: string; priceWon: number }[];
   businessHours: string;
   demo: boolean;
+  /** `/merchant-art/<sha256>.webp` on the API when the owner picked an AI picture, else null. */
+  artUrl: string | null;
   campaign: PublicCampaign;
 };
 
@@ -89,6 +93,7 @@ function parseMerchant(value: unknown): PublicMerchant {
     menuItems: (value.menuItems ?? []) as PublicMerchant['menuItems'],
     businessHours: typeof value.businessHours === 'string' ? value.businessHours : '',
     demo: value.demo,
+    artUrl: parseMerchantArtPath(value.artUrl),
     campaign: parseCampaign(value.campaign),
   };
 }
