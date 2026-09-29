@@ -18,7 +18,7 @@ import {
   parseScannedFriendCode,
   validateFriendCode,
 } from '@/friends/code';
-import { FriendsApiError, createFriendsApiClient, friendsErrorMessage } from '@/friends/friends-api';
+import { FriendsApiError, createFriendsApiClient, friendsErrorMessage, replyNeedsRefresh } from '@/friends/friends-api';
 import { buildRankingRows, checkNicknameDraft, rankingNote, rowAccessibilityLabel, type RankingRow } from '@/friends/friends-model';
 import { linkVariantFor } from '@/friends/link';
 import { consumePendingFriendCode, consumePendingFriendProblem } from '@/friends/pending-friend-link';
@@ -202,6 +202,8 @@ export function FriendsScreen({
       setEditing(false);
     } catch (error) {
       setNicknameError(friendsErrorMessage(error));
+      // The server may have saved a nickname this reply could not show: never leave the old one on screen.
+      if (replyNeedsRefresh(error)) void refreshQuietly();
     } finally {
       nicknameBusyNow.current = false;
       setNicknameBusy(false);
@@ -218,6 +220,8 @@ export function FriendsScreen({
       setCardNotice({ tone: 'success', text: '새 코드를 만들었어요. 예전 코드로는 더 이상 추가할 수 없어요.' });
     } catch (error) {
       setCardNotice({ tone: 'error', text: friendsErrorMessage(error) });
+      // The server may have rotated to a code this reply could not show: never leave the old code (and its QR) on screen.
+      if (replyNeedsRefresh(error)) void refreshQuietly();
     } finally {
       rotatingNow.current = false;
       setRotating(false);

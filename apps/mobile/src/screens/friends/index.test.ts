@@ -112,3 +112,8 @@ test('the guards against a double tap read refs, not React state that only updat
   assert.match(screen, /nicknameBusyNow\.current = false;\s*setNicknameBusy\(false\);/);
   assert.doesNotMatch(screen, /if \(rotating\) return;|if \(nicknameBusy\) return;/);
 });
+
+test('a code or nickname reply the app cannot read reloads the screen, so no stale code or QR stays on it', () => {
+  assert.match(screen, /if \(replyNeedsRefresh\(error\)\) void refreshQuietly\(\);/);
+  assert.equal((screen.match(/replyNeedsRefresh\(error\)/g) ?? []).length, 2, 'nickname and rotate');
+});
