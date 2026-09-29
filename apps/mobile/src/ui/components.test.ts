@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -46,6 +46,58 @@ test('passport stamp page reuses the collection stamp grid model and honours red
 });
 
 const readSource = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8');
+
+/** Argument text of every `hook(...)` call, found by matching parentheses. */
+function callArguments(source: string, hook: string): string[] {
+  const found: string[] = [];
+  for (let at = source.indexOf(`${hook}(`); at !== -1; at = source.indexOf(`${hook}(`, at + 1)) {
+    const start = at + hook.length + 1;
+    let depth = 1;
+    let end = start;
+    while (depth > 0 && end < source.length) {
+      if (source[end] === '(') depth += 1;
+      if (source[end] === ')') depth -= 1;
+      end += 1;
+    }
+    found.push(source.slice(start, end - 1));
+  }
+  return found;
+}
+
+/** Identifiers a file imports from anywhere but reanimated: plain JS that does not exist on the UI runtime. */
+function nonWorkletImports(source: string): string[] {
+  const names: string[] = [];
+  for (const match of source.matchAll(/import\s+(?:type\s+)?([^;]+?)\s+from\s+'([^']+)'/g)) {
+    if (match[2] === 'react-native-reanimated') continue;
+    for (const name of match[1]!.matchAll(/[A-Za-z_$][\w$]*/g)) if (name[0] !== 'type' && name[0] !== 'as') names.push(name[0]);
+  }
+  return names;
+}
+
+test('animated style worklets only touch shared values and captured numbers, never imported JS helpers', () => {
+  // Calling a plain JS function inside useAnimatedStyle crashed the collection tab on device:
+  // "[Worklets] Tried to synchronously call a Remote Function stampTilt on the UI Runtime".
+  const files = [
+    ...readdirSync(fileURLToPath(new URL('./', import.meta.url))).filter((name) => name.endsWith('.tsx')).map((name) => `./${name}`),
+    '../navigation/floating-tab-bar.tsx',
+    '../gamification/celebration.tsx',
+    '../gamification/reward-reveal.tsx',
+  ];
+  let checked = 0;
+  for (const file of files) {
+    const source = readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf8');
+    const imported = nonWorkletImports(source);
+    for (const hook of ['useAnimatedStyle', 'useAnimatedProps']) {
+      for (const body of callArguments(source, hook)) {
+        checked += 1;
+        for (const name of imported) {
+          assert.doesNotMatch(body, new RegExp(`(?<![\\w$.])${name.replace('$', '\\$')}\\s*\\(`), `${file}: ${hook} callback calls ${name}()`);
+        }
+      }
+    }
+  }
+  assert.ok(checked >= 12, `only ${checked} animated callbacks were inspected`);
+});
 
 test('the role screen greets with the waving mascot and the logo badge instead of the blue square', () => {
   const foundation = readSource('screens/foundation/index.tsx');

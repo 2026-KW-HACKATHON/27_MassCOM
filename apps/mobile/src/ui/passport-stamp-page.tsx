@@ -46,8 +46,10 @@ function StampSlot({ stamp, width }: { stamp: PassportStamp; width: number }) {
     wasVisited.current = stamp.visited;
   }, [stamp.visited, enabled, scale]);
 
+  // Computed on the JS thread: the worklet below runs on the UI runtime, where stampTilt does not exist.
+  const tilt = stampTilt(stamp.merchantId);
   const animated = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${stampTilt(stamp.merchantId)}deg` }, { scale: scale.get() }],
+    transform: [{ rotate: `${tilt}deg` }, { scale: scale.get() }],
   }));
 
   return (
