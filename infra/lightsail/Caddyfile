@@ -86,4 +86,6 @@
 		Cache-Control "no-store"
 		X-Robots-Tag "noindex, nofollow"
 	}
+	# Token metadata is public and its URL is fixed on-chain; browser wallets and explorers read it cross-origin.
+	header /nft-metadata/* Access-Control-Allow-Origin "*"
 }

@@ -73,7 +73,7 @@ source_paths=(
   scripts/lightsail-web-probe-guard.sh
   scripts/verify-showcase-edge-routes.mjs
   docs/index.html docs/open.html docs/privacy.html docs/account-deletion.html
-  docs/.well-known/assetlinks.json docs/assets
+  docs/.well-known/assetlinks.json docs/assets docs/nft-metadata
   docs/evidence/android-collection.png docs/evidence/android-merchant-list.png
   docs/evidence/screenshots/android-account-settings.png
   docs/evidence/screenshots/android-nft-finalized.png
@@ -245,6 +245,11 @@ probe_web_routes() {
     | cmp - "$release/site/public/.well-known/assetlinks.json"
   assetlinks_headers="$(curl -fsSI --max-time 8 "http://$address/.well-known/assetlinks.json")"
   grep -Eqi '^content-type: application/json' <<< "$assetlinks_headers"
+  # The minted token's metadata URL is fixed on-chain (Issue #241): it must keep serving the released bytes as JSON.
+  curl -fsS --max-time 8 "http://$address/nft-metadata/base-sepolia-proof/1.json" \
+    | cmp - "$release/site/public/nft-metadata/base-sepolia-proof/1.json"
+  nft_metadata_headers="$(curl -fsSI --max-time 8 "http://$address/nft-metadata/base-sepolia-proof/1.json")"
+  grep -Eqi '^content-type: application/json' <<< "$nft_metadata_headers"
   for path in /HANDOFF.md /TEST_STATUS.md /claim /mint /api/web/unknown; do
     status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address$path")"
     [[ "$status" == '404' ]]
