@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { darkMedalColors, lightMedalColors } from '../theme/medal-colors';
 import { darkColors, lightColors } from '../theme/palette';
@@ -21,4 +23,11 @@ test('passport styles follow the active palette and keep 48dp actions', () => {
     assert.equal(styles.closeButton.width, uiMetrics.minTouch);
     assert.equal(styles.closeButton.height, uiMetrics.minTouch);
   }
+});
+
+test('bold reward box names use the simple Android line breaker so the second word is not clipped', () => {
+  // On a Samsung 411dp phone "두 번째 상자" rendered as "두 번째": the 800-weight text is measured narrower than it draws.
+  const source = readFileSync(fileURLToPath(new URL('./reward-box.tsx', import.meta.url)), 'utf8');
+  assert.match(source, /<Text textBreakStrategy="simple" style=\{styles\.boxName\}>\s*\{rewardBoxName\(reward\.milestone\)\}\s*<Text style=\{styles\.boxRequirement\}>/);
+  assert.doesNotMatch(source, /styles\.boxRowTitleLine/);
 });
