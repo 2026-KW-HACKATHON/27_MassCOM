@@ -18,8 +18,8 @@ export const lightWorld: WorldTheme = {
   skyInk: '#12294A', skyMuted: '#34506F',
   headerScrim: '#F7FBFF', headerScrimAlpha: 0.88,
   card: '#FFFFFF', cardInk: '#192331', cardMuted: '#55657B', cardShadow: '#1D4E89',
-  paper: '#F7EFE0', paperInk: '#4A3317', paperLine: '#B98A4E',
-  stampOrange: '#E07A2E', stampInk: '#A3401F',
+  paper: '#F7EFE0', paperInk: '#4A3317', paperLine: '#A77C46',
+  stampOrange: '#CA6E29', stampInk: '#A3401F',
   tabBar: '#FFFFFF', tabActive: '#2456D6', tabInactive: '#55657B',
   radius,
 };

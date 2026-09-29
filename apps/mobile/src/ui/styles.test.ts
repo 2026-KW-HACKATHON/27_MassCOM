@@ -36,7 +36,10 @@ test('the passport page keeps names, status lines and stamp ink readable on the 
       assert.ok(contrast(text.color as string, world.paper) >= 4.5, `${text.color} on paper`);
     }
     assert.ok(contrast(styles.stampMark.color as string, world.paper) >= 4.5, 'stamp ink text');
+    assert.equal(styles.stampMark.color, world.stampInk, 'stamps on paper are drawn in stampInk, not the orange accent');
     assert.equal(styles.stampRing.borderColor, world.stampInk);
+    assert.ok(contrast(styles.stampPage.borderColor as string, world.paper) >= 3, 'page edge on paper');
+    assert.ok(contrast(styles.stampRingEmpty.borderColor as string, world.paper) >= 3, 'empty slot ring on paper');
     assert.ok(contrast(world.stampInk, world.paper) >= 4.5, 'stamp ring on paper');
     assert.ok((styles.stampSlot.minHeight as number) >= uiMetrics.minTouch);
   }

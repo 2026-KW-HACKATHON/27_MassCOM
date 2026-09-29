@@ -30,6 +30,7 @@ test('the QR and code panels are dashed stamp cards on world.card with readable 
     for (const card of [styles.formCard, styles.previewCard]) assert.equal(card.backgroundColor, world.card);
     assert.equal(styles.formCard.borderStyle, 'dashed');
     assert.equal(styles.formCard.borderColor, world.paperLine);
+    assert.ok(contrast(styles.formCard.borderColor as string, world.card) >= 3, 'dashed edge on the card');
     assert.equal(styles.formCard.borderRadius, world.radius.card);
     for (const text of [styles.sectionTitle, styles.securityNote, styles.inputLabel, styles.statusLabel, styles.statusValue]) {
       assert.ok(contrast(text.color as string, world.card) >= 4.5, `${text.color} on card`);

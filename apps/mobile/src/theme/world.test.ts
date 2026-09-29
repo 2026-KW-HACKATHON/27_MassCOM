@@ -14,7 +14,11 @@ test('world text stays readable on its own surfaces in light and dark', () => {
     assert.ok(contrast(world.cardMuted, world.card) >= 4.5);
     assert.ok(contrast(world.paperInk, world.paper) >= 4.5);
     assert.ok(contrast(world.stampInk, world.paper) >= 4.5);
-    assert.ok(contrast(world.stampOrange, world.card) >= 3, 'stamp orange is a graphic accent');
+    // Stamp text on paper is stampInk (above). The orange is a graphic ring drawn where card and paper meet, so it must hold on both.
+    assert.ok(contrast(world.stampOrange, world.card) >= 3.3, `stamp orange on card ${contrast(world.stampOrange, world.card)}`);
+    assert.ok(contrast(world.stampOrange, world.paper) >= 3, `stamp orange on paper ${contrast(world.stampOrange, world.paper)}`);
+    assert.ok(contrast(world.paperLine, world.paper) >= 3, `paper line on paper ${contrast(world.paperLine, world.paper)}`);
+    assert.ok(contrast(world.paperLine, world.card) >= 3, `paper line on card ${contrast(world.paperLine, world.card)}`);
     assert.ok(contrast(world.tabActive, world.tabBar) >= 4.5);
     assert.ok(contrast(world.tabInactive, world.tabBar) >= 4.5);
   }
