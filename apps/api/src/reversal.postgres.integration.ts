@@ -527,6 +527,58 @@ test('cancellation racing a worker lease never cancels a job the worker holds', 
   }
 });
 
+test('a worker finalising a mint holds the job so the cancellation gives up instead of deadlocking', async (t) => {
+  const db = await setup(t);
+  const { visitId, entitlementId, jobId } = await visitWithJob(db, 'cust-1', {
+    status: 'CONFIRMING', transactionHash: txHash, outbox: 'PENDING',
+  });
+  // 워커는 작업 행을 먼저 잠그고 권리를 나중에 바꾼다(확정). 취소는 권리를 먼저 잠그므로 작업을 기다리면 교착할 수 있다.
+  const worker = await db.pool.connect();
+  await worker.query('BEGIN');
+  await worker.query(`UPDATE mint_jobs SET status = 'FINALIZED', finalized_at = now(), updated_at = now() WHERE id = $1`, [jobId]);
+  await assert.rejects(cancel(db, visitId), reversalCode('VISIT_REWARD_MINT_IN_PROGRESS'));
+  // 취소가 물러났으니 워커는 기다림 없이 권리를 마저 바꾸고 커밋한다.
+  await worker.query(`UPDATE reward_entitlements SET status = 'FULFILLED', updated_at = now() WHERE id = $1`, [entitlementId]);
+  await worker.query('COMMIT');
+  worker.release();
+  await assert.rejects(cancel(db, visitId), reversalCode('VISIT_REWARD_ALREADY_MINTED'));
+  assert.equal((await visitState(db.pool, visitId)).status, 'VALID');
+  assert.equal((await entitlementsOf(db.pool, 'cust-1'))[0]!.status, 'FULFILLED');
+});
+
+test('cancellation racing the customer mint request ends with a cancelled job or a refused request', async (t) => {
+  const db = await setup(t);
+  for (let round = 0; round < 6; round++) {
+    const account = `cust-mint-${round}`;
+    const visit = await claim(db, { account, shop: 'real-shop', at: `${today}T03:00:00Z` });
+    const entitlement = (await entitlementsOf(db.pool, account))[0]!;
+    const address = `0x${randomBytes(20).toString('hex')}`;
+    const bindingId = randomUUID();
+    await db.pool.query(
+      `INSERT INTO wallet_bindings (id, account_id, address_checksum, address_normalized, chain_id, binding_version,
+         status, verified_at) VALUES ($1, $2, $3, $3, 31337, 1, 'VERIFIED', now())`, [bindingId, account, address]);
+    const [cancelled, requested] = await Promise.allSettled([
+      cancel(db, visit.visit.visitEventId),
+      db.mints.requestMint({ accountId: account, entitlementId: entitlement.id, walletBindingId: bindingId,
+        bindingVersion: 1, consentVersion: 'nft-mint-v1', idempotencyKey: `race-mint-${round}` }),
+    ]);
+    const [state] = await rows<{ visit: string; entitlement: string; job: string | null }>(db.pool,
+      `SELECT (SELECT status FROM visit_events WHERE id = $1) AS visit,
+              (SELECT status FROM reward_entitlements WHERE id = $2) AS entitlement,
+              (SELECT status FROM mint_jobs WHERE entitlement_id = $2) AS job`,
+      [visit.visit.visitEventId, entitlement.id]);
+    // 어느 쪽이 먼저든 방문·권리·작업 상태가 서로 어긋나면 안 된다.
+    assert.equal(cancelled.status, 'fulfilled', `round ${round}: ${String(cancelled.status === 'rejected' && cancelled.reason)}`);
+    assert.equal(state!.visit, 'CANCELED');
+    assert.equal(state!.entitlement, 'CANCELED');
+    if (requested.status === 'fulfilled') assert.equal(state!.job, 'CANCELLED', `round ${round}`);
+    else {
+      assert.ok(requested.reason instanceof MintRequestError && requested.reason.code === 'ENTITLEMENT_NOT_MINTABLE', `round ${round}`);
+      assert.equal(state!.job, null);
+    }
+  }
+});
+
 test('cancelling the visit that reached a goal revokes the goals the recount no longer reaches', async (t) => {
   const db = await setup(t);
   for (const [index, date] of ['2026-09-26', '2026-09-27', '2026-09-28', '2026-09-29'].entries()) {
