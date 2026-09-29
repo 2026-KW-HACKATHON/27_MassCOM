@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { contrast } from '../theme/contrast';
 import { darkColors, lightColors } from '../theme/palette';
 import { darkWorld, lightWorld } from '../theme/world';
-import { barHeightFor, tabIndicator } from './tab-bar-style';
+import { CLAIM_SLOT_FLEX, barHeightFor, tabIndicator } from './tab-bar-style';
 
 const schemes = [[lightColors, lightWorld], [darkColors, darkWorld]] as const;
 
@@ -72,7 +72,23 @@ test('the bar grows with text size so the raised button label never touches the 
   }
 });
 
+test('with four slots the raised claim slot is a little wider so "방문 인증" fits at 1.5x text even on a 320dp phone', () => {
+  const rowWidth = 320 - 2 * 16;
+  const claimSlot = (rowWidth * CLAIM_SLOT_FLEX) / (CLAIM_SLOT_FLEX + 3);
+  const otherSlot = rowWidth / (CLAIM_SLOT_FLEX + 3);
+  // Four Hangul glyphs and a space at 12sp x 1.5 (the label cap) are about 4.3 em wide.
+  assert.ok(claimSlot >= 4.3 * 12 * 1.5, `claim slot ${claimSlot.toFixed(1)}dp`);
+  // The two-glyph labels (탐색, 지도, 도감) keep room next to their 4dp padding.
+  assert.ok(otherSlot - 8 >= 2 * 12 * 1.5, `tab slot ${otherSlot.toFixed(1)}dp`);
+  assert.ok(CLAIM_SLOT_FLEX >= 1 && CLAIM_SLOT_FLEX <= 1.4, 'still reads as one of four equal slots');
+});
+
 const bar = readFileSync(fileURLToPath(new URL('./floating-tab-bar.tsx', import.meta.url)), 'utf8');
+
+test('the claim slot takes its width from the shared constant', () => {
+  assert.match(bar, /claimSlot: \{ flex: CLAIM_SLOT_FLEX/);
+  assert.match(bar, /Floating four-slot bar/);
+});
 
 test('the tab row is a tablist and label sizes stop at 1.5x', () => {
   assert.match(bar, /accessibilityRole="tablist"/);

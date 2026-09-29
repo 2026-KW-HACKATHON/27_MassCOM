@@ -33,3 +33,9 @@ export function barHeightFor(fontScale: number): number {
   if (fontScale >= 1.5) return 76;
   return fontScale >= 1.15 ? 72 : 64;
 }
+
+/**
+ * With four slots (탐색 · 지도 · 방문 인증 · 도감) the raised claim stamp is the third. Its slot is a little wider than the others
+ * so the "방문 인증" label, four glyphs and a space at the 1.5x cap, still fits on a 320dp phone.
+ */
+export const CLAIM_SLOT_FLEX = 1.2;

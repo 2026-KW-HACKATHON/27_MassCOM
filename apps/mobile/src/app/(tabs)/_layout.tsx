@@ -15,6 +15,7 @@ export default function PrimaryTabLayout() {
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: world.page } }}
     >
       <Tabs.Screen name="index" options={{ title: '탐색', tabBarAccessibilityLabel: '탐색' }} />
+      <Tabs.Screen name="map" options={{ title: '지도', tabBarAccessibilityLabel: '지도' }} />
       <Tabs.Screen name="claim" options={{ title: '방문 인증', tabBarAccessibilityLabel: '방문 인증' }} />
       <Tabs.Screen name="collection" options={{ title: '도감', tabBarAccessibilityLabel: '도감' }} />
       <Tabs.Screen name="settings" options={{ title: '내 정보', href: null }} />

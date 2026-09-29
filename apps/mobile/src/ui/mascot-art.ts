@@ -21,3 +21,6 @@ export const mascotArt: Record<MascotPose, number> = {
 };
 
 export const skyTownHeader: number = require('../../assets/images/mascot/v2/sky-town-header.png');
+
+/** The illustrated neighbourhood behind the 지도 tab (1024x1536); its shop buildings are the anchors in screens/town-map/anchors.ts. */
+export const townMapArt: number = require('../../assets/images/mascot/v2/town-map.png');
