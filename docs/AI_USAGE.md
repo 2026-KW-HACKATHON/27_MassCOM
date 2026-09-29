@@ -66,6 +66,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-09-29 | Claude Code(Opus 범위·검수, Sonnet 구현·리뷰 에이전트) | 발표 페이지 제거(Issue #220) | 소유자 결정으로 공개 포털 발표 페이지·원고·검사기를 지우고, 발표 검사기에 섞인 거짓 성과 차단·합계 대조 검사를 증거 정합 검사로 옮김 | 증거 정합·변이 시험, 공개 사이트 빌드·포털·웹·배포 스크립트 검사, 깨끗한 작업 폴더 gate PASS | 운영 서버 재배포 전까지 옛 `/presentation`이 남음(미실행) |
 
 | 2026-09-29 | Codex | Preview 6 공개 설치 안내 반영 | PR #214 병합·CI 확인 후 기존 Lightsail 웹 전용 스크립트로 apex/www /open 링크 교체 | [외부 HTTPS·소스 해시·API/DB 보존](evidence/public-open-preview6-deployment-2026-09-29.json) PASS | AI 배포를 팀원 현장 실증이나 실제 쿠폰 사용으로 표시하지 않음. 새 APK 휴대전화 실기는 NOT_RUN |
+| 2026-09-29 | Claude Code(Opus 배포·검수, Sonnet 문서 에이전트) | 탐험 여권 운영·시연 배포와 Preview 7 공개(Issue #222) | main `758f214`를 기존 Lightsail 운영 API·웹과 시연 API에 배포하고 Preview 7 사전 릴리스를 공개한 뒤 증거·설치 링크 문서를 갱신 | [배포 증거](evidence/explorer-passport-deployment-2026-09-29.json)·[릴리스 증거](evidence/showcase-preview7-release-2026-09-29.json): migration 27·백업 mode 600·외부 HTTPS·APK SHA-256 일치·Samsung 기존 앱 위 설치·첫 실행 PASS | AI 배포·문서를 팀원 현장 실증이나 점주 합의로 표시하지 않음. 로그인 뒤 메달→상자→쿠폰 실기·TalkBack·백업 복원·운영 실제 혜택은 NOT_RUN |
 
 ## 팀 설명 체크리스트
 
