@@ -68,10 +68,22 @@ test('state scenes map to the right mascot', () => {
   assert.match(scene, /loading: 'search'/);
 });
 
-test('decorative mascots are hidden from screen readers unless labelled', () => {
+test('mascots are plain images unless asked to be interactive, and only standalone heroes are', () => {
   const mascot = read('mascot.tsx');
-  assert.match(mascot, /importantForAccessibility=\{accessibilityLabel \? 'yes' : 'no-hide-descendants'\}/);
+  assert.match(mascot, /interactive = false/);
+  assert.match(mascot, /mascotAccessibility\(accessibilityLabel\)/);
+  // Without `interactive` the mascot is a bare Animated.Image: no Pressable, no wiggle handler.
+  assert.match(mascot, /if \(!interactive\) return <Animated\.Image \{\.\.\.picture\} \{\.\.\.a11y\} \/>;/);
+  assert.match(mascot, /<Pressable onPress=\{wiggle\} \{\.\.\.a11y\}>/);
+  // Heroes that stand on the sky wiggle; mascots inside cards and modals do not.
+  assert.match(readSource('screens/merchant-list/index.tsx'), /<Mascot\s+interactive\b/);
+  assert.match(readSource('screens/foundation/index.tsx'), /<Mascot interactive pose="wave"/);
+  assert.match(readSource('screens/claim-redeem/index.tsx'), /<Mascot interactive pose="stamp"/);
+  assert.doesNotMatch(read('state-scene.tsx'), /interactive/);
+  assert.doesNotMatch(readSource('gamification/celebration.tsx'), /<Mascot[^>]*interactive/);
+  assert.doesNotMatch(readSource('gamification/reward-reveal.tsx'), /<Mascot[^>]*interactive/);
 });
+
 
 test('passport stamp page tilts each visited stamp by merchant and labels every slot', () => {
   const page = read('passport-stamp-page.tsx');
@@ -145,7 +157,7 @@ test('animated style worklets only touch shared values and captured numbers, nev
 
 test('the role screen greets with the waving mascot and the logo badge instead of the blue square', () => {
   const foundation = readSource('screens/foundation/index.tsx');
-  assert.match(foundation, /<Mascot pose="wave"/);
+  assert.match(foundation, /<Mascot interactive pose="wave"/);
   assert.match(foundation, /logo-badge/);
   assert.match(foundation, /accessibilityLabel="손을 흔드는 마스코트"/);
   assert.match(foundation, /월계 마스코트/);

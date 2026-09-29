@@ -88,7 +88,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
             {stage === 'role' ? (
               <>
                 <View style={styles.greeting}>
-                  <Mascot pose="wave" size={160} accessibilityLabel="손을 흔드는 마스코트" />
+                  <Mascot interactive pose="wave" size={160} accessibilityLabel="손을 흔드는 마스코트" />
                   <Text accessibilityRole="header" style={[styles.title, styles.greetingTitle, { color: world.skyInk }]}>반가워요! 동네 탐험을 시작해요</Text>
                   <Text style={[styles.description, styles.greetingTitle, { color: world.skyMuted }]}>어떤 모습으로 시작할까요?</Text>
                 </View>

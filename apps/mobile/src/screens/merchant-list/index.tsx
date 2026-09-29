@@ -87,6 +87,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
                   </Link>
                 </View>
                 <Mascot
+                  interactive
                   pose={refreshing ? 'search' : 'explore-map'}
                   size={120}
                   accessibilityLabel={refreshing ? '목록을 찾는 마스코트' : '지도를 든 마스코트'}

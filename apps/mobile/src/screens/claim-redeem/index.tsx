@@ -224,7 +224,7 @@ export function ClaimRedeemScreen({
       >
         <Stagger index={0}>
           <View style={styles.hero}>
-            <Mascot pose="stamp" size={112} accessibilityLabel="도장을 든 마스코트" />
+            <Mascot interactive pose="stamp" size={112} accessibilityLabel="도장을 든 마스코트" />
             <View style={styles.heroBubble}>
               <Text selectable style={styles.heroBubbleText}>점주에게 받은 QR을 촬영하거나 1회 코드를 입력하세요.</Text>
             </View>
