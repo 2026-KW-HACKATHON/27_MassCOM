@@ -141,3 +141,20 @@ test('showcase spots stay fixed among other shops, and other shops never take th
   const alone = assignAnchors(others);
   assert.equal(alone.placed.size, 8);
 });
+
+test('a shop keeps its spot when a shop that wants a different spot joins the list', () => {
+  const ids = idsWithDistinctSlots(5);
+  const before = assignAnchors(ids.slice(0, 4)).placed;
+  const after = assignAnchors(ids).placed;
+  for (const id of ids.slice(0, 4)) assert.equal(after.get(id), before.get(id), id);
+  assert.equal(after.get(ids[4]!), preferredAnchor(ids[4]!));
+});
+
+test('only the showcase shops are truly fixed: a colliding shop that sorts earlier can move a later one', () => {
+  const [first, second] = collidingPair();
+  const [early, late] = first < second ? [first, second] : [second, first];
+  const alone = assignAnchors([late]).placed.get(late);
+  const crowded = assignAnchors([early, late]).placed.get(late);
+  assert.equal(alone, preferredAnchor(late));
+  assert.notEqual(crowded, alone, 'the shop set changed, so the probing moved this shop');
+});
