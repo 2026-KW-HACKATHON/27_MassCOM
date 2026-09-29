@@ -121,6 +121,23 @@ test('one stamp whose shop name is blank shows as an unnamed shop instead of hid
       JSON.stringify(blank),
     );
   }
+  // Names made only of invisible format characters (Unicode Cf) draw nothing either: zero-width space, non-joiner and joiner,
+  // word joiner, byte order mark, soft hyphen, and any mix of them with spaces.
+  for (const invisible of ['\u200b', '\u200c', '\u200d', '\u2060', '\u00ad', '\u200b\u2060\ufeff', ' \u200b ', '\u3000\u2060\u200d\ufeff']) {
+    const raw = snapshot();
+    raw.friends[0]!.stamps = [{ merchantName: '월계 국밥집' }, { merchantName: invisible }];
+    assert.deepEqual(
+      parseFriendsSnapshot(raw).friends[0]!.stamps.map((stamp) => stamp.merchantName),
+      ['월계 국밥집', UNNAMED_SHOP],
+      JSON.stringify(invisible),
+    );
+  }
+  // A name that has a visible letter is never touched, even with invisible characters around or inside it.
+  for (const real of ['월계\u200b국밥', '\u200b월계', '월계\u2060', '\ufeff월계 분식 ', '가']) {
+    const raw = snapshot();
+    raw.friends[0]!.stamps = [{ merchantName: real }];
+    assert.equal(parseFriendsSnapshot(raw).friends[0]!.stamps[0]!.merchantName, real, JSON.stringify(real));
+  }
   // The other friends and my own numbers are read as usual, and a real name is left exactly as the server wrote it.
   const raw = snapshot();
   raw.friends[0]!.stamps = [{ merchantName: ' 월계 국밥집 ' }, { merchantName: '\u3000' }];

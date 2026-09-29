@@ -62,6 +62,7 @@ export type FriendsApiClient = ReturnType<typeof createFriendsApiClient>;
 
 const friendshipIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const maxRetryAfterSeconds = 24 * 60 * 60;
+const blankName = /^[\s\p{Cf}]*$/u;
 
 export function createFriendsApiClient(options: Options) {
   const apiUrl = options.apiUrl.replace(/\/+$/, '');
@@ -223,8 +224,9 @@ function parseStamps(value: unknown): FriendStamp[] {
   if (!Array.isArray(value)) throw invalidResponse();
   return value.map((stamp): FriendStamp => {
     if (!isRecord(stamp) || typeof stamp.merchantName !== 'string') throw invalidResponse();
-    // One shop whose name is blank (spaces of any width included) must not hide the friend's whole passport.
-    return { merchantName: stamp.merchantName.trim().length === 0 ? UNNAMED_SHOP : stamp.merchantName };
+    // One shop whose name is blank must not hide the friend's whole passport: spaces of any width and invisible format characters
+    // (zero-width space and joiner, word joiner, byte order mark) draw nothing, so a name made only of them is blank too.
+    return { merchantName: blankName.test(stamp.merchantName) ? UNNAMED_SHOP : stamp.merchantName };
   });
 }
 
