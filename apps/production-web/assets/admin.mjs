@@ -93,8 +93,8 @@ const isAdminCoupon = coupon => coupon !== null && typeof coupon === 'object'
 export function couponVoidMessage(error) {
   if (error.status === 401 || error.code === 'ADMIN_FORBIDDEN') return '관리자 권한을 확인하지 못했어요. 다시 로그인해 주세요.';
   switch (error.code) {
-    case 'ADMIN_COUPON_NOT_VOIDABLE': return '이미 사용한 쿠폰은 무효로 할 수 없어요.';
-    case 'ADMIN_COUPON_NOT_FOUND': return '쿠폰을 찾을 수 없어요. 목록을 새로 불러와 주세요.';
+    case 'ADMIN_COUPON_NOT_VOIDABLE': return '이미 사용한 쿠폰은 무효로 할 수 없어요. 목록을 새로 불러왔어요.';
+    case 'ADMIN_COUPON_NOT_FOUND': return '쿠폰을 찾을 수 없어요. 목록을 새로 불러왔어요.';
     case 'ADMIN_INVALID_INPUT': return '사유를 고르고, 메모는 100자 이하로 연락처·이메일·주소 없이 적어 주세요.';
     default: return '쿠폰을 무효로 하지 못했어요. 잠시 후 다시 시도해 주세요.';
   }
@@ -186,13 +186,15 @@ export async function loadAdmin(fetcher, doc) {
       staffPanel.append(staffTitle, staffList, approve);
       const couponPanel = doc.createElement('section');
       couponPanel.className = 'admin-coupons';
+      couponPanel.setAttribute('aria-label', `${merchant.name} 쿠폰 관리`);
       const couponTitle = doc.createElement('h4');
       couponTitle.textContent = '쿠폰 관리';
       const couponHelp = doc.createElement('p');
-      couponHelp.textContent = '이 점포에서 쓰는 보상 쿠폰 최근 100장입니다. 아직 쓰지 않은 쿠폰만 사유와 함께 무효로 할 수 있고 사용한 쿠폰은 바꿀 수 없습니다. 고객 계정은 가림 표시로만 보입니다.';
+      couponHelp.textContent = '이 점포에서 쓰는 보상 쿠폰 최근 100장이에요. 아직 쓰지 않은 쿠폰만 사유와 함께 무효로 할 수 있고 사용한 쿠폰은 바꿀 수 없어요. 고객 계정은 가림 표시로만 보여요.';
       const couponLoad = doc.createElement('button');
       couponLoad.type = 'button';
       couponLoad.textContent = '쿠폰 목록 불러오기';
+      couponLoad.setAttribute('aria-label', `${merchant.name} 쿠폰 목록 불러오기`);
       const couponStatus = doc.createElement('p');
       couponStatus.setAttribute('role', 'status');
       couponStatus.setAttribute('aria-live', 'polite');
@@ -246,7 +248,7 @@ export async function loadAdmin(fetcher, doc) {
               voidButton.type = 'submit';
               voidButton.className = 'danger';
               voidButton.textContent = '쿠폰 무효화';
-              voidButton.setAttribute('aria-label', `${coupon.title} ${coupon.customerLabel} 쿠폰 무효화`);
+              voidButton.setAttribute('aria-label', `${merchant.name} ${coupon.title} ${coupon.customerLabel} 쿠폰 무효화`);
               voidForm.append(reasonLabel, noteLabel, voidButton);
               voidForm.addEventListener('submit', async event => {
                 event.preventDefault?.();
@@ -268,6 +270,11 @@ export async function loadAdmin(fetcher, doc) {
                   couponStatus.textContent = result.replayed === true ? '이미 무효로 처리된 쿠폰이에요.' : '쿠폰을 무효로 했어요.';
                 } catch (error) {
                   if (adminRequests.get(doc) !== requestId) return;
+                  // 이미 사용됐거나 없는 쿠폰이면 목록이 낡은 것이라 새로 읽고 안내를 그대로 남긴다.
+                  if (error.code === 'ADMIN_COUPON_NOT_VOIDABLE' || error.code === 'ADMIN_COUPON_NOT_FOUND') {
+                    couponBusy = false;
+                    await loadCoupons();
+                  }
                   couponStatus.textContent = couponVoidMessage(error);
                   voidButton.disabled = false;
                 } finally { couponBusy = false; }
@@ -281,7 +288,9 @@ export async function loadAdmin(fetcher, doc) {
           if (adminRequests.get(doc) !== requestId) return;
           couponList.replaceChildren();
           couponStatus.textContent = error.status === 401 || error.status === 403
-            ? '관리자 권한을 확인하지 못했어요. 다시 로그인해 주세요.' : '쿠폰 목록을 불러오지 못했어요. 다시 시도해 주세요.';
+            ? '관리자 권한을 확인하지 못했어요. 다시 로그인해 주세요.'
+            : error.code === 'ADMIN_MERCHANT_NOT_FOUND' ? '점포를 찾을 수 없어요. 시연 점포는 대상이 아니에요.'
+              : '쿠폰 목록을 불러오지 못했어요. 다시 시도해 주세요.';
         } finally { couponBusy = false; couponLoad.disabled = false; }
       };
       couponLoad.addEventListener('click', loadCoupons);

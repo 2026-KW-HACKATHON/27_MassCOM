@@ -1,6 +1,8 @@
 const merchantRequests = new WeakMap();
 const merchantClaimResolutions = new WeakMap();
 const merchantClaimSlots = new WeakMap();
+// bindMerchant이 둔 최근 목록 읽기 함수. loadMerchant가 점포 권한을 확인하고 구역을 연 뒤 부른다.
+const reversalRefreshers = new WeakMap();
 
 const isStaffCoupon = coupon => coupon !== null && typeof coupon === 'object'
   && typeof coupon.couponId === 'string' && coupon.couponId !== ''
@@ -40,10 +42,10 @@ const isRecentRedemption = coupon => coupon !== null && typeof coupon === 'objec
 
 // 실패 코드를 점원이 바로 할 수 있는 말로 바꾼다. 원인을 모르면 재시도를 안내한다.
 export function visitCancelMessage(error) {
-  if (error.status === 401) return '점포 권한을 확인하지 못했습니다. 다시 로그인해 주세요.';
+  if (error.status === 401) return '점포 권한을 확인하지 못했어요. 다시 로그인해 주세요.';
   switch (error.code) {
     case 'MERCHANT_ACCESS_DENIED': return '이 점포의 방문 확인 권한이 없어요.';
-    case 'VISIT_NOT_FOUND': return '이 점포에서 찾을 수 없는 방문이에요. 목록을 새로 불러와 주세요.';
+    case 'VISIT_NOT_FOUND': return '이 점포에서 찾을 수 없는 방문이에요. 목록을 새로 불러왔어요.';
     case 'VISIT_CANCEL_WINDOW_CLOSED': return '방문한 날이 지나 취소할 수 없어요.';
     case 'VISIT_REWARD_ALREADY_MINTED': return '이 방문으로 받은 NFT를 이미 발행했거나 발행 중이라 취소할 수 없어요.';
     case 'VISIT_REWARD_MINT_IN_PROGRESS': return 'NFT 발행이 막 시작돼 지금은 취소할 수 없어요. 잠시 뒤 다시 시도해 주세요.';
@@ -55,12 +57,14 @@ export function visitCancelMessage(error) {
 }
 
 export function couponUndoMessage(error) {
-  if (error.status === 401) return '점포 권한을 확인하지 못했습니다. 다시 로그인해 주세요.';
+  if (error.status === 401) return '점포 권한을 확인하지 못했어요. 다시 로그인해 주세요.';
   switch (error.code) {
     case 'MERCHANT_ACCESS_DENIED': return '이 점포의 쿠폰 처리 권한이 없어요.';
-    case 'COUPON_NOT_FOUND': return '이 점포에서 찾을 수 없는 쿠폰이에요. 목록을 새로 불러와 주세요.';
+    case 'COUPON_NOT_FOUND': return '이 점포에서 찾을 수 없는 쿠폰이에요. 목록을 새로 불러왔어요.';
     case 'COUPON_UNDO_WINDOW_CLOSED': return '사용 처리 후 10분이 지나 되돌릴 수 없어요.';
     case 'COUPON_NOT_REDEEMED': return '사용 처리된 쿠폰이 아니라서 되돌릴 게 없어요.';
+    case 'COUPON_SELF_UNDO': return '본인 쿠폰은 직접 되돌릴 수 없어요. 다른 직원에게 요청해 주세요.';
+    case 'COUPON_REQUIREMENT_LOST': return '방문 기록이 바뀌어 고객의 배지 조건이 사라져서 되돌릴 수 없어요. 쿠폰은 사용 완료로 남아요.';
     case 'ACCOUNT_DELETED': return '계정이 삭제돼 처리할 수 없어요.';
     default: return '쿠폰 사용을 되돌리지 못했어요. 잠시 후 다시 시도해 주세요.';
   }
@@ -165,6 +169,8 @@ export async function loadMerchant(fetcher, doc) {
     content.hidden = false;
     logout.hidden = false;
     status.textContent = '점포 권한을 확인했습니다.';
+    // 구역이 열리면 최근 방문·쿠폰 사용을 바로 읽는다(실패해도 점포 화면은 그대로다).
+    if (mine.merchants.length > 0) await reversalRefreshers.get(doc)?.();
   } catch (error) {
     if (merchantRequests.get(doc) !== requestId) return;
     if (error.status === 401) {
@@ -484,7 +490,10 @@ export function bindMerchant(fetcher, doc) {
     if (reversalBusy || !merchantId) return;
     const confirmed = doc.defaultView?.confirm?.(
       `${clockLabel(visit.occurredAt)} ${visit.customerLabel} 방문을 취소할까요?\n이 방문으로 받은 미전송 보상 권리는 함께 취소되고 조건이 깨진 미사용 쿠폰은 무효가 돼요.`);
-    if (confirmed !== true) return;
+    if (confirmed !== true) {
+      visitStatus.textContent = '취소했어요. 방문 기록은 그대로예요.';
+      return;
+    }
     const requestId = merchantRequests.get(doc);
     setReversalBusy(true);
     visitStatus.textContent = '방문을 취소하는 중이에요.';
@@ -516,7 +525,10 @@ export function bindMerchant(fetcher, doc) {
     if (reversalBusy || !merchantId) return;
     const confirmed = doc.defaultView?.confirm?.(
       `${coupon.title} · ${coupon.customerLabel}\n쿠폰 사용을 되돌릴까요? 고객이 다시 사용할 수 있게 돼요.`);
-    if (confirmed !== true) return;
+    if (confirmed !== true) {
+      redemptionStatus.textContent = '취소했어요. 쿠폰은 사용 완료 그대로예요.';
+      return;
+    }
     const requestId = merchantRequests.get(doc);
     setReversalBusy(true);
     redemptionStatus.textContent = '쿠폰 사용을 되돌리는 중이에요.';
@@ -531,7 +543,7 @@ export function bindMerchant(fetcher, doc) {
     } catch (error) {
       if (merchantRequests.get(doc) === requestId) {
         redemptionStatus.textContent = couponUndoMessage(error);
-        if (error.code === 'COUPON_UNDO_WINDOW_CLOSED' || error.code === 'COUPON_NOT_REDEEMED') {
+        if (['COUPON_UNDO_WINDOW_CLOSED', 'COUPON_NOT_REDEEMED', 'COUPON_NOT_FOUND', 'COUPON_REQUIREMENT_LOST'].includes(error.code)) {
           setReversalBusy(false);
           await refreshReversal({ keepRedemptionStatus: true });
         }
@@ -658,7 +670,9 @@ export function bindMerchant(fetcher, doc) {
     }
   };
   reversalRefresh?.addEventListener('click', () => refreshReversal());
-  reversalSelect?.addEventListener('change', () => { resetReversal(); });
+  // 점포를 바꾸면 이전 점포 목록을 지우고 새 점포 목록을 바로 읽는다.
+  reversalSelect?.addEventListener('change', () => { resetReversal(); void refreshReversal(); });
+  reversalRefreshers.set(doc, () => refreshReversal());
   claimForm.addEventListener('submit', async event => {
     event.preventDefault();
     if (issuing || couponBusy) return;

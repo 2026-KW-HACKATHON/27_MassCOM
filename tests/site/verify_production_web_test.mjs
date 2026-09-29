@@ -1834,30 +1834,35 @@ const cancelled = (over = {}) => ({ visitEventId: 'visit-1', status: 'CANCELED',
 
 async function reversalMerchant({ visits = () => okJson(recentVisits()), redemptions = () => okJson(recentRedemptions()),
   cancel = () => okJson(cancelled()), undo = () => okJson({ couponId: 'coupon-1', status: 'ISSUED', replayed: false }),
-  confirmed = true, merchants = [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF' }] } = {}) {
+  confirmed = true, merchants = [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF' }], deferBind = false } = {}) {
   const fixture = merchantDocument();
   const { nodes, doc } = fixture;
   for (const id of ['merchant-reversal', 'merchant-reversal-merchant', 'merchant-reversal-refresh', 'merchant-visit-list',
     'merchant-visit-status', 'merchant-redemption-list', 'merchant-redemption-status']) nodes[id] = { ...element(), hidden: true };
   nodes['merchant-reversal-merchant'].value = 'real-merchant';
   const calls = [];
+  let loggedOut = false;
   doc.defaultView.confirm = (message) => { calls.push({ confirm: message }); return confirmed; };
   const fetcher = async (path, options) => {
-    if (path === '/api/web/merchant/me') return okJson({ merchants });
+    if (path === '/api/web/merchant/me') return loggedOut ? apiError(401, 'WEB_AUTH_REQUIRED') : okJson({ merchants });
     if (path === '/api/web/merchant/registration-merchants') return okJson({ merchants: [] });
-    if (path === '/api/web/logout') return { ok: true, status: 204 };
+    if (path === '/api/web/logout') { loggedOut = true; return { ok: true, status: 204 }; }
     calls.push({ path, options });
-    if (path === visitsPath) return visits();
-    if (path === redemptionsPath) return redemptions();
+    // 점포마다 같은 모양의 경로라 접미사로 가른다. 응답 만들기에는 요청한 경로를 넘겨 점포별로 다르게 답할 수 있다.
+    if (path.endsWith('/recent-visits')) return visits(path);
+    if (path.endsWith('/recent-coupon-redemptions')) return redemptions(path);
     if (path.endsWith('/cancel')) return cancel();
     if (path.endsWith('/undo-redeem')) return undo();
     throw new Error(`unexpected ${path}`);
   };
-  await bindMerchant(fetcher, doc);
+  // bindMerchant는 점포 권한을 확인하고 구역을 연 뒤 최근 방문·쿠폰 사용을 바로 읽고 나서 끝난다.
+  const bound = bindMerchant(fetcher, doc);
   const requests = () => calls.filter((call) => call.path);
   const rows = (id) => nodes[id].children;
-  return { ...fixture, calls, fetcher, requests, refresh: () => nodes['merchant-reversal-refresh'].click(),
-    visitRows: () => rows('merchant-visit-list'), redemptionRows: () => rows('merchant-redemption-list') };
+  const api = { ...fixture, calls, fetcher, requests, refresh: () => nodes['merchant-reversal-refresh'].click(),
+    visitRows: () => rows('merchant-visit-list'), redemptionRows: () => rows('merchant-redemption-list'), bound };
+  if (!deferBind) await bound;
+  return api;
 }
 
 const visitForm = (row) => row.children[1];
@@ -1866,19 +1871,21 @@ const visitReason = (row) => visitForm(row).children[0].children[0];
 const visitNote = (row) => visitForm(row).children[1].children[0];
 const undoButton = (row) => row.children[2];
 
-test('점포 웹 되돌리기 영역은 소속 점포가 있을 때만 열리고 목록은 누를 때만 불러온다', async () => {
+test('점포 웹 되돌리기 영역은 소속 점포가 있을 때만 열리고 구역이 열리면 목록을 바로 불러온다', async () => {
   const { nodes, requests, refresh, visitRows, redemptionRows } = await reversalMerchant();
   assert.equal(nodes['merchant-reversal'].hidden, false);
   assert.equal(nodes['merchant-reversal-merchant'].children.length, 1);
   assert.equal(nodes['merchant-reversal-merchant'].children[0].value, 'real-merchant');
-  assert.deepEqual(requests(), []);
-  await refresh();
+  // 구역이 열리면 누르지 않아도 두 목록을 한 번씩 읽는다(요청 수 고정: 열 때 방문·쿠폰 사용 각 1회).
   assert.deepEqual(requests().map((call) => [call.path, call.options.method]), [[visitsPath, 'GET'], [redemptionsPath, 'GET']]);
   assert.equal(requests()[0].options.credentials, 'same-origin');
   assert.equal(requests()[0].options.cache, 'no-store');
   assert.equal(visitRows().length, 3);
   assert.equal(redemptionRows().length, 2);
   assert.match(nodes['merchant-visit-status'].textContent, /3건/);
+  // "목록 새로 고침"은 같은 두 요청을 다시 보낸다.
+  await refresh();
+  assert.deepEqual(requests().map((call) => call.path), [visitsPath, redemptionsPath, visitsPath, redemptionsPath]);
 
   const [counted, uncounted, canceled] = visitRows();
   assert.equal(first(counted, 'reversal-text').textContent, '12:05 · 손님 K7QM · 진행 반영');
@@ -1900,21 +1907,24 @@ test('점포 웹 되돌리기 영역은 소속 점포가 있을 때만 열리고
   assert.equal(first(expired, 'reversal-meta').textContent, '되돌리기 시간이 지났어요.');
   assert.equal(expired.children.length, 2);
 
+  // 소속 점포가 없으면 구역은 닫힌 채이고 아무것도 읽지 않는다.
   const none = await reversalMerchant({ merchants: [] });
   assert.equal(none.nodes['merchant-reversal'].hidden, true);
+  assert.deepEqual(none.requests(), []);
 });
 
 test('점포 웹은 확인창에서 동의한 방문만 사유와 함께 취소하고 목록을 다시 불러온다', async () => {
   const declined = await reversalMerchant({ confirmed: false });
-  await declined.refresh();
   await visitForm(declined.visitRows()[0]).submit();
   assert.equal(declined.requests().some((call) => call.path.endsWith('/cancel')), false);
   assert.match(declined.calls.find((call) => call.confirm).confirm, /12:05 손님 K7QM 방문을 취소할까요/);
+  // 확인창에서 그만두면 짧은 안내를 남기고 아무것도 바꾸지 않는다.
+  assert.match(declined.nodes['merchant-visit-status'].textContent, /^취소했어요\. 방문 기록은 그대로예요\./);
+  assert.equal(declined.requests().length, 2);
 
-  const { nodes, calls, requests, refresh, visitRows } = await reversalMerchant({
+  const { nodes, calls, requests, visitRows } = await reversalMerchant({
     cancel: () => okJson(cancelled({ revokedRewardCount: 1, voidedCouponCount: 2 })),
   });
-  await refresh();
   const row = visitRows()[1];
   visitReason(row).value = 'NOT_A_REAL_VISIT';
   visitNote(row).value = '  옆 테이블 손님  ';
@@ -1931,7 +1941,6 @@ test('점포 웹은 확인창에서 동의한 방문만 사유와 함께 취소�
 
   // 메모를 비우면 보내지 않고, 이미 취소된 방문은 그렇게 알려 준다.
   const replay = await reversalMerchant({ cancel: () => okJson(cancelled({ replayed: true })) });
-  await replay.refresh();
   await visitForm(replay.visitRows()[0]).submit();
   const body = JSON.parse(replay.requests().find((call) => call.path.endsWith('/cancel')).options.body);
   assert.deepEqual(body, { reason: 'WRONG_CUSTOMER' });
@@ -1951,13 +1960,13 @@ test('점포 웹 방문 취소 실패는 코드별 안내를 보이고 창이 �
   ];
   for (const [code, status, pattern, refreshes] of cases) {
     const fixture = await reversalMerchant({ cancel: () => apiError(status, code) });
-    await fixture.refresh();
     await visitForm(fixture.visitRows()[0]).submit();
     assert.match(fixture.nodes['merchant-visit-status'].textContent, pattern, code);
     assert.equal(fixture.requests().filter((call) => call.path === visitsPath).length, refreshes ? 2 : 1, code);
     assert.equal(visitSubmit(fixture.visitRows()[0]).disabled, false, code);
   }
-  assert.match(visitCancelMessage({ status: 401 }), /다시 로그인/);
+  assert.match(visitCancelMessage({ status: 401 }), /다시 로그인해 주세요/);
+  assert.doesNotMatch(visitCancelMessage({ status: 401 }), /습니다/);
   assert.match(visitCancelMessage({ code: 'ACCOUNT_DELETED' }), /삭제/);
   assert.match(visitCancelMessage({ code: 'INVALID_REVERSAL_REASON' }), /사유를 골라/);
 });
@@ -1966,7 +1975,6 @@ test('점포 웹 방문 취소 버튼은 처리 중에 다시 눌러도 한 번�
   let finish;
   const pending = new Promise((resolve) => { finish = resolve; });
   const fixture = await reversalMerchant({ cancel: () => pending });
-  await fixture.refresh();
   const row = fixture.visitRows()[0];
   const first = visitForm(row).submit();
   await visitForm(fixture.visitRows()[1]).submit();
@@ -1979,7 +1987,6 @@ test('점포 웹 방문 취소 버튼은 처리 중에 다시 눌러도 한 번�
 
 test('점포 웹은 10분 안의 쿠폰 사용만 되돌리게 하고 결과와 실패를 안내한다', async () => {
   const fixture = await reversalMerchant();
-  await fixture.refresh();
   const [undoable, expired] = fixture.redemptionRows();
   assert.equal(expired.children.some((child) => child.textContent === '사용 되돌리기'), false);
   await undoButton(undoable).click();
@@ -1991,30 +1998,33 @@ test('점포 웹은 10분 안의 쿠폰 사용만 되돌리게 하고 결과와 
   assert.match(fixture.nodes['merchant-redemption-status'].textContent, /쿠폰 사용을 되돌렸어요/);
   assert.equal(fixture.requests().filter((request) => request.path === redemptionsPath).length, 2);
 
+  // 확인창에서 그만두면 짧은 안내만 남기고 요청도 다시 읽기도 하지 않는다.
   const declined = await reversalMerchant({ confirmed: false });
-  await declined.refresh();
   await undoButton(declined.redemptionRows()[0]).click();
   assert.equal(declined.requests().some((request) => request.path.endsWith('/undo-redeem')), false);
+  assert.match(declined.nodes['merchant-redemption-status'].textContent, /^취소했어요\. 쿠폰은 사용 완료 그대로예요\./);
+  assert.equal(declined.requests().length, 2);
 
   const replay = await reversalMerchant({ undo: () => okJson({ couponId: 'coupon-1', status: 'ISSUED', replayed: true }) });
-  await replay.refresh();
   await undoButton(replay.redemptionRows()[0]).click();
   assert.match(replay.nodes['merchant-redemption-status'].textContent, /이미 되돌린 쿠폰이에요/);
 
   for (const [code, status, pattern, refreshes] of [
     ['COUPON_UNDO_WINDOW_CLOSED', 409, /10분이 지나 되돌릴 수 없어요/, true],
     ['COUPON_NOT_REDEEMED', 409, /사용 처리된 쿠폰이 아니라서/, true],
-    ['COUPON_NOT_FOUND', 404, /찾을 수 없는 쿠폰/, false],
+    ['COUPON_NOT_FOUND', 404, /찾을 수 없는 쿠폰이에요\. 목록을 새로 불러왔어요/, true],
+    ['COUPON_REQUIREMENT_LOST', 409, /배지 조건이 사라져서 되돌릴 수 없어요/, true],
+    ['COUPON_SELF_UNDO', 403, /본인 쿠폰은 직접 되돌릴 수 없어요\. 다른 직원에게 요청/, false],
     ['MERCHANT_ACCESS_DENIED', 403, /권한이 없어요/, false],
     ['INTERNAL_ERROR', 500, /되돌리지 못했어요/, false],
   ]) {
     const failing = await reversalMerchant({ undo: () => apiError(status, code) });
-    await failing.refresh();
     await undoButton(failing.redemptionRows()[0]).click();
     assert.match(failing.nodes['merchant-redemption-status'].textContent, pattern, code);
     assert.equal(failing.requests().filter((request) => request.path === redemptionsPath).length, refreshes ? 2 : 1, code);
   }
-  assert.match(couponUndoMessage({ status: 401 }), /다시 로그인/);
+  assert.match(couponUndoMessage({ status: 401 }), /다시 로그인해 주세요/);
+  assert.doesNotMatch(couponUndoMessage({ status: 401 }), /습니다/);
   assert.match(couponUndoMessage({ code: 'ACCOUNT_DELETED' }), /삭제/);
 });
 
@@ -2023,14 +2033,12 @@ test('점포 웹 되돌리기 목록은 잘못된 응답을 표시하지 않고 
     visits: () => okJson({ visits: [{ visitEventId: 'v', occurredAt: 'nope' }] }),
     redemptions: () => apiError(403, 'MERCHANT_ACCESS_DENIED'),
   });
-  await bad.refresh();
   assert.equal(bad.visitRows().length, 0);
   assert.equal(bad.redemptionRows().length, 0);
   assert.match(bad.nodes['merchant-visit-status'].textContent, /불러오지 못했어요/);
   assert.match(bad.nodes['merchant-redemption-status'].textContent, /볼 권한이 없어요/);
 
   const fixture = await reversalMerchant();
-  await fixture.refresh();
   assert.equal(fixture.visitRows().length, 3);
   fixture.listeners.get('pagehide')();
   assert.equal(fixture.visitRows().length, 0);
@@ -2039,20 +2047,29 @@ test('점포 웹 되돌리기 목록은 잘못된 응답을 표시하지 않고 
 
   await fixture.refresh();
   assert.equal(fixture.visitRows().length, 3);
+  // 로그아웃하면 목록을 지우고, 로그아웃된 채로 다시 확인한 점포 화면은 목록을 읽지 않는다.
+  const beforeLogout = fixture.requests().length;
   await fixture.nodes['merchant-logout'].click();
   assert.equal(fixture.visitRows().length, 0);
   assert.equal(fixture.redemptionRows().length, 0);
+  assert.equal(fixture.requests().length, beforeLogout);
 
-  // 점포를 바꾸면 이전 점포 목록은 지워지고, 늦게 도착한 이전 응답은 그리지 않는다.
+  // 점포를 바꾸면 이전 점포 목록은 지워지고 새 점포 목록을 바로 읽으며, 늦게 도착한 이전 응답은 그리지 않는다.
   let finish;
   const late = new Promise((resolve) => { finish = resolve; });
-  const swapped = await reversalMerchant({ visits: () => late });
-  const loading = swapped.refresh();
+  const otherVisits = `/api/web/merchant/merchants/other-merchant/recent-visits`;
+  const swapped = await reversalMerchant({
+    deferBind: true,
+    visits: (path) => (path === otherVisits ? okJson({ businessDate: '2026-09-30', visits: [] }) : late),
+  });
+  await new Promise((resolve) => setImmediate(resolve));
   swapped.nodes['merchant-reversal-merchant'].value = 'other-merchant';
   await swapped.nodes['merchant-reversal-merchant'].dispatch('change');
+  assert.equal(swapped.requests().some((call) => call.path === otherVisits), true);
   finish(okJson(recentVisits()));
-  await loading;
+  await swapped.bound;
   assert.equal(swapped.visitRows().length, 0);
+  assert.match(swapped.nodes['merchant-visit-status'].textContent, /확인한 방문이 없어요/);
 });
 
 test('점포 웹 되돌리기 화면은 HTML 문자열을 만들지 않고 문구와 접근성 연결을 갖춘다', () => {
@@ -2109,8 +2126,12 @@ test('관리자 웹은 쿠폰 목록을 가림 표시로 보이고 미사용 쿠
   assert.equal(fixture.panel.className, 'admin-coupons');
   assert.equal(fixture.panel.children[0].textContent, '쿠폰 관리');
   assert.equal(fixture.panel.children[3].getAttribute('role'), 'status');
+  // 접근성: 점포가 여럿이어도 화면 낭독기가 어느 점포의 버튼인지 알 수 있게 이름에 점포 이름이 들어간다.
+  assert.equal(fixture.panel.getAttribute('aria-label'), '실제 점포 쿠폰 관리');
+  assert.equal(fixture.panel.children[2].getAttribute('aria-label'), '실제 점포 쿠폰 목록 불러오기');
   assert.deepEqual(fixture.requests(), []);
   await fixture.load();
+  assert.equal(fixture.rows()[0].children[1].children[2].getAttribute('aria-label'), '실제 점포 음료 1잔 손님 K7QM 쿠폰 무효화');
   assert.deepEqual(fixture.requests().map((call) => call.path), ['/api/web/admin/merchants/real-1/coupons']);
   assert.equal(fixture.requests()[0].options.method, 'GET');
   assert.match(fixture.status(), /3장/);
@@ -2150,12 +2171,12 @@ test('관리자 웹은 확인창에서 동의한 쿠폰만 사유와 함께 무�
   assert.match(fixture.status(), /쿠폰을 무효로 했어요/);
   assert.equal(fixture.requests().filter((request) => request.path.endsWith('/coupons')).length, 2);
 
-  for (const [code, status, pattern] of [
-    ['ADMIN_COUPON_NOT_VOIDABLE', 409, /이미 사용한 쿠폰은 무효로 할 수 없어요/],
-    ['ADMIN_COUPON_NOT_FOUND', 404, /쿠폰을 찾을 수 없어요/],
-    ['ADMIN_INVALID_INPUT', 400, /100자 이하로 연락처·이메일·주소 없이/],
-    ['ADMIN_FORBIDDEN', 403, /관리자 권한을 확인하지 못했어요/],
-    ['INTERNAL_ERROR', 500, /무효로 하지 못했어요/],
+  for (const [code, status, pattern, refreshes] of [
+    ['ADMIN_COUPON_NOT_VOIDABLE', 409, /이미 사용한 쿠폰은 무효로 할 수 없어요/, true],
+    ['ADMIN_COUPON_NOT_FOUND', 404, /쿠폰을 찾을 수 없어요/, true],
+    ['ADMIN_INVALID_INPUT', 400, /100자 이하로 연락처·이메일·주소 없이/, false],
+    ['ADMIN_FORBIDDEN', 403, /관리자 권한을 확인하지 못했어요/, false],
+    ['INTERNAL_ERROR', 500, /무효로 하지 못했어요/, false],
   ]) {
     const failing = await adminCoupons({ voidCoupon: () => apiError(status, code) });
     await failing.load();
@@ -2163,12 +2184,34 @@ test('관리자 웹은 확인창에서 동의한 쿠폰만 사유와 함께 무�
     await failForm.submit();
     assert.match(failing.status(), pattern, code);
     assert.equal(failForm.children[2].disabled, false, code);
+    // 이미 사용됐거나 없는 쿠폰이면 목록이 낡은 것이라 새로 읽고 안내는 그대로 남긴다.
+    assert.equal(failing.requests().filter((request) => request.path.endsWith('/coupons')).length, refreshes ? 2 : 1, code);
   }
   assert.match(couponVoidMessage({ status: 401 }), /다시 로그인/);
   const broken = await adminCoupons({ list: () => okJson({ coupons: [{ couponId: 'x' }] }) });
   await broken.load();
   assert.equal(broken.rows().length, 0);
   assert.match(broken.status(), /불러오지 못했어요/);
+});
+
+test('관리자 웹은 시연 점포처럼 서버가 대상이 아니라고 답하면 일반 실패 문구 대신 그렇게 알린다', async () => {
+  // 서버는 시연 점포(와 없는 점포)의 쿠폰 목록을 ADMIN_MERCHANT_NOT_FOUND로 거절한다.
+  const missing = await adminCoupons({ list: () => apiError(404, 'ADMIN_MERCHANT_NOT_FOUND') });
+  await missing.load();
+  assert.equal(missing.status(), '점포를 찾을 수 없어요. 시연 점포는 대상이 아니에요.');
+  assert.equal(missing.rows().length, 0);
+  const generic = await adminCoupons({ list: () => apiError(500, 'INTERNAL_ERROR') });
+  await generic.load();
+  assert.match(generic.status(), /쿠폰 목록을 불러오지 못했어요/);
+});
+
+test('비어 있는 상태 안내 영역은 display none으로 지우지 않고 화면에서만 감춘다', () => {
+  assert.doesNotMatch(css, /\.admin-coupons > p:empty \{ display: none/);
+  const rule = css.match(/\.admin-coupons > p:empty, #merchant-visit-status:empty, #merchant-redemption-status:empty \{[^}]*\}/)?.[0];
+  assert.ok(rule, 'a visually hidden rule for the empty status regions');
+  assert.doesNotMatch(rule, /display: none/);
+  assert.match(rule, /position: absolute/);
+  assert.match(rule, /clip-path: inset\(50%\)/);
 });
 
 test('운영 웹 도감은 무효 쿠폰을 사용할 수 없는 쿠폰으로 표시하고 도장을 찍지 않는다', async () => {
@@ -2181,5 +2224,7 @@ test('운영 웹 도감은 무효 쿠폰을 사용할 수 없는 쿠폰으로 �
   assert.equal(first(ticket, 'ticket-chip').textContent, '사용할 수 없는 쿠폰');
   assert.equal(findAll(ticket, 'ticket-stamp').length, 0);
   assert.equal(findAll(ticket, 'ticket-detail').length, 0);
+  // 무효 쿠폰에는 "~까지" 만료 날짜가 오해를 부르므로 보이지 않는다.
+  assert.equal(findAll(ticket, 'ticket-expiry').length, 0);
   assert.match(css, /\.ticket-voided \.ticket-chip/);
 });

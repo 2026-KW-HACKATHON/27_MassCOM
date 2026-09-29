@@ -247,8 +247,9 @@ function renderCoupons(doc, nodes, badges) {
       top.append(node(doc, 'p', 'ticket-detail', coupon.detail));
     }
     const foot = node(doc, 'div', 'ticket-foot');
-    foot.append(node(doc, 'span', 'chip ticket-chip', couponStatusLabels[coupon.status]),
-      node(doc, 'span', 'ticket-expiry', expiryLabel(coupon.expiresAt)));
+    foot.append(node(doc, 'span', 'chip ticket-chip', couponStatusLabels[coupon.status]));
+    // 무효 쿠폰에는 "~까지" 만료 날짜가 오해를 부르므로 보이지 않는다.
+    if (coupon.status !== 'VOIDED') foot.append(node(doc, 'span', 'ticket-expiry', expiryLabel(coupon.expiresAt)));
     ticket.append(top, foot);
     if (coupon.status === 'REDEEMED') ticket.append(decorative(node(doc, 'span', 'ticket-stamp', '사용 완료')));
     nodes['coupon-list'].append(ticket);

@@ -355,7 +355,11 @@ video { width: 100%; max-width: 28rem; aspect-ratio: 4 / 3; object-fit: cover; b
 #merchant-reversal-refresh { justify-self: start; }
 .admin-coupons { display: grid; gap: 12px; margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--mc-separator); }
 .admin-coupons > p { color: var(--mc-secondary); }
-.admin-coupons > p:empty { display: none; }
+/* 비어 있는 상태 안내(role=status)는 display:none으로 지우지 않고 화면에서만 감춘다: 나중에 글이 들어올 때 보조 기술이 읽어 주도록 */
+.admin-coupons > p:empty, #merchant-visit-status:empty, #merchant-redemption-status:empty {
+  display: block; position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
 .admin-coupons > button { justify-self: start; }
 .reversal-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .reversal-list > li { display: grid; gap: 10px; padding: 14px 16px; border-radius: var(--mc-radius-control); background: var(--mc-bg); }
