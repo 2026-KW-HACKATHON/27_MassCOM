@@ -107,7 +107,7 @@ function chooseProvider(pin: Pick<TownPin, 'name' | 'roadAddress'>, targets: Dir
   };
   Alert.alert(
     '길찾기',
-    `${pin.name}\n${pin.roadAddress}\n\n어느 지도로 열까요? 도로명 주소로 검색하며, 이 앱은 내 위치를 쓰지 않아요.`,
+    `${pin.name}\n${pin.roadAddress}\n\n어느 지도로 열까요? 지도 앱에는 가게 도로명 주소만 넘기고, 이 앱은 내 위치를 읽지 않아요.`,
     directionsChooserButtons((provider) => void go(provider)),
     { cancelable: true },
   );

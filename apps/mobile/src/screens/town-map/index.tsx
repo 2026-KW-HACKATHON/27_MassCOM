@@ -69,8 +69,8 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   const mapWidth = Math.round(width - uiMetrics.pageInset * 2);
   const mapHeight = mapHeightFor(mapWidth);
   const { placed, overflow } = useMemo(
-    () => buildTownPins(catalog.merchants, stamps.collection, new Date().toISOString(), { signedOut }),
-    [catalog.merchants, stamps.collection, signedOut],
+    () => buildTownPins(catalog.merchants, stamps.collection, new Date().toISOString(), { signedOut, loading: stamps.status === 'loading' }),
+    [catalog.merchants, stamps.collection, signedOut, stamps.status],
   );
   const selected = useMemo(
     () => [...placed, ...overflow].find((pin) => pin.merchantId === selectedId),

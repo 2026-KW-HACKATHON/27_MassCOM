@@ -42,10 +42,11 @@ export function pinLabel(name: string, status: StampStatus): string {
   return `${name}, ${state}`;
 }
 
-function statusLineFor(status: StampStatus, visitCount: number, signedOut: boolean): string {
+function statusLineFor(status: StampStatus, visitCount: number, options: { signedOut?: boolean; loading?: boolean }): string {
   if (status === 'visited') return `도장 받음 · 방문 ${visitCount}회`;
   if (status === 'none') return '아직 도장이 없어요';
-  return signedOut ? '로그인하면 도장을 볼 수 있어요' : '도장 상태를 확인하지 못했어요';
+  if (options.signedOut) return '로그인하면 도장을 볼 수 있어요';
+  return options.loading ? '도장 상태를 불러오는 중이에요' : '도장 상태를 확인하지 못했어요';
 }
 
 /**
@@ -58,7 +59,7 @@ export function buildTownPins(
   merchants: readonly TownMapMerchant[],
   collection: TownMapCollection | undefined,
   now: string,
-  options: { signedOut?: boolean } = {},
+  options: { signedOut?: boolean; loading?: boolean } = {},
 ): { placed: readonly PlacedTownPin[]; overflow: readonly TownPin[] } {
   const slots = new Map(buildStampSlots(merchants, collection?.visits ?? []).map((slot) => [slot.merchantId, slot]));
   const goals = collection
@@ -80,7 +81,7 @@ export function buildTownPins(
       status,
       visitCount,
       label: pinLabel(merchant.name, status),
-      statusLine: statusLineFor(status, visitCount, options.signedOut === true),
+      statusLine: statusLineFor(status, visitCount, options),
       goalLine: goal ? describeMerchantGoal(goal) : null,
       slot: anchorOf.get(merchant.id),
     };

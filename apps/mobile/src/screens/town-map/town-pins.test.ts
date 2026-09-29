@@ -124,3 +124,11 @@ test('a loaded collection wins over the signed-out flag, so the copy never contr
   assert.equal(pin?.status, 'visited');
   assert.equal(pin?.statusLine, '도장 받음 · 방문 1회');
 });
+
+test('while the collection is still loading the sheet says so instead of reporting a failure', () => {
+  const { placed } = buildTownPins([merchant('one', 'A')], undefined, now, { loading: true });
+  assert.equal(placed[0]?.statusLine, '도장 상태를 불러오는 중이에요');
+  const signedOut = buildTownPins([merchant('one', 'A')], undefined, now, { signedOut: true, loading: true });
+  assert.equal(signedOut.placed[0]?.statusLine, '로그인하면 도장을 볼 수 있어요');
+});
+

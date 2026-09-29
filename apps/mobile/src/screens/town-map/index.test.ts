@@ -160,7 +160,7 @@ test('the direction chooser lists Naver Maps, KakaoMap and cancel, and a failed 
   assert.match(sheet, /openDirections\(targets, provider\)/);
   assert.match(sheet, /지도를 열지 못했어요/);
   // The app never reads a location, and the chooser says how the search is done.
-  assert.match(sheet, /도로명 주소로 검색/);
+  assert.match(sheet, /도로명 주소만 넘기고, 이 앱은 내 위치를 읽지 않아요/);
   assert.doesNotMatch(sheet + screen + pin, /expo-location|requestForegroundPermissions/);
 });
 
@@ -173,7 +173,7 @@ test('loading, error and empty states are StateScenes; stale stamp data is calle
   assert.match(screen, /\{stamps\.stale \? \(/);
   assert.match(screen, /도장 상태가 최신이 아닐 수 있어요 · 다시 불러오기/);
   // The sheet copy tells a signed-out person to log in instead of claiming a failed check.
-  assert.match(screen, /\{ signedOut \}\)/);
+  assert.match(screen, /\{ signedOut, loading: stamps\.status === 'loading' \}\)/);
 });
 
 test('shops beyond the eight buildings are listed below the map and open the same sheet', () => {
