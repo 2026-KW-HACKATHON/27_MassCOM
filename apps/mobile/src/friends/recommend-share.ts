@@ -1,7 +1,7 @@
 import * as Application from 'expo-application';
 import { Alert, Share } from 'react-native';
 
-import { linkOriginFor } from './link';
+import { linkVariantFor } from './link';
 import { merchantShareMessage } from './recommend';
 
 /**
@@ -10,7 +10,7 @@ import { merchantShareMessage } from './recommend';
  */
 export async function recommendMerchant(merchant: { id: string; name: string; demo: boolean }): Promise<void> {
   try {
-    await Share.share({ message: merchantShareMessage(merchant, linkOriginFor(Application.applicationId)) });
+    await Share.share({ message: merchantShareMessage(merchant, linkVariantFor(Application.applicationId)) });
   } catch {
     Alert.alert('공유창을 열지 못했어요', '잠시 뒤에 다시 눌러 주세요.');
   }

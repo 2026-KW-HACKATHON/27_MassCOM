@@ -25,14 +25,14 @@ test('my card shows the nickname, the big code, a QR of the fragment link, a sys
   assert.match(screen, /accessibilityLabel="별명 바꾸기"/);
   assert.match(screen, /formatFriendCode\(me\.code\)/);
   assert.match(screen, /friendCodeAccessibilityLabel\(me\.code\)/);
-  assert.match(screen, /<ClaimQr\s+code=\{friendLink\(me\.code, origin\)\}/);
-  assert.match(screen, /Share\.share\(\{ message: friendShareMessage\(code, origin\) \}\)/);
+  assert.match(screen, /<ClaimQr\s+code=\{friendLink\(me\.code, variant\)\}/);
+  assert.match(screen, /Share\.share\(\{ message: friendShareMessage\(code, variant\) \}\)/);
   assert.match(screen, /label="코드 공유"/);
   assert.match(screen, /label=\{rotating \? '바꾸는 중…' : '코드 바꾸기'\}/);
   assert.match(screen, /const ROTATE_CONFIRM = '새 코드를 만들면 예전 코드로는 더 이상 추가할 수 없어요\. 지금 친구는 그대로예요\.'/);
   assert.match(screen, /Alert\.alert\('코드 바꾸기', ROTATE_CONFIRM/);
-  // The origin follows the installed package so the showcase app's links open the showcase app.
-  assert.match(screen, /linkOriginFor\(Application\.applicationId\)/);
+  // The QR and share text follow the installed package: the showcase app shares no https link (its host does not exist yet).
+  assert.match(screen, /linkVariantFor\(Application\.applicationId\)/);
 });
 
 test('adding takes a typed code in upper case or a scanned QR, and a QR or link is confirmed before it adds', () => {
@@ -42,7 +42,7 @@ test('adding takes a typed code in upper case or a scanned QR, and a QR or link 
   assert.match(screen, /import \{ CameraView, useCameraPermissions \} from 'expo-camera'/);
   assert.match(screen, /barcodeScannerSettings=\{\{ barcodeTypes: \['qr'\] \}\}/);
   assert.match(screen, /createScanGate\(\)/);
-  assert.match(screen, /parseScannedFriendCode\(raw\)/);
+  assert.match(screen, /parseScannedFriendCode\(raw, variant\)/);
   assert.match(screen, /Alert\.alert\(\s*'이 코드로 친구를 추가할까요\?'/);
   assert.match(screen, /consumePendingFriendCode\(\)/);
   // Every failure is said in Korean through one mapper; the raw code never reaches the screen.
@@ -88,4 +88,10 @@ test('the two friends screens never put a friend code or nickname into a URL or 
     assert.doesNotMatch(source, /console\.(log|info|warn|error|debug)/);
     assert.doesNotMatch(source, /\?friend=|`[^`]*\/me\/friends[^`]*\$\{/);
   }
+});
+
+test('a friend QR of another MassCOM build is said so in the same line as a link, and nothing is sent', () => {
+  assert.match(screen, /scanned\.reason === 'OTHER_APP' \? friendLinkProblemMessage\('OTHER_APP'\) : NOT_A_FRIEND_QR/);
+  const handler = screen.slice(screen.indexOf('function handleScanned'), screen.indexOf('async function saveNickname'));
+  assert.doesNotMatch(handler, /api\.addFriend|addFriend\(/);
 });

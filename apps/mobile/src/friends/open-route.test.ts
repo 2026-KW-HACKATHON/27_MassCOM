@@ -9,8 +9,11 @@ test('the open route sends a friend link to the friends tab, a merchant link to 
   const route = read('../app/open.tsx');
   assert.match(route, /Linking\.useLinkingURL\(\)/);
   assert.match(route, /useLocalSearchParams<\{ '#'\?: string \}>\(\)/);
-  assert.match(route, /resolveOpenTarget\(url, fragment\)/);
+  // Each build reads only its own links, told apart by its installed package.
+  assert.match(route, /resolveOpenTarget\(url, fragment, linkVariantFor\(Application\.applicationId\)\)/);
   assert.match(route, /rememberPendingFriendCode\(target\.code\);\s*router\.replace\('\/friends'\)/);
+  // A friend link that cannot be used still opens the friends tab, which says why in one line.
+  assert.match(route, /rememberPendingFriendProblem\(target\.problem\);\s*router\.replace\('\/friends'\)/);
   assert.match(route, /router\.replace\(\{ pathname: '\/merchants\/\[merchantId\]', params: \{ merchantId: target\.merchantId \} \}\)/);
   assert.match(route, /router\.replace\('\/'\)/);
   // The code is never logged or put into a query.
@@ -20,9 +23,10 @@ test('the open route sends a friend link to the friends tab, a merchant link to 
 test('a friend link opened while signed out continues at the friends tab after sign-in, next to the merchant return', () => {
   const layout = read('../app/_layout.tsx');
   assert.match(layout, /consumeMerchantReturn\(\)/);
-  assert.match(layout, /else if \(peekPendingFriendCode\(\)\) router\.replace\('\/friends'\)/);
+  assert.match(layout, /else if \(hasPendingFriendLink\(\)\) router\.replace\('\/friends'\)/);
   const screen = read('../screens/friends/index.tsx');
-  assert.match(screen, /const pending = consumePendingFriendCode\(\);\s*if \(pending\) confirmAdd\(pending\)/);
+  assert.match(screen, /const pending = consumePendingFriendCode\(\);/);
+  assert.match(screen, /const problem = consumePendingFriendProblem\(\);\s*if \(problem\) setAddNotice\(\{ tone: 'error', text: friendLinkProblemMessage\(problem\) \}\);\s*if \(pending\) confirmAdd\(pending\)/);
 });
 
 test('the app declares the HTTPS open link the friend and merchant links use', () => {

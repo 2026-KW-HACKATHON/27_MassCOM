@@ -13,14 +13,15 @@ import {
   friendCodeAccessibilityLabel,
   friendCodeProblemMessage,
   friendLink,
+  friendLinkProblemMessage,
   friendShareMessage,
   parseScannedFriendCode,
   validateFriendCode,
 } from '@/friends/code';
 import { FriendsApiError, createFriendsApiClient, friendsErrorMessage } from '@/friends/friends-api';
 import { buildRankingRows, checkNicknameDraft, rankingNote, rowAccessibilityLabel, type RankingRow } from '@/friends/friends-model';
-import { linkOriginFor } from '@/friends/link';
-import { consumePendingFriendCode } from '@/friends/pending-friend-link';
+import { linkVariantFor } from '@/friends/link';
+import { consumePendingFriendCode, consumePendingFriendProblem } from '@/friends/pending-friend-link';
 import { useFriends } from '@/friends/use-friends';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
@@ -63,7 +64,7 @@ export function FriendsScreen({
   const world = worldForScheme(scheme);
   const styles = useFriendsStyles();
   const { width, fontScale } = useWindowDimensions();
-  const origin = linkOriginFor(Application.applicationId);
+  const variant = linkVariantFor(Application.applicationId);
   const api = useMemo(
     () => createFriendsApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
@@ -135,6 +136,9 @@ export function FriendsScreen({
     focusCount.current += 1;
     // A friend link opened before sign-in waits in memory; the first time this tab is focused with an account it is asked about.
     const pending = consumePendingFriendCode();
+    // A friend link that could not be used waits the same way and is said once, in one line.
+    const problem = consumePendingFriendProblem();
+    if (problem) setAddNotice({ tone: 'error', text: friendLinkProblemMessage(problem) });
     if (pending) confirmAdd(pending);
     else if (focusCount.current > 1) void refreshQuietly();
     return () => setScanning(false);
@@ -161,10 +165,11 @@ export function FriendsScreen({
   }
 
   function handleScanned(raw: string) {
-    const scanned = parseScannedFriendCode(raw);
+    const scanned = parseScannedFriendCode(raw, variant);
     if (!scanned.ok) {
       // The camera reports the same wrong QR many times a second; keep the state identical.
-      setAddNotice((current) => (current?.text === NOT_A_FRIEND_QR ? current : { tone: 'error', text: NOT_A_FRIEND_QR }));
+      const text = scanned.reason === 'OTHER_APP' ? friendLinkProblemMessage('OTHER_APP') : NOT_A_FRIEND_QR;
+      setAddNotice((current) => (current?.text === text ? current : { tone: 'error', text }));
       return;
     }
     if (!scanGate.accept(scanned.code)) return;
@@ -215,7 +220,7 @@ export function FriendsScreen({
   async function shareCode(code: string) {
     setCardNotice(undefined);
     try {
-      await Share.share({ message: friendShareMessage(code, origin) });
+      await Share.share({ message: friendShareMessage(code, variant) });
     } catch {
       setCardNotice({ tone: 'error', text: '공유창을 열지 못했어요. 코드를 직접 알려 주세요.' });
     }
@@ -337,7 +342,7 @@ export function FriendsScreen({
           </View>
           <View style={styles.qrBox}>
             <ClaimQr
-              code={friendLink(me.code, origin)}
+              code={friendLink(me.code, variant)}
               size={qrSize}
               accessibilityLabel="내 친구 코드 QR. 친구가 촬영하면 나를 추가할 수 있어요"
             />

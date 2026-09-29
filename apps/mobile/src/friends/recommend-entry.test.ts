@@ -7,7 +7,7 @@ const read = (relative: string) => readFileSync(fileURLToPath(new URL(relative, 
 
 test('the recommend action shares only the shop name and its link through the system share sheet', () => {
   const share = read('./recommend-share.ts');
-  assert.match(share, /Share\.share\(\{ message: merchantShareMessage\(merchant, linkOriginFor\(Application\.applicationId\)\) \}\)/);
+  assert.match(share, /Share\.share\(\{ message: merchantShareMessage\(merchant, linkVariantFor\(Application\.applicationId\)\) \}\)/);
   assert.match(share, /공유창을 열지 못했어요/);
   assert.doesNotMatch(share, /fetch\(|console\./);
 });
