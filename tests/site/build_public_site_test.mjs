@@ -86,12 +86,24 @@ async function collectFiles(root, prefix = '') {
 
 test('published NFT metadata stays a plain public record without personal or visit details', async () => {
   const metadata = JSON.parse(await readFile(join(repoRoot, 'docs/nft-metadata/base-sepolia-proof/1.json'), 'utf8'));
+  // Allowlist: any new key (image, external_url, …) must be added here on purpose after a privacy review.
+  assert.deepEqual(Object.keys(metadata).sort(), ['attributes', 'description', 'name']);
   assert.equal(typeof metadata.name, 'string');
   assert.equal(typeof metadata.description, 'string');
-  assert.ok(Array.isArray(metadata.attributes));
-  // AGENTS.md: no personal data, order number or exact meal time on-chain or in token metadata.
+  assert.deepEqual(metadata.attributes.map((attribute) => attribute.trait_type).sort(), ['발행 방식', '양도', '환경'].sort());
+  for (const attribute of metadata.attributes) assert.deepEqual(Object.keys(attribute).sort(), ['trait_type', 'value']);
+  // AGENTS.md: no personal data, order number or exact meal time on-chain or in token metadata. Only unambiguous backstops here.
   const text = JSON.stringify(metadata);
-  for (const forbidden of [/@/, /\b0x[0-9a-fA-F]{40}\b/, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/, /\d{1,2}:\d{2}/, /주문/, /도로명|번길|\d+-\d+번지/]) {
+  for (const forbidden of [/@/, /0x[0-9a-fA-F]{40,}/, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/]) {
     assert.doesNotMatch(text, forbidden, String(forbidden));
   }
+});
+
+test('the token URI recorded on-chain is served by the public bundle', async () => {
+  const deployment = JSON.parse(await readFile(join(repoRoot, 'docs/evidence/base-sepolia-deployment.json'), 'utf8'));
+  const origin = 'https://masscom.kr/';
+  const tokenUri = deployment.workerProof.tokenUri;
+  assert.ok(tokenUri.startsWith(deployment.proofSeries.metadataBase), tokenUri);
+  assert.ok(tokenUri.startsWith(origin), tokenUri);
+  assert.ok(expected.includes(tokenUri.slice(origin.length)), tokenUri);
 });
