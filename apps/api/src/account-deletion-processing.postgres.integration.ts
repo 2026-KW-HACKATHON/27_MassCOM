@@ -380,6 +380,13 @@ test('a repeat filing returns the same request without a new receipt and a delib
     assert.equal((await web.status(replaced.receipt!)).status, 'REQUESTED');
     assert.equal((await pool.query('SELECT 1 FROM account_deletion_intake_requests WHERE account_id = $1', [accountId]))
       .rowCount, 1);
+
+    // A re-issue never starts a filing: without an active request it is refused and nothing is written.
+    const idle = await seedAccount(pool);
+    await assert.rejects(web.request(idle, { reissue: true }), (error: unknown) =>
+      error instanceof AccountDeletionIntakeError && error.code === 'DELETION_NO_ACTIVE_REQUEST');
+    assert.equal((await pool.query('SELECT 1 FROM account_deletion_intake_requests WHERE account_id = $1', [idle]))
+      .rowCount, 0);
   });
 });
 

@@ -89,6 +89,8 @@ export class PostgresAccountDeletionIntakeService implements AccountDeletionInta
           result = { receipt, receiptIssued: true, ...dates };
         }
       } else {
+        // A re-issue only replaces the receipt of a filing the person already made; it never starts one.
+        if (options.reissue) throw new AccountDeletionIntakeError('DELETION_NO_ACTIVE_REQUEST');
         const requestedAt = this.now();
         const cancelUntil = new Date(requestedAt.getTime() + cancelWindowMs);
         const dueAt = new Date(requestedAt.getTime() + processingWindowMs);

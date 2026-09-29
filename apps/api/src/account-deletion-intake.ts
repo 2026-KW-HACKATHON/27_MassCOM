@@ -30,7 +30,7 @@ export type DeletionIntakeStatusView = {
 };
 
 export interface AccountDeletionIntakeService {
-  /** `reissue` replaces the receipt of the caller's own active request; a repeat filing otherwise returns no receipt. */
+  /** `reissue` replaces the receipt of the caller's own active request (and never starts one); a repeat filing otherwise returns no receipt. */
   request(accountId: string, options?: { reissue?: boolean }): Promise<DeletionIntakeReceipt>;
   /** The caller's own active request, without a receipt. */
   current(accountId: string): Promise<DeletionIntakeStatusView | null>;
