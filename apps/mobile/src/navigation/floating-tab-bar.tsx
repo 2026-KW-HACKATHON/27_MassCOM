@@ -2,6 +2,7 @@ import { BottomTabBarHeightCallbackContext, type BottomTabBarProps } from 'expo-
 import { useContext, useEffect, useState, type ComponentProps } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { lightHaptic } from '@/gamification/native-effects';
 import { motion } from '@/motion/timing';
@@ -11,6 +12,7 @@ import { uiMetrics } from '@/theme/ui-metrics';
 import { worldForScheme } from '@/theme/world';
 
 import { TabGlyph } from './tab-glyph';
+import { barHeightFor, tabIndicator } from './tab-bar-style';
 
 type GlyphName = ComponentProps<typeof TabGlyph>['name'];
 type Route = BottomTabBarProps['state']['routes'][number];
@@ -20,10 +22,8 @@ const glyphByRoute: Record<string, GlyphName> = { index: 'explore', claim: 'clai
 const LIFT = 22;
 const GAP = 16;
 const CLAIM_BUTTON = 64;
-
-function barHeightFor(fontScale: number): number {
-  return fontScale >= 1.5 ? 76 : 64;
-}
+// The mask fades in this far above the bar's top edge, so it never reads as a hard band behind the raised button.
+const MASK_FADE = 18;
 
 function useKeyboardShown(): boolean {
   const [shown, setShown] = useState(false);
@@ -51,34 +51,50 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
   useEffect(() => { reportFootprint?.(footprint); }, [reportFootprint, footprint]);
   if (away) return null;
 
+  const maskHeight = insets.bottom + GAP + height + MASK_FADE;
   return (
-    <View pointerEvents="box-none" style={[styles.wrapper, { height: height + LIFT, bottom: GAP + insets.bottom }]}>
-      <View
-        pointerEvents="none"
-        style={[
-          styles.bar,
-          {
-            height, backgroundColor: world.tabBar, borderRadius: world.radius.tabBar,
-            shadowColor: world.cardShadow,
-          },
-        ]}
-      />
-      <View pointerEvents="box-none" style={styles.row}>
-        {visible.map((route) => {
-          const options = descriptors[route.key]!.options;
-          const selected = route.key === focusedKey;
-          const label = options.title ?? route.name;
-          const onPress = () => {
-            void lightHaptic();
-            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-            if (!selected && !event.defaultPrevented) navigation.navigate(route.name, route.params);
-          };
-          return route.name === 'claim'
-            ? <ClaimSlot key={route.key} route={route} label={label} accessibilityLabel={options.tabBarAccessibilityLabel} selected={selected} onPress={onPress} />
-            : <TabSlot key={route.key} route={route} label={label} accessibilityLabel={options.tabBarAccessibilityLabel} selected={selected} onPress={onPress} />;
-        })}
+    <>
+      {/* Content scrolls under the 16dp gap around the bar; the page colour fades in over it. It never takes touches. */}
+      <View pointerEvents="none" style={[styles.mask, { height: maskHeight }]}>
+        <Svg width="100%" height={maskHeight}>
+          <Defs>
+            <LinearGradient id="barMask" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={world.page} stopOpacity={0} />
+              <Stop offset={MASK_FADE / maskHeight} stopColor={world.page} stopOpacity={0.9} />
+              <Stop offset="1" stopColor={world.page} stopOpacity={1} />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height={maskHeight} fill="url(#barMask)" />
+        </Svg>
       </View>
-    </View>
+      <View pointerEvents="box-none" style={[styles.wrapper, { height: height + LIFT, bottom: GAP + insets.bottom }]}>
+        {/* The surface takes touches itself: the empty band beside the raised button used to pass them to the list below. */}
+        <View
+          style={[
+            styles.bar,
+            {
+              height, backgroundColor: world.tabBar, borderRadius: world.radius.tabBar,
+              shadowColor: world.cardShadow,
+            },
+          ]}
+        />
+        <View accessibilityRole="tablist" pointerEvents="box-none" style={styles.row}>
+          {visible.map((route) => {
+            const options = descriptors[route.key]!.options;
+            const selected = route.key === focusedKey;
+            const label = options.title ?? route.name;
+            const onPress = () => {
+              void lightHaptic();
+              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+              if (!selected && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+            };
+            return route.name === 'claim'
+              ? <ClaimSlot key={route.key} route={route} label={label} accessibilityLabel={options.tabBarAccessibilityLabel} selected={selected} onPress={onPress} />
+              : <TabSlot key={route.key} route={route} label={label} accessibilityLabel={options.tabBarAccessibilityLabel} selected={selected} onPress={onPress} />;
+          })}
+        </View>
+      </View>
+    </>
   );
 }
 
@@ -89,7 +105,9 @@ function isHidden(options: { tabBarItemStyle?: StyleProp<ViewStyle> } | undefine
 type SlotProps = { route: Route; label: string; accessibilityLabel?: string; selected: boolean; onPress: () => void };
 
 function TabSlot({ route, label, accessibilityLabel, selected, onPress }: SlotProps) {
-  const world = worldForScheme(useColorScheme());
+  const scheme = useColorScheme();
+  const world = worldForScheme(scheme);
+  const indicator = tabIndicator(selected, colorsForScheme(scheme), world);
   const enabled = useMotionEnabled();
   const lift = useSharedValue(0);
   useEffect(() => {
@@ -97,7 +115,6 @@ function TabSlot({ route, label, accessibilityLabel, selected, onPress }: SlotPr
     lift.set(withSequence(withTiming(-4, { duration: 90 }), withSpring(0, motion.spring)));
   }, [enabled, selected, lift]);
   const animated = useAnimatedStyle(() => ({ transform: [{ translateY: lift.get() }] }));
-  const color = selected ? world.tabActive : world.tabInactive;
   return (
     <Pressable
       accessibilityRole="tab"
@@ -106,10 +123,10 @@ function TabSlot({ route, label, accessibilityLabel, selected, onPress }: SlotPr
       onPress={onPress}
       style={[styles.slot, { marginTop: LIFT }]}
     >
-      <Animated.View style={[styles.slotIcon, animated]}>
-        <TabGlyph name={glyphByRoute[route.name] ?? 'explore'} color={color} size={24} />
+      <Animated.View style={[indicator.pill, animated]}>
+        <TabGlyph name={glyphByRoute[route.name] ?? 'explore'} color={indicator.iconColor} size={24} />
       </Animated.View>
-      <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={[styles.label, { color }]}>{label}</Text>
+      <Text maxFontSizeMultiplier={1.5} numberOfLines={1} style={[styles.label, indicator.label]}>{label}</Text>
     </Pressable>
   );
 }
@@ -117,6 +134,7 @@ function TabSlot({ route, label, accessibilityLabel, selected, onPress }: SlotPr
 function ClaimSlot({ label, accessibilityLabel, selected, onPress }: SlotProps) {
   const palette = colorsForScheme(useColorScheme());
   const world = worldForScheme(useColorScheme());
+  const indicator = tabIndicator(selected, palette, world);
   const enabled = useMotionEnabled();
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
@@ -138,12 +156,13 @@ function ClaimSlot({ label, accessibilityLabel, selected, onPress }: SlotProps) 
             animated,
           ]}
         >
+          {indicator.claimRing ? <View pointerEvents="none" style={indicator.claimRing} /> : null}
           <TabGlyph name="claim" color={palette.onPrimary} size={30} />
         </Animated.View>
         <Text
-          maxFontSizeMultiplier={1.25}
+          maxFontSizeMultiplier={1.5}
           numberOfLines={1}
-          style={[styles.label, { color: selected ? world.tabActive : world.tabInactive }]}
+          style={[styles.label, indicator.label]}
         >
           {label}
         </Text>
@@ -153,6 +172,7 @@ function ClaimSlot({ label, accessibilityLabel, selected, onPress }: SlotProps) 
 }
 
 const styles = StyleSheet.create({
+  mask: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   wrapper: { position: 'absolute', left: 0, right: 0, paddingHorizontal: GAP },
   bar: {
     position: 'absolute', left: GAP, right: GAP, bottom: 0,
@@ -160,8 +180,7 @@ const styles = StyleSheet.create({
   },
   row: { flex: 1, flexDirection: 'row' },
   slot: { flex: 1, minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 4 },
-  slotIcon: { alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  label: { fontSize: 12, textAlign: 'center' },
   claimSlot: { flex: 1, alignItems: 'center' },
   claimPressable: { alignItems: 'center', gap: 2, minWidth: uiMetrics.minTouch },
   claimButton: {

@@ -27,8 +27,9 @@ test('floating tab bar shows explore, a raised claim stamp and collection; accou
   assert.match(layout, /tabBar=\{\(props\) => <FloatingTabBar \{\.\.\.props\} \/>\}/);
   const bar = readFileSync(fileURLToPath(new URL('./floating-tab-bar.tsx', import.meta.url)), 'utf8');
   assert.match(bar, /useMotionEnabled\(\)/);
-  assert.match(bar, /fontScale >= 1\.5/);
-  assert.match(bar, /maxFontSizeMultiplier=\{1\.25\}/);
+  // The bar height steps up with text size (barHeightFor in tab-bar-style.ts, tested there) and labels stop at 1.5x.
+  assert.match(bar, /barHeightFor\(fontScale\)/);
+  assert.match(bar, /maxFontSizeMultiplier=\{1\.5\}/);
   assert.match(bar, /accessibilityRole="tab"/);
 });
 
