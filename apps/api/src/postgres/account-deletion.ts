@@ -277,15 +277,11 @@ async function pseudonymizeAccount(
   now: Date,
 ): Promise<void> {
   await client.query('DELETE FROM wallet_challenges WHERE account_id = $1', [accountId]);
-  // Sessions keep the real account id so a leaked token still fails the revocation check.
-  await client.query(
-    `UPDATE auth_sessions SET revoked_at = coalesce(revoked_at, $1) WHERE account_id = $2`,
-    [now, accountId],
-  );
-  await client.query(
-    `UPDATE web_sessions SET revoked_at = coalesce(revoked_at, $1) WHERE account_id = $2`,
-    [now, accountId],
-  );
+  // Sessions are deleted, not just revoked: a revoked row would keep the raw account id. A leaked token then finds no
+  // row and fails as SESSION_INVALID / WEB_SESSION_INVALID, and the account tombstone still refuses anything that
+  // reaches the account by another route.
+  await client.query('DELETE FROM web_sessions WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM auth_sessions WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM auth_identities WHERE account_id = $1', [accountId]);
   // The web/app filing row for this account is closed by markIntakeProcessed once the ledger row exists (#194).
   await client.query('DELETE FROM platform_admins WHERE account_id = $1', [accountId]);

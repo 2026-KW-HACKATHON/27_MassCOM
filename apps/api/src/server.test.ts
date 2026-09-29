@@ -391,7 +391,7 @@ const intakeDates = {
   dueAt: '2026-10-07T00:00:00.000Z',
 };
 const intakeView: DeletionIntakeStatusView = {
-  ...intakeDates, cancelledAt: null, processedAt: null, rejectReason: null, deletion: null,
+  ...intakeDates, cancelledAt: null, processedAt: null, rejectReason: null, overdue: false, deletion: null,
 };
 const webJson = { origin: 'https://masscom.kr', 'content-type': 'application/json' };
 
@@ -716,6 +716,7 @@ test('admin deletion routes need the admin session and same-origin JSON, and nev
   for (const [code, status] of [
     ['DELETION_COOLING_OFF', 409], ['DELETION_INTAKE_NOT_PENDING', 409], ['DELETION_SELF_PROCESSING_REFUSED', 403],
     ['DELETION_INTAKE_NOT_FOUND', 404], ['DELETION_REJECT_REASON_INVALID', 400],
+    ['DELETION_LEGACY_NEEDS_REFILE', 409], ['DELETION_BUSY', 409],
   ] as const) {
     failure = code;
     const refused = await webRequest(base, processPath, { method: 'POST', headers: json, body: '{}' });

@@ -33,14 +33,7 @@ export class PostgresAccountLifecycle {
   }
 
   async assertAllActive(client: PoolClient, accountIds: readonly string[]): Promise<void> {
-    const references = [...new Set(accountIds)]
-      .map((accountId) => {
-        const referenceHash = this.referenceHash(accountId);
-        return { referenceHash, lockKey: referenceHash.toString('hex') };
-      })
-      .sort((left, right) => left.lockKey.localeCompare(right.lockKey));
-
-    for (const reference of references) {
+    for (const reference of this.sortedReferences(accountIds)) {
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
         reference.lockKey,
       ]);
@@ -52,5 +45,25 @@ export class PostgresAccountLifecycle {
       );
       if (deleted.rowCount === 1) throw new AccountLifecycleError('ACCOUNT_DELETED');
     }
+  }
+
+  /**
+   * Takes the advisory locks of several accounts in the one global (sorted) order, without checking any of them.
+   * A caller that will later lock the same accounts one at a time (the operator's, then the target's) must call this
+   * first, or two operators acting on each other's filings can each hold one lock and wait for the other's.
+   */
+  async lockAllForDeletion(client: PoolClient, accountIds: readonly string[]): Promise<void> {
+    for (const reference of this.sortedReferences(accountIds)) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [reference.lockKey]);
+    }
+  }
+
+  private sortedReferences(accountIds: readonly string[]): { referenceHash: Buffer; lockKey: string }[] {
+    return [...new Set(accountIds)]
+      .map((accountId) => {
+        const referenceHash = this.referenceHash(accountId);
+        return { referenceHash, lockKey: referenceHash.toString('hex') };
+      })
+      .sort((left, right) => left.lockKey.localeCompare(right.lockKey));
   }
 }

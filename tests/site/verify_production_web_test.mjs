@@ -1950,13 +1950,13 @@ test('삭제 요청 줄의 버튼과 입력은 마스킹한 계정 표지를 접
   const { nodes, doc, fetcher } = deletionAdminFixture([pendingIntake, cooling]);
   await loadAdmin(fetcher, doc);
   const [ready, waiting] = nodes['admin-deletions'].children;
-  const [process, reason, reject] = ready.children.slice(2);
+  const [process, , reason, reject] = ready.children.slice(2);
   assert.equal(process.attributes['aria-label'], 'acct_1a2b…9f0e 삭제 처리');
   assert.equal(reason.attributes['aria-label'], 'acct_1a2b…9f0e 거절 사유');
   assert.equal(reject.attributes['aria-label'], 'acct_1a2b…9f0e 거절');
   await process.click();
   assert.equal(process.attributes['aria-label'], 'acct_1a2b…9f0e 정말 삭제 처리 (되돌릴 수 없음)');
-  const [waitingProcess, waitingReason, waitingReject] = waiting.children.slice(2);
+  const [waitingProcess, , waitingReason, waitingReject] = waiting.children.slice(2);
   assert.equal(waitingProcess.attributes['aria-label'], 'acct_9z8y…7x6w 취소 기간 중 · 처리 불가');
   assert.equal(waitingReason.attributes['aria-label'], 'acct_9z8y…7x6w 거절 사유');
   assert.equal(waitingReject.attributes['aria-label'], 'acct_9z8y…7x6w 거절');
@@ -1972,14 +1972,41 @@ test('접수번호가 없는 옛 접수는 운영자 목록에서 그렇게 표�
   await loadAdmin(fetcher, doc);
   const [fresh, old, unknown] = nodes['admin-deletions'].children;
   assert.doesNotMatch(fresh.children[0].textContent, /옛 접수/);
-  assert.match(old.children[0].textContent, /계정 acct_1a2b…9f0e · 옛 접수\(접수번호 없음\)/);
+  assert.match(old.children[0].textContent, /계정 acct_1a2b…9f0e · 옛 접수: 본인이 다시 접수해야 처리할 수 있어요/);
   assert.doesNotMatch(unknown.children[0].textContent, /옛 접수/, '필드가 없는 응답을 옛 접수로 단정하지 않는다');
+});
+
+test('옛 접수 줄은 처리 버튼을 막고 이유를 말하며, 끝난 옛 접수에는 그 표시를 붙이지 않는다', async () => {
+  const legacy = { ...pendingIntake, id: '66666666-6666-4666-8666-666666666666', hasReceipt: false, canProcess: false };
+  const finished = { ...pendingIntake, id: '77777777-7777-4777-8777-777777777777', hasReceipt: false, status: 'REJECTED',
+    canProcess: false, accountLabel: null, processedAt: '2026-10-02T01:00:00.000Z', processedBy: 'admin-web', rejectReason: '다시 접수해 주세요' };
+  const { nodes, doc, fetcher } = deletionAdminFixture([legacy, finished]);
+  await loadAdmin(fetcher, doc);
+  const [pending, ended] = nodes['admin-deletions'].children;
+  const [process, , reason, reject] = pending.children.slice(2);
+  assert.equal(process.disabled, true);
+  assert.equal(process.textContent, '처리 불가 · 다시 접수 필요');
+  assert.equal(process.attributes['aria-label'], 'acct_1a2b…9f0e 처리 불가 · 다시 접수 필요');
+  assert.equal(reject.disabled ?? false, false, '옛 접수도 거절할 수 있다');
+  assert.equal(reason.maxLength, 200);
+  assert.doesNotMatch(ended.children[0].textContent, /옛 접수/);
+});
+
+test('거절 사유 입력 위에 요청자가 사유를 그대로 본다는 안내를 두고 입력과 연결한다', async () => {
+  const { nodes, doc, fetcher } = deletionAdminFixture([pendingIntake]);
+  await loadAdmin(fetcher, doc);
+  const [, hint, reason] = nodes['admin-deletions'].children[0].children.slice(2);
+  assert.equal(hint.textContent, '요청자가 접수번호로 이 사유를 그대로 봅니다. 개인정보를 쓰지 마세요.');
+  assert.equal(reason.attributes['aria-describedby'], hint.attributes.id ?? hint.id);
+  assert.match(hint.id ?? hint.attributes.id, /^deletion-reason-hint-/);
 });
 
 test('삭제 처리와 거절의 서버 거절 사유는 운영자가 이해할 문장으로 알린다', async () => {
   const cases = [
     ['DELETION_COOLING_OFF', /취소 기간/], ['DELETION_SELF_PROCESSING_REFUSED', /본인 요청은 처리할 수 없습니다/],
     ['DELETION_INTAKE_NOT_PENDING', /이미 처리/], ['DELETION_REJECT_REASON_INVALID', /1자 이상 200자/],
+    ['DELETION_LEGACY_NEEDS_REFILE', /옛 접수: 본인이 다시 접수해야 처리할 수 있어요/],
+    ['DELETION_BUSY', /다른 처리와 겹쳤습니다/],
   ];
   for (const [code, expected] of cases) {
     const failing = () => ({ ok: false, status: 409, json: async () => ({ code }) });
@@ -1988,7 +2015,7 @@ test('삭제 처리와 거절의 서버 거절 사유는 운영자가 이해할 
       [`POST /api/web/admin/account-deletion-intakes/${pendingIntake.id}/reject`]: failing,
     });
     await loadAdmin(fetcher, doc);
-    const [process, reason, reject] = nodes['admin-deletions'].children[0].children.slice(2);
+    const [process, , reason, reject] = nodes['admin-deletions'].children[0].children.slice(2);
     await process.click();
     await process.click();
     assert.match(nodes['admin-status'].textContent, expected, code);
@@ -2014,7 +2041,7 @@ test('삭제 거절은 입력한 사유를 그대로 보내고 성공하면 목�
   const dynamic = async (path, options) => done && path.endsWith('/account-deletion-intakes')
     ? { ok: true, json: async () => ({ intakes: [rejected] }) } : fetcher(path, options);
   await loadAdmin(dynamic, doc);
-  const [, reason, reject] = nodes['admin-deletions'].children[0].children.slice(2);
+  const [, , reason, reject] = nodes['admin-deletions'].children[0].children.slice(2);
   assert.equal(reason.attributes['aria-label'], 'acct_1a2b…9f0e 거절 사유');
   assert.equal(reject.attributes['aria-label'], 'acct_1a2b…9f0e 거절');
   assert.equal(reason.maxLength, 200);

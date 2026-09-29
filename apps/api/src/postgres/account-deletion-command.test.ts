@@ -57,7 +57,14 @@ test('the CLI maps each command to the shared service as a cli operator and reje
   assert.match(listed[0]!, new RegExp(`^${intake.id}\\tREQUESTED\\tSHOWCASE_APP\\t.*COOLING_OFF.*acct_1a2b…9f0e`));
   assert.doesNotMatch(listed[0]!, /옛 접수/);
   const legacyService: AccountDeletionProcessingService = { ...service, list: async () => [{ ...intake, hasReceipt: false }] };
-  assert.match((await runAccountDeletionCommand(legacyService, 'choi', ['list']))[0]!, /\t옛 접수\(접수번호 없음\)$/);
+  const legacyLine = (await runAccountDeletionCommand(legacyService, 'choi', ['list']))[0]!;
+  assert.match(legacyLine, /\tLEGACY\t/, 'a legacy filing is not shown as cooling off or ready');
+  assert.match(legacyLine, /\t옛 접수: 본인이 다시 접수해야 처리할 수 있어요$/);
+  // Even past its window a legacy filing is not READY, and a finished one no longer carries the note.
+  const pastWindow = { ...intake, hasReceipt: false, canProcess: false };
+  assert.match((await runAccountDeletionCommand({ ...service, list: async () => [pastWindow] }, 'choi', ['list']))[0]!, /\tLEGACY\t/);
+  const finished = { ...intake, status: 'REJECTED' as const, hasReceipt: false, rejectReason: '다시 접수해 주세요' };
+  assert.doesNotMatch((await runAccountDeletionCommand({ ...service, list: async () => [finished] }, 'choi', ['list']))[0]!, /옛 접수|LEGACY/);
   assert.deepEqual(await runAccountDeletionCommand(service, 'choi', ['process', intake.id]),
     [`PROCESSED\t${intake.id}\tledger=WAITING_FOR_MINT_FINALITY`]);
   assert.deepEqual(await runAccountDeletionCommand(service, 'choi', ['reject', intake.id, '중복 접수']), [`REJECTED\t${intake.id}`]);

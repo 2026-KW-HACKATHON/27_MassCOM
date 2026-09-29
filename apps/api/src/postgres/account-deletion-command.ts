@@ -33,13 +33,17 @@ export function resolveOperator(env: Record<string, string | undefined>, fallbac
   return operator;
 }
 
+export const legacyIntakeNote = '옛 접수: 본인이 다시 접수해야 처리할 수 있어요';
+
 function line(intake: AdminDeletionIntake): string {
+  const legacy = intake.status === 'REQUESTED' && !intake.hasReceipt;
   return [
     intake.id, intake.status, intake.source, `requested=${intake.requestedAt}`, `cancelUntil=${intake.cancelUntil}`,
-    `due=${intake.dueAt}`, intake.canProcess ? 'READY' : intake.status === 'REQUESTED' ? 'COOLING_OFF' : '-',
+    `due=${intake.dueAt}`,
+    intake.canProcess ? 'READY' : legacy ? 'LEGACY' : intake.status === 'REQUESTED' ? 'COOLING_OFF' : '-',
     intake.overdue ? 'OVERDUE' : '-', intake.accountLabel ?? '-',
     intake.deletion ? `ledger=${intake.deletion.status}` : '-',
-    intake.hasReceipt ? '-' : '옛 접수(접수번호 없음)',
+    legacy ? legacyIntakeNote : '-',
   ].join('\t');
 }
 
@@ -100,6 +104,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       case 'DELETION_INTAKE_NOT_FOUND': console.error('DELETION_INTAKE_NOT_FOUND'); break;
       case 'DELETION_INTAKE_NOT_PENDING': console.error('DELETION_INTAKE_NOT_PENDING'); break;
       case 'DELETION_COOLING_OFF': console.error('DELETION_COOLING_OFF'); break;
+      case 'DELETION_LEGACY_NEEDS_REFILE': console.error('DELETION_LEGACY_NEEDS_REFILE'); break;
+      case 'DELETION_BUSY': console.error('DELETION_BUSY'); break;
       case 'DELETION_REJECT_REASON_INVALID': console.error('DELETION_REJECT_REASON_INVALID'); break;
       case 'ACCOUNT_DELETION_USAGE': console.error(usage); break;
       case 'ACCOUNT_DELETION_SHOWCASE_DATABASE_REQUIRED': console.error('ACCOUNT_DELETION_SHOWCASE_DATABASE_REQUIRED'); break;

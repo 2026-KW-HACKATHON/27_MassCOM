@@ -21,11 +21,11 @@ export type DeletionIntakeView = {
   cancelledAt: string | null;
   processedAt: string | null;
   rejectReason: string | null;
+  /** Still requested after the processing deadline. An older server never sends it, so it reads as false. */
+  overdue: boolean;
   deletion: {
     status: 'WAITING_FOR_MINT_FINALITY' | 'COMPLETED';
     completedAt: string | null;
-    pendingMintJobs: number;
-    retainedFinalizedNfts: number;
   } | null;
 };
 
@@ -155,14 +155,15 @@ function parseView(value: unknown): DeletionIntakeView {
   if (
     !isRecord(value) || typeof value.status !== 'string' || !statuses.includes(value.status) ||
     typeof value.requestedAt !== 'string' || typeof value.cancelUntil !== 'string' || typeof value.dueAt !== 'string' ||
-    !isNullableString(value.cancelledAt) || !isNullableString(value.processedAt) || !isNullableString(value.rejectReason)
+    !isNullableString(value.cancelledAt) || !isNullableString(value.processedAt) || !isNullableString(value.rejectReason) ||
+    (value.overdue !== undefined && typeof value.overdue !== 'boolean')
   ) {
     throw new Error('INVALID_DELETION_INTAKE_RESPONSE');
   }
   const deletion = value.deletion;
   if (deletion !== null && (!isRecord(deletion) ||
       (deletion.status !== 'WAITING_FOR_MINT_FINALITY' && deletion.status !== 'COMPLETED') ||
-      !isNullableString(deletion.completedAt) || !isCount(deletion.pendingMintJobs) || !isCount(deletion.retainedFinalizedNfts))) {
+      !isNullableString(deletion.completedAt))) {
     throw new Error('INVALID_DELETION_INTAKE_RESPONSE');
   }
   return {
@@ -173,21 +174,16 @@ function parseView(value: unknown): DeletionIntakeView {
     cancelledAt: value.cancelledAt as string | null,
     processedAt: value.processedAt as string | null,
     rejectReason: value.rejectReason as string | null,
+    overdue: value.overdue === true,
     deletion: deletion === null ? null : {
       status: (deletion as Record<string, unknown>).status as 'WAITING_FOR_MINT_FINALITY' | 'COMPLETED',
       completedAt: (deletion as Record<string, unknown>).completedAt as string | null,
-      pendingMintJobs: (deletion as Record<string, unknown>).pendingMintJobs as number,
-      retainedFinalizedNfts: (deletion as Record<string, unknown>).retainedFinalizedNfts as number,
     },
   };
 }
 
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string';
-}
-
-function isCount(value: unknown): value is number {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

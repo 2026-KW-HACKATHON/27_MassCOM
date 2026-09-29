@@ -5,11 +5,12 @@ import type { DeletionIntakeView } from './account-deletion-intake-api';
 import { AccountDeletionIntakeApiError } from './account-deletion-intake-api';
 import {
   canRequestShowcaseDeletion, describeDeletionIntake, formatKstMinute, intakeUnknownMessage, lookupFailureMessage,
+  overdueMessage,
 } from './deletion-intake-copy';
 
 const view: DeletionIntakeView = {
   status: 'REQUESTED', requestedAt: '2026-10-01T00:00:00.000Z', cancelUntil: '2026-10-02T00:00:00.000Z',
-  dueAt: '2026-10-08T00:00:00.000Z', cancelledAt: null, processedAt: null, rejectReason: null, deletion: null,
+  dueAt: '2026-10-08T00:00:00.000Z', cancelledAt: null, processedAt: null, rejectReason: null, overdue: false, deletion: null,
 };
 
 test('only a showcase bearer session files a deletion inside the app', () => {
@@ -40,6 +41,14 @@ test('an active request is cancellable through the last millisecond of the windo
   assert.match(after.lines[1]!, /취소 기간이 지났습니다/);
 });
 
+test('a request still waiting after its 7 day deadline says so and never promises a date', () => {
+  const late = describeDeletionIntake({ ...view, overdue: true }, new Date('2026-10-09T00:00:00.000Z'));
+  assert.equal(late.title, '삭제 요청이 접수됐어요');
+  assert.equal(late.lines.at(-1), '처리 기한이 지났어요. 문의해 주세요.');
+  assert.equal(late.canCancel, false);
+  assert.equal(describeDeletionIntake(view, new Date('2026-10-09T00:00:00.000Z')).lines.includes(overdueMessage), false);
+});
+
 test('finished requests never claim more than the server said', () => {
   const now = new Date('2026-10-03T00:00:00.000Z');
   assert.match(describeDeletionIntake({ ...view, status: 'CANCELLED', cancelledAt: '2026-10-01T01:00:00.000Z' }, now).title, /삭제 요청을 취소했어요/);
@@ -47,11 +56,11 @@ test('finished requests never claim more than the server said', () => {
   assert.match(rejected.lines[0]!, /본인 확인 불가/);
   assert.match(rejected.lines[1]!, /삭제되지 않았고/);
   const waiting = describeDeletionIntake({ ...view, status: 'PROCESSED',
-    deletion: { status: 'WAITING_FOR_MINT_FINALITY', completedAt: null, pendingMintJobs: 1, retainedFinalizedNfts: 0 } }, now);
+    deletion: { status: 'WAITING_FOR_MINT_FINALITY', completedAt: null } }, now);
   assert.equal(waiting.title, '삭제 처리 중이에요');
   assert.match(waiting.lines[0]!, /완료라고 표시하지 않습니다/);
   const done = describeDeletionIntake({ ...view, status: 'PROCESSED',
-    deletion: { status: 'COMPLETED', completedAt: '2026-10-03T00:00:00.000Z', pendingMintJobs: 0, retainedFinalizedNfts: 0 } }, now);
+    deletion: { status: 'COMPLETED', completedAt: '2026-10-03T00:00:00.000Z' } }, now);
   assert.equal(done.title, '삭제 처리가 끝났어요');
   for (const finished of [rejected, waiting, done]) assert.equal(finished.canCancel, false);
 });

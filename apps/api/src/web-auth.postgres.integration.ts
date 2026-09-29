@@ -76,6 +76,11 @@ test('OIDC callback consumes browser-bound state once and creates only a web ses
     verifiedNonce = new URL(deletionStart.location).searchParams.get('nonce')!;
     const deletionSession = await service.complete('one-time-code', deletionStart.state, deletionStart.state, 'https://masscom.kr');
     assert.equal(deletionSession.returnTo, '/account-deletion');
+    // Logging in again from the deletion page gives a session the 10 minute rule accepts for filing.
+    const justLoggedIn = await service.resolveSessionWithAge(deletionSession.token, 'https://masscom.kr');
+    assert.equal(justLoggedIn.accountId, accountId);
+    assert.ok(justLoggedIn.ageMs >= 0 && justLoggedIn.ageMs < 10 * 60 * 1000);
+    await assert.rejects(service.resolveSessionWithAge(deletionSession.token, 'https://www.masscom.kr'), /WEB_AUTH_ORIGIN_INVALID|WEB_SESSION_INVALID/);
     await assert.rejects(service.complete('one-time-code', started.state, started.state, 'https://masscom.kr'), /WEB_AUTH_STATE_INVALID/);
     const stored = await pool.query<{ token_hash: Buffer }>(
       'SELECT token_hash FROM web_sessions WHERE account_id = $1 AND token_hash = $2',

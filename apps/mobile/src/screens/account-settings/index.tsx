@@ -164,7 +164,7 @@ export function AccountSettingsScreen({
       const filed = await intakeClient.request({ reissue });
       setIntake({
         status: 'REQUESTED', requestedAt: filed.requestedAt, cancelUntil: filed.cancelUntil, dueAt: filed.dueAt,
-        cancelledAt: null, processedAt: null, rejectReason: null, deletion: null,
+        cancelledAt: null, processedAt: null, rejectReason: null, overdue: false, deletion: null,
       });
       setIntakeUnknown(false);
       if (filed.receipt) setReceipt(filed.receipt);

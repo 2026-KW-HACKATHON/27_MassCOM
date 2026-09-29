@@ -29,15 +29,12 @@ type StatusRow = {
   reject_reason: string | null;
   ledger_status: DeletionLedgerStatus | null;
   ledger_completed_at: Date | null;
-  ledger_pending: number | null;
-  ledger_retained: number | null;
 };
 
 const statusColumns = `
   intake.status, intake.requested_at, intake.cancel_until, intake.due_at, intake.cancelled_at,
   intake.processed_at, intake.reject_reason,
-  ledger.status AS ledger_status, ledger.completed_at AS ledger_completed_at,
-  ledger.pending_mint_jobs AS ledger_pending, ledger.retained_finalized_nfts AS ledger_retained`;
+  ledger.status AS ledger_status, ledger.completed_at AS ledger_completed_at`;
 const statusFrom = `
   FROM account_deletion_intake_requests AS intake
   LEFT JOIN account_deletion_requests AS ledger ON ledger.id = intake.deletion_request_id`;
@@ -84,9 +81,22 @@ export class PostgresAccountDeletionIntakeService implements AccountDeletionInta
         } else {
           // Rows from before receipts existed have none; a deliberate re-issue replaces a lost one. Both need the verified session.
           const receipt = generateReceipt();
-          await client.query('UPDATE account_deletion_intake_requests SET receipt_hash = $2 WHERE id = $1',
-            [existing.id, receiptHash(this.hmacSecret, receipt)]);
-          result = { receipt, receiptIssued: true, ...dates };
+          if (existing.receipt_hash === null) {
+            // A legacy filing was made under the old promise of a further identity check and nobody could look it up. The
+            // person filing again now gets the same windows as a new filing, counted from now, so the 24 hour cancellation
+            // is real and the 7 day deadline is one they were told about.
+            const now = this.now();
+            const cancelUntil = new Date(now.getTime() + cancelWindowMs);
+            const dueAt = new Date(now.getTime() + processingWindowMs);
+            await client.query(
+              `UPDATE account_deletion_intake_requests SET receipt_hash = $2, cancel_until = $3, due_at = $4 WHERE id = $1`,
+              [existing.id, receiptHash(this.hmacSecret, receipt), cancelUntil, dueAt]);
+            result = { receipt, receiptIssued: true, ...dates, cancelUntil: cancelUntil.toISOString(), dueAt: dueAt.toISOString() };
+          } else {
+            await client.query('UPDATE account_deletion_intake_requests SET receipt_hash = $2 WHERE id = $1',
+              [existing.id, receiptHash(this.hmacSecret, receipt)]);
+            result = { receipt, receiptIssued: true, ...dates };
+          }
         }
       } else {
         // A re-issue only replaces the receipt of a filing the person already made; it never starts one.
@@ -121,7 +131,7 @@ export class PostgresAccountDeletionIntakeService implements AccountDeletionInta
     const row = (await this.pool.query<StatusRow>(
       `SELECT ${statusColumns} ${statusFrom} WHERE intake.account_id = $1`, [accountId],
     )).rows[0];
-    return row ? statusView(row) : null;
+    return row ? statusView(row, this.now()) : null;
   }
 
   async cancel(accountId: string): Promise<{ status: 'CANCELLED' }> {
@@ -163,11 +173,11 @@ export class PostgresAccountDeletionIntakeService implements AccountDeletionInta
       [receiptHash(this.hmacSecret, receipt)],
     )).rows[0];
     if (!row) throw new AccountDeletionIntakeError('DELETION_RECEIPT_NOT_FOUND');
-    return statusView(row);
+    return statusView(row, this.now());
   }
 }
 
-function statusView(row: StatusRow): DeletionIntakeStatusView {
+function statusView(row: StatusRow, now: Date): DeletionIntakeStatusView {
   return {
     status: row.status,
     requestedAt: row.requested_at.toISOString(),
@@ -176,11 +186,10 @@ function statusView(row: StatusRow): DeletionIntakeStatusView {
     cancelledAt: row.cancelled_at?.toISOString() ?? null,
     processedAt: row.processed_at?.toISOString() ?? null,
     rejectReason: row.reject_reason,
+    overdue: row.status === 'REQUESTED' && now.getTime() > row.due_at.getTime(),
     deletion: row.ledger_status === null ? null : {
       status: row.ledger_status,
       completedAt: row.ledger_completed_at?.toISOString() ?? null,
-      pendingMintJobs: row.ledger_pending ?? 0,
-      retainedFinalizedNfts: row.ledger_retained ?? 0,
     },
   };
 }

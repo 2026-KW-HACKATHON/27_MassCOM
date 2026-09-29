@@ -88,6 +88,10 @@ const armedMessage = '한 번 더 누르면 이 계정의 로그인·지갑 연�
 const sourceLabels = { WEB: '웹 접수', SHOWCASE_APP: '시연 앱 접수' };
 const statusLabels = { REQUESTED: '대기', CANCELLED: '취소됨', PROCESSED: '처리 완료', REJECTED: '거절됨' };
 const ledgerLabels = { WAITING_FOR_MINT_FINALITY: '제출된 거래 결과 확인 중', COMPLETED: '삭제 완료' };
+// 접수번호가 없는 옛 접수는 처리하지 않는다. 접수한 사람이 "본인 확인이 더 필요하다"고 안내받은 요청이라 다시 접수해야 한다.
+const legacyNote = '옛 접수: 본인이 다시 접수해야 처리할 수 있어요';
+// 요청자는 접수번호로 거절 사유를 그대로 본다.
+const rejectHint = '요청자가 접수번호로 이 사유를 그대로 봅니다. 개인정보를 쓰지 마세요.';
 
 // 한국 표준시 분 단위. 서버 시각은 UTC ISO이고 운영자는 KST 기한을 본다.
 export function formatKst(iso) {
@@ -98,11 +102,15 @@ export function formatKst(iso) {
 
 function deletionErrorText(error) {
   if (error.code === 'DELETION_COOLING_OFF') return '아직 취소 기간이라 처리할 수 없습니다.';
+  if (error.code === 'DELETION_LEGACY_NEEDS_REFILE') return `${legacyNote}. 거절하면 그 사람이 다시 접수할 수 있습니다.`;
+  if (error.code === 'DELETION_BUSY') return '다른 처리와 겹쳤습니다. 잠시 뒤 다시 시도해 주세요.';
   if (error.code === 'DELETION_SELF_PROCESSING_REFUSED') return '본인 요청은 처리할 수 없습니다. 다른 관리자가 처리해야 합니다.';
   if (error.code === 'DELETION_INTAKE_NOT_PENDING' || error.code === 'DELETION_INTAKE_NOT_FOUND') {
     return '이미 처리·취소·거절된 요청입니다. 새로고침해 주세요.';
   }
-  if (error.code === 'DELETION_REJECT_REASON_INVALID') return '거절 사유를 1자 이상 200자 이하로 입력해 주세요.';
+  if (error.code === 'DELETION_REJECT_REASON_INVALID') {
+    return '거절 사유를 1자 이상 200자 이하로 입력해 주세요. 이메일·웹 주소·전화번호처럼 보이는 내용은 쓸 수 없습니다.';
+  }
   return '요청을 처리하지 못했습니다.';
 }
 
@@ -112,8 +120,9 @@ function deletionRow(fetcher, doc, intake, status) {
   }
   const row = doc.createElement('div');
   row.className = 'admin-deletion';
+  const legacy = intake.status === 'REQUESTED' && intake.hasReceipt === false;
   const head = doc.createElement('p');
-  head.textContent = `${sourceLabels[intake.source]} · ${statusLabels[intake.status]} · 계정 ${intake.accountLabel ?? '삭제됨'}${intake.hasReceipt === false ? ' · 옛 접수(접수번호 없음)' : ''}`;
+  head.textContent = `${sourceLabels[intake.source]} · ${statusLabels[intake.status]} · 계정 ${intake.accountLabel ?? '삭제됨'}${legacy ? ` · ${legacyNote}` : ''}`;
   const dates = doc.createElement('p');
   dates.textContent = `접수 ${formatKst(intake.requestedAt)} · 취소 마감 ${formatKst(intake.cancelUntil)} · 처리 기한 ${formatKst(intake.dueAt)}${intake.overdue ? ' · 기한 초과' : ''}`;
   row.append(head, dates);
@@ -138,7 +147,7 @@ function deletionRow(fetcher, doc, intake, status) {
     process.textContent = text;
     process.setAttribute('aria-label', `${subject} ${text}`);
   };
-  setProcessLabel(intake.canProcess ? '삭제 처리' : '취소 기간 중 · 처리 불가');
+  setProcessLabel(intake.canProcess ? '삭제 처리' : legacy ? '처리 불가 · 다시 접수 필요' : '취소 기간 중 · 처리 불가');
   let armed = false;
   let timer;
   const disarm = () => {
@@ -170,11 +179,15 @@ function deletionRow(fetcher, doc, intake, status) {
       process.disabled = false;
     }
   });
+  const hint = doc.createElement('p');
+  hint.id = `deletion-reason-hint-${intake.id}`;
+  hint.textContent = rejectHint;
   const reason = doc.createElement('input');
   reason.name = 'reason';
   reason.maxLength = 200;
   reason.required = true;
   reason.setAttribute('aria-label', `${subject} 거절 사유`);
+  reason.setAttribute('aria-describedby', hint.id);
   reason.placeholder = '거절 사유';
   const reject = doc.createElement('button');
   reject.type = 'button';
@@ -193,7 +206,7 @@ function deletionRow(fetcher, doc, intake, status) {
       reject.disabled = false;
     }
   });
-  row.append(process, reason, reject);
+  row.append(process, hint, reason, reject);
   return row;
 }
 

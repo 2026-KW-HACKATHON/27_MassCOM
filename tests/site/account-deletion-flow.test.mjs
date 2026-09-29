@@ -250,6 +250,46 @@ test('page cancels only what the server confirms and explains each refusal', asy
   assert.match(wrong.node('deletion-status').textContent, /취소했다고 간주하지 않습니다/);
 });
 
+test('a request still waiting after its deadline says so, and a missing or false overdue keeps the normal wording', async () => {
+  const late = page(async () => reply(200, { ...view, cancelUntil: '2026-10-01T06:00:00.000Z', overdue: true }));
+  late.node('deletion-receipt-input').value = receipt;
+  await late.submit('deletion-lookup');
+  const text = late.node('deletion-lookup-result').textContent;
+  assert.match(text, /접수됨 · 처리 기한이 지났어요\. 문의해 주세요\./);
+  assert.doesNotMatch(text, /운영자가 처리합니다/, 'an overdue request is not promised to be processed soon');
+  for (const body of [{ ...view, overdue: false }, view]) {
+    const normal = page(async () => reply(200, { ...body, cancelUntil: '2026-10-01T06:00:00.000Z' }));
+    normal.node('deletion-receipt-input').value = receipt;
+    await normal.submit('deletion-lookup');
+    assert.doesNotMatch(normal.node('deletion-lookup-result').textContent, /처리 기한이 지났어요/);
+    assert.match(normal.node('deletion-lookup-result').textContent, /취소 기간이 지나 운영자가 처리합니다/);
+  }
+  // A finished request is never shown as late, even if a server sent the flag.
+  const done = page(async () => reply(200, { ...view, status: 'CANCELLED', cancelledAt: filed.requestedAt, overdue: true }));
+  done.node('deletion-receipt-input').value = receipt;
+  await done.submit('deletion-lookup');
+  assert.doesNotMatch(done.node('deletion-lookup-result').textContent, /처리 기한이 지났어요/);
+});
+
+test('the lookup form cannot put the receipt in a URL even when the script does not run', () => {
+  const form = html.match(/<form id="deletion-lookup"[^>]*>([\s\S]*?)<\/form>/);
+  assert.ok(form);
+  assert.match(html, /<form id="deletion-lookup" method="post" action="#">/);
+  const input = form[1].match(/<input id="deletion-receipt-input"[^>]*>/)?.[0];
+  assert.ok(input);
+  assert.doesNotMatch(input, /\sname=/, 'an input without a name is not submitted by the browser');
+});
+
+test('the kept-information list names the pseudonymized records and the page invites an objection', () => {
+  const kept = html.match(/<h2>보존될 수 있는 정보<\/h2>\s*<ul>([\s\S]*?)<\/ul>/)?.[1];
+  assert.ok(kept, 'the kept-information list must exist');
+  for (const term of ['방문 기록', '쿠폰(이미 사용한 쿠폰 포함)', '캠페인 참여 기록', 'QR 수령 기록', '지갑 연결 주소 기록', '비식별 별칭']) {
+    assert.ok(kept.includes(term), `the list must mention ${term}`);
+  }
+  assert.match(html, /처리 결과에 이의가 있으면 <a href="mailto:[^"]+">문의 이메일<\/a>로 알려 주세요/);
+  assert.match(html, /처리 기한이 지났다<\/strong>고 표시하니 문의해 주세요/);
+});
+
 test('page looks a receipt up by body only and renders every status without account data', async () => {
   const cases = [
     [view, /접수됨 · 아직 취소할 수 있습니다\. 취소 마감 2026-10-02 09:00 KST · 처리 기한 2026-10-08 09:00 KST/],

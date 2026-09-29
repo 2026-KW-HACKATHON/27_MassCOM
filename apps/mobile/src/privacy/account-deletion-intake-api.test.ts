@@ -74,13 +74,24 @@ test('the current request is read with GET, an absent request is undefined and a
   assert.equal(await none.api.current(), undefined);
   assert.equal(none.calls[0]!.init.method, 'GET');
   assert.equal(none.calls[0]!.init.body, undefined);
-  const view = { status: 'REQUESTED', ...dates, cancelledAt: null, processedAt: null, rejectReason: null, deletion: null };
+  const view = { status: 'REQUESTED', ...dates, cancelledAt: null, processedAt: null, rejectReason: null, overdue: false, deletion: null };
   const some = client(() => json(200, { request: view }));
   assert.deepEqual(await some.api.current(), view);
-  for (const bad of [{ ...view, status: 'GONE' }, { ...view, deletion: { status: 'X' } }, { ...view, cancelledAt: 3 }]) {
+  for (const bad of [{ ...view, status: 'GONE' }, { ...view, deletion: { status: 'X' } }, { ...view, cancelledAt: 3 },
+    { ...view, overdue: 'yes' }]) {
     await assert.rejects(client(() => json(200, { request: bad })).api.current(), /INVALID_DELETION_INTAKE_RESPONSE/);
   }
   await assert.rejects(client(() => json(200, {})).api.current(), /INVALID_DELETION_INTAKE_RESPONSE/);
+});
+
+test('a view from a server that predates overdue or still sends ledger counts is accepted without the counts', async () => {
+  const older = { status: 'PROCESSED', ...dates, cancelledAt: null, processedAt: '2026-10-03T00:00:00.000Z', rejectReason: null,
+    deletion: { status: 'WAITING_FOR_MINT_FINALITY', completedAt: null, pendingMintJobs: 2, retainedFinalizedNfts: 1 } };
+  const parsed = await client(() => json(200, { request: older })).api.current();
+  assert.equal(parsed?.overdue, false, 'a missing overdue reads as false');
+  assert.deepEqual(parsed?.deletion, { status: 'WAITING_FOR_MINT_FINALITY', completedAt: null });
+  const late = await client(() => json(200, { request: { ...older, status: 'REQUESTED', overdue: true, deletion: null } })).api.current();
+  assert.equal(late?.overdue, true);
 });
 
 test('cancel needs the server to confirm CANCELLED', async () => {
@@ -92,7 +103,8 @@ test('cancel needs the server to confirm CANCELLED', async () => {
 });
 
 const receiptView = {
-  status: 'REJECTED', ...dates, cancelledAt: null, processedAt: '2026-10-03T00:00:00.000Z', rejectReason: '본인 확인 불가', deletion: null,
+  status: 'REJECTED', ...dates, cancelledAt: null, processedAt: '2026-10-03T00:00:00.000Z', rejectReason: '본인 확인 불가',
+  overdue: false, deletion: null,
 };
 
 test('a receipt lookup posts only the receipt with the bearer session and returns the validated view', async () => {
@@ -133,7 +145,7 @@ test('only a failure with no server answer is ambiguous, and a recheck trusts on
     new AccountDeletionIntakeApiError(404, 'DELETION_NO_ACTIVE_REQUEST'), new AccountDeletionIntakeApiError(401, 'WEB_SESSION_INVALID')]) {
     assert.equal(isAmbiguousIntakeFailure(answered), false, String(answered));
   }
-  const view = { status: 'REQUESTED' as const, ...dates, cancelledAt: null, processedAt: null, rejectReason: null, deletion: null };
+  const view = { status: 'REQUESTED' as const, ...dates, cancelledAt: null, processedAt: null, rejectReason: null, overdue: false, deletion: null };
   assert.deepEqual(await recheckIntake({ current: async () => view }), { kind: 'found', view });
   assert.deepEqual(await recheckIntake({ current: async () => undefined }), { kind: 'unknown' });
   assert.deepEqual(await recheckIntake({ current: async () => { throw new TypeError('offline'); } }), { kind: 'unknown' });

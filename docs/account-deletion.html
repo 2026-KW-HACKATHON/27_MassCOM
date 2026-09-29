@@ -74,9 +74,9 @@
 
       <h2>처리 결과 확인</h2>
       <p>접수번호를 입력하면 로그인하지 않아도 처리 상태를 볼 수 있습니다. 상태와 날짜만 보여 드리며 계정 정보는 보여 드리지 않습니다.</p>
-      <form id="deletion-lookup">
+      <form id="deletion-lookup" method="post" action="#">
         <label for="deletion-receipt-input">접수번호 (예: 7K2M-Q9XD-4HTB-0RWE)</label>
-        <input id="deletion-receipt-input" name="receipt" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" required>
+        <input id="deletion-receipt-input" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" required>
         <button class="legal-action" type="submit">처리 상태 확인</button>
       </form>
       <p id="deletion-lookup-result" class="legal-result" role="status" aria-live="polite">접수번호를 입력한 뒤 확인을 누르세요.</p>
@@ -84,7 +84,7 @@
 
       <h2>삭제되는 정보</h2>
       <ul>
-        <li>로그인 세션과 사용 중인 지갑 연결 상태</li>
+        <li>로그인 세션(웹·앱 로그인 기록을 남기지 않고 삭제합니다)과 사용 중인 지갑 연결 상태</li>
         <li>미전송 NFT 발행 작업과 연결된 미사용 보상권</li>
         <li>점주·직원 권한과 계정에 연결된 직접 식별 상태</li>
         <li>사용 가능한 SIWE nonce와 기기의 WalletConnect 세션</li>
@@ -95,6 +95,7 @@
       <ul>
         <li>이미 제출되거나 확정된 블록체인 거래와 NFT 자산 기록</li>
         <li>중복 발행 방지와 거래 대조에 필요한 비식별 처리 기록</li>
+        <li>삭제하지 않고 계정 식별자만 비식별 별칭으로 바꿔 남기는 기록: 방문 기록, 쿠폰(이미 사용한 쿠폰 포함), 캠페인 참여 기록, QR 수령 기록, 지갑 연결 주소 기록. 발급 수·정원 집계, 사용 감사, 중복 발행 방지와 장부 대조에 쓰이며, 지갑 주소 자체는 별칭에 붙어 남습니다</li>
         <li>공개 블록체인에 이미 기록되어 서비스가 삭제할 수 없는 정보</li>
         <li>접수번호의 해시, 접수·처리 날짜, 처리 결과, 접수 경로, 처리한 방식, 운영자가 처리하지 않기로 할 때 적은 사유, 처리·거절 감사 기록(요청 번호와 처리한 운영자). 계정 식별자는 처리하면 접수 기록에서 지워집니다</li>
       </ul>
@@ -102,7 +103,7 @@
       <p class="legal-warning"><strong>절대 보내지 마세요:</strong> 외부 지갑 비밀번호, 개인키, 복구 문구, 송금 서명. 고객지원은 이런 정보를 요구하지 않습니다.</p>
 
       <h2>처리 상태</h2>
-      <p>삭제 요청의 상태는 <strong>접수됨</strong>(취소 가능 또는 운영자 처리 대기), <strong>취소됨</strong>, <strong>처리 완료</strong>, <strong>처리되지 않음</strong> 넷입니다. 처리 완료는 위 삭제 대상을 삭제·비식별 처리했다는 뜻입니다. 제출된 거래가 있으면 체인 결과를 확인할 때까지 <strong>거래 결과 확인 중</strong>으로 표시하고 완료라고 하지 않습니다. 처리되지 않음은 접수를 처리할 수 없다고 운영자가 판단한 경우이며 사유를 함께 알려 드립니다. 그 경우 계정은 삭제되지 않았고 다시 접수할 수 있습니다.</p>
+      <p>삭제 요청의 상태는 <strong>접수됨</strong>(취소 가능 또는 운영자 처리 대기), <strong>취소됨</strong>, <strong>처리 완료</strong>, <strong>처리되지 않음</strong> 넷입니다. 처리 완료는 위 삭제 대상을 삭제·비식별 처리했다는 뜻입니다. 제출된 거래가 있으면 체인 결과를 확인할 때까지 <strong>거래 결과 확인 중</strong>으로 표시하고 완료라고 하지 않습니다. 처리되지 않음은 접수를 처리할 수 없다고 운영자가 판단한 경우이며 사유를 함께 알려 드립니다. 그 경우 계정은 삭제되지 않았고 다시 접수할 수 있습니다. 접수한 지 7일이 지나도 접수됨 상태이면 <strong>처리 기한이 지났다</strong>고 표시하니 문의해 주세요. 처리 결과에 이의가 있으면 <a href="mailto:choijunhuk2007@gmail.com?subject=%EA%B3%84%EC%A0%95%20%EC%82%AD%EC%A0%9C%20%EB%AC%B8%EC%9D%98">문의 이메일</a>로 알려 주세요.</p>
     </main>
 
     <footer class="legal-footer">
@@ -238,6 +239,10 @@
     const lookupResult = $('deletion-lookup-result');
     function describe(view) {
       if (view.status === 'REQUESTED') {
+        // overdue는 서버 시각으로 정한다. 기한이 지났으면 곧 처리한다고 약속하지 않고 문의를 안내한다.
+        if (view.overdue === true) {
+          return '접수됨 · 처리 기한이 지났어요. 문의해 주세요. 취소 마감 ' + kst(view.cancelUntil) + ' · 처리 기한 ' + kst(view.dueAt);
+        }
         const open = Date.now() <= Date.parse(view.cancelUntil);
         return '접수됨 · ' + (open ? '아직 취소할 수 있습니다.' : '취소 기간이 지나 운영자가 처리합니다.') +
           ' 취소 마감 ' + kst(view.cancelUntil) + ' · 처리 기한 ' + kst(view.dueAt);

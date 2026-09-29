@@ -12,7 +12,10 @@ export type DeletionIntakeReceipt = {
   dueAt: string;
 };
 
-/** The requester-visible state. It never carries an account ID, an email or any operator identity. */
+/**
+ * The requester-visible state. It never carries an account ID, an email or any operator identity, and it carries no
+ * mint-job or NFT counts: anyone holding the receipt may read it, and those counts describe the account's holdings.
+ */
 export type DeletionIntakeStatusView = {
   status: DeletionIntakeStatus;
   requestedAt: string;
@@ -21,12 +24,9 @@ export type DeletionIntakeStatusView = {
   cancelledAt: string | null;
   processedAt: string | null;
   rejectReason: string | null;
-  deletion: {
-    status: DeletionLedgerStatus;
-    completedAt: string | null;
-    pendingMintJobs: number;
-    retainedFinalizedNfts: number;
-  } | null;
+  /** Still requested after the processing deadline: the requester is told to contact the operator. */
+  overdue: boolean;
+  deletion: { status: DeletionLedgerStatus; completedAt: string | null } | null;
 };
 
 export interface AccountDeletionIntakeService {
@@ -51,7 +51,10 @@ export type AdminDeletionIntake = {
   overdue: boolean;
   /** First four and last four characters of the account ID; null once the account is gone. */
   accountLabel: string | null;
-  /** False for a filing made before receipts existed: the requester has no number to look it up with. */
+  /**
+   * False for a filing made before receipts existed. Its filer was told that a further identity check would come, so it
+   * is never processed: the person files again (which issues a receipt and restarts the windows) or the operator rejects it.
+   */
   hasReceipt: boolean;
   processedAt: string | null;
   processedBy: string | null;
@@ -78,8 +81,10 @@ export type AccountDeletionIntakeErrorCode =
   | 'DELETION_INTAKE_NOT_FOUND'
   | 'DELETION_INTAKE_NOT_PENDING'
   | 'DELETION_COOLING_OFF'
+  | 'DELETION_LEGACY_NEEDS_REFILE'
   | 'DELETION_SELF_PROCESSING_REFUSED'
-  | 'DELETION_REJECT_REASON_INVALID';
+  | 'DELETION_REJECT_REASON_INVALID'
+  | 'DELETION_BUSY';
 
 export class AccountDeletionIntakeError extends Error {
   constructor(readonly code: AccountDeletionIntakeErrorCode) {

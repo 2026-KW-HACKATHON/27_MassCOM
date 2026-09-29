@@ -11,16 +11,29 @@ import {
   type DeletionLedgerStatus,
   type DeletionOperator,
 } from '../account-deletion-intake.js';
+import { rejectReasonLooksPersonal } from '../deletion-reject-reason.js';
+import { safeErrorMetadata } from '../security-log.js';
 import { PostgresAccountDeletionService, markIntakeProcessed, reconcileWaitingRequests } from './account-deletion.js';
 import { PostgresAccountLifecycle } from './account-lifecycle.js';
 import { assertPlatformAdmin } from './admin.js';
+
+/** An operator attempt the service refused. Tests observe it here; without a sink it goes to the log as a safe metadata line. */
+export type DeletionRefusal = {
+  action: 'process' | 'reject';
+  code: 'DELETION_SELF_PROCESSING_REFUSED' | 'DELETION_COOLING_OFF' | 'DELETION_LEGACY_NEEDS_REFILE';
+};
 
 type Options = {
   hmacSecret: string;
   policyVersion: string;
   now?: () => Date;
   nextRequestId?: () => string;
+  onRefusal?: (refusal: DeletionRefusal) => void;
 };
+
+const loggedRefusals: ReadonlySet<string> = new Set<DeletionRefusal['code']>([
+  'DELETION_SELF_PROCESSING_REFUSED', 'DELETION_COOLING_OFF', 'DELETION_LEGACY_NEEDS_REFILE',
+]);
 
 type IntakeRow = {
   id: string;
@@ -57,9 +70,11 @@ export class PostgresAccountDeletionProcessingService implements AccountDeletion
   private readonly lifecycle: PostgresAccountLifecycle;
   private readonly deletion: PostgresAccountDeletionService;
   private readonly now: () => Date;
+  private readonly onRefusal: ((refusal: DeletionRefusal) => void) | undefined;
 
   constructor(private readonly pool: Pool, options: Options) {
     this.now = options.now ?? (() => new Date());
+    this.onRefusal = options.onRefusal;
     this.lifecycle = new PostgresAccountLifecycle({ hmacSecret: options.hmacSecret });
     this.deletion = new PostgresAccountDeletionService(pool, {
       hmacSecret: options.hmacSecret,
@@ -79,9 +94,32 @@ export class PostgresAccountDeletionProcessingService implements AccountDeletion
       return result;
     } catch (error) {
       await client.query('ROLLBACK');
+      // Locks are taken in one order (see lockOperatorAndTarget), so this should not happen; if it ever does, the operator
+      // is told to retry instead of seeing a database error.
+      if (typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '40P01') {
+        throw new AccountDeletionIntakeError('DELETION_BUSY');
+      }
       throw error;
     } finally {
       client.release();
+    }
+  }
+
+  /**
+   * The refused-attempt trail: a refusal rolls back its transaction, so it is logged here, outside it. The line is the
+   * event name and the refusal code only (the privacy log scan admits nothing else from this layer), so it carries no
+   * account ID, filing ID or operator name.
+   */
+  private async refusalLogged<T>(action: DeletionRefusal['action'], run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      if (error instanceof AccountDeletionIntakeError && loggedRefusals.has(error.code)) {
+        if (this.onRefusal) this.onRefusal({ action, code: error.code as DeletionRefusal['code'] });
+        else if (action === 'process') console.warn(safeErrorMetadata('account_deletion.process_refused', error, loggedRefusals));
+        else console.warn(safeErrorMetadata('account_deletion.reject_refused', error, loggedRefusals));
+      }
+      throw error;
     }
   }
 
@@ -110,13 +148,17 @@ export class PostgresAccountDeletionProcessingService implements AccountDeletion
   }
 
   async process(operator: DeletionOperator, intakeId: string): Promise<AdminDeletionIntake> {
-    return this.transaction(async (client) => {
+    return this.refusalLogged('process', () => this.transaction(async (client) => {
+      await this.lockOperatorAndTarget(client, operator, intakeId);
       await this.authorize(client, operator);
       const pending = await this.lockPending(client, operator, intakeId);
       const now = this.now();
       if (now.getTime() <= pending.cancel_until.getTime()) {
         throw new AccountDeletionIntakeError('DELETION_COOLING_OFF');
       }
+      // A filing with no receipt predates receipts; its filer was told a further identity check would come, and nobody could
+      // look it up. It is processed only after the person files again (which issues a receipt and restarts the windows).
+      if (!pending.has_receipt) throw new AccountDeletionIntakeError('DELETION_LEGACY_NEEDS_REFILE');
       const { row: ledger } = await this.deletion.forgetInTransaction(client, pending.account_id, now);
       await markIntakeProcessed(client, pending.account_id, ledger.id, now, processedBy(operator));
       const after = await this.load(client, intakeId, now);
@@ -124,16 +166,18 @@ export class PostgresAccountDeletionProcessingService implements AccountDeletion
         { intakeId, source: pending.source, status: 'REQUESTED' },
         { intakeId, source: pending.source, status: 'PROCESSED', ledgerStatus: ledger.status });
       return after;
-    });
+    }));
   }
 
   async reject(operator: DeletionOperator, intakeId: string, reason: string): Promise<AdminDeletionIntake> {
     const trimmed = typeof reason === 'string' ? reason.trim() : '';
     // eslint-disable-next-line no-control-regex
-    if (trimmed.length < 1 || trimmed.length > 200 || /[\u0000-\u001f\u007f]/.test(trimmed)) {
+    if (trimmed.length < 1 || trimmed.length > 200 || /[\u0000-\u001f\u007f]/.test(trimmed) ||
+        rejectReasonLooksPersonal(trimmed)) {
       throw new AccountDeletionIntakeError('DELETION_REJECT_REASON_INVALID');
     }
-    return this.transaction(async (client) => {
+    return this.refusalLogged('reject', () => this.transaction(async (client) => {
+      await this.lockOperatorAndTarget(client, operator, intakeId);
       await this.authorize(client, operator);
       const pending = await this.lockPending(client, operator, intakeId);
       const now = this.now();
@@ -148,7 +192,7 @@ export class PostgresAccountDeletionProcessingService implements AccountDeletion
         { intakeId, source: pending.source, status: 'REQUESTED' },
         { intakeId, source: pending.source, status: 'REJECTED', reason: trimmed });
       return after;
-    });
+    }));
   }
 
   async reconcile(operator: DeletionOperator): Promise<{ checked: number; completed: number; waiting: number }> {
@@ -164,6 +208,20 @@ export class PostgresAccountDeletionProcessingService implements AccountDeletion
   }
 
   /**
+   * An administrator holds their own account's lock (to be checked as an administrator) and then the target's. Two
+   * administrators acting on each other's filings would each hold one and wait for the other, so both locks are taken
+   * first, in the one sorted order every account lock uses. The filing is peeked at without a lock; `lockPending`
+   * re-reads it under the locks. The CLI operator has no account and needs only the target's lock, taken there.
+   */
+  private async lockOperatorAndTarget(client: PoolClient, operator: DeletionOperator, intakeId: string): Promise<void> {
+    if (operator.kind !== 'admin' || !uuidPattern.test(intakeId)) return;
+    const target = (await client.query<{ account_id: string | null }>(
+      'SELECT account_id FROM account_deletion_intake_requests WHERE id = $1', [intakeId],
+    )).rows[0]?.account_id;
+    await this.lifecycle.lockAllForDeletion(client, target ? [operator.accountId, target] : [operator.accountId]);
+  }
+
+  /**
    * Finds the filing, refuses an operator acting on their own, then takes the same locks as filing and cancelling
    * (account advisory lock, then the row) so the three cannot interleave.
    */
@@ -171,7 +229,7 @@ export class PostgresAccountDeletionProcessingService implements AccountDeletion
     client: PoolClient,
     operator: DeletionOperator,
     intakeId: string,
-  ): Promise<{ account_id: string; source: DeletionIntakeSource; cancel_until: Date }> {
+  ): Promise<{ account_id: string; source: DeletionIntakeSource; cancel_until: Date; has_receipt: boolean }> {
     if (!uuidPattern.test(intakeId)) throw new AccountDeletionIntakeError('DELETION_INTAKE_NOT_FOUND');
     const peek = (await client.query<{ account_id: string | null; status: DeletionIntakeStatus }>(
       'SELECT account_id, status FROM account_deletion_intake_requests WHERE id = $1', [intakeId],
@@ -186,14 +244,15 @@ export class PostgresAccountDeletionProcessingService implements AccountDeletion
     await this.lifecycle.lockForDeletion(client, peek.account_id);
     const row = (await client.query<{
       account_id: string | null; status: DeletionIntakeStatus; source: DeletionIntakeSource; cancel_until: Date;
+      has_receipt: boolean;
     }>(
-      `SELECT account_id, status, source, cancel_until
+      `SELECT account_id, status, source, cancel_until, receipt_hash IS NOT NULL AS has_receipt
        FROM account_deletion_intake_requests WHERE id = $1 FOR UPDATE`, [intakeId],
     )).rows[0];
     if (!row || row.status !== 'REQUESTED' || row.account_id !== peek.account_id) {
       throw new AccountDeletionIntakeError('DELETION_INTAKE_NOT_PENDING');
     }
-    return { account_id: row.account_id, source: row.source, cancel_until: row.cancel_until };
+    return { account_id: row.account_id, source: row.source, cancel_until: row.cancel_until, has_receipt: row.has_receipt };
   }
 
   private async load(client: PoolClient, intakeId: string, now: Date): Promise<AdminDeletionIntake> {
@@ -244,7 +303,8 @@ function adminIntake(row: IntakeRow, now: Date): AdminDeletionIntake {
     requestedAt: row.requested_at.toISOString(),
     cancelUntil: row.cancel_until.toISOString(),
     dueAt: row.due_at.toISOString(),
-    canProcess: requested && now.getTime() > row.cancel_until.getTime(),
+    // A filing with no receipt is never processable: its filer must file again first.
+    canProcess: requested && row.has_receipt && now.getTime() > row.cancel_until.getTime(),
     overdue: requested && now.getTime() > row.due_at.getTime(),
     accountLabel: row.account_id === null ? null : maskAccountId(row.account_id),
     hasReceipt: row.has_receipt,

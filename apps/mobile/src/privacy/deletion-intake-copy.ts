@@ -19,6 +19,9 @@ export function formatKstMinute(iso: string): string {
   return `${new Date(time + 9 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ')} KST`;
 }
 
+/** Shown when a request is still waiting after its 7 day deadline; the app does not promise a new date. */
+export const overdueMessage = '처리 기한이 지났어요. 문의해 주세요.';
+
 export type IntakeDescription = { title: string; lines: string[]; canCancel: boolean };
 
 export function describeDeletionIntake(view: DeletionIntakeView, now: Date): IntakeDescription {
@@ -49,6 +52,7 @@ export function describeDeletionIntake(view: DeletionIntakeView, now: Date): Int
         ? `${formatKstMinute(view.cancelUntil)}까지 취소할 수 있습니다.`
         : '취소 기간이 지났습니다. 운영자가 확인해 처리합니다.',
       `처리 기한 ${formatKstMinute(view.dueAt)}`,
+      ...(view.overdue ? [overdueMessage] : []),
     ],
     canCancel,
   };

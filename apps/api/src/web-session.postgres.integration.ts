@@ -119,7 +119,7 @@ test('resolveWithAge measures a login against the store clock, per session, and 
   await assert.rejects(store.resolveWithAge(fresh.token, 'masscom.kr'), /WEB_SESSION_INVALID/);
 }));
 
-test('account deletion revokes every web session and blocks a racing new login', {
+test('account deletion deletes every web session, leaves no row with the raw account ID and blocks a racing new login', {
   skip: safeTestTarget ? false : 'requires a disposable _test PostgreSQL database',
 }, async () => withPool(async (pool) => {
   const accountId = `web-delete-${randomUUID()}`;
@@ -138,11 +138,13 @@ test('account deletion revokes every web session and blocks a racing new login',
   await deletion.requestDeletion({ accountId, confirmation: 'DELETE MY ACCOUNT' });
   await assert.rejects(store.resolve(first.token, 'masscom.kr'), /WEB_SESSION_INVALID/);
   await assert.rejects(store.resolve(second.token, 'www.masscom.kr'), /WEB_SESSION_INVALID/);
-  const revoked = await pool.query<{ total: number }>(
-    'SELECT count(*)::int AS total FROM web_sessions WHERE account_id = $1 AND revoked_at IS NOT NULL',
+  // Deleted, not revoked: a revoked row would keep the raw account ID after the deletion.
+  const remaining = await pool.query<{ total: number }>(
+    'SELECT count(*)::int AS total FROM web_sessions WHERE account_id = $1',
     [accountId],
   );
-  assert.equal(revoked.rows[0]?.total, 2);
+  assert.equal(remaining.rows[0]?.total, 0);
+  await assert.rejects(store.resolveWithAge(first.token, 'masscom.kr'), /WEB_SESSION_INVALID/);
   await assert.rejects(store.create(accountId, 'masscom.kr'), /ACCOUNT_DELETED/);
 
   const racingId = `web-race-${randomUUID()}`;
