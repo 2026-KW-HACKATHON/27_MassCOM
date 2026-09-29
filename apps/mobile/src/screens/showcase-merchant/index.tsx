@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, BackHandler, Pressable, ScrollView, Text, View, useColorScheme } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { createMerchantApiClient } from '@/merchant/merchant-api';
 import { findShowcaseStaffMerchant } from '@/merchant/showcase-staff';
+import { MerchantArtScreen } from '@/screens/merchant-art';
+import { MerchantArtEntryCard } from '@/screens/merchant-art/entry-card';
 import { StaffClaimScreen } from '@/screens/merchant-claim/staff';
 import { FoundationScreen } from '@/screens/foundation';
 import { colorsForScheme } from '@/theme/palette';
@@ -22,11 +24,16 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
   const colors = colorsForScheme(useColorScheme());
   const [retry, setRetry] = useState(0);
   const [tour, setTour] = useState(false);
+  const [artOpen, setArtOpen] = useState(false);
   const [logoutError, setLogoutError] = useState(false);
   const [state, setState] = useState<
     { status: 'loading' } | { status: 'denied' } | { status: 'error' } |
-    { status: 'allowed'; merchantId: string }
+    { status: 'allowed'; merchantId: string; artUrl: string | null }
   >({ status: 'loading' });
+  // The art screen reports the picture customers see, so the owner page's card follows an apply or a reset without another fetch.
+  const syncArtUrl = useCallback((artUrl: string | null) => {
+    setState((current) => (current.status === 'allowed' && current.artUrl !== artUrl ? { ...current, artUrl } : current));
+  }, []);
   const client = useMemo(
     () => apiUrl ? createCommerceApiClient({ apiUrl, credential, onSessionInvalid }) : undefined,
     [apiUrl, credential, onSessionInvalid],
@@ -35,24 +42,26 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
   useEffect(() => {
     if (tour || state.status !== 'allowed') return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      onBrowse();
+      if (artOpen) setArtOpen(false);
+      else onBrowse();
       return true;
     });
     return () => subscription.remove();
-  }, [onBrowse, state.status, tour]);
+  }, [artOpen, onBrowse, state.status, tour]);
 
   useEffect(() => {
     if (!apiUrl || !client) return;
     let active = true;
     void createMerchantApiClient(apiUrl).listMerchants()
-      .then((merchants) => findShowcaseStaffMerchant(
-        merchants.filter((merchant) => merchant.demo).map((merchant) => merchant.id),
-        client.getMerchantContext,
-      ))
-      .then((context) => {
-        if (active) setState(context
-          ? { status: 'allowed', merchantId: context.merchantId }
-          : { status: 'denied' });
+      .then(async (merchants) => {
+        const demoMerchants = merchants.filter((merchant) => merchant.demo);
+        const context = await findShowcaseStaffMerchant(demoMerchants.map((merchant) => merchant.id), client.getMerchantContext);
+        return context
+          ? { merchantId: context.merchantId, artUrl: demoMerchants.find((merchant) => merchant.id === context.merchantId)?.artUrl ?? null }
+          : undefined;
+      })
+      .then((allowed) => {
+        if (active) setState(allowed ? { status: 'allowed', ...allowed } : { status: 'denied' });
       })
       .catch(() => {
         if (active) setState({ status: 'error' });
@@ -63,6 +72,18 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
   const status = apiUrl ? state.status : 'error';
 
   if (tour) return <FoundationScreen initialRole="merchant" showcaseTour onExit={() => setTour(false)} />;
+
+  // The art page replaces this page like the tour does: this screen takes over the navigator, so there is no stack to push onto.
+  if (artOpen && state.status === 'allowed' && apiUrl) {
+    return <MerchantArtScreen
+      apiUrl={apiUrl}
+      merchantId={state.merchantId}
+      credential={credential}
+      onSessionInvalid={onSessionInvalid}
+      onBack={() => setArtOpen(false)}
+      onCurrentArtChange={syncArtUrl}
+    />;
+  }
 
   if (state.status === 'allowed' && apiUrl) {
     return <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -83,6 +104,7 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
         merchantId={state.merchantId}
         credential={credential}
         onSessionInvalid={onSessionInvalid}
+        topSlot={<MerchantArtEntryCard apiUrl={apiUrl} merchantId={state.merchantId} artUrl={state.artUrl} onPress={() => setArtOpen(true)} />}
       />
     </View>;
   }

@@ -50,6 +50,11 @@ export function canOpenShowcaseTour(packageId: string | null | undefined): boole
   return packageId === 'kr.masscom.wolgye.demo';
 }
 
+/** The owner art page (D-048) belongs to the showcase app only: the operating app is customer-only (AGENTS.md, D-038). */
+export function canOpenMerchantArtRoute(packageId: string | null | undefined): boolean {
+  return packageId === 'kr.masscom.wolgye.demo';
+}
+
 export function canOpenDeveloperMerchantRoute(
   packageId: string | null | undefined,
   credential: AccountCredential | undefined,

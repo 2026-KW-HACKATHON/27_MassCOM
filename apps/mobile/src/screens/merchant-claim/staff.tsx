@@ -1,5 +1,5 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,11 +11,13 @@ import { canIssueCustomerIdentity, createIdentityRequestGate, customerIdentityCo
 import { colorsForScheme } from '@/theme/palette';
 import { makeMerchantClaimStyles } from './styles';
 
-export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInvalid }: {
+export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInvalid, topSlot }: {
   apiUrl: string;
   merchantId: string;
   credential: AccountCredential;
   onSessionInvalid: () => void | Promise<void>;
+  /** Drawn between the heading and the first step (the showcase owner page puts its art card here). */
+  topSlot?: ReactNode;
 }) {
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeMerchantClaimStyles(palette, StyleSheet.hairlineWidth));
@@ -229,6 +231,7 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
       <Text selectable style={styles.title}>고객 QR로{`\n`}방문을 확인합니다.</Text>
       <Text selectable style={styles.body}>가상 점포의 체험용 방문 확인입니다. 실제 주문·방문 혜택이 아니며 서버가 점포 권한을 확인합니다.</Text>
     </View>
+    {topSlot}
     <View style={styles.formCard}>
       <Text style={styles.cardLabel}>1 · 고객 식별</Text>
       {scanning ? <View style={{ height: 260, overflow: 'hidden', borderRadius: 14 }}>
