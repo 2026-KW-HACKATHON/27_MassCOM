@@ -16,7 +16,8 @@ export interface AiArtImageClient {
 }
 
 // chargeable: 요청이 OpenAI에 닿았고 이미지가 만들어졌는지 알 수 없어 비용이 나갔을 수 있는 실패(시간 초과·네트워크 끊김·
-// 이상한 성공 응답). HTTP 오류 응답(429·5xx·정책 차단 등)은 이미지가 만들어지지 않았으므로 false다.
+// 이상한 성공 응답). 이런 실패는 다시 보내지 않고 예상 비용을 그대로 둔다. HTTP 오류 응답(429·5xx·정책 차단 등)은 이미지가
+// 만들어지지 않았으므로 false다.
 export class AiArtGenerationError extends Error {
   constructor(readonly failureCode: AiArtFailureCode, readonly chargeable: boolean) {
     super(failureCode);
@@ -48,7 +49,10 @@ export type AiArtClientOptions = {
 
 export const aiArtRequestTimeoutMs = 180_000;
 const maxImageBytes = 4 * 1024 * 1024;
-const maxResponseBytes = 16 * 1024 * 1024;
+// 성공 본문은 base64 그림 한 장(최대 maxImageBytes*2 글자)과 usage뿐이다. 오류 본문은 짧은 JSON이라 64KB면 넉넉하다.
+// content-length는 믿지 않는다(chunked·압축 응답은 값이 없거나 다르다): 실제로 읽은 바이트를 센다.
+const maxSuccessBodyBytes = maxImageBytes * 2 + 64 * 1024;
+const maxErrorBodyBytes = 64 * 1024;
 const safeToken = /^[A-Za-z0-9_.:-]{1,128}$/;
 
 const draftSettings = { size: '1024x1024', quality: 'low', output_format: 'webp', output_compression: 70 } as const;
@@ -57,6 +61,40 @@ const finalSettings = { size: '1024x1024', quality: 'high', output_format: 'webp
 function isTimeout(error: unknown): boolean {
   return error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
 }
+
+class BodyTooLargeError extends Error {
+  constructor() {
+    super('response body too large');
+    this.name = 'BodyTooLargeError';
+  }
+}
+
+// 본문을 스트림으로 읽으면서 maxBytes를 넘는 순간 리더를 취소하고 멈춘다(넘친 바이트는 메모리에 더 쌓지 않는다).
+// fetch가 압축을 이미 풀어 주므로 세는 것은 풀린 바이트다.
+async function readBodyCapped(response: Response, maxBytes: number): Promise<Buffer> {
+  const reader = response.body?.getReader();
+  if (!reader) return Buffer.alloc(0);
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new BodyTooLargeError();
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+
+async function readJsonCapped(response: Response, maxBytes: number): Promise<unknown> {
+  return JSON.parse((await readBodyCapped(response, maxBytes)).toString('utf8'));
+}
+
+// 기본 로그: 허용된 필드(상태·오류 코드·x-request-id·횟수)만 든 객체를 그대로 찍는다. 키·프롬프트·이미지는 들어 있지 않다.
+const logToConsole: AiArtClientLog = console.log.bind(console);
 
 export class OpenAiImageClient implements AiArtImageClient {
   private readonly fetchImpl: typeof fetch;
@@ -70,7 +108,7 @@ export class OpenAiImageClient implements AiArtImageClient {
     this.timeoutMs = options.timeoutMs ?? aiArtRequestTimeoutMs;
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.random = options.random ?? Math.random;
-    this.log = options.log ?? ((event) => console.log(JSON.stringify(event)));
+    this.log = options.log ?? logToConsole;
   }
 
   generateDraft(input: { prompt: string; userHash: string }): Promise<AiArtImage> {
@@ -120,10 +158,10 @@ export class OpenAiImageClient implements AiArtImageClient {
           this.log({ event: 'ai_art.openai', kind, attempt, outcome: 'timeout' });
           throw new AiArtGenerationError('AI_ART_TIMEOUT', true);
         }
+        // 요청이 OpenAI에 닿았는지, 이미지가 만들어졌는지 알 수 없다. 다시 보내면 비용이 두 번 나갈 수 있으므로 시간 초과와
+        // 똑같이 다루어 예상 비용을 그대로 두고(chargeable) 끝낸다.
         this.log({ event: 'ai_art.openai', kind, attempt, outcome: 'network_error' });
-        if (attempt >= 2) throw new AiArtGenerationError('AI_ART_UPSTREAM_UNAVAILABLE', true);
-        await this.sleep(500 + Math.floor(this.random() * 1000));
-        continue;
+        throw new AiArtGenerationError('AI_ART_UPSTREAM_UNAVAILABLE', true);
       }
 
       const rawRequestId = response.headers.get('x-request-id');
@@ -132,7 +170,7 @@ export class OpenAiImageClient implements AiArtImageClient {
 
       let errorCode: string | undefined;
       try {
-        const body: unknown = await response.json();
+        const body: unknown = await readJsonCapped(response, maxErrorBodyBytes);
         const error = body && typeof body === 'object' ? Reflect.get(body, 'error') : undefined;
         const code = error && typeof error === 'object' ? Reflect.get(error, 'code') : undefined;
         if (typeof code === 'string' && safeToken.test(code)) errorCode = code;
@@ -141,7 +179,7 @@ export class OpenAiImageClient implements AiArtImageClient {
           this.log({ event: 'ai_art.openai', kind, attempt, outcome: 'timeout', status: response.status });
           throw new AiArtGenerationError('AI_ART_TIMEOUT', true);
         }
-        // 본문이 JSON이 아니면 상태 코드만으로 분류한다.
+        // 본문이 JSON이 아니거나 너무 크면(읽기를 멈추고 취소했다) 상태 코드만으로 분류한다.
       }
       this.log({
         event: 'ai_art.openai', kind, attempt, outcome: 'http_error', status: response.status,
@@ -166,11 +204,14 @@ export class OpenAiImageClient implements AiArtImageClient {
       });
       throw new AiArtGenerationError('AI_ART_UPSTREAM_UNAVAILABLE', true);
     };
-    const declaredLength = Number(response.headers.get('content-length') ?? 0);
-    if (declaredLength > maxResponseBytes) return invalid();
+    // 선언된 길이는 빠른 거절에만 쓴다. 상한은 아래 스트림 읽기가 실제 바이트로 지킨다.
+    if (Number(response.headers.get('content-length') ?? 0) > maxSuccessBodyBytes) {
+      await response.body?.cancel().catch(() => undefined);
+      return invalid();
+    }
     let body: unknown;
     try {
-      body = await response.json();
+      body = await readJsonCapped(response, maxSuccessBodyBytes);
     } catch (error) {
       if (isTimeout(error)) {
         this.log({ event: 'ai_art.openai', kind, attempt, outcome: 'timeout', status: response.status });

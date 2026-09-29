@@ -15,6 +15,7 @@ import {
   fakeWebp,
   hangingFetch,
   imageResponse,
+  streamingResponse,
   type FakeOpenAiHandler,
 } from './ai-art-test-support.js';
 
@@ -154,25 +155,94 @@ test('the per-request timeout goes through AbortSignal and maps to AI_ART_TIMEOU
   assert.deepEqual(sleeps, []);
 });
 
-test('a network failure is retried once and then reported as unavailable', async () => {
+test('a network failure is never retried: it stays chargeable like a timeout and fails as unavailable', async () => {
   let attempts = 0;
   const flaky = (async () => {
     attempts += 1;
     throw new TypeError('fetch failed');
   }) as typeof fetch;
-  const { client, sleeps } = makeClient(undefined, { fetch: flaky });
-  await assert.rejects(client.generateDraft({ prompt: 'p', userHash }), failure('AI_ART_UPSTREAM_UNAVAILABLE', true));
-  assert.equal(attempts, 2);
-  assert.deepEqual(sleeps, [500]);
+  for (const call of [
+    (client: OpenAiImageClient) => client.generateDraft({ prompt: 'p', userHash }),
+    (client: OpenAiImageClient) => client.editFinal({ prompt: 'p', image: fakeWebp('src'), userHash }),
+  ]) {
+    attempts = 0;
+    const { client, sleeps, logs } = makeClient(undefined, { fetch: flaky });
+    await assert.rejects(call(client), failure('AI_ART_UPSTREAM_UNAVAILABLE', true));
+    assert.equal(attempts, 1);
+    assert.deepEqual(sleeps, []);
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0]!.outcome, 'network_error');
+  }
+});
 
+test('a 5xx is retried once, but a network failure on that retry is not retried again and stays chargeable', async () => {
   let calls = 0;
-  const recovers = (async (...args: Parameters<typeof fetch>) => {
+  const failsThenDrops = (async () => {
     calls += 1;
-    if (calls === 1) throw new TypeError('fetch failed');
-    return fakeOpenAiFetch().fetch(...args);
+    if (calls === 1) return errorResponse(503, null);
+    throw new TypeError('fetch failed');
   }) as typeof fetch;
-  const ok = makeClient(undefined, { fetch: recovers });
-  assert.ok((await ok.client.generateDraft({ prompt: 'p', userHash })).image.length > 0);
+  const { client, sleeps } = makeClient(undefined, { fetch: failsThenDrops });
+  await assert.rejects(client.generateDraft({ prompt: 'p', userHash }), failure('AI_ART_UPSTREAM_UNAVAILABLE', true));
+  assert.equal(calls, 2);
+  assert.deepEqual(sleeps, [500]);
+});
+
+test('a success body that keeps streaming is cut off at the byte cap and the reader is cancelled', async () => {
+  const oneMiB = new Uint8Array(1024 * 1024).fill(0x20);
+  // content-length is absent (chunked) or a lie: neither may be trusted.
+  for (const headers of [{}, { 'content-length': '100' }]) {
+    const streaming = streamingResponse({ chunk: oneMiB, headers });
+    const { client } = makeClient(() => streaming.response);
+    await assert.rejects(client.generateDraft({ prompt: 'p', userHash }), failure('AI_ART_UPSTREAM_UNAVAILABLE', true));
+    assert.equal(streaming.stats.cancelled, true);
+    assert.ok(streaming.stats.pulledBytes <= 10 * 1024 * 1024, `read ${streaming.stats.pulledBytes} bytes`);
+  }
+});
+
+test('a success body that declares a huge length is refused without reading it', async () => {
+  const streaming = streamingResponse({ chunk: new Uint8Array(1024), headers: { 'content-length': String(100 * 1024 * 1024) } });
+  const { client } = makeClient(() => streaming.response);
+  await assert.rejects(client.generateDraft({ prompt: 'p', userHash }), failure('AI_ART_UPSTREAM_UNAVAILABLE', true));
+  assert.equal(streaming.stats.cancelled, true);
+  assert.equal(streaming.stats.pulledBytes, 0);
+});
+
+test('an error body that keeps streaming is cut off at 64 KB and the answer is classified by its status alone', async () => {
+  const sixteenKiB = new Uint8Array(16 * 1024).fill(0x20);
+  const cases = [
+    { status: 400, calls: 1, sleeps: [] as number[] },
+    { status: 503, calls: 2, sleeps: [500] },
+  ];
+  for (const { status, calls, sleeps: expectedSleeps } of cases) {
+    const streams: ReturnType<typeof streamingResponse>[] = [];
+    const endless = (async () => {
+      const streaming = streamingResponse({ status, chunk: sixteenKiB, headers: { 'content-type': 'application/json' } });
+      streams.push(streaming);
+      return streaming.response;
+    }) as typeof fetch;
+    const { client, sleeps } = makeClient(undefined, { fetch: endless });
+    await assert.rejects(client.generateDraft({ prompt: 'p', userHash }), failure('AI_ART_UPSTREAM_UNAVAILABLE', false), `status ${status}`);
+    assert.equal(streams.length, calls, `status ${status}`);
+    assert.deepEqual(sleeps, expectedSleeps, `status ${status}`);
+    for (const streaming of streams) {
+      assert.equal(streaming.stats.cancelled, true, `status ${status}`);
+      assert.ok(streaming.stats.pulledBytes <= 64 * 1024 + sixteenKiB.byteLength, `read ${streaming.stats.pulledBytes} bytes`);
+    }
+  }
+});
+
+test('a 429 whose body is too large to read is retried once like any plain 429', async () => {
+  const streams: ReturnType<typeof streamingResponse>[] = [];
+  const endless = (async () => {
+    const streaming = streamingResponse({ status: 429, chunk: new Uint8Array(32 * 1024).fill(0x20) });
+    streams.push(streaming);
+    return streaming.response;
+  }) as typeof fetch;
+  const { client } = makeClient(undefined, { fetch: endless });
+  await assert.rejects(client.generateDraft({ prompt: 'p', userHash }), failure('AI_ART_UPSTREAM_UNAVAILABLE', false));
+  assert.equal(streams.length, 2);
+  assert.ok(streams.every((streaming) => streaming.stats.cancelled));
 });
 
 test('a success body that is not a webp image is rejected as unavailable', async () => {

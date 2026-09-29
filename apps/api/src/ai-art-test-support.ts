@@ -87,3 +87,27 @@ export const hangingFetch = ((_input: string | URL | Request, init?: RequestInit
   new Promise((_resolve, reject) => {
     init?.signal?.addEventListener('abort', () => reject(init.signal!.reason), { once: true });
   })) as typeof fetch;
+
+// 본문을 조금씩(pull 때마다 chunk 하나) 흘려 주는 응답. chunks를 생략하면 끝나지 않는다. content-length는 일부러 달지 않거나
+// headers로 거짓 값을 준다. stats로 실제로 끌어간 바이트와 리더 취소 여부를 확인한다.
+export function streamingResponse(options: {
+  status?: number; headers?: Record<string, string>; chunk: Uint8Array; chunks?: number;
+}): { response: Response; stats: { pulledBytes: number; cancelled: boolean } } {
+  const stats = { pulledBytes: 0, cancelled: false };
+  let sent = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (sent >= (options.chunks ?? Number.POSITIVE_INFINITY)) {
+        controller.close();
+        return;
+      }
+      sent += 1;
+      stats.pulledBytes += options.chunk.byteLength;
+      controller.enqueue(options.chunk);
+    },
+    cancel() {
+      stats.cancelled = true;
+    },
+  }, { highWaterMark: 0 });
+  return { response: new Response(stream, { status: options.status ?? 200, headers: options.headers ?? {} }), stats };
+}
