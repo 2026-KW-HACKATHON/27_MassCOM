@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const read = (name: string) => readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8');
 
 test('every animated piece respects reduced motion', () => {
-  for (const file of ['sky-backdrop.tsx', 'floating-card.tsx', 'bounce-button.tsx', 'mascot.tsx', 'stagger.tsx']) {
+  for (const file of ['sky-art.tsx', 'floating-card.tsx', 'bounce-button.tsx', 'mascot.tsx', 'stagger.tsx']) {
     assert.match(read(file), /useMotionEnabled\(\)/, file);
   }
 });
@@ -63,14 +63,48 @@ test('header titles sit on the frosted panel while the avatar stays outside it',
 });
 
 test('the header art fades into the page colour over its last 15% in both schemes', () => {
-  const backdrop = read('sky-backdrop.tsx');
-  assert.match(backdrop, /SEAM_FRACTION = 0\.15/);
-  assert.match(backdrop, /id="seam"/);
+  const art = read('sky-art.tsx');
+  assert.match(art, /SEAM_FRACTION = 0\.15/);
+  assert.match(art, /id="seam"/);
   // The seam overlay is drawn for every scheme: it must not live inside the dark-only branch.
-  const seam = backdrop.indexOf('id="seam"');
-  const dark = backdrop.indexOf('{dark ? (');
-  const darkEnd = backdrop.indexOf(') : null}', dark);
+  const seam = art.indexOf('id="seam"');
+  const dark = art.indexOf('{dark ? (');
+  const darkEnd = art.indexOf(') : null}', dark);
   assert.ok(seam < dark || seam > darkEnd, 'seam overlay is inside the dark-only branch');
+});
+
+test('the sky art is the top of the scroll content: the headers carry it and SkyBackdrop is only the page colour', () => {
+  assert.doesNotMatch(read('sky-backdrop.tsx'), /skyTownHeader|<Image|<SkyArt/);
+  assert.match(read('sky-art.tsx'), /skyTownHeader/);
+  assert.match(read('app-header.tsx'), /<SkyArt \/>/);
+  assert.match(read('back-header.tsx'), /<SkyArt compact \/>/);
+  // The header renders inside the scroll view, before the content, so both scroll away together.
+  assert.match(read('sky-scroll-view.tsx'), /<ScrollView[\s\S]*\{header\}[\s\S]*<\/ScrollView>/);
+});
+
+test('no tab screen, the settings page or a stack page pins its header outside the scroll content', () => {
+  const screens = [
+    'screens/merchant-list/index.tsx', 'screens/collection/index.tsx', 'screens/claim-redeem/index.tsx',
+    'screens/account-settings/index.tsx',
+  ];
+  for (const file of screens) {
+    const source = readSource(file);
+    // The scroll view's own header prop, the list's header component, or the first child of a plain ScrollView.
+    assert.match(source, /header=\{|ListHeaderComponent=\{|<ScrollView[^>]*>\s*<BackHeader/, `${file} puts its header inside the scroll content`);
+    assert.doesNotMatch(source, /<SkyBackdrop>\s*<(?:AppHeader|BackHeader)/, `${file} draws its header above the scroller`);
+  }
+  assert.match(readSource('screens/merchant-list/index.tsx'), /ListHeaderComponent=\{\s*<>\s*<AppHeader/);
+  // Route files only pass a header down; they never sit one above the screen.
+  for (const file of ['app/(tabs)/claim.tsx', 'app/(tabs)/settings.tsx']) {
+    const source = readSource(file).replace(/header=\{<(?:AppHeader|BackHeader)[^>]*\/>\}/g, '').replace(/const header = <BackHeader[^>]*\/>;/, '');
+    assert.doesNotMatch(source, /<(?:AppHeader|BackHeader)/, `${file} pins a header`);
+  }
+});
+
+test('the explore header asks one short question that fits on one line', () => {
+  const list = readSource('screens/merchant-list/index.tsx');
+  assert.match(list, /<AppHeader title="어디로 탐험할까요\?" subtitle="안 가본 가게에 도장을 찍어요">/);
+  assert.doesNotMatch(list, /오늘은 어디를 탐험할까요/);
 });
 
 test('a state scene draws its own card, announces errors politely, and callers do not add a second card', () => {
@@ -204,7 +238,7 @@ test('the account page can always be left: a back button sits on every state of 
   assert.match(back, /router\.replace\('\/'\)/);
   const route = readSource('app/(tabs)/settings.tsx');
   assert.match(route, /<BackHeader/);
-  assert.match(route, /<AuthRequiredRoute \/>/);
+  assert.match(route, /<AuthRequiredRoute header=\{header\} \/>/);
 });
 
 test('the account screen keeps deletion, logout and the development preview rules', () => {

@@ -73,8 +73,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
         }
         ListHeaderComponent={
           <>
-            <AppHeader title="오늘은 어디를 탐험할까요?" subtitle="가본 적 없는 가게에 도장을 찍어 보세요" />
-            <View style={styles.header}>
+            <AppHeader title="어디로 탐험할까요?" subtitle="안 가본 가게에 도장을 찍어요">
               <View style={styles.heroRow}>
                 <View style={styles.heroCopy}>
                   <Link href="/collection" asChild>
@@ -93,6 +92,8 @@ export function MerchantListScreen({ apiUrl }: Props) {
                   accessibilityLabel={refreshing ? '목록을 찾는 마스코트' : '지도를 든 마스코트'}
                 />
               </View>
+            </AppHeader>
+            <View style={styles.header}>
               {merchants.length > 0 ? (
                 <View style={styles.discoveryTools}>
                   <View style={styles.searchField}>

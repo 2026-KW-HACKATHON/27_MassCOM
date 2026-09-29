@@ -12,6 +12,7 @@ import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
 import { Mascot } from '@/ui/mascot';
 import { mascotArt } from '@/ui/mascot-art';
+import { SkyArt } from '@/ui/sky-art';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 
 type Role = 'customer' | 'merchant';
@@ -81,6 +82,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
           />
         ) : (
           <ScrollView contentContainerStyle={styles.onboarding} showsVerticalScrollIndicator={false}>
+            {stage === 'role' ? <SkyArt /> : null}
             <View style={styles.brandRow}>
               <Image source={mascotArt['logo-badge']} accessible={false} style={styles.brandBadge} />
               <Text style={[styles.brand, { color: world.skyInk }]}>월계 마스코트</Text>

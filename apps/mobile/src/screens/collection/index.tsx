@@ -30,6 +30,7 @@ import { AppHeader } from '@/ui/app-header';
 import { FloatingCard } from '@/ui/floating-card';
 import { PassportStampPage } from '@/ui/passport-stamp-page';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
+import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
@@ -90,6 +91,7 @@ export function CollectionScreen({
   const { focus } = useLocalSearchParams<{ focus?: string }>();
   const scrollView = useRef<ScrollView>(null);
   const [rewardsY, setRewardsY] = useState<number>();
+  const [headerHeight, setHeaderHeight] = useState(0);
   const [detailKind, setDetailKind] = useState<MedalKind>();
   const [revealed, setRevealed] = useState<OpenedReward>();
   const [usingCoupon, setUsingCoupon] = useState<Coupon>();
@@ -175,11 +177,12 @@ export function CollectionScreen({
     if (focus !== 'rewards' || rewardsY === undefined) return;
     // Clear the param inside the frame: clearing it first re-runs this effect and cancels the scroll.
     const frame = requestAnimationFrame(() => {
-      scrollView.current?.scrollTo({ y: Math.max(0, rewardsY - 12), animated: true });
+      // The section's y is measured inside the content below the header, so the header's height is added.
+      scrollView.current?.scrollTo({ y: Math.max(0, headerHeight + rewardsY - 12), animated: true });
       router.setParams({ focus: undefined });
     });
     return () => cancelAnimationFrame(frame);
-  }, [focus, rewardsY, router]);
+  }, [focus, headerHeight, rewardsY, router]);
 
   useFocusEffect(useCallback(() => {
     focusCount.current += 1;
@@ -303,35 +306,32 @@ export function CollectionScreen({
   const createIdentity = useCallback(() => api.createCustomerIdentity(), [api]);
   const revokeIdentity = useCallback((token: string) => api.revokeCustomerIdentity(token), [api]);
 
+  // The header (sky art included) is the first thing inside the scroll content, so it scrolls away with the page.
+  const header = <AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" />;
   const sky = (body: ReactNode) => (
     <SkyBackdrop>
-      <AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" />
-      {body}
+      <SkyScrollView header={header} contentContainerStyle={styles.content}>{body}</SkyScrollView>
     </SkyBackdrop>
   );
 
   if (loading && !collection) {
-    return sky(
-      <View style={styles.content}>
-        <StateScene kind="loading" title="방문 도감을 펼치는 중" />
-      </View>,
-    );
+    return sky(<StateScene kind="loading" title="방문 도감을 펼치는 중" />);
   }
 
   if (!collection) {
     return sky(
-      <View style={styles.content}>
-        <StateScene kind="error" title="도감을 불러오지 못했어요" body={error} action={{ label: '다시 불러오기', onPress: () => { void refresh(); } }} />
-      </View>,
+      <StateScene kind="error" title="도감을 불러오지 못했어요" body={error} action={{ label: '다시 불러오기', onPress: () => { void refresh(); } }} />,
     );
   }
 
   const summary = collectionCounts(collection);
 
-  return sky(
-    <>
-      <ScrollView
+  return (
+    <SkyBackdrop>
+      <SkyScrollView
         ref={scrollView}
+        header={header}
+        onHeaderLayout={setHeaderHeight}
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
       >
@@ -341,7 +341,7 @@ export function CollectionScreen({
           isShowcase={isShowcase}
           stackCounts={stackCounts}
           stackMain={fontScale >= 1.5}
-          onOpenRewards={() => scrollView.current?.scrollTo({ y: Math.max(0, (rewardsY ?? 0) - 12), animated: true })}
+          onOpenRewards={() => scrollView.current?.scrollTo({ y: Math.max(0, headerHeight + (rewardsY ?? 0) - 12), animated: true })}
         />
 
         <Section title="배지">
@@ -503,7 +503,7 @@ export function CollectionScreen({
             <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>다음 음식점 추천 보기</Text>
           </Pressable>
         </Link>
-      </ScrollView>
+      </SkyScrollView>
 
       <MedalDetail medal={detailMedal} variant={variant} onClose={() => setDetailKind(undefined)} />
       <RewardReveal
@@ -523,7 +523,7 @@ export function CollectionScreen({
         onBadgeBook={replaceBadgeBook}
         onClose={() => setUsingCoupon(undefined)}
       />
-    </>,
+    </SkyBackdrop>
   );
 }
 

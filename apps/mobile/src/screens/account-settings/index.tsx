@@ -1,8 +1,8 @@
 import * as Application from 'expo-application';
 import { Button, Host } from '@expo/ui';
 import { Link } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Alert, Image, Linking, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -22,6 +22,7 @@ import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
 import { mascotArt } from '@/ui/mascot-art';
+import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { Stagger } from '@/ui/stagger';
 
 import { makeAccountSettingsStyles } from './styles';
@@ -34,6 +35,7 @@ export function AccountSettingsScreen({
   canSwitchAccount,
   onLogout,
   onSwitchAccount,
+  header,
 }: {
   apiUrl: string;
   accountId: string;
@@ -42,6 +44,8 @@ export function AccountSettingsScreen({
   canSwitchAccount: boolean;
   onLogout: () => Promise<void>;
   onSwitchAccount: () => Promise<void>;
+  /** BackHeader (sky art included); drawn first inside the scroll content so it scrolls away with the page. */
+  header: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme();
@@ -114,7 +118,7 @@ export function AccountSettingsScreen({
   }
 
   return (
-    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}>
+    <SkyScrollView header={header} contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}>
       <Stagger index={0}>
         <FloatingCard style={styles.profile}>
           <Image source={mascotArt['logo-badge']} accessible={false} style={styles.profileBadge} />
@@ -244,7 +248,7 @@ export function AccountSettingsScreen({
           </Pressable>
         </View>
       )}
-    </ScrollView>
+    </SkyScrollView>
   );
 }
 

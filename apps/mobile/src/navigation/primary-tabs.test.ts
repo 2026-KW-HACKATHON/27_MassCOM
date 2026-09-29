@@ -45,12 +45,11 @@ test('the floating bar skips hidden routes and steps aside for the keyboard', ()
 });
 
 test('every primary screen offers the account avatar', () => {
-  for (const screen of ['merchant-list', 'collection']) {
+  // The header is the first thing inside each screen's scroll content, so the claim route no longer draws one itself.
+  for (const screen of ['merchant-list', 'collection', 'claim-redeem']) {
     const source = readFileSync(fileURLToPath(new URL(`../screens/${screen}/index.tsx`, import.meta.url)), 'utf8');
     assert.match(source, /<AppHeader/, screen);
   }
-  const claim = readFileSync(join(app, '(tabs)', 'claim.tsx'), 'utf8');
-  assert.match(claim, /<AppHeader/);
 });
 
 test('the UI preview entry is development-only and cannot replace account tools', () => {

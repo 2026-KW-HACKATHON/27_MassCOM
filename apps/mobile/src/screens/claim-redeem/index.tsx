@@ -26,8 +26,10 @@ import { Celebration, type CelebrationContent } from '@/gamification/celebration
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
+import { AppHeader } from '@/ui/app-header';
 import { FloatingCard } from '@/ui/floating-card';
 import { Mascot } from '@/ui/mascot';
+import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { Stagger } from '@/ui/stagger';
 
 import { makeClaimRedeemStyles } from './styles';
@@ -217,20 +219,21 @@ export function ClaimRedeemScreen({
 
   return (
     <>
-      <ScrollView
+      <SkyScrollView
         ref={scrollView}
         keyboardShouldPersistTaps="handled"
+        header={
+          <AppHeader title="방문 인증" subtitle="가게에서 도장을 받아요">
+            <View style={styles.hero}>
+              <Mascot interactive pose="stamp" size={112} accessibilityLabel="도장을 든 마스코트" />
+              <View style={styles.heroBubble}>
+                <Text selectable style={styles.heroBubbleText}>점주에게 받은 QR을 촬영하거나 1회 코드를 입력하세요.</Text>
+              </View>
+            </View>
+          </AppHeader>
+        }
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
       >
-        <Stagger index={0}>
-          <View style={styles.hero}>
-            <Mascot interactive pose="stamp" size={112} accessibilityLabel="도장을 든 마스코트" />
-            <View style={styles.heroBubble}>
-              <Text selectable style={styles.heroBubbleText}>점주에게 받은 QR을 촬영하거나 1회 코드를 입력하세요.</Text>
-            </View>
-          </View>
-        </Stagger>
-
         <Stagger index={1}>
         <FloatingCard style={styles.formCard}>
           <Text style={styles.sectionTitle}>내 2분 식별 QR</Text>
@@ -347,7 +350,7 @@ export function ClaimRedeemScreen({
           </View>
           </Stagger>
         ) : null}
-      </ScrollView>
+      </SkyScrollView>
       <Celebration
         content={celebration}
         variant={Application.applicationId === 'kr.masscom.wolgye.demo' ? 'showcase' : 'production'}
