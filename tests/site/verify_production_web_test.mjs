@@ -1836,8 +1836,9 @@ const recentVisits = () => ({ businessDate: '2026-09-30', visits: [
 const recentRedemptions = () => ({ coupons: [
   { couponId: 'coupon-1', title: '음료 1잔', redeemedAt: '2026-09-30T03:00:00.000Z', customerLabel: '손님 K7QM',
     redeemedByMe: true, undoUntil: '2026-09-30T03:10:00.000Z', canUndo: true },
-  { couponId: 'coupon-2', title: '디저트', redeemedAt: '2026-09-30T01:00:00.000Z', customerLabel: '손님 AB2C',
-    redeemedByMe: false, undoUntil: '2026-09-30T01:10:00.000Z', canUndo: false },
+  // 되돌리기 기한이 이미 지난 쿠폰. 기한이 남았는데 canUndo=false면 '본인 쿠폰' 안내가 나오므로 확실히 지난 날짜를 쓴다.
+  { couponId: 'coupon-2', title: '디저트', redeemedAt: '2020-01-01T01:00:00.000Z', customerLabel: '손님 AB2C',
+    redeemedByMe: false, undoUntil: '2020-01-01T01:10:00.000Z', canUndo: false },
 ] });
 const cancelled = (over = {}) => ({ visitEventId: 'visit-1', status: 'CANCELED', reason: 'DUPLICATE', note: null,
   canceledAt: '2026-09-30T03:06:00.000Z', revokedRewardCount: 0, voidedCouponCount: 0, replayed: false, ...over });
@@ -1995,6 +1996,16 @@ test('점포 웹 방문 취소 버튼은 처리 중에 다시 눌러도 한 번�
   finish(okJson(cancelled()));
   await first;
   assert.equal(fixture.requests().filter((call) => call.path.endsWith('/cancel')).length, 1);
+});
+
+test('점포 웹은 기한이 남은 본인 쿠폰에 되돌리기 대신 본인 쿠폰 안내를 보인다', async () => {
+  const fixture = await reversalMerchant({ redemptions: () => okJson({ coupons: [
+    { couponId: 'coupon-3', title: '음료 1잔', redeemedAt: '2099-01-01T00:00:00.000Z', customerLabel: '손님 ME11',
+      redeemedByMe: false, undoUntil: '2099-01-01T00:10:00.000Z', canUndo: false },
+  ] }) });
+  const [own] = fixture.redemptionRows();
+  assert.equal(own.children.some((child) => child.textContent === '사용 되돌리기'), false);
+  assert.equal(own.children.find((child) => child.className === 'reversal-meta').textContent, '본인 쿠폰은 되돌릴 수 없어요.');
 });
 
 test('점포 웹은 10분 안의 쿠폰 사용만 되돌리게 하고 결과와 실패를 안내한다', async () => {

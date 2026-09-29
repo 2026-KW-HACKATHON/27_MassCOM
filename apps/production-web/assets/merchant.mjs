@@ -625,7 +625,8 @@ export function bindMerchant(fetcher, doc) {
       } else {
         const closed = doc.createElement('p');
         closed.className = 'reversal-meta';
-        closed.textContent = '되돌리기 시간이 지났어요.';
+        // 기한이 남았는데 되돌릴 수 없으면 본인 쿠폰(실제 점포)이라서다.
+        closed.textContent = Date.parse(coupon.undoUntil) > Date.now() ? '본인 쿠폰은 되돌릴 수 없어요.' : '되돌리기 시간이 지났어요.';
         item.append(closed);
       }
       redemptionList.append(item);

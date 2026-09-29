@@ -54,7 +54,10 @@ test('coupon rows show who handled it and how long the undo lasts', () => {
   assert.equal(redemptionRowText(coupon()), '음료 1잔 · 손님 K7QM · 12:00 사용 (내가 처리)');
   assert.equal(redemptionRowText(coupon({ redeemedByMe: false })), '음료 1잔 · 손님 K7QM · 12:00 사용');
   assert.equal(undoHint(coupon()), '12:10까지 되돌릴 수 있어요.');
-  assert.equal(undoHint(coupon({ canUndo: false })), '되돌리기 시간이 지났어요.');
+  const beforeWindowEnd = new Date(new Date(coupon().undoUntil).getTime() - 60_000);
+  const afterWindowEnd = new Date(new Date(coupon().undoUntil).getTime() + 60_000);
+  assert.equal(undoHint(coupon({ canUndo: false }), afterWindowEnd), '되돌리기 시간이 지났어요.');
+  assert.equal(undoHint(coupon({ canUndo: false }), beforeWindowEnd), '본인 쿠폰은 되돌릴 수 없어요.');
   assert.equal(undoConfirmText(coupon()), '음료 1잔 · 손님 K7QM\n쿠폰 사용을 되돌릴까요? 고객이 다시 사용할 수 있게 돼요.');
 });
 

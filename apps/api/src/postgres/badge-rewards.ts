@@ -176,6 +176,9 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
       ]);
       // 잠금 없이 읽는 첫 조회는 어느 갈래(재생·거절·발급·되살리기)인지만 정한다. 되살리기 갈래는 아래에서
       // 점포 → 혜택 잠금을 잡은 뒤 쿠폰 행을 FOR UPDATE로 다시 읽어 확인한다(점포 → 혜택 → 쿠폰 순서).
+      // 혜택 → 쿠폰 순서는 이 되살리기 갈래뿐이다. 관리자의 ISSUED 무효와 방문 취소 무효는 쿠폰 → 혜택으로 잡지만, 되살리기는
+      // VISIT_CANCELED 쿠폰과 이 계정 잠금이 있어야 하므로 두 경로와 같은 쿠폰에서 겹치지 않는다. ISSUED 쿠폰에 혜택 → 쿠폰으로
+      // 잡는 새 경로를 만들면 교착이 생길 수 있다.
       const existing = await client.query<CouponRow>(
         `${couponSelectSql} WHERE coupon.customer_account_id = $1 AND coupon.milestone = $2`,
         [input.accountId, input.milestone],
@@ -222,12 +225,13 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
       // 방문 취소로 무효인 채(VISIT_CANCELED)이고 만료 전일 때만 되살린다. 그 밖에는 관리자 무효를 되돌리지 않고 거절한다.
       let originalExpiry: Date | undefined;
       if (previous) {
-        const locked = (await client.query<{ status: CouponStoredStatus; void_reason: string | null; expires_at: Date }>(
-          'SELECT status, void_reason, expires_at FROM badge_coupons WHERE id = $1 FOR UPDATE',
+        // 만료 여부는 잠금 대기 뒤의 DB 시계로 본다(openedAt은 혜택 잠금을 기다리기 전에 잰 값이다).
+        const locked = (await client.query<{ status: CouponStoredStatus; void_reason: string | null; expires_at: Date; live: boolean }>(
+          'SELECT status, void_reason, expires_at, expires_at > clock_timestamp() AS live FROM badge_coupons WHERE id = $1 FOR UPDATE',
           [previous.id],
         )).rows[0];
         if (!locked || !isReissuableVoid({ status: locked.status, voidReason: locked.void_reason })
-          || locked.expires_at.getTime() <= openedAt.getTime()) {
+          || !locked.live || locked.expires_at.getTime() <= openedAt.getTime()) {
           throw new BadgeRewardError('REWARD_OFFER_UNAVAILABLE');
         }
         originalExpiry = locked.expires_at;

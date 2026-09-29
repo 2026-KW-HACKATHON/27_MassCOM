@@ -39,8 +39,10 @@ export function redemptionRowText(coupon: RecentCouponRedemption): string {
   return `${coupon.title} · ${coupon.customerLabel} · ${kstClockLabel(coupon.redeemedAt)} 사용${coupon.redeemedByMe ? ' (내가 처리)' : ''}`;
 }
 
-export function undoHint(coupon: RecentCouponRedemption): string {
-  return coupon.canUndo ? `${kstClockLabel(coupon.undoUntil)}까지 되돌릴 수 있어요.` : '되돌리기 시간이 지났어요.';
+// canUndo가 false인데 되돌리기 기한이 남아 있으면 시간 때문이 아니라 본인 쿠폰(실제 점포)이라서다.
+export function undoHint(coupon: RecentCouponRedemption, now: Date = new Date()): string {
+  if (coupon.canUndo) return `${kstClockLabel(coupon.undoUntil)}까지 되돌릴 수 있어요.`;
+  return new Date(coupon.undoUntil).getTime() > now.getTime() ? '본인 쿠폰은 되돌릴 수 없어요.' : '되돌리기 시간이 지났어요.';
 }
 
 export function cancelConfirmText(visit: RecentVisit): string {
