@@ -1,70 +1,37 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import type { FriendsApiClient, FriendsSnapshot } from './friends-api';
+import type { FriendsApiClient } from './friends-api';
+import { createFriendsLoader, initialFriendsLoad, type MeChange } from './friends-loader';
 
-export type FriendsStatus = 'loading' | 'ready' | 'error';
+export type { FriendsStatus } from './friends-loader';
 
 /**
  * Loads the friends snapshot (me, my friends and the ranking are one server answer). A quiet refresh keeps what is on screen when
- * it fails, and a response that finishes after a newer request or a local change is ignored.
+ * it fails, and a response that finishes after a newer request or a local change is ignored (see friends-loader.ts).
  */
 export function useFriends(api: FriendsApiClient) {
-  const [snapshot, setSnapshot] = useState<FriendsSnapshot>();
-  const [status, setStatus] = useState<FriendsStatus>('loading');
-  const [error, setError] = useState<unknown>();
+  const [state, setState] = useState(initialFriendsLoad);
   const [retrying, setRetrying] = useState(false);
-  const generation = useRef(0);
-
-  const fetchSnapshot = useCallback(async (quiet: boolean) => {
-    const request = ++generation.current;
-    try {
-      const next = await api.getFriends();
-      if (request !== generation.current) return;
-      setSnapshot(next);
-      setStatus('ready');
-      setError(undefined);
-    } catch (caught) {
-      if (request !== generation.current) return;
-      setError(caught);
-      setStatus((current) => (quiet && current === 'ready' ? current : 'error'));
-    }
-  }, [api]);
+  const loader = useMemo(() => createFriendsLoader(api, setState), [api]);
 
   useEffect(() => {
-    const request = ++generation.current;
-    void api.getFriends()
-      .then((next) => {
-        if (request !== generation.current) return;
-        setSnapshot(next);
-        setStatus('ready');
-      })
-      .catch((caught: unknown) => {
-        if (request !== generation.current) return;
-        setError(caught);
-        setStatus('error');
-      });
-    return () => {
-      generation.current += 1;
-    };
-  }, [api]);
+    void loader.load(false);
+    return () => loader.dispose();
+  }, [loader]);
 
   const retry = useCallback(async () => {
     setRetrying(true);
     try {
-      await fetchSnapshot(false);
+      await loader.load(false);
     } finally {
       setRetrying(false);
     }
-  }, [fetchSnapshot]);
+  }, [loader]);
 
-  const refreshQuietly = useCallback(() => fetchSnapshot(true), [fetchSnapshot]);
+  const refreshQuietly = useCallback(() => loader.load(true), [loader]);
 
   /** A change the server just confirmed (new nickname or code) shows at once; the quiet refresh that follows re-ranks. */
-  const applyMe = useCallback((change: { nickname?: string; code?: string }) => {
-    generation.current += 1;
-    setSnapshot((current) => current && { ...current, me: { ...current.me, ...change } });
-    void fetchSnapshot(true);
-  }, [fetchSnapshot]);
+  const applyMe = useCallback((change: MeChange) => loader.changeMe(change), [loader]);
 
-  return { snapshot, status, error, retrying, retry, refreshQuietly, applyMe };
+  return { snapshot: state.snapshot, status: state.status, error: state.error, retrying, retry, refreshQuietly, applyMe };
 }
