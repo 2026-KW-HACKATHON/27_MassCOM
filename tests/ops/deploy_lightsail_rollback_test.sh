@@ -166,14 +166,21 @@ printf 'NEW_ENV=1\n' >"$temporary"
 : >"$scratch/docker-calls"
 run_remote_case backup
 [[ "$status" == 5 ]] || { echo "expected backup validation failure, got $status: $out" >&2; exit 1; }
-! grep -q 'build api production-web\|run --rm -T migrate' "$scratch/docker-calls"
+# `! grep` does not trip `set -e`, so the no-build/no-migrate guards fail explicitly.
+if grep -q 'build api production-web\|run --rm -T migrate' "$scratch/docker-calls"; then
+  echo 'backup validation failure still built images or ran migrate' >&2
+  exit 1
+fi
 grep -qx 'OLD_ENV=1' "$runtime"
 printf 'NEW_ENV=1\n' >"$temporary"
 : >"$scratch/docker-calls"
 run_remote_case collision
 [[ "$status" == 1 ]] || { echo "existing tag after upload was accepted: $out" >&2; exit 1; }
 grep -q 'IMAGE_TAG_ALREADY_EXISTS' <<<"$out"
-! grep -q 'build api production-web\|run --rm -T migrate' "$scratch/docker-calls"
+if grep -q 'build api production-web\|run --rm -T migrate' "$scratch/docker-calls"; then
+  echo 'image tag collision still built images or ran migrate' >&2
+  exit 1
+fi
 grep -qx 'OLD_ENV=1' "$runtime"
 printf 'NEW_ENV=1\n' >"$temporary"
 : >"$scratch/docker-calls"
