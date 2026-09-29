@@ -1,11 +1,12 @@
 import { Link } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { motion, stampTilt } from '@/motion/timing';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { stampColumnCount, type PassportStamp } from '@/screens/collection/collection-stamps';
+import { merchantArtSource } from '@/screens/collection/merchant-art';
 import { uiMetrics } from '@/theme/ui-metrics';
 import { worldForScheme } from '@/theme/world';
 
@@ -46,6 +47,8 @@ function StampSlot({ stamp, width }: { stamp: PassportStamp; width: number }) {
     wasVisited.current = stamp.visited;
   }, [stamp.visited, enabled, scale]);
 
+  // The showcase illustration when this merchant has one (only in the demo app); otherwise the short glyph.
+  const art = merchantArtSource(stamp.merchantId);
   // Computed on the JS thread: the worklet below runs on the UI runtime, where stampTilt does not exist.
   const tilt = stampTilt(stamp.merchantId);
   const animated = useAnimatedStyle(() => ({
@@ -56,14 +59,18 @@ function StampSlot({ stamp, width }: { stamp: PassportStamp; width: number }) {
     <Link href={{ pathname: '/merchants/[merchantId]', params: { merchantId: stamp.merchantId } }} asChild>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={stamp.visited ? `${stamp.name} 도장 받음` : `${stamp.name} 도장 아직 없음`}
-        accessibilityHint={stamp.detail}
+        accessibilityLabel={stamp.label}
+        accessibilityHint="음식점 상세 보기"
         style={StyleSheet.flatten([styles.stampSlot, { width }])}
       >
         {stamp.visited ? (
           <Animated.View accessible={false} style={[styles.stampRing, { backgroundColor: world.paper }, animated]}>
             <View style={styles.stampRingInner}>
-              <Text maxFontSizeMultiplier={1.2} style={styles.stampMark}>{Array.from(stamp.name).slice(0, 2).join('')}</Text>
+              {art ? (
+                <Image source={art} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={styles.stampArt} />
+              ) : (
+                <Text maxFontSizeMultiplier={1.2} style={styles.stampMark}>{stamp.glyph}</Text>
+              )}
             </View>
           </Animated.View>
         ) : (

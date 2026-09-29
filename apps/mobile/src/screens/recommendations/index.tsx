@@ -11,6 +11,7 @@ import { BackHeader } from '@/ui/back-header';
 import { FloatingCard } from '@/ui/floating-card';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
+import { reasonLabel, recommendationHint, recommendationLabel } from './recommendation-label';
 import { makeRecommendationsStyles } from './styles';
 
 type RecommendationsStyles = ReturnType<typeof makeRecommendationsStyles>;
@@ -135,7 +136,8 @@ function RecommendationCard({ styles, palette, item, index }: { styles: Recommen
   return (
     <FloatingCard
       style={styles.card}
-      accessibilityLabel={`${item.merchantName}, ${reasonLabel(item.reasonCode)}${item.demo ? ', 데모 데이터' : ''}. 가게 상세 보기`}
+      accessibilityLabel={recommendationLabel(item)}
+      accessibilityHint={recommendationHint()}
       onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } })}
     >
       <View style={styles.cardTopline}>
@@ -155,10 +157,4 @@ function RecommendationCard({ styles, palette, item, index }: { styles: Recommen
       <Text style={styles.openDetail}>가게 상세 보기 →</Text>
     </FloatingCard>
   );
-}
-
-function reasonLabel(code: Recommendation['reasonCode']): string {
-  if (code === 'NEW_PLACE') return '새로운 가게';
-  if (code === 'NEXT_REWARD') return '다음 보상 가까움';
-  return '도감 완성';
 }

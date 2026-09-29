@@ -38,7 +38,8 @@ test('merchant cards float on world.card and keep their text readable in light a
     // The ring sits between the card outside and the paper inside, so it is judged against both.
     assert.ok(contrast(styles.crest.borderColor as string, world.card) >= 3.3, 'crest ring on card');
     assert.ok(contrast(styles.crest.borderColor as string, styles.crest.backgroundColor as string) >= 3, 'crest ring on paper');
-    assert.ok(contrast(styles.passportChipDot.backgroundColor as string, styles.passportChip.backgroundColor as string) >= 3.3, 'chip dot on card');
+    // The dot only appears with badge data and takes its colour from the medal tier; its outline is tested in passport-chip.test.ts.
+    assert.equal('backgroundColor' in styles.passportChipDot, false, 'no meaningless orange dot');
   }
 });
 

@@ -41,7 +41,8 @@ test('a pressable card lays out like a static one: layout props on the Pressable
 test('screen copy fits its space and does not repeat the heading below it', () => {
   const list = readSource('screens/merchant-list/index.tsx');
   // The longer chip text wrapped to two lines at 360dp.
-  assert.match(list, /auth\.accountId \? '내 탐험 여권 보기' : '로그인하면 여권이 열려요'/);
+  assert.match(list, /copy="내 탐험 여권 보기"/);
+  assert.match(list, /copy="로그인하면 여권이 열려요"/);
   assert.doesNotMatch(list, /도감에서 내 도장 보기/);
   const collection = readSource('screens/collection/index.tsx');
   assert.match(collection, /<AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" \/>/);
@@ -214,8 +215,48 @@ test('mascots are plain images unless asked to be interactive, and only standalo
 test('passport stamp page tilts each visited stamp by merchant and labels every slot', () => {
   const page = read('passport-stamp-page.tsx');
   assert.match(page, /stampTilt\(stamp\.merchantId\)/);
-  assert.match(page, /accessibilityLabel=\{stamp\.visited \? `\$\{stamp\.name\} 도장 받음` : `\$\{stamp\.name\} 도장 아직 없음`\}/);
+  // Status and goal live in the label; the hint is only what a tap does.
+  assert.match(page, /accessibilityLabel=\{stamp\.label\}/);
+  assert.match(page, /accessibilityHint="음식점 상세 보기"/);
   assert.match(page, /world\.paper/);
+});
+
+test('a visited stamp shows the showcase illustration when there is one, else the short glyph', () => {
+  const page = read('passport-stamp-page.tsx');
+  assert.match(page, /merchantArtSource\(stamp\.merchantId\)/);
+  assert.match(page, /styles\.stampArt/);
+  assert.match(page, /\{stamp\.glyph\}/);
+  assert.doesNotMatch(page, /Array\.from\(stamp\.name\)\.slice\(0, 2\)/);
+});
+
+test('cards read their story, campaign, reason and progress aloud; the tap is only a hint', () => {
+  for (const [file, label, hint] of [
+    ['screens/merchant-list/index.tsx', 'merchantCardLabel(merchant)', 'merchantCardHint()'],
+    ['screens/recommendations/index.tsx', 'recommendationLabel(item)', 'recommendationHint()'],
+  ] as const) {
+    const source = readSource(file);
+    assert.ok(source.includes(`accessibilityLabel={${label}}`), `${file} label`);
+    assert.ok(source.includes(`accessibilityHint={${hint}}`), `${file} hint`);
+  }
+  assert.match(read('floating-card.tsx'), /accessibilityHint=\{accessibilityHint\}/);
+});
+
+test('the collection says 도장 for the passport page, not 스탬프', () => {
+  const collection = readSource('screens/collection/index.tsx');
+  assert.doesNotMatch(collection, /스탬프/);
+  assert.equal((collection.match(/title="도장판"/g) ?? []).length, 4, 'error, loading, ready and empty sections');
+  assert.match(collection, /note=\{`도장 \$\{stampSlots\.filter/);
+});
+
+test('the explore passport chip shows earned badges from the badge book when signed in, and no dot otherwise', () => {
+  const list = readSource('screens/merchant-list/index.tsx');
+  assert.match(list, /useBadgeBook\(badgeApi\)/);
+  assert.match(list, /passportChipData\(/);
+  assert.match(list, /createBadgeApiClient\(/);
+  // The hook needs a credential, so it lives in a component that only renders when signed in.
+  assert.match(list, /function SignedInPassportChip/);
+  assert.match(list, /auth\.credential && auth\.accountId \? \(\s*<SignedInPassportChip/);
+  assert.doesNotMatch(list, /stampOrange/);
 });
 
 test('passport stamp page reuses the collection stamp grid model and honours reduced motion', () => {

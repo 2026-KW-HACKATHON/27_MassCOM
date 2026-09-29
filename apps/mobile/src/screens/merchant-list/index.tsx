@@ -1,5 +1,5 @@
-import { Link, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -13,12 +13,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { AccountCredential } from '@/auth/account-credential';
 import { useAuthSession } from '@/auth/auth-provider';
+import { createBadgeApiClient } from '@/gamification/badge-api';
+import { useBadgeBook } from '@/gamification/use-badge-book';
 import type { PublicMerchant } from '@/merchant/merchant-api';
 import { filterMerchants, type MerchantAvailabilityFilter } from '@/merchant/filter-merchants';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
+import { medalColorsForScheme, tierColors } from '@/theme/medal-colors';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
@@ -31,6 +35,8 @@ import { StateScene } from '@/ui/state-scene';
 import { StatusBarScrim, useStatusBarScrim } from '@/ui/status-bar-scrim';
 
 import { MerchantCrest } from './merchant-crest';
+import { merchantCardHint, merchantCardLabel } from './merchant-card-label';
+import { passportChipData, type PassportChipData } from './passport-chip';
 import { makeMerchantListStyles } from './styles';
 import { useMerchantListStyles } from './use-merchant-list-styles';
 
@@ -83,14 +89,11 @@ export function MerchantListScreen({ apiUrl }: Props) {
             <AppHeader title="어디로 탐험할까요?" subtitle="안 가본 가게에 도장을 찍어요">
               <View style={styles.heroRow}>
                 <View style={styles.heroCopy}>
-                  <Link href="/collection" asChild>
-                    <Pressable accessibilityRole="button" style={styles.passportChip}>
-                      <View accessible={false} style={styles.passportChipDot} />
-                      <Text style={styles.passportChipText}>
-                        {auth.accountId ? '내 탐험 여권 보기' : '로그인하면 여권이 열려요'}
-                      </Text>
-                    </Pressable>
-                  </Link>
+                  {auth.credential && auth.accountId ? (
+                    <SignedInPassportChip apiUrl={apiUrl} credential={auth.credential} onSessionInvalid={auth.invalidateSession} />
+                  ) : (
+                    <PassportChip copy="로그인하면 여권이 열려요" />
+                  )}
                 </View>
                 {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
                 <Mascot interactive pose={refreshing ? 'search' : 'explore-map'} size={heroMascotSize(fontScale, 120)} />
@@ -211,6 +214,41 @@ export function MerchantListScreen({ apiUrl }: Props) {
   );
 }
 
+/** The chip that opens the passport. `data` (from the badge book) swaps the plain copy for "배지 3/9" and a best-tier medal dot. */
+function PassportChip({ copy, data }: { copy?: string; data?: PassportChipData }) {
+  const scheme = useColorScheme();
+  const styles = useMerchantListStyles();
+  const dot = data && data.tier !== 0 ? tierColors(medalColorsForScheme(scheme), data.tier) : undefined;
+  return (
+    <Link href="/collection" asChild>
+      <Pressable accessibilityRole="button" accessibilityLabel={data?.label} style={styles.passportChip}>
+        {dot ? <View accessible={false} style={[styles.passportChipDot, { backgroundColor: dot.base, borderColor: dot.edge }]} /> : null}
+        <Text style={styles.passportChipText}>{data ? data.text : copy}</Text>
+      </Pressable>
+    </Link>
+  );
+}
+
+/** Reads the badge book only when signed in (the hook needs a credential); until it loads or if it fails the plain copy shows. */
+function SignedInPassportChip({ apiUrl, credential, onSessionInvalid }: {
+  apiUrl: string;
+  credential: AccountCredential;
+  onSessionInvalid: () => Promise<void>;
+}) {
+  const badgeApi = useMemo(
+    () => createBadgeApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
+  const { book, refreshQuietly } = useBadgeBook(badgeApi);
+  // The tab stays mounted, so coming back after a visit claim quietly picks up new badges.
+  const firstFocus = useRef(true);
+  useFocusEffect(useCallback(() => {
+    if (firstFocus.current) { firstFocus.current = false; return; }
+    void refreshQuietly();
+  }, [refreshQuietly]));
+  return <PassportChip copy="내 탐험 여권 보기" data={passportChipData(book)} />;
+}
+
 function CatalogEmptyState({ onRefresh, refreshing }: { onRefresh: () => void; refreshing: boolean }) {
   const styles = useMerchantListStyles();
   return (
@@ -258,7 +296,8 @@ function MerchantCard({ merchant, onOpen }: { merchant: PublicMerchant; onOpen: 
   return (
     <FloatingCard
       onPress={() => onOpen(merchant.id)}
-      accessibilityLabel={`${merchant.name}, ${status}${merchant.demo ? ', 데모 데이터' : ''}, ${merchant.roadAddress}. 자세히 보기`}
+      accessibilityLabel={merchantCardLabel(merchant)}
+      accessibilityHint={merchantCardHint()}
       style={styles.card}
     >
       <MerchantCrest merchant={merchant} />

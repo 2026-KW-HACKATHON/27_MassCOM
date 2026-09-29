@@ -11,6 +11,8 @@ import { useUiStyles } from './use-ui-styles';
 type Props = {
   onPress?: () => void;
   accessibilityLabel?: string;
+  /** What a tap does ("자세히 보기"), kept out of the label so the label can read the card's own content. */
+  accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
 };
@@ -19,7 +21,7 @@ type Props = {
 const fillWrapper = { flexGrow: 1 } as const;
 
 /** White card floating over the sky. Shrinks slightly, tints while pressed and gives a light haptic when pressable. */
-export function FloatingCard({ onPress, accessibilityLabel, style, children }: Props) {
+export function FloatingCard({ onPress, accessibilityLabel, accessibilityHint, style, children }: Props) {
   const styles = useUiStyles();
   const enabled = useMotionEnabled();
   const scale = useSharedValue(1);
@@ -35,6 +37,7 @@ export function FloatingCard({ onPress, accessibilityLabel, style, children }: P
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
       onPressIn={() => { if (enabled) scale.set(withSpring(motion.pressScale, motion.spring)); }}
       onPressOut={() => { if (enabled) scale.set(withSpring(1, motion.spring)); }}
       onPress={() => { void lightHaptic(); onPress(); }}

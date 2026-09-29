@@ -64,6 +64,7 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
     stampRing: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: world.stampInk, alignItems: 'center', justifyContent: 'center' },
     stampRingInner: { width: 58, height: 58, borderRadius: 29, borderWidth: 1, borderColor: world.stampInk, alignItems: 'center', justifyContent: 'center' },
     stampRingEmpty: { width: 72, height: 72, borderRadius: 36, borderWidth: 2, borderStyle: 'dashed', borderColor: world.paperLine, alignItems: 'center', justifyContent: 'center' },
+    stampArt: { width: 52, height: 52, borderRadius: 26 },
     stampMark: { color: world.stampInk, fontSize: 16, fontWeight: '900', textAlign: 'center' },
     stampMystery: { color: world.paperInk, fontSize: 24, fontWeight: '900' },
     stampName: { color: world.paperInk, fontSize: 13, fontWeight: '800', lineHeight: 18, textAlign: 'center' },

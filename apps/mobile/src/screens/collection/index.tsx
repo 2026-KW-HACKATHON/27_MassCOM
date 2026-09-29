@@ -374,22 +374,22 @@ export function CollectionScreen({
         ) : null}
 
         {merchantsError ? (
-          <Section title="스탬프판">
+          <Section title="도장판">
             <Pressable accessibilityRole="button" onPress={retryMerchants} style={styles.recoveryButton}>
               <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>음식점 목록을 불러오지 못했습니다. 다시 시도</Text>
             </Pressable>
           </Section>
         ) : merchantsLoading ? (
-          <Section title="스탬프판"><EmptyCopy text="공개 음식점을 불러오는 중입니다." /></Section>
+          <Section title="도장판"><EmptyCopy text="공개 음식점을 불러오는 중입니다." /></Section>
         ) : stampSlots.length > 0 ? (
           <Section
-            title="스탬프판"
-            note={`스탬프 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length} · 보상 진행은 현재 캠페인의 인정된 방문만 셉니다.`}
+            title="도장판"
+            note={`도장 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length} · 보상 진행은 현재 캠페인의 인정된 방문만 셉니다.`}
           >
             <PassportStampPage stamps={stampSlots.map((slot, index) => toPassportStamp(slot, merchantGoals[index]!))} />
           </Section>
         ) : (
-          <Section title="스탬프판"><EmptyCopy text="현재 공개된 음식점이 없습니다." /></Section>
+          <Section title="도장판"><EmptyCopy text="현재 공개된 음식점이 없습니다." /></Section>
         )}
 
         {error ? <Text style={[styles.inlineError, { color: palette.onErrorContainer, backgroundColor: palette.errorContainer }]}>{error}</Text> : null}
