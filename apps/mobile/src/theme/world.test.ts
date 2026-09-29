@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { contrast } from './contrast';
+import { blend, contrast } from './contrast';
 import { darkWorld, lightWorld, worldForScheme } from './world';
 
 test('world text stays readable on its own surfaces in light and dark', () => {
@@ -20,6 +20,19 @@ test('world text stays readable on its own surfaces in light and dark', () => {
   }
 });
 
+test('the header scrim keeps sky text readable over the worst art pixel, light and dark', () => {
+  for (const world of [lightWorld, darkWorld]) {
+    assert.equal(world.headerScrim, world.sky[2]);
+    assert.ok(world.headerScrimAlpha >= 0.86 && world.headerScrimAlpha < 1, 'frosted, not opaque');
+    // The header art is an opaque picture, so text may land on anything from black to white.
+    for (const art of ['#000000', '#FFFFFF']) {
+      const panel = blend(world.headerScrim, art, world.headerScrimAlpha);
+      assert.ok(contrast(world.skyInk, panel) >= 4.5, `skyInk over ${art}: ${contrast(world.skyInk, panel)}`);
+      assert.ok(contrast(world.skyMuted, panel) >= 4.5, `skyMuted over ${art}: ${contrast(world.skyMuted, panel)}`);
+    }
+  }
+});
+
 test('scheme selection falls back to light', () => {
   assert.equal(worldForScheme('dark'), darkWorld);
   assert.equal(worldForScheme(null), lightWorld);
@@ -29,4 +42,10 @@ test('scheme selection falls back to light', () => {
 test('contrast matches the WCAG formula at the extremes', () => {
   assert.equal(Math.round(contrast('#000000', '#FFFFFF')), 21);
   assert.equal(contrast('#777777', '#777777'), 1);
+});
+
+test('blend composites a translucent colour over a backdrop', () => {
+  assert.equal(blend('#FFFFFF', '#000000', 0.5), '#808080');
+  assert.equal(blend('#123456', '#FFFFFF', 1), '#123456');
+  assert.equal(blend('#123456', '#FFFFFF', 0), '#FFFFFF');
 });

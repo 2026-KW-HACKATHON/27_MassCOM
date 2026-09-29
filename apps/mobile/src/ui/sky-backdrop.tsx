@@ -19,6 +19,8 @@ import { skyTownHeader } from './mascot-art';
 // Explicit pixel sizes: percentage width + aspectRatio rendered at intrinsic size on a real device (see merchant-list).
 const HEADER_ASPECT = 720 / 1080;
 const CLOUD_WIDTH = 120;
+// The picture ends in near-white, not exactly the page colour; this bottom slice is faded into sky[2] so no band shows.
+const SEAM_FRACTION = 0.15;
 
 type Props = {
   /** Wrap the children in a scroll view (screens that bring their own list or scroller leave this off). */
@@ -61,6 +63,15 @@ export function SkyBackdrop({ scroll, children }: Props) {
             <Rect width={width} height={headerHeight} fill="url(#dusk)" />
           </Svg>
         ) : null}
+        <Svg width={width} height={headerHeight} style={StyleSheet.absoluteFill}>
+          <Defs>
+            <LinearGradient id="seam" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={world.sky[2]} stopOpacity={0} />
+              <Stop offset="1" stopColor={world.sky[2]} stopOpacity={1} />
+            </LinearGradient>
+          </Defs>
+          <Rect y={headerHeight * (1 - SEAM_FRACTION)} width={width} height={headerHeight * SEAM_FRACTION} fill="url(#seam)" />
+        </Svg>
         <Cloud enabled={enabled} dark={dark} screenWidth={width} top={headerHeight * 0.16} startX={width * 0.12} />
         <Cloud enabled={enabled} dark={dark} screenWidth={width} top={headerHeight * 0.36} startX={width * 0.62} />
       </View>

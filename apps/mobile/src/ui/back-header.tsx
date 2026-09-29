@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { uiMetrics } from '../theme/ui-metrics';
 import { useUiStyles } from './use-ui-styles';
 
-/** Page title on the sky with a round back button; for pages reached from the header avatar rather than a tab. */
+/** Page title on a frosted panel over the sky art, with a round back button; for pages reached from the header avatar rather than a tab. */
 export function BackHeader({ title }: { title: string }) {
   const styles = useUiStyles();
   const insets = useSafeAreaInsets();
@@ -25,7 +25,9 @@ export function BackHeader({ title }: { title: string }) {
       >
         <Text accessible={false} maxFontSizeMultiplier={1.2} style={styles.backGlyph}>‹</Text>
       </Pressable>
-      <Text accessibilityRole="header" style={styles.backTitle}>{title}</Text>
+      <View style={[styles.headerPanel, { flexShrink: 1 }]}>
+        <Text accessibilityRole="header" style={styles.backTitle}>{title}</Text>
+      </View>
     </View>
   );
 }

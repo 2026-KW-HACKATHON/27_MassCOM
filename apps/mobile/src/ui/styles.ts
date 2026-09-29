@@ -1,5 +1,6 @@
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
 
+import { withAlpha } from '../theme/contrast';
 import type { AppColors } from '../theme/palette';
 import { uiMetrics } from '../theme/ui-metrics';
 import type { WorldTheme } from '../theme/world';
@@ -22,6 +23,10 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
       paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center',
     },
     secondaryButtonText: { color: palette.onPrimaryContainer, fontSize: 16, fontWeight: '800' },
+    headerPanel: {
+      borderRadius: 20, paddingVertical: 12, paddingHorizontal: 16, gap: 4,
+      backgroundColor: withAlpha(world.headerScrim, world.headerScrimAlpha),
+    },
     headerTitle: { color: world.skyInk, fontSize: 28, fontWeight: '800', lineHeight: 36 },
     headerSubtitle: { color: world.skyMuted, fontSize: 15, lineHeight: 22 },
     avatarButton: {

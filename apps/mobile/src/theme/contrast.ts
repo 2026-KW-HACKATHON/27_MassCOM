@@ -10,3 +10,18 @@ export function contrast(foreground: string, background: string): number {
   const [lighter, darker] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
   return (lighter! + 0.05) / (darker! + 0.05);
 }
+
+const channels = (hex: string) => [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16));
+
+/** The #RRGGBB you see when `foreground` at `alpha` is drawn over an opaque `background`. */
+export function blend(foreground: string, background: string, alpha: number): string {
+  const back = channels(background);
+  const mixed = channels(foreground).map((value, index) => Math.round(value * alpha + back[index]! * (1 - alpha)));
+  return `#${mixed.map((value) => value.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+}
+
+/** rgba() string for a #RRGGBB colour at `alpha`. */
+export function withAlpha(hex: string, alpha: number): string {
+  const [red, green, blue] = channels(hex);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}

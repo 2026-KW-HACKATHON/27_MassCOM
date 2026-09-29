@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { contrast } from '../theme/contrast';
+import { blend, contrast, withAlpha } from '../theme/contrast';
 import { darkColors, lightColors } from '../theme/palette';
 import { uiMetrics } from '../theme/ui-metrics';
 import { darkWorld, lightWorld } from '../theme/world';
@@ -50,5 +50,21 @@ test('the back button is a touchable floating disc with a readable glyph and tit
     assert.ok((styles.backButton.minHeight as number) >= uiMetrics.minTouch);
     assert.ok(contrast(styles.backGlyph.color as string, world.card) >= 4.5);
     for (const sky of world.sky) assert.ok(contrast(styles.backTitle.color as string, sky) >= 4.5);
+  }
+});
+
+test('header text sits on a frosted rounded panel that stays readable over any art pixel', () => {
+  for (const [palette, world] of [[lightColors, lightWorld], [darkColors, darkWorld]] as const) {
+    const styles = makeUiStyles(palette, world);
+    assert.equal(styles.headerPanel.backgroundColor, withAlpha(world.headerScrim, world.headerScrimAlpha));
+    assert.equal(styles.headerPanel.borderRadius, 20);
+    assert.ok((styles.headerPanel.paddingVertical as number) >= 12);
+    assert.ok((styles.headerPanel.paddingHorizontal as number) >= 16);
+    for (const art of ['#000000', '#FFFFFF']) {
+      const panel = blend(world.headerScrim, art, world.headerScrimAlpha);
+      for (const text of [styles.headerTitle, styles.headerSubtitle, styles.backTitle]) {
+        assert.ok(contrast(text.color as string, panel) >= 4.5, `${text.color} over ${art} through the scrim`);
+      }
+    }
   }
 });

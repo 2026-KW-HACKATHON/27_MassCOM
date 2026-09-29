@@ -26,6 +26,24 @@ test('the header keeps account tools one tap away', () => {
   assert.match(header, /accessibilityLabel="내 정보"/);
 });
 
+test('header titles sit on the frosted panel while the avatar stays outside it', () => {
+  const header = read('app-header.tsx');
+  assert.match(header, /<View style=\{\[styles\.headerPanel[^\]]*\]\}>[\s\S]*?<\/View>\s*<Link href="\/settings"/);
+  const back = read('back-header.tsx');
+  assert.match(back, /<View style=\{\[styles\.headerPanel[^\]]*\]\}>[\s\S]*?styles\.backTitle[\s\S]*?<\/View>/);
+});
+
+test('the header art fades into the page colour over its last 15% in both schemes', () => {
+  const backdrop = read('sky-backdrop.tsx');
+  assert.match(backdrop, /SEAM_FRACTION = 0\.15/);
+  assert.match(backdrop, /id="seam"/);
+  // The seam overlay is drawn for every scheme: it must not live inside the dark-only branch.
+  const seam = backdrop.indexOf('id="seam"');
+  const dark = backdrop.indexOf('{dark ? (');
+  const darkEnd = backdrop.indexOf(') : null}', dark);
+  assert.ok(seam < dark || seam > darkEnd, 'seam overlay is inside the dark-only branch');
+});
+
 test('state scenes map to the right mascot', () => {
   const scene = read('state-scene.tsx');
   assert.match(scene, /empty: 'sleep'/);
