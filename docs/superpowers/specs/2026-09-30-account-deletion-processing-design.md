@@ -1,6 +1,6 @@
 # 계정 삭제 요청을 검증된 계정과 연결해 운영자가 처리하기 (Issue #194)
 
-2026-09-30 소유자가 고른 방식(D-052, `USER_CONFIRMED`): **웹 Google 로그인으로 본인 확인 + 운영자 처리.** 앱의 직접 자동 삭제는 Google Credential Manager가 서명된 `auth_time`을 주지 않아 막혀 있고(D-026, `deletion-capability.ts`) 이 설계는 그 보안 조건을 **바꾸지 않는다.** 운영자가 웹 OIDC로 검증된 접수를 처리하는 것은 D-026과 다른 경로다.
+2026-09-30 소유자가 고른 방식(D-052, `USER_CONFIRMED`): **웹 Google 로그인으로 본인 확인 + 운영자 처리.** 앱의 직접 자동 삭제는 Google Credential Manager가 서명된 `auth_time`을 주지 않아 막혀 있고(D-026, `deletion-capability.ts`) 이 설계는 그 보안 조건을 **바꾸지 않는다.** 운영자가 웹 OIDC로 검증된 접수를 처리하는 것은 D-026과 다른 경로이며, 이 경로의 조건은 접수·접수번호 다시 받기·취소에 최근 10분 안의 웹 로그인이 필요하고 삭제는 접수 24시간 뒤 운영자가 처리한다는 것이다(opus 보안 리뷰 반영, §8).
 
 ## 1. 목표와 성공 기준
 
@@ -17,7 +17,7 @@
 | --- | --- |
 | `id uuid PK` | 새 기본 키(`gen_random_uuid()`). 옛 `account_id` PK는 **버리고** 아래 고유 색인으로 대체한다: 처리 뒤 `account_id`를 NULL로 만들어야 하는데 PK 열은 NULL일 수 없기 때문이다. |
 | `account_id text NULL` | 고유 색인. `REQUESTED`일 때만 값이 있고 `CANCELLED/PROCESSED/REJECTED`에서는 NULL이다(CHECK). 그래서 처리·취소·거절 뒤에는 원 계정 ID가 이 표에 남지 않는다. |
-| `receipt_hash bytea NULL` | 접수번호의 HMAC-SHA256(32바이트). 원문은 저장하지 않는다. 고유 색인. NULL은 이 migration 이전 행(접수번호 없음)뿐이다. |
+| `receipt_hash bytea NULL` | 접수번호의 HMAC-SHA256(32바이트). 원문은 저장하지 않는다. 고유 색인. NULL은 이 migration 이전 행(접수번호 없음)뿐이며 그 행은 처리하지 않는다(§7). |
 | `status` | `REQUESTED`(기본) / `CANCELLED` / `PROCESSED` / `REJECTED` |
 | `source` | `WEB`(기본) / `SHOWCASE_APP` |
 | `cancel_until`, `due_at` | `requested_at + 24h`, `+ 7d`(앱이 명시하고, 열 기본값은 `now() + …`이라 구 API의 열 없는 INSERT도 유효) |
@@ -25,7 +25,7 @@
 
 - **구 API 호환:** `INSERT … (account_id) VALUES ($1) ON CONFLICT (account_id) DO NOTHING`은 `account_id`의 일반(부분 아닌) 고유 색인이 있으므로 그대로 동작하고, 새 열은 모두 기본값이거나 NULL 허용이다. 구 forget의 `DELETE … WHERE account_id = $1`도 그대로 동작한다(그 행만 지워지고 접수번호 조회는 "없음"이 된다. 구 API는 배포 전환 동안만 산다).
 - **활성 요청은 계정당 하나:** `account_id` 고유 색인 + "`REQUESTED`일 때만 `account_id` 존재" CHECK로 계정당 `REQUESTED` 행이 최대 하나다. 취소·거절 뒤에는 행이 계정에서 떨어지므로 새로 접수할 수 있다(이력은 접수번호 해시 행으로 남는다).
-- **기존 행:** `REQUESTED`로 유지하고 `cancel_until/due_at`을 `requested_at` 기준으로 채운다. 접수번호가 없으므로 그 계정이 다시 접수하면 접수번호를 새로 발급한다.
+- **기존 행:** `REQUESTED`로 유지하고 `cancel_until/due_at`을 채운다(마이그레이션 시각부터 24시간 취소 기간). 접수번호가 없으므로 **처리하지 않고**, 그 계정이 다시 접수하면 접수번호를 새로 발급하며 그때부터 24시간 취소 기간과 7일 처리 기한이 새로 시작한다(§7).
 - `platform_admin_audit`: `merchant_id`를 NULL 허용으로 바꾸고(계정 삭제 행동은 점포와 무관) action CHECK에 `ACCOUNT_DELETION_PROCESSED`·`ACCOUNT_DELETION_REJECTED`·`ACCOUNT_DELETION_RECONCILED`를 더한다. 점포 행동은 `merchant_id` 필수를 유지하는 CHECK를 둔다.
 
 ## 3. 접수번호
@@ -64,6 +64,16 @@
 - **관리자 웹:** "계정 삭제 요청" 구역: 대기 건 목록·기한·처리(2단계 확인)·거절(사유 입력)·재정산.
 - **앱:** 운영 앱은 옛 "이메일" 안내를 "웹에서 Google 로그인 후 접수"로 고치고 웹 링크를 유지. 시연 앱은 계정 설정에서 "계정 삭제 요청" → 확인 창 → 접수번호(선택 가능)·24시간 취소·7일 처리 안내·상태를 보이고, 접수번호 입력칸으로 취소됨·처리되지 않음(사유)·처리 완료를 조회한다. 복사 버튼은 새 의존성이 필요해(하드 레일 5) 넣지 않고 `selectable` 글자로 둔다.
 
-## 7. 남는 것 (`NOT_RUN`)
+## 7. opus 보안 리뷰 반영 (2026-09-30)
+
+- **최근 로그인 조건:** 접수·다시 받기·취소는 `web_sessions.created_at`이 10분 이내인 세션만 받는다. 세션 저장소가 `resolveWithAge`(`{accountId, ageMs}`, 저장소의 시계로 계산)를 내고 서버 경로가 `freshWebSessionMs`를 넘으면 `401 WEB_SESSION_REAUTH_REQUIRED`로 거절한다. 세션 쿠키(`Path=/api/web`)를 `/app/`·`/merchant/`·`/admin/`이 함께 쓰므로 브라우저에 오래 남은 로그인으로 접수하거나 소유자의 접수번호를 무효로 만들 수 없게 하려는 것이다. 페이지는 기존 로그인 링크(`prompt=select_account`)로 다시 로그인하라고 안내한다(`prompt=login`·`max_age`는 Google이 문서화하지 않아 기대지 않는다). 접수번호 조회는 로그인이 없어 영향이 없다.
+- **옛 접수(접수번호 없음):** `process`는 `receipt_hash IS NULL`이면 `409 DELETION_LEGACY_NEEDS_REFILE`로 거절한다(취소 기간 확인 뒤; 거절은 가능). 첫 접수번호를 받을 때(다시 접수·다시 받기) `cancel_until = now+24h`, `due_at = now+7d`로 다시 시작한다. 관리자 목록·CLI는 "옛 접수: 본인이 다시 접수해야 처리할 수 있어요"를 보이고 `canProcess`는 거짓이다.
+- **세션 행 삭제:** forget 트랜잭션이 `auth_sessions`·`web_sessions`를 `DELETE`한다(폐기 표시는 원 계정 ID를 남긴다). 유출된 토큰은 행이 없어 `*_INVALID`이고, 통합 시험이 `information_schema.columns`로 만든 전 text/jsonb 열 검색으로 원 ID가 어디에도 없음을 확인한다.
+- **공개 조회:** `pendingMintJobs`·`retainedFinalizedNfts`를 뺐고(접수번호를 아는 누구나 읽는 응답), `overdue`(아직 접수됨인데 `now > due_at`)를 더했다. 페이지·앱은 "처리 기한이 지났어요. 문의해 주세요."를 보인다.
+- **거절 사유:** 요청자가 그대로 보므로 NFKC 뒤 `@`·URL·8자리 이상 숫자열(구분자 허용)이 든 사유는 `DELETION_REJECT_REASON_INVALID`로 거절하고, 관리자 화면이 "요청자가 접수번호로 이 사유를 그대로 봅니다. 개인정보를 쓰지 마세요."를 보인다. 필터는 #243의 메모 필터와 같은 패턴이다.
+- **잠금 순서:** 관리자와 대상의 계정 잠금을 정렬된 한 순서로 먼저 잡아(`lockAllForDeletion`) 서로의 접수를 동시에 처리해도 교착하지 않는다. 그래도 40P01이면 `409 DELETION_BUSY`.
+- **거절된 처리 시도 기록:** 본인 접수·취소 기간·옛 접수는 구조화 로그 한 줄(`account_deletion.process_refused`·`account_deletion.reject_refused`, `safeErrorMetadata`로 만든 거절 코드만)을 남긴다. 개인정보 로그 검사(`check-privacy-logs`)가 이 층에서 상수·승인된 메타데이터 밖의 값을 허용하지 않으므로 계정 ID·요청 번호·운영자 이름은 넣지 않는다.
+
+## 8. 남는 것 (`NOT_RUN`)
 
 폐기용 실계정으로 웹 접수 → 24시간 뒤 처리 → 세션 폐기 → 접수번호 조회의 실제 종단 실행, 운영 HTTPS·Caddy 반영(배포는 이 브랜치에 없음), Android 두 variant의 실기, Google Play 제출은 열려 있다(B-020 유지).
