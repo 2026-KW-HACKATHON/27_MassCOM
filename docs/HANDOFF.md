@@ -2,9 +2,14 @@
 
 마지막 갱신 시각: 2026-09-29 KST
 
+## 2026-09-29 발표 페이지 제거(Issue #220)
+
+- 기준 커밋: main `63b1ab8`(PR #219 웹 디자인 체계 병합). 브랜치 `chore/220-remove-presentation`에서 소유자 결정에 따라 공개 발표 페이지(`docs/presentation.html`·`docs/assets/presentation.css`)와 발표 원고(`docs/PRESENTATION.md`), 발표 검사기(`scripts/verify-presentation.sh`·`tests/site/verify_presentation_test.sh`)를 제거했다. 발표 자료는 팀이 저장소 밖에서 준비한다. 포털 링크·공개 빌드 허용 목록·Lightsail 배포/스모크 경로·Caddy `/presentation` 재작성도 함께 뺐다. 발표와 무관한 검사(README·PROJECT_STATE·HANDOFF의 필수 시험 합계 문장, 제출 증거의 현장 성과 부풀림 금지)는 `scripts/verify-evidence-consistency.mjs`로 옮겨 변형 시험으로 실패를 확인했다. 과거 증거 파일과 날짜 기록은 그대로 둔다.
+- 다음 작업: PR 병합 뒤 `scripts/deploy-lightsail-web.sh`로 웹을 배포해야 운영 Caddy에서 `/presentation`이 404가 된다(배포 전까지 기존 URL은 이전 페이지를 유지). 발표 리허설·최종 영상은 계속 `NOT_RUN`이다.
+
 ## 2026-09-29 웹 디자인 체계(Issue #218)
 
-- 기준 커밋: main `bd8fc1a`(PR #217 탐험 여권 병합). 브랜치 `feat/218-web-design-system`에서 공개 포털·법률 안내·시연 웹·운영 웹을 [웹 디자인 체계](superpowers/specs/2026-09-29-web-design-system.md)로 통일했다. 디자인 토큰 5/5·운영 웹 74/74·시연 웹 30/30·시연 테마 1/1·웹 빌드/경로 4/4·세션 프록시 2/2 PASS([전후 화면](evidence/web-design-system-2026-09-29/README.md)).
+- 기준 커밋: main `bd8fc1a`(PR #217 탐험 여권 병합). 브랜치 `feat/218-web-design-system`(PR #219, main `63b1ab8`로 병합)에서 공개 포털·법률 안내·시연 웹·운영 웹을 [웹 디자인 체계](superpowers/specs/2026-09-29-web-design-system.md)로 통일했다. 디자인 토큰 5/5·운영 웹 74/74·시연 웹 30/30·시연 테마 1/1·웹 빌드/경로 4/4·세션 프록시 2/2 PASS([전후 화면](evidence/web-design-system-2026-09-29/README.md)).
 - 다음 작업: PR 병합 뒤 `scripts/deploy-lightsail-web.sh`로 웹만 배포(마스코트 경로 3개 200 확인)하고, 시연 API migration 0027·체험 혜택 seed와 Preview 7 APK를 진행한다.
 
 ## 2026-09-29 탐험 여권(Issue #216)
@@ -402,7 +407,7 @@ npm run export:android --prefix apps/mobile
 bash scripts/check-secrets.sh
 bash scripts/check-privacy.sh
 bash tests/bootstrap/verify_bootstrap_test.sh
-bash tests/site/verify_presentation_test.sh
+bash tests/site/verify_evidence_consistency_test.sh
 PR_TITLE='한국어 PR 제목'
 PR_BODY='변경 내용과 실제 검증 결과를 설명하는 한국어 본문'
 bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"

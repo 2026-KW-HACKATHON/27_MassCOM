@@ -73,7 +73,7 @@ source_paths=(
   scripts/lightsail-web-probe-guard.sh
   scripts/verify-showcase-edge-routes.mjs
   docs/index.html docs/open.html docs/privacy.html docs/account-deletion.html
-  docs/presentation.html docs/.well-known/assetlinks.json docs/assets
+  docs/.well-known/assetlinks.json docs/assets
   docs/evidence/android-collection.png docs/evidence/android-merchant-list.png
   docs/evidence/screenshots/android-account-settings.png
   docs/evidence/screenshots/android-nft-finalized.png
@@ -234,7 +234,7 @@ probe_web_routes() {
     sleep 1
   done
   [[ "$ready" == 'true' ]]
-  for path in / /open /privacy /account-deletion /presentation /app/ /app/assets/production.mjs; do
+  for path in / /open /privacy /account-deletion /app/ /app/assets/production.mjs; do
     curl -fsS --max-time 8 "http://$address$path" >/dev/null
   done
   curl -fsS --max-time 8 "http://$address/admin/" | grep -qF '실제 점포 관리'

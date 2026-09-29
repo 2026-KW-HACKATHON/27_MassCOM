@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- **발표 페이지 제거:** [Issue #220](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/220)에서 소유자 결정에 따라 공개 발표 페이지(`/presentation`)·발표 원고·발표 검사기를 제거했다. 팀은 발표 자료를 저장소 밖에서 준비하며, 발표 리허설·최종 영상은 계속 `NOT_RUN`이다. 발표와 무관한 필수 시험 합계·현장 성과 부풀림 금지 검사는 증거 정합 검사기로 옮겼고 과거 증거 파일은 기록으로 유지한다. 운영 Caddy의 `/presentation`은 다음 웹 배포 때 404가 된다. [결정 D-044](DECISIONS.md)
+
 - **웹 디자인 체계 통일:** [PR #217](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/217) merge bd8fc1a로 탐험 여권을 main에 넣은 뒤 [Issue #218](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/218)에서 모든 웹 화면을 앱 토큰·마스코트 머리글·카드·다크 모드로 맞추고, 운영 웹 도감을 앱과 같은 메달·상자·쿠폰 표현으로, 시연 웹에 탐험 여권 미리보기를 더했다. 디자인 토큰 5/5·운영 웹 74/74·시연 웹 30/30·시연 테마 1/1·웹 빌드/경로 4/4·세션 프록시 2/2 PASS, [전후 화면](evidence/web-design-system-2026-09-29/README.md). 공개 서버 반영은 NOT_RUN이다.
 - **탐험 여권(메달·보상 상자·쿠폰):** UI/UX 피드백(수집 게임성·감성·공유·배지→쿠폰)으로 [Issue #216](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/216)에서 #212의 텍스트 배지를 서버 계산 메달 3종×3등급, 배지 3·6·9개 보상 상자, 점주 동의 혜택이 있을 때만 발급되는 쿠폰과 점원 사용 처리(migration 0027), 방문 축하·이미지 공유로 바꿨다(D-043). 모바일 276/276·API 단위 133/133·PostgreSQL 89 PASS/2 SKIP·운영 웹 66/66, 두 모델 교차 리뷰(opus 보안·sonnet 코드) 🔴 0, [에뮬레이터·Samsung 휴대전화 로컬 실측](evidence/explorer-passport-emulator-2026-09-29/README.md) PASS. 운영 혜택은 0건이며 서버 배포·새 APK·TalkBack 낭독은 NOT_RUN이다.
 - **Preview 6 설치 안내 외부 반영:** [PR #214](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/214) merge 2dda864·main CI PASS 뒤 [apex/www /open](evidence/public-open-preview6-deployment-2026-09-29.json)은 HTTPS 200·저장소 소스 SHA-256 일치·최신 시연 Preview 6 링크를 확인했다. 웹 전용 배포이며 API/DB·운영 앱은 바꾸지 않았다.
@@ -176,7 +178,7 @@
 | Phase 2 지역 상권 핵심 기능 | `VERIFIED` | loopback DEMO 탐색→점주 발급→고객 수령→도감→추천→상세 순환 PASS |
 | Phase 3 NFT | `VERIFIED` | Local Anvil 복구 흐름과 Base Sepolia 계약→job/Outbox→암호화 service minter→이벤트·소유자·locked·중복 방지 PASS |
 | Phase 4 출시 기반 | `IN_PROGRESS` | 외부 HTTPS·첫 Google 로그인·삭제 페이지·GitHub test.2 APK·4KB/16KB·verified App Link PASS. D02·fresh reauth·Play는 미완료 |
-| Phase 5 대회 검증·발표 | `IN_PROGRESS` | 발표 웹·3/5분 원고·시연 runbook·빈 현장 기록지·증거 manifest 구현; 현장·리허설·영상·제출은 NOT_RUN |
+| Phase 5 대회 검증·발표 | `IN_PROGRESS` | 시연 runbook·빈 현장 기록지·증거 manifest 구현(발표 웹·원고는 #220에서 제거, 발표 자료는 저장소 밖에서 준비); 현장·리허설·영상·제출은 NOT_RUN |
 | Phase 6 후속 기능 | `PLANNED` | 별도 승인 전 미착수 |
 
 ## 구현·검증 완료
@@ -196,12 +198,12 @@
 - 계정 삭제 동시 10요청 수렴, 미전송 mint 취소, 제출/확정 보존, 원 account ID 비식별화 D01
 - 민감 로그 인자·미검토 analytics SDK CI 차단과 raw API error 로그 제거 D03
 - Samsung Android 16 계정 설정·공개 장부 안내·Local DEMO 삭제 요청
-- 다운로드 없이 여는 발표 페이지, 3분·5분 원고, 실제 시연/실패 대체 runbook
+- 실제 시연/실패 대체 runbook(발표 페이지·3분·5분 원고는 Issue #220에서 제거, 발표 자료는 저장소 밖에서 준비)
 - 결과를 미리 채우지 않은 현장 검증 기록지와 제출 증거 manifest·허위 주장 gate
 - 삭제·wallet·claim·redeem·mint request 공통 account lifecycle lock과 삭제 tombstone write 차단
 - 활성 Worker lease 삭제 보호, submit 직전 lease 재검사, duplicate revert reward-key 복구
 - chain cursor 기반 재시작 범위, 12블록 reorg margin, 오래된 reward 이벤트 fallback 복구
-- 36개 테스트 catalog/ledger ID별 상태 동기화와 강화된 secret·PR·presentation gate
+- 36개 테스트 catalog/ledger ID별 상태 동기화와 강화된 secret·PR gate와 증거 정합 검사
 
 ## 미완료
 

@@ -25,8 +25,7 @@ for entry in \
   'index.html|https://www.masscom.kr/' \
   'open.html|https://masscom.kr/open' \
   'privacy.html|https://www.masscom.kr/privacy' \
-  'account-deletion.html|https://www.masscom.kr/account-deletion' \
-  'presentation.html|https://www.masscom.kr/presentation'; do
+  'account-deletion.html|https://www.masscom.kr/account-deletion'; do
   page="${entry%%|*}"
   canonical="${entry#*|}"
   grep -qF "rel=\"canonical\" href=\"$canonical\"" "$repo_root/docs/$page" || {

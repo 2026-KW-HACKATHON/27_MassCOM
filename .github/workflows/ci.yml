@@ -97,9 +97,7 @@ jobs:
             | node scripts/verify-showcase-edge-routes.mjs
       - name: 모바일 접근성 semantics 검사
         run: bash tests/mobile/check_accessibility_semantics_test.sh
-      - name: Verify presentation and submission evidence
-        run: bash tests/site/verify_presentation_test.sh
-      - name: 증거 수치·장면 정합 검사
+      - name: 증거 수치 정합 검사
         run: bash tests/site/verify_evidence_consistency_test.sh
       - name: Verify release wallet surface check
         run: bash tests/release/check_release_wallet_surface_test.sh
