@@ -24,6 +24,28 @@ test('world text stays readable on its own surfaces in light and dark', () => {
   }
 });
 
+test('the page below the header art is sky[1] and text drawn straight on it stays readable, light and dark', () => {
+  for (const world of [lightWorld, darkWorld]) {
+    assert.equal(world.page, world.sky[1]);
+    assert.ok(contrast(world.skyInk, world.page) >= 4.5, `skyInk on the page ${contrast(world.skyInk, world.page)}`);
+    assert.ok(contrast(world.skyMuted, world.page) >= 4.5, `skyMuted on the page ${contrast(world.skyMuted, world.page)}`);
+    // The cool page separates a white card from it (it was 1.04:1 against sky[2]); the dark card gets a drawn edge instead.
+    assert.ok(contrast(world.card, world.page) >= 1.08 || world.cardEdgeAlpha >= 0.08, 'card is told apart from the page');
+  }
+  assert.ok(contrast(lightWorld.card, lightWorld.page) >= 1.1, 'white card on the light page');
+});
+
+test('a dark card gets a visible 1px top highlight, a light card none, and the status scrim is nearly opaque', () => {
+  assert.equal(lightWorld.cardEdgeAlpha, 0);
+  assert.ok(darkWorld.cardEdgeAlpha >= 0.08 && darkWorld.cardEdgeAlpha <= 0.1);
+  const edge = blend(darkWorld.cardEdge, darkWorld.card, darkWorld.cardEdgeAlpha);
+  assert.ok(contrast(edge, darkWorld.card) >= 1.15, `edge against the card ${contrast(edge, darkWorld.card)}`);
+  assert.ok(contrast(edge, darkWorld.page) >= 1.2, `edge against the page ${contrast(edge, darkWorld.page)}`);
+  for (const world of [lightWorld, darkWorld]) {
+    assert.ok(world.statusScrimAlpha >= 0.9 && world.statusScrimAlpha < 1, 'opaque enough for icons, not a solid bar');
+  }
+});
+
 test('the header scrim keeps sky text readable over the worst art pixel, light and dark', () => {
   for (const world of [lightWorld, darkWorld]) {
     assert.equal(world.headerScrim, world.sky[2]);

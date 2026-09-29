@@ -66,11 +66,19 @@ test('the header art fades into the page colour over its last 15% in both scheme
   const art = read('sky-art.tsx');
   assert.match(art, /SEAM_FRACTION = 0\.15/);
   assert.match(art, /id="seam"/);
+  // Below the art the page is sky[1] (world.page), so the gradient, the dusk overlay and the seam all end on it, never on sky[2].
+  assert.doesNotMatch(art, /sky\[2\]/);
+  assert.equal((art.match(/world\.page/g) ?? []).length >= 3, true, 'gradient end, dusk end and seam all use the page colour');
   // The seam overlay is drawn for every scheme: it must not live inside the dark-only branch.
   const seam = art.indexOf('id="seam"');
   const dark = art.indexOf('{dark ? (');
   const darkEnd = art.indexOf(') : null}', dark);
   assert.ok(seam < dark || seam > darkEnd, 'seam overlay is inside the dark-only branch');
+});
+
+test('the page under the header art, and the tab scenes, are painted world.page', () => {
+  assert.match(read('sky-backdrop.tsx'), /backgroundColor: world\.page/);
+  assert.match(readSource('app/(tabs)/_layout.tsx'), /sceneStyle: \{ backgroundColor: world\.page \}/);
 });
 
 test('the sky art is the top of the scroll content: the headers carry it and SkyBackdrop is only the page colour', () => {

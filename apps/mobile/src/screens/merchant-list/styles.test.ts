@@ -45,7 +45,7 @@ test('the passport chip and the sky headings stay readable and touchable', () =>
     const styles = makeMerchantListStyles(palette, world);
     assert.ok(contrast(styles.passportChipText.color as string, styles.passportChip.backgroundColor as string) >= 4.5);
     assert.ok((styles.passportChip.minHeight as number) >= uiMetrics.minTouch);
-    for (const sky of world.sky) {
+    for (const sky of [world.page, ...world.sky]) {
       assert.ok(contrast(styles.sectionEyebrow.color as string, sky) >= 4.5, 'section title on sky');
       assert.ok(contrast(styles.sectionCount.color as string, sky) >= 4.5, 'section count on sky');
     }

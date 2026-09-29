@@ -12,7 +12,7 @@ export default function PrimaryTabLayout() {
       // 내 정보 is reached from the header avatar; going back should return to the tab the person came from.
       backBehavior="history"
       tabBar={(props) => <FloatingTabBar {...props} />}
-      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: world.sky[2] } }}
+      screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: world.page } }}
     >
       <Tabs.Screen name="index" options={{ title: '탐색', tabBarAccessibilityLabel: '탐색' }} />
       <Tabs.Screen name="claim" options={{ title: '방문 인증', tabBarAccessibilityLabel: '방문 인증' }} />

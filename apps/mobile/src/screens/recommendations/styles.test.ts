@@ -26,11 +26,12 @@ test('the sky page shows through the recommendations and their text stays readab
     const styles = makeRecommendationsStyles(palette);
     assert.equal('backgroundColor' in styles.content, false);
     assert.equal('backgroundColor' in styles.centered, false);
-    // Text sits directly on the page below the art, which is plain sky[2].
-    for (const text of [styles.title, styles.body, styles.centeredTitle, styles.centeredBody, styles.rotationNote]) {
-      assert.ok(contrast(text.color as string, world.sky[2]) >= 4.5, `${text.color} on ${world.sky[2]}`);
+    // Text sits directly on the page below the header art, which is world.page (sky[1]); the art itself carries no body text.
+    for (const surface of [world.page, world.sky[2]]) {
+      for (const text of [styles.title, styles.body, styles.centeredTitle, styles.centeredBody, styles.rotationNote, styles.eyebrow]) {
+        assert.ok(contrast(text.color as string, surface) >= 4.5, `${text.color} on ${surface}`);
+      }
     }
-    assert.ok(contrast(styles.eyebrow.color as string, world.sky[2]) >= 4.5, 'eyebrow on the page');
   }
 });
 

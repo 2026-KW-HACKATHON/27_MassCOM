@@ -97,3 +97,13 @@ test('state scenes read on the card surface they are drawn on', () => {
     assert.ok(contrast(styles.sceneBody.color as string, world.card) >= 4.5, 'scene body on card');
   }
 });
+
+test('a card has a 1px top highlight that only shows in dark, where the card is nearly the page colour', () => {
+  for (const [palette, world] of [[lightColors, lightWorld], [darkColors, darkWorld]] as const) {
+    const styles = makeUiStyles(palette, world);
+    assert.equal(styles.card.borderTopWidth, 1);
+    assert.equal(styles.card.borderTopColor, withAlpha(world.cardEdge, world.cardEdgeAlpha));
+  }
+  assert.match(makeUiStyles(lightColors, lightWorld).card.borderTopColor as string, /, 0\)$/, 'light card shows no edge');
+  assert.match(makeUiStyles(darkColors, darkWorld).card.borderTopColor as string, /, 0\.1\)$/);
+});

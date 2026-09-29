@@ -26,7 +26,7 @@ test('the sky shows through the collection instead of a flat page colour', () =>
 test('section headings on the sky and floating cards stay readable in light and dark', () => {
   for (const [palette, world] of schemes) {
     const styles = makeCollectionStyles(palette, world);
-    for (const sky of world.sky) {
+    for (const sky of [world.page, ...world.sky]) {
       for (const text of [styles.sectionTitle, styles.sectionNote, styles.subsectionTitle]) {
         assert.ok(contrast(text.color as string, sky) >= 4.5, `${text.color} on ${sky}`);
       }

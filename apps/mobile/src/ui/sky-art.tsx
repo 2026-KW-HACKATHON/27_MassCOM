@@ -17,7 +17,7 @@ import { skyTownHeader } from './mascot-art';
 import { compactArtHeight, skyArtHeight } from './sky-art-size';
 
 const CLOUD_WIDTH = 120;
-// The picture ends in near-white, not exactly the page colour; this bottom slice is faded into sky[2] so no band shows.
+// The picture ends in near-white, not exactly the page colour; this bottom slice is faded into the page colour (world.page) so no band shows.
 const SEAM_FRACTION = 0.15;
 
 type Props = {
@@ -39,13 +39,13 @@ export function SkyArt({ compact }: Props) {
 
   return (
     <View pointerEvents="none" style={[styles.art, { height }]}>
-      {/* The sky gradient ends in sky[2] exactly where the illustration fades out, so no seam shows below it. */}
+      {/* The sky gradient ends in the page colour exactly where the illustration fades out, so no seam shows below it. */}
       <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor={world.sky[0]} />
             <Stop offset="0.55" stopColor={world.sky[1]} />
-            <Stop offset="1" stopColor={world.sky[2]} />
+            <Stop offset="1" stopColor={world.page} />
           </LinearGradient>
         </Defs>
         <Rect width={width} height={height} fill="url(#sky)" />
@@ -58,7 +58,7 @@ export function SkyArt({ compact }: Props) {
           <Defs>
             <LinearGradient id="dusk" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor={world.sky[0]} stopOpacity={0.55} />
-              <Stop offset="1" stopColor={world.sky[2]} stopOpacity={1} />
+              <Stop offset="1" stopColor={world.page} stopOpacity={1} />
             </LinearGradient>
           </Defs>
           <Rect width={width} height={height} fill="url(#dusk)" />
@@ -67,8 +67,8 @@ export function SkyArt({ compact }: Props) {
       <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id="seam" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={world.sky[2]} stopOpacity={0} />
-            <Stop offset="1" stopColor={world.sky[2]} stopOpacity={1} />
+            <Stop offset="0" stopColor={world.page} stopOpacity={0} />
+            <Stop offset="1" stopColor={world.page} stopOpacity={1} />
           </LinearGradient>
         </Defs>
         <Rect y={height * (1 - SEAM_FRACTION)} width={width} height={height * SEAM_FRACTION} fill="url(#seam)" />

@@ -14,6 +14,8 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
   return {
     card: {
       backgroundColor: world.card, borderRadius: world.radius.card, padding: 18,
+      // A 1px top highlight: in dark the card is ~1.05:1 against the page, so its edge is drawn (transparent in light).
+      borderTopWidth: 1, borderTopColor: withAlpha(world.cardEdge, world.cardEdgeAlpha),
       shadowColor: world.cardShadow, shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 3,
     },
     // Press feedback that does not depend on motion: the fill shifts, the text stays fully opaque.
