@@ -67,17 +67,17 @@ const openWithLinking: UrlOpener = async (url) => {
 export async function openDirections(
   targets: DirectionsTargets,
   provider: DirectionsProvider,
-  open: UrlOpener = openWithLinking,
+  openUrl: UrlOpener = openWithLinking,
 ): Promise<boolean> {
   const { app, web } = targets[provider];
   try {
-    await open(app);
+    await openUrl(app);
     return true;
   } catch {
     // The app is not installed (or refused the link): the web page is the honest fallback.
   }
   try {
-    await open(web);
+    await openUrl(web);
     return true;
   } catch {
     return false;
