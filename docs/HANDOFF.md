@@ -2,6 +2,12 @@
 
 마지막 갱신 시각: 2026-09-29 KST
 
+## 2026-09-29 시연 Preview 8 공개 릴리스와 설치 링크(Issue #231)
+
+- 기준 커밋: main `fea9f29`(PR #229 동네 지도 병합, PR #227 하늘 동네 개편 포함, main CI 36562952858 PASS). 브랜치 `docs/231-preview8`(로컬 worktree `.worktrees/231-preview8`)은 **원격에 push했고 [PR #232](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/232)로 올렸다.** 앱·API 코드 변경 없이 Preview 8 릴리스 증거와 설치 링크(README·`docs/open.html`·`ANDROID_DOWNLOADS.md`·B-018 포인터)를 Preview 7에서 8로 바꾸고 포털 검사 기대값만 Preview 8로 옮긴다. PR 전에 `git fetch origin`으로 main이 앞서 있는지 확인하고, 문서 충돌이 나면 두 쪽 문단을 모두 남겨라.
+- [Preview 8 공개 사전 릴리스](evidence/showcase-preview8-release-2026-09-29.json): `MassCOM-showcase-android-fea9f29.apk` 156468121바이트, SHA-256 `59a92388971a641ad3872db62e615fb5311e97fa9babc57d2d9909a03f5d4242`, provenance(632바이트)·SHA256SUMS.txt(218바이트) 포함, GitHub digest·체크섬 일치, 익명 다운로드 HTTPS 200, package `kr.masscom.wolgye.demo`·versionName/code `0.1.0-test.2`/`2`·시연 API 출처·서명·지갑 요청 표면 검사 PASS. **휴대전화가 연결돼 있지 않아 이 APK의 설치는 `NOT_RUN`**이다. 같은 디자인의 이전 빌드 `c75143a`는 Samsung SM-S928N에서 새 역할 선택 화면과 점포 그림이 있는 탐색 화면을 보였고(작업 보고, 캡처는 이 저장소에 없음) 지도는 개발 앱으로만 실폰 확인했다([증거](evidence/town-map-2026-09-29/README.md)).
+- 다음 작업: ① 이 문서 PR 병합 뒤 `scripts/deploy-lightsail-web.sh`로 웹만 재배포해 공개 `/open`이 Preview 8 링크를 안내하게 한다(재배포 전까지 Preview 7 링크이며 API·DB 컨테이너는 바꾸지 않는다). ② 휴대전화를 연결해 Preview 8을 기존 시연 앱 위에 설치하고 역할 선택·탐색의 점포 그림·지도 핀·길찾기 선택·TalkBack·다크·글자 200%·로그인 뒤 메달→상자→쿠폰→점원 사용 처리를 확인한다(전부 `NOT_RUN`). ③ 하늘 동네와 지도에 대한 소유자의 판정은 사용자 판정 필요다. ④ 시연 서버 `runtime.env`의 `MASSCOM_SHOWCASE_IMAGE_TAG`는 `7dba450`으로 남아 있으므로 다음 시연 API 배포는 실제 태그를 명령 환경 변수로 지정한다.
+
 ## 2026-09-29 동네 지도·길찾기(Issue #228)
 
 - 기준 커밋: main `c75143a`(PR #227 하늘 동네 개편 병합). 브랜치 `feat/228-town-map`(로컬 worktree `.worktrees/228-town-map`)은 그 위에서 갈라졌고 **아직 원격에 push하지 않았다.** 코드 커밋은 `1945c1a`까지이고(`e151a34` 설계 · `3a63c76` 자리 배정·길찾기 순수 함수 · `5be58ee` 지도 화면·탭 · `d880692` 탐색 칩·도장판 이름 · `f4e32bf` DESIGN.md · `1945c1a` 보상 상자 이름) 그 위에 문서 커밋이 하나 있다. PR 전에 `git fetch origin`으로 main이 앞서 있는지 확인하고, 앞서 있으면 병합한다. `README.md`·`TEST_STATUS.md`·`PROJECT_STATE.md`·`HANDOFF.md`·`AI_USAGE.md`에서 문서 충돌이 나면 두 쪽 문단을 모두 남겨라.
