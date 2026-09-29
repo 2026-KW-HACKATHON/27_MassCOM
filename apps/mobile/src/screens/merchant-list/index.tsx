@@ -315,7 +315,7 @@ function MerchantCard({ merchant, onOpen }: { merchant: PublicMerchant; onOpen: 
         <Text selectable style={styles.cardTitle}>{merchant.name}</Text>
         <Text selectable numberOfLines={2} style={styles.cardStory}>{merchant.story}</Text>
         <View style={styles.cardMeta}>
-          <Text selectable numberOfLines={1} style={styles.cardAddress}>{merchant.roadAddress}</Text>
+          <Text selectable numberOfLines={2} style={styles.cardAddress}>{merchant.roadAddress}</Text>
           <Text style={styles.cardArrow}>→</Text>
         </View>
         <Text style={styles.campaignName}>{merchant.campaign.title}</Text>
