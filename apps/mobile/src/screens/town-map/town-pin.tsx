@@ -1,3 +1,4 @@
+import type { Ref } from 'react';
 import { Image, Pressable, Text, View, useColorScheme } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
@@ -28,6 +29,8 @@ type Props = {
   y: number;
   selected: boolean;
   onPress: () => void;
+  /** Lets the screen hand screen reader focus back to this pin when its card closes. */
+  pressableRef?: Ref<View>;
 };
 
 /**
@@ -35,7 +38,7 @@ type Props = {
  * an ink stamp), the rest a dashed ring, so the state never depends on colour. The mark shows the shop's illustration in the demo
  * app (through the merchant-art bridge) or the same short glyph as its passport stamp.
  */
-export function TownPinButton({ pin, x, y, selected, onPress }: Props) {
+export function TownPinButton({ pin, x, y, selected, onPress, pressableRef }: Props) {
   const styles = useTownMapStyles();
   const world = worldForScheme(useColorScheme());
   const enabled = useMotionEnabled();
@@ -45,6 +48,7 @@ export function TownPinButton({ pin, x, y, selected, onPress }: Props) {
   const visited = pin.status === 'visited';
   return (
     <Pressable
+      ref={pressableRef}
       accessibilityRole="button"
       accessibilityLabel={pin.label}
       accessibilityHint="가게 카드 열기"

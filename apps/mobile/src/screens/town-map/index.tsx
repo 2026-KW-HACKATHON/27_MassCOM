@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Image, Pressable, RefreshControl, ScrollView, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, BackHandler, Image, Pressable, RefreshControl, ScrollView, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -34,8 +35,6 @@ type Props = {
   onSessionInvalid: () => Promise<void>;
 };
 
-// Until the sheet has been measured, a scroll to reveal a pin assumes it is about this tall.
-const SHEET_ESTIMATE = 260;
 // The sheet floats this far above the tab bar's footprint (which includes the raised claim stamp).
 const SHEET_GAP = 8;
 
@@ -53,44 +52,89 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
 
   const scroll = useRef<ScrollView>(null);
   const scrollY = useRef(0);
+  const contentHeight = useRef(0);
   const headerHeight = useRef(0);
   const frameY = useRef(0);
+  // The pin buttons by shop, so a closing card can hand screen reader focus back to the pin that opened it.
+  const openers = useRef(new Map<string, View>());
+  const returnFocusTo = useRef<string | undefined>(undefined);
   const [selectedId, setSelectedId] = useState<string>();
-  const [sheetHeight, setSheetHeight] = useState(0);
+  // The open sheet's height as it was laid out, for the shop it belongs to.
+  const [sheetMeasure, setSheetMeasure] = useState<{ id: string; height: number }>();
+  // A pin waiting to be scrolled clear of its sheet: `pinY` is its centre inside the scroll content.
+  const [reveal, setReveal] = useState<{ id: string; pinY: number }>();
   const [refreshing, setRefreshing] = useState(false);
 
+  const signedOut = stamps.status === 'signedOut';
   const mapWidth = Math.round(width - uiMetrics.pageInset * 2);
   const mapHeight = mapHeightFor(mapWidth);
   const { placed, overflow } = useMemo(
-    () => buildTownPins(catalog.merchants, stamps.collection, new Date().toISOString()),
-    [catalog.merchants, stamps.collection],
+    () => buildTownPins(catalog.merchants, stamps.collection, new Date().toISOString(), { signedOut }),
+    [catalog.merchants, stamps.collection, signedOut],
   );
   const selected = useMemo(
     () => [...placed, ...overflow].find((pin) => pin.merchantId === selectedId),
     [placed, overflow, selectedId],
   );
   const sheetBottom = clearance - 16 + SHEET_GAP;
+  const sheetOpen = selected !== undefined;
 
-  // Android back closes the open sheet before it leaves the tab.
-  useEffect(() => {
-    if (!selected) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { setSelectedId(undefined); return true; });
+  const closeSheet = useCallback(() => {
+    returnFocusTo.current = selectedId;
+    setSelectedId(undefined);
+    setReveal(undefined);
+  }, [selectedId]);
+
+  // Android back closes the open sheet before it leaves the tab. Only while the map is the focused screen: on another tab, or
+  // under the shop page that 자세히 보기 opened, the sheet must not swallow the first back press.
+  useFocusEffect(useCallback(() => {
+    if (!sheetOpen) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { closeSheet(); return true; });
     return () => subscription.remove();
-  }, [selected]);
+  }, [sheetOpen, closeSheet]));
+
+  // Closing a card drops screen reader focus with it; it goes back to the pin (or list row) that opened the card.
+  useEffect(() => {
+    const id = returnFocusTo.current;
+    if (selectedId !== undefined || id === undefined) return;
+    returnFocusTo.current = undefined;
+    const opener = openers.current.get(id);
+    if (opener) AccessibilityInfo.sendAccessibilityEvent(opener, 'focus');
+  }, [selectedId]);
+
+  const openerRef = (id: string) => (node: View | null) => {
+    if (node) openers.current.set(id, node);
+    else openers.current.delete(id);
+  };
 
   const select = (pin: TownPin) => {
     setSelectedId(pin.merchantId);
-    if (pin.slot === undefined) return;
-    // Bring the pin out from under the sheet that is about to cover the bottom of the screen.
-    const target = revealScrollY({
+    if (pin.slot === undefined) { setReveal(undefined); return; }
+    // The pin is brought out from under the sheet once the sheet is there (see the effect below), not now: scrolling before the
+    // sheet's padding exists would stop at the old end of the page.
+    setReveal({
+      id: pin.merchantId,
       pinY: headerHeight.current + frameY.current + pinCenter(TOWN_MAP_ANCHORS[pin.slot]!, mapWidth).y,
-      scrollY: scrollY.current,
-      viewportHeight: windowHeight,
-      coverHeight: sheetBottom + (sheetHeight || SHEET_ESTIMATE),
-      topInset: insets.top,
     });
-    if (target !== null) scroll.current?.scrollTo({ y: target, animated: enabled });
   };
+
+  // Runs after the sheet has been laid out and the page has its bottom padding: only then does the page reach far enough down.
+  useEffect(() => {
+    if (!reveal || sheetMeasure?.id !== reveal.id) return;
+    const frame = requestAnimationFrame(() => {
+      const target = revealScrollY({
+        pinY: reveal.pinY,
+        scrollY: scrollY.current,
+        viewportHeight: windowHeight,
+        coverHeight: sheetBottom + sheetMeasure.height,
+        topInset: insets.top,
+        contentHeight: contentHeight.current > 0 ? contentHeight.current : undefined,
+      });
+      if (target !== null) scroll.current?.scrollTo({ y: target, animated: enabled });
+      setReveal(undefined);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [reveal, sheetMeasure, sheetBottom, windowHeight, insets.top, enabled]);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -109,7 +153,8 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
         header={<AppHeader title={TOWN_MAP_TITLE} subtitle={TOWN_MAP_DISCLOSURE} />}
         onHeaderLayout={(height) => { headerHeight.current = height; }}
         onScroll={(event) => { scrollY.current = event.nativeEvent.contentOffset.y; }}
-        contentContainerStyle={[styles.content, { paddingBottom: clearance + (selected ? sheetHeight + SHEET_GAP : 0) }]}
+        onContentSizeChange={(_, height) => { contentHeight.current = height; }}
+        contentContainerStyle={[styles.content, { paddingBottom: clearance + (selected ? (sheetMeasure?.height ?? 0) + SHEET_GAP : 0) }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -133,11 +178,16 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
           <>
             {/* The header drops its subtitle at 150% text, so the sentence is said here instead. */}
             {isLargeText(fontScale) ? <Text style={styles.disclosure}>{TOWN_MAP_DISCLOSURE}</Text> : null}
-            {stamps.status === 'signedOut' ? <Text style={styles.banner}>로그인하면 도장 받은 곳이 표시돼요.</Text> : null}
+            {signedOut ? <Text style={styles.banner}>로그인하면 도장 받은 곳이 표시돼요.</Text> : null}
             {stamps.status === 'loading' ? <Text accessibilityLiveRegion="polite" style={styles.banner}>도장 상태를 확인하고 있어요.</Text> : null}
             {stamps.status === 'error' ? (
               <Pressable accessibilityRole="button" onPress={() => { void stamps.reload(); }} style={styles.retry}>
                 <Text style={styles.retryText}>도장 상태를 불러오지 못했어요. 눌러서 다시 시도</Text>
+              </Pressable>
+            ) : null}
+            {stamps.stale ? (
+              <Pressable accessibilityRole="button" onPress={() => { void stamps.reload(); }} style={styles.retry}>
+                <Text style={styles.retryText}>도장 상태가 최신이 아닐 수 있어요 · 다시 불러오기</Text>
               </Pressable>
             ) : null}
             {catalog.error ? (
@@ -168,6 +218,7 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
                       y={center.y}
                       selected={pin.merchantId === selectedId}
                       onPress={() => select(pin)}
+                      pressableRef={openerRef(pin.merchantId)}
                     />
                   );
                 })}
@@ -181,6 +232,7 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
                   {overflow.map((item) => (
                     <Pressable
                       key={item.merchantId}
+                      ref={openerRef(item.merchantId)}
                       accessibilityRole="button"
                       accessibilityLabel={item.label}
                       accessibilityHint="가게 카드 열기"
@@ -199,7 +251,14 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
         )}
       </SkyScrollView>
       {selected ? (
-        <PinSheet pin={selected} bottom={sheetBottom} onClose={() => setSelectedId(undefined)} onMeasure={setSheetHeight} />
+        // Keyed by shop: a new card is laid out (and measured) afresh, even when it happens to be as tall as the last one.
+        <PinSheet
+          key={selected.merchantId}
+          pin={selected}
+          bottom={sheetBottom}
+          onClose={closeSheet}
+          onMeasure={(height) => setSheetMeasure({ id: selected.merchantId, height })}
+        />
       ) : null}
     </SkyBackdrop>
   );
