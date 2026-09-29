@@ -96,14 +96,33 @@ test('after unfriending, one more prompt offers a new code, since the block does
   assert.match(passport, /export const ROTATE_AFTER_REMOVE_TITLE = '내 친구 코드도 바꿀까요\?'/);
   assert.match(passport, /export const ROTATE_AFTER_REMOVE_BODY = '코드를 바꾸면 끊은 친구가 다른 계정으로도 지금 코드를 쓸 수 없어요\. 다른 친구는 그대로예요\.'/);
   assert.match(passport, /\{ text: '그대로 두기', style: 'cancel', onPress: finish \}/);
-  assert.match(passport, /\{ text: '코드 바꾸기', onPress: \(\) => void rotateThenLeave\(finish\) \}/);
+  assert.match(passport, /\{ text: '코드 바꾸기', onPress: \(\) => void rotateThenLeave\(\) \}/);
   // The prompt follows a successful unfriend and an already-gone friendship alike, and calls the existing rotate API.
   assert.match(passport, /await api\.removeFriend\(friendshipId\);\s*offerNewCode\(\);/);
   assert.match(passport, /caught\.code === 'FRIEND_NOT_FOUND'\) \{\s*offerNewCode\(\);/);
   assert.match(passport, /await api\.rotateCode\(\);\s*finish\(\);/);
   // Every way out (either button, or dismissing the prompt) goes back to the list, and only once.
   assert.match(passport, /onDismiss: finish/);
-  assert.match(passport, /if \(left\) return;\s*left = true;\s*leave\(\);/);
+  // The once-only guard lives on the screen (a ref), not inside one prompt, and closes when the screen is unmounted or hidden.
+  assert.match(passport, /const leaveGuard = useRef<LeaveOnce \| undefined>\(undefined\);/);
+  assert.match(passport, /const guard = createLeaveOnce\(\(\) => \(router\.canGoBack\(\) \? router\.back\(\) : router\.replace\('\/friends'\)\)\);\s*leaveGuard\.current = guard;\s*return \(\) => guard\.dispose\(\);/);
+  assert.match(passport, /useFocusEffect\(useCallback\(\(\) => \{\s*const guard = createLeaveOnce/);
+  assert.match(passport, /const finish = \(\) => leaveGuard\.current\?\.run\(\);/);
+  assert.doesNotMatch(passport, /let left = false|left = true/);
+});
+
+test('the friend passport stays busy from the confirmed unfriend to the end of the flow, so nothing can start it twice', () => {
+  const remove = passport.slice(passport.indexOf('async function remove()'), passport.indexOf('// Asked once the friendship is gone'));
+  // The busy state is released only where nothing was removed; a success or an already-gone friendship leaves it set.
+  assert.equal((remove.match(/removingNow\.current = false;/g) ?? []).length, 1);
+  assert.equal((remove.match(/setRemoving\(false\);/g) ?? []).length, 1);
+  assert.doesNotMatch(remove, /finally/);
+  assert.match(remove, /setError\(friendsErrorMessage\(caught\)\);\s*removingNow\.current = false;\s*setRemoving\(false\);/);
+  assert.match(passport, /disabled=\{removing\}/);
+  // While the new code is made the button says so, then goes back to the list.
+  assert.match(passport, /const \[rotatingCode, setRotatingCode\] = useState\(false\);/);
+  assert.match(passport, /setRotatingCode\(true\);\s*try \{\s*await api\.rotateCode\(\);/);
+  assert.match(passport, /\{rotatingCode \? '코드 바꾸는 중…' : removing \? '끊는 중…' : '친구 끊기'\}/);
 });
 
 test('my own code arriving by QR or link is only said to be mine: no prompt, no request', () => {

@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Pressable, RefreshControl, Text, View, useColorScheme, useWindowDimensions, type ScrollViewProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,6 +23,7 @@ import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
 import { useUiStyles } from '@/ui/use-ui-styles';
 
+import { createLeaveOnce, type LeaveOnce } from './leave-once';
 import { useFriendsStyles } from './use-friends-styles';
 
 // The block is kept per account, not per code: it holds for every code of mine, but not for someone who signs in with another
@@ -56,12 +57,22 @@ export function FriendPassportScreen({
     [apiUrl, credential, onSessionInvalid],
   );
   const friends = useFriends(api);
+  // Busy from the confirmed unfriend until the flow ends (the new-code prompt and a possible rotate included), so the button and
+  // a second prompt cannot start it again in between.
   const [removing, setRemoving] = useState(false);
+  const [rotatingCode, setRotatingCode] = useState(false);
   const [error, setError] = useState<string>();
   const [refreshing, setRefreshing] = useState(false);
   const removingNow = useRef(false);
-
-  const leave = () => (router.canGoBack() ? router.back() : router.replace('/friends'));
+  // One way back to the list for the whole screen, whichever step asks. It is spent by the first ask and closed once the screen
+  // is unmounted or no longer in front, so a late rotate reply cannot pop a second screen.
+  const leaveGuard = useRef<LeaveOnce | undefined>(undefined);
+  useFocusEffect(useCallback(() => {
+    const guard = createLeaveOnce(() => (router.canGoBack() ? router.back() : router.replace('/friends')));
+    leaveGuard.current = guard;
+    return () => guard.dispose();
+  }, [router]));
+  const finish = () => leaveGuard.current?.run();
   const header = <BackHeader title="친구 여권" />;
   const frame = (body: ReactNode, control?: ScrollViewProps['refreshControl']) => (
     <SkyBackdrop>
@@ -115,8 +126,8 @@ export function FriendPassportScreen({
         offerNewCode();
         return;
       }
+      // Nothing was removed: the button is free again. On every other path the busy state ends with the screen.
       setError(friendsErrorMessage(caught));
-    } finally {
       removingNow.current = false;
       setRemoving(false);
     }
@@ -124,19 +135,14 @@ export function FriendPassportScreen({
 
   // Asked once the friendship is gone, whichever way it ended. Every way out of the prompt goes back to the list, exactly once.
   function offerNewCode() {
-    let left = false;
-    const finish = () => {
-      if (left) return;
-      left = true;
-      leave();
-    };
     Alert.alert(ROTATE_AFTER_REMOVE_TITLE, ROTATE_AFTER_REMOVE_BODY, [
       { text: '그대로 두기', style: 'cancel', onPress: finish },
-      { text: '코드 바꾸기', onPress: () => void rotateThenLeave(finish) },
+      { text: '코드 바꾸기', onPress: () => void rotateThenLeave() },
     ], { cancelable: true, onDismiss: finish });
   }
 
-  async function rotateThenLeave(finish: () => void) {
+  async function rotateThenLeave() {
+    setRotatingCode(true);
     try {
       await api.rotateCode();
       finish();
@@ -144,6 +150,8 @@ export function FriendPassportScreen({
       Alert.alert('코드를 바꾸지 못했어요', `${friendsErrorMessage(caught)} 친구 탭에서 다시 바꿀 수 있어요.`, [
         { text: '확인', onPress: finish },
       ], { cancelable: true, onDismiss: finish });
+    } finally {
+      setRotatingCode(false);
     }
   }
 
@@ -198,7 +206,7 @@ export function FriendPassportScreen({
         onPress={() => confirmRemove(friend)}
         style={[styles.dangerButton, removing && styles.disabled]}
       >
-        <Text style={styles.dangerButtonText}>{removing ? '끊는 중…' : '친구 끊기'}</Text>
+        <Text style={styles.dangerButtonText}>{rotatingCode ? '코드 바꾸는 중…' : removing ? '끊는 중…' : '친구 끊기'}</Text>
       </Pressable>
     </>,
     <RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />,
