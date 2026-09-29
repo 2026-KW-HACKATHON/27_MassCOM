@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 // 실제 기동 경로(server.ts 진입점)를 자식 프로세스로 띄워, 가게 그림 설정이 잘못돼도 API가 죽지 않고 기능만 끄는지 확인한다.
 // 데이터베이스가 없는 개발 모드라서 DB·비밀값 없이도 뜬다. 키·값은 시험용 가짜이고 밖으로 나가는 요청은 없다.
 const apiRoot = fileURLToPath(new URL('..', import.meta.url));
-const secretLooking = 'sk-test-only-not-a-real-key-0123456789';
+const secretLooking = 'test-only-openai-key-value-0123456789';
 const badBaseUrl = 'https://evil.example';
 
 function startApi(env: Record<string, string>): Promise<{ output: string; exitedEarly: boolean }> {

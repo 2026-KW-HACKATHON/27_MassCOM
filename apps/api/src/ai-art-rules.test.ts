@@ -303,7 +303,7 @@ test('the base URL is pinned to the official OpenAI origin, or http on loopback 
 });
 
 test('an invalid configuration turns the feature off instead of failing, without repeating any value', () => {
-  const secretLooking = 'sk-test-only-not-a-real-key-0123456789';
+  const secretLooking = 'test-only-openai-key-value-0123456789';
   for (const env of [
     { OPENAI_API_KEY: secretLooking, AI_ART_OPENAI_BASE_URL: 'https://evil.example' },
     { OPENAI_API_KEY: secretLooking, AI_ART_MONTHLY_BUDGET_USD: 'lots' },
