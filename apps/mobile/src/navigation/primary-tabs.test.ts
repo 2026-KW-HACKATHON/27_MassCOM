@@ -40,6 +40,13 @@ test('the floating bar skips hidden routes and steps aside for the keyboard', ()
   assert.match(bar, /navigation\.emit\(\{ type: 'tabPress'/);
 });
 
+test('every primary screen offers the account avatar', () => {
+  for (const screen of ['merchant-list']) {
+    const source = readFileSync(fileURLToPath(new URL(`../screens/${screen}/index.tsx`, import.meta.url)), 'utf8');
+    assert.match(source, /<AppHeader/, screen);
+  }
+});
+
 test('the UI preview entry is development-only and cannot replace account tools', () => {
   const settings = readFileSync(fileURLToPath(new URL('../screens/account-settings/index.tsx', import.meta.url)), 'utf8');
   const preview = readFileSync(join(app, 'foundation-preview.tsx'), 'utf8');

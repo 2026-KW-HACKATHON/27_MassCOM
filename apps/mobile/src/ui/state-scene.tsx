@@ -7,7 +7,7 @@ import { useUiStyles } from './use-ui-styles';
 
 const poseByKind: Record<'empty' | 'error' | 'loading', MascotPose> = { empty: 'sleep', error: 'puzzled', loading: 'search' };
 
-type Props = { kind: 'empty' | 'error' | 'loading'; title: string; body?: string; action?: { label: string; onPress: () => void } };
+type Props = { kind: 'empty' | 'error' | 'loading'; title: string; body?: string; action?: { label: string; onPress: () => void; disabled?: boolean } };
 
 export function StateScene({ kind, title, body, action }: Props) {
   const styles = useUiStyles();
@@ -16,7 +16,7 @@ export function StateScene({ kind, title, body, action }: Props) {
       <Mascot pose={poseByKind[kind]} size={132} />
       <Text style={styles.sceneTitle}>{title}</Text>
       {body ? <Text style={styles.sceneBody}>{body}</Text> : null}
-      {action ? <BounceButton label={action.label} onPress={action.onPress} variant="secondary" /> : null}
+      {action ? <BounceButton label={action.label} onPress={action.onPress} disabled={action.disabled} variant="secondary" /> : null}
     </View>
   );
 }

@@ -1,9 +1,7 @@
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -11,33 +9,44 @@ import {
   TextInput,
   View,
   useColorScheme,
-  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAuthSession } from '@/auth/auth-provider';
 import type { PublicMerchant } from '@/merchant/merchant-api';
 import { filterMerchants, type MerchantAvailabilityFilter } from '@/merchant/filter-merchants';
-import { MerchantMark } from '@/merchant/merchant-mark';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
-import { uiMetrics } from '@/theme/ui-metrics';
 import { TabGlyph } from '@/navigation/tab-glyph';
-import { colorsForScheme, type AppColors } from '@/theme/palette';
+import { useTabBarClearance } from '@/navigation/floating-tab-bar';
+import { colorsForScheme } from '@/theme/palette';
+import { worldForScheme } from '@/theme/world';
+import { AppHeader } from '@/ui/app-header';
+import { FloatingCard } from '@/ui/floating-card';
+import { Mascot } from '@/ui/mascot';
+import { SkyBackdrop } from '@/ui/sky-backdrop';
+import { Stagger } from '@/ui/stagger';
+import { StateScene } from '@/ui/state-scene';
 
+import { MerchantCrest } from './merchant-crest';
 import { makeMerchantListStyles } from './styles';
-
-const exploreBanner = require('../../../assets/images/mascot/explore-banner.jpg');
+import { useMerchantListStyles } from './use-merchant-list-styles';
 
 type Props = {
   apiUrl: string;
 };
 
+// Only the first screenful floats in one by one; rows that scroll into view later appear at once.
+const STAGGERED_ROWS = 8;
+
 export function MerchantListScreen({ apiUrl }: Props) {
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
-  const styles = StyleSheet.create(makeMerchantListStyles(palette, StyleSheet.hairlineWidth));
+  const world = worldForScheme(scheme);
+  const styles = useMerchantListStyles();
+  const router = useRouter();
+  const auth = useAuthSession();
   const insets = useSafeAreaInsets();
-  // ponytail: explicit size — percentage width + aspectRatio rendered at the asset's intrinsic size inside the FlatList header on a real Android device.
-  const bannerWidth = useWindowDimensions().width - uiMetrics.pageInset * 2;
+  const clearance = useTabBarClearance();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const [query, setQuery] = useState('');
   const [availability, setAvailability] = useState<MerchantAvailabilityFilter>('all');
@@ -46,161 +55,179 @@ export function MerchantListScreen({ apiUrl }: Props) {
     [merchants, query, availability],
   );
   const filtering = query.trim().length > 0 || availability !== 'all';
+  const openMerchant = (merchantId: string) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId } });
 
   return (
-    <FlatList
-      data={visibleMerchants}
-      keyExtractor={(merchant) => merchant.id}
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom, backgroundColor: palette.background }]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={palette.primary} />}
-      ListHeaderComponent={
-        <View style={styles.header}>
-          <Image
-            source={exploreBanner}
-            accessible={false}
-            accessibilityIgnoresInvertColors
-            resizeMode="cover"
-            style={[styles.banner, { width: bannerWidth, height: bannerWidth / 2.6 }]}
+    <SkyBackdrop>
+      <FlatList
+        data={visibleMerchants}
+        keyExtractor={(merchant) => merchant.id}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refresh}
+            tintColor={palette.primary}
+            colors={[palette.primary]}
+            progressBackgroundColor={world.card}
+            progressViewOffset={insets.top}
           />
-          <Text selectable style={[styles.title, { color: palette.label }]}>월계에서 만나는 오늘의 한 끼.</Text>
-          <Text selectable style={[styles.intro, { color: palette.secondaryLabel }]}>
-            공개된 음식점을 찾고, 방문을 도감에 모아보세요.
-          </Text>
-          {merchants.length > 0 ? (
-            <View style={styles.discoveryTools}>
-              <View style={[styles.searchField, { backgroundColor: palette.surface, borderColor: palette.separator }]}>
-                <View accessibilityElementsHidden style={styles.searchGlyph}>
-                  <TabGlyph name="explore" color={palette.primary} size={21} />
+        }
+        ListHeaderComponent={
+          <>
+            <AppHeader title="오늘은 어디를 탐험할까요?" subtitle="가본 적 없는 가게에 도장을 찍어 보세요" />
+            <View style={styles.header}>
+              <View style={styles.heroRow}>
+                <View style={styles.heroCopy}>
+                  <Link href="/collection" asChild>
+                    <Pressable accessibilityRole="button" style={styles.passportChip}>
+                      <View accessible={false} style={styles.passportChipDot} />
+                      <Text style={styles.passportChipText}>
+                        {auth.accountId ? '탐험 여권 · 도감에서 내 도장 보기' : '로그인하면 여권이 열려요'}
+                      </Text>
+                    </Pressable>
+                  </Link>
                 </View>
-                <TextInput
-                  value={query}
-                  onChangeText={setQuery}
-                  accessibilityLabel="음식점 검색"
-                  placeholder="이름·주소·이야기로 찾기"
-                  placeholderTextColor={palette.secondaryLabel}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="search"
-                  style={[styles.searchInput, { color: palette.label }]}
+                <Mascot
+                  pose={refreshing ? 'search' : 'explore-map'}
+                  size={120}
+                  accessibilityLabel={refreshing ? '목록을 찾는 마스코트' : '지도를 든 마스코트'}
                 />
-                {query ? (
-                  <Pressable accessibilityRole="button" accessibilityLabel="검색어 지우기" onPress={() => setQuery('')} style={styles.clearSearch}>
-                    <Text style={[styles.clearSearchText, { color: palette.secondaryLabel }]}>지우기</Text>
-                  </Pressable>
+              </View>
+              {merchants.length > 0 ? (
+                <View style={styles.discoveryTools}>
+                  <View style={styles.searchField}>
+                    <View accessibilityElementsHidden style={styles.searchGlyph}>
+                      <TabGlyph name="explore" color={palette.primary} size={21} />
+                    </View>
+                    <TextInput
+                      value={query}
+                      onChangeText={setQuery}
+                      accessibilityLabel="음식점 검색"
+                      placeholder="이름·주소·이야기로 찾기"
+                      placeholderTextColor={world.cardMuted}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="search"
+                      style={styles.searchInput}
+                    />
+                    {query ? (
+                      <Pressable accessibilityRole="button" accessibilityLabel="검색어 지우기" onPress={() => setQuery('')} style={styles.clearSearch}>
+                        <Text style={styles.clearSearchText}>지우기</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  <View style={styles.filters} accessibilityRole="radiogroup" accessibilityLabel="참여 상태 필터">
+                    {([
+                      ['all', '전체'],
+                      ['open', '참여 가능'],
+                    ] as const).map(([value, label]) => (
+                      <Pressable
+                        key={value}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: availability === value }}
+                        onPress={() => setAvailability(value)}
+                        style={({ pressed }) => [
+                          styles.filterChip,
+                          { backgroundColor: availability === value ? palette.primary : world.card, borderColor: availability === value ? palette.primary : palette.separator },
+                          pressed && styles.cardPressed,
+                        ]}
+                      >
+                        <Text style={[styles.filterText, { color: availability === value ? palette.onPrimary : world.cardInk }]}>{label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+              <View style={styles.sectionHeading}>
+                <View style={styles.sectionTitleRow}>
+                  <Text accessibilityRole="header" style={styles.sectionEyebrow}>동네 음식점</Text>
+                  <Text accessibilityLiveRegion="polite" style={styles.sectionCount}>
+                    {filtering ? `${visibleMerchants.length} / ${merchants.length}곳` : `${merchants.length}곳`}
+                  </Text>
+                </View>
+                {merchants.length > 0 ? (
+                  <Link href="/recommendations" asChild>
+                    <Pressable accessibilityRole="button" accessibilityLabel="다음 가게 추천 보기" style={styles.recommendationAction}>
+                      <Text style={styles.recommendationActionText}>추천 보기 →</Text>
+                    </Pressable>
+                  </Link>
                 ) : null}
               </View>
-              <View style={styles.filters} accessibilityRole="radiogroup" accessibilityLabel="참여 상태 필터">
-                {([
-                  ['all', '전체'],
-                  ['open', '참여 가능'],
-                ] as const).map(([value, label]) => (
-                  <Pressable
-                    key={value}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: availability === value }}
-                    onPress={() => setAvailability(value)}
-                    style={({ pressed }) => [
-                      styles.filterChip,
-                      { backgroundColor: availability === value ? palette.primary : palette.surface, borderColor: availability === value ? palette.primary : palette.separator },
-                      pressed && styles.cardPressed,
-                    ]}
-                  >
-                    <Text style={[styles.filterText, { color: availability === value ? palette.onPrimary : palette.label }]}>{label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          ) : null}
-          <View style={styles.sectionHeading}>
-            <View style={styles.sectionTitleRow}>
-              <Text style={[styles.sectionEyebrow, { color: palette.label }]}>동네 음식점</Text>
-              <Text accessibilityLiveRegion="polite" style={[styles.sectionCount, { color: palette.secondaryLabel }]}>
-                {filtering ? `${visibleMerchants.length} / ${merchants.length}곳` : `${merchants.length}곳`}
-              </Text>
-            </View>
-            {merchants.length > 0 ? (
-              <Link href="/recommendations" asChild>
-                <Pressable accessibilityRole="button" accessibilityLabel="다음 가게 추천 보기" style={styles.recommendationAction}>
-                  <Text style={[styles.recommendationActionText, { color: palette.primary }]}>추천 보기 →</Text>
+              {merchants.length > 0 ? (
+                <View style={styles.notice}>
+                  <Text selectable style={styles.noticeText}>
+                    표시된 점포는 현재 개발·검증용 데이터일 수 있습니다. 실제 협약 점포 여부는 별도로
+                    확인합니다.
+                  </Text>
+                </View>
+              ) : null}
+              {error && merchants.length > 0 ? (
+                <Pressable accessibilityRole="button" onPress={retry} style={styles.inlineError}>
+                  <Text style={styles.inlineErrorText}>{error} 눌러서 다시 시도</Text>
                 </Pressable>
-              </Link>
-            ) : null}
+              ) : null}
+            </View>
+          </>
+        }
+        ListEmptyComponent={
+          <View style={styles.itemWrap}>
+            <FloatingCard>
+              {loading ? (
+                <StateScene kind="loading" title="동네 지도를 펼치는 중" body="공개 중인 캠페인을 확인하고 있습니다." />
+              ) : error ? (
+                <StateScene kind="error" title="지금은 목록을 가져오지 못했어요" body={error} action={{ label: '다시 불러오기', onPress: retry }} />
+              ) : merchants.length > 0 ? (
+                <StateScene
+                  kind="empty"
+                  title="검색 결과가 없어요"
+                  body="다른 이름이나 주소로 찾거나, 참여 상태 필터를 바꿔 보세요."
+                  action={{ label: '검색 초기화', onPress: () => { setQuery(''); setAvailability('all'); } }}
+                />
+              ) : (
+                <CatalogEmptyState onRefresh={refresh} refreshing={refreshing} />
+              )}
+            </FloatingCard>
           </View>
-          {error && merchants.length > 0 ? (
-            <Pressable accessibilityRole="button" onPress={retry} style={[styles.inlineError, { backgroundColor: palette.errorContainer }]}>
-              <Text style={[styles.inlineErrorText, { color: palette.onErrorContainer }]}>{error} 눌러서 다시 시도</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      }
-      ListEmptyComponent={
-        loading ? (
-          <StatusPanel palette={palette} title="동네 지도를 펼치는 중" body="공개 중인 캠페인을 확인하고 있습니다.">
-            <ActivityIndicator color={palette.primary} />
-          </StatusPanel>
-        ) : error ? (
-          <StatusPanel palette={palette} title="지금은 목록을 가져오지 못했어요" body={error} action="다시 불러오기" onPress={retry} />
-        ) : merchants.length > 0 ? (
-          <StatusPanel
-            palette={palette}
-            title="검색 결과가 없어요"
-            body="다른 이름이나 주소로 찾거나, 참여 상태 필터를 바꿔 보세요."
-            action="검색 초기화"
-            onPress={() => { setQuery(''); setAvailability('all'); }}
-          />
-        ) : (
-          <CatalogEmptyState palette={palette} onRefresh={refresh} refreshing={refreshing} />
-        )
-      }
-      renderItem={({ item, index }) => <MerchantCard merchant={item} index={index} palette={palette} />}
-      ItemSeparatorComponent={() => <View style={styles.separator} />}
-      ListFooterComponent={
-        merchants.length > 0 ? (
-          <Text selectable style={[styles.footer, { color: palette.secondaryLabel }]}>
-            표시된 점포는 현재 개발·검증용 데이터일 수 있습니다. 실제 협약 점포 여부는 별도로
-            확인합니다.
-          </Text>
-        ) : null
-      }
-    />
+        }
+        renderItem={({ item, index }) => {
+          const row = (
+            <View style={styles.itemWrap}>
+              <MerchantCard merchant={item} onOpen={openMerchant} />
+            </View>
+          );
+          return index < STAGGERED_ROWS ? <Stagger index={index}>{row}</Stagger> : row;
+        }}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+      />
+    </SkyBackdrop>
   );
 }
 
-function CatalogEmptyState({ palette, onRefresh, refreshing }: { palette: AppColors; onRefresh: () => void; refreshing: boolean }) {
-  const styles = StyleSheet.create(makeMerchantListStyles(palette, StyleSheet.hairlineWidth));
+function CatalogEmptyState({ onRefresh, refreshing }: { onRefresh: () => void; refreshing: boolean }) {
+  const styles = useMerchantListStyles();
   return (
-    <View style={[styles.emptyState, { backgroundColor: palette.accentContainer }]}>
-      <View style={styles.emptyRoute} accessibilityElementsHidden>
-        <View style={[styles.routeStop, { backgroundColor: palette.primary }]} />
-        <View style={[styles.routeTrack, { borderColor: palette.onAccentContainer }]} />
-        <View style={[styles.routeStop, styles.routeStopOutline, { borderColor: palette.primary }]} />
+    <View style={{ alignItems: 'center' }}>
+      <Text style={styles.emptyEyebrow}>지금의 월계1동</Text>
+      <StateScene
+        kind="empty"
+        title="공개 중인 음식점이 아직 없어요."
+        body="참여 캠페인이 열리면 실제 점포가 여기에 나타납니다. 지금은 서비스 이용 흐름을 먼저 살펴볼 수 있어요."
+        action={{ label: refreshing ? '확인 중…' : '목록 다시 확인', onPress: onRefresh, disabled: refreshing }}
+      />
+      <View style={styles.journey}>
+        <Text style={styles.journeyLabel}>이용 순서</Text>
+        <Text style={styles.journeyText}>01 음식점 찾기  →  02 방문 인증  →  03 도감</Text>
       </View>
-      <Text style={[styles.emptyEyebrow, { color: palette.onAccentContainer }]}>지금의 월계1동</Text>
-      <Text selectable style={[styles.emptyTitle, { color: palette.onAccentContainer }]}>공개 중인 음식점이{`\n`}아직 없어요.</Text>
-      <Text selectable style={[styles.emptyBody, { color: palette.onAccentContainer }]}>
-        참여 캠페인이 열리면 실제 점포가 여기에 나타납니다. 지금은 서비스 이용 흐름을 먼저 살펴볼 수 있어요.
-      </Text>
-      <View style={[styles.journey, { borderTopColor: palette.onAccentContainer }]}>
-        <Text style={[styles.journeyLabel, { color: palette.onAccentContainer }]}>이용 순서</Text>
-        <Text style={[styles.journeyText, { color: palette.onAccentContainer }]}>01 음식점 찾기  →  02 방문 인증  →  03 도감</Text>
-      </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ busy: refreshing }}
-        disabled={refreshing}
-        onPress={onRefresh}
-        style={({ pressed }) => [styles.emptyRefresh, { backgroundColor: palette.primary }, pressed && styles.cardPressed]}
-      >
-        <Text style={[styles.emptyRefreshText, { color: palette.onPrimary }]}>{refreshing ? '확인 중…' : '목록 다시 확인'}</Text>
-      </Pressable>
     </View>
   );
 }
 
 export function MerchantApiConfigurationRequired() {
-  const palette = colorsForScheme(useColorScheme());
-  const styles = StyleSheet.create(makeMerchantListStyles(palette, StyleSheet.hairlineWidth));
+  const scheme = useColorScheme();
+  const palette = colorsForScheme(scheme);
+  const styles = StyleSheet.create(makeMerchantListStyles(palette, worldForScheme(scheme), StyleSheet.hairlineWidth));
   return (
     <View style={[styles.configurationContent, { backgroundColor: palette.background }]}>
       <Text style={[styles.sectionEyebrow, { color: palette.label }]}>설정 필요</Text>
@@ -216,68 +243,37 @@ export function MerchantApiConfigurationRequired() {
   );
 }
 
-function MerchantCard({ merchant, index, palette }: { merchant: PublicMerchant; index: number; palette: AppColors }) {
-  const styles = StyleSheet.create(makeMerchantListStyles(palette, StyleSheet.hairlineWidth));
+function MerchantCard({ merchant, onOpen }: { merchant: PublicMerchant; onOpen: (merchantId: string) => void }) {
+  const styles = useMerchantListStyles();
+  const palette = colorsForScheme(useColorScheme());
+  const full = merchant.campaign.enrollmentStatus === 'FULL';
+  const status = merchant.campaign.enrollmentStatus === 'OPEN' ? '참여 가능' : '정원 마감';
   return (
-    <Link
-      href={{ pathname: '/merchants/[merchantId]', params: { merchantId: merchant.id } }}
-      asChild
+    <FloatingCard
+      onPress={() => onOpen(merchant.id)}
+      accessibilityLabel={`${merchant.name}, ${status}${merchant.demo ? ', 데모 데이터' : ''}, ${merchant.roadAddress}. 자세히 보기`}
+      style={styles.card}
     >
-      <Pressable accessibilityRole="button" style={({ pressed }) => [styles.card, { backgroundColor: palette.surface, borderColor: palette.separator }, pressed && styles.cardPressed]}>
+      <MerchantCrest merchant={merchant} />
+      <View style={styles.cardBody}>
         <View style={styles.cardTopline}>
-          <View style={[styles.statusBadge, { backgroundColor: merchant.campaign.enrollmentStatus === 'FULL' ? palette.errorContainer : palette.successContainer }]}>
-            <Text style={[styles.statusBadgeText, { color: merchant.campaign.enrollmentStatus === 'FULL' ? palette.onErrorContainer : palette.onSuccessContainer }]}>
-              {merchant.campaign.enrollmentStatus === 'OPEN' ? '참여 가능' : '정원 마감'}
-            </Text>
+          <View style={[styles.statusBadge, full ? { backgroundColor: palette.errorContainer } : null]}>
+            <Text style={[styles.statusBadgeText, full ? { color: palette.onErrorContainer } : null]}>{status}</Text>
           </View>
           {merchant.demo ? (
-            <View style={[styles.demoBadge, { backgroundColor: palette.primaryContainer }]}>
-              <Text style={[styles.demoBadgeText, { color: palette.onPrimaryContainer }]}>DEMO</Text>
+            <View style={styles.demoBadge}>
+              <Text style={styles.demoBadgeText}>DEMO</Text>
             </View>
           ) : null}
         </View>
-        <View style={styles.cardNameRow}>
-          <MerchantMark label={String(index + 1)} visited={false} palette={palette} />
-          <Text selectable style={[styles.cardTitle, { color: palette.label, flex: 1 }]}>{merchant.name}</Text>
-        </View>
-        <Text selectable numberOfLines={2} style={[styles.cardStory, { color: palette.secondaryLabel }]}>{merchant.story}</Text>
-        <View style={[styles.cardRule, { backgroundColor: palette.separator }]} />
+        <Text selectable style={styles.cardTitle}>{merchant.name}</Text>
+        <Text selectable numberOfLines={2} style={styles.cardStory}>{merchant.story}</Text>
         <View style={styles.cardMeta}>
-          <Text selectable numberOfLines={1} style={[styles.cardAddress, { color: palette.label }]}>{merchant.roadAddress}</Text>
-          <Text style={[styles.cardArrow, { color: palette.primary }]}>→</Text>
+          <Text selectable numberOfLines={1} style={styles.cardAddress}>{merchant.roadAddress}</Text>
+          <Text style={styles.cardArrow}>→</Text>
         </View>
-        <Text style={[styles.campaignName, { color: palette.secondaryLabel }]}>{merchant.campaign.title}</Text>
-      </Pressable>
-    </Link>
-  );
-}
-
-function StatusPanel({
-  palette,
-  title,
-  body,
-  action,
-  onPress,
-  children,
-}: {
-  palette: AppColors;
-  title: string;
-  body: string;
-  action?: string;
-  onPress?: () => void;
-  children?: React.ReactNode;
-}) {
-  const styles = StyleSheet.create(makeMerchantListStyles(palette, StyleSheet.hairlineWidth));
-  return (
-    <View style={[styles.statusPanel, { backgroundColor: palette.surface }]}>
-      {children}
-      <Text style={[styles.statusTitle, { color: palette.label }]}>{title}</Text>
-      <Text selectable style={[styles.statusBody, { color: palette.secondaryLabel }]}>{body}</Text>
-      {action && onPress ? (
-        <Pressable accessibilityRole="button" onPress={onPress} style={[styles.primaryAction, { backgroundColor: palette.primary }]}>
-          <Text style={[styles.primaryActionText, { color: palette.onPrimary }]}>{action}</Text>
-        </Pressable>
-      ) : null}
-    </View>
+        <Text style={styles.campaignName}>{merchant.campaign.title}</Text>
+      </View>
+    </FloatingCard>
   );
 }
