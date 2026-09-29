@@ -40,6 +40,18 @@ test('a code nobody claimed does not linger: it is forgotten after half an hour'
   assert.equal(peekPendingFriendCode(start), undefined);
 });
 
+test('signing out, switching or losing the session forgets a waiting code, so the next account is never asked about it', () => {
+  rememberPendingFriendCode('K7M2Q9XP');
+  assert.equal(hasPendingFriendLink(), true);
+  clearPendingFriendLink();
+  assert.equal(hasPendingFriendLink(), false);
+  assert.equal(peekPendingFriendCode(), undefined);
+  assert.equal(consumePendingFriendCode(), undefined);
+  // Clearing when nothing waits is harmless.
+  clearPendingFriendLink();
+  assert.equal(consumePendingFriendCode(), undefined);
+});
+
 test('a friend link that could not be used waits as a problem, said once, and is forgotten the same ways', () => {
   rememberPendingFriendProblem('MALFORMED');
   assert.equal(hasPendingFriendLink(), true);

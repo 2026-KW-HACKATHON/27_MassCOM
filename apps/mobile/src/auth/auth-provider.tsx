@@ -12,6 +12,7 @@ import { createSessionStore, type StoredAuthSessionV1 } from './session-store';
 import { demoRuntimeConfig, createDemoCredential, isDevelopmentDemoBuild } from '@/config/demo-runtime';
 import { getPublicApiConfig } from '@/config/public-api';
 import { resolveRuntimeIdentity } from '@/config/showcase-identity';
+import { clearPendingFriendLink } from '@/friends/pending-friend-link';
 import { purgeForeignWalletSessions } from '@/wallet/account-scope';
 import { createAccountScopedAppKit, walletRuntimeConfig } from '@/wallet/appkit';
 import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
@@ -149,6 +150,8 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       await controllerRef.current.signIn();
     },
     async logout() {
+      // A friend link opened under this account must not be offered to whoever signs in next.
+      clearPendingFriendLink();
       if (state.status === 'demo') {
         await forgetWalletSession({
           disconnect: async () => {
@@ -162,10 +165,12 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       await controllerRef.current?.logout();
     },
     async switchAccount() {
+      clearPendingFriendLink();
       if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
       await controllerRef.current.switchAccount();
     },
     async invalidateSession() {
+      clearPendingFriendLink();
       if (!session || !controllerRef.current) return;
       await controllerRef.current.invalidateSession(session.sessionToken);
     },

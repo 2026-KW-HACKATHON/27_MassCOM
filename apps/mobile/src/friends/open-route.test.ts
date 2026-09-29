@@ -29,6 +29,14 @@ test('a friend link opened while signed out continues at the friends tab after s
   assert.match(screen, /const problem = consumePendingFriendProblem\(\);\s*if \(problem\) setAddNotice\(\{ tone: 'error', text: friendLinkProblemMessage\(problem\) \}\);\s*if \(pending\) confirmAdd\(pending\)/);
 });
 
+test('a waiting friend link is forgotten when the account signs out, switches or its session ends', () => {
+  const provider = read('../auth/auth-provider.tsx');
+  assert.match(provider, /import \{ clearPendingFriendLink \} from '@\/friends\/pending-friend-link'/);
+  for (const method of ['logout', 'switchAccount', 'invalidateSession']) {
+    assert.match(provider, new RegExp(`async ${method}\\(\\) \\{(\\s*//[^\\n]*)?\\s*clearPendingFriendLink\\(\\);`), method);
+  }
+});
+
 test('the app declares the HTTPS open link the friend and merchant links use', () => {
   const config = read('../../app.config.ts');
   assert.match(config, /pathPrefix: '\/open'/);
