@@ -1815,7 +1815,7 @@ const deletionNodeIds = ['admin-status', 'admin-login', 'admin-content', 'admin-
 const pendingIntake = {
   id: '11111111-1111-4111-8111-111111111111', status: 'REQUESTED', source: 'WEB',
   requestedAt: '2026-10-01T00:00:00.000Z', cancelUntil: '2026-10-02T00:00:00.000Z', dueAt: '2026-10-08T00:00:00.000Z',
-  canProcess: true, overdue: false, accountLabel: 'acct_1a2b…9f0e', processedAt: null, processedBy: null,
+  canProcess: true, overdue: false, accountLabel: 'acct_1a2b…9f0e', hasReceipt: true, processedAt: null, processedBy: null,
   rejectReason: null, deletion: null,
 };
 
@@ -1904,6 +1904,78 @@ test('삭제 처리는 두 번째 확인 클릭에서만 실행되고 결과 목
   assert.match(nodes['admin-status'].textContent, /삭제 요청을 처리했습니다/);
 });
 
+test('삭제 처리 확인은 5초가 지나거나 초점이 떠나면 풀리고 두 번째 클릭은 요청을 한 번만 보낸다', async () => {
+  const realSetTimeout = globalThis.setTimeout;
+  const realClearTimeout = globalThis.clearTimeout;
+  const timers = new Map();
+  let nextTimer = 1;
+  globalThis.setTimeout = (callback, ms) => { const id = nextTimer++; timers.set(id, { callback, ms }); return id; };
+  globalThis.clearTimeout = (id) => { timers.delete(id); };
+  try {
+    const { nodes, doc, calls, fetcher } = deletionAdminFixture([pendingIntake]);
+    await loadAdmin(fetcher, doc);
+    const button = nodes['admin-deletions'].children[0].children[2];
+    const process = () => calls.filter(call => call.path.endsWith('/process')).length;
+    // 시간이 지나면 풀린다.
+    await button.click();
+    assert.match(button.textContent, /정말 삭제 처리/);
+    assert.equal(timers.size, 1);
+    assert.equal([...timers.values()][0].ms, 5000);
+    [...timers.values()][0].callback();
+    assert.equal(button.textContent, '삭제 처리');
+    assert.equal(button.attributes['aria-label'], 'acct_1a2b…9f0e 삭제 처리');
+    assert.match(nodes['admin-status'].textContent, /확인이 풀렸습니다/);
+    await button.click();
+    assert.equal(process(), 0, '풀린 뒤 첫 클릭은 다시 확인만 요구한다');
+    assert.match(button.textContent, /정말 삭제 처리/);
+    // 초점이 떠나도 풀린다.
+    await button.dispatch('blur');
+    assert.equal(button.textContent, '삭제 처리');
+    assert.equal(timers.size, 0, '풀리면 남은 시간도 지운다');
+    assert.equal(process(), 0);
+    // 확인 중 두 번째 클릭은 시간 제한을 지우고 요청을 보낸다.
+    await button.click();
+    assert.equal(timers.size, 1);
+    await button.click();
+    assert.equal(timers.size, 0);
+    assert.equal(process(), 1);
+  } finally {
+    globalThis.setTimeout = realSetTimeout;
+    globalThis.clearTimeout = realClearTimeout;
+  }
+});
+
+test('삭제 요청 줄의 버튼과 입력은 마스킹한 계정 표지를 접근 가능한 이름에 담고 확인 상태도 이름에 반영한다', async () => {
+  const cooling = { ...pendingIntake, id: '33333333-3333-4333-8333-333333333333', canProcess: false, accountLabel: 'acct_9z8y…7x6w' };
+  const { nodes, doc, fetcher } = deletionAdminFixture([pendingIntake, cooling]);
+  await loadAdmin(fetcher, doc);
+  const [ready, waiting] = nodes['admin-deletions'].children;
+  const [process, reason, reject] = ready.children.slice(2);
+  assert.equal(process.attributes['aria-label'], 'acct_1a2b…9f0e 삭제 처리');
+  assert.equal(reason.attributes['aria-label'], 'acct_1a2b…9f0e 거절 사유');
+  assert.equal(reject.attributes['aria-label'], 'acct_1a2b…9f0e 거절');
+  await process.click();
+  assert.equal(process.attributes['aria-label'], 'acct_1a2b…9f0e 정말 삭제 처리 (되돌릴 수 없음)');
+  const [waitingProcess, waitingReason, waitingReject] = waiting.children.slice(2);
+  assert.equal(waitingProcess.attributes['aria-label'], 'acct_9z8y…7x6w 취소 기간 중 · 처리 불가');
+  assert.equal(waitingReason.attributes['aria-label'], 'acct_9z8y…7x6w 거절 사유');
+  assert.equal(waitingReject.attributes['aria-label'], 'acct_9z8y…7x6w 거절');
+  const names = JSON.stringify(nodes['admin-deletions'].children.map(row => row.children.map(node => node.attributes)));
+  assert.doesNotMatch(names, /@|"accountId"|acct_[0-9a-f]{8,}/);
+});
+
+test('접수번호가 없는 옛 접수는 운영자 목록에서 그렇게 표시하고 새 접수는 표시하지 않는다', async () => {
+  const legacy = { ...pendingIntake, id: '44444444-4444-4444-8444-444444444444', hasReceipt: false };
+  const withoutField = { ...pendingIntake, id: '55555555-5555-4555-8555-555555555555' };
+  delete withoutField.hasReceipt;
+  const { nodes, doc, fetcher } = deletionAdminFixture([pendingIntake, legacy, withoutField]);
+  await loadAdmin(fetcher, doc);
+  const [fresh, old, unknown] = nodes['admin-deletions'].children;
+  assert.doesNotMatch(fresh.children[0].textContent, /옛 접수/);
+  assert.match(old.children[0].textContent, /계정 acct_1a2b…9f0e · 옛 접수\(접수번호 없음\)/);
+  assert.doesNotMatch(unknown.children[0].textContent, /옛 접수/, '필드가 없는 응답을 옛 접수로 단정하지 않는다');
+});
+
 test('삭제 처리와 거절의 서버 거절 사유는 운영자가 이해할 문장으로 알린다', async () => {
   const cases = [
     ['DELETION_COOLING_OFF', /취소 기간/], ['DELETION_SELF_PROCESSING_REFUSED', /본인 요청은 처리할 수 없습니다/],
@@ -1943,7 +2015,8 @@ test('삭제 거절은 입력한 사유를 그대로 보내고 성공하면 목�
     ? { ok: true, json: async () => ({ intakes: [rejected] }) } : fetcher(path, options);
   await loadAdmin(dynamic, doc);
   const [, reason, reject] = nodes['admin-deletions'].children[0].children.slice(2);
-  assert.equal(reason.attributes['aria-label'], '거절 사유');
+  assert.equal(reason.attributes['aria-label'], 'acct_1a2b…9f0e 거절 사유');
+  assert.equal(reject.attributes['aria-label'], 'acct_1a2b…9f0e 거절');
   assert.equal(reason.maxLength, 200);
   reason.value = '<b>본인 확인 불가</b>';
   await reject.click();

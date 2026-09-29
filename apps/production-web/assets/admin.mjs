@@ -82,6 +82,9 @@ function editField(doc, label, name, value, type = 'text') {
   return wrapper;
 }
 
+// 삭제 처리는 되돌릴 수 없어 두 번 눌러야 하고, 확인 상태는 이 시간이 지나거나 초점이 떠나면 풀린다.
+const disarmAfterMs = 5000;
+const armedMessage = '한 번 더 누르면 이 계정의 로그인·지갑 연결·권한이 삭제 처리됩니다.';
 const sourceLabels = { WEB: '웹 접수', SHOWCASE_APP: '시연 앱 접수' };
 const statusLabels = { REQUESTED: '대기', CANCELLED: '취소됨', PROCESSED: '처리 완료', REJECTED: '거절됨' };
 const ledgerLabels = { WAITING_FOR_MINT_FINALITY: '제출된 거래 결과 확인 중', COMPLETED: '삭제 완료' };
@@ -110,7 +113,7 @@ function deletionRow(fetcher, doc, intake, status) {
   const row = doc.createElement('div');
   row.className = 'admin-deletion';
   const head = doc.createElement('p');
-  head.textContent = `${sourceLabels[intake.source]} · ${statusLabels[intake.status]} · 계정 ${intake.accountLabel ?? '삭제됨'}`;
+  head.textContent = `${sourceLabels[intake.source]} · ${statusLabels[intake.status]} · 계정 ${intake.accountLabel ?? '삭제됨'}${intake.hasReceipt === false ? ' · 옛 접수(접수번호 없음)' : ''}`;
   const dates = doc.createElement('p');
   dates.textContent = `접수 ${formatKst(intake.requestedAt)} · 취소 마감 ${formatKst(intake.cancelUntil)} · 처리 기한 ${formatKst(intake.dueAt)}${intake.overdue ? ' · 기한 초과' : ''}`;
   row.append(head, dates);
@@ -125,19 +128,36 @@ function deletionRow(fetcher, doc, intake, status) {
     row.append(result);
     return row;
   }
+  // 같은 이름의 버튼이 줄마다 있으므로 화면 낭독기가 어느 계정의 것인지 알 수 있게 마스킹한 표지를 이름에 넣는다.
+  const subject = intake.accountLabel ?? '계정';
   const process = doc.createElement('button');
   process.type = 'button';
   process.className = 'danger';
   process.disabled = !intake.canProcess;
-  process.textContent = intake.canProcess ? '삭제 처리' : '취소 기간 중 · 처리 불가';
+  const setProcessLabel = (text) => {
+    process.textContent = text;
+    process.setAttribute('aria-label', `${subject} ${text}`);
+  };
+  setProcessLabel(intake.canProcess ? '삭제 처리' : '취소 기간 중 · 처리 불가');
   let armed = false;
+  let timer;
+  const disarm = () => {
+    clearTimeout(timer);
+    if (!armed || process.disabled) return;
+    armed = false;
+    setProcessLabel('삭제 처리');
+    if (status.textContent === armedMessage) status.textContent = '삭제 처리 확인이 풀렸습니다. 처리하려면 처음부터 다시 누르세요.';
+  };
+  process.addEventListener('blur', disarm);
   process.addEventListener('click', async () => {
     if (!armed) {
       armed = true;
-      process.textContent = '정말 삭제 처리 (되돌릴 수 없음)';
-      status.textContent = '한 번 더 누르면 이 계정의 로그인·지갑 연결·권한이 삭제 처리됩니다.';
+      setProcessLabel('정말 삭제 처리 (되돌릴 수 없음)');
+      status.textContent = armedMessage;
+      timer = setTimeout(disarm, disarmAfterMs);
       return;
     }
+    clearTimeout(timer);
     process.disabled = true;
     try {
       await jsonRequest(fetcher, `${deletionEndpoint}/${encodeURIComponent(intake.id)}/process`, 'POST', {});
@@ -146,7 +166,7 @@ function deletionRow(fetcher, doc, intake, status) {
     } catch (error) {
       status.textContent = deletionErrorText(error);
       armed = false;
-      process.textContent = '삭제 처리';
+      setProcessLabel('삭제 처리');
       process.disabled = false;
     }
   });
@@ -154,11 +174,12 @@ function deletionRow(fetcher, doc, intake, status) {
   reason.name = 'reason';
   reason.maxLength = 200;
   reason.required = true;
-  reason.setAttribute('aria-label', '거절 사유');
+  reason.setAttribute('aria-label', `${subject} 거절 사유`);
   reason.placeholder = '거절 사유';
   const reject = doc.createElement('button');
   reject.type = 'button';
   reject.textContent = '거절';
+  reject.setAttribute('aria-label', `${subject} 거절`);
   reject.addEventListener('click', async () => {
     reject.disabled = true;
     try {
