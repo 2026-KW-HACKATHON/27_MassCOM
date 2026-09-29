@@ -18,5 +18,11 @@ test('makeMerchantClaimStyles gives rendered light and dark content and states t
     assert.equal(styles.errorText.color, palette.onErrorContainer);
     assert.equal(styles.couponRow.backgroundColor, palette.background);
     assert.equal(styles.couponTitle.color, palette.label);
+    // 되돌리기 카드: 위험 동작은 오류 색 면에, 선택한 사유는 기본 강조 면에 얹는다.
+    assert.equal(styles.dangerButton.backgroundColor, palette.errorContainer);
+    assert.equal(styles.dangerButtonText.color, palette.onErrorContainer);
+    assert.equal(styles.reasonOptionSelected.backgroundColor, palette.primaryContainer);
+    assert.equal(styles.reasonOptionTextSelected.color, palette.onPrimaryContainer);
+    assert.ok(styles.dangerButton.minHeight >= 48 && styles.reasonOption.minHeight >= 48);
   }
 });
