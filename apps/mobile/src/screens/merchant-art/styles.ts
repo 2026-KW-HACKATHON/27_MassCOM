@@ -30,7 +30,8 @@ export function makeMerchantArtStyles(palette: AppColors, world: WorldTheme) {
     failure: { padding: 12, borderRadius: 12, backgroundColor: palette.errorContainer },
     failureText: { color: palette.onErrorContainer, fontSize: 14, lineHeight: 21, fontWeight: '700' },
     generating: { alignItems: 'center', gap: 10, paddingVertical: 8 },
-    generatingTitle: { color: world.cardInk, fontSize: 18, fontWeight: '900', lineHeight: 26, textAlign: 'center' },
+    // Bold Hangul measured by the default break strategy clipped the last word on Android; 700 plus 'simple' wraps it.
+    generatingTitle: { color: world.cardInk, fontSize: 18, fontWeight: '700', lineHeight: 26, textAlign: 'center' },
     generatingBody: { color: world.cardMuted, fontSize: 15, lineHeight: 22, textAlign: 'center' },
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: TILE_GAP },
     // The border is always as thick as a chosen one's, so picking a draft never shifts its picture; only its colour changes.

@@ -146,7 +146,7 @@ function ReadyBody({ state, apiUrl, merchantId, width, art }: {
       {panel === 'unavailable' ? (
         <Stagger index={1}>
           <FloatingCard style={styles.cardStack}>
-            <Text accessibilityRole="header" style={styles.cardTitle}>AI 그림은 준비 중이에요</Text>
+            <Text accessibilityRole="header" textBreakStrategy="simple" style={styles.cardTitle}>AI 그림은 준비 중이에요</Text>
             <Text accessibilityLiveRegion="polite" style={styles.cardBody}>{artCodeMessage('AI_ART_NOT_CONFIGURED')}</Text>
           </FloatingCard>
         </Stagger>
@@ -155,7 +155,7 @@ function ReadyBody({ state, apiUrl, merchantId, width, art }: {
       {panel === 'idle' || panel === 'failed' ? (
         <Stagger index={1}>
           <FloatingCard style={styles.cardStack}>
-            <Text accessibilityRole="header" style={styles.cardTitle}>AI 시안 받기</Text>
+            <Text accessibilityRole="header" textBreakStrategy="simple" style={styles.cardTitle}>AI 시안 받기</Text>
             <Text style={styles.cardBody}>가게 이름과 메뉴 이름으로 스타일이 다른 시안 4장을 그려요. {GENERATING_NOTE}</Text>
             {panel === 'failed' ? (
               <View accessibilityLiveRegion="polite" style={styles.failure}>
@@ -173,7 +173,7 @@ function ReadyBody({ state, apiUrl, merchantId, width, art }: {
           <FloatingCard>
             <View accessibilityLiveRegion="polite" style={styles.generating}>
               <Mascot pose="search" size={132} />
-              <Text style={styles.generatingTitle}>{panel === 'finalizing' ? '고급 그림으로 다시 그리는 중이에요' : 'AI 시안을 그리는 중이에요'}</Text>
+              <Text textBreakStrategy="simple" style={styles.generatingTitle}>{panel === 'finalizing' ? '고급 그림으로 다시 그리는 중이에요' : 'AI 시안을 그리는 중이에요'}</Text>
               <Text style={styles.generatingBody}>{GENERATING_NOTE}</Text>
             </View>
           </FloatingCard>
@@ -183,7 +183,7 @@ function ReadyBody({ state, apiUrl, merchantId, width, art }: {
       {panel === 'drafts' && round ? (
         <Stagger index={1}>
           <FloatingCard style={styles.cardStack}>
-            <Text accessibilityRole="header" style={styles.cardTitle}>마음에 드는 시안을 골라 주세요</Text>
+            <Text accessibilityRole="header" textBreakStrategy="simple" style={styles.cardTitle}>마음에 드는 시안을 골라 주세요</Text>
             <DraftGrid drafts={round.drafts} size={draftTileSize(width)} selected={selected} disabled={working} onSelect={art.select} />
             <BounceButton
               label={busy === 'choose' ? busyLabels.choose : '이 시안으로 고급 그림 만들기'}
@@ -200,7 +200,7 @@ function ReadyBody({ state, apiUrl, merchantId, width, art }: {
       {panel === 'final' && round?.final ? (
         <Stagger index={1}>
           <FloatingCard style={styles.cardStack}>
-            <Text accessibilityRole="header" style={styles.cardTitle}>고급 그림이 완성됐어요</Text>
+            <Text accessibilityRole="header" textBreakStrategy="simple" style={styles.cardTitle}>고급 그림이 완성됐어요</Text>
             <Image
               source={{ uri: round.final.imageDataUrl }}
               accessible
