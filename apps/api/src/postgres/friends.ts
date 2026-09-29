@@ -203,6 +203,12 @@ export class PostgresFriendService implements FriendService {
         'SELECT account_id FROM friend_codes WHERE code = $1', [code],
       );
       if (owner.rows[0]?.account_id !== target) return this.recordFailure(client, me, now);
+      // 상대가 나를 끊어서 막아 두었다면 없는 코드와 똑같이 실패로 센다. 끊기(remove)도 두 계정 잠금을 잡으므로
+      // 이 확인과 끊기가 엇갈려 차단을 우회하는 일이 없다.
+      const blocked = await client.query(
+        'SELECT 1 FROM friend_blocks WHERE blocker = $1 AND blocked = $2', [target, me],
+      );
+      if (blocked.rowCount === 1) return this.recordFailure(client, me, now);
 
       const { low, high } = orderAccountPair(me, target);
       const existing = await client.query<{ id: string }>(
@@ -222,6 +228,8 @@ export class PostgresFriendService implements FriendService {
       }
       // 내 코드가 아직 없어도 상대가 나를 다시 추가하고 별명이 보이도록 이때 만들어 둔다.
       await this.ensureCode(client, me, now);
+      // 내가 예전에 끊어서 막아 둔 상대를 다시 추가하면 차단은 관계를 만드는 같은 거래에서 풀린다.
+      await client.query('DELETE FROM friend_blocks WHERE blocker = $1 AND blocked = $2', [me, target]);
       const inserted = await client.query<{ id: string }>(
         `INSERT INTO friendships (id, account_low, account_high, created_at)
          VALUES ($1, $2, $3, $4)
@@ -247,12 +255,39 @@ export class PostgresFriendService implements FriendService {
   async remove(input: { accountId: string; friendshipId: string }): Promise<void> {
     // 내가 속한 관계만 지운다. 남의 관계·없는 관계·UUID가 아닌 값은 구분 없이 같은 404다.
     if (!uuidPattern.test(input.friendshipId)) throw new FriendError('FRIEND_NOT_FOUND');
-    const removed = await this.pool.query(
-      `DELETE FROM friendships
-       WHERE id = $1 AND (account_low = $2 OR account_high = $2)`,
-      [input.friendshipId, input.accountId],
-    );
-    if (removed.rowCount !== 1) throw new FriendError('FRIEND_NOT_FOUND');
+    const me = input.accountId;
+    await this.transaction(async (client) => {
+      const found = await client.query<{ account_low: string; account_high: string }>(
+        `SELECT account_low, account_high FROM friendships
+         WHERE id = $1 AND (account_low = $2 OR account_high = $2)`,
+        [input.friendshipId, me],
+      );
+      const pair = found.rows[0];
+      if (!pair) throw new FriendError('FRIEND_NOT_FOUND');
+      const other = pair.account_low === me ? pair.account_high : pair.account_low;
+      // 추가와 같은 두 계정 잠금(정렬 순서)을 잡아 끊기와 다시 추가하기가 엇갈려도 차단이 우회되지 않고, 계정 삭제와도
+      // 직렬화된다. 잠금을 기다리는 사이 상대가 삭제되면 관계는 이미 지워졌으므로 404, 내가 삭제되면 410이다.
+      try {
+        await this.accountLifecycle.assertAllActive(client, [me, other]);
+      } catch (error) {
+        if (!(error instanceof AccountLifecycleError)) throw error;
+        await this.accountLifecycle.assertActive(client, me);
+        throw new FriendError('FRIEND_NOT_FOUND');
+      }
+      const removed = await client.query<{ account_low: string; account_high: string }>(
+        `DELETE FROM friendships
+         WHERE id = $1 AND (account_low = $2 OR account_high = $2)
+         RETURNING account_low, account_high`,
+        [input.friendshipId, me],
+      );
+      if (removed.rowCount !== 1) throw new FriendError('FRIEND_NOT_FOUND');
+      // 끊은 쪽이 상대를 막는다. 상대는 내 코드를 입력해도 없는 코드와 같은 실패를 받는다.
+      await client.query(
+        `INSERT INTO friend_blocks (blocker, blocked, created_at) VALUES ($1, $2, $3)
+         ON CONFLICT (blocker, blocked) DO NOTHING`,
+        [me, other, this.now()],
+      );
+    });
   }
 
   async rotateCode(accountId: string): Promise<{ code: string }> {

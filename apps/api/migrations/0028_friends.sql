@@ -1,4 +1,4 @@
--- 친구(Issue #230, D-047): 별명·친구 코드·친구 관계·코드 입력 실패 기록. 추가형이며 기존 표를 바꾸지 않는다.
+-- 친구(Issue #230, D-047): 별명·친구 코드·친구 관계·차단·코드 입력 실패 기록. 추가형이며 기존 표를 바꾸지 않는다.
 -- 계정 ID는 다른 표와 같은 text이고 참조 제약은 두지 않는다. 계정 삭제는 account-deletion.ts가 같은 거래에서 지운다.
 CREATE TABLE explorer_profiles (
   account_id text PRIMARY KEY CHECK (length(btrim(account_id)) > 0),
@@ -27,6 +27,19 @@ CREATE TABLE friendships (
 
 -- account_low 조회는 위의 유일 제약이 받치고, account_high 조회와 계정 삭제 정리는 이 색인이 받친다.
 CREATE INDEX friendships_account_high_idx ON friendships (account_high);
+
+-- 친구를 끊으면 끊은 쪽(blocker)이 상대(blocked)를 막는다. 막힌 계정이 끊은 사람의 코드를 입력하면 없는 코드와 같은 404이고
+-- 실패 횟수에 들어간다. 끊은 쪽이 나중에 상대의 코드로 다시 추가하면 같은 거래에서 풀린다. 코드가 아니라 계정 기준이라
+-- 코드를 바꿔도 유지된다. blocked 색인은 계정 삭제 정리가 받친다(blocker 조회는 기본 키가 받친다).
+CREATE TABLE friend_blocks (
+  blocker text NOT NULL CHECK (length(btrim(blocker)) > 0),
+  blocked text NOT NULL CHECK (length(btrim(blocked)) > 0),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (blocker, blocked),
+  CONSTRAINT friend_blocks_distinct CHECK (blocker <> blocked)
+);
+
+CREATE INDEX friend_blocks_blocked_idx ON friend_blocks (blocked);
 
 -- 코드 입력 실패만 기록한다(계정당 10분 10회 제한). 성공·멱등 재요청은 기록하지 않는다.
 CREATE TABLE friend_code_attempts (

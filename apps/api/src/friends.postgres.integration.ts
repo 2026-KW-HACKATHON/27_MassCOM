@@ -26,7 +26,7 @@ async function setup(t: TestContext) {
   t.after(() => pool.end());
   await runMigrations(pool);
   await pool.query(
-    `TRUNCATE friendships, friend_codes, explorer_profiles, friend_code_attempts,
+    `TRUNCATE friendships, friend_blocks, friend_codes, explorer_profiles, friend_code_attempts,
               account_deletion_requests, customer_identity_tokens, merchants CASCADE`,
   );
   for (const [shop, staff] of Object.entries(staffOf)) {
@@ -95,6 +95,10 @@ async function befriend(db: Db, account: string, other: string) {
   return db.friends.addByCode({ accountId: account, code: await codeOf(db, other) });
 }
 
+const blockRows = async (pool: Pool) =>
+  (await pool.query('SELECT blocker, blocked FROM friend_blocks ORDER BY blocker, blocked')).rows
+    .map((row) => [row.blocker, row.blocked]);
+
 const friendshipRows = async (pool: Pool) =>
   (await pool.query('SELECT id, account_low, account_high FROM friendships ORDER BY account_low, account_high')).rows;
 
@@ -105,9 +109,9 @@ test('migration 0028 creates the friend tables with their constraints', async (t
   )).rows[0]!.n, 1);
   const tables = await pool.query(
     `SELECT table_name FROM information_schema.tables
-     WHERE table_name IN ('explorer_profiles', 'friend_codes', 'friendships', 'friend_code_attempts')`,
+     WHERE table_name IN ('explorer_profiles', 'friend_codes', 'friendships', 'friend_blocks', 'friend_code_attempts')`,
   );
-  assert.equal(tables.rowCount, 4);
+  assert.equal(tables.rowCount, 5);
 
   const insertCode = (code: string, account: string = randomUUID()) =>
     pool.query('INSERT INTO friend_codes (account_id, code) VALUES ($1, $2)', [account, code]);
@@ -134,6 +138,22 @@ test('migration 0028 creates the friend tables with their constraints', async (t
   await assert.rejects(insertPair('a', 'B'), /check/i);
   await insertPair('B', 'a');
   await assert.rejects(insertPair('B', 'a'), /unique|duplicate/i);
+
+  const insertBlock = (blocker: string, blocked: string) => pool.query(
+    'INSERT INTO friend_blocks (blocker, blocked) VALUES ($1, $2)', [blocker, blocked],
+  );
+  await assert.rejects(insertBlock('', 'a'), /check/i);
+  await assert.rejects(insertBlock('a', '  '), /check/i);
+  await assert.rejects(insertBlock('same', 'same'), /check/i);
+  await insertBlock('a', 'b');
+  await assert.rejects(insertBlock('a', 'b'), /unique|duplicate/i);
+  // 방향이 있어서 반대쪽 차단은 따로 둘 수 있다.
+  await insertBlock('b', 'a');
+  const indexes = await pool.query(
+    `SELECT indexdef FROM pg_indexes WHERE tablename = 'friend_blocks' ORDER BY indexname`,
+  );
+  assert.ok(indexes.rows.some((row) => /\(blocked\)/.test(row.indexdef)), 'index on blocked');
+  assert.ok(indexes.rows.some((row) => /\(blocker, blocked\)/.test(row.indexdef)), 'primary key');
 });
 
 test('the first friends read creates a stable code, a default nickname and an empty list', async (t) => {
@@ -428,10 +448,177 @@ test('removing needs membership: outsiders and malformed ids get the same 404 an
   assert.deepEqual((await db.friends.list('b')).friends, []);
   await assert.rejects(db.friends.remove({ accountId: 'a', friendshipId: friend.friendshipId }), rejectsWith('FRIEND_NOT_FOUND'));
 
-  // 끊은 뒤에 다시 추가하면 새 관계가 생긴다.
-  const again = await befriend(db, 'a', 'b');
+  // 끊은 쪽(b)이 상대(a)를 막았고 그 밖에는 아무 차단도 없다. 실패한 끊기는 차단을 만들지 않는다.
+  assert.deepEqual(await blockRows(db.pool), [['b', 'a']]);
+
+  // 끊은 쪽이 다시 추가하면 새 관계가 생기고 자기 차단이 풀린다.
+  const again = await befriend(db, 'b', 'a');
   assert.equal(again.created, true);
   assert.notEqual(again.friend.friendshipId, friend.friendshipId);
+  assert.deepEqual(await blockRows(db.pool), []);
+});
+
+test('failed removals leave no block and removing twice at once records one block', async (t) => {
+  const db = await setup(t);
+  const { friend } = await befriend(db, 'a', 'b');
+  await assert.rejects(db.friends.remove({ accountId: 'outsider', friendshipId: friend.friendshipId }), rejectsWith('FRIEND_NOT_FOUND'));
+  await assert.rejects(db.friends.remove({ accountId: 'a', friendshipId: 'not-a-uuid' }), rejectsWith('FRIEND_NOT_FOUND'));
+  assert.deepEqual(await blockRows(db.pool), []);
+  const results = await Promise.allSettled(Array.from({ length: 6 }, (_, index) =>
+    db.friends.remove({ accountId: index % 2 === 0 ? 'a' : 'b', friendshipId: friend.friendshipId })));
+  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
+  for (const result of results) {
+    if (result.status === 'rejected') assert.ok(rejectsWith('FRIEND_NOT_FOUND')(result.reason), String(result.reason));
+  }
+  assert.equal((await blockRows(db.pool)).length, 1);
+  assert.equal((await friendshipRows(db.pool)).length, 0);
+});
+
+test('a removed friend cannot add the remover back: same 404 as an unknown code, counted as a failed attempt', async (t) => {
+  const db = await setup(t);
+  const { friend } = await befriend(db, 'remover', 'removed');
+  const removerCode = await codeOf(db, 'remover');
+  await db.friends.remove({ accountId: 'remover', friendshipId: friend.friendshipId });
+  assert.deepEqual(await blockRows(db.pool), [['remover', 'removed']]);
+
+  const attempts = async (account: string) => (await db.pool.query(
+    'SELECT count(*)::int AS n FROM friend_code_attempts WHERE account_id = $1', [account],
+  )).rows[0]!.n;
+  const blocked = await db.friends.addByCode({ accountId: 'removed', code: removerCode }).then(
+    () => assert.fail('a blocked add must fail'), (error: unknown) => error);
+  const unknown = await db.friends.addByCode({ accountId: 'removed', code: '22222222' }).then(
+    () => assert.fail('an unknown code must fail'), (error: unknown) => error);
+  // 막힌 코드와 없는 코드는 오류 종류·재시도 시각까지 구분되지 않는다.
+  for (const error of [blocked, unknown]) {
+    assert.ok(error instanceof FriendError);
+    assert.equal(error.code, 'FRIEND_CODE_NOT_FOUND');
+    assert.equal(error.retryAfterSeconds, undefined);
+  }
+  assert.equal(await attempts('removed'), 2);
+  assert.equal((await friendshipRows(db.pool)).length, 0);
+
+  // 코드를 바꿔도 계정 기준이라 여전히 막혀 있다.
+  const { code: rotated } = await db.friends.rotateCode('remover');
+  await assert.rejects(db.friends.addByCode({ accountId: 'removed', code: rotated }), rejectsWith('FRIEND_CODE_NOT_FOUND'));
+  assert.equal(await attempts('removed'), 3);
+  assert.equal((await friendshipRows(db.pool)).length, 0);
+
+  // 열 번을 넘겨 시도하면 다른 실패와 똑같이 제한이 걸린다.
+  for (let index = 0; index < 7; index++) {
+    await assert.rejects(db.friends.addByCode({ accountId: 'removed', code: rotated }), rejectsWith('FRIEND_CODE_NOT_FOUND'));
+  }
+  assert.equal(await attempts('removed'), 10);
+  await assert.rejects(db.friends.addByCode({ accountId: 'removed', code: rotated }), rejectsWith('FRIEND_CODE_RATE_LIMITED'));
+  // 막힌 쪽이 차단을 만들지는 않고, 다른 계정의 추가에는 영향이 없다.
+  assert.deepEqual(await blockRows(db.pool), [['remover', 'removed']]);
+  assert.equal((await db.friends.addByCode({ accountId: 'other', code: rotated })).created, true);
+});
+
+test('the remover adding the removed friend back lifts the block in the same transaction', async (t) => {
+  const db = await setup(t);
+  const { friend } = await befriend(db, 'x', 'f');
+  await db.friends.remove({ accountId: 'x', friendshipId: friend.friendshipId });
+  assert.deepEqual(await blockRows(db.pool), [['x', 'f']]);
+
+  // x가 f의 코드로 다시 추가하면 새 관계가 생기고 x의 f에 대한 차단이 풀린다.
+  const readded = await db.friends.addByCode({ accountId: 'x', code: await codeOf(db, 'f') });
+  assert.equal(readded.created, true);
+  assert.deepEqual(await blockRows(db.pool), []);
+  // 이제 f도 x를 다시 추가하는 요청이 같은 관계를 돌려준다(막히지 않는다).
+  const replay = await db.friends.addByCode({ accountId: 'f', code: await codeOf(db, 'x') });
+  assert.deepEqual([replay.created, replay.friend.friendshipId], [false, readded.friend.friendshipId]);
+
+  // 반대로 f가 끊었다면 x는 막히고, f가 x를 추가해야 풀린다.
+  await db.friends.remove({ accountId: 'f', friendshipId: readded.friend.friendshipId });
+  assert.deepEqual(await blockRows(db.pool), [['f', 'x']]);
+  await assert.rejects(db.friends.addByCode({ accountId: 'x', code: await codeOf(db, 'f') }), rejectsWith('FRIEND_CODE_NOT_FOUND'));
+  assert.equal((await friendshipRows(db.pool)).length, 0);
+  assert.equal((await db.friends.addByCode({ accountId: 'f', code: await codeOf(db, 'x') })).created, true);
+  assert.deepEqual(await blockRows(db.pool), []);
+});
+
+test('a friend limit failure rolls back and keeps the block, and blocked accounts cannot refill a full friend list', async (t) => {
+  const db = await setup(t);
+  const { friend } = await befriend(db, 'full', 'ex');
+  await db.friends.remove({ accountId: 'full', friendshipId: friend.friendshipId });
+  for (let index = 0; index < 100; index++) {
+    await db.pool.query(
+      'INSERT INTO friendships (id, account_low, account_high) VALUES ($1, $2, $3)',
+      [randomUUID(), `friend-${String(index).padStart(3, '0')}`, 'full'],
+    );
+  }
+  // full은 정원이 차서 ex를 다시 추가할 수 없고, 이때 차단은 풀리지 않는다.
+  await assert.rejects(db.friends.addByCode({ accountId: 'full', code: await codeOf(db, 'ex') }), rejectsWith('FRIEND_LIMIT'));
+  assert.deepEqual(await blockRows(db.pool), [['full', 'ex']]);
+  // 자리가 나도 ex는 full을 추가할 수 없어서 정원을 다시 채울 수 없다.
+  await db.friends.remove({ accountId: 'full', friendshipId: (await friendshipRows(db.pool))[0]!.id });
+  await assert.rejects(db.friends.addByCode({ accountId: 'ex', code: await codeOf(db, 'full') }), rejectsWith('FRIEND_CODE_NOT_FOUND'));
+  assert.equal((await db.friends.list('full')).friends.length, 99);
+});
+
+test('removing waits for the two-account lock that adding holds, so a re-add cannot slip past the block', async (t) => {
+  const db = await setup(t);
+  const { friend } = await befriend(db, 'x', 'f');
+  const holder = await db.pool.connect();
+  let removal: Promise<void> | undefined;
+  try {
+    await holder.query('BEGIN');
+    await db.lifecycle.assertAllActive(holder, ['x', 'f']);
+    let finished = false;
+    removal = db.friends.remove({ accountId: 'x', friendshipId: friend.friendshipId }).then(() => { finished = true; });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(finished, false, 'remove must wait for the account locks');
+    assert.equal((await friendshipRows(db.pool)).length, 1);
+    await holder.query('COMMIT');
+  } finally {
+    holder.release();
+  }
+  await removal;
+  assert.equal((await friendshipRows(db.pool)).length, 0);
+  assert.deepEqual(await blockRows(db.pool), [['x', 'f']]);
+});
+
+test('removing while the friend re-adds at the same time never leaves a friendship next to the block', async (t) => {
+  const db = await setup(t);
+  for (let round = 0; round < 12; round++) {
+    const remover = `remover-${round}`;
+    const friend = `friend-${round}`;
+    const { friend: pair } = await befriend(db, remover, friend);
+    const removerCode = await codeOf(db, remover);
+    const results = await Promise.allSettled([
+      db.friends.remove({ accountId: remover, friendshipId: pair.friendshipId }),
+      db.friends.addByCode({ accountId: friend, code: removerCode }),
+      db.friends.addByCode({ accountId: friend, code: removerCode }),
+    ]);
+    assert.equal(results[0]!.status, 'fulfilled', String(round));
+    for (const result of results.slice(1)) {
+      if (result.status === 'rejected') assert.ok(rejectsWith('FRIEND_CODE_NOT_FOUND')(result.reason), String(result.reason));
+    }
+    assert.deepEqual((await db.pool.query(
+      'SELECT id FROM friendships WHERE account_low = ANY($1) AND account_high = ANY($1)', [[remover, friend]],
+    )).rows, [], `round ${round}`);
+    assert.deepEqual((await db.pool.query(
+      'SELECT blocker, blocked FROM friend_blocks WHERE blocker = $1', [remover],
+    )).rows, [{ blocker: remover, blocked: friend }], `round ${round}`);
+  }
+});
+
+test('removing while the friend account is being deleted leaves no orphan block', async (t) => {
+  const db = await setup(t);
+  for (let round = 0; round < 8; round++) {
+    const remover = `keeper-${round}`;
+    const leaver = `leaver-${round}`;
+    const { friend } = await befriend(db, remover, leaver);
+    const [removed, deleted] = await Promise.allSettled([
+      db.friends.remove({ accountId: remover, friendshipId: friend.friendshipId }),
+      db.deletion.requestDeletion({ accountId: leaver, confirmation: 'DELETE MY ACCOUNT' }),
+    ]);
+    assert.equal(deleted.status, 'fulfilled', String(round));
+    if (removed.status === 'rejected') assert.ok(rejectsWith('FRIEND_NOT_FOUND')(removed.reason), String(removed.reason));
+    assert.equal((await db.pool.query(
+      'SELECT count(*)::int AS n FROM friend_blocks WHERE blocker = $1 OR blocked = $1', [leaver],
+    )).rows[0]!.n, 0, `round ${round}`);
+  }
 });
 
 test('rotating a code invalidates the old one, keeps friendships and preserves the creation time', async (t) => {
@@ -549,6 +736,10 @@ test('account deletion removes code, profile, attempts and both sides of every f
   await befriend(db, 'b', 'c');
   await db.friends.setNickname({ accountId: 'leaver', nickname: '떠날 사람' });
   await db.friends.setNickname({ accountId: 'b', nickname: '남는 사람' });
+  // 차단은 떠나는 계정이 끊은 것과 떠나는 계정을 끊은 것, 남는 계정끼리의 것이 섞여 있다.
+  await db.pool.query(
+    `INSERT INTO friend_blocks (blocker, blocked) VALUES ('leaver', 'z1'), ('z2', 'leaver'), ('z1', 'z2')`,
+  );
   await assert.rejects(db.friends.addByCode({ accountId: 'leaver', code: '22222222' }), rejectsWith('FRIEND_CODE_NOT_FOUND'));
   const leaverCode = await codeOf(db, 'leaver');
   assert.equal((await friendshipRows(db.pool)).length, 3);
@@ -564,6 +755,8 @@ test('account deletion removes code, profile, attempts and both sides of every f
   )).rows[0]!.n, 0);
   // 남은 친구 관계와 다른 계정의 자료는 그대로다.
   assert.deepEqual((await friendshipRows(db.pool)).map((row) => [row.account_low, row.account_high]), [['b', 'c']]);
+  // 양쪽 칸 어디에 있든 삭제된 계정의 차단은 사라지고 다른 계정끼리의 차단은 남는다.
+  assert.deepEqual(await blockRows(db.pool), [['z1', 'z2']]);
   assert.equal((await db.pool.query(`SELECT count(*)::int AS n FROM explorer_profiles WHERE account_id = 'b'`)).rows[0]!.n, 1);
   for (const account of ['b', 'c']) {
     const list = await db.friends.list(account);

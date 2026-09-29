@@ -336,10 +336,15 @@ async function pseudonymizeAccount(
     'UPDATE badge_coupons SET redeemed_by_account_id = $1 WHERE redeemed_by_account_id = $2',
     [deletedAlias, accountId],
   );
-  // 친구 데이터는 가명으로 남기지 않고 지운다: 이 계정의 코드·별명·코드 입력 실패 기록과 양쪽 친구 관계.
+  // 친구 데이터는 가명으로 남기지 않고 지운다: 이 계정의 코드·별명·코드 입력 실패 기록과 양쪽 친구 관계·차단.
   // 친구 추가는 같은 계정 잠금을 잡으므로(assertAllActive) 이 거래와 직렬화되어 삭제 뒤에 관계가 생기지 않는다.
   await client.query(
     'DELETE FROM friendships WHERE account_low = $1 OR account_high = $1',
+    [accountId],
+  );
+  // 끊기가 만든 차단은 양쪽 칸 어디에 있든 지운다. 끊기(remove)는 같은 계정 잠금을 잡으므로 이 거래보다 뒤에 차단이 생기지 않는다.
+  await client.query(
+    'DELETE FROM friend_blocks WHERE blocker = $1 OR blocked = $1',
     [accountId],
   );
   await client.query('DELETE FROM friend_codes WHERE account_id = $1', [accountId]);
