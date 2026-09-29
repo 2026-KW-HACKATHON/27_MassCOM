@@ -37,3 +37,28 @@ test('a sheet taller than the free space still brings the pin to the top of what
   const target = revealScrollY({ viewportHeight: 600, coverHeight: 560, topInset: 30, pinY: 900, scrollY: 0 });
   assert.equal(target, 900 - (30 + 24 + 8));
 });
+
+test('the sheet height that was measured decides how far a pin is lifted: a taller sheet lifts it higher', () => {
+  const base = { viewportHeight: 800, topInset: 30, pinY: 700, scrollY: 0 };
+  const short = revealScrollY({ ...base, coverHeight: 200 });
+  const tall = revealScrollY({ ...base, coverHeight: 400 });
+  assert.ok(short !== null && tall !== null && tall > short, `tall ${tall} vs short ${short}`);
+  // The pin ends up inside the free band above the measured sheet, not under it.
+  assert.ok(700 - tall! <= 800 - 400 - 24);
+});
+
+test('the target never goes past the end of the padded content, whatever the pin asks for', () => {
+  const view = { viewportHeight: 800, coverHeight: 300, topInset: 30, pinY: 1200, scrollY: 0 };
+  // Unclamped, the pin would be aimed at 1200 - 265 = 935; content 1300 tall only scrolls to 1300 - 800 = 500.
+  assert.ok((revealScrollY(view) ?? 0) > 500);
+  assert.equal(revealScrollY({ ...view, contentHeight: 1300 }), 500);
+  // More padding (a taller sheet) makes the content taller, and the same pin can then be lifted further.
+  assert.equal(revealScrollY({ ...view, contentHeight: 1900 }), revealScrollY(view));
+  // Content shorter than the screen cannot scroll at all.
+  assert.equal(revealScrollY({ ...view, contentHeight: 700 }), 0);
+});
+
+test('an unknown content height leaves the clamp to the native scroll view', () => {
+  const view = { viewportHeight: 800, coverHeight: 300, topInset: 30, pinY: 1200, scrollY: 0 };
+  assert.equal(revealScrollY({ ...view, contentHeight: undefined }), revealScrollY(view));
+});

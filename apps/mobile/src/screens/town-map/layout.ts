@@ -18,14 +18,24 @@ export function pinCenter(anchor: Anchor, mapWidth: number): { x: number; y: num
 
 /**
  * The scroll offset that keeps a selected pin visible above the bottom sheet, or null when it already is.
- * `pinY` is the pin's centre inside the scroll content, `coverHeight` how much of the screen's bottom the sheet hides.
+ * `pinY` is the pin's centre inside the scroll content, `coverHeight` how much of the screen's bottom the sheet hides (the
+ * measured sheet, not a guess). `contentHeight` is the content's height with the sheet's padding in place: the offset never goes
+ * past its end, and when it is unknown the native scroll view does that clamping.
  */
-export function revealScrollY(view: { pinY: number; scrollY: number; viewportHeight: number; coverHeight: number; topInset: number }): number | null {
+export function revealScrollY(view: {
+  pinY: number;
+  scrollY: number;
+  viewportHeight: number;
+  coverHeight: number;
+  topInset: number;
+  contentHeight?: number;
+}): number | null {
   const bandTop = view.topInset + REVEAL_MARGIN;
   const bandBottom = view.viewportHeight - view.coverHeight - REVEAL_MARGIN;
   const onScreen = view.pinY - view.scrollY;
   if (onScreen >= bandTop && onScreen <= bandBottom) return null;
   // Aim for the middle of the free band; when the sheet leaves no band at all, the top of what is left.
   const aim = bandBottom > bandTop ? (bandTop + bandBottom) / 2 : bandTop;
-  return Math.max(0, view.pinY - aim);
+  const furthest = view.contentHeight === undefined ? Infinity : Math.max(0, view.contentHeight - view.viewportHeight);
+  return Math.min(furthest, Math.max(0, view.pinY - aim));
 }
