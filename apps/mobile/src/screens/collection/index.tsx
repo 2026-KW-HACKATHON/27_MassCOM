@@ -2,6 +2,7 @@ import * as Application from 'expo-application';
 import { Link, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import {
@@ -67,6 +68,7 @@ export function CollectionScreen({
   onSessionInvalid: () => Promise<void>;
 }) {
   const clearance = useTabBarClearance();
+  const insets = useSafeAreaInsets();
   const isShowcase = Application.applicationId === 'kr.masscom.wolgye.demo';
   const variant: ShareVariant = isShowcase ? 'showcase' : 'production';
   const palette = colorsForScheme(useColorScheme());
@@ -333,7 +335,7 @@ export function CollectionScreen({
         header={header}
         onHeaderLayout={setHeaderHeight}
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >
         <PassportHero
           book={badges.book}

@@ -81,6 +81,31 @@ test('the page under the header art, and the tab scenes, are painted world.page'
   assert.match(readSource('app/(tabs)/_layout.tsx'), /sceneStyle: \{ backgroundColor: world\.page \}/);
 });
 
+test('content that scrolls under the status bar sits behind a page-coloured scrim that fades in, and RefreshControls start below it', () => {
+  const scrim = read('status-bar-scrim.tsx');
+  assert.match(scrim, /pointerEvents="none"/);
+  assert.match(scrim, /height: insets\.top/);
+  assert.match(scrim, /withAlpha\(world\.sky\[2\], world\.statusScrimAlpha\)/);
+  // Fades with the scroll offset; with reduced motion it only toggles.
+  assert.match(scrim, /interpolate\(/);
+  assert.match(scrim, /useMotionEnabled\(\)/);
+  assert.match(scrim, /scrollY\.get\(\)/);
+  // Every scrolling sky screen carries it: the shared scroll view and the explore list.
+  assert.match(read('sky-scroll-view.tsx'), /<StatusBarScrim scrollY=\{scrim\.scrollY\} \/>/);
+  const list = readSource('screens/merchant-list/index.tsx');
+  assert.match(list, /onScroll=\{scrim\.onScroll\}/);
+  assert.match(list, /<StatusBarScrim scrollY=\{scrim\.scrollY\} \/>/);
+  // A pull-to-refresh spinner would otherwise appear behind the status bar.
+  let controls = 0;
+  for (const file of sourceFiles(fileURLToPath(new URL('../screens/', import.meta.url))).filter((path) => path.endsWith('.tsx'))) {
+    for (const control of readFileSync(file, 'utf8').match(/<RefreshControl[\s\S]*?\/>/g) ?? []) {
+      controls += 1;
+      assert.match(control, /progressViewOffset=\{insets\.top\}/, `${file} RefreshControl`);
+    }
+  }
+  assert.equal(controls, 4, 'explore, collection, merchant detail, recommendations');
+});
+
 test('the sky art is the top of the scroll content: the headers carry it and SkyBackdrop is only the page colour', () => {
   assert.doesNotMatch(read('sky-backdrop.tsx'), /skyTownHeader|<Image|<SkyArt/);
   assert.match(read('sky-art.tsx'), /skyTownHeader/);

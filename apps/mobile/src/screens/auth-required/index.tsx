@@ -55,7 +55,6 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole, o
   return (
     <SkyScrollView
       header={header}
-      contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={[styles.content, header ? { backgroundColor: 'transparent' } : null, { paddingBottom: Math.max(40 + insets.bottom, clearance) }]}
     >
       <Text style={styles.eyebrow}>{accountContextLabel(Application.applicationId)}</Text>

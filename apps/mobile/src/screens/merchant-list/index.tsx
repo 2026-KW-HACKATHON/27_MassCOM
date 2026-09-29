@@ -26,6 +26,7 @@ import { Mascot } from '@/ui/mascot';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
+import { StatusBarScrim, useStatusBarScrim } from '@/ui/status-bar-scrim';
 
 import { MerchantCrest } from './merchant-crest';
 import { makeMerchantListStyles } from './styles';
@@ -44,6 +45,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
   const auth = useAuthSession();
   const insets = useSafeAreaInsets();
   const clearance = useTabBarClearance();
+  const scrim = useStatusBarScrim();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const [query, setQuery] = useState('');
   const [availability, setAvailability] = useState<MerchantAvailabilityFilter>('all');
@@ -60,6 +62,8 @@ export function MerchantListScreen({ apiUrl }: Props) {
         data={visibleMerchants}
         keyExtractor={(merchant) => merchant.id}
         keyboardShouldPersistTaps="handled"
+        onScroll={scrim.onScroll}
+        scrollEventThrottle={16}
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
         refreshControl={
           <RefreshControl
@@ -202,6 +206,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
         }}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
+      <StatusBarScrim scrollY={scrim.scrollY} />
     </SkyBackdrop>
   );
 }

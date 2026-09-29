@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { useMemo } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
@@ -9,6 +9,7 @@ import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
 import { BackHeader } from '@/ui/back-header';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
+import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
 
@@ -54,11 +55,11 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
 
   return (
     <SkyBackdrop>
-      <ScrollView
+      <SkyScrollView
+        header={<BackHeader title="음식점 상세" />}
         contentContainerStyle={{ paddingBottom: 48 + insets.bottom }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >
-        <BackHeader title="음식점 상세" />
         {art ? (
           <View style={styles.banner}>
             <Image source={art} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={[styles.bannerArt, { width, height: 240 }]} />
@@ -158,7 +159,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
             </FloatingCard>
           </Stagger>
         </View>
-      </ScrollView>
+      </SkyScrollView>
     </SkyBackdrop>
   );
 }
@@ -192,10 +193,9 @@ function RewardGoalRow({ styles, target, name, final }: { styles: MerchantDetail
 function StateFrame({ styles, children }: { styles: MerchantDetailStyles; children: React.ReactNode }) {
   return (
     <SkyBackdrop>
-      <ScrollView>
-        <BackHeader title="음식점 상세" />
+      <SkyScrollView header={<BackHeader title="음식점 상세" />}>
         <View style={styles.stateWrap}>{children}</View>
-      </ScrollView>
+      </SkyScrollView>
     </SkyBackdrop>
   );
 }

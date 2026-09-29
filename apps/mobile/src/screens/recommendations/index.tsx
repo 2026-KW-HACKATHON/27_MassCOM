@@ -100,9 +100,8 @@ export function RecommendationsScreen({
     <SkyBackdrop>
       <SkyScrollView
         header={header}
-        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >
         <View style={styles.hero}>
           <Text style={styles.eyebrow}>다음 월계 맛길</Text>
