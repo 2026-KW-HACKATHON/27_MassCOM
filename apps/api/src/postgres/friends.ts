@@ -10,7 +10,8 @@ import {
 } from '../friends.js';
 import {
   buildFriendsSnapshot,
-  defaultNickname,
+  defaultNicknamePrefix,
+  generateDefaultNickname,
   generateFriendCode,
   isFriendCode,
   maxFriends,
@@ -58,6 +59,7 @@ type Options = {
   now?: () => Date;
   nextFriendshipId?: () => string;
   nextCode?: () => string;
+  nextDefaultNickname?: () => string;
   maxFailedAttempts?: number;
   attemptWindowMs?: number;
 };
@@ -71,6 +73,7 @@ export class PostgresFriendService implements FriendService {
   private readonly now: () => Date;
   private readonly nextFriendshipId: () => string;
   private readonly nextCode: () => string;
+  private readonly nextDefaultNickname: () => string;
   private readonly maxFailedAttempts: number;
   private readonly attemptWindowMs: number;
 
@@ -79,6 +82,7 @@ export class PostgresFriendService implements FriendService {
     this.now = options.now ?? (() => new Date());
     this.nextFriendshipId = options.nextFriendshipId ?? randomUUID;
     this.nextCode = options.nextCode ?? (() => generateFriendCode());
+    this.nextDefaultNickname = options.nextDefaultNickname ?? (() => generateDefaultNickname());
     this.maxFailedAttempts = options.maxFailedAttempts ?? 10;
     this.attemptWindowMs = options.attemptWindowMs ?? 10 * 60 * 1000;
   }
@@ -124,12 +128,8 @@ export class PostgresFriendService implements FriendService {
       const stampsOf = (id: string) => stamps.rows
         .filter((row) => row.account_id === id)
         .map((row) => ({ merchantName: row.merchant_name }));
-      const nicknameOf = (id: string) => {
-        const nickname = nicknames.get(id);
-        if (nickname) return nickname;
-        const code = codeOf.get(id);
-        return code ? defaultNickname(code) : '탐험가';
-      };
+      // 기본 별명은 첫 코드와 함께 저장된다. 행이 없는 옛 계정은 코드에서 별명을 만들지 않고 "탐험가"로 보인다.
+      const nicknameOf = (id: string) => nicknames.get(id) ?? defaultNicknamePrefix;
 
       const friends: FriendSource[] = rows.rows.map((row) => ({
         friendshipId: row.friendship_id,
@@ -137,9 +137,12 @@ export class PostgresFriendService implements FriendService {
         medals: medalsOf(row.friend_account_id),
         stamps: stampsOf(row.friend_account_id),
       }));
+      // 내 코드가 스냅샷에 없으면 getOrCreateCode 뒤에 계정 삭제가 끼어든 것이다.
+      const myCode = codeOf.get(accountId);
+      if (!myCode) throw new FriendError('ACCOUNT_DELETED');
       return buildFriendsSnapshot({
         nickname: nicknameOf(accountId),
-        code: codeOf.get(accountId)!,
+        code: myCode,
         medals: medalsOf(accountId),
         stampCount: stampsOf(accountId).length,
       }, friends);
@@ -259,7 +262,7 @@ export class PostgresFriendService implements FriendService {
       const existing = (await client.query<{ code: string; created_at: Date }>(
         'SELECT code, created_at FROM friend_codes WHERE account_id = $1 FOR UPDATE', [accountId],
       )).rows[0];
-      if (!existing) return { code: await this.insertCode(client, accountId, { createdAt: now }) };
+      if (!existing) return { code: await this.createFirstCode(client, accountId, now) };
       // 행을 지우고 새 코드로 다시 넣는다. 옛 코드는 이 거래가 끝나는 순간 조회되지 않고, 친구 관계는 그대로다.
       await client.query('DELETE FROM friend_codes WHERE account_id = $1', [accountId]);
       return {
@@ -302,7 +305,19 @@ export class PostgresFriendService implements FriendService {
       'SELECT code FROM friend_codes WHERE account_id = $1', [accountId],
     );
     if (existing.rows[0]) return existing.rows[0].code;
-    return this.insertCode(client, accountId, { createdAt: now });
+    return this.createFirstCode(client, accountId, now);
+  }
+
+  // 계정의 첫 코드는 기본 별명과 같은 거래에서 만든다. 이미 정한 별명이 있으면 건드리지 않는다.
+  private async createFirstCode(client: PoolClient, accountId: string, now: Date): Promise<string> {
+    const code = await this.insertCode(client, accountId, { createdAt: now });
+    await client.query(
+      `INSERT INTO explorer_profiles (account_id, nickname, updated_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (account_id) DO NOTHING`,
+      [accountId, this.nextDefaultNickname(), now],
+    );
+    return code;
   }
 
   private async insertCode(client: PoolClient, accountId: string, input: {

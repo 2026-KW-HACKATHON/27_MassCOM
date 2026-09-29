@@ -4,9 +4,10 @@ import { test } from 'node:test';
 import { buildMedals } from './badge-rules.js';
 import {
   buildFriendsSnapshot,
-  defaultNickname,
+  defaultNicknamePrefix,
   friendCodeAlphabet,
   friendCodePattern,
+  generateDefaultNickname,
   generateFriendCode,
   isFriendCode,
   normalizeFriendCode,
@@ -60,8 +61,23 @@ test('code normalization uppercases and strips spaces and hyphens only', () => {
   assert.equal(isFriendCode(''), false);
 });
 
-test('the default nickname is 탐험가 plus the last four code characters', () => {
-  assert.equal(defaultNickname('K7M2P9QX'), '탐험가 P9QX');
+test('the default nickname is 탐험가 plus four characters from its own random draw, never from a code', () => {
+  assert.equal(defaultNicknamePrefix, '탐험가');
+  assert.equal(generateDefaultNickname(() => new Uint8Array(4)), '탐험가 2222');
+  assert.equal(generateDefaultNickname(() => new Uint8Array(4).fill(31)), '탐험가 ZZZZ');
+  // 하위 5비트가 글자 번호다. 코드와 같은 32글자 표를 쓴다.
+  assert.equal(generateDefaultNickname(() => Uint8Array.from([0, 1, 2, 3])), '탐험가 2345');
+  const sizes: number[] = [];
+  generateDefaultNickname((size) => { sizes.push(size); return new Uint8Array(size); });
+  assert.deepEqual(sizes, [4]);
+  for (let index = 0; index < 500; index++) {
+    const nickname = generateDefaultNickname();
+    assert.match(nickname, /^탐험가 [2-9A-HJ-NP-Z]{4}$/, nickname);
+    assert.equal(parseNickname(nickname), nickname);
+  }
+  // 코드 생성과 별개의 난수다: 같은 바이트를 줘도 코드 함수를 거치지 않고, 서로 다른 호출은 서로 다른 값을 낸다.
+  const draws = new Set(Array.from({ length: 200 }, () => generateDefaultNickname()));
+  assert.ok(draws.size > 150, String(draws.size));
 });
 
 test('nicknames are trimmed, limited to 12 code points and reject URL, email and invisible characters', () => {

@@ -140,7 +140,7 @@ test('the first friends read creates a stable code, a default nickname and an em
   const db = await setup(t);
   const first = await db.friends.list('account-1');
   assert.match(first.me.code, friendCodePattern);
-  assert.equal(first.me.nickname, `탐험가 ${first.me.code.slice(-4)}`);
+  assert.match(first.me.nickname, /^탐험가 [2-9A-HJ-NP-Z]{4}$/);
   assert.deepEqual(first.friends, []);
   assert.deepEqual(first.me.badges, { earned: 0, total: 9 });
   assert.deepEqual(first.me.medals, [
@@ -156,6 +156,72 @@ test('the first friends read creates a stable code, a default nickname and an em
   const codes = await Promise.all(Array.from({ length: 8 }, () => codeOf(db, 'racer')));
   assert.equal(new Set(codes).size, 1);
   assert.equal((await db.pool.query(`SELECT count(*)::int AS n FROM friend_codes WHERE account_id = 'racer'`)).rows[0]!.n, 1);
+});
+
+test('the default nickname is stored with the first code, comes from its own random draw and survives rotation', async (t) => {
+  const db = await setup(t);
+  const service = new PostgresFriendService(db.pool, {
+    accountLifecycle: db.lifecycle, now: db.now,
+    nextCode: (() => { const codes = ['K7M2P9QX', 'ABCDEFGH']; return () => codes.shift()!; })(),
+    nextDefaultNickname: () => '탐험가 WXYZ',
+  });
+  const first = await service.list('account-1');
+  assert.equal(first.me.code, 'K7M2P9QX');
+  // 코드와 같은 거래에서 저장되고, 코드의 어떤 부분에서도 만들지 않는다(코드 뒤 4자리 P9QX가 아니다).
+  assert.equal(first.me.nickname, '탐험가 WXYZ');
+  assert.notEqual(first.me.nickname, `탐험가 ${first.me.code.slice(-4)}`);
+  const stored = await db.pool.query(`SELECT nickname FROM explorer_profiles WHERE account_id = 'account-1'`);
+  assert.deepEqual(stored.rows, [{ nickname: '탐험가 WXYZ' }]);
+
+  // 코드를 바꿔도 별명은 그대로다.
+  assert.deepEqual(await service.rotateCode('account-1'), { code: 'ABCDEFGH' });
+  const rotated = await service.list('account-1');
+  assert.equal(rotated.me.code, 'ABCDEFGH');
+  assert.equal(rotated.me.nickname, '탐험가 WXYZ');
+  assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM explorer_profiles')).rows[0]!.n, 1);
+
+  // 기본 난수 생성기도 코드와 무관한 값을 저장하고 회전 뒤에도 같다.
+  const natural = await db.friends.list('account-2');
+  const before = natural.me.nickname;
+  assert.match(before, /^탐험가 [2-9A-HJ-NP-Z]{4}$/);
+  await db.friends.rotateCode('account-2');
+  await db.friends.rotateCode('account-2');
+  assert.equal((await db.friends.list('account-2')).me.nickname, before);
+});
+
+test('the default nickname is created wherever the first code is created and never overwrites a chosen nickname', async (t) => {
+  const db = await setup(t);
+  const nickname = async (account: string) =>
+    (await db.pool.query('SELECT nickname FROM explorer_profiles WHERE account_id = $1', [account])).rows[0]?.nickname;
+  // 첫 코드를 처음 바꾸기로 만드는 경우.
+  await db.friends.rotateCode('rotator');
+  assert.match(await nickname('rotator'), /^탐험가 [2-9A-HJ-NP-Z]{4}$/);
+  // 친구를 추가하며 내 코드가 처음 만들어지는 경우.
+  const targetCode = await codeOf(db, 'target');
+  await db.friends.addByCode({ accountId: 'adder', code: targetCode });
+  assert.match(await nickname('adder'), /^탐험가 [2-9A-HJ-NP-Z]{4}$/);
+  // 별명을 먼저 정한 계정은 코드가 만들어져도 그대로다.
+  await db.friends.setNickname({ accountId: 'chooser', nickname: '내가 정한' });
+  assert.equal((await db.friends.list('chooser')).me.nickname, '내가 정한');
+  await db.friends.rotateCode('chooser');
+  assert.equal(await nickname('chooser'), '내가 정한');
+  // 코드가 있는데 별명 행이 없는 옛 데이터는 "탐험가"로 보이고 코드 뒤 글자는 쓰지 않는다.
+  await db.pool.query(`DELETE FROM explorer_profiles WHERE account_id = 'target'`);
+  const legacy = await db.friends.list('target');
+  assert.equal(legacy.me.nickname, '탐험가');
+  assert.equal((await db.friends.list('adder')).friends[0]!.nickname, '탐험가');
+});
+
+test('a list whose own code row vanished mid-read reports the account as deleted', async (t) => {
+  const db = await setup(t);
+  await codeOf(db, 'ghost');
+  await db.pool.query(`DELETE FROM friend_codes WHERE account_id = 'ghost'`);
+  // getOrCreateCode를 지나간 뒤 삭제가 끼어든 상황을 만든다.
+  const racing = new PostgresFriendService(db.pool, { accountLifecycle: db.lifecycle, now: db.now });
+  (racing as unknown as { getOrCreateCode: () => Promise<string> }).getOrCreateCode = async () => 'ignored';
+  await assert.rejects(racing.list('ghost'), rejectsWith('ACCOUNT_DELETED'));
+  // 연결은 풀에 돌아가 다음 읽기가 정상으로 동작한다.
+  assert.match((await db.friends.list('ghost')).me.code, friendCodePattern);
 });
 
 test('code generation retries on a collision with another account and gives up when it never changes', async (t) => {
@@ -193,7 +259,8 @@ test('nicknames are validated, trimmed, stored per account and shown to friends'
   assert.equal((await db.friends.list('a')).friends[0]!.nickname, '맛집왕');
   await db.friends.setNickname({ accountId: 'b', nickname: '바뀐 별명' });
   assert.equal((await db.friends.list('a')).friends[0]!.nickname, '바뀐 별명');
-  assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM explorer_profiles')).rows[0]!.n, 1);
+  // 두 계정 모두 첫 코드와 함께 기본 별명 행이 생겼고, 별명을 바꿔도 행은 늘지 않는다.
+  assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM explorer_profiles')).rows[0]!.n, 2);
 
   for (const invalid of ['', '   ', '열세글자열세글자열세글자열', 'me@example.com', 'https://evil.kr', 'a\nb', '맛집.com', '\u3164\u3164']) {
     await assert.rejects(db.friends.setNickname({ accountId: 'b', nickname: invalid }), rejectsWith('FRIEND_NICKNAME_INVALID'), invalid);
@@ -209,8 +276,9 @@ test('adding by code is mutual and idempotent, normalizes the input and rejects 
   const bobCode = await codeOf(db, 'bob');
   const added = await db.friends.addByCode({ accountId: 'alice', code: `  ${bobCode.slice(0, 4).toLowerCase()}-${bobCode.slice(4)} ` });
   assert.equal(added.created, true);
-  assert.equal(added.friend.nickname, `탐험가 ${bobCode.slice(-4)}`);
-  // 배지·도장이 같아 별명(코드 뒤 4자리) 순서가 순위를 정하고, 추가 응답의 순위는 목록의 순위와 같다.
+  assert.equal(added.friend.nickname, (await db.friends.list('bob')).me.nickname);
+  assert.match(added.friend.nickname, /^탐험가 [2-9A-HJ-NP-Z]{4}$/);
+  // 배지·도장이 같아 별명 순서가 순위를 정하고, 추가 응답의 순위는 목록의 순위와 같다.
   assert.equal(added.friend.rank, (await db.friends.list('alice')).friends[0]!.rank);
   assert.ok([1, 2].includes(added.friend.rank));
   assert.deepEqual(added.friend.stamps, []);
@@ -223,7 +291,7 @@ test('adding by code is mutual and idempotent, normalizes the input and rejects 
   const bobList = await db.friends.list('bob');
   assert.deepEqual(bobList.friends.map((friend) => friend.friendshipId), [rows[0]!.id]);
   const aliceCode = await codeOf(db, 'alice');
-  assert.equal(bobList.friends[0]!.nickname, `탐험가 ${aliceCode.slice(-4)}`);
+  assert.equal(bobList.friends[0]!.nickname, (await db.friends.list('alice')).me.nickname);
 
   const replay = await db.friends.addByCode({ accountId: 'alice', code: bobCode });
   assert.deepEqual(replay, { friend: added.friend, created: false });

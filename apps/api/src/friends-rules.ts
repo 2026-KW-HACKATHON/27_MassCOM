@@ -32,8 +32,20 @@ export function isFriendCode(code: string): boolean {
   return friendCodePattern.test(code);
 }
 
-export function defaultNickname(code: string): string {
-  return `탐험가 ${code.slice(-4)}`;
+// 별명이 없는 계정에 처음 코드를 만들 때 함께 저장하는 기본 별명이다. 코드와 별개의 난수 4글자를 쓴다. 코드 일부를 그대로
+// 쓰면 코드 20비트가 별명으로 새고 코드를 바꿀 때 별명도 바뀌기 때문이다.
+export const defaultNicknamePrefix = '탐험가';
+const defaultNicknameSuffixLength = 4;
+
+export function generateDefaultNickname(
+  random: (size: number) => Uint8Array = randomBytes,
+): string {
+  const bytes = random(defaultNicknameSuffixLength);
+  let suffix = '';
+  for (let index = 0; index < defaultNicknameSuffixLength; index++) {
+    suffix += friendCodeAlphabet[bytes[index]! & 31];
+  }
+  return `${defaultNicknamePrefix} ${suffix}`;
 }
 
 // 주소·연락처처럼 보이는 별명을 거른다. NFKC로 전각 글자·전각 점을 풀어 놓은 사본에 적용하므로 "ｗｗｗ．ｘ．ｃｏｍ"도 걸린다.
