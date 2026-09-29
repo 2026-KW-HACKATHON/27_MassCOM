@@ -280,9 +280,11 @@ async function pseudonymizeAccount(
   // Sessions are deleted, not just revoked: a revoked row would keep the raw account id. A leaked token then finds no
   // row and fails as SESSION_INVALID / WEB_SESSION_INVALID, and the account tombstone still refuses anything that
   // reaches the account by another route.
+  // Identities go first: a mobile sign-in that races this deletion upserts the identity row, so it waits on that row lock
+  // (or finds no identity) instead of inserting a session after the session rows below were already removed.
+  await client.query('DELETE FROM auth_identities WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM web_sessions WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM auth_sessions WHERE account_id = $1', [accountId]);
-  await client.query('DELETE FROM auth_identities WHERE account_id = $1', [accountId]);
   // The web/app filing row for this account is closed by markIntakeProcessed once the ledger row exists (#194).
   await client.query('DELETE FROM platform_admins WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM staff_registration_requests WHERE account_id = $1', [accountId]);

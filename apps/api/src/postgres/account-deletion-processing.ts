@@ -171,8 +171,9 @@ export class PostgresAccountDeletionProcessingService implements AccountDeletion
 
   async reject(operator: DeletionOperator, intakeId: string, reason: string): Promise<AdminDeletionIntake> {
     const trimmed = typeof reason === 'string' ? reason.trim() : '';
-    // eslint-disable-next-line no-control-regex
-    if (trimmed.length < 1 || trimmed.length > 200 || /[\u0000-\u001f\u007f]/.test(trimmed) ||
+    // Control and format characters (C0/C1, zero-width, word joiner…) are refused so they cannot split an e-mail or URL
+    // past the personal-data check.
+    if (trimmed.length < 1 || trimmed.length > 200 || /[\p{Cc}\p{Cf}]/u.test(trimmed) ||
         rejectReasonLooksPersonal(trimmed)) {
       throw new AccountDeletionIntakeError('DELETION_REJECT_REASON_INVALID');
     }

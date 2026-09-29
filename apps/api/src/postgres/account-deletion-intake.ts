@@ -139,15 +139,18 @@ export class PostgresAccountDeletionIntakeService implements AccountDeletionInta
     try {
       await client.query('BEGIN');
       await this.lifecycle.assertActive(client, accountId);
-      const row = (await client.query<{ id: string; cancel_until: Date }>(
-        `SELECT id, cancel_until FROM account_deletion_intake_requests WHERE account_id = $1 FOR UPDATE`,
+      const row = (await client.query<{ id: string; cancel_until: Date; has_receipt: boolean }>(
+        `SELECT id, cancel_until, receipt_hash IS NOT NULL AS has_receipt
+         FROM account_deletion_intake_requests WHERE account_id = $1 FOR UPDATE`,
         [accountId],
       )).rows[0];
       if (!row) throw new AccountDeletionIntakeError('DELETION_NO_ACTIVE_REQUEST');
       // The clock is read only after the row lock: processing is refused until this same instant has passed,
       // so a cancel and a process racing at the boundary cannot both succeed.
       const now = this.now();
-      if (now.getTime() > row.cancel_until.getTime()) {
+      // A legacy filing (no receipt) can always be cancelled: processing refuses it until it is filed again, so a cancel
+      // cannot race a process, and its filer never got the 24h window promise the new page makes.
+      if (row.has_receipt && now.getTime() > row.cancel_until.getTime()) {
         throw new AccountDeletionIntakeError('DELETION_CANCEL_WINDOW_CLOSED');
       }
       await client.query(

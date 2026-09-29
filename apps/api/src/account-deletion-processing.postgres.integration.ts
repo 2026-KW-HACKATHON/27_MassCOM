@@ -310,7 +310,9 @@ test('rejecting keeps the account, records a reason and allows filing again', { 
     const target = await seedAccount(pool);
     const receipt = (await web.request(target)).receipt!;
     const id = await intakeIdOf(pool, target);
-    for (const bad of ['', '   ', 'x'.repeat(201), 'line\nbreak', 'nul\u0000']) {
+    // Format characters (zero-width space, word joiner) and C1 controls must not split an e-mail or URL past the check.
+    for (const bad of ['', '   ', 'x'.repeat(201), 'line\nbreak', 'nul\u0000', 'https\u200B://x.y', 'gmail\u200B.com',
+      'www\u2060.x', 'c1\u0085control']) {
       await assert.rejects(processing.reject(operator, id, bad), (error: unknown) =>
         error instanceof AccountDeletionIntakeError && error.code === 'DELETION_REJECT_REASON_INVALID', JSON.stringify(bad));
     }
@@ -1121,3 +1123,15 @@ async function accountIdCells(pool: Pool, accountId: string): Promise<string[]> 
   }
   return hits;
 }
+
+test('the owner of a filing without a receipt can cancel it even after its window, since it is never processed as is', { skip }, async () => {
+  await withFixture(async ({ pool, clock, web }) => {
+    const owner = await seedAccount(pool);
+    const id = await seedLegacyFiling(pool, owner, longAgo);
+    clock.now = t0; // far past longAgo.cancelUntil
+    assert.deepEqual(await web.cancel(owner), { status: 'CANCELLED' });
+    const row = await intakeRow(pool, id);
+    assert.equal(row.status, 'CANCELLED');
+    assert.equal(row.account_id, null);
+  });
+});
