@@ -198,7 +198,7 @@ export function AccountSettingsScreen({
         <InfoCard
           styles={styles}
           title="삭제·연결 해제"
-          body="로그인 연결, 활성 지갑 연결, 원 계정 식별자와 미전송 NFT 작업을 제거하거나 비식별 처리합니다."
+          body="로그인 연결, 활성 지갑 연결, 원 계정 식별자와 미전송 NFT 작업을 제거하거나 비식별 처리합니다. 별명·친구 코드·친구 관계도 함께 지워져 친구 목록에서 사라집니다."
         />
         <InfoCard
           styles={styles}

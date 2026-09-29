@@ -21,3 +21,8 @@ test('deletion page directs app users to account-bound intake without claiming a
   assert.match(page, /문의 이메일/);
   assert.doesNotMatch(page, /같은 Google 계정으로 다시 확인한 뒤 삭제를 접수합니다/);
 });
+
+test('the deletion notice in the app and on the web page both say the friends data is removed too', () => {
+  assert.match(screen, /별명·친구 코드·친구 관계도 함께 지워져 친구 목록에서 사라집니다/);
+  assert.match(page, /별명·친구 코드·친구 관계와 친구 끊기 기록/);
+});
