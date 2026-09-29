@@ -108,3 +108,19 @@ test('the copy says once that the map is a picture and why demo shops have no di
   assert.equal(TOWN_MAP_DISCLOSURE, '그림 지도 · 실제 위치·거리와 달라요');
   assert.equal(DEMO_NO_DIRECTIONS, '가상 위치라 길찾기를 할 수 없어요');
 });
+
+test('signed out, the sheet invites a login instead of saying the check failed; a real failure keeps its own words', () => {
+  const [signedOut] = buildTownPins([merchant('one', 'A')], undefined, now, { signedOut: true }).placed;
+  assert.equal(signedOut?.status, 'unknown');
+  assert.equal(signedOut?.statusLine, '로그인하면 도장을 볼 수 있어요');
+  assert.equal(signedOut?.goalLine, null);
+  const [failed] = buildTownPins([merchant('one', 'A')], undefined, now, { signedOut: false }).placed;
+  assert.equal(failed?.statusLine, '도장 상태를 확인하지 못했어요');
+});
+
+test('a loaded collection wins over the signed-out flag, so the copy never contradicts the stamps', () => {
+  const collection = { visits: [{ merchantId: 'one', campaignId: 'current', progressCounted: false }], collectibles: [] };
+  const [pin] = buildTownPins([merchant('one', 'A')], collection, now, { signedOut: true }).placed;
+  assert.equal(pin?.status, 'visited');
+  assert.equal(pin?.statusLine, '도장 받음 · 방문 1회');
+});

@@ -42,20 +42,23 @@ export function pinLabel(name: string, status: StampStatus): string {
   return `${name}, ${state}`;
 }
 
-function statusLineFor(status: StampStatus, visitCount: number): string {
+function statusLineFor(status: StampStatus, visitCount: number, signedOut: boolean): string {
   if (status === 'visited') return `도장 받음 · 방문 ${visitCount}회`;
-  return status === 'none' ? '아직 도장이 없어요' : '도장 상태를 확인하지 못했어요';
+  if (status === 'none') return '아직 도장이 없어요';
+  return signedOut ? '로그인하면 도장을 볼 수 있어요' : '도장 상태를 확인하지 못했어요';
 }
 
 /**
  * One pin per public merchant, in the API's list order. Visits are matched by merchant id against the same stamp model the
  * passport uses (buildStampSlots), so a shop is "visited" here exactly when its stamp is in the 도감.
- * `collection` is undefined until the account's collection is loaded (or when it could not be).
+ * `collection` is undefined until the account's collection is loaded (or when it could not be); `signedOut` tells the sheet
+ * which of those it is, so a person who never signed in is invited to, not told a check failed.
  */
 export function buildTownPins(
   merchants: readonly TownMapMerchant[],
   collection: TownMapCollection | undefined,
   now: string,
+  options: { signedOut?: boolean } = {},
 ): { placed: readonly PlacedTownPin[]; overflow: readonly TownPin[] } {
   const slots = new Map(buildStampSlots(merchants, collection?.visits ?? []).map((slot) => [slot.merchantId, slot]));
   const goals = collection
@@ -77,7 +80,7 @@ export function buildTownPins(
       status,
       visitCount,
       label: pinLabel(merchant.name, status),
-      statusLine: statusLineFor(status, visitCount),
+      statusLine: statusLineFor(status, visitCount, options.signedOut === true),
       goalLine: goal ? describeMerchantGoal(goal) : null,
       slot: anchorOf.get(merchant.id),
     };
