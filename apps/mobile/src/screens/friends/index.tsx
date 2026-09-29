@@ -87,7 +87,10 @@ export function FriendsScreen({
   const [cardNotice, setCardNotice] = useState<Notice>();
   const [, requestCameraPermission] = useCameraPermissions();
   const scanGate = useRef(createScanGate()).current;
+  // Taps can land twice before a state change renders, so each guarded action reads a ref, not React state.
   const addingNow = useRef(false);
+  const rotatingNow = useRef(false);
+  const nicknameBusyNow = useRef(false);
   // Read through a ref so the focus effect below is not rebuilt (and does not refetch) when my code first arrives.
   const myCodeRef = useRef<string | undefined>(undefined);
   useEffect(() => { myCodeRef.current = myCode; }, [myCode]);
@@ -185,12 +188,13 @@ export function FriendsScreen({
   }
 
   async function saveNickname() {
-    if (nicknameBusy) return;
+    if (nicknameBusyNow.current) return;
     const checked = checkNicknameDraft(draft);
     if (!checked.ok) {
       setNicknameError(checked.message);
       return;
     }
+    nicknameBusyNow.current = true;
     setNicknameBusy(true);
     setNicknameError(undefined);
     try {
@@ -199,12 +203,14 @@ export function FriendsScreen({
     } catch (error) {
       setNicknameError(friendsErrorMessage(error));
     } finally {
+      nicknameBusyNow.current = false;
       setNicknameBusy(false);
     }
   }
 
   async function rotateCode() {
-    if (rotating) return;
+    if (rotatingNow.current) return;
+    rotatingNow.current = true;
     setRotating(true);
     setCardNotice(undefined);
     try {
@@ -213,6 +219,7 @@ export function FriendsScreen({
     } catch (error) {
       setCardNotice({ tone: 'error', text: friendsErrorMessage(error) });
     } finally {
+      rotatingNow.current = false;
       setRotating(false);
     }
   }

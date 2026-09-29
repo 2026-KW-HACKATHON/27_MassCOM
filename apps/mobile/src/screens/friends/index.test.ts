@@ -102,3 +102,13 @@ test('my own code arriving by QR or link is only said to be mine: no prompt, no 
   const own = screen.indexOf('OWN_CODE_NOTICE }');
   assert.ok(own > 0 && own < screen.indexOf("'이 코드로 친구를 추가할까요?'"), 'checked before the confirm dialog');
 });
+
+test('the guards against a double tap read refs, not React state that only updates on the next render', () => {
+  assert.match(screen, /const addingNow = useRef\(false\);\s*const rotatingNow = useRef\(false\);\s*const nicknameBusyNow = useRef\(false\);/);
+  assert.match(screen, /if \(rotatingNow\.current\) return;\s*rotatingNow\.current = true;\s*setRotating\(true\);/);
+  assert.match(screen, /rotatingNow\.current = false;\s*setRotating\(false\);/);
+  assert.match(screen, /if \(nicknameBusyNow\.current\) return;/);
+  assert.match(screen, /nicknameBusyNow\.current = true;\s*setNicknameBusy\(true\);/);
+  assert.match(screen, /nicknameBusyNow\.current = false;\s*setNicknameBusy\(false\);/);
+  assert.doesNotMatch(screen, /if \(rotating\) return;|if \(nicknameBusy\) return;/);
+});
