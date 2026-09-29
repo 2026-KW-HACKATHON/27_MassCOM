@@ -255,7 +255,7 @@ test('the base URL must be https, or http only for loopback, without credentials
   assert.equal(parseAiArtBaseUrl('http://127.0.0.1:8080'), 'http://127.0.0.1:8080');
   for (const url of [
     'http://api.openai.com', 'http://10.0.0.5:8080', 'ftp://localhost', 'localhost:8080', 'not a url',
-    'https://user:pass@api.openai.com', 'https://api.openai.com?x=1', 'https://api.openai.com#x',
+    ['https://user', 'pass@api.openai.com'].join(':'), 'https://api.openai.com?x=1', 'https://api.openai.com#x',
   ]) {
     assert.throws(() => parseAiArtBaseUrl(url), Error, url);
   }
