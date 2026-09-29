@@ -141,7 +141,7 @@ test('my own code arriving by QR or link is only said to be mine: no prompt, no 
 test('a code from a link waits for my snapshot before it is judged, so my own code is never asked about', () => {
   // The tab a link opens is freshly mounted and has no code of mine yet: the pending code goes through the holder, not straight to the dialog.
   assert.match(screen, /import \{ createHeldFriendCode \} from '@\/friends\/held-friend-code'/);
-  assert.match(screen, /const heldCode = useRef\(createHeldFriendCode\(\)\)\.current;/);
+  assert.match(screen, /const \[heldCode\] = useState\(createHeldFriendCode\);/);
   assert.match(screen, /const ready = heldCode\.arrive\(code, statusRef\.current\);\s*if \(ready !== undefined\) confirmAdd\(ready\);/);
   assert.match(screen, /if \(pending\) receiveLinkCode\(pending\);/);
   assert.doesNotMatch(screen, /if \(pending\) confirmAdd\(pending\)/);

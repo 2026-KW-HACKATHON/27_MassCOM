@@ -96,7 +96,7 @@ export function FriendsScreen({
   const myCodeRef = useRef<string | undefined>(undefined);
   useEffect(() => { myCodeRef.current = myCode; }, [myCode]);
   // A code that arrives by link waits here while my own snapshot loads (see held-friend-code.ts).
-  const heldCode = useRef(createHeldFriendCode()).current;
+  const [heldCode] = useState(createHeldFriendCode);
   const statusRef = useRef(friends.status);
 
   const addFriend = useCallback(async (code: string) => {
