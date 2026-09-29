@@ -178,7 +178,7 @@
 | Phase 2 지역 상권 핵심 기능 | `VERIFIED` | loopback DEMO 탐색→점주 발급→고객 수령→도감→추천→상세 순환 PASS |
 | Phase 3 NFT | `VERIFIED` | Local Anvil 복구 흐름과 Base Sepolia 계약→job/Outbox→암호화 service minter→이벤트·소유자·locked·중복 방지 PASS |
 | Phase 4 출시 기반 | `IN_PROGRESS` | 외부 HTTPS·첫 Google 로그인·삭제 페이지·GitHub test.2 APK·4KB/16KB·verified App Link PASS. D02·fresh reauth·Play는 미완료 |
-| Phase 5 대회 검증·발표 | `IN_PROGRESS` | 발표 웹·3/5분 원고·시연 runbook·빈 현장 기록지·증거 manifest 구현; 현장·리허설·영상·제출은 NOT_RUN |
+| Phase 5 대회 검증·발표 | `IN_PROGRESS` | 시연 runbook·빈 현장 기록지·증거 manifest 구현(발표 웹·원고는 #220에서 제거, 발표 자료는 저장소 밖에서 준비); 현장·리허설·영상·제출은 NOT_RUN |
 | Phase 6 후속 기능 | `PLANNED` | 별도 승인 전 미착수 |
 
 ## 구현·검증 완료

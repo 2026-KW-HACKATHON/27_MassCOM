@@ -40,6 +40,19 @@ assert_mutation_fails docs/HANDOFF.md '31 PASS \/ 2 BLOCKED \/ 3 NOT_RUN' '30 PA
 assert_mutation_fails docs/SUBMISSION_EVIDENCE.json '"partnerStoresClaimed": 0' '"partnerStoresClaimed": 1'
 assert_mutation_fails docs/SUBMISSION_EVIDENCE.json '"fieldParticipantsClaimed": 0' '"fieldParticipantsClaimed": 1'
 assert_mutation_fails docs/SUBMISSION_EVIDENCE.json '"total": 36' '"total": 35'
+assert_mutation_fails docs/SUBMISSION_EVIDENCE.json '"revenueIncreaseClaimed": false' '"revenueIncreaseClaimed": true'
+assert_mutation_fails docs/SUBMISSION_EVIDENCE.json 'android-regression-2026-09-21.json' 'android-regression-missing.json'
+
+# 카탈로그에 없는 필수 시험 행이 원장에 끼어들면 원장 합계 검사가 잡아야 한다.
+cp "$fixture/docs/TEST_STATUS.md" "$fixture/docs/TEST_STATUS.md.backup"
+printf '| Q99 | 추가 행 | PASS | - | - | - |\n' >> "$fixture/docs/TEST_STATUS.md"
+extra_row_output="$(node "$verifier" "$fixture" 2>&1 || true)"
+if [[ "$extra_row_output" == *'differ from TEST_STATUS'* ]]; then
+  mv "$fixture/docs/TEST_STATUS.md.backup" "$fixture/docs/TEST_STATUS.md"
+else
+  echo 'evidence verifier accepted an extra TEST_STATUS required-test row' >&2
+  exit 1
+fi
 baseline_commit="$(node -e "const m=require(process.argv[1]); process.stdout.write(m.baselineCommit)" \
   "$fixture/docs/SUBMISSION_EVIDENCE.json")"
 assert_mutation_fails docs/SUBMISSION_EVIDENCE.json \

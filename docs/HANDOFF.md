@@ -348,7 +348,7 @@
 - Foundry `8/8`, fuzz 128, fmt·build·lint PASS
 - Base Sepolia 계약 `0x1edca95bb453d8456cfe28c6e24c4e51172e36c4`, role·Worker token #1·중복 방지 PASS
 - private GitHub APK, upload-key AAB gate, Samsung 4KB와 Android 36 16KB AVD 설치·cold launch PASS
-- secret·privacy·bootstrap·portal verifier PASS
+- secret·privacy·bootstrap·portal·presentation verifier PASS
 - 포털·발표 1440px/390px 브라우저 검증 PASS, 가로 넘침 없음, 시각 판정 각 96/100. 발표 timing·프로젝터 가독성·공개 호스팅은 NOT_RUN
 - 필수 36개 `31 PASS / 2 BLOCKED / 3 NOT_RUN`. 남은 NOT_RUN: D02·O01·A01
 - `NOT_RUN`: 운영 package 지갑 복귀, 두 Google 계정 전환, 운영 fresh reauthentication 삭제, Play Console
