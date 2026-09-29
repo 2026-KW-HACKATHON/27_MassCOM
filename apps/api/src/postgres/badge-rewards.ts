@@ -17,6 +17,7 @@ import {
   couponExpiry,
   couponStatus,
   earnedTiers,
+  isReissuableVoid,
   offerHasCapacity,
   rewardMilestones,
   rewardState,
@@ -52,6 +53,7 @@ type CouponRow = {
   issued_at: Date;
   expires_at: Date;
   redeemed_at: Date | null;
+  void_reason: string | null;
   merchant_is_demo: boolean;
 };
 
@@ -68,7 +70,7 @@ export const countedVisitFromSql = `
 export const countedVisitFilterSql = `visit.status = 'VALID' AND visit.progress_counted
       AND (merchant.is_demo OR slot.created_by_account_id <> visit.customer_account_id)`;
 
-const medalValuesSql = `
+export const medalValuesSql = `
   WITH counted AS (
     SELECT visit.merchant_id, visit.business_date
     ${countedVisitFromSql}
@@ -84,7 +86,8 @@ const medalValuesSql = `
 const couponSelectSql = `
   SELECT coupon.id, coupon.customer_account_id, coupon.milestone, coupon.merchant_id,
          merchant.name AS merchant_name, coupon.title, coupon.detail, coupon.status,
-         coupon.issued_at, coupon.expires_at, coupon.redeemed_at, merchant.is_demo AS merchant_is_demo
+         coupon.issued_at, coupon.expires_at, coupon.redeemed_at, coupon.void_reason,
+         merchant.is_demo AS merchant_is_demo
   FROM badge_coupons AS coupon
   JOIN merchants AS merchant ON merchant.id = coupon.merchant_id`;
 
@@ -123,7 +126,8 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
     const earned = earnedTiers(medals);
     const rewards: BadgeReward[] = rewardMilestones.map(({ milestone, requiredTiers }) => {
       const offerRow = offers.rows.find((row) => row.milestone === milestone);
-      const couponRow = coupons.rows.find((row) => row.milestone === milestone);
+      // 방문 취소로 조건이 깨져 무효가 된 쿠폰은 숨기고 상자를 다시 잠김·열기 가능 상태로 돌려 보낸다(조건을 다시 채우면 되살린다).
+      const couponRow = coupons.rows.find((row) => row.milestone === milestone && !isRevivable(row));
       const offer = offerRow ? {
         issuanceCap: offerRow.issuance_cap, issuedCount: offerRow.issued_count,
       } : null;
@@ -163,9 +167,10 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
         `${couponSelectSql} WHERE coupon.customer_account_id = $1 AND coupon.milestone = $2`,
         [input.accountId, input.milestone],
       );
-      if (existing.rows[0]) {
+      const previous = existing.rows[0];
+      if (previous && !isRevivable(previous)) {
         await client.query('COMMIT');
-        return { coupon: mapCoupon(existing.rows[0], this.now()), replayed: true };
+        return { coupon: mapCoupon(previous, this.now()), replayed: true };
       }
       const medalRow = await client.query<MedalValues>(medalValuesSql, [input.accountId]);
       if (earnedTiers(buildMedals(medalRow.rows[0]!)) < requiredTiers) {
@@ -197,15 +202,34 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
         throw new BadgeRewardError('REWARD_CAPACITY_EXHAUSTED');
       }
       const issuedAt = this.now();
-      const couponId = this.nextCouponId();
-      await client.query(
-        `INSERT INTO badge_coupons (
-           id, customer_account_id, milestone, offer_id, merchant_id, title, detail,
-           status, issued_at, expires_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'ISSUED', $8, $9)`,
-        [couponId, input.accountId, input.milestone, offer.id, offer.merchant_id,
-          offer.title, offer.detail, issuedAt, couponExpiry(issuedAt, offer.valid_days)],
-      );
+      const couponId = previous ? previous.id : this.nextCouponId();
+      if (previous) {
+        // 방문 취소로 무효가 됐던 쿠폰을 새 혜택 사본으로 되살린다. 같은 (계정, 상자) 행을 다시 쓰고 감사 기록을 남긴다.
+        await client.query(
+          `UPDATE badge_coupons
+           SET offer_id = $2, merchant_id = $3, title = $4, detail = $5, status = 'ISSUED',
+               issued_at = $6, expires_at = $7, redeemed_at = NULL, redeemed_by_account_id = NULL,
+               void_reason = NULL, void_note = NULL, voided_at = NULL, voided_by_account_id = NULL,
+               void_visit_event_id = NULL
+           WHERE id = $1 AND status = 'VOIDED'`,
+          [couponId, offer.id, offer.merchant_id, offer.title, offer.detail, issuedAt,
+            couponExpiry(issuedAt, offer.valid_days)],
+        );
+        await client.query(
+          `INSERT INTO badge_coupon_audit (id, coupon_id, merchant_id, action, created_at)
+           VALUES ($1, $2, $3, 'REISSUED_AFTER_RECOUNT', $4)`,
+          [randomUUID(), couponId, offer.merchant_id, issuedAt],
+        );
+      } else {
+        await client.query(
+          `INSERT INTO badge_coupons (
+             id, customer_account_id, milestone, offer_id, merchant_id, title, detail,
+             status, issued_at, expires_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'ISSUED', $8, $9)`,
+          [couponId, input.accountId, input.milestone, offer.id, offer.merchant_id,
+            offer.title, offer.detail, issuedAt, couponExpiry(issuedAt, offer.valid_days)],
+        );
+      }
       await client.query(
         'UPDATE badge_reward_offers SET issued_count = issued_count + 1 WHERE id = $1',
         [offer.id],
@@ -283,6 +307,7 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
       if (coupon.customer_account_id === input.staffAccountId && !coupon.merchant_is_demo) {
         throw new BadgeRewardError('COUPON_SELF_REDEEM');
       }
+      if (coupon.status === 'VOIDED') throw new BadgeRewardError('COUPON_VOIDED');
       if (coupon.status === 'REDEEMED') {
         await client.query('COMMIT');
         return { couponId: coupon.id, status: 'REDEEMED', redeemedAt: coupon.redeemed_at!.toISOString(), replayed: true };
@@ -315,6 +340,10 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
       ...input, now, accountLifecycle: this.accountLifecycle,
     });
   }
+}
+
+function isRevivable(row: CouponRow): boolean {
+  return isReissuableVoid({ status: row.status, voidReason: row.void_reason });
 }
 
 function mapCoupon(row: CouponRow, now: Date): BadgeCoupon {

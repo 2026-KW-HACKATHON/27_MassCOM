@@ -72,6 +72,7 @@ export type BadgeRewardErrorCode =
   | 'COUPON_NOT_FOUND'
   | 'COUPON_EXPIRED'
   | 'COUPON_SELF_REDEEM'
+  | 'COUPON_VOIDED'
   | 'ACCOUNT_DELETED';
 
 export class BadgeRewardError extends Error {
