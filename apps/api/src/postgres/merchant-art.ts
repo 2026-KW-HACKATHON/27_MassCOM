@@ -14,6 +14,7 @@ import {
   draftCount,
   estimatedDraftCallMicroUsd,
   estimatedFinalMicroUsd,
+  isInProgress,
   kstBusinessDate,
   kstDayRange,
   kstMonthRange,
@@ -131,11 +132,21 @@ export class PostgresMerchantArtService implements MerchantArtService {
       if (this.accountLifecycle) await this.accountLifecycle.assertActive(client, input.accountId);
       await this.lockMerchant(client, input.merchantId);
       await this.interruptStale(client, input.merchantId);
-      // 오래된 미적용 라운드 정리(이미지는 CASCADE). 적용된 라운드는 지우지 않는다.
+      // 오래된 미적용 라운드 정리(이미지는 CASCADE). 적용된 라운드 행은 지우지 않는다(다시 눌렀을 때 같은 결과를 주는 멱등 기록).
+      // 다만 적용된 지 30일이 지난 라운드의 이미지는 지운다: 그림 자체는 merchant_art에 있고 이 이미지는 다시 쓰이지 않는다.
+      const cutoff = new Date(now.getTime() - unappliedRoundRetentionMs);
       await client.query(
         `DELETE FROM merchant_art_rounds
          WHERE merchant_id = $1 AND status <> 'APPLIED' AND created_at < $2`,
-        [input.merchantId, new Date(now.getTime() - unappliedRoundRetentionMs)],
+        [input.merchantId, cutoff],
+      );
+      await client.query(
+        `DELETE FROM merchant_art_images
+         WHERE round_id IN (
+           SELECT id FROM merchant_art_rounds
+           WHERE merchant_id = $1 AND status = 'APPLIED' AND updated_at < $2
+         )`,
+        [input.merchantId, cutoff],
       );
       const busy = await client.query(
         `SELECT 1 FROM merchant_art_rounds WHERE merchant_id = $1 AND status IN ${inProgressSql}`,
@@ -164,9 +175,12 @@ export class PostgresMerchantArtService implements MerchantArtService {
     });
 
     // 202로 돌려주는 모습(DRAFTING)을 먼저 읽고 나서 생성을 시작한다. 빠른 생성이 응답보다 먼저 끝나도 응답은 바뀌지 않는다.
-    const started = await this.requireView(roundId, input.merchantId);
-    this.launch(roundId, () => this.runDrafts(roundId, input.merchantId, subject, spendIds));
-    return started;
+    // 라운드는 이미 커밋됐으므로 읽기가 실패해도 생성은 반드시 시작한다(안 그러면 5분 뒤 중단 처리될 때까지 DRAFTING에 갇힌다).
+    try {
+      return await this.requireView(roundId, input.merchantId);
+    } finally {
+      this.launch(roundId, () => this.runDrafts(roundId, input.merchantId, subject, spendIds));
+    }
   }
 
   async getRound(input: { merchantId: string; roundId: string }): Promise<ArtRoundView> {
@@ -186,30 +200,40 @@ export class PostgresMerchantArtService implements MerchantArtService {
       await this.lockMerchant(client, input.merchantId);
       await this.interruptStale(client, input.merchantId);
       const round = await this.lockRound(client, input.merchantId, input.roundId);
-      if (!canChoose(round.status)) throw new MerchantArtError('AI_ART_ROUND_STATE');
-      const draft = await client.query(
-        `SELECT 1 FROM merchant_art_images WHERE round_id = $1 AND kind = 'DRAFT' AND idx = $2`,
-        [round.id, input.index],
+      if (!canChoose({ status: round.status, chosenIndex: round.chosen_index })) {
+        throw new MerchantArtError('AI_ART_ROUND_STATE');
+      }
+      // 시안 네 장이 모두 남아 있어야 하고 고른 것이 그중 하나여야 한다(최종이 실패한 라운드에서 다시 고를 때도 같다).
+      const drafts = await client.query<{ idx: number }>(
+        `SELECT idx FROM merchant_art_images WHERE round_id = $1 AND kind = 'DRAFT'`, [round.id],
       );
-      if (!draft.rowCount) throw new MerchantArtError('AI_ART_ROUND_STATE');
+      if (drafts.rowCount !== draftCount || !drafts.rows.some((draft) => draft.idx === input.index)) {
+        throw new MerchantArtError('AI_ART_ROUND_STATE');
+      }
       if (await this.finalsToday(client, input.merchantId, now) >= this.config.dailyFinals) {
         throw new MerchantArtError('AI_ART_DAILY_LIMIT', secondsUntilNextKstMidnight(now));
       }
       await this.assertBudget(client, now, estimatedFinalMicroUsd);
       try {
         await client.query(
-          `UPDATE merchant_art_rounds SET status = 'FINALIZING', chosen_index = $2, updated_at = $3 WHERE id = $1`,
+          `UPDATE merchant_art_rounds
+           SET status = 'FINALIZING', chosen_index = $2, failure_code = NULL, updated_at = $3 WHERE id = $1`,
           [round.id, input.index, now],
         );
       } catch (error) {
         throw this.mapUniqueViolation(error);
       }
+      // 실패한 최종을 다시 만드는 경우를 위해 이 라운드에 남은 최종 조각은 지운다(새 호출이 옛 조각에 막히지 않게).
+      await client.query(`DELETE FROM merchant_art_images WHERE round_id = $1 AND kind = 'FINAL'`, [round.id]);
       return this.recordSpend(client, input.merchantId, round.id, 'FINAL', estimatedFinalMicroUsd, now);
     });
 
-    const started = await this.requireView(input.roundId, input.merchantId);
-    this.launch(input.roundId, () => this.runFinal(input.roundId, input.merchantId, input.index, spendId));
-    return started;
+    // 라운드는 이미 커밋됐으므로 읽기가 실패해도 최종 생성은 반드시 시작한다(FINALIZING에 갇히지 않게).
+    try {
+      return await this.requireView(input.roundId, input.merchantId);
+    } finally {
+      this.launch(input.roundId, () => this.runFinal(input.roundId, input.merchantId, input.index, spendId));
+    }
   }
 
   async apply(input: { merchantId: string; roundId: string }): Promise<{ artUrl: string }> {
@@ -245,6 +269,8 @@ export class PostgresMerchantArtService implements MerchantArtService {
         `UPDATE merchant_art_rounds SET status = 'APPLIED', updated_at = $2 WHERE id = $1`,
         [round.id, now],
       );
+      // 적용된 뒤에는 시안이 다시 쓰이지 않는다(고른 그림은 merchant_art에 있다). 이 라운드의 시안 이미지를 바로 지운다.
+      await client.query(`DELETE FROM merchant_art_images WHERE round_id = $1 AND kind = 'DRAFT'`, [round.id]);
       return final.sha256;
     });
     const artUrl = artUrlFor(sha256);
@@ -261,8 +287,9 @@ export class PostgresMerchantArtService implements MerchantArtService {
   }
 
   async getPublicImage(sha256: string): Promise<Buffer | null> {
+    // 같은 그림 바이트를 여러 가게가 쓸 수 있어(sha256은 유일하지 않다) 가게 id 순으로 하나를 고른다. sha256이 같으면 바이트도 같다.
     const found = await this.pool.query<{ image: Buffer }>(
-      'SELECT image FROM merchant_art WHERE sha256 = $1', [sha256],
+      'SELECT image FROM merchant_art WHERE sha256 = $1 ORDER BY merchant_id LIMIT 1', [sha256],
     );
     return found.rows[0]?.image ?? null;
   }
@@ -471,9 +498,9 @@ export class PostgresMerchantArtService implements MerchantArtService {
     return this.view(this.pool, row);
   }
 
-  // 만드는 중에는 이미지를 읽지 않는다(3초마다 조회하므로). 시안은 네 장이 모두 있을 때만 보인다.
+  // 만드는 중(DRAFTING·FINALIZING)에는 이미지를 읽지도 보내지도 않는다(3초마다 조회하므로). 시안은 네 장이 모두 있을 때만 보인다.
   private async view(db: Queryable, row: RoundRow): Promise<ArtRoundView> {
-    const images = row.status === 'DRAFTING' ? [] : (await db.query<{
+    const images = isInProgress(row.status) ? [] : (await db.query<{
       kind: 'DRAFT' | 'FINAL'; idx: number; style: string; image: Buffer;
     }>(
       'SELECT kind, idx, style, image FROM merchant_art_images WHERE round_id = $1 ORDER BY kind, idx',

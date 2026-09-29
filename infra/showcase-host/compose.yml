@@ -62,6 +62,8 @@ services:
       AI_ART_MONTHLY_BUDGET_USD: ${SHOWCASE_AI_ART_MONTHLY_BUDGET_USD:-}
       AI_ART_DAILY_DRAFT_ROUNDS: ${SHOWCASE_AI_ART_DAILY_DRAFT_ROUNDS:-}
       AI_ART_DAILY_FINALS: ${SHOWCASE_AI_ART_DAILY_FINALS:-}
+      # 시연은 CLI(`grant:showcase:staff`)로 소유자 계정에만 STAFF를 주므로 STAFF가 가게 그림을 만들 수 있게 켠다. 운영 compose에는 없다.
+      AI_ART_STAFF_MAY_MANAGE: "true"
     ports:
       - "127.0.0.1:3301:3000"
     networks:

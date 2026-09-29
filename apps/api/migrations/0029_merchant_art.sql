@@ -36,13 +36,17 @@ CREATE TABLE merchant_art_images (
 );
 
 -- 가게가 지금 쓰는 대표 그림. 가게당 한 장이고 되돌리면 행을 지운다. 고객 앱은 sha256 주소로 가져간다.
+-- sha256은 유일하지 않다: 서로 다른 가게가 우연히 같은 그림 바이트를 적용해도 적용이 실패하면 안 되기 때문이다(같은 sha256이면 바이트도
+-- 같으므로 공개 조회는 가게 id 순으로 한 행을 고른다).
 CREATE TABLE merchant_art (
   merchant_id text PRIMARY KEY REFERENCES merchants(id),
   image bytea NOT NULL,
-  sha256 text NOT NULL UNIQUE,
+  sha256 text NOT NULL,
   round_id uuid,
   applied_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE INDEX merchant_art_sha256_idx ON merchant_art (sha256);
 
 -- 이미지 생성 호출마다 비용(마이크로 USD)을 적는다. 호출 전에 예상 비용으로 먼저 적고 응답 usage로 실제 비용으로 고친다.
 CREATE TABLE ai_art_spend (
