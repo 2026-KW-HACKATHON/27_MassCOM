@@ -1026,6 +1026,58 @@ test('migration 0030 keeps one active entitlement per goal and rejects inconsist
   await assert.rejects(db.pool.query(`UPDATE badge_coupons SET redeemed_at = now() WHERE id = $1`, [couponId]), violates);
 });
 
+test('an undo that waited for the customer lock while the account was deleted ends as ACCOUNT_DELETED and changes nothing', async (t) => {
+  const db = await setup(t);
+  await addOffer(db.pool, { milestone: 1, shop: 'real-shop' });
+  await threeTiers(db.pool, 'cust-c');
+  const { couponId } = await openedCoupon(db, 'cust-c');
+  await redeemAt(db, 'cust-c', couponId, `${today}T03:00:00Z`);
+  db.state.now = new Date(`${today}T03:05:00Z`);
+  // 계정 삭제가 상자 잠금을 쥔 채 쿠폰의 고객 열을 가명으로 바꾸고 커밋하는 순서를 그대로 옮긴다.
+  const deleter = await db.pool.connect();
+  let pending: Promise<unknown> = Promise.resolve();
+  try {
+    await deleter.query('BEGIN');
+    await deleter.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', ['badge-reward:cust-c']);
+    pending = db.reversal.undoCouponRedemption({ merchantId: 'real-shop', staffAccountId: 'staff-r', couponId })
+      .then((undone) => undone, (error: unknown) => error);
+    await waitUntilLockWait(db.pool, 'pg_advisory_xact_lock');
+    await deleter.query(`UPDATE badge_coupons SET customer_account_id = $2 WHERE id = $1`, [couponId, `deleted:${'0'.repeat(64)}`]);
+  } finally {
+    await deleter.query('COMMIT');
+    deleter.release();
+  }
+  assert.ok(reversalCode('ACCOUNT_DELETED')(await pending));
+  const [coupon] = await rows<{ status: string; customer_account_id: string }>(db.pool,
+    'SELECT status, customer_account_id FROM badge_coupons WHERE id = $1', [couponId]);
+  assert.equal(coupon!.status, 'REDEEMED');
+  assert.equal(coupon!.customer_account_id, `deleted:${'0'.repeat(64)}`);
+  assert.equal((await rows(db.pool, 'SELECT 1 FROM badge_coupon_audit WHERE coupon_id = $1', [couponId])).length, 0);
+});
+
+// 이 CHECK는 Issue #194의 0031도 통째로 다시 쓴다(나중에 도는 쪽이 이긴다). 0030은 두 브랜치의 action 합집합을 받아야 한다.
+// 행을 실제로 넣어 본다. 다른 제약(예: #194가 더하는 점포 열 규칙)이 거절하는 것은 이 시험의 관심사가 아니다.
+test('the platform admin audit action CHECK accepts every action either branch adds and rejects unknown ones', async (t) => {
+  const db = await setup(t);
+  const union = [
+    'MERCHANT_CREATED', 'MERCHANT_UPDATED', 'MERCHANT_HIDDEN', 'CAMPAIGN_DRAFT_CREATED', 'COUPON_VOIDED',
+    'ACCOUNT_DELETION_PROCESSED', 'ACCOUNT_DELETION_REJECTED', 'ACCOUNT_DELETION_RECONCILED',
+  ];
+  const rejectedByActionCheck = async (action: string): Promise<boolean> => {
+    try {
+      await db.pool.query(
+        `INSERT INTO platform_admin_audit (id, actor_account_id, merchant_id, action, after_state)
+         VALUES ($1, 'admin-1', 'real-shop', $2, '{}'::jsonb)`,
+        [randomUUID(), action]);
+      return false;
+    } catch (error) {
+      return (error as { constraint?: string }).constraint === 'platform_admin_audit_action_check';
+    }
+  };
+  for (const action of union) assert.equal(await rejectedByActionCheck(action), false, action);
+  assert.equal(await rejectedByActionCheck('SOMETHING_ELSE'), true);
+});
+
 // 배포된 API(f1bba2d)의 방문 수령 문장 두 개를 그대로 옮겼다(apps/api/src/postgres/claim-slot-service.ts의 redeem).
 // 배포 도중이나 롤백 뒤에도 이 문장이 새 스키마에서 그대로 동작해야 한다.
 const deployedVisitInsert = `INSERT INTO visit_events (
@@ -1138,6 +1190,11 @@ test('a coupon of the staff member themselves cannot be undone by them on a real
   const undo = (staffAccountId: string) => db.reversal.undoCouponRedemption({ merchantId: 'real-shop', staffAccountId, couponId });
   // 본인이 되돌리면 동료의 사용 처리와 본인의 되돌리기를 되풀이할 수 있으므로 막는다(재생 경로도 같다).
   await assert.rejects(undo('staff-r2'), reversalCode('COUPON_SELF_UNDO'));
+  // 목록은 눌러도 403으로 끝날 버튼을 보이지 않는다: 본인 쿠폰은 canUndo가 false, 동료에게는 true.
+  const canUndoFor = async (merchantId: string, staffAccountId: string) =>
+    (await db.reversal.listRecentCouponRedemptions({ merchantId, staffAccountId })).coupons.map((item) => item.canUndo);
+  assert.deepEqual(await canUndoFor('real-shop', 'staff-r2'), [false]);
+  assert.deepEqual(await canUndoFor('real-shop', 'staff-r'), [true]);
   assert.equal((await rows<{ status: string }>(db.pool, 'SELECT status FROM badge_coupons WHERE id = $1', [couponId]))[0]!.status, 'REDEEMED');
   assert.equal((await rows(db.pool, 'SELECT 1 FROM badge_coupon_audit WHERE coupon_id = $1', [couponId])).length, 0);
   assert.deepEqual(await undo('staff-r'), { couponId, status: 'ISSUED', replayed: false });
@@ -1152,6 +1209,7 @@ test('a coupon of the staff member themselves cannot be undone by them on a real
   const created = await db.identities.create('staff-d');
   await db.identities.resolve({ token: created.token, merchantId: 'demo-shop', staffAccountId: 'staff-d' });
   await db.badges.redeemCoupon({ token: created.token, merchantId: 'demo-shop', staffAccountId: 'staff-d', couponId: demo });
+  assert.deepEqual(await canUndoFor('demo-shop', 'staff-d'), [true]);
   assert.deepEqual(
     await db.reversal.undoCouponRedemption({ merchantId: 'demo-shop', staffAccountId: 'staff-d', couponId: demo }),
     { couponId: demo, status: 'ISSUED', replayed: false });
@@ -1355,4 +1413,82 @@ test('replaying a claim token does not return an entitlement that a later cancel
   const replay = await db.claims.redeem({ accountId: 'cust-1', token: third.token });
   assert.equal(replay.replayed, true);
   assert.deepEqual(replay.grantedRewards, []);
+});
+
+// 다른 거래가 잠금을 기다리며 멈춘 것을 pg_stat_activity로 확인한다(시간 추측 대신).
+async function waitUntilLockWait(pool: Pool, sqlFragment: string): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const waiting = await rows(pool,
+      `SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE $1 AND pid <> pg_backend_pid()`,
+      [`%${sqlFragment}%`]);
+    if (waiting.length > 0) return;
+    await sleep(50);
+  }
+  throw new Error(`no transaction is waiting for a lock on: ${sqlFragment}`);
+}
+
+async function seedAdmin(pool: Pool): Promise<void> {
+  await pool.query(`INSERT INTO auth_identities (provider, subject, account_id, created_at)
+    VALUES ('google', 'admin-subject', 'admin-1', now())`);
+  await pool.query(`INSERT INTO platform_admins (account_id) VALUES ('admin-1')`);
+}
+
+// 다른 거래가 혜택 행을 잡아 상자 열기가 혜택 잠금에서 멈추게 한다(점포 → 혜택 → 쿠폰 순서의 혜택 단계).
+// 실패해도 연결이 남아 풀 종료를 막지 않도록 during 뒤에는 항상 커밋하고 돌려 보낸다.
+async function whileOfferLocked(pool: Pool, offerId: string, during: () => Promise<void>): Promise<void> {
+  const holder = await pool.connect();
+  try {
+    await holder.query('BEGIN');
+    await holder.query('SELECT 1 FROM badge_reward_offers WHERE id = $1 FOR UPDATE', [offerId]);
+    await during();
+  } finally {
+    await holder.query('COMMIT');
+    holder.release();
+  }
+}
+
+test('opening a box waits on the offer lock and then never revives a coupon an admin voided meanwhile', async (t) => {
+  const db = await setup(t);
+  await seedAdmin(db.pool);
+  const offerId = await addOffer(db.pool, { milestone: 1, shop: 'real-shop', cap: 5 });
+  const { couponId } = await voidedByCancel(db, 'cust-c');
+  // 조건을 다시 채워 상자를 열 수 있게 한다. 이때 쿠폰은 방문 취소로 무효(되살릴 수 있는 무효)이다.
+  await addVisit(db.pool, { account: 'cust-c', shop: 'demo-shop', date: '2026-09-29' });
+  assert.equal(await issuedCountOf(db.pool, offerId), 0);
+
+  let pending: Promise<unknown> = Promise.resolve();
+  let settled = false;
+  await whileOfferLocked(db.pool, offerId, async () => {
+    pending = db.badges.openReward({ accountId: 'cust-c', milestone: 1 })
+      .then((opened) => opened, (error: unknown) => error).finally(() => { settled = true; });
+    await waitUntilLockWait(db.pool, 'FOR UPDATE OF offer');
+    assert.equal(settled, false);
+    // 멈춘 사이 관리자가 같은 쿠폰을 끝 상태로 무효로 하고 커밋한다: 상자 열기는 쿠폰 행을 아직 잡지 않아 막히지 않는다.
+    const voided = await db.admin.voidCoupon('admin-1', couponId, { reason: 'ABUSE_SUSPECTED', note: '운영 확인' });
+    assert.equal(voided.replayed, false);
+  });
+  const outcome = await pending;
+  assert.ok(outcome instanceof BadgeRewardError && outcome.code === 'REWARD_OFFER_UNAVAILABLE', String(outcome));
+  const [coupon] = await rows<{ status: string; void_reason: string; void_note: string; voided_by_account_id: string }>(db.pool,
+    'SELECT status, void_reason, void_note, voided_by_account_id FROM badge_coupons WHERE id = $1', [couponId]);
+  assert.deepEqual(coupon, { status: 'VOIDED', void_reason: 'ABUSE_SUSPECTED', void_note: '운영 확인', voided_by_account_id: 'admin-1' });
+  assert.equal(await issuedCountOf(db.pool, offerId), 0);
+  assert.deepEqual((await rows<{ action: string }>(db.pool,
+    'SELECT action FROM badge_coupon_audit WHERE coupon_id = $1', [couponId])).map((row) => row.action), ['VOIDED_ON_RECOUNT']);
+  assert.equal((await db.badges.getBadges('cust-c')).rewards[0]!.state, 'UNAVAILABLE');
+
+  // 같은 자리에서 쿠폰이 만료돼도(기다리는 사이 시계가 원래 만료를 넘어도) 되살리지 않는다.
+  const expiring = await voidedByCancel(db, 'cust-e');
+  await addVisit(db.pool, { account: 'cust-e', shop: 'demo-shop', date: '2026-09-29' });
+  await whileOfferLocked(db.pool, offerId, async () => {
+    pending = db.badges.openReward({ accountId: 'cust-e', milestone: 1 })
+      .then((opened) => opened, (error: unknown) => error);
+    await waitUntilLockWait(db.pool, 'FOR UPDATE OF offer');
+    await db.pool.query(`UPDATE badge_coupons SET issued_at = $2, expires_at = $3 WHERE id = $1`,
+      [expiring.couponId, new Date(db.state.now.getTime() - 86_400_000), new Date(db.state.now.getTime() - 1000)]);
+  });
+  const expired = await pending;
+  assert.ok(expired instanceof BadgeRewardError && expired.code === 'REWARD_OFFER_UNAVAILABLE', String(expired));
+  assert.equal((await rows<{ status: string }>(db.pool, 'SELECT status FROM badge_coupons WHERE id = $1', [expiring.couponId]))[0]!.status, 'VOIDED');
+  assert.equal(await issuedCountOf(db.pool, offerId), 0);
 });

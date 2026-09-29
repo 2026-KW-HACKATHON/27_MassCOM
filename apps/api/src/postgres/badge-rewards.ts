@@ -17,6 +17,7 @@ import {
   couponExpiry,
   customerCouponView,
   earnedTiers,
+  isReissuableVoid,
   offerHasCapacity,
   rewardMilestones,
   rewardState,
@@ -169,6 +170,8 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
         `badge-reward:${input.accountId}`,
       ]);
+      // 잠금 없이 읽는 첫 조회는 어느 갈래(재생·거절·발급·되살리기)인지만 정한다. 되살리기 갈래는 아래에서
+      // 점포 → 혜택 잠금을 잡은 뒤 쿠폰 행을 FOR UPDATE로 다시 읽어 확인한다(점포 → 혜택 → 쿠폰 순서).
       const existing = await client.query<CouponRow>(
         `${couponSelectSql} WHERE coupon.customer_account_id = $1 AND coupon.milestone = $2`,
         [input.accountId, input.milestone],
@@ -211,26 +214,42 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
       );
       const offer = offerResult.rows[0];
       if (!offer) throw new BadgeRewardError('REWARD_OFFER_UNAVAILABLE');
+      // 혜택 잠금을 기다리는 사이 관리자가 이 쿠폰을 끝 상태로 무효로 했거나 만료됐을 수 있다. 쿠폰 행을 잠근 채 다시 읽어
+      // 방문 취소로 무효인 채(VISIT_CANCELED)이고 만료 전일 때만 되살린다. 그 밖에는 관리자 무효를 되돌리지 않고 거절한다.
+      let originalExpiry: Date | undefined;
+      if (previous) {
+        const locked = (await client.query<{ status: CouponStoredStatus; void_reason: string | null; expires_at: Date }>(
+          'SELECT status, void_reason, expires_at FROM badge_coupons WHERE id = $1 FOR UPDATE',
+          [previous.id],
+        )).rows[0];
+        if (!locked || !isReissuableVoid({ status: locked.status, voidReason: locked.void_reason })
+          || locked.expires_at.getTime() <= openedAt.getTime()) {
+          throw new BadgeRewardError('REWARD_OFFER_UNAVAILABLE');
+        }
+        originalExpiry = locked.expires_at;
+      }
       if (!offerHasCapacity({ issuanceCap: offer.issuance_cap, issuedCount: offer.issued_count })) {
         throw new BadgeRewardError('REWARD_CAPACITY_EXHAUSTED');
       }
       const issuedAt = openedAt;
       const couponId = previous ? previous.id : this.nextCouponId();
-      if (previous) {
+      if (previous && originalExpiry) {
         // 방문 취소로 무효가 됐던 쿠폰을 새 혜택 사본으로 되살린다. 같은 (계정, 상자) 행을 다시 쓰고 감사 기록을 남긴다.
         // 만료는 원래 만료를 넘기지 않는다: 새 유효 기간과 원래 만료 중 이른 쪽이다(무효·되살리기로 만료를 늘릴 수 없다).
         // 원래 만료가 지난 쿠폰은 위 view가 되살리지 않고 만료된 쿠폰으로 돌려준다.
         const newExpiry = couponExpiry(issuedAt, offer.valid_days);
-        await client.query(
+        // 방문 취소로 무효인 미만료 쿠폰만 되살린다(위에서 잠근 행). 한 줄도 바뀌지 않으면 되살리지 않고 거절한다.
+        const revived = await client.query(
           `UPDATE badge_coupons
            SET offer_id = $2, merchant_id = $3, title = $4, detail = $5, status = 'ISSUED',
                issued_at = $6, expires_at = $7, redeemed_at = NULL, redeemed_by_account_id = NULL,
                void_reason = NULL, void_note = NULL, voided_at = NULL, voided_by_account_id = NULL,
                void_visit_event_id = NULL
-           WHERE id = $1 AND status = 'VOIDED'`,
+           WHERE id = $1 AND status = 'VOIDED' AND void_reason = 'VISIT_CANCELED' AND expires_at > $6`,
           [couponId, offer.id, offer.merchant_id, offer.title, offer.detail, issuedAt,
-            newExpiry.getTime() < previous.expires_at.getTime() ? newExpiry : previous.expires_at],
+            newExpiry.getTime() < originalExpiry.getTime() ? newExpiry : originalExpiry],
         );
+        if (revived.rowCount !== 1) throw new BadgeRewardError('REWARD_OFFER_UNAVAILABLE');
         await client.query(
           `INSERT INTO badge_coupon_audit (id, coupon_id, merchant_id, action, created_at)
            VALUES ($1, $2, $3, 'REISSUED_AFTER_RECOUNT', $4)`,

@@ -113,11 +113,15 @@ CREATE INDEX badge_coupon_audit_actor_idx
 CREATE INDEX badge_coupon_audit_redeemed_by_idx
   ON badge_coupon_audit (previous_redeemed_by_account_id) WHERE previous_redeemed_by_account_id IS NOT NULL;
 
+-- 이 CHECK는 다른 브랜치(Issue #194의 0031_account_deletion_processing.sql)도 통째로 다시 쓴다. 나중에 도는 쪽이 이기므로
+-- 두 마이그레이션이 같은 합집합 목록을 쓴다: 이 브랜치의 COUPON_VOIDED와 그쪽의 ACCOUNT_DELETION_* 세 가지를 모두 넣는다.
+-- 그쪽 action이 아직 없는 곳에서는 쓰이지 않을 뿐 해롭지 않다. 새 action을 더하는 쪽은 이 목록 전체를 이어받아야 한다.
 ALTER TABLE platform_admin_audit
   DROP CONSTRAINT platform_admin_audit_action_check;
 
 ALTER TABLE platform_admin_audit
   ADD CONSTRAINT platform_admin_audit_action_check
   CHECK (action IN (
-    'MERCHANT_CREATED', 'MERCHANT_UPDATED', 'MERCHANT_HIDDEN', 'CAMPAIGN_DRAFT_CREATED', 'COUPON_VOIDED'
+    'MERCHANT_CREATED', 'MERCHANT_UPDATED', 'MERCHANT_HIDDEN', 'CAMPAIGN_DRAFT_CREATED', 'COUPON_VOIDED',
+    'ACCOUNT_DELETION_PROCESSED', 'ACCOUNT_DELETION_REJECTED', 'ACCOUNT_DELETION_RECONCILED'
   ));

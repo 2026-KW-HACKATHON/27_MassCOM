@@ -318,11 +318,14 @@ export class PostgresReversalService implements ReversalService {
       customer_account_id: string;
       redeemed_at: Date;
       redeemed_by_account_id: string;
+      merchant_is_demo: boolean;
     }>(
-      `SELECT id, title, customer_account_id, redeemed_at, redeemed_by_account_id
-       FROM badge_coupons
-       WHERE merchant_id = $1 AND status = 'REDEEMED' AND redeemed_at > $2
-       ORDER BY redeemed_at DESC, id
+      `SELECT coupon.id, coupon.title, coupon.customer_account_id, coupon.redeemed_at, coupon.redeemed_by_account_id,
+              merchant.is_demo AS merchant_is_demo
+       FROM badge_coupons AS coupon
+       JOIN merchants AS merchant ON merchant.id = coupon.merchant_id
+       WHERE coupon.merchant_id = $1 AND coupon.status = 'REDEEMED' AND coupon.redeemed_at > $2
+       ORDER BY coupon.redeemed_at DESC, coupon.id
        LIMIT $3`,
       [input.merchantId, new Date(now.getTime() - recentCouponRedemptionWindowMs), recentCouponRedemptionLimit],
     );
@@ -334,7 +337,9 @@ export class PostgresReversalService implements ReversalService {
         customerLabel: maskedCustomerLabel(this.labelHmacSecret, input.merchantId, row.customer_account_id),
         redeemedByMe: row.redeemed_by_account_id === input.staffAccountId,
         undoUntil: couponUndoDeadline(row.redeemed_at).toISOString(),
-        canUndo: isWithinCouponUndoWindow(row.redeemed_at, now),
+        // 실제 점포에서 본인 쿠폰은 되돌리기 요청이 403 COUPON_SELF_UNDO로 끝나므로 버튼을 보이지 않는다.
+        canUndo: isWithinCouponUndoWindow(row.redeemed_at, now)
+          && (row.merchant_is_demo || row.customer_account_id !== input.staffAccountId),
       })),
     };
   }
@@ -380,6 +385,9 @@ export class PostgresReversalService implements ReversalService {
         )
       ).rows[0];
       if (!coupon) throw new ReversalError('COUPON_NOT_FOUND');
+      // 잠금을 기다리는 사이 계정 삭제가 고객 열을 가명으로 바꿨다면 잠근 상자(peek한 고객 기준)와 쿠폰의 주인이 어긋난다.
+      // 방문 취소가 방문 행으로 확인하는 것과 같이 어긋나면 되돌리지 않고 ACCOUNT_DELETED로 끝낸다.
+      if (coupon.customer_account_id !== peek.customer_account_id) throw new ReversalError('ACCOUNT_DELETED');
       // 잠금을 다 잡은 뒤에 시각을 잰다: 기다린 시간이 10분 창 판정에 들어가지 않게 한다.
       const now = this.now();
       // 실제 점포에서는 본인 쿠폰을 본인 점원 계정으로 사용 처리할 수 없듯이 되돌릴 수도 없다
