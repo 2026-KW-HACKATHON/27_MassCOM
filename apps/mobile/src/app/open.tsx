@@ -38,6 +38,9 @@ export default function OpenRoute() {
     } else {
       router.replace('/');
     }
+    // iOS keeps handing the first universal link back as the "initial" link; once it is handled, forget it so a later visit to
+    // this route reads only the link (or fragment) that actually opened it. A no-op on web.
+    Linking.clearInitialURL();
   }, [fragment, router, url]);
 
   return null;

@@ -20,6 +20,17 @@ test('the open route sends a friend link to the friends tab, a merchant link to 
   assert.doesNotMatch(route, /console\.|\?friend=/);
 });
 
+test('the open route forgets the delivered link once handled, so iOS cannot hand the first universal link back again', () => {
+  const route = read('../app/open.tsx');
+  // expo-linking exports it, both native modules implement it and it is optional-chained inside (a no-op on web).
+  assert.match(route, /import \* as Linking from 'expo-linking'/);
+  assert.match(route, /Linking\.clearInitialURL\(\);\s*\}, \[fragment, router, url\]\)/);
+  // Each link is still handled once: the guard sits before the routing and the clear.
+  assert.match(route, /if \(handled\.current === key\) return;\s*handled\.current = key;/);
+  assert.ok(route.indexOf('handled.current = key') < route.indexOf('router.replace'));
+  assert.ok(route.indexOf('router.replace') < route.indexOf('Linking.clearInitialURL()'));
+});
+
 test('a friend link opened while signed out continues at the friends tab after sign-in, next to the merchant return', () => {
   const layout = read('../app/_layout.tsx');
   assert.match(layout, /consumeMerchantReturn\(\)/);
