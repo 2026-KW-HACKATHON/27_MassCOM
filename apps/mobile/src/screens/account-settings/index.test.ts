@@ -36,7 +36,8 @@ test('only the showcase package files a deletion inside the app, after a confirm
   assert.match(screen, /Alert\.alert\(\s*reissue \? '접수번호 다시 받기' : '삭제 요청'/);
   assert.match(screen, /접수 후 24시간은 취소할 수 있고, 그 뒤 운영자가 7일 안에 처리합니다/);
   assert.match(screen, /접수만으로 계정이 바로 삭제되지는 않습니다/);
-  assert.match(screen, /<Text selectable accessibilityLabel=\{`접수번호 \$\{receipt\.replaceAll\('-', ' '\)\}`\} style=\{styles\.receiptCode\}>/);
+  // One line only: the receipt is shown once and a wrapped last character is easy to miss when copying it (#248).
+  assert.match(screen, /<Text\s+selectable\s+accessibilityLabel=\{`접수번호 \$\{receipt\.replaceAll\('-', ' '\)\}`\}\s+adjustsFontSizeToFit\s+numberOfLines=\{1\}\s+maxFontSizeMultiplier=\{1\.3\}\s+style=\{styles\.receiptCode\}\s*>/);
   assert.match(screen, /삭제 요청 취소 \(/);
   assert.match(screen, /접수번호 다시 받기/);
   // The receipt lives in component state only.
