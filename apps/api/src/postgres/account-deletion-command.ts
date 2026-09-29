@@ -39,6 +39,7 @@ function line(intake: AdminDeletionIntake): string {
     `due=${intake.dueAt}`, intake.canProcess ? 'READY' : intake.status === 'REQUESTED' ? 'COOLING_OFF' : '-',
     intake.overdue ? 'OVERDUE' : '-', intake.accountLabel ?? '-',
     intake.deletion ? `ledger=${intake.deletion.status}` : '-',
+    intake.hasReceipt ? '-' : '옛 접수(접수번호 없음)',
   ].join('\t');
 }
 

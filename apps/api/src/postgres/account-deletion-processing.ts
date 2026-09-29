@@ -30,6 +30,7 @@ type IntakeRow = {
   cancel_until: Date;
   due_at: Date;
   account_id: string | null;
+  has_receipt: boolean;
   processed_at: Date | null;
   processed_by: string | null;
   reject_reason: string | null;
@@ -39,7 +40,8 @@ type IntakeRow = {
 
 const intakeColumns = `
   intake.id, intake.status, intake.source, intake.requested_at, intake.cancel_until, intake.due_at,
-  intake.account_id, intake.processed_at, intake.processed_by, intake.reject_reason,
+  intake.account_id, intake.receipt_hash IS NOT NULL AS has_receipt, intake.processed_at, intake.processed_by,
+  intake.reject_reason,
   ledger.status AS ledger_status, ledger.completed_at AS ledger_completed_at`;
 const intakeFrom = `
   FROM account_deletion_intake_requests AS intake
@@ -245,6 +247,7 @@ function adminIntake(row: IntakeRow, now: Date): AdminDeletionIntake {
     canProcess: requested && now.getTime() > row.cancel_until.getTime(),
     overdue: requested && now.getTime() > row.due_at.getTime(),
     accountLabel: row.account_id === null ? null : maskAccountId(row.account_id),
+    hasReceipt: row.has_receipt,
     processedAt: row.processed_at?.toISOString() ?? null,
     processedBy: row.processed_by,
     rejectReason: row.reject_reason,

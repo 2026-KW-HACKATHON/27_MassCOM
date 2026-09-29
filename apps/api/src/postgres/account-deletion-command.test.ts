@@ -11,7 +11,7 @@ import {
 const intake: AdminDeletionIntake = {
   id: '11111111-1111-4111-8111-111111111111', status: 'REQUESTED', source: 'SHOWCASE_APP',
   requestedAt: '2026-10-01T00:00:00.000Z', cancelUntil: '2026-10-02T00:00:00.000Z', dueAt: '2026-10-08T00:00:00.000Z',
-  canProcess: false, overdue: false, accountLabel: 'acct_1a2b…9f0e', processedAt: null, processedBy: null,
+  canProcess: false, overdue: false, accountLabel: 'acct_1a2b…9f0e', hasReceipt: true, processedAt: null, processedBy: null,
   rejectReason: null, deletion: null,
 };
 
@@ -55,6 +55,9 @@ test('the CLI maps each command to the shared service as a cli operator and reje
   const cli = JSON.stringify({ kind: 'cli', operator: 'choi' });
   const listed = await runAccountDeletionCommand(service, 'choi', ['list']);
   assert.match(listed[0]!, new RegExp(`^${intake.id}\\tREQUESTED\\tSHOWCASE_APP\\t.*COOLING_OFF.*acct_1a2b…9f0e`));
+  assert.doesNotMatch(listed[0]!, /옛 접수/);
+  const legacyService: AccountDeletionProcessingService = { ...service, list: async () => [{ ...intake, hasReceipt: false }] };
+  assert.match((await runAccountDeletionCommand(legacyService, 'choi', ['list']))[0]!, /\t옛 접수\(접수번호 없음\)$/);
   assert.deepEqual(await runAccountDeletionCommand(service, 'choi', ['process', intake.id]),
     [`PROCESSED\t${intake.id}\tledger=WAITING_FOR_MINT_FINALITY`]);
   assert.deepEqual(await runAccountDeletionCommand(service, 'choi', ['reject', intake.id, '중복 접수']), [`REJECTED\t${intake.id}`]);

@@ -51,6 +51,8 @@ export type AdminDeletionIntake = {
   overdue: boolean;
   /** First four and last four characters of the account ID; null once the account is gone. */
   accountLabel: string | null;
+  /** False for a filing made before receipts existed: the requester has no number to look it up with. */
+  hasReceipt: boolean;
   processedAt: string | null;
   processedBy: string | null;
   rejectReason: string | null;

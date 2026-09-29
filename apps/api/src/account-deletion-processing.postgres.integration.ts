@@ -552,8 +552,9 @@ test('the admin list shows pending filings first by deadline with masked labels 
 });
 
 test('the statements of the deployed API f1bba2d still work on the migrated schema and legacy rows can get a receipt', { skip }, async () => {
-  await withFixture(async ({ pool, web }) => {
+  await withFixture(async ({ pool, web, processing }) => {
     const accountId = await seedAccount(pool);
+    const operator = { kind: 'admin' as const, accountId: await seedAdmin(pool) };
     const insert = `INSERT INTO account_deletion_intake_requests (account_id) VALUES ($1)
                     ON CONFLICT (account_id) DO NOTHING`;
     assert.equal((await pool.query(insert, [accountId])).rowCount, 1);
@@ -567,8 +568,12 @@ test('the statements of the deployed API f1bba2d still work on the migrated sche
     assert.equal(legacy.cancel_until.getTime() - legacy.requested_at.getTime(), 24 * hour);
     assert.equal(legacy.due_at.getTime() - legacy.requested_at.getTime(), 7 * 24 * hour);
 
+    const legacyId = legacy.id as string;
+    assert.equal((await processing.list(operator)).find((item) => item.id === legacyId)!.hasReceipt, false,
+      'the operator list marks a filing that has no receipt number');
     const issued = await web.request(accountId);
     assert.equal(issued.receiptIssued, true, 'a legacy row has no receipt yet, so filing again issues one');
+    assert.equal((await processing.list(operator)).find((item) => item.id === legacyId)!.hasReceipt, true);
     assert.equal((await pool.query('SELECT 1 FROM account_deletion_intake_requests WHERE account_id = $1', [accountId]))
       .rowCount, 1);
     assert.equal((await web.request(accountId)).receiptIssued, false);
@@ -593,17 +598,44 @@ test('migration 0031 keeps existing filings as REQUESTED with computed deadlines
       await pool.query(await readFile(new URL(file, migrations), 'utf8'));
       await pool.query('INSERT INTO schema_migrations (filename) VALUES ($1)', [file]);
     }
+    // Two filings from the deployed API: one whose 24 hours ran out long ago, one made an hour ago.
     await pool.query(
-      `INSERT INTO account_deletion_intake_requests (account_id, requested_at) VALUES ('legacy-a', '2026-09-25T12:00:00Z')`);
+      `INSERT INTO account_deletion_intake_requests (account_id, requested_at) VALUES
+         ('legacy-a', now() - interval '10 days'), ('legacy-recent', now() - interval '1 hour')`);
     await runMigrations(pool);
     const row = (await pool.query(
-      `SELECT id, status, source, receipt_hash, cancel_until, due_at FROM account_deletion_intake_requests`)).rows[0]!;
+      `SELECT id, status, source, receipt_hash, requested_at, cancel_until, due_at,
+              cancel_until > now() + interval '23 hours' AND cancel_until <= now() + interval '24 hours' AS full_window
+       FROM account_deletion_intake_requests WHERE account_id = 'legacy-a'`)).rows[0]!;
     assert.match(row.id, /^[0-9a-f-]{36}$/);
     assert.equal(row.status, 'REQUESTED');
     assert.equal(row.source, 'WEB');
     assert.equal(row.receipt_hash, null);
-    assert.equal(row.cancel_until.toISOString(), '2026-09-26T12:00:00.000Z');
-    assert.equal(row.due_at.toISOString(), '2026-10-02T12:00:00.000Z');
+    // 옛 접수는 접수 24시간이 이미 지났어도 마이그레이션 시각부터 24시간의 취소 기간을 새로 받는다.
+    assert.equal(row.full_window, true, 'a legacy filing gets a full 24 hour window counted from the migration');
+    assert.equal(row.due_at.getTime(), row.cancel_until.getTime(),
+      'a due date already past is lifted to the end of the window instead of ending before it');
+    const recent = (await pool.query(
+      `SELECT requested_at, cancel_until, due_at,
+              cancel_until > now() + interval '23 hours' AND cancel_until <= now() + interval '24 hours' AS full_window
+       FROM account_deletion_intake_requests WHERE account_id = 'legacy-recent'`)).rows[0]!;
+    assert.equal(recent.full_window, true);
+    assert.equal(recent.due_at.getTime() - recent.requested_at.getTime(), 7 * 24 * hour,
+      'a due date still in the future keeps the 7 days from filing that was promised');
+    // Not processable right after the migration, and the operator list says why there is no receipt number.
+    const operatorId = await seedAdmin(pool);
+    const migrated = new PostgresAccountDeletionProcessingService(pool, {
+      hmacSecret, policyVersion: 'account-deletion-v1',
+    });
+    const operator = { kind: 'admin' as const, accountId: operatorId };
+    const listed = await migrated.list(operator);
+    const legacyItem = listed.find((item) => item.accountLabel === '…-a')!;
+    assert.ok(legacyItem, 'the legacy filing is listed');
+    assert.equal(legacyItem.hasReceipt, false);
+    assert.equal(legacyItem.canProcess, false);
+    await assert.rejects(migrated.process(operator, legacyItem.id),
+      (error: unknown) => error instanceof AccountDeletionIntakeError && error.code === 'DELETION_COOLING_OFF');
+    assert.equal((await migrated.list(operator)).find((item) => item.id === legacyItem.id)!.status, 'REQUESTED');
     const primaryKey = await pool.query(
       `SELECT a.attname FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
        WHERE i.indrelid = 'account_deletion_intake_requests'::regclass AND i.indisprimary`);
@@ -632,4 +664,24 @@ test('migration 0031 keeps existing filings as REQUESTED with computed deadlines
     await bootstrap.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
     await bootstrap.end();
   }
+});
+
+test('the audit action CHECK accepts the actions of every migration so 0030 and 0031 may be applied in either order', { skip }, async () => {
+  await withFixture(async ({ pool }) => {
+    const merchant = `merchant-${randomUUID()}`;
+    await pool.query(
+      `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
+       VALUES ($1, '감사 기록 시험 식당', '', '서울', 0, 'ACTIVE', true)`, [merchant]);
+    const storeActions = ['MERCHANT_CREATED', 'MERCHANT_UPDATED', 'MERCHANT_HIDDEN', 'CAMPAIGN_DRAFT_CREATED', 'COUPON_VOIDED'];
+    const deletionActions = ['ACCOUNT_DELETION_PROCESSED', 'ACCOUNT_DELETION_REJECTED', 'ACCOUNT_DELETION_RECONCILED'];
+    const insert = `INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, after_state)
+                    VALUES (gen_random_uuid(), 'audit-check', $1, $2, '{}')`;
+    for (const action of storeActions) await pool.query(insert, [merchant, action]);
+    for (const action of deletionActions) await pool.query(insert, [null, action]);
+    await assert.rejects(pool.query(insert, [merchant, 'MERCHANT_DELETED']), /platform_admin_audit_action_check/);
+    await assert.rejects(pool.query(insert, [null, 'ACCOUNT_DELETION_UNKNOWN']), /platform_admin_audit_action_check/);
+    assert.equal((await pool.query(
+      `SELECT count(*)::int AS n FROM platform_admin_audit WHERE actor_account_id = 'audit-check'`)).rows[0].n,
+      storeActions.length + deletionActions.length);
+  });
 });

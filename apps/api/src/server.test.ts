@@ -570,7 +570,7 @@ test('showcase Bearer deletion intake exists only when the showcase service is w
 const adminIntake: AdminDeletionIntake = {
   id: '11111111-1111-4111-8111-111111111111', status: 'REQUESTED', source: 'WEB',
   requestedAt: intakeDates.requestedAt, cancelUntil: intakeDates.cancelUntil, dueAt: intakeDates.dueAt,
-  canProcess: true, overdue: false, accountLabel: 'acct_1a2b…9f0e', processedAt: null, processedBy: null,
+  canProcess: true, overdue: false, accountLabel: 'acct_1a2b…9f0e', hasReceipt: true, processedAt: null, processedBy: null,
   rejectReason: null, deletion: null,
 };
 
