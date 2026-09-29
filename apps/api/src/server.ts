@@ -19,7 +19,7 @@ import { CustomerIdentityError, type CustomerIdentityService } from './customer-
 import { FriendError, type FriendService } from './friends.js';
 import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js';
 import { WebAuthError, WebAuthService, resolveWebAuthConfig, type WebAuthHandler } from './web-auth.js';
-import { WebSessionError } from './web-session.js';
+import { WebSessionError, freshWebSessionMs } from './web-session.js';
 import { WebOriginError, resolveWebOrigin } from './web-origin.js';
 import {
   AccountDeletionIntakeError,
@@ -557,7 +557,11 @@ export function createApiServer(
           return;
         }
         if (!webAuth) throw new RequestError(503, 'WEB_DELETION_INTAKE_NOT_CONFIGURED');
-        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        // 접수·다시 받기·취소는 방금 한 로그인이어야 한다. 이 세션 쿠키는 /app/·/merchant/·/admin/과 함께 쓰여서, 브라우저에
+        // 오래 남은 로그인으로 남의 접수번호를 무효로 만들거나 삭제를 접수하지 못하게 한다(조회는 접수번호만 쓴다).
+        const session = await webAuth.resolveSessionWithAge(requireWebCookie(request, 'web_session'), origin);
+        if (session.ageMs > freshWebSessionMs) throw new WebSessionError('WEB_SESSION_REAUTH_REQUIRED');
+        const accountId = session.accountId;
         const body = await readJson(request);
         if (path === '/api/web/account-deletion-intake/cancel') {
           sendJson(response, 200, await deletionIntake.cancel(accountId));

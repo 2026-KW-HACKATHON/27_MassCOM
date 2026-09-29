@@ -39,13 +39,13 @@
 
       <h2>삭제 요청은 이렇게 처리됩니다</h2>
       <ol>
-        <li><strong>본인 확인:</strong> 이 페이지에서 앱에서 쓴 Google 계정으로 로그인합니다. 서버가 로그인한 계정을 직접 정하므로 이메일로 보낸 요청으로는 계정을 특정하지 않습니다.</li>
+        <li><strong>본인 확인:</strong> 이 페이지에서 앱에서 쓴 Google 계정으로 로그인합니다. 서버가 로그인한 계정을 직접 정하므로 이메일로 보낸 요청으로는 계정을 특정하지 않습니다. 접수·취소·접수번호 다시 받기는 <strong>최근 10분 안에 한 로그인</strong>이 있어야 하며, 10분이 지났다면 로그인 버튼을 다시 눌러 로그인하세요.</li>
         <li><strong>접수와 접수번호:</strong> 접수하면 접수번호 한 개를 화면에 한 번 보여 드립니다. 접수번호는 이 화면에서만 다루며 주소(URL)나 이 기기에 저장하지 않습니다.</li>
         <li><strong>24시간 취소 기간:</strong> 접수한 뒤 24시간 동안은 이 페이지에서 삭제 요청을 취소할 수 있습니다. 취소 기간에는 운영자가 처리하지 않습니다.</li>
         <li><strong>7일 안 처리:</strong> 취소 기간이 지나면 운영자가 확인해 처리하며, 처리 기한은 접수 뒤 7일입니다.</li>
         <li><strong>결과 확인:</strong> 처리가 끝나면 계정과 로그인이 사라지므로 <strong>접수번호만이 처리 결과를 확인할 수 있는 방법</strong>입니다. 접수번호를 잃어버리면 계정이 남아 있는 동안 로그인해 다시 받을 수 있고, 다시 받으면 이전 접수번호는 쓸 수 없습니다.</li>
       </ol>
-      <p>앱 안에서 바로 삭제하는 기능은 최근 5분 이내 재인증을 서명된 로그인 시각으로 확인해야 하는데 Google 로그인이 그 시각을 주지 않아 운영 앱에서는 아직 사용할 수 없습니다. 이 웹 요청은 그 조건을 낮추지 않으며, 운영자가 웹 Google 로그인으로 확인된 접수를 처리하는 별도 경로입니다.</p>
+      <p>앱 안에서 바로 삭제하는 기능은 최근 5분 이내 재인증을 서명된 로그인 시각으로 확인해야 하는데 Google 로그인이 그 시각을 주지 않아 운영 앱에서는 아직 사용할 수 없습니다. 이 웹 요청은 그와 다른 경로입니다. 접수·취소·접수번호 다시 받기에는 최근 10분 안에 이 페이지에서 한 로그인이 필요하고, 삭제는 접수 24시간 뒤에 운영자가 처리합니다.</p>
 
       <h2>웹에서 요청하기</h2>
       <p>운영 앱에서 사용한 Google 계정으로 로그인하세요. 같은 브라우저·주소에서 요청을 접수할 수 있습니다. 시연 앱 계정과 가상 기록은 이 운영 요청에 포함되지 않습니다.</p>
@@ -64,7 +64,7 @@
       </div>
 
       <h2>삭제 요청 취소와 접수번호 다시 받기</h2>
-      <p>접수한 뒤 24시간 안에는 같은 Google 계정으로 로그인한 상태에서 삭제 요청을 취소할 수 있습니다. 24시간이 지나면 취소할 수 없습니다. 접수번호를 다시 받으면 이전 접수번호는 쓸 수 없게 됩니다.</p>
+      <p>접수한 뒤 24시간 안에는 최근 10분 안에 같은 Google 계정으로 로그인한 상태에서 삭제 요청을 취소할 수 있습니다. 24시간이 지나면 취소할 수 없습니다. 접수번호를 다시 받으면 이전 접수번호는 쓸 수 없게 됩니다.</p>
       <form id="deletion-cancel-form">
         <button class="legal-action" type="submit">삭제 요청 취소 (24시간 안)</button>
       </form>
@@ -166,6 +166,10 @@
         return '';
       }
     }
+    // 서버가 "로그인한 지 10분이 지났다"고 알리면(401 WEB_SESSION_REAUTH_REQUIRED) 다시 로그인하라고 안내한다.
+    const reauthRequired = 'WEB_SESSION_REAUTH_REQUIRED';
+    const reauthMessage = (action) => '보안을 위해 ' + action + '는 최근 10분 안에 로그인한 상태에서만 할 수 있습니다. ' +
+      '위의 "Google 계정으로 로그인"을 눌러 다시 로그인한 뒤 요청해 주세요.';
     function intakeMessage(result) {
       return '취소 마감 ' + kst(result.cancelUntil) + ' · 처리 기한 ' + kst(result.dueAt) + '입니다.';
     }
@@ -185,7 +189,9 @@
             ' 접수번호는 처음 접수할 때만 보여 드립니다. 잃어버렸다면 아래 접수번호 다시 받기를 누르세요.';
         }
       } else if (response.status === 401) {
-        status.textContent = '운영 앱에서 사용한 Google 계정으로 로그인한 뒤 다시 요청해 주세요.';
+        status.textContent = (await errorCode(response)) === reauthRequired
+          ? reauthMessage(reissue ? '접수번호 다시 받기' : '접수')
+          : '운영 앱에서 사용한 Google 계정으로 로그인한 뒤 다시 요청해 주세요.';
       } else if (response.status === 404 && (await errorCode(response)) === 'DELETION_NO_ACTIVE_REQUEST') {
         status.textContent = '다시 받을 접수가 없습니다. 먼저 접수해 주세요.';
       } else if (response.status === 403) {
@@ -217,7 +223,9 @@
           receiptBox.hidden = true;
           status.textContent = '삭제 요청을 취소했습니다. 계정은 그대로이고, 접수번호로 조회하면 취소됨으로 보입니다.';
         } else if (response.status === 401) {
-          status.textContent = '운영 앱에서 사용한 Google 계정으로 로그인한 뒤 취소해 주세요.';
+          status.textContent = (await errorCode(response)) === reauthRequired
+            ? reauthMessage('취소')
+            : '운영 앱에서 사용한 Google 계정으로 로그인한 뒤 취소해 주세요.';
         } else if (response.status === 404) {
           status.textContent = '취소할 삭제 요청이 없습니다. 이미 취소·처리됐거나 접수하지 않았습니다.';
         } else if (response.status === 409) {

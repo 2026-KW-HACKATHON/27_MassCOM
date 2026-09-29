@@ -49,6 +49,8 @@ export type WebAuthHandler = {
     token: string; returnTo?: '/app/' | '/admin/' | '/account-deletion' | '/merchant/';
   }>;
   resolveSession(token: string, origin: WebOrigin): Promise<string>;
+  /** Same as `resolveSession`, plus how old the session is (milliseconds since its login). */
+  resolveSessionWithAge(token: string, origin: WebOrigin): Promise<{ accountId: string; ageMs: number }>;
   logout(token: string, origin: WebOrigin): Promise<void>;
 };
 
@@ -186,6 +188,10 @@ export class WebAuthService {
 
   async resolveSession(token: string, origin: WebOrigin): Promise<string> {
     return this.sessions.resolve(token, this.originHost(origin));
+  }
+
+  async resolveSessionWithAge(token: string, origin: WebOrigin): Promise<{ accountId: string; ageMs: number }> {
+    return this.sessions.resolveWithAge(token, this.originHost(origin));
   }
 
   async logout(token: string, origin: WebOrigin): Promise<void> {

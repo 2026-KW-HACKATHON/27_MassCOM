@@ -59,6 +59,9 @@ test('page describes the 24 hour cancellation, 7 day processing and receipt with
   assert.match(html, /앱에서 요청 페이지 열기[\s\S]*Google 계정으로 로그인/);
   assert.match(html, /접수만으로 계정이나 보상 기록은 삭제되지 않습니다/);
   assert.match(html, /최근 5분 이내 재인증/);
+  // 이 웹 경로는 그 5분 조건과 같다고 하지 않고, 자신의 조건(최근 10분 로그인 + 24시간 뒤 운영자 처리)을 그대로 적는다.
+  assert.doesNotMatch(html, /조건을 낮추지 않/);
+  assert.match(html, /접수·취소·접수번호 다시 받기에는 최근 10분 안에 이 페이지에서 한 로그인이 필요하고, 삭제는 접수 24시간 뒤에 운영자가 처리합니다/);
   assert.match(html, /문의 이메일/);
   assert.match(html, /외부 지갑 비밀번호, 개인키, 복구 문구/);
   assert.doesNotMatch(html, /같은 Google 계정으로 다시 확인한 뒤 삭제를 접수합니다/);
@@ -195,6 +198,36 @@ test('page reports login, origin, service, malformed and network failures as unc
   await offline.submit('deletion-request');
   assert.match(offline.node('deletion-status').textContent, /연결을 확인할 수 없습니다/);
   assert.equal(offline.node('deletion-request').button.disabled, false);
+});
+
+test('page asks for a new login when the server says the session is older than 10 minutes, for filing, re-issue and cancel', async () => {
+  const stale = () => reply(401, { code: 'WEB_SESSION_REAUTH_REQUIRED' });
+  const filing = page(async () => stale());
+  filing.node('deletion-confirm').checked = true;
+  await filing.submit('deletion-request');
+  assert.match(filing.node('deletion-status').textContent, /접수는 최근 10분 안에 로그인한 상태에서만 할 수 있습니다/);
+  assert.match(filing.node('deletion-status').textContent, /Google 계정으로 로그인/);
+  assert.equal(filing.node('deletion-receipt').hidden, true);
+  assert.equal(filing.node('deletion-request').button.disabled, false);
+
+  const reissue = page(async () => stale());
+  await reissue.submit('deletion-reissue-form');
+  assert.match(reissue.node('deletion-status').textContent, /접수번호 다시 받기는 최근 10분 안에 로그인한 상태에서만/);
+  assert.equal(reissue.node('deletion-receipt').hidden, true);
+  assert.equal(reissue.node('deletion-reissue-form').button.disabled, false);
+
+  const cancel = page(async () => stale());
+  await cancel.submit('deletion-cancel-form');
+  assert.match(cancel.node('deletion-status').textContent, /취소는 최근 10분 안에 로그인한 상태에서만/);
+  assert.doesNotMatch(cancel.node('deletion-status').textContent, /삭제 요청을 취소했습니다/);
+  assert.equal(cancel.node('deletion-cancel-form').button.disabled, false);
+
+  // Any other 401 keeps the plain "log in" advice, so a missing cookie is not mistaken for an old one.
+  const other = page(async () => reply(401, { code: 'WEB_SESSION_INVALID' }));
+  other.node('deletion-confirm').checked = true;
+  await other.submit('deletion-request');
+  assert.match(other.node('deletion-status').textContent, /운영 앱에서 사용한 Google 계정으로 로그인한 뒤 다시 요청/);
+  assert.doesNotMatch(other.node('deletion-status').textContent, /10분/);
 });
 
 test('page cancels only what the server confirms and explains each refusal', async () => {
