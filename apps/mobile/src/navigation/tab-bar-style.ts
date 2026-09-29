@@ -12,7 +12,8 @@ export function tabIndicator(selected: boolean, palette: AppColors, world: World
   return {
     iconColor: color,
     pill: {
-      width: 56, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
+      // 56dp where the slot allows it; on a 320dp phone a slot's content is only about 44dp, so the pill shrinks with it.
+      width: 56, maxWidth: '100%', height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
       backgroundColor: selected ? palette.primaryContainer : 'transparent',
     } satisfies ViewStyle,
     label: { color, fontWeight: selected ? '800' : '500' } satisfies TextStyle,
