@@ -2,6 +2,15 @@
 
 마지막 갱신 시각: 2026-09-30 KST
 
+## 2026-09-30 계정 삭제 요청: 웹 로그인 접수 + 운영자 처리 (Issue #194, D-051)
+
+- 기준: main `f6fa12f` 위의 브랜치 `feat/194-account-deletion-processing`(로컬 worktree `.worktrees/194-deletion`, 로컬 커밋만이고 **push·PR·배포 없음**). 설계는 [`docs/superpowers/specs/2026-09-30-account-deletion-processing-design.md`](superpowers/specs/2026-09-30-account-deletion-processing-design.md), 소유자 결정은 [D-051](DECISIONS.md)(`USER_CONFIRMED`, D-026 불변), 구현 선택은 D-052(`PROPOSED`).
+- 내용: 운영 앱은 웹 삭제 페이지(웹 Google 로그인 → 접수번호 → 24시간 취소 → 접수번호 조회)로 접수하고 플랫폼 관리자가 관리자 웹에서 접수 뒤 7일 안에 처리한다. 시연 앱은 앱 안(Bearer)에서 접수하고 운영자가 시연 호스트 CLI(`account-deletion-command.js`)로 처리한다. migration 0031(추가·완화만, 구 API `f1bba2d` 호환·**PK를 `id`로 바꾸고 `account_id`를 NULL 허용 고유 색인으로**), 접수번호(Crockford 16자·HMAC 해시 저장), forget 본문을 `forgetInTransaction`으로 분리(직접 삭제와 운영자 처리가 공유), 처리·거절·재정산·감사(`ACCOUNT_DELETION_*`), 본인 접수 처리 거절, `WAITING_FOR_MINT_FINALITY` 재정산(관리자 목록 열기·CLI), Caddy 새 경로 두 개, 웹 페이지·관리자 웹·시연 앱 화면, 개인정보처리방침·PRIVACY_DELETION 문구.
+- 검증: [TEST_STATUS](TEST_STATUS.md) 맨 위 항목(API 단위 207, PostgreSQL 172건 중 170 PASS·2 SKIP, 모바일 738, 웹 129, 두 `export:android`, Caddy 프록시 2/2 등). 필수 36개 ID 판정은 그대로다.
+- `NOT_RUN`: 폐기용 실계정의 웹 접수→24시간 뒤 운영자 처리→세션 폐기→접수번호 조회, 운영 배포와 외부 HTTPS, 시연 CLI의 호스트 실행, Android 새 화면 실기, 실제 Google 로그인 브라우저 실행, Play 제출. [B-020](BLOCKERS.md)은 `BLOCKED`로 유지한다.
+- **병합 때 주의:** Issue #243(migration 0030 방문 쿠폰 되돌림)이 먼저 병합되고 `account-deletion.ts`의 `pseudonymizeAccount`에 새 열 가명 처리를 더한다. 이 브랜치의 그 파일 변경은 (1) `requestDeletion` 본문을 `forgetInTransaction`으로 분리, (2) `pseudonymizeAccount`의 `DELETE FROM account_deletion_intake_requests` 한 줄을 주석으로 교체, (3) 파일 끝에 `markIntakeProcessed`·`reconcileWaitingRequests` 추가뿐이라 충돌은 (1)·(2) 근처에서만 난다. 이 브랜치의 migration은 **0031**이다.
+- 다음 작업: ① 독립 리뷰(구현한 컨텍스트와 다른 리뷰어; 민감 경로이므로 서로 다른 모델 2개). ② PR·CI·병합. ③ 병합 뒤 운영·시연에 배포(migration은 배포 스크립트가 먼저 적용, 백업 포함)하고 Caddy 새 경로 확인. ④ 폐기용 Google 계정으로 종단 실행을 실증해 증거 JSON을 남긴다. ⑤ 소유자가 D-052의 접수번호 형식·중복 접수 정책과 화면 문구를 판정한다.
+
 ## 2026-09-30 AI 가게 그림 운영·시연 배포와 시연 Preview 10 공개(Issue #240)
 
 - 기준 커밋: main `f1bba2d`(PR #239 사장님 AI 가게 그림 병합, main CI 36598828345 SUCCESS). 브랜치 `docs/240-preview10`(로컬 worktree `.worktrees/240-preview10`, main `f1bba2d` 기준)은 (작성 시점에는 아직 push 전이었다.) 앱·API 코드 변경 없이 배포·릴리스 증거 JSON 두 개와 설치 링크(README·`docs/open.html`·`ANDROID_DOWNLOADS.md`·B-018 포인터)를 Preview 9에서 10으로 바꾸고 포털 검사 기대값만 Preview 10으로 옮기며, 친구 배포 문서의 운영 백업 서술을 호스트에서 확인한 값으로 바로잡았다. PR 전에 `git fetch origin`으로 main이 앞서 있는지 확인하고, 문서 충돌이 나면 두 쪽 문단을 모두 남겨라. 제목·본문은 `bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"`로 검사한다.
