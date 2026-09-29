@@ -66,7 +66,7 @@ export function AccountSettingsScreen({
     () => capability.allowed ? new AccountDeletionApiClient({ apiUrl, credential }) : undefined,
     [apiUrl, capability.allowed, credential],
   );
-  // 시연 앱만 앱 안에서 탈퇴를 접수한다(D-051). 운영 앱은 웹 삭제 페이지를 쓴다.
+  // 시연 앱만 앱 안에서 탈퇴를 접수한다(D-052). 운영 앱은 웹 삭제 페이지를 쓴다.
   const intakeClient = useMemo(
     () => canRequestShowcaseDeletion(Application.applicationId, credential)
       ? new AccountDeletionIntakeApiClient({ apiUrl, credential }) : undefined,

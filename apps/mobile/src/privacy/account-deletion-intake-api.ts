@@ -46,7 +46,7 @@ export class AccountDeletionIntakeApiError extends Error {
 }
 
 /**
- * The showcase app's own deletion filing (D-051). The production app has no such route and uses the web page, so
+ * The showcase app's own deletion filing (D-052). The production app has no such route and uses the web page, so
  * this client is only constructed for the showcase package. Nothing here deletes an account.
  */
 export class AccountDeletionIntakeApiClient {

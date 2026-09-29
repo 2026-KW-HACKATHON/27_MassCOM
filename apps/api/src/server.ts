@@ -333,7 +333,7 @@ export function createApiServer(
             return;
           }
         }
-        // 계정 삭제 요청 처리(#194, D-051): 웹 로그인으로 접수된 요청만 운영자가 처리한다. 화면에는 마스킹한 계정 표지만 나간다.
+        // 계정 삭제 요청 처리(#194, D-052): 웹 로그인으로 접수된 요청만 운영자가 처리한다. 화면에는 마스킹한 계정 표지만 나간다.
         if (path === '/api/web/admin/account-deletion-intakes' && request.method === 'GET') {
           if (!deletionProcessing) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
           sendJson(response, 200, { intakes: await deletionProcessing.list({ kind: 'admin', accountId }) });
@@ -567,7 +567,7 @@ export function createApiServer(
         return;
       }
 
-      // 시연 앱 전용(#194, D-051): 시연 서버에서만 서비스가 만들어진다. 운영 API에는 이 경로가 없고 운영 앱은 웹 페이지를 쓴다.
+      // 시연 앱 전용(#194, D-052): 시연 서버에서만 서비스가 만들어진다. 운영 API에는 이 경로가 없고 운영 앱은 웹 페이지를 쓴다.
       if (showcaseDeletionIntake && (path === '/account-deletion-intake' ||
           path === '/account-deletion-intake/cancel' || path === '/account-deletion-status')) {
         if (path === '/account-deletion-status') {

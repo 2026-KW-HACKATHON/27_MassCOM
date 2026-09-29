@@ -13,7 +13,7 @@ import { generateReceipt, receiptHash } from '../deletion-receipt.js';
 import { WebSessionError } from '../web-session.js';
 import { AccountLifecycleError, PostgresAccountLifecycle } from './account-lifecycle.js';
 
-// D-051: a 24 hour cancellation window after filing, then operator processing within 7 days.
+// D-052: a 24 hour cancellation window after filing, then operator processing within 7 days.
 export const cancelWindowMs = 24 * 60 * 60 * 1000;
 export const processingWindowMs = 7 * 24 * 60 * 60 * 1000;
 

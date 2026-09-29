@@ -4,7 +4,7 @@ import type { DeletionIntakeView } from './account-deletion-intake-api';
 
 const showcasePackage = 'kr.masscom.wolgye.demo';
 
-/** Only the showcase app files a deletion from inside the app (D-051); the production app opens the web page. */
+/** Only the showcase app files a deletion from inside the app (D-052); the production app opens the web page. */
 export function canRequestShowcaseDeletion(
   packageId: string | null | undefined,
   credential: AccountCredential,

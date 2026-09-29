@@ -101,7 +101,7 @@
 - [Android 설치본 상태](docs/ANDROID_DOWNLOADS.md): 운영 테스트 APK와 별도 시연 APK의 설치 링크·패키지·미검증 범위
 - [시연용 읽기 전용 웹](apps/showcase-web/README.md) · [운영용 읽기 전용 웹](apps/production-web/README.md): 별도 코드·데이터 경계. 기존 apex에서 Android Chrome의 서로 다른 2계정 순차 로그인은 확인했고, 새 www에서는 1계정 로그인·로그아웃과 apex 세션 유지까지 확인했습니다. www의 두 번째 계정과 기록이 있는 도감의 교차 노출은 미검증입니다.
 - [현재 HTTPS 시연 웹](https://www.masscom.kr/preview/): 가상 점포 A·B·C 고정 예시. 기존 Vercel 주소는 장애 복구용으로 보존
-- [공개 계정 삭제 안내](https://www.masscom.kr/account-deletion): 웹 Google 로그인으로 본인을 확인해 접수하면 접수번호를 받고(24시간 안 취소 가능), 운영자가 접수 뒤 7일 안에 처리하며 접수번호로 결과를 조회합니다([D-051](docs/DECISIONS.md), [설계](docs/superpowers/specs/2026-09-30-account-deletion-processing-design.md)). 시연 앱은 앱 안에서 같은 방식으로 접수하고 운영자가 CLI로 처리합니다. 앱 안 직접 삭제의 5분 `auth_time` 조건(D-026)은 그대로입니다. 코드와 자동 시험은 통과했지만 이 버전은 아직 배포되지 않았고 [옛 접수 전용 배포 기록](docs/evidence/operating-deletion-intake-deployment-2026-09-28.json)만 있으며, 폐기용 실계정의 종단 실행은 `NOT_RUN`, Play 제출은 [미완료](docs/BLOCKERS.md)입니다.
+- [공개 계정 삭제 안내](https://www.masscom.kr/account-deletion): 웹 Google 로그인으로 본인을 확인해 접수하면 접수번호를 받고(24시간 안 취소 가능), 운영자가 접수 뒤 7일 안에 처리하며 접수번호로 결과를 조회합니다([D-052](docs/DECISIONS.md), [설계](docs/superpowers/specs/2026-09-30-account-deletion-processing-design.md)). 시연 앱은 앱 안에서 같은 방식으로 접수하고 운영자가 CLI로 처리합니다. 앱 안 직접 삭제의 5분 `auth_time` 조건(D-026)은 그대로입니다. 코드와 자동 시험은 통과했지만 이 버전은 아직 배포되지 않았고 [옛 접수 전용 배포 기록](docs/evidence/operating-deletion-intake-deployment-2026-09-28.json)만 있으며, 폐기용 실계정의 종단 실행은 `NOT_RUN`, Play 제출은 [미완료](docs/BLOCKERS.md)입니다.
 - [현장 검증 빈 기록지](docs/FIELD_VALIDATION.md): 동의·과업·결과를 미리 채우지 않은 양식
 - [제출 체크리스트](docs/SUBMISSION_CHECKLIST.md): 승인 전 공개·태그·제출 금지 경계
 - [제출 증거 manifest](docs/SUBMISSION_EVIDENCE.json): 2026-09-23 main 기준선(PR #130까지)의 CI·PR·스크린샷·BLOCKED/NOT_RUN 기계 판독 기록. 이후 상태는 [현재 상태](docs/PROJECT_STATE.md)가 우선
@@ -242,7 +242,7 @@ sequenceDiagram
 | 외부 지갑에 표시할 서비스 출처 | `IN_PROGRESS` | [PR #134](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/134)에서 메타데이터를 `https://masscom.kr`과 기존 포털 표식으로 변경. 공개 자산 HTTPS는 `VERIFIED`; MetaMask 재연결은 지갑 잠금으로 `BLOCKED`, 운영 APK 반영은 `NOT_RUN` |
 | 외부 지갑 실기 | `VERIFIED` | MetaMask 핵심 흐름·W06 PASS; W04 동일 세션 주소 전환과 W05 미지원 스마트지갑은 준비된 외부 환경 부재로 `BLOCKED` |
 | NFT 발행 전체 흐름 | `VERIFIED` | Local Anvil 장애·복구와 Base Sepolia PostgreSQL job/Outbox→암호화 service minter→receipt/event/owner/locked→DB FINALIZED·재실행 무작업 PASS |
-| 계정 삭제·개인정보 | `IN_PROGRESS` | D01·D03 로컬 PASS. Google 웹 세션에 묶인 **삭제 의사 접수**는 [운영 HTTPS 배포](docs/evidence/operating-deletion-intake-deployment-2026-09-28.json)와 미로그인 401·Origin 없는 요청 403까지 확인(접수만 있던 이전 버전). [5분 재인증·발행 최종성 보안 수리](docs/PRIVACY_DELETION.md)도 서버에 반영. D-051의 접수번호·24시간 취소·운영자 처리·접수번호 조회는 코드와 로컬 시험까지 끝났고 배포·실계정 종단 실행은 미완료([B-020](docs/BLOCKERS.md)) |
+| 계정 삭제·개인정보 | `IN_PROGRESS` | D01·D03 로컬 PASS. Google 웹 세션에 묶인 **삭제 의사 접수**는 [운영 HTTPS 배포](docs/evidence/operating-deletion-intake-deployment-2026-09-28.json)와 미로그인 401·Origin 없는 요청 403까지 확인(접수만 있던 이전 버전). [5분 재인증·발행 최종성 보안 수리](docs/PRIVACY_DELETION.md)도 서버에 반영. D-052의 접수번호·24시간 취소·운영자 처리·접수번호 조회는 코드와 로컬 시험까지 끝났고 배포·실계정 종단 실행은 미완료([B-020](docs/BLOCKERS.md)) |
 | 외부 HTTPS·Play 제출 | `IN_PROGRESS` | [웹 전용 배포](docs/evidence/web-only-deployment-2026-09-28.json)와 공개 API·포털 HTTPS, [GitHub 운영 test.3 APK](docs/evidence/operating-android-test3-2026-09-28.json)의 Samsung 로그인·16KB 설치 PASS. 폰의 App Link 도메인은 verified지만 자동 열기는 사용자 설정으로 비활성화. Play App Signing OAuth·Console 제출은 `NOT_RUN/BLOCKED` |
 
 상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED / NOT_RUN`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
@@ -405,7 +405,7 @@ npm run test:postgres --prefix apps/api
 - 실기 시험 절차는 [`docs/DEVICE_TEST_PLAN.md`](docs/DEVICE_TEST_PLAN.md), 외부 HTTPS·로그인 실제 결정은 [`docs/HOSTING_LOGIN_PROPOSAL.md`](docs/HOSTING_LOGIN_PROPOSAL.md)를 따릅니다.
 - 운영 AAB 지갑 진입점 검사(W08): upload key 서명본을 공식 bundletool로 읽어 package와 source marker를 확인하고 결제 권한·결제/온램프/내장 지갑 SDK·AppKit 기능 flag·계정 화면 도달 경로·세션 메서드를 정적 검사해 PASS. 실기기 UI는 별도 `NOT_RUN`
 - upload keystore·공개 인증서 핀·[test.3 AAB/APK](docs/evidence/operating-android-test3-2026-09-28.json), 4KB Samsung 로그인·16KB AVD 설치·콜드 실행과 verified App Link 도메인: `VERIFIED`. 자동 App Link 열기는 폰 설정으로 `BLOCKED`, Play Console 제출은 `NOT_RUN`
-- 계정 삭제: 앱 내부 Local DEMO와 PostgreSQL 미전송 취소·제출 거래 보존·비식별화 PASS; 외부 HTTPS 삭제 URL PASS(옛 접수 전용 버전), 웹 접수→운영자 처리(D-051)는 로컬 PostgreSQL 시험 PASS·배포와 실계정 종단 실행은 `NOT_RUN`, 직접 fresh reauthentication 삭제는 `NOT_RUN`
+- 계정 삭제: 앱 내부 Local DEMO와 PostgreSQL 미전송 취소·제출 거래 보존·비식별화 PASS; 외부 HTTPS 삭제 URL PASS(옛 접수 전용 버전), 웹 접수→운영자 처리(D-052)는 로컬 PostgreSQL 시험 PASS·배포와 실계정 종단 실행은 `NOT_RUN`, 직접 fresh reauthentication 삭제는 `NOT_RUN`
 - 실제 Reown 지갑 흐름: 개발 package MetaMask 연결·서명·자동 복귀·콜드 스타트 서버 binding 복원과 W06 `PASS`; Account 1 검증이 Account 2 재연결에 승계되지 않음 `PASS`; 운영 release package, 정확한 W04 동일 세션 변경과 W05 스마트지갑은 `NOT_RUN/BLOCKED`
 - 테스트넷 계약·Worker 발행 1건: `VERIFIED` Base Sepolia, [구조화 증거](docs/evidence/base-sepolia-deployment.json)
 - 메인넷·Google Play·대회 제출: 명시 승인 전 실행 금지

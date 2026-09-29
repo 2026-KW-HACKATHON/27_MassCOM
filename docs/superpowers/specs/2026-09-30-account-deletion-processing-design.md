@@ -1,6 +1,6 @@
 # 계정 삭제 요청을 검증된 계정과 연결해 운영자가 처리하기 (Issue #194)
 
-2026-09-30 소유자가 고른 방식(D-051, `USER_CONFIRMED`): **웹 Google 로그인으로 본인 확인 + 운영자 처리.** 앱의 직접 자동 삭제는 Google Credential Manager가 서명된 `auth_time`을 주지 않아 막혀 있고(D-026, `deletion-capability.ts`) 이 설계는 그 보안 조건을 **바꾸지 않는다.** 운영자가 웹 OIDC로 검증된 접수를 처리하는 것은 D-026과 다른 경로다.
+2026-09-30 소유자가 고른 방식(D-052, `USER_CONFIRMED`): **웹 Google 로그인으로 본인 확인 + 운영자 처리.** 앱의 직접 자동 삭제는 Google Credential Manager가 서명된 `auth_time`을 주지 않아 막혀 있고(D-026, `deletion-capability.ts`) 이 설계는 그 보안 조건을 **바꾸지 않는다.** 운영자가 웹 OIDC로 검증된 접수를 처리하는 것은 D-026과 다른 경로다.
 
 ## 1. 목표와 성공 기준
 
@@ -41,7 +41,7 @@
 조회: `POST /api/web/account-deletion-status { receipt }` → 로그인 불필요, 상태·날짜·거절 사유·삭제 ledger 상태만(계정 ID·이메일 없음). IP당 분당 30회 제한 뒤 `429`.
 세 경로 모두 Origin·JSON 검사(`ORIGIN_FORBIDDEN`)가 있고 Caddy `@webSession`·`@privateSurface`에 더한다.
 
-**시연 앱(Bearer, 시연 서버에서만 켠다):** `POST /account-deletion-intake`(접수·재발급), `GET /account-deletion-intake`(내 활성 요청 상태, 접수번호 없음), `POST /account-deletion-intake/cancel`, `POST /account-deletion-status { receipt }`. **운영 API에는 이 Bearer 경로가 없다**(서비스가 시연 모드에서만 만들어짐): 운영 앱은 D-051에 따라 웹 페이지를 쓴다.
+**시연 앱(Bearer, 시연 서버에서만 켠다):** `POST /account-deletion-intake`(접수·재발급), `GET /account-deletion-intake`(내 활성 요청 상태, 접수번호 없음), `POST /account-deletion-intake/cancel`, `POST /account-deletion-status { receipt }`. **운영 API에는 이 Bearer 경로가 없다**(서비스가 시연 모드에서만 만들어짐): 운영 앱은 D-052에 따라 웹 페이지를 쓴다.
 
 **운영자(웹 관리자, 기존 `/api/web/admin/*` 가드 위):**
 

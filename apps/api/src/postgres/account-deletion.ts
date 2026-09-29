@@ -95,7 +95,7 @@ export class PostgresAccountDeletionService implements AccountDeletionService {
   }
 
   /**
-   * The forget core, shared by the D-026 self-service path above and the operator path (#194, D-051).
+   * The forget core, shared by the D-026 self-service path above and the operator path (#194, D-052).
    * The caller owns the transaction and already holds `lockForDeletion` for this account; the recent-session
    * check is the self-service path's concern only.
    */

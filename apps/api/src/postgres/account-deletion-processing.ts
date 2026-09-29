@@ -48,7 +48,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 const operatorPattern = /^[A-Za-z0-9._-]{1,40}$/;
 
 /**
- * Operator processing of a web-OIDC-verified filing (#194, D-051). This is a different path from D-026's direct
+ * Operator processing of a web-OIDC-verified filing (#194, D-052). This is a different path from D-026's direct
  * automatic deletion: nothing here weakens the 5-minute `auth_time` rule, which still guards `requestDeletion`.
  */
 export class PostgresAccountDeletionProcessingService implements AccountDeletionProcessingService {

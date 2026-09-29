@@ -14,7 +14,7 @@ import { PostgresAccountDeletionProcessingService } from './account-deletion-pro
 
 const usage = 'ACCOUNT_DELETION_USAGE: list | process <id> | reject <id> <reason> | reconcile';
 
-/** The showcase operator path (#194, D-051). Production operators use the admin web, which verifies a platform admin. */
+/** The showcase operator path (#194, D-052). Production operators use the admin web, which verifies a platform admin. */
 export function assertShowcaseDeletionDatabaseUrl(raw: string): string {
   try {
     return assertHostedShowcaseDatabaseUrl(raw);
