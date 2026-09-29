@@ -14,6 +14,7 @@ import { BadgeRewardError, type BadgeRewardService } from './badge-rewards.js';
 import { isRewardMilestone } from './badge-rules.js';
 import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
 import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
+import { FriendError, type FriendService } from './friends.js';
 import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js';
 import { WebAuthError, WebAuthService, resolveWebAuthConfig, type WebAuthHandler } from './web-auth.js';
 import { WebSessionError } from './web-session.js';
@@ -47,6 +48,7 @@ import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollmen
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountDeletionIntakeService } from './postgres/account-deletion-intake.js';
 import { PostgresBadgeRewardService } from './postgres/badge-rewards.js';
+import { PostgresFriendService } from './postgres/friends.js';
 import { AdminError, PostgresAdminService, type AdminCampaignDraftInput, type MerchantInput } from './postgres/admin.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
@@ -178,6 +180,7 @@ export function createApiServer(
   deletionIntake?: AccountDeletionIntakeService,
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
   badges?: BadgeRewardService,
+  friends?: FriendService,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -587,6 +590,56 @@ export function createApiServer(
         return;
       }
 
+      if (request.method === 'GET' && request.url === '/me/friends') {
+        if (!friends) throw new RequestError(503, 'FRIENDS_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        sendJson(response, 200, await friends.list(accountId));
+        return;
+      }
+
+      if (request.method === 'POST' && request.url === '/me/friends') {
+        if (!friends) throw new RequestError(503, 'FRIENDS_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        // 코드는 사람이 붙여넣은 값이라 공백·하이픈이 섞일 수 있지만 터무니없이 긴 값은 거절한다.
+        const code = requireString(body, 'code');
+        if (Object.keys(body).some(key => key !== 'code') || code.length > 32) {
+          throw new RequestError(400, 'INVALID_REQUEST');
+        }
+        const added = await friends.addByCode({ accountId, code });
+        sendJson(response, added.created ? 201 : 200, added);
+        return;
+      }
+
+      const friendMatch = request.url?.match(/^\/me\/friends\/([^/]+)$/);
+      if (request.method === 'DELETE' && friendMatch) {
+        if (!friends) throw new RequestError(503, 'FRIENDS_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        await friends.remove({ accountId, friendshipId: decodePathParameter(friendMatch[1]!) });
+        sendJson(response, 200, { status: 'REMOVED' });
+        return;
+      }
+
+      if (request.method === 'POST' && request.url === '/me/friend-code/rotate') {
+        if (!friends) throw new RequestError(503, 'FRIENDS_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request, true);
+        if (Object.keys(body).length > 0) throw new RequestError(400, 'INVALID_REQUEST');
+        sendJson(response, 200, await friends.rotateCode(accountId));
+        return;
+      }
+
+      if (request.method === 'PUT' && request.url === '/me/profile') {
+        if (!friends) throw new RequestError(503, 'FRIENDS_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        // 빈 문자열도 서비스가 FRIEND_NICKNAME_INVALID로 거절하도록 넘긴다.
+        const nickname = requireString(body, 'nickname', true);
+        if (Object.keys(body).some(key => key !== 'nickname')) throw new RequestError(400, 'INVALID_REQUEST');
+        sendJson(response, 200, await friends.setNickname({ accountId, nickname }));
+        return;
+      }
+
       if (request.method === 'GET' && request.url === '/recommendations') {
         if (!recommendations) {
           throw new RequestError(503, 'RECOMMENDATIONS_NOT_CONFIGURED');
@@ -872,6 +925,13 @@ export function createApiServer(
         sendJson(response, statusForBadgeReward(error.code), { code: error.code });
         return;
       }
+      if (error instanceof FriendError) {
+        if (error.retryAfterSeconds !== undefined) {
+          response.setHeader('Retry-After', String(error.retryAfterSeconds));
+        }
+        sendJson(response, statusForFriend(error.code), { code: error.code });
+        return;
+      }
       if (error instanceof MerchantAccessError) {
         sendJson(response, 403, { code: error.code });
         return;
@@ -1121,6 +1181,14 @@ function statusForBadgeReward(code: string): number {
   return 409;
 }
 
+function statusForFriend(code: string): number {
+  if (code === 'FRIEND_CODE_NOT_FOUND' || code === 'FRIEND_NOT_FOUND') return 404;
+  if (code === 'FRIEND_CODE_RATE_LIMITED') return 429;
+  if (code === 'FRIEND_NICKNAME_INVALID') return 400;
+  if (code === 'ACCOUNT_DELETED') return 410;
+  return 409;
+}
+
 function statusForMintRequest(code: string): number {
   if (code === 'ENTITLEMENT_NOT_FOUND' || code === 'WALLET_BINDING_NOT_FOUND' || code === 'MINT_JOB_NOT_FOUND') {
     return 404;
@@ -1330,6 +1398,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const badges = pool && accountLifecycle
     ? new PostgresBadgeRewardService(pool, { accountLifecycle })
     : undefined;
+  const friends = pool && accountLifecycle
+    ? new PostgresFriendService(pool, { accountLifecycle })
+    : undefined;
   const campaignEnrollments = pool
     ? new PostgresCampaignEnrollmentService(pool, {
         ...(accountLifecycle ? { accountLifecycle } : {}),
@@ -1415,6 +1486,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
       ? new PostgresStaffRegistration(pool, accountDeletionHmacSecret) : undefined,
     badges,
+    friends,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

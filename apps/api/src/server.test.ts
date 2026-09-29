@@ -10,6 +10,7 @@ import type { AccountDeletionService } from './account-deletion.js';
 import type { AccountDeletionIntakeService } from './account-deletion-intake.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardErrorCode, type BadgeRewardService } from './badge-rewards.js';
+import { FriendError, type FriendErrorCode, type FriendService } from './friends.js';
 import { GoogleIdTokenError } from './google-id-token.js';
 import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
 import { WebAuthError, type WebAuthHandler } from './web-auth.js';
@@ -188,6 +189,7 @@ async function startFixture(
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
   customerIdentities?: CustomerIdentityService,
   badges?: BadgeRewardService,
+  friends?: FriendService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -220,6 +222,7 @@ async function startFixture(
     deletionIntake,
     staffRegistration,
     badges,
+    friends,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -2738,4 +2741,176 @@ test('web merchant coupon routes require origin, JSON, session, permission and m
   const own = await post(`${couponId}/redeem`, token);
   assert.equal(own.status, 403);
   assert.deepEqual(await own.json(), { code: 'COUPON_SELF_REDEEM' });
+});
+
+const sampleFriend = {
+  friendshipId: '0d2b8e3c-3f51-4ea3-9a53-0c2c5d0c8a11',
+  nickname: '탐험가 P9QX',
+  badges: { earned: 4, total: 9 as const },
+  medals: [{ key: 'explorer' as const, tier: 3 as const }, { key: 'regular' as const, tier: 1 as const },
+    { key: 'steady' as const, tier: 0 as const }],
+  stamps: [{ merchantName: '가상 A' }],
+  rank: 1,
+};
+const sampleFriends = {
+  me: { nickname: '나', code: 'K7M2P9QX', badges: { earned: 1, total: 9 as const },
+    medals: [{ key: 'explorer' as const, tier: 1 as const }, { key: 'regular' as const, tier: 0 as const },
+      { key: 'steady' as const, tier: 0 as const }], rank: 2 },
+  friends: [sampleFriend],
+};
+
+function friendFixture(overrides: Partial<FriendService> = {}): FriendService {
+  const unexpected = (name: string) => async () => { throw new Error(`unexpected friend ${name} call`); };
+  return {
+    list: unexpected('list'), addByCode: unexpected('addByCode'), remove: unexpected('remove'),
+    rotateCode: unexpected('rotateCode'), setNickname: unexpected('setNickname'),
+    ...overrides,
+  } as FriendService;
+}
+
+async function startFriends(t: TestContext, friends?: FriendService) {
+  return startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, undefined, false,
+    undefined, undefined, undefined, undefined, undefined, friends);
+}
+
+test('friend routes need customer auth, no-store, and are closed without configuration', async (t) => {
+  const calls: unknown[][] = [];
+  const base = await startFriends(t, friendFixture({
+    list: async (accountId) => { calls.push(['list', accountId]); return sampleFriends; },
+    remove: async (input) => { calls.push(['remove', input]); },
+    rotateCode: async (accountId) => { calls.push(['rotate', accountId]); return { code: 'NEWCODE22' }; },
+    setNickname: async (input) => { calls.push(['nickname', input]); return { nickname: input.nickname }; },
+  }));
+  const account = { 'x-account-id': 'customer-1' };
+  const json = { 'content-type': 'application/json', ...account };
+  const anonymous: [string, string, string?][] = [
+    ['GET', '/me/friends'], ['POST', '/me/friends', '{"code":"K7M2P9QX"}'],
+    ['DELETE', `/me/friends/${sampleFriend.friendshipId}`], ['POST', '/me/friend-code/rotate', '{}'],
+    ['PUT', '/me/profile', '{"nickname":"a"}'],
+  ];
+  for (const [method, path, body] of anonymous) {
+    const response = await fetch(`${base}${path}`, { method, ...(body ? { body } : {}) });
+    assert.equal(response.status, 401, `${method} ${path}`);
+  }
+  assert.deepEqual(calls, []);
+
+  const listed = await fetch(`${base}/me/friends`, { headers: account });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await listed.json(), sampleFriends);
+
+  const removed = await fetch(`${base}/me/friends/${sampleFriend.friendshipId}`, { method: 'DELETE', headers: account });
+  assert.equal(removed.status, 200);
+  assert.deepEqual(await removed.json(), { status: 'REMOVED' });
+
+  for (const body of ['', '{}']) {
+    const rotated = await fetch(`${base}/me/friend-code/rotate`, { method: 'POST', headers: json, ...(body ? { body } : {}) });
+    assert.equal(rotated.status, 200);
+    assert.deepEqual(await rotated.json(), { code: 'NEWCODE22' });
+  }
+  assert.equal((await fetch(`${base}/me/friend-code/rotate`, { method: 'POST', headers: json, body: '{"code":"x"}' })).status, 400);
+
+  const named = await fetch(`${base}/me/profile`, { method: 'PUT', headers: json, body: '{"nickname":"새 별명"}' });
+  assert.equal(named.status, 200);
+  assert.deepEqual(await named.json(), { nickname: '새 별명' });
+  assert.deepEqual(calls, [
+    ['list', 'customer-1'],
+    ['remove', { accountId: 'customer-1', friendshipId: sampleFriend.friendshipId }],
+    ['rotate', 'customer-1'], ['rotate', 'customer-1'],
+    ['nickname', { accountId: 'customer-1', nickname: '새 별명' }],
+  ]);
+
+  const unconfigured = await startFriends(t);
+  for (const [method, path, body] of anonymous) {
+    const response = await fetch(`${unconfigured}${path}`, { method, headers: json, ...(body ? { body } : {}) });
+    assert.equal(response.status, 503, `${method} ${path}`);
+    assert.deepEqual(await response.json(), { code: 'FRIENDS_NOT_CONFIGURED' });
+  }
+});
+
+test('adding a friend validates the body, answers 201 or 200 and maps friend errors', async (t) => {
+  const calls: unknown[] = [];
+  let failure: FriendError | undefined;
+  let created = true;
+  const base = await startFriends(t, friendFixture({
+    addByCode: async (input) => {
+      calls.push(input);
+      if (failure) throw failure;
+      return { friend: sampleFriend, created };
+    },
+  }));
+  const add = (body: string, account = 'customer-1') => fetch(`${base}/me/friends`, {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-account-id': account }, body,
+  });
+
+  const first = await add('{"code":"k7m2-p9qx"}');
+  assert.equal(first.status, 201);
+  assert.equal(first.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await first.json(), { friend: sampleFriend, created: true });
+  created = false;
+  const replay = await add('{"code":"K7M2P9QX"}');
+  assert.equal(replay.status, 200);
+  assert.deepEqual(await replay.json(), { friend: sampleFriend, created: false });
+  // 서비스가 코드를 정규화하므로 라우트는 원문을 그대로 넘긴다.
+  assert.deepEqual(calls, [
+    { accountId: 'customer-1', code: 'k7m2-p9qx' }, { accountId: 'customer-1', code: 'K7M2P9QX' },
+  ]);
+
+  for (const body of ['{}', '{"code":""}', '{"code":"   "}', '{"code":1}', '{"code":"K7M2P9QX","accountId":"other"}',
+    `{"code":"${'A'.repeat(33)}"}`, '[]', 'not-json']) {
+    const response = await add(body);
+    assert.equal(response.status, 400, body);
+  }
+  assert.equal(calls.length, 2);
+
+  for (const [code, status] of [
+    ['FRIEND_SELF', 409], ['FRIEND_CODE_NOT_FOUND', 404], ['FRIEND_LIMIT', 409], ['ACCOUNT_DELETED', 410],
+  ] as [FriendErrorCode, number][]) {
+    failure = new FriendError(code);
+    const response = await add('{"code":"K7M2P9QX"}');
+    assert.equal(response.status, status, code);
+    assert.deepEqual(await response.json(), { code });
+    assert.equal(response.headers.get('retry-after'), null);
+  }
+  failure = new FriendError('FRIEND_CODE_RATE_LIMITED', 321);
+  const limited = await add('{"code":"K7M2P9QX"}');
+  assert.equal(limited.status, 429);
+  assert.equal(limited.headers.get('retry-after'), '321');
+  assert.deepEqual(await limited.json(), { code: 'FRIEND_CODE_RATE_LIMITED' });
+});
+
+test('removing a friend and setting a nickname map friend errors and reject bad input', async (t) => {
+  let failure: FriendError | undefined;
+  const removals: unknown[] = [];
+  const base = await startFriends(t, friendFixture({
+    remove: async (input) => { removals.push(input); if (failure) throw failure; },
+    setNickname: async (input) => { if (failure) throw failure; return { nickname: input.nickname }; },
+  }));
+  const headers = { 'content-type': 'application/json', 'x-account-id': 'customer-1' };
+
+  failure = new FriendError('FRIEND_NOT_FOUND');
+  const missing = await fetch(`${base}/me/friends/${sampleFriend.friendshipId}`, { method: 'DELETE', headers });
+  assert.equal(missing.status, 404);
+  assert.deepEqual(await missing.json(), { code: 'FRIEND_NOT_FOUND' });
+  const percent = await fetch(`${base}/me/friends/%E0%A4%A`, { method: 'DELETE', headers });
+  assert.equal(percent.status, 400);
+  assert.deepEqual(await percent.json(), { code: 'INVALID_PATH_PARAMETER' });
+  assert.equal(removals.length, 1);
+  assert.equal((await fetch(`${base}/me/friends/${sampleFriend.friendshipId}/extra`, { method: 'DELETE', headers })).status, 404);
+  assert.equal((await fetch(`${base}/me/friends/${sampleFriend.friendshipId}`, { method: 'PUT', headers })).status, 404);
+
+  failure = new FriendError('FRIEND_NICKNAME_INVALID');
+  const invalid = await fetch(`${base}/me/profile`, { method: 'PUT', headers, body: '{"nickname":"a@b.com"}' });
+  assert.equal(invalid.status, 400);
+  assert.deepEqual(await invalid.json(), { code: 'FRIEND_NICKNAME_INVALID' });
+  // 빈 별명은 서비스가 판정하고, 형식이 틀린 본문은 라우트가 거절한다.
+  assert.equal((await fetch(`${base}/me/profile`, { method: 'PUT', headers, body: '{"nickname":""}' })).status, 400);
+  for (const body of ['{}', '{"nickname":1}', '{"nickname":"a","accountId":"x"}', '[]']) {
+    const response = await fetch(`${base}/me/profile`, { method: 'PUT', headers, body });
+    assert.equal(response.status, 400, body);
+    assert.deepEqual(await response.json(), { code: body === '[]' ? 'INVALID_JSON_BODY' : 'INVALID_REQUEST' });
+  }
+  failure = new FriendError('ACCOUNT_DELETED');
+  assert.equal((await fetch(`${base}/me/profile`, { method: 'PUT', headers, body: '{"nickname":"a"}' })).status, 410);
 });
