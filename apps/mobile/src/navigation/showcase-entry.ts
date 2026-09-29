@@ -50,9 +50,12 @@ export function canOpenShowcaseTour(packageId: string | null | undefined): boole
   return packageId === 'kr.masscom.wolgye.demo';
 }
 
-/** The owner art page (D-048) belongs to the showcase app only: the operating app is customer-only (AGENTS.md, D-038). */
+/**
+ * The owner art page (D-048) belongs to the showcase app; the operating app is customer-only (AGENTS.md, D-038). The local
+ * development build may open it too, like its developer merchant route, so the flow can be checked against a local API.
+ */
 export function canOpenMerchantArtRoute(packageId: string | null | undefined): boolean {
-  return packageId === 'kr.masscom.wolgye.demo';
+  return packageId === 'kr.masscom.wolgye.demo' || isDevelopmentDemoBuild(packageId);
 }
 
 export function canOpenDeveloperMerchantRoute(
