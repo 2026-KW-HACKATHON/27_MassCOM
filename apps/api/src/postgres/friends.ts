@@ -11,6 +11,7 @@ import {
 import {
   buildFriendsSnapshot,
   defaultNicknamePrefix,
+  friendsAsOf,
   generateDefaultNickname,
   generateFriendCode,
   isFriendCode,
@@ -29,12 +30,14 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 const codeGenerationAttempts = 8;
 
 // /me/badges와 같은 "센 방문" 규칙(countedVisit*Sql)을 여러 계정에 한 번에 적용한다. 계정마다 값이 같아야 하므로
-// friends.postgres.integration.ts가 getBadges와 값을 직접 비교한다.
+// friends.postgres.integration.ts가 getBadges와 값을 직접 비교한다. 다만 친구 화면은 하루 지연이라 $2(어제, 한국 날짜)까지의
+// 방문만 센다: /me/badges는 실시간이고 여기는 friendsAsOf(now)까지다. 나도 같은 기준이라 순위가 공정하다.
 const medalValuesForAccountsSql = `
   WITH counted AS (
     SELECT visit.customer_account_id AS account_id, visit.merchant_id, visit.business_date
     ${countedVisitFromSql}
     WHERE visit.customer_account_id = ANY($1::text[]) AND ${countedVisitFilterSql}
+      AND visit.business_date <= $2::date
   ), per_merchant AS (
     SELECT account_id, merchant_id, count(*)::integer AS visits FROM counted GROUP BY account_id, merchant_id
   )
@@ -51,6 +54,7 @@ const stampsForAccountsSql = `
   SELECT visit.customer_account_id AS account_id, merchant.name AS merchant_name
   ${countedVisitFromSql}
   WHERE visit.customer_account_id = ANY($1::text[]) AND ${countedVisitFilterSql}
+    AND visit.business_date <= $2::date
   GROUP BY visit.customer_account_id, visit.merchant_id, merchant.name
   ORDER BY visit.customer_account_id, merchant.name COLLATE "C", visit.merchant_id`;
 
@@ -89,6 +93,8 @@ export class PostgresFriendService implements FriendService {
 
   async list(accountId: string): Promise<FriendsSnapshot> {
     await this.getOrCreateCode(accountId);
+    // 친구 화면은 어제까지의 방문만 센다. 기준 날짜는 요청마다 한 번만 정해 나와 친구가 같은 기준을 쓴다.
+    const asOf = friendsAsOf(this.now());
     // 한 스냅샷에서 읽어 친구 관계·별명·메달이 서로 어긋나지 않게 한다.
     const client = await this.pool.connect();
     try {
@@ -110,10 +116,10 @@ export class PostgresFriendService implements FriendService {
         [accountIds],
       );
       const values = await client.query<MedalValues & { account_id: string }>(
-        medalValuesForAccountsSql, [accountIds],
+        medalValuesForAccountsSql, [accountIds, asOf],
       );
       const stamps = await client.query<{ account_id: string; merchant_name: string }>(
-        stampsForAccountsSql, [accountIds],
+        stampsForAccountsSql, [accountIds, asOf],
       );
       await client.query('COMMIT');
 
@@ -145,6 +151,7 @@ export class PostgresFriendService implements FriendService {
         code: myCode,
         medals: medalsOf(accountId),
         stampCount: stampsOf(accountId).length,
+        asOf,
       }, friends);
     } catch (error) {
       await client.query('ROLLBACK');

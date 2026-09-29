@@ -7,6 +7,7 @@ import {
   defaultNicknamePrefix,
   friendCodeAlphabet,
   friendCodePattern,
+  friendsAsOf,
   generateDefaultNickname,
   generateFriendCode,
   isFriendCode,
@@ -17,6 +18,7 @@ import {
   type FriendSource,
 } from './friends-rules.js';
 
+const asOf = '2026-09-28';
 const medalsFor = (explorer: number, regular = 0, steady = 0) => buildMedals({ explorer, regular, steady });
 const friend = (id: string, nickname: string, explorer: number, stamps: string[] = []): FriendSource => ({
   friendshipId: id, nickname, medals: medalsFor(explorer), stamps: stamps.map((merchantName) => ({ merchantName })),
@@ -151,6 +153,20 @@ test('nicknames cap combining marks at two per base and four in total', () => {
   assert.equal(parseNickname('e\u0301e\u0301e\u0301e\u0301e\u0301'), null);
 });
 
+test('friends data counts through yesterday in KST: asOf is the previous KST date and flips at KST midnight', () => {
+  // 2026-09-29 09:00 KST → 어제는 9월 28일.
+  assert.equal(friendsAsOf(new Date('2026-09-29T00:00:00.000Z')), '2026-09-28');
+  // KST 자정 직전(9월 28일 23:59:59.999)에는 아직 9월 28일이라 어제는 27일이고, 자정에 28일로 넘어간다.
+  assert.equal(friendsAsOf(new Date('2026-09-28T14:59:59.999Z')), '2026-09-27');
+  assert.equal(friendsAsOf(new Date('2026-09-28T15:00:00.000Z')), '2026-09-28');
+  // 월·연도 경계와 UTC 날짜가 KST 날짜와 다른 시간대.
+  assert.equal(friendsAsOf(new Date('2026-10-01T00:00:00.000Z')), '2026-09-30');
+  assert.equal(friendsAsOf(new Date('2026-12-31T15:00:00.000Z')), '2026-12-31');
+  assert.equal(friendsAsOf(new Date('2027-01-01T14:59:59.999Z')), '2026-12-31');
+  assert.equal(friendsAsOf(new Date('2028-03-01T00:00:00.000Z')), '2028-02-29');
+  assert.match(friendsAsOf(new Date()), /^\d{4}-\d{2}-\d{2}$/);
+});
+
 test('friendship pairs are ordered by UTF-8 byte order regardless of argument order', () => {
   assert.deepEqual(orderAccountPair('b', 'a'), { low: 'a', high: 'b' });
   assert.deepEqual(orderAccountPair('a', 'b'), { low: 'a', high: 'b' });
@@ -190,7 +206,7 @@ test('the friend view exposes exactly the allowed key set and drops everything e
 
 test('the snapshot ranks me and friends by badges, then stamps, then nickname', () => {
   const snapshot = buildFriendsSnapshot(
-    { nickname: '나', code: 'K7M2P9QX', medals: medalsFor(2), stampCount: 2 },
+    { nickname: '나', code: 'K7M2P9QX', medals: medalsFor(2), stampCount: 2, asOf },
     [
       friend('f-low', '가나다', 1, ['A']),
       friend('f-top', '최고', 3, ['A', 'B', 'C']),
@@ -204,18 +220,20 @@ test('the snapshot ranks me and friends by badges, then stamps, then nickname', 
   ]);
   // 배지 2개·도장 2개 동률에서 별명 "가" < "나" < "바"라 나는 4위다.
   assert.equal(snapshot.me.rank, 4);
-  assert.deepEqual(Object.keys(snapshot.me).sort(), ['badges', 'code', 'medals', 'nickname', 'rank']);
+  assert.deepEqual(Object.keys(snapshot.me).sort(), ['asOf', 'badges', 'code', 'medals', 'nickname', 'rank']);
+  assert.equal(snapshot.me.asOf, asOf);
   assert.equal(snapshot.me.code, 'K7M2P9QX');
   assert.deepEqual(snapshot.me.badges, { earned: 2, total: 9 });
   assert.deepEqual(Object.keys(snapshot).sort(), ['friends', 'me']);
 });
 
 test('the snapshot with no friends still ranks me first and is stable for identical entries', () => {
-  const alone = buildFriendsSnapshot({ nickname: '나', code: 'K7M2P9QX', medals: medalsFor(0), stampCount: 0 }, []);
+  const alone = buildFriendsSnapshot({ nickname: '나', code: 'K7M2P9QX', medals: medalsFor(0), stampCount: 0, asOf }, []);
   assert.deepEqual(alone.friends, []);
   assert.equal(alone.me.rank, 1);
+  assert.equal(alone.me.asOf, asOf);
   const twins = buildFriendsSnapshot(
-    { nickname: '같은', code: 'K7M2P9QX', medals: medalsFor(1), stampCount: 1 },
+    { nickname: '같은', code: 'K7M2P9QX', medals: medalsFor(1), stampCount: 1, asOf },
     [friend('b-id', '같은', 1, ['A']), friend('a-id', '같은', 1, ['A'])],
   );
   // 별명까지 같으면 나를 먼저, 친구는 관계 id 순으로 정해 매번 같은 순서가 나온다.

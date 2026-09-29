@@ -2755,7 +2755,7 @@ const sampleFriend = {
 const sampleFriends = {
   me: { nickname: '나', code: 'K7M2P9QX', badges: { earned: 1, total: 9 as const },
     medals: [{ key: 'explorer' as const, tier: 1 as const }, { key: 'regular' as const, tier: 0 as const },
-      { key: 'steady' as const, tier: 0 as const }], rank: 2 },
+      { key: 'steady' as const, tier: 0 as const }], rank: 2, asOf: '2026-09-28' },
   friends: [sampleFriend],
 };
 

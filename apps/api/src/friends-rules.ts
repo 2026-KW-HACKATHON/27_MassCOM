@@ -102,6 +102,17 @@ export function parseNickname(input: unknown): string | null {
   return nickname;
 }
 
+// 친구에게 보이는 메달·도장·순위는 한국 날짜(business_date)가 오늘보다 앞선 방문만 센다(하루 지연). 그래서 방금 다녀온 가게가
+// 그날 바로 친구에게 알려지지 않고, 나도 같은 기준으로 순위에 들어가 공정하다. 이 함수는 그 마지막 날짜(= KST 어제)를 준다.
+// KST는 일광절약시간이 없어 +9시간 오프셋으로 자정을 자른다.
+const kstOffsetMs = 9 * 60 * 60 * 1000;
+const dayMs = 24 * 60 * 60 * 1000;
+
+export function friendsAsOf(now: Date): string {
+  const kstToday = Math.floor((now.getTime() + kstOffsetMs) / dayMs);
+  return new Date((kstToday - 1) * dayMs).toISOString().slice(0, 10);
+}
+
 // friendships의 account_low < account_high 순서는 DB의 "C" 정렬(UTF-8 바이트 순서)과 같아야 한다.
 export function orderAccountPair(first: string, second: string): { low: string; high: string } {
   return Buffer.compare(Buffer.from(first), Buffer.from(second)) <= 0
@@ -122,12 +133,14 @@ export type FriendView = {
   rank: number;
 };
 
+// asOf는 친구 화면의 메달·도장·순위가 "어제까지"의 방문만 센다는 뜻으로, 그 마지막 날짜(한국 날짜, YYYY-MM-DD)다.
 export type FriendMeView = {
   nickname: string;
   code: string;
   badges: { earned: number; total: typeof totalBadges };
   medals: FriendMedalView[];
   rank: number;
+  asOf: string;
 };
 
 export type FriendsSnapshot = { me: FriendMeView; friends: FriendView[] };
@@ -145,6 +158,7 @@ export type FriendMeSource = {
   code: string;
   medals: readonly Medal[];
   stampCount: number;
+  asOf: string;
 };
 
 function badgesOf(medals: readonly Medal[]): { earned: number; total: typeof totalBadges } {
@@ -173,6 +187,7 @@ export function serializeFriendMeView(source: FriendMeSource, rank: number): Fri
     badges: badgesOf(source.medals),
     medals: medalsOf(source.medals),
     rank,
+    asOf: source.asOf,
   };
 }
 

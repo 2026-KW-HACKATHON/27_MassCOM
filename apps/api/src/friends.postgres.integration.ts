@@ -167,6 +167,8 @@ test('the first friends read creates a stable code, a default nickname and an em
     { key: 'explorer', tier: 0 }, { key: 'regular', tier: 0 }, { key: 'steady', tier: 0 },
   ]);
   assert.equal(first.me.rank, 1);
+  // 시험 시계는 2026-09-29 09:00 KST라 친구에게 보이는 기준은 어제(9월 28일)까지다.
+  assert.equal(first.me.asOf, '2026-09-28');
   assert.equal((await db.friends.list('account-1')).me.code, first.me.code);
   const other = await db.friends.list('account-2');
   assert.notEqual(other.me.code, first.me.code);
@@ -674,7 +676,9 @@ test('a friend list computes medals, badges and stamps with the same rules as /m
   await db.friends.setNickname({ accountId: 'poor', nickname: '뚜벅이' });
   await addVisit(db.pool, { account: 'viewer', shop: 'shop-a', date: '2026-09-10' });
 
+  // 시험 시계는 9월 29일(KST)이고 위의 방문은 모두 그 전날 이전이라 친구 목록과 실시간 /me/badges가 같은 값을 센다.
   const snapshot = await db.friends.list('viewer');
+  assert.equal(snapshot.me.asOf, '2026-09-28');
   for (const account of ['rich', 'poor', 'viewer']) {
     const truth = await db.badges.getBadges(account);
     const view = account === 'viewer' ? snapshot.me : snapshot.friends.find((friend) =>
@@ -700,7 +704,7 @@ test('a friend list computes medals, badges and stamps with the same rules as /m
 
   // 응답에는 허용된 키만 있고 계정 ID·방문 날짜·시각·쿠폰·지갑·이메일 흔적이 없다.
   assert.deepEqual(Object.keys(snapshot).sort(), ['friends', 'me']);
-  assert.deepEqual(Object.keys(snapshot.me).sort(), ['badges', 'code', 'medals', 'nickname', 'rank']);
+  assert.deepEqual(Object.keys(snapshot.me).sort(), ['asOf', 'badges', 'code', 'medals', 'nickname', 'rank']);
   for (const friend of snapshot.friends) {
     assert.deepEqual(Object.keys(friend).sort(), ['badges', 'friendshipId', 'medals', 'nickname', 'rank', 'stamps']);
     assert.deepEqual(Object.keys(friend.badges).sort(), ['earned', 'total']);
@@ -708,9 +712,85 @@ test('a friend list computes medals, badges and stamps with the same rules as /m
     for (const stamp of friend.stamps) assert.deepEqual(Object.keys(stamp), ['merchantName']);
   }
   const text = JSON.stringify(snapshot);
-  for (const leaked of ['rich"', 'poor"', 'stranger', 'staff-', '2026-09', 'T03:', 'coupon', 'wallet', 'email', 'accountId']) {
+  // asOf(어제 날짜)는 응답에 있어야 하는 값이라 방문 날짜(9월 1~10일)만 흔적 검사 대상이다.
+  const visitDates = Array.from({ length: 10 }, (_, index) => `2026-09-${String(index + 1).padStart(2, '0')}`);
+  for (const leaked of ['rich"', 'poor"', 'stranger', 'staff-', ...visitDates, 'T03:', 'coupon', 'wallet', 'email', 'accountId']) {
     assert.equal(text.includes(leaked), false, leaked);
   }
+});
+
+test('friends see stamps and medals only through yesterday; today counts for /me/badges but not for the friends list', async (t) => {
+  const db = await setup(t);
+  await db.friends.setNickname({ accountId: 'viewer', nickname: '나' });
+  await db.friends.setNickname({ accountId: 'pal', nickname: '친구' });
+  await befriend(db, 'viewer', 'pal');
+  // pal: 어제(9월 28일) shop-a, 오늘(9월 29일) shop-b. viewer: 오늘 세 점포.
+  await addVisit(db.pool, { account: 'pal', shop: 'shop-a', date: '2026-09-28' });
+  await addVisit(db.pool, { account: 'pal', shop: 'shop-b', date: '2026-09-29' });
+  for (const shop of ['shop-a', 'shop-b', 'shop-c'] as const) await addVisit(db.pool, { account: 'viewer', shop, date: '2026-09-29' });
+
+  // 시계는 2026-09-29 09:00 KST. 오늘 방문은 친구 목록에서 나에게도 친구에게도 아직 없고, 순위도 어제까지로 정해진다.
+  const today = await db.friends.list('viewer');
+  assert.equal(today.me.asOf, '2026-09-28');
+  assert.deepEqual(today.me.badges, { earned: 0, total: 9 });
+  assert.deepEqual(today.me.medals.map((medal) => medal.tier), [0, 0, 0]);
+  assert.deepEqual(today.friends[0]!.stamps, [{ merchantName: '가상 shop-a' }]);
+  assert.deepEqual(today.friends[0]!.badges, { earned: 1, total: 9 });
+  assert.deepEqual(today.friends.map((friend) => friend.rank), [1]);
+  assert.equal(today.me.rank, 2);
+  // 실시간 /me/badges는 오늘 방문까지 센다.
+  assert.deepEqual((await db.badges.getBadges('viewer')).medals.map((medal) => medal.value), [3, 1, 1]);
+  assert.equal((await db.badges.getBadges('viewer')).earnedTiers, 3 + 0 + 0);
+  // 친구 쪽에서 나를 볼 때도 오늘 방문은 없다.
+  const seenByPal = await db.friends.list('pal');
+  assert.deepEqual(seenByPal.friends[0]!.stamps, []);
+  assert.deepEqual(seenByPal.friends[0]!.badges, { earned: 0, total: 9 });
+  assert.equal(seenByPal.me.asOf, '2026-09-28');
+
+  // KST 하루가 지나면 9월 29일 방문이 보이고 기준이 9월 29일로 바뀐다.
+  db.state.now = new Date('2026-09-30T00:00:00.000Z');
+  const next = await db.friends.list('viewer');
+  assert.equal(next.me.asOf, '2026-09-29');
+  assert.deepEqual(next.me.badges, { earned: 3 + 0 + 0, total: 9 });
+  assert.deepEqual(next.friends[0]!.stamps, [{ merchantName: '가상 shop-a' }, { merchantName: '가상 shop-b' }]);
+  // 친구는 탐험가 2곳(2) + 꾸준한 걸음 이틀(1)이라 배지 3개로 나와 같고, 도장이 3대 2라 내가 앞선다.
+  assert.deepEqual(next.friends[0]!.badges, { earned: 3, total: 9 });
+  assert.equal(next.me.rank, 1);
+  assert.equal(next.friends[0]!.rank, 2);
+});
+
+test('the friends cutoff flips exactly at KST midnight, not at UTC midnight', async (t) => {
+  const db = await setup(t);
+  await befriend(db, 'viewer', 'pal');
+  await addVisit(db.pool, { account: 'pal', shop: 'shop-a', date: '2026-09-28' });
+  const stampsSeenAt = async (iso: string) => {
+    db.state.now = new Date(iso);
+    const list = await db.friends.list('viewer');
+    return [list.me.asOf, list.friends[0]!.stamps.length] as const;
+  };
+  // 9월 28일 23:59:59.999 KST(= 14:59:59.999 UTC)까지는 9월 28일이 "오늘"이라 숨긴다. UTC로는 이미 다음 날이 아니다.
+  assert.deepEqual(await stampsSeenAt('2026-09-28T14:59:59.999Z'), ['2026-09-27', 0]);
+  assert.deepEqual(await stampsSeenAt('2026-09-28T15:00:00.000Z'), ['2026-09-28', 1]);
+  // UTC 날짜는 아직 28일이지만 KST는 29일 새벽이다.
+  assert.deepEqual(await stampsSeenAt('2026-09-28T20:00:00.000Z'), ['2026-09-28', 1]);
+});
+
+test('the ranking uses the delayed data for me too, so a visit made today cannot jump the ranking', async (t) => {
+  const db = await setup(t);
+  await db.friends.setNickname({ accountId: 'viewer', nickname: 'ㅋ나' });
+  await db.friends.setNickname({ accountId: 'rival', nickname: 'ㅋ라이벌' });
+  await befriend(db, 'viewer', 'rival');
+  await addVisit(db.pool, { account: 'rival', shop: 'shop-a', date: '2026-09-27' });
+  await addVisit(db.pool, { account: 'rival', shop: 'shop-b', date: '2026-09-28' });
+  // viewer는 오늘 세 점포를 돌아 실시간으로는 앞서지만 친구 순위에는 아직 반영되지 않는다.
+  for (const shop of ['shop-a', 'shop-b', 'shop-c'] as const) await addVisit(db.pool, { account: 'viewer', shop, date: '2026-09-29' });
+  const before = await db.friends.list('viewer');
+  assert.equal(before.friends[0]!.rank, 1);
+  assert.equal(before.me.rank, 2);
+  db.state.now = new Date('2026-09-30T00:00:00.000Z');
+  const after = await db.friends.list('viewer');
+  assert.equal(after.me.rank, 1);
+  assert.equal(after.friends[0]!.rank, 2);
 });
 
 test('the friend ranking follows badges, then stamps, then nickname', async (t) => {
