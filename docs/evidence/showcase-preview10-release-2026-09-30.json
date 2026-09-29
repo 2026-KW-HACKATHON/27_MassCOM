@@ -1,0 +1,38 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-09-30",
+  "sourceCommit": "f1bba2dd347f3b5e404203434343c8164a4fad7f",
+  "pullRequests": [239],
+  "mainCI": "36598828345 SUCCESS",
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.10",
+  "repositoryVisibility": "PUBLIC",
+  "releaseKind": "prerelease",
+  "artifact": {
+    "name": "MassCOM-showcase-android-f1bba2d.apk",
+    "package": "kr.masscom.wolgye.demo",
+    "versionName": "0.1.0-test.2",
+    "versionCode": 2,
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "bytes": 156595653,
+    "sha256": "403668c40641abaf68cc484c72f9ef7ecfac307d716d311b6cd14e646e0b62ad",
+    "githubAssetDigest": "sha256:403668c40641abaf68cc484c72f9ef7ecfac307d716d311b6cd14e646e0b62ad",
+    "provenanceSha256": "3b093fd2efcc6a1504aea76c747c9e5018c2292f92dc1ad87f611211d3ba9bc7",
+    "signingCertificateSha256": "cdb0dc37750c907eaa2f1b9eb172b0911f14b9c9f2dab78b481f1751d8ebf28a"
+  },
+  "checks": {
+    "buildChecks": "PASS: api, package, sourceMarker, signature and walletSurface. scripts/build-showcase-apk.sh stops on any failure of aapt package, the kr.masscom.BUILD_SOURCE_COMMIT manifest marker equal to f1bba2d, apksigner signer #1 certificate equal to the approved showcase certificate, and the release wallet surface check on the AAB; it wrote the provenance file with all five checks PASS only after they passed",
+    "localVsGithubSha256AndBytes": "PASS: the GitHub asset digest equals the APK SHA-256",
+    "remoteTagAndAssets": "PASS: APK, build-time provenance (632 bytes) and SHA256SUMS.txt (218 bytes) uploaded; the release targets f1bba2d",
+    "anonymousApkDownload": "PASS: HTTPS 200",
+    "deviceInstall": "PASS: Samsung SM-S928N adb install -r over the existing kr.masscom.wolgye.demo app returned Success and the first launch showed the role-selection screen; choosing the owner role (점주예요) opened the owner page with the '가게 그림 만들기' card ('지금은 기본 그림이에요. AI 시안 4장 중에서 골라 보세요.') above the customer-identity QR step; the owner's showcase account has STAFF. Tapping the card opened the '가게 그림 만들기' screen: the current art is the bundled showcase mascot art for store A, the quota reads '시안 받기 3번 · 고급 그림 만들기 3번', and the card reads 'AI 그림은 준비 중이에요 / 아직 준비 중이에요. 곧 열릴 예정이에요.' because the showcase API has no OpenAI key yet (docs/evidence/ai-store-art-deployment-2026-09-30.json). No capture was saved."
+  },
+  "notRun": [
+    "real AI generation (the showcase API has no OpenAI key): drafts, the final image, applying it and the customer display of a real AI image on the public showcase, and the real per-call cost and latency",
+    "TalkBack, dark mode and large text on this APK",
+    "adding a friend between two showcase accounts, opening a friend link in the showcase app and the system share sheet (the Preview 9 NOT_RUN items were not exercised on this APK either)",
+    "the medal, reward box, coupon and staff redemption flow on this APK",
+    "new two-minute customer identity QR and two-phone claim",
+    "real coupon issue or redemption and Google Play submission"
+  ],
+  "limitations": "Preview 10 denotes GitHub release order; internal versionName/versionCode remain 0.1.0-test.2/2. This is a demo-only prerelease built from main f1bba2d, which adds the owner AI store art feature (PR #239, Issue #236) on top of Preview 9. Device evidence covers installation over the existing showcase app, the first-launch role-selection screen, the owner page card and the '가게 그림 만들기' screen with the bundled default art, the quota line and the 'not ready' card only; AI generation is disabled until the owner puts the key into the showcase server. The showcase API this APK talks to was redeployed at f1bba2d with migration 0029 and its startup log reads 'AI store art: disabled (OPENAI_API_KEY is empty)' (docs/evidence/ai-store-art-deployment-2026-09-30.json). The three seeded showcase offers are demo examples, not partner-store benefits."
+}
