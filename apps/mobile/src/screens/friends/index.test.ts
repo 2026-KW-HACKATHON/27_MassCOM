@@ -68,7 +68,9 @@ test('the ranking says once what friends can see and up to which day, and each f
 
 test('the friend passport is read only: medals, badges, stamp names, and a confirmed end of the friendship', () => {
   assert.match(passport, /<BackHeader title="친구 여권" \/>/);
-  assert.match(passport, /export const REMOVE_CONFIRM = '끊으면 서로의 여권이 사라지고, 이 친구는 예전 코드로 나를 다시 추가할 수 없어요\.'/);
+  // The block is kept per account, so the copy says "이 계정으로", not "예전 코드로".
+  assert.match(passport, /export const REMOVE_CONFIRM = '끊으면 서로의 여권이 사라지고, 이 친구는 이 계정으로 나를 다시 추가할 수 없어요\.'/);
+  assert.doesNotMatch(passport, /예전 코드로/);
   assert.match(passport, /Alert\.alert\(`\$\{target\.nickname\} 님과 친구를 끊을까요\?`, REMOVE_CONFIRM/);
   assert.match(passport, /\{ text: '친구 끊기', style: 'destructive'/);
   assert.match(passport, /<Medallion[\s\S]*?progress=\{null\}/);
@@ -90,10 +92,18 @@ test('the two friends screens never put a friend code or nickname into a URL or 
   }
 });
 
-test('a friend QR of another MassCOM build is said so in the same line as a link, and nothing is sent', () => {
-  assert.match(screen, /scanned\.reason === 'OTHER_APP' \? friendLinkProblemMessage\('OTHER_APP'\) : NOT_A_FRIEND_QR/);
-  const handler = screen.slice(screen.indexOf('function handleScanned'), screen.indexOf('async function saveNickname'));
-  assert.doesNotMatch(handler, /api\.addFriend|addFriend\(/);
+test('after unfriending, one more prompt offers a new code, since the block does not follow a friend who signs in with another account', () => {
+  assert.match(passport, /export const ROTATE_AFTER_REMOVE_TITLE = '내 친구 코드도 바꿀까요\?'/);
+  assert.match(passport, /export const ROTATE_AFTER_REMOVE_BODY = '코드를 바꾸면 끊은 친구가 다른 계정으로도 지금 코드를 쓸 수 없어요\. 다른 친구는 그대로예요\.'/);
+  assert.match(passport, /\{ text: '그대로 두기', style: 'cancel', onPress: finish \}/);
+  assert.match(passport, /\{ text: '코드 바꾸기', onPress: \(\) => void rotateThenLeave\(finish\) \}/);
+  // The prompt follows a successful unfriend and an already-gone friendship alike, and calls the existing rotate API.
+  assert.match(passport, /await api\.removeFriend\(friendshipId\);\s*offerNewCode\(\);/);
+  assert.match(passport, /caught\.code === 'FRIEND_NOT_FOUND'\) \{\s*offerNewCode\(\);/);
+  assert.match(passport, /await api\.rotateCode\(\);\s*finish\(\);/);
+  // Every way out (either button, or dismissing the prompt) goes back to the list, and only once.
+  assert.match(passport, /onDismiss: finish/);
+  assert.match(passport, /if \(left\) return;\s*left = true;\s*leave\(\);/);
 });
 
 test('my own code arriving by QR or link is only said to be mine: no prompt, no request', () => {
@@ -101,6 +111,12 @@ test('my own code arriving by QR or link is only said to be mine: no prompt, no 
   assert.match(screen, /const confirmAdd = useCallback\(\(code: string\) => \{\s*if \(code === myCodeRef\.current\) \{\s*setCodeInput\(''\);\s*setAddNotice\(\{ tone: 'error', text: OWN_CODE_NOTICE \}\);\s*return;\s*\}/);
   const own = screen.indexOf('OWN_CODE_NOTICE }');
   assert.ok(own > 0 && own < screen.indexOf("'이 코드로 친구를 추가할까요?'"), 'checked before the confirm dialog');
+});
+
+test('a friend QR of another MassCOM build is said so in the same line as a link, and nothing is sent', () => {
+  assert.match(screen, /scanned\.reason === 'OTHER_APP' \? friendLinkProblemMessage\('OTHER_APP'\) : NOT_A_FRIEND_QR/);
+  const handler = screen.slice(screen.indexOf('function handleScanned'), screen.indexOf('async function saveNickname'));
+  assert.doesNotMatch(handler, /api\.addFriend|addFriend\(/);
 });
 
 test('the guards against a double tap read refs, not React state that only updates on the next render', () => {

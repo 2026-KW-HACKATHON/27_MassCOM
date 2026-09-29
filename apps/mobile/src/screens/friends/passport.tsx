@@ -25,7 +25,11 @@ import { useUiStyles } from '@/ui/use-ui-styles';
 
 import { useFriendsStyles } from './use-friends-styles';
 
-export const REMOVE_CONFIRM = '끊으면 서로의 여권이 사라지고, 이 친구는 예전 코드로 나를 다시 추가할 수 없어요.';
+// The block is kept per account, not per code: it holds for every code of mine, but not for someone who signs in with another
+// account. Changing my code is what stops a friend who already knows the current one, so it is offered right after unfriending.
+export const REMOVE_CONFIRM = '끊으면 서로의 여권이 사라지고, 이 친구는 이 계정으로 나를 다시 추가할 수 없어요.';
+export const ROTATE_AFTER_REMOVE_TITLE = '내 친구 코드도 바꿀까요?';
+export const ROTATE_AFTER_REMOVE_BODY = '코드를 바꾸면 끊은 친구가 다른 계정으로도 지금 코드를 쓸 수 없어요. 다른 친구는 그대로예요.';
 const PAGE_PADDING = 14;
 const SLOT_GAP = 10;
 
@@ -104,17 +108,42 @@ export function FriendPassportScreen({
     setError(undefined);
     try {
       await api.removeFriend(friendshipId);
-      leave();
+      offerNewCode();
     } catch (caught) {
       // A friendship that is already gone is what was asked for; the list refreshes when it is shown again.
       if (caught instanceof FriendsApiError && caught.code === 'FRIEND_NOT_FOUND') {
-        leave();
+        offerNewCode();
         return;
       }
       setError(friendsErrorMessage(caught));
     } finally {
       removingNow.current = false;
       setRemoving(false);
+    }
+  }
+
+  // Asked once the friendship is gone, whichever way it ended. Every way out of the prompt goes back to the list, exactly once.
+  function offerNewCode() {
+    let left = false;
+    const finish = () => {
+      if (left) return;
+      left = true;
+      leave();
+    };
+    Alert.alert(ROTATE_AFTER_REMOVE_TITLE, ROTATE_AFTER_REMOVE_BODY, [
+      { text: '그대로 두기', style: 'cancel', onPress: finish },
+      { text: '코드 바꾸기', onPress: () => void rotateThenLeave(finish) },
+    ], { cancelable: true, onDismiss: finish });
+  }
+
+  async function rotateThenLeave(finish: () => void) {
+    try {
+      await api.rotateCode();
+      finish();
+    } catch (caught) {
+      Alert.alert('코드를 바꾸지 못했어요', `${friendsErrorMessage(caught)} 친구 탭에서 다시 바꿀 수 있어요.`, [
+        { text: '확인', onPress: finish },
+      ], { cancelable: true, onDismiss: finish });
     }
   }
 
