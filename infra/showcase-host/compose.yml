@@ -55,6 +55,13 @@ services:
       WALLET_CHAIN_ID: "84532"
       ACCOUNT_DELETION_HMAC_SECRET: ${SHOWCASE_ACCOUNT_DELETION_HMAC_SECRET:?showcase deletion secret is required}
       MERCHANT_REFERENCE_HMAC_SECRET: ${SHOWCASE_MERCHANT_REFERENCE_HMAC_SECRET:?showcase reference secret is required}
+      # 사장님 AI 가게 그림(D-048). 시연 전용 키·예산이다. 키가 비어 있으면 기능이 꺼지고 나머지는 기본값을 쓴다(빈 값 = 설정 안 함).
+      OPENAI_API_KEY: ${SHOWCASE_OPENAI_API_KEY:-}
+      AI_ART_DRAFT_MODEL: ${SHOWCASE_AI_ART_DRAFT_MODEL:-}
+      AI_ART_FINAL_MODEL: ${SHOWCASE_AI_ART_FINAL_MODEL:-}
+      AI_ART_MONTHLY_BUDGET_USD: ${SHOWCASE_AI_ART_MONTHLY_BUDGET_USD:-}
+      AI_ART_DAILY_DRAFT_ROUNDS: ${SHOWCASE_AI_ART_DAILY_DRAFT_ROUNDS:-}
+      AI_ART_DAILY_FINALS: ${SHOWCASE_AI_ART_DAILY_FINALS:-}
     ports:
       - "127.0.0.1:3301:3000"
     networks:
