@@ -295,3 +295,8 @@ export function ownerArtErrorMessage(error: unknown): string {
   if (!(error instanceof OwnerArtApiError)) return artCodeMessage('NETWORK_ERROR');
   return artCodeMessage(error.code, error.retryAfterSeconds);
 }
+
+/** What the screen says when checking on a round failed: a network blip keeps checking, so it does not ask the owner to retry. */
+export function pollFailureMessage(error: unknown): string {
+  return isPermanentArtError(error) ? ownerArtErrorMessage(error) : '진행 상황을 확인하지 못했어요. 계속 다시 확인하고 있어요.';
+}

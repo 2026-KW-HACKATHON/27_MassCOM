@@ -12,6 +12,7 @@ import {
   ownerArtErrorMessage,
   parseArtRound,
   parseOwnerArt,
+  pollFailureMessage,
 } from './owner-art-api';
 
 const roundId = '11111111-1111-4111-8111-111111111111';
@@ -321,4 +322,11 @@ test('polling stops for answers that will not change and keeps going through net
   for (const status of [400, 401, 403, 404, 409]) assert.equal(isPermanentArtError(new OwnerArtApiError(status, 'X')), true, String(status));
   for (const status of [0, 408, 429, 500, 502, 503, 200]) assert.equal(isPermanentArtError(new OwnerArtApiError(status, 'X')), false, String(status));
   assert.equal(isPermanentArtError(new TypeError('x')), false);
+});
+
+test('a failed check on a round says it keeps checking, unless retrying cannot help', () => {
+  assert.equal(pollFailureMessage(new OwnerArtApiError(0, 'NETWORK_ERROR')), '진행 상황을 확인하지 못했어요. 계속 다시 확인하고 있어요.');
+  assert.equal(pollFailureMessage(new OwnerArtApiError(503, 'HTTP_503')), '진행 상황을 확인하지 못했어요. 계속 다시 확인하고 있어요.');
+  assert.equal(pollFailureMessage(new TypeError('x')), '진행 상황을 확인하지 못했어요. 계속 다시 확인하고 있어요.');
+  assert.equal(pollFailureMessage(new OwnerArtApiError(403, 'MERCHANT_ACCESS_DENIED')), '이 가게의 그림을 바꿀 권한이 없어요.');
 });

@@ -238,3 +238,10 @@ test('a full reload replaces everything, including a round the screen had wrong'
   const reloaded = artReducer(local, { type: 'loaded', art: art({ round: round('FINAL_READY', { chosenIndex: 0 }) }) });
   assert.deepEqual(reloaded, { status: 'ready', art: art({ round: round('FINAL_READY', { chosenIndex: 0 }) }), selected: null, busy: null, notice: null });
 });
+
+test('a reload after a step the server had moved past keeps the line that says why', () => {
+  const local = ready({ round: round('DRAFTS_READY') }, { busy: null, notice: '이미 다음 단계로 넘어갔어요.' });
+  const reloaded = readyState(artReducer(local, { type: 'loaded', art: art({ round: round('FINALIZING', { chosenIndex: 0 }) }), notice: '이미 다음 단계로 넘어갔어요.' }));
+  assert.equal(reloaded.notice, '이미 다음 단계로 넘어갔어요.');
+  assert.equal(artPanel(reloaded.art), 'finalizing');
+});

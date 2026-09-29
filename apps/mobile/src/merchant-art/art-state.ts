@@ -12,8 +12,8 @@ export type ArtScreenState =
 export type ArtAction =
   | { type: 'load-started' }
   | { type: 'load-failed'; message: string }
-  /** The whole picture from the server (first load, retry, or a reload after a step the server had moved past). */
-  | { type: 'loaded'; art: OwnerArt }
+  /** The whole picture from the server (first load, retry, or a reload after a step the server had moved past; `notice` keeps that step's line). */
+  | { type: 'loaded'; art: OwnerArt; notice?: string }
   /** A background reload: counts, current art and the configured flag follow the server, the round only if it is not older. */
   | { type: 'refreshed'; art: OwnerArt }
   | { type: 'select'; index: number }
@@ -93,7 +93,7 @@ export function artReducer(state: ArtScreenState, action: ArtAction): ArtScreenS
       // A reload that fails keeps the screen the owner is looking at; only a screen that never loaded says it could not.
       return state.status === 'ready' ? { ...state, notice: action.message } : { status: 'error', message: action.message };
     case 'loaded':
-      return { status: 'ready', art: action.art, selected: null, busy: null, notice: null };
+      return { status: 'ready', art: action.art, selected: null, busy: null, notice: action.notice ?? null };
     default:
       break;
   }
