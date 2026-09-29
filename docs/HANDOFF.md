@@ -2,6 +2,15 @@
 
 마지막 갱신 시각: 2026-09-29 KST
 
+## 2026-09-29 하늘 동네·여권 도장 개편(Issue #224)
+
+- 기준 커밋: main `d03665e`(PR #226 병합; 웹 배포 확인 스크립트 수정). 브랜치 `feat/224-sky-town-redesign`(로컬 worktree `.worktrees/224-sky-town`)은 main `758f214`에서 갈라졌고 **아직 원격에 push하지 않았다.** 코드 커밋은 `a964766`까지이고 그 위에 문서 커밋이 하나 있다. main이 그 사이 `README.md`·`TEST_STATUS.md`·`PROJECT_STATE.md`·`HANDOFF.md`·`AI_USAGE.md`에 Preview 7 내용을 더해 같은 자리에서 문서 충돌이 날 수 있다. PR 전에 main을 병합하고 두 쪽 문단을 모두 남겨라.
+- 내용: 앱 디자인을 하늘 동네 + 여권 도장으로 개편(D-045). 하늘 그림·구름이 머리글 안에서 내용과 함께 스크롤되고, 카드는 떠 있으며, 하단 탭은 `탐색 · 방문 인증(가운데 도장) · 도감` 세 칸(내 정보는 머리글 아바타), 도감은 도장이 찍히는 여권 페이지다. 마스코트 포즈 10종과 배경 2종은 Codex 내장 이미지 생성으로 만들어 `apps/mobile/assets/images/mascot/v2/`에 두었다(출처 `SOURCES.md`). 값·구조의 정본은 `theme/world.ts`·`src/ui/`·`src/motion/`이고 [`DESIGN.md`](../DESIGN.md)와 [스펙 10절](superpowers/specs/2026-09-29-sky-town-redesign-design.md)이 구현 중 바뀐 점을 정리한다. D-046 지도·D-047 친구·D-048 사장님 AI 시안은 [결정 기록](DECISIONS.md)에만 있고 코드는 없다.
+- 검증: 모바일 347/347, 타입·린트·운영/시연 두 export PASS(작업 보고), [에뮬레이터 로컬 확인](evidence/sky-town-redesign-2026-09-29/README.md). 필수 36개 상태는 31 PASS / 2 BLOCKED / 3 NOT_RUN 그대로다. 독립 리뷰(sonnet 코드·opus 디자인·접근성)는 진행 중이며 결과는 이 문서에 반영하지 않았다.
+- 알려진 증거 공백: 증거 폴더의 `02-explore-light.png`와 `01-before-after.png`의 두 번째 "후" 화면은 빈 흰 화면이고, `03-collection-stamps-light.png`는 스크롤 구조를 고치기 전 화면이다. 유효한 탐색 라이트·다크 캡처를 다시 찍거나 정리하고 PR을 연다. 01의 "전" 왼쪽 화면에는 실기기 상태 표시줄(통신사 이름·알림 아이콘)이 찍혀 있어 잘라 내는 편이 안전하다.
+- 다음 작업: ① 리뷰 🔴 0 확인 → main 병합·충돌 해결 → `bash scripts/check-pr-korean.sh`로 PR 제목·본문 검사 → PR·CI·병합. ② 병합 뒤 시연 Preview 8 APK를 빌드하고 실제 휴대전화(SM-S928N)에서 전후 화면·TalkBack·동작 줄이기·점포 그림이 있는 점포 상세를 확인(소유자의 "꾸민 느낌" 판정 요청). ③ 하위 프로젝트 2 지도(D-046): `town-map` 일러스트 지도와 네이버·카카오맵 길찾기, 탭 바 `지도` 추가. 이후 친구(D-047)와 사장님 AI 시안(D-048)은 각각 별도 Issue·설계 뒤에 진행하며 D-048의 OpenAI 키는 소유자가 서버 비밀 파일에 넣는다.
+- 웹 전용 재배포 기록(PR #226 이후): main `d03665e`로 웹만 다시 배포해 공개 `/open`이 Preview 7 설치 안내를 보이게 했고 apex와 `www` 모두 확인했다. API·DB 컨테이너는 바꾸지 않았다. 배포 담당 작업자의 보고를 옮긴 것이며 별도 증거 JSON은 이 브랜치에 없다.
+
 ## 2026-09-29 발표 페이지 제거(Issue #220)
 
 - 기준 커밋: main `63b1ab8`(PR #219 웹 디자인 체계 병합). 브랜치 `chore/220-remove-presentation`에서 소유자 결정에 따라 공개 발표 페이지(`docs/presentation.html`·`docs/assets/presentation.css`)와 발표 원고(`docs/PRESENTATION.md`), 발표 검사기(`scripts/verify-presentation.sh`·`tests/site/verify_presentation_test.sh`)를 제거했다. 발표 자료는 팀이 저장소 밖에서 준비한다. 포털 링크·공개 빌드 허용 목록·Lightsail 배포/스모크 경로·Caddy `/presentation` 재작성도 함께 뺐다. 발표와 무관한 검사(README·PROJECT_STATE·HANDOFF의 필수 시험 합계 문장, 제출 증거의 현장 성과 부풀림 금지)는 `scripts/verify-evidence-consistency.mjs`로 옮겨 변형 시험으로 실패를 확인했다. 과거 증거 파일과 날짜 기록은 그대로 둔다.

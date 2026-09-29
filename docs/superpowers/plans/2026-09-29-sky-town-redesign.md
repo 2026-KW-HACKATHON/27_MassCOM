@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-29-sky-town-redesign-design.md`
 
+> **구현 뒤 메모:** 이 계획의 코드 조각은 착수 시점의 초안이다. 색(도장 주황 `#CA6E29`, 종이 선 `#A77C46`)과 스크롤 구조(그림이 `SkyBackdrop` 고정 배경이 아니라 `SkyArt`로 머리글 안에 들어가 내용과 함께 스크롤, `SkyScrollView`·`BackHeader`·머리글 반투명 패널 추가)는 구현 중 바뀌었다. 바뀐 내용은 스펙 10절 "구현 중 바뀐 점"과 코드가 정본이다.
+
 ## Global Constraints
 
 - 새 npm 의존성 추가 금지(`react-native-reanimated`, `react-native-svg`, `expo-haptics`만 사용).
@@ -239,8 +241,8 @@ export const lightWorld: WorldTheme = {
   sky: ['#BFE3FF', '#E4F3FF', '#F7FBFF'],
   skyInk: '#12294A', skyMuted: '#34506F',
   card: '#FFFFFF', cardInk: '#192331', cardMuted: '#55657B', cardShadow: '#1D4E89',
-  paper: '#F7EFE0', paperInk: '#4A3317', paperLine: '#B98A4E',
-  stampOrange: '#E07A2E', stampInk: '#A3401F',
+  paper: '#F7EFE0', paperInk: '#4A3317', paperLine: '#A77C46',
+  stampOrange: '#CA6E29', stampInk: '#A3401F',
   tabBar: '#FFFFFF', tabActive: '#2456D6', tabInactive: '#55657B',
   radius,
 };
