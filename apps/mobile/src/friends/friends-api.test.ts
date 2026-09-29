@@ -9,6 +9,7 @@ import {
   parseAddedFriend,
   parseFriendsSnapshot,
   replyNeedsRefresh,
+  rotateFailureCopy,
 } from './friends-api';
 
 const friendA = '11111111-1111-4111-8111-111111111111';
@@ -139,6 +140,24 @@ test('only an unreadable reply asks for a reload: every other failure keeps what
     undefined,
     'INVALID_RESPONSE',
   ]) assert.equal(replyNeedsRefresh(error), false);
+});
+
+test('the new-code prompt after unfriending claims a failure only when the server really refused', () => {
+  const refused = rotateFailureCopy(new FriendsApiError(0, 'NETWORK_ERROR'));
+  assert.equal(refused.title, '코드를 바꾸지 못했어요');
+  assert.match(refused.body, /^네트워크에 연결하지 못했어요/);
+  assert.match(refused.body, /친구 탭에서 다시 바꿀 수 있어요\.$/);
+  assert.equal(rotateFailureCopy(new FriendsApiError(429, 'FRIEND_CODE_RATE_LIMITED', 60)).title, '코드를 바꾸지 못했어요');
+  assert.equal(rotateFailureCopy(new TypeError('x')).title, '코드를 바꾸지 못했어요');
+  // An unreadable reply may follow a code the server did rotate: no failure is claimed, and the friends tab is named.
+  const unreadable = rotateFailureCopy(new FriendsApiError(200, 'INVALID_RESPONSE'));
+  assert.doesNotMatch(`${unreadable.title} ${unreadable.body}`, /못했어요\.? *$|바꾸지 못|다시 바꿀/);
+  assert.match(unreadable.body, /친구 탭에/);
+  assert.match(unreadable.body, /새 코드/);
+  assert.notEqual(unreadable.title, refused.title);
+  for (const copy of [refused, unreadable]) {
+    assert.doesNotMatch(`${copy.title} ${copy.body}`, /INVALID_RESPONSE|NETWORK_ERROR|[A-Z]{4,}/, 'no raw codes');
+  }
 });
 
 test('parses an added friend with its created flag', () => {

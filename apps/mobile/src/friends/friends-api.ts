@@ -270,6 +270,18 @@ export function replyNeedsRefresh(error: unknown): boolean {
   return error instanceof FriendsApiError && error.code === 'INVALID_RESPONSE';
 }
 
+/**
+ * What the new-code prompt after unfriending says when making the code did not come back as a code. An unreadable reply
+ * (INVALID_RESPONSE) does not mean the server refused: it may have rotated, so that case claims no failure and points to the
+ * friends tab, which shows whatever code is current.
+ */
+export function rotateFailureCopy(error: unknown): { title: string; body: string } {
+  if (replyNeedsRefresh(error)) {
+    return { title: '코드 변경을 확인해 주세요', body: '서버 응답을 읽지 못했어요. 새 코드가 만들어졌다면 친구 탭에 보여요.' };
+  }
+  return { title: '코드를 바꾸지 못했어요', body: `${friendsErrorMessage(error)} 친구 탭에서 다시 바꿀 수 있어요.` };
+}
+
 /** Plain Korean for what a person can hit; a raw code or status never reaches the screen. */
 export function friendsErrorMessage(error: unknown): string {
   if (!(error instanceof FriendsApiError)) return '네트워크에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.';

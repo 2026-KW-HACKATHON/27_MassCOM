@@ -4,7 +4,7 @@ import { Alert, Pressable, RefreshControl, Text, View, useColorScheme, useWindow
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
-import { FriendsApiError, createFriendsApiClient, friendsErrorMessage, type Friend } from '@/friends/friends-api';
+import { FriendsApiError, createFriendsApiClient, friendsErrorMessage, rotateFailureCopy, type Friend } from '@/friends/friends-api';
 import { passportAsOfNote, visitedShopSummary } from '@/friends/friends-model';
 import { useFriends } from '@/friends/use-friends';
 import { Medallion, medallionSizes } from '@/gamification/medallion';
@@ -147,7 +147,8 @@ export function FriendPassportScreen({
       await api.rotateCode();
       finish();
     } catch (caught) {
-      Alert.alert('코드를 바꾸지 못했어요', `${friendsErrorMessage(caught)} 친구 탭에서 다시 바꿀 수 있어요.`, [
+      const { title, body } = rotateFailureCopy(caught);
+      Alert.alert(title, body, [
         { text: '확인', onPress: finish },
       ], { cancelable: true, onDismiss: finish });
     } finally {

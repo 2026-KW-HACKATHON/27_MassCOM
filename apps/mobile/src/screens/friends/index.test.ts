@@ -111,6 +111,12 @@ test('after unfriending, one more prompt offers a new code, since the block does
   assert.doesNotMatch(passport, /let left = false|left = true/);
 });
 
+test('a rotate reply the app cannot read is not called a failure: the prompt points to the friends tab', () => {
+  assert.match(passport, /rotateFailureCopy,/);
+  assert.match(passport, /const \{ title, body \} = rotateFailureCopy\(caught\);\s*Alert\.alert\(title, body, \[/);
+  assert.doesNotMatch(passport, /'코드를 바꾸지 못했어요'/, 'the wording lives in rotateFailureCopy, which tells a refusal from an unreadable reply');
+});
+
 test('the friend passport stays busy from the confirmed unfriend to the end of the flow, so nothing can start it twice', () => {
   const remove = passport.slice(passport.indexOf('async function remove()'), passport.indexOf('// Asked once the friendship is gone'));
   // The busy state is released only where nothing was removed; a success or an already-gone friendship leaves it set.
