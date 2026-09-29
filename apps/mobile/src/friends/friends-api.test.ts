@@ -3,10 +3,12 @@ import { test } from 'node:test';
 
 import {
   FriendsApiError,
+  UNNAMED_SHOP,
   createFriendsApiClient,
   friendsErrorMessage,
   parseAddedFriend,
   parseFriendsSnapshot,
+  replyNeedsRefresh,
 } from './friends-api';
 
 const friendA = '11111111-1111-4111-8111-111111111111';
@@ -87,7 +89,9 @@ test('rejects a snapshot that is not the documented shape instead of showing gue
     ['friendshipId not a uuid', (raw) => { raw.friends[0]!.friendshipId = 'acct-1'; }],
     ['friend nickname missing', (raw) => { delete (raw.friends[0] as Record<string, unknown>).nickname; }],
     ['friend badges not the sum of tiers', (raw) => { raw.friends[0]!.badges.earned = 9; }],
-    ['stamp without a name', (raw) => { raw.friends[0]!.stamps[0] = { merchantName: '' }; }],
+    ['stamp without a name field', (raw) => { (raw.friends[0]!.stamps as unknown[])[0] = {}; }],
+    ['stamp name not a string', (raw) => { (raw.friends[0]!.stamps as unknown[])[0] = { merchantName: 5 }; }],
+    ['stamp that is not an object', (raw) => { (raw.friends[0]!.stamps as unknown[])[0] = '월계 국밥집'; }],
     ['stamps not a list', (raw) => { (raw.friends[0] as Record<string, unknown>).stamps = {}; }],
     ['duplicate friendshipId', (raw) => { raw.friends.push(friend({ rank: 3 })); raw.me.rank = 2; }],
     ['ranks that skip a place', (raw) => { raw.me.rank = 3; }],
@@ -102,6 +106,39 @@ test('rejects a snapshot that is not the documented shape instead of showing gue
   for (const value of [null, [], 'x', {}, { me: {}, friends: [] }, { me: snapshot().me }, { friends: [] }]) {
     assert.throws(() => parseFriendsSnapshot(value), FriendsApiError);
   }
+});
+
+test('one stamp whose shop name is blank shows as an unnamed shop instead of hiding the whole list', () => {
+  assert.equal(UNNAMED_SHOP, '이름 없는 가게');
+  for (const blank of ['', ' ', '   ', '\t\n', '\u3000', '\u3000 \u00a0\u2003', '\ufeff']) {
+    const raw = snapshot();
+    raw.friends[0]!.stamps = [{ merchantName: '월계 국밥집' }, { merchantName: blank }, { merchantName: '월계 분식' }];
+    const parsed = parseFriendsSnapshot(raw);
+    assert.deepEqual(
+      parsed.friends[0]!.stamps.map((stamp) => stamp.merchantName),
+      ['월계 국밥집', UNNAMED_SHOP, '월계 분식'],
+      JSON.stringify(blank),
+    );
+  }
+  // The other friends and my own numbers are read as usual, and a real name is left exactly as the server wrote it.
+  const raw = snapshot();
+  raw.friends[0]!.stamps = [{ merchantName: ' 월계 국밥집 ' }, { merchantName: '\u3000' }];
+  const parsed = parseFriendsSnapshot(raw);
+  assert.equal(parsed.friends[0]!.stamps[0]!.merchantName, ' 월계 국밥집 ');
+  assert.equal(parsed.me.code, 'K7M2Q9XP');
+  assert.equal(parsed.friends[0]!.rank, 1);
+});
+
+test('only an unreadable reply asks for a reload: every other failure keeps what is on screen', () => {
+  assert.equal(replyNeedsRefresh(new FriendsApiError(200, 'INVALID_RESPONSE')), true);
+  for (const error of [
+    new FriendsApiError(0, 'NETWORK_ERROR'),
+    new FriendsApiError(429, 'FRIEND_CODE_RATE_LIMITED', 60),
+    new FriendsApiError(400, 'FRIEND_NICKNAME_INVALID'),
+    new Error('INVALID_RESPONSE'),
+    undefined,
+    'INVALID_RESPONSE',
+  ]) assert.equal(replyNeedsRefresh(error), false);
 });
 
 test('parses an added friend with its created flag', () => {

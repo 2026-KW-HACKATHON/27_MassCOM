@@ -10,6 +10,8 @@ import { validateFriendCode } from './code';
 
 export const TOTAL_BADGES = 9;
 export const MAX_NICKNAME_LENGTH = 12;
+/** Shown for a stamp whose shop name came back blank. */
+export const UNNAMED_SHOP = '이름 없는 가게';
 
 export type FriendMedal = { key: MedalKind; tier: MedalTier };
 export type FriendBadges = { earned: number; total: typeof TOTAL_BADGES };
@@ -220,10 +222,9 @@ function parseBadges(value: unknown, medals: readonly FriendMedal[]): FriendBadg
 function parseStamps(value: unknown): FriendStamp[] {
   if (!Array.isArray(value)) throw invalidResponse();
   return value.map((stamp): FriendStamp => {
-    if (!isRecord(stamp) || typeof stamp.merchantName !== 'string' || stamp.merchantName.trim().length === 0) {
-      throw invalidResponse();
-    }
-    return { merchantName: stamp.merchantName };
+    if (!isRecord(stamp) || typeof stamp.merchantName !== 'string') throw invalidResponse();
+    // One shop whose name is blank (spaces of any width included) must not hide the friend's whole passport.
+    return { merchantName: stamp.merchantName.trim().length === 0 ? UNNAMED_SHOP : stamp.merchantName };
   });
 }
 
@@ -259,6 +260,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function invalidResponse(): FriendsApiError {
   return new FriendsApiError(200, 'INVALID_RESPONSE');
+}
+
+/**
+ * A change the server accepted may still reach the app as a reply it refuses to read (INVALID_RESPONSE). The screen then has
+ * to reload, or it would keep showing the old nickname or code.
+ */
+export function replyNeedsRefresh(error: unknown): boolean {
+  return error instanceof FriendsApiError && error.code === 'INVALID_RESPONSE';
 }
 
 /** Plain Korean for what a person can hit; a raw code or status never reaches the screen. */
