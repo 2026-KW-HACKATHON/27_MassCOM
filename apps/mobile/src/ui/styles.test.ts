@@ -85,3 +85,12 @@ test('pressing shows a visible background change that keeps the text readable, e
     assert.ok(contrast(world.cardMuted, card) >= 4.5, 'card body when pressed');
   }
 });
+
+test('state scenes read on the card surface they are drawn on', () => {
+  for (const [palette, world] of [[lightColors, lightWorld], [darkColors, darkWorld]] as const) {
+    const styles = makeUiStyles(palette, world);
+    assert.equal(styles.card.backgroundColor, world.card);
+    assert.ok(contrast(styles.sceneTitle.color as string, world.card) >= 4.5, 'scene title on card');
+    assert.ok(contrast(styles.sceneBody.color as string, world.card) >= 4.5, 'scene body on card');
+  }
+});

@@ -192,9 +192,7 @@ function RewardGoalRow({ styles, target, name, final }: { styles: MerchantDetail
 function StateFrame({ styles, children }: { styles: MerchantDetailStyles; children: React.ReactNode }) {
   return (
     <SkyBackdrop>
-      <View style={styles.stateWrap}>
-        <FloatingCard>{children}</FloatingCard>
-      </View>
+      <View style={styles.stateWrap}>{children}</View>
     </SkyBackdrop>
   );
 }

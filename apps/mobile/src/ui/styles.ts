@@ -49,6 +49,8 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
     },
     backGlyph: { color: world.cardInk, fontSize: 28, fontWeight: '700', lineHeight: 32 },
     backTitle: { color: world.skyInk, fontSize: 22, fontWeight: '800', lineHeight: 30 },
+    // Loading, error and empty scenes sit on the card surface (StateScene draws it), so these pairs are checked on world.card.
+    sceneContent: { alignItems: 'center', gap: 10, paddingVertical: 8 },
     sceneTitle: { color: world.cardInk, fontSize: 18, fontWeight: '800', textAlign: 'center' },
     sceneBody: { color: world.cardMuted, fontSize: 15, lineHeight: 22, textAlign: 'center' },
     // Passport stamp page: a cream paper card with a dashed edge; every slot is a round ink stamp.

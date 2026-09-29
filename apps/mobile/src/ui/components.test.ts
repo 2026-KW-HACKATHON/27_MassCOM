@@ -61,6 +61,17 @@ test('the header art fades into the page colour over its last 15% in both scheme
   assert.ok(seam < dark || seam > darkEnd, 'seam overlay is inside the dark-only branch');
 });
 
+test('a state scene draws its own card, announces errors politely, and callers do not add a second card', () => {
+  const scene = read('state-scene.tsx');
+  assert.match(scene, /framed = true/);
+  assert.match(scene, /<FloatingCard>\{content\}<\/FloatingCard>/);
+  // Loading and error appear on their own and should be announced; an empty result is only shown.
+  assert.match(scene, /accessibilityLiveRegion=\{kind === 'empty' \? 'none' : 'polite'\}/);
+  for (const file of ['screens/collection/index.tsx', 'screens/merchant-list/index.tsx', 'screens/merchant-detail/index.tsx']) {
+    assert.doesNotMatch(readSource(file), /<FloatingCard[^>]*>\s*<StateScene/, `${file} wraps a StateScene in a second card`);
+  }
+});
+
 test('state scenes map to the right mascot', () => {
   const scene = read('state-scene.tsx');
   assert.match(scene, /empty: 'sleep'/);

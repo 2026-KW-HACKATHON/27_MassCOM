@@ -313,7 +313,7 @@ export function CollectionScreen({
   if (loading && !collection) {
     return sky(
       <View style={styles.content}>
-        <FloatingCard><StateScene kind="loading" title="방문 도감을 펼치는 중" /></FloatingCard>
+        <StateScene kind="loading" title="방문 도감을 펼치는 중" />
       </View>,
     );
   }
@@ -321,9 +321,7 @@ export function CollectionScreen({
   if (!collection) {
     return sky(
       <View style={styles.content}>
-        <FloatingCard>
-          <StateScene kind="error" title="도감을 불러오지 못했어요" body={error} action={{ label: '다시 불러오기', onPress: () => { void refresh(); } }} />
-        </FloatingCard>
+        <StateScene kind="error" title="도감을 불러오지 못했어요" body={error} action={{ label: '다시 불러오기', onPress: () => { void refresh(); } }} />
       </View>,
     );
   }

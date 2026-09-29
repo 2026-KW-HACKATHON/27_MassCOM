@@ -171,22 +171,22 @@ export function MerchantListScreen({ apiUrl }: Props) {
         }
         ListEmptyComponent={
           <View style={styles.itemWrap}>
-            <FloatingCard>
-              {loading ? (
-                <StateScene kind="loading" title="동네 지도를 펼치는 중" body="공개 중인 캠페인을 확인하고 있습니다." />
-              ) : error ? (
-                <StateScene kind="error" title="지금은 목록을 가져오지 못했어요" body={error} action={{ label: '다시 불러오기', onPress: retry }} />
-              ) : merchants.length > 0 ? (
-                <StateScene
-                  kind="empty"
-                  title="검색 결과가 없어요"
-                  body="다른 이름이나 주소로 찾거나, 참여 상태 필터를 바꿔 보세요."
-                  action={{ label: '검색 초기화', onPress: () => { setQuery(''); setAvailability('all'); } }}
-                />
-              ) : (
+            {loading ? (
+              <StateScene kind="loading" title="동네 지도를 펼치는 중" body="공개 중인 캠페인을 확인하고 있습니다." />
+            ) : error ? (
+              <StateScene kind="error" title="지금은 목록을 가져오지 못했어요" body={error} action={{ label: '다시 불러오기', onPress: retry }} />
+            ) : merchants.length > 0 ? (
+              <StateScene
+                kind="empty"
+                title="검색 결과가 없어요"
+                body="다른 이름이나 주소로 찾거나, 참여 상태 필터를 바꿔 보세요."
+                action={{ label: '검색 초기화', onPress: () => { setQuery(''); setAvailability('all'); } }}
+              />
+            ) : (
+              <FloatingCard>
                 <CatalogEmptyState onRefresh={refresh} refreshing={refreshing} />
-              )}
-            </FloatingCard>
+              </FloatingCard>
+            )}
           </View>
         }
         renderItem={({ item, index }) => {
@@ -211,6 +211,7 @@ function CatalogEmptyState({ onRefresh, refreshing }: { onRefresh: () => void; r
     <View style={{ alignItems: 'center' }}>
       <Text style={styles.emptyEyebrow}>지금의 월계1동</Text>
       <StateScene
+        framed={false}
         kind="empty"
         title="공개 중인 음식점이 아직 없어요."
         body="참여 캠페인이 열리면 실제 점포가 여기에 나타납니다. 지금은 서비스 이용 흐름을 먼저 살펴볼 수 있어요."
