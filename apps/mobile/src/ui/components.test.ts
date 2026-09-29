@@ -128,7 +128,7 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
       assert.match(control, /progressViewOffset=\{insets\.top\}/, `${file} RefreshControl`);
     }
   }
-  assert.equal(controls, 5, 'explore, collection, merchant detail, recommendations, town map');
+  assert.equal(controls, 7, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport');
 });
 
 test('the sky art is the top of the scroll content: the headers carry it and SkyBackdrop is only the page colour', () => {
@@ -144,7 +144,7 @@ test('no tab screen, the settings page or a stack page pins its header outside t
   const screens = [
     'screens/merchant-list/index.tsx', 'screens/collection/index.tsx', 'screens/claim-redeem/index.tsx',
     'screens/account-settings/index.tsx', 'screens/merchant-detail/index.tsx', 'screens/recommendations/index.tsx',
-    'screens/town-map/index.tsx',
+    'screens/town-map/index.tsx', 'screens/friends/index.tsx', 'screens/friends/passport.tsx',
   ];
   for (const file of screens) {
     const source = readSource(file);
@@ -154,7 +154,7 @@ test('no tab screen, the settings page or a stack page pins its header outside t
   }
   assert.match(readSource('screens/merchant-list/index.tsx'), /ListHeaderComponent=\{\s*<>\s*<AppHeader/);
   // Route files only pass a header down; they never sit one above the screen.
-  for (const file of ['app/(tabs)/claim.tsx', 'app/(tabs)/collection.tsx', 'app/(tabs)/index.tsx', 'app/(tabs)/map.tsx', 'app/(tabs)/settings.tsx']) {
+  for (const file of ['app/(tabs)/claim.tsx', 'app/(tabs)/collection.tsx', 'app/(tabs)/index.tsx', 'app/(tabs)/map.tsx', 'app/(tabs)/settings.tsx', 'app/(tabs)/friends.tsx', 'app/friends/[friendshipId].tsx']) {
     const source = readSource(file).replace(/header=\{<(?:AppHeader|BackHeader)[^>]*\/>\}/g, '').replace(/const header = <(?:AppHeader|BackHeader)[^>]*\/>;/, '');
     assert.doesNotMatch(source, /<(?:AppHeader|BackHeader)/, `${file} pins a header`);
   }
@@ -164,6 +164,7 @@ test('stack pages use the sky header with a back button instead of the plain nat
   const layout = readSource('app/_layout.tsx');
   assert.match(layout, /name="merchants\/\[merchantId\]" options=\{\{ headerShown: false \}\}/);
   assert.match(layout, /name="recommendations" options=\{\{ headerShown: false \}\}/);
+  assert.match(layout, /name="friends\/\[friendshipId\]" options=\{\{ headerShown: false \}\}/);
   const detail = readSource('screens/merchant-detail/index.tsx');
   // The loading, error and empty states keep the way back too.
   assert.ok((detail.match(/<BackHeader title="음식점 상세"/g) ?? []).length >= 2, 'detail page and its state frame');

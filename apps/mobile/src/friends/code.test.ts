@@ -6,9 +6,11 @@ import {
   formatFriendCode,
   friendCodeAccessibilityLabel,
   friendLink,
+  friendCodeProblemMessage,
   friendShareMessage,
   normalizeFriendCode,
   parseFriendLink,
+  parseScannedFriendCode,
   validateFriendCode,
 } from './code';
 
@@ -84,4 +86,26 @@ test('ignores a code in the query and anything that is not our open link', () =>
     '',
   ];
   for (const url of rejected) assert.equal(parseFriendLink(url), undefined, url);
+});
+
+test('says what is wrong with a typed code in plain Korean', () => {
+  assert.match(friendCodeProblemMessage('EMPTY'), /입력/);
+  assert.match(friendCodeProblemMessage('TOO_SHORT'), /8자리/);
+  assert.match(friendCodeProblemMessage('TOO_LONG'), /8자리/);
+  assert.match(friendCodeProblemMessage('INVALID_CHARACTER'), /0·O·1·I/);
+});
+
+test('a scanned QR is a friend link or a bare code and nothing else is passed on', () => {
+  assert.deepEqual(parseScannedFriendCode('https://masscom.kr/open#friend=K7M2Q9XP'), { ok: true, code: 'K7M2Q9XP' });
+  assert.deepEqual(parseScannedFriendCode('  masscom://open#friend=k7m2-q9xp\n'), { ok: true, code: 'K7M2Q9XP' });
+  assert.deepEqual(parseScannedFriendCode('K7M2-Q9XP'), { ok: true, code: 'K7M2Q9XP' });
+  assert.deepEqual(parseScannedFriendCode(''), { ok: false, reason: 'EMPTY' });
+  for (const other of [
+    'https://example.com/pay?to=K7M2Q9XP',
+    'https://masscom.kr/open?friend=K7M2Q9XP',
+    'https://masscom.kr/open#merchant=m1',
+    'WIFI:S:home;P:secret;;',
+    'masscom-customer:v1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    'K7M2Q9X',
+  ]) assert.deepEqual(parseScannedFriendCode(other), { ok: false, reason: 'NOT_A_FRIEND_CODE' }, other);
 });

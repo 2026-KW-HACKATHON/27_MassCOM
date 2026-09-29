@@ -35,7 +35,8 @@ export function barHeightFor(fontScale: number): number {
 }
 
 /**
- * With four slots (탐색 · 지도 · 방문 인증 · 도감) the raised claim stamp is the third. Its slot is a little wider than the others
- * so the "방문 인증" label, four glyphs and a space at the 1.5x cap, still fits on a 320dp phone.
+ * With five slots (탐색 · 지도 · 방문 인증 · 도감 · 친구) the raised claim stamp is the third, dead centre: two equal slots on each side.
+ * Its slot is wider than the others so the "방문 인증" label, four glyphs and a space at the 1.5x cap, still fits on a 320dp phone
+ * (288dp of row, claim slot 78dp) while the four two-glyph slots stay above the 48dp touch size.
  */
-export const CLAIM_SLOT_FLEX = 1.2;
+export const CLAIM_SLOT_FLEX = 1.5;

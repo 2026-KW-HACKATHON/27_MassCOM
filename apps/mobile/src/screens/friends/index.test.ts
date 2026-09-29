@@ -1,0 +1,91 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+const read = (relative: string) => readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8');
+const screen = read('./index.tsx');
+const passport = read('./passport.tsx');
+const tabRoute = read('../../app/(tabs)/friends.tsx');
+const passportRoute = read('../../app/friends/[friendshipId].tsx');
+
+test('the friends tab wears the standard sky header with the friends mascot, once, and a signed-out prompt like the other tabs', () => {
+  assert.match(screen, /export const FRIENDS_TITLE = '친구'/);
+  assert.match(screen, /export const FRIENDS_SUBTITLE = '코드를 주고받으면 서로의 여권을 볼 수 있어요'/);
+  assert.match(screen, /<AppHeader title=\{FRIENDS_TITLE\} subtitle=\{FRIENDS_SUBTITLE\}>/);
+  assert.match(screen, /<Mascot interactive pose="friends" size=\{heroMascotSize\(fontScale, 112\)\} \/>/);
+  assert.match(tabRoute, /<AppHeader title=\{FRIENDS_TITLE\} subtitle=\{FRIENDS_SUBTITLE\} \/>/);
+  assert.match(tabRoute, /<SkyBackdrop><AuthRequiredRoute header=\{header\} \/><\/SkyBackdrop>/);
+  assert.match(tabRoute, /key=\{auth\.accountId\}/);
+  assert.match(screen, /useTabBarClearance\(\)/);
+  assert.match(screen, /progressViewOffset=\{insets\.top\}/);
+});
+
+test('my card shows the nickname, the big code, a QR of the fragment link, a system share and a confirmed code change', () => {
+  assert.match(screen, /accessibilityLabel="별명 바꾸기"/);
+  assert.match(screen, /formatFriendCode\(me\.code\)/);
+  assert.match(screen, /friendCodeAccessibilityLabel\(me\.code\)/);
+  assert.match(screen, /<ClaimQr\s+code=\{friendLink\(me\.code, origin\)\}/);
+  assert.match(screen, /Share\.share\(\{ message: friendShareMessage\(code, origin\) \}\)/);
+  assert.match(screen, /label="코드 공유"/);
+  assert.match(screen, /label=\{rotating \? '바꾸는 중…' : '코드 바꾸기'\}/);
+  assert.match(screen, /const ROTATE_CONFIRM = '새 코드를 만들면 예전 코드로는 더 이상 추가할 수 없어요\. 지금 친구는 그대로예요\.'/);
+  assert.match(screen, /Alert\.alert\('코드 바꾸기', ROTATE_CONFIRM/);
+  // The origin follows the installed package so the showcase app's links open the showcase app.
+  assert.match(screen, /linkOriginFor\(Application\.applicationId\)/);
+});
+
+test('adding takes a typed code in upper case or a scanned QR, and a QR or link is confirmed before it adds', () => {
+  assert.match(screen, /onChangeText=\{\(text\) => \{ setCodeInput\(text\.toUpperCase\(\)\)/);
+  assert.match(screen, /autoCapitalize="characters"/);
+  assert.match(screen, /accessibilityLabel="친구 코드"/);
+  assert.match(screen, /import \{ CameraView, useCameraPermissions \} from 'expo-camera'/);
+  assert.match(screen, /barcodeScannerSettings=\{\{ barcodeTypes: \['qr'\] \}\}/);
+  assert.match(screen, /createScanGate\(\)/);
+  assert.match(screen, /parseScannedFriendCode\(raw\)/);
+  assert.match(screen, /Alert\.alert\(\s*'이 코드로 친구를 추가할까요\?'/);
+  assert.match(screen, /consumePendingFriendCode\(\)/);
+  // Every failure is said in Korean through one mapper; the raw code never reaches the screen.
+  assert.match(screen, /friendsErrorMessage\(error\)/);
+  assert.match(screen, /friendCodeProblemMessage\(checked\.reason\)/);
+  assert.match(screen, /카메라 권한이 없어/);
+});
+
+test('the ranking says once what friends can see and up to which day, and each friend row opens that friend', () => {
+  assert.match(screen, /친구 순위/);
+  assert.match(screen, /rankingNote\(me\.asOf\)/);
+  assert.match(screen, /buildRankingRows\(snapshot\)/);
+  assert.match(screen, /<TierDots medals=\{row\.medals\} \/>/);
+  assert.match(screen, /배지 \{row\.badges\.earned\}\/\{row\.badges\.total\}/);
+  assert.match(screen, /router\.push\(\{ pathname: '\/friends\/\[friendshipId\]'/);
+  assert.match(screen, /accessibilityLabel=\{rowAccessibilityLabel\(row\)\}/);
+  assert.match(screen, /<StateScene kind="empty" title="아직 친구가 없어요"/);
+  assert.match(screen, /<StateScene kind="loading"/);
+  assert.match(screen, /kind="error"/);
+  // Nothing in the list draws a date or a visit count.
+  assert.doesNotMatch(screen, /visitedAt|businessDate|방문 \{/);
+});
+
+test('the friend passport is read only: medals, badges, stamp names, and a confirmed end of the friendship', () => {
+  assert.match(passport, /<BackHeader title="친구 여권" \/>/);
+  assert.match(passport, /export const REMOVE_CONFIRM = '끊으면 서로의 여권이 사라지고, 이 친구는 예전 코드로 나를 다시 추가할 수 없어요\.'/);
+  assert.match(passport, /Alert\.alert\(`\$\{target\.nickname\} 님과 친구를 끊을까요\?`, REMOVE_CONFIRM/);
+  assert.match(passport, /\{ text: '친구 끊기', style: 'destructive'/);
+  assert.match(passport, /<Medallion[\s\S]*?progress=\{null\}/);
+  assert.match(passport, /passportAsOfNote\(snapshot\.me\.asOf\)/);
+  assert.match(passport, /visitedShopSummary\(friend\.stamps\.length\)/);
+  assert.match(passport, /accessibilityLabel=\{`\$\{name\} 도장 받음`\}/);
+  assert.match(passport, /caught\.code === 'FRIEND_NOT_FOUND'/);
+  // A stamp is not a link and has no date: nothing here reads a merchant id, a visit date or a count.
+  assert.doesNotMatch(passport, /Link |merchantId|businessDate|visitedAt/);
+  assert.doesNotMatch(passport, /onPress=\{\(\) => router\.push\(\{ pathname: '\/merchants/);
+  assert.match(passportRoute, /<BackHeader title="친구 여권" \/>/);
+  assert.match(passportRoute, /<SkyBackdrop><AuthRequiredRoute header=\{header\} \/><\/SkyBackdrop>/);
+});
+
+test('the two friends screens never put a friend code or nickname into a URL or a log', () => {
+  for (const source of [screen, passport, tabRoute, passportRoute]) {
+    assert.doesNotMatch(source, /console\.(log|info|warn|error|debug)/);
+    assert.doesNotMatch(source, /\?friend=|`[^`]*\/me\/friends[^`]*\$\{/);
+  }
+});

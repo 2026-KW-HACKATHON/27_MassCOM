@@ -50,3 +50,33 @@ export function parseFriendLink(url: string): string | undefined {
   const checked = validateFriendCode(value);
   return checked.ok ? checked.code : undefined;
 }
+
+export function friendCodeProblemMessage(reason: Extract<FriendCodeCheck, { ok: false }>['reason']): string {
+  switch (reason) {
+    case 'EMPTY':
+      return '친구 코드를 입력해 주세요.';
+    case 'TOO_SHORT':
+      return '코드는 8자리예요. 빠진 글자가 없는지 확인해 주세요.';
+    case 'TOO_LONG':
+      return '코드는 8자리예요. 글자가 더 들어갔는지 확인해 주세요.';
+    case 'INVALID_CHARACTER':
+      return '코드에는 헷갈리는 글자 0·O·1·I나 기호가 들어가지 않아요. 글자를 다시 확인해 주세요.';
+  }
+}
+
+export type ScannedFriendCode =
+  | { ok: true; code: string }
+  | { ok: false; reason: 'EMPTY' | 'NOT_A_FRIEND_CODE' };
+
+/**
+ * What a camera reads from a friend QR: our friend link, or a bare code. Any other QR (a payment, Wi-Fi settings, a claim code)
+ * is refused here so it is never sent to the API or shown back.
+ */
+export function parseScannedFriendCode(raw: string): ScannedFriendCode {
+  const value = raw.trim();
+  if (!value) return { ok: false, reason: 'EMPTY' };
+  const fromLink = parseFriendLink(value);
+  if (fromLink) return { ok: true, code: fromLink };
+  const bare = validateFriendCode(value);
+  return bare.ok && !value.includes(':') && !value.includes('/') ? { ok: true, code: bare.code } : { ok: false, reason: 'NOT_A_FRIEND_CODE' };
+}

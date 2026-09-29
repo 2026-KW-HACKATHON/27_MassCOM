@@ -38,6 +38,11 @@ export function rankingNote(asOf: string): string {
   return `친구에게는 메달·배지 수·가본 가게 이름만 보여요 · ${asOfLabel(asOf)} 기준`;
 }
 
+/** Said on a friend's passport: the day it counts up to, and why a shop visited today is not there yet. */
+export function passportAsOfNote(asOf: string): string {
+  return `${asOfLabel(asOf)} 기준이에요. 오늘 다녀온 가게는 내일부터 보여요.`;
+}
+
 /** "동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 미획득": tiers are always said in words, never by colour alone. */
 export function medalSummary(medals: readonly FriendMedal[]): string {
   return medals.map((medal) => `${medalCopy(medal.key).name} ${tierName(medal.tier)}`).join(', ');

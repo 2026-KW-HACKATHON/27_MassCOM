@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { contrast } from '../theme/contrast';
 import { darkColors, lightColors } from '../theme/palette';
+import { uiMetrics } from '../theme/ui-metrics';
 import { darkWorld, lightWorld } from '../theme/world';
 import { CLAIM_SLOT_FLEX, barHeightFor, tabIndicator } from './tab-bar-style';
 
@@ -72,22 +73,33 @@ test('the bar grows with text size so the raised button label never touches the 
   }
 });
 
-test('with four slots the raised claim slot is a little wider so "방문 인증" fits at 1.5x text even on a 320dp phone', () => {
+test('with five slots the raised claim slot is wider so "방문 인증" fits at 1.5x text even on a 320dp phone', () => {
   const rowWidth = 320 - 2 * 16;
-  const claimSlot = (rowWidth * CLAIM_SLOT_FLEX) / (CLAIM_SLOT_FLEX + 3);
-  const otherSlot = rowWidth / (CLAIM_SLOT_FLEX + 3);
+  const claimSlot = (rowWidth * CLAIM_SLOT_FLEX) / (CLAIM_SLOT_FLEX + 4);
+  const otherSlot = rowWidth / (CLAIM_SLOT_FLEX + 4);
   // Four Hangul glyphs and a space at 12sp x 1.5 (the label cap) are about 4.3 em wide.
   assert.ok(claimSlot >= 4.3 * 12 * 1.5, `claim slot ${claimSlot.toFixed(1)}dp`);
-  // The two-glyph labels (탐색, 지도, 도감) keep room next to their 4dp padding.
+  // The two-glyph labels (탐색, 지도, 도감, 친구) keep room next to their 4dp padding, and the slot stays a 48dp target.
   assert.ok(otherSlot - 8 >= 2 * 12 * 1.5, `tab slot ${otherSlot.toFixed(1)}dp`);
-  assert.ok(CLAIM_SLOT_FLEX >= 1 && CLAIM_SLOT_FLEX <= 1.4, 'still reads as one of four equal slots');
+  assert.ok(otherSlot >= uiMetrics.minTouch, `tab slot ${otherSlot.toFixed(1)}dp is a touch target`);
+  assert.ok(CLAIM_SLOT_FLEX >= 1 && CLAIM_SLOT_FLEX <= 1.6, 'still reads as one of five slots');
+});
+
+test('the raised claim stamp is the exact middle of the bar: two equal slots on each side of it', () => {
+  // 탐색 · 지도 · (방문 인증) · 도감 · 친구 with flex 1, 1, CLAIM_SLOT_FLEX, 1, 1.
+  const flex = [1, 1, CLAIM_SLOT_FLEX, 1, 1];
+  const total = flex.reduce((sum, value) => sum + value, 0);
+  const beforeClaim = flex[0]! + flex[1]!;
+  const afterClaim = flex[3]! + flex[4]!;
+  assert.equal(beforeClaim, afterClaim);
+  assert.ok(Math.abs((beforeClaim + CLAIM_SLOT_FLEX / 2) / total - 0.5) < 1e-12);
 });
 
 const bar = readFileSync(fileURLToPath(new URL('./floating-tab-bar.tsx', import.meta.url)), 'utf8');
 
 test('the claim slot takes its width from the shared constant', () => {
   assert.match(bar, /claimSlot: \{ flex: CLAIM_SLOT_FLEX/);
-  assert.match(bar, /Floating four-slot bar/);
+  assert.match(bar, /Floating five-slot bar/);
 });
 
 test('the tab row is a tablist and label sizes stop at 1.5x', () => {

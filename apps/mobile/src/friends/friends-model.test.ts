@@ -7,6 +7,7 @@ import {
   buildRankingRows,
   checkNicknameDraft,
   medalSummary,
+  passportAsOfNote,
   rankingNote,
   rowAccessibilityLabel,
   visitedShopSummary,
@@ -59,6 +60,10 @@ test('says which day the friend numbers count up to', () => {
     rankingNote('2026-09-28'),
     '친구에게는 메달·배지 수·가본 가게 이름만 보여요 · 9월 28일 기준',
   );
+});
+
+test('a friend passport says up to which day it counts and that today shows tomorrow', () => {
+  assert.equal(passportAsOfNote('2026-09-28'), '9월 28일 기준이에요. 오늘 다녀온 가게는 내일부터 보여요.');
 });
 
 test('reads medals with their tier names, including a medal not earned yet', () => {
