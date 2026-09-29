@@ -1022,8 +1022,55 @@ test('deleting an account deletes its sessions, so a leaked token finds no row a
       `INSERT INTO platform_admin_audit (id, actor_account_id, merchant_id, action, after_state)
        VALUES ($1, $2, $3, 'MERCHANT_UPDATED', $4)`, [randomUUID(), target, merchant, { name: '시험' }]);
 
+    // Issue #243 (visit cancel, coupon void/undo): the target as the staff member who canceled a visit and voided a coupon,
+    // as the actor of an undo, and as the earlier redeemer whose redemption someone else undid. The customer is the friend.
+    const canceledSlot = randomUUID();
+    const canceledVisit = randomUUID();
+    await pool.query(
+      `INSERT INTO claim_slots (id, merchant_id, customer_account_id, merchant_reference_hash, created_by_account_id,
+         token_hash, status, expires_at, claimed_at, created_at, updated_at)
+       VALUES ($1, $2, $3, decode($4, 'hex'), $5, decode($6, 'hex'), 'CLAIMED',
+         '2026-09-12T03:15:00Z', '2026-09-12T03:00:00Z', '2026-09-12T02:55:00Z', '2026-09-12T03:00:00Z')`,
+      [canceledSlot, merchant, friend, randomBytes(32).toString('hex'), target, randomBytes(32).toString('hex')]);
+    await pool.query(
+      `INSERT INTO visit_events (id, claim_slot_id, merchant_id, campaign_id, customer_account_id, occurred_at,
+         business_date, verification_level, status, progress_counted, cancellation_reason, canceled_at,
+         canceled_by_account_id, cancellation_note)
+       VALUES ($1, $2, $3, $4, $5, '2026-09-12T03:00:00Z', '2026-09-12', 'MERCHANT_CONFIRMED', 'CANCELED', false,
+         'WRONG_CUSTOMER', '2026-09-12T03:05:00Z', $6, '시험 취소')`,
+      [canceledVisit, canceledSlot, merchant, campaign, friend, target]);
+    const secondOffer = randomUUID();
+    await pool.query(
+      `INSERT INTO badge_reward_offers (id, milestone, merchant_id, title, detail, valid_days, issued_count, status, consent_note)
+       VALUES ($1, 2, $2, '삭제 시험 혜택 2', '시험', 30, 1, 'PAUSED', '시험 동의 기록')`, [secondOffer, merchant]);
+    await pool.query(
+      `INSERT INTO badge_coupons (id, customer_account_id, milestone, offer_id, merchant_id, title, detail, status,
+         issued_at, expires_at, voided_at, void_reason, void_note, voided_by_account_id)
+       VALUES ($1, $2, 1, $3, $4, '삭제 시험 혜택', '시험', 'VOIDED', $5, $6, $7, 'ISSUED_IN_ERROR', '시험 무효', $8)`,
+      [randomUUID(), friend, offer, merchant, t0, at(t0, 30 * 24 * hour), at(t0, hour), target]);
+    const undoneCoupon = randomUUID();
+    await pool.query(
+      `INSERT INTO badge_coupons (id, customer_account_id, milestone, offer_id, merchant_id, title, detail, status,
+         issued_at, expires_at)
+       VALUES ($1, $2, 2, $3, $4, '삭제 시험 혜택 2', '시험', 'ISSUED', $5, $6)`,
+      [undoneCoupon, friend, secondOffer, merchant, t0, at(t0, 30 * 24 * hour)]);
+    await pool.query(
+      `INSERT INTO badge_coupon_audit (id, coupon_id, merchant_id, action, actor_account_id, previous_redeemed_at,
+         previous_redeemed_by_account_id, created_at)
+       VALUES ($1, $2, $3, 'REDEMPTION_UNDONE', $4, $6, $5, $6), ($7, $2, $3, 'REDEMPTION_UNDONE', $5, $6, $4, $6)`,
+      [randomUUID(), undoneCoupon, merchant, target, admin, at(t0, hour), randomUUID()]);
+    await pool.query(
+      `INSERT INTO platform_admin_audit (id, actor_account_id, merchant_id, action, before_state, after_state)
+       VALUES ($1, $2, $3, 'COUPON_VOIDED', $4, $5)`,
+      [randomUUID(), target, merchant, { couponId: undoneCoupon, status: 'ISSUED' }, { couponId: undoneCoupon, status: 'VOIDED' }]);
+
     // The raw ID is in the data before the deletion, so the scan below is not an empty search.
-    assert.ok((await accountIdCells(pool, target)).length >= 15, 'the fixture reaches many tables');
+    const seededCells = await accountIdCells(pool, target);
+    assert.ok(seededCells.length >= 15, 'the fixture reaches many tables');
+    for (const cell of ['visit_events.canceled_by_account_id', 'badge_coupons.voided_by_account_id',
+      'badge_coupon_audit.actor_account_id', 'badge_coupon_audit.previous_redeemed_by_account_id']) {
+      assert.ok(seededCells.includes(cell), `the fixture puts the raw ID in ${cell}`);
+    }
     assert.equal(await webStore.resolve(webSession.token, 'masscom.kr'), target);
     assert.equal(await authSessions.resolve(bearer), target);
 
@@ -1038,6 +1085,18 @@ test('deleting an account deletes its sessions, so a leaked token finds no row a
     await assert.rejects(webStore.resolveWithAge(webSession.token, 'masscom.kr'), /WEB_SESSION_INVALID/);
 
     assert.deepEqual(await accountIdCells(pool, target), [], 'no text or jsonb column keeps the raw account ID');
+    // The #243 columns are pseudonymized, not blanked: the rows stay as audit and only the account is unlinkable.
+    const alias = /^deleted:[0-9a-f]{64}$/;
+    assert.match((await pool.query<{ v: string }>(
+      'SELECT canceled_by_account_id AS v FROM visit_events WHERE id = $1', [canceledVisit])).rows[0]!.v, alias);
+    assert.match((await pool.query<{ v: string }>(
+      `SELECT voided_by_account_id AS v FROM badge_coupons WHERE customer_account_id = $1 AND status = 'VOIDED'`, [friend])).rows[0]!.v, alias);
+    const undone = (await pool.query<{ actor: string; earlier: string }>(
+      `SELECT actor_account_id AS actor, previous_redeemed_by_account_id AS earlier
+       FROM badge_coupon_audit WHERE coupon_id = $1`, [undoneCoupon])).rows;
+    assert.equal(undone.length, 2);
+    assert.ok(undone.some((row) => alias.test(row.actor) && row.earlier === admin), 'the actor is pseudonymized');
+    assert.ok(undone.some((row) => row.actor === admin && alias.test(row.earlier)), 'the earlier redeemer is pseudonymized');
     assert.equal((await web.status(receipt)).status, 'PROCESSED');
   });
 });

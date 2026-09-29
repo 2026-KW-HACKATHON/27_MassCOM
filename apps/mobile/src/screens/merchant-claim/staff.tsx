@@ -9,6 +9,7 @@ import { ClaimQr } from '@/commerce/claim-qr';
 import { CommerceApiError, createCommerceApiClient, type IssuedClaim, type ResolvedCustomerIdentity, type StaffCoupon } from '@/commerce/commerce-api';
 import { canIssueCustomerIdentity, createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired, parseCustomerIdentityToken } from '@/commerce/customer-identity';
 import { colorsForScheme } from '@/theme/palette';
+import { StaffReversalCards } from './staff-reversal';
 import { makeMerchantClaimStyles } from './styles';
 
 export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInvalid, topSlot }: {
@@ -259,6 +260,7 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
         <Button styles={styles} label="사용 처리" accessibilityLabel={`${coupon.title} 사용 처리`} disabled={busy} onPress={() => confirmRedeem(coupon)} />
       </View>)}
     </View> : null}
+    <StaffReversalCards api={api} merchantId={merchantId} styles={styles} />
     {issued ? <View style={styles.tokenCard}>
       <Text style={styles.tokenLabel}>2 · 고객 수령 QR · v{issued.tokenVersion}</Text>
       <Text style={styles.expiry}>만료: {new Date(issued.expiresAt).toLocaleString('ko-KR')}</Text>

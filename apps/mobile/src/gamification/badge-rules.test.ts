@@ -5,6 +5,7 @@ import type { BadgeBook, Coupon, Medal, MedalKind, Reward } from './badge-api';
 import {
   badgesToNextBox,
   couponAccessibilityLabel,
+  couponAfterPoll,
   couponExpiryLabel,
   couponStatusLabel,
   couponsOf,
@@ -104,12 +105,19 @@ test('reward boxes are named and report the badges still needed', () => {
   assert.equal(rewardStatusText({ state: 'LOCKED', requiredTiers: 6 }, 4), '배지 2개 더');
   assert.equal(rewardStatusText({ state: 'READY', requiredTiers: 3 }, 3), '지금 열 수 있어요');
   assert.equal(rewardStatusText({ state: 'UNAVAILABLE', requiredTiers: 3 }, 3), '달성! 참여 가게 혜택 준비 중');
+  // 관리자가 쿠폰을 무효로 한 상자는 준비 중이라고 하지 않고 더 받을 수 없다고 정확히 알린다.
+  assert.equal(rewardStatusText({ state: 'UNAVAILABLE', requiredTiers: 3, unavailableReason: 'COUPON_REVOKED' }, 3),
+    '이 혜택은 더 이상 받을 수 없어요');
   assert.equal(rewardStatusText({ state: 'OPENED', requiredTiers: 3 }, 3), '쿠폰을 받았어요');
   const locked: Reward = {
     milestone: 2, requiredTiers: 6, state: 'LOCKED', coupon: null,
     offer: { merchantId: 'm-b', merchantName: '가상 점포 B', title: '체험 디저트', detail: '', validDays: 30 },
   };
   assert.equal(rewardAccessibilityLabel(locked, 4), '두 번째 상자, 배지 6개 필요, 배지 2개 더, 혜택 가상 점포 B 체험 디저트');
+  const voided: Reward = {
+    milestone: 1, requiredTiers: 3, state: 'UNAVAILABLE', coupon: null, offer: null, unavailableReason: 'COUPON_REVOKED',
+  };
+  assert.equal(rewardAccessibilityLabel(voided, 3), '첫 번째 상자, 배지 3개 필요, 이 혜택은 더 이상 받을 수 없어요');
 });
 
 test('diff reports newly raised tiers and newly openable boxes only', () => {
@@ -161,6 +169,27 @@ test('coupon expiry uses the Korean calendar date', () => {
   assert.equal(couponExpiryLabel('2026-12-31T15:00:00.000Z'), '~1월 1일까지');
   assert.deepEqual(['ISSUED', 'REDEEMED', 'EXPIRED'].map((s) => couponStatusLabel(s as Coupon['status'])), ['사용 가능', '사용 완료', '만료']);
   assert.equal(couponAccessibilityLabel(coupon), '쿠폰 체험 음료 1잔, 가상 점포 A, 사용 가능, 10월 29일까지');
+  assert.equal(couponStatusLabel('VOIDED'), '사용할 수 없는 쿠폰');
+  // 무효 쿠폰은 "~까지" 만료 날짜가 오해를 부르므로 읽어 주지 않는다(다른 상태는 그대로다).
+  assert.equal(couponAccessibilityLabel({ ...coupon, status: 'VOIDED' }), '쿠폰 체험 음료 1잔, 가상 점포 A, 사용할 수 없는 쿠폰');
+});
+
+test('an open coupon sheet follows the polled book: redeemed, voided or withdrawn', () => {
+  const opened = book({ explorer: 3, regular: 5, steady: 7 }, ['OPENED', 'READY', 'READY']);
+  const current = couponsOf(opened)[0]!;
+  // 아직 쓸 수 있으면 아무것도 바꾸지 않는다.
+  assert.equal(couponAfterPoll(current, opened), undefined);
+  const withStatus = (status: Coupon['status']) => ({
+    rewards: opened.rewards.map((reward) => (reward.coupon ? { ...reward, coupon: { ...reward.coupon, status } } : reward)),
+  });
+  assert.equal(couponAfterPoll(current, withStatus('REDEEMED'))?.status, 'REDEEMED');
+  assert.equal(couponAfterPoll(current, withStatus('VOIDED'))?.status, 'VOIDED');
+  assert.equal(couponAfterPoll(current, withStatus('EXPIRED'))?.status, 'EXPIRED');
+  // 방문 취소로 무효가 된 쿠폰은 도감에서 사라진다: 목록에 없으면 사용할 수 없는 쿠폰이다.
+  const withdrawn = couponAfterPoll(current, { rewards: opened.rewards.map((reward) => ({ ...reward, coupon: null })) });
+  assert.equal(withdrawn?.status, 'VOIDED');
+  assert.equal(withdrawn?.couponId, current.couponId);
+  assert.equal(withdrawn?.title, current.title);
 });
 
 test('coupons are listed from opened boxes and found by id', () => {

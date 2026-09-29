@@ -68,6 +68,39 @@ export function campaignDraftPayload(data) {
     startsAt, endsAt, enrollmentCapacity, rewardGoals };
 }
 
+const couponVoidReasons = [
+  ['ISSUED_IN_ERROR', '잘못 발급했어요'],
+  ['ABUSE_SUSPECTED', '부정 사용이 의심돼요'],
+  ['MERCHANT_REQUEST', '점주가 요청했어요'],
+  ['OTHER', '기타'],
+];
+const voidReasonLabels = new Map([...couponVoidReasons, ['VISIT_CANCELED', '방문 취소로 조건이 깨져 무효']]);
+const couponStatusLabels = { ISSUED: '사용 가능', REDEEMED: '사용 완료', VOIDED: '무효' };
+const kstMonthDay = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' });
+// "9월 29일" 형태. 브라우저 시간대·지역이 아니라 한국 날짜로 센다.
+function dateLabel(iso) {
+  const parts = kstMonthDay.formatToParts(new Date(iso));
+  const part = type => parts.find(item => item.type === type)?.value;
+  return `${part('month')}월 ${part('day')}일`;
+}
+
+const isAdminCoupon = coupon => coupon !== null && typeof coupon === 'object'
+  && typeof coupon.couponId === 'string' && coupon.couponId !== '' && Number.isInteger(coupon.milestone)
+  && typeof coupon.title === 'string' && Object.hasOwn(couponStatusLabels, coupon.status)
+  && typeof coupon.expired === 'boolean' && typeof coupon.customerLabel === 'string'
+  && typeof coupon.issuedAt === 'string' && !Number.isNaN(Date.parse(coupon.issuedAt))
+  && (coupon.voidReason === null || typeof coupon.voidReason === 'string');
+
+export function couponVoidMessage(error) {
+  if (error.status === 401 || error.code === 'ADMIN_FORBIDDEN') return '관리자 권한을 확인하지 못했어요. 다시 로그인해 주세요.';
+  switch (error.code) {
+    case 'ADMIN_COUPON_NOT_VOIDABLE': return '이미 사용한 쿠폰은 무효로 할 수 없어요. 목록을 새로 불러왔어요.';
+    case 'ADMIN_COUPON_NOT_FOUND': return '쿠폰을 찾을 수 없어요. 목록을 새로 불러왔어요.';
+    case 'ADMIN_INVALID_INPUT': return '사유를 고르고, 메모는 100자 이하로 연락처·이메일·주소 없이 적어 주세요.';
+    default: return '쿠폰을 무효로 하지 못했어요. 잠시 후 다시 시도해 주세요.';
+  }
+}
+
 function editField(doc, label, name, value, type = 'text') {
   const wrapper = doc.createElement('label');
   wrapper.textContent = label + ' ';
@@ -297,6 +330,116 @@ export async function loadAdmin(fetcher, doc) {
       approveButton.textContent = '이 점포 직원 승인';
       approve.append(codeLabel, approveButton);
       staffPanel.append(staffTitle, staffList, approve);
+      const couponPanel = doc.createElement('section');
+      couponPanel.className = 'admin-coupons';
+      couponPanel.setAttribute('aria-label', `${merchant.name} 쿠폰 관리`);
+      const couponTitle = doc.createElement('h4');
+      couponTitle.textContent = '쿠폰 관리';
+      const couponHelp = doc.createElement('p');
+      couponHelp.textContent = '이 점포에서 쓰는 보상 쿠폰 최근 100장이에요. 아직 쓰지 않은 쿠폰만 사유와 함께 무효로 할 수 있고 사용한 쿠폰은 바꿀 수 없어요. 고객 계정은 가림 표시로만 보여요.';
+      const couponLoad = doc.createElement('button');
+      couponLoad.type = 'button';
+      couponLoad.textContent = '쿠폰 목록 불러오기';
+      couponLoad.setAttribute('aria-label', `${merchant.name} 쿠폰 목록 불러오기`);
+      const couponStatus = doc.createElement('p');
+      couponStatus.setAttribute('role', 'status');
+      couponStatus.setAttribute('aria-live', 'polite');
+      const couponList = doc.createElement('ul');
+      couponList.className = 'reversal-list';
+      couponPanel.append(couponTitle, couponHelp, couponLoad, couponStatus, couponList);
+      staffPanel.append(couponPanel);
+      let couponBusy = false;
+      const loadCoupons = async () => {
+        if (couponBusy) return;
+        couponBusy = true;
+        couponLoad.disabled = true;
+        couponStatus.textContent = '쿠폰을 불러오는 중이에요.';
+        try {
+          const payload = await jsonRequest(fetcher, `${endpoint}/${encodeURIComponent(merchant.id)}/coupons`);
+          if (!Array.isArray(payload.coupons) || !payload.coupons.every(isAdminCoupon)) throw new Error('invalid coupons');
+          couponList.replaceChildren();
+          for (const coupon of payload.coupons) {
+            const item = doc.createElement('li');
+            const text = doc.createElement('p');
+            text.className = 'reversal-text';
+            const state = coupon.status === 'ISSUED' && coupon.expired ? '만료' : couponStatusLabels[coupon.status];
+            const why = coupon.status === 'VOIDED' && coupon.voidReason ? ` · ${voidReasonLabels.get(coupon.voidReason) ?? '사유 기록됨'}` : '';
+            text.textContent = `${coupon.milestone}번째 상자 · ${coupon.title} · ${coupon.customerLabel} · ${state}${why} · 발급 ${dateLabel(coupon.issuedAt)}`;
+            item.append(text);
+            if (coupon.status === 'ISSUED') {
+              const voidForm = doc.createElement('form');
+              voidForm.className = 'reversal-form';
+              const reasonLabel = doc.createElement('label');
+              reasonLabel.textContent = '무효 사유 ';
+              const reason = doc.createElement('select');
+              reason.name = 'reason';
+              for (const [value, label] of couponVoidReasons) {
+                const option = doc.createElement('option');
+                option.value = value;
+                option.textContent = label;
+                reason.append(option);
+              }
+              reason.value = couponVoidReasons[0][0];
+              reasonLabel.append(reason);
+              const noteLabel = doc.createElement('label');
+              noteLabel.textContent = '메모(선택, 100자까지 · 연락처·이메일·주소·이름은 적지 마세요) ';
+              const note = doc.createElement('input');
+              note.name = 'note';
+              note.type = 'text';
+              note.maxLength = 100;
+              note.autocomplete = 'off';
+              note.value = '';
+              noteLabel.append(note);
+              const voidButton = doc.createElement('button');
+              voidButton.type = 'submit';
+              voidButton.className = 'danger';
+              voidButton.textContent = '쿠폰 무효화';
+              voidButton.setAttribute('aria-label', `${merchant.name} ${coupon.title} ${coupon.customerLabel} 쿠폰 무효화`);
+              voidForm.append(reasonLabel, noteLabel, voidButton);
+              voidForm.addEventListener('submit', async event => {
+                event.preventDefault?.();
+                if (couponBusy) return;
+                const confirmed = doc.defaultView?.confirm?.(
+                  `${coupon.title} · ${coupon.customerLabel}\n이 쿠폰을 무효로 할까요? 고객은 더 이상 쓸 수 없고 되돌릴 수 없어요.`);
+                if (confirmed !== true) return;
+                couponBusy = true;
+                voidButton.disabled = true;
+                try {
+                  const body = { reason: reason.value };
+                  const trimmed = note.value.trim();
+                  if (trimmed) body.note = trimmed;
+                  const result = await jsonRequest(fetcher, `/api/web/admin/coupons/${encodeURIComponent(coupon.couponId)}/void`, 'POST', body);
+                  if (adminRequests.get(doc) !== requestId) return;
+                  if (!result?.coupon || result.coupon.status !== 'VOIDED') throw new Error('invalid void response');
+                  couponBusy = false;
+                  await loadCoupons();
+                  couponStatus.textContent = result.replayed === true ? '이미 무효로 처리된 쿠폰이에요.' : '쿠폰을 무효로 했어요.';
+                } catch (error) {
+                  if (adminRequests.get(doc) !== requestId) return;
+                  // 이미 사용됐거나 없는 쿠폰이면 목록이 낡은 것이라 새로 읽고 안내를 그대로 남긴다.
+                  if (error.code === 'ADMIN_COUPON_NOT_VOIDABLE' || error.code === 'ADMIN_COUPON_NOT_FOUND') {
+                    couponBusy = false;
+                    await loadCoupons();
+                  }
+                  couponStatus.textContent = couponVoidMessage(error);
+                  voidButton.disabled = false;
+                } finally { couponBusy = false; }
+              });
+              item.append(voidForm);
+            }
+            couponList.append(item);
+          }
+          couponStatus.textContent = payload.coupons.length ? `쿠폰 ${payload.coupons.length}장이에요.` : '아직 발급된 쿠폰이 없어요.';
+        } catch (error) {
+          if (adminRequests.get(doc) !== requestId) return;
+          couponList.replaceChildren();
+          couponStatus.textContent = error.status === 401 || error.status === 403
+            ? '관리자 권한을 확인하지 못했어요. 다시 로그인해 주세요.'
+            : error.code === 'ADMIN_MERCHANT_NOT_FOUND' ? '점포를 찾을 수 없어요. 시연 점포는 대상이 아니에요.'
+              : '쿠폰 목록을 불러오지 못했어요. 다시 시도해 주세요.';
+        } finally { couponBusy = false; couponLoad.disabled = false; }
+      };
+      couponLoad.addEventListener('click', loadCoupons);
       try {
         const staff = await jsonRequest(fetcher, `${endpoint}/${encodeURIComponent(merchant.id)}/staff`);
         if (adminRequests.get(doc) !== requestId) return;

@@ -81,7 +81,7 @@ export function CouponTicket({ coupon, onUse }: { coupon: Coupon; onUse?: (coupo
           <View style={[styles.chip, { backgroundColor: statusStyle.backgroundColor }]}>
             <Text style={[styles.chipText, { color: statusStyle.color }]}>{couponStatusLabel(coupon.status)}</Text>
           </View>
-          <Text style={[styles.ticketExpiry, muted]}>{couponExpiryLabel(coupon.expiresAt)}</Text>
+          {coupon.status === 'VOIDED' ? null : <Text style={[styles.ticketExpiry, muted]}>{couponExpiryLabel(coupon.expiresAt)}</Text>}
         </View>
         {coupon.status === 'ISSUED' && onUse ? (
           <Pressable

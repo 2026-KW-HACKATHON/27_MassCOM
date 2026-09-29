@@ -165,11 +165,12 @@ export class PostgresMintRequestService implements MintRequestService {
         throw new MintRequestError('CHAIN_MISMATCH');
       }
 
+      // 취소된(CANCELLED) 작업은 체인에 나간 적이 없어 발행 여유를 차지하지 않는다(방문 취소·계정 삭제로 생긴다).
       const reserved = (
         await client.query<{ count: number }>(
           `SELECT count(*)::integer AS count
            FROM mint_jobs
-           WHERE nft_series_id = $1`,
+           WHERE nft_series_id = $1 AND status <> 'CANCELLED'`,
           [entitlement.nft_series_id],
         )
       ).rows[0]!.count;

@@ -44,6 +44,7 @@ import {
   type RedeemedClaimSlot,
 } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
+import { ReversalError, type ReversalErrorCode, type ReversalService } from './reversal.js';
 import {
   MerchantArtError,
   type ArtRoundView,
@@ -217,6 +218,7 @@ async function startFixture(
   merchantArt?: MerchantArtService,
   showcaseDeletionIntake?: AccountDeletionIntakeService,
   deletionProcessing?: AccountDeletionProcessingService,
+  reversals?: ReversalService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -253,6 +255,7 @@ async function startFixture(
     merchantArt,
     showcaseDeletionIntake,
     deletionProcessing,
+    reversals,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -3425,4 +3428,295 @@ test('art routes are closed without configuration and the public image route nee
   // 그 밖의 경로는 여전히 JSON이다.
   const health = await fetch(`${served.base}/health`);
   assert.match(health.headers.get('content-type') ?? '', /^application\/json/);
+});
+
+const sampleRecentVisits = {
+  businessDate: '2026-09-30',
+  visits: [{ visitEventId: '11111111-1111-4111-8111-111111111111', occurredAt: '2026-09-30T03:00:00.000Z',
+    customerLabel: '손님 K7QM', status: 'VALID' as const, progressCounted: true, cancellationReason: null,
+    canCancel: true }],
+};
+const sampleCancelled = {
+  visitEventId: '11111111-1111-4111-8111-111111111111', status: 'CANCELED' as const, reason: 'DUPLICATE',
+  note: null, canceledAt: '2026-09-30T03:05:00.000Z', revokedRewardCount: 1, voidedCouponCount: 0, replayed: false,
+};
+const sampleRedemptions = {
+  coupons: [{ couponId: '22222222-2222-4222-8222-222222222222', title: '음료 1잔',
+    redeemedAt: '2026-09-30T03:00:00.000Z', customerLabel: '손님 K7QM', redeemedByMe: true,
+    undoUntil: '2026-09-30T03:10:00.000Z', canUndo: true }],
+};
+
+function reversalFixture(overrides: Partial<ReversalService> = {}, calls: unknown[][] = []): ReversalService {
+  return {
+    listRecentVisits: async input => { calls.push(['visits', input]); return sampleRecentVisits; },
+    cancelVisit: async input => { calls.push(['cancel', input]); return sampleCancelled; },
+    listRecentCouponRedemptions: async input => { calls.push(['redemptions', input]); return sampleRedemptions; },
+    undoCouponRedemption: async input => {
+      calls.push(['undo', input]);
+      return { couponId: input.couponId, status: 'ISSUED', replayed: false };
+    },
+    ...overrides,
+  };
+}
+
+const reversalErrorStatuses: [ReversalErrorCode, number][] = [
+  ['INVALID_REVERSAL_REASON', 400], ['INVALID_REVERSAL_NOTE', 400], ['VISIT_NOT_FOUND', 404],
+  ['COUPON_NOT_FOUND', 404], ['VISIT_CANCEL_WINDOW_CLOSED', 409], ['VISIT_REWARD_ALREADY_MINTED', 409],
+  ['VISIT_REWARD_MINT_IN_PROGRESS', 409], ['COUPON_UNDO_WINDOW_CLOSED', 409], ['COUPON_NOT_REDEEMED', 409],
+  ['COUPON_REQUIREMENT_LOST', 409], ['COUPON_SELF_UNDO', 403], ['ACCOUNT_DELETED', 410],
+];
+
+test('staff reversal routes check permission, body shape and map reversal errors', async (t) => {
+  const calls: unknown[][] = [];
+  let allowed = true;
+  let failure: ReversalError | undefined;
+  const access: MerchantAccessFixture = { requirePermission: async input => {
+    calls.push(['permission', input]);
+    if (!allowed) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    return { merchantId: input.merchantId, role: 'STAFF', permissions: ['CONFIRM_VISIT'] };
+  } };
+  const reversals = reversalFixture({
+    listRecentVisits: async input => { calls.push(['visits', input]); if (failure) throw failure; return sampleRecentVisits; },
+    cancelVisit: async input => { calls.push(['cancel', input]); if (failure) throw failure; return sampleCancelled; },
+    undoCouponRedemption: async input => {
+      calls.push(['undo', input]);
+      if (failure) throw failure;
+      return { couponId: input.couponId, status: 'ISSUED', replayed: false };
+    },
+  }, calls);
+  const base = await startFixture(t, undefined, undefined, access, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, undefined, false,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, reversals);
+  const visitId = sampleCancelled.visitEventId;
+  const couponId = sampleRedemptions.coupons[0]!.couponId;
+  const send = (path: string, method = 'GET', body?: object | string, account = 'staff-1') =>
+    fetch(`${base}/merchant/merchants/m/${path}`, {
+      method,
+      headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(account ? { 'x-account-id': account } : {}) },
+      ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
+    });
+
+  assert.equal((await send('recent-visits', 'GET', undefined, '')).status, 401);
+  const visits = await send('recent-visits');
+  assert.equal(visits.status, 200);
+  const visitsBody = await visits.json();
+  assert.deepEqual(visitsBody, sampleRecentVisits);
+  assert.equal(JSON.stringify(visitsBody).includes('customerAccountId'), false);
+  const canceled = await send(`visits/${visitId}/cancel`, 'POST', { reason: 'DUPLICATE', note: '메모' });
+  assert.equal(canceled.status, 200);
+  assert.deepEqual(await canceled.json(), sampleCancelled);
+  const redemptions = await send('recent-coupon-redemptions');
+  assert.equal(redemptions.status, 200);
+  assert.deepEqual(await redemptions.json(), sampleRedemptions);
+  const undone = await send(`coupons/${couponId}/undo-redeem`, 'POST', {});
+  assert.equal(undone.status, 200);
+  assert.deepEqual(await undone.json(), { couponId, status: 'ISSUED', replayed: false });
+  assert.deepEqual(calls.filter(call => call[0] !== 'permission'), [
+    ['visits', { merchantId: 'm', staffAccountId: 'staff-1' }],
+    ['cancel', { merchantId: 'm', staffAccountId: 'staff-1', visitEventId: visitId, reason: 'DUPLICATE', note: '메모' }],
+    ['redemptions', { merchantId: 'm', staffAccountId: 'staff-1' }],
+    ['undo', { merchantId: 'm', staffAccountId: 'staff-1', couponId }],
+  ]);
+  assert.equal(calls.filter(call => call[0] === 'permission').length, 4);
+  assert.deepEqual(calls.filter(call => call[0] === 'permission')[0],
+    ['permission', { accountId: 'staff-1', merchantId: 'm', permission: 'CONFIRM_VISIT' }]);
+
+  const served = calls.length;
+  for (const body of [{ reason: 'DUPLICATE', customerAccountId: 'forged' }, { reason: 'DUPLICATE', extra: 1 }]) {
+    const response = await send(`visits/${visitId}/cancel`, 'POST', body);
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { code: 'INVALID_REQUEST' });
+  }
+  assert.equal((await send(`visits/${visitId}/cancel`, 'POST', '[]')).status, 400);
+  assert.equal((await send(`coupons/${couponId}/undo-redeem`, 'POST', { couponId: 'other' })).status, 400);
+  assert.equal(calls.filter(call => call[0] === 'cancel' || call[0] === 'undo').length, 2);
+  assert.ok(calls.length > served);
+  // 알 수 없는 메서드·경로는 되돌리기 경로가 아니다.
+  assert.equal((await send('recent-visits', 'POST', {})).status, 404);
+  assert.equal((await send(`visits/${visitId}/cancel`, 'GET')).status, 404);
+  assert.equal((await send(`visits/${visitId}/cancel/extra`, 'POST', {})).status, 404);
+
+  for (const [code, status] of reversalErrorStatuses) {
+    failure = new ReversalError(code);
+    for (const response of [
+      await send('recent-visits'),
+      await send(`visits/${visitId}/cancel`, 'POST', { reason: 'DUPLICATE' }),
+      await send(`coupons/${couponId}/undo-redeem`, 'POST', {}),
+    ]) {
+      assert.equal(response.status, status, code);
+      assert.deepEqual(await response.json(), { code });
+    }
+  }
+  failure = undefined;
+
+  allowed = false;
+  const before = calls.filter(call => call[0] === 'visits' || call[0] === 'cancel' || call[0] === 'undo').length;
+  for (const response of [
+    await send('recent-visits'), await send('recent-coupon-redemptions'),
+    await send(`visits/${visitId}/cancel`, 'POST', { reason: 'DUPLICATE' }),
+    await send(`coupons/${couponId}/undo-redeem`, 'POST', {}),
+  ]) {
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  }
+  assert.equal(calls.filter(call => call[0] === 'visits' || call[0] === 'cancel' || call[0] === 'undo').length, before);
+
+  const percent = await fetch(`${base}/merchant/merchants/%E0%A4%A/recent-visits`, { headers: { 'x-account-id': 'staff-1' } });
+  assert.equal(percent.status, 400);
+  assert.deepEqual(await percent.json(), { code: 'INVALID_PATH_PARAMETER' });
+
+  const unconfigured = await startFixture(t, undefined, undefined, access);
+  assert.equal((await fetch(`${unconfigured}/merchant/merchants/m/recent-visits`, { headers: { 'x-account-id': 'staff-1' } })).status, 503);
+});
+
+test('web merchant reversal routes require origin, JSON, session, permission and membership', async (t) => {
+  const calls: unknown[][] = [];
+  let allowed = true;
+  let member = true;
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async token => {
+      if (token !== 'staff-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'staff-account';
+    }, logout: async () => {},
+  };
+  const staff = { mine: async () => member ? [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF' }] : [] } as unknown as
+    Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const access: MerchantAccessFixture = { requirePermission: async input => {
+    calls.push(['permission', input]);
+    if (!allowed) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    return { merchantId: input.merchantId, role: 'STAFF', permissions: ['CONFIRM_VISIT'] };
+  } };
+  const base = await startFixture(t, undefined, undefined, access, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
+    webAuth, false, undefined, undefined, staff, undefined, undefined, undefined, undefined, undefined, undefined,
+    reversalFixture({}, calls));
+  const headers = { cookie: 'web_session=staff-cookie', origin: 'https://masscom.kr', 'content-type': 'application/json' };
+  const prefix = '/api/web/merchant/merchants/real-merchant';
+  const visitId = sampleCancelled.visitEventId;
+  const couponId = sampleRedemptions.coupons[0]!.couponId;
+  const write = (suffix: string, body: object | string = {}, customHeaders: Record<string, string> = headers, host = 'masscom.kr') =>
+    webRequest(base, `${prefix}/${suffix}`, { method: 'POST', headers: customHeaders, host,
+      body: typeof body === 'string' ? body : JSON.stringify(body) });
+  const read = (suffix: string, customHeaders: Record<string, string> = { cookie: headers.cookie }, host = 'masscom.kr') =>
+    webRequest(base, `${prefix}/${suffix}`, { headers: customHeaders, host });
+
+  const visits = await read('recent-visits');
+  assert.equal(visits.status, 200);
+  assert.deepEqual(await visits.json(), sampleRecentVisits);
+  assert.equal(visits.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.equal(visits.headers.get('cache-control'), 'no-store');
+  const canceled = await write(`visits/${visitId}/cancel`, { reason: 'WRONG_CUSTOMER' });
+  assert.equal(canceled.status, 200);
+  assert.deepEqual(await canceled.json(), sampleCancelled);
+  assert.equal((await read('recent-coupon-redemptions')).status, 200);
+  const undone = await write(`coupons/${couponId}/undo-redeem`);
+  assert.equal(undone.status, 200);
+  assert.deepEqual(await undone.json(), { couponId, status: 'ISSUED', replayed: false });
+  assert.deepEqual(calls.filter(call => call[0] !== 'permission'), [
+    ['visits', { merchantId: 'real-merchant', staffAccountId: 'staff-account' }],
+    ['cancel', { merchantId: 'real-merchant', staffAccountId: 'staff-account', visitEventId: visitId,
+      reason: 'WRONG_CUSTOMER', note: undefined }],
+    ['redemptions', { merchantId: 'real-merchant', staffAccountId: 'staff-account' }],
+    ['undo', { merchantId: 'real-merchant', staffAccountId: 'staff-account', couponId }],
+  ]);
+  const served = () => calls.filter(call => call[0] !== 'permission').length;
+  const servedBefore = served();
+
+  for (const suffix of [`visits/${visitId}/cancel`, `coupons/${couponId}/undo-redeem`]) {
+    assert.equal((await write(suffix, { reason: 'DUPLICATE' }, { ...headers, origin: 'https://evil.example' })).status, 403, suffix);
+    assert.equal((await write(suffix, { reason: 'DUPLICATE' }, { ...headers, 'content-type': 'text/plain' })).status, 403, suffix);
+    assert.equal((await write(suffix, { reason: 'DUPLICATE' }, headers, 'api.masscom.kr')).status, 403, suffix);
+    assert.equal((await write(suffix, { reason: 'DUPLICATE' }, { ...headers, cookie: '' })).status, 401, suffix);
+  }
+  for (const suffix of ['recent-visits', 'recent-coupon-redemptions']) {
+    assert.equal((await read(suffix, { cookie: '' })).status, 401, suffix);
+    assert.equal((await read(suffix, { cookie: headers.cookie }, 'evil.example')).status, 403, suffix);
+  }
+  assert.equal((await write(`visits/${visitId}/cancel`, { reason: 'DUPLICATE', customerAccountId: 'forged' })).status, 400);
+  allowed = false;
+  for (const response of [
+    await read('recent-visits'), await write(`visits/${visitId}/cancel`, { reason: 'DUPLICATE' }),
+    await write(`coupons/${couponId}/undo-redeem`),
+  ]) assert.equal(response.status, 403);
+  allowed = true;
+  member = false;
+  for (const response of [
+    await read('recent-visits'), await read('recent-coupon-redemptions'),
+    await write(`visits/${visitId}/cancel`, { reason: 'DUPLICATE' }), await write(`coupons/${couponId}/undo-redeem`),
+  ]) {
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  }
+  member = true;
+  assert.equal(served(), servedBefore);
+
+  const unconfigured = await startFixture(t, undefined, undefined, access, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    undefined, undefined, staff);
+  const missing = await webRequest(unconfigured, `${prefix}/recent-visits`, { headers: { cookie: headers.cookie } });
+  assert.equal(missing.status, 503);
+  assert.deepEqual(await missing.json(), { code: 'REVERSALS_NOT_CONFIGURED' });
+});
+
+test('admin coupon routes list and void behind the admin cookie, origin and JSON checks', async (t) => {
+  const voided: unknown[][] = [];
+  let failure: AdminError | undefined;
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async token => {
+      if (token !== 'admin-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'admin-account';
+    }, logout: async () => {},
+  };
+  const coupon = { couponId: '22222222-2222-4222-8222-222222222222', milestone: 1, title: '음료 1잔', status: 'ISSUED',
+    expired: false, issuedAt: '2026-09-29T00:00:00.000Z', expiresAt: '2026-10-29T00:00:00.000Z',
+    redeemedAt: null, voidReason: null, customerLabel: '손님 K7QM' };
+  const admin = {
+    isAdmin: async (account: string) => account === 'admin-account',
+    listMerchantCoupons: async (...args: unknown[]) => { voided.push(['list', ...args]); return [coupon]; },
+    voidCoupon: async (...args: unknown[]) => {
+      voided.push(['void', ...args]);
+      if (failure) throw failure;
+      return { coupon: { couponId: coupon.couponId, status: 'VOIDED', voidReason: 'OTHER', voidedAt: '2026-09-30T00:00:00.000Z' },
+        replayed: false };
+    },
+  } as unknown as PostgresAdminService;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const headers = { cookie: 'web_session=admin-cookie', origin: 'https://masscom.kr', 'content-type': 'application/json' };
+  const listPath = '/api/web/admin/merchants/real-1/coupons';
+  const voidPath = `/api/web/admin/coupons/${coupon.couponId}/void`;
+
+  assert.equal((await webRequest(base, listPath)).status, 401);
+  const listed = await webRequest(base, listPath, { headers: { cookie: headers.cookie } });
+  assert.equal(listed.status, 200);
+  assert.deepEqual(await listed.json(), { coupons: [coupon] });
+  const post = (body: object | string, customHeaders: Record<string, string> = headers) =>
+    webRequest(base, voidPath, { method: 'POST', headers: customHeaders, body: typeof body === 'string' ? body : JSON.stringify(body) });
+  assert.equal((await post({ reason: 'OTHER' }, { ...headers, origin: 'https://other.example' })).status, 403);
+  assert.equal((await post({ reason: 'OTHER' }, { ...headers, 'content-type': 'text/plain' })).status, 403);
+  assert.equal((await post({ reason: 'OTHER' }, { ...headers, cookie: '' })).status, 401);
+  assert.equal((await post({ reason: 'OTHER', couponId: 'x' })).status, 400);
+  assert.equal((await post('[]')).status, 400);
+  const ok = await post({ reason: 'OTHER', note: '메모' });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(await ok.json(), { coupon: { couponId: coupon.couponId, status: 'VOIDED', voidReason: 'OTHER',
+    voidedAt: '2026-09-30T00:00:00.000Z' }, replayed: false });
+  assert.deepEqual(voided, [
+    ['list', 'admin-account', 'real-1'],
+    ['void', 'admin-account', coupon.couponId, { reason: 'OTHER', note: '메모' }],
+  ]);
+  for (const [code, status] of [['ADMIN_COUPON_NOT_FOUND', 404], ['ADMIN_COUPON_NOT_VOIDABLE', 409],
+    ['ADMIN_INVALID_INPUT', 400], ['ADMIN_FORBIDDEN', 403]] as const) {
+    failure = new AdminError(code);
+    const response = await post({ reason: 'OTHER' });
+    assert.equal(response.status, status, code);
+    assert.deepEqual(await response.json(), { code });
+  }
+  const denied = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false,
+    { ...admin, isAdmin: async () => false } as unknown as PostgresAdminService);
+  assert.equal((await webRequest(denied, listPath, { headers: { cookie: headers.cookie } })).status, 403);
+  assert.equal((await webRequest(denied, voidPath, { method: 'POST', headers, body: '{"reason":"OTHER"}' })).status, 403);
 });

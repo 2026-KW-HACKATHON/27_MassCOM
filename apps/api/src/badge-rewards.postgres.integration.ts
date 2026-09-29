@@ -194,6 +194,8 @@ test('reward states are LOCKED, READY, UNAVAILABLE and OPENED and reveal offers 
   // 마일스톤 3은 ACTIVE 혜택이 없어 달성해도 UNAVAILABLE이다.
   const gold = await badges.getBadges('gold-1');
   assert.deepEqual(gold.rewards.map((reward) => reward.state), ['READY', 'READY', 'UNAVAILABLE']);
+  // 혜택이 없어서 열 수 없는 상자에는 이유 필드가 없다(그 필드는 관리자가 쿠폰을 무효로 한 상자에만 붙는다).
+  assert.equal(gold.rewards.some((reward) => 'unavailableReason' in reward), false);
   await assert.rejects(badges.openReward({ accountId: 'gold-1', milestone: 3 }), rejectsWith('REWARD_OFFER_UNAVAILABLE'));
 
   const opened = await badges.openReward({ accountId: 'gold-1', milestone: 2 });
