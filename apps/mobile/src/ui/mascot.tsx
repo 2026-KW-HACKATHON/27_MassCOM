@@ -29,7 +29,7 @@ export function Mascot({ pose, size, breathe = true, accessibilityLabel, interac
     if (!enabled) return;
     rotate.set(withSequence(withTiming(-6, { duration: 90 }), withTiming(6, { duration: 120 }), withTiming(0, { duration: 90 })));
   };
-  const a11y = mascotAccessibility(accessibilityLabel);
+  const a11y = mascotAccessibility(accessibilityLabel, interactive);
   const picture = { source: mascotArt[pose], style: [{ width: size, height: size }, animated], resizeMode: 'contain' as const };
   // The accessibility props go on the outermost element so a wrapping Pressable and its picture read as one item.
   if (!interactive) return <Animated.Image {...picture} {...a11y} />;

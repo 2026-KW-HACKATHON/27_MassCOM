@@ -36,9 +36,14 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
     headerTitle: { color: world.skyInk, fontSize: 28, fontWeight: '800', lineHeight: 36 },
     headerSubtitle: { color: world.skyMuted, fontSize: 15, lineHeight: 22 },
     avatarButton: {
-      minWidth: uiMetrics.minTouch, minHeight: uiMetrics.minTouch, borderRadius: 999,
+      minWidth: uiMetrics.minTouch, minHeight: uiMetrics.minTouch, borderRadius: 24, gap: 2,
       alignItems: 'center', justifyContent: 'center',
     },
+    avatarLabelPill: {
+      paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999,
+      backgroundColor: withAlpha(world.headerScrim, world.headerScrimAlpha),
+    },
+    avatarLabel: { color: world.skyInk, fontSize: 12, fontWeight: '800', lineHeight: 16 },
     backButton: {
       minWidth: uiMetrics.minTouch, minHeight: uiMetrics.minTouch, borderRadius: 999, alignItems: 'center', justifyContent: 'center',
       backgroundColor: world.card,

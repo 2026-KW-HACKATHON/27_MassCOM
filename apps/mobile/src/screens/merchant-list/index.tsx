@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
   useColorScheme,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,6 +23,7 @@ import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
 import { FloatingCard } from '@/ui/floating-card';
+import { heroMascotSize } from '@/ui/large-text';
 import { Mascot } from '@/ui/mascot';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { Stagger } from '@/ui/stagger';
@@ -44,6 +46,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
   const router = useRouter();
   const auth = useAuthSession();
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
   const clearance = useTabBarClearance();
   const scrim = useStatusBarScrim();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
@@ -89,12 +92,8 @@ export function MerchantListScreen({ apiUrl }: Props) {
                     </Pressable>
                   </Link>
                 </View>
-                <Mascot
-                  interactive
-                  pose={refreshing ? 'search' : 'explore-map'}
-                  size={120}
-                  accessibilityLabel={refreshing ? '목록을 찾는 마스코트' : '지도를 든 마스코트'}
-                />
+                {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
+                <Mascot interactive pose={refreshing ? 'search' : 'explore-map'} size={heroMascotSize(fontScale, 120)} />
               </View>
             </AppHeader>
             <View style={styles.header}>

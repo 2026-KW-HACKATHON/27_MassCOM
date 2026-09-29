@@ -2,7 +2,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Application from 'expo-application';
 import { Link, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import {
@@ -28,6 +28,7 @@ import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
 import { FloatingCard } from '@/ui/floating-card';
+import { heroMascotSize } from '@/ui/large-text';
 import { Mascot } from '@/ui/mascot';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { Stagger } from '@/ui/stagger';
@@ -45,6 +46,7 @@ export function ClaimRedeemScreen({
 }) {
   const scrollView = useRef<ScrollView>(null);
   const clearance = useTabBarClearance();
+  const { fontScale } = useWindowDimensions();
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
   const styles = StyleSheet.create(makeClaimRedeemStyles(palette, worldForScheme(scheme), StyleSheet.hairlineWidth));
@@ -225,9 +227,10 @@ export function ClaimRedeemScreen({
         header={
           <AppHeader title="방문 인증" subtitle="가게에서 도장을 받아요">
             <View style={styles.hero}>
-              <Mascot interactive pose="stamp" size={112} accessibilityLabel="도장을 든 마스코트" />
+              {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
+              <Mascot interactive pose="stamp" size={heroMascotSize(fontScale, 112)} />
               <View style={styles.heroBubble}>
-                <Text selectable style={styles.heroBubbleText}>점주에게 받은 QR을 촬영하거나 1회 코드를 입력하세요.</Text>
+                <Text selectable style={styles.heroBubbleText}>직원에게 내 QR을 보여주거나, 점주 코드를 입력해요</Text>
               </View>
             </View>
           </AppHeader>

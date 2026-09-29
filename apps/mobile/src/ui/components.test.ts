@@ -49,10 +49,27 @@ test('screen copy fits its space and does not repeat the heading below it', () =
   assert.doesNotMatch(collection, /<AppHeader title="나의 탐험 여권"/);
 });
 
-test('the header keeps account tools one tap away', () => {
+test('the header keeps account tools one tap away, and says so under the avatar', () => {
   const header = read('app-header.tsx');
   assert.match(header, /href="\/settings"/);
   assert.match(header, /accessibilityLabel="내 정보"/);
+  // A visible "내 정보" label on its own frosted pill sits under the avatar; the 48dp target is the Pressable around both.
+  assert.match(header, /styles\.avatarLabelPill[\s\S]*?styles\.avatarLabel[^>]*>내 정보</);
+});
+
+test('at 150% text and up the header keeps the essentials: a capped title, no subtitle, a small hero', () => {
+  const header = read('app-header.tsx');
+  assert.match(header, /isLargeText\(fontScale\)/);
+  assert.match(header, /maxFontSizeMultiplier=\{1\.6\}[^>]*>\{title\}/);
+  assert.match(header, /subtitle && !large/);
+  assert.match(readSource('screens/merchant-list/index.tsx'), /size=\{heroMascotSize\(fontScale, 120\)\}/);
+  assert.match(readSource('screens/claim-redeem/index.tsx'), /size=\{heroMascotSize\(fontScale, 112\)\}/);
+});
+
+test('the claim hero tells people what to show or type', () => {
+  const claim = readSource('screens/claim-redeem/index.tsx');
+  assert.match(claim, /직원에게 내 QR을 보여주거나, 점주 코드를 입력해요/);
+  assert.doesNotMatch(claim, /점주에게 받은 QR을 촬영하거나 1회 코드를 입력하세요/);
 });
 
 test('header titles sit on the frosted panel while the avatar stays outside it', () => {
@@ -173,7 +190,7 @@ test('state scenes map to the right mascot', () => {
 test('mascots are plain images unless asked to be interactive, and only standalone heroes are', () => {
   const mascot = read('mascot.tsx');
   assert.match(mascot, /interactive = false/);
-  assert.match(mascot, /mascotAccessibility\(accessibilityLabel\)/);
+  assert.match(mascot, /mascotAccessibility\(accessibilityLabel, interactive\)/);
   // Without `interactive` the mascot is a bare Animated.Image: no Pressable, no wiggle handler.
   assert.match(mascot, /if \(!interactive\) return <Animated\.Image \{\.\.\.picture\} \{\.\.\.a11y\} \/>;/);
   assert.match(mascot, /<Pressable onPress=\{wiggle\} \{\.\.\.a11y\}>/);
@@ -181,6 +198,13 @@ test('mascots are plain images unless asked to be interactive, and only standalo
   assert.match(readSource('screens/merchant-list/index.tsx'), /<Mascot\s+interactive\b/);
   assert.match(readSource('screens/foundation/index.tsx'), /<Mascot interactive pose="wave"/);
   assert.match(readSource('screens/claim-redeem/index.tsx'), /<Mascot interactive pose="stamp"/);
+  // Explore and claim heroes are decorative (no label, so no extra focus stop); only the role screen's wave is announced as a button.
+  for (const file of ['screens/merchant-list/index.tsx', 'screens/claim-redeem/index.tsx']) {
+    const hero = readSource(file).match(/<Mascot\s+interactive[\s\S]*?\/>/)?.[0];
+    assert.ok(hero, `${file} hero mascot`);
+    assert.doesNotMatch(hero, /accessibilityLabel/, `${file} hero mascot is decorative`);
+  }
+  assert.match(readSource('screens/foundation/index.tsx'), /<Mascot interactive pose="wave"[^>]*accessibilityLabel=/);
   assert.doesNotMatch(read('state-scene.tsx'), /interactive/);
   assert.doesNotMatch(readSource('gamification/celebration.tsx'), /<Mascot[^>]*interactive/);
   assert.doesNotMatch(readSource('gamification/reward-reveal.tsx'), /<Mascot[^>]*interactive/);

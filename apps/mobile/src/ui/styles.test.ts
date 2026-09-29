@@ -107,3 +107,16 @@ test('a card has a 1px top highlight that only shows in dark, where the card is 
   assert.match(makeUiStyles(lightColors, lightWorld).card.borderTopColor as string, /, 0\)$/, 'light card shows no edge');
   assert.match(makeUiStyles(darkColors, darkWorld).card.borderTopColor as string, /, 0\.1\)$/);
 });
+
+test('the "내 정보" label under the avatar is readable on its own frosted pill over any art pixel, and the avatar stays 48dp', () => {
+  for (const [palette, world] of [[lightColors, lightWorld], [darkColors, darkWorld]] as const) {
+    const styles = makeUiStyles(palette, world);
+    assert.equal(styles.avatarLabelPill.backgroundColor, withAlpha(world.headerScrim, world.headerScrimAlpha));
+    for (const art of ['#000000', '#FFFFFF']) {
+      const pill = blend(world.headerScrim, art, world.headerScrimAlpha);
+      assert.ok(contrast(styles.avatarLabel.color as string, pill) >= 4.5, `label over ${art} through the pill ${contrast(styles.avatarLabel.color as string, pill)}`);
+    }
+    assert.ok((styles.avatarButton.minWidth as number) >= uiMetrics.minTouch);
+    assert.ok((styles.avatarButton.minHeight as number) >= uiMetrics.minTouch);
+  }
+});
