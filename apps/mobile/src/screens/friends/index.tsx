@@ -172,7 +172,11 @@ export function FriendsScreen({
     if (problem) setAddNotice({ tone: 'error', text: friendLinkProblemMessage(problem) });
     if (pending) receiveLinkCode(pending);
     else if (focusCount.current > 1) void refreshQuietly();
-    return () => setScanning(false);
+    // An add result belongs to the visit it was made on; after a friend is removed elsewhere it would read as stale.
+    return () => {
+      setScanning(false);
+      setAddNotice(undefined);
+    };
   }, [receiveLinkCode, refreshQuietly]));
 
   function submitTyped() {
