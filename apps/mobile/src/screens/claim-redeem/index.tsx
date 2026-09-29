@@ -287,7 +287,7 @@ export function ClaimRedeemScreen({
             multiline
             placeholder="점주 화면의 1회 코드를 입력"
             placeholderTextColor={palette.secondaryLabel}
-            style={[styles.input, { color: palette.label, backgroundColor: palette.background, borderColor: palette.separator }]}
+            style={styles.input}
           />
           <Text selectable style={styles.securityNote}>코드는 URL이나 로그에 남기지 않고 안전하게 전송합니다.</Text>
           <Pressable accessibilityRole="button" disabled={!token.trim() || busy} onPress={() => void inspect()} style={[styles.button, { backgroundColor: !token.trim() || busy ? palette.primaryContainer : palette.primary }]}>

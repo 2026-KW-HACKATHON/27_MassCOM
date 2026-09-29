@@ -133,11 +133,12 @@ export function MerchantListScreen({ apiUrl }: Props) {
                         onPress={() => setAvailability(value)}
                         style={({ pressed }) => [
                           styles.filterChip,
-                          { backgroundColor: availability === value ? palette.primary : world.card, borderColor: availability === value ? palette.primary : palette.separator },
-                          pressed && styles.cardPressed,
+                          availability === value
+                            ? [styles.filterChipOn, pressed ? styles.filterChipOnPressed : null]
+                            : [styles.filterChipIdle, pressed ? styles.filterChipIdlePressed : null],
                         ]}
                       >
-                        <Text style={[styles.filterText, { color: availability === value ? palette.onPrimary : world.cardInk }]}>{label}</Text>
+                        <Text style={[styles.filterText, availability === value ? styles.filterTextOn : styles.filterTextIdle]}>{label}</Text>
                       </Pressable>
                     ))}
                   </View>

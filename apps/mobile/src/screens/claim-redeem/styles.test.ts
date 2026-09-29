@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { contrast } from '../../theme/contrast';
 import { darkColors, lightColors } from '../../theme/palette';
@@ -44,4 +46,17 @@ test('the QR and code panels are dashed stamp cards on world.card with readable 
       assert.ok((styles[key].minHeight as number) >= uiMetrics.minTouch, key);
     }
   }
+});
+
+test('the code input has a visible boundary: 1.5dp, at least 3:1 against the card and its own fill (WCAG 1.4.11)', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeClaimRedeemStyles(palette, world);
+    assert.ok((styles.input.borderWidth as number) >= 1.5, 'border thickness');
+    assert.equal(styles.input.borderColor, world.cardMuted);
+    assert.ok(contrast(styles.input.borderColor as string, world.card) >= 3, `border on the card ${contrast(styles.input.borderColor as string, world.card)}`);
+    assert.ok(contrast(styles.input.borderColor as string, styles.input.backgroundColor as string) >= 3, 'border on the input fill');
+  }
+  // The screen must not paint the old faint separator over the style.
+  const source = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
+  assert.doesNotMatch(source, /borderColor: palette\.separator/);
 });

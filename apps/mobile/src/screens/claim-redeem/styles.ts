@@ -21,7 +21,8 @@ export function makeClaimRedeemStyles(palette: AppColors, world: WorldTheme, hai
   camera: { height: 280, borderRadius: 14, overflow: 'hidden', backgroundColor: '#000000' },
   scanButton: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.primary },
   scanButtonText: { color: palette.primary },
-  input: { minHeight: 72, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: palette.separator, color: palette.label, backgroundColor: palette.background, fontFamily: 'monospace', fontSize: 13, textAlignVertical: 'top' },
+  // The edge is world.cardMuted at 1.5dp: the old 1px separator was 1.29:1 against the white card (WCAG 1.4.11 wants 3:1).
+  input: { minHeight: 72, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: world.cardMuted, color: palette.label, backgroundColor: palette.background, fontFamily: 'monospace', fontSize: 13, textAlignVertical: 'top' },
   button: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: 14, backgroundColor: palette.primary },
   buttonText: { color: palette.onPrimary, fontSize: 14, fontWeight: '900' },
   disabled: { opacity: 0.42 },

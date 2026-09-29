@@ -1,14 +1,9 @@
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
 
-import { blend, contrast, withAlpha } from '../theme/contrast';
+import { blend, pressedFill, withAlpha } from '../theme/contrast';
 import type { AppColors } from '../theme/palette';
 import { uiMetrics } from '../theme/ui-metrics';
 import type { WorldTheme } from '../theme/world';
-
-// Pressed fill for a solid button: move away from the label colour so the label keeps its contrast.
-function pressedFill(fill: string, label: string): string {
-  return blend(contrast(label, '#000000') > contrast(label, '#FFFFFF') ? '#000000' : '#FFFFFF', fill, 0.2);
-}
 
 export function makeUiStyles(palette: AppColors, world: WorldTheme) {
   return {

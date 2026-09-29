@@ -1,4 +1,5 @@
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
+import { blend, pressedFill } from '../../theme/contrast';
 import type { AppColors } from '../../theme/palette';
 import { uiMetrics } from '../../theme/ui-metrics';
 import type { WorldTheme } from '../../theme/world';
@@ -21,6 +22,8 @@ export function makeMerchantListStyles(palette: AppColors, world: WorldTheme, ha
   searchField: {
     minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 16,
     backgroundColor: world.card,
+    // A card-coloured field on the page is only ~1.1:1 apart, so its edge is drawn at 3:1 or more (WCAG 1.4.11).
+    borderWidth: 1.5, borderColor: world.cardMuted,
     shadowColor: world.cardShadow, shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   searchGlyph: { justifyContent: 'center' },
@@ -29,7 +32,14 @@ export function makeMerchantListStyles(palette: AppColors, world: WorldTheme, ha
   clearSearchText: { color: world.cardMuted, fontSize: 13, fontWeight: '700' },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   filterChip: { minHeight: uiMetrics.minTouch, justifyContent: 'center', paddingHorizontal: 16, borderRadius: world.radius.chip, borderWidth: 1 },
+  // Selected and idle chips, each with a pressed fill: the press shows as a background change, so the label stays fully opaque.
+  filterChipOn: { backgroundColor: palette.primary, borderColor: palette.primary },
+  filterChipOnPressed: { backgroundColor: pressedFill(palette.primary, palette.onPrimary) },
+  filterChipIdle: { backgroundColor: world.card, borderColor: world.cardMuted },
+  filterChipIdlePressed: { backgroundColor: blend(world.cardInk, world.card, 0.08) },
   filterText: { fontSize: 13, fontWeight: '800' },
+  filterTextOn: { color: palette.onPrimary },
+  filterTextIdle: { color: world.cardInk },
   title: { color: palette.label, fontSize: 25, fontWeight: '800', lineHeight: 33, letterSpacing: -0.5 },
   intro: { color: palette.secondaryLabel, fontSize: 14, lineHeight: 20 },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 8 },
@@ -48,7 +58,6 @@ export function makeMerchantListStyles(palette: AppColors, world: WorldTheme, ha
   separator: { height: 14 },
   itemWrap: { paddingHorizontal: uiMetrics.pageInset },
   card: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, backgroundColor: world.card },
-  cardPressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
   crest: {
     width: 64, height: 64, borderRadius: 32, borderWidth: 3, borderColor: world.stampOrange,
     backgroundColor: world.paper, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',

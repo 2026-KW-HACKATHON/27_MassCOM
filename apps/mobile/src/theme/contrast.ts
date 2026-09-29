@@ -25,3 +25,8 @@ export function withAlpha(hex: string, alpha: number): string {
   const [red, green, blue] = channels(hex);
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
+
+/** Pressed fill for a solid control: move away from the label colour so the label keeps its contrast. */
+export function pressedFill(fill: string, label: string): string {
+  return blend(contrast(label, '#000000') > contrast(label, '#FFFFFF') ? '#000000' : '#FFFFFF', fill, 0.2);
+}
