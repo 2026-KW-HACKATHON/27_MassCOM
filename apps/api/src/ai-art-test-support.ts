@@ -34,7 +34,9 @@ export type FakeOpenAiCall = {
   redirect: RequestRedirect | undefined;
 };
 
-export type FakeOpenAiHandler = (call: FakeOpenAiCall, index: number) => Response | Promise<Response> | undefined;
+export type FakeOpenAiHandler = (
+  call: FakeOpenAiCall, index: number,
+) => Response | undefined | Promise<Response | undefined>;
 
 export function imageResponse(
   image: Buffer, usage: object | null = fakeDraftUsage, headers: Record<string, string> = {},
