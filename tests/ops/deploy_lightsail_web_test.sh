@@ -173,4 +173,28 @@ if ! grep -Fxq 'scripts/verify-showcase-edge-routes.mjs' "$scratch/archive-membe
   exit 1
 fi
 
+# Issue #225: `curl … | grep -q` fails with curl exit 23 under pipefail when grep stops early.
+if grep -En 'curl[^|]*\|[^|]*grep -[A-Za-z]*q' "$deploy"; then
+  echo 'web deploy pipes curl into grep -q; use web_page_contains' >&2
+  exit 1
+fi
+(
+  set -o pipefail
+  curl() {
+    [[ "$*" == *fail.invalid* ]] && return 22
+    head -c 200000 /dev/zero | tr '\0' 'a'
+    printf '\n실제 점포 관리\n'
+    head -c 200000 /dev/zero | tr '\0' 'b'
+  }
+  web_page_contains 'http://page.invalid/admin/' '실제 점포 관리'
+  if web_page_contains 'http://page.invalid/admin/' '점포 운영'; then
+    echo 'web_page_contains accepted a missing phrase' >&2
+    exit 1
+  fi
+  if web_page_contains 'http://fail.invalid/admin/' '실제 점포 관리'; then
+    echo 'web_page_contains ignored a failed request' >&2
+    exit 1
+  fi
+)
+
 echo 'Lightsail web-only deploy preflight verified'

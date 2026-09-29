@@ -237,9 +237,9 @@ probe_web_routes() {
   for path in / /open /privacy /account-deletion /app/ /app/assets/production.mjs; do
     curl -fsS --max-time 8 "http://$address$path" >/dev/null
   done
-  curl -fsS --max-time 8 "http://$address/admin/" | grep -qF '실제 점포 관리'
+  web_page_contains "http://$address/admin/" '실제 점포 관리'
   curl -fsS --max-time 8 "http://$address/admin/assets/admin.mjs" >/dev/null
-  curl -fsS --max-time 8 "http://$address/merchant/" | grep -qF '점포 운영'
+  web_page_contains "http://$address/merchant/" '점포 운영'
   curl -fsS --max-time 8 "http://$address/merchant/assets/merchant.mjs" >/dev/null
   curl -fsS --max-time 8 "http://$address/.well-known/assetlinks.json" \
     | cmp - "$release/site/public/.well-known/assetlinks.json"
@@ -293,8 +293,8 @@ sudo docker exec "$live_caddy_id" caddy adapt --config /etc/caddy/Caddyfile --ad
       node:22-bookworm-slim node /verify.mjs
 curl -fsS --max-time 8 https://api.masscom.kr/health >/dev/null
 curl -fsS --max-time 8 https://www.masscom.kr/app/ >/dev/null
-curl -fsS --max-time 8 https://www.masscom.kr/admin/ | grep -qF '실제 점포 관리'
-curl -fsS --max-time 8 https://www.masscom.kr/merchant/ | grep -qF '점포 운영'
+web_page_contains https://www.masscom.kr/admin/ '실제 점포 관리'
+web_page_contains https://www.masscom.kr/merchant/ '점포 운영'
 curl -fsS --max-time 8 https://api.masscom.kr/merchants |
   jq -e '.merchants | (type == "array") and all(.[]; .demo == false)' >/dev/null
 showcase_https_ready='false'
