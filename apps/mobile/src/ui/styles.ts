@@ -73,7 +73,8 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
     stampArt: { width: 52, height: 52, borderRadius: 26 },
     stampMark: { color: world.stampInk, fontSize: 16, fontWeight: '900', textAlign: 'center' },
     stampMystery: { color: world.paperInk, fontSize: 24, fontWeight: '900' },
-    stampName: { color: world.paperInk, fontSize: 13, fontWeight: '800', lineHeight: 18, textAlign: 'center' },
+    // paddingHorizontal is slack for the 800-weight glyphs: on a 411dp phone the name measured narrower than it painted and lost its second line.
+    stampName: { color: world.paperInk, fontSize: 13, fontWeight: '800', lineHeight: 18, textAlign: 'center', paddingHorizontal: 2 },
     stampStatus: { color: world.paperInk, fontSize: 11, lineHeight: 16, textAlign: 'center' },
   } satisfies Record<string, ImageStyle | TextStyle | ViewStyle>;
 }

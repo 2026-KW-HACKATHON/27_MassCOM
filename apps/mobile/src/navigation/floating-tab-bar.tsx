@@ -12,12 +12,12 @@ import { uiMetrics } from '@/theme/ui-metrics';
 import { worldForScheme } from '@/theme/world';
 
 import { TabGlyph } from './tab-glyph';
-import { barHeightFor, tabIndicator } from './tab-bar-style';
+import { CLAIM_SLOT_FLEX, barHeightFor, tabIndicator } from './tab-bar-style';
 
 type GlyphName = ComponentProps<typeof TabGlyph>['name'];
 type Route = BottomTabBarProps['state']['routes'][number];
 
-const glyphByRoute: Record<string, GlyphName> = { index: 'explore', claim: 'claim', collection: 'collection' };
+const glyphByRoute: Record<string, GlyphName> = { index: 'explore', map: 'map', claim: 'claim', collection: 'collection' };
 // The raised claim button rises this far above the bar; the wrapper is that much taller so every tap lands inside it.
 const LIFT = 22;
 const GAP = 16;
@@ -35,7 +35,7 @@ function useKeyboardShown(): boolean {
   return shown;
 }
 
-/** Floating three-slot bar: 탐색 · (raised 방문 인증 stamp) · 도감. Routes hidden with `href: null` get no slot. */
+/** Floating four-slot bar: 탐색 · 지도 · (raised 방문 인증 stamp) · 도감; with 친구 later it is five and the stamp is centred. Routes hidden with `href: null` get no slot. */
 export function FloatingTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
   const world = worldForScheme(useColorScheme());
   const { fontScale } = useWindowDimensions();
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   row: { flex: 1, flexDirection: 'row' },
   slot: { flex: 1, minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 4 },
   label: { fontSize: 12, textAlign: 'center' },
-  claimSlot: { flex: 1, alignItems: 'center' },
+  claimSlot: { flex: CLAIM_SLOT_FLEX, alignItems: 'center' },
   claimPressable: { alignItems: 'center', gap: 2, minWidth: uiMetrics.minTouch },
   claimButton: {
     width: CLAIM_BUTTON, height: CLAIM_BUTTON, borderRadius: CLAIM_BUTTON / 2, borderWidth: 4,

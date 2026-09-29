@@ -93,3 +93,23 @@ test('filter chips show a press with a fill change, never with opacity, and thei
   const source = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
   assert.doesNotMatch(source, /cardPressed/);
 });
+
+test('the "지도로 보기" chip beside the passport chip is a 48dp secondary control with readable text', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeMerchantListStyles(palette, world);
+    assert.ok((styles.mapChip.minHeight as number) >= uiMetrics.minTouch);
+    assert.equal(styles.mapChip.backgroundColor, palette.primaryContainer);
+    assert.ok(contrast(styles.mapChipText.color as string, styles.mapChip.backgroundColor as string) >= 4.5, 'map chip text');
+    // It sits with the passport chip in one wrapping row, so a narrow hero column drops it to the next line instead of clipping.
+    assert.equal(styles.chipRow.flexWrap, 'wrap');
+  }
+});
+
+test('explore links to the map tab from the hero, next to the passport chip', () => {
+  const source = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
+  assert.match(source, /<Link href="\/map" asChild>/);
+  assert.match(source, /accessibilityLabel="지도로 보기, 동네 그림 지도 열기"/);
+  assert.match(source, /style=\{styles\.chipRow\}[\s\S]*?<SignedInPassportChip[\s\S]*?<MapChip \/>/);
+  assert.match(source, /<TabGlyph name="map"/);
+  assert.match(source, />지도로 보기</);
+});

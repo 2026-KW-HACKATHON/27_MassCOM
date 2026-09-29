@@ -64,10 +64,11 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
       <GiftBox ref={box} milestone={reward.milestone} mood={moods[reward.state]} size={64} colors={medal} glowColor={palette.primary} />
       <View style={styles.boxRowBody}>
         <View accessible accessibilityLabel={rewardAccessibilityLabel(reward, earnedTiers)} style={styles.boxRowCopy}>
-          <View style={styles.boxRowTitleLine}>
-            <Text style={styles.boxName}>{rewardBoxName(reward.milestone)}</Text>
-            <Text style={styles.boxRequirement}>배지 {reward.requiredTiers}개</Text>
-          </View>
+          {/* One Text node: a row of two bold Texts was measured narrower than drawn on Samsung phones and clipped "황금 상자" to "황금". */}
+          <Text textBreakStrategy="simple" style={styles.boxName}>
+            {rewardBoxName(reward.milestone)}
+            <Text style={styles.boxRequirement}>{`  배지 ${reward.requiredTiers}개`}</Text>
+          </Text>
           <View style={[styles.chip, { backgroundColor: chip.background }]}>
             <Text style={[styles.chipText, { color: chip.foreground }]}>{rewardStatusText(reward, earnedTiers)}</Text>
           </View>
