@@ -9,6 +9,9 @@ CREATE TABLE merchant_art_rounds (
   ),
   chosen_index integer CHECK (chosen_index BETWEEN 0 AND 3),
   failure_code text,
+  -- 최종 그림을 만드는 시도 표지: 시안을 고를 때 적는 ai_art_spend(FINAL) 행 id. 실패·중단된 최종을 같은 라운드에서 다시 고르면 새 값으로
+  -- 바뀌므로, 늦게 끝난 옛 시도가 새 시도의 이미지·상태를 덮어쓰지 못하게 저장과 상태 갱신이 이 값과 맞을 때만 일어난다. 참조 제약은 두지 않는다.
+  final_spend_id bigint,
   business_date date NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()

@@ -214,25 +214,28 @@ export class PostgresMerchantArtService implements MerchantArtService {
         throw new MerchantArtError('AI_ART_DAILY_LIMIT', secondsUntilNextKstMidnight(now));
       }
       await this.assertBudget(client, now, estimatedFinalMicroUsd);
+      // 이 시도의 표지(final_spend_id)는 예상 비용 행 id다. 늦게 끝나는 옛 시도의 저장·상태 갱신은 이 값과 달라 아무 일도 하지 못한다.
+      const finalSpendId = await this.recordSpend(client, input.merchantId, round.id, 'FINAL', estimatedFinalMicroUsd, now);
       try {
         await client.query(
           `UPDATE merchant_art_rounds
-           SET status = 'FINALIZING', chosen_index = $2, failure_code = NULL, updated_at = $3 WHERE id = $1`,
-          [round.id, input.index, now],
+           SET status = 'FINALIZING', chosen_index = $2, failure_code = NULL, final_spend_id = $3, updated_at = $4
+           WHERE id = $1`,
+          [round.id, input.index, finalSpendId, now],
         );
       } catch (error) {
         throw this.mapUniqueViolation(error);
       }
       // 실패한 최종을 다시 만드는 경우를 위해 이 라운드에 남은 최종 조각은 지운다(새 호출이 옛 조각에 막히지 않게).
       await client.query(`DELETE FROM merchant_art_images WHERE round_id = $1 AND kind = 'FINAL'`, [round.id]);
-      return this.recordSpend(client, input.merchantId, round.id, 'FINAL', estimatedFinalMicroUsd, now);
+      return finalSpendId;
     });
 
     // 라운드는 이미 커밋됐으므로 읽기가 실패해도 최종 생성은 반드시 시작한다(FINALIZING에 갇히지 않게).
     try {
       return await this.requireView(input.roundId, input.merchantId);
     } finally {
-      this.launch(input.roundId, () => this.runFinal(input.roundId, input.merchantId, input.index, spendId));
+      this.launch(input.roundId, () => this.runFinal(input.roundId, input.merchantId, input.index, spendId), spendId);
     }
   }
 
@@ -297,7 +300,8 @@ export class PostgresMerchantArtService implements MerchantArtService {
   // ---- 백그라운드 생성 ----------------------------------------------------------------------
 
   // 생성은 응답 뒤 이 프로세스 안에서 이어 간다. 어떤 예외도 밖으로 새지 않고, 마지막 방어선에서 FAILED로 적는다.
-  private launch(roundId: string, work: () => Promise<void>): void {
+  // finalSpendId는 최종 단계 시도의 표지다(시안 단계는 없다). 있으면 마지막 방어선의 실패 기록이 그 시도의 것일 때만 라운드를 건드린다.
+  private launch(roundId: string, work: () => Promise<void>, finalSpendId?: number): void {
     const timer = setInterval(() => {
       this.pool.query(
         `UPDATE merchant_art_rounds SET updated_at = $2 WHERE id = $1 AND status IN ${inProgressSql}`,
@@ -305,19 +309,19 @@ export class PostgresMerchantArtService implements MerchantArtService {
       ).catch((error) => console.error(safeErrorMetadata('merchant_art.heartbeat', error)));
     }, this.heartbeatMs);
     timer.unref();
-    const job: Promise<void> = this.guarded(roundId, work).finally(() => {
+    const job: Promise<void> = this.guarded(roundId, work, finalSpendId).finally(() => {
       clearInterval(timer);
       this.jobs.delete(job);
     });
     this.jobs.add(job);
   }
 
-  private async guarded(roundId: string, work: () => Promise<void>): Promise<void> {
+  private async guarded(roundId: string, work: () => Promise<void>, finalSpendId?: number): Promise<void> {
     try {
       await work();
     } catch (error) {
       console.error(safeErrorMetadata('merchant_art.job', error));
-      await this.failRound(roundId, 'AI_ART_INTERRUPTED').catch((inner) =>
+      await this.failRound(roundId, 'AI_ART_INTERRUPTED', finalSpendId).catch((inner) =>
         console.error(safeErrorMetadata('merchant_art.job_fail_write', inner)));
     }
   }
@@ -366,36 +370,53 @@ export class PostgresMerchantArtService implements MerchantArtService {
         prompt: buildFinalPrompt(), image: draft.image, userHash: merchantUserHash(merchantId),
       });
       await this.settleSpend(spendId, made.usage ? costMicroUsd(made.usage, this.config.rates) : estimatedFinalMicroUsd);
-      await this.storeImage(roundId, 'FINAL', index, draft.style, made.image);
+      await this.storeImage(roundId, 'FINAL', index, draft.style, made.image, spendId);
     } catch (error) {
       await this.settleFailedSpend(spendId, error);
       this.logUnexpected(error);
-      await this.failRound(roundId, failureCodeOf(error));
+      await this.failRound(roundId, failureCodeOf(error), spendId);
+      return;
+    }
+    // 이 시도가 아직 이 라운드의 현재 시도일 때만 완료로 적는다(그 사이 다시 골랐다면 새 시도가 주인이다).
+    await this.pool.query(
+      `UPDATE merchant_art_rounds SET status = 'FINAL_READY', updated_at = $2
+       WHERE id = $1 AND status = 'FINALIZING' AND final_spend_id = $3`,
+      [roundId, this.now(), spendId],
+    );
+  }
+
+  // attemptSpendId(최종 단계만)가 있으면 라운드의 현재 시도 표지와 같을 때만 저장한다. 라운드 행을 잠근 채 넣으므로 같은 순간의
+  // 다시 고르기(chooseDraft는 같은 행을 잠그고 최종 조각을 지운다)와 엇갈려도 옛 시도의 조각이 새 시도 뒤에 남지 않는다.
+  private async storeImage(
+    roundId: string, kind: 'DRAFT' | 'FINAL', index: number, style: string, image: Buffer, attemptSpendId?: number,
+  ): Promise<void> {
+    const values = [roundId, kind, index, style, image, createHash('sha256').update(image).digest('hex'), this.now()];
+    if (attemptSpendId === undefined) {
+      await this.pool.query(
+        `INSERT INTO merchant_art_images (round_id, kind, idx, style, image, sha256, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (round_id, kind, idx) DO NOTHING`,
+        values,
+      );
       return;
     }
     await this.pool.query(
-      `UPDATE merchant_art_rounds SET status = 'FINAL_READY', updated_at = $2
-       WHERE id = $1 AND status = 'FINALIZING'`,
-      [roundId, this.now()],
-    );
-  }
-
-  private async storeImage(
-    roundId: string, kind: 'DRAFT' | 'FINAL', index: number, style: string, image: Buffer,
-  ): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO merchant_art_images (round_id, kind, idx, style, image, sha256, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `WITH owner AS (
+         SELECT id FROM merchant_art_rounds WHERE id = $1 AND final_spend_id = $8 FOR UPDATE
+       )
+       INSERT INTO merchant_art_images (round_id, kind, idx, style, image, sha256, created_at)
+       SELECT id, $2::text, $3::integer, $4::text, $5::bytea, $6::text, $7::timestamptz FROM owner
        ON CONFLICT (round_id, kind, idx) DO NOTHING`,
-      [roundId, kind, index, style, image, createHash('sha256').update(image).digest('hex'), this.now()],
+      [...values, attemptSpendId],
     );
   }
 
-  private async failRound(roundId: string, code: AiArtFailureCode): Promise<void> {
+  // finalSpendId(최종 단계만)가 있으면 라운드의 현재 시도일 때만 실패로 적는다.
+  private async failRound(roundId: string, code: AiArtFailureCode, finalSpendId?: number): Promise<void> {
     await this.pool.query(
       `UPDATE merchant_art_rounds SET status = 'FAILED', failure_code = $2, updated_at = $3
-       WHERE id = $1 AND status IN ${inProgressSql}`,
-      [roundId, code, this.now()],
+       WHERE id = $1 AND status IN ${inProgressSql} AND ($4::bigint IS NULL OR final_spend_id = $4)`,
+      [roundId, code, this.now(), finalSpendId ?? null],
     );
   }
 

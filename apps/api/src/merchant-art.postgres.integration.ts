@@ -61,6 +61,8 @@ type SetupOptions = {
   lifecycle?: boolean;
   // 서비스가 쓰는 pool을 바꿔 끼운다(특정 읽기를 실패시키는 시험용). 시험 설정 자체는 진짜 pool을 쓴다.
   wrapPool?: (pool: Pool) => Pool;
+  // 시험이 직접 만든 문. gate처럼 시험이 끝나거나 실패할 때 반드시 연다(안 그러면 붙잡힌 작업 때문에 정리가 끝나지 않는다).
+  releaseOnCleanup?: readonly Gate[];
 };
 
 async function setup(t: TestContext, options: SetupOptions = {}) {
@@ -127,6 +129,7 @@ async function setup(t: TestContext, options: SetupOptions = {}) {
   });
   t.after(async () => {
     options.gate?.release();
+    for (const extra of options.releaseOnCleanup ?? []) extra.release();
     await art.drain();
     await pool.end();
   });
@@ -186,6 +189,87 @@ async function finalRound(db: Db, merchantId = 'art-a', index = 1): Promise<ArtR
   return final;
 }
 
+// 조건이 참이 될 때까지 짧게 기다린다(백그라운드 작업이 특정 쓰기를 마쳤는지 볼 때). 5초가 지나면 실패한다.
+async function waitFor(condition: () => boolean | Promise<boolean>, what: string): Promise<void> {
+  for (let waited = 0; waited < 5_000; waited += 10) {
+    if (await condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`timed out waiting for ${what}`);
+}
+
+// 서비스가 라운드 상태를 적는 쓰기(완료·실패 기록)를 마칠 때마다 done에 이름을 남기는 pool. 쓰기는 그대로 지나간다.
+function watchingStateWrites(done: string[]): (pool: Pool) => Pool {
+  return (pool) => new Proxy(pool, {
+    get(target, property) {
+      if (property === 'query') {
+        return async (...args: unknown[]) => {
+          const result: unknown = await (target.query as (...forwarded: unknown[]) => Promise<unknown>).apply(target, args);
+          const sql = typeof args[0] === 'string' ? args[0] : '';
+          if (sql.includes(`SET status = 'FINAL_READY'`)) done.push('FINAL_READY');
+          if (sql.includes(`SET status = 'FAILED', failure_code = $2`)) done.push('FAILED');
+          return result;
+        };
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
+const finalImages = async (pool: Pool, roundId: string) =>
+  (await pool.query<{ idx: number; sha256: string }>(
+    `SELECT idx, sha256 FROM merchant_art_images WHERE round_id = $1 AND kind = 'FINAL' ORDER BY idx`, [roundId],
+  )).rows;
+
+const roundRow = async (pool: Pool, roundId: string) =>
+  (await pool.query<{ status: string; chosen_index: number | null; failure_code: string | null; final_spend_id: string | null }>(
+    'SELECT status, chosen_index, failure_code, final_spend_id::text FROM merchant_art_rounds WHERE id = $1', [roundId],
+  )).rows[0]!;
+
+// 최종 단계 시도 1이 OpenAI 응답을 붙잡힌 채 5분이 지나 중단으로 적히고, 같은 라운드에서 다른 시안을 다시 골라 시도 2가 시작된
+// 상태를 만든다. 시도 1의 응답은 first 문을 열면 나가고(firstOutcome), 시도 2는 holdSecond일 때 second 문을 열 때까지 붙잡힌다.
+async function rechosenAfterStale(t: TestContext, options: { firstOutcome: 'success' | 'failure'; holdSecond: boolean }) {
+  const first = makeGate();
+  const second = makeGate();
+  const done: string[] = [];
+  let edits = 0;
+  const db = await setup(t, {
+    heartbeatMs: 3_600_000,
+    releaseOnCleanup: [first, second],
+    wrapPool: watchingStateWrites(done),
+    handler: async (call) => {
+      if (call.path !== '/v1/images/edits') return undefined;
+      const attempt = edits++;
+      if (attempt === 0) {
+        await first.opened;
+        return options.firstOutcome === 'failure' ? errorResponse(400, 'moderation_blocked') : undefined;
+      }
+      if (options.holdSecond) await second.opened;
+      return undefined;
+    },
+  });
+  const round = await readyRound(db);
+  await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1 });
+  await waitFor(() => edits === 1, 'the first final attempt to reach OpenAI');
+  db.state.now = new Date(noon.getTime() + 5 * 60 * 1000 + 1);
+  const interrupted = await db.art.getRound({ merchantId: 'art-a', roundId: round.id });
+  assert.equal(interrupted.status, 'FAILED');
+  assert.equal(interrupted.failureCode, 'AI_ART_INTERRUPTED');
+  assert.equal(interrupted.chosenIndex, 1);
+
+  const again = await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 3 });
+  assert.equal(again.status, 'FINALIZING');
+  assert.equal(again.chosenIndex, 3);
+  const spendIds = (await db.pool.query<{ id: string }>(
+    `SELECT id::text FROM ai_art_spend WHERE kind = 'FINAL' ORDER BY id`,
+  )).rows.map((row) => row.id);
+  assert.equal(spendIds.length, 2);
+  // 라운드는 가장 최근 시도(시도 2)의 표지를 가진다.
+  assert.equal((await roundRow(db.pool, round.id)).final_spend_id, spendIds[1]);
+  return { db, round, first, second, done, spendIds, editCalls: () => edits };
+}
+
 // ---------------------------------------------------------------------------------------------
 
 test('migration 0029 creates the art tables with their constraints and the single in-progress index', async (t) => {
@@ -198,6 +282,10 @@ test('migration 0029 creates the art tables with their constraints and the singl
      WHERE table_name IN ('merchant_art_rounds', 'merchant_art_images', 'merchant_art', 'ai_art_spend')`,
   );
   assert.equal(tables.rowCount, 4);
+  assert.equal((await pool.query(
+    `SELECT 1 FROM information_schema.columns
+     WHERE table_name = 'merchant_art_rounds' AND column_name = 'final_spend_id' AND data_type = 'bigint'`,
+  )).rowCount, 1);
 
   const insertRound = (status: string, merchantId = 'art-a', chosen: number | null = null) => pool.query(
     `INSERT INTO merchant_art_rounds (id, merchant_id, status, chosen_index, business_date)
@@ -591,6 +679,31 @@ test('a network failure is not retried, fails as unavailable and keeps the reser
   assert.equal(await totalSpend(db.pool), 40_000);
 });
 
+test('a 502 or 504 is not retried and keeps the reserved cost as chargeable, for the drafts and for the final', async (t) => {
+  for (const status of [502, 504]) {
+    const drafts = await setup(t, { handler: () => errorResponse(status, null) });
+    const started = await drafts.art.createRound({ merchantId: 'art-a', accountId: 'staff-a' });
+    await drafts.art.drain();
+    const failed = await drafts.art.getRound({ merchantId: 'art-a', roundId: started.id });
+    assert.equal(failed.status, 'FAILED', `status ${status}`);
+    assert.equal(failed.failureCode, 'AI_ART_UPSTREAM_UNAVAILABLE', `status ${status}`);
+    // 네 시안 요청이 각각 한 번씩만 나갔고(500·503과 달리 다시 보내지 않음) 예상 비용이 그대로 남는다.
+    assert.equal(drafts.fake.calls.length, 4, `status ${status}`);
+    assert.equal(await totalSpend(drafts.pool), 40_000, `status ${status}`);
+
+    const final = await setup(t, { handler: (call) => call.path === '/v1/images/edits' ? errorResponse(status, null) : undefined });
+    const round = await readyRound(final);
+    await final.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1 });
+    await final.art.drain();
+    const failedFinal = await final.art.getRound({ merchantId: 'art-a', roundId: round.id });
+    assert.equal(failedFinal.status, 'FAILED', `status ${status}`);
+    assert.equal(failedFinal.failureCode, 'AI_ART_UPSTREAM_UNAVAILABLE', `status ${status}`);
+    assert.equal(final.fake.calls.filter((call) => call.path === '/v1/images/edits').length, 1, `status ${status}`);
+    assert.deepEqual((await spendRows(final.pool)).filter((row) => row.kind === 'FINAL'),
+      [{ merchantId: 'art-a', kind: 'FINAL', microUsd: 180_000 }], `status ${status}`);
+  }
+});
+
 test('a failed final keeps the four drafts visible and marks FAILED with the pick', async (t) => {
   const db = await setup(t, {
     handler: (call) => call.path === '/v1/images/edits' ? errorResponse(400, 'moderation_blocked') : undefined,
@@ -748,6 +861,81 @@ test('choosing again after a failed final is refused while another round of the 
     release?.();
     await db.art.drain();
   }
+});
+
+test('a stale final attempt that finishes after the re-chosen attempt is done cannot add its image or change the round', async (t) => {
+  const { db, round, first, done, spendIds } = await rechosenAfterStale(t, { firstOutcome: 'success', holdSecond: false });
+  await waitFor(async () => (await roundRow(db.pool, round.id)).status === 'FINAL_READY', 'the second attempt to finish');
+  const before = await finalImages(db.pool, round.id);
+  assert.deepEqual(before.map((image) => image.idx), [3]);
+
+  first.release();
+  await db.art.drain();
+  // 옛 시도 1의 이미지는 저장되지 않았고 라운드는 시도 2의 결과 그대로다.
+  assert.deepEqual(await finalImages(db.pool, round.id), before);
+  const row = await roundRow(db.pool, round.id);
+  assert.equal(row.status, 'FINAL_READY');
+  assert.equal(row.chosen_index, 3);
+  assert.equal(row.failure_code, null);
+  assert.equal(row.final_spend_id, spendIds[1]);
+  assert.equal(done.filter((name) => name === 'FINAL_READY').length, 2);
+  // 두 시도의 호출 비용은 각각 자기 행에 실제 값으로 적힌다.
+  assert.deepEqual((await spendRows(db.pool)).filter((spend) => spend.kind === 'FINAL').map((spend) => spend.microUsd),
+    [fakeFinalCostMicroUsd, fakeFinalCostMicroUsd]);
+  const applied = await db.art.apply({ merchantId: 'art-a', roundId: round.id });
+  assert.equal(applied.artUrl, `/merchant-art/${before[0]!.sha256}.webp`);
+});
+
+test('a stale final attempt that succeeds while the re-chosen attempt is still running changes nothing', async (t) => {
+  const { db, round, first, second, done, spendIds, editCalls } =
+    await rechosenAfterStale(t, { firstOutcome: 'success', holdSecond: true });
+  await waitFor(() => editCalls() === 2, 'the second final attempt to reach OpenAI');
+
+  first.release();
+  await waitFor(() => done.includes('FINAL_READY'), 'the stale attempt to finish its writes');
+  // 옛 시도가 끝났어도 라운드는 시도 2가 만드는 중이고, 옛 시도의 이미지는 없다.
+  const row = await roundRow(db.pool, round.id);
+  assert.equal(row.status, 'FINALIZING');
+  assert.equal(row.chosen_index, 3);
+  assert.equal(row.failure_code, null);
+  assert.deepEqual(await finalImages(db.pool, round.id), []);
+  const view = await db.art.getRound({ merchantId: 'art-a', roundId: round.id });
+  assert.equal(view.status, 'FINALIZING');
+  assert.equal(view.final, null);
+  await assert.rejects(db.art.apply({ merchantId: 'art-a', roundId: round.id }), rejectsWith('AI_ART_ROUND_STATE'));
+
+  second.release();
+  await db.art.drain();
+  const finished = await roundRow(db.pool, round.id);
+  assert.equal(finished.status, 'FINAL_READY');
+  assert.equal(finished.chosen_index, 3);
+  assert.equal(finished.final_spend_id, spendIds[1]);
+  assert.deepEqual((await finalImages(db.pool, round.id)).map((image) => image.idx), [3]);
+  assert.ok(await db.art.apply({ merchantId: 'art-a', roundId: round.id }));
+});
+
+test('a stale final attempt that fails while the re-chosen attempt is still running cannot fail the round', async (t) => {
+  const { db, round, first, second, done, spendIds, editCalls } =
+    await rechosenAfterStale(t, { firstOutcome: 'failure', holdSecond: true });
+  await waitFor(() => editCalls() === 2, 'the second final attempt to reach OpenAI');
+
+  first.release();
+  await waitFor(() => done.includes('FAILED'), 'the stale attempt to write its failure');
+  const row = await roundRow(db.pool, round.id);
+  assert.equal(row.status, 'FINALIZING');
+  assert.equal(row.failure_code, null);
+  assert.equal(row.final_spend_id, spendIds[1]);
+  // 옛 시도의 정책 차단은 자기 비용 행만 0으로 고친다.
+  assert.deepEqual((await spendRows(db.pool)).filter((spend) => spend.kind === 'FINAL').map((spend) => spend.microUsd),
+    [0, 180_000]);
+
+  second.release();
+  await db.art.drain();
+  const finished = await roundRow(db.pool, round.id);
+  assert.equal(finished.status, 'FINAL_READY');
+  assert.equal(finished.failure_code, null);
+  assert.deepEqual((await finalImages(db.pool, round.id)).map((image) => image.idx), [3]);
+  assert.ok(await db.art.apply({ merchantId: 'art-a', roundId: round.id }));
 });
 
 test('a round that failed while drawing the drafts cannot be chosen from: it needs a new round', async (t) => {
