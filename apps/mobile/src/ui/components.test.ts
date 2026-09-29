@@ -170,7 +170,9 @@ test('stack pages use the sky header with a back button instead of the plain nat
   assert.ok((detail.match(/<BackHeader title="음식점 상세"/g) ?? []).length >= 2, 'detail page and its state frame');
   assert.match(readSource('screens/recommendations/index.tsx'), /<BackHeader title="다음 가게 추천"/);
   // A merchant with a picture uses it as the header's own background; one without gets the sky art and no empty banner block.
-  assert.match(detail, /<BackHeader title="음식점 상세" art=\{art\} artNote=\{art \? '가상 점포 시연 그림' : undefined\} \/>/);
+  assert.match(detail, /<BackHeader title="음식점 상세" art=\{art\?\.source\} artNote=\{artNote\} \/>/);
+  // The owner's AI picture says so; the bundled showcase picture keeps its own note (D-048).
+  assert.match(detail, /const artNote = art \? \(art\.fromServer \? '사장님이 고른 AI 그림' : '가상 점포 시연 그림'\) : undefined;/);
   assert.doesNotMatch(detail, /styles\.banner|<Image/);
   const back = read('back-header.tsx');
   assert.match(back, /art \? <StoreArt source=\{art\}/);
@@ -255,7 +257,7 @@ test('passport stamp page tilts each visited stamp by merchant and labels every 
 
 test('a visited stamp shows the showcase illustration when there is one, else the short glyph', () => {
   const page = read('passport-stamp-page.tsx');
-  assert.match(page, /merchantArtSource\(stamp\.merchantId\)/);
+  assert.match(page, /merchantArtSource\(\{ id: stamp\.merchantId, artUrl: stamp\.artUrl \}, apiUrl\)/);
   assert.match(page, /styles\.stampArt/);
   assert.match(page, /\{stamp\.glyph\}/);
   assert.doesNotMatch(page, /Array\.from\(stamp\.name\)\.slice\(0, 2\)/);

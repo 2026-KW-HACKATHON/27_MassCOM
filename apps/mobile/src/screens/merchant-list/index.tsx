@@ -205,7 +205,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
           return (
             <Stagger index={index}>
               <View style={styles.itemWrap}>
-                <MerchantCard merchant={item} onOpen={openMerchant} />
+                <MerchantCard merchant={item} apiUrl={apiUrl} onOpen={openMerchant} />
               </View>
             </Stagger>
           );
@@ -305,7 +305,7 @@ export function MerchantApiConfigurationRequired() {
   );
 }
 
-function MerchantCard({ merchant, onOpen }: { merchant: PublicMerchant; onOpen: (merchantId: string) => void }) {
+function MerchantCard({ merchant, apiUrl, onOpen }: { merchant: PublicMerchant; apiUrl: string; onOpen: (merchantId: string) => void }) {
   const styles = useMerchantListStyles();
   const palette = colorsForScheme(useColorScheme());
   const full = merchant.campaign.enrollmentStatus === 'FULL';
@@ -317,7 +317,7 @@ function MerchantCard({ merchant, onOpen }: { merchant: PublicMerchant; onOpen: 
       accessibilityHint={merchantCardHint()}
       style={styles.card}
     >
-      <MerchantCrest merchant={merchant} />
+      <MerchantCrest merchant={merchant} apiUrl={apiUrl} />
       <View style={styles.cardBody}>
         <View style={styles.cardTopline}>
           <View style={[styles.statusBadge, full ? { backgroundColor: palette.errorContainer } : null]}>

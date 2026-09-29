@@ -242,3 +242,12 @@ test('a stamp glyph is the last word of the name when it is short, else its firs
   // Two Unicode characters, not two UTF-16 units.
   assert.equal(stampGlyph('맛집 🍜🍜🍜'), '🍜🍜');
 });
+
+test('a passport stamp carries the art path the owner chose, or null', () => {
+  const [goal] = buildMerchantGoals(campaignMerchants, [], [], '2026-09-28T00:00:00Z');
+  const [slot] = buildStampSlots(merchants, [{ merchantId: 'one' }]);
+  const artUrl = `/merchant-art/${'ef'.repeat(32)}.webp`;
+  assert.equal(toPassportStamp(slot!, goal!).artUrl, null);
+  assert.equal(toPassportStamp(slot!, goal!, null).artUrl, null);
+  assert.equal(toPassportStamp(slot!, goal!, artUrl).artUrl, artUrl);
+});

@@ -56,7 +56,7 @@ test('a pin says its shop and stamp state, is a 48dp button and shows a shop ill
   assert.match(pin, /accessibilityRole="button"/);
   assert.match(pin, /accessibilityLabel=\{pin\.label\}/);
   assert.match(pin, /accessibilityState=\{\{ selected \}\}/);
-  assert.match(pin, /merchantArtSource\(pin\.merchantId\)/);
+  assert.match(pin, /merchantArtSource\(\{ id: pin\.merchantId, artUrl: pin\.artUrl \}, apiUrl\)/);
   assert.match(pin, /pin\.status === 'visited'/);
   assert.match(pin, /styles\.pinDiscVisited/);
   assert.match(pin, /styles\.pinDiscNone/);
