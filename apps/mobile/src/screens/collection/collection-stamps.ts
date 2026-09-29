@@ -8,6 +8,19 @@ export type StampSlot = {
   visitCount: number;
 };
 
+/** What the passport stamp page draws for one merchant; built from a slot and its goal by toPassportStamp. */
+export type PassportStamp = {
+  merchantId: string;
+  name: string;
+  visited: boolean;
+  /** Short line under the stamp, e.g. how many visits are left for the next collectible. */
+  goalText: string;
+  /** Visit status line ("방문 2회"), shown next to the goal. */
+  statusText: string;
+  /** Full sentence read after the label by screen readers (progress, goals, "음식점 상세 보기"). */
+  detail: string;
+};
+
 export type MerchantGoal = {
   merchantId: string;
   progressCount: number;
@@ -41,6 +54,19 @@ export function shortMerchantGoal(goal: MerchantGoal): string {
   const participating = goal.progressCount > 0 || goal.earnedGoals.length > 0;
   if (goal.campaignStatus === 'full' && !participating) return '참여 정원 마감';
   return `수집품까지 ${goal.remainingVisits}번`;
+}
+
+export function toPassportStamp(slot: StampSlot, goal: MerchantGoal): PassportStamp {
+  const statusText = slot.visited ? `방문 ${slot.visitCount}회` : '아직 안 가봤어요';
+  const progressText = `보상 진행 ${goal.progressCount}${goal.nextGoal ? `/${goal.nextGoal.targetVisitCount}` : ''}회 · 앱 수집품 ${goal.earnedGoals.length}/${goal.totalGoals}`;
+  return {
+    merchantId: slot.merchantId,
+    name: slot.merchantName,
+    visited: slot.visited,
+    goalText: shortMerchantGoal(goal),
+    statusText,
+    detail: `${statusText}, ${progressText}, ${describeMerchantGoal(goal)}, 음식점 상세 보기`,
+  };
 }
 
 export function buildMerchantGoals(

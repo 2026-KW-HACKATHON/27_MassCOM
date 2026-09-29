@@ -26,3 +26,18 @@ test('floating cards, buttons and headers stay readable and touchable', () => {
     assert.ok((styles.avatarButton.minWidth as number) >= uiMetrics.minTouch);
   }
 });
+
+test('the passport page keeps names, status lines and stamp ink readable on the paper', () => {
+  for (const [palette, world] of [[lightColors, lightWorld], [darkColors, darkWorld]] as const) {
+    const styles = makeUiStyles(palette, world);
+    assert.equal(styles.stampPage.backgroundColor, world.paper);
+    assert.equal(styles.stampPage.borderColor, world.paperLine);
+    for (const text of [styles.stampName, styles.stampStatus, styles.stampMystery]) {
+      assert.ok(contrast(text.color as string, world.paper) >= 4.5, `${text.color} on paper`);
+    }
+    assert.ok(contrast(styles.stampMark.color as string, world.paper) >= 4.5, 'stamp ink text');
+    assert.equal(styles.stampRing.borderColor, world.stampInk);
+    assert.ok(contrast(world.stampInk, world.paper) >= 4.5, 'stamp ring on paper');
+    assert.ok((styles.stampSlot.minHeight as number) >= uiMetrics.minTouch);
+  }
+});

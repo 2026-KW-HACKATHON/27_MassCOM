@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import type { PublicMerchant } from '@/merchant/merchant-api';
-import { buildMerchantGoals, buildStampSlots, describeMerchantGoal, shortMerchantGoal, stampColumnCount, stampRotation } from './collection-stamps';
+import { buildMerchantGoals, buildStampSlots, describeMerchantGoal, shortMerchantGoal, stampColumnCount, stampRotation, toPassportStamp } from './collection-stamps';
 
 const merchants: readonly Pick<PublicMerchant, 'id' | 'name'>[] = [
   { id: 'one', name: '가상 점포 A' },
@@ -196,4 +196,26 @@ test('stamp cards show one short goal line while the full sentence stays availab
   const noGoals = [{ ...campaignMerchants[0]!, campaign: { ...campaignMerchants[0]!.campaign, rewardGoals: [] } }];
   assert.equal(shortMerchantGoal(buildMerchantGoals(noGoals, [], [], now)[0]!), '보상 목표 없음');
   for (const goal of [open!, pending!]) assert.ok(shortMerchantGoal(goal).length <= 9);
+});
+
+test('passport stamps keep the short goal visible and the full progress sentence for screen readers', () => {
+  const now = '2026-09-28T00:00:00Z';
+  const counted = { merchantId: 'one', campaignId: 'current', progressCounted: true };
+  const [goal] = buildMerchantGoals(campaignMerchants, [counted], [], now);
+  const [visitedSlot] = buildStampSlots(merchants, [{ merchantId: 'one' }, { merchantId: 'one' }]);
+  const visited = toPassportStamp(visitedSlot!, goal!);
+  assert.equal(visited.merchantId, 'one');
+  assert.equal(visited.name, '가상 점포 A');
+  assert.equal(visited.visited, true);
+  assert.equal(visited.statusText, '방문 2회');
+  assert.equal(visited.goalText, shortMerchantGoal(goal!));
+  assert.equal(
+    visited.detail,
+    `방문 2회, 보상 진행 1/1회 · 앱 수집품 0/2, ${describeMerchantGoal(goal!)}, 음식점 상세 보기`,
+  );
+
+  const [, , unvisitedSlot] = buildStampSlots(merchants, []);
+  const unvisited = toPassportStamp(unvisitedSlot!, goal!);
+  assert.equal(unvisited.visited, false);
+  assert.equal(unvisited.statusText, '아직 안 가봤어요');
 });

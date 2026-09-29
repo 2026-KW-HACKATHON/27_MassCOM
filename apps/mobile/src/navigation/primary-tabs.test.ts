@@ -45,7 +45,7 @@ test('the floating bar skips hidden routes and steps aside for the keyboard', ()
 });
 
 test('every primary screen offers the account avatar', () => {
-  for (const screen of ['merchant-list']) {
+  for (const screen of ['merchant-list', 'collection']) {
     const source = readFileSync(fileURLToPath(new URL(`../screens/${screen}/index.tsx`, import.meta.url)), 'utf8');
     assert.match(source, /<AppHeader/, screen);
   }
