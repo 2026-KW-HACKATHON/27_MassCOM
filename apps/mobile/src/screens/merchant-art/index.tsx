@@ -1,17 +1,19 @@
-import { useEffect } from 'react';
-import { Alert, Image, Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Alert, Image, Pressable, Text, View, useWindowDimensions, type AlertButton } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import {
   artPanel,
   canFinalize,
+  canPickDraft,
   canStartDrafts,
   quotaSummary,
   type ArtBusy,
   type ArtScreenState,
 } from '@/merchant-art/art-state';
 import { artCodeMessage, type OwnerArt } from '@/merchant-art/owner-art-api';
+import { createPromptGuard, type PromptGuard } from '@/merchant-art/owner-steps';
 import { useMerchantArt } from '@/merchant-art/use-merchant-art';
 import { BackHeader } from '@/ui/back-header';
 import { BounceButton } from '@/ui/bounce-button';
@@ -84,18 +86,33 @@ function ReadyBody({ state, apiUrl, merchantId, width, art }: {
   const panel = artPanel(owner);
   const round = owner.round;
   const working = busy !== null;
+  // A repeated tap on a button that opens an alert must not open a second one on top of the first.
+  const promptGuard = useRef<PromptGuard | null>(null);
+  promptGuard.current ??= createPromptGuard();
+  const ask = (title: string, message: string, buttons: AlertButton[]) => {
+    promptGuard.current?.run((release) => Alert.alert(
+      title,
+      message,
+      buttons.map((button) => ({ ...button, onPress: () => { release(); button.onPress?.(); } })),
+      { onDismiss: release },
+    ));
+  };
+  // A failed final leaves its four drafts on screen, so the owner can pick again there too.
+  const repickable = panel === 'failed' && canPickDraft(round);
 
   const confirmNewDrafts = () => {
-    Alert.alert(
+    ask(
       '새 시안을 받을까요?',
-      '지금 시안은 사라지고, 오늘 남은 시안 받기 횟수가 1번 줄어요.',
+      panel === 'final'
+        ? '지금 시안과 완성된 고급 그림이 모두 사라지고, 오늘 남은 시안 받기 횟수가 1번 줄어요.'
+        : '지금 시안은 사라지고, 오늘 남은 시안 받기 횟수가 1번 줄어요.',
       [{ text: '취소', style: 'cancel' }, { text: '새 시안 받기', onPress: () => void art.startDrafts() }],
     );
   };
   const confirmChoose = () => {
     if (!round || selected === null) return;
     const draft = round.drafts.find((item) => item.index === selected);
-    Alert.alert(
+    ask(
       '이 시안으로 고급 그림을 만들까요?',
       `AI 시안 ${selected + 1}번${draft ? `(${draft.label} 스타일)` : ''}을 더 또렷하게 다시 그려요. 1~2분 걸리고, 오늘 남은 고급 그림 만들기 횟수가 1번 줄어요.`,
       [{ text: '취소', style: 'cancel' }, { text: '고급 그림 만들기', onPress: () => void art.chooseDraft(round.id, selected) }],
@@ -103,14 +120,14 @@ function ReadyBody({ state, apiUrl, merchantId, width, art }: {
   };
   const confirmApply = () => {
     if (!round) return;
-    Alert.alert(
+    ask(
       '이 그림을 가게 그림으로 쓸까요?',
       '고객 앱의 목록·지도·상세·도감에 이 그림이 나와요. 언제든 기본 그림으로 되돌릴 수 있어요.',
       [{ text: '취소', style: 'cancel' }, { text: '가게 그림으로 쓰기', onPress: () => void art.applyRound(round.id) }],
     );
   };
   const confirmReset = () => {
-    Alert.alert(
+    ask(
       '기본 그림으로 되돌릴까요?',
       '고객 앱에는 다시 기본 그림이 나오고, 지금 그림은 지워져요.',
       [{ text: '취소', style: 'cancel' }, { text: '되돌리기', style: 'destructive', onPress: () => void art.resetArt() }],
@@ -155,14 +172,32 @@ function ReadyBody({ state, apiUrl, merchantId, width, art }: {
       {panel === 'idle' || panel === 'failed' ? (
         <Stagger index={1}>
           <FloatingCard style={styles.cardStack}>
-            <Text accessibilityRole="header" textBreakStrategy="simple" style={styles.cardTitle}>AI 시안 받기</Text>
-            <Text style={styles.cardBody}>가게 이름과 메뉴 이름으로 스타일이 다른 시안 4장을 그려요. {GENERATING_NOTE}</Text>
+            <Text accessibilityRole="header" textBreakStrategy="simple" style={styles.cardTitle}>{repickable ? '고급 그림을 만들지 못했어요' : 'AI 시안 받기'}</Text>
+            {repickable ? null : <Text style={styles.cardBody}>가게 이름과 메뉴 이름으로 스타일이 다른 시안 4장을 그려요. {GENERATING_NOTE}</Text>}
             {panel === 'failed' ? (
               <View accessibilityLiveRegion="polite" style={styles.failure}>
                 <Text style={styles.failureText}>{artCodeMessage(round?.failureCode)}</Text>
               </View>
             ) : null}
-            <BounceButton label={busy === 'start' ? busyLabels.start : 'AI 시안 받기'} disabled={working || !canStartDrafts(owner)} onPress={() => void art.startDrafts()} />
+            {repickable && round ? (
+              <>
+                <Text style={styles.cardBody}>시안은 그대로 남아 있어요. 같은 시안이나 다른 시안을 골라 고급 그림을 다시 만들 수 있어요.</Text>
+                <DraftGrid drafts={round.drafts} size={draftTileSize(width)} selected={selected} disabled={working} onSelect={art.select} />
+                <BounceButton
+                  label={busy === 'choose' ? busyLabels.choose : '이 시안으로 고급 그림 다시 만들기'}
+                  disabled={working || selected === null || !canFinalize(owner)}
+                  onPress={confirmChoose}
+                />
+                {selected === null ? <Text style={styles.hint}>시안을 하나 누르면 고를 수 있어요.</Text> : null}
+                {owner.quota.finalsLeft === 0 ? <Text style={styles.hint}>오늘은 고급 그림 만들기를 다 썼어요. 내일 다시 해 주세요.</Text> : null}
+              </>
+            ) : null}
+            <BounceButton
+              label={busy === 'start' ? busyLabels.start : 'AI 시안 받기'}
+              variant={repickable ? 'secondary' : 'primary'}
+              disabled={working || !canStartDrafts(owner)}
+              onPress={repickable ? confirmNewDrafts : () => void art.startDrafts()}
+            />
             {owner.quota.draftRoundsLeft === 0 ? <Text style={styles.hint}>{artCodeMessage('AI_ART_DAILY_LIMIT')}</Text> : null}
           </FloatingCard>
         </Stagger>

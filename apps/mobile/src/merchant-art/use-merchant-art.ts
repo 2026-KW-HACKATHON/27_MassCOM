@@ -12,6 +12,7 @@ import {
   ownerArtErrorMessage,
   pollFailureMessage,
 } from './owner-art-api';
+import { createStepGate, readUnlessStale, runOwnerStep, type StepGate } from './owner-steps';
 import { createRoundPoller } from './round-polling';
 
 type Options = {
@@ -46,9 +47,11 @@ export function useMerchantArt({ apiUrl, merchantId, credential, onSessionInvali
   );
   const [state, dispatch] = useReducer(artReducer, initialArtState);
   const alive = useRef(true);
-  // Advances with every owner step, so a reload that began before it cannot overwrite what the step just showed.
-  const epoch = useRef(0);
-  const inFlight = useRef(false);
+  // One owner step at a time, and its epoch advances with every step so a reload that began before it cannot overwrite what the
+  // step just showed (owner-steps.ts, tested by behavior).
+  const gateRef = useRef<StepGate | null>(null);
+  gateRef.current ??= createStepGate();
+  const gate = gateRef.current;
 
   useEffect(() => {
     alive.current = true;
@@ -56,26 +59,23 @@ export function useMerchantArt({ apiUrl, merchantId, credential, onSessionInvali
   }, []);
 
   const load = useCallback(async (notice?: string) => {
-    const at = epoch.current;
     dispatch({ type: 'load-started' });
-    try {
-      const art = await api.getArt(merchantId);
-      if (alive.current && epoch.current === at) dispatch({ type: 'loaded', art, notice });
-    } catch (error) {
-      if (alive.current && epoch.current === at) dispatch({ type: 'load-failed', message: ownerArtErrorMessage(error) });
-    }
-  }, [api, merchantId]);
+    await readUnlessStale(gate, () => api.getArt(merchantId), {
+      alive: () => alive.current,
+      onValue: (art) => dispatch({ type: 'loaded', art, notice }),
+      onError: (error) => dispatch({ type: 'load-failed', message: ownerArtErrorMessage(error) }),
+    });
+  }, [api, merchantId, gate]);
 
-  // Background reload for the counts and the current art. When it fails the screen simply keeps what it shows.
-  const refresh = useCallback(async () => {
-    const at = epoch.current;
-    try {
-      const art = await api.getArt(merchantId);
-      if (alive.current && epoch.current === at) dispatch({ type: 'refreshed', art });
-    } catch {
-      // The next poll or the next step shows any real problem.
-    }
-  }, [api, merchantId]);
+  // Background reload for the counts and the current art. When it fails the screen simply keeps what it shows (the next poll or
+  // the next step shows any real problem).
+  const refresh = useCallback(
+    () => readUnlessStale(gate, () => api.getArt(merchantId), {
+      alive: () => alive.current,
+      onValue: (art) => dispatch({ type: 'refreshed', art }),
+    }),
+    [api, merchantId, gate],
+  );
 
   useEffect(() => { void load(); }, [load]);
 
@@ -107,23 +107,18 @@ export function useMerchantArt({ apiUrl, merchantId, credential, onSessionInvali
     return () => poller.stop();
   }, [target, api, merchantId, refresh, load]);
 
-  const act = useCallback(async (busy: ArtBusy, work: () => Promise<void>) => {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    epoch.current += 1;
-    dispatch({ type: 'busy', busy });
-    try {
-      await work();
-    } catch (error) {
-      if (alive.current) {
+  const act = useCallback(
+    (busy: ArtBusy, work: () => Promise<void>) => runOwnerStep(gate, work, {
+      onBegin: () => dispatch({ type: 'busy', busy }),
+      onError: (error) => {
+        if (!alive.current) return;
         dispatch({ type: 'failed', message: ownerArtErrorMessage(error) });
         // The server may already have moved on (or accepted a reply we could not read): show what it has now.
         if (needsArtReload(error)) void load(ownerArtErrorMessage(error));
-      }
-    } finally {
-      inFlight.current = false;
-    }
-  }, [load]);
+      },
+    }),
+    [gate, load],
+  );
 
   return {
     state,

@@ -1,4 +1,4 @@
-import type { ArtDraft, ArtQuota, ArtRound, ArtRoundStatus, OwnerArt } from './owner-art-api';
+import { DRAFT_COUNT, type ArtDraft, type ArtQuota, type ArtRound, type ArtRoundStatus, type OwnerArt } from './owner-art-api';
 
 // 점주 그림 화면의 상태 모델. 화면은 이 reducer가 돌려주는 상태만 그리고, 서버 응답의 새로움 판단과 어느 패널을 보일지도 여기서 정한다.
 
@@ -72,6 +72,17 @@ export function canStartDrafts(art: OwnerArt): boolean {
   return art.configured && art.quota.draftRoundsLeft > 0 && !(art.round && isRoundInProgress(art.round.status));
 }
 
+/**
+ * A round the owner can pick a draft from: one waiting for the pick, or one whose final failed while its four drafts are still
+ * there (the server lets the same round choose again; it counts as a new final). A round that failed while drawing the drafts
+ * has none to pick and needs a new round.
+ */
+export function canPickDraft(round: ArtRound | null): boolean {
+  if (round === null) return false;
+  return round.status === 'DRAFTS_READY'
+    || (round.status === 'FAILED' && round.chosenIndex !== null && round.drafts.length === DRAFT_COUNT);
+}
+
 export function canFinalize(art: OwnerArt): boolean {
   return art.configured && art.quota.finalsLeft > 0;
 }
@@ -108,7 +119,7 @@ export function artReducer(state: ArtScreenState, action: ArtAction): ArtScreenS
     case 'select': {
       const round = state.art.round;
       const known = round?.drafts.some((draft) => draft.index === action.index) ?? false;
-      return artPanel(state.art) === 'drafts' && state.busy === null && known ? { ...state, selected: action.index } : state;
+      return state.art.configured && canPickDraft(round) && state.busy === null && known ? { ...state, selected: action.index } : state;
     }
     case 'busy':
       return { ...state, busy: action.busy, notice: null };
@@ -133,12 +144,12 @@ export function artReducer(state: ArtScreenState, action: ArtAction): ArtScreenS
   }
 }
 
-/** Puts `next` on screen; the owner's pick survives only while the very same round is still waiting for a pick. */
+/** Puts `next` on screen; the owner's pick survives only while the very same round is still waiting for a pick (or for a redo). */
 function withRound(
   state: Extract<ArtScreenState, { status: 'ready' }>,
   previous: ArtRound | null,
   next: ArtRound | null,
 ): ArtScreenState {
-  const keepPick = previous !== null && next !== null && previous.id === next.id && next.status === 'DRAFTS_READY';
+  const keepPick = previous !== null && next !== null && previous.id === next.id && canPickDraft(previous) && canPickDraft(next);
   return { ...state, art: { ...state.art, round: next }, selected: keepPick ? state.selected : null };
 }

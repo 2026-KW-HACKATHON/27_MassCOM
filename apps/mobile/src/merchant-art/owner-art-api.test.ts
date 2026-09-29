@@ -214,6 +214,29 @@ test('a round that is still drawing has no pictures yet', () => {
   assert.equal(finalizing.chosenIndex, 3);
 });
 
+test('a round being redrawn in high quality arrives without its drafts (the server leaves them out) and is still accepted', () => {
+  const finalizing = parseArtRound(round({ status: 'FINALIZING', chosenIndex: 3, drafts: [] }));
+  assert.equal(finalizing.status, 'FINALIZING');
+  assert.equal(finalizing.chosenIndex, 3);
+  assert.deepEqual(finalizing.drafts, []);
+  assert.equal(finalizing.final, null);
+  // The pick itself is still required, or the panel would have nothing to say.
+  assert.throws(() => parseArtRound(round({ status: 'FINALIZING', chosenIndex: null, drafts: [] })), /INVALID_RESPONSE/);
+  // A finished or applied round does not need its drafts either.
+  assert.deepEqual(parseArtRound(round({ status: 'FINAL_READY', chosenIndex: 1, drafts: [], final: { imageDataUrl: webp } })).drafts, []);
+  assert.deepEqual(parseArtRound(round({ status: 'APPLIED', chosenIndex: 1, drafts: [] })).drafts, []);
+});
+
+test('a final that failed keeps its pick and its four drafts, so the same round can choose again', () => {
+  const failed = parseArtRound(round({ status: 'FAILED', chosenIndex: 2, failureCode: 'AI_ART_TIMEOUT' }));
+  assert.equal(failed.status, 'FAILED');
+  assert.equal(failed.chosenIndex, 2);
+  assert.equal(failed.drafts.length, 4);
+  assert.equal(failed.failureCode, 'AI_ART_TIMEOUT');
+  // A pick that is not among the drafts the reply carries is a broken reply.
+  assert.throws(() => parseArtRound(round({ status: 'FAILED', chosenIndex: 2, failureCode: 'AI_ART_TIMEOUT', drafts: drafts().slice(0, 2) })), /INVALID_RESPONSE/);
+});
+
 test('rejects an art reply that is not the documented shape', () => {
   const cases: [string, unknown][] = [
     ['configured missing', { ...art(), configured: undefined }],

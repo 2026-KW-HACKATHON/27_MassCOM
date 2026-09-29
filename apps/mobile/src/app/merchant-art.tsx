@@ -14,9 +14,10 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
 
 /**
- * The owner art page as a stack route (`/merchant-art?merchantId=...`), for the showcase app only. The showcase owner page itself
- * replaces the navigator and opens the same screen in place; either way the server checks that the account may manage this
- * merchant's art, so the merchant id in the address grants nothing.
+ * The owner art page as a stack route (`/merchant-art?merchantId=...`), for the showcase app and the local development build
+ * (which checks the flow against a local API). The operating app never opens it. The showcase owner page itself replaces the
+ * navigator and opens the same screen in place; either way the server checks that the account may manage this merchant's art,
+ * so the merchant id in the address grants nothing.
  */
 export default function MerchantArtRoute() {
   const auth = useAuthSession();
@@ -38,7 +39,7 @@ export default function MerchantArtRoute() {
   );
 
   if (!canOpenMerchantArtRoute(Application.applicationId)) {
-    return frame(<StateScene kind="empty" title="이 앱에서는 열 수 없어요" body="가게 그림 만들기는 시연 앱의 점주 화면에서만 쓸 수 있어요." />);
+    return frame(<StateScene kind="empty" title="이 앱에서는 열 수 없어요" body="가게 그림 만들기는 시연 앱의 점주 화면과 로컬 개발 빌드에서만 쓸 수 있어요." />);
   }
   if (!auth.credential || !auth.accountId) {
     return frame(<StateScene kind="error" title="로그인이 필요해요" body="점주 계정으로 로그인한 뒤 다시 열어 주세요." />);

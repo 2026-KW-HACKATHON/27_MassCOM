@@ -47,7 +47,7 @@ test('choosing, using and resetting a picture each ask first with an alert, and 
     ['confirmReset', '기본 그림으로 되돌릴까요?', '기본 그림으로 되돌리기'],
   ] as const) {
     const body = screen.match(new RegExp(`const ${confirm} = \\(\\) => \\{[\\s\\S]*?\\n  \\};`))?.[0] ?? '';
-    assert.ok(body.includes(`Alert.alert(`), `${confirm} asks`);
+    assert.ok(body.includes(`ask(`), `${confirm} asks through the guarded alert`);
     assert.ok(body.includes(title), `${confirm} title`);
     assert.match(body, /\{ text: '취소', style: 'cancel' \}/, `${confirm} can be cancelled`);
     assert.ok(screen.includes(`'${label}'`), `${label} button`);
@@ -60,9 +60,35 @@ test('choosing, using and resetting a picture each ask first with an alert, and 
 
 test('a new set of drafts also asks first, because it throws away the ones on screen', () => {
   const body = screen.match(/const confirmNewDrafts = \(\) => \{[\s\S]*?\n  \};/)?.[0] ?? '';
-  assert.match(body, /Alert\.alert\(/);
+  assert.match(body, /ask\(/);
   assert.equal((screen.match(/onPress=\{confirmNewDrafts\}/g) ?? []).length, 2, 'the drafts and the final panel');
   assert.equal((screen.match(/label=\{busy === 'start' \? busyLabels\.start : '새 시안 받기'\}/g) ?? []).length, 2);
+  // On the final panel the finished final goes too, and the alert says so; elsewhere only the drafts.
+  assert.match(body, /panel === 'final'\s+\? '지금 시안과 완성된 고급 그림이 모두 사라지고, 오늘 남은 시안 받기 횟수가 1번 줄어요\.'\s+: '지금 시안은 사라지고, 오늘 남은 시안 받기 횟수가 1번 줄어요\.'/);
+});
+
+test('every alert opens through one guard, so a double tap on a confirm button cannot stack two alerts', () => {
+  assert.match(screen, /const promptGuard = useRef<PromptGuard \| null>\(null\);\s+promptGuard\.current \?\?= createPromptGuard\(\);/);
+  const ask = screen.match(/const ask = [\s\S]*?\n  \};/)?.[0] ?? '';
+  assert.match(ask, /promptGuard\.current\?\.run\(\(release\) => Alert\.alert\(/);
+  // Every button and a dismissal (back button, tap outside) let the next alert open.
+  assert.match(ask, /onPress: \(\) => \{ release\(\); button\.onPress\?\.\(\); \}/);
+  assert.match(ask, /\{ onDismiss: release \}/);
+  assert.equal((screen.match(/Alert\.alert\(/g) ?? []).length, 1, 'only the guarded helper opens an alert');
+});
+
+test('after a failed final the four drafts stay on the failed panel: pick again, or start over with "AI 시안 받기"', () => {
+  assert.match(screen, /const repickable = panel === 'failed' && canPickDraft\(round\);/);
+  assert.match(screen, /\{repickable \? '고급 그림을 만들지 못했어요' : 'AI 시안 받기'\}/);
+  // The failure line is still written as plain Korean, and the drafts and the redo button sit under it.
+  const failedCard = screen.match(/\{panel === 'idle' \|\| panel === 'failed' \? \([\s\S]*?\n      \) : null\}/)?.[0] ?? '';
+  assert.match(failedCard, /artCodeMessage\(round\?\.failureCode\)/);
+  assert.match(failedCard, /<DraftGrid drafts=\{round\.drafts\} size=\{draftTileSize\(width\)\} selected=\{selected\} disabled=\{working\} onSelect=\{art\.select\} \/>/);
+  assert.match(failedCard, /'이 시안으로 고급 그림 다시 만들기'/);
+  assert.match(failedCard, /disabled=\{working \|\| selected === null \|\| !canFinalize\(owner\)\}\s+onPress=\{confirmChoose\}/);
+  // "AI 시안 받기" is still there; with drafts on screen it asks first because it throws them away.
+  assert.match(failedCard, /label=\{busy === 'start' \? busyLabels\.start : 'AI 시안 받기'\}/);
+  assert.match(failedCard, /onPress=\{repickable \? confirmNewDrafts : \(\) => void art\.startDrafts\(\)\}/);
 });
 
 test('the drafts are a 2x2 grid of radio buttons that read their number and style and show a chosen state', () => {
@@ -112,8 +138,11 @@ test('polling is only asked for the round the model names, stops when the screen
   assert.match(hook, /if \(active && !wasActive\.current\) void refresh\(\);/);
   // Nothing dispatches into an unmounted screen, and a reload that began before an owner step cannot overwrite it.
   assert.ok((hook.match(/alive\.current/g) ?? []).length >= 8);
-  assert.match(hook, /epoch\.current === at/);
-  assert.match(hook, /if \(inFlight\.current\) return;/);
+  // The one-step-at-a-time gate and the stale-reload rule live in owner-steps.ts (behavior tests in owner-steps.test.ts); the hook
+  // only wires them: every reload goes through readUnlessStale and every owner step through runOwnerStep, on the same gate.
+  assert.equal((hook.match(/readUnlessStale\(gate,/g) ?? []).length, 2, 'load and refresh');
+  assert.match(hook, /runOwnerStep\(gate, work, \{\s+onBegin: \(\) => dispatch\(\{ type: 'busy', busy \}\),/);
+  assert.doesNotMatch(hook, /epoch\.current|inFlight\.current/);
 });
 
 test('a step the server had moved past, or a reply the app could not read, reloads the page', () => {
@@ -124,6 +153,9 @@ test('a step the server had moved past, or a reply the app could not read, reloa
 test('the page is a stack route for the showcase app only, registered without the native header', () => {
   assert.match(read('app/_layout.tsx'), /<Stack\.Screen name="merchant-art" options=\{\{ headerShown: false \}\} \/>/);
   assert.match(route, /canOpenMerchantArtRoute\(Application\.applicationId\)/);
+  // The local development build opens it too, and both the comment and the message to a build that cannot say so.
+  assert.match(route, /for the showcase app and the local development build/);
+  assert.match(route, /body="가게 그림 만들기는 시연 앱의 점주 화면과 로컬 개발 빌드에서만 쓸 수 있어요\."/);
   assert.match(route, /useFocusEffect\(useCallback\(\(\) => \{\s+setFocused\(true\);\s+return \(\) => setFocused\(false\);/);
   assert.match(route, /focused=\{focused\}/);
   assert.match(route, /useLocalSearchParams<\{ merchantId\?: string \}>\(\)/);

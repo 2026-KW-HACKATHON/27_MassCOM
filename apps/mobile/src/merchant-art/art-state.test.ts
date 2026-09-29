@@ -5,6 +5,7 @@ import {
   artPanel,
   artReducer,
   canFinalize,
+  canPickDraft,
   canStartDrafts,
   draftAccessibilityLabel,
   initialArtState,
@@ -244,4 +245,53 @@ test('a reload after a step the server had moved past keeps the line that says w
   const reloaded = readyState(artReducer(local, { type: 'loaded', art: art({ round: round('FINALIZING', { chosenIndex: 0 }) }), notice: '이미 다음 단계로 넘어갔어요.' }));
   assert.equal(reloaded.notice, '이미 다음 단계로 넘어갔어요.');
   assert.equal(artPanel(reloaded.art), 'finalizing');
+});
+
+// A failed final keeps the pick and the four drafts on screen, so the owner can pick again on the same round.
+const failedFinal = (overrides: Partial<ArtRound> = {}) => round('FAILED', {
+  chosenIndex: 1, drafts: labels.map((label, index) => ({ index, style: `S${index}`, label, imageDataUrl: 'data:image/webp;base64,AAAA' })),
+  ...overrides,
+});
+
+test('a draft can be picked from a round waiting for a pick, or from one whose final failed with its drafts still there', () => {
+  assert.equal(canPickDraft(null), false);
+  assert.equal(canPickDraft(round('DRAFTS_READY')), true);
+  assert.equal(canPickDraft(failedFinal()), true);
+  // A round that failed while drawing the drafts has none to pick from and needs a new round.
+  assert.equal(canPickDraft(round('FAILED')), false);
+  assert.equal(canPickDraft(round('FAILED', { drafts: failedFinal().drafts })), false, 'no pick recorded');
+  assert.equal(canPickDraft(failedFinal({ drafts: failedFinal().drafts.slice(0, 3) })), false, 'a draft is missing');
+  for (const status of ['DRAFTING', 'FINALIZING', 'FINAL_READY', 'APPLIED'] as const) assert.equal(canPickDraft(round(status)), false, status);
+});
+
+test('the failed panel takes a pick when the drafts are there, and only then', () => {
+  assert.equal(artPanel(art({ round: failedFinal() })), 'failed');
+  const failed = ready({ round: failedFinal() });
+  assert.equal(readyState(artReducer(failed, { type: 'select', index: 3 })).selected, 3);
+  assert.equal(readyState(artReducer(ready({ round: failedFinal() }, { busy: 'choose' }), { type: 'select', index: 3 })).selected, null);
+  assert.equal(readyState(artReducer(ready({ configured: false, round: failedFinal() }), { type: 'select', index: 3 })).selected, null);
+  // Drafts that never came (failed while drawing) leave nothing to pick.
+  assert.equal(readyState(artReducer(ready({ round: round('FAILED') }), { type: 'select', index: 0 })).selected, null);
+});
+
+test('the pick on a failed round survives a reload of the same round but not the redo that follows it', () => {
+  const picked = ready({ round: failedFinal() }, { selected: 2 });
+  assert.equal(readyState(artReducer(picked, { type: 'refreshed', art: art({ round: failedFinal() }) })).selected, 2);
+  // Choosing again starts the final: the round is redrawn, the pick is spent, and the screen shows the redrawing panel.
+  const redone = readyState(artReducer(picked, { type: 'round-started', round: round('FINALIZING', { chosenIndex: 2, drafts: [] }) }));
+  assert.equal(redone.selected, null);
+  assert.equal(artPanel(redone.art), 'finalizing');
+  assert.equal(pollTarget(redone, true), idA);
+  // And if that fails as well, the drafts are back for another pick, with the failure line.
+  const failedAgain = readyState(artReducer(redone, { type: 'round-polled', round: failedFinal({ chosenIndex: 2, failureCode: 'AI_ART_UPSTREAM_UNAVAILABLE' }) }));
+  assert.equal(artPanel(failedAgain.art), 'failed');
+  assert.equal(failedAgain.selected, null);
+  assert.equal(canPickDraft(failedAgain.art.round), true);
+  assert.equal(pollTarget(failedAgain, true), null);
+});
+
+test('the redo is a new final: it needs a try left, and the counts drop when the server says so', () => {
+  const none = art({ round: failedFinal(), quota: { draftRoundsLeft: 3, finalsLeft: 0 } });
+  assert.equal(canFinalize(none), false);
+  assert.equal(canFinalize(art({ round: failedFinal() })), true);
 });
