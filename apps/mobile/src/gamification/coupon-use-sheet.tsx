@@ -148,12 +148,12 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
           </Pressable>
         </View>
         <ScrollView style={styles.sheetScroll} contentContainerStyle={[styles.sheetBody, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.couponSummary} accessible accessibilityLabel={`${coupon.merchantName} ${coupon.title}, ${couponExpiryLabel(coupon.expiresAt).replace('~', '')}`}>
+          <View style={styles.couponSummary} accessible accessibilityLabel={coupon.status === 'VOIDED' ? `${coupon.merchantName} ${coupon.title}` : `${coupon.merchantName} ${coupon.title}, ${couponExpiryLabel(coupon.expiresAt).replace('~', '')}`}>
             <GiftGlyph size={34} color={coupon.milestone === 3 ? medal.giftGold : medal.giftPaperShade} ribbon={medal.ribbon} />
             <View style={styles.couponSummaryCopy}>
               <Text style={styles.ticketMerchant}>{coupon.merchantName}</Text>
               <Text style={styles.ticketTitle}>{coupon.title}</Text>
-              <Text style={styles.ticketExpiry}>{couponExpiryLabel(coupon.expiresAt)}</Text>
+              {coupon.status === 'VOIDED' ? null : <Text style={styles.ticketExpiry}>{couponExpiryLabel(coupon.expiresAt)}</Text>}
             </View>
           </View>
 

@@ -20,7 +20,7 @@ test('cancelling a visit and undoing a coupon both ask first with a destructive 
   assert.match(reversal, /Alert\.alert\('쿠폰 사용 되돌리기', undoConfirmText\(coupon\)/);
   // 확인 전에는 서버를 부르지 않는다: 요청은 경고창의 버튼 안에서만 시작한다.
   assert.match(reversal, /onPress: \(\) => void cancelVisit\(visit\)/);
-  assert.match(reversal, /onPress: \(\) => void undoCoupon\(coupon\)/);
+  assert.match(reversal, /onPress: \(\) => void controller\.current\?\.undoCoupon\(coupon\)/);
 });
 
 test('the reversal cards expose roles, live regions and the note limit and never touch account identifiers', () => {
@@ -31,16 +31,22 @@ test('the reversal cards expose roles, live regions and the note limit and never
   assert.match(reversal, /maxLength=\{reversalNoteMaxLength\}/);
   assert.match(reversal, /연락처·이메일·주소는 적지 마세요/);
   assert.doesNotMatch(reversal, /customerAccountId|accountId|email/i);
-  // 처리 중에는 모든 버튼을 잠그고, 낡은 응답은 세대 번호로 버린다.
+  // 처리 중에는 모든 버튼을 잠근다.
   assert.match(reversal, /disabled=\{busy\}/);
-  assert.match(reversal, /if \(current === generation\.current\) applyLists\(results, keep\);/);
-  assert.match(reversal, /if \(current === generation\.current\) applyLists\(results, \{\}\);/);
-  assert.match(reversal, /return \(\) => \{ generation\.current \+= 1; \};/);
 });
 
-test('failures refresh a stale list and successes reload it while keeping the result message', () => {
-  assert.match(reversal, /if \(staleAfterVisitFailure\(code\)\) await load\(\{ visits: true \}\);/);
-  assert.match(reversal, /if \(staleAfterUndoFailure\(code\)\) await load\(\{ redemptions: true \}\);/);
-  assert.match(reversal, /setVisitMessage\(cancelSuccessMessage\(result\)\);[\s\S]*await load\(\{ visits: true \}\);/);
-  assert.match(reversal, /setRedemptionMessage\(undoSuccessMessage\(result\)\);[\s\S]*await load\(\{ redemptions: true \}\);/);
+// 요청 장부(낡은 응답 버리기·중복 누름 방지·점포 변경 시 목록 지우기)는 reversal-loader.ts로 옮겼고 reversal-loader.test.ts가 동작으로 시험한다.
+// 화면이 그 장부만 쓰는지, 점포가 바뀌면 컨트롤러를 새로 만들고 이전 것을 닫는지, 두 카드에 새로 고침이 있는지 확인한다.
+test('the screen delegates every request to the controller and rebuilds it when the store changes', () => {
+  assert.match(reversal, /createReversalController\(api, merchantId, setState\)/);
+  assert.match(reversal, /\}, \[api, merchantId\]\);/);
+  assert.match(reversal, /void next\.start\(\);/);
+  assert.match(reversal, /next\.dispose\(\);/);
+  assert.match(reversal, /rawState\.merchantId === merchantId \? rawState : initialReversalState/);
+  assert.match(reversal, /controller\.current\?\.cancelVisit\(visit, \{ reason, note \}\)/);
+  assert.match(reversal, /controller\.current\?\.undoCoupon\(coupon\)/);
+  assert.doesNotMatch(reversal, /api\.(listRecent|cancelVisit|undoCoupon)/);
+  assert.match(reversal, /label="목록 새로 고침"/);
+  assert.match(reversal, /label="쿠폰 목록 새로 고침"/);
+  assert.equal((reversal.match(/controller\.current\?\.refresh\(\)/g) ?? []).length, 2);
 });

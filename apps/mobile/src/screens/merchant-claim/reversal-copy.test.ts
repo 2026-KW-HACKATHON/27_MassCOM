@@ -79,6 +79,7 @@ test('every server failure code has a specific Korean message and stale lists ar
   for (const [code, pattern] of [
     ['COUPON_UNDO_WINDOW_CLOSED', /10분이 지나/], ['COUPON_NOT_REDEEMED', /사용 처리된 쿠폰이 아니라서/],
     ['COUPON_NOT_FOUND', /찾을 수 없는 쿠폰/], ['MERCHANT_ACCESS_DENIED', /권한이 없어요/],
+    ['COUPON_SELF_UNDO', /본인 쿠폰은 직접 되돌릴 수 없어요/], ['COUPON_REQUIREMENT_LOST', /배지 조건이 사라져서 되돌릴 수 없어요/],
     ['ACCOUNT_DELETED', /삭제/], ['UNKNOWN', /되돌리지 못했어요/],
   ] as const) assert.match(undoFailureMessage(409, code), pattern, code);
   assert.match(visitCancelFailureMessage(401, 'HTTP_401'), /다시 로그인/);
@@ -86,5 +87,6 @@ test('every server failure code has a specific Korean message and stale lists ar
   assert.match(listFailureMessage(403, 'MERCHANT_ACCESS_DENIED', '방문'), /볼 권한이 없어요/);
   assert.match(listFailureMessage(500, 'HTTP_500', '쿠폰 사용'), /최근 쿠폰 사용을 불러오지 못했어요/);
   assert.deepEqual(['VISIT_CANCEL_WINDOW_CLOSED', 'VISIT_NOT_FOUND', 'VISIT_REWARD_ALREADY_MINTED'].map(staleAfterVisitFailure), [true, true, false]);
-  assert.deepEqual(['COUPON_UNDO_WINDOW_CLOSED', 'COUPON_NOT_REDEEMED', 'COUPON_NOT_FOUND', 'X'].map(staleAfterUndoFailure), [true, true, true, false]);
+  assert.deepEqual(['COUPON_UNDO_WINDOW_CLOSED', 'COUPON_NOT_REDEEMED', 'COUPON_NOT_FOUND', 'COUPON_REQUIREMENT_LOST', 'COUPON_SELF_UNDO', 'X']
+    .map(staleAfterUndoFailure), [true, true, true, true, false, false]);
 });

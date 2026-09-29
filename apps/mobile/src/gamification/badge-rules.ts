@@ -225,7 +225,9 @@ export function couponStatusLabel(status: CouponStatus): string {
 }
 
 export function couponAccessibilityLabel(coupon: Coupon): string {
-  return `쿠폰 ${coupon.title}, ${coupon.merchantName}, ${couponStatusLabel(coupon.status)}, ${couponExpiryLabel(coupon.expiresAt).replace('~', '')}`;
+  const base = `쿠폰 ${coupon.title}, ${coupon.merchantName}, ${couponStatusLabel(coupon.status)}`;
+  // 무효 쿠폰에는 "~까지"가 오해를 부르므로 만료 날짜를 읽어 주지 않는다.
+  return coupon.status === 'VOIDED' ? base : `${base}, ${couponExpiryLabel(coupon.expiresAt).replace('~', '')}`;
 }
 
 export function couponsOf(book: Pick<BadgeBook, 'rewards'> | undefined): readonly Coupon[] {

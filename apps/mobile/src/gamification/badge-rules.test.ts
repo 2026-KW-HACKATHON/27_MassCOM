@@ -163,7 +163,8 @@ test('coupon expiry uses the Korean calendar date', () => {
   assert.deepEqual(['ISSUED', 'REDEEMED', 'EXPIRED'].map((s) => couponStatusLabel(s as Coupon['status'])), ['사용 가능', '사용 완료', '만료']);
   assert.equal(couponAccessibilityLabel(coupon), '쿠폰 체험 음료 1잔, 가상 점포 A, 사용 가능, 10월 29일까지');
   assert.equal(couponStatusLabel('VOIDED'), '사용할 수 없는 쿠폰');
-  assert.equal(couponAccessibilityLabel({ ...coupon, status: 'VOIDED' }), '쿠폰 체험 음료 1잔, 가상 점포 A, 사용할 수 없는 쿠폰, 10월 29일까지');
+  // 무효 쿠폰은 "~까지" 만료 날짜가 오해를 부르므로 읽어 주지 않는다(다른 상태는 그대로다).
+  assert.equal(couponAccessibilityLabel({ ...coupon, status: 'VOIDED' }), '쿠폰 체험 음료 1잔, 가상 점포 A, 사용할 수 없는 쿠폰');
 });
 
 test('an open coupon sheet follows the polled book: redeemed, voided or withdrawn', () => {

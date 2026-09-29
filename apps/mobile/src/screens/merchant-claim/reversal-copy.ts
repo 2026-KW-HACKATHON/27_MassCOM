@@ -68,11 +68,12 @@ export function staleAfterVisitFailure(code: string): boolean {
 }
 
 export function staleAfterUndoFailure(code: string): boolean {
-  return code === 'COUPON_UNDO_WINDOW_CLOSED' || code === 'COUPON_NOT_REDEEMED' || code === 'COUPON_NOT_FOUND';
+  return code === 'COUPON_UNDO_WINDOW_CLOSED' || code === 'COUPON_NOT_REDEEMED' || code === 'COUPON_NOT_FOUND'
+    || code === 'COUPON_REQUIREMENT_LOST';
 }
 
 export function visitCancelFailureMessage(status: number | undefined, code: string): string {
-  if (status === 401) return '점포 권한을 확인하지 못했습니다. 다시 로그인해 주세요.';
+  if (status === 401) return '점포 권한을 확인하지 못했어요. 다시 로그인해 주세요.';
   switch (code) {
     case 'MERCHANT_ACCESS_DENIED': return '이 점포의 방문 확인 권한이 없어요.';
     case 'VISIT_NOT_FOUND': return '이 점포에서 찾을 수 없는 방문이에요. 목록을 새로 불러왔어요.';
@@ -87,12 +88,14 @@ export function visitCancelFailureMessage(status: number | undefined, code: stri
 }
 
 export function undoFailureMessage(status: number | undefined, code: string): string {
-  if (status === 401) return '점포 권한을 확인하지 못했습니다. 다시 로그인해 주세요.';
+  if (status === 401) return '점포 권한을 확인하지 못했어요. 다시 로그인해 주세요.';
   switch (code) {
     case 'MERCHANT_ACCESS_DENIED': return '이 점포의 쿠폰 처리 권한이 없어요.';
     case 'COUPON_NOT_FOUND': return '이 점포에서 찾을 수 없는 쿠폰이에요. 목록을 새로 불러왔어요.';
     case 'COUPON_UNDO_WINDOW_CLOSED': return '사용 처리 후 10분이 지나 되돌릴 수 없어요.';
     case 'COUPON_NOT_REDEEMED': return '사용 처리된 쿠폰이 아니라서 되돌릴 게 없어요.';
+    case 'COUPON_SELF_UNDO': return '본인 쿠폰은 직접 되돌릴 수 없어요. 다른 직원에게 요청해 주세요.';
+    case 'COUPON_REQUIREMENT_LOST': return '방문 기록이 바뀌어 고객의 배지 조건이 사라져서 되돌릴 수 없어요. 쿠폰은 사용 완료로 남아요.';
     case 'ACCOUNT_DELETED': return '계정이 삭제돼 처리할 수 없어요.';
     default: return '쿠폰 사용을 되돌리지 못했어요. 연결을 확인하고 잠시 후 다시 시도해 주세요.';
   }
