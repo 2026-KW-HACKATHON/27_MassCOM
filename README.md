@@ -70,7 +70,9 @@
 
 모든 웹 화면(포털·설치·개인정보·계정 삭제 안내·읽기 전용 시연 웹·운영 웹 도감·점주·관리자)은 앱과 같은 색 토큰·마스코트 머리글·카드·버튼·다크 모드를 씁니다([Issue #218](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/218), [웹 디자인 체계](docs/superpowers/specs/2026-09-29-web-design-system.md), [전후 화면](docs/evidence/web-design-system-2026-09-29/README.md)). 웹 색이 앱 `palette.ts`와 어긋나면 `tests/site/verify_design_tokens_test.mjs`가 실패합니다.
 
-[Issue #224](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/224)는 흰 바탕의 밋밋한 Android 앱을 **하늘 동네와 여권 도장**으로 바꿉니다([설계](docs/superpowers/specs/2026-09-29-sky-town-redesign-design.md), [결정 D-045](docs/DECISIONS.md)). 하늘 그라데이션·동네 그림 위에 떠 있는 카드, 가운데 도장 버튼이 솟은 세 칸 탭 바(`탐색 · 방문 인증 · 도감`, 내 정보는 머리글 아바타), 도감의 도장이 찍히는 여권 페이지, 숨쉬는 마스코트와 눌림·진입 연출이 들어갑니다. 동작 줄이기 설정은 실행 중에도 따르고, 새 색 조합은 라이트·다크 모두 명암비 시험을 거칩니다. 이 개편은 **소스와 에뮬레이터 로컬 확인까지**이며 공개된 Preview 7 APK와 운영 test.3에는 들어 있지 않습니다. 실제 휴대전화·TalkBack·소유자의 "꾸민 느낌" 판정은 `NOT_RUN`입니다([에뮬레이터 증거](docs/evidence/sky-town-redesign-2026-09-29/README.md)). 이어서 진행할 지도(D-046)·친구(D-047)·사장님 AI 시안(D-048)은 결정만 기록했고 구현하지 않았습니다.
+[Issue #224](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/224)는 흰 바탕의 밋밋한 Android 앱을 **하늘 동네와 여권 도장**으로 바꿉니다([설계](docs/superpowers/specs/2026-09-29-sky-town-redesign-design.md), [결정 D-045](docs/DECISIONS.md)). 하늘 그라데이션·동네 그림 위에 떠 있는 카드, 가운데 도장 버튼이 솟은 세 칸 탭 바(`탐색 · 방문 인증 · 도감`, 내 정보는 머리글 아바타), 도감의 도장이 찍히는 여권 페이지, 숨쉬는 마스코트와 눌림·진입 연출이 들어갑니다. 동작 줄이기 설정은 실행 중에도 따르고, 새 색 조합은 라이트·다크 모두 명암비 시험을 거칩니다. 이 개편은 **소스와 에뮬레이터 로컬 확인까지**이며 공개된 Preview 7 APK와 운영 test.3에는 들어 있지 않습니다. 실제 휴대전화·TalkBack·소유자의 "꾸민 느낌" 판정은 `NOT_RUN`입니다([에뮬레이터 증거](docs/evidence/sky-town-redesign-2026-09-29/README.md)). 이어서 진행할 친구(D-047)·사장님 AI 시안(D-048)은 결정만 기록했고 구현하지 않았습니다. 지도(D-046)는 바로 아래 Issue #228에서 구현했습니다.
+
+[Issue #228](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/228)은 **동네 지도**를 더합니다([설계](docs/superpowers/specs/2026-09-29-town-map-design.md), [결정 D-046](docs/DECISIONS.md)). 하단 탭이 `탐색 · 지도 · 방문 인증 · 도감` 네 칸이 되고, 지도 탭은 동네 그림 위에 가게 핀을 올립니다. 도장 받은 가게는 이중 테두리와 체크, 아직 안 간 가게는 점선이라 색만으로 구분하지 않습니다. 핀을 누르면 이름·도로명 주소·도장 상태·다음 목표와 `자세히 보기`·`길찾기` 카드가 올라오고, `길찾기`는 네이버 지도·카카오맵 앱(없으면 웹)을 **도로명 주소 검색**으로 엽니다. 그림 지도는 실제 위치·거리와 다르며 화면에도 그렇게 밝힙니다. 지도 API 키·과금 자원·위치 권한·새 의존성·API/DB 변경은 없고, 가상 점포는 실제 주소가 없으므로 길찾기 대신 이유를 보입니다. 탐색 머리글의 "지도로 보기" 칩으로도 들어갑니다. 이 기능도 **소스와 로컬 확인까지**이며 공개된 Preview 7 APK와 운영 test.3에는 들어 있지 않습니다. 실제 휴대전화(SM-S928N)에서 지도·핀 카드·길찾기 선택과 네이버·카카오 앱 열림, 함께 고친 도장판·보상 상자 이름 잘림 두 결함의 수정을 확인했고 외부 지도 앱 화면은 위치가 담겨 저장하지 않았습니다. 다크·글자 200%·TalkBack·웹 대체 경로·시연 빌드의 지도와 소유자의 판정은 `NOT_RUN`입니다([실폰 증거](docs/evidence/town-map-2026-09-29/README.md)).
 
 ## 한눈에 보기
 
@@ -153,6 +155,16 @@ sequenceDiagram
 두 초대 계정의 Android **직접 코드 입력** 흐름은 [폰·DB 실측](docs/evidence/showcase-two-account-phone-2026-09-27.json)에서 확인했습니다. 지갑은 선택 기능이라 시연 앱에서 없어도 탐색·방문 인증·도감을 사용합니다. 앱 수집품과 실제 발행 NFT는 별도 상태이며, 시연 앱의 지갑·NFT는 아직 활성화하지 않았습니다.
 
 ## 실제 Android 화면
+
+### 동네 지도(Issue #228): 실제 휴대전화 로컬 확인
+
+아래는 이 기능을 반영한 개발 앱(`kr.masscom.wolgye.dev`)을 Samsung SM-S928N에서 촬영한 화면입니다. 일회용 로컬 API·PostgreSQL의 가상 시연 seed를 썼고 운영·시연 서버와 공개 APK는 쓰지 않았습니다. "검수용 동네 가게"는 길찾기 경로를 시험하려고 **로컬 QA DB에만** 넣은 가짜 가게이며 실제 협약 점포가 아닙니다. 모두 라이트 모드·기본 글자 크기이고, 오른쪽 위의 회색 톱니는 개발 클라이언트 도구 버튼입니다. 환경·결함·`NOT_RUN`은 [증거 README](docs/evidence/town-map-2026-09-29/README.md)에 있습니다.
+
+| 지도 탭: 그림 지도와 핀 | 핀 카드: 길찾기 가능한 가게 |
+| :---: | :---: |
+| <img src="docs/evidence/town-map-2026-09-29/02-map-top-phone.png" width="250" alt="실제 휴대전화의 동네 지도 화면, 그림 지도 위에 도장 받은 가상 점포 A·B의 이중 테두리 핀과 아직 없는 C의 점선 핀"> | <img src="docs/evidence/town-map-2026-09-29/04-pin-sheet-real-phone.png" width="250" alt="검수용 가게 핀 카드, 아직 도장이 없어요와 자세히 보기·길찾기 버튼"> |
+| **길찾기: 지도 앱 선택** | **가상 점포는 길찾기 대신 이유** |
+| <img src="docs/evidence/town-map-2026-09-29/05-directions-chooser-phone.png" width="250" alt="어느 지도로 열까요 선택 창, 네이버 지도·카카오맵·취소"> | <img src="docs/evidence/town-map-2026-09-29/06-pin-sheet-demo-phone.png" width="250" alt="가상 점포 A 핀 카드, 길찾기 버튼 없이 가상 위치라 길찾기를 할 수 없어요 문구"> |
 
 ### 하늘 동네 개편(Issue #224): 에뮬레이터 로컬 확인
 
