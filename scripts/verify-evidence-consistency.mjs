@@ -50,7 +50,7 @@ for (const stateFile of ['README.md', 'docs/PROJECT_STATE.md', 'docs/HANDOFF.md'
 }
 if (manifest.truthBoundary?.partnerStoresClaimed !== 0 || manifest.truthBoundary?.fieldParticipantsClaimed !== 0
   || manifest.truthBoundary?.revenueIncreaseClaimed !== false || manifest.truthBoundary?.playApprovalClaimed !== false) {
-  throw new Error('submission evidence invents field achievements');
+  throw new Error('submission evidence invents field, revenue, or Play-approval claims');
 }
 if (manifest.recordedAt !== '2026-09-23 KST' || !portal.includes('2026-09-23 KST')) {
   throw new Error('evidence date drift');
