@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { NAVER_APP_NAME, directionsTargets, openDirections, type DirectionsTargets } from './directions';
+import { DEMO_NO_DIRECTIONS, NO_ADDRESS_NO_DIRECTIONS } from './copy';
+import { NAVER_APP_NAME, directionsChooserButtons, directionsNotice, directionsTargets, openDirections, type DirectionsProvider, type DirectionsTargets } from './directions';
 
 const real = { roadAddress: '서울특별시 노원구 월계로 12길 7', demo: false };
 
@@ -102,4 +103,46 @@ test('when even the web page cannot open, the caller is told instead of the erro
   const { open, opened } = opener(['nmap:', 'https:']);
   assert.equal(await openDirections(targets, 'naver', open), false);
   assert.deepEqual(opened, [targets.naver.app, targets.naver.web]);
+});
+
+test('an address that cannot be percent-encoded (a lone surrogate) has no directions instead of throwing while the sheet renders', () => {
+  assert.doesNotThrow(() => directionsTargets({ roadAddress: '월계로 \uD800', demo: false }));
+  assert.equal(directionsTargets({ roadAddress: '월계로 \uD800', demo: false }), null);
+  assert.equal(directionsTargets({ roadAddress: '\uDFFF 월계로', demo: false }), null);
+  // A well-formed surrogate pair (an emoji) is an ordinary character.
+  assert.ok(directionsTargets({ roadAddress: '월계로 \u{1F600}', demo: false }));
+});
+
+test('the sheet says why there are no directions: a demo shop is virtual, a real shop without an address has nothing to search', () => {
+  assert.equal(directionsNotice({ roadAddress: real.roadAddress, demo: false }), null);
+  assert.equal(directionsNotice({ roadAddress: '시연용 가상 위치', demo: true }), DEMO_NO_DIRECTIONS);
+  assert.equal(directionsNotice({ roadAddress: '', demo: true }), DEMO_NO_DIRECTIONS);
+  assert.equal(directionsNotice({ roadAddress: '   ', demo: false }), NO_ADDRESS_NO_DIRECTIONS);
+  assert.equal(directionsNotice({ roadAddress: '', demo: false }), NO_ADDRESS_NO_DIRECTIONS);
+  assert.equal(NO_ADDRESS_NO_DIRECTIONS, '주소가 없어 길찾기를 할 수 없어요');
+});
+
+/** How Android's AlertDialog reads a button list: the last is positive, the one before it negative, the first neutral. */
+function androidSlots(buttons: readonly { text: string }[]) {
+  const list = [...buttons];
+  const positive = list.pop();
+  const negative = list.pop();
+  const neutral = list.pop();
+  return { neutral: neutral?.text, negative: negative?.text, positive: positive?.text };
+}
+
+test('the chooser reads 취소, 카카오맵, 네이버 지도, so on Android cancel is not the bold right-most choice', () => {
+  const buttons = directionsChooserButtons(() => undefined);
+  assert.deepEqual(buttons.map((button) => button.text), ['취소', '카카오맵', '네이버 지도']);
+  assert.deepEqual(androidSlots(buttons), { neutral: '취소', negative: '카카오맵', positive: '네이버 지도' });
+  assert.equal(buttons[0]?.style, 'cancel');
+  assert.equal(buttons[0]?.onPress, undefined);
+  assert.equal(buttons.filter((button) => button.style === 'cancel').length, 1);
+});
+
+test('each chooser button picks its own provider and cancel picks none', () => {
+  const picked: DirectionsProvider[] = [];
+  const buttons = directionsChooserButtons((provider) => picked.push(provider));
+  for (const button of buttons) button.onPress?.();
+  assert.deepEqual(picked, ['kakao', 'naver']);
 });
