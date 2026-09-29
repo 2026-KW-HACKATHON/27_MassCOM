@@ -221,7 +221,7 @@ probe_web_routes() {
     -v "$release/site/public:/srv/masscom:ro" \
     caddy:2.10.2-alpine)"
   sudo docker network connect masscom_showcase_edge "$probe_id"
-  local address operating_address showcase_address ready status
+  local address operating_address showcase_address ready status assetlinks_headers
   address="$(sudo docker port "$probe_id" 8080/tcp)"
   operating_address="$(sudo docker port "$probe_id" 8081/tcp)"
   showcase_address="$(sudo docker port "$probe_id" 8082/tcp)"
@@ -243,8 +243,8 @@ probe_web_routes() {
   curl -fsS --max-time 8 "http://$address/merchant/assets/merchant.mjs" >/dev/null
   curl -fsS --max-time 8 "http://$address/.well-known/assetlinks.json" \
     | cmp - "$release/site/public/.well-known/assetlinks.json"
-  curl -fsSI --max-time 8 "http://$address/.well-known/assetlinks.json" \
-    | grep -Eqi '^content-type: application/json'
+  assetlinks_headers="$(curl -fsSI --max-time 8 "http://$address/.well-known/assetlinks.json")"
+  grep -Eqi '^content-type: application/json' <<< "$assetlinks_headers"
   for path in /HANDOFF.md /TEST_STATUS.md /claim /mint /api/web/unknown; do
     status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address$path")"
     [[ "$status" == '404' ]]

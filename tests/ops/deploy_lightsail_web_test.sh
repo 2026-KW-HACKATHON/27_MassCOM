@@ -173,9 +173,12 @@ if ! grep -Fxq 'scripts/verify-showcase-edge-routes.mjs' "$scratch/archive-membe
   exit 1
 fi
 
-# Issue #225: `curl … | grep -q` fails with curl exit 23 under pipefail when grep stops early.
-if grep -En 'curl[^|]*\|[^|]*grep -[A-Za-z]*q' "$deploy"; then
-  echo 'web deploy pipes curl into grep -q; use web_page_contains' >&2
+# Issue #225: under pipefail, curl exits 23 when the reader on its pipe stops early
+# (grep -q/--quiet/-m, head, sed q). Join backslash continuations so multi-line pipes count too.
+early_exit_pipe='curl[^|]*\|[[:space:]]*(grep[^|]*(-[A-Za-z]*[qm]|--quiet|--max-count)|head|sed[^|]*[[:space:]]q)'
+joined_deploy="$(sed -e ':a' -e '/\\$/N' -e 's/\\\n//' -e 'ta' "$deploy")"
+if grep -En "$early_exit_pipe" <<< "$joined_deploy"; then
+  echo 'web deploy pipes curl into an early-exit reader; capture the body first (web_page_contains)' >&2
   exit 1
 fi
 (
