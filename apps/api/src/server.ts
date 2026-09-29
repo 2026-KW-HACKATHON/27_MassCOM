@@ -12,7 +12,7 @@ import {
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardService } from './badge-rewards.js';
 import { OpenAiImageClient } from './ai-art-client.js';
-import { resolveAiArtConfig } from './ai-art-rules.js';
+import { aiArtStartupLine, resolveAiArtConfigOrDisabled } from './ai-art-rules.js';
 import { isRewardMilestone } from './badge-rules.js';
 import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
 import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
@@ -1443,7 +1443,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     }
   }
   const merchantCatalog = pool ? new PostgresMerchantCatalog(pool) : undefined;
-  const merchantAccess = pool ? new PostgresMerchantAccessControl(pool) : undefined;
+  // 가게 그림 설정이 잘못돼도 API는 시작한다(기능만 꺼짐). 값은 로그에 적지 않는다.
+  const resolvedAiArt = resolveAiArtConfigOrDisabled(process.env);
+  const aiArtConfig = resolvedAiArt.config;
+  const merchantAccess = pool
+    ? new PostgresMerchantAccessControl(pool, { staffMayManageArt: aiArtConfig.staffMayManage })
+    : undefined;
   const collection = pool ? new PostgresCollectionReader(pool) : undefined;
   const recommendations = pool
     ? new RecommendationService(new PostgresRecommendationSource(pool))
@@ -1496,7 +1501,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     ? new PostgresFriendService(pool, { accountLifecycle })
     : undefined;
   // OPENAI_API_KEY가 비어 있으면 client가 없어 생성 API만 503 AI_ART_NOT_CONFIGURED이고 조회·되돌리기·공개 그림은 그대로 동작한다.
-  const aiArtConfig = resolveAiArtConfig(process.env);
   const merchantArt = pool
     ? new PostgresMerchantArtService(pool, {
         config: aiArtConfig,
@@ -1513,7 +1517,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;
-  console.log(aiArtConfig.apiKey ? 'AI store art: enabled' : 'AI store art: disabled (OPENAI_API_KEY is empty)');
+  console.log(aiArtStartupLine(resolvedAiArt));
   const campaignEnrollments = pool
     ? new PostgresCampaignEnrollmentService(pool, {
         ...(accountLifecycle ? { accountLifecycle } : {}),
