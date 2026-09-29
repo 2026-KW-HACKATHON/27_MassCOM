@@ -138,7 +138,9 @@ async function entitlementsOf(pool: Pool, account: string) {
 // 워커 없이 발행 작업을 직접 만든다. 권리를 MINT_REQUESTED로 바꾸고 outbox 행도 함께 둔다.
 async function seedMintJob(pool: Pool, input: {
   entitlementId: string; account: string; target: 1 | 3 | 5; status: string; transactionHash?: string;
-  lastErrorCode?: string; outbox?: 'PENDING' | 'LEASED' | 'PUBLISHED'; leaseExpiresAt?: string;
+  lastErrorCode?: string; outbox?: 'PENDING' | 'LEASED' | 'PUBLISHED';
+  // 대여 만료를 DB 시계 기준 몇 초 뒤로 둘지(음수면 이미 만료). 취소는 API 시계가 아니라 DB 시계로 대여를 판정한다.
+  leaseSeconds?: number;
   entitlementStatus?: 'MINT_REQUESTED' | 'FULFILLED';
 }): Promise<string> {
   const address = `0x${randomBytes(20).toString('hex')}`;
@@ -168,9 +170,9 @@ async function seedMintJob(pool: Pool, input: {
   await pool.query(
     `INSERT INTO outbox_events (id, aggregate_type, aggregate_id, event_type, payload, status, available_at,
        lease_owner, lease_expires_at, created_at, updated_at)
-     VALUES ($1, 'MINT_JOB', $2, 'MINT_REQUESTED', $3, $4, now() - interval '1 hour', $5, $6, now(), now())`,
-    [randomUUID(), jobId, { jobId }, outbox, outbox === 'LEASED' ? 'worker-1' : null,
-      outbox === 'LEASED' ? input.leaseExpiresAt ?? `${today}T03:30:00Z` : null],
+     VALUES ($1, 'MINT_JOB', $2, 'MINT_REQUESTED', $3, $4, now() - interval '1 hour', $5,
+       CASE WHEN $4 = 'LEASED' THEN clock_timestamp() + $6 * interval '1 second' END, now(), now())`,
+    [randomUUID(), jobId, { jobId }, outbox, outbox === 'LEASED' ? 'worker-1' : null, input.leaseSeconds ?? 1800],
   );
   await pool.query(`UPDATE reward_entitlements SET status = $2 WHERE id = $1`,
     [input.entitlementId, input.entitlementStatus ?? 'MINT_REQUESTED']);
@@ -249,7 +251,7 @@ async function redeemAt(db: Db, account: string, couponId: string, at: string, s
   return db.badges.redeemCoupon({ token: created.token, merchantId: 'real-shop', staffAccountId: staff, couponId });
 }
 
-// 워커의 대여 조회(SKIP LOCKED)를 그대로 옮겨, 대여 거래를 열어 둔 채 돌려준다.
+// 워커의 대여 조회(SKIP LOCKED)를 그대로 옮겨, 대여 거래를 열어 둔 채 돌려준다. 대여 시각은 API 시계가 아니라 DB 시계다.
 async function beginWorkerLease(pool: Pool, at: Date): Promise<{ client: PoolClient; jobId: string | undefined }> {
   const client = await pool.connect();
   await client.query('BEGIN');
@@ -257,16 +259,17 @@ async function beginWorkerLease(pool: Pool, at: Date): Promise<{ client: PoolCli
     `SELECT job.id AS job_id, outbox.id AS outbox_id
      FROM outbox_events AS outbox JOIN mint_jobs AS job ON job.id = outbox.aggregate_id
      WHERE outbox.event_type = 'MINT_REQUESTED'
-       AND ((outbox.status = 'PENDING' AND outbox.available_at <= $1)
-         OR (outbox.status = 'LEASED' AND outbox.lease_expires_at <= $1))
+       AND ((outbox.status = 'PENDING' AND outbox.available_at <= clock_timestamp())
+         OR (outbox.status = 'LEASED' AND outbox.lease_expires_at <= clock_timestamp()))
        AND job.status NOT IN ('FINALIZED', 'PAUSED', 'MANUAL_REVIEW', 'CANCELLED')
      ORDER BY outbox.available_at, outbox.created_at, outbox.id
      FOR UPDATE OF outbox, job SKIP LOCKED
-     LIMIT 1`, [at])).rows[0];
+     LIMIT 1`)).rows[0];
   if (row) {
     await client.query(
-      `UPDATE outbox_events SET status = 'LEASED', lease_owner = 'worker-1', lease_expires_at = $2, updated_at = $1 WHERE id = $3`,
-      [at, new Date(at.getTime() + 60_000), row.outbox_id]);
+      `UPDATE outbox_events SET status = 'LEASED', lease_owner = 'worker-1',
+         lease_expires_at = clock_timestamp() + interval '60 seconds', updated_at = $1 WHERE id = $2`,
+      [at, row.outbox_id]);
   }
   return { client, jobId: row?.job_id };
 }
@@ -389,9 +392,9 @@ test('unsent mint jobs are cancelled with their entitlement and the goal can be 
 
   const result = await cancel(db, third);
   assert.equal(result.revokedRewardCount, 1);
-  const [job] = await rows<{ status: string; last_error_code: string }>(db.pool,
-    'SELECT status, last_error_code FROM mint_jobs WHERE id = $1', [jobId]);
-  assert.deepEqual(job, { status: 'CANCELLED', last_error_code: 'VISIT_CANCELED' });
+  const [job] = await rows<{ status: string; last_error_code: string; canceled_by_visit_event_id: string }>(db.pool,
+    'SELECT status, last_error_code, canceled_by_visit_event_id FROM mint_jobs WHERE id = $1', [jobId]);
+  assert.deepEqual(job, { status: 'CANCELLED', last_error_code: 'VISIT_CANCELED', canceled_by_visit_event_id: third });
   const [outbox] = await rows<{ status: string; lease_owner: string | null }>(db.pool,
     'SELECT status, lease_owner FROM outbox_events WHERE aggregate_id = $1', [jobId]);
   assert.deepEqual(outbox, { status: 'PUBLISHED', lease_owner: null });
@@ -466,11 +469,17 @@ test('a refused cancellation rolls back every other change including coupons and
 
 test('a live outbox lease or a locked job means the worker may be sending and the cancellation waits', async (t) => {
   const db = await setup(t);
-  const live = await visitWithJob(db, 'cust-live', { outbox: 'LEASED', leaseExpiresAt: `${today}T03:05:00Z` });
+  const live = await visitWithJob(db, 'cust-live', { outbox: 'LEASED', leaseSeconds: 300 });
   await assert.rejects(cancel(db, live.visitId), reversalCode('VISIT_REWARD_MINT_IN_PROGRESS'));
   assert.equal((await visitState(db.pool, live.visitId)).status, 'VALID');
-  // 대여가 만료됐고 아직 보낸 적이 없으면 취소할 수 있다(계정 삭제와 같은 기준).
-  db.state.now = new Date(`${today}T03:05:00.001Z`);
+  // 대여가 만료됐고 아직 보낸 적이 없으면 취소할 수 있다(계정 삭제와 같은 기준). 만료는 DB 시계로 판정하므로
+  // API 시계를 어디로 옮겨도 결과가 같다: 만료 시각을 DB 시계 기준으로 옮겨 확인한다.
+  db.state.now = new Date(`${today}T03:00:00.000Z`);
+  await db.pool.query(`UPDATE outbox_events SET lease_expires_at = clock_timestamp() + interval '2 hours' WHERE aggregate_id = $1`, [live.jobId]);
+  db.state.now = new Date(`${today}T14:30:00.000Z`);
+  await assert.rejects(cancel(db, live.visitId), reversalCode('VISIT_REWARD_MINT_IN_PROGRESS'));
+  db.state.now = new Date(`${today}T03:00:00.000Z`);
+  await db.pool.query(`UPDATE outbox_events SET lease_expires_at = clock_timestamp() - interval '1 millisecond' WHERE aggregate_id = $1`, [live.jobId]);
   assert.equal((await cancel(db, live.visitId)).revokedRewardCount, 1);
   assert.equal((await rows<{ status: string }>(db.pool, 'SELECT status FROM mint_jobs WHERE id = $1', [live.jobId]))[0]!.status, 'CANCELLED');
 
@@ -601,6 +610,9 @@ test('a same-day duplicate that was hidden behind the cancelled visit is counted
   const result = await cancel(db, first.visitEventId, { reason: 'DUPLICATE' });
   assert.equal(result.revokedRewardCount, 1);
   assert.equal((await visitState(db.pool, second.visitEventId)).progress_counted, true);
+  // 대신 세어진 방문에는 어느 취소 때문인지 감사 연결이 남고 다른 방문에는 남지 않는다.
+  assert.deepEqual(await rows(db.pool, 'SELECT id, promoted_by_visit_event_id FROM visit_events WHERE promoted_by_visit_event_id IS NOT NULL'),
+    [{ id: second.visitEventId, promoted_by_visit_event_id: first.visitEventId }]);
   const entitlements = await entitlementsOf(db.pool, 'cust-1');
   assert.deepEqual(entitlements.map((row) => [row.status, row.source_visit_event_id]).sort(),
     [['CANCELED', first.visitEventId], ['GRANTED', second.visitEventId]]);
@@ -609,7 +621,7 @@ test('a same-day duplicate that was hidden behind the cancelled visit is counted
     AND status = 'VALID' AND progress_counted`)).length, 1);
 });
 
-test('a visit the staff member claimed for themselves is recorded but never counted on a real store', async (t) => {
+test('a visit received with a staff account is recorded but never counted on a real store, self-claimed or issued by a colleague', async (t) => {
   const db = await setup(t);
   const own = await claim(db, { account: 'staff-r', shop: 'real-shop', staff: 'staff-r' });
   assert.equal(own.visit.progressCounted, false);
@@ -617,9 +629,6 @@ test('a visit the staff member claimed for themselves is recorded but never coun
   assert.deepEqual(own.grantedRewards, []);
   assert.equal(own.visit.progressVisitCount, 0);
   assert.deepEqual(await entitlementsOf(db.pool, 'staff-r'), []);
-  // 다시 확정해도(재시도) 같은 이유를 돌려준다.
-  const stored = await rows<{ claim_slot_id: string }>(db.pool, 'SELECT claim_slot_id FROM visit_events WHERE id = $1', [own.visit.visitEventId]);
-  assert.equal(stored.length, 1);
   const badges = await db.badges.getBadges('staff-r');
   assert.deepEqual(badges.medals.map(({ value }) => value), [0, 0, 0]);
   // 점원 목록에는 기록만 된 방문으로 보인다.
@@ -627,31 +636,81 @@ test('a visit the staff member claimed for themselves is recorded but never coun
   assert.equal(listed.visits.length, 1);
   assert.equal(listed.visits[0]!.progressCounted, false);
 
-  // 같은 날 다른 직원이 발급한 정당한 방문은 세어지고 하루 1건 색인이 자기 적립 행에 막히지 않는다.
-  const legit = await claim(db, { account: 'staff-r', shop: 'real-shop', staff: 'staff-r2' });
-  assert.equal(legit.visit.progressCounted, true);
-  assert.equal(legit.grantedRewards.length, 1);
-  // 자기 적립 방문을 하루에 여러 번 받아도 색인 충돌 없이 모두 기록만 된다.
+  // 동료(staff-r2)가 staff-r 계정으로 발급해도 방문한 계정이 이 점포의 ACTIVE 직원이라 같은 이유로 기록만 된다.
+  const colleague = await claim(db, { account: 'staff-r', shop: 'real-shop', staff: 'staff-r2' });
+  assert.equal(colleague.visit.progressCounted, false);
+  assert.equal(colleague.visit.progressExcludedReason, 'STAFF_SELF');
+  assert.deepEqual(colleague.grantedRewards, []);
+  // 하루에 여러 번 받아도 하루 1건 색인에 막히지 않고 모두 기록만 된다.
   const again = await claim(db, { account: 'staff-r', shop: 'real-shop', staff: 'staff-r' });
   assert.equal(again.visit.progressCounted, false);
   assert.equal(again.visit.progressExcludedReason, 'STAFF_SELF');
-  assert.equal(again.visit.progressVisitCount, 1);
-  assert.equal((await entitlementsOf(db.pool, 'staff-r')).length, 1);
-  // 정당한 방문이 있는 날 자기 적립 방문을 취소해도 승격되지 않는다.
-  const legitCancel = await cancel(db, legit.visit.visitEventId, { staffAccountId: 'staff-r2' });
-  assert.equal(legitCancel.status, 'CANCELED');
-  assert.equal((await visitState(db.pool, own.visit.visitEventId)).progress_counted, false);
-  assert.equal((await visitState(db.pool, again.visit.visitEventId)).progress_counted, false);
+  assert.equal(again.visit.progressVisitCount, 0);
+  assert.deepEqual(await entitlementsOf(db.pool, 'staff-r'), []);
   assert.deepEqual((await db.badges.getBadges('staff-r')).medals.map(({ value }) => value), [0, 0, 0]);
+  assert.deepEqual(
+    (await rows<{ progress_excluded_reason: string | null; progress_counted: boolean }>(db.pool,
+      `SELECT progress_excluded_reason, progress_counted FROM visit_events WHERE customer_account_id = 'staff-r'`))
+      .map((row) => [row.progress_excluded_reason, row.progress_counted]),
+    [['STAFF_SELF', false], ['STAFF_SELF', false], ['STAFF_SELF', false]]);
+
+  // 같은 토큰을 다시 확정하면(재시도) 멤버 자격이 그 사이 바뀌었어도 저장된 이유를 그대로 돌려준다.
+  const issued = await db.claims.issue({
+    merchantId: 'real-shop', customerAccountId: 'staff-r2', merchantReference: randomUUID(), createdByAccountId: 'staff-r',
+  });
+  const first = await db.claims.redeem({ accountId: 'staff-r2', token: issued.token });
+  assert.equal(first.visit.progressExcludedReason, 'STAFF_SELF');
+  await db.pool.query(`UPDATE merchant_members SET status = 'REVOKED', revoked_at = now() WHERE account_id = 'staff-r2'`);
+  const replay = await db.claims.redeem({ accountId: 'staff-r2', token: issued.token });
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.visit.progressCounted, false);
+  assert.equal(replay.visit.progressExcludedReason, 'STAFF_SELF');
+
+  // 회수된 직원은 더는 직원 계정이 아니라서 새 방문이 정상으로 센다.
+  const former = await claim(db, { account: 'staff-r2', shop: 'real-shop', staff: 'staff-r' });
+  assert.equal(former.visit.progressCounted, true);
+  assert.equal('progressExcludedReason' in former.visit, false);
+  assert.equal(former.grantedRewards.length, 1);
 });
 
-test('a demo store keeps counting the same staff member visit', async (t) => {
+test('a staff account visit hidden by the rule is never promoted when another visit is cancelled', async (t) => {
   const db = await setup(t);
+  // 일반 고객의 방문이 세어진 날, 그 고객이 나중에 직원이 되어 같은 날 방문이 기록만 된 경우를 만든다.
+  const first = (await claim(db, { account: 'cust-1', shop: 'real-shop' })).visit;
+  assert.equal(first.progressCounted, true);
+  await db.pool.query(`INSERT INTO merchant_members (merchant_id, account_id, role, status) VALUES ('real-shop', 'cust-1', 'STAFF', 'ACTIVE')`);
+  const staffVisit = (await claim(db, { account: 'cust-1', shop: 'real-shop', staff: 'staff-r2' })).visit;
+  assert.equal(staffVisit.progressCounted, false);
+  assert.equal(staffVisit.progressExcludedReason, 'STAFF_SELF');
+  await db.pool.query(`UPDATE merchant_members SET status = 'REVOKED', revoked_at = now() WHERE account_id = 'cust-1'`);
+  // 멤버가 아닐 때 받은 같은 날 두 번째 방문은 이유 없이 가려져 있다가 승격된다.
+  const hidden = (await claim(db, { account: 'cust-1', shop: 'real-shop', staff: 'staff-r2' })).visit;
+  assert.equal(hidden.progressCounted, false);
+  assert.equal('progressExcludedReason' in hidden, false);
+
+  const result = await cancel(db, first.visitEventId);
+  assert.equal(result.status, 'CANCELED');
+  assert.equal((await visitState(db.pool, staffVisit.visitEventId)).progress_counted, false);
+  assert.equal((await visitState(db.pool, hidden.visitEventId)).progress_counted, true);
+  // 승격할 정당한 방문이 없으면 직원 방문만 남아도 세어지지 않는다.
+  const cancelHidden = await cancel(db, hidden.visitEventId);
+  assert.equal(cancelHidden.status, 'CANCELED');
+  assert.equal((await visitState(db.pool, staffVisit.visitEventId)).progress_counted, false);
+  assert.deepEqual((await db.badges.getBadges('cust-1')).medals.map(({ value }) => value), [0, 0, 0]);
+});
+
+test('a demo store keeps counting staff member visits, self-claimed or issued by a colleague', async (t) => {
+  const db = await setup(t);
+  await db.pool.query(`INSERT INTO merchant_members (merchant_id, account_id, role, status) VALUES ('demo-shop', 'staff-d2', 'STAFF', 'ACTIVE')`);
   const own = await claim(db, { account: 'staff-d', shop: 'demo-shop', staff: 'staff-d' });
   assert.equal(own.visit.progressCounted, true);
   assert.equal('progressExcludedReason' in own.visit, false);
   assert.equal(own.grantedRewards.length, 1);
   assert.deepEqual((await db.badges.getBadges('staff-d')).medals.map(({ value }) => value), [1, 1, 1]);
+  const colleague = await claim(db, { account: 'staff-d', shop: 'demo-shop', staff: 'staff-d2', at: '2026-10-01T03:00:00Z' });
+  assert.equal(colleague.visit.progressCounted, true);
+  assert.equal('progressExcludedReason' in colleague.visit, false);
+  assert.equal(colleague.visit.progressVisitCount, 2);
 });
 
 test('cancelling a visit voids unused coupons whose badges are gone and a re-earned box revives the coupon', async (t) => {
@@ -863,13 +922,17 @@ test('an admin voids an unused coupon with a reason and an audit row, and a void
   assert.equal(again.replayed, true);
   assert.equal(again.coupon.voidReason, 'ABUSE_SUSPECTED');
   assert.equal((await rows(db.pool, `SELECT 1 FROM platform_admin_audit WHERE action = 'COUPON_VOIDED'`)).length, 1);
-  // 관리자 무효화는 상자를 다시 열어도 되살아나지 않고, 고객에게는 무효 쿠폰으로 보인다.
-  const reopened = await db.badges.openReward({ accountId: 'cust-c', milestone: 1 });
-  assert.equal(reopened.replayed, true);
-  assert.equal(reopened.coupon.status, 'VOIDED');
+  // 관리자 무효화는 상자를 다시 열어도 되살아나지 않는다. 고객에게는 VOIDED 쿠폰을 보내지 않고
+  // 기존 앱의 파서가 받아들이는 짝(state UNAVAILABLE, coupon null)으로 알리며 상자 열기는 기존 앱이 아는 오류로 거절한다.
+  await assert.rejects(
+    db.badges.openReward({ accountId: 'cust-c', milestone: 1 }),
+    (error: unknown) => error instanceof BadgeRewardError && error.code === 'REWARD_OFFER_UNAVAILABLE',
+  );
   const book = await db.badges.getBadges('cust-c');
-  assert.equal(book.rewards[0]!.state, 'OPENED');
-  assert.equal(book.rewards[0]!.coupon!.status, 'VOIDED');
+  assert.equal(book.rewards[0]!.state, 'UNAVAILABLE');
+  assert.equal(book.rewards[0]!.coupon, null);
+  assert.equal(book.rewards[0]!.offer, null);
+  assert.equal(JSON.stringify(book).includes('VOIDED'), false);
   const token = await identityFor(db, 'cust-c', 'real-shop');
   assert.deepEqual((await db.badges.lookupCoupons({ token, merchantId: 'real-shop', staffAccountId: 'staff-r' })).coupons, []);
   await assert.rejects(
@@ -949,6 +1012,13 @@ test('migration 0030 keeps one active entitlement per goal and rejects inconsist
   await addOffer(db.pool, { milestone: 1, shop: 'real-shop' });
   await threeTiers(db.pool, 'cust-c');
   const { couponId } = await openedCoupon(db, 'cust-c');
+  // ISSUED·REDEEMED 행에는 무효 관련 열이 하나도 남아 있으면 안 된다.
+  await assert.rejects(db.pool.query(`UPDATE badge_coupons SET void_note = '메모' WHERE id = $1`, [couponId]), violates);
+  await assert.rejects(db.pool.query(`UPDATE badge_coupons SET voided_by_account_id = 'admin-1' WHERE id = $1`, [couponId]), violates);
+  await assert.rejects(db.pool.query(`UPDATE badge_coupons SET void_visit_event_id = $2 WHERE id = $1`, [couponId, visitId]), violates);
+  // 세어지지 않는 이유는 세어지지 않는 방문에만 있을 수 있고 STAFF_SELF만 허용한다.
+  await assert.rejects(db.pool.query(`UPDATE visit_events SET progress_excluded_reason = 'STAFF_SELF' WHERE id = $1`, [visitId]), violates);
+  await assert.rejects(db.pool.query(`UPDATE visit_events SET progress_counted = false, progress_excluded_reason = 'BOGUS' WHERE id = $1`, [visitId]), violates);
   await assert.rejects(db.pool.query(`UPDATE badge_coupons SET status = 'VOIDED' WHERE id = $1`, [couponId]), violates);
   await assert.rejects(db.pool.query(`UPDATE badge_coupons SET voided_at = now(), void_reason = 'OTHER' WHERE id = $1`, [couponId]), violates);
   await assert.rejects(db.pool.query(`UPDATE badge_coupons SET status = 'VOIDED', voided_at = now(), void_reason = 'BOGUS' WHERE id = $1`, [couponId]), violates);
@@ -1042,4 +1112,247 @@ test('the deployed API insert statements keep working on the migrated schema', a
      ON CONFLICT DO NOTHING`,
     [randomUUID(), second, at, new Date(at.getTime() + 86_400_000)]);
   assert.equal(targetless.rowCount, 0);
+});
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// 배지 3개(탐험가 골드)를 채워 1번 상자를 열고, 데모 점포 방문을 취소해 쿠폰이 VISIT_CANCELED로 무효가 된 상태를 만든다.
+async function voidedByCancel(db: Db, account: string): Promise<{ couponId: string; demoVisitId: string }> {
+  const visits = await threeTiers(db.pool, account);
+  const { couponId } = await openedCoupon(db, account);
+  const result = await cancel(db, visits['demo-shop'], { merchantId: 'demo-shop', staffAccountId: 'staff-d' });
+  assert.equal(result.voidedCouponCount, 1);
+  return { couponId, demoVisitId: visits['demo-shop'] };
+}
+
+const issuedCountOf = async (pool: Pool, offerId: string) =>
+  (await rows<{ issued_count: number }>(pool, 'SELECT issued_count FROM badge_reward_offers WHERE id = $1', [offerId]))[0]!.issued_count;
+
+test('a coupon of the staff member themselves cannot be undone by them on a real store, but a colleague and a demo store can', async (t) => {
+  const db = await setup(t);
+  await addOffer(db.pool, { milestone: 1, shop: 'real-shop' });
+  // staff-r2는 real-shop 직원이면서 고객으로 쿠폰을 열었고, 동료(staff-r)가 사용 처리했다.
+  await threeTiers(db.pool, 'staff-r2');
+  const { couponId } = await openedCoupon(db, 'staff-r2');
+  await redeemAt(db, 'staff-r2', couponId, `${today}T03:00:00Z`, 'staff-r');
+  const undo = (staffAccountId: string) => db.reversal.undoCouponRedemption({ merchantId: 'real-shop', staffAccountId, couponId });
+  // 본인이 되돌리면 동료의 사용 처리와 본인의 되돌리기를 되풀이할 수 있으므로 막는다(재생 경로도 같다).
+  await assert.rejects(undo('staff-r2'), reversalCode('COUPON_SELF_UNDO'));
+  assert.equal((await rows<{ status: string }>(db.pool, 'SELECT status FROM badge_coupons WHERE id = $1', [couponId]))[0]!.status, 'REDEEMED');
+  assert.equal((await rows(db.pool, 'SELECT 1 FROM badge_coupon_audit WHERE coupon_id = $1', [couponId])).length, 0);
+  assert.deepEqual(await undo('staff-r'), { couponId, status: 'ISSUED', replayed: false });
+  await assert.rejects(undo('staff-r2'), reversalCode('COUPON_SELF_UNDO'));
+  // 시연 점포는 한 사람이 점원과 고객을 함께 시연하므로 본인 쿠폰도 되돌릴 수 있다.
+  await db.pool.query('DELETE FROM badge_coupon_audit');
+  await db.pool.query('DELETE FROM badge_coupons');
+  await db.pool.query('DELETE FROM badge_reward_offers');
+  await addOffer(db.pool, { milestone: 1, shop: 'demo-shop' });
+  await threeTiers(db.pool, 'staff-d');
+  const demo = (await openedCoupon(db, 'staff-d')).couponId;
+  const created = await db.identities.create('staff-d');
+  await db.identities.resolve({ token: created.token, merchantId: 'demo-shop', staffAccountId: 'staff-d' });
+  await db.badges.redeemCoupon({ token: created.token, merchantId: 'demo-shop', staffAccountId: 'staff-d', couponId: demo });
+  assert.deepEqual(
+    await db.reversal.undoCouponRedemption({ merchantId: 'demo-shop', staffAccountId: 'staff-d', couponId: demo }),
+    { couponId: demo, status: 'ISSUED', replayed: false });
+});
+
+test('undoing a redemption after a visit cancellation dropped the badges is refused and the coupon stays redeemed', async (t) => {
+  const db = await setup(t);
+  await addOffer(db.pool, { milestone: 1, shop: 'real-shop' });
+  const visits = await threeTiers(db.pool, 'cust-c');
+  const { couponId } = await openedCoupon(db, 'cust-c');
+  await redeemAt(db, 'cust-c', couponId, `${today}T03:00:00Z`);
+  // 사용한 쿠폰은 방문 취소가 건드리지 않는다.
+  assert.equal((await cancel(db, visits['demo-shop'], { merchantId: 'demo-shop', staffAccountId: 'staff-d' })).voidedCouponCount, 0);
+  assert.equal((await db.badges.getBadges('cust-c')).earnedTiers, 2);
+  // 배지 조건이 사라졌으니 사용 가능 상태로 되살리지 않는다: 쿠폰은 사용 완료로 남고 감사 행도 남지 않는다.
+  db.state.now = new Date(`${today}T03:05:00Z`);
+  await assert.rejects(
+    db.reversal.undoCouponRedemption({ merchantId: 'real-shop', staffAccountId: 'staff-r2', couponId }),
+    reversalCode('COUPON_REQUIREMENT_LOST'));
+  assert.equal((await rows<{ status: string }>(db.pool, 'SELECT status FROM badge_coupons WHERE id = $1', [couponId]))[0]!.status, 'REDEEMED');
+  assert.equal((await rows(db.pool, 'SELECT 1 FROM badge_coupon_audit WHERE coupon_id = $1', [couponId])).length, 0);
+  // 조건을 다시 채우면 같은 쿠폰의 사용을 되돌릴 수 있다.
+  await addVisit(db.pool, { account: 'cust-c', shop: 'demo-shop', date: '2026-09-29' });
+  assert.equal((await db.reversal.undoCouponRedemption({ merchantId: 'real-shop', staffAccountId: 'staff-r2', couponId })).replayed, false);
+});
+
+test('a visit cancellation leaves an already expired coupon alone and a revival never extends the original expiry', async (t) => {
+  const db = await setup(t);
+  const offerId = await addOffer(db.pool, { milestone: 1, shop: 'real-shop', cap: 5 });
+  // 이미 만료된 미사용 쿠폰: 무효로 바꿨다가 되살리면 만료가 늘어날 수 있으므로 건드리지 않는다.
+  const expiredVisits = await threeTiers(db.pool, 'cust-expired');
+  const expired = await openedCoupon(db, 'cust-expired');
+  await db.pool.query(`UPDATE badge_coupons SET issued_at = '2026-09-01T00:00:00Z', expires_at = '2026-09-29T14:59:59.999Z' WHERE id = $1`, [expired.couponId]);
+  assert.equal((await cancel(db, expiredVisits['demo-shop'], { merchantId: 'demo-shop', staffAccountId: 'staff-d' })).voidedCouponCount, 0);
+  assert.equal((await rows<{ status: string }>(db.pool, 'SELECT status FROM badge_coupons WHERE id = $1', [expired.couponId]))[0]!.status, 'ISSUED');
+  assert.equal(await issuedCountOf(db.pool, offerId), 1);
+  assert.equal((await db.badges.getBadges('cust-expired')).rewards[0]!.coupon!.status, 'EXPIRED');
+
+  // 원래 만료가 새 유효 기간보다 이르면 되살려도 원래 만료를 넘지 않는다.
+  const early = await voidedByCancel(db, 'cust-early');
+  await db.pool.query(`UPDATE badge_coupons SET issued_at = '2026-09-01T00:00:00Z', expires_at = '2026-10-05T14:59:59.999Z' WHERE id = $1`, [early.couponId]);
+  await addVisit(db.pool, { account: 'cust-early', shop: 'demo-shop', date: '2026-09-29' });
+  const revived = await db.badges.openReward({ accountId: 'cust-early', milestone: 1 });
+  assert.equal(revived.replayed, false);
+  assert.equal(revived.coupon.couponId, early.couponId);
+  assert.equal(revived.coupon.status, 'ISSUED');
+  assert.equal(revived.coupon.expiresAt, '2026-10-05T14:59:59.999Z');
+  // 원래 만료가 새 유효 기간(발급일 + 30일)보다 늦으면 새 유효 기간을 넘지 않게 짧은 쪽을 쓴다.
+  const late = await voidedByCancel(db, 'cust-late');
+  await db.pool.query(`UPDATE badge_coupons SET expires_at = '2027-01-01T14:59:59.999Z' WHERE id = $1`, [late.couponId]);
+  await addVisit(db.pool, { account: 'cust-late', shop: 'demo-shop', date: '2026-09-29' });
+  const lateRevived = await db.badges.openReward({ accountId: 'cust-late', milestone: 1 });
+  assert.equal(lateRevived.coupon.expiresAt, '2026-10-30T14:59:59.999Z');
+
+  // 방문 취소로 무효인 채 원래 만료가 지나면 되살리지 않는다: 만료된 쿠폰으로 보이고 발급 수도 늘지 않는다.
+  const stale = await voidedByCancel(db, 'cust-stale');
+  await db.pool.query(`UPDATE badge_coupons SET issued_at = '2026-09-01T00:00:00Z', expires_at = '2026-10-05T14:59:59.999Z' WHERE id = $1`, [stale.couponId]);
+  await addVisit(db.pool, { account: 'cust-stale', shop: 'demo-shop', date: '2026-09-29' });
+  const countBefore = await issuedCountOf(db.pool, offerId);
+  db.state.now = new Date('2026-10-06T00:00:00Z');
+  const book = await db.badges.getBadges('cust-stale');
+  assert.equal(book.rewards[0]!.state, 'OPENED');
+  assert.equal(book.rewards[0]!.coupon!.status, 'EXPIRED');
+  assert.equal(JSON.stringify(book).includes('VOIDED'), false);
+  const replay = await db.badges.openReward({ accountId: 'cust-stale', milestone: 1 });
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.coupon.status, 'EXPIRED');
+  assert.equal(replay.coupon.expiresAt, '2026-10-05T14:59:59.999Z');
+  assert.equal(await issuedCountOf(db.pool, offerId), countBefore);
+  assert.equal((await rows<{ status: string }>(db.pool, 'SELECT status FROM badge_coupons WHERE id = $1', [stale.couponId]))[0]!.status, 'VOIDED');
+});
+
+test('an admin void on a coupon a visit cancellation voided is terminal: audited, counted once and never revived', async (t) => {
+  const db = await setup(t);
+  await db.pool.query(`INSERT INTO auth_identities (provider, subject, account_id, created_at)
+    VALUES ('google', 'admin-subject', 'admin-1', now())`);
+  await db.pool.query(`INSERT INTO platform_admins (account_id) VALUES ('admin-1')`);
+  const offerId = await addOffer(db.pool, { milestone: 1, shop: 'real-shop', cap: 5 });
+  // 발급 수를 2로 만들어 두 번 돌려주면 0이 되도록 한다.
+  await threeTiers(db.pool, 'cust-holder');
+  await openedCoupon(db, 'cust-holder');
+  const { couponId } = await voidedByCancel(db, 'cust-c');
+  assert.equal(await issuedCountOf(db.pool, offerId), 1);
+
+  const voided = await db.admin.voidCoupon('admin-1', couponId, { reason: 'ABUSE_SUSPECTED', note: '운영 확인' });
+  assert.equal(voided.replayed, false);
+  assert.equal(voided.coupon.voidReason, 'ABUSE_SUSPECTED');
+  const [coupon] = await rows<{ void_reason: string; void_note: string; voided_by_account_id: string }>(db.pool,
+    'SELECT void_reason, void_note, voided_by_account_id FROM badge_coupons WHERE id = $1', [couponId]);
+  assert.deepEqual(coupon, { void_reason: 'ABUSE_SUSPECTED', void_note: '운영 확인', voided_by_account_id: 'admin-1' });
+  assert.equal(await issuedCountOf(db.pool, offerId), 1);
+  const audit = await rows<{ before_state: { reason: string }; after_state: { reason: string } }>(db.pool,
+    `SELECT before_state, after_state FROM platform_admin_audit WHERE action = 'COUPON_VOIDED'`);
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0]!.before_state.reason, 'VISIT_CANCELED');
+  assert.equal(audit[0]!.after_state.reason, 'ABUSE_SUSPECTED');
+
+  // 조건을 다시 채워도 되살아나지 않는다. 고객에게는 UNAVAILABLE 상자로만 보이고 VOIDED는 없다.
+  await addVisit(db.pool, { account: 'cust-c', shop: 'demo-shop', date: '2026-09-29' });
+  await assert.rejects(db.badges.openReward({ accountId: 'cust-c', milestone: 1 }),
+    (error: unknown) => error instanceof BadgeRewardError && error.code === 'REWARD_OFFER_UNAVAILABLE');
+  const book = await db.badges.getBadges('cust-c');
+  assert.equal(book.rewards[0]!.state, 'UNAVAILABLE');
+  assert.equal(book.rewards[0]!.coupon, null);
+  assert.equal(JSON.stringify(book).includes('VOIDED'), false);
+  assert.equal((await rows<{ status: string }>(db.pool, 'SELECT status FROM badge_coupons WHERE id = $1', [couponId]))[0]!.status, 'VOIDED');
+  assert.equal(await issuedCountOf(db.pool, offerId), 1);
+  // 끝 상태가 된 뒤 다시 무효로 하면 저장된 결과이고 감사 행이 늘지 않는다.
+  assert.equal((await db.admin.voidCoupon('admin-1', couponId, { reason: 'OTHER' })).replayed, true);
+  assert.equal((await rows(db.pool, `SELECT 1 FROM platform_admin_audit WHERE action = 'COUPON_VOIDED'`)).length, 1);
+});
+
+test('a customer never receives a VOIDED coupon whatever voided it', async (t) => {
+  const db = await setup(t);
+  await addOffer(db.pool, { milestone: 1, shop: 'real-shop' });
+  await addOffer(db.pool, { milestone: 2, shop: 'real-shop' });
+  await threeTiers(db.pool, 'cust-c');
+  await openedCoupon(db, 'cust-c');
+  const asJson = async () => JSON.stringify(await db.badges.getBadges('cust-c'));
+  assert.equal((await asJson()).includes('VOIDED'), false);
+  for (const reason of ['VISIT_CANCELED', 'ABUSE_SUSPECTED', 'ISSUED_IN_ERROR', 'MERCHANT_REQUEST', 'OTHER']) {
+    await db.pool.query(`UPDATE badge_coupons SET status = 'VOIDED', voided_at = now(), void_reason = $1,
+      redeemed_at = NULL, redeemed_by_account_id = NULL WHERE customer_account_id = 'cust-c'`, [reason]);
+    assert.equal((await asJson()).includes('VOIDED'), false, reason);
+    const box = (await db.badges.getBadges('cust-c')).rewards[0]!;
+    assert.equal(box.coupon, null, reason);
+    assert.equal(box.state, reason === 'VISIT_CANCELED' ? 'READY' : 'UNAVAILABLE', reason);
+    if (reason !== 'VISIT_CANCELED') {
+      await assert.rejects(db.badges.openReward({ accountId: 'cust-c', milestone: 1 }),
+        (error: unknown) => error instanceof BadgeRewardError && error.code === 'REWARD_OFFER_UNAVAILABLE', reason);
+    }
+  }
+});
+
+test('the cancellation and undo windows are judged after the locks are acquired', async (t) => {
+  const db = await setup(t);
+  const visitId = (await claim(db, { account: 'cust-1', shop: 'real-shop', at: `${today}T14:00:00Z` })).visit.visitEventId;
+  const holder = await db.pool.connect();
+  await holder.query('BEGIN');
+  await holder.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [JSON.stringify(['cust-1', 'campaign-real-shop'])]);
+  // 잠금을 기다리는 사이 한국 자정이 지나면 요청 시작 시각이 아니라 잠금을 잡은 시각으로 판정한다.
+  db.state.now = new Date(`${today}T14:59:59.999Z`);
+  let settled = false;
+  const pending = cancel(db, visitId).then(() => 'cancelled', (error: unknown) => error).finally(() => { settled = true; });
+  await sleep(250);
+  assert.equal(settled, false, 'the cancellation must be waiting for the lock');
+  db.state.now = new Date(`${today}T15:00:00.000Z`);
+  await holder.query('COMMIT');
+  holder.release();
+  assert.ok(reversalCode('VISIT_CANCEL_WINDOW_CLOSED')(await pending));
+  assert.equal((await visitState(db.pool, visitId)).status, 'VALID');
+
+  await addOffer(db.pool, { milestone: 1, shop: 'real-shop' });
+  await threeTiers(db.pool, 'cust-c');
+  const { couponId } = await openedCoupon(db, 'cust-c');
+  await redeemAt(db, 'cust-c', couponId, `${today}T03:00:00.000Z`);
+  const undoHolder = await db.pool.connect();
+  await undoHolder.query('BEGIN');
+  await undoHolder.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', ['badge-reward:cust-c']);
+  db.state.now = new Date(`${today}T03:10:00.000Z`);
+  settled = false;
+  const pendingUndo = db.reversal.undoCouponRedemption({ merchantId: 'real-shop', staffAccountId: 'staff-r', couponId })
+    .then(() => 'undone', (error: unknown) => error).finally(() => { settled = true; });
+  await sleep(250);
+  assert.equal(settled, false, 'the undo must be waiting for the lock');
+  db.state.now = new Date(`${today}T03:10:00.001Z`);
+  await undoHolder.query('COMMIT');
+  undoHolder.release();
+  assert.ok(reversalCode('COUPON_UNDO_WINDOW_CLOSED')(await pendingUndo));
+});
+
+test('a worker holding only the outbox row makes the cancellation give up instead of waiting', async (t) => {
+  const db = await setup(t);
+  const { visitId, jobId } = await visitWithJob(db, 'cust-1');
+  // 워커의 requireLease는 outbox 행만 잠글 수 있다. 취소가 그 행을 기다리면 교착·지연이 생기므로 바로 물러나야 한다.
+  const worker = await db.pool.connect();
+  await worker.query('BEGIN');
+  await worker.query('SELECT 1 FROM outbox_events WHERE aggregate_id = $1 FOR UPDATE', [jobId]);
+  await assert.rejects(cancel(db, visitId), reversalCode('VISIT_REWARD_MINT_IN_PROGRESS'));
+  await worker.query('COMMIT');
+  worker.release();
+  assert.equal((await visitState(db.pool, visitId)).status, 'VALID');
+  assert.equal((await cancel(db, visitId)).revokedRewardCount, 1);
+});
+
+test('replaying a claim token does not return an entitlement that a later cancellation revoked', async (t) => {
+  const db = await setup(t);
+  const redeem = async (at: string) => {
+    db.state.now = new Date(at);
+    const issued = await db.claims.issue({ merchantId: 'real-shop', customerAccountId: 'cust-1', merchantReference: randomUUID(), createdByAccountId: 'staff-r' });
+    return { token: issued.token, result: await db.claims.redeem({ accountId: 'cust-1', token: issued.token }) };
+  };
+  // 오늘 방문을 먼저 받고 과거 두 날을 나중에 받아, 3회 권리의 근원이 과거 방문(취소할 수 없음)이 되게 한다.
+  const todays = await redeem(`${today}T03:00:00Z`);
+  await redeem('2026-09-28T03:00:00Z');
+  const third = await redeem('2026-09-29T03:00:00Z');
+  assert.deepEqual(third.result.grantedRewards.map((reward) => reward.targetVisitCount), [3]);
+  db.state.now = new Date(`${today}T03:00:00Z`);
+  assert.equal((await cancel(db, todays.result.visit.visitEventId)).revokedRewardCount, 2);
+  assert.deepEqual((await entitlementsOf(db.pool, 'cust-1')).map((row) => row.status), ['CANCELED', 'CANCELED']);
+  const replay = await db.claims.redeem({ accountId: 'cust-1', token: third.token });
+  assert.equal(replay.replayed, true);
+  assert.deepEqual(replay.grantedRewards, []);
 });

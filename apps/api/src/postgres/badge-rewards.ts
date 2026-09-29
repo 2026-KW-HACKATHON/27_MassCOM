@@ -15,12 +15,12 @@ import {
 import {
   buildMedals,
   couponExpiry,
-  couponStatus,
+  customerCouponView,
   earnedTiers,
-  isReissuableVoid,
   offerHasCapacity,
   rewardMilestones,
   rewardState,
+  type CouponStatus,
   type CouponStoredStatus,
   type MedalValues,
   type RewardMilestone,
@@ -126,8 +126,14 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
     const earned = earnedTiers(medals);
     const rewards: BadgeReward[] = rewardMilestones.map(({ milestone, requiredTiers }) => {
       const offerRow = offers.rows.find((row) => row.milestone === milestone);
+      const couponRow = coupons.rows.find((row) => row.milestone === milestone);
       // 방문 취소로 조건이 깨져 무효가 된 쿠폰은 숨기고 상자를 다시 잠김·열기 가능 상태로 돌려 보낸다(조건을 다시 채우면 되살린다).
-      const couponRow = coupons.rows.find((row) => row.milestone === milestone && !isRevivable(row));
+      // 관리자가 무효로 한 상자는 쿠폰을 보내지 않고 열 수 없음(UNAVAILABLE)으로 보낸다. 기존 앱의 파서가 이 짝을 받아들인다.
+      const view = couponRow ? customerCouponView(toFacts(couponRow), now) : undefined;
+      if (view?.visibility === 'UNAVAILABLE') {
+        return { milestone, requiredTiers, state: 'UNAVAILABLE' as const, offer: null, coupon: null };
+      }
+      const shown = couponRow && view?.visibility === 'SHOWN' ? mapCoupon(couponRow, view.status) : null;
       const offer = offerRow ? {
         issuanceCap: offerRow.issuance_cap, issuedCount: offerRow.issued_count,
       } : null;
@@ -135,17 +141,17 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
         milestone,
         requiredTiers,
         state: rewardState({
-          requiredTiers, earnedTiers: earned, offer, hasCoupon: Boolean(couponRow),
+          requiredTiers, earnedTiers: earned, offer, hasCoupon: Boolean(shown),
         }),
         // 이미 연 상자는 발급 시점 사본인 쿠폰으로만 표시한다.
-        offer: offerRow && !couponRow ? {
+        offer: offerRow && !shown ? {
           merchantId: offerRow.merchant_id,
           merchantName: offerRow.merchant_name,
           title: offerRow.title,
           detail: offerRow.detail,
           validDays: offerRow.valid_days,
         } : null,
-        coupon: couponRow ? mapCoupon(couponRow, now) : null,
+        coupon: shown,
       };
     });
     return { medals, earnedTiers: earned, rewards };
@@ -168,9 +174,16 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
         [input.accountId, input.milestone],
       );
       const previous = existing.rows[0];
-      if (previous && !isRevivable(previous)) {
-        await client.query('COMMIT');
-        return { coupon: mapCoupon(previous, this.now()), replayed: true };
+      // 잠금을 잡은 뒤 시각을 한 번만 잰다: 되살릴지 판정한 시각과 새 만료 계산이 같은 시각을 쓴다.
+      const openedAt = this.now();
+      if (previous) {
+        const view = customerCouponView(toFacts(previous), openedAt);
+        // 관리자가 무효로 한 상자는 다시 열지 않는다. VOIDED 쿠폰을 그대로 보내지 않고 기존 앱이 아는 오류로 거절한다.
+        if (view.visibility === 'UNAVAILABLE') throw new BadgeRewardError('REWARD_OFFER_UNAVAILABLE');
+        if (view.visibility === 'SHOWN') {
+          await client.query('COMMIT');
+          return { coupon: mapCoupon(previous, view.status), replayed: true };
+        }
       }
       const medalRow = await client.query<MedalValues>(medalValuesSql, [input.accountId]);
       if (earnedTiers(buildMedals(medalRow.rows[0]!)) < requiredTiers) {
@@ -201,10 +214,13 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
       if (!offerHasCapacity({ issuanceCap: offer.issuance_cap, issuedCount: offer.issued_count })) {
         throw new BadgeRewardError('REWARD_CAPACITY_EXHAUSTED');
       }
-      const issuedAt = this.now();
+      const issuedAt = openedAt;
       const couponId = previous ? previous.id : this.nextCouponId();
       if (previous) {
         // 방문 취소로 무효가 됐던 쿠폰을 새 혜택 사본으로 되살린다. 같은 (계정, 상자) 행을 다시 쓰고 감사 기록을 남긴다.
+        // 만료는 원래 만료를 넘기지 않는다: 새 유효 기간과 원래 만료 중 이른 쪽이다(무효·되살리기로 만료를 늘릴 수 없다).
+        // 원래 만료가 지난 쿠폰은 위 view가 되살리지 않고 만료된 쿠폰으로 돌려준다.
+        const newExpiry = couponExpiry(issuedAt, offer.valid_days);
         await client.query(
           `UPDATE badge_coupons
            SET offer_id = $2, merchant_id = $3, title = $4, detail = $5, status = 'ISSUED',
@@ -213,7 +229,7 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
                void_visit_event_id = NULL
            WHERE id = $1 AND status = 'VOIDED'`,
           [couponId, offer.id, offer.merchant_id, offer.title, offer.detail, issuedAt,
-            couponExpiry(issuedAt, offer.valid_days)],
+            newExpiry.getTime() < previous.expires_at.getTime() ? newExpiry : previous.expires_at],
         );
         await client.query(
           `INSERT INTO badge_coupon_audit (id, coupon_id, merchant_id, action, created_at)
@@ -236,7 +252,7 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
       );
       const created = await client.query<CouponRow>(`${couponSelectSql} WHERE coupon.id = $1`, [couponId]);
       await client.query('COMMIT');
-      return { coupon: mapCoupon(created.rows[0]!, issuedAt), replayed: false };
+      return { coupon: mapCoupon(created.rows[0]!, customerStatus(created.rows[0]!, issuedAt)), replayed: false };
     } catch (error) {
       await client.query('ROLLBACK');
       if (error instanceof AccountLifecycleError) throw new BadgeRewardError('ACCOUNT_DELETED');
@@ -342,11 +358,18 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
   }
 }
 
-function isRevivable(row: CouponRow): boolean {
-  return isReissuableVoid({ status: row.status, voidReason: row.void_reason });
+function toFacts(row: CouponRow) {
+  return { status: row.status, voidReason: row.void_reason, expiresAt: row.expires_at };
 }
 
-function mapCoupon(row: CouponRow, now: Date): BadgeCoupon {
+// 발급·되살린 직후의 쿠폰은 ISSUED다(만료가 이미 지났을 수는 없다).
+function customerStatus(row: CouponRow, now: Date): CouponStatus {
+  const view = customerCouponView(toFacts(row), now);
+  if (view.visibility !== 'SHOWN') throw new Error('a freshly issued coupon must be shown');
+  return view.status;
+}
+
+function mapCoupon(row: CouponRow, status: CouponStatus): BadgeCoupon {
   return {
     couponId: row.id,
     milestone: row.milestone as RewardMilestone,
@@ -354,7 +377,7 @@ function mapCoupon(row: CouponRow, now: Date): BadgeCoupon {
     merchantName: row.merchant_name,
     title: row.title,
     detail: row.detail,
-    status: couponStatus(row.status, row.expires_at, now),
+    status,
     issuedAt: row.issued_at.toISOString(),
     expiresAt: row.expires_at.toISOString(),
     redeemedAt: row.redeemed_at ? row.redeemed_at.toISOString() : null,

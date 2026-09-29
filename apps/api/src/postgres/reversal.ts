@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
-import { buildMedals, earnedTiers, type MedalValues } from '../badge-rules.js';
+import { buildMedals, earnedTiers, type MedalValues, type RewardMilestone } from '../badge-rules.js';
 import { MerchantAccessError } from '../merchant-access.js';
 import {
   ReversalError,
@@ -67,11 +67,14 @@ type MintJobRow = {
   status: string;
   transaction_hash: string | null;
   last_error_code: string | null;
+  // outbox 대여(lease)가 DB 시계로 지금 유효한지: 워커가 전송을 준비 중일 수 있다.
   leased: boolean;
 };
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// lock_not_available(NOWAIT가 잠금에 막힘)와 deadlock_detected는 워커가 같은 작업을 잡고 있다는 뜻이라 같은 안내로 돌려준다.
 const lockNotAvailable = '55P03';
+const deadlockDetected = '40P01';
 
 export class PostgresReversalService implements ReversalService {
   private readonly now: () => Date;
@@ -137,11 +140,10 @@ export class PostgresReversalService implements ReversalService {
     const normalized = normalizeReversalNote(input.note);
     if (!normalized.ok) throw new ReversalError('INVALID_REVERSAL_NOTE');
     const note = normalized.note;
-    const now = this.now();
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      // 잠금 순서: 계정 → 점포 멤버 → [고객, 캠페인] → 배지 상자 → 방문 → 권리 → 발행 작업 → 쿠폰.
+      // 잠금 순서: 계정 → 점포 멤버 → [고객, 캠페인] → 배지 상자 → 방문 → 권리 → 발행 작업·outbox → 쿠폰.
       // 앞의 셋은 방문 수령·상자 열기·계정 삭제와 같은 순서라 서로 교착하지 않는다.
       const peek = uuidPattern.test(input.visitEventId)
         ? (
@@ -172,6 +174,8 @@ export class PostgresReversalService implements ReversalService {
       ).rows[0];
       if (!visit) throw new ReversalError('VISIT_NOT_FOUND');
       if (visit.customer_account_id !== peek.customer_account_id) throw new ReversalError('ACCOUNT_DELETED');
+      // 잠금을 다 잡은 뒤에 시각을 잰다: 기다린 시간이 영업일 창 판정에 들어가지 않게 한다.
+      const now = this.now();
 
       if (visit.status === 'CANCELED') {
         const counts = await client.query<{ revoked: number; voided: number }>(
@@ -207,7 +211,7 @@ export class PostgresReversalService implements ReversalService {
       if (visit.progress_counted) {
         const promoted = await client.query<{ id: string }>(
           `UPDATE visit_events
-           SET progress_counted = true, updated_at = $6
+           SET progress_counted = true, promoted_by_visit_event_id = $5, updated_at = $6
            WHERE id = (
              SELECT candidate.id
              FROM visit_events AS candidate
@@ -220,6 +224,7 @@ export class PostgresReversalService implements ReversalService {
                AND candidate.status = 'VALID'
                AND NOT candidate.progress_counted
                AND candidate.id <> $5
+               AND candidate.progress_excluded_reason IS NULL
                AND (merchant.is_demo OR slot.created_by_account_id <> candidate.customer_account_id)
              ORDER BY candidate.occurred_at, candidate.id
              LIMIT 1
@@ -292,6 +297,9 @@ export class PostgresReversalService implements ReversalService {
     } catch (error) {
       await client.query('ROLLBACK');
       if (error instanceof AccountLifecycleError) throw new ReversalError('ACCOUNT_DELETED');
+      if (isPostgresCode(error, lockNotAvailable) || isPostgresCode(error, deadlockDetected)) {
+        throw new ReversalError('VISIT_REWARD_MINT_IN_PROGRESS');
+      }
       throw error;
     } finally {
       client.release();
@@ -336,7 +344,6 @@ export class PostgresReversalService implements ReversalService {
     staffAccountId: string;
     couponId: string;
   }): Promise<UndoneCouponRedemption> {
-    const now = this.now();
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -344,24 +351,51 @@ export class PostgresReversalService implements ReversalService {
       await requireActiveMember(client, input.merchantId, input.staffAccountId);
       if (!uuidPattern.test(input.couponId)) throw new ReversalError('COUPON_NOT_FOUND');
       // 다른 점포·없는 쿠폰은 조건에 맞는 행이 없어 구분 없이 같은 404가 된다.
+      const peek = (
+        await client.query<{ customer_account_id: string }>(
+          'SELECT customer_account_id FROM badge_coupons WHERE id = $1 AND merchant_id = $2',
+          [input.couponId, input.merchantId],
+        )
+      ).rows[0];
+      if (!peek) throw new ReversalError('COUPON_NOT_FOUND');
+      // 방문 취소와 같은 순서(배지 상자 잠금 → 쿠폰 행)로 잡아 서로 교착하지 않고, 아래 다시 세기가 취소 결과를 본다.
+      await advisoryLock(client, `badge-reward:${peek.customer_account_id}`);
       const coupon = (
         await client.query<{
           id: string;
+          customer_account_id: string;
+          milestone: number;
           status: 'ISSUED' | 'REDEEMED' | 'VOIDED';
           redeemed_at: Date | null;
           redeemed_by_account_id: string | null;
+          merchant_is_demo: boolean;
         }>(
-          `SELECT id, status, redeemed_at, redeemed_by_account_id
-           FROM badge_coupons
-           WHERE id = $1 AND merchant_id = $2
-           FOR UPDATE`,
+          `SELECT coupon.id, coupon.customer_account_id, coupon.milestone, coupon.status, coupon.redeemed_at,
+                  coupon.redeemed_by_account_id, merchant.is_demo AS merchant_is_demo
+           FROM badge_coupons AS coupon
+           JOIN merchants AS merchant ON merchant.id = coupon.merchant_id
+           WHERE coupon.id = $1 AND coupon.merchant_id = $2
+           FOR UPDATE OF coupon`,
           [input.couponId, input.merchantId],
         )
       ).rows[0];
       if (!coupon) throw new ReversalError('COUPON_NOT_FOUND');
+      // 잠금을 다 잡은 뒤에 시각을 잰다: 기다린 시간이 10분 창 판정에 들어가지 않게 한다.
+      const now = this.now();
+      // 실제 점포에서는 본인 쿠폰을 본인 점원 계정으로 사용 처리할 수 없듯이 되돌릴 수도 없다
+      // (동료가 대신 사용 처리한 쿠폰을 본인이 되돌려 같은 쿠폰을 되풀이해 쓰는 길을 막는다). 시연 점포는 그대로 허용한다.
+      if (coupon.customer_account_id === input.staffAccountId && !coupon.merchant_is_demo) {
+        throw new ReversalError('COUPON_SELF_UNDO');
+      }
 
       if (coupon.status === 'REDEEMED') {
         if (!isWithinCouponUndoWindow(coupon.redeemed_at!, now)) throw new ReversalError('COUPON_UNDO_WINDOW_CLOSED');
+        // 사용 뒤에 방문 취소로 배지 조건이 사라졌다면 쿠폰을 사용 가능 상태로 되살리지 않는다(되살리면 조건 없는 쿠폰이 다시 쓰인다).
+        // 무효로 바꾸는 대신 되돌리기를 거절하고 쿠폰은 사용 완료로 남긴다: 이미 내준 혜택 기록을 바꾸지 않는다.
+        const medalRow = await client.query<MedalValues>(medalValuesSql, [coupon.customer_account_id]);
+        if (milestonesToVoid(earnedTiers(buildMedals(medalRow.rows[0]!))).includes(coupon.milestone as RewardMilestone)) {
+          throw new ReversalError('COUPON_REQUIREMENT_LOST');
+        }
         await client.query(
           `UPDATE badge_coupons
            SET status = 'ISSUED', redeemed_at = NULL, redeemed_by_account_id = NULL
@@ -410,28 +444,21 @@ export class PostgresReversalService implements ReversalService {
       throw new ReversalError('VISIT_REWARD_ALREADY_MINTED');
     }
     const entitlementIds = revoke.map((entitlement) => entitlement.id);
-    let jobs: MintJobRow[];
-    try {
-      // NOWAIT: 워커는 작업→권리 순서로 잠그므로 여기서 기다리면 교착할 수 있다. 잠겨 있으면 전송 중일 수 있어 거절한다.
-      jobs = (
-        await client.query<MintJobRow>(
-          `SELECT job.id, job.entitlement_id, job.status, job.transaction_hash, job.last_error_code,
-                  EXISTS (
-                    SELECT 1 FROM outbox_events AS outbox
-                    WHERE outbox.aggregate_id = job.id
-                      AND outbox.status = 'LEASED'
-                      AND outbox.lease_expires_at > $2
-                  ) AS leased
-           FROM mint_jobs AS job
-           WHERE job.entitlement_id = ANY($1::uuid[])
-           FOR UPDATE OF job NOWAIT`,
-          [entitlementIds, now],
-        )
-      ).rows;
-    } catch (error) {
-      if (isPostgresCode(error, lockNotAvailable)) throw new ReversalError('VISIT_REWARD_MINT_IN_PROGRESS');
-      throw error;
-    }
+    // 작업 행과 outbox 행을 한 문장으로 NOWAIT 잠근다(워커의 대여 조회와 같은 조합). 워커는 잠근 채로 전송을 준비하므로
+    // 여기서 기다리면 교착할 수 있어 잠겨 있으면 55P03으로 끝내고 호출부가 VISIT_REWARD_MINT_IN_PROGRESS로 바꾼다.
+    // 작업마다 outbox 행이 하나뿐이고 같은 거래에서 만들어진다(mint_jobs·outbox_events 삽입, UNIQUE(aggregate)).
+    // 대여 만료는 API 시계가 아니라 DB 시계(clock_timestamp)로 비교한다: 워커가 쓴 만료 시각과 같은 시계다.
+    const jobs = (
+      await client.query<MintJobRow>(
+        `SELECT job.id, job.entitlement_id, job.status, job.transaction_hash, job.last_error_code,
+                (outbox.status = 'LEASED' AND outbox.lease_expires_at > clock_timestamp()) AS leased
+         FROM mint_jobs AS job
+         JOIN outbox_events AS outbox ON outbox.aggregate_id = job.id
+         WHERE job.entitlement_id = ANY($1::uuid[])
+         FOR UPDATE OF job, outbox NOWAIT`,
+        [entitlementIds],
+      )
+    ).rows;
     const cancelable: string[] = [];
     for (const job of jobs) {
       const disposition = classifyMintJob({
@@ -447,9 +474,9 @@ export class PostgresReversalService implements ReversalService {
     if (cancelable.length > 0) {
       await client.query(
         `UPDATE mint_jobs
-         SET status = 'CANCELLED', last_error_code = 'VISIT_CANCELED', updated_at = $1
+         SET status = 'CANCELLED', last_error_code = 'VISIT_CANCELED', canceled_by_visit_event_id = $3, updated_at = $1
          WHERE id = ANY($2::uuid[])`,
-        [now, cancelable],
+        [now, cancelable, visitEventId],
       );
       await client.query(
         `UPDATE outbox_events
@@ -466,7 +493,8 @@ export class PostgresReversalService implements ReversalService {
     );
   }
 
-  // 다시 센 배지 수로 더는 열 수 없는 상자의 미사용 쿠폰을 무효로 한다. 사용한 쿠폰은 건드리지 않는다.
+  // 다시 센 배지 수로 더는 열 수 없는 상자의 미사용 쿠폰을 무효로 한다. 사용한 쿠폰과 이미 만료된 쿠폰은 건드리지 않는다
+  // (만료된 쿠폰을 무효로 바꿨다가 되살리면 만료 날짜가 늘어날 수 있다).
   private async voidCouponsWithLostRequirement(
     client: PoolClient,
     input: { customerAccountId: string; staffAccountId: string; visitEventId: string; now: Date },
@@ -478,9 +506,10 @@ export class PostgresReversalService implements ReversalService {
       `SELECT id, offer_id, merchant_id
        FROM badge_coupons
        WHERE customer_account_id = $1 AND status = 'ISSUED' AND milestone = ANY($2::smallint[])
+         AND expires_at > $3
        ORDER BY milestone
        FOR UPDATE`,
-      [input.customerAccountId, milestones],
+      [input.customerAccountId, milestones, input.now],
     );
     for (const coupon of coupons.rows) {
       await client.query(

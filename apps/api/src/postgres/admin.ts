@@ -370,9 +370,31 @@ export class PostgresAdminService {
          FOR UPDATE OF coupon`, [couponId],
       )).rows[0];
       if (!coupon) throw new AdminError('ADMIN_COUPON_NOT_FOUND');
-      if (coupon.status === 'VOIDED') {
+      // 관리자 사유로 이미 무효인 쿠폰은 저장된 결과를 그대로 돌려준다(끝 상태).
+      if (coupon.status === 'VOIDED' && coupon.void_reason !== 'VISIT_CANCELED') {
         return { coupon: { couponId: coupon.id, status: 'VOIDED', voidReason: coupon.void_reason!,
           voidedAt: coupon.voided_at!.toISOString() }, replayed: true };
+      }
+      // 방문 취소로 무효가 된 쿠폰(되살릴 수 있는 무효)을 관리자가 무효로 하면 끝 상태로 바꾼다: 사유·메모·처리자를 관리자 것으로
+      // 덮어 되살릴 수 없게 하고 감사 기록을 남긴다. 발급 수는 방문 취소가 이미 돌려줬으므로 다시 줄이지 않는다.
+      // 원래 방문 취소 연결(void_visit_event_id)은 추적을 위해 그대로 둔다.
+      if (coupon.status === 'VOIDED') {
+        const finalized = (await client.query<{ voided_at: Date }>(
+          `UPDATE badge_coupons
+           SET void_reason = $2, void_note = $3, voided_at = now(), voided_by_account_id = $4
+           WHERE id = $1 AND status = 'VOIDED' AND void_reason = 'VISIT_CANCELED' RETURNING voided_at`,
+          [coupon.id, reason, note.note, accountId],
+        )).rows[0]!;
+        const summary = { couponId: coupon.id, milestone: coupon.milestone, title: coupon.title };
+        await client.query(
+          `INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, before_state, after_state)
+           VALUES ($1, $2, $3, 'COUPON_VOIDED', $4, $5)`,
+          [randomUUID(), accountId, coupon.merchant_id,
+            JSON.stringify({ ...summary, status: 'VOIDED', reason: 'VISIT_CANCELED' }),
+            JSON.stringify({ ...summary, status: 'VOIDED', reason, note: note.note })],
+        );
+        return { coupon: { couponId: coupon.id, status: 'VOIDED', voidReason: reason,
+          voidedAt: finalized.voided_at.toISOString() }, replayed: false };
       }
       if (coupon.status !== 'ISSUED') throw new AdminError('ADMIN_COUPON_NOT_VOIDABLE');
       const voided = (await client.query<{ voided_at: Date }>(

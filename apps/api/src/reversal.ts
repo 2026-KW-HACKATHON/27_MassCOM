@@ -71,6 +71,8 @@ export type ReversalErrorCode =
   | 'COUPON_NOT_FOUND'
   | 'COUPON_UNDO_WINDOW_CLOSED'
   | 'COUPON_NOT_REDEEMED'
+  | 'COUPON_SELF_UNDO'
+  | 'COUPON_REQUIREMENT_LOST'
   | 'ACCOUNT_DELETED';
 
 export class ReversalError extends Error {

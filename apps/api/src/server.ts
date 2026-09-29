@@ -1352,6 +1352,7 @@ async function runReversalRoute(
 
 function statusForReversal(code: string): number {
   if (code === 'INVALID_REVERSAL_REASON' || code === 'INVALID_REVERSAL_NOTE') return 400;
+  if (code === 'COUPON_SELF_UNDO') return 403;
   if (code === 'VISIT_NOT_FOUND' || code === 'COUPON_NOT_FOUND') return 404;
   if (code === 'ACCOUNT_DELETED') return 410;
   return 409;

@@ -11,7 +11,7 @@ import {
   type RedeemedClaimSlot,
 } from '../claim-slot-service.js';
 import { MerchantAccessError } from '../merchant-access.js';
-import { isStaffSelfClaim } from '../reversal-rules.js';
+import { isStaffAccountClaim, staffProgressExcludedReason } from '../reversal-rules.js';
 import { grantReachedGoals } from './visit-rewards.js';
 import { hashCustomerIdentityToken, isCustomerIdentityToken } from './customer-identity.js';
 import {
@@ -93,7 +93,7 @@ type RedeemedReplayRow = {
   business_date: string;
   progress_counted: boolean;
   progress_visit_count: number;
-  staff_self_claim: boolean;
+  staff_account_claim: boolean;
 };
 
 const defaultOptions: ClaimSlotServiceOptions = {
@@ -486,13 +486,17 @@ export class PostgresClaimSlotService implements ClaimSlotService {
       ]);
 
       const visitEventId = this.options.nextVisitEventId();
-      // 실제 점포에서 직원이 자기 계정으로 받은 방문은 기록만 하고 진행·보상·NFT에 세지 않는다.
-      const staffSelfClaim = isStaffSelfClaim({
+      // 실제 점포에서 직원 계정으로 받은 방문(본인 적립, 또는 방문한 계정이 그 점포의 ACTIVE 직원)은
+      // 기록만 하고 진행·보상·NFT·도감에 세지 않는다. 멤버 여부는 수령 시점 기준이다.
+      const staffAccountClaim = isStaffAccountClaim({
         merchantIsDemo: campaign.merchant_is_demo,
         slotCreatedByAccountId: slot.created_by_account_id,
         customerAccountId: input.accountId,
+        customerIsActiveMember: campaign.merchant_is_demo
+          ? false
+          : await isActiveMember(client, slot.merchant_id, input.accountId),
       });
-      let visit = staffSelfClaim
+      let visit = staffAccountClaim
         ? undefined
         : (
             await client.query<VisitEventRow>(
@@ -544,13 +548,14 @@ export class PostgresClaimSlotService implements ClaimSlotService {
                verification_level,
                status,
                progress_counted,
+               progress_excluded_reason,
                created_at,
                updated_at
              )
              VALUES (
                $1, $2, $3, $4, $5, $6,
                ($6::timestamptz AT TIME ZONE 'Asia/Seoul')::date,
-               'MERCHANT_CONFIRMED', 'VALID', false, $6, $6
+               'MERCHANT_CONFIRMED', 'VALID', false, $7, $6, $6
              )
              RETURNING id, business_date::text, progress_counted`,
             [
@@ -560,6 +565,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
               campaign.id,
               input.accountId,
               redeemedAt,
+              staffAccountClaim ? staffProgressExcludedReason : null,
             ],
           )
         ).rows[0]!;
@@ -614,7 +620,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
           verificationLevel: 'MERCHANT_CONFIRMED',
           progressCounted: visit.progress_counted,
           progressVisitCount: progress.progress_visit_count,
-          ...(staffSelfClaim ? { progressExcludedReason: 'STAFF_SELF' as const } : {}),
+          ...(staffAccountClaim ? { progressExcludedReason: staffProgressExcludedReason } : {}),
         },
         grantedRewards,
       };
@@ -630,6 +636,14 @@ export class PostgresClaimSlotService implements ClaimSlotService {
       client.release();
     }
   }
+}
+
+async function isActiveMember(client: PoolClient, merchantId: string, accountId: string): Promise<boolean> {
+  const member = await client.query(
+    `SELECT 1 FROM merchant_members WHERE merchant_id = $1 AND account_id = $2 AND status = 'ACTIVE'`,
+    [merchantId, accountId],
+  );
+  return member.rowCount === 1;
 }
 
 async function requireActiveMerchantForStaff(
@@ -682,7 +696,7 @@ async function findRedeemedClaim(
             visit.id AS visit_event_id,
             visit.business_date::text,
             visit.progress_counted,
-            (NOT merchant.is_demo AND slot.created_by_account_id = visit.customer_account_id) AS staff_self_claim,
+            (visit.progress_excluded_reason IS NOT NULL) AS staff_account_claim,
             (
               SELECT count(*)::integer
               FROM visit_events AS progress_visit
@@ -712,6 +726,7 @@ async function findRedeemedClaim(
      FROM reward_entitlements
      WHERE customer_account_id = $1
        AND source_visit_event_id = $2
+       AND status <> 'CANCELED'
      ORDER BY target_visit_count`,
     [accountId, replay.visit_event_id],
   );
@@ -729,7 +744,7 @@ async function findRedeemedClaim(
       verificationLevel: 'MERCHANT_CONFIRMED',
       progressCounted: replay.progress_counted,
       progressVisitCount: replay.progress_visit_count,
-      ...(replay.staff_self_claim && !replay.progress_counted ? { progressExcludedReason: 'STAFF_SELF' as const } : {}),
+      ...(replay.staff_account_claim ? { progressExcludedReason: staffProgressExcludedReason } : {}),
     },
     grantedRewards: rewards.rows.map((reward) => ({
       entitlementId: reward.id,

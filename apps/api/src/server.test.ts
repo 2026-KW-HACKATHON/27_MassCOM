@@ -3139,7 +3139,7 @@ const reversalErrorStatuses: [ReversalErrorCode, number][] = [
   ['INVALID_REVERSAL_REASON', 400], ['INVALID_REVERSAL_NOTE', 400], ['VISIT_NOT_FOUND', 404],
   ['COUPON_NOT_FOUND', 404], ['VISIT_CANCEL_WINDOW_CLOSED', 409], ['VISIT_REWARD_ALREADY_MINTED', 409],
   ['VISIT_REWARD_MINT_IN_PROGRESS', 409], ['COUPON_UNDO_WINDOW_CLOSED', 409], ['COUPON_NOT_REDEEMED', 409],
-  ['ACCOUNT_DELETED', 410],
+  ['COUPON_REQUIREMENT_LOST', 409], ['COUPON_SELF_UNDO', 403], ['ACCOUNT_DELETED', 410],
 ];
 
 test('staff reversal routes check permission, body shape and map reversal errors', async (t) => {
