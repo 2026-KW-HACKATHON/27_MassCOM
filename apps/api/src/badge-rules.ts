@@ -28,7 +28,7 @@ export const rewardMilestones = [
 export type RewardMilestone = (typeof rewardMilestones)[number]['milestone'];
 
 export type RewardState = 'LOCKED' | 'READY' | 'UNAVAILABLE' | 'OPENED';
-export type CouponStoredStatus = 'ISSUED' | 'REDEEMED';
+export type CouponStoredStatus = 'ISSUED' | 'REDEEMED' | 'VOIDED';
 export type CouponStatus = CouponStoredStatus | 'EXPIRED';
 
 export function isRewardMilestone(value: number): value is RewardMilestone {
@@ -70,9 +70,17 @@ export function rewardState(input: {
   return 'READY';
 }
 
-// 저장 상태는 ISSUED/REDEEMED뿐이고 만료는 응답에서만 파생한다.
+// 저장 상태는 ISSUED/REDEEMED/VOIDED이고 만료는 응답에서만 파생한다.
 export function couponStatus(status: CouponStoredStatus, expiresAt: Date, now: Date): CouponStatus {
   return status === 'ISSUED' && expiresAt.getTime() <= now.getTime() ? 'EXPIRED' : status;
+}
+
+// 방문 취소로 배지 조건이 깨져 무효가 된 쿠폰(VISIT_CANCELED)은 고객에게 숨기고 조건을 다시 채우면 되살린다.
+// 관리자 무효화는 되살리지 않는다.
+export const reissuableVoidReason = 'VISIT_CANCELED';
+
+export function isReissuableVoid(coupon: { status: CouponStoredStatus; voidReason: string | null }): boolean {
+  return coupon.status === 'VOIDED' && coupon.voidReason === reissuableVoidReason;
 }
 
 const dayMs = 24 * 60 * 60 * 1000;
