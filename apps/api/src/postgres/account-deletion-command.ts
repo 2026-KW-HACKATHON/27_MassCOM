@@ -91,12 +91,20 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error: unknown) => {
-    // Only fixed codes are printed: the URL, the secret and any account identifier never reach the terminal.
-    const code = error instanceof AccountDeletionIntakeError ? error.code
-      : error instanceof Error && /^ACCOUNT_DELETION_[A-Z_]+/.test(error.message) ? error.message.split(':')[0]
-      : 'ACCOUNT_DELETION_FAILED';
-    console.error(code);
+  main().catch((failure: unknown) => {
+    // Only fixed literals are printed: the URL, the secret and any account identifier never reach the terminal.
+    const known = failure instanceof AccountDeletionIntakeError ? failure.code
+      : failure instanceof Error ? failure.message.split(':')[0] : '';
+    switch (known) {
+      case 'DELETION_INTAKE_NOT_FOUND': console.error('DELETION_INTAKE_NOT_FOUND'); break;
+      case 'DELETION_INTAKE_NOT_PENDING': console.error('DELETION_INTAKE_NOT_PENDING'); break;
+      case 'DELETION_COOLING_OFF': console.error('DELETION_COOLING_OFF'); break;
+      case 'DELETION_REJECT_REASON_INVALID': console.error('DELETION_REJECT_REASON_INVALID'); break;
+      case 'ACCOUNT_DELETION_USAGE': console.error(usage); break;
+      case 'ACCOUNT_DELETION_SHOWCASE_DATABASE_REQUIRED': console.error('ACCOUNT_DELETION_SHOWCASE_DATABASE_REQUIRED'); break;
+      case 'ACCOUNT_DELETION_OPERATOR_INVALID': console.error('ACCOUNT_DELETION_OPERATOR_INVALID'); break;
+      default: console.error('ACCOUNT_DELETION_FAILED');
+    }
     process.exitCode = 1;
   });
 }
