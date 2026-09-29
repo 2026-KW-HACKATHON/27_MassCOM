@@ -30,7 +30,7 @@ import {
   CampaignEnrollmentError,
   type CampaignEnrollmentService,
 } from './campaign-enrollment.js';
-import type { CollectionReader } from './collection.js';
+import { parseNftMintingMode, type CollectionReader } from './collection.js';
 import {
   InMemoryChallengeStore,
   WalletChallengeError,
@@ -1757,7 +1757,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const merchantAccess = pool
     ? new PostgresMerchantAccessControl(pool, { staffMayManageArt: aiArtConfig.staffMayManage })
     : undefined;
-  const collection = pool ? new PostgresCollectionReader(pool) : undefined;
+  // 운영 compose는 PREPARING(발행 준비 중)을 넘기고 시연은 넘기지 않아 발행 동작이 그대로다(#246, D-054).
+  const nftMinting = parseNftMintingMode(process.env.NFT_MINTING_MODE);
+  const collection = pool ? new PostgresCollectionReader(pool, { nftMinting }) : undefined;
   const recommendations = pool
     ? new RecommendationService(new PostgresRecommendationSource(pool))
     : undefined;

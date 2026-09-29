@@ -60,6 +60,13 @@ if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Do
 fi
 mv "$scratch/compose.yml.bak" "$scratch/compose.yml"
 
+sed -i.bak 's/NFT_MINTING_MODE: ${NFT_MINTING_MODE:-PREPARING}/NFT_MINTING_MODE: LIVE/' "$scratch/compose.yml"
+if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
+  echo "verifier accepted production NFT minting before mainnet approval" >&2
+  exit 1
+fi
+mv "$scratch/compose.yml.bak" "$scratch/compose.yml"
+
 sed -i.bak '/^USER node$/d' "$scratch/api.Dockerfile"
 if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
   echo "verifier accepted a root runtime image" >&2

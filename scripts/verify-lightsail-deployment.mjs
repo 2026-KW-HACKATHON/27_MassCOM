@@ -53,6 +53,10 @@ try {
     'API must separate login limits by Caddy client IP',
   );
   assert(
+    services.api.environment?.NFT_MINTING_MODE === 'PREPARING',
+    'production API must show NFT minting as preparing until the mint server and mainnet are approved (D-054)',
+  );
+  assert(
     services.api.environment?.ALLOW_INSECURE_DEMO_ACCOUNT !== 'true',
     'production deployment must reject the insecure DEMO account header',
   );
