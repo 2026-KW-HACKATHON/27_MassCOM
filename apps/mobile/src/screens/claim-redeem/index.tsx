@@ -2,8 +2,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Application from 'expo-application';
 import { Link, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import {
@@ -24,7 +23,15 @@ import {
 import { createBadgeApiClient, type BadgeBook } from '@/gamification/badge-api';
 import { diffBadgeBooks } from '@/gamification/badge-rules';
 import { Celebration, type CelebrationContent } from '@/gamification/celebration';
+import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
+import { worldForScheme } from '@/theme/world';
+import { AppHeader } from '@/ui/app-header';
+import { FloatingCard } from '@/ui/floating-card';
+import { heroMascotSize } from '@/ui/large-text';
+import { Mascot } from '@/ui/mascot';
+import { SkyScrollView } from '@/ui/sky-scroll-view';
+import { Stagger } from '@/ui/stagger';
 
 import { makeClaimRedeemStyles } from './styles';
 
@@ -38,9 +45,11 @@ export function ClaimRedeemScreen({
   onSessionInvalid: () => Promise<void>;
 }) {
   const scrollView = useRef<ScrollView>(null);
-  const insets = useSafeAreaInsets();
-  const palette = colorsForScheme(useColorScheme());
-  const styles = StyleSheet.create(makeClaimRedeemStyles(palette, StyleSheet.hairlineWidth));
+  const clearance = useTabBarClearance();
+  const { fontScale } = useWindowDimensions();
+  const scheme = useColorScheme();
+  const palette = colorsForScheme(scheme);
+  const styles = StyleSheet.create(makeClaimRedeemStyles(palette, worldForScheme(scheme), StyleSheet.hairlineWidth));
   const api = useMemo(
     () => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
@@ -212,28 +221,33 @@ export function ClaimRedeemScreen({
 
   return (
     <>
-      <ScrollView
+      <SkyScrollView
         ref={scrollView}
-        contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom, backgroundColor: palette.background }]}
+        header={
+          <AppHeader title="방문 인증" subtitle="가게에서 도장을 받아요">
+            <View style={styles.hero}>
+              {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
+              <Mascot interactive pose="stamp" size={heroMascotSize(fontScale, 112)} />
+              <View style={styles.heroBubble}>
+                <Text selectable style={styles.heroBubbleText}>직원에게 내 QR을 보여주거나, 점주 코드를 입력해요</Text>
+              </View>
+            </View>
+          </AppHeader>
+        }
+        contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
       >
-        <View style={styles.hero}>
-          <Text style={[styles.eyebrow, { color: palette.primary }]}>방문 인증</Text>
-          <Text selectable style={[styles.title, { color: palette.label }]}>방문을 인증해요.</Text>
-          <Text selectable style={[styles.body, { color: palette.secondaryLabel }]}>점주에게 받은 QR을 촬영하거나 1회 코드를 입력하세요.</Text>
-        </View>
-
-        <View style={[styles.formCard, { backgroundColor: palette.surface }]}>
-          <Text style={[styles.sectionTitle, { color: palette.label }]}>내 2분 식별 QR</Text>
-          <Text selectable style={[styles.securityNote, { color: palette.secondaryLabel }]}>직원에게 이 QR을 보여주세요. 직원이 식별 후 실제 사용을 확인해야 방문 코드가 발급됩니다.</Text>
+        <Stagger index={1}>
+        <FloatingCard style={styles.formCard}>
+          <Text style={styles.sectionTitle}>내 2분 식별 QR</Text>
+          <Text selectable style={styles.securityNote}>직원에게 이 QR을 보여주세요. 직원이 식별 후 실제 사용을 확인해야 방문 코드가 발급됩니다.</Text>
           {identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? (
             <View style={{ alignItems: 'center', gap: 10 }}>
               <ClaimQr code={identity.token} accessibilityLabel="직원에게 보여줄 고객 식별 QR 코드" />
-              <Text selectable style={[styles.sectionTitle, { color: palette.label }]}>확인 코드 {customerIdentityCode(identity.token)}</Text>
-              <Text style={[styles.securityNote, { color: palette.secondaryLabel }]}>{Math.ceil((Date.parse(identity.expiresAt) - now) / 1000)}초 뒤 만료</Text>
+              <Text selectable style={styles.sectionTitle}>확인 코드 {customerIdentityCode(identity.token)}</Text>
+              <Text style={styles.securityNote}>{Math.ceil((Date.parse(identity.expiresAt) - now) / 1000)}초 뒤 만료</Text>
             </View>
-          ) : identity ? <Text accessibilityLiveRegion="polite" style={[styles.securityNote, { color: palette.secondaryLabel }]}>식별 QR이 만료됐습니다. 새 QR을 발급해 주세요.</Text> : null}
+          ) : identity ? <Text accessibilityLiveRegion="polite" style={styles.securityNote}>식별 QR이 만료됐습니다. 새 QR을 발급해 주세요.</Text> : null}
           {identityMessage ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{identityMessage}</Text> : null}
           <Pressable accessibilityRole="button" disabled={identityBusy} onPress={() => void refreshIdentity()} style={[styles.button, { backgroundColor: palette.primary }, identityBusy && styles.disabled]}>
             <Text style={[styles.buttonText, { color: palette.onPrimary }]}>{identityBusy ? '처리 중…' : identity ? '새 식별 QR 발급' : '식별 QR 발급'}</Text>
@@ -241,10 +255,12 @@ export function ClaimRedeemScreen({
           {identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? <Pressable accessibilityRole="button" disabled={identityBusy} onPress={() => void revokeIdentity()} style={[styles.button, { backgroundColor: palette.primaryContainer }, identityBusy && styles.disabled]}>
             <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>이 QR 폐기</Text>
           </Pressable> : null}
-        </View>
+        </FloatingCard>
+        </Stagger>
 
-        <View style={[styles.formCard, { backgroundColor: palette.surface }]}>
-          <Text style={[styles.sectionTitle, { color: palette.label }]}>1 · 코드 확인</Text>
+        <Stagger index={2}>
+        <FloatingCard style={styles.formCard}>
+          <Text style={styles.sectionTitle}>1 · 코드 확인</Text>
           {scanning ? (
             <View style={styles.camera}>
               <CameraView
@@ -265,7 +281,7 @@ export function ClaimRedeemScreen({
           >
             <Text style={[styles.buttonText, styles.scanButtonText, { color: palette.primary }]}>{scanning ? '촬영 닫기' : 'QR 촬영'}</Text>
           </Pressable>
-          <Text style={[styles.inputLabel, { color: palette.label }]}>수령 코드</Text>
+          <Text style={styles.inputLabel}>수령 코드</Text>
           <TextInput
             value={token}
             onChangeText={changeToken}
@@ -274,19 +290,21 @@ export function ClaimRedeemScreen({
             multiline
             placeholder="점주 화면의 1회 코드를 입력"
             placeholderTextColor={palette.secondaryLabel}
-            style={[styles.input, { color: palette.label, backgroundColor: palette.background, borderColor: palette.separator }]}
+            style={styles.input}
           />
-          <Text selectable style={[styles.securityNote, { color: palette.secondaryLabel }]}>코드는 URL이나 로그에 남기지 않고 안전하게 전송합니다.</Text>
+          <Text selectable style={styles.securityNote}>코드는 URL이나 로그에 남기지 않고 안전하게 전송합니다.</Text>
           <Pressable accessibilityRole="button" disabled={!token.trim() || busy} onPress={() => void inspect()} style={[styles.button, { backgroundColor: !token.trim() || busy ? palette.primaryContainer : palette.primary }]}>
             <Text style={[styles.buttonText, { color: !token.trim() || busy ? palette.onPrimaryContainer : palette.onPrimary }]}>{busy ? '확인 중…' : '코드 상태 확인'}</Text>
           </Pressable>
-        </View>
+        </FloatingCard>
+        </Stagger>
 
         {message ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
 
         {preview ? (
-          <View style={[styles.previewCard, { backgroundColor: palette.surface }]}>
-            <Text style={[styles.sectionTitle, { color: palette.label }]}>2 · 방문 확정</Text>
+          <Stagger index={0}>
+          <FloatingCard style={styles.previewCard}>
+            <Text style={styles.sectionTitle}>2 · 방문 확정</Text>
             <StatusRow palette={palette} label="상태" value={preview.status === 'AVAILABLE' ? '수령 가능' : '만료'} />
             <StatusRow palette={palette} label="가게" value={preview.merchantName} />
             <StatusRow palette={palette} label="캠페인" value={preview.campaignTitle} />
@@ -304,11 +322,14 @@ export function ClaimRedeemScreen({
                 </Text>
               </Pressable>
             )}
-          </View>
+          </FloatingCard>
+          </Stagger>
         ) : null}
 
         {redeemed ? (
-          <View accessibilityLiveRegion="polite" style={[styles.successCard, { backgroundColor: palette.successContainer }]}>
+          <Stagger index={0}>
+          <View accessibilityLiveRegion="polite">
+          <FloatingCard style={styles.successCard}>
             <Text style={[styles.successEyebrow, { color: palette.onSuccessContainer }]}>3 · 방문 완료</Text>
             <Text selectable style={[styles.successTitle, { color: palette.onSuccessContainer }]}>{claimSuccessCopy(redeemed).title}</Text>
             <Text selectable style={[styles.successBody, { color: palette.onSuccessContainer }]}>{claimSuccessCopy(redeemed).body}</Text>
@@ -328,9 +349,11 @@ export function ClaimRedeemScreen({
                 </Link>
               ))}
             </View>
+          </FloatingCard>
           </View>
+          </Stagger>
         ) : null}
-      </ScrollView>
+      </SkyScrollView>
       <Celebration
         content={celebration}
         variant={Application.applicationId === 'kr.masscom.wolgye.demo' ? 'showcase' : 'production'}
@@ -345,11 +368,12 @@ export function ClaimRedeemScreen({
 }
 
 function StatusRow({ label, value, palette }: { label: string; value: string; palette: AppColors }) {
-  const styles = StyleSheet.create(makeClaimRedeemStyles(palette, StyleSheet.hairlineWidth));
+  const scheme = useColorScheme();
+  const styles = StyleSheet.create(makeClaimRedeemStyles(palette, worldForScheme(scheme), StyleSheet.hairlineWidth));
   return (
     <View style={[styles.statusRow, { borderBottomColor: palette.separator }]}>
-      <Text style={[styles.statusLabel, { color: palette.secondaryLabel }]}>{label}</Text>
-      <Text selectable style={[styles.statusValue, { color: palette.label }]}>{value}</Text>
+      <Text style={styles.statusLabel}>{label}</Text>
+      <Text selectable style={styles.statusValue}>{value}</Text>
     </View>
   );
 }

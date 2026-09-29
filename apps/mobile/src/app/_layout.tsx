@@ -37,9 +37,9 @@ function Routes() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="foundation-preview" options={{ title: 'UI 시안 미리보기' }} />
       <Stack.Screen name="showcase-tour" options={{ title: '체험용 다섯 공간' }} />
-      <Stack.Screen name="merchants/[merchantId]" options={{ title: '음식점 상세' }} />
+      <Stack.Screen name="merchants/[merchantId]" options={{ headerShown: false }} />
       <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
-      <Stack.Screen name="recommendations" options={{ title: '다음 가게 추천' }} />
+      <Stack.Screen name="recommendations" options={{ headerShown: false }} />
       <Stack.Screen name="wallet" options={{ title: '외부 지갑 연결' }} />
     </Stack>
   );

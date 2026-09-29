@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, Animated, BackHandler, Platform, Pressable, ScrollView,
+  AccessibilityInfo, Animated, BackHandler, Image, Platform, Pressable, ScrollView,
   StyleSheet, Text, View, useColorScheme, type NativeScrollEvent, type NativeSyntheticEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,12 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { INITIAL_PAGE, PAGE_COUNT, pageAtOffset } from '@/navigation/foundation-pages';
 import { foundationColors } from '@/theme/foundation';
+import { worldForScheme } from '@/theme/world';
+import { FloatingCard } from '@/ui/floating-card';
+import { Mascot } from '@/ui/mascot';
+import { mascotArt } from '@/ui/mascot-art';
+import { SkyArt } from '@/ui/sky-art';
+import { SkyBackdrop } from '@/ui/sky-backdrop';
 
 type Role = 'customer' | 'merchant';
 type Props = {
@@ -21,7 +27,9 @@ type Props = {
 const pages = Array.from({ length: PAGE_COUNT }, (_, index) => index);
 
 export function FoundationScreen({ initialRole, isFocused = true, onConnectWallet, onChooseRole, showcaseTour = false, onExit }: Props) {
-  const colors = foundationColors[useColorScheme() === 'dark' ? 'dark' : 'light'];
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const colors = foundationColors[scheme];
+  const world = worldForScheme(scheme);
   const insets = useSafeAreaInsets();
   const [role, setRole] = useState<Role | undefined>(initialRole);
   const [stage, setStage] = useState<'role' | 'wallet' | 'shell'>(initialRole ? 'shell' : 'role');
@@ -50,42 +58,47 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
     setStage(nextRole === 'customer' ? 'wallet' : 'shell');
   }
 
-  return (
-    <View style={[styles.root, { backgroundColor: colors.background }]}>
+  const inShell = stage === 'shell' && role !== undefined;
+  const frame = (
       <View style={[styles.frame, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-        <Text selectable style={[styles.previewNotice, { color: colors.muted }]}>
+        <Text
+          selectable
+          style={[
+            styles.previewNotice,
+            inShell ? { color: colors.muted } : [styles.noticeOnSky, { color: world.cardMuted, backgroundColor: world.card }],
+          ]}
+        >
           {showcaseTour
             ? '체험용 빈 공간 다섯 개입니다. 실제 방문·수집품 정보는 탐색과 도감에서 확인하세요.'
             : onChooseRole
             ? '체험용 가상 데이터입니다. 실제 영업점·방문 혜택과 연결되지 않습니다.'
             : '개발용 화면 시안 · 실제 음식점·방문·혜택이 아닙니다.'}
         </Text>
-        {stage === 'shell' && role ? (
+        {inShell ? (
           <EmptyPager
-            role={role}
+            role={role!}
             backLabel={showcaseTour ? '체험 종료' : '역할 다시 선택'}
             onBack={showcaseTour && onExit ? onExit : () => { setStage('role'); setRole(undefined); }}
           />
         ) : (
           <ScrollView contentContainerStyle={styles.onboarding} showsVerticalScrollIndicator={false}>
+            {stage === 'role' ? <SkyArt /> : null}
             <View style={styles.brandRow}>
-              <View style={[styles.brandMark, { backgroundColor: colors.accent }]}>
-                <View style={[styles.brandDot, { backgroundColor: colors.onAccent }]} />
-              </View>
-              <Text style={[styles.brand, { color: colors.ink }]}>masscom</Text>
+              <Image source={mascotArt['logo-badge']} accessible={false} style={styles.brandBadge} />
+              <Text style={[styles.brand, { color: world.skyInk }]}>월계 마스코트</Text>
             </View>
             {stage === 'role' ? (
               <>
-                <View style={styles.intro}>
-                  <Text style={[styles.eyebrow, { color: colors.muted }]}>반가워요</Text>
-                  <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>누구세요?</Text>
-                  <Text style={[styles.description, { color: colors.muted }]}>어떤 모습으로 시작할까요?</Text>
+                <View style={styles.greeting}>
+                  <Mascot interactive pose="wave" size={160} accessibilityLabel="손을 흔드는 마스코트" />
+                  <Text accessibilityRole="header" style={[styles.title, styles.greetingTitle, { color: world.skyInk }]}>반가워요! 동네 탐험을 시작해요</Text>
+                  <Text style={[styles.description, styles.greetingTitle, { color: world.skyMuted }]}>어떤 모습으로 시작할까요?</Text>
                 </View>
                 <View style={styles.roleChoices}>
                   <RoleChoice title="사용자예요" subtitle="나의 공간으로 시작" role="customer" onPress={() => choose('customer')} />
                   <RoleChoice title="점주예요" subtitle={onChooseRole ? '로그인하면 점주 권한을 확인해요' : '점주 화면 미리보기'} role="merchant" onPress={() => choose('merchant')} />
                 </View>
-                <Text style={[styles.footnote, { color: colors.muted }]}>편하게 선택해 주세요. 언제든 바꿀 수 있어요.</Text>
+                <Text style={[styles.footnote, { color: world.skyMuted }]}>편하게 선택해 주세요. 언제든 바꿀 수 있어요.</Text>
               </>
             ) : (
               <>
@@ -111,21 +124,26 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
           </ScrollView>
         )}
       </View>
-    </View>
   );
+
+  return inShell
+    ? <View style={[styles.root, { backgroundColor: colors.background }]}>{frame}</View>
+    : <SkyBackdrop>{frame}</SkyBackdrop>;
 }
 
 function RoleChoice({ title, subtitle, role, onPress }: { title: string; subtitle: string; role: Role; onPress: () => void }) {
-  const colors = foundationColors[useColorScheme() === 'dark' ? 'dark' : 'light'];
+  const world = worldForScheme(useColorScheme() === 'dark' ? 'dark' : 'light');
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${title}. ${subtitle}`} onPress={onPress} style={({ pressed }) => [styles.roleCard, { backgroundColor: pressed ? colors.tint : colors.soft }]}>
-      <View style={[styles.roleIcon, { backgroundColor: colors.background }]}><Glyph kind={role} color={colors.accent} size={28} /></View>
-      <View style={styles.roleText}>
-        <Text style={[styles.roleTitle, { color: colors.ink }]}>{title}</Text>
-        <Text style={[styles.smallLabel, { color: colors.muted }]}>{subtitle}</Text>
+    <FloatingCard accessibilityLabel={`${title}. ${subtitle}`} onPress={onPress} style={styles.roleCard}>
+      <View style={[styles.roleIcon, { backgroundColor: world.paper }]}>
+        <Image source={mascotArt[role === 'customer' ? 'explore-map' : 'stamp']} accessible={false} style={styles.roleArt} />
       </View>
-      <Text accessible={false} style={[styles.chevron, { color: colors.muted }]}>›</Text>
-    </Pressable>
+      <View style={styles.roleText}>
+        <Text style={[styles.roleTitle, { color: world.cardInk }]}>{title}</Text>
+        <Text style={[styles.smallLabel, { color: world.cardMuted }]}>{subtitle}</Text>
+      </View>
+      <Text accessible={false} style={[styles.chevron, { color: world.cardMuted }]}>›</Text>
+    </FloatingCard>
   );
 }
 
@@ -224,14 +242,16 @@ const styles = StyleSheet.create({
   root: { flex: 1 }, frame: { flex: 1, width: '100%', maxWidth: 600, alignSelf: 'center' },
   previewNotice: { paddingHorizontal: 20, paddingTop: 8, fontSize: 12, lineHeight: 18 },
   onboarding: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 32, paddingBottom: 24 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 9 }, brand: { fontSize: 19, fontWeight: '700', letterSpacing: -0.6 },
-  brandMark: { width: 23, height: 23, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }, brandDot: { width: 7, height: 7, borderRadius: 4 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 9 }, brand: { fontSize: 19, fontWeight: '800', letterSpacing: -0.4 },
+  brandBadge: { width: 36, height: 36 },
+  noticeOnSky: { alignSelf: 'stretch', marginHorizontal: 20, marginTop: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, overflow: 'hidden' },
+  greeting: { alignItems: 'center', paddingTop: 20, paddingBottom: 28, gap: 8 }, greetingTitle: { textAlign: 'center' },
   intro: { paddingTop: 72, paddingBottom: 40, gap: 12 }, eyebrow: { fontSize: 14, fontWeight: '600' },
   title: { fontSize: 32, fontWeight: '700', letterSpacing: -1, lineHeight: 40 },
   walletTitle: { fontSize: 32, fontWeight: '700', letterSpacing: -1.3, lineHeight: 44 },
   description: { fontSize: 16, lineHeight: 25 }, roleChoices: { gap: 14 },
-  roleCard: { minHeight: 108, padding: 20, borderRadius: 24, flexDirection: 'row', alignItems: 'center', gap: 16 },
-  roleIcon: { width: 54, height: 54, borderRadius: 19, alignItems: 'center', justifyContent: 'center' }, roleText: { flex: 1, gap: 7 },
+  roleCard: { minHeight: 96, flexDirection: 'row', alignItems: 'center', gap: 16 },
+  roleIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, roleArt: { width: 52, height: 52 }, roleText: { flex: 1, gap: 7 },
   roleTitle: { fontSize: 20, fontWeight: '700', letterSpacing: -0.5 }, smallLabel: { fontSize: 13, lineHeight: 20 }, chevron: { fontSize: 30 },
   footnote: { fontSize: 12, lineHeight: 20, textAlign: 'center', paddingTop: 28 }, walletIcon: { width: 76, height: 76, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   walletActions: { marginTop: 'auto', paddingTop: 28, gap: 8 }, primary: { borderRadius: 18, minHeight: 60, padding: 16, alignItems: 'center', justifyContent: 'center' },

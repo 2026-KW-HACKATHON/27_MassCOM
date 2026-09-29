@@ -30,6 +30,11 @@ for (const relativePath of requiredLiveRegions) {
   }
 }
 
+// Screen copy that moved into pure builders (e.g. the passport stamp labels) still counts as user-facing text.
+const copySources = ['screens/collection/collection-stamps.ts'];
+for (const relativePath of copySources) {
+  sources.push(readFileSync(join(sourceRoot, relativePath), 'utf8'));
+}
 const corpus = sources.join('\n');
 for (const term of ['음식점', '캠페인', '방문 수령', '앱 수집품', '외부 지갑 주소 확인', 'NFT 등록']) {
   if (!corpus.includes(term)) {

@@ -1,14 +1,17 @@
 import * as Application from 'expo-application';
 import { Button, Host } from '@expo/ui';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import type { ReactNode } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AuthSessionState } from '@/auth/auth-provider';
 import { AuthControllerError } from '@/auth/auth-controller';
 import { statusAnnouncement } from '@/accessibility/status-copy';
 import { accountContextLabel } from '@/config/app-context';
+import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
+import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { makeAuthRequiredStyles } from './styles';
 
 type Props = {
@@ -17,12 +20,16 @@ type Props = {
   onSignIn: () => Promise<void>;
   onBackToRole?: () => void;
   onBackToBrowse?: () => void;
+  /** Sky header for a page reached from the header avatar; it scrolls with the prompt and lets the sky show through. */
+  header?: ReactNode;
 };
 
-export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole, onBackToBrowse }: Props) {
+export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole, onBackToBrowse, header }: Props) {
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeAuthRequiredStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
+  // Inside the tabs the floating bar covers the bottom edge; at the root there is no bar and this stays 40 + inset.
+  const clearance = useTabBarClearance();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const restoring = state.status === 'restoring' || state.status === 'switchingAccount';
@@ -46,9 +53,9 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole, o
   const configurationRequired = state.status === 'signedOut'
     && state.reason === 'CONFIGURATION_REQUIRED';
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}
+    <SkyScrollView
+      header={header}
+      contentContainerStyle={[styles.content, header ? { backgroundColor: 'transparent' } : null, { paddingBottom: Math.max(40 + insets.bottom, clearance) }]}
     >
       <Text style={styles.eyebrow}>{accountContextLabel(Application.applicationId)}</Text>
       <Text selectable style={styles.title}>방문 기록을 안전하게{`\n`}이어서 확인합니다.</Text>
@@ -80,7 +87,7 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole, o
       {onBackToBrowse ? <Pressable accessibilityRole="button" onPress={onBackToBrowse} style={{ minHeight: 48, justifyContent: 'center', alignItems: 'center' }}>
         <Text style={{ color: palette.primary, fontSize: 16, fontWeight: '700' }}>음식점으로 돌아가기</Text>
       </Pressable> : null}
-    </ScrollView>
+    </SkyScrollView>
   );
 }
 

@@ -4,6 +4,8 @@
 
 ## 최신 작업 경계
 
+- **하늘 동네·여권 도장 개편(진행 중, PR 전):** 소유자가 "흰 바탕이라 밋밋하다"고 피드백하고 디자인 방향 A 하늘 동네 + B 여권 도장과 Codex 마스코트 세트를 골랐다(D-045). [Issue #224](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/224) 브랜치 `feat/224-sky-town-redesign`에서 Android 앱에 하늘 그림 머리글(내용과 함께 스크롤)·떠 있는 카드·가운데 도장 버튼의 세 칸 탭 바(내 정보는 머리글 아바타)·도감의 여권 도장 페이지·마스코트 포즈 세트·눌림/진입/숨쉬기 연출(동작 줄이기는 실행 중에도 따름)을 넣었다. `DESIGN.md`를 이 체계로 개정하고 지도(D-046)·친구(D-047)·사장님 AI 시안(D-048) 방향을 결정 기록에만 남겼다(구현 없음). 모바일 388/388·타입·린트·운영/시연 두 export PASS, [에뮬레이터 로컬 확인](evidence/sky-town-redesign-2026-09-29/README.md)에서 라이트·다크·글자 200% 렌더 PASS와 결함 5건 수정. 실제 휴대전화·TalkBack·소유자의 "꾸민 느낌" 판정·점포 그림이 있는 시연 빌드 화면은 NOT_RUN이고 공개 APK·서버에는 반영하지 않았다. API·DB·권한·보상 규칙은 그대로이며 필수 36개 상태는 31 PASS / 2 BLOCKED / 3 NOT_RUN 그대로다.
+
 - **탐험 여권 운영·시연 배포와 Preview 7:** [Issue #222](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/222)에서 main `758f214`를 기존 Lightsail의 운영 API·웹(migration 27, 혜택·쿠폰·점주 0건)과 시연 API(migration 27, 가상 체험 혜택 3건)에 [배포](evidence/explorer-passport-deployment-2026-09-29.json)했다. `/presentation` 404·익명 `/api/web/badges` 401 no-store·두 API health 200을 외부 HTTPS로 확인했다. [시연 Preview 7 APK](evidence/showcase-preview7-release-2026-09-29.json)는 서명·GitHub digest 확인 뒤 공개 사전 릴리스로 게시했고 Samsung의 기존 앱 위 설치·첫 실행은 PASS, 로그인 뒤 메달→상자→쿠폰→점원 사용 처리·TalkBack은 NOT_RUN이다. 운영 실제 혜택은 점주 합의 전까지 0건을 유지하고, 공개 /open의 Preview 7 링크는 병합 뒤 웹 전용 재배포로 반영한다.
 
 - **발표 페이지 제거:** [Issue #220](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/220)에서 소유자 결정에 따라 공개 발표 페이지(`/presentation`)·발표 원고·발표 검사기를 제거했다. 팀은 발표 자료를 저장소 밖에서 준비하며, 발표 리허설·최종 영상은 계속 `NOT_RUN`이다. 발표와 무관한 필수 시험 합계·현장 성과 부풀림 금지 검사는 증거 정합 검사기로 옮겼고 과거 증거 파일은 기록으로 유지한다. 운영 Caddy의 `/presentation`은 다음 웹 배포 때 404가 된다. [결정 D-044](DECISIONS.md)

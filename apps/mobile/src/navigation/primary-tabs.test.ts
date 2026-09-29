@@ -20,12 +20,36 @@ test('four primary routes keep the production root while the foundation preview 
   assert.match(root, /<AuthenticatedRoot\s*\/>/);
 });
 
-test('tab labels describe the four primary user jobs', () => {
-  const layoutPath = join(app, '(tabs)', '_layout.tsx');
-  assert.ok(existsSync(layoutPath), 'tab layout');
-  const layout = readFileSync(layoutPath, 'utf8');
-  for (const title of ['탐색', '방문 인증', '도감', '내 정보']) {
-    assert.ok(layout.includes(title), title);
+test('floating tab bar shows explore, a raised claim stamp and collection; account moves to the header', () => {
+  const layout = readFileSync(join(app, '(tabs)', '_layout.tsx'), 'utf8');
+  for (const title of ['탐색', '방문 인증', '도감']) assert.ok(layout.includes(title), title);
+  assert.match(layout, /name="settings"[\s\S]*?href: null/);
+  assert.match(layout, /tabBar=\{\(props\) => <FloatingTabBar \{\.\.\.props\} \/>\}/);
+  const bar = readFileSync(fileURLToPath(new URL('./floating-tab-bar.tsx', import.meta.url)), 'utf8');
+  assert.match(bar, /useMotionEnabled\(\)/);
+  // The bar height steps up with text size (barHeightFor in tab-bar-style.ts, tested there) and labels stop at 1.5x.
+  assert.match(bar, /barHeightFor\(fontScale\)/);
+  assert.match(bar, /maxFontSizeMultiplier=\{1\.5\}/);
+  assert.match(bar, /accessibilityRole="tab"/);
+});
+
+test('the floating bar skips hidden routes and steps aside for the keyboard', () => {
+  const bar = readFileSync(fileURLToPath(new URL('./floating-tab-bar.tsx', import.meta.url)), 'utf8');
+  // expo-router turns `href: null` into a display:none tab item; the bar must not draw those routes.
+  assert.match(bar, /display === 'none'/);
+  assert.match(bar, /keyboardDidShow/);
+  assert.match(bar, /navigation\.emit\(\{ type: 'tabPress'/);
+  // Screens (including the sign-in and setup notices) size their bottom padding from the height the bar reports.
+  assert.match(bar, /BottomTabBarHeightCallbackContext/);
+  const clearance = readFileSync(fileURLToPath(new URL('./use-tab-bar-clearance.ts', import.meta.url)), 'utf8');
+  assert.match(clearance, /useContext\(BottomTabBarHeightContext\)/);
+});
+
+test('every primary screen offers the account avatar', () => {
+  // The header is the first thing inside each screen's scroll content, so the claim route no longer draws one itself.
+  for (const screen of ['merchant-list', 'collection', 'claim-redeem']) {
+    const source = readFileSync(fileURLToPath(new URL(`../screens/${screen}/index.tsx`, import.meta.url)), 'utf8');
+    assert.match(source, /<AppHeader/, screen);
   }
 });
 

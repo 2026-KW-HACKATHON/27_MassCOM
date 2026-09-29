@@ -70,6 +70,8 @@
 
 모든 웹 화면(포털·설치·개인정보·계정 삭제 안내·읽기 전용 시연 웹·운영 웹 도감·점주·관리자)은 앱과 같은 색 토큰·마스코트 머리글·카드·버튼·다크 모드를 씁니다([Issue #218](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/218), [웹 디자인 체계](docs/superpowers/specs/2026-09-29-web-design-system.md), [전후 화면](docs/evidence/web-design-system-2026-09-29/README.md)). 웹 색이 앱 `palette.ts`와 어긋나면 `tests/site/verify_design_tokens_test.mjs`가 실패합니다.
 
+[Issue #224](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/224)는 흰 바탕의 밋밋한 Android 앱을 **하늘 동네와 여권 도장**으로 바꿉니다([설계](docs/superpowers/specs/2026-09-29-sky-town-redesign-design.md), [결정 D-045](docs/DECISIONS.md)). 하늘 그라데이션·동네 그림 위에 떠 있는 카드, 가운데 도장 버튼이 솟은 세 칸 탭 바(`탐색 · 방문 인증 · 도감`, 내 정보는 머리글 아바타), 도감의 도장이 찍히는 여권 페이지, 숨쉬는 마스코트와 눌림·진입 연출이 들어갑니다. 동작 줄이기 설정은 실행 중에도 따르고, 새 색 조합은 라이트·다크 모두 명암비 시험을 거칩니다. 이 개편은 **소스와 에뮬레이터 로컬 확인까지**이며 공개된 Preview 7 APK와 운영 test.3에는 들어 있지 않습니다. 실제 휴대전화·TalkBack·소유자의 "꾸민 느낌" 판정은 `NOT_RUN`입니다([에뮬레이터 증거](docs/evidence/sky-town-redesign-2026-09-29/README.md)). 이어서 진행할 지도(D-046)·친구(D-047)·사장님 AI 시안(D-048)은 결정만 기록했고 구현하지 않았습니다.
+
 ## 한눈에 보기
 
 <details>
@@ -151,6 +153,18 @@ sequenceDiagram
 두 초대 계정의 Android **직접 코드 입력** 흐름은 [폰·DB 실측](docs/evidence/showcase-two-account-phone-2026-09-27.json)에서 확인했습니다. 지갑은 선택 기능이라 시연 앱에서 없어도 탐색·방문 인증·도감을 사용합니다. 앱 수집품과 실제 발행 NFT는 별도 상태이며, 시연 앱의 지갑·NFT는 아직 활성화하지 않았습니다.
 
 ## 실제 Android 화면
+
+### 하늘 동네 개편(Issue #224): 에뮬레이터 로컬 확인
+
+아래는 이 개편을 반영한 개발 앱(`kr.masscom.wolgye.dev`)을 Android 에뮬레이터 `MassCOM_Design_QA`(360dp)에서 촬영한 화면입니다. 로컬 API·일회용 PostgreSQL의 가상 시연 seed를 썼고 운영·시연 서버와 공개 APK는 쓰지 않았습니다. **휴대전화에 설치한 화면이 아니며** 공개된 어떤 APK에도 아직 들어 있지 않습니다. 전후 비교와 결함·`NOT_RUN`은 [증거 README](docs/evidence/sky-town-redesign-2026-09-29/README.md)에 있습니다.
+
+| 도감 표지: 하늘 그림 위 머리글과 여권 | 방문 인증(다크): 도장 카드와 마스코트 |
+| :---: | :---: |
+| <img src="docs/evidence/sky-town-redesign-2026-09-29/04-collection-top-light.png" width="250" alt="에뮬레이터의 하늘 동네 도감 화면, 동네 산책가 배지 2/9와 떠 있는 세 칸 탭 바"> | <img src="docs/evidence/sky-town-redesign-2026-09-29/05-claim-dark.png" width="250" alt="에뮬레이터의 다크 방문 인증 화면, 도장을 든 마스코트와 점선 도장 카드"> |
+| **글자 200% 탐색** | **역할 선택 시안(개발 빌드)** |
+| <img src="docs/evidence/sky-town-redesign-2026-09-29/08-explore-font200.png" width="250" alt="글자 200%에서 줄바꿈되는 탐색 화면 머리글과 여권 칩"> | <img src="docs/evidence/sky-town-redesign-2026-09-29/07-role-preview-light.png" width="250" alt="에뮬레이터의 역할 선택 시안, 손을 흔드는 마스코트와 하늘 동네 그림"> |
+
+### 개편 전 화면(2026-09-27 촬영한 이전 UI)
 
 아래는 마스코트 UI를 반영한 시연 APK(source `c956d1f`, [#185](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/185)·[#186](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/186))를 Samsung SM-S928N·Android 16에서 촬영한 화면입니다([실기 기록](docs/evidence/ui-mascot-2026-09-27/device-check.json)). [Preview 1 Release](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.1)의 APK는 이전 UI(source `c53c199`)이며, 이전 화면은 [기록 폴더](docs/evidence/readme-showcase-2026-09-27/)에 보존합니다. 점포·방문·수집품은 모두 **가상 시연 데이터**이며 화면 이미지는 기획 목업이 아닙니다.
 

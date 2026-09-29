@@ -1,50 +1,48 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { contrast } from '../../theme/contrast';
 import { darkColors, lightColors } from '../../theme/palette';
+import { uiMetrics } from '../../theme/ui-metrics';
+import { darkWorld, lightWorld } from '../../theme/world';
 import { makeMerchantDetailStyles } from './styles';
 
-test('merchant detail uses its active palette including loading and error states', () => {
-  for (const palette of [lightColors, darkColors]) {
-    const styles = makeMerchantDetailStyles(palette);
-    assert.equal(styles.content.backgroundColor, palette.background);
-    assert.equal(styles.centeredState.backgroundColor, palette.background);
-    assert.equal(styles.centeredTitle.color, palette.label);
-    assert.equal(styles.centeredBody.color, palette.secondaryLabel);
+const schemes = [[lightColors, lightWorld], [darkColors, darkWorld]] as const;
+
+test('merchant detail keeps its semantic action and error colours in both schemes', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeMerchantDetailStyles(palette, world);
     assert.equal(styles.inlineError.backgroundColor, palette.errorContainer);
     assert.equal(styles.inlineErrorText.color, palette.onErrorContainer);
     assert.equal(styles.walletAction.backgroundColor, palette.primary);
+    assert.equal(styles.boundaryCard.backgroundColor, palette.primaryContainer);
   }
 });
 
-test('DEMO disclosure and story remain legible over the rendered hero', () => {
-  for (const palette of [lightColors, darkColors]) {
-    const styles = makeMerchantDetailStyles(palette);
-    for (const text of [styles.demoBadge, styles.story]) {
-      const foreground = composite(text.color, styles.hero.backgroundColor, 'opacity' in text ? text.opacity : 1);
-      const ratio = contrast(foreground, styles.hero.backgroundColor);
-      assert.ok(ratio >= 4.5, `${palette.primary} ${ratio.toFixed(3)}:1`);
+test('the sky shows through the detail page and every panel floats on world.card', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeMerchantDetailStyles(palette, world);
+    assert.equal('backgroundColor' in styles.content, false);
+    // The store picture is the BackHeader's own background now; the page no longer stacks a second 240dp banner under the header.
+    assert.equal('banner' in styles, false);
+    for (const card of [styles.hero, styles.infoCard, styles.rewardCard, styles.nextStep]) {
+      assert.equal(card.backgroundColor, world.card);
+      assert.equal(card.borderRadius, world.radius.card);
     }
   }
 });
 
-function composite(foreground: string, background: string, opacity: number): string {
-  const channel = (index: number) => {
-    const front = Number.parseInt(foreground.slice(index, index + 2), 16);
-    const back = Number.parseInt(background.slice(index, index + 2), 16);
-    return Math.round(front * opacity + back * (1 - opacity)).toString(16).padStart(2, '0');
-  };
-  return `#${[1, 3, 5].map(channel).join('')}`;
-}
-
-function contrast(foreground: string, background: string): number {
-  const [lighter, darker] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
-  return (lighter + 0.05) / (darker + 0.05);
-}
-
-function luminance(hex: string): number {
-  const channels = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255);
-  const [red, green, blue] = channels.map((value) =>
-    value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
-  return 0.2126 * red! + 0.7152 * green! + 0.0722 * blue!;
-}
+test('title, story and DEMO disclosure stay legible on the floating hero card', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeMerchantDetailStyles(palette, world);
+    for (const text of [styles.title, styles.story, styles.heroEyebrow, styles.infoLabel, styles.infoValue, styles.campaignTitle, styles.period, styles.rewardHeading, styles.rewardNote, styles.goalLabel, styles.goalName, styles.nextStepLabel, styles.nextStepText]) {
+      const ratio = contrast(text.color as string, world.card);
+      assert.ok(ratio >= 4.5, `${text.color} on card ${ratio.toFixed(3)}:1`);
+    }
+    assert.ok(contrast(styles.demoBadge.color as string, styles.demoBadge.backgroundColor as string) >= 4.5, 'DEMO badge');
+    assert.ok(contrast(styles.boundaryTitle.color as string, palette.primaryContainer) >= 4.5);
+    assert.ok(contrast(styles.boundaryBody.color as string, palette.primaryContainer) >= 4.5);
+    assert.ok(contrast(styles.walletActionText.color as string, styles.walletAction.backgroundColor as string) >= 4.5);
+    assert.ok((styles.walletAction.minHeight as number) >= uiMetrics.minTouch);
+  }
+});

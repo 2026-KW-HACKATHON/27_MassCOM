@@ -11,6 +11,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { Mascot } from '@/ui/mascot';
+
 import type { Coupon, OpenedReward } from './badge-api';
 import { rewardBoxName } from './badge-rules';
 import { CouponTicket } from './coupon-ticket';
@@ -71,6 +73,9 @@ function RevealBody({ result, onClose, onUse }: { result: OpenedReward; onClose:
               <SparkleGlyph size={30} color={medal.ribbon} />
               <SparkleGlyph size={18} color={medal.giftGold} />
             </Animated.View>
+          </View>
+          <View style={{ alignItems: 'center' }}>
+            <Mascot pose="gift" size={112} />
           </View>
           <Text ref={title} accessibilityRole="header" style={styles.revealTitle}>
             {result.replayed ? '이미 받은 쿠폰이에요' : '쿠폰이 나왔어요!'}

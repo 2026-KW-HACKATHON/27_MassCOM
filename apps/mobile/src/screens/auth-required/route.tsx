@@ -1,14 +1,16 @@
+import type { ReactNode } from 'react';
 import { useAuthSession } from '@/auth/auth-provider';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { rememberMerchantReturn } from '@/navigation/showcase-entry';
 import { AuthRequiredScreen } from './index';
 
-export function AuthRequiredRoute() {
+export function AuthRequiredRoute({ header }: { header?: ReactNode }) {
   const auth = useAuthSession();
   const router = useRouter();
   const { merchantId } = useLocalSearchParams<{ merchantId?: string }>();
   if (auth.state.status === 'signedIn' || auth.state.status === 'demo') return null;
   return <AuthRequiredScreen
+    header={header}
     state={auth.state}
     canSignIn={auth.canSignIn}
     onSignIn={async () => {

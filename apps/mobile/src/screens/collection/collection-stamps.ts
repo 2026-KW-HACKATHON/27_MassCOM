@@ -8,6 +8,21 @@ export type StampSlot = {
   visitCount: number;
 };
 
+/** What the passport stamp page draws for one merchant; built from a slot and its goal by toPassportStamp. */
+export type PassportStamp = {
+  merchantId: string;
+  name: string;
+  visited: boolean;
+  /** Short line under the stamp, e.g. how many visits are left for the next collectible. */
+  goalText: string;
+  /** Visit status line ("방문 2회"), shown next to the goal. */
+  statusText: string;
+  /** What the round stamp shows when there is no illustration: see stampGlyph. */
+  glyph: string;
+  /** What the slot is, read by screen readers: stamp state, visit status, progress and the full goal. The tap is the slot's hint. */
+  label: string;
+};
+
 export type MerchantGoal = {
   merchantId: string;
   progressCount: number;
@@ -41,6 +56,33 @@ export function shortMerchantGoal(goal: MerchantGoal): string {
   const participating = goal.progressCount > 0 || goal.earnedGoals.length > 0;
   if (goal.campaignStatus === 'full' && !participating) return '참여 정원 마감';
   return `수집품까지 ${goal.remainingVisits}번`;
+}
+
+/**
+ * Text inside a round stamp when the merchant has no illustration. Demo stores all start with "가상", so the front of the name
+ * told them apart poorly: use the last word when it is at most two characters ("가상 점포 A" -> "A"), else its first two.
+ */
+export function stampGlyph(name: string): string {
+  const last = name.trim().split(/\s+/).at(-1) ?? '';
+  if (!last) return '·';
+  const characters = Array.from(last);
+  return characters.length <= 2 ? last : characters.slice(0, 2).join('');
+}
+
+export function toPassportStamp(slot: StampSlot, goal: MerchantGoal): PassportStamp {
+  const statusText = slot.visited ? `방문 ${slot.visitCount}회` : '아직 안 가봤어요';
+  const progressText = `보상 진행 ${goal.progressCount}${goal.nextGoal ? `/${goal.nextGoal.targetVisitCount}` : ''}회 · 앱 수집품 ${goal.earnedGoals.length}/${goal.totalGoals}`;
+  // "도장 아직 없음" already says the visit status, so only a visited stamp adds the visit count.
+  const stampState = slot.visited ? `${slot.merchantName} 도장 받음, ${statusText}` : `${slot.merchantName} 도장 아직 없음`;
+  return {
+    merchantId: slot.merchantId,
+    name: slot.merchantName,
+    visited: slot.visited,
+    goalText: shortMerchantGoal(goal),
+    statusText,
+    glyph: stampGlyph(slot.merchantName),
+    label: `${stampState}, ${progressText}, ${describeMerchantGoal(goal)}`,
+  };
 }
 
 export function buildMerchantGoals(

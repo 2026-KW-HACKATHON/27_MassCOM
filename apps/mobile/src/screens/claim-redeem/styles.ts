@@ -1,31 +1,37 @@
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
 import type { AppColors } from '../../theme/palette';
 import { uiMetrics } from '../../theme/ui-metrics';
+import type { WorldTheme } from '../../theme/world';
 
-export function makeClaimRedeemStyles(palette: AppColors, hairlineWidth = 1) {
+export function makeClaimRedeemStyles(palette: AppColors, world: WorldTheme, hairlineWidth = 1) {
   return {
-  content: { gap: 14, padding: uiMetrics.pageInset, paddingBottom: 48, backgroundColor: palette.background },
-  hero: { gap: 8 },
-  eyebrow: { color: palette.primary, fontSize: 13, fontWeight: '900' },
-  title: { color: palette.label, fontSize: 26, fontWeight: '800', lineHeight: 34, letterSpacing: -0.4 },
-  body: { color: palette.secondaryLabel, fontSize: 14, lineHeight: 21 },
-  formCard: { gap: 10, padding: 16, borderRadius: uiMetrics.cardRadius, backgroundColor: palette.surface },
-  sectionTitle: { color: palette.label, fontSize: 17, fontWeight: '800' },
-  securityNote: { color: palette.secondaryLabel, fontSize: 12, lineHeight: 18 },
-  inputLabel: { color: palette.label, fontSize: 14, fontWeight: '900' },
+  // No background: the sky backdrop shows through.
+  content: { gap: 14, paddingHorizontal: uiMetrics.pageInset, paddingTop: 4 },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  heroBubble: { flex: 1, padding: 14, borderRadius: world.radius.card, backgroundColor: world.card },
+  heroBubbleText: { color: world.cardInk, fontSize: 14, lineHeight: 21 },
+  // A dashed paper-line edge makes the panel read as a stamp card.
+  formCard: {
+    gap: 10, padding: 16, borderRadius: world.radius.card, backgroundColor: world.card,
+    borderWidth: 2, borderStyle: 'dashed', borderColor: world.paperLine,
+  },
+  sectionTitle: { color: world.cardInk, fontSize: 17, fontWeight: '800' },
+  securityNote: { color: world.cardMuted, fontSize: 12, lineHeight: 18 },
+  inputLabel: { color: world.cardInk, fontSize: 14, fontWeight: '900' },
   camera: { height: 280, borderRadius: 14, overflow: 'hidden', backgroundColor: '#000000' },
   scanButton: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.primary },
   scanButtonText: { color: palette.primary },
-  input: { minHeight: 72, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: palette.separator, color: palette.label, backgroundColor: palette.background, fontFamily: 'monospace', fontSize: 13, textAlignVertical: 'top' },
+  // The edge is world.cardMuted at 1.5dp: the old 1px separator was 1.29:1 against the white card (WCAG 1.4.11 wants 3:1).
+  input: { minHeight: 72, padding: 14, borderRadius: 14, borderWidth: 1.5, borderColor: world.cardMuted, color: palette.label, backgroundColor: palette.background, fontFamily: 'monospace', fontSize: 13, textAlignVertical: 'top' },
   button: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderRadius: 14, backgroundColor: palette.primary },
   buttonText: { color: palette.onPrimary, fontSize: 14, fontWeight: '900' },
   disabled: { opacity: 0.42 },
   message: { padding: 13, borderRadius: 14, color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer, fontSize: 13, lineHeight: 20 },
-  previewCard: { gap: 10, padding: 18, borderRadius: 20, backgroundColor: palette.surface },
+  previewCard: { gap: 10, padding: 18, borderRadius: world.radius.card, backgroundColor: world.card },
   statusRow: { flexDirection: 'row', gap: 16, justifyContent: 'space-between', paddingBottom: 10, borderBottomWidth: hairlineWidth, borderBottomColor: palette.separator },
-  statusLabel: { color: palette.secondaryLabel, fontSize: 13, fontWeight: '700' },
-  statusValue: { flex: 1, color: palette.label, fontSize: 13, fontWeight: '800', textAlign: 'right' },
-  successCard: { gap: 10, padding: 20, borderRadius: 22, backgroundColor: palette.successContainer },
+  statusLabel: { color: world.cardMuted, fontSize: 13, fontWeight: '700' },
+  statusValue: { flex: 1, color: world.cardInk, fontSize: 13, fontWeight: '800', textAlign: 'right' },
+  successCard: { gap: 10, padding: 20, borderRadius: world.radius.card, backgroundColor: palette.successContainer },
   successEyebrow: { color: palette.onSuccessContainer, fontSize: 12, fontWeight: '900' },
   successTitle: { color: palette.onSuccessContainer, fontSize: 22, fontWeight: '900' },
   successBody: { color: palette.onSuccessContainer, fontSize: 14, lineHeight: 22 },

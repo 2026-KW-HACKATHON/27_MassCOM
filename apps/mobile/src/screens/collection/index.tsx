@@ -1,7 +1,7 @@
 import * as Application from 'expo-application';
 import { Link, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -23,29 +23,35 @@ import { RewardReveal } from '@/gamification/reward-reveal';
 import { RewardTrack } from '@/gamification/reward-track';
 import { useBadgeBook } from '@/gamification/use-badge-book';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
-import { colorsForScheme, type AppColors } from '@/theme/palette';
+import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
+import { colorsForScheme } from '@/theme/palette';
 import { uiMetrics } from '@/theme/ui-metrics';
+import { worldForScheme } from '@/theme/world';
+import { AppHeader } from '@/ui/app-header';
+import { FloatingCard } from '@/ui/floating-card';
+import { PassportStampPage } from '@/ui/passport-stamp-page';
+import { SkyBackdrop } from '@/ui/sky-backdrop';
+import { SkyScrollView } from '@/ui/sky-scroll-view';
+import { StateScene } from '@/ui/state-scene';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
-import { buildMerchantGoals, buildStampSlots, describeMerchantGoal, shortMerchantGoal, stampColumnCount, stampRotation, type MerchantGoal, type StampSlot } from './collection-stamps';
+import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
 import { showcaseCollectibleArtSource } from './showcase-collectible-art-assets';
 import { collectibleArtSize, showcaseCollectibleArtKey } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
 
-const mascotStamp = require('../../../assets/images/mascot/mascot-stamp.png');
-const mascotStampEmpty = require('../../../assets/images/mascot/mascot-stamp-empty.png');
-
-// One StyleSheet per palette instead of one per render of every card.
-const styleCache = new Map<AppColors, ReturnType<typeof createCollectionStyles>>();
-function createCollectionStyles(palette: AppColors) {
-  return StyleSheet.create(makeCollectionStyles(palette, StyleSheet.hairlineWidth));
+// One StyleSheet per colour scheme instead of one per render of every card.
+const styleCache = new Map<'light' | 'dark', ReturnType<typeof createCollectionStyles>>();
+function createCollectionStyles(scheme: 'light' | 'dark') {
+  return StyleSheet.create(makeCollectionStyles(colorsForScheme(scheme), worldForScheme(scheme), StyleSheet.hairlineWidth));
 }
-function collectionStyles(palette: AppColors) {
-  let styles = styleCache.get(palette);
+function useCollectionStyles() {
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  let styles = styleCache.get(scheme);
   if (!styles) {
-    styles = createCollectionStyles(palette);
-    styleCache.set(palette, styles);
+    styles = createCollectionStyles(scheme);
+    styleCache.set(scheme, styles);
   }
   return styles;
 }
@@ -61,11 +67,12 @@ export function CollectionScreen({
   credential: AccountCredential;
   onSessionInvalid: () => Promise<void>;
 }) {
+  const clearance = useTabBarClearance();
   const insets = useSafeAreaInsets();
   const isShowcase = Application.applicationId === 'kr.masscom.wolgye.demo';
   const variant: ShareVariant = isShowcase ? 'showcase' : 'production';
   const palette = colorsForScheme(useColorScheme());
-  const styles = collectionStyles(palette);
+  const styles = useCollectionStyles();
   const { width, fontScale } = useWindowDimensions();
   const stackCounts = shouldStackCounts(width, fontScale);
   const stackTrio = shouldStackTrio(width, fontScale);
@@ -86,6 +93,7 @@ export function CollectionScreen({
   const { focus } = useLocalSearchParams<{ focus?: string }>();
   const scrollView = useRef<ScrollView>(null);
   const [rewardsY, setRewardsY] = useState<number>();
+  const [headerHeight, setHeaderHeight] = useState(0);
   const [detailKind, setDetailKind] = useState<MedalKind>();
   const [revealed, setRevealed] = useState<OpenedReward>();
   const [usingCoupon, setUsingCoupon] = useState<Coupon>();
@@ -105,9 +113,6 @@ export function CollectionScreen({
     [publicMerchants, collection],
   );
   const merchantGoals = buildMerchantGoals(publicMerchants, collection?.visits ?? [], collection?.collectibles ?? [], new Date().toISOString());
-  const stampColumns = stampColumnCount(width, fontScale);
-  const stampGap = 10;
-  const stampSlotWidth = (width - uiMetrics.pageInset * 2 - stampGap * (stampColumns - 1)) / stampColumns;
   const artSize = collectibleArtSize(width, uiMetrics.pageInset, styles.collectibleCard.padding);
   const detailMedal = badges.book?.medals.find((medal) => medal.kind === detailKind);
   const coupons = couponsOf(badges.book);
@@ -174,11 +179,12 @@ export function CollectionScreen({
     if (focus !== 'rewards' || rewardsY === undefined) return;
     // Clear the param inside the frame: clearing it first re-runs this effect and cancels the scroll.
     const frame = requestAnimationFrame(() => {
-      scrollView.current?.scrollTo({ y: Math.max(0, rewardsY - 12), animated: true });
+      // The section's y is measured inside the content below the header, so the header's height is added.
+      scrollView.current?.scrollTo({ y: Math.max(0, headerHeight + rewardsY - 12), animated: true });
       router.setParams({ focus: undefined });
     });
     return () => cancelAnimationFrame(frame);
-  }, [focus, rewardsY, router]);
+  }, [focus, headerHeight, rewardsY, router]);
 
   useFocusEffect(useCallback(() => {
     focusCount.current += 1;
@@ -302,36 +308,40 @@ export function CollectionScreen({
   const createIdentity = useCallback(() => api.createCustomerIdentity(), [api]);
   const revokeIdentity = useCallback((token: string) => api.revokeCustomerIdentity(token), [api]);
 
+  // The header (sky art included) is the first thing inside the scroll content, so it scrolls away with the page.
+  const header = <AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" />;
+  const sky = (body: ReactNode) => (
+    <SkyBackdrop>
+      <SkyScrollView
+        header={header}
+        onHeaderLayout={setHeaderHeight}
+        contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
+      >
+        {body}
+      </SkyScrollView>
+    </SkyBackdrop>
+  );
+
   if (loading && !collection) {
-    return (
-      <View style={[styles.centered, { backgroundColor: palette.background }]}>
-        <ActivityIndicator color={palette.primary} />
-        <Text style={[styles.centeredTitle, { color: palette.label }]}>방문 도감을 펼치는 중</Text>
-      </View>
-    );
+    return sky(<StateScene kind="loading" title="방문 도감을 펼치는 중" />);
   }
 
   if (!collection) {
-    return (
-      <View style={[styles.centered, { backgroundColor: palette.background }]}>
-        <Text style={[styles.centeredTitle, { color: palette.label }]}>도감을 불러오지 못했어요</Text>
-        <Text style={[styles.centeredBody, { color: palette.secondaryLabel }]}>{error}</Text>
-        <Pressable accessibilityRole="button" onPress={refresh} style={[styles.primaryButton, { backgroundColor: palette.primary }]}>
-          <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>다시 불러오기</Text>
-        </Pressable>
-      </View>
+    return sky(
+      <StateScene kind="error" title="도감을 불러오지 못했어요" body={error} action={{ label: '다시 불러오기', onPress: () => { void refresh(); } }} />,
     );
   }
 
   const summary = collectionCounts(collection);
 
   return (
-    <>
-      <ScrollView
+    <SkyBackdrop>
+      <SkyScrollView
         ref={scrollView}
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom, backgroundColor: palette.background }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+        header={header}
+        onHeaderLayout={setHeaderHeight}
+        contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >
         <PassportHero
           book={badges.book}
@@ -339,10 +349,10 @@ export function CollectionScreen({
           isShowcase={isShowcase}
           stackCounts={stackCounts}
           stackMain={fontScale >= 1.5}
-          onOpenRewards={() => scrollView.current?.scrollTo({ y: Math.max(0, (rewardsY ?? 0) - 12), animated: true })}
+          onOpenRewards={() => scrollView.current?.scrollTo({ y: Math.max(0, headerHeight + (rewardsY ?? 0) - 12), animated: true })}
         />
 
-        <Section palette={palette} title="배지">
+        <Section title="배지">
           {badges.book ? (
             <MedalShelf medals={badges.book.medals} stacked={stackTrio} onSelect={setDetailKind} />
           ) : badges.status === 'error' ? (
@@ -353,7 +363,7 @@ export function CollectionScreen({
         </Section>
 
         {badges.book ? (
-          <Section palette={palette} title="보상 상자" note="배지 3개마다 상자가 하나씩 열려요." onLayout={setRewardsY}>
+          <Section title="보상 상자" note="배지 3개마다 상자가 하나씩 열려요." onLayout={setRewardsY}>
             <RewardTrack
               book={badges.book}
               onOpen={openReward}
@@ -362,7 +372,7 @@ export function CollectionScreen({
             />
             <Text style={styles.subsectionTitle}>내 쿠폰</Text>
             {coupons.length === 0 ? (
-              <EmptyCopy palette={palette} text="상자를 열면 쿠폰이 여기에 모여요." />
+              <EmptyCopy text="상자를 열면 쿠폰이 여기에 모여요." />
             ) : (
               coupons.map((coupon) => <CouponTicket key={coupon.couponId} coupon={coupon} onUse={setUsingCoupon} />)
             )}
@@ -370,27 +380,22 @@ export function CollectionScreen({
         ) : null}
 
         {merchantsError ? (
-          <Section palette={palette} title="스탬프판">
-            <Pressable accessibilityRole="button" onPress={retryMerchants} style={[styles.recoveryButton, { backgroundColor: palette.surface }]}>
+          <Section title="도장판">
+            <Pressable accessibilityRole="button" onPress={retryMerchants} style={styles.recoveryButton}>
               <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>음식점 목록을 불러오지 못했습니다. 다시 시도</Text>
             </Pressable>
           </Section>
         ) : merchantsLoading ? (
-          <Section palette={palette} title="스탬프판"><EmptyCopy palette={palette} text="공개 음식점을 불러오는 중입니다." /></Section>
+          <Section title="도장판"><EmptyCopy text="공개 음식점을 불러오는 중입니다." /></Section>
         ) : stampSlots.length > 0 ? (
           <Section
-            palette={palette}
-            title="스탬프판"
-            note={`스탬프 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length} · 보상 진행은 현재 캠페인의 인정된 방문만 셉니다.`}
+            title="도장판"
+            note={`도장 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length} · 보상 진행은 현재 캠페인의 인정된 방문만 셉니다.`}
           >
-            <View style={styles.stampGrid}>
-              {stampSlots.map((slot, index) => (
-                <StampCard key={slot.merchantId} slot={slot} goal={merchantGoals[index]!} index={index} width={stampSlotWidth} palette={palette} />
-              ))}
-            </View>
+            <PassportStampPage stamps={stampSlots.map((slot, index) => toPassportStamp(slot, merchantGoals[index]!))} />
           </Section>
         ) : (
-          <Section palette={palette} title="스탬프판"><EmptyCopy palette={palette} text="현재 공개된 음식점이 없습니다." /></Section>
+          <Section title="도장판"><EmptyCopy text="현재 공개된 음식점이 없습니다." /></Section>
         )}
 
         {error ? <Text style={[styles.inlineError, { color: palette.onErrorContainer, backgroundColor: palette.errorContainer }]}>{error}</Text> : null}
@@ -423,15 +428,15 @@ export function CollectionScreen({
           </Text>
         ) : message ? <Text style={[styles.inlineMessage, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
 
-        <Section palette={palette} title="앱에서 받은 수집품" note="보상권을 받으면 앱 도감에 먼저 기록됩니다.">
+        <Section title="앱에서 받은 수집품" note="보상권을 받으면 앱 도감에 먼저 기록됩니다.">
           {collection.collectibles.length === 0 ? (
-            <EmptyCopy palette={palette} text="아직 받은 수집품이 없습니다. 첫 방문을 인증해 보세요." />
+            <EmptyCopy text="아직 받은 수집품이 없습니다. 첫 방문을 인증해 보세요." />
           ) : (
             collection.collectibles.map((item) => {
               const artKey = showcaseCollectibleArtKey(Application.applicationId, item.merchantId);
               const artSource = artKey ? showcaseCollectibleArtSource(artKey) : undefined;
               return (
-                <View key={item.entitlementId} style={[styles.collectibleCard, { backgroundColor: palette.surface }]}>
+                <FloatingCard key={item.entitlementId} style={styles.collectibleCard}>
                 {artSource ? (
                   <>
                     <Image source={artSource} accessible={false} style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
@@ -476,18 +481,18 @@ export function CollectionScreen({
                     </Link>
                   )
                 ) : null}
-                </View>
+                </FloatingCard>
               );
             })
           )}
         </Section>
 
-        <Section palette={palette} title="방문 기록" note="방문한 날짜(한국 기준)만 기록하고, 식사 시각은 남기지 않아요.">
+        <Section title="방문 기록" note="방문한 날짜(한국 기준)만 기록하고, 식사 시각은 남기지 않아요.">
           {collection.visits.length === 0 ? (
-            <EmptyCopy palette={palette} text="아직 인증한 방문이 없습니다." />
+            <EmptyCopy text="아직 인증한 방문이 없습니다." />
           ) : (
             collection.visits.map((visit) => (
-              <View key={visit.visitEventId} style={[styles.visitRow, { backgroundColor: palette.surface }]}>
+              <FloatingCard key={visit.visitEventId} style={styles.visitRow}>
                 <View style={styles.visitLeft}>
                   <Text selectable style={[styles.visitMerchant, { color: palette.label }]}>{visit.merchantName}</Text>
                   <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{visit.campaignTitle}</Text>
@@ -496,7 +501,7 @@ export function CollectionScreen({
                   <Text style={[styles.visitDate, { color: palette.label }]}>{visit.businessDate}</Text>
                   <Text style={[styles.progressLabel, { color: palette.primary }]}>{visit.progressCounted ? '진행 반영' : '방문만 기록'}</Text>
                 </View>
-              </View>
+              </FloatingCard>
             ))
           )}
         </Section>
@@ -506,7 +511,7 @@ export function CollectionScreen({
             <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>다음 음식점 추천 보기</Text>
           </Pressable>
         </Link>
-      </ScrollView>
+      </SkyScrollView>
 
       <MedalDetail medal={detailMedal} variant={variant} onClose={() => setDetailKind(undefined)} />
       <RewardReveal
@@ -526,59 +531,30 @@ export function CollectionScreen({
         onBadgeBook={replaceBadgeBook}
         onClose={() => setUsingCoupon(undefined)}
       />
-    </>
+    </SkyBackdrop>
   );
 }
 
-function StampCard({ slot, goal, index, width, palette }: { slot: StampSlot; goal: MerchantGoal; index: number; width: number; palette: AppColors }) {
-  const styles = collectionStyles(palette);
-  const statusText = slot.visited ? `방문 ${slot.visitCount}회` : '아직 안 가봤어요';
-  const goalText = describeMerchantGoal(goal);
-  const shortGoal = shortMerchantGoal(goal);
-  const progressText = `보상 진행 ${goal.progressCount}${goal.nextGoal ? `/${goal.nextGoal.targetVisitCount}` : ''}회 · 앱 수집품 ${goal.earnedGoals.length}/${goal.totalGoals}`;
-  const accessibilityLabel = `${slot.merchantName}, ${statusText}, ${progressText}, ${goalText}, 음식점 상세 보기`;
-  return (
-    <Link href={{ pathname: '/merchants/[merchantId]', params: { merchantId: slot.merchantId } }} asChild>
-      <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={StyleSheet.flatten([styles.stampSlot, { width, backgroundColor: palette.surface }])}>
-        {slot.visited ? (
-          <View style={[styles.stampInk, { borderColor: palette.primary, transform: [{ rotate: `${stampRotation(index)}deg` }] }]}>
-            <Image source={mascotStamp} accessible={false} accessibilityIgnoresInvertColors style={styles.stampImage} />
-          </View>
-        ) : (
-          <View style={[styles.stampInk, styles.stampInkEmpty, { borderColor: palette.separator }]}>
-            <Image source={mascotStampEmpty} accessible={false} accessibilityIgnoresInvertColors style={[styles.stampImage, styles.stampImageEmpty]} />
-            <Text style={[styles.stampMystery, { color: palette.secondaryLabel }]}>?</Text>
-          </View>
-        )}
-        <Text numberOfLines={2} style={[styles.stampName, { color: palette.label }]}>{slot.merchantName}</Text>
-        <Text style={[styles.stampStatus, { color: slot.visited ? palette.primary : palette.secondaryLabel }]}>{statusText}</Text>
-        <Text style={[styles.stampStatus, { color: palette.secondaryLabel }]}>{shortGoal}</Text>
-      </Pressable>
-    </Link>
-  );
-}
-
-function Section({ title, note, children, palette, onLayout }: {
+function Section({ title, note, children, onLayout }: {
   title: string;
   note?: string;
   children: React.ReactNode;
-  palette: AppColors;
   /** Reports the section's y inside the scroll content (for scroll-to). */
   onLayout?: (y: number) => void;
 }) {
-  const styles = collectionStyles(palette);
+  const styles = useCollectionStyles();
   return (
     <View style={styles.section} onLayout={onLayout ? (event) => onLayout(event.nativeEvent.layout.y) : undefined}>
-      <Text accessibilityRole="header" style={[styles.sectionTitle, { color: palette.label }]}>{title}</Text>
-      {note ? <Text style={[styles.sectionNote, { color: palette.secondaryLabel }]}>{note}</Text> : null}
+      <Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>
+      {note ? <Text style={styles.sectionNote}>{note}</Text> : null}
       <View style={styles.sectionBody}>{children}</View>
     </View>
   );
 }
 
-function EmptyCopy({ text, palette }: { text: string; palette: AppColors }) {
-  const styles = collectionStyles(palette);
-  return <Text style={[styles.emptyCopy, { color: palette.secondaryLabel, backgroundColor: palette.surface }]}>{text}</Text>;
+function EmptyCopy({ text }: { text: string }) {
+  const styles = useCollectionStyles();
+  return <Text style={styles.emptyCopy}>{text}</Text>;
 }
 
 function nftLabel(status: CollectionSnapshot['collectibles'][number]['nftStatus']): string {
