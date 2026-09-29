@@ -29,7 +29,10 @@ export function FloatingCard({ onPress, accessibilityLabel, accessibilityHint, s
   // Flatten so a Slot/Link parent never receives a style array (#216).
   const flat = StyleSheet.flatten(style);
 
-  if (!onPress) return <View style={StyleSheet.flatten([styles.card, flat])}>{children}</View>;
+  // The dark card's top highlight is skipped for a card that draws its own border (the dashed claim panels).
+  const edge = flat?.borderWidth === undefined && flat?.borderTopWidth === undefined ? styles.cardEdge : null;
+
+  if (!onPress) return <View style={StyleSheet.flatten([styles.card, edge, flat])}>{children}</View>;
 
   // Where the card sits (margin, flex, width, position…) belongs on the Pressable so it lays out like the static card above.
   const { outer, inner } = splitCardStyle(flat);
@@ -44,7 +47,7 @@ export function FloatingCard({ onPress, accessibilityLabel, accessibilityHint, s
       style={outer}
     >
       {({ pressed }) => (
-        <Animated.View style={[styles.card, inner, fillWrapper, pressed ? styles.cardPressed : null, animated]}>{children}</Animated.View>
+        <Animated.View style={[styles.card, edge, inner, fillWrapper, pressed ? styles.cardPressed : null, animated]}>{children}</Animated.View>
       )}
     </Pressable>
   );

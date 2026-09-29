@@ -9,10 +9,11 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
   return {
     card: {
       backgroundColor: world.card, borderRadius: world.radius.card, padding: 18,
-      // A 1px top highlight: in dark the card is ~1.05:1 against the page, so its edge is drawn (transparent in light).
-      borderTopWidth: 1, borderTopColor: withAlpha(world.cardEdge, world.cardEdgeAlpha),
       shadowColor: world.cardShadow, shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 3,
     },
+    // A 1px top highlight: in dark the card is ~1.05:1 against the page, so its edge is drawn (invisible in light). FloatingCard adds it
+    // only when the caller gave the card no border of its own: an edge-specific width would override a caller's borderWidth.
+    cardEdge: { borderTopWidth: 1, borderTopColor: withAlpha(world.cardEdge, world.cardEdgeAlpha) },
     // Press feedback that does not depend on motion: the fill shifts, the text stays fully opaque.
     cardPressed: { backgroundColor: blend(world.cardInk, world.card, 0.08) },
     cardTitle: { color: world.cardInk, fontSize: 17, fontWeight: '800', lineHeight: 24 },
@@ -39,8 +40,10 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
       minWidth: uiMetrics.minTouch, minHeight: uiMetrics.minTouch, borderRadius: 24, gap: 2,
       alignItems: 'center', justifyContent: 'center',
     },
+    // The negative margin lets the pill overhang the 48dp column instead of widening it: the title beside it keeps its width
+    // (a wider column wrapped "어디로 탐험할까요?" onto two lines at 360dp). The Pressable's hitSlop covers the overhang.
     avatarLabelPill: {
-      paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999,
+      marginHorizontal: -8, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999,
       backgroundColor: withAlpha(world.headerScrim, world.headerScrimAlpha),
     },
     avatarLabel: { color: world.skyInk, fontSize: 12, fontWeight: '800', lineHeight: 16 },

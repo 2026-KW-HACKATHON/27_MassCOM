@@ -101,11 +101,13 @@ test('state scenes read on the card surface they are drawn on', () => {
 test('a card has a 1px top highlight that only shows in dark, where the card is nearly the page colour', () => {
   for (const [palette, world] of [[lightColors, lightWorld], [darkColors, darkWorld]] as const) {
     const styles = makeUiStyles(palette, world);
-    assert.equal(styles.card.borderTopWidth, 1);
-    assert.equal(styles.card.borderTopColor, withAlpha(world.cardEdge, world.cardEdgeAlpha));
+    assert.equal(styles.cardEdge.borderTopWidth, 1);
+    assert.equal(styles.cardEdge.borderTopColor, withAlpha(world.cardEdge, world.cardEdgeAlpha));
+    // The edge is a separate style: an edge-specific width on the base card would override a caller's own borderWidth.
+    assert.equal('borderTopWidth' in styles.card, false);
   }
-  assert.match(makeUiStyles(lightColors, lightWorld).card.borderTopColor as string, /, 0\)$/, 'light card shows no edge');
-  assert.match(makeUiStyles(darkColors, darkWorld).card.borderTopColor as string, /, 0\.1\)$/);
+  assert.match(makeUiStyles(lightColors, lightWorld).cardEdge.borderTopColor as string, /, 0\)$/, 'light card shows no edge');
+  assert.match(makeUiStyles(darkColors, darkWorld).cardEdge.borderTopColor as string, /, 0\.1\)$/);
 });
 
 test('the "내 정보" label under the avatar is readable on its own frosted pill over any art pixel, and the avatar stays 48dp', () => {

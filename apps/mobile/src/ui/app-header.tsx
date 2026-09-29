@@ -41,7 +41,7 @@ export function AppHeader({ title, subtitle, children }: Props) {
           {subtitle && !large ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
         </View>
         <Link href="/settings" asChild>
-          <Pressable accessibilityRole="button" accessibilityLabel="내 정보" style={styles.avatarButton}>
+          <Pressable accessibilityRole="button" accessibilityLabel="내 정보" hitSlop={{ left: 8, right: 8 }} style={styles.avatarButton}>
             <Image source={mascotArt['logo-badge']} style={{ width: 44, height: 44 }} />
             {/* The avatar alone does not say "your account"; the label sits on its own frosted pill so it reads over the art. */}
             <View accessible={false} style={styles.avatarLabelPill}>
