@@ -8,7 +8,8 @@ export type GrantedGoal = {
 
 // 세어지는 방문 수(progressVisitCount)가 닿은 목표 중 취소되지 않은 권리가 없는 것에 새 권리를 준다.
 // 방문 수령과 방문 취소(승격 뒤 다시 채우기)가 같은 규칙을 쓰도록 한 곳에 둔다. 호출자가 [고객, 캠페인] 잠금을 잡고 있어야 한다.
-// 취소된(CANCELED) 권리는 감사 기록일 뿐이라 같은 목표를 다시 채우면 새 권리가 생긴다(부분 유일 색인).
+// 취소된(CANCELED) 권리는 감사 기록일 뿐이라 같은 목표를 다시 채우면 새 권리가 생긴다(부분 제외 제약 reward_entitlements_unique_goal).
+// 제외 제약은 열 목록으로 추론할 수 없고 DO UPDATE도 못 받으므로 제약 이름으로 DO NOTHING만 쓴다(옛 API와 같은 문장).
 export async function grantReachedGoals(
   client: PoolClient,
   input: {
@@ -52,9 +53,7 @@ export async function grantReachedGoals(
          updated_at
        )
        VALUES ($1, $2, $3, $4, $5, 'GRANTED', 'VISIT_1_3_5_KST_DAILY_V1', $6, $7, $6, $6)
-       ON CONFLICT (customer_account_id, campaign_id, target_visit_count)
-         WHERE status <> 'CANCELED'
-       DO NOTHING
+       ON CONFLICT ON CONSTRAINT reward_entitlements_unique_goal DO NOTHING
        RETURNING id, target_visit_count, claim_expires_at`,
       [
         input.nextEntitlementId(),

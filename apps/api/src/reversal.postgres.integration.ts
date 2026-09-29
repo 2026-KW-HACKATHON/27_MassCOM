@@ -936,7 +936,8 @@ test('migration 0030 keeps one active entitlement per goal and rejects inconsist
      VALUES ($1, 'cust-1', 'campaign-real-shop', 1, $2, $3, 'fixed-1', now(), now() + interval '1 day')`,
     [randomUUID(), visitId, sourceStatus]);
   // 취소되지 않은 권리가 이미 있으면 같은 목표를 또 만들 수 없지만 취소된 권리는 여러 개 남을 수 있다.
-  await assert.rejects(duplicate('GRANTED'), (error: unknown) => (error as { code?: string }).code === '23505');
+  // 제약이 부분 유일 색인에서 같은 이름의 부분 제외 제약이 되어 위반 코드가 23505(unique)에서 23P01(exclusion)로 바뀌었다.
+  await assert.rejects(duplicate('GRANTED'), (error: unknown) => (error as { code?: string }).code === '23P01');
   await duplicate('CANCELED');
   await duplicate('CANCELED');
   await db.pool.query(`UPDATE reward_entitlements SET status = 'CANCELED' WHERE status = 'GRANTED'`);
@@ -953,4 +954,92 @@ test('migration 0030 keeps one active entitlement per goal and rejects inconsist
   await assert.rejects(db.pool.query(`UPDATE badge_coupons SET status = 'VOIDED', voided_at = now(), void_reason = 'BOGUS' WHERE id = $1`, [couponId]), violates);
   await db.pool.query(`UPDATE badge_coupons SET status = 'VOIDED', voided_at = now(), void_reason = 'OTHER' WHERE id = $1`, [couponId]);
   await assert.rejects(db.pool.query(`UPDATE badge_coupons SET redeemed_at = now() WHERE id = $1`, [couponId]), violates);
+});
+
+// 배포된 API(f1bba2d)의 방문 수령 문장 두 개를 그대로 옮겼다(apps/api/src/postgres/claim-slot-service.ts의 redeem).
+// 배포 도중이나 롤백 뒤에도 이 문장이 새 스키마에서 그대로 동작해야 한다.
+const deployedVisitInsert = `INSERT INTO visit_events (
+             id,
+             claim_slot_id,
+             merchant_id,
+             campaign_id,
+             customer_account_id,
+             occurred_at,
+             business_date,
+             verification_level,
+             status,
+             progress_counted,
+             created_at,
+             updated_at
+           )
+           VALUES (
+             $1, $2, $3, $4, $5, $6,
+             ($6::timestamptz AT TIME ZONE 'Asia/Seoul')::date,
+             'MERCHANT_CONFIRMED', 'VALID', true, $6, $6
+           )
+           ON CONFLICT (customer_account_id, merchant_id, business_date)
+             WHERE status = 'VALID' AND progress_counted
+           DO NOTHING
+           RETURNING id, business_date::text, progress_counted`;
+const deployedEntitlementInsert = `INSERT INTO reward_entitlements (
+               id,
+               customer_account_id,
+               campaign_id,
+               target_visit_count,
+               source_visit_event_id,
+               status,
+               policy_version,
+               earned_at,
+               claim_expires_at,
+               created_at,
+               updated_at
+             )
+             VALUES ($1, $2, $3, $4, $5, 'GRANTED', 'VISIT_1_3_5_KST_DAILY_V1', $6, $7, $6, $6)
+             ON CONFLICT ON CONSTRAINT reward_entitlements_unique_goal DO NOTHING
+             RETURNING id, target_visit_count, claim_expires_at`;
+
+test('the deployed API insert statements keep working on the migrated schema', async (t) => {
+  const db = await setup(t);
+  const at = new Date(`${today}T03:00:00Z`);
+  const oldEntitlement = async (visitId: string, target: number) => (await db.pool.query(deployedEntitlementInsert, [
+    randomUUID(), 'cust-old', 'campaign-real-shop', target, visitId, at, new Date(at.getTime() + 86_400_000),
+  ])).rowCount;
+  const oldVisit = async () => {
+    const slotId = randomUUID();
+    await db.pool.query(
+      `INSERT INTO claim_slots (id, merchant_id, customer_account_id, merchant_reference_hash, created_by_account_id,
+         token_hash, status, expires_at, claimed_at, created_at, updated_at)
+       VALUES ($1, 'real-shop', 'cust-old', $2, 'staff-r', $3, 'CLAIMED', $4::timestamptz + interval '15 minutes', $4,
+         $4::timestamptz - interval '5 minutes', $4)`,
+      [slotId, randomBytes(32), randomBytes(32), at]);
+    return (await db.pool.query<{ id: string }>(deployedVisitInsert, [
+      randomUUID(), slotId, 'real-shop', 'campaign-real-shop', 'cust-old', at])).rows[0]?.id;
+  };
+
+  // 하루 1건 색인: 첫 방문은 들어가고 같은 날 두 번째는 아무 일도 없이 지나간다.
+  const first = await oldVisit();
+  assert.ok(first);
+  assert.equal(await oldVisit(), undefined);
+  // 이미 살아 있는 권리가 있으면 같은 목표의 두 번째 삽입은 아무 일도 하지 않는다.
+  assert.equal(await oldEntitlement(first, 1), 1);
+  assert.equal(await oldEntitlement(first, 1), 0);
+  assert.equal((await entitlementsOf(db.pool, 'cust-old')).length, 1);
+
+  // 새 코드가 방문을 취소하면 권리가 취소되고, 옛 문장이 같은 목표를 다시 채우면 새 권리가 생긴다.
+  await cancel(db, first);
+  assert.deepEqual((await entitlementsOf(db.pool, 'cust-old')).map((row) => row.status), ['CANCELED']);
+  const second = await oldVisit();
+  assert.ok(second);
+  assert.equal(await oldEntitlement(second, 1), 1);
+  assert.equal(await oldEntitlement(second, 1), 0);
+  assert.deepEqual((await entitlementsOf(db.pool, 'cust-old')).map((row) => row.status).sort(), ['CANCELED', 'GRANTED']);
+
+  // 열 목록 없는 ON CONFLICT DO NOTHING도 같은 제약으로 막힌다.
+  const targetless = await db.pool.query(
+    `INSERT INTO reward_entitlements (id, customer_account_id, campaign_id, target_visit_count, source_visit_event_id,
+       status, policy_version, earned_at, claim_expires_at)
+     VALUES ($1, 'cust-old', 'campaign-real-shop', 1, $2, 'GRANTED', 'fixed-1', $3, $4)
+     ON CONFLICT DO NOTHING`,
+    [randomUUID(), second, at, new Date(at.getTime() + 86_400_000)]);
+  assert.equal(targetless.rowCount, 0);
 });

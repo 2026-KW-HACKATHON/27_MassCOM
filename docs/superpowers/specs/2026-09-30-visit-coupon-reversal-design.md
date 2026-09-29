@@ -6,7 +6,9 @@
 
 되돌릴 수 없는 일(체인에 보낸 NFT, 이미 사용한 쿠폰)은 건드리지 않고 아직 되돌릴 수 있는 것만 되돌린다. 모든 되돌리기는 사유와 처리자를 남긴다. 기록은 지우지 않고 상태(`CANCELED`·`VOIDED`)와 감사 열로 남긴다. 되돌리기 API는 고객 계정 ID·이메일을 점원에게 돌려주지 않는다.
 
-## 2. 데이터 변경 (migration 0030, 추가·완화만 하고 지우는 변경 없음)
+## 2. 데이터 변경 (migration 0030, 이미 배포된 API와 호환)
+
+배포된 API(`f1bba2d`)의 방문 수령 문장이 새 스키마에서 그대로 동작한다: 열은 추가만 하고, 옛 API가 쓰는 제약 이름 `reward_entitlements_unique_goal`은 같은 이름의 부분 제외 제약으로 바꾼다. 배포 스크립트는 migration을 먼저 돌리고 되돌리지 않으므로 배포 도중이나 롤백 뒤에도 옛 API의 `ON CONFLICT ON CONSTRAINT reward_entitlements_unique_goal DO NOTHING`이 살아 있어야 한다(옛 문장 그대로 새 스키마에서 도는 통합 시험이 있다).
 
 ### visit_events
 
@@ -18,7 +20,8 @@
 ### reward_entitlements
 
 - 열 추가: `canceled_at timestamptz`, `revoked_by_visit_event_id uuid REFERENCES visit_events(id)`.
-- **유일 제약 완화:** `reward_entitlements_unique_goal (customer, campaign, target)`을 부분 유일 색인 `WHERE status <> 'CANCELED'`로 바꾼다. 취소된 권리는 감사 기록으로 남기고, 같은 목표를 다시 채우면 **새 권리(새 id)** 가 생긴다. 그래서 `mint_jobs.entitlement_id UNIQUE`와 취소된 발행 작업 기록은 바꾸지 않는다. 취소 상태 권리는 기존 조회(도감·발행 요청)가 이미 제외한다.
+- **유일 제약 교체:** `reward_entitlements_unique_goal (customer, campaign, target)`을 **같은 이름의 부분 제외 제약** `EXCLUDE USING btree (customer_account_id WITH =, campaign_id WITH =, target_visit_count WITH =) WHERE (status <> 'CANCELED')`로 바꾼다(부분 유일 색인이 아니다: 색인은 `ON CONFLICT ON CONSTRAINT <이름>`의 대상이 아니라서 옛 API가 42704로 깨진다). 취소된 권리는 감사 기록으로 남기고, 같은 목표를 다시 채우면 **새 권리(새 id)** 가 생긴다. 그래서 `mint_jobs.entitlement_id UNIQUE`와 취소된 발행 작업 기록은 바꾸지 않는다. 취소 상태 권리는 기존 조회(도감·발행 요청)가 이미 제외한다. 제외 제약은 열 목록 추론(`ON CONFLICT (열…)`)의 대상이 아니고 `DO UPDATE`를 받지 못하므로 새 코드도 `ON CONFLICT ON CONSTRAINT reward_entitlements_unique_goal DO NOTHING`만 쓴다. 중복 위반 코드는 `23505`가 아니라 `23P01`이다.
+- `mint_jobs`에 `canceled_by_visit_event_id uuid REFERENCES visit_events(id)`(취소된 발행 작업이 어느 방문 취소로 닫혔는지)를 더한다.
 
 ### badge_coupons
 
