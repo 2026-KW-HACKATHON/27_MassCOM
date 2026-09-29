@@ -4,6 +4,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import Svg, { Path } from 'react-native-svg';
 
 import { lightHaptic } from '@/gamification/native-effects';
+import { useArtFallback } from '@/merchant-art/use-art-fallback';
 import { motion } from '@/motion/timing';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { worldForScheme } from '@/theme/world';
@@ -45,7 +46,8 @@ export function TownPinButton({ pin, x, y, selected, onPress, apiUrl, pressableR
   const enabled = useMotionEnabled();
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
-  const art = merchantArtSource({ id: pin.merchantId, artUrl: pin.artUrl }, apiUrl);
+  // A picture that fails to load (a stale catalog pointing at art that was reset) falls back to the glyph.
+  const { source: art, onError } = useArtFallback(merchantArtSource({ id: pin.merchantId, artUrl: pin.artUrl }, apiUrl));
   const visited = pin.status === 'visited';
   return (
     <Pressable
@@ -69,13 +71,13 @@ export function TownPinButton({ pin, x, y, selected, onPress, apiUrl, pressableR
             {visited ? (
               <View style={styles.pinInnerRing}>
                 {art ? (
-                  <Image source={art} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={styles.pinArt} />
+                  <Image source={art} onError={onError} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={styles.pinArt} />
                 ) : (
                   <Text maxFontSizeMultiplier={1.2} style={styles.pinGlyphVisited}>{pin.glyph}</Text>
                 )}
               </View>
             ) : art ? (
-              <Image source={art} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={styles.pinArtNone} />
+              <Image source={art} onError={onError} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={styles.pinArtNone} />
             ) : (
               <Text maxFontSizeMultiplier={1.2} style={styles.pinGlyphNone}>{pin.glyph}</Text>
             )}

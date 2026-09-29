@@ -11,19 +11,21 @@ type Props = {
   height: number;
   /** Caption drawn on a pill over the picture (the showcase disclosure). */
   note?: string;
+  /** The picture failed to load (an API picture whose address no longer answers): the caller drops it and shows the sky instead. */
+  onError?: () => void;
 };
 
 /**
  * A store's own picture as a header background, in place of the town sky: the picture, its bottom slice faded into the page
  * colour like the sky art, and an optional caption. Laid over the top of a positioned parent, so it scrolls with the header.
  */
-export function StoreArt({ source, height, note }: Props) {
+export function StoreArt({ source, height, note, onError }: Props) {
   const styles = useUiStyles();
   const world = worldForScheme(useColorScheme());
   const { width } = useWindowDimensions();
   return (
     <View pointerEvents="none" style={[art.container, { height }]}>
-      <Image source={source} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={{ width, height }} />
+      <Image source={source} onError={onError} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={{ width, height }} />
       <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id="storeSeam" x1="0" y1="0" x2="0" y2="1">

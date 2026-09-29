@@ -37,3 +37,27 @@ export function chooseMerchantArt<Bundled>(input: {
 export function merchantArtNote(fromServer: boolean): string {
   return fromServer ? AI_ART_NOTE : SHOWCASE_ART_NOTE;
 }
+
+/**
+ * Note under the picture on a collectible card. The owner's AI picture only says whose picture it is: it is not an NFT and does
+ * not need the "not proof" line, so it never borrows it. The bundled showcase picture keeps its own note and that line.
+ */
+export function collectibleArtNote(fromServer: boolean): string {
+  return fromServer ? AI_ART_NOTE : `${SHOWCASE_ART_NOTE} · 실제 NFT 발행 증거 아님`;
+}
+
+/** The address of a picture that comes from the API; bundled pictures (module numbers) have none and cannot fail to load. */
+export function remoteArtUri(source: unknown): string | undefined {
+  if (typeof source !== 'object' || source === null || Array.isArray(source)) return undefined;
+  const uri: unknown = Reflect.get(source, 'uri');
+  return typeof uri === 'string' ? uri : undefined;
+}
+
+/**
+ * A picture whose address failed to load (a stale catalog can still point at art that was reset and now answers 404) counts as
+ * missing, so the caller draws the glyph stamp instead of an empty frame. A different address gets its own chance.
+ */
+export function usableArtSource<Source>(source: Source | undefined, failedUri: string | null): Source | undefined {
+  const uri = remoteArtUri(source);
+  return uri !== undefined && uri === failedUri ? undefined : source;
+}

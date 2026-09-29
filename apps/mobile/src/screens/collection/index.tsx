@@ -1,7 +1,7 @@
 import * as Application from 'expo-application';
 import { Link, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type ImageStyle, type StyleProp, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -22,6 +22,8 @@ import { PassportHero } from '@/gamification/passport-hero';
 import { RewardReveal } from '@/gamification/reward-reveal';
 import { RewardTrack } from '@/gamification/reward-track';
 import { useBadgeBook } from '@/gamification/use-badge-book';
+import { collectibleArtNote } from '@/merchant-art/art-source';
+import { useArtFallback } from '@/merchant-art/use-art-fallback';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
@@ -37,7 +39,7 @@ import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wall
 
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
-import { merchantArt } from './merchant-art';
+import { merchantArt, type MerchantArt } from './merchant-art';
 import { collectibleArtSize } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
 
@@ -438,10 +440,7 @@ export function CollectionScreen({
               return (
                 <FloatingCard key={item.entitlementId} style={styles.collectibleCard}>
                 {art ? (
-                  <>
-                    <Image source={art.source} accessible={false} style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
-                    <Text style={[styles.collectibleArtNote, { color: palette.secondaryLabel }]}>{art.fromServer ? 'AI로 만든 그림' : '가상 점포 시연 그림'} · 실제 NFT 발행 증거 아님</Text>
-                  </>
+                  <CollectibleArt art={art} size={artSize} imageStyle={styles.collectibleArt} noteStyle={[styles.collectibleArtNote, { color: palette.secondaryLabel }]} />
                 ) : null}
                 <View style={styles.collectibleTopline}>
                   <Text style={[styles.goalBadge, { color: palette.primary }]}>{item.targetVisitCount}회</Text>
@@ -549,6 +548,24 @@ function Section({ title, note, children, onLayout }: {
       {note ? <Text style={styles.sectionNote}>{note}</Text> : null}
       <View style={styles.sectionBody}>{children}</View>
     </View>
+  );
+}
+
+/**
+ * The picture on a collectible card. The owner's AI picture says only that (it is not an NFT and does not claim to be one); the
+ * bundled showcase picture keeps its "not proof of a real NFT" note. A picture that fails to load (a stale catalog pointing at
+ * art that was reset) leaves the card without one.
+ */
+function CollectibleArt({ art, size, imageStyle, noteStyle }: {
+  art: MerchantArt; size: number; imageStyle: StyleProp<ImageStyle>; noteStyle: StyleProp<TextStyle>;
+}) {
+  const { source, onError } = useArtFallback(art.source);
+  if (!source) return null;
+  return (
+    <>
+      <Image source={source} onError={onError} accessible={false} style={[imageStyle, { width: size, height: size }]} />
+      <Text style={noteStyle}>{collectibleArtNote(art.fromServer)}</Text>
+    </>
   );
 }
 

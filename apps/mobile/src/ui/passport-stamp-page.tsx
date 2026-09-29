@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
+import { useArtFallback } from '@/merchant-art/use-art-fallback';
 import { motion, stampTilt } from '@/motion/timing';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { stampColumnCount, type PassportStamp } from '@/screens/collection/collection-stamps';
@@ -47,8 +48,9 @@ function StampSlot({ stamp, width, apiUrl }: { stamp: PassportStamp; width: numb
     wasVisited.current = stamp.visited;
   }, [stamp.visited, enabled, scale]);
 
-  // The owner's AI picture, else the showcase illustration (only in the demo app), else the short glyph.
-  const art = merchantArtSource({ id: stamp.merchantId, artUrl: stamp.artUrl }, apiUrl);
+  // The owner's AI picture, else the showcase illustration (only in the demo app), else the short glyph. A picture that fails to
+  // load (a stale catalog pointing at art that was reset) falls back to the glyph too.
+  const { source: art, onError } = useArtFallback(merchantArtSource({ id: stamp.merchantId, artUrl: stamp.artUrl }, apiUrl));
   // Computed on the JS thread: the worklet below runs on the UI runtime, where stampTilt does not exist.
   const tilt = stampTilt(stamp.merchantId);
   const animated = useAnimatedStyle(() => ({
@@ -67,7 +69,7 @@ function StampSlot({ stamp, width, apiUrl }: { stamp: PassportStamp; width: numb
           <Animated.View accessible={false} style={[styles.stampRing, { backgroundColor: world.paper }, animated]}>
             <View style={styles.stampRingInner}>
               {art ? (
-                <Image source={art} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={styles.stampArt} />
+                <Image source={art} onError={onError} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={styles.stampArt} />
               ) : (
                 <Text maxFontSizeMultiplier={1.2} style={styles.stampMark}>{stamp.glyph}</Text>
               )}

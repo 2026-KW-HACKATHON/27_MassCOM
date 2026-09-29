@@ -14,6 +14,8 @@ type Props = {
   art?: ImageSourcePropType;
   /** Caption over the picture; only drawn with `art`. */
   artNote?: string;
+  /** Called when the store picture fails to load, so the page can stop passing it (the header then shows the sky art). */
+  onArtError?: () => void;
   /** Where the back button goes when the page is not a router screen (the showcase owner pages replace the whole navigator). */
   onBack?: () => void;
 };
@@ -22,7 +24,7 @@ type Props = {
  * Top of a page reached from the header avatar or a list rather than a tab: compact sky art (or the store's own picture), a round
  * back button and the title on a frosted panel. Put it first inside the ScrollView so it scrolls away with the page.
  */
-export function BackHeader({ title, art, artNote, onBack }: Props) {
+export function BackHeader({ title, art, artNote, onArtError, onBack }: Props) {
   const styles = useUiStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -30,7 +32,7 @@ export function BackHeader({ title, art, artNote, onBack }: Props) {
   const height = art ? storeArtHeight(width) : compactArtHeight(width);
   return (
     <View style={{ minHeight: height, marginBottom: 8 }}>
-      {art ? <StoreArt source={art} height={height} note={artNote} /> : <SkyArt compact />}
+      {art ? <StoreArt source={art} height={height} note={artNote} onError={onArtError} /> : <SkyArt compact />}
       <View
         style={{
           flexDirection: 'row', alignItems: 'center', gap: 12,

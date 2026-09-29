@@ -4,6 +4,7 @@ import { Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { recommendMerchant } from '@/friends/recommend-share';
+import { useArtFallback } from '@/merchant-art/use-art-fallback';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
@@ -31,6 +32,9 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
   const insets = useSafeAreaInsets();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const merchant = merchants.find((item) => item.id === merchantId);
+  // The hero picture; one that fails to load (a stale catalog pointing at art that was reset) is dropped and the sky shows.
+  const art = merchant ? merchantArt(merchant, apiUrl) : undefined;
+  const hero = useArtFallback(art?.source);
 
   if (loading && !merchant) {
     return <StateFrame styles={styles}><StateScene kind="loading" title="가게 이야기를 불러오는 중" /></StateFrame>;
@@ -52,13 +56,12 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
     );
   }
 
-  const art = merchantArt(merchant, apiUrl);
   const artNote = art ? (art.fromServer ? '사장님이 고른 AI 그림' : '가상 점포 시연 그림') : undefined;
 
   return (
     <SkyBackdrop>
       <SkyScrollView
-        header={<BackHeader title="음식점 상세" art={art?.source} artNote={artNote} />}
+        header={<BackHeader title="음식점 상세" art={hero.source} artNote={hero.source ? artNote : undefined} onArtError={hero.onError} />}
         contentContainerStyle={{ paddingBottom: 48 + insets.bottom }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >
