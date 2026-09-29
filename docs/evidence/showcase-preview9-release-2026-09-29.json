@@ -20,7 +20,7 @@
     "signingCertificateSha256": "cdb0dc37750c907eaa2f1b9eb172b0911f14b9c9f2dab78b481f1751d8ebf28a"
   },
   "checks": {
-    "buildChecks": "PASS: the build script's preflight and the release wallet surface check (verified for the AAB)",
+    "buildChecks": "PASS: api, package, sourceMarker, signature and walletSurface. scripts/build-showcase-apk.sh stops on any failure of aapt package, the kr.masscom.BUILD_SOURCE_COMMIT manifest marker equal to 87e98f4, apksigner signer #1 certificate equal to the approved showcase certificate, and the release wallet surface check on the AAB; it wrote the provenance file with all five checks PASS only after they passed",
     "localVsGithubSha256AndBytes": "PASS: the GitHub asset digest equals the APK SHA-256",
     "remoteTagAndAssets": "PASS: APK, build-time provenance (632 bytes) and SHA256SUMS.txt (218 bytes) uploaded; the release targets 87e98f4",
     "anonymousApkDownload": "PASS: HTTPS 200",

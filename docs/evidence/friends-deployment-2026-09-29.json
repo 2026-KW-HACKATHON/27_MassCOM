@@ -54,7 +54,7 @@
     "showcaseApiHealth": 200,
     "showcaseAnonymousMeFriends": 401,
     "privacyBodySha256Prefix": "961c0f06270b8d8c, the same on https://masscom.kr/privacy and https://www.masscom.kr/privacy and equal to the repository docs/privacy.html",
-    "accountDeletionMentionsFriends": true
+    "accountDeletionBodySha256Prefix": "4608bf8bb3705fdf, the same on https://masscom.kr/account-deletion and https://www.masscom.kr/account-deletion and equal to the repository docs/account-deletion.html (which lists the friend data removed on deletion)"
   },
   "notRun": [
     "adding a friend between two accounts on the production or showcase server (only unauthenticated 401 checks and the Samsung showcase-app friends tab load were done; see showcase-preview9-release-2026-09-29.json)",

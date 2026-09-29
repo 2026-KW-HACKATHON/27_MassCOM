@@ -81,8 +81,15 @@ grep -qF 'android-v0.1.0-test.3' "$repo_root/docs/open.html"
 grep -qF 'showcase-android-v0.1.0-preview.3' "$repo_root/docs/open.html"
 grep -qF 'showcase-android-v0.1.0-preview.9' "$repo_root/docs/open.html"
 grep -qF '새 시연 API에서는 이 버전의 직원 발급 요청이 호환되지 않으므로' "$repo_root/docs/open.html"
-! grep -Eq 'private GitHub|아직 GitHub에 APK가 없습니다|최신 시연 (Android )?Preview [5678]' "$repo_root/docs/open.html"
-! grep -qF 'showcase-android-v0.1.0-preview.8' "$repo_root/docs/open.html"
+# `! grep` does not trip `set -e`, so the forbidden-text guards fail explicitly.
+if grep -Eq 'private GitHub|아직 GitHub에 APK가 없습니다|최신 시연 (Android )?Preview [5678]' "$repo_root/docs/open.html"; then
+  echo 'open.html still has stale latest-preview or private-release wording' >&2
+  exit 1
+fi
+if grep -qF 'showcase-android-v0.1.0-preview.8' "$repo_root/docs/open.html"; then
+  echo 'open.html still links the previous showcase Preview 8' >&2
+  exit 1
+fi
 
 fixture_root="$(mktemp -d)"
 trap 'rm -rf "$fixture_root"' EXIT
