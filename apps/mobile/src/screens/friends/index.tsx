@@ -20,6 +20,7 @@ import {
 } from '@/friends/code';
 import { FriendsApiError, createFriendsApiClient, friendsErrorMessage, replyNeedsRefresh } from '@/friends/friends-api';
 import { buildRankingRows, checkNicknameDraft, rankingNote, rowAccessibilityLabel, type RankingRow } from '@/friends/friends-model';
+import { createHeldFriendCode } from '@/friends/held-friend-code';
 import { linkVariantFor } from '@/friends/link';
 import { consumePendingFriendCode, consumePendingFriendProblem } from '@/friends/pending-friend-link';
 import { useFriends } from '@/friends/use-friends';
@@ -94,6 +95,9 @@ export function FriendsScreen({
   // Read through a ref so the focus effect below is not rebuilt (and does not refetch) when my code first arrives.
   const myCodeRef = useRef<string | undefined>(undefined);
   useEffect(() => { myCodeRef.current = myCode; }, [myCode]);
+  // A code that arrives by link waits here while my own snapshot loads (see held-friend-code.ts).
+  const heldCode = useRef(createHeldFriendCode()).current;
+  const statusRef = useRef(friends.status);
 
   const addFriend = useCallback(async (code: string) => {
     if (addingNow.current) return;
@@ -122,7 +126,8 @@ export function FriendsScreen({
   }, [api, refreshQuietly]);
 
   // A code that arrived by QR or link is asked about first: adding shares my passport with its owner as well.
-  // My own code is only said so: there is nothing to add (the server refuses it too, once my code is not yet loaded here).
+  // My own code is only said so: there is nothing to add. A link opens this tab before my code is loaded, so it goes through
+  // receiveLinkCode, which waits for it (the server refuses adding myself anyway if the load fails).
   const confirmAdd = useCallback((code: string) => {
     if (code === myCodeRef.current) {
       setCodeInput('');
@@ -130,16 +135,32 @@ export function FriendsScreen({
       return;
     }
     setCodeInput(code);
+    // A code that was only put here for the question does not stay in the box when the question is turned down.
+    const clearCode = () => setCodeInput((current) => (current === code ? '' : current));
     Alert.alert(
       '이 코드로 친구를 추가할까요?',
       `${formatFriendCode(code)}\n추가하면 서로의 메달·배지 수·가본 가게 이름이 보여요. 방문 날짜는 보이지 않아요.`,
       [
-        { text: '취소', style: 'cancel' },
+        { text: '취소', style: 'cancel', onPress: clearCode },
         { text: '추가', onPress: () => void addFriend(code) },
       ],
-      { cancelable: true },
+      { cancelable: true, onDismiss: clearCode },
     );
   }, [addFriend]);
+
+  const receiveLinkCode = useCallback((code: string) => {
+    const ready = heldCode.arrive(code, statusRef.current);
+    if (ready !== undefined) confirmAdd(ready);
+  }, [confirmAdd, heldCode]);
+
+  // Runs after the effect above that stores my code, so a released code is judged against it.
+  useEffect(() => {
+    statusRef.current = friends.status;
+    const waiting = heldCode.settle(friends.status);
+    if (waiting !== undefined) confirmAdd(waiting);
+  }, [friends.status, heldCode, confirmAdd]);
+  // A code still waiting when the tab is left is forgotten, so it cannot open a dialog over another screen.
+  useFocusEffect(useCallback(() => () => heldCode.clear(), [heldCode]));
 
   const focusCount = useRef(0);
   useFocusEffect(useCallback(() => {
@@ -149,10 +170,10 @@ export function FriendsScreen({
     // A friend link that could not be used waits the same way and is said once, in one line.
     const problem = consumePendingFriendProblem();
     if (problem) setAddNotice({ tone: 'error', text: friendLinkProblemMessage(problem) });
-    if (pending) confirmAdd(pending);
+    if (pending) receiveLinkCode(pending);
     else if (focusCount.current > 1) void refreshQuietly();
     return () => setScanning(false);
-  }, [confirmAdd, refreshQuietly]));
+  }, [receiveLinkCode, refreshQuietly]));
 
   function submitTyped() {
     const checked = validateFriendCode(codeInput);

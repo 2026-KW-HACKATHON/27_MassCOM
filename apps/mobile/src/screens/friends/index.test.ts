@@ -138,6 +138,32 @@ test('my own code arriving by QR or link is only said to be mine: no prompt, no 
   assert.ok(own > 0 && own < screen.indexOf("'이 코드로 친구를 추가할까요?'"), 'checked before the confirm dialog');
 });
 
+test('a code from a link waits for my snapshot before it is judged, so my own code is never asked about', () => {
+  // The tab a link opens is freshly mounted and has no code of mine yet: the pending code goes through the holder, not straight to the dialog.
+  assert.match(screen, /import \{ createHeldFriendCode \} from '@\/friends\/held-friend-code'/);
+  assert.match(screen, /const heldCode = useRef\(createHeldFriendCode\(\)\)\.current;/);
+  assert.match(screen, /const ready = heldCode\.arrive\(code, statusRef\.current\);\s*if \(ready !== undefined\) confirmAdd\(ready\);/);
+  assert.match(screen, /if \(pending\) receiveLinkCode\(pending\);/);
+  assert.doesNotMatch(screen, /if \(pending\) confirmAdd\(pending\)/);
+  // Once the load has ended (ready or failed) the waiting code is judged, after my code is stored for that comparison.
+  assert.match(screen, /statusRef\.current = friends\.status;\s*const waiting = heldCode\.settle\(friends\.status\);\s*if \(waiting !== undefined\) confirmAdd\(waiting\);/);
+  assert.ok(
+    screen.indexOf('myCodeRef.current = myCode;') < screen.indexOf('heldCode.settle(friends.status)'),
+    'my code is stored before a waiting code is judged',
+  );
+  // Leaving the tab forgets a waiting code; a scanned QR (snapshot already loaded) still goes straight to confirmAdd.
+  assert.match(screen, /useFocusEffect\(useCallback\(\(\) => \(\) => heldCode\.clear\(\), \[heldCode\]\)\);/);
+  assert.match(screen, /setScanning\(false\);\s*confirmAdd\(scanned\.code\);/);
+});
+
+test('a code put in the box only for the question leaves it when the question is turned down or dismissed', () => {
+  assert.match(screen, /const clearCode = \(\) => setCodeInput\(\(current\) => \(current === code \? '' : current\)\);/);
+  assert.match(screen, /\{ text: '취소', style: 'cancel', onPress: clearCode \}/);
+  assert.match(screen, /\{ cancelable: true, onDismiss: clearCode \}/);
+  // Adding is not affected: the code stays until the add has an answer.
+  assert.match(screen, /\{ text: '추가', onPress: \(\) => void addFriend\(code\) \}/);
+});
+
 test('a friend QR of another MassCOM build is said so in the same line as a link, and nothing is sent', () => {
   assert.match(screen, /scanned\.reason === 'OTHER_APP' \? friendLinkProblemMessage\('OTHER_APP'\) : NOT_A_FRIEND_QR/);
   const handler = screen.slice(screen.indexOf('function handleScanned'), screen.indexOf('async function saveNickname'));

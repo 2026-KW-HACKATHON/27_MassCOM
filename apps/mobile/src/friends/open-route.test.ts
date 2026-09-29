@@ -37,7 +37,7 @@ test('a friend link opened while signed out continues at the friends tab after s
   assert.match(layout, /else if \(hasPendingFriendLink\(\)\) router\.replace\('\/friends'\)/);
   const screen = read('../screens/friends/index.tsx');
   assert.match(screen, /const pending = consumePendingFriendCode\(\);/);
-  assert.match(screen, /const problem = consumePendingFriendProblem\(\);\s*if \(problem\) setAddNotice\(\{ tone: 'error', text: friendLinkProblemMessage\(problem\) \}\);\s*if \(pending\) confirmAdd\(pending\)/);
+  assert.match(screen, /const problem = consumePendingFriendProblem\(\);\s*if \(problem\) setAddNotice\(\{ tone: 'error', text: friendLinkProblemMessage\(problem\) \}\);\s*if \(pending\) receiveLinkCode\(pending\)/);
 });
 
 test('a waiting friend link is forgotten when the account signs out, switches or its session ends', () => {
