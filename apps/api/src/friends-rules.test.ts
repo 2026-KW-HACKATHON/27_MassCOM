@@ -69,8 +69,8 @@ test('nicknames are trimmed, limited to 12 code points and reject URL, email and
   assert.equal(parseNickname('a'), 'a');
   assert.equal(parseNickname('열두글자열두글자열두글자'), '열두글자열두글자열두글자');
   assert.equal(parseNickname('열두글자열두글자열두글자!'), null);
-  assert.equal(parseNickname('😀'.repeat(12)), '😀'.repeat(12));
-  assert.equal(parseNickname('😀'.repeat(13)), null);
+  assert.equal(parseNickname(`${'😀'.repeat(11)}a`), `${'😀'.repeat(11)}a`);
+  assert.equal(parseNickname(`${'😀'.repeat(12)}a`), null);
   for (const invalid of [
     '', '   ', '\t\n', 'a@b.com', '@handle', 'https://x.kr', 'http:evil', 'www.evil', 'evil.com', 'go.kr/x', 'MAILTO:a',
     'a\nb', 'a\u0000b', 'a​b', 'a‮b',
@@ -81,6 +81,58 @@ test('nicknames are trimmed, limited to 12 code points and reject URL, email and
   // 점이 들어가도 주소 모양이 아니면 허용한다.
   assert.equal(parseNickname('J.K'), 'J.K');
   assert.equal(parseNickname('맛집 탐험가 1호'), '맛집 탐험가 1호');
+  assert.equal(parseNickname('Dr. Kim'), 'Dr. Kim');
+  assert.equal(parseNickname('3.14 탐험가'), '3.14 탐험가');
+  assert.equal(parseNickname('café'), 'café');
+  assert.equal(parseNickname('cafe\u0301'), 'cafe\u0301');
+});
+
+test('nicknames reject domain look-alikes that hide behind other scripts, TLDs or full-width dots', () => {
+  for (const address of [
+    '맛집.com', '카페.kr', 'abc.club', 'x.blog', 'evil.to', 'a-b.dev',
+    // NFKC로 풀리는 전각 글자와 점.
+    'ｗｗｗ．ｘ．ｃｏｍ', 'ｅｖｉｌ．ｃｏｍ', 'ｅｖｉｌ。ｃｏｍ', 'bit。ly/abc', 'bit｡ly', 'x．blog',
+  ]) {
+    assert.equal(parseNickname(address), null, address);
+  }
+});
+
+test('nicknames reject blank-looking fillers, private-use, unassigned and lone surrogate code points', () => {
+  for (const filler of ['\u3164', '\u115F', '\u1160', '\uFFA0', '\u2800']) {
+    const label = `U+${filler.codePointAt(0)!.toString(16).toUpperCase()}`;
+    assert.equal(parseNickname(filler), null, label);
+    assert.equal(parseNickname(filler.repeat(6)), null, `${label} x6`);
+    assert.equal(parseNickname(`a${filler}b`), null, `a${label}b`);
+    assert.equal(parseNickname(`${filler}${filler}가`), null, `${label} before a letter`);
+  }
+  assert.equal(parseNickname('\uE000'), null, 'private use');
+  assert.equal(parseNickname('a\uE000'), null, 'private use next to a letter');
+  assert.equal(parseNickname('\u{10FFFF}'), null, 'private use plane 16');
+  assert.equal(parseNickname('a\u0378'), null, 'unassigned');
+  assert.equal(parseNickname('a\uD800'), null, 'lone high surrogate');
+  assert.equal(parseNickname('a\uDC00'), null, 'lone low surrogate');
+  // 글자나 숫자가 하나도 없는 별명(기호·공백·표식만)은 빈 칸과 같다.
+  for (const empty of ['...', '---', '!?', '\u0301', '\u0301\u0301', '☆★']) {
+    assert.equal(parseNickname(empty), null, JSON.stringify(empty));
+  }
+  assert.equal(parseNickname('★가'), '★가');
+  assert.equal(parseNickname('#1'), '#1');
+});
+
+test('nicknames cap combining marks at two per base and four in total', () => {
+  const acute = '\u0301';
+  assert.equal(parseNickname(`a${acute}${acute}`), `a${acute}${acute}`);
+  assert.equal(parseNickname(`a${acute}${acute}${acute}`), null);
+  // 여러 글자에 두 개씩 붙이면 글자마다는 통과해도 합계 4개를 넘지 못한다.
+  assert.equal(parseNickname(`a${acute}${acute}b${acute}${acute}`), `a${acute}${acute}b${acute}${acute}`);
+  assert.equal(parseNickname(`a${acute}${acute}b${acute}${acute}c${acute}`), null);
+  // 흔한 zalgo 글자와 표식만 잔뜩 붙은 별명.
+  assert.equal(parseNickname('z̴̡̛̗̻͈̥͓̈́̎̕a̷̘l̶g̷o̵'), null);
+  assert.equal(parseNickname(`a${'\u0300\u0301\u0302\u0303\u0304\u0305'}`), null);
+  assert.equal(parseNickname(`${acute.repeat(5)}가`), null);
+  // 글자마다 표식 하나씩 네 개까지는 통과하고, NFKC로 합쳐져 사본에서 표식이 사라져도 원문 개수로 다섯 개째부터 막는다.
+  assert.equal(parseNickname('e\u0301 e\u0301 e\u0301 e\u0301'), 'e\u0301 e\u0301 e\u0301 e\u0301');
+  assert.equal(parseNickname('e\u0301e\u0301e\u0301e\u0301e\u0301'), null);
 });
 
 test('friendship pairs are ordered by UTF-8 byte order regardless of argument order', () => {

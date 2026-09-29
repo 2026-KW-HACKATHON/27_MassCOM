@@ -36,23 +36,57 @@ export function defaultNickname(code: string): string {
   return `탐험가 ${code.slice(-4)}`;
 }
 
+// 주소·연락처처럼 보이는 별명을 거른다. NFKC로 전각 글자·전각 점을 풀어 놓은 사본에 적용하므로 "ｗｗｗ．ｘ．ｃｏｍ"도 걸린다.
+// 도메인 모양은 점 앞이 글자·숫자·하이픈이고 점 뒤가 영문 두 글자 이상이면 모두 거른다("맛집.com", "bit。ly"). 그래서
+// TLD 목록을 두지 않는다. "J.K"처럼 점 뒤가 한 글자이거나 점 뒤에 공백·숫자가 오면 통과한다.
 const looksLikeAddress = [
   /@/,
   /:\/\//,
   /\b(?:https?|ftp|mailto):/i,
   /\bwww\./i,
-  /[a-z0-9-]\.(?:com|net|org|kr|io|co|me|app|dev|xyz|info|biz|edu|gov|ly|gg|tv|link|site|online|shop|store|cc|us|jp|cn|uk|de|fr|ru)(?![a-z0-9])/i,
+  /[\p{L}\p{N}-]+[.。．][a-z]{2,}/iu,
 ];
-const invisibleOrControl = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+// 보이지 않거나 빈 칸처럼 보이는 글자: 제어·서식(Cc·Cf), 줄·문단 구분, 사용자 지정(Co)·미할당(Cn)·짝 없는 서로게이트(Cs)와
+// 한글 채움 문자(U+115F·U+1160·U+3164·U+FFA0)·점자 빈칸(U+2800). 채움 문자는 문자(Lo)나 기호(So)라 범주만으로는 안 걸린다.
+const invisibleOrControl = /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\p{Zl}\p{Zp}\u115F\u1160\u3164\uFFA0\u2800]/u;
+const fillerCharacters = new Set(['\u115F', '\u1160', '\u3164', '\uFFA0']);
+const letterOrNumber = /[\p{L}\p{N}]/u;
+const combiningMark = /\p{M}/u;
+const maxMarksPerBase = 2;
+const maxMarksTotal = 4;
+
+// 결합 문자(zalgo)를 글자 하나에 두 개, 별명 전체에 네 개까지만 허용한다.
+function hasTooManyMarks(text: string): boolean {
+  let total = 0;
+  let run = 0;
+  for (const character of text) {
+    if (!combiningMark.test(character)) {
+      run = 0;
+      continue;
+    }
+    run++;
+    total++;
+    if (run > maxMarksPerBase || total > maxMarksTotal) return true;
+  }
+  return false;
+}
 
 // 앞뒤 공백을 지운 별명을 돌려주고, 규칙에 맞지 않으면 null이다. 길이는 DB 제약(char_length)과 같은 코드 포인트 수다.
+// 저장하는 값은 원문이고, 금지 규칙은 원문과 NFKC 사본 모두에 적용한다(NFKC가 표식을 합치거나 전각을 풀어 우회를 가리지 못하게).
 export function parseNickname(input: unknown): string | null {
   if (typeof input !== 'string') return null;
   const nickname = input.trim();
   const length = Array.from(nickname).length;
   if (length < 1 || length > maxNicknameLength) return null;
-  if (invisibleOrControl.test(nickname)) return null;
-  if (looksLikeAddress.some((pattern) => pattern.test(nickname))) return null;
+  const normalized = nickname.normalize('NFKC');
+  for (const text of [nickname, normalized]) {
+    if (invisibleOrControl.test(text)) return null;
+    if (hasTooManyMarks(text)) return null;
+  }
+  if (looksLikeAddress.some((pattern) => pattern.test(normalized))) return null;
+  // 글자나 숫자가 하나도 없거나 채움 문자뿐이면 이름이 보이지 않는다.
+  if (!Array.from(normalized).some((character) =>
+    letterOrNumber.test(character) && !fillerCharacters.has(character))) return null;
   return nickname;
 }
 

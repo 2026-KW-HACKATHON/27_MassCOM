@@ -195,7 +195,7 @@ test('nicknames are validated, trimmed, stored per account and shown to friends'
   assert.equal((await db.friends.list('a')).friends[0]!.nickname, '바뀐 별명');
   assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM explorer_profiles')).rows[0]!.n, 1);
 
-  for (const invalid of ['', '   ', '열세글자열세글자열세글자열', 'me@example.com', 'https://evil.kr', 'a\nb']) {
+  for (const invalid of ['', '   ', '열세글자열세글자열세글자열', 'me@example.com', 'https://evil.kr', 'a\nb', '맛집.com', '\u3164\u3164']) {
     await assert.rejects(db.friends.setNickname({ accountId: 'b', nickname: invalid }), rejectsWith('FRIEND_NICKNAME_INVALID'), invalid);
   }
   assert.equal((await db.friends.list('b')).me.nickname, '바뀐 별명');
