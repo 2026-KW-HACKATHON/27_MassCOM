@@ -126,6 +126,30 @@ test('a 5xx or 429 that persists fails after exactly one retry with a jittered w
   }
 });
 
+test('a 502 or 504 is never retried and stays chargeable like a network failure, for drafts and finals', async () => {
+  for (const status of [502, 504]) {
+    for (const call of [
+      (client: OpenAiImageClient) => client.generateDraft({ prompt: 'p', userHash }),
+      (client: OpenAiImageClient) => client.editFinal({ prompt: 'p', image: fakeWebp('src'), userHash }),
+    ]) {
+      const { client, fake, sleeps, logs } = makeClient(() => errorResponse(status, null));
+      await assert.rejects(call(client), failure('AI_ART_UPSTREAM_UNAVAILABLE', true), `status ${status}`);
+      assert.equal(fake.calls.length, 1, `status ${status}`);
+      assert.deepEqual(sleeps, [], `status ${status}`);
+      assert.equal(logs.length, 1);
+      assert.equal(logs[0]!.outcome, 'http_error');
+      assert.equal(logs[0]!.status, status);
+    }
+  }
+});
+
+test('a 503 that is retried once and then answered with a 504 stays chargeable', async () => {
+  const { client, fake, sleeps } = makeClient((_call, index) => errorResponse(index === 0 ? 503 : 504, null));
+  await assert.rejects(client.generateDraft({ prompt: 'p', userHash }), failure('AI_ART_UPSTREAM_UNAVAILABLE', true));
+  assert.equal(fake.calls.length, 2);
+  assert.deepEqual(sleeps, [500]);
+});
+
 test('spend, usage and credit exhaustion on a 429 are never retried', async () => {
   for (const code of ['credit_balance_exhausted', 'monthly_spend_limit_exceeded', 'project_usage_limit_exceeded', 'insufficient_quota']) {
     const { client, fake, sleeps } = makeClient(() => errorResponse(429, code));

@@ -16,8 +16,8 @@ export interface AiArtImageClient {
 }
 
 // chargeable: 요청이 OpenAI에 닿았고 이미지가 만들어졌는지 알 수 없어 비용이 나갔을 수 있는 실패(시간 초과·네트워크 끊김·
-// 이상한 성공 응답). 이런 실패는 다시 보내지 않고 예상 비용을 그대로 둔다. HTTP 오류 응답(429·5xx·정책 차단 등)은 이미지가
-// 만들어지지 않았으므로 false다.
+// 이상한 성공 응답, 게이트웨이 오류 502·504). 이런 실패는 다시 보내지 않고 예상 비용을 그대로 둔다. 그 밖의 HTTP 오류 응답
+// (429·500·503·정책 차단 등)은 이미지가 만들어지지 않았으므로 false다.
 export class AiArtGenerationError extends Error {
   constructor(readonly failureCode: AiArtFailureCode, readonly chargeable: boolean) {
     super(failureCode);
@@ -189,7 +189,7 @@ export class OpenAiImageClient implements AiArtImageClient {
       const failure = classifyOpenAiHttpFailure({
         status: response.status, errorCode, retryAfter: response.headers.get('retry-after'), random: this.random,
       });
-      if (!failure.retry || attempt >= 2) throw new AiArtGenerationError(failure.code, false);
+      if (!failure.retry || attempt >= 2) throw new AiArtGenerationError(failure.code, failure.chargeable === true);
       await this.sleep(failure.retryAfterMs ?? 1000);
     }
   }

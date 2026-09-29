@@ -230,6 +230,8 @@ export type AiArtFailureCode =
 export type OpenAiFailure = {
   code: AiArtFailureCode;
   retry: boolean;
+  // true이면 이미지가 만들어졌는지 알 수 없어 예상 비용을 그대로 둔다(네트워크 끊김과 같다). 게이트웨이 오류(502·504)만 해당한다.
+  chargeable?: boolean;
   // retry가 true일 때 기다릴 시간(ms). Retry-After가 있으면 그 값(상한 10초), 없으면 짧은 무작위 대기.
   retryAfterMs?: number;
 };
@@ -253,6 +255,11 @@ export function classifyOpenAiHttpFailure(input: {
   if (input.errorCode === 'moderation_blocked') return { code: 'AI_ART_MODERATION_BLOCKED', retry: false };
   if (input.status === 429 && input.errorCode !== undefined && noRetryQuotaCode.test(input.errorCode)) {
     return { code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: false };
+  }
+  // 502·504는 앞단 게이트웨이가 낸 오류라서 요청이 뒤에서 처리돼 이미지가 만들어졌을 수 있다. 다시 보내면 비용이 두 번 나갈 수
+  // 있으므로 네트워크 끊김처럼 재시도하지 않고 예상 비용을 그대로 둔다. 500·503과 재시도할 수 있는 429는 아래에서 한 번 다시 시도한다.
+  if (input.status === 502 || input.status === 504) {
+    return { code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: false, chargeable: true };
   }
   if (input.status === 429 || input.status >= 500) {
     const jitter = 500 + Math.floor((input.random ?? Math.random)() * 1000);

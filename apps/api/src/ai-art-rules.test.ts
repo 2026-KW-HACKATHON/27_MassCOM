@@ -216,6 +216,16 @@ test('OpenAI failures map to codes and retry decisions', () => {
     { code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: true, retryAfterMs: 1000 });
   assert.deepEqual(classifyOpenAiHttpFailure({ status: 401, errorCode: 'invalid_api_key' }),
     { code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: false });
+  // 500·503은 한 번 다시 시도하지만 게이트웨이 오류 502·504는 다시 보내지 않고 비용을 그대로 둔다(chargeable).
+  assert.deepEqual(classifyOpenAiHttpFailure({ status: 500, random: () => 0 }),
+    { code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: true, retryAfterMs: 500 });
+  for (const status of [502, 504]) {
+    assert.deepEqual(classifyOpenAiHttpFailure({ status, retryAfter: '3', random: () => 0 }),
+      { code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: false, chargeable: true }, String(status));
+  }
+  // 정책 차단 코드는 상태와 관계없이 그대로 차단이다.
+  assert.deepEqual(classifyOpenAiHttpFailure({ status: 502, errorCode: 'moderation_blocked' }),
+    { code: 'AI_ART_MODERATION_BLOCKED', retry: false });
   assert.equal(parseRetryAfterMs('0'), 0);
   assert.equal(parseRetryAfterMs('1.5'), 1500);
   assert.equal(parseRetryAfterMs('999'), 10_000);
