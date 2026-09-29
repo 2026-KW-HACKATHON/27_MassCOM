@@ -79,8 +79,24 @@ test('the router fragment is read for every build, since the OS only routes a bu
 });
 
 test('a usable target beats a problem, and a problem beats nothing', () => {
-  // The delivered link is another build's, but the router fragment carries a usable code: use it.
-  assert.deepEqual(resolveOpenTarget('masscom-demo://open#friend=K7M2Q9XP', 'friend=23456789', 'production'), { kind: 'friend', code: '23456789' });
   assert.deepEqual(resolveOpenTarget('masscom-demo://open#friend=K7M2Q9XP', undefined, 'production'), { kind: 'friend-problem', problem: 'OTHER_APP' });
   assert.deepEqual(resolveOpenTarget('https://masscom.kr/open', 'friend=BAD', 'production'), { kind: 'friend-problem', problem: 'MALFORMED' });
+  // A delivered link that names no MassCOM link at all leaves the router fragment as the only word on the matter.
+  assert.deepEqual(resolveOpenTarget('https://evil.test/open#friend=K7M2Q9XP', 'friend=23456789', 'production'), { kind: 'friend', code: '23456789' });
+});
+
+test('another build\'s link stays that build\'s: the router fragment of the same link never turns its code into ours', () => {
+  const foreign = { kind: 'friend-problem', problem: 'OTHER_APP' } as const;
+  // The router parses the fragment out of the very link it was handed, so the fragment repeats the foreign code.
+  assert.deepEqual(resolveOpenTarget('masscom-demo://open#friend=K7M2Q9XP', 'friend=K7M2Q9XP', 'production'), foreign);
+  assert.deepEqual(resolveOpenTarget('masscom-demo://open#friend=K7M2Q9XP', 'friend=23456789', 'production'), foreign);
+  assert.deepEqual(resolveOpenTarget('masscom://open#friend=K7M2Q9XP', 'friend=K7M2Q9XP', 'showcase'), foreign);
+  assert.deepEqual(resolveOpenTarget('https://masscom.kr/open#friend=K7M2Q9XP', 'friend=K7M2Q9XP', 'showcase'), foreign);
+  assert.deepEqual(resolveOpenTarget('masscom://open#friend=K7M2Q9XP', 'friend=K7M2Q9XP', 'development'), foreign);
+  assert.deepEqual(resolveOpenTarget('masscom-demo://open#friend=K7M2Q9XP', 'friend=K7M2Q9XP', 'development'), foreign);
+  assert.deepEqual(resolveOpenTarget('masscom-dev://open#friend=K7M2Q9XP', 'friend=K7M2Q9XP', 'production'), foreign);
+  // Another build's link that names no friend code is simply not ours either: home, whatever the fragment says.
+  assert.deepEqual(resolveOpenTarget('masscom-demo://open#merchant=m1', 'friend=K7M2Q9XP', 'production'), { kind: 'none' });
+  // Production and development share the public https link, so it is theirs and the fragment is read as before.
+  assert.deepEqual(resolveOpenTarget('https://masscom.kr/open', 'friend=K7M2Q9XP', 'development'), { kind: 'friend', code: 'K7M2Q9XP' });
 });

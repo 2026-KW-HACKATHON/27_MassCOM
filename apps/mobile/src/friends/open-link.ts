@@ -1,5 +1,5 @@
 import { friendFromFragment, readFriendLink, type FriendLinkProblem, type FriendLinkRead } from './code';
-import { parseFragmentParams, type LinkVariant } from './link';
+import { parseFragmentParams, readOpenLink, type LinkVariant } from './link';
 import { merchantFromFragment, parseMerchantLink } from './recommend';
 
 /**
@@ -40,7 +40,11 @@ export function parseOpenFragment(fragment: string | null | undefined): OpenTarg
 
 const leadsSomewhere = (target: OpenTarget) => target.kind === 'friend' || target.kind === 'merchant';
 
-/** What the open route should do: the link the OS delivered first, then the fragment the router parsed out of the same link. */
+/**
+ * What the open route should do: the link the OS delivered first, then the fragment the router parsed out of the same link.
+ * A delivered link that is recognisably MassCOM's but another build's is final: the router fragment came out of that same
+ * link, so reading it as this build's own would turn another build's code into one of ours.
+ */
 export function resolveOpenTarget(
   url: string | null | undefined,
   routerFragment: string | null | undefined,
@@ -48,6 +52,7 @@ export function resolveOpenTarget(
 ): OpenTarget {
   const fromUrl = parseOpenLink(url, variant);
   if (leadsSomewhere(fromUrl)) return fromUrl;
+  if (url && readOpenLink(url, variant)?.ours === false) return fromUrl;
   const fromFragment = parseOpenFragment(routerFragment);
   if (leadsSomewhere(fromFragment)) return fromFragment;
   return fromUrl.kind !== 'none' ? fromUrl : fromFragment;
