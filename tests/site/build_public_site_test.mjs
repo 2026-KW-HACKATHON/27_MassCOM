@@ -23,6 +23,7 @@ const expected = [
   'evidence/screenshots/android-account-settings.png',
   'evidence/screenshots/android-nft-finalized.png',
   'index.html',
+  'nft-metadata/base-sepolia-proof/1.json',
   'open.html',
   'preview/assets/mascot-stamp.png',
   'preview/assets/showcase.css',
@@ -82,3 +83,15 @@ async function collectFiles(root, prefix = '') {
   }
   return files;
 }
+
+test('published NFT metadata stays a plain public record without personal or visit details', async () => {
+  const metadata = JSON.parse(await readFile(join(repoRoot, 'docs/nft-metadata/base-sepolia-proof/1.json'), 'utf8'));
+  assert.equal(typeof metadata.name, 'string');
+  assert.equal(typeof metadata.description, 'string');
+  assert.ok(Array.isArray(metadata.attributes));
+  // AGENTS.md: no personal data, order number or exact meal time on-chain or in token metadata.
+  const text = JSON.stringify(metadata);
+  for (const forbidden of [/@/, /\b0x[0-9a-fA-F]{40}\b/, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/, /\d{1,2}:\d{2}/, /주문/, /도로명|번길|\d+-\d+번지/]) {
+    assert.doesNotMatch(text, forbidden, String(forbidden));
+  }
+});
