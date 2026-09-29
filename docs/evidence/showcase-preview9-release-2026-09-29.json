@@ -1,0 +1,40 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-09-29",
+  "sourceCommit": "87e98f464218d72ca90634ff404e568b0398736f",
+  "pullRequests": [233],
+  "mainCI": "36577029769 SUCCESS",
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.9",
+  "repositoryVisibility": "PUBLIC",
+  "releaseKind": "prerelease",
+  "artifact": {
+    "name": "MassCOM-showcase-android-87e98f4.apk",
+    "package": "kr.masscom.wolgye.demo",
+    "versionName": "0.1.0-test.2",
+    "versionCode": 2,
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "bytes": 156537981,
+    "sha256": "efebe0fff8aa9cf5ca896e550caed8a15b05763b19df3e1123fc9749708878f5",
+    "githubAssetDigest": "sha256:efebe0fff8aa9cf5ca896e550caed8a15b05763b19df3e1123fc9749708878f5",
+    "provenanceSha256": "0801447ee5c358ecd919e87fd37ba36271cf40042ebe0ae107e30a7a89d780ea",
+    "signingCertificateSha256": "cdb0dc37750c907eaa2f1b9eb172b0911f14b9c9f2dab78b481f1751d8ebf28a"
+  },
+  "checks": {
+    "buildChecks": "PASS: api, package, sourceMarker, signature and walletSurface. scripts/build-showcase-apk.sh stops on any failure of aapt package, the kr.masscom.BUILD_SOURCE_COMMIT manifest marker equal to 87e98f4, apksigner signer #1 certificate equal to the approved showcase certificate, and the release wallet surface check on the AAB; it wrote the provenance file with all five checks PASS only after they passed",
+    "localVsGithubSha256AndBytes": "PASS: the GitHub asset digest equals the APK SHA-256",
+    "remoteTagAndAssets": "PASS: APK, build-time provenance (632 bytes) and SHA256SUMS.txt (218 bytes) uploaded; the release targets 87e98f4",
+    "anonymousApkDownload": "PASS: HTTPS 200",
+    "deviceInstall": "PASS: Samsung SM-S928N adb install -r over the existing kr.masscom.wolgye.demo app returned Success and the first launch showed the role-selection screen; choosing the customer role opened the explore screen with the five-slot tab bar (explore, map, visit check-in, collection, friends), where the owner's already-signed-in showcase account showed badges 1/9; the friends tab loaded from the showcase API and showed a default nickname, a friend code and a QR. No capture is stored because the friends tab shows the owner's own friend code."
+  },
+  "notRun": [
+    "adding a friend between two showcase accounts, and the friend ranking and friend passport with a real second account",
+    "opening a friend link in the showcase app (demo.masscom.kr has no DNS, Caddy or assetlinks yet; the showcase shares the code text plus https://masscom.kr/open, and its QR is masscom-demo://open#friend=)",
+    "the system share sheet",
+    "the town map screen and route-finding hand-off in this showcase APK (only the tab bar entry was seen)",
+    "TalkBack, dark mode and large text on this APK",
+    "the medal, reward box, coupon and staff redemption flow on this APK",
+    "new two-minute customer identity QR and two-phone redemption",
+    "real coupon issue or redemption and Google Play submission"
+  ],
+  "limitations": "Preview 9 denotes GitHub release order; internal versionName/versionCode remain 0.1.0-test.2/2. This is a demo-only prerelease built from main 87e98f4, which adds the friends feature (PR #233, Issue #230) on top of Preview 8. Device evidence covers installation over the existing showcase app, the first-launch role-selection screen, the explore screen with the five-slot tab bar and the friends tab loading from the showcase API only; the friends tab was not used to add a friend. The showcase API this APK talks to was redeployed at 87e98f4 with migration 0028 (docs/evidence/friends-deployment-2026-09-29.json). The three seeded showcase offers are demo examples, not partner-store benefits."
+}
