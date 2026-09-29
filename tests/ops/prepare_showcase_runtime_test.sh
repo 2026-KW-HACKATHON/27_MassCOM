@@ -58,7 +58,11 @@ if run_preparer >"$scratch/retry.log" 2>&1; then
   exit 1
 fi
 [[ "$(shasum -a 256 "$target")" == "$before" ]]
-! grep -Eq '[0-9a-f]{64}' "$scratch/retry.log"
+# `! grep` does not trip `set -e`, so the secret-leak guard fails explicitly.
+if grep -Eq '[0-9a-f]{64}' "$scratch/retry.log"; then
+  echo 'refused overwrite leaked a 64-hex secret into its log' >&2
+  exit 1
+fi
 
 mkdir "$scratch/badaudience"
 if MASSCOM_SHOWCASE_RUNTIME_OUTPUT="$scratch/badaudience/runtime.env" \
