@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 
 import { bindCollectionControls, loadCollection, loadMerchants } from '../../apps/production-web/assets/production.mjs';
-import { bindAdmin, campaignDraftPayload, loadAdmin, parseMenuLines } from '../../apps/production-web/assets/admin.mjs';
+import { bindAdmin, campaignDraftPayload, formatKst, loadAdmin, parseMenuLines } from '../../apps/production-web/assets/admin.mjs';
 import { bindMerchant, loadMerchant } from '../../apps/production-web/assets/merchant.mjs';
 import { createProductionServer, resolveProductionBindHost } from '../../apps/production-web/server.mjs';
 
@@ -1806,3 +1806,169 @@ test('점포 화면 쿠폰 목록은 티켓 모양 CSS를 쓰고 사용 처리 �
   assert.match(pageSources.merchant, /<label><input id="merchant-claim-confirm" type="checkbox"> 실제 이용을 확인했고/);
 });
 
+
+
+// --- 계정 삭제 요청(#194): 관리자 화면 ---
+
+const deletionNodeIds = ['admin-status', 'admin-login', 'admin-content', 'admin-merchants', 'admin-operations',
+  'admin-create', 'admin-logout', 'admin-deletions'];
+const pendingIntake = {
+  id: '11111111-1111-4111-8111-111111111111', status: 'REQUESTED', source: 'WEB',
+  requestedAt: '2026-10-01T00:00:00.000Z', cancelUntil: '2026-10-02T00:00:00.000Z', dueAt: '2026-10-08T00:00:00.000Z',
+  canProcess: true, overdue: false, accountLabel: 'acct_1a2b…9f0e', processedAt: null, processedBy: null,
+  rejectReason: null, deletion: null,
+};
+
+function deletionAdminFixture(intakes, handlers = {}) {
+  const nodes = Object.fromEntries(deletionNodeIds.map(id => [id, { ...element(), hidden: true }]));
+  const doc = { getElementById(id) { return nodes[id]; }, createElement: element };
+  const calls = [];
+  const fetcher = async (path, options = {}) => {
+    calls.push({ path, method: options.method ?? 'GET', body: options.body });
+    const handled = handlers[`${options.method ?? 'GET'} ${path}`];
+    if (handled) return handled(options);
+    return { ok: true, json: async () => path.endsWith('/me') ? { admin: true }
+      : path.endsWith('/operations-status') ? { merchants: [] }
+        : path.endsWith('/account-deletion-intakes') ? { intakes }
+          : path.endsWith('/reconcile') ? { checked: 0, completed: 0, waiting: 0 } : { merchants: [] } };
+  };
+  return { nodes, doc, calls, fetcher };
+}
+
+test('관리 화면은 삭제 요청 구역을 마련하고 화면에 이메일이나 전체 계정 ID를 두지 않는다', () => {
+  const page = readFileSync(new URL('../../apps/production-web/admin.html', import.meta.url), 'utf8');
+  assert.match(page, /id="deletion-heading">계정 삭제 요청</);
+  assert.match(page, /id="admin-deletions" role="status" aria-live="polite"/);
+  assert.match(page, /24시간 취소 기간/);
+  assert.match(page, /본인 요청은 처리할 수 없습니다/);
+  assert.equal(formatKst('2026-10-01T16:30:00.000Z'), '2026-10-02 01:30 KST');
+  assert.equal(formatKst('not a date'), '-');
+});
+
+test('삭제 요청 목록은 재정산을 먼저 부르고 마스킹한 표지·기한·처리 가능 여부를 텍스트로만 표시한다', async () => {
+  const hostile = { ...pendingIntake, id: '22222222-2222-4222-8222-222222222222', canProcess: false,
+    accountLabel: '<img src=x onerror=alert(1)>', overdue: true, source: 'SHOWCASE_APP' };
+  const { nodes, doc, calls, fetcher } = deletionAdminFixture([pendingIntake, hostile]);
+  await loadAdmin(fetcher, doc);
+  const paths = calls.map(call => `${call.method} ${call.path}`);
+  assert.ok(paths.indexOf('POST /api/web/admin/account-deletions/reconcile') >= 0);
+  assert.ok(paths.indexOf('POST /api/web/admin/account-deletions/reconcile') < paths.indexOf('GET /api/web/admin/account-deletion-intakes'));
+  assert.equal(calls.find(call => call.path.endsWith('/reconcile')).body, '{}');
+  assert.equal(nodes['admin-deletions'].children.length, 2);
+  const [ready, cooling] = nodes['admin-deletions'].children;
+  assert.match(ready.children[0].textContent, /웹 접수 · 대기 · 계정 acct_1a2b…9f0e/);
+  assert.match(ready.children[1].textContent, /접수 2026-10-01 09:00 KST · 취소 마감 2026-10-02 09:00 KST · 처리 기한 2026-10-08 09:00 KST/);
+  assert.equal(ready.children[2].textContent, '삭제 처리');
+  assert.equal(ready.children[2].disabled, false);
+  assert.equal(cooling.children[0].textContent, '시연 앱 접수 · 대기 · 계정 <img src=x onerror=alert(1)>');
+  assert.match(cooling.children[1].textContent, /기한 초과/);
+  assert.equal(cooling.children[2].disabled, true);
+  assert.match(cooling.children[2].textContent, /취소 기간 중/);
+  const shown = JSON.stringify(nodes['admin-deletions'].children.map(child => child.children.map(node => node.textContent)));
+  assert.doesNotMatch(shown, /@|"accountId"/);
+});
+
+test('삭제 처리는 두 번째 확인 클릭에서만 실행되고 결과 목록을 다시 불러온다', async () => {
+  const done = { ...pendingIntake, status: 'PROCESSED', canProcess: false, accountLabel: null,
+    processedAt: '2026-10-02T01:00:00.000Z', processedBy: 'admin-web', deletion: { status: 'WAITING_FOR_MINT_FINALITY', completedAt: null } };
+  let processed = false;
+  const { nodes, doc, calls, fetcher } = deletionAdminFixture([pendingIntake], {
+    [`POST /api/web/admin/account-deletion-intakes/${pendingIntake.id}/process`]: () => {
+      processed = true;
+      return { ok: true, json: async () => ({ intake: done }) };
+    },
+  });
+  const listed = fetcher;
+  const dynamic = async (path, options) => {
+    if (processed && path.endsWith('/account-deletion-intakes')) {
+      calls.push({ path, method: 'GET' });
+      return { ok: true, json: async () => ({ intakes: [done] }) };
+    }
+    return listed(path, options);
+  };
+  await loadAdmin(dynamic, doc);
+  const button = nodes['admin-deletions'].children[0].children[2];
+  await button.click();
+  assert.equal(processed, false, '첫 클릭은 확인만 요구한다');
+  assert.match(button.textContent, /정말 삭제 처리/);
+  assert.match(nodes['admin-status'].textContent, /한 번 더 누르면/);
+  await button.click();
+  assert.equal(processed, true);
+  assert.equal(calls.filter(call => call.method === 'POST' && call.path.endsWith('/process')).length, 1);
+  assert.equal(calls.find(call => call.path.endsWith('/process')).body, '{}');
+  assert.equal(nodes['admin-deletions'].children.length, 1);
+  const finished = nodes['admin-deletions'].children[0];
+  assert.match(finished.children[0].textContent, /처리 완료 · 계정 삭제됨/);
+  assert.equal(finished.children.length, 3, '끝난 요청에는 처리·거절 버튼이 없다');
+  assert.match(finished.children[2].textContent, /처리자 admin-web · 제출된 거래 결과 확인 중/);
+  assert.match(nodes['admin-status'].textContent, /삭제 요청을 처리했습니다/);
+});
+
+test('삭제 처리와 거절의 서버 거절 사유는 운영자가 이해할 문장으로 알린다', async () => {
+  const cases = [
+    ['DELETION_COOLING_OFF', /취소 기간/], ['DELETION_SELF_PROCESSING_REFUSED', /본인 요청은 처리할 수 없습니다/],
+    ['DELETION_INTAKE_NOT_PENDING', /이미 처리/], ['DELETION_REJECT_REASON_INVALID', /1자 이상 200자/],
+  ];
+  for (const [code, expected] of cases) {
+    const failing = () => ({ ok: false, status: 409, json: async () => ({ code }) });
+    const { nodes, doc, fetcher } = deletionAdminFixture([pendingIntake], {
+      [`POST /api/web/admin/account-deletion-intakes/${pendingIntake.id}/process`]: failing,
+      [`POST /api/web/admin/account-deletion-intakes/${pendingIntake.id}/reject`]: failing,
+    });
+    await loadAdmin(fetcher, doc);
+    const [process, reason, reject] = nodes['admin-deletions'].children[0].children.slice(2);
+    await process.click();
+    await process.click();
+    assert.match(nodes['admin-status'].textContent, expected, code);
+    assert.equal(process.disabled, false, code);
+    assert.equal(process.textContent, '삭제 처리');
+    reason.value = '사유';
+    await reject.click();
+    assert.match(nodes['admin-status'].textContent, expected, code);
+    assert.equal(reject.disabled, false, code);
+  }
+});
+
+test('삭제 거절은 입력한 사유를 그대로 보내고 성공하면 목록을 다시 불러온다', async () => {
+  const rejected = { ...pendingIntake, status: 'REJECTED', canProcess: false, accountLabel: null,
+    processedAt: '2026-10-02T01:00:00.000Z', processedBy: 'admin-web', rejectReason: '<b>본인 확인 불가</b>' };
+  let done = false;
+  const { nodes, doc, calls, fetcher } = deletionAdminFixture([pendingIntake], {
+    [`POST /api/web/admin/account-deletion-intakes/${pendingIntake.id}/reject`]: () => {
+      done = true;
+      return { ok: true, json: async () => ({ intake: rejected }) };
+    },
+  });
+  const dynamic = async (path, options) => done && path.endsWith('/account-deletion-intakes')
+    ? { ok: true, json: async () => ({ intakes: [rejected] }) } : fetcher(path, options);
+  await loadAdmin(dynamic, doc);
+  const [, reason, reject] = nodes['admin-deletions'].children[0].children.slice(2);
+  assert.equal(reason.attributes['aria-label'], '거절 사유');
+  assert.equal(reason.maxLength, 200);
+  reason.value = '<b>본인 확인 불가</b>';
+  await reject.click();
+  assert.deepEqual(JSON.parse(calls.find(call => call.path.endsWith('/reject')).body), { reason: '<b>본인 확인 불가</b>' });
+  assert.match(nodes['admin-status'].textContent, /삭제 요청을 거절했습니다/);
+  assert.match(nodes['admin-deletions'].children[0].children[2].textContent, /거절 사유 <b>본인 확인 불가<\/b>/);
+});
+
+test('삭제 요청 목록의 401·403은 관리 화면을 닫고 그 밖의 실패는 다른 구역을 막지 않는다', async () => {
+  for (const denied of [401, 403]) {
+    const { nodes, doc, fetcher } = deletionAdminFixture([], {
+      'GET /api/web/admin/account-deletion-intakes': () => ({ ok: false, status: denied }),
+    });
+    await loadAdmin(fetcher, doc);
+    assert.equal(nodes['admin-content'].hidden, true, String(denied));
+    assert.equal(nodes['admin-deletions'].children.length, 0);
+  }
+  const { nodes, doc, fetcher } = deletionAdminFixture([], {
+    'GET /api/web/admin/account-deletion-intakes': () => ({ ok: false, status: 500 }),
+    'POST /api/web/admin/account-deletions/reconcile': () => ({ ok: false, status: 500 }),
+  });
+  await loadAdmin(fetcher, doc);
+  assert.equal(nodes['admin-content'].hidden, false);
+  assert.match(nodes['admin-deletions'].textContent, /불러오지 못했습니다/);
+  const empty = deletionAdminFixture([]);
+  await loadAdmin(empty.fetcher, empty.doc);
+  assert.match(empty.nodes['admin-deletions'].textContent, /접수된 삭제 요청이 없습니다/);
+});

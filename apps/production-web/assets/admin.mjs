@@ -1,4 +1,5 @@
 const endpoint = '/api/web/admin/merchants';
+const deletionEndpoint = '/api/web/admin/account-deletion-intakes';
 const adminRequests = new WeakMap();
 
 async function jsonRequest(fetcher, path, method = 'GET', body) {
@@ -81,6 +82,115 @@ function editField(doc, label, name, value, type = 'text') {
   return wrapper;
 }
 
+const sourceLabels = { WEB: '웹 접수', SHOWCASE_APP: '시연 앱 접수' };
+const statusLabels = { REQUESTED: '대기', CANCELLED: '취소됨', PROCESSED: '처리 완료', REJECTED: '거절됨' };
+const ledgerLabels = { WAITING_FOR_MINT_FINALITY: '제출된 거래 결과 확인 중', COMPLETED: '삭제 완료' };
+
+// 한국 표준시 분 단위. 서버 시각은 UTC ISO이고 운영자는 KST 기한을 본다.
+export function formatKst(iso) {
+  const time = Date.parse(iso);
+  if (!Number.isFinite(time)) return '-';
+  return `${new Date(time + 9 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ')} KST`;
+}
+
+function deletionErrorText(error) {
+  if (error.code === 'DELETION_COOLING_OFF') return '아직 취소 기간이라 처리할 수 없습니다.';
+  if (error.code === 'DELETION_SELF_PROCESSING_REFUSED') return '본인 요청은 처리할 수 없습니다. 다른 관리자가 처리해야 합니다.';
+  if (error.code === 'DELETION_INTAKE_NOT_PENDING' || error.code === 'DELETION_INTAKE_NOT_FOUND') {
+    return '이미 처리·취소·거절된 요청입니다. 새로고침해 주세요.';
+  }
+  if (error.code === 'DELETION_REJECT_REASON_INVALID') return '거절 사유를 1자 이상 200자 이하로 입력해 주세요.';
+  return '요청을 처리하지 못했습니다.';
+}
+
+function deletionRow(fetcher, doc, intake, status) {
+  if (typeof intake.id !== 'string' || !statusLabels[intake.status] || !sourceLabels[intake.source]) {
+    throw new Error('invalid deletion intake');
+  }
+  const row = doc.createElement('div');
+  row.className = 'admin-deletion';
+  const head = doc.createElement('p');
+  head.textContent = `${sourceLabels[intake.source]} · ${statusLabels[intake.status]} · 계정 ${intake.accountLabel ?? '삭제됨'}`;
+  const dates = doc.createElement('p');
+  dates.textContent = `접수 ${formatKst(intake.requestedAt)} · 취소 마감 ${formatKst(intake.cancelUntil)} · 처리 기한 ${formatKst(intake.dueAt)}${intake.overdue ? ' · 기한 초과' : ''}`;
+  row.append(head, dates);
+  if (intake.status !== 'REQUESTED') {
+    const result = doc.createElement('p');
+    const parts = [];
+    if (intake.processedAt) parts.push(`처리 ${formatKst(intake.processedAt)}`);
+    if (intake.processedBy) parts.push(`처리자 ${intake.processedBy}`);
+    if (intake.deletion) parts.push(ledgerLabels[intake.deletion.status] ?? '');
+    if (intake.rejectReason) parts.push(`거절 사유 ${intake.rejectReason}`);
+    result.textContent = parts.filter(Boolean).join(' · ') || '접수자가 취소했습니다.';
+    row.append(result);
+    return row;
+  }
+  const process = doc.createElement('button');
+  process.type = 'button';
+  process.className = 'danger';
+  process.disabled = !intake.canProcess;
+  process.textContent = intake.canProcess ? '삭제 처리' : '취소 기간 중 · 처리 불가';
+  let armed = false;
+  process.addEventListener('click', async () => {
+    if (!armed) {
+      armed = true;
+      process.textContent = '정말 삭제 처리 (되돌릴 수 없음)';
+      status.textContent = '한 번 더 누르면 이 계정의 로그인·지갑 연결·권한이 삭제 처리됩니다.';
+      return;
+    }
+    process.disabled = true;
+    try {
+      await jsonRequest(fetcher, `${deletionEndpoint}/${encodeURIComponent(intake.id)}/process`, 'POST', {});
+      await loadAdmin(fetcher, doc);
+      status.textContent = '삭제 요청을 처리했습니다.';
+    } catch (error) {
+      status.textContent = deletionErrorText(error);
+      armed = false;
+      process.textContent = '삭제 처리';
+      process.disabled = false;
+    }
+  });
+  const reason = doc.createElement('input');
+  reason.name = 'reason';
+  reason.maxLength = 200;
+  reason.required = true;
+  reason.setAttribute('aria-label', '거절 사유');
+  reason.placeholder = '거절 사유';
+  const reject = doc.createElement('button');
+  reject.type = 'button';
+  reject.textContent = '거절';
+  reject.addEventListener('click', async () => {
+    reject.disabled = true;
+    try {
+      await jsonRequest(fetcher, `${deletionEndpoint}/${encodeURIComponent(intake.id)}/reject`, 'POST', {
+        reason: reason.value,
+      });
+      await loadAdmin(fetcher, doc);
+      status.textContent = '삭제 요청을 거절했습니다.';
+    } catch (error) {
+      status.textContent = deletionErrorText(error);
+      reject.disabled = false;
+    }
+  });
+  row.append(process, reason, reject);
+  return row;
+}
+
+async function loadDeletions(fetcher, doc, container, status, current) {
+  // 삭제 뒤에는 세션이 없어 재정산이 저절로 돌지 않는다. 목록을 열 때마다 진행시키고, 실패해도 목록은 보인다.
+  try { await jsonRequest(fetcher, '/api/web/admin/account-deletions/reconcile', 'POST', {}); }
+  catch (error) { if (error.status === 401 || error.status === 403) throw error; }
+  const payload = await jsonRequest(fetcher, deletionEndpoint);
+  if (!current()) return;
+  if (!Array.isArray(payload.intakes)) throw new Error('invalid deletion intakes');
+  container.replaceChildren();
+  if (!payload.intakes.length) {
+    container.textContent = '접수된 삭제 요청이 없습니다.';
+    return;
+  }
+  for (const intake of payload.intakes) container.append(deletionRow(fetcher, doc, intake, status));
+}
+
 export async function loadAdmin(fetcher, doc) {
   const requestId = (adminRequests.get(doc) ?? 0) + 1;
   adminRequests.set(doc, requestId);
@@ -93,6 +203,7 @@ export async function loadAdmin(fetcher, doc) {
   const draftForm = doc.getElementById('admin-campaign-draft');
   const draftList = doc.getElementById('admin-campaign-drafts');
   const draftMerchant = draftForm?.querySelector('select');
+  const deletions = doc.getElementById('admin-deletions');
   const create = doc.getElementById('admin-create');
   if (!status || !login || !logout || !content || !list || !create) return;
   content.hidden = true;
@@ -102,6 +213,7 @@ export async function loadAdmin(fetcher, doc) {
   operations?.replaceChildren();
   draftList?.replaceChildren();
   draftMerchant?.replaceChildren();
+  deletions?.replaceChildren();
   if (draftForm) draftForm.hidden = true;
   try {
     await jsonRequest(fetcher, '/api/web/admin/me');
@@ -284,6 +396,15 @@ export async function loadAdmin(fetcher, doc) {
         draftList.textContent = '캠페인 초안 목록을 불러오지 못했습니다.';
       }
     }
+    if (deletions) {
+      try {
+        await loadDeletions(fetcher, doc, deletions, status, () => adminRequests.get(doc) === requestId);
+      } catch (error) {
+        if (adminRequests.get(doc) !== requestId) return;
+        if (error.status === 401 || error.status === 403) throw error;
+        deletions.textContent = '계정 삭제 요청 목록을 불러오지 못했습니다.';
+      }
+    }
     status.textContent = payload.merchants.length ? `${payload.merchants.length}곳의 실제 상점입니다.` : '등록된 실제 상점이 없습니다.';
     content.hidden = false;
     logout.textContent = '로그아웃';
@@ -294,6 +415,7 @@ export async function loadAdmin(fetcher, doc) {
     operations?.replaceChildren();
     draftList?.replaceChildren();
     draftMerchant?.replaceChildren();
+    deletions?.replaceChildren();
     if (draftForm) draftForm.hidden = true;
     if (error.status === 401) {
       status.textContent = '관리자 계정으로 로그인해 주세요.';
@@ -318,6 +440,7 @@ export function bindAdmin(fetcher, doc) {
     doc.getElementById('admin-merchants')?.replaceChildren();
     doc.getElementById('admin-operations')?.replaceChildren();
     doc.getElementById('admin-campaign-drafts')?.replaceChildren();
+    doc.getElementById('admin-deletions')?.replaceChildren();
     const draftForm = doc.getElementById('admin-campaign-draft');
     draftForm?.querySelector('select')?.replaceChildren();
     if (draftForm) draftForm.hidden = true;
