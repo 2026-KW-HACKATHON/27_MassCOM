@@ -39,12 +39,16 @@ export type Coupon = {
   redeemedAt: string | null;
 };
 
+/** Why an UNAVAILABLE box cannot be opened. Optional: older servers never send it and unknown values are ignored. */
+export type RewardUnavailableReason = 'COUPON_REVOKED';
+
 export type Reward = {
   milestone: RewardMilestone;
   requiredTiers: number;
   state: RewardState;
   offer: RewardOffer | null;
   coupon: Coupon | null;
+  unavailableReason?: RewardUnavailableReason;
 };
 
 export type BadgeBook = {
@@ -192,7 +196,10 @@ function parseReward(value: unknown): Reward {
   // OPENED ⇔ coupon exists; a coupon from another box is a server bug, not something to display.
   if ((value.state === 'OPENED') !== (coupon !== null)) throw invalidResponse('보상 상자');
   if (coupon && coupon.milestone !== value.milestone) throw invalidResponse('보상 상자');
-  return { milestone: value.milestone, requiredTiers: value.requiredTiers, state: value.state, offer, coupon };
+  const reward: Reward = { milestone: value.milestone, requiredTiers: value.requiredTiers, state: value.state, offer, coupon };
+  // A cosmetic hint only: honoured on an UNAVAILABLE box and otherwise (or when unknown) ignored, never a reason to reject the book.
+  if (value.state === 'UNAVAILABLE' && value.unavailableReason === 'COUPON_REVOKED') reward.unavailableReason = 'COUPON_REVOKED';
+  return reward;
 }
 
 function parseOffer(value: unknown): RewardOffer {

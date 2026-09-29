@@ -105,12 +105,19 @@ test('reward boxes are named and report the badges still needed', () => {
   assert.equal(rewardStatusText({ state: 'LOCKED', requiredTiers: 6 }, 4), '배지 2개 더');
   assert.equal(rewardStatusText({ state: 'READY', requiredTiers: 3 }, 3), '지금 열 수 있어요');
   assert.equal(rewardStatusText({ state: 'UNAVAILABLE', requiredTiers: 3 }, 3), '달성! 참여 가게 혜택 준비 중');
+  // 관리자가 쿠폰을 무효로 한 상자는 준비 중이라고 하지 않고 더 받을 수 없다고 정확히 알린다.
+  assert.equal(rewardStatusText({ state: 'UNAVAILABLE', requiredTiers: 3, unavailableReason: 'COUPON_REVOKED' }, 3),
+    '이 혜택은 더 이상 받을 수 없어요');
   assert.equal(rewardStatusText({ state: 'OPENED', requiredTiers: 3 }, 3), '쿠폰을 받았어요');
   const locked: Reward = {
     milestone: 2, requiredTiers: 6, state: 'LOCKED', coupon: null,
     offer: { merchantId: 'm-b', merchantName: '가상 점포 B', title: '체험 디저트', detail: '', validDays: 30 },
   };
   assert.equal(rewardAccessibilityLabel(locked, 4), '두 번째 상자, 배지 6개 필요, 배지 2개 더, 혜택 가상 점포 B 체험 디저트');
+  const voided: Reward = {
+    milestone: 1, requiredTiers: 3, state: 'UNAVAILABLE', coupon: null, offer: null, unavailableReason: 'COUPON_REVOKED',
+  };
+  assert.equal(rewardAccessibilityLabel(voided, 3), '첫 번째 상자, 배지 3개 필요, 이 혜택은 더 이상 받을 수 없어요');
 });
 
 test('diff reports newly raised tiers and newly openable boxes only', () => {

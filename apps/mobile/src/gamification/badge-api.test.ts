@@ -44,6 +44,24 @@ test('parses the §4 badge book and normalises medal and reward order', () => {
   assert.equal(book.rewards[1]?.offer?.merchantName, '가상 점포 B');
 });
 
+test('reads the optional unavailableReason only on an UNAVAILABLE box and ignores it elsewhere or when unknown', () => {
+  const withReason = (state: string, reason: unknown) => {
+    const raw = bookFixture();
+    raw.rewards[2] = { milestone: 3, requiredTiers: 9, state, offer: null, coupon: null, unavailableReason: reason } as never;
+    return parseBadgeBook(raw).rewards[2]!;
+  };
+  assert.equal(withReason('UNAVAILABLE', 'COUPON_REVOKED').unavailableReason, 'COUPON_REVOKED');
+  // 모르는 값·다른 상태의 값은 무시하고 도감을 거절하지 않는다(필드 자체를 만들지 않는다).
+  for (const [state, reason] of [['UNAVAILABLE', 'SOMETHING_NEW'], ['UNAVAILABLE', 7], ['UNAVAILABLE', null],
+    ['LOCKED', 'COUPON_REVOKED'], ['READY', 'COUPON_REVOKED']] as const) {
+    const reward = withReason(state, reason);
+    assert.equal(reward.state, state);
+    assert.equal('unavailableReason' in reward, false, `${state} ${String(reason)}`);
+  }
+  // 옛 서버의 응답(필드 없음)은 그대로 받는다.
+  assert.equal('unavailableReason' in parseBadgeBook(bookFixture()).rewards[2]!, false);
+});
+
 test('rejects malformed badge books instead of showing guessed progress', () => {
   const cases: [string, (raw: ReturnType<typeof bookFixture>) => void][] = [
     ['missing medal', (raw) => { raw.medals.pop(); }],

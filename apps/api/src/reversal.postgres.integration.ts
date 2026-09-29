@@ -932,6 +932,9 @@ test('an admin voids an unused coupon with a reason and an audit row, and a void
   assert.equal(book.rewards[0]!.state, 'UNAVAILABLE');
   assert.equal(book.rewards[0]!.coupon, null);
   assert.equal(book.rewards[0]!.offer, null);
+  // 새 앱·웹은 선택 필드로 정확한 문구를 보이고, 옛 파서는 이 필드를 무시한 채 같은 짝(UNAVAILABLE·coupon null)을 받는다.
+  assert.equal(book.rewards[0]!.unavailableReason, 'COUPON_REVOKED');
+  assert.equal(book.rewards.slice(1).some((reward) => 'unavailableReason' in reward), false);
   assert.equal(JSON.stringify(book).includes('VOIDED'), false);
   const token = await identityFor(db, 'cust-c', 'real-shop');
   assert.deepEqual((await db.badges.lookupCoupons({ token, merchantId: 'real-shop', staffAccountId: 'staff-r' })).coupons, []);
@@ -1337,6 +1340,9 @@ test('a customer never receives a VOIDED coupon whatever voided it', async (t) =
     const box = (await db.badges.getBadges('cust-c')).rewards[0]!;
     assert.equal(box.coupon, null, reason);
     assert.equal(box.state, reason === 'VISIT_CANCELED' ? 'READY' : 'UNAVAILABLE', reason);
+    // 이유 필드는 관리자가 무효로 한 상자에만 있다. 방문 취소로 숨긴 상자에는 필드 자체가 없다.
+    assert.equal('unavailableReason' in box, reason !== 'VISIT_CANCELED', reason);
+    if (reason !== 'VISIT_CANCELED') assert.equal(box.unavailableReason, 'COUPON_REVOKED', reason);
     if (reason !== 'VISIT_CANCELED') {
       await assert.rejects(db.badges.openReward({ accountId: 'cust-c', milestone: 1 }),
         (error: unknown) => error instanceof BadgeRewardError && error.code === 'REWARD_OFFER_UNAVAILABLE', reason);

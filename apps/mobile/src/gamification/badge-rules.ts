@@ -126,11 +126,17 @@ export function badgesToNextBox(book: Pick<BadgeBook, 'earnedTiers' | 'rewards'>
   return next ? next.requiredTiers - book.earnedTiers : null;
 }
 
-export function rewardStatusText(reward: Pick<Reward, 'state' | 'requiredTiers'>, earnedTiers: number): string {
+export function rewardStatusText(
+  reward: Pick<Reward, 'state' | 'requiredTiers' | 'unavailableReason'>,
+  earnedTiers: number,
+): string {
   switch (reward.state) {
     case 'LOCKED': return `배지 ${Math.max(1, reward.requiredTiers - earnedTiers)}개 더`;
     case 'READY': return '지금 열 수 있어요';
-    case 'UNAVAILABLE': return '달성! 참여 가게 혜택 준비 중';
+    // 관리자가 쿠폰을 무효로 한 상자는 "준비 중"이 아니라 더 받을 수 없다고 알린다.
+    case 'UNAVAILABLE': return reward.unavailableReason === 'COUPON_REVOKED'
+      ? '이 혜택은 더 이상 받을 수 없어요'
+      : '달성! 참여 가게 혜택 준비 중';
     case 'OPENED': return '쿠폰을 받았어요';
   }
 }

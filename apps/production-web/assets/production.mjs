@@ -32,6 +32,10 @@ const rewardNames = { 1: '첫 번째 상자', 2: '두 번째 상자', 3: '황금
 const rewardStateLabels = {
   LOCKED: '잠김', READY: '앱에서 열 수 있어요', UNAVAILABLE: '혜택 준비 중', OPENED: '받음',
 };
+// 관리자가 쿠폰을 무효로 한 상자는 서버가 UNAVAILABLE과 선택 필드 unavailableReason으로 알린다. 옛 서버는 필드가 없어 "혜택 준비 중"이다.
+const voidedRewardLabel = '이 혜택은 더 이상 받을 수 없어요';
+const rewardChipLabel = (reward) => reward.state === 'UNAVAILABLE' && reward.unavailableReason === 'COUPON_REVOKED'
+  ? voidedRewardLabel : rewardStateLabels[reward.state];
 const couponStatusLabels = { ISSUED: '사용 가능', REDEEMED: '사용 완료', EXPIRED: '만료', VOIDED: '사용할 수 없는 쿠폰' };
 const maxTiers = 9;
 
@@ -220,7 +224,7 @@ function renderRewards(doc, nodes, badges) {
     title.append(node(doc, 'h5', 'reward-name', rewardNames[reward.milestone]),
       node(doc, 'span', 'reward-need', `배지 ${reward.requiredTiers}개`));
     const body = node(doc, 'div', 'reward-body');
-    body.append(title, node(doc, 'span', `chip state-chip state-${reward.state.toLowerCase()}`, rewardStateLabels[reward.state]));
+    body.append(title, node(doc, 'span', `chip state-chip state-${reward.state.toLowerCase()}`, rewardChipLabel(reward)));
     // 받은 뒤에는 쿠폰 티켓이 혜택을 보여 주므로 예고 문구는 잠김·열 수 있음 상태에서만 쓴다.
     if (reward.offer && (reward.state === 'LOCKED' || reward.state === 'READY')) {
       body.append(node(doc, 'p', 'reward-offer', `${reward.offer.merchantName} · ${reward.offer.title}`));

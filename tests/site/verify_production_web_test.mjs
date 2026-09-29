@@ -254,6 +254,16 @@ test('운영 웹 보상 상자 상태와 쿠폰은 색이 아닌 글자로 표�
   assert.match(nodes['coupon-list'].children[0].textContent, /아직 받은 쿠폰이 없어요/);
   assert.equal(nodes['coupon-list'].children.length, 1);
 
+  // 관리자가 쿠폰을 무효로 한 상자는 "혜택 준비 중"이 아니라 더 받을 수 없다고 알린다. 다른 상태·모르는 이유·옛 서버(필드 없음)는 그대로다.
+  const voidedBox = [
+    { milestone: 1, requiredTiers: 3, state: 'UNAVAILABLE', offer: null, coupon: null, unavailableReason: 'COUPON_REVOKED' },
+    { milestone: 2, requiredTiers: 6, state: 'UNAVAILABLE', offer: null, coupon: null, unavailableReason: 'SOMETHING_NEW' },
+    { milestone: 3, requiredTiers: 9, state: 'LOCKED', offer: null, coupon: null, unavailableReason: 'COUPON_REVOKED' },
+  ];
+  await loadCollection(collectionAndBadges({ badges: () => okJson(badgesFixture({ rewards: voidedBox })) }).fetcher, doc);
+  assert.deepEqual(texts(nodes['reward-list'].children, 'state-chip'), ['이 혜택은 더 이상 받을 수 없어요', '혜택 준비 중', '잠김']);
+  assert.equal(nodes['reward-list'].children[0].className, 'reward-row state-unavailable');
+
   const opened = [
     { ...rewards[0] },
     { milestone: 2, requiredTiers: 6, state: 'OPENED', offer: null, coupon: { ...coupon, couponId: 'c2', milestone: 2, title: '디저트', status: 'REDEEMED', redeemedAt: '2026-09-30T00:00:00.000Z' } },

@@ -129,10 +129,14 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
       const offerRow = offers.rows.find((row) => row.milestone === milestone);
       const couponRow = coupons.rows.find((row) => row.milestone === milestone);
       // 방문 취소로 조건이 깨져 무효가 된 쿠폰은 숨기고 상자를 다시 잠김·열기 가능 상태로 돌려 보낸다(조건을 다시 채우면 되살린다).
-      // 관리자가 무효로 한 상자는 쿠폰을 보내지 않고 열 수 없음(UNAVAILABLE)으로 보낸다. 기존 앱의 파서가 이 짝을 받아들인다.
+      // 관리자가 무효로 한 상자는 쿠폰을 보내지 않고 열 수 없음(UNAVAILABLE)으로 보낸다. 기존 앱의 파서가 이 짝을 받아들이고,
+      // 새 앱·웹은 선택 필드 unavailableReason으로 "혜택 준비 중" 대신 정확한 문구를 보인다(옛 파서는 이 필드를 무시한다).
       const view = couponRow ? customerCouponView(toFacts(couponRow), now) : undefined;
       if (view?.visibility === 'UNAVAILABLE') {
-        return { milestone, requiredTiers, state: 'UNAVAILABLE' as const, offer: null, coupon: null };
+        return {
+          milestone, requiredTiers, state: 'UNAVAILABLE' as const, offer: null, coupon: null,
+          unavailableReason: 'COUPON_REVOKED' as const,
+        };
       }
       const shown = couponRow && view?.visibility === 'SHOWN' ? mapCoupon(couponRow, view.status) : null;
       const offer = offerRow ? {
