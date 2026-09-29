@@ -109,6 +109,7 @@ test('GET /merchants reads only active merchants with a public current campaign 
           ],
         },
         demo: false,
+        artUrl: null,
       },
       {
         id: 'merchant-full',
@@ -131,6 +132,7 @@ test('GET /merchants reads only active merchants with a public current campaign 
           ],
         },
         demo: true,
+        artUrl: null,
       },
     ],
   });

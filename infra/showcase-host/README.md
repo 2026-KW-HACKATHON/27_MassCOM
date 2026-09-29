@@ -25,3 +25,14 @@ STAFF 적격 해시를 삭제해도 이미 활성화된 점주 권한은 사라�
 첫 공개 전환에서는 운영 웹 재빌드를 피하도록 [`caddy-override.yml`](caddy-override.yml)을 **기존 운영 Compose의 두 번째 `-f` 파일**로 합성해 Caddy만 재생성했습니다. `MASSCOM_SHOWCASE_CADDYFILE`은 병합된 코드에서 검증·서버에 별도 저장한 후보 파일의 절대 경로입니다. `docker compose config`와 후보 Caddy 2.10.2 validate를 먼저 통과시켰고 `up -d --no-deps --no-build --force-recreate caddy`만 실행했습니다. 같은 마운트 경로 덮어쓰기는 [Docker 공식 병합 규칙](https://docs.docker.com/compose/how-tos/multiple-compose-files/merge/)을 따릅니다. 문제 발생 시 기존 운영 Compose 파일만으로 Caddy를 재생성해 원래 Caddyfile 마운트로 복귀합니다. `web/current`나 운영 웹 이미지·API/DB 볼륨은 바꾸지 않았습니다. 정상 동작으로 실제 롤백은 실행하지 않았습니다.
 
 첫 적용 시 백업은 서버의 `/opt/masscom/backups/showcase-edge-036f31f`에, 운영 Compose 기준선은 `/opt/masscom/web/releases/4a42475275e3/infra/lightsail/compose.yml`에 있습니다. 시연 호스트만 제거할 때에는 운영 Compose **단독**으로 `caddy` 서비스를 `--no-deps --no-build --force-recreate`해 이전 Caddyfile 마운트로 되돌리고, `api.masscom.kr`·`www.masscom.kr`의 TLS/health와 운영 API·DB·웹 ID를 검사합니다. 기존 시연 DB 볼륨이나 운영 리소스를 삭제하지 않습니다.
+
+## 사장님 AI 가게 그림 키 (D-048, Issue #236)
+
+시연 API의 AI 가게 그림은 `SHOWCASE_OPENAI_API_KEY`가 **비어 있으면 꺼진 채**다(앱에는 "준비 중", 다른 기능에는 영향 없음). [`compose.yml`](compose.yml)이 이 값을 컨테이너의 `OPENAI_API_KEY`로 넘기고, 비어 있으면 빈 값을 넘긴다. 시연 DB의 월 예산·하루 한도는 운영과 따로 계산한다.
+
+- **키는 소유자가 직접 넣는다.** 에이전트가 만들거나 저장소·대화·로그에 두지 않는다. 서버 `/opt/masscom-showcase/runtime.env`(권한 600)에 `SHOWCASE_OPENAI_API_KEY=<키>` 한 줄을 더한다. `scripts/prepare-showcase-runtime.sh`는 기존 파일을 덮어쓰지 않으므로 직접 덧붙인다.
+- 넣은 뒤 시연 Compose를 기동할 때 쓴 것과 같은 `--env-file`·`-f` 인자로 `up -d showcase-api`를 실행해 시연 API 컨테이너를 **다시 만든다**(`restart`는 환경 변수를 다시 읽지 않는다). 기동 로그에 `AI store art: enabled`가 나오면 켜진 것이다.
+- 선택 값(`SHOWCASE_AI_ART_MONTHLY_BUDGET_USD` 기본 5, `SHOWCASE_AI_ART_DAILY_DRAFT_ROUNDS`·`SHOWCASE_AI_ART_DAILY_FINALS` 기본 3, `SHOWCASE_AI_ART_DRAFT_MODEL`·`SHOWCASE_AI_ART_FINAL_MODEL`)은 [`runtime.env.example`](runtime.env.example)에 주석으로 있다.
+- 이 compose는 `AI_ART_STAFF_MAY_MANAGE=true`를 켠다: 가게 그림 권한(`MANAGE_ART`)이 기본은 활성 OWNER뿐인데, 시연은 CLI(`grant:showcase:staff`)로 소유자 계정에만 STAFF를 주기 때문이다. 운영 compose에는 이 값이 없다.
+- 점주 화면은 시연 앱의 "점주예요" 모드에만 있다. 키를 넣은 뒤의 실제 호출(비용·지연 측정)은 `NOT_RUN`이며 키 입력 뒤 따로 확인한다.
+

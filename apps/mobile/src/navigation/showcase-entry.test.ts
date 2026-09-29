@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { canOpenDeveloperMerchantRoute, canOpenShowcaseTour, consumeMerchantReturn, rememberMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, showShowcaseRoleEntry } from './showcase-entry';
+import { canOpenDeveloperMerchantRoute, canOpenMerchantArtRoute, canOpenShowcaseTour, consumeMerchantReturn, rememberMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, showShowcaseRoleEntry } from './showcase-entry';
 
 test('only the installed showcase app opens role selection before a role is chosen', () => {
   assert.equal(showShowcaseRoleEntry('kr.masscom.wolgye.demo'), true);
@@ -68,4 +68,12 @@ test('developer merchant form requires the dev package and a demo credential', (
   assert.equal(canOpenDeveloperMerchantRoute('kr.masscom.wolgye.dev', bearer, config), false);
   assert.equal(canOpenDeveloperMerchantRoute('kr.masscom.wolgye.dev', undefined, config), false);
   assert.equal(canOpenDeveloperMerchantRoute('kr.masscom.wolgye.dev', demo, { ...config, merchant: undefined }), false);
+});
+
+test('the owner art page opens in the showcase app and the local development build, never the operating app', () => {
+  assert.equal(canOpenMerchantArtRoute('kr.masscom.wolgye.demo'), true);
+  assert.equal(canOpenMerchantArtRoute('kr.masscom.wolgye.dev'), true);
+  for (const packageId of ['kr.masscom.wolgye', 'kr.masscom.wolgye.demo.evil', 'kr.masscom.wolgye.dev.evil', null, undefined, '']) {
+    assert.equal(canOpenMerchantArtRoute(packageId), false, String(packageId));
+  }
 });

@@ -37,6 +37,12 @@ import {
   type RedeemedClaimSlot,
 } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
+import {
+  MerchantArtError,
+  type ArtRoundView,
+  type MerchantArtErrorCode,
+  type MerchantArtService,
+} from './merchant-art.js';
 import { AdminError, type PostgresAdminService } from './postgres/admin.js';
 import type { PostgresStaffRegistration } from './postgres/staff-registration.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
@@ -51,11 +57,11 @@ type MerchantAccessFixture = {
   requirePermission(input: {
     accountId: string;
     merchantId: string;
-    permission: 'VIEW_MERCHANT' | 'CONFIRM_VISIT';
+    permission: 'VIEW_MERCHANT' | 'CONFIRM_VISIT' | 'MANAGE_ART';
   }): Promise<{
     merchantId: string;
     role: 'OWNER' | 'STAFF';
-    permissions: readonly ('VIEW_MERCHANT' | 'CONFIRM_VISIT')[];
+    permissions: readonly ('VIEW_MERCHANT' | 'CONFIRM_VISIT' | 'MANAGE_ART')[];
   }>;
 };
 
@@ -190,6 +196,7 @@ async function startFixture(
   customerIdentities?: CustomerIdentityService,
   badges?: BadgeRewardService,
   friends?: FriendService,
+  merchantArt?: MerchantArtService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -223,6 +230,7 @@ async function startFixture(
     staffRegistration,
     badges,
     friends,
+    merchantArt,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -1006,6 +1014,7 @@ test('lists public merchants without requiring login or a wallet', async (t) => 
       ],
     },
     demo: true,
+    artUrl: null,
   } as const;
   const baseUrl = await startFixture(t, developmentHeaderAccountResolver, {
     listPublicMerchants: async () => [merchant],
@@ -2913,4 +2922,183 @@ test('removing a friend and setting a nickname map friend errors and reject bad 
   }
   failure = new FriendError('ACCOUNT_DELETED');
   assert.equal((await fetch(`${base}/me/profile`, { method: 'PUT', headers, body: '{"nickname":"a"}' })).status, 410);
+});
+
+
+const sampleArtRound: ArtRoundView = {
+  id: '5b0f6c3e-7d0e-4a57-9a55-2f4c0f7f2a10', status: 'DRAFTS_READY', chosenIndex: null, final: null,
+  failureCode: null, createdAt: '2026-09-29T03:00:00.000Z',
+  drafts: [{ index: 0, style: 'stamp', label: '도장', imageDataUrl: 'data:image/webp;base64,AAAA' }],
+};
+
+function artFixture(overrides: Partial<MerchantArtService> = {}): MerchantArtService {
+  const unexpected = (name: string) => async () => { throw new Error(`unexpected art ${name} call`); };
+  return {
+    getState: unexpected('getState'), createRound: unexpected('createRound'), getRound: unexpected('getRound'),
+    chooseDraft: unexpected('chooseDraft'), apply: unexpected('apply'), reset: unexpected('reset'),
+    getPublicImage: unexpected('getPublicImage'),
+    ...overrides,
+  } as MerchantArtService;
+}
+
+async function startArt(t: TestContext, merchantArt?: MerchantArtService, permitted = ['owner-1']) {
+  const asked: unknown[] = [];
+  const base = await startFixture(t, undefined, undefined, {
+    requirePermission: async (input) => {
+      asked.push(input);
+      if (!permitted.includes(input.accountId)) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+      return { merchantId: input.merchantId, role: 'STAFF', permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT'] };
+    },
+  }, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+  false, undefined, false, undefined, undefined, undefined, undefined, undefined, undefined, merchantArt);
+  return { base, asked };
+}
+
+test('art routes need customer auth and MANAGE_ART before touching the service', async (t) => {
+  const calls: unknown[][] = [];
+  const { base, asked } = await startArt(t, artFixture({
+    getState: async (merchantId) => { calls.push(['state', merchantId]); return { configured: true, current: null,
+      quota: { draftRoundsLeft: 3, finalsLeft: 3 }, round: null }; },
+    createRound: async (input) => { calls.push(['create', input]); return { ...sampleArtRound, status: 'DRAFTING', drafts: [] }; },
+    getRound: async (input) => { calls.push(['get', input]); return sampleArtRound; },
+    chooseDraft: async (input) => { calls.push(['choose', input]); return { ...sampleArtRound, status: 'FINALIZING', chosenIndex: input.index }; },
+    apply: async (input) => { calls.push(['apply', input]); return { artUrl: `/merchant-art/${'a'.repeat(64)}.webp` }; },
+    reset: async (merchantId) => { calls.push(['reset', merchantId]); },
+  }));
+  const owner = { 'x-account-id': 'owner-1', 'content-type': 'application/json' };
+  const art = `${base}/merchant/merchants/shop-1/art`;
+  const roundId = sampleArtRound.id;
+  const routes: [string, string, string?][] = [
+    ['GET', art], ['POST', `${art}/rounds`, '{}'], ['GET', `${art}/rounds/${roundId}`],
+    ['POST', `${art}/rounds/${roundId}/choose`, '{"index":1}'], ['POST', `${art}/rounds/${roundId}/apply`, '{}'],
+    ['DELETE', art],
+  ];
+  for (const [method, url, body] of routes) {
+    assert.equal((await fetch(url, { method, ...(body ? { body } : {}) })).status, 401, `${method} ${url}`);
+    const stranger = await fetch(url, { method, headers: { ...owner, 'x-account-id': 'stranger' }, ...(body ? { body } : {}) });
+    assert.equal(stranger.status, 403, `${method} ${url}`);
+    assert.deepEqual(await stranger.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  }
+  assert.deepEqual(calls, []);
+  assert.ok(asked.every((input) => (input as { permission: string }).permission === 'MANAGE_ART'));
+
+  const state = await fetch(art, { headers: owner });
+  assert.equal(state.status, 200);
+  assert.equal(state.headers.get('cache-control'), 'no-store');
+  const created = await fetch(`${art}/rounds`, { method: 'POST', headers: owner, body: '{}' });
+  assert.equal(created.status, 202);
+  assert.equal((await created.json() as ArtRoundView).status, 'DRAFTING');
+  // 본문 없이 POST해도 된다(빈 본문).
+  assert.equal((await fetch(`${art}/rounds`, { method: 'POST', headers: { 'x-account-id': 'owner-1' } })).status, 202);
+  assert.equal((await fetch(`${art}/rounds/${roundId}`, { headers: owner })).status, 200);
+  const chosen = await fetch(`${art}/rounds/${roundId}/choose`, { method: 'POST', headers: owner, body: '{"index":3}' });
+  assert.equal(chosen.status, 202);
+  const applied = await fetch(`${art}/rounds/${roundId}/apply`, { method: 'POST', headers: owner, body: '{}' });
+  assert.equal(applied.status, 200);
+  assert.deepEqual(await applied.json(), { artUrl: `/merchant-art/${'a'.repeat(64)}.webp` });
+  const reset = await fetch(art, { method: 'DELETE', headers: owner });
+  assert.equal(reset.status, 200);
+  assert.deepEqual(await reset.json(), { status: 'RESET' });
+  assert.deepEqual(calls, [
+    ['state', 'shop-1'], ['create', { merchantId: 'shop-1', accountId: 'owner-1' }],
+    ['create', { merchantId: 'shop-1', accountId: 'owner-1' }], ['get', { merchantId: 'shop-1', roundId }],
+    ['choose', { merchantId: 'shop-1', roundId, index: 3 }], ['apply', { merchantId: 'shop-1', roundId }], ['reset', 'shop-1'],
+  ]);
+});
+
+test('art routes reject malformed input before calling the service', async (t) => {
+  const { base } = await startArt(t, artFixture());
+  const owner = { 'x-account-id': 'owner-1', 'content-type': 'application/json' };
+  const art = `${base}/merchant/merchants/shop-1/art`;
+  const roundId = sampleArtRound.id;
+  const bad: [string, string, string][] = [
+    ['POST', `${art}/rounds`, '{"prompt":"free text"}'], ['POST', `${art}/rounds`, '[]'], ['POST', `${art}/rounds`, 'not json'],
+    ['POST', `${art}/rounds/${roundId}/apply`, '{"x":1}'], ['DELETE', art, '{"x":1}'],
+    ['POST', `${art}/rounds/${roundId}/choose`, '{}'], ['POST', `${art}/rounds/${roundId}/choose`, '{"index":4}'],
+    ['POST', `${art}/rounds/${roundId}/choose`, '{"index":-1}'], ['POST', `${art}/rounds/${roundId}/choose`, '{"index":0.5}'],
+    ['POST', `${art}/rounds/${roundId}/choose`, '{"index":"0"}'], ['POST', `${art}/rounds/${roundId}/choose`, '{"index":0,"x":1}'],
+    ['POST', `${art}/rounds/${roundId}/choose`, `{"index":0,"pad":"${'x'.repeat(70_000)}"}`],
+  ];
+  for (const [method, url, body] of bad) {
+    const response = await fetch(url, { method, headers: owner, body });
+    assert.ok(response.status === 400 || response.status === 413, `${method} ${url} ${body.slice(0, 40)} -> ${response.status}`);
+  }
+  assert.equal((await fetch(`${art}/rounds/%E0%A4%A`, { headers: owner })).status, 400);
+  // 알 수 없는 경로·메서드는 404다.
+  for (const [method, url] of [
+    ['PUT', art], ['GET', `${art}/rounds`], ['DELETE', `${art}/rounds/${roundId}`], ['GET', `${art}/rounds/${roundId}/apply`],
+    ['GET', `${art}/extra`], ['POST', `${art}/rounds/${roundId}/other`], ['POST', art],
+  ] as const) {
+    assert.equal((await fetch(url, { method, headers: owner })).status, 404, `${method} ${url}`);
+  }
+});
+
+test('art errors map to their HTTP statuses, with Retry-After for the daily limit', async (t) => {
+  let failure: unknown;
+  const { base } = await startArt(t, artFixture({
+    createRound: async () => { throw failure; },
+    getRound: async () => { throw failure; },
+  }));
+  const owner = { 'x-account-id': 'owner-1', 'content-type': 'application/json' };
+  const cases: [MerchantArtErrorCode, number][] = [
+    ['AI_ART_ROUND_IN_PROGRESS', 409], ['AI_ART_ROUND_STATE', 409], ['AI_ART_ROUND_NOT_FOUND', 404],
+    ['AI_ART_DAILY_LIMIT', 429], ['AI_ART_NOT_CONFIGURED', 503], ['AI_ART_BUDGET_EXHAUSTED', 503], ['ACCOUNT_DELETED', 410],
+  ];
+  for (const [code, status] of cases) {
+    failure = new MerchantArtError(code, code === 'AI_ART_DAILY_LIMIT' ? 3600 : undefined);
+    const response = await fetch(`${base}/merchant/merchants/shop-1/art/rounds`, { method: 'POST', headers: owner, body: '{}' });
+    assert.equal(response.status, status, code);
+    assert.deepEqual(await response.json(), { code });
+    assert.equal(response.headers.get('retry-after'), code === 'AI_ART_DAILY_LIMIT' ? '3600' : null, code);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
+  failure = new Error('database exploded with secret details');
+  const crashed = await fetch(`${base}/merchant/merchants/shop-1/art/rounds`, { method: 'POST', headers: owner, body: '{}' });
+  assert.equal(crashed.status, 500);
+  assert.deepEqual(await crashed.json(), { code: 'INTERNAL_ERROR' });
+});
+
+test('art routes are closed without configuration and the public image route needs a valid hash', async (t) => {
+  const noAccess = await startFixture(t);
+  const closed = await fetch(`${noAccess}/merchant/merchants/shop-1/art`, { headers: { 'x-account-id': 'owner-1' } });
+  assert.equal(closed.status, 503);
+  assert.deepEqual(await closed.json(), { code: 'MERCHANT_ACCESS_NOT_CONFIGURED' });
+
+  // 권한이 있어도 서비스가 없으면 503 AI_ART_NOT_CONFIGURED. 권한 없는 계정은 여전히 403이라 설정 여부를 알 수 없다.
+  const { base } = await startArt(t, undefined);
+  const noService = await fetch(`${base}/merchant/merchants/shop-1/art`, { headers: { 'x-account-id': 'owner-1' } });
+  assert.equal(noService.status, 503);
+  assert.deepEqual(await noService.json(), { code: 'AI_ART_NOT_CONFIGURED' });
+  assert.equal((await fetch(`${base}/merchant/merchants/shop-1/art`, { headers: { 'x-account-id': 'stranger' } })).status, 403);
+
+  const sha = 'ab'.repeat(32);
+  const publicClosed = await fetch(`${base}/merchant-art/${sha}.webp`);
+  assert.equal(publicClosed.status, 503);
+  assert.deepEqual(await publicClosed.json(), { code: 'AI_ART_NOT_CONFIGURED' });
+  // 형식이 틀린 주소는 서비스가 없어도 404다.
+  assert.equal((await fetch(`${base}/merchant-art/nothex.webp`)).status, 404);
+
+  const lookups: string[] = [];
+  const bytes = Buffer.from('RIFF\u0000\u0000\u0000\u0000WEBPVP8L-binary');
+  const served = await startArt(t, artFixture({
+    getPublicImage: async (hash) => { lookups.push(hash); return hash === sha ? bytes : null; },
+  }));
+  const image = await fetch(`${served.base}/merchant-art/${sha}.webp`);
+  assert.equal(image.status, 200);
+  assert.equal(image.headers.get('content-type'), 'image/webp');
+  assert.equal(image.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+  assert.equal(image.headers.get('x-content-type-options'), 'nosniff');
+  assert.deepEqual(Buffer.from(await image.arrayBuffer()), bytes);
+  const missing = await fetch(`${served.base}/merchant-art/${'cd'.repeat(32)}.webp`);
+  assert.equal(missing.status, 404);
+  assert.equal(missing.headers.get('cache-control'), 'no-store');
+  assert.match(missing.headers.get('content-type') ?? '', /^application\/json/);
+  for (const path of [`/merchant-art/${sha.toUpperCase()}.webp`, `/merchant-art/${sha}.png`, `/merchant-art/${sha}`,
+    `/merchant-art/${sha}.webp/extra`, `/merchant-art/${'a'.repeat(63)}.webp`, '/merchant-art/%2e%2e%2fhealth.webp']) {
+    assert.equal((await fetch(`${served.base}${path}`)).status, 404, path);
+  }
+  assert.deepEqual(lookups, [sha, 'cd'.repeat(32)]);
+  // 그 밖의 경로는 여전히 JSON이다.
+  const health = await fetch(`${served.base}/health`);
+  assert.match(health.headers.get('content-type') ?? '', /^application\/json/);
 });

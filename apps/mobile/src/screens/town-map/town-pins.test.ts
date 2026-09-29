@@ -132,3 +132,12 @@ test('while the collection is still loading the sheet says so instead of reporti
   assert.equal(signedOut.placed[0]?.statusLine, '로그인하면 도장을 볼 수 있어요');
 });
 
+
+test('a pin carries the art path the owner chose, or null, so the pin can draw it through the art bridge', () => {
+  const artUrl = `/merchant-art/${'cd'.repeat(32)}.webp`;
+  const { placed } = buildTownPins([{ ...merchant('one', 'A'), artUrl }, { ...merchant('two', 'B'), artUrl: null }, merchant('three', 'C')], undefined, now);
+  const byId = new Map(placed.map((pin) => [pin.merchantId, pin.artUrl]));
+  assert.equal(byId.get('one'), artUrl);
+  assert.equal(byId.get('two'), null);
+  assert.equal(byId.get('three'), null);
+});

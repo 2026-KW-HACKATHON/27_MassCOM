@@ -1,5 +1,6 @@
 import type { Pool } from 'pg';
 
+import { artUrlFor } from '../ai-art-rules.js';
 import type {
   MerchantCatalog,
   PublicMerchant,
@@ -15,6 +16,7 @@ type MerchantCatalogRow = {
   menu_items: PublicMerchant['menuItems'];
   business_hours: string;
   is_demo: boolean;
+  art_sha256: string | null;
   campaign_id: string;
   campaign_title: string;
   starts_at: Date;
@@ -40,6 +42,7 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
          m.menu_items,
          m.business_hours,
          m.is_demo,
+         (SELECT art.sha256 FROM merchant_art art WHERE art.merchant_id = m.id) AS art_sha256,
          c.id AS campaign_id,
          c.title AS campaign_title,
          c.starts_at,
@@ -82,6 +85,7 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
         rewardGoals: parseRewardGoals(row.reward_goals),
       },
       demo: row.is_demo,
+      artUrl: artUrlFor(row.art_sha256),
     }));
   }
 }

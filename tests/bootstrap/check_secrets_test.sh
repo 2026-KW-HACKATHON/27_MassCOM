@@ -65,4 +65,32 @@ if "$scanner" "$fixture_root" >/dev/null 2>&1; then
   exit 1
 fi
 
+# OpenAI 형식 키(sk-, sk-proj-)는 GitHub push protection이 실제 키로 볼 수 있으므로 시험 값은 실행 중에 이어 붙여 만든다.
+rm "$fixture_root/camel-case.ts"
+openai_prefix="sk"
+openai_body="abcdefghijklmnopqrstuvwxyz0123456789_-ABCD"
+printf '%s\n' "OPENAI_API_KEY=${openai_prefix}-${openai_body}" > "$fixture_root/openai.env"
+
+if "$scanner" "$fixture_root" >/dev/null 2>&1; then
+  echo "secret scanner accepted an OpenAI-style key" >&2
+  exit 1
+fi
+
+printf '%s\n' "const key = '${openai_prefix}-proj-${openai_body}';" > "$fixture_root/openai.env"
+
+if "$scanner" "$fixture_root" >/dev/null 2>&1; then
+  echo "secret scanner accepted an OpenAI project key" >&2
+  exit 1
+fi
+
+# 빈 값·짧은 값·단어 속 sk-(task-, disk-)는 키가 아니므로 통과해야 한다.
+printf '%s\n' \
+  'OPENAI_API_KEY=' \
+  '# OPENAI_API_KEY=' \
+  'OPENAI_API_KEY: ${OPENAI_API_KEY:-}' \
+  "const short = '${openai_prefix}-short';" \
+  "task-${openai_body} disk-${openai_body} risk-${openai_body}" \
+  > "$fixture_root/openai.env"
+"$scanner" "$fixture_root"
+
 echo "secret scanning regression tests passed"

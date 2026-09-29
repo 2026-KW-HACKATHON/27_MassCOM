@@ -11,6 +11,8 @@ import {
 } from './account-deletion.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardService } from './badge-rewards.js';
+import { OpenAiImageClient } from './ai-art-client.js';
+import { aiArtStartupLine, resolveAiArtConfigOrDisabled } from './ai-art-rules.js';
 import { isRewardMilestone } from './badge-rules.js';
 import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
 import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
@@ -35,6 +37,7 @@ import {
   MerchantAccessError,
   type MerchantAccessControl,
 } from './merchant-access.js';
+import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import { MintRequestError, type MintRequestService } from './mint-request-service.js';
 import {
@@ -56,6 +59,7 @@ import { PostgresWebSessionStore } from './postgres/web-session.js';
 import { resolveShowcaseInviteConfig } from './showcase/invite-config.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
+import { PostgresMerchantArtService } from './postgres/merchant-art.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 import { PostgresStaffRegistration, StaffRegistrationError } from './postgres/staff-registration.js';
 import { PostgresMintRequestService } from './postgres/mint-request-service.js';
@@ -181,6 +185,7 @@ export function createApiServer(
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
   badges?: BadgeRewardService,
   friends?: FriendService,
+  merchantArt?: MerchantArtService,
 ) {
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -911,6 +916,50 @@ export function createApiServer(
         return;
       }
 
+      // 현재 적용된 가게 그림. 파일 이름이 내용의 sha256이라 바뀌지 않으므로 오래 캐시한다. JSON만 내는 서버에서 이 경로만 이진 응답이다.
+      const publicArtMatch = request.method === 'GET' ? path.match(/^\/merchant-art\/([0-9a-f]{64})\.webp$/) : null;
+      if (publicArtMatch) {
+        if (!merchantArt) throw new RequestError(503, 'AI_ART_NOT_CONFIGURED');
+        const image = await merchantArt.getPublicImage(publicArtMatch[1]!);
+        if (!image) throw new RequestError(404, 'NOT_FOUND');
+        sendBinary(response, image, 'image/webp', 'public, max-age=31536000, immutable');
+        return;
+      }
+
+      // 사장님 AI 가게 그림(D-048): 기존 고객 Bearer 인증 + 가게 멤버십의 MANAGE_ART 권한.
+      const artMatch = path.match(/^\/merchant\/merchants\/([^/]+)\/art(\/.*)?$/);
+      const artRoute = artMatch ? matchMerchantArtRoute(request.method, artMatch[2] ?? '') : undefined;
+      if (artMatch && artRoute) {
+        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const merchantId = decodePathParameter(artMatch[1]!);
+        await merchantAccess.requirePermission({ accountId, merchantId, permission: 'MANAGE_ART' });
+        if (!merchantArt) throw new RequestError(503, 'AI_ART_NOT_CONFIGURED');
+        const roundId = 'roundId' in artRoute ? decodePathParameter(artRoute.roundId) : '';
+        if (artRoute.kind === 'state') {
+          sendJson(response, 200, await merchantArt.getState(merchantId));
+        } else if (artRoute.kind === 'create') {
+          requireEmptyBody(await readJson(request, true));
+          sendJson(response, 202, await merchantArt.createRound({ merchantId, accountId }));
+        } else if (artRoute.kind === 'get') {
+          sendJson(response, 200, await merchantArt.getRound({ merchantId, roundId }));
+        } else if (artRoute.kind === 'choose') {
+          const body = await readJson(request);
+          if (Object.keys(body).some(key => key !== 'index')) throw new RequestError(400, 'INVALID_REQUEST');
+          const index = requireNumber(body, 'index');
+          if (index < 0 || index > 3) throw new RequestError(400, 'INVALID_REQUEST');
+          sendJson(response, 202, await merchantArt.chooseDraft({ merchantId, roundId, index }));
+        } else if (artRoute.kind === 'apply') {
+          requireEmptyBody(await readJson(request, true));
+          sendJson(response, 200, await merchantArt.apply({ merchantId, roundId }));
+        } else {
+          requireEmptyBody(await readJson(request, true));
+          await merchantArt.reset(merchantId);
+          sendJson(response, 200, { status: 'RESET' });
+        }
+        return;
+      }
+
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
       if (error instanceof ClaimSlotError) {
@@ -930,6 +979,13 @@ export function createApiServer(
           response.setHeader('Retry-After', String(error.retryAfterSeconds));
         }
         sendJson(response, statusForFriend(error.code), { code: error.code });
+        return;
+      }
+      if (error instanceof MerchantArtError) {
+        if (error.retryAfterSeconds !== undefined) {
+          response.setHeader('Retry-After', String(error.retryAfterSeconds));
+        }
+        sendJson(response, statusForMerchantArt(error.code), { code: error.code });
         return;
       }
       if (error instanceof MerchantAccessError) {
@@ -1189,6 +1245,36 @@ function statusForFriend(code: string): number {
   return 409;
 }
 
+function statusForMerchantArt(code: string): number {
+  if (code === 'AI_ART_ROUND_NOT_FOUND') return 404;
+  if (code === 'AI_ART_DAILY_LIMIT') return 429;
+  if (code === 'AI_ART_NOT_CONFIGURED' || code === 'AI_ART_BUDGET_EXHAUSTED') return 503;
+  if (code === 'ACCOUNT_DELETED') return 410;
+  return 409;
+}
+
+type MerchantArtRoute =
+  | { kind: 'state' | 'create' | 'reset' }
+  | { kind: 'get' | 'choose' | 'apply'; roundId: string };
+
+// 가게 그림 경로표. 알 수 없는 경로·메서드는 undefined라 다른 경로처럼 404로 떨어진다. roundId는 아직 디코딩하지 않은 값이고
+// 인증 뒤에 디코딩한 다음 서비스가 UUID를 검사한다.
+function matchMerchantArtRoute(method: string | undefined, tail: string): MerchantArtRoute | undefined {
+  if (tail === '') {
+    return method === 'GET' ? { kind: 'state' } : method === 'DELETE' ? { kind: 'reset' } : undefined;
+  }
+  if (tail === '/rounds') return method === 'POST' ? { kind: 'create' } : undefined;
+  const round = tail.match(/^\/rounds\/([^/]+)(?:\/(choose|apply))?$/);
+  if (!round) return undefined;
+  const roundId = round[1]!;
+  if (round[2] === undefined) return method === 'GET' ? { kind: 'get', roundId } : undefined;
+  return method === 'POST' ? { kind: round[2] as 'choose' | 'apply', roundId } : undefined;
+}
+
+function requireEmptyBody(body: Record<string, unknown>): void {
+  if (Object.keys(body).length > 0) throw new RequestError(400, 'INVALID_REQUEST');
+}
+
 function statusForMintRequest(code: string): number {
   if (code === 'ENTITLEMENT_NOT_FOUND' || code === 'WALLET_BINDING_NOT_FOUND' || code === 'MINT_JOB_NOT_FOUND') {
     return 404;
@@ -1214,6 +1300,14 @@ function setCommonHeaders(response: ServerResponse): void {
 function sendJson(response: ServerResponse, status: number, body: object): void {
   response.writeHead(status);
   response.end(JSON.stringify(body));
+}
+
+// 모든 응답이 JSON이라는 규칙의 유일한 예외다(공개 가게 그림). nosniff는 공통 헤더에서 이미 붙어 있다.
+function sendBinary(response: ServerResponse, body: Buffer, contentType: string, cacheControl: string): void {
+  response.setHeader('content-type', contentType);
+  response.setHeader('cache-control', cacheControl);
+  response.writeHead(200);
+  response.end(body);
 }
 
 const maxSessionTtlMs = 365 * 24 * 60 * 60 * 1000;
@@ -1349,7 +1443,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     }
   }
   const merchantCatalog = pool ? new PostgresMerchantCatalog(pool) : undefined;
-  const merchantAccess = pool ? new PostgresMerchantAccessControl(pool) : undefined;
+  // 가게 그림 설정이 잘못돼도 API는 시작한다(기능만 꺼짐). 값은 로그에 적지 않는다.
+  const resolvedAiArt = resolveAiArtConfigOrDisabled(process.env);
+  const aiArtConfig = resolvedAiArt.config;
+  const merchantAccess = pool
+    ? new PostgresMerchantAccessControl(pool, { staffMayManageArt: aiArtConfig.staffMayManage })
+    : undefined;
   const collection = pool ? new PostgresCollectionReader(pool) : undefined;
   const recommendations = pool
     ? new RecommendationService(new PostgresRecommendationSource(pool))
@@ -1401,6 +1500,24 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const friends = pool && accountLifecycle
     ? new PostgresFriendService(pool, { accountLifecycle })
     : undefined;
+  // OPENAI_API_KEY가 비어 있으면 client가 없어 생성 API만 503 AI_ART_NOT_CONFIGURED이고 조회·되돌리기·공개 그림은 그대로 동작한다.
+  const merchantArt = pool
+    ? new PostgresMerchantArtService(pool, {
+        config: aiArtConfig,
+        ...(aiArtConfig.apiKey
+          ? {
+              client: new OpenAiImageClient({
+                apiKey: aiArtConfig.apiKey,
+                baseUrl: aiArtConfig.baseUrl,
+                draftModel: aiArtConfig.draftModel,
+                finalModel: aiArtConfig.finalModel,
+              }),
+            }
+          : {}),
+        ...(accountLifecycle ? { accountLifecycle } : {}),
+      })
+    : undefined;
+  console.log(aiArtStartupLine(resolvedAiArt));
   const campaignEnrollments = pool
     ? new PostgresCampaignEnrollmentService(pool, {
         ...(accountLifecycle ? { accountLifecycle } : {}),
@@ -1487,6 +1604,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ? new PostgresStaffRegistration(pool, accountDeletionHmacSecret) : undefined,
     badges,
     friends,
+    merchantArt,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

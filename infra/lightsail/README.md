@@ -34,3 +34,14 @@
 기존 원격 release 경로나 API·웹 이미지 태그가 있으면 동일 SHA 재배포를 거절한다. 실패한 업로드도 해당 경로를 남길 수 있으므로 재시도 전에는 남은 파일·이미지·백업과 현재 서비스를 읽기 전용으로 대조하고, 검토된 새 커밋/릴리스 ID로 진행한다. 복구가 필요한 실제 자료를 자동 삭제하지 않는다. 기존 Lightsail의 Docker Compose 2.40.3에서 `--wait`·`--wait-timeout` 지원을 읽기 확인했지만 이 전체 배포 코드를 원격 실행한 것은 아니다.
 
 **다음 행동:** 운영 기록이 있는 두 계정의 도감 격리와 최신 APK를 별도로 검증한다. 시연 API/앱·`demo.masscom.kr`와 일반 링크 탭 동작도 미완료 게이트다.
+
+## 사장님 AI 가게 그림 키 (D-048, Issue #236)
+
+기능은 `OPENAI_API_KEY`가 **비어 있으면 꺼진 채**(앱에는 "준비 중")이고 다른 기능에는 영향이 없다. 그래서 `scripts/deploy-lightsail.sh`는 이 키를 필수로 요구하지 않고, [`compose.yml`](compose.yml)은 비어 있으면 빈 값을 API에 넘긴다.
+
+- **키는 소유자가 직접 넣는다.** 에이전트가 만들거나 저장소·대화·로그에 두지 않는다. 배포 때 올리는 저장소 밖의 로컬 runtime 파일(`MASSCOM_RUNTIME_ENV_FILE`, 예: `.tmp/lightsail-runtime.env`)에 `OPENAI_API_KEY=<키>` 한 줄을 넣는다. 배포가 이 파일을 서버 `/opt/masscom/runtime.env`로 올리고 API를 다시 만든다. 서버 파일만 고치면 다음 배포가 로컬 파일로 덮어써 키가 사라지므로 로컬 파일에도 함께 둔다.
+- 서버에서 바로 켜려면 `/opt/masscom/runtime.env`에 같은 줄을 넣고(권한 600) 배포 스크립트가 쓰는 것과 같은 `-p masscom --env-file /opt/masscom/runtime.env -f <현재 release의 compose.yml>` 인자로 `up -d api`를 실행해 API 컨테이너를 **다시 만든다**(`restart`는 환경 변수를 다시 읽지 않는다). 기동 로그에 `AI store art: enabled`가 나오면 켜진 것이다.
+- **운영 키는 소유자 채널이 생길 때까지 비워 둔다.** 가게 그림 권한(`MANAGE_ART`)은 기본으로 활성 OWNER에게만 주는데 운영에는 OWNER를 부여하는 경로가 아직 없고, `AI_ART_STAFF_MAY_MANAGE`(STAFF 허용)는 이 compose에 넘기지 않아 항상 꺼져 있다. 키를 넣으면 곧바로 쓸 수 있는 사람은 없지만, 이 값을 켜면 활성 STAFF 누구나 비용을 쓸 수 있으므로 **운영에서는 설정하지 않는다**. 키 입력은 소유자 채널 설계·승인 뒤에 한다.
+- 선택 값(`AI_ART_MONTHLY_BUDGET_USD` 기본 5, `AI_ART_DAILY_DRAFT_ROUNDS`·`AI_ART_DAILY_FINALS` 기본 3, 모델·단가·`AI_ART_OPENAI_BASE_URL`)은 [`runtime.env.example`](runtime.env.example)에 주석으로 있다. 비우면 기본값이다. 월 예산은 이 운영 DB의 한국 달 합계 기준이고 넘으면 OpenAI를 부르기 전에 거절한다.
+- 운영 앱은 고객 전용이라 점주 화면이 없다(D-038). 이 키는 서버 API만 켠다. 키를 넣은 뒤의 실제 호출(비용·지연 측정)은 `NOT_RUN`이며 키 입력 뒤 따로 확인한다.
+

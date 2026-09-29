@@ -218,6 +218,7 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
                       y={center.y}
                       selected={pin.merchantId === selectedId}
                       onPress={() => select(pin)}
+                      apiUrl={apiUrl}
                       pressableRef={openerRef(pin.merchantId)}
                     />
                   );
