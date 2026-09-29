@@ -39,5 +39,8 @@ test('press feedback is subtle and the motion switch honours reduced motion', ()
   assert.ok(motion.pressScale >= 0.94 && motion.pressScale < 1);
   const hook = readFileSync(fileURLToPath(new URL('./use-motion.ts', import.meta.url)), 'utf8');
   assert.match(hook, /useReducedMotion/);
-  assert.match(hook, /return !reduced/);
+  // Reanimated's value is read once at startup, so the live OS value is followed too; either one switches motion off.
+  assert.match(hook, /AccessibilityInfo\.isReduceMotionEnabled\(\)/);
+  assert.match(hook, /addEventListener\('reduceMotionChanged'/);
+  assert.match(hook, /return !reanimatedReduced && !liveReduced/);
 });
