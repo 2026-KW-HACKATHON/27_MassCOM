@@ -4,7 +4,7 @@
 
 ## 2026-09-29 탐험 여권 운영·시연 배포와 Preview 7(Issue #222)
 
-- 기준 커밋: main `758f214`(PR #221 발표 페이지 제거 병합, PR #217 탐험 여권·#219 웹 디자인 포함). 브랜치 `docs/222-deploy-preview7`은 코드 변경 없이 배포·릴리스 증거와 Preview 7 설치 링크만 문서화한다. 운영 API·웹은 `scripts/deploy-lightsail.sh --deploy`로, 시연 API는 기존 `/opt/masscom-showcase` 수동 절차로 배포했고 migration 0027·시연 체험 혜택 3건·백업·외부 HTTPS 결과는 [배포 증거](evidence/explorer-passport-deployment-2026-09-29.json)에 있다. 운영 배지 혜택·쿠폰·점주·시연 점주는 0건이다.
+- 기준 커밋: main `758f214`(PR #221 발표 페이지 제거 병합, PR #217 탐험 여권·#219 웹 디자인 포함). 브랜치 `docs/222-deploy-preview7`은 앱·API 코드 변경 없이 배포·릴리스 증거와 Preview 7 설치 링크를 문서화하고 포털 검사 기대값만 Preview 7로 바꾼다. 운영 API·웹은 `scripts/deploy-lightsail.sh --deploy`로, 시연 API는 기존 `/opt/masscom-showcase` 수동 절차로 배포했고 migration 0027·시연 체험 혜택 3건·백업·외부 HTTPS 결과는 [배포 증거](evidence/explorer-passport-deployment-2026-09-29.json)에 있다. 운영 배지 혜택·쿠폰·점주·시연 점주는 0건이다.
 - [Preview 7 공개 사전 릴리스](evidence/showcase-preview7-release-2026-09-29.json): `MassCOM-showcase-android-758f214.apk` 155101897바이트, SHA-256 `4a1d6b81ba535f5408b9e25ea5e2664f396d3e147b2969dc14cb2505a2584c9b`, GitHub digest·체크섬 일치. Samsung SM-S928N에서 기존 시연 앱 위 `adb install -r` Success·첫 실행 역할 선택 화면 PASS.
 - 다음 작업: ① 이 문서 PR 병합 뒤 `scripts/deploy-lightsail-web.sh`로 웹만 재배포해 공개 `/open`이 Preview 7 링크를 안내하게 한다(재배포 전까지 Preview 6 링크). ② 실제 폰에서 로그인 뒤 메달→상자→쿠폰 발급→점원 사용 처리와 TalkBack은 `NOT_RUN`이다. ③ 운영 혜택 등록은 점주와 혜택·비용·기간·상한을 합의(D-043)한 뒤에만 수동으로 하며 그 전까지 0건을 유지한다. ④ 시연 서버 `runtime.env`의 `MASSCOM_SHOWCASE_IMAGE_TAG`는 `7dba450`으로 남아 있고 이번에도 수정하지 않았으므로, 다음 시연 배포도 실제 태그를 명령 환경 변수로 지정한다.
 
