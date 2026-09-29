@@ -160,7 +160,11 @@ COMMIT;
 
 ```sql
 -- <sha>를 신고된 주소 /merchant-art/<sha>.webp의 sha256으로 바꿔 실행한다.
+-- 공개 그림과, 점주 라운드 조회에 남아 있는 같은 바이트의 최종 이미지를 함께 지운다.
+BEGIN;
 DELETE FROM merchant_art WHERE sha256 = '<sha>';
+DELETE FROM merchant_art_images WHERE sha256 = '<sha>';
+COMMIT;
 ```
 
 `merchant_art.sha256`은 유일하지 않다(서로 다른 가게가 우연히 같은 그림 바이트를 적용할 수 있다). 그래서 `sha256`으로 지우면 같은 바이트를 쓰는 **다른 가게의 그림도 함께** 내려가고, 그 주소는 확실히 404가 된다. 반대로 위의 `merchant_id` 문장은 그 가게만 내리므로, 같은 바이트를 쓰는 다른 가게가 있으면 그 가게의 행이 남아 옛 주소는 계속 200이다(404는 같은 바이트를 쓰는 가게가 하나도 남지 않을 때만 맞다). 신고된 그림 자체를 막으려면 `sha256` 문장을, 한 가게만 내리려면 `merchant_id` 문장을 쓴다.

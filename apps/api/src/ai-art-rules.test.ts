@@ -216,10 +216,11 @@ test('OpenAI failures map to codes and retry decisions', () => {
     { code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: true, retryAfterMs: 1000 });
   assert.deepEqual(classifyOpenAiHttpFailure({ status: 401, errorCode: 'invalid_api_key' }),
     { code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: false });
-  // 500·503은 한 번 다시 시도하지만 게이트웨이 오류 502·504는 다시 보내지 않고 비용을 그대로 둔다(chargeable).
+  // 500·503만 한 번 다시 시도하고, 그 밖의 5xx(게이트웨이 502·504, 501·505, Cloudflare 520·524·530)는 다시 보내지 않고
+  // 비용을 그대로 둔다(chargeable).
   assert.deepEqual(classifyOpenAiHttpFailure({ status: 500, random: () => 0 }),
     { code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: true, retryAfterMs: 500 });
-  for (const status of [502, 504]) {
+  for (const status of [501, 502, 504, 505, 520, 524, 530]) {
     assert.deepEqual(classifyOpenAiHttpFailure({ status, retryAfter: '3', random: () => 0 }),
       { code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: false, chargeable: true }, String(status));
   }

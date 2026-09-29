@@ -8,7 +8,7 @@
 | --- | --- |
 | 기기 | Samsung SM-S928N 실제 휴대전화, 화면 폭 411dp. 캡처는 540×1055이며 위쪽 상태 표시줄과 아래 시스템 버튼 줄은 잘라냈다. 라이트 모드·기본 글자 크기 |
 | 앱 | 개발 앱 `kr.masscom.wolgye.dev`, Metro 개발 서버로 이 브랜치(`feat/236-ai-store-art`, 리뷰 반영 `82c1d54`) 소스를 불러옴. 가게 그림 화면은 `masscom-dev://merchant-art?merchantId=showcase-local-merchant`로 열었다(개발 빌드는 로컬 확인용으로 이 경로를 열 수 있고 운영 앱은 열 수 없다) |
-| API·DB | 같은 브랜치의 로컬 API(migration 0029), 일회용 로컬 PostgreSQL, `OPENAI_API_KEY`는 가짜 값, `AI_ART_OPENAI_BASE_URL=http://127.0.0.1:4010`, `AI_ART_STAFF_MAY_MANAGE=true`(시연 서버와 같은 설정) |
+| API·DB | 같은 브랜치의 로컬 API(`82c1d54` 코드로 다시 띄움, migration 0029. 최종 시도 표지 `final_spend_id`가 들어간 `f18cb01`보다 앞이다), 일회용 로컬 PostgreSQL, `OPENAI_API_KEY`는 가짜 값, `AI_ART_OPENAI_BASE_URL=http://127.0.0.1:4010`, `AI_ART_STAFF_MAY_MANAGE=true`(시연 서버와 같은 설정) |
 | 권한 | 폰 계정 `android-device-phase1`에 가상 점포 A의 STAFF를 **로컬 DB에만** 줬다. 다른 계정의 같은 요청은 403 |
 | 가짜 이미지 서버 | 시안은 스타일마다 다른 단색, 최종은 고른 시안 색을 조금 밝게. 03을 찍을 때만 고급 그림 요청을 서버 오류로 실패하게 했다(`FAKE_OPENAI_FAIL=server_error`, `FAKE_OPENAI_FAIL_PATH=edits`) |
 | 화면의 톱니 버튼 | 오른쪽 위의 회색 톱니 둥근 버튼은 Expo 개발 클라이언트의 도구 버튼이지 앱 화면이 아니다 |

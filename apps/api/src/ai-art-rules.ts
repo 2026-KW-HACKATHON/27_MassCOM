@@ -256,12 +256,13 @@ export function classifyOpenAiHttpFailure(input: {
   if (input.status === 429 && input.errorCode !== undefined && noRetryQuotaCode.test(input.errorCode)) {
     return { code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: false };
   }
-  // 502·504는 앞단 게이트웨이가 낸 오류라서 요청이 뒤에서 처리돼 이미지가 만들어졌을 수 있다. 다시 보내면 비용이 두 번 나갈 수
-  // 있으므로 네트워크 끊김처럼 재시도하지 않고 예상 비용을 그대로 둔다. 500·503과 재시도할 수 있는 429는 아래에서 한 번 다시 시도한다.
-  if (input.status === 502 || input.status === 504) {
+  // 한 번 다시 시도하는 것은 429(한도 소진 제외)·500·503뿐이다. 그 밖의 5xx(502·504, Cloudflare 520~530 등)는 앞단이 낸 오류라서
+  // 요청이 뒤에서 처리돼 이미지가 만들어졌을 수 있다. 다시 보내면 비용이 두 번 나갈 수 있으므로 네트워크 끊김처럼 재시도하지 않고
+  // 예상 비용을 그대로 둔다(예산을 더 보수적으로 센다).
+  if (input.status >= 500 && input.status !== 500 && input.status !== 503) {
     return { code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: false, chargeable: true };
   }
-  if (input.status === 429 || input.status >= 500) {
+  if (input.status === 429 || input.status === 500 || input.status === 503) {
     const jitter = 500 + Math.floor((input.random ?? Math.random)() * 1000);
     return {
       code: 'AI_ART_UPSTREAM_UNAVAILABLE', retry: true,
