@@ -95,3 +95,10 @@ test('a friend QR of another MassCOM build is said so in the same line as a link
   const handler = screen.slice(screen.indexOf('function handleScanned'), screen.indexOf('async function saveNickname'));
   assert.doesNotMatch(handler, /api\.addFriend|addFriend\(/);
 });
+
+test('my own code arriving by QR or link is only said to be mine: no prompt, no request', () => {
+  assert.match(screen, /const OWN_CODE_NOTICE = '내 친구 코드예요\.'/);
+  assert.match(screen, /const confirmAdd = useCallback\(\(code: string\) => \{\s*if \(code === myCodeRef\.current\) \{\s*setCodeInput\(''\);\s*setAddNotice\(\{ tone: 'error', text: OWN_CODE_NOTICE \}\);\s*return;\s*\}/);
+  const own = screen.indexOf('OWN_CODE_NOTICE }');
+  assert.ok(own > 0 && own < screen.indexOf("'이 코드로 친구를 추가할까요?'"), 'checked before the confirm dialog');
+});

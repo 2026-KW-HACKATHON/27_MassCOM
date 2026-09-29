@@ -43,6 +43,7 @@ export const FRIENDS_TITLE = '친구';
 export const FRIENDS_SUBTITLE = '코드를 주고받으면 서로의 여권을 볼 수 있어요';
 
 const NOT_A_FRIEND_QR = '친구 코드 QR이 아니에요. 친구 화면의 QR을 다시 비춰 주세요.';
+const OWN_CODE_NOTICE = '내 친구 코드예요.';
 const ROTATE_CONFIRM = '새 코드를 만들면 예전 코드로는 더 이상 추가할 수 없어요. 지금 친구는 그대로예요.';
 
 type Notice = { tone: 'success' | 'error'; text: string };
@@ -118,7 +119,13 @@ export function FriendsScreen({
   }, [api, refreshQuietly]);
 
   // A code that arrived by QR or link is asked about first: adding shares my passport with its owner as well.
+  // My own code is only said so: there is nothing to add (the server refuses it too, once my code is not yet loaded here).
   const confirmAdd = useCallback((code: string) => {
+    if (code === myCodeRef.current) {
+      setCodeInput('');
+      setAddNotice({ tone: 'error', text: OWN_CODE_NOTICE });
+      return;
+    }
     setCodeInput(code);
     Alert.alert(
       '이 코드로 친구를 추가할까요?',
