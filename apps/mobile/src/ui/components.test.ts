@@ -85,7 +85,7 @@ test('the sky art is the top of the scroll content: the headers carry it and Sky
 test('no tab screen, the settings page or a stack page pins its header outside the scroll content', () => {
   const screens = [
     'screens/merchant-list/index.tsx', 'screens/collection/index.tsx', 'screens/claim-redeem/index.tsx',
-    'screens/account-settings/index.tsx',
+    'screens/account-settings/index.tsx', 'screens/merchant-detail/index.tsx', 'screens/recommendations/index.tsx',
   ];
   for (const file of screens) {
     const source = readSource(file);
@@ -99,6 +99,18 @@ test('no tab screen, the settings page or a stack page pins its header outside t
     const source = readSource(file).replace(/header=\{<(?:AppHeader|BackHeader)[^>]*\/>\}/g, '').replace(/const header = <BackHeader[^>]*\/>;/, '');
     assert.doesNotMatch(source, /<(?:AppHeader|BackHeader)/, `${file} pins a header`);
   }
+});
+
+test('stack pages use the sky header with a back button instead of the plain native header', () => {
+  const layout = readSource('app/_layout.tsx');
+  assert.match(layout, /name="merchants\/\[merchantId\]" options=\{\{ headerShown: false \}\}/);
+  assert.match(layout, /name="recommendations" options=\{\{ headerShown: false \}\}/);
+  const detail = readSource('screens/merchant-detail/index.tsx');
+  // The loading, error and empty states keep the way back too.
+  assert.ok((detail.match(/<BackHeader title="음식점 상세"/g) ?? []).length >= 2, 'detail page and its state frame');
+  assert.match(readSource('screens/recommendations/index.tsx'), /<BackHeader title="다음 가게 추천"/);
+  // A merchant without an illustration gets no banner: an empty 240dp block under the header read as a hole.
+  assert.match(detail, /\{art \? \(\s*<View style=\{styles\.banner\}>/);
 });
 
 test('the explore header asks one short question that fits on one line', () => {

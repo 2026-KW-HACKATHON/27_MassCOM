@@ -1,12 +1,16 @@
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { MerchantMark } from '@/merchant/merchant-mark';
 import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
+import { BackHeader } from '@/ui/back-header';
+import { FloatingCard } from '@/ui/floating-card';
+import { SkyBackdrop } from '@/ui/sky-backdrop';
+import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { makeRecommendationsStyles } from './styles';
 
 type RecommendationsStyles = ReturnType<typeof makeRecommendationsStyles>;
@@ -60,83 +64,97 @@ export function RecommendationsScreen({
     }
   }
 
+  // The native stack header is hidden for this page: the back button lives in the sky header inside the scroll content.
+  const header = <BackHeader title="다음 가게 추천" />;
+
   if (loading && !recommendations) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={palette.primary} />
-        <Text style={styles.centeredTitle}>다음 동네 가게를 찾는 중</Text>
-      </View>
+      <SkyBackdrop>
+        <SkyScrollView header={header}>
+          <View style={styles.centered}>
+            <ActivityIndicator color={palette.primary} />
+            <Text style={styles.centeredTitle}>다음 동네 가게를 찾는 중</Text>
+          </View>
+        </SkyScrollView>
+      </SkyBackdrop>
     );
   }
 
   if (!recommendations) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.centeredTitle}>추천을 불러오지 못했어요</Text>
-        <Text accessibilityRole="alert" style={styles.centeredBody}>{error}</Text>
-        <Pressable accessibilityRole="button" onPress={refresh} style={styles.retryButton}>
-          <Text style={styles.retryButtonText}>다시 불러오기</Text>
-        </Pressable>
-      </View>
+      <SkyBackdrop>
+        <SkyScrollView header={header}>
+          <View style={styles.centered}>
+            <Text style={styles.centeredTitle}>추천을 불러오지 못했어요</Text>
+            <Text accessibilityRole="alert" style={styles.centeredBody}>{error}</Text>
+            <Pressable accessibilityRole="button" onPress={refresh} style={styles.retryButton}>
+              <Text style={styles.retryButtonText}>다시 불러오기</Text>
+            </Pressable>
+          </View>
+        </SkyScrollView>
+      </SkyBackdrop>
     );
   }
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
-    >
-      <View style={styles.hero}>
-        <Text style={styles.eyebrow}>다음 월계 맛길</Text>
-        <Text selectable style={styles.title}>다음에 가볼 가게</Text>
-        <Text selectable style={styles.body}>
-          아직 안 가본 가게와 다음 보상이 가까운 가게를 먼저 보여줘요. 자리가 다 찬 가게는 빼요.
-        </Text>
-      </View>
-
-      <Text style={styles.rotationNote}>순위가 같은 가게는 날마다 순서를 바꿔 보여줘요.</Text>
-
-      {error ? <Text accessibilityLiveRegion="polite" style={styles.inlineError}>{error}</Text> : null}
-
-      {recommendations.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>지금 추천할 수 있는 점포가 없어요</Text>
-          <Text style={styles.emptyBody}>공개 캠페인과 정원 상태를 확인한 뒤 다시 시도해 주세요.</Text>
+    <SkyBackdrop>
+      <SkyScrollView
+        header={header}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      >
+        <View style={styles.hero}>
+          <Text style={styles.eyebrow}>다음 월계 맛길</Text>
+          <Text selectable style={styles.title}>다음에 가볼 가게</Text>
+          <Text selectable style={styles.body}>
+            아직 안 가본 가게와 다음 보상이 가까운 가게를 먼저 보여줘요. 자리가 다 찬 가게는 빼요.
+          </Text>
         </View>
-      ) : (
-        recommendations.map((item, index) => (
-          <RecommendationCard styles={styles} palette={palette} key={item.merchantId} item={item} index={index} />
-        ))
-      )}
-    </ScrollView>
+
+        <Text style={styles.rotationNote}>순위가 같은 가게는 날마다 순서를 바꿔 보여줘요.</Text>
+
+        {error ? <Text accessibilityLiveRegion="polite" style={styles.inlineError}>{error}</Text> : null}
+
+        {recommendations.length === 0 ? (
+          <FloatingCard style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>지금 추천할 수 있는 점포가 없어요</Text>
+            <Text style={styles.emptyBody}>공개 캠페인과 정원 상태를 확인한 뒤 다시 시도해 주세요.</Text>
+          </FloatingCard>
+        ) : (
+          recommendations.map((item, index) => (
+            <RecommendationCard styles={styles} palette={palette} key={item.merchantId} item={item} index={index} />
+          ))
+        )}
+      </SkyScrollView>
+    </SkyBackdrop>
   );
 }
 
 function RecommendationCard({ styles, palette, item, index }: { styles: RecommendationsStyles; palette: AppColors; item: Recommendation; index: number }) {
+  const router = useRouter();
   return (
-    <Link
-      href={{ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } }}
-      asChild
+    <FloatingCard
+      style={styles.card}
+      accessibilityLabel={`${item.merchantName}, ${reasonLabel(item.reasonCode)}${item.demo ? ', 데모 데이터' : ''}. 가게 상세 보기`}
+      onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } })}
     >
-      <Pressable accessibilityRole="button" style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
-        <View style={styles.cardTopline}>
-          <Text style={styles.reasonCode}>{reasonLabel(item.reasonCode)}</Text>
-          {item.demo ? <Text style={styles.demo}>DEMO</Text> : null}
-        </View>
-        <View style={styles.cardNameRow}>
-          <MerchantMark label={String(index + 1)} visited={item.progressVisitCount > 0} palette={palette} />
-          <Text selectable style={[styles.cardTitle, { flex: 1 }]}>{item.merchantName}</Text>
-        </View>
-        <Text selectable style={styles.reason}>{item.reasonText}</Text>
-        <Text style={styles.meta}>{item.roadAddress}</Text>
-        <View style={styles.progressRow}>
-          <Text style={styles.progress}>현재 {item.progressVisitCount}회</Text>
-          <Text style={styles.goal}>{item.nextGoal ? `다음 ${item.nextGoal.targetVisitCount}회 · ${item.nextGoal.displayName}` : '고정 보상 완료'}</Text>
-        </View>
-        <Text style={styles.openDetail}>가게 상세 보기 →</Text>
-      </Pressable>
-    </Link>
+      <View style={styles.cardTopline}>
+        <Text style={styles.reasonCode}>{reasonLabel(item.reasonCode)}</Text>
+        {item.demo ? <Text style={styles.demo}>DEMO</Text> : null}
+      </View>
+      <View style={styles.cardNameRow}>
+        <MerchantMark label={String(index + 1)} visited={item.progressVisitCount > 0} palette={palette} />
+        <Text selectable style={[styles.cardTitle, { flex: 1 }]}>{item.merchantName}</Text>
+      </View>
+      <Text selectable style={styles.reason}>{item.reasonText}</Text>
+      <Text style={styles.meta}>{item.roadAddress}</Text>
+      <View style={styles.progressRow}>
+        <Text style={styles.progress}>현재 {item.progressVisitCount}회</Text>
+        <Text style={styles.goal}>{item.nextGoal ? `다음 ${item.nextGoal.targetVisitCount}회 · ${item.nextGoal.displayName}` : '고정 보상 완료'}</Text>
+      </View>
+      <Text style={styles.openDetail}>가게 상세 보기 →</Text>
+    </FloatingCard>
   );
 }
 

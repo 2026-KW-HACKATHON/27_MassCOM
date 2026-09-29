@@ -7,6 +7,7 @@ import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
+import { BackHeader } from '@/ui/back-header';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
@@ -57,16 +58,15 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
         contentContainerStyle={{ paddingBottom: 48 + insets.bottom }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
       >
-        <View style={styles.banner}>
-          {art ? (
-            <>
-              <Image source={art} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={[styles.bannerArt, { width, height: 240 }]} />
-              <View style={styles.bannerNote}>
-                <Text style={styles.bannerNoteText}>가상 점포 시연 그림</Text>
-              </View>
-            </>
-          ) : null}
-        </View>
+        <BackHeader title="음식점 상세" />
+        {art ? (
+          <View style={styles.banner}>
+            <Image source={art} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={[styles.bannerArt, { width, height: 240 }]} />
+            <View style={styles.bannerNote}>
+              <Text style={styles.bannerNoteText}>가상 점포 시연 그림</Text>
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.content}>
           <Stagger index={0}>
@@ -192,7 +192,10 @@ function RewardGoalRow({ styles, target, name, final }: { styles: MerchantDetail
 function StateFrame({ styles, children }: { styles: MerchantDetailStyles; children: React.ReactNode }) {
   return (
     <SkyBackdrop>
-      <View style={styles.stateWrap}>{children}</View>
+      <ScrollView>
+        <BackHeader title="음식점 상세" />
+        <View style={styles.stateWrap}>{children}</View>
+      </ScrollView>
     </SkyBackdrop>
   );
 }
