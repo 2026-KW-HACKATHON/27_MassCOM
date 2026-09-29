@@ -60,7 +60,7 @@ public_source_paths=(
   scripts/build-public-site.mjs
   scripts/deploy-lightsail.sh
   docs/index.html docs/open.html docs/privacy.html docs/account-deletion.html
-  docs/.well-known/assetlinks.json docs/assets
+  docs/.well-known/assetlinks.json docs/assets docs/nft-metadata
   docs/evidence/android-collection.png docs/evidence/android-merchant-list.png
   docs/evidence/screenshots/android-account-settings.png
   docs/evidence/screenshots/android-nft-finalized.png
