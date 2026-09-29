@@ -13,8 +13,8 @@ cp "$repo_root/README.md" "$fixture/README.md"
 cp "$repo_root/tests/catalog/required-tests.tsv" "$fixture/tests/catalog/required-tests.tsv"
 cp "$repo_root/docs/TEST_STATUS.md" "$fixture/docs/TEST_STATUS.md"
 cp "$repo_root/docs/index.html" "$fixture/docs/index.html"
-cp "$repo_root/docs/presentation.html" "$fixture/docs/presentation.html"
-cp "$repo_root/docs/PRESENTATION.md" "$fixture/docs/PRESENTATION.md"
+cp "$repo_root/docs/PROJECT_STATE.md" "$fixture/docs/PROJECT_STATE.md"
+cp "$repo_root/docs/HANDOFF.md" "$fixture/docs/HANDOFF.md"
 cp "$repo_root/docs/SUBMISSION_EVIDENCE.json" "$fixture/docs/SUBMISSION_EVIDENCE.json"
 cp -R "$repo_root/docs/evidence" "$fixture/docs/evidence"
 
@@ -34,8 +34,11 @@ assert_mutation_fails() { # <file> <from> <to>
 }
 
 assert_mutation_fails docs/index.html '31 PASS · 2 BLOCKED · 3 NOT_RUN' '30 PASS · 2 BLOCKED · 4 NOT_RUN'
-assert_mutation_fails docs/presentation.html '일곱 장면' '아홉 장면'
-assert_mutation_fails docs/presentation.html 'class="scene next-scene"' 'class="next-scene"'
+assert_mutation_fails README.md '31 `PASS` \/ 2 `BLOCKED` \/ 3 `NOT_RUN`' '30 `PASS` \/ 2 `BLOCKED` \/ 4 `NOT_RUN`'
+assert_mutation_fails docs/PROJECT_STATE.md '31 PASS \/ 2 BLOCKED \/ 3 NOT_RUN' '30 PASS \/ 2 BLOCKED \/ 4 NOT_RUN'
+assert_mutation_fails docs/HANDOFF.md '31 PASS \/ 2 BLOCKED \/ 3 NOT_RUN' '30 PASS \/ 2 BLOCKED \/ 4 NOT_RUN'
+assert_mutation_fails docs/SUBMISSION_EVIDENCE.json '"partnerStoresClaimed": 0' '"partnerStoresClaimed": 1'
+assert_mutation_fails docs/SUBMISSION_EVIDENCE.json '"fieldParticipantsClaimed": 0' '"fieldParticipantsClaimed": 1'
 assert_mutation_fails docs/SUBMISSION_EVIDENCE.json '"total": 36' '"total": 35'
 baseline_commit="$(node -e "const m=require(process.argv[1]); process.stdout.write(m.baselineCommit)" \
   "$fixture/docs/SUBMISSION_EVIDENCE.json")"

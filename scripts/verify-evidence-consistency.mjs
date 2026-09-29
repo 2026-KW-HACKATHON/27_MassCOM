@@ -10,8 +10,6 @@ const read = (path) => readFileSync(join(root, path), 'utf8');
 const catalog = read('tests/catalog/required-tests.tsv');
 const ledger = read('docs/TEST_STATUS.md');
 const portal = read('docs/index.html');
-const presentation = read('docs/presentation.html');
-const presentationNotes = read('docs/PRESENTATION.md');
 const readme = read('README.md');
 const manifest = JSON.parse(read('docs/SUBMISSION_EVIDENCE.json'));
 
@@ -29,26 +27,35 @@ if (total !== catalogRows.length || total !== 36) throw new Error(`required test
 for (const [key, value] of Object.entries({ total, ...counts })) {
   if (manifest.requiredTests?.[key] !== value) throw new Error(`manifest requiredTests.${key} mismatch`);
 }
+// 원장에는 카탈로그에 없는 필수 시험 행이 남아 있어도 안 된다: 원장 행 수와 상태별 합계도 manifest와 맞아야 한다.
+const ledgerStatuses = ledger.split('\n')
+  .filter((line) => /^\| (Q|R|W|M|C|D|A|O)\d{2} \|/.test(line))
+  .map((line) => line.split('|')[3].trim());
+if (ledgerStatuses.length !== manifest.requiredTests?.total
+  || ['PASS', 'BLOCKED', 'NOT_RUN'].some((status) => ledgerStatuses.filter((value) => value === status).length !== manifest.requiredTests?.[status])) {
+  throw new Error('submission evidence totals differ from TEST_STATUS');
+}
 const summary = `${counts.PASS} PASS · ${counts.BLOCKED} BLOCKED · ${counts.NOT_RUN} NOT_RUN`;
 if (!portal.includes(summary)) throw new Error('portal test summary drift');
-if (!presentationNotes.includes(`36개 중 ${counts.PASS} PASS, ${counts.BLOCKED} BLOCKED, ${counts.NOT_RUN} NOT_RUN`)) {
-  throw new Error('presentation notes test summary drift');
-}
 if (!readme.includes('36개 ID')) throw new Error('README required-test total drift');
 
-const scenes = (presentation.match(/<section class="scene(?:\s|\")/g) ?? []).length;
-const navItems = (presentation.match(/<nav class="scene-nav"[\s\S]*?<\/nav>/)?.[0].match(/<a /g) ?? []).length;
-if (scenes !== 7 || navItems !== scenes) throw new Error(`presentation scene/nav mismatch: ${scenes}/${navItems}`);
-if (!presentation.includes('일곱 장면') || presentation.includes('아홉 장면')) {
-  throw new Error('presentation scene copy drift');
+// README와 두 상태 문서는 필수 시험 합계를 문장으로 다시 적는다. 확인하지 않으면 조용히 어긋난다.
+const totalsLine = `${counts.PASS} PASS / ${counts.BLOCKED} BLOCKED / ${counts.NOT_RUN} NOT_RUN`;
+for (const stateFile of ['README.md', 'docs/PROJECT_STATE.md', 'docs/HANDOFF.md']) {
+  const text = read(stateFile).replace(/`/g, '');
+  const stated = text.match(/\d+ PASS \/ \d+ BLOCKED \/ \d+ NOT_RUN/g) ?? [];
+  if (stated.length === 0 || stated.some((value) => value !== totalsLine)) {
+    throw new Error(`${stateFile} states required-test totals other than ${totalsLine}: ${stated.join(', ') || 'none'}`);
+  }
 }
-if (manifest.recordedAt !== '2026-09-23 KST'
-  || !portal.includes('2026-09-23 KST')
-  || !presentation.includes('2026-09-23')) {
+if (manifest.truthBoundary?.partnerStoresClaimed !== 0 || manifest.truthBoundary?.fieldParticipantsClaimed !== 0) {
+  throw new Error('submission evidence invents field achievements');
+}
+if (manifest.recordedAt !== '2026-09-23 KST' || !portal.includes('2026-09-23 KST')) {
   throw new Error('evidence date drift');
 }
 if (!/^[0-9a-f]{40}$/.test(manifest.baselineCommit)) throw new Error('invalid manifest baseline commit');
-for (const paths of [manifest.androidEvidence, manifest.securityEvidence, manifest.presentationEvidence]) {
+for (const paths of [manifest.androidEvidence, manifest.securityEvidence]) {
   for (const path of paths ?? []) if (!existsSync(join(root, path))) throw new Error(`missing evidence path: ${path}`);
 }
 if (existsSync(join(root, '.git'))) {
@@ -58,4 +65,4 @@ if (existsSync(join(root, '.git'))) {
 for (const required of [117, 119, 120]) {
   if (!manifest.mergedPullRequests.includes(required)) throw new Error(`manifest missing merged PR #${required}`);
 }
-console.log(`evidence consistency verified: ${summary}, ${scenes} scenes`);
+console.log(`evidence consistency verified: ${summary}`);

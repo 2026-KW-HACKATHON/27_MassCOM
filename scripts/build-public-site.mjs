@@ -10,7 +10,6 @@ const publicFiles = [
   'assets/passport/phone-coupon.png',
   'assets/passport/phone-passport.png',
   'assets/passport/phone-stamp.png',
-  'assets/presentation.css',
   'assets/project.css',
   'assets/wallet-mark.svg',
   'evidence/android-collection.png',
@@ -19,7 +18,6 @@ const publicFiles = [
   'evidence/screenshots/android-nft-finalized.png',
   'index.html',
   'open.html',
-  'presentation.html',
   'privacy.html',
 ];
 const sources = [
