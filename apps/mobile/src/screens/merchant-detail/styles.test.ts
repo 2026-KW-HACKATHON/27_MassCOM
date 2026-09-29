@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { contrast } from '../../theme/contrast';
 import { darkColors, lightColors } from '../../theme/palette';
 import { makeMerchantDetailStyles } from './styles';
 
@@ -35,16 +36,4 @@ function composite(foreground: string, background: string, opacity: number): str
     return Math.round(front * opacity + back * (1 - opacity)).toString(16).padStart(2, '0');
   };
   return `#${[1, 3, 5].map(channel).join('')}`;
-}
-
-function contrast(foreground: string, background: string): number {
-  const [lighter, darker] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
-  return (lighter + 0.05) / (darker + 0.05);
-}
-
-function luminance(hex: string): number {
-  const channels = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255);
-  const [red, green, blue] = channels.map((value) =>
-    value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
-  return 0.2126 * red! + 0.7152 * green! + 0.0722 * blue!;
 }
