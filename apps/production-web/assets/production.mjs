@@ -32,7 +32,7 @@ const rewardNames = { 1: '첫 번째 상자', 2: '두 번째 상자', 3: '황금
 const rewardStateLabels = {
   LOCKED: '잠김', READY: '앱에서 열 수 있어요', UNAVAILABLE: '혜택 준비 중', OPENED: '받음',
 };
-const couponStatusLabels = { ISSUED: '사용 가능', REDEEMED: '사용 완료', EXPIRED: '만료' };
+const couponStatusLabels = { ISSUED: '사용 가능', REDEEMED: '사용 완료', EXPIRED: '만료', VOIDED: '사용할 수 없는 쿠폰' };
 const maxTiers = 9;
 
 // 앱(badge-rules.ts explorerRank)과 같은 등급 이름. 판정은 서버가 준 earnedTiers를 말로 옮길 뿐이다.
