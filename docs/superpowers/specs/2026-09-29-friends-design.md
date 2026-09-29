@@ -8,23 +8,27 @@
 - 친구 목록은 배지 수로 순위를 보여 "누가 더 많이 탐험했나"를 비교한다.
 - 가게 카드·상세에서 "친구에게 추천"을 누르면 시스템 공유창으로 가게 링크를 보낸다(앱 안 메시지 없음).
 - 친구가 볼 수 있는 정보는 서버가 **허용 목록으로만** 만든다: 별명, 메달 3종 등급, 배지 n/9, 가본 가게 이름 목록(도장 순서 없음). 방문 날짜·시각·횟수, 쿠폰, 지갑·NFT, 계정 ID, 이메일은 절대 포함하지 않는다.
-- 친구 끊기·코드 바꾸기·계정 삭제 시 관계와 노출이 즉시 사라진다.
+- 친구 화면의 메달·도장·순위는 **하루 늦게** 센다(어제까지의 방문). 방금 다녀온 가게가 그날 바로 알려지지 않는다.
+- 친구 끊기·코드 바꾸기·계정 삭제 시 관계와 노출이 즉시 사라진다. 끊으면 상대가 다시 추가하지 못한다(차단).
 
 ## 2. 데이터 (migration 0028, 추가형)
 
-- `explorer_profiles(account_id text PK, nickname text NOT NULL CHECK (char_length(btrim(nickname)) BETWEEN 1 AND 12), updated_at timestamptz)`: 별명이 없으면 "탐험가 + 코드 뒤 4자리"를 보인다.
+- `explorer_profiles(account_id text PK, nickname text NOT NULL CHECK (char_length(btrim(nickname)) BETWEEN 1 AND 12), updated_at timestamptz)`: 계정의 첫 코드를 만드는 같은 거래에서 기본 별명 "탐험가 " + **코드와 독립인 crypto 난수 4글자**(코드와 같은 32글자 표)를 저장한다(이미 정한 별명은 건드리지 않는다). 코드 뒤 자리를 쓰면 코드 20비트가 별명으로 새고 코드를 바꿀 때 별명이 바뀌므로 쓰지 않는다. 코드를 바꿔도 별명은 그대로이고, 행이 없는 옛 계정은 "탐험가"로 보인다.
 - `friend_codes(account_id text PK, code text UNIQUE NOT NULL CHECK (code ~ '^[2-9A-HJ-NP-Z]{8}$'), created_at, rotated_at)`: 헷갈리는 글자(0·O·1·I) 없는 8자리. 처음 친구 화면을 열 때 만든다. 바꾸면 옛 코드는 즉시 무효, 기존 친구 관계는 유지.
 - `friendships(id uuid PK, account_low text, account_high text, created_at, UNIQUE(account_low, account_high), CHECK (account_low < account_high))`: 한 쌍에 한 행. 화면·API에는 `id`만 보이고 상대 계정 ID는 보이지 않는다.
+- `friend_blocks(blocker text, blocked text, created_at timestamptz, PRIMARY KEY (blocker, blocked))` + `blocked` 색인: X가 F를 끊으면 (blocker=X, blocked=F)를 기록한다. 차단은 계정 기준이라 코드를 바꿔도 유지된다.
 - `friend_code_attempts(account_id text, attempted_at timestamptz)` 또는 기존 속도 제한 패턴: 코드 추가 실패는 계정당 10분 10회로 제한한다(무차별 대입 방지).
-- 계정 삭제(`account-deletion.ts`): 그 계정의 `friend_codes`, `explorer_profiles`, 양쪽 `friendships`, 시도 기록을 같은 거래에서 지운다.
+- 계정 삭제(`account-deletion.ts`): 그 계정의 `friend_codes`, `explorer_profiles`, 양쪽 `friendships`, 양쪽 칸의 `friend_blocks`, 시도 기록을 같은 거래에서 지운다.
 
 ## 3. API (고객 인증 필수, 기존 Bearer 세션)
 
-- `GET /me/friends` → `{ me: { nickname, code, badges, medals }, friends: [{ friendshipId, nickname, badges: { earned, total: 9 }, medals: [{ key, tier }], stamps: [{ merchantName }], rank }] }`. 순위는 나와 친구들을 배지 수 → 도장 수 → 별명 순으로.
-- `POST /me/friends { code }` → 추가(자기 자신 거절 `FRIEND_SELF`, 없는 코드 `FRIEND_CODE_NOT_FOUND`, 이미 친구면 같은 결과 재응답, 친구 최대 100명 `FRIEND_LIMIT`, 속도 제한 `FRIEND_CODE_RATE_LIMITED` 429).
-- `DELETE /me/friends/:friendshipId` → 내 관계만 끊는다(양쪽에서 사라짐).
-- `POST /me/friend-code/rotate` → 새 코드.
-- `PUT /me/profile { nickname }` → 1~12자, 앞뒤 공백 제거, URL·이메일 모양 거절.
+- `GET /me/friends` → `{ me: { nickname, code, badges, medals, rank, asOf }, friends: [{ friendshipId, nickname, badges: { earned, total: 9 }, medals: [{ key, tier }], stamps: [{ merchantName }], rank }] }`. 순위는 나와 친구들을 배지 수 → 도장 수 → 별명 순으로 매기고 `me.rank`가 내 순위다.
+- **하루 지연**: 친구 목록에 쓰는 모든 값(친구와 순위에 들어가는 `me`)은 한국 날짜(business_date)가 오늘(주입된 시계의 KST 날짜)보다 앞선 방문만 센다. `me.asOf`는 반영된 마지막 한국 날짜(어제, `YYYY-MM-DD`)이고 앱이 "어제까지 기준"으로 밝힌다. `/me/badges`는 실시간 그대로다. 도장의 가게 이름은 관리자가 잠시 숨긴(PAUSED) 점포도 여권과 똑같이 나온다.
+- `POST /me/friends { code }` → 추가(자기 자신 거절 `FRIEND_SELF`, 없는 코드 `FRIEND_CODE_NOT_FOUND`, 이미 친구면 같은 결과 재응답, 친구 최대 100명 `FRIEND_LIMIT`, 속도 제한 `FRIEND_CODE_RATE_LIMITED` 429). 나를 끊어서 막은 사람의 코드는 없는 코드와 같은 404이고 실패 횟수에도 들어간다. 내가 예전에 끊은 상대를 그 상대의 코드로 다시 추가하면 내 차단이 같은 거래에서 풀린다.
+- `DELETE /me/friends/:friendshipId` → 내 관계만 끊는다(양쪽에서 사라짐). 같은 거래에서 상대를 차단하고, 상대는 내 코드로 다시 추가하지 못한다(친구 정원 채우기도 줄어든다).
+- `POST /me/friend-code/rotate` → 새 코드(별명·친구 관계·차단은 그대로).
+- `PUT /me/profile { nickname }` → 1~12자, 앞뒤 공백 제거. NFKC로 푼 사본에도 규칙을 적용해 URL·이메일·도메인 모양(`[\p{L}\p{N}-]+[.。．][a-z]{2,}`), 제어·서식·사용자 지정·미할당 문자, 한글 채움 문자·점자 빈칸, 글자·숫자가 없는 별명, 결합 문자 과다(글자당 2개·전체 4개 초과)를 거절한다.
+- 오류: 400 `INVALID_REQUEST`·`INVALID_PATH_PARAMETER`·`FRIEND_NICKNAME_INVALID`, 404 `FRIEND_CODE_NOT_FOUND`·`FRIEND_NOT_FOUND`, 409 `FRIEND_SELF`·`FRIEND_LIMIT`, 410 `ACCOUNT_DELETED`, 429 `FRIEND_CODE_RATE_LIMITED`(+`Retry-After`), 503 `FRIENDS_NOT_CONFIGURED`.
 - 메달·배지·도장 계산은 기존 `badge-rules`·도감 모델을 재사용하고, 친구 응답 직렬화는 전용 함수 하나에서 허용 필드만 고른다(시험으로 필드 목록 고정).
 - 시연 서버·운영 서버 모두 같은 코드. 시연 DB의 가상 점포 도장은 시연 계정끼리만 보인다.
 
@@ -32,12 +36,12 @@
 
 - **탭:** 다섯 번째 칸 `친구`를 더해 `탐색 · 지도 · (방문 인증) · 도감 · 친구`로 가운데 도장 버튼이 정가운데가 된다.
 - **친구 화면:** `AppHeader`("친구", "코드를 주고받으면 서로의 여권을 볼 수 있어요") + `friends` 마스코트.
-  - 내 카드: 별명(바꾸기), 친구 코드 크게, QR(내용 `https://masscom.kr/open?friend=CODE`), "코드 공유"(시스템 공유), "코드 바꾸기".
+  - 내 카드: 별명(바꾸기), 친구 코드 크게, QR(내용 `https://masscom.kr/open#friend=CODE`), "코드 공유"(시스템 공유), "코드 바꾸기".
   - "친구 추가": 코드 입력칸(8자리, 자동 대문자) 또는 QR 촬영(기존 방문 인증 카메라 스캐너 재사용).
-  - 친구 순위 목록: 순위·별명·메달 점·배지 n/9, 누르면 친구 여권.
+  - 친구 순위 목록: 순위·별명·메달 점·배지 n/9, 누르면 친구 여권. 목록은 "어제까지 기준"(`me.asOf`)이라고 한 번 밝힌다.
 - **친구 여권:** 메달 3종 등급, 배지 수, 가본 가게 도장판(읽기 전용, 날짜 없음), "친구 끊기"(확인 창).
 - **가게 추천:** 음식점 상세와 지도 가게 카드에 "친구에게 추천" → 시스템 공유창(`https://masscom.kr/open?merchant=ID` + 가게 이름). 가상 점포는 "시연용 가상 점포" 문구를 함께 넣는다.
-- **링크:** `/open?friend=CODE`는 친구 추가 확인 화면으로, `/open?merchant=ID`는 음식점 상세로 연다(기존 App Link 도메인 재사용). 로그인 전이면 로그인 뒤 이어서 처리한다.
+- **링크:** `/open#friend=CODE`는 친구 추가 확인 화면으로, `/open?merchant=ID`는 음식점 상세로 연다(기존 App Link 도메인 재사용). 친구 코드는 **프래그먼트(`#`)** 에 둔다: 프래그먼트는 서버로 전송되지 않아 코드가 웹 서버 접근 로그와 링크 미리보기 크롤러에 남지 않는다. 앱은 링크를 열 때 프래그먼트에서 코드를 읽는다(앱 쪽 작업은 후속). 로그인 전이면 로그인 뒤 이어서 처리한다.
 
 ## 5. 개인정보·문서
 
@@ -50,8 +54,16 @@
 
 ## 7. 시험과 증거
 
-- API 단위: 코드 형식·생성 충돌 재시도, 별명 검증, 추가 오류 코드, 직렬화 허용 필드 고정.
-- PostgreSQL 통합: migration, 추가·중복·자기 추가·한도·속도 제한, 끊기, 코드 바꾸기, 계정 삭제 정리, 동시 추가 경쟁(같은 쌍 한 행).
+- API 단위: 코드 형식·생성 충돌 재시도, 기본 별명 난수, 별명 검증(우회 사례: `맛집.com`·`카페.kr`·`abc.club`·`x.blog`·`ｗｗｗ．ｘ．ｃｏｍ`·`bit。ly/abc`·`evil.to`·U+3164만·zalgo), 하루 지연 기준일(KST 자정 경계), 추가 오류 코드, 직렬화 허용 필드 고정.
+- PostgreSQL 통합: migration, 추가·중복·자기 추가·한도·속도 제한, 끊기와 차단(우회 실패·실패 횟수·풀림·코드 바꾼 뒤에도 유지), 코드 바꾸기, 기본 별명 유지, 하루 지연(오늘 방문 숨김·나의 순위 공정성), 계정 삭제 정리(차단 양쪽 칸), 동시 추가·끊기 경쟁(같은 쌍 한 행, 차단 우회 없음).
 - 모바일: 탭 다섯 칸, 코드 입력 정규화, 순위 정렬, 링크 처리, 추천 공유 문구.
 - 교차 리뷰: sonnet 코드 + opus 보안·개인정보.
 - 실폰 두 계정 확인은 소유자 두 번째 계정이 필요하다(없으면 로컬 DEMO 계정 두 개로 에뮬레이터·실폰 확인).
+
+## 8. 결정 기록
+
+- **A. 끊으면 재추가 차단** (2026-09-29, USER_CONFIRMED 소유자): X가 F를 끊으면 `friend_blocks(X, F)`를 기록하고, F가 X의 코드로 추가하면 없는 코드와 같은 404 + 실패 횟수 산입. X가 나중에 F를 추가하면 같은 거래에서 차단이 풀린다. 친구 정원 채우기 완화도 겸한다.
+- **B. 친구에게 보이는 값은 하루 지연** (2026-09-29, USER_CONFIRMED 소유자): 친구 화면의 메달·도장·순위(나 포함)는 KST 어제까지의 방문만 센다. `/me/badges`는 실시간. 응답의 `me.asOf`로 앱이 "어제까지 기준"을 밝힌다.
+- 기본 별명은 코드와 독립인 난수로 저장한다(교차 리뷰 지적: 코드 20비트 누출·회전 시 별명 변동).
+- 별명 규칙은 NFKC 사본에도 적용하고 TLD 목록 대신 도메인 모양으로 넓혔다(교차 리뷰가 찾은 우회 사례 전부 시험에 고정). 글자·숫자가 하나는 있어야 하므로 이모지만으로 된 별명은 거절한다.
+- 친구 코드 링크는 프래그먼트(`#friend=CODE`)로 둔다(접근 로그·링크 미리보기에 코드가 남지 않게).

@@ -62,10 +62,27 @@ npm run start:local
 - `POST /merchant/merchants/:merchantId/coupons/:couponId/redeem`(Bearer STAFF) `{customerIdentityToken}` → 쿠폰 행 잠금 뒤 조건부 UPDATE로 한 번만 `REDEEMED` 처리. 같은 쿠폰 재요청은 `replayed: true`, 다른 고객·다른 점포·없는 쿠폰은 모두 `404 COUPON_NOT_FOUND`, 만료는 `409 COUPON_EXPIRED`, 실제 점포에서 점원 계정이 쿠폰 소유 고객 본인이면 `403 COUPON_SELF_REDEEM`(조회는 목록을 그대로 반환하고 시연 점포는 예외). 같은 QR로 방문 수령 슬롯도 발급할 수 있음
 - 운영 웹: `GET /api/web/badges`(호스트 바인딩 `web_session`, 읽기 전용)는 `GET /me/badges`와 같은 본문, `POST /api/web/merchant/merchants/:merchantId/coupons/lookup`·`/coupons/:couponId/redeem`은 기존 웹 QR 경로와 같은 Origin·JSON·세션·`CONFIRM_VISIT`·내 활성 점포 검사를 거침. 상자 열기는 앱에서만 함
 - 보상 혜택(`badge_reward_offers`)은 점주 동의 기록(`consent_note`)이 필수이며 milestone별 `ACTIVE` 하나만 허용. 시연 seed(`seed:showcase:local`·`seed:showcase:host`)만 가상 점포 A·B·C 체험 혜택을 넣고, **운영 DB는 점주 동의 뒤 수동 등록 전까지 비어 있어** 상자는 `UNAVAILABLE`로 표시됨. 관리자 점포 숨김은 그 점포의 활성 혜택을 함께 `PAUSED`로 바꾸며 이미 연 쿠폰은 남음. 계정 삭제 시 쿠폰 행은 지우지 않고 `customer_account_id`·`redeemed_by_account_id`만 가명 처리
-- `GET /me/friends`(Bearer): 내 별명·친구 코드(처음 열 때 생성)·배지 `{earned, total: 9}`·메달 `[{key, tier}]`·순위와 친구 목록을 반환. 친구 항목은 `{friendshipId, nickname, badges, medals, stamps: [{merchantName}], rank}` **허용 목록만**(계정 ID·방문 날짜·횟수·쿠폰·지갑·이메일 없음, 시험으로 키 목록 고정)이며 도장은 `/me/badges`와 같은 규칙으로 센 방문의 점포 이름(이름순)뿐이다. 순위는 나와 친구를 배지 수 → 도장 수 → 별명 순으로 매긴다(migration 0028, [설계](../../docs/superpowers/specs/2026-09-29-friends-design.md))
-- `POST /me/friends`(Bearer) `{code}`: 코드는 대문자·공백·하이픈을 정규화한다. 새 친구는 `201 {friend, created: true}`, 이미 친구면 `200 {friend, created: false}`(정원과 무관). 오류 `409 FRIEND_SELF / FRIEND_LIMIT`(양쪽 모두 100명까지), `404 FRIEND_CODE_NOT_FOUND`(형식이 틀린 코드 포함), 실패한 코드 입력이 계정당 10분 10회를 넘으면 `429 FRIEND_CODE_RATE_LIMITED`(+`Retry-After`, 이후에는 맞는 코드도 거절). A→B와 B→A가 동시에 와도 두 계정을 정렬 순서로 함께 잠가 교착 없이 한 쌍에 한 행이다
-- `DELETE /me/friends/:friendshipId`(Bearer): 내가 속한 관계만 끊고(양쪽에서 사라짐) 남의 관계·없는 관계·UUID가 아닌 값은 같은 `404 FRIEND_NOT_FOUND`. `POST /me/friend-code/rotate`(Bearer, 본문 없음 또는 `{}`): 새 코드를 돌려주고 옛 코드는 즉시 무효이며 친구 관계는 그대로다. `PUT /me/profile`(Bearer) `{nickname}`: 앞뒤 공백을 지운 1~12자, URL·이메일 모양·제어 문자는 `400 FRIEND_NICKNAME_INVALID`
-- 계정 삭제는 그 계정의 친구 코드·별명·코드 입력 실패 기록과 양쪽 친구 관계를 같은 거래에서 지운다(가명 처리하지 않음). 친구 추가·코드 바꾸기·별명 저장은 삭제와 같은 계정 잠금을 잡아 삭제 뒤에 관계가 생기지 않는다
+- `GET /me/friends`(Bearer): `{me: {nickname, code, badges: {earned, total: 9}, medals: [{key, tier}], rank, asOf}, friends: [...]}`. 친구 코드는 처음 열 때 만들고 기본 별명("탐험가 XXXX")도 그때 코드와 별개의 난수로 저장한다(코드를 바꿔도 별명은 그대로). 친구 항목은 `{friendshipId, nickname, badges, medals, stamps: [{merchantName}], rank}` **허용 목록만**(계정 ID·방문 날짜·횟수·쿠폰·지갑·이메일 없음, 시험으로 키 목록 고정)이다. `rank`는 나와 친구를 배지 수 → 도장 수 → 별명 순으로 매긴 1부터의 순위이고 `me.rank`가 내 순위다. 도장은 `/me/badges`와 같은 규칙으로 센 방문의 점포 이름(이름순)뿐이며 관리자가 잠시 숨긴(PAUSED) 점포의 이름도 여권과 똑같이 나온다(migration 0028, [설계](../../docs/superpowers/specs/2026-09-29-friends-design.md))
+- **하루 지연**: 친구 화면의 메달·도장·순위(친구와 순위에 들어가는 `me` 모두)는 한국 날짜(business_date)가 오늘보다 앞선 방문만 센다. `me.asOf`(`YYYY-MM-DD`)가 반영된 마지막 날짜(= 한국 어제)이고, 한국 자정에 하루씩 넘어간다. 그래서 오늘 다녀온 가게는 친구에게도 내 친구 순위에도 다음 날부터 보인다. `GET /me/badges`는 실시간 그대로다
+- `POST /me/friends`(Bearer) `{code}`: 코드는 대문자·공백·하이픈을 정규화한다. 새 친구는 `201 {friend, created: true}`, 이미 친구면 `200 {friend, created: false}`(정원과 무관). 코드 입력이 실패하면 `404 FRIEND_CODE_NOT_FOUND`이며 형식이 틀린 코드, 없는 코드, **나를 끊은 사람(차단, 아래)의 코드**는 응답이 같다. 그 밖의 오류는 아래 표와 같다. A→B와 B→A가 동시에 와도 두 계정을 정렬 순서로 함께 잠가 교착 없이 한 쌍에 한 행이다
+- `DELETE /me/friends/:friendshipId`(Bearer): 내가 속한 관계만 끊고(양쪽에서 사라짐) 남의 관계·없는 관계·UUID가 아닌 값은 같은 `404 FRIEND_NOT_FOUND`. 끊은 쪽은 같은 거래에서 상대를 **차단**(`friend_blocks`)한다: 차단된 계정이 끊은 사람의 코드로 추가하면 없는 코드와 같은 `404 FRIEND_CODE_NOT_FOUND`이고 실패 횟수에도 들어간다(코드를 바꿔도 계정 기준이라 유지). 끊은 사람이 나중에 상대의 코드로 상대를 추가하면 같은 거래에서 차단이 풀리고, 차단된 계정은 정원(100명)을 다시 채울 수 없다
+- `POST /me/friend-code/rotate`(Bearer, 본문 없음 또는 `{}`): 새 코드를 돌려주고 옛 코드는 즉시 무효이며 친구 관계·별명·차단은 그대로다. `PUT /me/profile`(Bearer) `{nickname}`: 앞뒤 공백을 지운 1~12자이고 NFKC로 푼 사본에도 규칙을 적용해 주소·이메일·도메인 모양(`맛집.com`, `bit。ly`, `ｗｗｗ．ｘ．ｃｏｍ`), 제어·서식·사용자 지정·미할당 문자, 한글 채움 문자(U+115F·U+1160·U+3164·U+FFA0)·점자 빈칸(U+2800), 글자·숫자가 하나도 없는 별명, 결합 문자(글자당 2개·전체 4개 초과)를 `400 FRIEND_NICKNAME_INVALID`로 거절한다
+- 친구 API 오류 코드(모두 `{code}` 본문, 응답은 `no-store`):
+
+  | 상태 | code | 뜻 |
+  | --- | --- | --- |
+  | 400 | `INVALID_REQUEST` | 본문 형식·알 수 없는 키·32자를 넘는 코드 |
+  | 400 | `INVALID_PATH_PARAMETER` | 경로 값이 잘못 인코딩됨 |
+  | 400 | `FRIEND_NICKNAME_INVALID` | 별명 규칙 위반 |
+  | 401 | (인증 오류) | Bearer 세션 없음·무효 |
+  | 404 | `FRIEND_CODE_NOT_FOUND` | 없는·바뀐·삭제된 코드, 형식이 틀린 코드, 나를 끊은 사람의 코드 |
+  | 404 | `FRIEND_NOT_FOUND` | 내 관계가 아니거나 없는 관계 |
+  | 409 | `FRIEND_SELF` | 내 코드를 입력함 |
+  | 409 | `FRIEND_LIMIT` | 나 또는 상대가 이미 100명 |
+  | 410 | `ACCOUNT_DELETED` | 삭제된 계정 |
+  | 429 | `FRIEND_CODE_RATE_LIMITED` | 실패한 코드 입력이 계정당 10분 10회를 넘음(`Retry-After` 초, 이후에는 맞는 코드도 거절) |
+  | 503 | `FRIENDS_NOT_CONFIGURED` | 친구 서비스가 이 서버에 연결되지 않음 |
+- 계정 삭제는 그 계정의 친구 코드·별명·코드 입력 실패 기록과 양쪽 친구 관계·차단(양쪽 칸)을 같은 거래에서 지운다(가명 처리하지 않음). 친구 추가·코드 바꾸기·별명 저장은 삭제와 같은 계정 잠금을 잡아 삭제 뒤에 관계가 생기지 않는다
 - `POST /wallet/challenges`
 - `POST /wallet/verify`
 - `GET /wallets/active-binding`: 서버가 확인한 현재 binding ID·version·주소 조회
