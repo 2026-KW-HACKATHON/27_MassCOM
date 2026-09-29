@@ -10,3 +10,10 @@ export function skyArtHeight(width: number): number {
 export function compactArtHeight(width: number): number {
   return Math.round(skyArtHeight(width) * COMPACT_ART_FRACTION);
 }
+
+/** A store picture used as a back header's background: one banner, short enough that the page content stays in view. */
+export const STORE_ART_ASPECT = 0.56;
+
+export function storeArtHeight(width: number): number {
+  return Math.round(width * STORE_ART_ASPECT);
+}

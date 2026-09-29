@@ -1,24 +1,34 @@
 import { useRouter } from 'expo-router';
-import { Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, Text, View, useWindowDimensions, type ImageSourcePropType } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { uiMetrics } from '../theme/ui-metrics';
 import { SkyArt } from './sky-art';
-import { compactArtHeight } from './sky-art-size';
+import { compactArtHeight, storeArtHeight } from './sky-art-size';
+import { StoreArt } from './store-art';
 import { useUiStyles } from './use-ui-styles';
 
+type Props = {
+  title: string;
+  /** A store picture to use as the banner instead of the town sky (the showcase merchants have one). */
+  art?: ImageSourcePropType;
+  /** Caption over the picture; only drawn with `art`. */
+  artNote?: string;
+};
+
 /**
- * Top of a page reached from the header avatar or a list rather than a tab: compact sky art, a round back button and the title
- * on a frosted panel. Put it first inside the ScrollView so it scrolls away with the page.
+ * Top of a page reached from the header avatar or a list rather than a tab: compact sky art (or the store's own picture), a round
+ * back button and the title on a frosted panel. Put it first inside the ScrollView so it scrolls away with the page.
  */
-export function BackHeader({ title }: { title: string }) {
+export function BackHeader({ title, art, artNote }: Props) {
   const styles = useUiStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const height = art ? storeArtHeight(width) : compactArtHeight(width);
   return (
-    <View style={{ minHeight: compactArtHeight(width), marginBottom: 8 }}>
-      <SkyArt compact />
+    <View style={{ minHeight: height, marginBottom: 8 }}>
+      {art ? <StoreArt source={art} height={height} note={artNote} /> : <SkyArt compact />}
       <View
         style={{
           flexDirection: 'row', alignItems: 'center', gap: 12,

@@ -312,7 +312,13 @@ export function CollectionScreen({
   const header = <AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" />;
   const sky = (body: ReactNode) => (
     <SkyBackdrop>
-      <SkyScrollView header={header} contentContainerStyle={styles.content}>{body}</SkyScrollView>
+      <SkyScrollView
+        header={header}
+        onHeaderLayout={setHeaderHeight}
+        contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
+      >
+        {body}
+      </SkyScrollView>
     </SkyBackdrop>
   );
 

@@ -7,7 +7,8 @@ import { makeDemoConfigurationRequiredStyles } from './demo-configuration-requir
 test('makeDemoConfigurationRequiredStyles gives rendered light and dark content and states their palette colors', () => {
   for (const palette of [lightColors, darkColors]) {
     const styles = makeDemoConfigurationRequiredStyles(palette);
-    assert.equal(styles.content.backgroundColor, palette.background);
+    // No page colour of its own: it sits on the sky page inside a tab, and on the stack's own background elsewhere.
+    assert.equal('backgroundColor' in styles.content, false);
     assert.equal(styles.title.color, palette.label);
     assert.equal(styles.body.color, palette.secondaryLabel);
     assert.equal(styles.card.backgroundColor, palette.surface);

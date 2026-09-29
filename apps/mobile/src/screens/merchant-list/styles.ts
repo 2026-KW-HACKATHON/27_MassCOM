@@ -81,7 +81,8 @@ export function makeMerchantListStyles(palette: AppColors, world: WorldTheme, ha
   journey: { alignSelf: 'stretch', gap: 7, paddingTop: 14, borderTopWidth: hairlineWidth, borderTopColor: palette.separator },
   journeyLabel: { color: world.cardInk, fontSize: 12, fontWeight: '900' },
   journeyText: { color: world.cardMuted, fontSize: 13, lineHeight: 21, fontWeight: '700' },
-  configurationContent: { flex: 1, justifyContent: 'center', gap: 18, padding: 24, backgroundColor: palette.background },
+  // No background: the notice sits on the sky page under its header.
+  configurationContent: { flex: 1, justifyContent: 'center', gap: 18, padding: 24 },
   configurationCard: { gap: 8, padding: 18, borderRadius: 18, backgroundColor: palette.surface },
   configurationCode: { color: palette.primary, fontFamily: 'monospace', fontSize: 14, fontWeight: '700' },
   configurationHelp: { color: palette.secondaryLabel, fontSize: 13, lineHeight: 20 },

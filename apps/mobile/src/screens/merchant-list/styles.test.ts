@@ -22,7 +22,8 @@ test('the sky shows through the list instead of a flat page colour', () => {
   for (const [palette, world] of schemes) {
     const styles = makeMerchantListStyles(palette, world);
     assert.equal('backgroundColor' in styles.content, false);
-    assert.equal(styles.configurationContent.backgroundColor, palette.background);
+    // The set-up notice sits on the sky page under its header instead of a white sheet.
+    assert.equal('backgroundColor' in styles.configurationContent, false);
   }
 });
 

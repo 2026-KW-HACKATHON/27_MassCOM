@@ -49,6 +49,9 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
       backgroundColor: world.card,
       shadowColor: world.cardShadow, shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
     },
+    // Caption on a store picture: it sits on a card-coloured pill because the picture is an opaque image.
+    artNote: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: world.radius.chip, backgroundColor: world.card },
+    artNoteText: { color: world.cardMuted, fontSize: 11, fontWeight: '700' },
     backGlyph: { color: world.cardInk, fontSize: 28, fontWeight: '700', lineHeight: 32 },
     backTitle: { color: world.skyInk, fontSize: 22, fontWeight: '800', lineHeight: 30 },
     // Loading, error and empty scenes sit on the card surface (StateScene draws it), so these pairs are checked on world.card.

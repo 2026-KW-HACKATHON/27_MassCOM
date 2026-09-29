@@ -120,3 +120,11 @@ test('the "내 정보" label under the avatar is readable on its own frosted pil
     assert.ok((styles.avatarButton.minHeight as number) >= uiMetrics.minTouch);
   }
 });
+
+test('the caption on a store picture stays readable on its own pill', () => {
+  for (const [palette, world] of [[lightColors, lightWorld], [darkColors, darkWorld]] as const) {
+    const styles = makeUiStyles(palette, world);
+    assert.equal(styles.artNote.backgroundColor, world.card);
+    assert.ok(contrast(styles.artNoteText.color as string, styles.artNote.backgroundColor as string) >= 4.5, 'picture caption');
+  }
+});

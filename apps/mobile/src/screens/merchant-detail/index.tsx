@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { useMemo } from 'react';
-import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
@@ -27,7 +27,6 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
     [palette, world],
   );
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const merchant = merchants.find((item) => item.id === merchantId);
 
@@ -56,19 +55,10 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
   return (
     <SkyBackdrop>
       <SkyScrollView
-        header={<BackHeader title="음식점 상세" />}
+        header={<BackHeader title="음식점 상세" art={art} artNote={art ? '가상 점포 시연 그림' : undefined} />}
         contentContainerStyle={{ paddingBottom: 48 + insets.bottom }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >
-        {art ? (
-          <View style={styles.banner}>
-            <Image source={art} accessible={false} accessibilityIgnoresInvertColors resizeMode="cover" style={[styles.bannerArt, { width, height: 240 }]} />
-            <View style={styles.bannerNote}>
-              <Text style={styles.bannerNoteText}>가상 점포 시연 그림</Text>
-            </View>
-          </View>
-        ) : null}
-
         <View style={styles.content}>
           <Stagger index={0}>
             <FloatingCard style={styles.hero}>

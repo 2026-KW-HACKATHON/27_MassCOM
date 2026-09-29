@@ -146,8 +146,8 @@ test('no tab screen, the settings page or a stack page pins its header outside t
   }
   assert.match(readSource('screens/merchant-list/index.tsx'), /ListHeaderComponent=\{\s*<>\s*<AppHeader/);
   // Route files only pass a header down; they never sit one above the screen.
-  for (const file of ['app/(tabs)/claim.tsx', 'app/(tabs)/settings.tsx']) {
-    const source = readSource(file).replace(/header=\{<(?:AppHeader|BackHeader)[^>]*\/>\}/g, '').replace(/const header = <BackHeader[^>]*\/>;/, '');
+  for (const file of ['app/(tabs)/claim.tsx', 'app/(tabs)/collection.tsx', 'app/(tabs)/index.tsx', 'app/(tabs)/settings.tsx']) {
+    const source = readSource(file).replace(/header=\{<(?:AppHeader|BackHeader)[^>]*\/>\}/g, '').replace(/const header = <(?:AppHeader|BackHeader)[^>]*\/>;/, '');
     assert.doesNotMatch(source, /<(?:AppHeader|BackHeader)/, `${file} pins a header`);
   }
 });
@@ -160,8 +160,31 @@ test('stack pages use the sky header with a back button instead of the plain nat
   // The loading, error and empty states keep the way back too.
   assert.ok((detail.match(/<BackHeader title="음식점 상세"/g) ?? []).length >= 2, 'detail page and its state frame');
   assert.match(readSource('screens/recommendations/index.tsx'), /<BackHeader title="다음 가게 추천"/);
-  // A merchant without an illustration gets no banner: an empty 240dp block under the header read as a hole.
-  assert.match(detail, /\{art \? \(\s*<View style=\{styles\.banner\}>/);
+  // A merchant with a picture uses it as the header's own background; one without gets the sky art and no empty banner block.
+  assert.match(detail, /<BackHeader title="음식점 상세" art=\{art\} artNote=\{art \? '가상 점포 시연 그림' : undefined\} \/>/);
+  assert.doesNotMatch(detail, /styles\.banner|<Image/);
+  const back = read('back-header.tsx');
+  assert.match(back, /art \? <StoreArt source=\{art\}/);
+  assert.match(back, /<SkyArt compact \/>/);
+});
+
+test('signed-out and set-up states of the tab routes sit on the sky under their own header, not on a white sheet', () => {
+  for (const [file, title] of [
+    ['app/(tabs)/claim.tsx', '방문 인증'], ['app/(tabs)/collection.tsx', '도감'], ['app/(tabs)/index.tsx', '어디로 탐험할까요?'],
+  ] as const) {
+    const source = readSource(file);
+    assert.ok(source.includes(`<AppHeader title="${title}"`), `${file} header`);
+    assert.match(source, /<SkyBackdrop>\s*<SkyScrollView header=\{header\}>/, `${file} set-up notice`);
+    if (!file.endsWith('index.tsx')) assert.match(source, /<SkyBackdrop><AuthRequiredRoute header=\{header\} \/><\/SkyBackdrop>/, `${file} sign-in prompt`);
+  }
+});
+
+test('every state of the collection measures its header and clears the tab bar', () => {
+  const sky = readSource('screens/collection/index.tsx').match(/const sky = [\s\S]*?\n  \);/)?.[0];
+  assert.ok(sky, 'sky() wrapper for the loading and error states');
+  // focus=rewards scrolls to headerHeight + the section's y, and the last card must not hide behind the floating bar.
+  assert.match(sky, /onHeaderLayout=\{setHeaderHeight\}/);
+  assert.match(sky, /paddingBottom: clearance/);
 });
 
 test('the explore header asks one short question that fits on one line', () => {

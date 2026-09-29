@@ -18,7 +18,7 @@ import { compactArtHeight, skyArtHeight } from './sky-art-size';
 
 const CLOUD_WIDTH = 120;
 // The picture ends in near-white, not exactly the page colour; this bottom slice is faded into the page colour (world.page) so no band shows.
-const SEAM_FRACTION = 0.15;
+export const SEAM_FRACTION = 0.15;
 
 type Props = {
   /** Shorter banner for back headers: the sky is cropped from the top, the rooftops stay. */

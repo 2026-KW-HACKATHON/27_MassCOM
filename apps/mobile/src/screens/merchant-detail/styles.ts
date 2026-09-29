@@ -4,11 +4,7 @@ import type { WorldTheme } from '../../theme/world';
 
 export function makeMerchantDetailStyles(palette: AppColors, world: WorldTheme, hairlineWidth = 1) {
   return {
-  // Transparent on purpose: the sky illustration shows through, or the showcase picture is laid over it.
-  banner: { height: 240, justifyContent: 'flex-end', padding: 12 },
-  bannerArt: { position: 'absolute', top: 0, left: 0 } as ImageStyle,
-  bannerNote: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: world.radius.chip, backgroundColor: world.card },
-  bannerNoteText: { color: world.cardMuted, fontSize: 11, fontWeight: '700' },
+  // No background: the sky page shows through between the cards.
   content: { gap: 16, paddingHorizontal: 20 },
   hero: { gap: 10, padding: 22, borderRadius: world.radius.card, backgroundColor: world.card },
   heroTopline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },

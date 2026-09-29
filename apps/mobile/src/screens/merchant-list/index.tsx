@@ -274,7 +274,7 @@ export function MerchantApiConfigurationRequired() {
   const palette = colorsForScheme(scheme);
   const styles = StyleSheet.create(makeMerchantListStyles(palette, worldForScheme(scheme), StyleSheet.hairlineWidth));
   return (
-    <View style={[styles.configurationContent, { backgroundColor: palette.background }]}>
+    <View style={styles.configurationContent}>
       <Text style={[styles.sectionEyebrow, { color: palette.label }]}>설정 필요</Text>
       <Text selectable style={[styles.title, { color: palette.label }]}>음식점 API 주소가{`\n`}아직 연결되지 않았습니다.</Text>
       <Text selectable style={[styles.intro, { color: palette.secondaryLabel }]}>
