@@ -5,6 +5,7 @@ import type { BadgeBook, Coupon, Medal, MedalKind, Reward } from './badge-api';
 import {
   badgesToNextBox,
   couponAccessibilityLabel,
+  couponAfterPoll,
   couponExpiryLabel,
   couponStatusLabel,
   couponsOf,
@@ -161,6 +162,26 @@ test('coupon expiry uses the Korean calendar date', () => {
   assert.equal(couponExpiryLabel('2026-12-31T15:00:00.000Z'), '~1월 1일까지');
   assert.deepEqual(['ISSUED', 'REDEEMED', 'EXPIRED'].map((s) => couponStatusLabel(s as Coupon['status'])), ['사용 가능', '사용 완료', '만료']);
   assert.equal(couponAccessibilityLabel(coupon), '쿠폰 체험 음료 1잔, 가상 점포 A, 사용 가능, 10월 29일까지');
+  assert.equal(couponStatusLabel('VOIDED'), '사용할 수 없는 쿠폰');
+  assert.equal(couponAccessibilityLabel({ ...coupon, status: 'VOIDED' }), '쿠폰 체험 음료 1잔, 가상 점포 A, 사용할 수 없는 쿠폰, 10월 29일까지');
+});
+
+test('an open coupon sheet follows the polled book: redeemed, voided or withdrawn', () => {
+  const opened = book({ explorer: 3, regular: 5, steady: 7 }, ['OPENED', 'READY', 'READY']);
+  const current = couponsOf(opened)[0]!;
+  // 아직 쓸 수 있으면 아무것도 바꾸지 않는다.
+  assert.equal(couponAfterPoll(current, opened), undefined);
+  const withStatus = (status: Coupon['status']) => ({
+    rewards: opened.rewards.map((reward) => (reward.coupon ? { ...reward, coupon: { ...reward.coupon, status } } : reward)),
+  });
+  assert.equal(couponAfterPoll(current, withStatus('REDEEMED'))?.status, 'REDEEMED');
+  assert.equal(couponAfterPoll(current, withStatus('VOIDED'))?.status, 'VOIDED');
+  assert.equal(couponAfterPoll(current, withStatus('EXPIRED'))?.status, 'EXPIRED');
+  // 방문 취소로 무효가 된 쿠폰은 도감에서 사라진다: 목록에 없으면 사용할 수 없는 쿠폰이다.
+  const withdrawn = couponAfterPoll(current, { rewards: opened.rewards.map((reward) => ({ ...reward, coupon: null })) });
+  assert.equal(withdrawn?.status, 'VOIDED');
+  assert.equal(withdrawn?.couponId, current.couponId);
+  assert.equal(withdrawn?.title, current.title);
 });
 
 test('coupons are listed from opened boxes and found by id', () => {

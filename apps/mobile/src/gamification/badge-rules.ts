@@ -220,6 +220,7 @@ export function couponExpiryLabel(expiresAt: string): string {
 export function couponStatusLabel(status: CouponStatus): string {
   if (status === 'REDEEMED') return '사용 완료';
   if (status === 'EXPIRED') return '만료';
+  if (status === 'VOIDED') return '사용할 수 없는 쿠폰';
   return '사용 가능';
 }
 
@@ -233,6 +234,16 @@ export function couponsOf(book: Pick<BadgeBook, 'rewards'> | undefined): readonl
 
 export function findCoupon(book: Pick<BadgeBook, 'rewards'> | undefined, couponId: string): Coupon | undefined {
   return couponsOf(book).find((coupon) => coupon.couponId === couponId);
+}
+
+/**
+ * 쿠폰 사용 시트가 열려 있는 동안 3초마다 받은 도감으로 쿠폰이 바뀌었는지 본다. 바뀐 쿠폰을 돌려주고, 아직 쓸 수 있으면 undefined다.
+ * 방문 취소로 조건이 깨져 무효가 된 쿠폰은 도감에서 사라지므로 목록에 없으면 사용할 수 없는 쿠폰(VOIDED)이다.
+ */
+export function couponAfterPoll(current: Coupon, book: Pick<BadgeBook, 'rewards'>): Coupon | undefined {
+  const next = findCoupon(book, current.couponId);
+  if (!next) return { ...current, status: 'VOIDED' };
+  return next.status === 'ISSUED' ? undefined : next;
 }
 
 /** "1분 42초 남음" · "8초 남음" · "만료됐어요" */

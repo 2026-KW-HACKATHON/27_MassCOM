@@ -84,6 +84,17 @@ test('accepts redeemed and expired coupons with matching timestamps', () => {
   assert.equal(parseBadgeBook(raw).rewards[0]?.coupon?.status, 'EXPIRED');
 });
 
+test('accepts a voided coupon and keeps it distinct from redeemed and expired ones', () => {
+  const raw = bookFixture();
+  raw.rewards[0]!.coupon = couponFixture({ status: 'VOIDED' });
+  assert.equal(parseBadgeBook(raw).rewards[0]?.coupon?.status, 'VOIDED');
+  // 무효 쿠폰에는 사용 시각이 있으면 안 된다(사용 시각은 사용 완료에만 붙는다).
+  raw.rewards[0]!.coupon = couponFixture({ status: 'VOIDED', redeemedAt: '2026-09-30T02:00:00.000Z' });
+  assert.throws(() => parseBadgeBook(raw), BadgeApiError);
+  raw.rewards[0]!.coupon = couponFixture({ status: 'VOIDED_BY_ADMIN' });
+  assert.throws(() => parseBadgeBook(raw), BadgeApiError);
+});
+
 test('gets the badge book with the account credential and no query string', async () => {
   const client = createBadgeApiClient({
     apiUrl: 'https://api.example.test/',

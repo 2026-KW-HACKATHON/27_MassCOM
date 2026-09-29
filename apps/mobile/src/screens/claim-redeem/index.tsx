@@ -22,6 +22,7 @@ import {
 } from '@/commerce/claim-recovery';
 import { createBadgeApiClient, type BadgeBook } from '@/gamification/badge-api';
 import { diffBadgeBooks } from '@/gamification/badge-rules';
+import { progressNote } from '@/commerce/progress-note';
 import { Celebration, type CelebrationContent } from '@/gamification/celebration';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
@@ -214,6 +215,7 @@ export function ClaimRedeemScreen({
     setCelebration({
       merchantName: result.merchantName,
       progressCounted: result.visit.progressCounted,
+      ...(result.visit.progressExcludedReason ? { progressExcludedReason: result.visit.progressExcludedReason } : {}),
       diff: diffBadgeBooks(previous, after),
       after,
     });
@@ -335,7 +337,7 @@ export function ClaimRedeemScreen({
             <Text selectable style={[styles.successBody, { color: palette.onSuccessContainer }]}>{claimSuccessCopy(redeemed).body}</Text>
             <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>{redeemed.visit.businessDate} · {redeemed.visit.progressVisitCount}회 진행</Text>
             <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
-              {redeemed.visit.progressCounted ? '오늘 방문이 진행 횟수에 반영됐습니다.' : '방문은 기록됐지만 같은 한국 날짜의 진행은 한 번만 셉니다.'}
+              {progressNote(redeemed.visit)}
             </Text>
             <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
               새 보상권 {redeemed.grantedRewards.length}개 · NFT 발행은 아직 요청하지 않았습니다.

@@ -8,7 +8,7 @@ import type { CustomerIdentity } from '@/commerce/commerce-api';
 import { createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired } from '@/commerce/customer-identity';
 
 import type { BadgeBook, Coupon } from './badge-api';
-import { couponExpiryLabel, couponQrSize, findCoupon, remainingLabel, type ShareVariant } from './badge-rules';
+import { couponAfterPoll, couponExpiryLabel, couponQrSize, remainingLabel, type ShareVariant } from './badge-rules';
 import { InkStamp } from './coupon-ticket';
 import { CloseGlyph, GiftGlyph } from './glyphs';
 import { successHaptic } from './native-effects';
@@ -114,8 +114,8 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
       try {
         const book = await loadBadgeBook();
         if (!active) return;
-        const next = findCoupon(book, initial.couponId);
-        if (next && next.status !== 'ISSUED') {
+        const next = couponAfterPoll(initial, book);
+        if (next) {
           // Hand the book to the collection only on a change, so the screen behind does not re-render every poll.
           onBadgeBook(book);
           setCoupon(next);
@@ -132,7 +132,7 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
       active = false;
       clearTimeout(timer);
     };
-  }, [done, initial.couponId, loadBadgeBook, onBadgeBook]);
+  }, [done, initial, loadBadgeBook, onBadgeBook]);
 
   return (
     <View style={styles.backdrop}>
@@ -141,7 +141,7 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
         <View style={styles.sheetHandle} />
         <View style={styles.sheetHeader}>
           <Text ref={heading} accessibilityRole="header" style={styles.sheetTitle}>
-            {coupon.status === 'REDEEMED' ? '사용 완료' : '매장에서 사용하기'}
+            {coupon.status === 'REDEEMED' ? '사용 완료' : coupon.status === 'VOIDED' ? '사용할 수 없는 쿠폰' : '매장에서 사용하기'}
           </Text>
           <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} style={styles.closeButton}>
             <CloseGlyph size={20} color={palette.label} />
@@ -161,6 +161,8 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
             <RedeemedPanel merchantName={coupon.merchantName} onClose={onClose} />
           ) : coupon.status === 'EXPIRED' ? (
             <Text accessibilityLiveRegion="polite" style={styles.errorText}>이 쿠폰은 사용 기간이 끝났어요.</Text>
+          ) : coupon.status === 'VOIDED' ? (
+            <Text accessibilityLiveRegion="polite" style={styles.errorText}>이 쿠폰은 더 이상 사용할 수 없어요. 방문 기록이 바뀌었거나 운영팀이 무효로 했어요.</Text>
           ) : (
             <>
               <View style={styles.qrCard}>

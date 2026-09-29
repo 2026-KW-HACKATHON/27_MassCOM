@@ -9,7 +9,7 @@ export type MedalKind = (typeof medalKinds)[number];
 export type MedalTier = 0 | 1 | 2 | 3;
 export type RewardMilestone = 1 | 2 | 3;
 export type RewardState = 'LOCKED' | 'READY' | 'UNAVAILABLE' | 'OPENED';
-export type CouponStatus = 'ISSUED' | 'REDEEMED' | 'EXPIRED';
+export type CouponStatus = 'ISSUED' | 'REDEEMED' | 'EXPIRED' | 'VOIDED';
 
 export type Medal = {
   kind: MedalKind;
@@ -272,7 +272,7 @@ function isRewardState(value: unknown): value is RewardState {
 }
 
 function isCouponStatus(value: unknown): value is CouponStatus {
-  return value === 'ISSUED' || value === 'REDEEMED' || value === 'EXPIRED';
+  return value === 'ISSUED' || value === 'REDEEMED' || value === 'EXPIRED' || value === 'VOIDED';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
