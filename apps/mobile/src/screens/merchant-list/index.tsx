@@ -89,11 +89,14 @@ export function MerchantListScreen({ apiUrl }: Props) {
             <AppHeader title="어디로 탐험할까요?" subtitle="안 가본 가게에 도장을 찍어요">
               <View style={styles.heroRow}>
                 <View style={styles.heroCopy}>
-                  {auth.credential && auth.accountId ? (
-                    <SignedInPassportChip apiUrl={apiUrl} credential={auth.credential} onSessionInvalid={auth.invalidateSession} />
-                  ) : (
-                    <PassportChip copy="로그인하면 여권이 열려요" />
-                  )}
+                  <View style={styles.chipRow}>
+                    {auth.credential && auth.accountId ? (
+                      <SignedInPassportChip apiUrl={apiUrl} credential={auth.credential} onSessionInvalid={auth.invalidateSession} />
+                    ) : (
+                      <PassportChip copy="로그인하면 여권이 열려요" />
+                    )}
+                    <MapChip />
+                  </View>
                 </View>
                 {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
                 <Mascot interactive pose={refreshing ? 'search' : 'explore-map'} size={heroMascotSize(fontScale, 120)} />
@@ -224,6 +227,20 @@ function PassportChip({ copy, data }: { copy?: string; data?: PassportChipData }
       <Pressable accessibilityRole="button" accessibilityLabel={data?.label} style={styles.passportChip}>
         {dot ? <View accessible={false} style={[styles.passportChipDot, { backgroundColor: dot.base, borderColor: dot.edge }]} /> : null}
         <Text style={styles.passportChipText}>{data ? data.text : copy}</Text>
+      </Pressable>
+    </Link>
+  );
+}
+
+/** Opens the 지도 tab: the same shops as a picture map (Issue #228). */
+function MapChip() {
+  const palette = colorsForScheme(useColorScheme());
+  const styles = useMerchantListStyles();
+  return (
+    <Link href="/map" asChild>
+      <Pressable accessibilityRole="button" accessibilityLabel="지도로 보기, 동네 그림 지도 열기" style={styles.mapChip}>
+        <TabGlyph name="map" color={palette.onPrimaryContainer} size={18} />
+        <Text style={styles.mapChipText}>지도로 보기</Text>
       </Pressable>
     </Link>
   );

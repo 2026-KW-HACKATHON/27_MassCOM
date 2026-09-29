@@ -128,7 +128,7 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
       assert.match(control, /progressViewOffset=\{insets\.top\}/, `${file} RefreshControl`);
     }
   }
-  assert.equal(controls, 4, 'explore, collection, merchant detail, recommendations');
+  assert.equal(controls, 5, 'explore, collection, merchant detail, recommendations, town map');
 });
 
 test('the sky art is the top of the scroll content: the headers carry it and SkyBackdrop is only the page colour', () => {
@@ -144,6 +144,7 @@ test('no tab screen, the settings page or a stack page pins its header outside t
   const screens = [
     'screens/merchant-list/index.tsx', 'screens/collection/index.tsx', 'screens/claim-redeem/index.tsx',
     'screens/account-settings/index.tsx', 'screens/merchant-detail/index.tsx', 'screens/recommendations/index.tsx',
+    'screens/town-map/index.tsx',
   ];
   for (const file of screens) {
     const source = readSource(file);
@@ -153,7 +154,7 @@ test('no tab screen, the settings page or a stack page pins its header outside t
   }
   assert.match(readSource('screens/merchant-list/index.tsx'), /ListHeaderComponent=\{\s*<>\s*<AppHeader/);
   // Route files only pass a header down; they never sit one above the screen.
-  for (const file of ['app/(tabs)/claim.tsx', 'app/(tabs)/collection.tsx', 'app/(tabs)/index.tsx', 'app/(tabs)/settings.tsx']) {
+  for (const file of ['app/(tabs)/claim.tsx', 'app/(tabs)/collection.tsx', 'app/(tabs)/index.tsx', 'app/(tabs)/map.tsx', 'app/(tabs)/settings.tsx']) {
     const source = readSource(file).replace(/header=\{<(?:AppHeader|BackHeader)[^>]*\/>\}/g, '').replace(/const header = <(?:AppHeader|BackHeader)[^>]*\/>;/, '');
     assert.doesNotMatch(source, /<(?:AppHeader|BackHeader)/, `${file} pins a header`);
   }
