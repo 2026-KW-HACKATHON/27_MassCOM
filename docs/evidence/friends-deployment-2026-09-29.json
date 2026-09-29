@@ -6,7 +6,7 @@
   "issue": 230,
   "mainCi": { "runId": 36577029769, "result": "PASS" },
   "operating": {
-    "method": "scripts/deploy-lightsail.sh --deploy (existing production Lightsail), about 13:40Z",
+    "method": "scripts/deploy-lightsail.sh --deploy (existing production Lightsail), between 13:40Z and 13:45Z",
     "migrationCompatibility": "from 758f214 to 87e98f4, backward_compatible=yes: 0028 is additive only (5 new tables and 3 new indexes, no change to existing tables)",
     "before": {
       "apiCommit": "758f214",

@@ -2,7 +2,9 @@
   "status": "PASS",
   "verifiedAt": "2026-09-30",
   "sourceCommit": "f1bba2dd347f3b5e404203434343c8164a4fad7f",
-  "pullRequests": [239],
+  "pullRequests": [
+    239
+  ],
   "mainCI": "36598828345 SUCCESS",
   "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.10",
   "repositoryVisibility": "PUBLIC",
@@ -21,10 +23,10 @@
   },
   "checks": {
     "buildChecks": "PASS: api, package, sourceMarker, signature and walletSurface. scripts/build-showcase-apk.sh stops on any failure of aapt package, the kr.masscom.BUILD_SOURCE_COMMIT manifest marker equal to f1bba2d, apksigner signer #1 certificate equal to the approved showcase certificate, and the release wallet surface check on the AAB; it wrote the provenance file with all five checks PASS only after they passed",
-    "localVsGithubSha256AndBytes": "PASS: the GitHub asset digest equals the APK SHA-256",
     "remoteTagAndAssets": "PASS: APK, build-time provenance (632 bytes) and SHA256SUMS.txt (218 bytes) uploaded; the release targets f1bba2d",
     "anonymousApkDownload": "PASS: HTTPS 200",
-    "deviceInstall": "PASS: Samsung SM-S928N adb install -r over the existing kr.masscom.wolgye.demo app returned Success and the first launch showed the role-selection screen; choosing the owner role (점주예요) opened the owner page with the '가게 그림 만들기' card ('지금은 기본 그림이에요. AI 시안 4장 중에서 골라 보세요.') above the customer-identity QR step; the owner's showcase account has STAFF. Tapping the card opened the '가게 그림 만들기' screen: the current art is the bundled showcase mascot art for store A, the quota reads '시안 받기 3번 · 고급 그림 만들기 3번', and the card reads 'AI 그림은 준비 중이에요 / 아직 준비 중이에요. 곧 열릴 예정이에요.' because the showcase API has no OpenAI key yet (docs/evidence/ai-store-art-deployment-2026-09-30.json). No capture was saved."
+    "deviceInstall": "PASS: Samsung SM-S928N adb install -r over the existing kr.masscom.wolgye.demo app returned Success and the first launch showed the role-selection screen; choosing the owner role (점주예요) opened the owner page with the '가게 그림 만들기' card ('지금은 기본 그림이에요. AI 시안 4장 중에서 골라 보세요.') above the customer-identity QR step; the owner's showcase account has STAFF. Tapping the card opened the '가게 그림 만들기' screen: the current art is the bundled showcase mascot art for store A, the quota reads '시안 받기 3번 · 고급 그림 만들기 3번', and the card reads 'AI 그림은 준비 중이에요 / 아직 준비 중이에요. 곧 열릴 예정이에요.' because the showcase API has no OpenAI key yet (docs/evidence/ai-store-art-deployment-2026-09-30.json). No capture was saved.",
+    "githubDigestVsBuildSha256": "PASS: the GitHub asset digest equals the APK SHA-256 (the downloaded file was not re-hashed)"
   },
   "notRun": [
     "real AI generation (the showcase API has no OpenAI key): drafts, the final image, applying it and the customer display of a real AI image on the public showcase, and the real per-call cost and latency",
