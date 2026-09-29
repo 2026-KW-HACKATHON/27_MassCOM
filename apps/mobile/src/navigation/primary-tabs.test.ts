@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 const app = fileURLToPath(new URL('../app/', import.meta.url));
 
 test('the primary route files keep the production root while the foundation preview stays separate', () => {
-  // Five files, four tab slots: 지도 (Issue #228) joined 탐색, 방문 인증 and 도감, and 내 정보 stays a hidden route.
-  for (const name of ['index', 'map', 'claim', 'collection', 'settings']) {
+  // Six files, five tab slots: 지도 (Issue #228) and 친구 (Issue #230) joined 탐색, 방문 인증 and 도감, and 내 정보 stays a hidden route.
+  for (const name of ['index', 'map', 'claim', 'collection', 'friends', 'settings']) {
     assert.ok(existsSync(join(app, '(tabs)', name + '.tsx')), name);
     assert.equal(existsSync(join(app, name + '.tsx')), false, name);
   }
@@ -21,14 +21,16 @@ test('the primary route files keep the production root while the foundation prev
   assert.match(root, /<AuthenticatedRoot\s*\/>/);
 });
 
-test('floating tab bar shows explore, map, a raised claim stamp and collection; account moves to the header', () => {
+test('floating tab bar shows explore, map, a raised claim stamp, collection and friends; account moves to the header', () => {
   const layout = readFileSync(join(app, '(tabs)', '_layout.tsx'), 'utf8');
-  for (const title of ['탐색', '지도', '방문 인증', '도감']) assert.ok(layout.includes(title), title);
+  for (const title of ['탐색', '지도', '방문 인증', '도감', '친구']) assert.ok(layout.includes(title), title);
+  assert.match(layout, /name="friends" options=\{\{ title: '친구', tabBarAccessibilityLabel: '친구' \}\}/);
+  assert.doesNotMatch(layout, /name="friends"[^\n]*href: null/, 'the friends tab is visible');
   assert.match(layout, /name="map" options=\{\{ title: '지도', tabBarAccessibilityLabel: '지도' \}\}/);
   assert.doesNotMatch(layout, /name="map"[^\n]*href: null/, 'the map tab is visible');
   assert.match(layout, /name="settings"[\s\S]*?href: null/);
-  // The bar draws routes in the order they are declared: 탐색 · 지도 · (방문 인증) · 도감, so the raised claim stamp is the third of four slots.
-  const order = ['index', 'map', 'claim', 'collection', 'settings'].map((name) => layout.indexOf(`name="${name}"`));
+  // The bar draws routes in the order they are declared: 탐색 · 지도 · (방문 인증) · 도감 · 친구, so the raised claim stamp is the third of five slots: dead centre.
+  const order = ['index', 'map', 'claim', 'collection', 'friends', 'settings'].map((name) => layout.indexOf(`name="${name}"`));
   assert.ok(order.every((position) => position >= 0), 'every route is declared');
   assert.deepEqual(order, [...order].sort((a, b) => a - b), 'declared in bar order');
   assert.match(layout, /tabBar=\{\(props\) => <FloatingTabBar \{\.\.\.props\} \/>\}/);
@@ -40,6 +42,7 @@ test('floating tab bar shows explore, map, a raised claim stamp and collection; 
   assert.match(bar, /accessibilityRole="tab"/);
   // Every visible tab has its own glyph; an unmapped route would silently show the explore magnifier.
   assert.match(bar, /const glyphByRoute[^\n]*map: 'map'/);
+  assert.match(bar, /const glyphByRoute[^\n]*friends: 'friends'/);
   assert.match(bar, /route\.name === 'claim'/);
 });
 

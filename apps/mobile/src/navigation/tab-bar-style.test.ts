@@ -5,9 +5,11 @@ import { fileURLToPath } from 'node:url';
 
 import { contrast } from '../theme/contrast';
 import { darkColors, lightColors } from '../theme/palette';
+import { uiMetrics } from '../theme/ui-metrics';
 import { darkWorld, lightWorld } from '../theme/world';
 import { CLAIM_SLOT_FLEX, barHeightFor, tabIndicator } from './tab-bar-style';
 
+const bar = readFileSync(fileURLToPath(new URL('./floating-tab-bar.tsx', import.meta.url)), 'utf8');
 const schemes = [[lightColors, lightWorld], [darkColors, darkWorld]] as const;
 
 test('a selected tab differs from an unselected one by more than colour: a pill behind the icon and a bolder label', () => {
@@ -72,22 +74,59 @@ test('the bar grows with text size so the raised button label never touches the 
   }
 });
 
-test('with four slots the raised claim slot is a little wider so "방문 인증" fits at 1.5x text even on a 320dp phone', () => {
+test('with five slots the raised claim slot is wider so "방문 인증" fits at 1.5x text even on a 320dp phone', () => {
   const rowWidth = 320 - 2 * 16;
-  const claimSlot = (rowWidth * CLAIM_SLOT_FLEX) / (CLAIM_SLOT_FLEX + 3);
-  const otherSlot = rowWidth / (CLAIM_SLOT_FLEX + 3);
+  const claimSlot = (rowWidth * CLAIM_SLOT_FLEX) / (CLAIM_SLOT_FLEX + 4);
+  const otherSlot = rowWidth / (CLAIM_SLOT_FLEX + 4);
   // Four Hangul glyphs and a space at 12sp x 1.5 (the label cap) are about 4.3 em wide.
   assert.ok(claimSlot >= 4.3 * 12 * 1.5, `claim slot ${claimSlot.toFixed(1)}dp`);
-  // The two-glyph labels (탐색, 지도, 도감) keep room next to their 4dp padding.
+  // The two-glyph labels (탐색, 지도, 도감, 친구) keep room next to their 4dp padding, and the slot stays a 48dp target.
   assert.ok(otherSlot - 8 >= 2 * 12 * 1.5, `tab slot ${otherSlot.toFixed(1)}dp`);
-  assert.ok(CLAIM_SLOT_FLEX >= 1 && CLAIM_SLOT_FLEX <= 1.4, 'still reads as one of four equal slots');
+  assert.ok(otherSlot >= uiMetrics.minTouch, `tab slot ${otherSlot.toFixed(1)}dp is a touch target`);
+  assert.ok(CLAIM_SLOT_FLEX >= 1 && CLAIM_SLOT_FLEX <= 1.6, 'still reads as one of five slots');
 });
 
-const bar = readFileSync(fileURLToPath(new URL('./floating-tab-bar.tsx', import.meta.url)), 'utf8');
+test('the pill can never be wider than its slot: 56dp on wider phones, the slot\'s content width on a 320dp phone', () => {
+  for (const [palette, world] of schemes) {
+    for (const selected of [true, false]) {
+      const pill = tabIndicator(selected, palette, world).pill;
+      assert.equal(pill.width, 56, 'still 56dp where it fits');
+      assert.equal(pill.maxWidth, '100%', 'and never more than the slot it sits in');
+    }
+  }
+  // Five slots on a 320dp phone: the row is 288dp and a two-glyph slot is 288 / (4 + CLAIM_SLOT_FLEX), with 4dp padding each side.
+  const slotPadding = Number(/slot: \{[^}]*paddingHorizontal: (\d+)/.exec(bar)?.[1]);
+  assert.equal(slotPadding, 4, 'the slot padding this arithmetic assumes');
+  const slot = (320 - 2 * 16) / (CLAIM_SLOT_FLEX + 4);
+  const slotContent = slot - 2 * slotPadding;
+  // Without the cap the 56dp pill was wider than what its slot leaves it, and stuck out over the neighbouring tab.
+  assert.ok(56 > slotContent, `the fixed pill overflowed a ${slotContent.toFixed(1)}dp slot content`);
+  // With the cap it is exactly the slot's content, which still holds the 24dp glyph, and the slot itself stays a touch target.
+  assert.ok(slotContent >= 24, `${slotContent.toFixed(1)}dp holds the 24dp glyph`);
+  assert.ok(slot >= uiMetrics.minTouch, `${slot.toFixed(1)}dp slot is a touch target`);
+  // Whatever the phone width, the pill (56dp, capped to the slot's content) stays inside its slot; from about 372dp up it is a full 56dp.
+  for (const phone of [320, 360, 375, 393, 412, 480]) {
+    const phoneSlot = (phone - 2 * 16) / (CLAIM_SLOT_FLEX + 4);
+    const drawn = Math.min(56, phoneSlot - 2 * slotPadding);
+    assert.ok(drawn <= phoneSlot, `${phone}dp: pill ${drawn.toFixed(1)}dp inside a ${phoneSlot.toFixed(1)}dp slot`);
+    assert.ok(drawn >= 24, `${phone}dp: pill still holds the glyph`);
+    if (phone >= 393) assert.equal(drawn, 56, `${phone}dp keeps the full 56dp pill`);
+  }
+});
+
+test('the raised claim stamp is the exact middle of the bar: two equal slots on each side of it', () => {
+  // 탐색 · 지도 · (방문 인증) · 도감 · 친구 with flex 1, 1, CLAIM_SLOT_FLEX, 1, 1.
+  const flex = [1, 1, CLAIM_SLOT_FLEX, 1, 1];
+  const total = flex.reduce((sum, value) => sum + value, 0);
+  const beforeClaim = flex[0]! + flex[1]!;
+  const afterClaim = flex[3]! + flex[4]!;
+  assert.equal(beforeClaim, afterClaim);
+  assert.ok(Math.abs((beforeClaim + CLAIM_SLOT_FLEX / 2) / total - 0.5) < 1e-12);
+});
 
 test('the claim slot takes its width from the shared constant', () => {
   assert.match(bar, /claimSlot: \{ flex: CLAIM_SLOT_FLEX/);
-  assert.match(bar, /Floating four-slot bar/);
+  assert.match(bar, /Floating five-slot bar/);
 });
 
 test('the tab row is a tablist and label sizes stop at 1.5x', () => {

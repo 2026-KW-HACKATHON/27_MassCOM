@@ -1,7 +1,7 @@
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import type { ColorValue } from 'react-native';
 
-type GlyphName = 'explore' | 'map' | 'claim' | 'collection' | 'account';
+type GlyphName = 'explore' | 'map' | 'claim' | 'collection' | 'friends' | 'account';
 
 export function TabGlyph({ name, color, size }: {
   name: GlyphName;
@@ -30,6 +30,13 @@ export function TabGlyph({ name, color, size }: {
         <Rect x="13" y="4" width="7" height="7" rx="1" {...stroke} />
         <Rect x="4" y="13" width="7" height="7" rx="1" {...stroke} />
         <Rect x="13" y="13" width="7" height="7" rx="1" {...stroke} />
+      </> : null}
+      {name === 'friends' ? <>
+        {/* Two heads: the one in front is larger, the friend behind it is smaller. */}
+        <Circle cx="9" cy="8.5" r="3.2" {...stroke} />
+        <Path d="M3 19.5c.4-3.2 2.6-4.9 6-4.9s5.6 1.7 6 4.9" {...stroke} />
+        <Circle cx="16.8" cy="9.5" r="2.5" {...stroke} />
+        <Path d="M16 14.7c2.9-.2 4.6 1.3 5 4" {...stroke} />
       </> : null}
       {name === 'account' ? <>
         <Circle cx="12" cy="8" r="3.5" {...stroke} />

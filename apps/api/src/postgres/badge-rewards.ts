@@ -60,14 +60,19 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 // 본인 방문만 입력으로 쓴다. progress_counted는 (계정, 점포, 한국 날짜)당 최대 1건이다.
 // 실제 점포(is_demo = false)에서 본인이 직접 발급한 수령 슬롯의 방문은 세지 않는다. 시연 점포는
 // 한 사람이 점원과 고객을 함께 시연하므로 그대로 센다.
+// 친구 화면(friends.ts)이 같은 규칙으로 친구의 메달·도장을 계산하도록 이 두 조각을 함께 쓴다.
+export const countedVisitFromSql = `
+    FROM visit_events AS visit
+    JOIN merchants AS merchant ON merchant.id = visit.merchant_id
+    JOIN claim_slots AS slot ON slot.id = visit.claim_slot_id`;
+export const countedVisitFilterSql = `visit.status = 'VALID' AND visit.progress_counted
+      AND (merchant.is_demo OR slot.created_by_account_id <> visit.customer_account_id)`;
+
 const medalValuesSql = `
   WITH counted AS (
     SELECT visit.merchant_id, visit.business_date
-    FROM visit_events AS visit
-    JOIN merchants AS merchant ON merchant.id = visit.merchant_id
-    JOIN claim_slots AS slot ON slot.id = visit.claim_slot_id
-    WHERE visit.customer_account_id = $1 AND visit.status = 'VALID' AND visit.progress_counted
-      AND (merchant.is_demo OR slot.created_by_account_id <> visit.customer_account_id)
+    ${countedVisitFromSql}
+    WHERE visit.customer_account_id = $1 AND ${countedVisitFilterSql}
   )
   SELECT
     (SELECT count(DISTINCT merchant_id) FROM counted)::integer AS explorer,

@@ -1,0 +1,514 @@
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Application from 'expo-application';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Alert, Pressable, RefreshControl, Share, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions, type ScrollViewProps } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import type { AccountCredential } from '@/auth/account-credential';
+import { createScanGate } from '@/commerce/claim-code';
+import { ClaimQr } from '@/commerce/claim-qr';
+import {
+  formatFriendCode,
+  friendCodeAccessibilityLabel,
+  friendCodeProblemMessage,
+  friendLink,
+  friendLinkProblemMessage,
+  friendShareMessage,
+  parseScannedFriendCode,
+  validateFriendCode,
+} from '@/friends/code';
+import { FriendsApiError, createFriendsApiClient, friendsErrorMessage, replyNeedsRefresh } from '@/friends/friends-api';
+import { buildRankingRows, checkNicknameDraft, rankingNote, rowAccessibilityLabel, type RankingRow } from '@/friends/friends-model';
+import { createHeldFriendCode } from '@/friends/held-friend-code';
+import { linkVariantFor } from '@/friends/link';
+import { consumePendingFriendCode, consumePendingFriendProblem } from '@/friends/pending-friend-link';
+import { useFriends } from '@/friends/use-friends';
+import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
+import { colorsForScheme } from '@/theme/palette';
+import { worldForScheme } from '@/theme/world';
+import { AppHeader } from '@/ui/app-header';
+import { BounceButton } from '@/ui/bounce-button';
+import { FloatingCard } from '@/ui/floating-card';
+import { heroMascotSize } from '@/ui/large-text';
+import { Mascot } from '@/ui/mascot';
+import { SkyBackdrop } from '@/ui/sky-backdrop';
+import { SkyScrollView } from '@/ui/sky-scroll-view';
+import { Stagger } from '@/ui/stagger';
+import { StateScene } from '@/ui/state-scene';
+
+import { TierDots } from './tier-dots';
+import { useFriendsStyles } from './use-friends-styles';
+
+export const FRIENDS_TITLE = '친구';
+export const FRIENDS_SUBTITLE = '코드를 주고받으면 서로의 여권을 볼 수 있어요';
+
+const NOT_A_FRIEND_QR = '친구 코드 QR이 아니에요. 친구 화면의 QR을 다시 비춰 주세요.';
+const OWN_CODE_NOTICE = '내 친구 코드예요.';
+const ROTATE_CONFIRM = '새 코드를 만들면 예전 코드로는 더 이상 추가할 수 없어요. 지금 친구는 그대로예요.';
+
+type Notice = { tone: 'success' | 'error'; text: string };
+
+export function FriendsScreen({
+  apiUrl,
+  credential,
+  onSessionInvalid,
+}: {
+  apiUrl: string;
+  credential: AccountCredential;
+  onSessionInvalid: () => Promise<void>;
+}) {
+  const clearance = useTabBarClearance();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const scheme = useColorScheme();
+  const palette = colorsForScheme(scheme);
+  const world = worldForScheme(scheme);
+  const styles = useFriendsStyles();
+  const { width, fontScale } = useWindowDimensions();
+  const variant = linkVariantFor(Application.applicationId);
+  const api = useMemo(
+    () => createFriendsApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
+  const friends = useFriends(api);
+  const { snapshot, refreshQuietly, applyMe } = friends;
+  const myCode = snapshot?.me.code;
+
+  const [refreshing, setRefreshing] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [addNotice, setAddNotice] = useState<Notice>();
+  const [scanning, setScanning] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [nicknameBusy, setNicknameBusy] = useState(false);
+  const [nicknameError, setNicknameError] = useState<string>();
+  const [rotating, setRotating] = useState(false);
+  const [cardNotice, setCardNotice] = useState<Notice>();
+  const [, requestCameraPermission] = useCameraPermissions();
+  const scanGate = useRef(createScanGate()).current;
+  // Taps can land twice before a state change renders, so each guarded action reads a ref, not React state.
+  const addingNow = useRef(false);
+  const rotatingNow = useRef(false);
+  const nicknameBusyNow = useRef(false);
+  // Read through a ref so the focus effect below is not rebuilt (and does not refetch) when my code first arrives.
+  const myCodeRef = useRef<string | undefined>(undefined);
+  useEffect(() => { myCodeRef.current = myCode; }, [myCode]);
+  // A code that arrives by link waits here while my own snapshot loads (see held-friend-code.ts).
+  const [heldCode] = useState(createHeldFriendCode);
+  const statusRef = useRef(friends.status);
+
+  const addFriend = useCallback(async (code: string) => {
+    if (addingNow.current) return;
+    if (code === myCodeRef.current) {
+      setAddNotice({ tone: 'error', text: friendsErrorMessage(new FriendsApiError(409, 'FRIEND_SELF')) });
+      return;
+    }
+    addingNow.current = true;
+    setAdding(true);
+    setAddNotice(undefined);
+    try {
+      const result = await api.addFriend(code);
+      setCodeInput('');
+      setScanning(false);
+      setAddNotice({
+        tone: 'success',
+        text: result.created ? `${result.friend.nickname} 님과 친구가 되었어요.` : `${result.friend.nickname} 님은 이미 친구예요.`,
+      });
+      await refreshQuietly();
+    } catch (error) {
+      setAddNotice({ tone: 'error', text: friendsErrorMessage(error) });
+    } finally {
+      addingNow.current = false;
+      setAdding(false);
+    }
+  }, [api, refreshQuietly]);
+
+  // A code that arrived by QR or link is asked about first: adding shares my passport with its owner as well.
+  // My own code is only said so: there is nothing to add. A link opens this tab before my code is loaded, so it goes through
+  // receiveLinkCode, which waits for it (the server refuses adding myself anyway if the load fails).
+  const confirmAdd = useCallback((code: string) => {
+    if (code === myCodeRef.current) {
+      setCodeInput('');
+      setAddNotice({ tone: 'error', text: OWN_CODE_NOTICE });
+      return;
+    }
+    setCodeInput(code);
+    // A code that was only put here for the question does not stay in the box when the question is turned down.
+    const clearCode = () => setCodeInput((current) => (current === code ? '' : current));
+    Alert.alert(
+      '이 코드로 친구를 추가할까요?',
+      `${formatFriendCode(code)}\n추가하면 서로의 메달·배지 수·가본 가게 이름이 보여요. 방문 날짜는 보이지 않아요.`,
+      [
+        { text: '취소', style: 'cancel', onPress: clearCode },
+        { text: '추가', onPress: () => void addFriend(code) },
+      ],
+      { cancelable: true, onDismiss: clearCode },
+    );
+  }, [addFriend]);
+
+  const receiveLinkCode = useCallback((code: string) => {
+    const ready = heldCode.arrive(code, statusRef.current);
+    if (ready !== undefined) confirmAdd(ready);
+  }, [confirmAdd, heldCode]);
+
+  // Runs after the effect above that stores my code, so a released code is judged against it.
+  useEffect(() => {
+    statusRef.current = friends.status;
+    const waiting = heldCode.settle(friends.status);
+    if (waiting !== undefined) confirmAdd(waiting);
+  }, [friends.status, heldCode, confirmAdd]);
+  // A code still waiting when the tab is left is forgotten, so it cannot open a dialog over another screen.
+  useFocusEffect(useCallback(() => () => heldCode.clear(), [heldCode]));
+
+  const focusCount = useRef(0);
+  useFocusEffect(useCallback(() => {
+    focusCount.current += 1;
+    // A friend link opened before sign-in waits in memory; the first time this tab is focused with an account it is asked about.
+    const pending = consumePendingFriendCode();
+    // A friend link that could not be used waits the same way and is said once, in one line.
+    const problem = consumePendingFriendProblem();
+    if (problem) setAddNotice({ tone: 'error', text: friendLinkProblemMessage(problem) });
+    if (pending) receiveLinkCode(pending);
+    else if (focusCount.current > 1) void refreshQuietly();
+    // An add result belongs to the visit it was made on; after a friend is removed elsewhere it would read as stale.
+    return () => {
+      setScanning(false);
+      setAddNotice(undefined);
+    };
+  }, [receiveLinkCode, refreshQuietly]));
+
+  function submitTyped() {
+    const checked = validateFriendCode(codeInput);
+    if (!checked.ok) {
+      setAddNotice({ tone: 'error', text: friendCodeProblemMessage(checked.reason) });
+      return;
+    }
+    void addFriend(checked.code);
+  }
+
+  async function startScan() {
+    const permission = await requestCameraPermission();
+    if (!permission.granted) {
+      setAddNotice({ tone: 'error', text: '카메라 권한이 없어 촬영할 수 없어요. 친구 코드를 아래 칸에 직접 입력해 주세요.' });
+      return;
+    }
+    scanGate.reset();
+    setAddNotice(undefined);
+    setScanning(true);
+  }
+
+  function handleScanned(raw: string) {
+    const scanned = parseScannedFriendCode(raw, variant);
+    if (!scanned.ok) {
+      // The camera reports the same wrong QR many times a second; keep the state identical.
+      const text = scanned.reason === 'OTHER_APP' ? friendLinkProblemMessage('OTHER_APP') : NOT_A_FRIEND_QR;
+      setAddNotice((current) => (current?.text === text ? current : { tone: 'error', text }));
+      return;
+    }
+    if (!scanGate.accept(scanned.code)) return;
+    setScanning(false);
+    confirmAdd(scanned.code);
+  }
+
+  async function saveNickname() {
+    if (nicknameBusyNow.current) return;
+    const checked = checkNicknameDraft(draft);
+    if (!checked.ok) {
+      setNicknameError(checked.message);
+      return;
+    }
+    nicknameBusyNow.current = true;
+    setNicknameBusy(true);
+    setNicknameError(undefined);
+    try {
+      applyMe({ nickname: await api.setNickname(checked.nickname) });
+      setEditing(false);
+    } catch (error) {
+      setNicknameError(friendsErrorMessage(error));
+      // The server may have saved a nickname this reply could not show: never leave the old one on screen.
+      if (replyNeedsRefresh(error)) void refreshQuietly();
+    } finally {
+      nicknameBusyNow.current = false;
+      setNicknameBusy(false);
+    }
+  }
+
+  async function rotateCode() {
+    if (rotatingNow.current) return;
+    rotatingNow.current = true;
+    setRotating(true);
+    setCardNotice(undefined);
+    try {
+      applyMe({ code: await api.rotateCode() });
+      setCardNotice({ tone: 'success', text: '새 코드를 만들었어요. 예전 코드로는 더 이상 추가할 수 없어요.' });
+    } catch (error) {
+      setCardNotice({ tone: 'error', text: friendsErrorMessage(error) });
+      // The server may have rotated to a code this reply could not show: never leave the old code (and its QR) on screen.
+      if (replyNeedsRefresh(error)) void refreshQuietly();
+    } finally {
+      rotatingNow.current = false;
+      setRotating(false);
+    }
+  }
+
+  function confirmRotate() {
+    Alert.alert('코드 바꾸기', ROTATE_CONFIRM, [
+      { text: '취소', style: 'cancel' },
+      { text: '새 코드 만들기', style: 'destructive', onPress: () => void rotateCode() },
+    ], { cancelable: true });
+  }
+
+  async function shareCode(code: string) {
+    setCardNotice(undefined);
+    try {
+      await Share.share({ message: friendShareMessage(code, variant) });
+    } catch {
+      setCardNotice({ tone: 'error', text: '공유창을 열지 못했어요. 코드를 직접 알려 주세요.' });
+    }
+  }
+
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      await refreshQuietly();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  // The header (sky art included) is the first thing inside the scroll content, so it scrolls away with the page.
+  const header = (
+    <AppHeader title={FRIENDS_TITLE} subtitle={FRIENDS_SUBTITLE}>
+      <View style={styles.hero}>
+        {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
+        <Mascot interactive pose="friends" size={heroMascotSize(fontScale, 112)} />
+      </View>
+    </AppHeader>
+  );
+  const sky = (body: ReactNode, refreshControl?: ScrollViewProps['refreshControl']) => (
+    <SkyBackdrop>
+      <SkyScrollView
+        header={header}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
+        refreshControl={refreshControl}
+      >
+        {body}
+      </SkyScrollView>
+    </SkyBackdrop>
+  );
+
+  if (!snapshot) {
+    return friends.status === 'error'
+      ? sky(
+        <StateScene
+          kind="error"
+          title="친구를 불러오지 못했어요"
+          body={friendsErrorMessage(friends.error)}
+          action={{ label: '다시 불러오기', onPress: () => { void friends.retry(); }, disabled: friends.retrying }}
+        />,
+      )
+      : sky(<StateScene kind="loading" title="친구를 불러오는 중" />);
+  }
+
+  const { me } = snapshot;
+  const rows = buildRankingRows(snapshot);
+  const qrSize = Math.min(220, Math.max(160, width - 2 * 20 - 2 * 18 - 8));
+
+  return sky(
+    <>
+      <Stagger index={0}>
+        <FloatingCard style={styles.card}>
+          <Text style={styles.eyebrow}>내 친구 코드</Text>
+          {editing ? (
+            <View style={{ gap: 8 }}>
+              <Text style={styles.inputLabel}>별명</Text>
+              <TextInput
+                value={draft}
+                onChangeText={(text) => { setDraft(text); setNicknameError(undefined); }}
+                autoFocus
+                autoCorrect={false}
+                accessibilityLabel="별명"
+                placeholder="별명 (12자까지)"
+                placeholderTextColor={world.cardMuted}
+                returnKeyType="done"
+                onSubmitEditing={() => void saveNickname()}
+                style={styles.input}
+              />
+              {nicknameError ? <Text accessibilityLiveRegion="polite" style={styles.errorMessage}>{nicknameError}</Text> : null}
+              <View style={styles.actions}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={nicknameBusy}
+                  onPress={() => void saveNickname()}
+                  style={[styles.primaryButton, styles.action, nicknameBusy && styles.disabled]}
+                >
+                  <Text style={styles.primaryButtonText}>{nicknameBusy ? '저장 중…' : '저장'}</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={nicknameBusy}
+                  onPress={() => { setEditing(false); setNicknameError(undefined); }}
+                  style={[styles.outlineButton, styles.action, nicknameBusy && styles.disabled]}
+                >
+                  <Text style={styles.outlineButtonText}>취소</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.nicknameRow}>
+              <Text selectable maxFontSizeMultiplier={1.6} style={styles.nickname}>{me.nickname}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="별명 바꾸기"
+                onPress={() => { setDraft(me.nickname); setNicknameError(undefined); setEditing(true); }}
+                style={styles.outlineButton}
+              >
+                <Text style={styles.outlineButtonText}>바꾸기</Text>
+              </Pressable>
+            </View>
+          )}
+
+          <View style={styles.codeBlock}>
+            <Text
+              selectable
+              accessibilityLabel={friendCodeAccessibilityLabel(me.code)}
+              adjustsFontSizeToFit
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.3}
+              style={styles.code}
+            >
+              {formatFriendCode(me.code)}
+            </Text>
+          </View>
+          <View style={styles.qrBox}>
+            <ClaimQr
+              code={friendLink(me.code, variant)}
+              size={qrSize}
+              accessibilityLabel="내 친구 코드 QR. 친구가 촬영하면 나를 추가할 수 있어요"
+            />
+          </View>
+          <Text style={styles.note}>이 코드를 받은 사람이 추가하면 서로의 여권이 보여요.</Text>
+          {cardNotice ? (
+            <Text accessibilityLiveRegion="polite" style={cardNotice.tone === 'success' ? styles.successMessage : styles.errorMessage}>{cardNotice.text}</Text>
+          ) : null}
+          <View style={styles.actions}>
+            <View style={styles.action}><BounceButton label="코드 공유" onPress={() => void shareCode(me.code)} /></View>
+            <View style={styles.action}><BounceButton label={rotating ? '바꾸는 중…' : '코드 바꾸기'} variant="secondary" disabled={rotating} onPress={confirmRotate} /></View>
+          </View>
+        </FloatingCard>
+      </Stagger>
+
+      <Stagger index={1}>
+        <FloatingCard style={styles.card}>
+          <Text accessibilityRole="header" style={styles.eyebrow}>친구 추가</Text>
+          {scanning ? (
+            <View style={styles.camera}>
+              <CameraView
+                style={StyleSheet.absoluteFill}
+                facing="back"
+                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                onBarcodeScanned={({ data }) => handleScanned(data)}
+              />
+            </View>
+          ) : null}
+          <Text style={styles.inputLabel}>친구 코드</Text>
+          <TextInput
+            value={codeInput}
+            onChangeText={(text) => { setCodeInput(text.toUpperCase()); setAddNotice(undefined); }}
+            autoCapitalize="characters"
+            autoComplete="off"
+            autoCorrect={false}
+            spellCheck={false}
+            importantForAutofill="no"
+            maxLength={24}
+            accessibilityLabel="친구 코드"
+            placeholder="8자리 코드"
+            placeholderTextColor={world.cardMuted}
+            returnKeyType="done"
+            onSubmitEditing={submitTyped}
+            style={[styles.input, styles.codeInput]}
+          />
+          {addNotice ? (
+            <Text accessibilityLiveRegion="polite" style={addNotice.tone === 'success' ? styles.successMessage : styles.errorMessage}>{addNotice.text}</Text>
+          ) : null}
+          <View style={styles.actions}>
+            <View style={styles.action}><BounceButton label={adding ? '추가하는 중…' : '추가'} disabled={adding} onPress={submitTyped} /></View>
+            <View style={styles.action}>
+              <BounceButton
+                label={scanning ? '촬영 닫기' : 'QR 촬영'}
+                variant="secondary"
+                disabled={adding}
+                onPress={scanning ? () => setScanning(false) : () => void startScan()}
+              />
+            </View>
+          </View>
+        </FloatingCard>
+      </Stagger>
+
+      <Stagger index={2}>
+        <View style={styles.section}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>친구 순위</Text>
+          <Text style={styles.sectionNote}>{rankingNote(me.asOf)}</Text>
+          <View style={styles.sectionBody}>
+            {snapshot.friends.length === 0 ? (
+              <StateScene kind="empty" title="아직 친구가 없어요" body="친구 코드를 주고받으면 여기에 순위가 생겨요." />
+            ) : (
+              rows.map((row) => (
+                <RankingRowCard
+                  key={row.key}
+                  row={row}
+                  onPress={row.friendshipId
+                    ? () => router.push({ pathname: '/friends/[friendshipId]', params: { friendshipId: row.friendshipId! } })
+                    : undefined}
+                />
+              ))
+            )}
+          </View>
+        </View>
+      </Stagger>
+    </>,
+    <RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} colors={[palette.primary]} />,
+  );
+}
+
+function RankingRowCard({ row, onPress }: { row: RankingRow; onPress?: () => void }) {
+  const styles = useFriendsStyles();
+  const content = (
+    <>
+      <View accessible={false} style={styles.rankBadge}>
+        <Text maxFontSizeMultiplier={1.4} style={styles.rankBadgeText}>{row.rank}</Text>
+      </View>
+      <View style={styles.rowCopy}>
+        <View style={styles.rowNameLine}>
+          <Text maxFontSizeMultiplier={1.6} style={styles.rowName}>{row.nickname}</Text>
+          {row.isMe ? <View style={styles.meChip}><Text style={styles.meChipText}>나</Text></View> : null}
+        </View>
+        <TierDots medals={row.medals} />
+        <Text style={styles.rowMeta}>배지 {row.badges.earned}/{row.badges.total}</Text>
+      </View>
+      {onPress ? <Text accessible={false} style={styles.chevron}>›</Text> : null}
+    </>
+  );
+  if (onPress) {
+    return (
+      <FloatingCard
+        onPress={onPress}
+        accessibilityLabel={rowAccessibilityLabel(row)}
+        accessibilityHint="친구 여권 보기"
+        style={styles.rankRow}
+      >
+        {content}
+      </FloatingCard>
+    );
+  }
+  return (
+    <FloatingCard style={[styles.rankRow, styles.rankRowMe]}>
+      <View accessible accessibilityLabel={rowAccessibilityLabel(row)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+        {content}
+      </View>
+    </FloatingCard>
+  );
+}

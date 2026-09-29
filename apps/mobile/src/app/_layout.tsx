@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthSessionProvider, useAuthSession } from '@/auth/auth-provider';
 import { AuthRequiredScreen } from '@/screens/auth-required';
 import { publicApiConfig } from '@/config/public-api-runtime';
+import { hasPendingFriendLink } from '@/friends/pending-friend-link';
 import { consumeMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, type ShowcaseRoleState } from '@/navigation/showcase-entry';
 import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseMerchantScreen } from '@/screens/showcase-merchant';
@@ -23,6 +24,9 @@ function Routes() {
     if (auth.state.status !== 'signedIn') return;
     const merchantId = consumeMerchantReturn();
     if (merchantId) router.replace({ pathname: '/merchants/[merchantId]', params: { merchantId } });
+    // A friend link opened while signed out continues at the friends tab, which asks about the code or says why it cannot be used
+    // (it consumes it there).
+    else if (hasPendingFriendLink()) router.replace('/friends');
   }, [auth.state.status, router]);
   return (
     <Stack
@@ -38,6 +42,7 @@ function Routes() {
       <Stack.Screen name="foundation-preview" options={{ title: 'UI 시안 미리보기' }} />
       <Stack.Screen name="showcase-tour" options={{ title: '체험용 다섯 공간' }} />
       <Stack.Screen name="merchants/[merchantId]" options={{ headerShown: false }} />
+      <Stack.Screen name="friends/[friendshipId]" options={{ headerShown: false }} />
       <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
       <Stack.Screen name="recommendations" options={{ headerShown: false }} />
       <Stack.Screen name="wallet" options={{ title: '외부 지갑 연결' }} />

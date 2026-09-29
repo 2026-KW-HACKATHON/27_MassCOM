@@ -12,7 +12,8 @@ export function tabIndicator(selected: boolean, palette: AppColors, world: World
   return {
     iconColor: color,
     pill: {
-      width: 56, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
+      // 56dp where the slot allows it; on a 320dp phone a slot's content is only about 44dp, so the pill shrinks with it.
+      width: 56, maxWidth: '100%', height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
       backgroundColor: selected ? palette.primaryContainer : 'transparent',
     } satisfies ViewStyle,
     label: { color, fontWeight: selected ? '800' : '500' } satisfies TextStyle,
@@ -35,7 +36,8 @@ export function barHeightFor(fontScale: number): number {
 }
 
 /**
- * With four slots (탐색 · 지도 · 방문 인증 · 도감) the raised claim stamp is the third. Its slot is a little wider than the others
- * so the "방문 인증" label, four glyphs and a space at the 1.5x cap, still fits on a 320dp phone.
+ * With five slots (탐색 · 지도 · 방문 인증 · 도감 · 친구) the raised claim stamp is the third, dead centre: two equal slots on each side.
+ * Its slot is wider than the others so the "방문 인증" label, four glyphs and a space at the 1.5x cap, still fits on a 320dp phone
+ * (288dp of row, claim slot 78dp) while the four two-glyph slots stay above the 48dp touch size.
  */
-export const CLAIM_SLOT_FLEX = 1.2;
+export const CLAIM_SLOT_FLEX = 1.5;

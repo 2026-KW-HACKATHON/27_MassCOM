@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Alert, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
+import { recommendMerchant } from '@/friends/recommend-share';
 import { motion } from '@/motion/timing';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { BounceButton } from '@/ui/bounce-button';
@@ -91,6 +92,15 @@ export function PinSheet({ pin, bottom, onClose, onMeasure }: Props) {
                 <BounceButton variant="secondary" label="길찾기" onPress={() => chooseProvider(pin, targets)} />
               </View>
             ) : null}
+          </View>
+          <View style={styles.sheetActions}>
+            <View style={styles.sheetAction}>
+              <BounceButton
+                variant="secondary"
+                label="친구에게 추천"
+                onPress={() => { void recommendMerchant({ id: pin.merchantId, name: pin.name, demo: pin.demo }); }}
+              />
+            </View>
           </View>
           {notice ? <Text style={styles.sheetNotice}>{notice}</Text> : null}
         </ScrollView>

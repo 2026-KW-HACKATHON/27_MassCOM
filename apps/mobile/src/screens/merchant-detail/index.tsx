@@ -3,9 +3,11 @@ import { useMemo } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { recommendMerchant } from '@/friends/recommend-share';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
+import { BounceButton } from '@/ui/bounce-button';
 import { FloatingCard } from '@/ui/floating-card';
 import { BackHeader } from '@/ui/back-header';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
@@ -68,6 +70,11 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
               </View>
               <Text selectable accessibilityRole="header" style={styles.title}>{merchant.name}</Text>
               {merchant.story ? <Text selectable style={styles.story}>{merchant.story}</Text> : null}
+              <BounceButton
+                label="친구에게 추천"
+                variant="secondary"
+                onPress={() => { void recommendMerchant({ id: merchant.id, name: merchant.name, demo: merchant.demo }); }}
+              />
             </FloatingCard>
           </Stagger>
 

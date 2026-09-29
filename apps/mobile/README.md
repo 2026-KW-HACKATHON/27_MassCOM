@@ -8,7 +8,7 @@
 | `showcase` | `kr.masscom.wolgye.demo` | `masscom-demo` | 정확히 `https://demo-api.masscom.kr` | [두 계정 직접 코드 수령](../../docs/evidence/showcase-two-account-phone-2026-09-27.json)과 [같은 계정 Preview 3 카메라 QR 촬영→수령](../../docs/evidence/showcase-preview3-camera-claim-2026-09-28.json) PASS. 두 계정·두 기기 QR 수령은 `NOT_RUN` |
 | `production` | `kr.masscom.wolgye` | `masscom` | 정확히 `https://api.masscom.kr` | [test.3 Samsung Google 로그인·16KB 설치](../../docs/evidence/operating-android-test3-2026-09-28.json) PASS; Play 별도 |
 
-시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 정적 시연 웹은 [www 공개 HTTPS](https://www.masscom.kr/preview/)에서 열립니다. **[전용 시연 API/DB](https://demo-api.masscom.kr/health)는 [새 고객 로그인 코드로 교체](../../docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)했고 [Preview 3 설치용 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)는 [같은 계정의 카메라 QR 촬영→수령](../../docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)까지 확인했습니다. 초대 밖 실계정 새 로그인·서로 다른 두 계정/두 휴대전화 QR·`demo.masscom.kr` App Link·지갑 연결은 미검증**입니다. 이전 두 계정 직접 코드 수령은 [별도 폰 실기](../../docs/evidence/showcase-two-account-phone-2026-09-27.json)입니다. 개발 앱의 DEMO 인증은 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
+시연 빌드는 표시 이름 `월계 마스코트 체험용`과 별도 package/scheme·App Link host `demo.masscom.kr/open`을 갖습니다. 다만 이 호스트의 DNS·Caddy·assetlinks가 아직 없어 시연 앱은 https 링크를 공유하거나 QR에 넣지 않고 `masscom-demo://` 링크와 앱 받기 안내만 씁니다([친구 설계 §8 D](../../docs/superpowers/specs/2026-09-29-friends-design.md)). 정적 시연 웹은 [www 공개 HTTPS](https://www.masscom.kr/preview/)에서 열립니다. **[전용 시연 API/DB](https://demo-api.masscom.kr/health)는 [새 고객 로그인 코드로 교체](../../docs/evidence/showcase-open-login-api-deployment-2026-09-27.json)했고 [Preview 3 설치용 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3)는 [같은 계정의 카메라 QR 촬영→수령](../../docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)까지 확인했습니다. 초대 밖 실계정 새 로그인·서로 다른 두 계정/두 휴대전화 QR·`demo.masscom.kr` App Link·지갑 연결은 미검증**입니다. 이전 두 계정 직접 코드 수령은 [별도 폰 실기](../../docs/evidence/showcase-two-account-phone-2026-09-27.json)입니다. 개발 앱의 DEMO 인증은 정확한 `kr.masscom.wolgye.dev` package에서만 허용하고 시연·운영·미확인 package는 거절합니다. 운영 DB에 가상 점포를 넣거나 운영 앱에 개발 DEMO 계정을 포함하지 않습니다.
 
 `APP_VARIANT=showcase`는 기존 `.env.local`의 운영 Google/Reown ID 또는 개발 DEMO 변수가 있으면 빌드 설정을 거절합니다. 시연 전용 Google Web client ID를 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`로 요구하고, 설치 package가 `.demo`일 때만 앱 설정의 이 값을 읽습니다. 별도 Reown 프로젝트는 미설정이라 시연 지갑 연결은 비활성입니다. 현재 환경 경계만 확인하려면 로컬 dotenv 로드를 끄고 실제 발급받은 시연 전용 공개 ID를 명시합니다(실제 API 요청·APK 빌드 아님).
 
@@ -30,9 +30,9 @@ Expo SDK 57의 같은 계열 권장 패치와 개발 도구 `tsx`를 lockfile과
 
 ## 개발용 UI 시안과 로컬 실행 (Issue #136)
 
-운영 앱의 기본 화면은 기존 탐색·방문 인증·도감·내 정보 네 탭입니다. 개발 빌드에서 로그인한 뒤 `내 정보 → 역할 선택 시안 보기`를 열면 `누구세요?` 역할 카드, 선택적 외부지갑 안내, 내용 없는 다섯 공간의 스와이프를 확인할 수 있습니다. 이 시안은 실제 점포·방문·혜택이 아니며 점주 선택으로 권한이 생기지 않습니다. release 빌드에서는 개발용 미리보기 진입점이 없고 미리보기 URL도 기본 화면으로 돌아갑니다.
+운영 앱의 기본 화면은 `탐색 · 지도 · 방문 인증 · 도감 · 친구` 다섯 탭(내 정보는 머리글 아바타)입니다. 개발 빌드에서 로그인한 뒤 `내 정보 → 역할 선택 시안 보기`를 열면 `누구세요?` 역할 카드, 선택적 외부지갑 안내, 내용 없는 다섯 공간의 스와이프를 확인할 수 있습니다. 이 시안은 실제 점포·방문·혜택이 아니며 점주 선택으로 권한이 생기지 않습니다. release 빌드에서는 개발용 미리보기 진입점이 없고 미리보기 URL도 기본 화면으로 돌아갑니다.
 
-시연 앱 `.demo` 전용 코드에는 로그인 전 역할 선택, 고객의 기존 네 탭 진입, 점주의 서버 `CONFIRM_VISIT` 확인, 고객 설정에서 열 수 있는 빈 다섯 공간 투어를 추가했습니다. 점주 선택만으로 발급 권한을 주지 않고, 가상 점포에 권한이 없으면 거절 안내를 표시합니다. 별도 시연 OAuth·공개 API/DB·서명 APK의 **Google 로그인·가상 점포 탐색·STAFF 발급·같은 계정 카메라 QR 수령은 폰에서 PASS**이며 두 계정 카메라 QR 수령과 지갑은 `NOT_RUN`입니다. 시연 지갑은 전용 Reown 프로젝트 전까지 비활성으로 남습니다.
+시연 앱 `.demo` 전용 코드에는 로그인 전 역할 선택, 고객의 기존 탭 진입, 점주의 서버 `CONFIRM_VISIT` 확인, 고객 설정에서 열 수 있는 빈 다섯 공간 투어를 추가했습니다. 점주 선택만으로 발급 권한을 주지 않고, 가상 점포에 권한이 없으면 거절 안내를 표시합니다. 별도 시연 OAuth·공개 API/DB·서명 APK의 **Google 로그인·가상 점포 탐색·STAFF 발급·같은 계정 카메라 QR 수령은 폰에서 PASS**이며 두 계정 카메라 QR 수령과 지갑은 `NOT_RUN`입니다. 시연 지갑은 전용 Reown 프로젝트 전까지 비활성으로 남습니다.
 
 새 소스의 고객 방문 탭에는 2분 식별 QR을 발급·갱신·폐기하는 화면이 있고, `.demo`의 STAFF 화면은 그 QR 촬영→같은 확인 코드 대조→실제 이용 확인→기존 1회 수령 QR 발급으로 이어집니다. 원시 고객 계정 ID는 시연 STAFF 화면에 표시하지 않습니다. 기존 공개 Preview 3 APK와 외부 시연 API는 이 변경 전 상태이므로 새 흐름의 두 기기 촬영·수령은 아직 `NOT_RUN`입니다.
 
@@ -55,6 +55,7 @@ Expo SDK 57 development build에서 음식점을 탐색하고, 점주 1회 코�
 
 - Expo Router 화면·Reown AppKit·Ethers adapter: `IMPLEMENTED`
 - 탐색·방문 인증·도감·내 정보 네 기본 탭과 간결한 화면 구조: `VERIFIED`; 자동 146개·typecheck·lint·Android export, Samsung Android 16의 360dp·200% 글씨·실시간 다크 모드·뒤로 가기·개발 scheme PASS. TalkBack 서비스·포커스는 부분 확인, 앱 콘텐츠 낭독은 `NOT_RUN`([증거](../../docs/evidence/android-ui-navigation-2026-09-23.json))
+- 친구 탭·친구 여권·가게 추천·친구 링크 열기(Issue #230, D-047): `IMPLEMENTED`(소스와 로컬 확인까지). 친구 탭(`src/screens/friends/`)은 내 카드(별명 바꾸기·큰 친구 코드·QR·시스템 공유·확인 창이 있는 코드 바꾸기), 8자리 코드 입력 또는 QR 촬영 추가(QR·링크로 온 코드는 확인 창을 거치고 내 코드는 알림만), 친구 순위(어제까지 기준)를 보인다. 순위 행을 누르면 친구 여권(`/friends/[friendshipId]`)이 열려 읽기 전용 메달 3종·배지 n/9·가본 가게 이름 도장판과 확인 창이 있는 친구 끊기(끊은 직후 내 코드 바꾸기를 권함)를 보인다. 가게 카드·상세의 `친구에게 추천`은 가게 이름과 링크만 시스템 공유창으로 보낸다. `/open#friend=CODE`·`#merchant=ID` 링크는 각 빌드가 자기 링크만 받고(운영 `masscom://`·`masscom.kr`, 시연 `masscom-demo://`, 개발 `masscom-dev://`·`masscom.kr`) 운영과 개발은 같은 `masscom.kr` https 링크를 쓰므로 둘 사이는 격리되지 않고(서로의 https QR이 상대 API까지 간다) 시연 앱만 https 링크 없이 `masscom-demo://` QR과 앱 받기 안내만 낸다. Android 앱 링크는 운영·시연에만 등록돼 있고 개발과 `www.masscom.kr`은 스캐너·붙여넣기로만 열린다. 자동 시험 598개, 로컬 API와 개발 앱 실폰(SM-S928N) 확인은 [시험 상태](../../docs/TEST_STATUS.md)에 있다. 시스템 공유창·실제 App Link·시연 링크 열기는 `NOT_RUN`
 - 이메일·소셜·내장 지갑·구매·스왑 UI: 명시적으로 비활성화
 - 거래·approve·permit 요청: 앱 메서드 경계에서 거절
 - Android 16 / arm64 / 16KB AVD debug APK 빌드·설치·실행: `VERIFIED`
