@@ -24,7 +24,7 @@
         "friendships"
       ]
     },
-    "backup": "NOT_TAKEN: this deploy run took no separate pg_dump backup before migrating; the migration only adds tables and indexes, so nothing existing was altered",
+    "backup": "PASS: scripts/deploy-lightsail.sh took its own pre-migration pg_dump, /opt/masscom/backups/database-before-87e98f464218.dump.oIJ7Ui, 95287 bytes, 2026-09-29 13:42Z (listed on the host by the orchestrator on 2026-09-30, after the deploy); actual restore NOT_RUN",
     "note": "No released operating APK contains the friends tab (test.3 predates it), so the production friend endpoints have no shipped client and were only checked unauthenticated."
   },
   "showcase": {
@@ -58,10 +58,9 @@
   },
   "notRun": [
     "adding a friend between two accounts on the production or showcase server (only unauthenticated 401 checks and the Samsung showcase-app friends tab load were done; see showcase-preview9-release-2026-09-29.json)",
-    "restoring the showcase DB backup",
-    "a pre-migration DB backup for production (none was taken)",
+    "restoring the production or showcase DB backups",
     "showcase link-open: demo.masscom.kr has no DNS, Caddy or assetlinks yet",
     "public /open showing the Preview 9 link (needs a web-only redeploy after the docs change merges)"
   ],
-  "recovery": "Migration 0028 is additive and is not reverted automatically; volume deletion is not a recovery method. Production has no pre-migration dump from this run; the showcase DB has the pre-87e98f4 dump above."
+  "recovery": "Migration 0028 is additive and is not reverted automatically; volume deletion is not a recovery method. Production has the deploy script's own pre-migration dump database-before-87e98f464218.dump.oIJ7Ui (95287 bytes) and the showcase DB has the pre-87e98f4 dump above; neither restore was run."
 }

@@ -1,6 +1,6 @@
 # 기존 Lightsail의 포털·운영 웹 이관
 
-**최신 API·웹 배포(2026-09-29, 친구):** main `87e98f4`(PR #233)를 `scripts/deploy-lightsail.sh --deploy`로 같은 Lightsail의 운영 API·웹에 반영했습니다. API `758f214`·웹 `cd527dd`가 모두 `87e98f4`가 됐고 migration 0028(친구 테이블 5개, 추가만 하는 변경)이 적용됐습니다. **이 배포는 migration 전에 별도 pg_dump 백업을 만들지 않았습니다.** 두 API health 200·로그인 없는 `/me/friends` 401·`/privacy` 본문 해시 일치는 [실측](../../docs/evidence/friends-deployment-2026-09-29.json)에 있습니다.
+**최신 API·웹 배포(2026-09-29, 친구):** main `87e98f4`(PR #233)를 `scripts/deploy-lightsail.sh --deploy`로 같은 Lightsail의 운영 API·웹에 반영했습니다. API `758f214`·웹 `cd527dd`가 모두 `87e98f4`가 됐고 migration 0028(친구 테이블 5개, 추가만 하는 변경)이 적용됐습니다. **배포 스크립트가 migration 전에 자체 pg_dump 백업(`/opt/masscom/backups/database-before-87e98f464218.dump.oIJ7Ui`, 95287바이트, 2026-09-29 13:42Z)을 만들었고 실제 복원은 `NOT_RUN`입니다.** 두 API health 200·로그인 없는 `/me/friends` 401·`/privacy` 본문 해시 일치는 [실측](../../docs/evidence/friends-deployment-2026-09-29.json)에 있습니다.
 
 **이전 API·웹 배포(2026-09-29):** main `758f214`(PR #217·#219·#221)를 `scripts/deploy-lightsail.sh --dry-run` 뒤 `--deploy`로 기존 Lightsail의 운영 API·웹에 반영했습니다. API `fd0a9b2`·웹 `2dda864`가 모두 `758f214`가 됐고 migration은 26→27(0027)입니다. 배지 혜택·쿠폰·점주·시연 점주는 0건이며 DB 백업 mode 600과 기존 Postgres 컨테이너 유지를 확인했습니다. 외부 HTTPS는 `/presentation` 404, 익명 `/api/web/badges` 401·no-store, 나머지 포털·앱·점주·관리자·시연·open 경로와 두 API health 200입니다([실측](../../docs/evidence/explorer-passport-deployment-2026-09-29.json)). 백업의 실제 복원과 실계정 운영 웹 여권 화면은 `NOT_RUN`입니다. 공개 `/open`의 Preview 7 링크는 별도 문서 PR 병합 뒤 웹 전용 재배포로 반영합니다.
 
