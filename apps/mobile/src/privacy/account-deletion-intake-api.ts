@@ -69,6 +69,11 @@ export class AccountDeletionIntakeApiClient {
     return payload.request === null ? undefined : parseView(payload.request);
   }
 
+  /** Lookup by receipt number alone; the server answers only with state and dates. */
+  async status(receipt: string): Promise<DeletionIntakeView> {
+    return parseView(await this.send('POST', '/account-deletion-status', { receipt }));
+  }
+
   async cancel(): Promise<void> {
     const payload = await this.send('POST', '/account-deletion-intake/cancel', {});
     if (!isRecord(payload) || payload.status !== 'CANCELLED') throw new Error('INVALID_DELETION_INTAKE_RESPONSE');
@@ -85,12 +90,42 @@ export class AccountDeletionIntakeApiClient {
       headers,
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-    const payload: unknown = await response.json();
+    // A proxy error page or an empty body is not JSON. The status still says what happened, so it is not thrown away.
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = undefined;
+    }
     if (!response.ok) {
       const code = isRecord(payload) && typeof payload.code === 'string' ? payload.code : `HTTP_${response.status}`;
       throw new AccountDeletionIntakeApiError(response.status, code);
     }
+    if (payload === undefined) throw new Error('INVALID_DELETION_INTAKE_RESPONSE');
     return payload;
+  }
+}
+
+/**
+ * A failure that carries no answer from the server (offline, timeout, unreadable body, 5xx) does not say whether the
+ * server acted, so the screen must ask again instead of assuming either outcome.
+ */
+export function isAmbiguousIntakeFailure(error: unknown): boolean {
+  return !(error instanceof AccountDeletionIntakeApiError) || error.status >= 500;
+}
+
+export type IntakeRecheck = { kind: 'found'; view: DeletionIntakeView } | { kind: 'unknown' };
+
+/**
+ * Asks the server for the active request after an ambiguous failure. Only a request that is really there is `found`;
+ * "none" or a second failure is still `unknown`, because a filing may not be visible yet or the answer may not arrive.
+ */
+export async function recheckIntake(client: Pick<AccountDeletionIntakeApiClient, 'current'>): Promise<IntakeRecheck> {
+  try {
+    const view = await client.current();
+    return view ? { kind: 'found', view } : { kind: 'unknown' };
+  } catch {
+    return { kind: 'unknown' };
   }
 }
 

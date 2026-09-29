@@ -33,11 +33,11 @@ test('the operating app copy names the Google web login, the receipt, 24 hours a
 test('only the showcase package files a deletion inside the app, after a confirmation, and shows a selectable receipt', () => {
   assert.match(screen, /canRequestShowcaseDeletion\(Application\.applicationId, credential\)/);
   assert.match(screen, /: intakeClient \? \(/);
-  assert.match(screen, /Alert\.alert\(\s*reissue \? '접수번호 다시 받기' : '탈퇴 요청'/);
+  assert.match(screen, /Alert\.alert\(\s*reissue \? '접수번호 다시 받기' : '삭제 요청'/);
   assert.match(screen, /접수 후 24시간은 취소할 수 있고, 그 뒤 운영자가 7일 안에 처리합니다/);
   assert.match(screen, /접수만으로 계정이 바로 삭제되지는 않습니다/);
   assert.match(screen, /<Text selectable accessibilityLabel=\{`접수번호 \$\{receipt\.replaceAll\('-', ' '\)\}`\} style=\{styles\.receiptCode\}>/);
-  assert.match(screen, /탈퇴 요청 취소 \(/);
+  assert.match(screen, /삭제 요청 취소 \(/);
   assert.match(screen, /접수번호 다시 받기/);
   // The receipt lives in component state only.
   assert.doesNotMatch(screen, /AsyncStorage|SecureStore|localStorage/);
@@ -50,4 +50,40 @@ test('only the showcase package files a deletion inside the app, after a confirm
 test('the deletion notice in the app and on the web page both say the friends data is removed too', () => {
   assert.match(screen, /별명·친구 코드·친구 관계도 함께 지워져 친구 목록에서 사라집니다/);
   assert.match(page, /별명·친구 코드·친구 관계와 친구 끊기 기록/);
+});
+
+test('one term, 삭제 요청, is used and the failure copy no longer claims a filing did not happen', () => {
+  assert.doesNotMatch(screen, /탈퇴/);
+  assert.doesNotMatch(screen, /접수되었다고 간주하지 않으니/);
+  assert.match(screen, /<Text style=\{styles\.sectionTitle\}>계정 삭제 요청<\/Text>/);
+});
+
+test('an ambiguous failure while filing, re-issuing or cancelling asks the server again instead of guessing', () => {
+  const fileIntake = screen.slice(screen.indexOf('async function fileIntake'), screen.indexOf('async function cancelIntake'));
+  assert.match(fileIntake, /isAmbiguousIntakeFailure\(caught\)\) await settleAmbiguousFailure\(reissue \? 'reissue' : 'file'\)/);
+  const cancelIntake = screen.slice(screen.indexOf('async function cancelIntake'), screen.indexOf('function confirmDeletion'));
+  assert.match(cancelIntake, /isAmbiguousIntakeFailure\(caught\)\) await settleAmbiguousFailure\('cancel'\)/);
+  const settle = screen.slice(screen.indexOf('async function settleAmbiguousFailure'), screen.indexOf('async function lookUpReceipt'));
+  assert.match(settle, /recheckIntake\(intakeClient\)/);
+  assert.match(settle, /setIntake\(undefined\);\s*setIntakeUnknown\(true\)/);
+  assert.match(screen, /intakeUnknownMessage/);
+});
+
+test('a failed status load offers a retry instead of staying on loading forever', () => {
+  const load = screen.slice(screen.indexOf('useEffect(() => {\n    if (!intakeClient)'), screen.indexOf('function checkIntakeAgain'));
+  assert.match(load, /\(\) => \{ if \(current\) setIntakeUnknown\(true\); \}/);
+  assert.match(load, /\[intakeClient, loadAttempt\]/);
+  assert.match(screen, /intake === undefined && intakeUnknown/);
+  assert.match(screen, /setLoadAttempt\(\(attempt\) => attempt \+ 1\)/);
+  assert.match(screen, /<Text style=\{styles\.secondaryLinkText\}>다시 확인<\/Text>/);
+});
+
+test('the showcase screen looks a receipt up through the client and shows only the described state', () => {
+  assert.match(screen, /await intakeClient\.status\(lookupCode\.trim\(\)\)/);
+  assert.match(screen, /accessibilityLabel="접수번호"/);
+  assert.match(screen, /처리 상태 확인/);
+  assert.match(screen, /lookupFailureMessage\(caught\)/);
+  assert.match(screen, /autoCapitalize="characters"/);
+  const lookup = screen.slice(screen.indexOf('async function lookUpReceipt'), screen.indexOf('function confirmIntake'));
+  assert.doesNotMatch(lookup, /AsyncStorage|SecureStore|localStorage/);
 });
