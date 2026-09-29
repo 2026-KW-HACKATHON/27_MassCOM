@@ -98,11 +98,12 @@ export class PostgresMerchantArtService implements MerchantArtService {
     );
     const latest = await this.pool.query<RoundRow>(
       `SELECT ${roundColumns} FROM merchant_art_rounds WHERE merchant_id = $1
-       ORDER BY created_at DESC, id DESC LIMIT 1`,
+       ORDER BY (status IN ${inProgressSql}) DESC, created_at DESC, id DESC LIMIT 1`,
       [merchantId],
     );
     const row = latest.rows[0];
-    // 가장 최근 라운드가 이미 적용된 것이면 보여 줄 진행 중 작업이 없다(더 오래된 미적용 라운드는 되살리지 않는다).
+    // 진행 중인 라운드가 있으면 그것을, 없으면 가장 최근 라운드를 보여 준다. 그 라운드가 이미 적용된 것이면 보여 줄 작업이 없다
+    // (더 오래된 미적용 라운드는 되살리지 않는다).
     const round = row && row.status !== 'APPLIED' ? await this.view(this.pool, row) : null;
     const artUrl = artUrlFor(current.rows[0]?.sha256 ?? null);
     return {
@@ -251,8 +252,12 @@ export class PostgresMerchantArtService implements MerchantArtService {
     return { artUrl };
   }
 
+  // 적용(apply)과 같은 가게 잠금을 잡아 되돌리기와 적용이 엇갈려도 결과가 하나로 정해진다. 그림이 없어도 성공한다(멱등).
   async reset(merchantId: string): Promise<void> {
-    await this.pool.query('DELETE FROM merchant_art WHERE merchant_id = $1', [merchantId]);
+    await this.transaction(async (client) => {
+      await this.lockMerchant(client, merchantId);
+      await client.query('DELETE FROM merchant_art WHERE merchant_id = $1', [merchantId]);
+    });
   }
 
   async getPublicImage(sha256: string): Promise<Buffer | null> {

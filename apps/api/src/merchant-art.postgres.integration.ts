@@ -47,6 +47,8 @@ function makeGate(): Gate {
 
 type SetupOptions = {
   gate?: Gate;
+  // true이면 문은 최종(edits) 호출만 붙잡는다.
+  gateEditsOnly?: boolean;
   config?: Partial<Pick<AiArtConfig, 'monthlyBudgetMicroUsd' | 'dailyDraftRounds' | 'dailyFinals'>>;
   handler?: FakeOpenAiHandler;
   fetch?: typeof fetch;
@@ -97,7 +99,10 @@ async function setup(t: TestContext, options: SetupOptions = {}) {
   const state = { now: noon };
   const now = () => state.now;
   const handler: FakeOpenAiHandler | undefined = options.gate
-    ? async (call, index) => { await options.gate!.opened; return options.handler?.(call, index); }
+    ? async (call, index) => {
+      if (!options.gateEditsOnly || call.path === '/v1/images/edits') await options.gate!.opened;
+      return options.handler?.(call, index);
+    }
     : options.handler;
   const fake = fakeOpenAiFetch(handler);
   const logs: unknown[] = [];
@@ -366,6 +371,32 @@ test('choose and apply only work in their own state, once, and only for the owni
   }
   // 다른 가게가 적용을 시도해도 가게 그림은 생기지 않는다.
   assert.equal((await slow.pool.query('SELECT count(*)::int AS n FROM merchant_art')).rows[0]!.n, 0);
+});
+
+test('the state shows a round in progress first and nothing when the newest round is already applied', async (t) => {
+  const held = makeGate();
+  const db = await setup(t, { gate: held, gateEditsOnly: true });
+  const older = await readyRound(db);
+  // 시계가 같은 값이면 "더 새로운" 라운드를 가릴 수 없으므로 시각을 앞으로 보낸다.
+  db.state.now = new Date(db.state.now.getTime() + 60_000);
+  const newer = await readyRound(db);
+  assert.equal((await db.art.getState('art-a')).round?.id, newer.id);
+
+  // 더 오래된 라운드에서 최종을 시작하면(호출은 붙잡혀 있다) 더 새로운 라운드보다 진행 중인 그 라운드가 먼저 보인다.
+  await db.art.chooseDraft({ merchantId: 'art-a', roundId: older.id, index: 2 });
+  const shown = (await db.art.getState('art-a')).round;
+  assert.equal(shown?.id, older.id);
+  assert.equal(shown?.status, 'FINALIZING');
+  held.release();
+  await db.art.drain();
+
+  // 진행 중인 것이 없고 가장 최근 라운드가 이미 적용됐으면 보여 줄 것이 없다(더 오래된 미적용 라운드는 되살리지 않는다).
+  await db.art.chooseDraft({ merchantId: 'art-a', roundId: newer.id, index: 0 });
+  await db.art.drain();
+  await db.art.apply({ merchantId: 'art-a', roundId: newer.id });
+  const state = await db.art.getState('art-a');
+  assert.equal(state.round, null);
+  assert.notEqual(state.current, null);
 });
 
 test('draft rounds are limited per merchant and Korean day, with Retry-After to the next midnight', async (t) => {
