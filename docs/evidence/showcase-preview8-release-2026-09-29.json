@@ -1,0 +1,38 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-09-29T11:45:00Z",
+  "sourceCommit": "fea9f29d26f9c395b3240fac7748aeff46bd3d9d",
+  "pullRequests": [227, 229],
+  "mainCI": "36562952858 SUCCESS",
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.8",
+  "repositoryVisibility": "PUBLIC",
+  "releaseKind": "prerelease",
+  "artifact": {
+    "name": "MassCOM-showcase-android-fea9f29.apk",
+    "package": "kr.masscom.wolgye.demo",
+    "versionName": "0.1.0-test.2",
+    "versionCode": 2,
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "bytes": 156468121,
+    "sha256": "59a92388971a641ad3872db62e615fb5311e97fa9babc57d2d9909a03f5d4242",
+    "githubAssetDigest": "sha256:59a92388971a641ad3872db62e615fb5311e97fa9babc57d2d9909a03f5d4242",
+    "provenanceSha256": "1b1875fca55aa5b98da2df3bffa40f7ca95f530232dbc934f64f37fac3f28aeb",
+    "signingCertificateSha256": "cdb0dc37750c907eaa2f1b9eb172b0911f14b9c9f2dab78b481f1751d8ebf28a"
+  },
+  "checks": {
+    "buildChecks": "PASS: api, package, sourceMarker, signature and walletSurface",
+    "localVsGithubSha256AndBytes": "PASS",
+    "remoteTagAndAssets": "PASS: APK, SHA256SUMS.txt and build-time provenance uploaded; tag targets fea9f29",
+    "anonymousApkDownload": "PASS: HTTPS 200",
+    "deviceInstall": "NOT_RUN: the Samsung SM-S928N was not connected to adb, so this APK was not installed. An earlier build of the same design (c75143a, sky-town redesign only, no map) was installed on that phone and showed the new role-selection screen and the explore screen with showcase store art; that is not this APK and no capture of it is stored in this repository. The town map was checked on the phone only with the development build (docs/evidence/town-map-2026-09-29/)."
+  },
+  "notRun": [
+    "install and first launch of this exact APK on a phone",
+    "town map, stamp pins and route-finding hand-off in this showcase APK (verified only with the development build)",
+    "logged-in flow on the phone: medal, reward box, coupon issue and staff redemption",
+    "TalkBack, dark mode and large text on this APK",
+    "new two-minute customer identity QR and two-phone redemption",
+    "real coupon issue or redemption and Google Play submission"
+  ],
+  "limitations": "Preview 8 denotes GitHub release order; internal versionName/versionCode remain 0.1.0-test.2/2. This is a demo-only prerelease built from main fea9f29, which adds the sky-town redesign (PR #227) and the illustrated town map (PR #229) on top of Preview 7. Verification covers the build checks, GitHub asset digests, remote tag target and anonymous download only; there is no device evidence for this APK. The three seeded showcase offers are demo examples, not partner-store benefits."
+}
