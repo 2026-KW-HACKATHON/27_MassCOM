@@ -29,7 +29,8 @@ test('the reversal cards expose roles, live regions and the note limit and never
   assert.match(reversal, /accessibilityState=\{\{ selected \}\}/);
   assert.equal((reversal.match(/accessibilityLiveRegion="polite"/g) ?? []).length, 2);
   assert.match(reversal, /maxLength=\{reversalNoteMaxLength\}/);
-  assert.match(reversal, /연락처·이메일·주소는 적지 마세요/);
+  assert.match(reversal, /연락처·이메일·주소·이름은 적지 마세요/);
+  assert.match(reversal, /연락처, 이메일, 주소, 이름은 적지 마세요/);
   assert.doesNotMatch(reversal, /customerAccountId|accountId|email/i);
   // 처리 중에는 모든 버튼을 잠근다.
   assert.match(reversal, /disabled=\{busy\}/);

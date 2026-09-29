@@ -455,7 +455,9 @@ export class PostgresReversalService implements ReversalService {
     // 작업 행과 outbox 행을 한 문장으로 NOWAIT 잠근다(워커의 대여 조회와 같은 조합). 워커는 잠근 채로 전송을 준비하므로
     // 여기서 기다리면 교착할 수 있어 잠겨 있으면 55P03으로 끝내고 호출부가 VISIT_REWARD_MINT_IN_PROGRESS로 바꾼다.
     // 작업마다 outbox 행이 하나뿐이고 같은 거래에서 만들어진다(mint_jobs·outbox_events 삽입, UNIQUE(aggregate)).
-    // 대여 만료는 API 시계가 아니라 DB 시계(clock_timestamp)로 비교한다: 워커가 쓴 만료 시각과 같은 시계다.
+    // 대여 만료는 API 시계가 아니라 DB 시계(clock_timestamp)로 비교한다. 워커는 lease_expires_at을 자기 프로세스 시계
+    // (지금 + 대여 시간, 기본 30초)로 쓰므로 워커와 DB 시계가 어긋나면 그만큼 판정도 어긋난다. DB 시계 하나로 고정하면
+    // API 서버 시계의 편차만 빠질 뿐 어긋남이 없어지지는 않는다. 그래서 대여가 없다는 판정만 믿지 않고 위의 NOWAIT 잠금을 함께 쓴다.
     const jobs = (
       await client.query<MintJobRow>(
         `SELECT job.id, job.entitlement_id, job.status, job.transaction_hash, job.last_error_code,

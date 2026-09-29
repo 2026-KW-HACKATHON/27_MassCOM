@@ -236,7 +236,7 @@ export async function loadAdmin(fetcher, doc) {
               reason.value = couponVoidReasons[0][0];
               reasonLabel.append(reason);
               const noteLabel = doc.createElement('label');
-              noteLabel.textContent = '메모(선택, 100자까지 · 연락처·이메일·주소는 적지 마세요) ';
+              noteLabel.textContent = '메모(선택, 100자까지 · 연락처·이메일·주소·이름은 적지 마세요) ';
               const note = doc.createElement('input');
               note.name = 'note';
               note.type = 'text';

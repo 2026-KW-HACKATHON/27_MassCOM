@@ -104,7 +104,7 @@ export function StaffReversalCards({ api, merchantId, styles }: { api: Api; merc
             <Text style={styles.inputLabel}>메모(선택)</Text>
             <TextInput
               accessibilityLabel="취소 메모, 선택 사항"
-              accessibilityHint="100자까지 쓸 수 있어요. 연락처, 이메일, 주소는 적지 마세요."
+              accessibilityHint="100자까지 쓸 수 있어요. 연락처, 이메일, 주소, 이름은 적지 마세요."
               autoCapitalize="none"
               autoCorrect={false}
               maxLength={reversalNoteMaxLength}
@@ -112,7 +112,7 @@ export function StaffReversalCards({ api, merchantId, styles }: { api: Api; merc
               style={styles.input}
               value={note}
             />
-            <Text style={styles.help}>연락처·이메일·주소는 적지 마세요.</Text>
+            <Text style={styles.help}>연락처·이메일·주소·이름은 적지 마세요.</Text>
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel={`${visitRowAccessibilityLabel(visit)} 취소 확정`} disabled={busy} onPress={() => confirmCancel(visit)} style={[styles.dangerButton, busy && styles.disabled]}>
             <Text style={styles.dangerButtonText}>방문 취소 확정</Text>

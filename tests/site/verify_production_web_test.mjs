@@ -1928,6 +1928,8 @@ test('점포 웹은 확인창에서 동의한 방문만 사유와 함께 취소�
   const row = visitRows()[1];
   visitReason(row).value = 'NOT_A_REAL_VISIT';
   visitNote(row).value = '  옆 테이블 손님  ';
+  // 화면의 안내는 서버가 못 걸러내는 이름도 적지 말라고 알린다(개인정보 처리방침과 같은 내용).
+  assert.match(visitForm(row).children[1].textContent, /연락처·이메일·주소·이름은 적지 마세요/);
   await visitForm(row).submit();
   const cancel = requests().find((call) => call.path.endsWith('/cancel'));
   assert.equal(cancel.path, cancelPath('visit/2'));
@@ -2163,6 +2165,7 @@ test('관리자 웹은 확인창에서 동의한 쿠폰만 사유와 함께 무�
   const form = fixture.rows()[0].children[1];
   form.children[0].children[0].value = 'ABUSE_SUSPECTED';
   form.children[1].children[0].value = '  중복 발급 의심 ';
+  assert.match(form.children[1].textContent, /연락처·이메일·주소·이름은 적지 마세요/);
   await form.submit();
   const call = fixture.requests().find((request) => request.path.endsWith('/void'));
   assert.equal(call.path, '/api/web/admin/coupons/coupon%2F1/void');
