@@ -1,6 +1,13 @@
 # HANDOFF
 
-마지막 갱신 시각: 2026-09-29 KST
+마지막 갱신 시각: 2026-09-30 KST
+
+## 2026-09-30 사장님 AI 가게 그림(Issue #236)
+
+- 기준 커밋: main `29f2574`(PR #238) 위의 브랜치 `feat/236-ai-store-art`(로컬 worktree `.worktrees/236-ai-store-art`). 서버·앱 구현과 독립 리뷰 반영이 끝났고 코드는 `34e0992`까지이며 그 위에 문서 커밋이 하나 있다. **아직 원격에 push하지 않았고 PR도 없다.** PR 전에 `git fetch origin`으로 main이 앞서 있는지 확인하고, 문서 충돌이 나면 두 쪽 문단을 모두 남겨라. 제목·본문은 `bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"`로 검사한다.
+- 내용: D-048을 구현했다. 서버: migration 0029(라운드·이미지·가게 그림·호출별 비용), 점주용 그림 API 6개, 공개 `/merchant-art/<sha256>.webp`, OpenAI 이미지 클라이언트, 하루 한도·월 예산, 계정 삭제 시 요청자 식별자 비우기. 앱: 시연 점주 화면의 "가게 그림 만들기"와 고객 화면 그림 표시. 리뷰 반영([설계 §11](superpowers/specs/2026-09-29-ai-store-art-design.md), [D-050](DECISIONS.md) `PROPOSED`): `docs/privacy.html`에 OpenAI(미국)·국외 이전, `MANAGE_ART`는 활성 OWNER만(STAFF는 `AI_ART_STAFF_MAY_MANAGE=true`인 시연 compose에서만), 네트워크 오류 무재시도·본문 바이트 상한, 잘못된 설정에도 API 기동, 기본 주소 고정(`https://api.openai.com`과 loopback http), 프롬프트 강화, 최종 예상 비용 $0.18, 적용 뒤 시안 삭제와 30일 지난 적용 라운드의 이미지 정리, `merchant_art.sha256` 비유일 색인(migration 0029를 그 자리에서 고침), `FINALIZING` 조회에서 시안 제외, 커밋 뒤 조회 실패에도 생성 시작, 최종 실패 뒤 같은 라운드에서 다시 고르기, 서버 그림 불러오기 실패 시 글자로 복귀, 확인 창 하나만 열림, 단계 관리 순수 도우미와 행동 시험, 그림 내리기 관리자 SQL([API README](../apps/api/README.md)). **이미 migration 0029를 적용한 로컬 DB는** `ALTER TABLE merchant_art DROP CONSTRAINT merchant_art_sha256_key; CREATE INDEX merchant_art_sha256_idx ON merchant_art (sha256);`로 맞춘다(운영·시연에는 아직 0029가 없다).
+- 검증: API 단위 194/194, PostgreSQL 통합 155건 중 153 PASS·0 FAIL·2 SKIP(일회용 `_test` DB), 모바일 725/725·typecheck·lint, 운영/시연 두 `export:android`와 `verify-mobile-variant-assets`, 개인정보·비밀·접근성 semantics·지갑 표면·사이트 검사 PASS. 오케스트레이터가 실제 휴대전화(SM-S928N) 개발 빌드 + 로컬 API + 지연 8초 가짜 이미지 서버로 시안→선택→최종→적용→고객 화면 표시를 확인했다(리뷰 반영 전 `9932e4d`에서, [시험 상태](TEST_STATUS.md)). 독립 리뷰: sonnet 코드 APPROVE, opus 보안·비용·개인정보 REQUEST_CHANGES(반영 완료, 재리뷰는 하지 않았다). `NOT_RUN`: 실제 OpenAI 호출·비용·지연 측정, 실제 1024² 이미지의 기기 표시, 정책 차단·준비 중·하루 한도 화면의 기기 확인, 최종 실패 뒤 다시 고르기의 기기 확인, TalkBack, 시연 APK, 배포.
+- 다음 작업: ① 소유자가 시연 서버 `/opt/masscom-showcase/runtime.env`에 **`SHOWCASE_OPENAI_API_KEY`를 직접 넣고 월 예산(기본 USD 5)을 확인**한다(에이전트는 키를 만들거나 저장소·대화에 두지 않는다. 절차는 [`infra/showcase-host/README.md`](../infra/showcase-host/README.md)). ② 그 뒤 시연 API를 배포한다(migration 0029 적용, `showcase-api` 컨테이너를 다시 만들어 기동 로그 `AI store art: enabled` 확인, 시연 compose가 `AI_ART_STAFF_MAY_MANAGE=true`를 켠다). ③ 시연 Preview 10 APK를 빌드·공개하고 실제 호출로 비용(`ai_art_spend`)·지연·정책 차단을 실측해 최종 예상 비용 $0.18을 다시 정한다. ④ **운영 서버의 `OPENAI_API_KEY`는 비워 둔다**: 운영에는 OWNER를 부여하는 경로가 없어 STAFF를 열지 않는 한 아무도 이 API를 쓸 수 없고, STAFF를 열면 활성 STAFF 누구나 비용을 쓸 수 있으므로 소유자 채널을 설계·승인한 뒤에 넣는다. ⑤ PR·CI·병합.
 
 ## 2026-09-29 친구 운영·시연 배포와 시연 Preview 9 공개(Issue #234)
 
