@@ -327,3 +327,121 @@ test('413·429 응답은 원인별 문구와 Retry-After 초를 보여 주고 �
   assert.match(ui.status, /초안을 저장했어요/);
   assert.equal(ui.dirty, false);
 });
+
+test('버전 충돌(409)이면 입력을 지키고 충돌 문구를 보여 주며 버튼을 다시 쓸 수 있다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  await ui.input('name', '충돌 전에 고친 이름');
+  api.failNext('PUT', /project-1$/, { status: 409, code: 'COLLECTIBLE_VERSION_CONFLICT' });
+  await ui.click('draft');
+  assert.match(ui.notice, /다른 화면에서 초안이 변경됐어요\. 현재 입력은 유지했어요/);
+  assert.equal(ui.control('name').value, '충돌 전에 고친 이름');
+  assert.equal(ui.dirty, true);
+  assert.equal(ui.action('draft').disabled, false);
+  assert.equal(ui.action('publish').disabled, false);
+  assert.equal(api.store.get('project-1').version, 1, '충돌한 저장은 서버 버전을 올리지 않는다');
+  await ui.click('draft');
+  assert.match(ui.notice, /초안을 저장했어요/);
+  assert.equal(api.store.get('project-1').project.name, '충돌 전에 고친 이름');
+});
+
+test('게시가 캠페인 문제로 거절돼도 저장된 초안은 남고 다시 게시할 수 있다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await readyToPublish(ui);
+  api.failNext('POST', /publish$/, { status: 409, code: 'COLLECTIBLE_CAMPAIGN_UNAVAILABLE' });
+  await ui.click('publish');
+  assert.match(ui.notice, /선택한 캠페인에는 지금 게시할 수 없어요/);
+  assert.equal(api.store.get('project-1').status, 'DRAFT');
+  assert.equal(ui.dirty, true, '게시하지 못했으니 편집 상태를 지킨다');
+  await ui.click('publish');
+  assert.match(ui.notice, /게시했어요/);
+  assert.deepEqual(api.calls.filter(call => call.method !== 'GET').map(call => `${call.method} ${call.path}`), [
+    'POST /collectible-projects', 'POST /collectible-projects/project-1/publish',
+    'PUT /collectible-projects/project-1', 'POST /collectible-projects/project-1/publish',
+  ], '두 번째 게시는 같은 초안을 덮어쓴 뒤 게시한다');
+  assert.equal(api.store.get('project-1').status, 'PUBLISHED');
+});
+
+test('게시 직전에 캠페인 목록을 다시 읽어 끝난 캠페인은 보내기 전에 막는다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await readyToPublish(ui);
+  api.campaigns.splice(0, 1);
+  await ui.click('publish');
+  assert.match(ui.notice, /선택한 캠페인은 지금 게시할 수 없어요/);
+  assert.equal(posts(api).length, 0);
+  assert.deepEqual(ui.control('campaign').options.map(item => item.value), ['', 'campaign-b']);
+});
+
+test('캠페인을 바꾸면 그 캠페인에 없는 방문 목표의 수집품 연결은 풀고 보여 주지 않는다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.change('campaign', 'campaign-a');
+  assert.equal(ui.container.querySelectorAll('[data-reward-count]').length, 3);
+  const five = ui.container.querySelector('[data-reward-count="5"]');
+  five.value = 'gold'; five.dispatchEvent({ type: 'change' }); await settle();
+  await ui.change('campaign', 'campaign-b');
+  assert.deepEqual(ui.container.querySelectorAll('[data-reward-count]').map(node => node.dataset.rewardCount), ['1', '3']);
+  assert.match(ui.notice, /캠페인에 없는 방문 목표\(5회\)의 수집품 연결은 풀었어요/);
+});
+
+test('게시한 프로젝트를 고쳐 저장하면 먼저 새 초안으로 복사하고 그 초안에 이어 저장한다', async () => {
+  const api = createFakeApi();
+  const published = api.seed(seeded(), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  const ui = await mount(api);
+  await ui.change('project-list', published.id);
+  await ui.input('name', '수정한 이름');
+  await ui.click('draft');
+  const writes = api.calls.filter(call => call.method !== 'GET').map(call => `${call.method} ${call.path} ${JSON.stringify(call.body?.expectedVersion)}`);
+  const draftId = api.calls.find(call => call.method === 'PUT').path.split('/').pop();
+  assert.notEqual(draftId, published.id);
+  assert.deepEqual(writes, [`POST /collectible-projects/${published.id}/copy 2`, `PUT /collectible-projects/${draftId} 1`]);
+  assert.equal(api.store.get(published.id).status, 'PUBLISHED', '게시 버전은 그대로');
+  assert.equal(api.store.get(published.id).project.name, '게시 중인 수집품');
+  const draft = [...api.store.values()].find(item => item.id !== published.id);
+  assert.equal(draft.project.name, '수정한 이름');
+  assert.equal(ui.dirty, false);
+  assert.match(distribution(ui), /초안 · 저장 버전 2/);
+  await ui.input('name', '한 번 더');
+  await ui.click('draft');
+  assert.equal(api.calls.filter(call => call.method === 'PUT').at(-1).body.expectedVersion, 2, '복사본에 이어 저장한다');
+  assert.equal(api.store.size, 2);
+});
+
+test('시즌 복사는 서버에 새 초안을 만들고 캠페인·보상 연결을 비운 채 그 초안으로 이어 간다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await readyToPublish(ui);
+  await ui.click('draft');
+  await ui.click('copy');
+  const copy = api.calls.find(call => call.path.endsWith('/copy'));
+  assert.deepEqual(copy.body, { expectedVersion: 1 });
+  assert.equal(ui.control('name').value, '월계 식당 수집품 · 시즌 복사');
+  assert.equal(ui.control('campaign').value, '');
+  assert.equal(ui.container.querySelector('[data-reward-count="1"]').value, '');
+  assert.equal(ui.dirty, true, '복사본의 이름·연결을 바꿨으니 저장해야 한다');
+  await ui.click('draft');
+  const put = api.calls.filter(call => call.method === 'PUT').at(-1);
+  assert.notEqual(put.path, '/collectible-projects/project-1', '원래 초안이 아니라 복사본에 저장한다');
+  assert.equal(put.body.expectedVersion, 1);
+  assert.equal(put.body.project.campaignId, '');
+  assert.equal(api.store.get('project-1').project.name, '월계 식당 수집품', '원래 초안은 그대로');
+});
+
+test('시즌 복사가 거절되면 현재 입력과 저장 대상을 바꾸지 않는다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  api.failNext('POST', /copy$/, { status: 409, code: 'COLLECTIBLE_PROJECT_LIMIT' });
+  await ui.click('copy');
+  assert.match(ui.notice, /점포마다 100개까지/);
+  assert.equal(ui.control('name').value, '월계 식당 수집품');
+  assert.equal(ui.dirty, false);
+  await ui.input('name', '복사 실패 뒤 저장');
+  await ui.click('draft');
+  assert.equal(api.calls.filter(call => call.method === 'PUT').at(-1).path, '/collectible-projects/project-1');
+});
