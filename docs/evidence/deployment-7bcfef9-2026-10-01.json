@@ -58,6 +58,13 @@
   "relatedRecords": {
     "realChromiumWebmRecordings": "passed the server audio checks; recorded in docs/TEST_STATUS.md from PR #257, not part of this deploy's own checks"
   },
+  "deviation": {
+    "decision": "D-061 said to publish the APKs first and deploy the API and web afterwards",
+    "whatHappened": "On 2026-10-01 the main thread deliberately built both APKs first, then deployed production and showcase, verified the new consent screen on the phone against the new server, and only then published operating test.5 and showcase Preview 14",
+    "reason": "the new app's consent screen can only be verified against a server that already requires privacy-2026-10-01",
+    "window": "from the end of the production deploy to the release publication (about 20:20 UTC), roughly 15 to 20 minutes, during which accounts on test.4 and on Preview 12 and 13 that had not consented saw the update-the-app gate; only team accounts use these builds"
+  },
+  "backupNote": "the two manual backups pre-bdb0301-20261001.dump and pre-7bcfef9-20261001.dump were both 135830 bytes with 283 entries; both values were observed directly (not copied), and there was no schema or data change between the two",
   "consequences": "the API now requires the privacy version privacy-2026-10-01, so operating test.4 and showcase Preview 12 and 13 show the update-the-app gate for accounts that have not consented to it (D-059, D-061); operating test.5 and showcase Preview 14 (docs/evidence/operating-android-test5-2026-10-01.json, docs/evidence/showcase-preview14-release-2026-10-01.json) carry the consent screen for the new version",
   "notRun": [
     "database restore from any backup",
