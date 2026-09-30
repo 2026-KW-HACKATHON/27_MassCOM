@@ -34,6 +34,11 @@ createServer((request, response) => {
   } else if (request.url === '/api/web/consent') {
     response.setHeader('X-Observed-Cookie', request.headers.cookie || '');
     response.writeHead(request.headers.cookie ? 200 : 401);
+  } else if (request.url.startsWith('/api/web/collectibles/')) {
+    // 보유자 전용 수집품 상세. API 대역은 일부러 Cache-Control을 주지 않아, 응답의 no-store가 Caddy가 붙인 것임을 확인한다.
+    response.removeHeader('Cache-Control');
+    response.setHeader('X-Observed-Cookie', request.headers.cookie || '');
+    response.writeHead(request.headers.cookie ? 200 : 401);
   } else if (request.url === '/api/web/account-deletion-intake') {
     response.writeHead(202);
   } else if (request.url === '/api/web/account-deletion-intake/cancel' || request.url === '/api/web/account-deletion-status') {
@@ -143,6 +148,14 @@ test('Caddy forwards allowlisted browser-session routes, preserving redirects an
       assert.match(consent.headers.get('cache-control') ?? '', /no-store/, method);
       assert.equal(consent.headers.get('x-robots-tag'), 'noindex, nofollow', method);
     }
+    // 보유자 수집품 상세(`/api/web/collectibles/*`)는 로그인 쿠키를 API까지 넘기고 Caddy가 캐시·색인을 막는다.
+    assert.equal((await fetch(`${url}/api/web/collectibles/entitlement-1`)).status, 401);
+    const collectible = await fetch(`${url}/api/web/collectibles/entitlement-1`, { headers: { cookie: 'web_session=fixture' } });
+    assert.equal(collectible.status, 200);
+    assert.equal(collectible.headers.get('x-observed-cookie'), 'web_session=fixture');
+    assert.match(collectible.headers.get('cache-control') ?? '', /no-store/);
+    assert.equal(collectible.headers.get('x-robots-tag'), 'noindex, nofollow');
+    assert.equal((await fetch(`${url}/api/web/collectibles`, { headers: { cookie: 'web_session=fixture' } })).status, 404, '목록 경로는 프록시하지 않는다');
     assert.equal((await fetch(`${url}/api/web/consent/other`, { method: 'POST' })).status, 404);
     assert.equal((await fetch(`${url}/api/web/logout`, { method: 'POST' })).status, 204);
     const intake = await fetch(`${url}/api/web/account-deletion-intake`, { method: 'POST' });
@@ -251,6 +264,12 @@ test('Caddy serves the same limited web surface for exact apex and www hosts', a
       const merchantApi = await requestForHost(url, '/api/web/merchant/me', host);
       assert.equal(merchantApi.headers['x-observed-host'], host, host);
       assert.equal(merchantApi.headers['x-robots-tag'], 'noindex, nofollow', host);
+      const collectible = await requestForHost(url, '/api/web/collectibles/entitlement-1', host, 'GET', { cookie: 'web_session=fixture' });
+      assert.equal(collectible.status, 200, host);
+      assert.equal(collectible.headers['x-observed-host'], host, host);
+      assert.equal(collectible.headers['x-observed-cookie'], 'web_session=fixture', host);
+      assert.match(collectible.headers['cache-control'] ?? '', /no-store/, host);
+      assert.equal(collectible.headers['x-robots-tag'], 'noindex, nofollow', host);
       const consent = await requestForHost(url, '/api/web/consent', host, 'POST', { cookie: 'web_session=fixture' });
       assert.equal(consent.status, 200, host);
       assert.equal(consent.headers['x-observed-host'], host, host);
