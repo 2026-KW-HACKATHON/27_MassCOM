@@ -2,6 +2,18 @@
 
 마지막 갱신 시각: 2026-09-30 KST
 
+## 2026-09-30 NFT 메타데이터를 발행 확정 때 고정 (Issue #254, D-057)
+
+- 기준: main `d004d7f`(PR #255 병합, migration 0032 포함)에서 시작한 브랜치 `feat/254-nft-metadata`(로컬 worktree `.worktrees/254-nft-metadata`, 로컬 커밋만이고 **push·PR·배포 없음**). 병렬 브랜치 `feat/253-terms-consent-retention`이 migration 0033·D-056을 쓰므로 이 브랜치는 **0034·D-057**이고 서로 겹치는 표·열이 없다. 두 브랜치가 모두 `docs/DECISIONS.md`의 D-055 다음 줄과 문서 머리에 항목을 더하므로 병합 때 글자 충돌만 풀면 된다.
+- 내용: [설계](superpowers/specs/2026-09-30-nft-metadata-design.md), migration 0034, Worker 생성기(`apps/worker/src/nft-metadata.ts`)와 `finalize` 트랜잭션 안 스냅샷(`snapshotTokenMetadata`), API 공개 경로(`apps/api/src/nft-metadata.ts`·`postgres/nft-metadata.ts`·`server.ts`), 관리자 API·웹의 동네·업종(`merchant-profile-rules.ts`, `postgres/admin.ts`, `admin.html`·`admin.mjs`), 운영 Caddy 라우팅, 시연 seed 동네·업종, 개인정보 처리방침·README·D-057.
+- **시리즈 base URI:** 온체인 `createSeries`의 `baseTokenURI`는 `<출처>/nft-metadata/<nft_series.id>/`여야 한다(운영 `https://masscom.kr`, 시연 `https://demo-api.masscom.kr`). `nft_series.id`는 `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`이고 `base-sepolia-proof`가 아니어야 한다(0034 CHECK). 실증 토큰 #1은 정적 파일 그대로다.
+- **배포 순서:** ① migration 0034(배포된 API `d004d7f`와 호환: NULL 열·새 표·`NOT VALID` CHECK만, `SET LOCAL lock_timeout = '5s'`, 배포 스크립트가 API 교체 전에 적용) → ② API(공개 경로·동네·업종 키) → ③ 운영 웹(새 관리자 웹은 `neighborhood`·`category` 키를 보내므로 옛 API면 400) → ④ Caddy(웹 배포에 포함, `/nft-metadata/*` 동적 경로를 API로) → ⑤ 발행을 열 때(B-027 먼저) Worker를 `NFT_METADATA_ORIGIN`과 함께 배포하고 위 규칙으로 시리즈를 만든다. 시연은 API만 바꾸면 되고 Caddy 변경은 없다(`demo-api`가 이미 모든 경로를 시연 API로 넘김). 시연 seed를 다시 돌리면 0034 전 seed된 가상 점포의 빈 동네·업종이 채워진다.
+- **운영 메모:** 메타데이터 행은 DB 트리거로 수정·삭제할 수 없다. 신고된 그림은 `apps/api/README.md`의 "그림 한 장 내리기" SQL에 더한 `DELETE FROM nft_metadata_images WHERE sha256 = '<sha>'`로 내린다(그림 주소만 404, 메타데이터 문장은 그대로).
+- 검증: [TEST_STATUS](TEST_STATUS.md) 첫 항목(Worker 단위 54/54·PostgreSQL 26/26·Anvil 12/12, API 단위 246/246·PostgreSQL 229 PASS·2 skip(따로 2/2), 웹 176건 중 175(시연 Chrome 1건 병렬 실행 환경 실패·단독 PASS), Caddy 프록시 1/1, 배포·롤백 시험, `tools/gate.sh`).
+- `NOT_RUN`: 운영·시연 배포, Worker 배포·`createSeries`·실제 발행, 지갑·탐색기의 실제 표시, 인증된 브라우저에서 동네·업종 저장, 교차 리뷰 2회(서로 다른 모델).
+- 다음 작업: ① 교차 리뷰 2회(민감 경로: DB 스키마·체인 확정 경로). ② PR(`bash scripts/check-pr-korean.sh`)·CI·병합. ③ 위 배포 순서.
+- 다음 명령: `git -C .worktrees/254-nft-metadata log --oneline d004d7f..HEAD`, `TEST_DATABASE_URL=<이름이 _test로 끝나는 일회용 로컬 DB URL> npm run test:postgres --prefix apps/worker`, `node --test tests/ops/verify_nft_metadata_proxy_test.mjs`.
+
 ## 2026-09-30 실제 점포 운영 시작: 공개·점주·보상 혜택·캠페인·운영 NFT 발행 준비 중 (Issue #246, D-054)
 
 - 기준: main `02cb7e7`에서 시작해 main `4081999`(PR #249 접수번호 한 줄 표시·PR #251 배포 문서)를 합친 브랜치 `feat/246-store-go-live`(로컬 worktree `.worktrees/246-store-go-live`, 로컬 커밋만이고 **push·PR·배포 없음**). 설계는 [`docs/superpowers/specs/2026-09-30-store-go-live-design.md`](superpowers/specs/2026-09-30-store-go-live-design.md), 운영자 절차는 [`docs/MERCHANT_ONBOARDING.md`](MERCHANT_ONBOARDING.md).
