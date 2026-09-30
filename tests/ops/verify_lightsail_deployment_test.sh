@@ -69,6 +69,15 @@ for replacement in 'NFT_MINTING_MODE: LIVE' 'NFT_MINTING_MODE: ${NFT_MINTING_MOD
   fi
   mv "$scratch/compose.yml.bak" "$scratch/compose.yml"
 done
+# 고정값 줄은 그대로 두고 다른 곳(주석·다른 서비스)에 런타임 덮어쓰기 참조가 끼어도 거절해야 한다.
+sed -i.bak 's/^\( *\)NFT_MINTING_MODE: PREPARING$/&\
+\1# NFT_MINTING_MODE_OVERRIDE: ${NFT_MINTING_MODE:-LIVE}/' "$scratch/compose.yml"
+grep -q '${NFT_MINTING_MODE:-LIVE}' "$scratch/compose.yml" || { echo "override injection did not apply" >&2; exit 1; }
+if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
+  echo "verifier accepted a compose that still references \${NFT_MINTING_MODE" >&2
+  exit 1
+fi
+mv "$scratch/compose.yml.bak" "$scratch/compose.yml"
 if grep -q 'NFT_MINTING_MODE' "$repo_root/infra/showcase-host/compose.yml" "$repo_root/infra/showcase-local/compose.yml"; then
   echo "showcase compose must keep its current minting (no NFT_MINTING_MODE)" >&2
   exit 1
