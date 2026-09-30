@@ -117,7 +117,7 @@
 
 ## 9. D-023 참여 등록과 방문 보상
 
-코드 확인: 방문 수령(`PostgresClaimSlotService.redeem`)은 `campaign_enrollments`·`enrolled_count`를 읽지 않고 점포의 공개·활성·기간 안 캠페인만 찾는다. 참여 등록은 `campaign-enrollment.ts`에서만 쓰이고 공개 목록의 `enrollmentStatus`(OPEN/FULL) 표시와 정원 계수에만 쓰인다. 코드가 결정과 어긋나지 않아 고치지 않고, **참여 등록이 없고 정원이 가득 찬 캠페인에서도 방문이 권리를 만든다**는 통합 시험으로 고정한다.
+코드 확인: 방문 수령(`PostgresClaimSlotService.redeem`)은 `campaign_enrollments`·`enrolled_count`를 읽지 않고 점포의 공개·활성·기간 안 캠페인만 찾는다. 참여 등록은 `campaign-enrollment.ts`에서만 쓰이고 공개 목록의 `enrollmentStatus`(OPEN/FULL) 표시와 정원 계수에만 쓰인다. 코드가 결정과 어긋나지 않아 고치지 않고, **참여 등록이 없고 정원이 가득 찬 캠페인에서도 방문이 권리를 만든다**는 통합 시험으로 고정한다. 고객 앱은 정원이 차도 "정원 마감"을 보이지 않고 다음 목표를 그대로 보인다(앱에는 참여 신청 동작이 없다).
 
 ## 10. NFT "발행 준비 중"
 
