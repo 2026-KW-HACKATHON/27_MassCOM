@@ -39,6 +39,23 @@ async function inspectAudio(dataUrl) {
   });
 }
 // campaigns를 넘기면 서버가 돌려준 "지금 게시할 수 있는 캠페인" 목록과도 맞춰 본다(목록 밖 캠페인·캠페인에 없는 방문 목표는 게시 API가 409로 거절한다).
+// 서버가 받는 크기 상한(docs/COLLECTIBLE_CREATOR.md "서버 계약"). 넘으면 보내기 전에 안내해 413을 받지 않게 한다.
+const MiB = 1024 * 1024;
+export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, mask: 256 * 1024, scene: 512 * 1024, body: 8 * MiB - 4096, stickers: 30 };
+const decodedBytes = dataUrl => { const data = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor(data.length * 3 / 4) - (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0); };
+export function publishSizeProblem(revision) {
+  for (const assets of Object.values(revision.derived || {})) {
+    for (const [name, max] of [['imageDataUrl', mediaLimits.image], ['baseDataUrl', mediaLimits.image], ['thumbnailDataUrl', mediaLimits.thumbnail]]) {
+      if (assets[name] && decodedBytes(assets[name]) > max) return '완성 이미지가 너무 커요. 작은 사진이나 단순한 보정으로 다시 시도해 주세요. 원본과 입력은 유지했어요.';
+    }
+    if (Object.values(assets.effectMasks || {}).some(mask => decodedBytes(mask) > mediaLimits.mask)) return '효과 영역 이미지가 너무 커요. 효과 대상이나 스티커를 줄여 다시 시도해 주세요. 원본과 입력은 유지했어요.';
+  }
+  if ((revision.story?.frames || []).some(frame => frame.previewDataUrl && decodedBytes(frame.previewDataUrl) > mediaLimits.scene)) return '이야기 장면 미리보기가 너무 커요. 더 단순한 장면 사진으로 바꿔 다시 시도해 주세요. 입력은 유지했어요.';
+  const body = new TextEncoder().encode(JSON.stringify({ project: revision })).length;
+  if (body > mediaLimits.body) return `수집품 전체가 ${(body / MiB).toFixed(1)} MB로 서버 한도 8 MB를 넘었어요. 작은 사진·음성으로 바꾸거나 쓰지 않는 장면 사진과 등급을 줄여 다시 저장해 주세요. 입력은 그대로 있어요.`;
+  return '';
+}
+
 export function validatePublish(project, campaigns) {
   if (!project.name.trim()) return '수집품 이름을 입력해 주세요.';
   if (!project.photo.originalDataUrl) return '대표 사진 한 장을 올려 주세요.';
@@ -394,12 +411,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (publish) {
         revision.derived = await serializeDerived(revision);
         revision.story.frames = await serializeStoryFrames(revision.story);
-        for (const assets of Object.values(revision.derived)) for (const name of ['imageDataUrl', 'baseDataUrl', 'thumbnailDataUrl']) {
-          const max = name === 'thumbnailDataUrl' ? 256 * 1024 : 1024 * 1024;
-          if ((assets[name].split(',')[1].length * 3 / 4) > max) throw localError('완성 이미지가 너무 커요. 작은 사진이나 단순한 보정으로 다시 시도해 주세요. 원본과 입력은 유지했어요.');
-        }
       }
-      if (new TextEncoder().encode(JSON.stringify(revision)).length > 16 * 1024 * 1024 - 2048) throw localError('프로젝트가 16 MB를 넘었어요. 작은 사진·음성으로 교체하거나 사용하지 않는 등급과 장면을 줄여 다시 저장해 주세요.');
+      const sizeProblem = publishSizeProblem(revision);
+      if (sizeProblem) throw localError(sizeProblem);
       if (wrapper?.status === 'PUBLISHED') {
         const copied = await editableDraft(request, base, wrapper);
         if (!active) return;
@@ -590,7 +604,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'edits-reset') { mutate(() => { project.photoEdits = createProject().photoEdits; }); syncValues(); await drawCrop(); return; }
     if (action === 'sticker-add') {
       const text = control('sticker-new').value.trim(); if (!text) { notice('스티커 내용을 입력해 주세요.', true); return; }
-      if (project.stickers.length >= 24) { notice('스티커는 24개까지 만들 수 있어요.', true); return; }
+      if (project.stickers.length >= mediaLimits.stickers) { notice(`스티커는 ${mediaLimits.stickers}개까지 만들 수 있어요.`, true); return; }
       mutate(() => { const sticker = { id: createId('sticker'), kind: control('sticker-kind').value, text, x: .5, y: .7, size: 42, rotation: 0, color: '#ffffff', order: project.stickers.length }; project.stickers.push(sticker); selectedSticker = sticker.id; }); control('sticker-new').value = ''; renderStickers(); return;
     }
     if (action.startsWith('sticker-')) {

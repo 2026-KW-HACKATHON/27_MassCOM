@@ -157,9 +157,11 @@ export class Element {
   blur() {} click() {} select() {} scrollIntoView() {} setPointerCapture() {} releasePointerCapture() {} pause() {} play() { return Promise.resolve(); }
   getBoundingClientRect() { return { left: 0, top: 0, width: this.width, height: this.height }; }
   getContext() { return this._context ??= createContext(this); }
-  toDataURL(type = 'image/png') {
+  // 인코딩 호출을 document.encodes에 남기고, document.encodedBytes로 결과 크기를 조절한다(크기 상한 시험용).
+  toDataURL(type = 'image/png', quality) {
     const mime = this.ownerDocument.encoders.has(type) ? type : 'image/png';
-    return `data:${mime};base64,${Buffer.from(`${mime}:${this.width}x${this.height}`).toString('base64')}`;
+    this.ownerDocument.encodes.push({ type, mime, quality, width: this.width, height: this.height });
+    return `data:${mime};base64,${Buffer.alloc(this.ownerDocument.encodedBytes, 7).toString('base64')}`;
   }
 }
 
@@ -204,7 +206,7 @@ export function installMiniDom({ webp = true } = {}) {
   const previous = new Map();
   const set = (name, value) => { previous.set(name, Object.getOwnPropertyDescriptor(globalThis, name)); Object.defineProperty(globalThis, name, { value, configurable: true, writable: true }); };
   const document = {
-    hidden: false, activeElement: null, listeners: new Map(), encoders: new Set(webp ? ['image/png', 'image/webp', 'image/jpeg'] : ['image/png']),
+    hidden: false, activeElement: null, listeners: new Map(), encodes: [], encodedBytes: 16, encoders: new Set(webp ? ['image/png', 'image/webp', 'image/jpeg'] : ['image/png']),
     createElement(tag) { return new Element(tag, document); },
     createTextNode(text) { return new TextNode(text); },
     getElementById(id) { return document.body.querySelector(`[id="${id}"]`); },

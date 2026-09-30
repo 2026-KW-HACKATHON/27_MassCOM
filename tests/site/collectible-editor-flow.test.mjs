@@ -10,17 +10,8 @@ let dom, editors;
 beforeEach(() => { dom = installMiniDom(); editors = []; });
 afterEach(() => { for (const cleanup of editors) cleanup(); dom.restore(); });
 
-/** 편집기를 DOM 대역에 올리고 화면 조작 도우미를 돌려준다. */
-async function mount(api, options = {}) {
-  const container = document.createElement('div');
-  const notices = [];
-  const asked = [];
-  const cleanup = mountCollectibleEditor(container, {
-    merchantId: 'm1', merchantName: '월계 식당', request: api.request, loadCampaigns: api.listCampaigns,
-    onNotice: message => notices.push(message), confirm: message => { asked.push(message); return options.confirm ?? true; }, ...options.editor,
-  });
-  editors.push(cleanup);
-  await settle();
+/** 화면 조작 도우미: 컨테이너 하나에 올라간 편집기를 클릭·입력·변경으로 다룬다. */
+function driver(container, api, notices = [], asked = []) {
   const ui = {
     container, notices, asked, api,
     get notice() { return container.querySelector('[data-view="notice"]').textContent; },
@@ -33,6 +24,33 @@ async function mount(api, options = {}) {
     /** 저장하지 않은 편집이 있으면 beforeunload가 이탈을 막는다. */
     get dirty() { const event = { type: 'beforeunload', returnValue: undefined, preventDefault() { this.prevented = true; } }; dom.window.dispatch(event); return event.prevented === true; },
   };
+  return ui;
+}
+
+/** 편집기를 DOM 대역에 올린다. */
+async function mount(api, options = {}) {
+  const container = document.createElement('div');
+  const notices = [], asked = [];
+  const cleanup = mountCollectibleEditor(container, {
+    merchantId: 'm1', merchantName: '월계 식당', request: api.request, loadCampaigns: api.listCampaigns,
+    onNotice: message => notices.push(message), confirm: message => { asked.push(message); return options.confirm ?? true; }, ...options.editor,
+  });
+  editors.push(cleanup);
+  await settle();
+  return driver(container, api, notices, asked);
+}
+
+/** 점주 웹(merchant.mjs)이 fetch로 연결하는 실제 경로로 올린다. 오류 응답의 Retry-After 헤더까지 편집기에 닿는다. */
+async function mountViaMerchant(api) {
+  const page = document.createElement('div');
+  page.innerHTML = '<section id="merchant-creator" hidden><select id="merchant-creator-store"></select><button id="merchant-creator-open" type="button"></button><div id="merchant-creator-editor"></div></section><p id="merchant-status"></p>';
+  document.body.append(page);
+  configureCreator(api.fetcher, document, { accountScope: 'scope-a', merchants: [{ id: 'm1', name: '월계 식당', role: 'OWNER' }] });
+  document.getElementById('merchant-creator-store').value = 'm1';
+  await document.getElementById('merchant-creator-open').onclick();
+  await settle();
+  const ui = driver(document.getElementById('merchant-creator-editor'), api);
+  Object.defineProperty(ui, 'status', { get: () => document.getElementById('merchant-status').textContent });
   return ui;
 }
 
@@ -229,4 +247,83 @@ test('게시한 프로젝트 삭제는 원본이 지워지고 이미 받은 손�
   assert.equal(api.campaigns[0].publication, null);
   assert.match(ui.notice, /“가상 방문 캠페인” 캠페인을 새로 방문하는 손님부터 이 수집품이 나가지 않아요/);
   assert.equal(cards(ui).length, 0);
+});
+
+const MiB = 1024 * 1024;
+const created = api => api.calls.find(call => call.method === 'POST' && call.path === '/collectible-projects')?.body.project;
+
+test('게시용 완성 이미지·썸네일·장면 미리보기는 WebP 0.9로, 효과 마스크는 PNG로 만든다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await readyToPublish(ui, { scenes: true });
+  await ui.click('effect-add');
+  const grade = ui.container.querySelector('input[data-effect-grade][data-grade="bronze"]');
+  grade.checked = true; grade.dispatchEvent({ type: 'change' }); await settle();
+  await ui.click('publish');
+  const project = created(api), bronze = project.derived.bronze;
+  for (const name of ['imageDataUrl', 'baseDataUrl', 'thumbnailDataUrl']) assert.match(bronze[name], /^data:image\/webp;base64,/, name);
+  assert.match(project.story.frames[0].previewDataUrl, /^data:image\/webp;base64,/);
+  assert.match(bronze.effectMasks.surface, /^data:image\/png;base64,/, '알파가 중요한 마스크는 PNG로 둔다');
+  const webp = dom.document.encodes.filter(item => item.type === 'image/webp');
+  assert.ok(webp.length >= 13 && webp.every(item => item.quality === .9), 'WebP는 품질 0.9로 인코딩한다');
+  assert.ok(webp.some(item => item.width === 160), '썸네일 160px');
+  assert.match(ui.notice, /게시했어요/);
+});
+
+test('WebP 인코딩을 지원하지 않는 브라우저는 PNG로 게시한다', async () => {
+  dom.restore(); dom = installMiniDom({ webp: false });
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await readyToPublish(ui);
+  await ui.click('publish');
+  assert.match(created(api).derived.bronze.imageDataUrl, /^data:image\/png;base64,/);
+  assert.equal(api.store.get('project-1').status, 'PUBLISHED');
+});
+
+test('서버 크기 상한을 넘는 완성 이미지·썸네일·본문은 보내기 전에 안내하고 입력을 지킨다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await readyToPublish(ui);
+  dom.document.encodedBytes = MiB + 4096;
+  await ui.click('publish');
+  assert.match(ui.notice, /완성 이미지가 너무 커요/);
+  dom.document.encodedBytes = 200 * 1024;
+  await ui.click('publish');
+  assert.match(ui.notice, /완성 이미지가 너무 커요/, '썸네일은 128 KiB까지');
+  assert.equal(posts(api).length, 0, '상한을 넘는 요청은 서버에 보내지 않는다');
+  assert.equal(ui.dirty, true);
+  dom.document.encodedBytes = 16;
+
+  await ui.upload({ ...photoFile, dataUrl: `data:image/png;base64,${'A'.repeat(9 * MiB)}` });
+  await ui.click('draft');
+  assert.match(ui.notice, /서버 한도 8 MB를 넘었어요/);
+  assert.equal(posts(api).length, 0);
+});
+
+test('스티커는 서버와 같은 30개까지 만들 수 있다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  for (let index = 0; index < 31; index++) { ui.control('sticker-new').value = `스티커${index}`; ui.action('sticker-add').dispatchEvent({ type: 'click' }); await settle(2); }
+  await settle();
+  assert.equal(ui.control('sticker-list').options.length, 30);
+  assert.match(ui.notice, /스티커는 30개까지 만들 수 있어요/);
+});
+
+test('413·429 응답은 원인별 문구와 Retry-After 초를 보여 주고 입력을 지킨다', async () => {
+  const api = createFakeApi();
+  const ui = await mountViaMerchant(api);
+  await ui.upload(photoFile);
+  api.failNext('POST', /collectible-projects$/, { status: 429, code: 'COLLECTIBLE_RATE_LIMITED', retryAfterSeconds: 12 });
+  await ui.click('draft');
+  assert.match(ui.status, /저장·게시 요청이 너무 잦아요.*12초 뒤에 다시 시도해 주세요/);
+  assert.equal(ui.dirty, true);
+  api.failNext('POST', /collectible-projects$/, { status: 413, code: 'BODY_TOO_LARGE' });
+  await ui.click('draft');
+  assert.match(ui.status, /수집품 전체 크기가 8 MB를 넘었어요/);
+  api.failNext('POST', /collectible-projects$/, { status: 413, code: 'COLLECTIBLE_MEDIA_TOO_LARGE' });
+  await ui.click('draft');
+  assert.match(ui.status, /원본 사진은 3 MB, 음성은 1 MB·30초/);
+  await ui.click('draft');
+  assert.match(ui.status, /초안을 저장했어요/);
+  assert.equal(ui.dirty, false);
 });

@@ -348,6 +348,12 @@ async function maskFor(project, target, size) {
   context.globalCompositeOperation = 'source-in'; context.fillStyle = '#fff'; context.fillRect(0, 0, size, size);
   return canvas.toDataURL('image/png');
 }
+// 게시용 이미지는 WebP(품질 0.9)로 저장해 크기를 줄인다(서버 완성본 1 MiB·썸네일 128 KiB·본문 8 MiB 상한 안에 넣기 위함).
+// WebP 인코딩을 지원하지 않는 브라우저는 toDataURL이 PNG를 돌려주므로 그대로 PNG를 쓴다.
+export function encodeImage(canvas, quality = .9) {
+  const webp = canvas.toDataURL('image/webp', quality);
+  return webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/png');
+}
 export async function serializeDerived(project) {
   const derived = {};
   for (const grade of project.grades.filter(item => item.enabled !== false)) {
@@ -356,7 +362,7 @@ export async function serializeDerived(project) {
     const thumbnail = canvasOf(160, 160); thumbnail.getContext('2d').drawImage(front, 0, 0, 160, 160);
     const effectMasks = {};
     for (const target of new Set(effectsForGrade(project, grade.id).map(effect => effect.target))) effectMasks[target] = await maskFor(project, target, 512);
-    derived[grade.id] = { imageDataUrl: front.toDataURL('image/png'), thumbnailDataUrl: thumbnail.toDataURL('image/png'), baseDataUrl: base.toDataURL('image/png'), effectMasks };
+    derived[grade.id] = { imageDataUrl: encodeImage(front), thumbnailDataUrl: encodeImage(thumbnail), baseDataUrl: encodeImage(base), effectMasks };
   }
   return derived;
 }
@@ -378,7 +384,7 @@ export async function serializeStoryFrames(story) {
     if (story.cartoon) {
       const pixels = context.getImageData(0, 0, 512, 320); pixels.data.set(processPhotoPixels(pixels.data, 512, 320, { cartoon: story.cartoon })); context.putImageData(pixels, 0, 0);
     }
-    frames.push({ ...frame, previewDataUrl: canvas.toDataURL('image/png') });
+    frames.push({ ...frame, previewDataUrl: encodeImage(canvas) });
   }
   return frames;
 }
