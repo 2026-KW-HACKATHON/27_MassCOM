@@ -92,8 +92,10 @@ test('claim inserts capture explicit current grade once, never backfill, leave r
   setDay(1); await claim('customer-new','day-two'); setDay(2); const third = await claim('customer-new','day-three');
   assert.equal(third.redeemed.grantedRewards[0]!.targetVisitCount,3);
   await assert.rejects(projects.getAcquired({accountId:'customer-new',entitlementId:third.redeemed.grantedRewards[0]!.entitlementId}),{code:'COLLECTIBLE_NOT_FOUND'});
-  await assert.rejects(pool.query(`UPDATE collectible_publications SET snapshots='{}' WHERE id=$1`,[published.publicationId]), /immutable/);
-  await assert.rejects(pool.query(`UPDATE collectible_acquisitions SET snapshot='{}' WHERE entitlement_id=$1`,[entitlementId]), /immutable/);
+  await assert.rejects(pool.query(`UPDATE collectible_publications SET reward_grades='{}' WHERE id=$1`,[published.publicationId]), /immutable/);
+  await assert.rejects(pool.query(`UPDATE collectible_publication_grades SET detail='{}' WHERE publication_id=$1`,[published.publicationId]), /immutable/);
+  await assert.rejects(pool.query(`DELETE FROM collectible_publication_grades WHERE publication_id=$1`,[published.publicationId]), /immutable/);
+  await assert.rejects(pool.query(`UPDATE collectible_acquisitions SET grade_id='bronze' WHERE entitlement_id=$1`,[entitlementId]), /immutable/);
   await pool.query(`UPDATE reward_entitlements SET status='CANCELED' WHERE id=$1`,[entitlementId]);
   await assert.rejects(projects.getAcquired({accountId:'customer-new',entitlementId}),{code:'COLLECTIBLE_NOT_FOUND'});
   assert.equal((await pool.query('SELECT * FROM mint_jobs')).rowCount,0);
@@ -106,7 +108,7 @@ test('publication replacement waits for acquisition campaign lock; rollback leav
   const second = await projects.copy({...input,projectId:first.id,expectedVersion:2});
   const visit = await claim('transaction-source','source');
   const client = await pool.connect();
-  await client.query('BEGIN'); await client.query(`SELECT 1 FROM campaigns WHERE id='campaign-a' FOR SHARE`);
+  await client.query('BEGIN'); await client.query(`SELECT 1 FROM campaigns WHERE id='campaign-a' FOR KEY SHARE`);
   const pendingPublication = projects.publish({...input,projectId:second.id,expectedVersion:1,campaignId:'campaign-a'});
   const inserted = await client.query<{id:string}>(`INSERT INTO reward_entitlements
     (id,customer_account_id,campaign_id,target_visit_count,source_visit_event_id,status,policy_version,earned_at,claim_expires_at)
@@ -131,9 +133,9 @@ test('account deletion clears authored private source and raw identities while o
   await assert.rejects(projects.list(input),{code:'ACCOUNT_DELETED'});
   await assert.rejects(projects.get({...input,accountId:'owner-backup',projectId:first.id}),{code:'COLLECTIBLE_PROJECT_NOT_FOUND'});
   assert.deepEqual(await projects.getAcquired({accountId:'customer-kept',entitlementId}),before);
-  const stored = await pool.query<{snapshots:unknown}>('SELECT snapshots FROM collectible_publications WHERE id=$1',[published.publicationId]);
-  assert.equal(JSON.stringify(stored.rows[0]!.snapshots).includes('originalDataUrl'),false);
-  assert.equal(JSON.stringify(stored.rows[0]!.snapshots).includes('owner-a'),false);
+  const stored = await pool.query('SELECT summary,detail FROM collectible_publication_grades WHERE publication_id=$1',[published.publicationId]);
+  assert.equal(JSON.stringify(stored.rows).includes('originalDataUrl'),false);
+  assert.equal(JSON.stringify(stored.rows).includes('owner-a'),false);
 });
 
 test('deletion follows inherited source authors through copies and intermediate editors rather than just the last editor',async t=>{
@@ -165,4 +167,77 @@ test('copy concurrent with source author deletion cannot leave a newly inherited
   if(results[0]!.status==='rejected') assert.equal(results[0].reason.code,'COLLECTIBLE_PROJECT_NOT_FOUND');
   assert.equal((await pool.query(`SELECT 1 FROM collectible_projects WHERE project IS NOT NULL`)).rowCount,0);
   assert.equal((await pool.query('SELECT 1 FROM collectible_project_contributors')).rowCount,0);
+});
+
+test('acquisitions store references only; the list reads the per-grade summary and detail reads the immutable publication grade', async t => {
+  const { pool, projects, input, claim } = await setup(t);
+  const draft = await projects.create({ ...input, project: photoProject() });
+  const published = await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  const visit = await claim('customer-ref', 'ref'); const entitlementId = visit.redeemed.grantedRewards[0]!.entitlementId;
+  const columns = await pool.query<{ column_name: string }>(
+    `SELECT column_name FROM information_schema.columns WHERE table_name = 'collectible_acquisitions' ORDER BY ordinal_position`);
+  assert.deepEqual(columns.rows.map(row => row.column_name), ['entitlement_id', 'publication_id', 'grade_id', 'acquired_at']);
+  const stored = await pool.query('SELECT publication_id, grade_id FROM collectible_acquisitions WHERE entitlement_id = $1', [entitlementId]);
+  assert.deepEqual(stored.rows[0], { publication_id: published.publicationId, grade_id: 'bronze' });
+  const grades = await pool.query<{ grade_id: string; summary: Record<string, unknown>; detail: Record<string, unknown> }>(
+    'SELECT grade_id, summary, detail FROM collectible_publication_grades WHERE publication_id = $1 ORDER BY grade_id', [published.publicationId]);
+  assert.deepEqual(grades.rows.map(row => row.grade_id), ['bronze', 'custom']);
+  assert.deepEqual(Object.keys(grades.rows[0]!.summary).sort(), ['gradeId', 'gradeName', 'name', 'projectId', 'publicationId', 'shape', 'theme', 'thumbnailDataUrl']);
+  assert.equal('imageDataUrl' in grades.rows[0]!.summary, false); assert.equal('thumbnailDataUrl' in grades.rows[0]!.detail, false);
+  const artwork = (await new PostgresCollectionReader(pool).getCollection('customer-ref')).collectibles[0]!.artwork!;
+  assert.deepEqual(artwork, grades.rows[0]!.summary);
+  const detail = await projects.getAcquired({ accountId: 'customer-ref', entitlementId });
+  assert.deepEqual(detail, { ...grades.rows[0]!.summary, ...grades.rows[0]!.detail });
+  assert.equal(detail.gradeId, 'bronze'); assert.equal(typeof detail.imageDataUrl, 'string');
+});
+
+test('a linked publication with a missing grade row keeps the visit reward and skips only the collectible', async t => {
+  const { pool, projects, input, claim } = await setup(t);
+  const draft = await projects.create({ ...input, project: photoProject() });
+  const published = await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  // A publication whose 1-visit goal names a grade without stored media (damaged data) must not fail the claim.
+  const ghost = await projects.copy({ ...input, projectId: draft.id, expectedVersion: 2 });
+  await pool.query(`INSERT INTO collectible_publications (id, project_id, merchant_id, campaign_id, project_version, reward_grades)
+    VALUES (gen_random_uuid(), $1, 'merchant-a', 'campaign-a', 1, '{"1":"ghost"}') RETURNING id`, [ghost.id])
+    .then(result => pool.query(`UPDATE campaign_collectible_publications SET publication_id = $1 WHERE campaign_id = 'campaign-a'`, [result.rows[0].id]));
+  const visit = await claim('customer-ghost', 'ghost');
+  assert.equal(visit.redeemed.grantedRewards.length, 1);
+  assert.equal((await pool.query('SELECT 1 FROM reward_entitlements WHERE id = $1', [visit.redeemed.grantedRewards[0]!.entitlementId])).rowCount, 1);
+  assert.equal((await pool.query('SELECT 1 FROM collectible_acquisitions')).rowCount, 0);
+  assert.equal((await new PostgresCollectionReader(pool).getCollection('customer-ghost')).collectibles[0]!.artwork, undefined);
+  assert.ok(published.publicationId);
+});
+
+test('capture locks a linked campaign with FOR KEY SHARE so enrollment count updates do not wait on an open claim', async t => {
+  const { pool, projects, input, claim } = await setup(t);
+  const draft = await projects.create({ ...input, project: photoProject() });
+  await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  const visit = await claim('lock-source', 'lock');
+  const client = await pool.connect(); const other = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`INSERT INTO reward_entitlements
+      (id,customer_account_id,campaign_id,target_visit_count,source_visit_event_id,status,policy_version,earned_at,claim_expires_at)
+      VALUES (gen_random_uuid(),'lock-holder','campaign-a',1,$1,'GRANTED','same-policy',now(),now()+interval '90 days')`, [visit.redeemed.visit.visitEventId]);
+    assert.equal((await client.query(`SELECT 1 FROM collectible_acquisitions a JOIN reward_entitlements e ON e.id = a.entitlement_id WHERE e.customer_account_id = 'lock-holder'`)).rowCount, 1);
+    await other.query('BEGIN'); await other.query(`SET LOCAL lock_timeout = '1s'`);
+    await other.query(`UPDATE campaigns SET enrolled_count = enrolled_count WHERE id = 'campaign-a'`);
+    await other.query('ROLLBACK'); await client.query('ROLLBACK');
+  } finally { await other.query('ROLLBACK').catch(() => {}); await client.query('ROLLBACK').catch(() => {}); other.release(); client.release(); }
+});
+
+test('publish validates and strips media before the campaign lock, so a not-ready project fails without waiting for claims', async t => {
+  const { pool, projects, input } = await setup(t);
+  const raw = photoProject(); raw.rewardGrades = {};
+  const draft = await projects.create({ ...input, project: raw });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN'); await client.query(`SELECT 1 FROM campaigns WHERE id='campaign-a' FOR KEY SHARE`);
+    const started = Date.now();
+    const outcome = await Promise.race([
+      projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' }).then(() => 'published', error => error.code),
+      new Promise(resolve => setTimeout(() => resolve('waited for campaign lock'), 1000)),
+    ]);
+    assert.equal(outcome, 'COLLECTIBLE_NOT_READY'); assert.ok(Date.now() - started < 1000);
+  } finally { await client.query('ROLLBACK'); client.release(); }
 });

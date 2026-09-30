@@ -87,12 +87,7 @@ export class PostgresCollectionReader implements CollectionReader {
            asset.chain_id AS asset_chain_id,
            asset.contract_address AS asset_contract_address,
            asset.token_id::text AS asset_token_id,
-           CASE WHEN acquisition.entitlement_id IS NULL THEN NULL ELSE jsonb_build_object(
-             'projectId', acquisition.snapshot->'projectId', 'publicationId', acquisition.snapshot->'publicationId',
-             'gradeId', acquisition.snapshot->'gradeId', 'gradeName', acquisition.snapshot->'gradeName',
-             'shape', acquisition.snapshot->'shape', 'theme', acquisition.snapshot->'theme',
-             'name', acquisition.snapshot->'name', 'thumbnailDataUrl', acquisition.snapshot->'thumbnailDataUrl'
-           ) END AS artwork
+           grade.summary AS artwork
          FROM reward_entitlements AS entitlement
          JOIN campaigns AS campaign ON campaign.id = entitlement.campaign_id
          JOIN merchants AS merchant ON merchant.id = campaign.merchant_id
@@ -102,6 +97,11 @@ export class PostgresCollectionReader implements CollectionReader {
          LEFT JOIN mint_jobs AS job ON job.entitlement_id = entitlement.id
          LEFT JOIN nft_assets AS asset ON asset.mint_job_id = job.id
          LEFT JOIN collectible_acquisitions AS acquisition ON acquisition.entitlement_id = entitlement.id
+         -- Only the light per-grade summary (name, grade, shape, theme, thumbnail); detail media stays unread.
+         LEFT JOIN collectible_publications AS publication
+           ON publication.id = acquisition.publication_id AND publication.media_removed_at IS NULL
+         LEFT JOIN collectible_publication_grades AS grade
+           ON grade.publication_id = publication.id AND grade.grade_id = acquisition.grade_id
          WHERE entitlement.customer_account_id = $1
            AND entitlement.status IN ('GRANTED', 'MINT_REQUESTED', 'FULFILLED')
          ORDER BY entitlement.target_visit_count DESC, entitlement.id DESC`,

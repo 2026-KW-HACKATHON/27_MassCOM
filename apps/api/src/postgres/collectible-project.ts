@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 
 import {
-  CollectibleProjectError, type CollectibleDetail, type CollectibleProject, type CollectibleProjectService,
+  CollectibleProjectError, type CollectibleArtwork, type CollectibleDetail, type CollectibleProject, type CollectibleProjectService,
   type CollectibleProjectSummary, type CollectibleProjectView,
 } from '../collectible-project.js';
 import { collectibleSnapshot, validateCollectibleProject } from '../collectible-project-rules.js';
@@ -56,25 +56,36 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
 
   async publish(input: VersionInput & { campaignId: string }): Promise<{ project: CollectibleProjectView; publicationId: string; campaignId: string }> {
     return this.transaction(input, async client => {
-      // Claim capture and publication replacement use the same campaign row lock; this also rejects another store's campaign.
+      const row = await this.load(client, input, true); checkVersion(row, input.expectedVersion);
+      if (row.status === 'PUBLISHED') throw new CollectibleProjectError('COLLECTIBLE_PUBLISHED_IMMUTABLE');
+      // Validate, decode and strip every grade before the campaign lock: claims on this campaign wait only for the insert below.
+      const project = validateCollectibleProject(row.project, true);
+      const goals = await client.query<{ target_visit_count: number }>(
+        `SELECT goal.target_visit_count FROM campaign_goals goal JOIN campaigns campaign ON campaign.id = goal.campaign_id
+         WHERE goal.campaign_id = $1 AND campaign.merchant_id = $2`, [input.campaignId, input.merchantId]);
+      if (Object.keys(project.rewardGrades).some(goal => !goals.rows.some(g => String(g.target_visit_count) === goal))) throw new CollectibleProjectError('COLLECTIBLE_CAMPAIGN_UNAVAILABLE');
+      const publicationId = randomUUID();
+      const grades: { gradeId: string; summary: CollectibleArtwork; detail: Omit<CollectibleDetail, keyof CollectibleArtwork> }[] = [];
+      for (const gradeId of new Set(Object.values(project.rewardGrades))) {
+        if (!gradeId) continue;
+        const { projectId, publicationId: _publication, gradeId: _grade, gradeName, shape, theme, name, thumbnailDataUrl, ...detail } =
+          collectibleSnapshot(project, row.id, publicationId, gradeId);
+        grades.push({ gradeId, summary: { projectId, publicationId, gradeId, gradeName, shape, theme, name, thumbnailDataUrl }, detail });
+      }
+      // Claim capture holds FOR KEY SHARE on a linked campaign; this FOR UPDATE serializes the link replacement with it.
       const campaign = await client.query<{ id: string }>(
         `SELECT id FROM campaigns WHERE id = $1 AND merchant_id = $2 AND status = 'ACTIVE' AND is_public
           AND starts_at <= $3 AND ends_at > $3 FOR UPDATE`, [input.campaignId, input.merchantId, this.now()]);
       if (!campaign.rows[0]) throw new CollectibleProjectError('COLLECTIBLE_CAMPAIGN_UNAVAILABLE');
-      const row = await this.load(client, input, true); checkVersion(row, input.expectedVersion);
-      if (row.status === 'PUBLISHED') throw new CollectibleProjectError('COLLECTIBLE_PUBLISHED_IMMUTABLE');
-      const project = validateCollectibleProject(row.project, true);
-      const goals = await client.query<{ target_visit_count: number }>('SELECT target_visit_count FROM campaign_goals WHERE campaign_id = $1', [input.campaignId]);
-      if (Object.keys(project.rewardGrades).some(goal => !goals.rows.some(g => String(g.target_visit_count) === goal))) throw new CollectibleProjectError('COLLECTIBLE_CAMPAIGN_UNAVAILABLE');
-      const publicationId = randomUUID();
-      const snapshots: Record<string, CollectibleDetail> = Object.create(null) as Record<string, CollectibleDetail>;
-      for (const gradeId of new Set(Object.values(project.rewardGrades))) {
-        if (gradeId) snapshots[gradeId] = collectibleSnapshot(project, row.id, publicationId, gradeId);
-      }
       await client.query(
-        `INSERT INTO collectible_publications (id, project_id, merchant_id, campaign_id, project_version, snapshots, reward_grades, published_at)
-         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8)`,
-        [publicationId, row.id, input.merchantId, input.campaignId, row.version, JSON.stringify(snapshots), JSON.stringify(project.rewardGrades), this.now()]);
+        `INSERT INTO collectible_publications (id, project_id, merchant_id, campaign_id, project_version, reward_grades, published_at)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)`,
+        [publicationId, row.id, input.merchantId, input.campaignId, row.version, JSON.stringify(project.rewardGrades), this.now()]);
+      for (const grade of grades) {
+        await client.query(
+          `INSERT INTO collectible_publication_grades (publication_id, grade_id, summary, detail) VALUES ($1,$2,$3::jsonb,$4::jsonb)`,
+          [publicationId, grade.gradeId, JSON.stringify(grade.summary), JSON.stringify(grade.detail)]);
+      }
       await client.query(
         `INSERT INTO campaign_collectible_publications (campaign_id, publication_id) VALUES ($1,$2)
          ON CONFLICT (campaign_id) DO UPDATE SET publication_id = EXCLUDED.publication_id`, [input.campaignId, publicationId]);
@@ -100,13 +111,18 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN'); await this.options.accountLifecycle?.assertActive(client, input.accountId);
-      const result = await client.query<{ snapshot: CollectibleDetail }>(
-        `SELECT acquisition.snapshot FROM collectible_acquisitions acquisition
+      // The acquisition is a reference; the immutable publication grade row holds the version the customer acquired.
+      const result = await client.query<{ summary: CollectibleArtwork; detail: Omit<CollectibleDetail, keyof CollectibleArtwork> }>(
+        `SELECT grade.summary, grade.detail FROM collectible_acquisitions acquisition
          JOIN reward_entitlements entitlement ON entitlement.id = acquisition.entitlement_id
+         JOIN collectible_publications publication ON publication.id = acquisition.publication_id
+         JOIN collectible_publication_grades grade
+           ON grade.publication_id = acquisition.publication_id AND grade.grade_id = acquisition.grade_id
          WHERE entitlement.id = $1 AND entitlement.customer_account_id = $2
-           AND entitlement.status IN ('GRANTED','MINT_REQUESTED','FULFILLED')`, [input.entitlementId, input.accountId]);
+           AND entitlement.status IN ('GRANTED','MINT_REQUESTED','FULFILLED') AND publication.media_removed_at IS NULL`,
+        [input.entitlementId, input.accountId]);
       if (!result.rows[0]) throw new CollectibleProjectError('COLLECTIBLE_NOT_FOUND');
-      await client.query('COMMIT'); return result.rows[0].snapshot;
+      await client.query('COMMIT'); return { ...result.rows[0].summary, ...result.rows[0].detail };
     } catch (error) { await client.query('ROLLBACK'); this.rethrow(error); } finally { client.release(); }
   }
 
