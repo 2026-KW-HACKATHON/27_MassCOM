@@ -102,7 +102,7 @@ status=0
 bash "$check" "$work/showcase.apk" "$demo" >/dev/null 2>&1 || status=$?
 [[ "$status" == 2 ]] || fail "missing forbidden origin: expected exit 2, got $status"
 
-# The builders must run the check and Gradle must not run with CI=1 (Expo then ignores --reset-cache).
+# The builders must run the check and Gradle must not run with CI=1 (Expo appears to skip the cache reset then).
 showcase_builder="$repo_root/scripts/build-showcase-apk.sh"
 release_builder="$repo_root/scripts/build-release-aab.sh"
 grep -qF 'CI=0 NODE_ENV=production' "$showcase_builder" ||
@@ -115,12 +115,34 @@ grep -qF -- 'check-embedded-api.sh" "$embedded_artifact"' "$showcase_builder" ||
   fail 'showcase builder does not check the embedded API origin'
 grep -qF 'https://demo-api.masscom.kr https://api.masscom.kr' "$showcase_builder" ||
   fail 'showcase builder must expect the demo origin and forbid the production origin'
-grep -qF 'for embedded_artifact in "$apk" "$aab"' "$showcase_builder" ||
-  fail 'showcase builder must check both the APK and the companion AAB'
 grep -qF "embeddedApi: 'PASS'" "$showcase_builder" ||
   fail 'showcase provenance must record embeddedApi'
-grep -qF 'check-embedded-api.sh" "$built" https://api.masscom.kr https://demo-api.masscom.kr' "$release_builder" ||
+line_of() { # <file> <fixed text> ; first matching line number, or fail
+  local found
+  found="$(grep -nF -m1 -- "$2" "$1" | cut -d: -f1)"
+  [[ -n "$found" ]] || fail "$(basename "$1") has no line containing: $2"
+  echo "$found"
+}
+# The check must see the staged copies and must run before provenance is written and before the
+# APK is published under its final name.
+showcase_copy_line="$(line_of "$showcase_builder" 'cp "$built_aab" "$aab"')"
+showcase_check_line="$(line_of "$showcase_builder" 'for embedded_artifact in "$apk" "$aab"; do')"
+showcase_provenance_line="$(line_of "$showcase_builder" "embeddedApi: 'PASS'")"
+showcase_publish_line="$(line_of "$showcase_builder" 'ln "$apk" "$target"')"
+(( showcase_copy_line < showcase_check_line && showcase_check_line < showcase_provenance_line &&
+   showcase_provenance_line < showcase_publish_line )) ||
+  fail 'showcase builder must check the staged APK and AAB before writing provenance and publishing'
+grep -qF 'check-embedded-api.sh" "$staged_aab" https://api.masscom.kr https://demo-api.masscom.kr' "$release_builder" ||
   fail 'release builder must expect the production origin and forbid the demo origin'
+release_copy_line="$(line_of "$release_builder" 'cp "$built" "$staged_aab"')"
+release_check_line="$(line_of "$release_builder" 'check-embedded-api.sh" "$staged_aab"')"
+release_assess_line="$(line_of "$release_builder" 'assess-release-aab.sh" \')"
+(( release_copy_line < release_check_line && release_check_line < release_assess_line )) ||
+  fail 'release builder must check the staged AAB before assessment'
+for builder in "$showcase_builder" "$release_builder"; do
+  grep -qF 'rm -rf "${TMPDIR:-/tmp}/metro-cache"' "$builder" ||
+    fail "$(basename "$builder") must tell the owner how to clear the Metro cache"
+done
 bash "$repo_root/scripts/check-secrets.sh" "$check" >/dev/null ||
   fail 'embedded API check is rejected by repository secret scanning'
 

@@ -209,16 +209,19 @@ fi
 
 built="$mobile_dir/android/app/build/outputs/bundle/release/app-release.aab"
 gradle_file="$mobile_dir/android/app/build.gradle"
-# A stale Metro cache can inline the showcase API origin; the bundle must carry only the operating one.
-"$repo_root/scripts/check-embedded-api.sh" "$built" https://api.masscom.kr https://demo-api.masscom.kr || {
-  echo 'release AAB embeds the wrong API origin' >&2
-  exit 1
-}
 # android/ is wiped by the restore above, so everything reported below is about the copy.
 staging_dir="$(mktemp -d "$artifacts/.app-release-${commit:0:7}.staging.XXXXXX")"
 staged_aab="$staging_dir/$(basename "$aab")"
 staged_provenance="$staging_dir/$(basename "$provenance")"
 cp "$built" "$staged_aab"
+# A stale Metro cache can inline the showcase API origin. Check the staged copy that is assessed and
+# published, so nothing can change between the check and publication.
+if ! "$repo_root/scripts/check-embedded-api.sh" "$staged_aab" https://api.masscom.kr https://demo-api.masscom.kr; then
+  rm -f "$staged_aab"
+  rmdir "$staging_dir"
+  echo 'release AAB embeds the wrong API origin; clear the Metro cache (rm -rf "${TMPDIR:-/tmp}/metro-cache") and rebuild' >&2
+  exit 1
+fi
 echo "AAB: $aab"
 echo "sha256: $(shasum -a 256 "$staged_aab" | cut -d' ' -f1)"
 echo "source commit: $commit$(git -C "$repo_root" diff --quiet -- apps/mobile || echo ' (apps/mobile has uncommitted changes)')"

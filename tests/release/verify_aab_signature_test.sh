@@ -561,8 +561,10 @@ for wrong_bundle in 'https://demo-api.masscom.kr' 'https://api.masscom.kr https:
     || { echo "wrong API origin ($wrong_bundle) failed for an unrelated reason: $out" >&2; exit 1; }
   [[ "$out" != *'Automated gates: PASS'* ]] \
     || { echo "wrong API origin ($wrong_bundle) reported a passing build: $out" >&2; exit 1; }
-  ! find "$wrong_origin_artifacts" -type f -print -quit | grep -q . \
-    || { echo "wrong API origin ($wrong_bundle) published evidence" >&2; exit 1; }
+  grep -qF 'rm -rf "${TMPDIR:-/tmp}/metro-cache"' <<<"$out" \
+    || { echo "wrong API origin ($wrong_bundle) gave no cache recovery hint: $out" >&2; exit 1; }
+  ! find "$wrong_origin_artifacts" -mindepth 1 -print -quit | grep -q . \
+    || { echo "wrong API origin ($wrong_bundle) left published or staged evidence" >&2; exit 1; }
 done
 mv "$work/build-good.aab.keep" "$work/build-good.aab"
 rm -rf "$build_artifact_dir/base/assets"

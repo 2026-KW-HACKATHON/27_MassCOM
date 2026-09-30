@@ -146,8 +146,9 @@ CI=1 EXPO_NO_DOTENV=1 APP_VARIANT=showcase MASSCOM_BUILD_SOURCE_COMMIT="$commit"
   EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
   npx --no-install expo prebuild --platform android --clean --no-install
 set_signing_environment
-# Expo ignores Gradle's --reset-cache when CI=1, so the shared Metro cache could inline another
-# build's EXPO_PUBLIC_API_URL (Issue #273). CI=0 here, as build-release-aab.sh does.
+# With CI=1 Expo appears to skip the Metro cache reset, so the shared cache may have inlined another
+# build's EXPO_PUBLIC_API_URL (suspected cause of Issue #273). CI=0 here, as build-release-aab.sh does;
+# the embedded-API check below is the real guard.
 MASSCOM_SHOWCASE_KEYSTORE_FILE="$keystore" MASSCOM_SHOWCASE_KEY_ALIAS="$alias_name" \
   CI=0 NODE_ENV=production EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
   MASSCOM_BUILD_SOURCE_COMMIT="$commit" MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID="$showcase_client" \
@@ -197,7 +198,7 @@ EXPECTED_PACKAGE=kr.masscom.wolgye.demo \
 for embedded_artifact in "$apk" "$aab"; do
   "$repo_root/scripts/check-embedded-api.sh" "$embedded_artifact" \
     https://demo-api.masscom.kr https://api.masscom.kr ||
-    fail 'showcase build embeds the wrong API origin'
+    fail 'showcase build embeds the wrong API origin; clear the Metro cache (rm -rf "${TMPDIR:-/tmp}/metro-cache") and rebuild'
 done
 
 node - "$apk" "$staging/$basename.provenance.json" "$commit" "$certificate" <<'NODE'
