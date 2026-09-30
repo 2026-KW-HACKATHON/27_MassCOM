@@ -6,7 +6,7 @@ export type NftMetadataReader = {
   findImage(sha256: string): Promise<Buffer | null>;
 };
 
-// Caddy(`infra/lightsail/Caddyfile`)의 경로 정규식과 같은 규칙이다. 시리즈 id는 migration 0036의 nft_series CHECK와 같다.
+// Caddy(`infra/lightsail/Caddyfile`)의 경로 정규식과 같은 규칙이다. migration 0036의 nft_series CHECK(`s-` + 32 hex)보다 넓다.
 const tokenPath = /^\/nft-metadata\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/(0|[1-9][0-9]{0,77})\.json$/;
 const imagePath = /^\/nft-metadata\/images\/([0-9a-f]{64})\.webp$/;
 // 판이 붙은 기본 도장(바이트 고정, nft-default-stamp.ts).

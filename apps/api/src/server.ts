@@ -1171,7 +1171,7 @@ export function createApiServer(
         return;
       }
 
-      // 공개 NFT 메타데이터(Issue #254, D-060): 발행 확정 때 고정한 바이트 그대로 오래 캐시한다. 지갑·탐색기가 다른 출처에서
+      // 공개 NFT 메타데이터(Issue #254, D-060): 발행 확정 때 고정한 바이트 그대로 하루 캐시한다(거부 목록이 하루 안에 반영; 기본 도장만 immutable). 지갑·탐색기가 다른 출처에서
       // 읽으므로 404에도 CORS를 연다. 확정 전·없는 토큰은 404라 체인에서 보이는 것 이상을 알려 주지 않는다.
       if (path.startsWith('/nft-metadata/') && (request.method === 'GET' || request.method === 'HEAD')) {
         response.setHeader('access-control-allow-origin', '*');

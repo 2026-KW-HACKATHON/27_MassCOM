@@ -204,7 +204,9 @@ test('공개 경로는 확정 뒤 고정된 메타데이터·그림만 주고 �
   assert.equal(takenToken.headers.get('access-control-allow-origin'), '*');
   await pool.query(`DELETE FROM nft_metadata_takedowns WHERE target LIKE 'asset:%'`);
   assert.equal(await (await fetch(`${url}/nft-metadata/s-00000000000000000000000000000254/9.json`)).text(), json);
-  for (const bad of ['image:xyz', 'asset:not-a-uuid-value', 'token:1']) {
+  // 느슨한 옛 규칙([0-9a-f-]{36})은 통과시키던 값도 정확한 UUID 모양 CHECK가 거절해야 한다.
+  for (const bad of ['image:xyz', 'asset:not-a-uuid-value', 'token:1', `asset:${'-'.repeat(36)}`, `asset:${'a'.repeat(36)}`,
+    'asset:0A1B2C3D-4E5F-6A7B-8C9D-0E1F2A3B4C5D']) {
     await assert.rejects(pool.query(`INSERT INTO nft_metadata_takedowns (target, reason) VALUES ($1, 'x')`, [bad]),
       /nft_metadata_takedowns_target_check/, bad);
   }

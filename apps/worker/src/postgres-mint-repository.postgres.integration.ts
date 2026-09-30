@@ -1437,7 +1437,10 @@ test('#254 발행 뒤 스냅샷 실패가 결과 대기 시간을 넘겨도 원�
   await failOnce('worker-timeout');
   // 원인은 SQLSTATE·제약 이름만 한 번 남기고 값·메시지는 남기지 않는다.
   assert.equal(errors.length, 1);
-  assert.deepEqual(JSON.parse(errors[0]!), { event: 'NFT_METADATA_SNAPSHOT_FAILED', sqlstate: 'P0001', constraint: null });
+  // 자유 문장 메시지(주소가 들어 있음)는 reason으로 옮기지 않고, 작업 id로만 이어 본다.
+  assert.deepEqual(JSON.parse(errors[0]!), {
+    event: 'NFT_METADATA_SNAPSHOT_FAILED', jobId: item.jobId, sqlstate: 'P0001', constraint: null, reason: null,
+  });
   assert.equal(errors[0]!.includes('0x4000'), false);
 
   now = new Date(now.getTime() + 61_000);

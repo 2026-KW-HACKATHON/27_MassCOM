@@ -846,12 +846,15 @@ async function snapshotTokenMetadata(client: PoolClient, jobId: string, origin: 
       [row.asset_id, row.nft_series_id, row.token_id, snapshot.json, snapshot.image?.sha256 ?? null],
     );
   } catch (error) {
-    // 원인은 한 번만 남긴다: PostgreSQL SQLSTATE와 제약 이름뿐이고 값·메시지는 남기지 않는다.
-    const detail = error as { code?: unknown; constraint?: unknown };
+    // 원인은 한 번만 남긴다: 작업 id(내부 uuid), PostgreSQL SQLSTATE·제약 이름, 대문자 코드 모양의 오류 이름뿐이다.
+    // 값이나 자유 문장 메시지는 남기지 않는다.
+    const detail = error as { code?: unknown; constraint?: unknown; message?: unknown };
     console.error(JSON.stringify({
       event: 'NFT_METADATA_SNAPSHOT_FAILED',
+      jobId,
       sqlstate: typeof detail.code === 'string' ? detail.code : null,
       constraint: typeof detail.constraint === 'string' ? detail.constraint : null,
+      reason: typeof detail.message === 'string' && /^[A-Z][A-Z0-9_]+$/.test(detail.message) ? detail.message : null,
     }));
     throw new RetryableChainError('NFT_METADATA_SNAPSHOT_FAILED', { cause: error });
   }

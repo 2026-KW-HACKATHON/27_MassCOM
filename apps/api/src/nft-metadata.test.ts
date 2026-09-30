@@ -28,7 +28,7 @@ async function start(t: TestContext, reader?: NftMetadataReader): Promise<string
   return `http://127.0.0.1:${address.port}`;
 }
 
-test('경로 규칙은 Caddy·시리즈 CHECK와 같고 정적 실증 시리즈는 API가 받지 않는다', () => {
+test('경로 규칙은 Caddy와 같고 시리즈 CHECK보다 넓으며 정적 실증 시리즈는 API가 받지 않는다', () => {
   assert.deepEqual(matchNftMetadataRoute('/nft-metadata/series-worker/7.json'), { kind: 'token', seriesId: 'series-worker', tokenId: '7' });
   assert.deepEqual(matchNftMetadataRoute('/nft-metadata/Series_2/0.json'), { kind: 'token', seriesId: 'Series_2', tokenId: '0' });
   assert.deepEqual(matchNftMetadataRoute(`/nft-metadata/images/${sha}.webp`), { kind: 'image', sha256: sha });
