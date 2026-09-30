@@ -1,0 +1,69 @@
+{
+  "observedAt": "2026-09-30",
+  "sourceCommit": "3f5b2fa7ccf0c625cc40798aca393792bc4543a5",
+  "repositoryVisibility": "PUBLIC",
+  "pullRequests": [255, 259, 260, 258, 249, 251],
+  "issues": [246, 253, 254, 256],
+  "mainCi": { "runId": 36682556552, "result": "PASS" },
+  "showcase": {
+    "method": "manual compose under /opt/masscom-showcase: source transfer, pre-deploy DB backup, image build, migrate, showcase-api replaced, host seed; then the Issue #253 procedure (retention job install, systemd-analyze verify, one real run, --verify, PostgreSQL log settings check)",
+    "release": "/opt/masscom-showcase/releases/3f5b2fa7ccf0c625cc40798aca393792bc4543a5",
+    "before": { "apiImage": "masscom-showcase-api:02cb7e7", "schema": "0031_account_deletion_processing.sql" },
+    "backup": "PASS: /opt/masscom-showcase/backups/pre-3f5b2fa-20260930.dump, 262 entries, 128469 bytes, mode 600, taken before migrate; actual restore NOT_RUN",
+    "after": {
+      "apiImage": "masscom-showcase-api:3f5b2fa, healthy (started 2026-09-30T08:58:09Z)",
+      "migrationOutput": "database migrations applied",
+      "schema": "34 migrations, last 0036_nft_metadata.sql (0034/0035 belong to the still-open teammate PR #257)",
+      "seed": "SHOWCASE_HOST_SEEDED"
+    },
+    "postgresRecreate": {
+      "whatHappened": "`docker compose run --rm migrate` recreated masscom-showcase-postgres-1 by itself (started 2026-09-30T08:57:52Z) because its compose definition changed (logging + command); this happened before the README's pre-recreate volume/fingerprint capture could run",
+      "postCheck": "PASS: same named volume masscom-showcase_postgres_data (created 2026-09-26T15:14:20Z), first schema_migrations.applied_at still 2026-09-26 15:14:26 UTC, the 2 SHOWCASE_APP deletion intake rows filed and cancelled on the phone earlier that day are still present; LogConfig {max-file 3, max-size 10m}, Cmd includes log_error_verbosity=terse and log_min_error_statement=panic, SHOW returns panic and terse",
+      "followUp": "the showcase README now says to check and recreate postgres before running migrate (Issue #261)"
+    },
+    "retentionJob": {
+      "install": "PASS: install.sh from the 3f5b2fa release; masscom-showcase-retention.timer enabled",
+      "systemdAnalyzeVerify": "PASS: no output for the .service and .timer",
+      "reportBeforeRun": "all steps 0",
+      "firstRun": "PASS: systemctl start at 2026-09-30 08:59:35 UTC, Result=success, journal RETENTION_RUN with every step 0 and BACKUPS_DELETED 0 (the hardened unit reached the docker socket)",
+      "verify": "PASS: `install.sh --verify` printed `last run result: success` and `verified: masscom-showcase-retention.timer is enabled and matches this release`",
+      "note": "the first attempt to run it inside the same ssh heredoc never executed because `docker compose exec` consumed the rest of the heredoc from stdin; rerun with </dev/null"
+    }
+  },
+  "operating": {
+    "method": "scripts/deploy-lightsail.sh --deploy (existing production Lightsail)",
+    "migrationCompatibility": "from 4081999 (API code 02cb7e7) to 3f5b2fa, backward_compatible=yes: 0032 additive with a superset audit-action CHECK and lock_timeout, 0033 a new table only, 0036 additive with NOT VALID series-id CHECK and new tables; prod had schema 0031, 0 ACTIVE merchants and 0 nft_series rows before the deploy",
+    "backup": "PASS: two pre-migration dumps under /opt/masscom/backups: manual pre-3f5b2fa-20260930.dump (262 entries, 125622 bytes, mode 600) and the script's own database-before-3f5b2fa7ccf0.dump.2zniQM (125622 bytes); actual restore NOT_RUN",
+    "postgresRecreate": "PASS: the deploy printed POSTGRES_RECREATED_FOR_LOG_SETTINGS after the verified backup; afterwards same named volume masscom_postgres_data, first schema_migrations.applied_at still 2026-09-21 20:00:22 UTC, LogConfig {max-file 3, max-size 10m}, SHOW log_min_error_statement panic and log_error_verbosity terse",
+    "after": {
+      "images": "masscom-api:3f5b2fa7ccf0 and masscom-production-web:3f5b2fa7ccf0, healthy (started 2026-09-30T09:00:27Z)",
+      "schema": "34 migrations, last 0036_nft_metadata.sql",
+      "apiEnvironment": "NFT_MINTING_MODE=PREPARING, NFT_MINT_CONSENT_VERSION=nft-mint-v2",
+      "aiArt": "production OPENAI_API_KEY stays empty (D-050)"
+    },
+    "retentionJob": {
+      "installAndFirstRun": "PASS: HOST_JOB_ENABLED masscom-retention.timer (first run: success)",
+      "firstRunCounts": "web_sessions 10 and wallet_challenges 2 deleted (expired), every other step 0, BACKUPS_DELETED 0",
+      "systemdAnalyzeVerify": "PASS: no output for masscom-retention.service and .timer",
+      "nextRun": "2026-09-30 19:22:53 UTC"
+    }
+  },
+  "externalHttps": {
+    "operatingApiHealth": "200 {\"status\":\"ok\"}",
+    "showcaseApiHealth": "200 {\"status\":\"ok\"}",
+    "legalPages": "https://masscom.kr and https://www.masscom.kr serve /terms (sha256 prefix e50dacab784a), /privacy (f1a5b7f6da8f) and /account-deletion (9955feec27ec), each equal to the repository docs/ file",
+    "consentWithoutSession": "GET /api/web/consent → 401 WEB_SESSION_INVALID",
+    "nftMetadataUnknownToken": "GET /nft-metadata/s-00000000000000000000000000000000/1.json → 404, application/json, cache-control no-store, a single access-control-allow-origin *",
+    "defaultStamp": "GET https://masscom.kr/nft-metadata/default/mascot-stamp-v1.png → 200 image/png 26827 bytes, sha256 prefix 147545653d7d (the pinned value)",
+    "proofToken": "GET /nft-metadata/base-sepolia-proof/1.json → 200 application/json (static, unchanged)",
+    "openPage": "/open still lists Preview 11 (Preview 12 not published yet)",
+    "note": "no production account, visit, coupon, consent or deletion request was created by these checks"
+  },
+  "notRun": [
+    "showcase Preview 12 device check and publication (APK built from 3f5b2fa, SHA-256 814ad92db647632609f65a308877cc1c4be97e3bb4b04be0b64d75642ddea3f4; the phone was not connected)",
+    "operating Android test.4 (the upload-key signing properties are not configured on this machine)",
+    "a real Google login through the new consent screen on either app or on the customer web",
+    "database restore from any backup",
+    "real admin-browser store publish / owner promotion on production"
+  ]
+}
