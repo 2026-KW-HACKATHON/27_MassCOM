@@ -53,6 +53,16 @@ try {
     'API must separate login limits by Caddy client IP',
   );
   assert(
+    services.api.environment?.NFT_MINTING_MODE === 'PREPARING',
+    'production API must show NFT minting as preparing until the mint server and mainnet are approved (D-054)',
+  );
+  // 런타임 env 파일로 LIVE를 넣을 수 없게 compose에 고정값으로 적혀 있어야 한다(${...:-PREPARING} 형태 거절).
+  const rawCompose = readFileSync(composePath, 'utf8');
+  assert(
+    /^\s+NFT_MINTING_MODE: PREPARING\s*$/m.test(rawCompose) && !rawCompose.includes('${NFT_MINTING_MODE'),
+    'production compose must fix NFT_MINTING_MODE to PREPARING without a runtime override (D-054)',
+  );
+  assert(
     services.api.environment?.ALLOW_INSECURE_DEMO_ACCOUNT !== 'true',
     'production deployment must reject the insecure DEMO account header',
   );

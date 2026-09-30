@@ -18,7 +18,7 @@ import { useAuthSession } from '@/auth/auth-provider';
 import { createBadgeApiClient } from '@/gamification/badge-api';
 import { useBadgeBook } from '@/gamification/use-badge-book';
 import type { PublicMerchant } from '@/merchant/merchant-api';
-import { filterMerchants, type MerchantAvailabilityFilter } from '@/merchant/filter-merchants';
+import { filterMerchants } from '@/merchant/filter-merchants';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
@@ -57,12 +57,8 @@ export function MerchantListScreen({ apiUrl }: Props) {
   const scrim = useStatusBarScrim();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const [query, setQuery] = useState('');
-  const [availability, setAvailability] = useState<MerchantAvailabilityFilter>('all');
-  const visibleMerchants = useMemo(
-    () => filterMerchants(merchants, query, availability),
-    [merchants, query, availability],
-  );
-  const filtering = query.trim().length > 0 || availability !== 'all';
+  const visibleMerchants = useMemo(() => filterMerchants(merchants, query), [merchants, query]);
+  const filtering = query.trim().length > 0;
   const openMerchant = (merchantId: string) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId } });
 
   return (
@@ -126,27 +122,6 @@ export function MerchantListScreen({ apiUrl }: Props) {
                       </Pressable>
                     ) : null}
                   </View>
-                  <View style={styles.filters} accessibilityRole="radiogroup" accessibilityLabel="참여 상태 필터">
-                    {([
-                      ['all', '전체'],
-                      ['open', '참여 가능'],
-                    ] as const).map(([value, label]) => (
-                      <Pressable
-                        key={value}
-                        accessibilityRole="radio"
-                        accessibilityState={{ checked: availability === value }}
-                        onPress={() => setAvailability(value)}
-                        style={({ pressed }) => [
-                          styles.filterChip,
-                          availability === value
-                            ? [styles.filterChipOn, pressed ? styles.filterChipOnPressed : null]
-                            : [styles.filterChipIdle, pressed ? styles.filterChipIdlePressed : null],
-                        ]}
-                      >
-                        <Text style={[styles.filterText, availability === value ? styles.filterTextOn : styles.filterTextIdle]}>{label}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
                 </View>
               ) : null}
               <View style={styles.sectionHeading}>
@@ -190,8 +165,8 @@ export function MerchantListScreen({ apiUrl }: Props) {
               <StateScene
                 kind="empty"
                 title="검색 결과가 없어요"
-                body="다른 이름이나 주소로 찾거나, 참여 상태 필터를 바꿔 보세요."
-                action={{ label: '검색 초기화', onPress: () => { setQuery(''); setAvailability('all'); } }}
+                body="다른 이름이나 주소로 찾아보세요."
+                action={{ label: '검색 초기화', onPress: () => setQuery('') }}
               />
             ) : (
               <FloatingCard>
@@ -307,9 +282,8 @@ export function MerchantApiConfigurationRequired() {
 
 function MerchantCard({ merchant, apiUrl, onOpen }: { merchant: PublicMerchant; apiUrl: string; onOpen: (merchantId: string) => void }) {
   const styles = useMerchantListStyles();
-  const palette = colorsForScheme(useColorScheme());
-  const full = merchant.campaign.enrollmentStatus === 'FULL';
-  const status = merchant.campaign.enrollmentStatus === 'OPEN' ? '참여 가능' : '정원 마감';
+  // 방문한 사람은 누구나 적립한다(D-023). 참여 정원이 차도 "마감"으로 보이지 않는다.
+  const status = '참여 가능';
   return (
     <FloatingCard
       onPress={() => onOpen(merchant.id)}
@@ -320,8 +294,8 @@ function MerchantCard({ merchant, apiUrl, onOpen }: { merchant: PublicMerchant; 
       <MerchantCrest merchant={merchant} apiUrl={apiUrl} />
       <View style={styles.cardBody}>
         <View style={styles.cardTopline}>
-          <View style={[styles.statusBadge, full ? { backgroundColor: palette.errorContainer } : null]}>
-            <Text style={[styles.statusBadgeText, full ? { color: palette.onErrorContainer } : null]}>{status}</Text>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusBadgeText}>{status}</Text>
           </View>
           {merchant.demo ? (
             <View style={styles.demoBadge}>

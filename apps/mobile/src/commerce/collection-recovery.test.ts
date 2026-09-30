@@ -115,3 +115,9 @@ function snapshot(nftStatus: CollectionSnapshot['collectibles'][number]['nftStat
     }],
   };
 }
+
+test('발행 준비 중인 운영 도감은 접수·확인 중 NFT가 있어도 진행을 다시 묻지 않는다', () => {
+  const preparing = { ...snapshot('QUEUED'), nftMinting: 'PREPARING' as const };
+  assert.equal(initialPollingState(preparing).mode, 'idle');
+  assert.equal(initialPollingState(snapshot('QUEUED')).mode, 'polling');
+});

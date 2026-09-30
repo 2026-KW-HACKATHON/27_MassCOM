@@ -81,6 +81,8 @@ export function nextPollingState(current: PollingState, event: PollingEvent): Po
 }
 
 function hasPendingMint(snapshot: CollectionSnapshot): boolean {
+  // 발행 준비 중(운영, #246)에는 워커가 없어 진행을 기다려도 바뀌지 않으므로 다시 묻지 않는다.
+  if (snapshot.nftMinting === 'PREPARING') return false;
   return snapshot.collectibles.some(
     (item) => item.nftStatus === 'QUEUED' || item.nftStatus === 'CONFIRMING',
   );

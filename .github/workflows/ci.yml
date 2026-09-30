@@ -65,7 +65,7 @@ jobs:
       - name: 웹 디자인 토큰·앱 색 정합 검사
         run: node --test tests/site/verify_design_tokens_test.mjs
       - name: 운영 웹 공개 조회·읽기 전용 경계 검사
-        run: node --test tests/site/verify_production_web_test.mjs
+        run: node --test tests/site/verify_production_web_test.mjs tests/site/store-go-live-admin.test.mjs
       - name: AWS 운영 웹 정적 번들·Caddy 경계 검사
         run: |
           node --test tests/site/build_public_site_test.mjs tests/ops/verify_aws_web_routes_test.mjs

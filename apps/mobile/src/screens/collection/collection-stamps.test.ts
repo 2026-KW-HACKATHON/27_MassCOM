@@ -65,18 +65,19 @@ test('completed, ended and full campaigns retain honest goal state', () => {
   assert.equal(buildMerchantGoals(campaignMerchants, [], [], '2026-10-02T00:00:00Z')[0]?.campaignStatus, 'ended');
   assert.equal(buildMerchantGoals([{
     ...campaignMerchants[0]!, campaign: { ...campaignMerchants[0]!.campaign, enrollmentStatus: 'FULL' },
-  }], [], [], '2026-09-28T00:00:00Z')[0]?.campaignStatus, 'full');
+  }], [], [], '2026-09-28T00:00:00Z')[0]?.campaignStatus, 'open');
   assert.deepEqual(buildMerchantGoals([], [], [], '2026-09-28T00:00:00Z'), []);
 });
 
-test('full campaign shows capacity and the unearned goal without promising another reward', () => {
+test('a campaign whose shown capacity is full still offers the next goal, because every visit earns (D-023)', () => {
   const [goal] = buildMerchantGoals([{
     ...campaignMerchants[0]!, campaign: { ...campaignMerchants[0]!.campaign, enrollmentStatus: 'FULL' },
   }], [], [], '2026-09-28T00:00:00Z');
-  assert.equal(describeMerchantGoal(goal!), '참여 정원 마감 · 미획득 목표 1회 · 첫 방문');
+  assert.equal(describeMerchantGoal(goal!), '다음 목표 1회 · 첫 방문 · 1회 남음');
+  assert.doesNotMatch(describeMerchantGoal(goal!), /마감/);
 });
 
-test('full campaign retains remaining counted visits for an existing participant', () => {
+test('a full campaign counts remaining visits the same for everyone', () => {
   const full = [{
     ...campaignMerchants[0]!, campaign: { ...campaignMerchants[0]!.campaign, enrollmentStatus: 'FULL' as const },
   }];
@@ -87,7 +88,7 @@ test('full campaign retains remaining counted visits for an existing participant
   const earned = [{ merchantId: 'one', campaignId: 'current', targetVisitCount: 1, appCollectibleStatus: 'COLLECTED' }] as const;
   const [goal] = buildMerchantGoals(full, visits, earned, '2026-09-28T00:00:00Z');
   assert.equal(goal?.remainingVisits, 2);
-  assert.equal(describeMerchantGoal(goal!), '참여 정원 마감 · 미획득 목표 3회 · 세 번째 방문 · 기존 참여자라면 2회 남음');
+  assert.equal(describeMerchantGoal(goal!), '다음 목표 3회 · 세 번째 방문 · 2회 남음');
 });
 
 test('ended campaign still shows earned completion and pending collectible state', () => {
@@ -190,7 +191,7 @@ test('stamp cards show one short goal line while the full sentence stays availab
   assert.equal(shortMerchantGoal(buildMerchantGoals(campaignMerchants, [], [], '2026-08-01T00:00:00Z')[0]!), '캠페인 시작 전');
 
   const full = [{ ...campaignMerchants[0]!, campaign: { ...campaignMerchants[0]!.campaign, enrollmentStatus: 'FULL' as const } }];
-  assert.equal(shortMerchantGoal(buildMerchantGoals(full, [], [], now)[0]!), '참여 정원 마감');
+  assert.equal(shortMerchantGoal(buildMerchantGoals(full, [], [], now)[0]!), '수집품까지 1번');
   assert.equal(shortMerchantGoal(buildMerchantGoals(full, [counted], firstEarned, now)[0]!), '수집품까지 2번');
 
   const noGoals = [{ ...campaignMerchants[0]!, campaign: { ...campaignMerchants[0]!.campaign, rewardGoals: [] } }];

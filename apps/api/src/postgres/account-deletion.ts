@@ -300,6 +300,11 @@ async function pseudonymizeAccount(
     'UPDATE platform_admin_audit SET actor_account_id = $1 WHERE actor_account_id = $2',
     [deletedAlias, accountId],
   );
+  // 점주 올리기·내리기 감사의 대상 계정(#246). JSON 상태에는 계정 식별자를 넣지 않으므로 이 열만 바꾸면 된다.
+  await client.query(
+    'UPDATE platform_admin_audit SET target_account_id = $1 WHERE target_account_id = $2',
+    [deletedAlias, accountId],
+  );
   await client.query(
     `DELETE FROM customer_identity_tokens
      WHERE customer_account_id = $1 OR bound_staff_account_id = $1`,

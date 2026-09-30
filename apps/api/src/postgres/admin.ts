@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
-import { isCouponVoidReason, maskedCustomerLabel, normalizeReversalNote } from '../reversal-rules.js';
+import { isCouponVoidReason, looksLikePersonalData, maskedCustomerLabel, normalizeReversalNote } from '../reversal-rules.js';
+import {
+  composeOfferConsentNote, isCompleteOwnerOfferConsent, isOwnerDemotionReason, maxActiveOwnersPerMerchant,
+  missingPublishRequirements, normalizeDocumentReference, ownerOfferConsentChecklistVersion, rewardOfferIssuanceCapMax,
+  type OwnerDemotionReason,
+} from '../store-go-live-rules.js';
 import { AccountLifecycleError, PostgresAccountLifecycle } from './account-lifecycle.js';
 
 export type AdminMerchant = {
@@ -16,6 +21,9 @@ export type AdminMerchant = {
   status: 'ACTIVE' | 'PAUSED';
   demo: false;
   version: number;
+  // 공개할 때 관리자가 적은 점포 동의서(가게 이름·사진 사용) 참조 번호와 마지막 공개 시각(Issue #246).
+  consentDocumentRef: string | null;
+  publishedAt: string | null;
 };
 
 export type MerchantInput = Pick<AdminMerchant, 'name' | 'story' | 'roadAddress' | 'minimumSpendWon'> &
@@ -67,6 +75,49 @@ export type AdminCampaignDraft = AdminCampaignDraftInput & {
   public: false;
 };
 
+export type AdminCampaign = {
+  id: string;
+  merchantId: string;
+  merchantName: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  enrollmentCapacity: number;
+  enrolledCount: number;
+  rewardGoals: AdminRewardGoal[];
+  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ENDED';
+  public: boolean;
+};
+
+// 멤버 행의 granted_at은 STAFF로 처음 승인된 시각이라 점주가 된 시각이 아니다. 오해를 막으려고 내보내지 않는다.
+export type AdminOwner = { accountId: string; role: 'OWNER' };
+
+export type AdminRewardOfferInput = {
+  merchantId: unknown;
+  milestone: unknown;
+  title: unknown;
+  detail: unknown;
+  validDays: unknown;
+  issuanceCap: unknown;
+  consentDocumentRef: unknown;
+  consent: unknown;
+};
+
+export type AdminRewardOffer = {
+  id: string;
+  merchantId: string;
+  merchantName: string;
+  milestone: 1 | 2 | 3;
+  title: string;
+  detail: string;
+  validDays: number;
+  issuanceCap: number | null;
+  issuedCount: number;
+  status: 'ACTIVE' | 'PAUSED';
+  consentDocumentRef: string | null;
+  createdAt: string;
+};
+
 type MerchantRow = {
   id: string;
   name: string;
@@ -78,18 +129,39 @@ type MerchantRow = {
   status: 'ACTIVE' | 'PAUSED';
   is_demo: boolean;
   version: number;
+  consent_document_ref: string | null;
+  published_at: Date | null;
+};
+
+type CampaignRow = {
+  id: string; merchant_id: string; merchant_name: string; title: string; starts_at: Date; ends_at: Date;
+  enrollment_capacity: number; enrolled_count: number; reward_goals: AdminRewardGoal[];
+  status: AdminCampaign['status']; is_public: boolean;
+};
+
+type OfferRow = {
+  id: string; merchant_id: string; merchant_name: string; milestone: 1 | 2 | 3; title: string; detail: string;
+  valid_days: number; issuance_cap: number | null; issued_count: number; status: 'ACTIVE' | 'PAUSED';
+  consent_document_ref: string | null; created_at: Date;
 };
 
 export class AdminError extends Error {
   constructor(readonly code: 'ADMIN_FORBIDDEN' | 'ADMIN_IDENTITY_NOT_FOUND' |
     'ADMIN_MERCHANT_NOT_FOUND' | 'ADMIN_VERSION_CONFLICT' | 'ADMIN_PENDING_CLAIMS' | 'ADMIN_INVALID_INPUT' |
-    'ADMIN_COUPON_NOT_FOUND' | 'ADMIN_COUPON_NOT_VOIDABLE') {
+    'ADMIN_COUPON_NOT_FOUND' | 'ADMIN_COUPON_NOT_VOIDABLE' |
+    // Issue #246: 점포 공개·점주·보상 혜택·캠페인 공개
+    'ADMIN_DOCUMENT_REF_INVALID' | 'ADMIN_MERCHANT_NOT_READY' | 'ADMIN_MERCHANT_ALREADY_ACTIVE' |
+    'ADMIN_MERCHANT_NOT_ACTIVE' | 'ADMIN_SELF_ROLE_CHANGE' | 'ADMIN_MEMBER_NOT_FOUND' | 'ADMIN_ALREADY_OWNER' |
+    'ADMIN_OWNER_LIMIT' | 'ADMIN_CONSENT_INCOMPLETE' | 'ADMIN_OFFER_NOT_FOUND' | 'ADMIN_OFFER_MILESTONE_TAKEN' |
+    'ADMIN_CAMPAIGN_NOT_FOUND' | 'ADMIN_CAMPAIGN_NOT_PUBLISHABLE' | 'ADMIN_CAMPAIGN_NOT_PAUSABLE' |
+    'ADMIN_CAMPAIGN_ACTIVE_EXISTS' | 'ADMIN_OFFER_TEXT_INVALID') {
     super(code);
     this.name = 'AdminError';
   }
 }
 
-const columns = 'id, name, story, road_address, minimum_spend_won, menu_items, business_hours, status, is_demo, version';
+const columns = 'id, name, story, road_address, minimum_spend_won, menu_items, business_hours, status, is_demo, version, ' +
+  'consent_document_ref, published_at';
 
 function merchant(row: MerchantRow): AdminMerchant {
   if (row.is_demo) throw new AdminError('ADMIN_MERCHANT_NOT_FOUND');
@@ -97,7 +169,82 @@ function merchant(row: MerchantRow): AdminMerchant {
     id: row.id, name: row.name, story: row.story, roadAddress: row.road_address,
     minimumSpendWon: row.minimum_spend_won, menuItems: row.menu_items, businessHours: row.business_hours,
     status: row.status, demo: false, version: row.version,
+    consentDocumentRef: row.consent_document_ref, publishedAt: row.published_at ? row.published_at.toISOString() : null,
   };
+}
+
+const campaignSelect = `SELECT campaign.id, campaign.merchant_id, merchant.name AS merchant_name,
+    campaign.title, campaign.starts_at, campaign.ends_at, campaign.enrollment_capacity, campaign.enrolled_count,
+    campaign.status, campaign.is_public,
+    COALESCE((SELECT jsonb_agg(jsonb_build_object('targetVisitCount', goal.target_visit_count,
+      'displayName', goal.display_name) ORDER BY goal.target_visit_count)
+      FROM campaign_goals AS goal WHERE goal.campaign_id = campaign.id), '[]'::jsonb) AS reward_goals
+  FROM campaigns AS campaign JOIN merchants AS merchant ON merchant.id = campaign.merchant_id`;
+
+function campaign(row: CampaignRow): AdminCampaign {
+  return {
+    id: row.id, merchantId: row.merchant_id, merchantName: row.merchant_name, title: row.title,
+    startsAt: row.starts_at.toISOString(), endsAt: row.ends_at.toISOString(),
+    enrollmentCapacity: row.enrollment_capacity, enrolledCount: row.enrolled_count, rewardGoals: row.reward_goals,
+    status: row.status, public: row.is_public,
+  };
+}
+
+const offerSelect = `SELECT offer.id, offer.merchant_id, merchant.name AS merchant_name, offer.milestone, offer.title,
+    offer.detail, offer.valid_days, offer.issuance_cap, offer.issued_count, offer.status, offer.consent_document_ref,
+    offer.created_at
+  FROM badge_reward_offers AS offer JOIN merchants AS merchant ON merchant.id = offer.merchant_id`;
+
+function offer(row: OfferRow): AdminRewardOffer {
+  return {
+    id: row.id, merchantId: row.merchant_id, merchantName: row.merchant_name, milestone: row.milestone,
+    title: row.title, detail: row.detail, validDays: row.valid_days, issuanceCap: row.issuance_cap,
+    issuedCount: row.issued_count, status: row.status, consentDocumentRef: row.consent_document_ref,
+    createdAt: row.created_at.toISOString(),
+  };
+}
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUniqueViolation(error: unknown, constraint: string): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '23505' &&
+    (error as { constraint?: unknown }).constraint === constraint;
+}
+
+function validAccountId(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '' && value.length <= 200;
+}
+
+type ValidRewardOffer = {
+  merchantId: string; milestone: 1 | 2 | 3; title: string; detail: string; validDays: number; issuanceCap: number;
+  consentDocumentRef: string;
+};
+
+function validateRewardOffer(raw: AdminRewardOfferInput): ValidRewardOffer {
+  const title = typeof raw.title === 'string' ? raw.title.trim() : '';
+  const detail = typeof raw.detail === 'string' ? raw.detail.trim() : undefined;
+  if (typeof raw.merchantId !== 'string' || !raw.merchantId.trim() || raw.merchantId.length > 200 ||
+      (raw.milestone !== 1 && raw.milestone !== 2 && raw.milestone !== 3) ||
+      Array.from(title).length < 1 || Array.from(title).length > 40 ||
+      detail === undefined || Array.from(detail).length > 120 ||
+      !Number.isSafeInteger(raw.validDays) || (raw.validDays as number) < 1 || (raw.validDays as number) > 365 ||
+      !Number.isSafeInteger(raw.issuanceCap) || (raw.issuanceCap as number) < 1 ||
+      (raw.issuanceCap as number) > rewardOfferIssuanceCapMax) {
+    throw new AdminError('ADMIN_INVALID_INPUT');
+  }
+  // 고객에게 그대로 보이는 글이라 되돌리기 메모와 같은 기준으로 연락처·이메일·웹 주소·긴 숫자열을 거절한다.
+  // 제어·서식 문자(줄바꿈, 너비 없는 공백 U+200B, 방향 바꿈 U+202E 등)는 삭제 거절 사유와 같이 먼저 거절한다. 관리자 실수를 막는
+  // 검사라 결합 문자(U+034F 등)·점자 빈칸처럼 다른 범주의 보이지 않는 글자까지 모두 막지는 못한다.
+  // ponytail: Cc/Cf만 막는다. 관리자 입력이 아닌 곳에 쓰게 되면 \p{M}·U+2800까지 넓힌다.
+  if (/[\p{Cc}\p{Cf}]/u.test(title) || /[\p{Cc}\p{Cf}]/u.test(detail) ||
+      looksLikePersonalData(title) || looksLikePersonalData(detail)) {
+    throw new AdminError('ADMIN_OFFER_TEXT_INVALID');
+  }
+  if (!isCompleteOwnerOfferConsent(raw.consent)) throw new AdminError('ADMIN_CONSENT_INCOMPLETE');
+  const consentDocumentRef = normalizeDocumentReference(raw.consentDocumentRef);
+  if (!consentDocumentRef) throw new AdminError('ADMIN_DOCUMENT_REF_INVALID');
+  return { merchantId: raw.merchantId.trim(), milestone: raw.milestone, title, detail,
+    validDays: raw.validDays as number, issuanceCap: raw.issuanceCap as number, consentDocumentRef };
 }
 
 function validate(input: MerchantInput): MerchantInput {
@@ -449,6 +596,14 @@ export class PostgresAdminService {
     return this.transaction(async client => {
       await this.requireAdmin(client, accountId);
       const before = await this.lockMerchant(client, id, expectedVersion);
+      // 공개 중인 점포는 공개 조건(메뉴 1개 이상·영업시간·도로명 주소)을 깨는 수정을 받지 않는다(#246).
+      if (before.status === 'ACTIVE' && missingPublishRequirements({
+        menuItemCount: (input.menuItems ?? before.menuItems).length,
+        businessHours: input.businessHours ?? before.businessHours,
+        roadAddress: input.roadAddress,
+      }).length) {
+        throw new AdminError('ADMIN_MERCHANT_NOT_READY');
+      }
       const row = (await client.query<MerchantRow>(
         `UPDATE merchants SET name = $2, story = $3, road_address = $4,
          minimum_spend_won = $5, menu_items = COALESCE($6::jsonb, menu_items),
@@ -490,6 +645,300 @@ export class PostgresAdminService {
       await this.audit(client, accountId, id, 'MERCHANT_HIDDEN', before, hidden);
       return hidden;
     });
+  }
+
+  // 비공개 점포를 공개한다. 메뉴·영업시간·주소가 채워져 있고 가게 이름·사진 사용 동의서 참조 번호가 있어야 한다.
+  // 숨김 때 멈춘 캠페인·혜택은 되살리지 않는다(캠페인은 따로 공개하고 혜택은 새 동의로 새로 만든다).
+  async publishMerchant(accountId: string, id: string, expectedVersion: number, rawReference: unknown): Promise<AdminMerchant> {
+    const reference = normalizeDocumentReference(rawReference);
+    if (!reference) throw new AdminError('ADMIN_DOCUMENT_REF_INVALID');
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      const before = await this.lockMerchant(client, id, expectedVersion);
+      if (before.status === 'ACTIVE') throw new AdminError('ADMIN_MERCHANT_ALREADY_ACTIVE');
+      if (missingPublishRequirements({ menuItemCount: before.menuItems.length, businessHours: before.businessHours,
+        roadAddress: before.roadAddress }).length) {
+        throw new AdminError('ADMIN_MERCHANT_NOT_READY');
+      }
+      const row = (await client.query<MerchantRow>(
+        `UPDATE merchants SET status = 'ACTIVE', consent_document_ref = $2, published_at = now(),
+         version = version + 1, updated_at = now()
+         WHERE id = $1 RETURNING ${columns}`, [id, reference],
+      )).rows[0]!;
+      const published = merchant(row);
+      await this.audit(client, accountId, id, 'MERCHANT_PUBLISHED', before, published);
+      return published;
+    });
+  }
+
+  async listOwners(accountId: string, merchantId: string): Promise<AdminOwner[]> {
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      const found = await client.query('SELECT 1 FROM merchants WHERE id = $1 AND NOT is_demo', [merchantId]);
+      if (!found.rowCount) throw new AdminError('ADMIN_MERCHANT_NOT_FOUND');
+      const result = await client.query<{ account_id: string }>(
+        `SELECT account_id FROM merchant_members
+         WHERE merchant_id = $1 AND role = 'OWNER' AND status = 'ACTIVE' ORDER BY account_id`, [merchantId],
+      );
+      return result.rows.map(row => ({ accountId: row.account_id, role: 'OWNER' }));
+    });
+  }
+
+  // 사업자등록증 원본과 점포 전화 확인을 마친 ACTIVE STAFF를 OWNER로 올린다. 확인 기록의 참조 번호만 남긴다.
+  // 잠금 순서: 두 계정 advisory(정렬) → 관리자 행 → 점포 행 → 멤버 행. 점포당 OWNER 2명 상한은 점포 행 잠금 뒤에 센다.
+  async promoteOwner(accountId: string, merchantId: string, targetAccountId: string,
+    rawReference: unknown): Promise<{ accountId: string; role: 'OWNER' }> {
+    if (targetAccountId === accountId) throw new AdminError('ADMIN_SELF_ROLE_CHANGE');
+    const reference = normalizeDocumentReference(rawReference);
+    if (!reference) throw new AdminError('ADMIN_DOCUMENT_REF_INVALID');
+    if (!validAccountId(targetAccountId)) throw new AdminError('ADMIN_MEMBER_NOT_FOUND');
+    return this.transaction(async client => {
+      await this.lockMemberChange(client, accountId, targetAccountId);
+      const row = await this.lockMerchantRow(client, merchantId);
+      if (row.status !== 'ACTIVE') throw new AdminError('ADMIN_MERCHANT_NOT_ACTIVE');
+      const member = (await client.query<{ role: 'OWNER' | 'STAFF'; status: 'ACTIVE' | 'REVOKED' }>(
+        `SELECT role, status FROM merchant_members WHERE merchant_id = $1 AND account_id = $2 FOR UPDATE`,
+        [merchantId, targetAccountId],
+      )).rows[0];
+      if (!member || member.status !== 'ACTIVE') throw new AdminError('ADMIN_MEMBER_NOT_FOUND');
+      if (member.role === 'OWNER') throw new AdminError('ADMIN_ALREADY_OWNER');
+      const owners = (await client.query<{ count: number }>(
+        `SELECT count(*)::int AS count FROM merchant_members
+         WHERE merchant_id = $1 AND role = 'OWNER' AND status = 'ACTIVE'`, [merchantId],
+      )).rows[0]!.count;
+      if (owners >= maxActiveOwnersPerMerchant) throw new AdminError('ADMIN_OWNER_LIMIT');
+      await client.query(
+        `UPDATE merchant_members SET role = 'OWNER', updated_at = now()
+         WHERE merchant_id = $1 AND account_id = $2 AND role = 'STAFF' AND status = 'ACTIVE'`,
+        [merchantId, targetAccountId],
+      );
+      // 계정 식별자는 JSON에 넣지 않고 target_account_id 열에만 둔다(계정 삭제가 열 단위로 별칭 처리한다).
+      await this.auditEvent(client, { actor: accountId, merchantId, action: 'MERCHANT_OWNER_GRANTED',
+        target: targetAccountId, before: { role: 'STAFF' },
+        after: { role: 'OWNER', verificationDocumentRef: reference } });
+      return { accountId: targetAccountId, role: 'OWNER' };
+    });
+  }
+
+  // ACTIVE OWNER를 STAFF로 내린다(직원 권한은 남는다. 완전히 빼려면 기존 직원 권한 회수를 쓴다). 숨긴 점포에서도 할 수 있다.
+  async demoteOwner(accountId: string, merchantId: string, targetAccountId: string,
+    input: { reason: unknown; verificationDocumentRef: unknown }): Promise<{ accountId: string; role: 'STAFF' }> {
+    if (targetAccountId === accountId) throw new AdminError('ADMIN_SELF_ROLE_CHANGE');
+    if (!isOwnerDemotionReason(input.reason)) throw new AdminError('ADMIN_INVALID_INPUT');
+    const reason: OwnerDemotionReason = input.reason;
+    const reference = normalizeDocumentReference(input.verificationDocumentRef);
+    if (!reference) throw new AdminError('ADMIN_DOCUMENT_REF_INVALID');
+    if (!validAccountId(targetAccountId)) throw new AdminError('ADMIN_MEMBER_NOT_FOUND');
+    return this.transaction(async client => {
+      await this.lockMemberChange(client, accountId, targetAccountId);
+      await this.lockMerchantRow(client, merchantId);
+      const demoted = await client.query(
+        `UPDATE merchant_members SET role = 'STAFF', updated_at = now()
+         WHERE merchant_id = $1 AND account_id = $2 AND role = 'OWNER' AND status = 'ACTIVE'`,
+        [merchantId, targetAccountId],
+      );
+      if (demoted.rowCount !== 1) throw new AdminError('ADMIN_MEMBER_NOT_FOUND');
+      await this.auditEvent(client, { actor: accountId, merchantId, action: 'MERCHANT_OWNER_REVOKED',
+        target: targetAccountId, before: { role: 'OWNER' },
+        after: { role: 'STAFF', reason, verificationDocumentRef: reference } });
+      return { accountId: targetAccountId, role: 'STAFF' };
+    });
+  }
+
+  async listRewardOffers(accountId: string): Promise<AdminRewardOffer[]> {
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      const result = await client.query<OfferRow>(
+        `${offerSelect} WHERE NOT merchant.is_demo ORDER BY offer.created_at DESC, offer.id LIMIT 100`,
+      );
+      return result.rows.map(offer);
+    });
+  }
+
+  // 점주 동의 5항목(D-043)과 동의서 참조 번호가 있어야 활성 점포에 혜택을 만든다. 발급 상한은 필수다.
+  async createRewardOffer(accountId: string, raw: AdminRewardOfferInput): Promise<AdminRewardOffer> {
+    const input = validateRewardOffer(raw);
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      const row = await this.lockMerchantRow(client, input.merchantId);
+      if (row.status !== 'ACTIVE') throw new AdminError('ADMIN_MERCHANT_NOT_ACTIVE');
+      // 상자 번호당 활성 혜택은 전체에서 하나다(0027 부분 유일 색인). 동시 경쟁은 색인이 막고 같은 코드로 알린다.
+      const taken = await client.query(
+        `SELECT 1 FROM badge_reward_offers WHERE milestone = $1 AND status = 'ACTIVE'`, [input.milestone],
+      );
+      if (taken.rowCount) throw new AdminError('ADMIN_OFFER_MILESTONE_TAKEN');
+      const id = randomUUID();
+      try {
+        await client.query(
+          `INSERT INTO badge_reward_offers (id, milestone, merchant_id, title, detail, valid_days, issuance_cap, status,
+             consent_note, consent_document_ref, consent_checklist_version)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE', $8, $9, $10)`,
+          [id, input.milestone, input.merchantId, input.title, input.detail, input.validDays, input.issuanceCap,
+            composeOfferConsentNote(input.consentDocumentRef), input.consentDocumentRef,
+            ownerOfferConsentChecklistVersion],
+        );
+      } catch (error) {
+        if (isUniqueViolation(error, 'badge_reward_offers_one_active_per_milestone')) {
+          throw new AdminError('ADMIN_OFFER_MILESTONE_TAKEN');
+        }
+        throw error;
+      }
+      const created = offer((await client.query<OfferRow>(`${offerSelect} WHERE offer.id = $1`, [id])).rows[0]!);
+      await this.auditEvent(client, { actor: accountId, merchantId: input.merchantId, action: 'REWARD_OFFER_CREATED',
+        before: null, after: { ...created, consentChecklistVersion: ownerOfferConsentChecklistVersion,
+          consent: { benefit: true, ownerPaysCost: true, validity: true, issuanceCap: true, duplicateUse: true } } });
+      return created;
+    });
+  }
+
+  // 혜택 발급을 멈춘다. 이미 발급한 쿠폰은 그대로 쓸 수 있다. 이미 멈췄으면 저장된 결과를 그대로 돌려준다.
+  async pauseRewardOffer(accountId: string, offerId: string): Promise<{ offer: AdminRewardOffer; replayed: boolean }> {
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      if (!uuidPattern.test(offerId)) throw new AdminError('ADMIN_OFFER_NOT_FOUND');
+      const found = (await client.query<{ merchant_id: string }>(
+        `SELECT offer.merchant_id FROM badge_reward_offers AS offer
+         JOIN merchants AS merchant ON merchant.id = offer.merchant_id
+         WHERE offer.id = $1 AND NOT merchant.is_demo`, [offerId],
+      )).rows[0];
+      if (!found) throw new AdminError('ADMIN_OFFER_NOT_FOUND');
+      // 잠금 순서는 점포 → 혜택이다(숨김·상자 열기와 같다).
+      await this.lockMerchantRow(client, found.merchant_id);
+      const current = (await client.query<OfferRow>(
+        `${offerSelect} WHERE offer.id = $1 AND offer.merchant_id = $2 FOR UPDATE OF offer`, [offerId, found.merchant_id],
+      )).rows[0];
+      if (!current) throw new AdminError('ADMIN_OFFER_NOT_FOUND');
+      if (current.status === 'PAUSED') return { offer: offer(current), replayed: true };
+      await client.query(`UPDATE badge_reward_offers SET status = 'PAUSED' WHERE id = $1`, [offerId]);
+      const paused = { ...offer(current), status: 'PAUSED' as const };
+      await this.auditEvent(client, { actor: accountId, merchantId: found.merchant_id, action: 'REWARD_OFFER_PAUSED',
+        before: { offerId, milestone: current.milestone, title: current.title, status: 'ACTIVE' },
+        after: { offerId, milestone: current.milestone, title: current.title, status: 'PAUSED' } });
+      return { offer: paused, replayed: false };
+    });
+  }
+
+  // 초안이 아닌 실제 점포 캠페인(공개 중·중지·종료). 초안은 listCampaignDrafts가 따로 보여 준다.
+  async listCampaigns(accountId: string): Promise<AdminCampaign[]> {
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      const result = await client.query<CampaignRow>(
+        `${campaignSelect} WHERE campaign.status <> 'DRAFT' AND NOT merchant.is_demo
+         ORDER BY campaign.updated_at DESC, campaign.id LIMIT 100`,
+      );
+      return result.rows.map(campaign);
+    });
+  }
+
+  // 초안 또는 중지된 캠페인을 공개한다. 점포가 활성이고 목표가 있으며 끝나지 않았어야 한다. 점포당 공개 캠페인은 하나다.
+  async publishCampaign(accountId: string, campaignId: string): Promise<{ campaign: AdminCampaign; replayed: boolean }> {
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      const { merchantRow, current } = await this.lockCampaign(client, campaignId);
+      if (merchantRow.status !== 'ACTIVE') throw new AdminError('ADMIN_MERCHANT_NOT_ACTIVE');
+      if (current.status === 'ACTIVE' && current.is_public) return { campaign: campaign(current), replayed: true };
+      const facts = (await client.query<{ goals: number; open: boolean }>(
+        `SELECT (SELECT count(*)::int FROM campaign_goals WHERE campaign_id = $1) AS goals,
+                (SELECT ends_at > now() FROM campaigns WHERE id = $1) AS open`, [campaignId],
+      )).rows[0]!;
+      if (!['DRAFT', 'PAUSED', 'ACTIVE'].includes(current.status) || facts.goals < 1 || !facts.open) {
+        throw new AdminError('ADMIN_CAMPAIGN_NOT_PUBLISHABLE');
+      }
+      const other = await client.query(
+        `SELECT 1 FROM campaigns WHERE merchant_id = $1 AND status = 'ACTIVE' AND is_public AND id <> $2`,
+        [current.merchant_id, campaignId],
+      );
+      if (other.rowCount) throw new AdminError('ADMIN_CAMPAIGN_ACTIVE_EXISTS');
+      try {
+        await client.query(
+          `UPDATE campaigns SET status = 'ACTIVE', is_public = true, updated_at = now() WHERE id = $1`, [campaignId],
+        );
+      } catch (error) {
+        if (isUniqueViolation(error, 'campaigns_one_active_public_per_merchant')) {
+          throw new AdminError('ADMIN_CAMPAIGN_ACTIVE_EXISTS');
+        }
+        throw error;
+      }
+      const published = { ...campaign(current), status: 'ACTIVE' as const, public: true };
+      await this.auditEvent(client, { actor: accountId, merchantId: current.merchant_id, action: 'CAMPAIGN_PUBLISHED',
+        before: { campaignId, title: current.title, status: current.status, public: current.is_public },
+        after: { campaignId, title: current.title, status: 'ACTIVE', public: true } });
+      return { campaign: published, replayed: false };
+    });
+  }
+
+  // 공개 중인 캠페인을 멈춘다(숨김과 같이 비공개로 돌린다). 숨긴 점포에서도 할 수 있다.
+  async pauseCampaign(accountId: string, campaignId: string): Promise<{ campaign: AdminCampaign; replayed: boolean }> {
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      const { current } = await this.lockCampaign(client, campaignId);
+      if (current.status === 'PAUSED') return { campaign: campaign(current), replayed: true };
+      if (current.status !== 'ACTIVE') throw new AdminError('ADMIN_CAMPAIGN_NOT_PAUSABLE');
+      await client.query(
+        `UPDATE campaigns SET status = 'PAUSED', is_public = false, updated_at = now() WHERE id = $1`, [campaignId],
+      );
+      const paused = { ...campaign(current), status: 'PAUSED' as const, public: false };
+      await this.auditEvent(client, { actor: accountId, merchantId: current.merchant_id, action: 'CAMPAIGN_PAUSED',
+        before: { campaignId, title: current.title, status: current.status, public: current.is_public },
+        after: { campaignId, title: current.title, status: 'PAUSED', public: false } });
+      return { campaign: paused, replayed: false };
+    });
+  }
+
+  // 캠페인의 점포를 잠금 없이 찾은 뒤 점포 → 캠페인 순서로 잠근다.
+  private async lockCampaign(client: PoolClient, campaignId: string): Promise<{
+    merchantRow: { status: 'ACTIVE' | 'PAUSED' }; current: CampaignRow;
+  }> {
+    if (typeof campaignId !== 'string' || !campaignId || campaignId.length > 200) {
+      throw new AdminError('ADMIN_CAMPAIGN_NOT_FOUND');
+    }
+    const found = (await client.query<{ merchant_id: string }>(
+      `SELECT campaign.merchant_id FROM campaigns AS campaign
+       JOIN merchants AS merchant ON merchant.id = campaign.merchant_id
+       WHERE campaign.id = $1 AND NOT merchant.is_demo`, [campaignId],
+    )).rows[0];
+    if (!found) throw new AdminError('ADMIN_CAMPAIGN_NOT_FOUND');
+    const merchantRow = await this.lockMerchantRow(client, found.merchant_id);
+    const current = (await client.query<CampaignRow>(
+      `${campaignSelect} WHERE campaign.id = $1 AND campaign.merchant_id = $2 FOR UPDATE OF campaign`,
+      [campaignId, found.merchant_id],
+    )).rows[0];
+    if (!current) throw new AdminError('ADMIN_CAMPAIGN_NOT_FOUND');
+    return { merchantRow, current };
+  }
+
+  // 점주 변경은 관리자와 대상 계정의 advisory 잠금을 한 정렬 순서로 먼저 잡는다(계정 삭제 처리와 같은 규칙:
+  // 두 관리자가 서로를 대상으로 해도 교착하지 않는다). 그 뒤 관리자 확인과 대상 계정 삭제 여부를 본다.
+  private async lockMemberChange(client: PoolClient, accountId: string, targetAccountId: string): Promise<void> {
+    await this.lifecycle.lockAllForDeletion(client, [accountId, targetAccountId]);
+    await this.requireAdmin(client, accountId);
+    try { await this.lifecycle.assertActive(client, targetAccountId); }
+    catch (error) {
+      if (error instanceof AccountLifecycleError) throw new AdminError('ADMIN_MEMBER_NOT_FOUND');
+      throw error;
+    }
+  }
+
+  private async lockMerchantRow(client: PoolClient, merchantId: string): Promise<{ status: 'ACTIVE' | 'PAUSED' }> {
+    if (typeof merchantId !== 'string' || !merchantId || merchantId.length > 200) {
+      throw new AdminError('ADMIN_MERCHANT_NOT_FOUND');
+    }
+    const row = (await client.query<{ status: 'ACTIVE' | 'PAUSED' }>(
+      `SELECT status FROM merchants WHERE id = $1 AND NOT is_demo FOR UPDATE`, [merchantId],
+    )).rows[0];
+    if (!row) throw new AdminError('ADMIN_MERCHANT_NOT_FOUND');
+    return row;
+  }
+
+  private async auditEvent(client: PoolClient, event: {
+    actor: string; merchantId: string; action: string; target?: string; before: unknown; after: unknown;
+  }): Promise<void> {
+    await client.query(
+      `INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, before_state, after_state, target_account_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [randomUUID(), event.actor, event.merchantId, event.action,
+        event.before === null ? null : JSON.stringify(event.before), JSON.stringify(event.after), event.target ?? null],
+    );
   }
 
   private async lockMerchant(client: PoolClient, id: string, expectedVersion: number): Promise<AdminMerchant> {
