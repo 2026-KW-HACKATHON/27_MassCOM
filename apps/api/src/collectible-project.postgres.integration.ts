@@ -299,8 +299,8 @@ test('merchant delete removes drafts (freeing the project cap) and clears a publ
   assert.deepEqual(await projects.remove({ ...input, projectId: draft.id, expectedVersion: 1 }), { projectId: draft.id, deleted: true, unlinkedCampaignId: null });
   assert.equal((await pool.query('SELECT 1 FROM collectible_projects WHERE id = $1', [draft.id])).rowCount, 0);
   assert.equal((await pool.query('SELECT 1 FROM collectible_project_contributors WHERE project_id = $1', [draft.id])).rowCount, 0);
-  await pool.query(`INSERT INTO collectible_projects (id, merchant_id, project)
-    SELECT gen_random_uuid(), 'merchant-a', '{}'::jsonb FROM generate_series(1, 100)`);
+  await pool.query(`INSERT INTO collectible_projects (id, merchant_id, project, lineage_id)
+    SELECT id, 'merchant-a', '{}'::jsonb, id FROM (SELECT gen_random_uuid() AS id FROM generate_series(1, 100)) AS filler`);
   await assert.rejects(projects.create({ ...input, project: photoProject() }), { code: 'COLLECTIBLE_PROJECT_LIMIT' });
   const filler = await pool.query<{ id: string }>(`SELECT id FROM collectible_projects WHERE merchant_id = 'merchant-a' LIMIT 1`);
   await projects.remove({ ...input, projectId: filler.rows[0]!.id, expectedVersion: 1 });
@@ -332,8 +332,8 @@ test('operator media removal blanks a publication only through the guarded funct
     await client.query('BEGIN'); await client.query(`SET LOCAL masscom.collectible_media_removal = 'on'`);
     await assert.rejects(client.query(`DELETE FROM collectible_publication_grades WHERE publication_id = $1`, [published.publicationId]), /immutable/);
   } finally { await client.query('ROLLBACK'); client.release(); }
-  const removed = await pool.query<{ removed: number }>('SELECT collectible_remove_publication_media($1) AS removed', [published.publicationId]);
-  assert.equal(removed.rows[0]!.removed, 2);
+  const removed = await pool.query('SELECT * FROM collectible_remove_publication_media($1)', [published.publicationId]);
+  assert.deepEqual(removed.rows, [{ removed_publication_id: published.publicationId, cleared_grades: 2 }]);
   assert.equal((await pool.query('SELECT 1 FROM campaign_collectible_publications')).rowCount, 0);
   const grades = await pool.query('SELECT summary, detail FROM collectible_publication_grades WHERE publication_id = $1', [published.publicationId]);
   assert.equal(JSON.stringify(grades.rows).includes('data:'), false);
@@ -366,4 +366,36 @@ test('editor campaign list returns only this store publishable campaigns with go
   await assert.rejects(delegated.listCampaigns({ ...input, accountId: 'staff-a' }), MerchantAccessError);
   await pool.query(`UPDATE merchants SET status='PAUSED' WHERE id='merchant-a'`);
   await assert.rejects(projects.listCampaigns(input), MerchantAccessError);
+});
+
+test('operator removal follows copies and the same stored photo: copied publications and drafts lose the face too', async t => {
+  const { pool, projects, input, claim } = await setup(t);
+  const original = await projects.create({ ...input, project: photoProject() });
+  const originalPublished = await projects.publish({ ...input, projectId: original.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  const copy = await projects.copy({ ...input, projectId: original.id, expectedVersion: 2 });
+  const copyPublished = await projects.publish({ ...input, projectId: copy.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  const copyOfCopy = await projects.copy({ ...input, projectId: copy.id, expectedVersion: 2 });
+  // Deleting the middle draft must not break the chain; a fresh project that re-uploads the same photo is caught by its bytes.
+  const middle = await projects.copy({ ...input, projectId: copy.id, expectedVersion: 2 });
+  const leaf = await projects.copy({ ...input, projectId: middle.id, expectedVersion: 1 });
+  await projects.remove({ ...input, projectId: middle.id, expectedVersion: 1 });
+  // The leaf replaced its photo, so only the lineage (not the bytes) ties it to the removed face.
+  const leafRaw = photoProject('사진을 바꾼 복사본'); leafRaw.photo = { originalDataUrl: '', width: 0, height: 0 };
+  await projects.save({ ...input, projectId: leaf.id, expectedVersion: 1, project: leafRaw });
+  const reupload = await projects.create({ ...input, project: photoProject('다시 올린 같은 사진') });
+  const otherRaw = photoProject('다른 사진'); otherRaw.photo = { originalDataUrl: '', width: 0, height: 0 };
+  const other = await projects.create({ ...input, project: otherRaw });
+  const holder = await claim('customer-copy', 'copy'); const entitlementId = holder.redeemed.grantedRewards[0]!.entitlementId;
+  assert.equal((await projects.getAcquired({ accountId: 'customer-copy', entitlementId })).publicationId, copyPublished.publicationId);
+  const removed = await pool.query<{ removed_publication_id: string; cleared_grades: number }>(
+    'SELECT * FROM collectible_remove_publication_media($1) ORDER BY removed_publication_id', [originalPublished.publicationId]);
+  assert.deepEqual(removed.rows.map(row => row.removed_publication_id).sort(), [originalPublished.publicationId, copyPublished.publicationId].sort());
+  assert.equal((await pool.query('SELECT 1 FROM campaign_collectible_publications')).rowCount, 0);
+  const cleared = await pool.query<{ id: string }>('SELECT id FROM collectible_projects WHERE project IS NULL ORDER BY id');
+  assert.deepEqual(cleared.rows.map(row => row.id).sort(), [original.id, copy.id, copyOfCopy.id, leaf.id, reupload.id].sort());
+  assert.ok((await projects.get({ ...input, projectId: other.id })).project);
+  const media = await pool.query('SELECT summary, detail FROM collectible_publication_grades WHERE publication_id = ANY($1)', [[originalPublished.publicationId, copyPublished.publicationId]]);
+  assert.equal(media.rowCount, 4); assert.equal(JSON.stringify(media.rows).includes('data:'), false);
+  await assert.rejects(projects.getAcquired({ accountId: 'customer-copy', entitlementId }), { code: 'COLLECTIBLE_NOT_FOUND' });
+  assert.equal((await pool.query('SELECT 1 FROM collectible_project_contributors WHERE project_id = ANY($1)', [[original.id, copy.id, copyOfCopy.id, leaf.id, reupload.id]])).rowCount, 0);
 });

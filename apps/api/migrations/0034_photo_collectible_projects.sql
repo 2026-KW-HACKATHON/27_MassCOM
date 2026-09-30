@@ -8,6 +8,8 @@ CREATE TABLE collectible_projects (
   status text NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PUBLISHED')),
   project jsonb,
   publication_id uuid,
+  -- 복사 계보: 처음 만든 프로젝트의 id. 복사본은 원본의 값을 물려받는다(중간 초안을 지워도 끊기지 않게 FK 없이 값만 둔다).
+  lineage_id uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (id, merchant_id),
@@ -15,6 +17,7 @@ CREATE TABLE collectible_projects (
   CHECK ((status = 'DRAFT' AND publication_id IS NULL) OR (status = 'PUBLISHED' AND publication_id IS NOT NULL))
 );
 CREATE INDEX collectible_projects_merchant_list ON collectible_projects (merchant_id, updated_at DESC) WHERE project IS NOT NULL;
+CREATE INDEX collectible_projects_lineage ON collectible_projects (merchant_id, lineage_id);
 
 -- 발행본은 불변이다. 등급별 자료는 가벼운 목록 요약(summary: 이름·등급·모양·시즌·썸네일)과
 -- 상세 재생 자료(detail: 완성 이미지·마스크·음성·장면 등)를 나눠, 도감 목록이 상세 미디어를 풀지 않게 한다.
@@ -123,25 +126,48 @@ $$;
 CREATE TRIGGER reward_entitlements_capture_collectible AFTER INSERT ON reward_entitlements
   FOR EACH ROW EXECUTE FUNCTION capture_collectible_acquisition();
 
--- 운영자 제거 절차(apps/api/README.md 참고): 발행본의 게시 미디어를 비우고 배포 연결을 끊고 원본 프로젝트 자료를 지운다.
+-- 운영자 제거 절차(apps/api/README.md 참고): 대상 발행본의 원본 프로젝트와 같은 점포의 같은 복사 계보(lineage_id),
+-- 그리고 그 계보의 원본 사진·음성과 같은 바이트를 쓰는 다른 프로젝트까지 모은다. 그 프로젝트들의 모든 발행본은 배포 연결을 끊고
+-- 게시 미디어를 {"mediaRemoved":true} 표시로 바꾸며, 프로젝트의 비공개 원본·작성자 식별자·기여자 행을 지운다.
 -- 이미 획득한 고객의 도감에서는 이 수집품 외형이 사라지고(보상·방문 기록은 그대로) 상세는 404가 된다.
-CREATE FUNCTION collectible_remove_publication_media(target uuid) RETURNS integer LANGUAGE plpgsql AS $$
-DECLARE removed integer;
+-- 반환: 미디어를 비운 발행본 id와 그 등급 행 수(대상 발행본을 포함한 계보 전체).
+CREATE FUNCTION collectible_remove_publication_media(target uuid)
+RETURNS TABLE (removed_publication_id uuid, cleared_grades integer) LANGUAGE plpgsql AS $$
+DECLARE store text; lineage uuid; affected_projects uuid[]; affected uuid[]; item uuid;
 BEGIN
+  SELECT source.merchant_id, source.lineage_id INTO store, lineage
+    FROM collectible_publications publication JOIN collectible_projects source ON source.id = publication.project_id
+    WHERE publication.id = target;
+  IF store IS NULL THEN RAISE EXCEPTION 'collectible publication % not found', target USING ERRCODE = 'P0002'; END IF;
+  -- 복사·게시·삭제와 같은 점포 잠금: 모으는 사이에 새 복사본이 생기지 않는다.
+  PERFORM pg_advisory_xact_lock(hashtextextended('collectible-sources:' || store, 0));
+  WITH lineage_projects AS (
+    SELECT id, project FROM collectible_projects WHERE merchant_id = store AND lineage_id = lineage
+  ), media AS (
+    SELECT project->'photo'->>'originalDataUrl' AS value FROM lineage_projects WHERE project->'photo'->>'originalDataUrl' <> ''
+    UNION SELECT project->'audio'->>'dataUrl' FROM lineage_projects WHERE project->'audio'->>'dataUrl' IS NOT NULL
+  )
+  SELECT array_agg(candidate.id ORDER BY candidate.id) INTO affected_projects FROM collectible_projects candidate
+    WHERE candidate.merchant_id = store AND (candidate.lineage_id = lineage
+      OR candidate.project->'photo'->>'originalDataUrl' IN (SELECT value FROM media)
+      OR candidate.project->'audio'->>'dataUrl' IN (SELECT value FROM media));
+  SELECT coalesce(array_agg(publication.id ORDER BY publication.id), '{}') INTO affected
+    FROM collectible_publications publication WHERE publication.project_id = ANY(affected_projects);
   PERFORM set_config('masscom.collectible_media_removal', 'on', true);
-  DELETE FROM campaign_collectible_publications WHERE publication_id = target;
-  UPDATE collectible_publications SET media_removed_at = now() WHERE id = target AND media_removed_at IS NULL;
-  UPDATE collectible_publication_grades
-    SET summary = jsonb_build_object('gradeId', grade_id, 'mediaRemoved', true),
-        detail = jsonb_build_object('mediaRemoved', true)
-    WHERE publication_id = target;
-  GET DIAGNOSTICS removed = ROW_COUNT;
+  DELETE FROM campaign_collectible_publications link WHERE link.publication_id = ANY(affected);
+  UPDATE collectible_publications SET media_removed_at = now() WHERE id = ANY(affected) AND media_removed_at IS NULL;
+  FOREACH item IN ARRAY affected LOOP
+    UPDATE collectible_publication_grades grade
+      SET summary = jsonb_build_object('gradeId', grade.grade_id, 'mediaRemoved', true), detail = jsonb_build_object('mediaRemoved', true)
+      WHERE grade.publication_id = item;
+    GET DIAGNOSTICS cleared_grades = ROW_COUNT;
+    removed_publication_id := item;
+    RETURN NEXT;
+  END LOOP;
   -- 기여자 표는 0035에서 만든다(plpgsql은 실행할 때 이름을 찾는다).
-  DELETE FROM collectible_project_contributors
-    WHERE project_id IN (SELECT id FROM collectible_projects WHERE publication_id = target);
+  DELETE FROM collectible_project_contributors contributor WHERE contributor.project_id = ANY(affected_projects);
   UPDATE collectible_projects SET project = NULL, created_by_account_id = NULL, edited_by_account_id = NULL, updated_at = now()
-    WHERE publication_id = target;
+    WHERE id = ANY(affected_projects);
   PERFORM set_config('masscom.collectible_media_removal', 'off', true);
-  RETURN removed;
 END;
 $$;

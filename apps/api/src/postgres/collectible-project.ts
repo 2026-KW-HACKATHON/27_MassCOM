@@ -155,7 +155,7 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
   async copy(input: VersionInput): Promise<CollectibleProjectView> {
     return this.transaction(input, async client => {
       const row = await this.load(client, input, true); checkVersion(row, input.expectedVersion);
-      const copied = await this.insert(client, input, validateCollectibleProject(row.project));
+      const copied = await this.insert(client, input, validateCollectibleProject(row.project), row.id);
       await client.query(`INSERT INTO collectible_project_contributors (project_id,account_id)
         SELECT $1,account_id FROM collectible_project_contributors WHERE project_id=$2 ON CONFLICT DO NOTHING`,[copied.id,row.id]);
       return copied;
@@ -189,14 +189,17 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
       `SELECT ${columns} FROM collectible_projects WHERE id = $1 AND merchant_id = $2 AND project IS NOT NULL${lock ? ' FOR UPDATE' : ''}`, [input.projectId, input.merchantId]);
     if (!result.rows[0]) throw new CollectibleProjectError('COLLECTIBLE_PROJECT_NOT_FOUND'); return result.rows[0];
   }
-  private async insert(client: PoolClient, input: MerchantInput, project: CollectibleProject): Promise<CollectibleProjectView> {
+  // A copy inherits the source's lineage id (the first project of the chain), so operator media removal can find every copy
+  // even after a draft in the middle was deleted or a source was cleared.
+  private async insert(client: PoolClient, input: MerchantInput, project: CollectibleProject, copiedFrom?: string): Promise<CollectibleProjectView> {
     // Serialize creation per store so the limit cannot be bypassed by parallel copies.
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`collectible-projects:${input.merchantId}`]);
     const count = await client.query<{ count: string }>('SELECT count(*)::text FROM collectible_projects WHERE merchant_id = $1 AND project IS NOT NULL', [input.merchantId]);
     if (Number(count.rows[0]!.count) >= 100) throw new CollectibleProjectError('COLLECTIBLE_PROJECT_LIMIT');
     const result = await client.query<ProjectRow>(
-      `INSERT INTO collectible_projects (id, merchant_id, created_by_account_id, edited_by_account_id, project, created_at, updated_at)
-       VALUES ($1,$2,$3,$3,$4::jsonb,$5,$5) RETURNING ${columns}`, [randomUUID(), input.merchantId, input.accountId, JSON.stringify(project), this.now()]);
+      `INSERT INTO collectible_projects (id, merchant_id, created_by_account_id, edited_by_account_id, project, created_at, updated_at, lineage_id)
+       VALUES ($1,$2,$3,$3,$4::jsonb,$5,$5,COALESCE((SELECT lineage_id FROM collectible_projects WHERE id = $6 AND merchant_id = $2), $1))
+       RETURNING ${columns}`, [randomUUID(), input.merchantId, input.accountId, JSON.stringify(project), this.now(), copiedFrom ?? null]);
     await client.query(`INSERT INTO collectible_project_contributors (project_id,account_id) VALUES ($1,$2)`,[result.rows[0]!.id,input.accountId]);
     return mapProject(result.rows[0]!);
   }

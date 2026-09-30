@@ -19,18 +19,23 @@ ERC-4361(SIWE) 주소 확인, Phase 2 공개 점포·캠페인·방문·도감·
 사진 속 직원·제3자의 삭제 요구처럼 이미 획득한 고객의 사본까지 지워야 할 때 운영자가 실행합니다. 발행본·등급·획득 행은 트리거가 수정·삭제를 막고, 거래 안 세션 설정 `masscom.collectible_media_removal = 'on'`일 때만 발행본의 `media_removed_at`(NULL→시각)과 등급 행의 `summary`·`detail` 교체를 허용합니다. 이 설정은 아래 함수만 거래 범위로 켰다 끕니다.
 
 ```sql
--- 1) 대상 확인: 점포·캠페인·게시 시각·획득 수
-SELECT p.id, p.merchant_id, p.campaign_id, p.published_at, p.media_removed_at,
+-- 1) 대상 확인: 같은 점포에서 이 발행본의 복사 계보(lineage_id)에 속한 발행본과 획득 수(제거 대상 미리보기)
+SELECT p.id, p.campaign_id, p.published_at, p.media_removed_at,
        (SELECT count(*) FROM collectible_acquisitions a WHERE a.publication_id = p.id) AS acquisitions
-FROM collectible_publications p WHERE p.merchant_id = '<merchant-id>' ORDER BY p.published_at DESC;
--- 2) 제거(한 거래): 배포 연결 삭제, 등급 미디어를 {"mediaRemoved":true} 표시로 교체, media_removed_at 기록,
---    원본 프로젝트의 비공개 자료·작성자 식별자·기여자 행 삭제. 반환값은 비운 등급 행 수.
+FROM collectible_publications p JOIN collectible_projects project ON project.id = p.project_id
+WHERE (project.merchant_id, project.lineage_id) =
+      (SELECT source.merchant_id, source.lineage_id FROM collectible_publications x
+       JOIN collectible_projects source ON source.id = x.project_id WHERE x.id = '<publication-uuid>')
+ORDER BY p.published_at DESC;
+-- 2) 제거(한 거래): 같은 점포의 같은 복사 계보 프로젝트와, 그 계보의 원본 사진·음성과 같은 바이트를 쓰는 다른 프로젝트를 모두 모아
+--    그 발행본의 배포 연결 삭제, 등급 미디어를 {"mediaRemoved":true} 표시로 교체, media_removed_at 기록,
+--    프로젝트의 비공개 원본·작성자 식별자·기여자 행 삭제. 반환 행은 비운 발행본 id와 등급 행 수.
 BEGIN;
-SELECT collectible_remove_publication_media('<publication-uuid>');
+SELECT * FROM collectible_remove_publication_media('<publication-uuid>');
 COMMIT;
 ```
 
-제거 뒤 고객 도감(`/collection`)에서 해당 획득품의 `artwork`가 빠지고 상세(`/collectibles/:entitlementId`)는 404 `COLLECTIBLE_NOT_FOUND`입니다. 방문·보상권·NFT 기록은 바꾸지 않습니다. 같은 사진을 복사한 다른 초안은 이 함수가 추적하지 않으므로 점주에게 삭제(`/delete`)를 요청하거나 같은 점포의 프로젝트를 확인합니다. 요청 경위와 실행 시각은 운영 기록에 남깁니다.
+제거 뒤 고객 도감(`/collection`)에서 해당 획득품의 `artwork`가 빠지고 상세(`/collectibles/:entitlementId`)는 404 `COLLECTIBLE_NOT_FOUND`입니다. 방문·보상권·NFT 기록은 바꾸지 않습니다. 복사본은 만들 때 원본의 `lineage_id`(처음 만든 프로젝트의 id)를 물려받으므로 중간 초안을 지웠거나 원본을 이미 비웠어도 계보로 찾습니다. 계보가 다르고 사진을 다시 편집해 바이트가 달라진 별도 프로젝트(예: 같은 사람을 다시 찍은 사진)는 찾지 못하므로 반환 목록과 그 점포의 남은 프로젝트를 확인합니다. 요청 경위와 실행 시각은 운영 기록에 남깁니다.
 
 ## 실행
 
