@@ -114,6 +114,8 @@
 .ce-grade-tabs button[aria-pressed="true"], .ce-templates button[aria-pressed="true"] { outline: 2px solid var(--ce-blue); outline-offset: -2px; background: #e1f0ff; color: #0757c5; }
 .ce-grade-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; align-items: center; margin-block: .55rem; }
 .ce-grade-checks { display: flex; flex-wrap: wrap; gap: .4rem; margin-block: .6rem; }
+.ce-grade-bulk { display: flex; flex-wrap: wrap; gap: .4rem; margin-block: 0 .6rem; }
+.ce-grade-bulk button { min-height: 36px; padding: .35rem .6rem; font-size: .8rem; font-weight: 500; }
 .ce-check { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; max-width: 100%; background: #edf1f7; color: #304d7a; padding: .45rem .6rem; border: 1px solid #d7e1ef; border-radius: .6rem; font-size: .85rem; font-weight: 500; }
 .ce-check:has(input:checked) { color: #fff; background: var(--ce-blue); border-color: var(--ce-blue); }
 .ce-check input { width: 18px; height: 18px; flex-shrink: 0; accent-color: #153daa; }

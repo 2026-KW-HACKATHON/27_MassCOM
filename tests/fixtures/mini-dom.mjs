@@ -201,8 +201,21 @@ function parseInto(parent, html) {
   }
 }
 
+/** 사생활 보호 모드 흉내용: 두면 getItem/setItem이 예외를 던진다(편집기의 try/catch가 버텨야 한다). */
+function createFakeStorage({ throwing = false } = {}) {
+  const map = new Map();
+  const guard = () => { if (throwing) throw new DOMException('storage blocked'); };
+  return {
+    getItem: key => { guard(); return map.has(key) ? map.get(key) : null; },
+    setItem: (key, value) => { guard(); map.set(key, String(value)); },
+    removeItem: key => { guard(); map.delete(key); },
+    clear: () => { guard(); map.clear(); },
+    get size() { return map.size; },
+  };
+}
+
 /** document·window·Image·FileReader 등 편집기가 전역으로 쓰는 것만 설치하고 되돌리는 함수를 돌려준다. */
-export function installMiniDom({ webp = true } = {}) {
+export function installMiniDom({ webp = true, storageThrows = false } = {}) {
   const previous = new Map();
   const set = (name, value) => { previous.set(name, Object.getOwnPropertyDescriptor(globalThis, name)); Object.defineProperty(globalThis, name, { value, configurable: true, writable: true }); };
   const document = {
@@ -218,7 +231,8 @@ export function installMiniDom({ webp = true } = {}) {
   const windowListeners = new Element('window', document);
   const windowStub = { addEventListener: (...args) => windowListeners.addEventListener(...args), removeEventListener: (...args) => windowListeners.removeEventListener(...args),
     dispatch: event => { event.target ??= windowStub; for (const handler of [...(windowListeners.listeners.get(event.type) ?? [])]) handler(event); return event; },
-    matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) };
+    matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+    localStorage: createFakeStorage({ throwing: storageThrows }) };
   document.listeners = new Map();
   set('document', document);
   set('window', windowStub);

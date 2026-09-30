@@ -5,6 +5,7 @@ import { configureCreator, loadCreatorCampaigns } from '../../apps/production-we
 import { createProject } from '../../apps/production-web/assets/collectible-model.mjs';
 import { createFakeApi } from '../fixtures/collectible-fake-api.mjs';
 import { installMiniDom, settle } from '../fixtures/mini-dom.mjs';
+import { draftStorageKey, faceFitCrop } from '../../apps/production-web/assets/collectible-assist.mjs';
 
 let dom, editors;
 beforeEach(() => { dom = installMiniDom(); editors = []; });
@@ -629,4 +630,222 @@ test('게시한 뒤에는 캠페인 목록을 새로 읽어 배포 연결 변화
   assert.equal(reads - before, 2, '게시 직전 검증용 조회 1번과 게시 뒤 새로 읽기 1번');
   assert.match(ui.notice, /게시했어요/);
   assert.equal(api.campaigns[0].publication.projectId, 'project-1');
+});
+
+// Issue #282: 자동 저장(A1)·등급 전체 선택(A2)·재질 충돌 안내(A8)·자동 맞춤(A4).
+const readDraft = (win, merchantId, accountMarker) => { const raw = win.localStorage.getItem(draftStorageKey(merchantId, accountMarker)); return raw ? JSON.parse(raw) : null; };
+
+test('편집이 멈추면 기기에 자동 저장하고, 서버 저장이 끝나면 지운다(A1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.input('name', '자동 저장 확인');
+  await settle(10);
+  const draft = readDraft(dom.window, 'm1', 'anon');
+  assert.ok(draft, '편집이 멈추면 기기에 저장된다');
+  assert.equal(draft.project.name, '자동 저장 확인');
+  assert.equal(draft.merchantId, 'm1');
+  assert.equal(draft.wrapperId, null, '서버에 저장하기 전이며, 서버 저장을 주장하지 않는다');
+  await ui.click('draft');
+  assert.equal(readDraft(dom.window, 'm1', 'anon'), null, '서버 저장이 끝나면 기기 보관본을 지운다');
+});
+
+test('사진이 커서 기기 저장 용량(4MB)을 넘으면 편집만 저장하고 사진은 다시 선택해야 한다고 남긴다(A1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
+  await ui.upload({ ...photoFile, dataUrl: `data:image/png;base64,${'A'.repeat(6 * MiB)}` });
+  await settle(10);
+  const draft = readDraft(dom.window, 'm1', 'anon');
+  assert.equal(draft.mediaOmitted, true);
+  assert.equal(draft.project.photo.originalDataUrl, '');
+});
+
+test('서버 버전보다 새로운 기기 보관본이 있으면 다시 열 때 이어서 할지 묻고, 수락하면 복원한다(A1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.input('name', '복원할 이름');
+  await settle(10);
+  editors.pop()();
+
+  const restored = await mount(api, { confirm: true });
+  assert.match(restored.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
+  assert.equal(restored.control('name').value, '복원할 이름');
+  assert.equal(restored.dirty, true);
+  assert.match(restored.notice, /이어서 열었어요/);
+});
+
+test('기기 보관본 복원을 거절하면 지우고 새 편집으로 시작한다(A1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.input('name', '거절할 이름');
+  await settle(10);
+  editors.pop()();
+
+  const declined = await mount(api, { confirm: false });
+  assert.equal(declined.control('name').value, '월계 식당 수집품');
+  assert.equal(readDraft(dom.window, 'm1', 'anon'), null);
+});
+
+test('명시적으로 새 초안을 시작하거나 삭제하면 기기 보관본도 함께 지운다(A1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { autosaveDelayMs: 5 }, confirm: true });
+  await ui.upload(photoFile);
+  await settle(10);
+  assert.ok(readDraft(dom.window, 'm1', 'anon'));
+  await ui.click('new');
+  assert.equal(readDraft(dom.window, 'm1', 'anon'), null, '명시적 새 초안 시작은 기기 보관본을 지운다');
+
+  const published = api.seed(seeded('삭제할 프로젝트'), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  await ui.click('refresh');
+  await ui.change('project-list', published.id);
+  await ui.input('name', '삭제 전 편집');
+  await settle(10);
+  assert.ok(readDraft(dom.window, 'm1', 'anon'));
+  await ui.click('delete');
+  assert.equal(readDraft(dom.window, 'm1', 'anon'), null, '삭제가 끝나면 기기 보관본을 지운다');
+});
+
+test('사생활 보호 모드처럼 저장 공간 접근이 막혀도 편집과 저장은 그대로 된다(A1)', async () => {
+  dom.restore(); dom = installMiniDom({ storageThrows: true });
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.input('name', '저장 공간 없이도 편집');
+  await settle(10);
+  assert.equal(ui.control('name').value, '저장 공간 없이도 편집');
+  await ui.click('draft');
+  assert.match(ui.notice, /초안을 저장했어요/);
+});
+
+test('효과의 적용 등급 전체 선택·해제는 미리보기 등급을 바꾸지 않고 한 번의 되돌리기로 남는다(A2)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.click('effect-add');
+  const effectId = ui.container.querySelector('[data-effect-strength]').dataset.effectStrength;
+  const captionBefore = ui.container.querySelector('[data-view="preview-caption"]').textContent;
+  ui.container.querySelector(`[data-action="effect-grade-all"][data-id="${effectId}"]`).dispatchEvent({ type: 'click' });
+  await settle();
+  const enabledCount = ui.container.querySelectorAll('[data-grade-enabled]').length;
+  const checks = () => ui.container.querySelectorAll(`[data-effect-grade="${effectId}"]`);
+  assert.equal(checks().length, enabledCount);
+  assert.equal([...checks()].every(box => box.checked), true, '전체 선택은 사용 중인 등급을 모두 켠다');
+  assert.equal(ui.container.querySelector('[data-view="preview-caption"]').textContent, captionBefore, '미리보기 등급은 바뀌지 않는다');
+  ui.container.querySelector(`[data-action="effect-grade-none"][data-id="${effectId}"]`).dispatchEvent({ type: 'click' });
+  await settle();
+  assert.equal([...checks()].some(box => box.checked), false, '전체 해제는 모두 끈다');
+  assert.match(ui.container.querySelector(`[data-effect-grade="${effectId}"]`).closest('fieldset').textContent, /현재 어느 등급에도 적용하지 않아요/);
+  await ui.click('undo');
+  assert.equal([...checks()].every(box => box.checked), true, '전체 해제는 undo 한 번으로 되돌아간다(한 단계)');
+});
+
+test('동작의 적용 등급 전체 선택·해제는 다른 동작과 배타적으로 동작한다(A2)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.container.querySelector('[data-action="motion-grade-all"][data-id="rotate"]').dispatchEvent({ type: 'click' });
+  await settle();
+  const enabledCount = ui.container.querySelectorAll('[data-grade-enabled]').length;
+  const rotateChecks = () => ui.container.querySelectorAll('[data-motion-grade="rotate"]');
+  assert.equal(rotateChecks().length, enabledCount);
+  assert.equal([...rotateChecks()].every(box => box.checked), true);
+  ui.container.querySelector('[data-action="motion-grade-none"][data-id="rotate"]').dispatchEvent({ type: 'click' });
+  await settle();
+  assert.equal([...rotateChecks()].some(box => box.checked), false);
+});
+
+const setEffectTarget = (ui, target) => { ui.control('effect-type').value = target.type; ui.control('effect-type').dispatchEvent({ type: 'change' }); };
+const addMaterial = async (ui, type, excludeId) => {
+  setEffectTarget(ui, { type });
+  await ui.click('effect-add');
+  return [...ui.container.querySelectorAll('[data-effect-strength]')].map(node => node.dataset.effectStrength).find(id => id !== excludeId);
+};
+const toggle = async (ui, effectId, gradeId, value) => {
+  const box = ui.container.querySelector(`[data-effect-grade="${effectId}"][data-grade="${gradeId}"]`);
+  box.checked = value; box.dispatchEvent({ type: 'change' }); await settle();
+};
+
+test('같은 곳의 배타 재질(무광·에나멜·유리)을 겹쳐 켜면 조용히 섞지 않고 확인 뒤 바꾼다(A8)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { confirm: true });
+  const enamelId = await addMaterial(ui, 'enamel');
+  await toggle(ui, enamelId, 'bronze', true);
+  const matteId = await addMaterial(ui, 'matte', enamelId);
+  await toggle(ui, matteId, 'bronze', true);
+  assert.match(ui.asked.at(-1), /^무광과 에나멜은 같은 곳에 함께 쓸 수 없어요\. 에나멜을 끄고 무광을 켤까요\?$/);
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${matteId}"][data-grade="bronze"]`).checked, true, '수락하면 새 재질이 켜진다');
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${enamelId}"][data-grade="bronze"]`).checked, false, '수락하면 기존 재질은 꺼진다');
+  assert.equal(ui.notice, '무광 재질로 바꿨어요. 같은 곳의 에나멜은 껐어요.');
+});
+
+test('재질 충돌 확인을 거절하면 체크를 되돌리고 기존 재질을 그대로 둔다(A8)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { confirm: false });
+  const enamelId = await addMaterial(ui, 'enamel');
+  await toggle(ui, enamelId, 'bronze', true);
+  const matteId = await addMaterial(ui, 'matte', enamelId);
+  await toggle(ui, matteId, 'bronze', true);
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${matteId}"][data-grade="bronze"]`).checked, false, '거절하면 새 재질은 켜지지 않는다');
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${enamelId}"][data-grade="bronze"]`).checked, true, '기존 재질은 그대로 남는다');
+  assert.match(ui.notice, /다른 등급에 적용하거나 먼저 기존 재질을 꺼 주세요/);
+});
+
+test('메탈릭·펄·홀로그램·발광은 같은 등급·대상에 함께 켜도 충돌로 막지 않는다(A8)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { confirm: () => { throw new Error('충돌 확인을 묻지 않아야 한다'); } });
+  const metallicId = await addMaterial(ui, 'metallic');
+  await toggle(ui, metallicId, 'bronze', true);
+  const pearlId = await addMaterial(ui, 'pearl', metallicId);
+  await toggle(ui, pearlId, 'bronze', true);
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${metallicId}"][data-grade="bronze"]`).checked, true);
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${pearlId}"][data-grade="bronze"]`).checked, true);
+});
+
+test('사진을 올리기 전에는 자동 맞춤을 막는다(A4)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.click('auto-fit');
+  assert.match(ui.notice, /먼저 사진을 올려 주세요/);
+});
+
+test('얼굴 감지가 되면 얼굴 기준으로 맞추고 방법을 안내한다(A4, 합성 얼굴 상자)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  const box = { x: 0.4, y: 0.3, width: 1.2, height: 1.2 };
+  globalThis.FaceDetector = class { async detect() { return [{ boundingBox: box }]; } };
+  try { await ui.click('auto-fit'); } finally { delete globalThis.FaceDetector; }
+  const expected = faceFitCrop(2, 2, box);
+  assert.match(ui.notice, /얼굴 기준으로 맞췄어요/);
+  assert.ok(Math.abs(Number(ui.control('zoom').value) - expected.zoom) < 0.01);
+  assert.ok(Math.abs(Number(ui.control('crop-x').value) - expected.x) < 0.02);
+  assert.ok(Math.abs(Number(ui.control('crop-y').value) - expected.y) < 0.02);
+});
+
+test('얼굴 감지 기능이 없으면(feature-detect) 가운데로 채우고 방법을 안내한다(A4)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  assert.equal('FaceDetector' in globalThis, false, '이 시험 환경은 기본으로 얼굴 감지를 지원하지 않는다');
+  await ui.click('auto-fit');
+  assert.match(ui.notice, /가운데로 맞췄어요/);
+  assert.equal(ui.control('zoom').value, '1');
+  assert.equal(ui.control('crop-x').value, '0');
+  assert.equal(ui.control('crop-y').value, '0');
+});
+
+test('자동 맞춤은 누르기 전까지 자동으로 실행되지 않고, 한 번의 되돌리기로 이전 자르기로 돌아간다(A4)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  assert.equal(ui.control('zoom').value, '1', '사진을 올린 직후에는 자동으로 맞추지 않는다');
+  // 작은 얼굴일수록 더 확대해야 하므로 zoom이 1보다 커져 가운데 맞춤(zoom 1)과 구분된다.
+  const box = { x: 0.85, y: 0.85, width: 0.3, height: 0.3 };
+  globalThis.FaceDetector = class { async detect() { return [{ boundingBox: box }]; } };
+  try { await ui.click('auto-fit'); } finally { delete globalThis.FaceDetector; }
+  assert.notEqual(ui.control('zoom').value, '1');
+  await ui.click('undo');
+  assert.equal(ui.control('zoom').value, '1');
+  assert.equal(ui.control('crop-x').value, '0');
+  assert.equal(ui.control('crop-y').value, '0');
 });
