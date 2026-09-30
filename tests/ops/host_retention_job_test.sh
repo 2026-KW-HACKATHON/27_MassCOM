@@ -164,11 +164,56 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
     fail "$label: a sandbox setting could block the docker socket"
   fi
   grep -q "^name='$unit'\$" "$install_file" || fail "$label: installer uses another unit name"
-  grep -q 'systemctl enable --now "\$name.timer"' "$install_file" || fail "$label: installer does not enable the timer"
-  grep -q 'systemctl is-enabled "\$name.timer"' "$install_file" || fail "$label: installer does not verify the timer is enabled"
+  grep -q '"\$systemctl_bin" enable --now "\$name.timer"' "$install_file" || fail "$label: installer does not enable the timer"
+  grep -q '"\$systemctl_bin" is-enabled "\$name.timer"' "$install_file" || fail "$label: installer does not verify the timer is enabled"
   grep -q -- '--verify)' "$install_file" || fail "$label: installer has no read-only verify mode"
-  grep -q 'systemctl show -p Result --value "\$name.service"' "$install_file" || fail "$label: verify does not report the last run result"
+  grep -q 'show -p Result --value "\$name.service"' "$install_file" || fail "$label: verify does not report the last run result"
+  grep -q 'show -p ExecMainStartTimestamp --value "\$name.service"' "$install_file" || fail "$label: verify does not tell a never-run job from a successful one"
   grep -q 'last run result:' "$install_file" || fail "$label: verify does not print the last run result"
+  grep -q 'MASSCOM_RETENTION_TEST:-}" == 1' "$install_file" || fail "$label: installer overrides are not gated behind the test flag"
+
+  # --verify를 가짜 systemctl과 임시 유닛 폴더로 실제 실행해 성공과 실패 경로를 모두 확인한다(실패는 종료 코드 1).
+  verify_dir="$scratch/verify-$label"
+  rm -rf "$verify_dir"; mkdir -p "$verify_dir/units" "$verify_dir/sbin"
+  cp "$script" "$verify_dir/sbin/$unit"
+  cp "$service_file" "$timer_file" "$verify_dir/units/"
+  cat > "$verify_dir/systemctl" <<'FAKE'
+#!/usr/bin/env bash
+case "$1" in
+  is-enabled) echo "${FAKE_ENABLED:-enabled}"; [[ "${FAKE_ENABLED:-enabled}" == enabled ]] ;;
+  show)
+    case "$3" in
+      Result) echo "${FAKE_RESULT-success}" ;;
+      ExecMainStartTimestamp) echo "${FAKE_STARTED-Wed 2026-09-30 19:20:01 UTC}" ;;
+    esac ;;
+esac
+FAKE
+  chmod +x "$verify_dir/systemctl"
+  run_verify() {
+    env MASSCOM_RETENTION_TEST=1 MASSCOM_SYSTEMCTL="$verify_dir/systemctl" MASSCOM_UNIT_DIR="$verify_dir/units" \
+      MASSCOM_SBIN_DIR="$verify_dir/sbin" "$@" bash "$install_file" --verify
+  }
+  out="$(run_verify)" || fail "$label: --verify failed for a healthy, already-run job"
+  grep -q '^last run result: success$' <<<"$out" || fail "$label: --verify did not report the last run result"
+  grep -q '^verified: ' <<<"$out" || fail "$label: --verify did not confirm a healthy job"
+  for bad in 'FAKE_RESULT=exit-code' 'FAKE_RESULT=failed' 'FAKE_STARTED=' 'FAKE_ENABLED=disabled'; do
+    set +e; bad_out="$(run_verify "$bad" 2>&1)"; code=$?; set -e
+    [[ "$code" == 1 ]] || fail "$label: --verify accepted '$bad' (exit $code)"
+    case "$bad" in
+      FAKE_RESULT=*) grep -q 'last run result: ' <<<"$bad_out" && grep -q 'did not succeed' <<<"$bad_out" || fail "$label: a failed last run was not reported: $bad_out" ;;
+      FAKE_STARTED=) grep -q 'has not run yet' <<<"$bad_out" || fail "$label: a never-run job was reported as fine: $bad_out" ;;
+      FAKE_ENABLED=*) grep -q 'is not enabled' <<<"$bad_out" || fail "$label: a disabled timer was not reported: $bad_out" ;;
+    esac
+    if grep -q '^verified: ' <<<"$bad_out"; then fail "$label: '$bad' still printed a verified line"; fi
+  done
+  # 설치된 스크립트가 이 릴리스와 다르면(오래된 설치) 실패한다.
+  echo '# drift' >> "$verify_dir/sbin/$unit"
+  if run_verify >/dev/null 2>&1; then fail "$label: --verify accepted a stale installed script"; fi
+  # 시험 표시가 없으면 재정의가 무시되고 root가 아니면 --verify도 멈춘다.
+  if [[ "$(id -u)" != 0 ]]; then
+    if env MASSCOM_SYSTEMCTL="$verify_dir/systemctl" MASSCOM_UNIT_DIR="$verify_dir/units" MASSCOM_SBIN_DIR="$verify_dir/sbin" \
+        bash "$install_file" --verify >/dev/null 2>&1; then fail "$label: --verify honoured overrides without the test flag"; fi
+  fi
   grep -q "^backup_dir='$default_backup'\$" "$install_file" || fail "$label: installer creates another backup folder"
   grep -q 'install -d -m 0700 -o root -g root "\$backup_dir"' "$install_file" || fail "$label: installer does not create the backup folder the unit writes to"
   [[ -x "$install_file" && -x "$script" ]] || fail "$label: scripts are not executable"
