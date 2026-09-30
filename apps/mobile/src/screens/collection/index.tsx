@@ -40,6 +40,7 @@ import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wall
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
 import { merchantArt, type MerchantArt } from './merchant-art';
+import { canOfferMint, nftPreparingNote, nftStatusLabel } from './nft-status';
 import { collectibleArtSize } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
 
@@ -450,7 +451,7 @@ export function CollectionScreen({
                 <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{item.merchantName} · {item.campaignTitle}</Text>
                 <View style={[styles.nftRow, { borderTopColor: palette.separator }]}>
                   <Text style={[styles.nftLabel, { color: palette.secondaryLabel }]}>실제 NFT</Text>
-                  <Text style={[styles.nftValue, { color: palette.label }]}>{nftLabel(item.nftStatus)}</Text>
+                  <Text style={[styles.nftValue, { color: palette.label }]}>{nftStatusLabel(item.nftStatus, collection.nftMinting)}</Text>
                 </View>
                 {item.recipient ? (
                   <Text selectable style={[styles.recipient, { color: palette.secondaryLabel }]}>수령인 {shortAddress(item.recipient)}</Text>
@@ -460,7 +461,10 @@ export function CollectionScreen({
                     {chainLabel(item.nft.chainId)} · {shortAddress(item.nft.contractAddress)} · #{item.nft.tokenId}
                   </Text>
                 ) : null}
-                {item.nftStatus === 'NOT_REQUESTED' ? (
+                {item.nftStatus !== 'FINALIZED' && collection.nftMinting === 'PREPARING' ? (
+                  <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{nftPreparingNote}</Text>
+                ) : null}
+                {canOfferMint(item.nftStatus, collection.nftMinting) ? (
                   binding ? (
                     <Pressable
                       accessibilityRole="button"
@@ -572,14 +576,6 @@ function CollectibleArt({ art, size, imageStyle, noteStyle }: {
 function EmptyCopy({ text }: { text: string }) {
   const styles = useCollectionStyles();
   return <Text style={styles.emptyCopy}>{text}</Text>;
-}
-
-function nftLabel(status: CollectionSnapshot['collectibles'][number]['nftStatus']): string {
-  if (status === 'QUEUED') return 'NFT 접수';
-  if (status === 'CONFIRMING') return '블록체인 확인 중';
-  if (status === 'FINALIZED') return '등록 완료';
-  if (status === 'REVIEW_REQUIRED') return '확인 필요';
-  return '발행하지 않음';
 }
 
 function mintErrorMessage(error: unknown): string {
