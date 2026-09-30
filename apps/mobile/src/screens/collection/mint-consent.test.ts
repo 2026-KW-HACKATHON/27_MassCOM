@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { mintConsentMessage, mintConsentTitle, mintConsentVersion } from './mint-consent';
+import { mintRefusalText } from './nft-status';
 
 test('발행 동의 문구는 지갑 주소와 함께 가게 정보·방문 단계가 영구 공개되고 발행 시각이 체인에 남는다고 알린다(v2)', () => {
   const message = mintConsentMessage('0x4000000000000000000000000000000000000004', 'Base Sepolia');
@@ -20,4 +21,17 @@ test('도감 화면은 동의 문구와 판을 이 모듈에서만 가져온다'
   assert.match(screen, /consentVersion: mintConsentVersion/);
   assert.match(screen, /mintConsentMessage\(binding\.address, chainLabel\(binding\.chainId\)\)/);
   assert.doesNotMatch(screen, /nft-mint-v1/);
+});
+
+test('옛 판 동의로 요청한 앱에는 업데이트를 안내하고, 동의가 없을 때의 안내는 그대로다', () => {
+  assert.equal(mintRefusalText('CONSENT_VERSION_OUTDATED'), '발행 안내가 바뀌었어요. 앱을 업데이트해 주세요.');
+  assert.equal(mintRefusalText('CONSENT_REQUIRED'), '최신 공개·양도 제한 안내 동의가 필요합니다.');
+});
+
+test('앱의 동의 판·API 기본값·운영 compose가 모두 nft-mint-v2다', () => {
+  const server = readFileSync(new URL('../../../../api/src/server.ts', import.meta.url), 'utf8');
+  const compose = readFileSync(new URL('../../../../../infra/lightsail/compose.yml', import.meta.url), 'utf8');
+  assert.match(server, /process\.env\.NFT_MINT_CONSENT_VERSION \?\? 'nft-mint-v2'/);
+  assert.match(compose, /^\s+NFT_MINT_CONSENT_VERSION: nft-mint-v2$/m);
+  assert.equal(mintConsentVersion, 'nft-mint-v2');
 });

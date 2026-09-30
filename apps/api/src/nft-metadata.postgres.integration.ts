@@ -93,7 +93,7 @@ async function startServer(t: TestContext, pool: Pool): Promise<string> {
   return `http://127.0.0.1:${address.port}`;
 }
 
-// 발행 확정된 토큰 하나(시리즈 series-meta-3, 토큰 9)까지의 최소 행.
+// 발행 확정된 토큰 하나(시리즈 s-00000000000000000000000000000254, 토큰 9)까지의 최소 행.
 async function seedFinalizedToken(pool: Pool): Promise<void> {
   await pool.query('TRUNCATE nft_metadata_takedowns, nft_metadata_images, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, campaign_goals, campaigns, merchants CASCADE');
   await pool.query(`INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
@@ -122,14 +122,14 @@ async function seedFinalizedToken(pool: Pool): Promise<void> {
       '0x4000000000000000000000000000000000000004', 84532, 1, 'VERIFIED', now(), now(), now())`);
   await pool.query(`INSERT INTO nft_series (id, campaign_id, target_visit_count, chain_id, contract_address,
       contract_address_normalized, series_key, max_ever_minted, status)
-    VALUES ('series-meta-3', 'campaign-meta', 3, 84532, '0x7000000000000000000000000000000000000007',
+    VALUES ('s-00000000000000000000000000000254', 'campaign-meta', 3, 84532, '0x7000000000000000000000000000000000000007',
       '0x7000000000000000000000000000000000000007', decode(repeat('33', 32), 'hex'), 10, 'ACTIVE')`);
   await pool.query(`INSERT INTO mint_jobs (id, entitlement_id, account_id, nft_series_id, reward_key, wallet_binding_id,
       binding_version, recipient_address, recipient_address_normalized, chain_id, contract_address,
       contract_address_normalized, series_key, consent_version, idempotency_key, request_fingerprint, status,
       transaction_hash, token_id, finalized_at, created_at, updated_at)
     VALUES ('40000000-0000-4000-8000-000000000254', '20000000-0000-4000-8000-000000000254', 'customer-meta',
-      'series-meta-3', decode(repeat('44', 32), 'hex'), '30000000-0000-4000-8000-000000000254', 1,
+      's-00000000000000000000000000000254', decode(repeat('44', 32), 'hex'), '30000000-0000-4000-8000-000000000254', 1,
       '0x4000000000000000000000000000000000000004', '0x4000000000000000000000000000000000000004', 84532,
       '0x7000000000000000000000000000000000000007', '0x7000000000000000000000000000000000000007',
       decode(repeat('33', 32), 'hex'), 'nft-mint-v1', 'metadata-job-254', decode(repeat('66', 32), 'hex'), 'FINALIZED',
@@ -155,20 +155,20 @@ test('공개 경로는 확정 뒤 고정된 메타데이터·그림만 주고 �
   const url = await startServer(t, pool);
 
   // 체인 확정 전(스냅샷 없음)에는 토큰이 있어도 404다.
-  assert.equal((await fetch(`${url}/nft-metadata/series-meta-3/9.json`)).status, 404);
+  assert.equal((await fetch(`${url}/nft-metadata/s-00000000000000000000000000000254/9.json`)).status, 404);
 
   const image = Buffer.from('preserved-webp');
   const sha = createHash('sha256').update(image).digest('hex');
   const json = `{"name":"월계 김밥 방문 도장","description":"월계 김밥 3번째 방문 도장입니다.","image":"https://masscom.kr/nft-metadata/images/${sha}.webp","attributes":[]}`;
   await pool.query('INSERT INTO nft_metadata_images (sha256, image) VALUES ($1, $2)', [sha, image]);
   await pool.query(`INSERT INTO nft_token_metadata (nft_asset_id, nft_series_id, token_id, metadata_json, image_sha256)
-    VALUES ('80000000-0000-4000-8000-000000000254', 'series-meta-3', 9, $1, $2)`, [json, sha]);
+    VALUES ('80000000-0000-4000-8000-000000000254', 's-00000000000000000000000000000254', 9, $1, $2)`, [json, sha]);
 
-  const found = await fetch(`${url}/nft-metadata/series-meta-3/9.json`);
+  const found = await fetch(`${url}/nft-metadata/s-00000000000000000000000000000254/9.json`);
   assert.equal(found.status, 200);
   assert.equal(found.headers.get('content-type'), 'application/json; charset=utf-8');
   assert.equal(found.headers.get('access-control-allow-origin'), '*');
-  assert.equal(found.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+  assert.equal(found.headers.get('cache-control'), 'public, max-age=86400');
   assert.equal(await found.text(), json, 'stored bytes are served unchanged');
 
   const served = await fetch(`${url}/nft-metadata/images/${sha}.webp`);
@@ -178,9 +178,9 @@ test('공개 경로는 확정 뒤 고정된 메타데이터·그림만 주고 �
 
   // 가게가 정보를 바꿔도 응답은 그대로다.
   await pool.query(`UPDATE merchants SET name = '바뀐 이름', neighborhood = '중계동' WHERE id = 'merchant-meta'`);
-  assert.equal(await (await fetch(`${url}/nft-metadata/series-meta-3/9.json`)).text(), json);
+  assert.equal(await (await fetch(`${url}/nft-metadata/s-00000000000000000000000000000254/9.json`)).text(), json);
 
-  for (const path of ['/nft-metadata/series-meta-3/10.json', '/nft-metadata/series-other/9.json',
+  for (const path of ['/nft-metadata/s-00000000000000000000000000000254/10.json', '/nft-metadata/series-other/9.json',
     `/nft-metadata/images/${'d'.repeat(64)}.webp`]) {
     const missing = await fetch(`${url}${path}`);
     assert.equal(missing.status, 404, path);
@@ -194,16 +194,16 @@ test('공개 경로는 확정 뒤 고정된 메타데이터·그림만 주고 �
   const takenImage = await fetch(`${url}/nft-metadata/images/${sha}.webp`);
   assert.equal(takenImage.status, 404);
   assert.equal(takenImage.headers.get('cache-control'), 'no-store');
-  assert.equal(await (await fetch(`${url}/nft-metadata/series-meta-3/9.json`)).text(), json);
+  assert.equal(await (await fetch(`${url}/nft-metadata/s-00000000000000000000000000000254/9.json`)).text(), json);
   // 토큰(asset:)을 내리면 메타데이터 주소가 404(no-store)가 되고, 거부 목록에서 빼면 같은 바이트가 다시 보인다.
   await pool.query(`INSERT INTO nft_metadata_takedowns (target, reason) VALUES ($1, '신고된 토큰')`,
     ['asset:80000000-0000-4000-8000-000000000254']);
-  const takenToken = await fetch(`${url}/nft-metadata/series-meta-3/9.json`);
+  const takenToken = await fetch(`${url}/nft-metadata/s-00000000000000000000000000000254/9.json`);
   assert.equal(takenToken.status, 404);
   assert.equal(takenToken.headers.get('cache-control'), 'no-store');
   assert.equal(takenToken.headers.get('access-control-allow-origin'), '*');
   await pool.query(`DELETE FROM nft_metadata_takedowns WHERE target LIKE 'asset:%'`);
-  assert.equal(await (await fetch(`${url}/nft-metadata/series-meta-3/9.json`)).text(), json);
+  assert.equal(await (await fetch(`${url}/nft-metadata/s-00000000000000000000000000000254/9.json`)).text(), json);
   for (const bad of ['image:xyz', 'asset:not-a-uuid-value', 'token:1']) {
     await assert.rejects(pool.query(`INSERT INTO nft_metadata_takedowns (target, reason) VALUES ($1, 'x')`, [bad]),
       /nft_metadata_takedowns_target_check/, bad);
@@ -214,5 +214,5 @@ test('공개 경로는 확정 뒤 고정된 메타데이터·그림만 주고 �
   await assert.rejects(pool.query('DELETE FROM nft_token_metadata'), /immutable/);
   // 같은 시리즈·토큰의 두 번째 스냅샷은 DB가 막는다.
   await assert.rejects(pool.query(`INSERT INTO nft_token_metadata (nft_asset_id, nft_series_id, token_id, metadata_json)
-    VALUES ('80000000-0000-4000-8000-000000000254', 'series-meta-3', 9, '{}')`), /duplicate key/);
+    VALUES ('80000000-0000-4000-8000-000000000254', 's-00000000000000000000000000000254', 9, '{}')`), /duplicate key/);
 });

@@ -15,7 +15,7 @@ const fixture = `require('node:http').createServer((request, response) => {
   response.setHeader('X-From-Api', request.method + ' ' + request.url);
   if (request.url.startsWith('/nft-metadata/')) {
     response.setHeader('Access-Control-Allow-Origin', '*');
-    response.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    response.setHeader('Cache-Control', 'public, max-age=86400');
     response.setHeader('Content-Type', 'application/json; charset=utf-8');
     response.writeHead(200);
     response.end(JSON.stringify({ from: 'api' }));
@@ -89,13 +89,14 @@ test('Caddy는 확정된 메타데이터·그림 경로만 API로 넘기고 실�
     // 발행 확정된 토큰·보존 그림은 API가 주고, CORS 값은 하나만 남는다(API 값과 Caddy 값이 겹치지 않음).
     const sha = 'e'.repeat(64);
     for (const [method, path] of [['GET', '/nft-metadata/series-a/7.json'], ['HEAD', '/nft-metadata/series-a/7.json'],
-      ['GET', '/nft-metadata/Series_2/0.json'], ['GET', `/nft-metadata/images/${sha}.webp`],
+      ['GET', '/nft-metadata/Series_2/0.json'], ['GET', `/nft-metadata/s-${'0'.repeat(28)}c0de/12.json`],
+      ['GET', `/nft-metadata/images/${sha}.webp`],
       ['GET', '/nft-metadata/default/mascot-stamp-v1.png'], ['HEAD', '/nft-metadata/default/mascot-stamp-v1.png']]) {
       const routed = await fetch(`${url}${path}`, { method });
       assert.equal(routed.status, 200, `${method} ${path}`);
       assert.equal(routed.headers.get('x-from-api'), `${method} ${path}`);
       assert.equal(routed.headers.get('access-control-allow-origin'), '*', `${method} ${path}`);
-      assert.equal(routed.headers.get('cache-control'), 'public, max-age=31536000, immutable', `${method} ${path}`);
+      assert.equal(routed.headers.get('cache-control'), 'public, max-age=86400', `${method} ${path}`);
       assert.equal(routed.headers.get('x-content-type-options'), 'nosniff', `${method} ${path}`);
     }
 

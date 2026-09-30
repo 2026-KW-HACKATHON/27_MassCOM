@@ -33,6 +33,9 @@ test('경로 규칙은 Caddy·시리즈 CHECK와 같고 정적 실증 시리즈�
   assert.deepEqual(matchNftMetadataRoute('/nft-metadata/Series_2/0.json'), { kind: 'token', seriesId: 'Series_2', tokenId: '0' });
   assert.deepEqual(matchNftMetadataRoute(`/nft-metadata/images/${sha}.webp`), { kind: 'image', sha256: sha });
   assert.deepEqual(matchNftMetadataRoute('/nft-metadata/default/mascot-stamp-v1.png'), { kind: 'default-stamp' });
+  // 운영 시리즈 id는 뜻 없는 불투명 id(s- + hex 32자, 0036 CHECK)이고 이 경로 규칙이 받는다.
+  const opaque = `s-${'0'.repeat(28)}c0de`;
+  assert.deepEqual(matchNftMetadataRoute(`/nft-metadata/${opaque}/12.json`), { kind: 'token', seriesId: opaque, tokenId: '12' });
   for (const path of ['/nft-metadata/base-sepolia-proof/1.json', '/nft-metadata/BASE-SEPOLIA-PROOF/1.json',
     '/nft-metadata/Base-Sepolia-Proof/2.json', '/nft-metadata/default/mascot-stamp-v2.png', '/nft-metadata/default/x.png', '/nft-metadata/s/07.json', '/nft-metadata/s/1',
     '/nft-metadata/s/1.JSON', '/nft-metadata/-s/1.json', '/nft-metadata/s.x/1.json', '/nft-metadata/a/b/1.json',
@@ -55,7 +58,7 @@ test('확정된 토큰 메타데이터는 저장된 바이트 그대로 JSON·CO
   assert.equal(found.status, 200);
   assert.equal(found.headers.get('content-type'), 'application/json; charset=utf-8');
   assert.equal(found.headers.get('access-control-allow-origin'), '*');
-  assert.equal(found.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+  assert.equal(found.headers.get('cache-control'), 'public, max-age=86400');
   assert.equal(found.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(found.headers.get('content-length'), String(Buffer.byteLength(metadata)));
   assert.equal(await found.text(), metadata);
@@ -69,7 +72,7 @@ test('확정된 토큰 메타데이터는 저장된 바이트 그대로 JSON·CO
   const image = await fetch(`${base}/nft-metadata/images/${sha}.webp`);
   assert.equal(image.status, 200);
   assert.equal(image.headers.get('content-type'), 'image/webp');
-  assert.equal(image.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+  assert.equal(image.headers.get('cache-control'), 'public, max-age=86400');
   assert.equal(image.headers.get('access-control-allow-origin'), '*');
   assert.equal(image.headers.get('content-length'), String(art.length));
   assert.deepEqual(Buffer.from(await image.arrayBuffer()), art);

@@ -45,7 +45,9 @@ import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
 import { DEFAULT_STAMP_V1_PNG } from './nft-default-stamp.js';
 import { matchNftMetadataRoute, type NftMetadataReader } from './nft-metadata.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
-import { MintRequestError, refuseMintRequestsWhilePreparing, type MintRequestService } from './mint-request-service.js';
+import {
+  MintRequestError, mintConsentVersionFromEnv, refuseMintRequestsWhilePreparing, type MintRequestService,
+} from './mint-request-service.js';
 import { ReversalError, type ReversalService } from './reversal.js';
 import {
   RecommendationService,
@@ -79,6 +81,9 @@ import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
 import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-binding.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
+// 토큰 메타데이터·가게 그림은 하루만 캐시한다: 운영자가 거부 목록으로 내리면 늦어도 하루 안에 사라진다(Issue #254).
+// 판이 붙은 기본 도장만 바이트가 영원히 같아 immutable이다.
+const nftMetadataCacheControl = 'public, max-age=86400';
 const qrCode = createRequire(import.meta.url)('qrcode') as {
   toString(value: string, options: { type: 'svg'; margin: number }): Promise<string>;
 };
@@ -1144,13 +1149,13 @@ export function createApiServer(
         if (route.kind === 'image') {
           const image = await nftMetadata.findImage(route.sha256);
           if (!image) throw new RequestError(404, 'NOT_FOUND');
-          sendBinary(response, image, 'image/webp', 'public, max-age=31536000, immutable');
+          sendBinary(response, image, 'image/webp', nftMetadataCacheControl);
           return;
         }
         const metadata = await nftMetadata.findTokenMetadata(route.seriesId, route.tokenId);
         if (!metadata) throw new RequestError(404, 'NOT_FOUND');
         const body = Buffer.from(metadata, 'utf8');
-        response.setHeader('cache-control', 'public, max-age=31536000, immutable');
+        response.setHeader('cache-control', nftMetadataCacheControl);
         response.setHeader('content-length', String(body.length));
         response.writeHead(200);
         response.end(body);
@@ -1627,7 +1632,7 @@ function statusForMintRequest(code: string): number {
   if (code === 'ENTITLEMENT_NOT_FOUND' || code === 'WALLET_BINDING_NOT_FOUND' || code === 'MINT_JOB_NOT_FOUND') {
     return 404;
   }
-  if (code === 'CONSENT_REQUIRED' || code === 'IDEMPOTENCY_KEY_REQUIRED') return 400;
+  if (code === 'CONSENT_REQUIRED' || code === 'CONSENT_VERSION_OUTDATED' || code === 'IDEMPOTENCY_KEY_REQUIRED') return 400;
   if (code === 'ACCOUNT_DELETED') return 410;
   return 409;
 }
@@ -1820,7 +1825,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     : new InMemoryChallengeStore();
   const postgresMintRequests = pool
     ? new PostgresMintRequestService(pool, {
-        supportedConsentVersion: process.env.NFT_MINT_CONSENT_VERSION ?? 'nft-mint-v2',
+        // 비어 있으면 nft-mint-v2, v2보다 낮은 판은 시작을 거절한다(Issue #254).
+        supportedConsentVersion: mintConsentVersionFromEnv(process.env.NFT_MINT_CONSENT_VERSION),
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;
