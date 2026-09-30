@@ -48,7 +48,7 @@
 | 14·15·18·21.5: 프로젝트 | 여러 프로젝트, 초안 복원·명시 저장·복사. 시즌 테마 독립. 게시 결과를 원본/편집과 분리. 새 게시 버전 때문에 기존 보유품이 바뀌지 않음. 미완료 고급 패널 때문에 기본 게시를 막지 않음. | API 프로젝트·게시·획득 스냅샷, 점주 제작 목록 |
 | 16·19·21.5: 도감·오류·성능 | 도감 목록 정적·상세에서 재생. 텍스트 정보 유지, 음소거·동작 줄이기. 업로드·녹음·렌더·저장 실패 안내와 입력 보존·재시도. 선택 한 등급 렌더, 공통 자원 재사용, 교체 자원 정리. | `collectible-viewer.mjs`, 고객 도감, 렌더 캐시·수명 관리 |
 
-획득 순서의 포장·도장·수집품·대사·장면은 원문의 서비스 연결 제안이다. 실제 보유 기록을 확인한 뒤 상세 연출을 제공하며, 별도 연출을 새로운 보상 성공 조건으로 넣지 않는다. Android는 방문 수령 성공 화면의 `받은 수집품 보기`로 인증된 도감 보상권을 열고, 새 제작 외형이 없는 기존 보상도 보관 성공을 유지한다.
+획득 순서의 포장·도장·수집품·대사·장면은 원문의 서비스 연결 제안이다. 실제 보유 기록을 확인한 뒤 상세 연출을 제공하며, 별도 연출을 새로운 보상 성공 조건으로 넣지 않는다. Android는 방문 수령이 끝난 뒤 도감을 읽어 받은 보상 중 제작 외형(`artwork`)이 실제로 붙은 것이 있을 때만 성공 화면에 `받은 수집품 보기`를 보이고(1·3·5회가 함께 지급돼 여럿이면 가장 높은 방문 목표, 도감 조회가 실패하면 버튼만 생략), 그 보상권을 인증된 도감 상세로 연다. 새 제작 외형이 없는 기존 보상은 버튼 없이 보관 성공을 유지한다.
 
 Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `commerce-api.ts`, `screens/collection/index.tsx`, `screens/collection/collectible-detail.tsx`, `screens/collection/collectible-motion.ts`, `screens/claim-redeem/index.tsx`에 있다. 목록은 정적 썸네일이며 상세를 열 때만 보유자 API로 전체 자료를 읽는다. 회전·측면 두께·각도 release 갱신·대사·수동 음성 재생·음소거·장면 다시 보기·건너뛰기·마스코트 추적을 제공한다. 저장된 정지·회전·떠오름·빛 지나감·도장·반짝임·맥박·짧은 축하 동작을 재생하며, 다시 보기마다 동작과 장면의 시간을 처음부터 시작한다. 닫기·탭 이탈·계정 변경·백그라운드 진입에는 재생을 멈추고 늦게 도착한 상세 응답을 버린다. `expo-audio`는 재생만 사용하며 마이크·백그라운드 재생 권한을 추가하지 않는다.
 
@@ -87,7 +87,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | --- | --- |
 | 시작 재질 | 원본 색 유지, 바탕 `#bf8149`, 사진색 100, 음각/양각 깊이 45. 등급 이름이 재질을 강제하지 않으며 효과·동작 목록은 비어 있음. 골드 고정 효과 없음. |
 | 등급·스티커·편집 상한 | 동적 등급 1~16, 스티커 30, 효과 64, 동작 10, 붓 경로 100개·경로당 점 1,000개. 네 등급 고정 슬롯을 피하면서 초안 크기와 작업량을 제한함. |
-| 파일·요청 상한 | JSON 본문 8MiB, 원본 사진 3MiB·가로/세로 4,096px 이하, 등급 완성 이미지·바탕·마스크 512px(완성·바탕 1MiB, 마스크 256KiB)·썸네일 160px·128KiB, 장면 원본 512KiB·최대 5장과 미리보기 512px, 음성 1MiB·30초(MP3는 프레임으로 계산). 점포별 미디어 쓰기 1분 20번. 입력 화면에서 제한과 재시도 경로를 안내. 최종 지원 기기 측정 후 조정 대상. |
+| 파일·요청 상한 | (게시용 완성 정면·바탕·썸네일·장면 미리보기는 편집기가 WebP 품질 0.9로 만들고, 미지원 브라우저는 PNG, 효과 마스크는 알파 때문에 PNG다.) JSON 본문 8MiB, 원본 사진 3MiB·가로/세로 4,096px 이하, 등급 완성 이미지·바탕·마스크 512px(완성·바탕 1MiB, 마스크 256KiB)·썸네일 160px·128KiB, 장면 원본 512KiB·최대 5장과 미리보기 512px, 음성 1MiB·30초(MP3는 프레임으로 계산). 점포별 미디어 쓰기 1분 20번. 입력 화면에서 제한과 재시도 경로를 안내. 최종 지원 기기 측정 후 조정 대상. |
 | 이미지·음성 형식 | 사진 PNG/JPEG/WebP. 파일 업로드 MP3. 직접 녹음은 브라우저가 지원하는 WebM/Ogg 등을 사용하고 MIME·미디어 바이트 형식을 서버에서 검사. MP3 변환을 했다고 주장하지 않음. |
 | 추가 장면 자료 | 확대는 추가 프레임 불필요, 넓은 장면 1장, 추적 2장, 사건 3장. 기본 사진이 장면 입구이며 실제 사진 밖 공간을 재구성하지 않음. |
 | 효과 합성 | 사진 보정/명암 → 사진 대상 효과 → 표면 효과 → 순서대로 스티커와 개별 효과 → 테두리 효과. 강도 0도 저장하며 선택 효과를 삭제하지 않음. |
@@ -134,6 +134,14 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 - 이미지: PNG/JPEG/WebP data URL만. 원본 사진 3 MiB·4096 px, 장면 원본 512 KiB·4096 px(최대 5장), 완성 `imageDataUrl`·`baseDataUrl` 1 MiB·512 px, `effectMasks` 256 KiB·512 px, `thumbnailDataUrl` 128 KiB·160 px, 장면 `previewDataUrl` 512 KiB·512 px. 애니메이션 WebP 거절. 음성: MP3(ID3/APE 태그 뒤 MPEG Layer III 프레임만, 30.5초 초과 413 `COLLECTIBLE_MEDIA_TOO_LARGE`), WebM/Ogg(서명·1 MiB·클라이언트 길이 0.1–30초).
 - 오류 코드 전체(상태): `INVALID_REQUEST`(400, 본문 키), `COLLECTIBLE_INVALID_PROJECT`(400), `COLLECTIBLE_MEDIA_TOO_LARGE`(413), `BODY_TOO_LARGE`(413), `COLLECTIBLE_PROJECT_NOT_FOUND`(404), `COLLECTIBLE_VERSION_CONFLICT`·`COLLECTIBLE_PUBLISHED_IMMUTABLE`·`COLLECTIBLE_CAMPAIGN_UNAVAILABLE`·`COLLECTIBLE_NOT_READY`·`COLLECTIBLE_PROJECT_LIMIT`·`COLLECTIBLE_NOT_PUBLISHED`(409), `COLLECTIBLE_RATE_LIMITED`(429), `MERCHANT_ACCESS_DENIED`(403), `ACCOUNT_DELETED`(410), `COLLECTIBLE_PROJECTS_NOT_CONFIGURED`(503).
 
+### 웹 제작기의 연결 (PR #257 인수 후속, 2026-10-01)
+
+- **캠페인:** 제작기는 공개 `/merchants`를 읽지 않고 위 `collectible-campaigns`만 쓴다(열 때·저장 목록 새로 보기·게시 직전에 다시 읽는다). 선택한 캠페인의 `goals`에 없는 방문 목표는 보이지 않고, 캠페인을 바꾸면 그 목표의 연결은 풀린다. 게시 직전 목록에 없는 캠페인은 서버에 보내기 전에 막는다. 목록 읽기에 실패하면 권한·세션 이유를 알리고 게시만 막는다.
+- **기준값:** 저장·생성·게시 응답의 `project`(이미지 바이트·MP3 길이를 서버가 정리한 값, 게시 때 만든 파생 이미지 포함)를 새 기준으로 삼아, 저장 중 새로 편집한 내용이 없으면 "저장하지 않은 변경"이 남지 않는다. 있으면 편집 내용을 지키고 버전만 이어 한 번 더 저장하게 한다. 시즌 복사는 서버의 새 초안을 저장 대상으로 삼고 이름·캠페인·보상 연결만 바꿔 저장 전까지 변경으로 본다.
+- **게시 중지·삭제:** 게시 옆 `게시 중지`(`POST …/unpublish`)와 `삭제`(`POST …/delete`)는 확인 대화상자 뒤 `expectedVersion`으로 요청한다. 게시 중지는 새 손님에게 나가는 것만 멈추고, 게시 프로젝트 삭제는 원본·편집 자료가 지워지며 이미 받은 손님의 수집품은 남는다고 알린다. 목록·카드·상태 줄은 `distributingCampaignId`로 지금 나가는 캠페인 이름을 보여 준다.
+- **오류 문구:** 위 오류 코드마다 `collectible-errors.mjs`의 고유한 한국어 문구가 있고(계약 문서·서버 코드 목록과 어긋나면 시험이 실패한다), 429는 `Retry-After` 초를, 413은 본문·미디어 상한을 알린다. "인터넷 연결 확인"은 요청이 서버에 닿지 못했을 때만 쓴다.
+- **보내기 전 확인:** 완성본·바탕 1 MiB, 썸네일 128 KiB, 마스크 256 KiB, 장면 미리보기 512 KiB, 본문 8 MiB, 스티커 30개를 서버와 같은 값으로 미리 확인해 넘으면 입력을 지킨 채 안내한다.
+
 ### 고객 경로와 제거된 외형
 
 - `GET /collection`·`/api/web/collection`의 `collectibles[].artwork`는 `{ projectId, publicationId, gradeId, gradeName, shape, theme, name, thumbnailDataUrl }` 그대로다(획득 행은 참조만 저장하고 불변 발행본 등급 요약을 읽는다).
@@ -165,6 +173,8 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 - 모델: `node --test tests/site/collectible-model.test.mjs` — 새 등급과 시즌의 독립성, 브론즈 홀로그램·프리즘 해제, 모두 끄기, 개별 대상, 톱니·우표 외곽, 원본 유지와 fit-cover 경계.
 - 브라우저 렌더러·편집기·상세: 해당 사이트 시험과 실제 브라우저 확인 — 픽셀 효과 차이, 자르기/완성 모양 일치, 조작·저장·오류·재생 수명.
 - API: API 단위·PostgreSQL 통합 — 권한·허용 미디어·초안/게시·버전 충돌·다른 점포 캠페인 거절·기존 목표 유지·게시 버전 획득·다른 보유자 거절.
+- 웹 제작기 행동: `node --test tests/site/collectible-editor-flow.test.mjs tests/site/collectible-errors.test.mjs tests/site/collectible-qa-fixture.test.mjs` — 최소 DOM(`tests/fixtures/mini-dom.mjs`)과 계약 흉내 API(`collectible-fake-api.mjs`) 위에서 캠페인 읽기·저장 기준값·게시·복사·충돌·게시 중지·삭제·WebP·크기 상한·429/413 문구와, 오류 코드 전부의 문구 매핑·QA 서버의 운영 모양을 확인한다. 픽셀 결과·실제 브라우저 조작은 검증하지 않는다.
+- Android: `npm test --prefix apps/mobile` — 받은 보상의 외형 유무에 따른 수집품 버튼, 제거된 수집품(404) 안내, `RECORD_AUDIO` 차단 설정.
 - 기존 기능: 방문·보상·NFT·점주 웹·운영/시연 앱 회귀 — 새 외형 구조가 기존 보상 조건과 환경 분리를 변경하지 않는지 확인.
 
 실행하지 않은 시험·배포·실기기 확인은 완료로 기록하지 않는다. 스냅샷 미디어를 공개 페이지나 시험 증거에 포함할 때도 실제 개인 사진·목소리를 fixture로 복사하지 않는다.
