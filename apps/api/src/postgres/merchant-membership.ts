@@ -9,6 +9,8 @@ export type ActiveMerchantMember = { role: MerchantRole; merchantStatus: string 
 // merchant_members를 바꾸므로, 이 확인은 그 트랜잭션이 끝난 뒤의 결과를 보고 이 트랜잭션이 끝날 때까지 뒤이은 회수를 기다리게 한다.
 // 가게 행 잠금과 멤버십 읽기는 문장을 나눈다: READ COMMITTED의 스냅샷은 문장 시작 때 정해지므로 한 문장으로 합치면
 // 잠금을 기다린 사이에 커밋된 회수를 못 보고 옛 멤버십으로 통과한다.
+// 주의: 계정 삭제(account-deletion.ts)는 가게 행을 잠그지 않고 merchant_members를 회수하므로 이 함수의 잠금으로는 직렬화되지 않는다.
+// 호출자가 그보다 먼저 accountLifecycle.assertActive(계정 advisory 잠금)를 잡아야 삭제와 엇갈리지 않는다(그림 변경·되돌리기·발급이 그렇게 한다).
 export async function requireActiveMerchantMember(
   client: PoolClient, merchantId: string, accountId: string,
 ): Promise<ActiveMerchantMember> {

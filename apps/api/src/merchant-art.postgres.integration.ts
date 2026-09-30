@@ -29,6 +29,7 @@ import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantArtService } from './postgres/merchant-art.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 import { runMigrations } from './postgres/migrate.js';
+import { PostgresStaffRegistration } from './postgres/staff-registration.js';
 import { createApiServer, developmentHeaderAccountResolver } from './server.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
@@ -1588,6 +1589,129 @@ for (const method of artMethods) {
       assert.deepEqual(await snapshot(), before);
     });
   }
+}
+
+// 회수를 실제 코드(PostgresStaffRegistration.revoke)로 한다: 대상 계정 advisory → 관리자 행 → 가게 행 FOR UPDATE → 멤버 행 UPDATE 순서다.
+// 그림 서비스는 accountLifecycle 없이 만들어(assertActive가 계정 advisory 잠금으로 먼저 막지 못하게) 가게 행 FOR SHARE만으로 직렬화되는지 본다.
+// 나중에 그림 쪽이 가게 행을 먼저 잠그지 않게 바뀌거나 회수가 가게 행을 잠그지 않게 바뀌면 이 시험이 잡는다.
+for (const method of artMethods) {
+  test(`${method} started while the real staff revoke holds the store row is denied once the revoke commits (#264)`, async (t) => {
+    const db = await setup(t, { staffMayManageArt: true });
+    const { call, snapshot } = await prepareArtMethod(db, method);
+    const before = await snapshot();
+    const adminId = `admin-${randomUUID()}`;
+    await db.pool.query(`UPDATE merchants SET is_demo = false WHERE id = 'art-a'`);
+    await db.pool.query(
+      `INSERT INTO auth_identities(provider, subject, account_id, created_at) VALUES ('google', $1, $2, now())`,
+      [`admin-sub-${randomUUID()}`, adminId],
+    );
+    await db.pool.query('INSERT INTO platform_admins(account_id) VALUES ($1)', [adminId]);
+    try {
+      const registration = new PostgresStaffRegistration(db.pool, hmacSecret);
+
+      // 회수가 가게 행을 잠근 뒤 멤버 행 UPDATE에서 멈추도록, 다른 연결이 그 멤버 행을 잡아 둔다.
+      const blocker = await db.pool.connect();
+      let revoke: Promise<void> | undefined;
+      let outcome: Promise<unknown> | undefined;
+      try {
+        await blocker.query('BEGIN');
+        await blocker.query(`SELECT 1 FROM merchant_members WHERE merchant_id = 'art-a' AND account_id = 'staff-a' FOR UPDATE`);
+        revoke = registration.revoke(adminId, 'art-a', 'staff-a');
+        revoke.catch(() => undefined);
+        await waitFor(async () => (await lockWaits(db.pool)) === 1, 'the revoke to wait on the member row');
+        // STAFF가 허용된 환경이고 멤버십은 아직 활성이다. 호출은 회수가 잡은 가게 행 잠금 앞에서 기다려야 한다.
+        outcome = call('staff-a').then(() => new Error('the art call resolved'), (error: unknown) => error);
+        await waitFor(async () => (await lockWaits(db.pool)) === 2, 'the art call to wait on the store row lock');
+        assert.deepEqual(await snapshot(), before);
+        await blocker.query('ROLLBACK');
+      } finally {
+        await blocker.query('ROLLBACK').catch(() => undefined);
+        blocker.release();
+        await revoke?.catch(() => undefined);
+      }
+
+      await revoke;
+      const error = await outcome!;
+      assert.ok(accessDenied(error), `expected MERCHANT_ACCESS_DENIED, got ${String(error)}`);
+      assert.deepEqual(await snapshot(), before);
+      assert.equal((await db.pool.query(
+        `SELECT status FROM merchant_members WHERE merchant_id = 'art-a' AND account_id = 'staff-a'`,
+      )).rows[0]!.status, 'REVOKED');
+    } finally {
+      await db.pool.query('DELETE FROM platform_admins WHERE account_id = $1', [adminId]);
+      await db.pool.query('DELETE FROM auth_identities WHERE account_id = $1', [adminId]);
+    }
+  });
+}
+
+// 계정 삭제는 가게 행을 잠그지 않고 merchant_members를 회수하므로, 그림 변경은 계정 advisory 잠금(assertActive)으로 삭제와 직렬화한다.
+// (1) 삭제가 아직 커밋되지 않은 채 잠금을 쥐고 있을 때 시작한 호출은 기다렸다가 커밋 뒤 ACCOUNT_DELETED로 거절되고 상태는 그대로다.
+for (const method of artMethods) {
+  test(`${method} started while an account deletion holds the account lock is rejected as ACCOUNT_DELETED once it commits (#264)`, async (t) => {
+    const db = await setup(t, { staffMayManageArt: true, lifecycle: true });
+    const { call, snapshot } = await prepareArtMethod(db, method);
+    const before = await snapshot();
+    const deletion = new PostgresAccountDeletionService(db.pool, {
+      hmacSecret, policyVersion: 'account-deletion-v1', accountLifecycle: db.lifecycle,
+    });
+
+    const deleter = await db.pool.connect();
+    let outcome: Promise<unknown> | undefined;
+    try {
+      await deleter.query('BEGIN');
+      await db.lifecycle.lockForDeletion(deleter, 'owner-a');
+      await deletion.forgetInTransaction(deleter, 'owner-a', db.now());
+      outcome = call('owner-a').then(() => new Error('the art call resolved'), (error: unknown) => error);
+      await waitFor(async () => (await lockWaits(db.pool)) === 1, 'the art call to wait on the account lock');
+      assert.deepEqual(await snapshot(), before);
+      await deleter.query('COMMIT');
+    } finally {
+      await deleter.query('ROLLBACK').catch(() => undefined);
+      deleter.release();
+    }
+
+    const error = await outcome!;
+    assert.ok(rejectsWith('ACCOUNT_DELETED')(error), `expected ACCOUNT_DELETED, got ${String(error)}`);
+    assert.deepEqual(await snapshot(), before);
+  });
+}
+
+// (2) 호출이 검사를 마치고 가게별 잠금 앞에서 기다리는 동안 시작한 삭제는 그 호출이 커밋될 때까지 기다린다(삭제가 먼저 끝난 뒤 호출이 커밋되지 않는다).
+for (const method of artMethods) {
+  test(`an account deletion cannot finish while its ${method} call sits between the checks and the commit (#264)`, async (t) => {
+    const db = await setup(t, { staffMayManageArt: true, lifecycle: true });
+    const { call } = await prepareArtMethod(db, method);
+    const deletion = new PostgresAccountDeletionService(db.pool, {
+      hmacSecret, policyVersion: 'account-deletion-v1', accountLifecycle: db.lifecycle,
+    });
+
+    // 이 가게의 그림 잠금을 다른 연결이 쥐고 있어, 호출은 계정·멤버십 확인을 마친 채 그 앞에서 기다린다.
+    const holder = await db.pool.connect();
+    let art: Promise<unknown> | undefined;
+    let removal: ReturnType<typeof deletion.requestDeletion> | undefined;
+    let removalSettled = false;
+    try {
+      await holder.query('BEGIN');
+      await holder.query(`SELECT pg_advisory_xact_lock(hashtextextended('ai-art-merchant:art-a', 0))`);
+      art = call('owner-a');
+      art.catch(() => undefined);
+      await waitFor(async () => (await lockWaits(db.pool)) === 1, 'the art call to wait on the store lock');
+      removal = deletion.requestDeletion({ accountId: 'owner-a', confirmation: 'DELETE MY ACCOUNT' });
+      removal.then(() => { removalSettled = true; }, () => { removalSettled = true; });
+      // 삭제는 그림 호출의 트랜잭션이 쥔 계정 잠금 앞에서 기다린다.
+      await waitFor(async () => (await lockWaits(db.pool)) === 2, 'the deletion to wait on the account lock');
+      assert.equal(removalSettled, false);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      holder.release();
+    }
+
+    await art!;
+    const result = await removal!;
+    assert.ok(result.requestId);
+    assert.equal(removalSettled, true);
+  });
 }
 
 test('HTTP: an art request whose access was lost after the permission check is denied by the service and nothing changes (#264)', async (t) => {

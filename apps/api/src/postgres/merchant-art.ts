@@ -135,7 +135,6 @@ export class PostgresMerchantArtService implements MerchantArtService {
     const roundId = this.nextRoundId();
 
     const spendIds = await this.transaction(async (client) => {
-      if (this.accountLifecycle) await this.accountLifecycle.assertActive(client, input.accountId);
       await this.requireManageArt(client, input.merchantId, input.accountId);
       await this.lockMerchant(client, input.merchantId);
       await this.interruptStale(client, input.merchantId);
@@ -508,9 +507,12 @@ export class PostgresMerchantArtService implements MerchantArtService {
 
   // 그림을 바꾸는 네 메서드가 자기 트랜잭션 안에서 맨 먼저 부른다. 서버의 요청 시작 검사(requirePermission) 뒤 본문을 읽는 동안
   // 권한이 회수·강등됐을 수 있고, 가게 행 FOR SHARE는 회수·강등 트랜잭션(가게 행 FOR UPDATE)과 직렬화된다.
-  // 잠금 순서(교착 방지): 계정 생존(assertActive) → 가게 행 FOR SHARE → 가게별 advisory → 라운드 행 → 월 예산 advisory.
-  // 회수·강등 쪽은 가게 행 잠금이 이 순서의 앞쪽이고 뒤쪽 잠금은 잡지 않는다.
+  // 계정 삭제는 가게 행을 잠그지 않고 merchant_members를 회수하므로 가게 행 잠금으로는 직렬화되지 않는다. 그래서 계정 advisory 잠금과
+  // 삭제 확인(assertActive)을 가장 먼저 하고, 삭제가 먼저 끝났으면 ACCOUNT_DELETED로 거절한다.
+  // 잠금 순서(교착 방지): 계정 advisory(assertActive) → 가게 행 FOR SHARE → 가게별 advisory → 라운드 행 → 월 예산 advisory.
+  // 회수·강등(admin.ts, staff-registration.ts)도 대상 계정 advisory → 가게 행 FOR UPDATE 순서이고 뒤쪽 잠금은 잡지 않는다.
   private async requireManageArt(client: PoolClient, merchantId: string, accountId: string): Promise<void> {
+    if (this.accountLifecycle) await this.accountLifecycle.assertActive(client, accountId);
     const { role } = await requireActiveMerchantMember(client, merchantId, accountId);
     if (!canManageArt(role, this.staffMayManageArt)) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
   }
