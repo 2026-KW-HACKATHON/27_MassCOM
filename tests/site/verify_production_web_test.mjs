@@ -2628,6 +2628,38 @@ test('웹 동의: 세 필수 항목을 모두 눌러야 버튼이 켜지고, 기
   assert.equal(nodes['collection-content'].hidden, false);
 });
 
+test('웹 동의: 약관 링크를 새 탭에서 읽고 돌아와도 눌러 둔 체크가 남고, 서버 답이 바뀌면 화면이 닫힌다', async () => {
+  const { nodes, doc } = consentDocument();
+  const { fetcher, calls, state } = consentServer();
+  await productionWeb.bindCollectionControls(fetcher, doc);
+  nodes['consent-age'].checked = true;
+  nodes['consent-terms'].checked = true;
+  await nodes['consent-terms'].dispatch('change');
+  assert.equal(nodes['consent-panel'].hidden, false);
+
+  // 탭이 가려졌다 다시 보이면 동의 여부를 다시 읽지만 화면과 체크는 그대로다.
+  doc.hidden = true;
+  await doc.dispatch('visibilitychange');
+  assert.equal(nodes['consent-panel'].hidden, false, '가려진 사이에도 동의 화면은 개인 기록이 없어 남는다');
+  doc.hidden = false;
+  await doc.dispatch('visibilitychange');
+  assert.equal(nodes['consent-panel'].hidden, false);
+  assert.equal(nodes['consent-age'].checked, true);
+  assert.equal(nodes['consent-terms'].checked, true);
+  assert.equal(nodes['consent-privacy'].checked, false);
+  assert.equal(nodes['consent-submit'].disabled, true, '셋 중 하나가 빠졌으니 아직 시작할 수 없다');
+  assert.deepEqual(dataCalls(calls), []);
+
+  // 다른 탭에서 이미 동의했다면 돌아왔을 때 화면이 닫히고 도감이 열린다.
+  state.status = { ok: true, status: 200, body: consentAccepted };
+  doc.hidden = true;
+  await doc.dispatch('visibilitychange');
+  doc.hidden = false;
+  await doc.dispatch('visibilitychange');
+  assert.equal(nodes['consent-panel'].hidden, true);
+  assert.equal(nodes['collection-content'].hidden, false);
+});
+
 test('웹 동의: 이미 동의한 계정은 동의 화면 없이 바로 도감을 본다', async () => {
   const { nodes, doc } = consentDocument();
   const { fetcher, calls } = consentServer({ status: { ok: true, status: 200, body: consentAccepted } });

@@ -146,10 +146,11 @@ function hideConsent(doc) {
   if (nodes) resetConsent(nodes, true);
 }
 
+// 이미 보이는 화면은 그대로 둔다: 약관 링크를 새 탭에서 읽고 돌아오면 다시 확인이 돌지만 눌러 둔 체크를 지우지 않는다.
 function showConsent(doc) {
   const nodes = consentNodes(doc);
   if (!nodes) return false;
-  resetConsent(nodes, false);
+  if (nodes['consent-panel'].hidden) resetConsent(nodes, false);
   return true;
 }
 
@@ -365,10 +366,11 @@ export async function loadCollection(fetcher, doc, { badgesTimeoutMs = BADGES_TI
   const requestId = (collectionRequests.get(doc) ?? 0) + 1;
   collectionRequests.set(doc, requestId);
   clearCollection(nodes);
-  hideConsent(doc);
   nodes['collection-status'].textContent = '내 도감을 확인하는 중입니다.';
   const consent = await readConsent(fetcher);
   if (collectionRequests.get(doc) !== requestId) return;
+  // 동의가 필요한 경우에만 동의 화면이 남는다. 그 밖의 결과(로그인 필요·확인 실패·버전 불일치·동의함)에서는 닫는다.
+  if (consent.kind !== 'required') hideConsent(doc);
   if (consent.kind === 'unauthenticated') {
     nodes['collection-status'].textContent = '내 도감을 보려면 Google 계정으로 로그인해 주세요.';
     nodes['collection-login'].hidden = false;
@@ -467,8 +469,8 @@ export function bindCollectionControls(fetcher, doc) {
   const channel = Channel ? new Channel('masscom-web-session') : undefined;
   const invalidate = () => {
     collectionRequests.set(doc, (collectionRequests.get(doc) ?? 0) + 1);
+    // 동의 화면은 개인 기록이 없어 지우지 않는다: 숨겨진 사이에 눌러 둔 체크를 잃지 않게 하고, 다시 보일 때 서버 답에 따라 닫는다.
     clearCollection(nodes);
-    hideConsent(doc);
     nodes['collection-status'].textContent = '내 도감을 다시 확인해 주세요.';
   };
   const refresh = () => loadCollection(fetcher, doc);
