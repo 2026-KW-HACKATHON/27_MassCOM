@@ -43,10 +43,22 @@ export function validateCollectibleMedia(value: unknown, kind: 'image' | 'audio'
     : bytes.subarray(0, 3).toString() === 'ID3' || (bytes[0] === 255 && ((bytes[1] ?? 0) & 224) === 224);
   if (!signature) invalid();
   if (kind === 'image') {
+    if (mime === 'image/webp' && animatedWebp(bytes)) invalid();
     const size = imageDimensions(bytes, mime);
     if (!size || size.width < 1 || size.height < 1 || size.width > 4096 || size.height > 4096 || size.width * size.height > 16_777_216) invalid();
   }
   return mime;
+}
+
+// Animated WebP (VP8X animation flag or ANIM/ANMF chunks) would play frames the server never inspected.
+function animatedWebp(bytes: Buffer): boolean {
+  let offset = 12;
+  while (offset + 8 <= bytes.length) {
+    const type = bytes.toString('latin1', offset, offset + 4);
+    if (type === 'ANIM' || type === 'ANMF' || (type === 'VP8X' && offset + 8 < bytes.length && (bytes[offset + 8]! & 0x02))) return true;
+    offset += 8 + bytes.readUInt32LE(offset + 4) + (bytes.readUInt32LE(offset + 4) % 2);
+  }
+  return false;
 }
 
 function imageDimensions(bytes: Buffer, mime: string): {width: number; height: number} | undefined {
@@ -153,6 +165,18 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
   if (publish && (mappings.length === 0 || mappings.some(([, gradeId]) => !Object.hasOwn(derived, gradeId as string)))) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
   const result = structuredClone(p) as CollectibleProject;
   if (mp3 && result.audio) { result.audio.dataUrl = mp3.dataUrl; result.audio.durationSeconds = mp3.durationSeconds; }
+  // Originals are only visible to MANAGE_ART holders and copied with each project copy, but camera EXIF (GPS, device, time)
+  // is not needed for editing, so every stored image keeps pixels (and JPEG orientation) only.
+  if (result.photo.originalDataUrl) result.photo.originalDataUrl = stripImageMetadata(result.photo.originalDataUrl);
+  for (const frame of result.story.frames) {
+    frame.dataUrl = stripImageMetadata(frame.dataUrl);
+    if (frame.previewDataUrl !== undefined) frame.previewDataUrl = stripImageMetadata(frame.previewDataUrl);
+  }
+  for (const asset of Object.values(result.derived)) {
+    asset.imageDataUrl = stripImageMetadata(asset.imageDataUrl); asset.thumbnailDataUrl = stripImageMetadata(asset.thumbnailDataUrl);
+    if (asset.baseDataUrl !== undefined) asset.baseDataUrl = stripImageMetadata(asset.baseDataUrl);
+    if (asset.effectMasks) for (const target of Object.keys(asset.effectMasks)) asset.effectMasks[target] = stripImageMetadata(asset.effectMasks[target]!);
+  }
   return result;
 }
 
@@ -229,6 +253,23 @@ export function collectibleSnapshot(project: CollectibleProject, projectId: stri
   };
 }
 
+// Reads the Orientation (0x0112) of IFD0 from an APP1 "Exif\0\0" payload; any malformed or missing value returns undefined.
+function exifOrientation(payload: Buffer): number | undefined {
+  if(payload.length<14 || payload.toString('latin1',0,6)!=='Exif\0\0') return undefined;
+  const tiff=payload.subarray(6); const order=tiff.toString('latin1',0,2);
+  if(order!=='II' && order!=='MM') return undefined;
+  const u16=(at:number)=>order==='II'?tiff.readUInt16LE(at):tiff.readUInt16BE(at);
+  const u32=(at:number)=>order==='II'?tiff.readUInt32LE(at):tiff.readUInt32BE(at);
+  if(u16(2)!==42) return undefined;
+  const ifd=u32(4); if(ifd+2>tiff.length) return undefined;
+  const count=u16(ifd);
+  for(let index=0;index<count;index++) {
+    const entry=ifd+2+index*12; if(entry+12>tiff.length) return undefined;
+    if(u16(entry)===0x0112 && u16(entry+2)===3) return u16(entry+8);
+  }
+  return undefined;
+}
+
 // Metadata can identify a camera, photographer or location even when the pixels are a final cropped export.
 // Keep the lossless encoded image chunks and remove metadata before placing media in a customer snapshot.
 export function stripImageMetadata(dataUrl: string): string {
@@ -243,7 +284,7 @@ export function stripImageMetadata(dataUrl: string): string {
       offset=end; if(type==='IEND') break;
     }
   } else if(mime==='image/jpeg') {
-    parts.push(bytes.subarray(0,2)); let offset=2;
+    parts.push(bytes.subarray(0,2)); let offset=2; let orientation=1;
     while(offset<bytes.length) {
       const start=offset; if(bytes[offset++]!==255) invalid(); while(bytes[offset]===255) offset++;
       const marker=bytes[offset++]; if(marker===undefined) invalid();
@@ -251,6 +292,7 @@ export function stripImageMetadata(dataUrl: string): string {
       if(marker===0x01 || (marker>=0xd0 && marker<=0xd7)) {parts.push(bytes.subarray(start,offset));continue;}
       if(offset+2>bytes.length) invalid(); const length=bytes.readUInt16BE(offset); const end=offset+length;
       if(length<2 || end>bytes.length) invalid();
+      if(marker===0xe1) orientation=exifOrientation(bytes.subarray(offset+2,end)) ?? orientation;
       if(!((marker>=0xe0&&marker<=0xef)||marker===0xfe)) parts.push(bytes.subarray(start,end)); offset=end;
       if(marker===0xda) {
         // Keep stuffed entropy bytes and restart markers; return to segment parsing between progressive scans.
@@ -265,12 +307,16 @@ export function stripImageMetadata(dataUrl: string): string {
         parts.push(bytes.subarray(scanStart,offset));
       }
     }
+    // Browsers rotate photos by the EXIF Orientation tag, and the saved width/height follow that rotation. Keep only that tag.
+    if(orientation>=2&&orientation<=8) parts.splice(1,0,Buffer.from([0xff,0xe1,0,34,...Buffer.from('Exif\0\0','latin1'),
+      0x4d,0x4d,0,0x2a,0,0,0,8, 0,1, 0x01,0x12,0,3,0,0,0,1,0,orientation,0,0, 0,0,0,0]));
   } else if(mime==='image/webp') {
     let offset=12;
     while(offset+8<=bytes.length) {
       const length=bytes.readUInt32LE(offset+4); const end=offset+8+length+(length%2); if(end>bytes.length) invalid();
       const type=bytes.subarray(offset,offset+4).toString();
-      if(!['EXIF','XMP ','ICCP'].includes(type)) {
+      // Allow list: only image data chunks survive (EXIF, XMP, ICC profile and unknown chunks are dropped).
+      if(['VP8X','VP8 ','VP8L','ALPH'].includes(type)) {
         const chunk=Buffer.from(bytes.subarray(offset,end)); if(type==='VP8X'&&chunk.length>8) chunk[8]=chunk[8]!&~(0x20|0x08|0x04); parts.push(chunk);
       }
       offset=end;

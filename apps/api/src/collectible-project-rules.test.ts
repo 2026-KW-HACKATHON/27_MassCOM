@@ -159,3 +159,57 @@ test('MP3 upload rejects an ID3 tag hiding HTML, junk between frames, reserved h
   const long = photoProject(); long.audio = { dataUrl: mp3Url(mp3Frames(1250)), mimeType: 'audio/mpeg', durationSeconds: 5 };
   assert.throws(() => validateCollectibleProject(long), { code: 'COLLECTIBLE_MEDIA_TOO_LARGE' });
 });
+
+function jpegWithExif(orientation: number, secret: string): { url: string; header: Buffer; frame: Buffer; scan: Buffer } {
+  // IFD0 (big-endian): Orientation, then an ASCII tag carrying private text (like GPS/device metadata).
+  const tiff = Buffer.alloc(8 + 2 + 24 + 4); tiff.write('MM', 0); tiff.writeUInt16BE(42, 2); tiff.writeUInt32BE(8, 4); tiff.writeUInt16BE(2, 8);
+  tiff.writeUInt16BE(0x0112, 10); tiff.writeUInt16BE(3, 12); tiff.writeUInt32BE(1, 14); tiff.writeUInt16BE(orientation, 18);
+  tiff.writeUInt16BE(0x010f, 22); tiff.writeUInt16BE(2, 24); tiff.writeUInt32BE(Buffer.byteLength(secret), 26); tiff.writeUInt32BE(tiff.length, 30);
+  const payload = Buffer.concat([Buffer.from('Exif\0\0', 'latin1'), tiff, Buffer.from(secret)]);
+  const app = Buffer.concat([Buffer.from([0xff, 0xe1]), Buffer.from([(payload.length + 2) >> 8, (payload.length + 2) & 255]), payload]);
+  const header = Buffer.from([255, 216]); const frame = Buffer.from([255, 192, 0, 11, 8, 0, 1, 0, 2, 1, 1, 17, 0]);
+  const scan = Buffer.from([255, 218, 0, 8, 1, 1, 0, 0, 63, 0, 1, 2, 255, 0, 3, 255, 217]);
+  return { url: `data:image/jpeg;base64,${Buffer.concat([header, app, frame, scan]).toString('base64')}`, header, frame, scan };
+}
+
+test('stored JPEG originals drop EXIF text but keep the orientation the browser used for the saved width and height', () => {
+  const rotated = jpegWithExif(6, 'GPS 37.61N 127.06E Galaxy');
+  const p = photoProject(); p.photo = { originalDataUrl: rotated.url, width: 1, height: 2 };
+  const saved = Buffer.from(validateCollectibleProject(p).photo.originalDataUrl.split(',')[1]!, 'base64');
+  assert.equal(saved.includes(Buffer.from('GPS')), false); assert.equal(saved.includes(Buffer.from('Galaxy')), false);
+  const orientationOnly = Buffer.from([0xff, 0xe1, 0, 34, ...Buffer.from('Exif\0\0', 'latin1'), 0x4d, 0x4d, 0, 0x2a, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0]);
+  assert.deepEqual(saved, Buffer.concat([rotated.header, orientationOnly, rotated.frame, rotated.scan]));
+  const upright = jpegWithExif(1, 'GPS 37.61N');
+  const q = photoProject(); q.photo = { originalDataUrl: upright.url, width: 2, height: 1 };
+  assert.deepEqual(Buffer.from(validateCollectibleProject(q).photo.originalDataUrl.split(',')[1]!, 'base64'), Buffer.concat([upright.header, upright.frame, upright.scan]));
+  // Story originals are stripped the same way.
+  const r = photoProject(); r.story = { type: 'wide', frames: [{ dataUrl: upright.url, width: 2, height: 1 }], cartoon: 0, strength: 50 };
+  assert.equal(Buffer.from(validateCollectibleProject(r).story.frames[0]!.dataUrl.split(',')[1]!, 'base64').includes(Buffer.from('GPS')), false);
+});
+
+function webp(chunks: Buffer[]): string {
+  const header = Buffer.alloc(12); header.write('RIFF', 0); header.writeUInt32LE(4 + chunks.reduce((n, c) => n + c.length, 0), 4); header.write('WEBP', 8);
+  return `data:image/webp;base64,${Buffer.concat([header, ...chunks]).toString('base64')}`;
+}
+function chunk(type: string, data: Buffer): Buffer { const head = Buffer.alloc(8); head.write(type, 0); head.writeUInt32LE(data.length, 4); return Buffer.concat([head, data, Buffer.alloc(data.length % 2)]); }
+
+test('stored WebP keeps only image chunks, and animated WebP is rejected', () => {
+  const vp8x = Buffer.alloc(10); vp8x[0] = 0x08 | 0x04 | 0x20 | 0x10; vp8x.writeUIntLE(2, 4, 3); vp8x.writeUIntLE(3, 7, 3);
+  const url = webp([chunk('VP8X', vp8x), chunk('ICCP', Buffer.from('profile')), chunk('ALPH', Buffer.from('al')), chunk('EXIF', Buffer.from('GPS')), chunk('XMP ', Buffer.from('<x/>')), chunk('ZZZZ', Buffer.from('owner memo'))]);
+  const p = photoProject(); p.photo = { originalDataUrl: url, width: 3, height: 4 };
+  const saved = Buffer.from(validateCollectibleProject(p).photo.originalDataUrl.split(',')[1]!, 'base64');
+  for (const text of ['GPS', 'profile', '<x/>', 'owner memo']) assert.equal(saved.includes(Buffer.from(text)), false, text);
+  assert.equal(saved.includes(Buffer.from('ALPH')), true); assert.equal(saved[20], 0x10); assert.equal(saved.readUInt32LE(4), saved.length - 8);
+  const animatedFlag = Buffer.from(vp8x); animatedFlag[0] = 0x02;
+  assert.throws(() => validateCollectibleMedia(webp([chunk('VP8X', animatedFlag)]), 'image', 1024), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  const plain = Buffer.from(vp8x); plain[0] = 0;
+  assert.throws(() => validateCollectibleMedia(webp([chunk('VP8X', plain), chunk('ANIM', Buffer.alloc(6))]), 'image', 1024), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+});
+
+test('stored PNG originals drop text and other ancillary chunks', () => {
+  const png = Buffer.from(tinyPng.split(',')[1]!, 'base64');
+  const text = Buffer.concat([Buffer.from([0, 0, 0, 12]), Buffer.from('tEXtAuthor\0Owner'), Buffer.alloc(4)]);
+  const tagged = Buffer.concat([png.subarray(0, 33), text, png.subarray(33)]);
+  const p = photoProject(); p.photo = { originalDataUrl: `data:image/png;base64,${tagged.toString('base64')}`, width: 1, height: 1 };
+  assert.equal(validateCollectibleProject(p).photo.originalDataUrl, tinyPng);
+});
