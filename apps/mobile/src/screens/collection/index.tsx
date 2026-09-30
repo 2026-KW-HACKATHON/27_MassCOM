@@ -38,6 +38,7 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
+import { collectibleFocusAction } from './collectible-focus';
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { CollectibleDetail } from './collectible-detail';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
@@ -128,16 +129,29 @@ export function CollectionScreen({
 
   // Acquisition links open only an entitlement in the authenticated collection.
   // A legacy reward without artwork still remains successfully collected.
+  // The tab stays mounted, so the snapshot may predate the reward just received: when the entitlement is missing, re-read the
+  // collection once through the same generation-gated path as every other read, then open it or show the message.
+  const collectibleLink = useRef<{ rereadFor?: string; doneFor?: string }>({});
   useEffect(() => {
-    if (focus !== 'collectible' || !collection) return;
-    const timer = setTimeout(() => {
-      const item = collection.collectibles.find((value) => value.entitlementId === entitlement);
+    if (focus !== 'collectible') { collectibleLink.current = {}; return; }
+    const link = collectibleLink.current;
+    if (!collection || link.doneFor === entitlement) return;
+    const finish = (snapshot: CollectionSnapshot) => {
+      link.doneFor = entitlement;
+      const item = snapshot.collectibles.find((value) => value.entitlementId === entitlement);
       if (item?.artwork) setCollectibleDetail({ entitlementId: item.entitlementId, merchantName: item.merchantName, client: api });
       else setMessage('보상은 도감에 보관됐어요. 다시 볼 수 있는 가게 수집품은 아직 없어요.');
       router.setParams({ focus: undefined, entitlement: undefined });
-    }, 0);
+    };
+    if (collectibleFocusAction(collection, entitlement, link.rereadFor === entitlement) === 'fetch') {
+      link.rereadFor = entitlement;
+      const generation = startRequest();
+      void api.getCollection().then((next) => { applySnapshot(next, generation); finish(next); }, () => finish(collection));
+      return;
+    }
+    const timer = setTimeout(() => finish(collection), 0);
     return () => clearTimeout(timer);
-  }, [focus, entitlement, collection, router, api]);
+  }, [focus, entitlement, collection, router, api, startRequest, applySnapshot]);
   const { merchants: publicMerchants, loading: merchantsLoading, error: merchantsError, retry: retryMerchants, refresh: refreshMerchants } = useMerchantCatalog(apiUrl);
   const stampSlots = useMemo(
     () => buildStampSlots(publicMerchants, collection?.visits ?? []),
