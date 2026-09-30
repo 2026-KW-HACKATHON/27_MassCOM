@@ -341,9 +341,13 @@ test('고객 웹은 운영 API가 발행 준비 중이라고 하면 접수·진�
   const collectible = { entitlementId: 'reward-1', merchantId: 'merchant-1', merchantName: '월계 가게', campaignId: 'campaign-1',
     campaignTitle: '방문', targetVisitCount: 1, displayName: '마스코트', appCollectibleStatus: 'COLLECTED', mintJobId: null,
     recipient: null, nftStatus: 'NOT_REQUESTED', nft: null };
-  await loadCollection(async (path) => path === '/api/web/collection'
-    ? okJson({ visits: [], collectibles: [collectible], nftMinting: 'PREPARING' })
-    : { ok: false, status: 503 }, doc, { badgesTimeoutMs: 10 });
+  // 도감은 동의를 확인한 뒤에만 읽는다(Issue #253): 이 시험의 계정은 이미 동의했다.
+  const consented = { required: false, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-09-30' };
+  await loadCollection(async (path) => path === '/api/web/consent'
+    ? okJson(consented)
+    : path === '/api/web/collection'
+      ? okJson({ visits: [], collectibles: [collectible], nftMinting: 'PREPARING' })
+      : { ok: false, status: 503 }, doc, { badgesTimeoutMs: 10 });
   const card = nodes['collectible-list'].children[0].children.map((child) => child.textContent).join(' ');
   assert.match(card, /NFT 발행 준비 중/);
   assert.doesNotMatch(card, /미신청|접수/);

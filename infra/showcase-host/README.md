@@ -37,6 +37,23 @@ STAFF 적격 해시를 삭제해도 이미 활성화된 점주 권한은 사라�
 - 점주 화면은 시연 앱의 "점주예요" 모드에만 있다. 키를 넣은 뒤의 실제 호출(비용·지연 측정)은 `NOT_RUN`이며 키 입력 뒤 따로 확인한다.
 
 
+## 보관 기간 정리 작업과 로그 순환 (Issue #253, D-059)
+
+시연 스택도 운영과 같은 기간을 지킨다. **시연에는 배포 스크립트가 없어 시연 API를 새 릴리스로 교체할 때마다 소유자가 아래 절차를 손으로 한다.** 하지 않으면 시연 서버에서는 처리방침의 "서버의 정리 작업"·"DB 오류 로그" 문장이 사실이 아니다.
+
+[`host-jobs/`](host-jobs/)의 `masscom-retention.sh`(기본값: compose 프로젝트 `masscom-showcase`, 서비스 `showcase-api`, 백업 폴더 `/opt/masscom-showcase/backups`)가 하루 한 번(`masscom-showcase-retention.timer`, 19:35 UTC=04:35 KST) 시연 API 컨테이너 안에서 `node dist/postgres/retention-command.js run`을 실행하고(`DATABASE_URL`·`PGPASSWORD`는 컨테이너에 이미 있다) 30일 지난 `*.dump`·`*.dump.*` 백업(예: `pre-<커밋>-<날짜>.dump`)만 `find -delete` 한 명령으로 지운다. 유닛은 `ProtectSystem=strict`·`ReadWritePaths=/opt/masscom-showcase/backups` 등으로 권한을 좁혔다. 30일이 지난 백업은 다음 날 정리 때 삭제되므로 30일 넘게 교체가 없으면 남는 백업이 없다.
+
+**운영 배포보다 먼저(게시 전 관문):** 운영 배포가 게시하는 공개 개인정보처리방침·이용약관은 **시연 앱도 다룬다.** 그래서 이 커밋의 시연 배포(시연 API 교체, migration 0033 자동 적용)와 아래 1~3(정리 작업 설치·`--verify`·PostgreSQL 재생성·확인)을 **운영 배포보다 먼저, 늦어도 같은 작업 창 안에서** 끝낸다. 그러지 않으면 시연 서버에서 처리방침의 "서버 정리 작업"·"DB 오류 로그" 문장이 사실이 아닌 채로 공개된다. 또 매일 정리 작업(19:35 UTC=04:35 KST)과 배포·PostgreSQL 재생성이 겹치면 그날의 DB 정리 단계가 연결 오류로 실패해 종료 코드 1로 남을 수 있으니(다음 날 다시 돈다) 그 시각 전후 교체는 피한다.
+
+**시연 API를 교체할 때마다(소유자, 서버에서):**
+
+1. 정리 작업 설치·갱신(멱등): `sudo bash /opt/masscom-showcase/releases/<커밋>/infra/showcase-host/host-jobs/install.sh`(그 release에 이 폴더가 들어 있어야 한다). 끝에서 `systemctl is-enabled masscom-showcase-retention.timer`가 `enabled`가 아니면 실패한다.
+2. **하드닝 검증(한 번 실제로): 이 저장소 시험은 systemd를 기동하지 못하므로 시연 호스트에서 직접 확인한다.** 먼저 `systemd-analyze verify /etc/systemd/system/masscom-showcase-retention.service /etc/systemd/system/masscom-showcase-retention.timer`가 아무것도 출력하지 않아야 한다(경고·오류가 있으면 멈춘다). 그 다음 `sudo systemctl start masscom-showcase-retention.service`로 **실제로 한 번** 돌려 `journalctl -u masscom-showcase-retention.service`에서 단계별 개수가 나오고 `systemctl show -p Result --value masscom-showcase-retention.service`가 `success`인지 본다. `ProtectSystem=strict`·`RestrictAddressFamilies=AF_UNIX`·`ReadWritePaths` 같은 제한이 docker 소켓 접근이나 백업 삭제를 막으면 여기서 처음 드러난다(미리 `report`: `docker compose … exec -T showcase-api node dist/postgres/retention-command.js report`). 운영은 배포 스크립트가 같은 첫 실행을 하지만 `systemd-analyze verify /etc/systemd/system/masscom-retention.service`는 처음 배포 뒤 한 번 직접 실행해 본다.
+2-1. **확인(읽기 전용):** `sudo bash /opt/masscom-showcase/releases/<커밋>/infra/showcase-host/host-jobs/install.sh --verify`가 `last run result: success`와 `verified: masscom-showcase-retention.timer is enabled and matches this release`를 출력해야 한다. 마지막 실행이 실패했거나(`exit-code` 등) **한 번도 실행하지 않았으면**(마지막 실행 시각이 비어 있음) 실패로 끝난다: 설치만 하고 돌려 보지 않은 작업을 확인됨으로 세지 않는다.
+3. **PostgreSQL 로그 설정 적용(한 번, 짧은 DB 재시작):** `compose.yml`의 `postgres`에는 `json-file` 10 MB × 3개와 `command: ["postgres", "-c", "log_error_verbosity=terse", "-c", "log_min_error_statement=panic"]`이 들어 있다. 실행 중인 컨테이너는 다시 만들어야 적용된다. 시연 DB를 백업한 뒤(교체 절차의 `pre-<커밋>-<날짜>.dump`) 시연 Compose를 기동할 때 쓴 것과 같은 `-f`·`--env-file` 인자로 `docker compose … up -d --no-deps --wait postgres`를 실행하고, 확인한다: `docker inspect --format '{{json .HostConfig.LogConfig.Config}} {{json .Config.Cmd}}' <시연 postgres 컨테이너>`에 `"max-size":"10m"`·`"max-file":"3"`·`log_error_verbosity=terse`·`log_min_error_statement=panic`이 모두 있고 `docker compose … exec -T postgres psql -U masscom_showcase -d masscom_showcase -Atc 'SHOW log_min_error_statement'`가 `panic`을 출력해야 한다. **다시 만들기 전후로 같은 데이터가 붙어 있는지도 확인한다:** 전에 `docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}' <시연 postgres 컨테이너>`로 볼륨 이름을, `docker compose … exec -T postgres psql -U masscom_showcase -d masscom_showcase -Atc "SELECT count(*) || '|' || coalesce(max(filename), '') FROM schema_migrations"`로 데이터 지문을 적어 두고 다시 만든 뒤 두 값이 같아야 한다(다르면 멈추고 백업으로 복구를 검토한다, 볼륨은 지우지 않는다). 그리고 `SHOW log_error_verbosity`가 `terse`여야 한다. 이미 맞으면 다시 만들지 않는다. `showcase-api` 컨테이너의 `json-file` 설정은 시연 API를 `up -d`로 교체할 때 적용된다.
+
+시험은 `bash tests/ops/host_retention_job_test.sh`(가짜 docker), `node --test tests/ops/compose_log_rotation_test.mjs`. 서버 설치·확인은 `NOT_RUN`이다.
+
 ## 계정 삭제 요청 처리 (D-052, Issue #194)
 
 시연 앱은 웹 삭제 페이지와 웹 로그인이 없어 앱 안(Bearer 세션)에서 "계정 삭제 요청"을 접수하고, 접수번호로 처리 상태(취소됨·처리되지 않음과 사유·처리 완료)를 앱에서 조회한다. 접수는 실제 삭제가 아니다: 접수번호를 한 번 보여 주고 24시간은 앱에서 취소할 수 있으며, 그 뒤 **운영자(소유자)가 이 호스트의 CLI로 접수 뒤 7일 안에 처리**한다. 이 요청은 시연 DB에서만 다루고 운영 DB·운영 관리자 웹과 섞지 않는다. 운영 앱은 이 경로 대신 웹 페이지를 쓰므로 운영 API에는 앱 안 접수 경로가 없다.

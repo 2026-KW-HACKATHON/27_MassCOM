@@ -85,7 +85,7 @@ async function startServer(t: TestContext, pool: Pool): Promise<string> {
   const server = createApiServer(service, developmentHeaderAccountResolver,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
     undefined, false, undefined, false, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-    undefined, undefined, undefined, new PostgresNftMetadataReader(pool));
+    undefined, undefined, undefined, undefined, new PostgresNftMetadataReader(pool));
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))));
   const address = server.address();

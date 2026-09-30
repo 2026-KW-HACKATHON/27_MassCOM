@@ -20,7 +20,7 @@ async function start(t: TestContext, reader?: NftMetadataReader): Promise<string
   const server = createApiServer(service, developmentHeaderAccountResolver,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
     undefined, false, undefined, false, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-    undefined, undefined, undefined, reader);
+    undefined, undefined, undefined, undefined, reader);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))));
   const address = server.address();

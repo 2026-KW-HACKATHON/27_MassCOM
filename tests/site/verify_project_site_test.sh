@@ -12,7 +12,7 @@ fi
 
 "$verifier" "$repo_root"
 
-for page in privacy.html account-deletion.html open.html; do
+for page in privacy.html terms.html account-deletion.html open.html; do
   [[ -s "$repo_root/docs/$page" ]] || {
     echo "project portal is missing $page" >&2
     exit 1
@@ -21,10 +21,12 @@ for page in privacy.html account-deletion.html open.html; do
 done
 grep -q 'href="privacy.html"' "$repo_root/docs/index.html"
 grep -q 'href="account-deletion.html"' "$repo_root/docs/index.html"
+grep -q 'href="terms.html"' "$repo_root/docs/index.html"
 for entry in \
   'index.html|https://www.masscom.kr/' \
   'open.html|https://masscom.kr/open' \
   'privacy.html|https://www.masscom.kr/privacy' \
+  'terms.html|https://www.masscom.kr/terms' \
   'account-deletion.html|https://www.masscom.kr/account-deletion'; do
   page="${entry%%|*}"
   canonical="${entry#*|}"

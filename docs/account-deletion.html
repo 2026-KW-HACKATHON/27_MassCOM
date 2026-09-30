@@ -10,7 +10,7 @@
     <link rel="canonical" href="https://www.masscom.kr/account-deletion">
     <link rel="icon" type="image/png" href="assets/mascot-stamp.png">
     <link rel="stylesheet" href="assets/project.css?v=20260929">
-    <link rel="stylesheet" href="assets/legal.css?v=20260930">
+    <link rel="stylesheet" href="assets/legal.css?v=2026093001">
   </head>
   <body>
     <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
@@ -18,7 +18,10 @@
       <a class="brand" href="index.html" aria-label="월계 마스코트 프로젝트 포털로 이동">
         <img class="brand-mark" src="assets/mascot-stamp.png" alt="" width="36" height="36"><span>월계 마스코트</span>
       </a>
-      <a href="privacy.html">개인정보처리방침</a>
+      <nav class="legal-header-links" aria-label="관련 문서">
+        <a href="terms.html">이용약관</a>
+        <a href="privacy.html">개인정보처리방침</a>
+      </nav>
     </header>
 
     <main class="legal-main" id="main-content">
@@ -73,7 +76,7 @@
       </form>
 
       <h2>처리 결과 확인</h2>
-      <p>접수번호를 입력하면 로그인하지 않아도 처리 상태를 볼 수 있습니다. 상태와 날짜만 보여 드리며 계정 정보는 보여 드리지 않습니다.</p>
+      <p>접수번호를 입력하면 로그인하지 않아도 처리 상태를 볼 수 있습니다. 상태와 날짜만 보여 드리며 계정 정보는 보여 드리지 않습니다. 접수 기록은 처리·취소·거절한 뒤 1년이 지나면 삭제하므로, 그 뒤에는 접수번호로 조회해도 찾을 수 없다고 나옵니다.</p>
       <form id="deletion-lookup" method="post" action="#">
         <label for="deletion-receipt-input">접수번호 (예: 7K2M-Q9XD-4HTB-0RWE)</label>
         <input id="deletion-receipt-input" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" required>
@@ -108,7 +111,7 @@
 
     <footer class="legal-footer">
       <p>월계 마스코트(가칭) · 마지막 갱신 2026-09-30 KST</p>
-      <div class="footer-links"><a href="index.html">프로젝트 포털</a><a href="privacy.html">개인정보처리방침</a></div>
+      <div class="footer-links"><a href="index.html">프로젝트 포털</a><a href="privacy.html">개인정보처리방침</a><a href="terms.html">이용약관</a></div>
     </footer>
     <script>
     const $ = (id) => document.getElementById(id);
