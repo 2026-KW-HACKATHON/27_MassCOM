@@ -392,6 +392,15 @@ async function pseudonymizeAccount(
     // 게시·게시 중지·복사·삭제와 같은 가게별 잠금이다(그 거래들도 시작할 때 이 잠금을 잡는다).
     await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`collectible-sources:${sourceMerchant.merchant_id}`]);
   }
+  // 게시 중지와 같이 연결된 캠페인 행을 id 순서로 FOR UPDATE 잠근다: 진행 중인 보상권 트리거(FOR KEY SHARE)가 끝난 뒤
+  // 연결을 지우므로, 이 거래가 끝난 뒤에는 삭제한 점주의 발행본을 새로 잡는 획득이 없다.
+  await client.query(
+    `SELECT campaign.id FROM campaigns campaign WHERE campaign.id IN (
+       SELECT link.campaign_id FROM campaign_collectible_publications link
+       JOIN collectible_projects ON collectible_projects.publication_id = link.publication_id WHERE ${authored})
+     ORDER BY campaign.id FOR UPDATE OF campaign`,
+    [accountId],
+  );
   await client.query(
     `DELETE FROM campaign_collectible_publications link USING collectible_projects
      WHERE link.publication_id = collectible_projects.publication_id AND (${authored})`,

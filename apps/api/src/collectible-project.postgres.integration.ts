@@ -419,3 +419,21 @@ test('a store can hold at most 100 publications with media, so publish/delete/co
   await pool.query('SELECT * FROM collectible_remove_publication_media($1)', [oldest.rows[0]!.id]);
   assert.ok((await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' })).publicationId);
 });
+
+test('account deletion waits for an in-flight claim on a linked campaign before removing the link', async t => {
+  const { pool, projects, input, accountLifecycle } = await setup(t);
+  const draft = await projects.create({ ...input, project: photoProject() });
+  await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  const client = await pool.connect();
+  let deletion: Promise<unknown> | undefined;
+  try {
+    await client.query('BEGIN'); await client.query(`SELECT 1 FROM campaigns WHERE id = 'campaign-a' FOR KEY SHARE`);
+    deletion = new PostgresAccountDeletionService(pool, { hmacSecret: secret, policyVersion: 'test-v1', accountLifecycle })
+      .requestDeletion({ accountId: 'owner-a', confirmation: 'DELETE MY ACCOUNT' });
+    const early = await Promise.race([deletion.then(() => 'finished'), new Promise(resolve => setTimeout(() => resolve('waiting'), 500))]);
+    assert.equal(early, 'waiting');
+    assert.equal((await client.query('SELECT 1 FROM campaign_collectible_publications')).rowCount, 1);
+  } finally { await client.query('ROLLBACK'); client.release(); }
+  await deletion;
+  assert.equal((await pool.query('SELECT 1 FROM campaign_collectible_publications')).rowCount, 0);
+});
