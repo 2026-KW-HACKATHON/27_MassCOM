@@ -10,6 +10,8 @@
 - 실행: `npm test --prefix apps/mobile`(873 PASS, 새 로직 단위 시험 포함), `npm run typecheck --prefix apps/mobile`·`npm run lint --prefix apps/mobile` PASS. `npm test --prefix apps/api`(291 PASS)·`npm run typecheck --prefix apps/api`·`npm run build --prefix apps/api` PASS. `export:android`·PostgreSQL 통합 시험·실기기는 이번 세션에서 돌리지 않았다(`NOT_RUN`).
 - 후속: 실기기에서 획득 연출·동작 줄이기·공유 시트·마스코트 반응 화면 확인(새 빌드 필요), PR 생성과 CI, PostgreSQL 통합 시험(`collection.postgres.integration.ts`)의 실제 DB 재실행.
 
+**2026-10-01 후속(PR #287 두 독립 리뷰 대응, 같은 브랜치):** sonnet·Codex 리뷰가 지적한 11건을 고쳤다. 🔴 마스코트 반응이 한 틱에 여러 개 자격을 얻으면 첫 번째만 보이면서 나머지가 "본 것"으로 함께 기록돼 조용히 사라지던 문제 → 큐로 바꿔 한 번에 하나씩 보여주고, 실제로 보여준 것만 기록한다(`mascot-reactions.ts`의 `enqueueReactionEvents`, `index.tsx`). 로그아웃·계정 전환·세션 무효화가 대표 진열·마스코트 반응 로컬 기록을 지우지 않아 같은 계정 재로그인 때 되살아나던 문제 → `purgeOwnCollectionPrefs`를 모든 인증 종료 경로에서 기다린다(`collection-prefs.ts`, `auth-provider.tsx`). 계정을 빠르게 전환할 때 이전 계정의 지연된 정리 조회가 새 계정의 키를 "다른 계정 것"으로 오인해 지울 수 있던 경합 → `isStillCurrent` 확인을 더했다. 즐겨찾기를 아직 못 읽은 상태에서 탭하면 빈 초기값으로 저장되고 뒤늦은 읽기가 그 변경을 덮어쓰던 문제 → 다 읽을 때까지 탭을 무시한다. 획득 연출은 로딩·실패 상태에도 건너뛰기를 보이고, 동작 줄이기를 연출 중간에 켜거나 화면이 백그라운드로 가면 열림 애니메이션·타이머를 멈추고 바로 정적 결과 화면으로 넘어가며, 소리 끄기는 즉시 재생을 멈추고 세대 값으로 뒤늦은 재생 요청을 무효화한다(`collectible-reveal.tsx`, `AppState` 사용은 `collectible-detail.tsx`와 같은 방식). 공유 준비 중 화면이 없어지면(계정 전환) 캡처·공유 시트를 잇지 않는다(`collectible-share.tsx`). 실행: `npm test --prefix apps/mobile` 883/883 PASS(새 11개 포함), `npm run typecheck --prefix apps/mobile`·`npm run lint --prefix apps/mobile` PASS. `apps/api`는 건드리지 않았다. `git push origin feat/283-collection-experience`로 올렸다.
+
 ## 사진 수집품 제작기 PR 인수인계
 
 (당시 기록이다. PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐다: 아래 Issue #277 항목. 아래 "남은 것"과 "후속"의 병합·배포 항목은 그때 완료됐고 실기기·실제 업로드 확인은 여전히 `NOT_RUN`이다.)
