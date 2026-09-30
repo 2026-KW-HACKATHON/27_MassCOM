@@ -1,5 +1,7 @@
 # HANDOFF
 
+**배포 순서(PR #257 병합 뒤, [D-061](DECISIONS.md)):** ① 병합 → ② 이 코드가 든 운영·시연 Android APK를 새로 빌드해 배포 → ③ **그 뒤에** API·웹 배포. 처리방침 버전이 `privacy-2026-10-01`로 올라 서버가 이 버전을 요구하는 순간, 설치돼 있는 동의 화면 빌드(운영 test.4, 시연 Preview 12·13)는 새 버전을 몰라 "앱을 업데이트해 주세요" 안내에 막힌다(D-059 설계). API·웹을 먼저 배포하면 새 APK가 나오기 전까지 그 사용자가 막힌다. 동의 화면이 없는 더 옛 앱(운영 test.3, 시연 Preview 11 이하)은 막히지 않는다.
+
 ## 사진 수집품 제작기 PR 인수인계
 
 **2026-10-01 인수 후속 2차(서버·DB, opus 독립 리뷰 APPROVE 🔴 0의 후속):** `eac3def` 위에 운영자 제거의 복사 계보 추적, 0034 lock_timeout, Ogg·WebM Opus 서버 검사, 점포당 발행본 100개 상한(`COLLECTIBLE_PUBLICATION_LIMIT`), 🔵 5건을 항목별 커밋으로 더했다(push는 오케스트레이터). 결과는 [TEST_STATUS](TEST_STATUS.md) 첫 항목. 남은 확인: 실제 Chrome·Firefox 녹음 파일 업로드와 실제 카메라 JPEG, 운영 AAB 검사, CI·병합.
