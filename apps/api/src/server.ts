@@ -1603,16 +1603,16 @@ function statusForMerchantArt(code: string): number {
   return 409;
 }
 
-type CollectibleProjectRoute = { merchantId: string; kind: 'list' | 'create' | 'get' | 'save' | 'publish' | 'copy'; projectId?: string };
+type CollectibleProjectRoute = { merchantId: string; kind: 'list' | 'create' | 'get' | 'save' | 'publish' | 'copy' | 'unpublish' | 'delete'; projectId?: string };
 function matchCollectibleProjectRoute(method: string | undefined, path: string, prefix: string): CollectibleProjectRoute | undefined {
   if (!path.startsWith(prefix)) return undefined;
-  const match = path.slice(prefix.length).match(/^([^/]+)\/collectible-projects(?:\/([^/]+)(?:\/(publish|copy))?)?$/);
+  const match = path.slice(prefix.length).match(/^([^/]+)\/collectible-projects(?:\/([^/]+)(?:\/(publish|copy|unpublish|delete))?)?$/);
   if (!match) return undefined;
   const merchantId = match[1]!; const projectId = match[2]; const action = match[3];
   if (!projectId && method === 'GET') return { merchantId, kind: 'list' };
   if (!projectId && method === 'POST') return { merchantId, kind: 'create' };
   if (projectId && !action && (method === 'GET' || method === 'PUT')) return { merchantId, projectId, kind: method === 'GET' ? 'get' : 'save' };
-  if (projectId && method === 'POST' && (action === 'publish' || action === 'copy')) return { merchantId, projectId, kind: action };
+  if (projectId && method === 'POST' && (action === 'publish' || action === 'copy' || action === 'unpublish' || action === 'delete')) return { merchantId, projectId, kind: action };
   return undefined;
 }
 async function runCollectibleProjectRoute(
@@ -1631,6 +1631,8 @@ async function runCollectibleProjectRoute(
   const expectedVersion = requirePositiveInteger(body, 'expectedVersion');
   if (route.kind === 'save') sendJson(response, 200, await projects.save({ ...input, projectId, expectedVersion, project: body.project }));
   else if (route.kind === 'copy') sendJson(response, 201, await projects.copy({ ...input, projectId, expectedVersion }));
+  else if (route.kind === 'unpublish') sendJson(response, 200, await projects.unpublish({ ...input, projectId, expectedVersion }));
+  else if (route.kind === 'delete') sendJson(response, 200, await projects.remove({ ...input, projectId, expectedVersion }));
   else sendJson(response, 200, await projects.publish({ ...input, projectId, expectedVersion, campaignId: requireString(body, 'campaignId') }));
 }
 

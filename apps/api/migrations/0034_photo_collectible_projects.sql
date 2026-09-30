@@ -69,15 +69,17 @@ $$;
 -- 발행본은 media_removed_at을 NULL에서 값으로 바꾸는 UPDATE만, 등급 행은 키를 유지한 summary·detail UPDATE만 통과한다.
 CREATE FUNCTION collectible_publication_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+  -- NEW·OLD 필드는 표마다 다르므로 표 이름 검사와 필드 비교를 IF로 나눈다(plpgsql은 AND 단락 평가를 보장하지 않는다).
   IF TG_OP = 'UPDATE' AND current_setting('masscom.collectible_media_removal', true) = 'on' THEN
-    IF TG_TABLE_NAME = 'collectible_publications'
-       AND OLD.media_removed_at IS NULL AND NEW.media_removed_at IS NOT NULL
-       AND (to_jsonb(NEW) - 'media_removed_at') = (to_jsonb(OLD) - 'media_removed_at') THEN
-      RETURN NEW;
-    END IF;
-    IF TG_TABLE_NAME = 'collectible_publication_grades'
-       AND NEW.publication_id = OLD.publication_id AND NEW.grade_id = OLD.grade_id THEN
-      RETURN NEW;
+    IF TG_TABLE_NAME = 'collectible_publications' THEN
+      IF OLD.media_removed_at IS NULL AND NEW.media_removed_at IS NOT NULL
+         AND (to_jsonb(NEW) - 'media_removed_at') = (to_jsonb(OLD) - 'media_removed_at') THEN
+        RETURN NEW;
+      END IF;
+    ELSIF TG_TABLE_NAME = 'collectible_publication_grades' THEN
+      IF NEW.publication_id = OLD.publication_id AND NEW.grade_id = OLD.grade_id THEN
+        RETURN NEW;
+      END IF;
     END IF;
   END IF;
   RAISE EXCEPTION 'collectible publication is immutable' USING ERRCODE = '23514';

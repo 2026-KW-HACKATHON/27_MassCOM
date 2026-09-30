@@ -21,6 +21,8 @@ async function start(t: TestContext) {
     save:async input=>{calls.push({kind:'save',input});if(input.expectedVersion!==1)throw new CollectibleProjectError('COLLECTIBLE_VERSION_CONFLICT');return project;},
     copy:async input=>{calls.push({kind:'copy',input});return project;},
     publish:async input=>{calls.push({kind:'publish',input});return {project,publicationId:'publication-1',campaignId:input.campaignId};},
+    unpublish:async input=>{calls.push({kind:'unpublish',input});if(input.expectedVersion!==2)throw new CollectibleProjectError('COLLECTIBLE_NOT_PUBLISHED');return {projectId:input.projectId,publicationId:'publication-1',unlinkedCampaignId:'campaign-a'};},
+    remove:async input=>{calls.push({kind:'remove',input});return {projectId:input.projectId,deleted:true as const,unlinkedCampaignId:null};},
     getAcquired:async input=>{calls.push({kind:'acquired',input});throw new CollectibleProjectError('COLLECTIBLE_NOT_FOUND');},
   };
   const webAuth:WebAuthHandler={
@@ -74,6 +76,14 @@ test('project request contracts reject forged author/campaign fields and require
   assert.equal((await request(path+'/copy','POST',{expectedVersion:1})).status,201);
   assert.equal((await request(path+'/publish','POST',{expectedVersion:1,campaignId:'campaign-a'})).status,200);
   assert.equal((await request(base+'/%ZZ')).status,400);
+  assert.equal((await request(path+'/unpublish','POST',{})).status,400);
+  assert.equal((await request(path+'/unpublish','POST',{expectedVersion:2,campaignId:'forged'})).status,400);
+  assert.equal((await request(path+'/unpublish','POST',{expectedVersion:1})).status,409);
+  const unpublished=await request(path+'/unpublish','POST',{expectedVersion:2});
+  assert.equal(unpublished.status,200);assert.deepEqual(await unpublished.json(),{projectId:project.id,publicationId:'publication-1',unlinkedCampaignId:'campaign-a'});
+  assert.equal((await request(path+'/delete','GET')).status,404);
+  const removed=await request(path+'/delete','POST',{expectedVersion:1});
+  assert.equal(removed.status,200);assert.deepEqual(await removed.json(),{projectId:project.id,deleted:true,unlinkedCampaignId:null});
 });
 
 test('merchant JSON media body has dedicated bound above ordinary API64KiB and rejects16MiB overflow',async t=>{

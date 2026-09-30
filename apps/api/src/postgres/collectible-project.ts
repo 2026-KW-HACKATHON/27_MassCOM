@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import {
   CollectibleProjectError, type CollectibleArtwork, type CollectibleDetail, type CollectibleProject, type CollectibleProjectService,
-  type CollectibleProjectSummary, type CollectibleProjectView,
+  type CollectibleProjectSummary, type CollectibleProjectView, type CollectibleUnpublishResult,
 } from '../collectible-project.js';
 import { collectibleSnapshot, validateCollectibleProject } from '../collectible-project-rules.js';
 import { MerchantAccessError } from '../merchant-access.js';
@@ -25,10 +25,13 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
   async list(input: MerchantInput): Promise<readonly CollectibleProjectSummary[]> {
     return this.transaction(input, async client => {
       // Fetch only scalar metadata: a project list never loads or returns original media.
-      const result = await client.query<Omit<ProjectRow, 'project'> & { name: string }>(
-        `SELECT id, merchant_id, version, status, project->>'name' AS name, publication_id, created_at, updated_at
-         FROM collectible_projects WHERE merchant_id = $1 AND project IS NOT NULL ORDER BY updated_at DESC, id DESC LIMIT 100`, [input.merchantId]);
-      return result.rows.map(row => ({ ...mapMetadata(row), name: row.name, schemaVersion: 1 }));
+      const result = await client.query<Omit<ProjectRow, 'project'> & { name: string; distributing_campaign_id: string | null }>(
+        `SELECT project.id, project.merchant_id, project.version, project.status, project.project->>'name' AS name, project.publication_id,
+           project.created_at, project.updated_at, link.campaign_id AS distributing_campaign_id
+         FROM collectible_projects project
+         LEFT JOIN campaign_collectible_publications link ON link.publication_id = project.publication_id
+         WHERE project.merchant_id = $1 AND project.project IS NOT NULL ORDER BY project.updated_at DESC, project.id DESC LIMIT 100`, [input.merchantId]);
+      return result.rows.map(row => ({ ...mapMetadata(row), name: row.name, schemaVersion: 1, distributingCampaignId: row.distributing_campaign_id }));
     });
   }
 
@@ -93,6 +96,35 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
         `UPDATE collectible_projects SET status = 'PUBLISHED', publication_id = $3, version = version + 1, edited_by_account_id = $4, updated_at = $5
          WHERE id = $1 AND merchant_id = $2 RETURNING ${columns}`, [row.id, input.merchantId, publicationId, input.accountId, this.now()]);
       return { project: mapProject(saved.rows[0]!), publicationId, campaignId: input.campaignId };
+    });
+  }
+
+  // 게시 중지: 이 발행본의 캠페인 배포 연결만 끊는다. 이미 획득한 고객의 발행본은 그대로다.
+  // 캠페인 FOR UPDATE는 보상권 트리거의 FOR KEY SHARE와 직렬화되어, 반환 뒤 새 획득이 이 발행본을 잡지 않는다.
+  async unpublish(input: VersionInput): Promise<CollectibleUnpublishResult> {
+    return this.transaction(input, async client => {
+      const row = await this.load(client, input, true); checkVersion(row, input.expectedVersion);
+      if (row.status !== 'PUBLISHED' || !row.publication_id) throw new CollectibleProjectError('COLLECTIBLE_NOT_PUBLISHED');
+      const unlinkedCampaignId = await unlinkPublication(client, row.publication_id);
+      return { projectId: row.id, publicationId: row.publication_id, unlinkedCampaignId };
+    });
+  }
+
+  // 삭제: 초안은 행째 지우고, 게시 프로젝트는 배포 연결을 끊고 비공개 원본·작성자 식별자를 비운다(발행본 행은 불변이라 남는다).
+  async remove(input: VersionInput): Promise<{ projectId: string; deleted: true; unlinkedCampaignId: string | null }> {
+    return this.transaction(input, async client => {
+      const row = await this.load(client, input, true); checkVersion(row, input.expectedVersion);
+      let unlinkedCampaignId: string | null = null;
+      if (row.status === 'DRAFT') {
+        await client.query('DELETE FROM collectible_projects WHERE id = $1 AND merchant_id = $2', [row.id, input.merchantId]);
+      } else {
+        unlinkedCampaignId = await unlinkPublication(client, row.publication_id!);
+        await client.query('DELETE FROM collectible_project_contributors WHERE project_id = $1', [row.id]);
+        await client.query(
+          `UPDATE collectible_projects SET project = NULL, created_by_account_id = NULL, edited_by_account_id = NULL, updated_at = $3
+           WHERE id = $1 AND merchant_id = $2`, [row.id, input.merchantId, this.now()]);
+      }
+      return { projectId: row.id, deleted: true, unlinkedCampaignId };
     });
   }
 
@@ -166,6 +198,16 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
   }
 }
 
+async function unlinkPublication(client: PoolClient, publicationId: string): Promise<string | null> {
+  const link = await client.query<{ campaign_id: string }>(
+    'SELECT campaign_id FROM campaign_collectible_publications WHERE publication_id = $1', [publicationId]);
+  const campaignId = link.rows[0]?.campaign_id;
+  if (!campaignId) return null;
+  await client.query('SELECT 1 FROM campaigns WHERE id = $1 FOR UPDATE', [campaignId]);
+  const removed = await client.query(
+    'DELETE FROM campaign_collectible_publications WHERE campaign_id = $1 AND publication_id = $2', [campaignId, publicationId]);
+  return removed.rowCount ? campaignId : null;
+}
 function checkVersion(row: ProjectRow, expected: number): void {
   if (!Number.isSafeInteger(expected) || expected < 1) throw new CollectibleProjectError('COLLECTIBLE_INVALID_PROJECT');
   if (row.version !== expected) throw new CollectibleProjectError('COLLECTIBLE_VERSION_CONFLICT');

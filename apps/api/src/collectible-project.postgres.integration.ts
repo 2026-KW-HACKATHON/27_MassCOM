@@ -241,3 +241,106 @@ test('publish validates and strips media before the campaign lock, so a not-read
     assert.equal(outcome, 'COLLECTIBLE_NOT_READY'); assert.ok(Date.now() - started < 1000);
   } finally { await client.query('ROLLBACK'); client.release(); }
 });
+
+test('account deletion stops distributing publications the account authored, keeps others and keeps acquired copies', async t => {
+  const { pool, projects, input, claim, accountLifecycle } = await setup(t);
+  const authored = await projects.create({ ...input, project: photoProject() });
+  const published = await projects.publish({ ...input, projectId: authored.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  const kept = await claim('customer-before-delete', 'before-delete'); const keptId = kept.redeemed.grantedRewards[0]!.entitlementId;
+  const before = await projects.getAcquired({ accountId: 'customer-before-delete', entitlementId: keptId });
+  // Another store owner's own publication is not authored by the deleted account and keeps distributing.
+  await pool.query(`INSERT INTO campaign_goals (campaign_id,target_visit_count,display_name) VALUES ('campaign-b',1,'첫 도장')`);
+  const otherRaw = photoProject('다른 점주 작품'); otherRaw.rewardGrades = { '1': 'bronze' };
+  const otherInput = { merchantId: 'merchant-b', accountId: 'owner-b' };
+  const other = await projects.create({ ...otherInput, project: otherRaw });
+  const otherPublished = await projects.publish({ ...otherInput, projectId: other.id, expectedVersion: 1, campaignId: 'campaign-b' });
+  await new PostgresAccountDeletionService(pool, { hmacSecret: secret, policyVersion: 'test-v1', accountLifecycle }).requestDeletion({ accountId: 'owner-a', confirmation: 'DELETE MY ACCOUNT' });
+  const links = await pool.query<{ campaign_id: string; publication_id: string }>('SELECT campaign_id, publication_id FROM campaign_collectible_publications ORDER BY campaign_id');
+  assert.deepEqual(links.rows, [{ campaign_id: 'campaign-b', publication_id: otherPublished.publicationId }]);
+  const after = await claim('customer-after-delete', 'after-delete');
+  assert.equal(after.redeemed.grantedRewards.length, 1);
+  assert.equal((await pool.query('SELECT 1 FROM collectible_acquisitions WHERE entitlement_id = $1', [after.redeemed.grantedRewards[0]!.entitlementId])).rowCount, 0);
+  assert.deepEqual(await projects.getAcquired({ accountId: 'customer-before-delete', entitlementId: keptId }), before);
+  assert.equal(before.publicationId, published.publicationId);
+});
+
+test('merchant unpublish removes only the current link under an in-transaction MANAGE_ART recheck', async t => {
+  const { pool, projects, input, claim } = await setup(t);
+  const first = await projects.create({ ...input, project: photoProject() });
+  await assert.rejects(projects.unpublish({ ...input, projectId: first.id, expectedVersion: 1 }), { code: 'COLLECTIBLE_NOT_PUBLISHED' });
+  const firstPublished = await projects.publish({ ...input, projectId: first.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  assert.equal((await projects.list(input)).find(p => p.id === first.id)!.distributingCampaignId, 'campaign-a');
+  await assert.rejects(projects.unpublish({ merchantId: 'merchant-b', accountId: 'owner-b', projectId: first.id, expectedVersion: 2 }), { code: 'COLLECTIBLE_PROJECT_NOT_FOUND' });
+  await assert.rejects(projects.unpublish({ ...input, accountId: 'staff-a', projectId: first.id, expectedVersion: 2 }), MerchantAccessError);
+  await assert.rejects(projects.unpublish({ ...input, projectId: first.id, expectedVersion: 1 }), { code: 'COLLECTIBLE_VERSION_CONFLICT' });
+  // A newer publication replaced the link: unpublishing the old one must not remove the new one.
+  const second = await projects.copy({ ...input, projectId: first.id, expectedVersion: 2 });
+  const secondPublished = await projects.publish({ ...input, projectId: second.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  assert.deepEqual(await projects.unpublish({ ...input, projectId: first.id, expectedVersion: 2 }),
+    { projectId: first.id, publicationId: firstPublished.publicationId, unlinkedCampaignId: null });
+  assert.equal((await pool.query('SELECT publication_id FROM campaign_collectible_publications')).rows[0].publication_id, secondPublished.publicationId);
+  const acquired = await claim('customer-before-stop', 'before-stop'); const acquiredId = acquired.redeemed.grantedRewards[0]!.entitlementId;
+  assert.deepEqual(await projects.unpublish({ ...input, projectId: second.id, expectedVersion: 2 }),
+    { projectId: second.id, publicationId: secondPublished.publicationId, unlinkedCampaignId: 'campaign-a' });
+  assert.equal((await projects.list(input)).every(p => p.distributingCampaignId === null), true);
+  const later = await claim('customer-after-stop', 'after-stop');
+  assert.equal((await pool.query('SELECT 1 FROM collectible_acquisitions WHERE entitlement_id = $1', [later.redeemed.grantedRewards[0]!.entitlementId])).rowCount, 0);
+  assert.equal((await projects.getAcquired({ accountId: 'customer-before-stop', entitlementId: acquiredId })).publicationId, secondPublished.publicationId);
+  const delegated = new PostgresCollectibleProjectService(pool, { staffMayManageArt: true, now: () => now });
+  await pool.query(`UPDATE merchant_members SET status='REVOKED', revoked_at=now() WHERE account_id='staff-a'`);
+  await assert.rejects(delegated.unpublish({ ...input, accountId: 'staff-a', projectId: second.id, expectedVersion: 2 }), MerchantAccessError);
+});
+
+test('merchant delete removes drafts (freeing the project cap) and clears a published source while acquired copies remain', async t => {
+  const { pool, projects, input, claim } = await setup(t);
+  const draft = await projects.create({ ...input, project: photoProject() });
+  await assert.rejects(projects.remove({ ...input, projectId: draft.id, expectedVersion: 2 }), { code: 'COLLECTIBLE_VERSION_CONFLICT' });
+  await assert.rejects(projects.remove({ ...input, accountId: 'staff-a', projectId: draft.id, expectedVersion: 1 }), MerchantAccessError);
+  assert.deepEqual(await projects.remove({ ...input, projectId: draft.id, expectedVersion: 1 }), { projectId: draft.id, deleted: true, unlinkedCampaignId: null });
+  assert.equal((await pool.query('SELECT 1 FROM collectible_projects WHERE id = $1', [draft.id])).rowCount, 0);
+  assert.equal((await pool.query('SELECT 1 FROM collectible_project_contributors WHERE project_id = $1', [draft.id])).rowCount, 0);
+  await pool.query(`INSERT INTO collectible_projects (id, merchant_id, project)
+    SELECT gen_random_uuid(), 'merchant-a', '{}'::jsonb FROM generate_series(1, 100)`);
+  await assert.rejects(projects.create({ ...input, project: photoProject() }), { code: 'COLLECTIBLE_PROJECT_LIMIT' });
+  const filler = await pool.query<{ id: string }>(`SELECT id FROM collectible_projects WHERE merchant_id = 'merchant-a' LIMIT 1`);
+  await projects.remove({ ...input, projectId: filler.rows[0]!.id, expectedVersion: 1 });
+  const published = await projects.create({ ...input, project: photoProject() });
+  const publication = await projects.publish({ ...input, projectId: published.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  const acquired = await claim('customer-delete-source', 'delete-source'); const acquiredId = acquired.redeemed.grantedRewards[0]!.entitlementId;
+  const before = await projects.getAcquired({ accountId: 'customer-delete-source', entitlementId: acquiredId });
+  assert.deepEqual(await projects.remove({ ...input, projectId: published.id, expectedVersion: 2 }), { projectId: published.id, deleted: true, unlinkedCampaignId: 'campaign-a' });
+  const source = await pool.query('SELECT project, created_by_account_id, edited_by_account_id, publication_id FROM collectible_projects WHERE id = $1', [published.id]);
+  assert.deepEqual(source.rows[0], { project: null, created_by_account_id: null, edited_by_account_id: null, publication_id: publication.publicationId });
+  assert.equal((await pool.query('SELECT 1 FROM campaign_collectible_publications')).rowCount, 0);
+  await assert.rejects(projects.get({ ...input, projectId: published.id }), { code: 'COLLECTIBLE_PROJECT_NOT_FOUND' });
+  assert.deepEqual(await projects.getAcquired({ accountId: 'customer-delete-source', entitlementId: acquiredId }), before);
+});
+
+test('operator media removal blanks a publication only through the guarded function and hides it from holders', async t => {
+  const { pool, projects, input, claim } = await setup(t);
+  const draft = await projects.create({ ...input, project: photoProject() });
+  const published = await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  const holder = await claim('customer-removed', 'removed'); const entitlementId = holder.redeemed.grantedRewards[0]!.entitlementId;
+  assert.ok((await new PostgresCollectionReader(pool).getCollection('customer-removed')).collectibles[0]!.artwork);
+  // Without the function's session setting every UPDATE stays refused, and the setting never allows other columns or DELETE.
+  await assert.rejects(pool.query(`UPDATE collectible_publications SET media_removed_at = now() WHERE id = $1`, [published.publicationId]), /immutable/);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN'); await client.query(`SET LOCAL masscom.collectible_media_removal = 'on'`);
+    await assert.rejects(client.query(`UPDATE collectible_publications SET reward_grades = '{}' , media_removed_at = now() WHERE id = $1`, [published.publicationId]), /immutable/);
+    await client.query('ROLLBACK');
+    await client.query('BEGIN'); await client.query(`SET LOCAL masscom.collectible_media_removal = 'on'`);
+    await assert.rejects(client.query(`DELETE FROM collectible_publication_grades WHERE publication_id = $1`, [published.publicationId]), /immutable/);
+  } finally { await client.query('ROLLBACK'); client.release(); }
+  const removed = await pool.query<{ removed: number }>('SELECT collectible_remove_publication_media($1) AS removed', [published.publicationId]);
+  assert.equal(removed.rows[0]!.removed, 2);
+  assert.equal((await pool.query('SELECT 1 FROM campaign_collectible_publications')).rowCount, 0);
+  const grades = await pool.query('SELECT summary, detail FROM collectible_publication_grades WHERE publication_id = $1', [published.publicationId]);
+  assert.equal(JSON.stringify(grades.rows).includes('data:'), false);
+  assert.equal((await pool.query('SELECT project FROM collectible_projects WHERE id = $1', [draft.id])).rows[0].project, null);
+  assert.equal((await new PostgresCollectionReader(pool).getCollection('customer-removed')).collectibles[0]!.artwork, undefined);
+  await assert.rejects(projects.getAcquired({ accountId: 'customer-removed', entitlementId }), { code: 'COLLECTIBLE_NOT_FOUND' });
+  assert.equal((await pool.query('SELECT 1 FROM reward_entitlements WHERE id = $1', [entitlementId])).rowCount, 1);
+  // The setting is transaction-local, so the guard is back on afterwards.
+  await assert.rejects(pool.query(`UPDATE collectible_publication_grades SET detail = '{}' WHERE publication_id = $1`, [published.publicationId]), /immutable/);
+});
