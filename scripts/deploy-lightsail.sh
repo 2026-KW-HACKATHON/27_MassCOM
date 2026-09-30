@@ -239,25 +239,39 @@ retry_health() {
   return 1
 }
 
+# `set -E`에서는 명령 치환·함수가 ERR 트랩을 물려받는다. 값을 읽는 도우미가 `$(도우미)`로 불릴 때 실패하면 하위 셸 안에서 되돌림이 한 번 돌고
+# (함수가 `return 1`로 돌려주는 것도 하위 셸에서는 실패한 명령이다) 부모가 다시 한 번 돌려 FULL_DEPLOY_REVERTED·Caddy 재생성이 두 번 나온다.
+# 그래서 값을 읽는 곳은 `$(trap - ERR; 도우미 …)`로 하위 셸의 트랩을 먼저 끄고, 실패는 부모의 `… || { postgres_check_failed 이름; false; }`에서
+# 한 번만 ERR를 건다. (트랩을 끄는 `trap - ERR`는 그 하위 셸에만 적용된다. 도우미를 `$(…)` 밖에서 직접 부르지 않는다.)
 # PostgreSQL 컨테이너가 이 릴리스의 로그 설정(용량 순환 10m×3, 오류 로그에 행 값·SQL 문을 남기지 않는 서버 옵션)으로 떠 있는지 읽기만 해서 본다.
 # 실행 중인 컨테이너는 compose 파일이 바뀌어도 다시 만들어지지 않으므로 배포가 직접 확인한다(Issue #253, D-059).
 postgres_log_settings_ok() {
-  local id log_config command_line
-  id="$(service_id postgres)" && [[ -n "$id" && "$id" != *$'\n'* ]] || return 1
-  log_config="$(sudo docker inspect --format '{{json .HostConfig.LogConfig.Config}}' "$id")" || return 1
-  command_line="$(sudo docker inspect --format '{{json .Config.Cmd}}' "$id")" || return 1
-  [[ "$log_config" == *'"max-size":"10m"'* && "$log_config" == *'"max-file":"3"'* &&
-     "$command_line" == *'log_error_verbosity=terse'* && "$command_line" == *'log_min_error_statement=panic'* ]]
+  (
+    trap - ERR
+    local id log_config command_line
+    id="$(service_id postgres)" && [[ -n "$id" && "$id" != *$'\n'* ]] || exit 1
+    log_config="$(sudo docker inspect --format '{{json .HostConfig.LogConfig.Config}}' "$id")" || exit 1
+    command_line="$(sudo docker inspect --format '{{json .Config.Cmd}}' "$id")" || exit 1
+    [[ "$log_config" == *'"max-size":"10m"'* && "$log_config" == *'"max-file":"3"'* &&
+       "$command_line" == *'log_error_verbosity=terse'* && "$command_line" == *'log_min_error_statement=panic'* ]]
+  ) || return 1
 }
 # 다시 만든 PostgreSQL이 **같은 데이터 볼륨**을 물고 **같은 데이터**를 갖는지 보는 값. 볼륨 이름과, 적용된 마이그레이션의 개수·마지막 파일 이름이다.
 postgres_data_volume() {
   local id
   id="$(service_id postgres)" && [[ -n "$id" && "$id" != *$'\n'* ]] || return 1
-  sudo docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}' "$id"
+  sudo docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}' "$id" || return 1
 }
 postgres_data_fingerprint() {
   compose_no_stdin exec -T postgres psql -U masscom -d masscom -Atc \
-    "SELECT count(*) || '|' || coalesce(max(filename), '') FROM schema_migrations"
+    "SELECT count(*) || '|' || coalesce(max(filename), '') FROM schema_migrations" || return 1
+}
+postgres_setting() {
+  compose_no_stdin exec -T postgres psql -U masscom -d masscom -Atc "SHOW $1" || return 1
+}
+# 어느 확인이 어긋났는지 남기고(되돌림 로그에 이름이 보이게) 호출한 쪽이 `false`로 ERR 트랩을 한 번 건다.
+postgres_check_failed() {
+  echo "POSTGRES_DATA_CHECK_FAILED: $1" >&2
 }
 postgres_recreated=false
 
@@ -318,20 +332,25 @@ sudo install -o root -g root -m 600 "$temporary_env" "$runtime_env"
 rm -f "$temporary_env"
 compose_new build api production-web
 # 사전 백업이 검증된 뒤에만 PostgreSQL을 다시 만든다. 로그 설정이 이미 맞으면 건드리지 않는다.
-# 아래 확인은 `[[ … ]] || false`로 쓴다: 옛 bash(3.2)는 홑 `[[ ]]`의 실패로 ERR 트랩을 걸지 않아 되돌림이 조용히 건너뛰어질 수 있다.
+# 아래 확인은 `… || { postgres_check_failed 이름; false; }`로 쓴다: 옛 bash(3.2)는 홑 `[[ ]]`의 실패로 ERR 트랩을 걸지 않고, 명령 치환 안의 실패가
+# 트랩을 두 번(하위 셸과 부모) 돌리지 않게 하기 위해서다. `false`는 부모에서 한 번만 ERR를 건다.
 if ! postgres_log_settings_ok; then
   # 다시 만들기 전에 볼륨 이름과 데이터 지문을 적어 둔다. 운영 DB는 마이그레이션이 하나 이상 적용돼 있어야 한다.
-  data_volume_before="$(postgres_data_volume)"
-  data_fingerprint_before="$(postgres_data_fingerprint)"
-  [[ -n "$data_volume_before" && "$data_fingerprint_before" =~ ^[1-9][0-9]*\|[0-9]{4}_[a-z0-9_]+\.sql$ ]] || false
+  data_volume_before="$(trap - ERR; postgres_data_volume)" || { postgres_check_failed baseline; false; }
+  data_fingerprint_before="$(trap - ERR; postgres_data_fingerprint)" || { postgres_check_failed baseline; false; }
+  [[ -n "$data_volume_before" && "$data_fingerprint_before" =~ ^[1-9][0-9]*\|[0-9]{4}_[a-z0-9_]+\.sql$ ]] || { postgres_check_failed baseline; false; }
   postgres_recreated=true
   compose_new up -d --no-deps --wait --wait-timeout 120 postgres
-  postgres_log_settings_ok
+  postgres_log_settings_ok || { postgres_check_failed log_settings; false; }
   # 같은 볼륨이 붙어 있고 같은 데이터가 그대로 있어야 한다. 아니면 마이그레이션 없이 되돌린다(볼륨은 지우지 않는다).
-  [[ "$(postgres_data_volume)" == "$data_volume_before" ]] || false
-  [[ "$(postgres_data_fingerprint)" == "$data_fingerprint_before" ]] || false
-  [[ "$(compose_no_stdin exec -T postgres psql -U masscom -d masscom -Atc 'SHOW log_min_error_statement')" == panic ]] || false
-  [[ "$(compose_no_stdin exec -T postgres psql -U masscom -d masscom -Atc 'SHOW log_error_verbosity')" == terse ]] || false
+  data_volume_after="$(trap - ERR; postgres_data_volume)" || { postgres_check_failed volume; false; }
+  [[ "$data_volume_after" == "$data_volume_before" ]] || { postgres_check_failed volume; false; }
+  data_fingerprint_after="$(trap - ERR; postgres_data_fingerprint)" || { postgres_check_failed fingerprint; false; }
+  [[ "$data_fingerprint_after" == "$data_fingerprint_before" ]] || { postgres_check_failed fingerprint; false; }
+  min_error_statement="$(trap - ERR; postgres_setting log_min_error_statement)" || { postgres_check_failed min_error_statement; false; }
+  [[ "$min_error_statement" == panic ]] || { postgres_check_failed min_error_statement; false; }
+  error_verbosity="$(trap - ERR; postgres_setting log_error_verbosity)" || { postgres_check_failed verbosity; false; }
+  [[ "$error_verbosity" == terse ]] || { postgres_check_failed verbosity; false; }
   echo 'POSTGRES_RECREATED_FOR_LOG_SETTINGS'
 fi
 migration_started=true

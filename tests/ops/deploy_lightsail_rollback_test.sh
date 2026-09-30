@@ -101,11 +101,14 @@ run_remote_case() {
             # 로그 설정: 기본은 이미 맞게 떠 있고, pg_old·pg_stuck·pg_up_fail은 옛 설정으로 뜬 컨테이너다(다시 만들면 맞아진다, pg_stuck 제외).
             fixed=true
             case "$failure" in
-              pg_old|pg_up_fail|pg_volume_changed|pg_empty_schema|pg_verbosity_wrong|pg_old_migrate_fail)
+              pg_old|pg_up_fail|pg_volume_changed|pg_empty_schema|pg_verbosity_wrong|pg_old_migrate_fail|pg_minstmt_wrong|pg_show_fail|\
+              pg_psql_fail|pg_inspect_fail|pg_empty_before|pg_blank_before)
                 [[ -e "$scratch/pg-recreated" ]] || fixed=false ;;
               pg_stuck) fixed=false ;;
             esac
             if [[ "$*" == *Mounts* ]]; then
+              # docker inspect 자체가 실패하는 경우(다시 만들기 전): 명령 치환 안의 실패가 되돌림을 한 번만 돌려야 한다.
+              if [[ "$failure" == pg_inspect_fail && ! -e "$scratch/pg-recreated" ]]; then return 1; fi
               # 데이터 볼륨 이름: pg_volume_changed는 다시 만든 컨테이너가 다른 볼륨을 물게 된다.
               if [[ "$failure" == pg_volume_changed && -e "$scratch/pg-recreated" ]]; then echo masscom_postgres_data_other
               else echo masscom_postgres_data; fi
@@ -134,11 +137,19 @@ run_remote_case() {
         elif [[ "$*" == *psql* ]]; then
           case "$*" in
             *schema_migrations*)
-              # 데이터 지문: 마이그레이션 개수|마지막 파일. pg_empty_schema는 다시 만든 컨테이너의 데이터가 비어 있다.
-              if [[ "$failure" == pg_empty_schema && -e "$scratch/pg-recreated" ]]; then echo '0|'
+              # 데이터 지문: 마이그레이션 개수|마지막 파일. pg_empty_schema는 다시 만든 컨테이너의 데이터가 비어 있고,
+              # pg_empty_before·pg_blank_before는 다시 만들기 전부터 비어 있으며(보호 확인), pg_psql_fail은 psql 자체가 실패한다.
+              if [[ "$failure" == pg_psql_fail && ! -e "$scratch/pg-recreated" ]]; then return 1
+              elif [[ "$failure" == pg_empty_before && ! -e "$scratch/pg-recreated" ]]; then echo '0|'
+              elif [[ "$failure" == pg_blank_before && ! -e "$scratch/pg-recreated" ]]; then echo ''
+              elif [[ "$failure" == pg_empty_schema && -e "$scratch/pg-recreated" ]]; then echo '0|'
               else echo '35|0033_account_consents.sql'; fi ;;
             *log_error_verbosity*) if [[ "$failure" == pg_verbosity_wrong ]]; then echo default; else echo terse; fi ;;
-            *) echo panic ;;
+            *)
+              # SHOW log_min_error_statement: pg_minstmt_wrong은 panic이 아닌 값, pg_show_fail은 SHOW 자체의 실패다.
+              if [[ "$failure" == pg_minstmt_wrong ]]; then echo notice
+              elif [[ "$failure" == pg_show_fail ]]; then return 1
+              else echo panic; fi ;;
           esac
         fi
         if [[ "$*" == *'up -d --no-deps --force-recreate caddy'* ]]; then
@@ -286,24 +297,55 @@ dump_line="$(line_of pg_dump)"; recreate_line="$(line_of 'wait-timeout 120 postg
 }
 grep -q 'HOST_JOB_ENABLED' <<<"$out"
 
-# 다시 만들어도 설정이 맞지 않거나 다시 만들기가 실패하면 마이그레이션 없이 이전 릴리스로 되돌린다(PostgreSQL도 이전 정의로).
-for mode in pg_stuck pg_up_fail pg_volume_changed pg_empty_schema pg_verbosity_wrong; do
+# PostgreSQL 다시 만들기 전후 확인이 어긋나거나 실패하면 마이그레이션 없이 이전 릴리스로 **한 번만** 되돌린다.
+# 되돌림이 두 번 돌면(명령 치환 안의 실패가 ERR 트랩을 하위 셸과 부모에서 각각 걸면) FULL_DEPLOY_REVERTED와 Caddy 재생성이 두 번 나온다.
+assert_reverted_once() {
+  local mode="$1" label="$2" recreated="$3" expected_status="${4:-}"
   reset_live_state
   run_remote_case "$mode"
   [[ "$status" != 0 ]] || { echo "$mode did not fail the deploy" >&2; exit 1; }
-  grep -q 'FULL_DEPLOY_REVERTED' <<<"$out" || { echo "$mode did not revert: $out" >&2; exit 1; }
-  if grep -q 'run --rm -T migrate' "$scratch/docker-calls"; then echo "$mode still ran the migration" >&2; exit 1; fi
-  grep -q "$old_release/infra/lightsail/compose.yml.* up -d --no-deps --wait --wait-timeout 120 postgres" "$scratch/docker-calls" || {
-    echo "$mode did not put postgres back to the old release definition" >&2
+  if [[ -n "$expected_status" ]]; then [[ "$status" == "$expected_status" ]] || { echo "$mode status was $status, expected $expected_status" >&2; exit 1; }; fi
+  [[ "$(grep -c 'FULL_DEPLOY_REVERTED' <<<"$out")" == 1 ]] || { echo "$mode: rollback did not report exactly once: $out" >&2; exit 1; }
+  [[ "$(grep -c 'up -d --no-deps --force-recreate caddy' "$scratch/docker-calls")" == 1 ]] || {
+    echo "$mode: rollback ran more than once (caddy was force-recreated more than once)" >&2
     exit 1
   }
+  if [[ -n "$label" ]]; then
+    grep -q "POSTGRES_DATA_CHECK_FAILED: $label" <<<"$out" || { echo "$mode did not name the failed check '$label': $out" >&2; exit 1; }
+  fi
+  if grep -q 'run --rm -T migrate' "$scratch/docker-calls"; then echo "$mode still ran the migration" >&2; exit 1; fi
+  # 어떤 실패에서도 데이터를 지우지 않는다: 볼륨·컨테이너 묶음을 지우는 호출이 없다.
+  if grep -Eq 'volume (rm|prune)| down( |$)|--volumes|compose .* rm ' "$scratch/docker-calls"; then
+    echo "$mode: the rollback removed a volume or container set instead of keeping the data" >&2
+    exit 1
+  fi
+  if [[ "$recreated" == yes ]]; then
+    [[ -e "$scratch/pg-recreated" ]] || { echo "$mode: expected postgres to have been recreated" >&2; exit 1; }
+    grep -q "$old_release/infra/lightsail/compose.yml.* up -d --no-deps --wait --wait-timeout 120 postgres" "$scratch/docker-calls" || {
+      echo "$mode did not put postgres back to the old release definition" >&2
+      exit 1
+    }
+  else
+    # 다시 만들기 전에 멈춘다: PostgreSQL을 건드리지 않았고 되돌릴 것도 없다.
+    [[ ! -e "$scratch/pg-recreated" ]] || { echo "$mode: postgres was recreated although the guard should have stopped first" >&2; exit 1; }
+    if grep -q 'wait-timeout 120 postgres' "$scratch/docker-calls"; then echo "$mode touched postgres" >&2; exit 1; fi
+  fi
   grep -qx 'OLD_ENV=1' "$runtime"
   [[ "$(readlink "$scratch/opt/masscom/current")" == "$old_release" ]]
-done
-# 마지막 모드(pg_verbosity_wrong)까지 돌린 뒤이므로 재생성 실패(7)는 따로 다시 확인한다.
-reset_live_state
-run_remote_case pg_up_fail
-[[ "$status" == 7 ]] || { echo "recreation failure status was $status" >&2; exit 1; }
+}
+#            모드              실패한 확인             다시 만들었나
+assert_reverted_once pg_stuck          log_settings            yes
+assert_reverted_once pg_volume_changed volume                  yes
+assert_reverted_once pg_empty_schema   fingerprint             yes
+assert_reverted_once pg_verbosity_wrong verbosity              yes
+assert_reverted_once pg_minstmt_wrong  min_error_statement     yes
+assert_reverted_once pg_show_fail      min_error_statement     yes
+assert_reverted_once pg_up_fail        ''                      yes 7
+# 다시 만들기 전 보호 확인: 지문이 비었거나(0| 또는 빈 값) docker inspect·psql 자체가 실패하면 PostgreSQL을 건드리지 않고 되돌린다.
+assert_reverted_once pg_empty_before   baseline                no
+assert_reverted_once pg_blank_before   baseline                no
+assert_reverted_once pg_psql_fail      baseline                no
+assert_reverted_once pg_inspect_fail   baseline                no
 # 재생성은 됐지만 마이그레이션이 실패하면(9) PostgreSQL을 이전 릴리스의 정의로 되돌리고 볼륨은 지우지 않는다.
 reset_live_state
 run_remote_case pg_old_migrate_fail

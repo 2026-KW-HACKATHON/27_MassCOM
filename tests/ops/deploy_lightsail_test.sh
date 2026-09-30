@@ -172,10 +172,24 @@ grep -q 'postgres_log_settings_ok' "$deploy" && grep -q 'compose_new up -d --no-
   exit 1
 }
 grep -q 'postgres_data_volume' "$deploy" && grep -q 'postgres_data_fingerprint' "$deploy" &&
-  grep -q "SHOW log_error_verbosity" "$deploy" && grep -q "SHOW log_min_error_statement" "$deploy" || {
+  grep -q 'postgres_setting log_error_verbosity' "$deploy" && grep -q 'postgres_setting log_min_error_statement' "$deploy" &&
+  grep -q 'psql -U masscom -d masscom -Atc "SHOW \$1"' "$deploy" || {
   echo 'a recreated postgres is not checked for the same data volume, the same data and its log options' >&2
   exit 1
 }
+# 값을 읽는 도우미는 `$(trap - ERR; 도우미 …)`로만 부른다. 트랩을 끄지 않은 `$(도우미)`는 옛 bash(3.2)에서 실패한 명령 치환 안에서 되돌림을 한 번 더
+# 돌린다(bash 5는 그렇지 않아 CI만으로는 걸리지 않으므로 여기서 모양으로도 막는다). 실패 이름은 POSTGRES_DATA_CHECK_FAILED로 남긴다.
+if grep -Eq '\$\(postgres_(data_volume|data_fingerprint|setting)' "$deploy"; then
+  echo 'a postgres helper is read through $(…) without switching the ERR trap off first (double rollback on old bash)' >&2
+  exit 1
+fi
+[[ "$(grep -c 'trap - ERR; postgres_' "$deploy")" -ge 6 ]] || {
+  echo 'the postgres data/setting reads must all switch the ERR trap off inside their substitution' >&2
+  exit 1
+}
+for label in baseline log_settings volume fingerprint min_error_statement verbosity; do
+  grep -q "postgres_check_failed $label" "$deploy" || { echo "postgres check '$label' does not name itself when it fails" >&2; exit 1; }
+done
 grep -q 'systemctl start masscom-retention.service' "$deploy" && grep -q 'systemctl show -p Result --value masscom-retention.service' "$deploy" || {
   echo 'full deployment does not run the installed retention job once and check its result' >&2
   exit 1
