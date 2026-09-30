@@ -93,6 +93,7 @@ export function makeConsentStyles(palette: AppColors, hairlineWidth = 1) {
       borderWidth: hairlineWidth,
       borderColor: palette.separator,
     },
-    secondaryText: { color: palette.primary, fontSize: 16, lineHeight: 22, fontWeight: '800', textAlign: 'center' },
+    // Same full-width box as submitText, for the same Samsung measurement gap.
+    secondaryText: { alignSelf: 'stretch', color: palette.primary, fontSize: 16, lineHeight: 22, fontWeight: '800', textAlign: 'center' },
   } satisfies Record<string, ViewStyle | TextStyle>;
 }

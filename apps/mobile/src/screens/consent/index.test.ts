@@ -29,16 +29,20 @@ test('the start button is disabled and says so until all three are checked, then
   assert.match(screen, /submitConsent\(client, credential, checks\)/);
 });
 
-test('the start button label spans the button so a narrow Android measurement cannot clip "시작" (#271)', () => {
+test('button labels span their buttons so a narrow Android measurement cannot clip them (#271)', () => {
   const start = screen.indexOf('<Text\n          numberOfLines={2}');
   assert.ok(start > 0, 'the start button label keeps numberOfLines={2}');
   const label = screen.slice(start, screen.indexOf('</Text>', start));
-  // Wraps instead of clipping; never shrinks or caps the text.
-  assert.match(label, /consentCopy\.submit/);
-  assert.doesNotMatch(label, /adjustsFontSizeToFit|allowFontScaling|maxFontSizeMultiplier/);
+  // The label uses the stretched style; wraps instead of clipping; never shrinks or caps the text; no remount key.
+  assert.match(label, /style=\{\[styles\.submitText,/);
+  assert.doesNotMatch(label, /adjustsFontSizeToFit|allowFontScaling|maxFontSizeMultiplier|key=/);
   const styles = readFileSync(new URL('./styles.ts', import.meta.url), 'utf8');
+  const block = (name: string) => styles.match(new RegExp(`\\b${name}: \\{[^}]*\\}`))?.[0] ?? '';
   // Samsung One UI measured the 900-weight label at 260px but drew it at ~300px; a full-width box stays centred.
-  assert.match(styles, /submitText: \{ alignSelf: 'stretch',[^}]*textAlign: 'center' \}/);
+  for (const name of ['submitText', 'secondaryText']) {
+    assert.match(block(name), /alignSelf: 'stretch'/, `${name} spans its button`);
+    assert.match(block(name), /textAlign: 'center'/, `${name} stays centred`);
+  }
   assert.match(styles, /submitTextDisabled: \{ color: palette\.secondaryLabel \}/);
 });
 
