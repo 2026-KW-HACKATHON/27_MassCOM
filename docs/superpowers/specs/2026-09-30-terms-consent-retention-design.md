@@ -121,7 +121,7 @@ CREATE INDEX account_consents_agreed_at ON account_consents (agreed_at);
 | `admin_role_audit` | `platform_admin_role_audit`(관리자 권한 부여·회수) | **3년** | 접근권한 부여·말소 기록, 참조·읽기 없음 |
 | `staff_registration_audit` | `staff_registration_audit`(직원 등록 승인·해제) | **3년** | 접근권한 부여·말소 기록(`request_id`는 이 표가 참조하는 쪽이며 `ON DELETE SET NULL`) |
 | `coupon_audit` | `badge_coupon_audit` | **1년** | 아래 참고 |
-| `customer_identity_tokens` | 고객 확인 QR의 일회용 값(계정 ID를 가짐) | `expires_at`이 **1일**보다 오래됨 | 몇 분 안에 쓰이고 만료된다. 만료 뒤에는 읽는 쪽(`customer-identity.ts`·`claim-slot-service.ts`)이 만료·미존재를 같은 거절로 다룬다 |
+| `customer_identity_tokens` | 고객 확인 QR의 일회용 값(계정 ID를 가짐) | `expires_at`이 **1일**보다 오래됨 | 몇 분 안에 쓰이고 만료된다. 읽는 곳은 둘이다. `customer-identity.ts`는 행이 없거나 만료면 거절하므로 만료 1일 뒤 삭제는 거절 사유를 "만료"에서 "확인 불가"로 바꿀 뿐이다. `claim-slot-service.ts`는 **이미 쓴(consumed) 토큰의 재시도 경로**(:198 근처)가 만료를 확인하지 않고 이미 만든 수령 슬롯을 그대로 돌려주는데, 행이 지워지면 그 재시도는 `CUSTOMER_IDENTITY_UNAVAILABLE`로 거절된다. 즉 삭제는 이 재시도 경로를 **만료 1일 뒤부터 좁힐** 뿐이며(그 전에는 그대로), 몇 분 안에 끝나는 정상 재시도에는 영향이 없다 |
 | `wallet_challenges` | 지갑 주소 확인 요청 | `expires_at`이 **1일**보다 오래됨 | 저장소가 새 요청을 만들 때마다 만료 행을 지운다(`create`). 만료 뒤에는 읽는 곳이 없다 |
 | `web_oauth_states` | 웹 로그인 진행 상태 | `expires_at`이 **1일**보다 오래됨 | 계정 ID는 없지만 검증 값이 쌓이지 않게 한다. 로그인 시작이 100건씩 지우고 소비는 `expires_at > now`만 본다 |
 | `staff_registration_requests` | 직원 등록 요청(계정 ID를 가짐) | `consumed_at` 또는 `expires_at`이 **1일**보다 오래됨 | 승인 조회는 미사용(`consumed_at IS NULL`) 요청만 본다. 감사 표의 `request_id`는 `ON DELETE SET NULL`이다 |
@@ -145,7 +145,7 @@ CREATE INDEX account_consents_agreed_at ON account_consents (agreed_at);
 - **환경 백업은 지우지 않는다(구현 선택):** `runtime-before-*.env.*`(비밀 포함)·`caddyfile-before-*`·`caddy-rollback-*.yml.*`은 이 작업 대상이 아니다. 배포 롤백 뒤에는 실행 중인 Caddy가 그 파일을 마운트로 물고 있을 수 있어(`deploy-lightsail.sh`의 `compose_old_caddy`) 지우면 다음 배포의 사전 검사(`old_caddyfile_source` 파일 존재)가 깨진다. 환경 백업의 비밀은 개인정보가 아니라 처리방침의 약속 밖이다. 정리 정책은 소유자와 따로 정한다.
 - **재정의는 시험 표시가 있을 때만:** `MASSCOM_DOCKER`·`MASSCOM_BACKUP_DIR` 같은 환경 변수는 `MASSCOM_RETENTION_TEST=1`을 명시할 때만 받는다. systemd에서는 환경에 무엇이 있든 고정된 경로·기간·`docker`만 쓴다.
 - **유닛은 권한을 좁힌다:** `UMask=0077`, `NoNewPrivileges`, `PrivateTmp`, `PrivateDevices`, `ProtectSystem=strict`, `ReadWritePaths=<그 스택의 백업 폴더>`(쓸 수 있는 곳은 그것 하나), `ProtectHome=read-only`, `ProtectKernelTunables`·`Modules`·`ControlGroups`, `RestrictSUIDSGID`, `LockPersonality`. docker 소켓 연결은 읽기 전용 마운트에서도 되므로 `ProtectSystem=strict`와 함께 동작하고, 소켓 경로를 막는 설정(`InaccessiblePaths`·`PrivateNetwork` 등)은 두지 않는다. 백업 폴더가 없으면 `ReadWritePaths`가 유닛 시작을 막으므로 `install.sh`가 먼저 만든다.
-- **운영은 배포가 설치·확인한다:** `scripts/deploy-lightsail.sh`가 배포 성공 뒤 그 릴리스의 `host-jobs/install.sh`를 다시 실행하고(멱등: 스크립트·유닛을 그 릴리스 것으로 맞추고 timer를 켠다) `systemctl is-enabled masscom-retention.timer`를 읽기 전용으로 확인한다. 실패하면 이미 올라간 릴리스는 되돌리지 않고 `HOST_JOB_INSTALL_FAILED`로 배포를 실패로 알린다(처리방침의 "서버의 정리 작업" 문장은 이 timer가 켜져 있어야 사실이다). 배포 스크립트가 systemd에 직접 하는 일은 그 읽기 전용 확인뿐이다.
+- **운영은 배포가 설치·확인한다:** `scripts/deploy-lightsail.sh`가 배포 성공 뒤 그 릴리스의 `host-jobs/install.sh`를 다시 실행하고(멱등: 스크립트·유닛을 그 릴리스 것으로 맞추고 timer를 켠다) `systemctl is-enabled masscom-retention.timer`를 읽기 전용으로 확인한 뒤 설치한 작업을 바로 한 번 실행(`systemctl start masscom-retention.service`)해 `systemctl show -p Result --value`가 `success`인지 확인한다(매일 작업과 같은 일이라 켜져만 있고 실제로는 실패하는 작업을 통과시키지 않는다). 실패하면 이미 올라간 릴리스는 되돌리지 않고 `HOST_JOB_INSTALL_FAILED`로 배포를 실패로 알린다(처리방침의 "서버의 정리 작업" 문장은 이 timer가 켜져 있어야 사실이다). 배포 스크립트가 systemd에 직접 하는 일은 그 읽기 전용 확인과 설치한 작업의 첫 실행·결과 읽기뿐이다(활성화·중지·재시작은 `install.sh`만 한다). `install.sh --verify`는 마지막 실행 결과(`Result`)도 보고하고 `success`가 아니면 실패한다.
 - **시연은 소유자가 손으로:** 시연에는 배포 스크립트가 없으므로 시연 API를 교체할 때마다 그 릴리스 폴더의 `install.sh`를 실행하고 `install.sh --verify`(읽기 전용: timer가 켜져 있고 스크립트·유닛이 그 릴리스와 같은지)로 확인한다. 절차는 `infra/showcase-host/README.md`에 있다.
 - 스크립트·설치·배포 동작은 저장소 시험(`tests/ops/host_retention_job_test.sh`의 가짜 `docker`, `tests/ops/deploy_lightsail_rollback_test.sh`의 원격 스크립트 모의)이 확인한다.
 
@@ -155,7 +155,7 @@ CREATE INDEX account_consents_agreed_at ON account_consents (agreed_at);
 
 - **실제 한도:** 컨테이너마다 최대 30 MB(10 MB 파일 3개)이며 차면 가장 오래된 조각부터 사라진다. 이는 **용량 기준**이다. 시간 기준 삭제는 없다. 컨테이너를 다시 만들면 그 컨테이너의 로그도 함께 사라진다.
 - **접속 기록이 없다는 사실:** 운영 `Caddyfile`에는 `log` 지시문이 없어 Caddy 2.10.2는 요청별 접속 기록(access log)을 남기지 않는다(같은 형태의 설정으로 로컬 Caddy 2.10.2에 요청을 보내 표준 출력에 요청 줄이 없음을 확인했다. 운영 서버 실측은 `NOT_RUN`). API는 시작·처리하지 못한 오류(오류 이름만, 계정·토큰 없음)만 출력한다. 따라서 Issue의 "접속 로그 3개월 이내 순환"은 **접속 기록을 남기지 않는 구성 + 남는 컨테이너 로그의 용량 한도**로 대신했고, **"3개월"이라는 시간 보장은 하지 않으며** 처리방침에도 쓰지 않는다. 이 이탈은 D-056에 `PROPOSED`(소유자 확인 대기)로 기록한다.
-- **적용은 배포가 확인한다:** 컨테이너는 compose 파일이 바뀌어도 저절로 다시 만들어지지 않는다. 운영 배포는 api·web·caddy를 새 이미지로 다시 만들 때 로그 설정이 적용되고, **PostgreSQL은 사전 백업이 검증된 뒤 `docker inspect`로 `HostConfig.LogConfig`에 `max-size`가 없거나 `Config.Cmd`가 위 명령과 다르면 그 컨테이너만 `up -d --no-deps --wait`로 한 번 다시 만든다**(짧은 DB 재시작). 다시 만든 뒤 설정을 다시 읽고 `SHOW log_min_error_statement`가 `panic`인지 확인하며, 어긋나면 마이그레이션 없이 되돌린다(PostgreSQL도 이전 릴리스의 compose 정의로 한 번 더 다시 만들어진다). 이미 맞으면 건드리지 않는다. 시연은 소유자가 같은 명령을 절차대로 실행한다(`infra/showcase-host/README.md`).
+- **적용은 배포가 확인한다:** 컨테이너는 compose 파일이 바뀌어도 저절로 다시 만들어지지 않는다. 운영 배포는 api·web·caddy를 새 이미지로 다시 만들 때 로그 설정이 적용되고, **PostgreSQL은 사전 백업이 검증된 뒤 `docker inspect`로 `HostConfig.LogConfig`에 `max-size`가 없거나 `Config.Cmd`가 위 명령과 다르면 그 컨테이너만 `up -d --no-deps --wait`로 한 번 다시 만든다**(짧은 DB 재시작). 다시 만든 뒤 설정을 다시 읽고 **같은 데이터 볼륨(이름)과 같은 데이터(적용된 마이그레이션 개수·마지막 파일 이름)가 그대로인지**, `SHOW log_min_error_statement`가 `panic`이고 `SHOW log_error_verbosity`가 `terse`인지 확인하며, 어긋나면 마이그레이션 없이 되돌린다(PostgreSQL도 이전 릴리스의 compose 정의로 한 번 더 다시 만들어진다). 이미 맞으면 건드리지 않는다. 시연은 소유자가 같은 명령을 절차대로 실행한다(`infra/showcase-host/README.md`).
 
 ## 8. 개인정보처리방침 변경 (`docs/privacy.html`)
 
@@ -167,7 +167,7 @@ CREATE INDEX account_consents_agreed_at ON account_consents (agreed_at);
 ## 9. 배포 순서, 호환, 롤백
 
 1. **migration 0033 + API 먼저.** 새 표뿐이라 옛 API·옛 앱이 그대로 동작한다. 새 API는 옛 앱이 모르는 경로만 더한다. `scripts/deploy-lightsail.sh`가 migration 호환 증거 `backward_compatible=yes`를 요구하는데, 0033은 표 추가 하나라 성립한다(0032와 독립). 같은 배포가 웹(`/terms`·`/app/` 동의 폼)과 정리 작업 설치, 필요하면 PostgreSQL 로그 설정 적용까지 한다. **웹 전용 배포**(`deploy-lightsail-web.sh`)는 후보 Caddy가 로그인 없는 `/api/web/consent`를 운영 API에서 401로 받는지 확인하고, 404(API에 경로가 없거나 Caddy가 넘기지 않음)나 503이면 멈춘다.
-2. **시연 API 교체**(migration 0033 자동 적용) 뒤 소유자가 시연 정리 작업과 PostgreSQL 로그 설정을 절차대로 적용한다.
+2. **(게시 전 관문) 시연이 먼저:** 운영 배포가 공개하는 처리방침·이용약관은 시연 앱도 다룬다. 그래서 이 커밋의 **시연 API 교체**(migration 0033 자동 적용)와 소유자의 시연 정리 작업 설치·`--verify`·PostgreSQL 재생성·확인을 운영 배포보다 먼저, 늦어도 같은 작업 창 안에서 끝낸다(안 하면 시연 서버에서 공개 문장이 사실이 아니다). 순서상 이 항목이 아래 1번의 운영 배포보다 앞선다.
 3. **새 앱(운영·시연 APK).** 옛 앱은 동의 화면 없이 계속 동작하고, 서버는 옛 앱의 쓰기를 막지 않는다.
 
 **롤백:** 표는 남고 무해하다. **API를 0033 이전으로 되돌리면** 새 앱·웹은 `/me/consent`·`/api/web/consent`가 404가 되어 동의 확인이 실패하고 "다시 시도/로그아웃"에 막히므로 **웹과 APK도 함께 이전 버전으로 돌려야 한다.** 또 옛 API의 계정 삭제는 `account_consents`를 지우지 않으므로 옛 API가 도는 동안 삭제 처리된 계정의 동의 행이 남는다. 새 API로 다시 올린 뒤 API 컨테이너 안에서 **한 번** 실행한다: `node dist/postgres/retention-command.js purge-deleted-consents`(`ACCOUNT_DELETION_HMAC_SECRET`이 컨테이너에 있어야 한다). 삭제 원장에는 계정 ID 없이 HMAC 해시만 있으므로 명령이 동의 행의 계정마다 같은 비밀로 해시를 다시 구해 원장과 대조하고, 원장에 있는 계정의 행만 지운 뒤 개수(`deleted_account_consents`)만 출력한다(살아 있는 계정의 행은 지우지 않는다: 시험에서 틀린 비밀로는 0건). 매일 정리에는 넣지 않았다.
