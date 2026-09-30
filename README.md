@@ -31,8 +31,8 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 
 | 지금 실제로 되는 것 | 근거 |
 | --- | --- |
-| 시연 앱: 가상 점포 3곳 탐색·QR 방문·도감, 하늘 동네·탐험 여권(배지·상자·쿠폰), 동네 지도·길찾기, 친구 코드/QR | [Preview 14 설치](docs/evidence/showcase-preview14-release-2026-10-01.json), [탐험 여권 실기](docs/evidence/explorer-passport-emulator-2026-09-29/README.md), [친구 배포](docs/evidence/friends-deployment-2026-09-29.json) |
-| 점주 웹: 사진 수집품 제작기, 방문·쿠폰 되돌리기 | [TEST_STATUS](docs/TEST_STATUS.md) |
+| 시연 앱: 가상 점포 3곳 탐색·QR 방문·도감, 하늘 동네·탐험 여권(배지·상자·쿠폰), 동네 지도·길찾기, 친구 탭 | [Preview 14 설치](docs/evidence/showcase-preview14-release-2026-10-01.json), [탐험 여권 실기](docs/evidence/explorer-passport-emulator-2026-09-29/README.md), [지도 실폰](docs/evidence/town-map-2026-09-29/README.md), [친구 배포](docs/evidence/friends-deployment-2026-09-29.json) (두 계정 사이 친구 코드·QR 추가는 `NOT_RUN`) |
+| 점주 웹: 사진 수집품 제작기, 방문·쿠폰 되돌리기 화면 | [TEST_STATUS](docs/TEST_STATUS.md) (실제 방문을 되돌리는 실행은 `NOT_RUN`) |
 | 서버: 실제 점포 운영 시작·약관 동의·NFT 메타데이터 API가 운영·시연에 배포됨 | [배포 증거](docs/evidence/store-consent-nft-deployment-2026-09-30.json) |
 | NFT: Local Anvil·Base Sepolia 테스트넷 발행·장애 복구 검증 | [Worker 검증](docs/TEST_STATUS.md) |
 | 운영 test.5·시연 Preview 14 APK 서명·설치 확인(Samsung 실기) | [운영 test.5](docs/evidence/operating-android-test5-2026-10-01.json) |
