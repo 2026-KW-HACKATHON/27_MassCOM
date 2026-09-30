@@ -31,7 +31,7 @@
   "rejectedFirstCandidate": {
     "apkSha256": "6c4d534806aee9234a9d6c617e87ec216cf8cd6fa5017d699905a9bb2b60a5c7",
     "finding": "built from the same source right after the operating AAB, it embedded the production API URL (a stale shared Metro cache with CI=1): the phone showed 0 stores and the showcase session was logged out; only read requests reached production (/merchants and the consent check)",
-    "disposition": "NOT published; cause and fix are tracked in Issue #273 (in progress); the Metro cache was cleared and the APK was rebuilt",
+    "disposition": "NOT published; cause (an estimate) and fix are tracked in Issue #273 (a bundle API address check, scripts/check-embedded-api.sh, was merged later in PR #275); the Metro cache was cleared and the APK was rebuilt",
     "ownerAction": "the owner must log in again in the showcase app"
   },
   "notRun": [
