@@ -24,9 +24,10 @@ export interface MerchantArtService {
   getState(merchantId: string): Promise<MerchantArtState>;
   createRound(input: { merchantId: string; accountId: string }): Promise<ArtRoundView>;
   getRound(input: { merchantId: string; roundId: string }): Promise<ArtRoundView>;
-  chooseDraft(input: { merchantId: string; roundId: string; index: number }): Promise<ArtRoundView>;
-  apply(input: { merchantId: string; roundId: string }): Promise<{ artUrl: string }>;
-  reset(merchantId: string): Promise<void>;
+  // 그림을 바꾸는 네 메서드는 accountId의 현재 멤버십·MANAGE_ART를 자기 트랜잭션 안에서 다시 확인한다(잃었으면 MerchantAccessError).
+  chooseDraft(input: { merchantId: string; roundId: string; index: number; accountId: string }): Promise<ArtRoundView>;
+  apply(input: { merchantId: string; roundId: string; accountId: string }): Promise<{ artUrl: string }>;
+  reset(input: { merchantId: string; accountId: string }): Promise<void>;
   // 지금 적용된 그림만 sha256으로 찾는다. 없으면 null.
   getPublicImage(sha256: string): Promise<Buffer | null>;
 }

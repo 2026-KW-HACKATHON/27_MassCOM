@@ -29,6 +29,7 @@ import {
   type ArtRoundStatus,
   type ArtSubject,
 } from '../ai-art-rules.js';
+import { canManageArt, MerchantAccessError } from '../merchant-access.js';
 import {
   MerchantArtError,
   type ArtRoundView,
@@ -37,6 +38,7 @@ import {
 } from '../merchant-art.js';
 import { safeErrorMetadata } from '../security-log.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
+import { requireActiveMerchantMember } from './merchant-membership.js';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const inProgressSql = `('DRAFTING', 'FINALIZING')`;
@@ -47,6 +49,8 @@ type Options = {
   client?: AiArtImageClient;
   config: Pick<AiArtConfig, 'monthlyBudgetMicroUsd' | 'dailyDraftRounds' | 'dailyFinals' | 'rates'>;
   accountLifecycle?: PostgresAccountLifecycle;
+  // MANAGE_ART 재확인 규칙(PostgresMerchantAccessControl과 같은 값을 넘긴다). 기본 false = 활성 OWNER만.
+  staffMayManageArt?: boolean;
   now?: () => Date;
   nextRoundId?: () => string;
   staleAfterMs?: number;
@@ -70,6 +74,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
   private readonly client: AiArtImageClient | undefined;
   private readonly config: Options['config'];
   private readonly accountLifecycle: PostgresAccountLifecycle | undefined;
+  private readonly staffMayManageArt: boolean;
   private readonly now: () => Date;
   private readonly nextRoundId: () => string;
   private readonly staleAfterMs: number;
@@ -80,6 +85,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
     this.client = options.client;
     this.config = options.config;
     this.accountLifecycle = options.accountLifecycle;
+    this.staffMayManageArt = options.staffMayManageArt === true;
     this.now = options.now ?? (() => new Date());
     this.nextRoundId = options.nextRoundId ?? randomUUID;
     this.staleAfterMs = options.staleAfterMs ?? staleRoundMs;
@@ -130,6 +136,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
 
     const spendIds = await this.transaction(async (client) => {
       if (this.accountLifecycle) await this.accountLifecycle.assertActive(client, input.accountId);
+      await this.requireManageArt(client, input.merchantId, input.accountId);
       await this.lockMerchant(client, input.merchantId);
       await this.interruptStale(client, input.merchantId);
       // 오래된 미적용 라운드 정리(이미지는 CASCADE). 적용된 라운드 행은 지우지 않는다(다시 눌렀을 때 같은 결과를 주는 멱등 기록).
@@ -188,7 +195,9 @@ export class PostgresMerchantArtService implements MerchantArtService {
     return this.requireView(input.roundId, input.merchantId);
   }
 
-  async chooseDraft(input: { merchantId: string; roundId: string; index: number }): Promise<ArtRoundView> {
+  async chooseDraft(
+    input: { merchantId: string; roundId: string; index: number; accountId: string },
+  ): Promise<ArtRoundView> {
     if (!this.client) throw new MerchantArtError('AI_ART_NOT_CONFIGURED');
     if (!Number.isInteger(input.index) || input.index < 0 || input.index >= draftCount) {
       throw new RangeError('draft index out of range');
@@ -197,6 +206,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
     const now = this.now();
 
     const spendId = await this.transaction(async (client) => {
+      await this.requireManageArt(client, input.merchantId, input.accountId);
       await this.lockMerchant(client, input.merchantId);
       await this.interruptStale(client, input.merchantId);
       const round = await this.lockRound(client, input.merchantId, input.roundId);
@@ -239,10 +249,11 @@ export class PostgresMerchantArtService implements MerchantArtService {
     }
   }
 
-  async apply(input: { merchantId: string; roundId: string }): Promise<{ artUrl: string }> {
+  async apply(input: { merchantId: string; roundId: string; accountId: string }): Promise<{ artUrl: string }> {
     if (!uuidPattern.test(input.roundId)) throw new MerchantArtError('AI_ART_ROUND_NOT_FOUND');
     const now = this.now();
     const sha256 = await this.transaction(async (client) => {
+      await this.requireManageArt(client, input.merchantId, input.accountId);
       await this.lockMerchant(client, input.merchantId);
       const round = await this.lockRound(client, input.merchantId, input.roundId);
       if (round.status === 'APPLIED') {
@@ -282,10 +293,11 @@ export class PostgresMerchantArtService implements MerchantArtService {
   }
 
   // 적용(apply)과 같은 가게 잠금을 잡아 되돌리기와 적용이 엇갈려도 결과가 하나로 정해진다. 그림이 없어도 성공한다(멱등).
-  async reset(merchantId: string): Promise<void> {
+  async reset(input: { merchantId: string; accountId: string }): Promise<void> {
     await this.transaction(async (client) => {
-      await this.lockMerchant(client, merchantId);
-      await client.query('DELETE FROM merchant_art WHERE merchant_id = $1', [merchantId]);
+      await this.requireManageArt(client, input.merchantId, input.accountId);
+      await this.lockMerchant(client, input.merchantId);
+      await client.query('DELETE FROM merchant_art WHERE merchant_id = $1', [input.merchantId]);
     });
   }
 
@@ -492,6 +504,15 @@ export class PostgresMerchantArtService implements MerchantArtService {
        WHERE merchant_id = $1 AND status IN ${inProgressSql} AND updated_at < $3`,
       [merchantId, now, new Date(now.getTime() - this.staleAfterMs)],
     );
+  }
+
+  // 그림을 바꾸는 네 메서드가 자기 트랜잭션 안에서 맨 먼저 부른다. 서버의 요청 시작 검사(requirePermission) 뒤 본문을 읽는 동안
+  // 권한이 회수·강등됐을 수 있고, 가게 행 FOR SHARE는 회수·강등 트랜잭션(가게 행 FOR UPDATE)과 직렬화된다.
+  // 잠금 순서(교착 방지): 계정 생존(assertActive) → 가게 행 FOR SHARE → 가게별 advisory → 라운드 행 → 월 예산 advisory.
+  // 회수·강등 쪽은 가게 행 잠금이 이 순서의 앞쪽이고 뒤쪽 잠금은 잡지 않는다.
+  private async requireManageArt(client: PoolClient, merchantId: string, accountId: string): Promise<void> {
+    const { role } = await requireActiveMerchantMember(client, merchantId, accountId);
+    if (!canManageArt(role, this.staffMayManageArt)) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
   }
 
   private async lockMerchant(client: PoolClient, merchantId: string): Promise<void> {
