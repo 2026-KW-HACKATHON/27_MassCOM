@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
-import { isCouponVoidReason, maskedCustomerLabel, normalizeReversalNote } from '../reversal-rules.js';
+import { isCouponVoidReason, looksLikePersonalData, maskedCustomerLabel, normalizeReversalNote } from '../reversal-rules.js';
 import {
   composeOfferConsentNote, isCompleteOwnerOfferConsent, isOwnerDemotionReason, maxActiveOwnersPerMerchant,
   missingPublishRequirements, normalizeDocumentReference, ownerOfferConsentChecklistVersion, rewardOfferIssuanceCapMax,
@@ -89,7 +89,8 @@ export type AdminCampaign = {
   public: boolean;
 };
 
-export type AdminOwner = { accountId: string; role: 'OWNER'; grantedAt: string };
+// 멤버 행의 granted_at은 STAFF로 처음 승인된 시각이라 점주가 된 시각이 아니다. 오해를 막으려고 내보내지 않는다.
+export type AdminOwner = { accountId: string; role: 'OWNER' };
 
 export type AdminRewardOfferInput = {
   merchantId: unknown;
@@ -153,7 +154,7 @@ export class AdminError extends Error {
     'ADMIN_MERCHANT_NOT_ACTIVE' | 'ADMIN_SELF_ROLE_CHANGE' | 'ADMIN_MEMBER_NOT_FOUND' | 'ADMIN_ALREADY_OWNER' |
     'ADMIN_OWNER_LIMIT' | 'ADMIN_CONSENT_INCOMPLETE' | 'ADMIN_OFFER_NOT_FOUND' | 'ADMIN_OFFER_MILESTONE_TAKEN' |
     'ADMIN_CAMPAIGN_NOT_FOUND' | 'ADMIN_CAMPAIGN_NOT_PUBLISHABLE' | 'ADMIN_CAMPAIGN_NOT_PAUSABLE' |
-    'ADMIN_CAMPAIGN_ACTIVE_EXISTS') {
+    'ADMIN_CAMPAIGN_ACTIVE_EXISTS' | 'ADMIN_OFFER_TEXT_INVALID') {
     super(code);
     this.name = 'AdminError';
   }
@@ -231,6 +232,8 @@ function validateRewardOffer(raw: AdminRewardOfferInput): ValidRewardOffer {
       (raw.issuanceCap as number) > rewardOfferIssuanceCapMax) {
     throw new AdminError('ADMIN_INVALID_INPUT');
   }
+  // 고객에게 그대로 보이는 글이라 되돌리기 메모와 같은 기준으로 연락처·이메일·웹 주소·긴 숫자열을 거절한다.
+  if (looksLikePersonalData(title) || looksLikePersonalData(detail)) throw new AdminError('ADMIN_OFFER_TEXT_INVALID');
   if (!isCompleteOwnerOfferConsent(raw.consent)) throw new AdminError('ADMIN_CONSENT_INCOMPLETE');
   const consentDocumentRef = normalizeDocumentReference(raw.consentDocumentRef);
   if (!consentDocumentRef) throw new AdminError('ADMIN_DOCUMENT_REF_INVALID');
@@ -587,6 +590,14 @@ export class PostgresAdminService {
     return this.transaction(async client => {
       await this.requireAdmin(client, accountId);
       const before = await this.lockMerchant(client, id, expectedVersion);
+      // 공개 중인 점포는 공개 조건(메뉴 1개 이상·영업시간·도로명 주소)을 깨는 수정을 받지 않는다(#246).
+      if (before.status === 'ACTIVE' && missingPublishRequirements({
+        menuItemCount: (input.menuItems ?? before.menuItems).length,
+        businessHours: input.businessHours ?? before.businessHours,
+        roadAddress: input.roadAddress,
+      }).length) {
+        throw new AdminError('ADMIN_MERCHANT_NOT_READY');
+      }
       const row = (await client.query<MerchantRow>(
         `UPDATE merchants SET name = $2, story = $3, road_address = $4,
          minimum_spend_won = $5, menu_items = COALESCE($6::jsonb, menu_items),
@@ -659,11 +670,11 @@ export class PostgresAdminService {
       await this.requireAdmin(client, accountId);
       const found = await client.query('SELECT 1 FROM merchants WHERE id = $1 AND NOT is_demo', [merchantId]);
       if (!found.rowCount) throw new AdminError('ADMIN_MERCHANT_NOT_FOUND');
-      const result = await client.query<{ account_id: string; granted_at: Date }>(
-        `SELECT account_id, granted_at FROM merchant_members
-         WHERE merchant_id = $1 AND role = 'OWNER' AND status = 'ACTIVE' ORDER BY granted_at, account_id`, [merchantId],
+      const result = await client.query<{ account_id: string }>(
+        `SELECT account_id FROM merchant_members
+         WHERE merchant_id = $1 AND role = 'OWNER' AND status = 'ACTIVE' ORDER BY account_id`, [merchantId],
       );
-      return result.rows.map(row => ({ accountId: row.account_id, role: 'OWNER', grantedAt: row.granted_at.toISOString() }));
+      return result.rows.map(row => ({ accountId: row.account_id, role: 'OWNER' }));
     });
   }
 

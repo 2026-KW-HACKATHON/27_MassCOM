@@ -956,7 +956,7 @@ test('admin store go-live routes need the admin session, same-origin JSON and kn
   const admin = {
     isAdmin: async () => true,
     publishMerchant: record('publishMerchant', merchant),
-    listOwners: record('listOwners', [{ accountId: 'owner-1', role: 'OWNER', grantedAt: '2026-09-30T00:00:00.000Z' }]),
+    listOwners: record('listOwners', [{ accountId: 'owner-1', role: 'OWNER' }]),
     promoteOwner: record('promoteOwner', { accountId: 'staff-1', role: 'OWNER' }),
     demoteOwner: record('demoteOwner', { accountId: 'staff-1', role: 'STAFF' }),
     listRewardOffers: record('listRewardOffers', [offer]),
@@ -987,7 +987,7 @@ test('admin store go-live routes need the admin session, same-origin JSON and kn
   assert.equal(published.status, 200);
   assert.deepEqual(await published.json(), { merchant });
   const owners = await webRequest(base, '/api/web/admin/merchants/real-1/owners', { headers: cookie });
-  assert.deepEqual(await owners.json(), { owners: [{ accountId: 'owner-1', role: 'OWNER', grantedAt: '2026-09-30T00:00:00.000Z' }] });
+  assert.deepEqual(await owners.json(), { owners: [{ accountId: 'owner-1', role: 'OWNER' }] });
   assert.equal((await post('/api/web/admin/merchants/real-1/members/staff-1/promote-owner',
     { verificationDocumentRef: 'OWN-01', businessNumber: '123-45-67890' })).status, 400);
   const promoted = await post('/api/web/admin/merchants/real-1/members/staff-1/promote-owner', { verificationDocumentRef: 'OWN-01' });
@@ -3865,4 +3865,41 @@ test('while production NFT minting is preparing, a new mint request is refused w
   const lookup = await fetch(`${baseUrl}/mint-jobs/mint-job-1`);
   assert.equal(lookup.status, 200);
   assert.deepEqual(await lookup.json(), job);
+});
+
+test('owner promotion and demotion need a web login from the last ten minutes', async (t) => {
+  let ageMs = 11 * 60 * 1000;
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'admin-account',
+    resolveSessionWithAge: async () => ({ accountId: 'admin-account', ageMs }),
+    logout: async () => {},
+  };
+  const calls: string[] = [];
+  const admin = {
+    isAdmin: async () => true,
+    promoteOwner: async () => { calls.push('promote'); return { accountId: 'staff-1', role: 'OWNER' }; },
+    demoteOwner: async () => { calls.push('demote'); return { accountId: 'staff-1', role: 'STAFF' }; },
+    publishMerchant: async () => { calls.push('publish'); return { id: 'real-1' }; },
+  } as unknown as PostgresAdminService;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const headers = { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr', 'content-type': 'application/json' };
+  const promote = () => webRequest(base, '/api/web/admin/merchants/real-1/members/staff-1/promote-owner', {
+    method: 'POST', headers, body: JSON.stringify({ verificationDocumentRef: 'OWN-01' }) });
+  const demote = () => webRequest(base, '/api/web/admin/merchants/real-1/members/staff-1/demote-owner', {
+    method: 'POST', headers, body: JSON.stringify({ reason: 'OTHER', verificationDocumentRef: 'OWN-02' }) });
+  for (const request of [promote, demote]) {
+    const stale = await request();
+    assert.equal(stale.status, 401);
+    assert.deepEqual(await stale.json(), { code: 'WEB_SESSION_REAUTH_REQUIRED' });
+  }
+  // 공개처럼 다른 관리자 동작은 오래된 로그인으로도 된다.
+  assert.equal((await webRequest(base, '/api/web/admin/merchants/real-1/publish', { method: 'POST', headers,
+    body: JSON.stringify({ expectedVersion: 1, consentDocumentRef: 'CS-01' }) })).status, 200);
+  assert.deepEqual(calls, ['publish']);
+  ageMs = 10 * 60 * 1000;
+  assert.equal((await promote()).status, 200);
+  assert.equal((await demote()).status, 200);
+  assert.deepEqual(calls, ['publish', 'promote', 'demote']);
 });

@@ -421,6 +421,11 @@ export function createApiServer(
         const ownerChangeMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/members\/([^/]+)\/(promote|demote)-owner$/);
         if (ownerChangeMatch && request.method === 'POST') {
           if (!admin.promoteOwner || !admin.demoteOwner) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          // 점주 권한은 가게 그림 같은 비용 권한까지 여는 변경이라, 삭제 접수(D-053 (8))처럼 10분 안에 한 로그인만 받는다.
+          const session = await webAuth.resolveSessionWithAge(requireWebCookie(request, 'web_session'), origin);
+          if (session.accountId !== accountId || session.ageMs > freshWebSessionMs) {
+            throw new WebSessionError('WEB_SESSION_REAUTH_REQUIRED');
+          }
           const body = await readJson(request);
           const merchantId = decodePathParameter(ownerChangeMatch[1]!);
           const target = decodePathParameter(ownerChangeMatch[2]!);

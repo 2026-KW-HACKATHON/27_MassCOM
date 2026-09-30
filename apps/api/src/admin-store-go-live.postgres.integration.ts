@@ -116,12 +116,24 @@ test('store publish needs menu, hours, address and a clean consent reference, an
     assert.equal(published.version, ready.version + 1);
     await assert.rejects(service.publishMerchant(admin, bare.id, published.version, 'CS-2609-02'),
       /ADMIN_MERCHANT_ALREADY_ACTIVE/);
+    // 공개 중인 점포는 공개 조건을 깨는 수정을 받지 않는다(버전도 그대로다). 조건을 지키는 수정은 된다.
+    for (const broken of [{ menuItems: [] }, { businessHours: '  ' }]) {
+      await assert.rejects(service.updateMerchant(admin, bare.id, published.version, {
+        name: bare.name, story: '', roadAddress: '서울', minimumSpendWon: 0, ...broken,
+      }), /ADMIN_MERCHANT_NOT_READY/);
+    }
+    const stillActive = await service.updateMerchant(admin, bare.id, published.version, {
+      name: bare.name, story: '새 소개', roadAddress: '서울', minimumSpendWon: 0,
+    });
+    assert.equal(stillActive.version, published.version + 1);
+    assert.equal(stillActive.status, 'ACTIVE');
+    assert.equal(stillActive.menuItems.length, 1);
     const audit = await pool.query<{ action: string; actor_account_id: string; after_state: AdminMerchant; target_account_id: string | null }>(
       `SELECT action, actor_account_id, after_state, target_account_id FROM platform_admin_audit
        WHERE merchant_id = $1 ORDER BY created_at, action`, [bare.id]);
     assert.deepEqual(audit.rows.map(row => row.action),
-      ['MERCHANT_CREATED', 'MERCHANT_UPDATED', 'MERCHANT_UPDATED', 'MERCHANT_PUBLISHED']);
-    const publishAudit = audit.rows.at(-1)!;
+      ['MERCHANT_CREATED', 'MERCHANT_UPDATED', 'MERCHANT_UPDATED', 'MERCHANT_PUBLISHED', 'MERCHANT_UPDATED']);
+    const publishAudit = audit.rows.at(-2)!;
     assert.equal(publishAudit.actor_account_id, admin);
     assert.equal(publishAudit.after_state.consentDocumentRef, 'CS-2609-01');
     assert.equal(publishAudit.after_state.status, 'ACTIVE');
@@ -130,7 +142,7 @@ test('store publish needs menu, hours, address and a clean consent reference, an
     // 숨김은 지금처럼 활성 혜택을 멈추고 감사 기록을 남긴다. 다시 공개하면 참조 번호를 다시 받는다.
     await pool.query(`UPDATE badge_reward_offers SET status = 'PAUSED' WHERE status = 'ACTIVE'`);
     const created = await service.createRewardOffer(admin, offerInput(bare.id, { milestone: 3 }));
-    const hidden = await service.hideMerchant(admin, bare.id, published.version);
+    const hidden = await service.hideMerchant(admin, bare.id, stillActive.version);
     assert.equal(hidden.status, 'PAUSED');
     assert.equal(hidden.consentDocumentRef, 'CS-2609-01');
     const offerStatus = await pool.query('SELECT status FROM badge_reward_offers WHERE id = $1', [created.id]);
@@ -359,6 +371,10 @@ test('reward offers need all five owner consents, a cap, an active store and a f
     for (const bad of [{ milestone: 4 }, { validDays: 0 }, { validDays: 366 }, { title: ' ' }, { title: 'x'.repeat(41) },
       { detail: 'x'.repeat(121) }]) {
       await assert.rejects(service.createRewardOffer(admin, offerInput(merchant.id, bad)), /ADMIN_INVALID_INPUT/);
+    }
+    // 고객에게 보이는 혜택 글에도 연락처·이메일·웹 주소는 쓸 수 없다.
+    for (const text of [{ title: '문의 owner@example.com' }, { detail: '예약 010-1234-5678' }, { detail: '주문은 shop.kr/menu' }]) {
+      await assert.rejects(service.createRewardOffer(admin, offerInput(merchant.id, text)), /ADMIN_OFFER_TEXT_INVALID/);
     }
     for (const consentDocumentRef of ['123-45-67890', '010-1234-5678', 'owner@example.com', undefined]) {
       await assert.rejects(service.createRewardOffer(admin, offerInput(merchant.id, { consentDocumentRef })),
