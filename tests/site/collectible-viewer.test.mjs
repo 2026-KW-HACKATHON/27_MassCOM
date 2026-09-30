@@ -25,7 +25,7 @@ test('제작기와 도감의 모듈·스타일은 허용된 정적 경로에서�
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   try {
     const base = `http://127.0.0.1:${server.address().port}`;
-    for (const path of ['/merchant/assets/collectible-model.mjs', '/merchant/assets/collectible-studio.mjs', '/merchant/assets/collectible-renderer.mjs', '/merchant/assets/collectible-editor.css', '/assets/collectible-viewer.mjs', '/assets/collectible-viewer.css']) {
+    for (const path of ['/merchant/assets/collectible-model.mjs', '/merchant/assets/collectible-errors.mjs', '/merchant/assets/collectible-studio.mjs', '/merchant/assets/collectible-renderer.mjs', '/merchant/assets/collectible-editor.css', '/assets/collectible-viewer.mjs', '/assets/collectible-viewer.css']) {
       const response = await fetch(`${base}${path}`);
       assert.equal(response.status, 200, path);
       assert.equal(response.headers.get('x-content-type-options'), 'nosniff');

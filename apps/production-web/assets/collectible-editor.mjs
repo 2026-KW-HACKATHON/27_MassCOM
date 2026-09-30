@@ -1,17 +1,11 @@
 import { createProject, createGrade, createId, cloneProject, cropTransform, clamp } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
+import { collectibleErrorMessage, localError } from './collectible-errors.mjs';
 
 const effectNames = { metallic: '메탈릭', hologram: '홀로그램', pearl: '펄', matte: '무광', enamel: '에나멜', glass: '유리', glow: '발광' };
 const motionNames = { still: '정지', rotate: '천천히 회전', shine: '빛 지나가기', float: '살짝 떠오르기', stamp: '도장 찍기', sparkle: '반짝임 한 번', pulse: '부드러운 맥동', confetti: '작은 축하 입자' };
 const storyNames = { none: '사용하지 않음', zoom: '안으로 들어가기 · 사진 한 장 확대', wide: '바깥 공간 공개 · 넓은 사진', follow: '마스코트 따라가기 · 이동 장면', event: '짧은 사건 · 시작·행동·결과' };
-const errorNames = {
-  COLLECTIBLE_VERSION_CONFLICT: '다른 화면에서 초안이 변경됐어요. 현재 입력은 유지했어요. 목록에서 최신 초안을 다시 열거나 새 초안으로 저장해 주세요.',
-  COLLECTIBLE_PROJECT_VERSION_CONFLICT: '다른 화면에서 초안이 변경됐어요. 현재 입력은 유지했어요. 목록에서 최신 초안을 다시 열거나 새 초안으로 저장해 주세요.',
-  COLLECTIBLE_PUBLISH_REQUIRED: '사진과 적용할 보상을 확인해 주세요.',
-  COLLECTIBLE_CAMPAIGN_INVALID: '게시 중인 캠페인을 선택해 주세요.',
-  COLLECTIBLE_PAYLOAD_TOO_LARGE: '사진과 음성이 너무 커요. 작은 파일로 교체해 다시 저장해 주세요.',
-};
 const element = (tag, text, attributes = {}) => {
   const node = document.createElement(tag);
   if (text !== undefined) node.textContent = text;
@@ -44,17 +38,26 @@ async function inspectAudio(dataUrl) {
     audio.src = dataUrl;
   });
 }
-export function validatePublish(project) {
+// campaigns를 넘기면 서버가 돌려준 "지금 게시할 수 있는 캠페인" 목록과도 맞춰 본다(목록 밖 캠페인·캠페인에 없는 방문 목표는 게시 API가 409로 거절한다).
+export function validatePublish(project, campaigns) {
   if (!project.name.trim()) return '수집품 이름을 입력해 주세요.';
   if (!project.photo.originalDataUrl) return '대표 사진 한 장을 올려 주세요.';
   if (!project.campaignId) return '수집품을 연결할 캠페인을 선택해 주세요.';
   if (!Object.values(project.rewardGrades).some(value => project.grades.some(grade => grade.id === value && grade.enabled))) return '기존 방문 목표 중 한 개 이상에 수집품 등급을 연결해 주세요.';
+  if (Array.isArray(campaigns)) {
+    const campaign = campaigns.find(item => item.id === project.campaignId);
+    if (!campaign) return '선택한 캠페인은 지금 게시할 수 없어요. 저장 목록을 새로 보고 진행 중인 캠페인을 다시 골라 주세요.';
+    const missing = Object.keys(project.rewardGrades).filter(goal => Array.isArray(campaign.goals) && !campaign.goals.includes(Number(goal)));
+    if (missing.length) return `선택한 캠페인에 없는 방문 목표(${missing.join('·')}회)가 연결돼 있어요. 연결을 풀거나 다른 캠페인을 골라 주세요.`;
+  }
   return validateStory(project.story);
 }
 
 /** Editing is local until the merchant explicitly saves or publishes a version. */
-export function mountCollectibleEditor(container, { merchantId, merchantName = '', campaigns = [], request, onNotice = () => {} }) {
+export function mountCollectibleEditor(container, { merchantId, merchantName = '', campaigns: initialCampaigns = [], loadCampaigns, request, onNotice = () => {}, confirm = message => globalThis.confirm?.(message) === true }) {
   if (!container || typeof request !== 'function') return () => {};
+  let campaigns = initialCampaigns;
+  let campaignSequence = 0;
   const base = `/api/web/merchant/merchants/${encodeURIComponent(merchantId)}/collectible-projects`;
   const controller = new AbortController();
   const signal = controller.signal;
@@ -171,6 +174,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   function mutate(fn) { remember(); fn(); changed(); schedulePreview(); }
   const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
   function syncValues() {
+    renderCampaignOptions();
     const values = { name: project.name, shape: project.shape, style: project.style, zoom: project.crop.zoom, 'crop-x': project.crop.x, 'crop-y': project.crop.y, 'base-color': project.baseColor, 'photo-color': project.photoColor, relief: project.relief, angle: project.angle, thickness: project.thickness, greeting: project.greeting, theme: project.theme.name, campaign: project.campaignId, 'story-type': project.story.type, 'story-cartoon': project.story.cartoon };
     for (const [name, value] of Object.entries(values)) control(name).value = value;
     for (const input of container.querySelectorAll('[data-edit]')) input.value = project.photoEdits[input.dataset.edit];
@@ -199,9 +203,34 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     }
     renderRewardGrades();
   }
+  // 선택한 캠페인에 실제로 있는 방문 목표만 보여 준다(없는 목표를 연결하면 게시가 409로 거절된다). 캠페인을 아직 모르면 기존 1·3·5를 모두 보인다.
+  const goalsFor = campaignId => campaigns.find(item => item.id === campaignId)?.goals ?? [1, 3, 5];
+  function campaignLabel(campaign) {
+    const other = campaign.publication && campaign.publication.projectId !== wrapper?.id;
+    return `${campaign.title || campaign.id}${other ? ' · 지금 다른 수집품이 나가는 중 (게시하면 교체돼요)' : ''}`;
+  }
+  function renderCampaignOptions() {
+    const select = control('campaign');
+    select.replaceChildren(element('option', '게시할 캠페인을 골라 주세요', { value: '' }));
+    for (const campaign of campaigns) if (campaign?.id && (!campaign.status || campaign.status === 'ACTIVE')) option(select, campaignLabel(campaign), campaign.id);
+    select.value = project.campaignId;
+  }
+  async function refreshCampaigns() {
+    if (!loadCampaigns) return true;
+    const sequence = ++campaignSequence;
+    try {
+      const loaded = await loadCampaigns();
+      if (!active || sequence !== campaignSequence) return true;
+      campaigns = loaded; renderCampaignOptions(); renderRewardGrades();
+      return true;
+    } catch (error) {
+      if (active && sequence === campaignSequence) notice(`게시할 캠페인 목록을 불러오지 못했어요. ${collectibleErrorMessage(error, '편집은 계속할 수 있어요. 저장 목록 새로 보기를 눌러 다시 시도해 주세요.')}`, true);
+      return false;
+    }
+  }
   function renderRewardGrades() {
     const host = view('reward-grades'); host.replaceChildren();
-    for (const count of [1, 3, 5]) {
+    for (const count of goalsFor(project.campaignId)) {
       const label = element('label', `${count}회 방문 목표의 수집품 외형`, { className: 'ce-field' });
       const select = element('select', undefined, { 'data-reward-count': count }); option(select, '연결하지 않음', '');
       for (const grade of project.grades.filter(item => item.enabled)) option(select, grade.name, grade.id);
@@ -322,7 +351,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       for (const item of result.projects || []) option(select, `${item.name || item.project?.name || '수집품'} · ${item.status === 'PUBLISHED' ? '게시' : '초안'} · v${item.version}`, item.id);
       select.value = wrapper?.id || '';
       studio.renderProjects(result.projects || [], wrapper?.id || ''); studio.setBusy(busy || loading);
-    } catch (error) { notice(errorNames[error.code] || '저장 목록을 불러오지 못했어요. 편집은 계속할 수 있고, 목록 새로 보기를 눌러 다시 시도할 수 있어요.', true); }
+    } catch (error) { notice(collectibleErrorMessage(error, '저장 목록을 불러오지 못했어요. 편집은 계속할 수 있고, 저장 목록 새로 보기를 눌러 다시 시도할 수 있어요.'), true); }
   }
   async function save(publish = false) {
     if (busy) return;
@@ -330,7 +359,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (!project.name.trim()) { navigateStep(1); notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
     if (!project.theme.name.trim()) { navigateStep(4); notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
     if (project.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
-    if (publish) { const reason = validatePublish(project); if (reason) { navigateStep(!project.photo.originalDataUrl ? 1 : 4); if (project.story.type !== 'none') control('story-type').closest('details').open = true; notice(reason, true); return; } }
+    if (publish) {
+      setBusy(true); const refreshed = await refreshCampaigns(); setBusy(false);
+      if (!active || !refreshed) return;
+      const reason = validatePublish(project, campaigns); if (reason) { navigateStep(!project.photo.originalDataUrl ? 1 : 4); if (project.story.type !== 'none') control('story-type').closest('details').open = true; notice(reason, true); return; } }
     setBusy(true); notice(publish ? '등급별 게시 이미지를 준비하고 있어요…' : '초안을 저장하고 있어요…');
     const revision = cloneProject(project);
     try {
@@ -341,10 +373,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         revision.story.frames = await serializeStoryFrames(revision.story);
         for (const assets of Object.values(revision.derived)) for (const name of ['imageDataUrl', 'baseDataUrl', 'thumbnailDataUrl']) {
           const max = name === 'thumbnailDataUrl' ? 256 * 1024 : 1024 * 1024;
-          if ((assets[name].split(',')[1].length * 3 / 4) > max) throw new Error('완성 이미지가 너무 커요. 작은 사진이나 단순한 보정으로 다시 시도해 주세요. 원본과 입력은 유지했어요.');
+          if ((assets[name].split(',')[1].length * 3 / 4) > max) throw localError('완성 이미지가 너무 커요. 작은 사진이나 단순한 보정으로 다시 시도해 주세요. 원본과 입력은 유지했어요.');
         }
       }
-      if (new TextEncoder().encode(JSON.stringify(revision)).length > 16 * 1024 * 1024 - 2048) throw new Error('프로젝트가 16 MB를 넘었어요. 작은 사진·음성으로 교체하거나 사용하지 않는 등급과 장면을 줄여 다시 저장해 주세요.');
+      if (new TextEncoder().encode(JSON.stringify(revision)).length > 16 * 1024 * 1024 - 2048) throw localError('프로젝트가 16 MB를 넘었어요. 작은 사진·음성으로 교체하거나 사용하지 않는 등급과 장면을 줄여 다시 저장해 주세요.');
       if (wrapper?.status === 'PUBLISHED') {
         const copied = await editableDraft(request, base, wrapper);
         if (!active) return;
@@ -363,7 +395,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       view('save-state').textContent = `${publish ? '게시한 버전을 보존했어요' : '초안을 저장했어요'} · v${wrapper.version}${dirty ? ' · 저장 중 새로 편집한 내용은 한 번 더 저장해 주세요.' : ''}`;
       notice(publish ? '게시했어요. 이후 방문 보상부터 이 버전을 사용해요. 이미 얻은 수집품은 그대로 보존돼요.' : '초안을 저장했어요. 목록에서 다시 열어 이어서 만들 수 있어요.');
       await refreshList();
-    } catch (error) { notice(errorNames[error.code] || (error.message && !error.status ? error.message : '저장하지 못했어요. 사진과 편집 내용은 그대로 있어요. 인터넷 연결을 확인하고 다시 시도해 주세요.'), true); }
+    } catch (error) { notice(collectibleErrorMessage(error), true); }
     finally { setBusy(false); }
   }
   async function loadProject(id) {
@@ -380,7 +412,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       selectedGrade = project.grades.find(item => item.enabled)?.id || project.grades[0].id; undo = dirty ? [previous] : []; redo = []; dirty = false; playing = false;
       clearCollectibleRenderCache(); syncValues(); await drawCrop(); schedulePreview(); notice(`저장한 ${project.name}을 열었어요. 게시 후 수정은 새 게시 버전을 만들어요.`);
       studio.showStep(1);
-    } catch (error) { notice('초안을 열지 못했어요. 현재 입력은 유지했어요. 목록을 새로 불러와 다시 시도해 주세요.', true); }
+    } catch (error) { notice(collectibleErrorMessage(error, '초안을 열지 못했어요. 현재 입력은 유지했어요. 저장 목록을 새로 불러와 다시 시도해 주세요.'), true); }
     finally {
       loading = false;
       for (const [input, disabled] of loadingInputs) if (container.contains(input)) input.disabled = disabled;
@@ -477,7 +509,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     }
     if (action === 'photo-choose') { control('photo').click(); return; }
     if (action === 'draft' || action === 'publish') { await save(action === 'publish'); return; }
-    if (action === 'refresh') { await refreshList(); return; }
+    if (action === 'refresh') { await Promise.all([refreshList(), refreshCampaigns()]); return; }
     if (action === 'new') { stopHiddenMedia(); project = createProject({ name: `${merchantName || '우리 가게'} 수집품` }); project.theme.name = studio.newTheme; wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; clearCollectibleRenderCache(); syncValues(); studio.showStep(1); await drawCrop(); schedulePreview(); notice('새 초안을 시작했어요.'); return; }
     if (action === 'undo' || action === 'redo') {
       const source = action === 'undo' ? undo : redo, destination = action === 'undo' ? redo : undo;
@@ -527,13 +559,13 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (wrapper) {
         if (busy) return; setBusy(true);
         try { const saved = await request(`${base}/${encodeURIComponent(wrapper.id)}/copy`, { method: 'POST', body: { expectedVersion: wrapper.version } }); wrapper = saved.project?.id ? saved.project : saved; const current = cloneProject(project); project = { ...current, name: `${current.name} · 시즌 복사`.slice(0, 80), derived: {}, campaignId: '', rewardGrades: {} }; await refreshList(); }
-        catch { notice('시즌 초안을 복사하지 못했어요. 현재 입력을 유지했어요. 다시 시도해 주세요.', true); return; }
+        catch (error) { notice(collectibleErrorMessage(error, '시즌 초안을 복사하지 못했어요. 현재 입력을 유지했어요. 다시 시도해 주세요.'), true); return; }
         finally { setBusy(false); }
       } else { project = { ...cloneProject(project), name: `${project.name} · 시즌 복사`.slice(0, 80), derived: {}, campaignId: '', rewardGrades: {} }; }
       undo = []; redo = []; changed(); syncValues(); schedulePreview(); notice('현재 편집 내용을 별도 시즌 초안으로 복사했어요. 테마와 캠페인을 고른 뒤 초안을 저장해 주세요.');
     }
   }
-  listen(container, 'click', event => { const target = event.target.closest('[data-action]'); if (target && container.contains(target)) act(target.dataset.action, target.dataset.id, target).catch(error => notice(error.message || '처리하지 못했어요. 다시 시도해 주세요.', true)); });
+  listen(container, 'click', event => { const target = event.target.closest('[data-action]'); if (target && container.contains(target)) act(target.dataset.action, target.dataset.id, target).catch(error => notice(collectibleErrorMessage(error, error.status ? undefined : error.message || '처리하지 못했어요. 다시 시도해 주세요.'), true)); });
   listen(container, 'pointerdown', event => { if (event.target.matches('input[type="range"],input[type="color"]')) remember(); });
   listen(container, 'focusin', event => { if (event.target.matches('textarea,input:not([type]),input[type="text"]')) remember(); });
   listen(container, 'keydown', event => { if (event.target.matches('input[type="range"]') && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) remember(); });
@@ -592,7 +624,16 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (field === 'shape' || field === 'style') { mutate(() => { project[field] = target.value; if (field === 'style' && target.value !== 'original') project.photoColor = 0; }); control('photo-color').value = project.photoColor; await drawCrop(); return; }
       if (field === 'angle' || field === 'thickness') { project[field] = Number(target.value); changed(); schedulePreview(); return; }
       if (field === 'sticker-list') { selectedSticker = target.value; renderStickers(); return; }
-      if (field === 'campaign') { mutate(() => { project.campaignId = target.value; }); return; }
+      if (field === 'campaign') {
+        const dropped = [];
+        mutate(() => {
+          project.campaignId = target.value; const goals = goalsFor(target.value);
+          for (const goal of Object.keys(project.rewardGrades)) if (!goals.includes(Number(goal))) { dropped.push(goal); delete project.rewardGrades[goal]; }
+        });
+        renderRewardGrades();
+        if (dropped.length) notice(`선택한 캠페인에 없는 방문 목표(${dropped.join('·')}회)의 수집품 연결은 풀었어요. 게시 전에 연결을 확인해 주세요.`);
+        return;
+      }
       if (field === 'story-type') { mutate(() => { project.story.type = target.value; }); renderStoryFrames(); return; }
       if (field === 'reduce-motion') { if (target.checked) { playing = false; storyPlaying = false; } schedulePreview(); return; }
       if (target.dataset.rewardCount) { mutate(() => { if (target.value) project.rewardGrades[target.dataset.rewardCount] = target.value; else delete project.rewardGrades[target.dataset.rewardCount]; }); return; }
@@ -676,7 +717,6 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   listen(window, 'beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   for (const [value, name] of Object.entries(effectNames)) option(control('effect-type'), name, value);
   for (const [value, name] of Object.entries(storyNames)) option(control('story-type'), name, value);
-  for (const campaign of campaigns) if (!campaign.status || campaign.status === 'PUBLISHED' || campaign.status === 'ACTIVE') option(control('campaign'), campaign.title || campaign.name || campaign.id, campaign.id || campaign.campaignId);
   for (const [id, name] of Object.entries(motionNames)) {
     const tile = button(name, 'template', { 'data-id': id, 'aria-pressed': String(id === selectedTemplate) }); const canvas = element('canvas', undefined, { width: 96, height: 96, 'aria-hidden': 'true' }); tile.prepend(canvas); view('templates').append(tile);
     renderCollectible(canvas, demoProject, 'bronze', { animation: id, staticFrame: true, textureSize: 120 }).catch(() => {});
@@ -686,7 +726,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   reducedMotion.addEventListener('change', preferenceChanged);
   const intersection = globalThis.IntersectionObserver ? new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); if (visible) schedulePreview(); else { if (frame) cancelAnimationFrame(frame); frame = 0; } }) : null;
   intersection?.observe(container);
-  syncValues(); drawCrop(); schedulePreview(); refreshList();
+  syncValues(); drawCrop(); schedulePreview(); refreshList(); refreshCampaigns();
   return () => {
     active = false; controller.abort(); intersection?.disconnect(); if (frame) cancelAnimationFrame(frame); clearTimeout(recordingTimer);
     if (recorder?.state === 'recording') recorder.stop(); recordingStream?.getTracks().forEach(track => track.stop());

@@ -12,7 +12,15 @@ function closeCreator(doc) {
   doc.getElementById('merchant-creator-editor')?.replaceChildren();
 }
 
-function configureCreator(fetcher, doc, mine) {
+// 제작기가 게시할 캠페인은 점주 권한으로 읽는 전용 API에서만 받는다. 공개 /merchants는 운영 프록시가
+// 캠페인·점포 ID를 지우므로 쓰지 않는다(이 점포의 공개·ACTIVE·기간 안 캠페인과 그 목표만 온다).
+export async function loadCreatorCampaigns(fetcher, merchantId) {
+  const result = await request(fetcher, `/api/web/merchant/merchants/${encodeURIComponent(merchantId)}/collectible-campaigns`);
+  if (!Array.isArray(result?.campaigns)) throw new Error('invalid campaign data');
+  return result.campaigns;
+}
+
+export function configureCreator(fetcher, doc, mine) {
   const panel = doc.getElementById('merchant-creator');
   const select = doc.getElementById('merchant-creator-store');
   const open = doc.getElementById('merchant-creator-open');
@@ -31,14 +39,12 @@ function configureCreator(fetcher, doc, mine) {
     if (!merchant) return;
     open.disabled = true;
     try {
-      const [module, catalog] = await Promise.all([
-        import('./collectible-editor.mjs'), request(fetcher, '/merchants'),
-      ]);
+      const module = await import('./collectible-editor.mjs');
       if (merchantRequests.get(doc) !== currentRequest) return;
-      const campaigns = (catalog.merchants ?? []).filter(item => item.id === merchant.id).map(item => item.campaign);
       closeCreator(doc);
       const cleanup = await module.mountCollectibleEditor(doc.getElementById('merchant-creator-editor'), {
-        merchantId: merchant.id, merchantName: merchant.name, campaigns,
+        merchantId: merchant.id, merchantName: merchant.name,
+        loadCampaigns: () => loadCreatorCampaigns(fetcher, merchant.id),
         request: (path, options = {}) => request(fetcher, path, options.method ?? 'GET', options.body),
         onNotice: message => { doc.getElementById('merchant-status').textContent = message; },
       });
@@ -128,6 +134,8 @@ async function request(fetcher, path, method = 'GET', body) {
   if (!response.ok) {
     const error = new Error('merchant request failed');
     error.status = response.status;
+    const retryAfter = Number(response.headers?.get?.('Retry-After'));
+    if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfterSeconds = Math.ceil(retryAfter);
     try { error.code = (await response.json()).code; } catch { /* status is enough */ }
     throw error;
   }
