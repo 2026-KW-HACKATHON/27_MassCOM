@@ -33,6 +33,11 @@ if [[ "$artifact_package" == "$expected_package.dev" ]]; then fail "manifest bel
 if grep -qiE 'com\.android\.vending\.BILLING|SYSTEM_ALERT_WINDOW' <<<"$manifest"; then
   fail "manifest declares a billing or overlay permission"
 fi
+# Collectible voice is playback only (D-061): app.config blocks RECORD_AUDIO, so the merged release manifest must not ask
+# for the microphone even if expo-audio or another dependency declares it.
+if grep -qE 'android\.permission\.RECORD_AUDIO' <<<"$manifest"; then
+  fail "manifest declares the microphone permission (RECORD_AUDIO)"
+fi
 
 # Native payment, on-ramp and embedded-wallet SDKs.
 dex_strings="$work/dex-strings.txt"
