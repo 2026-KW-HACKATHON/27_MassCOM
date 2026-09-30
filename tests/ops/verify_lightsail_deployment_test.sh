@@ -60,12 +60,19 @@ if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Do
 fi
 mv "$scratch/compose.yml.bak" "$scratch/compose.yml"
 
-sed -i.bak 's/NFT_MINTING_MODE: ${NFT_MINTING_MODE:-PREPARING}/NFT_MINTING_MODE: LIVE/' "$scratch/compose.yml"
-if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
-  echo "verifier accepted production NFT minting before mainnet approval" >&2
+# 운영 NFT는 고정값 PREPARING이다(D-054). LIVE나 런타임 덮어쓰기(${NFT_MINTING_MODE:-…})로 바꾼 복사본은 거절해야 한다.
+for replacement in 'NFT_MINTING_MODE: LIVE' 'NFT_MINTING_MODE: ${NFT_MINTING_MODE:-PREPARING}'; do
+  sed -i.bak "s/NFT_MINTING_MODE: PREPARING/$replacement/" "$scratch/compose.yml"
+  if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
+    echo "verifier accepted production NFT minting that is not fixed to PREPARING: $replacement" >&2
+    exit 1
+  fi
+  mv "$scratch/compose.yml.bak" "$scratch/compose.yml"
+done
+if grep -q 'NFT_MINTING_MODE' "$repo_root/infra/showcase-host/compose.yml" "$repo_root/infra/showcase-local/compose.yml"; then
+  echo "showcase compose must keep its current minting (no NFT_MINTING_MODE)" >&2
   exit 1
 fi
-mv "$scratch/compose.yml.bak" "$scratch/compose.yml"
 
 sed -i.bak '/^USER node$/d' "$scratch/api.Dockerfile"
 if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then

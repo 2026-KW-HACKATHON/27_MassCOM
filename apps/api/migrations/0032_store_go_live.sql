@@ -3,6 +3,10 @@
 -- 참조 번호는 운영자가 보관하는 동의서·확인 기록의 번호일 뿐이다. 영문·숫자만 남겼을 때 8자리 이상 이어진 숫자가 있으면
 -- 전화번호·사업자등록번호일 수 있어 막는다(앱의 looksLikePersonalData 검사가 먼저 거절하고, 이 CHECK는 마지막 방어선이다).
 
+-- migration 실행기(runMigrations)는 파일마다 BEGIN … COMMIT으로 감싸므로 SET LOCAL은 이 파일의 트랜잭션에서만 산다.
+-- 운영 중인 표(merchants·platform_admin_audit)의 ACCESS EXCLUSIVE 잠금을 오래 기다리며 뒤따르는 요청을 막지 않도록 5초에서 포기한다.
+SET LOCAL lock_timeout = '5s';
+
 ALTER TABLE merchants
   ADD COLUMN consent_document_ref text CHECK (
     consent_document_ref IS NULL OR (

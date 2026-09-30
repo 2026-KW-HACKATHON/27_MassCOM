@@ -54,8 +54,9 @@ services:
       ACCOUNT_DELETION_POLICY_VERSION: account-deletion-v1
       MERCHANT_REFERENCE_HMAC_SECRET: ${MERCHANT_REFERENCE_HMAC_SECRET:?MERCHANT_REFERENCE_HMAC_SECRET is required}
       NFT_MINT_CONSENT_VERSION: nft-mint-v1
-      # 발행 서버·메인넷 승인 전까지 운영은 권리만 기록하고 고객 앱·웹에 "발행 준비 중"을 보인다(D-054). 시연 compose는 넘기지 않는다.
-      NFT_MINTING_MODE: ${NFT_MINTING_MODE:-PREPARING}
+      # 발행 서버·메인넷 승인 전까지 운영은 권리만 기록하고 고객 앱·웹에 "발행 준비 중"을 보인다(D-054). 런타임 값으로 바꿀 수 없게
+      # 고정하고, LIVE로 바꾸는 것은 go-live 전제 조건(권리 기한 연장 migration 뒤)을 거친 별도 변경으로만 한다. 시연 compose는 넘기지 않는다.
+      NFT_MINTING_MODE: PREPARING
       AUTH_SESSION_TTL_MS: "2592000000"
       GOOGLE_JWKS_MAX_STALE_MS: "86400000"
       AUTH_SESSION_CLEANUP_BATCH_SIZE: "100"
