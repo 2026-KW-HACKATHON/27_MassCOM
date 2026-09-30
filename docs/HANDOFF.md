@@ -2,6 +2,8 @@
 
 ## 사진 수집품 제작기 PR 인수인계
 
+PR [#257](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/257)를 생성했다. 구현 커밋은 `e07882597d0f0e017cff522a54ca336382230f75`이며 로컬 검증 트리와 동일하다. PC에 저장된 다른 계정의 Git push403을 권한 있는 연결 계정의 GitHub API로 복구했다. PR CI는 실행 중이며 병합·운영 배포는 하지 않았다.
+
 2026-09-30 [Issue #252](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/252), 브랜치 `feat/252-photo-collectible-creator`, 기준 main `4081999eb2e7741eb2dac455e9f751ef7b795ea4`. 사용자가 전달한 DOCX는 제품 참고 자료로 읽고 실제 코드 구현과 PR 생성 요청을 수행했다. 원본 문서는 공개 저장소에 복사하지 않았다. [명세](COLLECTIBLE_CREATOR.md)·[시험 기록](TEST_STATUS.md)·[화면 증거](evidence/photo-collectible-2026-09-30/README.md)를 함께 검토한다.
 
 - 구현: 점주 웹 사진/보정/스티커/동적 등급/재질/동작/음성/장면, 버전 초안·복사·게시, migration0032·0033, 기존 보상권 생성 시 당시 게시 외형 저장, 보유자 웹/native 상세. 원본·편집 기여자/복사본 삭제와 auth/tenant/CSRF 경계를 유지한다.

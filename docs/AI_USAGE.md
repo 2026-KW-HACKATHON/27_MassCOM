@@ -4,7 +4,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 
 | 날짜 | 도구 | 담당 작업 | 생성·수정 범위 | 실제 검증 | 사람 검토 |
 | --- | --- | --- | --- | --- | --- |
-| 2026-09-30 | Codex 구현 에이전트·Astra 독립 검토 | 첨부 기획노트와 저장소 대조·사진 수집품 제작/획득/도감 PR (Issue #252) | 점주 canvas 편집·프로젝트/불변 게시/기여자 삭제·고객 웹/native 상세·시험·문서 | API245·모바일785·웹120·PG222+최신6, 타입/빌드/린트·두 JS export·gate PASS. 독립 API16·웹19·native2 및 수정 후 지적0. 합성 브라우저 화면만 검수; 실제 음성/native/운영 미실행 | 사람 PR 검토 대기. 원본 DOCX 미공개, 실제 개인 사진/목소리 fixture 미사용 |
+| 2026-09-30 | Codex 구현 에이전트·Astra 독립 검토 | 첨부 기획노트와 저장소 대조·사진 수집품 제작/획득/도감 PR (Issue #252·PR #257) | 점주 canvas 편집·프로젝트/불변 게시/기여자 삭제·고객 웹/native 상세·시험·문서 | API245·모바일785·웹120·PG222+최신6, 타입/빌드/린트·두 JS export·gate PASS. 독립 API16·웹19·native2 및 수정 후 지적0. 합성 브라우저 화면만 검수; 실제 음성/native/운영 미실행 | 사람 PR 검토 대기. 원본 DOCX 미공개, 실제 개인 사진/목소리 fixture 미사용 |
 | 2026-09-18 | Codex | 원본 자료·저장소·GitHub 상태 대조 | `docs/SOURCE_INDEX.md`, `docs/COMPETITION.md`, 상태·결정 초안 | SHA-256, Git·GitHub 메타데이터 확인 | PR 검토 대기 |
 | 2026-09-18 | Codex | Phase 0 저장소 부트스트랩 | README, 저장소 지침, 36개 시험 카탈로그, CI·Issue/PR 형식 | `bash tests/bootstrap/verify_bootstrap_test.sh` PASS | PR 검토 대기 |
 | 2026-09-18 | Codex 독립 리뷰 역할 | Phase 0 변경 검토 | 평가 추적성, 비밀 검사, 상태 일관성 검토 | 수정 후 HIGH/MEDIUM 문제 0건, 로컬 검증 재실행 PASS | 사람 리뷰를 대신하지 않음 |
