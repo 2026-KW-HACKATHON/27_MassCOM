@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test, type TestContext } from 'node:test';
 import { Pool } from 'pg';
-import { photoProject } from './collectible-project-test-support.js';
+import { photoProject, tinyPng } from './collectible-project-test-support.js';
 import { CollectibleProjectError } from './collectible-project.js';
 import { MerchantAccessError } from './merchant-access.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
@@ -502,4 +503,63 @@ test('the project list reads a separate name column kept in step with the privat
   await assert.rejects(pool.query('UPDATE collectible_projects SET project = NULL WHERE id = $1', [draft.id]), /check constraint/);
   const copied = await projects.copy({ ...input, projectId: draft.id, expectedVersion: 2 });
   assert.equal((await pool.query('SELECT name FROM collectible_projects WHERE id = $1', [copied.id])).rows[0].name, '숨은 값');
+});
+
+// Issue #284 WP1: v1 저장분이 이 마이그레이션 뒤에도 그대로 열리고, v2 게시는 새 필드를 온전히 담아 왕복한다.
+const v1Fixture = () => JSON.parse(readFileSync(new URL('../../../tests/fixtures/collectible-v1.json', import.meta.url), 'utf8'));
+
+test('a v1-shaped publication detail row (written before the v2 schema) is returned byte-identical through getAcquired', async t => {
+  const { pool, projects, input, claim } = await setup(t);
+  // draft는 발행본의 project_id FK 자리만 채우는 대상이다(project_id는 발행본마다 유일해 실제 게시는 하지 않는다).
+  const draft = await projects.create({ ...input, project: photoProject() });
+  const legacyPublicationId = (await pool.query<{ id: string }>(`SELECT gen_random_uuid() AS id`)).rows[0]!.id;
+  const legacySummary = { projectId: draft.id, publicationId: legacyPublicationId, gradeId: 'bronze', gradeName: '브론즈', shape: 'circle', theme: { name: '우리 가게' }, name: '옛 발행본', thumbnailDataUrl: tinyPng };
+  const legacyDetail = {
+    imageDataUrl: tinyPng, thickness: 8, angle: 0, animation: 'float', greeting: '옛 인사말입니다.',
+    audio: null, story: { type: 'none', cartoon: 0, strength: 50, frames: [] }, effects: [],
+  };
+  await pool.query(`INSERT INTO collectible_publications (id, project_id, merchant_id, campaign_id, project_version, reward_grades, published_at)
+    VALUES ($1,$2,'merchant-a','campaign-a',1,'{"1":"bronze"}'::jsonb, now())`, [legacyPublicationId, draft.id]);
+  await pool.query(`INSERT INTO collectible_publication_grades (publication_id, grade_id, summary, detail) VALUES ($1,'bronze',$2::jsonb,$3::jsonb)`,
+    [legacyPublicationId, JSON.stringify(legacySummary), JSON.stringify(legacyDetail)]);
+  // 이 캠페인엔 아직 배포 연결이 없으니(발행을 거치지 않았다) 바로 연결을 만든다.
+  await pool.query(`INSERT INTO campaign_collectible_publications (campaign_id, publication_id) VALUES ('campaign-a', $1)`, [legacyPublicationId]);
+  const visit = await claim('customer-legacy-detail', 'legacy-detail');
+  const entitlementId = visit.redeemed.grantedRewards[0]!.entitlementId;
+  const detail = await projects.getAcquired({ accountId: 'customer-legacy-detail', entitlementId });
+  assert.deepEqual(detail, { ...legacySummary, ...legacyDetail });
+  assert.equal('motions' in detail, false); assert.equal('backImageDataUrl' in detail, false);
+});
+
+test('a v2 publish round-trips through getAcquired with motions, playback and the back image intact', async t => {
+  const { projects, input, claim, setDay } = await setup(t);
+  const draft = await projects.create({ ...input, project: photoProject() });
+  const published = await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  await claim('customer-v2-round-trip', 'first');
+  setDay(1); await claim('customer-v2-round-trip', 'second');
+  setDay(2); const third = await claim('customer-v2-round-trip', 'third');
+  const reward = third.redeemed.grantedRewards.find(r => r.targetVisitCount === 3)!;
+  const detail = await projects.getAcquired({ accountId: 'customer-v2-round-trip', entitlementId: reward.entitlementId });
+  assert.equal(detail.publicationId, published.publicationId); assert.equal(detail.gradeId, 'custom');
+  assert.equal(detail.animation, 'float'); assert.deepEqual(detail.motions, [{ type: 'float', playback: 'loop' }]);
+  assert.equal(detail.backImageDataUrl, tinyPng); assert.equal('parallax' in detail, false); assert.equal('strokes' in detail, false);
+});
+
+test('copying a v1-shaped PUBLISHED source project (never resaved since before the v2 schema) yields a v2 draft', async t => {
+  const { pool, projects, input } = await setup(t);
+  const draft = await projects.create({ ...input, project: photoProject() });
+  const published = await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  const v1 = v1Fixture();
+  await pool.query(`UPDATE collectible_projects SET project = $2::jsonb, name = $3 WHERE id = $1`, [draft.id, JSON.stringify(v1), v1.name]);
+  const copy = await projects.copy({ ...input, projectId: draft.id, expectedVersion: published.project.version });
+  assert.equal(copy.status, 'DRAFT'); assert.equal(copy.project.schemaVersion, 2);
+  assert.equal(copy.project.back.mode, 'default'); assert.equal(copy.project.motion[0]!.particle, 'confetti');
+});
+
+test('a PUT carrying a v1-shaped project (an old editor tab open across the deploy) is accepted and upgraded to v2', async t => {
+  const { projects, input } = await setup(t);
+  const draft = await projects.create({ ...input, project: photoProject() });
+  const saved = await projects.save({ ...input, projectId: draft.id, expectedVersion: 1, project: v1Fixture() });
+  assert.equal(saved.project.schemaVersion, 2); assert.equal(saved.project.back.mode, 'default');
+  assert.deepEqual(saved.project.stickers[0]!.layouts, {}); assert.equal(saved.project.motion[0]!.particle, 'confetti');
 });
