@@ -444,10 +444,14 @@ test('the command prints counts only and leaves the exit code at zero when every
   }
   await auditSeeds.admin_role_audit!.insert(pool, randomUUID(), new Date('2019-01-01T00:00:00Z'));
   const command = fileURLToPath(new URL('./postgres/retention-command.ts', import.meta.url));
-  const run = (args: string[]) => execFileSync(process.execPath, ['--import', 'tsx', command, ...args], {
-    env: { ...process.env, DATABASE_URL: process.env.TEST_DATABASE_URL! },
-    encoding: 'utf8',
-  });
+  // The container of the host job has the deletion secret; `run` uses it for the audit target step (Issue #263).
+  const secret = 'test-only-account-deletion-secret-at-least-32-bytes';
+  const run = (args: string[], env: Record<string, string> = { ACCOUNT_DELETION_HMAC_SECRET: secret }) =>
+    execFileSync(process.execPath, ['--import', 'tsx', command, ...args], {
+      env: { ...process.env, DATABASE_URL: process.env.TEST_DATABASE_URL!, ...env },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
   const report = run(['report']).trim().split('\n');
   assert.match(report[0]!, /^RETENTION_REPORT/);
   assert.equal((await idsOf(pool, 'SELECT id FROM auth_sessions')).length, 3, 'report deleted nothing');
@@ -458,7 +462,7 @@ test('the command prints counts only and leaves the exit code at zero when every
   assert.deepEqual(lines.slice(1), [
     'auth_sessions\t2', 'web_sessions\t0', 'deletion_intake\t1', 'admin_audit\t0', 'admin_owner_audit\t0',
     'admin_role_audit\t1', 'staff_registration_audit\t0', 'coupon_audit\t0', 'customer_identity_tokens\t0',
-    'wallet_challenges\t0', 'web_oauth_states\t0', 'staff_registration_requests\t0',
+    'wallet_challenges\t0', 'web_oauth_states\t0', 'staff_registration_requests\t0', 'admin_audit_deleted_targets\t0',
   ]);
   assert.equal((await idsOf(pool, 'SELECT id FROM auth_sessions')).length, 1);
   // No identifier of any kind reaches the terminal: not a row id, not an account id, not the ledger id.
@@ -467,6 +471,10 @@ test('the command prints counts only and leaves the exit code at zero when every
   assert.equal(output.includes(ledgerId), false);
   assert.throws(() => run(['delete']), (error: { status?: number; stderr?: string }) =>
     error.status === 1 && /RETENTION_USAGE/.test(String(error.stderr)));
+  // Without the secret only the audit target step fails (by name); the delete steps still ran and printed their counts.
+  assert.throws(() => run(['run'], { ACCOUNT_DELETION_HMAC_SECRET: '' }), (error: { status?: number; stdout?: string; stderr?: string }) =>
+    error.status === 1 && String(error.stderr).trim() === 'RETENTION_STEP_FAILED\tadmin_audit_deleted_targets'
+      && /^auth_sessions\t0$/m.test(String(error.stdout)) && !/admin_audit_deleted_targets/.test(String(error.stdout)));
 });
 
 test('after a rollback to an API without consent cleanup, purge-deleted-consents removes only deleted accounts consent rows', async (t) => {
@@ -505,4 +513,106 @@ test('after a rollback to an API without consent cleanup, purge-deleted-consents
   assert.deepEqual(left.map((row) => row.account_id), ['acct_staying']);
   assert.equal(await consentRows('acct_staying'), 2, 'the living account keeps both rows');
   assert.equal(await service.purgeConsentsOfDeletedAccounts(secret), 0, 'a second run has nothing left');
+});
+
+test('after a rollback to an API that does not de-identify audit targets, the daily run replaces deleted accounts raw ids and only theirs (Issue #263)', async (t) => {
+  const { pool, service } = await setup(t);
+  const secret = 'test-only-account-deletion-secret-at-least-32-bytes';
+  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+  const aliasOf = (account: string) => `deleted:${lifecycle.referenceHash(account).toString('hex')}`;
+  const createdAt = at(now.getTime() - 86_400_000);
+  const insertAudit = async (target: string) => {
+    const id = randomUUID();
+    await pool.query(
+      `INSERT INTO platform_admin_audit (id, actor_account_id, merchant_id, action, target_account_id, after_state, created_at)
+       VALUES ($1, 'acct_admin', 'shop-1', 'MERCHANT_OWNER_GRANTED', $2, '{"role":"OWNER"}'::jsonb, $3)`,
+      [id, target, createdAt],
+    );
+    return id;
+  };
+  const insertLedger = async (account: string) => {
+    await pool.query(
+      `INSERT INTO account_deletion_requests (
+         id, account_reference_hash, deleted_account_alias, status, policy_version, cancelled_mint_jobs,
+         pending_mint_jobs, retained_finalized_nfts, requested_at, completed_at, updated_at
+       ) VALUES ($1, $2, $3, 'COMPLETED', 'account-deletion-v1', 0, 0, 0, now(), now(), now())`,
+      [randomUUID(), lifecycle.referenceHash(account), aliasOf(account)],
+    );
+  };
+  const targetsOf = async () => (await pool.query<{ id: string; target_account_id: string }>(
+    'SELECT id, target_account_id FROM platform_admin_audit',
+  )).rows.reduce<Record<string, string>>((acc, row) => ({ ...acc, [row.id]: row.target_account_id }), {});
+
+  // acct_gone was deleted while the older API ran: the ledger has it but the audit rows still carry the raw target id (two rows, one per grant).
+  // acct_alive is a live owner. acct_earlier was deleted by the current API: its audit row already holds the alias.
+  await insertLedger('acct_gone');
+  await insertLedger('acct_earlier');
+  const goneA = await insertAudit('acct_gone');
+  const goneB = await insertAudit('acct_gone');
+  const alive = await insertAudit('acct_alive');
+  const earlier = await insertAudit(aliasOf('acct_earlier'));
+
+  // Not part of report(): it only counts what the delete steps would remove.
+  assert.equal('admin_audit_deleted_targets' in counts(await service.report()), false);
+  // Without a secret the step does not run at all; with an unusable one it is the only step reported as failed.
+  assert.equal('admin_audit_deleted_targets' in counts((await service.run()).counts), false);
+  assert.deepEqual((await service.run({ hmacSecret: 'too-short' })).failed, ['admin_audit_deleted_targets']);
+  assert.equal((await targetsOf())[goneA], 'acct_gone', 'a step that could not run changed nothing');
+  // A secret that is not the deletion secret hashes every account to a value the ledger does not know: nothing changes.
+  const wrong = await service.run({ hmacSecret: 'another-secret-of-at-least-32-bytes-long!' });
+  assert.equal(counts(wrong.counts).admin_audit_deleted_targets, 0);
+  assert.equal((await targetsOf())[goneA], 'acct_gone');
+
+  const result = await service.run({ hmacSecret: secret });
+  assert.deepEqual(result.failed, []);
+  assert.equal(counts(result.counts).admin_audit_deleted_targets, 2);
+  assert.equal(result.counts.at(-1)!.step, 'admin_audit_deleted_targets', 'reported after the delete steps, like the other steps');
+  assert.deepEqual(await targetsOf(), {
+    [goneA]: aliasOf('acct_gone'),
+    [goneB]: aliasOf('acct_gone'),
+    [alive]: 'acct_alive',
+    [earlier]: aliasOf('acct_earlier'),
+  });
+  // Only the target column changes: the rest of the row stays as it was.
+  const untouched = (await pool.query<{ actor_account_id: string; action: string; after_state: unknown; created_at: Date }>(
+    'SELECT actor_account_id, action, after_state, created_at FROM platform_admin_audit WHERE id = $1', [goneB],
+  )).rows[0]!;
+  assert.deepEqual(
+    { ...untouched, created_at: untouched.created_at.getTime() },
+    { actor_account_id: 'acct_admin', action: 'MERCHANT_OWNER_GRANTED', after_state: { role: 'OWNER' }, created_at: createdAt.getTime() },
+  );
+  assert.equal((await pool.query(`SELECT 1 FROM platform_admin_audit WHERE target_account_id = 'acct_gone'`)).rowCount, 0);
+  assert.equal(counts((await service.run({ hmacSecret: secret })).counts).admin_audit_deleted_targets, 0, 'a second run has nothing left');
+});
+
+test('the audit target step works through many deleted accounts in bounded batches', async (t) => {
+  const { pool, service } = await setup(t);
+  const secret = 'test-only-account-deletion-secret-at-least-32-bytes';
+  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+  // 1,100 deleted owners (three batches of 500, 500 and 100 accounts) plus 5 live ones.
+  const gone = Array.from({ length: 1100 }, (_, index) => `acct_bulk_gone_${index}`);
+  const alive = Array.from({ length: 5 }, (_, index) => `acct_bulk_alive_${index}`);
+  const hashes = gone.map((account) => lifecycle.referenceHash(account));
+  await pool.query(
+    `INSERT INTO account_deletion_requests (
+       id, account_reference_hash, deleted_account_alias, status, policy_version, cancelled_mint_jobs,
+       pending_mint_jobs, retained_finalized_nfts, requested_at, completed_at, updated_at
+     ) SELECT gen_random_uuid(), hash, 'deleted:' || encode(hash, 'hex'), 'COMPLETED', 'account-deletion-v1', 0, 0, 0, now(), now(), now()
+       FROM unnest($1::bytea[]) AS hash`,
+    [hashes],
+  );
+  await pool.query(
+    `INSERT INTO platform_admin_audit (id, actor_account_id, merchant_id, action, target_account_id, after_state, created_at)
+     SELECT gen_random_uuid(), 'acct_admin', 'shop-1', 'MERCHANT_OWNER_REVOKED', target, '{}'::jsonb, $2
+     FROM unnest($1::text[]) AS target`,
+    [[...gone, ...alive], at(now.getTime() - 86_400_000)],
+  );
+  const result = await service.run({ hmacSecret: secret });
+  assert.deepEqual(result.failed, []);
+  assert.equal(counts(result.counts).admin_audit_deleted_targets, 1100);
+  const left = (await pool.query<{ target_account_id: string }>(
+    `SELECT target_account_id FROM platform_admin_audit WHERE target_account_id NOT LIKE 'deleted:%' ORDER BY target_account_id`,
+  )).rows.map((row) => row.target_account_id);
+  assert.deepEqual(left, [...alive].sort());
+  assert.equal((await pool.query(`SELECT 1 FROM platform_admin_audit WHERE target_account_id LIKE 'deleted:%'`)).rowCount, 1100);
 });
