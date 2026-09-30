@@ -1,0 +1,11 @@
+[Unit]
+Description=MassCOM production retention job (expired records and DB backups older than 30 days)
+Documentation=https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/253
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/masscom-retention
+TimeoutStartSec=15min
+Nice=10
