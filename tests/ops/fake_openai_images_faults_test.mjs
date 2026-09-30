@@ -18,7 +18,17 @@ async function start(t, env) {
     headers: { authorization: 'Bearer fake-local-key', 'content-type': 'application/json' },
     body: JSON.stringify({ model: 'draft-model', prompt: 'a round rubber-stamp emblem' }),
   });
-  return { logs, draft };
+  // 고급 그림 요청(/v1/images/edits, multipart): 시안 이미지를 입력으로 보낸다.
+  const edit = async () => {
+    const form = new FormData();
+    form.append('model', 'final-model');
+    form.append('prompt', 'redraw the attached design');
+    form.append('image[]', new Blob([Buffer.from('RIFF0000WEBPVP8L')], { type: 'image/webp' }), 'draft.webp');
+    return fetch(`${base}/v1/images/edits`, {
+      method: 'POST', headers: { authorization: 'Bearer fake-local-key' }, body: form,
+    });
+  };
+  return { logs, draft, edit };
 }
 
 test('unavailable answers 503 without Retry-After and without an error code', async (t) => {
@@ -30,6 +40,26 @@ test('unavailable answers 503 without Retry-After and without an error code', as
   assert.equal(body.error.code, null);
   assert.equal(logs.length, 1);
   assert.match(logs[0], /generations model=draft-model prompt=\d+ chars -> 503$/);
+});
+
+test('unavailable also answers 503 on the final (edits) path', async (t) => {
+  const { edit, logs } = await start(t, { FAKE_OPENAI_FAIL: 'unavailable' });
+  const response = await edit();
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get('retry-after'), null);
+  assert.equal((await response.json()).error.code, null);
+  assert.equal(logs.length, 1);
+  assert.match(logs[0], /edits model=final-model prompt=\d+ chars -> 503$/);
+});
+
+test('unavailable limited to the edits path leaves drafts alone and fails the final once', async (t) => {
+  const { draft, edit, logs } = await start(t, {
+    FAKE_OPENAI_FAIL: 'unavailable', FAKE_OPENAI_FAIL_PATH: 'edits', FAKE_OPENAI_FAIL_COUNT: '1',
+  });
+  assert.equal((await draft()).status, 200);
+  assert.equal((await edit()).status, 503);
+  assert.equal((await edit()).status, 200);
+  assert.deepEqual(logs.map((line) => line.endsWith(' -> 503')), [false, true, false]);
 });
 
 test('FAKE_OPENAI_FAIL_COUNT fails only the first N requests and then answers normally', async (t) => {

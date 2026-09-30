@@ -96,6 +96,7 @@ compose up -d --no-build --wait showcase-api >/dev/null 2>&1 || block 'the tempo
 echo 'showcase-api is up with an empty key'
 
 echo '== status·enable·disable =='
+expect_ok 'check on the freshly deployed stack -> drift: OK (validates the host before a key exists)' 'drift: OK' check
 expect_ok 'status with an empty key -> DISABLED' 'state: DISABLED' status
 set_line SHOWCASE_OPENAI_API_KEY "$fake_key"
 expect_ok 'status with a key added but no recreate -> NEEDS_RECREATE_OR_CHECK' 'NEEDS_RECREATE_OR_CHECK' status
@@ -116,6 +117,16 @@ expect_ok 'enable with changed limits shows them' 'daily finals per store: 2' en
 grep -qF 'monthly budget (USD, Korean month, showcase DB total): 4' "$out" && record PASS 'the changed budget is shown' || record FAIL 'changed budget'
 set_line SHOWCASE_AI_ART_DAILY_FINALS 51
 expect_refused 'enable with an out-of-range limit is refused' 'AI_ART_DAILY_FINALS is above 50' enable
+
+# 비용을 멈추는 비상 경로: 키 줄을 비우고 다른 설정이 어긋나 있을 때 check는 MISMATCH를 알리고, disable은 거절하지만 --force-drift는 끈다.
+set_line SHOWCASE_AI_ART_DAILY_FINALS 2
+set_line SHOWCASE_OPENAI_API_KEY ''
+set_line SHOWCASE_INVITED_SUBJECT_SHA256 "$(printf 'c%.0s' $(seq 1 64))"
+expect_refused 'check reports the drift as MISMATCH (read-only)' 'drift: MISMATCH' check
+expect_refused 'disable without the flag is refused on drift' 'config drift' disable
+expect_ok 'disable --force-drift turns AI store art off despite the drift' 'startup log: AI store art: disabled (OPENAI_API_KEY is empty)' disable --force-drift
+grep -qF 'warning: --force-drift ignores the config drift' "$out" && record PASS 'the drift warning is shown' || record FAIL 'drift warning'
+expect_ok 'status after the forced disable -> DISABLED' 'state: DISABLED' status
 
 if grep -qF -e "$fake_key" -e "$inherited_key" "$all_out"; then record FAIL 'no key value appears in any output' 'leak'; else record PASS 'no key value appears in any output'; fi
 echo

@@ -27,8 +27,8 @@ api_name="masscom-256-rehearsal-api-$$"
 fake_name="masscom-256-rehearsal-fake-$$"
 # 실행마다 다른 라벨: 정리는 이 실행의 컨테이너만 지운다(동시에 도는 다른 리허설을 건드리지 않는다).
 label="masscom.rehearsal=256-$$"
-api_port=$((31000 + RANDOM % 2000))
-fake_port=$((api_port + 2000))
+api_port=0
+fake_port=0
 fake_key='fake-rehearsal-key-not-a-real-openai-key'
 merchant=rehearsal-merchant
 unit_draft=8760      # 시안 한 장의 실제 비용(µUSD): 텍스트 120×5 + 출력 272×30 (가짜 서버의 usage 기준)
@@ -109,6 +109,24 @@ docker info >/dev/null 2>&1 || fail_setup 'docker daemon is not reachable'
 docker exec "$pg" psql -U postgres -d postgres -X -q -Atc 'SELECT 1' >/dev/null 2>&1 ||
   fail_setup "cannot connect to $pg as postgres from inside the container"
 
+# 실행마다 포트를 고른다: PostgreSQL 컨테이너의 네트워크에서 이미 듣고 있는(또는 쓰던) 포트를 피한다. 여러 실행이 같은 네트워크를 함께 써도 부딪히지 않게 한다.
+pick_port() { # 이미 고른 포트(선택)
+  local tries=0 candidate hex used
+  used="$(docker exec "$pg" cat /proc/net/tcp /proc/net/tcp6 2>/dev/null || true)"
+  while [[ "$tries" -lt 200 ]]; do
+    candidate=$((31000 + RANDOM % 9000))
+    hex="$(printf '%04X' "$candidate")"
+    if [[ "$candidate" != "${1:-0}" && "$used" != *":$hex "* ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+    tries=$((tries + 1))
+  done
+  fail_setup 'no free port found in the PostgreSQL container network'
+}
+api_port="$(pick_port)"
+fake_port="$(pick_port "$api_port")"
+
 echo "== 이미지 =="
 if [[ "${REHEARSAL_SKIP_BUILD:-0}" == 1 ]]; then
   docker image inspect "$image" >/dev/null 2>&1 || fail_setup "image $image does not exist (unset REHEARSAL_SKIP_BUILD)"
@@ -164,9 +182,11 @@ api_log="$scratch/api.log"
 fake_log="$scratch/fake.log"
 
 wait_for_log() { # 컨테이너 패턴 초
-  local tries=$(($3 * 4))
+  local tries=$(($3 * 4)) logs
   while [[ "$tries" -gt 0 ]]; do
-    if docker logs "$1" 2>&1 | grep -qF -- "$2"; then return 0; fi
+    # 로그를 변수에 받아 비교한다(`docker logs | grep -q`는 pipefail에서 grep이 먼저 끝나면 docker logs가 SIGPIPE로 실패해 찾고도 못 찾은 것이 된다).
+    logs="$(docker logs "$1" 2>&1 || true)"
+    if [[ "$logs" == *"$2"* ]]; then return 0; fi
     if [[ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || echo false)" != true ]]; then return 1; fi
     sleep 0.25
     tries=$((tries - 1))
