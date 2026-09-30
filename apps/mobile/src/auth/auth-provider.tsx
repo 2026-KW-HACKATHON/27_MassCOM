@@ -13,6 +13,8 @@ import { demoRuntimeConfig, createDemoCredential, isDevelopmentDemoBuild } from 
 import { getPublicApiConfig } from '@/config/public-api';
 import { resolveRuntimeIdentity } from '@/config/showcase-identity';
 import { clearPendingFriendLink } from '@/friends/pending-friend-link';
+import { purgeForeignCollectionPrefs } from '@/screens/collection/collection-prefs';
+import { listCollectionPrefKeys, removeCollectionPrefKeys } from '@/screens/collection/collection-prefs-storage';
 import { purgeForeignWalletSessions } from '@/wallet/account-scope';
 import { createAccountScopedAppKit, walletRuntimeConfig } from '@/wallet/appkit';
 import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
@@ -131,6 +133,12 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       accountId,
       listStoredKeys: listAppKitStorageKeys,
       removeStoredKeys: removeAppKitStorageKeys,
+    });
+    // 대표 진열·마스코트 반응 기록도 지갑 세션처럼 계정이 바뀌면 이전 계정 몫을 지운다.
+    void purgeForeignCollectionPrefs({
+      accountId,
+      listStoredKeys: listCollectionPrefKeys,
+      removeStoredKeys: removeCollectionPrefKeys,
     });
   }, [accountId]);
 

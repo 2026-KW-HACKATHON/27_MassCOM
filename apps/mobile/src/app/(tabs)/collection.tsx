@@ -29,6 +29,7 @@ export default function CollectionRoute() {
     <CollectionScreen
       key={auth.accountId}
       apiUrl={publicApiConfig.apiUrl}
+      accountId={auth.accountId}
       credential={auth.credential}
       onSessionInvalid={auth.invalidateSession}
     />

@@ -26,7 +26,7 @@ test('도감 화면은 없는 권리를 세대 확인을 거치는 조회로 한
   const effect = screen.slice(screen.indexOf('const collectibleLink = useRef'), screen.indexOf('useMerchantCatalog(apiUrl);'));
   assert.match(effect, /collectibleFocusAction\(collection, entitlement, link\.rereadFor === entitlement\) === 'fetch'/);
   assert.match(effect, /link\.rereadFor = entitlement;\s*const generation = startRequest\(\);\s*void api\.getCollection\(\)\.then\(\(next\) => \{ applySnapshot\(next, generation\); finish\(next\); \}, \(\) => finish\(collection\)\);/);
-  assert.match(effect, /if \(item\?\.artwork\) setCollectibleDetail/);
+  assert.match(effect, /if \(item\?\.artwork\) setRevealEntitlement/);
   assert.match(effect, /else setMessage\('보상은 도감에 보관됐어요/);
   // 같은 링크를 두 번 처리하지 않고, 링크가 지워지면 상태를 비운다.
   assert.match(effect, /link\.doneFor === entitlement/);

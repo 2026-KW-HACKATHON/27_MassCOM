@@ -40,12 +40,21 @@ import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wall
 
 import { collectibleFocusAction } from './collectible-focus';
 import { collectionCounts, shouldStackCounts } from './collection-counts';
+import { CollectibleBrowser } from './collectible-browser';
 import { CollectibleDetail } from './collectible-detail';
+import { groupCollectibles } from './collectible-groups';
+import { CollectibleReveal } from './collectible-reveal';
+import { useCollectibleShare } from './collectible-share';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
+import { readFavorites, readShownReactions, writeFavorites, writeShownReactions } from './collection-prefs-storage';
+import { toggleFavorite } from './collection-prefs';
+import { eligibleReactionEvents, pendingReactionEvents, reactionEventKey, type ReactionEvent } from './mascot-reactions';
+import { MascotReactionToast } from './mascot-reaction-toast';
 import { merchantArt, type MerchantArt } from './merchant-art';
 import { canOfferMint, mintRefusalText, nftPreparingNote, nftStatusLabel } from './nft-status';
 import { mintConsentMessage, mintConsentTitle, mintConsentVersion } from './mint-consent';
 import { collectibleArtSize } from './showcase-collectible-art';
+import { buildStoreSeries } from './store-series';
 import { makeCollectionStyles } from './styles';
 
 // One StyleSheet per colour scheme instead of one per render of every card.
@@ -67,10 +76,12 @@ const quietBadgeRefreshCodes = new Set(['REWARD_LOCKED', 'REWARD_OFFER_UNAVAILAB
 
 export function CollectionScreen({
   apiUrl,
+  accountId,
   credential,
   onSessionInvalid,
 }: {
   apiUrl: string;
+  accountId: string;
   credential: AccountCredential;
   onSessionInvalid: () => Promise<void>;
 }) {
@@ -105,6 +116,13 @@ export function CollectionScreen({
   const [revealed, setRevealed] = useState<OpenedReward>();
   const [usingCoupon, setUsingCoupon] = useState<Coupon>();
   const [collectibleDetail, setCollectibleDetail] = useState<{ entitlementId: string; merchantName: string; client: typeof api }>();
+  // 16장 획득 연출: 방문 수령 직후에만 채워지고, 건너뛰거나 상세로 넘어가면 비운다. 저장은 이미 끝난 상태라 여기서 뭘 하든 보상엔 영향이 없다.
+  const [revealEntitlement, setRevealEntitlement] = useState<{ entitlementId: string; merchantName: string }>();
+  const [favorites, setFavorites] = useState<readonly string[]>([]);
+  const shownReactions = useRef<Set<string>>(new Set());
+  const [reactionsLoaded, setReactionsLoaded] = useState(false);
+  const [reactionEvent, setReactionEvent] = useState<ReactionEvent>();
+  const { host: shareHost, share: shareCollectible, sharing } = useCollectibleShare();
   const [polling, setPolling] = useState<PollingState>();
   const [binding, setBinding] = useState<ActiveWalletBindingResponse['binding']>();
   const [bindingError, setBindingError] = useState<string>();
@@ -127,6 +145,26 @@ export function CollectionScreen({
 
   useFocusEffect(useCallback(() => () => setCollectibleDetail(undefined), [setCollectibleDetail]));
 
+  // 대표 진열·마스코트 반응 기록은 계정별 로컬 저장소에서 읽는다. 화면은 계정마다 새로 마운트되므로(라우트의 key=accountId) 한 번만 읽으면 된다.
+  useEffect(() => {
+    let active = true;
+    void Promise.all([readFavorites(accountId), readShownReactions(accountId)]).then(([favoritesValue, shownValue]) => {
+      if (!active) return;
+      setFavorites(favoritesValue);
+      shownReactions.current = new Set(shownValue);
+      setReactionsLoaded(true);
+    });
+    return () => { active = false; };
+  }, [accountId]);
+
+  const toggleCollectibleFavorite = useCallback((key: string) => {
+    setFavorites((current) => {
+      const next = toggleFavorite(current, key);
+      void writeFavorites(accountId, next);
+      return next;
+    });
+  }, [accountId]);
+
   // Acquisition links open only an entitlement in the authenticated collection.
   // A legacy reward without artwork still remains successfully collected.
   // The tab stays mounted, so the snapshot may predate the reward just received: when the entitlement is missing, re-read the
@@ -139,7 +177,8 @@ export function CollectionScreen({
     const finish = (snapshot: CollectionSnapshot) => {
       link.doneFor = entitlement;
       const item = snapshot.collectibles.find((value) => value.entitlementId === entitlement);
-      if (item?.artwork) setCollectibleDetail({ entitlementId: item.entitlementId, merchantName: item.merchantName, client: api });
+      // 방문 수령 직후 도착한 링크만 획득 연출을 연다; 전달은 이미 끝난 뒤라 연출을 건너뛰어도 보관 상태는 그대로다.
+      if (item?.artwork) setRevealEntitlement({ entitlementId: item.entitlementId, merchantName: item.merchantName });
       else setMessage('보상은 도감에 보관됐어요. 다시 볼 수 있는 가게 수집품은 아직 없어요.');
       router.setParams({ focus: undefined, entitlement: undefined });
     };
@@ -159,6 +198,19 @@ export function CollectionScreen({
   );
   const artUrlByMerchant = useMemo(() => new Map(publicMerchants.map((merchant) => [merchant.id, merchant.artUrl])), [publicMerchants]);
   const merchantGoals = buildMerchantGoals(publicMerchants, collection?.visits ?? [], collection?.collectibles ?? [], new Date().toISOString());
+  const collectibleGroups = useMemo(() => groupCollectibles(collection?.collectibles ?? []), [collection]);
+  const storeSeries = useMemo(() => buildStoreSeries(publicMerchants, collection?.collectibles ?? []), [publicMerchants, collection]);
+
+  // 17.1 마스코트 반응: 새로 자격을 얻은 이벤트만, 계정별로 한 번만 보여준다.
+  useEffect(() => {
+    if (!reactionsLoaded) return;
+    const eligible = eligibleReactionEvents(collectibleGroups, storeSeries);
+    const pending = pendingReactionEvents(eligible, shownReactions.current);
+    if (pending.length === 0) return;
+    shownReactions.current = new Set([...shownReactions.current, ...pending.map(reactionEventKey)]);
+    void writeShownReactions(accountId, shownReactions.current);
+    setReactionEvent(pending[0]);
+  }, [reactionsLoaded, collectibleGroups, storeSeries, accountId]);
   const artSize = collectibleArtSize(width, uiMetrics.pageInset, styles.collectibleCard.padding);
   const detailMedal = badges.book?.medals.find((medal) => medal.kind === detailKind);
   const coupons = couponsOf(badges.book);
@@ -471,6 +523,18 @@ export function CollectionScreen({
           </Text>
         ) : message ? <Text style={[styles.inlineMessage, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
 
+        <Section title="수집품 모아보기" note="가게·시즌·등급으로 찾아보고, 좋아하는 수집품을 대표로 놓아요.">
+          <CollectibleBrowser
+            groups={collectibleGroups}
+            series={storeSeries}
+            favorites={favorites}
+            sharing={sharing}
+            onToggleFavorite={toggleCollectibleFavorite}
+            onOpenDetail={(entitlementId, merchantName) => setCollectibleDetail({ entitlementId, merchantName, client: api })}
+            onShare={(group) => void shareCollectible({ thumbnailDataUrl: group.artwork.thumbnailDataUrl, merchantName: group.merchantName, name: group.artwork.name })}
+          />
+        </Section>
+
         <Section title="앱에서 받은 수집품" note="보상권을 받으면 앱 도감에 먼저 기록됩니다.">
           {collection.collectibles.length === 0 ? (
             <EmptyCopy text="아직 받은 수집품이 없습니다. 첫 방문을 인증해 보세요." />
@@ -570,6 +634,21 @@ export function CollectionScreen({
       <MedalDetail medal={detailMedal} variant={variant} onClose={() => setDetailKind(undefined)} />
       {collectibleDetail?.client === api ? <CollectibleDetail key={collectibleDetail.entitlementId} entitlementId={collectibleDetail.entitlementId}
         merchantName={collectibleDetail.merchantName} load={loadCollectible} onClose={() => setCollectibleDetail(undefined)} onUnavailable={() => void refresh()} /> : null}
+      {revealEntitlement ? (
+        <CollectibleReveal
+          key={revealEntitlement.entitlementId}
+          entitlementId={revealEntitlement.entitlementId}
+          merchantName={revealEntitlement.merchantName}
+          load={loadCollectible}
+          onSkip={() => setRevealEntitlement(undefined)}
+          onOpenDetail={() => {
+            setCollectibleDetail({ entitlementId: revealEntitlement.entitlementId, merchantName: revealEntitlement.merchantName, client: api });
+            setRevealEntitlement(undefined);
+          }}
+        />
+      ) : null}
+      {shareHost}
+      <MascotReactionToast event={reactionEvent} onClose={() => setReactionEvent(undefined)} />
       <RewardReveal
         result={revealed}
         onClose={() => setRevealed(undefined)}
