@@ -98,6 +98,13 @@ status=0
 out="$(run_drill "$work/adir-link" 2>&1)" || status=$?
 [[ "$status" != 0 ]] || { echo "drill accepted a symlink to a directory as the backup path: $out" >&2; exit 1; }
 [[ -z "$(ls -A "$work/adir")" ]] || { echo 'a dump was written into the directory through a symlink' >&2; exit 1; }
+printf 'LINK TARGET\n' >"$work/link-target.dump"
+ln -s "$work/link-target.dump" "$work/file-link.dump"
+status=0
+out="$(run_drill "$work/file-link.dump" 2>&1)" || status=$?
+[[ "$status" != 0 ]] || { echo "drill accepted a symlink to a file as the backup path: $out" >&2; exit 1; }
+grep -q 'backup path is a symlink' <<<"$out" || { echo "symlink refusal was not reported: $out" >&2; exit 1; }
+[[ -L "$work/file-link.dump" && "$(cat "$work/link-target.dump")" == 'LINK TARGET' ]] || { echo 'symlink or its target was changed' >&2; exit 1; }
 
 # 7. Without a path the temporary dump is private and gone at the end.
 status=0
