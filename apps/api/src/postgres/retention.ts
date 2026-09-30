@@ -5,16 +5,27 @@ export type RetentionStepName =
   | 'web_sessions'
   | 'deletion_intake'
   | 'admin_audit'
+  | 'admin_owner_audit'
   | 'admin_role_audit'
   | 'staff_registration_audit'
-  | 'coupon_audit';
+  | 'coupon_audit'
+  | 'customer_identity_tokens'
+  | 'wallet_challenges'
+  | 'web_oauth_states'
+  | 'staff_registration_requests';
 
 export type RetentionCount = { step: RetentionStepName; count: number };
 export type RetentionRun = { counts: RetentionCount[]; failed: RetentionStepName[] };
 
-// 감사·삭제 접수 기록의 보관 기간은 1년이다(D-056, 개인정보의 안전성 확보조치 기준 제8조의 접속기록 최소 보관 기간).
+// 보관 기간(D-056). 처리·감사 기록은 1년(개인정보의 안전성 확보조치 기준 제8조의 접속기록 최소 보관 기간)이지만
+// 접근권한을 부여·변경·말소한 기록은 제5조 제3항에 따라 **최소 3년**이라 3년 뒤에 지운다.
 // 시각 계산은 세션 시간대에 기대지 않도록 UTC로 고정한다. $1은 명령이 시작할 때 한 번 정한 기준 시각이다.
-const oneYearAgo = `(($1::timestamptz AT TIME ZONE 'UTC') - interval '1 year') AT TIME ZONE 'UTC'`;
+const ago = (interval: string) => `(($1::timestamptz AT TIME ZONE 'UTC') - interval '${interval}') AT TIME ZONE 'UTC'`;
+const oneYearAgo = ago('1 year');
+const threeYearsAgo = ago('3 years');
+const oneDayAgo = ago('1 day');
+// 점주를 지정·해제한 감사(0032). 점포 접근권한의 부여·말소 기록이라 3년 보관 대상이다.
+const ownerChangeActions = `('MERCHANT_OWNER_GRANTED', 'MERCHANT_OWNER_REVOKED')`;
 
 type Step = { name: RetentionStepName; table: string; where: string };
 
@@ -31,11 +42,33 @@ const steps: readonly Step[] = [
     where: `status <> 'REQUESTED' AND coalesce(processed_at, cancelled_at, requested_at) < ${oneYearAgo}`,
   },
   // 쓰기만 하는 감사 표들: 이 표를 참조하는 외래 키도, 읽는 코드도 없다.
-  { name: 'admin_audit', table: 'platform_admin_audit', where: `created_at < ${oneYearAgo}` },
-  { name: 'admin_role_audit', table: 'platform_admin_role_audit', where: `created_at < ${oneYearAgo}` },
-  { name: 'staff_registration_audit', table: 'staff_registration_audit', where: `created_at < ${oneYearAgo}` },
+  // 처리 기록 1년: 점주 지정·해제(접근권한)를 뺀 관리자 처리 기록.
+  {
+    name: 'admin_audit',
+    table: 'platform_admin_audit',
+    where: `created_at < ${oneYearAgo} AND action NOT IN ${ownerChangeActions}`,
+  },
+  // 접근권한 부여·변경·말소 기록 3년(제5조 제3항): 점주 지정·해제, 관리자 권한 부여·회수, 직원 등록 승인·해제.
+  {
+    name: 'admin_owner_audit',
+    table: 'platform_admin_audit',
+    where: `created_at < ${threeYearsAgo} AND action IN ${ownerChangeActions}`,
+  },
+  { name: 'admin_role_audit', table: 'platform_admin_role_audit', where: `created_at < ${threeYearsAgo}` },
+  { name: 'staff_registration_audit', table: 'staff_registration_audit', where: `created_at < ${threeYearsAgo}` },
   // 읽는 곳은 쿠폰 사용 되돌리기의 멱등 재시도 한 곳(10분 창)뿐이라 1년 지난 행은 필요 없다.
   { name: 'coupon_audit', table: 'badge_coupon_audit', where: `created_at < ${oneYearAgo}` },
+  // 계정 식별자를 가질 수 있는 일회용 행. 모두 몇 분~15분 안에 쓰이고 만료되며, 만료 뒤에는 읽는 곳이 없다(만료 행을 쓰는 쪽은
+  // 만료 여부만 보고 거절한다). 하루 여유를 두고 지운다.
+  { name: 'customer_identity_tokens', table: 'customer_identity_tokens', where: `expires_at < ${oneDayAgo}` },
+  { name: 'wallet_challenges', table: 'wallet_challenges', where: `expires_at < ${oneDayAgo}` },
+  { name: 'web_oauth_states', table: 'web_oauth_states', where: `expires_at < ${oneDayAgo}` },
+  // 사용했거나 만료된 지 하루가 지난 직원 등록 요청. 승인 조회는 미사용(consumed_at IS NULL) 요청만 보고, 감사 표는 ON DELETE SET NULL이다.
+  {
+    name: 'staff_registration_requests',
+    table: 'staff_registration_requests',
+    where: `consumed_at < ${oneDayAgo} OR expires_at < ${oneDayAgo}`,
+  },
 ];
 
 export const retentionStepNames: readonly RetentionStepName[] = steps.map((step) => step.name);

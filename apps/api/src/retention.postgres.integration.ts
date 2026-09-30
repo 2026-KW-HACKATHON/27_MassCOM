@@ -11,10 +11,15 @@ import { PostgresRetentionService, type RetentionCount } from './postgres/retent
 
 const now = new Date('2026-09-30T12:00:00.000Z');
 const cutoffMs = Date.parse('2025-09-30T12:00:00.000Z'); // exactly one year before `now`
+const threeYearMs = Date.parse('2023-09-30T12:00:00.000Z'); // exactly three years before `now`
+const dayMs = Date.parse('2026-09-29T12:00:00.000Z'); // exactly one day before `now`
 const at = (ms: number) => new Date(ms);
-const before = at(cutoffMs - 1); // older than one year: deleted
-const exactly = at(cutoffMs); // exactly one year: kept (only strictly older rows go)
-const after = at(cutoffMs + 1); // younger: kept
+// Each period has the same three rows: one millisecond older is deleted, exactly at the boundary and younger are kept.
+const around = (boundary: number) => ({ before: at(boundary - 1), exactly: at(boundary), after: at(boundary + 1) });
+const oneYear = around(cutoffMs);
+const threeYears = around(threeYearMs);
+const oneDay = around(dayMs);
+const { before, exactly, after } = oneYear;
 
 async function setup(t: TestContext) {
   const connectionString = process.env.TEST_DATABASE_URL;
@@ -27,7 +32,8 @@ async function setup(t: TestContext) {
   await pool.query(
     `TRUNCATE auth_sessions, web_sessions, account_deletion_intake_requests, account_deletion_requests,
               platform_admin_audit, platform_admin_role_audit, staff_registration_audit, staff_registration_requests,
-              badge_coupon_audit, badge_coupons, badge_reward_offers, platform_admins, merchants CASCADE`,
+              badge_coupon_audit, badge_coupons, badge_reward_offers, platform_admins, customer_identity_tokens,
+              wallet_challenges, web_oauth_states, merchants CASCADE`,
   );
   await pool.query(
     `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
@@ -128,11 +134,26 @@ async function seedDeletionIntake(pool: Pool) {
   return { gone: gone.sort(), kept: kept.sort(), ledgerId };
 }
 
-type AuditSeed = { table: string; insert: (pool: Pool, id: string, createdAt: Date) => Promise<void> };
+type AuditSeed = {
+  table: string;
+  boundary: ReturnType<typeof around>;
+  insert: (pool: Pool, id: string, createdAt: Date) => Promise<void>;
+};
+
+const ownerAction = (action: 'MERCHANT_OWNER_GRANTED' | 'MERCHANT_OWNER_REVOKED') =>
+  async (pool: Pool, id: string, createdAt: Date) => {
+    await pool.query(
+      `INSERT INTO platform_admin_audit (id, actor_account_id, merchant_id, action, target_account_id, after_state, created_at)
+       VALUES ($1, 'acct_admin', 'shop-1', $2, 'acct_owner', '{}'::jsonb, $3)`,
+      [id, action, createdAt],
+    );
+  };
 
 const auditSeeds: Record<string, AuditSeed> = {
+  // Handling records other than owner changes: one year.
   admin_audit: {
     table: 'platform_admin_audit',
+    boundary: oneYear,
     insert: async (pool, id, createdAt) => {
       await pool.query(
         `INSERT INTO platform_admin_audit (id, actor_account_id, merchant_id, action, after_state, created_at)
@@ -141,8 +162,12 @@ const auditSeeds: Record<string, AuditSeed> = {
       );
     },
   },
+  // Owner grant/revoke records are access-right records: three years.
+  admin_owner_granted: { table: 'platform_admin_audit', boundary: threeYears, insert: ownerAction('MERCHANT_OWNER_GRANTED') },
+  admin_owner_revoked: { table: 'platform_admin_audit', boundary: threeYears, insert: ownerAction('MERCHANT_OWNER_REVOKED') },
   admin_role_audit: {
     table: 'platform_admin_role_audit',
+    boundary: threeYears,
     insert: async (pool, id, createdAt) => {
       await pool.query(
         `INSERT INTO platform_admin_role_audit (id, target_account_id, action, created_at)
@@ -153,6 +178,7 @@ const auditSeeds: Record<string, AuditSeed> = {
   },
   staff_registration_audit: {
     table: 'staff_registration_audit',
+    boundary: threeYears,
     insert: async (pool, id, createdAt) => {
       await pool.query(
         `INSERT INTO staff_registration_audit (id, actor_account_id, target_account_id, merchant_id, action, created_at)
@@ -163,6 +189,7 @@ const auditSeeds: Record<string, AuditSeed> = {
   },
   coupon_audit: {
     table: 'badge_coupon_audit',
+    boundary: oneYear,
     insert: async (pool, id, createdAt) => {
       await pool.query(
         `INSERT INTO badge_coupon_audit (id, coupon_id, merchant_id, action, actor_account_id, created_at)
@@ -186,11 +213,12 @@ async function seedCoupon(pool: Pool) {
   );
 }
 
+/** Three rows per table around that table's own boundary, plus the ids that must be gone and stay. */
 async function seedAudit(pool: Pool, name: keyof typeof auditSeeds) {
   const seed = auditSeeds[name]!;
   const gone: string[] = [];
   const kept: string[] = [];
-  for (const [bucket, createdAt] of [[gone, before], [kept, exactly], [kept, after]] as const) {
+  for (const [bucket, createdAt] of [[gone, seed.boundary.before], [kept, seed.boundary.exactly], [kept, seed.boundary.after]] as const) {
     const id = randomUUID();
     bucket.push(id);
     await seed.insert(pool, id, createdAt);
@@ -198,7 +226,53 @@ async function seedAudit(pool: Pool, name: keyof typeof auditSeeds) {
   return { gone: gone.sort(), kept: kept.sort(), table: seed.table };
 }
 
-test('run deletes exactly the rows older than the boundary in every table and nothing else', async (t) => {
+async function seedOneTimeRows(pool: Pool) {
+  const insert = async (table: string, sql: string, id: string, expiresAt: Date) => {
+    await pool.query(sql, [id, expiresAt]);
+    return { table, id };
+  };
+  const rows = { gone: [] as { table: string; id: string }[], kept: [] as { table: string; id: string }[] };
+  for (const [bucket, expiresAt] of [[rows.gone, oneDay.before], [rows.kept, oneDay.exactly], [rows.kept, oneDay.after]] as const) {
+    const hex = randomBytes(32).toString('hex');
+    bucket.push(await insert('customer_identity_tokens',
+      `INSERT INTO customer_identity_tokens (token_hash, customer_account_id, expires_at, created_at)
+       VALUES (decode($1, 'hex'), 'acct_token', $2, $2::timestamptz - interval '5 minutes')`, hex, expiresAt));
+    const challenge = randomUUID();
+    bucket.push(await insert('wallet_challenges',
+      `INSERT INTO wallet_challenges (id, account_id, address, chain_id, nonce, message, issued_at, expires_at, status)
+       VALUES ($1, 'acct_wallet', '0x7000000000000000000000000000000000000007', 84532, 'abc12345def67890', 'm',
+               $2::timestamptz - interval '5 minutes', $2, 'pending')`, challenge, expiresAt));
+    const state = randomBytes(32).toString('hex');
+    bucket.push(await insert('web_oauth_states',
+      `INSERT INTO web_oauth_states (state_hash, code_verifier, nonce, expires_at)
+       VALUES (decode($1, 'hex'), repeat('v', 43), repeat('n', 43), $2)`, state, expiresAt));
+  }
+  return rows;
+}
+
+async function seedStaffRequests(pool: Pool) {
+  const gone: string[] = [];
+  const kept: string[] = [];
+  const insert = async (bucket: string[], expiresAt: Date, consumedAt: Date | null) => {
+    const id = randomUUID();
+    bucket.push(id);
+    await pool.query(
+      `INSERT INTO staff_registration_requests (id, merchant_id, account_id, code_hash, created_at, expires_at, consumed_at)
+       VALUES ($1, 'shop-1', 'acct_staff', $2, $3::timestamptz - interval '15 minutes', $3, $4)`,
+      [id, randomBytes(32), expiresAt, consumedAt],
+    );
+  };
+  await insert(gone, oneDay.before, null); // expired more than a day ago, never used
+  await insert(kept, oneDay.exactly, null);
+  await insert(kept, oneDay.after, null);
+  await insert(gone, at(now.getTime() + 60_000), oneDay.before); // used more than a day ago, code not expired yet
+  await insert(kept, at(now.getTime() + 60_000), oneDay.exactly);
+  await insert(kept, at(now.getTime() + 60_000), oneDay.after);
+  await insert(kept, at(now.getTime() + 60_000), null); // still pending
+  return { gone: gone.sort(), kept: kept.sort() };
+}
+
+test('run deletes exactly the rows older than each period in every table and nothing else', async (t) => {
   const { pool, service } = await setup(t);
   await seedCoupon(pool);
   const authSessions = await seedAuthSessions(pool);
@@ -210,16 +284,22 @@ test('run deletes exactly the rows older than the boundary in every table and no
     staff_registration_audit: await seedAudit(pool, 'staff_registration_audit'),
     coupon_audit: await seedAudit(pool, 'coupon_audit'),
   };
+  // Owner changes share the table of the one-year records but live three years.
+  const ownerGranted = await seedAudit(pool, 'admin_owner_granted');
+  const ownerRevoked = await seedAudit(pool, 'admin_owner_revoked');
+  const oneTime = await seedOneTimeRows(pool);
+  const staffRequests = await seedStaffRequests(pool);
   await pool.query(`INSERT INTO platform_admins (account_id) VALUES ('acct_admin')`);
 
   const reported = counts(await service.report());
   assert.deepEqual(reported, {
-    auth_sessions: 3, web_sessions: 2, deletion_intake: 3, admin_audit: 1, admin_role_audit: 1,
-    staff_registration_audit: 1, coupon_audit: 1,
+    auth_sessions: 3, web_sessions: 2, deletion_intake: 3, admin_audit: 1, admin_owner_audit: 2,
+    admin_role_audit: 1, staff_registration_audit: 1, coupon_audit: 1, customer_identity_tokens: 1,
+    wallet_challenges: 1, web_oauth_states: 1, staff_registration_requests: 2,
   });
   // A report is read-only.
   assert.equal((await idsOf(pool, 'SELECT id FROM auth_sessions')).length, 5);
-  assert.equal((await idsOf(pool, 'SELECT id FROM platform_admin_audit')).length, 3);
+  assert.equal((await idsOf(pool, 'SELECT id FROM platform_admin_audit')).length, 9);
 
   const result = await service.run();
   assert.deepEqual(result.failed, []);
@@ -228,9 +308,19 @@ test('run deletes exactly the rows older than the boundary in every table and no
   assert.deepEqual(await idsOf(pool, 'SELECT id FROM auth_sessions'), authSessions.kept);
   assert.deepEqual(await idsOf(pool, 'SELECT id FROM web_sessions'), webSessions.kept);
   assert.deepEqual(await idsOf(pool, 'SELECT id FROM account_deletion_intake_requests'), intake.kept);
-  for (const audit of Object.values(audits)) {
-    assert.deepEqual(await idsOf(pool, `SELECT id FROM ${audit.table}`), audit.kept, audit.table);
-    assert.equal(audit.gone.length, 1);
+  assert.deepEqual(await idsOf(pool, 'SELECT id FROM platform_admin_role_audit'), audits.admin_role_audit.kept);
+  assert.deepEqual(await idsOf(pool, 'SELECT id FROM staff_registration_audit'), audits.staff_registration_audit.kept);
+  assert.deepEqual(await idsOf(pool, 'SELECT id FROM badge_coupon_audit'), audits.coupon_audit.kept);
+  assert.deepEqual(
+    await idsOf(pool, 'SELECT id FROM platform_admin_audit'),
+    [...audits.admin_audit.kept, ...ownerGranted.kept, ...ownerRevoked.kept].sort(),
+  );
+  for (const audit of [...Object.values(audits), ownerGranted, ownerRevoked]) assert.equal(audit.gone.length, 1);
+  assert.deepEqual(await idsOf(pool, 'SELECT id FROM staff_registration_requests'), staffRequests.kept);
+  for (const [table, column] of [['customer_identity_tokens', 'encode(token_hash, \'hex\')'], ['wallet_challenges', 'id'],
+    ['web_oauth_states', 'encode(state_hash, \'hex\')']] as const) {
+    const remaining = (await pool.query<{ id: string }>(`SELECT ${column} AS id FROM ${table}`)).rows.map((row) => row.id).sort();
+    assert.deepEqual(remaining, oneTime.kept.filter((row) => row.table === table).map((row) => row.id).sort(), table);
   }
 
   // What retention must never touch: the deletion ledger, the coupon the audit rows describe, admin grants, merchants.
@@ -238,29 +328,63 @@ test('run deletes exactly the rows older than the boundary in every table and no
   assert.equal((await pool.query('SELECT 1 FROM badge_coupons')).rowCount, 1);
   assert.equal((await pool.query('SELECT 1 FROM platform_admins')).rowCount, 1);
   assert.equal((await pool.query('SELECT 1 FROM merchants')).rowCount, 1);
-  // The active filing survived and is still linked to its (raw) account id; finished ones never had one.
   assert.equal(
     (await pool.query(`SELECT 1 FROM account_deletion_intake_requests WHERE status = 'REQUESTED' AND account_id IS NOT NULL`)).rowCount,
     1,
   );
 
   // A second run has nothing left to delete.
-  assert.deepEqual(Object.values(counts((await service.run()).counts)), Array(7).fill(0));
+  assert.deepEqual(Object.values(counts((await service.run()).counts)), Array(12).fill(0));
+});
+
+test('access-right records live three years while other handling records live one year', async (t) => {
+  const { pool, service } = await setup(t);
+  await seedCoupon(pool);
+  // Two years old: past the one-year period, inside the three-year period.
+  const twoYearsAgo = at(now.getTime() - 2 * 365 * 86_400_000);
+  const twoYearIds: Record<string, string> = {};
+  for (const name of ['admin_audit', 'admin_owner_granted', 'admin_owner_revoked', 'admin_role_audit',
+    'staff_registration_audit', 'coupon_audit'] as const) {
+    twoYearIds[name] = randomUUID();
+    await auditSeeds[name]!.insert(pool, twoYearIds[name]!, twoYearsAgo);
+  }
+  // Four years old: past every period.
+  for (const name of ['admin_owner_granted', 'admin_owner_revoked', 'admin_role_audit', 'staff_registration_audit'] as const) {
+    await auditSeeds[name]!.insert(pool, randomUUID(), at(now.getTime() - 4 * 365 * 86_400_000));
+  }
+  const result = counts(await service.run().then((run) => run.counts));
+  assert.deepEqual(
+    { admin_audit: result.admin_audit, admin_owner_audit: result.admin_owner_audit, admin_role_audit: result.admin_role_audit,
+      staff_registration_audit: result.staff_registration_audit, coupon_audit: result.coupon_audit },
+    { admin_audit: 1, admin_owner_audit: 2, admin_role_audit: 1, staff_registration_audit: 1, coupon_audit: 1 },
+    'only the one-year kinds lose their two-year-old rows; the four-year-old access-right rows go too',
+  );
+  for (const name of ['admin_owner_granted', 'admin_owner_revoked']) {
+    const alive = await pool.query('SELECT 1 FROM platform_admin_audit WHERE id = $1', [twoYearIds[name]]);
+    assert.equal(alive.rowCount, 1, `${name} two years old must stay`);
+  }
+  for (const [name, table] of [['admin_role_audit', 'platform_admin_role_audit'], ['staff_registration_audit', 'staff_registration_audit']] as const) {
+    assert.equal((await pool.query(`SELECT 1 FROM ${table} WHERE id = $1`, [twoYearIds[name]])).rowCount, 1, name);
+  }
+  assert.equal((await pool.query('SELECT 1 FROM platform_admin_audit WHERE id = $1', [twoYearIds.admin_audit])).rowCount, 0);
+  assert.equal((await pool.query('SELECT 1 FROM badge_coupon_audit WHERE id = $1', [twoYearIds.coupon_audit])).rowCount, 0);
 });
 
 test('the boundary is strict: one millisecond decides between deleted and kept, in both directions', async (t) => {
   const { pool } = await setup(t);
   await seedCoupon(pool);
-  const audit = await seedAudit(pool, 'coupon_audit');
-  const cutoff = new Date(cutoffMs);
-  const rows = await pool.query<{ id: string; created_at: Date }>('SELECT id, created_at FROM badge_coupon_audit ORDER BY created_at');
-  assert.deepEqual(rows.rows.map((row) => row.created_at.getTime() - cutoff.getTime()), [-1, 0, 1]);
-  // One millisecond earlier "now" moves the cutoff back, so the row that was 1 ms too old is now exactly at the boundary.
-  const earlier = new PostgresRetentionService(pool, { now: () => new Date(now.getTime() - 1) });
-  assert.equal(counts(await earlier.report()).coupon_audit, 0);
-  const later = new PostgresRetentionService(pool, { now: () => new Date(now.getTime() + 1) });
-  assert.equal(counts(await later.report()).coupon_audit, 2);
-  assert.equal(audit.gone.length, 1);
+  await seedAudit(pool, 'coupon_audit');
+  await seedAudit(pool, 'admin_role_audit');
+  const shifted = (ms: number) => new PostgresRetentionService(pool, { now: () => new Date(now.getTime() + ms) });
+  // At the real instant: one row per table is older than its period.
+  assert.deepEqual(
+    [counts(await shifted(0).report()).coupon_audit, counts(await shifted(0).report()).admin_role_audit], [1, 1]);
+  // One millisecond earlier "now" moves every cutoff back, so the row that was 1 ms too old is exactly at the boundary and stays.
+  assert.deepEqual(
+    [counts(await shifted(-1).report()).coupon_audit, counts(await shifted(-1).report()).admin_role_audit], [0, 0]);
+  // One millisecond later the boundary row goes too, and the younger row still stays.
+  assert.deepEqual(
+    [counts(await shifted(1).report()).coupon_audit, counts(await shifted(1).report()).admin_role_audit], [2, 2]);
 });
 
 test('a step that fails is rolled back alone while the other steps still finish', async (t) => {
@@ -317,7 +441,7 @@ test('the command prints counts only and leaves the exit code at zero when every
       );
     }
   }
-  await auditSeeds.admin_role_audit!.insert(pool, randomUUID(), new Date('2020-01-01T00:00:00Z'));
+  await auditSeeds.admin_role_audit!.insert(pool, randomUUID(), new Date('2019-01-01T00:00:00Z'));
   const command = fileURLToPath(new URL('./postgres/retention-command.ts', import.meta.url));
   const run = (args: string[]) => execFileSync(process.execPath, ['--import', 'tsx', command, ...args], {
     env: { ...process.env, DATABASE_URL: process.env.TEST_DATABASE_URL! },
@@ -331,8 +455,9 @@ test('the command prints counts only and leaves the exit code at zero when every
   const lines = output.trim().split('\n');
   assert.equal(lines[0], 'RETENTION_RUN');
   assert.deepEqual(lines.slice(1), [
-    'auth_sessions\t2', 'web_sessions\t0', 'deletion_intake\t1', 'admin_audit\t0', 'admin_role_audit\t1',
-    'staff_registration_audit\t0', 'coupon_audit\t0',
+    'auth_sessions\t2', 'web_sessions\t0', 'deletion_intake\t1', 'admin_audit\t0', 'admin_owner_audit\t0',
+    'admin_role_audit\t1', 'staff_registration_audit\t0', 'coupon_audit\t0', 'customer_identity_tokens\t0',
+    'wallet_challenges\t0', 'web_oauth_states\t0', 'staff_registration_requests\t0',
   ]);
   assert.equal((await idsOf(pool, 'SELECT id FROM auth_sessions')).length, 1);
   // No identifier of any kind reaches the terminal: not a row id, not an account id, not the ledger id.
