@@ -1,0 +1,427 @@
+{
+  "observedAt": "2026-09-30",
+  "issue": 256,
+  "decision": "D-058",
+  "baseCommit": "d004d7f",
+  "sourceCommit": "04f673aca6d69cdb6c5348040d306eb81df8012f",
+  "sourceNote": "scripts/rehearse-ai-art-container.sh at branch feat/256-ai-art-enable commit 04f673a (the API is unchanged from main d004d7f); only the fake OpenAI server gained the unavailable (503) failure and FAKE_OPENAI_FAIL_COUNT",
+  "realOpenAiCalled": false,
+  "realKeyUsed": false,
+  "deployed": false,
+  "environment": {
+    "host": "macOS Darwin 25.6.0 (arm64), Docker 27.3.1 (Server), Docker Desktop",
+    "apiImage": "built from infra/lightsail/api.Dockerfile (node:22-bookworm-slim, Node v22.23.3), the same Dockerfile the showcase host builds; removed after the run",
+    "postgres": "existing local container masscom-sky-qa-pg (postgres:16.10-alpine); the script created its own database masscom_256_test and dropped it afterwards",
+    "network": "API, fake OpenAI server and driver share the PostgreSQL container network namespace (--network container:...), so the API reaches Postgres and AI_ART_OPENAI_BASE_URL=http://127.0.0.1:<port> on its own loopback",
+    "key": "clearly fake value (fake-rehearsal-key-not-a-real-openai-key); never sent anywhere but the local fake server",
+    "apiSettings": "NODE_ENV=production, read-only filesystem with /tmp tmpfs and no-new-privileges (as the showcase compose), AI_ART_STAFF_MAY_MANAGE=true (as the showcase compose); SHOWCASE_MODE is not set because it requires the database name masscom_showcase"
+  },
+  "command": "bash scripts/rehearse-ai-art-container.sh (about 54 seconds including the cached image build)",
+  "result": {
+    "checks": 224,
+    "pass": 224,
+    "fail": 0,
+    "scenarios": 19
+  },
+  "costArithmetic": "fake usage -> draft 120 text tokens x 5 + 272 output x 30 = 8,760 µUSD per image; final 100 text x 5 + 1,300 image x 8 + 3,000 output x 30 = 100,900 µUSD. One full flow = 4 x 8,760 + 100,900 = 135,940 µUSD, which ai_art_spend recorded exactly. Failed OpenAI calls (429/500/503/400) settle to 0.",
+  "coverage": {
+    "PASS": [
+      "startup log: enabled (key + loopback base URL), disabled (OPENAI_API_KEY is empty), disabled (invalid configuration) for a disallowed OpenAI address",
+      "draft round returns 4 drafts (stamp, sticker, watercolor, woodcut), each a distinct valid webp",
+      "choose -> final generation (FINAL_READY, valid webp, not one of the drafts) -> apply -> public /merchant-art/<sha256>.webp served without login (200 image/webp, immutable cache, bytes equal the final image, hash equals the sha256 in the URL)",
+      "customer catalog /merchants shows the applied artUrl and null after DELETE reset; the old public address is 404",
+      "access: no token 401, account without membership 403 MERCHANT_ACCESS_DENIED, no round for that account",
+      "monthly budget USD 0.05: first draft round ok, second round and the final refused with 503 AI_ART_BUDGET_EXHAUSTED without any OpenAI request",
+      "daily limit (2 draft rounds, 1 final): third round and second final refused with 429 AI_ART_DAILY_LIMIT and an integer Retry-After; quota shows 0 left",
+      "OpenAI 429 (rate_limit, Retry-After 1), 500 and 503 on the draft stage and on the final stage: exactly one retry, then success (fake answered the error once, the API client logged attempt 2 once and no attempt 3, ai_art_spend as for a normal run)",
+      "OpenAI 429, 500 and 503 that never stop: each of the 4 drafts is tried exactly twice (8 requests), no attempt 3, round FAILED with AI_ART_UPSTREAM_UNAVAILABLE, spend rows settle to 0; on the final stage 2 attempts, the four drafts and the choice are kept, the failed final counts against the daily finals",
+      "400 (moderation_blocked): 4 requests, no retry, AI_ART_MODERATION_BLOCKED, spend 0; 429 credit_balance_exhausted: 4 requests, no retry, AI_ART_UPSTREAM_UNAVAILABLE",
+      "the key value appears in no API log and no fake-server log in any scenario"
+    ]
+  },
+  "scenarios": [
+    {
+      "name": "disabled",
+      "result": "PASS",
+      "checks": 9,
+      "passed": 9,
+      "items": [
+        "PASS: disabled: /health 200 [200]",
+        "PASS: disabled: GET art -> configured false, 3 rounds left [{\"configured\":false,\"current\":null,\"quota\":{\"draftRoundsLeft\":3,\"finalsLeft\":3},\"round\":null}]",
+        "PASS: disabled: POST rounds -> 503 AI_ART_NOT_CONFIGURED [503 AI_ART_NOT_CONFIGURED]",
+        "PASS: key value appears in no log",
+        "PASS: startup log line [AI store art: disabled (OPENAI_API_KEY is empty)]",
+        "PASS: fake OpenAI /v1/images/generations requests [0]",
+        "PASS: fake OpenAI /v1/images/edits requests [0]",
+        "PASS: ai_art_spend rows [0]",
+        "PASS: ai_art_spend total (µUSD) [0]"
+      ]
+    },
+    {
+      "name": "invalid_config",
+      "result": "PASS",
+      "checks": 6,
+      "passed": 6,
+      "items": [
+        "PASS: invalid_config: /health 200 [200]",
+        "PASS: invalid_config: POST rounds -> 403 MERCHANT_ACCESS_DENIED (invalid config also turns STAFF art access off) [403 MERCHANT_ACCESS_DENIED]",
+        "PASS: key value appears in no log",
+        "PASS: startup log line [AI store art: disabled (invalid configuration)]",
+        "PASS: fake OpenAI /v1/images/generations requests [0]",
+        "PASS: fake OpenAI /v1/images/edits requests [0]"
+      ]
+    },
+    {
+      "name": "enabled_flow",
+      "result": "PASS",
+      "checks": 26,
+      "passed": 26,
+      "items": [
+        "PASS: happy: no token -> 401 [401]",
+        "PASS: happy: account without membership -> 403 MERCHANT_ACCESS_DENIED [403 MERCHANT_ACCESS_DENIED]",
+        "PASS: happy: account without membership cannot start a round [403]",
+        "PASS: happy: GET art -> configured true, no current art, 3+3 left [{\"draftRoundsLeft\":3,\"finalsLeft\":3}]",
+        "PASS: happy: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: happy: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: happy: drafts are distinct valid webp images [4 images]",
+        "PASS: happy: choose 2 -> 202 FINALIZING [202 FINALIZING]",
+        "PASS: happy: FINAL_READY with a valid webp final image [FINAL_READY ]",
+        "PASS: happy: the final is a new image, not one of the drafts",
+        "PASS: happy: apply -> 200 artUrl /merchant-art/<sha256>.webp [200 /merchant-art/3251dc2861bf9d8729fb3924d12bd3be99c48ec96717eda055e18858d2f2309b.webp]",
+        "PASS: happy: artUrl hash is the sha256 of the final image",
+        "PASS: happy: public art served without login (200 image/webp, immutable cache) [200 image/webp public, max-age=31536000, immutable]",
+        "PASS: happy: served bytes equal the final image",
+        "PASS: happy: customer catalog /merchants shows the applied artUrl [/merchant-art/3251dc2861bf9d8729fb3924d12bd3be99c48ec96717eda055e18858d2f2309b.webp]",
+        "PASS: happy: GET art -> current artUrl, no open round, 2+2 left [{\"draftRoundsLeft\":2,\"finalsLeft\":2}]",
+        "PASS: happy: apply again is idempotent [200]",
+        "PASS: happy: DELETE art -> RESET [200]",
+        "PASS: happy: old public art address -> 404 after reset [404]",
+        "PASS: happy: catalog artUrl is null after reset",
+        "PASS: key value appears in no log",
+        "PASS: startup log line [AI store art: enabled]",
+        "PASS: fake OpenAI /v1/images/generations requests [4]",
+        "PASS: fake OpenAI /v1/images/edits requests [1]",
+        "PASS: ai_art_spend rows [5]",
+        "PASS: ai_art_spend total (µUSD) [135940]"
+      ]
+    },
+    {
+      "name": "budget_exhausted",
+      "result": "PASS",
+      "checks": 12,
+      "passed": 12,
+      "items": [
+        "PASS: budget: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: budget: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: budget: drafts are distinct valid webp images [4 images]",
+        "PASS: budget: second draft round -> 503 AI_ART_BUDGET_EXHAUSTED [503 AI_ART_BUDGET_EXHAUSTED]",
+        "PASS: budget: final -> 503 AI_ART_BUDGET_EXHAUSTED [503 AI_ART_BUDGET_EXHAUSTED]",
+        "PASS: budget: the first round is untouched (DRAFTS_READY) [DRAFTS_READY]",
+        "PASS: key value appears in no log",
+        "PASS: startup log line [AI store art: enabled]",
+        "PASS: fake OpenAI /v1/images/generations requests [4]",
+        "PASS: fake OpenAI /v1/images/edits requests [0]",
+        "PASS: ai_art_spend rows [4]",
+        "PASS: ai_art_spend total (µUSD) [35040]"
+      ]
+    },
+    {
+      "name": "daily_limit",
+      "result": "PASS",
+      "checks": 18,
+      "passed": 18,
+      "items": [
+        "PASS: daily r1: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: daily r1: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: daily r1: drafts are distinct valid webp images [4 images]",
+        "PASS: daily r2: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: daily r2: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: daily r2: drafts are distinct valid webp images [4 images]",
+        "PASS: daily: third draft round -> 429 AI_ART_DAILY_LIMIT with Retry-After seconds [429 AI_ART_DAILY_LIMIT retry-after=40515]",
+        "PASS: daily: first final accepted [202]",
+        "PASS: daily: first final FINAL_READY [FINAL_READY]",
+        "PASS: daily: apply -> 200 [200]",
+        "PASS: daily: second final -> 429 AI_ART_DAILY_LIMIT [429 AI_ART_DAILY_LIMIT]",
+        "PASS: daily: quota shows 0 draft rounds and 0 finals left [{\"draftRoundsLeft\":0,\"finalsLeft\":0}]",
+        "PASS: key value appears in no log",
+        "PASS: startup log line [AI store art: enabled]",
+        "PASS: fake OpenAI /v1/images/generations requests [8]",
+        "PASS: fake OpenAI /v1/images/edits requests [1]",
+        "PASS: ai_art_spend rows [9]",
+        "PASS: ai_art_spend total (µUSD) [170980]"
+      ]
+    },
+    {
+      "name": "retry_draft_429",
+      "result": "PASS",
+      "checks": 11,
+      "passed": 11,
+      "items": [
+        "PASS: retry_draft: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: retry_draft: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: retry_draft: drafts are distinct valid webp images [4 images]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [5]",
+        "PASS: fake OpenAI /v1/images/edits requests [0]",
+        "PASS: fake answered 429 once [1]",
+        "PASS: API client logged attempt 2 [1]",
+        "PASS: API client logged no attempt 3 [0]",
+        "PASS: ai_art_spend rows [4]",
+        "PASS: ai_art_spend total (µUSD) [35040]"
+      ]
+    },
+    {
+      "name": "retry_final_429",
+      "result": "PASS",
+      "checks": 13,
+      "passed": 13,
+      "items": [
+        "PASS: retry_final: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: retry_final: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: retry_final: drafts are distinct valid webp images [4 images]",
+        "PASS: retry_final: choose 3 -> 202 [202]",
+        "PASS: retry_final: FINAL_READY after the retry [FINAL_READY ]",
+        "PASS: retry_final: apply -> 200 [200]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [4]",
+        "PASS: fake OpenAI /v1/images/edits requests [2]",
+        "PASS: fake answered 429 once [1]",
+        "PASS: API client logged attempt 2 [1]",
+        "PASS: ai_art_spend rows [5]",
+        "PASS: ai_art_spend total (µUSD) [135940]"
+      ]
+    },
+    {
+      "name": "retry_draft_500",
+      "result": "PASS",
+      "checks": 11,
+      "passed": 11,
+      "items": [
+        "PASS: retry_draft: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: retry_draft: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: retry_draft: drafts are distinct valid webp images [4 images]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [5]",
+        "PASS: fake OpenAI /v1/images/edits requests [0]",
+        "PASS: fake answered 500 once [1]",
+        "PASS: API client logged attempt 2 [1]",
+        "PASS: API client logged no attempt 3 [0]",
+        "PASS: ai_art_spend rows [4]",
+        "PASS: ai_art_spend total (µUSD) [35040]"
+      ]
+    },
+    {
+      "name": "retry_final_500",
+      "result": "PASS",
+      "checks": 13,
+      "passed": 13,
+      "items": [
+        "PASS: retry_final: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: retry_final: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: retry_final: drafts are distinct valid webp images [4 images]",
+        "PASS: retry_final: choose 3 -> 202 [202]",
+        "PASS: retry_final: FINAL_READY after the retry [FINAL_READY ]",
+        "PASS: retry_final: apply -> 200 [200]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [4]",
+        "PASS: fake OpenAI /v1/images/edits requests [2]",
+        "PASS: fake answered 500 once [1]",
+        "PASS: API client logged attempt 2 [1]",
+        "PASS: ai_art_spend rows [5]",
+        "PASS: ai_art_spend total (µUSD) [135940]"
+      ]
+    },
+    {
+      "name": "retry_draft_503",
+      "result": "PASS",
+      "checks": 11,
+      "passed": 11,
+      "items": [
+        "PASS: retry_draft: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: retry_draft: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: retry_draft: drafts are distinct valid webp images [4 images]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [5]",
+        "PASS: fake OpenAI /v1/images/edits requests [0]",
+        "PASS: fake answered 503 once [1]",
+        "PASS: API client logged attempt 2 [1]",
+        "PASS: API client logged no attempt 3 [0]",
+        "PASS: ai_art_spend rows [4]",
+        "PASS: ai_art_spend total (µUSD) [35040]"
+      ]
+    },
+    {
+      "name": "retry_final_503",
+      "result": "PASS",
+      "checks": 13,
+      "passed": 13,
+      "items": [
+        "PASS: retry_final: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: retry_final: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: retry_final: drafts are distinct valid webp images [4 images]",
+        "PASS: retry_final: choose 3 -> 202 [202]",
+        "PASS: retry_final: FINAL_READY after the retry [FINAL_READY ]",
+        "PASS: retry_final: apply -> 200 [200]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [4]",
+        "PASS: fake OpenAI /v1/images/edits requests [2]",
+        "PASS: fake answered 503 once [1]",
+        "PASS: API client logged attempt 2 [1]",
+        "PASS: ai_art_spend rows [5]",
+        "PASS: ai_art_spend total (µUSD) [135940]"
+      ]
+    },
+    {
+      "name": "fail_draft_429",
+      "result": "PASS",
+      "checks": 9,
+      "passed": 9,
+      "items": [
+        "PASS: fail_draft: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: fail_draft: round FAILED with AI_ART_UPSTREAM_UNAVAILABLE [FAILED AI_ART_UPSTREAM_UNAVAILABLE]",
+        "PASS: fail_draft: no drafts left, the failed round counts against the daily limit [{\"draftRoundsLeft\":2,\"finalsLeft\":3}]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [8]",
+        "PASS: fake OpenAI /v1/images/edits requests [0]",
+        "PASS: API client logged no attempt 3 [0]",
+        "PASS: ai_art_spend rows [4]",
+        "PASS: ai_art_spend total (µUSD) [0]"
+      ]
+    },
+    {
+      "name": "fail_draft_500",
+      "result": "PASS",
+      "checks": 9,
+      "passed": 9,
+      "items": [
+        "PASS: fail_draft: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: fail_draft: round FAILED with AI_ART_UPSTREAM_UNAVAILABLE [FAILED AI_ART_UPSTREAM_UNAVAILABLE]",
+        "PASS: fail_draft: no drafts left, the failed round counts against the daily limit [{\"draftRoundsLeft\":2,\"finalsLeft\":3}]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [8]",
+        "PASS: fake OpenAI /v1/images/edits requests [0]",
+        "PASS: API client logged no attempt 3 [0]",
+        "PASS: ai_art_spend rows [4]",
+        "PASS: ai_art_spend total (µUSD) [0]"
+      ]
+    },
+    {
+      "name": "fail_draft_503",
+      "result": "PASS",
+      "checks": 9,
+      "passed": 9,
+      "items": [
+        "PASS: fail_draft: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: fail_draft: round FAILED with AI_ART_UPSTREAM_UNAVAILABLE [FAILED AI_ART_UPSTREAM_UNAVAILABLE]",
+        "PASS: fail_draft: no drafts left, the failed round counts against the daily limit [{\"draftRoundsLeft\":2,\"finalsLeft\":3}]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [8]",
+        "PASS: fake OpenAI /v1/images/edits requests [0]",
+        "PASS: API client logged no attempt 3 [0]",
+        "PASS: ai_art_spend rows [4]",
+        "PASS: ai_art_spend total (µUSD) [0]"
+      ]
+    },
+    {
+      "name": "fail_draft_400",
+      "result": "PASS",
+      "checks": 9,
+      "passed": 9,
+      "items": [
+        "PASS: fail_draft: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: fail_draft: round FAILED with AI_ART_MODERATION_BLOCKED [FAILED AI_ART_MODERATION_BLOCKED]",
+        "PASS: fail_draft: no drafts left, the failed round counts against the daily limit [{\"draftRoundsLeft\":2,\"finalsLeft\":3}]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [4]",
+        "PASS: fake OpenAI /v1/images/edits requests [0]",
+        "PASS: API client logged no attempt 2 [0]",
+        "PASS: ai_art_spend rows [4]",
+        "PASS: ai_art_spend total (µUSD) [0]"
+      ]
+    },
+    {
+      "name": "fail_draft_429_quota",
+      "result": "PASS",
+      "checks": 9,
+      "passed": 9,
+      "items": [
+        "PASS: fail_draft: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: fail_draft: round FAILED with AI_ART_UPSTREAM_UNAVAILABLE [FAILED AI_ART_UPSTREAM_UNAVAILABLE]",
+        "PASS: fail_draft: no drafts left, the failed round counts against the daily limit [{\"draftRoundsLeft\":2,\"finalsLeft\":3}]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [4]",
+        "PASS: fake OpenAI /v1/images/edits requests [0]",
+        "PASS: API client logged no attempt 2 [0]",
+        "PASS: ai_art_spend rows [4]",
+        "PASS: ai_art_spend total (µUSD) [0]"
+      ]
+    },
+    {
+      "name": "fail_final_429",
+      "result": "PASS",
+      "checks": 12,
+      "passed": 12,
+      "items": [
+        "PASS: fail_final: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: fail_final: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: fail_final: drafts are distinct valid webp images [4 images]",
+        "PASS: fail_final: choose 1 -> 202 [202]",
+        "PASS: fail_final: round FAILED with AI_ART_UPSTREAM_UNAVAILABLE [FAILED AI_ART_UPSTREAM_UNAVAILABLE]",
+        "PASS: fail_final: the four drafts and the choice are kept [4 drafts, chosenIndex=1]",
+        "PASS: fail_final: the failed final counts against the daily finals (2 left) [{\"draftRoundsLeft\":2,\"finalsLeft\":2}]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [4]",
+        "PASS: fake OpenAI /v1/images/edits requests [2]",
+        "PASS: ai_art_spend rows [5]",
+        "PASS: ai_art_spend total (µUSD) [35040]"
+      ]
+    },
+    {
+      "name": "fail_final_500",
+      "result": "PASS",
+      "checks": 12,
+      "passed": 12,
+      "items": [
+        "PASS: fail_final: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: fail_final: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: fail_final: drafts are distinct valid webp images [4 images]",
+        "PASS: fail_final: choose 1 -> 202 [202]",
+        "PASS: fail_final: round FAILED with AI_ART_UPSTREAM_UNAVAILABLE [FAILED AI_ART_UPSTREAM_UNAVAILABLE]",
+        "PASS: fail_final: the four drafts and the choice are kept [4 drafts, chosenIndex=1]",
+        "PASS: fail_final: the failed final counts against the daily finals (2 left) [{\"draftRoundsLeft\":2,\"finalsLeft\":2}]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [4]",
+        "PASS: fake OpenAI /v1/images/edits requests [2]",
+        "PASS: ai_art_spend rows [5]",
+        "PASS: ai_art_spend total (µUSD) [35040]"
+      ]
+    },
+    {
+      "name": "fail_final_503",
+      "result": "PASS",
+      "checks": 12,
+      "passed": 12,
+      "items": [
+        "PASS: fail_final: POST rounds -> 202 DRAFTING [202 DRAFTING]",
+        "PASS: fail_final: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
+        "PASS: fail_final: drafts are distinct valid webp images [4 images]",
+        "PASS: fail_final: choose 1 -> 202 [202]",
+        "PASS: fail_final: round FAILED with AI_ART_UPSTREAM_UNAVAILABLE [FAILED AI_ART_UPSTREAM_UNAVAILABLE]",
+        "PASS: fail_final: the four drafts and the choice are kept [4 drafts, chosenIndex=1]",
+        "PASS: fail_final: the failed final counts against the daily finals (2 left) [{\"draftRoundsLeft\":2,\"finalsLeft\":2}]",
+        "PASS: key value appears in no log",
+        "PASS: fake OpenAI /v1/images/generations requests [4]",
+        "PASS: fake OpenAI /v1/images/edits requests [2]",
+        "PASS: ai_art_spend rows [5]",
+        "PASS: ai_art_spend total (µUSD) [35040]"
+      ]
+    }
+  ],
+  "notRun": [
+    "a real OpenAI key and any real OpenAI call: real image quality, real cost per call (the $0.04 draft and $0.18 final estimates are unmeasured), real latency (the fake answers in 200 ms; the real service takes 1-2 minutes), real 180 s timeout behaviour",
+    "the real showcase server: no deployment, no enable-ai-art.sh run against real Docker, no recreate of the live showcase-api (the script is covered by a fake docker in tests/ops/enable_ai_art_test.sh)",
+    "the showcase compose file itself and the showcase database name (the rehearsal uses its own container settings and database masscom_256_test)",
+    "customer-facing display of a real AI image on a phone (a phone flow with the fake server was recorded earlier in docs/evidence/ai-store-art-2026-09-30/)"
+  ],
+  "reproduce": "docker must be running with a local PostgreSQL container named masscom-sky-qa-pg (or set REHEARSAL_PG_CONTAINER); run bash scripts/rehearse-ai-art-container.sh from the repository root; REHEARSAL_SKIP_BUILD=1 REHEARSAL_IMAGE=<tag> reuses an image and REHEARSAL_RESULT_FILE=<path> also writes the tab-separated results."
+}

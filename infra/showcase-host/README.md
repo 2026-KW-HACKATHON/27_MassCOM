@@ -26,16 +26,59 @@ STAFF 적격 해시를 삭제해도 이미 활성화된 점주 권한은 사라�
 
 첫 적용 시 백업은 서버의 `/opt/masscom/backups/showcase-edge-036f31f`에, 운영 Compose 기준선은 `/opt/masscom/web/releases/4a42475275e3/infra/lightsail/compose.yml`에 있습니다. 시연 호스트만 제거할 때에는 운영 Compose **단독**으로 `caddy` 서비스를 `--no-deps --no-build --force-recreate`해 이전 Caddyfile 마운트로 되돌리고, `api.masscom.kr`·`www.masscom.kr`의 TLS/health와 운영 API·DB·웹 ID를 검사합니다. 기존 시연 DB 볼륨이나 운영 리소스를 삭제하지 않습니다.
 
-## 사장님 AI 가게 그림 키 (D-048, Issue #236)
+## 사장님 AI 가게 그림 키 (D-048·D-058, Issue #236·#256)
 
 시연 API의 AI 가게 그림은 `SHOWCASE_OPENAI_API_KEY`가 **비어 있으면 꺼진 채**다(앱에는 "준비 중", 다른 기능에는 영향 없음). [`compose.yml`](compose.yml)이 이 값을 컨테이너의 `OPENAI_API_KEY`로 넘기고, 비어 있으면 빈 값을 넘긴다. 시연 DB의 월 예산·하루 한도는 운영과 따로 계산한다.
 
-- **키는 소유자가 직접 넣는다.** 에이전트가 만들거나 저장소·대화·로그에 두지 않는다. 서버 `/opt/masscom-showcase/runtime.env`(권한 600)에 `SHOWCASE_OPENAI_API_KEY=<키>` 한 줄을 더한다. `scripts/prepare-showcase-runtime.sh`는 기존 파일을 덮어쓰지 않으므로 직접 덧붙인다.
-- 넣은 뒤 시연 Compose를 기동할 때 쓴 것과 같은 `--env-file`·`-f` 인자로 `up -d showcase-api`를 실행해 시연 API 컨테이너를 **다시 만든다**(`restart`는 환경 변수를 다시 읽지 않는다). 기동 로그에 `AI store art: enabled`가 나오면 켜진 것이다.
-- 선택 값(`SHOWCASE_AI_ART_MONTHLY_BUDGET_USD` 기본 5, `SHOWCASE_AI_ART_DAILY_DRAFT_ROUNDS`·`SHOWCASE_AI_ART_DAILY_FINALS` 기본 3, `SHOWCASE_AI_ART_DRAFT_MODEL`·`SHOWCASE_AI_ART_FINAL_MODEL`)은 [`runtime.env.example`](runtime.env.example)에 주석으로 있다.
-- 이 compose는 `AI_ART_STAFF_MAY_MANAGE=true`를 켠다: 가게 그림 권한(`MANAGE_ART`)이 기본은 활성 OWNER뿐인데, 시연은 CLI(`grant:showcase:staff`)로 소유자 계정에만 STAFF를 주기 때문이다. 운영 compose에는 이 값이 없다.
-- 점주 화면은 시연 앱의 "점주예요" 모드에만 있다. 키를 넣은 뒤의 실제 호출(비용·지연 측정)은 `NOT_RUN`이며 키 입력 뒤 따로 확인한다.
+**현재 상태(2026-09-30): 팀 결제가 확정되지 않아 키를 넣지 않았다**([B-026](../../docs/BLOCKERS.md): 팀 결제 확정 대기). 소유자가 "넣었다는 가정하에 완성해 달라"고 해서 켜기 준비는 끝났다: 아래 켜기 스크립트와 컨테이너 리허설, **월 예산 USD 5 확정**(하루 한도는 가게당 시안 3회·최종 3회 기본값 그대로, [D-058](../../docs/DECISIONS.md)). **운영 키는 D-050대로 계속 비운다.** 실제 키 입력과 실제 호출은 결제 확정 뒤이며 `NOT_RUN`이다.
 
+- **키는 소유자가 직접 넣는다.** 에이전트가 만들거나 저장소·대화·로그에 두지 않는다. 서버 `/opt/masscom-showcase/runtime.env`(권한 600)에 `SHOWCASE_OPENAI_API_KEY=<키>` 한 줄을 더한다. `scripts/prepare-showcase-runtime.sh`는 기존 파일을 덮어쓰지 않으므로 직접 덧붙인다.
+- 선택 값(`SHOWCASE_AI_ART_MONTHLY_BUDGET_USD` 기본 5, `SHOWCASE_AI_ART_DAILY_DRAFT_ROUNDS`·`SHOWCASE_AI_ART_DAILY_FINALS` 기본 3, `SHOWCASE_AI_ART_DRAFT_MODEL`·`SHOWCASE_AI_ART_FINAL_MODEL`)은 [`runtime.env.example`](runtime.env.example)에 주석으로 있다. 비우면 기본값이다(예산 USD 5는 이미 기본값이라 따로 적지 않아도 된다).
+- 이 compose는 `AI_ART_STAFF_MAY_MANAGE=true`를 켠다: 가게 그림 권한(`MANAGE_ART`)이 기본은 활성 OWNER뿐인데, 시연은 CLI(`grant:showcase:staff`)로 소유자 계정에만 STAFF를 주기 때문이다. 운영 compose에는 이 값이 없다.
+- 점주 화면은 시연 앱의 "점주예요" 모드에만 있다.
+
+### 켜기·끄기·상태 스크립트
+
+[`enable-ai-art.sh`](enable-ai-art.sh)가 켜기(`enable`)·끄기(`disable`)·읽기 전용 상태(`status`)를 맡는다. 서버에서 `sudo`로 실행한다. 스크립트는 자기 위치에 의존하지 않고 **실행 중인 `showcase-api` 컨테이너의 라벨·이미지**에서 릴리스 폴더와 이미지 태그를 읽는다(추측하지 않는다). 이 스크립트가 들어 있지 않은 이전 릴리스가 떠 있으면 저장소의 파일을 서버로 복사해 어디서든 실행하면 된다.
+
+| 모드 | 하는 일 |
+| --- | --- |
+| `status` | 읽기 전용. `runtime.env` 권한, 키 유무(값 없이 "present (N chars)"), 실행 중 컨테이너·이미지 태그·릴리스 폴더·건강 상태, 마지막 `AI store art:` 기동 줄, 유효 한도(월 예산·하루 한도·모델, 컨테이너 환경에서 비밀 아닌 값만)를 보여 주고 `state: ENABLED`·`DISABLED`·`NEEDS_RECREATE_OR_CHECK`(runtime.env와 실행 중 컨테이너가 어긋남)를 낸다. 아무것도 바꾸지 않는다 |
+| `enable` | `runtime.env`가 일반 파일이고 권한이 정확히 600, `SHOWCASE_OPENAI_API_KEY` 줄이 비어 있지 않고 형식이 맞는지(값은 출력하지 않는다), 실행 중 `showcase-api`가 정확히 하나이고 릴리스 폴더가 `/opt/masscom-showcase/releases/<릴리스>/infra/showcase-host/`인지, `compose config`가 렌더되는지 먼저 확인한다. 통과하면 **`showcase-api`만** 실행 중인 이미지 태그로 `up -d --no-deps --no-build --pull never --force-recreate --wait`(`postgres`·`migrate`는 건드리지 않음)하고, 새 컨테이너가 healthy이며 기동 로그의 마지막 `AI store art:` 줄이 정확히 `AI store art: enabled`인지 확인한 뒤 유효 한도를 보여 준다 |
+| `disable` | 소유자가 **먼저** `runtime.env`에서 키 줄을 지우거나 비운 뒤에만 진행한다(키가 남아 있으면 거절). 같은 방식으로 `showcase-api`만 다시 만들고 로그가 `AI store art: disabled (OPENAI_API_KEY is empty)`인지 확인한다 |
+
+- 스크립트는 `runtime.env`를 **고치지 않는다**(키 줄은 소유자가 직접 넣고 지운다). 키 값은 출력하지 않고, compose가 오류 메시지에 키를 섞어 내도 `[redacted]`로 가린다. 바꾸기 전 검사가 하나라도 실패하면 아무것도 바꾸지 않고 끝난다. 다시 만든 뒤 검사(healthy·기동 줄)가 실패하면 컨테이너는 이미 새 설정으로 떠 있으므로, 메시지의 안내대로 `runtime.env`를 고쳐 다시 `enable`하거나 키 줄을 비우고 `disable`한다.
+- `runtime.env`의 `MASSCOM_SHOWCASE_IMAGE_TAG`가 실행 중인 태그와 다르면 알림을 내고 **실행 중인 태그를 그대로** 쓴다(키 한 줄 때문에 이미지가 바뀌지 않게 한다).
+- 시험: [`tests/ops/enable_ai_art_test.sh`](../../tests/ops/enable_ai_art_test.sh)(가짜 `docker`로 키 없음·빈 키·권한 644·심볼릭 링크 거절과 compose 미호출, 켜기·끄기 성공, 로그에 enabled 없음·재생성 안 됨·비건강·compose 실패 시 실패, 키 값 출력 없음, `status` 읽기 전용). CI의 시연 호스트 검사에서 실행한다.
+
+**켜는 순서(팀 결제 확정 뒤, 소유자):**
+
+1. 서버 `/opt/masscom-showcase/runtime.env`(권한 600)에 `SHOWCASE_OPENAI_API_KEY=<키>` 한 줄을 직접 더한다.
+2. `sudo bash /opt/masscom-showcase/releases/<릴리스>/infra/showcase-host/enable-ai-art.sh status`로 지금 상태를 본다(키는 있는데 `state: NEEDS_RECREATE_OR_CHECK`이면 정상: 아직 다시 만들지 않았다).
+3. `sudo bash /opt/masscom-showcase/releases/<릴리스>/infra/showcase-host/enable-ai-art.sh enable`.
+4. 출력에서 `SHOWCASE_OPENAI_API_KEY: present`, `showcase-api recreated: ... (health: healthy)`, `startup log: AI store art: enabled`, `monthly budget ... 5`·`daily draft rounds per store: 3`·`daily finals per store: 3`을 확인한다.
+5. 아래 "첫 실제 호출 확인표"를 실행한다.
+
+**끄는 순서:** ① `runtime.env`에서 키 줄을 지우거나 비운다 ② `sudo bash .../enable-ai-art.sh disable` ③ `startup log: AI store art: disabled (OPENAI_API_KEY is empty)`를 확인한다(앱은 "준비 중"으로 돌아간다).
+
+### 켜진 상태 컨테이너 리허설 (Issue #256)
+
+배포와 같은 Dockerfile(`infra/lightsail/api.Dockerfile`)로 만든 이미지에 **가짜 키와 가짜 OpenAI 서버**([`scripts/fake-openai-images.mjs`](../../scripts/fake-openai-images.mjs))를 붙여 켜진 상태를 미리 시험한다. `bash scripts/rehearse-ai-art-container.sh`가 로컬 PostgreSQL 컨테이너(`masscom-sky-qa-pg`)에 자기 DB `masscom_256_test`를 만들고, 끝나면 컨테이너·DB를 모두 지운다. 시나리오마다 새로 띄워 기동 로그, 시안 4장→고급 그림→적용→공개 그림, 월 예산 소진(503 `AI_ART_BUDGET_EXHAUSTED`), 하루 한도(429 `AI_ART_DAILY_LIMIT`), OpenAI 429·500·503의 **한 번 재시도**(성공·계속 실패 둘 다)와 400·잔액 소진 429의 무재시도, 그리고 요청 횟수·`ai_art_spend` 비용 기록·로그의 키 값 부재를 센다. 결과와 한계는 [증거](../../docs/evidence/ai-art-enable-rehearsal-2026-09-30.json)에 있다. **실제 OpenAI 호출·실제 키·배포는 하지 않았다.**
+
+### 첫 실제 호출 확인표 (키를 넣은 뒤, `NOT_RUN`)
+
+첫 실제 호출은 돈이 든다. 아래를 한 번에 확인하고 결과를 `docs/evidence/`와 [B-026](../../docs/BLOCKERS.md)에 남긴다. 실패하거나 이상하면 바로 `disable`한다.
+
+| 확인 | 방법 | 기준·기록 |
+| --- | --- | --- |
+| 켜짐 | `enable` 출력 | `AI store art: enabled`, health healthy |
+| 시안 지연 | 시연 앱 "점주예요" → 가게 그림 → "AI 시안 받기"를 누른 때부터 시안 4장이 뜰 때까지 초 | 앱 안내는 "1~2분". 실제 초와 실패 여부를 기록 |
+| 시안 비용 | 서버에서 `sudo docker compose --env-file /opt/masscom-showcase/runtime.env -f /opt/masscom-showcase/releases/<릴리스>/infra/showcase-host/compose.yml exec postgres psql -U masscom_showcase -d masscom_showcase -c "SELECT id, kind, micro_usd, created_at FROM ai_art_spend ORDER BY id DESC LIMIT 6"` | 시안 4행의 합(µUSD)을 예상 $0.04(40,000)와 비교 |
+| 최종 지연·비용 | 시안을 고른 뒤 "고급 그림"이 뜰 때까지 초와 같은 조회의 `FINAL` 행 | 실제 값을 예상 $0.18(180,000)과 비교하고, 크게 다르면 `estimatedFinalMicroUsd`(D-050 (5))를 다시 정한다 |
+| 월 예산 잔여 | 같은 방식으로 `SELECT coalesce(sum(micro_usd), 0) FROM ai_art_spend WHERE created_at >= date_trunc('month', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul'` | 이번 달 합계가 USD 5(5,000,000) 안인지 |
+| 고객 화면 표시 | "가게 그림으로 쓰기"로 적용한 뒤 고객 모드의 탐색 목록·상세·동네 지도·도장판 | 새 그림이 보이는지 스크린샷. 공개 주소 `https://demo-api.masscom.kr/merchant-art/<sha256>.webp`가 200 `image/webp`인지, 실제 이미지 크기(바이트)와 앱 로딩 |
+| 되돌리기 | "기본 그림으로 되돌리기" | 그림이 글자 도장으로 돌아오고 옛 공개 주소가 404인지 |
+| 정책 차단·개인정보 | 그림에 글자·사람·상표·QR이 없는지 눈으로 확인 | 있으면 프롬프트 제약 재검토 항목으로 기록 |
 
 ## 계정 삭제 요청 처리 (D-052, Issue #194)
 

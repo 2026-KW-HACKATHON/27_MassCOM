@@ -2,6 +2,18 @@
 
 마지막 갱신 시각: 2026-09-30 KST
 
+## 2026-09-30 사장님 AI 가게 그림 켜기 준비 (Issue #256, D-058)
+
+- 기준: main `d004d7f`에서 시작한 브랜치 `feat/256-ai-art-enable`(로컬 worktree `.worktrees/256-ai-art-enable`, 로컬 커밋만이고 **push·PR·배포 없음**). 코드 커밋 `7cc97a4`(켜기 스크립트·시험)·`04f673a`(컨테이너 리허설·가짜 서버 오류 주입), 그 뒤 문서 커밋. migration은 없다(다음 번호는 다른 브랜치가 쓴다: #253 0033·#254 0034).
+- **현재 라이브(이 브랜치는 아직 없음):** 시연 서버의 `SHOWCASE_OPENAI_API_KEY`는 비어 있다(기동 로그 `AI store art: disabled (OPENAI_API_KEY is empty)`). 소유자가 2026-09-30 "OpenAI 키는 팀 결제가 확정되지 않아 나중에 넣는다. 넣었다는 가정하에 완성해 달라"고 했고 월 예산은 USD 5로 확정했다. 운영 키는 D-050대로 비운다.
+- 내용: `infra/showcase-host/enable-ai-art.sh`(서버에서 `sudo`로 `enable`·`disable`·`status`. `runtime.env` 권한 600·키 유무를 값 없이 확인, 실행 중 `showcase-api` 컨테이너의 라벨·이미지에서 릴리스 폴더·태그를 읽고 `showcase-api`만 `up -d --no-deps --no-build --pull never --force-recreate --wait`, 기동 로그 `AI store art: enabled`(끄기는 `disabled (OPENAI_API_KEY is empty)`)와 유효 한도를 보여 줌. `runtime.env`는 절대 고치지 않고 키 값·compose 오류 속 키 값을 출력하지 않으며 바꾸기 전 검사가 실패하면 아무것도 바꾸지 않음), 가짜 `docker` 시험 `tests/ops/enable_ai_art_test.sh`, 가짜 OpenAI 서버(`scripts/fake-openai-images.mjs`)의 503 `unavailable`과 `FAKE_OPENAI_FAIL_COUNT`(앞의 N개 요청만 오류)와 그 시험 `tests/ops/fake_openai_images_faults_test.mjs`, 컨테이너 리허설 `scripts/rehearse-ai-art-container.sh`(+`.mjs` 구동기), 문서(B-026·D-058·시연 호스트 README 켜는 순서·첫 실제 호출 확인표·AI_USAGE).
+- 검증: [TEST_STATUS](TEST_STATUS.md) 첫 항목. 켜기 스크립트 시험 PASS(변이 3개 모두 실패로 잡힘), 가짜 서버 시험 5/5, API 단위 241/241, `tests/site` 171/171, 컨테이너 리허설 224/224([증거](evidence/ai-art-enable-rehearsal-2026-09-30.json)), `bash tools/gate.sh` PASS.
+- **켜는 순서(팀 결제 확정 뒤, 소유자):** ① 서버 `/opt/masscom-showcase/runtime.env`(권한 600)에 `SHOWCASE_OPENAI_API_KEY=<키>` 한 줄을 직접 더한다 ② `sudo bash /opt/masscom-showcase/releases/<릴리스>/infra/showcase-host/enable-ai-art.sh enable`(그 릴리스에 스크립트가 없으면 저장소의 파일을 서버로 복사해 실행) ③ 출력의 `AI store art: enabled`·healthy·월 예산 5·하루 한도 3/3 확인 ④ [첫 실제 호출 확인표](../infra/showcase-host/README.md) 실행 ⑤ OpenAI 문의 주소를 `docs/privacy.html`에 채움. 끄기: 키 줄을 지운 뒤 `disable`. 에이전트는 키를 만들거나 받거나 저장하지 않는다.
+- `NOT_RUN`: 실제 OpenAI 키·실제 호출(그림 품질·호출당 비용·지연·180초 시간 초과), 실제 시연 서버에서의 `enable-ai-art.sh` 실행(가짜 `docker` 시험만), 시연 compose·시연 DB 이름(`masscom_showcase`)을 쓴 켜진 서버 실기, 실제 그림의 고객 화면 표시. 리허설은 `SHOWCASE_MODE`를 켜지 않았다(그 설정은 DB 이름이 `masscom_showcase`여야 해서 `masscom_256_test`와 맞지 않는다).
+- 알려진 한계: 리허설의 가짜 OpenAI는 단색 이미지와 고정 usage를 돌려주므로 비용 숫자(한 흐름 135,940µUSD)는 계산 검증일 뿐 실제 단가·예상 비용($0.04·$0.18)의 근거가 아니다.
+- 다음 작업: ① PR·CI·병합(제목·본문은 `bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"`로 검사; 이 브랜치는 D-058만 쓰며 D-056·D-057은 #253·#254가 쓰므로 DECISIONS 병합 충돌은 표 행 순서만 맞추면 된다). ② 시연 서버에 스크립트를 두려면 다음 시연 배포 릴리스에 포함되거나 직접 복사한다. ③ 팀 결제가 확정되면 위 켜는 순서.
+- 다음 명령: `git -C .worktrees/256-ai-art-enable log --oneline d004d7f..HEAD`, `bash tests/ops/enable_ai_art_test.sh`, `bash scripts/rehearse-ai-art-container.sh`(로컬 Docker와 PostgreSQL 컨테이너 `masscom-sky-qa-pg` 필요), `bash tools/gate.sh`.
+
 ## 2026-09-30 실제 점포 운영 시작: 공개·점주·보상 혜택·캠페인·운영 NFT 발행 준비 중 (Issue #246, D-054)
 
 - 기준: main `02cb7e7`에서 시작해 main `4081999`(PR #249 접수번호 한 줄 표시·PR #251 배포 문서)를 합친 브랜치 `feat/246-store-go-live`(로컬 worktree `.worktrees/246-store-go-live`, 로컬 커밋만이고 **push·PR·배포 없음**). 설계는 [`docs/superpowers/specs/2026-09-30-store-go-live-design.md`](superpowers/specs/2026-09-30-store-go-live-design.md), 운영자 절차는 [`docs/MERCHANT_ONBOARDING.md`](MERCHANT_ONBOARDING.md).
