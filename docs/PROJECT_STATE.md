@@ -1,5 +1,9 @@
 # 프로젝트 상태
 
+## 고객 도감 수집 경험 (Issue #283, 2026-10-01)
+
+[Issue #283](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/283), 브랜치 `feat/283-collection-experience`(worktree `.worktrees/283-collection-experience`), 기준 main `61bde48`, PR 미정. 기획 노트 16·17장의 고객 수집 경험 중 Android에 없던 것을 운영·시연 공통 코드로 채웠다: 획득 연출(포장/도장 열림 → 등장 → 대사 → 보관, 언제든 건너뛰기·동작 줄이기 대응), 가게·시즌·등급 필터/정렬 도감 보기, 대표 진열(계정별 로컬, 최대 6개), 공유(OS 공유 시트 전용), 같은 게시 수집품 중복 획득 시 개수·받은 날짜 묶어 보기, 가게별 1·3·5회 시리즈 칸(기존 방문 목표만 사용), 첫 수집품·새 가게·시리즈 완성 마스코트 반응(계정별 1회). API는 `GET /collection` 수집품에 기존 `earned_at` 컬럼을 노출하는 `earnedAt` 필드 하나만 더했다(마이그레이션 없음). 모바일 873/873·API 291/291·양쪽 typecheck/lint/build PASS. 실기기·`export:android`·PostgreSQL 통합 시험은 이번 세션에서 `NOT_RUN`. 자세한 내용은 [HANDOFF](HANDOFF.md#2026-10-01-고객-도감-수집-경험-완성-issue-283)와 [apps/mobile/README.md](../apps/mobile/README.md#도감-수집-경험-issue-283).
+
 ## 사진 수집품 제작기 변경
 
 (당시 기록이다. PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐고 운영 test.5·시연 Preview 14를 게시했다: 아래 Issue #277 항목.) 이 절의 아래 서술은 모두 병합·배포 전의 당시 기록이다.

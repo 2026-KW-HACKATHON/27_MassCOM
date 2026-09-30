@@ -165,8 +165,18 @@ release build는 시작부터 publish 직전까지 전체 Git worktree가 clean�
 
 지갑 세션은 계정별 tag가 붙은 key(`@masscom:appkit:<tag>:`)에만 저장하고 읽습니다. 앱 시작 때 현재 계정의 것이 아닌 지갑 세션 key를 지우며, 계정 ID를 받는 모든 화면은 계정이 바뀌면 remount됩니다. 계정 전환 시 이전 AppKit을 disconnect하고 저장 key를 지운 뒤 새 account ID용 AppKit instance를 만듭니다. 이 변경 뒤 첫 실행에서는 이전 형식의 세션이 지워져 지갑을 한 번 다시 연결해야 할 수 있습니다. 자동 controller 시험은 통과했지만 실제 Google 계정 전환 뒤 이전 사용자 API·지갑 데이터가 보이지 않는지 확인하는 D02 실기는 `NOT_RUN`입니다.
 
+도감의 대표 진열·마스코트 반응 기록도 같은 방식(`@masscom:collection:<tag>:`)으로 계정별 tag를 붙여 저장하고, 앱 시작 때 다른 계정의 key를 지웁니다(`src/screens/collection/collection-prefs.ts`).
+
 ## 사진 수집품 도감 상세
 
 고객 공통 도감은 서버에 `artwork`가 있는 실제 보상에만 정적 썸네일·상세 버튼을 추가합니다. 상세를 열 때 보유자 API에서 가공된 미디어를 읽으며, 수령 성공 화면의 "받은 수집품 보기"는 수령이 끝난 뒤 도감을 읽어 받은 보상에 `artwork`가 실제로 붙어 있을 때만 보이고(여러 보상이면 가장 높은 방문 목표, 조회 실패·외형 없는 기존 보상이면 버튼 생략), 그 권리 ID만 전달합니다. 운영자가 게시 사진을 내려 `artwork`가 없어진 수집품은 이름만 있는 기존 카드로 보이고 상세(404)는 재시도 없이 "다시 볼 수 있는 사진이 없어요·받은 기록과 보상은 그대로"로 안내합니다. 회전·두께·대사·음성·이야기 다시 보기/건너뛰기를 제공하고 닫기·계정 변경·탭 이탈·백그라운드에서는 재생과 늦은 응답을 정리합니다.
 
 새 `expo-audio` native 모듈은 선택 음성 재생용입니다. 마이크·녹음·백그라운드 권한을 켜지 않고(`expo-audio` 플러그인 설정과 별개로 `android.blockedPermissions`가 모든 variant에서 `RECORD_AUDIO`를 막고 `src/config/build-environment.test.ts`가 고정합니다) 기존 APK에 JS만 바꿔 적용할 수 없으므로 새 native 빌드가 필요합니다. 운영·시연 공통 코드이나 API·package·가상 자산 격리는 유지합니다. Android의 재질은 게시된 완성 정면 이미지이며 웹처럼 각도별로 빛을 다시 합성하지 않습니다. 실기기·native 빌드 검증 상태는 [TEST_STATUS](../../docs/TEST_STATUS.md)를 참고하세요.
+
+## 도감 수집 경험 (Issue #283)
+
+방문 수령으로 `artwork`가 붙은 보상을 받으면(`src/screens/collection/collectible-reveal.tsx`) 포장·도장 열림(우표 모양은 도장, 그 밖은 코인 뒤집힘) → 수집품 등장 → 대사(음성은 탭해야 재생, 소리 끄기 존중) → "도감에 보관했어요" 순서로 짧게 보여줍니다. 언제든 건너뛸 수 있고, 보관은 연출 이전에 이미 끝난 상태라 건너뛰어도 보상에는 영향이 없습니다. `AccessibilityInfo`의 동작 줄이기가 켜져 있으면 애니메이션 없이 바로 결과 화면을 보입니다.
+
+도감의 "수집품 모아보기" 절(`src/screens/collection/collectible-browser.tsx`)은 `artwork`가 있는 보상만 정적 썸네일로 모아, 가게·시즌(테마 이름)·등급으로 걸러보고 최신순·가게순·등급순으로 정렬합니다. 같은 게시 수집품(발행 ID+등급)을 여러 캠페인 주기에 걸쳐 여러 번 받았으면 한 장에 개수와 받은 날짜(`earnedAt`)를 함께 보여 줍니다(`src/screens/collection/collectible-groups.ts`). 좋아하는 수집품은 "대표 진열"에 최대 6개까지 놓을 수 있고 이 기기·계정에만 저장하며, 공유는 썸네일·가게 이름·짧은 문구를 담은 이미지를 OS 공유 시트로만 내보냅니다(`src/screens/collection/collectible-share.tsx`, 자동 게시·전송 없음).
+
+같은 절의 "가게별 시리즈"는 그 가게의 기존 방문 목표(1·3·5회)를 칸으로 보여 받은 칸·다음 목표를 표시합니다(`src/screens/collection/store-series.ts`). 새 보상 규칙이나 확률은 만들지 않고 서버가 이미 내려주는 방문 목표·수집 상태만 읽습니다. 첫 수집품, 새 가게의 첫 수집품, 가게 시리즈 완성 때 마스코트가 짧게 반응하며(`src/screens/collection/mascot-reactions.ts`), 같은 반응은 계정별 로컬 기록으로 한 번만 보입니다.

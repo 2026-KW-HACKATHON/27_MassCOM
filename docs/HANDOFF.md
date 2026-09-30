@@ -2,6 +2,14 @@
 
 **(당시 기록: PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐고 test.5·Preview 14를 게시했다. 지금 상태는 아래 Issue #277 항목이다.) 배포 순서(PR #257 병합 뒤, [D-061](DECISIONS.md)):** ① 병합 → ② 이 코드가 든 운영·시연 Android APK를 새로 빌드해 배포 → ③ **그 뒤에** API·웹 배포. 처리방침 버전이 `privacy-2026-10-01`로 올라 서버가 이 버전을 요구하는 순간, 설치돼 있는 동의 화면 빌드(운영 test.4, 시연 Preview 12·13)는 새 버전을 몰라 "앱을 업데이트해 주세요" 안내에 막힌다(D-059 설계). API·웹을 먼저 배포하면 새 APK가 나오기 전까지 그 사용자가 막힌다. 동의 화면이 없는 더 옛 앱(운영 test.3, 시연 Preview 11 이하)은 막히지 않는다.
 
+## 2026-10-01 고객 도감 수집 경험 완성 (Issue #283)
+
+- 기준 커밋: main `61bde48`(PR #278 병합 결과). 브랜치 `feat/283-collection-experience`(worktree `.worktrees/283-collection-experience`), PR 미정.
+- 구현(모두 운영·시연 공통 코드): 획득 연출(방문 수령 뒤 포장/도장 열림 → 등장 → 대사 → 보관, 언제든 건너뛰기, 동작 줄이기 시 정적 전환), 가게·시즌·등급 필터/정렬 도감 보기(정적 썸네일), 대표 진열(계정별 로컬 저장, 최대 6개), 공유(OS 공유 시트 전용), 같은 게시 수집품을 여러 번 받았을 때 개수·받은 날짜 묶어 보기, 가게별 1·3·5회 시리즈 칸(기존 방문 목표 재사용, 새 보상 규칙 없음), 첫 수집품·새 가게 첫 수집품·시리즈 완성 마스코트 반응(계정별 1회). 자세한 파일 경로는 [apps/mobile/README.md](../apps/mobile/README.md#도감-수집-경험-issue-283).
+- API 변경(owner-scoped, 마이그레이션 없음): `GET /collection`의 각 수집품에 `earnedAt`(기존 `reward_entitlements.earned_at` 노출)을 더했다. 새 테이블·새 권한 없음.
+- 실행: `npm test --prefix apps/mobile`(873 PASS, 새 로직 단위 시험 포함), `npm run typecheck --prefix apps/mobile`·`npm run lint --prefix apps/mobile` PASS. `npm test --prefix apps/api`(291 PASS)·`npm run typecheck --prefix apps/api`·`npm run build --prefix apps/api` PASS. `export:android`·PostgreSQL 통합 시험·실기기는 이번 세션에서 돌리지 않았다(`NOT_RUN`).
+- 후속: 실기기에서 획득 연출·동작 줄이기·공유 시트·마스코트 반응 화면 확인(새 빌드 필요), PR 생성과 CI, PostgreSQL 통합 시험(`collection.postgres.integration.ts`)의 실제 DB 재실행.
+
 ## 사진 수집품 제작기 PR 인수인계
 
 (당시 기록이다. PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐다: 아래 Issue #277 항목. 아래 "남은 것"과 "후속"의 병합·배포 항목은 그때 완료됐고 실기기·실제 업로드 확인은 여전히 `NOT_RUN`이다.)
