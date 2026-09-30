@@ -1,0 +1,67 @@
+{
+  "status": "PASS",
+  "releaseReadiness": "BLOCKED; Google Play submission remains unresolved and the consent was not submitted on the phone",
+  "verifiedAt": "2026-10-01 KST",
+  "sourceCommit": "7bcfef9fa52842f4a9a5a089a64293f6cd26df92",
+  "pullRequests": [257],
+  "issues": [252, 277],
+  "checks": {
+    "aabBuild": "PASS; Keychain signing; the release script's automated gates PASS, including its new embedded-API check",
+    "embeddedApi": "PASS; scripts/check-embedded-api.sh on the APK reports the operating api only",
+    "recordAudioPermission": "PASS; RECORD_AUDIO is absent from the manifest (aapt2)"
+  },
+  "acceptedArtifact": {
+    "aab": "app-release-7bcfef9.aab",
+    "aabBytes": 99840126,
+    "apk": "MassCOM-operating-android-7bcfef9.apk",
+    "apkBytes": 153327024,
+    "apkSha256": "298f0f6e70b07fd50e95a02b793f91c1a0819f60680aa128c61cdc62930ad541",
+    "apkOrigin": "universal APK made from the AAB with bundletool 1.18.3",
+    "package": "kr.masscom.wolgye",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256Prefix": "5e5ed3c3...fa395",
+    "signingCertificate": "apksigner certificate; the same prefix is recorded for test.4 in operating-android-test4-2026-10-01.json"
+  },
+  "githubRelease": {
+    "tag": "android-v0.1.0-test.5",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.5",
+    "kind": "public prerelease; not Google Play",
+    "target": "7bcfef9",
+    "assets": [
+      {
+        "name": "MassCOM-operating-android-7bcfef9.apk",
+        "bytes": 153327024,
+        "sha256": "298f0f6e70b07fd50e95a02b793f91c1a0819f60680aa128c61cdc62930ad541"
+      },
+      {
+        "name": "app-release-7bcfef9.provenance.json",
+        "bytes": 1007,
+        "sha256": "b07d4f779f4a42781c0e01f2132a2fbdfec070dc652dc6946fc84cc222f34fdd"
+      },
+      {
+        "name": "SHA256SUMS.txt",
+        "bytes": 206,
+        "sha256": "0308e4f4afc98adfb18c4fc69649e587a8e2d4447e426f5562a4b4f2ae31062a"
+      }
+    ],
+    "githubDigestVsLocal": "PASS; the GitHub asset digests match",
+    "anonymousDownload": "PASS; an anonymous download of SHA256SUMS.txt returned HTTPS 200; the anonymous download of the APK itself and its re-hash were not re-checked"
+  },
+  "physicalAndroid": {
+    "device": "Samsung SM-S928N",
+    "apkInstall": "PASS; the install over the existing test.4 app returned Success",
+    "consentScreen": "PASS; the consent screen for the new version (privacy-2026-10-01) was shown as `required`, not the update-the-app gate",
+    "consentButtonLabel": "PASS; after the 3 required boxes were checked the button shows `동의하고 시작` in full (TextView bounds [124,1805][958,1873])",
+    "consentSubmission": "NOT_RUN; the consent was not submitted because the account is a real account; the owner submits it"
+  },
+  "consequences": "the operating API requires privacy-2026-10-01 since the 7bcfef9 deploy (docs/evidence/deployment-7bcfef9-2026-10-01.json), so test.4 shows the update-the-app gate for accounts that have not consented; owner action: submit the consent in operating test.5",
+  "notRun": [
+    "consent submission and everything after it on the phone",
+    "receiving and playing a photo collectible on the device",
+    "wallet connection and the mint consent v2 dialog",
+    "real QR, visit and NFT flows on this APK",
+    "TalkBack, dark mode and 200% font on this APK",
+    "Google Play upload, approval, closed testing or production release",
+    "the anonymous download of the APK itself and a re-hash of the downloaded APK"
+  ]
+}
