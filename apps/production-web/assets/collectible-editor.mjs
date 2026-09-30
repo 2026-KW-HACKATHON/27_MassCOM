@@ -456,6 +456,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   async function loadProject(id) {
     if (!id || busy) return;
+    // 거절하면 목록 선택도 지금 편집 중인 프로젝트로 되돌린다. 브라우저는 change 전에 이미 값을 바꿔 둔다.
+    if (!confirmDiscardIfDirty()) { control('project-list').value = wrapper?.id || ''; return; }
     setBusy(true);
     loading = true;
     for (const input of container.querySelectorAll('input,select,textarea,button')) { loadingInputs.set(input, input.disabled); input.disabled = true; }
@@ -547,6 +549,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (studio.step === 1 || studio.step === 3) drawCrop();
     if (studio.step !== 1) schedulePreview();
   }
+  // 저장하지 않은 편집이 있으면 새로 시작하거나 다른 프로젝트를 열기 전에 묻는다. 거절하면 지금 프로젝트를 그대로 둔다.
+  const newProjectDiscardMessage = '저장하지 않은 편집이 있어요. 지금 새로 시작하거나 다른 프로젝트를 열면 사라져요. 계속할까요?';
+  function confirmDiscardIfDirty() { return !dirty || confirm(newProjectDiscardMessage); }
   function resetToNewDraft() {
     stopHiddenMedia(); project = createProject({ name: `${merchantName || '우리 가게'} 수집품` }); project.theme.name = studio.newTheme;
     wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; clearCollectibleRenderCache(); syncValues();
@@ -603,7 +608,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'photo-choose') { control('photo').click(); return; }
     if (action === 'draft' || action === 'publish') { await save(action === 'publish'); return; }
     if (action === 'refresh') { await Promise.all([refreshList(), refreshCampaigns()]); return; }
-    if (action === 'new') { resetToNewDraft(); studio.showStep(1); await drawCrop(); schedulePreview(); notice('새 초안을 시작했어요.'); return; }
+    if (action === 'new') { if (!confirmDiscardIfDirty()) return; resetToNewDraft(); studio.showStep(1); await drawCrop(); schedulePreview(); notice('새 초안을 시작했어요.'); return; }
     if (action === 'unpublish') { await unpublish(); return; }
     if (action === 'delete') { await deleteProject(); return; }
     if (action === 'undo' || action === 'redo') {
