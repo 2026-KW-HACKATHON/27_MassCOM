@@ -5,12 +5,21 @@ const merchantClaimSlots = new WeakMap();
 const reversalRefreshers = new WeakMap();
 const creators = new WeakMap();
 const creatorScopes = new WeakMap();
+// 지금 제작기가 열려 있는 점포 ID.
+const creatorStores = new WeakMap();
 
 function closeCreator(doc) {
   creators.get(doc)?.();
   creators.delete(doc);
+  creatorStores.delete(doc);
   doc.getElementById('merchant-creator-editor')?.replaceChildren();
 }
+
+// 제작기 권한은 서버가 MANAGE_ART로 판정한다(기본은 점포의 점주만, 응답에는 싣지 않는다). 이 화면이 아는 것은 역할뿐이라
+// 점주 점포만 고르게 하고, 서버가 권한 payload(`canManageArt`)를 보내는 환경이 생기면 그 값도 따른다.
+const canCreate = member => member.role === 'OWNER' || member.canManageArt === true;
+const creatorDenied = '이 점포의 그림 제작 권한이 없어요. 점주 권한을 확인해 주세요.';
+const discardMessage = '저장하지 않은 편집이 있어요. 지금 제작기를 다시 열거나 다른 점포로 바꾸면 사라져요. 계속할까요?';
 
 // 제작기가 게시할 캠페인은 점주 권한으로 읽는 전용 API에서만 받는다. 공개 /merchants는 운영 프록시가
 // 캠페인·점포 ID를 지우므로 쓰지 않는다(이 점포의 공개·ACTIVE·기간 안 캠페인과 그 목표만 온다).
@@ -20,7 +29,7 @@ export async function loadCreatorCampaigns(fetcher, merchantId) {
   return result.campaigns;
 }
 
-export function configureCreator(fetcher, doc, mine) {
+export function configureCreator(fetcher, doc, mine, { confirm = message => globalThis.confirm?.(message) === true } = {}) {
   const panel = doc.getElementById('merchant-creator');
   const select = doc.getElementById('merchant-creator-store');
   const open = doc.getElementById('merchant-creator-open');
@@ -28,31 +37,54 @@ export function configureCreator(fetcher, doc, mine) {
   const scope = `${mine.accountScope ?? ''}:${mine.merchants.map(member => `${member.id}:${member.role}`).sort().join(',')}`;
   if (!mine.accountScope || creatorScopes.get(doc) !== scope) closeCreator(doc);
   creatorScopes.set(doc, scope);
+  const makers = mine.merchants.filter(canCreate);
   select.replaceChildren();
-  for (const merchant of mine.merchants) {
+  for (const merchant of makers) {
     const option = doc.createElement('option'); option.value = merchant.id; option.textContent = merchant.name; select.append(option);
   }
-  panel.hidden = mine.merchants.length === 0;
+  panel.hidden = makers.length === 0;
+  if (makers.length === 0) closeCreator(doc);
+  // 저장하지 않은 편집이 있으면 제작기를 다시 열거나 점포를 바꾸기 전에 묻는다. 거절하면 그대로 둔다.
+  const keepEdits = () => creators.get(doc)?.isDirty?.() === true && !confirm(discardMessage);
+  select.onchange = () => {
+    const mounted = creatorStores.get(doc);
+    if (!mounted || select.value === mounted) return;
+    if (keepEdits()) { select.value = mounted; return; }
+    // 고른 점포와 열려 있는 제작기가 어긋나지 않게, 바꾸기로 했으면 지금 제작기를 닫는다.
+    closeCreator(doc);
+  };
   open.onclick = async () => {
     const currentRequest = merchantRequests.get(doc);
-    const merchant = mine.merchants.find(member => member.id === select.value);
+    const merchant = makers.find(member => member.id === select.value);
     if (!merchant) return;
+    if (keepEdits()) return;
     open.disabled = true;
     try {
       const module = await import('./collectible-editor.mjs');
       if (merchantRequests.get(doc) !== currentRequest) return;
       closeCreator(doc);
+      let denied = false;
       const cleanup = await module.mountCollectibleEditor(doc.getElementById('merchant-creator-editor'), {
         merchantId: merchant.id, merchantName: merchant.name,
         loadCampaigns: () => loadCreatorCampaigns(fetcher, merchant.id),
         request: (path, options = {}) => request(fetcher, path, options.method ?? 'GET', options.body),
         onNotice: message => { doc.getElementById('merchant-status').textContent = message; },
+        // 목록이 403이면 이 계정은 이 점포의 제작 권한이 없다(예: 직원). 제작기를 닫고 이유를 알린다.
+        onAccessDenied: () => {
+          if (merchantRequests.get(doc) !== currentRequest) return;
+          denied = true;
+          closeCreator(doc);
+          doc.getElementById('merchant-status').textContent = creatorDenied;
+        },
       });
+      // 권한 거절이 등록(creators.set)보다 먼저 도착했다면 방금 만든 제작기를 여기서 닫는다.
+      if (denied) { cleanup?.(); doc.getElementById('merchant-creator-editor')?.replaceChildren(); return; }
       if (merchantRequests.get(doc) !== currentRequest) { cleanup?.(); return; }
       creators.set(doc, cleanup);
+      creatorStores.set(doc, merchant.id);
     } catch (error) {
       if (merchantRequests.get(doc) === currentRequest) doc.getElementById('merchant-status').textContent = error.status === 403
-        ? '이 점포의 그림 제작 권한이 없어요. 점주 권한을 확인해 주세요.' : '제작기를 열지 못했어요. 다시 시도해 주세요.';
+        ? creatorDenied : '제작기를 열지 못했어요. 다시 시도해 주세요.';
     } finally { open.disabled = false; }
   };
 }

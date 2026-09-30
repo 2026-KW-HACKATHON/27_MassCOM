@@ -17,7 +17,8 @@ function driver(container, api, notices = [], asked = []) {
     get notice() { return container.querySelector('[data-view="notice"]').textContent; },
     control: name => container.querySelector(`[data-control="${name}"]`),
     action: name => container.querySelector(`[data-action="${name}"]`),
-    async click(name) { ui.action(name).dispatchEvent({ type: 'click' }); await settle(); },
+    // 브라우저는 꺼진 버튼의 클릭을 전달하지 않는다.
+    async click(name) { const node = ui.action(name); if (!node.disabled) node.dispatchEvent({ type: 'click' }); await settle(); },
     async change(name, value) { const node = ui.control(name); node.value = value; node.dispatchEvent({ type: 'change' }); await settle(); },
     async input(name, value) { const node = ui.control(name); node.value = value; node.dispatchEvent({ type: 'input' }); await settle(); },
     async upload(file) { const node = ui.control('photo'); node.files = [file]; node.dispatchEvent({ type: 'change' }); await settle(); },
@@ -41,17 +42,19 @@ async function mount(api, options = {}) {
 }
 
 /** 점주 웹(merchant.mjs)이 fetch로 연결하는 실제 경로로 올린다. 오류 응답의 Retry-After 헤더까지 편집기에 닿는다. */
-async function mountViaMerchant(api) {
+async function mountViaMerchant(api, { confirm = () => true, merchants = [{ id: 'm1', name: '월계 식당', role: 'OWNER' }], open = true } = {}) {
   const page = document.createElement('div');
   page.innerHTML = '<section id="merchant-creator" hidden><select id="merchant-creator-store"></select><button id="merchant-creator-open" type="button"></button><div id="merchant-creator-editor"></div></section><p id="merchant-status"></p>';
   document.body.append(page);
-  configureCreator(api.fetcher, document, { accountScope: 'scope-a', merchants: [{ id: 'm1', name: '월계 식당', role: 'OWNER' }] });
-  document.getElementById('merchant-creator-store').value = 'm1';
-  await document.getElementById('merchant-creator-open').onclick();
-  await settle();
-  const ui = driver(document.getElementById('merchant-creator-editor'), api);
+  const asked = [];
+  configureCreator(api.fetcher, document, { accountScope: 'scope-a', merchants }, { confirm: message => { asked.push(message); return confirm(message); } });
+  const select = document.getElementById('merchant-creator-store'), host = document.getElementById('merchant-creator-editor');
+  select.value = merchants[0].id;
+  const openEditor = async () => { await document.getElementById('merchant-creator-open').onclick(); await settle(); };
+  if (open) await openEditor();
+  const ui = driver(host, api);
   Object.defineProperty(ui, 'status', { get: () => document.getElementById('merchant-status').textContent });
-  return ui;
+  return Object.assign(ui, { asked, select, host, openEditor, panel: document.getElementById('merchant-creator') });
 }
 
 test('캠페인 목록은 점주 전용 API에서 받아 고르고, 공개 /merchants의 id·campaign 없는 응답에 의존하지 않는다', async () => {
@@ -444,4 +447,113 @@ test('시즌 복사가 거절되면 현재 입력과 저장 대상을 바꾸지 
   await ui.input('name', '복사 실패 뒤 저장');
   await ui.click('draft');
   assert.equal(api.calls.filter(call => call.method === 'PUT').at(-1).path, '/collectible-projects/project-1');
+});
+
+const owner = (id, name) => ({ id, name, role: 'OWNER' });
+
+test('저장하지 않은 편집이 있으면 제작기를 다시 열기 전에 묻고, 거절하면 편집을 그대로 둔다', async () => {
+  const api = createFakeApi();
+  const declined = await mountViaMerchant(api, { confirm: () => false });
+  await declined.input('name', '아직 저장 안 한 이름');
+  await declined.openEditor();
+  assert.match(declined.asked[0], /저장하지 않은 편집이 있어요\. 지금 제작기를 다시 열거나 다른 점포로 바꾸면 사라져요/);
+  assert.equal(declined.control('name').value, '아직 저장 안 한 이름', '거절하면 편집이 남는다');
+  assert.equal(api.calls.filter(call => call.path === '/collectible-projects' && call.method === 'GET').length, 1, '다시 열지 않았다');
+});
+
+test('저장하지 않은 편집이 있어도 수락하면 새 제작기를 연다', async () => {
+  const api = createFakeApi();
+  const accepted = await mountViaMerchant(api, { confirm: () => true });
+  await accepted.input('name', '버려도 되는 편집');
+  await accepted.openEditor();
+  assert.equal(accepted.asked.length, 1);
+  assert.equal(accepted.control('name').value, '월계 식당 수집품', '수락하면 새 제작기가 열린다');
+});
+
+test('저장한 뒤나 고친 것이 없으면 묻지 않고 다시 연다', async () => {
+  const api = createFakeApi();
+  const ui = await mountViaMerchant(api, { confirm: () => false });
+  await ui.openEditor();
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  await ui.openEditor();
+  assert.equal(ui.asked.length, 0);
+});
+
+test('저장하지 않은 편집이 있을 때 점포를 바꾸면 묻고, 거절하면 점포 선택을 되돌리며 수락하면 제작기를 닫는다', async () => {
+  const api = createFakeApi();
+  const merchants = [owner('m1', '월계 식당'), owner('m2', '두 번째 식당')];
+  const ui = await mountViaMerchant(api, { confirm: () => false, merchants });
+  await ui.input('name', '바꾸기 전 편집');
+  ui.select.value = 'm2'; ui.select.onchange();
+  assert.equal(ui.asked.length, 1);
+  assert.equal(ui.select.value, 'm1', '거절하면 열려 있는 점포로 되돌린다');
+  assert.ok(ui.host.children.length > 0);
+  assert.equal(ui.control('name').value, '바꾸기 전 편집');
+});
+
+test('점포를 바꾸기로 수락하면 열려 있던 제작기를 닫는다', async () => {
+  const api = createFakeApi();
+  const merchants = [owner('m1', '월계 식당'), owner('m2', '두 번째 식당')];
+  const accepting = await mountViaMerchant(api, { confirm: () => true, merchants });
+  await accepting.input('name', '버릴 편집');
+  accepting.select.value = 'm2'; accepting.select.onchange();
+  assert.equal(accepting.host.children.length, 0, '점포를 바꾸기로 했으면 제작기를 닫는다');
+});
+
+test('점주가 아닌 계정은 제작기 패널을 보지 못하고, 점주 점포만 고를 수 있다', async () => {
+  const api = createFakeApi();
+  const staffOnly = await mountViaMerchant(api, { merchants: [{ id: 'm1', name: '월계 식당', role: 'STAFF' }], open: false });
+  assert.equal(staffOnly.panel.hidden, true);
+  const mixed = await mountViaMerchant(api, { merchants: [{ id: 'm1', name: '직원 점포', role: 'STAFF' }, owner('m2', '내 점포')], open: false });
+  assert.equal(mixed.panel.hidden, false);
+  assert.deepEqual(mixed.select.options.map(option => option.value), ['m2']);
+  const granted = await mountViaMerchant(api, { merchants: [{ id: 'm1', name: '직원 점포', role: 'STAFF', canManageArt: true }], open: false });
+  assert.equal(granted.panel.hidden, false, '서버가 권한을 알리면 따른다');
+});
+
+test('목록이 403이면 제작기를 닫고 권한 안내를 보인다', async () => {
+  const api = createFakeApi();
+  api.failNext('GET', /collectible-projects$/, { status: 403, code: 'MERCHANT_ACCESS_DENIED' });
+  const ui = await mountViaMerchant(api);
+  assert.equal(ui.host.children.length, 0);
+  assert.match(ui.status, /이 점포의 그림 제작 권한이 없어요\. 점주 권한을 확인해 주세요/);
+  assert.equal(ui.panel.hidden, false, '점주 계정의 일시적인 403이면 다시 열 수 있다');
+});
+
+test('이미 게시했고 고친 것이 없으면 게시 버튼을 막고, 고치면 다시 켠다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await readyToPublish(ui);
+  assert.equal(ui.action('publish').disabled, false);
+  await ui.click('publish');
+  assert.equal(ui.action('publish').disabled, true, '게시 직후 같은 내용을 다시 게시하면 게시 버전만 늘어난다');
+  assert.match(ui.action('publish').title, /이미 게시한 버전/);
+  await ui.click('publish');
+  assert.equal(api.calls.filter(call => call.path.endsWith('/publish')).length, 1);
+  await ui.input('name', '고친 이름');
+  assert.equal(ui.action('publish').disabled, false);
+  assert.equal(ui.action('draft').disabled, false);
+});
+
+test('게시한 프로젝트를 열면 게시 버튼이 막혀 있다', async () => {
+  const api = createFakeApi();
+  const published = api.seed(seeded(), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  const ui = await mount(api);
+  await ui.change('project-list', published.id);
+  assert.equal(ui.action('publish').disabled, true);
+  await ui.input('name', '고침');
+  assert.equal(ui.action('publish').disabled, false);
+});
+
+test('게시한 뒤에는 캠페인 목록을 새로 읽어 배포 연결 변화를 보이게 한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await readyToPublish(ui);
+  const before = api.calls.filter(call => call.path.endsWith('/collectible-campaigns')).length;
+  await ui.click('publish');
+  const reads = api.calls.filter(call => call.path.endsWith('/collectible-campaigns')).length;
+  assert.equal(reads - before, 2, '게시 직전 검증용 조회 1번과 게시 뒤 새로 읽기 1번');
+  assert.match(ui.notice, /게시했어요/);
+  assert.equal(api.campaigns[0].publication.projectId, 'project-1');
 });
