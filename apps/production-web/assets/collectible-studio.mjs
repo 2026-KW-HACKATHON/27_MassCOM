@@ -153,7 +153,9 @@ export function createCollectibleStudio(container, { effectNames }) {
     for (const item of projects) {
       const tile = action('', 'open-project', item.id, 'ce-project-card'); tile.setAttribute('aria-pressed', String(selectedId === item.id));
       const art = node('span', 'ce-project-card-art'); art.append(shapeIcon(item.shape || item.project?.shape || 'stamp'), node('span', 'ce-project-status', item.status === 'PUBLISHED' ? '게시됨' : '초안'));
-      tile.append(art, node('strong', '', item.name || item.project?.name || '수집품'), node('span', 'ce-project-version', `저장 버전 ${item.version}`)); gallery.append(tile);
+      tile.append(art, node('strong', '', item.name || item.project?.name || '수집품'), node('span', 'ce-project-version', `저장 버전 ${item.version}`));
+      if (item.distributionLabel) tile.append(node('span', 'ce-project-distribution', item.distributionLabel));
+      gallery.append(tile);
     }
   }
   function setBusy(value) {

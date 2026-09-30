@@ -53,6 +53,7 @@
 .ce-project-status { position: absolute; top: .6rem; right: .6rem; padding: .25rem .5rem; background: #fff; color: #17488d; border-radius: .5rem; font-size: .72rem; }
 .ce-project-card > strong { padding: .7rem .8rem .25rem; }
 .ce-project-version { padding: 0 .8rem .8rem; font-size: .8rem; color: #4a6085; font-weight: 400; }
+.ce-project-distribution { padding: 0 .8rem .8rem; margin-top: -.55rem; font-size: .8rem; color: #0f5ea8; font-weight: 600; }
 .ce-empty-projects { grid-column: 1 / -1; display: grid; justify-items: center; padding: 1.3rem .8rem; border: 1px dashed #aac7ed; border-radius: .9rem; background: #f7fbff; text-align: center; }
 .ce-empty-projects .ce-shape-icon { width: 60px; height: 60px; opacity: .65; }
 .ce-empty-projects p { font-size: .85rem; margin: .3rem 0; color: #4a6085; }
@@ -126,6 +127,8 @@
 .ce-story-frame button { margin-left: auto; }
 .ce-publish { border: 1px solid #c6dafa; margin-top: 1rem; padding: 1rem; border-radius: 1rem; background: #fff; }
 .ce-publish > button { width: min(100%, 250px); margin-right: .3rem; margin-bottom: .3rem; }
+.ce-publish > button.ce-danger { border-color: #b3261e; color: #8c1d18; background: #fff; }
+.ce-distribution { font-weight: 600; color: #0f3d73; }
 .ce-greeting { font-weight: 600; padding-inline: .3rem; }
 .ce-stage-footer { display: flex; justify-content: space-between; gap: .65rem; margin-top: 1rem; padding-top: .8rem; border-top: 1px solid var(--ce-line); }
 .ce-stage-footer button { flex: 1; max-width: 280px; }

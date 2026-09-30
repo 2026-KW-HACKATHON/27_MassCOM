@@ -139,3 +139,94 @@ test('저장하는 동안 새로 편집한 내용은 지키고 한 번 더 저�
   assert.equal(api.calls.find(call => call.method === 'PUT').body.project.name, '저장 중에 고친 이름');
   assert.equal(ui.dirty, false);
 });
+
+const seeded = (name = '게시 중인 수집품') => createProject({ name });
+const cards = ui => ui.container.querySelectorAll('[data-action="open-project"]');
+const distribution = ui => ui.container.querySelector('[data-view="distribution"]').textContent;
+
+test('게시 중인 프로젝트는 어느 캠페인에 나가는지 목록·상태에 보이고 열면 게시 중지를 할 수 있다', async () => {
+  const api = createFakeApi();
+  const published = api.seed(seeded(), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  api.seed(seeded('아직 초안'));
+  const ui = await mount(api);
+  const labels = [...cards(ui)].map(card => card.textContent);
+  assert.match(labels[0], /게시 중인 수집품.*“가상 방문 캠페인” 캠페인에 게시 중/);
+  assert.doesNotMatch(labels[1], /캠페인에 게시 중/);
+  assert.match(ui.control('project-list').options.map(option => option.textContent).join('|'), /게시 중인 수집품 · 게시 · v2 · “가상 방문 캠페인” 캠페인에 게시 중/);
+  await ui.change('project-list', published.id);
+  assert.match(distribution(ui), /게시한 버전 · 저장 버전 2 · “가상 방문 캠페인” 캠페인에 게시 중/);
+  assert.equal(ui.action('unpublish').disabled, false);
+  assert.equal(ui.action('delete').disabled, false);
+});
+
+test('게시 중지는 확인을 받고 expectedVersion으로 요청한 뒤 배포 상태를 새로 읽는다', async () => {
+  const api = createFakeApi();
+  const published = api.seed(seeded(), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  const declined = await mount(api, { confirm: false });
+  await declined.change('project-list', published.id);
+  await declined.click('unpublish');
+  assert.match(declined.asked[0], /“게시 중인 수집품”의 게시를 멈출까요\? “가상 방문 캠페인” 캠페인을 새로 방문하는 손님에게 더 이상 나가지 않아요\. 이미 받은 손님의 수집품은 그대로/);
+  assert.equal(api.calls.some(call => call.path.endsWith('/unpublish')), false, '취소하면 요청하지 않는다');
+  editors.pop()();
+
+  const ui = await mount(api);
+  await ui.change('project-list', published.id);
+  await ui.click('unpublish');
+  const call = api.calls.find(item => item.path.endsWith('/unpublish'));
+  assert.equal(call.path, `/collectible-projects/${published.id}/unpublish`);
+  assert.deepEqual(call.body, { expectedVersion: 2 });
+  assert.equal(api.campaigns[0].publication, null);
+  assert.match(ui.notice, /게시를 멈췄어요\. “가상 방문 캠페인” 캠페인을 새로 방문하는 손님부터/);
+  assert.match(distribution(ui), /새 손님에게는 나가지 않아요/);
+  assert.equal(ui.action('unpublish').disabled, true, '이미 나가지 않는 버전은 다시 중지할 수 없다');
+});
+
+test('게시 중지·삭제 오류는 코드별 문구로 알리고 입력과 버튼을 그대로 둔다', async () => {
+  const api = createFakeApi();
+  const published = api.seed(seeded(), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  const ui = await mount(api);
+  await ui.change('project-list', published.id);
+  api.failNext('POST', /unpublish$/, { status: 409, code: 'COLLECTIBLE_VERSION_CONFLICT' });
+  await ui.click('unpublish');
+  assert.match(ui.notice, /다른 화면에서 초안이 변경됐어요/);
+  assert.equal(ui.action('unpublish').disabled, false);
+  api.failNext('POST', /delete$/, { status: 429, code: 'COLLECTIBLE_RATE_LIMITED', retryAfterSeconds: 9 });
+  await ui.click('delete');
+  assert.match(ui.notice, /9초 뒤에 다시 시도해 주세요/);
+  assert.equal(api.store.size, 1, '실패하면 지우지 않는다');
+  assert.equal(ui.action('delete').disabled, false);
+});
+
+test('초안 삭제는 확인을 받고 지운 뒤 편집기를 새 초안으로 되돌린다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  await ui.input('name', '지울 초안');
+  assert.equal(ui.action('delete').disabled, true, '저장하기 전에는 지울 서버 자료가 없다');
+  await ui.click('draft');
+  assert.match(distribution(ui), /초안 · 저장 버전 1 · 아직 손님에게 나가지 않아요/);
+  await ui.input('name', '지울 초안 (고침)');
+  await ui.click('delete');
+  assert.match(ui.asked[0], /“지울 초안 \(고침\)” 초안을 삭제할까요\? 삭제한 초안은 되돌릴 수 없어요\. 저장하지 않은 편집도 함께 사라져요/);
+  const call = api.calls.find(item => item.path.endsWith('/delete'));
+  assert.deepEqual(call.body, { expectedVersion: 1 });
+  assert.equal(api.store.size, 0);
+  assert.equal(ui.control('name').value, '월계 식당 수집품');
+  assert.equal(ui.dirty, false);
+  assert.equal(ui.action('delete').disabled, true);
+  assert.equal(cards(ui).length, 0);
+  assert.match(ui.notice, /초안을 삭제했어요/);
+});
+
+test('게시한 프로젝트 삭제는 원본이 지워지고 이미 받은 손님의 수집품은 남는다고 확인받는다', async () => {
+  const api = createFakeApi();
+  const published = api.seed(seeded(), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  const ui = await mount(api);
+  await ui.change('project-list', published.id);
+  await ui.click('delete');
+  assert.match(ui.asked[0], /게시 프로젝트를 삭제할까요\? 새로 방문하는 손님에게 나가는 것을 멈추고, 저장해 둔 원본 사진과 편집 자료를 지워요\. 이미 받은 손님의 수집품은 그대로 남아요/);
+  assert.deepEqual(api.calls.find(item => item.path.endsWith('/delete')).body, { expectedVersion: 2 });
+  assert.equal(api.campaigns[0].publication, null);
+  assert.match(ui.notice, /“가상 방문 캠페인” 캠페인을 새로 방문하는 손님부터 이 수집품이 나가지 않아요/);
+  assert.equal(cards(ui).length, 0);
+});

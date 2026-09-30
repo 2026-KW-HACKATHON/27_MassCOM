@@ -68,6 +68,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   let dirty = false, editSerial = 0, busy = false, restoring = false, pointer = null, visible = true, uploadSequence = 0;
   let audioImportSequence = 0, storyImportSequence = 0, recordSequence = 0, recordingPending = false;
   const pendingFiles = new Set();
+  let listed = new Map();
   let loading = false;
   let studio, navigationSequence = 0, listSequence = 0;
   const loadingInputs = new Map();
@@ -160,7 +161,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       <div class="ce-actions"><button type="button" data-action="play">재생</button><button type="button" data-action="pause">정지</button><button type="button" data-action="replay">다시 보기</button><button type="button" data-action="angle-reset">정면 보기</button></div>
       <label class="ce-check"><input data-control="reduce-motion" type="checkbox"> 움직임 줄이기</label>
       <p data-view="preview-caption" class="ce-help"></p><p data-view="greeting" class="ce-greeting"></p>
-      <div class="ce-publish"><button type="button" data-action="draft">초안 저장</button><button type="button" data-action="publish" class="primary">이 결과 게시</button><p class="ce-help">게시한 버전은 보존하고, 다음 편집은 새 버전으로 게시해요. 이미 얻은 수집품은 기존 모습과 음성을 유지해요.</p><p data-view="save-state" class="ce-help"></p></div>
+      <div class="ce-publish"><button type="button" data-action="draft">초안 저장</button><button type="button" data-action="publish" class="primary">이 결과 게시</button><button type="button" data-action="unpublish">게시 중지</button><button type="button" data-action="delete" class="ce-danger">삭제</button><p class="ce-help">게시한 버전은 보존하고, 다음 편집은 새 버전으로 게시해요. 이미 얻은 수집품은 기존 모습과 음성을 유지해요.</p><p data-view="distribution" class="ce-distribution" role="status"></p><p data-view="save-state" class="ce-help"></p></div>
     </div></div>`;
   const control = name => container.querySelector(`[data-control="${name}"]`);
   const view = name => container.querySelector(`[data-view="${name}"]`);
@@ -183,7 +184,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     view('greeting').textContent = project.greeting;
     const audio = view('audio'); audio.pause(); audio.src = project.audio?.dataUrl || ''; audio.hidden = !project.audio;
     renderGrades(); renderStickers(); renderEffects(); renderMotionGrades(); renderStoryFrames();
-    studio.sync(project, { dirty, wrapper });
+    studio.sync(project, { dirty, wrapper }); syncPublishState();
   }
   function option(select, text, value) { select.append(element('option', text, { value })); }
   function renderGrades() {
@@ -221,7 +222,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     try {
       const loaded = await loadCampaigns();
       if (!active || sequence !== campaignSequence) return true;
-      campaigns = loaded; renderCampaignOptions(); renderRewardGrades();
+      campaigns = loaded; renderCampaignOptions(); renderRewardGrades(); renderProjectList();
       return true;
     } catch (error) {
       if (active && sequence === campaignSequence) notice(`게시할 캠페인 목록을 불러오지 못했어요. ${collectibleErrorMessage(error, '편집은 계속할 수 있어요. 저장 목록 새로 보기를 눌러 다시 시도해 주세요.')}`, true);
@@ -341,16 +342,38 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (!active) return;
     for (const item of container.querySelectorAll('[data-action="draft"],[data-action="publish"]')) item.disabled = busy || mediaPending();
   }
-  function setBusy(value) { busy = value; if (!active) return; for (const item of container.querySelectorAll('[data-action="draft"],[data-action="publish"],[data-action="copy"],[data-action="new"],[data-control="project-list"],[data-control="photo"],[data-control="audio"],[data-control="story-files"],[data-action="photo-choose"],[data-action="record"]')) item.disabled = value; studio.setBusy(value); updateMediaLocks(); }
+  function setBusy(value) { busy = value; if (!active) return; for (const item of container.querySelectorAll('[data-action="draft"],[data-action="publish"],[data-action="copy"],[data-action="new"],[data-control="project-list"],[data-control="photo"],[data-control="audio"],[data-control="story-files"],[data-action="photo-choose"],[data-action="record"]')) item.disabled = value; studio.setBusy(value); updateMediaLocks(); syncPublishState(); }
+  const campaignTitle = id => id ? campaigns.find(item => item.id === id)?.title || '다른 캠페인' : '';
+  // 이 게시 버전이 지금 새 손님에게 나가는 캠페인. 게시한 프로젝트가 아니거나 목록을 아직 못 받았으면 빈 문자열이다.
+  function distributionLabel(item) {
+    if (item?.status !== 'PUBLISHED') return '';
+    return item.distributingCampaignId ? `“${campaignTitle(item.distributingCampaignId)}” 캠페인에 게시 중` : '새 손님에게는 나가지 않아요 (게시 중지 또는 교체됨)';
+  }
+  function syncPublishState() {
+    if (!active) return;
+    const item = wrapper ? listed.get(wrapper.id) : undefined, published = wrapper?.status === 'PUBLISHED';
+    view('distribution').textContent = !wrapper ? '아직 저장하지 않은 새 초안이에요.'
+      : !published ? `초안 · 저장 버전 ${wrapper.version} · 아직 손님에게 나가지 않아요.`
+      : `게시한 버전 · 저장 버전 ${wrapper.version}${item ? ` · ${distributionLabel(item)}` : ''}`;
+    // 목록으로 이미 나가지 않는 것을 아는 버전은 중지할 것이 없다. 목록을 못 받았으면 서버가 판단한다.
+    container.querySelector('[data-action="unpublish"]').disabled = busy || !published || (item ? !item.distributingCampaignId : false);
+    container.querySelector('[data-action="delete"]').disabled = busy || !wrapper;
+  }
+  // 목록 응답과 캠페인 목록은 따로 도착하므로, 어느 쪽이 나중에 와도 캠페인 이름이 붙은 목록을 다시 그린다.
+  function renderProjectList() {
+    const select = control('project-list'); select.replaceChildren(element('option', '초안을 골라 다시 편집할 수 있어요', { value: '' }));
+    const items = [...listed.values()].map(item => ({ ...item, distributionLabel: distributionLabel(item) }));
+    for (const item of items) option(select, `${item.name || item.project?.name || '수집품'} · ${item.status === 'PUBLISHED' ? '게시' : '초안'} · v${item.version}${item.distributionLabel ? ` · ${item.distributionLabel}` : ''}`, item.id);
+    select.value = wrapper?.id || '';
+    studio.renderProjects(items, wrapper?.id || ''); studio.setBusy(busy || loading); syncPublishState();
+  }
   async function refreshList() {
     const sequence = ++listSequence;
     try {
       const result = await request(base, { method: 'GET' });
       if (!active || sequence !== listSequence) return;
-      const select = control('project-list'); select.replaceChildren(element('option', '초안을 골라 다시 편집할 수 있어요', { value: '' }));
-      for (const item of result.projects || []) option(select, `${item.name || item.project?.name || '수집품'} · ${item.status === 'PUBLISHED' ? '게시' : '초안'} · v${item.version}`, item.id);
-      select.value = wrapper?.id || '';
-      studio.renderProjects(result.projects || [], wrapper?.id || ''); studio.setBusy(busy || loading);
+      listed = new Map((result.projects || []).map(item => [item.id, item]));
+      renderProjectList();
     } catch (error) { notice(collectibleErrorMessage(error, '저장 목록을 불러오지 못했어요. 편집은 계속할 수 있고, 저장 목록 새로 보기를 눌러 다시 시도할 수 있어요.'), true); }
   }
   async function save(publish = false) {
@@ -396,6 +419,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         project = cloneProject(wrapper.project || revision);
         clearCollectibleRenderCache(); syncValues(); drawCrop(); schedulePreview();
       } else studio.sync(project, { dirty, wrapper });
+      syncPublishState();
       view('save-state').textContent = `${publish ? '게시한 버전을 보존했어요' : '초안을 저장했어요'} · v${wrapper.version}${dirty ? ' · 저장 중 새로 편집한 내용은 한 번 더 저장해 주세요.' : ''}`;
       notice(publish ? '게시했어요. 이후 방문 보상부터 이 버전을 사용해요. 이미 얻은 수집품은 그대로 보존돼요.' : '초안을 저장했어요. 목록에서 다시 열어 이어서 만들 수 있어요.');
       await refreshList();
@@ -495,6 +519,43 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (studio.step === 1 || studio.step === 3) drawCrop();
     if (studio.step !== 1) schedulePreview();
   }
+  function resetToNewDraft() {
+    stopHiddenMedia(); project = createProject({ name: `${merchantName || '우리 가게'} 수집품` }); project.theme.name = studio.newTheme;
+    wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; clearCollectibleRenderCache(); syncValues();
+  }
+  // 게시 중지: 새 손님에게 나가는 것만 멈춘다. 게시 버전과 이미 받은 손님의 수집품은 그대로다.
+  async function unpublish() {
+    if (!wrapper || wrapper.status !== 'PUBLISHED') return;
+    const title = campaignTitle(listed.get(wrapper.id)?.distributingCampaignId);
+    if (!confirm(`“${project.name}”의 게시를 멈출까요? ${title ? `“${title}” 캠페인을 새로 방문하는 손님에게` : '새로 방문하는 손님에게'} 더 이상 나가지 않아요. 이미 받은 손님의 수집품은 그대로 남아요.`)) return;
+    setBusy(true); notice('게시를 멈추고 있어요…');
+    try {
+      const result = await request(`${base}/${encodeURIComponent(wrapper.id)}/unpublish`, { method: 'POST', body: { expectedVersion: wrapper.version } });
+      if (!active) return;
+      await Promise.all([refreshList(), refreshCampaigns()]);
+      notice(result.unlinkedCampaignId ? `게시를 멈췄어요. “${campaignTitle(result.unlinkedCampaignId)}” 캠페인을 새로 방문하는 손님부터 이 수집품이 나가지 않아요. 이미 받은 손님의 수집품은 그대로예요.` : '이 수집품은 이미 새 손님에게 나가지 않는 상태였어요.');
+    } catch (error) { notice(collectibleErrorMessage(error, '게시를 멈추지 못했어요. 입력은 그대로 있어요. 잠시 뒤 다시 시도해 주세요.'), true); }
+    finally { setBusy(false); }
+  }
+  // 삭제: 초안은 지우고, 게시한 프로젝트는 게시를 멈추고 비공개 원본·편집 자료를 지운다. 이미 받은 손님의 수집품은 남는다.
+  async function deleteProject() {
+    if (!wrapper) return;
+    const published = wrapper.status === 'PUBLISHED';
+    const warning = published
+      ? '새로 방문하는 손님에게 나가는 것을 멈추고, 저장해 둔 원본 사진과 편집 자료를 지워요. 이미 받은 손님의 수집품은 그대로 남아요.'
+      : '삭제한 초안은 되돌릴 수 없어요.';
+    if (!confirm(`“${project.name}” ${published ? '게시 프로젝트를' : '초안을'} 삭제할까요? ${warning}${dirty ? ' 저장하지 않은 편집도 함께 사라져요.' : ''}`)) return;
+    setBusy(true); notice('삭제하고 있어요…');
+    try {
+      const result = await request(`${base}/${encodeURIComponent(wrapper.id)}/delete`, { method: 'POST', body: { expectedVersion: wrapper.version } });
+      if (!active) return;
+      const title = campaignTitle(result.unlinkedCampaignId);
+      resetToNewDraft(); studio.showHome();
+      await Promise.all([refreshList(), refreshCampaigns()]);
+      notice(published ? `삭제했어요. ${title ? `“${title}” 캠페인을 새로 방문하는 손님부터 이 수집품이 나가지 않아요. ` : ''}이미 받은 손님의 수집품은 그대로 남아요.` : '초안을 삭제했어요.');
+    } catch (error) { notice(collectibleErrorMessage(error, '삭제하지 못했어요. 입력은 그대로 있어요. 잠시 뒤 다시 시도해 주세요.'), true); }
+    finally { setBusy(false); }
+  }
   async function act(action, id, source) {
     if (action === 'record-stop') { stopRecording(); return; }
     if (action === 'pause') { playing = false; schedulePreview(); return; }
@@ -514,7 +575,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'photo-choose') { control('photo').click(); return; }
     if (action === 'draft' || action === 'publish') { await save(action === 'publish'); return; }
     if (action === 'refresh') { await Promise.all([refreshList(), refreshCampaigns()]); return; }
-    if (action === 'new') { stopHiddenMedia(); project = createProject({ name: `${merchantName || '우리 가게'} 수집품` }); project.theme.name = studio.newTheme; wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; clearCollectibleRenderCache(); syncValues(); studio.showStep(1); await drawCrop(); schedulePreview(); notice('새 초안을 시작했어요.'); return; }
+    if (action === 'new') { resetToNewDraft(); studio.showStep(1); await drawCrop(); schedulePreview(); notice('새 초안을 시작했어요.'); return; }
+    if (action === 'unpublish') { await unpublish(); return; }
+    if (action === 'delete') { await deleteProject(); return; }
     if (action === 'undo' || action === 'redo') {
       const source = action === 'undo' ? undo : redo, destination = action === 'undo' ? redo : undo;
       if (!source.length) { notice(action === 'undo' ? '되돌릴 편집이 아직 없어요.' : '다시 실행할 편집이 없어요.'); return; }
