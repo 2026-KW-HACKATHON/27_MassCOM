@@ -250,6 +250,8 @@ probe_web_routes() {
     | cmp - "$release/site/public/nft-metadata/base-sepolia-proof/1.json"
   nft_metadata_headers="$(curl -fsSI --max-time 8 "http://$address/nft-metadata/base-sepolia-proof/1.json")"
   grep -Eqi '^content-type: application/json' <<< "$nft_metadata_headers"
+  # Issue #254: 확정 토큰 메타데이터 경로는 API로 넘어가 JSON 404를 받고 CORS 값은 한 줄만 남는다.
+  nft_metadata_probe_response "http://$address/nft-metadata/no-such/1.json"
   for path in /HANDOFF.md /TEST_STATUS.md /claim /mint /api/web/unknown; do
     status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address$path")"
     [[ "$status" == '404' ]]

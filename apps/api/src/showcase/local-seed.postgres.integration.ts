@@ -174,6 +174,17 @@ test('existing one-store showcase data grows to three stores without changing vi
       [rows.merchants.length, rows.campaigns.length, rows.goals.length, rows.members.length],
       [3, 3, 9, 3],
     );
+    // #254: 0036 전에 seed된 A도 동네·업종을 받고, 이미 값이 있는 점포는 다시 seed해도 바뀌지 않는다.
+    const profiles = async () => (await pool.query<{ id: string; neighborhood: string; category: string }>(
+      'SELECT id, neighborhood, category FROM merchants ORDER BY id')).rows;
+    assert.deepEqual(await profiles(), [
+      { id: SHOWCASE_MERCHANT_ID, neighborhood: '월계동', category: '카페' },
+      { id: 'showcase-local-merchant-b', neighborhood: '월계동', category: '분식' },
+      { id: 'showcase-local-merchant-c', neighborhood: '월계동', category: '한식' },
+    ]);
+    await pool.query(`UPDATE merchants SET category = '기타' WHERE id = $1`, [SHOWCASE_MERCHANT_ID]);
+    await seedLocalShowcase(pool);
+    assert.equal((await profiles())[0]?.category, '기타');
     const progress = await pool.query<{ enrolled_count: number }>(
       'SELECT enrolled_count FROM campaigns WHERE id = $1', [SHOWCASE_CAMPAIGN_ID],
     );

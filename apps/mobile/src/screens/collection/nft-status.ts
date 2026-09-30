@@ -28,6 +28,8 @@ const mintRefusalMessages: Record<string, string> = {
   MINT_PENDING: '이미 처리 중인 NFT 작업이 있습니다.',
   CAPACITY_UNAVAILABLE: '약속된 발행 수량을 확인할 수 없어 접수를 중지했습니다.',
   CONSENT_REQUIRED: '최신 공개·양도 제한 안내 동의가 필요합니다.',
+  // 옛 판(nft-mint-v1)의 동의로 요청한 옛 앱(Issue #254). 새 동의 문구는 새 앱에만 있다.
+  CONSENT_VERSION_OUTDATED: '발행 안내가 바뀌었어요. 앱을 업데이트해 주세요.',
   // 운영 API가 발행 준비 중이라 새 요청을 거절할 때(옛 화면 상태에서 단추를 눌렀을 때도 같은 안내).
   NFT_MINTING_PREPARING: nftPreparingNote,
 };

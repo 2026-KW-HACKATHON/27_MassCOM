@@ -41,6 +41,7 @@ import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
 import { merchantArt, type MerchantArt } from './merchant-art';
 import { canOfferMint, mintRefusalText, nftPreparingNote, nftStatusLabel } from './nft-status';
+import { mintConsentMessage, mintConsentTitle, mintConsentVersion } from './mint-consent';
 import { collectibleArtSize } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
 
@@ -259,8 +260,8 @@ export function CollectionScreen({
   function confirmMint(item: CollectionSnapshot['collectibles'][number]) {
     if (!binding) return;
     Alert.alert(
-      '양도 제한 NFT 접수',
-      `받을 주소\n${binding.address}\n\n체인 ${chainLabel(binding.chainId)}\n일반 전송이 제한되며 서비스가 발행 비용을 부담합니다. 공개 장부에는 주소와 NFT 식별 정보가 남습니다.`,
+      mintConsentTitle,
+      mintConsentMessage(binding.address, chainLabel(binding.chainId)),
       [
         { text: '취소', style: 'cancel' },
         {
@@ -283,7 +284,7 @@ export function CollectionScreen({
         entitlementId,
         walletBindingId: binding.bindingId,
         bindingVersion: binding.bindingVersion,
-        consentVersion: 'nft-mint-v1',
+        consentVersion: mintConsentVersion,
         idempotencyKey,
       });
       setMessage(

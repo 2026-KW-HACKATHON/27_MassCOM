@@ -18,6 +18,24 @@ web_collection_probe_response() {
   web_collection_probe_accepts "$status" "$content_type" "$cache_control"
 }
 
+# Issue #254: 확정 전·없는 토큰의 메타데이터 경로는 Caddy가 API로 넘겨 JSON 404(no-store)를 받아야 하고, Caddy와 API가
+# 모두 붙이는 CORS 헤더는 값 '*' 한 줄만 남아야 한다(두 줄이면 브라우저 지갑이 거절한다).
+nft_metadata_probe_accepts() { # <status> <content-type> <cache-control> <cors-line-count> <cors-value>
+  [[ "$1" == 404 && "$2" == application/json* && "$3" == *no-store* && "$3" != *public* && "$4" == 1 && "$5" == '*' ]]
+}
+
+nft_metadata_probe_response() {
+  local headers status content_type cache_control cors_count cors_value
+  headers="$(curl -sS -o /dev/null -D - --max-time 8 "$1")" || return 1
+  headers="${headers//$'\r'/}"
+  status="$(awk 'NR == 1 { print $2 }' <<< "$headers")"
+  content_type="$(awk -F': *' 'tolower($1) == "content-type" { print $2; exit }' <<< "$headers")"
+  cache_control="$(awk -F': *' 'tolower($1) == "cache-control" { print $2; exit }' <<< "$headers")"
+  cors_count="$(awk -F': *' 'tolower($1) == "access-control-allow-origin" { n++ } END { print n + 0 }' <<< "$headers")"
+  cors_value="$(awk -F': *' 'tolower($1) == "access-control-allow-origin" { print $2; exit }' <<< "$headers")"
+  nft_metadata_probe_accepts "$status" "$content_type" "$cache_control" "$cors_count" "$cors_value"
+}
+
 # 로그인하지 않은 `/api/web/consent`는 후보 Caddy를 거쳐 운영 API에서 401이어야 한다(Issue #253). 404는 API에 경로가 없거나
 # Caddy가 경로를 넘기지 않는다는 뜻이고(옛 API, 빠진 라우트), 503은 웹 로그인이 꺼진 API라 동의 화면이 동작하지 않으므로 둘 다 거절한다.
 web_consent_probe_accepts() {

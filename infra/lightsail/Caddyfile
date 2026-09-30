@@ -52,6 +52,18 @@
 			header_up X-Forwarded-For {remote_host}
 		}
 	}
+	# 발행 확정 때 고정한 NFT 메타데이터·그림(Issue #254)은 API가 준다. 읽기만, 정해진 모양의 경로만 넘긴다.
+	# 컨트랙트에 고정된 실증 토큰(base-sepolia-proof)은 지금처럼 정적 파일로 남긴다.
+	@nftMetadataApi {
+		method GET HEAD
+		path_regexp ^/nft-metadata/(images/[0-9a-f]{64}\.webp|default/mascot-stamp-v1\.png|[A-Za-z0-9][A-Za-z0-9_-]{0,127}/(0|[1-9][0-9]{0,77})\.json)$
+		not path /nft-metadata/base-sepolia-proof/*
+	}
+	handle @nftMetadataApi {
+		reverse_proxy api:3000 {
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
 	handle_path /app/* {
 		reverse_proxy production-web:4173
 	}
@@ -89,5 +101,9 @@
 		X-Robots-Tag "noindex, nofollow"
 	}
 	# Token metadata is public and its URL is fixed on-chain; browser wallets and explorers read it cross-origin.
-	header /nft-metadata/* Access-Control-Allow-Origin "*"
+	# Deferred so it replaces (not duplicates) the value the API already sends for proxied metadata.
+	header /nft-metadata/* {
+		Access-Control-Allow-Origin "*"
+		defer
+	}
 }

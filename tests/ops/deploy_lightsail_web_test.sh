@@ -92,6 +92,44 @@ done
   fi
 )
 
+# Issue #254: 메타데이터 탐침은 API의 JSON 404(no-store)와 CORS '*' 한 줄만 받는다.
+nft_metadata_probe_accepts 404 'application/json; charset=utf-8' 'no-store' 1 '*'
+for rejected in \
+  '200|application/json; charset=utf-8|public, max-age=31536000, immutable|1|*' \
+  '404|text/plain; charset=utf-8|no-store|1|*' \
+  '404|application/json; charset=utf-8|no-store|2|*' \
+  '404|application/json; charset=utf-8|no-store|0|' \
+  '404|application/json; charset=utf-8|no-store|1|https://evil.example' \
+  '404|application/json; charset=utf-8|public, max-age=60|1|*'; do
+  IFS='|' read -r status content_type cache_control cors_count cors_value <<< "$rejected"
+  if nft_metadata_probe_accepts "$status" "$content_type" "$cache_control" "$cors_count" "$cors_value"; then
+    echo "unsafe nft metadata probe response accepted: $rejected" >&2
+    exit 1
+  fi
+done
+(
+  curl() {
+    printf 'HTTP/1.1 404 Not Found\r\nContent-Type: application/json; charset=utf-8\r\nCache-Control: no-store\r\nAccess-Control-Allow-Origin: *\r\n\r\n'
+  }
+  nft_metadata_probe_response 'http://api-fixture.invalid/nft-metadata/no-such/1.json'
+)
+(
+  curl() {
+    printf 'HTTP/1.1 404 Not Found\r\nContent-Type: application/json; charset=utf-8\r\nCache-Control: no-store\r\nAccess-Control-Allow-Origin: *\r\naccess-control-allow-origin: *\r\n\r\n'
+  }
+  if nft_metadata_probe_response 'http://api-fixture.invalid/nft-metadata/no-such/1.json'; then
+    echo 'nft metadata probe accepted a duplicated CORS header' >&2
+    exit 1
+  fi
+)
+(
+  curl() { return 7; }
+  if nft_metadata_probe_response 'http://api-fixture.invalid/nft-metadata/no-such/1.json'; then
+    echo 'nft metadata probe ignored a failed request' >&2
+    exit 1
+  fi
+)
+
 scratch="$(mktemp -d -t masscom-web-deploy-test.XXXXXX)"
 trap 'rm -rf "$scratch"' EXIT
 key="$scratch/key.pem"
@@ -158,6 +196,7 @@ grep -q 'https://demo-api.masscom.kr/merchants' "$scratch/remote.sh"
 grep -q 'https://api.masscom.kr/merchants' "$scratch/remote.sh"
 grep -q 'verify-showcase-edge-routes.mjs' "$scratch/remote.sh"
 grep -qF 'web_collection_probe_response "http://$address/api/web/collection" masscom.kr' "$scratch/remote.sh"
+grep -qF 'nft_metadata_probe_response "http://$address/nft-metadata/no-such/1.json"' "$scratch/remote.sh"
 grep -qF 'web_consent_probe_response "http://$address/api/web/consent" masscom.kr' "$scratch/remote.sh"
 grep -q 'web_rollback' "$scratch/remote.sh"
 if grep -Eq 'compose_new (build|up).*\b(api|postgres|migrate)\b' "$scratch/remote.sh"; then
