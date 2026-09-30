@@ -65,7 +65,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   let wrapper = null, selectedGrade = project.grades[0].id, selectedSticker = '', selectedTemplate = 'rotate';
   let active = true, playing = false, storyPlaying = false, frame = 0, renderSequence = 0, cropSequence = 0, previewQueued = false;
   let start = performance.now(), lastFrame = 0, recorder = null, recordingStream = null, recordingTimer = 0;
-  let dirty = false, busy = false, restoring = false, pointer = null, visible = true, uploadSequence = 0;
+  let dirty = false, editSerial = 0, busy = false, restoring = false, pointer = null, visible = true, uploadSequence = 0;
   let audioImportSequence = 0, storyImportSequence = 0, recordSequence = 0, recordingPending = false;
   const pendingFiles = new Set();
   let loading = false;
@@ -170,7 +170,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   for (const [name, label] of [['zoom', '사진 확대'], ['angle', '회전 각도'], ['thickness', '두께']]) control(name).setAttribute('aria-label', label);
   const notice = (text, error = false) => { if (!active) return; view('notice').textContent = text; view('notice').classList.toggle('ce-error', error); onNotice(text); };
   function remember() { if (restoring) return; undo.push(cloneProject(project)); if (undo.length > 12) undo.shift(); redo = []; }
-  function changed() { dirty = true; project.derived = {}; view('save-state').textContent = '편집한 내용이 있어요. 초안 저장 또는 게시를 눌러 보관하세요.'; previewQueued = true; studio.sync(project, { dirty, wrapper }); }
+  function changed() { dirty = true; editSerial++; project.derived = {}; view('save-state').textContent = '편집한 내용이 있어요. 초안 저장 또는 게시를 눌러 보관하세요.'; previewQueued = true; studio.sync(project, { dirty, wrapper }); }
   function mutate(fn) { remember(); fn(); changed(); schedulePreview(); }
   const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
   function syncValues() {
@@ -364,7 +364,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (!active || !refreshed) return;
       const reason = validatePublish(project, campaigns); if (reason) { navigateStep(!project.photo.originalDataUrl ? 1 : 4); if (project.story.type !== 'none') control('story-type').closest('details').open = true; notice(reason, true); return; } }
     setBusy(true); notice(publish ? '등급별 게시 이미지를 준비하고 있어요…' : '초안을 저장하고 있어요…');
-    const revision = cloneProject(project);
+    const revision = cloneProject(project), savedSerial = editSerial;
     try {
       // Final raster assets are generated once for publication; all originals,
       // strokes, stable sticker IDs and grade assignments remain in the draft.
@@ -389,9 +389,13 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         const result = await request(`${base}/${encodeURIComponent(wrapper.id)}/publish`, { method: 'POST', body: { expectedVersion: wrapper.version, campaignId: revision.campaignId } });
         if (!active) return; wrapper = result.project || result;
       }
-      dirty = JSON.stringify(project) !== JSON.stringify({ ...revision, derived: project.derived });
-      if (!dirty) project = cloneProject(wrapper.project || revision);
-      studio.sync(project, { dirty, wrapper });
+      // 서버가 돌려준 project(이미지 메타데이터 제거·MP3 길이 재계산·게시 때 만든 파생 이미지)가 새 기준값이다.
+      // 저장 중 새로 편집한 내용이 없으면 그 값으로 바꿔 "저장하지 않은 변경"이 남지 않게 하고, 있으면 편집 내용을 지키고 한 번 더 저장하게 한다.
+      dirty = editSerial !== savedSerial;
+      if (!dirty) {
+        project = cloneProject(wrapper.project || revision);
+        clearCollectibleRenderCache(); syncValues(); drawCrop(); schedulePreview();
+      } else studio.sync(project, { dirty, wrapper });
       view('save-state').textContent = `${publish ? '게시한 버전을 보존했어요' : '초안을 저장했어요'} · v${wrapper.version}${dirty ? ' · 저장 중 새로 편집한 내용은 한 번 더 저장해 주세요.' : ''}`;
       notice(publish ? '게시했어요. 이후 방문 보상부터 이 버전을 사용해요. 이미 얻은 수집품은 그대로 보존돼요.' : '초안을 저장했어요. 목록에서 다시 열어 이어서 만들 수 있어요.');
       await refreshList();

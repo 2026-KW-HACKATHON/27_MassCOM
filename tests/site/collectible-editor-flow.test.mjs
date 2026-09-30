@@ -68,3 +68,74 @@ test('캠페인 목록을 읽지 못하면 이유를 알리고 게시는 막되 
   assert.match(ui.notice, /캠페인 목록을 불러오지 못했어요.*점주 권한/);
   assert.deepEqual(ui.control('campaign').options.map(item => item.value), ['']);
 });
+
+const photoFile = { type: 'image/png', size: 1000, name: 'shop.png', dataUrl: 'data:image/png;base64,AAAA' };
+const sceneFile = { type: 'image/png', size: 1000, name: 'scene.png', dataUrl: 'data:image/png;base64,BBBB' };
+const posts = api => api.calls.filter(call => call.method === 'POST').map(call => call.path);
+
+/** 사진·캠페인·보상 연결까지 마친 게시 직전 상태로 만든다. */
+async function readyToPublish(ui, { scenes = false } = {}) {
+  await ui.upload(photoFile);
+  await ui.change('campaign', 'campaign-a');
+  const reward = ui.container.querySelector('[data-reward-count="1"]');
+  reward.value = 'bronze'; reward.dispatchEvent({ type: 'change' }); await settle();
+  if (scenes) {
+    await ui.change('story-type', 'wide');
+    const files = ui.control('story-files'); files.files = [sceneFile]; files.dispatchEvent({ type: 'change' }); await settle();
+  }
+}
+
+test('저장하면 서버가 돌려준 project가 새 기준이 되어 저장하지 않은 변경이 남지 않는다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  assert.equal(ui.dirty, true, '사진을 올린 직후에는 저장하지 않은 변경이 있다');
+  await ui.click('draft');
+  assert.deepEqual(posts(api), ['/collectible-projects']);
+  assert.equal(ui.dirty, false);
+  assert.match(ui.notice, /초안을 저장했어요/);
+  // 서버가 이미지 바이트를 다시 썼다(#server). 편집기는 그 응답을 기준으로 삼으므로 다음 저장 본문도 그 값을 이어 간다.
+  await ui.input('name', '바뀐 이름');
+  assert.equal(ui.dirty, true);
+  await ui.click('draft');
+  const put = api.calls.find(call => call.method === 'PUT');
+  assert.equal(put.path, '/collectible-projects/project-1');
+  assert.equal(put.body.expectedVersion, 1);
+  assert.equal(put.body.project.name, '바뀐 이름');
+  assert.match(put.body.project.photo.originalDataUrl, /#server$/);
+  assert.equal(ui.dirty, false);
+  assert.equal(api.store.get('project-1').version, 2);
+});
+
+test('게시한 뒤에도 장면 미리보기 같은 파생 필드 때문에 저장하지 않은 변경이 남지 않는다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await readyToPublish(ui, { scenes: true });
+  await ui.click('publish');
+  assert.deepEqual(posts(api), ['/collectible-projects', '/collectible-projects/project-1/publish']);
+  const publish = api.calls.find(call => call.path.endsWith('/publish'));
+  assert.deepEqual(publish.body, { expectedVersion: 1, campaignId: 'campaign-a' });
+  const created = api.calls.find(call => call.method === 'POST' && call.path === '/collectible-projects');
+  assert.deepEqual(Object.keys(created.body.project.derived), ['bronze', 'silver', 'gold', 'prism']);
+  assert.ok(created.body.project.story.frames[0].previewDataUrl, '게시용 장면 미리보기를 함께 보낸다');
+  assert.match(ui.notice, /게시했어요/);
+  assert.equal(api.store.get('project-1').status, 'PUBLISHED');
+  assert.equal(ui.dirty, false, '게시 직후에는 "한 번 더 저장" 경고가 없어야 한다');
+});
+
+test('저장하는 동안 새로 편집한 내용은 지키고 한 번 더 저장하게 한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  const hold = api.holdNext('POST', /collectible-projects$/);
+  const saving = ui.click('draft');
+  await settle();
+  await ui.input('name', '저장 중에 고친 이름');
+  hold.release(); await saving; await settle();
+  assert.equal(ui.dirty, true);
+  assert.match(ui.container.querySelector('[data-view="save-state"]').textContent, /저장 중 새로 편집한 내용은 한 번 더 저장/);
+  assert.equal(ui.control('name').value, '저장 중에 고친 이름');
+  await ui.click('draft');
+  assert.equal(api.calls.find(call => call.method === 'PUT').body.project.name, '저장 중에 고친 이름');
+  assert.equal(ui.dirty, false);
+});

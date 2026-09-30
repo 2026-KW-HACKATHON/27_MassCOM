@@ -231,4 +231,5 @@ export function installMiniDom({ webp = true } = {}) {
   return { document, window: windowStub, restore() { for (const [name, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; } } };
 }
 
-export const settle = async (turns = 24) => { for (let turn = 0; turn < turns; turn++) await new Promise(resolve => setImmediate(resolve)); };
+// 대역의 타이머(파일 읽기·이미지 로드)와 비동기 흐름이 끝나도록 잠시 기다린다.
+export const settle = async (turns = 12) => { for (let turn = 0; turn < turns; turn++) await new Promise(resolve => setTimeout(resolve, 3)); };

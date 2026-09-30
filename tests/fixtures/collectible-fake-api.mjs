@@ -10,6 +10,7 @@ export function createFakeApi({ campaigns = fakeCampaigns() } = {}) {
   const store = new Map();
   const calls = [];
   const failures = [];
+  const holds = [];
   let sequence = 0;
   const error = ({ status, code, retryAfterSeconds }) => Object.assign(new Error('merchant request failed'), { status, ...(code ? { code } : {}), ...(retryAfterSeconds ? { retryAfterSeconds } : {}) });
   const conflict = code => { throw error({ status: 409, code }); };
@@ -66,12 +67,18 @@ export function createFakeApi({ campaigns = fakeCampaigns() } = {}) {
     wrapper.project = sanitize(body.project); wrapper.version += 1; wrapper.updatedAt = now();
     return structuredClone(wrapper);
   }
-  const respond = async (method, path, body) => { await Promise.resolve(); return handle(method, path, body); };
+  const respond = async (method, path, body) => {
+    const hold = holds.findIndex(item => item.method === method && item.pattern.test(path));
+    if (hold >= 0) await holds.splice(hold, 1)[0].gate;
+    await Promise.resolve(); return handle(method, path, body);
+  };
   return {
     calls, store, campaigns,
     /** 편집기가 받는 request(path, { method, body }) — 실패는 merchant.mjs request처럼 status·code를 가진 Error로 던진다. */
     request: (path, options = {}) => respond(options.method ?? 'GET', path, options.body),
-    listCampaigns: () => respond('GET', `${baseUrl}/collectible-campaigns`),
+    listCampaigns: async () => (await respond('GET', `${baseUrl}/collectible-campaigns`)).campaigns,
+    /** 다음 method·경로 정규식 요청 한 번을 release()를 부를 때까지 붙잡아 둔다(저장 중 편집 시험용). */
+    holdNext(method, pattern) { let release; const gate = new Promise(resolve => { release = resolve; }); holds.push({ method, pattern, gate }); return { release }; },
     /** 다음 method·경로 정규식 요청 한 번을 실패시킨다. */
     failNext(method, pattern, failure) { failures.push({ method, pattern, failure }); },
     seed(project, { status = 'DRAFT', campaignId } = {}) {
