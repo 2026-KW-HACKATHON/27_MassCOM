@@ -1,6 +1,10 @@
 import type { AccountCredential } from '@/auth/account-credential';
 
-import { AccountDeletionIntakeApiError, type DeletionIntakeView } from './account-deletion-intake-api';
+import {
+  AccountDeletionIntakeApiError,
+  type DeletionIntakeView,
+  type IntakeRecheck,
+} from './account-deletion-intake-api';
 
 const showcasePackage = 'kr.masscom.wolgye.demo';
 
@@ -68,3 +72,34 @@ export function lookupFailureMessage(error: unknown): string {
 }
 
 export const intakeUnknownMessage = '접수 여부를 확인하지 못했어요. 다시 확인해 주세요.';
+
+export type AmbiguousIntakeAction = 'file' | 'reissue' | 'cancel';
+
+export type AmbiguousFailureOutcome = {
+  /** 서버에 실제로 있는 요청. 확인하지 못했으면 undefined(모름)로 두어 다시 확인하게 한다. */
+  intake: DeletionIntakeView | undefined;
+  intakeUnknown: boolean;
+  message?: string;
+  error?: string;
+  /** 다시 받기가 응답 없이 실패하면 서버가 번호를 이미 바꿨을 수 있어, 화면의 이전 접수번호를 지운다. */
+  clearReceipt: boolean;
+};
+
+/** 응답 없는 실패 뒤 서버에 다시 물은 결과로 화면이 무엇을 보여 줄지 정한다. */
+export function ambiguousFailureOutcome(
+  action: AmbiguousIntakeAction,
+  rechecked: IntakeRecheck,
+): AmbiguousFailureOutcome {
+  const clearReceipt = action === 'reissue';
+  if (rechecked.kind !== 'found') return { intake: undefined, intakeUnknown: true, clearReceipt };
+  const found = { intake: rechecked.view, intakeUnknown: false, clearReceipt };
+  if (action === 'cancel') {
+    return { ...found, error: '취소되었는지 확인하지 못했어요. 삭제 요청은 아직 접수된 상태입니다.' };
+  }
+  return {
+    ...found,
+    message: action === 'file'
+      ? '삭제 요청이 접수된 것을 확인했어요. 접수번호를 이 화면에서 받지 못했다면 접수번호 다시 받기로 받아 주세요.'
+      : '접수번호가 새로 발급됐을 수 있어 이전 번호는 지웠어요. 새 번호가 필요하면 접수번호 다시 받기로 받아 주세요.',
+  };
+}

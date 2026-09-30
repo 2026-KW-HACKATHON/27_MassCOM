@@ -14,7 +14,8 @@ import {
 } from '@/commerce/commerce-api';
 import { createScanGate, parseScannedClaimCode } from '@/commerce/claim-code';
 import { ClaimQr } from '@/commerce/claim-qr';
-import { customerIdentityCode, isCustomerIdentityExpired } from '@/commerce/customer-identity';
+import { acceptInspection, redeemTarget } from '@/commerce/claim-inspect';
+import { createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired } from '@/commerce/customer-identity';
 import {
   claimFailureAction,
   claimSuccessCopy,
@@ -69,6 +70,8 @@ export function ClaimRedeemScreen({
   const [now, setNow] = useState(Date.now());
   const [, requestCameraPermission] = useCameraPermissions();
   const scanGate = useRef(createScanGate()).current;
+  // 코드 확인 응답이 입력이 바뀐 뒤에 도착해도 이전 코드의 미리보기가 덮어쓰지 못하게 한다.
+  const inspectGate = useRef(createIdentityRequestGate()).current;
   const router = useRouter();
   const badgeApi = useMemo(
     () => createBadgeApiClient({ apiUrl, credential, onSessionInvalid }),
@@ -120,6 +123,7 @@ export function ClaimRedeemScreen({
   }
 
   function changeToken(value: string) {
+    inspectGate.cancel();
     badgesBeforeClaim.current = undefined;
     setToken(value);
     setPreview(undefined);
@@ -158,31 +162,37 @@ export function ClaimRedeemScreen({
   async function inspect(scannedCode?: string) {
     const code = (scannedCode ?? token).trim();
     if (!code || busy) return;
+    const request = inspectGate.start();
     setBusy(true);
     setMessage(undefined);
     try {
       const next = await api.previewClaim(code);
+      const accepted = acceptInspection(inspectGate.isCurrent(request), code, next);
+      if (!accepted) return;
       badgesBeforeClaim.current = next.status === 'AVAILABLE'
         ? badgeApi.getBadgeBook().catch(() => undefined)
         : undefined;
-      setPreview(next);
-      setPendingRedeemToken(code);
+      setPreview(accepted.preview);
+      setPendingRedeemToken(accepted.pendingRedeemToken);
       setRecoveryAction(undefined);
-      setMessage(next.status === 'AVAILABLE' ? '사용 가능한 1회 코드입니다. 아래에서 수령을 확정하세요.' : '만료된 코드입니다.');
+      setMessage(accepted.message);
       requestAnimationFrame(() => scrollView.current?.scrollToEnd({ animated: true }));
     } catch (error) {
-      setMessage(messageFor(error));
+      if (inspectGate.isCurrent(request)) setMessage(messageFor(error));
     } finally {
+      // 한 번에 한 작업만 두므로, 버려진 응답이어도 처리 중 표시는 항상 푼다.
       setBusy(false);
     }
   }
 
   async function redeem() {
-    if (!pendingRedeemToken || preview?.status !== 'AVAILABLE' || busy) return;
+    // 지금 입력칸의 코드로 확인한 미리보기일 때만 확정한다.
+    const target = redeemTarget(token, pendingRedeemToken, preview);
+    if (!target || !preview || busy) return;
     setBusy(true);
     setMessage(undefined);
     try {
-      const result = await api.redeemClaim(pendingRedeemToken);
+      const result = await api.redeemClaim(target);
       setRedeemed(result);
       setPreview(undefined);
       setToken('');
