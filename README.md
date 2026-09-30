@@ -86,6 +86,8 @@
 
 [Issue #254](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/254)는 **NFT 메타데이터를 발행 확정 때 고정합니다**([설계](docs/superpowers/specs/2026-09-30-nft-metadata-design.md), [결정 D-060](docs/DECISIONS.md)). 메타데이터는 `<가게 이름> 방문 도장`, 가게 이름·동네(행정동)·업종·방문 단계·캠페인과 사장님이 적용한 가게 그림(없으면 기본 도장)을 담고 주소·시각·주문·계정·지갑은 담지 않습니다. Worker가 발행 확정 트랜잭션에서 DB에 고정하므로 뒤에 가게 정보·그림이 바뀌어도 이미 발행한 토큰은 그대로이고, 공개 주소 `https://masscom.kr/nft-metadata/<series>/<tokenId>.json`(시연은 `https://demo-api.masscom.kr/…`)이 CORS·하루 캐시(거부 목록이 하루 안에 반영)로 내보냅니다. 시리즈를 만들 때 `createSeries`의 base URI는 `<출처>/nft-metadata/<nft_series.id>/`입니다. 동네·업종은 관리자 웹에서 넣고 점포 공개 조건과는 별개입니다. 발행 때 공개 중이 아닌 가게는 가게 정보 없이 방문 단계만 담고, 기본 도장은 판이 붙은 고정 주소(`/nft-metadata/default/mascot-stamp-v1.png`)이며, 가게 AI 그림에는 `그림: AI 생성` 속성이 붙습니다. 신고된 토큰·그림은 거부 목록으로 404가 됩니다. 앱의 발행 동의(판 `nft-mint-v2`)는 지갑 주소와 함께 가게 정보·방문 단계가 영구 공개되고 발행 시각이 체인에 남는다고 알립니다. 실증 토큰 파일은 그대로입니다. 이 기능은 PR #260으로 병합돼 main `3f5b2fa`의 일부로 2026-09-30 운영·시연에 배포됐고 두 API에 migration 0036이 적용됐습니다([배포 증거](docs/evidence/store-consent-nft-deployment-2026-09-30.json)): 운영에서 없는 토큰 주소는 404(`application/json`·`no-store`·CORS `*` 한 줄), 기본 도장 `/nft-metadata/default/mascot-stamp-v1.png`는 200 `image/png` 26827바이트(고정 해시와 같음), 실증 토큰 `base-sepolia-proof/1.json`은 그대로 200입니다. 운영 발행은 여전히 준비 중(`PREPARING`, 배포 전 `nft_series` 0행)이라 새 토큰은 생기지 않으며 실제 발행·시리즈 생성·지갑·탐색기 표시는 `NOT_RUN`입니다.
 
+[Issue #265](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/265)는 **늦게 도착한 응답이 화면을 되돌리는 세 곳과 동의 버튼 글자 잘림**을 고칩니다. 도감은 NFT 하나가 확정돼도 다른 NFT가 확인 중이면 계속 다시 묻고 오래된 응답만 버리며, 수령 코드는 입력이 바뀌면 이전 코드의 확인 응답을 버리고 확정은 현재 입력만 대상으로 하며, 삭제 접수번호는 다시 받기가 응답 없이 실패하면 이전 번호를 지웁니다. 동의 버튼 전체 문구의 실기 확인은 다음 시연 빌드 전까지 `NOT_RUN`입니다([검증 현황](docs/TEST_STATUS.md)).
+
 ## 한눈에 보기
 
 <details>

@@ -26,11 +26,13 @@ import {
   type DestructiveReauthentication,
 } from '@/privacy/deletion-capability';
 import {
+  ambiguousFailureOutcome,
   canRequestShowcaseDeletion,
   describeDeletionIntake,
   formatKstMinute,
   intakeUnknownMessage,
   lookupFailureMessage,
+  type AmbiguousIntakeAction,
   type IntakeDescription,
 } from '@/privacy/deletion-intake-copy';
 import { legalLinks } from '@/privacy/consent-copy';
@@ -111,23 +113,14 @@ export function AccountSettingsScreen({
   }
 
   // 응답이 없는 실패는 서버가 접수했는지 알 수 없다. 서버에 다시 물어 실제로 있는 요청만 보여 주고, 그렇지 않으면 모른다고 한다.
-  async function settleAmbiguousFailure(action: 'file' | 'reissue' | 'cancel') {
+  async function settleAmbiguousFailure(action: AmbiguousIntakeAction) {
     if (!intakeClient) return;
-    const rechecked = await recheckIntake(intakeClient);
-    if (rechecked.kind === 'found') {
-      setIntake(rechecked.view);
-      setIntakeUnknown(false);
-      if (action === 'cancel') {
-        setError('취소되었는지 확인하지 못했어요. 삭제 요청은 아직 접수된 상태입니다.');
-      } else {
-        setMessage(action === 'file'
-          ? '삭제 요청이 접수된 것을 확인했어요. 접수번호를 이 화면에서 받지 못했다면 접수번호 다시 받기로 받아 주세요.'
-          : '접수번호가 새로 발급됐을 수 있어요. 이 화면에서 새 번호를 받지 못했다면 접수번호 다시 받기로 받아 주세요.');
-      }
-      return;
-    }
-    setIntake(undefined);
-    setIntakeUnknown(true);
+    const outcome = ambiguousFailureOutcome(action, await recheckIntake(intakeClient));
+    setIntake(outcome.intake);
+    setIntakeUnknown(outcome.intakeUnknown);
+    if (outcome.clearReceipt) setReceipt(undefined);
+    if (outcome.message) setMessage(outcome.message);
+    if (outcome.error) setError(outcome.error);
   }
 
   async function lookUpReceipt() {
