@@ -5,7 +5,7 @@
 #   bash scripts/rehearse-ai-art-container.sh
 #
 # 필요한 것: docker, 이미 실행 중인 로컬 PostgreSQL 컨테이너(기본 masscom-sky-qa-pg, 계정 postgres, 루프백 trust 접속).
-# 이 스크립트는 그 서버 안에 자기 DB `masscom_256_test` 하나만 만들고 끝나면 지운다. API·가짜 서버·구동기 컨테이너는 모두 그 PostgreSQL
+# 이 스크립트는 그 서버 안에 실행마다 이름이 다른 자기 DB `masscom_256_<프로세스 번호>_test` 하나만 만들고 끝나면 지운다. API·가짜 서버·구동기 컨테이너는 모두 그 PostgreSQL
 # 컨테이너의 네트워크(`--network container:`)를 함께 써서 127.0.0.1로 서로 만난다: API는 DB를 127.0.0.1:5432로, 가짜 OpenAI를
 # AI_ART_OPENAI_BASE_URL=http://127.0.0.1:<포트>로 부른다(api.openai.com은 어떤 경로로도 부르지 않는다). 키는 명백한 가짜 값이다.
 #
@@ -13,18 +13,20 @@
 #
 # 환경 변수(선택)
 #   REHEARSAL_PG_CONTAINER   PostgreSQL 컨테이너 이름(기본 masscom-sky-qa-pg)
-#   REHEARSAL_SKIP_BUILD=1   이미 만든 이미지를 그대로 쓴다(REHEARSAL_IMAGE로 이름 지정, 기본 masscom-256-rehearsal:local)
+#   REHEARSAL_SKIP_BUILD=1   이미 만든 이미지를 그대로 쓴다(기본 masscom-256-rehearsal:local)
+#   REHEARSAL_IMAGE          이미지 이름. `masscom-256-rehearsal`로 시작해야 한다(다른 이름은 진짜 이미지를 덮어쓰거나 지울 수 있어 거절).
+#                            지정하지 않으면 빌드할 때 실행마다 다른 이름 masscom-256-rehearsal:run-<프로세스 번호>를 쓴다
 #   REHEARSAL_KEEP_IMAGE=1   끝난 뒤 직접 만든 이미지를 지우지 않는다
 #   REHEARSAL_RESULT_FILE    결과 표(탭 구분: 판정, 시나리오, 확인, 상세)를 이 파일에도 쓴다
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 pg="${REHEARSAL_PG_CONTAINER:-masscom-sky-qa-pg}"
-db=masscom_256_test
-image="${REHEARSAL_IMAGE:-masscom-256-rehearsal:local}"
+db="masscom_256_$$_test"
 api_name="masscom-256-rehearsal-api-$$"
 fake_name="masscom-256-rehearsal-fake-$$"
-label='masscom.rehearsal=256'
+# 실행마다 다른 라벨: 정리는 이 실행의 컨테이너만 지운다(동시에 도는 다른 리허설을 건드리지 않는다).
+label="masscom.rehearsal=256-$$"
 api_port=$((31000 + RANDOM % 2000))
 fake_port=$((api_port + 2000))
 fake_key='fake-rehearsal-key-not-a-real-openai-key'
@@ -42,6 +44,18 @@ fail_setup() {
   echo "rehearsal BLOCKED: $1" >&2
   exit 2
 }
+
+if [[ -n "${REHEARSAL_IMAGE:-}" ]]; then
+  image="$REHEARSAL_IMAGE"
+  case "$image" in
+    masscom-256-rehearsal*) ;;
+    *) fail_setup 'REHEARSAL_IMAGE must start with masscom-256-rehearsal (any other name could overwrite or delete a real image)' ;;
+  esac
+elif [[ "${REHEARSAL_SKIP_BUILD:-0}" == 1 ]]; then
+  image=masscom-256-rehearsal:local
+else
+  image="masscom-256-rehearsal:run-$$"
+fi
 
 remove_containers() {
   local ids
@@ -94,7 +108,6 @@ docker info >/dev/null 2>&1 || fail_setup 'docker daemon is not reachable'
   fail_setup "PostgreSQL container $pg is not running (set REHEARSAL_PG_CONTAINER)"
 docker exec "$pg" psql -U postgres -d postgres -X -q -Atc 'SELECT 1' >/dev/null 2>&1 ||
   fail_setup "cannot connect to $pg as postgres from inside the container"
-remove_containers
 
 echo "== 이미지 =="
 if [[ "${REHEARSAL_SKIP_BUILD:-0}" == 1 ]]; then

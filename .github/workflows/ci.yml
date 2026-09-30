@@ -92,6 +92,7 @@ jobs:
           bash tests/ops/enable_ai_art_test.sh
           node --test tests/ops/fake_openai_images_faults_test.mjs
           bash -n scripts/rehearse-ai-art-container.sh
+          bash -n scripts/rehearse-enable-ai-art-real-compose.sh
           node --check scripts/rehearse-ai-art-container.mjs
           node --test tests/ops/verify_showcase_host_test.mjs tests/ops/verify_showcase_edge_routes_test.mjs tests/ops/verify_showcase_caddy_override_test.mjs
           node scripts/verify-showcase-host.mjs
