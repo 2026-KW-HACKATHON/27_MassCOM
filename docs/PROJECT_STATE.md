@@ -187,7 +187,7 @@
 | 로컬 검증 완료 | 탐색·발급·수령·도감·추천, 지갑 주소 확인(SIWE), 발행 요청·Outbox·Worker·계약(Local Anvil), 계정 삭제, 백업·복원 drill, upload-key 운영 AAB 서명·W08·source marker·16KB 정적 검사 |
 | 시험망 검증 완료 | Base Sepolia 계약 배포, admin/minter/pauser role, cap 1 series, Worker service minter 발행 1건, receipt/event/owner/locked/metadata, 재실행 무작업 PASS |
 | 운영 실기 미검증 | 외부 HTTPS·첫 Google 로그인·private GitHub APK·4KB/16KB·App Links는 PASS. D02, fresh reauthentication, O01, Play는 `NOT_RUN` |
-| 사용자 승인·입력 대기 | Foundry keystore 숨김 비밀번호, D-023 수령 시 캠페인 등록 요구 여부, W04·W05용 지갑 환경(B-010·B-011), Play App Signing 인증서 client. 호스팅·도메인·OAuth·faucet·upload AAB는 해소 |
+| 사용자 승인·입력 대기 | Foundry keystore 숨김 비밀번호, W04·W05용 지갑 환경(B-010·B-011), Play App Signing 인증서 client. 호스팅·도메인·OAuth·faucet·upload AAB는 해소 |
 
 ## 열린 Issue·PR과 최근 병합
 
