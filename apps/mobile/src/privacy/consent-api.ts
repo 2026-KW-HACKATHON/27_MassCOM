@@ -25,7 +25,7 @@ export class ConsentApiError extends Error {
 }
 
 /**
- * 동의 여부 조회와 기록(D-056). 서버는 `required`만 알려 주고 쓰기 요청을 막지 않는다. 동의 경로(운영 앱 또는 시연 앱)는 서버가 정하므로
+ * 동의 여부 조회와 기록(D-059). 서버는 `required`만 알려 주고 쓰기 요청을 막지 않는다. 동의 경로(운영 앱 또는 시연 앱)는 서버가 정하므로
  * 요청 본문에는 화면이 보여 준 두 버전과 세 필수 답만 담는다.
  */
 export class ConsentApiClient {

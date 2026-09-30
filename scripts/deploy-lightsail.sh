@@ -240,7 +240,7 @@ retry_health() {
 }
 
 # PostgreSQL 컨테이너가 이 릴리스의 로그 설정(용량 순환 10m×3, 오류 로그에 행 값·SQL 문을 남기지 않는 서버 옵션)으로 떠 있는지 읽기만 해서 본다.
-# 실행 중인 컨테이너는 compose 파일이 바뀌어도 다시 만들어지지 않으므로 배포가 직접 확인한다(Issue #253, D-056).
+# 실행 중인 컨테이너는 compose 파일이 바뀌어도 다시 만들어지지 않으므로 배포가 직접 확인한다(Issue #253, D-059).
 postgres_log_settings_ok() {
   local id log_config command_line
   id="$(service_id postgres)" && [[ -n "$id" && "$id" != *$'\n'* ]] || return 1

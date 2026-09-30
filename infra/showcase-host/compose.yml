@@ -1,6 +1,6 @@
 name: masscom-showcase
 
-# 컨테이너 로그는 용량 기준으로 순환한다(Issue #253, D-056): 컨테이너마다 10 MB 파일 3개, 곧 최대 30 MB이고 차면 가장 오래된 조각부터 사라진다.
+# 컨테이너 로그는 용량 기준으로 순환한다(Issue #253, D-059): 컨테이너마다 10 MB 파일 3개, 곧 최대 30 MB이고 차면 가장 오래된 조각부터 사라진다.
 # 시간 기준 삭제는 아니다. 요청별 접속 기록(access log)은 Caddy 설정에 없어 남기지 않고, 남는 것은 시작·오류·인증서 관리 메시지다.
 # 컨테이너를 다시 만들 때 적용되고 그 컨테이너의 로그도 함께 사라진다. 일회성 `migrate`는 `run --rm`으로 지워지므로 넣지 않는다.
 x-logging: &default-logging
@@ -12,7 +12,7 @@ x-logging: &default-logging
 services:
   postgres:
     image: postgres:16.10-alpine
-    # 오류 로그에 오류가 난 행의 값(DETAIL)과 실패한 SQL 문이 남지 않게 한다(Issue #253, D-056). 이미 떠 있는 컨테이너는 다시 만들어야 적용된다.
+    # 오류 로그에 오류가 난 행의 값(DETAIL)과 실패한 SQL 문이 남지 않게 한다(Issue #253, D-059). 이미 떠 있는 컨테이너는 다시 만들어야 적용된다.
     command: ["postgres", "-c", "log_error_verbosity=terse", "-c", "log_min_error_statement=panic"]
     environment:
       POSTGRES_DB: masscom_showcase

@@ -19,7 +19,7 @@ export type RetentionStepName =
 export type RetentionCount = { step: RetentionStepName; count: number };
 export type RetentionRun = { counts: RetentionCount[]; failed: RetentionStepName[] };
 
-// 보관 기간(D-056). 처리·감사 기록은 1년(개인정보의 안전성 확보조치 기준 제8조의 접속기록 최소 보관 기간)이지만
+// 보관 기간(D-059). 처리·감사 기록은 1년(개인정보의 안전성 확보조치 기준 제8조의 접속기록 최소 보관 기간)이지만
 // 접근권한을 부여·변경·말소한 기록은 제5조 제3항에 따라 **최소 3년**이라 3년 뒤에 지운다.
 // 시각 계산은 세션 시간대에 기대지 않도록 UTC로 고정한다. $1은 명령이 시작할 때 한 번 정한 기준 시각이다.
 const ago = (interval: string) => `(($1::timestamptz AT TIME ZONE 'UTC') - interval '${interval}') AT TIME ZONE 'UTC'`;

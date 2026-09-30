@@ -1,6 +1,6 @@
 # 이용약관·개인정보 동의와 보관 기간 강제 설계 (Issue #253)
 
-2026-09-30 소유자가 실제 운영 전 꼭 필요한 기능(P0) 다섯 번째로 "추천방식으로 다 해줘"라고 승인했다(`USER_CONFIRMED`, [Issue #253](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/253), 결정 [D-056](../../DECISIONS.md)). 이 문서는 그 7개 항목의 구현 방식을 정한다. 소유자가 정한 것은 Issue 본문의 결정 표이고, 아래에서 "구현 선택"이라고 적은 것은 에이전트가 그 범위 안에서 정했으며 소유자가 확인하지 않았다.
+2026-09-30 소유자가 실제 운영 전 꼭 필요한 기능(P0) 다섯 번째로 "추천방식으로 다 해줘"라고 승인했다(`USER_CONFIRMED`, [Issue #253](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/253), 결정 [D-059](../../DECISIONS.md)). 이 문서는 그 7개 항목의 구현 방식을 정한다. 소유자가 정한 것은 Issue 본문의 결정 표이고, 아래에서 "구현 선택"이라고 적은 것은 에이전트가 그 범위 안에서 정했으며 소유자가 확인하지 않았다.
 
 ## 1. 원칙
 
@@ -154,7 +154,7 @@ CREATE INDEX account_consents_agreed_at ON account_consents (agreed_at);
 운영·시연 compose의 `postgres`·`api`(시연은 `showcase-api`)·`production-web`·`caddy`에 공통 `logging`을 둔다: `json-file`, `max-size: 10m`, `max-file: 3`(`x-logging` 앵커). 두 compose의 `postgres`에는 `command: ["postgres", "-c", "log_error_verbosity=terse", "-c", "log_min_error_statement=panic"]`도 있어 오류 로그에 오류가 난 행의 값(`DETAIL`)과 실패한 SQL 문이 남지 않는다(로컬 PostgreSQL 16.10에서 확인: 클라이언트는 `DETAIL`을 받지만 서버 로그에는 `ERROR` 한 줄만 남고 `STATEMENT` 줄이 없다). 다만 `invalid input syntax for type uuid: "…"`처럼 메시지 본문에 입력값이 들어가는 오류는 그 값이 남는다(처리방침에 그대로 적는다).
 
 - **실제 한도:** 컨테이너마다 최대 30 MB(10 MB 파일 3개)이며 차면 가장 오래된 조각부터 사라진다. 이는 **용량 기준**이다. 시간 기준 삭제는 없다. 컨테이너를 다시 만들면 그 컨테이너의 로그도 함께 사라진다.
-- **접속 기록이 없다는 사실:** 운영 `Caddyfile`에는 `log` 지시문이 없어 Caddy 2.10.2는 요청별 접속 기록(access log)을 남기지 않는다(같은 형태의 설정으로 로컬 Caddy 2.10.2에 요청을 보내 표준 출력에 요청 줄이 없음을 확인했다. 운영 서버 실측은 `NOT_RUN`). API는 시작·처리하지 못한 오류(오류 이름만, 계정·토큰 없음)만 출력한다. 따라서 Issue의 "접속 로그 3개월 이내 순환"은 **접속 기록을 남기지 않는 구성 + 남는 컨테이너 로그의 용량 한도**로 대신했고, **"3개월"이라는 시간 보장은 하지 않으며** 처리방침에도 쓰지 않는다. 이 이탈은 D-056에 `PROPOSED`(소유자 확인 대기)로 기록한다.
+- **접속 기록이 없다는 사실:** 운영 `Caddyfile`에는 `log` 지시문이 없어 Caddy 2.10.2는 요청별 접속 기록(access log)을 남기지 않는다(같은 형태의 설정으로 로컬 Caddy 2.10.2에 요청을 보내 표준 출력에 요청 줄이 없음을 확인했다. 운영 서버 실측은 `NOT_RUN`). API는 시작·처리하지 못한 오류(오류 이름만, 계정·토큰 없음)만 출력한다. 따라서 Issue의 "접속 로그 3개월 이내 순환"은 **접속 기록을 남기지 않는 구성 + 남는 컨테이너 로그의 용량 한도**로 대신했고, **"3개월"이라는 시간 보장은 하지 않으며** 처리방침에도 쓰지 않는다. 이 이탈은 D-059에 `PROPOSED`(소유자 확인 대기)로 기록한다.
 - **적용은 배포가 확인한다:** 컨테이너는 compose 파일이 바뀌어도 저절로 다시 만들어지지 않는다. 운영 배포는 api·web·caddy를 새 이미지로 다시 만들 때 로그 설정이 적용되고, **PostgreSQL은 사전 백업이 검증된 뒤 `docker inspect`로 `HostConfig.LogConfig`에 `max-size`가 없거나 `Config.Cmd`가 위 명령과 다르면 그 컨테이너만 `up -d --no-deps --wait`로 한 번 다시 만든다**(짧은 DB 재시작). 다시 만든 뒤 설정을 다시 읽고 **같은 데이터 볼륨(이름)과 같은 데이터(적용된 마이그레이션 개수·마지막 파일 이름)가 그대로인지**, `SHOW log_min_error_statement`가 `panic`이고 `SHOW log_error_verbosity`가 `terse`인지 확인하며, 어긋나면 마이그레이션 없이 되돌린다(PostgreSQL도 이전 릴리스의 compose 정의로 한 번 더 다시 만들어진다). 이미 맞으면 건드리지 않는다. 시연은 소유자가 같은 명령을 절차대로 실행한다(`infra/showcase-host/README.md`).
 
 ## 8. 개인정보처리방침 변경 (`docs/privacy.html`)

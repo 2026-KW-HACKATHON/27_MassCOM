@@ -68,7 +68,7 @@ function AuthenticatedRoot() {
   const auth = useAuthSession();
   const themeMode = useColorScheme() === 'dark' ? 'dark' : 'light';
   const [entry, setEntry] = useState<ShowcaseRoleState>({});
-  // 이 실행에서 서버가 "이미 동의했다"고 답한 계정. 기기에는 저장하지 않고 실행마다 서버에 다시 묻는다(D-056).
+  // 이 실행에서 서버가 "이미 동의했다"고 답한 계정. 기기에는 저장하지 않고 실행마다 서버에 다시 묻는다(D-059).
   const [consentedAccountId, setConsentedAccountId] = useState<string>();
   const acceptConsent = useCallback(() => setConsentedAccountId(auth.accountId), [auth.accountId]);
   const activeEntry = reconcileShowcaseAccount(entry, auth.accountId);

@@ -1884,7 +1884,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const friends = pool && accountLifecycle
     ? new PostgresFriendService(pool, { accountLifecycle })
     : undefined;
-  // 동의 기록(D-056): 앱 경로 값은 시연 서버면 SHOWCASE_APP, 운영이면 ANDROID다. 쓰기 요청은 막지 않고 required만 알린다.
+  // 동의 기록(D-059): 앱 경로 값은 시연 서버면 SHOWCASE_APP, 운영이면 ANDROID다. 쓰기 요청은 막지 않고 required만 알린다.
   const consent = pool && accountLifecycle
     ? new PostgresAccountConsentService(pool, {
         accountLifecycle, appSource: showcaseInvites ? 'SHOWCASE_APP' : 'ANDROID',

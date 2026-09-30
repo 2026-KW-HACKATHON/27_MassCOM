@@ -29,7 +29,7 @@ type Props = {
 };
 
 /**
- * 첫 로그인 동의 화면(Issue #253, D-056). 운영 앱과 시연 앱이 같은 코드를 쓰며, 서버가 `required`라고 답하는 동안 메인 탭보다 앞에서
+ * 첫 로그인 동의 화면(Issue #253, D-059). 운영 앱과 시연 앱이 같은 코드를 쓰며, 서버가 `required`라고 답하는 동안 메인 탭보다 앞에서
  * 전체 화면으로 보인다. 필수 세 개(만 14세 이상, 이용약관, 개인정보 수집·이용)를 모두 눌러야 "동의하고 시작"이 켜진다.
  */
 export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSessionInvalid }: Props) {

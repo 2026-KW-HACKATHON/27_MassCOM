@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MassCOM 시연 보관 기간 정리 작업(Issue #253, D-056). 서버의 systemd timer가 하루 한 번 실행한다.
+# MassCOM 시연 보관 기간 정리 작업(Issue #253, D-059). 서버의 systemd timer가 하루 한 번 실행한다.
 #   1) 실행 중인 API 컨테이너 안에서 보관 기간이 지난 세션·삭제 접수·감사 기록을 지운다(retention-command run).
 #   2) 백업 폴더에서 수정한 지 30일이 지난 DB 백업(`*.dump`·`*.dump.*`)을 지운다.
 # 두 단계는 서로 막지 않는다: 한 단계가 실패해도 다음 단계를 하고, 마지막에 실패를 종료 코드 1로 알린다.
