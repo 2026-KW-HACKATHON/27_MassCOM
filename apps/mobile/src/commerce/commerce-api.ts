@@ -122,6 +122,8 @@ export type CollectionSnapshot = {
       tokenId: string;
     };
   }[];
+  // 운영 API가 발행 서버·메인넷 승인 전이라 권리만 기록할 때 보내는 선택 필드(Issue #246). 없으면 지금처럼 발행 상태를 보인다.
+  nftMinting?: 'PREPARING';
 };
 
 export type MintJobResponse = {
@@ -588,6 +590,8 @@ function parseCollection(value: unknown): CollectionSnapshot {
   return {
     visits: value.visits.map(parseCollectionVisit),
     collectibles: value.collectibles.map(parseCollectible),
+    // 모르는 값은 버린다(나중에 다른 값이 생겨도 이 앱은 지금처럼 보인다).
+    ...(value.nftMinting === 'PREPARING' ? { nftMinting: 'PREPARING' as const } : {}),
   };
 }
 

@@ -6,6 +6,7 @@ import type {
   CollectionReader,
   CollectionSnapshot,
   CollectionVisit,
+  NftMintingMode,
 } from '../collection.js';
 
 type VisitRow = {
@@ -48,7 +49,7 @@ type CollectibleRow = {
 };
 
 export class PostgresCollectionReader implements CollectionReader {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool, private readonly options: { nftMinting?: NftMintingMode } = {}) {}
 
   async getCollection(accountId: string): Promise<CollectionSnapshot> {
     const [visits, collectibles] = await Promise.all([
@@ -111,6 +112,7 @@ export class PostgresCollectionReader implements CollectionReader {
     return {
       visits: visits.rows.map(mapVisit),
       collectibles: collectibles.rows.map(mapCollectible),
+      ...(this.options.nftMinting === 'PREPARING' ? { nftMinting: 'PREPARING' as const } : {}),
     };
   }
 }

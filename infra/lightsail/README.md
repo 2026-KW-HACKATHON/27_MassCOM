@@ -45,7 +45,7 @@
 
 - **키는 소유자가 직접 넣는다.** 에이전트가 만들거나 저장소·대화·로그에 두지 않는다. 배포 때 올리는 저장소 밖의 로컬 runtime 파일(`MASSCOM_RUNTIME_ENV_FILE`, 예: `.tmp/lightsail-runtime.env`)에 `OPENAI_API_KEY=<키>` 한 줄을 넣는다. 배포가 이 파일을 서버 `/opt/masscom/runtime.env`로 올리고 API를 다시 만든다. 서버 파일만 고치면 다음 배포가 로컬 파일로 덮어써 키가 사라지므로 로컬 파일에도 함께 둔다.
 - 서버에서 바로 켜려면 `/opt/masscom/runtime.env`에 같은 줄을 넣고(권한 600) 배포 스크립트가 쓰는 것과 같은 `-p masscom --env-file /opt/masscom/runtime.env -f <현재 release의 compose.yml>` 인자로 `up -d api`를 실행해 API 컨테이너를 **다시 만든다**(`restart`는 환경 변수를 다시 읽지 않는다). 기동 로그에 `AI store art: enabled`가 나오면 켜진 것이다.
-- **운영 키는 소유자 채널이 생길 때까지 비워 둔다.** 가게 그림 권한(`MANAGE_ART`)은 기본으로 활성 OWNER에게만 주는데 운영에는 OWNER를 부여하는 경로가 아직 없고, `AI_ART_STAFF_MAY_MANAGE`(STAFF 허용)는 이 compose에 넘기지 않아 항상 꺼져 있다. 키를 넣으면 곧바로 쓸 수 있는 사람은 없지만, 이 값을 켜면 활성 STAFF 누구나 비용을 쓸 수 있으므로 **운영에서는 설정하지 않는다**. 키 입력은 소유자 채널 설계·승인 뒤에 한다.
+- **운영 키는 정책(D-050)상 비워 둔다.** 가게 그림 권한(`MANAGE_ART`)은 기본으로 활성 OWNER에게만 주고, 운영 OWNER는 이제 관리자 웹의 확인 절차(사업자등록증 원본·점포 전화 확인 뒤 참조 번호, D-054)로 생길 수 있다. 그래서 **키를 넣으면 운영 OWNER가 곧바로 비용을 쓸 수 있으므로** 소유자가 월 예산과 운영 사용을 따로 승인하기 전까지 키를 넣지 않는다. `AI_ART_STAFF_MAY_MANAGE`(STAFF 허용)는 이 compose에 넘기지 않아 항상 꺼져 있고, 켜면 활성 STAFF 누구나 비용을 쓸 수 있으므로 **운영에서는 설정하지 않는다**.
 - 선택 값(`AI_ART_MONTHLY_BUDGET_USD` 기본 5, `AI_ART_DAILY_DRAFT_ROUNDS`·`AI_ART_DAILY_FINALS` 기본 3, 모델·단가·`AI_ART_OPENAI_BASE_URL`)은 [`runtime.env.example`](runtime.env.example)에 주석으로 있다. 비우면 기본값이다. 월 예산은 이 운영 DB의 한국 달 합계 기준이고 넘으면 OpenAI를 부르기 전에 거절한다.
 - 운영 앱은 고객 전용이라 점주 화면이 없다(D-038). 이 키는 서버 API만 켠다. 키를 넣은 뒤의 실제 호출(비용·지연 측정)은 `NOT_RUN`이며 키 입력 뒤 따로 확인한다.
 

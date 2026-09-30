@@ -86,6 +86,9 @@ test('claim inserts capture explicit current grade once, never backfill, leave r
   const collection = await new PostgresCollectionReader(pool).getCollection('customer-new');
   assert.equal(collection.collectibles[0]!.nftStatus,'NOT_REQUESTED'); assert.equal(collection.collectibles[0]!.artwork!.name,raw.name);
   assert.equal('imageDataUrl' in collection.collectibles[0]!.artwork!,false);
+  const preparingCollection = await new PostgresCollectionReader(pool,{nftMinting:'PREPARING'}).getCollection('customer-new');
+  assert.equal(preparingCollection.nftMinting,'PREPARING');
+  assert.deepEqual(preparingCollection.collectibles,collection.collectibles);
   setDay(1); await claim('customer-new','day-two'); setDay(2); const third = await claim('customer-new','day-three');
   assert.equal(third.redeemed.grantedRewards[0]!.targetVisitCount,3);
   await assert.rejects(projects.getAcquired({accountId:'customer-new',entitlementId:third.redeemed.grantedRewards[0]!.entitlementId}),{code:'COLLECTIBLE_NOT_FOUND'});

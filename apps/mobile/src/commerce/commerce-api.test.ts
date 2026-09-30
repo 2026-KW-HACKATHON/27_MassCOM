@@ -433,6 +433,22 @@ test('parses collection states while keeping app collectibles and NFT state sepa
   assert.deepEqual(await client.getCollection(), payload);
 });
 
+test('keeps the optional preparing flag from the collection and drops unknown values', async () => {
+  const base = { visits: [], collectibles: [] };
+  for (const [nftMinting, expected] of [
+    ['PREPARING', { ...base, nftMinting: 'PREPARING' }],
+    ['LIVE', base],
+    [undefined, base],
+  ] as const) {
+    const client = createCommerceApiClient({
+      apiUrl: 'https://api.example.test',
+      credential: { kind: 'bearer', sessionToken: 'server-session' },
+      fetcher: async () => Response.json(nftMinting === undefined ? base : { ...base, nftMinting }),
+    });
+    assert.deepEqual(await client.getCollection(), expected);
+  }
+});
+
 test('requests minting with binding and consent only, never a client recipient or series', async () => {
   const client = createCommerceApiClient({
     apiUrl: 'https://api.example.test',
