@@ -1,0 +1,49 @@
+{
+  "observedAt": "2026-10-01 KST",
+  "serverClock": "2026-09-30 about 17:2x-17:5x UTC (2026-10-01 about 02:2x-02:5x KST)",
+  "sourceCommit": "1e6bb37f255b152e3f31a12be3a4ef8d896700f4",
+  "previousCommit": "3f5b2fa7ccf0c625cc40798aca393792bc4543a5",
+  "pullRequests": [266, 267, 268, 269, 270, 272],
+  "issues": [261, 262, 263, 264, 265, 271],
+  "repositoryVisibility": "PUBLIC",
+  "operating": {
+    "method": "scripts/deploy-lightsail.sh --deploy (existing production Lightsail), run from a clean detached worktree at 1e6bb37",
+    "backup": "PASS: manual /opt/masscom/backups/pre-1e6bb37-20261001.dump, 135907 bytes, mode 600, pg_restore --list 283 lines; actual restore NOT_RUN",
+    "compatibilityEvidence": "no change in apps/api/migrations, apps/worker/migrations, compose files or the Caddyfile between 3f5b2fa and 1e6bb37; the schema stays at 0036 (from 3f5b2fa to 1e6bb37)",
+    "deployCommandResult": "exit 0",
+    "after": {
+      "images": "masscom-api:1e6bb37f255b and masscom-production-web:1e6bb37f255b healthy; caddy recreated; postgres untouched (up 8h)",
+      "schema": "unchanged, last 0036_nft_metadata.sql"
+    },
+    "retentionJob": {
+      "installAndFirstRun": "PASS: host job reinstalled and the first run succeeded",
+      "firstRunCounts": "web_sessions 1; every other step 0 including the new admin_audit_deleted_targets 0; BACKUPS_DELETED 0"
+    }
+  },
+  "showcase": {
+    "method": "manual compose under /opt/masscom-showcase (the showcase-deploy procedure from the infra/showcase-host README), run from the 1e6bb37 worktree",
+    "firstAttempt": "did nothing because the helper checked the main checkout's HEAD instead of the 1e6bb37 worktree; rerun from the 1e6bb37 worktree",
+    "backup": "PASS: /opt/masscom-showcase/backups/pre-1e6bb37-20260930.dump, 140367 bytes, mode 600, 283 entries; actual restore NOT_RUN",
+    "migration": "PASS: `docker compose run --rm -T migrate` printed `database migrations applied`; latest 0036_nft_metadata.sql; the postgres container was NOT recreated (up 8h)",
+    "after": {
+      "apiImage": "masscom-showcase-api:1e6bb37, healthy",
+      "seed": "SHOWCASE_HOST_SEEDED",
+      "publicMerchants": "PASS: public /merchants returns the 3 virtual stores"
+    }
+  },
+  "externalHttps": {
+    "operatingApiHealth": "https://api.masscom.kr/health 200",
+    "openPage": "https://masscom.kr/open 200",
+    "operatingWeb": "https://www.masscom.kr/app/ 200",
+    "terms": "https://masscom.kr/terms 200",
+    "showcaseApiHealth": "https://demo-api.masscom.kr/health 200",
+    "consentWithoutSession": "https://api.masscom.kr/me/consent without login 401"
+  },
+  "notRun": [
+    "database restore from either backup",
+    "the main CI run id for 1e6bb37 is not recorded in this file",
+    "a rerun or reinstall of the showcase retention job in this deploy",
+    "the content served at /open after this deploy (only HTTP 200 was recorded; the page still names the previous install links until docs/open.html from the Issue #274 change is deployed)",
+    "a real Google login through the consent screen, real visit, coupon or deletion flows on production"
+  ]
+}
