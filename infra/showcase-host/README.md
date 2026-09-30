@@ -72,10 +72,10 @@ STAFF 적격 해시를 삭제해도 이미 활성화된 점주 권한은 사라�
 ```bash
 sudo docker compose -p masscom-showcase --env-file /opt/masscom-showcase/runtime.env \
   -f /opt/masscom-showcase/releases/<릴리스>/infra/showcase-host/compose.yml \
-  up -d --no-deps --no-build --force-recreate showcase-api
+  up -d --no-deps --no-build --force-recreate --wait --wait-timeout 180 showcase-api
 ```
 
-④ `sudo docker logs $(sudo docker ps -q --filter label=com.docker.compose.service=showcase-api) 2>&1 | grep 'AI store art:'`에서 `disabled (OPENAI_API_KEY is empty)`를 확인한다.
+이 수동 재생성은 키뿐 아니라 `runtime.env`·compose의 다른 차이도 모두 반영한다(`--force-drift`와 같은 주의). ④ `sudo docker logs $(sudo docker ps -q --filter label=com.docker.compose.service=showcase-api) 2>&1 | grep 'AI store art:'`에서 `disabled (OPENAI_API_KEY is empty)`를 확인한다.
 
 ### 켜진 상태 컨테이너 리허설 (Issue #256)
 

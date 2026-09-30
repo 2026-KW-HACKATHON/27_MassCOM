@@ -982,7 +982,9 @@ if grep -Eq '(^|[[:space:]])!( )+grep' "$script"; then
 fi
 # 파이프 뒤쪽이 일찍 닫는 명령(head·grep -q·cmp -s)은 pipefail에서 앞 명령을 SIGPIPE로 죽여 Linux에서만 시험이 깨진다: 스크립트와 시험에 없어야 한다.
 early_exit_pattern='[^|][|][[:space:]]*(head|grep -[a-zA-Z]*q|cmp -s)'
-for file in "$script" "$0" "$repo_root/scripts/rehearse-ai-art-container.sh" "$repo_root/scripts/rehearse-enable-ai-art-real-compose.sh"; do
+for file in "$script" "${BASH_SOURCE[0]}" "$repo_root/scripts/rehearse-ai-art-container.sh" "$repo_root/scripts/rehearse-enable-ai-art-real-compose.sh"; do
+  # 읽을 수 없는(이름이 바뀐) 파일은 grep이 2로 끝나 "일치 없음"처럼 보이므로 먼저 막는다.
+  [[ -r "$file" ]] || { echo "self-audit cannot read $file" >&2; exit 1; }
   if grep -nE "$early_exit_pattern" "$file" | grep -Ev '^[0-9]*:([[:space:]]*#|early_exit_pattern=)'; then
     echo "$file pipes into a command that exits early (head, grep -q, cmp -s); use awk or a variable instead" >&2
     exit 1
