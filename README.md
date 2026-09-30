@@ -88,6 +88,8 @@
 
 [Issue #263](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/263)은 **배포 롤백·백업 드릴·점포 공개 안내**를 2026-09-30 전체 점검 보고서(C02·C07·P02)에 맞춰 고칩니다: 시연 API health 실패는 더 이상 운영 API를 이전 버전으로 되돌리지 않고(배포만 `SHOWCASE_HEALTH_FAILED`로 실패하며 `DEPLOYED_COMMIT`은 새 커밋이다, 운영 확인 실패는 그대로 되돌린다), 롤백된 이전 API가 도는 동안 삭제 처리된 계정의 `platform_admin_audit.target_account_id`는 매일 정리 `run`의 `admin_audit_deleted_targets` 단계가 삭제 원장의 별칭으로 바꿔 스스로 복구되며, `scripts/db-restore-drill.sh`는 `umask 077`과 임시 파일→성공 시 이동으로 경로를 준 백업을 mode 600으로 쓰고 실패하면 이전 파일을 지키고, [점포 온보딩 안내](docs/MERCHANT_ONBOARDING.md)는 점포 공개(활성)와 고객 목록 노출(활성·공개·기간 안 캠페인과 1·3·5회 목표)을 나눠 씁니다. 운영 배포와 서버 실행은 하지 않았고(`NOT_RUN`) 시험 결과는 [시험 상태](docs/TEST_STATUS.md)에 있습니다.
 
+[Issue #265](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/265)는 **늦게 도착한 응답이 화면을 되돌리는 세 곳과 동의 버튼 글자 잘림**을 고칩니다. 도감은 NFT 하나가 확정돼도 다른 NFT가 확인 중이면 계속 다시 묻고 오래된 응답만 버리며, 수령 코드는 입력이 바뀌면 이전 코드의 확인 응답을 버리고 확정은 현재 입력만 대상으로 하며, 삭제 접수번호는 다시 받기가 응답 없이 실패하면 이전 번호를 지웁니다. 동의 버튼 전체 문구의 실기 확인은 다음 시연 빌드 전까지 `NOT_RUN`입니다([검증 현황](docs/TEST_STATUS.md)).
+
 ## 한눈에 보기
 
 <details>

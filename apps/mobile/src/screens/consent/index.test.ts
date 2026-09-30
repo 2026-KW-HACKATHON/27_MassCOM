@@ -29,6 +29,17 @@ test('the start button is disabled and says so until all three are checked, then
   assert.match(screen, /submitConsent\(client, credential, checks\)/);
 });
 
+test('the start button label is re-created per enabled state so Android never reuses a stale measured layout (#265)', () => {
+  const label = screen.slice(screen.indexOf('<Text\n          key={'), screen.indexOf('</Text>', screen.indexOf('<Text\n          key={')));
+  assert.match(label, /key=\{!ready \|\| busy \? 'idle' : 'ready'\}/);
+  // Wraps instead of clipping; never shrinks or caps the text.
+  assert.match(label, /numberOfLines=\{2\}/);
+  assert.doesNotMatch(label, /adjustsFontSizeToFit|allowFontScaling|maxFontSizeMultiplier/);
+  // Only the colour differs between the two states, so the swap cannot change the label's size.
+  const styles = readFileSync(new URL('./styles.ts', import.meta.url), 'utf8');
+  assert.match(styles, /submitTextDisabled: \{ color: palette\.secondaryLabel \}/);
+});
+
 test('the screen never leaves the user stuck: retry after a failed check, sign-out always', () => {
   assert.match(screen, /consentCopy\.retry/);
   assert.match(screen, /consentCopy\.logout/);

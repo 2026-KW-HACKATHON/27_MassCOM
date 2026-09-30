@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import {
+  clearFinalizedNotice,
   initialPollingState,
   nextPollingState,
   resolveCollectionLoad,
@@ -110,6 +111,14 @@ export function CollectionScreen({
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
   const [pollingRetrying, setPollingRetrying] = useState(false);
+  // 조회를 시작할 때마다 올리는 세대. 나중에 시작한 조회가 먼저 적용되면 오래된 응답은 버린다.
+  const requestGeneration = useRef(0);
+  const startRequest = useCallback(() => ++requestGeneration.current, []);
+  const applySnapshot = useCallback((snapshot: CollectionSnapshot, generation: number) => {
+    setPolling((current) => current
+      ? nextPollingState(current, { type: 'success', snapshot, generation })
+      : initialPollingState(snapshot, generation));
+  }, []);
   const collection = polling?.snapshot;
   const { merchants: publicMerchants, loading: merchantsLoading, error: merchantsError, retry: retryMerchants, refresh: refreshMerchants } = useMerchantCatalog(apiUrl);
   const stampSlots = useMemo(
@@ -124,6 +133,7 @@ export function CollectionScreen({
 
   useEffect(() => {
     let active = true;
+    const generation = startRequest();
     void Promise.allSettled([api.getCollection(), walletApi.getActiveBinding()])
       .then(([collectionResult, bindingResult]) => {
         if (!active) return;
@@ -132,7 +142,7 @@ export function CollectionScreen({
           setError('도감을 불러오지 못했습니다. API 연결을 확인해 주세요.');
           return;
         }
-        setPolling(initialPollingState(resolved.collection));
+        applySnapshot(resolved.collection, generation);
         setBinding(resolved.binding);
         setBindingError(resolved.bindingError
           ? '도감은 불러왔지만 지갑 상태는 확인하지 못했습니다.'
@@ -144,24 +154,21 @@ export function CollectionScreen({
     return () => {
       active = false;
     };
-  }, [api, walletApi]);
+  }, [api, walletApi, startRequest, applySnapshot]);
 
   useEffect(() => {
     if (polling?.mode !== 'polling') return;
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
+      const generation = startRequest();
       try {
         const next = await api.getCollection();
-        if (active) {
-          setPolling((current) => current
-            ? nextPollingState(current, { type: 'success', snapshot: next })
-            : initialPollingState(next));
-        }
+        if (active) applySnapshot(next, generation);
       } catch {
         if (active) {
           setPolling((current) => current
-            ? nextPollingState(current, { type: 'failure' })
+            ? nextPollingState(current, { type: 'failure', generation })
             : current);
         }
       } finally {
@@ -173,7 +180,7 @@ export function CollectionScreen({
       active = false;
       clearTimeout(timer);
     };
-  }, [api, polling?.mode]);
+  }, [api, polling?.mode, startRequest, applySnapshot]);
 
   // The tab stays mounted; coming back after a visit claim quietly picks up new stamps and badges.
   const focusCount = useRef(0);
@@ -195,20 +202,20 @@ export function CollectionScreen({
     focusCount.current += 1;
     if (focusCount.current === 1) return;
     void refreshBadgesQuietly();
+    const generation = startRequest();
     void Promise.allSettled([api.getCollection(), walletApi.getActiveBinding()]).then(([collectionResult, bindingResult]) => {
       const resolved = resolveCollectionLoad(collectionResult, bindingResult);
       if (!resolved.ok) return;
-      setPolling((current) => current
-        ? nextPollingState(current, { type: 'success', snapshot: resolved.collection })
-        : initialPollingState(resolved.collection));
+      applySnapshot(resolved.collection, generation);
       setBinding(resolved.binding);
       if (!resolved.bindingError) setBindingError(undefined);
     });
-  }, [api, walletApi, refreshBadgesQuietly]));
+  }, [api, walletApi, refreshBadgesQuietly, startRequest, applySnapshot]));
 
   async function refresh() {
     setRefreshing(true);
     setError(undefined);
+    const generation = startRequest();
     try {
       const [collectionResult, bindingResult] = await Promise.allSettled([
         api.getCollection(),
@@ -220,9 +227,7 @@ export function CollectionScreen({
       if (!resolved.ok) {
         setError('최신 도감을 가져오지 못했습니다. 기존 내용은 유지합니다.');
       } else {
-        setPolling((current) => current
-          ? nextPollingState(current, { type: 'success', snapshot: resolved.collection })
-          : initialPollingState(resolved.collection));
+        applySnapshot(resolved.collection, generation);
         setBinding(resolved.binding);
         setBindingError(resolved.bindingError
           ? '도감은 갱신했지만 지갑 상태는 확인하지 못했습니다.'
@@ -245,11 +250,9 @@ export function CollectionScreen({
   async function retryPolling() {
     if (!polling || pollingRetrying) return;
     setPollingRetrying(true);
+    const generation = startRequest();
     try {
-      const next = await api.getCollection();
-      setPolling((current) => current
-        ? nextPollingState(current, { type: 'success', snapshot: next })
-        : initialPollingState(next));
+      applySnapshot(await api.getCollection(), generation);
     } catch {
       setError('NFT 등록 작업 결과를 다시 확인하지 못했습니다. 접수는 취소되지 않았습니다.');
     } finally {
@@ -277,6 +280,8 @@ export function CollectionScreen({
     setBusyEntitlementId(entitlementId);
     setError(undefined);
     setMessage(undefined);
+    // 이전 확정 알림이 아래 접수 안내를 가리지 않도록 접수하기 전에 지운다.
+    setPolling((current) => current ? clearFinalizedNotice(current) : current);
     const idempotencyKey =
       `mint-${binding.bindingId}-${binding.bindingVersion}-${entitlementId}`;
     try {
@@ -292,7 +297,8 @@ export function CollectionScreen({
           ? '이미 접수한 NFT 작업을 다시 불러왔습니다.'
           : 'NFT 발행을 접수했습니다. 아직 블록체인 등록 완료가 아닙니다.',
       );
-      setPolling(initialPollingState(await api.getCollection()));
+      const generation = startRequest();
+      applySnapshot(await api.getCollection(), generation);
     } catch (caught) {
       setError(mintErrorMessage(caught));
     } finally {

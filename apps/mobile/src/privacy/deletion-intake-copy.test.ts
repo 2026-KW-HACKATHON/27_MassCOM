@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import type { DeletionIntakeView } from './account-deletion-intake-api';
 import { AccountDeletionIntakeApiError } from './account-deletion-intake-api';
 import {
-  canRequestShowcaseDeletion, describeDeletionIntake, formatKstMinute, intakeUnknownMessage, lookupFailureMessage,
+  ambiguousFailureOutcome, canRequestShowcaseDeletion, describeDeletionIntake, formatKstMinute, intakeUnknownMessage, lookupFailureMessage,
   overdueMessage,
 } from './deletion-intake-copy';
 
@@ -85,4 +85,32 @@ test('one term, 삭제 요청, names the request in every state and the lookup w
     assert.equal(lookupFailureMessage(other), '지금은 상태를 확인할 수 없습니다. 잠시 뒤 다시 시도해 주세요.');
   }
   assert.equal(intakeUnknownMessage, '접수 여부를 확인하지 못했어요. 다시 확인해 주세요.');
+});
+
+test('응답 없이 실패한 다시 받기는 서버가 요청을 확인해 줘도 이전 접수번호를 지우고 새 번호를 받으라고 안내한다', () => {
+  const found = ambiguousFailureOutcome('reissue', { kind: 'found', view });
+  assert.equal(found.clearReceipt, true);
+  assert.equal(found.intake, view);
+  assert.equal(found.intakeUnknown, false);
+  assert.match(found.message ?? '', /이전 번호는 지웠어요/);
+  assert.match(found.message ?? '', /접수번호 다시 받기/);
+  assert.equal(found.error, undefined);
+});
+
+test('응답 없이 실패한 다시 받기는 요청 여부를 확인하지 못해도 이전 접수번호를 지우고 다시 확인하게 한다', () => {
+  assert.deepEqual(ambiguousFailureOutcome('reissue', { kind: 'unknown' }), {
+    intake: undefined,
+    intakeUnknown: true,
+    clearReceipt: true,
+  });
+});
+
+test('처음 접수나 취소가 응답 없이 실패해도 화면의 접수번호는 건드리지 않는다', () => {
+  for (const action of ['file', 'cancel'] as const) {
+    assert.equal(ambiguousFailureOutcome(action, { kind: 'found', view }).clearReceipt, false, action);
+    assert.equal(ambiguousFailureOutcome(action, { kind: 'unknown' }).clearReceipt, false, action);
+  }
+  assert.match(ambiguousFailureOutcome('file', { kind: 'found', view }).message ?? '', /접수된 것을 확인했어요/);
+  assert.match(ambiguousFailureOutcome('cancel', { kind: 'found', view }).error ?? '', /아직 접수된 상태/);
+  assert.equal(ambiguousFailureOutcome('cancel', { kind: 'found', view }).message, undefined);
 });
