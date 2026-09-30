@@ -13,6 +13,7 @@ type ProjectRow = {
   id: string; merchant_id: string; version: number; status: 'DRAFT' | 'PUBLISHED'; project: CollectibleProject;
   publication_id: string | null; created_at: Date; updated_at: Date;
 };
+export const collectiblePublicationLimit = 100;
 const columns = 'id, merchant_id, version, status, project, publication_id, created_at, updated_at';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type MerchantInput = { merchantId: string; accountId: string };
@@ -85,6 +86,12 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
     return this.transaction(input, async client => {
       const row = await this.load(client, input, true); checkVersion(row, input.expectedVersion);
       if (row.status === 'PUBLISHED') throw new CollectibleProjectError('COLLECTIBLE_PUBLISHED_IMMUTABLE');
+      // Publications are immutable and stay for customers who acquired them, so a publish/delete/copy loop would grow storage
+      // without bound. Cap the store's publications that still hold media (operator removal frees a slot). The store advisory
+      // lock taken by transaction() serializes concurrent publishes, so the count cannot be raced.
+      const stored = await client.query<{ count: number }>(
+        'SELECT count(*)::int AS count FROM collectible_publications WHERE merchant_id = $1 AND media_removed_at IS NULL', [input.merchantId]);
+      if (stored.rows[0]!.count >= collectiblePublicationLimit) throw new CollectibleProjectError('COLLECTIBLE_PUBLICATION_LIMIT');
       // Validate, decode and strip every grade before the campaign lock: claims on this campaign wait only for the insert below.
       const project = validateCollectibleProject(row.project, true);
       const goals = await client.query<{ target_visit_count: number }>(

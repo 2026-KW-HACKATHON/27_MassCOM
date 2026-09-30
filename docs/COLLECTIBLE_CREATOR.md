@@ -130,9 +130,9 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | `POST /:projectId/delete` | `{ expectedVersion }` | 200 `{ projectId, deleted: true, unlinkedCampaignId }` (초안은 행 삭제, 게시본은 게시 중지 + 비공개 원본 비움) |
 
 - 저장·생성·복사 응답의 `project`는 서버가 정리한 값이다: 모든 이미지의 메타데이터 제거(바이트가 달라짐), MP3는 태그 제거와 프레임 기준 `durationSeconds`. 편집기는 응답의 `project`를 새 기준값으로 삼아야 "저장하지 않은 변경" 비교가 어긋나지 않는다.
-- 본문 상한 8 MiB(413 `BODY_TOO_LARGE`). 생성·저장·복사·게시는 점포마다 1분 20번(429 `COLLECTIBLE_RATE_LIMITED`, `Retry-After` 초).
+- 본문 상한 8 MiB(413 `BODY_TOO_LARGE`). 점포당 미디어가 남은 발행본은 100개까지다(409 `COLLECTIBLE_PUBLICATION_LIMIT`; 게시본은 이미 받은 고객을 위해 남아 삭제·게시 중지로 줄지 않고, 운영자 미디어 제거만 자리를 비운다). 생성·저장·복사·게시는 점포마다 1분 20번(429 `COLLECTIBLE_RATE_LIMITED`, `Retry-After` 초).
 - 이미지: PNG/JPEG/WebP data URL만. 원본 사진 3 MiB·4096 px, 장면 원본 512 KiB·4096 px(최대 5장), 완성 `imageDataUrl`·`baseDataUrl` 1 MiB·512 px, `effectMasks` 256 KiB·512 px, `thumbnailDataUrl` 128 KiB·160 px, 장면 `previewDataUrl` 512 KiB·512 px. 애니메이션 WebP 거절. 음성: MP3(ID3/APE 태그 뒤 MPEG Layer III 프레임만, 30.5초 초과 413 `COLLECTIBLE_MEDIA_TOO_LARGE`), WebM/Ogg(브라우저 녹음의 Opus만, 서버가 길이를 다시 계산해 30.5초 초과 413. Ogg는 태그를 비우고, WebM은 Tags·Attachments·Chapters·제목이 있으면 400).
-- 오류 코드 전체(상태): `INVALID_REQUEST`(400, 본문 키), `COLLECTIBLE_INVALID_PROJECT`(400), `COLLECTIBLE_MEDIA_TOO_LARGE`(413), `BODY_TOO_LARGE`(413), `COLLECTIBLE_PROJECT_NOT_FOUND`(404), `COLLECTIBLE_VERSION_CONFLICT`·`COLLECTIBLE_PUBLISHED_IMMUTABLE`·`COLLECTIBLE_CAMPAIGN_UNAVAILABLE`·`COLLECTIBLE_NOT_READY`·`COLLECTIBLE_PROJECT_LIMIT`·`COLLECTIBLE_NOT_PUBLISHED`(409), `COLLECTIBLE_RATE_LIMITED`(429), `MERCHANT_ACCESS_DENIED`(403), `ACCOUNT_DELETED`(410), `COLLECTIBLE_PROJECTS_NOT_CONFIGURED`(503).
+- 오류 코드 전체(상태): `INVALID_REQUEST`(400, 본문 키), `COLLECTIBLE_INVALID_PROJECT`(400), `COLLECTIBLE_MEDIA_TOO_LARGE`(413), `BODY_TOO_LARGE`(413), `COLLECTIBLE_PROJECT_NOT_FOUND`(404), `COLLECTIBLE_VERSION_CONFLICT`·`COLLECTIBLE_PUBLISHED_IMMUTABLE`·`COLLECTIBLE_CAMPAIGN_UNAVAILABLE`·`COLLECTIBLE_NOT_READY`·`COLLECTIBLE_PROJECT_LIMIT`·`COLLECTIBLE_PUBLICATION_LIMIT`·`COLLECTIBLE_NOT_PUBLISHED`(409), `COLLECTIBLE_RATE_LIMITED`(429), `MERCHANT_ACCESS_DENIED`(403), `ACCOUNT_DELETED`(410), `COLLECTIBLE_PROJECTS_NOT_CONFIGURED`(503).
 
 ### 웹 제작기의 연결 (PR #257 인수 후속, 2026-10-01)
 

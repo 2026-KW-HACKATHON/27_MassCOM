@@ -399,3 +399,20 @@ test('operator removal follows copies and the same stored photo: copied publicat
   await assert.rejects(projects.getAcquired({ accountId: 'customer-copy', entitlementId }), { code: 'COLLECTIBLE_NOT_FOUND' });
   assert.equal((await pool.query('SELECT 1 FROM collectible_project_contributors WHERE project_id = ANY($1)', [[original.id, copy.id, copyOfCopy.id, leaf.id, reupload.id]])).rowCount, 0);
 });
+
+test('a store can hold at most 100 publications with media, so publish/delete/copy loops cannot grow storage without bound', async t => {
+  const { pool, projects, input } = await setup(t);
+  await pool.query(`WITH filler AS (SELECT gen_random_uuid() AS project_id, gen_random_uuid() AS publication_id FROM generate_series(1, 100)),
+    made AS (INSERT INTO collectible_projects (id, merchant_id, lineage_id) SELECT project_id, 'merchant-a', project_id FROM filler)
+    INSERT INTO collectible_publications (id, project_id, merchant_id, campaign_id, project_version, reward_grades)
+    SELECT publication_id, project_id, 'merchant-a', 'campaign-a', 1, '{}'::jsonb FROM filler`);
+  const draft = await projects.create({ ...input, project: photoProject() });
+  await assert.rejects(projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' }), { code: 'COLLECTIBLE_PUBLICATION_LIMIT' });
+  // Another store is not affected, and operator media removal frees a slot.
+  await pool.query(`INSERT INTO campaign_goals (campaign_id,target_visit_count,display_name) VALUES ('campaign-b',1,'첫 도장'),('campaign-b',3,'셋')`);
+  const other = await projects.create({ merchantId: 'merchant-b', accountId: 'owner-b', project: photoProject() });
+  await projects.publish({ merchantId: 'merchant-b', accountId: 'owner-b', projectId: other.id, expectedVersion: 1, campaignId: 'campaign-b' });
+  const oldest = await pool.query<{ id: string }>(`SELECT id FROM collectible_publications WHERE merchant_id = 'merchant-a' LIMIT 1`);
+  await pool.query('SELECT * FROM collectible_remove_publication_media($1)', [oldest.rows[0]!.id]);
+  assert.ok((await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' })).publicationId);
+});
