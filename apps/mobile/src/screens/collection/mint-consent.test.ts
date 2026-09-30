@@ -30,8 +30,10 @@ test('옛 판 동의로 요청한 앱에는 업데이트를 안내하고, 동의
 
 test('앱의 동의 판·API 기본값·운영 compose가 모두 nft-mint-v2다', () => {
   const server = readFileSync(new URL('../../../../api/src/server.ts', import.meta.url), 'utf8');
+  const rules = readFileSync(new URL('../../../../api/src/mint-request-service.ts', import.meta.url), 'utf8');
   const compose = readFileSync(new URL('../../../../../infra/lightsail/compose.yml', import.meta.url), 'utf8');
-  assert.match(server, /process\.env\.NFT_MINT_CONSENT_VERSION \?\? 'nft-mint-v2'/);
+  assert.match(server, /supportedConsentVersion: mintConsentVersionFromEnv\(process\.env\.NFT_MINT_CONSENT_VERSION\)/);
+  assert.match(rules, /raw\?\.trim\(\) \|\| 'nft-mint-v2'/);
   assert.match(compose, /^\s+NFT_MINT_CONSENT_VERSION: nft-mint-v2$/m);
   assert.equal(mintConsentVersion, 'nft-mint-v2');
 });
