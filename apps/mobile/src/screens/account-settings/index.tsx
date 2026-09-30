@@ -33,6 +33,7 @@ import {
   lookupFailureMessage,
   type IntakeDescription,
 } from '@/privacy/deletion-intake-copy';
+import { legalLinks } from '@/privacy/consent-copy';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
@@ -244,6 +245,15 @@ export function AccountSettingsScreen({
     }
   }
 
+  async function openLegalPage(url: string) {
+    setError(undefined);
+    try {
+      await Linking.openURL(url);
+    } catch {
+      setError('페이지를 열지 못했습니다. 브라우저에서 www.masscom.kr 주소를 직접 열어 주세요.');
+    }
+  }
+
   async function openDeletionRequestPage() {
     setError(undefined);
     try {
@@ -325,6 +335,25 @@ export function AccountSettingsScreen({
           </Link>
         </FloatingCard>
       ) : null}
+
+      <FloatingCard style={styles.groupCard}>
+        <Text style={styles.sectionTitle}>약관과 개인정보</Text>
+        <Text selectable style={styles.intro}>
+          이용약관과 개인정보 처리방침, 계정 삭제 안내를 웹 페이지에서 읽을 수 있어요. 처음 로그인할 때 동의한 내용이에요.
+        </Text>
+        {legalLinks.map((link) => (
+          <Pressable
+            key={link.url}
+            accessibilityRole="link"
+            accessibilityLabel={link.label}
+            accessibilityHint={link.hint}
+            onPress={() => void openLegalPage(link.url)}
+            style={styles.secondaryLink}
+          >
+            <Text style={styles.secondaryLinkText}>{link.label} →</Text>
+          </Pressable>
+        ))}
+      </FloatingCard>
 
       <FloatingCard style={styles.groupCard}>
         <Text style={styles.sectionTitle}>계정 삭제 안내</Text>

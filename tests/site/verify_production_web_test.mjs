@@ -4,10 +4,21 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
 
-import { bindCollectionControls, loadCollection, loadMerchants } from '../../apps/production-web/assets/production.mjs';
+import * as productionWeb from '../../apps/production-web/assets/production.mjs';
 import { bindAdmin, campaignDraftPayload, couponVoidMessage, formatKst, loadAdmin, parseMenuLines } from '../../apps/production-web/assets/admin.mjs';
 import { bindMerchant, couponUndoMessage, loadMerchant, visitCancelMessage } from '../../apps/production-web/assets/merchant.mjs';
 import { createProductionServer, resolveProductionBindHost } from '../../apps/production-web/server.mjs';
+
+const { loadMerchants } = productionWeb;
+
+// 도감은 동의를 확인한 뒤에만 읽는다(Issue #253). 아래 기존 시험은 이미 동의한 계정을 전제로 하므로 동의 조회에 "동의함"으로 답하는 fetcher로 감싼다.
+// 동의 화면 자체의 시험은 이 파일 끝의 "웹 첫 로그인 동의" 시험이 감싸지 않은 productionWeb.loadCollection으로 한다.
+const consentAccepted = { required: false, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-09-30' };
+const withConsent = (fetcher) => (url, options) => (url === '/api/web/consent'
+  ? Promise.resolve({ ok: true, status: 200, json: async () => consentAccepted })
+  : fetcher(url, options));
+const loadCollection = (fetcher, doc, options) => productionWeb.loadCollection(withConsent(fetcher), doc, options);
+const bindCollectionControls = (fetcher, doc) => productionWeb.bindCollectionControls(withConsent(fetcher), doc);
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const web = join(repo, 'apps/production-web');
@@ -2516,4 +2527,253 @@ test('운영 웹 도감은 무효 쿠폰을 사용할 수 없는 쿠폰으로 �
   // 무효 쿠폰에는 "~까지" 만료 날짜가 오해를 부르므로 보이지 않는다.
   assert.equal(findAll(ticket, 'ticket-expiry').length, 0);
   assert.match(css, /\.ticket-voided \.ticket-chip/);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// 웹 첫 로그인 동의 (Issue #253, D-056)
+// ---------------------------------------------------------------------------------------------------------------------
+
+function consentDocument() {
+  const fixture = collectionFixture();
+  const box = () => ({ ...element(), checked: false });
+  Object.assign(fixture.nodes, {
+    'consent-panel': { ...element(), hidden: true },
+    'consent-age': box(), 'consent-terms': box(), 'consent-privacy': box(),
+    'consent-submit': { ...element(), disabled: true },
+    'consent-message': element(),
+  });
+  return fixture;
+}
+
+const consentRequired = { required: true, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-09-30' };
+const consentBodySent = {
+  termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-09-30',
+  ageConfirmed: true, termsAccepted: true, privacyAccepted: true,
+};
+
+// 서버 대역: 동의 상태와 기록에 대한 답을 바꿔 가며 어떤 요청이 갔는지 남긴다.
+function consentServer({ status = { ok: true, status: 200, body: consentRequired }, post = { ok: true, status: 200, body: consentAccepted } } = {}) {
+  const calls = [];
+  const state = { status, post };
+  const reply = ({ ok, status: code, body }) => ({ ok, status: code, json: async () => body });
+  const fetcher = async (url, options = {}) => {
+    calls.push({ url, method: options.method, options });
+    if (url === '/api/web/consent') {
+      if (options.method === 'POST') {
+        const answer = reply(state.post);
+        if (state.post.ok && state.post.body?.required === false) state.status = { ok: true, status: 200, body: consentAccepted };
+        return answer;
+      }
+      if (state.status.throws) throw new Error('offline');
+      return reply(state.status);
+    }
+    if (url === '/api/web/collection') return { ok: true, json: async () => emptyCollection };
+    if (url === '/api/web/badges') return okJson(badgesFixture());
+    throw new Error(`unexpected ${url}`);
+  };
+  return { fetcher, calls, state };
+}
+
+const dataCalls = (calls) => calls.filter((call) => call.url !== '/api/web/consent');
+const checkAll = async (nodes) => {
+  for (const name of ['consent-age', 'consent-terms', 'consent-privacy']) {
+    nodes[name].checked = true;
+    await nodes[name].dispatch('change');
+  }
+};
+
+test('웹 동의: 서버가 동의 필요라고 하면 도감을 읽기 전에 동의 화면을 보이고 로그아웃 길을 둔다', async () => {
+  const { nodes, doc } = consentDocument();
+  const { fetcher, calls } = consentServer();
+  await productionWeb.loadCollection(fetcher, doc);
+  assert.equal(nodes['consent-panel'].hidden, false);
+  assert.match(nodes['collection-status'].textContent, /이용을 시작하기 전에/);
+  assert.equal(nodes['consent-submit'].disabled, true);
+  assert.equal(nodes['collection-logout'].hidden, false);
+  assert.equal(nodes['collection-login'].hidden, true);
+  assert.equal(nodes['collection-content'].hidden, true);
+  // 동의 전에는 방문 기록·수집품·메달을 요청하지 않는다.
+  assert.deepEqual(dataCalls(calls), []);
+  assert.deepEqual(calls.map((call) => call.url), ['/api/web/consent']);
+  assert.equal(calls[0].options.method, 'GET');
+  assert.equal(calls[0].options.credentials, 'same-origin');
+});
+
+test('웹 동의: 세 필수 항목을 모두 눌러야 버튼이 켜지고, 기록하면 도감을 읽는다', async () => {
+  const { nodes, doc } = consentDocument();
+  const { fetcher, calls } = consentServer();
+  await productionWeb.bindCollectionControls(fetcher, doc);
+  assert.equal(nodes['consent-submit'].disabled, true);
+
+  for (const missing of ['consent-age', 'consent-terms', 'consent-privacy']) {
+    for (const name of ['consent-age', 'consent-terms', 'consent-privacy']) nodes[name].checked = name !== missing;
+    await nodes[missing].dispatch('change');
+    assert.equal(nodes['consent-submit'].disabled, true, `${missing} 없이는 시작할 수 없다`);
+  }
+  await nodes['consent-submit'].click();
+  assert.equal(calls.some((call) => call.method === 'POST'), false, '체크가 모자라면 서버에 보내지 않는다');
+
+  await checkAll(nodes);
+  assert.equal(nodes['consent-submit'].disabled, false);
+  await nodes['consent-submit'].click();
+
+  const post = calls.find((call) => call.method === 'POST');
+  assert.equal(post.url, '/api/web/consent');
+  assert.deepEqual(JSON.parse(post.options.body), consentBodySent);
+  assert.equal(post.options.credentials, 'same-origin');
+  assert.equal(post.options.headers['Content-Type'], 'application/json');
+  // 기록되면 화면이 닫히고 그때부터 도감을 읽는다.
+  assert.equal(nodes['consent-panel'].hidden, true);
+  assert.deepEqual(dataCalls(calls).map((call) => call.url).sort(), ['/api/web/badges', '/api/web/collection']);
+  assert.equal(nodes['collection-content'].hidden, false);
+});
+
+test('웹 동의: 이미 동의한 계정은 동의 화면 없이 바로 도감을 본다', async () => {
+  const { nodes, doc } = consentDocument();
+  const { fetcher, calls } = consentServer({ status: { ok: true, status: 200, body: consentAccepted } });
+  await productionWeb.loadCollection(fetcher, doc);
+  assert.equal(nodes['consent-panel'].hidden, true);
+  assert.equal(nodes['collection-content'].hidden, false);
+  assert.equal(calls[0].url, '/api/web/consent');
+});
+
+test('웹 동의: 로그인하지 않았으면 로그인을 안내하고, 확인하지 못하면 막힌 채로 두지 않고 다시 시도를 보인다', async () => {
+  for (const [status, expectLogin] of [
+    [{ ok: false, status: 401, body: { code: 'WEB_SESSION_INVALID' } }, true],
+    [{ ok: false, status: 500, body: {} }, false],
+    [{ ok: false, status: 404, body: {} }, false],
+    [{ throws: true }, false],
+    [{ ok: true, status: 200, body: { required: 'yes', termsVersion: 'x', privacyVersion: 'y' } }, false],
+    [{ ok: true, status: 200, body: { required: true } }, false],
+    [{ ok: true, status: 200, body: null }, false],
+  ]) {
+    const { nodes, doc } = consentDocument();
+    const { fetcher, calls } = consentServer({ status });
+    await productionWeb.loadCollection(fetcher, doc);
+    assert.equal(nodes['collection-login'].hidden, !expectLogin, JSON.stringify(status));
+    assert.equal(nodes['collection-retry'].hidden, expectLogin, JSON.stringify(status));
+    assert.equal(nodes['consent-panel'].hidden, true);
+    assert.equal(nodes['collection-content'].hidden, true);
+    assert.deepEqual(dataCalls(calls), [], '동의를 알 수 없으면 도감을 읽지 않는다');
+  }
+});
+
+test('웹 동의: 서버가 이 화면에 없는 버전을 요구하면 옛 문구에 동의를 받지 않고 새로 열도록 안내한다', async () => {
+  for (const body of [
+    { ...consentRequired, termsVersion: 'terms-2027-01-01' },
+    { ...consentRequired, privacyVersion: 'privacy-2027-01-01' },
+  ]) {
+    const { nodes, doc } = consentDocument();
+    const { fetcher, calls } = consentServer({ status: { ok: true, status: 200, body } });
+    await productionWeb.loadCollection(fetcher, doc);
+    assert.equal(nodes['consent-panel'].hidden, true);
+    assert.match(nodes['collection-status'].textContent, /새로 바뀌었어요/);
+    assert.equal(nodes['collection-retry'].hidden, false);
+    assert.equal(nodes['collection-logout'].hidden, false);
+    assert.deepEqual(dataCalls(calls), []);
+  }
+});
+
+test('웹 동의: 기록이 거절되거나 실패하면 화면과 체크를 그대로 두고 이유를 알린다', async () => {
+  for (const [post, pattern] of [
+    [{ ok: false, status: 409, body: { code: 'CONSENT_VERSION_MISMATCH' } }, /새로 바뀌었어요/],
+    [{ ok: false, status: 400, body: { code: 'CONSENT_INCOMPLETE' } }, /기록하지 못했어요/],
+    [{ ok: false, status: 500, body: {} }, /기록하지 못했어요/],
+    [{ ok: true, status: 200, body: { required: true, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-09-30' } }, /기록하지 못했어요/],
+    [{ ok: true, status: 200, body: null }, /기록하지 못했어요/],
+  ]) {
+    const { nodes, doc } = consentDocument();
+    const { fetcher, calls } = consentServer({ post });
+    await productionWeb.bindCollectionControls(fetcher, doc);
+    await checkAll(nodes);
+    await nodes['consent-submit'].click();
+    assert.match(nodes['consent-message'].textContent, pattern, JSON.stringify(post));
+    assert.equal(nodes['consent-panel'].hidden, false);
+    assert.equal(nodes['consent-submit'].disabled, false, '체크가 남아 있으면 다시 누를 수 있다');
+    assert.deepEqual(dataCalls(calls), [], '동의가 기록되지 않으면 도감을 읽지 않는다');
+  }
+  // 네트워크 오류도 같다.
+  const offline = consentDocument();
+  const online = consentServer();
+  const failing = async (url, options) => {
+    if (options?.method === 'POST') throw new Error('offline');
+    return online.fetcher(url, options);
+  };
+  await productionWeb.bindCollectionControls(failing, offline.doc);
+  await checkAll(offline.nodes);
+  await offline.nodes['consent-submit'].click();
+  assert.match(offline.nodes['consent-message'].textContent, /기록하지 못했어요/);
+  assert.equal(offline.nodes['consent-panel'].hidden, false);
+  assert.equal(offline.nodes['consent-submit'].disabled, false);
+  assert.deepEqual(dataCalls(online.calls), []);
+});
+
+test('웹 동의: 로그인이 끝난 상태에서 기록하면 다시 로그인을 안내하고, 연달아 눌러도 한 번만 보낸다', async () => {
+  const { nodes, doc } = consentDocument();
+  const { fetcher, calls, state } = consentServer({ post: { ok: false, status: 401, body: { code: 'WEB_SESSION_INVALID' } } });
+  await productionWeb.bindCollectionControls(fetcher, doc);
+  await checkAll(nodes);
+  state.status = { ok: false, status: 401, body: { code: 'WEB_SESSION_INVALID' } };
+  await nodes['consent-submit'].click();
+  assert.equal(nodes['collection-login'].hidden, false);
+  assert.equal(nodes['consent-panel'].hidden, true);
+
+  const second = consentDocument();
+  const held = consentServer();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const slow = async (url, options) => {
+    if (options?.method === 'POST') await gate;
+    return held.fetcher(url, options);
+  };
+  await productionWeb.bindCollectionControls(slow, second.doc);
+  await checkAll(second.nodes);
+  const first = second.nodes['consent-submit'].click();
+  const again = second.nodes['consent-submit'].click();
+  release();
+  await Promise.all([first, again]);
+  assert.equal(held.calls.filter((call) => call.method === 'POST').length, 1);
+  assert.equal(calls.filter((call) => call.method === 'POST').length, 1);
+});
+
+test('웹 동의: 화면은 폼 없이 필수 세 개·안내 네 가지·약관 링크를 접근 가능한 마크업으로 갖는다', () => {
+  assert.doesNotMatch(html, /<form\b/);
+  const panel = html.slice(html.indexOf('<section id="consent-panel"'), html.indexOf('<div id="collection-content"'));
+  assert.match(panel, /aria-labelledby="consent-title"[^>]* hidden>/);
+  // 체크박스는 라벨 안에 있어 글자를 눌러도 켜지고, 스크린리더가 이름을 읽는다.
+  const labels = [...panel.matchAll(/<label class="consent-check"><input type="checkbox" id="(consent-[a-z]+)"><span>([^<]+)<\/span><\/label>/g)];
+  assert.deepEqual(labels.map((m) => [m[1], m[2]]), [
+    ['consent-age', '[필수] 만 14세 이상입니다.'],
+    ['consent-terms', '[필수] 이용약관에 동의합니다.'],
+    ['consent-privacy', '[필수] 개인정보 수집·이용에 동의합니다.'],
+  ]);
+  assert.equal((panel.match(/<input type="checkbox"/g) ?? []).length, 3);
+  assert.doesNotMatch(panel, /\[선택\]|마케팅|광고/);
+  assert.match(panel, /선택 동의는 없어요/);
+  assert.match(panel, /href="\/terms" target="_blank" rel="noopener">이용약관 보기</);
+  assert.match(panel, /href="\/privacy" target="_blank" rel="noopener">개인정보 처리방침 보기</);
+  assert.match(panel, /<button id="consent-submit" class="consent-submit" type="button" disabled aria-describedby="consent-message">동의하고 시작<\/button>/);
+  assert.match(panel, /<p id="consent-message" class="consent-message" role="status" aria-live="polite"><\/p>/);
+  assert.match(css, /\.consent-check \{[^}]*min-height: 48px/);
+  assert.match(css, /\.consent-link \{[^}]*min-height: 48px/);
+  // 푸터의 세 링크
+  const footer = html.slice(html.indexOf('<footer'));
+  for (const target of ['/terms', '/privacy', '/account-deletion']) assert.match(footer, new RegExp(`href="${target}"`), target);
+  // CSP는 그대로다: 스크립트·스타일은 같은 출처뿐이고 폼 전송은 없다.
+  assert.match(html, /form-action 'none'/);
+  assert.doesNotMatch(html, /unsafe-inline|unsafe-eval/);
+});
+
+test('웹 동의: 안내 네 가지와 버전이 앱·서버·공개 페이지와 같다', () => {
+  const mobileCopy = readFileSync(join(repo, 'apps/mobile/src/privacy/consent-copy.ts'), 'utf8');
+  const mobileNotice = [...mobileCopy.matchAll(/title: '([^']+)',\s*body:\s*'([^']+)'/g)].map((m) => [m[1], m[2]]);
+  assert.equal(mobileNotice.length, 4);
+  const webNotice = [...html.matchAll(/<div><dt>([^<]+)<\/dt><dd>([^<]+)<\/dd><\/div>/g)].map((m) => [m[1], m[2]]);
+  assert.deepEqual(webNotice, mobileNotice, '앱과 웹의 개인정보 수집·이용 안내 문구가 같아야 한다');
+  const apiConsent = readFileSync(join(repo, 'apps/api/src/account-consent.ts'), 'utf8');
+  const serverTerms = apiConsent.match(/CURRENT_TERMS_VERSION = '([^']+)'/)?.[1];
+  const serverPrivacy = apiConsent.match(/CURRENT_PRIVACY_VERSION = '([^']+)'/)?.[1];
+  assert.equal(script.match(/CONSENT_TERMS_VERSION = '([^']+)'/)?.[1], serverTerms);
+  assert.equal(script.match(/CONSENT_PRIVACY_VERSION = '([^']+)'/)?.[1], serverPrivacy);
+  assert.ok(readFileSync(join(repo, 'docs/terms.html'), 'utf8').includes(serverTerms));
 });

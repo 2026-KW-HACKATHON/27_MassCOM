@@ -3,12 +3,13 @@ import { AppKit, AppKitProvider, useAppKitTheme } from '@reown/appkit-react-nati
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router/stack';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthSessionProvider, useAuthSession } from '@/auth/auth-provider';
 import { AuthRequiredScreen } from '@/screens/auth-required';
+import { ConsentScreen } from '@/screens/consent';
 import { publicApiConfig } from '@/config/public-api-runtime';
 import { hasPendingFriendLink } from '@/friends/pending-friend-link';
 import { consumeMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, type ShowcaseRoleState } from '@/navigation/showcase-entry';
@@ -66,6 +67,9 @@ function AuthenticatedRoot() {
   const auth = useAuthSession();
   const themeMode = useColorScheme() === 'dark' ? 'dark' : 'light';
   const [entry, setEntry] = useState<ShowcaseRoleState>({});
+  // 이 실행에서 서버가 "이미 동의했다"고 답한 계정. 기기에는 저장하지 않고 실행마다 서버에 다시 묻는다(D-056).
+  const [consentedAccountId, setConsentedAccountId] = useState<string>();
+  const acceptConsent = useCallback(() => setConsentedAccountId(auth.accountId), [auth.accountId]);
   const activeEntry = reconcileShowcaseAccount(entry, auth.accountId);
   if (activeEntry !== entry) {
     setEntry(activeEntry);
@@ -92,6 +96,21 @@ function AuthenticatedRoot() {
           ? () => setEntry({ accountId: auth.accountId }) : undefined}
       />
     );
+  }
+
+  // 첫 로그인 동의(운영·시연 공통, Issue #253): 서버가 required라고 하면 점주 화면과 메인 탭보다 먼저 전체 화면으로 묻는다.
+  if (
+    auth.state.status === 'signedIn' && auth.accountId && auth.credential &&
+    publicApiConfig.available && consentedAccountId !== auth.accountId
+  ) {
+    return <ConsentScreen
+      key={auth.accountId}
+      apiUrl={publicApiConfig.apiUrl}
+      credential={auth.credential}
+      onAccepted={acceptConsent}
+      onLogout={auth.logout}
+      onSessionInvalid={auth.invalidateSession}
+    />;
   }
 
   if (destination === 'merchant' && auth.accountId && auth.credential) {

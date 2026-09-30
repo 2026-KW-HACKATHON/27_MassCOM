@@ -48,6 +48,34 @@
             <button id="collection-retry" class="collection-action" type="button" hidden>도감 다시 확인</button>
             <button id="collection-logout" class="collection-action secondary" type="button" hidden>로그아웃</button>
           </div>
+          <section id="consent-panel" class="consent-panel" aria-labelledby="consent-title" hidden>
+            <h3 id="consent-title">이용을 시작하기 전에 확인해 주세요</h3>
+            <p class="consent-intro">월계 마스코트를 쓰려면 아래 세 가지에 모두 동의해야 해요. 선택 동의는 없어요.</p>
+            <div class="consent-notice">
+              <h4>개인정보 수집·이용 안내</h4>
+              <dl>
+                <div><dt>수집·이용 목적</dt><dd>음식점 탐색, 방문 인증과 보상 지급, 로그인 유지, 부정 이용 방지, 계정 삭제 처리</dd></div>
+                <div><dt>수집 항목</dt><dd>Google 계정 식별자(이메일·이름은 저장하지 않아요), 방문·보상·도감 기록, 로그인 세션. 지갑을 연결하면 공개 지갑 주소, 친구 기능을 쓰면 별명·친구 관계</dd></div>
+                <div><dt>보유 기간</dt><dd>계정을 삭제할 때까지 보관해요. 삭제 요청을 처리하면 지우거나 알아볼 수 없게 바꿔요. 세션·삭제 접수 기록·감사 기록 등 세부 기간은 개인정보 처리방침에서 확인할 수 있어요.</dd></div>
+                <div><dt>동의를 거부할 권리와 불이익</dt><dd>동의하지 않을 수 있어요. 동의하지 않으면 로그인이 필요한 방문 인증·도감·보상을 쓸 수 없어요. 언제든 로그아웃하거나 동의 없이 나갈 수 있어요.</dd></div>
+              </dl>
+            </div>
+            <div class="consent-items">
+              <div class="consent-item">
+                <label class="consent-check"><input type="checkbox" id="consent-age"><span>[필수] 만 14세 이상입니다.</span></label>
+              </div>
+              <div class="consent-item">
+                <label class="consent-check"><input type="checkbox" id="consent-terms"><span>[필수] 이용약관에 동의합니다.</span></label>
+                <a class="consent-link" href="/terms" target="_blank" rel="noopener">이용약관 보기</a>
+              </div>
+              <div class="consent-item">
+                <label class="consent-check"><input type="checkbox" id="consent-privacy"><span>[필수] 개인정보 수집·이용에 동의합니다.</span></label>
+                <a class="consent-link" href="/privacy" target="_blank" rel="noopener">개인정보 처리방침 보기</a>
+              </div>
+            </div>
+            <p id="consent-message" class="consent-message" role="status" aria-live="polite"></p>
+            <button id="consent-submit" class="consent-submit" type="button" disabled aria-describedby="consent-message">동의하고 시작</button>
+          </section>
           <div id="collection-content" class="collection-content" hidden>
             <section class="badge-section" aria-labelledby="badges-title">
               <h3 id="badges-title">탐험 메달과 보상 상자</h3>
@@ -86,6 +114,11 @@
 
     <footer class="site-footer">
       <p>월계 마스코트 운영 서비스 · 음식점은 공개 정보이며 내 도감은 본인 로그인 후에만 표시합니다.</p>
+      <nav class="footer-links" aria-label="약관과 개인정보">
+        <a href="/terms">이용약관</a>
+        <a href="/privacy">개인정보 처리방침</a>
+        <a href="/account-deletion">계정 삭제 안내</a>
+      </nav>
     </footer>
   </body>
 </html>
