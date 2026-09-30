@@ -34,9 +34,10 @@
 - `finalize` 트랜잭션 안에서 `nft_assets`를 넣은 직후 스냅샷을 만든다. 같은 트랜잭션이라 `FINALIZED`인데 메타데이터가 없는 순간이 없고, 스냅샷이 실패하면 확정도 되돌려져 다음 실행이 다시 한다.
 - 이미 확정된 작업을 다시 확정하는 경로(`findExistingAsset` 뒤 조기 반환)도 같은 스냅샷 함수를 부른다. 스냅샷 함수는 행이 이미 있으면 아무것도 읽거나 쓰지 않는다(`INSERT … ON CONFLICT DO NOTHING`과 사전 확인). 그래서 재확정은 내용을 바꾸지 않는다.
 - 새 표(0034):
-  - `nft_token_metadata`: `nft_asset_id uuid PK → nft_assets`, `nft_series_id text → nft_series`, `token_id numeric(78,0)`, `metadata_json text`(유효한 JSON 객체 CHECK), `image_sha256 text NULL → nft_metadata_images`, `created_at`. `UNIQUE (nft_series_id, token_id)`.
+  - `nft_token_metadata`: `nft_asset_id uuid PK → nft_assets`, `nft_series_id text → nft_series`, `token_id numeric(78,0)`, `metadata_json text`(유효한 JSON 객체 CHECK), `image_sha256 text NULL`(형식 CHECK만, 참조 제약 없음 — 아래 그림 내리기 때문), `created_at`. `UNIQUE (nft_series_id, token_id)`.
   - `nft_metadata_images`: `sha256 text PK`(소문자 hex 64), `image bytea`(비어 있지 않음), `created_at`. 스냅샷 때 적용된 가게 그림 바이트를 복사해 둔다. 가게가 그림을 바꾸거나 되돌려도 이 행은 남는다.
-  - 두 표 모두 `UPDATE`·`DELETE`를 막는 행 트리거(`nft_metadata_immutable()`)를 둔다. 한 번 쓴 토큰 메타데이터와 그림은 바뀌지 않는다(`TRUNCATE`는 행 트리거를 타지 않아 시험 초기화는 그대로 된다).
+  - 행 트리거(`nft_metadata_immutable()`)가 `nft_token_metadata`의 `UPDATE`·`DELETE`와 `nft_metadata_images`의 `UPDATE`를 막는다. 한 번 쓴 토큰 메타데이터와 그림 내용은 바뀌지 않는다(`TRUNCATE`는 행 트리거를 타지 않아 시험 초기화는 그대로 된다).
+  - **그림 내리기:** 신고·정책 문제로 가게 그림을 내려야 할 때(기존 `merchant_art` 운영 SQL과 같은 경우) 운영자는 `nft_metadata_images`의 그 sha256 행도 지운다. 그 그림 주소는 404가 되고 메타데이터 JSON은 그대로 남는다. `merchant_art`를 남긴 채 그림 행만 지우면 다음 스냅샷이 다시 복사하므로 둘을 함께 지운다. 메타데이터 문장 자체를 지우는 경로는 두지 않는다(가게 이름·동네·업종은 관리자가 검사한 값이다).
 - `metadata_json`은 **응답 바이트 그대로의 text**다(jsonb는 키 순서를 바꾸므로 쓰지 않는다). API는 저장된 문자열을 그대로 보낸다.
 
 ### 3.3 생성기(`apps/worker/src/nft-metadata.ts`, 순수 함수)

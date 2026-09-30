@@ -186,6 +186,11 @@ test('공개 경로는 확정 뒤 고정된 메타데이터·그림만 주고 �
     assert.equal(missing.status, 404, path);
     assert.equal(missing.headers.get('cache-control'), 'no-store', path);
   }
+  // 신고된 그림은 운영자가 그림 행만 내린다: 그림 주소는 404, 메타데이터는 그대로. 메타데이터 행은 지울 수 없다.
+  await pool.query('DELETE FROM nft_metadata_images WHERE sha256 = $1', [sha]);
+  assert.equal((await fetch(`${url}/nft-metadata/images/${sha}.webp`)).status, 404);
+  assert.equal(await (await fetch(`${url}/nft-metadata/series-meta-3/9.json`)).text(), json);
+  await assert.rejects(pool.query('DELETE FROM nft_token_metadata'), /immutable/);
   // 같은 시리즈·토큰의 두 번째 스냅샷은 DB가 막는다.
   await assert.rejects(pool.query(`INSERT INTO nft_token_metadata (nft_asset_id, nft_series_id, token_id, metadata_json)
     VALUES ('80000000-0000-4000-8000-000000000254', 'series-meta-3', 9, '{}')`), /duplicate key/);

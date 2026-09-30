@@ -24,6 +24,7 @@ ALTER TABLE nft_series
   CHECK (id ~ '^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$' AND id <> 'base-sepolia-proof') NOT VALID;
 
 -- 스냅샷 때 복사한 가게 그림. 파일 이름이 내용의 sha256이라 가게가 그림을 바꾸거나 되돌려도 이미 발행한 토큰의 그림은 남는다.
+-- 내용은 바꿀 수 없고(UPDATE 거절), 신고·정책 문제로 운영자가 내려야 할 때만 행을 지운다(그 주소는 404가 된다).
 CREATE TABLE nft_metadata_images (
   sha256 text PRIMARY KEY CHECK (sha256 ~ '^[0-9a-f]{64}$'),
   image bytea NOT NULL CHECK (octet_length(image) > 0),
@@ -36,12 +37,13 @@ CREATE TABLE nft_token_metadata (
   nft_series_id text NOT NULL REFERENCES nft_series(id),
   token_id numeric(78, 0) NOT NULL CHECK (token_id >= 0),
   metadata_json text NOT NULL CHECK (jsonb_typeof(metadata_json::jsonb) = 'object'),
-  image_sha256 text REFERENCES nft_metadata_images(sha256),
+  -- 그림 행은 운영자가 내릴 수 있어 참조 제약을 두지 않는다(메타데이터는 그대로, 그림 주소만 404).
+  image_sha256 text CHECK (image_sha256 IS NULL OR image_sha256 ~ '^[0-9a-f]{64}$'),
   created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (nft_series_id, token_id)
 );
 
--- 한 번 쓴 메타데이터와 그림은 바꾸거나 지우지 않는다. TRUNCATE는 행 트리거를 타지 않는다(시험 초기화용).
+-- 한 번 쓴 메타데이터는 바꾸거나 지우지 않고, 그림은 바꾸지 않는다. TRUNCATE는 행 트리거를 타지 않는다(시험 초기화용).
 CREATE FUNCTION nft_metadata_immutable() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -54,5 +56,5 @@ CREATE TRIGGER nft_token_metadata_immutable
   FOR EACH ROW EXECUTE FUNCTION nft_metadata_immutable();
 
 CREATE TRIGGER nft_metadata_images_immutable
-  BEFORE UPDATE OR DELETE ON nft_metadata_images
+  BEFORE UPDATE ON nft_metadata_images
   FOR EACH ROW EXECUTE FUNCTION nft_metadata_immutable();

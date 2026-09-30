@@ -1260,7 +1260,9 @@ test('#254 가게 정보·그림이 바뀌고 확정을 다시 해도 이미 고
   await assert.rejects(pool.query(`UPDATE nft_token_metadata SET metadata_json = '{}'`), /immutable/);
   await assert.rejects(pool.query('DELETE FROM nft_token_metadata'), /immutable/);
   await assert.rejects(pool.query(`UPDATE nft_metadata_images SET image = '\\x00'::bytea`), /immutable/);
-  await assert.rejects(pool.query('DELETE FROM nft_metadata_images WHERE sha256 = $1', [sha]), /immutable/);
+  assert.deepEqual(await savedMetadata(pool), [original]);
+  // 신고된 그림은 운영자가 그림 행만 내릴 수 있고(주소는 404), 메타데이터는 그대로 남는다.
+  await pool.query('DELETE FROM nft_metadata_images WHERE sha256 = $1', [sha]);
   assert.deepEqual(await savedMetadata(pool), [original]);
 });
 
