@@ -39,7 +39,17 @@ STAFF 적격 해시를 삭제해도 이미 활성화된 점주 권한은 사라�
 
 ## 보관 기간 정리 작업과 로그 순환 (Issue #253, D-056)
 
-시연 스택도 운영과 같은 기간을 지킨다. [`host-jobs/`](host-jobs/)의 `masscom-retention.sh`(기본값: compose 프로젝트 `masscom-showcase`, 서비스 `showcase-api`, 백업 폴더 `/opt/masscom-showcase/backups`)가 하루 한 번(`masscom-showcase-retention.timer`, 19:35 UTC=04:35 KST) 시연 API 컨테이너 안에서 `node dist/postgres/retention-command.js run`을 실행하고(`DATABASE_URL`·`PGPASSWORD`는 컨테이너에 이미 있다) 30일 지난 `*.dump`·`*.dump.*` 백업(예: `pre-<커밋>-<날짜>.dump`)만 지운다. **자동으로 설치되지 않는다.** 서버에서 소유자가 한 번 실행한다(이 저장소 작업은 실행하지 않았다, `NOT_RUN`): `sudo bash /opt/masscom-showcase/releases/<커밋>/infra/showcase-host/host-jobs/install.sh`(그 release에 이 폴더가 들어 있어야 한다). 설치 뒤 `sudo systemctl start masscom-showcase-retention.service`로 한 번 돌려 `journalctl -u masscom-showcase-retention.service`에서 개수를 확인한다. `compose.yml`의 `postgres`·`showcase-api`에 `json-file` 10 MB × 3개(용량 기준)가 들어갔고 컨테이너를 다시 만들 때 적용된다. 시연 API 교체 절차가 `up -d`로 다시 만들 때 적용되며 PostgreSQL은 소유자가 정한 때 다시 만들어야 한다. 시험은 `bash tests/ops/host_retention_job_test.sh`(가짜 docker), `node --test tests/ops/compose_log_rotation_test.mjs`.
+시연 스택도 운영과 같은 기간을 지킨다. **시연에는 배포 스크립트가 없어 시연 API를 새 릴리스로 교체할 때마다 소유자가 아래 절차를 손으로 한다.** 하지 않으면 시연 서버에서는 처리방침의 "서버의 정리 작업"·"DB 오류 로그" 문장이 사실이 아니다.
+
+[`host-jobs/`](host-jobs/)의 `masscom-retention.sh`(기본값: compose 프로젝트 `masscom-showcase`, 서비스 `showcase-api`, 백업 폴더 `/opt/masscom-showcase/backups`)가 하루 한 번(`masscom-showcase-retention.timer`, 19:35 UTC=04:35 KST) 시연 API 컨테이너 안에서 `node dist/postgres/retention-command.js run`을 실행하고(`DATABASE_URL`·`PGPASSWORD`는 컨테이너에 이미 있다) 30일 지난 `*.dump`·`*.dump.*` 백업(예: `pre-<커밋>-<날짜>.dump`)만 `find -delete` 한 명령으로 지운다. 유닛은 `ProtectSystem=strict`·`ReadWritePaths=/opt/masscom-showcase/backups` 등으로 권한을 좁혔다. 30일이 지난 백업은 다음 날 정리 때 삭제되므로 30일 넘게 교체가 없으면 남는 백업이 없다.
+
+**시연 API를 교체할 때마다(소유자, 서버에서):**
+
+1. 정리 작업 설치·갱신(멱등): `sudo bash /opt/masscom-showcase/releases/<커밋>/infra/showcase-host/host-jobs/install.sh`(그 release에 이 폴더가 들어 있어야 한다). 끝에서 `systemctl is-enabled masscom-showcase-retention.timer`가 `enabled`가 아니면 실패한다.
+2. **확인(읽기 전용):** `sudo bash /opt/masscom-showcase/releases/<커밋>/infra/showcase-host/host-jobs/install.sh --verify`가 `verified: masscom-showcase-retention.timer is enabled and matches this release`를 출력해야 한다. 첫 설치라면 `sudo systemctl start masscom-showcase-retention.service`로 한 번 돌려 `journalctl -u masscom-showcase-retention.service`에서 단계별 개수를 본다(미리 `report`: `docker compose … exec -T showcase-api node dist/postgres/retention-command.js report`).
+3. **PostgreSQL 로그 설정 적용(한 번, 짧은 DB 재시작):** `compose.yml`의 `postgres`에는 `json-file` 10 MB × 3개와 `command: ["postgres", "-c", "log_error_verbosity=terse", "-c", "log_min_error_statement=panic"]`이 들어 있다. 실행 중인 컨테이너는 다시 만들어야 적용된다. 시연 DB를 백업한 뒤(교체 절차의 `pre-<커밋>-<날짜>.dump`) 시연 Compose를 기동할 때 쓴 것과 같은 `-f`·`--env-file` 인자로 `docker compose … up -d --no-deps --wait postgres`를 실행하고, 확인한다: `docker inspect --format '{{json .HostConfig.LogConfig.Config}} {{json .Config.Cmd}}' <시연 postgres 컨테이너>`에 `"max-size":"10m"`·`"max-file":"3"`·`log_error_verbosity=terse`·`log_min_error_statement=panic`이 모두 있고 `docker compose … exec -T postgres psql -U masscom_showcase -d masscom_showcase -Atc 'SHOW log_min_error_statement'`가 `panic`을 출력해야 한다. 이미 맞으면 다시 만들지 않는다. `showcase-api` 컨테이너의 `json-file` 설정은 시연 API를 `up -d`로 교체할 때 적용된다.
+
+시험은 `bash tests/ops/host_retention_job_test.sh`(가짜 docker), `node --test tests/ops/compose_log_rotation_test.mjs`. 서버 설치·확인은 `NOT_RUN`이다.
 
 ## 계정 삭제 요청 처리 (D-052, Issue #194)
 
