@@ -1,0 +1,82 @@
+{
+  "observedAt": "2026-10-01 KST",
+  "serverClock": "2026-09-30 about 19:xx-20:xx UTC (2026-10-01 about 04:xx-05:xx KST)",
+  "sourceCommit": "7bcfef9fa52842f4a9a5a089a64293f6cd26df92",
+  "previousCommits": {
+    "operatingProductionBefore": "bdb0301528377c7c7ec8659eb5db9016f8a745d4",
+    "showcaseBefore": "1e6bb37f255b152e3f31a12be3a4ef8d896700f4"
+  },
+  "pullRequests": [257, 275, 276],
+  "issues": [252, 277],
+  "repositoryVisibility": "PUBLIC",
+  "webOnlyDeployEarlier": {
+    "sourceCommit": "bdb0301528377c7c7ec8659eb5db9016f8a745d4",
+    "content": "PR #276 (docs) and PR #275 (scripts); no runtime or schema change",
+    "backup": "PASS: manual /opt/masscom/backups/pre-bdb0301-20261001.dump, 135830 bytes, mode 600, 283 entries; actual restore NOT_RUN",
+    "deployCommandResult": "scripts/deploy-lightsail.sh --deploy exit 0",
+    "openPage": "PASS: the live /open (apex and www) linked operating test.4 and showcase Preview 13, and the served open.html SHA-256 prefix 491f8f2461b768c0 equaled the repository file at that commit",
+    "note": "that /open is the page before this change; docs/open.html in Issue #277 links test.5 and Preview 14 and is live only after its own web deploy"
+  },
+  "ci": {
+    "pullRequest": 257,
+    "run": "36761017176",
+    "attempt1": "hung for more than 67 minutes at the step `시연 웹 라이트·다크 실제 브라우저 검사` (the same test passes locally in about 5 seconds); force-cancelled",
+    "attempt2": "re-run: success",
+    "cause": "NOT_RUN; the cause of the hang was not investigated and is not recorded"
+  },
+  "mergedPullRequest": {
+    "pullRequest": 257,
+    "title": "photo collectible creator (a teammate pull request taken over with owner approval)",
+    "mergeCommit": "7bcfef9fa52842f4a9a5a089a64293f6cd26df92"
+  },
+  "operating": {
+    "deploy": "production deploy of 7bcfef9 from bdb0301; the exact deploy command and its exit code for this deploy are not recorded in this file",
+    "backup": "PASS: manual /opt/masscom/backups/pre-7bcfef9-20261001.dump, 135830 bytes, mode 600, 283 entries; actual restore NOT_RUN",
+    "compatibilityEvidence": "migrations 0034 and 0035 add tables and triggers only; the old API stays compatible with them",
+    "migration": "PASS: `database migrations applied`; schema_migrations count 36; 0034 and 0035 are now applied after 0036 (the runner checks file names)",
+    "after": {
+      "images": "masscom-api:7bcfef9fa528 and production-web healthy; caddy recreated",
+      "retentionJob": "PASS: the host job's first run succeeded; admin_audit_deleted_targets 0; BACKUPS_DELETED 0"
+    }
+  },
+  "showcase": {
+    "deploy": "showcase deploy of 7bcfef9 from 1e6bb37",
+    "backup": "a backup was taken; its size was not recorded",
+    "migration": "PASS: migrations applied; schema_migrations count 36",
+    "after": {
+      "apiImage": "masscom-showcase-api:7bcfef9, healthy",
+      "seed": "SHOWCASE_HOST_SEEDED"
+    }
+  },
+  "externalHttps": {
+    "operatingApiHealth": "https://api.masscom.kr/health 200 {\"status\":\"ok\"}",
+    "operatingWeb": "https://www.masscom.kr/app/ 200",
+    "merchantWeb": "https://www.masscom.kr/merchant/ 200",
+    "openPage": "/open 200",
+    "collectibleWithoutLogin": "https://www.masscom.kr/api/web/collectibles/x without login 401"
+  },
+  "relatedRecords": {
+    "realChromiumWebmRecordings": "passed the server audio checks; recorded in docs/TEST_STATUS.md from PR #257, not part of this deploy's own checks"
+  },
+  "deviation": {
+    "decision": "D-061 said to publish the APKs first and deploy the API and web afterwards",
+    "whatHappened": "On 2026-10-01 the main thread deliberately built both APKs first, then deployed production and showcase, verified the new consent screen on the phone against the new server, and only then published operating test.5 and showcase Preview 14",
+    "reason": "the new app's consent screen can only be verified against a server that already requires privacy-2026-10-01",
+    "window": "from the end of the production deploy to the release publication (about 20:20 UTC), roughly 15 to 20 minutes, during which accounts on test.4 and on Preview 12 and 13 that had not consented saw the update-the-app gate; only team accounts use these builds"
+  },
+  "backupNote": "the two manual backups pre-bdb0301-20261001.dump and pre-7bcfef9-20261001.dump were both 135830 bytes with 283 entries; both values were observed directly (not copied), and there was no schema or data change between the two",
+  "consequences": "the API now requires the privacy version privacy-2026-10-01, so operating test.4 and showcase Preview 12 and 13 show the update-the-app gate for accounts that have not consented to it (D-059, D-061); operating test.5 and showcase Preview 14 (docs/evidence/operating-android-test5-2026-10-01.json, docs/evidence/showcase-preview14-release-2026-10-01.json) carry the consent screen for the new version",
+  "notRun": [
+    "database restore from any backup",
+    "the size of the showcase backup (not recorded)",
+    "the exact command and exit code of the operating 7bcfef9 deploy (not recorded in this file)",
+    "the content served at /open after the 7bcfef9 deploy (only HTTP 200 was recorded; the page content was checked once, after the earlier bdb0301 deploy)",
+    "the main CI run id for 7bcfef9 is not recorded in this file",
+    "a rerun or reinstall of the showcase retention job in this deploy",
+    "the cause of the CI hang at `시연 웹 라이트·다크 실제 브라우저 검사`",
+    "receiving and playing a photo collectible on a device",
+    "publishing a real photo or recording from the merchant web creator",
+    "wallet, QR, visit and NFT flows",
+    "a real Google login through the consent screen and consent submission"
+  ]
+}

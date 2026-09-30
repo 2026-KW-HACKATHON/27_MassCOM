@@ -1,0 +1,41 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-10-01 KST",
+  "sourceCommit": "7bcfef9fa52842f4a9a5a089a64293f6cd26df92",
+  "pullRequests": [257],
+  "issues": [252, 273, 277],
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.14",
+  "repositoryVisibility": "PUBLIC",
+  "releaseKind": "prerelease",
+  "releaseTarget": "7bcfef9",
+  "artifact": {
+    "name": "MassCOM-showcase-android-7bcfef9.apk",
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "bytes": 158969412,
+    "sha256": "d3dbbb7237f1cf35115b2650b13dd08d23f6933d5cdd32785f3d8a326bfca5d8",
+    "provenanceBytes": 659,
+    "provenanceSha256": "3da1c0ce39308ace57c496a708fcb346ecbbfab5473541d9ecdc175a072e8a33",
+    "checksumsName": "SHA256SUMS.txt",
+    "checksumsBytes": 218,
+    "checksumsGithubDigest": "sha256:0a7119cad5e7b2891b911b08666882d4877fdacbda61f9dee6840a816372f995"
+  },
+  "checks": {
+    "embeddedApi": "PASS: the first real run of Issue #273's build check (CI=0 and the embedded-API check); the APK and the AAB both embed https://demo-api.masscom.kr and not https://api.masscom.kr; the Metro cache was also cleared before building; the provenance file records embeddedApi PASS",
+    "recordAudioPermission": "PASS: RECORD_AUDIO is absent",
+    "githubDigestVsLocalSha256": "PASS: the GitHub asset digests match the local SHA-256 values",
+    "anonymousDownload": "PASS: an anonymous download returned HTTPS 200 (recorded without naming the asset); the downloaded APK was not re-hashed",
+    "deviceInstall": "PASS: Samsung SM-S928N, install over Preview 13 returned Success",
+    "deviceExplore": "PASS: the logged-out explore screen shows the 3 virtual stores"
+  },
+  "consequences": "the showcase API requires privacy-2026-10-01 since the 7bcfef9 deploy (docs/evidence/deployment-7bcfef9-2026-10-01.json), so Preview 12 and 13 show the update-the-app gate for accounts that have not consented; ownerAction: log in again in the showcase app (the session was logged out by the rejected Preview 13 candidate earlier)",
+  "notRun": [
+    "consent submission and everything after it (logged-in flows) on Preview 14",
+    "receiving and playing a photo collectible on the device",
+    "the wallet connection and the mint consent v2 dialog",
+    "real QR, visit and NFT flows",
+    "TalkBack, dark mode and 200% font on this APK",
+    "a re-hash of the APK downloaded from GitHub (the GitHub digest and the local SHA-256 were compared, but the downloaded bytes were not re-hashed)",
+    "the consent screen and its button label on this showcase APK (not opened in this check)"
+  ],
+  "limitations": "Preview 14 denotes GitHub release order. This is a demo-only prerelease built from main 7bcfef9 (PR #257, photo collectible creator) on top of Preview 13 (1e6bb37). The showcase API it talks to runs 7bcfef9 (docs/evidence/deployment-7bcfef9-2026-10-01.json). The live /open page linked test.4 and Preview 13 after the earlier bdb0301 web deploy and links test.5 and Preview 14 only after the web deploy of the Issue #277 docs change. The three seeded showcase offers are demo examples, not partner-store benefits."
+}
