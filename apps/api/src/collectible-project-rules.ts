@@ -16,8 +16,10 @@ function object(value: unknown, keys: string[], optional: string[] = []): Record
   if (Object.keys(obj).some(key => !keys.includes(key) && !optional.includes(key)) || keys.some(key => !(key in obj))) invalid();
   return obj;
 }
+// JSON은 짝 없는 UTF-16 서로게이트("\ud800")를 그대로 실어 오지만 PostgreSQL jsonb는 이를 거부해 저장 때 500이 난다. 짝이 맞는 것(이모티콘)은 허용한다.
+const loneSurrogate = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
 function string(value: unknown, max: number, empty = false): asserts value is string {
-  if (typeof value !== 'string' || value.length > max || (!empty && !value.trim()) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)) invalid();
+  if (typeof value !== 'string' || value.length > max || (!empty && !value.trim()) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value) || loneSurrogate.test(value)) invalid();
 }
 function number(value: unknown, min: number, max: number, integer = false): asserts value is number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || (integer && !Number.isInteger(value))) invalid();

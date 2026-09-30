@@ -65,6 +65,8 @@ test('claim inserts capture explicit current grade once, never backfill, leave r
   const before = await claim('before-publish','before'); const beforeId = before.redeemed.grantedRewards[0]!.entitlementId;
   const raw = photoProject(); raw.rewardGrades = { '1': 'custom' };
   const draft = await projects.create({ ...input,project:raw });
+  // campaign-b(다른 점포)에 campaign-a와 같은 목표를 주어, 거절 이유가 목표 부족이 아니라 점포 불일치(merchant_id = $2)뿐임을 시험이 가르게 한다.
+  await pool.query(`INSERT INTO campaign_goals (campaign_id,target_visit_count,display_name) VALUES ('campaign-b',1,'첫 도장'),('campaign-b',3,'세 번째 도장'),('campaign-b',5,'다섯 번째 도장')`);
   await assert.rejects(projects.publish({ ...input,projectId:draft.id,expectedVersion:1,campaignId:'campaign-b' }), { code:'COLLECTIBLE_CAMPAIGN_UNAVAILABLE' });
   const published = await projects.publish({ ...input,projectId:draft.id,expectedVersion:1,campaignId:'campaign-a' });
   await assert.rejects(projects.getAcquired({accountId:'before-publish',entitlementId:beforeId}), {code:'COLLECTIBLE_NOT_FOUND'});
@@ -119,6 +121,33 @@ test('publication replacement waits for acquisition campaign lock; rollback leav
   client.release();
   assert.equal((await pool.query('SELECT 1 FROM collectible_acquisitions WHERE entitlement_id=$1',[inserted.rows[0]!.id])).rowCount,0);
   assert.equal((await pool.query('SELECT 1 FROM reward_entitlements WHERE id=$1',[inserted.rows[0]!.id])).rowCount,0);
+});
+
+// 위 시험은 시험 쪽이 직접 FOR KEY SHARE를 잡는다. 이 시험은 보상권 INSERT 트리거가 스스로 잡는 잠금만으로 발행 교체가 기다리는지 본다
+// (트리거에서 FOR KEY SHARE를 빼면 이 시험만 실패한다).
+test('publication replacement waits for the lock the claim-insert trigger itself takes, with the test locking nothing', async t => {
+  const { pool, projects, input, claim } = await setup(t);
+  const first = await projects.create({ ...input, project: photoProject() });
+  const old = await projects.publish({ ...input, projectId: first.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  const second = await projects.copy({ ...input, projectId: first.id, expectedVersion: 2 });
+  const visit = await claim('trigger-lock-source', 'source');
+  const client = await pool.connect();
+  let pending: Promise<unknown> | undefined;
+  let entitlementId = '';
+  try {
+    await client.query('BEGIN');
+    const inserted = await client.query<{ id: string }>(`INSERT INTO reward_entitlements
+      (id,customer_account_id,campaign_id,target_visit_count,source_visit_event_id,status,policy_version,earned_at,claim_expires_at)
+      VALUES (gen_random_uuid(),'trigger-lock-customer','campaign-a',1,$1,'GRANTED','same-policy',now(),now()+interval '90 days') RETURNING id`, [visit.redeemed.visit.visitEventId]);
+    entitlementId = inserted.rows[0]!.id;
+    assert.equal((await client.query('SELECT publication_id FROM collectible_acquisitions WHERE entitlement_id=$1', [entitlementId])).rows[0]!.publication_id, old.publicationId);
+    pending = projects.publish({ ...input, projectId: second.id, expectedVersion: 1, campaignId: 'campaign-a' });
+    pending.catch(() => undefined);
+    const early = await Promise.race([pending.then(() => 'finished'), new Promise(resolve => setTimeout(() => resolve('waiting'), 500))]);
+    assert.equal(early, 'waiting', 'the trigger lock must hold the replacement until the claim transaction ends');
+  } finally { await client.query('ROLLBACK'); client.release(); }
+  await pending;
+  assert.equal((await pool.query('SELECT 1 FROM collectible_acquisitions WHERE entitlement_id=$1', [entitlementId])).rowCount, 0);
 });
 
 test('account deletion clears authored private source and raw identities while other customers retain their immutable final assets', async t => {
@@ -432,6 +461,29 @@ test('account deletion waits for an in-flight claim on a linked campaign before 
       .requestDeletion({ accountId: 'owner-a', confirmation: 'DELETE MY ACCOUNT' });
     const early = await Promise.race([deletion.then(() => 'finished'), new Promise(resolve => setTimeout(() => resolve('waiting'), 500))]);
     assert.equal(early, 'waiting');
+    assert.equal((await client.query('SELECT 1 FROM campaign_collectible_publications')).rowCount, 1);
+  } finally { await client.query('ROLLBACK'); client.release(); }
+  await deletion;
+  assert.equal((await pool.query('SELECT 1 FROM campaign_collectible_publications')).rowCount, 0);
+});
+
+test('account deletion waits for the lock the claim-insert trigger itself takes, with the test locking nothing', async t => {
+  const { pool, projects, input, claim, accountLifecycle } = await setup(t);
+  const visit = await claim('deletion-lock-source', 'source');
+  const draft = await projects.create({ ...input, project: photoProject() });
+  await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  const client = await pool.connect();
+  let deletion: Promise<unknown> | undefined;
+  try {
+    await client.query('BEGIN');
+    await client.query(`INSERT INTO reward_entitlements
+      (id,customer_account_id,campaign_id,target_visit_count,source_visit_event_id,status,policy_version,earned_at,claim_expires_at)
+      VALUES (gen_random_uuid(),'deletion-lock-customer','campaign-a',1,$1,'GRANTED','same-policy',now(),now()+interval '90 days')`, [visit.redeemed.visit.visitEventId]);
+    deletion = new PostgresAccountDeletionService(pool, { hmacSecret: secret, policyVersion: 'test-v1', accountLifecycle })
+      .requestDeletion({ accountId: 'owner-a', confirmation: 'DELETE MY ACCOUNT' });
+    deletion.catch(() => undefined);
+    const early = await Promise.race([deletion.then(() => 'finished'), new Promise(resolve => setTimeout(() => resolve('waiting'), 500))]);
+    assert.equal(early, 'waiting', 'the trigger lock must hold the link removal until the claim transaction ends');
     assert.equal((await client.query('SELECT 1 FROM campaign_collectible_publications')).rowCount, 1);
   } finally { await client.query('ROLLBACK'); client.release(); }
   await deletion;

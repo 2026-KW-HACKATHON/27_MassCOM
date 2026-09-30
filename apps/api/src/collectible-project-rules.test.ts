@@ -314,3 +314,25 @@ test('JPEG stripping keeps only image segments and a thumbnail-free JFIF header'
   const minimalJfif = segment(0xe0, Buffer.concat([Buffer.from('JFIF\0', 'latin1'), Buffer.from([1, 2, 1, 0, 72, 0, 72, 0, 0])]));
   assert.deepEqual(Buffer.from(stripImageMetadata(url).split(',')[1]!, 'base64'), Buffer.concat([Buffer.from([255, 216]), minimalJfif, dqt, dht, dri, sof, scan]));
 });
+
+test('rejects lone UTF-16 surrogates in every string field but keeps valid pairs, so jsonb storage cannot 500', () => {
+  const lone = ['\ud800', 'a\udc00b', '\ud83d', '\ude00\ud83d'];
+  for (const text of lone) {
+    const named = photoProject(); named.name = `이름${text}`;
+    assert.throws(() => validateCollectibleProject(named), { code: 'COLLECTIBLE_INVALID_PROJECT' }, `name ${JSON.stringify(text)}`);
+    const greeting = photoProject(); greeting.greeting = text;
+    assert.throws(() => validateCollectibleProject(greeting), { code: 'COLLECTIBLE_INVALID_PROJECT' }, `greeting ${JSON.stringify(text)}`);
+    const theme = photoProject(); theme.theme.name = text;
+    assert.throws(() => validateCollectibleProject(theme), { code: 'COLLECTIBLE_INVALID_PROJECT' }, `theme ${JSON.stringify(text)}`);
+    const sticker = photoProject(); sticker.stickers = [{ id: 'emoji', kind: 'emoji', text: `☕${text}`, x: .5, y: .5, size: 40, rotation: 0, color: '#ffffff', order: 0 }];
+    assert.throws(() => validateCollectibleProject(sticker), { code: 'COLLECTIBLE_INVALID_PROJECT' }, `sticker ${JSON.stringify(text)}`);
+    const grade = photoProject(); grade.grades[0]!.name = text;
+    assert.throws(() => validateCollectibleProject(grade), { code: 'COLLECTIBLE_INVALID_PROJECT' }, `grade ${JSON.stringify(text)}`);
+  }
+  const pairs = photoProject(); pairs.name = '커피 ☕ 😀 가게 𝒜'; pairs.greeting = '어서 오세요 👋'; pairs.stickers = [{ id: 'emoji', kind: 'emoji', text: '😀', x: .5, y: .5, size: 40, rotation: 0, color: '#ffffff', order: 0 }];
+  const saved = validateCollectibleProject(pairs);
+  assert.equal(saved.name, '커피 ☕ 😀 가게 𝒜');
+  assert.equal(saved.stickers[0]!.text, '😀');
+  // 저장본은 jsonb가 받는 well-formed JSON이다.
+  assert.equal(JSON.stringify(saved).includes('\\ud8'), false);
+});
