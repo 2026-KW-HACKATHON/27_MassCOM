@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CollectibleProjectError } from './collectible-project.js';
-import { collectibleSnapshot, stripImageMetadata, validateCollectibleMedia, validateCollectibleProject } from './collectible-project-rules.js';
+import { collectibleSnapshot, normalizeMp3, stripImageMetadata, validateCollectibleMedia, validateCollectibleProject } from './collectible-project-rules.js';
 import { photoProject, tinyPng } from './collectible-project-test-support.js';
 
 test('empty draft and source photo round trip preserve original bytes; publish requires explicit mapped finals', () => {
@@ -31,7 +31,7 @@ test('rejects hostile external media, disguised SVG, invalid magic, oversize byt
 });
 
 test('accepts supported audio signatures and bounds recording duration/mime rather than trusting uploads', () => {
-  for (const [mime, magic] of [['audio/mpeg','494433'],['audio/ogg','4f676753'],['audio/webm','1a45dfa3']]) {
+  for (const [mime, magic] of [['audio/ogg','4f676753'],['audio/webm','1a45dfa3']]) {
     const project = photoProject(); const dataUrl = `data:${mime};base64,${Buffer.from(magic!,'hex').toString('base64')}`;
     project.audio = { dataUrl, mimeType: mime!, durationSeconds: 5 };
     assert.equal(validateCollectibleProject(project).audio?.dataUrl,dataUrl);
@@ -115,4 +115,47 @@ test('WebP extended dimensions are bounded and EXIF chunk flags are removed whil
   const final=Buffer.from(stripImageMetadata(url).split(',')[1]!,'base64');assert.equal(final.includes(Buffer.from('EXIF')),false);assert.equal(final[20],0);
   vp8x.writeUIntLE(5000,12,3);const huge=`data:image/webp;base64,${Buffer.concat([header,vp8x,exif]).toString('base64')}`;
   assert.throws(()=>validateCollectibleMedia(huge,'image',1024),{code:'COLLECTIBLE_INVALID_PROJECT'});
+});
+
+// MPEG-1 Layer III, 128 kbps, 44.1 kHz, no padding: 417-byte frames of 1152 samples.
+function mp3Frames(count: number): Buffer {
+  const frame = Buffer.alloc(417); frame.set([0xff, 0xfb, 0x90, 0x00]);
+  return Buffer.concat(Array.from({ length: count }, () => frame));
+}
+function id3v2(text: string): Buffer {
+  const frame = Buffer.concat([Buffer.from('TIT2'), Buffer.from([0, 0, 0, Buffer.byteLength(text) + 1, 0, 0, 3]), Buffer.from(text)]);
+  const size = frame.length;
+  return Buffer.concat([Buffer.from('ID3'), Buffer.from([4, 0, 0, (size >> 21) & 0x7f, (size >> 14) & 0x7f, (size >> 7) & 0x7f, size & 0x7f]), frame]);
+}
+const mp3Url = (bytes: Buffer) => `data:audio/mpeg;base64,${bytes.toString('base64')}`;
+
+test('MP3 upload is stored without ID3v2, ID3v1 or APE tags and with the length counted from its frames', () => {
+  const frames = mp3Frames(100);
+  const id3v1 = Buffer.alloc(128); id3v1.write('TAG사장님 메모', 'utf8');
+  const ape = Buffer.alloc(32); ape.write('APETAGEX'); ape.writeUInt32LE(2000, 8); ape.writeUInt32LE(32, 12);
+  const tagged = Buffer.concat([id3v2('사장님 이름 010-0000-0000'), frames, ape, id3v1]);
+  const normalized = normalizeMp3(tagged);
+  assert.deepEqual(normalized.bytes, frames);
+  assert.equal(normalized.durationSeconds, Math.round(100 * 1152 / 44100 * 100) / 100);
+  const project = photoProject(); project.audio = { dataUrl: mp3Url(tagged), mimeType: 'audio/mpeg', durationSeconds: 29 };
+  const saved = validateCollectibleProject(project);
+  assert.equal(saved.audio!.dataUrl, mp3Url(frames)); assert.equal(saved.audio!.durationSeconds, normalized.durationSeconds);
+  assert.equal(Buffer.from(saved.audio!.dataUrl.split(',')[1]!, 'base64').includes(Buffer.from('사장님')), false);
+  // A cut-off last frame is dropped rather than stored.
+  assert.deepEqual(normalizeMp3(Buffer.concat([frames, frames.subarray(0, 200)])).bytes, frames);
+});
+
+test('MP3 upload rejects an ID3 tag hiding HTML, junk between frames, reserved headers and audio longer than 30 seconds', () => {
+  const html = Buffer.from('<html><script>alert(1)</script></html>');
+  for (const bad of [
+    Buffer.concat([id3v2('title'), html]), Buffer.concat([Buffer.from('ID3'), html]), html,
+    Buffer.concat([mp3Frames(2), html, mp3Frames(2)]),
+    Buffer.from([0xff, 0xfb, 0xf0, 0x00, ...Buffer.alloc(413)]), // bitrate index 15 is reserved
+    Buffer.from([0xff, 0xfd, 0x90, 0x00, ...Buffer.alloc(413)]), // Layer II is not MP3
+  ]) {
+    const project = photoProject(); project.audio = { dataUrl: mp3Url(bad), mimeType: 'audio/mpeg', durationSeconds: 5 };
+    assert.throws(() => validateCollectibleProject(project), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  }
+  const long = photoProject(); long.audio = { dataUrl: mp3Url(mp3Frames(1250)), mimeType: 'audio/mpeg', durationSeconds: 5 };
+  assert.throws(() => validateCollectibleProject(long), { code: 'COLLECTIBLE_MEDIA_TOO_LARGE' });
 });

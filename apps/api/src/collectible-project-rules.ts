@@ -112,7 +112,17 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
   const motions = array(p.motion, 10).map(raw => object(raw,['id','type','gradeIds'])); uniqueIds(motions);
   for (const motion of motions) { id(motion.id); enumeration(motion.type,['still','rotate','shine','float','stamp','sparkle','pulse','confetti']); scope(motion.gradeIds); }
   string(p.greeting, 300, true);
-  if (p.audio !== null) { const audio = object(p.audio,['dataUrl','mimeType','durationSeconds']); const mime = validateCollectibleMedia(audio.dataUrl,'audio',mb); if (audio.mimeType !== mime) invalid(); number(audio.durationSeconds,0.1,30); }
+  let mp3: { dataUrl: string; durationSeconds: number } | undefined;
+  if (p.audio !== null) {
+    const audio = object(p.audio,['dataUrl','mimeType','durationSeconds']); const mime = validateCollectibleMedia(audio.dataUrl,'audio',mb);
+    if (audio.mimeType !== mime) invalid(); number(audio.durationSeconds,0.1,30);
+    // MP3 uploads: drop ID3/APE tags and keep only whole MPEG frames; the stored length comes from the frames, not the client.
+    // Browser recordings (WebM/Ogg) keep the client length, which is already bounded to 0.1–30 s above and by the 1 MiB cap.
+    if (mime === 'audio/mpeg' || mime === 'audio/mp3') {
+      const normalized = normalizeMp3(Buffer.from((audio.dataUrl as string).slice((audio.dataUrl as string).indexOf(',') + 1), 'base64'));
+      mp3 = { dataUrl: `data:${mime};base64,${normalized.bytes.toString('base64')}`, durationSeconds: normalized.durationSeconds };
+    }
+  }
   const story = object(p.story,['type','frames','cartoon','strength']); enumeration(story.type,['none','zoom','wide','follow','event']); number(story.cartoon,0,100); number(story.strength,0,100);
   for (const raw of array(story.frames, 5)) {
     const frame = object(raw,['dataUrl','width','height'],['previewDataUrl']); const mime=validateCollectibleMedia(frame.dataUrl,'image',512*1024); number(frame.width,1,4096,true); number(frame.height,1,4096,true);
@@ -141,7 +151,56 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
   for (const [goal, gradeId] of mappings) { if (!['1','3','5'].includes(goal) || !grades.some(g => g.id === gradeId && g.enabled === true)) invalid(); }
   const derived = p.derived as Record<string, unknown>;
   if (publish && (mappings.length === 0 || mappings.some(([, gradeId]) => !Object.hasOwn(derived, gradeId as string)))) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
-  return structuredClone(p) as CollectibleProject;
+  const result = structuredClone(p) as CollectibleProject;
+  if (mp3 && result.audio) { result.audio.dataUrl = mp3.dataUrl; result.audio.durationSeconds = mp3.durationSeconds; }
+  return result;
+}
+
+const mp3Bitrates = { mpeg1: [0,32,40,48,56,64,80,96,112,128,160,192,224,256,320], mpeg2: [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160] };
+const mp3SampleRates: Record<number, number[]> = { 3: [44100,48000,32000], 2: [22050,24000,16000], 0: [11025,12000,8000] };
+type Mp3Frame = { length: number; samples: number; sampleRate: number; version: number };
+
+// MPEG audio Layer III frame header (MPEG-1/2/2.5). Reserved version/layer/bitrate/sample-rate/emphasis values are rejected.
+function mp3Frame(bytes: Buffer, offset: number): Mp3Frame | undefined {
+  if (offset + 4 > bytes.length || bytes[offset] !== 0xff) return undefined;
+  const b1 = bytes[offset + 1]!, b2 = bytes[offset + 2]!, b3 = bytes[offset + 3]!;
+  const version = (b1 >> 3) & 3, layer = (b1 >> 1) & 3, bitrateIndex = b2 >> 4, rateIndex = (b2 >> 2) & 3;
+  if ((b1 & 0xe0) !== 0xe0 || version === 1 || layer !== 1 || bitrateIndex === 0 || bitrateIndex === 15 || rateIndex === 3 || (b3 & 3) === 2) return undefined;
+  const bitrate = (version === 3 ? mp3Bitrates.mpeg1 : mp3Bitrates.mpeg2)[bitrateIndex]! * 1000;
+  const sampleRate = mp3SampleRates[version]![rateIndex]!; const samples = version === 3 ? 1152 : 576;
+  return { length: Math.floor((samples / 8) * bitrate / sampleRate) + ((b2 >> 1) & 1), samples, sampleRate, version };
+}
+
+// Removes leading ID3v2 tags (syncsafe size, optional footer), a trailing ID3v1 "TAG" block and a trailing APEv2 tag, then
+// requires the rest to be consecutive Layer III frames with one version/sample rate. A cut-off last frame is dropped.
+// Anything else (HTML, a second container, junk between frames) is rejected. Returns the frames and their play length.
+export function normalizeMp3(bytes: Buffer): { bytes: Buffer; durationSeconds: number } {
+  let start = 0, end = bytes.length;
+  while (end - start >= 10 && bytes.toString('latin1', start, start + 3) === 'ID3') {
+    const size = bytes.subarray(start + 6, start + 10);
+    if (size.some(byte => byte & 0x80)) invalid();
+    start += 10 + ((size[0]! << 21) | (size[1]! << 14) | (size[2]! << 7) | size[3]!) + ((bytes[start + 5]! & 0x10) ? 10 : 0);
+    if (start > end) invalid();
+  }
+  if (end - start >= 128 && bytes.toString('latin1', end - 128, end - 125) === 'TAG') end -= 128;
+  if (end - start >= 32 && bytes.toString('latin1', end - 32, end - 24) === 'APETAGEX') {
+    const total = bytes.readUInt32LE(end - 20) + ((bytes.readUInt32LE(end - 12) & 0x80000000) ? 32 : 0);
+    if (total < 32 || total > end - start) invalid();
+    end -= total;
+  }
+  let offset = start, samples = 0; let first: Mp3Frame | undefined;
+  while (offset < end) {
+    const frame = mp3Frame(bytes.subarray(0, end), offset);
+    if (!frame || (first && (frame.version !== first.version || frame.sampleRate !== first.sampleRate))) invalid();
+    first ??= frame;
+    if (offset + frame.length > end) break;
+    offset += frame.length; samples += frame.samples;
+  }
+  if (!first || samples === 0) invalid();
+  const durationSeconds = Math.round((samples / first.sampleRate) * 100) / 100;
+  // Frame counts include encoder delay/padding that players trim, so allow half a second before calling it too long.
+  if (durationSeconds > 30.5) throw new CollectibleProjectError('COLLECTIBLE_MEDIA_TOO_LARGE');
+  return { bytes: Buffer.from(bytes.subarray(start, offset)), durationSeconds: Math.max(0.1, Math.min(30, durationSeconds)) };
 }
 
 export function collectibleSnapshot(project: CollectibleProject, projectId: string, publicationId: string, gradeId: string): CollectibleDetail {
