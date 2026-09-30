@@ -1,0 +1,45 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-10-01 KST",
+  "sourceCommit": "1e6bb37f255b152e3f31a12be3a4ef8d896700f4",
+  "pullRequests": [266, 267, 268, 269, 270, 272],
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.13",
+  "repositoryVisibility": "PUBLIC",
+  "releaseKind": "prerelease",
+  "releaseTarget": "1e6bb37",
+  "artifact": {
+    "name": "MassCOM-showcase-android-1e6bb37.apk",
+    "package": "kr.masscom.wolgye.demo",
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "bytes": 156665197,
+    "sha256": "fa87cf37a058f16ae34a49b770f1a5d528f63dfc76c2137148eae6dd545d5c45",
+    "provenanceBytes": 632,
+    "provenanceSha256": "5a84675d3badc2c5ea477c9e636acedfe047b0ed2883e788d7019894427b18d8",
+    "checksumsName": "SHA256SUMS.txt",
+    "checksumsBytes": 218,
+    "checksumsGithubDigest": "sha256:bbf7e294fc7c55737c14bfa303f9964185a04a558d36fa636485c54b2caae8f0",
+    "signingCertificateSha256": "cdb0dc37750c907eaa2f1b9eb172b0911f14b9c9f2dab78b481f1751d8ebf28a"
+  },
+  "checks": {
+    "buildChecks": "PASS: the build-time provenance file (632 bytes) records api, package, sourceMarker, signature and walletSurface all PASS",
+    "embeddedApi": "PASS: the JS bundle contains https://demo-api.masscom.kr and does not contain https://api.masscom.kr",
+    "githubDigestVsLocalSha256": "PASS: the GitHub asset digests match the local SHA-256 for all three assets (APK 156665197 bytes fa87cf37a058..., provenance 632 bytes 5a84675d3bad..., SHA256SUMS.txt 218 bytes with the digest recorded in artifact.checksumsGithubDigest)",
+    "anonymousDownload": "PASS: an anonymous download of SHA256SUMS.txt returned HTTPS 200 (218 bytes) and the APK URL answered 302 then 200; the downloaded APK was not re-hashed",
+    "deviceInstall": "PASS: Samsung SM-S928N, install over the previous showcase app returned Success",
+    "deviceExplore": "PASS: the logged-out explore screen shows the 3 virtual stores (A/B/C, DEMO)"
+  },
+  "rejectedFirstCandidate": {
+    "apkSha256": "6c4d534806aee9234a9d6c617e87ec216cf8cd6fa5017d699905a9bb2b60a5c7",
+    "finding": "built from the same source right after the operating AAB, it embedded the production API URL (a stale shared Metro cache with CI=1): the phone showed 0 stores and the showcase session was logged out; only read requests reached production (/merchants and the consent check)",
+    "disposition": "NOT published; cause (an estimate) and fix are tracked in Issue #273 (a bundle API address check, scripts/check-embedded-api.sh, was merged later in PR #275); the Metro cache was cleared and the APK was rebuilt",
+    "ownerAction": "the owner must log in again in the showcase app"
+  },
+  "notRun": [
+    "logged-in consent, collection and visit flows on Preview 13",
+    "the wallet connection and the mint consent v2 dialog",
+    "TalkBack, dark mode and 200% font on this APK",
+    "a re-hash of the APK downloaded from GitHub (the GitHub digest and the local SHA-256 were compared, but the downloaded bytes were not re-hashed)",
+    "the consent button label on this showcase APK (verified on the operating test.4 APK; the showcase APK was not re-checked on the consent screen)"
+  ],
+  "limitations": "Preview 13 denotes GitHub release order. This is a demo-only prerelease built from main 1e6bb37 on top of Preview 12 (3f5b2fa), including the Issue #265 late-response fixes and the Issue #271 consent button label fix. The showcase API it talks to runs 1e6bb37 (docs/evidence/deployment-1e6bb37-2026-10-01.json). The public /open page keeps linking the previous install links until the Issue #274 docs change is deployed to the production web. The three seeded showcase offers are demo examples, not partner-store benefits."
+}

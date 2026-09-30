@@ -207,12 +207,9 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
         onPress={() => void submit()}
         style={[styles.submit, (!ready || busy) && styles.submitDisabled]}
       >
-        {/* Samsung One UI (Android 16, Preview 12): when the boxes were all checked and only the colour changed,
-            this label re-laid out inside its old measured box and lost its last word ("시작"). A key per state
-            gives each state a freshly measured Text. numberOfLines={2} lets a large font wrap to a second line
-            instead of being clipped, and never shrinks the text (the screen must follow the system font scale). */}
+        {/* numberOfLines={2}: a large system font wraps to a second line instead of being clipped, and the text is
+            never shrunk (the screen must follow the font scale). Width: see submitText in styles.ts (Issue #271). */}
         <Text
-          key={!ready || busy ? 'idle' : 'ready'}
           numberOfLines={2}
           style={[styles.submitText, (!ready || busy) && styles.submitTextDisabled]}
         >

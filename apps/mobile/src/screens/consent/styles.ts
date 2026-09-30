@@ -79,7 +79,9 @@ export function makeConsentStyles(palette: AppColors, hairlineWidth = 1) {
       backgroundColor: palette.primary,
     },
     submitDisabled: { backgroundColor: palette.separator },
-    submitText: { color: palette.onPrimary, fontSize: 17, lineHeight: 24, fontWeight: '900', textAlign: 'center' },
+    // alignSelf stretch: Samsung One UI measured this 900-weight label narrower (260px) than it draws (~300px), and the
+    // centred button shrink-wrapped it, clipping "시작". A full-width box no longer depends on that measurement.
+    submitText: { alignSelf: 'stretch', color: palette.onPrimary, fontSize: 17, lineHeight: 24, fontWeight: '900', textAlign: 'center' },
     submitTextDisabled: { color: palette.secondaryLabel },
     secondary: {
       minHeight: uiMetrics.minTouch,
@@ -91,6 +93,7 @@ export function makeConsentStyles(palette: AppColors, hairlineWidth = 1) {
       borderWidth: hairlineWidth,
       borderColor: palette.separator,
     },
-    secondaryText: { color: palette.primary, fontSize: 16, lineHeight: 22, fontWeight: '800', textAlign: 'center' },
+    // Same full-width box as submitText, for the same Samsung measurement gap.
+    secondaryText: { alignSelf: 'stretch', color: palette.primary, fontSize: 16, lineHeight: 22, fontWeight: '800', textAlign: 'center' },
   } satisfies Record<string, ViewStyle | TextStyle>;
 }

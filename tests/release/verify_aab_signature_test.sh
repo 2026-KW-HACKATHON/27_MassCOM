@@ -147,6 +147,7 @@ mkdir -p "$sandbox/scripts" "$sandbox/apps/mobile/src" "$work/bin"
 cp "$repo_root/scripts/build-release-aab.sh" \
   "$repo_root/scripts/verify-aab-signature.sh" \
   "$repo_root/scripts/assess-release-aab.sh" \
+  "$repo_root/scripts/check-embedded-api.sh" \
   "$repo_root/scripts/dump-aab-manifest.sh" \
   "$repo_root/scripts/write-aab-provenance.mjs" \
   "$sandbox/scripts/"
@@ -171,6 +172,8 @@ E: manifest
       A: android:value="$sandbox_commit"
 MANIFEST
 printf 'release fixture\n' >"$build_artifact_dir/payload.txt"
+mkdir -p "$build_artifact_dir/base/assets"
+printf '\000https://api.masscom.kr\000' >"$build_artifact_dir/base/assets/index.android.bundle"
 (cd "$build_artifact_dir" && zip -q -r "$work/build-good.aab" .)
 sign build-good upload.jks upload
 cat >"$work/bin/npx" <<STUB
@@ -537,6 +540,37 @@ NODE
 [[ "$(tail -1 "$work/prebuild.log")" == "prebuild APP_VARIANT=development SOURCE_COMMIT=unset DEMO_ACCOUNT=unset DEMO_MERCHANT_ACCOUNT=unset DEMO_MERCHANT_ID=unset DEMO_INSECURE_REAUTH=unset" ]] \
   || { echo "rejected build did not restore the development variant: $(cat "$work/prebuild.log")" >&2; exit 1; }
 
+# A stale Metro cache that inlined the showcase API origin must stop the release build before
+# assessment or publication (Issue #273).
+cp "$work/build-good.aab" "$work/build-good.aab.keep"
+for wrong_bundle in 'https://demo-api.masscom.kr' 'https://api.masscom.kr https://demo-api.masscom.kr'; do
+  rm -rf "$build_artifact_dir/base/assets"
+  mkdir -p "$build_artifact_dir/base/assets"
+  printf '\000%s\000' "$wrong_bundle" >"$build_artifact_dir/base/assets/index.android.bundle"
+  rm -f "$work/build-good.aab"
+  (cd "$build_artifact_dir" && zip -q -r "$work/build-good.aab" .)
+  sign build-good upload.jks upload
+  wrong_origin_artifacts="$work/wrong-origin-artifacts"
+  rm -rf "$wrong_origin_artifacts"
+  status=0
+  out="$(cd "$sandbox" && env RELEASE_ARTIFACT_DIR="$wrong_origin_artifacts" \
+    UPLOAD_CERT_SHA256="$approved" PATH="$work/bin:$PATH" \
+    bash scripts/build-release-aab.sh 2>&1)" || status=$?
+  [[ "$status" == 1 ]] || { echo "wrong API origin ($wrong_bundle): expected exit 1, got $status: $out" >&2; exit 1; }
+  grep -qF 'release AAB embeds the wrong API origin' <<<"$out" \
+    || { echo "wrong API origin ($wrong_bundle) failed for an unrelated reason: $out" >&2; exit 1; }
+  [[ "$out" != *'Automated gates: PASS'* ]] \
+    || { echo "wrong API origin ($wrong_bundle) reported a passing build: $out" >&2; exit 1; }
+  grep -qF 'rm -rf "${TMPDIR:-/tmp}/metro-cache"' <<<"$out" \
+    || { echo "wrong API origin ($wrong_bundle) gave no cache recovery hint: $out" >&2; exit 1; }
+  ! find "$wrong_origin_artifacts" -mindepth 1 -print -quit | grep -q . \
+    || { echo "wrong API origin ($wrong_bundle) left published or staged evidence" >&2; exit 1; }
+done
+mv "$work/build-good.aab.keep" "$work/build-good.aab"
+rm -rf "$build_artifact_dir/base/assets"
+mkdir -p "$build_artifact_dir/base/assets"
+printf '\000https://api.masscom.kr\000' >"$build_artifact_dir/base/assets/index.android.bundle"
+
 # A successful assessor must not allow the staged AAB to be replaced before publication.
 post_assessment_sandbox="$work/post-assessment-replacement-repo"
 cp -R "$sandbox" "$post_assessment_sandbox"
@@ -564,6 +598,8 @@ E: manifest
       A: android:value="$post_assessment_commit"
 MANIFEST
 printf 'release fixture\n' >"$build_artifact_dir/payload.txt"
+mkdir -p "$build_artifact_dir/base/assets"
+printf '\000https://api.masscom.kr\000' >"$build_artifact_dir/base/assets/index.android.bundle"
 rm -f "$work/build-good.aab"
 (cd "$build_artifact_dir" && zip -q -r "$work/build-good.aab" .)
 sign build-good upload.jks upload
