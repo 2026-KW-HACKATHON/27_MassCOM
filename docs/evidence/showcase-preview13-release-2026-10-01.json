@@ -17,11 +17,14 @@
     "provenanceSha256": "5a84675d3badc2c5ea477c9e636acedfe047b0ed2883e788d7019894427b18d8",
     "checksumsName": "SHA256SUMS.txt",
     "checksumsBytes": 218,
+    "checksumsGithubDigest": "sha256:bbf7e294fc7c55737c14bfa303f9964185a04a558d36fa636485c54b2caae8f0",
     "signingCertificateSha256": "cdb0dc37750c907eaa2f1b9eb172b0911f14b9c9f2dab78b481f1751d8ebf28a"
   },
   "checks": {
     "buildChecks": "PASS: the build-time provenance file (632 bytes) records api, package, sourceMarker, signature and walletSurface all PASS",
     "embeddedApi": "PASS: the JS bundle contains https://demo-api.masscom.kr and does not contain https://api.masscom.kr",
+    "githubDigestVsLocalSha256": "PASS: the GitHub asset digests match the local SHA-256 for all three assets (APK 156665197 bytes fa87cf37a058..., provenance 632 bytes 5a84675d3bad..., SHA256SUMS.txt 218 bytes with the digest recorded in artifact.checksumsGithubDigest)",
+    "anonymousDownload": "PASS: an anonymous download of SHA256SUMS.txt returned HTTPS 200 (218 bytes) and the APK URL answered 302 then 200; the downloaded APK was not re-hashed",
     "deviceInstall": "PASS: Samsung SM-S928N, install over the previous showcase app returned Success",
     "deviceExplore": "PASS: the logged-out explore screen shows the 3 virtual stores (A/B/C, DEMO)"
   },
@@ -35,7 +38,7 @@
     "logged-in consent, collection and visit flows on Preview 13",
     "the wallet connection and the mint consent v2 dialog",
     "TalkBack, dark mode and 200% font on this APK",
-    "the GitHub asset digest comparison and any anonymous download of this release are not recorded here, so they are NOT_RUN",
+    "a re-hash of the APK downloaded from GitHub (the GitHub digest and the local SHA-256 were compared, but the downloaded bytes were not re-hashed)",
     "the consent button label on this showcase APK (verified on the operating test.4 APK; the showcase APK was not re-checked on the consent screen)"
   ],
   "limitations": "Preview 13 denotes GitHub release order. This is a demo-only prerelease built from main 1e6bb37 on top of Preview 12 (3f5b2fa), including the Issue #265 late-response fixes and the Issue #271 consent button label fix. The showcase API it talks to runs 1e6bb37 (docs/evidence/deployment-1e6bb37-2026-10-01.json). The public /open page keeps linking the previous install links until the Issue #274 docs change is deployed to the production web. The three seeded showcase offers are demo examples, not partner-store benefits."
