@@ -2,7 +2,9 @@
 # Backup/restore drill: dumps a database, restores it into a scratch "<name>_restore_test"
 # database, and checks that migrations and per-table row counts survived. The scratch database
 # is dropped afterwards; the source is only read. Without a backup-file argument the dump is a
-# temporary file deleted at the end; pass a path to keep it (it contains real data).
+# temporary file deleted at the end; pass a path to keep it (it contains real data). A kept dump is written
+# as mode 0600 to a temporary file in the same directory and renamed into place only when pg_dump succeeded,
+# so a failed dump never truncates an earlier backup at that path.
 #
 # Usage: DRILL_DATABASE_URL=postgresql://user@host:5432/masscom scripts/db-restore-drill.sh [backup-file]
 #   PGPASSWORD   pass the password this way, not inside the URL (URLs show up in `ps`).
@@ -14,13 +16,18 @@
 # compare against a snapshot if the drill must run under load.
 
 set -euo pipefail
+# A dump holds real data: nothing this script creates is readable by other users (a plain `>` would be 0644 under umask 022).
+umask 077
 
 url="${DRILL_DATABASE_URL:?DRILL_DATABASE_URL is required}"
 own_backup=""
 if [[ -n "${1:-}" ]]; then backup="$1"; else backup="$(mktemp -t masscom-backup.XXXXXX)"; own_backup=1; fi
 created_scratch=""
+backup_part=""
 drop_scratch() {
-  # A dump holds real data: the temporary one never outlives the drill. A path the caller gave is theirs.
+  # A dump holds real data: the temporary one never outlives the drill. A path the caller gave is theirs,
+  # but an unfinished dump next to it (pg_dump failed or the drill was interrupted) is removed.
+  if [[ -n "$backup_part" ]]; then rm -f "$backup_part"; fi
   if [[ -n "$own_backup" ]]; then rm -f "$backup"; fi
   [[ -n "$created_scratch" ]] || return 0
   # Variables used below are set before created_scratch, so this only runs once they exist.
@@ -59,7 +66,11 @@ snapshot() {
     --command "$counts_sql" --command 'SELECT filename FROM schema_migrations ORDER BY filename'
 }
 
-pg pg_dump --format=custom --no-owner "$url" >"$backup"
+# Dump beside the target (same filesystem, so the rename is atomic) and move it into place only on success.
+backup_part="$(mktemp "$backup.part.XXXXXX")"
+pg pg_dump --format=custom --no-owner "$url" >"$backup_part"
+mv -f "$backup_part" "$backup"
+backup_part=""
 echo "backup: $backup ($(wc -c <"$backup" | tr -d ' ') bytes)"
 echo "sha256: $(shasum -a 256 "$backup" | cut -d' ' -f1)"
 echo "server: $(pg psql "$url" --no-psqlrc --tuples-only --no-align --command 'SHOW server_version')"

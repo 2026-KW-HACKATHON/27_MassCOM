@@ -364,7 +364,6 @@ compose_no_stdin exec -T production-web node -e \
 retry_health curl -fsS --max-time 8 https://api.masscom.kr/health
 retry_health curl -fsS --max-time 8 https://www.masscom.kr/app/
 retry_health curl -fsS --max-time 8 https://www.masscom.kr/merchant/
-retry_health curl -fsS --max-time 8 https://demo-api.masscom.kr/health
 
 sudo ln -sfn "$release" /opt/masscom/current
 printf '%s\n' "$commit" | sudo tee /opt/masscom/DEPLOYED_COMMIT >/dev/null
@@ -373,6 +372,15 @@ sudo ln -sfn "$release" /opt/masscom/web/current
 printf '%s\n' "$commit" | sudo tee /opt/masscom/web/DEPLOYED_COMMIT >/dev/null
 compose_new ps
 trap - ERR
+
+# 시연 API(demo-api) health는 운영 릴리스가 이미 올라간 뒤에 따로 본다(Issue #263, 점검 보고서 C02). 시연 장애는 운영 API를 이전 버전으로
+# 되돌릴 이유가 아니다: 여기서 실패해도 운영은 새 릴리스로 두고(DEPLOYED_COMMIT도 새 커밋) 배포만 실패로 알린다. 아래 정리 작업 단계가
+# 시연 장애 때문에 건너뛰어지지 않게, 실패는 기록만 하고 종료는 그 단계 뒤에 한다.
+showcase_probe_failed=false
+if ! retry_health curl -fsS --max-time 8 https://demo-api.masscom.kr/health; then
+  showcase_probe_failed=true
+  echo 'SHOWCASE_HEALTH_FAILED: production is live on the new release and was not rolled back; check the showcase API (demo-api.masscom.kr) and Caddy, then re-run the deploy or fix the showcase separately' >&2
+fi
 
 # 보관 기간 정리 작업(하루 한 번, systemd timer)을 이 릴리스의 것으로 설치·갱신하고(멱등) timer가 켜져 있는지 읽기 전용으로 확인한다.
 # 처리방침의 "서버의 정리 작업" 문장은 이 timer가 켜져 있어야 사실이다. 여기서 실패하면 릴리스는 이미 올라간 상태로 두고(되돌리지 않는다)
@@ -386,6 +394,7 @@ if ! sudo bash "$release/infra/lightsail/host-jobs/install.sh" ||
   exit 1
 fi
 echo 'HOST_JOB_ENABLED masscom-retention.timer (first run: success)'
+[[ "$showcase_probe_failed" == false ]] || exit 1
 REMOTE
 
 echo "Lightsail deployment completed: $commit"

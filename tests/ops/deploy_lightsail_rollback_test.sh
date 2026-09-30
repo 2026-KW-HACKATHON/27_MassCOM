@@ -193,6 +193,16 @@ run_remote_case() {
   ) >"$scratch/out" 2>&1 || status=$?
   out="$(<"$scratch/out")"
 }
+# 새 릴리스가 올라간 채 끝나는 시험(시연 실패, 정리 작업 실패) 뒤에는 옛 릴리스가 라이브인 처음 상태로 되돌린다.
+reset_live_state() {
+  ln -sfn "$old_release" "$scratch/opt/masscom/current"
+  ln -sfn "$old_release" "$scratch/opt/masscom/web/current"
+  printf '%s\n' "$old_commit" >"$scratch/opt/masscom/DEPLOYED_COMMIT"
+  printf '%s\n' "$old_commit" >"$scratch/opt/masscom/web/DEPLOYED_COMMIT"
+  printf 'OLD_ENV=1\n' >"$runtime"
+  printf 'NEW_ENV=1\n' >"$temporary"
+  : >"$scratch/docker-calls"
+}
 run_remote_case migrate
 [[ "$status" == 9 ]] || {
   echo "expected migration failure, got $status: $out" >&2
@@ -242,13 +252,26 @@ grep -qx 'OLD_ENV=1' "$runtime"
 printf 'NEW_ENV=1\n' >"$temporary"
 : >"$scratch/docker-calls"
 run_remote_case showcase
+# 시연 API health 실패(Issue #263, C02): 운영은 이미 새 릴리스로 올라가 있으므로 되돌리지 않고 배포만 실패(1)로 알린다.
 [[ "$status" == 1 ]] || { echo "expected post-Caddy showcase failure, got $status: $out" >&2; exit 1; }
-grep -q 'FULL_DEPLOY_REVERTED' <<<"$out"
-grep -q 'source: .*caddyfile-before-' "$rollback_override"
-grep -qx 'OLD_ENV=1' "$runtime"
+grep -q 'SHOWCASE_HEALTH_FAILED' <<<"$out" || { echo "showcase failure was not named: $out" >&2; exit 1; }
+if grep -q 'FULL_DEPLOY_REVERTED\|FULL_DEPLOY_ROLLBACK_FAILED' <<<"$out"; then echo 'showcase failure rolled back production' >&2; exit 1; fi
+# 운영 API를 이전 버전으로 다시 만들지 않는다(옛 릴리스의 compose로 api를 force-recreate 하는 호출이 없다).
+if grep -q "$old_release/infra/lightsail/compose.yml.* up -d --no-deps --force-recreate" "$scratch/docker-calls"; then
+  echo 'showcase failure force-recreated the old production API' >&2
+  exit 1
+fi
+[[ "$(grep -c 'up -d --no-deps --force-recreate' "$scratch/docker-calls")" == 0 ]] || { echo 'showcase failure recreated a service' >&2; exit 1; }
+grep -qx 'NEW_ENV=1' "$runtime" || { echo 'showcase failure restored the old env file' >&2; exit 1; }
+grep -qx "$new_commit" "$scratch/opt/masscom/DEPLOYED_COMMIT"
+grep -qx "$new_commit" "$scratch/opt/masscom/web/DEPLOYED_COMMIT"
+[[ "$(readlink "$scratch/opt/masscom/current")" == "$new_release" ]]
+[[ "$(readlink "$scratch/opt/masscom/web/current")" == "$new_release" ]]
 grep -q 'https://demo-api.masscom.kr/health' "$scratch/curl-calls"
-printf 'NEW_ENV=1\n' >"$temporary"
-: >"$scratch/docker-calls"
+# 시연 장애가 정리 작업 설치를 건너뛰게 하지 않는다: 설치·timer 확인·첫 실행은 그대로 하고, 종료 코드만 실패로 남는다.
+grep -qx "install " "$scratch/job-calls" || { echo 'showcase failure skipped the retention job install' >&2; exit 1; }
+grep -q 'HOST_JOB_ENABLED masscom-retention.timer' <<<"$out" || { echo 'showcase failure skipped the retention job check' >&2; exit 1; }
+reset_live_state
 run_remote_case transient_showcase
 [[ "$status" == 0 ]] || { echo "transient showcase failure did not recover: $out" >&2; exit 1; }
 grep -qx "$new_commit" "$scratch/opt/masscom/DEPLOYED_COMMIT"
@@ -271,15 +294,6 @@ if grep -vxE 'is-enabled masscom-retention.timer|start masscom-retention.service
   exit 1
 fi
 
-reset_live_state() {
-  ln -sfn "$old_release" "$scratch/opt/masscom/current"
-  ln -sfn "$old_release" "$scratch/opt/masscom/web/current"
-  printf '%s\n' "$old_commit" >"$scratch/opt/masscom/DEPLOYED_COMMIT"
-  printf '%s\n' "$old_commit" >"$scratch/opt/masscom/web/DEPLOYED_COMMIT"
-  printf 'OLD_ENV=1\n' >"$runtime"
-  printf 'NEW_ENV=1\n' >"$temporary"
-  : >"$scratch/docker-calls"
-}
 line_of() { grep -n -- "$1" "$scratch/docker-calls" | head -1 | cut -d: -f1; }
 
 # PostgreSQL이 옛 로그 설정으로 떠 있으면 사전 백업 뒤 마이그레이션 앞에서 그것만 한 번 다시 만들고 확인한다.
