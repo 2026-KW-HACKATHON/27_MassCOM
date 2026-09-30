@@ -249,6 +249,16 @@ postgres_log_settings_ok() {
   [[ "$log_config" == *'"max-size":"10m"'* && "$log_config" == *'"max-file":"3"'* &&
      "$command_line" == *'log_error_verbosity=terse'* && "$command_line" == *'log_min_error_statement=panic'* ]]
 }
+# 다시 만든 PostgreSQL이 **같은 데이터 볼륨**을 물고 **같은 데이터**를 갖는지 보는 값. 볼륨 이름과, 적용된 마이그레이션의 개수·마지막 파일 이름이다.
+postgres_data_volume() {
+  local id
+  id="$(service_id postgres)" && [[ -n "$id" && "$id" != *$'\n'* ]] || return 1
+  sudo docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}' "$id"
+}
+postgres_data_fingerprint() {
+  compose_no_stdin exec -T postgres psql -U masscom -d masscom -Atc \
+    "SELECT count(*) || '|' || coalesce(max(filename), '') FROM schema_migrations"
+}
 postgres_recreated=false
 
 rollback_started=false
@@ -308,11 +318,20 @@ sudo install -o root -g root -m 600 "$temporary_env" "$runtime_env"
 rm -f "$temporary_env"
 compose_new build api production-web
 # 사전 백업이 검증된 뒤에만 PostgreSQL을 다시 만든다. 로그 설정이 이미 맞으면 건드리지 않는다.
+# 아래 확인은 `[[ … ]] || false`로 쓴다: 옛 bash(3.2)는 홑 `[[ ]]`의 실패로 ERR 트랩을 걸지 않아 되돌림이 조용히 건너뛰어질 수 있다.
 if ! postgres_log_settings_ok; then
+  # 다시 만들기 전에 볼륨 이름과 데이터 지문을 적어 둔다. 운영 DB는 마이그레이션이 하나 이상 적용돼 있어야 한다.
+  data_volume_before="$(postgres_data_volume)"
+  data_fingerprint_before="$(postgres_data_fingerprint)"
+  [[ -n "$data_volume_before" && "$data_fingerprint_before" =~ ^[1-9][0-9]*\|[0-9]{4}_[a-z0-9_]+\.sql$ ]] || false
   postgres_recreated=true
   compose_new up -d --no-deps --wait --wait-timeout 120 postgres
   postgres_log_settings_ok
-  [[ "$(compose_no_stdin exec -T postgres psql -U masscom -d masscom -Atc 'SHOW log_min_error_statement')" == panic ]]
+  # 같은 볼륨이 붙어 있고 같은 데이터가 그대로 있어야 한다. 아니면 마이그레이션 없이 되돌린다(볼륨은 지우지 않는다).
+  [[ "$(postgres_data_volume)" == "$data_volume_before" ]] || false
+  [[ "$(postgres_data_fingerprint)" == "$data_fingerprint_before" ]] || false
+  [[ "$(compose_no_stdin exec -T postgres psql -U masscom -d masscom -Atc 'SHOW log_min_error_statement')" == panic ]] || false
+  [[ "$(compose_no_stdin exec -T postgres psql -U masscom -d masscom -Atc 'SHOW log_error_verbosity')" == terse ]] || false
   echo 'POSTGRES_RECREATED_FOR_LOG_SETTINGS'
 fi
 migration_started=true
@@ -339,12 +358,15 @@ trap - ERR
 # 보관 기간 정리 작업(하루 한 번, systemd timer)을 이 릴리스의 것으로 설치·갱신하고(멱등) timer가 켜져 있는지 읽기 전용으로 확인한다.
 # 처리방침의 "서버의 정리 작업" 문장은 이 timer가 켜져 있어야 사실이다. 여기서 실패하면 릴리스는 이미 올라간 상태로 두고(되돌리지 않는다)
 # 배포를 실패로 알린다: 서버에서 `sudo bash "$release/infra/lightsail/host-jobs/install.sh" --verify`로 원인을 보고 다시 실행한다.
+# 설치한 작업을 바로 한 번 실행해(매일 작업과 같은 일) 마지막 결과가 success인지 확인한다: 켜져만 있고 실제로는 실패하는 작업을 배포가 통과시키지 않는다.
 if ! sudo bash "$release/infra/lightsail/host-jobs/install.sh" ||
-   [[ "$(sudo systemctl is-enabled masscom-retention.timer)" != enabled ]]; then
-  echo 'HOST_JOB_INSTALL_FAILED: release is live but the retention timer is not enabled; run host-jobs/install.sh on the server' >&2
+   [[ "$(sudo systemctl is-enabled masscom-retention.timer)" != enabled ]] ||
+   ! sudo systemctl start masscom-retention.service ||
+   [[ "$(sudo systemctl show -p Result --value masscom-retention.service)" != success ]]; then
+  echo 'HOST_JOB_INSTALL_FAILED: release is live but the retention job is not enabled or its first run failed; check journalctl -u masscom-retention.service and run host-jobs/install.sh --verify on the server' >&2
   exit 1
 fi
-echo 'HOST_JOB_ENABLED masscom-retention.timer'
+echo 'HOST_JOB_ENABLED masscom-retention.timer (first run: success)'
 REMOTE
 
 echo "Lightsail deployment completed: $commit"

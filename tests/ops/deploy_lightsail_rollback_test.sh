@@ -101,10 +101,15 @@ run_remote_case() {
             # 로그 설정: 기본은 이미 맞게 떠 있고, pg_old·pg_stuck·pg_up_fail은 옛 설정으로 뜬 컨테이너다(다시 만들면 맞아진다, pg_stuck 제외).
             fixed=true
             case "$failure" in
-              pg_old|pg_up_fail) [[ -e "$scratch/pg-recreated" ]] || fixed=false ;;
+              pg_old|pg_up_fail|pg_volume_changed|pg_empty_schema|pg_verbosity_wrong|pg_old_migrate_fail)
+                [[ -e "$scratch/pg-recreated" ]] || fixed=false ;;
               pg_stuck) fixed=false ;;
             esac
-            if [[ "$*" == *HostConfig.LogConfig* ]]; then
+            if [[ "$*" == *Mounts* ]]; then
+              # 데이터 볼륨 이름: pg_volume_changed는 다시 만든 컨테이너가 다른 볼륨을 물게 된다.
+              if [[ "$failure" == pg_volume_changed && -e "$scratch/pg-recreated" ]]; then echo masscom_postgres_data_other
+              else echo masscom_postgres_data; fi
+            elif [[ "$*" == *HostConfig.LogConfig* ]]; then
               if [[ "$fixed" == true ]]; then echo '{"max-file":"3","max-size":"10m"}'; else echo '{}'; fi
             elif [[ "$fixed" == true ]]; then
               echo '["postgres","-c","log_error_verbosity=terse","-c","log_min_error_statement=panic"]'
@@ -127,7 +132,14 @@ run_remote_case() {
           : >"$scratch/pg-recreated"
           if [[ "$failure" == pg_up_fail && "$*" != *"${old_commit:0:12}"* ]]; then return 7; fi
         elif [[ "$*" == *psql* ]]; then
-          echo panic
+          case "$*" in
+            *schema_migrations*)
+              # 데이터 지문: 마이그레이션 개수|마지막 파일. pg_empty_schema는 다시 만든 컨테이너의 데이터가 비어 있다.
+              if [[ "$failure" == pg_empty_schema && -e "$scratch/pg-recreated" ]]; then echo '0|'
+              else echo '35|0033_account_consents.sql'; fi ;;
+            *log_error_verbosity*) if [[ "$failure" == pg_verbosity_wrong ]]; then echo default; else echo terse; fi ;;
+            *) echo panic ;;
+          esac
         fi
         if [[ "$*" == *'up -d --no-deps --force-recreate caddy'* ]]; then
           for arg in "$@"; do
@@ -140,15 +152,17 @@ run_remote_case() {
           caddy_mount_source="$new_release/infra/lightsail/Caddyfile"
           site_mount_source="$new_release/site/public"
         fi
-        if [[ "$*" == *'run --rm -T migrate'* && "$failure" == migrate ]]; then return 9; fi ;;
+        if [[ "$*" == *'run --rm -T migrate'* && ( "$failure" == migrate || "$failure" == pg_old_migrate_fail ) ]]; then return 9; fi ;;
     esac
   }
   sleep() { :; }
   systemctl() {
     printf '%s\n' "$*" >>"$scratch/systemctl-calls"
-    if [[ "$1" == is-enabled ]]; then
-      if [[ "$failure" == job_disabled ]]; then echo disabled; else echo enabled; fi
-    fi
+    case "$1" in
+      is-enabled) if [[ "$failure" == job_disabled ]]; then echo disabled; else echo enabled; fi ;;
+      start) if [[ "$failure" == job_run_fail ]]; then return 1; fi ;;
+      show) if [[ "$failure" == job_result_bad ]]; then echo exit-code; else echo success; fi ;;
+    esac
   }
   curl() {
     printf '%s\n' "$*" >>"$scratch/curl-calls"
@@ -232,10 +246,16 @@ grep -qx "$new_commit" "$scratch/opt/masscom/web/DEPLOYED_COMMIT"
 # 정리 작업: 성공한 배포는 새 릴리스의 install.sh를 실행하고 timer가 켜졌는지 읽기 전용으로 확인하며, 로그 설정이 이미 맞으면 PostgreSQL은 건드리지 않는다.
 grep -qx "install " "$scratch/job-calls" || { echo 'successful deploy did not install the retention job' >&2; exit 1; }
 grep -qx 'is-enabled masscom-retention.timer' "$scratch/systemctl-calls" || { echo 'successful deploy did not verify the timer' >&2; exit 1; }
+# 설치한 작업을 한 번 실행하고(start) 그 뒤에 마지막 결과(Result)를 읽는다.
+[[ "$(grep -nx 'start masscom-retention.service' "$scratch/systemctl-calls" | cut -d: -f1)" -lt "$(grep -nx 'show -p Result --value masscom-retention.service' "$scratch/systemctl-calls" | cut -d: -f1)" ]] || {
+  echo 'the first run must happen before its result is read' >&2
+  exit 1
+}
 grep -q 'HOST_JOB_ENABLED masscom-retention.timer' <<<"$out"
 [[ ! -e "$scratch/pg-recreated" ]] || { echo 'postgres was recreated although its log settings were current' >&2; exit 1; }
 if grep -q 'wait-timeout 120 postgres' "$scratch/docker-calls"; then echo 'unneeded postgres recreation' >&2; exit 1; fi
-if grep -Eq 'systemctl (start|stop|restart|enable|disable|daemon-reload)' "$scratch/systemctl-calls"; then
+# 배포가 systemd에 직접 하는 일은 읽기 전용 확인, 설치한 작업의 첫 실행, 그 결과 읽기뿐이다(활성화·중지·재시작은 install.sh만 한다).
+if grep -vxE 'is-enabled masscom-retention.timer|start masscom-retention.service|show -p Result --value masscom-retention.service' "$scratch/systemctl-calls" | grep -q .; then
   echo 'deploy changed systemd directly instead of running the installer' >&2
   exit 1
 fi
@@ -267,7 +287,7 @@ dump_line="$(line_of pg_dump)"; recreate_line="$(line_of 'wait-timeout 120 postg
 grep -q 'HOST_JOB_ENABLED' <<<"$out"
 
 # 다시 만들어도 설정이 맞지 않거나 다시 만들기가 실패하면 마이그레이션 없이 이전 릴리스로 되돌린다(PostgreSQL도 이전 정의로).
-for mode in pg_stuck pg_up_fail; do
+for mode in pg_stuck pg_up_fail pg_volume_changed pg_empty_schema pg_verbosity_wrong; do
   reset_live_state
   run_remote_case "$mode"
   [[ "$status" != 0 ]] || { echo "$mode did not fail the deploy" >&2; exit 1; }
@@ -280,10 +300,31 @@ for mode in pg_stuck pg_up_fail; do
   grep -qx 'OLD_ENV=1' "$runtime"
   [[ "$(readlink "$scratch/opt/masscom/current")" == "$old_release" ]]
 done
+# 마지막 모드(pg_verbosity_wrong)까지 돌린 뒤이므로 재생성 실패(7)는 따로 다시 확인한다.
+reset_live_state
+run_remote_case pg_up_fail
 [[ "$status" == 7 ]] || { echo "recreation failure status was $status" >&2; exit 1; }
+# 재생성은 됐지만 마이그레이션이 실패하면(9) PostgreSQL을 이전 릴리스의 정의로 되돌리고 볼륨은 지우지 않는다.
+reset_live_state
+run_remote_case pg_old_migrate_fail
+[[ "$status" == 9 ]] || { echo "migration failure after a postgres recreation returned $status: $out" >&2; exit 1; }
+grep -q 'DB_MIGRATION_MANUAL_RECOVERY_REQUIRED' <<<"$out"
+grep -q 'FULL_DEPLOY_REVERTED' <<<"$out"
+grep -q 'run --rm -T migrate' "$scratch/docker-calls"
+[[ "$(grep -c 'wait-timeout 120 postgres' "$scratch/docker-calls")" == 2 ]] || { echo 'postgres must be recreated once and put back once' >&2; exit 1; }
+grep -q "$old_release/infra/lightsail/compose.yml.* up -d --no-deps --wait --wait-timeout 120 postgres" "$scratch/docker-calls" || {
+  echo 'postgres was not put back to the old release definition after the migration failed' >&2
+  exit 1
+}
+if grep -Eq 'volume (rm|prune)| down( |$)|--volumes|compose .* rm ' "$scratch/docker-calls"; then
+  echo 'the rollback removed a volume or container set instead of keeping the data' >&2
+  exit 1
+fi
+grep -qx 'OLD_ENV=1' "$runtime"
+[[ "$(readlink "$scratch/opt/masscom/current")" == "$old_release" ]]
 
 # 정리 작업 설치가 실패하거나 timer가 꺼져 있으면 배포는 실패로 알리지만 이미 올라간 릴리스는 되돌리지 않는다.
-for mode in job_install_fail job_disabled; do
+for mode in job_install_fail job_disabled job_run_fail job_result_bad; do
   reset_live_state
   run_remote_case "$mode"
   [[ "$status" == 1 ]] || { echo "$mode expected failure 1, got $status: $out" >&2; exit 1; }

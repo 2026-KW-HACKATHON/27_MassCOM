@@ -23,3 +23,10 @@ ProtectKernelModules=yes
 ProtectControlGroups=yes
 RestrictSUIDSGID=yes
 LockPersonality=yes
+# docker CLI는 유닉스 소켓(/run/docker.sock)으로만 말하므로 주소 계열을 AF_UNIX로 좁혀도 동작한다.
+RestrictAddressFamilies=AF_UNIX
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native

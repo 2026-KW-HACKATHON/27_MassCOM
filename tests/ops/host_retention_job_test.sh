@@ -155,7 +155,8 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   # root로 도는 유닛은 권한을 좁힌다. 쓸 수 있는 곳은 이 스택의 백업 폴더뿐이고 docker 소켓 연결을 막는 경로 설정은 없다.
   for directive in UMask=0077 NoNewPrivileges=yes PrivateTmp=yes PrivateDevices=yes ProtectSystem=strict ProtectHome=read-only \
       ProtectKernelTunables=yes ProtectKernelModules=yes ProtectControlGroups=yes RestrictSUIDSGID=yes LockPersonality=yes \
-      "ReadWritePaths=$default_backup"; do
+      RestrictAddressFamilies=AF_UNIX ProtectClock=yes ProtectHostname=yes ProtectKernelLogs=yes RestrictNamespaces=yes \
+      SystemCallArchitectures=native "ReadWritePaths=$default_backup"; do
     grep -qx "$directive" "$service_file" || fail "$label: service is missing $directive"
   done
   [[ "$(grep -c '^ReadWritePaths=' "$service_file")" == 1 ]] || fail "$label: service may write to more than one place"
@@ -166,6 +167,8 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   grep -q 'systemctl enable --now "\$name.timer"' "$install_file" || fail "$label: installer does not enable the timer"
   grep -q 'systemctl is-enabled "\$name.timer"' "$install_file" || fail "$label: installer does not verify the timer is enabled"
   grep -q -- '--verify)' "$install_file" || fail "$label: installer has no read-only verify mode"
+  grep -q 'systemctl show -p Result --value "\$name.service"' "$install_file" || fail "$label: verify does not report the last run result"
+  grep -q 'last run result:' "$install_file" || fail "$label: verify does not print the last run result"
   grep -q "^backup_dir='$default_backup'\$" "$install_file" || fail "$label: installer creates another backup folder"
   grep -q 'install -d -m 0700 -o root -g root "\$backup_dir"' "$install_file" || fail "$label: installer does not create the backup folder the unit writes to"
   [[ -x "$install_file" && -x "$script" ]] || fail "$label: scripts are not executable"
@@ -179,8 +182,13 @@ done
 deploy="$repo_root/scripts/deploy-lightsail.sh"
 grep -q 'sudo bash "\$release/infra/lightsail/host-jobs/install.sh"' "$deploy" || fail "production deploy does not install the host job"
 grep -q 'systemctl is-enabled masscom-retention.timer' "$deploy" || fail "production deploy does not verify the timer"
-if grep -n 'systemctl' "$deploy" | grep -v 'systemctl is-enabled masscom-retention.timer' | grep -v '^[0-9]*:[[:space:]]*#' | grep -q .; then
-  fail "production deploy calls systemctl for more than the read-only is-enabled check"
+# 설치한 작업을 한 번 실행하고 마지막 결과가 success인지 읽는다(그 밖의 systemctl 호출은 없다).
+grep -q 'systemctl start masscom-retention.service' "$deploy" || fail "production deploy does not run the installed job once"
+grep -q 'systemctl show -p Result --value masscom-retention.service' "$deploy" || fail "production deploy does not read the first run result"
+if grep -n 'systemctl' "$deploy" | grep -v '^[0-9]*:[[:space:]]*#' \
+    | grep -vE 'systemctl (is-enabled masscom-retention\.timer|start masscom-retention\.service|show -p Result --value masscom-retention\.service)' \
+    | grep -q .; then
+  fail "production deploy calls systemctl for more than is-enabled, one start and a Result read of the retention job"
 fi
 # 웹 전용 배포는 서버 시스템 설정을 건드리지 않는다.
 if grep -Eq 'host-jobs|systemctl|masscom-retention' "$repo_root/scripts/deploy-lightsail-web.sh"; then

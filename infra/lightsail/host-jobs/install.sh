@@ -2,7 +2,7 @@
 # 보관 기간 정리 작업 설치 스크립트(Issue #253). 운영 배포 스크립트가 배포마다 실행하며, 서버에서 사람이 실행해도 된다.
 #   설치:  sudo bash <이 폴더>/install.sh
 #   제거:  sudo bash <이 폴더>/install.sh --uninstall
-#   확인:  sudo bash <이 폴더>/install.sh --verify   (읽기 전용: timer가 켜져 있고 스크립트·유닛이 이 폴더와 같은지 본다)
+#   확인:  sudo bash <이 폴더>/install.sh --verify   (읽기 전용: timer가 켜져 있고 스크립트·유닛이 이 폴더와 같고 마지막 실행 결과가 success인지 본다)
 # 하는 일: 정리 스크립트를 /usr/local/sbin에, systemd 유닛을 /etc/systemd/system에 복사하고 timer를 켠다.
 # 여러 번 실행해도 같은 결과다(멱등): 운영 배포(`scripts/deploy-lightsail.sh`)는 배포마다 이것을 다시 실행해 스크립트·유닛을 그 릴리스와 맞춘다.
 set -euo pipefail
@@ -39,6 +39,10 @@ case "${1:-install}" in
     cmp -s "$here/masscom-retention.sh" "$sbin" || { echo "$sbin differs from this release" >&2; exit 1; }
     cmp -s "$here/$name.service" "$unit_dir/$name.service" || { echo "$name.service differs from this release" >&2; exit 1; }
     cmp -s "$here/$name.timer" "$unit_dir/$name.timer" || { echo "$name.timer differs from this release" >&2; exit 1; }
+    # 마지막 실행 결과(systemd의 Result)도 보고한다: 한 번도 실행하지 않았으면 success이고, 마지막 실행이 실패했으면 exit-code 등이라 실패로 끝난다.
+    result="$(systemctl show -p Result --value "$name.service")"
+    echo "last run result: $result"
+    [[ "$result" == success ]] || { echo "$name.service last run did not succeed: $result" >&2; exit 1; }
     echo "verified: $name.timer is enabled and matches this release"
     ;;
   *)

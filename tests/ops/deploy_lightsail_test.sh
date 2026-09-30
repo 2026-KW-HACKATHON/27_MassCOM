@@ -171,6 +171,15 @@ grep -q 'postgres_log_settings_ok' "$deploy" && grep -q 'compose_new up -d --no-
   echo 'full deployment does not recreate only postgres when its log settings are stale' >&2
   exit 1
 }
+grep -q 'postgres_data_volume' "$deploy" && grep -q 'postgres_data_fingerprint' "$deploy" &&
+  grep -q "SHOW log_error_verbosity" "$deploy" && grep -q "SHOW log_min_error_statement" "$deploy" || {
+  echo 'a recreated postgres is not checked for the same data volume, the same data and its log options' >&2
+  exit 1
+}
+grep -q 'systemctl start masscom-retention.service' "$deploy" && grep -q 'systemctl show -p Result --value masscom-retention.service' "$deploy" || {
+  echo 'full deployment does not run the installed retention job once and check its result' >&2
+  exit 1
+}
 grep -q 'systemctl is-enabled masscom-retention.timer' "$deploy" && grep -q 'HOST_JOB_INSTALL_FAILED' "$deploy" || {
   echo 'full deployment does not verify the retention timer after the release is live' >&2
   exit 1
