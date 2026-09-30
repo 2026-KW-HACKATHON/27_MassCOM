@@ -56,7 +56,7 @@
 	# 컨트랙트에 고정된 실증 토큰(base-sepolia-proof)은 지금처럼 정적 파일로 남긴다.
 	@nftMetadataApi {
 		method GET HEAD
-		path_regexp ^/nft-metadata/(images/[0-9a-f]{64}\.webp|[A-Za-z0-9][A-Za-z0-9_-]{0,127}/(0|[1-9][0-9]{0,77})\.json)$
+		path_regexp ^/nft-metadata/(images/[0-9a-f]{64}\.webp|default/mascot-stamp-v1\.png|[A-Za-z0-9][A-Za-z0-9_-]{0,127}/(0|[1-9][0-9]{0,77})\.json)$
 		not path /nft-metadata/base-sepolia-proof/*
 	}
 	handle @nftMetadataApi {

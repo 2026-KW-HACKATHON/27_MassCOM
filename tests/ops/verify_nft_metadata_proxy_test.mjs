@@ -79,6 +79,9 @@ test('Caddy는 확정된 메타데이터·그림 경로만 API로 넘기고 실�
     assert.match(proof.headers.get('content-type') ?? '', /^application\/json/);
     assert.equal(proof.headers.get('access-control-allow-origin'), '*');
     assert.equal(await proof.text(), readFileSync(join(repoRoot, 'docs/nft-metadata/base-sepolia-proof/1.json'), 'utf8'));
+    // 대소문자를 바꾼 실증 경로도 API로 넘기지 않는다(Caddy path 매처는 대소문자를 무시한다). 정적 응답의 상태는
+    // 파일 시스템의 대소문자 구분에 따라 다르므로(macOS 바인드 마운트는 200, Linux는 404) 상태는 보지 않는다.
+    assert.equal((await fetch(`${url}/nft-metadata/BASE-SEPOLIA-PROOF/1.json`)).headers.get('x-from-api'), null);
     const otherProof = await fetch(`${url}/nft-metadata/base-sepolia-proof/2.json`);
     assert.equal(otherProof.status, 404);
     assert.equal(otherProof.headers.get('x-from-api'), null);
@@ -86,7 +89,8 @@ test('Caddy는 확정된 메타데이터·그림 경로만 API로 넘기고 실�
     // 발행 확정된 토큰·보존 그림은 API가 주고, CORS 값은 하나만 남는다(API 값과 Caddy 값이 겹치지 않음).
     const sha = 'e'.repeat(64);
     for (const [method, path] of [['GET', '/nft-metadata/series-a/7.json'], ['HEAD', '/nft-metadata/series-a/7.json'],
-      ['GET', '/nft-metadata/Series_2/0.json'], ['GET', `/nft-metadata/images/${sha}.webp`]]) {
+      ['GET', '/nft-metadata/Series_2/0.json'], ['GET', `/nft-metadata/images/${sha}.webp`],
+      ['GET', '/nft-metadata/default/mascot-stamp-v1.png'], ['HEAD', '/nft-metadata/default/mascot-stamp-v1.png']]) {
       const routed = await fetch(`${url}${path}`, { method });
       assert.equal(routed.status, 200, `${method} ${path}`);
       assert.equal(routed.headers.get('x-from-api'), `${method} ${path}`);
@@ -100,6 +104,7 @@ test('Caddy는 확정된 메타데이터·그림 경로만 API로 넘기고 실�
       ['GET', '/nft-metadata/series-a/07.json'], ['GET', '/nft-metadata/series-a/7.json.bak'],
       ['GET', '/nft-metadata/a/b/7.json'], ['GET', '/nft-metadata/series-a/'], ['GET', '/nft-metadata/-a/7.json'],
       ['GET', `/nft-metadata/images/${sha}.png`], ['GET', '/nft-metadata/images/abc.webp'],
+      ['GET', '/nft-metadata/default/mascot-stamp-v2.png'],
       ['GET', '/nft-metadata/series-a/%2e%2e/7.json'], ['GET', '/merchant-art/x.webp']]) {
       const blocked = await fetch(`${url}${path}`, { method });
       assert.equal(blocked.headers.get('x-from-api'), null, `${method} ${path}`);
