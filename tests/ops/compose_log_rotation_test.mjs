@@ -7,6 +7,8 @@ import { test } from 'node:test';
 // Issue #253: 컨테이너 로그는 용량 기준으로 순환한다. 두 compose를 실제로 렌더해 서비스별 logging을 확인한다.
 const repoRoot = resolve(import.meta.dirname, '../..');
 const expectedLogging = { driver: 'json-file', options: { 'max-file': '3', 'max-size': '10m' } };
+// 오류 로그에 오류가 난 행의 값(DETAIL)과 실패한 SQL 문이 남지 않게 하는 서버 옵션.
+const expectedPostgresCommand = ['postgres', '-c', 'log_error_verbosity=terse', '-c', 'log_min_error_statement=panic'];
 
 function render(file, env) {
   const rendered = execFileSync('docker', ['compose', '-f', resolve(repoRoot, file), 'config', '--format', 'json'], {
@@ -27,6 +29,11 @@ const showcase = () => render('infra/showcase-host/compose.yml', {
   SHOWCASE_INVITED_SUBJECT_SHA256: 'a'.repeat(64),
   SHOWCASE_ACCOUNT_DELETION_HMAC_SECRET: 'test-only-deletion-secret-at-least-32-bytes',
   SHOWCASE_MERCHANT_REFERENCE_HMAC_SECRET: 'test-only-reference-secret-at-least-32-bytes',
+});
+
+test('both stacks start postgres without row values or SQL text in its error log', () => {
+  assert.deepEqual(production().postgres.command, expectedPostgresCommand);
+  assert.deepEqual(showcase().postgres.command, expectedPostgresCommand);
 });
 
 test('operating stack: postgres, api, web and caddy rotate their logs by size', () => {

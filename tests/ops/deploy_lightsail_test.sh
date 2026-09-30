@@ -163,5 +163,17 @@ awk '/REMOTE_RELEASE_PREFLIGHT/ { if (!gate) gate=NR } /sudo mkdir/ { if (!write
   echo 'release collision gate must run before remote release creation' >&2
   exit 1
 }
+awk '/pg_dump --format=custom/ { if (!dump) dump=NR } /POSTGRES_RECREATED_FOR_LOG_SETTINGS/ { recreate=NR } /^compose_no_stdin run --rm -T migrate/ { migrate=NR } END { exit !(dump && recreate && migrate && dump < recreate && recreate < migrate) }' "$deploy" || {
+  echo 'postgres log-setting recreation must come after the pre-migration backup and before the migration' >&2
+  exit 1
+}
+grep -q 'postgres_log_settings_ok' "$deploy" && grep -q 'compose_new up -d --no-deps --wait --wait-timeout 120 postgres' "$deploy" || {
+  echo 'full deployment does not recreate only postgres when its log settings are stale' >&2
+  exit 1
+}
+grep -q 'systemctl is-enabled masscom-retention.timer' "$deploy" && grep -q 'HOST_JOB_INSTALL_FAILED' "$deploy" || {
+  echo 'full deployment does not verify the retention timer after the release is live' >&2
+  exit 1
+}
 bash "$repo_root/tests/ops/deploy_lightsail_rollback_test.sh"
 echo "Lightsail deployment script tests passed"

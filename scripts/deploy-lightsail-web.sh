@@ -255,6 +255,7 @@ probe_web_routes() {
     [[ "$status" == '404' ]]
   done
   web_collection_probe_response "http://$address/api/web/collection" masscom.kr
+  web_consent_probe_response "http://$address/api/web/consent" masscom.kr
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address/merchants")"
   [[ "$status" == '200' ]]
   curl -fsS --max-time 8 "http://$operating_address/merchants" |

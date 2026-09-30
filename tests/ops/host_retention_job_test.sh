@@ -64,8 +64,9 @@ kept_after_run=(
 
 run_job() {
   local script="$1"; shift
+  # 재정의(가짜 docker·임시 백업 폴더·기간)는 MASSCOM_RETENTION_TEST=1을 명시할 때만 받아들여진다.
   PATH="$scratch/bin:$PATH" FAKE_DOCKER_LOG="$scratch/docker.log" MASSCOM_DOCKER="$scratch/bin/docker" \
-    MASSCOM_BACKUP_DIR="$scratch/backups" "$@" bash "$script"
+    MASSCOM_BACKUP_DIR="$scratch/backups" MASSCOM_RETENTION_TEST=1 "$@" bash "$script"
 }
 
 for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retention|/opt/masscom/backups' \
@@ -77,7 +78,7 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   # 정상 실행: 컨테이너를 레이블로 골라 그 안에서 정리 명령을 실행하고 오래된 백업만 지운다.
   make_backups "$scratch/backups"; : > "$scratch/docker.log"
   out="$(run_job "$script" env)" || fail "$label: healthy run failed"
-  [[ "$(sed -n 1p "$scratch/docker.log")" == "ps -q --filter label=com.docker.compose.project=$project --filter label=com.docker.compose.service=$service" ]] \
+  [[ "$(sed -n 1p "$scratch/docker.log")" == "ps -q --filter label=com.docker.compose.project=$project --filter label=com.docker.compose.service=$service --filter label=com.docker.compose.oneoff=False" ]] \
     || fail "$label: container is not selected by compose labels"
   [[ "$(sed -n 2p "$scratch/docker.log")" == 'exec container-abc node dist/postgres/retention-command.js run' ]] \
     || fail "$label: retention command is not run inside the API container"
@@ -119,10 +120,26 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   done
   [[ ! -s "$scratch/docker.log" ]] || fail "$label: an invalid setting still called docker"
 
+  # 시험 표시 없이는 재정의가 무시된다: systemd 환경에 무엇이 있든 기본 경로·기간·docker만 쓴다(임시 폴더의 백업은 그대로).
+  make_backups "$scratch/backups"; : > "$scratch/docker.log"
+  set +e
+  PATH="$scratch/bin:$PATH" FAKE_DOCKER_LOG="$scratch/docker.log" MASSCOM_DOCKER=/bin/false MASSCOM_BACKUP_DIR="$scratch/backups" \
+    MASSCOM_BACKUP_RETENTION_DAYS=1 MASSCOM_COMPOSE_PROJECT=other MASSCOM_API_SERVICE=other bash "$script" >"$scratch/out" 2>"$scratch/err"
+  set -e
+  expect_files "$scratch/backups" "$label without test flag" "${kept_after_run[@]}" pre-edge-over.dump database-before-aaaaaaaaaaaa.dump.AbC123 pre-old-20260801.dump
+  grep -q "project=$project " "$scratch/docker.log" || fail "$label: an override changed the compose project without the test flag"
+  if [[ -d "$default_backup" && -w "$default_backup" ]]; then fail "$label: this machine has the real backup folder; test would touch it"; fi
+  grep -q RETENTION_BACKUP_DIR_MISSING "$scratch/err" || fail "$label: the default backup folder was not used without the test flag"
+
   # 저장소의 기본값이 실제 서버 경로와 compose 이름을 가리킨다.
-  grep -q "project=\"\${MASSCOM_COMPOSE_PROJECT:-$project}\"" "$script" || fail "$label: wrong default compose project"
-  grep -q "service=\"\${MASSCOM_API_SERVICE:-$service}\"" "$script" || fail "$label: wrong default service"
-  grep -q "backup_dir=\"\${MASSCOM_BACKUP_DIR:-$default_backup}\"" "$script" || fail "$label: wrong default backup folder"
+  grep -q "^project='$project'\$" "$script" || fail "$label: wrong default compose project"
+  grep -q "^service='$service'\$" "$script" || fail "$label: wrong default service"
+  grep -q "^backup_dir='$default_backup'\$" "$script" || fail "$label: wrong default backup folder"
+  grep -q '^retention_days=30$' "$script" || fail "$label: wrong default retention days"
+  grep -q 'MASSCOM_RETENTION_TEST:-}" == 1' "$script" || fail "$label: overrides are not gated behind the test flag"
+  # 지우는 일은 find 한 명령이다: 골라 둔 이름을 나중에 rm에 넘기지 않는다.
+  grep -q -- '-mmin "+\$((retention_days \* 1440))" -delete' "$script" || fail "$label: backups are not deleted by find itself"
+  if grep -Eq '(^|[^a-z])rm( |$)|xargs' "$script"; then fail "$label: the job deletes through a separate rm/xargs step"; fi
   grep -q "^name: $project\$" "$repo_root/${directory%/host-jobs}/compose.yml" || fail "$label: compose project name differs from the job's"
   grep -q "^  $service:\$" "$repo_root/${directory%/host-jobs}/compose.yml" || fail "$label: compose service name differs from the job's"
 
@@ -135,8 +152,22 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   grep -q '^OnCalendar=\*-\*-\* [0-9][0-9]:[0-9][0-9]:00 UTC$' "$timer_file" || fail "$label: timer is not a daily UTC schedule"
   grep -q '^Persistent=true$' "$timer_file" || fail "$label: timer does not catch up a missed run"
   grep -q '^WantedBy=timers.target$' "$timer_file" || fail "$label: timer is not installable"
+  # root로 도는 유닛은 권한을 좁힌다. 쓸 수 있는 곳은 이 스택의 백업 폴더뿐이고 docker 소켓 연결을 막는 경로 설정은 없다.
+  for directive in UMask=0077 NoNewPrivileges=yes PrivateTmp=yes PrivateDevices=yes ProtectSystem=strict ProtectHome=read-only \
+      ProtectKernelTunables=yes ProtectKernelModules=yes ProtectControlGroups=yes RestrictSUIDSGID=yes LockPersonality=yes \
+      "ReadWritePaths=$default_backup"; do
+    grep -qx "$directive" "$service_file" || fail "$label: service is missing $directive"
+  done
+  [[ "$(grep -c '^ReadWritePaths=' "$service_file")" == 1 ]] || fail "$label: service may write to more than one place"
+  if grep -Eq '^(ProtectSystem=(full|true)|InaccessiblePaths|TemporaryFileSystem|PrivateNetwork|RuntimeDirectory|ProtectProc|ProcSubset)' "$service_file"; then
+    fail "$label: a sandbox setting could block the docker socket"
+  fi
   grep -q "^name='$unit'\$" "$install_file" || fail "$label: installer uses another unit name"
   grep -q 'systemctl enable --now "\$name.timer"' "$install_file" || fail "$label: installer does not enable the timer"
+  grep -q 'systemctl is-enabled "\$name.timer"' "$install_file" || fail "$label: installer does not verify the timer is enabled"
+  grep -q -- '--verify)' "$install_file" || fail "$label: installer has no read-only verify mode"
+  grep -q "^backup_dir='$default_backup'\$" "$install_file" || fail "$label: installer creates another backup folder"
+  grep -q 'install -d -m 0700 -o root -g root "\$backup_dir"' "$install_file" || fail "$label: installer does not create the backup folder the unit writes to"
   [[ -x "$install_file" && -x "$script" ]] || fail "$label: scripts are not executable"
   # 설치 스크립트는 root가 아니면 아무것도 바꾸지 않고 멈춘다(이 시험이 서버 설정을 건드리지 않는다는 증거).
   if [[ "$(id -u)" != 0 ]]; then
@@ -144,9 +175,16 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   fi
 done
 
-# 배포 스크립트는 정리 작업을 설치하지 않는다: 서버 시스템 설정은 소유자가 한 번 손으로 바꾼다.
-if grep -Eq 'host-jobs|systemctl|masscom-retention' "$repo_root/scripts/deploy-lightsail.sh" "$repo_root/scripts/deploy-lightsail-web.sh"; then
-  fail "deploy scripts must not install the host job"
+# 운영 배포 스크립트는 정리 작업을 배포한 릴리스의 install.sh로 설치·갱신하고, systemctl은 읽기 전용 is-enabled만 직접 부른다.
+deploy="$repo_root/scripts/deploy-lightsail.sh"
+grep -q 'sudo bash "\$release/infra/lightsail/host-jobs/install.sh"' "$deploy" || fail "production deploy does not install the host job"
+grep -q 'systemctl is-enabled masscom-retention.timer' "$deploy" || fail "production deploy does not verify the timer"
+if grep -n 'systemctl' "$deploy" | grep -v 'systemctl is-enabled masscom-retention.timer' | grep -v '^[0-9]*:[[:space:]]*#' | grep -q .; then
+  fail "production deploy calls systemctl for more than the read-only is-enabled check"
+fi
+# 웹 전용 배포는 서버 시스템 설정을 건드리지 않는다.
+if grep -Eq 'host-jobs|systemctl|masscom-retention' "$repo_root/scripts/deploy-lightsail-web.sh"; then
+  fail "web-only deploy must not touch the host job"
 fi
 
 echo 'host retention job tests passed'

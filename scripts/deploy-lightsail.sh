@@ -239,6 +239,18 @@ retry_health() {
   return 1
 }
 
+# PostgreSQL 컨테이너가 이 릴리스의 로그 설정(용량 순환 10m×3, 오류 로그에 행 값·SQL 문을 남기지 않는 서버 옵션)으로 떠 있는지 읽기만 해서 본다.
+# 실행 중인 컨테이너는 compose 파일이 바뀌어도 다시 만들어지지 않으므로 배포가 직접 확인한다(Issue #253, D-056).
+postgres_log_settings_ok() {
+  local id log_config command_line
+  id="$(service_id postgres)" && [[ -n "$id" && "$id" != *$'\n'* ]] || return 1
+  log_config="$(sudo docker inspect --format '{{json .HostConfig.LogConfig.Config}}' "$id")" || return 1
+  command_line="$(sudo docker inspect --format '{{json .Config.Cmd}}' "$id")" || return 1
+  [[ "$log_config" == *'"max-size":"10m"'* && "$log_config" == *'"max-file":"3"'* &&
+     "$command_line" == *'log_error_verbosity=terse'* && "$command_line" == *'log_min_error_statement=panic'* ]]
+}
+postgres_recreated=false
+
 rollback_started=false
 migration_started=false
 rollback() {
@@ -246,6 +258,10 @@ rollback() {
   trap - ERR
   if [[ "$rollback_started" == true ]]; then
     sudo install -o root -g root -m 600 "$env_backup" "$runtime_env" || failed=true
+    if [[ "$postgres_recreated" == true ]]; then
+      # 이전 릴리스의 compose 정의로 PostgreSQL을 되돌린다(이 배포가 다시 만들었으므로 한 번 더 짧게 다시 뜬다).
+      compose_old up -d --no-deps --wait --wait-timeout 120 postgres || failed=true
+    fi
     compose_old up -d --no-deps --force-recreate --wait --wait-timeout 120 api production-web || failed=true
     compose_old_caddy up -d --no-deps --force-recreate caddy || failed=true
     sudo ln -sfn "$old_api_release" /opt/masscom/current || failed=true
@@ -291,6 +307,14 @@ trap 'rollback "$?"' ERR
 sudo install -o root -g root -m 600 "$temporary_env" "$runtime_env"
 rm -f "$temporary_env"
 compose_new build api production-web
+# 사전 백업이 검증된 뒤에만 PostgreSQL을 다시 만든다. 로그 설정이 이미 맞으면 건드리지 않는다.
+if ! postgres_log_settings_ok; then
+  postgres_recreated=true
+  compose_new up -d --no-deps --wait --wait-timeout 120 postgres
+  postgres_log_settings_ok
+  [[ "$(compose_no_stdin exec -T postgres psql -U masscom -d masscom -Atc 'SHOW log_min_error_statement')" == panic ]]
+  echo 'POSTGRES_RECREATED_FOR_LOG_SETTINGS'
+fi
 migration_started=true
 compose_no_stdin run --rm -T migrate
 compose_new up -d --no-deps --wait --wait-timeout 120 api production-web
@@ -311,6 +335,16 @@ sudo ln -sfn "$release" /opt/masscom/web/current
 printf '%s\n' "$commit" | sudo tee /opt/masscom/web/DEPLOYED_COMMIT >/dev/null
 compose_new ps
 trap - ERR
+
+# 보관 기간 정리 작업(하루 한 번, systemd timer)을 이 릴리스의 것으로 설치·갱신하고(멱등) timer가 켜져 있는지 읽기 전용으로 확인한다.
+# 처리방침의 "서버의 정리 작업" 문장은 이 timer가 켜져 있어야 사실이다. 여기서 실패하면 릴리스는 이미 올라간 상태로 두고(되돌리지 않는다)
+# 배포를 실패로 알린다: 서버에서 `sudo bash "$release/infra/lightsail/host-jobs/install.sh" --verify`로 원인을 보고 다시 실행한다.
+if ! sudo bash "$release/infra/lightsail/host-jobs/install.sh" ||
+   [[ "$(sudo systemctl is-enabled masscom-retention.timer)" != enabled ]]; then
+  echo 'HOST_JOB_INSTALL_FAILED: release is live but the retention timer is not enabled; run host-jobs/install.sh on the server' >&2
+  exit 1
+fi
+echo 'HOST_JOB_ENABLED masscom-retention.timer'
 REMOTE
 
 echo "Lightsail deployment completed: $commit"
