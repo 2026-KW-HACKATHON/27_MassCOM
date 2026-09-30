@@ -82,6 +82,8 @@
 
 [Issue #246](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/246)은 **실제 점포를 SQL 없이 운영 관리자 웹에서 운영 시작합니다**([설계](docs/superpowers/specs/2026-09-30-store-go-live-design.md), [결정 D-054·D-055·D-023](docs/DECISIONS.md), [점포 온보딩 안내](docs/MERCHANT_ONBOARDING.md)). 메뉴·영업시간·주소와 가게 이름·사진 사용 동의서 참조 번호가 있어야 점포를 공개하고, 직원 등록 뒤 사업자등록증 원본과 점포 전화로 확인한 사람만 확인 기록 참조 번호와 함께 점주로 올립니다(점포당 2명, 관리자 본인 불가). 보상 혜택은 점주 동의 5항목·동의서 참조 번호·발급 상한이 있어야 등록하고, 캠페인은 관리자가 공개·중지합니다. 서비스에는 참조 번호만 남기고 사업자등록번호·이름·전화번호는 남기지 않습니다. 방문 보상에는 참여 등록이 필요 없고, 운영 NFT는 권리만 기록하며 고객 앱·웹에 "발행 준비 중"을 보입니다(시연 발행은 그대로). 운영 배포·실제 점포 실행은 아직 하지 않았습니다([시험 상태](docs/TEST_STATUS.md)).
 
+[Issue #254](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/254)는 **NFT 메타데이터를 발행 확정 때 고정합니다**([설계](docs/superpowers/specs/2026-09-30-nft-metadata-design.md), [결정 D-057](docs/DECISIONS.md)). 메타데이터는 `<가게 이름> 방문 도장`, 가게 이름·동네(행정동)·업종·방문 단계·캠페인과 사장님이 적용한 가게 그림(없으면 기본 도장)을 담고 주소·시각·주문·계정·지갑은 담지 않습니다. Worker가 발행 확정 트랜잭션에서 DB에 고정하므로 뒤에 가게 정보·그림이 바뀌어도 이미 발행한 토큰은 그대로이고, 공개 주소 `https://masscom.kr/nft-metadata/<series>/<tokenId>.json`(시연은 `https://demo-api.masscom.kr/…`)이 CORS·오래 캐시로 내보냅니다. 시리즈를 만들 때 `createSeries`의 base URI는 `<출처>/nft-metadata/<nft_series.id>/`입니다. 동네·업종은 관리자 웹에서 넣고 점포 공개 조건과는 별개입니다. 실증 토큰 파일은 그대로이며, 운영 발행은 여전히 준비 중이라 운영 배포·실제 발행은 아직 하지 않았습니다.
+
 ## 한눈에 보기
 
 <details>
@@ -205,7 +207,7 @@ sequenceDiagram
 | :---: | :---: | :---: |
 | <img src="apps/mobile/assets/images/collectibles/showcase-a.png" width="180" alt="가상 점포 A 수집품용 마스코트 그림"> | <img src="apps/mobile/assets/images/collectibles/showcase-b.png" width="180" alt="가상 점포 B 수집품용 마스코트 그림"> | <img src="apps/mobile/assets/images/collectibles/showcase-c.png" width="180" alt="가상 점포 C 수집품용 마스코트 그림"> |
 
-외부 지갑의 NFT 썸네일은 별개입니다. 현재 실증 메타데이터에 이미지 URI가 없어 이번 앱 그림을 온체인 표시 완료로 계산하지 않습니다.
+외부 지갑의 NFT 썸네일은 별개입니다. 현재 실증 메타데이터에 이미지 URI가 없어 이번 앱 그림을 온체인 표시 완료로 계산하지 않습니다. 앞으로 발행하는 토큰은 발행 확정 때 고정한 메타데이터에 가게 그림 또는 기본 도장 이미지 주소가 들어갑니다(Issue #254, 실제 발행은 `NOT_RUN`).
 
 ## 단계별 진행
 

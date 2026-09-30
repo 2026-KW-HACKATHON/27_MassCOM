@@ -191,12 +191,28 @@ COMMIT;
 BEGIN;
 DELETE FROM merchant_art WHERE sha256 = '<sha>';
 DELETE FROM merchant_art_images WHERE sha256 = '<sha>';
+-- 이미 발행한 NFT에 고정된 같은 그림(/nft-metadata/images/<sha>.webp)도 내린다. 메타데이터 문장은 그대로 남는다.
+DELETE FROM nft_metadata_images WHERE sha256 = '<sha>';
 COMMIT;
 ```
 
 `merchant_art.sha256`은 유일하지 않다(서로 다른 가게가 우연히 같은 그림 바이트를 적용할 수 있다). 그래서 `sha256`으로 지우면 같은 바이트를 쓰는 **다른 가게의 그림도 함께** 내려가고, 그 주소는 확실히 404가 된다. 반대로 위의 `merchant_id` 문장은 그 가게만 내리므로, 같은 바이트를 쓰는 다른 가게가 있으면 그 가게의 행이 남아 옛 주소는 계속 200이다(404는 같은 바이트를 쓰는 가게가 하나도 남지 않을 때만 맞다). 신고된 그림 자체를 막으려면 `sha256` 문장을, 한 가게만 내리려면 `merchant_id` 문장을 쓴다.
 
 이미 그림을 받아 둔 기기는 카탈로그(가게 목록)를 다시 받을 때까지 캐시한 그림을 계속 보여 줄 수 있다(공개 그림 주소는 `immutable`로 1년 캐시된다). 목록을 새로 받으면 `artUrl`이 `null`이라 더는 그 주소를 쓰지 않는다. 가게가 같은 그림을 다시 적용할 수는 있으므로 계속 막아야 하면 그 가게의 `merchant_members`를 회수한다.
+
+### 공개 NFT 메타데이터 (Issue #254, D-057, migration 0034)
+
+발행이 체인에서 확정될 때 Worker가 `nft_token_metadata`에 고정한 메타데이터와 `nft_metadata_images`에 복사한 가게 그림을 로그인 없이 내보낸다. 이 서버는 스냅샷을 만들지 않고 읽기만 한다([설계](../../docs/superpowers/specs/2026-09-30-nft-metadata-design.md)).
+
+| 경로 | 응답 |
+| --- | --- |
+| `GET`·`HEAD /nft-metadata/<series>/<tokenId>.json` | 스냅샷이 있으면 `200`, 저장된 바이트 그대로 `application/json; charset=utf-8`, `Cache-Control: public, max-age=31536000, immutable`, `Access-Control-Allow-Origin: *` |
+| `GET`·`HEAD /nft-metadata/images/<sha256>.webp` | 보존된 그림이 있으면 `200 image/webp`, 같은 캐시·CORS |
+| 없는 토큰·다른 시리즈·확정 전·잘못된 경로 | `404 {"code":"NOT_FOUND"}`, `Cache-Control: no-store`, CORS 포함. DB가 없으면 `503 NFT_METADATA_NOT_CONFIGURED` |
+
+`<series>`는 `nft_series.id`(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`, `base-sepolia-proof` 제외), `<tokenId>`는 앞자리 0 없는 10진수다. 온체인 `createSeries`의 base URI는 `<출처>/nft-metadata/<nft_series.id>/`로 준다(운영 `https://masscom.kr` — Caddy가 이 모양의 경로만 API로 넘김, 시연 `https://demo-api.masscom.kr`). 메타데이터 행은 수정·삭제할 수 없고(DB 트리거), 그림 행은 위 "그림 한 장 내리기"로만 지운다.
+
+관리자 점포 API(`POST /api/web/admin/merchants`, `PATCH /api/web/admin/merchants/:id`)는 선택 키 `neighborhood`(행정동: `^[가-힣][가-힣0-9·]{0,8}[동가리]$`, 숫자 3자리 이상 연속 금지)·`category`(`한식`·`중식`·`일식`·`양식`·`분식`·`카페`·`베이커리`·`주점`·`기타`)를 받는다. 키가 없으면 그대로, `null`·빈 문자열이면 비우고, 규칙 위반은 `400 ADMIN_INVALID_INPUT`이다. 점포 공개 조건과는 무관하다.
 
 두 POST 요청의 계정은 서버 `AccountResolver`가 결정합니다. `x-account-id`는 loopback 서버의 명시적 insecure demo 모드에서만 읽으며 실제 로그인 인증을 대신하지 않습니다.
 
