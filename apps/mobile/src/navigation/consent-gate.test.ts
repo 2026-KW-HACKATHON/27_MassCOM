@@ -17,9 +17,10 @@ test('the consent screen is asked for before the showcase merchant screen and be
 
 test('only a real signed-in bearer session on a configured API is asked, and the answer is kept per account in memory', () => {
   const block = layout.slice(layout.indexOf('// 첫 로그인 동의'), layout.indexOf("destination === 'merchant' && auth.accountId"));
-  assert.match(block, /auth\.state\.status === 'signedIn'/);
+  // The decision is the pure function in consent-flow.ts (unit-tested there), fed the live auth state.
+  assert.match(block, /shouldAskConsent\(\{[\s\S]*status: auth\.state\.status[\s\S]*consentedAccountId[\s\S]*\}\)/);
   assert.match(block, /publicApiConfig\.available/);
-  assert.match(block, /consentedAccountId !== auth\.accountId/);
+  assert.doesNotMatch(block, /consentedAccountId !== auth\.accountId/, 'the comparison lives in shouldAskConsent, not inline');
   assert.match(block, /key=\{auth\.accountId\}/);
   assert.match(block, /onLogout=\{auth\.logout\}/);
   assert.match(block, /onSessionInvalid=\{auth\.invalidateSession\}/);

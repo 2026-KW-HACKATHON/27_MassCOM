@@ -95,6 +95,10 @@ test('the account page links to the terms, the privacy policy and the deletion g
   assert.match(screen, /legalLinks\.map\(\(link\) => \(/);
   assert.match(screen, /accessibilityRole="link"\s+accessibilityLabel=\{link\.label\}\s+accessibilityHint=\{link\.hint\}/);
   assert.match(screen, /async function openLegalPage\(url: string\)/);
+  // 열지 못했다는 안내는 링크 바로 아래 카드 안에서 알린다(공용 오류 줄이 아니다).
+  const legalCard = screen.slice(screen.indexOf('약관과 개인정보</Text>'), screen.indexOf('<Text style={styles.sectionTitle}>계정 삭제 안내</Text>'));
+  assert.match(legalCard, /accessibilityLiveRegion="polite"[\s\S]*legalError/);
+  assert.match(screen, /setLegalError\('페이지를 열지 못했습니다/);
   assert.match(screen, /페이지를 열지 못했습니다\. 브라우저에서 www\.masscom\.kr 주소를 직접 열어 주세요/);
   // The new card is a guide only: the deletion request itself stays where it was (web page or showcase in-app filing).
   assert.match(screen, /웹에서 계정 삭제 요청/);

@@ -2,6 +2,12 @@ import type { TextStyle, ViewStyle } from 'react-native';
 import { type AppColors } from '../../theme/palette';
 import { uiMetrics } from '../../theme/ui-metrics';
 
+/** 체크 상자 한 변(dp). 시스템 글자 크기에 비례해 커지되(최대 2.5배) 100% 아래로는 줄지 않는다. */
+export function consentBoxSize(fontScale: number): number {
+  const scale = Number.isFinite(fontScale) ? Math.min(Math.max(fontScale, 1), 2.5) : 1;
+  return Math.round(28 * scale);
+}
+
 /** 동의 화면 스타일. 줄 높이·최소 높이만 정하고 고정 높이는 두지 않아 글자 200%에서도 잘리지 않는다. */
 export function makeConsentStyles(palette: AppColors, hairlineWidth = 1) {
   return {
@@ -35,8 +41,8 @@ export function makeConsentStyles(palette: AppColors, hairlineWidth = 1) {
       paddingVertical: 8,
     },
     box: {
-      width: 28,
-      height: 28,
+      minWidth: 28,
+      minHeight: 28,
       borderRadius: 8,
       borderWidth: 2,
       borderColor: palette.primary,
@@ -45,7 +51,7 @@ export function makeConsentStyles(palette: AppColors, hairlineWidth = 1) {
       backgroundColor: palette.background,
     },
     boxChecked: { backgroundColor: palette.primary },
-    tick: { color: palette.onPrimary, fontSize: 18, lineHeight: 22, fontWeight: '900' },
+    tick: { color: palette.onPrimary, fontSize: 18, lineHeight: 22, fontWeight: '900', textAlign: 'center' },
     checkLabel: { flex: 1, color: palette.label, fontSize: 16, lineHeight: 24, fontWeight: '700' },
     link: {
       minHeight: uiMetrics.minTouch,

@@ -11,6 +11,7 @@ import { AuthSessionProvider, useAuthSession } from '@/auth/auth-provider';
 import { AuthRequiredScreen } from '@/screens/auth-required';
 import { ConsentScreen } from '@/screens/consent';
 import { publicApiConfig } from '@/config/public-api-runtime';
+import { shouldAskConsent } from '@/privacy/consent-flow';
 import { hasPendingFriendLink } from '@/friends/pending-friend-link';
 import { consumeMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, type ShowcaseRoleState } from '@/navigation/showcase-entry';
 import { FoundationScreen } from '@/screens/foundation';
@@ -100,8 +101,10 @@ function AuthenticatedRoot() {
 
   // 첫 로그인 동의(운영·시연 공통, Issue #253): 서버가 required라고 하면 점주 화면과 메인 탭보다 먼저 전체 화면으로 묻는다.
   if (
-    auth.state.status === 'signedIn' && auth.accountId && auth.credential &&
-    publicApiConfig.available && consentedAccountId !== auth.accountId
+    auth.accountId && auth.credential && publicApiConfig.available && shouldAskConsent({
+      status: auth.state.status, accountId: auth.accountId, credential: auth.credential,
+      apiAvailable: publicApiConfig.available, consentedAccountId,
+    })
   ) {
     return <ConsentScreen
       key={auth.accountId}

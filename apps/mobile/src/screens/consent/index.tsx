@@ -1,6 +1,6 @@
 import * as Application from 'expo-application';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -17,7 +17,7 @@ import {
 } from '@/privacy/consent-flow';
 import { colorsForScheme } from '@/theme/palette';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
-import { makeConsentStyles } from './styles';
+import { consentBoxSize, makeConsentStyles } from './styles';
 
 type Props = {
   apiUrl: string;
@@ -36,6 +36,8 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeConsentStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
+  // 글자를 키우면(최대 200% 이상) 체크 상자도 같은 비율로 커진다. 글자 크기 제한(allowFontScaling=false)은 쓰지 않는다.
+  const boxSize = consentBoxSize(useWindowDimensions().fontScale);
   const client = useMemo(() => new ConsentApiClient({ apiUrl, credential }), [apiUrl, credential]);
   const [gate, setGate] = useState<ConsentGateState>({ kind: 'loading' });
   const [checks, setChecks] = useState<ConsentChecks>(noChecks);
@@ -138,7 +140,7 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
           onPress={() => void logout()}
           style={styles.secondary}
         >
-          <Text style={styles.secondaryText}>{consentCopy.logout}</Text>
+          <Text style={styles.secondaryText}>{consentCopy.logoutNeutral}</Text>
         </Pressable>
       </SkyScrollView>
     );
@@ -172,7 +174,7 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
               onPress={() => setChecks((current) => ({ ...current, [check.key]: !current[check.key] }))}
               style={styles.checkRow}
             >
-              <View accessible={false} importantForAccessibility="no-hide-descendants" style={[styles.box, checked && styles.boxChecked]}>
+              <View accessible={false} importantForAccessibility="no-hide-descendants" style={[styles.box, { width: boxSize, height: boxSize, minWidth: boxSize, minHeight: boxSize }, checked && styles.boxChecked]}>
                 <Text style={styles.tick}>{checked ? '✓' : ''}</Text>
               </View>
               <Text style={styles.checkLabel}>{check.label}</Text>

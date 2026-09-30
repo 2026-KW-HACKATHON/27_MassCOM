@@ -82,6 +82,7 @@ export function AccountSettingsScreen({
   const [busy, setBusy] = useState<'delete' | 'logout' | 'switch' | 'intake'>();
   const [result, setResult] = useState<AccountDeletionResult>();
   const [error, setError] = useState<string>();
+  const [legalError, setLegalError] = useState<string>();
   const [message, setMessage] = useState<string>();
   // undefined는 아직 모름, null은 활성 요청 없음. 접수번호는 이 화면이 열려 있는 동안 메모리에만 둔다.
   const [intake, setIntake] = useState<DeletionIntakeView | null>();
@@ -246,11 +247,12 @@ export function AccountSettingsScreen({
   }
 
   async function openLegalPage(url: string) {
-    setError(undefined);
+    setLegalError(undefined);
     try {
       await Linking.openURL(url);
     } catch {
-      setError('페이지를 열지 못했습니다. 브라우저에서 www.masscom.kr 주소를 직접 열어 주세요.');
+      // 링크 바로 아래에 알린다: 화면 아래쪽 공용 오류 줄은 링크가 있는 곳에서 멀어 놓치기 쉽다.
+      setLegalError('페이지를 열지 못했습니다. 브라우저에서 www.masscom.kr 주소를 직접 열어 주세요.');
     }
   }
 
@@ -353,6 +355,9 @@ export function AccountSettingsScreen({
             <Text style={styles.secondaryLinkText}>{link.label} →</Text>
           </Pressable>
         ))}
+        <View accessibilityLiveRegion="polite">
+          {legalError ? <Text selectable style={styles.error}>{legalError}</Text> : null}
+        </View>
       </FloatingCard>
 
       <FloatingCard style={styles.groupCard}>

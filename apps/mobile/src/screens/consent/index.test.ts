@@ -35,6 +35,12 @@ test('the screen never leaves the user stuck: retry after a failed check, sign-o
   assert.match(screen, /onLogout\(\)/);
   assert.match(screen, /onSessionInvalid\(\)/);
   assert.match(screen, /gate\.kind === 'outdated' \? consentCopy\.versionMismatch : consentCopy\.checkFailed/);
+  // Where the user has not refused anything (a failed check, an outdated app) sign-out is not called "not agreeing".
+  const failedBranch = screen.slice(screen.indexOf("gate.kind === 'failed' || gate.kind === 'outdated'"), screen.indexOf('<Text accessibilityRole="header" selectable style={styles.title}>'));
+  assert.match(failedBranch, /consentCopy\.logoutNeutral/);
+  assert.doesNotMatch(failedBranch, /consentCopy\.logout\b/);
+  const formBranch = screen.slice(screen.indexOf('<Text accessibilityRole="header" selectable style={styles.title}>'));
+  assert.match(formBranch, /consentCopy\.logout\b/);
 });
 
 test('status and errors are announced politely, the page scrolls and text is never capped', () => {
@@ -44,6 +50,11 @@ test('status and errors are announced politely, the page scrolls and text is nev
   assert.doesNotMatch(screen, /allowFontScaling=\{false\}|maxFontSizeMultiplier/);
   // Nothing about consent is kept on the device: the server is the record.
   assert.doesNotMatch(screen, /AsyncStorage|SecureStore|localStorage/);
+});
+
+test('the check box grows with the system font scale instead of capping the text', () => {
+  assert.match(screen, /consentBoxSize\(useWindowDimensions\(\)\.fontScale\)/);
+  assert.match(screen, /\{ width: boxSize, height: boxSize, minWidth: boxSize, minHeight: boxSize \}/);
 });
 
 test('the notice shows all four items above the boxes', () => {

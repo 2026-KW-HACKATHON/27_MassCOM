@@ -3,7 +3,9 @@ import { test } from 'node:test';
 
 import { ConsentApiError, type ConsentState } from './consent-api';
 import { consentChecks, CONSENT_PRIVACY_VERSION, CONSENT_TERMS_VERSION } from './consent-copy';
-import { canSubmitConsent, loadConsentState, noChecks, stateFromServer, submitConsent, type ConsentChecks } from './consent-flow';
+import {
+  canSubmitConsent, loadConsentState, noChecks, shouldAskConsent, stateFromServer, submitConsent, type ConsentChecks,
+} from './consent-flow';
 
 const bearer = { kind: 'bearer', sessionToken: 'session' } as const;
 const current = { termsVersion: CONSENT_TERMS_VERSION, privacyVersion: CONSENT_PRIVACY_VERSION };
@@ -59,4 +61,35 @@ test('submitting needs all three boxes, records once and maps every refusal', as
   // Recorded but the server still wants consent (versions moved meanwhile): ask again rather than open the app.
   assert.deepEqual(await submitConsent({ record: async () => ({ required: true, ...current }) }, bearer, all),
     { kind: 'state', state: { kind: 'required' } });
+});
+
+const demo = { kind: 'demo', accountId: 'demo-1', allowInsecureReauthentication: false } as const;
+const ask = (over: Partial<Parameters<typeof shouldAskConsent>[0]> = {}) => shouldAskConsent({
+  status: 'signedIn', accountId: 'acct-a', credential: bearer, apiAvailable: true, consentedAccountId: undefined, ...over,
+});
+
+test('the gate asks a freshly signed-in account and stops asking once the server said yes for that account', () => {
+  assert.equal(ask(), true, 'first login');
+  assert.equal(ask({ consentedAccountId: 'acct-a' }), false, 'same account again in this run');
+});
+
+test('a different account is asked even after the first one agreed, and sign-out never asks by itself', () => {
+  assert.equal(ask({ accountId: 'acct-b', consentedAccountId: 'acct-a' }), true, 'switch account');
+  // Sign out, then B: while signed out nothing is asked (the sign-in screen comes first), then B is asked, not carried over from A.
+  assert.equal(ask({ status: 'signedOut', accountId: undefined, credential: undefined, consentedAccountId: 'acct-a' }), false);
+  assert.equal(ask({ accountId: 'acct-b', consentedAccountId: 'acct-a' }), true);
+  // A signing in again in the same run was already recorded by the server, so it is not asked twice.
+  assert.equal(ask({ consentedAccountId: 'acct-a' }), false);
+});
+
+test('states without a real server session or API never ask', () => {
+  assert.equal(ask({ apiAvailable: false }), false, 'API unavailable');
+  assert.equal(ask({ status: 'demo', accountId: 'demo-1', credential: demo }), false, 'development demo status');
+  assert.equal(ask({ credential: demo }), false, 'a demo credential is not a server session');
+  for (const status of ['restoring', 'switchingAccount', 'signedOut', 'signingIn']) {
+    assert.equal(ask({ status }), false, status);
+  }
+  assert.equal(ask({ accountId: undefined }), false);
+  assert.equal(ask({ credential: undefined }), false);
+  assert.equal(ask({ accountId: '' }), false);
 });

@@ -14,6 +14,25 @@ export type ConsentGateState =
 
 export type ConsentChecks = Record<ConsentCheckKey, boolean>;
 
+/**
+ * 동의 화면을 보일지(루트 레이아웃의 결정). 실제 로그인한 Bearer 세션이고 API가 설정돼 있고, 이 실행에서 서버가 "이미 동의했다"고 답한 계정이
+ * 지금 계정이 아닐 때만 묻는다. 로그아웃하면 묻지 않고(로그인 화면이 먼저), 다른 계정 B로 로그인하면 A의 답을 물려받지 않고 B를 다시 묻는다.
+ * 개발용 DEMO 계정은 서버 세션이 없어 묻지 않는다.
+ */
+export function shouldAskConsent(input: {
+  status: string;
+  accountId: string | undefined;
+  credential: AccountCredential | undefined;
+  apiAvailable: boolean;
+  consentedAccountId: string | undefined;
+}): boolean {
+  return input.status === 'signedIn'
+    && Boolean(input.accountId)
+    && input.credential?.kind === 'bearer'
+    && input.apiAvailable
+    && input.consentedAccountId !== input.accountId;
+}
+
 export const noChecks: ConsentChecks = { ageConfirmed: false, termsAccepted: false, privacyAccepted: false };
 
 /** 세 필수 항목을 모두 눌러야 "동의하고 시작"이 켜진다. */
