@@ -1,7 +1,9 @@
 // Issue #254: 공개 NFT 메타데이터 경로(/nft-metadata/<series>/<tokenId>.json, /nft-metadata/images/<sha256>.webp).
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test, type TestContext } from 'node:test';
 
+import { DEFAULT_STAMP_V1_PNG, DEFAULT_STAMP_V1_SHA256 } from './nft-default-stamp.js';
 import { matchNftMetadataRoute, type NftMetadataReader } from './nft-metadata.js';
 import { createApiServer, developmentHeaderAccountResolver } from './server.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
@@ -30,7 +32,9 @@ test('경로 규칙은 Caddy·시리즈 CHECK와 같고 정적 실증 시리즈�
   assert.deepEqual(matchNftMetadataRoute('/nft-metadata/series-worker/7.json'), { kind: 'token', seriesId: 'series-worker', tokenId: '7' });
   assert.deepEqual(matchNftMetadataRoute('/nft-metadata/Series_2/0.json'), { kind: 'token', seriesId: 'Series_2', tokenId: '0' });
   assert.deepEqual(matchNftMetadataRoute(`/nft-metadata/images/${sha}.webp`), { kind: 'image', sha256: sha });
-  for (const path of ['/nft-metadata/base-sepolia-proof/1.json', '/nft-metadata/s/07.json', '/nft-metadata/s/1',
+  assert.deepEqual(matchNftMetadataRoute('/nft-metadata/default/mascot-stamp-v1.png'), { kind: 'default-stamp' });
+  for (const path of ['/nft-metadata/base-sepolia-proof/1.json', '/nft-metadata/BASE-SEPOLIA-PROOF/1.json',
+    '/nft-metadata/Base-Sepolia-Proof/2.json', '/nft-metadata/default/mascot-stamp-v2.png', '/nft-metadata/default/x.png', '/nft-metadata/s/07.json', '/nft-metadata/s/1',
     '/nft-metadata/s/1.JSON', '/nft-metadata/-s/1.json', '/nft-metadata/s.x/1.json', '/nft-metadata/a/b/1.json',
     `/nft-metadata/images/${'A'.repeat(64)}.webp`, `/nft-metadata/images/${sha}.png`, '/nft-metadata/s/-1.json',
     `/nft-metadata/${'s'.repeat(129)}/1.json`, `/nft-metadata/s/1${'0'.repeat(78)}.json`]) {
@@ -53,11 +57,13 @@ test('확정된 토큰 메타데이터는 저장된 바이트 그대로 JSON·CO
   assert.equal(found.headers.get('access-control-allow-origin'), '*');
   assert.equal(found.headers.get('cache-control'), 'public, max-age=31536000, immutable');
   assert.equal(found.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(found.headers.get('content-length'), String(Buffer.byteLength(metadata)));
   assert.equal(await found.text(), metadata);
 
   const head = await fetch(`${base}/nft-metadata/series-a/7.json`, { method: 'HEAD' });
   assert.equal(head.status, 200);
   assert.equal(head.headers.get('access-control-allow-origin'), '*');
+  assert.equal(head.headers.get('content-length'), String(Buffer.byteLength(metadata)));
   assert.equal(await head.text(), '');
 
   const image = await fetch(`${base}/nft-metadata/images/${sha}.webp`);
@@ -65,7 +71,10 @@ test('확정된 토큰 메타데이터는 저장된 바이트 그대로 JSON·CO
   assert.equal(image.headers.get('content-type'), 'image/webp');
   assert.equal(image.headers.get('cache-control'), 'public, max-age=31536000, immutable');
   assert.equal(image.headers.get('access-control-allow-origin'), '*');
+  assert.equal(image.headers.get('content-length'), String(art.length));
   assert.deepEqual(Buffer.from(await image.arrayBuffer()), art);
+  const imageHead = await fetch(`${base}/nft-metadata/images/${sha}.webp`, { method: 'HEAD' });
+  assert.equal(imageHead.headers.get('content-length'), String(art.length));
 
   // 없는 토큰·다른 시리즈·확정 전·모르는 그림·잘못된 경로는 모두 같은 404이고 캐시하지 않는다.
   for (const path of ['/nft-metadata/series-a/8.json', '/nft-metadata/series-b/7.json', `/nft-metadata/images/${'b'.repeat(64)}.webp`,
@@ -84,9 +93,23 @@ test('확정된 토큰 메타데이터는 저장된 바이트 그대로 JSON·CO
   assert.equal(posted.headers.get('access-control-allow-origin'), null);
 });
 
-test('DB가 없는 서버는 메타데이터를 503으로 알린다', async (t) => {
+test('DB가 없는 서버는 메타데이터를 503으로 알리지만 판이 붙은 기본 도장은 준다', async (t) => {
   const base = await start(t);
   const response = await fetch(`${base}/nft-metadata/series-a/7.json`);
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { code: 'NFT_METADATA_NOT_CONFIGURED' });
+  const stamp = await fetch(`${base}/nft-metadata/default/mascot-stamp-v1.png`);
+  assert.equal(stamp.status, 200);
+  assert.equal(stamp.headers.get('content-type'), 'image/png');
+  assert.equal(stamp.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+  assert.equal(stamp.headers.get('access-control-allow-origin'), '*');
+  assert.equal(stamp.headers.get('content-length'), String(DEFAULT_STAMP_V1_PNG.length));
+  assert.equal(createHash('sha256').update(Buffer.from(await stamp.arrayBuffer())).digest('hex'), DEFAULT_STAMP_V1_SHA256);
+});
+
+test('기본 도장 v1 바이트는 고정된 sha256이고 PNG다(바꾸려면 새 판을 더한다)', () => {
+  const pinned = '147545653d7dca77c744aaf778ea4ae5836e8ce3c395aeb094eac5fec3926a11';
+  assert.equal(DEFAULT_STAMP_V1_SHA256, pinned);
+  assert.equal(createHash('sha256').update(DEFAULT_STAMP_V1_PNG).digest('hex'), pinned);
+  assert.deepEqual([...DEFAULT_STAMP_V1_PNG.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 });

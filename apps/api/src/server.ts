@@ -42,6 +42,7 @@ import {
   type MerchantAccessControl,
 } from './merchant-access.js';
 import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
+import { DEFAULT_STAMP_V1_PNG } from './nft-default-stamp.js';
 import { matchNftMetadataRoute, type NftMetadataReader } from './nft-metadata.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import { MintRequestError, refuseMintRequestsWhilePreparing, type MintRequestService } from './mint-request-service.js';
@@ -1135,6 +1136,10 @@ export function createApiServer(
         response.setHeader('access-control-allow-origin', '*');
         const route = matchNftMetadataRoute(path);
         if (!route) throw new RequestError(404, 'NOT_FOUND');
+        if (route.kind === 'default-stamp') {
+          sendBinary(response, DEFAULT_STAMP_V1_PNG, 'image/png', 'public, max-age=31536000, immutable');
+          return;
+        }
         if (!nftMetadata) throw new RequestError(503, 'NFT_METADATA_NOT_CONFIGURED');
         if (route.kind === 'image') {
           const image = await nftMetadata.findImage(route.sha256);
@@ -1144,9 +1149,11 @@ export function createApiServer(
         }
         const metadata = await nftMetadata.findTokenMetadata(route.seriesId, route.tokenId);
         if (!metadata) throw new RequestError(404, 'NOT_FOUND');
+        const body = Buffer.from(metadata, 'utf8');
         response.setHeader('cache-control', 'public, max-age=31536000, immutable');
+        response.setHeader('content-length', String(body.length));
         response.writeHead(200);
-        response.end(metadata);
+        response.end(body);
         return;
       }
 
@@ -1647,6 +1654,8 @@ function sendJson(response: ServerResponse, status: number, body: object): void 
 function sendBinary(response: ServerResponse, body: Buffer, contentType: string, cacheControl: string): void {
   response.setHeader('content-type', contentType);
   response.setHeader('cache-control', cacheControl);
+  // HEAD에도 GET과 같은 길이를 알린다.
+  response.setHeader('content-length', String(body.length));
   response.writeHead(200);
   response.end(body);
 }
@@ -1811,7 +1820,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     : new InMemoryChallengeStore();
   const postgresMintRequests = pool
     ? new PostgresMintRequestService(pool, {
-        supportedConsentVersion: process.env.NFT_MINT_CONSENT_VERSION ?? 'nft-mint-v1',
+        supportedConsentVersion: process.env.NFT_MINT_CONSENT_VERSION ?? 'nft-mint-v2',
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;

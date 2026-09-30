@@ -1,7 +1,7 @@
 // Issue #254: 점포 동네·업종 관리와 공개 NFT 메타데이터 경로를 실제 PostgreSQL에서 확인한다.
 // 스냅샷을 만드는 쪽(Worker finalize)은 apps/worker의 PostgreSQL 통합 시험이 확인하고, 여기서는 같은 표를 읽는 API를 본다.
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { test, type TestContext } from 'node:test';
 
 import { Pool } from 'pg';
@@ -95,7 +95,7 @@ async function startServer(t: TestContext, pool: Pool): Promise<string> {
 
 // 발행 확정된 토큰 하나(시리즈 series-meta-3, 토큰 9)까지의 최소 행.
 async function seedFinalizedToken(pool: Pool): Promise<void> {
-  await pool.query('TRUNCATE nft_metadata_images, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, campaign_goals, campaigns, merchants CASCADE');
+  await pool.query('TRUNCATE nft_metadata_takedowns, nft_metadata_images, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, campaign_goals, campaigns, merchants CASCADE');
   await pool.query(`INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
     VALUES ('merchant-meta', '월계 김밥', '시험 점포', '서울 노원구 데모로 1', 0, 'ACTIVE', true)`);
   await pool.query(`INSERT INTO merchant_members (merchant_id, account_id, role, status)
@@ -158,7 +158,7 @@ test('공개 경로는 확정 뒤 고정된 메타데이터·그림만 주고 �
   assert.equal((await fetch(`${url}/nft-metadata/series-meta-3/9.json`)).status, 404);
 
   const image = Buffer.from('preserved-webp');
-  const sha = 'c'.repeat(64);
+  const sha = createHash('sha256').update(image).digest('hex');
   const json = `{"name":"월계 김밥 방문 도장","description":"월계 김밥 3번째 방문 도장입니다.","image":"https://masscom.kr/nft-metadata/images/${sha}.webp","attributes":[]}`;
   await pool.query('INSERT INTO nft_metadata_images (sha256, image) VALUES ($1, $2)', [sha, image]);
   await pool.query(`INSERT INTO nft_token_metadata (nft_asset_id, nft_series_id, token_id, metadata_json, image_sha256)
@@ -186,10 +186,31 @@ test('공개 경로는 확정 뒤 고정된 메타데이터·그림만 주고 �
     assert.equal(missing.status, 404, path);
     assert.equal(missing.headers.get('cache-control'), 'no-store', path);
   }
-  // 신고된 그림은 운영자가 그림 행만 내린다: 그림 주소는 404, 메타데이터는 그대로. 메타데이터 행은 지울 수 없다.
+  // 그림 해시가 바이트와 다르면 DB가 거절한다(내용 해시 주소).
+  await assert.rejects(pool.query('INSERT INTO nft_metadata_images (sha256, image) VALUES ($1, $2)',
+    ['c'.repeat(64), Buffer.from('other')]), /nft_metadata_images_check/);
+  // 거부 목록: 그림(image:)을 내리면 행이 남아 있어도 그림 주소만 404, 메타데이터는 그대로.
+  await pool.query(`INSERT INTO nft_metadata_takedowns (target, reason) VALUES ($1, '신고된 그림')`, [`image:${sha}`]);
+  const takenImage = await fetch(`${url}/nft-metadata/images/${sha}.webp`);
+  assert.equal(takenImage.status, 404);
+  assert.equal(takenImage.headers.get('cache-control'), 'no-store');
+  assert.equal(await (await fetch(`${url}/nft-metadata/series-meta-3/9.json`)).text(), json);
+  // 토큰(asset:)을 내리면 메타데이터 주소가 404(no-store)가 되고, 거부 목록에서 빼면 같은 바이트가 다시 보인다.
+  await pool.query(`INSERT INTO nft_metadata_takedowns (target, reason) VALUES ($1, '신고된 토큰')`,
+    ['asset:80000000-0000-4000-8000-000000000254']);
+  const takenToken = await fetch(`${url}/nft-metadata/series-meta-3/9.json`);
+  assert.equal(takenToken.status, 404);
+  assert.equal(takenToken.headers.get('cache-control'), 'no-store');
+  assert.equal(takenToken.headers.get('access-control-allow-origin'), '*');
+  await pool.query(`DELETE FROM nft_metadata_takedowns WHERE target LIKE 'asset:%'`);
+  assert.equal(await (await fetch(`${url}/nft-metadata/series-meta-3/9.json`)).text(), json);
+  for (const bad of ['image:xyz', 'asset:not-a-uuid-value', 'token:1']) {
+    await assert.rejects(pool.query(`INSERT INTO nft_metadata_takedowns (target, reason) VALUES ($1, 'x')`, [bad]),
+      /nft_metadata_takedowns_target_check/, bad);
+  }
+  // 그림 행 자체도 지울 수 있고(주소 404), 메타데이터 행은 지울 수 없다.
   await pool.query('DELETE FROM nft_metadata_images WHERE sha256 = $1', [sha]);
   assert.equal((await fetch(`${url}/nft-metadata/images/${sha}.webp`)).status, 404);
-  assert.equal(await (await fetch(`${url}/nft-metadata/series-meta-3/9.json`)).text(), json);
   await assert.rejects(pool.query('DELETE FROM nft_token_metadata'), /immutable/);
   // 같은 시리즈·토큰의 두 번째 스냅샷은 DB가 막는다.
   await assert.rejects(pool.query(`INSERT INTO nft_token_metadata (nft_asset_id, nft_series_id, token_id, metadata_json)
