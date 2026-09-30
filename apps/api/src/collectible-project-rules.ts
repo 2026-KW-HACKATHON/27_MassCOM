@@ -400,6 +400,9 @@ export function collectibleSnapshot(project: CollectibleProject, projectId: stri
   };
 }
 
+// SOF0-3, SOF5-7, SOF9-11, SOF13-15, DHT, DAC, SOS, DQT, DRI.
+const jpegImageSegments = new Set([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf,0xc4,0xcc,0xda,0xdb,0xdd]);
+
 // Reads the Orientation (0x0112) of IFD0 from an APP1 "Exif\0\0" payload; any malformed or missing value returns undefined.
 function exifOrientation(payload: Buffer): number | undefined {
   if(payload.length<14 || payload.toString('latin1',0,6)!=='Exif\0\0') return undefined;
@@ -431,16 +434,25 @@ export function stripImageMetadata(dataUrl: string): string {
       offset=end; if(type==='IEND') break;
     }
   } else if(mime==='image/jpeg') {
-    parts.push(bytes.subarray(0,2)); let offset=2; let orientation=1;
+    parts.push(bytes.subarray(0,2)); let offset=2; let orientation=1; let jfif: Buffer | undefined;
     while(offset<bytes.length) {
       const start=offset; if(bytes[offset++]!==255) invalid(); while(bytes[offset]===255) offset++;
       const marker=bytes[offset++]; if(marker===undefined) invalid();
       if(marker===0xd9) { parts.push(bytes.subarray(start,offset)); break; }
-      if(marker===0x01 || (marker>=0xd0 && marker<=0xd7)) {parts.push(bytes.subarray(start,offset));continue;}
+      if(marker>=0xd0 && marker<=0xd7) {parts.push(bytes.subarray(start,offset));continue;}
+      if(marker===0x01) continue;
       if(offset+2>bytes.length) invalid(); const length=bytes.readUInt16BE(offset); const end=offset+length;
       if(length<2 || end>bytes.length) invalid();
-      if(marker===0xe1) orientation=exifOrientation(bytes.subarray(offset+2,end)) ?? orientation;
-      if(!((marker>=0xe0&&marker<=0xef)||marker===0xfe)) parts.push(bytes.subarray(start,end)); offset=end;
+      const payload=bytes.subarray(offset+2,end);
+      if(marker===0xe1) orientation=exifOrientation(payload) ?? orientation;
+      // JFIF APP0 keeps only version, units and density; its embedded thumbnail (a second picture) is dropped.
+      if(marker===0xe0 && !jfif && payload.length>=12 && payload.toString('latin1',0,5)==='JFIF\0') {
+        jfif=Buffer.concat([Buffer.from([0xff,0xe0,0,16]),payload.subarray(0,12),Buffer.from([0,0])]);
+      }
+      // Allow list: frame (SOFn), Huffman/arithmetic/quantization tables, restart interval and scans. Every APPn, COM, DNL,
+      // extension and reserved segment is dropped.
+      if(jpegImageSegments.has(marker)) parts.push(bytes.subarray(start,end));
+      offset=end;
       if(marker===0xda) {
         // Keep stuffed entropy bytes and restart markers; return to segment parsing between progressive scans.
         const scanStart=offset;
@@ -457,6 +469,7 @@ export function stripImageMetadata(dataUrl: string): string {
     // Browsers rotate photos by the EXIF Orientation tag, and the saved width/height follow that rotation. Keep only that tag.
     if(orientation>=2&&orientation<=8) parts.splice(1,0,Buffer.from([0xff,0xe1,0,34,...Buffer.from('Exif\0\0','latin1'),
       0x4d,0x4d,0,0x2a,0,0,0,8, 0,1, 0x01,0x12,0,3,0,0,0,1,0,orientation,0,0, 0,0,0,0]));
+    if(jfif) parts.splice(1,0,jfif);
   } else if(mime==='image/webp') {
     let offset=12;
     while(offset+8<=bytes.length) {

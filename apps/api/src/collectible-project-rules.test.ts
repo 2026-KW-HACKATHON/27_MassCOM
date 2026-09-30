@@ -298,3 +298,19 @@ test('WebM Opus recordings take their length from the cluster/block times and re
     Buffer.concat([Buffer.from('<html>'), opusWebm()]),
   ]) assert.throws(() => inspectWebmOpus(bad), { code: 'COLLECTIBLE_INVALID_PROJECT' });
 });
+
+test('JPEG stripping keeps only image segments and a thumbnail-free JFIF header', () => {
+  const segment = (marker: number, payload: Buffer | string) => {
+    const body = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
+    return Buffer.concat([Buffer.from([0xff, marker, (body.length + 2) >> 8, (body.length + 2) & 255]), body]);
+  };
+  const jfifWithThumbnail = Buffer.concat([Buffer.from('JFIF\0', 'latin1'), Buffer.from([1, 2, 1, 0, 72, 0, 72, 1, 1]), Buffer.from('THUMBPIXEL')]);
+  const dqt = segment(0xdb, Buffer.alloc(65)); const dht = segment(0xc4, Buffer.alloc(20, 1)); const dri = segment(0xdd, Buffer.from([0, 4]));
+  const sof = Buffer.from([255, 192, 0, 11, 8, 0, 1, 0, 2, 1, 1, 17, 0]);
+  const scan = Buffer.from([255, 218, 0, 8, 1, 1, 0, 0, 63, 0, 1, 2, 255, 0, 3, 255, 208, 4, 255, 217]);
+  const bytes = Buffer.concat([Buffer.from([255, 216]), segment(0xe0, jfifWithThumbnail), segment(0xfe, '사장님 메모'), segment(0xed, 'Photoshop IPTC'),
+    segment(0xe2, 'ICC_PROFILE\0profile'), dqt, segment(0xf0, 'JPG0 reserved'), dht, dri, sof, segment(0xdc, Buffer.from([0, 1])), scan]);
+  const url = `data:image/jpeg;base64,${bytes.toString('base64')}`;
+  const minimalJfif = segment(0xe0, Buffer.concat([Buffer.from('JFIF\0', 'latin1'), Buffer.from([1, 2, 1, 0, 72, 0, 72, 0, 0])]));
+  assert.deepEqual(Buffer.from(stripImageMetadata(url).split(',')[1]!, 'base64'), Buffer.concat([Buffer.from([255, 216]), minimalJfif, dqt, dht, dri, sof, scan]));
+});
