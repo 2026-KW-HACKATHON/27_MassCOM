@@ -13,6 +13,7 @@ function service(run: () => Promise<{ counts: RetentionCount[]; failed: Retentio
     service: {
       run: async () => { calls.push('run'); return run(); },
       report: async () => { calls.push('report'); return counts(10); },
+      purgeConsentsOfDeletedAccounts: async (secret: string) => { calls.push(`purge:${secret}`); return 4; },
     },
   };
 }
@@ -53,8 +54,21 @@ test('report never calls run, and a failed step is reported by name while the ot
 
 test('anything except exactly run or report is refused before touching the database', async () => {
   const { service: fake, calls } = service(async () => ({ counts: [], failed: [] }));
-  for (const args of [[], ['delete'], ['run', 'extra'], ['report', '--all'], ['RUN']]) {
+  for (const args of [[], ['delete'], ['run', 'extra'], ['report', '--all'], ['RUN'], ['purge-deleted-consents', 'x']]) {
     await assert.rejects(runRetentionCommand(fake, args), /RETENTION_USAGE/, args.join(' '));
   }
   assert.deepEqual(calls, []);
+});
+
+test('purge-deleted-consents needs the deletion secret, runs only on request and prints one count', async () => {
+  const { service: fake, calls } = service(async () => ({ counts: [], failed: [] }));
+  await assert.rejects(runRetentionCommand(fake, ['purge-deleted-consents']), /RETENTION_SECRET_REQUIRED/);
+  assert.deepEqual(calls, []);
+  const result = await runRetentionCommand(fake, ['purge-deleted-consents'], 'secret-value-at-least-32-bytes-long!!');
+  assert.deepEqual(result.lines, ['RETENTION_PURGE_DELETED_CONSENTS', 'deleted_account_consents\t4']);
+  assert.deepEqual(result.failed, []);
+  assert.deepEqual(calls, ['purge:secret-value-at-least-32-bytes-long!!']);
+  // The daily run never purges consents by itself: it does not know the secret.
+  await runRetentionCommand(fake, ['run']);
+  assert.equal((calls as string[]).filter((call) => call.startsWith('purge')).length, 1);
 });

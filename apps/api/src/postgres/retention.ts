@@ -1,5 +1,7 @@
 import type { Pool } from 'pg';
 
+import { PostgresAccountLifecycle } from './account-lifecycle.js';
+
 export type RetentionStepName =
   | 'auth_sessions'
   | 'web_sessions'
@@ -123,5 +125,43 @@ export class PostgresRetentionService {
       }
     }
     return { counts, failed };
+  }
+
+  /**
+   * 롤백 복구용(매일 정리에는 들어 있지 않다): 동의 기능 이전 API가 도는 동안 삭제 처리된 계정은 `account_consents`의 행을 지우지 못한다.
+   * 새 API로 다시 올린 뒤 한 번 실행해, 삭제 원장에 해시가 있는 계정의 동의 행을 지운다(가명으로 남기지 않는다). 계정 ID는 원장에 없고
+   * HMAC 해시만 있으므로 계정 삭제와 같은 비밀(`ACCOUNT_DELETION_HMAC_SECRET`)로 각 행의 해시를 다시 구해 대조한다. 개수만 돌려준다.
+   */
+  async purgeConsentsOfDeletedAccounts(hmacSecret: string): Promise<number> {
+    const lifecycle = new PostgresAccountLifecycle({ hmacSecret });
+    const accounts = (await this.pool.query<{ account_id: string }>(
+      'SELECT DISTINCT account_id FROM account_consents',
+    )).rows.map((row) => row.account_id);
+    let deleted = 0;
+    for (let start = 0; start < accounts.length; start += 500) {
+      const batch = accounts.slice(start, start + 500);
+      const client = await this.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const hashes = batch.map((accountId) => lifecycle.referenceHash(accountId));
+        const known = await client.query<{ account_reference_hash: Buffer }>(
+          'SELECT account_reference_hash FROM account_deletion_requests WHERE account_reference_hash = ANY($1::bytea[])',
+          [hashes],
+        );
+        const gone = new Set(known.rows.map((row) => row.account_reference_hash.toString('hex')));
+        const goneAccounts = batch.filter((_, index) => gone.has(hashes[index]!.toString('hex')));
+        if (goneAccounts.length > 0) {
+          const result = await client.query('DELETE FROM account_consents WHERE account_id = ANY($1::text[])', [goneAccounts]);
+          deleted += result.rowCount ?? 0;
+        }
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+    return deleted;
   }
 }

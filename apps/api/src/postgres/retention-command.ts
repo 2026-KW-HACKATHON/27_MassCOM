@@ -4,9 +4,9 @@ import { Pool } from 'pg';
 
 import { PostgresRetentionService, type RetentionCount, type RetentionStepName } from './retention.js';
 
-const usage = 'RETENTION_USAGE: run | report';
+const usage = 'RETENTION_USAGE: run | report | purge-deleted-consents';
 
-type RetentionCommandService = Pick<PostgresRetentionService, 'run' | 'report'>;
+type RetentionCommandService = Pick<PostgresRetentionService, 'run' | 'report' | 'purgeConsentsOfDeletedAccounts'>;
 export type RetentionCommandResult = { lines: string[]; failed: RetentionStepName[] };
 
 const countLines = (counts: RetentionCount[]): string[] => counts.map(({ step, count }) => `${step}\t${count}`);
@@ -18,8 +18,13 @@ const countLines = (counts: RetentionCount[]): string[] => counts.map(({ step, c
 export async function runRetentionCommand(
   service: RetentionCommandService,
   args: string[],
+  hmacSecret = '',
 ): Promise<RetentionCommandResult> {
   const [action] = args;
+  if (args.length === 1 && action === 'purge-deleted-consents') {
+    if (!hmacSecret) throw new Error('RETENTION_SECRET_REQUIRED');
+    return { lines: ['RETENTION_PURGE_DELETED_CONSENTS', `deleted_account_consents\t${await service.purgeConsentsOfDeletedAccounts(hmacSecret)}`], failed: [] };
+  }
   if (args.length === 1 && action === 'report') {
     return { lines: ['RETENTION_REPORT (nothing deleted)', ...countLines(await service.report())], failed: [] };
   }
@@ -36,7 +41,9 @@ async function main(): Promise<void> {
   // PGPASSWORD가 있으면 pg가 URL에 비밀번호가 없어도 그 값을 쓴다(시연 호스트 컨테이너가 이렇게 넘긴다).
   const pool = new Pool({ connectionString: databaseUrl, max: 1, statement_timeout: 120_000 });
   try {
-    const result = await runRetentionCommand(new PostgresRetentionService(pool), process.argv.slice(2));
+    const result = await runRetentionCommand(
+      new PostgresRetentionService(pool), process.argv.slice(2), process.env.ACCOUNT_DELETION_HMAC_SECRET ?? '',
+    );
     for (const line of result.lines) console.log(line);
     if (result.failed.length > 0) {
       // 실패한 단계 이름만 알린다. 나머지 단계는 이미 끝났다.
@@ -55,6 +62,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     switch (known) {
       case 'RETENTION_USAGE': console.error(usage); break;
       case 'RETENTION_DATABASE_REQUIRED': console.error('RETENTION_DATABASE_REQUIRED'); break;
+      case 'RETENTION_SECRET_REQUIRED': console.error('RETENTION_SECRET_REQUIRED'); break;
       default: console.error('RETENTION_FAILED');
     }
     process.exitCode = 1;

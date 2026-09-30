@@ -6,6 +6,7 @@ import { test, type TestContext } from 'node:test';
 
 import { Pool } from 'pg';
 
+import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { runMigrations } from './postgres/migrate.js';
 import { PostgresRetentionService, type RetentionCount } from './postgres/retention.js';
 
@@ -466,4 +467,35 @@ test('the command prints counts only and leaves the exit code at zero when every
   assert.equal(output.includes(ledgerId), false);
   assert.throws(() => run(['delete']), (error: { status?: number; stderr?: string }) =>
     error.status === 1 && /RETENTION_USAGE/.test(String(error.stderr)));
+});
+
+test('after a rollback to an API without consent cleanup, purge-deleted-consents removes only deleted accounts consent rows', async (t) => {
+  const { pool, service } = await setup(t);
+  const secret = 'test-only-account-deletion-secret-at-least-32-bytes';
+  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+  await pool.query('TRUNCATE account_consents');
+  for (const account of ['acct_gone', 'acct_gone_too', 'acct_staying']) {
+    await pool.query(
+      `INSERT INTO account_consents (account_id, terms_version, privacy_version, age_confirmed, source)
+       VALUES ($1, 'terms-2026-09-30', 'privacy-2026-09-30', true, 'ANDROID'), ($1, 'terms-old', 'privacy-old', true, 'WEB')`,
+      [account],
+    );
+  }
+  // Two accounts were deleted while an older API (which does not touch consent rows) was running: only the ledger knows them.
+  for (const account of ['acct_gone', 'acct_gone_too']) {
+    await pool.query(
+      `INSERT INTO account_deletion_requests (
+         id, account_reference_hash, deleted_account_alias, status, policy_version, cancelled_mint_jobs,
+         pending_mint_jobs, retained_finalized_nfts, requested_at, completed_at, updated_at
+       ) VALUES ($1, $2, $3, 'COMPLETED', 'account-deletion-v1', 0, 0, 0, now(), now(), now())`,
+      [randomUUID(), lifecycle.referenceHash(account), `deleted:${lifecycle.referenceHash(account).toString('hex')}`],
+    );
+  }
+  assert.equal(await service.purgeConsentsOfDeletedAccounts(secret), 4);
+  const left = (await pool.query<{ account_id: string }>('SELECT DISTINCT account_id FROM account_consents')).rows;
+  assert.deepEqual(left.map((row) => row.account_id), ['acct_staying']);
+  assert.equal(await service.purgeConsentsOfDeletedAccounts(secret), 0, 'a second run has nothing left');
+  // A wrong secret matches no ledger row, so it can never delete a living account's consent.
+  assert.equal(await service.purgeConsentsOfDeletedAccounts('another-secret-of-at-least-32-bytes-long!'), 0);
+  assert.equal((await pool.query(`SELECT 1 FROM account_consents WHERE account_id = 'acct_staying'`)).rowCount, 2);
 });
