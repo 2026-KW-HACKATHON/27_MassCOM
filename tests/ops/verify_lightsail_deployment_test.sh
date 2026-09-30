@@ -6,7 +6,7 @@ verifier="$repo_root/scripts/verify-lightsail-deployment.mjs"
 
 node "$verifier"
 
-# 운영 compose는 STAFF의 가게 그림 관리 권한(AI_ART_STAFF_MAY_MANAGE)을 넘기지 않는다. 운영에는 OWNER를 부여하는 경로가 아직 없어
+# 운영 compose는 STAFF의 가게 그림 관리 권한(AI_ART_STAFF_MAY_MANAGE)을 넘기지 않는다. 운영 OWNER는 확인 절차(D-054)로만 생기므로
 # 이 값을 켜면 직원 계정이 유료 이미지 호출을 시작할 수 있다(D-048·D-050). 값이 꺼져 있어도 키가 있으면 실수로 켜기 쉬우므로 키 자체를 막는다.
 compose_passes_staff_art_flag() {
   grep -q 'AI_ART_STAFF_MAY_MANAGE' "$1"
