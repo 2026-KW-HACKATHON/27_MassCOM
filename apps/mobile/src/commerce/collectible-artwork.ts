@@ -52,3 +52,19 @@ export function parsePublishedCollectible(value: unknown): PublishedCollectible 
     animation: value.animation, greeting: value.greeting, audio,
     story: { type: value.story.type as PublishedCollectible['story']['type'], frames, cartoon: value.story.cartoon, strength: value.story.strength } };
 }
+
+/**
+ * 방문 수령으로 받은 보상 중 "다시 볼 수 있는 가게 수집품"(게시 외형)이 실제로 붙은 것을 고른다.
+ * 1·3·5회 보상이 함께 지급되면 외형이 붙은 것 가운데 가장 높은 방문 목표를 고르고, 외형이 붙은 보상이 없으면 undefined다.
+ */
+export function grantedArtworkEntitlement(
+  granted: readonly { entitlementId: string; targetVisitCount: number }[],
+  collectibles: readonly { entitlementId: string; artwork?: unknown }[],
+): string | undefined {
+  const withArtwork = new Set(collectibles.filter((item) => item.artwork).map((item) => item.entitlementId));
+  let best: { entitlementId: string; targetVisitCount: number } | undefined;
+  for (const reward of granted) {
+    if (withArtwork.has(reward.entitlementId) && (!best || reward.targetVisitCount > best.targetVisitCount)) best = reward;
+  }
+  return best?.entitlementId;
+}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { parseCollectibleArtwork, parsePublishedCollectible } from './collectible-artwork';
+import { grantedArtworkEntitlement, parseCollectibleArtwork, parsePublishedCollectible } from './collectible-artwork';
 
 const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS1sAAAAASUVORK5CYII=';
 const artwork = { publicationId: 'publication-a', projectId: 'project-a', gradeId: 'winter', gradeName: '겨울 기념', name: '가게 우표', shape: 'stamp', theme: { name: '겨울방학' }, thumbnailDataUrl: png };
@@ -48,4 +48,19 @@ test('음성은 제한된 inline 형식과 동일 MIME·길이만 받는다', ()
   for (const extra of [{ mimeType: 'audio/ogg' }, { durationSeconds: 31 }, { durationSeconds: Number.NaN }, { dataUrl: 'https://example.test/voice.mp3' }]) {
     assert.equal(parsePublishedCollectible({ ...detail, audio: { ...audio, ...extra } }), undefined);
   }
+});
+
+test('방문 수령으로 받은 보상 중 외형이 붙은 것만 "받은 수집품 보기" 대상이 된다', () => {
+  const granted = [
+    { entitlementId: 'goal-1', targetVisitCount: 1 }, { entitlementId: 'goal-3', targetVisitCount: 3 }, { entitlementId: 'goal-5', targetVisitCount: 5 },
+  ];
+  // 외형 없는 기존 보상만 받았으면 버튼 대상이 없다.
+  assert.equal(grantedArtworkEntitlement(granted, [{ entitlementId: 'goal-1' }, { entitlementId: 'goal-3' }]), undefined);
+  assert.equal(grantedArtworkEntitlement([], [{ entitlementId: 'goal-1', artwork }]), undefined);
+  // 첫 번째 보상이 아니라 외형이 붙은 보상을 고른다.
+  assert.equal(grantedArtworkEntitlement(granted, [{ entitlementId: 'goal-1' }, { entitlementId: 'goal-3', artwork }]), 'goal-3');
+  // 1·3·5회가 함께 지급돼 여럿에 외형이 있으면 가장 높은 방문 목표를 고른다(응답 순서와 무관).
+  assert.equal(grantedArtworkEntitlement([...granted].reverse(), granted.map((item) => ({ entitlementId: item.entitlementId, artwork }))), 'goal-5');
+  // 이전 방문에서 받은 다른 수집품은 이번 지급분이 아니다.
+  assert.equal(grantedArtworkEntitlement([granted[0]!], [{ entitlementId: 'older', artwork }, { entitlementId: 'goal-1' }]), undefined);
 });

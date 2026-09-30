@@ -5,13 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Image as SvgImage, LinearGradient, Mask, Rect, Stop } from 'react-native-svg';
 
 import type { PublishedCollectible } from '@/commerce/collectible-artwork';
-import { CommerceApiError } from '@/commerce/commerce-api';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { colorsForScheme } from '@/theme/palette';
 import { Mascot } from '@/ui/mascot';
 import { StateScene } from '@/ui/state-scene';
 
+import { collectibleDetailFailure, type CollectibleDetailFailure } from './collectible-detail-state';
 import { collectibleMotionFrame } from './collectible-motion';
 
 type Props = {
@@ -19,12 +19,14 @@ type Props = {
   merchantName: string;
   load: (entitlementId: string) => Promise<PublishedCollectible>;
   onClose: () => void;
+  /** 게시 사진이 내려가 상세가 없었다면(404) 닫을 때 불러, 목록이 같은 수집품을 사진 없는 기존 카드로 다시 그리게 한다. */
+  onUnavailable?: () => void;
 };
 
 /** Mounted for one acquired entitlement; closing it discards pending reads and playback. */
-export function CollectibleDetail({ entitlementId, merchantName, load, onClose }: Props) {
+export function CollectibleDetail({ entitlementId, merchantName, load, onClose, onUnavailable }: Props) {
   const [snapshot, setSnapshot] = useState<PublishedCollectible>();
-  const [error, setError] = useState<string>();
+  const [failure, setFailure] = useState<CollectibleDetailFailure>();
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     let active = true;
@@ -32,20 +34,20 @@ export function CollectibleDetail({ entitlementId, merchantName, load, onClose }
       if (active) setSnapshot(value);
     }).catch((caught: unknown) => {
       if (!active) return;
-      setError(caught instanceof CommerceApiError && caught.status === 404
-        ? '이 수집품을 열 수 없어요. 도감의 보유 기록을 다시 확인해 주세요.'
-        : '수집품을 불러오지 못했어요. 보유 기록은 그대로예요.');
+      setFailure(collectibleDetailFailure(caught));
     });
     return () => { active = false; };
   }, [entitlementId, load, retry]);
+  // 사진이 내려간 수집품이면 닫을 때 목록을 다시 읽어 사진 없는 기존 카드로 보이게 한다. 여기서 부르면 effect가 다시 돌 수 있다.
+  const close = () => { if (failure?.removed) onUnavailable?.(); onClose(); };
 
   return (
-    <FullScreenModal visible animationType="fade" onRequestClose={onClose}>
+    <FullScreenModal visible animationType="fade" onRequestClose={close}>
       {snapshot ? <DetailBody key={`${snapshot.publicationId}:${snapshot.gradeId}`} snapshot={snapshot} merchantName={merchantName} onClose={onClose} /> : (
         <DetailFrame>
-          <StateScene kind={error ? 'error' : 'loading'} title={error ? '수집품을 열지 못했어요' : '가게 수집품을 펼치는 중'} body={error}
-            action={error ? { label: '다시 불러오기', onPress: () => { setError(undefined); setRetry((value) => value + 1); } } : undefined} />
-          <Control label="도감으로 돌아가기" onPress={onClose} />
+          <StateScene kind={failure ? (failure.removed ? 'empty' : 'error') : 'loading'} title={failure ? failure.title : '가게 수집품을 펼치는 중'} body={failure?.body}
+            action={failure && !failure.removed ? { label: '다시 불러오기', onPress: () => { setFailure(undefined); setRetry((value) => value + 1); } } : undefined} />
+          <Control label="도감으로 돌아가기" onPress={close} />
         </DetailFrame>
       )}
     </FullScreenModal>

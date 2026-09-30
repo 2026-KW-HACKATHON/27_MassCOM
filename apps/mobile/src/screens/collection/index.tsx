@@ -555,7 +555,7 @@ export function CollectionScreen({
 
       <MedalDetail medal={detailMedal} variant={variant} onClose={() => setDetailKind(undefined)} />
       {collectibleDetail?.client === api ? <CollectibleDetail key={collectibleDetail.entitlementId} entitlementId={collectibleDetail.entitlementId}
-        merchantName={collectibleDetail.merchantName} load={loadCollectible} onClose={() => setCollectibleDetail(undefined)} /> : null}
+        merchantName={collectibleDetail.merchantName} load={loadCollectible} onClose={() => setCollectibleDetail(undefined)} onUnavailable={() => void refresh()} /> : null}
       <RewardReveal
         result={revealed}
         onClose={() => setRevealed(undefined)}

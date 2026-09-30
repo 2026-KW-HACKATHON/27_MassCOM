@@ -13,6 +13,7 @@ import {
   type RedeemedClaim,
 } from '@/commerce/commerce-api';
 import { createScanGate, parseScannedClaimCode } from '@/commerce/claim-code';
+import { grantedArtworkEntitlement } from '@/commerce/collectible-artwork';
 import { ClaimQr } from '@/commerce/claim-qr';
 import { acceptInspection, redeemTarget } from '@/commerce/claim-inspect';
 import { createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired } from '@/commerce/customer-identity';
@@ -59,6 +60,8 @@ export function ClaimRedeemScreen({
   const [token, setToken] = useState('');
   const [preview, setPreview] = useState<ClaimPreview>();
   const [redeemed, setRedeemed] = useState<RedeemedClaim>();
+  // 이 방문 수령으로 받은 보상 중 다시 볼 수 있는 가게 수집품(외형)이 실제로 붙은 것. 도감을 확인한 뒤에만 채운다.
+  const [artworkReward, setArtworkReward] = useState<{ claimSlotId: string; entitlementId: string }>();
   const [pendingRedeemToken, setPendingRedeemToken] = useState<string>();
   const [recoveryAction, setRecoveryAction] = useState<ClaimRecoveryAction>();
   const [busy, setBusy] = useState(false);
@@ -128,6 +131,7 @@ export function ClaimRedeemScreen({
     setToken(value);
     setPreview(undefined);
     setRedeemed(undefined);
+    setArtworkReward(undefined);
     setPendingRedeemToken(undefined);
     setRecoveryAction(undefined);
     setMessage(undefined);
@@ -194,6 +198,8 @@ export function ClaimRedeemScreen({
     try {
       const result = await api.redeemClaim(target);
       setRedeemed(result);
+      setArtworkReward(undefined);
+      void findGrantedArtwork(result);
       setPreview(undefined);
       setToken('');
       setPendingRedeemToken(undefined);
@@ -213,6 +219,19 @@ export function ClaimRedeemScreen({
       }
     } finally {
       setBusy(false);
+    }
+  }
+
+  // 방문 수령 응답에는 수집품 외형 정보가 없다. 받은 보상이 도감에서 외형을 가졌는지 확인한 뒤에만 "받은 수집품 보기"를 보인다.
+  // 조회가 실패하거나 외형 없는 기존 보상이면 버튼만 생략하고 방문 수령 결과는 그대로다.
+  async function findGrantedArtwork(result: RedeemedClaim) {
+    if (result.grantedRewards.length === 0) return;
+    try {
+      const snapshot = await api.getCollection();
+      const entitlementId = grantedArtworkEntitlement(result.grantedRewards, snapshot.collectibles);
+      if (entitlementId) setArtworkReward({ claimSlotId: result.claimSlotId, entitlementId });
+    } catch {
+      // 도감 조회 실패는 수집품 버튼을 숨길 뿐이다.
     }
   }
 
@@ -353,8 +372,8 @@ export function ClaimRedeemScreen({
               새 보상권 {redeemed.grantedRewards.length}개 · NFT 발행은 아직 요청하지 않았습니다.
             </Text>
             <View style={styles.successActions}>
-              {redeemed.grantedRewards[0] ? (
-                <Pressable accessibilityRole="button" onPress={() => router.navigate({ pathname: '/collection', params: { focus: 'collectible', entitlement: redeemed.grantedRewards[0]!.entitlementId } })}
+              {artworkReward?.claimSlotId === redeemed.claimSlotId ? (
+                <Pressable accessibilityRole="button" onPress={() => router.navigate({ pathname: '/collection', params: { focus: 'collectible', entitlement: artworkReward.entitlementId } })}
                   style={[styles.collectionButton, { backgroundColor: palette.primary }]}>
                   <Text style={[styles.collectionButtonText, { color: palette.onPrimary }]}>받은 수집품 보기</Text>
                 </Pressable>

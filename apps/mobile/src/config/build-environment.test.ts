@@ -269,7 +269,7 @@ test('actual Expo production config preserves release identity, plugins, and blo
     './plugins/with-build-source-commit.cjs',
   ]);
   assertPlaybackOnlyAudio(config);
-  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW']);
+  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.RECORD_AUDIO']);
   assert.deepEqual(config.android?.intentFilters, [
     {
       action: 'VIEW',
@@ -343,7 +343,7 @@ test('actual Expo development config preserves local DEMO identity, plugins, and
     'expo-audio',
   ]);
   assertPlaybackOnlyAudio(config);
-  assert.deepEqual(config.android?.blockedPermissions, []);
+  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.RECORD_AUDIO']);
   assert.deepEqual(config.android?.intentFilters, []);
 });
 
@@ -368,7 +368,7 @@ test('actual Expo showcase config has its own Android identity and no dev launch
     './plugins/with-build-source-commit.cjs',
   ]);
   assertPlaybackOnlyAudio(config);
-  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW']);
+  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.RECORD_AUDIO']);
   assert.deepEqual(config.android?.intentFilters, [{
     action: 'VIEW',
     autoVerify: true,
@@ -465,4 +465,6 @@ function assertPlaybackOnlyAudio(config: EvaluatedExpoConfig): void {
     enableBackgroundPlayback: false,
     enableBackgroundRecording: false,
   }, '고객 음성 재생이 마이크·백그라운드 재생·녹음 권한을 추가하지 않아야 한다');
+  // 플러그인 설정과 별개로, 다른 라이브러리가 마이크 권한을 끌어와도 병합 manifest에서 막는다(모든 variant).
+  assert.ok(config.android?.blockedPermissions?.includes('android.permission.RECORD_AUDIO'), 'RECORD_AUDIO는 android.blockedPermissions로 막아야 한다');
 }
