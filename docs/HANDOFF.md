@@ -2,6 +2,17 @@
 
 마지막 갱신 시각: 2026-09-30 KST
 
+## 2026-09-30 실제 점포 운영 시작: 공개·점주·보상 혜택·캠페인·운영 NFT 발행 준비 중 (Issue #246, D-054)
+
+- 기준: main `02cb7e7` 위의 브랜치 `feat/246-store-go-live`(로컬 worktree `.worktrees/246-store-go-live`, 로컬 커밋만이고 **push·PR·배포 없음**). 설계는 [`docs/superpowers/specs/2026-09-30-store-go-live-design.md`](superpowers/specs/2026-09-30-store-go-live-design.md), 운영자 절차는 [`docs/MERCHANT_ONBOARDING.md`](MERCHANT_ONBOARDING.md).
+- 내용: migration 0032, `PostgresAdminService`의 `publishMerchant`·`listOwners`·`promoteOwner`·`demoteOwner`·`listRewardOffers`·`createRewardOffer`·`pauseRewardOffer`·`listCampaigns`·`publishCampaign`·`pauseCampaign`, 관리자 API(`/api/web/admin/merchants/:id/publish`·`/owners`·`/members/:accountId/promote-owner|demote-owner`, `/reward-offers`, `/campaigns`), 계정 삭제의 `platform_admin_audit.target_account_id` 가명 처리, 관리자 웹 구역, 고객 앱·웹 "발행 준비 중"(`NFT_MINTING_MODE`), 배포 검증기의 PREPARING 확인, D-054·D-055·D-023.
+- 검증: [TEST_STATUS](TEST_STATUS.md) 첫 항목. API 단위 237/237, PostgreSQL 229건 중 227 PASS·0 FAIL·2 SKIP(새 일회용 `masscom_246_test`), 운영 웹 108/108, 모바일 779/779·typecheck·lint, `bash tools/gate.sh` PASS.
+- **배포 순서:** migration 0032는 배포된 API `02cb7e7`와 호환되므로 배포 스크립트가 먼저 적용해도 된다. 그다음 API(새 경로·`NFT_MINTING_MODE=PREPARING`)를 바꾸고 그 뒤 운영 웹(관리자 웹 새 구역·고객 웹 문구)을 바꾼다. 새 관리자 웹이 옛 API를 만나면 새 목록·동작이 404로 "불러오지 못했습니다"만 보인다. 되돌릴 때 옛 API는 새 열·새 감사 행을 무시하지만 옛 계정 삭제는 `platform_admin_audit.target_account_id`를 별칭으로 바꾸지 않으므로, 롤백한 동안 삭제된 계정이 있으면 재배포 뒤 그 열을 확인한다.
+- **운영 메모:** 참조 번호에는 숫자를 7자리 이하로 끊어 쓴다(예: `CS-2609-01`). 점주는 관리자 본인이 올릴 수 없으니 관리자가 한 명뿐이면 점주 부여는 두 번째 관리자가 필요하다. 운영 `OPENAI_API_KEY`는 OWNER가 생겨도 D-050대로 비워 둔다.
+- `NOT_RUN`: 운영 migration 0032 적용·API/웹 배포, 인증된 브라우저에서 실제 점포 공개·점주 올리기·혜택 등록·캠페인 공개, 390px·어두운 화면 실제 렌더링, 실기기의 "발행 준비 중", `export:android`, 독립 교차 리뷰(민감 경로: 권한·보상 규칙이라 서로 다른 모델 2개 필요).
+- 다음 작업: ① 서로 다른 모델 2개의 교차 리뷰. ② PR(`bash scripts/check-pr-korean.sh`)·CI·병합. ③ 운영 배포(migration 0032 → API → 웹) 뒤 폐기용 점포로 공개·숨김과 관리자 두 명의 점주 올리기를 인증된 브라우저에서 확인. ④ 고객 앱 다음 빌드에서 "발행 준비 중" 실기 확인.
+- 다음 명령: `git -C .worktrees/246-store-go-live log --oneline 02cb7e7..HEAD`, `gh pr list`, `TEST_DATABASE_URL=<이름이 _test로 끝나는 일회용 로컬 DB URL> npm run test:postgres --prefix apps/api`.
+
 ## 2026-09-30 계정 삭제 요청: 웹 로그인 접수 + 운영자 처리 (Issue #194, D-052)
 
 - 기준: main `1c59f9a`(PR #245, Issue #243 병합)를 합친 브랜치 `feat/194-account-deletion-processing`(합치기 전 기준은 main `f6fa12f`, 로컬 worktree `.worktrees/194-deletion`, 로컬 커밋만이고 **push·PR·배포 없음**). 설계는 [`docs/superpowers/specs/2026-09-30-account-deletion-processing-design.md`](superpowers/specs/2026-09-30-account-deletion-processing-design.md), 소유자 결정은 [D-052](DECISIONS.md)(`USER_CONFIRMED`, D-026 불변), 구현 선택은 D-053(`PROPOSED`).
