@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { blend, contrast } from '../../theme/contrast';
+import { contrast } from '../../theme/contrast';
 import { darkColors, lightColors } from '../../theme/palette';
 import { uiMetrics } from '../../theme/ui-metrics';
 import { darkWorld, lightWorld } from '../../theme/world';
@@ -55,7 +55,7 @@ test('the passport chip and the sky headings stay readable and touchable', () =>
     }
     assert.ok(contrast(styles.recommendationActionText.color as string, styles.recommendationAction.backgroundColor as string) >= 4.5);
     assert.ok(contrast(styles.noticeText.color as string, styles.notice.backgroundColor as string) >= 4.5);
-    for (const key of ['filterChip', 'clearSearch', 'recommendationAction'] as const) {
+    for (const key of ['clearSearch', 'recommendationAction'] as const) {
       assert.ok((styles[key].minHeight as number) >= uiMetrics.minTouch, key);
     }
   }
@@ -71,24 +71,11 @@ test('the search field has a visible 1.5dp boundary against the page and the car
   }
 });
 
-test('filter chips show a press with a fill change, never with opacity, and their text stays at 4.5:1', () => {
+test('the store list has no dimming press style (the capacity chip was removed with D-023)', () => {
   for (const [palette, world] of schemes) {
     const styles = makeMerchantListStyles(palette, world);
     assert.equal('cardPressed' in styles, false, 'the dimming press style is gone');
-    for (const pressed of [styles.filterChipOnPressed, styles.filterChipIdlePressed]) {
-      assert.equal('opacity' in pressed, false);
-      assert.equal('transform' in pressed, false);
-    }
-    // Selected: white/dark label on the primary fill, before and while pressed.
-    assert.ok(contrast(styles.filterTextOn.color as string, styles.filterChipOn.backgroundColor as string) >= 4.5, 'selected text');
-    assert.ok(contrast(styles.filterTextOn.color as string, styles.filterChipOnPressed.backgroundColor as string) >= 4.5, 'selected text pressed');
-    assert.ok(contrast(styles.filterChipOnPressed.backgroundColor as string, styles.filterChipOn.backgroundColor as string) >= 1.08, 'selected press is visible');
-    // Idle: card ink on the card fill, before and while pressed.
-    assert.equal(styles.filterChipIdle.backgroundColor, world.card);
-    assert.ok(contrast(styles.filterTextIdle.color as string, styles.filterChipIdle.backgroundColor as string) >= 4.5, 'idle text');
-    assert.equal(styles.filterChipIdlePressed.backgroundColor, blend(world.cardInk, world.card, 0.08));
-    assert.ok(contrast(styles.filterTextIdle.color as string, styles.filterChipIdlePressed.backgroundColor as string) >= 4.5, 'idle text pressed');
-    assert.ok(contrast(styles.filterChipIdle.borderColor as string, world.page) >= 3, 'idle chip edge on the page');
+    assert.equal('filterChip' in styles, false, 'no capacity filter chip');
   }
   const source = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
   assert.doesNotMatch(source, /cardPressed/);

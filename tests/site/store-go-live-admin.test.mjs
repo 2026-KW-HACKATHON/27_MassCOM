@@ -521,5 +521,8 @@ test('혜택 설명의 줄바꿈은 한 줄로 바꿔 보낸다(서버는 제어
     ['consentValidity', 'on'], ['consentIssuanceCap', 'on'], ['consentDuplicateUse', 'on'],
   ]);
   assert.equal(rewardOfferPayload(values).detail, '첫 줄 둘째 줄');
+  // 탭·세로 탭·폼 피드·U+0085도 제어 문자라 같은 방식으로 한 칸이 된다.
+  values.set('detail', '가\t나\u000b다\u000c라\u0085마');
+  assert.equal(rewardOfferPayload(values).detail, '가 나 다 라 마');
   assert.match(goLiveMessage({ code: 'ADMIN_OFFER_TEXT_INVALID' }, '실패'), /보이지 않는 글자/);
 });

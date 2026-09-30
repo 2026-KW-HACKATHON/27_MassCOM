@@ -233,8 +233,9 @@ function validateRewardOffer(raw: AdminRewardOfferInput): ValidRewardOffer {
     throw new AdminError('ADMIN_INVALID_INPUT');
   }
   // 고객에게 그대로 보이는 글이라 되돌리기 메모와 같은 기준으로 연락처·이메일·웹 주소·긴 숫자열을 거절한다.
-  // 제어·서식 문자(줄바꿈, 너비 없는 공백 U+200B, 방향 바꿈 U+202E 등)는 삭제 거절 사유와 같이 먼저 거절한다. 그래야 보이지 않는
-  // 글자로 이메일·주소 모양 검사를 피하지 못한다.
+  // 제어·서식 문자(줄바꿈, 너비 없는 공백 U+200B, 방향 바꿈 U+202E 등)는 삭제 거절 사유와 같이 먼저 거절한다. 관리자 실수를 막는
+  // 검사라 결합 문자(U+034F 등)·점자 빈칸처럼 다른 범주의 보이지 않는 글자까지 모두 막지는 못한다.
+  // ponytail: Cc/Cf만 막는다. 관리자 입력이 아닌 곳에 쓰게 되면 \p{M}·U+2800까지 넓힌다.
   if (/[\p{Cc}\p{Cf}]/u.test(title) || /[\p{Cc}\p{Cf}]/u.test(detail) ||
       looksLikePersonalData(title) || looksLikePersonalData(detail)) {
     throw new AdminError('ADMIN_OFFER_TEXT_INVALID');

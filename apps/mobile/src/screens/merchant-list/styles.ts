@@ -1,5 +1,4 @@
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
-import { blend, pressedFill } from '../../theme/contrast';
 import type { AppColors } from '../../theme/palette';
 import { uiMetrics } from '../../theme/ui-metrics';
 import type { WorldTheme } from '../../theme/world';
@@ -38,16 +37,6 @@ export function makeMerchantListStyles(palette: AppColors, world: WorldTheme, ha
   searchInput: { flex: 1, minWidth: 0, color: world.cardInk, fontSize: 15, paddingVertical: 10 },
   clearSearch: { minHeight: uiMetrics.minTouch, justifyContent: 'center', paddingHorizontal: 4 },
   clearSearchText: { color: world.cardMuted, fontSize: 13, fontWeight: '700' },
-  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  filterChip: { minHeight: uiMetrics.minTouch, justifyContent: 'center', paddingHorizontal: 16, borderRadius: world.radius.chip, borderWidth: 1 },
-  // Selected and idle chips, each with a pressed fill: the press shows as a background change, so the label stays fully opaque.
-  filterChipOn: { backgroundColor: palette.primary, borderColor: palette.primary },
-  filterChipOnPressed: { backgroundColor: pressedFill(palette.primary, palette.onPrimary) },
-  filterChipIdle: { backgroundColor: world.card, borderColor: world.cardMuted },
-  filterChipIdlePressed: { backgroundColor: blend(world.cardInk, world.card, 0.08) },
-  filterText: { fontSize: 13, fontWeight: '800' },
-  filterTextOn: { color: palette.onPrimary },
-  filterTextIdle: { color: world.cardInk },
   title: { color: palette.label, fontSize: 25, fontWeight: '800', lineHeight: 33, letterSpacing: -0.5 },
   intro: { color: palette.secondaryLabel, fontSize: 14, lineHeight: 20 },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 8 },

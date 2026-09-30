@@ -102,8 +102,8 @@ test('offer text with control or format characters is refused before the databas
     consentDocumentRef: 'OF-2609-01',
     consent: { benefit: true, ownerPaysCost: true, validity: true, issuanceCap: true, duplicateUse: true } };
   for (const text of [
-    { detail: '주문은 shop​.kr/menu' }, // 너비 없는 공백으로 주소 모양 검사를 피하려는 글
-    { title: '김밥 ‮무료' }, // 방향 바꿈
+    { detail: '주문은 shop\u200B.kr/menu' }, // 너비 없는 공백으로 주소 모양 검사를 피하려는 글
+    { title: '김밥 \u202E무료' }, // 방향 바꿈
     { detail: '첫 줄\n둘째 줄' },
     { title: '김밥\u0007' },
   ]) {

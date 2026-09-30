@@ -20,16 +20,13 @@ const merchants: readonly PublicMerchant[] = [
 ];
 
 test('searches only real catalog fields with trimmed, case-insensitive text', () => {
-  assert.deepEqual(filterMerchants(merchants, '  카페  ', 'all').map(({ id }) => id), ['two']);
-  assert.deepEqual(filterMerchants(merchants, '월계로', 'all').map(({ id }) => id), ['one', 'three']);
-  assert.deepEqual(filterMerchants(merchants, 'COFFEE', 'all').map(({ id }) => id), ['two']);
-  assert.deepEqual(filterMerchants(merchants, '맛집 탐험', 'all').map(({ id }) => id), ['three']);
+  assert.deepEqual(filterMerchants(merchants, '  카페  ').map(({ id }) => id), ['two']);
+  assert.deepEqual(filterMerchants(merchants, '월계로').map(({ id }) => id), ['one', 'three']);
+  assert.deepEqual(filterMerchants(merchants, 'COFFEE').map(({ id }) => id), ['two']);
+  assert.deepEqual(filterMerchants(merchants, '맛집 탐험').map(({ id }) => id), ['three']);
 });
 
-test('the open chip keeps stores whose shown capacity is full, because every visit earns (D-023)', () => {
-  const visible = filterMerchants(merchants, '', 'open');
-  assert.deepEqual(visible.map(({ id }) => id), ['one', 'two', 'three']);
-  assert.equal(visible[0], merchants[0]);
-  assert.equal(merchants.length, 3);
-  assert.deepEqual(filterMerchants(merchants, '골목', 'open').map(({ id }) => id), ['two']);
+test('does not filter by shown capacity, because every visit earns (D-023)', () => {
+  assert.equal(filterMerchants(merchants, '   '), merchants);
+  assert.deepEqual(filterMerchants(merchants, '골목').map(({ id }) => id), ['two']);
 });

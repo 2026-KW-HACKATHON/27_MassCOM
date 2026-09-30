@@ -71,8 +71,8 @@ export function rewardOfferPayload(data) {
   if (![1, 2, 3].includes(milestone)) throw localError('상자를 골라 주세요.');
   const title = String(data.get('title') ?? '').trim();
   if (!title || [...title].length > 40) throw localError('혜택 이름은 1~40자로 입력해 주세요.');
-  // 줄바꿈은 서버가 제어 문자로 거절하므로 한 줄로 보낸다(고객 화면도 한 줄로 보인다).
-  const detail = String(data.get('detail') ?? '').replace(/\s*[\r\n]+\s*/g, ' ').trim();
+  // 서버는 줄바꿈·탭 같은 제어 문자를 거절하므로 한 칸 띄어쓰기로 바꿔 한 줄로 저장한다(입력 칸 안내에 적어 둠).
+  const detail = String(data.get('detail') ?? '').replace(/\s*\p{Cc}+\s*/gu, ' ').trim();
   if ([...detail].length > 120) throw localError('혜택 설명은 120자까지 입력해 주세요.');
   const validDays = Number(data.get('validDays'));
   if (!Number.isSafeInteger(validDays) || validDays < 1 || validDays > 365) {
