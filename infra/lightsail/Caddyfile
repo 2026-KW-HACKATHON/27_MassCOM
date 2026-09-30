@@ -46,7 +46,7 @@
 	redir @merchantRoot /merchant/ 308
 	@previewRoot path /preview
 	redir @previewRoot /preview/ 308
-	@webSession path /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection /api/web/badges /api/web/consent /api/web/admin/* /api/web/merchant/* /api/web/account-deletion-intake /api/web/account-deletion-intake/cancel /api/web/account-deletion-status
+	@webSession path /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection /api/web/collectibles/* /api/web/badges /api/web/consent /api/web/admin/* /api/web/merchant/* /api/web/account-deletion-intake /api/web/account-deletion-intake/cancel /api/web/account-deletion-status
 	handle @webSession {
 		reverse_proxy api:3000 {
 			header_up X-Forwarded-For {remote_host}
@@ -95,7 +95,7 @@
 		Referrer-Policy "no-referrer"
 		-Server
 	}
-	@privateSurface path /admin/* /merchant/* /api/web/admin/* /api/web/merchant/* /api/web/consent /api/web/account-deletion-intake /api/web/account-deletion-intake/cancel /api/web/account-deletion-status
+	@privateSurface path /admin/* /merchant/* /api/web/admin/* /api/web/merchant/* /api/web/collectibles/* /api/web/consent /api/web/account-deletion-intake /api/web/account-deletion-intake/cancel /api/web/account-deletion-status
 	header @privateSurface {
 		Cache-Control "no-store"
 		X-Robots-Tag "noindex, nofollow"

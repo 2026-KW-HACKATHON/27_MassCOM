@@ -3,6 +3,91 @@ const merchantClaimResolutions = new WeakMap();
 const merchantClaimSlots = new WeakMap();
 // bindMerchant이 둔 최근 목록 읽기 함수. loadMerchant가 점포 권한을 확인하고 구역을 연 뒤 부른다.
 const reversalRefreshers = new WeakMap();
+const creators = new WeakMap();
+const creatorScopes = new WeakMap();
+// 지금 제작기가 열려 있는 점포 ID.
+const creatorStores = new WeakMap();
+
+function closeCreator(doc) {
+  creators.get(doc)?.();
+  creators.delete(doc);
+  creatorStores.delete(doc);
+  doc.getElementById('merchant-creator-editor')?.replaceChildren();
+}
+
+// 제작기 권한은 서버가 MANAGE_ART로 판정한다(기본은 점포의 점주만, 응답에는 싣지 않는다). 이 화면이 아는 것은 역할뿐이라
+// 점주 점포만 고르게 하고, 서버가 권한 payload(`canManageArt`)를 보내는 환경이 생기면 그 값도 따른다.
+const canCreate = member => member.role === 'OWNER' || member.canManageArt === true;
+const creatorDenied = '이 점포의 그림 제작 권한이 없어요. 점주 권한을 확인해 주세요.';
+const discardMessage = '저장하지 않은 편집이 있어요. 지금 제작기를 다시 열거나 다른 점포로 바꾸면 사라져요. 계속할까요?';
+
+// 제작기가 게시할 캠페인은 점주 권한으로 읽는 전용 API에서만 받는다. 공개 /merchants는 운영 프록시가
+// 캠페인·점포 ID를 지우므로 쓰지 않는다(이 점포의 공개·ACTIVE·기간 안 캠페인과 그 목표만 온다).
+export async function loadCreatorCampaigns(fetcher, merchantId) {
+  const result = await request(fetcher, `/api/web/merchant/merchants/${encodeURIComponent(merchantId)}/collectible-campaigns`);
+  if (!Array.isArray(result?.campaigns)) throw new Error('invalid campaign data');
+  return result.campaigns;
+}
+
+export function configureCreator(fetcher, doc, mine, { confirm = message => globalThis.confirm?.(message) === true } = {}) {
+  const panel = doc.getElementById('merchant-creator');
+  const select = doc.getElementById('merchant-creator-store');
+  const open = doc.getElementById('merchant-creator-open');
+  if (!panel || !select || !open) return;
+  const scope = `${mine.accountScope ?? ''}:${mine.merchants.map(member => `${member.id}:${member.role}`).sort().join(',')}`;
+  if (!mine.accountScope || creatorScopes.get(doc) !== scope) closeCreator(doc);
+  creatorScopes.set(doc, scope);
+  const makers = mine.merchants.filter(canCreate);
+  select.replaceChildren();
+  for (const merchant of makers) {
+    const option = doc.createElement('option'); option.value = merchant.id; option.textContent = merchant.name; select.append(option);
+  }
+  panel.hidden = makers.length === 0;
+  if (makers.length === 0) closeCreator(doc);
+  // 저장하지 않은 편집이 있으면 제작기를 다시 열거나 점포를 바꾸기 전에 묻는다. 거절하면 그대로 둔다.
+  const keepEdits = () => creators.get(doc)?.isDirty?.() === true && !confirm(discardMessage);
+  select.onchange = () => {
+    const mounted = creatorStores.get(doc);
+    if (!mounted || select.value === mounted) return;
+    if (keepEdits()) { select.value = mounted; return; }
+    // 고른 점포와 열려 있는 제작기가 어긋나지 않게, 바꾸기로 했으면 지금 제작기를 닫는다.
+    closeCreator(doc);
+  };
+  open.onclick = async () => {
+    const currentRequest = merchantRequests.get(doc);
+    const merchant = makers.find(member => member.id === select.value);
+    if (!merchant) return;
+    if (keepEdits()) return;
+    open.disabled = true;
+    try {
+      const module = await import('./collectible-editor.mjs');
+      if (merchantRequests.get(doc) !== currentRequest) return;
+      closeCreator(doc);
+      let denied = false;
+      const cleanup = await module.mountCollectibleEditor(doc.getElementById('merchant-creator-editor'), {
+        merchantId: merchant.id, merchantName: merchant.name,
+        loadCampaigns: () => loadCreatorCampaigns(fetcher, merchant.id),
+        request: (path, options = {}) => request(fetcher, path, options.method ?? 'GET', options.body),
+        onNotice: message => { doc.getElementById('merchant-status').textContent = message; },
+        // 목록이 403이면 이 계정은 이 점포의 제작 권한이 없다(예: 직원). 제작기를 닫고 이유를 알린다.
+        onAccessDenied: () => {
+          if (merchantRequests.get(doc) !== currentRequest) return;
+          denied = true;
+          closeCreator(doc);
+          doc.getElementById('merchant-status').textContent = creatorDenied;
+        },
+      });
+      // 권한 거절이 등록(creators.set)보다 먼저 도착했다면 방금 만든 제작기를 여기서 닫는다.
+      if (denied) { cleanup?.(); doc.getElementById('merchant-creator-editor')?.replaceChildren(); return; }
+      if (merchantRequests.get(doc) !== currentRequest) { cleanup?.(); return; }
+      creators.set(doc, cleanup);
+      creatorStores.set(doc, merchant.id);
+    } catch (error) {
+      if (merchantRequests.get(doc) === currentRequest) doc.getElementById('merchant-status').textContent = error.status === 403
+        ? creatorDenied : '제작기를 열지 못했어요. 다시 시도해 주세요.';
+    } finally { open.disabled = false; }
+  };
+}
 
 const isStaffCoupon = coupon => coupon !== null && typeof coupon === 'object'
   && typeof coupon.couponId === 'string' && coupon.couponId !== ''
@@ -81,6 +166,8 @@ async function request(fetcher, path, method = 'GET', body) {
   if (!response.ok) {
     const error = new Error('merchant request failed');
     error.status = response.status;
+    const retryAfter = Number(response.headers?.get?.('Retry-After'));
+    if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfterSeconds = Math.ceil(retryAfter);
     try { error.code = (await response.json()).code; } catch { /* status is enough */ }
     throw error;
   }
@@ -138,6 +225,7 @@ export async function loadMerchant(fetcher, doc) {
     ]);
     if (merchantRequests.get(doc) !== requestId) return;
     if (!Array.isArray(mine.merchants) || !Array.isArray(eligible.merchants)) throw new Error('invalid merchant data');
+    configureCreator(fetcher, doc, mine);
     for (const merchant of mine.merchants) {
       const item = doc.createElement('p');
       item.textContent = `${merchant.name} · ${merchant.role === 'OWNER' ? '점주' : '직원'}`;
@@ -174,6 +262,7 @@ export async function loadMerchant(fetcher, doc) {
   } catch (error) {
     if (merchantRequests.get(doc) !== requestId) return;
     if (error.status === 401) {
+      closeCreator(doc);
       login.hidden = false;
       status.textContent = error.code === 'WEB_AUTH_ACCOUNT_NOT_FOUND'
         ? '고객 앱에서 이 Google 계정으로 먼저 로그인해 주세요.' : 'Google 계정으로 로그인해 주세요.';
@@ -760,6 +849,8 @@ export function bindMerchant(fetcher, doc) {
     }
   });
   doc.getElementById('merchant-logout')?.addEventListener('click', async () => {
+    closeCreator(doc);
+    creatorScopes.delete(doc);
     stopCamera();
     merchantRequests.set(doc, (merchantRequests.get(doc) ?? 0) + 1);
     doc.getElementById('merchant-content').hidden = true;
@@ -791,7 +882,7 @@ export function bindMerchant(fetcher, doc) {
     resetReversal();
     setIssuing(false);
   };
-  doc.defaultView?.addEventListener('pagehide', clear);
+  doc.defaultView?.addEventListener('pagehide', () => { closeCreator(doc); creatorScopes.delete(doc); clear(); });
   doc.defaultView?.addEventListener('pageshow', event => {
     if (event.persisted) { invalidateClaim(); clearSlot(); void loadMerchant(fetcher, doc); }
   });

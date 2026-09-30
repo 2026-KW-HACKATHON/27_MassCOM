@@ -1,3 +1,5 @@
+import type { CollectibleArtwork } from './collectible-project.js';
+
 export type CollectionVisit = {
   visitEventId: string;
   merchantId: string;
@@ -18,6 +20,7 @@ export type CollectionCollectible = {
   targetVisitCount: 1 | 3 | 5;
   displayName: string;
   appCollectibleStatus: 'COLLECTED';
+  artwork?: CollectibleArtwork;
   mintJobId: string | null;
   recipient: string | null;
   nftStatus: 'NOT_REQUESTED' | 'QUEUED' | 'CONFIRMING' | 'FINALIZED' | 'REVIEW_REQUIRED';

@@ -39,3 +39,19 @@ test('confirming redeems only the code checked for the current input', () => {
   assert.match(redeem, /await api\.redeemClaim\(target\)/);
   assert.doesNotMatch(redeem, /redeemClaim\(pendingRedeemToken\)/);
 });
+
+test('"받은 수집품 보기"는 받은 보상에 수집품 외형이 실제로 붙었을 때만, 그 보상으로 보인다', () => {
+  // 방문 수령 응답에는 외형 정보가 없어 도감을 읽어 확인하고, 첫 보상이 아니라 외형이 붙은 보상을 연다.
+  const find = between('async function findGrantedArtwork', 'async function celebrate');
+  assert.match(find, /await api\.getCollection\(\)/);
+  assert.match(find, /grantedArtworkEntitlement\(result\.grantedRewards, snapshot\.collectibles\)/);
+  assert.match(find, /setArtworkReward\(\{ claimSlotId: result\.claimSlotId, entitlementId \}\)/);
+  // 조회 실패는 버튼만 숨긴다.
+  assert.match(find, /catch \{[^}]*\}/);
+  assert.doesNotMatch(screen, /grantedRewards\[0\]/);
+  assert.match(screen, /\{artworkReward\?\.claimSlotId === redeemed\.claimSlotId \? \(/);
+  assert.match(screen, /entitlement: artworkReward\.entitlementId/);
+  // 새 수령·코드 변경 때 이전 버튼 대상이 남지 않는다.
+  assert.match(between('function changeToken', 'async function startScan'), /setArtworkReward\(undefined\);/);
+  assert.match(between('async function redeem', 'async function findGrantedArtwork'), /setArtworkReward\(undefined\);\s*void findGrantedArtwork\(result\);/);
+});

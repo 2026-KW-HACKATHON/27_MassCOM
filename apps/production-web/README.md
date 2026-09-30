@@ -15,3 +15,11 @@
 [공개 계정 삭제 안내](https://www.masscom.kr/account-deletion)는 운영 Google 웹 세션으로 삭제를 접수해 접수번호를 받는 별도 경로입니다(접수·취소는 최근 10분 안의 로그인이 필요하고, 접수만으로는 삭제하지 않으며 24시간 취소 기간 뒤 운영자가 7일 안에 처리, [D-052](../../docs/DECISIONS.md)). 접수번호가 없는 옛 접수는 처리할 수 없다고 표시하고 거절 사유는 요청자가 그대로 본다고 안내합니다. 관리자 화면(`/admin/`)의 "계정 삭제 요청" 구역에서 플랫폼 관리자가 처리·거절합니다. [옛 접수 전용 외부 HTTPS 기록](../../docs/evidence/operating-deletion-intake-deployment-2026-09-28.json)만 있고 이 버전의 배포·실계정 종단 실행은 미검증입니다.
 
 `/merchant/`는 운영 Google 웹 세션으로 내 점포 권한을 읽고, 실제 활성 점포를 골라 내 계정에 묶인 15분 등록 코드를 발급하는 소스입니다. 관리자는 `/admin/`에서 확인된 경로로 받은 코드를 해당 점포에 승인하거나 기존 STAFF를 회수할 수 있습니다. 고객 Android 앱에서 먼저 로그인해 운영 계정을 만든 뒤 웹에 로그인해야 합니다. 코드 원문은 DB에 남지 않고 재발급 시 이전 코드는 무효입니다. 이 소스의 로컬 시험과 미완료 범위는 [운영 직원 등록 절차](../../docs/OPERATING_STAFF_REGISTRATION.md)에 기록합니다.
+
+## 사진 제작기와 보유품 상세
+
+점주 Google 웹 세션의 `MANAGE_ART` 권한으로 `/merchant/`에 제작기를 엽니다. 대표 사진·선택 입력을 편집하고 초안을 명시적으로 저장합니다. 같은 계정의 세션 재확인에는 초안을 유지하고, 계정·권한 변경/로그아웃/페이지 이탈에는 미디어와 녹음을 해제합니다. 게시할 캠페인은 공개 `/merchants`(운영 프록시가 캠페인·점포 ID를 지운다)가 아니라 점주 권한의 `GET /api/web/merchant/merchants/:id/collectible-campaigns`에서 받고, 선택한 캠페인에 있는 방문 목표 외형 연결을 화면에서 직접 고릅니다. 저장·게시 응답의 `project`를 새 기준으로 삼아 게시 뒤 "저장하지 않은 변경"이 남지 않으며, 게시 중지·삭제(확인 뒤 `expectedVersion` 요청)와 지금 나가는 캠페인 이름을 보여 줍니다. 게시용 이미지는 WebP(0.9)로 만들어 8 MiB 본문 안에 넣고, 서버 오류 코드마다 고유 문구(429는 `Retry-After` 초)를 보입니다(`assets/collectible-errors.mjs`). 고객 `/app/` 도감은 정적 썸네일을 먼저 표시하고 상세를 열 때만 보유자 API를 호출합니다. 음성·장면은 자동 재생하지 않습니다.
+
+편집/재생 모듈은 허용된 정적 자산 경로에만 포함되며 CSP는 인라인 raster 그림·선택 음성 data/blob만 허용합니다. 원본은 외부 AI에 전송하지 않습니다. `collectible-model.mjs`의 DOM 없는 모델, 로컬 canvas 렌더러, 편집기, 상세 재생기를 분리했습니다. `node --test tests/site/collectible-*.test.mjs tests/site/verify_production_web_test.mjs`로 새 구조와 기존 점주·고객 기능을 함께 검사합니다. 편집기 저장·게시·복사·충돌·삭제 흐름은 최소 DOM 위의 행동 시험(`collectible-editor-flow.test.mjs`)이고, 화면 검수용 `tests/fixtures/collectible-qa-server.mjs`(`COLLECTIBLE_QA_PORT`로 포트 지정)는 운영 프록시와 같은 `/merchants` 모양을 돌려줍니다. [전체 계약](../../docs/COLLECTIBLE_CREATOR.md)을 참고하세요.
+
+첨부 화면 참고를 반영한 스튜디오 시작 화면에서 새 수집품과 실제 저장 프로젝트를 선택합니다. 사진 배치·등급 미리보기·세부 조정·연출과 목소리의 네 단계를 자유롭게 이동하며 편집을 이어 갑니다. 모양·재질·동작의 카드와 복수 등급 칩을 사용하고, 시즌 선택은 테마 이름만 바꿉니다. `collectible-studio.mjs`는 같은 편집 DOM을 단계별로 배치하며 저장·게시 계약은 편집기가 처리합니다.

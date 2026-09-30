@@ -1,6 +1,7 @@
 import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
 import { shouldInvalidateSession } from '@/auth/session-invalid';
 import { parseCustomerIdentityToken } from './customer-identity';
+import { parseCollectibleArtwork, parsePublishedCollectible, type CollectibleArtwork, type PublishedCollectible } from './collectible-artwork';
 
 export type MerchantContext = {
   merchantId: string;
@@ -110,6 +111,7 @@ export type CollectionSnapshot = {
     campaignTitle: string;
     targetVisitCount: 1 | 3 | 5;
     displayName: string;
+    artwork?: CollectibleArtwork;
     appCollectibleStatus: 'COLLECTED';
     mintJobId: string | null;
     recipient: string | null;
@@ -306,6 +308,12 @@ export function createCommerceApiClient(options: Options) {
 
     async getCollection(): Promise<CollectionSnapshot> {
       return parseCollection(await request('/collection'));
+    },
+
+    async getCollectible(entitlementId: string): Promise<PublishedCollectible> {
+      const value = parsePublishedCollectible(await request(`/collectibles/${encodeURIComponent(entitlementId)}`));
+      if (!value) throw invalidResponse('가게 수집품');
+      return value;
     },
 
     async requestMint(input: {
@@ -639,6 +647,7 @@ function parseCollectible(value: unknown): CollectionSnapshot['collectibles'][nu
     campaignTitle: value.campaignTitle,
     targetVisitCount: value.targetVisitCount,
     displayName: value.displayName,
+    ...(parseCollectibleArtwork(value.artwork) ? { artwork: parseCollectibleArtwork(value.artwork) } : {}),
     appCollectibleStatus: 'COLLECTED',
     mintJobId: value.mintJobId,
     recipient: value.recipient,

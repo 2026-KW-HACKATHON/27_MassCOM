@@ -5,6 +5,49 @@ import { CommerceApiError, createCommerceApiClient } from './commerce-api';
 
 const identityToken = `masscom-customer:v1:${'A'.repeat(43)}`;
 
+const collectiblePng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS1sAAAAASUVORK5CYII=';
+const collectibleDetail = {
+  publicationId: 'publication-1', projectId: 'project-1', gradeId: 'bronze', gradeName: '브론즈',
+  name: '첫 방문 동전', shape: 'circle', theme: { name: '기본' }, thumbnailDataUrl: collectiblePng,
+  imageDataUrl: collectiblePng, thickness: 8, angle: 0, animation: 'still', greeting: '', audio: null,
+  story: { type: 'none', frames: [], cartoon: 0, strength: 50 },
+};
+
+test('수집품 상세는 보상권 경로를 인코딩하고 현재 계정 인증으로만 읽는다', async () => {
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'customer-session' },
+    fetcher: async (input, init) => {
+      assert.equal(String(input), 'https://api.example.test/collectibles/entitlement%2F1');
+      assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer customer-session');
+      assert.equal(new Headers(init?.headers).has('x-account-id'), false);
+      assert.equal(init?.body, undefined);
+      return Response.json({ ...collectibleDetail, photo: { originalDataUrl: 'private' } });
+    },
+  });
+  assert.deepEqual(await client.getCollectible('entitlement/1'), collectibleDetail);
+});
+
+test('수집품 상세의 다른 보유자 거절과 세션 만료를 성공으로 바꾸지 않는다', async () => {
+  let invalidations = 0;
+  for (const [status, code] of [[404, 'COLLECTIBLE_NOT_FOUND'], [401, 'SESSION_INVALID']] as const) {
+    const client = createCommerceApiClient({
+      apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+      onSessionInvalid: async () => { invalidations += 1; },
+      fetcher: async () => Response.json({ code }, { status }),
+    });
+    await assert.rejects(client.getCollectible('foreign-entitlement'), (error: unknown) => error instanceof CommerceApiError && error.status === status && error.code === code);
+  }
+  assert.equal(invalidations, 1);
+});
+
+test('수집품 상세의 잘못된 미디어 응답은 표시하기 전에 거절한다', async () => {
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ ...collectibleDetail, imageDataUrl: 'https://example.test/arbitrary.png' }),
+  });
+  await assert.rejects(client.getCollectible('entitlement-1'), /가게 수집품 응답 형식/);
+});
+
 test('creates, resolves, and revokes customer identity only through authenticated POST bodies', async () => {
   const requests: { url: string; body: unknown }[] = [];
   const client = createCommerceApiClient({

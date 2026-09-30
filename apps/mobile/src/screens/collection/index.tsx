@@ -38,7 +38,9 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
+import { collectibleFocusAction } from './collectible-focus';
 import { collectionCounts, shouldStackCounts } from './collection-counts';
+import { CollectibleDetail } from './collectible-detail';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
 import { merchantArt, type MerchantArt } from './merchant-art';
 import { canOfferMint, mintRefusalText, nftPreparingNote, nftStatusLabel } from './nft-status';
@@ -95,13 +97,14 @@ export function CollectionScreen({
   );
   const badges = useBadgeBook(badgeApi);
   const router = useRouter();
-  const { focus } = useLocalSearchParams<{ focus?: string }>();
+  const { focus, entitlement } = useLocalSearchParams<{ focus?: string; entitlement?: string }>();
   const scrollView = useRef<ScrollView>(null);
   const [rewardsY, setRewardsY] = useState<number>();
   const [headerHeight, setHeaderHeight] = useState(0);
   const [detailKind, setDetailKind] = useState<MedalKind>();
   const [revealed, setRevealed] = useState<OpenedReward>();
   const [usingCoupon, setUsingCoupon] = useState<Coupon>();
+  const [collectibleDetail, setCollectibleDetail] = useState<{ entitlementId: string; merchantName: string; client: typeof api }>();
   const [polling, setPolling] = useState<PollingState>();
   const [binding, setBinding] = useState<ActiveWalletBindingResponse['binding']>();
   const [bindingError, setBindingError] = useState<string>();
@@ -120,6 +123,35 @@ export function CollectionScreen({
       : initialPollingState(snapshot, generation));
   }, []);
   const collection = polling?.snapshot;
+  const loadCollectible = useCallback((entitlementId: string) => api.getCollectible(entitlementId), [api]);
+
+  useFocusEffect(useCallback(() => () => setCollectibleDetail(undefined), [setCollectibleDetail]));
+
+  // Acquisition links open only an entitlement in the authenticated collection.
+  // A legacy reward without artwork still remains successfully collected.
+  // The tab stays mounted, so the snapshot may predate the reward just received: when the entitlement is missing, re-read the
+  // collection once through the same generation-gated path as every other read, then open it or show the message.
+  const collectibleLink = useRef<{ rereadFor?: string; doneFor?: string }>({});
+  useEffect(() => {
+    if (focus !== 'collectible') { collectibleLink.current = {}; return; }
+    const link = collectibleLink.current;
+    if (!collection || link.doneFor === entitlement) return;
+    const finish = (snapshot: CollectionSnapshot) => {
+      link.doneFor = entitlement;
+      const item = snapshot.collectibles.find((value) => value.entitlementId === entitlement);
+      if (item?.artwork) setCollectibleDetail({ entitlementId: item.entitlementId, merchantName: item.merchantName, client: api });
+      else setMessage('보상은 도감에 보관됐어요. 다시 볼 수 있는 가게 수집품은 아직 없어요.');
+      router.setParams({ focus: undefined, entitlement: undefined });
+    };
+    if (collectibleFocusAction(collection, entitlement, link.rereadFor === entitlement) === 'fetch') {
+      link.rereadFor = entitlement;
+      const generation = startRequest();
+      void api.getCollection().then((next) => { applySnapshot(next, generation); finish(next); }, () => finish(collection));
+      return;
+    }
+    const timer = setTimeout(() => finish(collection), 0);
+    return () => clearTimeout(timer);
+  }, [focus, entitlement, collection, router, api, startRequest, applySnapshot]);
   const { merchants: publicMerchants, loading: merchantsLoading, error: merchantsError, retry: retryMerchants, refresh: refreshMerchants } = useMerchantCatalog(apiUrl);
   const stampSlots = useMemo(
     () => buildStampSlots(publicMerchants, collection?.visits ?? []),
@@ -447,14 +479,26 @@ export function CollectionScreen({
               const art = merchantArt({ id: item.merchantId, artUrl: artUrlByMerchant.get(item.merchantId) }, apiUrl);
               return (
                 <FloatingCard key={item.entitlementId} style={styles.collectibleCard}>
-                {art ? (
+                {item.artwork ? (
+                  <>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`${item.artwork.name}, ${item.artwork.gradeName}, 수집품 상세 보기`}
+                      onPress={() => setCollectibleDetail({ entitlementId: item.entitlementId, merchantName: item.merchantName, client: api })}>
+                      <Image source={{ uri: item.artwork.thumbnailDataUrl }} accessible={false} resizeMode="contain" style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
+                    </Pressable>
+                    <Text style={[styles.collectibleArtNote, { color: palette.secondaryLabel }]}>{item.artwork.gradeName} · {item.artwork.theme.name}</Text>
+                    <Pressable accessibilityRole="button" onPress={() => setCollectibleDetail({ entitlementId: item.entitlementId, merchantName: item.merchantName, client: api })}
+                      style={[styles.walletButton, { borderColor: palette.primary }]}>
+                      <Text style={[styles.walletButtonText, { color: palette.primary }]}>가게 수집품 다시 보기</Text>
+                    </Pressable>
+                  </>
+                ) : art ? (
                   <CollectibleArt art={art} size={artSize} imageStyle={styles.collectibleArt} noteStyle={[styles.collectibleArtNote, { color: palette.secondaryLabel }]} />
                 ) : null}
                 <View style={styles.collectibleTopline}>
                   <Text style={[styles.goalBadge, { color: palette.primary }]}>{item.targetVisitCount}회</Text>
                   <Text style={[styles.appStatus, { color: palette.onSuccessContainer }]}>APP · 수집 완료</Text>
                 </View>
-                <Text selectable style={[styles.itemTitle, { color: palette.label }]}>{item.displayName}</Text>
+                <Text selectable style={[styles.itemTitle, { color: palette.label }]}>{item.artwork?.name ?? item.displayName}</Text>
                 <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{item.merchantName} · {item.campaignTitle}</Text>
                 <View style={[styles.nftRow, { borderTopColor: palette.separator }]}>
                   <Text style={[styles.nftLabel, { color: palette.secondaryLabel }]}>실제 NFT</Text>
@@ -524,6 +568,8 @@ export function CollectionScreen({
       </SkyScrollView>
 
       <MedalDetail medal={detailMedal} variant={variant} onClose={() => setDetailKind(undefined)} />
+      {collectibleDetail?.client === api ? <CollectibleDetail key={collectibleDetail.entitlementId} entitlementId={collectibleDetail.entitlementId}
+        merchantName={collectibleDetail.merchantName} load={loadCollectible} onClose={() => setCollectibleDetail(undefined)} onUnavailable={() => void refresh()} /> : null}
       <RewardReveal
         result={revealed}
         onClose={() => setRevealed(undefined)}

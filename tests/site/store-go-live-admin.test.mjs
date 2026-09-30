@@ -342,7 +342,7 @@ test('고객 웹은 운영 API가 발행 준비 중이라고 하면 접수·진�
     campaignTitle: '방문', targetVisitCount: 1, displayName: '마스코트', appCollectibleStatus: 'COLLECTED', mintJobId: null,
     recipient: null, nftStatus: 'NOT_REQUESTED', nft: null };
   // 도감은 동의를 확인한 뒤에만 읽는다(Issue #253): 이 시험의 계정은 이미 동의했다.
-  const consented = { required: false, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-09-30' };
+  const consented = { required: false, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-01' };
   await loadCollection(async (path) => path === '/api/web/consent'
     ? okJson(consented)
     : path === '/api/web/collection'

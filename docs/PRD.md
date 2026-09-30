@@ -31,6 +31,8 @@
 | RQ-021 | 기여 추적 | 실제 사람·AI 역할을 Issue·PR·커밋과 연결 | `IN_PROGRESS` |
 | RQ-022 | 탐험 메달·보상 쿠폰·안전한 공유 | 본인 인정 방문으로 서버가 메달 3종·등급을 계산하고, 배지 3·6·9개 상자에서 점주 동의 혜택이 있을 때만 쿠폰을 1회 발급·점원 확인으로 사용. 개인정보 없이 획득 메달만 이미지로 공유 | `IN_PROGRESS` |
 
+| RQ-023 | 사진 수집품 제작·보유품 재생 | 사진 원본과 초안 보존, 3모양·보정·스티커·동적 등급·재질·동작·음성·장면, 기존 목표 외형 연결과 획득 당시 게시 버전, 보유자 도감 재생. [요구사항 연결](COLLECTIBLE_CREATOR.md) | `IN_PROGRESS` |
+
 계정 삭제·개인정보·출시 경계의 상세 수용 기준은 [PRIVACY_DELETION.md](PRIVACY_DELETION.md)와 [RELEASE_READINESS.md](RELEASE_READINESS.md)에 연결합니다. 외부 HTTPS·첫 모바일 Google 로그인·upload-key 서명 AAB 자동 gate와 A02 설치·App Links는 PASS했습니다. 운영 fresh reauthentication 삭제·두 계정 전환·Play 제출은 완료로 간주하지 않습니다.
 
 RQ-001은 공개 API의 무로그인 점포 조회와 앱 사용 경험을 분리해 평가합니다. [Issue #202](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/202)의 Android 소스에서 공개 목록·상세를 비로그인 고객에게 열고 방문 수령·도감·계정은 인증 상태로 분리했습니다. 기존 공개 운영 test.3·시연 Preview 3 APK에는 아직 이 변경이 없고, 새 설치본 실기 전까지 앱 요구사항은 `IN_PROGRESS`입니다.

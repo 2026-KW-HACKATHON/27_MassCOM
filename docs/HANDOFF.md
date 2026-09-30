@@ -1,5 +1,28 @@
 # HANDOFF
 
+**배포 순서(PR #257 병합 뒤, [D-061](DECISIONS.md)):** ① 병합 → ② 이 코드가 든 운영·시연 Android APK를 새로 빌드해 배포 → ③ **그 뒤에** API·웹 배포. 처리방침 버전이 `privacy-2026-10-01`로 올라 서버가 이 버전을 요구하는 순간, 설치돼 있는 동의 화면 빌드(운영 test.4, 시연 Preview 12·13)는 새 버전을 몰라 "앱을 업데이트해 주세요" 안내에 막힌다(D-059 설계). API·웹을 먼저 배포하면 새 APK가 나오기 전까지 그 사용자가 막힌다. 동의 화면이 없는 더 옛 앱(운영 test.3, 시연 Preview 11 이하)은 막히지 않는다.
+
+## 사진 수집품 제작기 PR 인수인계
+
+**2026-10-01 인수 후속 2차(서버·DB, opus 독립 리뷰 APPROVE 🔴 0의 후속):** `eac3def` 위에 운영자 제거의 복사 계보 추적, 0034 lock_timeout, Ogg·WebM Opus 서버 검사, 점포당 발행본 100개 상한(`COLLECTIBLE_PUBLICATION_LIMIT`), 🔵 5건을 항목별 커밋으로 더했다(push는 오케스트레이터). 결과는 [TEST_STATUS](TEST_STATUS.md) 첫 항목. 남은 확인: 실제 Chrome·Firefox 녹음 파일 업로드와 실제 카메라 JPEG, 운영 AAB 검사, CI·병합.
+
+**2026-09-30 인수 후속(서버·DB, 소유자 "직접 고쳐서 병합", D-061):** 로컬 worktree `.worktrees/257-fix`의 브랜치 `feat/252-photo-collectible-creator`에 main `6f15a92` 병합과 서버·DB 수정 커밋을 팀원 커밋 위에 쌓았다(재작성·force push 없음, push는 오케스트레이터가 한다). 획득 참조화·보상 잠금 완화, 삭제 점주 발행본 배포 중지·게시 중지/삭제·운영자 미디어 제거, MP3 태그·원본 EXIF 제거, 8 MiB 본문·쓰기 제한·크기 상한, 제작기용 캠페인 목록 API `GET /api/web/merchant/merchants/:merchantId/collectible-campaigns`. 계약은 [COLLECTIBLE_CREATOR](COLLECTIBLE_CREATOR.md#서버-계약-pr-257-인수-후속-2026-09-30), 결과는 [TEST_STATUS](TEST_STATUS.md) 첫 항목. **웹·앱 후속(2026-10-01, 같은 브랜치, [TEST_STATUS](TEST_STATUS.md) 첫 항목):** 제작기가 캠페인 목록 API를 쓰고(QA fixture를 운영 프록시 모양으로 정정), 오류 코드별 문구, 저장 응답 `project` 기준값, 게시 중지·삭제 버튼, 완성본 WebP·크기 상한·스티커 30, 앱의 "받은 수집품 보기" 조건·제거된 수집품 안내·`RECORD_AUDIO` 차단, 처리방침 버전 `privacy-2026-10-01`(배포 뒤 모든 계정 재동의), 편집기 행동 시험(최소 DOM)을 끝냈다. **남은 것:** 독립 리뷰·PR 전체 CI·병합, PostgreSQL 통합 시험 재실행(동의 버전 기대값을 바꿨다), 실제 브라우저·실기기에서 제작기(WebP 크기·화질)·수령 화면·제거된 수집품·병합 manifest의 `RECORD_AUDIO` 부재 확인(AAB 빌드), 운영 배포와 migration.
+
+원격 main은 [PR #255](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/255)의 병합 커밋 `d004d7f`다. 이번 사진 제작기 PR #257 작업 트리에 이를 통합하면서 점포 운영 시작의 D-054/D-055는 유지하고 사진 결정은 D-056/D-057로, 사진 migration 파일은 0034/0035로 구분한다. 문서 충돌 정리 시점의 통합 웹137/137·모바일790/790·모바일 타입/린트는 PASS이며 API257/257·API 타입/빌드는 PASS, 새 폐기 DB masscom_collectible_merge_test의 PostgreSQL235개 중233 PASS·0 FAIL·기존 hosted fixture2 SKIP, 빠른 gate·포털/모바일 접근성·개인정보 검사는 PASS다. 새 통합 커밋의 PR 전체 CI는 이 기록 시점에 아직 실행 전이며 원격 업로드 뒤 확인한다. 독립 서버/고객 통합 검토의 추가 actionable 지적은0이다. 운영·시연 Android JS export와 자산 격리도 PASS다. 표식 `MASSCOM_BUILD_SOURCE_COMMIT=acc3bc0`을 사용한 현재 main 통합 작업 트리의 JS 번들이며 서명 APK·실기기 설치 증거가 아니다. 아래 병합 전 수치는 이 통합 결과와 구분한다. 운영 배포·실기기 결과는 변하지 않았다.
+
+PR [#257](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/257)를 생성했다. 최초 구현 커밋은 `e07882597d0f0e017cff522a54ca336382230f75`이며 로컬 검증 트리와 동일하다. PC에 저장된 다른 계정의 Git push403을 권한 있는 연결 계정의 GitHub API로 복구했다. 문서 링크 커밋 `dd1dc050`의 [전체 CI run453](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/36663494995)은 모든 단계 SUCCESS다. 후속 UI 변경은 같은 PR에 추가하며 그 커밋의 CI를 별도로 확인한다. 병합·운영 배포는 하지 않았다.
+
+2026-09-30 [Issue #252](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/252), 브랜치 `feat/252-photo-collectible-creator`, 기준 main `4081999eb2e7741eb2dac455e9f751ef7b795ea4`. 사용자가 전달한 DOCX는 제품 참고 자료로 읽고 실제 코드 구현과 PR 생성 요청을 수행했다. 원본 문서는 공개 저장소에 복사하지 않았다. [명세](COLLECTIBLE_CREATOR.md)·[시험 기록](TEST_STATUS.md)·[화면 증거](evidence/photo-collectible-2026-09-30/README.md)를 함께 검토한다.
+
+- 구현: 점주 웹 사진/보정/스티커/동적 등급/재질/동작/음성/장면, 버전 초안·복사·게시, 사진 migration 0034·0035, 기존 보상권 생성 시 당시 게시 외형 저장, 보유자 웹/native 상세. 원본·편집 기여자/복사본 삭제와 auth/tenant/CSRF 경계를 유지한다.
+- 실행: 병합 전 API245·모바일785·웹120·PG222(기존 환경용2skip)+최신6 PASS, 타입·빌드·린트·운영/시연 JS export/자산 격리·빠른 gate PASS, 독립 검토 수정 완료. 명령과 한계는 TEST_STATUS를 확인한다.
+- 후속: PR의 CI/사람 검토, 실제 기기의 이미지·음성·동작/메모리, main에 구현된 운영 점주 채널의 실제 운영 검증·미디어 삭제/보관 운영 정책을 확인한다. 배포는 별도 승인 범위이며 DB 백업 후 사진 migration 0034→0035·API·웹을 함께 적용하고 expo-audio를 포함한 새 Android native 빌드가 필요하다. 기존 APK에 JS만 교체하지 않는다.
+- 로컬 재현: `node tests/fixtures/collectible-qa-server.mjs` 뒤 loopback4173의 /merchant/와 /app/에서 합성 자료로 검수. fixture는 인증·실제 보상 실증을 대신하지 않는다. PostgreSQL 시험은 폐기용 DB에서 직렬 실행한다.
+- 후속 UI: 사용자 화면 이미지 두 장을 [참고 자료](SOURCE_INDEX.md)로 반영해 파랑 카드형 스튜디오·실제 제작물 목록·시즌·자유 이동 네 단계를 추가했다. 원본과 실행 취소를 같은 프로젝트에서 유지하고, 녹음/파일 읽기/저장 경쟁을 막는다. 저장·게시 버튼은 단계 하단에 둔다. 웹120·문법/diff·gate·포털 접근성·1280/360px 합성 브라우저 검수 PASS, 독립 최종 지적0. [새 캡처와 재현법](evidence/photo-collectible-2026-09-30/README.md)을 참고한다. UI 반영은 웹에 한정하며 API·DB·모바일 계약을 다시 변경하지 않았다.
+
+
+마지막 갱신 시각: 2026-09-30 KST
+
 마지막 갱신 시각: 2026-10-01 KST
 
 ## 2026-10-01 운영·시연 재배포(`1e6bb37`)와 운영 test.4·시연 Preview 13 공개 (Issue #274)
@@ -82,17 +105,19 @@
 
 ## 2026-09-30 실제 점포 운영 시작: 공개·점주·보상 혜택·캠페인·운영 NFT 발행 준비 중 (Issue #246, D-054)
 
+이 기능은 PR #255로 main `d004d7f`에 병합됐다. 아래 검증·라이브 환경·후속 목록은 해당 기능 브랜치의 병합 전 기록이며, 사진 제작기와의 최신 통합 결과는 문서 첫 항목을 따른다. 운영 배포는 별도다.
+
 - 기준: main `02cb7e7`에서 시작해 main `4081999`(PR #249 접수번호 한 줄 표시·PR #251 배포 문서)를 합친 브랜치 `feat/246-store-go-live`(로컬 worktree `.worktrees/246-store-go-live`, 작성 당시 로컬 커밋만이고 **push·PR·배포 없음**이었고 이후 PR #255로 병합돼 main `3f5b2fa`의 일부로 운영·시연에 배포됐다: 위 Issue #261 항목). 설계는 [`docs/superpowers/specs/2026-09-30-store-go-live-design.md`](superpowers/specs/2026-09-30-store-go-live-design.md), 운영자 절차는 [`docs/MERCHANT_ONBOARDING.md`](MERCHANT_ONBOARDING.md).
 - **현재 라이브(작성 당시 기록이다. 이후 `3f5b2fa`로 바뀌었다: 위 Issue #261 항목):** 운영 API·웹 `4081999`(API 코드는 `02cb7e7`과 같음), 시연 API `02cb7e7`, 시연 APK Preview 11(`18a8601`), 공개 `/open`은 Preview 11을 안내한다.
 - 내용: migration 0032, `PostgresAdminService`의 `publishMerchant`·`listOwners`·`promoteOwner`·`demoteOwner`·`listRewardOffers`·`createRewardOffer`·`pauseRewardOffer`·`listCampaigns`·`publishCampaign`·`pauseCampaign`, 관리자 API(`/api/web/admin/merchants/:id/publish`·`/owners`·`/members/:accountId/promote-owner|demote-owner`, `/reward-offers`, `/campaigns`), 계정 삭제의 `platform_admin_audit.target_account_id` 가명 처리, 관리자 웹 구역, 고객 앱·웹 "발행 준비 중"(`NFT_MINTING_MODE`), 배포 검증기의 PREPARING 확인, D-054·D-055·D-023.
-- 검증: [TEST_STATUS](TEST_STATUS.md) 첫 두 항목(opus 재리뷰 마지막 후속 뒤 API 단위 241/241·웹 171/171·모바일 780/780·대상 통합 9/9; 그 앞 리뷰 후속·main 병합 뒤 전체 실행). 앞 항목: API 단위 240/240, PostgreSQL 229건 중 227 PASS·0 FAIL·2 SKIP(새 일회용 `masscom_246_test`, 실행 뒤 삭제), 웹 `tests/site/*.mjs` 170/170(운영 웹 114), 모바일 780/780·typecheck·lint, `bash tools/gate.sh` PASS. 교차 리뷰: opus 보안 APPROVE(🔴 0)·sonnet 코드 APPROVE(🔴 0), 🟡·🔵 지적은 이 브랜치의 리뷰 후속 커밋들에 반영했다.
+- 검증: [TEST_STATUS](TEST_STATUS.md)의 점포 운영 시작 병합 전 검증 항목(opus 재리뷰 마지막 후속 뒤 API 단위 241/241·웹 171/171·모바일 780/780·대상 통합 9/9; 그 앞 리뷰 후속·main 병합 뒤 전체 실행). 앞 항목: API 단위 240/240, PostgreSQL 229건 중 227 PASS·0 FAIL·2 SKIP(새 일회용 `masscom_246_test`, 실행 뒤 삭제), 웹 `tests/site/*.mjs` 170/170(운영 웹 114), 모바일 780/780·typecheck·lint, `bash tools/gate.sh` PASS. 교차 리뷰: opus 보안 APPROVE(🔴 0)·sonnet 코드 APPROVE(🔴 0), 🟡·🔵 지적은 이 브랜치의 리뷰 후속 커밋들에 반영했다.
 - **배포 순서:** migration 0032는 배포된 API `02cb7e7`와 호환되고(`SET LOCAL lock_timeout = '5s'`) 배포 스크립트가 먼저 적용한다. 그다음 API(새 경로·고정 `NFT_MINTING_MODE: PREPARING`)를 바꾸고 그 뒤 운영 웹(관리자 웹 새 구역·고객 웹 문구)을 바꾼다. 새 관리자 웹이 옛 API를 만나면 새 목록·동작이 404로 "불러오지 못했습니다"만 보인다.
 - **롤백 주의(#243과 같은 방식): 이 브랜치를 병합·배포한 뒤에는 앞으로 고쳐 나가고(fix forward) API를 이 커밋 아래로 되돌리지 않는다.** 0032 스키마 위에서 API를 `02cb7e7`로 되돌리면 옛 계정 삭제가 `platform_admin_audit.target_account_id`를 별칭으로 바꾸지 않아, 롤백 동안 삭제된 계정의 원 ID가 점주 변경 감사 행에 남는다. 불가피하게 되돌렸다면 재배포 직후 그 열을 삭제 원장과 대조해 별칭으로 바꾼다.
 - **go-live 전제 조건([B-027](BLOCKERS.md)):** 운영을 `LIVE`로 바꾸기 전에 PREPARING 동안 생긴 권리의 `claim_expires_at`(달성 뒤 90일)을 늘리는 migration을 먼저 하고, 발행 서버·메인넷·NFT 시리즈를 준비한 뒤, compose의 고정값을 바꾸는 별도 변경으로 발행을 연다.
 - **운영 메모:** 참조 번호는 하이픈·점·밑줄로 끊어도 숫자를 합쳐 세므로 영문자 없이 이어지는 숫자는 모두 합쳐 7자리까지다(예: `CS-2609-01`). 점주는 관리자 본인이 올릴 수 없으니 관리자가 한 명뿐이면 점주 부여는 두 번째 관리자가 필요하다. 운영 `OPENAI_API_KEY`는 OWNER가 생겨도 D-050대로 비워 둔다.
 - `NOT_RUN`: 운영 migration 0032 적용·API/웹 배포, 인증된 브라우저에서 실제 점포 공개·점주 올리기·혜택 등록·캠페인 공개, 390px·어두운 화면 실제 렌더링, 실기기의 "발행 준비 중", `export:android`, 독립 교차 리뷰(민감 경로: 권한·보상 규칙이라 서로 다른 모델 2개 필요). (병합 전 기록이다. 운영 migration 0032 적용과 API·웹 배포는 위 Issue #261 항목에서 끝났고, 인증된 브라우저의 실제 점포 공개·점주 올리기·혜택 등록·캠페인 공개, 실기기의 "발행 준비 중"은 그대로 `NOT_RUN`이다.)
 - 남은 🔵 후속(이번 PR에서 하지 않음): 값이 비었을 때의 `NFT_MINTING_MODE` 기본값 재검토, 발행 요청 서비스 조립(`buildMintRequests`) 함수로 떼기, 0032 `lock_timeout` 실제 대기 동작 시험, 옛 앱 정리 뒤 추천의 정원 찬 캠페인 제외 해제(D-055 (12)).
-- 다음 작업: ① PR [#255](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/255)(`bash scripts/check-pr-korean.sh`)·CI·병합(교차 리뷰 2개와 opus 재리뷰 APPROVE). ② 운영 배포(migration 0032 → API → 웹) 뒤 폐기용 점포로 공개·숨김과 관리자 두 명의 점주 올리기(10분 안 로그인)를 인증된 브라우저에서 확인. ③ 고객 앱 다음 빌드에서 "발행 준비 중"·"정원 마감" 제거 실기 확인. ④ 발행을 열 때는 B-027 순서를 따른다. (①의 병합과 ②의 운영 배포는 위 Issue #261 항목에서 끝났다. ②의 인증된 브라우저 확인은 폐기용 점포로 아직 하지 않았다.)
+- 다음 작업: ① PR [#255](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/255)는 main `d004d7f`로 병합됐다. 사진 제작기 PR #257과의 통합 검증은 별도다. ② 운영 배포(migration 0032 → API → 웹) 뒤 폐기용 점포로 공개·숨김과 관리자 두 명의 점주 올리기(10분 안 로그인)를 인증된 브라우저에서 확인. ③ 고객 앱 다음 빌드에서 "발행 준비 중"·"정원 마감" 제거 실기 확인. ④ 발행을 열 때는 B-027 순서를 따른다.
 - 다음 명령: `git -C .worktrees/246-store-go-live log --oneline 4081999..HEAD`, `gh pr list`, `TEST_DATABASE_URL=<이름이 _test로 끝나는 일회용 로컬 DB URL> npm run test:postgres --prefix apps/api`.
 
 ## 2026-09-30 방문·쿠폰 되돌리기·계정 삭제 처리 운영·시연 배포와 시연 Preview 11 공개(Issue #250)

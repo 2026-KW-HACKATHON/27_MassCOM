@@ -68,6 +68,9 @@ PATH="$work/bin:$PATH" bash "$check" "$work/good.aab" "$good_src" >/dev/null
 make_aab billing "$good_manifest"$'\n  E: uses-permission\n    A: android:name="com.android.vending.BILLING"' 'Lcom/facebook/react/ReactActivity;'
 expect_fail 'billing permission' 'billing or overlay permission' "$work/billing.aab" "$good_src"
 
+make_aab microphone "$good_manifest"$'\n  E: uses-permission\n    A: android:name="android.permission.RECORD_AUDIO" (Raw: "android.permission.RECORD_AUDIO")' 'Lcom/facebook/react/ReactActivity;'
+expect_fail 'microphone permission' 'microphone permission (RECORD_AUDIO)' "$work/microphone.aab" "$good_src"
+
 make_aab devpkg $'E: manifest\n  A: package="kr.masscom.wolgye.dev"' 'x'
 expect_fail 'development package' 'manifest' "$work/devpkg.aab" "$good_src"
 

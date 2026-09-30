@@ -1,3 +1,5 @@
+import { appendCollectibleArtwork, clearCollectibleViewers } from './collectible-viewer.mjs';
+
 const MERCHANTS_URL = '/merchants';
 const COLLECTION_URL = '/api/web/collection';
 const BADGES_URL = '/api/web/badges';
@@ -6,7 +8,7 @@ const CONSENT_URL = '/api/web/consent';
 // index.html이 보여 주는 이용약관·개인정보 문구의 버전(Issue #253). 서버 상수와 공개 페이지의 버전은 시험이 서로 비교한다.
 // 서버가 다른 버전을 요구하면 이 화면의 문구에는 동의를 받지 않고 새로 열도록 안내한다.
 const CONSENT_TERMS_VERSION = 'terms-2026-09-30';
-const CONSENT_PRIVACY_VERSION = 'privacy-2026-09-30';
+const CONSENT_PRIVACY_VERSION = 'privacy-2026-10-01';
 const collectionRequests = new WeakMap();
 
 const nftLabels = {
@@ -227,6 +229,8 @@ function collectionNodes(doc) {
 }
 
 function clearCollection(nodes) {
+  const doc = nodes['collectible-list'].ownerDocument;
+  if (doc) clearCollectibleViewers(doc);
   nodes['visit-list'].replaceChildren();
   nodes['collectible-list'].replaceChildren();
   nodes['badge-passport'].replaceChildren();
@@ -457,6 +461,7 @@ export async function loadCollection(fetcher, doc, { badgesTimeoutMs = BADGES_TI
       const nft = detail(doc, nftLineLabel(item, data.nftMinting));
       nft.className = item.nftStatus === 'FINALIZED' ? 'nft-line done' : 'nft-line';
       card.append(name, detail(doc, `${item.merchantName} · 앱 수집품`), nft);
+      appendCollectibleArtwork(doc, card, item, fetcher);
       nodes['collectible-list'].append(card);
     }
     nodes['collection-status'].textContent = data.visits.length + data.collectibles.length === 0

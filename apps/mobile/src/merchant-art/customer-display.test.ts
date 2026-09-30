@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -39,10 +39,15 @@ test('the collection card no longer reaches into the showcase asset module and n
   assert.match(collection, /useArtFallback\(art\.source\)/);
 });
 
-test('customer screens never build a remote image source themselves; only the owner art screen shows API data URLs', () => {
+test('customer screens use the art bridge except for validated acquired inline media; owner art screens can preview API data URLs', () => {
+  const inlineMediaScreens = new Set(['screens/collection/index.tsx', 'screens/collection/collectible-detail.tsx']);
   const offenders = [...sources(join(src, 'screens')), ...sources(join(src, 'ui'))]
-    .filter((path) => !path.includes('/screens/merchant-art/') && /\{ uri:/.test(readFileSync(path, 'utf8')));
-  assert.deepEqual(offenders.map((path) => path.slice(src.length)), []);
+    .map((path) => ({ path, name: relative(src, path).replaceAll('\\', '/') }))
+    .filter(({ path, name }) => !name.startsWith('screens/merchant-art/') && !inlineMediaScreens.has(name) && /\{ uri:/.test(readFileSync(path, 'utf8')));
+  assert.deepEqual(offenders.map(({ name }) => name), []);
+  assert.match(read('commerce/commerce-api.ts'), /parsePublishedCollectible/);
+  assert.match(read('commerce/collectible-artwork.ts'), /data:image/);
+  assert.doesNotMatch(read('screens/collection/collectible-detail.tsx'), /https?:\/\//);
 });
 
 test('the friend passport stays glyph-only: it never asks the art bridge', () => {

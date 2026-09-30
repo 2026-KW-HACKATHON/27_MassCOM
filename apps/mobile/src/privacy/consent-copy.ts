@@ -4,7 +4,7 @@
  * 앱 업데이트를 안내한다.
  */
 export const CONSENT_TERMS_VERSION = 'terms-2026-09-30';
-export const CONSENT_PRIVACY_VERSION = 'privacy-2026-09-30';
+export const CONSENT_PRIVACY_VERSION = 'privacy-2026-10-01';
 
 export const TERMS_URL = 'https://www.masscom.kr/terms';
 export const PRIVACY_URL = 'https://www.masscom.kr/privacy';

@@ -3905,7 +3905,7 @@ test('admin coupon routes list and void behind the admin cookie, origin and JSON
   assert.equal((await webRequest(denied, voidPath, { method: 'POST', headers, body: '{"reason":"OTHER"}' })).status, 403);
 });
 
-const consentVersions = { termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-09-30' };
+const consentVersions = { termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-01' };
 const consentBody = { ...consentVersions, ageConfirmed: true, termsAccepted: true, privacyAccepted: true };
 
 function consentFixture(

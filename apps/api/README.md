@@ -2,6 +2,41 @@
 
 ERC-4361(SIWE) 주소 확인, Phase 2 공개 점포·캠페인·방문·도감·추천, Phase 3 wallet binding·mint job·Outbox·체인 확정 상태 조회를 제공하는 Node.js API입니다.
 
+## 사진 수집품 제작
+
+점주 웹은 `/api/web/merchant/merchants/:merchantId/collectible-projects`에서 편집 프로젝트를 저장합니다. 목록 `GET`은 원본 없는 `{projects}` 메타데이터, 생성 `POST {project}`는 새 비공개 초안을 반환합니다. `/:projectId`의 `GET`은 편집 자료, `PUT {expectedVersion,project}`는 버전이 맞을 때만 저장합니다. `/:projectId/copy`의 `POST {expectedVersion}`은 새 초안으로 복사하고, `/:projectId/publish`의 `POST {expectedVersion,campaignId}`는 변경 불가능한 발행본과 해당 점포의 현재 공개 캠페인 연결을 만듭니다. `/:projectId/unpublish`의 `POST {expectedVersion}`은 게시 중지로, 이 발행본이 지금 캠페인에 연결돼 있으면 그 연결만 끊고 `{projectId,publicationId,unlinkedCampaignId}`를 돌려줍니다(이미 교체·중지됐으면 `unlinkedCampaignId: null`, 초안이면 409 `COLLECTIBLE_NOT_PUBLISHED`). `/:projectId/delete`의 `POST {expectedVersion}`은 초안이면 행을 지우고, 게시 프로젝트면 연결을 끊은 뒤 비공개 원본·작성자 식별자를 비워 목록·100개 상한에서 뺍니다(`{projectId,deleted:true,unlinkedCampaignId}`). 목록 항목의 `distributingCampaignId`는 그 게시 버전이 지금 나가는 캠페인입니다. 제작기의 게시 대상은 `GET /api/web/merchant/merchants/:merchantId/collectible-campaigns`가 `{campaigns:[{id,title,status:'ACTIVE',startsAt,endsAt,goals:[1,3,5],publication:{publicationId,projectId}|null}]}`로 돌려줍니다(이 점포의 공개·ACTIVE·기간 안 캠페인만, 게시 API와 같은 조건, 같은 MANAGE_ART 거래 안 재확인). 공개 `/merchants`는 캠페인 ID를 지우므로 제작기가 쓰지 않습니다. 전체 계약은 [사진 수집품 제작기](../../docs/COLLECTIBLE_CREATOR.md#서버-계약-pr-257-인수-후속-2026-09-30)에 있습니다. 쓰는 곳이 없던 앱 Bearer 경로(`/merchant/merchants/…/collectible-projects`)는 큰 본문 표면을 줄이기 위해 없앴고 웹 세션 경로만 남습니다. 생성·저장·복사·게시(미디어를 파싱·디코딩하는 쓰기)는 권한 확인 뒤 점포마다 1분에 20번으로 제한하며 넘으면 429 `COLLECTIBLE_RATE_LIMITED`와 `Retry-After`를 돌려줍니다(API 프로세스 메모리 기준).
+
+권한은 기존 `MANAGE_ART`와 같습니다. 기본 활성 OWNER만, `AI_ART_STAFF_MAY_MANAGE=true` 환경에서만 활성 STAFF도 허용합니다. 모든 읽기·쓰기에서 활성 점포와 멤버십을 거래 안에서 다시 확인합니다. 웹 쓰기는 호스트에 묶인 세션·동일 Origin·JSON을 요구합니다. `/api/web/merchant/me`의 불투명한 `accountScope`는 로그인 주체가 바뀌면 열린 초안을 폐기하기 위한 값입니다.
+
+`project.rewardGrades`는 점주가 직접 고른 기존 `1`·`3`·`5`회 목표와 외형 등급의 연결입니다. 비어 있으면 게시할 수 없으며 일부 목표만 연결할 수 있습니다. 새 보상권 INSERT 때 현재 발행본을 같은 거래에서 획득합니다(migration 0034). 획득 행(`collectible_acquisitions`)은 `(entitlement_id, publication_id, grade_id, acquired_at)` 참조만 저장하고, 미디어는 불변 발행본 등급 표 `collectible_publication_grades`에 한 번만 둡니다(목록용 `summary`: 이름·등급·모양·시즌·썸네일, 상세용 `detail`). 트리거는 캠페인에 발행본 연결이 있을 때만 캠페인 행을 `FOR KEY SHARE`로 잠그고, 등급 자료가 없으면 경고만 남기고 보상권은 그대로 만듭니다. 게시는 검증·디코딩·메타데이터 제거를 캠페인 `FOR UPDATE` 전에 끝냅니다. 과거 보상권에는 소급하지 않으며 방문·보상·NFT 규칙을 바꾸지 않습니다. `GET /collection`·`/api/web/collection`은 획득품에 작은 정적 `artwork`만 추가합니다. `GET /collectibles/:entitlementId`·`/api/web/collectibles/:entitlementId`는 유효한 보상권 본인에게만 최종 사진·선택 효과/마스크·인사 음성·최종 이야기 프레임을 반환합니다. 원본·편집 좌표·브러시·작성자 자료는 포함하지 않습니다.
+
+안전한 저장을 위한 구현 한도는 요청 8 MiB, 원본 사진 3 MiB, 완성 사진/효과용 바탕 1 MiB·512×512 px 이하, 썸네일 128 KiB·160×160 px 이하, 효과 마스크 256 KiB·512 px 이하, 이야기 원본 512 KiB(최대 5개)와 미리보기 512 KiB·512 px 이하, 음성 1 MiB/30초, 외형 등급 1–16개, 점포당 프로젝트 100개, 점포당 미디어가 남은 발행본 100개(409 `COLLECTIBLE_PUBLICATION_LIMIT`, 발행본은 이미 받은 고객을 위해 남으므로 삭제해도 줄지 않고 운영자 미디어 제거만 자리를 비움)입니다. 요청 8 MiB는 원본 사진 3 MiB(base64 4 MiB)와 음성 1 MiB(1.34 MiB)에 편집기 크기(512 px 완성본·160 px 썸네일)의 등급 자료와 장면 미리보기를 더한 크기이며, 장면 원본 5장과 PNG 완성본 여러 등급을 모두 최대로 채우는 조합은 413 `BODY_TOO_LARGE`로 거절합니다(편집기는 완성본을 WebP로 줄이거나 장면·음성을 줄이도록 안내해야 합니다). PNG/JPEG/WebP와 MP3/WebM/Ogg의 inline base64만 받으며 외부 URL·SVG를 받지 않습니다. 이미지 헤더의 실제 크기를 확인해 원본은 각 변 4096 px, 파생 이미지는 위 편집기 크기 이하로 제한하고 원본·이야기 크기 선언과 비교합니다(JPEG 회전 정보의 가로·세로 교환 허용). 저장(초안 생성·저장·복사·게시) 때 원본 사진·이야기 원본·완성 이미지 모두에서 EXIF·XMP·ICC·텍스트 같은 부가 메타데이터를 제거하고 화소 자료만 남깁니다(PNG는 IHDR·PLTE·IDAT·tRNS·IEND, WebP는 VP8X·VP8·VP8L·ALPH만). JPEG는 브라우저가 저장된 가로·세로를 계산할 때 쓴 EXIF 방향값 하나만 최소 APP1로 다시 넣습니다. 애니메이션 WebP(VP8X 애니메이션 표시·ANIM/ANMF)는 거절합니다. 점주는 `/delete`로 초안을 지워 100개 상한을 비울 수 있습니다. 이야기 프레임은 게시 시 별도의 `previewDataUrl`이 있어야 하며 고객에게는 그 최종 프레임만 반환합니다. MP3는 저장 전에 앞의 ID3v2(syncsafe 크기)·뒤의 ID3v1(`TAG` 128바이트)·APEv2 태그를 떼고 나머지가 같은 버전·표본율의 MPEG Layer III 프레임으로만 이어져야 받습니다(HTML·중간 잡음·예약 헤더 거절, 잘린 마지막 프레임은 버림). 저장 길이 `durationSeconds`는 프레임 수로 계산하며 30.5초를 넘으면 413 `COLLECTIBLE_MEDIA_TOO_LARGE`입니다. 브라우저 녹음도 저장 길이를 파일에서 다시 계산합니다: Ogg는 CRC가 맞는 한 스트림의 Opus 페이지만(OpusHead·OpusTags 각 한 페이지) 받아 마지막 granule 위치와 pre-skip으로 길이를 구하고 OpusTags를 빈 태그로 바꿉니다. WebM은 EBML `webm` 헤더와 Segment 아래 SeekHead·Info·Tracks·Cluster·Cues·Void만(Tags·Attachments·Chapters·Info Title이 있으면 거절), 클러스터 안은 허용 목록 요소만, A_OPUS 트랙 하나를 받아 가장 늦은 블록 시각(또는 더 긴 Info Duration)으로 길이를 구합니다. 30.5초를 넘으면 413 `COLLECTIBLE_MEDIA_TOO_LARGE`입니다.
+
+계정 삭제는 해당 계정이 생성하거나 편집한 프로젝트와 그 원본을 이어받은 복사본의 비공개 원본·작성자 식별자를 같은 거래에서 비웁니다(migration 0035의 비공개 기여자 목록). 중간 편집자의 자료도 삭제 대상이며 비운 프로젝트는 조회·복사할 수 없습니다. 같은 거래에서 이 계정이 작성·편집에 참여한 프로젝트의 발행본은 캠페인 배포 연결을 끊어 새 방문 고객에게 더 나가지 않습니다. 다른 고객이 이미 획득한 최종 발행본은 가게 자산으로 보존하며, 삭제 계정의 보상권은 기존 삭제 규칙대로 가명 처리합니다.
+
+### 운영자 게시 미디어 제거 절차
+
+사진 속 직원·제3자의 삭제 요구처럼 이미 획득한 고객의 사본까지 지워야 할 때 운영자가 실행합니다. 발행본·등급·획득 행은 트리거가 수정·삭제를 막고, 거래 안 세션 설정 `masscom.collectible_media_removal = 'on'`일 때만 발행본의 `media_removed_at`(NULL→시각)과 등급 행의 `summary`·`detail` 교체를 허용합니다. 이 설정은 아래 함수만 거래 범위로 켰다 끕니다.
+
+```sql
+-- 1) 대상 확인: 같은 점포에서 이 발행본의 복사 계보(lineage_id)에 속한 발행본과 획득 수(제거 대상 미리보기)
+SELECT p.id, p.campaign_id, p.published_at, p.media_removed_at,
+       (SELECT count(*) FROM collectible_acquisitions a WHERE a.publication_id = p.id) AS acquisitions
+FROM collectible_publications p JOIN collectible_projects project ON project.id = p.project_id
+WHERE (project.merchant_id, project.lineage_id) =
+      (SELECT source.merchant_id, source.lineage_id FROM collectible_publications x
+       JOIN collectible_projects source ON source.id = x.project_id WHERE x.id = '<publication-uuid>')
+ORDER BY p.published_at DESC;
+-- 2) 제거(한 거래): 같은 점포의 같은 복사 계보 프로젝트와, 그 계보의 원본 사진·음성과 같은 바이트를 쓰는 다른 프로젝트를 모두 모아
+--    그 발행본의 배포 연결 삭제, 등급 미디어를 {"mediaRemoved":true} 표시로 교체, media_removed_at 기록,
+--    프로젝트의 비공개 원본·작성자 식별자·기여자 행 삭제. 반환 행은 비운 발행본 id와 등급 행 수.
+BEGIN;
+SELECT * FROM collectible_remove_publication_media('<publication-uuid>');
+COMMIT;
+```
+
+제거 뒤 고객 도감(`/collection`)에서 해당 획득품의 `artwork`가 빠지고 상세(`/collectibles/:entitlementId`)는 404 `COLLECTIBLE_NOT_FOUND`입니다. 방문·보상권·NFT 기록은 바꾸지 않습니다. 복사본은 만들 때 원본의 `lineage_id`(처음 만든 프로젝트의 id)를 물려받으므로 중간 초안을 지웠거나 원본을 이미 비웠어도 계보로 찾습니다. 계보가 다르고 사진을 다시 편집해 바이트가 달라진 별도 프로젝트(예: 같은 사람을 다시 찍은 사진)는 찾지 못하므로 반환 목록과 그 점포의 남은 프로젝트를 확인합니다. 이 함수는 `PUBLIC` 실행 권한을 거둬 함수 소유자(마이그레이션을 실행한 앱 DB 역할)만 부를 수 있습니다. 요청 경위와 실행 시각은 운영 기록에 남깁니다.
+
 ## 실행
 
 ```bash
@@ -285,3 +320,6 @@ npm run test:postgres
 지갑 challenge 원문·nonce claim은 `DATABASE_URL`이 설정되면 PostgreSQL `wallet_challenges` 테이블(migration 0008)에 원자적 claim으로 저장되어 프로세스 재시작에도 남습니다. `DATABASE_URL`이 없으면 DEMO 전용 in-memory 저장소로 대체되며 이 경우에만 재시작 시 사라집니다. 계정 삭제 요청은 남은 challenge를 저장소 종류와 무관하게 즉시 제거합니다. 성공한 주소 연결과 mint job·Outbox·체인 이벤트·NFT 자산은 PostgreSQL에 남습니다. Worker 실행과 Local Anvil 재현은 [`../worker/README.md`](../worker/README.md)를 따르며 운영 signer·Base Sepolia는 포함하지 않습니다.
 
 계정 삭제는 `ACCOUNT_DELETION_HMAC_SECRET`이 설정된 경우에만 켜집니다. 운영 로그인에서는 최근 5분 이내에 인증한 세션만 삭제를 요청할 수 있고(위 “인증 방식”), `x-demo-reauthenticated: true` 헤더는 `ALLOW_INSECURE_DEMO_ACCOUNT=true`인 loopback DEMO에서만 받습니다. 미전송 mint job만 `CANCELLED`로 바꾸고, 제출·확정 작업의 체인 대조 자료는 비식별 account alias와 함께 보존합니다.
+
+
+Windows에서 npm의 단일따옴표 glob은 0건으로 끝날 수 있습니다. 실제 단위 시험은 PowerShell에서 `$apiTestPaths = @(rg --files src -g "*.test.ts"); node node_modules/tsx/dist/cli.mjs --test @apiTestPaths`로 실행합니다. PostgreSQL 시험은 폐기용 DB의 모든 migration 적용 뒤 전용 프로세스 하나로 실행합니다.

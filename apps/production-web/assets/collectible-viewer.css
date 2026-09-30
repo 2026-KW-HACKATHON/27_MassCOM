@@ -1,0 +1,11 @@
+.collectible-thumb{display:block;width:min(100%,192px);height:auto;object-fit:contain;margin:12px auto}
+.collectible-dialog{color:var(--mc-label,#18334d);background:var(--mc-surface,#fff);border:1px solid var(--mc-separator,#8194a6);border-radius:20px;width:min(92vw,680px);max-height:90vh;overflow:auto;padding:24px;box-sizing:border-box}
+.collectible-dialog::backdrop{background:rgba(13,26,43,.65)}
+.collectible-stage{width:100%;height:auto;max-height:50vh;object-fit:contain;display:block}
+.collectible-controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:16px 0}
+.collectible-controls label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.collectible-controls input[type=range]{max-width:100%;min-height:44px}
+.collectible-dialog button{min-height:44px}
+.collectible-dialog audio{display:block;width:100%;margin:16px 0}
+.collectible-greeting{font-size:1.2rem;white-space:pre-wrap;overflow-wrap:anywhere}
+.collectible-preference{min-height:44px}

@@ -380,6 +380,40 @@ async function pseudonymizeAccount(
     'UPDATE merchant_art_rounds SET requested_by_account_id = NULL WHERE requested_by_account_id = $1',
     [accountId],
   );
+  // 사진 원본·편집 좌표와 작성자 식별자는 지우고, 이 계정이 작성·편집에 참여한 발행본은 캠페인 배포 연결을 끊어
+  // 새 방문 고객에게 더 나가지 않게 한다. 이미 획득한 고객의 불변 발행본 등급 자료는 가게 자산으로 유지한다.
+  // 원본만 비운 게시 프로젝트(project IS NULL)도 작성자 열·기여자 행이 남아 있으면 여기서 찾는다.
+  const authored = `collectible_projects.created_by_account_id = $1 OR collectible_projects.edited_by_account_id = $1 OR EXISTS (
+    SELECT 1 FROM collectible_project_contributors contributor
+    WHERE contributor.project_id = collectible_projects.id AND contributor.account_id = $1)`;
+  const sourceMerchants = await client.query<{merchant_id:string}>(`SELECT DISTINCT merchant_id
+    FROM collectible_projects WHERE ${authored} ORDER BY merchant_id`,[accountId]);
+  for(const sourceMerchant of sourceMerchants.rows) {
+    // 게시·게시 중지·복사·삭제와 같은 가게별 잠금이다(그 거래들도 시작할 때 이 잠금을 잡는다).
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`collectible-sources:${sourceMerchant.merchant_id}`]);
+  }
+  // 게시 중지와 같이 연결된 캠페인 행을 id 순서로 FOR UPDATE 잠근다: 진행 중인 보상권 트리거(FOR KEY SHARE)가 끝난 뒤
+  // 연결을 지우므로, 이 거래가 끝난 뒤에는 삭제한 점주의 발행본을 새로 잡는 획득이 없다.
+  await client.query(
+    `SELECT campaign.id FROM campaigns campaign WHERE campaign.id IN (
+       SELECT link.campaign_id FROM campaign_collectible_publications link
+       JOIN collectible_projects ON collectible_projects.publication_id = link.publication_id WHERE ${authored})
+     ORDER BY campaign.id FOR UPDATE OF campaign`,
+    [accountId],
+  );
+  await client.query(
+    `DELETE FROM campaign_collectible_publications link USING collectible_projects
+     WHERE link.publication_id = collectible_projects.publication_id AND (${authored})`,
+    [accountId],
+  );
+  const clearedSources = await client.query<{ id: string }>(
+    `UPDATE collectible_projects SET project = NULL, name = NULL, created_by_account_id = NULL, edited_by_account_id = NULL,
+       updated_at = now()
+     WHERE ${authored} RETURNING id`,
+    [accountId],
+  );
+  await client.query('DELETE FROM collectible_project_contributors WHERE project_id = ANY($1::uuid[])',
+    [clearedSources.rows.map(row => row.id)]);
   // Enrollment rows are re-aliased, not deleted; the campaign slot they reserved is not
   // returned so enrolled_count never exceeds the promised enrollment_capacity.
   await client.query(

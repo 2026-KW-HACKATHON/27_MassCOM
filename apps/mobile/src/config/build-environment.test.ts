@@ -265,9 +265,11 @@ test('actual Expo production config preserves release identity, plugins, and blo
     'expo-camera',
     'expo-splash-screen',
     'expo-secure-store',
+    'expo-audio',
     './plugins/with-build-source-commit.cjs',
   ]);
-  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW']);
+  assertPlaybackOnlyAudio(config);
+  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.RECORD_AUDIO']);
   assert.deepEqual(config.android?.intentFilters, [
     {
       action: 'VIEW',
@@ -338,8 +340,10 @@ test('actual Expo development config preserves local DEMO identity, plugins, and
     'expo-camera',
     'expo-splash-screen',
     'expo-secure-store',
+    'expo-audio',
   ]);
-  assert.deepEqual(config.android?.blockedPermissions, []);
+  assertPlaybackOnlyAudio(config);
+  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.RECORD_AUDIO']);
   assert.deepEqual(config.android?.intentFilters, []);
 });
 
@@ -360,9 +364,11 @@ test('actual Expo showcase config has its own Android identity and no dev launch
     'expo-camera',
     'expo-splash-screen',
     'expo-secure-store',
+    'expo-audio',
     './plugins/with-build-source-commit.cjs',
   ]);
-  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW']);
+  assertPlaybackOnlyAudio(config);
+  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.RECORD_AUDIO']);
   assert.deepEqual(config.android?.intentFilters, [{
     action: 'VIEW',
     autoVerify: true,
@@ -448,4 +454,17 @@ function evaluateExpoConfig(overrides: Record<string, string>) {
 
 function pluginNames(config: EvaluatedExpoConfig): string[] {
   return (config.plugins ?? []).map((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin));
+}
+
+function assertPlaybackOnlyAudio(config: EvaluatedExpoConfig): void {
+  const audio = config.plugins?.find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-audio');
+  assert.ok(Array.isArray(audio));
+  assert.deepEqual(audio[1], {
+    recordAudioAndroid: false,
+    microphonePermission: false,
+    enableBackgroundPlayback: false,
+    enableBackgroundRecording: false,
+  }, '고객 음성 재생이 마이크·백그라운드 재생·녹음 권한을 추가하지 않아야 한다');
+  // 플러그인 설정과 별개로, 다른 라이브러리가 마이크 권한을 끌어와도 병합 manifest에서 막는다(모든 variant).
+  assert.ok(config.android?.blockedPermissions?.includes('android.permission.RECORD_AUDIO'), 'RECORD_AUDIO는 android.blockedPermissions로 막아야 한다');
 }

@@ -164,3 +164,9 @@ release build는 시작부터 publish 직전까지 전체 Git worktree가 clean�
 ## 계정 전환 시 데이터 분리
 
 지갑 세션은 계정별 tag가 붙은 key(`@masscom:appkit:<tag>:`)에만 저장하고 읽습니다. 앱 시작 때 현재 계정의 것이 아닌 지갑 세션 key를 지우며, 계정 ID를 받는 모든 화면은 계정이 바뀌면 remount됩니다. 계정 전환 시 이전 AppKit을 disconnect하고 저장 key를 지운 뒤 새 account ID용 AppKit instance를 만듭니다. 이 변경 뒤 첫 실행에서는 이전 형식의 세션이 지워져 지갑을 한 번 다시 연결해야 할 수 있습니다. 자동 controller 시험은 통과했지만 실제 Google 계정 전환 뒤 이전 사용자 API·지갑 데이터가 보이지 않는지 확인하는 D02 실기는 `NOT_RUN`입니다.
+
+## 사진 수집품 도감 상세
+
+고객 공통 도감은 서버에 `artwork`가 있는 실제 보상에만 정적 썸네일·상세 버튼을 추가합니다. 상세를 열 때 보유자 API에서 가공된 미디어를 읽으며, 수령 성공 화면의 "받은 수집품 보기"는 수령이 끝난 뒤 도감을 읽어 받은 보상에 `artwork`가 실제로 붙어 있을 때만 보이고(여러 보상이면 가장 높은 방문 목표, 조회 실패·외형 없는 기존 보상이면 버튼 생략), 그 권리 ID만 전달합니다. 운영자가 게시 사진을 내려 `artwork`가 없어진 수집품은 이름만 있는 기존 카드로 보이고 상세(404)는 재시도 없이 "다시 볼 수 있는 사진이 없어요·받은 기록과 보상은 그대로"로 안내합니다. 회전·두께·대사·음성·이야기 다시 보기/건너뛰기를 제공하고 닫기·계정 변경·탭 이탈·백그라운드에서는 재생과 늦은 응답을 정리합니다.
+
+새 `expo-audio` native 모듈은 선택 음성 재생용입니다. 마이크·녹음·백그라운드 권한을 켜지 않고(`expo-audio` 플러그인 설정과 별개로 `android.blockedPermissions`가 모든 variant에서 `RECORD_AUDIO`를 막고 `src/config/build-environment.test.ts`가 고정합니다) 기존 APK에 JS만 바꿔 적용할 수 없으므로 새 native 빌드가 필요합니다. 운영·시연 공통 코드이나 API·package·가상 자산 격리는 유지합니다. Android의 재질은 게시된 완성 정면 이미지이며 웹처럼 각도별로 빛을 다시 합성하지 않습니다. 실기기·native 빌드 검증 상태는 [TEST_STATUS](../../docs/TEST_STATUS.md)를 참고하세요.

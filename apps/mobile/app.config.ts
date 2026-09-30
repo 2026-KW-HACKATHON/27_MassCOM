@@ -36,6 +36,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const authPlugins = [
     ...(plugins ?? []),
     'expo-secure-store',
+    ['expo-audio', {
+      recordAudioAndroid: false,
+      microphonePermission: false,
+      enableBackgroundPlayback: false,
+      enableBackgroundRecording: false,
+    }] satisfies [string, Record<string, unknown>],
   ];
   return {
     ...config,
@@ -54,8 +60,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...config.android,
       package: production ? PRODUCTION_PACKAGE
         : showcase ? `${PRODUCTION_PACKAGE}.demo` : `${PRODUCTION_PACKAGE}.dev`,
-      // The development client library declares this overlay permission; the store app never uses it.
-      blockedPermissions: releaseLike ? ['android.permission.SYSTEM_ALERT_WINDOW'] : [],
+      // The development client library declares the overlay permission; the store app never uses it.
+      // 수집품 음성은 재생만 한다. 어떤 라이브러리(expo-audio·expo-camera·의존성)가 끌어와도 마이크 권한은 빌드에 남기지 않는다.
+      blockedPermissions: [
+        ...(releaseLike ? ['android.permission.SYSTEM_ALERT_WINDOW'] : []),
+        'android.permission.RECORD_AUDIO',
+      ],
       intentFilters: releaseLike
         ? [
             {

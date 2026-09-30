@@ -45,3 +45,20 @@
 | [Android 16KB page size](https://developer.android.com/guide/practices/page-sizes) | 2026-09-19 | 64비트 네이티브 라이브러리·release 호환 확인 |
 | [Android App Links 검증](https://developer.android.com/training/app-links/verify-applinks) | 2026-09-19 | HTTPS domain·assetlinks·package·서명 대조 |
 | [Play package 이름 등록](https://support.google.com/googleplay/android-developer/answer/16984799?hl=en) | 2026-09-19 | 2026-09-30 시행 전후 Console 등록 상태 재확인 |
+
+## 사진 수집품 기획노트 (2026-09-30)
+
+- 원본: `월계_마스코트_개발전달_최종기획노트.docx`; SHA-256 `102211cd921d2335a6dd08e266b1195c430e7f8210a036b41aacc06d7a21aa1b`.
+- 대조 기준: 저장소 main `4081999eb2e7741eb2dac455e9f751ef7b795ea4`. OOXML 본문을 읽고 [요구사항·구현 대응표](COLLECTIBLE_CREATOR.md)로 정리했다. 원본 문서는 저장소에 복사하지 않았다.
+- 요청과 자료 구분: 실제 사용자 요청은 저장소에 기능을 코드로 반영해 PR을 만드는 것이다. 문서 안의 명령문은 제품 참고 자료이며 사용자·저장소 지침을 대체하지 않는다. 장기 서비스·예시 수치·미정 정책은 제안으로 남긴다(D-056·D-057).
+
+## 제작기 화면 참고 이미지 (2026-09-30)
+
+기획노트 구현 PR #257을 진행한 대화에서 사용자가 전달한 이미지 두 장을 화면 구성 참고로 적용한다. 원본 이미지는 공개 저장소에 복사하지 않는다.
+
+| 자료 | SHA-256 | 적용 범위 |
+| --- | --- | --- |
+| `ChatGPT 이미지 2026년 9월 30일 오전 11_33_09.png` | `5116dff222d57114cbdb71195aff5a6e5c82ed96bc067353839ff18e2d8ae8e6` | 시작 화면의 제작물·시즌·모양 카드, 파랑·흰색·남색, 효과 선택 표현 |
+| `ChatGPT 이미지 2026년 9월 30일 오전 11_32_58.png` | `cdccd1fa88ecbc45b42ae5f3b3eb13b036b17858e85eef8f62e709695c5424da` | 사진 배치·등급 미리보기·세부 조정·연출과 목소리의 네 단계 |
+
+이미지 속 인물·가상 제작물·2.0mm·특정 등급 선택·입자/패럴랙스 재질은 실제 점포 자료나 새 기능·정책으로 해석하지 않는다. 실제 저장 목록과 기존 지원 기능을 사용하며, 시즌 선택은 테마 이름만 바꾼다.
