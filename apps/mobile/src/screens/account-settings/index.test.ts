@@ -65,8 +65,9 @@ test('an ambiguous failure while filing, re-issuing or cancelling asks the serve
   const cancelIntake = screen.slice(screen.indexOf('async function cancelIntake'), screen.indexOf('function confirmDeletion'));
   assert.match(cancelIntake, /isAmbiguousIntakeFailure\(caught\)\) await settleAmbiguousFailure\('cancel'\)/);
   const settle = screen.slice(screen.indexOf('async function settleAmbiguousFailure'), screen.indexOf('async function lookUpReceipt'));
-  assert.match(settle, /recheckIntake\(intakeClient\)/);
-  assert.match(settle, /setIntake\(undefined\);\s*setIntakeUnknown\(true\)/);
+  assert.match(settle, /ambiguousFailureOutcome\(action, await recheckIntake\(intakeClient\)\)/);
+  assert.match(settle, /setIntake\(outcome\.intake\);\s*setIntakeUnknown\(outcome\.intakeUnknown\)/);
+  assert.match(settle, /if \(outcome\.clearReceipt\) setReceipt\(undefined\)/);
   assert.match(screen, /intakeUnknownMessage/);
 });
 
