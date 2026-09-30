@@ -174,3 +174,5 @@ BEGIN
   PERFORM set_config('masscom.collectible_media_removal', 'off', true);
 END;
 $$;
+-- 운영자만 쓰는 절차다. 기본 PUBLIC 실행 권한을 거두어 함수 소유자(마이그레이션을 실행한 앱 DB 역할)만 부를 수 있게 한다.
+REVOKE EXECUTE ON FUNCTION collectible_remove_publication_media(uuid) FROM PUBLIC;

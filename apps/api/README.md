@@ -35,7 +35,7 @@ SELECT * FROM collectible_remove_publication_media('<publication-uuid>');
 COMMIT;
 ```
 
-제거 뒤 고객 도감(`/collection`)에서 해당 획득품의 `artwork`가 빠지고 상세(`/collectibles/:entitlementId`)는 404 `COLLECTIBLE_NOT_FOUND`입니다. 방문·보상권·NFT 기록은 바꾸지 않습니다. 복사본은 만들 때 원본의 `lineage_id`(처음 만든 프로젝트의 id)를 물려받으므로 중간 초안을 지웠거나 원본을 이미 비웠어도 계보로 찾습니다. 계보가 다르고 사진을 다시 편집해 바이트가 달라진 별도 프로젝트(예: 같은 사람을 다시 찍은 사진)는 찾지 못하므로 반환 목록과 그 점포의 남은 프로젝트를 확인합니다. 요청 경위와 실행 시각은 운영 기록에 남깁니다.
+제거 뒤 고객 도감(`/collection`)에서 해당 획득품의 `artwork`가 빠지고 상세(`/collectibles/:entitlementId`)는 404 `COLLECTIBLE_NOT_FOUND`입니다. 방문·보상권·NFT 기록은 바꾸지 않습니다. 복사본은 만들 때 원본의 `lineage_id`(처음 만든 프로젝트의 id)를 물려받으므로 중간 초안을 지웠거나 원본을 이미 비웠어도 계보로 찾습니다. 계보가 다르고 사진을 다시 편집해 바이트가 달라진 별도 프로젝트(예: 같은 사람을 다시 찍은 사진)는 찾지 못하므로 반환 목록과 그 점포의 남은 프로젝트를 확인합니다. 이 함수는 `PUBLIC` 실행 권한을 거둬 함수 소유자(마이그레이션을 실행한 앱 DB 역할)만 부를 수 있습니다. 요청 경위와 실행 시각은 운영 기록에 남깁니다.
 
 ## 실행
 

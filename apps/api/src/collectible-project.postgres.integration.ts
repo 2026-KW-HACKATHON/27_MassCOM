@@ -341,6 +341,9 @@ test('operator media removal blanks a publication only through the guarded funct
   assert.equal((await new PostgresCollectionReader(pool).getCollection('customer-removed')).collectibles[0]!.artwork, undefined);
   await assert.rejects(projects.getAcquired({ accountId: 'customer-removed', entitlementId }), { code: 'COLLECTIBLE_NOT_FOUND' });
   assert.equal((await pool.query('SELECT 1 FROM reward_entitlements WHERE id = $1', [entitlementId])).rowCount, 1);
+  // Only the owning (migration) role may run the removal: PUBLIC has no EXECUTE grant.
+  const acl = await pool.query<{ acl: string[] | null }>(`SELECT proacl::text[] AS acl FROM pg_proc WHERE proname = 'collectible_remove_publication_media'`);
+  assert.ok(acl.rows[0]!.acl && acl.rows[0]!.acl.length > 0); assert.equal(acl.rows[0]!.acl.some(entry => entry.startsWith('=')), false);
   // The setting is transaction-local, so the guard is back on afterwards.
   await assert.rejects(pool.query(`UPDATE collectible_publication_grades SET detail = '{}' WHERE publication_id = $1`, [published.publicationId]), /immutable/);
 });
