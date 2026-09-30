@@ -100,11 +100,11 @@ test('collection separates valid visits, app collectibles, and NFT state without
        id, campaign_id, target_visit_count, chain_id, contract_address,
        contract_address_normalized, series_key, max_ever_minted, status
      ) VALUES
-       ('series-goal-3', 'campaign-a', 3, 84532,
+       ('s-0000000000000000000000000000c003', 'campaign-a', 3, 84532,
         '0x7000000000000000000000000000000000000007',
         '0x7000000000000000000000000000000000000007',
         decode(repeat('33', 32), 'hex'), 10, 'ACTIVE'),
-       ('series-goal-5', 'campaign-a', 5, 84532,
+       ('s-0000000000000000000000000000c005', 'campaign-a', 5, 84532,
         '0x7000000000000000000000000000000000000007',
         '0x7000000000000000000000000000000000000007',
         decode(repeat('55', 32), 'hex'), 10, 'ACTIVE')`,
@@ -119,7 +119,7 @@ test('collection separates valid visits, app collectibles, and NFT state without
        token_id, finalized_at, created_at, updated_at
      ) VALUES
        ('40000000-0000-4000-8000-000000000002',
-        '20000000-0000-4000-8000-000000000002', 'customer-1', 'series-goal-3',
+        '20000000-0000-4000-8000-000000000002', 'customer-1', 's-0000000000000000000000000000c003',
         decode(repeat('43', 32), 'hex'), '30000000-0000-4000-8000-000000000001', 1,
         '0x4000000000000000000000000000000000000004',
         '0x4000000000000000000000000000000000000004',
@@ -129,7 +129,7 @@ test('collection separates valid visits, app collectibles, and NFT state without
         decode(repeat('63', 32), 'hex'), 'CONFIRMING', '0x${'73'.repeat(32)}',
         NULL, NULL, '2026-09-19T03:00:00Z', '2026-09-19T03:00:00Z'),
        ('40000000-0000-4000-8000-000000000003',
-        '20000000-0000-4000-8000-000000000003', 'customer-1', 'series-goal-5',
+        '20000000-0000-4000-8000-000000000003', 'customer-1', 's-0000000000000000000000000000c005',
         decode(repeat('45', 32), 'hex'), '30000000-0000-4000-8000-000000000001', 1,
         '0x4000000000000000000000000000000000000004',
         '0x4000000000000000000000000000000000000004',

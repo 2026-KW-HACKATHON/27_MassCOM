@@ -194,12 +194,51 @@ COMMIT;
 BEGIN;
 DELETE FROM merchant_art WHERE sha256 = '<sha>';
 DELETE FROM merchant_art_images WHERE sha256 = '<sha>';
+-- 이미 발행한 NFT에 고정된 같은 그림(/nft-metadata/images/<sha>.webp)도 내린다(아래 NFT 메타데이터 내리기 참고).
+INSERT INTO nft_metadata_takedowns (target, reason) VALUES ('image:<sha>', '<짧은 사유, 개인정보 없이>')
+ON CONFLICT (target) DO NOTHING;
 COMMIT;
 ```
 
 `merchant_art.sha256`은 유일하지 않다(서로 다른 가게가 우연히 같은 그림 바이트를 적용할 수 있다). 그래서 `sha256`으로 지우면 같은 바이트를 쓰는 **다른 가게의 그림도 함께** 내려가고, 그 주소는 확실히 404가 된다. 반대로 위의 `merchant_id` 문장은 그 가게만 내리므로, 같은 바이트를 쓰는 다른 가게가 있으면 그 가게의 행이 남아 옛 주소는 계속 200이다(404는 같은 바이트를 쓰는 가게가 하나도 남지 않을 때만 맞다). 신고된 그림 자체를 막으려면 `sha256` 문장을, 한 가게만 내리려면 `merchant_id` 문장을 쓴다.
 
 이미 그림을 받아 둔 기기는 카탈로그(가게 목록)를 다시 받을 때까지 캐시한 그림을 계속 보여 줄 수 있다(공개 그림 주소는 `immutable`로 1년 캐시된다). 목록을 새로 받으면 `artUrl`이 `null`이라 더는 그 주소를 쓰지 않는다. 가게가 같은 그림을 다시 적용할 수는 있으므로 계속 막아야 하면 그 가게의 `merchant_members`를 회수한다.
+
+### 공개 NFT 메타데이터 (Issue #254, D-060, migration 0036)
+
+발행이 체인에서 확정될 때 Worker가 `nft_token_metadata`에 고정한 메타데이터와 `nft_metadata_images`에 복사한 가게 그림을 로그인 없이 내보낸다. 이 서버는 스냅샷을 만들지 않고 읽기만 한다([설계](../../docs/superpowers/specs/2026-09-30-nft-metadata-design.md)).
+
+| 경로 | 응답 |
+| --- | --- |
+| `GET`·`HEAD /nft-metadata/<series>/<tokenId>.json` | 스냅샷이 있고 내리지 않았으면 `200`, 저장된 바이트 그대로 `application/json; charset=utf-8`, `Cache-Control: public, max-age=86400`(거부 목록이 늦어도 하루 안에 반영), `Access-Control-Allow-Origin: *` |
+| `GET`·`HEAD /nft-metadata/images/<sha256>.webp` | 보존된 그림이 있고 내리지 않았으면 `200 image/webp`, 같은 캐시·CORS |
+| `GET`·`HEAD /nft-metadata/default/mascot-stamp-v1.png` | 판이 붙은 기본 도장 `200 image/png`(바이트 고정, `src/nft-default-stamp.ts`, DB 불필요), `public, max-age=31536000, immutable`, CORS |
+| 없는 토큰·다른 시리즈·확정 전·내린 토큰·그림·잘못된 경로 | `404 {"code":"NOT_FOUND"}`, `Cache-Control: no-store`, CORS 포함. DB가 없으면 `503 NFT_METADATA_NOT_CONFIGURED` |
+
+200 응답은 `Content-Length`를 붙이고 `HEAD`도 같은 길이를 알린다. 스냅샷 때 공개 중이 아닌 점포(ACTIVE가 아니거나, 실제 점포인데 동의서 참조 번호가 없음)의 토큰은 `월계 방문 도장`과 방문 단계만 담는 일반 메타데이터다. 가게 AI 그림을 쓴 토큰에는 `{"trait_type":"그림","value":"AI 생성"}` 속성이 붙는다.
+
+`<series>`는 `nft_series.id`(DB CHECK: 뜻 없는 불투명 id `^s-[0-9a-f]{32}$`. 경로 규칙은 더 넓은 `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`로 이 모양을 받고, 대소문자와 무관하게 `base-sepolia-proof` 제외. 시리즈 id는 온체인 주소에 영구히 남으므로 가게 이름·동네·업종·캠페인을 넣지 않는다), `<tokenId>`는 앞자리 0 없는 10진수다. 온체인 `createSeries`의 base URI는 `<출처>/nft-metadata/<nft_series.id>/`로 준다(운영 `https://masscom.kr` — Caddy가 이 모양의 경로만 API로 넘김, 시연 `https://demo-api.masscom.kr`). 메타데이터 행은 수정·삭제할 수 없고 그림 행은 수정할 수 없다(DB 트리거). 이 트리거는 앱 코드의 실수를 막는 장치이며, 표 소유자 역할은 트리거를 끌 수 있으므로 DB 권한 경계는 아니다. 그림 행에는 `sha256 = encode(sha256(image), 'hex')` CHECK가 있다.
+
+#### 운영 점검: NFT 메타데이터·그림 내리기(거부 목록)
+
+신고·정책 문제로 이미 발행한 토큰의 공개 메타데이터나 그림을 내려야 하면 행을 고치지 않고 `nft_metadata_takedowns`에 넣는다. `image:<sha256>`은 그림 주소를, `asset:<nft_assets.id>`는 그 토큰의 메타데이터 주소를 `404`(no-store)로 만들고, 내린 그림은 다음 스냅샷이 복사하지 않는다(기본 도장).
+
+```sql
+BEGIN;
+-- 그림: <sha>는 /nft-metadata/images/<sha>.webp의 64자리 해시. 가게에 적용된 그림도 함께 내리려면 위 merchant_art SQL을 같이 쓴다.
+INSERT INTO nft_metadata_takedowns (target, reason) VALUES ('image:<sha>', '<짧은 사유, 개인정보 없이>')
+ON CONFLICT (target) DO NOTHING;
+-- 토큰 메타데이터: 시리즈 id와 token id로 자산 id를 찾아 내린다.
+INSERT INTO nft_metadata_takedowns (target, reason)
+SELECT 'asset:' || nft_asset_id::text, '<짧은 사유, 개인정보 없이>'
+FROM nft_token_metadata WHERE nft_series_id = '<series-id>' AND token_id = <token-id>
+ON CONFLICT (target) DO NOTHING;
+COMMIT;
+```
+
+커밋 뒤 확인: `curl -sS -o /dev/null -w '%{http_code} %header{cache-control}\n' https://masscom.kr/nft-metadata/images/<sha>.webp`(또는 `/nft-metadata/<series-id>/<token-id>.json`)이 `404 no-store`여야 한다. 200 응답은 하루(`max-age=86400`) 캐시되므로 늦어도 하루 뒤에는 캐시도 새로 받지만, 이미 받아 저장한 지갑·마켓의 사본은 남을 수 있다(서버에서 지울 수 없음). 되돌리려면 그 행을 지운다(`DELETE FROM nft_metadata_takedowns WHERE target = '...'`).
+
+관리자 점포 API(`POST /api/web/admin/merchants`, `PATCH /api/web/admin/merchants/:id`)는 선택 키 `neighborhood`(행정동: `^[가-힣][가-힣0-9·]{0,8}[동가리]$`, 숫자 3자리 이상 연속 금지)·`category`(`한식`·`중식`·`일식`·`양식`·`분식`·`카페`·`베이커리`·`주점`·`기타`)를 받는다. 키가 없으면 그대로, `null`·빈 문자열이면 비우고, 규칙 위반은 `400 ADMIN_INVALID_INPUT`이다. 점포 공개 조건과는 무관하다.
 
 두 POST 요청의 계정은 서버 `AccountResolver`가 결정합니다. `x-account-id`는 loopback 서버의 명시적 insecure demo 모드에서만 읽으며 실제 로그인 인증을 대신하지 않습니다.
 

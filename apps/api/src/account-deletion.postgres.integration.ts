@@ -657,13 +657,13 @@ async function seedDeletionFixture(pool: Pool): Promise<void> {
        id, campaign_id, target_visit_count, chain_id, contract_address,
        contract_address_normalized, series_key, max_ever_minted, status
      ) VALUES
-       ('series-delete-1', 'campaign-delete', 1, 31337,
+       ('s-0000000000000000000000000000d001', 'campaign-delete', 1, 31337,
         '0x7000000000000000000000000000000000000007',
         '0x7000000000000000000000000000000000000007', decode(repeat('41', 32), 'hex'), 10, 'ACTIVE'),
-       ('series-delete-3', 'campaign-delete', 3, 31337,
+       ('s-0000000000000000000000000000d003', 'campaign-delete', 3, 31337,
         '0x7000000000000000000000000000000000000007',
         '0x7000000000000000000000000000000000000007', decode(repeat('43', 32), 'hex'), 10, 'ACTIVE'),
-       ('series-delete-5', 'campaign-delete', 5, 31337,
+       ('s-0000000000000000000000000000d005', 'campaign-delete', 5, 31337,
         '0x7000000000000000000000000000000000000007',
         '0x7000000000000000000000000000000000000007', decode(repeat('45', 32), 'hex'), 10, 'ACTIVE')`,
   );
@@ -749,7 +749,7 @@ async function seedDeletionFixture(pool: Pool): Promise<void> {
       [
         `40000000-0000-4000-8004-${suffix}`,
         `20000000-0000-4000-8004-${suffix}`,
-        `series-delete-${target}`,
+        `s-${'0'.repeat(28)}d00${target}`,
         String(index + 1).repeat(2),
         `30000000-0000-4000-8004-${suffix}`,
         index,

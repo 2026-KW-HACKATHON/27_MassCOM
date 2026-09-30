@@ -199,12 +199,12 @@ async function seedMintFixture(pool: Pool): Promise<void> {
        id, campaign_id, target_visit_count, chain_id, contract_address,
        contract_address_normalized, series_key, max_ever_minted, status
      ) VALUES (
-       'series-a-goal-1', 'campaign-a', 1, 84532,
+       's-0000000000000000000000000000a001', 'campaign-a', 1, 84532,
        '0x7000000000000000000000000000000000000007',
        '0x7000000000000000000000000000000000000007',
        decode(repeat('33', 32), 'hex'), 1, 'ACTIVE'
      ), (
-       'series-a-goal-3', 'campaign-a', 3, 84532,
+       's-0000000000000000000000000000a003', 'campaign-a', 3, 84532,
        '0x7000000000000000000000000000000000000007',
        '0x7000000000000000000000000000000000000007',
        decode(repeat('44', 32), 'hex'), 10, 'ACTIVE'
@@ -221,3 +221,21 @@ function requiredTestDatabaseUrl(): string {
   }
   return value;
 }
+
+test('#254 v2만 받는 서비스는 v1 동의 요청을 CONSENT_VERSION_OUTDATED로, 동의 판이 없는 요청을 CONSENT_REQUIRED로 거절한다', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await runMigrations(pool);
+  const service = new PostgresMintRequestService(pool, { supportedConsentVersion: 'nft-mint-v2' });
+  const input = {
+    accountId: 'customer-consent-254',
+    entitlementId: '20000000-0000-4000-8000-000000000254',
+    walletBindingId: '30000000-0000-4000-8000-000000000254',
+    bindingVersion: 1,
+    idempotencyKey: 'mint-consent-254',
+  };
+  for (const [consentVersion, code] of [['nft-mint-v1', 'CONSENT_VERSION_OUTDATED'], ['', 'CONSENT_REQUIRED']] as const) {
+    await assert.rejects(service.requestMint({ ...input, consentVersion }),
+      (error: unknown) => error instanceof MintRequestError && error.code === code, consentVersion);
+  }
+});

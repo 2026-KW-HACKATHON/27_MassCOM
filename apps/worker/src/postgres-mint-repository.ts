@@ -10,6 +10,7 @@ import {
   type MintWorkRepository,
   type UnconfirmedSignedTransaction,
 } from './mint-worker.js';
+import { buildNftMetadata, parseNftMetadataOrigin } from './nft-metadata.js';
 
 type Options = {
   now: () => Date;
@@ -34,6 +35,21 @@ type Options = {
    * not be able to block this connection, and therefore this worker, forever.
    */
   minterLockTimeoutMs: number;
+  /** 공개 메타데이터·그림의 출처(Issue #254). 기본값 없이 반드시 받는다(실행기는 NFT_METADATA_ORIGIN). */
+  nftMetadataOrigin: string;
+};
+
+type MetadataFactsRow = {
+  asset_id: string;
+  token_id: string;
+  nft_series_id: string;
+  merchant_id: string;
+  merchant_name: string;
+  neighborhood: string | null;
+  category: string | null;
+  campaign_title: string;
+  target_visit_count: number;
+  store_public: boolean;
 };
 
 type WorkRow = {
@@ -73,7 +89,7 @@ type UnconfirmedSignedRow = {
   series_key: string;
 };
 
-const defaultOptions: Options = {
+const defaultOptions: Omit<Options, 'nftMetadataOrigin'> = {
   now: () => new Date(),
   nextAttemptId: () => randomUUID(),
   nextChainEventId: () => randomUUID(),
@@ -94,7 +110,7 @@ export class PostgresMintRepository implements MintWorkRepository {
 
   constructor(
     private readonly pool: Pool,
-    options: Partial<Options> = {},
+    options: Partial<Omit<Options, 'nftMetadataOrigin'>> & Pick<Options, 'nftMetadataOrigin'>,
   ) {
     this.options = { ...defaultOptions, ...options };
     if (!Number.isSafeInteger(this.options.maxAttempts) || this.options.maxAttempts <= 0) {
@@ -115,6 +131,7 @@ export class PostgresMintRepository implements MintWorkRepository {
     ) {
       throw new Error('minterLockTimeoutMs must be a positive safe integer');
     }
+    this.options.nftMetadataOrigin = parseNftMetadataOrigin(this.options.nftMetadataOrigin);
   }
 
   async getEventScanStart(chainId: number, contractAddress: string): Promise<number> {
@@ -444,6 +461,8 @@ export class PostgresMintRepository implements MintWorkRepository {
       const existing = await findExistingAsset(client, item.jobId);
       if (existing) {
         assertStoredResultMatches(existing, result);
+        // 재확정은 이미 있는 스냅샷을 바꾸지 않는다(없을 때만 만든다).
+        await snapshotTokenMetadata(client, item.jobId, this.options.nftMetadataOrigin);
         await client.query('COMMIT');
         return;
       }
@@ -497,6 +516,8 @@ export class PostgresMintRepository implements MintWorkRepository {
           now,
         ],
       );
+      // 발행 확정과 같은 트랜잭션에서 공개 메타데이터를 고정한다(Issue #254). 실패하면 확정도 되돌아가 다음 실행이 다시 한다.
+      await snapshotTokenMetadata(client, item.jobId, this.options.nftMetadataOrigin);
       if (attemptId) {
         await client.query(
           `UPDATE mint_tx_attempts
@@ -633,6 +654,12 @@ export class PostgresMintRepository implements MintWorkRepository {
       )
     ).rows[0];
     if (!job) throw new Error('MINT_JOB_NOT_FOUND');
+    // 체인 발행은 끝났고 메타데이터 스냅샷만 실패했다(Issue #254). 기다림이 끝나 수동 검토로 닫을 때도 원인 코드를 남기고, 채굴된
+    // 거래의 시도 기록은 실패로 닫지 않는다. 운영자가 원인을 고친 뒤 RETRYABLE로 되돌리면 findMintByRewardKey가 확정한다.
+    const mintedOnChain = code === 'NFT_METADATA_SNAPSHOT_FAILED';
+    const closeForReview = (fallbackCode: string) => closeForManualReview(
+      client, jobId, mintedOnChain ? code : fallbackCode, now, { keepSubmittedAttempts: mintedOnChain },
+    );
 
     if (job.transaction_hash) {
       // The job already holds a broadcast transaction: this release only checks its result
@@ -650,16 +677,16 @@ export class PostgresMintRepository implements MintWorkRepository {
       // Without the submitted attempt there is no clock to bound the wait, so stop here rather
       // than restarting the clock on every release.
       if (!attempt?.submitted_at) {
-        await closeForManualReview(client, jobId, 'RECEIPT_ATTEMPT_MISSING', now);
+        await closeForReview('RECEIPT_ATTEMPT_MISSING');
         return;
       }
       if (now.getTime() - attempt.submitted_at.getTime() >= this.options.receiptTimeoutMs) {
-        await closeForManualReview(client, jobId, 'RECEIPT_TIMEOUT', now);
+        await closeForReview('RECEIPT_TIMEOUT');
         return;
       }
     } else if (job.attempt_count >= this.options.maxAttempts) {
       // Only submission attempts count, so waiting for finality or an RPC outage never lands here.
-      await closeForManualReview(client, jobId, 'RETRY_LIMIT_EXCEEDED', now);
+      await closeForReview('RETRY_LIMIT_EXCEEDED');
       return;
     }
     // The streak also grows on pre-submission failures (RPC outages, a paused contract) so a long
@@ -723,6 +750,7 @@ async function closeForManualReview(
   jobId: string,
   code: string,
   now: Date,
+  options: { keepSubmittedAttempts?: boolean } = {},
 ): Promise<void> {
   await client.query(
     `UPDATE mint_jobs
@@ -733,19 +761,103 @@ async function closeForManualReview(
   // A job going to manual review can still be holding a SUBMITTED attempt (a straggler that
   // never got a receipt, or one this worker gave up on). Close it in the same transaction: left
   // SUBMITTED, it would be swept and rebroadcast forever by listUnconfirmedSignedTransactions
-  // even though nothing can ever act on its job again.
-  await client.query(
-    `UPDATE mint_tx_attempts
-     SET status = 'FAILED', error_code = $1, updated_at = $2
-     WHERE mint_job_id = $3 AND status = 'SUBMITTED'`,
-    [code, now, jobId],
-  );
+  // even though nothing can ever act on its job again. Exception: a job whose mint is already on
+  // chain (only the metadata snapshot failed) keeps its mined attempt SUBMITTED; the sweep ignores
+  // MANUAL_REVIEW jobs, and finalize closes it as MINED once an operator re-queues the job.
+  if (!options.keepSubmittedAttempts) {
+    await client.query(
+      `UPDATE mint_tx_attempts
+       SET status = 'FAILED', error_code = $1, updated_at = $2
+       WHERE mint_job_id = $3 AND status = 'SUBMITTED'`,
+      [code, now, jobId],
+    );
+  }
   await client.query(
     `UPDATE outbox_events
      SET status = 'PUBLISHED', lease_owner = NULL, lease_expires_at = NULL, updated_at = $1
      WHERE aggregate_id = $2`,
     [now, jobId],
   );
+}
+
+// 토큰 메타데이터 스냅샷(Issue #254, D-060). 이미 있으면 아무것도 읽거나 쓰지 않으므로 재확정이 내용을 바꾸지 않는다.
+// 가게 그림은 이 트랜잭션에서 읽은 바이트를 그대로 복사해 두므로 뒤에 가게가 그림을 바꾸거나 되돌려도 남는다.
+// 어떤 실패든 NFT_METADATA_SNAPSHOT_FAILED로 감싸 확정 전체를 되돌리고 작업을 재시도 대기(last_error_code)로 둔다.
+async function snapshotTokenMetadata(client: PoolClient, jobId: string, origin: string): Promise<void> {
+  try {
+    const saved = await client.query(
+      `SELECT 1 FROM nft_token_metadata AS saved
+       JOIN nft_assets AS asset ON asset.id = saved.nft_asset_id
+       WHERE asset.mint_job_id = $1`,
+      [jobId],
+    );
+    if (saved.rowCount) return;
+    const facts = await client.query<MetadataFactsRow>(
+      `SELECT asset.id AS asset_id, asset.token_id::text AS token_id, job.nft_series_id,
+              merchant.id AS merchant_id, merchant.name AS merchant_name, merchant.neighborhood, merchant.category,
+              (merchant.status = 'ACTIVE' AND (merchant.is_demo OR merchant.consent_document_ref IS NOT NULL))
+                AS store_public,
+              campaign.title AS campaign_title, series.target_visit_count
+       FROM nft_assets AS asset
+       JOIN mint_jobs AS job ON job.id = asset.mint_job_id
+       JOIN nft_series AS series ON series.id = job.nft_series_id
+       JOIN campaigns AS campaign ON campaign.id = series.campaign_id
+       JOIN merchants AS merchant ON merchant.id = campaign.merchant_id
+       WHERE asset.mint_job_id = $1`,
+      [jobId],
+    );
+    const row = facts.rows[0];
+    if (!row) throw new Error('NFT_METADATA_FACTS_MISSING');
+    let artImage: Buffer | null = null;
+    if (row.store_public) {
+      const art = (await client.query<{ image: Buffer }>(
+        'SELECT image FROM merchant_art WHERE merchant_id = $1',
+        [row.merchant_id],
+      )).rows[0]?.image ?? null;
+      // 운영자가 내린 그림(거부 목록)은 복사하지 않고 기본 도장을 쓴다.
+      if (art && art.length > 0) {
+        const takenDown = await client.query(
+          'SELECT 1 FROM nft_metadata_takedowns WHERE target = $1',
+          [`image:${createHash('sha256').update(art).digest('hex')}`],
+        );
+        if (!takenDown.rowCount) artImage = art;
+      }
+    }
+    const snapshot = buildNftMetadata({
+      storePublic: row.store_public,
+      merchantName: row.merchant_name,
+      neighborhood: row.neighborhood,
+      category: row.category,
+      campaignTitle: row.campaign_title,
+      targetVisitCount: row.target_visit_count,
+      artImage,
+    }, origin);
+    if (snapshot.image) {
+      await client.query(
+        `INSERT INTO nft_metadata_images (sha256, image) VALUES ($1, $2)
+         ON CONFLICT (sha256) DO NOTHING`,
+        [snapshot.image.sha256, snapshot.image.bytes],
+      );
+    }
+    await client.query(
+      `INSERT INTO nft_token_metadata (nft_asset_id, nft_series_id, token_id, metadata_json, image_sha256)
+       VALUES ($1, $2, $3::numeric, $4, $5)
+       ON CONFLICT (nft_asset_id) DO NOTHING`,
+      [row.asset_id, row.nft_series_id, row.token_id, snapshot.json, snapshot.image?.sha256 ?? null],
+    );
+  } catch (error) {
+    // 원인은 한 번만 남긴다: 작업 id(내부 uuid), PostgreSQL SQLSTATE·제약 이름, 대문자 코드 모양의 오류 이름뿐이다.
+    // 값이나 자유 문장 메시지는 남기지 않는다.
+    const detail = error as { code?: unknown; constraint?: unknown; message?: unknown };
+    console.error(JSON.stringify({
+      event: 'NFT_METADATA_SNAPSHOT_FAILED',
+      jobId,
+      sqlstate: typeof detail.code === 'string' ? detail.code : null,
+      constraint: typeof detail.constraint === 'string' ? detail.constraint : null,
+      reason: typeof detail.message === 'string' && /^[A-Z][A-Z0-9_]+$/.test(detail.message) ? detail.message : null,
+    }));
+    throw new RetryableChainError('NFT_METADATA_SNAPSHOT_FAILED', { cause: error });
+  }
 }
 
 async function requireLease(

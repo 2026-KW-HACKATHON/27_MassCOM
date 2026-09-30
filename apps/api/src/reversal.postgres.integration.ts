@@ -66,7 +66,7 @@ async function setup(t: TestContext) {
          contract_address_normalized, series_key, max_ever_minted, status)
        VALUES ($1, 'campaign-real-shop', $2, 31337, '0x7000000000000000000000000000000000000007',
          '0x7000000000000000000000000000000000000007', decode(repeat($3, 32), 'hex'), 10, 'ACTIVE')`,
-      [`series-${target}`, target, `a${target}`],
+      [`s-${'0'.repeat(31)}${target}`, target, `a${target}`],
     );
   }
   const state = { now: new Date(`${today}T03:00:00.000Z`) };
@@ -162,7 +162,7 @@ async function seedMintJob(pool: Pool, input: {
      VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $7, 31337,
        '0x7000000000000000000000000000000000000007', '0x7000000000000000000000000000000000000007',
        decode(repeat($8, 32), 'hex'), 'nft-mint-v1', $9, $10, $11, $12, $13, now(), now())`,
-    [jobId, input.entitlementId, input.account, `series-${input.target}`, randomBytes(32), binding.id,
+    [jobId, input.entitlementId, input.account, `s-${'0'.repeat(31)}${input.target}`, randomBytes(32), binding.id,
       binding.address_normalized, `a${input.target}`, `seed-${randomUUID()}`, randomBytes(32), input.status,
       input.transactionHash ?? null, input.lastErrorCode ?? null],
   );
@@ -415,14 +415,14 @@ test('unsent mint jobs are cancelled with their entitlement and the goal can be 
   assert.deepEqual(reissued.filter((row) => row.target_visit_count === 3).map((row) => row.status).sort(), ['CANCELED', 'GRANTED']);
 
   // 새 권리는 같은 계정으로 다시 발행 요청할 수 있다. 취소된 작업은 발행 상한(1)에서 빠진다.
-  await db.pool.query(`UPDATE nft_series SET max_ever_minted = 1 WHERE id = 'series-3'`);
+  await db.pool.query(`UPDATE nft_series SET max_ever_minted = 1 WHERE id = 's-00000000000000000000000000000003'`);
   const bindingId = (await rows<{ id: string }>(db.pool, `SELECT id FROM wallet_bindings WHERE account_id = 'cust-1'`))[0]!.id;
   const requested = await db.mints.requestMint({
     accountId: 'cust-1', entitlementId: again.grantedRewards[0]!.entitlementId, walletBindingId: bindingId,
     bindingVersion: 1, consentVersion: 'nft-mint-v1', idempotencyKey: 'reissue-after-cancel-1',
   });
   assert.equal(requested.status, 'QUEUED');
-  await db.pool.query(`UPDATE nft_series SET max_ever_minted = 1 WHERE id = 'series-3'`);
+  await db.pool.query(`UPDATE nft_series SET max_ever_minted = 1 WHERE id = 's-00000000000000000000000000000003'`);
   await assert.rejects(
     db.mints.requestMint({
       accountId: 'cust-1', entitlementId: goalThree.id, walletBindingId: bindingId,

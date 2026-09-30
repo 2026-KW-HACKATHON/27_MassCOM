@@ -4,6 +4,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import {
   MintRequestError,
+  consentVersionRefusal,
   type MintJobStatus,
   type MintJobView,
   type MintRequestResult,
@@ -111,9 +112,8 @@ export class PostgresMintRequestService implements MintRequestService {
         return requestResult(existing, true);
       }
 
-      if (input.consentVersion !== this.options.supportedConsentVersion) {
-        throw new MintRequestError('CONSENT_REQUIRED');
-      }
+      const consentRefusal = consentVersionRefusal(input.consentVersion, this.options.supportedConsentVersion);
+      if (consentRefusal) throw new MintRequestError(consentRefusal);
 
       const entitlement = (
         await client.query<EntitlementSeriesRow>(

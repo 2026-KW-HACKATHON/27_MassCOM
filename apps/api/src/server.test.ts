@@ -894,6 +894,45 @@ test('authenticated admin API accepts menu and hours without changing the mercha
   ]);
 });
 
+test('관리자 API는 동네·업종 키(값과 null)를 서비스로 그대로 넘기고, 키가 없으면 넘기지 않으며, 모르는 키는 거절한다(#254)', async (t) => {
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); },
+    complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'admin-account', logout: async () => {},
+  };
+  const writes: unknown[][] = [];
+  const admin = {
+    isAdmin: async () => true,
+    createMerchant: async (...args: unknown[]) => { writes.push(['create', ...args]); return { id: 'real-1' }; },
+    updateMerchant: async (...args: unknown[]) => { writes.push(['update', ...args]); return { id: 'real-1' }; },
+  } as unknown as Pick<PostgresAdminService,
+    'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const headers = { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr',
+    'content-type': 'application/json' };
+  const input = { name: '실제 점포', story: '', roadAddress: '서울', minimumSpendWon: 0 };
+  const withProfile = { ...input, neighborhood: '월계1동', category: '분식' };
+  assert.equal((await webRequest(base, '/api/web/admin/merchants', {
+    method: 'POST', headers, body: JSON.stringify(withProfile),
+  })).status, 201);
+  assert.equal((await webRequest(base, '/api/web/admin/merchants/real-1', {
+    method: 'PATCH', headers, body: JSON.stringify({ ...input, neighborhood: null, category: null, expectedVersion: 2 }),
+  })).status, 200);
+  assert.equal((await webRequest(base, '/api/web/admin/merchants/real-1', {
+    method: 'PATCH', headers, body: JSON.stringify({ ...input, expectedVersion: 3 }),
+  })).status, 200);
+  const typo = await webRequest(base, '/api/web/admin/merchants/real-1', {
+    method: 'PATCH', headers, body: JSON.stringify({ ...input, neighbourhood: '월계동', expectedVersion: 4 }),
+  });
+  assert.equal(typo.status, 400);
+  assert.deepEqual(writes, [
+    ['create', 'admin-account', withProfile],
+    ['update', 'admin-account', 'real-1', 2, { ...input, neighborhood: null, category: null }],
+    ['update', 'admin-account', 'real-1', 3, input],
+  ]);
+});
+
 test('admin campaign draft remains private and requires the web administrator session', async (t) => {
   const webAuth: TestWebAuth = {
     start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
