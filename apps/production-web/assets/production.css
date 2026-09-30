@@ -410,6 +410,11 @@ fieldset.admin-consent legend { padding: 0 6px; font-weight: 800; }
 }
 #admin-offers p button, #admin-campaigns p button, #admin-campaign-drafts p button { min-height: 40px; padding: 6px 14px; }
 #campaigns-heading { font-size: 1.05rem; }
+#admin-status:focus { outline: 2px solid var(--mc-primary); outline-offset: 2px; }
+/* 어두운 화면에서 기본 체크박스 테두리가 카드 바탕과 구분되지 않아 경계선을 토큰 색으로 둘러 3:1 이상으로 만든다(밝은 화면은 그대로). */
+@media (prefers-color-scheme: dark) {
+  fieldset.admin-consent input[type="checkbox"]:not(:focus-visible) { outline: 2px solid var(--mc-secondary); outline-offset: 0; border-radius: 4px; }
+}
 .panel > *, #admin-campaign-draft, #admin-offer-form { max-width: 44rem; }
 @media (min-width: 40rem) {
   .panel, .admin-panel { padding: 28px; }

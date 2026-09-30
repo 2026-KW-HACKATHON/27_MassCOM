@@ -20,7 +20,7 @@
       <h1>실제 점포 관리</h1>
       <p>운영 점포만 관리합니다. 시연 점포와 고객 방문 기록은 이 화면에 표시하지 않습니다.</p>
     </div>
-    <p id="admin-status" class="status" role="status" aria-live="polite">권한을 확인하는 중입니다.</p>
+    <p id="admin-status" class="status" role="status" aria-live="polite" tabindex="-1">권한을 확인하는 중입니다.</p>
     <div class="collection-actions">
       <a id="admin-login" class="collection-action" href="/api/web/admin/auth/start" hidden>Google 계정으로 로그인</a>
       <button id="admin-logout" class="collection-action secondary" type="button" hidden>로그아웃</button>
@@ -60,11 +60,11 @@
             <option value="3">황금 상자</option>
           </select></label>
           <label>혜택 이름 (40자까지) <input name="title" required maxlength="40"></label>
-          <label>혜택 설명 (120자까지) <textarea name="detail" maxlength="120"></textarea></label>
+          <label>혜택 설명 (120자까지, 연락처·웹 주소 없이) <textarea name="detail" maxlength="120"></textarea></label>
           <label>유효 기간(일) <input name="validDays" type="number" min="1" max="365" step="1" required></label>
           <label>발급 상한(장, 필수) <input name="issuanceCap" type="number" min="1" max="10000" step="1" required></label>
           <label>점주 동의서 참조 번호 <input name="consentDocumentRef" required maxlength="40" autocomplete="off" aria-describedby="admin-offer-ref-hint"></label>
-          <p id="admin-offer-ref-hint" class="admin-hint">영문·숫자 3~40자(., _, - 사용 가능)이고 숫자는 7자리까지만 이어 쓸 수 있어요. 예: OF-2609-01. 사업자등록번호·전화번호·이름·이메일은 적지 마세요.</p>
+          <p id="admin-offer-ref-hint" class="admin-hint">영문·숫자로 시작하는 3~40자(영문·숫자·., _, -)예요. 하이픈·점·밑줄로 끊어도 숫자는 합쳐서 세므로 영문자 없이 이어지는 숫자는 모두 합쳐 7자리까지예요(예: OF-2609-01). 사업자등록번호·전화번호·이름·이메일·웹 주소는 적지 마세요.</p>
           <fieldset class="admin-consent">
             <legend>점주 동의 확인 (5항목 모두)</legend>
             <label><input type="checkbox" name="consentBenefit" required> 혜택 내용에 동의했어요</label>
@@ -75,7 +75,7 @@
           </fieldset>
           <button type="submit">점주 동의 확인 후 혜택 등록</button>
         </form>
-        <div id="admin-offers" role="status" aria-live="polite"></div>
+        <div id="admin-offers" aria-labelledby="offers-heading"></div>
       </section>
       <section class="admin-panel" aria-labelledby="campaign-drafts-heading">
         <h3 id="campaign-drafts-heading">캠페인</h3>
@@ -93,7 +93,7 @@
         </form>
         <div id="admin-campaign-drafts" role="status" aria-live="polite"></div>
         <h4 id="campaigns-heading">공개·중지된 캠페인</h4>
-        <div id="admin-campaigns" role="status" aria-live="polite" aria-labelledby="campaigns-heading"></div>
+        <div id="admin-campaigns" aria-labelledby="campaigns-heading"></div>
       </section>
       <section class="admin-panel" aria-labelledby="deletion-heading">
         <h3 id="deletion-heading">계정 삭제 요청</h3>

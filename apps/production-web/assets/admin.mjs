@@ -6,7 +6,7 @@ const adminRequests = new WeakMap();
 
 // 점포 공개·점주·보상 혜택·캠페인(Issue #246). 참조 번호는 서버(store-go-live-rules.ts)와 같은 규칙을 먼저 알려 주고
 // 최종 판단은 서버가 한다. 동의서·확인 기록 자체와 사업자등록번호·이름·전화번호는 받지 않는다.
-export const referenceHint = '영문·숫자 3~40자(., _, - 사용 가능)이고 숫자는 7자리까지만 이어 쓸 수 있어요. 사업자등록번호·전화번호·이름·이메일은 적지 마세요.';
+export const referenceHint = '영문·숫자로 시작하는 3~40자(영문·숫자·., _, -)예요. 하이픈·점·밑줄로 끊어도 숫자는 합쳐서 세므로 영문자 없이 이어지는 숫자는 모두 합쳐 7자리까지예요(예: CS-2609-01). 사업자등록번호·전화번호·이름·이메일·웹 주소는 적지 마세요.';
 
 export function documentReferenceProblem(value) {
   const reference = String(value ?? '').trim();
@@ -50,10 +50,13 @@ const goLiveMessages = {
   ADMIN_CAMPAIGN_ACTIVE_EXISTS: '이 점포에는 이미 공개 중인 캠페인이 있어요. 먼저 그 캠페인을 중지해 주세요.',
   ADMIN_CAMPAIGN_NOT_FOUND: '캠페인을 찾을 수 없어요. 새로고침해 주세요.',
   ADMIN_INVALID_INPUT: '입력값을 확인해 주세요.',
+  ADMIN_OFFER_TEXT_INVALID: '혜택 이름·설명에 이메일·웹 주소·전화번호처럼 보이는 내용(숫자 8자리 이상 포함)은 쓸 수 없어요.',
+  WEB_SESSION_REAUTH_REQUIRED: '점주 올리기·내리기는 10분 안에 한 로그인이 필요해요. 로그아웃한 뒤 관리자 계정으로 다시 로그인해 주세요.',
 };
 
 export function goLiveMessage(error, fallback) {
   if (error?.local === true) return error.message;
+  if (error?.code === 'WEB_SESSION_REAUTH_REQUIRED') return goLiveMessages.WEB_SESSION_REAUTH_REQUIRED;
   if (error?.status === 401 || error?.code === 'ADMIN_FORBIDDEN') return '관리자 권한을 확인하지 못했어요. 다시 로그인해 주세요.';
   return goLiveMessages[error?.code] ?? fallback;
 }
@@ -99,6 +102,14 @@ const demotionReasons = [
   ['OTHER', '기타'],
 ];
 
+// 되돌리기 어려운 관리자 동작은 쿠폰 무효화처럼 확인창에서 동의해야 보낸다.
+function confirmed(doc, message) {
+  return doc.defaultView?.confirm?.(message) === true;
+}
+
+// 점주를 올리거나 내린 뒤 목록을 다시 그려도 열어 둔 점주 목록은 다시 연다(문서별 점포 id 집합).
+const openOwnerPanels = new WeakMap();
+
 function labelled(doc, text, control) {
   const wrapper = doc.createElement('label');
   wrapper.textContent = `${text} `;
@@ -133,8 +144,8 @@ async function jsonRequest(fetcher, path, method = 'GET', body) {
   return response.json();
 }
 
-function fields(form) {
-  const data = new FormData(form);
+function fields(form, FormDataOf = FormData) {
+  const data = new FormDataOf(form);
   return {
     name: String(data.get('name') ?? ''),
     story: String(data.get('story') ?? ''),
@@ -391,10 +402,13 @@ function goLivePanel(fetcher, doc, merchant, act) {
   summary.textContent = missing.length
     ? `공개하려면 먼저 채워 저장해 주세요: ${missing.join(', ')}`
     : '메뉴·영업시간·도로명 주소가 채워져 있어요. 가게 이름·사진 사용 동의서를 확인하고 참조 번호를 적어 공개하세요.';
+  summary.id = `publish-summary-${merchant.id}`;
   const hint = doc.createElement('p');
   hint.className = 'admin-hint';
+  hint.id = `publish-hint-${merchant.id}`;
   hint.textContent = referenceHint;
   const reference = referenceInput(doc, 'consentDocumentRef', `점포 동의서 참조 번호 (${merchant.name})`);
+  reference.setAttribute('aria-describedby', hint.id);
   // 수정 저장이 이 칸을 필수로 막지 않게 한다(공개할 때만 검사한다).
   reference.required = false;
   const publish = doc.createElement('button');
@@ -402,15 +416,26 @@ function goLivePanel(fetcher, doc, merchant, act) {
   publish.textContent = '점포 공개';
   publish.setAttribute('aria-label', `${merchant.name} 점포 공개`);
   publish.disabled = missing.length > 0;
-  publish.addEventListener('click', () => act(publish, async () => {
+  // 눌리지 않는 단추는 왜 못 누르는지(빠진 항목)를 함께 읽힌다.
+  if (publish.disabled) publish.setAttribute('aria-describedby', summary.id);
+  let publishing = false;
+  publish.addEventListener('click', async () => {
+    if (publishing || publish.disabled) return;
     const problem = documentReferenceProblem(reference.value);
-    if (problem) throw localError(problem);
-    await jsonRequest(fetcher, `${endpoint}/${encodeURIComponent(merchant.id)}/publish`, 'POST', {
-      expectedVersion: merchant.version, consentDocumentRef: reference.value.trim(),
-    });
-  }, '점포를 공개했습니다. 캠페인 공개와 보상 혜택 등록은 따로 해 주세요.', '점포를 공개하지 못했습니다.'));
+    if (!problem && !confirmed(doc, `${merchant.name}\n동의서 ${reference.value.trim()}로 점포를 공개할까요? 고객 앱·웹 음식점 목록에 나오고 직원 등록을 받을 수 있어요.`)) return;
+    publishing = true;
+    try {
+      await act(publish, async () => {
+        if (problem) throw localError(problem);
+        await jsonRequest(fetcher, `${endpoint}/${encodeURIComponent(merchant.id)}/publish`, 'POST', {
+          expectedVersion: merchant.version, consentDocumentRef: reference.value.trim(),
+        });
+      }, '점포를 공개했습니다. 캠페인 공개와 보상 혜택 등록은 따로 해 주세요.', '점포를 공개하지 못했습니다.');
+    } finally { publishing = false; }
+  });
+  // 참조 번호 칸의 Enter는 점포 수정 저장(양식 기본 제출)을 막고 공개만 누른다. 한글 입력 조합 중의 Enter는 조합 확정이라 건드리지 않는다.
   reference.addEventListener('keydown', event => {
-    if (event.key !== 'Enter') return;
+    if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229) return;
     event.preventDefault?.();
     if (!publish.disabled) void publish.click();
   });
@@ -447,6 +472,14 @@ function ownerChangeForm(fetcher, doc, act, { merchant, accountId, action, butto
   form.addEventListener('submit', async event => {
     event.preventDefault?.();
     const path = `${endpoint}/${encodeURIComponent(merchant.id)}/members/${encodeURIComponent(accountId)}/${action}-owner`;
+    const problem = documentReferenceProblem(reference.value);
+    const question = action === 'promote'
+      ? `${subject}\n사업자등록증 원본과 점포 전화 확인을 마쳤나요? 점주로 올리면 점주 권한이 생겨요.`
+      : `${subject}\n점주 권한을 거두고 직원으로 내릴까요?`;
+    if (!problem && !confirmed(doc, question)) return;
+    // 목록을 다시 그린 뒤에도 이 점포의 점주 목록을 열어 둔다.
+    if (!openOwnerPanels.has(doc)) openOwnerPanels.set(doc, new Set());
+    openOwnerPanels.get(doc).add(merchant.id);
     await act(button, async () => {
       const problem = documentReferenceProblem(reference.value);
       if (problem) throw localError(problem);
@@ -459,6 +492,20 @@ function ownerChangeForm(fetcher, doc, act, { merchant, accountId, action, butto
   return form;
 }
 
+// 공개 성공 문구: 시작 시각이 아직이면 그때부터 기록된다고 알린다(공개가 곧 보상 시작은 아니다).
+export function campaignPublishedText(campaign, now = Date.now()) {
+  const starts = Date.parse(campaign?.startsAt ?? '');
+  return Number.isFinite(starts) && starts > now
+    ? `캠페인을 공개했습니다. ${formatKst(campaign.startsAt)}부터 방문 보상이 기록됩니다.`
+    : '캠페인을 공개했습니다. 이제 방문하면 보상이 기록됩니다.';
+}
+
+// 끝난 캠페인은 서버가 공개를 거절하므로 "다시 공개"를 보이지 않는다.
+export function canRepublishCampaign(campaign, now = Date.now()) {
+  const ends = Date.parse(campaign?.endsAt ?? '');
+  return campaign?.status === 'PAUSED' && Number.isFinite(ends) && ends > now;
+}
+
 function campaignButton(fetcher, doc, act, campaign, action, text) {
   const button = doc.createElement('button');
   button.type = 'button';
@@ -467,7 +514,7 @@ function campaignButton(fetcher, doc, act, campaign, action, text) {
   button.setAttribute('aria-label', `${campaign.merchantName} ${campaign.title} 캠페인 ${text}`);
   button.addEventListener('click', () => act(button,
     () => jsonRequest(fetcher, `${campaignEndpoint}/${encodeURIComponent(campaign.id)}/${action}`, 'POST', {}),
-    action === 'publish' ? '캠페인을 공개했습니다. 이제 방문하면 보상이 기록됩니다.' : '캠페인을 중지하고 비공개로 돌렸습니다.',
+    action === 'publish' ? campaignPublishedText(campaign) : '캠페인을 중지하고 비공개로 돌렸습니다.',
     action === 'publish' ? '캠페인을 공개하지 못했습니다.' : '캠페인을 중지하지 못했습니다.'));
   return button;
 }
@@ -513,10 +560,12 @@ export async function loadAdmin(fetcher, doc) {
       if (!current()) return;
       await loadAdmin(fetcher, doc);
       if (!content.hidden) status.textContent = done;
+      status.focus?.();
     } catch (error) {
       if (!current()) return;
       status.textContent = goLiveMessage(error, fallback);
       button.disabled = false;
+      status.focus?.();
     }
   };
   try {
@@ -532,7 +581,7 @@ export async function loadAdmin(fetcher, doc) {
       const title = doc.createElement('h3');
       title.textContent = merchant.name;
       const state = doc.createElement('p');
-      state.textContent = merchant.status === 'PAUSED' ? '비공개' : '공개 가능';
+      state.textContent = merchant.status === 'PAUSED' ? '비공개' : '공개 중';
       const save = doc.createElement('button');
       save.type = 'submit';
       save.textContent = '수정 저장';
@@ -579,10 +628,12 @@ export async function loadAdmin(fetcher, doc) {
       ownerLoad.type = 'button';
       ownerLoad.textContent = '점주 목록 불러오기';
       ownerLoad.setAttribute('aria-label', `${merchant.name} 점주 목록 불러오기`);
+      // 알림 문장은 따로 된 status에만 두고, 양식이 있는 목록은 알림 영역으로 만들지 않는다.
+      const ownerStatus = doc.createElement('p');
+      ownerStatus.setAttribute('role', 'status');
+      ownerStatus.setAttribute('aria-live', 'polite');
       const ownerList = doc.createElement('div');
-      ownerList.setAttribute('role', 'status');
-      ownerList.setAttribute('aria-live', 'polite');
-      ownerPanel.append(ownerTitle, ownerHelp, ownerLoad, ownerList);
+      ownerPanel.append(ownerTitle, ownerHelp, ownerLoad, ownerStatus, ownerList);
       const couponPanel = doc.createElement('section');
       couponPanel.className = 'admin-coupons';
       couponPanel.setAttribute('aria-label', `${merchant.name} 쿠폰 관리`);
@@ -732,17 +783,19 @@ export async function loadAdmin(fetcher, doc) {
         if (adminRequests.get(doc) !== requestId) return;
         staffList.textContent = '직원 목록을 불러오지 못했습니다.';
       }
-      ownerLoad.addEventListener('click', async () => {
+      const loadOwners = async () => {
         ownerLoad.disabled = true;
         ownerList.replaceChildren();
-        ownerList.textContent = '점주 목록을 불러오는 중이에요.';
+        ownerStatus.textContent = '점주 목록을 불러오는 중이에요.';
         try {
           const owners = await jsonRequest(fetcher, `${endpoint}/${encodeURIComponent(merchant.id)}/owners`);
           if (adminRequests.get(doc) !== requestId) return;
           if (!Array.isArray(owners.owners) || !owners.owners.every(owner => typeof owner?.accountId === 'string')) {
             throw new Error('invalid owners');
           }
-          ownerList.textContent = owners.owners.length ? '' : '점주가 없습니다.';
+          ownerStatus.textContent = owners.owners.length ? `점주 ${owners.owners.length}명이에요.` : '점주가 없습니다.';
+          if (!openOwnerPanels.has(doc)) openOwnerPanels.set(doc, new Set());
+          openOwnerPanels.get(doc).add(merchant.id);
           for (const owner of owners.owners) {
             const row = doc.createElement('p');
             row.textContent = `계정 ${owner.accountId} · 점주`;
@@ -752,9 +805,11 @@ export async function loadAdmin(fetcher, doc) {
           }
         } catch (error) {
           if (adminRequests.get(doc) !== requestId) return;
-          ownerList.textContent = goLiveMessage(error, '점주 목록을 불러오지 못했습니다.');
+          ownerStatus.textContent = goLiveMessage(error, '점주 목록을 불러오지 못했습니다.');
         } finally { ownerLoad.disabled = false; }
-      });
+      };
+      ownerLoad.addEventListener('click', loadOwners);
+      if (openOwnerPanels.get(doc)?.has(merchant.id)) await loadOwners();
       approve.addEventListener('submit', async event => {
         event.preventDefault();
         approveButton.disabled = true;
@@ -776,13 +831,15 @@ export async function loadAdmin(fetcher, doc) {
         save.disabled = true;
         try {
           await jsonRequest(fetcher, `${endpoint}/${encodeURIComponent(merchant.id)}`, 'PATCH', {
-            ...fields(form), expectedVersion: merchant.version,
+            ...fields(form, doc.defaultView?.FormData ?? FormData), expectedVersion: merchant.version,
           });
           await loadAdmin(fetcher, doc);
           status.textContent = '상점을 수정했습니다.';
         } catch (error) {
           status.textContent = error.message?.startsWith('메뉴') ? error.message
-            : error.status === 409 ? '다른 변경이 먼저 저장되었습니다. 새로고침해 주세요.' : '수정하지 못했습니다.';
+            : error.code === 'ADMIN_MERCHANT_NOT_READY'
+              ? '공개 중인 점포는 메뉴·영업시간·도로명 주소를 비울 수 없어요. 값을 채우거나 먼저 점포를 숨겨 주세요.'
+              : error.status === 409 ? '다른 변경이 먼저 저장되었습니다. 새로고침해 주세요.' : '수정하지 못했습니다.';
           save.disabled = false;
         }
       });
@@ -854,7 +911,9 @@ export async function loadAdmin(fetcher, doc) {
         if (!campaigns.drafts.length) draftList.textContent = '저장된 비공개 초안이 없습니다.';
         for (const draft of campaigns.drafts) {
           const item = doc.createElement('p');
-          item.textContent = `${draft.merchantName} · ${draft.title} · 비공개 초안 · 정원 ${draft.enrollmentCapacity}명`;
+          const period = typeof draft.startsAt === 'string' && typeof draft.endsAt === 'string'
+            ? ` · ${formatKst(draft.startsAt)}부터 ${formatKst(draft.endsAt)}까지` : '';
+          item.textContent = `${draft.merchantName} · ${draft.title} · 비공개 초안 · 정원 ${draft.enrollmentCapacity}명${period}`;
           if (typeof draft.id === 'string' && draft.id) {
             item.append(campaignButton(fetcher, doc, act, draft, 'publish', '공개'));
           }
@@ -877,7 +936,7 @@ export async function loadAdmin(fetcher, doc) {
           const row = doc.createElement('p');
           row.textContent = `${item.merchantName} · ${item.title} · ${campaignStatusLabels[item.status]} · ${formatKst(item.startsAt)}부터 ${formatKst(item.endsAt)}까지 · 보이는 참여자 ${item.enrolledCount}/${item.enrollmentCapacity}명`;
           if (item.status === 'ACTIVE') row.append(campaignButton(fetcher, doc, act, item, 'pause', '중지'));
-          if (item.status === 'PAUSED') row.append(campaignButton(fetcher, doc, act, item, 'publish', '다시 공개'));
+          if (canRepublishCampaign(item)) row.append(campaignButton(fetcher, doc, act, item, 'publish', '다시 공개'));
           campaignList.append(row);
         }
       } catch (error) {
@@ -961,6 +1020,7 @@ export function bindAdmin(fetcher, doc) {
   const logout = doc.getElementById('admin-logout');
   const clear = () => {
     adminRequests.set(doc, (adminRequests.get(doc) ?? 0) + 1);
+    openOwnerPanels.delete(doc);
     doc.getElementById('admin-merchants')?.replaceChildren();
     doc.getElementById('admin-operations')?.replaceChildren();
     doc.getElementById('admin-campaign-drafts')?.replaceChildren();
@@ -1046,13 +1106,19 @@ export function bindAdmin(fetcher, doc) {
     offerSaving = true;
     button.disabled = true;
     try {
-      await jsonRequest(fetcher, offerEndpoint, 'POST', rewardOfferPayload(new FormData(offerForm)));
+      // 창의 FormData를 쓴다(브라우저에서는 전역 FormData와 같다).
+      const FormDataOf = doc.defaultView?.FormData ?? FormData;
+      await jsonRequest(fetcher, offerEndpoint, 'POST', rewardOfferPayload(new FormDataOf(offerForm)));
       if (adminRequests.get(doc) !== requestId) return;
       offerForm.reset();
       await loadAdmin(fetcher, doc);
       if (!doc.getElementById('admin-content').hidden) status.textContent = '점주 동의를 확인한 보상 혜택을 등록했습니다.';
+      status.focus?.();
     } catch (error) {
-      if (adminRequests.get(doc) === requestId) status.textContent = goLiveMessage(error, '보상 혜택을 등록하지 못했습니다.');
+      if (adminRequests.get(doc) === requestId) {
+        status.textContent = goLiveMessage(error, '보상 혜택을 등록하지 못했습니다.');
+        status.focus?.();
+      }
     } finally { offerSaving = false; button.disabled = false; }
   });
   return loadAdmin(fetcher, doc);
