@@ -13,7 +13,7 @@ import { demoRuntimeConfig, createDemoCredential, isDevelopmentDemoBuild } from 
 import { getPublicApiConfig } from '@/config/public-api';
 import { resolveRuntimeIdentity } from '@/config/showcase-identity';
 import { clearPendingFriendLink } from '@/friends/pending-friend-link';
-import { purgeForeignCollectionPrefs } from '@/screens/collection/collection-prefs';
+import { purgeForeignCollectionPrefs, purgeOwnCollectionPrefs } from '@/screens/collection/collection-prefs';
 import { listCollectionPrefKeys, removeCollectionPrefKeys } from '@/screens/collection/collection-prefs-storage';
 import { purgeForeignWalletSessions } from '@/wallet/account-scope';
 import { createAccountScopedAppKit, walletRuntimeConfig } from '@/wallet/appkit';
@@ -127,6 +127,12 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     if (appKit) lastAppKitRef.current = appKit;
   }, [appKit]);
 
+  // 아래 purge 호출이 list 조회 중 계정이 다시 바뀌어도, 그 시점에 가장 최근 accountId가 무엇인지 확인할 수 있게 한다.
+  const latestAccountIdRef = useRef(accountId);
+  useEffect(() => {
+    latestAccountIdRef.current = accountId;
+  }, [accountId]);
+
   useEffect(() => {
     if (!accountId) return;
     void purgeForeignWalletSessions({
@@ -134,13 +140,26 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       listStoredKeys: listAppKitStorageKeys,
       removeStoredKeys: removeAppKitStorageKeys,
     });
-    // 대표 진열·마스코트 반응 기록도 지갑 세션처럼 계정이 바뀌면 이전 계정 몫을 지운다.
+    // 대표 진열·마스코트 반응 기록도 지갑 세션처럼 계정이 바뀌면 이전 계정 몫을 지운다. isStillCurrent는 이 조회가 끝나기 전에
+    // 계정이 또 바뀌었을 때(빠른 전환) 그 사이 새 계정이 쓴 키를 "다른 계정 것"으로 오인해 지우지 않게 막는다.
     void purgeForeignCollectionPrefs({
       accountId,
       listStoredKeys: listCollectionPrefKeys,
       removeStoredKeys: removeCollectionPrefKeys,
+      isStillCurrent: () => latestAccountIdRef.current === accountId,
     });
   }, [accountId]);
+
+  // 로그아웃·계정 전환·세션 무효화로 이 계정을 떠날 때 그 계정의 대표 진열·마스코트 반응 기록을 지운다. 그래야 같은 계정으로
+  // 다시 로그인했을 때 지운 적 없는 값이 조용히 되살아나지 않는다(지갑 세션은 forgetWalletSession이 이미 이렇게 한다).
+  async function purgeOutgoingCollectionPrefs(outgoingAccountId: string | undefined) {
+    if (!outgoingAccountId) return;
+    await purgeOwnCollectionPrefs({
+      accountId: outgoingAccountId,
+      listStoredKeys: listCollectionPrefKeys,
+      removeStoredKeys: removeCollectionPrefKeys,
+    });
+  }
 
   const value = useMemo<AuthSessionContextValue>(() => ({
     state,
@@ -160,6 +179,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     async logout() {
       // A friend link opened under this account must not be offered to whoever signs in next.
       clearPendingFriendLink();
+      const outgoingAccountId = accountId;
       if (state.status === 'demo') {
         await forgetWalletSession({
           disconnect: async () => {
@@ -168,19 +188,25 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
           listStoredKeys: listAppKitStorageKeys,
           removeStoredKeys: removeAppKitStorageKeys,
         });
+        await purgeOutgoingCollectionPrefs(outgoingAccountId);
         return;
       }
       await controllerRef.current?.logout();
+      await purgeOutgoingCollectionPrefs(outgoingAccountId);
     },
     async switchAccount() {
       clearPendingFriendLink();
       if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
+      const outgoingAccountId = accountId;
       await controllerRef.current.switchAccount();
+      await purgeOutgoingCollectionPrefs(outgoingAccountId);
     },
     async invalidateSession() {
       clearPendingFriendLink();
       if (!session || !controllerRef.current) return;
+      const outgoingAccountId = accountId;
       await controllerRef.current.invalidateSession(session.sessionToken);
+      await purgeOutgoingCollectionPrefs(outgoingAccountId);
     },
   }), [accountId, appKit, credential, session, state]);
 

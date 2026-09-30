@@ -48,7 +48,7 @@ import { useCollectibleShare } from './collectible-share';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
 import { readFavorites, readShownReactions, writeFavorites, writeShownReactions } from './collection-prefs-storage';
 import { toggleFavorite } from './collection-prefs';
-import { eligibleReactionEvents, pendingReactionEvents, reactionEventKey, type ReactionEvent } from './mascot-reactions';
+import { eligibleReactionEvents, enqueueReactionEvents, pendingReactionEvents, reactionEventKey, type ReactionEvent } from './mascot-reactions';
 import { MascotReactionToast } from './mascot-reaction-toast';
 import { merchantArt, type MerchantArt } from './merchant-art';
 import { canOfferMint, mintRefusalText, nftPreparingNote, nftStatusLabel } from './nft-status';
@@ -120,8 +120,11 @@ export function CollectionScreen({
   const [revealEntitlement, setRevealEntitlement] = useState<{ entitlementId: string; merchantName: string }>();
   const [favorites, setFavorites] = useState<readonly string[]>([]);
   const shownReactions = useRef<Set<string>>(new Set());
-  const [reactionsLoaded, setReactionsLoaded] = useState(false);
-  const [reactionEvent, setReactionEvent] = useState<ReactionEvent>();
+  // 대표 진열·마스코트 반응의 저장된 값을 계정별 저장소에서 다 읽을 때까지는 참(true)이 아니다.
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  // 화면은 한 번에 하나씩만 반응을 보인다. 큐의 머리만 실제로 보여준 것이라 그것만 "본 것"으로 기록한다(그 아래 effect).
+  const [reactionQueue, setReactionQueue] = useState<readonly ReactionEvent[]>([]);
+  const reactionEvent = reactionQueue[0];
   const { host: shareHost, share: shareCollectible, sharing } = useCollectibleShare();
   const [polling, setPolling] = useState<PollingState>();
   const [binding, setBinding] = useState<ActiveWalletBindingResponse['binding']>();
@@ -143,7 +146,8 @@ export function CollectionScreen({
   const collection = polling?.snapshot;
   const loadCollectible = useCallback((entitlementId: string) => api.getCollectible(entitlementId), [api]);
 
-  useFocusEffect(useCallback(() => () => setCollectibleDetail(undefined), [setCollectibleDetail]));
+  // 탭을 떠나면 상세뿐 아니라 획득 연출도 닫는다(둘 다 그 사이 새로 받은 수집품에만 걸린 일회성 화면이다).
+  useFocusEffect(useCallback(() => () => { setCollectibleDetail(undefined); setRevealEntitlement(undefined); }, [setCollectibleDetail, setRevealEntitlement]));
 
   // 대표 진열·마스코트 반응 기록은 계정별 로컬 저장소에서 읽는다. 화면은 계정마다 새로 마운트되므로(라우트의 key=accountId) 한 번만 읽으면 된다.
   useEffect(() => {
@@ -152,18 +156,20 @@ export function CollectionScreen({
       if (!active) return;
       setFavorites(favoritesValue);
       shownReactions.current = new Set(shownValue);
-      setReactionsLoaded(true);
+      setPrefsLoaded(true);
     });
     return () => { active = false; };
   }, [accountId]);
 
   const toggleCollectibleFavorite = useCallback((key: string) => {
+    // 저장된 값을 아직 못 읽었으면 무시한다: 지금 건드리면 빈 초기값 위에 쓰게 되고, 뒤늦게 도착하는 실제 값이 그 변경을 덮어써 버린다.
+    if (!prefsLoaded) return;
     setFavorites((current) => {
       const next = toggleFavorite(current, key);
       void writeFavorites(accountId, next);
       return next;
     });
-  }, [accountId]);
+  }, [accountId, prefsLoaded]);
 
   // Acquisition links open only an entitlement in the authenticated collection.
   // A legacy reward without artwork still remains successfully collected.
@@ -201,16 +207,26 @@ export function CollectionScreen({
   const collectibleGroups = useMemo(() => groupCollectibles(collection?.collectibles ?? []), [collection]);
   const storeSeries = useMemo(() => buildStoreSeries(publicMerchants, collection?.collectibles ?? []), [publicMerchants, collection]);
 
-  // 17.1 마스코트 반응: 새로 자격을 얻은 이벤트만, 계정별로 한 번만 보여준다.
+  // 17.1 마스코트 반응: 새로 자격을 얻은 이벤트를 큐에 더한다(이미 큐에 있거나 이미 보여준 것은 다시 넣지 않는다).
   useEffect(() => {
-    if (!reactionsLoaded) return;
+    if (!prefsLoaded) return;
     const eligible = eligibleReactionEvents(collectibleGroups, storeSeries);
     const pending = pendingReactionEvents(eligible, shownReactions.current);
     if (pending.length === 0) return;
-    shownReactions.current = new Set([...shownReactions.current, ...pending.map(reactionEventKey)]);
+    setReactionQueue((current) => enqueueReactionEvents(current, pending));
+  }, [prefsLoaded, collectibleGroups, storeSeries]);
+
+  // 큐의 머리만 화면에 실제로 뜬 것이므로 그것만 "본 것"으로 기록한다: 한 틱에 여러 개가 자격을 얻어도 하나씩만 보이고,
+  // 나머지는 자기 차례가 와서 실제로 보일 때 각자 기록된다(한꺼번에 지금 다 기록하면 아직 안 보여준 것도 사라진다).
+  useEffect(() => {
+    if (!reactionEvent) return;
+    const key = reactionEventKey(reactionEvent);
+    if (shownReactions.current.has(key)) return;
+    shownReactions.current = new Set([...shownReactions.current, key]);
     void writeShownReactions(accountId, shownReactions.current);
-    setReactionEvent(pending[0]);
-  }, [reactionsLoaded, collectibleGroups, storeSeries, accountId]);
+  }, [reactionEvent, accountId]);
+
+  const dismissReactionEvent = useCallback(() => setReactionQueue((current) => current.slice(1)), []);
   const artSize = collectibleArtSize(width, uiMetrics.pageInset, styles.collectibleCard.padding);
   const detailMedal = badges.book?.medals.find((medal) => medal.kind === detailKind);
   const coupons = couponsOf(badges.book);
@@ -648,7 +664,7 @@ export function CollectionScreen({
         />
       ) : null}
       {shareHost}
-      <MascotReactionToast event={reactionEvent} onClose={() => setReactionEvent(undefined)} />
+      <MascotReactionToast event={reactionEvent} onClose={dismissReactionEvent} />
       <RewardReveal
         result={revealed}
         onClose={() => setRevealed(undefined)}

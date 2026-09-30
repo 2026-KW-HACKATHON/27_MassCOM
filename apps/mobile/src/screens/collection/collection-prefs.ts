@@ -30,6 +30,13 @@ type PurgeDeps = {
   accountId: string;
   listStoredKeys: () => Promise<readonly string[]>;
   removeStoredKeys: (keys: string[]) => Promise<void>;
+  /**
+   * Checked right before deleting, after the (possibly slow) listStoredKeys resolves. A sign-in effect keyed on the
+   * new accountId can still be in flight when the account changes again (fast switch, or a stale call from an
+   * account that has since logged out); without this guard it would delete the keys of whichever account is current
+   * by the time it finishes, since those look "foreign" to the accountId it captured at the start. Defaults to true.
+   */
+  isStillCurrent?: () => boolean;
 };
 
 /** 로그아웃·계정 전환 때 다른 계정이 남긴 도감 취향을 지운다(지갑 세션과 같은 정리 방식). */
@@ -38,6 +45,27 @@ export async function purgeForeignCollectionPrefs(deps: PurgeDeps): Promise<numb
   const foreign = (await deps.listStoredKeys()).filter(
     (key) => key.startsWith(BASE_PREFIX) && !key.startsWith(ownPrefix),
   );
-  if (foreign.length > 0) await deps.removeStoredKeys(foreign);
+  if (foreign.length === 0) return 0;
+  if (deps.isStillCurrent && !deps.isStillCurrent()) return 0;
+  await deps.removeStoredKeys(foreign);
   return foreign.length;
+}
+
+type AccountPurgeDeps = {
+  accountId: string;
+  listStoredKeys: () => Promise<readonly string[]>;
+  removeStoredKeys: (keys: string[]) => Promise<void>;
+};
+
+/**
+ * Deletes exactly this account's own collection prefs (favorites, shown reactions). Called on logout, account
+ * switch, and session invalidation so a former account's local prefs do not linger on a shared device and are not
+ * silently restored if the same account signs back in later (purgeForeignCollectionPrefs above only ever protects
+ * the *current* account's keys from *other* accounts — it never touches the current account's own data).
+ */
+export async function purgeOwnCollectionPrefs(deps: AccountPurgeDeps): Promise<number> {
+  const ownPrefix = collectionPrefsPrefix(deps.accountId);
+  const own = (await deps.listStoredKeys()).filter((key) => key.startsWith(ownPrefix));
+  if (own.length > 0) await deps.removeStoredKeys(own);
+  return own.length;
 }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { CollectibleGroup } from './collectible-groups';
-import { eligibleReactionEvents, pendingReactionEvents, reactionEventKey, reactionMessage } from './mascot-reactions';
+import { eligibleReactionEvents, enqueueReactionEvents, pendingReactionEvents, reactionEventKey, reactionMessage } from './mascot-reactions';
 import type { StoreSeries } from './store-series';
 
 const artwork = { publicationId: 'p', projectId: 'proj', gradeId: 'g', gradeName: '1등급', name: '이름', shape: 'circle' as const, theme: { name: '가을' }, thumbnailDataUrl: 'data:image/png;base64,aa==' };
@@ -44,6 +44,39 @@ test('pendingReactionEvents ranks first-collectible above store-complete above f
   ];
   const pending = pendingReactionEvents(eligible, new Set());
   assert.deepEqual(pending.map(reactionEventKey), ['first-collectible', 'store-complete:m1', 'first-store:m1']);
+});
+
+test('enqueueReactionEvents never duplicates an event already waiting in the queue', () => {
+  const first = { kind: 'first-collectible' as const };
+  const store = { kind: 'first-store' as const, merchantId: 'm1', merchantName: '가게1' };
+  const queue = enqueueReactionEvents([], [first, store]);
+  assert.deepEqual(enqueueReactionEvents(queue, [first]).map(reactionEventKey), queue.map(reactionEventKey));
+  assert.equal(enqueueReactionEvents(queue, [first]).length, 2);
+});
+
+// Regression for the bug where every pending event was marked shown at once but only the first was ever displayed,
+// silently dropping first-store/store-complete when several events become eligible in the same tick (index.tsx).
+test('every event that becomes pending in the same tick is eventually shown, one at a time', () => {
+  const eligible = eligibleReactionEvents([group('m1', '가게1'), group('m2', '가게2')], [
+    { merchantId: 'm1', merchantName: '가게1', slots: [], completed: true, nextSlot: null },
+  ]);
+  assert.ok(eligible.length >= 3, '테스트 전제: 같은 틱에 세 개 이상 자격을 얻어야 한다');
+
+  const shown = new Set<string>();
+  let queue = enqueueReactionEvents([], pendingReactionEvents(eligible, shown));
+  const displayedInOrder: string[] = [];
+  // Screen loop: show the queue head, mark only that one shown, dequeue, repeat — never mark the rest "shown" up front.
+  while (queue.length > 0) {
+    const head = queue[0]!;
+    const key = reactionEventKey(head);
+    displayedInOrder.push(key);
+    shown.add(key);
+    queue = queue.slice(1);
+    // A later re-run of the eligibility check (e.g. another render) must not re-enqueue what is already shown.
+    queue = enqueueReactionEvents(queue, pendingReactionEvents(eligible, shown));
+  }
+  assert.deepEqual(displayedInOrder.sort(), eligible.map(reactionEventKey).sort());
+  assert.deepEqual(pendingReactionEvents(eligible, shown), []);
 });
 
 test('reactionMessage names the store for store-scoped events', () => {

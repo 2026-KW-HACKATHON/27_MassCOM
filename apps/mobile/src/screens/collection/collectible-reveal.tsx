@@ -1,6 +1,6 @@
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -48,13 +48,26 @@ export function CollectibleReveal({ entitlementId, merchantName, load, onSkip, o
         <RevealBody snapshot={snapshot} merchantName={merchantName} onSkip={onSkip} onOpenDetail={onOpenDetail} />
       ) : failure ? (
         <View style={styles.loadingFrame}>
+          <SkipButton onPress={onSkip} />
           <StateScene kind={failure.removed ? 'empty' : 'error'} title={failure.title} body={failure.body} />
           <Control label="도감으로 돌아가기" onPress={onSkip} />
         </View>
       ) : (
-        <View style={styles.loadingFrame}><StateScene kind="loading" title="수집품을 펼치는 중" /></View>
+        <View style={styles.loadingFrame}>
+          <SkipButton onPress={onSkip} />
+          <StateScene kind="loading" title="수집품을 펼치는 중" />
+        </View>
       )}
     </FullScreenModal>
+  );
+}
+
+/** 건너뛰기는 로딩·실패 상태를 포함해 이 화면의 어느 단계에서도 보여야 한다. */
+function SkipButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="연출 건너뛰기" onPress={onPress} style={styles.skipButton}>
+      <Text style={styles.skipButtonText}>건너뛰기</Text>
+    </Pressable>
   );
 }
 
@@ -65,22 +78,45 @@ function RevealBody({ snapshot, merchantName, onSkip, onOpenDetail }: {
   const motionAllowed = useMotionEnabled();
   const [stage, setStage] = useState<'opening' | 'revealed'>(motionAllowed ? 'opening' : 'revealed');
   const [muted, setMuted] = useState(false);
+  const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const player = useAudioPlayer(snapshot.audio ? { uri: snapshot.audio.dataUrl } : null);
   const reveal = useSharedValue(motionAllowed ? 0 : 1);
   const isStamp = snapshot.shape === 'stamp';
+  // 재생 요청마다 올리는 세대. 음을 끄거나 백그라운드로 가면 세대를 올려, 그 이전에 시작한 재생 요청이 나중에 끝나도 소리를 내지 않게 막는다.
+  const audioAction = useRef(0);
+  const moving = motionAllowed && foreground;
+
+  const pause = useCallback(() => {
+    audioAction.current += 1;
+    try { player.pause(); } catch { /* 이미 해제된 player일 수 있다. */ }
+  }, [player]);
 
   useEffect(() => {
-    if (!motionAllowed) return;
+    const listener = AppState.addEventListener('change', (state) => {
+      setForeground(state === 'active');
+      if (state !== 'active') pause();
+    });
+    return () => listener.remove();
+  }, [pause]);
+
+  useEffect(() => {
+    if (stage !== 'opening') return;
+    if (!moving) {
+      // 동작 줄이기가 켜졌거나 화면이 백그라운드로 간 경우: 진행 중이던 열림 연출을 멈추고 바로 정적 결과 화면으로 넘어간다.
+      // 그래야 동작 줄이기를 연출 중간에 켰을 때 대사·상세 보기 버튼이 영영 나오지 않는 일이 없다.
+      const timer = setTimeout(() => { reveal.set(1); setStage('revealed'); }, 0);
+      return () => clearTimeout(timer);
+    }
     reveal.set(withTiming(1, { duration: 650, easing: Easing.out(Easing.cubic) }));
     const timer = setTimeout(() => setStage('revealed'), 700);
     return () => clearTimeout(timer);
-  }, [motionAllowed, reveal]);
+  }, [moving, stage, reveal]);
 
   useEffect(() => {
     if (stage === 'revealed') void successHaptic();
   }, [stage]);
 
-  useEffect(() => () => { try { player.pause(); } catch { /* released on unmount */ } }, [player]);
+  useEffect(() => () => pause(), [pause]);
 
   const openingStyle = useAnimatedStyle(() => isStamp
     ? { opacity: reveal.get(), transform: [{ translateY: (1 - reveal.get()) * -36 }, { scale: 0.7 + reveal.get() * 0.3 }] }
@@ -88,19 +124,24 @@ function RevealBody({ snapshot, merchantName, onSkip, onOpenDetail }: {
   const burstStyle = useAnimatedStyle(() => ({ opacity: 0.35 + reveal.get() * 0.65, transform: [{ scale: 0.6 + reveal.get() * 0.4 }] }));
 
   const playGreeting = async () => {
-    if (muted || !snapshot.audio) return;
+    if (muted || !snapshot.audio || !foreground) return;
+    const action = ++audioAction.current;
     try {
       await setAudioModeAsync({ shouldPlayInBackground: false, allowsRecording: false });
       await player.seekTo(0);
-      player.play();
+      // 대기하는 동안 소리 끄기를 누르거나 백그라운드로 갔다면(세대가 바뀌었다면) 이제 와서 재생을 시작하지 않는다.
+      if (action === audioAction.current) player.play();
     } catch { /* 소리는 부가 효과라 실패해도 대사 텍스트는 그대로 보인다. */ }
+  };
+
+  const onMutedChange = (value: boolean) => {
+    setMuted(value);
+    if (value) pause();
   };
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#14213A' }} contentContainerStyle={[styles.body, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 28 }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="연출 건너뛰기" onPress={onSkip} style={styles.skipButton}>
-        <Text style={styles.skipButtonText}>건너뛰기</Text>
-      </Pressable>
+      <SkipButton onPress={onSkip} />
 
       <View style={styles.stage}>
         <View style={{ alignItems: 'center', justifyContent: 'center', height: 40 }} importantForAccessibility="no-hide-descendants">
@@ -128,9 +169,9 @@ function RevealBody({ snapshot, merchantName, onSkip, onOpenDetail }: {
             <>
               <View style={styles.toggle}>
                 <Text style={styles.toggleLabel}>소리 끄기</Text>
-                <Switch accessibilityLabel="사장님 음성 소리 끄기" value={muted} onValueChange={setMuted} />
+                <Switch accessibilityLabel="사장님 음성 소리 끄기" value={muted} onValueChange={onMutedChange} />
               </View>
-              <Control label="사장님 음성 듣기" disabled={muted} onPress={() => { void playGreeting(); }} />
+              <Control label="사장님 음성 듣기" disabled={muted || !foreground} onPress={() => { void playGreeting(); }} />
             </>
           ) : null}
           <Text style={styles.stored}>도감에 보관했어요</Text>
