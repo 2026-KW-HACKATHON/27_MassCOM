@@ -209,6 +209,11 @@ fi
 
 built="$mobile_dir/android/app/build/outputs/bundle/release/app-release.aab"
 gradle_file="$mobile_dir/android/app/build.gradle"
+# A stale Metro cache can inline the showcase API origin; the bundle must carry only the operating one.
+"$repo_root/scripts/check-embedded-api.sh" "$built" https://api.masscom.kr https://demo-api.masscom.kr || {
+  echo 'release AAB embeds the wrong API origin' >&2
+  exit 1
+}
 # android/ is wiped by the restore above, so everything reported below is about the copy.
 staging_dir="$(mktemp -d "$artifacts/.app-release-${commit:0:7}.staging.XXXXXX")"
 staged_aab="$staging_dir/$(basename "$aab")"

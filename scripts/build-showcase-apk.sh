@@ -146,8 +146,10 @@ CI=1 EXPO_NO_DOTENV=1 APP_VARIANT=showcase MASSCOM_BUILD_SOURCE_COMMIT="$commit"
   EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
   npx --no-install expo prebuild --platform android --clean --no-install
 set_signing_environment
+# Expo ignores Gradle's --reset-cache when CI=1, so the shared Metro cache could inline another
+# build's EXPO_PUBLIC_API_URL (Issue #273). CI=0 here, as build-release-aab.sh does.
 MASSCOM_SHOWCASE_KEYSTORE_FILE="$keystore" MASSCOM_SHOWCASE_KEY_ALIAS="$alias_name" \
-  CI=1 NODE_ENV=production EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
+  CI=0 NODE_ENV=production EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
   MASSCOM_BUILD_SOURCE_COMMIT="$commit" MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID="$showcase_client" \
   EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
   node - "$mobile_dir/android" <<'NODE'
@@ -192,6 +194,11 @@ signed_certificate="$(sed -n 's/^Signer #1 certificate SHA-256 digest: *//p' <<<
 [[ "$signed_certificate" == "$certificate" ]] || fail 'APK signature does not match the approved showcase certificate'
 EXPECTED_PACKAGE=kr.masscom.wolgye.demo \
   "$repo_root/scripts/check-release-wallet-surface.sh" "$aab" "$mobile_dir/src"
+for embedded_artifact in "$apk" "$aab"; do
+  "$repo_root/scripts/check-embedded-api.sh" "$embedded_artifact" \
+    https://demo-api.masscom.kr https://api.masscom.kr ||
+    fail 'showcase build embeds the wrong API origin'
+done
 
 node - "$apk" "$staging/$basename.provenance.json" "$commit" "$certificate" <<'NODE'
 const { createHash } = require('node:crypto');
@@ -204,7 +211,7 @@ writeFileSync(resultPath, JSON.stringify({
   apiOrigin: 'https://demo-api.masscom.kr',
   artifact: { basename: apkPath.split('/').pop(), sha256: createHash('sha256').update(artifact).digest('hex'), bytes: statSync(apkPath).size },
   signingCertificateSha256: certificateSha256,
-  checks: { api: 'PASS', package: 'PASS', sourceMarker: 'PASS', signature: 'PASS', walletSurface: 'PASS' },
+  checks: { api: 'PASS', package: 'PASS', sourceMarker: 'PASS', signature: 'PASS', walletSurface: 'PASS', embeddedApi: 'PASS' },
   deviceInstall: 'NOT_RUN',
   githubRelease: 'NOT_RUN',
 }, null, 2) + '\n', { mode: 0o600 });
