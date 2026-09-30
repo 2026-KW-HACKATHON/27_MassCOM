@@ -507,3 +507,9 @@ test('참조 번호 안내는 실제 규칙(구분자를 넘어 합쳐 세는 �
   const css = readFileSync(new URL('../../apps/production-web/assets/production.css', import.meta.url), 'utf8');
   assert.match(css, /@media \(prefers-color-scheme: dark\) \{\s*fieldset\.admin-consent input\[type="checkbox"\]:not\(:focus-visible\) \{ outline: 2px solid var\(--mc-secondary\)/);
 });
+
+test('운영 고객 웹 안내는 NFT를 앱에서 발행한다고 하지 않고 발행 준비 중이라고 알린다', () => {
+  const page = readFileSync(new URL('../../apps/production-web/index.html', import.meta.url), 'utf8');
+  assert.match(page, /실제 NFT 발행은 준비 중이라 받은 수집품 기록이 그대로 남습니다/);
+  assert.doesNotMatch(page, /NFT 발행은 앱에서만 진행/);
+});

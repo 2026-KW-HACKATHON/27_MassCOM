@@ -32,19 +32,18 @@ export type MerchantGoal = {
   totalGoals: number;
   nextGoal: PublicMerchant['campaign']['rewardGoals'][number] | null;
   remainingVisits: number | null;
-  campaignStatus: 'open' | 'upcoming' | 'ended' | 'full';
+  campaignStatus: 'open' | 'upcoming' | 'ended';
 };
 
 export function describeMerchantGoal(goal: MerchantGoal): string {
   const status = goal.campaignStatus === 'ended' ? '캠페인 종료'
-    : goal.campaignStatus === 'full' ? '참여 정원 마감'
     : goal.campaignStatus === 'upcoming' ? '캠페인 시작 전' : '';
   const target = !goal.totalGoals ? '설정된 보상 목표 없음'
     : !goal.nextGoal ? '앱 수집품 목표 완료'
     : goal.remainingVisits === 0 ? '앱 수집품 반영 확인 중'
     : goal.campaignStatus === 'open'
       ? `다음 목표 ${goal.nextGoal.targetVisitCount}회 · ${goal.nextGoal.displayName} · ${goal.remainingVisits}회 남음`
-      : `${goal.campaignStatus === 'upcoming' ? '예정 목표' : '미획득 목표'} ${goal.nextGoal.targetVisitCount}회 · ${goal.nextGoal.displayName}${goal.campaignStatus === 'full' && (goal.progressCount > 0 || goal.earnedGoals.length > 0) ? ` · 기존 참여자라면 ${goal.remainingVisits}회 남음` : ''}`;
+      : `${goal.campaignStatus === 'upcoming' ? '예정 목표' : '미획득 목표'} ${goal.nextGoal.targetVisitCount}회 · ${goal.nextGoal.displayName}`;
   return status ? `${status} · ${target}` : target;
 }
 
@@ -55,8 +54,6 @@ export function shortMerchantGoal(goal: MerchantGoal): string {
   if (goal.campaignStatus === 'ended') return '캠페인 종료';
   if (goal.remainingVisits === 0) return '수집품 반영 중';
   if (goal.campaignStatus === 'upcoming') return '캠페인 시작 전';
-  const participating = goal.progressCount > 0 || goal.earnedGoals.length > 0;
-  if (goal.campaignStatus === 'full' && !participating) return '참여 정원 마감';
   return `수집품까지 ${goal.remainingVisits}번`;
 }
 
@@ -108,9 +105,9 @@ export function buildMerchantGoals(
       .find((goal) => !earnedGoals.includes(goal.targetVisitCount)) ?? null;
     const remainingVisits = nextGoal ? Math.max(0, nextGoal.targetVisitCount - progressCount) : null;
     const time = Date.parse(now);
+    // 방문 보상에는 참여 등록이 필요 없다(D-023). 정원(enrollmentStatus)은 보이는 참여자 수일 뿐이라 진행 표시를 막지 않는다.
     const campaignStatus = time >= Date.parse(campaign.endsAt) ? 'ended'
-      : time < Date.parse(campaign.startsAt) ? 'upcoming'
-      : campaign.enrollmentStatus === 'FULL' ? 'full' : 'open';
+      : time < Date.parse(campaign.startsAt) ? 'upcoming' : 'open';
     return { merchantId: merchant.id, progressCount, earnedGoals, totalGoals: campaign.rewardGoals.length, nextGoal, remainingVisits, campaignStatus };
   });
 }

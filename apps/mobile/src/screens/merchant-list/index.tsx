@@ -307,9 +307,8 @@ export function MerchantApiConfigurationRequired() {
 
 function MerchantCard({ merchant, apiUrl, onOpen }: { merchant: PublicMerchant; apiUrl: string; onOpen: (merchantId: string) => void }) {
   const styles = useMerchantListStyles();
-  const palette = colorsForScheme(useColorScheme());
-  const full = merchant.campaign.enrollmentStatus === 'FULL';
-  const status = merchant.campaign.enrollmentStatus === 'OPEN' ? '참여 가능' : '정원 마감';
+  // 방문한 사람은 누구나 적립한다(D-023). 참여 정원이 차도 "마감"으로 보이지 않는다.
+  const status = '참여 가능';
   return (
     <FloatingCard
       onPress={() => onOpen(merchant.id)}
@@ -320,8 +319,8 @@ function MerchantCard({ merchant, apiUrl, onOpen }: { merchant: PublicMerchant; 
       <MerchantCrest merchant={merchant} apiUrl={apiUrl} />
       <View style={styles.cardBody}>
         <View style={styles.cardTopline}>
-          <View style={[styles.statusBadge, full ? { backgroundColor: palette.errorContainer } : null]}>
-            <Text style={[styles.statusBadgeText, full ? { color: palette.onErrorContainer } : null]}>{status}</Text>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusBadgeText}>{status}</Text>
           </View>
           {merchant.demo ? (
             <View style={styles.demoBadge}>
