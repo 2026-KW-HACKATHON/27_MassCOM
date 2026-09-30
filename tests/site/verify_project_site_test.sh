@@ -12,7 +12,7 @@ fi
 
 "$verifier" "$repo_root"
 
-for page in privacy.html account-deletion.html open.html; do
+for page in privacy.html terms.html account-deletion.html open.html; do
   [[ -s "$repo_root/docs/$page" ]] || {
     echo "project portal is missing $page" >&2
     exit 1
@@ -21,10 +21,12 @@ for page in privacy.html account-deletion.html open.html; do
 done
 grep -q 'href="privacy.html"' "$repo_root/docs/index.html"
 grep -q 'href="account-deletion.html"' "$repo_root/docs/index.html"
+grep -q 'href="terms.html"' "$repo_root/docs/index.html"
 for entry in \
   'index.html|https://www.masscom.kr/' \
   'open.html|https://masscom.kr/open' \
   'privacy.html|https://www.masscom.kr/privacy' \
+  'terms.html|https://www.masscom.kr/terms' \
   'account-deletion.html|https://www.masscom.kr/account-deletion'; do
   page="${entry%%|*}"
   canonical="${entry#*|}"
@@ -79,15 +81,15 @@ if (JSON.stringify(fingerprints) !== JSON.stringify([
 NODE
 grep -qF 'android-v0.1.0-test.3' "$repo_root/docs/open.html"
 grep -qF 'showcase-android-v0.1.0-preview.3' "$repo_root/docs/open.html"
-grep -qF 'showcase-android-v0.1.0-preview.11' "$repo_root/docs/open.html"
+grep -qF 'showcase-android-v0.1.0-preview.12' "$repo_root/docs/open.html"
 grep -qF '새 시연 API에서는 이 버전의 직원 발급 요청이 호환되지 않으므로' "$repo_root/docs/open.html"
 # `! grep` does not trip `set -e`, so the forbidden-text guards fail explicitly.
-if grep -Eq 'private GitHub|아직 GitHub에 APK가 없습니다|최신[^<]{0,12}Preview ([5-9]|10)([^0-9]|$)' "$repo_root/docs/open.html"; then
+if grep -Eq 'private GitHub|아직 GitHub에 APK가 없습니다|최신[^<]{0,12}Preview ([5-9]|1[01])([^0-9]|$)' "$repo_root/docs/open.html"; then
   echo 'open.html still has stale latest-preview or private-release wording' >&2
   exit 1
 fi
-if grep -qF 'showcase-android-v0.1.0-preview.10' "$repo_root/docs/open.html"; then
-  echo 'open.html still links the previous showcase Preview 10' >&2
+if grep -Eq 'showcase-android-v0.1.0-preview\.1[01]([^0-9]|$)' "$repo_root/docs/open.html"; then
+  echo 'open.html still links a previous showcase Preview 10 or 11' >&2
   exit 1
 fi
 

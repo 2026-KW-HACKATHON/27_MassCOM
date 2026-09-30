@@ -18,6 +18,12 @@ test('D01 concurrent deletion cancels only unsent mint work and pseudonymizes th
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
   await seedDeletionFixture(pool);
+  // 동의 기록(Issue #253)도 원 계정 ID를 남기지 않고 지워져야 한다: 아래 원본 ID 검사에 이 표가 들어 있다.
+  await pool.query(
+    `INSERT INTO account_consents (account_id, terms_version, privacy_version, age_confirmed, source)
+     VALUES ('delete-me', 'terms-2026-09-30', 'privacy-2026-09-30', true, 'ANDROID'),
+            ('delete-me', 'terms-old', 'privacy-old', true, 'WEB')`,
+  );
   await pool.query(
     `INSERT INTO wallet_challenges (
        id, account_id, address, chain_id, nonce, message, issued_at, expires_at, status
@@ -82,7 +88,8 @@ test('D01 concurrent deletion cancels only unsent mint work and pseudonymizes th
          (SELECT count(*) FROM mint_jobs WHERE account_id = 'delete-me') +
          (SELECT count(*) FROM campaign_enrollments WHERE account_id = 'delete-me') +
          (SELECT count(*) FROM badge_coupons
-          WHERE customer_account_id = 'delete-me' OR redeemed_by_account_id = 'delete-me')
+          WHERE customer_account_id = 'delete-me' OR redeemed_by_account_id = 'delete-me') +
+         (SELECT count(*) FROM account_consents WHERE account_id = 'delete-me')
        )::integer AS raw_account_references,
        (SELECT count(*)::integer FROM wallet_bindings WHERE status = 'DISCONNECTED') AS disconnected_bindings,
        (SELECT status FROM mint_jobs WHERE id = '40000000-0000-4000-8004-000000000001') AS queued_status,
@@ -195,6 +202,173 @@ test('D01 keeps an actively leased prepared job pending instead of cancelling it
     outbox_status: 'LEASED',
     lease_owner: 'active-worker',
   });
+});
+
+// 삭제 트랜잭션이 취소 UPDATE를 보내기 직전에 다른 연결로 lease를 커밋한다(집계와 취소 사이에 워커가 lease를 잡은 경우).
+// 옛 순서(집계 → 취소)에서는 이 UPDATE 앞에 이미 집계가 끝나 있어 그 집계가 낡은 값이 된다.
+function leaseJustBeforeCancel(pool: Pool, lease: () => Promise<unknown>): Pool {
+  let leased = false;
+  return new Proxy(pool, {
+    get(target, property) {
+      if (property === 'connect') {
+        return async () => {
+          const client = await target.connect();
+          return new Proxy(client, {
+            get(inner, clientProperty) {
+              if (clientProperty === 'query') {
+                return async (...args: unknown[]) => {
+                  const sql = typeof args[0] === 'string' ? args[0] : '';
+                  if (!leased && sql.includes('UPDATE mint_jobs') && sql.includes("SET status = 'CANCELLED'")) {
+                    leased = true;
+                    await lease();
+                  }
+                  return (inner.query as (...forwarded: unknown[]) => unknown)(...args);
+                };
+              }
+              const value: unknown = Reflect.get(inner, clientProperty, inner);
+              return typeof value === 'function' ? value.bind(inner) : value;
+            },
+          });
+        };
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
+test('D01 a worker lease taken after the count would have run keeps the ledger WAITING instead of COMPLETED (#264)', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedDeletionFixture(pool);
+  // 남은 작업은 취소 대상 하나(QUEUED)뿐이다: 전송한 작업은 확정으로 끝낸다.
+  await pool.query(
+    `UPDATE mint_jobs SET status = 'FINALIZED', finalized_at = '2026-09-19T14:59:00Z'
+     WHERE id = '40000000-0000-4000-8004-000000000002'`,
+  );
+  const service = new PostgresAccountDeletionService(
+    leaseJustBeforeCancel(pool, () => pool.query(
+      `UPDATE outbox_events
+       SET status = 'LEASED', lease_owner = 'late-worker',
+           lease_expires_at = '2026-09-19T15:05:00Z', updated_at = '2026-09-19T14:59:59Z'
+       WHERE aggregate_id = '40000000-0000-4000-8004-000000000001'`,
+    )),
+    {
+      hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+      nextRequestId: () => '90000000-0000-4000-8000-000000000011',
+      now: () => new Date('2026-09-19T15:00:00.000Z'),
+      policyVersion: 'account-deletion-v1',
+    },
+  );
+
+  const result = await service.requestDeletion({ accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT' });
+
+  assert.equal(result.status, 'WAITING_FOR_MINT_FINALITY');
+  assert.equal(result.cancelledMintJobs, 0);
+  assert.equal(result.pendingMintJobs, 1);
+  assert.equal(result.retainedFinalizedNfts, 2);
+  assert.equal(result.completedAt, null);
+  const ledger = await pool.query<{ status: string; cancelled_mint_jobs: number; pending_mint_jobs: number }>(
+    'SELECT status, cancelled_mint_jobs, pending_mint_jobs FROM account_deletion_requests',
+  );
+  assert.deepEqual(ledger.rows, [
+    { status: 'WAITING_FOR_MINT_FINALITY', cancelled_mint_jobs: 0, pending_mint_jobs: 1 },
+  ]);
+  const leased = await pool.query<{ job_status: string; entitlement_status: string; outbox_status: string }>(
+    `SELECT job.status AS job_status, entitlement.status AS entitlement_status, outbox.status AS outbox_status
+     FROM mint_jobs AS job
+     JOIN reward_entitlements AS entitlement ON entitlement.id = job.entitlement_id
+     JOIN outbox_events AS outbox ON outbox.aggregate_id = job.id
+     WHERE job.id = '40000000-0000-4000-8004-000000000001'`,
+  );
+  assert.deepEqual(leased.rows, [
+    { job_status: 'QUEUED', entitlement_status: 'MINT_REQUESTED', outbox_status: 'LEASED' },
+  ]);
+});
+
+test('D01 a lease the worker commits while the cancel waits on its row lock keeps the ledger WAITING (#264)', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedDeletionFixture(pool);
+  await pool.query(
+    `UPDATE mint_jobs SET status = 'FINALIZED', finalized_at = '2026-09-19T14:59:00Z'
+     WHERE id = '40000000-0000-4000-8004-000000000002'`,
+  );
+  const service = new PostgresAccountDeletionService(pool, {
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+    nextRequestId: () => '90000000-0000-4000-8000-000000000013',
+    now: () => new Date('2026-09-19T15:00:00.000Z'),
+    policyVersion: 'account-deletion-v1',
+  });
+  // 워커의 leaseNext처럼 작업·outbox 행을 잠그고 lease를 적지만 아직 커밋하지 않는다.
+  const worker = await pool.connect();
+  let deletion: ReturnType<typeof service.requestDeletion> | undefined;
+  try {
+    await worker.query('BEGIN');
+    await worker.query(
+      `SELECT job.id FROM outbox_events AS outbox JOIN mint_jobs AS job ON job.id = outbox.aggregate_id
+       WHERE job.id = '40000000-0000-4000-8004-000000000001' FOR UPDATE OF outbox, job SKIP LOCKED`,
+    );
+    await worker.query(
+      `UPDATE outbox_events
+       SET status = 'LEASED', lease_owner = 'late-worker', lease_expires_at = '2026-09-19T15:05:00Z'
+       WHERE aggregate_id = '40000000-0000-4000-8004-000000000001'`,
+    );
+    deletion = service.requestDeletion({ accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT' });
+    deletion.catch(() => undefined);
+
+    // 삭제 트랜잭션이 워커의 행 잠금 앞에서 실제로 기다릴 때까지 본다.
+    let waiting = false;
+    for (let waited = 0; waited < 5_000 && !waiting; waited += 10) {
+      waiting = (await pool.query(
+        `SELECT 1 FROM pg_stat_activity
+         WHERE wait_event_type = 'Lock' AND query LIKE '%mint_jobs%' AND query NOT LIKE '%pg_stat_activity%'`,
+      )).rowCount === 1;
+      if (!waiting) await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(waiting, true, 'the deletion must be waiting on the worker row lock');
+    await worker.query('COMMIT');
+  } finally {
+    // 커밋했든 실패했든 잠금을 풀어 기다리던 삭제가 끝나게 한다(안 그러면 pool.end가 끝나지 않는다).
+    await worker.query('ROLLBACK').catch(() => undefined);
+    worker.release();
+    await deletion?.catch(() => undefined);
+  }
+
+  const result = await deletion!;
+  assert.equal(result.status, 'WAITING_FOR_MINT_FINALITY');
+  assert.equal(result.cancelledMintJobs, 0);
+  assert.equal(result.pendingMintJobs, 1);
+  const leased = await pool.query<{ job_status: string; outbox_status: string; lease_owner: string }>(
+    `SELECT job.status AS job_status, outbox.status AS outbox_status, outbox.lease_owner
+     FROM mint_jobs AS job JOIN outbox_events AS outbox ON outbox.aggregate_id = job.id
+     WHERE job.id = '40000000-0000-4000-8004-000000000001'`,
+  );
+  assert.deepEqual(leased.rows, [{ job_status: 'QUEUED', outbox_status: 'LEASED', lease_owner: 'late-worker' }]);
+});
+
+test('D01 completes the ledger with the cancelled count when nothing is left to wait for (#264)', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedDeletionFixture(pool);
+  await pool.query(
+    `UPDATE mint_jobs SET status = 'FINALIZED', finalized_at = '2026-09-19T14:59:00Z'
+     WHERE id = '40000000-0000-4000-8004-000000000002'`,
+  );
+  const service = new PostgresAccountDeletionService(pool, {
+    hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes',
+    nextRequestId: () => '90000000-0000-4000-8000-000000000012',
+    now: () => new Date('2026-09-19T15:00:00.000Z'),
+    policyVersion: 'account-deletion-v1',
+  });
+
+  const result = await service.requestDeletion({ accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT' });
+
+  assert.equal(result.status, 'COMPLETED');
+  assert.equal(result.cancelledMintJobs, 1);
+  assert.equal(result.pendingMintJobs, 0);
+  assert.equal(result.retainedFinalizedNfts, 2);
+  assert.equal(result.completedAt, '2026-09-19T15:00:00.000Z');
 });
 
 test('D01 keeps a prepared mint pending after its lease expires until terminal mint outcomes', async (t) => {
@@ -597,7 +771,7 @@ test('concurrent staff deletion and claim issue leave no original creator refere
 
 async function seedDeletionFixture(pool: Pool): Promise<void> {
   await pool.query(
-    'TRUNCATE account_deletion_requests, wallet_challenges, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, campaign_enrollments, merchant_members, campaign_goals, campaigns, merchants CASCADE',
+    'TRUNCATE account_consents, account_deletion_requests, wallet_challenges, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, campaign_enrollments, merchant_members, campaign_goals, campaigns, merchants CASCADE',
   );
   await pool.query(
     `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
@@ -650,13 +824,13 @@ async function seedDeletionFixture(pool: Pool): Promise<void> {
        id, campaign_id, target_visit_count, chain_id, contract_address,
        contract_address_normalized, series_key, max_ever_minted, status
      ) VALUES
-       ('series-delete-1', 'campaign-delete', 1, 31337,
+       ('s-0000000000000000000000000000d001', 'campaign-delete', 1, 31337,
         '0x7000000000000000000000000000000000000007',
         '0x7000000000000000000000000000000000000007', decode(repeat('41', 32), 'hex'), 10, 'ACTIVE'),
-       ('series-delete-3', 'campaign-delete', 3, 31337,
+       ('s-0000000000000000000000000000d003', 'campaign-delete', 3, 31337,
         '0x7000000000000000000000000000000000000007',
         '0x7000000000000000000000000000000000000007', decode(repeat('43', 32), 'hex'), 10, 'ACTIVE'),
-       ('series-delete-5', 'campaign-delete', 5, 31337,
+       ('s-0000000000000000000000000000d005', 'campaign-delete', 5, 31337,
         '0x7000000000000000000000000000000000000007',
         '0x7000000000000000000000000000000000000007', decode(repeat('45', 32), 'hex'), 10, 'ACTIVE')`,
   );
@@ -742,7 +916,7 @@ async function seedDeletionFixture(pool: Pool): Promise<void> {
       [
         `40000000-0000-4000-8004-${suffix}`,
         `20000000-0000-4000-8004-${suffix}`,
-        `series-delete-${target}`,
+        `s-${'0'.repeat(28)}d00${target}`,
         String(index + 1).repeat(2),
         `30000000-0000-4000-8004-${suffix}`,
         index,

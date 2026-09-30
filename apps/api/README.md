@@ -110,6 +110,9 @@ npm run start:local
   - 관리자(`/api/web/admin/*` 가드 위): `GET /api/web/admin/account-deletion-intakes`(대기 먼저·기한 순·마스킹한 계정 표지·`canProcess`), `POST …/account-deletion-intakes/:id/process`(취소 기간 뒤에만, 세션 `auth_time` 검사 없이 forget 실행·ledger 연결·`PROCESSED`·감사 `ACCOUNT_DELETION_PROCESSED`, 본인 접수는 `403 DELETION_SELF_PROCESSING_REFUSED`), `POST …/:id/reject {reason}`(1~200자, 이메일·웹 주소·8자리 이상 숫자열이 든 사유는 `400 DELETION_REJECT_REASON_INVALID`; 요청자가 사유를 그대로 본다), 옛 접수(접수번호 없음)는 `canProcess:false`이고 처리는 `409 DELETION_LEGACY_NEEDS_REFILE`(거절은 가능), 교착은 `409 DELETION_BUSY`, 거절된 처리 시도(본인 접수·취소 기간·옛 접수)는 `account_deletion.process_refused`·`account_deletion.reject_refused` 로그(거절 코드만), `POST /api/web/admin/account-deletions/reconcile`(`WAITING_FOR_MINT_FINALITY` ledger 재정산). 관리자 웹은 목록을 열 때 재정산을 먼저 부른다.
   - **시연 서버 전용 Bearer 경로**(운영 API에는 없어 404): `POST /account-deletion-intake`·`GET /account-deletion-intake`(내 활성 요청, 접수번호 없음)·`POST /account-deletion-intake/cancel`·`POST /account-deletion-status`.
   - 시연 운영자 CLI: `npm run admin:deletion -- list | process <id> | reject <id> "<사유>" | reconcile`(호스트는 `node dist/postgres/account-deletion-command.js …`). `DATABASE_URL`은 시연 호스트 URL(`postgresql://masscom_showcase@postgres:5432/masscom_showcase`) 또는 로컬 시연 `_test` URL만 받고 운영 DB는 거절한다. **API 컨테이너 안에서 실행**해야 서버와 같은 HMAC 비밀을 쓴다. 운영자 이름은 `MASSCOM_OPERATOR`(없으면 로그인 사용자)이며 `processed_by`와 감사 `actor_account_id`가 `cli:<이름>`이다. 취소 기간·감사·SELF 검사는 관리자 경로와 같은 서비스 코드다. `ACCOUNT_DELETION_HMAC_SECRET`이 필요하다.
+- **동의 기록(Issue #253, D-059):** `account_consents`(migration 0033, 새 표 하나뿐이라 배포된 API와 호환)는 `(계정, 약관 버전, 처리방침 버전)`을 기본 키로 만 14세 이상 확인·경로(`WEB`·`ANDROID`·`SHOWCASE_APP`, 서버가 정하고 클라이언트 값은 받지 않음)·시각을 기록한다. 버전은 코드 상수(`src/account-consent.ts`)이며 올리면 모든 계정이 다시 동의한다. `GET /me/consent`(Bearer)·`GET /api/web/consent`(웹 쿠키)는 `{ required, termsVersion, privacyVersion }`를, `POST`는 본문 정확히 `{ termsVersion, privacyVersion, ageConfirmed, termsAccepted, privacyAccepted }`(세 값 모두 `true`, 버전은 현재 값)를 받아 멱등으로 기록한다(400 `INVALID_REQUEST`·`CONSENT_INCOMPLETE`, 409 `CONSENT_VERSION_MISMATCH`, 410 `ACCOUNT_DELETED`). 웹 POST는 계정 삭제 접수와 같은 `Origin`·`application/json` 검사를 거친다. **서버는 `required`를 알리기만 하고 기존 쓰기 요청을 막지 않는다**(옛 앱 호환). 계정 삭제는 이 표의 행을 가명으로 남기지 않고 지운다.
+- **보관 기간 정리 명령(Issue #253):** `npm run admin:retention -- run`(호스트는 `node dist/postgres/retention-command.js run`)은 단계마다 한 거래로 지운다: 만료·해지된 `auth_sessions`·`web_sessions`, 끝난(처리·취소·거절) 지 **1년**이 지난 `account_deletion_intake_requests`, 점주 지정·해제를 뺀 `platform_admin_audit`(처리 기록)와 `badge_coupon_audit`은 기록한 지 **1년**, 접근권한 부여·변경·말소 기록(`platform_admin_role_audit`·`staff_registration_audit`·`platform_admin_audit`의 `MERCHANT_OWNER_GRANTED`·`MERCHANT_OWNER_REVOKED`)은 **3년**(개인정보의 안전성 확보조치 기준 제5조 제3항), 계정 ID를 가진 일회용 행(`customer_identity_tokens`·`wallet_challenges`·`web_oauth_states`는 만료 **1일** 뒤, `staff_registration_requests`는 사용·만료 1일 뒤). `run`은 지우기 단계 뒤에 **삭제된 계정의 감사 대상 ID 비식별화**(`admin_audit_deleted_targets`, Issue #263)도 한다: 이 열(`platform_admin_audit.target_account_id`)을 모르는 이전 API가 롤백 중에 처리한 계정 삭제가 원 계정 ID를 남길 수 있으므로, 삭제 원장에 해시가 있는 계정의 원 ID를 계정 삭제와 같은 별칭(`deleted:<HMAC>`)으로 바꾼다(`ACCOUNT_DELETION_HMAC_SECRET` 필요: 없거나 32바이트보다 짧으면 이 단계만 실패하고, 이미 별칭인 행과 살아 있는 계정은 건드리지 않아 다시 돌려도 0이며, 500개 계정씩 한 거래로 바꾼 행 수만 출력한다). `report`는 아무것도 지우지 않고 지울 개수만 센다(이 비식별화 단계는 세지 않는다). 출력은 `단계<TAB>개수`뿐(계정·행 식별자 없음)이고 한 단계가 실패해도 나머지를 하고 실패한 단계 이름을 stderr에 적으며 종료 코드 1이다. 활성 `REQUESTED` 접수와 삭제 원장 `account_deletion_requests`는 지우지 않는다. `badge_coupon_audit`은 쿠폰 되돌리기의 멱등 재시도(사용 처리 10분 창)에서만 읽히므로 1년 지난 행은 필요 없다. `purge-deleted-consents`(매일 정리에는 없음)는 **롤백 복구용**이다: 동의 기능 이전 API가 도는 동안 삭제 처리된 계정의 `account_consents` 행을 새 API로 다시 올린 뒤 한 번 실행해 삭제 원장의 해시와 대조해 지운다(`ACCOUNT_DELETION_HMAC_SECRET` 필요). `DATABASE_URL`(시연 호스트는 `PGPASSWORD`도)이 필요하고 서버의 매일 작업이 API 컨테이너 안에서 실행한다([호스트 작업](../../infra/lightsail/README.md)).
+- **동의 버전을 올릴 때(Issue #253):** 약관·처리방침 본문을 실질적으로 바꿀 때만 `src/account-consent.ts`의 상수를 올리며, **APK·웹(`apps/mobile/src/privacy/consent-copy.ts`·`apps/production-web/assets/production.mjs`)을 새 상수로 먼저 또는 함께 내보낸 뒤에** 서버를 올린다(서버가 먼저면 옛 화면은 새 버전을 받지 못해 업데이트 안내에 막힌다). `docs/terms.html`·`docs/privacy.html`의 버전 표기도 함께 올린다(`tests/site/legal-pages.test.mjs`가 다섯 곳을 비교한다). API를 0033 이전으로 롤백하면 웹·APK도 함께 되돌려야 한다([인수인계](../../docs/HANDOFF.md)).
   - 직접 삭제가 먼저 일어나면(`POST /account-deletion-requests`) 그 계정의 접수 행은 `PROCESSED`(`processed_by='self-service'`)로 닫히고 원 계정 ID가 지워진다.
 - **실제 점포 운영 시작(D-054, Issue #246, migration 0032, [설계](../../docs/superpowers/specs/2026-09-30-store-go-live-design.md), [운영 안내](../../docs/MERCHANT_ONBOARDING.md)).** 모두 `/api/web/admin/*` 가드(관리자 쿠키·동일 `Origin`·JSON) 위이고 모르는 본문 키는 `400 INVALID_REQUEST`, 동작마다 `platform_admin_audit`에 남는다.
   - `POST merchants/:id/publish {expectedVersion, consentDocumentRef}` → `{merchant}`: 비공개 실제 점포를 공개(메뉴 1개 이상·영업시간·도로명 주소가 없으면 `409 ADMIN_MERCHANT_NOT_READY`, 이미 공개면 `409 ADMIN_MERCHANT_ALREADY_ACTIVE`). 점포에 참조 번호·`publishedAt`이 남고 감사 `MERCHANT_PUBLISHED`. 숨김 때 멈춘 캠페인·혜택은 되살리지 않는다.
@@ -137,7 +140,7 @@ npm run start:local
 
 점주 권한이 있는 사람이 가게 이름·메뉴 이름(서버가 가진 값, 자유 문장 없음)으로 스타일이 다른 시안 4장(도장·스티커·수채화·판화)을 받고, 하나를 고르면 같은 그림을 고품질로 다시 그려 고객 앱의 가게 그림으로 쓴다. 설계·근거는 [`docs/superpowers/specs/2026-09-29-ai-store-art-design.md`](../../docs/superpowers/specs/2026-09-29-ai-store-art-design.md).
 
-점주용 경로는 모두 `Authorization: Bearer <세션 토큰>`(고객 인증)과 그 가게의 활성 멤버십 `MANAGE_ART` 권한이 필요하다. `MANAGE_ART`는 **활성 OWNER**에게 주고, 활성 STAFF에게는 `AI_ART_STAFF_MAY_MANAGE=true`인 환경에서만 준다(기본 `false`). 시연 compose만 `true`로 켜고(시연은 CLI로 소유자 계정에만 STAFF를 준다) **운영은 켜지 않는다**. 운영 OWNER는 관리자 웹의 확인 절차로 생길 수 있지만(D-054), **운영 `OPENAI_API_KEY`는 정책(D-050)상 비워 둔다**: 키가 비어 있으면 생성 API는 `503 AI_ART_NOT_CONFIGURED`이고, 키를 넣는 일은 소유자가 운영 예산·사용을 따로 승인한 뒤에 한다. 이 권한은 `context` 응답의 `permissions` 목록에는 싣지 않는다(설치된 앱 파서가 모르는 값을 거절하기 때문). 권한이 없거나 다른 가게면 `403 MERCHANT_ACCESS_DENIED`다. 모든 JSON 응답은 `no-store`다.
+점주용 경로는 모두 `Authorization: Bearer <세션 토큰>`(고객 인증)과 그 가게의 활성 멤버십 `MANAGE_ART` 권한이 필요하다. `MANAGE_ART`는 **활성 OWNER**에게 주고, 활성 STAFF에게는 `AI_ART_STAFF_MAY_MANAGE=true`인 환경에서만 준다(기본 `false`). 시연 compose만 `true`로 켜고(시연은 CLI로 소유자 계정에만 STAFF를 준다) **운영은 켜지 않는다**. 운영 OWNER는 관리자 웹의 확인 절차로 생길 수 있지만(D-054), **운영 `OPENAI_API_KEY`는 정책(D-050)상 비워 둔다**: 키가 비어 있으면 생성 API는 `503 AI_ART_NOT_CONFIGURED`이고, 키를 넣는 일은 소유자가 운영 예산·사용을 따로 승인한 뒤에 한다. 이 권한은 `context` 응답의 `permissions` 목록에는 싣지 않는다(설치된 앱 파서가 모르는 값을 거절하기 때문). 권한이 없거나 다른 가게면 `403 MERCHANT_ACCESS_DENIED`다. 시안 받기·고르기·적용·되돌리기는 요청 시작의 이 검사와 별개로 **자기 트랜잭션 안에서 계정의 현재 멤버십·역할을 가게 행 `FOR SHARE`로 다시 확인**하므로(#264), 검사 뒤에 회수·강등돼도 같은 `403`이고 상태는 바뀌지 않는다. 모든 JSON 응답은 `no-store`다.
 
 | 경로 | 성공 | 오류 |
 | --- | --- | --- |
@@ -178,7 +181,7 @@ AI_ART_OPENAI_BASE_URL=http://127.0.0.1:4010 OPENAI_API_KEY=fake-local-key \
   npm run start:local --prefix apps/api                      # 다른 셸에서
 ```
 
-한 가지 색으로 채운 1024x1024 webp를 돌려준다(시안은 스타일마다 색이 다르고 최종은 고른 시안의 색을 이어받아 조금 밝다. 요청마다 바이트가 다르다). 선택 환경 변수: `FAKE_OPENAI_FAIL`(`moderation`·`rate_limit`·`spend_limit`·`server_error`), `FAKE_OPENAI_FAIL_PATH`(`generations`·`edits`·`both`), `FAKE_OPENAI_DELAY_MS`(기본 1500, 실제처럼 오래 걸리게 하려면 60000 등), `FAKE_OPENAI_LOG_PROMPT=1`(프롬프트 출력). Authorization 헤더가 없으면 401이다.
+한 가지 색으로 채운 1024x1024 webp를 돌려준다(시안은 스타일마다 색이 다르고 최종은 고른 시안의 색을 이어받아 조금 밝다. 요청마다 바이트가 다르다). 선택 환경 변수: `FAKE_OPENAI_FAIL`(`moderation` 400·`rate_limit` 429·`spend_limit` 429 잔액 소진·`server_error` 500·`unavailable` 503), `FAKE_OPENAI_FAIL_PATH`(`generations`·`edits`·`both`), `FAKE_OPENAI_FAIL_COUNT`(1 이상: 앞의 N개 요청만 오류, 그 뒤는 정상 — 1이면 "한 번 재시도하면 성공"), `FAKE_OPENAI_DELAY_MS`(기본 1500, 실제처럼 오래 걸리게 하려면 60000 등), `FAKE_OPENAI_LOG_PROMPT=1`(프롬프트 출력). Authorization 헤더가 없으면 401이다.
 
 #### 운영 점검: 가게 그림 내리기(관리자 SQL)
 
@@ -203,12 +206,51 @@ COMMIT;
 BEGIN;
 DELETE FROM merchant_art WHERE sha256 = '<sha>';
 DELETE FROM merchant_art_images WHERE sha256 = '<sha>';
+-- 이미 발행한 NFT에 고정된 같은 그림(/nft-metadata/images/<sha>.webp)도 내린다(아래 NFT 메타데이터 내리기 참고).
+INSERT INTO nft_metadata_takedowns (target, reason) VALUES ('image:<sha>', '<짧은 사유, 개인정보 없이>')
+ON CONFLICT (target) DO NOTHING;
 COMMIT;
 ```
 
 `merchant_art.sha256`은 유일하지 않다(서로 다른 가게가 우연히 같은 그림 바이트를 적용할 수 있다). 그래서 `sha256`으로 지우면 같은 바이트를 쓰는 **다른 가게의 그림도 함께** 내려가고, 그 주소는 확실히 404가 된다. 반대로 위의 `merchant_id` 문장은 그 가게만 내리므로, 같은 바이트를 쓰는 다른 가게가 있으면 그 가게의 행이 남아 옛 주소는 계속 200이다(404는 같은 바이트를 쓰는 가게가 하나도 남지 않을 때만 맞다). 신고된 그림 자체를 막으려면 `sha256` 문장을, 한 가게만 내리려면 `merchant_id` 문장을 쓴다.
 
 이미 그림을 받아 둔 기기는 카탈로그(가게 목록)를 다시 받을 때까지 캐시한 그림을 계속 보여 줄 수 있다(공개 그림 주소는 `immutable`로 1년 캐시된다). 목록을 새로 받으면 `artUrl`이 `null`이라 더는 그 주소를 쓰지 않는다. 가게가 같은 그림을 다시 적용할 수는 있으므로 계속 막아야 하면 그 가게의 `merchant_members`를 회수한다.
+
+### 공개 NFT 메타데이터 (Issue #254, D-060, migration 0036)
+
+발행이 체인에서 확정될 때 Worker가 `nft_token_metadata`에 고정한 메타데이터와 `nft_metadata_images`에 복사한 가게 그림을 로그인 없이 내보낸다. 이 서버는 스냅샷을 만들지 않고 읽기만 한다([설계](../../docs/superpowers/specs/2026-09-30-nft-metadata-design.md)).
+
+| 경로 | 응답 |
+| --- | --- |
+| `GET`·`HEAD /nft-metadata/<series>/<tokenId>.json` | 스냅샷이 있고 내리지 않았으면 `200`, 저장된 바이트 그대로 `application/json; charset=utf-8`, `Cache-Control: public, max-age=86400`(거부 목록이 늦어도 하루 안에 반영), `Access-Control-Allow-Origin: *` |
+| `GET`·`HEAD /nft-metadata/images/<sha256>.webp` | 보존된 그림이 있고 내리지 않았으면 `200 image/webp`, 같은 캐시·CORS |
+| `GET`·`HEAD /nft-metadata/default/mascot-stamp-v1.png` | 판이 붙은 기본 도장 `200 image/png`(바이트 고정, `src/nft-default-stamp.ts`, DB 불필요), `public, max-age=31536000, immutable`, CORS |
+| 없는 토큰·다른 시리즈·확정 전·내린 토큰·그림·잘못된 경로 | `404 {"code":"NOT_FOUND"}`, `Cache-Control: no-store`, CORS 포함. DB가 없으면 `503 NFT_METADATA_NOT_CONFIGURED` |
+
+200 응답은 `Content-Length`를 붙이고 `HEAD`도 같은 길이를 알린다. 스냅샷 때 공개 중이 아닌 점포(ACTIVE가 아니거나, 실제 점포인데 동의서 참조 번호가 없음)의 토큰은 `월계 방문 도장`과 방문 단계만 담는 일반 메타데이터다. 가게 AI 그림을 쓴 토큰에는 `{"trait_type":"그림","value":"AI 생성"}` 속성이 붙는다.
+
+`<series>`는 `nft_series.id`(DB CHECK: 뜻 없는 불투명 id `^s-[0-9a-f]{32}$`. 경로 규칙은 더 넓은 `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`로 이 모양을 받고, 대소문자와 무관하게 `base-sepolia-proof` 제외. 시리즈 id는 온체인 주소에 영구히 남으므로 가게 이름·동네·업종·캠페인을 넣지 않는다), `<tokenId>`는 앞자리 0 없는 10진수다. 온체인 `createSeries`의 base URI는 `<출처>/nft-metadata/<nft_series.id>/`로 준다(운영 `https://masscom.kr` — Caddy가 이 모양의 경로만 API로 넘김, 시연 `https://demo-api.masscom.kr`). 메타데이터 행은 수정·삭제할 수 없고 그림 행은 수정할 수 없다(DB 트리거). 이 트리거는 앱 코드의 실수를 막는 장치이며, 표 소유자 역할은 트리거를 끌 수 있으므로 DB 권한 경계는 아니다. 그림 행에는 `sha256 = encode(sha256(image), 'hex')` CHECK가 있다.
+
+#### 운영 점검: NFT 메타데이터·그림 내리기(거부 목록)
+
+신고·정책 문제로 이미 발행한 토큰의 공개 메타데이터나 그림을 내려야 하면 행을 고치지 않고 `nft_metadata_takedowns`에 넣는다. `image:<sha256>`은 그림 주소를, `asset:<nft_assets.id>`는 그 토큰의 메타데이터 주소를 `404`(no-store)로 만들고, 내린 그림은 다음 스냅샷이 복사하지 않는다(기본 도장).
+
+```sql
+BEGIN;
+-- 그림: <sha>는 /nft-metadata/images/<sha>.webp의 64자리 해시. 가게에 적용된 그림도 함께 내리려면 위 merchant_art SQL을 같이 쓴다.
+INSERT INTO nft_metadata_takedowns (target, reason) VALUES ('image:<sha>', '<짧은 사유, 개인정보 없이>')
+ON CONFLICT (target) DO NOTHING;
+-- 토큰 메타데이터: 시리즈 id와 token id로 자산 id를 찾아 내린다.
+INSERT INTO nft_metadata_takedowns (target, reason)
+SELECT 'asset:' || nft_asset_id::text, '<짧은 사유, 개인정보 없이>'
+FROM nft_token_metadata WHERE nft_series_id = '<series-id>' AND token_id = <token-id>
+ON CONFLICT (target) DO NOTHING;
+COMMIT;
+```
+
+커밋 뒤 확인: `curl -sS -o /dev/null -w '%{http_code} %header{cache-control}\n' https://masscom.kr/nft-metadata/images/<sha>.webp`(또는 `/nft-metadata/<series-id>/<token-id>.json`)이 `404 no-store`여야 한다. 200 응답은 하루(`max-age=86400`) 캐시되므로 늦어도 하루 뒤에는 캐시도 새로 받지만, 이미 받아 저장한 지갑·마켓의 사본은 남을 수 있다(서버에서 지울 수 없음). 되돌리려면 그 행을 지운다(`DELETE FROM nft_metadata_takedowns WHERE target = '...'`).
+
+관리자 점포 API(`POST /api/web/admin/merchants`, `PATCH /api/web/admin/merchants/:id`)는 선택 키 `neighborhood`(행정동: `^[가-힣][가-힣0-9·]{0,8}[동가리]$`, 숫자 3자리 이상 연속 금지)·`category`(`한식`·`중식`·`일식`·`양식`·`분식`·`카페`·`베이커리`·`주점`·`기타`)를 받는다. 키가 없으면 그대로, `null`·빈 문자열이면 비우고, 규칙 위반은 `400 ADMIN_INVALID_INPUT`이다. 점포 공개 조건과는 무관하다.
 
 두 POST 요청의 계정은 서버 `AccountResolver`가 결정합니다. `x-account-id`는 loopback 서버의 명시적 insecure demo 모드에서만 읽으며 실제 로그인 인증을 대신하지 않습니다.
 

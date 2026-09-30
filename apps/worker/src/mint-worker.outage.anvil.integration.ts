@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
@@ -15,6 +16,8 @@ import { Pool } from 'pg';
 import { EthersMintChainGateway } from './ethers-chain-gateway.js';
 import { MintWorker } from './mint-worker.js';
 import { PostgresMintRepository } from './postgres-mint-repository.js';
+
+const testMetadataOrigin = 'https://masscom.kr';
 
 // Anvil's default dev accounts (index 0 = admin, 1 = minter, 2 = pauser, 3 = recipient), matching
 // the fixtures already used by mint-worker.anvil.integration.ts.
@@ -55,7 +58,7 @@ test('O02a recovers a job once an unreachable RPC endpoint comes back', async (t
     confirmations: 1,
     fromBlock: 0,
   });
-  const repository = new PostgresMintRepository(pool);
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const outageWorker = new MintWorker(repository, unreachableGateway);
 
   assert.equal(await outageWorker.runOnce('outage-worker-a'), true);
@@ -76,7 +79,7 @@ test('O02a recovers a job once an unreachable RPC endpoint comes back', async (t
     confirmations: 1,
     fromBlock: 0,
   });
-  const recoveredWorker = new MintWorker(new PostgresMintRepository(pool), recoveredGateway);
+  const recoveredWorker = new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), recoveredGateway);
   assert.equal(await recoveredWorker.runOnce('outage-worker-a-recovered'), true);
 
   const finalState = await readJobState(pool, jobId);
@@ -118,7 +121,7 @@ test('O02b recovers a job once minting is unpaused', async (t) => {
     confirmations: 1,
     fromBlock: 0,
   });
-  const worker = new MintWorker(new PostgresMintRepository(pool), gateway);
+  const worker = new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), gateway);
 
   assert.equal(await worker.runOnce('outage-worker-b'), true);
   const pausedState = await readJobState(pool, jobId);
@@ -173,7 +176,7 @@ test('O02c recovers a job once the minter balance is restored', async (t) => {
     confirmations: 1,
     fromBlock: 0,
   });
-  const worker = new MintWorker(new PostgresMintRepository(pool), gateway);
+  const worker = new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), gateway);
 
   assert.equal(await worker.runOnce('outage-worker-c'), true);
   const drainedState = await readJobState(pool, jobId);
@@ -223,7 +226,7 @@ test('O02d a deployed contract with a different interface goes to manual review 
     fromBlock: 0,
   });
 
-  assert.equal(await new MintWorker(new PostgresMintRepository(pool), gateway).runOnce('outage-worker-d'), true);
+  assert.equal(await new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), gateway).runOnce('outage-worker-d'), true);
   const state = await readJobState(pool, jobId);
   assert.equal(state.status, 'MANUAL_REVIEW');
   assert.equal(state.last_error_code, 'CONTRACT_INTERFACE_MISMATCH');
@@ -262,7 +265,7 @@ test('O02e retries a submitted mint that reverted from a pause raced in after su
     confirmations: 1,
     fromBlock: 0,
   });
-  const repository = new PostgresMintRepository(pool);
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const worker = new MintWorker(repository, gateway);
 
   await provider.send('evm_setAutomine', [false]);
@@ -422,7 +425,7 @@ async function seedOutageJob(
        decode(substr($5, 3), 'hex'), 1, 'ACTIVE'
      )`,
     [
-      `series-outage-${options.suffix}`,
+      `s-${createHash('md5').update(`outage-${options.suffix}`).digest('hex')}`,
       campaignId,
       options.contractAddress,
       options.contractAddress.toLowerCase(),
@@ -484,7 +487,7 @@ async function seedOutageJob(
       jobId,
       entitlementId,
       customerId,
-      `series-outage-${options.suffix}`,
+      `s-${createHash('md5').update(`outage-${options.suffix}`).digest('hex')}`,
       options.rewardKey,
       bindingId,
       options.recipient,

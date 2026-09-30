@@ -15,6 +15,7 @@ import {
   type AdminDeletionIntake,
   type DeletionIntakeStatusView,
 } from './account-deletion-intake.js';
+import { ConsentError, type ConsentErrorCode, type ConsentService } from './account-consent.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardErrorCode, type BadgeRewardService } from './badge-rewards.js';
 import { FriendError, type FriendErrorCode, type FriendService } from './friends.js';
@@ -220,6 +221,7 @@ async function startFixture(
   showcaseDeletionIntake?: AccountDeletionIntakeService,
   deletionProcessing?: AccountDeletionProcessingService,
   reversals?: ReversalService,
+  consent?: ConsentService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -257,6 +259,7 @@ async function startFixture(
     showcaseDeletionIntake,
     deletionProcessing,
     reversals,
+    consent,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -887,6 +890,45 @@ test('authenticated admin API accepts menu and hours without changing the mercha
   assert.equal(updated.status, 200);
   assert.deepEqual(writes, [
     ['create', 'admin-account', input],
+    ['update', 'admin-account', 'real-1', 3, input],
+  ]);
+});
+
+test('관리자 API는 동네·업종 키(값과 null)를 서비스로 그대로 넘기고, 키가 없으면 넘기지 않으며, 모르는 키는 거절한다(#254)', async (t) => {
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); },
+    complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'admin-account', logout: async () => {},
+  };
+  const writes: unknown[][] = [];
+  const admin = {
+    isAdmin: async () => true,
+    createMerchant: async (...args: unknown[]) => { writes.push(['create', ...args]); return { id: 'real-1' }; },
+    updateMerchant: async (...args: unknown[]) => { writes.push(['update', ...args]); return { id: 'real-1' }; },
+  } as unknown as Pick<PostgresAdminService,
+    'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'>;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const headers = { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr',
+    'content-type': 'application/json' };
+  const input = { name: '실제 점포', story: '', roadAddress: '서울', minimumSpendWon: 0 };
+  const withProfile = { ...input, neighborhood: '월계1동', category: '분식' };
+  assert.equal((await webRequest(base, '/api/web/admin/merchants', {
+    method: 'POST', headers, body: JSON.stringify(withProfile),
+  })).status, 201);
+  assert.equal((await webRequest(base, '/api/web/admin/merchants/real-1', {
+    method: 'PATCH', headers, body: JSON.stringify({ ...input, neighborhood: null, category: null, expectedVersion: 2 }),
+  })).status, 200);
+  assert.equal((await webRequest(base, '/api/web/admin/merchants/real-1', {
+    method: 'PATCH', headers, body: JSON.stringify({ ...input, expectedVersion: 3 }),
+  })).status, 200);
+  const typo = await webRequest(base, '/api/web/admin/merchants/real-1', {
+    method: 'PATCH', headers, body: JSON.stringify({ ...input, neighbourhood: '월계동', expectedVersion: 4 }),
+  });
+  assert.equal(typo.status, 400);
+  assert.deepEqual(writes, [
+    ['create', 'admin-account', withProfile],
+    ['update', 'admin-account', 'real-1', 2, { ...input, neighborhood: null, category: null }],
     ['update', 'admin-account', 'real-1', 3, input],
   ]);
 });
@@ -3413,7 +3455,7 @@ test('art routes need customer auth and MANAGE_ART before touching the service',
     getRound: async (input) => { calls.push(['get', input]); return sampleArtRound; },
     chooseDraft: async (input) => { calls.push(['choose', input]); return { ...sampleArtRound, status: 'FINALIZING', chosenIndex: input.index }; },
     apply: async (input) => { calls.push(['apply', input]); return { artUrl: `/merchant-art/${'a'.repeat(64)}.webp` }; },
-    reset: async (merchantId) => { calls.push(['reset', merchantId]); },
+    reset: async (input) => { calls.push(['reset', input]); },
   }));
   const owner = { 'x-account-id': 'owner-1', 'content-type': 'application/json' };
   const art = `${base}/merchant/merchants/shop-1/art`;
@@ -3452,7 +3494,9 @@ test('art routes need customer auth and MANAGE_ART before touching the service',
   assert.deepEqual(calls, [
     ['state', 'shop-1'], ['create', { merchantId: 'shop-1', accountId: 'owner-1' }],
     ['create', { merchantId: 'shop-1', accountId: 'owner-1' }], ['get', { merchantId: 'shop-1', roundId }],
-    ['choose', { merchantId: 'shop-1', roundId, index: 3 }], ['apply', { merchantId: 'shop-1', roundId }], ['reset', 'shop-1'],
+    ['choose', { merchantId: 'shop-1', roundId, index: 3, accountId: 'owner-1' }],
+    ['apply', { merchantId: 'shop-1', roundId, accountId: 'owner-1' }],
+    ['reset', { merchantId: 'shop-1', accountId: 'owner-1' }],
   ]);
 });
 
@@ -3506,6 +3550,23 @@ test('art errors map to their HTTP statuses, with Retry-After for the daily limi
   const crashed = await fetch(`${base}/merchant/merchants/shop-1/art/rounds`, { method: 'POST', headers: owner, body: '{}' });
   assert.equal(crashed.status, 500);
   assert.deepEqual(await crashed.json(), { code: 'INTERNAL_ERROR' });
+});
+
+test('losing MANAGE_ART inside the art transaction answers 403 MERCHANT_ACCESS_DENIED on every mutating route (#264)', async (t) => {
+  const denied = async () => { throw new MerchantAccessError('MERCHANT_ACCESS_DENIED'); };
+  const { base } = await startArt(t, artFixture({ createRound: denied, chooseDraft: denied, apply: denied, reset: denied }));
+  const owner = { 'x-account-id': 'owner-1', 'content-type': 'application/json' };
+  const art = `${base}/merchant/merchants/shop-1/art`;
+  const roundId = sampleArtRound.id;
+  for (const [method, url, body] of [
+    ['POST', `${art}/rounds`, '{}'], ['POST', `${art}/rounds/${roundId}/choose`, '{"index":1}'],
+    ['POST', `${art}/rounds/${roundId}/apply`, '{}'], ['DELETE', art, '{}'],
+  ] as const) {
+    const response = await fetch(url, { method, headers: owner, body });
+    assert.equal(response.status, 403, `${method} ${url}`);
+    assert.deepEqual(await response.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
 });
 
 test('art routes are closed without configuration and the public image route needs a valid hash', async (t) => {
@@ -3842,6 +3903,135 @@ test('admin coupon routes list and void behind the admin cookie, origin and JSON
     { ...admin, isAdmin: async () => false } as unknown as PostgresAdminService);
   assert.equal((await webRequest(denied, listPath, { headers: { cookie: headers.cookie } })).status, 403);
   assert.equal((await webRequest(denied, voidPath, { method: 'POST', headers, body: '{"reason":"OTHER"}' })).status, 403);
+});
+
+const consentVersions = { termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-09-30' };
+const consentBody = { ...consentVersions, ageConfirmed: true, termsAccepted: true, privacyAccepted: true };
+
+function consentFixture(
+  overrides: Partial<ConsentService> = {},
+  calls: unknown[][] = [],
+): ConsentService {
+  return {
+    appSource: 'ANDROID',
+    status: async (accountId) => { calls.push(['status', accountId]); return { required: true, ...consentVersions }; },
+    record: async (input) => { calls.push(['record', input]); return { required: false, ...consentVersions }; },
+    ...overrides,
+  };
+}
+
+async function startConsent(t: TestContext, consent?: ConsentService, webAuth?: TestWebAuth) {
+  return startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, true,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, consent);
+}
+
+test('app consent routes need a customer session, read required, and record only the exact five fields', async (t) => {
+  const calls: unknown[][] = [];
+  const base = await startConsent(t, consentFixture({}, calls));
+  const account = { 'x-account-id': 'customer-1' };
+  const json = { 'content-type': 'application/json', ...account };
+  assert.equal((await fetch(`${base}/me/consent`)).status, 401);
+  assert.equal((await fetch(`${base}/me/consent`, { method: 'POST', body: JSON.stringify(consentBody) })).status, 401);
+  assert.deepEqual(calls, []);
+
+  const read = await fetch(`${base}/me/consent`, { headers: account });
+  assert.equal(read.status, 200);
+  assert.equal(read.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await read.json(), { required: true, ...consentVersions });
+
+  const post = (body: unknown) => fetch(`${base}/me/consent`, { method: 'POST', headers: json, body: JSON.stringify(body) });
+  const recorded = await post(consentBody);
+  assert.equal(recorded.status, 200);
+  assert.deepEqual(await recorded.json(), { required: false, ...consentVersions });
+  // The route is chosen by the server (this fixture is the operating API), never by the client body.
+  assert.deepEqual(calls.at(-1), ['record', { accountId: 'customer-1', source: 'ANDROID', ...consentBody }]);
+  const before = calls.length;
+  for (const bad of [
+    {}, [], { ...consentBody, source: 'WEB' }, { ...consentBody, accountId: 'customer-2' },
+    { termsVersion: consentBody.termsVersion, privacyVersion: consentBody.privacyVersion, ageConfirmed: true, termsAccepted: true },
+    { ...consentBody, ageConfirmed: 'true' }, { ...consentBody, termsAccepted: 1 },
+    { ...consentBody, termsVersion: 3 }, { ...consentBody, privacyVersion: 'x'.repeat(65) },
+  ]) {
+    const refused = await post(bad);
+    assert.equal(refused.status, 400, JSON.stringify(bad));
+    // A body that is not a JSON object (the array) is refused by the shared reader before the field check.
+    assert.deepEqual(await refused.json(), { code: Array.isArray(bad) ? 'INVALID_JSON_BODY' : 'INVALID_REQUEST' });
+  }
+  assert.equal(calls.length, before, 'a malformed body never reaches the service');
+  assert.equal((await fetch(`${base}/me/consent`, { method: 'DELETE', headers: account })).status, 404);
+});
+
+test('consent records the showcase route on the showcase server and maps refusals to status codes', async (t) => {
+  const calls: unknown[][] = [];
+  let failure: ConsentErrorCode | undefined;
+  const base = await startConsent(t, consentFixture({
+    appSource: 'SHOWCASE_APP',
+    record: async (input) => {
+      if (failure) throw new ConsentError(failure);
+      calls.push(['record', input]);
+      return { required: false, ...consentVersions };
+    },
+  }));
+  const headers = { 'content-type': 'application/json', 'x-account-id': 'customer-1' };
+  const post = () => fetch(`${base}/me/consent`, { method: 'POST', headers, body: JSON.stringify(consentBody) });
+  assert.equal((await post()).status, 200);
+  assert.equal((calls[0]![1] as { source: string }).source, 'SHOWCASE_APP');
+  for (const [code, status] of [['CONSENT_INCOMPLETE', 400], ['CONSENT_VERSION_MISMATCH', 409], ['ACCOUNT_DELETED', 410]] as const) {
+    failure = code;
+    const response = await post();
+    assert.equal(response.status, status, code);
+    assert.deepEqual(await response.json(), { code });
+  }
+});
+
+test('web consent needs the host-bound cookie and, to record, a same-origin JSON request', async (t) => {
+  const calls: unknown[][] = [];
+  const base = await startConsent(t, consentFixture({}, calls), intakeWebAuth());
+  const path = '/api/web/consent';
+  const cookie = { cookie: 'web_session=valid-cookie' };
+  assert.equal((await webRequest(base, path, { method: 'PUT' })).status, 405);
+  assert.equal((await webRequest(base, path)).status, 401);
+  assert.equal((await webRequest(base, path, { headers: { cookie: 'web_session=other' } })).status, 401);
+
+  const read = await webRequest(base, path, { headers: cookie });
+  assert.equal(read.status, 200);
+  assert.deepEqual(await read.json(), { required: true, ...consentVersions });
+  assert.equal(read.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.equal(read.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(calls, [['status', 'session-account']]);
+
+  const body = JSON.stringify(consentBody);
+  for (const headers of [
+    { ...cookie, 'content-type': 'application/json' },
+    { ...cookie, origin: 'https://evil.example', 'content-type': 'application/json' },
+    { ...cookie, origin: 'https://masscom.kr', 'content-type': 'text/plain' },
+  ]) {
+    assert.equal((await webRequest(base, path, { method: 'POST', headers, body })).status, 403);
+  }
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: webJson, body })).status, 401);
+  assert.equal(calls.length, 1);
+
+  const recorded = await webRequest(base, path, { method: 'POST', headers: { ...webJson, ...cookie }, body });
+  assert.equal(recorded.status, 200);
+  assert.deepEqual(await recorded.json(), { required: false, ...consentVersions });
+  assert.deepEqual(calls.at(-1), ['record', { accountId: 'session-account', source: 'WEB', ...consentBody }]);
+  // The account comes from the cookie only; an account id in the body is an unknown field.
+  const smuggled = await webRequest(base, path, { method: 'POST', headers: { ...webJson, ...cookie },
+    body: JSON.stringify({ ...consentBody, accountId: 'someone-else' }) });
+  assert.equal(smuggled.status, 400);
+  assert.equal(calls.length, 2);
+});
+
+test('consent routes are closed without configuration and without a web session service', async (t) => {
+  const unconfigured = await startConsent(t, undefined, intakeWebAuth());
+  assert.equal((await fetch(`${unconfigured}/me/consent`, { headers: { 'x-account-id': 'customer-1' } })).status, 503);
+  const web = await webRequest(unconfigured, '/api/web/consent', { headers: { cookie: 'web_session=valid-cookie' } });
+  assert.equal(web.status, 503);
+  assert.deepEqual(await web.json(), { code: 'WEB_CONSENT_NOT_CONFIGURED' });
+  const noWebAuth = await startConsent(t, consentFixture());
+  assert.equal((await webRequest(noWebAuth, '/api/web/consent', { headers: { cookie: 'web_session=x' } })).status, 503);
 });
 
 test('while production NFT minting is preparing, a new mint request is refused with 409 but job lookup still works', async (t) => {

@@ -12,11 +12,13 @@ test('migration discovery accepts numbered SQL files and rejects macOS metadata 
   assert.equal(isMigrationFilename('0001_merchant_catalog.sql.bak'), false);
 });
 
-test('0032 sets its lock timeout with SET LOCAL inside the per-file transaction the runner opens', async () => {
+test('0032 and 0036 set their lock timeout with SET LOCAL inside the per-file transaction the runner opens', async () => {
   const { readFile } = await import('node:fs/promises');
-  const sql = await readFile(new URL('../migrations/0032_store_go_live.sql', import.meta.url), 'utf8');
-  const statements = sql.split('\n').filter(line => line.trim() && !line.trim().startsWith('--'));
-  assert.equal(statements[0], "SET LOCAL lock_timeout = '5s';");
+  for (const file of ['0032_store_go_live.sql', '0036_nft_metadata.sql']) {
+    const sql = await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8');
+    const statements = sql.split('\n').filter(line => line.trim() && !line.trim().startsWith('--'));
+    assert.equal(statements[0], "SET LOCAL lock_timeout = '5s';", file);
+  }
   // SET LOCAL은 트랜잭션 밖에서는 경고만 남기고 효과가 없다. 실행기가 파일마다 BEGIN으로 감싸야 이 값이 이 파일에만 적용된다.
   const runner = await readFile(new URL('./postgres/migrate.ts', import.meta.url), 'utf8');
   assert.match(runner, /await client\.query\('BEGIN'\);\s*try \{\s*await client\.query\(sql\);/);

@@ -26,13 +26,16 @@ import {
   type DestructiveReauthentication,
 } from '@/privacy/deletion-capability';
 import {
+  ambiguousFailureOutcome,
   canRequestShowcaseDeletion,
   describeDeletionIntake,
   formatKstMinute,
   intakeUnknownMessage,
   lookupFailureMessage,
+  type AmbiguousIntakeAction,
   type IntakeDescription,
 } from '@/privacy/deletion-intake-copy';
+import { legalLinks } from '@/privacy/consent-copy';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
@@ -81,6 +84,7 @@ export function AccountSettingsScreen({
   const [busy, setBusy] = useState<'delete' | 'logout' | 'switch' | 'intake'>();
   const [result, setResult] = useState<AccountDeletionResult>();
   const [error, setError] = useState<string>();
+  const [legalError, setLegalError] = useState<string>();
   const [message, setMessage] = useState<string>();
   // undefined는 아직 모름, null은 활성 요청 없음. 접수번호는 이 화면이 열려 있는 동안 메모리에만 둔다.
   const [intake, setIntake] = useState<DeletionIntakeView | null>();
@@ -109,23 +113,14 @@ export function AccountSettingsScreen({
   }
 
   // 응답이 없는 실패는 서버가 접수했는지 알 수 없다. 서버에 다시 물어 실제로 있는 요청만 보여 주고, 그렇지 않으면 모른다고 한다.
-  async function settleAmbiguousFailure(action: 'file' | 'reissue' | 'cancel') {
+  async function settleAmbiguousFailure(action: AmbiguousIntakeAction) {
     if (!intakeClient) return;
-    const rechecked = await recheckIntake(intakeClient);
-    if (rechecked.kind === 'found') {
-      setIntake(rechecked.view);
-      setIntakeUnknown(false);
-      if (action === 'cancel') {
-        setError('취소되었는지 확인하지 못했어요. 삭제 요청은 아직 접수된 상태입니다.');
-      } else {
-        setMessage(action === 'file'
-          ? '삭제 요청이 접수된 것을 확인했어요. 접수번호를 이 화면에서 받지 못했다면 접수번호 다시 받기로 받아 주세요.'
-          : '접수번호가 새로 발급됐을 수 있어요. 이 화면에서 새 번호를 받지 못했다면 접수번호 다시 받기로 받아 주세요.');
-      }
-      return;
-    }
-    setIntake(undefined);
-    setIntakeUnknown(true);
+    const outcome = ambiguousFailureOutcome(action, await recheckIntake(intakeClient));
+    setIntake(outcome.intake);
+    setIntakeUnknown(outcome.intakeUnknown);
+    if (outcome.clearReceipt) setReceipt(undefined);
+    if (outcome.message) setMessage(outcome.message);
+    if (outcome.error) setError(outcome.error);
   }
 
   async function lookUpReceipt() {
@@ -244,6 +239,16 @@ export function AccountSettingsScreen({
     }
   }
 
+  async function openLegalPage(url: string) {
+    setLegalError(undefined);
+    try {
+      await Linking.openURL(url);
+    } catch {
+      // 링크 바로 아래에 알린다: 화면 아래쪽 공용 오류 줄은 링크가 있는 곳에서 멀어 놓치기 쉽다.
+      setLegalError('페이지를 열지 못했습니다. 브라우저에서 www.masscom.kr 주소를 직접 열어 주세요.');
+    }
+  }
+
   async function openDeletionRequestPage() {
     setError(undefined);
     try {
@@ -325,6 +330,28 @@ export function AccountSettingsScreen({
           </Link>
         </FloatingCard>
       ) : null}
+
+      <FloatingCard style={styles.groupCard}>
+        <Text style={styles.sectionTitle}>약관과 개인정보</Text>
+        <Text selectable style={styles.intro}>
+          이용약관과 개인정보 처리방침, 계정 삭제 안내를 웹 페이지에서 읽을 수 있어요. 처음 로그인할 때 동의한 내용이에요.
+        </Text>
+        {legalLinks.map((link) => (
+          <Pressable
+            key={link.url}
+            accessibilityRole="link"
+            accessibilityLabel={link.label}
+            accessibilityHint={link.hint}
+            onPress={() => void openLegalPage(link.url)}
+            style={styles.secondaryLink}
+          >
+            <Text style={styles.secondaryLinkText}>{link.label} →</Text>
+          </Pressable>
+        ))}
+        <View accessibilityLiveRegion="polite">
+          {legalError ? <Text selectable style={styles.error}>{legalError}</Text> : null}
+        </View>
+      </FloatingCard>
 
       <FloatingCard style={styles.groupCard}>
         <Text style={styles.sectionTitle}>계정 삭제 안내</Text>

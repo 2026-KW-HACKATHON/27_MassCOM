@@ -26,7 +26,7 @@ for _attempt in $(seq 1 30); do
 done
 [[ "$ready" == 'true' ]] || { echo 'web smoke Caddy did not become ready' >&2; exit 1; }
 
-for path in / /open /privacy /account-deletion /app/ /app/assets/production.mjs /app/assets/mascot-stamp.png /admin/ /admin/assets/mascot-stamp.png /merchant/ /merchant/assets/merchant.mjs /merchant/assets/mascot-stamp.png /preview/ /preview/assets/showcase.css; do
+for path in / /open /privacy /terms /account-deletion /app/ /app/assets/production.mjs /app/assets/mascot-stamp.png /admin/ /admin/assets/mascot-stamp.png /merchant/ /merchant/assets/merchant.mjs /merchant/assets/mascot-stamp.png /preview/ /preview/assets/showcase.css; do
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:8089$path")"
   [[ "$status" == '200' ]] || { echo "$path returned $status" >&2; exit 1; }
 done

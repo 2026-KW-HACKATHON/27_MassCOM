@@ -31,6 +31,9 @@ createServer((request, response) => {
     response.writeHead(request.headers.cookie ? 200 : 401);
   } else if (request.url === '/api/web/logout') {
     response.writeHead(204);
+  } else if (request.url === '/api/web/consent') {
+    response.setHeader('X-Observed-Cookie', request.headers.cookie || '');
+    response.writeHead(request.headers.cookie ? 200 : 401);
   } else if (request.url === '/api/web/account-deletion-intake') {
     response.writeHead(202);
   } else if (request.url === '/api/web/account-deletion-intake/cancel' || request.url === '/api/web/account-deletion-status') {
@@ -131,6 +134,16 @@ test('Caddy forwards allowlisted browser-session routes, preserving redirects an
     assert.equal(badges.status, 200);
     assert.equal(badges.headers.get('x-observed-cookie'), 'web_session=fixture');
     assert.equal(badges.headers.get('cache-control'), 'no-store');
+    // 동의 조회·기록은 로그인 쿠키를 API까지 그대로 넘기고 캐시하지 않는다.
+    assert.equal((await fetch(`${url}/api/web/consent`)).status, 401);
+    for (const method of ['GET', 'POST']) {
+      const consent = await fetch(`${url}/api/web/consent`, { method, headers: { cookie: 'web_session=fixture' } });
+      assert.equal(consent.status, 200, method);
+      assert.equal(consent.headers.get('x-observed-cookie'), 'web_session=fixture', method);
+      assert.match(consent.headers.get('cache-control') ?? '', /no-store/, method);
+      assert.equal(consent.headers.get('x-robots-tag'), 'noindex, nofollow', method);
+    }
+    assert.equal((await fetch(`${url}/api/web/consent/other`, { method: 'POST' })).status, 404);
     assert.equal((await fetch(`${url}/api/web/logout`, { method: 'POST' })).status, 204);
     const intake = await fetch(`${url}/api/web/account-deletion-intake`, { method: 'POST' });
     assert.equal(intake.status, 202);
@@ -238,6 +251,12 @@ test('Caddy serves the same limited web surface for exact apex and www hosts', a
       const merchantApi = await requestForHost(url, '/api/web/merchant/me', host);
       assert.equal(merchantApi.headers['x-observed-host'], host, host);
       assert.equal(merchantApi.headers['x-robots-tag'], 'noindex, nofollow', host);
+      const consent = await requestForHost(url, '/api/web/consent', host, 'POST', { cookie: 'web_session=fixture' });
+      assert.equal(consent.status, 200, host);
+      assert.equal(consent.headers['x-observed-host'], host, host);
+      assert.equal(consent.headers['x-observed-cookie'], 'web_session=fixture', host);
+      assert.equal(consent.headers['x-robots-tag'], 'noindex, nofollow', host);
+      assert.match(consent.headers['cache-control'] ?? '', /no-store/, host);
       const intake = await requestForHost(url, '/api/web/account-deletion-intake', host, 'POST');
       assert.equal(intake.status, 202, host);
       assert.equal(intake.headers['x-observed-host'], host, host);

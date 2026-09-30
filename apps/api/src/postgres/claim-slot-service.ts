@@ -14,6 +14,7 @@ import { MerchantAccessError } from '../merchant-access.js';
 import { isStaffAccountClaim, staffProgressExcludedReason } from '../reversal-rules.js';
 import { grantReachedGoals } from './visit-rewards.js';
 import { hashCustomerIdentityToken, isCustomerIdentityToken } from './customer-identity.js';
+import { requireActiveMerchantMember } from './merchant-membership.js';
 import {
   AccountLifecycleError,
   type PostgresAccountLifecycle,
@@ -649,15 +650,8 @@ async function isActiveMember(client: PoolClient, merchantId: string, accountId:
 async function requireActiveMerchantForStaff(
   client: PoolClient, merchantId: string, staffAccountId: string,
 ): Promise<void> {
-  const merchant = await client.query<{ status: string }>(
-    `SELECT merchant.status FROM merchants AS merchant
-     JOIN merchant_members AS member ON member.merchant_id = merchant.id
-     WHERE merchant.id = $1 AND member.account_id = $2 AND member.status = 'ACTIVE'
-     FOR SHARE OF merchant`,
-    [merchantId, staffAccountId],
-  );
-  if (!merchant.rows[0]) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
-  if (merchant.rows[0].status !== 'ACTIVE') throw new ClaimSlotError('CLAIM_MERCHANT_INACTIVE');
+  const { merchantStatus } = await requireActiveMerchantMember(client, merchantId, staffAccountId);
+  if (merchantStatus !== 'ACTIVE') throw new ClaimSlotError('CLAIM_MERCHANT_INACTIVE');
 }
 
 async function findActiveCampaign(

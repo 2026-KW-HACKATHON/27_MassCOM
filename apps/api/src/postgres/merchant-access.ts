@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 
 import {
+  canManageArt,
   MerchantAccessError,
   merchantPermissions,
   merchantServerPermissions,
@@ -46,7 +47,7 @@ export class PostgresMerchantAccessControl implements MerchantAccessControl {
       throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
     }
     // AI 가게 그림은 비용이 나가는 기능이다: 기본은 OWNER만이고 STAFF는 설정으로 켠 환경(시연)에서만 허용한다.
-    if (input.permission === 'MANAGE_ART' && membership.role !== 'OWNER' && !this.staffMayManageArt) {
+    if (input.permission === 'MANAGE_ART' && !canManageArt(membership.role, this.staffMayManageArt)) {
       throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
     }
 

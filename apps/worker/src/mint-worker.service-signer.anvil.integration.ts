@@ -22,6 +22,8 @@ import { EthersMintChainGateway } from './ethers-chain-gateway.js';
 import { ChainConfigurationError, MintWorker, type MintWorkItem } from './mint-worker.js';
 import { PostgresMintRepository } from './postgres-mint-repository.js';
 
+const testMetadataOrigin = 'https://masscom.kr';
+
 const adminAddress = getAddress('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266');
 const pauserAddress = getAddress('0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC');
 const funderAddress = getAddress('0x90F79bf6EB2c4f870365E785982E1f101E93b906');
@@ -130,7 +132,7 @@ test('W-100 service signer record-before-send survives crashes, lost responses, 
   // (a) happy path: a fresh submission mints once end to end.
   {
     const gateway = makeGateway();
-    const repository = new PostgresMintRepository(pool);
+    const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
     const worker = new MintWorker(repository, gateway);
     assert.equal(await worker.runOnce('service-signer-worker'), true);
     assert.equal(getAddress(await contract.getFunction('ownerOf').staticCall(1n)), recipients[0]);
@@ -147,7 +149,7 @@ test('W-100 service signer record-before-send survives crashes, lost responses, 
   // transaction and mints exactly once, without a second markPrepared.
   {
     const gateway = makeGateway();
-    const repository = new PostgresMintRepository(pool);
+    const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
     const worker = new MintWorker(repository, gateway);
     const rawProvider = internalProvider(gateway);
     const originalBroadcast = rawProvider.broadcastTransaction.bind(rawProvider);
@@ -167,7 +169,7 @@ test('W-100 service signer record-before-send survives crashes, lost responses, 
     await waitForRetryAvailable(pool, jobIds[1]);
 
     const restartedGateway = makeGateway();
-    const restartedRepository = new PostgresMintRepository(pool);
+    const restartedRepository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
     const restartedWorker = new MintWorker(restartedRepository, restartedGateway);
     assert.equal(await restartedWorker.runOnce('service-signer-worker-restart'), true);
 
@@ -240,7 +242,7 @@ test('W-100 lost broadcast response confirms the same hash on restart with exact
   const nonceBefore = await provider.getTransactionCount(serviceSigner.address, 'latest');
 
   const gateway = makeGateway();
-  const repository = new PostgresMintRepository(pool);
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const worker = new MintWorker(repository, gateway);
   const rawProvider = internalProvider(gateway);
   const originalBroadcast = rawProvider.broadcastTransaction.bind(rawProvider);
@@ -262,7 +264,7 @@ test('W-100 lost broadcast response confirms the same hash on restart with exact
   await waitForRetryAvailable(pool, jobId);
 
   const restartedGateway = makeGateway();
-  const restartedRepository = new PostgresMintRepository(pool);
+  const restartedRepository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const restartedWorker = new MintWorker(restartedRepository, restartedGateway);
   assert.equal(await restartedWorker.runOnce('lost-response-worker-restart'), true);
 
@@ -330,7 +332,7 @@ test('W-100 consecutive submissions get consecutive nonces and two racing worker
 
   // (d) two jobs submitted back to back (sequential runOnce calls) get consecutive nonces.
   const nonceBefore = await provider.getTransactionCount(serviceSigner.address, 'latest');
-  const sequentialRepository = new PostgresMintRepository(pool);
+  const sequentialRepository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const sequentialWorker = new MintWorker(sequentialRepository, makeGateway());
   assert.equal(await sequentialWorker.runOnce('sequential-worker'), true);
   const firstJob = await pool.query<{ transaction_hash: string }>(
@@ -358,8 +360,8 @@ test('W-100 consecutive submissions get consecutive nonces and two racing worker
   ] as const;
   await seedServiceSignerJobs(pool, contractAddress, seriesKey, raceRewardKeys, raceJobIds, 2);
 
-  const workerA = new MintWorker(new PostgresMintRepository(pool), makeGateway());
-  const workerB = new MintWorker(new PostgresMintRepository(pool), makeGateway());
+  const workerA = new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), makeGateway());
+  const workerB = new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), makeGateway());
   const raceResults = await Promise.all([
     workerA.runOnce('race-worker-a'),
     workerB.runOnce('race-worker-b'),
@@ -437,7 +439,7 @@ test('W-100 a recorded but unbroadcast transaction keeps its nonce when the next
   internalProvider(crashingGateway).broadcastTransaction = async () => {
     throw new Error('SIMULATED_CRASH_BEFORE_BROADCAST');
   };
-  assert.equal(await new MintWorker(new PostgresMintRepository(pool), crashingGateway).runOnce('dies-first'), true);
+  assert.equal(await new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), crashingGateway).runOnce('dies-first'), true);
   const straggler = await pool.query<{ id: string; transaction_hash: string }>(
     `SELECT id, transaction_hash FROM mint_jobs WHERE transaction_hash IS NOT NULL`,
   );
@@ -447,7 +449,7 @@ test('W-100 a recorded but unbroadcast transaction keeps its nonce when the next
 
   // The first job is still backing off, so this run leases the other one. It must put the recorded
   // transaction on the wire before reading the pending nonce, or both would claim the same nonce.
-  assert.equal(await new MintWorker(new PostgresMintRepository(pool), makeGateway()).runOnce('next-job'), true);
+  assert.equal(await new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), makeGateway()).runOnce('next-job'), true);
   const stragglerTx = await provider.getTransaction(stragglerHash);
   assert.equal(stragglerTx?.nonce, nonceBefore);
   const other = await pool.query<{ status: string; transaction_hash: string }>(
@@ -458,7 +460,7 @@ test('W-100 a recorded but unbroadcast transaction keeps its nonce when the next
   assert.equal((await provider.getTransaction(other.rows[0]!.transaction_hash))?.nonce, nonceBefore + 1);
 
   await waitForRetryAvailable(pool, straggler.rows[0]!.id);
-  assert.equal(await new MintWorker(new PostgresMintRepository(pool), makeGateway()).runOnce('restart'), true);
+  assert.equal(await new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), makeGateway()).runOnce('restart'), true);
   const recovered = await pool.query<{ status: string; transaction_hash: string; attempt_count: number }>(
     'SELECT status, transaction_hash, attempt_count FROM mint_jobs WHERE id = $1',
     [straggler.rows[0]!.id],
@@ -528,7 +530,7 @@ test('H1 a straggler that never broadcasts blocks the next job until its own job
 
   // Job 1 records a signed transaction and then can never get it onto the network.
   assert.equal(
-    await new MintWorker(new PostgresMintRepository(pool), makeAlwaysFailingGateway()).runOnce('dies-first'),
+    await new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), makeAlwaysFailingGateway()).runOnce('dies-first'),
     true,
   );
   const straggler = await pool.query<{ id: string; transaction_hash: string; attempt_count: number }>(
@@ -545,7 +547,7 @@ test('H1 a straggler that never broadcasts blocks the next job until its own job
   // always-failing gateway, and fails again: job 2 must be released MINTER_NONCE_BLOCKED without
   // ever spending its own attempt (markPrepared never ran for it).
   assert.equal(
-    await new MintWorker(new PostgresMintRepository(pool), makeAlwaysFailingGateway()).runOnce(
+    await new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), makeAlwaysFailingGateway()).runOnce(
       'next-job-blocked',
     ),
     true,
@@ -567,7 +569,7 @@ test('H1 a straggler that never broadcasts blocks the next job until its own job
   // Close the straggler's job for manual review (simulating whatever eventually gives up on it —
   // the retry-limit cap in production). Once its job is terminal, the sweep must stop including
   // its attempt.
-  const closingRepository = new PostgresMintRepository(pool);
+  const closingRepository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const stragglerItem = await closingRepository.leaseNext('closing-worker', 30_000);
   assert.equal(stragglerItem?.jobId, stragglerJobId);
   await closingRepository.markManualReview(stragglerJobId, 'closing-worker', 'RETRY_LIMIT_EXCEEDED');
@@ -582,7 +584,7 @@ test('H1 a straggler that never broadcasts blocks the next job until its own job
   // job, so nothing blocks it, and it finalizes normally.
   await waitForRetryAvailable(pool, otherJobId);
   assert.equal(
-    await new MintWorker(new PostgresMintRepository(pool), makeGateway()).runOnce('finalizer'),
+    await new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), makeGateway()).runOnce('finalizer'),
     true,
   );
   const finalized = await pool.query<{ status: string }>('SELECT status FROM mint_jobs WHERE id = $1', [
@@ -637,7 +639,7 @@ test('W-100 a fee quote above the per-mint ceiling is refused before anything is
     signer: serviceSigner,
     maxTransactionFeeWei: 1n,
   });
-  assert.equal(await new MintWorker(new PostgresMintRepository(pool), cappedGateway).runOnce('fee-capped'), true);
+  assert.equal(await new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), cappedGateway).runOnce('fee-capped'), true);
 
   const refused = await pool.query<{ status: string; last_error_code: string; transaction_hash: string | null }>(
     'SELECT status, last_error_code, transaction_hash FROM mint_jobs WHERE last_error_code IS NOT NULL',
@@ -718,7 +720,7 @@ async function seedServiceSignerJobs(
   const namespace = seriesKey.slice(2, 10);
   const merchantId = `merchant-service-signer-${namespace}`;
   const campaignId = `campaign-service-signer-${namespace}`;
-  const seriesId = `series-service-signer-${namespace}`;
+  const seriesId = `s-${namespace.toLowerCase()}${'0'.repeat(24)}`;
 
   await pool.query(
     `INSERT INTO merchants

@@ -42,6 +42,13 @@
           <label>점포 제공 영업시간 <textarea name="businessHours" maxlength="1000" placeholder="점포가 확인한 실제 영업시간을 입력하세요"></textarea></label>
           <label>도로명 주소 <input name="roadAddress" required maxlength="500"></label>
           <label>최소 결제 금액(원) <input name="minimumSpendWon" type="number" min="0" max="1000000000" step="1" required></label>
+          <label>동네(행정동, 선택) <input name="neighborhood" maxlength="10" autocomplete="off" aria-describedby="admin-neighborhood-hint"></label>
+          <label>업종(선택) <select name="category">
+            <option value="">선택 안 함</option>
+            <option>한식</option><option>중식</option><option>일식</option><option>양식</option><option>분식</option>
+            <option>카페</option><option>베이커리</option><option>주점</option><option>기타</option>
+          </select></label>
+          <p id="admin-neighborhood-hint" class="admin-hint">행정동 이름만 적어요(예: 월계동, 월계1동, 상계3·4동). 도로명·번지는 적지 않아요. 동네·업종은 공개 조건이 아니며 NFT 공개 정보(메타데이터)에 들어가고, 이미 발행한 NFT에는 발행 때 값이 그대로 남아요.</p>
           <button type="submit">비공개로 등록</button>
         </form>
         <section class="admin-panel" aria-labelledby="registered-merchants">
@@ -82,7 +89,8 @@
         <p>초안은 비공개입니다. 공개 중인 점포의 초안을 공개하면 방문 보상이 시작되고, 점포마다 공개 캠페인은 하나입니다. 방문 보상에는 참여 등록이 필요 없어 방문한 사람은 누구나 받으며, 참여 정원은 화면에 보이는 참여자 수일 뿐입니다. 비용 상한은 쿠폰 발급 상한과 NFT 시리즈 상한이고, 운영 NFT는 발행 준비 중이라 권리만 기록합니다.</p>
         <form id="admin-campaign-draft" hidden>
           <label>실제 점포 <select name="merchantId" required></select></label>
-          <label>캠페인 이름 <input name="title" required maxlength="200"></label>
+          <label>캠페인 이름 <input name="title" required maxlength="200" aria-describedby="admin-campaign-title-hint"></label>
+          <p id="admin-campaign-title-hint" class="admin-hint">캠페인 이름은 발행하는 NFT의 공개 정보(메타데이터)에도 들어가고, 이미 발행한 NFT에는 발행 때 이름이 그대로 남아요. 개인정보·연락처는 적지 마세요.</p>
           <label>시작 시각 <input name="startsAt" type="datetime-local" required></label>
           <label>종료 시각 <input name="endsAt" type="datetime-local" required></label>
           <label>참여 정원 <input name="enrollmentCapacity" type="number" min="1" max="2147483647" step="1" required></label>

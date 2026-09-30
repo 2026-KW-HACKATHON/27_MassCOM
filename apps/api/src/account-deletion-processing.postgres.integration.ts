@@ -99,7 +99,7 @@ async function has(pool: Pool, sql: string, params: unknown[]): Promise<boolean>
 async function seedSubmittedMint(pool: Pool, accountId: string): Promise<string> {
   const merchant = `merchant-${randomUUID()}`;
   const campaign = `campaign-${randomUUID()}`;
-  const series = `series-${randomUUID()}`;
+  const series = `s-${randomUUID().replaceAll('-', '')}`;
   const [slot, visit, entitlement, binding, job] = Array.from({ length: 5 }, () => randomUUID()) as
     [string, string, string, string, string];
   const hex = () => randomBytes(32).toString('hex');

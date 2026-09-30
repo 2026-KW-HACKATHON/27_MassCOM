@@ -10,6 +10,7 @@ import {
   AccountDeletionError,
   type AccountDeletionService,
 } from './account-deletion.js';
+import { ConsentError, type ConsentService } from './account-consent.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardService } from './badge-rewards.js';
 import { OpenAiImageClient } from './ai-art-client.js';
@@ -44,8 +45,12 @@ import {
   type MerchantAccessControl,
 } from './merchant-access.js';
 import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
+import { DEFAULT_STAMP_V1_PNG } from './nft-default-stamp.js';
+import { matchNftMetadataRoute, type NftMetadataReader } from './nft-metadata.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
-import { MintRequestError, refuseMintRequestsWhilePreparing, type MintRequestService } from './mint-request-service.js';
+import {
+  MintRequestError, mintConsentVersionFromEnv, refuseMintRequestsWhilePreparing, type MintRequestService,
+} from './mint-request-service.js';
 import { ReversalError, type ReversalService } from './reversal.js';
 import {
   RecommendationService,
@@ -55,6 +60,7 @@ import { safeErrorMetadata } from './security-log.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCustomerIdentityService } from './postgres/customer-identity.js';
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
+import { PostgresAccountConsentService } from './postgres/account-consent.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountDeletionIntakeService } from './postgres/account-deletion-intake.js';
 import { PostgresAccountDeletionProcessingService } from './postgres/account-deletion-processing.js';
@@ -70,6 +76,7 @@ import { PostgresCollectibleProjectService } from './postgres/collectible-projec
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantArtService } from './postgres/merchant-art.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
+import { PostgresNftMetadataReader } from './postgres/nft-metadata.js';
 import { PostgresStaffRegistration, StaffRegistrationError } from './postgres/staff-registration.js';
 import { PostgresMintRequestService } from './postgres/mint-request-service.js';
 import { PostgresReversalService } from './postgres/reversal.js';
@@ -79,6 +86,9 @@ import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
 import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-binding.js';
 
 const MAX_BODY_BYTES = 64 * 1024;
+// 토큰 메타데이터·가게 그림은 하루만 캐시한다: 운영자가 거부 목록으로 내리면 늦어도 하루 안에 사라진다(Issue #254).
+// 판이 붙은 기본 도장만 바이트가 영원히 같아 immutable이다.
+const nftMetadataCacheControl = 'public, max-age=86400';
 const qrCode = createRequire(import.meta.url)('qrcode') as {
   toString(value: string, options: { type: 'svg'; margin: number }): Promise<string>;
 };
@@ -202,6 +212,8 @@ export function createApiServer(
   showcaseDeletionIntake?: AccountDeletionIntakeService,
   deletionProcessing?: AccountDeletionProcessingService,
   reversals?: ReversalService,
+  consent?: ConsentService,
+  nftMetadata?: NftMetadataReader,
   collectibleProjects?: CollectibleProjectService,
 ) {
   // The receipt lookup needs no login, so it is throttled per client instead (a receipt has 80 bits, this only stops floods).
@@ -295,6 +307,26 @@ export function createApiServer(
         response.setHeader('x-robots-tag', 'noindex, nofollow');
         const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
         sendJson(response, 200, await badges.getBadges(accountId));
+        return;
+      }
+      if (path === '/api/web/consent') {
+        // 조회는 쿠키만 보고, 기록은 계정 삭제 접수와 같은 출처·본문 형식 검사를 거친다(다른 사이트가 쿠키로 동의를 넣지 못하게).
+        if (request.method !== 'GET' && request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
+        if (request.method === 'POST' && (request.headers.origin !== origin ||
+            !/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? ''))) {
+          throw new RequestError(403, 'ORIGIN_FORBIDDEN');
+        }
+        if (!webAuth || !consent) throw new RequestError(503, 'WEB_CONSENT_NOT_CONFIGURED');
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        if (request.method === 'GET') {
+          sendJson(response, 200, await consent.status(accountId));
+        } else {
+          sendJson(response, 200, await consent.record({
+            accountId, source: 'WEB', ...readConsentBody(await readJson(request)),
+          }));
+        }
         return;
       }
       if (path.startsWith('/api/web/admin/')) {
@@ -822,6 +854,19 @@ export function createApiServer(
         return;
       }
 
+      if (request.url === '/me/consent' && (request.method === 'GET' || request.method === 'POST')) {
+        if (!consent) throw new RequestError(503, 'CONSENT_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        if (request.method === 'GET') {
+          sendJson(response, 200, await consent.status(accountId));
+        } else {
+          sendJson(response, 200, await consent.record({
+            accountId, source: consent.appSource, ...readConsentBody(await readJson(request)),
+          }));
+        }
+        return;
+      }
+
       if (request.method === 'GET' && request.url === '/me/friends') {
         if (!friends) throw new RequestError(503, 'FRIENDS_NOT_CONFIGURED');
         const accountId = await resolveAccountId(request);
@@ -1154,6 +1199,33 @@ export function createApiServer(
         return;
       }
 
+      // 공개 NFT 메타데이터(Issue #254, D-060): 발행 확정 때 고정한 바이트 그대로 하루 캐시한다(거부 목록이 하루 안에 반영; 기본 도장만 immutable). 지갑·탐색기가 다른 출처에서
+      // 읽으므로 404에도 CORS를 연다. 확정 전·없는 토큰은 404라 체인에서 보이는 것 이상을 알려 주지 않는다.
+      if (path.startsWith('/nft-metadata/') && (request.method === 'GET' || request.method === 'HEAD')) {
+        response.setHeader('access-control-allow-origin', '*');
+        const route = matchNftMetadataRoute(path);
+        if (!route) throw new RequestError(404, 'NOT_FOUND');
+        if (route.kind === 'default-stamp') {
+          sendBinary(response, DEFAULT_STAMP_V1_PNG, 'image/png', 'public, max-age=31536000, immutable');
+          return;
+        }
+        if (!nftMetadata) throw new RequestError(503, 'NFT_METADATA_NOT_CONFIGURED');
+        if (route.kind === 'image') {
+          const image = await nftMetadata.findImage(route.sha256);
+          if (!image) throw new RequestError(404, 'NOT_FOUND');
+          sendBinary(response, image, 'image/webp', nftMetadataCacheControl);
+          return;
+        }
+        const metadata = await nftMetadata.findTokenMetadata(route.seriesId, route.tokenId);
+        if (!metadata) throw new RequestError(404, 'NOT_FOUND');
+        const body = Buffer.from(metadata, 'utf8');
+        response.setHeader('cache-control', nftMetadataCacheControl);
+        response.setHeader('content-length', String(body.length));
+        response.writeHead(200);
+        response.end(body);
+        return;
+      }
+
       // 현재 적용된 가게 그림. 파일 이름이 내용의 sha256이라 바뀌지 않으므로 오래 캐시한다. JSON만 내는 서버에서 이 경로만 이진 응답이다.
       const publicArtMatch = request.method === 'GET' ? path.match(/^\/merchant-art\/([0-9a-f]{64})\.webp$/) : null;
       if (publicArtMatch) {
@@ -1197,13 +1269,13 @@ export function createApiServer(
           if (Object.keys(body).some(key => key !== 'index')) throw new RequestError(400, 'INVALID_REQUEST');
           const index = requireNumber(body, 'index');
           if (index < 0 || index > 3) throw new RequestError(400, 'INVALID_REQUEST');
-          sendJson(response, 202, await merchantArt.chooseDraft({ merchantId, roundId, index }));
+          sendJson(response, 202, await merchantArt.chooseDraft({ merchantId, roundId, index, accountId }));
         } else if (artRoute.kind === 'apply') {
           requireEmptyBody(await readJson(request, true));
-          sendJson(response, 200, await merchantArt.apply({ merchantId, roundId }));
+          sendJson(response, 200, await merchantArt.apply({ merchantId, roundId, accountId }));
         } else {
           requireEmptyBody(await readJson(request, true));
-          await merchantArt.reset(merchantId);
+          await merchantArt.reset({ merchantId, accountId });
           sendJson(response, 200, { status: 'RESET' });
         }
         return;
@@ -1233,6 +1305,11 @@ export function createApiServer(
       }
       if (error instanceof ReversalError) {
         sendJson(response, statusForReversal(error.code), { code: error.code });
+        return;
+      }
+      if (error instanceof ConsentError) {
+        sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'CONSENT_VERSION_MISMATCH' ? 409 : 400,
+          { code: error.code });
         return;
       }
       if (error instanceof FriendError) {
@@ -1415,7 +1492,8 @@ function requireNumber(body: Record<string, unknown>, field: string): number {
 }
 
 function adminMerchantInput(body: Record<string, unknown>): MerchantInput {
-  if (Object.keys(body).some(key => !['name', 'story', 'roadAddress', 'minimumSpendWon', 'menuItems', 'businessHours', 'expectedVersion'].includes(key))) {
+  if (Object.keys(body).some(key => !['name', 'story', 'roadAddress', 'minimumSpendWon', 'menuItems', 'businessHours',
+    'neighborhood', 'category', 'expectedVersion'].includes(key))) {
     throw new RequestError(400, 'INVALID_REQUEST');
   }
   return {
@@ -1423,6 +1501,9 @@ function adminMerchantInput(body: Record<string, unknown>): MerchantInput {
     roadAddress: requireString(body, 'roadAddress'), minimumSpendWon: requireNumber(body, 'minimumSpendWon'),
     ...(body.menuItems === undefined ? {} : { menuItems: body.menuItems as NonNullable<MerchantInput['menuItems']> }),
     ...(body.businessHours === undefined ? {} : { businessHours: body.businessHours as string }),
+    // 동네·업종 검사는 서비스(merchant-profile-rules)가 한다. 키가 없으면 그대로 둔다(옛 관리자 웹 호환).
+    ...(body.neighborhood === undefined ? {} : { neighborhood: body.neighborhood as string | null }),
+    ...(body.category === undefined ? {} : { category: body.category as string | null }),
   };
 }
 
@@ -1628,6 +1709,25 @@ function matchMerchantArtRoute(method: string | undefined, tail: string): Mercha
   return method === 'POST' ? { kind: round[2] as 'choose' | 'apply', roundId } : undefined;
 }
 
+const consentBodyKeys = ['termsVersion', 'privacyVersion', 'ageConfirmed', 'termsAccepted', 'privacyAccepted'] as const;
+
+/** 정확히 다섯 키만 받는다: 알 수 없는 키·빠진 키·잘못된 자료형은 400. 값이 true인지·버전이 현재인지는 서비스가 판단한다. */
+function readConsentBody(body: Record<string, unknown>): {
+  termsVersion: string; privacyVersion: string; ageConfirmed: boolean; termsAccepted: boolean; privacyAccepted: boolean;
+} {
+  const keys = Object.keys(body);
+  if (keys.length !== consentBodyKeys.length || consentBodyKeys.some((key) => !Object.hasOwn(body, key))) {
+    throw new RequestError(400, 'INVALID_REQUEST');
+  }
+  const { termsVersion, privacyVersion, ageConfirmed, termsAccepted, privacyAccepted } = body;
+  if (typeof termsVersion !== 'string' || typeof privacyVersion !== 'string' || termsVersion.length > 64 ||
+      privacyVersion.length > 64 || typeof ageConfirmed !== 'boolean' || typeof termsAccepted !== 'boolean' ||
+      typeof privacyAccepted !== 'boolean') {
+    throw new RequestError(400, 'INVALID_REQUEST');
+  }
+  return { termsVersion, privacyVersion, ageConfirmed, termsAccepted, privacyAccepted };
+}
+
 function requireEmptyBody(body: Record<string, unknown>): void {
   if (Object.keys(body).length > 0) throw new RequestError(400, 'INVALID_REQUEST');
 }
@@ -1670,7 +1770,7 @@ function statusForMintRequest(code: string): number {
   if (code === 'ENTITLEMENT_NOT_FOUND' || code === 'WALLET_BINDING_NOT_FOUND' || code === 'MINT_JOB_NOT_FOUND') {
     return 404;
   }
-  if (code === 'CONSENT_REQUIRED' || code === 'IDEMPOTENCY_KEY_REQUIRED') return 400;
+  if (code === 'CONSENT_REQUIRED' || code === 'CONSENT_VERSION_OUTDATED' || code === 'IDEMPOTENCY_KEY_REQUIRED') return 400;
   if (code === 'ACCOUNT_DELETED') return 410;
   return 409;
 }
@@ -1697,6 +1797,8 @@ function sendJson(response: ServerResponse, status: number, body: object): void 
 function sendBinary(response: ServerResponse, body: Buffer, contentType: string, cacheControl: string): void {
   response.setHeader('content-type', contentType);
   response.setHeader('cache-control', cacheControl);
+  // HEAD에도 GET과 같은 길이를 알린다.
+  response.setHeader('content-length', String(body.length));
   response.writeHead(200);
   response.end(body);
 }
@@ -1861,7 +1963,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     : new InMemoryChallengeStore();
   const postgresMintRequests = pool
     ? new PostgresMintRequestService(pool, {
-        supportedConsentVersion: process.env.NFT_MINT_CONSENT_VERSION ?? 'nft-mint-v1',
+        // 비어 있으면 nft-mint-v2, v2보다 낮은 판은 시작을 거절한다(Issue #254).
+        supportedConsentVersion: mintConsentVersionFromEnv(process.env.NFT_MINT_CONSENT_VERSION),
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;
@@ -1902,6 +2005,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const friends = pool && accountLifecycle
     ? new PostgresFriendService(pool, { accountLifecycle })
     : undefined;
+  // 동의 기록(D-059): 앱 경로 값은 시연 서버면 SHOWCASE_APP, 운영이면 ANDROID다. 쓰기 요청은 막지 않고 required만 알린다.
+  const consent = pool && accountLifecycle
+    ? new PostgresAccountConsentService(pool, {
+        accountLifecycle, appSource: showcaseInvites ? 'SHOWCASE_APP' : 'ANDROID',
+      })
+    : undefined;
   // OPENAI_API_KEY가 비어 있으면 client가 없어 생성 API만 503 AI_ART_NOT_CONFIGURED이고 조회·되돌리기·공개 그림은 그대로 동작한다.
   const merchantArt = pool
     ? new PostgresMerchantArtService(pool, {
@@ -1916,6 +2025,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
               }),
             }
           : {}),
+        staffMayManageArt: aiArtConfig.staffMayManage,
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;
@@ -2016,6 +2126,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           policyVersion: process.env.ACCOUNT_DELETION_POLICY_VERSION ?? 'account-deletion-v1',
         }) : undefined,
     reversals,
+    consent,
+    pool ? new PostgresNftMetadataReader(pool) : undefined,
     pool ? new PostgresCollectibleProjectService(pool, {
       staffMayManageArt: aiArtConfig.staffMayManage,
       ...(accountLifecycle ? { accountLifecycle } : {}),

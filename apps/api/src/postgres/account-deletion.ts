@@ -110,8 +110,11 @@ export class PostgresAccountDeletionService implements AccountDeletionService {
     const existing = await findRequest(client, referenceHash);
     if (existing) return { row: await reconcileExistingRequest(client, existing, now), replayed: true };
 
-    const counts = await mintCounts(client, accountId, now);
-    await cancelUnsentMintJobs(client, accountId, now);
+    // 취소 UPDATE를 먼저 하고 그 RETURNING 수를 cancelled로 쓴다. 잠금 없는 집계를 먼저 하면 집계와 취소 사이에 워커가
+    // lease를 잡은 작업이 cancelled로 세어진 채 취소되지 않고 COMPLETED로 굳는다(원장은 COMPLETED를 다시 보지 않는다, #264).
+    // 취소한 행은 이 트랜잭션이 잠갔고 이미 종결 상태라, 그 뒤에 센 남은 비종결 작업이 곧 pending이다.
+    const cancelledMintJobs = await cancelUnsentMintJobs(client, accountId, now);
+    const counts = await mintCounts(client, accountId);
     await pseudonymizeAccount(client, accountId, deletedAlias, now);
 
     const status: AccountDeletionStatus =
@@ -131,7 +134,7 @@ export class PostgresAccountDeletionService implements AccountDeletionService {
           deletedAlias,
           status,
           this.options.policyVersion,
-          counts.cancelledMintJobs,
+          cancelledMintJobs,
           counts.pendingMintJobs,
           counts.retainedFinalizedNfts,
           now,
@@ -178,54 +181,29 @@ async function assertRecentSession(
   return checkedAt;
 }
 
+// 취소 UPDATE 뒤에 부른다: 남은 비종결 작업(전송했거나 응답이 유실됐거나 유효한 lease가 있는 것)이 pending이다.
+// 이 기준은 reconcileExistingRequest와 같다.
 async function mintCounts(
   client: PoolClient,
   accountId: string,
-  now: Date,
 ): Promise<{
-  cancelledMintJobs: number;
   pendingMintJobs: number;
   retainedFinalizedNfts: number;
 }> {
   const row = (
     await client.query<{
-      cancelled_mint_jobs: number;
       pending_mint_jobs: number;
       retained_finalized_nfts: number;
     }>(
       `SELECT
-         count(*) FILTER (
-           WHERE status IN ('QUEUED', 'PREPARED', 'RETRYABLE', 'PAUSED', 'MANUAL_REVIEW')
-             AND transaction_hash IS NULL
-             AND last_error_code IS DISTINCT FROM 'MINT_SUBMISSION_RESPONSE_LOST'
-             AND NOT EXISTS (
-               SELECT 1 FROM outbox_events AS outbox
-               WHERE outbox.aggregate_id = mint_jobs.id
-                 AND outbox.status = 'LEASED'
-                 AND outbox.lease_expires_at > $2
-             )
-         )::integer AS cancelled_mint_jobs,
-         count(*) FILTER (
-           WHERE status NOT IN ('FINALIZED', 'CANCELLED')
-             AND (
-               transaction_hash IS NOT NULL
-               OR last_error_code = 'MINT_SUBMISSION_RESPONSE_LOST'
-               OR EXISTS (
-                 SELECT 1 FROM outbox_events AS outbox
-                 WHERE outbox.aggregate_id = mint_jobs.id
-                   AND outbox.status = 'LEASED'
-                   AND outbox.lease_expires_at > $2
-               )
-             )
-         )::integer AS pending_mint_jobs,
+         count(*) FILTER (WHERE status NOT IN ('FINALIZED', 'CANCELLED'))::integer AS pending_mint_jobs,
          count(*) FILTER (WHERE status = 'FINALIZED')::integer AS retained_finalized_nfts
        FROM mint_jobs
        WHERE account_id = $1`,
-      [accountId, now],
+      [accountId],
     )
   ).rows[0]!;
   return {
-    cancelledMintJobs: row.cancelled_mint_jobs,
     pendingMintJobs: row.pending_mint_jobs,
     retainedFinalizedNfts: row.retained_finalized_nfts,
   };
@@ -235,7 +213,17 @@ async function cancelUnsentMintJobs(
   client: PoolClient,
   accountId: string,
   now: Date,
-): Promise<void> {
+): Promise<number> {
+  // 워커는 작업 행을 잠근 채 lease를 커밋한다. 이 UPDATE만 보내면 그 잠금이 풀릴 때 문장 시작 시점의 낡은 스냅샷으로 lease를
+  // 검사해 방금 커밋된 lease를 못 보고 취소해 버린다. 후보 행을 먼저 잠가 기다린 뒤 새 문장으로 취소해야 lease를 본다.
+  await client.query(
+    `SELECT 1 FROM mint_jobs
+     WHERE account_id = $1
+       AND status IN ('QUEUED', 'PREPARED', 'RETRYABLE', 'PAUSED', 'MANUAL_REVIEW')
+       AND transaction_hash IS NULL
+     FOR UPDATE`,
+    [accountId],
+  );
   const cancelled = await client.query<{ entitlement_id: string }>(
     `UPDATE mint_jobs
      SET status = 'CANCELLED', last_error_code = 'ACCOUNT_DELETION', updated_at = $1
@@ -253,7 +241,7 @@ async function cancelUnsentMintJobs(
     [now, accountId],
   );
   const entitlementIds = cancelled.rows.map((row) => row.entitlement_id);
-  if (entitlementIds.length === 0) return;
+  if (entitlementIds.length === 0) return 0;
   await client.query(
     `UPDATE reward_entitlements
      SET status = 'CANCELED', updated_at = $1
@@ -268,6 +256,7 @@ async function cancelUnsentMintJobs(
      )`,
     [now, entitlementIds],
   );
+  return entitlementIds.length;
 }
 
 async function pseudonymizeAccount(
@@ -383,6 +372,9 @@ async function pseudonymizeAccount(
   await client.query('DELETE FROM friend_codes WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM explorer_profiles WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM friend_code_attempts WHERE account_id = $1', [accountId]);
+  // 동의 기록(Issue #253)은 가명으로 남기지 않고 지운다: 삭제된 계정이 무엇에 언제 동의했는지 남길 이유가 없다.
+  // 동의 기록은 같은 계정 잠금을 잡으므로(assertActive) 이 거래와 직렬화되어 삭제 뒤에 행이 생기지 않는다.
+  await client.query('DELETE FROM account_consents WHERE account_id = $1', [accountId]);
   // AI 가게 그림 라운드는 가게의 자산이라 지우지 않고 요청자 열만 비운다(가게 그림·비용 기록에는 계정 ID가 없다).
   await client.query(
     'UPDATE merchant_art_rounds SET requested_by_account_id = NULL WHERE requested_by_account_id = $1',

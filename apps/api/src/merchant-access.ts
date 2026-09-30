@@ -11,6 +11,12 @@ export type MerchantPermission =
   | (typeof merchantServerPermissions)[number];
 export type MerchantRole = 'OWNER' | 'STAFF';
 
+// MANAGE_ART 규칙 하나: 활성 OWNER는 항상, 활성 STAFF는 staffMayManageArt인 환경에서만. 요청 시작 때의 권한 검사
+// (postgres/merchant-access.ts)와 그림 변경 트랜잭션 안의 재확인(postgres/merchant-art.ts)이 이 함수를 같이 쓴다.
+export function canManageArt(role: MerchantRole, staffMayManageArt: boolean): boolean {
+  return role === 'OWNER' || staffMayManageArt;
+}
+
 export type MerchantAccessGrant = {
   merchantId: string;
   role: MerchantRole;

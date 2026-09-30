@@ -58,12 +58,14 @@ jobs:
         run: bash tests/site/check_site_accessibility_test.sh
       - name: Verify project portal structure
         run: bash tests/site/verify_project_site_test.sh
+      - name: 이용약관·처리방침 페이지 검사
+        run: node --test tests/site/legal-pages.test.mjs
       - name: 시연 웹 사실성·읽기 전용 검사
         run: node --test tests/site/verify_showcase_site_test.mjs
       - name: 웹 디자인 토큰·앱 색 정합 검사
         run: node --test tests/site/verify_design_tokens_test.mjs
       - name: 운영 웹 공개 조회·읽기 전용 경계 검사
-        run: node --test tests/site/verify_production_web_test.mjs tests/site/store-go-live-admin.test.mjs
+        run: node --test tests/site/verify_production_web_test.mjs tests/site/store-go-live-admin.test.mjs tests/site/nft-metadata-admin.test.mjs
       - name: 사진 수집품 모델·편집·도감 검사
         run: node --test tests/site/collectible-*.test.mjs
       - name: AWS 운영 웹 정적 번들·Caddy 경계 검사
@@ -72,10 +74,14 @@ jobs:
           node scripts/verify-lightsail-web.mjs
           bash tests/ops/run_aws_web_smoke.sh
           node --test tests/ops/verify_web_session_proxy_test.mjs
+          node --test tests/ops/verify_nft_metadata_proxy_test.mjs
           node --test tests/ops/install_web_oauth_runtime_test.mjs
           bash tests/ops/verify_lightsail_deployment_test.sh
           bash tests/ops/deploy_lightsail_test.sh
           bash tests/ops/deploy_lightsail_web_test.sh
+          bash tests/ops/host_retention_job_test.sh
+          bash tests/ops/db_restore_drill_backup_file_test.sh
+          node --test tests/ops/compose_log_rotation_test.mjs
       - name: 시연 웹 라이트·다크 실제 브라우저 검사
         run: |
           chrome_path="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
@@ -91,6 +97,11 @@ jobs:
       - name: 시연 호스트 격리 설정 검사
         run: |
           bash tests/ops/prepare_showcase_runtime_test.sh
+          bash tests/ops/enable_ai_art_test.sh
+          node --test tests/ops/fake_openai_images_faults_test.mjs
+          bash -n scripts/rehearse-ai-art-container.sh
+          bash -n scripts/rehearse-enable-ai-art-real-compose.sh
+          node --check scripts/rehearse-ai-art-container.mjs
           node --test tests/ops/verify_showcase_host_test.mjs tests/ops/verify_showcase_edge_routes_test.mjs tests/ops/verify_showcase_caddy_override_test.mjs
           node scripts/verify-showcase-host.mjs
           node --test tests/ops/verify_showcase_edge_runtime_test.mjs
@@ -109,6 +120,8 @@ jobs:
         run: bash tests/release/verify_aab_signature_test.sh
       - name: Verify AAB assessment provenance
         run: bash tests/release/assess_release_aab_test.sh
+      - name: Verify release Keychain signing boundary
+        run: bash tests/release/verify_release_keychain_test.sh
       - name: 시연 APK 전용 빌드 경계 검사
         run: |
           bash tests/release/verify_showcase_apk_test.sh

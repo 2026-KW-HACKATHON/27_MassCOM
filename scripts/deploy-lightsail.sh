@@ -59,7 +59,7 @@ deployment_paths=(
 public_source_paths=(
   scripts/build-public-site.mjs
   scripts/deploy-lightsail.sh
-  docs/index.html docs/open.html docs/privacy.html docs/account-deletion.html
+  docs/index.html docs/open.html docs/privacy.html docs/terms.html docs/account-deletion.html
   docs/.well-known/assetlinks.json docs/assets docs/nft-metadata
   docs/evidence/android-collection.png docs/evidence/android-merchant-list.png
   docs/evidence/screenshots/android-account-settings.png
@@ -239,6 +239,42 @@ retry_health() {
   return 1
 }
 
+# `set -E`에서는 명령 치환·함수가 ERR 트랩을 물려받는다. 값을 읽는 도우미가 `$(도우미)`로 불릴 때 실패하면 하위 셸 안에서 되돌림이 한 번 돌고
+# (함수가 `return 1`로 돌려주는 것도 하위 셸에서는 실패한 명령이다) 부모가 다시 한 번 돌려 FULL_DEPLOY_REVERTED·Caddy 재생성이 두 번 나온다.
+# 그래서 값을 읽는 곳은 `$(trap - ERR; 도우미 …)`로 하위 셸의 트랩을 먼저 끄고, 실패는 부모의 `… || { postgres_check_failed 이름; false; }`에서
+# 한 번만 ERR를 건다. (트랩을 끄는 `trap - ERR`는 그 하위 셸에만 적용된다. 도우미를 `$(…)` 밖에서 직접 부르지 않는다.)
+# PostgreSQL 컨테이너가 이 릴리스의 로그 설정(용량 순환 10m×3, 오류 로그에 행 값·SQL 문을 남기지 않는 서버 옵션)으로 떠 있는지 읽기만 해서 본다.
+# 실행 중인 컨테이너는 compose 파일이 바뀌어도 다시 만들어지지 않으므로 배포가 직접 확인한다(Issue #253, D-059).
+postgres_log_settings_ok() {
+  (
+    trap - ERR
+    local id log_config command_line
+    id="$(service_id postgres)" && [[ -n "$id" && "$id" != *$'\n'* ]] || exit 1
+    log_config="$(sudo docker inspect --format '{{json .HostConfig.LogConfig.Config}}' "$id")" || exit 1
+    command_line="$(sudo docker inspect --format '{{json .Config.Cmd}}' "$id")" || exit 1
+    [[ "$log_config" == *'"max-size":"10m"'* && "$log_config" == *'"max-file":"3"'* &&
+       "$command_line" == *'log_error_verbosity=terse'* && "$command_line" == *'log_min_error_statement=panic'* ]]
+  ) || return 1
+}
+# 다시 만든 PostgreSQL이 **같은 데이터 볼륨**을 물고 **같은 데이터**를 갖는지 보는 값. 볼륨 이름과, 적용된 마이그레이션의 개수·마지막 파일 이름이다.
+postgres_data_volume() {
+  local id
+  id="$(service_id postgres)" && [[ -n "$id" && "$id" != *$'\n'* ]] || return 1
+  sudo docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}' "$id" || return 1
+}
+postgres_data_fingerprint() {
+  compose_no_stdin exec -T postgres psql -U masscom -d masscom -Atc \
+    "SELECT count(*) || '|' || coalesce(max(filename), '') FROM schema_migrations" || return 1
+}
+postgres_setting() {
+  compose_no_stdin exec -T postgres psql -U masscom -d masscom -Atc "SHOW $1" || return 1
+}
+# 어느 확인이 어긋났는지 남기고(되돌림 로그에 이름이 보이게) 호출한 쪽이 `false`로 ERR 트랩을 한 번 건다.
+postgres_check_failed() {
+  echo "POSTGRES_DATA_CHECK_FAILED: $1" >&2
+}
+postgres_recreated=false
+
 rollback_started=false
 migration_started=false
 rollback() {
@@ -246,6 +282,10 @@ rollback() {
   trap - ERR
   if [[ "$rollback_started" == true ]]; then
     sudo install -o root -g root -m 600 "$env_backup" "$runtime_env" || failed=true
+    if [[ "$postgres_recreated" == true ]]; then
+      # 이전 릴리스의 compose 정의로 PostgreSQL을 되돌린다(이 배포가 다시 만들었으므로 한 번 더 짧게 다시 뜬다).
+      compose_old up -d --no-deps --wait --wait-timeout 120 postgres || failed=true
+    fi
     compose_old up -d --no-deps --force-recreate --wait --wait-timeout 120 api production-web || failed=true
     compose_old_caddy up -d --no-deps --force-recreate caddy || failed=true
     sudo ln -sfn "$old_api_release" /opt/masscom/current || failed=true
@@ -270,7 +310,9 @@ rollback() {
     [[ "$(sudo docker inspect --format '{{if index .NetworkSettings.Networks "masscom_showcase_edge"}}true{{end}}' "$caddy_id")" == true ]] || failed=true
     retry_health curl -fsS --max-time 8 https://api.masscom.kr/health || failed=true
     retry_health curl -fsS --max-time 8 https://www.masscom.kr/app/ || failed=true
-    retry_health curl -fsS --max-time 8 https://demo-api.masscom.kr/health || failed=true
+    # 시연 API는 운영 릴리스의 되돌림 성공 조건이 아니다(Issue #263): 시연 장애가 겹쳐도 운영이 이전 릴리스로 돌아왔으면 되돌림은 성공이다.
+    retry_health curl -fsS --max-time 8 https://demo-api.masscom.kr/health ||
+      echo 'SHOWCASE_HEALTH_WARNING: the production rollback is complete but the showcase API (demo-api.masscom.kr) is not answering; check it separately' >&2
   fi
   if [[ "$migration_started" == true ]]; then
     echo "DB_MIGRATION_MANUAL_RECOVERY_REQUIRED: backup=$db_backup; inspect applied migrations before restoring data" >&2
@@ -291,6 +333,28 @@ trap 'rollback "$?"' ERR
 sudo install -o root -g root -m 600 "$temporary_env" "$runtime_env"
 rm -f "$temporary_env"
 compose_new build api production-web
+# 사전 백업이 검증된 뒤에만 PostgreSQL을 다시 만든다. 로그 설정이 이미 맞으면 건드리지 않는다.
+# 아래 확인은 `… || { postgres_check_failed 이름; false; }`로 쓴다: 옛 bash(3.2)는 홑 `[[ ]]`의 실패로 ERR 트랩을 걸지 않고, 명령 치환 안의 실패가
+# 트랩을 두 번(하위 셸과 부모) 돌리지 않게 하기 위해서다. `false`는 부모에서 한 번만 ERR를 건다.
+if ! postgres_log_settings_ok; then
+  # 다시 만들기 전에 볼륨 이름과 데이터 지문을 적어 둔다. 운영 DB는 마이그레이션이 하나 이상 적용돼 있어야 한다.
+  data_volume_before="$(trap - ERR; postgres_data_volume)" || { postgres_check_failed baseline; false; }
+  data_fingerprint_before="$(trap - ERR; postgres_data_fingerprint)" || { postgres_check_failed baseline; false; }
+  [[ -n "$data_volume_before" && "$data_fingerprint_before" =~ ^[1-9][0-9]*\|[0-9]{4}_[a-z0-9_]+\.sql$ ]] || { postgres_check_failed baseline; false; }
+  postgres_recreated=true
+  compose_new up -d --no-deps --wait --wait-timeout 120 postgres
+  postgres_log_settings_ok || { postgres_check_failed log_settings; false; }
+  # 같은 볼륨이 붙어 있고 같은 데이터가 그대로 있어야 한다. 아니면 마이그레이션 없이 되돌린다(볼륨은 지우지 않는다).
+  data_volume_after="$(trap - ERR; postgres_data_volume)" || { postgres_check_failed volume; false; }
+  [[ "$data_volume_after" == "$data_volume_before" ]] || { postgres_check_failed volume; false; }
+  data_fingerprint_after="$(trap - ERR; postgres_data_fingerprint)" || { postgres_check_failed fingerprint; false; }
+  [[ "$data_fingerprint_after" == "$data_fingerprint_before" ]] || { postgres_check_failed fingerprint; false; }
+  min_error_statement="$(trap - ERR; postgres_setting log_min_error_statement)" || { postgres_check_failed min_error_statement; false; }
+  [[ "$min_error_statement" == panic ]] || { postgres_check_failed min_error_statement; false; }
+  error_verbosity="$(trap - ERR; postgres_setting log_error_verbosity)" || { postgres_check_failed verbosity; false; }
+  [[ "$error_verbosity" == terse ]] || { postgres_check_failed verbosity; false; }
+  echo 'POSTGRES_RECREATED_FOR_LOG_SETTINGS'
+fi
 migration_started=true
 compose_no_stdin run --rm -T migrate
 compose_new up -d --no-deps --wait --wait-timeout 120 api production-web
@@ -302,7 +366,6 @@ compose_no_stdin exec -T production-web node -e \
 retry_health curl -fsS --max-time 8 https://api.masscom.kr/health
 retry_health curl -fsS --max-time 8 https://www.masscom.kr/app/
 retry_health curl -fsS --max-time 8 https://www.masscom.kr/merchant/
-retry_health curl -fsS --max-time 8 https://demo-api.masscom.kr/health
 
 sudo ln -sfn "$release" /opt/masscom/current
 printf '%s\n' "$commit" | sudo tee /opt/masscom/DEPLOYED_COMMIT >/dev/null
@@ -311,6 +374,29 @@ sudo ln -sfn "$release" /opt/masscom/web/current
 printf '%s\n' "$commit" | sudo tee /opt/masscom/web/DEPLOYED_COMMIT >/dev/null
 compose_new ps
 trap - ERR
+
+# 시연 API(demo-api) health는 운영 릴리스가 이미 올라간 뒤에 따로 본다(Issue #263, 점검 보고서 C02). 시연 장애는 운영 API를 이전 버전으로
+# 되돌릴 이유가 아니다: 여기서 실패해도 운영은 새 릴리스로 두고(DEPLOYED_COMMIT도 새 커밋) 배포만 실패로 알린다. 아래 정리 작업 단계가
+# 시연 장애 때문에 건너뛰어지지 않게, 실패는 기록만 하고 종료는 그 단계 뒤에 한다.
+showcase_probe_failed=false
+if ! retry_health curl -fsS --max-time 8 https://demo-api.masscom.kr/health; then
+  showcase_probe_failed=true
+  echo 'SHOWCASE_HEALTH_FAILED: production is live on the new release and was not rolled back; the same commit cannot be deployed again (RELEASE_ALREADY_EXISTS), so fix the showcase API (demo-api.masscom.kr) or Caddy by hand on the server, or ship a new commit' >&2
+fi
+
+# 보관 기간 정리 작업(하루 한 번, systemd timer)을 이 릴리스의 것으로 설치·갱신하고(멱등) timer가 켜져 있는지 읽기 전용으로 확인한다.
+# 처리방침의 "서버의 정리 작업" 문장은 이 timer가 켜져 있어야 사실이다. 여기서 실패하면 릴리스는 이미 올라간 상태로 두고(되돌리지 않는다)
+# 배포를 실패로 알린다: 서버에서 `sudo bash "$release/infra/lightsail/host-jobs/install.sh" --verify`로 원인을 보고 다시 실행한다.
+# 설치한 작업을 바로 한 번 실행해(매일 작업과 같은 일) 마지막 결과가 success인지 확인한다: 켜져만 있고 실제로는 실패하는 작업을 배포가 통과시키지 않는다.
+if ! sudo bash "$release/infra/lightsail/host-jobs/install.sh" ||
+   [[ "$(sudo systemctl is-enabled masscom-retention.timer)" != enabled ]] ||
+   ! sudo systemctl start masscom-retention.service ||
+   [[ "$(sudo systemctl show -p Result --value masscom-retention.service)" != success ]]; then
+  echo 'HOST_JOB_INSTALL_FAILED: release is live but the retention job is not enabled or its first run failed; check journalctl -u masscom-retention.service and run host-jobs/install.sh --verify on the server' >&2
+  exit 1
+fi
+echo 'HOST_JOB_ENABLED masscom-retention.timer (first run: success)'
+[[ "$showcase_probe_failed" == false ]] || exit 1
 REMOTE
 
 echo "Lightsail deployment completed: $commit"

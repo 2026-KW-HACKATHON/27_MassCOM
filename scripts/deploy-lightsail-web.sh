@@ -72,7 +72,7 @@ source_paths=(
   scripts/lightsail-web-rollback.sh
   scripts/lightsail-web-probe-guard.sh
   scripts/verify-showcase-edge-routes.mjs
-  docs/index.html docs/open.html docs/privacy.html docs/account-deletion.html
+  docs/index.html docs/open.html docs/privacy.html docs/terms.html docs/account-deletion.html
   docs/.well-known/assetlinks.json docs/assets docs/nft-metadata
   docs/evidence/android-collection.png docs/evidence/android-merchant-list.png
   docs/evidence/screenshots/android-account-settings.png
@@ -234,7 +234,7 @@ probe_web_routes() {
     sleep 1
   done
   [[ "$ready" == 'true' ]]
-  for path in / /open /privacy /account-deletion /app/ /app/assets/production.mjs; do
+  for path in / /open /privacy /terms /account-deletion /app/ /app/assets/production.mjs; do
     curl -fsS --max-time 8 "http://$address$path" >/dev/null
   done
   web_page_contains "http://$address/admin/" '실제 점포 관리'
@@ -250,11 +250,14 @@ probe_web_routes() {
     | cmp - "$release/site/public/nft-metadata/base-sepolia-proof/1.json"
   nft_metadata_headers="$(curl -fsSI --max-time 8 "http://$address/nft-metadata/base-sepolia-proof/1.json")"
   grep -Eqi '^content-type: application/json' <<< "$nft_metadata_headers"
+  # Issue #254: 확정 토큰 메타데이터 경로는 API로 넘어가 JSON 404를 받고 CORS 값은 한 줄만 남는다.
+  nft_metadata_probe_response "http://$address/nft-metadata/no-such/1.json"
   for path in /HANDOFF.md /TEST_STATUS.md /claim /mint /api/web/unknown; do
     status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address$path")"
     [[ "$status" == '404' ]]
   done
   web_collection_probe_response "http://$address/api/web/collection" masscom.kr
+  web_consent_probe_response "http://$address/api/web/consent" masscom.kr
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address/merchants")"
   [[ "$status" == '200' ]]
   curl -fsS --max-time 8 "http://$operating_address/merchants" |

@@ -65,8 +65,9 @@ test('an ambiguous failure while filing, re-issuing or cancelling asks the serve
   const cancelIntake = screen.slice(screen.indexOf('async function cancelIntake'), screen.indexOf('function confirmDeletion'));
   assert.match(cancelIntake, /isAmbiguousIntakeFailure\(caught\)\) await settleAmbiguousFailure\('cancel'\)/);
   const settle = screen.slice(screen.indexOf('async function settleAmbiguousFailure'), screen.indexOf('async function lookUpReceipt'));
-  assert.match(settle, /recheckIntake\(intakeClient\)/);
-  assert.match(settle, /setIntake\(undefined\);\s*setIntakeUnknown\(true\)/);
+  assert.match(settle, /ambiguousFailureOutcome\(action, await recheckIntake\(intakeClient\)\)/);
+  assert.match(settle, /setIntake\(outcome\.intake\);\s*setIntakeUnknown\(outcome\.intakeUnknown\)/);
+  assert.match(settle, /if \(outcome\.clearReceipt\) setReceipt\(undefined\)/);
   assert.match(screen, /intakeUnknownMessage/);
 });
 
@@ -87,4 +88,20 @@ test('the showcase screen looks a receipt up through the client and shows only t
   assert.match(screen, /autoCapitalize="characters"/);
   const lookup = screen.slice(screen.indexOf('async function lookUpReceipt'), screen.indexOf('function confirmIntake'));
   assert.doesNotMatch(lookup, /AsyncStorage|SecureStore|localStorage/);
+});
+
+test('the account page links to the terms, the privacy policy and the deletion guide, and reports a page that will not open', () => {
+  assert.match(screen, /import \{ legalLinks \} from '@\/privacy\/consent-copy'/);
+  assert.match(screen, /<Text style=\{styles\.sectionTitle\}>약관과 개인정보<\/Text>/);
+  assert.match(screen, /legalLinks\.map\(\(link\) => \(/);
+  assert.match(screen, /accessibilityRole="link"\s+accessibilityLabel=\{link\.label\}\s+accessibilityHint=\{link\.hint\}/);
+  assert.match(screen, /async function openLegalPage\(url: string\)/);
+  // 열지 못했다는 안내는 링크 바로 아래 카드 안에서 알린다(공용 오류 줄이 아니다).
+  const legalCard = screen.slice(screen.indexOf('약관과 개인정보</Text>'), screen.indexOf('<Text style={styles.sectionTitle}>계정 삭제 안내</Text>'));
+  assert.match(legalCard, /accessibilityLiveRegion="polite"[\s\S]*legalError/);
+  assert.match(screen, /setLegalError\('페이지를 열지 못했습니다/);
+  assert.match(screen, /페이지를 열지 못했습니다\. 브라우저에서 www\.masscom\.kr 주소를 직접 열어 주세요/);
+  // The new card is a guide only: the deletion request itself stays where it was (web page or showcase in-app filing).
+  assert.match(screen, /웹에서 계정 삭제 요청/);
+  assert.match(screen, /계정 삭제 요청<\/Text>/);
 });
