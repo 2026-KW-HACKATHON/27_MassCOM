@@ -262,6 +262,16 @@ function editField(doc, label, name, value, type = 'text') {
   return wrapper;
 }
 
+// 수정 양식에도 공개 NFT 정보 안내를 둔다(가게 이름·동네·업종은 발행 뒤 그 NFT에서 바뀌지 않는다).
+export const publicMetadataNoticeText = '가게 이름·동네·업종은 공개 중인 가게에서 발행하는 NFT의 공개 정보(메타데이터)에 들어가요. 여기서 고쳐도 이미 발행한 NFT에는 발행 때 값이 그대로 남아요.';
+
+function publicMetadataNotice(doc) {
+  const notice = doc.createElement('p');
+  notice.className = 'admin-hint';
+  notice.textContent = publicMetadataNoticeText;
+  return notice;
+}
+
 function categoryField(doc, value) {
   const wrapper = doc.createElement('label');
   wrapper.textContent = '업종 ';
@@ -637,6 +647,7 @@ export async function loadAdmin(fetcher, doc) {
         editField(doc, '최소 결제 금액(원)', 'minimumSpendWon', merchant.minimumSpendWon, 'number'),
         editField(doc, '동네(행정동)', 'neighborhood', merchant.neighborhood ?? ''),
         categoryField(doc, merchant.category),
+        publicMetadataNotice(doc),
         save, hide);
       const staffPanel = doc.createElement('section');
       const staffTitle = doc.createElement('h4');

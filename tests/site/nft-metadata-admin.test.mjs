@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { loadAdmin, merchantCategories, neighborhoodHint, neighborhoodProblem } from '../../apps/production-web/assets/admin.mjs';
+import {
+  loadAdmin, merchantCategories, neighborhoodHint, neighborhoodProblem, publicMetadataNoticeText,
+} from '../../apps/production-web/assets/admin.mjs';
 
 function element(tag = 'div') {
   const listeners = new Map();
@@ -84,6 +86,11 @@ test('수정 양식은 저장된 동네·업종을 채우고 요청 본문에 �
   assert.equal(category.value, '분식');
   assert.deepEqual(category.children.map((option) => option.value), ['', ...merchantCategories]);
   assert.equal(category.children[0].textContent, '선택 안 함');
+  // 수정 양식에도 공개·발행 뒤 고정 안내가 있다.
+  const notice = form.children.find((child) => child.textContent === publicMetadataNoticeText);
+  assert.ok(notice, 'edit form explains that the values become public NFT metadata');
+  assert.match(publicMetadataNoticeText, /공개 정보/);
+  assert.match(publicMetadataNoticeText, /이미 발행한 NFT에는 발행 때 값이 그대로/);
 
   const values = { name: '월계 김밥', story: '', roadAddress: '서울 노원구 월계로 1', minimumSpendWon: '0',
     menuItems: '김밥 | 4500', businessHours: '매일 10:00–20:00', neighborhood: ' 월계1동 ', category: '카페' };
@@ -129,4 +136,22 @@ test('등록 양식 HTML은 동네·업종에 이름표와 안내를 두고 업�
     const before = create.slice(0, create.indexOf(control));
     assert.ok(before.lastIndexOf('<label>') > before.lastIndexOf('</label>'), `${control} needs a label`);
   }
+});
+
+test('관리자 웹의 동네 정규식은 서버 규칙(merchant-profile-rules.ts)과 글자 그대로 같다', () => {
+  const web = readFileSync(new URL('../../apps/production-web/assets/admin.mjs', import.meta.url), 'utf8');
+  const server = readFileSync(new URL('../../apps/api/src/merchant-profile-rules.ts', import.meta.url), 'utf8');
+  const webPattern = /neighborhoodProblem[^]*?if \(!(\/\^[^\n]*?\$\/)\.test\(neighborhood\)/.exec(web)?.[1];
+  const serverPattern = /const neighborhoodPattern = (\/\^[^\n]*?\$\/);/.exec(server)?.[1];
+  assert.ok(webPattern && serverPattern, 'both patterns are found');
+  assert.equal(webPattern, serverPattern);
+  assert.match(web, /\/\[0-9\]\{3\}\/\.test\(neighborhood\)/);
+  assert.match(server, /!\/\[0-9\]\{3\}\/\.test\(value\)/);
+});
+
+test('캠페인 초안 양식은 캠페인 이름이 공개 NFT 정보에 들어간다고 안내한다', () => {
+  const page = readFileSync(new URL('../../apps/production-web/admin.html', import.meta.url), 'utf8');
+  const draft = /<form id="admin-campaign-draft" hidden>([^]*?)<\/form>/.exec(page)[1];
+  assert.match(draft, /<input name="title" required maxlength="200" aria-describedby="admin-campaign-title-hint">/);
+  assert.match(draft, /<p id="admin-campaign-title-hint" class="admin-hint">캠페인 이름은 발행하는 NFT의 공개 정보/);
 });
