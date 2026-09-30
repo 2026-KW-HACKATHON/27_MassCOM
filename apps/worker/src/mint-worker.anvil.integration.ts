@@ -23,6 +23,8 @@ import {
 } from './mint-worker.js';
 import { PostgresMintRepository } from './postgres-mint-repository.js';
 
+const testMetadataOrigin = 'https://masscom.kr';
+
 const adminAddress = getAddress('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266');
 const minterAddress = getAddress('0x70997970C51812dc3A010C7d01b50e0d17dc79C8');
 const pauserAddress = getAddress('0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC');
@@ -124,7 +126,7 @@ test('W07 M01-M08 finalize once and reject an unconfirmed reorg event on Anvil',
     (error: unknown) =>
       error instanceof ChainConfigurationError && error.code === 'MINTER_ROLE_MISSING',
   );
-  const repositoryA = new PostgresMintRepository(pool);
+  const repositoryA = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const workerA = new MintWorker(repositoryA, gateway);
 
   assert.equal(await workerA.runOnce('anvil-worker-a'), true);
@@ -185,7 +187,7 @@ test('W07 M01-M08 finalize once and reject an unconfirmed reorg event on Anvil',
   );
 
   // Restart: the scan start comes from the stored cursor and lies after job 2's event.
-  const restartedRepository = new PostgresMintRepository(pool, { chainFromBlock: 0, reorgMargin: 1 });
+  const restartedRepository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin, chainFromBlock: 0, reorgMargin: 1 });
   const scanFromBlock = await restartedRepository.getEventScanStart(31337, contractAddress);
   assert.ok(scanFromBlock > externallySubmittedReceipt.blockNumber);
   const restartedGateway = new EthersMintChainGateway({
@@ -198,7 +200,7 @@ test('W07 M01-M08 finalize once and reject an unconfirmed reorg event on Anvil',
     fallbackFromBlock: 0,
   });
   const restartedWorkerA = new MintWorker(restartedRepository, restartedGateway);
-  const workerB = new MintWorker(new PostgresMintRepository(pool), restartedGateway);
+  const workerB = new MintWorker(new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), restartedGateway);
   const leaseRace = await Promise.all([
     restartedWorkerA.runOnce('anvil-worker-a'),
     workerB.runOnce('anvil-worker-b'),

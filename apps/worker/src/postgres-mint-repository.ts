@@ -35,7 +35,7 @@ type Options = {
    * not be able to block this connection, and therefore this worker, forever.
    */
   minterLockTimeoutMs: number;
-  /** 공개 메타데이터·그림의 출처(Issue #254). 실행기는 NFT_METADATA_ORIGIN으로 반드시 받는다. */
+  /** 공개 메타데이터·그림의 출처(Issue #254). 기본값 없이 반드시 받는다(실행기는 NFT_METADATA_ORIGIN). */
   nftMetadataOrigin: string;
 };
 
@@ -49,6 +49,7 @@ type MetadataFactsRow = {
   category: string | null;
   campaign_title: string;
   target_visit_count: number;
+  store_public: boolean;
 };
 
 type WorkRow = {
@@ -88,7 +89,7 @@ type UnconfirmedSignedRow = {
   series_key: string;
 };
 
-const defaultOptions: Options = {
+const defaultOptions: Omit<Options, 'nftMetadataOrigin'> = {
   now: () => new Date(),
   nextAttemptId: () => randomUUID(),
   nextChainEventId: () => randomUUID(),
@@ -100,7 +101,6 @@ const defaultOptions: Options = {
   chainFromBlock: 0,
   reorgMargin: 12,
   minterLockTimeoutMs: 10_000,
-  nftMetadataOrigin: 'https://masscom.kr',
 };
 
 const unconfirmedSweepLimit = 50;
@@ -110,7 +110,7 @@ export class PostgresMintRepository implements MintWorkRepository {
 
   constructor(
     private readonly pool: Pool,
-    options: Partial<Options> = {},
+    options: Partial<Omit<Options, 'nftMetadataOrigin'>> & Pick<Options, 'nftMetadataOrigin'>,
   ) {
     this.options = { ...defaultOptions, ...options };
     if (!Number.isSafeInteger(this.options.maxAttempts) || this.options.maxAttempts <= 0) {
@@ -771,47 +771,72 @@ async function closeForManualReview(
 
 // 토큰 메타데이터 스냅샷(Issue #254, D-060). 이미 있으면 아무것도 읽거나 쓰지 않으므로 재확정이 내용을 바꾸지 않는다.
 // 가게 그림은 이 트랜잭션에서 읽은 바이트를 그대로 복사해 두므로 뒤에 가게가 그림을 바꾸거나 되돌려도 남는다.
+// 어떤 실패든 NFT_METADATA_SNAPSHOT_FAILED로 감싸 확정 전체를 되돌리고 작업을 재시도 대기(last_error_code)로 둔다.
 async function snapshotTokenMetadata(client: PoolClient, jobId: string, origin: string): Promise<void> {
-  const facts = await client.query<MetadataFactsRow>(
-    `SELECT asset.id AS asset_id, asset.token_id::text AS token_id, job.nft_series_id,
-            merchant.id AS merchant_id, merchant.name AS merchant_name, merchant.neighborhood, merchant.category,
-            campaign.title AS campaign_title, series.target_visit_count
-     FROM nft_assets AS asset
-     JOIN mint_jobs AS job ON job.id = asset.mint_job_id
-     JOIN nft_series AS series ON series.id = job.nft_series_id
-     JOIN campaigns AS campaign ON campaign.id = series.campaign_id
-     JOIN merchants AS merchant ON merchant.id = campaign.merchant_id
-     WHERE asset.mint_job_id = $1
-       AND NOT EXISTS (SELECT 1 FROM nft_token_metadata AS saved WHERE saved.nft_asset_id = asset.id)`,
-    [jobId],
-  );
-  const row = facts.rows[0];
-  if (!row) return;
-  const art = await client.query<{ image: Buffer }>(
-    'SELECT image FROM merchant_art WHERE merchant_id = $1',
-    [row.merchant_id],
-  );
-  const snapshot = buildNftMetadata({
-    merchantName: row.merchant_name,
-    neighborhood: row.neighborhood,
-    category: row.category,
-    campaignTitle: row.campaign_title,
-    targetVisitCount: row.target_visit_count,
-    artImage: art.rows[0]?.image ?? null,
-  }, origin);
-  if (snapshot.image) {
-    await client.query(
-      `INSERT INTO nft_metadata_images (sha256, image) VALUES ($1, $2)
-       ON CONFLICT (sha256) DO NOTHING`,
-      [snapshot.image.sha256, snapshot.image.bytes],
+  try {
+    const saved = await client.query(
+      `SELECT 1 FROM nft_token_metadata AS saved
+       JOIN nft_assets AS asset ON asset.id = saved.nft_asset_id
+       WHERE asset.mint_job_id = $1`,
+      [jobId],
     );
+    if (saved.rowCount) return;
+    const facts = await client.query<MetadataFactsRow>(
+      `SELECT asset.id AS asset_id, asset.token_id::text AS token_id, job.nft_series_id,
+              merchant.id AS merchant_id, merchant.name AS merchant_name, merchant.neighborhood, merchant.category,
+              (merchant.status = 'ACTIVE' AND (merchant.is_demo OR merchant.consent_document_ref IS NOT NULL))
+                AS store_public,
+              campaign.title AS campaign_title, series.target_visit_count
+       FROM nft_assets AS asset
+       JOIN mint_jobs AS job ON job.id = asset.mint_job_id
+       JOIN nft_series AS series ON series.id = job.nft_series_id
+       JOIN campaigns AS campaign ON campaign.id = series.campaign_id
+       JOIN merchants AS merchant ON merchant.id = campaign.merchant_id
+       WHERE asset.mint_job_id = $1`,
+      [jobId],
+    );
+    const row = facts.rows[0];
+    if (!row) throw new Error('NFT_METADATA_FACTS_MISSING');
+    let artImage: Buffer | null = null;
+    if (row.store_public) {
+      const art = (await client.query<{ image: Buffer }>(
+        'SELECT image FROM merchant_art WHERE merchant_id = $1',
+        [row.merchant_id],
+      )).rows[0]?.image ?? null;
+      // 운영자가 내린 그림(거부 목록)은 복사하지 않고 기본 도장을 쓴다.
+      if (art && art.length > 0) {
+        const takenDown = await client.query(
+          'SELECT 1 FROM nft_metadata_takedowns WHERE target = $1',
+          [`image:${createHash('sha256').update(art).digest('hex')}`],
+        );
+        if (!takenDown.rowCount) artImage = art;
+      }
+    }
+    const snapshot = buildNftMetadata({
+      storePublic: row.store_public,
+      merchantName: row.merchant_name,
+      neighborhood: row.neighborhood,
+      category: row.category,
+      campaignTitle: row.campaign_title,
+      targetVisitCount: row.target_visit_count,
+      artImage,
+    }, origin);
+    if (snapshot.image) {
+      await client.query(
+        `INSERT INTO nft_metadata_images (sha256, image) VALUES ($1, $2)
+         ON CONFLICT (sha256) DO NOTHING`,
+        [snapshot.image.sha256, snapshot.image.bytes],
+      );
+    }
+    await client.query(
+      `INSERT INTO nft_token_metadata (nft_asset_id, nft_series_id, token_id, metadata_json, image_sha256)
+       VALUES ($1, $2, $3::numeric, $4, $5)
+       ON CONFLICT (nft_asset_id) DO NOTHING`,
+      [row.asset_id, row.nft_series_id, row.token_id, snapshot.json, snapshot.image?.sha256 ?? null],
+    );
+  } catch (error) {
+    throw new RetryableChainError('NFT_METADATA_SNAPSHOT_FAILED', { cause: error });
   }
-  await client.query(
-    `INSERT INTO nft_token_metadata (nft_asset_id, nft_series_id, token_id, metadata_json, image_sha256)
-     VALUES ($1, $2, $3::numeric, $4, $5)
-     ON CONFLICT (nft_asset_id) DO NOTHING`,
-    [row.asset_id, row.nft_series_id, row.token_id, snapshot.json, snapshot.image?.sha256 ?? null],
-  );
 }
 
 async function requireLease(

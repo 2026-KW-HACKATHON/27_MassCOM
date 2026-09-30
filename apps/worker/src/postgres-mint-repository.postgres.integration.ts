@@ -12,6 +12,8 @@ import {
   type MintChainGateway,
 } from './mint-worker.js';
 
+const testMetadataOrigin = 'https://masscom.kr';
+
 function expectedUnconfirmed(
   item: {
     rewardKey: string;
@@ -43,7 +45,7 @@ test('M03 M06 lease race, retry, finalization, and repeated event ingestion stay
   await seedWorkerFixture(pool);
 
   let now = new Date('2026-09-19T04:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     nextAttemptId: () => '60000000-0000-4000-8000-000000000001',
     nextChainEventId: () => '70000000-0000-4000-8000-000000000001',
@@ -158,7 +160,7 @@ test('lease renewal rejects an account-deletion cancellation instead of silently
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
-  const repository = new PostgresMintRepository(pool);
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const item = await repository.leaseNext('worker-delete-race', 30_000);
   assert.ok(item);
   await repository.markPrepared(item, 'worker-delete-race');
@@ -184,7 +186,7 @@ test('lease renewal rejects an already expired lease', async (t) => {
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
   let now = new Date('2026-09-19T04:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
   });
   const item = await repository.leaseNext('worker-expired-lease', 30_000);
@@ -203,7 +205,7 @@ test('markSubmitted cannot revive a cancelled prepared job', async (t) => {
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
   const now = new Date('2026-09-19T04:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     nextAttemptId: () => '60000000-0000-4000-8000-000000000002',
   });
@@ -234,7 +236,7 @@ test('retry delay doubles per submission attempt and the attempt cap closes the 
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
   let now = new Date('2026-09-19T04:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     retryDelayMs: 1_000,
     maxRetryDelayMs: 3_000,
@@ -290,7 +292,7 @@ test('repeated pre-submission failures back off exponentially without consuming 
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
   let now = new Date('2026-09-19T04:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     retryDelayMs: 1_000,
     maxRetryDelayMs: 10_000,
@@ -329,7 +331,7 @@ test('a successful submission or finalize resets the retry streak to the base de
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
   let now = new Date('2026-09-19T04:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     nextAttemptId: () => '60000000-0000-4000-8000-000000000003',
     retryDelayMs: 1_000,
@@ -380,7 +382,7 @@ test('finalize resets the retry streak to the base delay for a later re-mint att
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
   let now = new Date('2026-09-19T04:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     nextAttemptId: () => '60000000-0000-4000-8000-000000000004',
     nextChainEventId: () => '70000000-0000-4000-8000-000000000004',
@@ -439,7 +441,7 @@ test('O02 a database outage stops the worker before any chain call and leaves th
   await unavailablePool.end();
 
   await assert.rejects(
-    new MintWorker(new PostgresMintRepository(unavailablePool), gateway).runOnce('worker-db-outage'),
+    new MintWorker(new PostgresMintRepository(unavailablePool, { nftMetadataOrigin: testMetadataOrigin }), gateway).runOnce('worker-db-outage'),
   );
   assert.deepEqual(chainCalls, []);
 
@@ -455,7 +457,7 @@ test('a reverted submission is dropped and released for retry in one transaction
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
-  const repository = new PostgresMintRepository(pool);
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const readJob = async (jobId: string) =>
     (
       await pool.query<{
@@ -517,7 +519,7 @@ test('a broadcast transaction awaiting its receipt is not capped by the send lim
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
   let now = new Date('2026-09-19T04:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     nextAttemptId: () => '60000000-0000-4000-8000-000000000005',
     maxAttempts: 1,
@@ -563,7 +565,7 @@ test('a job at the send cap without a broadcast hash still closes for RETRY_LIMI
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
   const now = new Date('2026-09-19T04:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     maxAttempts: 1,
   });
@@ -590,7 +592,7 @@ test('a transaction that confirms after the send cap still finalizes without any
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
   let now = new Date('2026-09-19T04:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     nextAttemptId: () => '60000000-0000-4000-8000-000000000006',
     nextChainEventId: () => '70000000-0000-4000-8000-000000000006',
@@ -636,7 +638,7 @@ test('restart recovery drops a reverted hash from a RETRYABLE job and lets the n
   await seedWorkerFixture(pool);
   let now = new Date('2026-09-19T05:00:00.000Z');
   const attemptIds = ['60000000-0000-4000-8000-000000000007', '60000000-0000-4000-8000-000000000008'];
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     nextAttemptId: () => attemptIds.shift()!,
   });
@@ -690,7 +692,7 @@ test('a receipt wait with no submitted attempt behind it closes instead of resta
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
   const now = new Date('2026-09-19T06:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     nextAttemptId: () => '60000000-0000-4000-8000-000000000009',
   });
@@ -713,7 +715,7 @@ test('event scan start reads the cursor with a reorg margin and deployment floor
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     chainFromBlock: 20,
     reorgMargin: 12,
   });
@@ -740,7 +742,7 @@ test('event scan start reads the cursor with a reorg margin and deployment floor
   const closedPool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   await closedPool.end();
   await assert.rejects(
-    new PostgresMintRepository(closedPool).getEventScanStart(31337, contractAddress),
+    new PostgresMintRepository(closedPool, { nftMetadataOrigin: testMetadataOrigin }).getEventScanStart(31337, contractAddress),
     (error: unknown) =>
       error instanceof RetryableChainError && error.code === 'CHAIN_CURSOR_READ_FAILED',
   );
@@ -751,7 +753,7 @@ test('signed_transaction is stored with the attempt and survives a release and a
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
   let now = new Date('2026-09-19T07:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     nextAttemptId: () => '60000000-0000-4000-8000-000000000010',
   });
@@ -793,7 +795,7 @@ test('H1 closeForManualReview also closes the job\'s SUBMITTED attempt so it sto
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
-  const repository = new PostgresMintRepository(pool);
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const item = await repository.leaseNext('worker-manual-review-closes-attempt', 30_000);
   assert.ok(item);
   const attemptId = await repository.markPrepared(item, 'worker-manual-review-closes-attempt');
@@ -827,7 +829,7 @@ test('H1 finalize supersedes any other SUBMITTED attempt of the same job', async
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
   let now = new Date('2026-09-20T04:00:00.000Z');
-  const repository = new PostgresMintRepository(pool, {
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin,
     now: () => now,
     nextAttemptId: () => '60000000-0000-4000-8000-0000000000a1',
     nextChainEventId: () => '70000000-0000-4000-8000-0000000000a1',
@@ -888,7 +890,7 @@ test('H1 the sweep excludes attempts whose parent job is already terminal', asyn
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
-  const repository = new PostgresMintRepository(pool);
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const item = await repository.leaseNext('worker-sweep-terminal', 30_000);
   assert.ok(item);
   const attemptId = await repository.markPrepared(item, 'worker-sweep-terminal');
@@ -924,7 +926,7 @@ test('H1 the sweep excludes attempts whose parent job is already terminal', asyn
 test('withMinterLock serializes concurrent callers for the same chain and minter', async (t) => {
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
-  const repository = new PostgresMintRepository(pool);
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const minterAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
 
   let running = 0;
@@ -963,7 +965,7 @@ test('withMinterLock serializes concurrent callers for the same chain and minter
 test('M4 a lock acquisition that times out is retryable and does not hang the worker', async (t) => {
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl(), max: 3 });
   t.after(() => pool.end());
-  const repository = new PostgresMintRepository(pool, { minterLockTimeoutMs: 200 });
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin, minterLockTimeoutMs: 200 });
   const minterAddress = '0x00000000000000000000000000000000BEEF01';
 
   // Hold the same chain/minter advisory lock from a separate connection, outside the repository.
@@ -996,7 +998,7 @@ test('M4 a lock acquisition that times out is retryable and does not hang the wo
 test('M4 withMinterLock destroys the connection instead of pooling it when the unlock query fails', async (t) => {
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl(), max: 3 });
   t.after(() => pool.end());
-  const repository = new PostgresMintRepository(pool);
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const minterAddress = '0x00000000000000000000000000000000BEEF02';
 
   // Inject a failure on the unlock query only, on a real pooled connection, so we can observe
@@ -1223,6 +1225,7 @@ test('#254 확정 때 가게 이름·동네·업종·방문 단계·캠페인과
       { trait_type: '업종', value: '분식' },
       { trait_type: '방문 단계', value: '첫 방문' },
       { trait_type: '캠페인', value: 'Worker 도감' },
+      { trait_type: '그림', value: 'AI 생성' },
     ],
   });
   for (const hidden of ['데모로', '2026-', 'customer-worker', '0x4000000000000000000000000000000000000004', 'Worker 시험용']) {
@@ -1241,7 +1244,7 @@ test('#254 가게 정보·그림이 바뀌고 확정을 다시 해도 이미 고
   await pool.query(`UPDATE merchants SET neighborhood = '월계동', category = '한식' WHERE id = 'merchant-worker'`);
   await pool.query('INSERT INTO merchant_art (merchant_id, image, sha256) VALUES ($1, $2, $3)',
     ['merchant-worker', art, sha]);
-  const repository = new PostgresMintRepository(pool);
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
   const { item, attemptId, result } = await finalizeFixtureJob(pool, repository, 'worker-immutable');
   const [original] = await savedMetadata(pool);
   assert.ok(original);
@@ -1270,14 +1273,15 @@ test('#254 가게 그림이 없으면 기본 도장이고 동네·업종이 없�
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
   await seedWorkerFixture(pool);
-  await finalizeFixtureJob(pool, new PostgresMintRepository(pool), 'worker-default');
+  await finalizeFixtureJob(pool, new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), 'worker-default');
   const [saved] = await savedMetadata(pool);
   assert.equal(saved?.image_sha256, null);
   const metadata = JSON.parse(saved!.metadata_json);
-  assert.equal(metadata.image, 'https://masscom.kr/assets/mascot-stamp.png');
+  assert.equal(metadata.image, 'https://masscom.kr/nft-metadata/default/mascot-stamp-v1.png');
   assert.deepEqual(metadata.attributes.map((item: { trait_type: string }) => item.trait_type), ['가게 이름', '방문 단계', '캠페인']);
 
-  for (const id of ['base-sepolia-proof', 'has space', 'dot.id', '-leading', 'a'.repeat(129)]) {
+  for (const id of ['base-sepolia-proof', 'BASE-SEPOLIA-PROOF', 'Base-Sepolia-Proof', 'has space', 'dot.id', '-leading',
+    'a'.repeat(129)]) {
     await assert.rejects(pool.query(
       `INSERT INTO nft_series (id, campaign_id, target_visit_count, chain_id, contract_address,
          contract_address_normalized, series_key, max_ever_minted, status)
@@ -1286,4 +1290,109 @@ test('#254 가게 그림이 없으면 기본 도장이고 동네·업종이 없�
       [id],
     ), /nft_series_metadata_path_check/, id);
   }
+});
+
+test('#254 공개 중이 아닌 점포(숨김·동의서 없는 실제 점포)는 가게를 드러내지 않는 일반 도장이고, 동의서가 있는 공개 점포는 가게 정보를 담는다', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  const art = Buffer.from('fixture-webp-hidden-store');
+  const sha = createHash('sha256').update(art).digest('hex');
+  for (const [label, update, storePublic] of [
+    ['hidden demo store', `UPDATE merchants SET status = 'PAUSED'`, false],
+    ['real store without consent', `UPDATE merchants SET is_demo = false, consent_document_ref = NULL`, false],
+    ['real published store', `UPDATE merchants SET is_demo = false, consent_document_ref = 'CS-2609-01'`, true],
+  ] as const) {
+    await seedWorkerFixture(pool);
+    await pool.query(`UPDATE merchants SET neighborhood = '월계동', category = '카페' WHERE id = 'merchant-worker'`);
+    await pool.query(`${update} WHERE id = 'merchant-worker'`);
+    await pool.query('INSERT INTO merchant_art (merchant_id, image, sha256) VALUES ($1, $2, $3)',
+      ['merchant-worker', art, sha]);
+    await finalizeFixtureJob(pool, new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), `worker-${label}`);
+    const [saved] = await savedMetadata(pool);
+    const metadata = JSON.parse(saved!.metadata_json);
+    if (storePublic) {
+      assert.equal(metadata.name, 'Worker 데모 식당 방문 도장', label);
+      assert.equal(saved!.image_sha256, sha, label);
+    } else {
+      assert.deepEqual(metadata, {
+        name: '월계 방문 도장',
+        description: '월계 마스코트 방문 도감의 첫 방문 도장입니다. 다른 지갑으로 보낼 수 없는 기념 NFT입니다.',
+        image: 'https://masscom.kr/nft-metadata/default/mascot-stamp-v1.png',
+        attributes: [{ trait_type: '방문 단계', value: '첫 방문' }],
+      }, label);
+      assert.equal(saved!.image_sha256, null, label);
+      for (const hidden of ['Worker 데모 식당', '월계동', '카페', 'Worker 도감']) {
+        assert.equal(saved!.metadata_json.includes(hidden), false, `${label}: ${hidden}`);
+      }
+    }
+  }
+});
+
+test('#254 운영자가 내린 그림(거부 목록)은 스냅샷이 복사하지 않고 기본 도장을 쓴다', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const art = Buffer.from('fixture-webp-reported');
+  const sha = createHash('sha256').update(art).digest('hex');
+  await pool.query('TRUNCATE nft_metadata_takedowns');
+  await pool.query('INSERT INTO merchant_art (merchant_id, image, sha256) VALUES ($1, $2, $3)',
+    ['merchant-worker', art, sha]);
+  await pool.query(`INSERT INTO nft_metadata_takedowns (target, reason) VALUES ($1, '신고된 그림')`, [`image:${sha}`]);
+  await finalizeFixtureJob(pool, new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin }), 'worker-takedown');
+  const [saved] = await savedMetadata(pool);
+  assert.equal(saved!.image_sha256, null);
+  assert.equal(JSON.parse(saved!.metadata_json).image, 'https://masscom.kr/nft-metadata/default/mascot-stamp-v1.png');
+  assert.equal(saved!.metadata_json.includes('AI 생성'), false);
+  assert.equal((await pool.query('SELECT 1 FROM nft_metadata_images WHERE sha256 = $1', [sha])).rowCount, 0);
+  await pool.query('TRUNCATE nft_metadata_takedowns');
+});
+
+test('#254 스냅샷이 실패하면 확정 전체가 되돌아가 NFT_METADATA_SNAPSHOT_FAILED로 재시도하고, 원인이 풀리면 다음 확정이 스냅샷과 함께 끝난다', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(async () => {
+    await pool.query('DROP TRIGGER IF EXISTS nft_token_metadata_test_failure ON nft_token_metadata');
+    await pool.query('DROP FUNCTION IF EXISTS nft_token_metadata_test_failure()');
+    await pool.end();
+  });
+  await seedWorkerFixture(pool);
+  await pool.query(`CREATE FUNCTION nft_token_metadata_test_failure() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN RAISE EXCEPTION 'injected snapshot failure'; END; $$`);
+  await pool.query(`CREATE TRIGGER nft_token_metadata_test_failure BEFORE INSERT ON nft_token_metadata
+    FOR EACH ROW EXECUTE FUNCTION nft_token_metadata_test_failure()`);
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: testMetadataOrigin });
+  const item = await repository.leaseNext('worker-snapshot-failure', 30_000);
+  assert.ok(item);
+  const attemptId = await repository.markPrepared(item, 'worker-snapshot-failure');
+  const transactionHash = `0x${'cd'.repeat(32)}`;
+  await repository.markSubmitted(item.jobId, 'worker-snapshot-failure', attemptId, transactionHash);
+  const result: ChainMintResult = {
+    transactionHash, blockNumber: 5, blockHash: `0x${'ce'.repeat(32)}`, logIndex: 0, tokenId: '8',
+    rewardKey: item.rewardKey, recipient: item.recipient, seriesKey: item.seriesKey,
+    contractAddress: item.contractAddress, chainId: item.chainId,
+  };
+  await assert.rejects(repository.finalize(item, 'worker-snapshot-failure', attemptId, result),
+    (error: unknown) => error instanceof RetryableChainError && error.code === 'NFT_METADATA_SNAPSHOT_FAILED');
+  const rolledBack = await pool.query<{ assets: number; events: number; status: string }>(
+    `SELECT (SELECT count(*)::integer FROM nft_assets) AS assets, (SELECT count(*)::integer FROM chain_events) AS events,
+       (SELECT status FROM mint_jobs WHERE id = $1) AS status`, [item.jobId],
+  );
+  assert.equal(rolledBack.rows[0]?.assets, 0);
+  assert.equal(rolledBack.rows[0]?.events, 0);
+  assert.notEqual(rolledBack.rows[0]?.status, 'FINALIZED');
+  // 작업자는 이 코드로 재시도 대기에 둔다(last_error_code).
+  await repository.releaseRetryable(item.jobId, 'worker-snapshot-failure', 'NFT_METADATA_SNAPSHOT_FAILED');
+  const released = await pool.query<{ status: string; last_error_code: string }>(
+    'SELECT status, last_error_code FROM mint_jobs WHERE id = $1', [item.jobId]);
+  assert.deepEqual(released.rows[0], { status: 'RETRYABLE', last_error_code: 'NFT_METADATA_SNAPSHOT_FAILED' });
+
+  await pool.query('DROP TRIGGER nft_token_metadata_test_failure ON nft_token_metadata');
+  await pool.query(`UPDATE outbox_events SET available_at = now() - interval '1 second' WHERE aggregate_id = $1`, [item.jobId]);
+  const relet = await repository.leaseNext('worker-snapshot-retry', 30_000);
+  assert.equal(relet?.jobId, item.jobId);
+  await repository.finalize(relet!, 'worker-snapshot-retry', undefined, result);
+  const done = await pool.query<{ status: string; snapshots: number }>(
+    `SELECT (SELECT status FROM mint_jobs WHERE id = $1) AS status,
+       (SELECT count(*)::integer FROM nft_token_metadata) AS snapshots`, [item.jobId],
+  );
+  assert.deepEqual(done.rows[0], { status: 'FINALIZED', snapshots: 1 });
 });
