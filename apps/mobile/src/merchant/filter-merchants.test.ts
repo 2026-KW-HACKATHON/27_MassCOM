@@ -26,10 +26,10 @@ test('searches only real catalog fields with trimmed, case-insensitive text', ()
   assert.deepEqual(filterMerchants(merchants, '맛집 탐험', 'all').map(({ id }) => id), ['three']);
 });
 
-test('filters open campaigns without changing source order or source data', () => {
+test('the open chip keeps stores whose shown capacity is full, because every visit earns (D-023)', () => {
   const visible = filterMerchants(merchants, '', 'open');
-  assert.deepEqual(visible.map(({ id }) => id), ['one', 'three']);
+  assert.deepEqual(visible.map(({ id }) => id), ['one', 'two', 'three']);
   assert.equal(visible[0], merchants[0]);
   assert.equal(merchants.length, 3);
-  assert.deepEqual(filterMerchants(merchants, '골목', 'open'), []);
+  assert.deepEqual(filterMerchants(merchants, '골목', 'open').map(({ id }) => id), ['two']);
 });
