@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily MassCOM showcase retention job
+
+[Timer]
+# 매일 19:35:00 UTC(한국 시간 04:35). 꺼져 있던 동안 놓친 실행은 다음 부팅 때 한 번 만회한다.
+OnCalendar=*-*-* 19:35:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

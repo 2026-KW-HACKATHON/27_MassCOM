@@ -2,6 +2,11 @@ const MERCHANTS_URL = '/merchants';
 const COLLECTION_URL = '/api/web/collection';
 const BADGES_URL = '/api/web/badges';
 const BADGES_TIMEOUT_MS = 8000;
+const CONSENT_URL = '/api/web/consent';
+// index.html이 보여 주는 이용약관·개인정보 문구의 버전(Issue #253). 서버 상수와 공개 페이지의 버전은 시험이 서로 비교한다.
+// 서버가 다른 버전을 요구하면 이 화면의 문구에는 동의를 받지 않고 새로 열도록 안내한다.
+const CONSENT_TERMS_VERSION = 'terms-2026-09-30';
+const CONSENT_PRIVACY_VERSION = 'privacy-2026-09-30';
 const collectionRequests = new WeakMap();
 
 const nftLabels = {
@@ -108,6 +113,109 @@ async function fetchBadges(fetcher, timeoutMs) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// 서버가 "동의 필요"라고 하지 않은 경우에만 도감을 읽는다. 확인하지 못하면 막힌 채로 두지 않고 다시 시도를 보인다.
+async function readConsent(fetcher) {
+  try {
+    const response = await fetcher(CONSENT_URL, {
+      method: 'GET', credentials: 'same-origin', cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (response.status === 401) return { kind: 'unauthenticated' };
+    if (!response.ok) return { kind: 'failed' };
+    const data = await response.json();
+    if (data === null || typeof data !== 'object' || typeof data.required !== 'boolean'
+      || !isText(data.termsVersion) || !isText(data.privacyVersion)) return { kind: 'failed' };
+    if (!data.required) return { kind: 'accepted' };
+    return data.termsVersion === CONSENT_TERMS_VERSION && data.privacyVersion === CONSENT_PRIVACY_VERSION
+      ? { kind: 'required' } : { kind: 'outdated' };
+  } catch {
+    return { kind: 'failed' };
+  }
+}
+
+function consentNodes(doc) {
+  const names = ['consent-panel', 'consent-age', 'consent-terms', 'consent-privacy', 'consent-submit', 'consent-message', 'consent-hint'];
+  const nodes = Object.fromEntries(names.map((name) => [name, doc.getElementById(name)]));
+  return names.every((name) => nodes[name]) ? nodes : null;
+}
+
+function resetConsent(nodes, hidden) {
+  for (const name of ['consent-age', 'consent-terms', 'consent-privacy']) nodes[name].checked = false;
+  nodes['consent-submit'].disabled = true;
+  nodes['consent-hint'].hidden = false;
+  nodes['consent-message'].textContent = '';
+  nodes['consent-panel'].hidden = hidden;
+}
+
+// 화면이 나타나거나 사라질 때 키보드·스크린리더 초점을 옮긴다: 나타나면 머리글로, 사라지면(동의함·로그아웃) 본문으로.
+function moveFocus(doc, id) {
+  const node = doc.getElementById(id);
+  if (node && typeof node.focus === 'function') node.focus();
+}
+
+function hideConsent(doc) {
+  const nodes = consentNodes(doc);
+  if (!nodes) return;
+  const wasVisible = !nodes['consent-panel'].hidden;
+  resetConsent(nodes, true);
+  if (wasVisible) moveFocus(doc, 'main');
+}
+
+// 이미 보이는 화면은 그대로 둔다: 약관 링크를 새 탭에서 읽고 돌아오면 다시 확인이 돌지만 눌러 둔 체크를 지우지 않는다.
+function showConsent(doc) {
+  const nodes = consentNodes(doc);
+  if (!nodes) return false;
+  if (nodes['consent-panel'].hidden) {
+    resetConsent(nodes, false);
+    moveFocus(doc, 'consent-title');
+  }
+  return true;
+}
+
+function bindConsentControls(fetcher, doc, refresh) {
+  const nodes = consentNodes(doc);
+  if (!nodes) return;
+  const boxes = ['consent-age', 'consent-terms', 'consent-privacy'].map((name) => nodes[name]);
+  const complete = () => boxes.every((box) => box.checked === true);
+  // 버튼이 꺼져 있는 동안은 왜 눌 수 없는지 보이는 안내를 둔다(버튼의 aria-describedby도 이 안내를 가리킨다).
+  const update = () => {
+    nodes['consent-submit'].disabled = !complete();
+    nodes['consent-hint'].hidden = !nodes['consent-submit'].disabled;
+  };
+  for (const box of boxes) box.addEventListener('change', update);
+  let busy = false;
+  nodes['consent-submit'].addEventListener('click', async () => {
+    if (busy || !complete()) return;
+    busy = true;
+    nodes['consent-submit'].disabled = true;
+    nodes['consent-message'].textContent = '';
+    try {
+      const response = await fetcher(CONSENT_URL, {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          termsVersion: CONSENT_TERMS_VERSION, privacyVersion: CONSENT_PRIVACY_VERSION,
+          ageConfirmed: true, termsAccepted: true, privacyAccepted: true,
+        }),
+      });
+      if (response.status === 401) { await refresh(); return; }
+      if (response.status === 409) {
+        nodes['consent-message'].textContent = '이용약관이나 개인정보 처리방침이 새로 바뀌었어요. 페이지를 새로 연 뒤 다시 시도해 주세요.';
+        return;
+      }
+      if (!response.ok) throw new Error('consent unavailable');
+      const data = await response.json();
+      if (data === null || typeof data !== 'object' || data.required !== false) throw new Error('consent not recorded');
+      await refresh();
+    } catch {
+      nodes['consent-message'].textContent = '동의를 기록하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.';
+    } finally {
+      busy = false;
+      update();
+    }
+  });
 }
 
 function collectionNodes(doc) {
@@ -283,6 +391,36 @@ export async function loadCollection(fetcher, doc, { badgesTimeoutMs = BADGES_TI
   collectionRequests.set(doc, requestId);
   clearCollection(nodes);
   nodes['collection-status'].textContent = '내 도감을 확인하는 중입니다.';
+  const consent = await readConsent(fetcher);
+  if (collectionRequests.get(doc) !== requestId) return;
+  // 동의가 필요한 경우에만 동의 화면이 남는다. 그 밖의 결과(로그인 필요·확인 실패·버전 불일치·동의함)에서는 닫는다.
+  if (consent.kind !== 'required') hideConsent(doc);
+  if (consent.kind === 'unauthenticated') {
+    nodes['collection-status'].textContent = '내 도감을 보려면 Google 계정으로 로그인해 주세요.';
+    nodes['collection-login'].hidden = false;
+    return;
+  }
+  if (consent.kind === 'failed') {
+    nodes['collection-status'].textContent = '동의 상태를 확인하지 못했습니다. 다시 시도해 주세요.';
+    nodes['collection-retry'].hidden = false;
+    return;
+  }
+  if (consent.kind === 'outdated') {
+    nodes['collection-status'].textContent = '이용약관이나 개인정보 처리방침이 새로 바뀌었어요. 페이지를 새로 연 뒤 다시 시도해 주세요.';
+    nodes['collection-retry'].hidden = false;
+    nodes['collection-logout'].hidden = false;
+    return;
+  }
+  if (consent.kind === 'required') {
+    if (showConsent(doc)) {
+      nodes['collection-status'].textContent = '이용을 시작하기 전에 아래 내용에 동의해 주세요.';
+    } else {
+      nodes['collection-status'].textContent = '동의 화면을 열 수 없습니다. 다시 시도해 주세요.';
+      nodes['collection-retry'].hidden = false;
+    }
+    nodes['collection-logout'].hidden = false;
+    return;
+  }
   const badgesRequest = fetchBadges(fetcher, badgesTimeoutMs);
   let collectionShown = false;
   let counts;
@@ -355,13 +493,18 @@ export function bindCollectionControls(fetcher, doc) {
   const channel = Channel ? new Channel('masscom-web-session') : undefined;
   const invalidate = () => {
     collectionRequests.set(doc, (collectionRequests.get(doc) ?? 0) + 1);
+    // 동의 화면은 개인 기록이 없어 지우지 않는다: 숨겨진 사이에 눌러 둔 체크를 잃지 않게 하고, 다시 보일 때 서버 답에 따라 닫는다.
     clearCollection(nodes);
     nodes['collection-status'].textContent = '내 도감을 다시 확인해 주세요.';
   };
   const refresh = () => loadCollection(fetcher, doc);
+  bindConsentControls(fetcher, doc, refresh);
   if (channel) {
     channel.onmessage = (event) => {
       if (event.data !== 'refresh') return;
+      // 다른 탭에서 로그인·로그아웃이 있었으면 계정이 바뀌었을 수 있어 눌러 둔 체크를 지운다. 가려졌다 다시 보이는 것(visibilitychange)만 체크를 남긴다.
+      const consent = consentNodes(doc);
+      if (consent) resetConsent(consent, consent['consent-panel'].hidden);
       invalidate();
       if (!doc.hidden) void refresh();
     };

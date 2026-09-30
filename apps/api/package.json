@@ -16,6 +16,8 @@
     "admin:role:production": "node dist/postgres/admin-role-command.js",
     "admin:deletion": "tsx src/postgres/account-deletion-command.ts",
     "admin:deletion:host": "node dist/postgres/account-deletion-command.js",
+    "admin:retention": "tsx src/postgres/retention-command.ts",
+    "admin:retention:host": "node dist/postgres/retention-command.js",
     "seed:showcase:local": "tsx src/showcase/seed-command.ts",
     "seed:showcase:host": "tsx src/showcase/host-seed-command.ts",
     "grant:showcase:staff": "tsx src/showcase/grant-staff-command.ts",

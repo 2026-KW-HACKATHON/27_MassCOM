@@ -29,6 +29,7 @@ const expected = [
   'preview/assets/showcase.css',
   'preview/index.html',
   'privacy.html',
+  'terms.html',
 ].sort();
 const previewSources = new Map([
   ['preview/index.html', 'apps/showcase-web/index.html'],

@@ -11,6 +11,7 @@ const requiredLiveRegions = [
   'screens/recommendations/index.tsx',
   'screens/wallet-link/index.tsx',
   'screens/account-settings/index.tsx',
+  'screens/consent/index.tsx',
 ];
 let failures = 0;
 const sources = [];
@@ -50,6 +51,24 @@ const claimScreen = sources[1] ?? '';
 if (!/accessibilityLabel="QR 코드 촬영"/.test(claimScreen)
   || !/accessibilityHint="점주 화면의 방문 수령 QR 코드를 카메라로 읽습니다\."/.test(claimScreen)) {
   console.error('QR camera action is missing its TalkBack label or hint');
+  failures += 1;
+}
+// 동의 화면(Issue #253): 체크박스는 스크린리더가 역할과 선택 여부를 읽어야 하고, 링크·머리글·비활성 버튼도 의미가 있어야 한다.
+const consentScreen = sources[requiredLiveRegions.indexOf('screens/consent/index.tsx')] ?? '';
+for (const [pattern, what] of [
+  [/accessibilityRole="checkbox"/, 'checkbox role'],
+  [/accessibilityState=\{\{ checked/, 'checked state'],
+  [/accessibilityRole="link"/, 'link role'],
+  [/accessibilityRole="header"/, 'header role'],
+  [/accessibilityState=\{\{ disabled: !ready \|\| busy/, 'disabled state of the submit button'],
+]) {
+  if (!pattern.test(consentScreen)) {
+    console.error(`consent screen is missing its ${what}`);
+    failures += 1;
+  }
+}
+if (/allowFontScaling=\{false\}|maxFontSizeMultiplier/.test(consentScreen)) {
+  console.error('consent screen must let text scale to 200%');
   failures += 1;
 }
 if (failures > 0) process.exit(1);
