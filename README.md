@@ -25,6 +25,35 @@
 
 > 배너는 콘셉트 일러스트입니다. 시연 점포·방문은 가상 데이터이며 협약 점포, Google Play 승인, 매출 증가를 뜻하지 않습니다. 시연 Preview 3 APK에서는 기존의 두 계정 **직접 코드 입력 수령**과 별도로, [같은 계정의 점주·고객 역할 전환 후 실제 카메라 QR 촬영→수령](docs/evidence/showcase-preview3-camera-claim-2026-09-28.json)을 확인했습니다. 다른 두 계정·두 휴대전화의 QR 수령, 시연 앱 외부 지갑·NFT 발행은 별도 `NOT_RUN`입니다.
 
+## 심사위원용 3분 요약
+
+MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모으는 Android 서비스입니다. 지역 이용자와 점주·직원이 대상입니다. 핵심 루프는 "가게 탐색 → 방문 인증(QR) → 도감·배지 적립 → 다음 가게 추천"입니다.
+
+| 지금 실제로 되는 것 | 근거 |
+| --- | --- |
+| 시연 앱: 가상 점포 3곳 탐색·QR 방문·도감, 하늘 동네·탐험 여권(배지·상자·쿠폰), 동네 지도·길찾기, 친구 탭 | [Preview 14 설치](docs/evidence/showcase-preview14-release-2026-10-01.json), [탐험 여권 실기](docs/evidence/explorer-passport-emulator-2026-09-29/README.md), [지도 실폰](docs/evidence/town-map-2026-09-29/README.md), [친구 배포](docs/evidence/friends-deployment-2026-09-29.json) (두 계정 사이 친구 코드·QR 추가는 `NOT_RUN`) |
+| 점주 웹: 사진 수집품 제작기, 방문·쿠폰 되돌리기 화면 | [TEST_STATUS](docs/TEST_STATUS.md) (실제 방문을 되돌리는 실행은 `NOT_RUN`) |
+| 서버: 실제 점포 운영 시작·약관 동의·NFT 메타데이터 API가 운영·시연에 배포됨 | [배포 증거](docs/evidence/store-consent-nft-deployment-2026-09-30.json) |
+| NFT: Local Anvil·Base Sepolia 테스트넷 발행·장애 복구 검증 | [Worker 검증](docs/TEST_STATUS.md) |
+| 운영 test.5·시연 Preview 14 APK 서명·설치 확인(Samsung 실기) | [운영 test.5](docs/evidence/operating-android-test5-2026-10-01.json) |
+| 도감 카드 실기 확인(라이트·다크·글자 200%, 잘림·명암비 이상 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
+
+| 꺼져 있거나 아직 안 된 것 | 근거 |
+| --- | --- |
+| 실제 제휴 점포 0곳(운영 점포 0건, 시연은 가상 3곳뿐) | [운영 관리자 현황](docs/evidence/operating-admin-status-deployment-2026-09-29.json) |
+| 현장 실증(필드 검증) 전체 `NOT_RUN` | [FIELD_VALIDATION](docs/FIELD_VALIDATION.md) |
+| AI 가게 그림 실제 호출 꺼짐(OpenAI 키 미투입, [B-026](docs/BLOCKERS.md)) | [켜기 준비 리허설](docs/evidence/ai-art-enable-rehearsal-2026-09-30.json) |
+| NFT는 Base Sepolia 테스트넷까지만, 메인넷 발행 없음 | [BLOCKERS](docs/BLOCKERS.md) |
+| 새 약관 동의 화면 제출 `BLOCKED`(미동의 허용 계정이 기기 Google 계정 선택기에 없음, 비밀번호 필요한 계정 추가는 금지) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
+| #257 사진 수집품 native 상세 화면 `NOT_RUN`(보유 계정 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
+| DB 백업의 실제 복원 | [HANDOFF](docs/HANDOFF.md) |
+
+**설치·시연:** [masscom.kr/open](https://www.masscom.kr/open)에서 운영(고객 전용, 실제 API·DB)과 시연(가상 점포 체험용, 별도 API·DB) 중 고릅니다. 시연 웹은 설치 없이 [masscom.kr/preview](https://www.masscom.kr/preview/)에서 바로 봅니다.
+
+현재 자동 시험 합계(2026-10-01 KST, main `61bde48` 기준): API 단위 291/291 · Worker 단위 55/55 · 모바일 853/853 · Foundry 8/8. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)).
+
+아래 "실제 기능 상태" 표가 기능별 자세한 근거이며, 이 요약과 어긋나면 아래 표·링크한 문서를 최신으로 봅니다.
+
 ## 왜 만드는가
 
 | 대상 | 다루는 문제 | MassCOM의 접근 | 현재 근거 |
@@ -264,6 +293,14 @@ sequenceDiagram
 | NFT 발행 전체 흐름 | `VERIFIED` | Local Anvil 장애·복구와 Base Sepolia PostgreSQL job/Outbox→암호화 service minter→receipt/event/owner/locked→DB FINALIZED·재실행 무작업 PASS |
 | 계정 삭제·개인정보 | `IN_PROGRESS` | D01·D03 로컬 PASS. Google 웹 세션에 묶인 **삭제 의사 접수**는 [운영 HTTPS 배포](docs/evidence/operating-deletion-intake-deployment-2026-09-28.json)와 미로그인 401·Origin 없는 요청 403까지 확인(접수만 있던 이전 버전). [5분 재인증·발행 최종성 보안 수리](docs/PRIVACY_DELETION.md)도 서버에 반영. D-052의 접수번호·24시간 취소·운영자 처리·접수번호 조회는 코드와 로컬 시험을 마치고 main `02cb7e7`로 운영·시연에 배포했지만([배포 증거](docs/evidence/reversal-deletion-deployment-2026-09-30.json)의 조회 404·세션 없는 접수 401 등 읽기·거절 확인뿐) 폐기용 실계정의 종단 실행은 미완료([B-020](docs/BLOCKERS.md)) |
 | 외부 HTTPS·Play 제출 | `IN_PROGRESS` | [웹 전용 배포](docs/evidence/web-only-deployment-2026-09-28.json)와 공개 API·포털 HTTPS, [GitHub 운영 test.5 APK](docs/evidence/operating-android-test5-2026-10-01.json)의 Samsung 설치·새 버전 동의 화면 표시 PASS, [이전 test.4 APK](docs/evidence/operating-android-test4-2026-10-01.json)의 Samsung 설치·세션 복원·동의 화면 표시 PASS와 [이전 test.3 APK](docs/evidence/operating-android-test3-2026-09-28.json)의 Samsung 로그인·16KB 설치 PASS. 폰의 App Link 도메인은 verified지만 자동 열기는 사용자 설정으로 비활성화. Play App Signing OAuth·Console 제출은 `NOT_RUN/BLOCKED` |
+| 점포 실운영(운영 관리자 웹) | `IN_PROGRESS` | [Issue #246](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/246), PR #255 병합, main `3f5b2fa`로 운영·시연 배포([증거](docs/evidence/store-consent-nft-deployment-2026-09-30.json)): migration 0032·0033·0036 적용, `NFT_MINTING_MODE=PREPARING`. 인증된 관리자 브라우저의 실제 점포 공개·점주 올리기·혜택 등록·캠페인 공개는 `NOT_RUN`이며 운영 점포는 0곳 |
+| 방문 취소·쿠폰 되돌리기 | `IMPLEMENTED` | [Issue #243](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/243), PR #245 병합 main `1c59f9a`, main `02cb7e7`로 운영·시연 배포·migration 0030 적용([증거](docs/evidence/reversal-deletion-deployment-2026-09-30.json)). 시연 Preview 11에서 점주 화면 새 카드 두 개의 빈 상태만 확인했고 실제 점원의 방문 취소·쿠폰 되돌리기 기기 실행은 `NOT_RUN` |
+| 약관·첫 로그인 동의·보관 기간 | `IN_PROGRESS` | [Issue #253](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/253), PR #259·#257 병합, migration 0033 적용, 보관 기간 정리 작업이 운영·시연 호스트에 설치돼 첫 실행 성공([증거](docs/evidence/store-consent-nft-deployment-2026-09-30.json)). 운영 test.5에서 새 처리방침(`privacy-2026-10-01`) 필수 동의 화면 표시 PASS([증거](docs/evidence/operating-android-test5-2026-10-01.json))지만 실제 계정 제출은 하지 않았다. 시연 앱의 동의 제출은 `BLOCKED`: 아직 동의하지 않은 허용 계정이 기기 Google 계정 선택기에 나타나지 않고(23개 등록 계정 중 18개만 표시), 계정 추가는 비밀번호가 필요해 시도하지 않았다([증거](docs/evidence/device-captures-2026-10-01/README.md)) |
+| NFT 메타데이터(가게·동네·업종·그림 고정) | `IMPLEMENTED` | [Issue #260](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/260), PR #260 병합, migration 0036 적용, 공개 `GET/HEAD /nft-metadata/...` 경로 운영·시연 HTTPS 확인(없는 토큰 404, 기본 도장 200)([증거](docs/evidence/store-consent-nft-deployment-2026-09-30.json)). 운영 발행이 `PREPARING`이라 새 형식 메타데이터를 실제로 담은 토큰은 아직 없어 `NOT_RUN` |
+| 사장님 AI 가게 그림 | `IMPLEMENTED`(꺼짐) | [Issue #236](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/236)·[#256](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/256), PR #239·#258 병합·배포. 운영·시연 두 서버 모두 `OPENAI_API_KEY`가 비어 `AI store art: disabled` 상태([B-026](docs/BLOCKERS.md), 팀 결제 확정 대기). 가짜 OpenAI로 켜기 리허설 19개 시나리오 224개 확인 PASS([증거](docs/evidence/ai-art-enable-rehearsal-2026-09-30.json)); 실제 OpenAI 호출·비용·지연은 `NOT_RUN` |
+| 친구(코드·QR 추가, 여권 보기) | `IN_PROGRESS` | [Issue #230](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/230), PR #233 병합 main `87e98f4`로 운영·시연 배포([증거](docs/evidence/friends-deployment-2026-09-29.json)). 친구 탭이 든 [시연 Preview 9 APK](docs/evidence/showcase-preview9-release-2026-09-29.json)의 Samsung 설치·친구 탭 불러오기 PASS. 두 시연 계정의 실제 친구 추가·시스템 공유창·App Link 열기는 `NOT_RUN` |
+| 하늘 동네·탐험 여권(메달·상자·쿠폰·지도) | `VERIFIED` | [Issue #216](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/216)·[#224](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/224)·[#228](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/228), 에뮬레이터·Samsung 실기에서 방문→축하→상자→쿠폰→점원 사용 처리 확인([증거](docs/evidence/explorer-passport-emulator-2026-09-29/README.md)). 운영 혜택은 0건이고 TalkBack 낭독·시연 빌드 반영 확인은 `NOT_RUN` |
+| 사진 수집품 제작기 | `IMPLEMENTED` | [Issue #252](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/252), PR #257 병합 main `7bcfef9`로 운영·시연 배포, 운영 test.5·시연 Preview 14에 포함([증거](docs/evidence/deployment-7bcfef9-2026-10-01.json)). 시연 앱 도감 카드의 실기 확인(라이트·다크·글자 200%, 잘림 없음)은 PASS했지만 이 카드는 일반 보상권이고, `artwork`가 있는 #257 수집품의 native 상세 화면은 보유 허용 계정이 없어 `NOT_RUN`이다([실기 캡처](docs/evidence/device-captures-2026-10-01/README.md)). 실제 브라우저 녹음 업로드·실제 카메라 사진은 `NOT_RUN`([세부](docs/COLLECTIBLE_CREATOR.md)) |
 
 상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED / NOT_RUN`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
 
