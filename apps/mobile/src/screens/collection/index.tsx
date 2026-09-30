@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import {
+  clearFinalizedNotice,
   initialPollingState,
   nextPollingState,
   resolveCollectionLoad,
@@ -279,6 +280,8 @@ export function CollectionScreen({
     setBusyEntitlementId(entitlementId);
     setError(undefined);
     setMessage(undefined);
+    // 이전 확정 알림이 아래 접수 안내를 가리지 않도록 접수하기 전에 지운다.
+    setPolling((current) => current ? clearFinalizedNotice(current) : current);
     const idempotencyKey =
       `mint-${binding.bindingId}-${binding.bindingVersion}-${entitlementId}`;
     try {
@@ -295,11 +298,7 @@ export function CollectionScreen({
           : 'NFT 발행을 접수했습니다. 아직 블록체인 등록 완료가 아닙니다.',
       );
       const generation = startRequest();
-      const next = await api.getCollection();
-      // 새 접수 안내가 이전 확정 알림에 가려지지 않게 알림을 지운다.
-      setPolling((current) => current
-        ? nextPollingState(current, { type: 'success', snapshot: next, generation, clearNotice: true })
-        : initialPollingState(next, generation));
+      applySnapshot(await api.getCollection(), generation);
     } catch (caught) {
       setError(mintErrorMessage(caught));
     } finally {

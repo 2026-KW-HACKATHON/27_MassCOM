@@ -5,6 +5,7 @@ import type { ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
 import type { CollectionSnapshot } from './commerce-api';
 import {
+  clearFinalizedNotice,
   initialPollingState,
   MAX_CONSECUTIVE_POLL_FAILURES,
   nextPollingState,
@@ -151,7 +152,7 @@ test('조회할 것이 없는 idle 상태에서는 실패 응답이 다시 조�
   assert.equal(nextPollingState(idle, { type: 'failure', generation: 2 }), idle);
 });
 
-test('확정 알림은 실패·확정 없는 성공에도 남고 clearNotice로만 지운다', () => {
+test('확정 알림은 실패·확정 없는 성공에도 남고 접수 시점의 clearFinalizedNotice로만 지운다', () => {
   const notified = nextPollingState(initialPollingState(twoNfts('CONFIRMING', 'CONFIRMING'), 1), {
     type: 'success',
     snapshot: twoNfts('FINALIZED', 'CONFIRMING'),
@@ -160,10 +161,29 @@ test('확정 알림은 실패·확정 없는 성공에도 남고 clearNotice로�
   assert.equal(nextPollingState(notified, { type: 'failure', generation: 3 }).message, 'NFT_FINALIZED');
   const same = twoNfts('FINALIZED', 'CONFIRMING');
   assert.equal(nextPollingState(notified, { type: 'success', snapshot: same, generation: 3 }).message, 'NFT_FINALIZED');
-  assert.equal(
-    nextPollingState(notified, { type: 'success', snapshot: same, generation: 3, clearNotice: true }).message,
-    undefined,
-  );
+
+  const cleared = clearFinalizedNotice(notified);
+  assert.equal('message' in cleared, false);
+  assert.deepEqual({ ...cleared, message: 'NFT_FINALIZED' }, notified);
+});
+
+test('알림을 지운 뒤 접수 조회가 오래된 응답으로 버려져도 알림은 되살아나지 않는다', () => {
+  const notified = nextPollingState(initialPollingState(twoNfts('CONFIRMING', 'CONFIRMING'), 1), {
+    type: 'success',
+    snapshot: twoNfts('FINALIZED', 'CONFIRMING'),
+    generation: 2,
+  });
+  const cleared = clearFinalizedNotice(notified);
+  // 접수 뒤 조회(세대 3)보다 늦게 시작한 폴링(세대 4)이 먼저 적용된 경우.
+  const polled = nextPollingState(cleared, { type: 'success', snapshot: twoNfts('FINALIZED', 'CONFIRMING'), generation: 4 });
+  const afterStale = nextPollingState(polled, { type: 'success', snapshot: twoNfts('FINALIZED', 'CONFIRMING'), generation: 3 });
+  assert.equal(afterStale, polled);
+  assert.equal(afterStale.message, undefined);
+});
+
+test('알림이 없으면 clearFinalizedNotice는 같은 상태를 그대로 돌려준다', () => {
+  const state = initialPollingState(pendingSnapshot, 1);
+  assert.equal(clearFinalizedNotice(state), state);
 });
 
 function snapshot(nftStatus: CollectionSnapshot['collectibles'][number]['nftStatus']): CollectionSnapshot {

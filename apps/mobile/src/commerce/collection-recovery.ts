@@ -26,7 +26,7 @@ export type PollingState = {
 // generation은 요청을 시작할 때 화면이 1씩 올려 붙이는 번호다.
 export type PollingEvent =
   | { type: 'failure'; generation: number }
-  | { type: 'success'; snapshot: CollectionSnapshot; generation: number; clearNotice?: boolean };
+  | { type: 'success'; snapshot: CollectionSnapshot; generation: number };
 
 export function resolveCollectionLoad(
   collectionResult: PromiseSettledResult<CollectionSnapshot>,
@@ -75,7 +75,7 @@ export function nextPollingState(current: PollingState, event: PollingEvent): Po
 
   const message = hasFinalizedTransition(current.snapshot, event.snapshot)
     ? 'NFT_FINALIZED'
-    : event.clearNotice ? undefined : current.message;
+    : current.message;
   return {
     // 하나가 확정돼도 다른 NFT가 접수·확인 중이면 계속 다시 묻는다.
     mode: hasPendingMint(event.snapshot) ? 'polling' : 'idle',
@@ -84,6 +84,16 @@ export function nextPollingState(current: PollingState, event: PollingEvent): Po
     generation: event.generation,
     ...(message ? { message } : {}),
   };
+}
+
+/**
+ * 새 발행을 접수하려는 순간에 이전 확정 알림을 지운다. 알림이 접수 안내를 가리지 않게 하려는 것이라,
+ * 뒤따르는 조회가 오래된 응답으로 버려져도 접수 안내가 보인다.
+ */
+export function clearFinalizedNotice(current: PollingState): PollingState {
+  if (!current.message) return current;
+  const { message: _cleared, ...rest } = current;
+  return rest;
 }
 
 function hasPendingMint(snapshot: CollectionSnapshot): boolean {
