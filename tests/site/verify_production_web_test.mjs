@@ -1751,7 +1751,7 @@ const pageSources = {
 const cspOf = (source) => /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(source)?.[1];
 
 test('웹 색·글자 토큰은 앱과 같은 --mc-* 블록으로 시작하고 옛 변수와 Georgia를 쓰지 않는다 (Issue #218)', () => {
-  assert.ok(css.trimStart().startsWith(':root {\n  color-scheme: light dark;'));
+  assert.ok(css.replaceAll('\r\n', '\n').trimStart().startsWith(':root {\n  color-scheme: light dark;'));
   for (const token of ['--mc-bg: #FFFFFF', '--mc-primary: #2456D6', '--mc-sky-1: #BFE3FF', '--mc-bronze-edge: #8A5226',
     '--mc-gold-container: #FBEFC4', '--mc-stamp-ink: #A3401F', '--mc-radius-card: 20px', '--mc-radius-control: 14px',
     '--mc-page: min(72rem, calc(100vw - 40px))']) assert.ok(css.includes(token), token);
@@ -1779,12 +1779,12 @@ test('세 화면 머리글은 마스코트 스탬프와 월계 마스코트를 �
   assert.doesNotMatch(pageSources.app, /role-chip/);
 });
 
-test('세 화면 CSP는 같은 출처 이미지만 더하고 나머지 지시문은 그대로다', () => {
+test('수집품 제작·도감은 인라인 미디어만 추가하고 스크립트·연결 출처는 제한한다', () => {
   const base = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; ";
   const tail = "base-uri 'none'; form-action 'none'";
-  assert.equal(cspOf(pageSources.app), `${base}img-src 'self'; ${tail}`);
+  assert.equal(cspOf(pageSources.app), `${base}img-src 'self' data:; media-src data: blob:; ${tail}`);
   assert.equal(cspOf(pageSources.admin), `${base}img-src 'self'; ${tail}`);
-  assert.equal(cspOf(pageSources.merchant), `${base}img-src 'self' data:; ${tail}`);
+  assert.equal(cspOf(pageSources.merchant), `${base}img-src 'self' data:; media-src data: blob:; ${tail}`);
 });
 
 test('마스코트 스탬프는 네 자산 경로에서 PNG로 제공하고 60KB를 넘지 않는다', async () => {

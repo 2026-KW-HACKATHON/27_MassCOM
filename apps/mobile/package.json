@@ -11,6 +11,7 @@
     "@walletconnect/react-native-compat": "2.25.0",
     "expo": "~57.0.25",
     "expo-application": "~57.0.3",
+    "expo-audio": "~57.0.5",
     "expo-camera": "~57.0.5",
     "expo-constants": "~57.0.18",
     "expo-dev-client": "~57.0.19",

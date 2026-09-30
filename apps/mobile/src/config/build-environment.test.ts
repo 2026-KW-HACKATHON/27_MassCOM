@@ -265,8 +265,10 @@ test('actual Expo production config preserves release identity, plugins, and blo
     'expo-camera',
     'expo-splash-screen',
     'expo-secure-store',
+    'expo-audio',
     './plugins/with-build-source-commit.cjs',
   ]);
+  assertPlaybackOnlyAudio(config);
   assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW']);
   assert.deepEqual(config.android?.intentFilters, [
     {
@@ -338,7 +340,9 @@ test('actual Expo development config preserves local DEMO identity, plugins, and
     'expo-camera',
     'expo-splash-screen',
     'expo-secure-store',
+    'expo-audio',
   ]);
+  assertPlaybackOnlyAudio(config);
   assert.deepEqual(config.android?.blockedPermissions, []);
   assert.deepEqual(config.android?.intentFilters, []);
 });
@@ -360,8 +364,10 @@ test('actual Expo showcase config has its own Android identity and no dev launch
     'expo-camera',
     'expo-splash-screen',
     'expo-secure-store',
+    'expo-audio',
     './plugins/with-build-source-commit.cjs',
   ]);
+  assertPlaybackOnlyAudio(config);
   assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW']);
   assert.deepEqual(config.android?.intentFilters, [{
     action: 'VIEW',
@@ -448,4 +454,15 @@ function evaluateExpoConfig(overrides: Record<string, string>) {
 
 function pluginNames(config: EvaluatedExpoConfig): string[] {
   return (config.plugins ?? []).map((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin));
+}
+
+function assertPlaybackOnlyAudio(config: EvaluatedExpoConfig): void {
+  const audio = config.plugins?.find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-audio');
+  assert.ok(Array.isArray(audio));
+  assert.deepEqual(audio[1], {
+    recordAudioAndroid: false,
+    microphonePermission: false,
+    enableBackgroundPlayback: false,
+    enableBackgroundRecording: false,
+  }, '고객 음성 재생이 마이크·백그라운드 재생·녹음 권한을 추가하지 않아야 한다');
 }

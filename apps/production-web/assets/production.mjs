@@ -1,3 +1,5 @@
+import { appendCollectibleArtwork, clearCollectibleViewers } from './collectible-viewer.mjs';
+
 const MERCHANTS_URL = '/merchants';
 const COLLECTION_URL = '/api/web/collection';
 const BADGES_URL = '/api/web/badges';
@@ -112,6 +114,8 @@ function collectionNodes(doc) {
 }
 
 function clearCollection(nodes) {
+  const doc = nodes['collectible-list'].ownerDocument;
+  if (doc) clearCollectibleViewers(doc);
   nodes['visit-list'].replaceChildren();
   nodes['collectible-list'].replaceChildren();
   nodes['badge-passport'].replaceChildren();
@@ -312,6 +316,7 @@ export async function loadCollection(fetcher, doc, { badgesTimeoutMs = BADGES_TI
       const nft = detail(doc, nftLabels[item.nftStatus]);
       nft.className = item.nftStatus === 'FINALIZED' ? 'nft-line done' : 'nft-line';
       card.append(name, detail(doc, `${item.merchantName} · 앱 수집품`), nft);
+      appendCollectibleArtwork(doc, card, item, fetcher);
       nodes['collectible-list'].append(card);
     }
     nodes['collection-status'].textContent = data.visits.length + data.collectibles.length === 0

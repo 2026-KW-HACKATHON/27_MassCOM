@@ -383,6 +383,26 @@ async function pseudonymizeAccount(
     'UPDATE merchant_art_rounds SET requested_by_account_id = NULL WHERE requested_by_account_id = $1',
     [accountId],
   );
+  // 사진 원본·편집 좌표와 작성자 식별자는 지운다. 이미 획득한 고객의 허용 목록 발행 snapshot은 가게 자산으로 유지한다.
+  const sourceMerchants = await client.query<{merchant_id:string}>(`SELECT DISTINCT project.merchant_id
+    FROM collectible_projects project WHERE project.project IS NOT NULL AND (
+      project.created_by_account_id = $1 OR project.edited_by_account_id = $1 OR EXISTS (
+        SELECT 1 FROM collectible_project_contributors contributor WHERE contributor.project_id=project.id AND contributor.account_id=$1
+      )) ORDER BY project.merchant_id`,[accountId]);
+  for(const sourceMerchant of sourceMerchants.rows) {
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`collectible-sources:${sourceMerchant.merchant_id}`]);
+  }
+  await client.query(
+    `UPDATE collectible_projects SET project = NULL, created_by_account_id = NULL, edited_by_account_id = NULL,
+       updated_at = now()
+     WHERE created_by_account_id = $1 OR edited_by_account_id = $1 OR EXISTS (
+       SELECT 1 FROM collectible_project_contributors contributor
+       WHERE contributor.project_id = collectible_projects.id AND contributor.account_id = $1
+     )`,
+    [accountId],
+  );
+  await client.query(`DELETE FROM collectible_project_contributors contributor USING collectible_projects project
+    WHERE contributor.project_id = project.id AND project.project IS NULL`);
   // Enrollment rows are re-aliased, not deleted; the campaign slot they reserved is not
   // returned so enrolled_count never exceeds the promised enrollment_capacity.
   await client.query(

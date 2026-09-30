@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import type { CollectibleArtwork } from '../collectible-project.js';
 
 import type {
   CollectionCollectible,
@@ -19,6 +20,7 @@ type VisitRow = {
 };
 
 type CollectibleRow = {
+  artwork: CollectibleArtwork | null;
   entitlement_id: string;
   merchant_id: string;
   merchant_name: string;
@@ -83,7 +85,13 @@ export class PostgresCollectionReader implements CollectionReader {
            job.recipient_address,
            asset.chain_id AS asset_chain_id,
            asset.contract_address AS asset_contract_address,
-           asset.token_id::text AS asset_token_id
+           asset.token_id::text AS asset_token_id,
+           CASE WHEN acquisition.entitlement_id IS NULL THEN NULL ELSE jsonb_build_object(
+             'projectId', acquisition.snapshot->'projectId', 'publicationId', acquisition.snapshot->'publicationId',
+             'gradeId', acquisition.snapshot->'gradeId', 'gradeName', acquisition.snapshot->'gradeName',
+             'shape', acquisition.snapshot->'shape', 'theme', acquisition.snapshot->'theme',
+             'name', acquisition.snapshot->'name', 'thumbnailDataUrl', acquisition.snapshot->'thumbnailDataUrl'
+           ) END AS artwork
          FROM reward_entitlements AS entitlement
          JOIN campaigns AS campaign ON campaign.id = entitlement.campaign_id
          JOIN merchants AS merchant ON merchant.id = campaign.merchant_id
@@ -92,6 +100,7 @@ export class PostgresCollectionReader implements CollectionReader {
           AND goal.target_visit_count = entitlement.target_visit_count
          LEFT JOIN mint_jobs AS job ON job.entitlement_id = entitlement.id
          LEFT JOIN nft_assets AS asset ON asset.mint_job_id = job.id
+         LEFT JOIN collectible_acquisitions AS acquisition ON acquisition.entitlement_id = entitlement.id
          WHERE entitlement.customer_account_id = $1
            AND entitlement.status IN ('GRANTED', 'MINT_REQUESTED', 'FULFILLED')
          ORDER BY entitlement.target_visit_count DESC, entitlement.id DESC`,
@@ -129,6 +138,7 @@ function mapCollectible(row: CollectibleRow): CollectionCollectible {
     targetVisitCount: row.target_visit_count,
     displayName: row.display_name,
     appCollectibleStatus: 'COLLECTED',
+    ...(row.artwork ? { artwork: row.artwork } : {}),
     mintJobId: row.mint_job_id,
     recipient: row.recipient_address,
     nftStatus: nftStatusFor(row),

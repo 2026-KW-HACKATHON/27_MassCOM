@@ -429,3 +429,9 @@ npm run test:postgres --prefix apps/api
 ## Git·리뷰 운영
 
 `Issue → 작업 브랜치 → 테스트 → 한글 PR → CI → merge → main CI` 순서를 사용합니다. main은 통합 기준선으로 유지하고, merge된 원격 브랜치와 worktree는 상태를 확인한 뒤 정리합니다. 커밋은 왜 변경했는지와 `Tested / Not-tested` 경계를 Lore trailer로 남깁니다. 보안·계정·민팅 변경은 독립 code-reviewer와 architect가 모두 증거를 반환하기 전 merge-ready로 표시하지 않습니다.
+
+## 사진 수집품 제작기
+
+[Issue #252](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/252)의 새 제작기는 점주 웹 `/merchant/`에서 사진 한 장으로 시작합니다. 원형·우표·톱니, 자르기·보정·스티커, 자유로운 등급과 홀로그램 등 재질, 동작·두께·인사말·음성·가게 이야기를 편집하고 초안을 저장할 수 있습니다. 게시할 때 기존 캠페인 목표에 외형을 직접 연결하며, 이후 받은 수집품에는 획득 당시 게시 버전을 보관합니다. 고객 웹·Android 도감에서 다시 열 수 있습니다.
+
+사진·음성은 외부 AI에 보내지 않습니다. 제작은 서버가 확인한 점포 권한, 보유품 상세는 보유자 권한으로 제한합니다. 운영 반영에는 migration `0032`·`0033`와 웹·API 배포, `expo-audio`가 포함된 Android 새 빌드가 필요합니다. 현재 PR의 로컬 구현·검증과 운영 배포·실기기 확인을 구분하며, [세부 명세와 제한](docs/COLLECTIBLE_CREATOR.md)·[시험 상태](docs/TEST_STATUS.md)를 참고하세요.

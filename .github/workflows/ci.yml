@@ -64,6 +64,8 @@ jobs:
         run: node --test tests/site/verify_design_tokens_test.mjs
       - name: 운영 웹 공개 조회·읽기 전용 경계 검사
         run: node --test tests/site/verify_production_web_test.mjs
+      - name: 사진 수집품 모델·편집·도감 검사
+        run: node --test tests/site/collectible-*.test.mjs
       - name: AWS 운영 웹 정적 번들·Caddy 경계 검사
         run: |
           node --test tests/site/build_public_site_test.mjs tests/ops/verify_aws_web_routes_test.mjs

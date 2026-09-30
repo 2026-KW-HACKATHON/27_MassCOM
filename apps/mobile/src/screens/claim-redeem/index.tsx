@@ -343,6 +343,12 @@ export function ClaimRedeemScreen({
               새 보상권 {redeemed.grantedRewards.length}개 · NFT 발행은 아직 요청하지 않았습니다.
             </Text>
             <View style={styles.successActions}>
+              {redeemed.grantedRewards[0] ? (
+                <Pressable accessibilityRole="button" onPress={() => router.navigate({ pathname: '/collection', params: { focus: 'collectible', entitlement: redeemed.grantedRewards[0]!.entitlementId } })}
+                  style={[styles.collectionButton, { backgroundColor: palette.primary }]}>
+                  <Text style={[styles.collectionButtonText, { color: palette.onPrimary }]}>받은 수집품 보기</Text>
+                </Pressable>
+              ) : null}
               {claimSuccessCopy(redeemed).destinations.map((destination) => (
                 <Link key={destination.href} href={destination.href} asChild>
                   <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.collectionButton, { backgroundColor: palette.primary }])}>

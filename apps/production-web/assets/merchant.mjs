@@ -3,6 +3,53 @@ const merchantClaimResolutions = new WeakMap();
 const merchantClaimSlots = new WeakMap();
 // bindMerchant이 둔 최근 목록 읽기 함수. loadMerchant가 점포 권한을 확인하고 구역을 연 뒤 부른다.
 const reversalRefreshers = new WeakMap();
+const creators = new WeakMap();
+const creatorScopes = new WeakMap();
+
+function closeCreator(doc) {
+  creators.get(doc)?.();
+  creators.delete(doc);
+  doc.getElementById('merchant-creator-editor')?.replaceChildren();
+}
+
+function configureCreator(fetcher, doc, mine) {
+  const panel = doc.getElementById('merchant-creator');
+  const select = doc.getElementById('merchant-creator-store');
+  const open = doc.getElementById('merchant-creator-open');
+  if (!panel || !select || !open) return;
+  const scope = `${mine.accountScope ?? ''}:${mine.merchants.map(member => `${member.id}:${member.role}`).sort().join(',')}`;
+  if (!mine.accountScope || creatorScopes.get(doc) !== scope) closeCreator(doc);
+  creatorScopes.set(doc, scope);
+  select.replaceChildren();
+  for (const merchant of mine.merchants) {
+    const option = doc.createElement('option'); option.value = merchant.id; option.textContent = merchant.name; select.append(option);
+  }
+  panel.hidden = mine.merchants.length === 0;
+  open.onclick = async () => {
+    const currentRequest = merchantRequests.get(doc);
+    const merchant = mine.merchants.find(member => member.id === select.value);
+    if (!merchant) return;
+    open.disabled = true;
+    try {
+      const [module, catalog] = await Promise.all([
+        import('./collectible-editor.mjs'), request(fetcher, '/merchants'),
+      ]);
+      if (merchantRequests.get(doc) !== currentRequest) return;
+      const campaigns = (catalog.merchants ?? []).filter(item => item.id === merchant.id).map(item => item.campaign);
+      closeCreator(doc);
+      const cleanup = await module.mountCollectibleEditor(doc.getElementById('merchant-creator-editor'), {
+        merchantId: merchant.id, merchantName: merchant.name, campaigns,
+        request: (path, options = {}) => request(fetcher, path, options.method ?? 'GET', options.body),
+        onNotice: message => { doc.getElementById('merchant-status').textContent = message; },
+      });
+      if (merchantRequests.get(doc) !== currentRequest) { cleanup?.(); return; }
+      creators.set(doc, cleanup);
+    } catch (error) {
+      if (merchantRequests.get(doc) === currentRequest) doc.getElementById('merchant-status').textContent = error.status === 403
+        ? '이 점포의 그림 제작 권한이 없어요. 점주 권한을 확인해 주세요.' : '제작기를 열지 못했어요. 다시 시도해 주세요.';
+    } finally { open.disabled = false; }
+  };
+}
 
 const isStaffCoupon = coupon => coupon !== null && typeof coupon === 'object'
   && typeof coupon.couponId === 'string' && coupon.couponId !== ''
@@ -138,6 +185,7 @@ export async function loadMerchant(fetcher, doc) {
     ]);
     if (merchantRequests.get(doc) !== requestId) return;
     if (!Array.isArray(mine.merchants) || !Array.isArray(eligible.merchants)) throw new Error('invalid merchant data');
+    configureCreator(fetcher, doc, mine);
     for (const merchant of mine.merchants) {
       const item = doc.createElement('p');
       item.textContent = `${merchant.name} · ${merchant.role === 'OWNER' ? '점주' : '직원'}`;
@@ -174,6 +222,7 @@ export async function loadMerchant(fetcher, doc) {
   } catch (error) {
     if (merchantRequests.get(doc) !== requestId) return;
     if (error.status === 401) {
+      closeCreator(doc);
       login.hidden = false;
       status.textContent = error.code === 'WEB_AUTH_ACCOUNT_NOT_FOUND'
         ? '고객 앱에서 이 Google 계정으로 먼저 로그인해 주세요.' : 'Google 계정으로 로그인해 주세요.';
@@ -760,6 +809,8 @@ export function bindMerchant(fetcher, doc) {
     }
   });
   doc.getElementById('merchant-logout')?.addEventListener('click', async () => {
+    closeCreator(doc);
+    creatorScopes.delete(doc);
     stopCamera();
     merchantRequests.set(doc, (merchantRequests.get(doc) ?? 0) + 1);
     doc.getElementById('merchant-content').hidden = true;
@@ -791,7 +842,7 @@ export function bindMerchant(fetcher, doc) {
     resetReversal();
     setIssuing(false);
   };
-  doc.defaultView?.addEventListener('pagehide', clear);
+  doc.defaultView?.addEventListener('pagehide', () => { closeCreator(doc); creatorScopes.delete(doc); clear(); });
   doc.defaultView?.addEventListener('pageshow', event => {
     if (event.persisted) { invalidateClaim(); clearSlot(); void loadMerchant(fetcher, doc); }
   });

@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -31,6 +32,7 @@ import {
   type CampaignEnrollmentService,
 } from './campaign-enrollment.js';
 import type { CollectionReader } from './collection.js';
+import { collectibleBodyLimit, CollectibleProjectError, type CollectibleProjectService } from './collectible-project.js';
 import {
   InMemoryChallengeStore,
   WalletChallengeError,
@@ -64,6 +66,7 @@ import { PostgresAuthSessionService } from './postgres/auth-session.js';
 import { PostgresWebSessionStore } from './postgres/web-session.js';
 import { resolveShowcaseInviteConfig } from './showcase/invite-config.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
+import { PostgresCollectibleProjectService } from './postgres/collectible-project.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantArtService } from './postgres/merchant-art.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
@@ -197,6 +200,7 @@ export function createApiServer(
   showcaseDeletionIntake?: AccountDeletionIntakeService,
   deletionProcessing?: AccountDeletionProcessingService,
   reversals?: ReversalService,
+  collectibleProjects?: CollectibleProjectService,
 ) {
   // The receipt lookup needs no login, so it is throttled per client instead (a receipt has 80 bits, this only stops floods).
   const deletionStatusLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60_000 });
@@ -268,6 +272,19 @@ export function createApiServer(
         response.setHeader('x-robots-tag', 'noindex, nofollow');
         const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
         sendJson(response, 200, await collection.getCollection(accountId));
+        return;
+      }
+      const acquiredCollectible = path.match(/^\/(api\/web\/)?collectibles\/([^/]+)$/);
+      if (acquiredCollectible && request.method === 'GET') {
+        if (!collectibleProjects) throw new RequestError(503, 'COLLECTIBLE_PROJECTS_NOT_CONFIGURED');
+        let accountId: string;
+        if (acquiredCollectible[1]) {
+          const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
+          if (!webAuth) throw new RequestError(503, 'WEB_COLLECTION_NOT_CONFIGURED');
+          response.setHeader('x-robots-tag', 'noindex, nofollow');
+          accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        } else accountId = await resolveAccountId(request);
+        sendJson(response, 200, await collectibleProjects.getAcquired({ accountId, entitlementId: decodePathParameter(acquiredCollectible[2]!) }));
         return;
       }
       if (path === '/api/web/badges' && request.method === 'GET') {
@@ -454,7 +471,18 @@ export function createApiServer(
         }
         const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
         if (path === '/api/web/merchant/me' && request.method === 'GET') {
-          sendJson(response, 200, { merchants: await staffRegistration.mine(accountId) });
+          sendJson(response, 200, { merchants: await staffRegistration.mine(accountId),
+            accountScope: createHash('sha256').update(`collectible-editor:${accountId}`).digest('hex') });
+          return;
+        }
+        const webCollectibleRoute = matchCollectibleProjectRoute(request.method, path, '/api/web/merchant/merchants/');
+        if (webCollectibleRoute) {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          const merchantId = decodePathParameter(webCollectibleRoute.merchantId);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'MANAGE_ART' });
+          if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+          if (!collectibleProjects) throw new RequestError(503, 'COLLECTIBLE_PROJECTS_NOT_CONFIGURED');
+          await runCollectibleProjectRoute(collectibleProjects, webCollectibleRoute, merchantId, accountId, request, response);
           return;
         }
         if (path === '/api/web/merchant/registration-merchants' && request.method === 'GET') {
@@ -1056,6 +1084,17 @@ export function createApiServer(
         return;
       }
 
+      const collectibleRoute = matchCollectibleProjectRoute(request.method, path, '/merchant/merchants/');
+      if (collectibleRoute) {
+        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const merchantId = decodePathParameter(collectibleRoute.merchantId);
+        await merchantAccess.requirePermission({ accountId, merchantId, permission: 'MANAGE_ART' });
+        if (!collectibleProjects) throw new RequestError(503, 'COLLECTIBLE_PROJECTS_NOT_CONFIGURED');
+        await runCollectibleProjectRoute(collectibleProjects, collectibleRoute, merchantId, accountId, request, response);
+        return;
+      }
+
       // 사장님 AI 가게 그림(D-048): 기존 고객 Bearer 인증 + 가게 멤버십의 MANAGE_ART 권한.
       const artMatch = path.match(/^\/merchant\/merchants\/([^/]+)\/art(\/.*)?$/);
       const artRoute = artMatch ? matchMerchantArtRoute(request.method, artMatch[2] ?? '') : undefined;
@@ -1092,6 +1131,14 @@ export function createApiServer(
 
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
+      if (error instanceof CollectibleProjectError) {
+        const status = error.code === 'COLLECTIBLE_INVALID_PROJECT' ? 400
+          : error.code === 'COLLECTIBLE_MEDIA_TOO_LARGE' ? 413
+          : error.code === 'COLLECTIBLE_PROJECT_NOT_FOUND' || error.code === 'COLLECTIBLE_NOT_FOUND' ? 404
+          : error.code === 'ACCOUNT_DELETED' ? 410 : 409;
+        sendJson(response, status, { code: error.code });
+        return;
+      }
       if (error instanceof ClaimSlotError) {
         sendJson(response, statusForClaimSlot(error.code), { code: error.code });
         return;
@@ -1247,14 +1294,14 @@ function requireAccountId(request: IncomingMessage): string {
   return accountId;
 }
 
-async function readJson(request: IncomingMessage, allowEmpty = false): Promise<Record<string, unknown>> {
+async function readJson(request: IncomingMessage, allowEmpty = false, maxBytes = MAX_BODY_BYTES): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let totalBytes = 0;
 
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     totalBytes += buffer.byteLength;
-    if (totalBytes > MAX_BODY_BYTES) {
+    if (totalBytes > maxBytes) {
       throw new RequestError(413, 'BODY_TOO_LARGE');
     }
     chunks.push(buffer);
@@ -1398,6 +1445,37 @@ function statusForMerchantArt(code: string): number {
   if (code === 'AI_ART_NOT_CONFIGURED' || code === 'AI_ART_BUDGET_EXHAUSTED') return 503;
   if (code === 'ACCOUNT_DELETED') return 410;
   return 409;
+}
+
+type CollectibleProjectRoute = { merchantId: string; kind: 'list' | 'create' | 'get' | 'save' | 'publish' | 'copy'; projectId?: string };
+function matchCollectibleProjectRoute(method: string | undefined, path: string, prefix: string): CollectibleProjectRoute | undefined {
+  if (!path.startsWith(prefix)) return undefined;
+  const match = path.slice(prefix.length).match(/^([^/]+)\/collectible-projects(?:\/([^/]+)(?:\/(publish|copy))?)?$/);
+  if (!match) return undefined;
+  const merchantId = match[1]!; const projectId = match[2]; const action = match[3];
+  if (!projectId && method === 'GET') return { merchantId, kind: 'list' };
+  if (!projectId && method === 'POST') return { merchantId, kind: 'create' };
+  if (projectId && !action && (method === 'GET' || method === 'PUT')) return { merchantId, projectId, kind: method === 'GET' ? 'get' : 'save' };
+  if (projectId && method === 'POST' && (action === 'publish' || action === 'copy')) return { merchantId, projectId, kind: action };
+  return undefined;
+}
+async function runCollectibleProjectRoute(
+  projects: CollectibleProjectService, route: CollectibleProjectRoute, merchantId: string, accountId: string,
+  request: IncomingMessage, response: ServerResponse,
+): Promise<void> {
+  const input = { merchantId, accountId };
+  if (route.kind === 'list') { sendJson(response, 200, { projects: await projects.list(input) }); return; }
+  const projectId = route.projectId ? decodePathParameter(route.projectId) : '';
+  if (route.kind === 'get') { sendJson(response, 200, await projects.get({ ...input, projectId })); return; }
+  const body = await readJson(request, false, route.kind === 'save' || route.kind === 'create' ? collectibleBodyLimit : MAX_BODY_BYTES);
+  const allowed = route.kind === 'create' ? ['project'] : route.kind === 'save' ? ['expectedVersion','project']
+    : route.kind === 'publish' ? ['expectedVersion','campaignId'] : ['expectedVersion'];
+  if (Object.keys(body).some(key => !allowed.includes(key)) || allowed.some(key => !(key in body))) throw new RequestError(400, 'INVALID_REQUEST');
+  if (route.kind === 'create') { sendJson(response, 201, await projects.create({ ...input, project: body.project })); return; }
+  const expectedVersion = requirePositiveInteger(body, 'expectedVersion');
+  if (route.kind === 'save') sendJson(response, 200, await projects.save({ ...input, projectId, expectedVersion, project: body.project }));
+  else if (route.kind === 'copy') sendJson(response, 201, await projects.copy({ ...input, projectId, expectedVersion }));
+  else sendJson(response, 200, await projects.publish({ ...input, projectId, expectedVersion, campaignId: requireString(body, 'campaignId') }));
 }
 
 type ReversalRoute =
@@ -1824,6 +1902,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           policyVersion: process.env.ACCOUNT_DELETION_POLICY_VERSION ?? 'account-deletion-v1',
         }) : undefined,
     reversals,
+    pool ? new PostgresCollectibleProjectService(pool, {
+      staffMayManageArt: aiArtConfig.staffMayManage,
+      ...(accountLifecycle ? { accountLifecycle } : {}),
+    }) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

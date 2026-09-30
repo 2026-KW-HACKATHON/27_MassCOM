@@ -1,5 +1,12 @@
 # 프로젝트 상태
 
+## 사진 수집품 제작기 변경
+
+[Issue #252](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/252), 브랜치 `feat/252-photo-collectible-creator`, 기준 main `4081999`: 점주 사진 제작기·초안/게시·기존 보상 획득 버전·고객 웹/Android 상세를 구현했다. migration0032·0033은 새 저장 구조와 편집 기여자 원본 삭제를 추가한다. API245·모바일785·웹120·PG222+최신6, 타입/빌드/린트, 두 Android JS export와 자산 격리·빠른 gate가 통과했다. [상세 계약](COLLECTIBLE_CREATOR.md)·[시험 상태](TEST_STATUS.md)·[합성 화면 검수](evidence/photo-collectible-2026-09-30/README.md)를 참고한다.
+
+현재 공개 서버·APK에는 이 기능을 반영하지 않았다. 배포·실기기·실제 음성·최대 조합 성능은 NOT_RUN, Docker/python3의 일부 추가 회귀는 로컬 환경에서 BLOCKED다. Android의 각도별 재질 재계산은 남은 확장이다. 기존 36개 제품 시험 상태와 과거 운영 배포 근거는 유지한다.
+
+
 마지막 갱신 시각: 2026-09-30 KST
 
 ## 최신 작업 경계

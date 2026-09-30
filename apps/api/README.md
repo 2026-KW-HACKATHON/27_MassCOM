@@ -2,6 +2,18 @@
 
 ERC-4361(SIWE) 주소 확인, Phase 2 공개 점포·캠페인·방문·도감·추천, Phase 3 wallet binding·mint job·Outbox·체인 확정 상태 조회를 제공하는 Node.js API입니다.
 
+## 사진 수집품 제작
+
+점주 웹은 `/api/web/merchant/merchants/:merchantId/collectible-projects`에서 편집 프로젝트를 저장합니다. 목록 `GET`은 원본 없는 `{projects}` 메타데이터, 생성 `POST {project}`는 새 비공개 초안을 반환합니다. `/:projectId`의 `GET`은 편집 자료, `PUT {expectedVersion,project}`는 버전이 맞을 때만 저장합니다. `/:projectId/copy`의 `POST {expectedVersion}`은 새 초안으로 복사하고, `/:projectId/publish`의 `POST {expectedVersion,campaignId}`는 변경 불가능한 발행본과 해당 점포의 현재 공개 캠페인 연결을 만듭니다. 앱 인증 경로는 `/merchant/merchants/…`로 같은 계약을 제공합니다.
+
+권한은 기존 `MANAGE_ART`와 같습니다. 기본 활성 OWNER만, `AI_ART_STAFF_MAY_MANAGE=true` 환경에서만 활성 STAFF도 허용합니다. 모든 읽기·쓰기에서 활성 점포와 멤버십을 거래 안에서 다시 확인합니다. 웹 쓰기는 호스트에 묶인 세션·동일 Origin·JSON을 요구합니다. `/api/web/merchant/me`의 불투명한 `accountScope`는 로그인 주체가 바뀌면 열린 초안을 폐기하기 위한 값입니다.
+
+`project.rewardGrades`는 점주가 직접 고른 기존 `1`·`3`·`5`회 목표와 외형 등급의 연결입니다. 비어 있으면 게시할 수 없으며 일부 목표만 연결할 수 있습니다. 새 보상권 INSERT 때 현재 발행본을 같은 거래에서 획득합니다(migration 0032). 과거 보상권에는 소급하지 않으며 방문·보상·NFT 규칙을 바꾸지 않습니다. `GET /collection`·`/api/web/collection`은 획득품에 작은 정적 `artwork`만 추가합니다. `GET /collectibles/:entitlementId`·`/api/web/collectibles/:entitlementId`는 유효한 보상권 본인에게만 최종 사진·선택 효과/마스크·인사 음성·최종 이야기 프레임을 반환합니다. 원본·편집 좌표·브러시·작성자 자료는 포함하지 않습니다.
+
+안전한 저장을 위한 구현 한도는 요청 16 MiB, 원본 사진 3 MiB, 완성 사진/효과용 바탕 1 MiB, 썸네일/효과 마스크 256 KiB, 이야기 원본/미리보기 각각 512 KiB(최대 5개), 음성 1 MiB/30초, 외형 등급 1–16개, 점포당 프로젝트 100개입니다. PNG/JPEG/WebP와 MP3/WebM/Ogg의 inline base64만 받으며 외부 URL·SVG를 받지 않습니다. 이미지 헤더의 실제 크기를 확인해 각 변 4096 px 이하로 제한하고 원본·이야기 크기 선언과 비교합니다(JPEG 회전 정보의 가로·세로 교환 허용). 초안의 정확한 원본 바이트는 유지하고 고객 발행 이미지에서는 EXIF·XMP·텍스트 같은 부가 메타데이터를 제거합니다. 이야기 프레임은 게시 시 별도의 `previewDataUrl`이 있어야 하며 고객에게는 그 최종 프레임만 반환합니다.
+
+계정 삭제는 해당 계정이 생성하거나 편집한 프로젝트와 그 원본을 이어받은 복사본의 비공개 원본·작성자 식별자를 같은 거래에서 비웁니다(migration 0033의 비공개 기여자 목록). 중간 편집자의 자료도 삭제 대상이며 비운 프로젝트는 조회·복사할 수 없습니다. 다른 고객이 이미 획득한 최종 발행본은 가게 자산으로 보존하며, 삭제 계정의 보상권은 기존 삭제 규칙대로 가명 처리합니다.
+
 ## 실행
 
 ```bash
@@ -234,3 +246,6 @@ npm run test:postgres
 지갑 challenge 원문·nonce claim은 `DATABASE_URL`이 설정되면 PostgreSQL `wallet_challenges` 테이블(migration 0008)에 원자적 claim으로 저장되어 프로세스 재시작에도 남습니다. `DATABASE_URL`이 없으면 DEMO 전용 in-memory 저장소로 대체되며 이 경우에만 재시작 시 사라집니다. 계정 삭제 요청은 남은 challenge를 저장소 종류와 무관하게 즉시 제거합니다. 성공한 주소 연결과 mint job·Outbox·체인 이벤트·NFT 자산은 PostgreSQL에 남습니다. Worker 실행과 Local Anvil 재현은 [`../worker/README.md`](../worker/README.md)를 따르며 운영 signer·Base Sepolia는 포함하지 않습니다.
 
 계정 삭제는 `ACCOUNT_DELETION_HMAC_SECRET`이 설정된 경우에만 켜집니다. 운영 로그인에서는 최근 5분 이내에 인증한 세션만 삭제를 요청할 수 있고(위 “인증 방식”), `x-demo-reauthenticated: true` 헤더는 `ALLOW_INSECURE_DEMO_ACCOUNT=true`인 loopback DEMO에서만 받습니다. 미전송 mint job만 `CANCELLED`로 바꾸고, 제출·확정 작업의 체인 대조 자료는 비식별 account alias와 함께 보존합니다.
+
+
+Windows에서 npm의 단일따옴표 glob은 0건으로 끝날 수 있습니다. 실제 단위 시험은 PowerShell에서 `$apiTestPaths = @(rg --files src -g "*.test.ts"); node node_modules/tsx/dist/cli.mjs --test @apiTestPaths`로 실행합니다. PostgreSQL 시험은 폐기용 DB의 모든 migration 적용 뒤 전용 프로세스 하나로 실행합니다.

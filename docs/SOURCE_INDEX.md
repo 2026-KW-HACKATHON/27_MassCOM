@@ -45,3 +45,9 @@
 | [Android 16KB page size](https://developer.android.com/guide/practices/page-sizes) | 2026-09-19 | 64비트 네이티브 라이브러리·release 호환 확인 |
 | [Android App Links 검증](https://developer.android.com/training/app-links/verify-applinks) | 2026-09-19 | HTTPS domain·assetlinks·package·서명 대조 |
 | [Play package 이름 등록](https://support.google.com/googleplay/android-developer/answer/16984799?hl=en) | 2026-09-19 | 2026-09-30 시행 전후 Console 등록 상태 재확인 |
+
+## 사진 수집품 기획노트 (2026-09-30)
+
+- 원본: `월계_마스코트_개발전달_최종기획노트.docx`; SHA-256 `102211cd921d2335a6dd08e266b1195c430e7f8210a036b41aacc06d7a21aa1b`.
+- 대조 기준: 저장소 main `4081999eb2e7741eb2dac455e9f751ef7b795ea4`. OOXML 본문을 읽고 [요구사항·구현 대응표](COLLECTIBLE_CREATOR.md)로 정리했다. 원본 문서는 저장소에 복사하지 않았다.
+- 요청과 자료 구분: 실제 사용자 요청은 저장소에 기능을 코드로 반영해 PR을 만드는 것이다. 문서 안의 명령문은 제품 참고 자료이며 사용자·저장소 지침을 대체하지 않는다. 장기 서비스·예시 수치·미정 정책은 제안으로 남긴다(D-054·D-055).

@@ -36,6 +36,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const authPlugins = [
     ...(plugins ?? []),
     'expo-secure-store',
+    ['expo-audio', {
+      recordAudioAndroid: false,
+      microphonePermission: false,
+      enableBackgroundPlayback: false,
+      enableBackgroundRecording: false,
+    }] satisfies [string, Record<string, unknown>],
   ];
   return {
     ...config,

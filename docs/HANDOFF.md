@@ -1,5 +1,15 @@
 # HANDOFF
 
+## 사진 수집품 제작기 PR 인수인계
+
+2026-09-30 [Issue #252](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/252), 브랜치 `feat/252-photo-collectible-creator`, 기준 main `4081999eb2e7741eb2dac455e9f751ef7b795ea4`. 사용자가 전달한 DOCX는 제품 참고 자료로 읽고 실제 코드 구현과 PR 생성 요청을 수행했다. 원본 문서는 공개 저장소에 복사하지 않았다. [명세](COLLECTIBLE_CREATOR.md)·[시험 기록](TEST_STATUS.md)·[화면 증거](evidence/photo-collectible-2026-09-30/README.md)를 함께 검토한다.
+
+- 구현: 점주 웹 사진/보정/스티커/동적 등급/재질/동작/음성/장면, 버전 초안·복사·게시, migration0032·0033, 기존 보상권 생성 시 당시 게시 외형 저장, 보유자 웹/native 상세. 원본·편집 기여자/복사본 삭제와 auth/tenant/CSRF 경계를 유지한다.
+- 실행: API245·모바일785·웹120·PG222(기존 환경용2skip)+최신6 PASS, 타입·빌드·린트·운영/시연 JS export/자산 격리·빠른 gate PASS, 독립 검토 수정 완료. 명령과 한계는 TEST_STATUS를 확인한다.
+- 후속: PR의 CI/사람 검토, 실제 기기의 이미지·음성·동작/메모리, 권한 있는 운영 점주 채널·미디어 삭제/보관 운영 정책을 확인한다. 배포는 별도 승인 범위이며 DB 백업 후0032→0033·API·웹을 함께 적용하고 expo-audio를 포함한 새 Android native 빌드가 필요하다. 기존 APK에 JS만 교체하지 않는다.
+- 로컬 재현: `node tests/fixtures/collectible-qa-server.mjs` 뒤 loopback4173의 /merchant/와 /app/에서 합성 자료로 검수. fixture는 인증·실제 보상 실증을 대신하지 않는다. PostgreSQL 시험은 폐기용 DB에서 직렬 실행한다.
+
+
 마지막 갱신 시각: 2026-09-30 KST
 
 ## 2026-09-30 방문·쿠폰 되돌리기·계정 삭제 처리 운영·시연 배포와 시연 Preview 11 공개(Issue #250)
