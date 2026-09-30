@@ -80,6 +80,8 @@
 
 [Issue #243](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/243)은 **직원이 잘못 처리한 방문·쿠폰을 되돌리고 직원 자기 적립을 보상에서 뺍니다**([설계](docs/superpowers/specs/2026-09-30-visit-coupon-reversal-design.md), [결정 D-051](docs/DECISIONS.md)). 점포 직원은 방문한 한국 영업일 안에 사유를 골라 방문을 취소하고(발행 전 보상 권리는 함께 취소, 이미 NFT를 보낸 방문은 거절), 쿠폰 사용은 10분 안에 되돌립니다. 관리자는 미사용 쿠폰을 사유와 감사 기록으로 무효로 합니다. 실제 점포에서 직원 계정으로 받은 방문(본인 적립, 또는 방문한 계정이 그 점포의 활성 직원)은 기록만 하고 진행·1/3/5회 보상·NFT·도감에 세지 않습니다. 점주 웹 `/merchant/`와 시연 앱 직원 화면에 "최근 방문·쿠폰 사용" 목록이 생기고 migration 0030을 더합니다. 소유자의 P0 승인 뒤 첫 구현이며 opus 보안 재리뷰는 APPROVE(🔴 0)를 냈고 그 후속을 반영했습니다. 이 기능은 [PR #245](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/245)로 main `1c59f9a`에 병합됐고 main `02cb7e7`로 운영·시연 서버에 배포돼 migration 0030이 적용됐습니다([배포 증거](docs/evidence/reversal-deletion-deployment-2026-09-30.json)). 실제 점원의 방문 취소·쿠폰 되돌리기의 기기 실행은 `NOT_RUN`입니다(시연 Preview 11에서는 점주 화면의 새 카드 두 개가 빈 상태로 보이는 것만 확인했고, 운영에는 아직 공개 점포가 없습니다). 병합 전 리뷰 기록은 [HANDOFF](docs/HANDOFF.md)를 따릅니다. 새 `VOIDED` 쿠폰·`CANCELED` 방문 행이 생긴 뒤에는 API를 `f1bba2d`로 되돌리지 않고 앞으로 고칩니다.
 
+[Issue #246](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/246)은 **실제 점포를 SQL 없이 운영 관리자 웹에서 운영 시작합니다**([설계](docs/superpowers/specs/2026-09-30-store-go-live-design.md), [결정 D-054·D-055·D-023](docs/DECISIONS.md), [점포 온보딩 안내](docs/MERCHANT_ONBOARDING.md)). 메뉴·영업시간·주소와 가게 이름·사진 사용 동의서 참조 번호가 있어야 점포를 공개하고, 직원 등록 뒤 사업자등록증 원본과 점포 전화로 확인한 사람만 확인 기록 참조 번호와 함께 점주로 올립니다(점포당 2명, 관리자 본인 불가). 보상 혜택은 점주 동의 5항목·동의서 참조 번호·발급 상한이 있어야 등록하고, 캠페인은 관리자가 공개·중지합니다. 서비스에는 참조 번호만 남기고 사업자등록번호·이름·전화번호는 남기지 않습니다. 방문 보상에는 참여 등록이 필요 없고, 운영 NFT는 권리만 기록하며 고객 앱·웹에 "발행 준비 중"을 보입니다(시연 발행은 그대로). 운영 배포·실제 점포 실행은 아직 하지 않았습니다([시험 상태](docs/TEST_STATUS.md)).
+
 ## 한눈에 보기
 
 <details>

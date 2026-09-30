@@ -92,7 +92,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
             <FloatingCard style={styles.infoCard}>
               <InfoRow styles={styles} label="주소" value={merchant.roadAddress} />
               <InfoRow styles={styles} label="최소 이용" value={`${merchant.minimumSpendWon.toLocaleString('ko-KR')}원`} />
-              <InfoRow styles={styles} label="참여 상태" value={merchant.campaign.enrollmentStatus === 'OPEN' ? '참여 가능' : '정원 마감'} />
+              <InfoRow styles={styles} label="참여 상태" value="방문하면 누구나 적립" />
             </FloatingCard>
           </Stagger>
 

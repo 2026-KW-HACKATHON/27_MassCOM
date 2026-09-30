@@ -11,6 +11,13 @@ const nftLabels = {
   FINALIZED: 'NFT 발행 완료',
   REVIEW_REQUIRED: 'NFT 확인 필요',
 };
+// 운영 API가 nftMinting: 'PREPARING'을 보내면(발행 서버·메인넷 승인 전) 등록 완료가 아닌 NFT 줄을 접수·진행 문구 대신 이것으로 보인다.
+const nftPreparingLabel = 'NFT 발행 준비 중';
+
+export function nftLineLabel(item, nftMinting) {
+  if (nftMinting === 'PREPARING' && item.nftStatus !== 'FINALIZED') return nftPreparingLabel;
+  return nftLabels[item.nftStatus];
+}
 
 function isCollection(value) {
   return value && Array.isArray(value.visits) && Array.isArray(value.collectibles)
@@ -309,7 +316,7 @@ export async function loadCollection(fetcher, doc, { badgesTimeoutMs = BADGES_TI
       card.className = 'collection-card';
       const name = doc.createElement('h4');
       name.textContent = item.displayName;
-      const nft = detail(doc, nftLabels[item.nftStatus]);
+      const nft = detail(doc, nftLineLabel(item, data.nftMinting));
       nft.className = item.nftStatus === 'FINALIZED' ? 'nft-line done' : 'nft-line';
       card.append(name, detail(doc, `${item.merchantName} · 앱 수집품`), nft);
       nodes['collectible-list'].append(card);

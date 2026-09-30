@@ -394,7 +394,28 @@ video { width: 100%; max-width: 28rem; aspect-ratio: 4 / 3; object-fit: cover; b
 .admin-merchant-list > section p { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; }
 .admin-merchant-list > section p button { min-height: 40px; padding: 6px 14px; }
 .admin-merchant-list > p { min-height: 5rem; display: grid; align-content: center; color: var(--mc-secondary); }
-.panel > *, #admin-campaign-draft { max-width: 44rem; }
+/* 점포 공개·점주·보상 혜택·캠페인(Issue #246). 기존 토큰만 써서 어두운 화면에서도 같은 대비이고 좁은 화면에서는 줄바꿈한다. */
+.admin-go-live { display: grid; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--mc-separator); }
+.admin-go-live h4, .admin-owners h4 { font-size: 1.05rem; letter-spacing: -.01em; }
+.admin-hint, .admin-go-live > p, .admin-owners > p { color: var(--mc-secondary); font-size: .92rem; overflow-wrap: anywhere; }
+.admin-owners { display: grid; gap: 10px; }
+.admin-inline-form { display: grid; gap: 10px; padding: 12px 14px; border-radius: var(--mc-radius-control); background: var(--mc-surface); }
+.admin-inline-form button { justify-self: start; }
+fieldset.admin-consent { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 14px 16px; border: 1.5px solid var(--mc-locked-edge); border-radius: var(--mc-radius-control); }
+fieldset.admin-consent legend { padding: 0 6px; font-weight: 800; }
+#admin-offers, #admin-campaigns { display: grid; gap: 8px; }
+#admin-offers p, #admin-campaigns p, #admin-campaign-drafts p {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px;
+  padding: 10px 14px; border-radius: var(--mc-radius-control); background: var(--mc-bg); font-weight: 600; overflow-wrap: anywhere;
+}
+#admin-offers p button, #admin-campaigns p button, #admin-campaign-drafts p button { min-height: 40px; padding: 6px 14px; }
+#campaigns-heading { font-size: 1.05rem; }
+#admin-status:focus { outline: 2px solid var(--mc-primary); outline-offset: 2px; }
+/* 어두운 화면에서 기본 체크박스 테두리가 카드 바탕과 구분되지 않아 경계선을 토큰 색으로 둘러 3:1 이상으로 만든다(밝은 화면은 그대로). */
+@media (prefers-color-scheme: dark) {
+  fieldset.admin-consent input[type="checkbox"]:not(:focus-visible) { outline: 2px solid var(--mc-secondary); outline-offset: 0; border-radius: 4px; }
+}
+.panel > *, #admin-campaign-draft, #admin-offer-form { max-width: 44rem; }
 @media (min-width: 40rem) {
   .panel, .admin-panel { padding: 28px; }
   .panel form > button, #admin-campaign-draft > button { justify-self: start; min-width: 12rem; }

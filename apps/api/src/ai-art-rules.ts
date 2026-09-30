@@ -296,7 +296,7 @@ export type AiArtConfig = {
   dailyDraftRounds: number;
   dailyFinals: number;
   rates: AiArtRates;
-  // false(기본)면 MANAGE_ART는 활성 OWNER만, true면 활성 OWNER·STAFF. 운영에는 OWNER를 부여하는 경로가 아직 없어 꺼 둔다(키도 비워 둔다).
+  // false(기본)면 MANAGE_ART는 활성 OWNER만, true면 활성 OWNER·STAFF. 운영은 꺼 두고 키도 비워 둔다(OWNER는 D-054 절차로만 생긴다).
   // 시연은 CLI로 소유자 계정에만 STAFF를 주므로 compose가 true로 켠다.
   staffMayManage: boolean;
 };

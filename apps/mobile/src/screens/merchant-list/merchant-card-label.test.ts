@@ -17,7 +17,8 @@ test('the label keeps the story and campaign the card shows, and the tap goes in
   assert.equal(merchantCardHint(), '자세히 보기');
 });
 
-test('a full campaign says it is closed, a real merchant is not called demo, and an empty story is skipped', () => {
+test('a full campaign is not called closed (visits still earn, D-023), a real merchant is not called demo, and an empty story is skipped', () => {
   const label = merchantCardLabel({ ...merchant, demo: false, story: '', campaign: { ...merchant.campaign, enrollmentStatus: 'FULL' } });
-  assert.equal(label, '가상 점포 A, 정원 마감, 서울 노원구 월계로 1, 가을 도장 캠페인');
+  assert.equal(label, '가상 점포 A, 참여 가능, 서울 노원구 월계로 1, 가을 도장 캠페인');
+  assert.doesNotMatch(label, /마감/);
 });

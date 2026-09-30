@@ -6,7 +6,7 @@ verifier="$repo_root/scripts/verify-lightsail-deployment.mjs"
 
 node "$verifier"
 
-# 운영 compose는 STAFF의 가게 그림 관리 권한(AI_ART_STAFF_MAY_MANAGE)을 넘기지 않는다. 운영에는 OWNER를 부여하는 경로가 아직 없어
+# 운영 compose는 STAFF의 가게 그림 관리 권한(AI_ART_STAFF_MAY_MANAGE)을 넘기지 않는다. 운영 OWNER는 확인 절차(D-054)로만 생기므로
 # 이 값을 켜면 직원 계정이 유료 이미지 호출을 시작할 수 있다(D-048·D-050). 값이 꺼져 있어도 키가 있으면 실수로 켜기 쉬우므로 키 자체를 막는다.
 compose_passes_staff_art_flag() {
   grep -q 'AI_ART_STAFF_MAY_MANAGE' "$1"
@@ -59,6 +59,29 @@ if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Do
   exit 1
 fi
 mv "$scratch/compose.yml.bak" "$scratch/compose.yml"
+
+# 운영 NFT는 고정값 PREPARING이다(D-054). LIVE나 런타임 덮어쓰기(${NFT_MINTING_MODE:-…})로 바꾼 복사본은 거절해야 한다.
+for replacement in 'NFT_MINTING_MODE: LIVE' 'NFT_MINTING_MODE: ${NFT_MINTING_MODE:-PREPARING}'; do
+  sed -i.bak "s/NFT_MINTING_MODE: PREPARING/$replacement/" "$scratch/compose.yml"
+  if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
+    echo "verifier accepted production NFT minting that is not fixed to PREPARING: $replacement" >&2
+    exit 1
+  fi
+  mv "$scratch/compose.yml.bak" "$scratch/compose.yml"
+done
+# 고정값 줄은 그대로 두고 다른 곳(주석·다른 서비스)에 런타임 덮어쓰기 참조가 끼어도 거절해야 한다.
+sed -i.bak 's/^\( *\)NFT_MINTING_MODE: PREPARING$/&\
+\1# NFT_MINTING_MODE_OVERRIDE: ${NFT_MINTING_MODE:-LIVE}/' "$scratch/compose.yml"
+grep -q '${NFT_MINTING_MODE:-LIVE}' "$scratch/compose.yml" || { echo "override injection did not apply" >&2; exit 1; }
+if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
+  echo "verifier accepted a compose that still references \${NFT_MINTING_MODE" >&2
+  exit 1
+fi
+mv "$scratch/compose.yml.bak" "$scratch/compose.yml"
+if grep -q 'NFT_MINTING_MODE' "$repo_root/infra/showcase-host/compose.yml" "$repo_root/infra/showcase-local/compose.yml"; then
+  echo "showcase compose must keep its current minting (no NFT_MINTING_MODE)" >&2
+  exit 1
+fi
 
 sed -i.bak '/^USER node$/d' "$scratch/api.Dockerfile"
 if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then

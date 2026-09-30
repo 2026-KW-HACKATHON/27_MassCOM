@@ -30,7 +30,7 @@ import {
   CampaignEnrollmentError,
   type CampaignEnrollmentService,
 } from './campaign-enrollment.js';
-import type { CollectionReader } from './collection.js';
+import { parseNftMintingMode, type CollectionReader } from './collection.js';
 import {
   InMemoryChallengeStore,
   WalletChallengeError,
@@ -43,7 +43,7 @@ import {
 } from './merchant-access.js';
 import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
-import { MintRequestError, type MintRequestService } from './mint-request-service.js';
+import { MintRequestError, refuseMintRequestsWhilePreparing, type MintRequestService } from './mint-request-service.js';
 import { ReversalError, type ReversalService } from './reversal.js';
 import {
   RecommendationService,
@@ -188,7 +188,9 @@ export function createApiServer(
   customerIdentities?: CustomerIdentityService,
   admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'> &
     Partial<Pick<PostgresAdminService, 'operationsStatus' | 'listCampaignDrafts' | 'createCampaignDraft' |
-      'listMerchantCoupons' | 'voidCoupon'>>,
+      'listMerchantCoupons' | 'voidCoupon' | 'publishMerchant' | 'listOwners' | 'promoteOwner' | 'demoteOwner' |
+      'listRewardOffers' | 'createRewardOffer' | 'pauseRewardOffer' | 'listCampaigns' | 'publishCampaign' |
+      'pauseCampaign'>>,
   deletionIntake?: AccountDeletionIntakeService,
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
   badges?: BadgeRewardService,
@@ -398,6 +400,84 @@ export function createApiServer(
           await readJson(request);
           await staffRegistration.revoke(accountId, decodePathParameter(revokeMatch[1]!), decodePathParameter(revokeMatch[2]!));
           sendJson(response, 200, { status: 'REVOKED' });
+          return;
+        }
+        // 실제 점포 운영 시작(#246, D-054): 공개·점주·보상 혜택·캠페인 공개. 참조 번호만 받고 개인정보는 받지 않는다.
+        const publishMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/publish$/);
+        if (publishMatch && request.method === 'POST') {
+          if (!admin.publishMerchant) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          const body = await readJson(request);
+          requireOnlyKeys(body, ['expectedVersion', 'consentDocumentRef']);
+          sendJson(response, 200, { merchant: await admin.publishMerchant(accountId, decodePathParameter(publishMatch[1]!),
+            requireNumber(body, 'expectedVersion'), body.consentDocumentRef) });
+          return;
+        }
+        const ownersMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/owners$/);
+        if (ownersMatch && request.method === 'GET') {
+          if (!admin.listOwners) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          sendJson(response, 200, { owners: await admin.listOwners(accountId, decodePathParameter(ownersMatch[1]!)) });
+          return;
+        }
+        const ownerChangeMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/members\/([^/]+)\/(promote|demote)-owner$/);
+        if (ownerChangeMatch && request.method === 'POST') {
+          if (!admin.promoteOwner || !admin.demoteOwner) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          // 점주 권한은 가게 그림 같은 비용 권한까지 여는 변경이라, 삭제 접수(D-053 (8))처럼 10분 안에 한 로그인만 받는다.
+          const session = await webAuth.resolveSessionWithAge(requireWebCookie(request, 'web_session'), origin);
+          if (session.accountId !== accountId || session.ageMs > freshWebSessionMs) {
+            throw new WebSessionError('WEB_SESSION_REAUTH_REQUIRED');
+          }
+          const body = await readJson(request);
+          const merchantId = decodePathParameter(ownerChangeMatch[1]!);
+          const target = decodePathParameter(ownerChangeMatch[2]!);
+          if (ownerChangeMatch[3] === 'promote') {
+            requireOnlyKeys(body, ['verificationDocumentRef']);
+            sendJson(response, 200, { member: await admin.promoteOwner(accountId, merchantId, target,
+              body.verificationDocumentRef) });
+          } else {
+            requireOnlyKeys(body, ['reason', 'verificationDocumentRef']);
+            sendJson(response, 200, { member: await admin.demoteOwner(accountId, merchantId, target,
+              { reason: body.reason, verificationDocumentRef: body.verificationDocumentRef }) });
+          }
+          return;
+        }
+        if (path === '/api/web/admin/reward-offers') {
+          if (request.method === 'GET') {
+            if (!admin.listRewardOffers) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+            sendJson(response, 200, { offers: await admin.listRewardOffers(accountId) });
+            return;
+          }
+          if (request.method === 'POST') {
+            if (!admin.createRewardOffer) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+            const body = await readJson(request);
+            requireOnlyKeys(body, ['merchantId', 'milestone', 'title', 'detail', 'validDays', 'issuanceCap',
+              'consentDocumentRef', 'consent']);
+            sendJson(response, 201, { offer: await admin.createRewardOffer(accountId, {
+              merchantId: body.merchantId, milestone: body.milestone, title: body.title, detail: body.detail,
+              validDays: body.validDays, issuanceCap: body.issuanceCap, consentDocumentRef: body.consentDocumentRef,
+              consent: body.consent,
+            }) });
+            return;
+          }
+        }
+        const offerPauseMatch = path.match(/^\/api\/web\/admin\/reward-offers\/([^/]+)\/pause$/);
+        if (offerPauseMatch && request.method === 'POST') {
+          if (!admin.pauseRewardOffer) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          requireEmptyBody(await readJson(request));
+          sendJson(response, 200, await admin.pauseRewardOffer(accountId, decodePathParameter(offerPauseMatch[1]!)));
+          return;
+        }
+        if (path === '/api/web/admin/campaigns' && request.method === 'GET') {
+          if (!admin.listCampaigns) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          sendJson(response, 200, { campaigns: await admin.listCampaigns(accountId) });
+          return;
+        }
+        const campaignActionMatch = path.match(/^\/api\/web\/admin\/campaigns\/([^/]+)\/(publish|pause)$/);
+        if (campaignActionMatch && request.method === 'POST') {
+          if (!admin.publishCampaign || !admin.pauseCampaign) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          requireEmptyBody(await readJson(request));
+          const campaignId = decodePathParameter(campaignActionMatch[1]!);
+          sendJson(response, 200, campaignActionMatch[2] === 'publish'
+            ? await admin.publishCampaign(accountId, campaignId) : await admin.pauseCampaign(accountId, campaignId));
           return;
         }
         if (path === '/api/web/admin/merchants') {
@@ -1127,12 +1207,7 @@ export function createApiServer(
         return;
       }
       if (error instanceof AdminError) {
-        const status = error.code === 'ADMIN_FORBIDDEN' ? 403
-          : error.code === 'ADMIN_MERCHANT_NOT_FOUND' || error.code === 'ADMIN_IDENTITY_NOT_FOUND' ||
-            error.code === 'ADMIN_COUPON_NOT_FOUND' ? 404
-            : error.code === 'ADMIN_VERSION_CONFLICT' || error.code === 'ADMIN_PENDING_CLAIMS' ||
-              error.code === 'ADMIN_COUPON_NOT_VOIDABLE' ? 409 : 400;
-        sendJson(response, status, { code: error.code });
+        sendJson(response, statusForAdmin(error.code), { code: error.code });
         return;
       }
       if (error instanceof StaffRegistrationError) {
@@ -1479,6 +1554,40 @@ function requireEmptyBody(body: Record<string, unknown>): void {
   if (Object.keys(body).length > 0) throw new RequestError(400, 'INVALID_REQUEST');
 }
 
+function requireOnlyKeys(body: Record<string, unknown>, allowed: readonly string[]): void {
+  if (Object.keys(body).some(key => !allowed.includes(key))) throw new RequestError(400, 'INVALID_REQUEST');
+}
+
+function statusForAdmin(code: AdminError['code']): number {
+  switch (code) {
+    case 'ADMIN_FORBIDDEN':
+    case 'ADMIN_SELF_ROLE_CHANGE':
+      return 403;
+    case 'ADMIN_MERCHANT_NOT_FOUND':
+    case 'ADMIN_IDENTITY_NOT_FOUND':
+    case 'ADMIN_COUPON_NOT_FOUND':
+    case 'ADMIN_MEMBER_NOT_FOUND':
+    case 'ADMIN_OFFER_NOT_FOUND':
+    case 'ADMIN_CAMPAIGN_NOT_FOUND':
+      return 404;
+    case 'ADMIN_VERSION_CONFLICT':
+    case 'ADMIN_PENDING_CLAIMS':
+    case 'ADMIN_COUPON_NOT_VOIDABLE':
+    case 'ADMIN_MERCHANT_NOT_READY':
+    case 'ADMIN_MERCHANT_ALREADY_ACTIVE':
+    case 'ADMIN_MERCHANT_NOT_ACTIVE':
+    case 'ADMIN_ALREADY_OWNER':
+    case 'ADMIN_OWNER_LIMIT':
+    case 'ADMIN_OFFER_MILESTONE_TAKEN':
+    case 'ADMIN_CAMPAIGN_NOT_PUBLISHABLE':
+    case 'ADMIN_CAMPAIGN_NOT_PAUSABLE':
+    case 'ADMIN_CAMPAIGN_ACTIVE_EXISTS':
+      return 409;
+    default:
+      return 400;
+  }
+}
+
 function statusForMintRequest(code: string): number {
   if (code === 'ENTITLEMENT_NOT_FOUND' || code === 'WALLET_BINDING_NOT_FOUND' || code === 'MINT_JOB_NOT_FOUND') {
     return 404;
@@ -1653,7 +1762,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const merchantAccess = pool
     ? new PostgresMerchantAccessControl(pool, { staffMayManageArt: aiArtConfig.staffMayManage })
     : undefined;
-  const collection = pool ? new PostgresCollectionReader(pool) : undefined;
+  // 운영 compose는 PREPARING(발행 준비 중)을 넘기고 시연은 넘기지 않아 발행 동작이 그대로다(#246, D-054).
+  const nftMinting = parseNftMintingMode(process.env.NFT_MINTING_MODE);
+  const collection = pool ? new PostgresCollectionReader(pool, { nftMinting }) : undefined;
   const recommendations = pool
     ? new RecommendationService(new PostgresRecommendationSource(pool))
     : undefined;
@@ -1670,12 +1781,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const challengeStore: ChallengeStore = pool
     ? new PostgresChallengeStore(pool)
     : new InMemoryChallengeStore();
-  const mintRequests = pool
+  const postgresMintRequests = pool
     ? new PostgresMintRequestService(pool, {
         supportedConsentVersion: process.env.NFT_MINT_CONSENT_VERSION ?? 'nft-mint-v1',
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;
+  // 발행 준비 중(운영)에는 새 발행 요청을 거절하고 작업 조회만 둔다(D-054).
+  const mintRequests = postgresMintRequests && nftMinting === 'PREPARING'
+    ? refuseMintRequestsWhilePreparing(postgresMintRequests) : postgresMintRequests;
   const authMode = resolveAuthMode(process.env);
   const accountDeletions =
     pool && accountDeletionHmacSecret
