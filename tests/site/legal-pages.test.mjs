@@ -75,3 +75,84 @@ test('terms are built, served at /terms and checked after deploy exactly like th
   assert.match(source('scripts/deploy-lightsail-web.sh'), /for path in \/ \/open \/privacy \/terms \/account-deletion \/app\//);
   assert.match(source('tests/ops/run_aws_web_smoke.sh'), /\/privacy \/terms \/account-deletion/);
 });
+
+const repoRoot = resolve(import.meta.dirname, '../..');
+const source = (path) => readFileSync(resolve(repoRoot, path), 'utf8');
+
+test('the privacy policy states retention periods instead of saying they are undecided', () => {
+  assert.doesNotMatch(privacy, /확정되지 않았습니다|아직 정하지 않았습니다|보관 기간, 처리 위탁/);
+  assert.match(privacy, /<h3>보관 기간<\/h3>/);
+  for (const [label, period] of [
+    ['계정·방문·보상·친구 기록', /탈퇴\(계정 삭제 요청 처리\)할 때까지/],
+    ['동의 기록', /계정을 삭제할 때까지 보관하고, 삭제 처리 때 지웁니다/],
+    ['로그인 세션', /만료되거나 로그아웃으로 해지되면/],
+    ['삭제 접수 기록', /처리·취소·거절한 뒤 1년이 지나면 삭제합니다/],
+    ['관리자·점주 처리·감사 기록', /기록한 날부터 1년 뒤 삭제합니다/],
+    ['서버 로그', /용량 기준으로만/],
+    ['배포 전 데이터베이스 백업', /만든 지 30일이 지나면/],
+    ['OpenAI 전송분', /최대 30일/],
+    ['발행된 NFT', /서비스가 지울 수 없습니다/],
+  ]) {
+    assert.match(privacy, new RegExp(`<li><strong>${label}:</strong>[^\\n]*`), label);
+    const line = privacy.split('\n').find((row) => row.includes(`<strong>${label}:</strong>`) && /보관|삭제|순환|OpenAI|지울/.test(row));
+    assert.match(line ?? '', period, label);
+  }
+});
+
+test('each retention promise in the policy is the value the code and the server jobs implement', () => {
+  const retention = source('apps/api/src/postgres/retention.ts');
+  assert.equal((retention.match(/interval '1 year'/g) ?? []).length, 1, 'one place defines the one-year period');
+  for (const table of ['auth_sessions', 'web_sessions', 'account_deletion_intake_requests', 'platform_admin_audit',
+    'platform_admin_role_audit', 'staff_registration_audit', 'badge_coupon_audit']) {
+    assert.match(retention, new RegExp(`table: '${table}'`), table);
+  }
+  // Only finished filings are removed; an active one is never retention material.
+  assert.match(retention, /status <> 'REQUESTED'/);
+  // 30 days of backups: the job's default, its unit-free name pattern and the policy agree; the default is the same on both hosts.
+  for (const job of ['infra/lightsail/host-jobs/masscom-retention.sh', 'infra/showcase-host/host-jobs/masscom-retention.sh']) {
+    assert.match(source(job), /MASSCOM_BACKUP_RETENTION_DAYS:-30\}/, job);
+  }
+  assert.match(privacy, /만든 지 30일이 지나면 서버의 정리 작업이 지웁니다/);
+  // App sessions last 30 days and web sessions 24 hours; the policy says so.
+  assert.match(source('infra/lightsail/compose.yml'), /AUTH_SESSION_TTL_MS: "2592000000"/);
+  assert.match(source('apps/api/src/server.ts'), /ttlMs: 24 \* 60 \* 60 \* 1000/);
+  assert.match(privacy, /앱 로그인의 유효 기간은 30일, 웹 로그인은 24시간/);
+  // Log rotation: the numbers in the text are the ones in both compose files, and the text promises no time bound.
+  for (const file of ['infra/lightsail/compose.yml', 'infra/showcase-host/compose.yml']) {
+    assert.match(source(file), /max-size: "10m"[\s\S]*max-file: "3"/, file);
+  }
+  assert.match(privacy, /10 MB 파일 3개\(최대 30 MB\)/);
+  assert.match(privacy, /시간 기준으로 지우지는 않습니다/);
+  assert.doesNotMatch(privacy, /3개월/);
+  // Caddy has no `log` directive, so no per-request access log exists; the policy says that and only that.
+  assert.doesNotMatch(source('infra/lightsail/Caddyfile'), /^\s*log\b/m);
+  assert.match(privacy, /웹 서버는 요청마다 접속 기록을 남기지 않도록 구성했습니다/);
+});
+
+test('the privacy policy carries the OpenAI contacts from the Korean addendum and names the consent record', () => {
+  assert.match(privacy, /OpenAI OpCo, L\.L\.C\./);
+  assert.match(privacy, /1455 3rd Street, San Francisco/);
+  assert.match(privacy, /mailto:privacy@openai\.com">privacy@openai\.com</);
+  assert.match(privacy, /오픈에이아이코리아 유한회사/);
+  assert.match(privacy, /mailto:privacykorea@openai\.com">privacykorea@openai\.com</);
+  assert.match(privacy, /02-722-3599/);
+  assert.match(privacy, /2026-03-27/);
+  assert.match(privacy, /<strong>동의 기록:<\/strong> 이용약관·개인정보 수집·이용에 동의한 계정의 식별자/);
+  assert.match(privacy, /href="terms\.html">이용약관</);
+});
+
+test('the versions named on the two pages are the ones the server, the app and the web app use', () => {
+  const api = source('apps/api/src/account-consent.ts');
+  const serverTerms = api.match(/CURRENT_TERMS_VERSION = '([^']+)'/)?.[1];
+  const serverPrivacy = api.match(/CURRENT_PRIVACY_VERSION = '([^']+)'/)?.[1];
+  assert.equal(serverTerms, 'terms-2026-09-30');
+  assert.equal(serverPrivacy, 'privacy-2026-09-30');
+  assert.ok(terms.includes(serverTerms));
+  assert.ok(privacy.includes(serverPrivacy));
+  const mobile = source('apps/mobile/src/privacy/consent-copy.ts');
+  assert.equal(mobile.match(/CONSENT_TERMS_VERSION = '([^']+)'/)?.[1], serverTerms);
+  assert.equal(mobile.match(/CONSENT_PRIVACY_VERSION = '([^']+)'/)?.[1], serverPrivacy);
+  const web = source('apps/production-web/assets/production.mjs');
+  assert.equal(web.match(/CONSENT_TERMS_VERSION = '([^']+)'/)?.[1], serverTerms);
+  assert.equal(web.match(/CONSENT_PRIVACY_VERSION = '([^']+)'/)?.[1], serverPrivacy);
+});
