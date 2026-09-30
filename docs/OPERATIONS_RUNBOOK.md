@@ -24,7 +24,7 @@ TEST_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_restore_test' \
   npm run test:postgres --prefix apps/api
 ```
 
-위 절차를 한 번에 연습하는 스크립트가 있습니다. dump → `<DB 이름>_restore_test` 복원 → 테이블별 행 수와 migration 목록 대조 → scratch DB 삭제까지 하며 원본은 읽기만 합니다. scratch DB 이름에는 프로세스 번호가 들어가 기존 DB를 이름으로 지우지 않고, 백업 파일 경로를 주지 않으면 dump는 임시 파일로 만들어져 끝날 때 삭제됩니다(실제 데이터가 들어 있으므로 경로를 줬다면 암호화 보관 절차를 따릅니다). 쓰기가 조용할 때 실행하세요(행 수를 실행 시점의 원본과 비교합니다).
+위 절차를 한 번에 연습하는 스크립트가 있습니다. dump → `<DB 이름>_restore_test` 복원 → 테이블별 행 수와 migration 목록 대조 → scratch DB 삭제까지 하며 원본은 읽기만 합니다. scratch DB 이름에는 프로세스 번호가 들어가 기존 DB를 이름으로 지우지 않고, 백업 파일 경로를 주지 않으면 dump는 임시 파일로 만들어져 끝날 때 삭제됩니다(실제 데이터가 들어 있으므로 경로를 줬다면 암호화 보관 절차를 따릅니다). 경로를 준 dump는 `umask 077`로 같은 폴더의 임시 파일에 쓰고 dump가 성공했을 때만 그 경로로 옮기므로 새 파일은 항상 mode 600이고, dump가 실패하면 그 경로의 이전 백업은 그대로 남습니다(Issue #263). 쓰기가 조용할 때 실행하세요(행 수를 실행 시점의 원본과 비교합니다).
 
 ```bash
 read -s PGPASSWORD && export PGPASSWORD

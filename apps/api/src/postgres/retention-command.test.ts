@@ -8,10 +8,12 @@ const counts = (n: number): RetentionCount[] => retentionStepNames.map((step, in
 
 function service(run: () => Promise<{ counts: RetentionCount[]; failed: RetentionStepName[] }>) {
   const calls: string[] = [];
+  const runOptions: unknown[] = [];
   return {
     calls,
+    runOptions,
     service: {
-      run: async () => { calls.push('run'); return run(); },
+      run: async (options?: { hmacSecret?: string }) => { calls.push('run'); runOptions.push(options); return run(); },
       report: async () => { calls.push('report'); return counts(10); },
       purgeConsentsOfDeletedAccounts: async (secret: string) => { calls.push(`purge:${secret}`); return 4; },
     },
@@ -22,7 +24,7 @@ test('every retention step is named once, in the order the command reports them'
   assert.deepEqual([...retentionStepNames], [
     'auth_sessions', 'web_sessions', 'deletion_intake', 'admin_audit', 'admin_owner_audit', 'admin_role_audit',
     'staff_registration_audit', 'coupon_audit', 'customer_identity_tokens', 'wallet_challenges', 'web_oauth_states',
-    'staff_registration_requests',
+    'staff_registration_requests', 'admin_audit_deleted_targets',
   ]);
 });
 
@@ -68,7 +70,21 @@ test('purge-deleted-consents needs the deletion secret, runs only on request and
   assert.deepEqual(result.lines, ['RETENTION_PURGE_DELETED_CONSENTS', 'deleted_account_consents\t4']);
   assert.deepEqual(result.failed, []);
   assert.deepEqual(calls, ['purge:secret-value-at-least-32-bytes-long!!']);
-  // The daily run never purges consents by itself: it does not know the secret.
-  await runRetentionCommand(fake, ['run']);
+  // The daily run never purges consents by itself, even when it has the secret (it uses it only for the audit target step).
+  await runRetentionCommand(fake, ['run'], 'secret-value-at-least-32-bytes-long!!');
   assert.equal((calls as string[]).filter((call) => call.startsWith('purge')).length, 1);
+});
+
+test('run hands the deletion secret to the service so deleted accounts audit targets are de-identified daily (Issue #263)', async () => {
+  const { service: fake, runOptions } = service(async () => ({ counts: counts(0), failed: [] }));
+  const secret = 'secret-value-at-least-32-bytes-long!!';
+  const result = await runRetentionCommand(fake, ['run'], secret);
+  assert.deepEqual(runOptions, [{ hmacSecret: secret }]);
+  assert.equal(result.lines.at(-1), `admin_audit_deleted_targets\t${retentionStepNames.length - 1}`);
+  // The secret itself never reaches the output.
+  assert.equal(result.lines.some((line) => line.includes(secret)), false);
+  // report only counts what run would delete: it does not need or receive the secret.
+  const reportOnly = service(async () => ({ counts: [], failed: [] }));
+  await runRetentionCommand(reportOnly.service, ['report'], secret);
+  assert.deepEqual(reportOnly.runOptions, []);
 });

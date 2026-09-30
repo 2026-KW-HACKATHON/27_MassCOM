@@ -14,7 +14,8 @@ export type RetentionStepName =
   | 'customer_identity_tokens'
   | 'wallet_challenges'
   | 'web_oauth_states'
-  | 'staff_registration_requests';
+  | 'staff_registration_requests'
+  | 'admin_audit_deleted_targets';
 
 export type RetentionCount = { step: RetentionStepName; count: number };
 export type RetentionRun = { counts: RetentionCount[]; failed: RetentionStepName[] };
@@ -73,7 +74,10 @@ const steps: readonly Step[] = [
   },
 ];
 
-export const retentionStepNames: readonly RetentionStepName[] = steps.map((step) => step.name);
+// 마지막 단계는 지우기가 아니라 비식별화다(아래 `pseudonymizeDeletedAuditTargets`). 삭제 계정의 원 ID를 가진 행을 별칭으로 바꾼 개수를 보고한다.
+const deletedTargetsStep = 'admin_audit_deleted_targets' as const;
+
+export const retentionStepNames: readonly RetentionStepName[] = [...steps.map((step) => step.name), deletedTargetsStep];
 
 export class PostgresRetentionService {
   private readonly now: () => Date;
@@ -99,8 +103,10 @@ export class PostgresRetentionService {
   /**
    * 단계마다 하나의 거래로 지운다. 한 단계가 실패하면 그 단계만 되돌리고 나머지는 계속한다(한 표의 문제가
    * 다른 표의 정리를 매일 막지 않도록). 실패한 단계 이름은 failed에 담긴다.
+   * `hmacSecret`(계정 삭제와 같은 `ACCOUNT_DELETION_HMAC_SECRET`)을 주면 지우기 단계 뒤에 삭제된 계정의 감사 대상 ID 비식별화도 한다
+   * (`admin_audit_deleted_targets`). 비밀이 없거나 32바이트보다 짧으면 이 단계만 실패로 보고된다.
    */
-  async run(): Promise<RetentionRun> {
+  async run(options: { hmacSecret?: string } = {}): Promise<RetentionRun> {
     const now = this.now();
     const counts: RetentionCount[] = [];
     const failed: RetentionStepName[] = [];
@@ -124,7 +130,69 @@ export class PostgresRetentionService {
         client.release();
       }
     }
+    if (options.hmacSecret !== undefined) {
+      try {
+        counts.push({ step: deletedTargetsStep, count: await this.pseudonymizeDeletedAuditTargets(options.hmacSecret) });
+      } catch {
+        failed.push(deletedTargetsStep);
+      }
+    }
     return { counts, failed };
+  }
+
+  /**
+   * 롤백 복구(Issue #263): 점주 지정·해제 감사(`platform_admin_audit.target_account_id`)의 대상 계정 열은 계정 삭제가 별칭으로 바꾸지만,
+   * 이 열을 모르는 이전 API가 도는 동안 삭제 처리된 계정은 원 ID가 남는다. 매일 정리에 넣어 스스로 복구한다.
+   * 계정 삭제(`account-deletion.ts`의 `pseudonymizeAccount`)와 같은 일을 이미 삭제된 계정에 한다: 삭제 원장에 해시가 있는 계정의 원 ID를
+   * 원장의 별칭(`deleted:<HMAC>`)으로 바꾼다. 계정 ID는 원장에 없고 HMAC 해시만 있으므로 각 행의 해시를 다시 구해 대조한다.
+   * 별칭이 된 행과 살아 있는 계정의 행은 건드리지 않아 다시 실행하면 0이다. 500개 계정씩 한 거래로 처리하며 바꾼 행 수만 돌려준다.
+   */
+  private async pseudonymizeDeletedAuditTargets(hmacSecret: string): Promise<number> {
+    const lifecycle = new PostgresAccountLifecycle({ hmacSecret });
+    const accounts = (await this.pool.query<{ target_account_id: string }>(
+      `SELECT DISTINCT target_account_id FROM platform_admin_audit
+       WHERE target_account_id IS NOT NULL AND target_account_id NOT LIKE 'deleted:%'`,
+    )).rows.map((row) => row.target_account_id);
+    let updated = 0;
+    for (let start = 0; start < accounts.length; start += 500) {
+      const batch = accounts.slice(start, start + 500);
+      const client = await this.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const hashes = batch.map((accountId) => lifecycle.referenceHash(accountId));
+        const known = await client.query<{ account_reference_hash: Buffer; deleted_account_alias: string }>(
+          `SELECT account_reference_hash, deleted_account_alias FROM account_deletion_requests
+           WHERE account_reference_hash = ANY($1::bytea[])`,
+          [hashes],
+        );
+        const aliases = new Map(known.rows.map((row) => [row.account_reference_hash.toString('hex'), row.deleted_account_alias]));
+        const goneAccounts: string[] = [];
+        const goneAliases: string[] = [];
+        batch.forEach((accountId, index) => {
+          const alias = aliases.get(hashes[index]!.toString('hex'));
+          if (alias !== undefined) {
+            goneAccounts.push(accountId);
+            goneAliases.push(alias);
+          }
+        });
+        if (goneAccounts.length > 0) {
+          const result = await client.query(
+            `UPDATE platform_admin_audit AS audit SET target_account_id = gone.alias
+             FROM unnest($1::text[], $2::text[]) AS gone(account_id, alias)
+             WHERE audit.target_account_id = gone.account_id`,
+            [goneAccounts, goneAliases],
+          );
+          updated += result.rowCount ?? 0;
+        }
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+    return updated;
   }
 
   /**
