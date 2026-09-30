@@ -54,11 +54,22 @@ export type MintRequestErrorCode =
   | 'MINT_PENDING'
   | 'CAPACITY_UNAVAILABLE'
   | 'ACCOUNT_DELETED'
-  | 'MINT_JOB_NOT_FOUND';
+  | 'MINT_JOB_NOT_FOUND'
+  // 운영이 발행 준비 중(NFT_MINTING_MODE=PREPARING, D-054)이라 새 발행 요청을 받지 않는다.
+  | 'NFT_MINTING_PREPARING';
 
 export class MintRequestError extends Error {
   constructor(readonly code: MintRequestErrorCode) {
     super(code);
     this.name = 'MintRequestError';
   }
+}
+
+// 발행 서버·메인넷 승인 전(PREPARING)에는 새 발행 요청을 409 NFT_MINTING_PREPARING으로 거절하고 작업 조회만 그대로 둔다.
+// 운영 DB에는 NFT 시리즈가 없어 지금도 작업이 생기지 않지만, 시리즈가 먼저 들어가도 발행이 시작되지 않게 하는 이중 방어다.
+export function refuseMintRequestsWhilePreparing(service: MintRequestService): MintRequestService {
+  return {
+    requestMint: async () => { throw new MintRequestError('NFT_MINTING_PREPARING'); },
+    getMintJob: (input) => service.getMintJob(input),
+  };
 }

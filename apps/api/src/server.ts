@@ -43,7 +43,7 @@ import {
 } from './merchant-access.js';
 import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
-import { MintRequestError, type MintRequestService } from './mint-request-service.js';
+import { MintRequestError, refuseMintRequestsWhilePreparing, type MintRequestService } from './mint-request-service.js';
 import { ReversalError, type ReversalService } from './reversal.js';
 import {
   RecommendationService,
@@ -1776,12 +1776,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const challengeStore: ChallengeStore = pool
     ? new PostgresChallengeStore(pool)
     : new InMemoryChallengeStore();
-  const mintRequests = pool
+  const postgresMintRequests = pool
     ? new PostgresMintRequestService(pool, {
         supportedConsentVersion: process.env.NFT_MINT_CONSENT_VERSION ?? 'nft-mint-v1',
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;
+  // 발행 준비 중(운영)에는 새 발행 요청을 거절하고 작업 조회만 둔다(D-054).
+  const mintRequests = postgresMintRequests && nftMinting === 'PREPARING'
+    ? refuseMintRequestsWhilePreparing(postgresMintRequests) : postgresMintRequests;
   const authMode = resolveAuthMode(process.env);
   const accountDeletions =
     pool && accountDeletionHmacSecret

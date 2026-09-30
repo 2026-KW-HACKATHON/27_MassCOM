@@ -40,7 +40,7 @@ import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wall
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
 import { merchantArt, type MerchantArt } from './merchant-art';
-import { canOfferMint, nftPreparingNote, nftStatusLabel } from './nft-status';
+import { canOfferMint, mintRefusalText, nftPreparingNote, nftStatusLabel } from './nft-status';
 import { collectibleArtSize } from './showcase-collectible-art';
 import { makeCollectionStyles } from './styles';
 
@@ -580,15 +580,7 @@ function EmptyCopy({ text }: { text: string }) {
 
 function mintErrorMessage(error: unknown): string {
   if (error instanceof CommerceApiError) {
-    const messages: Record<string, string> = {
-      WALLET_BINDING_CHANGED: '지갑 주소 확인 버전이 바뀌었습니다. 지갑 화면에서 다시 확인해 주세요.',
-      WALLET_BINDING_NOT_FOUND: '확인된 외부 지갑 주소가 없습니다.',
-      ENTITLEMENT_EXPIRED: 'NFT 신청 기간이 만료됐습니다.',
-      MINT_PENDING: '이미 처리 중인 NFT 작업이 있습니다.',
-      CAPACITY_UNAVAILABLE: '약속된 발행 수량을 확인할 수 없어 접수를 중지했습니다.',
-      CONSENT_REQUIRED: '최신 공개·양도 제한 안내 동의가 필요합니다.',
-    };
-    return messages[error.code] ?? `NFT 접수 실패: ${error.code}`;
+    return mintRefusalText(error.code);
   }
   return 'NFT 접수 중 네트워크 오류가 발생했습니다. 보상권은 유지됩니다.';
 }

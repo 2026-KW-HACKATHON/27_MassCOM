@@ -20,3 +20,19 @@ export function nftStatusLabel(status: NftStatus, minting?: NftMinting): string 
 export function canOfferMint(status: NftStatus, minting?: NftMinting): boolean {
   return status === 'NOT_REQUESTED' && minting !== 'PREPARING';
 }
+
+const mintRefusalMessages: Record<string, string> = {
+  WALLET_BINDING_CHANGED: '지갑 주소 확인 버전이 바뀌었습니다. 지갑 화면에서 다시 확인해 주세요.',
+  WALLET_BINDING_NOT_FOUND: '확인된 외부 지갑 주소가 없습니다.',
+  ENTITLEMENT_EXPIRED: 'NFT 신청 기간이 만료됐습니다.',
+  MINT_PENDING: '이미 처리 중인 NFT 작업이 있습니다.',
+  CAPACITY_UNAVAILABLE: '약속된 발행 수량을 확인할 수 없어 접수를 중지했습니다.',
+  CONSENT_REQUIRED: '최신 공개·양도 제한 안내 동의가 필요합니다.',
+  // 운영 API가 발행 준비 중이라 새 요청을 거절할 때(옛 화면 상태에서 단추를 눌렀을 때도 같은 안내).
+  NFT_MINTING_PREPARING: nftPreparingNote,
+};
+
+// 발행 요청 거절 코드를 고객 문구로 바꾼다. 모르는 코드는 코드와 함께 알린다.
+export function mintRefusalText(code: string): string {
+  return mintRefusalMessages[code] ?? `NFT 접수 실패: ${code}`;
+}

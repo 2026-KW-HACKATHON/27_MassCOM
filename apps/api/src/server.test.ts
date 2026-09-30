@@ -59,6 +59,7 @@ import type {
   MintRequestResult,
   MintRequestService,
 } from './mint-request-service.js';
+import { refuseMintRequestsWhilePreparing } from './mint-request-service.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 type MerchantAccessFixture = {
@@ -3841,4 +3842,27 @@ test('admin coupon routes list and void behind the admin cookie, origin and JSON
     { ...admin, isAdmin: async () => false } as unknown as PostgresAdminService);
   assert.equal((await webRequest(denied, listPath, { headers: { cookie: headers.cookie } })).status, 403);
   assert.equal((await webRequest(denied, voidPath, { method: 'POST', headers, body: '{"reason":"OTHER"}' })).status, 403);
+});
+
+test('while production NFT minting is preparing, a new mint request is refused with 409 but job lookup still works', async (t) => {
+  let requested = 0;
+  const job = { jobId: 'mint-job-1', status: 'QUEUED', chainId: 84532,
+    recipient: '0x4000000000000000000000000000000000000004', nft: null } as unknown as MintJobView;
+  const inner: MintRequestService = {
+    requestMint: async () => { requested += 1; throw new Error('must not be called'); },
+    getMintJob: async () => job,
+  };
+  const baseUrl = await startFixture(t, () => 'customer-1', undefined, undefined, undefined, undefined, undefined,
+    refuseMintRequestsWhilePreparing(inner));
+  const refused = await fetch(`${baseUrl}/entitlements/20000000-0000-4000-8000-000000000001/mint`, {
+    method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': 'mint-request-1' },
+    body: JSON.stringify({ walletBindingId: '30000000-0000-4000-8000-000000000001', bindingVersion: 1,
+      consentVersion: 'nft-mint-v1' }),
+  });
+  assert.equal(refused.status, 409);
+  assert.deepEqual(await refused.json(), { code: 'NFT_MINTING_PREPARING' });
+  assert.equal(requested, 0);
+  const lookup = await fetch(`${baseUrl}/mint-jobs/mint-job-1`);
+  assert.equal(lookup.status, 200);
+  assert.deepEqual(await lookup.json(), job);
 });
