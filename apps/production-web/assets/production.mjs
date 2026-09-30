@@ -136,7 +136,7 @@ async function readConsent(fetcher) {
 }
 
 function consentNodes(doc) {
-  const names = ['consent-panel', 'consent-age', 'consent-terms', 'consent-privacy', 'consent-submit', 'consent-message'];
+  const names = ['consent-panel', 'consent-age', 'consent-terms', 'consent-privacy', 'consent-submit', 'consent-message', 'consent-hint'];
   const nodes = Object.fromEntries(names.map((name) => [name, doc.getElementById(name)]));
   return names.every((name) => nodes[name]) ? nodes : null;
 }
@@ -144,20 +144,33 @@ function consentNodes(doc) {
 function resetConsent(nodes, hidden) {
   for (const name of ['consent-age', 'consent-terms', 'consent-privacy']) nodes[name].checked = false;
   nodes['consent-submit'].disabled = true;
+  nodes['consent-hint'].hidden = false;
   nodes['consent-message'].textContent = '';
   nodes['consent-panel'].hidden = hidden;
 }
 
+// 화면이 나타나거나 사라질 때 키보드·스크린리더 초점을 옮긴다: 나타나면 머리글로, 사라지면(동의함·로그아웃) 본문으로.
+function moveFocus(doc, id) {
+  const node = doc.getElementById(id);
+  if (node && typeof node.focus === 'function') node.focus();
+}
+
 function hideConsent(doc) {
   const nodes = consentNodes(doc);
-  if (nodes) resetConsent(nodes, true);
+  if (!nodes) return;
+  const wasVisible = !nodes['consent-panel'].hidden;
+  resetConsent(nodes, true);
+  if (wasVisible) moveFocus(doc, 'main');
 }
 
 // 이미 보이는 화면은 그대로 둔다: 약관 링크를 새 탭에서 읽고 돌아오면 다시 확인이 돌지만 눌러 둔 체크를 지우지 않는다.
 function showConsent(doc) {
   const nodes = consentNodes(doc);
   if (!nodes) return false;
-  if (nodes['consent-panel'].hidden) resetConsent(nodes, false);
+  if (nodes['consent-panel'].hidden) {
+    resetConsent(nodes, false);
+    moveFocus(doc, 'consent-title');
+  }
   return true;
 }
 
@@ -166,7 +179,11 @@ function bindConsentControls(fetcher, doc, refresh) {
   if (!nodes) return;
   const boxes = ['consent-age', 'consent-terms', 'consent-privacy'].map((name) => nodes[name]);
   const complete = () => boxes.every((box) => box.checked === true);
-  const update = () => { nodes['consent-submit'].disabled = !complete(); };
+  // 버튼이 꺼져 있는 동안은 왜 눌 수 없는지 보이는 안내를 둔다(버튼의 aria-describedby도 이 안내를 가리킨다).
+  const update = () => {
+    nodes['consent-submit'].disabled = !complete();
+    nodes['consent-hint'].hidden = !nodes['consent-submit'].disabled;
+  };
   for (const box of boxes) box.addEventListener('change', update);
   let busy = false;
   nodes['consent-submit'].addEventListener('click', async () => {
@@ -485,6 +502,9 @@ export function bindCollectionControls(fetcher, doc) {
   if (channel) {
     channel.onmessage = (event) => {
       if (event.data !== 'refresh') return;
+      // 다른 탭에서 로그인·로그아웃이 있었으면 계정이 바뀌었을 수 있어 눌러 둔 체크를 지운다. 가려졌다 다시 보이는 것(visibilitychange)만 체크를 남긴다.
+      const consent = consentNodes(doc);
+      if (consent) resetConsent(consent, consent['consent-panel'].hidden);
       invalidate();
       if (!doc.hidden) void refresh();
     };

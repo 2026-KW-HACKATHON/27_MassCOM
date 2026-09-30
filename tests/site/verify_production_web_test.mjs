@@ -2536,12 +2536,18 @@ test('운영 웹 도감은 무효 쿠폰을 사용할 수 없는 쿠폰으로 �
 function consentDocument() {
   const fixture = collectionFixture();
   const box = () => ({ ...element(), checked: false });
+  const focusOrder = [];
+  const focusable = (id) => ({ ...element(), focus() { focusOrder.push(id); } });
   Object.assign(fixture.nodes, {
     'consent-panel': { ...element(), hidden: true },
     'consent-age': box(), 'consent-terms': box(), 'consent-privacy': box(),
     'consent-submit': { ...element(), disabled: true },
     'consent-message': element(),
+    'consent-hint': { ...element(), hidden: false },
+    'consent-title': focusable('consent-title'),
+    main: focusable('main'),
   });
+  fixture.focusOrder = focusOrder;
   return fixture;
 }
 
@@ -2782,9 +2788,16 @@ test('웹 동의: 화면은 폼 없이 필수 세 개·안내 네 가지·약관
   assert.equal((panel.match(/<input type="checkbox"/g) ?? []).length, 3);
   assert.doesNotMatch(panel, /\[선택\]|마케팅|광고/);
   assert.match(panel, /선택 동의는 없어요/);
-  assert.match(panel, /href="\/terms" target="_blank" rel="noopener">이용약관 보기</);
-  assert.match(panel, /href="\/privacy" target="_blank" rel="noopener">개인정보 처리방침 보기</);
-  assert.match(panel, /<button id="consent-submit" class="consent-submit" type="button" disabled aria-describedby="consent-message">동의하고 시작<\/button>/);
+  // 새 탭으로 열리는 링크는 이름에 그 사실을 넣어 스크린리더가 알린다.
+  assert.match(panel, /href="\/terms" target="_blank" rel="noopener">이용약관 보기 \(새 탭\)</);
+  assert.match(panel, /href="\/privacy" target="_blank" rel="noopener">개인정보 처리방침 보기 \(새 탭\)</);
+  // 꺼진 버튼은 왜 꺼졌는지 보이는 안내(consent-hint)를 가리킨다. 머리글과 본문은 프로그램으로 초점을 받을 수 있다.
+  assert.match(panel, /<p id="consent-hint" class="consent-hint">세 가지를 모두 선택하면 눌러 시작할 수 있어요\.<\/p>/);
+  assert.match(panel, /<button id="consent-submit" class="consent-submit" type="button" disabled aria-describedby="consent-hint consent-message">동의하고 시작<\/button>/);
+  assert.match(panel, /<h3 id="consent-title" tabindex="-1">/);
+  assert.match(html, /<main id="main" tabindex="-1">/);
+  // 안내 줄은 비어 있어도 접근성 트리에 남는다(display:none으로 빼지 않는다).
+  assert.doesNotMatch(css, /\.consent-message:empty \{[^}]*display: none/);
   assert.match(panel, /<p id="consent-message" class="consent-message" role="status" aria-live="polite"><\/p>/);
   assert.match(css, /\.consent-check \{[^}]*min-height: 48px/);
   assert.match(css, /\.consent-link \{[^}]*min-height: 48px/);
@@ -2808,4 +2821,69 @@ test('웹 동의: 안내 네 가지와 버전이 앱·서버·공개 페이지�
   assert.equal(script.match(/CONSENT_TERMS_VERSION = '([^']+)'/)?.[1], serverTerms);
   assert.equal(script.match(/CONSENT_PRIVACY_VERSION = '([^']+)'/)?.[1], serverPrivacy);
   assert.ok(readFileSync(join(repo, 'docs/terms.html'), 'utf8').includes(serverTerms));
+});
+
+test('웹 동의: 꺼진 버튼은 보이는 안내를 갖고 세 항목을 모두 누르면 안내가 사라진다', async () => {
+  const { nodes, doc } = consentDocument();
+  const { fetcher } = consentServer();
+  await productionWeb.bindCollectionControls(fetcher, doc);
+  assert.equal(nodes['consent-hint'].hidden, false, '처음에는 왜 시작할 수 없는지 보인다');
+  nodes['consent-age'].checked = true;
+  await nodes['consent-age'].dispatch('change');
+  assert.equal(nodes['consent-hint'].hidden, false);
+  await checkAll(nodes);
+  assert.equal(nodes['consent-submit'].disabled, false);
+  assert.equal(nodes['consent-hint'].hidden, true);
+  nodes['consent-terms'].checked = false;
+  await nodes['consent-terms'].dispatch('change');
+  assert.equal(nodes['consent-hint'].hidden, false, '하나를 풀면 다시 보인다');
+});
+
+test('웹 동의: 화면이 나타나면 초점이 머리글로, 동의해서 사라지면 본문으로 옮겨진다', async () => {
+  const { nodes, doc, focusOrder } = consentDocument();
+  const { fetcher } = consentServer();
+  await productionWeb.bindCollectionControls(fetcher, doc);
+  assert.deepEqual(focusOrder, ['consent-title']);
+  // 이미 보이는 화면을 다시 확인해도(탭이 다시 보임) 초점을 또 빼앗지 않는다.
+  doc.hidden = true;
+  await doc.dispatch('visibilitychange');
+  doc.hidden = false;
+  await doc.dispatch('visibilitychange');
+  assert.deepEqual(focusOrder, ['consent-title']);
+  await checkAll(nodes);
+  await nodes['consent-submit'].click();
+  assert.deepEqual(focusOrder, ['consent-title', 'main']);
+  assert.equal(nodes['consent-panel'].hidden, true);
+});
+
+test('웹 동의: 다른 탭의 로그인·로그아웃 알림은 눌러 둔 체크를 지우지만 탭이 가려졌다 보이는 것은 지우지 않는다', async () => {
+  class FakeChannel {
+    constructor(name) { this.name = name; FakeChannel.last = this; }
+    postMessage() {}
+  }
+  const { nodes, doc } = consentDocument();
+  doc.defaultView = { BroadcastChannel: FakeChannel, addEventListener() {} };
+  const { fetcher } = consentServer();
+  await productionWeb.bindCollectionControls(fetcher, doc);
+  assert.equal(FakeChannel.last.name, 'masscom-web-session');
+  nodes['consent-age'].checked = true;
+  nodes['consent-terms'].checked = true;
+  await nodes['consent-terms'].dispatch('change');
+  doc.hidden = true;
+  await doc.dispatch('visibilitychange');
+  doc.hidden = false;
+  await doc.dispatch('visibilitychange');
+  assert.equal(nodes['consent-age'].checked, true, '가려졌다 다시 보인 것만으로는 체크를 지우지 않는다');
+  assert.equal(nodes['consent-terms'].checked, true);
+
+  // 다른 탭이 로그인·로그아웃을 알렸다: 계정이 바뀌었을 수 있어 체크는 지워진다(동의 화면은 서버 답에 따라 그대로 남는다).
+  await FakeChannel.last.onmessage({ data: 'refresh' });
+  assert.equal(nodes['consent-age'].checked, false);
+  assert.equal(nodes['consent-terms'].checked, false);
+  assert.equal(nodes['consent-submit'].disabled, true);
+  assert.equal(nodes['consent-panel'].hidden, false);
+  // 다른 알림 이름은 무시한다.
+  nodes['consent-age'].checked = true;
+  await FakeChannel.last.onmessage({ data: 'other' });
+  assert.equal(nodes['consent-age'].checked, true);
 });

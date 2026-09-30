@@ -121,7 +121,11 @@ section[id] { scroll-margin-top: 16px; }
 .consent-check input { width: 24px; height: 24px; flex: none; accent-color: var(--mc-primary); }
 .consent-link { display: inline-flex; align-items: center; min-height: 48px; color: var(--mc-primary); font-weight: 800; text-decoration: underline; }
 .consent-message { color: var(--mc-error); font-weight: 700; }
-.consent-message:empty { display: none; }
+/* 비어 있어도 display:none으로 접근성 트리에서 빼지 않는다(스크린리더가 나중에 채워지는 안내를 읽도록). 높이만 없앤다. */
+.consent-message:empty { margin-top: -16px; }
+.consent-hint { color: var(--mc-secondary); font-size: .92rem; }
+.consent-hint[hidden] { display: none; }
+[tabindex="-1"]:focus { outline: none; }
 .consent-submit { background: var(--mc-primary); color: var(--mc-on-primary); justify-self: start; }
 
 /* 버튼과 입력 */
