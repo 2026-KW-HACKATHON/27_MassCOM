@@ -22,6 +22,8 @@ umask 077
 url="${DRILL_DATABASE_URL:?DRILL_DATABASE_URL is required}"
 own_backup=""
 if [[ -n "${1:-}" ]]; then backup="$1"; else backup="$(mktemp -t masscom-backup.XXXXXX)"; own_backup=1; fi
+# `mv` would move the dump *into* a directory and the cleanup could not find it again, so a directory is refused before anything is written.
+if [[ -d "$backup" ]]; then echo "backup path is a directory: $backup" >&2; exit 1; fi
 created_scratch=""
 backup_part=""
 drop_scratch() {

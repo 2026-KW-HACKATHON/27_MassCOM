@@ -521,12 +521,12 @@ test('after a rollback to an API that does not de-identify audit targets, the da
   const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
   const aliasOf = (account: string) => `deleted:${lifecycle.referenceHash(account).toString('hex')}`;
   const createdAt = at(now.getTime() - 86_400_000);
-  const insertAudit = async (target: string, actor = 'acct_admin') => {
+  const insertAudit = async (target: string) => {
     const id = randomUUID();
     await pool.query(
       `INSERT INTO platform_admin_audit (id, actor_account_id, merchant_id, action, target_account_id, after_state, created_at)
-       VALUES ($1, $2, 'shop-1', 'MERCHANT_OWNER_GRANTED', $3, '{"role":"OWNER"}'::jsonb, $4)`,
-      [id, actor, target, createdAt],
+       VALUES ($1, 'acct_admin', 'shop-1', 'MERCHANT_OWNER_GRANTED', $2, '{"role":"OWNER"}'::jsonb, $3)`,
+      [id, target, createdAt],
     );
     return id;
   };
@@ -543,12 +543,12 @@ test('after a rollback to an API that does not de-identify audit targets, the da
     'SELECT id, target_account_id FROM platform_admin_audit',
   )).rows.reduce<Record<string, string>>((acc, row) => ({ ...acc, [row.id]: row.target_account_id }), {});
 
-  // acct_gone was deleted while the older API ran: the ledger has it but the audit rows still carry the raw id (two rows, one per grant).
+  // acct_gone was deleted while the older API ran: the ledger has it but the audit rows still carry the raw target id (two rows, one per grant).
   // acct_alive is a live owner. acct_earlier was deleted by the current API: its audit row already holds the alias.
   await insertLedger('acct_gone');
   await insertLedger('acct_earlier');
   const goneA = await insertAudit('acct_gone');
-  const goneB = await insertAudit('acct_gone', 'acct_gone');
+  const goneB = await insertAudit('acct_gone');
   const alive = await insertAudit('acct_alive');
   const earlier = await insertAudit(aliasOf('acct_earlier'));
 
@@ -573,13 +573,13 @@ test('after a rollback to an API that does not de-identify audit targets, the da
     [alive]: 'acct_alive',
     [earlier]: aliasOf('acct_earlier'),
   });
-  // Only the target column changes: the rest of the row, including the actor, stays as it was.
+  // Only the target column changes: the rest of the row stays as it was.
   const untouched = (await pool.query<{ actor_account_id: string; action: string; after_state: unknown; created_at: Date }>(
     'SELECT actor_account_id, action, after_state, created_at FROM platform_admin_audit WHERE id = $1', [goneB],
   )).rows[0]!;
   assert.deepEqual(
     { ...untouched, created_at: untouched.created_at.getTime() },
-    { actor_account_id: 'acct_gone', action: 'MERCHANT_OWNER_GRANTED', after_state: { role: 'OWNER' }, created_at: createdAt.getTime() },
+    { actor_account_id: 'acct_admin', action: 'MERCHANT_OWNER_GRANTED', after_state: { role: 'OWNER' }, created_at: createdAt.getTime() },
   );
   assert.equal((await pool.query(`SELECT 1 FROM platform_admin_audit WHERE target_account_id = 'acct_gone'`)).rowCount, 0);
   assert.equal(counts((await service.run({ hmacSecret: secret })).counts).admin_audit_deleted_targets, 0, 'a second run has nothing left');

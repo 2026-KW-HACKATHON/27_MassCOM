@@ -310,7 +310,9 @@ rollback() {
     [[ "$(sudo docker inspect --format '{{if index .NetworkSettings.Networks "masscom_showcase_edge"}}true{{end}}' "$caddy_id")" == true ]] || failed=true
     retry_health curl -fsS --max-time 8 https://api.masscom.kr/health || failed=true
     retry_health curl -fsS --max-time 8 https://www.masscom.kr/app/ || failed=true
-    retry_health curl -fsS --max-time 8 https://demo-api.masscom.kr/health || failed=true
+    # 시연 API는 운영 릴리스의 되돌림 성공 조건이 아니다(Issue #263): 시연 장애가 겹쳐도 운영이 이전 릴리스로 돌아왔으면 되돌림은 성공이다.
+    retry_health curl -fsS --max-time 8 https://demo-api.masscom.kr/health ||
+      echo 'SHOWCASE_HEALTH_WARNING: the production rollback is complete but the showcase API (demo-api.masscom.kr) is not answering; check it separately' >&2
   fi
   if [[ "$migration_started" == true ]]; then
     echo "DB_MIGRATION_MANUAL_RECOVERY_REQUIRED: backup=$db_backup; inspect applied migrations before restoring data" >&2
@@ -379,7 +381,7 @@ trap - ERR
 showcase_probe_failed=false
 if ! retry_health curl -fsS --max-time 8 https://demo-api.masscom.kr/health; then
   showcase_probe_failed=true
-  echo 'SHOWCASE_HEALTH_FAILED: production is live on the new release and was not rolled back; check the showcase API (demo-api.masscom.kr) and Caddy, then re-run the deploy or fix the showcase separately' >&2
+  echo 'SHOWCASE_HEALTH_FAILED: production is live on the new release and was not rolled back; the same commit cannot be deployed again (RELEASE_ALREADY_EXISTS), so fix the showcase API (demo-api.masscom.kr) or Caddy by hand on the server, or ship a new commit' >&2
 fi
 
 # 보관 기간 정리 작업(하루 한 번, systemd timer)을 이 릴리스의 것으로 설치·갱신하고(멱등) timer가 켜져 있는지 읽기 전용으로 확인한다.

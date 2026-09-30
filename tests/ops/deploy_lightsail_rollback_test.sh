@@ -67,7 +67,7 @@ awk '/^set -Eeuo pipefail$/ { remote=1 } remote && /^REMOTE$/ { exit } remote { 
 run_remote_case() {
   local failure="$1"
   status=0
-  rm -f "$scratch/pg-recreated" "$scratch/job-calls" "$scratch/systemctl-calls"
+  rm -f "$scratch/pg-recreated" "$scratch/job-calls" "$scratch/systemctl-calls" "$scratch/curl-calls"
   (
   caddy_mount_source="$showcase_caddyfile"
   site_mount_source="$old_release/site/public"
@@ -182,6 +182,17 @@ run_remote_case() {
       showcase_failed=true
       return 22
     fi
+    # 운영 확인 실패(Issue #263): Caddy가 새 릴리스를 물고 난 뒤 그 주소만 22로 실패한다. 되돌린 뒤(옛 Caddyfile)에는 통과한다.
+    local prod_probe=''
+    case "$failure" in
+      prod_health|prod_health_showcase_down) prod_probe=https://api.masscom.kr/health ;;
+      prod_app_health) prod_probe=https://www.masscom.kr/app/ ;;
+      prod_merchant_health) prod_probe=https://www.masscom.kr/merchant/ ;;
+    esac
+    if [[ -n "$prod_probe" && "$*" == *"$prod_probe"* &&
+          "$caddy_mount_source" == "$new_release/infra/lightsail/Caddyfile" ]]; then return 22; fi
+    # prod_health_showcase_down: 시연 API는 되돌림 중에도 계속 답하지 않는다.
+    if [[ "$failure" == prod_health_showcase_down && "$*" == *https://demo-api.masscom.kr/health* ]]; then return 22; fi
     if [[ "$failure" == showcase && "$*" == *https://demo-api.masscom.kr/health* &&
           "$caddy_mount_source" == "$new_release/infra/lightsail/Caddyfile" ]]; then return 22; fi
   }
@@ -271,6 +282,46 @@ grep -q 'https://demo-api.masscom.kr/health' "$scratch/curl-calls"
 # 시연 장애가 정리 작업 설치를 건너뛰게 하지 않는다: 설치·timer 확인·첫 실행은 그대로 하고, 종료 코드만 실패로 남는다.
 grep -qx "install " "$scratch/job-calls" || { echo 'showcase failure skipped the retention job install' >&2; exit 1; }
 grep -q 'HOST_JOB_ENABLED masscom-retention.timer' <<<"$out" || { echo 'showcase failure skipped the retention job check' >&2; exit 1; }
+# 운영 health 확인(API·앱·점주 웹)이 Caddy를 새 릴리스로 바꾼 뒤 실패하면 시연과 달리 **되돌린다**(Issue #263: 시연 확인만 되돌림에서 뺐다).
+# 이 사례가 없으면 Caddy 전환 뒤의 되돌림 전체(ERR 트랩 구간·운영 확인의 실패 전파)를 아무 시험도 지키지 않는다.
+assert_prod_probe_rolled_back() {
+  local mode="$1" override
+  reset_live_state
+  run_remote_case "$mode"
+  [[ "$status" == 1 ]] || { echo "$mode: expected rollback exit 1, got $status: $out" >&2; exit 1; }
+  [[ "$(grep -c 'FULL_DEPLOY_REVERTED' <<<"$out")" == 1 ]] || { echo "$mode: rollback did not report exactly once: $out" >&2; exit 1; }
+  if grep -q 'FULL_DEPLOY_ROLLBACK_FAILED\|SHOWCASE_HEALTH_FAILED' <<<"$out"; then echo "$mode: unexpected failure report: $out" >&2; exit 1; fi
+  [[ "$(grep -c 'up -d --no-deps --force-recreate caddy' "$scratch/docker-calls")" == 1 ]] || { echo "$mode: Caddy was not force-recreated exactly once" >&2; exit 1; }
+  # 되돌림은 caddy-rollback-* 덮어쓰기로 Caddy를 다시 만들고, 그 파일은 이 배포 전에 백업한 Caddyfile(caddyfile-before-*)을 문다.
+  override="$(awk '/force-recreate caddy/ { for (i = 1; i <= NF; i++) if ($i ~ /caddy-rollback-/) { print $i; exit } }' "$scratch/docker-calls")"
+  [[ -n "$override" ]] || { echo "$mode: the Caddy rollback did not use a caddy-rollback override" >&2; exit 1; }
+  grep -q 'source: .*caddyfile-before-' "$override" || { echo "$mode: the rollback override does not mount the backed-up Caddyfile" >&2; exit 1; }
+  grep -q "$old_release/infra/lightsail/compose.yml up -d --no-deps --force-recreate.* api production-web" "$scratch/docker-calls" || {
+    echo "$mode: the old API and web were not force-recreated" >&2
+    exit 1
+  }
+  grep -qx 'OLD_ENV=1' "$runtime" || { echo "$mode: the old env file was not restored" >&2; exit 1; }
+  grep -qx "$old_commit" "$scratch/opt/masscom/DEPLOYED_COMMIT"
+  grep -qx "$old_commit" "$scratch/opt/masscom/web/DEPLOYED_COMMIT"
+  [[ "$(readlink "$scratch/opt/masscom/current")" == "$old_release" ]]
+  [[ "$(readlink "$scratch/opt/masscom/web/current")" == "$old_release" ]]
+  # 되돌린 릴리스에는 정리 작업을 설치하지 않는다.
+  [[ ! -s "$scratch/job-calls" ]] || { echo "$mode: the retention job was installed although the release was rolled back" >&2; exit 1; }
+  [[ ! -s "$scratch/systemctl-calls" ]] || { echo "$mode: systemd was used although the release was rolled back" >&2; exit 1; }
+}
+assert_prod_probe_rolled_back prod_health
+assert_prod_probe_rolled_back prod_app_health
+assert_prod_probe_rolled_back prod_merchant_health
+# 시연 API가 되돌림 중에도 답하지 않으면 경고만 하고, 운영이 돌아왔으면 되돌림은 성공이다(FULL_DEPLOY_ROLLBACK_FAILED가 아니다).
+failure_note='showcase down during rollback'
+reset_live_state
+run_remote_case prod_health_showcase_down
+[[ "$status" == 1 ]] || { echo "$failure_note: expected 1, got $status: $out" >&2; exit 1; }
+[[ "$(grep -c 'FULL_DEPLOY_REVERTED' <<<"$out")" == 1 ]] || { echo "$failure_note: rollback was not reported as complete: $out" >&2; exit 1; }
+if grep -q 'FULL_DEPLOY_ROLLBACK_FAILED' <<<"$out"; then echo "$failure_note: a showcase outage failed the production rollback: $out" >&2; exit 1; fi
+grep -q 'SHOWCASE_HEALTH_WARNING' <<<"$out" || { echo "$failure_note: the showcase outage was not reported: $out" >&2; exit 1; }
+grep -qx 'OLD_ENV=1' "$runtime"
+grep -qx "$old_commit" "$scratch/opt/masscom/DEPLOYED_COMMIT"
 reset_live_state
 run_remote_case transient_showcase
 [[ "$status" == 0 ]] || { echo "transient showcase failure did not recover: $out" >&2; exit 1; }

@@ -85,7 +85,21 @@ out="$(run_drill "$work/keep.dump" 2>&1)" || status=$?
 [[ "$(<"$work/keep.dump")" == NEWDUMP ]] || { echo 'successful drill did not replace the existing backup' >&2; exit 1; }
 [[ "$(mode_of "$work/keep.dump")" == 600 ]] || { echo 'replaced backup is not 0600' >&2; exit 1; }
 
-# 6. Without a path the temporary dump is private and gone at the end.
+# 6. A directory as the path is refused before anything is written: nothing is moved into it and nothing is left next to it.
+mkdir "$work/adir"
+status=0
+out="$(run_drill "$work/adir" 2>&1)" || status=$?
+[[ "$status" != 0 ]] || { echo "drill accepted a directory as the backup path: $out" >&2; exit 1; }
+grep -q 'backup path is a directory' <<<"$out" || { echo "directory refusal was not reported: $out" >&2; exit 1; }
+[[ -z "$(ls -A "$work/adir")" ]] || { echo 'a dump was written into the directory' >&2; exit 1; }
+[[ "$(leftovers)" == 0 ]] || { echo 'temporary dump left behind for a directory path' >&2; exit 1; }
+ln -s "$work/adir" "$work/adir-link"
+status=0
+out="$(run_drill "$work/adir-link" 2>&1)" || status=$?
+[[ "$status" != 0 ]] || { echo "drill accepted a symlink to a directory as the backup path: $out" >&2; exit 1; }
+[[ -z "$(ls -A "$work/adir")" ]] || { echo 'a dump was written into the directory through a symlink' >&2; exit 1; }
+
+# 7. Without a path the temporary dump is private and gone at the end.
 status=0
 out="$(TMPDIR="$work" run_drill 2>&1)" || status=$?
 [[ "$status" == 0 ]] || { echo "temporary-dump drill failed ($status): $out" >&2; exit 1; }
