@@ -4,6 +4,12 @@
 #   android.injected.signing.store.file / store.password / key.alias / key.password
 # in ~/.gradle/gradle.properties. Without them the AAB is signed with the local debug key and
 # this script says so; a debug-signed AAB must not be uploaded.
+# Keychain mode (MASSCOM_RELEASE_USE_KEYCHAIN=1) keeps the password out of that file: it is read from
+# the macOS Keychain (service masscom-upload-keystore, account masscom-upload), the certificate is
+# checked against the approved upload pin before any build, and only the gradlew child receives it,
+# through ORG_GRADLE_PROJECT_ environment variables. Overrides: MASSCOM_RELEASE_KEYSTORE_FILE
+# (default ~/.android/masscom-upload.jks), MASSCOM_RELEASE_KEY_ALIAS (default masscom-upload),
+# MASSCOM_RELEASE_CERT_SHA256.
 # Usage: scripts/build-release-aab.sh [--restore-dev]   (--restore-dev regenerates the dev project afterwards)
 # The AAB and its provenance are copied to apps/mobile/release-artifacts/ (gitignored) before anything is restored.
 # Exit code 0 means the automated gates passed; release/device/Play readiness remains NOT_RUN.
@@ -37,6 +43,12 @@ for variable in "${test_only_environment[@]}"; do
   fi
 done
 
+use_keychain="${MASSCOM_RELEASE_USE_KEYCHAIN:-}"
+if [[ -n "$use_keychain" && "$use_keychain" != 1 ]]; then
+  echo 'release Keychain mode must be 1' >&2
+  exit 1
+fi
+
 commit="$(git -C "$repo_root" rev-parse HEAD)"
 initial_worktree_status="$(git -C "$repo_root" status --porcelain --untracked-files=normal)"
 if [[ -n "$initial_worktree_status" ]]; then
@@ -68,6 +80,33 @@ rejected_target="$(find "$artifacts" -maxdepth 1 \( \
 if [[ -n "$rejected_target" ]]; then
   echo "release artifact target already exists: $rejected_target" >&2
   exit 1
+fi
+
+# Keychain mode: everything is checked before prebuild, so a wrong key never reaches Gradle.
+if [[ "$use_keychain" == 1 ]]; then
+  keychain_fail() { echo "$*" >&2; exit 1; }
+  keystore="${MASSCOM_RELEASE_KEYSTORE_FILE:-$HOME/.android/masscom-upload.jks}"
+  [[ "$keystore" == /* && -f "$keystore" ]] || keychain_fail 'release upload keystore file is not available'
+  [[ "$(cd -P "$(dirname "$keystore")" && pwd -P)/$(basename "$keystore")" != "$(cd -P "$repo_root" && pwd -P)"/* ]] ||
+    keychain_fail 'release upload keystore must stay outside the repository'
+  key_alias="${MASSCOM_RELEASE_KEY_ALIAS:-masscom-upload}"
+  [[ "$key_alias" =~ ^[A-Za-z0-9._-]+$ ]] || keychain_fail 'release key alias is invalid'
+  upload_pin="$(printf '%s' "${MASSCOM_RELEASE_CERT_SHA256:-5e5ed3c31971e5a88ea752b3a2ae50772fea1c956b9d97a82dd5ca7130cfa395}" \
+    | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+  [[ "$upload_pin" =~ ^[0-9a-f]{64}$ ]] || keychain_fail 'release certificate SHA-256 pin is invalid'
+  source "$repo_root/scripts/keychain-password.sh"
+  load_keychain_password release masscom-upload-keystore masscom-upload ||
+    keychain_fail 'release Keychain password could not be loaded'
+  # The command substitution is a subshell, so the exported value reaches keytool only.
+  keystore_fingerprint="$(printf -v MASSCOM_RELEASE_STORE_PASSWORD '%s' "$store_password"
+    export MASSCOM_RELEASE_STORE_PASSWORD
+    keytool -J-Duser.language=en -list -v -keystore "$keystore" -alias "$key_alias" \
+      -storepass:env MASSCOM_RELEASE_STORE_PASSWORD 2>/dev/null \
+      | sed -n 's/.*SHA256: *//p' | head -1 | tr -d ':' | tr '[:upper:]' '[:lower:]')" || true
+  [[ "$keystore_fingerprint" == "$upload_pin" ]] ||
+    keychain_fail 'release keystore certificate does not match the approved upload SHA-256 pin'
+  # The signature verdict after the build checks the AAB against the same pin unless the caller set one.
+  export UPLOAD_CERT_SHA256="${UPLOAD_CERT_SHA256:-$upload_pin}"
 fi
 
 # Runs on every exit, so a failed build or signer check never leaves the production project behind.
@@ -116,6 +155,33 @@ NODE
   rm "$source_aab" "$source_provenance"
 }
 
+# Keychain mode: the signing secrets live only in the gradlew child's environment. Bash cannot export
+# the dotted property names, and passing them through env(1) would put the password on a command line.
+# Called from a subshell, so the exports below never reach the parent script.
+run_gradle_bundle() {
+  if [[ "$use_keychain" != 1 ]]; then
+    ./gradlew bundleRelease --console=plain -q
+    return
+  fi
+  printf -v MASSCOM_RELEASE_STORE_PASSWORD '%s' "$store_password"
+  printf -v MASSCOM_RELEASE_KEY_PASSWORD '%s' "$key_password"
+  export MASSCOM_RELEASE_STORE_PASSWORD MASSCOM_RELEASE_KEY_PASSWORD
+  MASSCOM_RELEASE_KEYSTORE_FILE="$keystore" MASSCOM_RELEASE_KEY_ALIAS="$key_alias" node - <<'NODE'
+const { spawnSync } = require('node:child_process');
+const env = { ...process.env,
+  'ORG_GRADLE_PROJECT_android.injected.signing.store.file': process.env.MASSCOM_RELEASE_KEYSTORE_FILE,
+  'ORG_GRADLE_PROJECT_android.injected.signing.store.password': process.env.MASSCOM_RELEASE_STORE_PASSWORD,
+  'ORG_GRADLE_PROJECT_android.injected.signing.key.alias': process.env.MASSCOM_RELEASE_KEY_ALIAS,
+  'ORG_GRADLE_PROJECT_android.injected.signing.key.password': process.env.MASSCOM_RELEASE_KEY_PASSWORD,
+};
+delete env.MASSCOM_RELEASE_STORE_PASSWORD;
+delete env.MASSCOM_RELEASE_KEY_PASSWORD;
+const result = spawnSync('./gradlew', ['bundleRelease', '--console=plain', '-q'], { env, stdio: 'inherit' });
+if (result.error) console.error(result.error.message);
+process.exit(result.status ?? 1);
+NODE
+}
+
 cd "$mobile_dir"
 CI=1 APP_VARIANT=production MASSCOM_BUILD_SOURCE_COMMIT="$commit" \
   EXPO_PUBLIC_DEMO_ACCOUNT_ID= \
@@ -130,7 +196,8 @@ CI=1 APP_VARIANT=production MASSCOM_BUILD_SOURCE_COMMIT="$commit" \
   EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID= \
   EXPO_PUBLIC_DEMO_MERCHANT_ID= \
   EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION= \
-  ./gradlew bundleRelease --console=plain -q)
+  run_gradle_bundle)
+unset store_password key_password
 if [[ "$(git -C "$repo_root" rev-parse HEAD)" != "$commit" ]]; then
   echo 'source commit changed during release build' >&2
   exit 1
