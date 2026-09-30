@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CollectibleProjectError } from './collectible-project.js';
-import { collectibleSnapshot, normalizeMp3, stripImageMetadata, validateCollectibleMedia, validateCollectibleProject } from './collectible-project-rules.js';
+import { collectibleSnapshot, inspectWebmOpus, normalizeMp3, normalizeOggOpus, stripImageMetadata, validateCollectibleMedia, validateCollectibleProject } from './collectible-project-rules.js';
 import { photoProject, tinyPng } from './collectible-project-test-support.js';
 
 test('empty draft and source photo round trip preserve original bytes; publish requires explicit mapped finals', () => {
@@ -30,14 +30,11 @@ test('rejects hostile external media, disguised SVG, invalid magic, oversize byt
   assert.throws(() => validateCollectibleMedia(tinyPng,'image',8), { code: 'COLLECTIBLE_MEDIA_TOO_LARGE' });
 });
 
-test('accepts supported audio signatures and bounds recording duration/mime rather than trusting uploads', () => {
-  for (const [mime, magic] of [['audio/ogg','4f676753'],['audio/webm','1a45dfa3']]) {
-    const project = photoProject(); const dataUrl = `data:${mime};base64,${Buffer.from(magic!,'hex').toString('base64')}`;
-    project.audio = { dataUrl, mimeType: mime!, durationSeconds: 5 };
-    assert.equal(validateCollectibleProject(project).audio?.dataUrl,dataUrl);
-    project.audio.durationSeconds = 31;
-    assert.throws(() => validateCollectibleProject(project), { code: 'COLLECTIBLE_INVALID_PROJECT' });
-  }
+test('audio mime must match the media bytes and the client length is range-checked before the server recomputes it', () => {
+  const project = photoProject(); project.audio = { dataUrl: `data:audio/ogg;base64,${Buffer.from('OggS').toString('base64')}`, mimeType: 'audio/webm', durationSeconds: 5 };
+  assert.throws(() => validateCollectibleProject(project), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  project.audio = { dataUrl: `data:audio/webm;base64,${Buffer.from([26,69,223,163]).toString('base64')}`, mimeType: 'audio/webm', durationSeconds: 31 };
+  assert.throws(() => validateCollectibleProject(project), { code: 'COLLECTIBLE_INVALID_PROJECT' });
 });
 
 test('rejects unknown project metadata, references, duplicate ids, nonfinite settings, unsupported animation and disabled reward grade', () => {
@@ -230,4 +227,74 @@ test('derived images are capped at the editor canvas sizes while originals may s
     p => { p.story = { type: 'wide', frames: [{ dataUrl: sized(2000, 1000), width: 2000, height: 1000, previewDataUrl: sized(1024, 640) }], cartoon: 0, strength: 50 }; },
   ];
   for (const mutate of mutations) { const p = photoProject(); mutate(p); assert.throws(() => validateCollectibleProject(p), { code: 'COLLECTIBLE_INVALID_PROJECT' }); }
+});
+
+// Independent Ogg page builder (CRC-32 poly 0x04C11DB7, checksum field zeroed) for recorder-shaped Opus streams.
+function crc32Ogg(page: Buffer): number {
+  let crc = 0;
+  for (const byte of page) { crc ^= byte << 24; for (let bit = 0; bit < 8; bit++) crc = crc & 0x80000000 ? (crc << 1) ^ 0x04c11db7 : crc << 1; crc >>>= 0; }
+  return crc;
+}
+function oggPageOf(flags: number, granule: bigint, sequence: number, packet: Buffer, serial = 0x1234): Buffer {
+  const lacing: number[] = []; let left = packet.length; while (left >= 255) { lacing.push(255); left -= 255; } lacing.push(left);
+  const header = Buffer.alloc(27); header.write('OggS'); header[5] = flags; header.writeBigInt64LE(granule, 6); header.writeUInt32LE(serial, 14);
+  header.writeUInt32LE(sequence, 18); header[26] = lacing.length;
+  const page = Buffer.concat([header, Buffer.from(lacing), packet]); page.writeUInt32LE(crc32Ogg(page), 22); return page;
+}
+function opusOgg(seconds: number, comment = 'ARTIST=사장님 010-1234-5678'): Buffer {
+  const head = Buffer.alloc(19); head.write('OpusHead'); head[8] = 1; head[9] = 1; head.writeUInt16LE(312, 10); head.writeUInt32LE(48000, 12);
+  const vendor = Buffer.from('Mozilla'); const note = Buffer.from(comment);
+  const tags = Buffer.concat([Buffer.from('OpusTags'), Buffer.from([vendor.length, 0, 0, 0]), vendor, Buffer.from([1, 0, 0, 0]), Buffer.from([note.length, 0, 0, 0]), note]);
+  const audio = [1, 2, 3].map(step => oggPageOf(step === 3 ? 4 : 0, BigInt(Math.round(seconds * 48000 * step / 3) + 312), step + 1, Buffer.alloc(300, step)));
+  return Buffer.concat([oggPageOf(2, 0n, 0, head), oggPageOf(0, 0n, 1, tags), ...audio]);
+}
+
+test('Ogg Opus recordings get empty OpusTags and a length from the last granule position, not from the client', () => {
+  const recorded = opusOgg(5);
+  const normalized = normalizeOggOpus(recorded);
+  assert.equal(normalized.durationSeconds, 5);
+  assert.equal(normalized.bytes.includes(Buffer.from('사장님')), false); assert.equal(normalized.bytes.includes(Buffer.from('Mozilla')), false);
+  assert.deepEqual(normalizeOggOpus(normalized.bytes).bytes, normalized.bytes); // the rewritten page has a valid checksum
+  const project = photoProject(); project.audio = { dataUrl: `data:audio/ogg;base64,${opusOgg(20).toString('base64')}`, mimeType: 'audio/ogg', durationSeconds: 2 };
+  assert.equal(validateCollectibleProject(project).audio!.durationSeconds, 20);
+  assert.throws(() => normalizeOggOpus(opusOgg(31)), { code: 'COLLECTIBLE_MEDIA_TOO_LARGE' });
+  const corrupt = Buffer.from(recorded); corrupt[corrupt.length - 1] = corrupt[corrupt.length - 1]! ^ 1;
+  const vorbis = Buffer.from(recorded); vorbis.write('OpusHeaX', 28);
+  const chained = Buffer.concat([recorded, oggPageOf(2, 0n, 0, Buffer.alloc(19), 0x9999)]);
+  for (const bad of [Buffer.concat([recorded, Buffer.from('<html>')]), corrupt, vorbis, chained, recorded.subarray(0, 60)]) {
+    assert.throws(() => normalizeOggOpus(bad), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  }
+});
+
+const ebml = (id: number[], payload: Buffer | string, unknown = false) => {
+  const body = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
+  const size = Buffer.alloc(8); size[0] = 1; if (unknown) size.fill(0xff, 1); else size.writeUIntBE(body.length, 2, 6);
+  return Buffer.concat([Buffer.from(id), size, body]);
+};
+const uintBytes = (value: number) => { const out = Buffer.alloc(4); out.writeUInt32BE(value); return out; };
+function opusWebm({ lastCluster = 4980, info = [] as Buffer[], extra = [] as Buffer[], codec = 'A_OPUS', unknownClusters = true } = {}): Buffer {
+  const header = ebml([0x1a, 0x45, 0xdf, 0xa3], ebml([0x42, 0x82], 'webm'));
+  const infoElement = ebml([0x15, 0x49, 0xa9, 0x66], Buffer.concat([ebml([0x2a, 0xd7, 0xb1], uintBytes(1_000_000)), ebml([0x4d, 0x80], 'Chrome'), ...info]));
+  const tracks = ebml([0x16, 0x54, 0xae, 0x6b], ebml([0xae], Buffer.concat([ebml([0xd7], Buffer.from([1])), ebml([0x83], Buffer.from([2])), ebml([0x86], codec)])));
+  const block = (relative: number) => ebml([0xa3], Buffer.from([0x81, (relative >> 8) & 0xff, relative & 0xff, 0x80, 1, 2, 3]));
+  const cluster = (timecode: number, blocks: number[]) => ebml([0x1f, 0x43, 0xb6, 0x75], Buffer.concat([ebml([0xe7], uintBytes(timecode)), ...blocks.map(block)]), unknownClusters);
+  return Buffer.concat([header, ebml([0x18, 0x53, 0x80, 0x67], Buffer.concat([infoElement, tracks, cluster(0, [0, 20, 40]), cluster(lastCluster, [0, 20]), ...extra]), true)]);
+}
+
+test('WebM Opus recordings take their length from the cluster/block times and reject tag, title and non-Opus content', () => {
+  assert.equal(inspectWebmOpus(opusWebm()).durationSeconds, 5);
+  assert.equal(inspectWebmOpus(opusWebm({ unknownClusters: false })).durationSeconds, 5);
+  const project = photoProject(); project.audio = { dataUrl: `data:audio/webm;base64,${opusWebm({ lastCluster: 19980 }).toString('base64')}`, mimeType: 'audio/webm', durationSeconds: 1 };
+  assert.equal(validateCollectibleProject(project).audio!.durationSeconds, 20);
+  assert.throws(() => inspectWebmOpus(opusWebm({ lastCluster: 31000 })), { code: 'COLLECTIBLE_MEDIA_TOO_LARGE' });
+  const long = Buffer.alloc(8); long.writeDoubleBE(40000);
+  assert.throws(() => inspectWebmOpus(opusWebm({ info: [ebml([0x44, 0x89], long)] })), { code: 'COLLECTIBLE_MEDIA_TOO_LARGE' });
+  for (const bad of [
+    opusWebm({ info: [ebml([0x7b, 0xa9], '사장님 녹음')] }),
+    opusWebm({ extra: [ebml([0x12, 0x54, 0xc3, 0x67], ebml([0x73, 0x73], 'owner'))] }),
+    opusWebm({ extra: [ebml([0x19, 0x41, 0xa4, 0x69], 'cover.jpg')] }),
+    opusWebm({ codec: 'A_VORBIS' }),
+    opusWebm({ extra: [ebml([0x1f, 0x43, 0xb6, 0x75], Buffer.concat([ebml([0xe7], uintBytes(5000)), ebml([0x45, 0xa3], '숨긴 글')]))] }),
+    Buffer.concat([Buffer.from('<html>'), opusWebm()]),
+  ]) assert.throws(() => inspectWebmOpus(bad), { code: 'COLLECTIBLE_INVALID_PROJECT' });
 });

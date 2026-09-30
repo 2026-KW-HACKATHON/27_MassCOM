@@ -127,16 +127,15 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
   const motions = array(p.motion, 10).map(raw => object(raw,['id','type','gradeIds'])); uniqueIds(motions);
   for (const motion of motions) { id(motion.id); enumeration(motion.type,['still','rotate','shine','float','stamp','sparkle','pulse','confetti']); scope(motion.gradeIds); }
   string(p.greeting, 300, true);
-  let mp3: { dataUrl: string; durationSeconds: number } | undefined;
+  let normalizedAudio: { dataUrl: string; durationSeconds: number } | undefined;
   if (p.audio !== null) {
     const audio = object(p.audio,['dataUrl','mimeType','durationSeconds']); const mime = validateCollectibleMedia(audio.dataUrl,'audio',mb);
     if (audio.mimeType !== mime) invalid(); number(audio.durationSeconds,0.1,30);
-    // MP3 uploads: drop ID3/APE tags and keep only whole MPEG frames; the stored length comes from the frames, not the client.
-    // Browser recordings (WebM/Ogg) keep the client length, which is already bounded to 0.1–30 s above and by the 1 MiB cap.
-    if (mime === 'audio/mpeg' || mime === 'audio/mp3') {
-      const normalized = normalizeMp3(Buffer.from((audio.dataUrl as string).slice((audio.dataUrl as string).indexOf(',') + 1), 'base64'));
-      mp3 = { dataUrl: `data:${mime};base64,${normalized.bytes.toString('base64')}`, durationSeconds: normalized.durationSeconds };
-    }
+    // The stored length always comes from the media, never from the client. MP3 uploads lose ID3/APE tags; Ogg recordings get an
+    // empty OpusTags packet; WebM recordings with tag/attachment/chapter/title elements are rejected.
+    const bytes = Buffer.from((audio.dataUrl as string).slice((audio.dataUrl as string).indexOf(',') + 1), 'base64');
+    const normalized = mime === 'audio/ogg' ? normalizeOggOpus(bytes) : mime === 'audio/webm' ? inspectWebmOpus(bytes) : normalizeMp3(bytes);
+    normalizedAudio = { dataUrl: `data:${mime};base64,${normalized.bytes.toString('base64')}`, durationSeconds: normalized.durationSeconds };
   }
   const story = object(p.story,['type','frames','cartoon','strength']); enumeration(story.type,['none','zoom','wide','follow','event']); number(story.cartoon,0,100); number(story.strength,0,100);
   for (const raw of array(story.frames, 5)) {
@@ -167,7 +166,7 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
   const derived = p.derived as Record<string, unknown>;
   if (publish && (mappings.length === 0 || mappings.some(([, gradeId]) => !Object.hasOwn(derived, gradeId as string)))) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
   const result = structuredClone(p) as CollectibleProject;
-  if (mp3 && result.audio) { result.audio.dataUrl = mp3.dataUrl; result.audio.durationSeconds = mp3.durationSeconds; }
+  if (normalizedAudio && result.audio) { result.audio.dataUrl = normalizedAudio.dataUrl; result.audio.durationSeconds = normalizedAudio.durationSeconds; }
   // Originals are only visible to MANAGE_ART holders and copied with each project copy, but camera EXIF (GPS, device, time)
   // is not needed for editing, so every stored image keeps pixels (and JPEG orientation) only.
   if (result.photo.originalDataUrl) result.photo.originalDataUrl = stripImageMetadata(result.photo.originalDataUrl);
@@ -224,10 +223,155 @@ export function normalizeMp3(bytes: Buffer): { bytes: Buffer; durationSeconds: n
     offset += frame.length; samples += frame.samples;
   }
   if (!first || samples === 0) invalid();
-  const durationSeconds = Math.round((samples / first.sampleRate) * 100) / 100;
-  // Frame counts include encoder delay/padding that players trim, so allow half a second before calling it too long.
-  if (durationSeconds > 30.5) throw new CollectibleProjectError('COLLECTIBLE_MEDIA_TOO_LARGE');
-  return { bytes: Buffer.from(bytes.subarray(start, offset)), durationSeconds: Math.max(0.1, Math.min(30, durationSeconds)) };
+  return { bytes: Buffer.from(bytes.subarray(start, offset)), durationSeconds: boundedDuration(samples / first.sampleRate) };
+}
+
+// Counted lengths include encoder delay/padding that players trim, so allow half a second before calling it too long.
+function boundedDuration(seconds: number): number {
+  if (!Number.isFinite(seconds) || seconds <= 0) invalid();
+  const rounded = Math.round(seconds * 100) / 100;
+  if (rounded > 30.5) throw new CollectibleProjectError('COLLECTIBLE_MEDIA_TOO_LARGE');
+  return Math.max(0.1, Math.min(30, rounded));
+}
+
+const oggCrcTable = Array.from({ length: 256 }, (_, index) => {
+  let value = index << 24;
+  for (let bit = 0; bit < 8; bit++) value = (value & 0x80000000) ? ((value << 1) ^ 0x04c11db7) : (value << 1);
+  return value >>> 0;
+});
+function oggChecksum(page: Buffer): number {
+  let crc = 0;
+  for (let index = 0; index < page.length; index++) {
+    const byte = index >= 22 && index < 26 ? 0 : page[index]!; // the checksum field itself counts as zero
+    crc = ((crc << 8) ^ oggCrcTable[((crc >>> 24) ^ byte) & 0xff]!) >>> 0;
+  }
+  return crc;
+}
+function oggPage(header: Buffer, body: Buffer): Buffer {
+  const page = Buffer.concat([header.subarray(0, 26), Buffer.from([1, body.length]), body]);
+  page.writeUInt32LE(oggChecksum(page), 22); return page;
+}
+
+// Ogg Opus as produced by browser recorders: one logical stream of CRC-checked pages with consecutive sequence numbers,
+// OpusHead alone on the first (BOS) page and OpusTags alone on the second. Any other byte, a second stream or a chained stream
+// is rejected. OpusTags is replaced by an empty one (no vendor, no comments) and the length comes from the last granule position.
+export function normalizeOggOpus(bytes: Buffer): { bytes: Buffer; durationSeconds: number } {
+  const pages: { start: number; end: number; flags: number; granule: bigint; serial: number; sequence: number; lacing: Buffer; body: Buffer }[] = [];
+  for (let offset = 0; offset < bytes.length;) {
+    if (offset + 27 > bytes.length || bytes.toString('latin1', offset, offset + 4) !== 'OggS' || bytes[offset + 4] !== 0) invalid();
+    const lacing = bytes.subarray(offset + 27, offset + 27 + bytes[offset + 26]!);
+    const bodyStart = offset + 27 + lacing.length; const end = bodyStart + lacing.reduce((sum, value) => sum + value, 0);
+    if (lacing.length !== bytes[offset + 26] || end > bytes.length) invalid();
+    const page = bytes.subarray(offset, end);
+    if (page.readUInt32LE(22) !== oggChecksum(page)) invalid();
+    pages.push({ start: offset, end, flags: bytes[offset + 5]!, granule: bytes.readBigInt64LE(offset + 6), serial: bytes.readUInt32LE(offset + 14),
+      sequence: bytes.readUInt32LE(offset + 18), lacing, body: bytes.subarray(bodyStart, end) });
+    offset = end;
+  }
+  const [head, tags] = pages;
+  if (!head || !tags || pages.length < 3) invalid();
+  const single = (page: typeof head) => page.lacing.length > 0 && page.lacing.subarray(0, -1).every(value => value === 255) && page.lacing.at(-1)! < 255;
+  if (!(head.flags & 0x02) || !single(head) || head.body.length < 19 || head.body.toString('latin1', 0, 8) !== 'OpusHead' || head.body[8]! > 15 || head.body[9] === 0) invalid();
+  if (!single(tags) || (tags.flags & 0x01) || tags.body.toString('latin1', 0, 8) !== 'OpusTags') invalid();
+  pages.forEach((page, index) => { if (page.serial !== head.serial || page.sequence !== index || (index > 0 && (page.flags & 0x02))) invalid(); });
+  const preSkip = head.body.readUInt16LE(10);
+  const granules = pages.slice(2).map(page => page.granule).filter(granule => granule >= 0n);
+  if (!granules.length) invalid();
+  const last = granules.reduce((max, granule) => granule > max ? granule : max, 0n);
+  const emptyTags = Buffer.concat([Buffer.from('OpusTags', 'latin1'), Buffer.alloc(8)]);
+  const rewritten = oggPage(bytes.subarray(tags.start, tags.start + 26), emptyTags);
+  return { bytes: Buffer.concat([bytes.subarray(0, head.end), rewritten, bytes.subarray(tags.end)]),
+    durationSeconds: boundedDuration(Number(last - BigInt(preSkip)) / 48000) };
+}
+
+function ebmlVint(bytes: Buffer, offset: number, marker: boolean): { value: number; length: number; unknown: boolean } {
+  const first = bytes[offset];
+  if (first === undefined || first === 0) invalid();
+  const length = Math.clz32(first) - 23;
+  if (offset + length > bytes.length || (marker && length > 4)) invalid();
+  let value = marker ? first : first & (0xff >> length); let allOnes = value === (0xff >> length);
+  for (let index = 1; index < length; index++) { value = value * 256 + bytes[offset + index]!; allOnes &&= bytes[offset + index] === 0xff; }
+  return { value, length, unknown: !marker && allOnes };
+}
+const webmSegmentChildren = new Set([0x114d9b74, 0x1549a966, 0x1654ae6b, 0x1f43b675, 0x1c53bb6b, 0xec]);
+// Any segment-level ID (allowed or not) ends an unknown-size cluster; Void (0xEC) may also sit inside a cluster, so it does not.
+const webmClusterEnd = new Set([0x114d9b74, 0x1549a966, 0x1654ae6b, 0x1f43b675, 0x1c53bb6b, 0x1254c367, 0x1941a469, 0x1043a770]);
+const webmClusterChildren = new Set([0xe7, 0x5854, 0xa7, 0xab, 0xa3, 0xa0, 0xec, 0xbf]);
+const webmInfoChildren = new Set([0x2ad7b1, 0x4489, 0x4d80, 0x5741, 0x73a4, 0x4461, 0xec]);
+
+// WebM Opus as produced by browser recorders. The EBML header must say webm; the Segment may only hold SeekHead, Info, Tracks,
+// Cluster, Cues and Void (Tags, Attachments, Chapters are rejected) and Info may not carry a Title. Exactly one A_OPUS track.
+// Cluster/Segment may have unknown size (live recording). The length is the latest block time (or Info Duration if longer).
+export function inspectWebmOpus(bytes: Buffer): { bytes: Buffer; durationSeconds: number } {
+  const element = (offset: number) => {
+    const id = ebmlVint(bytes, offset, true); const size = ebmlVint(bytes, offset + id.length, false);
+    const start = offset + id.length + size.length;
+    if (!size.unknown && start + size.value > bytes.length) invalid();
+    return { id: id.value, start, end: size.unknown ? bytes.length : start + size.value, unknown: size.unknown };
+  };
+  const children = (start: number, end: number, stopAt?: Set<number>) => {
+    const found: ReturnType<typeof element>[] = [];
+    for (let offset = start; offset < end;) {
+      const child = element(offset);
+      if (stopAt?.has(child.id)) break;
+      found.push(child); offset = child.unknown ? end : child.end;
+    }
+    return found;
+  };
+  const readUint = (item: ReturnType<typeof element>) => {
+    if (item.end - item.start > 6) invalid(); let value = 0;
+    for (let index = item.start; index < item.end; index++) value = value * 256 + bytes[index]!;
+    return value;
+  };
+  const header = element(0);
+  if (header.id !== 0x1a45dfa3 || header.unknown) invalid();
+  const docType = children(header.start, header.end).find(item => item.id === 0x4282);
+  if (!docType || bytes.toString('latin1', docType.start, docType.end).replace(/\0+$/, '') !== 'webm') invalid();
+  const segment = element(header.end);
+  if (segment.id !== 0x18538067 || segment.end !== bytes.length) invalid();
+  let scale = 1_000_000, infoDuration = 0, maxBlock = 0, opusTracks = 0, tracks = 0;
+  const top: ReturnType<typeof element>[] = [];
+  for (let offset = segment.start; offset < segment.end;) {
+    const child = element(offset);
+    if (!webmSegmentChildren.has(child.id)) invalid();
+    if (child.id === 0x1f43b675 && child.unknown) {
+      // An unknown-size cluster ends where the next segment-level element starts.
+      const inner = children(child.start, segment.end, webmClusterEnd);
+      const end = inner.length ? inner.at(-1)!.end : child.start;
+      top.push({ ...child, end, unknown: false }); offset = end; continue;
+    }
+    if (child.unknown) invalid();
+    top.push(child); offset = child.end;
+  }
+  for (const item of top) {
+    if (item.id === 0x1549a966) {
+      for (const field of children(item.start, item.end)) {
+        if (!webmInfoChildren.has(field.id)) invalid();
+        if (field.id === 0x2ad7b1) scale = readUint(field);
+        if (field.id === 0x4489) infoDuration = field.end - field.start === 4 ? bytes.readFloatBE(field.start) : field.end - field.start === 8 ? bytes.readDoubleBE(field.start) : invalid();
+      }
+    } else if (item.id === 0x1654ae6b) {
+      for (const entry of children(item.start, item.end)) {
+        if (entry.id !== 0xae) continue;
+        tracks++;
+        const codec = children(entry.start, entry.end).find(field => field.id === 0x86);
+        if (codec && bytes.toString('latin1', codec.start, codec.end) === 'A_OPUS') opusTracks++;
+      }
+    } else if (item.id === 0x1f43b675) {
+      let base = 0;
+      for (const field of children(item.start, item.end)) {
+        if (!webmClusterChildren.has(field.id)) invalid();
+        if (field.id === 0xe7) base = readUint(field);
+        const block = field.id === 0xa3 ? field : field.id === 0xa0 ? children(field.start, field.end).find(inner => inner.id === 0xa1) : undefined;
+        if (!block) continue;
+        const track = ebmlVint(bytes, block.start, false);
+        if (block.start + track.length + 3 > block.end) invalid();
+        maxBlock = Math.max(maxBlock, base + bytes.readInt16BE(block.start + track.length));
+      }
+    }
+  }
+  if (tracks !== 1 || opusTracks !== 1 || scale <= 0) invalid();
+  return { bytes, durationSeconds: boundedDuration((Math.max(maxBlock, infoDuration) * scale) / 1e9 || 0.1) };
 }
 
 export function collectibleSnapshot(project: CollectibleProject, projectId: string, publicationId: string, gradeId: string): CollectibleDetail {
