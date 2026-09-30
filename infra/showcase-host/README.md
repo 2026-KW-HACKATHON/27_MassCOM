@@ -37,6 +37,10 @@ STAFF 적격 해시를 삭제해도 이미 활성화된 점주 권한은 사라�
 - 점주 화면은 시연 앱의 "점주예요" 모드에만 있다. 키를 넣은 뒤의 실제 호출(비용·지연 측정)은 `NOT_RUN`이며 키 입력 뒤 따로 확인한다.
 
 
+## 보관 기간 정리 작업과 로그 순환 (Issue #253, D-056)
+
+시연 스택도 운영과 같은 기간을 지킨다. [`host-jobs/`](host-jobs/)의 `masscom-retention.sh`(기본값: compose 프로젝트 `masscom-showcase`, 서비스 `showcase-api`, 백업 폴더 `/opt/masscom-showcase/backups`)가 하루 한 번(`masscom-showcase-retention.timer`, 19:35 UTC=04:35 KST) 시연 API 컨테이너 안에서 `node dist/postgres/retention-command.js run`을 실행하고(`DATABASE_URL`·`PGPASSWORD`는 컨테이너에 이미 있다) 30일 지난 `*.dump`·`*.dump.*` 백업(예: `pre-<커밋>-<날짜>.dump`)만 지운다. **자동으로 설치되지 않는다.** 서버에서 소유자가 한 번 실행한다(이 저장소 작업은 실행하지 않았다, `NOT_RUN`): `sudo bash /opt/masscom-showcase/releases/<커밋>/infra/showcase-host/host-jobs/install.sh`(그 release에 이 폴더가 들어 있어야 한다). 설치 뒤 `sudo systemctl start masscom-showcase-retention.service`로 한 번 돌려 `journalctl -u masscom-showcase-retention.service`에서 개수를 확인한다. `compose.yml`의 `postgres`·`showcase-api`에 `json-file` 10 MB × 3개(용량 기준)가 들어갔고 컨테이너를 다시 만들 때 적용된다. 시연 API 교체 절차가 `up -d`로 다시 만들 때 적용되며 PostgreSQL은 소유자가 정한 때 다시 만들어야 한다. 시험은 `bash tests/ops/host_retention_job_test.sh`(가짜 docker), `node --test tests/ops/compose_log_rotation_test.mjs`.
+
 ## 계정 삭제 요청 처리 (D-052, Issue #194)
 
 시연 앱은 웹 삭제 페이지와 웹 로그인이 없어 앱 안(Bearer 세션)에서 "계정 삭제 요청"을 접수하고, 접수번호로 처리 상태(취소됨·처리되지 않음과 사유·처리 완료)를 앱에서 조회한다. 접수는 실제 삭제가 아니다: 접수번호를 한 번 보여 주고 24시간은 앱에서 취소할 수 있으며, 그 뒤 **운영자(소유자)가 이 호스트의 CLI로 접수 뒤 7일 안에 처리**한다. 이 요청은 시연 DB에서만 다루고 운영 DB·운영 관리자 웹과 섞지 않는다. 운영 앱은 이 경로 대신 웹 페이지를 쓰므로 운영 API에는 앱 안 접수 경로가 없다.
