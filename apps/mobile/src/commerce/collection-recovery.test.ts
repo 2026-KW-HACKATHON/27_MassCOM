@@ -197,6 +197,7 @@ function snapshot(nftStatus: CollectionSnapshot['collectibles'][number]['nftStat
       campaignTitle: '월계 한 바퀴',
       targetVisitCount: 1,
       displayName: '첫 잎새',
+      earnedAt: '2026-09-19T03:00:00.000Z',
       appCollectibleStatus: 'COLLECTED',
       mintJobId: 'job-1',
       recipient: '0x0000000000000000000000000000000000000001',

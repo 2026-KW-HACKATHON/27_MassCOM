@@ -79,7 +79,7 @@ npm run start:local
 
 - `GET /health`
 - `GET /merchants`: 로그인·지갑 없이 활성 점포와 공개 중인 현재 캠페인 조회. 각 점포에 `artUrl`(사장님이 적용한 AI 그림의 상대 경로 `/merchant-art/<sha256>.webp`, 없으면 `null`)이 있다
-- `GET /collection`: 서버가 확인한 계정의 유효 방문·앱 수집품과 `NOT_REQUESTED / QUEUED / CONFIRMING / FINALIZED / REVIEW_REQUIRED` NFT 상태 조회; 정확한 식사 시각과 token 제외
+- `GET /collection`: 서버가 확인한 계정의 유효 방문·앱 수집품과 `NOT_REQUESTED / QUEUED / CONFIRMING / FINALIZED / REVIEW_REQUIRED` NFT 상태 조회; 정확한 식사 시각과 token 제외. 각 수집품에 `earnedAt`(보상을 받은 시각, `reward_entitlements.earned_at`)이 있어, 같은 게시 수집품을 다른 캠페인 주기로 여러 번 받았을 때 앱이 개수와 받은 날짜로 묶어 보일 수 있다(#283).
 - `GET /recommendations`: 정원 마감 제외·미방문 우선·다음 고정 보상과 한국 날짜 회전을 reason code와 함께 조회
 - `POST /campaigns/:id/enrollments`: 공개·진행 중·기간 내 캠페인의 참여 정원을 단일 조건부 UPDATE로 예약합니다. 신규 `201`, 같은 계정 재요청 `200`(자리 추가 사용 없음), 정원 마감·참여 불가 `409`, 없는·비공개 캠페인 `404`, 삭제된 계정 `410`. 삭제·취소로 자리를 반환하지 않습니다.
 - 경로 값의 percent-encoding이 잘못되면 모든 라우트가 `400 INVALID_PATH_PARAMETER`로 응답합니다.

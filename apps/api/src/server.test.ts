@@ -132,6 +132,7 @@ type CollectionFixture = {
       campaignTitle: string;
       targetVisitCount: 1 | 3 | 5;
       displayName: string;
+      earnedAt: string;
       appCollectibleStatus: 'COLLECTED';
       mintJobId: string | null;
       recipient: string | null;
@@ -1788,6 +1789,7 @@ test('returns an authenticated collection without exposing claim tokens or exact
         campaignTitle: '가을 방문 도감',
         targetVisitCount: 1 as const,
         displayName: '첫 방문 마스코트',
+        earnedAt: '2026-09-19T03:00:00.000Z',
         appCollectibleStatus: 'COLLECTED' as const,
         mintJobId: null,
         recipient: null,
