@@ -27,15 +27,26 @@ PR [#257](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/257)를 생성했
 
 마지막 갱신 시각: 2026-10-01 KST
 
+## 2026-10-01 심사위원용 README·제출 증거 정리 (Issue #281)
+
+- 기준 main 커밋 SHA: `61bde483149a9b1b266af79d7de2463962919b8c`. 브랜치 `docs/281-judge-readme`(worktree `.worktrees/281-judge-readme`), PR #286. 문서·검사 스크립트만 바꾸고 앱·API·DB·서버 코드는 바꾸지 않았다.
+- **문제(2026-10-01 점검):** README "실제 기능 상태" 표가 9/23 기준에 멈춰 점포 실운영·방문 취소·약관 동의(#259)·NFT 메타데이터(#260)·AI 가게 그림(#258, 꺼짐)·친구·하늘 동네/탐험 여권·사진 수집품 제작기(#257)가 빠져 있었다. `docs/SUBMISSION_EVIDENCE.json`은 `recordedAt 2026-09-23`·`repositoryVisibility PRIVATE`·PR #130 기준이었지만 저장소는 9/27부터 `PUBLIC`이다. `scripts/verify-operations-docs.mjs`(P01)는 9/23 당시 문구('API 단위 82' 등)의 존재만 검사해 현재 요약이 틀려도 통과했다.
+- **바꾼 것:** ① README 맨 앞에 "심사위원용 3분 요약"(핵심 루프, 지금 되는 것/안 되는 것 표, 설치·시연 링크, 현재 시험 합계) 추가, "실제 기능 상태" 표에 위 8개 기능 행 추가. ② `docs/SUBMISSION_EVIDENCE.json`을 `recordedAt 2026-10-01 KST`·`PUBLIC`·`baselineCommit 61bde483149a9b1b266af79d7de2463962919b8c`·`gh pr list --state merged`로 얻은 병합 PR 170개로 다시 만들고, 이미 해결된 "repository public conversion" 차단 항목을 지웠다(생성 스크립트는 없어 손으로 갱신). ③ `scripts/verify-evidence-consistency.mjs`의 하드코딩된 `manifest.recordedAt !== '2026-09-23 KST'` 비교를 날짜 형식(`YYYY-MM-DD KST`)과 포털 문자열 일치만 보는 검사로 바꿔, 이 필드를 다시 하드코딩하지 않아도 갱신할 수 있게 했다. ④ `scripts/verify-operations-docs.mjs`의 PROJECT_STATE 옛 문구 검사 4줄을 지우고, README와 `docs/PROJECT_STATE.md`에 있는 "현재 자동 시험 합계(...)" 한 줄이 서로 같은지 보는 검사로 바꿨다(다르면 실패). `tests/bootstrap/verify_operations_docs_test.sh`에 README/PROJECT_STATE 각각의 합계 숫자만 바꾸면 검사가 실패하는 변이 시험 두 개를 더했다.
+- **현재 자동 시험 합계(2026-10-01 KST, main `61bde48` 기준, 이번 변경 이전 로컬 실행):** API 단위 291/291·Worker 단위 55/55·모바일 853/853·Foundry 8/8([TEST_STATUS](TEST_STATUS.md)·[AI_USAGE](AI_USAGE.md) 참고). 필수 36개 상태는 31 PASS / 2 BLOCKED / 3 NOT_RUN 그대로다.
+- **실기 캡처 결과(같은 날, Samsung SM-S928N, 시연 Preview 14, [증거](evidence/device-captures-2026-10-01/README.md)):** 도감 카드(가상 첫 방문 보상권, #257 native 상세 아님)의 라이트·다크·글자 200% 캡처는 PASS(잘림·명암비 이상 없음). **동의 화면(#259)은 `BLOCKED`:** 아직 동의하지 않은 허용 계정 `jc3288454`가 기기 Google 계정 선택기에 나타나지 않고(등록 23개 중 18개만 표시) 계정 추가는 비밀번호가 필요해 금지된 절차라 시도하지 않았다(다른 허용 계정 `choijunhuk2007`은 2026-09-30에 이미 동의 제출해 새 화면을 다시 띄울 수 없다). **#257 native 상세는 `NOT_RUN`:** `artwork`가 있는 수집품을 보유한 허용 계정이 없어, 로컬 API·개발 빌드로 실제 게시·수령시켜 확인하는 QA를 별도로 준비한다. **관찰(이 PR에서 고치지 않음):** 시스템 설정(다크 모드·글자 크기)을 바꾸면 앱이 세션은 유지한 채 첫 화면으로 돌아가 탐색 위치를 잃는다.
+- 검증: `node scripts/verify-operations-docs.mjs`·`bash tests/bootstrap/verify_operations_docs_test.sh`·`node scripts/verify-evidence-consistency.mjs`·`bash tests/site/verify_evidence_consistency_test.sh`·`bash tests/site/verify_project_site_test.sh`·`bash tools/gate.sh` 모두 PASS(결과는 [TEST_STATUS](TEST_STATUS.md) 첫 항목).
+- 다음 작업: ① 동의 화면 `BLOCKED` 해소는 소유자 조치가 필요하다(허용 계정 `jc3288454`를 기기 Google 계정 선택기에 나타나도록 하거나 별도 기기·에뮬레이터로 확인). ② #257 native 상세는 로컬 API·개발 빌드로 실제 사진을 게시·수령시켜 확인하는 QA를 별도로 진행한다. ③ 시스템 설정 변경이 앱을 첫 화면으로 되돌리는 관찰은 별도 Issue로 옮길지 판단한다(이 PR 범위 밖). ④ PR 열기 전 `bash scripts/check-pr-korean.sh`로 제목·본문 검사. ⑤ 병합 뒤 `docs/PROJECT_STATE.md`·`docs/HANDOFF.md`에 다른 브랜치가 추가한 항목과 충돌하면 순서만 조정한다(같은 파일에 동시에 항목을 추가하는 브랜치가 있다).
+- 다음 명령: `git -C .worktrees/281-judge-readme log --oneline 61bde48..HEAD`, `gh pr list`, `bash tools/gate.sh`.
+
 ## 2026-10-01 감사 지적 #279·#280 수정 (브랜치 `fix/279-280-audit-1001`)
 
-- 기준: main `61bde48`(PR #278 병합 결과), 브랜치 `fix/279-280-audit-1001`, worktree `.worktrees/279-280-audit-1001`, PR 번호 미정.
+- 기준: main `61bde48`(PR #278 병합 결과), 브랜치 `fix/279-280-audit-1001`, worktree `.worktrees/279-280-audit-1001`, PR #285(병합 `7eb178d`).
 - **S01(Issue #279, 보안):** `scripts/deploy-lightsail.sh`의 `ssh_options`가 `-o StrictHostKeyChecking=accept-new`와 `/tmp` 기본 known_hosts를 썼다. `/tmp`가 재부팅으로 비면 다음 전체 배포가 처음 보는 호스트 키를 그대로 신뢰하고 운영 `runtime.env`를 그 호스트로 보낼 수 있었다. `scripts/deploy-lightsail-web.sh`가 이미 쓰던 규칙(확인된 `known_hosts` 없으면 거절, `StrictHostKeyChecking=yes`)을 그대로 재사용해 `--deploy` 경로에 적용했다(known_hosts 검사는 `--dry-run` 종료 뒤·원격 호출 전으로 옮겼다). `accept-new`는 `scripts/` 전체에서 없앴다(달리 쓰는 곳 없음).
 - **M01(Issue #280):** `apps/production-web/assets/collectible-editor.mjs`의 `act()`가 `'new'`·`'open-project'`에서 `resetToNewDraft()`/`loadProject()`를 확인 없이 불러 저장하지 않은 편집을 지웠다. `merchant.mjs`의 discard 문구·스타일을 재사용한 `confirmDiscardIfDirty()`를 `loadProject()`(카드 클릭과 프로젝트 목록 드롭다운이 모두 거치는 한 곳) 앞과 `'new'` 분기에 넣었다. `dirty`가 아니면 묻지 않고, 거절하면 프로젝트·undo/redo·dirty를 그대로 둔다. 삭제 성공 뒤 `resetToNewDraft()` 호출(이미 삭제 확인을 거침)은 그대로 두어 두 번 묻지 않는다.
 - **검증:** `bash tests/ops/deploy_lightsail_test.sh`(새 회귀 포함)·`bash tests/ops/deploy_lightsail_rollback_test.sh`·`bash tests/ops/deploy_lightsail_web_test.sh` PASS. `node --test tests/site/collectible-editor-flow.test.mjs` 38/38(새 회귀 6건 포함)·`node --test tests/site/collectible-*.test.mjs` 65/65·`node --test tests/site/verify_production_web_test.mjs` 111/111 PASS. 두 수정 모두 되돌리면 새 회귀 시험이 실패하는 것을 직접 확인했다. `bash tools/gate.sh`는 [TEST_STATUS](TEST_STATUS.md) 첫 항목에 기록한다.
 - `NOT_RUN`: 실제 Lightsail 서버에서의 known_hosts 불일치 재현·`--deploy` 원격 실행, 실제 브라우저에서의 discard 확인 UI 캡처.
 - 문서: README는 배포 env var 목록에 변경이 없어(이미 인프라 README를 가리킴) 바꾸지 않았다. `infra/lightsail/README.md`에 전체 배포의 known_hosts 요구 사항을 추가했다. `docs/SERVER_ACCESS.md`는 이미 같은 정책(호스트 키 경고 시 지우지 말고 지문 대조)을 담고 있어 바꾸지 않았다.
-- 다음 작업: 독립 리뷰(Issue #279는 배포 보안 경로라 서로 다른 모델 2개 교차 리뷰 필요), PR 생성·CI.
+- 결과: PR #285로 병합했다(`7eb178d`). 교차 리뷰는 Claude sonnet(🟡 목록 선택 되돌리기·🔵 `accept-new` 검사 범위)과 Codex gpt-6.1-sol(P1 같은 목록 지적, P2 시험의 환경변수 상속)이었고 모두 고친 뒤 Codex가 APPROVE, CI `bootstrap-contract` PASS.
 
 ## 2026-10-01 운영·시연 재배포(`7bcfef9`)와 운영 test.5·시연 Preview 14 공개 (Issue #277)
 

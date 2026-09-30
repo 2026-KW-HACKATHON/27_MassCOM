@@ -11,6 +11,7 @@ const mobile = read('apps/mobile/README.md');
 const worker = read('apps/worker/README.md');
 const handoff = read('docs/HANDOFF.md');
 const state = read('docs/PROJECT_STATE.md');
+const readme = read('README.md');
 /** @type {Record<string, { scripts: Record<string, string> }>} */
 const packages = Object.fromEntries(['api', 'mobile', 'worker'].map((name) => [
   name, JSON.parse(read(`apps/${name}/package.json`)),
@@ -25,12 +26,22 @@ const required = [
   [worker, 'MINTER_KEYSTORE_PATH'], [worker, 'MINTER_KEYSTORE_PASSWORD_FILE'],
   [worker, 'npm run db:migrate --prefix ../api'], [worker, '실제 Base Sepolia 전송은 `NOT_RUN`'],
   [handoff, '기준 main 커밋 SHA:'], [handoff, 'gh pr list'],
-  [state, 'API 단위 82'], [state, 'Worker 단위 47'], [state, '모바일 149'],
-  [state, 'PostgreSQL 37'],
 ];
 let failures = 0;
 for (const [source, text] of required) {
   if (!source.includes(text)) { console.error(`operations documentation missing: ${text}`); failures += 1; }
+}
+
+// P01: 옛 문구('API 단위 82' 등) 존재 여부만 보던 검사는 현재 요약이 틀려도 통과했다.
+// 대신 README와 PROJECT_STATE에 있는 "현재" 자동 시험 합계 한 줄이 서로 같은지 검사한다.
+const currentSummaryPattern = /현재 자동 시험 합계\([^)]*\):[^.]+\./;
+const readmeSummary = readme.match(currentSummaryPattern)?.[0]?.trim();
+const stateSummary = state.match(currentSummaryPattern)?.[0]?.trim();
+if (!readmeSummary) { console.error('README missing current test summary line (현재 자동 시험 합계)'); failures += 1; }
+if (!stateSummary) { console.error('PROJECT_STATE missing current test summary line (현재 자동 시험 합계)'); failures += 1; }
+if (readmeSummary && stateSummary && readmeSummary !== stateSummary) {
+  console.error(`README/PROJECT_STATE current test summary mismatch:\n  README: ${readmeSummary}\n  PROJECT_STATE: ${stateSummary}`);
+  failures += 1;
 }
 /** @type {Array<[string, { scripts: Record<string, string> }, string[]]>} */
 const requiredScripts = [
