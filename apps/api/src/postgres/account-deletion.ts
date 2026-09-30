@@ -378,6 +378,9 @@ async function pseudonymizeAccount(
   await client.query('DELETE FROM friend_codes WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM explorer_profiles WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM friend_code_attempts WHERE account_id = $1', [accountId]);
+  // 동의 기록(Issue #253)은 가명으로 남기지 않고 지운다: 삭제된 계정이 무엇에 언제 동의했는지 남길 이유가 없다.
+  // 동의 기록은 같은 계정 잠금을 잡으므로(assertActive) 이 거래와 직렬화되어 삭제 뒤에 행이 생기지 않는다.
+  await client.query('DELETE FROM account_consents WHERE account_id = $1', [accountId]);
   // AI 가게 그림 라운드는 가게의 자산이라 지우지 않고 요청자 열만 비운다(가게 그림·비용 기록에는 계정 ID가 없다).
   await client.query(
     'UPDATE merchant_art_rounds SET requested_by_account_id = NULL WHERE requested_by_account_id = $1',

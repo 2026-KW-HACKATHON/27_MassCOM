@@ -9,6 +9,7 @@ import {
   AccountDeletionError,
   type AccountDeletionService,
 } from './account-deletion.js';
+import { ConsentError, type ConsentService } from './account-consent.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardService } from './badge-rewards.js';
 import { OpenAiImageClient } from './ai-art-client.js';
@@ -53,6 +54,7 @@ import { safeErrorMetadata } from './security-log.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCustomerIdentityService } from './postgres/customer-identity.js';
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
+import { PostgresAccountConsentService } from './postgres/account-consent.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountDeletionIntakeService } from './postgres/account-deletion-intake.js';
 import { PostgresAccountDeletionProcessingService } from './postgres/account-deletion-processing.js';
@@ -197,6 +199,7 @@ export function createApiServer(
   showcaseDeletionIntake?: AccountDeletionIntakeService,
   deletionProcessing?: AccountDeletionProcessingService,
   reversals?: ReversalService,
+  consent?: ConsentService,
 ) {
   // The receipt lookup needs no login, so it is throttled per client instead (a receipt has 80 bits, this only stops floods).
   const deletionStatusLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60_000 });
@@ -276,6 +279,26 @@ export function createApiServer(
         response.setHeader('x-robots-tag', 'noindex, nofollow');
         const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
         sendJson(response, 200, await badges.getBadges(accountId));
+        return;
+      }
+      if (path === '/api/web/consent') {
+        // 조회는 쿠키만 보고, 기록은 계정 삭제 접수와 같은 출처·본문 형식 검사를 거친다(다른 사이트가 쿠키로 동의를 넣지 못하게).
+        if (request.method !== 'GET' && request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
+        if (request.method === 'POST' && (request.headers.origin !== origin ||
+            !/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? ''))) {
+          throw new RequestError(403, 'ORIGIN_FORBIDDEN');
+        }
+        if (!webAuth || !consent) throw new RequestError(503, 'WEB_CONSENT_NOT_CONFIGURED');
+        response.setHeader('x-robots-tag', 'noindex, nofollow');
+        const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        if (request.method === 'GET') {
+          sendJson(response, 200, await consent.status(accountId));
+        } else {
+          sendJson(response, 200, await consent.record({
+            accountId, source: 'WEB', ...readConsentBody(await readJson(request)),
+          }));
+        }
         return;
       }
       if (path.startsWith('/api/web/admin/')) {
@@ -714,6 +737,19 @@ export function createApiServer(
         return;
       }
 
+      if (request.url === '/me/consent' && (request.method === 'GET' || request.method === 'POST')) {
+        if (!consent) throw new RequestError(503, 'CONSENT_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        if (request.method === 'GET') {
+          sendJson(response, 200, await consent.status(accountId));
+        } else {
+          sendJson(response, 200, await consent.record({
+            accountId, source: consent.appSource, ...readConsentBody(await readJson(request)),
+          }));
+        }
+        return;
+      }
+
       if (request.method === 'GET' && request.url === '/me/friends') {
         if (!friends) throw new RequestError(503, 'FRIENDS_NOT_CONFIGURED');
         const accountId = await resolveAccountId(request);
@@ -1108,6 +1144,11 @@ export function createApiServer(
         sendJson(response, statusForReversal(error.code), { code: error.code });
         return;
       }
+      if (error instanceof ConsentError) {
+        sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'CONSENT_VERSION_MISMATCH' ? 409 : 400,
+          { code: error.code });
+        return;
+      }
       if (error instanceof FriendError) {
         if (error.retryAfterSeconds !== undefined) {
           response.setHeader('Retry-After', String(error.retryAfterSeconds));
@@ -1475,6 +1516,25 @@ function matchMerchantArtRoute(method: string | undefined, tail: string): Mercha
   return method === 'POST' ? { kind: round[2] as 'choose' | 'apply', roundId } : undefined;
 }
 
+const consentBodyKeys = ['termsVersion', 'privacyVersion', 'ageConfirmed', 'termsAccepted', 'privacyAccepted'] as const;
+
+/** 정확히 다섯 키만 받는다: 알 수 없는 키·빠진 키·잘못된 자료형은 400. 값이 true인지·버전이 현재인지는 서비스가 판단한다. */
+function readConsentBody(body: Record<string, unknown>): {
+  termsVersion: string; privacyVersion: string; ageConfirmed: boolean; termsAccepted: boolean; privacyAccepted: boolean;
+} {
+  const keys = Object.keys(body);
+  if (keys.length !== consentBodyKeys.length || consentBodyKeys.some((key) => !Object.hasOwn(body, key))) {
+    throw new RequestError(400, 'INVALID_REQUEST');
+  }
+  const { termsVersion, privacyVersion, ageConfirmed, termsAccepted, privacyAccepted } = body;
+  if (typeof termsVersion !== 'string' || typeof privacyVersion !== 'string' || termsVersion.length > 64 ||
+      privacyVersion.length > 64 || typeof ageConfirmed !== 'boolean' || typeof termsAccepted !== 'boolean' ||
+      typeof privacyAccepted !== 'boolean') {
+    throw new RequestError(400, 'INVALID_REQUEST');
+  }
+  return { termsVersion, privacyVersion, ageConfirmed, termsAccepted, privacyAccepted };
+}
+
 function requireEmptyBody(body: Record<string, unknown>): void {
   if (Object.keys(body).length > 0) throw new RequestError(400, 'INVALID_REQUEST');
 }
@@ -1710,6 +1770,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const friends = pool && accountLifecycle
     ? new PostgresFriendService(pool, { accountLifecycle })
     : undefined;
+  // 동의 기록(D-056): 앱 경로 값은 시연 서버면 SHOWCASE_APP, 운영이면 ANDROID다. 쓰기 요청은 막지 않고 required만 알린다.
+  const consent = pool && accountLifecycle
+    ? new PostgresAccountConsentService(pool, {
+        accountLifecycle, appSource: showcaseInvites ? 'SHOWCASE_APP' : 'ANDROID',
+      })
+    : undefined;
   // OPENAI_API_KEY가 비어 있으면 client가 없어 생성 API만 503 AI_ART_NOT_CONFIGURED이고 조회·되돌리기·공개 그림은 그대로 동작한다.
   const merchantArt = pool
     ? new PostgresMerchantArtService(pool, {
@@ -1824,6 +1890,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           policyVersion: process.env.ACCOUNT_DELETION_POLICY_VERSION ?? 'account-deletion-v1',
         }) : undefined,
     reversals,
+    consent,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

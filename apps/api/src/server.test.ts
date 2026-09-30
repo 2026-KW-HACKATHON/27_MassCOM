@@ -15,6 +15,7 @@ import {
   type AdminDeletionIntake,
   type DeletionIntakeStatusView,
 } from './account-deletion-intake.js';
+import { ConsentError, type ConsentErrorCode, type ConsentService } from './account-consent.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardErrorCode, type BadgeRewardService } from './badge-rewards.js';
 import { FriendError, type FriendErrorCode, type FriendService } from './friends.js';
@@ -219,6 +220,7 @@ async function startFixture(
   showcaseDeletionIntake?: AccountDeletionIntakeService,
   deletionProcessing?: AccountDeletionProcessingService,
   reversals?: ReversalService,
+  consent?: ConsentService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -256,6 +258,7 @@ async function startFixture(
     showcaseDeletionIntake,
     deletionProcessing,
     reversals,
+    consent,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -3719,4 +3722,133 @@ test('admin coupon routes list and void behind the admin cookie, origin and JSON
     { ...admin, isAdmin: async () => false } as unknown as PostgresAdminService);
   assert.equal((await webRequest(denied, listPath, { headers: { cookie: headers.cookie } })).status, 403);
   assert.equal((await webRequest(denied, voidPath, { method: 'POST', headers, body: '{"reason":"OTHER"}' })).status, 403);
+});
+
+const consentVersions = { termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-09-30' };
+const consentBody = { ...consentVersions, ageConfirmed: true, termsAccepted: true, privacyAccepted: true };
+
+function consentFixture(
+  overrides: Partial<ConsentService> = {},
+  calls: unknown[][] = [],
+): ConsentService {
+  return {
+    appSource: 'ANDROID',
+    status: async (accountId) => { calls.push(['status', accountId]); return { required: true, ...consentVersions }; },
+    record: async (input) => { calls.push(['record', input]); return { required: false, ...consentVersions }; },
+    ...overrides,
+  };
+}
+
+async function startConsent(t: TestContext, consent?: ConsentService, webAuth?: TestWebAuth) {
+  return startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, true,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, consent);
+}
+
+test('app consent routes need a customer session, read required, and record only the exact five fields', async (t) => {
+  const calls: unknown[][] = [];
+  const base = await startConsent(t, consentFixture({}, calls));
+  const account = { 'x-account-id': 'customer-1' };
+  const json = { 'content-type': 'application/json', ...account };
+  assert.equal((await fetch(`${base}/me/consent`)).status, 401);
+  assert.equal((await fetch(`${base}/me/consent`, { method: 'POST', body: JSON.stringify(consentBody) })).status, 401);
+  assert.deepEqual(calls, []);
+
+  const read = await fetch(`${base}/me/consent`, { headers: account });
+  assert.equal(read.status, 200);
+  assert.equal(read.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await read.json(), { required: true, ...consentVersions });
+
+  const post = (body: unknown) => fetch(`${base}/me/consent`, { method: 'POST', headers: json, body: JSON.stringify(body) });
+  const recorded = await post(consentBody);
+  assert.equal(recorded.status, 200);
+  assert.deepEqual(await recorded.json(), { required: false, ...consentVersions });
+  // The route is chosen by the server (this fixture is the operating API), never by the client body.
+  assert.deepEqual(calls.at(-1), ['record', { accountId: 'customer-1', source: 'ANDROID', ...consentBody }]);
+  const before = calls.length;
+  for (const bad of [
+    {}, [], { ...consentBody, source: 'WEB' }, { ...consentBody, accountId: 'customer-2' },
+    { termsVersion: consentBody.termsVersion, privacyVersion: consentBody.privacyVersion, ageConfirmed: true, termsAccepted: true },
+    { ...consentBody, ageConfirmed: 'true' }, { ...consentBody, termsAccepted: 1 },
+    { ...consentBody, termsVersion: 3 }, { ...consentBody, privacyVersion: 'x'.repeat(65) },
+  ]) {
+    const refused = await post(bad);
+    assert.equal(refused.status, 400, JSON.stringify(bad));
+    // A body that is not a JSON object (the array) is refused by the shared reader before the field check.
+    assert.deepEqual(await refused.json(), { code: Array.isArray(bad) ? 'INVALID_JSON_BODY' : 'INVALID_REQUEST' });
+  }
+  assert.equal(calls.length, before, 'a malformed body never reaches the service');
+  assert.equal((await fetch(`${base}/me/consent`, { method: 'DELETE', headers: account })).status, 404);
+});
+
+test('consent records the showcase route on the showcase server and maps refusals to status codes', async (t) => {
+  const calls: unknown[][] = [];
+  let failure: ConsentErrorCode | undefined;
+  const base = await startConsent(t, consentFixture({
+    appSource: 'SHOWCASE_APP',
+    record: async (input) => {
+      if (failure) throw new ConsentError(failure);
+      calls.push(['record', input]);
+      return { required: false, ...consentVersions };
+    },
+  }));
+  const headers = { 'content-type': 'application/json', 'x-account-id': 'customer-1' };
+  const post = () => fetch(`${base}/me/consent`, { method: 'POST', headers, body: JSON.stringify(consentBody) });
+  assert.equal((await post()).status, 200);
+  assert.equal((calls[0]![1] as { source: string }).source, 'SHOWCASE_APP');
+  for (const [code, status] of [['CONSENT_INCOMPLETE', 400], ['CONSENT_VERSION_MISMATCH', 409], ['ACCOUNT_DELETED', 410]] as const) {
+    failure = code;
+    const response = await post();
+    assert.equal(response.status, status, code);
+    assert.deepEqual(await response.json(), { code });
+  }
+});
+
+test('web consent needs the host-bound cookie and, to record, a same-origin JSON request', async (t) => {
+  const calls: unknown[][] = [];
+  const base = await startConsent(t, consentFixture({}, calls), intakeWebAuth());
+  const path = '/api/web/consent';
+  const cookie = { cookie: 'web_session=valid-cookie' };
+  assert.equal((await webRequest(base, path, { method: 'PUT' })).status, 405);
+  assert.equal((await webRequest(base, path)).status, 401);
+  assert.equal((await webRequest(base, path, { headers: { cookie: 'web_session=other' } })).status, 401);
+
+  const read = await webRequest(base, path, { headers: cookie });
+  assert.equal(read.status, 200);
+  assert.deepEqual(await read.json(), { required: true, ...consentVersions });
+  assert.equal(read.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.equal(read.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(calls, [['status', 'session-account']]);
+
+  const body = JSON.stringify(consentBody);
+  for (const headers of [
+    { ...cookie, 'content-type': 'application/json' },
+    { ...cookie, origin: 'https://evil.example', 'content-type': 'application/json' },
+    { ...cookie, origin: 'https://masscom.kr', 'content-type': 'text/plain' },
+  ]) {
+    assert.equal((await webRequest(base, path, { method: 'POST', headers, body })).status, 403);
+  }
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: webJson, body })).status, 401);
+  assert.equal(calls.length, 1);
+
+  const recorded = await webRequest(base, path, { method: 'POST', headers: { ...webJson, ...cookie }, body });
+  assert.equal(recorded.status, 200);
+  assert.deepEqual(await recorded.json(), { required: false, ...consentVersions });
+  assert.deepEqual(calls.at(-1), ['record', { accountId: 'session-account', source: 'WEB', ...consentBody }]);
+  // The account comes from the cookie only; an account id in the body is an unknown field.
+  const smuggled = await webRequest(base, path, { method: 'POST', headers: { ...webJson, ...cookie },
+    body: JSON.stringify({ ...consentBody, accountId: 'someone-else' }) });
+  assert.equal(smuggled.status, 400);
+  assert.equal(calls.length, 2);
+});
+
+test('consent routes are closed without configuration and without a web session service', async (t) => {
+  const unconfigured = await startConsent(t, undefined, intakeWebAuth());
+  assert.equal((await fetch(`${unconfigured}/me/consent`, { headers: { 'x-account-id': 'customer-1' } })).status, 503);
+  const web = await webRequest(unconfigured, '/api/web/consent', { headers: { cookie: 'web_session=valid-cookie' } });
+  assert.equal(web.status, 503);
+  assert.deepEqual(await web.json(), { code: 'WEB_CONSENT_NOT_CONFIGURED' });
+  const noWebAuth = await startConsent(t, consentFixture());
+  assert.equal((await webRequest(noWebAuth, '/api/web/consent', { headers: { cookie: 'web_session=x' } })).status, 503);
 });

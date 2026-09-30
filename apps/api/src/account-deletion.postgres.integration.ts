@@ -18,6 +18,12 @@ test('D01 concurrent deletion cancels only unsent mint work and pseudonymizes th
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());
   await seedDeletionFixture(pool);
+  // 동의 기록(Issue #253)도 원 계정 ID를 남기지 않고 지워져야 한다: 아래 원본 ID 검사에 이 표가 들어 있다.
+  await pool.query(
+    `INSERT INTO account_consents (account_id, terms_version, privacy_version, age_confirmed, source)
+     VALUES ('delete-me', 'terms-2026-09-30', 'privacy-2026-09-30', true, 'ANDROID'),
+            ('delete-me', 'terms-old', 'privacy-old', true, 'WEB')`,
+  );
   await pool.query(
     `INSERT INTO wallet_challenges (
        id, account_id, address, chain_id, nonce, message, issued_at, expires_at, status
@@ -82,7 +88,8 @@ test('D01 concurrent deletion cancels only unsent mint work and pseudonymizes th
          (SELECT count(*) FROM mint_jobs WHERE account_id = 'delete-me') +
          (SELECT count(*) FROM campaign_enrollments WHERE account_id = 'delete-me') +
          (SELECT count(*) FROM badge_coupons
-          WHERE customer_account_id = 'delete-me' OR redeemed_by_account_id = 'delete-me')
+          WHERE customer_account_id = 'delete-me' OR redeemed_by_account_id = 'delete-me') +
+         (SELECT count(*) FROM account_consents WHERE account_id = 'delete-me')
        )::integer AS raw_account_references,
        (SELECT count(*)::integer FROM wallet_bindings WHERE status = 'DISCONNECTED') AS disconnected_bindings,
        (SELECT status FROM mint_jobs WHERE id = '40000000-0000-4000-8004-000000000001') AS queued_status,
@@ -597,7 +604,7 @@ test('concurrent staff deletion and claim issue leave no original creator refere
 
 async function seedDeletionFixture(pool: Pool): Promise<void> {
   await pool.query(
-    'TRUNCATE account_deletion_requests, wallet_challenges, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, campaign_enrollments, merchant_members, campaign_goals, campaigns, merchants CASCADE',
+    'TRUNCATE account_consents, account_deletion_requests, wallet_challenges, nft_assets, chain_events, mint_tx_attempts, outbox_events, mint_jobs, nft_series, wallet_bindings, reward_entitlements, visit_events, claim_slots, campaign_enrollments, merchant_members, campaign_goals, campaigns, merchants CASCADE',
   );
   await pool.query(
     `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
