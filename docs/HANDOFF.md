@@ -16,6 +16,7 @@
 - **재리뷰 후속(opus APPROVE 🔴 0, 0036 제자리 수정):** 시리즈 id는 불투명 id(`s-` + hex 32자)만, 발행 뒤 스냅샷 실패는 수동 검토로 닫혀도 원인 코드·채굴된 시도 유지(되돌리는 SQL은 Worker README), 실패 원인 로그는 SQLSTATE·제약 이름만, 토큰 메타데이터·가게 그림 캐시 하루, 낮은 동의 판은 `CONSENT_VERSION_OUTDATED`·API는 v2 미만 판으로 시작 거절, 거부 목록 `asset:`은 UUID 모양만, D-060·설계 문구 모순 정리.
 - 검증: [TEST_STATUS](TEST_STATUS.md) 첫 항목(재리뷰 후속 뒤 Worker 단위 55/55·PostgreSQL 30/30·Anvil 12/12, API 단위 252/252·PostgreSQL 230 PASS·2 skip(따로 2/2), 모바일 784/784·typecheck·lint, 웹 178/178(순차 실행), Caddy 프록시 1/1, 웹 배포 시험, `tools/gate.sh`). 앞 항목은 리뷰 후속 결과.
 - `NOT_RUN`: 운영·시연 배포, 새 시연 앱 빌드, Worker 배포·`createSeries`·실제 발행, 지갑·탐색기·마켓의 실제 표시, 인증된 브라우저에서 동네·업종 저장.
+- **main 병합:** main `cb87530`(PR #259, Issue #253, migration 0033·D-059)을 병합했다. 0033과 0036은 겹치는 표·열이 없고 병합 트리의 전체 시험이 PASS다([TEST_STATUS](TEST_STATUS.md) 첫 항목). 배포하면 migration은 0033 → 0036 순서로 적용된다.
 - 다음 작업: ① PR #260 재확인(교차 리뷰 지적 반영 확인)·CI·병합. ② 위 배포 순서(API 배포 뒤 시연 앱은 v2 빌드 필요). ③ 발행을 열 때 B-027 → Worker·시리즈 규칙.
 - 다음 명령: `git -C .worktrees/254-nft-metadata log --oneline d004d7f..HEAD`, `TEST_DATABASE_URL=<이름이 _test로 끝나는 일회용 로컬 DB URL> npm run test:postgres --prefix apps/worker`, `node --test tests/ops/verify_nft_metadata_proxy_test.mjs`.
 
