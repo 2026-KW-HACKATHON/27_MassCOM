@@ -769,7 +769,7 @@ async function closeForManualReview(
   );
 }
 
-// 토큰 메타데이터 스냅샷(Issue #254, D-057). 이미 있으면 아무것도 읽거나 쓰지 않으므로 재확정이 내용을 바꾸지 않는다.
+// 토큰 메타데이터 스냅샷(Issue #254, D-060). 이미 있으면 아무것도 읽거나 쓰지 않으므로 재확정이 내용을 바꾸지 않는다.
 // 가게 그림은 이 트랜잭션에서 읽은 바이트를 그대로 복사해 두므로 뒤에 가게가 그림을 바꾸거나 되돌려도 남는다.
 async function snapshotTokenMetadata(client: PoolClient, jobId: string, origin: string): Promise<void> {
   const facts = await client.query<MetadataFactsRow>(

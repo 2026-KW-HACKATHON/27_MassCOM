@@ -12,9 +12,9 @@ test('migration discovery accepts numbered SQL files and rejects macOS metadata 
   assert.equal(isMigrationFilename('0001_merchant_catalog.sql.bak'), false);
 });
 
-test('0032 and 0034 set their lock timeout with SET LOCAL inside the per-file transaction the runner opens', async () => {
+test('0032 and 0036 set their lock timeout with SET LOCAL inside the per-file transaction the runner opens', async () => {
   const { readFile } = await import('node:fs/promises');
-  for (const file of ['0032_store_go_live.sql', '0034_nft_metadata.sql']) {
+  for (const file of ['0032_store_go_live.sql', '0036_nft_metadata.sql']) {
     const sql = await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8');
     const statements = sql.split('\n').filter(line => line.trim() && !line.trim().startsWith('--'));
     assert.equal(statements[0], "SET LOCAL lock_timeout = '5s';", file);

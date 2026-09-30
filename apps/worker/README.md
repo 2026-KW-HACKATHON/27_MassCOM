@@ -39,7 +39,7 @@ Worker가 재시작해 저장된 거래 hash를 다시 확인할 때도 신규 �
 
 일시 장애는 작업을 수동 검토로 보내지 않습니다. RPC 연결 불가는 `RPC_UNAVAILABLE`, 계약 중지는 `MINT_PAUSED`, 민터 잔액이 `MINTER_MIN_BALANCE_WEI`(기본 0) 이하이면 `MINTER_BALANCE_LOW`로 물러나 작업은 `RETRYABLE`로 남고 전송 시도를 소모하지 않습니다. 중지·잔액 검사는 신규 전송 직전에만 하므로 이미 제출됐거나 체인에 발행된 작업의 확인·완료는 계속됩니다. 다른 chain ID·계약 code 없음·MINTER role 없음, 그리고 code는 있지만 인터페이스가 다른 계약(`CONTRACT_INTERFACE_MISMATCH`, EVM 반환 데이터가 있는 revert나 해석할 수 없는 응답일 때만) 같은 설정 오류는 재시도하지 않고 `MANUAL_REVIEW`입니다. 연속 재시도는 `retry_streak`에 기록해 지연을 1초부터 최대 5분까지 두 배씩 늘리며, 이 값은 수동 검토 전환에 쓰지 않아 장기 발행 중지에서도 작업은 `RETRYABLE`로 남습니다. 제출한 거래가 revert됐고 기존 발행도 없으면 중지·잔액·RPC를 다시 확인해 일시 조건이면 revert된 거래 hash를 지우고 재시도합니다. 재확인 시점에 조건이 이미 풀렸다면 기존처럼 `MANUAL_REVIEW`입니다.
 
-## 발행 확정 때 NFT 메타데이터 고정 (Issue #254, D-057)
+## 발행 확정 때 NFT 메타데이터 고정 (Issue #254, D-060)
 
 `finalize`는 `nft_assets`를 넣은 같은 트랜잭션에서 공개 메타데이터를 `nft_token_metadata`에 고정합니다. 이름 `<가게 이름> 방문 도장`, 설명, 이미지, 속성(가게 이름·동네·업종·방문 단계·캠페인)만 담고 주소·시각·주문·계정·지갑·tx hash는 입력으로도 받지 않습니다([생성기](src/nft-metadata.ts)). 가게가 적용한 그림(`merchant_art`)이 있으면 그 바이트를 `nft_metadata_images`에 복사하고 Worker가 계산한 sha256으로 `<출처>/nft-metadata/images/<sha256>.webp`를, 없으면 기본 도장 `https://masscom.kr/assets/mascot-stamp.png`를 씁니다. 스냅샷이 이미 있으면 읽지도 쓰지도 않으므로 재확정·재시작이 내용을 바꾸지 않고, 스냅샷이 실패하면 확정도 되돌아가 다음 실행이 다시 합니다.
 
@@ -47,7 +47,7 @@ Worker가 재시작해 저장된 거래 hash를 다시 확인할 때도 신규 �
 | --- | --- |
 | `NFT_METADATA_ORIGIN` | **필수, 기본값 없음.** 메타데이터·그림을 내보내는 공개 출처(`https://호스트`만, 경로·끝 슬래시·쿼리 거절, 로컬 `http://localhost`·`http://127.0.0.1`만 예외). 운영 `https://masscom.kr`, 시연 `https://demo-api.masscom.kr`. 한 번 고정한 메타데이터는 바꿀 수 없으므로 환경마다 정확히 넣습니다 |
 
-시리즈를 만들 때 온체인 `createSeries`의 base URI는 `<NFT_METADATA_ORIGIN>/nft-metadata/<nft_series.id>/`여야 공개 경로(API `GET /nft-metadata/<series>/<tokenId>.json`)와 맞습니다. `nft_series.id`는 `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`이고 `base-sepolia-proof`가 아니어야 합니다(migration 0034 CHECK).
+시리즈를 만들 때 온체인 `createSeries`의 base URI는 `<NFT_METADATA_ORIGIN>/nft-metadata/<nft_series.id>/`여야 공개 경로(API `GET /nft-metadata/<series>/<tokenId>.json`)와 맞습니다. `nft_series.id`는 `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`이고 `base-sepolia-proof`가 아니어야 합니다(migration 0036 CHECK).
 
 `CHAIN_REORG_MARGIN`은 1 이상의 블록 수이며 기본값은 12입니다. 공개 체인 운영 전에는 해당 체인의 finality 정책과 RPC 조회 한도에 맞춰 다시 결정해야 합니다.
 

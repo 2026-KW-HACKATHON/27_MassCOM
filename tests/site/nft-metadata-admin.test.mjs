@@ -62,10 +62,10 @@ test('동네는 서버·DB와 같은 행정동 규칙으로 보내기 전에 확
   assert.match(neighborhoodHint, /NFT 공개 정보/);
 });
 
-test('업종 목록은 서버 규칙·migration 0034의 CHECK 목록과 같다', () => {
+test('업종 목록은 서버 규칙·migration 0036의 CHECK 목록과 같다', () => {
   const rules = readFileSync(new URL('../../apps/api/src/merchant-profile-rules.ts', import.meta.url), 'utf8');
   const serverList = /merchantCategories = \[([^\]]+)\]/.exec(rules)[1].match(/'([^']+)'/g).map((item) => item.slice(1, -1));
-  const migration = readFileSync(new URL('../../apps/api/migrations/0034_nft_metadata.sql', import.meta.url), 'utf8');
+  const migration = readFileSync(new URL('../../apps/api/migrations/0036_nft_metadata.sql', import.meta.url), 'utf8');
   const sqlList = /category IN \(([^)]+)\)/.exec(migration)[1].match(/'([^']+)'/g).map((item) => item.slice(1, -1));
   assert.deepEqual(merchantCategories, serverList);
   assert.deepEqual(merchantCategories, sqlList);

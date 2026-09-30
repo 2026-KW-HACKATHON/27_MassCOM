@@ -1,6 +1,6 @@
 # NFT 메타데이터(가게 이름·동네·업종·방문 단계·가게 그림) 발행 때 고정 설계 (Issue #254)
 
-2026-09-30 소유자가 NFT 메타데이터에 **가게 이름 + 동네(동)** 를 넣고 추천안 전체를 적용하기로 정했다(`USER_CONFIRMED`, D-057 결정 1~6). 이 문서가 먼저 쓰이고 구현이 이 문서를 따른다. 아래 "구현 선택"은 소유자 결정 안에서 에이전트가 정한 엔지니어링 선택이라 D-057에 `PROPOSED`로 따로 표시한다.
+2026-09-30 소유자가 NFT 메타데이터에 **가게 이름 + 동네(동)** 를 넣고 추천안 전체를 적용하기로 정했다(`USER_CONFIRMED`, D-060 결정 1~6). 이 문서가 먼저 쓰이고 구현이 이 문서를 따른다. 아래 "구현 선택"은 소유자 결정 안에서 에이전트가 정한 엔지니어링 선택이라 D-060에 `PROPOSED`로 따로 표시한다.
 
 ## 1. 소유자 결정(요약, `USER_CONFIRMED`)
 
@@ -26,14 +26,14 @@
 - 공개 경로의 `<series>`는 **`nft_series.id` 그대로**다. 시리즈를 만들 때 온체인 `createSeries`의 `baseTokenURI`는 `<메타데이터 출처>/nft-metadata/<nft_series.id>/`로 준다.
   - 운영: `https://masscom.kr/nft-metadata/<id>/`(Caddy가 API로 넘김, 3.5).
   - 시연: `https://demo-api.masscom.kr/nft-metadata/<id>/`(시연 API 호스트가 이미 모든 경로를 `showcase-api`로 넘기므로 Caddy 변경 없음. `demo.masscom.kr`은 DNS·웹 서버가 없다).
-- `nft_series.id`는 `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`이고 `base-sepolia-proof`가 아니어야 한다. migration 0034가 이 CHECK를 **`NOT VALID`** 로 더해 새로 넣는 행만 검사한다(기존 행이 있어도 migration이 실패하지 않음. 운영·시연 DB에는 행이 없다). 경로에 쓸 수 없는 시리즈를 만드는 실수를 DB가 막는다.
+- `nft_series.id`는 `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`이고 `base-sepolia-proof`가 아니어야 한다. migration 0036가 이 CHECK를 **`NOT VALID`** 로 더해 새로 넣는 행만 검사한다(기존 행이 있어도 migration이 실패하지 않음. 운영·시연 DB에는 행이 없다). 경로에 쓸 수 없는 시리즈를 만드는 실수를 DB가 막는다.
 - `base-sepolia-proof`는 정적 파일로 남는다. Caddy가 이 경로를 API로 넘기지 않으므로 실증 토큰 #1은 지금과 바이트까지 같다.
 
 ### 3.2 스냅샷 시점과 저장
 
 - `finalize` 트랜잭션 안에서 `nft_assets`를 넣은 직후 스냅샷을 만든다. 같은 트랜잭션이라 `FINALIZED`인데 메타데이터가 없는 순간이 없고, 스냅샷이 실패하면 확정도 되돌려져 다음 실행이 다시 한다.
 - 이미 확정된 작업을 다시 확정하는 경로(`findExistingAsset` 뒤 조기 반환)도 같은 스냅샷 함수를 부른다. 스냅샷 함수는 행이 이미 있으면 아무것도 읽거나 쓰지 않는다(`INSERT … ON CONFLICT DO NOTHING`과 사전 확인). 그래서 재확정은 내용을 바꾸지 않는다.
-- 새 표(0034):
+- 새 표(0036):
   - `nft_token_metadata`: `nft_asset_id uuid PK → nft_assets`, `nft_series_id text → nft_series`, `token_id numeric(78,0)`, `metadata_json text`(유효한 JSON 객체 CHECK), `image_sha256 text NULL`(형식 CHECK만, 참조 제약 없음 — 아래 그림 내리기 때문), `created_at`. `UNIQUE (nft_series_id, token_id)`.
   - `nft_metadata_images`: `sha256 text PK`(소문자 hex 64), `image bytea`(비어 있지 않음), `created_at`. 스냅샷 때 적용된 가게 그림 바이트를 복사해 둔다. 가게가 그림을 바꾸거나 되돌려도 이 행은 남는다.
   - 행 트리거(`nft_metadata_immutable()`)가 `nft_token_metadata`의 `UPDATE`·`DELETE`와 `nft_metadata_images`의 `UPDATE`를 막는다. 한 번 쓴 토큰 메타데이터와 그림 내용은 바뀌지 않는다(`TRUNCATE`는 행 트리거를 타지 않아 시험 초기화는 그대로 된다).
@@ -67,7 +67,7 @@
 - 넣지 않는 것: 도로명 주소, 소개·메뉴·영업시간, 방문·발행·확정 시각, 주문·결제, 계정 ID, 지갑 주소, tx hash, reward key, 참조 번호. 생성기는 이런 값을 입력으로 받지도 않는다.
 - 출처(`<출처>`)는 Worker 환경 변수 `NFT_METADATA_ORIGIN`(필수, `https://호스트`만, 경로·쿼리 없음. 로컬 시험용 `http://localhost`·`http://127.0.0.1`만 예외). 운영 `https://masscom.kr`, 시연 `https://demo-api.masscom.kr`. 저장소 클래스의 기본값은 `https://masscom.kr`이고 실행기(`run-worker.ts`)는 값을 반드시 받는다.
 
-### 3.4 가게 정보: 동네·업종(migration 0034, 관리자 API·웹)
+### 3.4 가게 정보: 동네·업종(migration 0036, 관리자 API·웹)
 
 - `merchants.neighborhood text NULL`: 앞뒤 공백을 지운 뒤 `^[가-힣][가-힣0-9·]{0,8}[동가리]$`(2~10자, 한글로 시작, `동`·`가`·`리`로 끝남, 가운데에 숫자·가운뎃점 `·` 허용 — 행정동 `월계1동`·`상계3·4동` 때문)이고 숫자가 3자리 이상 이어지면 안 된다. 공백·영문·다른 기호는 거절. DB CHECK가 같은 규칙의 최후 방어선이다. 도로명 주소·번지는 이 규칙을 통과할 수 없다(공백·숫자열).
 - `merchants.category text NULL`: 고정 목록 `한식`·`중식`·`일식`·`양식`·`분식`·`카페`·`베이커리`·`주점`·`기타` 중 하나(DB CHECK).
@@ -97,7 +97,7 @@ API(`apps/api/src/server.ts`, 로그인 없음):
 
 ## 4. 호환(배포된 API `d004d7f`)
 
-migration이 API 교체보다 먼저 돈다. 0034는 추가만 한다.
+migration이 API 교체보다 먼저 돈다. 0036는 추가만 한다.
 
 | 변경 | 옛 API·옛 Worker에 미치는 영향 |
 | --- | --- |
@@ -105,7 +105,7 @@ migration이 API 교체보다 먼저 돈다. 0034는 추가만 한다.
 | `nft_series` id CHECK `NOT VALID` | 옛 API는 `nft_series`에 쓰지 않는다. 기존 행은 검사하지 않는다 |
 | 새 표 2개·트리거 | 옛 코드는 읽지도 쓰지 않는다. 옛 Worker(배포된 곳 없음)는 스냅샷을 만들지 않을 뿐이다 |
 
-0034는 `SET LOCAL lock_timeout = '5s'`로 운영 표(`merchants`) 잠금을 오래 기다리지 않는다(0032와 같은 규칙). 병렬 브랜치 #253의 0033과 겹치는 표·열이 없어 적용 순서와 무관하다.
+0036는 `SET LOCAL lock_timeout = '5s'`로 운영 표(`merchants`) 잠금을 오래 기다리지 않는다(0032와 같은 규칙). 병렬 PR #257(0034·0035, D-056·D-057)·#253(0033, D-059)과 겹치는 표·열이 없어 적용 순서와 무관하다. 번호 충돌을 피하려고 이 브랜치는 migration 0036·결정 D-060을 쓴다.
 
 배포 순서: ① migration(API 배포가 먼저 돌림) → ② API → ③ 운영 웹(새 관리자 웹은 새 키를 보내므로 옛 API면 400이 난다) → ④ Caddy(웹 배포에 포함) → ⑤ 발행을 열 때 Worker(`NFT_METADATA_ORIGIN` 필수)와 시리즈 생성(3.1 규칙). 운영 발행은 여전히 `PREPARING`(D-054, B-027)이라 이번 변경으로 운영 토큰이 생기지 않는다.
 

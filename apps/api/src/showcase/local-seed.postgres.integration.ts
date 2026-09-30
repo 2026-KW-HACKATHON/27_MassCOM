@@ -174,7 +174,7 @@ test('existing one-store showcase data grows to three stores without changing vi
       [rows.merchants.length, rows.campaigns.length, rows.goals.length, rows.members.length],
       [3, 3, 9, 3],
     );
-    // #254: 0034 전에 seed된 A도 동네·업종을 받고, 이미 값이 있는 점포는 다시 seed해도 바뀌지 않는다.
+    // #254: 0036 전에 seed된 A도 동네·업종을 받고, 이미 값이 있는 점포는 다시 seed해도 바뀌지 않는다.
     const profiles = async () => (await pool.query<{ id: string; neighborhood: string; category: string }>(
       'SELECT id, neighborhood, category FROM merchants ORDER BY id')).rows;
     assert.deepEqual(await profiles(), [

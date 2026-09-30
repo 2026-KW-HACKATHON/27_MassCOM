@@ -39,9 +39,9 @@
 
 **다음 행동:** 운영 기록이 있는 두 계정의 도감 격리와 최신 APK를 별도로 검증한다. 시연 API/앱·`demo.masscom.kr`와 일반 링크 탭 동작도 미완료 게이트다.
 
-## NFT 메타데이터 경로 (Issue #254, D-057)
+## NFT 메타데이터 경로 (Issue #254, D-060)
 
-`masscom.kr`·`www`의 `/nft-metadata/<series>/<tokenId>.json`과 `/nft-metadata/images/<sha256>.webp`는 `GET`·`HEAD`이고 정해진 모양일 때만 Caddy가 `api:3000`으로 넘긴다(발행 확정 때 고정한 스냅샷, [설계](../../docs/superpowers/specs/2026-09-30-nft-metadata-design.md)). 컨트랙트에 고정된 실증 토큰 `/nft-metadata/base-sepolia-proof/1.json`은 지금처럼 정적 파일이다. `Access-Control-Allow-Origin: *`는 `defer`로 붙여 API 값과 겹치지 않는다. 시연 `demo-api.masscom.kr`는 원래 모든 경로를 시연 API로 넘기므로 바꾸지 않았다. 로컬 검사: `node --test tests/ops/verify_nft_metadata_proxy_test.mjs`(Docker Caddy). 운영 반영은 API(migration 0034 포함)를 먼저 배포한 뒤 웹·Caddy 순서이며 아직 `NOT_RUN`이다.
+`masscom.kr`·`www`의 `/nft-metadata/<series>/<tokenId>.json`과 `/nft-metadata/images/<sha256>.webp`는 `GET`·`HEAD`이고 정해진 모양일 때만 Caddy가 `api:3000`으로 넘긴다(발행 확정 때 고정한 스냅샷, [설계](../../docs/superpowers/specs/2026-09-30-nft-metadata-design.md)). 컨트랙트에 고정된 실증 토큰 `/nft-metadata/base-sepolia-proof/1.json`은 지금처럼 정적 파일이다. `Access-Control-Allow-Origin: *`는 `defer`로 붙여 API 값과 겹치지 않는다. 시연 `demo-api.masscom.kr`는 원래 모든 경로를 시연 API로 넘기므로 바꾸지 않았다. 로컬 검사: `node --test tests/ops/verify_nft_metadata_proxy_test.mjs`(Docker Caddy). 운영 반영은 API(migration 0036 포함)를 먼저 배포한 뒤 웹·Caddy 순서이며 아직 `NOT_RUN`이다.
 
 ## 사장님 AI 가게 그림 키 (D-048, Issue #236)
 

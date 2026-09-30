@@ -200,7 +200,7 @@ COMMIT;
 
 이미 그림을 받아 둔 기기는 카탈로그(가게 목록)를 다시 받을 때까지 캐시한 그림을 계속 보여 줄 수 있다(공개 그림 주소는 `immutable`로 1년 캐시된다). 목록을 새로 받으면 `artUrl`이 `null`이라 더는 그 주소를 쓰지 않는다. 가게가 같은 그림을 다시 적용할 수는 있으므로 계속 막아야 하면 그 가게의 `merchant_members`를 회수한다.
 
-### 공개 NFT 메타데이터 (Issue #254, D-057, migration 0034)
+### 공개 NFT 메타데이터 (Issue #254, D-060, migration 0036)
 
 발행이 체인에서 확정될 때 Worker가 `nft_token_metadata`에 고정한 메타데이터와 `nft_metadata_images`에 복사한 가게 그림을 로그인 없이 내보낸다. 이 서버는 스냅샷을 만들지 않고 읽기만 한다([설계](../../docs/superpowers/specs/2026-09-30-nft-metadata-design.md)).
 

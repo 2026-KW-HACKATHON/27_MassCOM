@@ -210,7 +210,7 @@ export async function seedShowcaseFixtureData(
       );
       if (hasExisting) {
         assertFixtureMatches(existing, entry, now, Boolean(staffAccountId));
-        // 0034 전에 seed된 시연 점포는 동네·업종이 둘 다 비어 있을 때만 채운다(다른 값은 건드리지 않는다).
+        // 0036 전에 seed된 시연 점포는 동네·업종이 둘 다 비어 있을 때만 채운다(다른 값은 건드리지 않는다).
         await client.query(
           `UPDATE merchants SET neighborhood = $2, category = $3
            WHERE id = $1 AND is_demo AND neighborhood IS NULL AND category IS NULL`,
