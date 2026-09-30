@@ -519,7 +519,14 @@ function IntakeStatus({
       {receipt ? (
         <>
           <Text style={styles.statusBody}>접수번호 (지금 저장하세요. 처리 뒤에는 이 번호로 결과를 확인합니다)</Text>
-          <Text selectable accessibilityLabel={`접수번호 ${receipt.replaceAll('-', ' ')}`} style={styles.receiptCode}>
+          <Text
+            selectable
+            accessibilityLabel={`접수번호 ${receipt.replaceAll('-', ' ')}`}
+            adjustsFontSizeToFit
+            numberOfLines={1}
+            maxFontSizeMultiplier={1.3}
+            style={styles.receiptCode}
+          >
             {receipt}
           </Text>
         </>

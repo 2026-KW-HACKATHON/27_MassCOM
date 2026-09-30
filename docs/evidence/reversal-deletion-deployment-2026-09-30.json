@@ -1,0 +1,57 @@
+{
+  "observedAt": "2026-09-30",
+  "sourceCommit": "02cb7e7c5998e8a65509fcb35a69af1e44934424",
+  "repositoryVisibility": "PUBLIC",
+  "pullRequests": [245, 247],
+  "issues": [243, 194],
+  "mainCi": { "runId": 36643877980, "result": "PASS" },
+  "operating": {
+    "method": "scripts/deploy-lightsail.sh --deploy (existing production Lightsail); the api and production-web containers started 2026-09-29T23:14:32Z",
+    "migrationCompatibility": "from f1bba2d to 02cb7e7, backward_compatible=yes: 0030 adds nullable columns, the badge_coupon_audit table and indexes, widens the badge_coupons status CHECK with VOIDED and replaces reward_entitlements_unique_goal with a same-named partial EXCLUDE constraint so f1bba2d's ON CONFLICT ON CONSTRAINT keeps working; 0031 adds columns with defaults to account_deletion_intake_requests, moves its primary key to a new id column and keeps a plain UNIQUE index on account_id so f1bba2d's INSERT ... ON CONFLICT (account_id) DO NOTHING still infers it; both migrations widen platform_admin_audit_action_check to the same 8-action union",
+    "before": {
+      "compatibilityBaseCommit": "f1bba2d (the previous full deploy, ai-store-art-deployment-2026-09-30.json)",
+      "schema": "0029_merchant_art.sql was the last applied migration",
+      "constraintNamesChecked": "badge_coupons_check1, badge_coupons_status_check, reward_entitlements_unique_goal, platform_admin_audit_action_check and account_deletion_intake_requests_pkey all existed on the production database before the deploy, so every DROP CONSTRAINT in 0030/0031 had a target"
+    },
+    "after": {
+      "deployedImages": "masscom-api:02cb7e7c5998 and masscom-production-web:02cb7e7c5998, both healthy",
+      "migrationOutput": "database migrations applied",
+      "schema": "0031_account_deletion_processing.sql is the last applied migration; reward_entitlements_unique_goal is an exclusion constraint (contype x); account_deletion_intake_account_key exists",
+      "newRows": "badge_coupon_audit 0 rows and account_deletion_intake_requests 0 rows right after the deploy",
+      "aiArtStartupLog": "AI store art: disabled (OPENAI_API_KEY is empty)"
+    },
+    "backup": "PASS: two pre-migration dumps under /opt/masscom/backups, both listed on the host by the orchestrator: (1) a manual pre-02cb7e7-20260930.dump taken just before the deploy, 241 entries, 112234 bytes, mode 600; (2) scripts/deploy-lightsail.sh's own database-before-02cb7e7c5998.dump.bbiAOH, 112234 bytes, 2026-09-29 23:13Z; actual restore NOT_RUN",
+    "rollbackNote": "once a VOIDED coupon or a CANCELED visit row exists, fix forward instead of returning the API to f1bba2d (docs/HANDOFF.md)"
+  },
+  "showcase": {
+    "method": "manual compose under /opt/masscom-showcase: source transfer, pre-deploy DB backup, image build, migrate, showcase-api replaced, host seed",
+    "release": "/opt/masscom-showcase/releases/02cb7e7c5998e8a65509fcb35a69af1e44934424",
+    "before": {
+      "apiImage": "masscom-showcase-api:f1bba2d (ai-store-art-deployment-2026-09-30.json)"
+    },
+    "after": {
+      "apiImage": "masscom-showcase-api:02cb7e7",
+      "migrationOutput": "database migrations applied",
+      "schema": "0031_account_deletion_processing.sql is the last applied migration",
+      "container": "showcase-api recreated and healthy (started 2026-09-29T23:15:52Z)",
+      "seed": "SHOWCASE_HOST_SEEDED"
+    },
+    "backup": "PASS: /opt/masscom-showcase/backups/pre-02cb7e7-20260930.dump, 241 entries, 114642 bytes, mode 600; actual restore NOT_RUN"
+  },
+  "externalHttps": {
+    "operatingApiHealth": "200 {\"status\":\"ok\"}",
+    "showcaseApiHealth": "200 {\"status\":\"ok\"}",
+    "operatingMerchants": "{\"merchants\":[]}",
+    "deletionStatusUnknownReceipt": "POST /api/web/account-deletion-status with the www origin and an unknown receipt returned 404 DELETION_RECEIPT_NOT_FOUND",
+    "deletionIntakeWithoutSession": "POST /api/web/account-deletion-intake without a session cookie returned 401 WEB_SESSION_INVALID",
+    "deletionStatusWithoutOrigin": "403 ORIGIN_FORBIDDEN",
+    "adminAndMerchantPages": "https://www.masscom.kr/admin/ contains '계정 삭제 요청' and https://www.masscom.kr/merchant/ contains '최근 방문 확인' and '최근 쿠폰'",
+    "publicPagesSha256Prefix": "privacy.html b3824ca124a6ad61 and account-deletion.html 8ff3ca01cb3df3d8, each the same on https://masscom.kr and https://www.masscom.kr and equal to the repository docs/ file",
+    "note": "no production account, visit, coupon or deletion request was created; the probes above only read or were refused"
+  },
+  "notRun": [
+    "a real Google web login filing, cancelling and an operator processing a deletion on production (needs a disposable real Google account; B-020)",
+    "a real staff visit cancellation or coupon undo on production (production has no public store yet)",
+    "database restore from either backup"
+  ]
+}
