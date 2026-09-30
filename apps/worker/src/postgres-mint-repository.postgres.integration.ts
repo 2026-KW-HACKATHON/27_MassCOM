@@ -1168,3 +1168,120 @@ function requiredTestDatabaseUrl(): string {
   }
   return value;
 }
+
+// Issue #254: 발행 확정(finalize) 때 공개 메타데이터를 고정한다.
+async function finalizeFixtureJob(pool: Pool, repository: PostgresMintRepository, workerId: string) {
+  const item = await repository.leaseNext(workerId, 30_000);
+  assert.ok(item);
+  const attemptId = await repository.markPrepared(item, workerId);
+  const transactionHash = `0x${'ab'.repeat(32)}`;
+  await repository.markSubmitted(item.jobId, workerId, attemptId, transactionHash);
+  const before = await pool.query('SELECT 1 FROM nft_token_metadata');
+  assert.equal(before.rowCount, 0, 'no metadata before chain confirmation');
+  const result: ChainMintResult = {
+    transactionHash, blockNumber: 4, blockHash: `0x${'bc'.repeat(32)}`, logIndex: 0, tokenId: '7',
+    rewardKey: item.rewardKey, recipient: item.recipient, seriesKey: item.seriesKey,
+    contractAddress: item.contractAddress, chainId: item.chainId,
+  };
+  await repository.finalize(item, workerId, attemptId, result);
+  return { item, attemptId, result };
+}
+
+type SavedMetadata = { nft_series_id: string; token_id: string; metadata_json: string; image_sha256: string | null };
+
+async function savedMetadata(pool: Pool): Promise<SavedMetadata[]> {
+  return (await pool.query<SavedMetadata>(
+    'SELECT nft_series_id, token_id::text, metadata_json, image_sha256 FROM nft_token_metadata',
+  )).rows;
+}
+
+test('#254 확정 때 가게 이름·동네·업종·방문 단계·캠페인과 적용된 가게 그림을 고정하고 개인 정보는 넣지 않는다', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const art = Buffer.from('fixture-webp-bytes-254');
+  const sha = createHash('sha256').update(art).digest('hex');
+  await pool.query(`UPDATE merchants SET neighborhood = '월계1동', category = '분식' WHERE id = 'merchant-worker'`);
+  await pool.query('INSERT INTO merchant_art (merchant_id, image, sha256) VALUES ($1, $2, $3)',
+    ['merchant-worker', art, sha]);
+  const repository = new PostgresMintRepository(pool, { nftMetadataOrigin: 'https://demo-api.masscom.kr' });
+
+  await finalizeFixtureJob(pool, repository, 'worker-metadata');
+
+  const rows = await savedMetadata(pool);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]!.nft_series_id, 'series-worker');
+  assert.equal(rows[0]!.token_id, '7');
+  assert.equal(rows[0]!.image_sha256, sha);
+  assert.deepEqual(JSON.parse(rows[0]!.metadata_json), {
+    name: 'Worker 데모 식당 방문 도장',
+    description: '월계1동 Worker 데모 식당 첫 방문 도장입니다. 월계 마스코트 방문 도감이 발행한 기념 NFT이며 다른 지갑으로 보낼 수 없습니다.',
+    image: `https://demo-api.masscom.kr/nft-metadata/images/${sha}.webp`,
+    attributes: [
+      { trait_type: '가게 이름', value: 'Worker 데모 식당' },
+      { trait_type: '동네', value: '월계1동' },
+      { trait_type: '업종', value: '분식' },
+      { trait_type: '방문 단계', value: '첫 방문' },
+      { trait_type: '캠페인', value: 'Worker 도감' },
+    ],
+  });
+  for (const hidden of ['데모로', '2026-', 'customer-worker', '0x4000000000000000000000000000000000000004', 'Worker 시험용']) {
+    assert.equal(rows[0]!.metadata_json.includes(hidden), false, hidden);
+  }
+  const image = await pool.query<{ image: Buffer }>('SELECT image FROM nft_metadata_images WHERE sha256 = $1', [sha]);
+  assert.deepEqual(image.rows[0]?.image, art);
+});
+
+test('#254 가게 정보·그림이 바뀌고 확정을 다시 해도 이미 고정한 메타데이터·그림은 그대로이고 수정·삭제는 DB가 막는다', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  const art = Buffer.from('fixture-webp-original');
+  const sha = createHash('sha256').update(art).digest('hex');
+  await pool.query(`UPDATE merchants SET neighborhood = '월계동', category = '한식' WHERE id = 'merchant-worker'`);
+  await pool.query('INSERT INTO merchant_art (merchant_id, image, sha256) VALUES ($1, $2, $3)',
+    ['merchant-worker', art, sha]);
+  const repository = new PostgresMintRepository(pool);
+  const { item, attemptId, result } = await finalizeFixtureJob(pool, repository, 'worker-immutable');
+  const [original] = await savedMetadata(pool);
+  assert.ok(original);
+  assert.match(JSON.parse(original.metadata_json).image, /^https:\/\/masscom\.kr\/nft-metadata\/images\//);
+
+  // 가게가 이름·동네·업종·캠페인을 고치고 그림을 되돌린다(merchant_art 행 삭제).
+  await pool.query(`UPDATE merchants SET name = '바뀐 이름', neighborhood = '중계동', category = '카페' WHERE id = 'merchant-worker'`);
+  await pool.query(`UPDATE campaigns SET title = '바뀐 캠페인' WHERE id = 'campaign-worker'`);
+  await pool.query(`DELETE FROM merchant_art WHERE merchant_id = 'merchant-worker'`);
+  // 같은 결과로 다시 확정해도(재시작·경합 복구) 스냅샷은 한 행 그대로다.
+  await repository.finalize(item, 'worker-immutable', attemptId, result);
+  assert.deepEqual(await savedMetadata(pool), [original]);
+  const image = await pool.query<{ image: Buffer }>('SELECT image FROM nft_metadata_images WHERE sha256 = $1', [sha]);
+  assert.deepEqual(image.rows[0]?.image, art, 'reverted art stays served for the minted token');
+
+  await assert.rejects(pool.query(`UPDATE nft_token_metadata SET metadata_json = '{}'`), /immutable/);
+  await assert.rejects(pool.query('DELETE FROM nft_token_metadata'), /immutable/);
+  await assert.rejects(pool.query(`UPDATE nft_metadata_images SET image = '\\x00'::bytea`), /immutable/);
+  await assert.rejects(pool.query('DELETE FROM nft_metadata_images WHERE sha256 = $1', [sha]), /immutable/);
+  assert.deepEqual(await savedMetadata(pool), [original]);
+});
+
+test('#254 가게 그림이 없으면 기본 도장이고 동네·업종이 없으면 그 속성을 빼며, 경로에 쓸 수 없는 시리즈 id는 새로 만들 수 없다', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  t.after(() => pool.end());
+  await seedWorkerFixture(pool);
+  await finalizeFixtureJob(pool, new PostgresMintRepository(pool), 'worker-default');
+  const [saved] = await savedMetadata(pool);
+  assert.equal(saved?.image_sha256, null);
+  const metadata = JSON.parse(saved!.metadata_json);
+  assert.equal(metadata.image, 'https://masscom.kr/assets/mascot-stamp.png');
+  assert.deepEqual(metadata.attributes.map((item: { trait_type: string }) => item.trait_type), ['가게 이름', '방문 단계', '캠페인']);
+
+  for (const id of ['base-sepolia-proof', 'has space', 'dot.id', '-leading', 'a'.repeat(129)]) {
+    await assert.rejects(pool.query(
+      `INSERT INTO nft_series (id, campaign_id, target_visit_count, chain_id, contract_address,
+         contract_address_normalized, series_key, max_ever_minted, status)
+       VALUES ($1, 'campaign-worker', 1, 31337, '0x7000000000000000000000000000000000000008',
+         '0x7000000000000000000000000000000000000008', decode(repeat('55', 32), 'hex'), 1, 'DRAFT')`,
+      [id],
+    ), /nft_series_metadata_path_check/, id);
+  }
+});

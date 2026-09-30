@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { EthersMintChainGateway } from './ethers-chain-gateway.js';
 import { MintWorker } from './mint-worker.js';
 import { resolveMinterSigner } from './minter-signer-config.js';
+import { parseNftMetadataOrigin } from './nft-metadata.js';
 import { PostgresMintRepository } from './postgres-mint-repository.js';
 
 export async function runConfiguredWorker(environment = process.env): Promise<boolean> {
@@ -14,6 +15,8 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
   const contractAddress = required(environment.NFT_CONTRACT_ADDRESS, 'NFT_CONTRACT_ADDRESS');
   const minterAddress = required(environment.MINTER_ADDRESS, 'MINTER_ADDRESS');
   const workerId = environment.WORKER_ID?.trim() || 'local-mint-worker';
+  // 확정 때 고정하는 공개 메타데이터·그림의 출처(Issue #254). 한 번 쓰면 바꿀 수 없으므로 기본값 없이 반드시 받는다.
+  const nftMetadataOrigin = parseNftMetadataOrigin(environment.NFT_METADATA_ORIGIN);
   const confirmations = requiredInteger(
     environment.CHAIN_CONFIRMATIONS ?? '1',
     'CHAIN_CONFIRMATIONS',
@@ -59,6 +62,7 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
       reorgMargin,
       receiptTimeoutMs,
       minterLockTimeoutMs: lockTimeoutMs,
+      nftMetadataOrigin,
     });
     const scanFromBlock = await repository.getEventScanStart(chainId, contractAddress);
     const gateway = new EthersMintChainGateway({
