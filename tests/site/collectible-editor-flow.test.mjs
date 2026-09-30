@@ -484,6 +484,7 @@ test('저장하지 않은 편집이 있으면 저장한 프로젝트를 열기 �
   await ui.change('project-list', published.id);
   assert.match(ui.asked[0], /저장하지 않은 편집이 있어요\. 지금 새로 시작하거나 다른 프로젝트를 열면 사라져요/);
   assert.equal(ui.control('name').value, '지금 편집 중', '거절하면 편집이 남는다');
+  assert.equal(ui.control('project-list').value, '', '거절하면 목록 선택도 지금 편집 중인 새 초안으로 돌아온다');
   assert.equal(ui.dirty, true);
   assert.equal(api.calls.some(call => call.path === `/collectible-projects/${published.id}`), false, '거절했으니 열지 않았다');
 });

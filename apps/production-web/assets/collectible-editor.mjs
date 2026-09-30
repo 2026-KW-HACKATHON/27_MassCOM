@@ -456,7 +456,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   async function loadProject(id) {
     if (!id || busy) return;
-    if (!confirmDiscardIfDirty()) return;
+    // 거절하면 목록 선택도 지금 편집 중인 프로젝트로 되돌린다. 브라우저는 change 전에 이미 값을 바꿔 둔다.
+    if (!confirmDiscardIfDirty()) { control('project-list').value = wrapper?.id || ''; return; }
     setBusy(true);
     loading = true;
     for (const input of container.querySelectorAll('input,select,textarea,button')) { loadingInputs.set(input, input.disabled); input.disabled = true; }

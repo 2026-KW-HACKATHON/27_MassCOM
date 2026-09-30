@@ -150,8 +150,8 @@ grep -q 'StrictHostKeyChecking=yes' "$deploy" || {
   echo "full deploy no longer pins strict SSH host key checking" >&2
   exit 1
 }
-if grep -q 'accept-new' "$deploy"; then
-  echo "full deploy still trusts unknown SSH host keys via accept-new" >&2
+if grep -rq 'accept-new' "$deploy" "$repo_root/scripts"; then
+  echo "a deploy script still trusts unknown SSH host keys via accept-new" >&2
   exit 1
 fi
 
