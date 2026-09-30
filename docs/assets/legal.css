@@ -49,7 +49,8 @@
   background: var(--mc-bg);
 }
 
-.legal-header > a:last-child {
+.legal-header > a:last-child,
+.legal-header-links a {
   display: inline-flex;
   min-height: 2.5rem;
   align-items: center;
@@ -62,8 +63,15 @@
   text-decoration: none;
 }
 
-.legal-header > a:last-child:hover {
+.legal-header > a:last-child:hover,
+.legal-header-links a:hover {
   background: var(--mc-primary-container);
+}
+
+.legal-header-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .legal-main {

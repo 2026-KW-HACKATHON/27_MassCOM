@@ -1,0 +1,96 @@
+import type { TextStyle, ViewStyle } from 'react-native';
+import { type AppColors } from '../../theme/palette';
+import { uiMetrics } from '../../theme/ui-metrics';
+
+/** 체크 상자 한 변(dp). 시스템 글자 크기에 비례해 커지되(최대 2.5배) 100% 아래로는 줄지 않는다. */
+export function consentBoxSize(fontScale: number): number {
+  const scale = Number.isFinite(fontScale) ? Math.min(Math.max(fontScale, 1), 2.5) : 1;
+  return Math.round(28 * scale);
+}
+
+/** 동의 화면 스타일. 줄 높이·최소 높이만 정하고 고정 높이는 두지 않아 글자 200%에서도 잘리지 않는다. */
+export function makeConsentStyles(palette: AppColors, hairlineWidth = 1) {
+  return {
+    content: {
+      flexGrow: 1,
+      gap: 16,
+      paddingHorizontal: 24,
+      paddingTop: 32,
+      backgroundColor: palette.background,
+    },
+    eyebrow: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: '800' },
+    title: { color: palette.label, fontSize: 28, lineHeight: 36, fontWeight: '900' },
+    body: { color: palette.secondaryLabel, fontSize: 16, lineHeight: 25 },
+    noticeCard: {
+      gap: 12,
+      padding: 18,
+      borderRadius: 20,
+      borderCurve: 'continuous',
+      backgroundColor: palette.surface,
+    },
+    noticeHeading: { color: palette.label, fontSize: 17, lineHeight: 24, fontWeight: '800' },
+    noticeItem: { gap: 2 },
+    noticeTitle: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: '800' },
+    noticeBody: { color: palette.label, fontSize: 15, lineHeight: 23 },
+    checkGroup: { gap: 6 },
+    checkRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      minHeight: uiMetrics.minTouch,
+      paddingVertical: 8,
+    },
+    box: {
+      minWidth: 28,
+      minHeight: 28,
+      borderRadius: 8,
+      borderWidth: 2,
+      borderColor: palette.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.background,
+    },
+    boxChecked: { backgroundColor: palette.primary },
+    tick: { color: palette.onPrimary, fontSize: 18, lineHeight: 22, fontWeight: '900', textAlign: 'center' },
+    checkLabel: { flex: 1, color: palette.label, fontSize: 16, lineHeight: 24, fontWeight: '700' },
+    link: {
+      minHeight: uiMetrics.minTouch,
+      alignSelf: 'flex-start',
+      justifyContent: 'center',
+      paddingLeft: 40,
+    },
+    linkText: { color: palette.primary, fontSize: 15, lineHeight: 22, fontWeight: '800', textDecorationLine: 'underline' },
+    statusCard: {
+      gap: 10,
+      padding: 16,
+      borderRadius: 16,
+      borderCurve: 'continuous',
+      backgroundColor: palette.surface,
+    },
+    statusText: { color: palette.label, fontSize: 15, lineHeight: 22, fontWeight: '700' },
+    errorText: { color: palette.error, fontSize: 15, lineHeight: 22, fontWeight: '700' },
+    submit: {
+      minHeight: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 16,
+      backgroundColor: palette.primary,
+    },
+    submitDisabled: { backgroundColor: palette.separator },
+    submitText: { color: palette.onPrimary, fontSize: 17, lineHeight: 24, fontWeight: '900', textAlign: 'center' },
+    submitTextDisabled: { color: palette.secondaryLabel },
+    secondary: {
+      minHeight: uiMetrics.minTouch,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 14,
+      borderWidth: hairlineWidth,
+      borderColor: palette.separator,
+    },
+    secondaryText: { color: palette.primary, fontSize: 16, lineHeight: 22, fontWeight: '800', textAlign: 'center' },
+  } satisfies Record<string, ViewStyle | TextStyle>;
+}

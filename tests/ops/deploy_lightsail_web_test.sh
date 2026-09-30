@@ -47,6 +47,51 @@ done
   web_collection_probe_response 'http://api-fixture.invalid/api/web/collection' masscom.kr
 )
 
+# 동의 조회 probe: 로그인 없는 요청은 401(JSON, no-store)만 받아들인다. 404는 API에 경로가 없거나 Caddy가 넘기지 않는 것이다.
+web_consent_probe_accepts 401 'application/json; charset=utf-8' 'no-store'
+for rejected in \
+  '404|application/json; charset=utf-8|no-store' \
+  '503|application/json; charset=utf-8|no-store' \
+  '200|application/json; charset=utf-8|no-store' \
+  '502|application/json; charset=utf-8|no-store' \
+  '401|text/plain|no-store' \
+  '401|application/json; charset=utf-8|public, max-age=60' \
+  '401|application/json; charset=utf-8|'; do
+  IFS='|' read -r status content_type cache_control <<< "$rejected"
+  if web_consent_probe_accepts "$status" "$content_type" "$cache_control"; then
+    echo "unsafe web consent probe response accepted: $rejected" >&2
+    exit 1
+  fi
+done
+(
+  curl() {
+    printf '401|application/json; charset=utf-8|no-store'
+    return 28
+  }
+  if web_consent_probe_response 'http://api-fixture.invalid/api/web/consent' masscom.kr; then
+    echo 'consent probe ignored a curl timeout after receiving safe-looking headers' >&2
+    exit 1
+  fi
+)
+(
+  curl() {
+    local previous=''
+    for argument in "$@"; do
+      if [[ "$previous" == '-H' && "$argument" == 'Host: masscom.kr' ]]; then
+        printf '401|application/json; charset=utf-8|no-store'
+        return
+      fi
+      previous="$argument"
+    done
+    printf '404|application/json; charset=utf-8|no-store'
+  }
+  web_consent_probe_response 'http://api-fixture.invalid/api/web/consent' masscom.kr
+  if web_consent_probe_response 'http://api-fixture.invalid/api/web/consent' www.masscom.kr; then
+    echo 'consent probe accepted an answer that was not for the probed host' >&2
+    exit 1
+  fi
+)
+
 scratch="$(mktemp -d -t masscom-web-deploy-test.XXXXXX)"
 trap 'rm -rf "$scratch"' EXIT
 key="$scratch/key.pem"
@@ -113,6 +158,7 @@ grep -q 'https://demo-api.masscom.kr/merchants' "$scratch/remote.sh"
 grep -q 'https://api.masscom.kr/merchants' "$scratch/remote.sh"
 grep -q 'verify-showcase-edge-routes.mjs' "$scratch/remote.sh"
 grep -qF 'web_collection_probe_response "http://$address/api/web/collection" masscom.kr' "$scratch/remote.sh"
+grep -qF 'web_consent_probe_response "http://$address/api/web/consent" masscom.kr' "$scratch/remote.sh"
 grep -q 'web_rollback' "$scratch/remote.sh"
 if grep -Eq 'compose_new (build|up).*\b(api|postgres|migrate)\b' "$scratch/remote.sh"; then
   echo 'web-only deploy script would modify API or database services' >&2
