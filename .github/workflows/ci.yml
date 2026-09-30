@@ -117,6 +117,8 @@ jobs:
         run: bash tests/release/verify_aab_signature_test.sh
       - name: Verify AAB assessment provenance
         run: bash tests/release/assess_release_aab_test.sh
+      - name: Verify release Keychain signing boundary
+        run: bash tests/release/verify_release_keychain_test.sh
       - name: 시연 APK 전용 빌드 경계 검사
         run: |
           bash tests/release/verify_showcase_apk_test.sh
