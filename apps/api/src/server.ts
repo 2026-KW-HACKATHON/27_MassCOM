@@ -42,6 +42,7 @@ import {
   type MerchantAccessControl,
 } from './merchant-access.js';
 import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
+import { matchNftMetadataRoute, type NftMetadataReader } from './nft-metadata.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import { MintRequestError, refuseMintRequestsWhilePreparing, type MintRequestService } from './mint-request-service.js';
 import { ReversalError, type ReversalService } from './reversal.js';
@@ -67,6 +68,7 @@ import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantArtService } from './postgres/merchant-art.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
+import { PostgresNftMetadataReader } from './postgres/nft-metadata.js';
 import { PostgresStaffRegistration, StaffRegistrationError } from './postgres/staff-registration.js';
 import { PostgresMintRequestService } from './postgres/mint-request-service.js';
 import { PostgresReversalService } from './postgres/reversal.js';
@@ -199,6 +201,7 @@ export function createApiServer(
   showcaseDeletionIntake?: AccountDeletionIntakeService,
   deletionProcessing?: AccountDeletionProcessingService,
   reversals?: ReversalService,
+  nftMetadata?: NftMetadataReader,
 ) {
   // The receipt lookup needs no login, so it is throttled per client instead (a receipt has 80 bits, this only stops floods).
   const deletionStatusLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60_000 });
@@ -1126,6 +1129,27 @@ export function createApiServer(
         return;
       }
 
+      // 공개 NFT 메타데이터(Issue #254, D-057): 발행 확정 때 고정한 바이트 그대로 오래 캐시한다. 지갑·탐색기가 다른 출처에서
+      // 읽으므로 404에도 CORS를 연다. 확정 전·없는 토큰은 404라 체인에서 보이는 것 이상을 알려 주지 않는다.
+      if (path.startsWith('/nft-metadata/') && (request.method === 'GET' || request.method === 'HEAD')) {
+        response.setHeader('access-control-allow-origin', '*');
+        const route = matchNftMetadataRoute(path);
+        if (!route) throw new RequestError(404, 'NOT_FOUND');
+        if (!nftMetadata) throw new RequestError(503, 'NFT_METADATA_NOT_CONFIGURED');
+        if (route.kind === 'image') {
+          const image = await nftMetadata.findImage(route.sha256);
+          if (!image) throw new RequestError(404, 'NOT_FOUND');
+          sendBinary(response, image, 'image/webp', 'public, max-age=31536000, immutable');
+          return;
+        }
+        const metadata = await nftMetadata.findTokenMetadata(route.seriesId, route.tokenId);
+        if (!metadata) throw new RequestError(404, 'NOT_FOUND');
+        response.setHeader('cache-control', 'public, max-age=31536000, immutable');
+        response.writeHead(200);
+        response.end(metadata);
+        return;
+      }
+
       // 현재 적용된 가게 그림. 파일 이름이 내용의 sha256이라 바뀌지 않으므로 오래 캐시한다. JSON만 내는 서버에서 이 경로만 이진 응답이다.
       const publicArtMatch = request.method === 'GET' ? path.match(/^\/merchant-art\/([0-9a-f]{64})\.webp$/) : null;
       if (publicArtMatch) {
@@ -1368,7 +1392,8 @@ function requireNumber(body: Record<string, unknown>, field: string): number {
 }
 
 function adminMerchantInput(body: Record<string, unknown>): MerchantInput {
-  if (Object.keys(body).some(key => !['name', 'story', 'roadAddress', 'minimumSpendWon', 'menuItems', 'businessHours', 'expectedVersion'].includes(key))) {
+  if (Object.keys(body).some(key => !['name', 'story', 'roadAddress', 'minimumSpendWon', 'menuItems', 'businessHours',
+    'neighborhood', 'category', 'expectedVersion'].includes(key))) {
     throw new RequestError(400, 'INVALID_REQUEST');
   }
   return {
@@ -1376,6 +1401,9 @@ function adminMerchantInput(body: Record<string, unknown>): MerchantInput {
     roadAddress: requireString(body, 'roadAddress'), minimumSpendWon: requireNumber(body, 'minimumSpendWon'),
     ...(body.menuItems === undefined ? {} : { menuItems: body.menuItems as NonNullable<MerchantInput['menuItems']> }),
     ...(body.businessHours === undefined ? {} : { businessHours: body.businessHours as string }),
+    // 동네·업종 검사는 서비스(merchant-profile-rules)가 한다. 키가 없으면 그대로 둔다(옛 관리자 웹 호환).
+    ...(body.neighborhood === undefined ? {} : { neighborhood: body.neighborhood as string | null }),
+    ...(body.category === undefined ? {} : { category: body.category as string | null }),
   };
 }
 
@@ -1938,6 +1966,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           policyVersion: process.env.ACCOUNT_DELETION_POLICY_VERSION ?? 'account-deletion-v1',
         }) : undefined,
     reversals,
+    pool ? new PostgresNftMetadataReader(pool) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

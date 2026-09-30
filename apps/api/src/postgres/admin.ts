@@ -8,6 +8,7 @@ import {
   missingPublishRequirements, normalizeDocumentReference, ownerOfferConsentChecklistVersion, rewardOfferIssuanceCapMax,
   type OwnerDemotionReason,
 } from '../store-go-live-rules.js';
+import { normalizeCategory, normalizeNeighborhood } from '../merchant-profile-rules.js';
 import { AccountLifecycleError, PostgresAccountLifecycle } from './account-lifecycle.js';
 
 export type AdminMerchant = {
@@ -24,10 +25,14 @@ export type AdminMerchant = {
   // 공개할 때 관리자가 적은 점포 동의서(가게 이름·사진 사용) 참조 번호와 마지막 공개 시각(Issue #246).
   consentDocumentRef: string | null;
   publishedAt: string | null;
+  // 공개 NFT 메타데이터에 들어가는 동네(행정동)·업종(Issue #254). 공개 조건과는 무관하다.
+  neighborhood: string | null;
+  category: string | null;
 };
 
+// 선택 필드는 없으면 그대로 두고, 동네·업종은 null·빈 문자열이면 비운다.
 export type MerchantInput = Pick<AdminMerchant, 'name' | 'story' | 'roadAddress' | 'minimumSpendWon'> &
-  Partial<Pick<AdminMerchant, 'menuItems' | 'businessHours'>>;
+  Partial<Pick<AdminMerchant, 'menuItems' | 'businessHours' | 'neighborhood' | 'category'>>;
 
 export type AdminOperationsStatus = {
   merchants: {
@@ -131,6 +136,8 @@ type MerchantRow = {
   version: number;
   consent_document_ref: string | null;
   published_at: Date | null;
+  neighborhood: string | null;
+  category: string | null;
 };
 
 type CampaignRow = {
@@ -161,7 +168,7 @@ export class AdminError extends Error {
 }
 
 const columns = 'id, name, story, road_address, minimum_spend_won, menu_items, business_hours, status, is_demo, version, ' +
-  'consent_document_ref, published_at';
+  'consent_document_ref, published_at, neighborhood, category';
 
 function merchant(row: MerchantRow): AdminMerchant {
   if (row.is_demo) throw new AdminError('ADMIN_MERCHANT_NOT_FOUND');
@@ -170,6 +177,7 @@ function merchant(row: MerchantRow): AdminMerchant {
     minimumSpendWon: row.minimum_spend_won, menuItems: row.menu_items, businessHours: row.business_hours,
     status: row.status, demo: false, version: row.version,
     consentDocumentRef: row.consent_document_ref, publishedAt: row.published_at ? row.published_at.toISOString() : null,
+    neighborhood: row.neighborhood, category: row.category,
   };
 }
 
@@ -259,12 +267,20 @@ function validate(input: MerchantInput): MerchantInput {
           item.priceWon > 1_000_000_000)))) {
     throw new AdminError('ADMIN_INVALID_INPUT');
   }
+  const neighborhood = input.neighborhood === undefined ? undefined : normalizeNeighborhood(input.neighborhood);
+  const category = input.category === undefined ? undefined : normalizeCategory(input.category);
+  if ((input.neighborhood !== undefined && neighborhood === undefined) ||
+      (input.category !== undefined && category === undefined)) {
+    throw new AdminError('ADMIN_INVALID_INPUT');
+  }
   return { name: input.name.trim(), story: input.story.trim(),
     roadAddress: input.roadAddress.trim(), minimumSpendWon: input.minimumSpendWon,
     ...(input.menuItems === undefined ? {} : {
       menuItems: input.menuItems.map(item => ({ name: item.name.trim(), priceWon: item.priceWon })),
     }),
-    ...(input.businessHours === undefined ? {} : { businessHours: input.businessHours.trim() }) };
+    ...(input.businessHours === undefined ? {} : { businessHours: input.businessHours.trim() }),
+    ...(neighborhood === undefined ? {} : { neighborhood }),
+    ...(category === undefined ? {} : { category }) };
 }
 
 function validateCampaignDraft(raw: AdminCampaignDraftInput): AdminCampaignDraftInput {
@@ -580,10 +596,12 @@ export class PostgresAdminService {
     return this.transaction(async client => {
       await this.requireAdmin(client, accountId);
       const row = (await client.query<MerchantRow>(
-        `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, menu_items, business_hours, status, is_demo)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'PAUSED', false) RETURNING ${columns}`,
+        `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, menu_items, business_hours,
+           neighborhood, category, status, is_demo)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PAUSED', false) RETURNING ${columns}`,
         [randomUUID(), input.name, input.story, input.roadAddress, input.minimumSpendWon,
-          JSON.stringify(input.menuItems ?? []), input.businessHours ?? ''],
+          JSON.stringify(input.menuItems ?? []), input.businessHours ?? '',
+          input.neighborhood ?? null, input.category ?? null],
       )).rows[0]!;
       const created = merchant(row);
       await this.audit(client, accountId, created.id, 'MERCHANT_CREATED', null, created);
@@ -607,10 +625,15 @@ export class PostgresAdminService {
       const row = (await client.query<MerchantRow>(
         `UPDATE merchants SET name = $2, story = $3, road_address = $4,
          minimum_spend_won = $5, menu_items = COALESCE($6::jsonb, menu_items),
-         business_hours = COALESCE($7::text, business_hours), version = version + 1, updated_at = now()
+         business_hours = COALESCE($7::text, business_hours),
+         neighborhood = CASE WHEN $8::boolean THEN $9::text ELSE neighborhood END,
+         category = CASE WHEN $10::boolean THEN $11::text ELSE category END,
+         version = version + 1, updated_at = now()
          WHERE id = $1 RETURNING ${columns}`,
         [id, input.name, input.story, input.roadAddress, input.minimumSpendWon,
-          input.menuItems === undefined ? null : JSON.stringify(input.menuItems), input.businessHours ?? null],
+          input.menuItems === undefined ? null : JSON.stringify(input.menuItems), input.businessHours ?? null,
+          input.neighborhood !== undefined, input.neighborhood ?? null,
+          input.category !== undefined, input.category ?? null],
       )).rows[0]!;
       const updated = merchant(row);
       await this.audit(client, accountId, id, 'MERCHANT_UPDATED', before, updated);
