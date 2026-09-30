@@ -3,15 +3,15 @@
   "issue": 256,
   "decision": "D-058",
   "baseCommit": "d004d7f",
-  "sourceCommit": "04f673aca6d69cdb6c5348040d306eb81df8012f",
-  "sourceNote": "scripts/rehearse-ai-art-container.sh at branch feat/256-ai-art-enable commit 04f673a (the API is unchanged from main d004d7f); only the fake OpenAI server gained the unavailable (503) failure and FAKE_OPENAI_FAIL_COUNT",
+  "sourceCommit": "2b73f1d37fd67c976286c4b4be4c12eed114329e",
+  "sourceNote": "scripts/rehearse-ai-art-container.sh at branch feat/256-ai-art-enable commit 2b73f1d (the API is unchanged from main d004d7f); only the fake OpenAI server gained the unavailable (503) failure and FAKE_OPENAI_FAIL_COUNT. Re-run after the security review follow-up (per-run label, database name and image name); the run before it, at 04f673a, had the same 224/224 result.",
   "realOpenAiCalled": false,
   "realKeyUsed": false,
   "deployed": false,
   "environment": {
     "host": "macOS Darwin 25.6.0 (arm64), Docker 27.3.1 (Server), Docker Desktop",
     "apiImage": "built from infra/lightsail/api.Dockerfile (node:22-bookworm-slim, Node v22.23.3), the same Dockerfile the showcase host builds; removed after the run",
-    "postgres": "existing local container masscom-sky-qa-pg (postgres:16.10-alpine); the script created its own database masscom_256_test and dropped it afterwards",
+    "postgres": "existing local container masscom-sky-qa-pg (postgres:16.10-alpine); the script created its own per-run database masscom_256_<pid>_test and dropped it afterwards",
     "network": "API, fake OpenAI server and driver share the PostgreSQL container network namespace (--network container:...), so the API reaches Postgres and AI_ART_OPENAI_BASE_URL=http://127.0.0.1:<port> on its own loopback",
     "key": "clearly fake value (fake-rehearsal-key-not-a-real-openai-key); never sent anywhere but the local fake server",
     "apiSettings": "NODE_ENV=production, read-only filesystem with /tmp tmpfs and no-new-privileges (as the showcase compose), AI_ART_STAFF_MAY_MANAGE=true (as the showcase compose); SHOWCASE_MODE is not set because it requires the database name masscom_showcase"
@@ -21,7 +21,8 @@
     "checks": 224,
     "pass": 224,
     "fail": 0,
-    "scenarios": 19
+    "scenarios": 19,
+    "seconds": 56
   },
   "costArithmetic": "fake usage -> draft 120 text tokens x 5 + 272 output x 30 = 8,760 µUSD per image; final 100 text x 5 + 1,300 image x 8 + 3,000 output x 30 = 100,900 µUSD. One full flow = 4 x 8,760 + 100,900 = 135,940 µUSD, which ai_art_spend recorded exactly. Failed OpenAI calls (429/500/503/400) settle to 0.",
   "coverage": {
@@ -87,11 +88,11 @@
         "PASS: happy: choose 2 -> 202 FINALIZING [202 FINALIZING]",
         "PASS: happy: FINAL_READY with a valid webp final image [FINAL_READY ]",
         "PASS: happy: the final is a new image, not one of the drafts",
-        "PASS: happy: apply -> 200 artUrl /merchant-art/<sha256>.webp [200 /merchant-art/3251dc2861bf9d8729fb3924d12bd3be99c48ec96717eda055e18858d2f2309b.webp]",
+        "PASS: happy: apply -> 200 artUrl /merchant-art/<sha256>.webp [200 /merchant-art/f92a4f0a5af4eb7b6400bdbce906714be05dd94d09497246bda9ff4655fdaedb.webp]",
         "PASS: happy: artUrl hash is the sha256 of the final image",
         "PASS: happy: public art served without login (200 image/webp, immutable cache) [200 image/webp public, max-age=31536000, immutable]",
         "PASS: happy: served bytes equal the final image",
-        "PASS: happy: customer catalog /merchants shows the applied artUrl [/merchant-art/3251dc2861bf9d8729fb3924d12bd3be99c48ec96717eda055e18858d2f2309b.webp]",
+        "PASS: happy: customer catalog /merchants shows the applied artUrl [/merchant-art/f92a4f0a5af4eb7b6400bdbce906714be05dd94d09497246bda9ff4655fdaedb.webp]",
         "PASS: happy: GET art -> current artUrl, no open round, 2+2 left [{\"draftRoundsLeft\":2,\"finalsLeft\":2}]",
         "PASS: happy: apply again is idempotent [200]",
         "PASS: happy: DELETE art -> RESET [200]",
@@ -137,7 +138,7 @@
         "PASS: daily r2: POST rounds -> 202 DRAFTING [202 DRAFTING]",
         "PASS: daily r2: 4 drafts stamp,sticker,watercolor,woodcut [DRAFTS_READY stamp,sticker,watercolor,woodcut]",
         "PASS: daily r2: drafts are distinct valid webp images [4 images]",
-        "PASS: daily: third draft round -> 429 AI_ART_DAILY_LIMIT with Retry-After seconds [429 AI_ART_DAILY_LIMIT retry-after=40515]",
+        "PASS: daily: third draft round -> 429 AI_ART_DAILY_LIMIT with Retry-After seconds [429 AI_ART_DAILY_LIMIT retry-after=38377]",
         "PASS: daily: first final accepted [202]",
         "PASS: daily: first final FINAL_READY [FINAL_READY]",
         "PASS: daily: apply -> 200 [200]",
@@ -419,9 +420,27 @@
   ],
   "notRun": [
     "a real OpenAI key and any real OpenAI call: real image quality, real cost per call (the $0.04 draft and $0.18 final estimates are unmeasured), real latency (the fake answers in 200 ms; the real service takes 1-2 minutes), real 180 s timeout behaviour",
-    "the real showcase server: no deployment, no enable-ai-art.sh run against real Docker, no recreate of the live showcase-api (the script is covered by a fake docker in tests/ops/enable_ai_art_test.sh)",
-    "the showcase compose file itself and the showcase database name (the rehearsal uses its own container settings and database masscom_256_test)",
+    "the real showcase server: no deployment and no enable-ai-art.sh run on it (covered by a fake docker in tests/ops/enable_ai_art_test.sh and by a temporary real Docker Compose stack, see enableScriptRealComposeValidation); the Docker Compose version on the real host is unknown, so the config --format json and config --hash requirements are unchecked there",
+    "the showcase compose file itself and the showcase database name in the container rehearsal (it uses its own container settings and a per-run database masscom_256_<pid>_test; the real compose file was exercised only by the enable-script validation above)",
     "customer-facing display of a real AI image on a phone (a phone flow with the fake server was recorded earlier in docs/evidence/ai-store-art-2026-09-30/)"
   ],
-  "reproduce": "docker must be running with a local PostgreSQL container named masscom-sky-qa-pg (or set REHEARSAL_PG_CONTAINER); run bash scripts/rehearse-ai-art-container.sh from the repository root; REHEARSAL_SKIP_BUILD=1 REHEARSAL_IMAGE=<tag> reuses an image and REHEARSAL_RESULT_FILE=<path> also writes the tab-separated results."
+  "reproduce": "docker must be running with a local PostgreSQL container named masscom-sky-qa-pg (or set REHEARSAL_PG_CONTAINER); run bash scripts/rehearse-ai-art-container.sh from the repository root; REHEARSAL_SKIP_BUILD=1 REHEARSAL_IMAGE=<tag> reuses an image and REHEARSAL_RESULT_FILE=<path> also writes the tab-separated results.",
+  "enableScriptRealComposeValidation": {
+    "command": "bash scripts/rehearse-enable-ai-art-real-compose.sh (about 94 seconds including the image build)",
+    "environment": "macOS Darwin 25.6.0 (arm64), Docker Desktop 27.3.1, Docker Compose v2.29.7-desktop.1; commit 2b73f1d",
+    "what": "infra/showcase-host/enable-ai-art.sh run against real Docker Compose with the real infra/showcase-host/compose.yml (real postgres, migrate and showcase-api built from infra/lightsail/api.Dockerfile) in a temporary root, with a fake key and no OpenAI call; the temporary stack, network and image are removed afterwards. The script refuses to run if a masscom-showcase compose project or the masscom_showcase_edge network already exists.",
+    "result": "13 checks, 13 PASS, 0 FAIL",
+    "checks": [
+      "status with an empty key -> state DISABLED",
+      "key line added but container not recreated -> NEEDS_RECREATE_OR_CHECK",
+      "enable -> startup log AI store art: enabled, healthy (the config-hash of the running container equalled the pinned current config hash, so the drift check passes for a key-only change)",
+      "status after enable -> ENABLED and the running container key is reported as the same as the file key",
+      "enable with SHOWCASE_OPENAI_API_KEY, OPENAI_API_KEY and COMPOSE_PROJECT_NAME set in the shell -> still the file key (scrubbed environment)",
+      "disable with an unrelated runtime.env change (invited-subject hash) -> refused with config drift, nothing changed",
+      "disable after the drift is reverted -> AI store art: disabled (OPENAI_API_KEY is empty)",
+      "enable with SHOWCASE_AI_ART_DAILY_FINALS=2 and SHOWCASE_AI_ART_MONTHLY_BUDGET_USD=4 -> both shown as effective limits (limit changes alongside the key pass the drift check)",
+      "enable with SHOWCASE_AI_ART_DAILY_FINALS=51 -> refused before any change",
+      "no key value appears in any output"
+    ]
+  }
 }

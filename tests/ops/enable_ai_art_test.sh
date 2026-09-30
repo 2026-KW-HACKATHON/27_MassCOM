@@ -260,6 +260,7 @@ setup() {
   refresh_hash
 }
 
+cases=0
 extra_env=''
 shell_flags=''
 run_script() {
@@ -274,6 +275,7 @@ run_script() {
 
 expect_fail() {
   local label="$1"; shift
+  cases=$((cases + 1))
   if run_script "$@"; then
     echo "expected failure: $label" >&2
     cat "$out" >&2
@@ -283,6 +285,7 @@ expect_fail() {
 
 expect_ok() {
   local label="$1"; shift
+  cases=$((cases + 1))
   if ! run_script "$@"; then
     echo "expected success: $label" >&2
     cat "$out" >&2
@@ -826,4 +829,4 @@ if grep -n 'grep' "$script" | grep -F '"$runtime_env"' | grep -Ev 'grep -[a-zA-Z
   exit 1
 fi
 
-echo 'enable-ai-art: enable, disable and status behave as specified (fake docker)'
+echo "enable-ai-art: enable, disable and status behave as specified (fake docker, $cases script runs)"
