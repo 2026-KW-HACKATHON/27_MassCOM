@@ -93,3 +93,21 @@ test('the collection says minting is preparing only when the API is configured f
     { visits: [], collectibles: [] });
   assert.deepEqual(await new PostgresCollectionReader(pool).getCollection('acct-1'), { visits: [], collectibles: [] });
 });
+
+test('offer text with control or format characters is refused before the database, like deletion reject reasons', async () => {
+  const { PostgresAdminService } = await import('./postgres/admin.js');
+  const pool = { connect: async () => { throw new Error('must not reach the database'); } } as unknown as Pool;
+  const admin = new PostgresAdminService(pool, 'store-go-live-unit-test-hmac-secret-32-bytes');
+  const base = { merchantId: 'real-1', milestone: 1, title: '김밥 한 줄 무료', detail: '', validDays: 30, issuanceCap: 100,
+    consentDocumentRef: 'OF-2609-01',
+    consent: { benefit: true, ownerPaysCost: true, validity: true, issuanceCap: true, duplicateUse: true } };
+  for (const text of [
+    { detail: '주문은 shop​.kr/menu' }, // 너비 없는 공백으로 주소 모양 검사를 피하려는 글
+    { title: '김밥 ‮무료' }, // 방향 바꿈
+    { detail: '첫 줄\n둘째 줄' },
+    { title: '김밥\u0007' },
+  ]) {
+    await assert.rejects(admin.createRewardOffer('admin-1', { ...base, ...text }), /ADMIN_OFFER_TEXT_INVALID/, JSON.stringify(text));
+  }
+  await assert.rejects(admin.createRewardOffer('admin-1', base), /must not reach the database/);
+});

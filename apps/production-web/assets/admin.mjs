@@ -50,7 +50,7 @@ const goLiveMessages = {
   ADMIN_CAMPAIGN_ACTIVE_EXISTS: '이 점포에는 이미 공개 중인 캠페인이 있어요. 먼저 그 캠페인을 중지해 주세요.',
   ADMIN_CAMPAIGN_NOT_FOUND: '캠페인을 찾을 수 없어요. 새로고침해 주세요.',
   ADMIN_INVALID_INPUT: '입력값을 확인해 주세요.',
-  ADMIN_OFFER_TEXT_INVALID: '혜택 이름·설명에 이메일·웹 주소·전화번호처럼 보이는 내용(숫자 8자리 이상 포함)은 쓸 수 없어요.',
+  ADMIN_OFFER_TEXT_INVALID: '혜택 이름·설명에 이메일·웹 주소·전화번호처럼 보이는 내용(숫자 8자리 이상 포함)이나 보이지 않는 글자는 쓸 수 없어요.',
   WEB_SESSION_REAUTH_REQUIRED: '점주 올리기·내리기는 10분 안에 한 로그인이 필요해요. 로그아웃한 뒤 관리자 계정으로 다시 로그인해 주세요.',
 };
 
@@ -71,7 +71,8 @@ export function rewardOfferPayload(data) {
   if (![1, 2, 3].includes(milestone)) throw localError('상자를 골라 주세요.');
   const title = String(data.get('title') ?? '').trim();
   if (!title || [...title].length > 40) throw localError('혜택 이름은 1~40자로 입력해 주세요.');
-  const detail = String(data.get('detail') ?? '').trim();
+  // 줄바꿈은 서버가 제어 문자로 거절하므로 한 줄로 보낸다(고객 화면도 한 줄로 보인다).
+  const detail = String(data.get('detail') ?? '').replace(/\s*[\r\n]+\s*/g, ' ').trim();
   if ([...detail].length > 120) throw localError('혜택 설명은 120자까지 입력해 주세요.');
   const validDays = Number(data.get('validDays'));
   if (!Number.isSafeInteger(validDays) || validDays < 1 || validDays > 365) {

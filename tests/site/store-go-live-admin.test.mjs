@@ -513,3 +513,13 @@ test('운영 고객 웹 안내는 NFT를 앱에서 발행한다고 하지 않고
   assert.match(page, /실제 NFT 발행은 준비 중이라 받은 수집품 기록이 그대로 남습니다/);
   assert.doesNotMatch(page, /NFT 발행은 앱에서만 진행/);
 });
+
+test('혜택 설명의 줄바꿈은 한 줄로 바꿔 보낸다(서버는 제어 문자를 거절한다)', () => {
+  const values = new Map([
+    ['merchantId', 'real-1'], ['milestone', '1'], ['title', '김밥'], ['detail', '첫 줄\r\n  둘째 줄\n'], ['validDays', '30'],
+    ['issuanceCap', '100'], ['consentDocumentRef', 'OF-2609-01'], ['consentBenefit', 'on'], ['consentOwnerPaysCost', 'on'],
+    ['consentValidity', 'on'], ['consentIssuanceCap', 'on'], ['consentDuplicateUse', 'on'],
+  ]);
+  assert.equal(rewardOfferPayload(values).detail, '첫 줄 둘째 줄');
+  assert.match(goLiveMessage({ code: 'ADMIN_OFFER_TEXT_INVALID' }, '실패'), /보이지 않는 글자/);
+});

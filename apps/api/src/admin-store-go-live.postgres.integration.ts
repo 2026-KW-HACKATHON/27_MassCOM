@@ -373,7 +373,8 @@ test('reward offers need all five owner consents, a cap, an active store and a f
       await assert.rejects(service.createRewardOffer(admin, offerInput(merchant.id, bad)), /ADMIN_INVALID_INPUT/);
     }
     // 고객에게 보이는 혜택 글에도 연락처·이메일·웹 주소는 쓸 수 없다.
-    for (const text of [{ title: '문의 owner@example.com' }, { detail: '예약 010-1234-5678' }, { detail: '주문은 shop.kr/menu' }]) {
+    for (const text of [{ title: '문의 owner@example.com' }, { detail: '예약 010-1234-5678' }, { detail: '주문은 shop.kr/menu' },
+      { detail: '주문은 shop\u200B.kr/menu' }, { title: '김밥 \u202E무료' }, { detail: '첫 줄\n둘째 줄' }]) {
       await assert.rejects(service.createRewardOffer(admin, offerInput(merchant.id, text)), /ADMIN_OFFER_TEXT_INVALID/);
     }
     for (const consentDocumentRef of ['123-45-67890', '010-1234-5678', 'owner@example.com', undefined]) {
