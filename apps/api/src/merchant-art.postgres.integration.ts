@@ -29,11 +29,14 @@ import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { PostgresMerchantArtService } from './postgres/merchant-art.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 import { runMigrations } from './postgres/migrate.js';
+import { PostgresStaffRegistration } from './postgres/staff-registration.js';
 import { createApiServer, developmentHeaderAccountResolver } from './server.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 const hmacSecret = 'test-only-account-deletion-secret-at-least-32-bytes';
 const merchantIds = ['art-a', 'art-b', 'art-c', 'art-d', 'art-e', 'art-f'] as const;
+// 가게마다 활성 STAFF가 한 명씩 있다(art-a의 staff-a, art-b의 staff-b, art-c의 staff-c ...). 그림 변경은 트랜잭션 안에서 멤버십을 다시 본다.
+const staffOf = (merchantId: string) => `staff-${merchantId.slice('art-'.length)}`;
 const day = 24 * 60 * 60 * 1000;
 // 한국 2026-09-29 12:00.
 const noon = new Date('2026-09-29T03:00:00.000Z');
@@ -59,6 +62,8 @@ type SetupOptions = {
   heartbeatMs?: number;
   client?: AiArtImageClient | 'none';
   lifecycle?: boolean;
+  // 기본 true(시연 설정): 시험 대부분이 STAFF로 그림을 만든다. false이면 활성 OWNER만 그림을 바꿀 수 있다.
+  staffMayManageArt?: boolean;
   // 서비스가 쓰는 pool을 바꿔 끼운다(특정 읽기를 실패시키는 시험용). 시험 설정 자체는 진짜 pool을 쓴다.
   wrapPool?: (pool: Pool) => Pool;
   // 시험이 직접 만든 문. gate처럼 시험이 끝나거나 실패할 때 반드시 연다(안 그러면 붙잡힌 작업 때문에 정리가 끝나지 않는다).
@@ -91,7 +96,11 @@ async function setup(t: TestContext, options: SetupOptions = {}) {
        ('art-a', 'owner-a', 'OWNER', 'ACTIVE', NULL),
        ('art-a', 'staff-a', 'STAFF', 'ACTIVE', NULL),
        ('art-a', 'gone-a', 'STAFF', 'REVOKED', now()),
-       ('art-b', 'staff-b', 'STAFF', 'ACTIVE', NULL)`,
+       ('art-b', 'staff-b', 'STAFF', 'ACTIVE', NULL),
+       ('art-c', 'staff-c', 'STAFF', 'ACTIVE', NULL),
+       ('art-d', 'staff-d', 'STAFF', 'ACTIVE', NULL),
+       ('art-e', 'staff-e', 'STAFF', 'ACTIVE', NULL),
+       ('art-f', 'staff-f', 'STAFF', 'ACTIVE', NULL)`,
   );
   await pool.query(
     `INSERT INTO campaigns (id, merchant_id, title, starts_at, ends_at, status, is_public, enrollment_capacity)
@@ -123,6 +132,7 @@ async function setup(t: TestContext, options: SetupOptions = {}) {
     ...(client ? { client } : {}),
     config: { ...defaults, ...options.config },
     ...(options.lifecycle ? { accountLifecycle: lifecycle } : {}),
+    staffMayManageArt: options.staffMayManageArt ?? true,
     now,
     ...(options.staleAfterMs !== undefined ? { staleAfterMs: options.staleAfterMs } : {}),
     ...(options.heartbeatMs !== undefined ? { heartbeatMs: options.heartbeatMs } : {}),
@@ -172,7 +182,7 @@ function failingRoundViewOnce(state: { armed: boolean }): (pool: Pool) => Pool {
   });
 }
 
-async function readyRound(db: Db, merchantId = 'art-a', accountId = 'staff-a'): Promise<ArtRoundView> {
+async function readyRound(db: Db, merchantId = 'art-a', accountId = staffOf(merchantId)): Promise<ArtRoundView> {
   const started = await db.art.createRound({ merchantId, accountId });
   await db.art.drain();
   const round = await db.art.getRound({ merchantId, roundId: started.id });
@@ -180,9 +190,9 @@ async function readyRound(db: Db, merchantId = 'art-a', accountId = 'staff-a'): 
   return round;
 }
 
-async function finalRound(db: Db, merchantId = 'art-a', index = 1): Promise<ArtRoundView> {
-  const round = await readyRound(db, merchantId);
-  await db.art.chooseDraft({ merchantId, roundId: round.id, index });
+async function finalRound(db: Db, merchantId = 'art-a', index = 1, accountId = staffOf(merchantId)): Promise<ArtRoundView> {
+  const round = await readyRound(db, merchantId, accountId);
+  await db.art.chooseDraft({ merchantId, roundId: round.id, index, accountId });
   await db.art.drain();
   const final = await db.art.getRound({ merchantId, roundId: round.id });
   assert.equal(final.status, 'FINAL_READY');
@@ -250,7 +260,7 @@ async function rechosenAfterStale(t: TestContext, options: { firstOutcome: 'succ
     },
   });
   const round = await readyRound(db);
-  await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1 });
+  await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1, accountId: 'staff-a' });
   await waitFor(() => edits === 1, 'the first final attempt to reach OpenAI');
   db.state.now = new Date(noon.getTime() + 5 * 60 * 1000 + 1);
   const interrupted = await db.art.getRound({ merchantId: 'art-a', roundId: round.id });
@@ -258,7 +268,7 @@ async function rechosenAfterStale(t: TestContext, options: { firstOutcome: 'succ
   assert.equal(interrupted.failureCode, 'AI_ART_INTERRUPTED');
   assert.equal(interrupted.chosenIndex, 1);
 
-  const again = await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 3 });
+  const again = await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 3, accountId: 'staff-a' });
   assert.equal(again.status, 'FINALIZING');
   assert.equal(again.chosenIndex, 3);
   const spendIds = (await db.pool.query<{ id: string }>(
@@ -385,7 +395,7 @@ test('a round runs drafts, chosen final, apply, public image and reset end to en
   assert.deepEqual(state.quota, { draftRoundsLeft: 2, finalsLeft: 3 });
   assert.equal(state.round?.id, started.id);
 
-  const chosen = await slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 2 });
+  const chosen = await slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 2, accountId: 'staff-a' });
   assert.equal(chosen.status, 'FINALIZING');
   assert.equal(chosen.chosenIndex, 2);
   await slow.art.drain();
@@ -405,7 +415,7 @@ test('a round runs drafts, chosen final, apply, public image and reset end to en
   // 적용 전에는 고객에게 보이지 않는다.
   const catalog = new PostgresMerchantCatalog(slow.pool, () => slow.now());
   assert.equal((await catalog.listPublicMerchants())[0]!.artUrl, null);
-  const applied = await slow.art.apply({ merchantId: 'art-a', roundId: started.id });
+  const applied = await slow.art.apply({ merchantId: 'art-a', roundId: started.id, accountId: 'staff-a' });
   assert.match(applied.artUrl, /^\/merchant-art\/[0-9a-f]{64}\.webp$/);
   const sha = applied.artUrl.slice('/merchant-art/'.length, -'.webp'.length);
   const finalBytes = Buffer.from(final.final!.imageDataUrl.split(',')[1]!, 'base64');
@@ -417,14 +427,14 @@ test('a round runs drafts, chosen final, apply, public image and reset end to en
   assert.deepEqual(after.current, { artUrl: applied.artUrl });
   assert.equal(after.round, null);
   // 응답이 유실돼 다시 눌러도 같은 결과이고, 되돌린 뒤에는 다시 적용할 수 없다.
-  assert.deepEqual(await slow.art.apply({ merchantId: 'art-a', roundId: started.id }), applied);
+  assert.deepEqual(await slow.art.apply({ merchantId: 'art-a', roundId: started.id, accountId: 'staff-a' }), applied);
 
-  await slow.art.reset('art-a');
+  await slow.art.reset({ merchantId: 'art-a', accountId: 'staff-a' });
   assert.equal((await slow.art.getState('art-a')).current, null);
   assert.equal(await slow.art.getPublicImage(sha), null);
   assert.equal((await catalog.listPublicMerchants())[0]!.artUrl, null);
-  await slow.art.reset('art-a');
-  await assert.rejects(slow.art.apply({ merchantId: 'art-a', roundId: started.id }), rejectsWith('AI_ART_ROUND_STATE'));
+  await slow.art.reset({ merchantId: 'art-a', accountId: 'staff-a' });
+  await assert.rejects(slow.art.apply({ merchantId: 'art-a', roundId: started.id, accountId: 'staff-a' }), rejectsWith('AI_ART_ROUND_STATE'));
 });
 
 test('every call is recorded with its real cost from the response usage', async (t) => {
@@ -459,36 +469,36 @@ test('choose and apply only work in their own state, once, and only for the owni
   const gate = makeGate();
   const slow = await setup(t, { gate });
   const started = await slow.art.createRound({ merchantId: 'art-a', accountId: 'staff-a' });
-  await assert.rejects(slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 0 }),
+  await assert.rejects(slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 0, accountId: 'staff-a' }),
     rejectsWith('AI_ART_ROUND_STATE'));
-  await assert.rejects(slow.art.apply({ merchantId: 'art-a', roundId: started.id }), rejectsWith('AI_ART_ROUND_STATE'));
+  await assert.rejects(slow.art.apply({ merchantId: 'art-a', roundId: started.id, accountId: 'staff-a' }), rejectsWith('AI_ART_ROUND_STATE'));
   gate.release();
   await slow.art.drain();
 
   // 동시에 두 번 고르면 하나만 최종을 시작한다.
   const picks = await Promise.allSettled([
-    slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 0 }),
-    slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 3 }),
+    slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 0, accountId: 'staff-a' }),
+    slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 3, accountId: 'staff-a' }),
   ]);
   assert.equal(picks.filter((pick) => pick.status === 'fulfilled').length, 1);
   await slow.art.drain();
   assert.equal(slow.fake.calls.filter((call) => call.path === '/v1/images/edits').length, 1);
-  await assert.rejects(slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 1 }),
+  await assert.rejects(slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 1, accountId: 'staff-a' }),
     rejectsWith('AI_ART_ROUND_STATE'));
   assert.equal((await slow.pool.query(`SELECT count(*)::int AS n FROM ai_art_spend WHERE kind = 'FINAL'`)).rows[0]!.n, 1);
-  await assert.rejects(slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 4 }), RangeError);
-  await assert.rejects(slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: -1 }), RangeError);
+  await assert.rejects(slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 4, accountId: 'staff-a' }), RangeError);
+  await assert.rejects(slow.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: -1, accountId: 'staff-a' }), RangeError);
 
   // 다른 가게의 라운드·없는 라운드·UUID가 아닌 값은 모두 같은 404다.
   for (const merchantId of ['art-b', 'art-c']) {
     await assert.rejects(slow.art.getRound({ merchantId, roundId: started.id }), rejectsWith('AI_ART_ROUND_NOT_FOUND'));
-    await assert.rejects(slow.art.chooseDraft({ merchantId, roundId: started.id, index: 0 }), rejectsWith('AI_ART_ROUND_NOT_FOUND'));
-    await assert.rejects(slow.art.apply({ merchantId, roundId: started.id }), rejectsWith('AI_ART_ROUND_NOT_FOUND'));
+    await assert.rejects(slow.art.chooseDraft({ merchantId, roundId: started.id, index: 0, accountId: staffOf(merchantId) }), rejectsWith('AI_ART_ROUND_NOT_FOUND'));
+    await assert.rejects(slow.art.apply({ merchantId, roundId: started.id, accountId: staffOf(merchantId) }), rejectsWith('AI_ART_ROUND_NOT_FOUND'));
   }
   for (const roundId of [randomUUID(), 'not-a-uuid', '1; DROP TABLE merchants', '']) {
     await assert.rejects(slow.art.getRound({ merchantId: 'art-a', roundId }), rejectsWith('AI_ART_ROUND_NOT_FOUND'), roundId);
-    await assert.rejects(slow.art.apply({ merchantId: 'art-a', roundId }), rejectsWith('AI_ART_ROUND_NOT_FOUND'), roundId);
-    await assert.rejects(slow.art.chooseDraft({ merchantId: 'art-a', roundId, index: 0 }), rejectsWith('AI_ART_ROUND_NOT_FOUND'), roundId);
+    await assert.rejects(slow.art.apply({ merchantId: 'art-a', roundId, accountId: 'staff-a' }), rejectsWith('AI_ART_ROUND_NOT_FOUND'), roundId);
+    await assert.rejects(slow.art.chooseDraft({ merchantId: 'art-a', roundId, index: 0, accountId: 'staff-a' }), rejectsWith('AI_ART_ROUND_NOT_FOUND'), roundId);
   }
   // 다른 가게가 적용을 시도해도 가게 그림은 생기지 않는다.
   assert.equal((await slow.pool.query('SELECT count(*)::int AS n FROM merchant_art')).rows[0]!.n, 0);
@@ -504,7 +514,7 @@ test('the state shows a round in progress first and nothing when the newest roun
   assert.equal((await db.art.getState('art-a')).round?.id, newer.id);
 
   // 더 오래된 라운드에서 최종을 시작하면(호출은 붙잡혀 있다) 더 새로운 라운드보다 진행 중인 그 라운드가 먼저 보인다.
-  await db.art.chooseDraft({ merchantId: 'art-a', roundId: older.id, index: 2 });
+  await db.art.chooseDraft({ merchantId: 'art-a', roundId: older.id, index: 2, accountId: 'staff-a' });
   const shown = (await db.art.getState('art-a')).round;
   assert.equal(shown?.id, older.id);
   assert.equal(shown?.status, 'FINALIZING');
@@ -512,9 +522,9 @@ test('the state shows a round in progress first and nothing when the newest roun
   await db.art.drain();
 
   // 진행 중인 것이 없고 가장 최근 라운드가 이미 적용됐으면 보여 줄 것이 없다(더 오래된 미적용 라운드는 되살리지 않는다).
-  await db.art.chooseDraft({ merchantId: 'art-a', roundId: newer.id, index: 0 });
+  await db.art.chooseDraft({ merchantId: 'art-a', roundId: newer.id, index: 0, accountId: 'staff-a' });
   await db.art.drain();
-  await db.art.apply({ merchantId: 'art-a', roundId: newer.id });
+  await db.art.apply({ merchantId: 'art-a', roundId: newer.id, accountId: 'staff-a' });
   const state = await db.art.getState('art-a');
   assert.equal(state.round, null);
   assert.notEqual(state.current, null);
@@ -544,7 +554,7 @@ test('finals are limited per merchant and Korean day, counted per attempt', asyn
   await finalRound(db, 'art-a', 0);
   await finalRound(db, 'art-a', 1);
   const third = await readyRound(db);
-  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: third.id, index: 2 }),
+  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: third.id, index: 2, accountId: 'staff-a' }),
     rejectsWith('AI_ART_DAILY_LIMIT', 12 * 60 * 60));
   // 거절된 선택은 라운드를 그대로 두고 호출도 기록도 남기지 않는다.
   assert.equal((await db.art.getRound({ merchantId: 'art-a', roundId: third.id })).status, 'DRAFTS_READY');
@@ -552,7 +562,7 @@ test('finals are limited per merchant and Korean day, counted per attempt', asyn
   assert.deepEqual((await db.art.getState('art-a')).quota, { draftRoundsLeft: 2, finalsLeft: 0 });
 
   db.state.now = new Date(db.state.now.getTime() + day);
-  await db.art.chooseDraft({ merchantId: 'art-a', roundId: third.id, index: 2 });
+  await db.art.chooseDraft({ merchantId: 'art-a', roundId: third.id, index: 2, accountId: 'staff-a' });
   await db.art.drain();
   assert.equal((await db.art.getRound({ merchantId: 'art-a', roundId: third.id })).status, 'FINAL_READY');
 });
@@ -571,7 +581,7 @@ test('the monthly budget refuses a request before any call and counts only this 
   assert.equal(await totalSpend(db.pool), 8 * fakeDraftCostMicroUsd);
   // 최종은 예상 비용(180,000)이 상한을 넘으므로 시안이 있어도 거절되고 라운드는 그대로다.
   const round = (await db.art.getState('art-a')).round!;
-  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 0 }),
+  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 0, accountId: 'staff-a' }),
     rejectsWith('AI_ART_BUDGET_EXHAUSTED'));
   assert.equal((await db.art.getRound({ merchantId: 'art-a', roundId: round.id })).status, 'DRAFTS_READY');
 
@@ -598,7 +608,7 @@ test('the budget check and record are serialized so concurrent requests cannot o
   const db = await setup(t, { config: { monthlyBudgetMicroUsd: 80_000 }, gate });
   const results = await Promise.allSettled(
     ['art-a', 'art-b', 'art-c', 'art-d', 'art-e'].map((merchantId) =>
-      db.art.createRound({ merchantId, accountId: 'someone' })),
+      db.art.createRound({ merchantId, accountId: staffOf(merchantId) })),
   );
   assert.equal(results.filter((result) => result.status === 'fulfilled').length, 2);
   for (const result of results) {
@@ -633,7 +643,7 @@ test('a policy block fails the round without retry, drops partial drafts and ref
   // 실패한 라운드는 진행 중이 아니므로 바로 새 라운드를 만들 수 있고, 하루 횟수에는 센다.
   assert.equal((await db.art.getState('art-a')).round?.failureCode, 'AI_ART_MODERATION_BLOCKED');
   assert.equal((await db.art.getState('art-a')).quota.draftRoundsLeft, 2);
-  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 0 }),
+  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 0, accountId: 'staff-a' }),
     rejectsWith('AI_ART_ROUND_STATE'));
 });
 
@@ -693,7 +703,7 @@ test('a 502 or 504 is not retried and keeps the reserved cost as chargeable, for
 
     const final = await setup(t, { handler: (call) => call.path === '/v1/images/edits' ? errorResponse(status, null) : undefined });
     const round = await readyRound(final);
-    await final.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1 });
+    await final.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1, accountId: 'staff-a' });
     await final.art.drain();
     const failedFinal = await final.art.getRound({ merchantId: 'art-a', roundId: round.id });
     assert.equal(failedFinal.status, 'FAILED', `status ${status}`);
@@ -709,7 +719,7 @@ test('a failed final keeps the four drafts visible and marks FAILED with the pic
     handler: (call) => call.path === '/v1/images/edits' ? errorResponse(400, 'moderation_blocked') : undefined,
   });
   const round = await readyRound(db);
-  await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1 });
+  await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1, accountId: 'staff-a' });
   await db.art.drain();
   const failed = await db.art.getRound({ merchantId: 'art-a', roundId: round.id });
   assert.equal(failed.status, 'FAILED');
@@ -719,7 +729,7 @@ test('a failed final keeps the four drafts visible and marks FAILED with the pic
   assert.equal(failed.final, null);
   const finals = (await spendRows(db.pool)).filter((row) => row.kind === 'FINAL');
   assert.deepEqual(finals, [{ merchantId: 'art-a', kind: 'FINAL', microUsd: 0 }]);
-  await assert.rejects(db.art.apply({ merchantId: 'art-a', roundId: round.id }), rejectsWith('AI_ART_ROUND_STATE'));
+  await assert.rejects(db.art.apply({ merchantId: 'art-a', roundId: round.id, accountId: 'staff-a' }), rejectsWith('AI_ART_ROUND_STATE'));
   // 상태 조회도 같은 라운드를 시안과 함께 보여 준다.
   const state = await db.art.getState('art-a');
   assert.equal(state.round?.id, round.id);
@@ -735,7 +745,7 @@ test('the round view carries no draft images while the final is being made and g
     handler: (call) => call.path === '/v1/images/edits' && failEdit ? errorResponse(500, null) : undefined,
   });
   const round = await readyRound(db);
-  const started = await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 2 });
+  const started = await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 2, accountId: 'staff-a' });
   assert.equal(started.status, 'FINALIZING');
   assert.equal(started.chosenIndex, 2);
   // 202 응답·라운드 조회·상태 조회 어디에도 시안 이미지가 없다(3초마다 읽는 모습이라 대역폭을 아낀다).
@@ -769,13 +779,13 @@ test('after a failed final the same round can choose again: it is a new final, c
     },
   });
   const round = await readyRound(db);
-  await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1 });
+  await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1, accountId: 'staff-a' });
   await db.art.drain();
   assert.equal((await db.art.getRound({ merchantId: 'art-a', roundId: round.id })).status, 'FAILED');
   assert.deepEqual((await db.art.getState('art-a')).quota, { draftRoundsLeft: 2, finalsLeft: 2 });
 
   // 다른 시안으로 다시 고른다. 실패 코드는 지워지고 최종이 새로 시작된다.
-  const again = await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 3 });
+  const again = await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 3, accountId: 'staff-a' });
   assert.equal(again.status, 'FINALIZING');
   assert.equal(again.chosenIndex, 3);
   assert.equal(again.failureCode, null);
@@ -792,7 +802,7 @@ test('after a failed final the same round can choose again: it is a new final, c
   assert.deepEqual((await db.art.getState('art-a')).quota, { draftRoundsLeft: 2, finalsLeft: 1 });
   // 새 시안 라운드를 만들 필요가 없었다.
   assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM merchant_art_rounds')).rows[0]!.n, 1);
-  assert.ok(await db.art.apply({ merchantId: 'art-a', roundId: round.id }));
+  assert.ok(await db.art.apply({ merchantId: 'art-a', roundId: round.id, accountId: 'staff-a' }));
 });
 
 test('choosing again after a failed final obeys the daily final limit', async (t) => {
@@ -801,18 +811,18 @@ test('choosing again after a failed final obeys the daily final limit', async (t
     handler: (call) => call.path === '/v1/images/edits' ? errorResponse(400, 'moderation_blocked') : undefined,
   });
   const round = await readyRound(db);
-  await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 0 });
+  await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 0, accountId: 'staff-a' });
   await db.art.drain();
   assert.equal((await db.art.getRound({ merchantId: 'art-a', roundId: round.id })).status, 'FAILED');
   // 하루 최종 한도(1)를 이미 썼다: 다시 고를 수 없고 라운드도 호출도 그대로다.
-  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1 }),
+  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1, accountId: 'staff-a' }),
     rejectsWith('AI_ART_DAILY_LIMIT', 12 * 60 * 60));
   assert.equal((await db.art.getRound({ merchantId: 'art-a', roundId: round.id })).status, 'FAILED');
   assert.equal((await spendRows(db.pool)).filter((row) => row.kind === 'FINAL').length, 1);
   assert.equal(db.fake.calls.filter((call) => call.path === '/v1/images/edits').length, 1);
   // 다음 날에는 다시 고를 수 있다(이번에도 정책 차단이라 다시 FAILED).
   db.state.now = new Date(db.state.now.getTime() + day);
-  const next = await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1 });
+  const next = await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1, accountId: 'staff-a' });
   assert.equal(next.status, 'FINALIZING');
   await db.art.drain();
   assert.equal(db.fake.calls.filter((call) => call.path === '/v1/images/edits').length, 2);
@@ -828,7 +838,7 @@ test('choosing again after a failed final obeys the monthly budget', async (t) =
   await db.pool.query(
     `UPDATE merchant_art_rounds SET status = 'FAILED', chosen_index = 0, failure_code = 'AI_ART_TIMEOUT' WHERE id = $1`, [round.id],
   );
-  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1 }),
+  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 1, accountId: 'staff-a' }),
     rejectsWith('AI_ART_BUDGET_EXHAUSTED'));
   const after = await db.art.getRound({ merchantId: 'art-a', roundId: round.id });
   assert.equal(after.status, 'FAILED');
@@ -848,13 +858,13 @@ test('choosing again after a failed final is refused while another round of the 
   });
   try {
     const first = await readyRound(db);
-    await db.art.chooseDraft({ merchantId: 'art-a', roundId: first.id, index: 0 });
+    await db.art.chooseDraft({ merchantId: 'art-a', roundId: first.id, index: 0, accountId: 'staff-a' });
     await db.art.drain();
     assert.equal((await db.art.getRound({ merchantId: 'art-a', roundId: first.id })).status, 'FAILED');
     hold = new Promise<void>((resolve) => { release = resolve; });
     const second = await db.art.createRound({ merchantId: 'art-a', accountId: 'staff-a' });
     assert.equal(second.status, 'DRAFTING');
-    await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: first.id, index: 1 }),
+    await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: first.id, index: 1, accountId: 'staff-a' }),
       rejectsWith('AI_ART_ROUND_IN_PROGRESS'));
     assert.equal((await db.art.getRound({ merchantId: 'art-a', roundId: first.id })).status, 'FAILED');
   } finally {
@@ -882,7 +892,7 @@ test('a stale final attempt that finishes after the re-chosen attempt is done ca
   // 두 시도의 호출 비용은 각각 자기 행에 실제 값으로 적힌다.
   assert.deepEqual((await spendRows(db.pool)).filter((spend) => spend.kind === 'FINAL').map((spend) => spend.microUsd),
     [fakeFinalCostMicroUsd, fakeFinalCostMicroUsd]);
-  const applied = await db.art.apply({ merchantId: 'art-a', roundId: round.id });
+  const applied = await db.art.apply({ merchantId: 'art-a', roundId: round.id, accountId: 'staff-a' });
   assert.equal(applied.artUrl, `/merchant-art/${before[0]!.sha256}.webp`);
 });
 
@@ -902,7 +912,7 @@ test('a stale final attempt that succeeds while the re-chosen attempt is still r
   const view = await db.art.getRound({ merchantId: 'art-a', roundId: round.id });
   assert.equal(view.status, 'FINALIZING');
   assert.equal(view.final, null);
-  await assert.rejects(db.art.apply({ merchantId: 'art-a', roundId: round.id }), rejectsWith('AI_ART_ROUND_STATE'));
+  await assert.rejects(db.art.apply({ merchantId: 'art-a', roundId: round.id, accountId: 'staff-a' }), rejectsWith('AI_ART_ROUND_STATE'));
 
   second.release();
   await db.art.drain();
@@ -911,7 +921,7 @@ test('a stale final attempt that succeeds while the re-chosen attempt is still r
   assert.equal(finished.chosen_index, 3);
   assert.equal(finished.final_spend_id, spendIds[1]);
   assert.deepEqual((await finalImages(db.pool, round.id)).map((image) => image.idx), [3]);
-  assert.ok(await db.art.apply({ merchantId: 'art-a', roundId: round.id }));
+  assert.ok(await db.art.apply({ merchantId: 'art-a', roundId: round.id, accountId: 'staff-a' }));
 });
 
 test('a stale final attempt that fails while the re-chosen attempt is still running cannot fail the round', async (t) => {
@@ -935,7 +945,7 @@ test('a stale final attempt that fails while the re-chosen attempt is still runn
   assert.equal(finished.status, 'FINAL_READY');
   assert.equal(finished.failure_code, null);
   assert.deepEqual((await finalImages(db.pool, round.id)).map((image) => image.idx), [3]);
-  assert.ok(await db.art.apply({ merchantId: 'art-a', roundId: round.id }));
+  assert.ok(await db.art.apply({ merchantId: 'art-a', roundId: round.id, accountId: 'staff-a' }));
 });
 
 test('a round that failed while drawing the drafts cannot be chosen from: it needs a new round', async (t) => {
@@ -946,7 +956,7 @@ test('a round that failed while drawing the drafts cannot be chosen from: it nee
   assert.equal(failed.status, 'FAILED');
   assert.equal(failed.chosenIndex, null);
   assert.deepEqual(failed.drafts, []);
-  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 0 }), rejectsWith('AI_ART_ROUND_STATE'));
+  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 0, accountId: 'staff-a' }), rejectsWith('AI_ART_ROUND_STATE'));
   // 늦게 도착한 시안 조각이 남아 있어도(중단된 라운드) 고를 수 없고 보이지도 않는다.
   for (let index = 0; index < 4; index++) {
     await db.pool.query(
@@ -955,7 +965,7 @@ test('a round that failed while drawing the drafts cannot be chosen from: it nee
       [started.id, index, fakeWebp(`late-${index}`), `${index}`.repeat(64)],
     );
   }
-  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 0 }), rejectsWith('AI_ART_ROUND_STATE'));
+  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: started.id, index: 0, accountId: 'staff-a' }), rejectsWith('AI_ART_ROUND_STATE'));
   assert.deepEqual((await db.art.getRound({ merchantId: 'art-a', roundId: started.id })).drafts, []);
   assert.equal(db.fake.calls.filter((call) => call.path === '/v1/images/edits').length, 0);
 });
@@ -964,7 +974,7 @@ test('the final reserves 180,000 micro USD before the call and is counted at its
   const held = makeGate();
   const db = await setup(t, { gate: held, gateEditsOnly: true });
   const round = await readyRound(db);
-  await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 0 });
+  await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 0, accountId: 'staff-a' });
   assert.deepEqual((await spendRows(db.pool)).filter((row) => row.kind === 'FINAL'),
     [{ merchantId: 'art-a', kind: 'FINAL', microUsd: 180_000 }]);
   held.release();
@@ -987,7 +997,7 @@ test('a failed view read after the commit cannot strand a round: the drafts and 
   assert.equal((await spendRows(db.pool)).filter((row) => row.kind === 'DRAFT').length, 4);
 
   armed.armed = true;
-  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: state.round!.id, index: 1 }), /view read failed/);
+  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: state.round!.id, index: 1, accountId: 'staff-a' }), /view read failed/);
   await db.art.drain();
   const final = await db.art.getRound({ merchantId: 'art-a', roundId: state.round!.id });
   assert.equal(final.status, 'FINAL_READY');
@@ -1098,17 +1108,17 @@ test('applying deletes that round\'s draft images and keeps the final and the ap
     'SELECT count(*)::int AS n FROM merchant_art_images WHERE round_id = $1 AND kind = $2', [round.id, kind],
   )).rows[0]!.n;
   assert.equal(await count('DRAFT'), 4);
-  const applied = await db.art.apply({ merchantId: 'art-a', roundId: round.id });
+  const applied = await db.art.apply({ merchantId: 'art-a', roundId: round.id, accountId: 'staff-a' });
   assert.equal(await count('DRAFT'), 0);
   assert.equal(await count('FINAL'), 1);
   // 다시 눌러도 같은 결과이고, 적용된 라운드 조회에는 시안이 없다.
-  assert.deepEqual(await db.art.apply({ merchantId: 'art-a', roundId: round.id }), applied);
+  assert.deepEqual(await db.art.apply({ merchantId: 'art-a', roundId: round.id, accountId: 'staff-a' }), applied);
   const view = await db.art.getRound({ merchantId: 'art-a', roundId: round.id });
   assert.equal(view.status, 'APPLIED');
   assert.deepEqual(view.drafts, []);
   // 오래 지나 이미지까지 정리된 뒤에도 같은 결과다(그림은 merchant_art에 있다).
   await db.pool.query('DELETE FROM merchant_art_images WHERE round_id = $1', [round.id]);
-  assert.deepEqual(await db.art.apply({ merchantId: 'art-a', roundId: round.id }), applied);
+  assert.deepEqual(await db.art.apply({ merchantId: 'art-a', roundId: round.id, accountId: 'staff-a' }), applied);
   assert.equal((await db.art.getRound({ merchantId: 'art-a', roundId: round.id })).final, null);
   assert.ok(await db.art.getPublicImage(applied.artUrl.slice('/merchant-art/'.length, -'.webp'.length)));
 });
@@ -1118,23 +1128,23 @@ test('two merchants applying the very same picture both succeed and the public i
   const db = await setup(t, { handler: () => imageResponse(same) });
   const a = await finalRound(db, 'art-a', 0);
   const b = await finalRound(db, 'art-b', 1);
-  const appliedA = await db.art.apply({ merchantId: 'art-a', roundId: a.id });
-  const appliedB = await db.art.apply({ merchantId: 'art-b', roundId: b.id });
+  const appliedA = await db.art.apply({ merchantId: 'art-a', roundId: a.id, accountId: 'staff-a' });
+  const appliedB = await db.art.apply({ merchantId: 'art-b', roundId: b.id, accountId: 'staff-b' });
   assert.equal(appliedA.artUrl, appliedB.artUrl);
   assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM merchant_art')).rows[0]!.n, 2);
   const sha = appliedA.artUrl.slice('/merchant-art/'.length, -'.webp'.length);
   assert.deepEqual(await db.art.getPublicImage(sha), same);
   assert.deepEqual(await db.art.getPublicImage(sha), same);
-  await db.art.reset('art-a');
+  await db.art.reset({ merchantId: 'art-a', accountId: 'staff-a' });
   assert.deepEqual(await db.art.getPublicImage(sha), same);
-  await db.art.reset('art-b');
+  await db.art.reset({ merchantId: 'art-b', accountId: 'staff-b' });
   assert.equal(await db.art.getPublicImage(sha), null);
 });
 
 test('only the current applied image is public, and a new apply replaces the previous one', async (t) => {
   const db = await setup(t, { config: { dailyDraftRounds: 5, dailyFinals: 5 } });
   const first = await finalRound(db, 'art-a', 0);
-  const appliedFirst = await db.art.apply({ merchantId: 'art-a', roundId: first.id });
+  const appliedFirst = await db.art.apply({ merchantId: 'art-a', roundId: first.id, accountId: 'staff-a' });
   const shaFirst = appliedFirst.artUrl.slice('/merchant-art/'.length, -'.webp'.length);
   assert.ok(await db.art.getPublicImage(shaFirst));
 
@@ -1144,16 +1154,16 @@ test('only the current applied image is public, and a new apply replaces the pre
     `SELECT sha256 FROM merchant_art_images WHERE round_id = $1 AND kind = 'FINAL'`, [second.id],
   )).rows[0]!.sha256;
   assert.equal(await db.art.getPublicImage(secondSha), null);
-  const appliedSecond = await db.art.apply({ merchantId: 'art-a', roundId: second.id });
+  const appliedSecond = await db.art.apply({ merchantId: 'art-a', roundId: second.id, accountId: 'staff-a' });
   assert.equal(appliedSecond.artUrl, `/merchant-art/${secondSha}.webp`);
   assert.equal(await db.art.getPublicImage(shaFirst), null);
   assert.ok(await db.art.getPublicImage(secondSha));
   assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM merchant_art')).rows[0]!.n, 1);
   // 옛 라운드는 APPLIED로 남지만 다시 적용할 수는 없다.
-  await assert.rejects(db.art.apply({ merchantId: 'art-a', roundId: first.id }), rejectsWith('AI_ART_ROUND_STATE'));
+  await assert.rejects(db.art.apply({ merchantId: 'art-a', roundId: first.id, accountId: 'staff-a' }), rejectsWith('AI_ART_ROUND_STATE'));
   // 다른 가게의 그림은 서로 섞이지 않는다.
   const other = await finalRound(db, 'art-b', 1);
-  const appliedOther = await db.art.apply({ merchantId: 'art-b', roundId: other.id });
+  const appliedOther = await db.art.apply({ merchantId: 'art-b', roundId: other.id, accountId: 'staff-b' });
   assert.notEqual(appliedOther.artUrl, appliedSecond.artUrl);
   const listed = await new PostgresMerchantCatalog(db.pool, () => db.now()).listPublicMerchants();
   assert.deepEqual(listed.map((merchant) => [merchant.id, merchant.artUrl]), [['art-a', appliedSecond.artUrl]]);
@@ -1179,8 +1189,8 @@ test('without a key the service reports configured false, refuses generation and
     configured: false, current: null, quota: { draftRoundsLeft: 3, finalsLeft: 3 }, round: null,
   });
   await assert.rejects(db.art.createRound({ merchantId: 'art-a', accountId: 'staff-a' }), rejectsWith('AI_ART_NOT_CONFIGURED'));
-  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: randomUUID(), index: 0 }), rejectsWith('AI_ART_NOT_CONFIGURED'));
-  await db.art.reset('art-a');
+  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-a', roundId: randomUUID(), index: 0, accountId: 'staff-a' }), rejectsWith('AI_ART_NOT_CONFIGURED'));
+  await db.art.reset({ merchantId: 'art-a', accountId: 'staff-a' });
   assert.equal(await db.art.getPublicImage('0'.repeat(64)), null);
   assert.equal(db.fake.calls.length, 0);
   assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM merchant_art_rounds')).rows[0]!.n, 0);
@@ -1229,7 +1239,7 @@ test('MANAGE_ART is granted to active owners only by default and to active staff
 test('account deletion clears the requester of art rounds in the same transaction and keeps the merchant assets', async (t) => {
   const db = await setup(t, { lifecycle: true });
   const round = await finalRound(db, 'art-a', 1);
-  await db.art.apply({ merchantId: 'art-a', roundId: round.id });
+  await db.art.apply({ merchantId: 'art-a', roundId: round.id, accountId: 'staff-a' });
   await db.art.createRound({ merchantId: 'art-b', accountId: 'staff-b' });
   await db.art.drain();
   await db.art.createRound({ merchantId: 'art-a', accountId: 'owner-a' });
@@ -1463,4 +1473,293 @@ test('HTTP: daily limit answers 429 with Retry-After and a missing key answers 5
   const refused = await fetch(`${keylessBase}/merchant/merchants/art-a/art/rounds`, { method: 'POST', headers, body: '{}' });
   assert.equal(refused.status, 503);
   assert.deepEqual(await refused.json(), { code: 'AI_ART_NOT_CONFIGURED' });
+});
+
+// ---- Issue #264: 그림 변경은 트랜잭션 안에서 멤버십·MANAGE_ART를 다시 확인한다 ---------------------------------
+
+const artMethods = ['createRound', 'chooseDraft', 'apply', 'reset'] as const;
+type ArtMethod = (typeof artMethods)[number];
+
+const accessDenied = (error: unknown) => error instanceof MerchantAccessError && error.code === 'MERCHANT_ACCESS_DENIED';
+
+// 그 메서드를 부를 수 있는 상태를 활성 OWNER(owner-a)로 만들어 두고, 아무 계정으로 그 메서드를 부르는 함수와 상태 요약을 돌려준다.
+async function prepareArtMethod(db: Db, method: ArtMethod) {
+  const merchantId = 'art-a';
+  const owner = 'owner-a';
+  let roundId = '';
+  if (method === 'chooseDraft') roundId = (await readyRound(db, merchantId, owner)).id;
+  if (method === 'apply') roundId = (await finalRound(db, merchantId, 1, owner)).id;
+  if (method === 'reset') {
+    const round = await finalRound(db, merchantId, 1, owner);
+    await db.art.apply({ merchantId, roundId: round.id, accountId: owner });
+  }
+  const call = (accountId: string): Promise<unknown> => {
+    switch (method) {
+      case 'createRound': return db.art.createRound({ merchantId, accountId });
+      case 'chooseDraft': return db.art.chooseDraft({ merchantId, roundId, index: 1, accountId });
+      case 'apply': return db.art.apply({ merchantId, roundId, accountId });
+      case 'reset': return db.art.reset({ merchantId, accountId });
+    }
+  };
+  const snapshot = async () => ({
+    rounds: (await db.pool.query(
+      'SELECT id, status, chosen_index, failure_code, final_spend_id FROM merchant_art_rounds ORDER BY id',
+    )).rows,
+    images: (await db.pool.query('SELECT round_id, kind, idx FROM merchant_art_images ORDER BY round_id, kind, idx')).rows,
+    art: (await db.pool.query('SELECT merchant_id, sha256, round_id FROM merchant_art ORDER BY merchant_id')).rows,
+    spend: await spendRows(db.pool),
+    openAiCalls: db.fake.calls.length,
+  });
+  return { call, snapshot };
+}
+
+for (const method of artMethods) {
+  test(`${method} checks membership and role again inside its transaction: outsiders, revoked and demoted accounts are denied and nothing changes (#264)`, async (t) => {
+    // 활성 OWNER만 그림을 바꿀 수 있는 환경(운영 기본값)에서 본다.
+    const db = await setup(t, { staffMayManageArt: false });
+    const { call, snapshot } = await prepareArtMethod(db, method);
+    const before = await snapshot();
+
+    // 처음부터 자격이 없다: 해지된 직원, 다른 가게 직원, 이 환경에서 못 쓰는 STAFF, 무소속.
+    for (const accountId of ['gone-a', 'staff-b', 'staff-a', 'nobody']) {
+      await assert.rejects(call(accountId), accessDenied, accountId);
+    }
+    // 소유자였다가 강등됐다(요청 시작 검사 뒤에 일어난 일을 서비스가 다시 본다).
+    await db.pool.query(`UPDATE merchant_members SET role = 'STAFF' WHERE merchant_id = 'art-a' AND account_id = 'owner-a'`);
+    await assert.rejects(call('owner-a'), accessDenied, 'demoted owner');
+    // 회수됐다.
+    await db.pool.query(
+      `UPDATE merchant_members SET status = 'REVOKED', revoked_at = now() WHERE merchant_id = 'art-a' AND account_id = 'owner-a'`,
+    );
+    await assert.rejects(call('owner-a'), accessDenied, 'revoked owner');
+    assert.deepEqual(await snapshot(), before);
+
+    // 대조: 자격을 되돌리면 같은 호출이 통과한다(거절 원인은 멤버십이었다).
+    await db.pool.query(
+      `UPDATE merchant_members SET role = 'OWNER', status = 'ACTIVE', revoked_at = NULL
+       WHERE merchant_id = 'art-a' AND account_id = 'owner-a'`,
+    );
+    await call('owner-a');
+  });
+}
+
+// 활성 STAFF는 STAFF 허용 환경에서만 통과한다: 강등된 소유자도 그 환경에서는 STAFF로서 계속 쓸 수 있다.
+test('a demoted owner keeps working only where staff may manage art (#264)', async (t) => {
+  const db = await setup(t, { staffMayManageArt: true });
+  const round = await readyRound(db, 'art-a', 'owner-a');
+  await db.pool.query(`UPDATE merchant_members SET role = 'STAFF' WHERE merchant_id = 'art-a' AND account_id = 'owner-a'`);
+  await db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 0, accountId: 'owner-a' });
+});
+
+const lockWaits = async (pool: Pool) => (await pool.query(
+  `SELECT 1 FROM pg_stat_activity
+   WHERE datname = current_database() AND wait_event_type = 'Lock' AND pid <> pg_backend_pid()`,
+)).rowCount;
+
+for (const method of artMethods) {
+  for (const change of ['revoked', 'demoted'] as const) {
+    test(`${method} started while a ${change === 'revoked' ? 'revocation' : 'demotion'} holds the store row is denied once it commits and changes nothing (#264)`, async (t) => {
+      const db = await setup(t, { staffMayManageArt: false });
+      const { call, snapshot } = await prepareArtMethod(db, method);
+      const before = await snapshot();
+
+      // 회수·강등 트랜잭션처럼 가게 행을 FOR UPDATE로 잡고 멤버십을 바꾸되 아직 커밋하지 않는다.
+      const admin = await db.pool.connect();
+      let outcome: Promise<unknown> | undefined;
+      try {
+        await admin.query('BEGIN');
+        await admin.query(`SELECT id FROM merchants WHERE id = 'art-a' FOR UPDATE`);
+        await admin.query(
+          change === 'revoked'
+            ? `UPDATE merchant_members SET status = 'REVOKED', revoked_at = now() WHERE merchant_id = 'art-a' AND account_id = 'owner-a'`
+            : `UPDATE merchant_members SET role = 'STAFF' WHERE merchant_id = 'art-a' AND account_id = 'owner-a'`,
+        );
+        // 이 시점의 멤버십은 아직 활성 OWNER다. 호출은 가게 행 잠금 앞에서 기다려야 한다.
+        outcome = call('owner-a').then(() => new Error('the art call resolved'), (error: unknown) => error);
+        await waitFor(async () => (await lockWaits(db.pool)) === 1, 'the art call to wait on the store row lock');
+        assert.deepEqual(await snapshot(), before);
+        await admin.query('COMMIT');
+      } finally {
+        await admin.query('ROLLBACK').catch(() => undefined);
+        admin.release();
+      }
+
+      const error = await outcome!;
+      assert.ok(accessDenied(error), `expected MERCHANT_ACCESS_DENIED, got ${String(error)}`);
+      assert.deepEqual(await snapshot(), before);
+    });
+  }
+}
+
+// 회수를 실제 코드(PostgresStaffRegistration.revoke)로 한다: 대상 계정 advisory → 관리자 행 → 가게 행 FOR UPDATE → 멤버 행 UPDATE 순서다.
+// 그림 서비스는 accountLifecycle 없이 만들어(assertActive가 계정 advisory 잠금으로 먼저 막지 못하게) 가게 행 FOR SHARE만으로 직렬화되는지 본다.
+// 나중에 그림 쪽이 가게 행을 먼저 잠그지 않게 바뀌거나 회수가 가게 행을 잠그지 않게 바뀌면 이 시험이 잡는다.
+for (const method of artMethods) {
+  test(`${method} started while the real staff revoke holds the store row is denied once the revoke commits (#264)`, async (t) => {
+    const db = await setup(t, { staffMayManageArt: true });
+    const { call, snapshot } = await prepareArtMethod(db, method);
+    const before = await snapshot();
+    const adminId = `admin-${randomUUID()}`;
+    await db.pool.query(`UPDATE merchants SET is_demo = false WHERE id = 'art-a'`);
+    await db.pool.query(
+      `INSERT INTO auth_identities(provider, subject, account_id, created_at) VALUES ('google', $1, $2, now())`,
+      [`admin-sub-${randomUUID()}`, adminId],
+    );
+    await db.pool.query('INSERT INTO platform_admins(account_id) VALUES ($1)', [adminId]);
+    try {
+      const registration = new PostgresStaffRegistration(db.pool, hmacSecret);
+
+      // 회수가 가게 행을 잠근 뒤 멤버 행 UPDATE에서 멈추도록, 다른 연결이 그 멤버 행을 잡아 둔다.
+      const blocker = await db.pool.connect();
+      let revoke: Promise<void> | undefined;
+      let outcome: Promise<unknown> | undefined;
+      try {
+        await blocker.query('BEGIN');
+        await blocker.query(`SELECT 1 FROM merchant_members WHERE merchant_id = 'art-a' AND account_id = 'staff-a' FOR UPDATE`);
+        revoke = registration.revoke(adminId, 'art-a', 'staff-a');
+        revoke.catch(() => undefined);
+        await waitFor(async () => (await lockWaits(db.pool)) === 1, 'the revoke to wait on the member row');
+        // STAFF가 허용된 환경이고 멤버십은 아직 활성이다. 호출은 회수가 잡은 가게 행 잠금 앞에서 기다려야 한다.
+        outcome = call('staff-a').then(() => new Error('the art call resolved'), (error: unknown) => error);
+        await waitFor(async () => (await lockWaits(db.pool)) === 2, 'the art call to wait on the store row lock');
+        assert.deepEqual(await snapshot(), before);
+        await blocker.query('ROLLBACK');
+      } finally {
+        await blocker.query('ROLLBACK').catch(() => undefined);
+        blocker.release();
+        await revoke?.catch(() => undefined);
+      }
+
+      await revoke;
+      const error = await outcome!;
+      assert.ok(accessDenied(error), `expected MERCHANT_ACCESS_DENIED, got ${String(error)}`);
+      assert.deepEqual(await snapshot(), before);
+      assert.equal((await db.pool.query(
+        `SELECT status FROM merchant_members WHERE merchant_id = 'art-a' AND account_id = 'staff-a'`,
+      )).rows[0]!.status, 'REVOKED');
+    } finally {
+      await db.pool.query('DELETE FROM platform_admins WHERE account_id = $1', [adminId]);
+      await db.pool.query('DELETE FROM auth_identities WHERE account_id = $1', [adminId]);
+    }
+  });
+}
+
+// 계정 삭제는 가게 행을 잠그지 않고 merchant_members를 회수하므로, 그림 변경은 계정 advisory 잠금(assertActive)으로 삭제와 직렬화한다.
+// (1) 삭제가 아직 커밋되지 않은 채 잠금을 쥐고 있을 때 시작한 호출은 기다렸다가 커밋 뒤 ACCOUNT_DELETED로 거절되고 상태는 그대로다.
+for (const method of artMethods) {
+  test(`${method} started while an account deletion holds the account lock is rejected as ACCOUNT_DELETED once it commits (#264)`, async (t) => {
+    const db = await setup(t, { staffMayManageArt: true, lifecycle: true });
+    const { call, snapshot } = await prepareArtMethod(db, method);
+    const before = await snapshot();
+    const deletion = new PostgresAccountDeletionService(db.pool, {
+      hmacSecret, policyVersion: 'account-deletion-v1', accountLifecycle: db.lifecycle,
+    });
+
+    const deleter = await db.pool.connect();
+    let outcome: Promise<unknown> | undefined;
+    try {
+      await deleter.query('BEGIN');
+      await db.lifecycle.lockForDeletion(deleter, 'owner-a');
+      await deletion.forgetInTransaction(deleter, 'owner-a', db.now());
+      outcome = call('owner-a').then(() => new Error('the art call resolved'), (error: unknown) => error);
+      await waitFor(async () => (await lockWaits(db.pool)) === 1, 'the art call to wait on the account lock');
+      assert.deepEqual(await snapshot(), before);
+      await deleter.query('COMMIT');
+    } finally {
+      await deleter.query('ROLLBACK').catch(() => undefined);
+      deleter.release();
+    }
+
+    const error = await outcome!;
+    assert.ok(rejectsWith('ACCOUNT_DELETED')(error), `expected ACCOUNT_DELETED, got ${String(error)}`);
+    assert.deepEqual(await snapshot(), before);
+  });
+}
+
+// (2) 호출이 검사를 마치고 가게별 잠금 앞에서 기다리는 동안 시작한 삭제는 그 호출이 커밋될 때까지 기다린다(삭제가 먼저 끝난 뒤 호출이 커밋되지 않는다).
+for (const method of artMethods) {
+  test(`an account deletion cannot finish while its ${method} call sits between the checks and the commit (#264)`, async (t) => {
+    const db = await setup(t, { staffMayManageArt: true, lifecycle: true });
+    const { call } = await prepareArtMethod(db, method);
+    const deletion = new PostgresAccountDeletionService(db.pool, {
+      hmacSecret, policyVersion: 'account-deletion-v1', accountLifecycle: db.lifecycle,
+    });
+
+    // 이 가게의 그림 잠금을 다른 연결이 쥐고 있어, 호출은 계정·멤버십 확인을 마친 채 그 앞에서 기다린다.
+    const holder = await db.pool.connect();
+    let art: Promise<unknown> | undefined;
+    let removal: ReturnType<typeof deletion.requestDeletion> | undefined;
+    let removalSettled = false;
+    try {
+      await holder.query('BEGIN');
+      await holder.query(`SELECT pg_advisory_xact_lock(hashtextextended('ai-art-merchant:art-a', 0))`);
+      art = call('owner-a');
+      art.catch(() => undefined);
+      await waitFor(async () => (await lockWaits(db.pool)) === 1, 'the art call to wait on the store lock');
+      removal = deletion.requestDeletion({ accountId: 'owner-a', confirmation: 'DELETE MY ACCOUNT' });
+      removal.then(() => { removalSettled = true; }, () => { removalSettled = true; });
+      // 삭제는 그림 호출의 트랜잭션이 쥔 계정 잠금 앞에서 기다린다.
+      await waitFor(async () => (await lockWaits(db.pool)) === 2, 'the deletion to wait on the account lock');
+      assert.equal(removalSettled, false);
+      await holder.query('COMMIT');
+    } finally {
+      await holder.query('ROLLBACK').catch(() => undefined);
+      holder.release();
+    }
+
+    await art!;
+    const result = await removal!;
+    assert.ok(result.requestId);
+    assert.equal(removalSettled, true);
+  });
+}
+
+test('HTTP: an art request whose access was lost after the permission check is denied by the service and nothing changes (#264)', async (t) => {
+  const db = await setup(t, { staffMayManageArt: false });
+  const { snapshot } = await prepareArtMethod(db, 'apply');
+  const before = await snapshot();
+  const roundId = before.rounds[0]!.id as string;
+  // 요청 시작의 권한 검사는 통과했다고 가정한다(그 뒤 본문을 읽는 사이에 회수·강등된 경우). 서비스가 자기 트랜잭션에서 다시 거절해야 한다.
+  const staleAccess = {
+    requirePermission: async (input: { merchantId: string }) => ({
+      merchantId: input.merchantId, role: 'OWNER' as const, permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT'] as const,
+    }),
+  };
+  const server = createApiServer(
+    new WalletChallengeService({
+      store: new InMemoryChallengeStore(), domain: 'api.masscom.local',
+      uri: 'https://api.masscom.local/wallet/verify', chainId: 84532, ttlMs: 5 * 60 * 1000,
+    }),
+    developmentHeaderAccountResolver, undefined, staleAccess,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    false, undefined, false, undefined, undefined, undefined, undefined, undefined, undefined, db.art,
+  );
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('no port');
+  const base = `http://127.0.0.1:${address.port}`;
+  const art = `${base}/merchant/merchants/art-a/art`;
+  const send = (account: string, method: string, url: string, body: string) => fetch(url, {
+    method, headers: { 'x-account-id': account, 'content-type': 'application/json' }, body,
+  });
+
+  for (const account of ['gone-a', 'staff-a']) {
+    for (const [method, url, body] of [
+      ['POST', `${art}/rounds`, '{}'],
+      ['POST', `${art}/rounds/${roundId}/choose`, '{"index":1}'],
+      ['POST', `${art}/rounds/${roundId}/apply`, '{}'],
+      ['DELETE', art, '{}'],
+    ] as const) {
+      const response = await send(account, method, url, body);
+      assert.equal(response.status, 403, `${account} ${method} ${url}`);
+      assert.deepEqual(await response.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+    }
+  }
+  assert.deepEqual(await snapshot(), before);
+
+  // 대조: 활성 OWNER는 같은 경로가 통과한다(서버가 accountId를 넘긴다).
+  const applied = await send('owner-a', 'POST', `${art}/rounds/${roundId}/apply`, '{}');
+  assert.equal(applied.status, 200);
+  assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM merchant_art')).rows[0]!.n, 1);
 });

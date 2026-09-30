@@ -3455,7 +3455,7 @@ test('art routes need customer auth and MANAGE_ART before touching the service',
     getRound: async (input) => { calls.push(['get', input]); return sampleArtRound; },
     chooseDraft: async (input) => { calls.push(['choose', input]); return { ...sampleArtRound, status: 'FINALIZING', chosenIndex: input.index }; },
     apply: async (input) => { calls.push(['apply', input]); return { artUrl: `/merchant-art/${'a'.repeat(64)}.webp` }; },
-    reset: async (merchantId) => { calls.push(['reset', merchantId]); },
+    reset: async (input) => { calls.push(['reset', input]); },
   }));
   const owner = { 'x-account-id': 'owner-1', 'content-type': 'application/json' };
   const art = `${base}/merchant/merchants/shop-1/art`;
@@ -3494,7 +3494,9 @@ test('art routes need customer auth and MANAGE_ART before touching the service',
   assert.deepEqual(calls, [
     ['state', 'shop-1'], ['create', { merchantId: 'shop-1', accountId: 'owner-1' }],
     ['create', { merchantId: 'shop-1', accountId: 'owner-1' }], ['get', { merchantId: 'shop-1', roundId }],
-    ['choose', { merchantId: 'shop-1', roundId, index: 3 }], ['apply', { merchantId: 'shop-1', roundId }], ['reset', 'shop-1'],
+    ['choose', { merchantId: 'shop-1', roundId, index: 3, accountId: 'owner-1' }],
+    ['apply', { merchantId: 'shop-1', roundId, accountId: 'owner-1' }],
+    ['reset', { merchantId: 'shop-1', accountId: 'owner-1' }],
   ]);
 });
 
@@ -3548,6 +3550,23 @@ test('art errors map to their HTTP statuses, with Retry-After for the daily limi
   const crashed = await fetch(`${base}/merchant/merchants/shop-1/art/rounds`, { method: 'POST', headers: owner, body: '{}' });
   assert.equal(crashed.status, 500);
   assert.deepEqual(await crashed.json(), { code: 'INTERNAL_ERROR' });
+});
+
+test('losing MANAGE_ART inside the art transaction answers 403 MERCHANT_ACCESS_DENIED on every mutating route (#264)', async (t) => {
+  const denied = async () => { throw new MerchantAccessError('MERCHANT_ACCESS_DENIED'); };
+  const { base } = await startArt(t, artFixture({ createRound: denied, chooseDraft: denied, apply: denied, reset: denied }));
+  const owner = { 'x-account-id': 'owner-1', 'content-type': 'application/json' };
+  const art = `${base}/merchant/merchants/shop-1/art`;
+  const roundId = sampleArtRound.id;
+  for (const [method, url, body] of [
+    ['POST', `${art}/rounds`, '{}'], ['POST', `${art}/rounds/${roundId}/choose`, '{"index":1}'],
+    ['POST', `${art}/rounds/${roundId}/apply`, '{}'], ['DELETE', art, '{}'],
+  ] as const) {
+    const response = await fetch(url, { method, headers: owner, body });
+    assert.equal(response.status, 403, `${method} ${url}`);
+    assert.deepEqual(await response.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
 });
 
 test('art routes are closed without configuration and the public image route needs a valid hash', async (t) => {

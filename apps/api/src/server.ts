@@ -1230,13 +1230,13 @@ export function createApiServer(
           if (Object.keys(body).some(key => key !== 'index')) throw new RequestError(400, 'INVALID_REQUEST');
           const index = requireNumber(body, 'index');
           if (index < 0 || index > 3) throw new RequestError(400, 'INVALID_REQUEST');
-          sendJson(response, 202, await merchantArt.chooseDraft({ merchantId, roundId, index }));
+          sendJson(response, 202, await merchantArt.chooseDraft({ merchantId, roundId, index, accountId }));
         } else if (artRoute.kind === 'apply') {
           requireEmptyBody(await readJson(request, true));
-          sendJson(response, 200, await merchantArt.apply({ merchantId, roundId }));
+          sendJson(response, 200, await merchantArt.apply({ merchantId, roundId, accountId }));
         } else {
           requireEmptyBody(await readJson(request, true));
-          await merchantArt.reset(merchantId);
+          await merchantArt.reset({ merchantId, accountId });
           sendJson(response, 200, { status: 'RESET' });
         }
         return;
@@ -1947,6 +1947,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
               }),
             }
           : {}),
+        staffMayManageArt: aiArtConfig.staffMayManage,
         ...(accountLifecycle ? { accountLifecycle } : {}),
       })
     : undefined;

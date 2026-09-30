@@ -128,7 +128,7 @@ npm run start:local
 
 점주 권한이 있는 사람이 가게 이름·메뉴 이름(서버가 가진 값, 자유 문장 없음)으로 스타일이 다른 시안 4장(도장·스티커·수채화·판화)을 받고, 하나를 고르면 같은 그림을 고품질로 다시 그려 고객 앱의 가게 그림으로 쓴다. 설계·근거는 [`docs/superpowers/specs/2026-09-29-ai-store-art-design.md`](../../docs/superpowers/specs/2026-09-29-ai-store-art-design.md).
 
-점주용 경로는 모두 `Authorization: Bearer <세션 토큰>`(고객 인증)과 그 가게의 활성 멤버십 `MANAGE_ART` 권한이 필요하다. `MANAGE_ART`는 **활성 OWNER**에게 주고, 활성 STAFF에게는 `AI_ART_STAFF_MAY_MANAGE=true`인 환경에서만 준다(기본 `false`). 시연 compose만 `true`로 켜고(시연은 CLI로 소유자 계정에만 STAFF를 준다) **운영은 켜지 않는다**. 운영 OWNER는 관리자 웹의 확인 절차로 생길 수 있지만(D-054), **운영 `OPENAI_API_KEY`는 정책(D-050)상 비워 둔다**: 키가 비어 있으면 생성 API는 `503 AI_ART_NOT_CONFIGURED`이고, 키를 넣는 일은 소유자가 운영 예산·사용을 따로 승인한 뒤에 한다. 이 권한은 `context` 응답의 `permissions` 목록에는 싣지 않는다(설치된 앱 파서가 모르는 값을 거절하기 때문). 권한이 없거나 다른 가게면 `403 MERCHANT_ACCESS_DENIED`다. 모든 JSON 응답은 `no-store`다.
+점주용 경로는 모두 `Authorization: Bearer <세션 토큰>`(고객 인증)과 그 가게의 활성 멤버십 `MANAGE_ART` 권한이 필요하다. `MANAGE_ART`는 **활성 OWNER**에게 주고, 활성 STAFF에게는 `AI_ART_STAFF_MAY_MANAGE=true`인 환경에서만 준다(기본 `false`). 시연 compose만 `true`로 켜고(시연은 CLI로 소유자 계정에만 STAFF를 준다) **운영은 켜지 않는다**. 운영 OWNER는 관리자 웹의 확인 절차로 생길 수 있지만(D-054), **운영 `OPENAI_API_KEY`는 정책(D-050)상 비워 둔다**: 키가 비어 있으면 생성 API는 `503 AI_ART_NOT_CONFIGURED`이고, 키를 넣는 일은 소유자가 운영 예산·사용을 따로 승인한 뒤에 한다. 이 권한은 `context` 응답의 `permissions` 목록에는 싣지 않는다(설치된 앱 파서가 모르는 값을 거절하기 때문). 권한이 없거나 다른 가게면 `403 MERCHANT_ACCESS_DENIED`다. 시안 받기·고르기·적용·되돌리기는 요청 시작의 이 검사와 별개로 **자기 트랜잭션 안에서 계정의 현재 멤버십·역할을 가게 행 `FOR SHARE`로 다시 확인**하므로(#264), 검사 뒤에 회수·강등돼도 같은 `403`이고 상태는 바뀌지 않는다. 모든 JSON 응답은 `no-store`다.
 
 | 경로 | 성공 | 오류 |
 | --- | --- | --- |

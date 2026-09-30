@@ -29,6 +29,7 @@ import {
 } from '../reversal-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { medalValuesSql } from './badge-rewards.js';
+import { requireActiveMerchantMember } from './merchant-membership.js';
 import { grantReachedGoals } from './visit-rewards.js';
 
 type Options = {
@@ -157,7 +158,8 @@ export class PostgresReversalService implements ReversalService {
         client,
         peek ? [input.staffAccountId, peek.customer_account_id] : [input.staffAccountId],
       );
-      await requireActiveMember(client, input.merchantId, input.staffAccountId);
+      // 숨긴 점포여도 되돌리기는 허용한다(점포 상태는 보지 않는다).
+      await requireActiveMerchantMember(client, input.merchantId, input.staffAccountId);
       if (!peek) throw new ReversalError('VISIT_NOT_FOUND');
       await advisoryLock(client, JSON.stringify([peek.customer_account_id, peek.campaign_id]));
       await advisoryLock(client, `badge-reward:${peek.customer_account_id}`);
@@ -353,7 +355,8 @@ export class PostgresReversalService implements ReversalService {
     try {
       await client.query('BEGIN');
       await this.accountLifecycle.assertActive(client, input.staffAccountId);
-      await requireActiveMember(client, input.merchantId, input.staffAccountId);
+      // 숨긴 점포여도 되돌리기는 허용한다(점포 상태는 보지 않는다).
+      await requireActiveMerchantMember(client, input.merchantId, input.staffAccountId);
       if (!uuidPattern.test(input.couponId)) throw new ReversalError('COUPON_NOT_FOUND');
       // 다른 점포·없는 쿠폰은 조건에 맞는 행이 없어 구분 없이 같은 404가 된다.
       const peek = (
@@ -552,19 +555,6 @@ export class PostgresReversalService implements ReversalService {
     );
     if (!member.rowCount) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
   }
-}
-
-// 점포 행을 FOR SHARE로 잡아 직원 회수(점포 행 FOR UPDATE)와 직렬화한다. 숨긴 점포여도 되돌리기는 허용한다.
-async function requireActiveMember(client: PoolClient, merchantId: string, staffAccountId: string): Promise<void> {
-  const member = await client.query(
-    `SELECT 1
-     FROM merchant_members AS member
-     JOIN merchants AS merchant ON merchant.id = member.merchant_id
-     WHERE member.merchant_id = $1 AND member.account_id = $2 AND member.status = 'ACTIVE'
-     FOR SHARE OF merchant`,
-    [merchantId, staffAccountId],
-  );
-  if (!member.rowCount) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
 }
 
 async function advisoryLock(client: PoolClient, key: string): Promise<void> {
