@@ -4,14 +4,17 @@
 
 ## 2026-09-30 실제 점포 운영 시작: 공개·점주·보상 혜택·캠페인·운영 NFT 발행 준비 중 (Issue #246, D-054)
 
-- 기준: main `02cb7e7` 위의 브랜치 `feat/246-store-go-live`(로컬 worktree `.worktrees/246-store-go-live`, 로컬 커밋만이고 **push·PR·배포 없음**). 설계는 [`docs/superpowers/specs/2026-09-30-store-go-live-design.md`](superpowers/specs/2026-09-30-store-go-live-design.md), 운영자 절차는 [`docs/MERCHANT_ONBOARDING.md`](MERCHANT_ONBOARDING.md).
+- 기준: main `02cb7e7`에서 시작해 main `4081999`(PR #249 접수번호 한 줄 표시·PR #251 배포 문서)를 합친 브랜치 `feat/246-store-go-live`(로컬 worktree `.worktrees/246-store-go-live`, 로컬 커밋만이고 **push·PR·배포 없음**). 설계는 [`docs/superpowers/specs/2026-09-30-store-go-live-design.md`](superpowers/specs/2026-09-30-store-go-live-design.md), 운영자 절차는 [`docs/MERCHANT_ONBOARDING.md`](MERCHANT_ONBOARDING.md).
+- **현재 라이브(이 브랜치는 아직 없음):** 운영 API·웹 `4081999`(API 코드는 `02cb7e7`과 같음), 시연 API `02cb7e7`, 시연 APK Preview 11(`18a8601`), 공개 `/open`은 Preview 11을 안내한다.
 - 내용: migration 0032, `PostgresAdminService`의 `publishMerchant`·`listOwners`·`promoteOwner`·`demoteOwner`·`listRewardOffers`·`createRewardOffer`·`pauseRewardOffer`·`listCampaigns`·`publishCampaign`·`pauseCampaign`, 관리자 API(`/api/web/admin/merchants/:id/publish`·`/owners`·`/members/:accountId/promote-owner|demote-owner`, `/reward-offers`, `/campaigns`), 계정 삭제의 `platform_admin_audit.target_account_id` 가명 처리, 관리자 웹 구역, 고객 앱·웹 "발행 준비 중"(`NFT_MINTING_MODE`), 배포 검증기의 PREPARING 확인, D-054·D-055·D-023.
-- 검증: [TEST_STATUS](TEST_STATUS.md) 첫 항목. API 단위 237/237, PostgreSQL 229건 중 227 PASS·0 FAIL·2 SKIP(새 일회용 `masscom_246_test`), 운영 웹 108/108, 모바일 779/779·typecheck·lint, `bash tools/gate.sh` PASS.
-- **배포 순서:** migration 0032는 배포된 API `02cb7e7`와 호환되므로 배포 스크립트가 먼저 적용해도 된다. 그다음 API(새 경로·`NFT_MINTING_MODE=PREPARING`)를 바꾸고 그 뒤 운영 웹(관리자 웹 새 구역·고객 웹 문구)을 바꾼다. 새 관리자 웹이 옛 API를 만나면 새 목록·동작이 404로 "불러오지 못했습니다"만 보인다. 되돌릴 때 옛 API는 새 열·새 감사 행을 무시하지만 옛 계정 삭제는 `platform_admin_audit.target_account_id`를 별칭으로 바꾸지 않으므로, 롤백한 동안 삭제된 계정이 있으면 재배포 뒤 그 열을 확인한다.
-- **운영 메모:** 참조 번호에는 숫자를 7자리 이하로 끊어 쓴다(예: `CS-2609-01`). 점주는 관리자 본인이 올릴 수 없으니 관리자가 한 명뿐이면 점주 부여는 두 번째 관리자가 필요하다. 운영 `OPENAI_API_KEY`는 OWNER가 생겨도 D-050대로 비워 둔다.
+- 검증: [TEST_STATUS](TEST_STATUS.md) 첫 항목(리뷰 후속·main 병합 뒤). API 단위 240/240, PostgreSQL 229건 중 227 PASS·0 FAIL·2 SKIP(새 일회용 `masscom_246_test`, 실행 뒤 삭제), 웹 `tests/site/*.mjs` 170/170(운영 웹 114), 모바일 780/780·typecheck·lint, `bash tools/gate.sh` PASS. 교차 리뷰: opus 보안 APPROVE(🔴 0)·sonnet 코드 APPROVE(🔴 0), 🟡·🔵 지적은 이 브랜치의 리뷰 후속 커밋들에 반영했다.
+- **배포 순서:** migration 0032는 배포된 API `02cb7e7`와 호환되고(`SET LOCAL lock_timeout = '5s'`) 배포 스크립트가 먼저 적용한다. 그다음 API(새 경로·고정 `NFT_MINTING_MODE: PREPARING`)를 바꾸고 그 뒤 운영 웹(관리자 웹 새 구역·고객 웹 문구)을 바꾼다. 새 관리자 웹이 옛 API를 만나면 새 목록·동작이 404로 "불러오지 못했습니다"만 보인다.
+- **롤백 주의(#243과 같은 방식): 이 브랜치를 병합·배포한 뒤에는 앞으로 고쳐 나가고(fix forward) API를 이 커밋 아래로 되돌리지 않는다.** 0032 스키마 위에서 API를 `02cb7e7`로 되돌리면 옛 계정 삭제가 `platform_admin_audit.target_account_id`를 별칭으로 바꾸지 않아, 롤백 동안 삭제된 계정의 원 ID가 점주 변경 감사 행에 남는다. 불가피하게 되돌렸다면 재배포 직후 그 열을 삭제 원장과 대조해 별칭으로 바꾼다.
+- **go-live 전제 조건([B-027](BLOCKERS.md)):** 운영을 `LIVE`로 바꾸기 전에 PREPARING 동안 생긴 권리의 `claim_expires_at`(달성 뒤 90일)을 늘리는 migration을 먼저 하고, 발행 서버·메인넷·NFT 시리즈를 준비한 뒤, compose의 고정값을 바꾸는 별도 변경으로 발행을 연다.
+- **운영 메모:** 참조 번호는 하이픈·점·밑줄로 끊어도 숫자를 합쳐 세므로 영문자 없이 이어지는 숫자는 모두 합쳐 7자리까지다(예: `CS-2609-01`). 점주는 관리자 본인이 올릴 수 없으니 관리자가 한 명뿐이면 점주 부여는 두 번째 관리자가 필요하다. 운영 `OPENAI_API_KEY`는 OWNER가 생겨도 D-050대로 비워 둔다.
 - `NOT_RUN`: 운영 migration 0032 적용·API/웹 배포, 인증된 브라우저에서 실제 점포 공개·점주 올리기·혜택 등록·캠페인 공개, 390px·어두운 화면 실제 렌더링, 실기기의 "발행 준비 중", `export:android`, 독립 교차 리뷰(민감 경로: 권한·보상 규칙이라 서로 다른 모델 2개 필요).
-- 다음 작업: ① 서로 다른 모델 2개의 교차 리뷰. ② PR(`bash scripts/check-pr-korean.sh`)·CI·병합. ③ 운영 배포(migration 0032 → API → 웹) 뒤 폐기용 점포로 공개·숨김과 관리자 두 명의 점주 올리기를 인증된 브라우저에서 확인. ④ 고객 앱 다음 빌드에서 "발행 준비 중" 실기 확인.
-- 다음 명령: `git -C .worktrees/246-store-go-live log --oneline 02cb7e7..HEAD`, `gh pr list`, `TEST_DATABASE_URL=<이름이 _test로 끝나는 일회용 로컬 DB URL> npm run test:postgres --prefix apps/api`.
+- 다음 작업: ① PR(`bash scripts/check-pr-korean.sh`)·CI·병합(교차 리뷰 2개는 APPROVE). ② 운영 배포(migration 0032 → API → 웹) 뒤 폐기용 점포로 공개·숨김과 관리자 두 명의 점주 올리기(10분 안 로그인)를 인증된 브라우저에서 확인. ③ 고객 앱 다음 빌드에서 "발행 준비 중"·"정원 마감" 제거 실기 확인. ④ 발행을 열 때는 B-027 순서를 따른다.
+- 다음 명령: `git -C .worktrees/246-store-go-live log --oneline 4081999..HEAD`, `gh pr list`, `TEST_DATABASE_URL=<이름이 _test로 끝나는 일회용 로컬 DB URL> npm run test:postgres --prefix apps/api`.
 
 ## 2026-09-30 방문·쿠폰 되돌리기·계정 삭제 처리 운영·시연 배포와 시연 Preview 11 공개(Issue #250)
 
