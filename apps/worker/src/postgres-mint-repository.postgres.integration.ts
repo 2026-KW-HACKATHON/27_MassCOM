@@ -1123,7 +1123,7 @@ async function seedWorkerFixture(pool: Pool): Promise<void> {
        id, campaign_id, target_visit_count, chain_id, contract_address,
        contract_address_normalized, series_key, max_ever_minted, status
      ) VALUES (
-       'series-worker', 'campaign-worker', 1, 31337,
+       's-000000000000000000000000000000f1', 'campaign-worker', 1, 31337,
        '0x7000000000000000000000000000000000000007',
        '0x7000000000000000000000000000000000000007',
        decode(repeat('33', 32), 'hex'), 10, 'ACTIVE'
@@ -1138,7 +1138,7 @@ async function seedWorkerFixture(pool: Pool): Promise<void> {
        idempotency_key, request_fingerprint, status, created_at, updated_at
      ) VALUES (
        '40000000-0000-4000-8000-000000000001',
-       '20000000-0000-4000-8000-000000000001', 'customer-worker', 'series-worker',
+       '20000000-0000-4000-8000-000000000001', 'customer-worker', 's-000000000000000000000000000000f1',
        decode(repeat('11', 32), 'hex'), '30000000-0000-4000-8000-000000000021', 1,
        '0x4000000000000000000000000000000000000004',
        '0x4000000000000000000000000000000000000004',
@@ -1212,7 +1212,7 @@ test('#254 확정 때 가게 이름·동네·업종·방문 단계·캠페인과
 
   const rows = await savedMetadata(pool);
   assert.equal(rows.length, 1);
-  assert.equal(rows[0]!.nft_series_id, 'series-worker');
+  assert.equal(rows[0]!.nft_series_id, 's-000000000000000000000000000000f1');
   assert.equal(rows[0]!.token_id, '7');
   assert.equal(rows[0]!.image_sha256, sha);
   assert.deepEqual(JSON.parse(rows[0]!.metadata_json), {
@@ -1280,8 +1280,10 @@ test('#254 가게 그림이 없으면 기본 도장이고 동네·업종이 없�
   assert.equal(metadata.image, 'https://masscom.kr/nft-metadata/default/mascot-stamp-v1.png');
   assert.deepEqual(metadata.attributes.map((item: { trait_type: string }) => item.trait_type), ['가게 이름', '방문 단계', '캠페인']);
 
+  // 불투명 id(s- + 소문자 hex 32자)만 받는다. 가게 이름이 들어간 id는 영구 공개 주소에 남으므로 거절한다.
   for (const id of ['base-sepolia-proof', 'BASE-SEPOLIA-PROOF', 'Base-Sepolia-Proof', 'has space', 'dot.id', '-leading',
-    'a'.repeat(129)]) {
+    'a'.repeat(129), 'wolgye-kimbap-3', 'series-worker', `S-${'a'.repeat(32)}`, `s-${'A'.repeat(32)}`, `s-${'a'.repeat(31)}`,
+    `s-${'a'.repeat(33)}`, `s-${'g'.repeat(32)}`]) {
     await assert.rejects(pool.query(
       `INSERT INTO nft_series (id, campaign_id, target_visit_count, chain_id, contract_address,
          contract_address_normalized, series_key, max_ever_minted, status)
@@ -1395,4 +1397,78 @@ test('#254 스냅샷이 실패하면 확정 전체가 되돌아가 NFT_METADATA_
        (SELECT count(*)::integer FROM nft_token_metadata) AS snapshots`, [item.jobId],
   );
   assert.deepEqual(done.rows[0], { status: 'FINALIZED', snapshots: 1 });
+});
+
+test('#254 발행 뒤 스냅샷 실패가 결과 대기 시간을 넘겨도 원인 코드를 남기고 채굴된 시도는 SUBMITTED로 두며, 원인을 고쳐 되돌리면 확정된다', async (t) => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
+  const errors: string[] = [];
+  const originalError = console.error;
+  console.error = (line: unknown) => { errors.push(String(line)); };
+  t.after(async () => {
+    console.error = originalError;
+    await pool.query('DROP TRIGGER IF EXISTS nft_token_metadata_test_timeout ON nft_token_metadata');
+    await pool.query('DROP FUNCTION IF EXISTS nft_token_metadata_test_timeout()');
+    await pool.end();
+  });
+  await seedWorkerFixture(pool);
+  await pool.query(`CREATE FUNCTION nft_token_metadata_test_timeout() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN RAISE EXCEPTION 'secret-looking value 0x4000000000000000000000000000000000000004'; END; $$`);
+  await pool.query(`CREATE TRIGGER nft_token_metadata_test_timeout BEFORE INSERT ON nft_token_metadata
+    FOR EACH ROW EXECUTE FUNCTION nft_token_metadata_test_timeout()`);
+  let now = new Date('2026-09-30T00:00:00.000Z');
+  const repository = new PostgresMintRepository(pool, {
+    nftMetadataOrigin: testMetadataOrigin, now: () => now, receiptTimeoutMs: 60_000,
+  });
+  const item = await repository.leaseNext('worker-timeout', 30_000);
+  assert.ok(item);
+  const attemptId = await repository.markPrepared(item, 'worker-timeout');
+  const transactionHash = `0x${'de'.repeat(32)}`;
+  await repository.markSubmitted(item.jobId, 'worker-timeout', attemptId, transactionHash);
+  const result: ChainMintResult = {
+    transactionHash, blockNumber: 6, blockHash: `0x${'df'.repeat(32)}`, logIndex: 0, tokenId: '9',
+    rewardKey: item.rewardKey, recipient: item.recipient, seriesKey: item.seriesKey,
+    contractAddress: item.contractAddress, chainId: item.chainId,
+  };
+  const failOnce = async (workerId: string, current = item) => {
+    await assert.rejects(repository.finalize(current, workerId, attemptId, result),
+      (error: unknown) => error instanceof RetryableChainError && error.code === 'NFT_METADATA_SNAPSHOT_FAILED');
+    await repository.releaseRetryable(item.jobId, workerId, 'NFT_METADATA_SNAPSHOT_FAILED');
+  };
+  await failOnce('worker-timeout');
+  // 원인은 SQLSTATE·제약 이름만 한 번 남기고 값·메시지는 남기지 않는다.
+  assert.equal(errors.length, 1);
+  assert.deepEqual(JSON.parse(errors[0]!), { event: 'NFT_METADATA_SNAPSHOT_FAILED', sqlstate: 'P0001', constraint: null });
+  assert.equal(errors[0]!.includes('0x4000'), false);
+
+  now = new Date(now.getTime() + 61_000);
+  const late = await repository.leaseNext('worker-timeout-late', 30_000);
+  assert.equal(late?.jobId, item.jobId);
+  await failOnce('worker-timeout-late', late!);
+  const closed = await pool.query<{ status: string; last_error_code: string; attempt_status: string; outbox_status: string }>(
+    `SELECT job.status, job.last_error_code, attempt.status AS attempt_status, outbox.status AS outbox_status
+     FROM mint_jobs AS job
+     JOIN mint_tx_attempts AS attempt ON attempt.mint_job_id = job.id
+     JOIN outbox_events AS outbox ON outbox.aggregate_id = job.id
+     WHERE job.id = $1`, [item.jobId],
+  );
+  assert.deepEqual(closed.rows[0], {
+    status: 'MANUAL_REVIEW', last_error_code: 'NFT_METADATA_SNAPSHOT_FAILED', attempt_status: 'SUBMITTED', outbox_status: 'PUBLISHED',
+  });
+  // 수동 검토로 닫힌 작업의 SUBMITTED 시도는 재전송 대상에서 빠진다.
+  assert.deepEqual(await repository.listUnconfirmedSignedTransactions(item.chainId), []);
+
+  // 운영 절차: 원인을 고치고 작업을 RETRYABLE·Outbox를 PENDING으로 되돌리면 다음 확정이 끝난다.
+  await pool.query('DROP TRIGGER nft_token_metadata_test_timeout ON nft_token_metadata');
+  await pool.query(`UPDATE mint_jobs SET status = 'RETRYABLE', updated_at = $2 WHERE id = $1`, [item.jobId, now]);
+  await pool.query(`UPDATE outbox_events SET status = 'PENDING', available_at = $2, updated_at = $2 WHERE aggregate_id = $1`,
+    [item.jobId, now]);
+  const requeued = await repository.leaseNext('worker-requeued', 30_000);
+  assert.equal(requeued?.jobId, item.jobId);
+  await repository.finalize(requeued!, 'worker-requeued', undefined, result);
+  const finalized = await pool.query<{ status: string; attempt_status: string; snapshots: number }>(
+    `SELECT job.status, attempt.status AS attempt_status,
+       (SELECT count(*)::integer FROM nft_token_metadata) AS snapshots
+     FROM mint_jobs AS job JOIN mint_tx_attempts AS attempt ON attempt.mint_job_id = job.id WHERE job.id = $1`, [item.jobId],
+  );
+  assert.deepEqual(finalized.rows[0], { status: 'FINALIZED', attempt_status: 'MINED', snapshots: 1 });
 });

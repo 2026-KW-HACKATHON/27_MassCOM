@@ -654,6 +654,12 @@ export class PostgresMintRepository implements MintWorkRepository {
       )
     ).rows[0];
     if (!job) throw new Error('MINT_JOB_NOT_FOUND');
+    // 체인 발행은 끝났고 메타데이터 스냅샷만 실패했다(Issue #254). 기다림이 끝나 수동 검토로 닫을 때도 원인 코드를 남기고, 채굴된
+    // 거래의 시도 기록은 실패로 닫지 않는다. 운영자가 원인을 고친 뒤 RETRYABLE로 되돌리면 findMintByRewardKey가 확정한다.
+    const mintedOnChain = code === 'NFT_METADATA_SNAPSHOT_FAILED';
+    const closeForReview = (fallbackCode: string) => closeForManualReview(
+      client, jobId, mintedOnChain ? code : fallbackCode, now, { keepSubmittedAttempts: mintedOnChain },
+    );
 
     if (job.transaction_hash) {
       // The job already holds a broadcast transaction: this release only checks its result
@@ -671,16 +677,16 @@ export class PostgresMintRepository implements MintWorkRepository {
       // Without the submitted attempt there is no clock to bound the wait, so stop here rather
       // than restarting the clock on every release.
       if (!attempt?.submitted_at) {
-        await closeForManualReview(client, jobId, 'RECEIPT_ATTEMPT_MISSING', now);
+        await closeForReview('RECEIPT_ATTEMPT_MISSING');
         return;
       }
       if (now.getTime() - attempt.submitted_at.getTime() >= this.options.receiptTimeoutMs) {
-        await closeForManualReview(client, jobId, 'RECEIPT_TIMEOUT', now);
+        await closeForReview('RECEIPT_TIMEOUT');
         return;
       }
     } else if (job.attempt_count >= this.options.maxAttempts) {
       // Only submission attempts count, so waiting for finality or an RPC outage never lands here.
-      await closeForManualReview(client, jobId, 'RETRY_LIMIT_EXCEEDED', now);
+      await closeForReview('RETRY_LIMIT_EXCEEDED');
       return;
     }
     // The streak also grows on pre-submission failures (RPC outages, a paused contract) so a long
@@ -744,6 +750,7 @@ async function closeForManualReview(
   jobId: string,
   code: string,
   now: Date,
+  options: { keepSubmittedAttempts?: boolean } = {},
 ): Promise<void> {
   await client.query(
     `UPDATE mint_jobs
@@ -754,13 +761,17 @@ async function closeForManualReview(
   // A job going to manual review can still be holding a SUBMITTED attempt (a straggler that
   // never got a receipt, or one this worker gave up on). Close it in the same transaction: left
   // SUBMITTED, it would be swept and rebroadcast forever by listUnconfirmedSignedTransactions
-  // even though nothing can ever act on its job again.
-  await client.query(
-    `UPDATE mint_tx_attempts
-     SET status = 'FAILED', error_code = $1, updated_at = $2
-     WHERE mint_job_id = $3 AND status = 'SUBMITTED'`,
-    [code, now, jobId],
-  );
+  // even though nothing can ever act on its job again. Exception: a job whose mint is already on
+  // chain (only the metadata snapshot failed) keeps its mined attempt SUBMITTED; the sweep ignores
+  // MANUAL_REVIEW jobs, and finalize closes it as MINED once an operator re-queues the job.
+  if (!options.keepSubmittedAttempts) {
+    await client.query(
+      `UPDATE mint_tx_attempts
+       SET status = 'FAILED', error_code = $1, updated_at = $2
+       WHERE mint_job_id = $3 AND status = 'SUBMITTED'`,
+      [code, now, jobId],
+    );
+  }
   await client.query(
     `UPDATE outbox_events
      SET status = 'PUBLISHED', lease_owner = NULL, lease_expires_at = NULL, updated_at = $1
@@ -835,6 +846,13 @@ async function snapshotTokenMetadata(client: PoolClient, jobId: string, origin: 
       [row.asset_id, row.nft_series_id, row.token_id, snapshot.json, snapshot.image?.sha256 ?? null],
     );
   } catch (error) {
+    // 원인은 한 번만 남긴다: PostgreSQL SQLSTATE와 제약 이름뿐이고 값·메시지는 남기지 않는다.
+    const detail = error as { code?: unknown; constraint?: unknown };
+    console.error(JSON.stringify({
+      event: 'NFT_METADATA_SNAPSHOT_FAILED',
+      sqlstate: typeof detail.code === 'string' ? detail.code : null,
+      constraint: typeof detail.constraint === 'string' ? detail.constraint : null,
+    }));
     throw new RetryableChainError('NFT_METADATA_SNAPSHOT_FAILED', { cause: error });
   }
 }

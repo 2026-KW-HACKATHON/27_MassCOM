@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
@@ -424,7 +425,7 @@ async function seedOutageJob(
        decode(substr($5, 3), 'hex'), 1, 'ACTIVE'
      )`,
     [
-      `series-outage-${options.suffix}`,
+      `s-${createHash('md5').update(`outage-${options.suffix}`).digest('hex')}`,
       campaignId,
       options.contractAddress,
       options.contractAddress.toLowerCase(),
@@ -486,7 +487,7 @@ async function seedOutageJob(
       jobId,
       entitlementId,
       customerId,
-      `series-outage-${options.suffix}`,
+      `s-${createHash('md5').update(`outage-${options.suffix}`).digest('hex')}`,
       options.rewardKey,
       bindingId,
       options.recipient,

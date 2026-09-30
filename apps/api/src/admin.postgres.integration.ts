@@ -31,7 +31,8 @@ test('operations status counts only real merchants without exposing customer or 
   const visitId = randomUUID();
   const entitlementId = randomUUID();
   const bindingId = randomUUID();
-  const seriesId = randomUUID();
+  const seriesUuid = randomUUID();
+  const seriesId = `s-${seriesUuid.replaceAll('-', '')}`;
   const jobId = randomUUID();
   const address = `0x${randomUUID().replaceAll('-', '')}00000000`;
   const contract = `0x${randomUUID().replaceAll('-', '')}00000000`;
@@ -71,19 +72,19 @@ test('operations status counts only real merchants without exposing customer or 
       VALUES ($1, $2, $3, $3, 84532, 1, 'VERIFIED', now())`, [bindingId, customerId, address]);
     await pool.query(`INSERT INTO nft_series(id, campaign_id, target_visit_count, chain_id,
       contract_address, contract_address_normalized, series_key, max_ever_minted, status)
-      VALUES ($1::uuid, $2, 1, 84532, $3, $3,
-        decode(replace(($1::uuid)::text,'-','') || repeat('3',32),'hex'), 10, 'ACTIVE')`,
-      [seriesId, campaignId, contract]);
+      VALUES ($1, $2, 1, 84532, $3, $3,
+        decode(replace(($4::uuid)::text,'-','') || repeat('3',32),'hex'), 10, 'ACTIVE')`,
+      [seriesId, campaignId, contract, seriesUuid]);
     await pool.query(`INSERT INTO mint_jobs(id, entitlement_id, account_id, nft_series_id,
       reward_key, wallet_binding_id, binding_version, recipient_address,
       recipient_address_normalized, chain_id, contract_address, contract_address_normalized,
       series_key, consent_version, idempotency_key, request_fingerprint, status,
       last_error_code, created_at, updated_at)
-      VALUES ($1::uuid, $2, $3, $4::uuid, decode(replace(($1::uuid)::text,'-','') || repeat('4',32),'hex'), $5, 1,
+      VALUES ($1::uuid, $2, $3, $4, decode(replace(($1::uuid)::text,'-','') || repeat('4',32),'hex'), $5, 1,
         $7, $7, 84532, $8, $8,
-        decode(replace(($4::uuid)::text,'-','') || repeat('3',32),'hex'), 'nft-mint-v1', $6, decode(repeat('5',64),'hex'),
+        decode(replace(($9::uuid)::text,'-','') || repeat('3',32),'hex'), 'nft-mint-v1', $6, decode(repeat('5',64),'hex'),
         'RETRYABLE', 'RPC_TIMEOUT', now(), now())`,
-      [jobId, entitlementId, customerId, seriesId, bindingId, `status-${randomUUID()}`, address, contract]);
+      [jobId, entitlementId, customerId, seriesId, bindingId, `status-${randomUUID()}`, address, contract, seriesUuid]);
     const before = await pool.query(`SELECT
       (SELECT count(*) FROM claim_slots) AS claims,
       (SELECT count(*) FROM visit_events) AS visits,

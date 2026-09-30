@@ -315,7 +315,7 @@ async function seedAnvilJobs(
        id, campaign_id, target_visit_count, chain_id, contract_address,
        contract_address_normalized, series_key, max_ever_minted, status
      ) VALUES (
-       'series-anvil', 'campaign-anvil', 1, 31337, $1, $2,
+       's-000000000000000000000000000000e1', 'campaign-anvil', 1, 31337, $1, $2,
        decode(substr($3, 3), 'hex'), 3, 'ACTIVE'
      )`,
     [contractAddress, contractAddress.toLowerCase(), seriesKey],
@@ -381,7 +381,7 @@ async function seedAnvilJobs(
          contract_address_normalized, series_key, consent_version,
          idempotency_key, request_fingerprint, status, created_at, updated_at
        ) VALUES (
-         $1, $2, $3, 'series-anvil', decode(substr($4, 3), 'hex'),
+         $1, $2, $3, 's-000000000000000000000000000000e1', decode(substr($4, 3), 'hex'),
          $5, 1, $6, $7, 31337, $8, $9, decode(substr($10, 3), 'hex'),
          'nft-mint-v1', $11, decode(repeat('55', 32), 'hex'), 'QUEUED', $12, $12
        )`,

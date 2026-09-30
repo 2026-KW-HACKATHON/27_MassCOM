@@ -720,7 +720,7 @@ async function seedServiceSignerJobs(
   const namespace = seriesKey.slice(2, 10);
   const merchantId = `merchant-service-signer-${namespace}`;
   const campaignId = `campaign-service-signer-${namespace}`;
-  const seriesId = `series-service-signer-${namespace}`;
+  const seriesId = `s-${namespace.toLowerCase()}${'0'.repeat(24)}`;
 
   await pool.query(
     `INSERT INTO merchants

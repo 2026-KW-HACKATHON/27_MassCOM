@@ -17,11 +17,13 @@ ALTER TABLE merchants
     category IS NULL OR category IN ('한식', '중식', '일식', '양식', '분식', '카페', '베이커리', '주점', '기타')
   );
 
--- 시리즈 id는 공개 메타데이터 경로(/nft-metadata/<id>/<tokenId>.json)에 그대로 쓰인다. 정적 실증 경로와 대소문자까지 겹치지 않게 한다.
--- 운영·시연 DB에는 시리즈 행이 없지만 수동으로 만든 행이 있어도 migration이 실패하지 않도록 새 행만 검사한다.
+-- 시리즈 id는 온체인 baseTokenURI와 모든 토큰 주소(/nft-metadata/<id>/<tokenId>.json)에 영구히 남는다. 가게 이름·동네·업종·캠페인이
+-- 들어간 id는 공개 중이 아닌 가게의 일반 메타데이터 보호를 무너뜨리므로 뜻 없는 불투명 id(s- + 소문자 hex 32자)만 받는다.
+-- 정적 실증 경로와도 대소문자까지 겹치지 않게 한다. 운영·시연 DB에는 시리즈 행이 없지만 수동으로 만든 행이 있어도
+-- migration이 실패하지 않도록 새 행만 검사한다.
 ALTER TABLE nft_series
   ADD CONSTRAINT nft_series_metadata_path_check
-  CHECK (id ~ '^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$' AND lower(id) <> 'base-sepolia-proof') NOT VALID;
+  CHECK (id ~ '^s-[0-9a-f]{32}$' AND lower(id) <> 'base-sepolia-proof') NOT VALID;
 
 -- 스냅샷 때 복사한 가게 그림. 파일 이름이 내용의 sha256이라 가게가 그림을 바꾸거나 되돌려도 이미 발행한 토큰의 그림은 남는다.
 -- 내용은 바꿀 수 없고(UPDATE 거절), 신고·정책 문제로 운영자가 내려야 할 때만 행을 지운다(그 주소는 404가 된다).
@@ -48,7 +50,9 @@ CREATE TABLE nft_token_metadata (
 -- 신고·정책 문제로 내린 대상 목록(거부 목록). image:<sha256>은 그림 주소를, asset:<nft_assets.id>는 그 토큰의 메타데이터 주소를
 -- 404로 만들고, 내린 그림은 다음 스냅샷이 복사하지 않는다(기본 도장). 메타데이터 문장 자체는 지우지 않는다.
 CREATE TABLE nft_metadata_takedowns (
-  target text PRIMARY KEY CHECK (target ~ '^(image:[0-9a-f]{64}|asset:[0-9a-f-]{36})$'),
+  target text PRIMARY KEY CHECK (
+    target ~ '^(image:[0-9a-f]{64}|asset:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$'
+  ),
   reason text NOT NULL CHECK (length(btrim(reason)) BETWEEN 1 AND 200),
   created_at timestamptz NOT NULL DEFAULT now()
 );
