@@ -3,9 +3,11 @@
 set +x
 # 시연 서버에서 사장님 AI 가게 그림(D-048)을 켜고 끄고 살펴보는 스크립트(Issue #256).
 #
-#   sudo bash enable-ai-art.sh enable   # runtime.env에 SHOWCASE_OPENAI_API_KEY가 있을 때 showcase-api만 다시 만든다
-#   sudo bash enable-ai-art.sh disable  # 소유자가 키 줄을 지운 뒤 showcase-api만 다시 만든다
-#   sudo bash enable-ai-art.sh status   # 읽기 전용
+#   sudo bash enable-ai-art.sh enable                # runtime.env에 SHOWCASE_OPENAI_API_KEY가 있을 때 showcase-api만 다시 만든다
+#   sudo bash enable-ai-art.sh disable               # 소유자가 키 줄을 지운 뒤 showcase-api만 다시 만든다
+#   sudo bash enable-ai-art.sh disable --force-drift # 비용을 멈추는 비상용: 키 말고 다른 설정이 어긋나 있어도(경고 후) 끈다
+#   sudo bash enable-ai-art.sh status                # 읽기 전용
+#   sudo bash enable-ai-art.sh check                 # 읽기 전용: 렌더된 설정과 설정 어긋남(drift: OK|MISMATCH)만 검사한다(키를 넣기 전에 서버를 확인할 때)
 #
 # 키는 만들지도 저장하지도 출력하지도 않는다. 이 스크립트는 runtime.env를 절대 고치지 않는다(키 줄은 소유자가 직접 넣고 지운다).
 # 바꾸기 전 검사가 하나라도 실패하면 아무것도 바꾸지 않고 끝낸다:
@@ -39,16 +41,21 @@ fail() {
 }
 
 usage() {
-  echo "usage: $0 enable|disable|status" >&2
+  echo "usage: $0 enable | disable [--force-drift] | status | check" >&2
   exit 2
 }
 
-[[ $# -eq 1 ]] || usage
+[[ $# -ge 1 && $# -le 2 ]] || usage
 mode="$1"
 case "$mode" in
-  enable | disable | status) ;;
+  enable | disable | status | check) ;;
   *) usage ;;
 esac
+force_drift=0
+if [[ $# -eq 2 ]]; then
+  [[ "$mode" == disable && "$2" == --force-drift ]] || usage
+  force_drift=1
+fi
 
 root="${MASSCOM_SHOWCASE_ROOT:-/opt/masscom-showcase}"
 runtime_env="$root/runtime.env"
@@ -60,11 +67,12 @@ key_value=
 
 # compose는 셸 환경 변수를 --env-file보다 우선한다(sudo -E 등으로 물려받은 SHOWCASE_OPENAI_API_KEY가 파일을 덮을 수 있다).
 # 그래서 compose를 부르기 전에 compose 설정에 영향을 주는 변수를 모두 지운다. 이 스크립트가 필요한 값은 뒤에서 다시 정한다.
+# DOCKER_HOST·DOCKER_CONTEXT 등도 지운다: 물려받은 값이 다른 서버의 Docker로 이 스크립트를 돌리지 못하게 한다(아래 check_docker_endpoint가 다시 확인한다).
 scrub_environment() {
   local name
   for name in $(compgen -v); do
     case "$name" in
-      SHOWCASE_* | COMPOSE_* | MASSCOM_SHOWCASE_* | OPENAI_API_KEY | AI_ART_*) unset "$name" ;;
+      SHOWCASE_* | COMPOSE_* | MASSCOM_SHOWCASE_* | OPENAI_API_KEY | AI_ART_* | DOCKER_HOST | DOCKER_CONTEXT | DOCKER_TLS_VERIFY | DOCKER_CERT_PATH) unset "$name" ;;
     esac
   done
 }
@@ -86,17 +94,32 @@ resolve_path() {
 }
 
 # runtime.env 검사: 심볼릭 링크가 아닌 읽을 수 있는 일반 파일이고 권한이 정확히 600이며 NUL 바이트가 없어야 한다.
+# 폴더·파일의 있음과 읽기 가능을 따로 확인해 "없다"와 "권한이 없다(sudo로 실행)"를 구별해 알려 준다.
 check_runtime_env() {
   [[ -d "$root" ]] || fail "showcase root not found: $root"
-  [[ -f "$runtime_env" && ! -L "$runtime_env" ]] || fail "runtime.env must be a regular file: $runtime_env"
+  [[ -r "$root" && -x "$root" ]] || fail "cannot read the showcase root $root (run with sudo)"
+  [[ -e "$runtime_env" || -L "$runtime_env" ]] || fail "runtime.env not found: $runtime_env"
+  [[ ! -L "$runtime_env" ]] || fail "runtime.env must not be a symbolic link: $runtime_env"
+  [[ -f "$runtime_env" ]] || fail "runtime.env must be a regular file: $runtime_env"
   [[ "$(file_mode "$runtime_env")" == 600 ]] || fail 'runtime.env must have mode 600'
   [[ -r "$runtime_env" ]] || fail 'runtime.env is not readable by this user (run with sudo)'
-  # NUL 바이트는 bash 변수에 담기지 않아 줄이 조용히 달라진다. 있으면 거절한다.
-  if tr -d '\000' <"$runtime_env" | cmp -s - "$runtime_env"; then
+  # NUL 바이트는 bash 변수에 담기지 않아 줄이 조용히 달라진다. 있으면 거절한다. 바이트 수를 세므로 파이프가 일찍 닫히지 않는다.
+  if (( $(tr -d '\000' <"$runtime_env" | wc -c) == $(wc -c <"$runtime_env") )); then
     :
   else
     fail 'runtime.env contains NUL bytes'
   fi
+}
+
+# 활성 Docker가 이 서버의 로컬 소켓인지 확인하고 컨텍스트 이름을 알려 준다(물려받은 DOCKER_HOST·컨텍스트로 다른 서버를 바꾸지 않게).
+check_docker_endpoint() {
+  local info name host
+  info="$(docker context inspect --format '{{.Name}}|{{.Endpoints.docker.Host}}' 2>/dev/null)" ||
+    fail 'cannot determine the active Docker context (is Docker installed and is this run with sudo?)'
+  name="${info%%|*}"
+  host="${info#*|}"
+  [[ "$host" == unix://* ]] || fail "the active Docker context '$name' is not a local socket ($host); refusing to touch another machine"
+  echo "docker context: $name ($host)"
 }
 
 # 키 줄을 읽되 값은 출력하지 않는다.
@@ -170,15 +193,36 @@ redact() {
   printf '%s\n' "$text"
 }
 
-# 실행 중인 showcase-api 컨테이너 ID 한 개. 없거나 둘 이상이면 실패한다.
+# 실행 중인 showcase-api 컨테이너 ID 한 개. 없거나 둘 이상이면 실패한다. `docker ps -a`로 멈춘 컨테이너(재생성이 실패한 뒤의
+# created·exited 등)도 보고 그 사실을 알려 준다.
 find_container() {
-  local ids count
-  ids="$(docker ps --filter "label=com.docker.compose.project=$project" \
-    --filter "label=com.docker.compose.service=$service" --format '{{.ID}}')" ||
+  local listing rest line id state running=0 total=0 states= running_id=
+  listing="$(docker ps -a --filter "label=com.docker.compose.project=$project" \
+    --filter "label=com.docker.compose.service=$service" --format '{{.ID}}|{{.State}}')" ||
     fail 'cannot list containers (is Docker running and is this run with sudo?)'
-  count="$(printf '%s\n' "$ids" | grep -c . || true)"
-  [[ "$count" == 1 ]] || fail "expected exactly one running $service container in project $project, found $count"
-  printf '%s\n' "$ids"
+  rest="$listing"
+  while [[ -n "$rest" ]]; do
+    if [[ "$rest" == *$'\n'* ]]; then
+      line="${rest%%$'\n'*}"
+      rest="${rest#*$'\n'}"
+    else
+      line="$rest"
+      rest=
+    fi
+    [[ -n "$line" ]] || continue
+    id="${line%%|*}"
+    state="${line#*|}"
+    total=$((total + 1))
+    states="$states ${id:0:12}=$state"
+    if [[ "$state" == running ]]; then
+      running=$((running + 1))
+      running_id="$id"
+    fi
+  done
+  if [[ "$running" != 1 ]]; then
+    fail "expected exactly one running $service container in project $project, found $running running of $total in total (${states# }); after a failed recreate a created or exited container is left behind: check docker ps -a and docker logs <id>, fix runtime.env and run enable again, or use the manual fallback in infra/showcase-host/README.md"
+  fi
+  printf '%s\n' "$running_id"
 }
 
 container_id=
@@ -360,7 +404,7 @@ check_rendered_config() {
   rendered_json="$(compose config --format json 2>/dev/null)" ||
     fail 'compose config --format json failed (Docker Compose v2 is required); nothing was changed'
   rendered_string OPENAI_API_KEY
-  if [[ "$mode" == enable ]]; then
+  if [[ "$key_state" == present ]]; then
     [[ "$render_value" == "$key_value" ]] ||
       fail "compose would pass a different OPENAI_API_KEY than the runtime.env line (shell variable, interpolation or another file?); nothing was changed"
   else
@@ -383,10 +427,15 @@ check_rendered_config() {
 
 # 실행 중 컨테이너의 config-hash와, 키와 가게 그림 설정만 실행 중인 값으로 고정한 현재 compose 설정의 해시를 비교한다.
 # 같으면 지금 compose 설정과 runtime.env는 (키·가게 그림 설정을 뺀) 컨테이너를 만들 때와 같다: 다시 만들어도 바뀌는 것은 그 값들뿐이다.
-check_config_drift() {
+# drift_status = ok | mismatch | nolabel(컨테이너에 라벨이 없음) | error(해시를 계산하지 못함). 해시 값은 비밀이 아니다.
+drift_status=
+drift_computed=
+compose_version=
+
+compute_drift() {
   local computed
-  [[ -n "$config_hash" ]] || fail 'the running container has no compose config-hash label; do a full showcase deploy first; nothing was changed'
-  computed="$(
+  drift_computed=
+  if computed="$(
     export SHOWCASE_OPENAI_API_KEY="$c_key"
     export SHOWCASE_AI_ART_MONTHLY_BUDGET_USD="$c_budget"
     export SHOWCASE_AI_ART_DAILY_DRAFT_ROUNDS="$c_drafts"
@@ -394,17 +443,49 @@ check_config_drift() {
     export SHOWCASE_AI_ART_DRAFT_MODEL="$c_draft_model"
     export SHOWCASE_AI_ART_FINAL_MODEL="$c_final_model"
     compose config --hash "$service" 2>/dev/null
-  )" || fail 'compose config --hash failed; nothing was changed'
-  computed="${computed##* }"
-  [[ "$computed" == "$config_hash" ]] ||
-    fail 'the running container differs from the current release compose file or runtime.env in more than the key and the AI art settings (config drift); do a full showcase deploy first; nothing was changed'
+  )"; then
+    drift_computed="${computed##* }"
+    if [[ -z "$config_hash" ]]; then
+      drift_status=nolabel
+    elif [[ "$drift_computed" == "$config_hash" ]]; then
+      drift_status=ok
+    else
+      drift_status=mismatch
+    fi
+  else
+    drift_status=error
+  fi
+}
+
+drift_detail() {
+  printf 'running label %s, computed %s, docker compose %s' "${config_hash:-none}" "${drift_computed:-none}" "${compose_version:-unknown}"
+}
+
+check_config_drift() {
+  compute_drift
+  case "$drift_status" in
+    ok) ;;
+    error) fail 'compose config --hash failed; nothing was changed' ;;
+    nolabel) fail "the running container has no compose config-hash label ($(drift_detail)); do a full showcase deploy first (only to stop the cost: disable --force-drift); nothing was changed" ;;
+    *) fail "the running container differs from the current release compose file or runtime.env in more than the key and the AI art settings (config drift: $(drift_detail)); do a full showcase deploy first (only to stop the cost: disable --force-drift); nothing was changed" ;;
+  esac
+}
+
+# disable --force-drift: 비용을 멈추는 스위치라 설정 어긋남이 있어도 진행한다. 키 줄이 비어 있어야 한다는 조건과 다른 모든 검사는 그대로다.
+allow_drift() {
+  compute_drift
+  case "$drift_status" in
+    ok) echo 'drift: OK (--force-drift was not needed)' ;;
+    error) fail 'compose config --hash failed; nothing was changed' ;;
+    *) echo "warning: --force-drift ignores the config drift ($(drift_detail)); this recreate applies every difference between runtime.env or the compose file and the running container, not only the key" ;;
+  esac
 }
 
 # 컨테이너 로그에서 마지막 `AI store art:` 기동 줄 하나만 꺼낸다. 알려진 세 줄과 줄 전체가 같은 것만 인정한다(다른 로그는 출력하지 않는다).
+# awk 한 프로세스가 입력을 끝까지 읽으므로 파이프가 일찍 닫히지 않는다(pipefail에서 SIGPIPE로 실패하지 않는다).
 startup_line() {
-  local logs
-  logs="$(docker logs "$1" 2>&1 || true)"
-  printf '%s\n' "$logs" | grep -axF -e "$enabled_line" -e "$disabled_line" -e "$invalid_line" | tail -n 1 || true
+  docker logs "$1" 2>&1 | awk -v a="$enabled_line" -v b="$disabled_line" -v c="$invalid_line" \
+    '$0 == a || $0 == b || $0 == c { last = $0 } END { if (last != "") print last }' || true
 }
 
 do_status() {
@@ -413,6 +494,7 @@ do_status() {
   read_key_state
   echo "runtime.env: mode 600"
   describe_key
+  check_docker_endpoint
   container_id="$(find_container)"
   inspect_container "$container_id"
   read_container_ai_env "$container_id"
@@ -456,6 +538,7 @@ do_change() {
     expected="$disabled_line"
   fi
 
+  check_docker_endpoint
   old_id="$(find_container)"
   inspect_container "$old_id"
   echo "showcase-api container: ${old_id:0:12}"
@@ -463,14 +546,14 @@ do_change() {
   echo "release dir: $release_dir"
 
   # 이미지는 지금 실행 중인 태그로 고정해 키 한 줄 때문에 이미지가 바뀌지 않게 한다(셸 환경이 --env-file보다 우선한다).
-  file_tag="$(grep -a '^MASSCOM_SHOWCASE_IMAGE_TAG=' "$runtime_env" | tail -n 1 || true)"
+  file_tag="$(awk '/^MASSCOM_SHOWCASE_IMAGE_TAG=/ { v = $0 } END { print v }' "$runtime_env" || true)"
   file_tag="${file_tag#MASSCOM_SHOWCASE_IMAGE_TAG=}"
   if [[ "$file_tag" != "$image_tag" ]]; then
     echo "note: runtime.env image tag (${file_tag:-unset}) differs from the running tag; keeping the running tag $image_tag"
   fi
   export MASSCOM_SHOWCASE_IMAGE_TAG="$image_tag"
 
-  docker compose version >/dev/null 2>&1 || fail 'docker compose is not available'
+  compose_version="$(docker compose version --short 2>/dev/null)" || fail 'docker compose is not available'
   # 렌더만 해 보고 출력은 버린다. 빈 필수 값이나 잘못된 보간이면 여기서 멈춘다(아직 아무것도 바꾸지 않았다).
   if ! compose config --quiet >/dev/null 2>&1; then
     fail 'compose config does not render with runtime.env; nothing was changed'
@@ -478,13 +561,17 @@ do_change() {
   check_rendered_config
   read_container_ai_env "$old_id"
   read_container_key "$old_id"
-  check_config_drift
+  if [[ "$force_drift" == 1 ]]; then
+    allow_drift
+  else
+    check_config_drift
+  fi
 
   echo "recreating $service only ($mode)..."
   if ! up_output="$(compose up -d --no-deps --no-build --pull never \
     --force-recreate --wait --wait-timeout 180 "$service" 2>&1)"; then
     redact "$up_output" >&2
-    fail "compose up failed; check the container with: $0 status"
+    fail "compose up failed; the old container may be gone or a new one left in the created state: check docker ps -a and docker logs <id>. To go back, restore the previous runtime.env key line and run this script again, or use the manual fallback in infra/showcase-host/README.md; $0 status shows the current state"
   fi
 
   new_id="$(find_container)"
@@ -517,8 +604,54 @@ do_change() {
   fi
 }
 
-if [[ "$mode" == status ]]; then
-  do_status
-else
-  do_change
-fi
+# 읽기 전용: compose가 렌더한 설정과 설정 어긋남만 검사하고 drift: OK|MISMATCH로 알려 준다. 키를 넣기 전에 이 서버에서 enable이 통과할지 확인할 때 쓴다.
+do_check() {
+  local bad=0 problem
+  check_runtime_env
+  read_key_state
+  echo 'runtime.env: mode 600'
+  describe_key
+  case "$key_state" in
+    present | absent | empty) ;;
+    *) bad=1 ;;
+  esac
+  check_docker_endpoint
+  container_id="$(find_container)"
+  inspect_container "$container_id"
+  echo "showcase-api container: ${container_id:0:12} (health: $health)"
+  echo "image tag: $image_tag"
+  echo "release dir: $release_dir"
+  export MASSCOM_SHOWCASE_IMAGE_TAG="$image_tag"
+  compose_version="$(docker compose version --short 2>/dev/null)" || fail 'docker compose is not available'
+  echo "docker compose: $compose_version"
+  if ! compose config --quiet >/dev/null 2>&1; then
+    echo 'rendered config: MISMATCH (compose config does not render with runtime.env)'
+    bad=1
+  elif problem="$(check_rendered_config 2>&1)"; then
+    echo 'rendered config: OK'
+  else
+    echo "rendered config: MISMATCH (${problem#ai-art refused: })"
+    bad=1
+  fi
+  read_container_ai_env "$container_id"
+  read_container_key "$container_id"
+  compute_drift
+  case "$drift_status" in
+    ok) echo "drift: OK (config-hash ${config_hash:0:12})" ;;
+    error) echo 'drift: MISMATCH (compose config --hash failed)'; bad=1 ;;
+    nolabel) echo "drift: MISMATCH (the running container has no config-hash label; $(drift_detail))"; bad=1 ;;
+    *) echo "drift: MISMATCH ($(drift_detail))"; bad=1 ;;
+  esac
+  if [[ "$bad" == 0 ]]; then
+    echo 'check: OK (nothing was changed)'
+  else
+    echo 'check: FAILED (nothing was changed)'
+    exit 1
+  fi
+}
+
+case "$mode" in
+  status) do_status ;;
+  check) do_check ;;
+  *) do_change ;;
+esac
