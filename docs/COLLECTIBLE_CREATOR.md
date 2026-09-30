@@ -97,7 +97,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 
 미디어 서명 검사·파일 크기·유한 수치·허용 필드·안정 ID·참조 관계를 서버에서 확인한다. 저장할 때 원본 사진·장면 원본·완성 이미지 모두에서 EXIF/XMP/ICC 등 메타데이터를 제거하고(JPEG 방향값만 유지), MP3의 ID3·APE 태그를 제거한다. 미디어 헤더 확인은 모든 디코딩 오류·전체 파일 안전성을 보증하지 않는다. 공개 원본 저장소나 임의 외부 URL을 허용하는 근거가 아니다.
 
-## 서버 계약 (PR #257 인수 후속, 2026-10-01)
+## 서버 계약 (PR #257 인수 후속, 2026-09-30)
 
 웹 제작기·Android 후속 작업은 아래 계약을 기준으로 한다. 모든 점주 경로는 `/api/web/merchant/merchants/:merchantId/…` 웹 세션(호스트에 묶인 `web_session` 쿠키)이고, 쓰기는 같은 Origin·`content-type: application/json`이어야 한다. 권한은 그 점포의 활성 멤버 `MANAGE_ART`(기본 OWNER, `AI_ART_STAFF_MAY_MANAGE=true`면 STAFF도)이며 서버가 요청 시작과 거래 안에서 다시 확인한다. 응답은 `cache-control: no-store`다. 운영 도메인에서 이 경로는 Caddy가 API로 바로 넘기므로 `production-web` 프록시를 거치지 않는다(`/merchants` 공개 목록은 `id`·`campaign`을 지우므로 제작기가 쓰면 안 된다).
 
