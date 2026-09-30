@@ -491,11 +491,18 @@ test('after a rollback to an API without consent cleanup, purge-deleted-consents
       [randomUUID(), lifecycle.referenceHash(account), `deleted:${lifecycle.referenceHash(account).toString('hex')}`],
     );
   }
+  // A wrong secret hashes every account to a value the ledger does not know, so it deletes nothing: the deleted accounts' rows survive it
+  // (they are only found by the right secret) and so, of course, do the living account's. Run it first, before the real purge.
+  const consentRows = async (account: string) =>
+    (await pool.query('SELECT 1 FROM account_consents WHERE account_id = $1', [account])).rowCount;
+  assert.equal(await service.purgeConsentsOfDeletedAccounts('another-secret-of-at-least-32-bytes-long!'), 0);
+  assert.equal(await consentRows('acct_gone'), 2, 'the deleted account row survives a wrong secret');
+  assert.equal(await consentRows('acct_gone_too'), 2);
+  assert.equal(await consentRows('acct_staying'), 2);
+
   assert.equal(await service.purgeConsentsOfDeletedAccounts(secret), 4);
   const left = (await pool.query<{ account_id: string }>('SELECT DISTINCT account_id FROM account_consents')).rows;
   assert.deepEqual(left.map((row) => row.account_id), ['acct_staying']);
+  assert.equal(await consentRows('acct_staying'), 2, 'the living account keeps both rows');
   assert.equal(await service.purgeConsentsOfDeletedAccounts(secret), 0, 'a second run has nothing left');
-  // A wrong secret matches no ledger row, so it can never delete a living account's consent.
-  assert.equal(await service.purgeConsentsOfDeletedAccounts('another-secret-of-at-least-32-bytes-long!'), 0);
-  assert.equal((await pool.query(`SELECT 1 FROM account_consents WHERE account_id = 'acct_staying'`)).rowCount, 2);
 });
