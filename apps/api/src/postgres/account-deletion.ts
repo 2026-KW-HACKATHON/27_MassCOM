@@ -407,7 +407,7 @@ async function pseudonymizeAccount(
     [accountId],
   );
   const clearedSources = await client.query<{ id: string }>(
-    `UPDATE collectible_projects SET project = NULL, created_by_account_id = NULL, edited_by_account_id = NULL,
+    `UPDATE collectible_projects SET project = NULL, name = NULL, created_by_account_id = NULL, edited_by_account_id = NULL,
        updated_at = now()
      WHERE ${authored} RETURNING id`,
     [accountId],

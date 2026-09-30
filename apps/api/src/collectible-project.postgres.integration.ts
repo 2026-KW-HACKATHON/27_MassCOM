@@ -299,8 +299,8 @@ test('merchant delete removes drafts (freeing the project cap) and clears a publ
   assert.deepEqual(await projects.remove({ ...input, projectId: draft.id, expectedVersion: 1 }), { projectId: draft.id, deleted: true, unlinkedCampaignId: null });
   assert.equal((await pool.query('SELECT 1 FROM collectible_projects WHERE id = $1', [draft.id])).rowCount, 0);
   assert.equal((await pool.query('SELECT 1 FROM collectible_project_contributors WHERE project_id = $1', [draft.id])).rowCount, 0);
-  await pool.query(`INSERT INTO collectible_projects (id, merchant_id, project, lineage_id)
-    SELECT id, 'merchant-a', '{}'::jsonb, id FROM (SELECT gen_random_uuid() AS id FROM generate_series(1, 100)) AS filler`);
+  await pool.query(`INSERT INTO collectible_projects (id, merchant_id, project, name, lineage_id)
+    SELECT id, 'merchant-a', '{}'::jsonb, '채우기', id FROM (SELECT gen_random_uuid() AS id FROM generate_series(1, 100)) AS filler`);
   await assert.rejects(projects.create({ ...input, project: photoProject() }), { code: 'COLLECTIBLE_PROJECT_LIMIT' });
   const filler = await pool.query<{ id: string }>(`SELECT id FROM collectible_projects WHERE merchant_id = 'merchant-a' LIMIT 1`);
   await projects.remove({ ...input, projectId: filler.rows[0]!.id, expectedVersion: 1 });
@@ -436,4 +436,18 @@ test('account deletion waits for an in-flight claim on a linked campaign before 
   } finally { await client.query('ROLLBACK'); client.release(); }
   await deletion;
   assert.equal((await pool.query('SELECT 1 FROM campaign_collectible_publications')).rowCount, 0);
+});
+
+test('the project list reads a separate name column kept in step with the private project', async t => {
+  const { pool, projects, input } = await setup(t);
+  const draft = await projects.create({ ...input, project: photoProject('첫 이름') });
+  await projects.save({ ...input, projectId: draft.id, expectedVersion: 1, project: photoProject('바꾼 이름') });
+  assert.equal((await pool.query('SELECT name FROM collectible_projects WHERE id = $1', [draft.id])).rows[0].name, '바꾼 이름');
+  assert.equal((await projects.list(input))[0]!.name, '바꾼 이름');
+  // The list query touches only the name column, never the project jsonb holding original media.
+  await pool.query(`UPDATE collectible_projects SET project = jsonb_set(project, '{name}', '"숨은 값"') WHERE id = $1`, [draft.id]);
+  assert.equal((await projects.list(input))[0]!.name, '바꾼 이름');
+  await assert.rejects(pool.query('UPDATE collectible_projects SET project = NULL WHERE id = $1', [draft.id]), /check constraint/);
+  const copied = await projects.copy({ ...input, projectId: draft.id, expectedVersion: 2 });
+  assert.equal((await pool.query('SELECT name FROM collectible_projects WHERE id = $1', [copied.id])).rows[0].name, '숨은 값');
 });

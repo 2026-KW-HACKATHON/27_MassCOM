@@ -10,6 +10,8 @@ CREATE TABLE collectible_projects (
   version integer NOT NULL DEFAULT 1 CHECK (version > 0),
   status text NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PUBLISHED')),
   project jsonb,
+  -- 목록이 project jsonb 전체(원본 미디어)를 풀지 않도록 이름만 따로 둔다. 원본을 비우면 이름도 비운다.
+  name text CHECK (name IS NULL OR length(name) <= 80),
   publication_id uuid,
   -- 복사 계보: 처음 만든 프로젝트의 id. 복사본은 원본의 값을 물려받는다(중간 초안을 지워도 끊기지 않게 FK 없이 값만 둔다).
   lineage_id uuid NOT NULL,
@@ -17,6 +19,7 @@ CREATE TABLE collectible_projects (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (id, merchant_id),
   CHECK (project IS NULL OR jsonb_typeof(project) = 'object'),
+  CHECK ((project IS NULL) = (name IS NULL)),
   CHECK ((status = 'DRAFT' AND publication_id IS NULL) OR (status = 'PUBLISHED' AND publication_id IS NOT NULL))
 );
 CREATE INDEX collectible_projects_merchant_list ON collectible_projects (merchant_id, updated_at DESC) WHERE project IS NOT NULL;
@@ -169,7 +172,7 @@ BEGIN
   END LOOP;
   -- 기여자 표는 0035에서 만든다(plpgsql은 실행할 때 이름을 찾는다).
   DELETE FROM collectible_project_contributors contributor WHERE contributor.project_id = ANY(affected_projects);
-  UPDATE collectible_projects SET project = NULL, created_by_account_id = NULL, edited_by_account_id = NULL, updated_at = now()
+  UPDATE collectible_projects SET project = NULL, name = NULL, created_by_account_id = NULL, edited_by_account_id = NULL, updated_at = now()
     WHERE id = ANY(affected_projects);
   PERFORM set_config('masscom.collectible_media_removal', 'off', true);
 END;

@@ -27,7 +27,7 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
     return this.transaction(input, async client => {
       // Fetch only scalar metadata: a project list never loads or returns original media.
       const result = await client.query<Omit<ProjectRow, 'project'> & { name: string; distributing_campaign_id: string | null }>(
-        `SELECT project.id, project.merchant_id, project.version, project.status, project.project->>'name' AS name, project.publication_id,
+        `SELECT project.id, project.merchant_id, project.version, project.status, project.name, project.publication_id,
            project.created_at, project.updated_at, link.campaign_id AS distributing_campaign_id
          FROM collectible_projects project
          LEFT JOIN campaign_collectible_publications link ON link.publication_id = project.publication_id
@@ -74,9 +74,9 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
       if (row.status === 'PUBLISHED') throw new CollectibleProjectError('COLLECTIBLE_PUBLISHED_IMMUTABLE');
       const project = validateCollectibleProject(input.project);
       const result = await client.query<ProjectRow>(
-        `UPDATE collectible_projects SET project = $3::jsonb, version = version + 1, edited_by_account_id = $4, updated_at = $5
+        `UPDATE collectible_projects SET project = $3::jsonb, name = $6, version = version + 1, edited_by_account_id = $4, updated_at = $5
          WHERE id = $1 AND merchant_id = $2 RETURNING ${columns}`,
-        [input.projectId, input.merchantId, JSON.stringify(project), input.accountId, this.now()]);
+        [input.projectId, input.merchantId, JSON.stringify(project), input.accountId, this.now(), project.name]);
       await client.query(`INSERT INTO collectible_project_contributors (project_id,account_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [input.projectId,input.accountId]);
       return mapProject(result.rows[0]!);
     });
@@ -152,7 +152,7 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
         unlinkedCampaignId = await unlinkPublication(client, row.publication_id!);
         await client.query('DELETE FROM collectible_project_contributors WHERE project_id = $1', [row.id]);
         await client.query(
-          `UPDATE collectible_projects SET project = NULL, created_by_account_id = NULL, edited_by_account_id = NULL, updated_at = $3
+          `UPDATE collectible_projects SET project = NULL, name = NULL, created_by_account_id = NULL, edited_by_account_id = NULL, updated_at = $3
            WHERE id = $1 AND merchant_id = $2`, [row.id, input.merchantId, this.now()]);
       }
       return { projectId: row.id, deleted: true, unlinkedCampaignId };
@@ -204,9 +204,9 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
     const count = await client.query<{ count: string }>('SELECT count(*)::text FROM collectible_projects WHERE merchant_id = $1 AND project IS NOT NULL', [input.merchantId]);
     if (Number(count.rows[0]!.count) >= 100) throw new CollectibleProjectError('COLLECTIBLE_PROJECT_LIMIT');
     const result = await client.query<ProjectRow>(
-      `INSERT INTO collectible_projects (id, merchant_id, created_by_account_id, edited_by_account_id, project, created_at, updated_at, lineage_id)
-       VALUES ($1,$2,$3,$3,$4::jsonb,$5,$5,COALESCE((SELECT lineage_id FROM collectible_projects WHERE id = $6 AND merchant_id = $2), $1))
-       RETURNING ${columns}`, [randomUUID(), input.merchantId, input.accountId, JSON.stringify(project), this.now(), copiedFrom ?? null]);
+      `INSERT INTO collectible_projects (id, merchant_id, created_by_account_id, edited_by_account_id, project, name, created_at, updated_at, lineage_id)
+       VALUES ($1,$2,$3,$3,$4::jsonb,$7,$5,$5,COALESCE((SELECT lineage_id FROM collectible_projects WHERE id = $6 AND merchant_id = $2), $1))
+       RETURNING ${columns}`, [randomUUID(), input.merchantId, input.accountId, JSON.stringify(project), this.now(), copiedFrom ?? null, project.name]);
     await client.query(`INSERT INTO collectible_project_contributors (project_id,account_id) VALUES ($1,$2)`,[result.rows[0]!.id,input.accountId]);
     return mapProject(result.rows[0]!);
   }
