@@ -41,13 +41,18 @@ Worker가 재시작해 저장된 거래 hash를 다시 확인할 때도 신규 �
 
 ## 발행 확정 때 NFT 메타데이터 고정 (Issue #254, D-060)
 
-`finalize`는 `nft_assets`를 넣은 같은 트랜잭션에서 공개 메타데이터를 `nft_token_metadata`에 고정합니다. 이름 `<가게 이름> 방문 도장`, 설명, 이미지, 속성(가게 이름·동네·업종·방문 단계·캠페인)만 담고 주소·시각·주문·계정·지갑·tx hash는 입력으로도 받지 않습니다([생성기](src/nft-metadata.ts)). 가게가 적용한 그림(`merchant_art`)이 있으면 그 바이트를 `nft_metadata_images`에 복사하고 Worker가 계산한 sha256으로 `<출처>/nft-metadata/images/<sha256>.webp`를, 없으면 기본 도장 `https://masscom.kr/assets/mascot-stamp.png`를 씁니다. 스냅샷이 이미 있으면 읽지도 쓰지도 않으므로 재확정·재시작이 내용을 바꾸지 않고, 스냅샷이 실패하면 확정도 되돌아가 다음 실행이 다시 합니다.
+`finalize`는 `nft_assets`를 넣은 같은 트랜잭션에서 공개 메타데이터를 `nft_token_metadata`에 고정합니다([생성기](src/nft-metadata.ts)). 주소·방문 시각·주문·계정·지갑·tx hash는 입력으로도 받지 않습니다.
+
+- **공개 중인 점포**(스냅샷 때 `ACTIVE`이고 시연 점포이거나 동의서 참조 번호가 있음): 이름 `<가게 이름> 방문 도장`, 설명, 이미지, 속성(가게 이름·동네·업종·방문 단계·캠페인, 가게 AI 그림이면 `그림: AI 생성`).
+- **공개 중이 아닌 점포**(숨김·동의서 없는 실제 점포): 이름 `월계 방문 도장`, 일반 설명, 기본 도장, 속성은 방문 단계뿐입니다(가게 이름·동네·업종·캠페인·그림 없음).
+- **이미지:** 가게가 적용한 그림(`merchant_art`)을 그 트랜잭션에서 읽어 `nft_metadata_images`에 복사하고 Worker가 계산한 sha256으로 `<출처>/nft-metadata/images/<sha256>.webp`를 씁니다. 그림이 없거나 운영자가 내린 그림(`nft_metadata_takedowns`의 `image:<sha256>`)이면 판이 붙은 기본 도장 `<출처>/nft-metadata/default/mascot-stamp-v1.png`입니다.
+- 스냅샷이 이미 있으면 읽지도 쓰지도 않으므로 재확정·재시작이 내용을 바꾸지 않습니다. 어떤 실패든 `NFT_METADATA_SNAPSHOT_FAILED`(재시도 가능)로 감싸 확정 전체를 되돌리고, 작업은 이 코드를 `last_error_code`에 남긴 채 재시도 대기(`RETRYABLE`)가 됩니다. 이미 보낸 거래를 다시 보내지 않고 같은 hash를 다시 확인합니다.
 
 | 환경변수 | 조건 |
 | --- | --- |
-| `NFT_METADATA_ORIGIN` | **필수, 기본값 없음.** 메타데이터·그림을 내보내는 공개 출처(`https://호스트`만, 경로·끝 슬래시·쿼리 거절, 로컬 `http://localhost`·`http://127.0.0.1`만 예외). 운영 `https://masscom.kr`, 시연 `https://demo-api.masscom.kr`. 한 번 고정한 메타데이터는 바꿀 수 없으므로 환경마다 정확히 넣습니다 |
+| `NFT_METADATA_ORIGIN` | **필수, 기본값 없음**(저장소 클래스도 이 옵션을 반드시 받는다). 메타데이터·그림을 내보내는 공개 출처(`https://호스트`만, 경로·끝 슬래시·쿼리 거절, 로컬 `http://localhost`·`http://127.0.0.1`만 예외). 운영 `https://masscom.kr`, 시연 `https://demo-api.masscom.kr`. 한 번 고정한 메타데이터는 바꿀 수 없으므로 환경마다 정확히 넣습니다 |
 
-시리즈를 만들 때 온체인 `createSeries`의 base URI는 `<NFT_METADATA_ORIGIN>/nft-metadata/<nft_series.id>/`여야 공개 경로(API `GET /nft-metadata/<series>/<tokenId>.json`)와 맞습니다. `nft_series.id`는 `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`이고 `base-sepolia-proof`가 아니어야 합니다(migration 0036 CHECK).
+**시리즈 만들기 규칙.** 온체인 `createSeries`의 base URI는 `<NFT_METADATA_ORIGIN>/nft-metadata/<nft_series.id>/`여야 공개 경로(API `GET /nft-metadata/<series>/<tokenId>.json`)와 맞습니다. `nft_series.id`는 `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`이고 대소문자와 무관하게 `base-sepolia-proof`가 아니어야 합니다(migration 0036 CHECK). **같은 `nft_series.id`를 다른 계약(또는 다른 체인)의 시리즈에 다시 쓰지 않습니다** — 공개 경로는 시리즈 id와 token id만으로 찾으므로 두 계약의 같은 token id가 한 주소를 두고 겹칩니다. 시리즈를 활성화하기 전에 온체인 값을 확인합니다: `cast call <계약> 'series(bytes32)(string,uint64,uint64,bool)' <seriesKey> --rpc-url <RPC>`의 첫 값이 정확히 `<출처>/nft-metadata/<nft_series.id>/`여야 하고, 다르면 활성화하지 않습니다(시리즈 설정은 바꿀 수 없으므로 새 시리즈를 만듭니다).
 
 `CHAIN_REORG_MARGIN`은 1 이상의 블록 수이며 기본값은 12입니다. 공개 체인 운영 전에는 해당 체인의 finality 정책과 RPC 조회 한도에 맞춰 다시 결정해야 합니다.
 

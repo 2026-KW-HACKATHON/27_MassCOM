@@ -122,3 +122,18 @@ migration이 API 교체보다 먼저 돈다. 0036는 추가만 한다.
 - API 단위: 동네·업종 규칙. API PostgreSQL 통합: 관리자 수정·생성·비우기·키 없으면 유지·잘못된 값 거절, 공개 조건 불변, 공개 경로 200/404·헤더·시리즈 불일치 404·그림.
 - 공개 경로(`tests/ops/verify_nft_metadata_proxy_test.mjs`, Docker Caddy): 실증 토큰은 정적 바이트 그대로, 동적 경로는 API로, CORS 한 값, 잘못된 경로·쓰기 메서드는 넘기지 않음.
 - 관리자 웹(`tests/site/nft-metadata-admin.test.mjs`): 입력 칸·안내·요청 본문·로컬 검사. 기존 `tests/site/*.mjs` 전부 통과.
+
+## 7. 리뷰 후속(2026-09-30, PR #260: sonnet 코드 APPROVE·opus 보안 APPROVE, 🟡 4는 발행 전 필수)
+
+위 3~6절에서 바뀐 점만 적는다. 번호 충돌을 피하려고 migration은 **0036**, 결정은 **D-060**이다.
+
+- **발행 동의 v2(🟡1):** 앱의 발행 확인창이 "지갑 주소와 함께 가게 이름·동네·업종·캠페인과 방문 단계가 NFT 공개 정보로 영구히 남고 발행 시각이 공개 블록체인에 기록되며, 발행 뒤 지우거나 바꿀 수 없다"고 알리고 판을 `nft-mint-v2`로 올린다(`apps/mobile/src/screens/collection/mint-consent.ts`). API 기본값과 운영 compose는 v2만 받는다. 운영에는 시리즈가, 시연에는 Worker가 없어 v1로 대기 중인 발행 작업은 없다. 이미 설치된 시연 앱(v1)은 새 발행 요청에서 `CONSENT_REQUIRED`("최신 공개·양도 제한 안내 동의가 필요합니다")를 받는다. 개인정보 처리방침은 "메타데이터는 가게 정보지만 지갑에 묶여 그 지갑이 그 가게를 몇 번째로 방문했는지가 공개된다"로 고쳤다.
+- **공개 중이 아닌 점포는 일반 메타데이터(🟡2, 추천안 적용):** 스냅샷 때 점포가 `status = 'ACTIVE'`이고 (`is_demo` 또는 `consent_document_ref IS NOT NULL`)이 아니면 이름 `월계 방문 도장`, 설명 `월계 마스코트 방문 도감의 <단계> 도장입니다. 다른 지갑으로 보낼 수 없는 기념 NFT입니다.`, 기본 도장, 속성은 `방문 단계`뿐이다. 캠페인 이름에도 가게 이름이 들어갈 수 있어 캠페인 속성도 뺀다(구현 선택). #246 숨김 코드는 바꾸지 않았다.
+- **거부 목록(🟡3):** `nft_metadata_takedowns(target PK: image:<sha256> | asset:<nft_assets.id>, reason, created_at)`. API는 내린 토큰의 메타데이터·내린 그림을 `404`(no-store)로 하고, 스냅샷은 내린 그림을 복사하지 않는다(기본 도장). 행 자체는 고치지 않는다. 운영 절차와 커밋 뒤 확인은 `apps/api/README.md`.
+- **기본 도장 고정(🟡4):** `<출처>/nft-metadata/default/mascot-stamp-v1.png`. API가 고정 바이트(sha256 `147545653d7dca77c744aaf778ea4ae5836e8ce3c395aeb094eac5fec3926a11`, 시험으로 고정)를 `image/png`·immutable로 준다. 배포 경로를 늘리지 않도록 PNG를 `apps/api/src/nft-default-stamp.ts`에 base64로 둔다(구현 선택). 시연은 자기 출처(`demo-api`)의 같은 경로를 쓴다. 운영 Caddy 경로 정규식에 이 경로를 더했다.
+- **AI 표시(🔵10):** 가게 AI 그림을 쓰면 속성 `{"trait_type":"그림","value":"AI 생성"}`을 붙인다(기본 도장에는 붙이지 않음).
+- **실패 코드(🔵5):** 스냅샷의 모든 실패를 `NFT_METADATA_SNAPSHOT_FAILED`(재시도 가능)로 감싸 확정 전체를 되돌리고 작업의 `last_error_code`에 남긴다. 스냅샷은 존재 확인을 따로 하고 사실 행이 없으면 실패한다(코드 리뷰 8).
+- **DB 보강:** `nft_metadata_images`에 `sha256 = encode(sha256(image), 'hex')` CHECK, 예약 시리즈 id는 `lower(id) <> 'base-sepolia-proof'`(API도 소문자로 비교). 불변 트리거는 앱 실수를 막는 장치이고 표 소유자 역할의 권한 경계는 아니다(🔵8).
+- **운영 확인:** 웹 배포 뒤 확인이 `/nft-metadata/no-such/1.json`에서 API의 JSON 404(no-store)와 CORS `*` 한 줄을 확인한다. 메타데이터·그림 응답은 `Content-Length`를 붙인다(HEAD 포함). Worker 저장소는 출처 옵션을 반드시 받는다.
+- **관리자 웹:** 점포 수정 양식과 캠페인 초안 양식에 공개 NFT 정보·발행 뒤 고정 안내를 둔다(🔵9·코드 리뷰 4). 웹과 서버의 동네 정규식이 같은지 시험한다.
+- **속성 구성(코드 리뷰 9):** 공개 점포의 속성은 가게 이름·동네·업종·방문 단계·캠페인(+그림)이며 별도 "시리즈 이름" 속성은 두지 않는다. 이슈의 "캠페인·시리즈 이름"은 캠페인 속성과 방문 단계(시리즈 = 캠페인 목표 1·3·5)로 나타낸다.
