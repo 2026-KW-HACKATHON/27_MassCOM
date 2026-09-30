@@ -11,6 +11,8 @@ const localDatabaseError = 'SHOWCASE_LOCAL_DATABASE_REQUIRED';
 const fixtureError = 'SHOWCASE_FIXTURE_COLLISION';
 const showcaseSeedLockId = 2_026_092_313_7;
 const merchantAddress = '시연용 가상 위치 · 실제 방문 불가';
+// 시연 NFT 메타데이터의 동네·업종(Issue #254). 가상 점포라 동네는 서비스 무대인 월계동으로 둔다. 운영 DB에는 넣지 않는다.
+const merchantNeighborhood = '월계동';
 const campaignTitle = '체험 방문 도감';
 const merchants = [
   {
@@ -18,18 +20,21 @@ const merchants = [
     campaignId: SHOWCASE_CAMPAIGN_ID,
     name: '가상 점포 A',
     story: '체험용 가상 데이터이며 실제 영업점·방문 혜택이 아닙니다.',
+    category: '카페',
   },
   {
     merchantId: 'showcase-local-merchant-b',
     campaignId: 'showcase-local-campaign-b',
     name: '가상 점포 B',
     story: '다음 가게를 찾아보는 흐름을 보여주는 가상 점포입니다. 실제 영업점·방문 혜택이 아닙니다.',
+    category: '분식',
   },
   {
     merchantId: 'showcase-local-merchant-c',
     campaignId: 'showcase-local-campaign-c',
     name: '가상 점포 C',
     story: '여러 가게의 방문을 모으는 흐름을 보여주는 가상 점포입니다. 실제 영업점·방문 혜택이 아닙니다.',
+    category: '한식',
   },
 ] as const;
 type ShowcaseMerchant = (typeof merchants)[number];
@@ -205,14 +210,20 @@ export async function seedShowcaseFixtureData(
       );
       if (hasExisting) {
         assertFixtureMatches(existing, entry, now, Boolean(staffAccountId));
+        // 0034 전에 seed된 시연 점포는 동네·업종이 둘 다 비어 있을 때만 채운다(다른 값은 건드리지 않는다).
+        await client.query(
+          `UPDATE merchants SET neighborhood = $2, category = $3
+           WHERE id = $1 AND is_demo AND neighborhood IS NULL AND category IS NULL`,
+          [entry.merchantId, merchantNeighborhood, entry.category],
+        );
         continue;
       }
       await client.query(
         `INSERT INTO merchants
-         (id, name, story, road_address, minimum_spend_won, status, is_demo)
-         VALUES ($1, $2, $3, $4, 0, 'ACTIVE', true)
+         (id, name, story, road_address, minimum_spend_won, status, is_demo, neighborhood, category)
+         VALUES ($1, $2, $3, $4, 0, 'ACTIVE', true, $5, $6)
          ON CONFLICT (id) DO NOTHING`,
-        [entry.merchantId, entry.name, entry.story, merchantAddress],
+        [entry.merchantId, entry.name, entry.story, merchantAddress, merchantNeighborhood, entry.category],
       );
       await client.query(
         `INSERT INTO campaigns
