@@ -16,6 +16,8 @@ async function start(t: TestContext) {
     project:photoProject(),publicationId:null,createdAt:'2026-09-30T03:00:00Z',updatedAt:'2026-09-30T03:00:00Z'};
   const projects: CollectibleProjectService={
     list:async input=>{calls.push({kind:'list',input});return [];},
+    listCampaigns:async input=>{calls.push({kind:'campaigns',input});return [{id:'campaign-a',title:'가상 캠페인',status:'ACTIVE' as const,
+      startsAt:'2026-09-01T00:00:00.000Z',endsAt:'2026-12-01T00:00:00.000Z',goals:[1,3,5] as (1|3|5)[],publication:null}];},
     create:async input=>{calls.push({kind:'create',input});return project;},
     get:async input=>{calls.push({kind:'get',input});return project;},
     save:async input=>{calls.push({kind:'save',input});if(input.expectedVersion!==1)throw new CollectibleProjectError('COLLECTIBLE_VERSION_CONFLICT');return project;},
@@ -120,4 +122,18 @@ test('media-bearing writes are limited per store after the permission check; rea
   assert.equal((await request(`${base}/${project.id}/unpublish`,'POST',{expectedVersion:2})).status,200);
   // A caller without MANAGE_ART never reaches the limiter, so it cannot use up the store's budget.
   assert.equal((await request(base.replace('merchant-a','merchant-b'),'POST',{project:photoProject()})).status,403);
+});
+
+test('campaign list for the editor needs the host-bound session and MANAGE_ART of that store and returns no-store JSON',async t=>{
+  const {request,calls}=await start(t);
+  const path='/api/web/merchant/merchants/merchant-a/collectible-campaigns';
+  assert.equal((await request(path,'GET',undefined,{cookie:''})).status,401);
+  assert.equal((await request(path,'GET',undefined,{host:'attacker.example'})).status,403);
+  assert.equal((await request(path.replace('merchant-a','merchant-b'))).status,403);
+  assert.equal(calls.some(call=>call.kind==='campaigns'),false);
+  const ok=await request(path);
+  assert.equal(ok.status,200);assert.equal(ok.headers.get('cache-control'),'no-store');
+  assert.deepEqual(await ok.json(),{campaigns:[{id:'campaign-a',title:'가상 캠페인',status:'ACTIVE',startsAt:'2026-09-01T00:00:00.000Z',endsAt:'2026-12-01T00:00:00.000Z',goals:[1,3,5],publication:null}]});
+  assert.deepEqual(calls.filter(call=>call.kind!=='access').at(-1),{kind:'campaigns',input:{merchantId:'merchant-a',accountId:'owner-a'}});
+  assert.equal((await request(path,'POST',{})).status,404);
 });

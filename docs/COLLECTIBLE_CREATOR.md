@@ -87,7 +87,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | --- | --- |
 | 시작 재질 | 원본 색 유지, 바탕 `#bf8149`, 사진색 100, 음각/양각 깊이 45. 등급 이름이 재질을 강제하지 않으며 효과·동작 목록은 비어 있음. 골드 고정 효과 없음. |
 | 등급·스티커·편집 상한 | 동적 등급 1~16, 스티커 30, 효과 64, 동작 10, 붓 경로 100개·경로당 점 1,000개. 네 등급 고정 슬롯을 피하면서 초안 크기와 작업량을 제한함. |
-| 파일·요청 상한 | JSON 본문 16MiB, 원본 사진 3MiB·가로/세로 4,096px 이하, 등급 완성 이미지 1MiB·썸네일 256KiB, 장면 프레임 512KiB·최대 5장, 음성 1MiB·30초. 입력 화면에서 제한과 재시도 경로를 안내. 최종 지원 기기 측정 후 조정 대상. |
+| 파일·요청 상한 | JSON 본문 8MiB, 원본 사진 3MiB·가로/세로 4,096px 이하, 등급 완성 이미지·바탕·마스크 512px(완성·바탕 1MiB, 마스크 256KiB)·썸네일 160px·128KiB, 장면 원본 512KiB·최대 5장과 미리보기 512px, 음성 1MiB·30초(MP3는 프레임으로 계산). 점포별 미디어 쓰기 1분 20번. 입력 화면에서 제한과 재시도 경로를 안내. 최종 지원 기기 측정 후 조정 대상. |
 | 이미지·음성 형식 | 사진 PNG/JPEG/WebP. 파일 업로드 MP3. 직접 녹음은 브라우저가 지원하는 WebM/Ogg 등을 사용하고 MIME·미디어 바이트 형식을 서버에서 검사. MP3 변환을 했다고 주장하지 않음. |
 | 추가 장면 자료 | 확대는 추가 프레임 불필요, 넓은 장면 1장, 추적 2장, 사건 3장. 기본 사진이 장면 입구이며 실제 사진 밖 공간을 재구성하지 않음. |
 | 효과 합성 | 사진 보정/명암 → 사진 대상 효과 → 표면 효과 → 순서대로 스티커와 개별 효과 → 테두리 효과. 강도 0도 저장하며 선택 효과를 삭제하지 않음. |
@@ -95,7 +95,49 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | 게시 후 편집 | 게시 버전을 보존하고 수정은 새 초안 복사로 진행. 기존 획득의 게시 버전은 유지. 초안 저장은 명시적 동작과 버전 충돌 안내를 제공. 자동 저장을 구현했다고 기록하지 않음. |
 | 획득 외형 | 기존 캠페인 목표에 점주가 직접 연결한 등급만 이후 보상권에 적용. 최소 하나의 명시 연결 후 게시. 고급 입력·특수등급·음성·장면은 선택 사항. |
 
-미디어 서명 검사·파일 크기·유한 수치·허용 필드·안정 ID·참조 관계를 서버에서 확인한다. 게시된 이미지와 가공 장면에서 EXIF/XMP 등 메타데이터를 제거한다. 미디어 헤더 확인은 모든 디코딩 오류·전체 파일 안전성을 보증하지 않는다. 공개 원본 저장소나 임의 외부 URL을 허용하는 근거가 아니다.
+미디어 서명 검사·파일 크기·유한 수치·허용 필드·안정 ID·참조 관계를 서버에서 확인한다. 저장할 때 원본 사진·장면 원본·완성 이미지 모두에서 EXIF/XMP/ICC 등 메타데이터를 제거하고(JPEG 방향값만 유지), MP3의 ID3·APE 태그를 제거한다. 미디어 헤더 확인은 모든 디코딩 오류·전체 파일 안전성을 보증하지 않는다. 공개 원본 저장소나 임의 외부 URL을 허용하는 근거가 아니다.
+
+## 서버 계약 (PR #257 인수 후속, 2026-10-01)
+
+웹 제작기·Android 후속 작업은 아래 계약을 기준으로 한다. 모든 점주 경로는 `/api/web/merchant/merchants/:merchantId/…` 웹 세션(호스트에 묶인 `web_session` 쿠키)이고, 쓰기는 같은 Origin·`content-type: application/json`이어야 한다. 권한은 그 점포의 활성 멤버 `MANAGE_ART`(기본 OWNER, `AI_ART_STAFF_MAY_MANAGE=true`면 STAFF도)이며 서버가 요청 시작과 거래 안에서 다시 확인한다. 응답은 `cache-control: no-store`다. 운영 도메인에서 이 경로는 Caddy가 API로 바로 넘기므로 `production-web` 프록시를 거치지 않는다(`/merchants` 공개 목록은 `id`·`campaign`을 지우므로 제작기가 쓰면 안 된다).
+
+### 게시할 캠페인 목록
+
+`GET /api/web/merchant/merchants/:merchantId/collectible-campaigns` → `200`
+
+```json
+{ "campaigns": [ { "id": "campaign-a", "title": "가상 캠페인", "status": "ACTIVE",
+  "startsAt": "2026-09-01T00:00:00.000Z", "endsAt": "2026-12-01T00:00:00.000Z",
+  "goals": [1, 3, 5], "publication": { "publicationId": "…uuid…", "projectId": "…uuid…" } } ] }
+```
+
+- 이 점포의 `status='ACTIVE'`·공개·기간 안(`startsAt ≤ 지금 < endsAt`) 캠페인만, `startsAt` 최신순. 게시 API가 받는 조건과 같다.
+- `goals`는 그 캠페인에 실제로 있는 기존 목표 중 1·3·5만 오름차순. `rewardGrades`의 키는 이 안에서만 고른다(없는 목표는 게시가 409 `COLLECTIBLE_CAMPAIGN_UNAVAILABLE`).
+- `publication`은 지금 그 캠페인에 연결돼 새 방문 고객에게 나가는 발행본(없으면 `null`).
+- 오류: 세션 없음·만료 401(`WEB_SESSION_*`), 다른 호스트 403, 권한 없음 403 `MERCHANT_ACCESS_DENIED`, 삭제된 계정 410 `ACCOUNT_DELETED`.
+
+### 프로젝트 경로 (`…/collectible-projects`)
+
+| 경로 | 본문 | 성공 응답 |
+| --- | --- | --- |
+| `GET` | — | `{ projects: [{ id, merchantId, version, status, publicationId, createdAt, updatedAt, name, schemaVersion: 1, distributingCampaignId }] }` (`distributingCampaignId`: 이 게시 버전이 지금 나가는 캠페인, 아니면 `null`) |
+| `POST` | `{ project }` | 201 프로젝트 래퍼 |
+| `GET /:projectId` | — | 래퍼 `{ id, merchantId, version, status, publicationId, createdAt, updatedAt, project }` |
+| `PUT /:projectId` | `{ expectedVersion, project }` | 200 래퍼 |
+| `POST /:projectId/copy` | `{ expectedVersion }` | 201 새 초안 래퍼 |
+| `POST /:projectId/publish` | `{ expectedVersion, campaignId }` | 200 `{ project, publicationId, campaignId }` |
+| `POST /:projectId/unpublish` | `{ expectedVersion }` | 200 `{ projectId, publicationId, unlinkedCampaignId }` (이미 교체·중지됐으면 `null`) |
+| `POST /:projectId/delete` | `{ expectedVersion }` | 200 `{ projectId, deleted: true, unlinkedCampaignId }` (초안은 행 삭제, 게시본은 게시 중지 + 비공개 원본 비움) |
+
+- 저장·생성·복사 응답의 `project`는 서버가 정리한 값이다: 모든 이미지의 메타데이터 제거(바이트가 달라짐), MP3는 태그 제거와 프레임 기준 `durationSeconds`. 편집기는 응답의 `project`를 새 기준값으로 삼아야 "저장하지 않은 변경" 비교가 어긋나지 않는다.
+- 본문 상한 8 MiB(413 `BODY_TOO_LARGE`). 생성·저장·복사·게시는 점포마다 1분 20번(429 `COLLECTIBLE_RATE_LIMITED`, `Retry-After` 초).
+- 이미지: PNG/JPEG/WebP data URL만. 원본 사진 3 MiB·4096 px, 장면 원본 512 KiB·4096 px(최대 5장), 완성 `imageDataUrl`·`baseDataUrl` 1 MiB·512 px, `effectMasks` 256 KiB·512 px, `thumbnailDataUrl` 128 KiB·160 px, 장면 `previewDataUrl` 512 KiB·512 px. 애니메이션 WebP 거절. 음성: MP3(ID3/APE 태그 뒤 MPEG Layer III 프레임만, 30.5초 초과 413 `COLLECTIBLE_MEDIA_TOO_LARGE`), WebM/Ogg(서명·1 MiB·클라이언트 길이 0.1–30초).
+- 오류 코드 전체(상태): `INVALID_REQUEST`(400, 본문 키), `COLLECTIBLE_INVALID_PROJECT`(400), `COLLECTIBLE_MEDIA_TOO_LARGE`(413), `BODY_TOO_LARGE`(413), `COLLECTIBLE_PROJECT_NOT_FOUND`(404), `COLLECTIBLE_VERSION_CONFLICT`·`COLLECTIBLE_PUBLISHED_IMMUTABLE`·`COLLECTIBLE_CAMPAIGN_UNAVAILABLE`·`COLLECTIBLE_NOT_READY`·`COLLECTIBLE_PROJECT_LIMIT`·`COLLECTIBLE_NOT_PUBLISHED`(409), `COLLECTIBLE_RATE_LIMITED`(429), `MERCHANT_ACCESS_DENIED`(403), `ACCOUNT_DELETED`(410), `COLLECTIBLE_PROJECTS_NOT_CONFIGURED`(503).
+
+### 고객 경로와 제거된 외형
+
+- `GET /collection`·`/api/web/collection`의 `collectibles[].artwork`는 `{ projectId, publicationId, gradeId, gradeName, shape, theme, name, thumbnailDataUrl }` 그대로다(획득 행은 참조만 저장하고 불변 발행본 등급 요약을 읽는다).
+- 운영자가 게시 미디어를 제거한 수집품은 `artwork`가 빠지고 상세 `GET /collectibles/:entitlementId`·`/api/web/collectibles/:entitlementId`는 404 `COLLECTIBLE_NOT_FOUND`다. 보상·방문 기록은 그대로이므로 앱·웹은 `artwork`가 없으면 기존 수집품 카드로 보여 준다.
 
 ## 유지하는 후속 제안과 결정 항목
 

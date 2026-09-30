@@ -37,6 +37,11 @@ export type CollectibleProjectView = {
 };
 // distributingCampaignId: 이 게시 버전이 지금 새 방문 고객에게 나가는 캠페인(게시 중지·교체·초안이면 null).
 export type CollectibleProjectSummary = Omit<CollectibleProjectView, 'project'> & { name: string; schemaVersion: 1; distributingCampaignId: string | null };
+// GET /api/web/merchant/merchants/:merchantId/collectible-campaigns 항목. goals는 이 캠페인에 실제로 있는 기존 목표(1·3·5)만.
+export type CollectibleCampaign = {
+  id: string; title: string; status: 'ACTIVE'; startsAt: string; endsAt: string; goals: (1 | 3 | 5)[];
+  publication: { publicationId: string; projectId: string } | null;
+};
 export type CollectibleUnpublishResult = { projectId: string; publicationId: string; unlinkedCampaignId: string | null };
 export type CollectibleArtwork = {
   projectId: string; publicationId: string; gradeId: string; gradeName: string;
@@ -60,6 +65,7 @@ export class CollectibleProjectError extends Error {
 
 export interface CollectibleProjectService {
   list(input: { merchantId: string; accountId: string }): Promise<readonly CollectibleProjectSummary[]>;
+  listCampaigns(input: { merchantId: string; accountId: string }): Promise<readonly CollectibleCampaign[]>;
   create(input: { merchantId: string; accountId: string; project: unknown }): Promise<CollectibleProjectView>;
   get(input: { merchantId: string; accountId: string; projectId: string }): Promise<CollectibleProjectView>;
   save(input: { merchantId: string; accountId: string; projectId: string; expectedVersion: number; project: unknown }): Promise<CollectibleProjectView>;

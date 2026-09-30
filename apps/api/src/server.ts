@@ -589,6 +589,16 @@ export function createApiServer(
             accountScope: createHash('sha256').update(`collectible-editor:${accountId}`).digest('hex') });
           return;
         }
+        const collectibleCampaigns = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/collectible-campaigns$/);
+        if (collectibleCampaigns && request.method === 'GET') {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          const merchantId = decodePathParameter(collectibleCampaigns[1]!);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'MANAGE_ART' });
+          if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+          if (!collectibleProjects) throw new RequestError(503, 'COLLECTIBLE_PROJECTS_NOT_CONFIGURED');
+          sendJson(response, 200, { campaigns: await collectibleProjects.listCampaigns({ merchantId, accountId }) });
+          return;
+        }
         const webCollectibleRoute = matchCollectibleProjectRoute(request.method, path, '/api/web/merchant/merchants/');
         if (webCollectibleRoute) {
           if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');

@@ -344,3 +344,26 @@ test('operator media removal blanks a publication only through the guarded funct
   // The setting is transaction-local, so the guard is back on afterwards.
   await assert.rejects(pool.query(`UPDATE collectible_publication_grades SET detail = '{}' WHERE publication_id = $1`, [published.publicationId]), /immutable/);
 });
+
+test('editor campaign list returns only this store publishable campaigns with goals and the current publication', async t => {
+  const { pool, projects, input } = await setup(t);
+  await pool.query(`INSERT INTO campaigns (id,merchant_id,title,starts_at,ends_at,status,is_public,enrollment_capacity) VALUES
+    ('campaign-ended','merchant-a','끝난 캠페인','2026-08-01','2026-09-01','PAUSED',true,100),
+    ('campaign-hidden','merchant-a','비공개 캠페인','2026-09-01','2026-12-01','ACTIVE',false,100)`);
+  assert.deepEqual(await projects.listCampaigns(input), [{
+    id: 'campaign-a', title: '가상 캠페인', status: 'ACTIVE', startsAt: new Date('2026-09-01').toISOString(), endsAt: new Date('2026-12-01').toISOString(),
+    goals: [1, 3, 5], publication: null,
+  }]);
+  const draft = await projects.create({ ...input, project: photoProject() });
+  const published = await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
+  assert.deepEqual((await projects.listCampaigns(input))[0]!.publication, { publicationId: published.publicationId, projectId: draft.id });
+  assert.deepEqual((await projects.listCampaigns({ merchantId: 'merchant-b', accountId: 'owner-b' })).map(c => [c.id, c.goals]), [['campaign-b', []]]);
+  await assert.rejects(projects.listCampaigns({ merchantId: 'merchant-b', accountId: 'owner-a' }), MerchantAccessError);
+  await assert.rejects(projects.listCampaigns({ ...input, accountId: 'staff-a' }), MerchantAccessError);
+  const delegated = new PostgresCollectibleProjectService(pool, { staffMayManageArt: true, now: () => now });
+  assert.equal((await delegated.listCampaigns({ ...input, accountId: 'staff-a' })).length, 1);
+  await pool.query(`UPDATE merchant_members SET status='REVOKED', revoked_at=now() WHERE account_id='staff-a'`);
+  await assert.rejects(delegated.listCampaigns({ ...input, accountId: 'staff-a' }), MerchantAccessError);
+  await pool.query(`UPDATE merchants SET status='PAUSED' WHERE id='merchant-a'`);
+  await assert.rejects(projects.listCampaigns(input), MerchantAccessError);
+});

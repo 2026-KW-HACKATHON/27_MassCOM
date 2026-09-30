@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import {
   CollectibleProjectError, type CollectibleArtwork, type CollectibleDetail, type CollectibleProject, type CollectibleProjectService,
-  type CollectibleProjectSummary, type CollectibleProjectView, type CollectibleUnpublishResult,
+  type CollectibleCampaign, type CollectibleProjectSummary, type CollectibleProjectView, type CollectibleUnpublishResult,
 } from '../collectible-project.js';
 import { collectibleSnapshot, validateCollectibleProject } from '../collectible-project-rules.js';
 import { MerchantAccessError } from '../merchant-access.js';
@@ -32,6 +32,30 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
          LEFT JOIN campaign_collectible_publications link ON link.publication_id = project.publication_id
          WHERE project.merchant_id = $1 AND project.project IS NOT NULL ORDER BY project.updated_at DESC, project.id DESC LIMIT 100`, [input.merchantId]);
       return result.rows.map(row => ({ ...mapMetadata(row), name: row.name, schemaVersion: 1, distributingCampaignId: row.distributing_campaign_id }));
+    });
+  }
+
+  // 점주 웹 제작기의 게시 대상: 이 점포의 지금 게시할 수 있는(공개·ACTIVE·기간 안) 캠페인과 기존 목표, 현재 연결된 발행본.
+  // publish가 받는 조건과 같다. 권한은 다른 수집품 경로처럼 거래 안에서 다시 확인한다.
+  async listCampaigns(input: MerchantInput): Promise<readonly CollectibleCampaign[]> {
+    return this.transaction(input, async client => {
+      const result = await client.query<{ id: string; title: string; status: string; starts_at: Date; ends_at: Date; goals: number[];
+        publication_id: string | null; project_id: string | null }>(
+        `SELECT campaign.id, campaign.title, campaign.status, campaign.starts_at, campaign.ends_at,
+           COALESCE((SELECT array_agg(goal.target_visit_count ORDER BY goal.target_visit_count) FROM campaign_goals goal
+             WHERE goal.campaign_id = campaign.id), '{}') AS goals,
+           link.publication_id, publication.project_id
+         FROM campaigns campaign
+         LEFT JOIN campaign_collectible_publications link ON link.campaign_id = campaign.id
+         LEFT JOIN collectible_publications publication ON publication.id = link.publication_id
+         WHERE campaign.merchant_id = $1 AND campaign.status = 'ACTIVE' AND campaign.is_public
+           AND campaign.starts_at <= $2 AND campaign.ends_at > $2
+         ORDER BY campaign.starts_at DESC, campaign.id`, [input.merchantId, this.now()]);
+      return result.rows.map(row => ({
+        id: row.id, title: row.title, status: 'ACTIVE' as const, startsAt: row.starts_at.toISOString(), endsAt: row.ends_at.toISOString(),
+        goals: row.goals.filter((goal): goal is 1 | 3 | 5 => goal === 1 || goal === 3 || goal === 5),
+        publication: row.publication_id && row.project_id ? { publicationId: row.publication_id, projectId: row.project_id } : null,
+      }));
     });
   }
 
