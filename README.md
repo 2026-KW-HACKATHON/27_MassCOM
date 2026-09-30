@@ -86,6 +86,8 @@
 
 [Issue #254](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/254)는 **NFT 메타데이터를 발행 확정 때 고정합니다**([설계](docs/superpowers/specs/2026-09-30-nft-metadata-design.md), [결정 D-060](docs/DECISIONS.md)). 메타데이터는 `<가게 이름> 방문 도장`, 가게 이름·동네(행정동)·업종·방문 단계·캠페인과 사장님이 적용한 가게 그림(없으면 기본 도장)을 담고 주소·시각·주문·계정·지갑은 담지 않습니다. Worker가 발행 확정 트랜잭션에서 DB에 고정하므로 뒤에 가게 정보·그림이 바뀌어도 이미 발행한 토큰은 그대로이고, 공개 주소 `https://masscom.kr/nft-metadata/<series>/<tokenId>.json`(시연은 `https://demo-api.masscom.kr/…`)이 CORS·하루 캐시(거부 목록이 하루 안에 반영)로 내보냅니다. 시리즈를 만들 때 `createSeries`의 base URI는 `<출처>/nft-metadata/<nft_series.id>/`입니다. 동네·업종은 관리자 웹에서 넣고 점포 공개 조건과는 별개입니다. 발행 때 공개 중이 아닌 가게는 가게 정보 없이 방문 단계만 담고, 기본 도장은 판이 붙은 고정 주소(`/nft-metadata/default/mascot-stamp-v1.png`)이며, 가게 AI 그림에는 `그림: AI 생성` 속성이 붙습니다. 신고된 토큰·그림은 거부 목록으로 404가 됩니다. 앱의 발행 동의(판 `nft-mint-v2`)는 지갑 주소와 함께 가게 정보·방문 단계가 영구 공개되고 발행 시각이 체인에 남는다고 알립니다. 실증 토큰 파일은 그대로이며, 운영 발행은 여전히 준비 중이라 운영 배포·실제 발행은 아직 하지 않았습니다.
 
+[Issue #263](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/263)은 **배포 롤백·백업 드릴·점포 공개 안내**를 2026-09-30 전체 점검 보고서(C02·C07·P02)에 맞춰 고칩니다: 시연 API health 실패는 더 이상 운영 API를 이전 버전으로 되돌리지 않고(배포만 `SHOWCASE_HEALTH_FAILED`로 실패하며 `DEPLOYED_COMMIT`은 새 커밋이다, 운영 확인 실패는 그대로 되돌린다), 롤백된 이전 API가 도는 동안 삭제 처리된 계정의 `platform_admin_audit.target_account_id`는 매일 정리 `run`의 `admin_audit_deleted_targets` 단계가 삭제 원장의 별칭으로 바꿔 스스로 복구되며, `scripts/db-restore-drill.sh`는 `umask 077`과 임시 파일→성공 시 이동으로 경로를 준 백업을 mode 600으로 쓰고 실패하면 이전 파일을 지키고, [점포 온보딩 안내](docs/MERCHANT_ONBOARDING.md)는 점포 공개(활성)와 고객 목록 노출(활성·공개·기간 안 캠페인과 1·3·5회 목표)을 나눠 씁니다. 운영 배포와 서버 실행은 하지 않았고(`NOT_RUN`) 시험 결과는 [시험 상태](docs/TEST_STATUS.md)에 있습니다.
+
 ## 한눈에 보기
 
 <details>
