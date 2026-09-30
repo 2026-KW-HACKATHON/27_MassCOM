@@ -25,6 +25,20 @@ export function missingForPublish(merchant) {
   return missing;
 }
 
+// 동네·업종(Issue #254). 공개 NFT 메타데이터에 들어가고 공개 조건과는 무관하다. 규칙은 서버(merchant-profile-rules.ts)·DB CHECK와 같고
+// 최종 판단은 서버가 한다.
+export const merchantCategories = ['한식', '중식', '일식', '양식', '분식', '카페', '베이커리', '주점', '기타'];
+export const neighborhoodHint = '행정동 이름만 적어요(예: 월계동, 월계1동, 상계3·4동). 도로명·번지는 적지 않아요. 동네·업종은 NFT 공개 정보(메타데이터)에 들어가고, 이미 발행한 NFT에는 발행 때 값이 그대로 남아요.';
+
+export function neighborhoodProblem(value) {
+  const neighborhood = String(value ?? '').trim();
+  if (!neighborhood) return null;
+  if (!/^[가-힣][가-힣0-9·]{0,8}[동가리]$/.test(neighborhood) || /[0-9]{3}/.test(neighborhood)) {
+    return `동네를 확인해 주세요. ${neighborhoodHint}`;
+  }
+  return null;
+}
+
 function localError(message) {
   const error = new Error(message);
   error.local = true;
@@ -147,6 +161,9 @@ async function jsonRequest(fetcher, path, method = 'GET', body) {
 
 function fields(form, FormDataOf = FormData) {
   const data = new FormDataOf(form);
+  const neighborhood = String(data.get('neighborhood') ?? '').trim();
+  const problem = neighborhoodProblem(neighborhood);
+  if (problem) throw localError(problem);
   return {
     name: String(data.get('name') ?? ''),
     story: String(data.get('story') ?? ''),
@@ -154,6 +171,9 @@ function fields(form, FormDataOf = FormData) {
     minimumSpendWon: Number(data.get('minimumSpendWon')),
     menuItems: parseMenuLines(String(data.get('menuItems') ?? '')),
     businessHours: String(data.get('businessHours') ?? ''),
+    // 빈 값은 비우기다(서버가 null로 저장).
+    neighborhood,
+    category: String(data.get('category') ?? ''),
   };
 }
 
@@ -235,9 +255,26 @@ function editField(doc, label, name, value, type = 'text') {
   if (input.tagName === 'INPUT') input.type = type;
   input.value = String(value);
   if (name === 'businessHours') input.maxLength = 1000;
+  if (name === 'neighborhood') input.maxLength = 10;
   if (name === 'menuItems') input.maxLength = 8000;
   input.required = name === 'name' || name === 'roadAddress' || name === 'minimumSpendWon';
   wrapper.append(input);
+  return wrapper;
+}
+
+function categoryField(doc, value) {
+  const wrapper = doc.createElement('label');
+  wrapper.textContent = '업종 ';
+  const select = doc.createElement('select');
+  select.name = 'category';
+  for (const [optionValue, label] of [['', '선택 안 함'], ...merchantCategories.map(category => [category, category])]) {
+    const option = doc.createElement('option');
+    option.value = optionValue;
+    option.textContent = label;
+    select.append(option);
+  }
+  select.value = merchantCategories.includes(value) ? value : '';
+  wrapper.append(select);
   return wrapper;
 }
 
@@ -598,6 +635,8 @@ export async function loadAdmin(fetcher, doc) {
         editField(doc, '점포 제공 영업시간', 'businessHours', merchant.businessHours ?? ''),
         editField(doc, '도로명 주소', 'roadAddress', merchant.roadAddress),
         editField(doc, '최소 결제 금액(원)', 'minimumSpendWon', merchant.minimumSpendWon, 'number'),
+        editField(doc, '동네(행정동)', 'neighborhood', merchant.neighborhood ?? ''),
+        categoryField(doc, merchant.category),
         save, hide);
       const staffPanel = doc.createElement('section');
       const staffTitle = doc.createElement('h4');
@@ -837,7 +876,7 @@ export async function loadAdmin(fetcher, doc) {
           await loadAdmin(fetcher, doc);
           status.textContent = '상점을 수정했습니다.';
         } catch (error) {
-          status.textContent = error.message?.startsWith('메뉴') ? error.message
+          status.textContent = error.local === true || error.message?.startsWith('메뉴') ? error.message
             : error.code === 'ADMIN_MERCHANT_NOT_READY'
               ? '공개 중인 점포는 메뉴·영업시간·도로명 주소를 비울 수 없어요. 값을 채우거나 먼저 점포를 숨겨 주세요.'
               : error.status === 409 ? '다른 변경이 먼저 저장되었습니다. 새로고침해 주세요.' : '수정하지 못했습니다.';
@@ -1073,7 +1112,7 @@ export function bindAdmin(fetcher, doc) {
       await loadAdmin(fetcher, doc);
       status.textContent = '상점을 비공개로 저장했습니다.';
     } catch (error) {
-      status.textContent = error.message?.startsWith('메뉴') ? error.message : '상점을 저장하지 못했습니다.';
+      status.textContent = error.local === true || error.message?.startsWith('메뉴') ? error.message : '상점을 저장하지 못했습니다.';
     } finally { button.disabled = false; }
   });
   const draftForm = doc.getElementById('admin-campaign-draft');

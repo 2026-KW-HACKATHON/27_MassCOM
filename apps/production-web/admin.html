@@ -42,6 +42,13 @@
           <label>점포 제공 영업시간 <textarea name="businessHours" maxlength="1000" placeholder="점포가 확인한 실제 영업시간을 입력하세요"></textarea></label>
           <label>도로명 주소 <input name="roadAddress" required maxlength="500"></label>
           <label>최소 결제 금액(원) <input name="minimumSpendWon" type="number" min="0" max="1000000000" step="1" required></label>
+          <label>동네(행정동, 선택) <input name="neighborhood" maxlength="10" autocomplete="off" aria-describedby="admin-neighborhood-hint"></label>
+          <label>업종(선택) <select name="category">
+            <option value="">선택 안 함</option>
+            <option>한식</option><option>중식</option><option>일식</option><option>양식</option><option>분식</option>
+            <option>카페</option><option>베이커리</option><option>주점</option><option>기타</option>
+          </select></label>
+          <p id="admin-neighborhood-hint" class="admin-hint">행정동 이름만 적어요(예: 월계동, 월계1동, 상계3·4동). 도로명·번지는 적지 않아요. 동네·업종은 공개 조건이 아니며 NFT 공개 정보(메타데이터)에 들어가고, 이미 발행한 NFT에는 발행 때 값이 그대로 남아요.</p>
           <button type="submit">비공개로 등록</button>
         </form>
         <section class="admin-panel" aria-labelledby="registered-merchants">
