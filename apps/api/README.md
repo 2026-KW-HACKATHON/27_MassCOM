@@ -207,14 +207,14 @@ COMMIT;
 
 | 경로 | 응답 |
 | --- | --- |
-| `GET`·`HEAD /nft-metadata/<series>/<tokenId>.json` | 스냅샷이 있으면 `200`, 저장된 바이트 그대로 `application/json; charset=utf-8`, `Cache-Control: public, max-age=31536000, immutable`, `Access-Control-Allow-Origin: *` |
+| `GET`·`HEAD /nft-metadata/<series>/<tokenId>.json` | 스냅샷이 있고 내리지 않았으면 `200`, 저장된 바이트 그대로 `application/json; charset=utf-8`, `Cache-Control: public, max-age=86400`(거부 목록이 늦어도 하루 안에 반영), `Access-Control-Allow-Origin: *` |
 | `GET`·`HEAD /nft-metadata/images/<sha256>.webp` | 보존된 그림이 있고 내리지 않았으면 `200 image/webp`, 같은 캐시·CORS |
-| `GET`·`HEAD /nft-metadata/default/mascot-stamp-v1.png` | 판이 붙은 기본 도장 `200 image/png`(바이트 고정, `src/nft-default-stamp.ts`, DB 불필요), 같은 캐시·CORS |
+| `GET`·`HEAD /nft-metadata/default/mascot-stamp-v1.png` | 판이 붙은 기본 도장 `200 image/png`(바이트 고정, `src/nft-default-stamp.ts`, DB 불필요), `public, max-age=31536000, immutable`, CORS |
 | 없는 토큰·다른 시리즈·확정 전·내린 토큰·그림·잘못된 경로 | `404 {"code":"NOT_FOUND"}`, `Cache-Control: no-store`, CORS 포함. DB가 없으면 `503 NFT_METADATA_NOT_CONFIGURED` |
 
 200 응답은 `Content-Length`를 붙이고 `HEAD`도 같은 길이를 알린다. 스냅샷 때 공개 중이 아닌 점포(ACTIVE가 아니거나, 실제 점포인데 동의서 참조 번호가 없음)의 토큰은 `월계 방문 도장`과 방문 단계만 담는 일반 메타데이터다. 가게 AI 그림을 쓴 토큰에는 `{"trait_type":"그림","value":"AI 생성"}` 속성이 붙는다.
 
-`<series>`는 `nft_series.id`(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`, 대소문자와 무관하게 `base-sepolia-proof` 제외), `<tokenId>`는 앞자리 0 없는 10진수다. 온체인 `createSeries`의 base URI는 `<출처>/nft-metadata/<nft_series.id>/`로 준다(운영 `https://masscom.kr` — Caddy가 이 모양의 경로만 API로 넘김, 시연 `https://demo-api.masscom.kr`). 메타데이터 행은 수정·삭제할 수 없고 그림 행은 수정할 수 없다(DB 트리거). 이 트리거는 앱 코드의 실수를 막는 장치이며, 표 소유자 역할은 트리거를 끌 수 있으므로 DB 권한 경계는 아니다. 그림 행에는 `sha256 = encode(sha256(image), 'hex')` CHECK가 있다.
+`<series>`는 `nft_series.id`(DB CHECK: 뜻 없는 불투명 id `^s-[0-9a-f]{32}$`. 경로 규칙은 더 넓은 `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`로 이 모양을 받고, 대소문자와 무관하게 `base-sepolia-proof` 제외. 시리즈 id는 온체인 주소에 영구히 남으므로 가게 이름·동네·업종·캠페인을 넣지 않는다), `<tokenId>`는 앞자리 0 없는 10진수다. 온체인 `createSeries`의 base URI는 `<출처>/nft-metadata/<nft_series.id>/`로 준다(운영 `https://masscom.kr` — Caddy가 이 모양의 경로만 API로 넘김, 시연 `https://demo-api.masscom.kr`). 메타데이터 행은 수정·삭제할 수 없고 그림 행은 수정할 수 없다(DB 트리거). 이 트리거는 앱 코드의 실수를 막는 장치이며, 표 소유자 역할은 트리거를 끌 수 있으므로 DB 권한 경계는 아니다. 그림 행에는 `sha256 = encode(sha256(image), 'hex')` CHECK가 있다.
 
 #### 운영 점검: NFT 메타데이터·그림 내리기(거부 목록)
 
@@ -233,7 +233,7 @@ ON CONFLICT (target) DO NOTHING;
 COMMIT;
 ```
 
-커밋 뒤 확인: `curl -sS -o /dev/null -w '%{http_code} %header{cache-control}\n' https://masscom.kr/nft-metadata/images/<sha>.webp`(또는 `/nft-metadata/<series-id>/<token-id>.json`)이 `404 no-store`여야 한다. 200 응답은 `immutable`로 1년 캐시되므로 이미 받아 간 지갑·마켓·브라우저의 사본은 남을 수 있다(서버에서 지울 수 없음). 되돌리려면 그 행을 지운다(`DELETE FROM nft_metadata_takedowns WHERE target = '...'`).
+커밋 뒤 확인: `curl -sS -o /dev/null -w '%{http_code} %header{cache-control}\n' https://masscom.kr/nft-metadata/images/<sha>.webp`(또는 `/nft-metadata/<series-id>/<token-id>.json`)이 `404 no-store`여야 한다. 200 응답은 하루(`max-age=86400`) 캐시되므로 늦어도 하루 뒤에는 캐시도 새로 받지만, 이미 받아 저장한 지갑·마켓의 사본은 남을 수 있다(서버에서 지울 수 없음). 되돌리려면 그 행을 지운다(`DELETE FROM nft_metadata_takedowns WHERE target = '...'`).
 
 관리자 점포 API(`POST /api/web/admin/merchants`, `PATCH /api/web/admin/merchants/:id`)는 선택 키 `neighborhood`(행정동: `^[가-힣][가-힣0-9·]{0,8}[동가리]$`, 숫자 3자리 이상 연속 금지)·`category`(`한식`·`중식`·`일식`·`양식`·`분식`·`카페`·`베이커리`·`주점`·`기타`)를 받는다. 키가 없으면 그대로, `null`·빈 문자열이면 비우고, 규칙 위반은 `400 ADMIN_INVALID_INPUT`이다. 점포 공개 조건과는 무관하다.
 

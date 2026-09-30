@@ -26,7 +26,7 @@
 - 공개 경로의 `<series>`는 **`nft_series.id` 그대로**다. 시리즈를 만들 때 온체인 `createSeries`의 `baseTokenURI`는 `<메타데이터 출처>/nft-metadata/<nft_series.id>/`로 준다.
   - 운영: `https://masscom.kr/nft-metadata/<id>/`(Caddy가 API로 넘김, 3.5).
   - 시연: `https://demo-api.masscom.kr/nft-metadata/<id>/`(시연 API 호스트가 이미 모든 경로를 `showcase-api`로 넘기므로 Caddy 변경 없음. `demo.masscom.kr`은 DNS·웹 서버가 없다).
-- `nft_series.id`는 `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`이고 `base-sepolia-proof`가 아니어야 한다. migration 0036가 이 CHECK를 **`NOT VALID`** 로 더해 새로 넣는 행만 검사한다(기존 행이 있어도 migration이 실패하지 않음. 운영·시연 DB에는 행이 없다). 경로에 쓸 수 없는 시리즈를 만드는 실수를 DB가 막는다.
+- `nft_series.id`는 뜻 없는 불투명 id `^s-[0-9a-f]{32}$`이고 대소문자와 무관하게 `base-sepolia-proof`가 아니어야 한다. id는 온체인 baseTokenURI와 모든 토큰 주소에 영구히 남으므로 가게 이름·동네·업종·캠페인을 넣지 않는다(넣으면 공개 중이 아닌 가게의 일반 메타데이터 보호가 무너진다). migration 0036이 이 CHECK를 **`NOT VALID`** 로 더해 새로 넣는 행만 검사한다(기존 행이 있어도 migration이 실패하지 않음. 운영·시연 DB에는 행이 없다). API·Caddy의 경로 규칙은 더 넓은 `^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`로 이 모양을 받는다.
 - `base-sepolia-proof`는 정적 파일로 남는다. Caddy가 이 경로를 API로 넘기지 않으므로 실증 토큰 #1은 지금과 바이트까지 같다.
 
 ### 3.2 스냅샷 시점과 저장
@@ -37,7 +37,7 @@
   - `nft_token_metadata`: `nft_asset_id uuid PK → nft_assets`, `nft_series_id text → nft_series`, `token_id numeric(78,0)`, `metadata_json text`(유효한 JSON 객체 CHECK), `image_sha256 text NULL`(형식 CHECK만, 참조 제약 없음 — 아래 그림 내리기 때문), `created_at`. `UNIQUE (nft_series_id, token_id)`.
   - `nft_metadata_images`: `sha256 text PK`(소문자 hex 64), `image bytea`(비어 있지 않음), `created_at`. 스냅샷 때 적용된 가게 그림 바이트를 복사해 둔다. 가게가 그림을 바꾸거나 되돌려도 이 행은 남는다.
   - 행 트리거(`nft_metadata_immutable()`)가 `nft_token_metadata`의 `UPDATE`·`DELETE`와 `nft_metadata_images`의 `UPDATE`를 막는다. 한 번 쓴 토큰 메타데이터와 그림 내용은 바뀌지 않는다(`TRUNCATE`는 행 트리거를 타지 않아 시험 초기화는 그대로 된다).
-  - **그림 내리기:** 신고·정책 문제로 가게 그림을 내려야 할 때(기존 `merchant_art` 운영 SQL과 같은 경우) 운영자는 `nft_metadata_images`의 그 sha256 행도 지운다. 그 그림 주소는 404가 되고 메타데이터 JSON은 그대로 남는다. `merchant_art`를 남긴 채 그림 행만 지우면 다음 스냅샷이 다시 복사하므로 둘을 함께 지운다. 메타데이터 문장 자체를 지우는 경로는 두지 않는다(가게 이름·동네·업종은 관리자가 검사한 값이다).
+  - **내리기:** 신고·정책 문제로 토큰 메타데이터나 그림을 내려야 하면 행을 고치거나 지우지 않고 거부 목록 `nft_metadata_takedowns`(`asset:<nft_assets.id>`·`image:<sha256>`)에 넣는다(7절). 그 주소만 404가 되고 메타데이터 문장은 그대로 남는다.
 - `metadata_json`은 **응답 바이트 그대로의 text**다(jsonb는 키 순서를 바꾸므로 쓰지 않는다). API는 저장된 문자열을 그대로 보낸다.
 
 ### 3.3 생성기(`apps/worker/src/nft-metadata.ts`, 순수 함수)
@@ -63,9 +63,9 @@
 
 - 방문 단계: 1은 `첫 방문`, 그 밖은 `<n>번째 방문`.
 - 동네·업종이 비어 있으면 그 속성을 빼고, 설명에서도 동네를 뺀다(`월계 김밥 첫 방문 도장입니다. …`).
-- 이미지: 가게 그림이 있으면 **바이트의 sha256을 Worker가 직접 계산**해 `<출처>/nft-metadata/images/<sha256>.webp`로 쓰고 바이트를 `nft_metadata_images`에 복사한다(열에 적힌 값이 아니라 실제 내용으로 주소를 정한다). 없으면 기본 도장 `https://masscom.kr/assets/mascot-stamp.png`(공개 사이트 정적 파일, `build-public-site.mjs` 목록에 이미 있음).
+- 이미지: 가게 그림이 있으면 **바이트의 sha256을 Worker가 직접 계산**해 `<출처>/nft-metadata/images/<sha256>.webp`로 쓰고 바이트를 `nft_metadata_images`에 복사한다(열에 적힌 값이 아니라 실제 내용으로 주소를 정한다). 없거나 쓸 수 없으면 판이 붙은 기본 도장 `<출처>/nft-metadata/default/mascot-stamp-v1.png`(바이트 고정, 7절).
 - 넣지 않는 것: 도로명 주소, 소개·메뉴·영업시간, 방문·발행·확정 시각, 주문·결제, 계정 ID, 지갑 주소, tx hash, reward key, 참조 번호. 생성기는 이런 값을 입력으로 받지도 않는다.
-- 출처(`<출처>`)는 Worker 환경 변수 `NFT_METADATA_ORIGIN`(필수, `https://호스트`만, 경로·쿼리 없음. 로컬 시험용 `http://localhost`·`http://127.0.0.1`만 예외). 운영 `https://masscom.kr`, 시연 `https://demo-api.masscom.kr`. 저장소 클래스의 기본값은 `https://masscom.kr`이고 실행기(`run-worker.ts`)는 값을 반드시 받는다.
+- 출처(`<출처>`)는 Worker 환경 변수 `NFT_METADATA_ORIGIN`(필수, `https://호스트`만, 경로·쿼리 없음. 로컬 시험용 `http://localhost`·`http://127.0.0.1`만 예외). 운영 `https://masscom.kr`, 시연 `https://demo-api.masscom.kr`. Worker 저장소 클래스도 이 옵션을 기본값 없이 반드시 받고, 실행기(`run-worker.ts`)는 환경 변수에서 받는다.
 
 ### 3.4 가게 정보: 동네·업종(migration 0036, 관리자 API·웹)
 
@@ -82,8 +82,9 @@ API(`apps/api/src/server.ts`, 로그인 없음):
 
 | 경로 | 응답 |
 | --- | --- |
-| `GET`·`HEAD /nft-metadata/<series>/<tokenId>.json` | 스냅샷이 있으면 200, 저장된 바이트 그대로, `content-type: application/json; charset=utf-8`, `cache-control: public, max-age=31536000, immutable`, `access-control-allow-origin: *` |
-| `GET`·`HEAD /nft-metadata/images/<sha256>.webp` | 보존된 그림이 있으면 200 `image/webp`, 같은 캐시·CORS |
+| `GET`·`HEAD /nft-metadata/<series>/<tokenId>.json` | 스냅샷이 있으면 200, 저장된 바이트 그대로, `content-type: application/json; charset=utf-8`, `cache-control: public, max-age=86400`(거부 목록이 늦어도 하루 안에 반영), `access-control-allow-origin: *` |
+| `GET`·`HEAD /nft-metadata/images/<sha256>.webp` | 보존된 그림이 있고 내리지 않았으면 200 `image/webp`, 같은 캐시·CORS |
+| `GET`·`HEAD /nft-metadata/default/mascot-stamp-v1.png` | 판이 붙은 기본 도장 200 `image/png`, `public, max-age=31536000, immutable`(바이트가 영원히 같음) |
 | 그 밖·없는 토큰·아직 확정 전 | 404 `{"code":"NOT_FOUND"}`, `cache-control: no-store`, `access-control-allow-origin: *` |
 
 - `<series>`는 3.1 규칙, `<tokenId>`는 앞자리 0 없는 10진수(`0|[1-9][0-9]{0,77}`). 시리즈와 토큰이 **둘 다** 맞는 스냅샷만 준다(다른 시리즈 경로로 같은 토큰을 읽을 수 없음).
@@ -91,7 +92,7 @@ API(`apps/api/src/server.ts`, 로그인 없음):
 
 운영 Caddy(`infra/lightsail/Caddyfile`, `masscom.kr`·`www`):
 
-- `@nftMetadataApi`: `GET`·`HEAD`이고 경로가 `^/nft-metadata/(images/[0-9a-f]{64}\.webp|[A-Za-z0-9][A-Za-z0-9_-]{0,127}/(0|[1-9][0-9]{0,77})\.json)$`이며 `/nft-metadata/base-sepolia-proof/*`가 **아닌** 요청만 `api:3000`으로 넘긴다. 나머지(실증 토큰 포함)는 지금처럼 정적 파일이다.
+- `@nftMetadataApi`: `GET`·`HEAD`이고 경로가 `^/nft-metadata/(images/[0-9a-f]{64}\.webp|default/mascot-stamp-v1\.png|[A-Za-z0-9][A-Za-z0-9_-]{0,127}/(0|[1-9][0-9]{0,77})\.json)$`이며 `/nft-metadata/base-sepolia-proof/*`가 **아닌** 요청만 `api:3000`으로 넘긴다. 나머지(실증 토큰 포함)는 지금처럼 정적 파일이다.
 - 기존 `Access-Control-Allow-Origin: *` 헤더는 `defer`로 바꿔 API가 보낸 값과 겹치지 않고 한 값만 남게 한다.
 - `api.masscom.kr`은 원래 모든 경로를 API로 넘기므로 같은 경로가 그곳에서도 보인다(같은 공개 데이터). 시연 Caddy(`demo-api`)는 바꾸지 않는다.
 
@@ -137,3 +138,11 @@ migration이 API 교체보다 먼저 돈다. 0036는 추가만 한다.
 - **운영 확인:** 웹 배포 뒤 확인이 `/nft-metadata/no-such/1.json`에서 API의 JSON 404(no-store)와 CORS `*` 한 줄을 확인한다. 메타데이터·그림 응답은 `Content-Length`를 붙인다(HEAD 포함). Worker 저장소는 출처 옵션을 반드시 받는다.
 - **관리자 웹:** 점포 수정 양식과 캠페인 초안 양식에 공개 NFT 정보·발행 뒤 고정 안내를 둔다(🔵9·코드 리뷰 4). 웹과 서버의 동네 정규식이 같은지 시험한다.
 - **속성 구성(코드 리뷰 9):** 공개 점포의 속성은 가게 이름·동네·업종·방문 단계·캠페인(+그림)이며 별도 "시리즈 이름" 속성은 두지 않는다. 이슈의 "캠페인·시리즈 이름"은 캠페인 속성과 방문 단계(시리즈 = 캠페인 목표 1·3·5)로 나타낸다.
+
+## 8. 재리뷰 후속(2026-09-30, opus APPROVE 🔴 0)
+
+- **스냅샷 실패와 시간 초과(🟡1):** 발행은 체인에서 끝났고 스냅샷만 실패한 작업(`NFT_METADATA_SNAPSHOT_FAILED`)이 결과 대기 시간(`receiptTimeoutMs`)이나 전송 상한에 걸려 수동 검토로 닫힐 때 원인 코드를 `RECEIPT_TIMEOUT` 등으로 덮지 않고, 채굴된 시도를 `FAILED`로 닫지 않는다(`SUBMITTED` 유지, 재전송 대상은 수동 검토 작업을 빼므로 다시 보내지 않음). 운영자는 원인을 고친 뒤 작업을 `RETRYABLE`, Outbox를 `PENDING`으로 되돌리고, 다음 실행의 `findMintByRewardKey`가 기존 발행을 찾아 확정한다(`apps/worker/README.md`). 실패 원인은 SQLSTATE·제약 이름만 한 번 로그로 남긴다.
+- **불투명 시리즈 id(🟡2):** 3.1의 규칙. 시험 fixture의 시리즈 id도 모두 `s-` + hex 32자로 바꿨다.
+- **캐시:** 토큰 메타데이터·가게 그림은 `public, max-age=86400`(거부 목록이 늦어도 하루 안에 반영), 판이 붙은 기본 도장만 immutable.
+- **동의 판:** API는 `NFT_MINT_CONSENT_VERSION`이 v2보다 낮거나 형식이 틀리면 시작하지 않는다. 낮은 판의 요청은 `400 CONSENT_VERSION_OUTDATED`(새 앱 문구: "발행 안내가 바뀌었어요. 앱을 업데이트해 주세요."), 판이 없거나 모르는 값이면 `CONSENT_REQUIRED`. 이 코드를 모르는 옛 앱은 "NFT 접수 실패: CONSENT_VERSION_OUTDATED"로 보인다. compose·API 기본값·앱의 판이 모두 v2인지 시험한다.
+- **거부 목록 대상:** `asset:`은 정확한 UUID 모양(`[0-9a-f]{8}-…-[0-9a-f]{12}`)만 받는다.
