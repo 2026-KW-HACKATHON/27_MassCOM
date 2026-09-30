@@ -129,6 +129,7 @@ empty_home="$scratch/empty-home"
 mkdir -p "$empty_home/.ssh"
 status=0
 out="$(HOME="$empty_home" PATH="$fake_bin:$PATH" \
+  MASSCOM_KNOWN_HOSTS_FILE="$empty_home/.ssh/known_hosts" \
   MASSCOM_LIGHTSAIL_HOST=example.invalid \
   MASSCOM_LIGHTSAIL_KEY_FILE="$key" \
   MASSCOM_RUNTIME_ENV_FILE="$runtime" \
