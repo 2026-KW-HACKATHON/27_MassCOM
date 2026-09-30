@@ -21,6 +21,7 @@ const publicFiles = [
   'nft-metadata/base-sepolia-proof/1.json',
   'open.html',
   'privacy.html',
+  'terms.html',
 ];
 const sources = [
   ...publicFiles.map((file) => ({ source: join('docs', file), target: file })),

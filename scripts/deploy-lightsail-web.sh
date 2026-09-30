@@ -72,7 +72,7 @@ source_paths=(
   scripts/lightsail-web-rollback.sh
   scripts/lightsail-web-probe-guard.sh
   scripts/verify-showcase-edge-routes.mjs
-  docs/index.html docs/open.html docs/privacy.html docs/account-deletion.html
+  docs/index.html docs/open.html docs/privacy.html docs/terms.html docs/account-deletion.html
   docs/.well-known/assetlinks.json docs/assets docs/nft-metadata
   docs/evidence/android-collection.png docs/evidence/android-merchant-list.png
   docs/evidence/screenshots/android-account-settings.png
@@ -234,7 +234,7 @@ probe_web_routes() {
     sleep 1
   done
   [[ "$ready" == 'true' ]]
-  for path in / /open /privacy /account-deletion /app/ /app/assets/production.mjs; do
+  for path in / /open /privacy /terms /account-deletion /app/ /app/assets/production.mjs; do
     curl -fsS --max-time 8 "http://$address$path" >/dev/null
   done
   web_page_contains "http://$address/admin/" '실제 점포 관리'

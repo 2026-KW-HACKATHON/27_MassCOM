@@ -68,6 +68,8 @@
 	rewrite @open /open.html
 	@privacy path /privacy
 	rewrite @privacy /privacy.html
+	@terms path /terms
+	rewrite @terms /terms.html
 	@deletion path /account-deletion
 	rewrite @deletion /account-deletion.html
 	handle {
