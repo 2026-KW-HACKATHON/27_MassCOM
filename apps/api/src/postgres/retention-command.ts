@@ -29,7 +29,8 @@ export async function runRetentionCommand(
     return { lines: ['RETENTION_REPORT (nothing deleted)', ...countLines(await service.report())], failed: [] };
   }
   if (args.length === 1 && action === 'run') {
-    const { counts, failed } = await service.run();
+    // 비밀은 삭제된 계정의 감사 대상 ID 비식별화 단계가 쓴다. 없으면 그 단계만 실패로 보고되고 지우기 단계는 그대로 끝난다.
+    const { counts, failed } = await service.run({ hmacSecret });
     return { lines: ['RETENTION_RUN', ...countLines(counts)], failed };
   }
   throw new Error(usage);
