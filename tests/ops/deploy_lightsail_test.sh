@@ -109,6 +109,51 @@ if MASSCOM_LIGHTSAIL_HOST=example.invalid \
   echo "deploy script accepted a group/world-readable runtime file" >&2
   exit 1
 fi
+chmod 600 "$runtime"
+
+# Issue #279: a missing verified known_hosts file must fail --deploy before any ssh/scp call
+# (no falling back to accept-new and trusting whatever host key answers).
+fake_bin="$scratch/fake-bin"
+mkdir -p "$fake_bin"
+remote_marker="$scratch/remote-was-called"
+for stub in ssh scp; do
+  cat >"$fake_bin/$stub" <<STUB
+#!/usr/bin/env bash
+echo "unexpected $stub invocation: \$*" >&2
+touch "$remote_marker"
+exit 90
+STUB
+  chmod +x "$fake_bin/$stub"
+done
+empty_home="$scratch/empty-home"
+mkdir -p "$empty_home/.ssh"
+status=0
+out="$(HOME="$empty_home" PATH="$fake_bin:$PATH" \
+  MASSCOM_LIGHTSAIL_HOST=example.invalid \
+  MASSCOM_LIGHTSAIL_KEY_FILE="$key" \
+  MASSCOM_RUNTIME_ENV_FILE="$runtime" \
+  MASSCOM_MIGRATION_COMPATIBILITY_EVIDENCE_FILE="$evidence" \
+  bash "$deploy" --deploy 2>&1)" || status=$?
+[[ "$status" == 1 ]] || {
+  echo "deploy without a verified known_hosts file did not fail cleanly: $out" >&2
+  exit 1
+}
+grep -qF 'verified SSH known_hosts file is required' <<<"$out" || {
+  echo "missing known_hosts failure was not reported: $out" >&2
+  exit 1
+}
+[[ ! -e "$remote_marker" ]] || {
+  echo "deploy contacted the remote host before verifying known_hosts" >&2
+  exit 1
+}
+grep -q 'StrictHostKeyChecking=yes' "$deploy" || {
+  echo "full deploy no longer pins strict SSH host key checking" >&2
+  exit 1
+}
+if grep -q 'accept-new' "$deploy"; then
+  echo "full deploy still trusts unknown SSH host keys via accept-new" >&2
+  exit 1
+fi
 
 bash -n "$deploy"
 grep -q '^COPYFILE_DISABLE=1 tar ' "$deploy" || {
