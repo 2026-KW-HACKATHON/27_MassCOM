@@ -1,4 +1,7 @@
 -- 점주 사진 수집품. 원본·편집 자료는 비공개 project에만, 고객용 발행본은 허용 목록 등급 자료에만 둔다.
+-- reward_entitlements 트리거와 campaigns·merchants·reward_entitlements FK가 운영 표의 잠금을 잡으므로 0032·0036처럼
+-- 오래 기다리지 않고 실패하게 한다(실행기가 파일마다 BEGIN으로 감싸 이 파일에만 적용된다).
+SET LOCAL lock_timeout = '5s';
 CREATE TABLE collectible_projects (
   id uuid PRIMARY KEY,
   merchant_id text NOT NULL REFERENCES merchants(id),
