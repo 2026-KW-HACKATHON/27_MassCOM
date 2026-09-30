@@ -2,7 +2,7 @@
 
 ## 사진 수집품 제작기 PR 인수인계
 
-PR [#257](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/257)를 생성했다. 구현 커밋은 `e07882597d0f0e017cff522a54ca336382230f75`이며 로컬 검증 트리와 동일하다. PC에 저장된 다른 계정의 Git push403을 권한 있는 연결 계정의 GitHub API로 복구했다. PR CI는 실행 중이며 병합·운영 배포는 하지 않았다.
+PR [#257](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/257)를 생성했다. 최초 구현 커밋은 `e07882597d0f0e017cff522a54ca336382230f75`이며 로컬 검증 트리와 동일하다. PC에 저장된 다른 계정의 Git push403을 권한 있는 연결 계정의 GitHub API로 복구했다. 문서 링크 커밋 `dd1dc050`의 [전체 CI run453](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/36663494995)은 모든 단계 SUCCESS다. 후속 UI 변경은 같은 PR에 추가하며 그 커밋의 CI를 별도로 확인한다. 병합·운영 배포는 하지 않았다.
 
 2026-09-30 [Issue #252](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/252), 브랜치 `feat/252-photo-collectible-creator`, 기준 main `4081999eb2e7741eb2dac455e9f751ef7b795ea4`. 사용자가 전달한 DOCX는 제품 참고 자료로 읽고 실제 코드 구현과 PR 생성 요청을 수행했다. 원본 문서는 공개 저장소에 복사하지 않았다. [명세](COLLECTIBLE_CREATOR.md)·[시험 기록](TEST_STATUS.md)·[화면 증거](evidence/photo-collectible-2026-09-30/README.md)를 함께 검토한다.
 
@@ -10,6 +10,7 @@ PR [#257](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/257)를 생성했
 - 실행: API245·모바일785·웹120·PG222(기존 환경용2skip)+최신6 PASS, 타입·빌드·린트·운영/시연 JS export/자산 격리·빠른 gate PASS, 독립 검토 수정 완료. 명령과 한계는 TEST_STATUS를 확인한다.
 - 후속: PR의 CI/사람 검토, 실제 기기의 이미지·음성·동작/메모리, 권한 있는 운영 점주 채널·미디어 삭제/보관 운영 정책을 확인한다. 배포는 별도 승인 범위이며 DB 백업 후0032→0033·API·웹을 함께 적용하고 expo-audio를 포함한 새 Android native 빌드가 필요하다. 기존 APK에 JS만 교체하지 않는다.
 - 로컬 재현: `node tests/fixtures/collectible-qa-server.mjs` 뒤 loopback4173의 /merchant/와 /app/에서 합성 자료로 검수. fixture는 인증·실제 보상 실증을 대신하지 않는다. PostgreSQL 시험은 폐기용 DB에서 직렬 실행한다.
+- 후속 UI: 사용자 화면 이미지 두 장을 [참고 자료](SOURCE_INDEX.md)로 반영해 파랑 카드형 스튜디오·실제 제작물 목록·시즌·자유 이동 네 단계를 추가했다. 원본과 실행 취소를 같은 프로젝트에서 유지하고, 녹음/파일 읽기/저장 경쟁을 막는다. 저장·게시 버튼은 단계 하단에 둔다. 웹120·문법/diff·gate·포털 접근성·1280/360px 합성 브라우저 검수 PASS, 독립 최종 지적0. [새 캡처와 재현법](evidence/photo-collectible-2026-09-30/README.md)을 참고한다. UI 반영은 웹에 한정하며 API·DB·모바일 계약을 다시 변경하지 않았다.
 
 
 마지막 갱신 시각: 2026-09-30 KST

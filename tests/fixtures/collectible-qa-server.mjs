@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 const root = new URL('../../apps/production-web/', import.meta.url);
 const merchant = { id: 'qa-collectible-store', name: '로컬 검수 가게', role: 'OWNER', campaign: { id: 'qa-collectible-campaign', title: '로컬 방문 캠페인', rewardGoals: [1,3,5].map(targetVisitCount => ({targetVisitCount,displayName:`${targetVisitCount}회 방문`})) } };
 const projects = new Map();
+const projectDelayMs = Math.min(5000, Math.max(0, Number(process.env.COLLECTIBLE_QA_DELAY_MS) || 0));
 let published;
 const json = (response, body, status = 200) => { response.writeHead(status, {'content-type':'application/json','cache-control':'no-store'}); response.end(JSON.stringify(body)); };
 const full = project => ({ id: randomUUID(),merchantId:merchant.id,version:1,status:'DRAFT',publicationId:null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),project });
@@ -18,10 +19,11 @@ createServer(async (request,response) => {
       if (path === '/api/web/merchant/registration-merchants') return json(response,{merchants:[merchant]});
       if (path === '/merchants') return json(response,{merchants:[{...merchant,artUrl:null,demo:true,story:'검수용 가상 자료',menuItems:[],roadAddress:'',minimumSpendWon:0,businessHours:''}]});
       if (path.endsWith('/recent-visits')) return json(response,{businessDate:'2026-09-30',visits:[]});
-      if (path.endsWith('/recent-coupon-redemptions')) return json(response,{redemptions:[]});
+      if (path.endsWith('/recent-coupon-redemptions')) return json(response,{coupons:[]});
       const match = path.match(/\/collectible-projects(?:\/([^/]+))?(?:\/(publish|copy))?$/);
       if (match) {
         const [,id,action]=match;
+        if(projectDelayMs && (id || request.method!=='GET'))await new Promise(resolve=>setTimeout(resolve,projectDelayMs));
         if (!id && request.method==='GET') return json(response,{projects:[...projects.values()].map(({project,...wrapper})=>({...wrapper,name:project.name,schemaVersion:1}))});
         if (!id) { const value=full(body.project);projects.set(value.id,value);return json(response,value,201); }
         const saved=projects.get(id);if(!saved)return json(response,{code:'COLLECTIBLE_PROJECT_NOT_FOUND'},404);
@@ -42,7 +44,7 @@ createServer(async (request,response) => {
     }
     const names=new Map([['/merchant/','merchant.html'],['/app/','index.html']]);
     let file=names.get(path);
-    if(!file){const match=path.match(/^\/(?:app|merchant)\/assets\/([a-z-]+\.(?:mjs|css|png))$/);if(match)file=`assets/${match[1]}`;}
+    if(!file){const match=path.match(/^\/(?:(?:app|merchant)\/)?assets\/([a-z-]+\.(?:mjs|css|png))$/);if(match)file=`assets/${match[1]}`;}
     if(!file){response.writeHead(404).end();return;}
     const bytes=await readFile(new URL(file,root));
     const mime=file.endsWith('.mjs')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.png')?'image/png':'text/html; charset=utf-8';

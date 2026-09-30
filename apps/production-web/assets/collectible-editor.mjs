@@ -1,5 +1,6 @@
 import { createProject, createGrade, createId, cloneProject, cropTransform, clamp } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
+import { createCollectibleStudio } from './collectible-studio.mjs';
 
 const effectNames = { metallic: '메탈릭', hologram: '홀로그램', pearl: '펄', matte: '무광', enamel: '에나멜', glass: '유리', glow: '발광' };
 const motionNames = { still: '정지', rotate: '천천히 회전', shine: '빛 지나가기', float: '살짝 떠오르기', stamp: '도장 찍기', sparkle: '반짝임 한 번', pulse: '부드러운 맥동', confetti: '작은 축하 입자' };
@@ -60,10 +61,12 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   let project = createProject({ name: `${merchantName || '우리 가게'} 수집품` });
   let wrapper = null, selectedGrade = project.grades[0].id, selectedSticker = '', selectedTemplate = 'rotate';
   let active = true, playing = false, storyPlaying = false, frame = 0, renderSequence = 0, cropSequence = 0, previewQueued = false;
-  let start = performance.now(), lastFrame = 0, recorder = null, recordingStream = null, recordingTimer = 0, recordingStarted = 0;
+  let start = performance.now(), lastFrame = 0, recorder = null, recordingStream = null, recordingTimer = 0;
   let dirty = false, busy = false, restoring = false, pointer = null, visible = true, uploadSequence = 0;
-  let audioImportSequence = 0, storyImportSequence = 0, recordingPending = false;
+  let audioImportSequence = 0, storyImportSequence = 0, recordSequence = 0, recordingPending = false;
+  const pendingFiles = new Set();
   let loading = false;
+  let studio, navigationSequence = 0, listSequence = 0;
   const loadingInputs = new Map();
   let undo = [], redo = [];
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -159,10 +162,12 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const control = name => container.querySelector(`[data-control="${name}"]`);
   const view = name => container.querySelector(`[data-view="${name}"]`);
   const output = name => container.querySelector(`[data-value="${name}"]`);
+  studio = createCollectibleStudio(container, { effectNames });
   const previewCanvas = view('preview'), cropCanvas = view('crop'), storyCanvas = view('story');
+  for (const [name, label] of [['zoom', '사진 확대'], ['angle', '회전 각도'], ['thickness', '두께']]) control(name).setAttribute('aria-label', label);
   const notice = (text, error = false) => { if (!active) return; view('notice').textContent = text; view('notice').classList.toggle('ce-error', error); onNotice(text); };
   function remember() { if (restoring) return; undo.push(cloneProject(project)); if (undo.length > 12) undo.shift(); redo = []; }
-  function changed() { dirty = true; project.derived = {}; view('save-state').textContent = '편집한 내용이 있어요. 초안 저장 또는 게시를 눌러 보관하세요.'; previewQueued = true; }
+  function changed() { dirty = true; project.derived = {}; view('save-state').textContent = '편집한 내용이 있어요. 초안 저장 또는 게시를 눌러 보관하세요.'; previewQueued = true; studio.sync(project, { dirty, wrapper }); }
   function mutate(fn) { remember(); fn(); changed(); schedulePreview(); }
   const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
   function syncValues() {
@@ -174,6 +179,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     view('greeting').textContent = project.greeting;
     const audio = view('audio'); audio.pause(); audio.src = project.audio?.dataUrl || ''; audio.hidden = !project.audio;
     renderGrades(); renderStickers(); renderEffects(); renderMotionGrades(); renderStoryFrames();
+    studio.sync(project, { dirty, wrapper });
   }
   function option(select, text, value) { select.append(element('option', text, { value })); }
   function renderGrades() {
@@ -213,9 +219,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     const targets = control('effect-target'), previous = targets.value; targets.replaceChildren();
     for (const [id, name] of [['surface', '전체 표면'], ['photo', '사진'], ['border', '테두리'], ...project.stickers.map(item => [item.id, `스티커 · ${item.text}`])]) option(targets, name, id);
     if ([...targets.options].some(item => item.value === previous)) targets.value = previous;
+    studio.sync(project, { dirty, wrapper });
   }
   function gradeChecks(parent, selected, attributes) {
-    const group = element('div', undefined, { className: 'ce-grade-checks', role: 'group', 'aria-label': '효과를 적용할 등급 여러 개 선택' });
+    const group = element('div', undefined, { className: 'ce-grade-checks', role: 'group', 'aria-label': attributes['data-motion-grade'] ? '동작을 적용할 등급 여러 개 선택' : '효과를 적용할 등급 여러 개 선택' });
     for (const grade of project.grades) {
       const label = element('label', undefined, { className: 'ce-check' });
       const checkbox = element('input', undefined, { type: 'checkbox', ...attributes, 'data-grade': grade.id }); checkbox.checked = selected.includes(grade.id); checkbox.disabled = !grade.enabled;
@@ -224,6 +231,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     parent.append(group);
   }
   function renderEffects() {
+    const previousFocus = document.activeElement;
     const host = view('effects'); host.replaceChildren();
     for (const effect of project.effects) {
       const row = element('fieldset', undefined, { className: 'ce-effect' });
@@ -236,12 +244,19 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (effect.type === 'metallic') { const rough = element('label', '표면 거칠기', { className: 'ce-field' }); rough.append(element('input', undefined, { type: 'range', min: 0, max: 100, value: effect.roughness, 'data-effect-roughness': effect.id })); row.append(rough); }
       row.append(button('효과 삭제', 'effect-delete', { 'data-id': effect.id })); host.append(row);
     }
+    refocusGrade(host, previousFocus, 'effectGrade');
+  }
+  function refocusGrade(host, previousFocus, attribute) {
+    if (!previousFocus?.dataset[attribute]) return;
+    [...host.querySelectorAll('input')].find(input => input.dataset[attribute] === previousFocus.dataset[attribute] && input.dataset.grade === previousFocus.dataset.grade)?.focus({ preventScroll: true });
   }
   function renderMotionGrades() {
+    const previousFocus = document.activeElement;
     const host = view('motion-grades'); host.replaceChildren(element('p', `${motionNames[selectedTemplate]} · 적용할 등급`, { className: 'ce-help' }));
     const selected = project.motion.find(item => item.type === selectedTemplate)?.gradeIds || [];
     gradeChecks(host, selected, { 'data-motion-grade': selectedTemplate });
     for (const tile of view('templates').querySelectorAll('button')) tile.setAttribute('aria-pressed', String(tile.dataset.id === selectedTemplate));
+    refocusGrade(host, previousFocus, 'motionGrade');
   }
   function renderStoryFrames() {
     view('story-help').textContent = {
@@ -277,7 +292,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   async function tick(now) {
     frame = 0;
-    if (!active || document.hidden || !visible) return;
+    if (!active || document.hidden || !visible || studio.isHome) return;
     const allowMotion = !control('reduce-motion').checked;
     if (previewQueued || (playing && allowMotion && now - lastFrame >= 65)) {
       previewQueued = false; lastFrame = now; await drawPreview(now - start);
@@ -292,22 +307,30 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     }
     if (active && visible && !document.hidden && (playing && allowMotion || storyPlaying || previewQueued)) frame = requestAnimationFrame(tick);
   }
-  function setBusy(value) { busy = value; if (!active) return; for (const item of container.querySelectorAll('[data-action="draft"],[data-action="publish"],[data-action="copy"],[data-action="new"],[data-control="project-list"]')) item.disabled = value; }
+  function mediaPending() { return recordingPending || recorder?.state === 'recording' || [...pendingFiles].some(item => item.project === project); }
+  function updateMediaLocks() {
+    if (!active) return;
+    for (const item of container.querySelectorAll('[data-action="draft"],[data-action="publish"]')) item.disabled = busy || mediaPending();
+  }
+  function setBusy(value) { busy = value; if (!active) return; for (const item of container.querySelectorAll('[data-action="draft"],[data-action="publish"],[data-action="copy"],[data-action="new"],[data-control="project-list"],[data-control="photo"],[data-control="audio"],[data-control="story-files"],[data-action="photo-choose"],[data-action="record"]')) item.disabled = value; studio.setBusy(value); updateMediaLocks(); }
   async function refreshList() {
+    const sequence = ++listSequence;
     try {
       const result = await request(base, { method: 'GET' });
-      if (!active) return;
+      if (!active || sequence !== listSequence) return;
       const select = control('project-list'); select.replaceChildren(element('option', '초안을 골라 다시 편집할 수 있어요', { value: '' }));
       for (const item of result.projects || []) option(select, `${item.name || item.project?.name || '수집품'} · ${item.status === 'PUBLISHED' ? '게시' : '초안'} · v${item.version}`, item.id);
       select.value = wrapper?.id || '';
+      studio.renderProjects(result.projects || [], wrapper?.id || ''); studio.setBusy(busy || loading);
     } catch (error) { notice(errorNames[error.code] || '저장 목록을 불러오지 못했어요. 편집은 계속할 수 있고, 목록 새로 보기를 눌러 다시 시도할 수 있어요.', true); }
   }
   async function save(publish = false) {
     if (busy) return;
-    if (!project.name.trim()) { notice('수집품 이름을 입력해 주세요.', true); return; }
-    if (!project.theme.name.trim()) { notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); return; }
-    if (project.stickers.some(item => !item.text.trim())) { notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
-    if (publish) { const reason = validatePublish(project); if (reason) { notice(reason, true); return; } }
+    if (mediaPending()) { notice('사진·음성을 불러오거나 녹음을 처리하고 있어요. 처리가 끝난 뒤 저장해 주세요.'); return; }
+    if (!project.name.trim()) { navigateStep(1); notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
+    if (!project.theme.name.trim()) { navigateStep(4); notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
+    if (project.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
+    if (publish) { const reason = validatePublish(project); if (reason) { navigateStep(!project.photo.originalDataUrl ? 1 : 4); if (project.story.type !== 'none') control('story-type').closest('details').open = true; notice(reason, true); return; } }
     setBusy(true); notice(publish ? '등급별 게시 이미지를 준비하고 있어요…' : '초안을 저장하고 있어요…');
     const revision = cloneProject(project);
     try {
@@ -336,6 +359,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       }
       dirty = JSON.stringify(project) !== JSON.stringify({ ...revision, derived: project.derived });
       if (!dirty) project = cloneProject(wrapper.project || revision);
+      studio.sync(project, { dirty, wrapper });
       view('save-state').textContent = `${publish ? '게시한 버전을 보존했어요' : '초안을 저장했어요'} · v${wrapper.version}${dirty ? ' · 저장 중 새로 편집한 내용은 한 번 더 저장해 주세요.' : ''}`;
       notice(publish ? '게시했어요. 이후 방문 보상부터 이 버전을 사용해요. 이미 얻은 수집품은 그대로 보존돼요.' : '초안을 저장했어요. 목록에서 다시 열어 이어서 만들 수 있어요.');
       await refreshList();
@@ -355,6 +379,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       wrapper = result.project?.id ? result.project : result; project = cloneProject(wrapper.project);
       selectedGrade = project.grades.find(item => item.enabled)?.id || project.grades[0].id; undo = dirty ? [previous] : []; redo = []; dirty = false; playing = false;
       clearCollectibleRenderCache(); syncValues(); await drawCrop(); schedulePreview(); notice(`저장한 ${project.name}을 열었어요. 게시 후 수정은 새 게시 버전을 만들어요.`);
+      studio.showStep(1);
     } catch (error) { notice('초안을 열지 못했어요. 현재 입력은 유지했어요. 목록을 새로 불러와 다시 시도해 주세요.', true); }
     finally {
       loading = false;
@@ -363,40 +388,56 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       setBusy(false);
     }
   }
-  function stopRecording() { if (recorder?.state === 'recording') recorder.stop(); clearTimeout(recordingTimer); controlButtonsRecording(false); }
+  function stopRecording(discard = false) {
+    if (discard) { recordSequence++; recordingPending = false; }
+    else if (recorder?.state === 'recording') recordingPending = true;
+    if (recorder?.state === 'recording') recorder.stop();
+    clearTimeout(recordingTimer); controlButtonsRecording(false);
+    updateMediaLocks();
+  }
   function controlButtonsRecording(value) { if (!active) return; container.querySelector('[data-action="record"]').disabled = value; container.querySelector('[data-action="record-stop"]').disabled = !value; }
   async function record() {
-    if (recorder?.state === 'recording' || recordingPending) return;
+    if (studio.isHome || studio.step !== 4 || recorder?.state === 'recording' || recordingPending) return;
     if (!navigator.mediaDevices?.getUserMedia || !globalThis.MediaRecorder) { notice('이 브라우저는 직접 녹음을 지원하지 않아요. MP3를 올리거나 텍스트 인사말로 계속해 주세요.', true); return; }
     const sourceProject = project;
+    const sourceNavigation = navigationSequence;
+    const sequence = ++audioImportSequence;
+    const recordingGeneration = ++recordSequence;
+    let localStream = null;
     recordingPending = true;
+    updateMediaLocks();
     try {
-      recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!active || document.hidden || project !== sourceProject) { recordingStream.getTracks().forEach(track => track.stop()); recordingStream = null; return; }
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!active || sequence !== audioImportSequence || recordingGeneration !== recordSequence || document.hidden || studio.isHome || studio.step !== 4 || navigationSequence !== sourceNavigation || project !== sourceProject) { localStream.getTracks().forEach(track => track.stop()); return; }
+      recordingStream = localStream;
       const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
       if (!mimeType) { recordingStream.getTracks().forEach(track => track.stop()); recordingStream = null; notice('이 브라우저의 녹음 형식을 아직 지원하지 않아요. MP3를 올리거나 텍스트 인사말로 계속해 주세요.', true); return; }
       recorder = new MediaRecorder(recordingStream, { mimeType });
       const currentRecorder = recorder, currentStream = recordingStream;
+      const startedAt = performance.now();
       const chunks = []; recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
       recorder.onstop = async () => {
         currentStream.getTracks().forEach(track => track.stop());
         if (recordingStream === currentStream) recordingStream = null;
-        controlButtonsRecording(false);
+        if (recorder === currentRecorder && sequence === audioImportSequence && recordingGeneration === recordSequence) controlButtonsRecording(false);
         const blob = new Blob(chunks, { type: currentRecorder.mimeType.split(';')[0] });
-        if (!active || project !== sourceProject) return;
+        if (!active || sequence !== audioImportSequence || recordingGeneration !== recordSequence || recorder !== currentRecorder || project !== sourceProject) return;
+        recordingPending = true;
+        updateMediaLocks();
         try {
           if (blob.size > 1024 * 1024) throw new Error('녹음 파일이 1 MB를 넘었어요. 짧게 다시 녹음해 주세요.');
-          const durationSeconds = Math.min(30, (performance.now() - recordingStarted) / 1000);
+          const durationSeconds = Math.min(30, (performance.now() - startedAt) / 1000);
           if (durationSeconds < .1 || !blob.size) throw new Error('녹음이 너무 짧아요. 인사말을 말한 뒤 종료를 눌러 주세요.');
           const dataUrl = await readFile(blob);
-          if (!active || project !== sourceProject) return;
+          if (!active || sequence !== audioImportSequence || recordingGeneration !== recordSequence || recorder !== currentRecorder || project !== sourceProject) return;
           mutate(() => { project.audio = { dataUrl, mimeType: blob.type.split(';')[0], durationSeconds }; });
           view('audio').src = dataUrl; view('audio').hidden = false; notice('녹음을 저장할 준비가 됐어요. 미리 듣고, 초안 저장 또는 게시를 눌러 보관하세요.');
-        } catch (error) { notice(error.message, true); }
+        } catch (error) { if (sequence === audioImportSequence && recordingGeneration === recordSequence && project === sourceProject) notice(error.message, true); }
+        finally { if (sequence === audioImportSequence && recordingGeneration === recordSequence) recordingPending = false; updateMediaLocks(); }
       };
-      recordingStarted = performance.now(); recorder.start(); controlButtonsRecording(true); recordingTimer = setTimeout(stopRecording, 30000); notice('녹음 중이에요. 종료를 누르면 미리 들을 수 있어요.');
-    } catch { recordingStream?.getTracks().forEach(track => track.stop()); recordingStream = null; if (active && project === sourceProject) notice('마이크를 사용할 수 없어요. 브라우저 권한을 확인하거나 MP3·텍스트 인사말로 계속해 주세요.', true); }
-    finally { recordingPending = false; }
+      recorder.start(); controlButtonsRecording(true); recordingTimer = setTimeout(() => { if (recorder === currentRecorder && sequence === audioImportSequence && recordingGeneration === recordSequence) stopRecording(); }, 30000); notice('녹음 중이에요. 종료를 누르면 미리 들을 수 있어요.');
+    } catch { localStream?.getTracks().forEach(track => track.stop()); if (recordingStream === localStream) recordingStream = null; if (active && sequence === audioImportSequence && recordingGeneration === recordSequence && project === sourceProject) notice('마이크를 사용할 수 없어요. 브라우저 권한을 확인하거나 MP3·텍스트 인사말로 계속해 주세요.', true); }
+    finally { if (sequence === audioImportSequence && recordingGeneration === recordSequence) recordingPending = false; updateMediaLocks(); }
   }
   async function importImage(file, maxBytes) {
     if (!file || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('JPG·PNG·WebP 사진을 선택해 주세요.');
@@ -405,16 +446,45 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (Math.max(dimensions.width, dimensions.height) > 4096) throw new Error('사진은 한 변 4,096픽셀 이하로 선택해 주세요.');
     return { dataUrl, ...dimensions };
   }
-  async function act(action, id) {
+  function stopHiddenMedia() {
+    navigationSequence++;
+    playing = false; storyPlaying = false; pointer = null;
+    renderSequence++; cropSequence++;
+    if (frame) cancelAnimationFrame(frame); frame = 0;
+    view('audio').pause(); storyCanvas.hidden = true;
+    stopRecording(true); recordingStream?.getTracks().forEach(track => track.stop()); recordingStream = null;
+  }
+  function navigateStep(step) {
+    stopHiddenMedia(); studio.showStep(step); start = performance.now();
+    if (studio.step === 1 || studio.step === 3) drawCrop();
+    if (studio.step !== 1) schedulePreview();
+  }
+  async function act(action, id, source) {
+    if (action === 'record-stop') { stopRecording(); return; }
+    if (action === 'pause') { playing = false; schedulePreview(); return; }
+    if (action === 'story-stop') { storyPlaying = false; storyCanvas.hidden = true; return; }
+    if (busy || loading) return;
+    if (action === 'home') { stopHiddenMedia(); studio.sync(project, { dirty, wrapper }); studio.showHome(); return; }
+    if (action === 'resume') { navigateStep(studio.step); return; }
+    if (action === 'step' || action === 'previous-step' || action === 'next-step') { navigateStep(action === 'step' ? id : studio.step + (action === 'next-step' ? 1 : -1)); return; }
+    if (action === 'open-project') { stopHiddenMedia(); await loadProject(id); return; }
+    if (action === 'season') { studio.selectHomeTheme(id); return; }
+    if (action === 'theme') { if (id === 'custom') { control('theme').focus(); control('theme').select(); return; } mutate(() => { project.theme.name = id; }); control('theme').value = id; return; }
+    if (action === 'choice') {
+      const name = source?.dataset.controlFor;
+      if (!name) return;
+      control(name).value = id; control(name).dispatchEvent(new Event('change', { bubbles: true })); studio.sync(project, { dirty, wrapper }); return;
+    }
+    if (action === 'photo-choose') { control('photo').click(); return; }
     if (action === 'draft' || action === 'publish') { await save(action === 'publish'); return; }
     if (action === 'refresh') { await refreshList(); return; }
-    if (action === 'new') { project = createProject({ name: `${merchantName || '우리 가게'} 수집품` }); wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; clearCollectibleRenderCache(); syncValues(); await drawCrop(); schedulePreview(); notice('새 초안을 시작했어요.'); return; }
+    if (action === 'new') { stopHiddenMedia(); project = createProject({ name: `${merchantName || '우리 가게'} 수집품` }); project.theme.name = studio.newTheme; wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; clearCollectibleRenderCache(); syncValues(); studio.showStep(1); await drawCrop(); schedulePreview(); notice('새 초안을 시작했어요.'); return; }
     if (action === 'undo' || action === 'redo') {
       const source = action === 'undo' ? undo : redo, destination = action === 'undo' ? redo : undo;
       if (!source.length) { notice(action === 'undo' ? '되돌릴 편집이 아직 없어요.' : '다시 실행할 편집이 없어요.'); return; }
       destination.push(cloneProject(project)); project = source.pop(); restoring = true; syncValues(); restoring = false; changed(); await drawCrop(); schedulePreview(); return;
     }
-    if (action === 'grade-preview') { selectedGrade = id; renderGrades(); schedulePreview(); return; }
+    if (action === 'grade-preview') { selectedGrade = id; renderGrades(); [...view('grade-tabs').querySelectorAll('button')].find(tile => tile.dataset.id === id)?.focus({ preventScroll: true }); schedulePreview(); return; }
     if (action === 'crop-reset') { mutate(() => { project.crop = { x: 0, y: 0, zoom: 1 }; }); syncValues(); await drawCrop(); return; }
     if (action === 'crop-apply') { schedulePreview(); notice('자르기를 반영했어요. 원본 사진은 그대로 보관돼요.'); return; }
     if (action === 'compare') { const copy = cloneProject(project); copy.photoEdits = { brightness: 0, contrast: 0, merge: 0, simplify: 0, cartoon: 0, strokes: [] }; await renderCrop(cropCanvas, copy); notice('원본을 보여 주고 있어요. 사진을 움직이거나 자르기 적용을 누르면 편집 결과로 돌아와요.'); return; }
@@ -447,15 +517,12 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'effect-delete') { mutate(() => { project.effects = project.effects.filter(item => item.id !== id); }); renderEffects(); return; }
     if (action === 'template') { selectedTemplate = id; playing = true; start = performance.now(); renderMotionGrades(); schedulePreview(); return; }
     if (action === 'play' || action === 'replay') { playing = true; if (action === 'replay') start = performance.now(); schedulePreview(); return; }
-    if (action === 'pause') { playing = false; schedulePreview(); return; }
     if (action === 'angle-reset') { mutate(() => { project.angle = 0; }); control('angle').value = 0; output('angle').textContent = '0°'; return; }
     if (action === 'thickness-reset') { mutate(() => { project.thickness = 8; }); control('thickness').value = 8; output('thickness').textContent = '8'; return; }
     if (action === 'record') { await record(); return; }
-    if (action === 'record-stop') { stopRecording(); return; }
-    if (action === 'audio-delete') { mutate(() => { project.audio = null; }); view('audio').pause(); view('audio').src = ''; view('audio').hidden = true; return; }
+    if (action === 'audio-delete') { audioImportSequence++; stopRecording(true); recordingStream?.getTracks().forEach(track => track.stop()); recordingStream = null; mutate(() => { project.audio = null; }); view('audio').pause(); view('audio').src = ''; view('audio').hidden = true; return; }
     if (action === 'story-frame-delete') { mutate(() => { project.story.frames.splice(Number(id), 1); }); renderStoryFrames(); return; }
     if (action === 'story-test') { const error = validateStory(project.story); if (error) { notice(error, true); return; } if (project.story.type === 'none') { notice('이야기 유형을 골라 주세요.'); return; } storyPlaying = true; start = performance.now(); storyCanvas.hidden = false; schedulePreview(); return; }
-    if (action === 'story-stop') { storyPlaying = false; storyCanvas.hidden = true; return; }
     if (action === 'copy') {
       if (wrapper) {
         if (busy) return; setBusy(true);
@@ -466,7 +533,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       undo = []; redo = []; changed(); syncValues(); schedulePreview(); notice('현재 편집 내용을 별도 시즌 초안으로 복사했어요. 테마와 캠페인을 고른 뒤 초안을 저장해 주세요.');
     }
   }
-  listen(container, 'click', event => { const target = event.target.closest('[data-action]'); if (target && container.contains(target)) act(target.dataset.action, target.dataset.id).catch(error => notice(error.message || '처리하지 못했어요. 다시 시도해 주세요.', true)); });
+  listen(container, 'click', event => { const target = event.target.closest('[data-action]'); if (target && container.contains(target)) act(target.dataset.action, target.dataset.id, target).catch(error => notice(error.message || '처리하지 못했어요. 다시 시도해 주세요.', true)); });
   listen(container, 'pointerdown', event => { if (event.target.matches('input[type="range"],input[type="color"]')) remember(); });
   listen(container, 'focusin', event => { if (event.target.matches('textarea,input:not([type]),input[type="text"]')) remember(); });
   listen(container, 'keydown', event => { if (event.target.matches('input[type="range"]') && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) remember(); });
@@ -495,6 +562,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   });
   listen(container, 'change', async event => {
     const target = event.target, field = target.dataset.control;
+    const pendingFile = ['photo', 'audio', 'story-files'].includes(field) && target.files?.length ? { project } : null;
+    if (pendingFile) { pendingFiles.add(pendingFile); updateMediaLocks(); }
     try {
       if (field === 'project-list') { await loadProject(target.value); return; }
       if (field === 'photo') {
@@ -504,6 +573,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       }
       if (field === 'audio') {
         const file = target.files[0]; if (!file) return;
+        stopRecording(true); recordingStream?.getTracks().forEach(track => track.stop()); recordingStream = null;
         const sequence = ++audioImportSequence, sourceProject = project;
         if (file.size > 1024 * 1024 || !(/\.mp3$/i.test(file.name) && ['audio/mpeg', 'audio/mp3', ''].includes(file.type))) throw new Error('1 MB 이하의 MP3 파일을 선택해 주세요.');
         const dataUrl = normalizeMp3DataUrl(await readFile(file)), durationSeconds = await inspectAudio(dataUrl);
@@ -559,7 +629,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         }); renderMotionGrades(); return;
       }
       if (target.matches('input:not([type="range"]):not([type="file"]),textarea')) schedulePreview();
-    } catch (error) { if (active) notice(error.message || '파일을 불러오지 못했어요. 편집 내용은 유지했어요.', true); }
+    } catch (error) { if (active && (!pendingFile || pendingFile.project === project)) notice(error.message || '파일을 불러오지 못했어요. 편집 내용은 유지했어요.', true); }
+    finally { if (pendingFile) { pendingFiles.delete(pendingFile); updateMediaLocks(); } }
   });
   function pointOn(canvas, event) { const bounds = canvas.getBoundingClientRect(); return { x: (event.clientX - bounds.left) / bounds.width * canvas.width, y: (event.clientY - bounds.top) / bounds.height * canvas.height }; }
   function pointOnPhoto(event) {
@@ -601,7 +672,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     changed(); renderStickers(); schedulePreview();
   });
   listen(previewCanvas, 'pointerup', endPointer); listen(previewCanvas, 'pointercancel', endPointer);
-  listen(document, 'visibilitychange', () => { if (document.hidden) { if (frame) cancelAnimationFrame(frame); frame = 0; view('audio').pause(); stopRecording(); recordingStream?.getTracks().forEach(track => track.stop()); } else { start = performance.now(); schedulePreview(); } });
+  listen(document, 'visibilitychange', () => { if (document.hidden) stopHiddenMedia(); else { start = performance.now(); if (!studio.isHome) schedulePreview(); } });
   listen(window, 'beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   for (const [value, name] of Object.entries(effectNames)) option(control('effect-type'), name, value);
   for (const [value, name] of Object.entries(storyNames)) option(control('story-type'), name, value);
