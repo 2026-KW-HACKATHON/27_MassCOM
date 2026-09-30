@@ -218,6 +218,8 @@ export function createApiServer(
 ) {
   // The receipt lookup needs no login, so it is throttled per client instead (a receipt has 80 bits, this only stops floods).
   const deletionStatusLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60_000 });
+  // Media-bearing collectible writes (create/save/copy/publish parse up to 8 MiB and decode every image) are throttled per store.
+  const collectibleWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 20, windowMs: 60_000 });
   const consumeDeletionStatus = (request: IncomingMessage, response: ServerResponse): boolean => {
     const decision = deletionStatusLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
     if (decision.allowed) return true;
@@ -594,6 +596,14 @@ export function createApiServer(
           await merchantAccess.requirePermission({ accountId, merchantId, permission: 'MANAGE_ART' });
           if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
           if (!collectibleProjects) throw new RequestError(503, 'COLLECTIBLE_PROJECTS_NOT_CONFIGURED');
+          if (['create', 'save', 'copy', 'publish'].includes(webCollectibleRoute.kind)) {
+            const decision = collectibleWriteLimiter.consume(merchantId);
+            if (!decision.allowed) {
+              response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+              sendJson(response, 429, { code: 'COLLECTIBLE_RATE_LIMITED' });
+              return;
+            }
+          }
           await runCollectibleProjectRoute(collectibleProjects, webCollectibleRoute, merchantId, accountId, request, response);
           return;
         }
@@ -1233,17 +1243,6 @@ export function createApiServer(
         const image = await merchantArt.getPublicImage(publicArtMatch[1]!);
         if (!image) throw new RequestError(404, 'NOT_FOUND');
         sendBinary(response, image, 'image/webp', 'public, max-age=31536000, immutable');
-        return;
-      }
-
-      const collectibleRoute = matchCollectibleProjectRoute(request.method, path, '/merchant/merchants/');
-      if (collectibleRoute) {
-        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        const merchantId = decodePathParameter(collectibleRoute.merchantId);
-        await merchantAccess.requirePermission({ accountId, merchantId, permission: 'MANAGE_ART' });
-        if (!collectibleProjects) throw new RequestError(503, 'COLLECTIBLE_PROJECTS_NOT_CONFIGURED');
-        await runCollectibleProjectRoute(collectibleProjects, collectibleRoute, merchantId, accountId, request, response);
         return;
       }
 

@@ -1,4 +1,6 @@
-export const collectibleBodyLimit = 16 * 1024 * 1024;
+// 8 MiB JSON: 원본 사진 3 MiB(base64 4 MiB) + 음성 1 MiB(1.34 MiB) + 등급 완성본(512 px)·썸네일(160 px)·장면 미리보기를
+// 담는 크기다. 장면 원본 5장·PNG 완성본 16등급을 모두 최대로 채우는 조합은 넘을 수 있어 413 BODY_TOO_LARGE로 거절한다.
+export const collectibleBodyLimit = 8 * 1024 * 1024;
 
 export type CollectibleProject = {
   schemaVersion: 1;

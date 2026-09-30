@@ -5,6 +5,9 @@ const imageMimes = ['image/png', 'image/jpeg', 'image/webp'];
 const audioMimes = ['audio/mpeg', 'audio/mp3', 'audio/webm', 'audio/ogg'];
 const identifier = /^[a-zA-Z0-9_-]{1,64}$/;
 const hexColor = /^#[0-9a-f]{6}$/i;
+// The editor renders finals, bases, masks and story previews on 512 px canvases and thumbnails at 160 px; originals may be larger.
+const editorSide = 512;
+const thumbnailSide = 160;
 
 function invalid(): never { throw new CollectibleProjectError('COLLECTIBLE_INVALID_PROJECT'); }
 function object(value: unknown, keys: string[], optional: string[] = []): Record<string, unknown> {
@@ -26,7 +29,7 @@ function color(value: unknown): void { if (typeof value !== 'string' || !hexColo
 function uniqueIds(values: Record<string, unknown>[]): void { const ids = values.map(value => value.id); if (new Set(ids).size !== ids.length) invalid(); }
 
 // Only inline supported media is accepted. No original file name, EXIF metadata, URL, or arbitrary SVG is interpreted by the server.
-export function validateCollectibleMedia(value: unknown, kind: 'image' | 'audio', maxBytes: number): string {
+export function validateCollectibleMedia(value: unknown, kind: 'image' | 'audio', maxBytes: number, maxSide = 4096): string {
   if (typeof value !== 'string') invalid();
   if (value.length > Math.ceil(maxBytes / 3) * 4 + 64) throw new CollectibleProjectError('COLLECTIBLE_MEDIA_TOO_LARGE');
   const match = value.match(/^data:([a-z]+\/[a-z0-9]+);base64,([A-Za-z0-9+/]+={0,2})$/);
@@ -45,7 +48,7 @@ export function validateCollectibleMedia(value: unknown, kind: 'image' | 'audio'
   if (kind === 'image') {
     if (mime === 'image/webp' && animatedWebp(bytes)) invalid();
     const size = imageDimensions(bytes, mime);
-    if (!size || size.width < 1 || size.height < 1 || size.width > 4096 || size.height > 4096 || size.width * size.height > 16_777_216) invalid();
+    if (!size || size.width < 1 || size.height < 1 || size.width > maxSide || size.height > maxSide || size.width * size.height > 16_777_216) invalid();
   }
   return mime;
 }
@@ -141,7 +144,7 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
     const actual=imageDimensions(Buffer.from((frame.dataUrl as string).split(',')[1]!,'base64'),mime);
     if(!actual || !((actual.width===frame.width && actual.height===frame.height)
       || (mime==='image/jpeg' && actual.height===frame.width && actual.width===frame.height))) invalid();
-    if(frame.previewDataUrl!==undefined) validateCollectibleMedia(frame.previewDataUrl,'image',512*1024);
+    if(frame.previewDataUrl!==undefined) validateCollectibleMedia(frame.previewDataUrl,'image',512*1024,editorSide);
     if(publish && story.type!=='none' && frame.previewDataUrl===undefined) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
   }
   const storyMinimum = { none: 0, zoom: 0, wide: 1, follow: 2, event: 3 }[story.type as CollectibleProject['story']['type']];
@@ -149,13 +152,13 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
   if (!p.derived || typeof p.derived !== 'object' || Array.isArray(p.derived)) invalid();
   for (const [gradeId, raw] of Object.entries(p.derived)) {
     if (!gradeIds.includes(gradeId)) invalid(); const asset = object(raw,['imageDataUrl','thumbnailDataUrl'],['baseDataUrl','effectMasks']);
-    validateCollectibleMedia(asset.imageDataUrl,'image',mb); validateCollectibleMedia(asset.thumbnailDataUrl,'image',256*1024);
-    if (asset.baseDataUrl !== undefined) validateCollectibleMedia(asset.baseDataUrl,'image',mb);
+    validateCollectibleMedia(asset.imageDataUrl,'image',mb,editorSide); validateCollectibleMedia(asset.thumbnailDataUrl,'image',128*1024,thumbnailSide);
+    if (asset.baseDataUrl !== undefined) validateCollectibleMedia(asset.baseDataUrl,'image',mb,editorSide);
     if (asset.effectMasks !== undefined) {
       if (!asset.effectMasks || typeof asset.effectMasks !== 'object' || Array.isArray(asset.effectMasks)) invalid();
       const masks = Object.entries(asset.effectMasks); if (masks.length > 64) invalid();
       const targets = effects.filter(e => (e.gradeIds as string[]).includes(gradeId)).map(e => e.target);
-      for (const [target, mask] of masks) { if (!targets.includes(target)) invalid(); validateCollectibleMedia(mask,'image',256*1024); }
+      for (const [target, mask] of masks) { if (!targets.includes(target)) invalid(); validateCollectibleMedia(mask,'image',256*1024,editorSide); }
     }
   }
   if (!p.rewardGrades || typeof p.rewardGrades !== 'object' || Array.isArray(p.rewardGrades)) invalid();

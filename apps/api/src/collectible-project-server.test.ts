@@ -86,13 +86,15 @@ test('project request contracts reject forged author/campaign fields and require
   assert.equal(removed.status,200);assert.deepEqual(await removed.json(),{projectId:project.id,deleted:true,unlinkedCampaignId:null});
 });
 
-test('merchant JSON media body has dedicated bound above ordinary API64KiB and rejects16MiB overflow',async t=>{
+test('merchant JSON media body has dedicated bound above ordinary API64KiB and rejects8MiB overflow',async t=>{
   const {request,calls}=await start(t);
   const big=photoProject();big.photo.originalDataUrl='x'.repeat(100_000);
   assert.equal((await request(base,'POST',{project:big})).status,201);
   assert.equal(calls.find(c=>c.kind==='create')!.input.project.photo.originalDataUrl.length,100_000);
-  big.photo.originalDataUrl='x'.repeat(16*1024*1024);
+  big.photo.originalDataUrl='x'.repeat(8*1024*1024);
   assert.equal((await request(base,'POST',{project:big})).status,413);
+  big.photo.originalDataUrl='x'.repeat(8*1024*1024-64*1024);
+  assert.equal((await request(base,'POST',{project:big})).status,201);
 });
 
 test('customer acquisition route passes only authenticated owner and entitlement, does not accept caller account override',async t=>{
@@ -100,8 +102,22 @@ test('customer acquisition route passes only authenticated owner and entitlement
   assert.equal((await request('/api/web/collectibles/30000000-0000-4000-8000-000000000001?accountId=forged')).status,404);
   assert.deepEqual(calls[0],{kind:'acquired',input:{accountId:'owner-a',entitlementId:'30000000-0000-4000-8000-000000000001'}});
   assert.equal((await request('/api/web/collectibles/any','GET',undefined,{cookie:''})).status,401);
-  const bearer=await request('/merchant/merchants/merchant-a/collectible-projects','GET',undefined,{'x-account-id':'owner-a'});
-  assert.equal(bearer.status,200);
+  // The unused Bearer twin of the merchant routes (and its large body surface) is gone; only the web session route remains.
+  const bearer=await request('/merchant/merchants/merchant-a/collectible-projects','POST',{project:photoProject()},{'x-account-id':'owner-a',cookie:''});
+  assert.equal(bearer.status,404);
   const me=await(await request('/api/web/merchant/me')).json() as {accountScope:string;merchants:unknown[]};
   assert.match(me.accountScope,/^[0-9a-f]{64}$/);assert.equal(JSON.stringify(me).includes('owner-a'),false);
+});
+
+test('media-bearing writes are limited per store after the permission check; reads and other routes are not',async t=>{
+  const {request,calls,project}=await start(t);
+  for(let index=0;index<20;index++) assert.equal((await request(base,'POST',{project:photoProject()})).status,201);
+  const limited=await request(base,'POST',{project:photoProject()});
+  assert.equal(limited.status,429);assert.deepEqual(await limited.json(),{code:'COLLECTIBLE_RATE_LIMITED'});assert.ok(Number(limited.headers.get('retry-after'))>0);
+  assert.equal((await request(`${base}/${project.id}`,'PUT',{expectedVersion:1,project:photoProject()})).status,429);
+  assert.equal(calls.filter(call=>call.kind==='create').length,20);
+  assert.equal((await request(base)).status,200);
+  assert.equal((await request(`${base}/${project.id}/unpublish`,'POST',{expectedVersion:2})).status,200);
+  // A caller without MANAGE_ART never reaches the limiter, so it cannot use up the store's budget.
+  assert.equal((await request(base.replace('merchant-a','merchant-b'),'POST',{project:photoProject()})).status,403);
 });

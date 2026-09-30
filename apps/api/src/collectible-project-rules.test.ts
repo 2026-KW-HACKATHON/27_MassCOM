@@ -213,3 +213,21 @@ test('stored PNG originals drop text and other ancillary chunks', () => {
   const p = photoProject(); p.photo = { originalDataUrl: `data:image/png;base64,${tagged.toString('base64')}`, width: 1, height: 1 };
   assert.equal(validateCollectibleProject(p).photo.originalDataUrl, tinyPng);
 });
+
+test('derived images are capped at the editor canvas sizes while originals may stay large', () => {
+  const sized = (width: number, height: number) => {
+    const png = Buffer.from(tinyPng.split(',')[1]!, 'base64'); png.writeUInt32BE(width, 16); png.writeUInt32BE(height, 20);
+    return `data:image/png;base64,${png.toString('base64')}`;
+  };
+  const ok = photoProject(); ok.photo = { originalDataUrl: sized(4000, 3000), width: 4000, height: 3000 };
+  ok.derived.bronze = { imageDataUrl: sized(512, 512), thumbnailDataUrl: sized(160, 160), baseDataUrl: sized(512, 512) };
+  ok.story = { type: 'wide', frames: [{ dataUrl: sized(2000, 1000), width: 2000, height: 1000, previewDataUrl: sized(512, 320) }], cartoon: 0, strength: 50 };
+  validateCollectibleProject(ok, true);
+  const mutations: ((p: ReturnType<typeof photoProject>) => void)[] = [
+    p => { p.derived.bronze!.imageDataUrl = sized(513, 512); },
+    p => { p.derived.bronze!.thumbnailDataUrl = sized(161, 160); },
+    p => { p.derived.bronze = { ...p.derived.bronze!, baseDataUrl: sized(512, 1024) }; },
+    p => { p.story = { type: 'wide', frames: [{ dataUrl: sized(2000, 1000), width: 2000, height: 1000, previewDataUrl: sized(1024, 640) }], cartoon: 0, strength: 50 }; },
+  ];
+  for (const mutate of mutations) { const p = photoProject(); mutate(p); assert.throws(() => validateCollectibleProject(p), { code: 'COLLECTIBLE_INVALID_PROJECT' }); }
+});
