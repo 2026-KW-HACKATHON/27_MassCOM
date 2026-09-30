@@ -169,7 +169,7 @@ AI_ART_OPENAI_BASE_URL=http://127.0.0.1:4010 OPENAI_API_KEY=fake-local-key \
   npm run start:local --prefix apps/api                      # 다른 셸에서
 ```
 
-한 가지 색으로 채운 1024x1024 webp를 돌려준다(시안은 스타일마다 색이 다르고 최종은 고른 시안의 색을 이어받아 조금 밝다. 요청마다 바이트가 다르다). 선택 환경 변수: `FAKE_OPENAI_FAIL`(`moderation`·`rate_limit`·`spend_limit`·`server_error`), `FAKE_OPENAI_FAIL_PATH`(`generations`·`edits`·`both`), `FAKE_OPENAI_DELAY_MS`(기본 1500, 실제처럼 오래 걸리게 하려면 60000 등), `FAKE_OPENAI_LOG_PROMPT=1`(프롬프트 출력). Authorization 헤더가 없으면 401이다.
+한 가지 색으로 채운 1024x1024 webp를 돌려준다(시안은 스타일마다 색이 다르고 최종은 고른 시안의 색을 이어받아 조금 밝다. 요청마다 바이트가 다르다). 선택 환경 변수: `FAKE_OPENAI_FAIL`(`moderation` 400·`rate_limit` 429·`spend_limit` 429 잔액 소진·`server_error` 500·`unavailable` 503), `FAKE_OPENAI_FAIL_PATH`(`generations`·`edits`·`both`), `FAKE_OPENAI_FAIL_COUNT`(1 이상: 앞의 N개 요청만 오류, 그 뒤는 정상 — 1이면 "한 번 재시도하면 성공"), `FAKE_OPENAI_DELAY_MS`(기본 1500, 실제처럼 오래 걸리게 하려면 60000 등), `FAKE_OPENAI_LOG_PROMPT=1`(프롬프트 출력). Authorization 헤더가 없으면 401이다.
 
 #### 운영 점검: 가게 그림 내리기(관리자 SQL)
 

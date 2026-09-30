@@ -26,16 +26,75 @@ STAFF 적격 해시를 삭제해도 이미 활성화된 점주 권한은 사라�
 
 첫 적용 시 백업은 서버의 `/opt/masscom/backups/showcase-edge-036f31f`에, 운영 Compose 기준선은 `/opt/masscom/web/releases/4a42475275e3/infra/lightsail/compose.yml`에 있습니다. 시연 호스트만 제거할 때에는 운영 Compose **단독**으로 `caddy` 서비스를 `--no-deps --no-build --force-recreate`해 이전 Caddyfile 마운트로 되돌리고, `api.masscom.kr`·`www.masscom.kr`의 TLS/health와 운영 API·DB·웹 ID를 검사합니다. 기존 시연 DB 볼륨이나 운영 리소스를 삭제하지 않습니다.
 
-## 사장님 AI 가게 그림 키 (D-048, Issue #236)
+## 사장님 AI 가게 그림 키 (D-048·D-058, Issue #236·#256)
 
 시연 API의 AI 가게 그림은 `SHOWCASE_OPENAI_API_KEY`가 **비어 있으면 꺼진 채**다(앱에는 "준비 중", 다른 기능에는 영향 없음). [`compose.yml`](compose.yml)이 이 값을 컨테이너의 `OPENAI_API_KEY`로 넘기고, 비어 있으면 빈 값을 넘긴다. 시연 DB의 월 예산·하루 한도는 운영과 따로 계산한다.
 
-- **키는 소유자가 직접 넣는다.** 에이전트가 만들거나 저장소·대화·로그에 두지 않는다. 서버 `/opt/masscom-showcase/runtime.env`(권한 600)에 `SHOWCASE_OPENAI_API_KEY=<키>` 한 줄을 더한다. `scripts/prepare-showcase-runtime.sh`는 기존 파일을 덮어쓰지 않으므로 직접 덧붙인다.
-- 넣은 뒤 시연 Compose를 기동할 때 쓴 것과 같은 `--env-file`·`-f` 인자로 `up -d showcase-api`를 실행해 시연 API 컨테이너를 **다시 만든다**(`restart`는 환경 변수를 다시 읽지 않는다). 기동 로그에 `AI store art: enabled`가 나오면 켜진 것이다.
-- 선택 값(`SHOWCASE_AI_ART_MONTHLY_BUDGET_USD` 기본 5, `SHOWCASE_AI_ART_DAILY_DRAFT_ROUNDS`·`SHOWCASE_AI_ART_DAILY_FINALS` 기본 3, `SHOWCASE_AI_ART_DRAFT_MODEL`·`SHOWCASE_AI_ART_FINAL_MODEL`)은 [`runtime.env.example`](runtime.env.example)에 주석으로 있다.
-- 이 compose는 `AI_ART_STAFF_MAY_MANAGE=true`를 켠다: 가게 그림 권한(`MANAGE_ART`)이 기본은 활성 OWNER뿐인데, 시연은 CLI(`grant:showcase:staff`)로 소유자 계정에만 STAFF를 주기 때문이다. 운영 compose에는 이 값이 없다.
-- 점주 화면은 시연 앱의 "점주예요" 모드에만 있다. 키를 넣은 뒤의 실제 호출(비용·지연 측정)은 `NOT_RUN`이며 키 입력 뒤 따로 확인한다.
+**현재 상태(2026-09-30): 팀 결제가 확정되지 않아 키를 넣지 않았다**([B-026](../../docs/BLOCKERS.md): 팀 결제 확정 대기). 소유자가 "넣었다는 가정하에 완성해 달라"고 해서 켜기 준비는 끝났다: 아래 켜기 스크립트와 컨테이너 리허설, **월 예산 USD 5 확정**(하루 한도는 가게당 시안 3회·최종 3회 기본값 그대로, [D-058](../../docs/DECISIONS.md)). **운영 키는 D-050대로 계속 비운다.** 실제 키 입력과 실제 호출은 결제 확정 뒤이며 `NOT_RUN`이다.
 
+- **키는 소유자가 직접 넣는다.** 에이전트가 만들거나 저장소·대화·로그에 두지 않는다. 서버 `/opt/masscom-showcase/runtime.env`(권한 600)에 `SHOWCASE_OPENAI_API_KEY=<키>` 한 줄을 더한다. `scripts/prepare-showcase-runtime.sh`는 기존 파일을 덮어쓰지 않으므로 직접 덧붙인다.
+- 선택 값(`SHOWCASE_AI_ART_MONTHLY_BUDGET_USD` 기본 5, `SHOWCASE_AI_ART_DAILY_DRAFT_ROUNDS`·`SHOWCASE_AI_ART_DAILY_FINALS` 기본 3, `SHOWCASE_AI_ART_DRAFT_MODEL`·`SHOWCASE_AI_ART_FINAL_MODEL`)은 [`runtime.env.example`](runtime.env.example)에 주석으로 있다. 비우면 기본값이다(예산 USD 5는 이미 기본값이라 따로 적지 않아도 된다).
+- 이 compose는 `AI_ART_STAFF_MAY_MANAGE=true`를 켠다: 가게 그림 권한(`MANAGE_ART`)이 기본은 활성 OWNER뿐인데, 시연은 CLI(`grant:showcase:staff`)로 소유자 계정에만 STAFF를 주기 때문이다. 운영 compose에는 이 값이 없다.
+- 점주 화면은 시연 앱의 "점주예요" 모드에만 있다.
+
+### 켜기·끄기·상태 스크립트
+
+[`enable-ai-art.sh`](enable-ai-art.sh)가 켜기(`enable`)·끄기(`disable`)·읽기 전용 상태(`status`)를 맡는다. 서버에서 `sudo`로 실행한다. 스크립트는 자기 위치에 의존하지 않고 **실행 중인 `showcase-api` 컨테이너의 라벨·이미지**에서 릴리스 폴더와 이미지 태그를 읽는다(추측하지 않는다). 이 스크립트가 들어 있지 않은 이전 릴리스가 떠 있으면 저장소의 파일을 서버로 복사해 어디서든 실행하면 된다.
+
+| 모드 | 하는 일 |
+| --- | --- |
+| `status` | 읽기 전용. `runtime.env` 권한, 키 줄 상태(값 없이 "present (N chars)"), 실행 중 컨테이너·이미지 태그·릴리스 폴더·건강 상태, 마지막 `AI store art:` 기동 줄(알려진 세 줄과 줄 전체가 같은 것만), **실행 중 컨테이너의 `OPENAI_API_KEY`가 비어 있는지·파일의 키와 같은지**(메모리에서만 비교), 유효 한도(컨테이너 환경 중 `AI_ART_*` 값만 `docker inspect` 템플릿 안에서 걸러 읽는다)를 보여 주고 `state: ENABLED`·`DISABLED`·`NEEDS_RECREATE_OR_CHECK`(runtime.env와 실행 중 컨테이너가 어긋나거나 키 줄이 쓸 수 없는 꼴)를 낸다. 아무것도 바꾸지 않는다 |
+| `check` | 읽기 전용. 컨테이너·Docker Compose 버전(`docker compose version --short`)과 함께 compose가 렌더한 설정 검사(`rendered config: OK\|MISMATCH`)와 설정 어긋남 검사(`drift: OK\|MISMATCH`, 실행 중 컨테이너의 `config-hash` 라벨·계산한 해시 두 값을 그대로 보여 준다. 해시는 비밀이 아니다)만 하고 아무것도 바꾸지 않는다. **키를 넣기 전에** 이 서버에서 `enable`이 통과할지 미리 확인할 때 쓴다(키 줄이 없어도 된다). 하나라도 `MISMATCH`이면 종료 코드 1 |
+| `enable` | 바꾸기 전에 다음을 모두 확인한다. ① `runtime.env`가 읽을 수 있는 일반 파일이고 권한이 정확히 600이며 NUL 바이트가 없다. ② `SHOWCASE_OPENAI_API_KEY`가 **정확히 한 줄의 `SHOWCASE_OPENAI_API_KEY=<값>`** 꼴이고 값이 비어 있지 않으며 허용 글자(`A-Z a-z 0-9 . _ : ~ + / = -`, 512자 이하)만 쓴다(값은 출력하지 않는다). ③ 실행 중 `showcase-api`가 정확히 하나이고 그 라벨의 compose 파일이 `/opt/masscom-showcase/releases/<릴리스>/infra/showcase-host/compose.yml` 실제 경로 그대로다(심볼릭 링크를 거치지 않는다). ④ compose가 **렌더한 설정**(`compose config --format json`, 메모리에서만 읽고 출력하지 않는다)의 `OPENAI_API_KEY`가 파일의 값과 같고, 한도 값(`SHOWCASE_AI_ART_*`)이 API 범위(예산 0~1000·소수 여섯 자리, 하루 횟수 0~50, 모델 이름 `[A-Za-z0-9._:-]{1,80}`) 안이며 다른 값에 키가 섞여 있지 않다. ⑤ **설정 어긋남 검사:** 실행 중 컨테이너의 `com.docker.compose.config-hash` 라벨이, 키와 가게 그림 설정(`AI_ART_*`)만 실행 중인 값으로 고정한 현재 compose 설정의 `config --hash`와 같다. 다르면 키 말고 다른 설정(다른 runtime.env 값·compose 파일)이 컨테이너와 어긋난 것이므로 "전체 시연 배포를 먼저 하라"며 아무것도 바꾸지 않고 멈춘다. 통과하면 **`showcase-api`만** 실행 중인 이미지 태그로 `up -d --no-deps --no-build --pull never --force-recreate --wait`(`postgres`·`migrate`는 건드리지 않음)하고, 새 컨테이너가 healthy이고 그 컨테이너의 키가 파일의 키와 같으며 기동 로그의 마지막 `AI store art:` 줄이 정확히 `AI store art: enabled`인지 확인한 뒤 유효 한도를 보여 준다 |
+| `disable` | 소유자가 **먼저** `runtime.env`에서 키 줄을 지우거나 비운 뒤에만 진행한다(키 줄이 남아 있거나 `export`·중복 등 비표준 줄이 있으면 거절). `enable`과 같은 검사(렌더된 `OPENAI_API_KEY`는 빈 값이어야 한다)를 거쳐 `showcase-api`만 다시 만들고, 새 컨테이너의 키가 비어 있고 로그가 `AI store art: disabled (OPENAI_API_KEY is empty)`인지 확인한다. **`disable --force-drift`**는 비용을 멈추는 비상 스위치라 설정 어긋남(⑤)만 경고를 내고 건너뛴다: 키 줄이 비어 있어야 하고 나머지 검사와 `showcase-api`만 다시 만드는 동작은 그대로이며, 다시 만들 때 `runtime.env`·compose 파일과 실행 중 컨테이너의 **모든 차이**가 함께 적용된다는 경고와 두 해시를 보여 준다 |
+
+- 스크립트는 `runtime.env`를 **고치지 않는다**(키 줄은 소유자가 직접 넣고 지운다). 키 값은 출력하지 않고 명령줄 인자로도 넘기지 않으며, compose가 오류 메시지에 키를 섞어 내도 `[redacted]`로 가린다. `bash -x`나 `SHELLOPTS=xtrace`로 불려도 첫 명령 `set +x`가 추적을 끄므로 키가 찍히지 않는다. 바꾸기 전 검사가 하나라도 실패하면 아무것도 바꾸지 않고 끝난다. 다시 만든 뒤 검사(healthy·컨테이너 키·기동 줄)가 실패하면 컨테이너는 이미 새 설정으로 떠 있으므로, 메시지의 안내대로 `runtime.env`를 고쳐 다시 `enable`하거나 키 줄을 비우고 `disable`한다.
+- **compose와 다르게 읽지 않는다.** compose는 `export NAME=값`·들여쓴 줄·`NAME: 값`·`NAME = 값`·나중 중복 줄·값 안의 `$` 치환·셸 환경 변수(`sudo -E`로 물려받은 `SHOWCASE_OPENAI_API_KEY`)를 모두 받아들여 파일의 한 줄만 보는 검사를 속일 수 있다. 그래서 키 줄은 위의 표준 꼴 한 줄만 받고 그 밖의 줄·`$`·비ASCII·따옴표 안의 특수 글자는 거절하며, compose를 부르기 전에 `SHOWCASE_*`·`COMPOSE_*`·`MASSCOM_SHOWCASE_*`·`OPENAI_API_KEY`·`AI_ART_*`와 `DOCKER_HOST`·`DOCKER_CONTEXT`·`DOCKER_TLS_VERIFY`·`DOCKER_CERT_PATH` 환경 변수를 모두 지우고 프로젝트 이름을 `-p masscom-showcase`로 고정하며 활성 Docker 컨텍스트가 이 서버의 로컬 소켓이 아니면(`ssh://`·`tcp://` 등) 거절하고(컨텍스트 이름을 `docker context: ...` 줄로 알려 준다), 마지막으로 compose가 렌더한 값을 직접 확인한다. Docker Compose v2의 `config --format json`과 `config --hash`가 필요하다(없으면 거절하고 아무것도 바꾸지 않는다).
+- `runtime.env`의 `MASSCOM_SHOWCASE_IMAGE_TAG`가 실행 중인 태그와 다르면 알림을 내고 **실행 중인 태그를 그대로** 쓴다(키 한 줄 때문에 이미지가 바뀌지 않게 한다). 설정 어긋남 검사가 실패하는 흔한 이유는 마지막 시연 배포 뒤 `runtime.env`의 다른 값이나 compose 파일이 바뀐 것, 또는 그 뒤 Docker Compose를 올려 해시 계산이 달라진 것이다: 그때는 전체 시연 배포로 컨테이너를 새로 만든 뒤 다시 실행한다.
+- 시험: [`tests/ops/enable_ai_art_test.sh`](../../tests/ops/enable_ai_art_test.sh)(가짜 `docker`가 compose의 파일 읽기·셸 변수 우선·렌더 JSON·config-hash 라벨을 흉내 낸다. 키 없음·빈 키·비표준 줄 다섯 가지·중복·`$`·비ASCII·NUL·권한 644·심볼릭 링크 거절과 docker 미호출, 켜기·끄기·키 바꾸기 성공, 물려받은 변수 무시, `bash -x` 무누출, 렌더된 키 불일치·한도 범위·설정 어긋남·라벨 없음·심볼릭 릴리스 폴더 거절, 로그·재생성·건강·컨테이너 키 실패, `status`·`check` 읽기 전용, `disable --force-drift`, 원격 Docker 컨텍스트·물려받은 `DOCKER_*` 처리, `docker ps -a` 힌트). CI의 시연 호스트 검사에서 실행한다. 진짜 Docker Compose로는 [`scripts/rehearse-enable-ai-art-real-compose.sh`](../../scripts/rehearse-enable-ai-art-real-compose.sh)가 임시 폴더에 진짜 postgres·migrate·showcase-api를 띄워(가짜 키, OpenAI 호출 없음) status·enable·disable·설정 어긋남 거절·한도 범위 거절·물려받은 변수 무시를 실제로 확인한다(로컬 전용, CI 아님; 시연 서버에서는 실행하지 않는다).
+
+**켜는 순서(팀 결제 확정 뒤, 소유자):**
+
+0. 서버에 떠 있는 릴리스에 이 스크립트가 없으면(이 스크립트를 넣기 전 릴리스) 저장소의 [`enable-ai-art.sh`](enable-ai-art.sh)를 먼저 서버로 복사한다(예: `scp infra/showcase-host/enable-ai-art.sh <서버>:/tmp/`). 스크립트는 자기 위치에 의존하지 않는다. 아래 `<스크립트>`는 그 경로다(릴리스에 들어 있으면 `/opt/masscom-showcase/releases/<릴리스>/infra/showcase-host/enable-ai-art.sh`).
+1. **키를 넣기 전에** `sudo bash <스크립트> check`로 이 서버에서 `drift: OK`·`rendered config: OK`가 나오는지 본다. `MISMATCH`이면 키를 넣지 말고 원인(마지막 시연 배포 뒤 바뀐 `runtime.env`·compose 파일, Docker Compose 버전 차이)을 먼저 해결한다: 전체 시연 배포로 컨테이너를 새로 만든 뒤 다시 확인한다.
+2. 서버 `/opt/masscom-showcase/runtime.env`(권한 600)를 **`sudoedit`이나 편집기**로 열어 `SHOWCASE_OPENAI_API_KEY=` 줄이 **이미 있으면 그 줄의 값을 채우고, 없을 때만 새 줄을 더한다**(같은 이름의 줄이 둘이면 스크립트가 거절한다). `echo '...' >> runtime.env`처럼 명령줄로 쓰지 않는다: 키가 셸 기록(history)에 남고, 파일 끝에 개행이 없으면 앞 줄과 붙어 버린다. 줄은 정확히 `SHOWCASE_OPENAI_API_KEY=<키>` 꼴로 쓴다(`export`·들여쓰기·공백·따옴표 안 특수 글자 금지).
+3. `sudo bash <스크립트> status`로 지금 상태를 본다(키는 있는데 `state: NEEDS_RECREATE_OR_CHECK`이면 정상: 아직 다시 만들지 않았다).
+4. `sudo bash <스크립트> enable`.
+5. 출력에서 `SHOWCASE_OPENAI_API_KEY: present`, `docker context: ...`, `showcase-api recreated: ... (health: healthy)`, `startup log: AI store art: enabled`, `monthly budget ... 5`·`daily draft rounds per store: 3`·`daily finals per store: 3`을 확인한다.
+6. 아래 "첫 실제 호출 확인표"를 실행한다.
+
+`enable`이 `compose up failed`로 끝나면 옛 컨테이너가 이미 없어졌거나 새 컨테이너가 `created`로 남았을 수 있다: `sudo docker ps -a --filter label=com.docker.compose.service=showcase-api`와 `sudo docker logs <id>`를 보고, `runtime.env`의 키 줄을 이전 상태로 되돌린 뒤 스크립트를 다시 돌리거나 아래 수동 절차를 쓴다. `found 0 running of N in total (...=created|exited)`라는 메시지가 나오면 바로 이 상태다.
+
+**끄는 순서:** ① `runtime.env`를 `sudoedit`으로 열어 키 줄을 지우거나 비운다 ② `sudo bash <스크립트> disable` ③ `startup log: AI store art: disabled (OPENAI_API_KEY is empty)`를 확인한다(앱은 "준비 중"으로 돌아간다). ②가 `config drift`로 거절되면 **비용을 먼저 멈추기 위해** `sudo bash <스크립트> disable --force-drift`를 쓸 수 있다(키 줄이 비어 있어야 하고 `showcase-api`만 다시 만든다. 다시 만들 때 `runtime.env`·compose 파일의 다른 변경도 함께 적용되므로 그 뒤 전체 시연 배포로 정리한다).
+
+**스크립트 없이 끄는 수동 절차(스크립트가 안 돌 때의 비상 경로):** ① 위처럼 키 줄을 지우거나 비운다 ② `runtime.env`의 `MASSCOM_SHOWCASE_IMAGE_TAG`가 실행 중인 이미지 태그(`sudo docker inspect --format '{{.Config.Image}}' <컨테이너>`)와 같은지 확인한다(다르면 compose가 다른 이미지로 다시 만든다) ③ 다음을 실행한다.
+
+```bash
+sudo docker compose -p masscom-showcase --env-file /opt/masscom-showcase/runtime.env \
+  -f /opt/masscom-showcase/releases/<릴리스>/infra/showcase-host/compose.yml \
+  up -d --no-deps --no-build --force-recreate --wait --wait-timeout 180 showcase-api
+```
+
+이 수동 재생성은 키뿐 아니라 `runtime.env`·compose의 다른 차이도 모두 반영한다(`--force-drift`와 같은 주의). ④ `sudo docker logs $(sudo docker ps -q --filter label=com.docker.compose.service=showcase-api) 2>&1 | grep 'AI store art:'`에서 `disabled (OPENAI_API_KEY is empty)`를 확인한다.
+
+### 켜진 상태 컨테이너 리허설 (Issue #256)
+
+배포와 같은 Dockerfile(`infra/lightsail/api.Dockerfile`)로 만든 이미지에 **가짜 키와 가짜 OpenAI 서버**([`scripts/fake-openai-images.mjs`](../../scripts/fake-openai-images.mjs))를 붙여 켜진 상태를 미리 시험한다. `bash scripts/rehearse-ai-art-container.sh`가 로컬 PostgreSQL 컨테이너(`masscom-sky-qa-pg`)에 실행마다 이름이 다른 자기 DB `masscom_256_<프로세스 번호>_test`를 만들고, 끝나면 그 실행의 컨테이너(실행별 라벨)·DB·이미지를 지운다(다른 실행의 것은 건드리지 않고, `REHEARSAL_IMAGE`는 `masscom-256-rehearsal`로 시작하는 이름만 받는다). 시나리오마다 새로 띄워 기동 로그, 시안 4장→고급 그림→적용→공개 그림, 월 예산 소진(503 `AI_ART_BUDGET_EXHAUSTED`), 하루 한도(429 `AI_ART_DAILY_LIMIT`), OpenAI 429·500·503의 **한 번 재시도**(성공·계속 실패 둘 다)와 400·잔액 소진 429의 무재시도, 그리고 요청 횟수·`ai_art_spend` 비용 기록·로그의 키 값 부재를 센다. 결과와 한계는 [증거](../../docs/evidence/ai-art-enable-rehearsal-2026-09-30.json)에 있다. **실제 OpenAI 호출·실제 키·배포는 하지 않았다.**
+
+### 첫 실제 호출 확인표 (키를 넣은 뒤, `NOT_RUN`)
+
+첫 실제 호출은 돈이 든다. 아래를 한 번에 확인하고 결과를 `docs/evidence/`와 [B-026](../../docs/BLOCKERS.md)에 남긴다. 실패하거나 이상하면 바로 `disable`한다.
+
+| 확인 | 방법 | 기준·기록 |
+| --- | --- | --- |
+| 켜짐 | `enable` 출력 | `AI store art: enabled`, health healthy |
+| 시안 지연 | 시연 앱 "점주예요" → 가게 그림 → "AI 시안 받기"를 누른 때부터 시안 4장이 뜰 때까지 초 | 앱 안내는 "1~2분". 실제 초와 실패 여부를 기록 |
+| 시안 비용 | 서버에서 `sudo docker compose --env-file /opt/masscom-showcase/runtime.env -f /opt/masscom-showcase/releases/<릴리스>/infra/showcase-host/compose.yml exec postgres psql -U masscom_showcase -d masscom_showcase -c "SELECT id, kind, micro_usd, created_at FROM ai_art_spend ORDER BY id DESC LIMIT 6"` | 시안 4행의 합(µUSD)을 예상 $0.04(40,000)와 비교 |
+| 최종 지연·비용 | 시안을 고른 뒤 "고급 그림"이 뜰 때까지 초와 같은 조회의 `FINAL` 행 | 실제 값을 예상 $0.18(180,000)과 비교하고, 크게 다르면 `estimatedFinalMicroUsd`(D-050 (5))를 다시 정한다 |
+| 월 예산 잔여 | 같은 방식으로 `SELECT coalesce(sum(micro_usd), 0) FROM ai_art_spend WHERE created_at >= date_trunc('month', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul'` | 이번 달 합계가 USD 5(5,000,000) 안인지 |
+| 고객 화면 표시 | "가게 그림으로 쓰기"로 적용한 뒤 고객 모드의 탐색 목록·상세·동네 지도·도장판 | 새 그림이 보이는지 스크린샷. 공개 주소 `https://demo-api.masscom.kr/merchant-art/<sha256>.webp`가 200 `image/webp`인지, 실제 이미지 크기(바이트)와 앱 로딩 |
+| 되돌리기 | "기본 그림으로 되돌리기" | 그림이 글자 도장으로 돌아오고 옛 공개 주소가 404인지 |
+| 정책 차단·개인정보 | 그림에 글자·사람·상표·QR이 없는지 눈으로 확인 | 있으면 프롬프트 제약 재검토 항목으로 기록 |
 
 ## 보관 기간 정리 작업과 로그 순환 (Issue #253, D-059)
 

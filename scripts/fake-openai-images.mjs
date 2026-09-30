@@ -10,8 +10,11 @@
 // 아래 비트가 달라 같은 바이트가 두 번 나오지 않는다(가게 그림 sha256은 유일해야 한다).
 //
 // 선택 환경 변수
-//   FAKE_OPENAI_FAIL   moderation | rate_limit | spend_limit | server_error : 해당 오류를 돌려준다(기본: 정상)
+//   FAKE_OPENAI_FAIL   moderation | rate_limit | spend_limit | server_error | unavailable : 해당 오류를 돌려준다(기본: 정상).
+//                      moderation은 400, rate_limit은 429(Retry-After 1), spend_limit은 429(재시도 없음), server_error는 500, unavailable은 503
 //   FAKE_OPENAI_FAIL_PATH  generations | edits | both : 오류를 낼 경로(기본 both)
+//   FAKE_OPENAI_FAIL_COUNT 1 이상의 정수: 오류를 낼 요청 수. 앞의 N개만 오류를 돌려주고 그 뒤는 정상이다(기본: 계속 오류).
+//                      "한 번 재시도하면 성공하는" 일시 오류를 흉내 낼 때 쓴다(재시도 뒤 정상이 되려면 1)
 //   FAKE_OPENAI_DELAY_MS   응답 전 지연(ms, 기본 1500). 실제처럼 1~2분을 보려면 60000 등으로 올린다
 //   FAKE_OPENAI_LOG_PROMPT 1이면 받은 프롬프트를 로그에 찍는다(기본: 길이만)
 import { createServer } from 'node:http';
@@ -170,6 +173,7 @@ const failures = {
   spend_limit: { status: 429, error: { type: 'insufficient_quota', code: 'credit_balance_exhausted',
     message: 'Credit balance exhausted (fake).' } },
   server_error: { status: 500, error: { type: 'server_error', code: null, message: 'The server had an error (fake).' } },
+  unavailable: { status: 503, error: { type: 'server_error', code: null, message: 'The engine is currently overloaded (fake).' } },
 };
 
 export function fakeServerOptionsFromEnv(env) {
@@ -177,9 +181,14 @@ export function fakeServerOptionsFromEnv(env) {
   if (fail !== undefined && !(fail in failures)) throw new Error(`FAKE_OPENAI_FAIL must be one of ${Object.keys(failures).join(', ')}`);
   const failPath = env.FAKE_OPENAI_FAIL_PATH?.trim() || 'both';
   if (!['generations', 'edits', 'both'].includes(failPath)) throw new Error('FAKE_OPENAI_FAIL_PATH must be generations, edits or both');
+  const failCountText = env.FAKE_OPENAI_FAIL_COUNT?.trim();
+  const failCount = failCountText ? Number(failCountText) : undefined;
+  if (failCount !== undefined && !(Number.isInteger(failCount) && failCount >= 1 && failCount <= 1000)) {
+    throw new Error('FAKE_OPENAI_FAIL_COUNT must be an integer between 1 and 1000');
+  }
   const delayMs = env.FAKE_OPENAI_DELAY_MS?.trim() ? Number(env.FAKE_OPENAI_DELAY_MS) : 1500;
   if (!Number.isFinite(delayMs) || delayMs < 0 || delayMs > 600_000) throw new Error('FAKE_OPENAI_DELAY_MS must be between 0 and 600000');
-  return { fail, failPath, delayMs, logPrompt: env.FAKE_OPENAI_LOG_PROMPT === '1' };
+  return { fail, failPath, failCount, delayMs, logPrompt: env.FAKE_OPENAI_LOG_PROMPT === '1' };
 }
 
 async function readBody(request) {
@@ -201,6 +210,7 @@ function sendJson(response, status, body, headers = {}) {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function createFakeOpenAiImagesServer(options = fakeServerOptionsFromEnv(process.env), log = console.log) {
+  let failedSoFar = 0;
   return createServer(async (request, response) => {
     try {
       const path = new URL(request.url ?? '/', 'http://localhost').pathname;
@@ -228,11 +238,14 @@ export function createFakeOpenAiImagesServer(options = fakeServerOptionsFromEnv(
         model = form.fields.get('model') ?? '';
         input = form.files.get('image[]');
       }
-      log(`fake-openai ${kind} model=${model || '(none)'} prompt=${options.logPrompt ? JSON.stringify(prompt) : `${prompt.length} chars`}`);
+      // 오류를 낼지는 지연 전에 정한다(FAKE_OPENAI_FAIL_COUNT는 요청이 들어온 순서로 센다). 오류를 내는 요청은 로그 끝에 상태 코드를 붙인다.
+      const failure = options.fail !== undefined && (options.failPath === 'both' || options.failPath === kind)
+        && (options.failCount === undefined || failedSoFar < options.failCount)
+        ? failures[options.fail] : undefined;
+      if (failure) failedSoFar++;
+      log(`fake-openai ${kind} model=${model || '(none)'} prompt=${options.logPrompt ? JSON.stringify(prompt) : `${prompt.length} chars`}${failure ? ` -> ${failure.status}` : ''}`);
       if (options.delayMs > 0) await sleep(options.delayMs);
 
-      const failure = options.fail !== undefined && (options.failPath === 'both' || options.failPath === kind)
-        ? failures[options.fail] : undefined;
       if (failure) {
         sendJson(response, failure.status, { error: failure.error }, failure.retryAfter ? { 'retry-after': failure.retryAfter } : {});
         return;
