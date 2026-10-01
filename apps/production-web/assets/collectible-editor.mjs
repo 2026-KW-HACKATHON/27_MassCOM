@@ -16,6 +16,8 @@ const element = (tag, text, attributes = {}) => {
   return node;
 };
 const button = (text, action, attributes = {}) => element('button', text, { type: 'button', 'data-action': action, ...attributes });
+// 서버는 스티커 텍스트를 80자·4줄(개행 기준)까지만 받는다. maxlength=80은 글자 수만 막으므로, 줄 수는 여기서 직접 자른다.
+const clampStickerLines = text => { const lines = text.split('\n'); return lines.length > 4 ? { text: lines.slice(0, 4).join('\n'), truncated: true } : { text, truncated: false }; };
 export const normalizeMp3DataUrl = dataUrl => dataUrl.replace(/^data:[^;]*;base64,/, 'data:audio/mpeg;base64,');
 export async function editableDraft(request, base, wrapper) {
   if (wrapper?.status !== 'PUBLISHED') return wrapper;
@@ -145,12 +147,12 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         <div data-view="sticker-form">
           <div class="ce-row">
             <label class="ce-field">종류<select data-control="sticker-kind"><option value="text">텍스트</option><option value="emoji">이모티콘</option><option value="mascot">마스코트</option></select></label>
-            <label class="ce-field" data-view="sticker-new-text">내용 · 최대 4줄<textarea data-control="sticker-new" maxlength="83" rows="2" placeholder="어서오세요 또는 ☕"></textarea></label>
+            <label class="ce-field" data-view="sticker-new-text">내용 · 최대 4줄<textarea data-control="sticker-new" maxlength="80" rows="2" placeholder="어서오세요 또는 ☕"></textarea></label>
             <label class="ce-field" data-view="sticker-new-mascot" hidden>마스코트 포즈<select data-control="sticker-new-pose"></select></label>
           </div>
           <button type="button" data-action="sticker-add">스티커 추가</button>
           <label class="ce-field">편집할 스티커<select data-control="sticker-list"></select></label>
-          <label class="ce-field" data-view="sticker-text-field">스티커 내용 · 최대 4줄<textarea data-sticker="text" maxlength="83" rows="2"></textarea></label>
+          <label class="ce-field" data-view="sticker-text-field">스티커 내용 · 최대 4줄<textarea data-sticker="text" maxlength="80" rows="2"></textarea></label>
           <label class="ce-field" data-view="sticker-pose-field" hidden>마스코트 포즈<select data-sticker="text" data-role="pose"></select></label>
           <label class="ce-field">정렬<select data-sticker="align"><option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option></select></label>
           <div class="ce-row"><label class="ce-field">가로 위치<input data-sticker="x" type="range" min="0" max="1" step="0.01"></label><label class="ce-field">세로 위치<input data-sticker="y" type="range" min="0" max="1" step="0.01"></label></div>
@@ -619,6 +621,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (!project.name.trim()) { navigateStep(1); notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
     if (!project.theme.name.trim()) { navigateStep(4); notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
     if (project.stickers.some(item => !item.text.trim()) || project.back.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
+    if (project.stickers.some(item => item.text.split('\n').length > 4) || project.back.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(3); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄을 지워 주세요.', true); return; }
     if (project.greetingOverrides.some(item => !item.gradeIds.length && !item.themeName.trim())) { navigateStep(4); notice('등급이나 시즌 테마를 고르지 않은 인사말 규칙이 있어요. 하나를 고르거나 규칙을 삭제해 주세요.', true); return; }
     if (publish) {
       setBusy(true); const refreshed = await refreshCampaigns(); setBusy(false);
@@ -838,8 +841,12 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'edits-reset') { mutate(() => { project.photoEdits = createProject().photoEdits; }); syncValues(); await drawCrop(); return; }
     if (action === 'sticker-add') {
       const kind = control('sticker-kind').value;
-      const text = kind === 'mascot' ? control('sticker-new-pose').value : control('sticker-new').value.trim();
+      let text = kind === 'mascot' ? control('sticker-new-pose').value : control('sticker-new').value.trim();
       if (!text) { notice('스티커 내용을 입력해 주세요.', true); return; }
+      if (kind !== 'mascot') {
+        const clamped = clampStickerLines(text); text = clamped.text;
+        if (clamped.truncated) notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄은 지웠어요.', true);
+      }
       const list = activeStickers(), cap = stickerSide === 'back' ? mediaLimits.backStickers : mediaLimits.stickers;
       if (list.length >= cap) { notice(`스티커는 ${cap}개까지 만들 수 있어요.`, true); return; }
       mutate(() => {
@@ -871,7 +878,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         const grade = createGrade(name); project.grades.push(grade); const source = control('grade-copy').value;
         if (source) for (const item of [...project.effects, ...project.motion]) if (item.gradeIds.includes(source)) item.gradeIds.push(grade.id);
         selectedGrade = grade.id;
-      }); control('grade-name').value = ''; renderGrades(); renderEffects(); renderMotionGrades(); return;
+      }); control('grade-name').value = ''; renderGrades(); renderEffects(); renderMotionGrades(); renderStickers(); return;
     }
     if (action === 'effect-add') {
       if (project.effects.length >= 64) { notice('효과는 64개까지 만들 수 있어요.', true); return; }
@@ -943,7 +950,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (target.dataset.sticker) {
       const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
       const key = target.dataset.sticker;
-      if (['text', 'color', 'align'].includes(key)) sticker[key] = target.value;
+      if (key === 'text') {
+        const clamped = clampStickerLines(target.value); sticker.text = clamped.text;
+        if (clamped.truncated) { target.value = clamped.text; notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄은 지웠어요.', true); }
+      } else if (key === 'color' || key === 'align') sticker[key] = target.value;
       else stickerPositionTarget(sticker)[key] = Number(target.value);
       changed(); schedulePreview(); return;
     }
@@ -1125,12 +1135,15 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (loading) return;
     const point = pointOn(previewCanvas, event), x = (point.x - 512 * .11) / (512 * .78), y = (point.y - 512 * .11) / (512 * .78);
     if (Math.abs(project.angle) > 15 || playing) { notice('스티커를 드래그하려면 정면 보기와 정지를 눌러 주세요. 위치 조절바는 어느 각도에서도 사용할 수 있어요.'); return; }
-    const candidate = [...project.stickers].sort((a, b) => b.order - a.order).find(sticker => Math.hypot((sticker.x - x) * 512, (sticker.y - y) * 512) < Math.max(25, sticker.size));
-    if (!candidate) return; remember(); selectedSticker = candidate.id; renderStickers(); previewCanvas.setPointerCapture(event.pointerId); pointer = { type: 'sticker', sticker: candidate, start: { x, y }, x: candidate.x, y: candidate.y };
+    // 등급별 배치 중인 스티커는 그 등급의 좌표(stickerPositionTarget)로 맞아야 보이는 자리와 드래그 판정이 일치한다.
+    const candidate = [...project.stickers].sort((a, b) => b.order - a.order).find(sticker => { const pos = stickerPositionTarget(sticker); return Math.hypot((pos.x - x) * 512, (pos.y - y) * 512) < Math.max(25, pos.size); });
+    if (!candidate) return; remember(); selectedSticker = candidate.id; renderStickers(); previewCanvas.setPointerCapture(event.pointerId);
+    const pos = stickerPositionTarget(candidate);
+    pointer = { type: 'sticker', target: pos, start: { x, y }, x: pos.x, y: pos.y };
   });
   listen(previewCanvas, 'pointermove', event => {
     if (pointer?.type !== 'sticker') return;
-    const point = pointOn(previewCanvas, event); pointer.sticker.x = clamp(pointer.x + (point.x - 512 * .11) / (512 * .78) - pointer.start.x, 0, 1); pointer.sticker.y = clamp(pointer.y + (point.y - 512 * .11) / (512 * .78) - pointer.start.y, 0, 1);
+    const point = pointOn(previewCanvas, event); pointer.target.x = clamp(pointer.x + (point.x - 512 * .11) / (512 * .78) - pointer.start.x, 0, 1); pointer.target.y = clamp(pointer.y + (point.y - 512 * .11) / (512 * .78) - pointer.start.y, 0, 1);
     changed(); renderStickers(); schedulePreview();
   });
   listen(previewCanvas, 'pointerup', endPointer); listen(previewCanvas, 'pointercancel', endPointer);
@@ -1139,6 +1152,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   for (const [value, name] of Object.entries(effectNames)) option(control('effect-type'), name, value);
   for (const [value, name] of Object.entries(storyNames)) option(control('story-type'), name, value);
   for (const pose of MASCOT_POSES) option(control('sticker-new-pose'), mascotPoseNames[pose] || pose, pose);
+  for (const pose of MASCOT_POSES) option(container.querySelector('[data-sticker="text"][data-role="pose"]'), mascotPoseNames[pose] || pose, pose);
   syncStickerKindVisibility();
   for (const [id, name] of Object.entries(motionNames)) {
     const tile = button(name, 'template', { 'data-id': id, 'aria-pressed': String(id === selectedTemplate) }); const canvas = element('canvas', undefined, { width: 96, height: 96, 'aria-hidden': 'true' }); tile.prepend(canvas); view('templates').append(tile);

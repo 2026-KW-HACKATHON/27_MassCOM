@@ -330,6 +330,43 @@ test('스티커는 서버와 같은 30개까지 만들 수 있다', async () => 
   assert.match(ui.notice, /스티커는 30개까지 만들 수 있어요/);
 });
 
+// PR #293 리뷰(Codex gpt-6.1-sol P2): 서버는 스티커 텍스트를 80자·4줄까지만 받는데, 편집기 textarea는
+// maxlength=83이라 81~83자를 입력할 수 있었고(저장 때 거절), 줄 수 제한은 아예 없어 5줄 이상 입력해도
+// 막지 않았다(미리보기는 4줄까지만 그려 입력과 다르게 보임).
+test('스티커 textarea는 서버와 같은 80자까지만 받는다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  assert.equal(ui.control('sticker-new').getAttribute('maxlength'), '80');
+  ui.control('sticker-new').value = '글자'.repeat(40); // 80자
+  await ui.click('sticker-add');
+  assert.equal(ui.container.querySelector('[data-sticker="text"]').getAttribute('maxlength'), '80');
+});
+
+test('스티커 추가 시 5줄을 입력하면 4줄까지만 저장되고 안내한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-new').value = '첫째\n둘째\n셋째\n넷째\n다섯째';
+  await ui.click('sticker-add');
+  assert.match(ui.notice, /4줄까지만 가능해요/);
+  assert.equal(ui.container.querySelector('[data-sticker="text"]').value, '첫째\n둘째\n셋째\n넷째');
+  await ui.click('draft');
+  assert.equal(created(api).stickers[0].text, '첫째\n둘째\n셋째\n넷째');
+});
+
+test('기존 스티커 내용을 5줄로 고치면 4줄까지만 남기고 안내한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-new').value = '어서오세요';
+  await ui.click('sticker-add');
+  const textarea = ui.container.querySelector('[data-sticker="text"]');
+  textarea.value = '첫째\n둘째\n셋째\n넷째\n다섯째';
+  textarea.dispatchEvent({ type: 'input' }); await settle();
+  assert.match(ui.notice, /4줄까지만 가능해요/);
+  assert.equal(textarea.value, '첫째\n둘째\n셋째\n넷째');
+  await ui.click('draft');
+  assert.equal(created(api).stickers[0].text, '첫째\n둘째\n셋째\n넷째');
+});
+
 // Issue #284 WP2 미니 DOM 흐름 시험들 ---------------------------------------------------------------
 
 test('이 등급만 따로 배치 토글은 layouts[등급]에 쓰고, 공통으로 되돌리기는 지운다', async () => {
@@ -365,6 +402,68 @@ test('이 등급만 따로 배치 토글은 layouts[등급]에 쓰고, 공통으
   await ui.click('sticker-layout-reset');
   assert.equal(ui.control('sticker-grade-only').checked, false);
   assert.equal(ui.container.querySelector('[data-sticker="x"]').value, '0.5', '공통으로 되돌리면 기본 배치로 보인다');
+});
+
+// PR #293 리뷰(Codex gpt-6.1-sol P2): 등급별 배치가 켜져 있으면 미리보기 드래그는 선택한 등급의 "보이는" 좌표로
+// 맞아야 하고, 이동도 그 등급의 layouts에 써야 한다(공통 좌표를 건드리면 다른 등급이 대신 움직인다).
+test('등급별 배치 중 미리보기 드래그는 그 등급의 layouts만 바꾸고 공통 좌표는 그대로 둔다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-new').value = '어서오세요';
+  await ui.click('sticker-add'); // 공통 배치 x:.5, y:.7
+
+  const toggle = ui.control('sticker-grade-only');
+  toggle.checked = true; toggle.dispatchEvent({ type: 'change' }); await settle(); // bronze layouts를 지금 공통값으로 만든다
+
+  // previewCanvas는 512x512이고, pointOn()은 .11~.89 구간을 0~1 좌표로 맞춘다(collectible-editor.mjs:1136).
+  const clientFor = value => 512 * .11 + value * 512 * .78;
+  const preview = ui.container.querySelector('[data-view="preview"]');
+  preview.dispatchEvent({ type: 'pointerdown', pointerId: 1, clientX: clientFor(.5), clientY: clientFor(.7) });
+  preview.dispatchEvent({ type: 'pointermove', pointerId: 1, clientX: clientFor(.6), clientY: clientFor(.7) });
+  preview.dispatchEvent({ type: 'pointerup', pointerId: 1 });
+  await settle();
+
+  assert.equal(ui.control('sticker-grade-only').checked, true, '드래그 뒤에도 등급별 배치가 켜져 있어야 한다(히트 테스트가 등급 좌표를 못 찾으면 선택이 풀린다)');
+  assert.equal(Number(ui.container.querySelector('[data-sticker="x"]').value).toFixed(1), '0.6', 'bronze layouts.x가 드래그만큼 움직여야 한다');
+
+  // 실버로 바꾸면 공통 좌표(.5)를 그대로 보여 줘야 한다 — 버그라면 드래그가 공통 좌표에 써서 여기서도 0.6이 보인다.
+  ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.container.querySelector('[data-sticker="x"]').value, '0.5', '등급별 배치가 없는 실버는 공통 좌표를 써야 한다');
+});
+
+// PR #293 리뷰(Codex gpt-6.1-sol P2): 등급별 배치를 켠 뒤 새 등급을 추가하면 체크박스·좌표가 이전 등급에 남아,
+// 슬라이더가 실제로는 공통 layouts를 바꾸는 혼선이 있었다. grade-add는 selectedGrade를 바꾼 뒤 반드시
+// renderStickers()를 다시 불러 폼이 새 등급을 반영해야 한다.
+test('등급별 배치 중 새 등급을 추가하면 스티커 폼이 새 등급 기준으로 다시 그려진다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-new').value = '어서오세요';
+  await ui.click('sticker-add');
+  const toggle = ui.control('sticker-grade-only');
+  toggle.checked = true; toggle.dispatchEvent({ type: 'change' }); await settle(); // bronze 전용으로 켠다
+
+  await ui.change('grade-name', '축제한정');
+  await ui.click('grade-add');
+
+  const tabs = ui.container.querySelectorAll('[data-action="grade-preview"]');
+  assert.equal(tabs.at(-1).getAttribute('aria-pressed'), 'true', '새로 만든 등급이 선택돼야 한다');
+  // 새 등급은 전용 배치가 없으므로 체크박스가 꺼지고, 슬라이더는 공통 좌표(.5)를 보여야 한다(버그라면 bronze 상태가 남는다).
+  assert.equal(ui.control('sticker-grade-only').checked, false, '새 등급에는 전용 배치가 없어야 한다');
+  assert.equal(ui.container.querySelector('[data-sticker="x"]').value, '0.5', '새 등급은 공통 좌표를 보여야 한다');
+});
+
+// PR #293 리뷰(Codex gpt-6.1-sol P2): 추가 폼의 마스코트 포즈 select만 채워져 있었고, 기존 마스코트 스티커를
+// 고치는 select(sticker-pose-field)는 옵션이 하나도 없어 늘 빈 채로 보였다.
+test('기존 마스코트 스티커의 포즈 select도 추가 폼처럼 포즈 선택지가 채워진다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.change('sticker-kind', 'mascot');
+  ui.control('sticker-new-pose').value = 'wave';
+  await ui.click('sticker-add');
+
+  const poseSelect = ui.container.querySelector('[data-sticker="text"][data-role="pose"]');
+  assert.ok(poseSelect.options.length > 1, '기존 스티커를 고치는 포즈 select도 MASCOT_POSES로 채워져야 한다');
+  assert.equal(poseSelect.value, 'wave', '고른 포즈가 선택돼 있어야 한다');
 });
 
 test('뒷면 모드를 커스텀으로 바꾸면 뒷면 스티커를 추가할 수 있고, 기본 모드에서는 폼이 잠긴다', async () => {

@@ -358,15 +358,15 @@ function validateUpgradedProject(value: unknown, publish: boolean): CollectibleP
   for (const [goal, gradeId] of mappings) { if (!['1','3','5'].includes(goal) || !grades.some(g => g.id === gradeId && g.enabled === true)) invalid(); }
   const derived = p.derived as Record<string, any>;
   if (publish && (mappings.length === 0 || mappings.some(([, gradeId]) => !Object.hasOwn(derived, gradeId as string)))) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
-  // backImageDataUrl은 WP2부터 편집기(serializeDerived)가 연결된 등급마다 항상 만들므로 다시 필수로 좁힌다.
-  // angleFrames는 WP3(각도 프레임)가 아직 범위 밖이라 당분간 선택으로 남긴다(클라이언트는 없을 때 정면 이미지를
-  // 그대로 회전해 대비한다). living만은 지금 편집기가 만들 방법이 없는 항목을 프로젝트가 스스로 선언했을 때
+  // backImageDataUrl은 선택으로 남긴다. 새 편집기는 항상 만들지만, 배포 스큐 동안 이미 열려 있던 구 편집기
+  // 탭이나 v1에서 올라온 기존 프로젝트는 이 필드 없이 게시를 시도할 수 있다. 필수로 두면 그 순간 게시가 전부
+  // COLLECTIBLE_NOT_READY로 막힌다. 클라이언트는 이미 없을 때를 대비한다(뒷면 없음 → 기존 모습로 대체).
+  // living만은 지금 편집기가 만들 방법이 없는 항목을 프로젝트가 스스로 선언했을 때
   // (누군가 API를 직접 쳐서 living 항목을 등급에 걸었을 때)만 필요해, 항상 안전하게 강제할 수 있다.
   if (publish) {
     const linkedGrades = new Set(Object.values(p.rewardGrades as Record<string, string>));
     for (const gradeId of linkedGrades) {
       if (!gradeId) continue;
-      if (!derived[gradeId]?.backImageDataUrl) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
       const needsLiving = livingItems.some(item => (item.gradeIds as string[]).includes(gradeId));
       if (needsLiving && !derived[gradeId]?.living) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
     }

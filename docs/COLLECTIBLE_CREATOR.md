@@ -89,7 +89,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | `greetingOverrides` | `{id, gradeIds, themeName, text}` 목록(최대 16). 등급+테마가 모두 맞는 항목 > 등급만 > 테마만 > 기본 `greeting` 순으로 고르고, 동점은 배열에서 먼저 온 항목이 이긴다. `gradeIds`가 비고 `themeName`도 빈 항목은 저장하지 않는다. | `[]`(기본 인사말만 씀) |
 | `parallax` | `{strength:0~100, strokes}`. 획은 `fg/bg` 도구·굵기 0.01~0.2·점(최대 100개 획, 획당 점 1,000개, 사진 0~1 좌표). | `{strength:0, strokes:[]}` |
 | `living` | `{periodMs:1000~4000, items}`(항목 최대 4). 항목은 `sway/bob/steam/blink` 종류, 대상은 `region`(획 1~20점) 또는 앞면 스티커 ID(획 없음), 등급 목록, 진폭 0~100, 중심점. `blink`는 오직 `MASCOT_BLINK`에 있는 포즈의 mascot 스티커만 대상으로 삼을 수 있다(지금은 그림이 없어 빈 목록이라 항상 거절됨). | `{periodMs:2400, items:[]}` |
-| `derived[g].backImageDataUrl` | 뒷면 완성 이미지, 512px 이하·256 KiB 이하. PNG/WebP만(JPEG 금지, 아래 스프라이트 형식 제한 참고). | 없음. **WP2부터 연결된 등급마다 게시에 필수**(아래 게시 준비 참고) |
+| `derived[g].backImageDataUrl` | 뒷면 완성 이미지, 512px 이하·256 KiB 이하. PNG/WebP만(JPEG 금지, 아래 스프라이트 형식 제한 참고). | 없음. **지금 게시를 막지 않는다**(아래 게시 준비 참고) |
 | `derived[g].angleFrames` | `{dataUrl, side:256~512, count:12, columns:4, stepDegrees:15}`. 스프라이트는 정확히 가로 4칸×세로 3칸(`4·side × 3·side`), 1 MiB 이하. 칸 i의 각도는 `−82.5°+15·i`. `dataUrl`은 PNG/WebP만. | 없음. **지금 게시를 막지 않는다** |
 | `derived[g].living` | `{dataUrl, count:8~24, columns:1~8, cellWidth/cellHeight:16~512, periodMs, box:{x,y,w,h}(0~1, x+w≤1, y+h≤1)}`. 스프라이트 크기는 `columns·cellWidth × ⌈count/columns⌉·cellHeight`, 4096px·512 KiB 이하. `dataUrl`은 PNG/WebP만. | 없음 |
 
@@ -97,7 +97,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 
 **스프라이트 형식 제한(`backImageDataUrl`·`angleFrames.dataUrl`·`living.dataUrl`만):** 이 셋은 PNG·WebP만 받고 JPEG는 거절한다(다른 이미지 필드는 여전히 PNG/JPEG/WebP 모두 허용). JPEG의 EXIF `Orientation` 태그는 브라우저가 표시할 때 픽셀을 돌려 보여 주는데, 이 세 필드는 픽셀 좌표로 그대로 자르고 배치하는 스프라이트라 그 회전이 반영되지 않는다(가로 1024×세로 768로 선언한 스프라이트가 Orientation=6이면 실제로는 세로로 찍혀 있을 수 있음). 편집기도 이 셋은 WebP/PNG로만 만든다.
 
-**게시 준비(등급별, 캠페인 목표에 실제로 연결된 등급만, WP2 2026-10-01 갱신):** `living`은 어떤 living 항목이든 그 등급을 목록에 넣었으면 필요하고, 없으면 게시가 409 `COLLECTIBLE_NOT_READY`다. **`backImageDataUrl`은 WP2부터 다시 필수다** — 편집기의 `serializeDerived`가 연결된 등급마다 항상 뒷면 이미지를 만들기 때문이다(아래 "WP2 웹 A 구현 결과" 참고). **`angleFrames`는 WP3(각도 프레임 UI) 범위라 아직 선택이며 게시를 막지 않는다**: 클라이언트는 없을 때 정면 이미지를 그대로 회전해 보여 준다. WP3가 각도 프레임을 만들기 시작하면(metallic/hologram/pearl 효과가 있거나 패럴랙스가 켜진 등급에 한해) 다시 필수로 좁힌다.
+**게시 준비(등급별, 캠페인 목표에 실제로 연결된 등급만, PR #293 리뷰로 2026-10-01 재확정):** `living`은 어떤 living 항목이든 그 등급을 목록에 넣었으면 필요하고, 없으면 게시가 409 `COLLECTIBLE_NOT_READY`다. **`backImageDataUrl`은 선택으로 남긴다** — 새 편집기의 `serializeDerived`는 연결된 등급마다 항상 뒷면 이미지를 만들지만, 배포 스큐 동안 이미 열려 있던 구 편집기 탭이나 v1에서 올라온 기존 프로젝트는 이 필드 없이 게시를 시도할 수 있어 필수로 두면 그 순간 게시가 전부 막힌다. 클라이언트는 없을 때 기존 모습으로 대체한다. **`angleFrames`는 WP3(각도 프레임 UI) 범위라 아직 선택이며 게시를 막지 않는다**: 클라이언트는 없을 때 정면 이미지를 그대로 회전해 보여 준다. WP3가 각도 프레임을 만들기 시작하면(metallic/hologram/pearl 효과가 있거나 패럴랙스가 켜진 등급에 한해) 다시 필수로 좁힌다.
 
 **의도적 완화:** `stickers[].align/layouts`와 `motion[].playback`은 서버에서 여전히 선택 항목이다(없으면 위 기본값을 채운다) — WP2 편집기는 항상 이 필드를 채워 보내지만, 과거에 저장된 v1 프로젝트를 올리는 옛 탭이나 API를 직접 쓰는 호출도 계속 받아야 하기 때문이다.
 
