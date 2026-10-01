@@ -52,6 +52,8 @@ import {
   MintRequestError, mintConsentVersionFromEnv, refuseMintRequestsWhilePreparing, type MintRequestService,
 } from './mint-request-service.js';
 import { ReversalError, type ReversalService } from './reversal.js';
+import { MileageShopError, type MileageShopService } from './mileage-shop.js';
+import { isMileageGrade } from './mileage-rules.js';
 import {
   RecommendationService,
   type RecommendationReader,
@@ -80,6 +82,7 @@ import { PostgresNftMetadataReader } from './postgres/nft-metadata.js';
 import { PostgresStaffRegistration, StaffRegistrationError } from './postgres/staff-registration.js';
 import { PostgresMintRequestService } from './postgres/mint-request-service.js';
 import { PostgresReversalService } from './postgres/reversal.js';
+import { PostgresMileageShopService } from './postgres/mileage-shop.js';
 import { PostgresRecommendationSource } from './postgres/recommendation.js';
 import { PostgresChallengeStore } from './postgres/wallet-challenge-store.js';
 import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
@@ -215,6 +218,7 @@ export function createApiServer(
   consent?: ConsentService,
   nftMetadata?: NftMetadataReader,
   collectibleProjects?: CollectibleProjectService,
+  mileageShop?: MileageShopService,
 ) {
   // The receipt lookup needs no login, so it is throttled per client instead (a receipt has 80 bits, this only stops floods).
   const deletionStatusLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60_000 });
@@ -937,6 +941,51 @@ export function createApiServer(
         return;
       }
 
+      if (request.method === 'GET' && request.url === '/shop') {
+        if (!mileageShop) throw new RequestError(503, 'MILEAGE_SHOP_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        sendJson(response, 200, await mileageShop.getShop(accountId));
+        return;
+      }
+
+      if (request.method === 'GET' && path === '/shop/history') {
+        if (!mileageShop) throw new RequestError(503, 'MILEAGE_SHOP_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const cursor = new URL(request.url!, 'http://localhost').searchParams.get('cursor');
+        sendJson(response, 200, await mileageShop.getHistory({
+          accountId, ...(cursor !== null ? { cursor } : {}),
+        }));
+        return;
+      }
+
+      if (request.method === 'POST' && request.url === '/shop/rerolls') {
+        if (!mileageShop) throw new RequestError(503, 'MILEAGE_SHOP_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        if (Object.keys(body).some((key) => !['grade', 'requestId', 'expectedRemaining'].includes(key))) {
+          throw new RequestError(400, 'INVALID_REQUEST');
+        }
+        const grade = requireString(body, 'grade');
+        if (!isMileageGrade(grade)) throw new RequestError(400, 'INVALID_REQUEST');
+        const requestId = requireString(body, 'requestId');
+        if (requestId.length > 128) throw new RequestError(400, 'INVALID_REQUEST');
+        const expectedRemaining = requireNumber(body, 'expectedRemaining');
+        if (expectedRemaining < 0) throw new RequestError(400, 'INVALID_REQUEST');
+        sendJson(response, 201, await mileageShop.reroll({ accountId, grade, requestId, expectedRemaining }));
+        return;
+      }
+
+      if (request.method === 'PUT' && request.url === '/shop/avatar') {
+        if (!mileageShop) throw new RequestError(503, 'MILEAGE_SHOP_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        if (Object.keys(body).some((key) => key !== 'itemId')) throw new RequestError(400, 'INVALID_REQUEST');
+        const itemId = body.itemId;
+        if (itemId !== null && typeof itemId !== 'string') throw new RequestError(400, 'INVALID_REQUEST');
+        sendJson(response, 200, await mileageShop.setAvatar({ accountId, itemId }));
+        return;
+      }
+
       if (request.method === 'GET' && request.url === '/recommendations') {
         if (!recommendations) {
           throw new RequestError(503, 'RECOMMENDATIONS_NOT_CONFIGURED');
@@ -1314,6 +1363,13 @@ export function createApiServer(
       }
       if (error instanceof ReversalError) {
         sendJson(response, statusForReversal(error.code), { code: error.code });
+        return;
+      }
+      if (error instanceof MileageShopError) {
+        if (error.retryAfterSeconds !== undefined) {
+          response.setHeader('Retry-After', String(error.retryAfterSeconds));
+        }
+        sendJson(response, statusForMileageShop(error.code), { code: error.code });
         return;
       }
       if (error instanceof ConsentError) {
@@ -1702,6 +1758,16 @@ function statusForReversal(code: string): number {
   return 409;
 }
 
+function statusForMileageShop(code: string): number {
+  if (code === 'INVALID_REQUEST') return 400;
+  if (code === 'SHOP_INSUFFICIENT_MILEAGE') return 402;
+  if (code === 'SHOP_ITEM_NOT_OWNED') return 404;
+  if (code === 'ACCOUNT_DELETED') return 410;
+  if (code === 'SHOP_RATE_LIMITED') return 429;
+  // SHOP_GRADE_COMPLETE, SHOP_STATE_CHANGED, SHOP_REQUEST_CONFLICT
+  return 409;
+}
+
 type MerchantArtRoute =
   | { kind: 'state' | 'create' | 'reset' }
   | { kind: 'get' | 'choose' | 'apply'; roundId: string };
@@ -2016,6 +2082,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const friends = pool && accountLifecycle
     ? new PostgresFriendService(pool, { accountLifecycle })
     : undefined;
+  // 운영·시연 모두 pool·accountLifecycle만 있으면 동작한다(시연 전용 게이트 없음, design-298.md).
+  const mileageShop = pool && accountLifecycle
+    ? new PostgresMileageShopService(pool, { accountLifecycle })
+    : undefined;
   // 동의 기록(D-059): 앱 경로 값은 시연 서버면 SHOWCASE_APP, 운영이면 ANDROID다. 쓰기 요청은 막지 않고 required만 알린다.
   const consent = pool && accountLifecycle
     ? new PostgresAccountConsentService(pool, {
@@ -2143,6 +2213,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       staffMayManageArt: aiArtConfig.staffMayManage,
       ...(accountLifecycle ? { accountLifecycle } : {}),
     }) : undefined,
+    mileageShop,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

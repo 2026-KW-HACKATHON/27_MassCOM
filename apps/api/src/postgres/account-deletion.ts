@@ -375,6 +375,13 @@ async function pseudonymizeAccount(
   // 동의 기록(Issue #253)은 가명으로 남기지 않고 지운다: 삭제된 계정이 무엇에 언제 동의했는지 남길 이유가 없다.
   // 동의 기록은 같은 계정 잠금을 잡으므로(assertActive) 이 거래와 직렬화되어 삭제 뒤에 행이 생기지 않는다.
   await client.query('DELETE FROM account_consents WHERE account_id = $1', [accountId]);
+  // 마일리지 상점(Issue #298)도 가명으로 남기지 않고 지운다: 보존 기간이 없다. 재뽑기·소유 캐릭터·대표 캐릭터는
+  // 같은 계정 잠금(assertActive, postgres/mileage-shop.ts)을 잡으므로 이 거래와 직렬화되어 삭제 뒤에 생기지 않는다.
+  // account_profile은 FK ON DELETE SET NULL로 account_characters보다 먼저 지워도 대표만 비워지지만,
+  // 어차피 계정 자체를 지우는 거래라 순서를 가릴 필요 없이 둘 다 지운다.
+  await client.query('DELETE FROM account_profile WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM account_characters WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM mileage_spends WHERE account_id = $1', [accountId]);
   // AI 가게 그림 라운드는 가게의 자산이라 지우지 않고 요청자 열만 비운다(가게 그림·비용 기록에는 계정 ID가 없다).
   await client.query(
     'UPDATE merchant_art_rounds SET requested_by_account_id = NULL WHERE requested_by_account_id = $1',
