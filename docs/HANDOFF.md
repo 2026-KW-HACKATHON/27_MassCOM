@@ -12,6 +12,15 @@
 - `NOT_RUN`: 실기기·에뮬레이터(`MassCOM_Design_QA`) 시각 확인(홈 머리글/보상 카드, 도감 앨범 첫 화면, 폴드 펼친 모습을 라이트·다크·글자 200%로)은 이번 세션에서 돌리지 않았다 — 오케스트레이터가 별도로 진행한다.
 - 다음 작업: 독립 리뷰, 실기기·에뮬레이터 시각 확인, PR 생성.
 
+## 2026-10-01 봉투 열기 연출 (Issue #297, 브랜치 `feat/297-envelope-reveal`)
+
+- 기준: main `0234a15`, worktree `.worktrees/297-envelope`, PR 미정.
+- 배경: 팀원 피드백으로 방문 수령 뒤 받은 수집품(1·3·5회가 한 번에 여럿이면 모두)을 카드 팩을 여는 듯한 연출로 보고 싶다는 요청. 참고 영상(contact sheet)은 경험 참고일 뿐 다른 게임의 로고·카드 틀·팩 디자인은 복제하지 않았다.
+- 구현(파일 범위 한정, 운영·시연 공통 코드): `apps/mobile/src/screens/collection/envelope/`에 순수 로직 `envelope-state.ts`(카드 넘기기/되돌리기 `stepCard`·`startCards`, `collectible-groups.ts`의 그룹화를 재사용한 NEW 판정 `newEntitlementIds`, 전체 보유 종류 수 5/10/20… 문턱 교차 판정 `milestoneForBatch`, 배치의 가게 시리즈 찾기 `seriesForBatch`)+`envelope-state.test.ts`, 연출 자체 `envelope-reveal.tsx`(idle 봉투 "눌러 열어요" → 흔들기·찢기 빛 → 카드 한 장씩 뒤집기(스와이프/탭 넘기기, 점 표시) → 끝 카드(도감 보관+시리즈 진행 칩+달성 축하, "자세히 보기"/"닫기"))+`envelope-reveal.test.ts`, 카드 뒤집기 `envelope-card.tsx`(NEW 배지, shine/sparkle 모션이 있으면 두 번 스윕, 없으면 한 번의 빛 스윕), 손그림 SVG `envelope-glyphs.tsx`(봉투·마스코트 나뭇잎 문장, 참고 게임 자산 없음). `collectible-reveal.tsx`는 데이터 준비(엔타이틀먼트 목록 전부 로드, 부분 실패는 로드된 카드만으로 진행, 전부 실패했을 때만 실패 화면)만 맡고 연출은 `EnvelopeReveal`에 위임하도록 다시 썼다(+`collectible-reveal.test.ts` 계약 갱신). 봉투 찢기 전환은 획득 연출이 이미 쓰던 `reveal-lifecycle.ts`의 `RevealLifecycle`을 **수정 없이 그대로 재사용**한다(동작 줄이기·백그라운드·언마운트 처리가 이미 검증돼 있음) — 단 그 인스턴스는 사람이 실제로 봉투를 탭한 뒤에만 만든다(마운트 시 바로 만들면 `stage`가 생성 즉시 `'opening'`이라 열지도 않은 봉투가 백그라운드만으로 자동 완료돼 버린다; `envelope-reveal.test.ts`가 이 순서를 고정한다). `claim-redeem/index.tsx`는 `findGrantedArtwork`가 외형 붙은 보상 전부를 목표(`targetVisitCount`) 오름차순으로 모아 `entitlementIds`로 쥐고 `entitlement` 라우트 파라미터에 쉼표로 묶어 넘긴다(+`index.test.ts` 계약 갱신). `collection/index.tsx`는 그 파라미터를 쉼표로 나눠 각 id를 기존 `resolveCollectibleLink`/`collectibleFocusAction`(수정 없음)으로 하나씩 판정해 모으고, `revealEntitlement` state를 `entitlementIds` 배열로 바꿔 이미 갖고 있던 `collection.collectibles`·`storeSeries`를 그대로 넘긴다(새 네트워크 요청 없음).
+- 검증: `npm test --prefix apps/mobile` 956/956 PASS(신규 28건: envelope-state 14 + envelope-reveal 3 + collectible-reveal 4 갱신 + claim-redeem index.test.ts 1건 갱신 + 기존 merchant-art 허용 목록 1줄), `npm run typecheck --prefix apps/mobile` PASS, `npm run lint --prefix apps/mobile` PASS(무사용 import 경고 1건 수정 후 0), `bash tools/gate.sh` PASS. 변이 시험 3건을 임시 사본으로 되돌려 실제로 실패하는지 확인: `stepCard`의 끝 카드→마지막 카드 복귀 오프바이원, `newEntitlementIds`의 `every`→`some` 완화, `milestoneForBatch`의 `<`→`<=` 경계(이 경계는 처음엔 기존 시험으로 못 잡아 `milestoneForBatch does not re-report...` 시험을 새로 추가한 뒤 확인). 셋 다 되돌리면 실패, 복구하면 통과.
+- `NOT_RUN`: 실기기·에뮬레이터 캡처(라이트·다크·글자 200%)는 이번 세션에서 돌리지 않았다.
+- 다음 작업: PR 생성과 CI, 실기기/에뮬레이터 캡처(로컬 QA 레시피), 사람 UX 판정(흔들기·찢기·카드 넘김 속도감).
+
 ## 2026-10-01 병합 충돌 표시 검사 (Issue #291, 브랜치 `fix/291-conflict-markers`)
 
 - 기준: main `eed9d11`(PR #290 병합 결과), worktree `.worktrees/291-conflict-markers`, PR 번호 미정.

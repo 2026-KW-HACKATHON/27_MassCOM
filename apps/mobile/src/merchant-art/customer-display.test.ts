@@ -46,6 +46,7 @@ test('customer screens use the art bridge except for validated acquired inline m
     'screens/collection/index.tsx',
     'screens/collection/collectible-detail.tsx',
     'screens/collection/collectible-reveal.tsx',
+    'screens/collection/envelope/envelope-card.tsx',
     'screens/collection/collectible-browser.tsx',
     'screens/collection/collectible-share.tsx',
   ]);
