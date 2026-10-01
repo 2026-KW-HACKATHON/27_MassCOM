@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 2,
+  "name": "월계 도장",
+  "campaignId": "campaign-a",
+  "theme": {
+    "name": "우리 가게"
+  },
+  "photo": {
+    "originalDataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
+    "width": 1,
+    "height": 1
+  },
+  "shape": "circle",
+  "crop": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "photoEdits": {
+    "brightness": 0,
+    "contrast": 0,
+    "merge": 0,
+    "simplify": 0,
+    "cartoon": 0,
+    "strokes": []
+  },
+  "style": "original",
+  "baseColor": "#bf8149",
+  "photoColor": 100,
+  "relief": 45,
+  "stickers": [
+    {
+      "id": "sticker-1",
+      "kind": "text",
+      "text": "환영해요 고마워요",
+      "x": 0.5,
+      "y": 0.5,
+      "size": 42,
+      "rotation": 0,
+      "color": "#ffffff",
+      "order": 0,
+      "align": "center",
+      "layouts": {}
+    }
+  ],
+  "grades": [
+    {
+      "id": "bronze",
+      "name": "브론즈",
+      "kind": "basic",
+      "enabled": true
+    },
+    {
+      "id": "custom",
+      "name": "가게 특별판",
+      "kind": "special",
+      "enabled": true
+    }
+  ],
+  "effects": [
+    {
+      "id": "effect-1",
+      "type": "glow",
+      "target": "surface",
+      "gradeIds": [
+        "custom"
+      ],
+      "strength": 50,
+      "color": "#ffaa00",
+      "roughness": 20
+    }
+  ],
+  "motion": [
+    {
+      "id": "motion-1",
+      "type": "confetti",
+      "gradeIds": [
+        "custom"
+      ],
+      "playback": "loop",
+      "particle": "confetti"
+    }
+  ],
+  "thickness": 8,
+  "angle": 0,
+  "greeting": "다시 찾아주셔서 고마워요.",
+  "audio": null,
+  "story": {
+    "type": "zoom",
+    "frames": [],
+    "cartoon": 0,
+    "strength": 50
+  },
+  "derived": {
+    "bronze": {
+      "imageDataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
+      "thumbnailDataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=="
+    },
+    "custom": {
+      "imageDataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
+      "thumbnailDataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg=="
+    }
+  },
+  "rewardGrades": {
+    "1": "bronze",
+    "3": "custom"
+  },
+  "back": {
+    "mode": "default",
+    "color": "#bf8149",
+    "stickers": []
+  },
+  "greetingOverrides": [],
+  "parallax": {
+    "strength": 0,
+    "strokes": []
+  },
+  "living": {
+    "periodMs": 2400,
+    "items": []
+  }
+}

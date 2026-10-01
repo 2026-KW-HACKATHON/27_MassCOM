@@ -60,7 +60,7 @@ test('story publish count follows actual mode: base zoom uses one original, wide
 test('publication snapshot contains final assets, grade scoped effects and animation but no originals or source editor metadata', () => {
   const snapshot = collectibleSnapshot(photoProject(), 'project-id', 'publication-id', 'custom');
   assert.equal(snapshot.animation,'float'); assert.equal(snapshot.gradeName,'가게 특별판'); assert.equal(snapshot.effects.length,1);
-  assert.deepEqual(Object.keys(snapshot).sort(), ['projectId','publicationId','gradeId','gradeName','name','shape','theme','imageDataUrl','thumbnailDataUrl','thickness','angle','animation','greeting','audio','story','effects'].sort());
+  assert.deepEqual(Object.keys(snapshot).sort(), ['projectId','publicationId','gradeId','gradeName','name','shape','theme','imageDataUrl','thumbnailDataUrl','backImageDataUrl','thickness','angle','animation','motions','greeting','audio','story','effects'].sort());
   assert.equal(collectibleSnapshot(photoProject(),'p','pub','bronze').effects.length,0);
 });
 
@@ -217,7 +217,7 @@ test('derived images are capped at the editor canvas sizes while originals may s
     return `data:image/png;base64,${png.toString('base64')}`;
   };
   const ok = photoProject(); ok.photo = { originalDataUrl: sized(4000, 3000), width: 4000, height: 3000 };
-  ok.derived.bronze = { imageDataUrl: sized(512, 512), thumbnailDataUrl: sized(160, 160), baseDataUrl: sized(512, 512) };
+  ok.derived.bronze = { imageDataUrl: sized(512, 512), thumbnailDataUrl: sized(160, 160), baseDataUrl: sized(512, 512), backImageDataUrl: tinyPng };
   ok.story = { type: 'wide', frames: [{ dataUrl: sized(2000, 1000), width: 2000, height: 1000, previewDataUrl: sized(512, 320) }], cartoon: 0, strength: 50 };
   validateCollectibleProject(ok, true);
   const mutations: ((p: ReturnType<typeof photoProject>) => void)[] = [
