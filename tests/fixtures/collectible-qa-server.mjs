@@ -51,7 +51,8 @@ createServer(async (request,response) => {
     }
     const names=new Map([['/merchant/','merchant.html'],['/app/','index.html']]);
     let file=names.get(path);
-    if(!file){const match=path.match(/^\/(?:(?:app|merchant)\/)?assets\/([a-z-]+\.(?:mjs|css|png))$/);if(match)file=`assets/${match[1]}`;}
+    // mascot/<pose>.png처럼 assets 아래 한 단계 더 들어간 경로(server.mjs의 마스코트 스티커·뒷면 도장 자산)도 허용한다.
+    if(!file){const match=path.match(/^\/(?:(?:app|merchant)\/)?assets\/([a-z0-9-]+\/)?([a-z0-9-]+\.(?:mjs|css|png))$/);if(match)file=`assets/${match[1]??''}${match[2]}`;}
     if(!file){response.writeHead(404).end();return;}
     const bytes=await readFile(new URL(file,root));
     const mime=file.endsWith('.mjs')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.png')?'image/png':'text/html; charset=utf-8';

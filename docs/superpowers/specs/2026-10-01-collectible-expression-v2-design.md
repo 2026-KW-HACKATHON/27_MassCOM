@@ -29,7 +29,9 @@ parallax    {strength 0..100, strokes [{tool 'fg'|'bg', size .01..0.2, points [{
 living      {periodMs 1000..4000, items [{id, kind 'sway'|'bob'|'steam'|'blink', target 'region'|<앞면 스티커 id>, gradeIds,
              amplitude 0..100, pivot {x,y} 0..1 얼굴 좌표, strokes(region 대상만, 1..20)}] ≤4}
             blink는 오직 pose ∈ MASCOT_BLINK인 mascot 스티커에서만; parallax+living 점 합계 ≤ 20,000
-derived[g]  v1 키 유지(baseDataUrl/effectMasks는 이제 선택, 더 이상 만들지 않음) +
+derived[g]  v1 키 유지(baseDataUrl/effectMasks는 서버 계약상 선택이며, 뷰어가 각도별 효과 재합성에 아직 쓰므로
+            WP2 편집기는 연결된 등급에 한해 다시 만든다 — PR #293 P2 반영. WP3가 angleFrames를 실제로
+            쓰기 시작하면 그 등급·효과는 다시 뺄 수 있다) +
   backImageDataUrl  ≤512², ≤256 KiB
   angleFrames {dataUrl, side 256..512 정수, count 12, columns 4, stepDegrees 15}; 스프라이트는 정확히 4side×3side, ≤1 MiB; i번째 칸 = −82.5°+15i
   living {dataUrl, count 8..24, columns 1..8, cellWidth/cellHeight 16..512, periodMs, box {x,y,w,h} 0..1, x+w≤1, y+h≤1};
@@ -57,7 +59,7 @@ v1→v2 업그레이드는 순수 함수이며 멱등이다. `upgradeProject`(mo
 ## 서버 검증·스냅샷·상한·저장
 
 - 검증: 새 `object()` 키 집합, 새 ID에 `id()`. 참조 관계(레이아웃 키·override/living의 gradeIds ⊆ grades, living 대상 ⊆ 앞면 스티커, 효과 대상은 앞면 전용 유지)도 검사한다. 스프라이트는 `validateCollectibleMedia` + 정확한 치수 검사를 거친다. 애니메이션 WebP는 여전히 거절한다. 저장·스냅샷 시점에 새 이미지 3종에 `stripImageMetadata`를 적용한다.
-- 게시 준비(`rules.ts:169` 확장), 연결된 등급마다: `backImageDataUrl`은 항상 필요. metallic/hologram/pearl이 있거나 `parallax.strength>0`이면서 획이 있으면 `angleFrames` 필요. 어떤 living 항목이든 이 등급을 나열하면 `living` 필요. 없으면 `COLLECTIBLE_NOT_READY`. **구현 결과(PR #288, Codex 리뷰 P1 반영, 2026-10-01):** `backImageDataUrl`·`angleFrames`는 지금 편집기(`serializeDerived`)가 아직 만들지 않아 이 둘을 필수로 두면 병합 즉시 모든 웹 게시가 막힌다. 두 필드 모두 당분간 선택으로 완화했고(클라이언트가 없을 때를 이미 대비: 뒷면 없음 → 기존 모습, 프레임 없음 → 정면 회전), `living`만 원안대로 필수다(지금 편집기로는 living 항목을 만들 수 없어 항상 안전). WP2가 뒷면을, WP3가 각도 프레임을 실제로 만들기 시작하면 다시 필수로 좁힌다.
+- 게시 준비(`rules.ts:169` 확장), 연결된 등급마다: `backImageDataUrl`은 항상 필요. metallic/hologram/pearl이 있거나 `parallax.strength>0`이면서 획이 있으면 `angleFrames` 필요. 어떤 living 항목이든 이 등급을 나열하면 `living` 필요. 없으면 `COLLECTIBLE_NOT_READY`. **구현 결과(PR #288, Codex 리뷰 P1 반영, 2026-10-01):** `backImageDataUrl`·`angleFrames`는 지금 편집기(`serializeDerived`)가 아직 만들지 않아 이 둘을 필수로 두면 병합 즉시 모든 웹 게시가 막힌다. 두 필드 모두 당분간 선택으로 완화했고(클라이언트가 없을 때를 이미 대비: 뒷면 없음 → 기존 모습, 프레임 없음 → 정면 회전), `living`만 원안대로 필수다(지금 편집기로는 living 항목을 만들 수 없어 항상 안전). WP2가 뒷면을, WP3가 각도 프레임을 실제로 만들기 시작하면 다시 필수로 좁힌다. **PR #293 리뷰 반영(2026-10-01):** WP2 중간 커밋이 `backImageDataUrl`을 "편집기가 이제 항상 만드니 다시 필수"로 좁혔으나, 이미 열려 있던 구 편집기 탭·v1에서 올라온 기존 프로젝트는 배포 스큐 동안 이 필드 없이 게시를 시도할 수 있어 그 순간 모든 게시가 막힌다는 지적(Codex gpt-6.1-sol P1)에 따라 다시 선택으로 되돌렸다. 최종 상태는 PR #288과 동일(선택, 클라이언트 폴백에 의존)하며 `living`만 필수인 것도 그대로다.
 - `collectibleSnapshot`(`rules.ts:379-403`): `greeting`은 가장 구체적인 override(등급+테마 > 등급 > 테마 > 기본, 동점은 배열 순서) — 여전히 문자열 하나다. `animation`은 첫 `loop` 모션 타입 또는 `'still'`(v1 enum, 업그레이드된 v1과 오늘 결과가 같다). 새 필드: `motions:[{type,playback,particle?}]`, `backImageDataUrl`, `angleFrames`, `living`. 획·마스크·원본은 절대 포함하지 않는다. 라우트·권한 변경 없음.
 - 본문 상한: 8 MiB 유지(`collectible-project.ts:3`). v2 추정 ≤3등급 × (이미지 ~120K + 뒷면 ~30K + 프레임 ~250–450K + living ~80K) ≈ base64 2.5 MB(오늘은 4등급 ≈ 1.4 MB). 편집기 크기 사다리: 프레임 한 변 448→384→320→256, 화질 .85→.7, `publishSizeProblem` 통과할 때까지, 그 다음은 기존 초과 안내. QA에서 413을 보면 12 MiB로 올리는 것을 대비(WP1에서 검토한 설정 변경).
 - 저장: migration 없음. 스프라이트는 불변 `collectible_publication_grades.detail`에 산다. v1 행은 다시 쓰지 않는다.
