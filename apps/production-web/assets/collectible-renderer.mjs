@@ -1,6 +1,6 @@
 import {
   shapePoints, cropTransform, effectsForGrade, cloneProject, resolveSticker, stickerLines, stickerLineOffsets, particleAt, ONCE_MS,
-  strokeAlpha, parallaxOffset, livingFrameAt, livingSpriteCount, livingSpriteGrid, livingBoundingBox, angleFrameIndex, MASCOT_BLINK,
+  strokeAlpha, parallaxOffset, livingPhaseAt, livingFrameAt, livingSpriteCount, livingSpriteGrid, livingBoundingBox, angleFrameIndex, MASCOT_BLINK,
 } from './collectible-model.mjs';
 
 // Originals and editing instructions stay separate. Preview buffers are bounded
@@ -16,8 +16,10 @@ const boundedSet = (cache, key, value, max) => {
   return value;
 };
 // 패럴랙스 전경 마스크는 획 키(JSON)로만 바뀌므로 "마스크는 획 키로 캐시한다"(설계 문서) 그대로 한 장만 보관한다.
-let parallaxMaskCache = { key: '', size: 0, canvas: null };
-export function clearCollectibleRenderCache() { imageCache.clear(); photoCache.clear(); resizedSourceCache.clear(); currentPhotoSource = ''; photoGeneration++; parallaxMaskCache = { key: '', size: 0, canvas: null }; }
+// PR #310 리뷰(nit): 패럴랙스 획과 living 항목마다의 합성 획(서로 다른 strokes 배열)이 한 슬롯을 같이 쓰면
+// 매번 서로를 밀어내 캐시가 전혀 안 맞는다(각도 프레임 12칸마다 다시 만듦). 획 배열+크기로 키를 잡은 Map으로 바꾼다.
+const strokeMaskCache = new Map();
+export function clearCollectibleRenderCache() { imageCache.clear(); photoCache.clear(); resizedSourceCache.clear(); currentPhotoSource = ''; photoGeneration++; strokeMaskCache.clear(); }
 
 async function imageFor(source) {
   if (!source) return null;
@@ -235,20 +237,23 @@ async function stickerLayer(sticker, size, effects, angle, time) {
 }
 
 /** project.parallax.strokes의 전경(1)/배경(0) 마스크 캔버스. 획이 바뀌지 않으면 다시 만들지 않는다. */
-function parallaxMaskFor(project, size) {
-  const strokes = project.parallax?.strokes ?? [];
-  const key = JSON.stringify(strokes);
-  if (parallaxMaskCache.key === key && parallaxMaskCache.size === size && parallaxMaskCache.canvas) return parallaxMaskCache.canvas;
-  const alpha = strokeAlpha(strokes, size, size);
-  const canvas = canvasOf(size, size), context = canvas.getContext('2d');
-  const image = context.createImageData(size, size);
+/**
+ * strokes(사진 0..1 좌표)로 width×height 마스크 캔버스를 만든다. 호출부가 "사진 고유 치수"(photo.width/height)를
+ * 넘겨야 한다 — 출력 캔버스 크기(size)를 넘기면 정사각이 아니거나 확대·이동된 사진에서 칠한 자리와 실제로
+ * 움직이는 자리가 어긋난다(PR #310 리뷰 P2: cropTransform과 같은 변환으로 출력에 얹어야 한다).
+ */
+function strokeMaskFor(strokes, width, height) {
+  const key = `${width}x${height}:${JSON.stringify(strokes)}`;
+  const cached = strokeMaskCache.get(key); if (cached) return cached;
+  const alpha = strokeAlpha(strokes, width, height);
+  const canvas = canvasOf(width, height), context = canvas.getContext('2d');
+  const image = context.createImageData(width, height);
   for (let index = 0; index < alpha.length; index++) {
     image.data[index * 4] = image.data[index * 4 + 1] = image.data[index * 4 + 2] = 255;
     image.data[index * 4 + 3] = alpha[index];
   }
   context.putImageData(image, 0, 0);
-  parallaxMaskCache = { key, size, canvas };
-  return canvas;
+  return boundedSet(strokeMaskCache, key, canvas, 24);
 }
 
 /**
@@ -266,8 +271,9 @@ async function paintLivingItem(context, project, item, gradeId, size, phase, pho
     const photoLayer = canvasOf(size, size), photoContext = photoLayer.getContext('2d');
     const transform = cropTransform(project, size, size);
     photoContext.drawImage(photo, transform.x, transform.y, transform.width, transform.height);
-    const mask = parallaxMaskFor({ parallax: { strokes: [{ tool: 'fg', size: .1, points: item.strokes ?? [] }] } }, size);
-    photoContext.globalCompositeOperation = 'destination-in'; photoContext.drawImage(mask, 0, 0); photoContext.globalCompositeOperation = 'source-over';
+    // 패럴랙스와 같은 이유로 마스크는 사진 고유 치수에서 만들고 같은 cropTransform으로 얹는다(PR #310 리뷰 P2).
+    const mask = strokeMaskFor([{ tool: 'fg', size: .1, points: item.strokes ?? [] }], photo.width, photo.height);
+    photoContext.globalCompositeOperation = 'destination-in'; photoContext.drawImage(mask, transform.x, transform.y, transform.width, transform.height); photoContext.globalCompositeOperation = 'source-over';
     if (item.kind === 'steam') {
       context.save(); context.globalAlpha = .35 * (1 - phase);
       for (let puff = 0; puff < 3; puff++) {
@@ -338,10 +344,12 @@ async function frontFor(project, gradeId, size, angle, time, applyEffects = true
       const bgScale = 1 + .08 * parallaxStrength / 100;
       context.save(); context.translate(size / 2 - s / 2, size / 2); context.scale(bgScale, bgScale); context.translate(-size / 2, -size / 2);
       context.drawImage(photoLayer, 0, 0); context.restore();
-      const mask = parallaxMaskFor(project, size);
+      // 마스크는 사진 고유 치수로 만들고, photoLayer를 그릴 때와 같은 cropTransform으로 얹는다(비정사각 사진·확대·
+      // 이동에서도 칠한 자리와 실제로 튀어나오는 자리가 일치해야 한다, PR #310 리뷰 P2).
+      const mask = strokeMaskFor(parallaxStrokes, photo.width, photo.height);
       const fgLayer = canvasOf(size, size), fgContext = fgLayer.getContext('2d');
       fgContext.drawImage(photoLayer, 0, 0);
-      fgContext.globalCompositeOperation = 'destination-in'; fgContext.drawImage(mask, 0, 0); fgContext.globalCompositeOperation = 'source-over';
+      fgContext.globalCompositeOperation = 'destination-in'; fgContext.drawImage(mask, transform.x, transform.y, transform.width, transform.height); fgContext.globalCompositeOperation = 'source-over';
       context.drawImage(fgLayer, s, 0);
     } else {
       context.drawImage(photoLayer, 0, 0);
@@ -461,7 +469,13 @@ export async function renderCollectible(canvas, project, gradeId, options = {}) 
   const playback = options.playback ?? motion?.playback ?? 'loop';
   const particle = options.particle ?? motion?.particle;
   const angle = options.angle ?? project.angle ?? 0;
-  const front = await frontFor(project, gradeId, size, angle + (animation === 'rotate' ? (options.time || 0) / 75 : 0), options.time);
+  let front = await frontFor(project, gradeId, size, angle + (animation === 'rotate' ? (options.time || 0) / 75 : 0), options.time);
+  // 편집기 미리보기도 living 항목(sway/bob/steam/blink)을 시간에 맞춰 보여준다(PR #310 리뷰 P2: 전에는 게시된
+  // 스프라이트를 뷰어만 그리고 편집 중에는 미리 볼 방법이 없었다). 카드 전체 동작(staticFrame, "지금 재생 중인가")과는
+  // 독립적인 시계(livingTime)와 깃발(reducedMotion, "동작 줄이기인가")을 따로 받는다 — 재생 중이 아니어도 living은
+  // 계속 움직이고, 동작 줄이기일 때만 정지 포즈(phase 0)로 고정한다.
+  const livingOverlay = await livingOverlayFor(project, gradeId, size, options.reducedMotion ? 0 : livingPhaseAt(options.livingTime ?? options.time ?? 0, project.living?.periodMs ?? 2400));
+  if (livingOverlay) { const composed = canvasOf(size, size), context = composed.getContext('2d'); context.drawImage(front, 0, 0); context.drawImage(livingOverlay, 0, 0); front = composed; }
   const back = await backFor(project, gradeId, size, options.merchantName || '');
   drawVolume(canvas, front, project, { ...options, animation, playback, particle, back });
 }
@@ -514,9 +528,11 @@ export async function renderPublishedCollectible(canvas, snapshot, options = {})
     }
     front = painted;
   }
-  // living 오버레이는 시간으로 움직이는 칸을 정면 위 박스 자리에 얹는다(동작 줄이기·정지면 t=0 칸).
+  // living 오버레이는 시간으로 움직이는 칸을 정면 위 박스 자리에 얹는다(동작 줄이기면 t=0 칸). 카드 전체 동작
+  // (staticFrame)과는 독립적인 시계(livingTime)를 쓴다 — 회전·반복 모션이 꺼져 있어도 living은 계속 움직인다
+  // (PR #310 리뷰 P2: "aminiation:'still'인 living 전용 프로젝트가 자동재생 안 됨" 수정).
   if (snapshot.living) {
-    const overlay = await livingOverlayCell(snapshot.living, options.staticFrame ? 0 : (options.time || 0));
+    const overlay = await livingOverlayCell(snapshot.living, options.reducedMotion ? 0 : (options.livingTime ?? options.time ?? 0));
     if (overlay) {
       const width = front.naturalWidth || front.width, height = front.naturalHeight || front.height;
       const composed = canvasOf(width, height), context = composed.getContext('2d');
@@ -617,8 +633,13 @@ export async function serializeDerived(project, { extraGradeId, merchantName = '
     const effectMasks = {};
     for (const target of new Set(effectsForGrade(project, grade.id).map(effect => effect.target))) effectMasks[target] = await maskFor(project, grade.id, target, 512);
     derived[grade.id] = { imageDataUrl: encodeImage(front), thumbnailDataUrl: encodeImage(thumbnail), baseDataUrl: encodeImage(base), backImageDataUrl: encodeImage(back), effectMasks };
-    if (gradeNeedsAngleFrames(project, grade.id)) {
-      derived[grade.id].angleFrames = await angleFramesFor(project, grade.id, angleSide, spriteQuality, livingStickerTargets(project, grade.id));
+    const livingStickers = livingStickerTargets(project, grade.id);
+    // PR #310 리뷰 P2: living 스티커만 있고(재질·패럴랙스 없음) 각도 프레임이 없던 등급은, 위 imageDataUrl의
+    // 정지 포즈 스티커 위에 뷰어의 living 오버레이가 겹쳐 그려져(유령처럼 둘 다 보임) 이중으로 보였다.
+    // 재질·패럴랙스가 없어도 living 스티커가 있으면 그 스티커만 뺀 각도 프레임을 만들어(각도 차이는 없지만
+    // 뷰어가 angleFrames를 우선해 쓰면서 정지 포즈를 가린다) 오버레이가 그 자리를 대신하게 한다.
+    if (gradeNeedsAngleFrames(project, grade.id) || livingStickers.size > 0) {
+      derived[grade.id].angleFrames = await angleFramesFor(project, grade.id, angleSide, spriteQuality, livingStickers);
     }
     const living = await livingSpriteFor(project, grade.id, angleSide, spriteQuality);
     if (living) derived[grade.id].living = living;

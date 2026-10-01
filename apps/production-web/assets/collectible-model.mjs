@@ -273,6 +273,30 @@ export function livingSpriteGrid(count, cellWidth, cellHeight, maxSide = 4096, m
  * living 항목(등급 기준)의 패딩된 합집합 박스(0..1, 사진/스티커 좌표). region은 칠한 점들의 min/max, 스티커
  * 대상은 그 스티커의 등급별 배치(resolveSticker) 둘레를 쓴다. 비어 있으면 undefined(그 등급엔 living 스프라이트가 없다).
  */
+/**
+ * 스티커의 (대략) 좌/우/상/하 반경(0..1, size=512 기준). model.mjs는 DOM이 없어 실제 measureText를 못 쓰므로
+ * 가장 긴 줄의 글자 수 × 넉넉한 em 폭으로 추정한다(모자라서 잘리기보다 넘치게, PR #310 리뷰 P2). align에 따라
+ * 글자 블록이 x를 기준으로 한쪽으로만 뻗는 것도 반영한다(stickerLayer의 textAlign과 같은 규칙).
+ */
+function stickerHalfExtent(resolved) {
+  const fontSize = clamp(resolved.size ?? 42, 8, 120, 42);
+  if (resolved.kind === 'mascot') { const half = fontSize / 512; return { left: half, right: half, top: half, bottom: half }; }
+  const lines = stickerLines(resolved.text ?? '');
+  const longest = Math.max(1, ...lines.map((line) => line.length));
+  const width = (longest * fontSize * .95) / 512;
+  const height = (lines.length * fontSize * 1.2) / 512;
+  const align = resolved.align || 'center';
+  const left = align === 'left' ? 0 : align === 'right' ? width : width / 2;
+  const right = align === 'left' ? width : align === 'right' ? 0 : width / 2;
+  return { left, right, top: height / 2, bottom: height / 2 };
+}
+
+/** 가로·세로 반경을 rotationDeg만큼 돌렸을 때의 축 정렬 바운딩 반경. */
+function rotatedHalfExtent(halfW, halfH, rotationDeg) {
+  const r = rotationDeg * Math.PI / 180, c = Math.abs(Math.cos(r)), s = Math.abs(Math.sin(r));
+  return { halfW: halfW * c + halfH * s, halfH: halfW * s + halfH * c };
+}
+
 export function livingBoundingBox(project, gradeId, padding = 0.1) {
   const items = (project.living?.items ?? []).filter((item) => item.gradeIds?.includes(gradeId));
   if (!items.length) return undefined;
@@ -287,9 +311,21 @@ export function livingBoundingBox(project, gradeId, padding = 0.1) {
       const sticker = project.stickers.find((candidate) => candidate.id === item.target);
       if (!sticker) continue;
       const resolved = resolveSticker(sticker, gradeId);
-      const half = clamp(resolved.size ?? 42, 8, 120, 42) / 512 * 1.3;
-      minX = Math.min(minX, resolved.x - half); minY = Math.min(minY, resolved.y - half);
-      maxX = Math.max(maxX, resolved.x + half); maxY = Math.max(maxY, resolved.y + half);
+      const extent = stickerHalfExtent(resolved);
+      // sway/bob은 정지 자리보다 더 넓게 움직인다(각각 6°·3% 상한, renderer.mjs paintLivingItem과 같은 공식).
+      // 이 범위까지 박스에 포함하지 않으면 애니메이션 중 스프라이트 칸 밖으로 잘린다.
+      const swayDeg = item.kind === 'sway' ? (clamp(item.amplitude, 0, 100, 0) / 100) * 6 : 0;
+      const bobFrac = item.kind === 'bob' ? (clamp(item.amplitude, 0, 100, 0) / 100) * .03 : 0;
+      const rotationDeg = (resolved.rotation ?? 0) + swayDeg;
+      let { left, right, top, bottom } = extent;
+      if (rotationDeg) {
+        // 회전이 있으면 비대칭 상자를 정확히 굴리는 대신 가장 넓은 변 기준으로 둥글게 넉넉히 잡는다.
+        const rotated = rotatedHalfExtent(Math.max(left, right), Math.max(top, bottom), rotationDeg);
+        left = right = rotated.halfW; top = bottom = rotated.halfH;
+      }
+      top += bobFrac; bottom += bobFrac;
+      minX = Math.min(minX, resolved.x - left); minY = Math.min(minY, resolved.y - top);
+      maxX = Math.max(maxX, resolved.x + right); maxY = Math.max(maxY, resolved.y + bottom);
     }
   }
   if (minX > maxX || minY > maxY) return undefined;

@@ -54,6 +54,7 @@ export async function openCollectible(doc, item, fetcher, opener) {
   const controller = new AbortController();
   let onVisibility = () => {};
   let stopTilt = () => {};
+  let tiltToggleEl = null;
   const shutdown = () => {
     if (!active) return;
     active = false;
@@ -121,19 +122,24 @@ export async function openCollectible(doc, item, fetcher, opener) {
     let rendering = false;
     let dirty = false;
     let started = 0;
+    // living은 카드 전체 동작(회전·once/loop)과 독립된 시계로 돈다(PR #310 리뷰 P2): animation이 'still'이고
+    // 카드 동작이 하나도 없어도(또는 재생을 멈춰도) living은 연 순간부터 계속 움직인다. 이 값은 pause()에서도
+    // 리셋하지 않는다.
+    const livingStarted = doc.defaultView.performance.now();
     let storyStarted;
     const draw = async () => {
       if (!active) return;
       if (rendering) { dirty = true; return; }
       rendering = true;
       const now = doc.defaultView.performance.now();
+      const livingTime = now - livingStarted, reducedMotion = reduce.checked;
       try {
         if (storyStarted !== undefined) {
-          await renderStory(canvas, { ...snapshot, photo: { originalDataUrl: snapshot.imageDataUrl }, story: snapshot.story }, { time: now - storyStarted, reducedMotion: reduce.checked });
+          await renderStory(canvas, { ...snapshot, photo: { originalDataUrl: snapshot.imageDataUrl }, story: snapshot.story }, { time: now - storyStarted, reducedMotion });
           if (now - storyStarted >= 6000 || reduce.checked) { storyStarted = undefined; dirty = true; }
         } else if (onceMotion) {
           const duration = ONCE_MS[onceMotion.type] ?? 2000;
-          await renderPublishedCollectible(canvas, { ...snapshot, animation: onceMotion.type }, { angle, time: now - started, playback: 'once', particle: onceMotion.particle, staticFrame: reduce.checked });
+          await renderPublishedCollectible(canvas, { ...snapshot, animation: onceMotion.type }, { angle, time: now - started, livingTime, reducedMotion, playback: 'once', particle: onceMotion.particle, staticFrame: reduce.checked });
           if (now - started > duration + 50 || reduce.checked) {
             onceMotion = reduce.checked ? null : (onceQueue.shift() || null);
             started = now; dirty = true;
@@ -141,7 +147,10 @@ export async function openCollectible(doc, item, fetcher, opener) {
         } else {
           // loop 모션의 particle(snow/petals/sparkles)을 넘기지 않으면 drawVolume이 기본값 confetti로 그린다.
           const loopParticle = playing ? (snapshot.motions || []).find(item => item.playback === 'loop' && item.type === snapshot.animation)?.particle : undefined;
-          await renderPublishedCollectible(canvas, playing ? { ...snapshot, animation: snapshot.animation === 'still' ? 'rotate' : snapshot.animation } : snapshot, { angle, time: now - started, particle: loopParticle, staticFrame: !playing || reduce.checked });
+          // living이 있으면 아무 모션도 안 걸린 등급(animation:'still')에 재생을 눌러도 뜬금없는 전체 회전으로
+          // 대신하지 않는다 — living이 이미 움직임을 보여 준다.
+          const fallbackAnimation = snapshot.animation === 'still' && !snapshot.living ? 'rotate' : snapshot.animation;
+          await renderPublishedCollectible(canvas, playing ? { ...snapshot, animation: fallbackAnimation } : snapshot, { angle, time: now - started, livingTime, reducedMotion, particle: loopParticle, staticFrame: !playing || reduce.checked });
         }
       } catch {
         fallback.hidden = false; canvas.hidden = true;
@@ -153,11 +162,17 @@ export async function openCollectible(doc, item, fetcher, opener) {
       }
     };
     const loop = now => {
-      if (!active || doc.hidden || reduce.checked || (!playing && !onceMotion && storyStarted === undefined)) return;
+      if (!active || doc.hidden || reduce.checked) return;
+      if (!playing && !onceMotion && storyStarted === undefined && !snapshot.living) return;
       void draw();
       frame = doc.defaultView.requestAnimationFrame(loop);
     };
-    const pause = () => { playing = false; onceMotion = null; onceQueue = []; doc.defaultView.cancelAnimationFrame(frame); play.textContent = '동작 재생'; };
+    const pause = () => {
+      playing = false; onceMotion = null; onceQueue = []; doc.defaultView.cancelAnimationFrame(frame); play.textContent = '동작 재생';
+      // 카드 전체 동작만 멈춘다. living이 있으면(그리고 동작 줄이기가 아니면) 독립된 시계로 계속 돌아야 하므로
+      // 다시 돌린다(loop 자체는 숨김·동작 줄이기면 스스로 멈춘다).
+      if (snapshot.living && !reduce.checked) frame = doc.defaultView.requestAnimationFrame(loop);
+    };
     play.addEventListener('click', () => {
       if (playing) pause();
       else if (!reduce.checked) { playing = true; onceMotion = null; onceQueue = []; storyStarted = undefined; started = doc.defaultView.performance.now(); play.textContent = '동작 정지'; loop(started); }
@@ -165,7 +180,16 @@ export async function openCollectible(doc, item, fetcher, opener) {
     });
     rotation.addEventListener('input', () => { pause(); angleValue.textContent = `${rotation.value}°`; });
     rotation.addEventListener('change', () => { angle = Number(rotation.value); void draw(); });
-    reduce.addEventListener('change', () => { if (reduce.checked) { pause(); storyStarted = undefined; } void draw(); });
+    reduce.addEventListener('change', () => {
+      if (reduce.checked) {
+        pause(); storyStarted = undefined;
+        // PR #310 리뷰 P2: 기울임이 켜진 채로 동작 줄이기를 켜면 센서 리스너·회전이 그대로 남아 있었다. 끄고,
+        // 다시 켜질 때까지 토글을 눌러도 반응하지 않게 막는다(토글 자체는 그대로 두되 눌러도 안 켜진다).
+        stopTilt();
+      }
+      if (tiltToggleEl) tiltToggleEl.disabled = reduce.checked;
+      void draw();
+    });
     if (snapshot.audio?.dataUrl) {
       audio = element(doc, 'audio'); audio.controls = true; audio.preload = 'none'; audio.src = snapshot.audio.dataUrl;
       audio.setAttribute('aria-label', '사장님 인사말 듣기');
@@ -230,11 +254,18 @@ export async function openCollectible(doc, item, fetcher, opener) {
       const tiltControls = element(doc, 'div', undefined, 'collectible-controls');
       const tiltToggle = element(doc, 'button', '기울여서 보기', 'collection-action');
       tiltToggle.type = 'button'; tiltToggle.setAttribute('aria-pressed', 'false');
+      tiltToggleEl = tiltToggle;
       tiltToggle.addEventListener('click', () => {
+        if (reduce.checked) return; // 동작 줄이기 중에는 토글을 눌러도 켜지지 않는다(disabled로도 막지만 방어적으로 한 번 더).
         if (tiltActive) { stopTilt(); return; }
         const begin = () => { pause(); tiltActive = true; tiltOffset = 0; tiltSmoothed = angle; tiltToggle.setAttribute('aria-pressed', 'true'); tiltToggle.textContent = '기울임 끄기'; doc.defaultView.addEventListener('deviceorientation', firstSample); };
         if (typeof Orientation.requestPermission === 'function') {
-          Orientation.requestPermission().then(state => { if (state === 'granted') begin(); else status.textContent = '기울임 권한이 없어 수동 회전만 쓸 수 있어요.'; }).catch(() => {});
+          Orientation.requestPermission().then(state => {
+            // PR #310 리뷰 P2: iOS 권한 창이 열려 있는 동안 뷰어가 닫히거나(active=false) 숨겨지거나 그 사이
+            // 동작 줄이기가 켜지면, 허용이 뒤늦게 와도 죽은 세션에 리스너를 다시 달지 않는다.
+            if (!active || doc.hidden || reduce.checked) return;
+            if (state === 'granted') begin(); else status.textContent = '기울임 권한이 없어 수동 회전만 쓸 수 있어요.';
+          }).catch(() => {});
         } else begin();
       });
       tiltControls.append(tiltToggle); dialog.insertBefore(tiltControls, close);
@@ -244,7 +275,7 @@ export async function openCollectible(doc, item, fetcher, opener) {
     // loop 모션(반복 재생)이 있으면 손님이 따로 누르지 않아도 바로 보여 준다. 동작 줄이기면 정지 화면을 유지한다.
     if (snapshot.animation && snapshot.animation !== 'still' && !reduce.checked) { playing = true; started = doc.defaultView.performance.now(); play.textContent = '동작 정지'; }
     await draw();
-    if (playing) frame = doc.defaultView.requestAnimationFrame(loop);
+    if (playing || (snapshot.living && !reduce.checked)) frame = doc.defaultView.requestAnimationFrame(loop);
   } catch {
     if (active) status.textContent = '수집품을 불러오지 못했어요. 도감으로 돌아가 다시 열어 주세요. 받은 수집품은 그대로 보관돼요.';
   }

@@ -111,6 +111,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   let brushTarget = 'photo', selectedLivingId = '';
   let active = true, playing = false, storyPlaying = false, frame = 0, renderSequence = 0, cropSequence = 0, previewQueued = false;
   let start = performance.now(), lastFrame = 0, recorder = null, recordingStream = null, recordingTimer = 0;
+  // living 미리보기 전용 시계(PR #310 리뷰 P2). start는 재생·단계 이동마다 리셋되지만(카드 전체 동작용), living은
+  // "지금 보는 등급" 선택이 바뀌어도 계속 흐르는 시간이 필요해 따로 둔다.
+  const livingStart = performance.now();
   let dirty = false, editSerial = 0, busy = false, restoring = false, pointer = null, visible = true, uploadSequence = 0;
   let audioImportSequence = 0, storyImportSequence = 0, recordSequence = 0, recordingPending = false;
   const pendingFiles = new Set();
@@ -572,12 +575,13 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     }
     syncGreetingPreview();
   }
-  async function drawPreview(time = 0) {
+  async function drawPreview(time = 0, livingTime = 0) {
     const sequence = ++renderSequence;
     const copy = cloneProject(project);
     const buffer = document.createElement('canvas'); buffer.width = previewCanvas.width; buffer.height = previewCanvas.height;
     try {
-      await renderCollectible(buffer, copy, selectedGrade, { angle: copy.angle, time, staticFrame: !playing || control('reduce-motion').checked, merchantName });
+      const reducedMotion = control('reduce-motion').checked;
+      await renderCollectible(buffer, copy, selectedGrade, { angle: copy.angle, time, livingTime, reducedMotion, staticFrame: !playing || reducedMotion, merchantName });
       if (!active || sequence !== renderSequence) return;
       previewCanvas.getContext('2d').clearRect(0, 0, 512, 512); previewCanvas.getContext('2d').drawImage(buffer, 0, 0);
       const grade = project.grades.find(item => item.id === selectedGrade);
@@ -648,8 +652,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     frame = 0;
     if (!active || document.hidden || !visible || studio.isHome) return;
     const allowMotion = !control('reduce-motion').checked;
-    if (previewQueued || (playing && allowMotion && now - lastFrame >= 65)) {
-      previewQueued = false; lastFrame = now; await drawPreview(now - start);
+    // living은 재생 버튼과 무관하게 "지금 보는 등급"에 걸려 있으면 계속 움직여야 한다(PR #310 리뷰 P2).
+    const hasLiving = allowMotion && project.living.items.some(item => item.gradeIds.includes(selectedGrade));
+    if (previewQueued || ((playing || hasLiving) && allowMotion && now - lastFrame >= 65)) {
+      previewQueued = false; lastFrame = now; await drawPreview(now - start, now - livingStart);
     }
     if (playing && allowMotion) {
       const tile = view('templates').querySelector(`[data-id="${selectedTemplate}"] canvas`);
@@ -659,7 +665,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       try { await renderStory(storyCanvas, project, { time: now - start, reducedMotion: !allowMotion }); } catch (error) { storyPlaying = false; notice(error.message || '이야기를 재생하지 못했어요. 장면 사진을 확인하고 다시 시도해 주세요.', true); }
       if (now - start >= 6000 || !allowMotion) storyPlaying = false;
     }
-    if (active && visible && !document.hidden && (playing && allowMotion || storyPlaying || previewQueued)) frame = requestAnimationFrame(tick);
+    if (active && visible && !document.hidden && (playing && allowMotion || storyPlaying || previewQueued || hasLiving)) frame = requestAnimationFrame(tick);
   }
   function mediaPending() { return recordingPending || recorder?.state === 'recording' || [...pendingFiles].some(item => item.project === project); }
   function updateMediaLocks() {
