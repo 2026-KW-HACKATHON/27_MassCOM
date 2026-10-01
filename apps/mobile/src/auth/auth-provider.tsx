@@ -13,6 +13,8 @@ import { demoRuntimeConfig, createDemoCredential, isDevelopmentDemoBuild } from 
 import { getPublicApiConfig } from '@/config/public-api';
 import { resolveRuntimeIdentity } from '@/config/showcase-identity';
 import { clearPendingFriendLink } from '@/friends/pending-friend-link';
+import { purgeForeignCollectionPrefs } from '@/screens/collection/collection-prefs';
+import { listCollectionPrefKeys, removeCollectionPrefKeys } from '@/screens/collection/collection-prefs-storage';
 import { purgeForeignWalletSessions } from '@/wallet/account-scope';
 import { createAccountScopedAppKit, walletRuntimeConfig } from '@/wallet/appkit';
 import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
@@ -125,12 +127,26 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     if (appKit) lastAppKitRef.current = appKit;
   }, [appKit]);
 
+  // 아래 purge 호출이 list 조회 중 계정이 다시 바뀌어도, 그 시점에 가장 최근 accountId가 무엇인지 확인할 수 있게 한다.
+  const latestAccountIdRef = useRef(accountId);
+  useEffect(() => {
+    latestAccountIdRef.current = accountId;
+  }, [accountId]);
+
   useEffect(() => {
     if (!accountId) return;
     void purgeForeignWalletSessions({
       accountId,
       listStoredKeys: listAppKitStorageKeys,
       removeStoredKeys: removeAppKitStorageKeys,
+    });
+    // 대표 진열·마스코트 반응 기록도 지갑 세션처럼 계정이 바뀌면 이전 계정 몫을 지운다. isStillCurrent는 이 조회가 끝나기 전에
+    // 계정이 또 바뀌었을 때(빠른 전환) 그 사이 새 계정이 쓴 키를 "다른 계정 것"으로 오인해 지우지 않게 막는다.
+    void purgeForeignCollectionPrefs({
+      accountId,
+      listStoredKeys: listCollectionPrefKeys,
+      removeStoredKeys: removeCollectionPrefKeys,
+      isStillCurrent: () => latestAccountIdRef.current === accountId,
     });
   }, [accountId]);
 

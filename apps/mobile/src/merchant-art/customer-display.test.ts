@@ -40,7 +40,13 @@ test('the collection card no longer reaches into the showcase asset module and n
 });
 
 test('customer screens use the art bridge except for validated acquired inline media; owner art screens can preview API data URLs', () => {
-  const inlineMediaScreens = new Set(['screens/collection/index.tsx', 'screens/collection/collectible-detail.tsx']);
+  const inlineMediaScreens = new Set([
+    'screens/collection/index.tsx',
+    'screens/collection/collectible-detail.tsx',
+    'screens/collection/collectible-reveal.tsx',
+    'screens/collection/collectible-browser.tsx',
+    'screens/collection/collectible-share.tsx',
+  ]);
   const offenders = [...sources(join(src, 'screens')), ...sources(join(src, 'ui'))]
     .map((path) => ({ path, name: relative(src, path).replaceAll('\\', '/') }))
     .filter(({ path, name }) => !name.startsWith('screens/merchant-art/') && !inlineMediaScreens.has(name) && /\{ uri:/.test(readFileSync(path, 'utf8')));
