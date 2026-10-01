@@ -73,14 +73,14 @@ type EarnedRow = { counted_visits: number; distinct_merchants: number; completed
 type SpentRow = { spent: number };
 type Queryable = Pool | PoolClient;
 
+// db가 PoolClient면 한 연결이라 동시에 두 질의를 보낼 수 없다(Pool과 달리 질의를 줄 세워야 한다) —
+// 이 함수가 어느 쪽으로 불려도 안전하도록 항상 순서대로 기다린다.
 async function earnedAndSpent(db: Queryable, accountId: string): Promise<{ earned: number; spent: number }> {
-  const [earnedResult, spentResult] = await Promise.all([
-    db.query<EarnedRow>(earnedMileageSql, [accountId]),
-    db.query<SpentRow>(
-      `SELECT coalesce(sum(amount), 0)::integer AS spent FROM mileage_spends WHERE account_id = $1`,
-      [accountId],
-    ),
-  ]);
+  const earnedResult = await db.query<EarnedRow>(earnedMileageSql, [accountId]);
+  const spentResult = await db.query<SpentRow>(
+    `SELECT coalesce(sum(amount), 0)::integer AS spent FROM mileage_spends WHERE account_id = $1`,
+    [accountId],
+  );
   const row = earnedResult.rows[0]!;
   return {
     earned: computeEarnedMileage({
@@ -220,15 +220,14 @@ export class PostgresMileageShopService implements MileageShopService {
       );
       const previous = existingResult.rows[0];
 
-      const [recentResult, owned, { earned, spent }] = await Promise.all([
-        client.query<{ n: number }>(
-          `SELECT count(*)::integer AS n FROM mileage_spends
-           WHERE account_id = $1 AND created_at > $2`,
-          [input.accountId, new Date(now.getTime() - this.rerollRateLimitWindowMs)],
-        ),
-        ownedItemIds(client, input.accountId),
-        earnedAndSpent(client, input.accountId),
-      ]);
+      // 모두 같은 connection(client)을 쓰므로 Pool.query처럼 동시에 보낼 수 없다(한 번에 하나).
+      const recentResult = await client.query<{ n: number }>(
+        `SELECT count(*)::integer AS n FROM mileage_spends
+         WHERE account_id = $1 AND created_at > $2`,
+        [input.accountId, new Date(now.getTime() - this.rerollRateLimitWindowMs)],
+      );
+      const owned = await ownedItemIds(client, input.accountId);
+      const { earned, spent } = await earnedAndSpent(client, input.accountId);
       const unowned = itemsOfGrade(input.grade).filter((item) => !owned.has(item.id));
       const price = MILEAGE_GRADE_PRICES[input.grade];
       const balance = earned - spent;
