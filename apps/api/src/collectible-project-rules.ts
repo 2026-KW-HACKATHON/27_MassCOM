@@ -216,7 +216,9 @@ function imageDimensions(bytes: Buffer, mime: string): {width: number; height: n
 // 요청으로 수백 ms·수백 MiB를 태울 수 있음). upgrade·구조 복제보다 먼저, 얕게 훑기만 해서 배열 길이와 전체
 // 노드 수를 빠르게 거절한다(이 훑기는 새로 할당하지 않으므로 같은 크기의 입력이라도 훨씬 싸다).
 const MAX_SHAPE_ARRAY_LENGTH = 2000; // 실제로 쓰는 가장 큰 개별 배열 상한(스트로크 점 1,000)보다 넉넉히 커서 정상 입력을 막지 않는다.
-const MAX_SHAPE_NODES = 50_000;
+// 정상 최대치: 사진 붓 100획×1,000점(배열 원소+x·y 키 ≈ 300,500) + 패럴랙스·살아 있는 그림 2만 점(≈ 60,000) + 나머지(수천).
+// 이보다 넉넉히 잡아 정상 입력은 통과시키고, 그 이상은 복제 전에 끊는다. 값을 훑는 비용은 수 ms다.
+const MAX_SHAPE_NODES = 450_000;
 function assertBoundedShape(value: unknown, nodes: { count: number } = { count: 0 }): void {
   if (Array.isArray(value)) {
     if (value.length > MAX_SHAPE_ARRAY_LENGTH) invalid();

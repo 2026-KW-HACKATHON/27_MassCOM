@@ -169,6 +169,15 @@ test('a payload smuggling a huge array is rejected before any deep clone, not af
   assert.ok(performance.now() - startedUnknown < 100);
 });
 
+test('the pre-clone shape budget still admits the largest legitimate brush work (100 strokes x 1,000 points)', () => {
+  const project = richProject();
+  project.photoEdits.strokes = Array.from({ length: 100 }, () => ({
+    tool: 'clean' as const, size: 0.05, color: '#000000',
+    points: Array.from({ length: 1000 }, (_, index) => ({ x: (index % 100) / 100, y: 0.5 })),
+  }));
+  assert.doesNotThrow(() => validateCollectibleProject(project, false));
+});
+
 test('sprite fields (backImageDataUrl, angleFrames, living) accept only PNG/WebP, never JPEG (EXIF Orientation could rotate a pixel-sliced sprite)', () => {
   const jpegUrl = `data:image/jpeg;base64,${Buffer.from([255, 216, 255]).toString('base64')}`;
   const back = richProject(); back.derived.custom!.backImageDataUrl = jpegUrl;
