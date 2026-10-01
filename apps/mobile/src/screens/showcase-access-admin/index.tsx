@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View, useColorScheme } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -6,6 +6,7 @@ import { CommerceApiError, createCommerceApiClient, type PendingShowcaseAccessRe
 import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
 import { ADMIN_CONFIRM_TEXT, ADMIN_CONFIRM_TITLE, decideFailureMessage, listPendingFailureMessage, pendingRowText, staleAfterDecideFailure } from './copy';
+import { createDecideController } from './decide-controller';
 
 type Props = {
   apiUrl: string;
@@ -32,6 +33,12 @@ export function ShowcaseAccessAdminScreen({ apiUrl, credential, onSessionInvalid
   >({ status: 'loading' });
   const [busyId, setBusyId] = useState<string>();
   const [actionError, setActionError] = useState<string>();
+  // gate는 렌더마다 새로 만들지 않고 화면이 계속 들고 있는 값이다: 어느 줄의 확인을 먼저 눌렀든, 결정은 항상 "지금" 다른
+  // 결정이 진행 중인지 묻는다(리뷰 #4 — 오래된 렌더가 캡처한 busyId 스냅샷으로 조용히 아무 일도 하지 않던 문제).
+  const clientRef = useRef(client);
+  useEffect(() => { clientRef.current = client; }, [client]);
+  const controllerRef = useRef<ReturnType<typeof createDecideController> | null>(null);
+  controllerRef.current ??= createDecideController((input) => clientRef.current.decideShowcaseAccessRequest(input));
 
   // 재시도·수락/거절 뒤 새로 불러오기는 이벤트 처리 함수에서 "loading"으로 바꾼 뒤 이 함수로 가져온다.
   // 마운트 때는 effect 안에서 바로 호출한다: 초기 state가 이미 "loading"이라 effect 본문에서 setState를 또 부르지 않는다.
@@ -51,21 +58,18 @@ export function ShowcaseAccessAdminScreen({ apiUrl, credential, onSessionInvalid
     fetchRequests();
   }
 
-  async function decide(request: PendingShowcaseAccessRequest, decision: 'approve' | 'reject') {
-    if (busyId) return;
-    setBusyId(request.id);
-    setActionError(undefined);
-    try {
-      await client.decideShowcaseAccessRequest({ requestId: request.id, decision });
-      load();
-    } catch (error) {
-      const httpStatus = error instanceof CommerceApiError ? error.status : undefined;
-      const code = error instanceof CommerceApiError ? error.code : '';
-      setActionError(decideFailureMessage(httpStatus, code));
-      if (staleAfterDecideFailure(code)) load();
-    } finally {
-      setBusyId(undefined);
-    }
+  function decide(request: PendingShowcaseAccessRequest, decision: 'approve' | 'reject') {
+    return controllerRef.current!.decide(request, decision, {
+      onBegin: (id) => { setBusyId(id); setActionError(undefined); },
+      onSuccess: load,
+      onError: (error) => {
+        const httpStatus = error instanceof CommerceApiError ? error.status : undefined;
+        const code = error instanceof CommerceApiError ? error.code : '';
+        setActionError(decideFailureMessage(httpStatus, code));
+        if (staleAfterDecideFailure(code)) load();
+      },
+      onSettled: () => setBusyId(undefined),
+    });
   }
 
   function confirmApprove(request: PendingShowcaseAccessRequest) {
@@ -99,7 +103,7 @@ export function ShowcaseAccessAdminScreen({ apiUrl, credential, onSessionInvalid
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${pendingRowText(request)} 수락`}
-              disabled={busyId === request.id}
+              disabled={busyId !== undefined}
               onPress={() => confirmApprove(request)}
               style={{ minHeight: 48, justifyContent: 'center' }}
             >
@@ -108,7 +112,7 @@ export function ShowcaseAccessAdminScreen({ apiUrl, credential, onSessionInvalid
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${pendingRowText(request)} 거절`}
-              disabled={busyId === request.id}
+              disabled={busyId !== undefined}
               onPress={() => void decide(request, 'reject')}
               style={{ minHeight: 48, justifyContent: 'center' }}
             >

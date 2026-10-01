@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Linking, Pressable, ScrollView, Text, View, useColorScheme } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
-import { CommerceApiError, createCommerceApiClient, type ShowcaseAccessRequest } from '@/commerce/commerce-api';
+import { CommerceApiError, createCommerceApiClient, type ShowcaseAccessRequest, type ShowcaseAccessState } from '@/commerce/commerce-api';
 import { createMerchantApiClient } from '@/merchant/merchant-api';
 import { findShowcaseStaffMerchant } from '@/merchant/showcase-staff';
+import { useAppForeground } from '@/merchant-art/use-merchant-art';
 import { MerchantArtScreen } from '@/screens/merchant-art';
 import { MerchantArtEntryCard } from '@/screens/merchant-art/entry-card';
 import { StaffClaimScreen } from '@/screens/merchant-claim/staff';
@@ -12,6 +13,7 @@ import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseAccessAdminScreen } from '@/screens/showcase-access-admin';
 import { ACCESS_CONTACT_ADDRESSES, accessMailtoUrl, accessUiState, requestAccessFailureMessage } from '@/showcase/access-copy';
 import { colorsForScheme } from '@/theme/palette';
+import { createAccessPoller, needsPermissionRecheck } from './access-poll';
 
 type Props = {
   apiUrl: string | undefined;
@@ -53,16 +55,19 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
   useEffect(() => {
     if (tour || state.status !== 'allowed') return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (artOpen) setArtOpen(false);
+      // 관리자 화면이 이 화면을 대체하고 있는 동안은 점주 화면으로 돌아가는 것이 먼저다(리뷰 #6):
+      // 그렇지 않으면 상위 BackHandler가 걸려 고객 탐색으로 건너뛰어 버린다.
+      if (adminOpen) setAdminOpen(false);
+      else if (artOpen) setArtOpen(false);
       else onBrowse();
       return true;
     });
     return () => subscription.remove();
-  }, [artOpen, onBrowse, state.status, tour]);
+  }, [adminOpen, artOpen, onBrowse, state.status, tour]);
 
   useEffect(() => {
     if (!apiUrl || !client) return;
-    let active = true;
+    let mounted = true;
     void Promise.all([
       createMerchantApiClient(apiUrl).listMerchants()
         .then(async (merchants) => {
@@ -75,32 +80,52 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
       client.getShowcaseAccessState(),
     ])
       .then(([allowed, accessState]) => {
-        if (!active) return;
+        if (!mounted) return;
+        const nextStatus = allowed ? 'allowed' : 'denied';
         setState(allowed ? { status: 'allowed', ...allowed } : { status: 'denied' });
         setAccess({ status: 'ready', request: accessState.request, approver: accessState.approver });
+        // 이 조회 자체가 이미 APPROVED를 돌려줬는데 점주 권한 쪽이 아직 따라오지 못했다면(리뷰 #1) 다시 확인한다.
+        if (needsPermissionRecheck(accessState.request?.status, nextStatus)) setRetry((value) => value + 1);
       })
       .catch(() => {
-        if (!active) return;
+        if (!mounted) return;
         setState({ status: 'error' });
         setAccess({ status: 'error' });
       });
-    return () => { active = false; };
+    return () => { mounted = false; };
   }, [apiUrl, client, retry]);
 
   // 수락은 다른 기기(관리자 화면)에서 일어날 수 있어 대기 중인 동안 주기적으로 다시 읽고, 수락을 감지하면 위 효과를 다시 돌려 권한을 반영한다.
-  // ponytail: 매 호출마다 setAccess로 effect가 재실행돼 5초 간격 setInterval을 다시 거는 단순한 구현. 대기 요청이 소수인 시연 규모에서는 충분하다.
+  // 이 화면이 투어·그림·관리자 화면으로 가려지거나(화면 포커스) 앱이 배경에 있는 동안은(AppState) 묻지 않는다(리뷰 #3).
+  const focused = !tour && !artOpen && !adminOpen;
+  const foreground = useAppForeground();
+  const active = focused && foreground;
+  const pollPending = Boolean(client) && state.status === 'denied' && access.status === 'ready' && access.request?.status === 'PENDING';
+
+  const applyAccessAnswer = useCallback((next: ShowcaseAccessState) => {
+    setAccess({ status: 'ready', request: next.request, approver: next.approver });
+    if (needsPermissionRecheck(next.request?.status, 'denied')) setRetry((value) => value + 1);
+  }, []);
+
   useEffect(() => {
-    if (!client || state.status !== 'denied' || access.status !== 'ready' || access.request?.status !== 'PENDING') return;
-    const interval = setInterval(() => {
-      void client.getShowcaseAccessState()
-        .then((next) => {
-          setAccess({ status: 'ready', request: next.request, approver: next.approver });
-          if (next.request?.status === 'APPROVED') setRetry((value) => value + 1);
-        })
-        .catch(() => {});
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [client, state.status, access]);
+    if (!active || !pollPending || !client) return;
+    // access-poll.ts: 요청 하나가 끝난 뒤에만 다음을 걸어 GET이 겹치지 않고(리뷰 #2), 이 effect가 정리되면(화면 이탈·배경
+    // 전환·상태 변화) 세대 번호가 바뀌어 그 뒤에 도착하는 응답은 버려진다.
+    const poller = createAccessPoller({
+      poll: () => client.getShowcaseAccessState(),
+      onResult: applyAccessAnswer,
+      shouldContinue: (next) => next.request?.status === 'PENDING',
+    });
+    poller.start();
+    return () => poller.stop();
+  }, [active, pollPending, client, applyAccessAnswer]);
+
+  // 화면으로(또는 앱 전면으로) 돌아왔을 때 한 번 바로 다시 읽는다: 가려져 있는 동안 결정이 났을 수 있다(리뷰 #3).
+  const wasActive = useRef(active);
+  useEffect(() => {
+    if (active && !wasActive.current && pollPending && client) void client.getShowcaseAccessState().then(applyAccessAnswer).catch(() => {});
+    wasActive.current = active;
+  }, [active, pollPending, client, applyAccessAnswer]);
 
   async function startRequest() {
     if (!client || requesting) return;
