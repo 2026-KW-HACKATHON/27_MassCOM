@@ -15,7 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { useAuthSession } from '@/auth/auth-provider';
-import { createBadgeApiClient } from '@/gamification/badge-api';
+import { createBadgeApiClient, type OpenedReward } from '@/gamification/badge-api';
+import { HomeRewardCard } from '@/gamification/home-reward-card';
+import { RewardReveal } from '@/gamification/reward-reveal';
 import { useBadgeBook } from '@/gamification/use-badge-book';
 import type { PublicMerchant } from '@/merchant/merchant-api';
 import { filterMerchants } from '@/merchant/filter-merchants';
@@ -98,6 +100,11 @@ export function MerchantListScreen({ apiUrl }: Props) {
                 <Mascot interactive pose={refreshing ? 'search' : 'explore-map'} size={heroMascotSize(fontScale, 120)} />
               </View>
             </AppHeader>
+            {auth.credential && auth.accountId ? (
+              <View style={styles.rewardCardWrap}>
+                <SignedInRewardCard apiUrl={apiUrl} credential={auth.credential} onSessionInvalid={auth.invalidateSession} />
+              </View>
+            ) : null}
             <View style={styles.header}>
               {merchants.length > 0 ? (
                 <View style={styles.discoveryTools}>
@@ -239,6 +246,45 @@ function SignedInPassportChip({ apiUrl, credential, onSessionInvalid }: {
     void refreshQuietly();
   }, [refreshQuietly]));
   return <PassportChip copy="내 탐험 여권 보기" data={passportChipData(book)} />;
+}
+
+/**
+ * 탐색(홈)의 보상 상자 요약 카드(#296, Option A): 여권 칩과 같은 배지 책을 쓰지만 자기만의 조회를 한 번 더 한다.
+ * ponytail: 칩과 카드가 각자 `/me/badges`를 읽는 건 중복이지만(둘 다 짧은 읽기 전용 호출), 서로 다른 화면 위치에 있어
+ * 하나의 훅으로 묶으면 더 복잡해진다 — 홈 화면에서 칩과 카드를 늘 함께 바꿀 일이 생기면 그때 하나로 올린다.
+ */
+function SignedInRewardCard({ apiUrl, credential, onSessionInvalid }: {
+  apiUrl: string;
+  credential: AccountCredential;
+  onSessionInvalid: () => Promise<void>;
+}) {
+  const router = useRouter();
+  const badgeApi = useMemo(
+    () => createBadgeApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
+  const { book, applyOpened, refreshQuietly } = useBadgeBook(badgeApi);
+  const [revealed, setRevealed] = useState<OpenedReward>();
+  const firstFocus = useRef(true);
+  useFocusEffect(useCallback(() => {
+    if (firstFocus.current) { firstFocus.current = false; return; }
+    void refreshQuietly();
+  }, [refreshQuietly]));
+  const onRevealed = useCallback((result: OpenedReward) => { applyOpened(result); setRevealed(result); }, [applyOpened]);
+  if (!book) return null;
+  return (
+    <>
+      <HomeRewardCard book={book} onOpen={badgeApi.openReward} onRevealed={onRevealed} />
+      <RewardReveal
+        result={revealed}
+        onClose={() => setRevealed(undefined)}
+        onUse={() => {
+          setRevealed(undefined);
+          router.navigate({ pathname: '/collection', params: { focus: 'rewards' } });
+        }}
+      />
+    </>
+  );
 }
 
 function CatalogEmptyState({ onRefresh, refreshing }: { onRefresh: () => void; refreshing: boolean }) {
