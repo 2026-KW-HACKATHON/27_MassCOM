@@ -75,6 +75,7 @@ import { PostgresWebSessionStore } from './postgres/web-session.js';
 import { resolveShowcaseInviteConfig } from './showcase/invite-config.js';
 import { isPermittedShowcaseDatabaseName } from './showcase/local-seed.js';
 import { ShowcaseAccessRequestError, ShowcaseAccessRequestService } from './showcase/access-requests.js';
+import { GuestTrialError, ShowcaseGuestTrialService } from './showcase/guest-trials.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresCollectibleProjectService } from './postgres/collectible-project.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
@@ -188,7 +189,7 @@ export const developmentHeaderReauthenticationGuard: ReauthenticationGuard = (
 
 export function createApiServer(
   service: WalletChallengeService,
-  resolveAccountId: AccountResolver,
+  baseAccountResolver: AccountResolver,
   merchantCatalog?: MerchantCatalog,
   merchantAccess?: MerchantAccessControl,
   claimSlots?: ClaimSlotService,
@@ -222,7 +223,16 @@ export function createApiServer(
   collectibleProjects?: CollectibleProjectService,
   mileageShop?: MileageShopService,
   accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
+  guestTrials?: Pick<ShowcaseGuestTrialService, 'start' | 'resolve'>,
 ) {
+  // 로컬 시연(DEMO 헤더) 배치에서는 체험 세션 Bearer도 받는다(#309). Authorization이 없으면 기존 헤더 해석 그대로이고,
+  // 운영·hosted 해석기(Bearer 세션)는 이미 같은 auth_sessions 행으로 체험 세션을 푼다.
+  const resolveAccountId: AccountResolver = guestTrials && baseAccountResolver === developmentHeaderAccountResolver
+    ? (request) => request.headers.authorization === undefined
+      ? baseAccountResolver(request) : guestTrials.resolve(requireBearerToken(request))
+    : baseAccountResolver;
+  // 로그인 없는 체험 시작은 IP당 15분에 5번(#309). 동시 체험자 상한은 서비스가 따로 지킨다.
+  const guestTrialLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 5, windowMs: 15 * 60 * 1000 });
   // The receipt lookup needs no login, so it is throttled per client instead (a receipt has 80 bits, this only stops floods).
   const deletionStatusLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60_000 });
   // 계정당 5회/시간(#294). IP가 아니라 계정으로 거는 건 승인 전 계정도 로그인은 됐기 때문이다.
@@ -813,6 +823,20 @@ export function createApiServer(
         return;
       }
 
+      // 로그인 없는 시연 웹 체험(#309). guestTrials는 시연 배치에서만 있다: 운영에서는 이 블록을 건너뛰어 맨 아래의 알 수 없는 경로와
+      // 같은 404가 된다.
+      if (guestTrials && request.method === 'POST' && request.url === '/auth/guest-trial') {
+        const decision = guestTrialLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          sendJson(response, 429, { code: 'GUEST_TRIAL_RATE_LIMITED' });
+          return;
+        }
+        requireEmptyBody(await readJson(request, true));
+        sendJson(response, 200, await guestTrials.start());
+        return;
+      }
+
       if (request.method === 'POST' && request.url === '/auth/logout') {
         const sessions = requireAuthSessions(authSessions);
         await sessions.logout(requireBearerToken(request));
@@ -1047,7 +1071,7 @@ export function createApiServer(
           sendJson(response, 'replayed' in issued ? 200 : 201, issued);
         } else {
           if ('useConfirmed' in body) throw new RequestError(400, 'INVALID_REQUEST');
-          if (resolveAccountId !== developmentHeaderAccountResolver) throw new RequestError(403, 'CUSTOMER_IDENTITY_REQUIRED');
+          if (baseAccountResolver !== developmentHeaderAccountResolver) throw new RequestError(403, 'CUSTOMER_IDENTITY_REQUIRED');
           const issued = await claimSlots.issue({ merchantId,
             customerAccountId: requireString(body, 'customerAccountId'),
             merchantReference: requireString(body, 'merchantReference'),
@@ -1436,7 +1460,10 @@ export function createApiServer(
         if (error.retryAfterSeconds !== undefined) {
           response.setHeader('Retry-After', String(error.retryAfterSeconds));
         }
-        sendJson(response, statusForMerchantArt(error.code), { code: error.code });
+        sendJson(response, statusForMerchantArt(error.code), {
+          code: error.code,
+          ...(error.code === 'AI_ART_TRIAL_DISABLED' ? { message: '체험 가게에서는 AI 그림을 만들 수 없어요.' } : {}),
+        });
         return;
       }
       if (error instanceof MerchantAccessError) {
@@ -1452,6 +1479,10 @@ export function createApiServer(
           : error.code === 'STAFF_MERCHANT_NOT_FOUND' || error.code === 'STAFF_NOT_FOUND' ? 404
             : error.code === 'STAFF_CODE_INVALID' ? 400 : 409;
         sendJson(response, status, { code: error.code });
+        return;
+      }
+      if (error instanceof GuestTrialError) {
+        sendJson(response, 503, { code: error.code });
         return;
       }
       if (error instanceof ShowcaseAccessRequestError) {
@@ -1718,6 +1749,7 @@ function statusForFriend(code: string): number {
 function statusForMerchantArt(code: string): number {
   if (code === 'AI_ART_ROUND_NOT_FOUND') return 404;
   if (code === 'AI_ART_DAILY_LIMIT') return 429;
+  if (code === 'AI_ART_TRIAL_DISABLED') return 403;
   if (code === 'AI_ART_NOT_CONFIGURED' || code === 'AI_ART_BUDGET_EXHAUSTED') return 503;
   if (code === 'ACCOUNT_DELETED') return 410;
   return 409;
@@ -2294,6 +2326,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     mileageShop,
     pool && accountDeletionHmacSecret && showcaseDeployment
       ? new ShowcaseAccessRequestService(pool, { accountDeletionHmacSecret }) : undefined,
+    // 로그인 없는 시연 웹 체험(#309)도 권한 요청과 같은 시연 배치에서만 만든다. 운영 로그인에서는 undefined라 경로가 404다.
+    pool && accountDeletionHmacSecret && showcaseDeployment
+      ? new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret }) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });
