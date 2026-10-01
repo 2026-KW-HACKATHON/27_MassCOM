@@ -64,6 +64,11 @@ export function currentReactionEvent(queue: ReactionQueue): ReactionEvent | unde
   return queue[0];
 }
 
+/** The event to show now: only while the collection tab is on screen and no full-screen overlay covers the toast. */
+export function visibleReactionEvent(queue: ReactionQueue, onScreen: boolean): ReactionEvent | undefined {
+  return onScreen ? currentReactionEvent(queue) : undefined;
+}
+
 /** Removes the currently-displayed event from the queue, e.g. when its toast closes. A no-op on an empty queue. */
 export function dismissReactionEvent(queue: ReactionQueue): ReactionQueue {
   return queue.slice(1);
@@ -74,7 +79,9 @@ export function dismissReactionEvent(queue: ReactionQueue): ReactionQueue {
  * undefined if there is nothing new. This is the one place that decides what gets marked shown, and it only ever
  * looks at the queue's head: an event still waiting its turn is never marked shown before it is actually shown.
  */
-export function reactionKeyToPersist(queue: ReactionQueue, alreadyShown: ReadonlySet<string>): string | undefined {
+export function reactionKeyToPersist(queue: ReactionQueue, alreadyShown: ReadonlySet<string>, onScreen = true): string | undefined {
+  // 다른 전체 화면(획득 연출·상세)에 가려져 있거나 탭이 안 보이면 아직 "본 것"이 아니다.
+  if (!onScreen) return undefined;
   const current = currentReactionEvent(queue);
   if (!current) return undefined;
   const key = reactionEventKey(current);

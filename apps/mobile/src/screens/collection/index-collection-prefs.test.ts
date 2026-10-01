@@ -25,5 +25,5 @@ test('a favorite tap is ignored until the saved prefs have loaded, so it cannot 
 test('the collection screen drives reactions through the queue controller, not an inline reimplementation', () => {
   assert.match(source, /reactionKeyToPersist\(/);
   assert.match(source, /dismissReactionEvent\b/);
-  assert.match(source, /currentReactionEvent\(/);
+  assert.match(source, /visibleReactionEvent\(/);
 });

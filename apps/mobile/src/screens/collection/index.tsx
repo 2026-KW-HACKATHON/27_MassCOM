@@ -49,7 +49,7 @@ import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collecti
 import { readFavorites, readShownReactions, writeFavorites, writeShownReactions } from './collection-prefs-storage';
 import { favoritesBaseForWrite, toggleFavorite } from './collection-prefs';
 import {
-  currentReactionEvent,
+  visibleReactionEvent,
   dismissReactionEvent,
   eligibleReactionEvents,
   enqueueReactionEvents,
@@ -134,7 +134,6 @@ export function CollectionScreen({
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   // 화면은 한 번에 하나씩만 반응을 보인다. 큐의 머리만 실제로 보여준 것이라 그것만 "본 것"으로 기록한다(그 아래 effect).
   const [reactionQueue, setReactionQueue] = useState<readonly ReactionEvent[]>([]);
-  const reactionEvent = currentReactionEvent(reactionQueue);
   const { host: shareHost, share: shareCollectible, sharing } = useCollectibleShare();
   const [polling, setPolling] = useState<PollingState>();
   const [binding, setBinding] = useState<ActiveWalletBindingResponse['binding']>();
@@ -163,6 +162,9 @@ export function CollectionScreen({
   // 탭을 떠나면 상세뿐 아니라 획득 연출도 닫는다(둘 다 그 사이 새로 받은 수집품에만 걸린 일회성 화면이다).
   // 탭을 떠날 때 처리 중이던 획득 링크도 버린다(돌아왔을 때 닫았던 연출이 다시 열리지 않게). 링크 처리는 탭이 보일 때만 한다.
   const [tabFocused, setTabFocused] = useState(false);
+  // 마스코트 반응은 도감 탭이 보이고 획득 연출·상세·보상 상자 같은 전체 화면이 덮지 않을 때만 띄우고 "본 것"으로 기록한다.
+  const reactionOnScreen = tabFocused && !revealEntitlement && !collectibleDetail && !revealed;
+  const reactionEvent = visibleReactionEvent(reactionQueue, reactionOnScreen);
   useFocusEffect(useCallback(() => {
     setTabFocused(true);
     return () => {
@@ -259,11 +261,11 @@ export function CollectionScreen({
   // 큐의 머리만 화면에 실제로 뜬 것이므로 그것만 "본 것"으로 기록한다: 한 틱에 여러 개가 자격을 얻어도 하나씩만 보이고,
   // 나머지는 자기 차례가 와서 실제로 보일 때 각자 기록된다(한꺼번에 지금 다 기록하면 아직 안 보여준 것도 사라진다).
   useEffect(() => {
-    const key = reactionKeyToPersist(reactionQueue, shownReactions.current);
+    const key = reactionKeyToPersist(reactionQueue, shownReactions.current, reactionOnScreen);
     if (!key) return;
     shownReactions.current = new Set([...shownReactions.current, key]);
     void writeShownReactions(accountId, shownReactions.current);
-  }, [reactionQueue, accountId]);
+  }, [reactionQueue, accountId, reactionOnScreen]);
 
   const handleDismissReaction = useCallback(() => setReactionQueue(dismissReactionEvent), []);
   const artSize = collectibleArtSize(width, uiMetrics.pageInset, styles.collectibleCard.padding);

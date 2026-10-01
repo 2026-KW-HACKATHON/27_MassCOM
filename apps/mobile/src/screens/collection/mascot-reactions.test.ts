@@ -12,6 +12,7 @@ import {
   reactionKeyToPersist,
   reactionMessage,
   type ReactionQueue,
+  visibleReactionEvent,
 } from './mascot-reactions';
 import type { StoreSeries } from './store-series';
 
@@ -115,4 +116,12 @@ test('reactionMessage names the store for store-scoped events', () => {
   assert.equal(reactionMessage({ kind: 'first-collectible' }), '첫 수집품을 도감에 모았어요!');
   assert.match(reactionMessage({ kind: 'first-store', merchantId: 'm1', merchantName: '가게1' }), /가게1/);
   assert.match(reactionMessage({ kind: 'store-complete', merchantId: 'm1', merchantName: '가게1' }), /가게1/);
+});
+
+test('a reaction covered by the acquisition reveal or detail is neither shown nor recorded as seen', () => {
+  const queue = enqueueReactionEvents([], [{ kind: 'first-collectible' }]);
+  assert.equal(visibleReactionEvent(queue, false), undefined);
+  assert.equal(reactionKeyToPersist(queue, new Set(), false), undefined);
+  assert.ok(visibleReactionEvent(queue, true));
+  assert.ok(reactionKeyToPersist(queue, new Set(), true));
 });
