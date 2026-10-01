@@ -38,18 +38,25 @@ export function clearCollectibleDrafts(storage = globalThis.window?.localStorage
 /**
  * 기기 보관 자동 저장에는 미디어가 아닌 편집 값만 남긴다(사진 원본·이야기 장면 자료·음성·완성 파생 이미지는 공유 PC에
  * 남으면 안 되는 미디어라 절대 기기에 쓰지 않는다). 입력 project는 바꾸지 않는다.
+ * schemaVersion도 뺀다: 기기 보관본은 옛(pre-v2) 편집기가 남긴 것일 수 있고, 복원할 때는 언제나 서버 프로젝트의
+ * 실제 버전이 기준이어야 한다(PR #293 P1, 아래 applyDraftEdits 참고).
  */
 export function draftEditsOnly(project) {
-  const { photo, audio, story, derived, ...edits } = project;
+  const { photo, audio, story, derived, schemaVersion, ...edits } = project;
   return { ...edits, story: { ...story, frames: [] } };
 }
 
 /**
  * draftEditsOnly의 역함수. 서버에서 받은 최신 프로젝트(사진·음성·이야기 장면·파생 이미지 포함)에 기기에 남아 있던
  * 편집 값만 겹쳐 쓴다. 서버가 가진 미디어는 절대 지우지 않는다.
+ * edits의 schemaVersion은 쓰지 않는다 — 이미 배포된 옛(pre-v2) 편집기의 기기 보관본은 schemaVersion:1로 남아
+ * 있을 수 있는데, 그 값으로 서버의 실제(최신) 버전을 덮으면 v2 전용 필드(back·layouts·greetingOverrides 등)를
+ * 가진 프로젝트가 schemaVersion:1로 잘못 표시돼 저장 시 업그레이더가 다시 돌며 방금 한 편집을 지운다(PR #293 P1).
+ * 호출한 쪽이 결과를 upgradeProject로 한 번 더 정규화해야 한다.
  */
 export function applyDraftEdits(serverProject, edits) {
-  return { ...serverProject, ...edits, story: { ...edits.story, frames: serverProject.story.frames } };
+  const { schemaVersion, ...rest } = edits;
+  return { ...serverProject, ...rest, story: { ...rest.story, frames: serverProject.story.frames } };
 }
 
 // 렌더러(collectible-renderer.mjs effectPaint)의 무광·에나멜·유리는 셋 다 같은 표면 전체를 덮어 칠하는

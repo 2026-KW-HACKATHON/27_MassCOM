@@ -22,8 +22,9 @@ export const STORY_TYPES = Object.freeze(['none', 'zoom', 'wide', 'follow', 'eve
 export const ONCE_MS = Object.freeze({ rotate: 4000, shine: 3500, sparkle: 3500, stamp: 3500, float: 2400, pulse: 2400, confetti: 2000 });
 // 얼굴 스티커로 쓸 수 있는 마스코트 포즈(apps/mobile/assets/images/mascot/v2/*.png 파일 stem). 승인된 그림만 추가한다.
 export const MASCOT_POSES = Object.freeze(['cheer', 'explore-map', 'friends', 'gift', 'logo-badge', 'puzzled', 'search', 'sky-town-header', 'sleep', 'stamp', 'town-map', 'wave']);
-// 눈 감은 프레임이 있는 포즈. 그림이 없으면 living의 blink 항목이 그 포즈를 쓸 수 없다.
-export const MASCOT_BLINK = Object.freeze([]);
+// 눈 감은 프레임(apps/production-web/assets/mascot/<pose>-blink.png)이 있는 포즈. 그림이 없으면 living의
+// blink 항목이 그 포즈를 쓸 수 없다. apps/api/src/collectible-project-rules.ts의 mascotBlink와 값을 맞춘다.
+export const MASCOT_BLINK = Object.freeze(['cheer', 'explore-map', 'friends', 'gift', 'logo-badge', 'puzzled', 'search', 'stamp', 'wave']);
 
 export const DEFAULT_GRADES = Object.freeze([
   Object.freeze({ id: 'bronze', name: '브론즈', kind: 'basic', enabled: true }),
@@ -118,6 +119,18 @@ export function resolveSticker(sticker, gradeId) {
   const layout = sticker.layouts?.[gradeId];
   if (!layout) return sticker;
   return { ...sticker, x: layout.x ?? sticker.x, y: layout.y ?? sticker.y, size: layout.size ?? sticker.size, rotation: layout.rotation ?? sticker.rotation };
+}
+
+/** 스티커 텍스트를 최대 4줄로 나눈다. 서버(rules.ts parseSticker)도 같은 4줄 상한을 쓴다. */
+export function stickerLines(text) {
+  return String(text ?? '').split('\n').slice(0, 4);
+}
+
+/** 줄 수에 따른 각 줄의 세로 오프셋(스티커 폰트 크기 1 단위, 1.2줄 간격, 블록 전체 중앙이 0). */
+export function stickerLineOffsets(lineCount, lineHeight = 1.2) {
+  if (!Number.isInteger(lineCount) || lineCount < 1) throw new TypeError('줄 수는 1 이상 정수여야 합니다.');
+  const span = (lineCount - 1) * lineHeight;
+  return Array.from({ length: lineCount }, (_, index) => index * lineHeight - span / 2);
 }
 
 /** 인사말 우선순위: 등급+테마 > 등급 > 테마 > 기본. 동점은 배열 순서(먼저 온 항목)가 이긴다. */

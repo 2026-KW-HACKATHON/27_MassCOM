@@ -22,6 +22,13 @@ for (const file of ['collectible-model.mjs', 'collectible-errors.mjs', 'collecti
   const mime = file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8';
   for (const prefix of ['/assets/', '/app/assets/', '/merchant/assets/']) files.set(`${prefix}${file}`, [`assets/${file}`, mime]);
 }
+// 마스코트 스티커·뒷면 도장이 쓰는 얼굴 포즈. collectible-model.mjs MASCOT_POSES/MASCOT_BLINK와 파일 이름을 맞춘다.
+// HTTP 모듈 import 크롤 시험은 이미지 URL을 따라가지 않으므로, collectible-mascot-assets.test.mjs가 이 목록을 따로 확인한다.
+export const MASCOT_POSE_FILES = ['cheer', 'explore-map', 'friends', 'gift', 'logo-badge', 'puzzled', 'search', 'sky-town-header', 'sleep', 'stamp', 'town-map', 'wave'];
+export const MASCOT_BLINK_FILES = ['cheer', 'explore-map', 'friends', 'gift', 'logo-badge', 'puzzled', 'search', 'stamp', 'wave'];
+for (const pose of [...MASCOT_POSE_FILES, ...MASCOT_BLINK_FILES.map((name) => `${name}-blink`)]) {
+  for (const prefix of ['/assets/', '/app/assets/', '/merchant/assets/']) files.set(`${prefix}mascot/${pose}.png`, [`assets/mascot/${pose}.png`, 'image/png']);
+}
 
 export function resolveProductionBindHost(raw) {
   if (raw === undefined || raw === '') return '127.0.0.1';

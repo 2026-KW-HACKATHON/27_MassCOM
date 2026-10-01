@@ -1,4 +1,4 @@
-import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject } from './collectible-model.mjs';
+import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
 import { collectibleErrorMessage, localError } from './collectible-errors.mjs';
@@ -6,6 +6,8 @@ import { draftStorageKey, draftEditsOnly, applyDraftEdits, findMaterialConflict,
 
 const effectNames = { metallic: '메탈릭', hologram: '홀로그램', pearl: '펄', matte: '무광', enamel: '에나멜', glass: '유리', glow: '발광' };
 const motionNames = { still: '정지', rotate: '천천히 회전', shine: '빛 지나가기', float: '살짝 떠오르기', stamp: '도장 찍기', sparkle: '반짝임 한 번', pulse: '부드러운 맥동', confetti: '작은 축하 입자' };
+const mascotPoseNames = { cheer: '만세', 'explore-map': '지도 들기', friends: '하이파이브', gift: '선물 안기', 'logo-badge': '로고 배지', puzzled: '갸우뚱', search: '돋보기', 'sky-town-header': '하늘 동네', sleep: '잠자기', stamp: '도장 찍기', 'town-map': '동네 지도', wave: '손 흔들기' };
+const particleNames = { confetti: '색종이', snow: '눈', petals: '꽃잎', sparkles: '반짝임' };
 const storyNames = { none: '사용하지 않음', zoom: '안으로 들어가기 · 사진 한 장 확대', wide: '바깥 공간 공개 · 넓은 사진', follow: '마스코트 따라가기 · 이동 장면', event: '짧은 사건 · 시작·행동·결과' };
 const element = (tag, text, attributes = {}) => {
   const node = document.createElement(tag);
@@ -14,6 +16,8 @@ const element = (tag, text, attributes = {}) => {
   return node;
 };
 const button = (text, action, attributes = {}) => element('button', text, { type: 'button', 'data-action': action, ...attributes });
+// 서버는 스티커 텍스트를 80자·4줄(개행 기준)까지만 받는다. maxlength=80은 글자 수만 막으므로, 줄 수는 여기서 직접 자른다.
+const clampStickerLines = text => { const lines = text.split('\n'); return lines.length > 4 ? { text: lines.slice(0, 4).join('\n'), truncated: true } : { text, truncated: false }; };
 export const normalizeMp3DataUrl = dataUrl => dataUrl.replace(/^data:[^;]*;base64,/, 'data:audio/mpeg;base64,');
 export async function editableDraft(request, base, wrapper) {
   if (wrapper?.status !== 'PUBLISHED') return wrapper;
@@ -42,11 +46,11 @@ async function inspectAudio(dataUrl) {
 // campaigns를 넘기면 서버가 돌려준 "지금 게시할 수 있는 캠페인" 목록과도 맞춰 본다(목록 밖 캠페인·캠페인에 없는 방문 목표는 게시 API가 409로 거절한다).
 // 서버가 받는 크기 상한(docs/COLLECTIBLE_CREATOR.md "서버 계약"). 넘으면 보내기 전에 안내해 413을 받지 않게 한다.
 const MiB = 1024 * 1024;
-export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, mask: 256 * 1024, scene: 512 * 1024, body: 8 * MiB - 4096, stickers: 30 };
+export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, back: 256 * 1024, mask: 256 * 1024, scene: 512 * 1024, body: 8 * MiB - 4096, stickers: 30, backStickers: 10 };
 const decodedBytes = dataUrl => { const data = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor(data.length * 3 / 4) - (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0); };
 export function publishSizeProblem(revision) {
   for (const assets of Object.values(revision.derived || {})) {
-    for (const [name, max] of [['imageDataUrl', mediaLimits.image], ['baseDataUrl', mediaLimits.image], ['thumbnailDataUrl', mediaLimits.thumbnail]]) {
+    for (const [name, max] of [['imageDataUrl', mediaLimits.image], ['baseDataUrl', mediaLimits.image], ['thumbnailDataUrl', mediaLimits.thumbnail], ['backImageDataUrl', mediaLimits.back]]) {
       if (assets[name] && decodedBytes(assets[name]) > max) return '완성 이미지가 너무 커요. 작은 사진이나 단순한 보정으로 다시 시도해 주세요. 원본과 입력은 유지했어요.';
     }
     if (Object.values(assets.effectMasks || {}).some(mask => decodedBytes(mask) > mediaLimits.mask)) return '효과 영역 이미지가 너무 커요. 효과 대상이나 스티커를 줄여 다시 시도해 주세요. 원본과 입력은 유지했어요.';
@@ -90,7 +94,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const controller = new AbortController();
   const signal = controller.signal;
   let project = createProject({ name: `${merchantName || '우리 가게'} 수집품` });
-  let wrapper = null, selectedGrade = project.grades[0].id, selectedSticker = '', selectedTemplate = 'rotate';
+  let wrapper = null, selectedGrade = project.grades[0].id, selectedSticker = '', selectedTemplate = 'rotate', stickerSide = 'front';
   let active = true, playing = false, storyPlaying = false, frame = 0, renderSequence = 0, cropSequence = 0, previewQueued = false;
   let start = performance.now(), lastFrame = 0, recorder = null, recordingStream = null, recordingTimer = 0;
   let dirty = false, editSerial = 0, busy = false, restoring = false, pointer = null, visible = true, uploadSequence = 0;
@@ -134,17 +138,32 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         <label class="ce-field">사진 원본 색 반영<input data-control="photo-color" type="range" min="0" max="100" value="100"></label>
         <label class="ce-field">음각·양각 깊이<input data-control="relief" type="range" min="0" max="100" value="45"></label>
       </div></details>
-      <details><summary>텍스트와 이모티콘 스티커</summary><div class="ce-detail">
-        <div class="ce-row"><label class="ce-field">종류<select data-control="sticker-kind"><option value="text">텍스트</option><option value="emoji">이모티콘</option></select></label><label class="ce-field">내용<input data-control="sticker-new" maxlength="80" placeholder="어서오세요 또는 ☕"></label></div>
-        <button type="button" data-action="sticker-add">스티커 추가</button>
-        <label class="ce-field">편집할 스티커<select data-control="sticker-list"></select></label>
-        <label class="ce-field">스티커 내용<input data-sticker="text" maxlength="80"></label>
-        <div class="ce-row"><label class="ce-field">가로 위치<input data-sticker="x" type="range" min="0" max="1" step="0.01"></label><label class="ce-field">세로 위치<input data-sticker="y" type="range" min="0" max="1" step="0.01"></label></div>
-        <label class="ce-field">글자 크기<input data-sticker="size" type="range" min="10" max="120" step="1"></label>
-        <label class="ce-field">스티커 회전<input data-sticker="rotation" type="range" min="-180" max="180"></label>
-        <label class="ce-field">글자 색<input data-sticker="color" type="color"></label>
-        <div class="ce-actions"><button type="button" data-action="sticker-front">앞으로</button><button type="button" data-action="sticker-back">뒤로</button><button type="button" data-action="sticker-delete">스티커 삭제</button></div>
-        <p class="ce-help">완성 미리보기의 스티커를 드래그해 옮길 수도 있어요. 글자와 사진은 따로 저장돼요.</p>
+      <details><summary>앞면·뒷면 스티커</summary><div class="ce-detail">
+        <label class="ce-field">꾸밀 면<select data-control="sticker-side"><option value="front">앞면</option><option value="back">뒷면</option></select></label>
+        <div data-view="back-mode-row" hidden>
+          <label class="ce-field">뒷면 모드<select data-control="back-mode"><option value="default">기본 · 가게 이름과 등급을 자동으로 보여요</option><option value="custom">커스텀 · 직접 꾸며요</option></select></label>
+          <label class="ce-field">뒷면 바탕색<input data-control="back-color" type="color"></label>
+        </div>
+        <div data-view="sticker-form">
+          <div class="ce-row">
+            <label class="ce-field">종류<select data-control="sticker-kind"><option value="text">텍스트</option><option value="emoji">이모티콘</option><option value="mascot">마스코트</option></select></label>
+            <label class="ce-field" data-view="sticker-new-text">내용 · 최대 4줄<textarea data-control="sticker-new" maxlength="80" rows="2" placeholder="어서오세요 또는 ☕"></textarea></label>
+            <label class="ce-field" data-view="sticker-new-mascot" hidden>마스코트 포즈<select data-control="sticker-new-pose"></select></label>
+          </div>
+          <button type="button" data-action="sticker-add">스티커 추가</button>
+          <label class="ce-field">편집할 스티커<select data-control="sticker-list"></select></label>
+          <label class="ce-field" data-view="sticker-text-field">스티커 내용 · 최대 4줄<textarea data-sticker="text" maxlength="80" rows="2"></textarea></label>
+          <label class="ce-field" data-view="sticker-pose-field" hidden>마스코트 포즈<select data-sticker="text" data-role="pose"></select></label>
+          <label class="ce-field">정렬<select data-sticker="align"><option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option></select></label>
+          <div class="ce-row"><label class="ce-field">가로 위치<input data-sticker="x" type="range" min="0" max="1" step="0.01"></label><label class="ce-field">세로 위치<input data-sticker="y" type="range" min="0" max="1" step="0.01"></label></div>
+          <label class="ce-field">글자 크기<input data-sticker="size" type="range" min="10" max="120" step="1"></label>
+          <label class="ce-field">스티커 회전<input data-sticker="rotation" type="range" min="-180" max="180"></label>
+          <label class="ce-field">글자 색<input data-sticker="color" type="color"></label>
+          <label class="ce-check" data-view="sticker-layout-toggle"><input data-control="sticker-grade-only" type="checkbox"> 이 등급만 따로 배치</label>
+          <button type="button" data-action="sticker-layout-reset">공통으로 되돌리기</button>
+          <div class="ce-actions"><button type="button" data-action="sticker-front">앞으로</button><button type="button" data-action="sticker-back">뒤로</button><button type="button" data-action="sticker-delete">스티커 삭제</button></div>
+          <p class="ce-help">완성 미리보기의 앞면 스티커를 드래그해 옮길 수도 있어요. 글자와 사진은 따로 저장돼요. 효과는 앞면에만 적용돼요.</p>
+        </div>
       </div></details>
       <details><summary>등급과 재질 효과</summary><div class="ce-detail">
         <p class="ce-help">효과를 적용할 등급은 여러 개 선택해요. 오른쪽의 ‘지금 보는 등급’ 선택과 별개예요.</p>
@@ -155,13 +174,17 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       </div></details>
       <details><summary>움직임과 두께</summary><div class="ce-detail">
         <p class="ce-help">예시는 모두 같은 기본 동전이에요. 선택한 예시 한 개만 재생하고, 원하는 등급에 적용할 수 있어요.</p>
-        <div data-view="templates" class="ce-templates"></div><div data-view="motion-grades"></div>
+        <div data-view="templates" class="ce-templates"></div><div data-view="motion-grades"></div><div data-view="motion-settings"></div>
         <p class="ce-help">살아 있는 그림은 분리된 그림과 반복 동작 자료가 필요해요. 현재 공통 템플릿은 전체 수집품의 움직임이에요.</p>
         <label class="ce-field">두께 <output data-value="thickness"></output><input data-control="thickness" type="range" min="1" max="24" step="1" value="8"></label><button type="button" data-action="thickness-reset">기본 두께로</button>
         <p class="ce-help">각도와 두께는 놓으면 완성 미리보기가 갱신돼요.</p>
       </div></details>
       <details><summary>인사말과 음성</summary><div class="ce-detail">
-        <label class="ce-field">사장님 인사말<textarea data-control="greeting" maxlength="300" rows="3" placeholder="들러 주셔서 고마워요"></textarea></label>
+        <label class="ce-field">사장님 인사말 · 기본값<textarea data-control="greeting" maxlength="300" rows="3" placeholder="들러 주셔서 고마워요"></textarea></label>
+        <p class="ce-help">특정 등급이나 시즌 테마에서만 다른 인사말을 보여 주고 싶으면 아래에 규칙을 추가하세요. 더 구체적인 규칙(등급+테마)이 우선해요.</p>
+        <div data-view="greeting-overrides"></div>
+        <div class="ce-row"><label class="ce-field">새 인사말 규칙<input data-control="greeting-override-text" maxlength="300" placeholder="단골에게만 보일 인사말"></label></div>
+        <button type="button" data-action="greeting-override-add">인사말 규칙 추가</button>
         <label class="ce-field">MP3 음성 · 30초, 1 MB까지<input data-control="audio" type="file" accept="audio/mpeg,.mp3"></label>
         <div class="ce-actions"><button type="button" data-action="record">직접 녹음 / 다시 녹음</button><button type="button" data-action="record-stop" disabled>녹음 종료</button><button type="button" data-action="audio-delete">음성 삭제</button></div>
         <audio data-view="audio" controls preload="metadata" aria-label="사장님 음성 미리 듣기"></audio>
@@ -199,7 +222,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   for (const [name, label] of [['zoom', '사진 확대'], ['angle', '회전 각도'], ['thickness', '두께']]) control(name).setAttribute('aria-label', label);
   const notice = (text, error = false) => { if (!active) return; view('notice').textContent = text; view('notice').classList.toggle('ce-error', error); onNotice(text); };
   function remember() { if (restoring) return; undo.push(cloneProject(project)); if (undo.length > 12) undo.shift(); redo = []; }
-  function changed() { const wasDirty = dirty; dirty = true; editSerial++; if (!wasDirty) updateMediaLocks(); project.derived = {}; view('save-state').textContent = '편집한 내용이 있어요. 초안 저장 또는 게시를 눌러 보관하세요.'; previewQueued = true; studio.sync(project, { dirty, wrapper }); scheduleAutosave(); }
+  // 15.1 인사말 미리보기: 지금 보는 등급·시즌 테마에 맞는 가장 구체적인 규칙을 보여 준다(서버 resolveGreeting과 같은 우선순위).
+  function syncGreetingPreview() { view('greeting').textContent = resolveGreeting(project, selectedGrade); }
+  function changed() { const wasDirty = dirty; dirty = true; editSerial++; if (!wasDirty) updateMediaLocks(); project.derived = {}; view('save-state').textContent = '편집한 내용이 있어요. 초안 저장 또는 게시를 눌러 보관하세요.'; previewQueued = true; syncGreetingPreview(); studio.sync(project, { dirty, wrapper }); scheduleAutosave(); }
   function mutate(fn) { remember(); fn(); changed(); schedulePreview(); }
   // 14.3 자동 저장: 서버 저장을 대신하지 않는 기기 안 임시 보관이다. 이미 서버에 저장된 프로젝트(wrapper id가 있는)만
   // 대상으로, 편집이 멈추면(약 1.5초) 사진·음성·이야기 장면·파생 이미지 같은 미디어는 빼고 편집 값만 조용히 기록한다
@@ -242,13 +267,19 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       // 목록을 본 뒤 다른 탭이 새 버전을 저장했으면, 옛 편집을 새 버전 위에 얹지 않고 보관본을 버린다.
       if (serverWrapper.version !== draft.wrapperVersion) { clearDraftStorage(); notice('다른 곳에서 더 새로 저장된 버전이 있어 보관한 편집은 버렸어요.'); return; }
       restoring = true;
-      project = applyDraftEdits(cloneProject(serverWrapper.project), draft.edits);
+      // 기기 보관본은 pre-v2 편집기가 남긴 것일 수 있다. applyDraftEdits는 더 이상 서버의 schemaVersion을
+      // 편집 값으로 덮지 않지만, 혹시 섞인 v1 모양 전체를 바로잡도록 항상 upgradeProject를 한 번 더 거친다(PR #293 P1).
+      project = upgradeProject(applyDraftEdits(cloneProject(serverWrapper.project), draft.edits));
       wrapper = serverWrapper;
       selectedGrade = project.grades.find(item => item.enabled)?.id || project.grades[0].id;
       restoring = false; dirty = true; editSerial++;
       clearCollectibleRenderCache(); syncValues(); drawCrop(); schedulePreview();
       notice('저장하지 않은 편집을 이어서 열었어요. 사진·목소리는 마지막으로 저장한 것을 써요.');
-    } catch (error) { if (active) notice(collectibleErrorMessage(error, '저장하지 않은 편집을 이어서 열지 못했어요. 저장 목록에서 다시 열어 주세요.'), true); }
+    } catch (error) {
+      // 이 GET 실패를 "결정됨"으로 남기면 다음 목록 새로 고침이 다시 시도하지 않아, 네트워크가 돌아와도
+      // 영영 복원 기회가 없다(PR #289 후속). 기기 보관본은 그대로 두고 다음 성공한 목록 새로 고침이 다시 묻게 한다.
+      if (active) { draftDecided = false; notice(collectibleErrorMessage(error, '저장하지 않은 편집을 이어서 열지 못했어요. 저장 목록을 새로 고치면 다시 시도해요.'), true); }
+    }
   }
   const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
   function syncValues() {
@@ -258,9 +289,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     for (const input of container.querySelectorAll('[data-edit]')) input.value = project.photoEdits[input.dataset.edit];
     output('zoom').textContent = `${project.crop.zoom.toFixed(2)}배`;
     output('angle').textContent = `${project.angle}°`; output('thickness').textContent = `${project.thickness}`;
-    view('greeting').textContent = project.greeting;
+    syncGreetingPreview();
     const audio = view('audio'); audio.pause(); audio.src = project.audio?.dataUrl || ''; audio.hidden = !project.audio;
-    renderGrades(); renderStickers(); renderEffects(); renderMotionGrades(); renderStoryFrames();
+    renderGrades(); renderStickers(); renderEffects(); renderMotionGrades(); renderGreetingOverrides(); renderStoryFrames();
     studio.sync(project, { dirty, wrapper }); syncPublishState();
   }
   function option(select, text, value) { select.append(element('option', text, { value })); }
@@ -317,27 +348,63 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     }
     host.append(element('p', '방문 조건·쿠폰·NFT 규칙은 현재 캠페인을 따르고, 여기서는 기존 목표에 보이는 사진 수집품만 연결해요.', { className: 'ce-help' }));
   }
+  // 꾸밀 면(앞/뒤)에 맞는 스티커 배열. 뒷면은 layouts가 없고 효과 대상도 될 수 없다(서버·설계 문서, 앞면 전용 유지).
+  function activeStickers() { return stickerSide === 'back' ? project.back.stickers : project.stickers; }
+  // 선택한 스티커가 "이 등급만 따로 배치" 중이면 x·y·size·rotation은 그 등급의 layouts를, 아니면 스티커 자체를 읽고 쓴다.
+  function stickerPositionTarget(sticker) {
+    if (stickerSide === 'front' && sticker.layouts?.[selectedGrade]) return sticker.layouts[selectedGrade];
+    return sticker;
+  }
+  function stickerLabel(sticker) { return sticker.kind === 'mascot' ? `마스코트 · ${mascotPoseNames[sticker.text] || sticker.text}` : sticker.text; }
   function renderStickers() {
+    control('sticker-side').value = stickerSide;
+    view('back-mode-row').hidden = stickerSide !== 'back';
+    if (stickerSide === 'back') { control('back-mode').value = project.back.mode; control('back-color').value = project.back.color; }
+    view('sticker-form').hidden = stickerSide === 'back' && project.back.mode !== 'custom';
+    const list = activeStickers();
     const select = control('sticker-list'); select.replaceChildren();
-    if (!project.stickers.some(sticker => sticker.id === selectedSticker)) selectedSticker = project.stickers.at(-1)?.id || '';
-    for (const sticker of [...project.stickers].sort((a, b) => a.order - b.order)) option(select, sticker.text, sticker.id);
+    if (!list.some(sticker => sticker.id === selectedSticker)) selectedSticker = list.at(-1)?.id || '';
+    for (const sticker of [...list].sort((a, b) => a.order - b.order)) option(select, stickerLabel(sticker), sticker.id);
     select.value = selectedSticker;
-    const sticker = project.stickers.find(item => item.id === selectedSticker);
-    for (const input of container.querySelectorAll('[data-sticker]')) { input.disabled = !sticker; if (sticker) input.value = sticker[input.dataset.sticker]; }
+    const sticker = list.find(item => item.id === selectedSticker);
+    const isMascot = sticker?.kind === 'mascot';
+    view('sticker-text-field').hidden = !sticker || isMascot;
+    view('sticker-pose-field').hidden = !sticker || !isMascot;
+    const poseSelect = container.querySelector('[data-sticker="text"][data-role="pose"]');
+    for (const input of container.querySelectorAll('[data-sticker]')) {
+      input.disabled = !sticker;
+      if (!sticker) continue;
+      if (input === poseSelect) { input.value = sticker.text; continue; }
+      if (input.dataset.sticker === 'text' && isMascot) continue; // textarea는 마스코트일 때 숨고 값도 건드리지 않는다.
+      input.value = ['x', 'y', 'size', 'rotation'].includes(input.dataset.sticker) ? stickerPositionTarget(sticker)[input.dataset.sticker] : sticker[input.dataset.sticker];
+    }
+    view('sticker-layout-toggle').hidden = stickerSide !== 'front' || !sticker;
+    const hasLayout = Boolean(sticker?.layouts?.[selectedGrade]);
+    if (sticker && stickerSide === 'front') control('sticker-grade-only').checked = hasLayout;
+    container.querySelector('[data-action="sticker-layout-reset"]').hidden = stickerSide !== 'front' || !hasLayout;
     const targets = control('effect-target'), previous = targets.value; targets.replaceChildren();
-    for (const [id, name] of [['surface', '전체 표면'], ['photo', '사진'], ['border', '테두리'], ...project.stickers.map(item => [item.id, `스티커 · ${item.text}`])]) option(targets, name, id);
+    for (const [id, name] of [['surface', '전체 표면'], ['photo', '사진'], ['border', '테두리'], ...project.stickers.map(item => [item.id, `스티커 · ${stickerLabel(item)}`])]) option(targets, name, id);
     if ([...targets.options].some(item => item.value === previous)) targets.value = previous;
     studio.sync(project, { dirty, wrapper });
   }
+  // 추가 폼의 "내용"(텍스트/이모티콘) 또는 "마스코트 포즈" 중 고른 종류에 맞는 칸만 보인다.
+  function syncStickerKindVisibility() {
+    const mascot = control('sticker-kind').value === 'mascot';
+    view('sticker-new-text').hidden = mascot;
+    view('sticker-new-mascot').hidden = !mascot;
+  }
   function gradeChecks(parent, selected, attributes) {
     const motion = attributes['data-motion-grade'];
-    const group = element('div', undefined, { className: 'ce-grade-checks', role: 'group', 'aria-label': motion ? '동작을 적용할 등급 여러 개 선택' : '효과를 적용할 등급 여러 개 선택' });
+    const override = attributes['data-override-grade'];
+    const kind = motion ? 'motion' : override ? 'greeting' : 'effect';
+    const group = element('div', undefined, { className: 'ce-grade-checks', role: 'group', 'aria-label': { motion: '동작을 적용할 등급 여러 개 선택', greeting: '이 인사말 규칙을 적용할 등급 여러 개 선택', effect: '효과를 적용할 등급 여러 개 선택' }[kind] });
     for (const grade of project.grades) {
       const label = element('label', undefined, { className: 'ce-check' });
       const checkbox = element('input', undefined, { type: 'checkbox', ...attributes, 'data-grade': grade.id }); checkbox.checked = selected.includes(grade.id); checkbox.disabled = !grade.enabled;
       label.append(checkbox, document.createTextNode(grade.name)); group.append(label);
     }
     parent.append(group);
+    if (kind === 'greeting') return; // 인사말 규칙은 몇 개 없어 전체 선택·해제 없이 하나씩 고른다.
     // 8.1 등급 전체 선택·해제. 미리보기 등급(selectedGrade)은 건드리지 않는다.
     const id = motion || attributes['data-effect-grade'];
     const bulk = element('div', undefined, { className: 'ce-grade-bulk' });
@@ -371,6 +438,33 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     gradeChecks(host, selected, { 'data-motion-grade': selectedTemplate });
     for (const tile of view('templates').querySelectorAll('button')) tile.setAttribute('aria-pressed', String(tile.dataset.id === selectedTemplate));
     refocusGrade(host, previousFocus, 'motionGrade');
+    renderMotionSettings();
+  }
+  // 재생 방식(once/loop) 라디오와, confetti 템플릿일 때만 보이는 파티클 종류 select. 지금 고른 예시(selectedTemplate)
+  // 기준이며, 등급 체크와 별개로 그 템플릿의 motion 항목에 저장된다(아직 어느 등급에도 적용하지 않았어도 선호를 남긴다).
+  function renderMotionSettings() {
+    const host = view('motion-settings'); host.replaceChildren();
+    if (selectedTemplate === 'still') return;
+    const motion = project.motion.find(item => item.type === selectedTemplate);
+    const playback = motion?.playback ?? 'loop';
+    host.append(element('p', '재생 방식', { className: 'ce-help' }));
+    const group = element('div', undefined, { className: 'ce-radio-group', role: 'radiogroup', 'aria-label': `${motionNames[selectedTemplate]} 재생 방식` });
+    for (const [value, label] of [['loop', '반복 재생'], ['once', '한 번만 재생']]) {
+      const id = `motion-playback-${value}`;
+      const input = element('input', undefined, { type: 'radio', name: 'motion-playback', id, value, 'data-control': 'motion-playback' });
+      input.checked = playback === value;
+      const labelEl = element('label', undefined, { for: id, className: 'ce-check' });
+      labelEl.append(input, document.createTextNode(label));
+      group.append(labelEl);
+    }
+    host.append(group);
+    if (selectedTemplate === 'confetti') {
+      const field = element('label', '파티클 종류', { className: 'ce-field' });
+      const select = element('select', undefined, { 'data-control': 'motion-particle', 'aria-label': '파티클 종류' });
+      for (const [value, label] of Object.entries(particleNames)) option(select, label, value);
+      select.value = motion?.particle ?? 'confetti';
+      field.append(select); host.append(field);
+    }
   }
   function renderStoryFrames() {
     view('story-help').textContent = {
@@ -384,12 +478,33 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       const row = element('div', undefined, { className: 'ce-story-frame' }); row.append(element('img', undefined, { src: item.dataUrl, alt: `${index + 1}번째 이야기 장면`, width: 72, height: 48 }), element('span', `${index + 1}번째 장면`), button('삭제', 'story-frame-delete', { 'data-id': index })); host.append(row);
     });
   }
+  // 등급·시즌 테마별 인사말 규칙 목록. 더 구체적인 규칙(등급+테마)이 우선한다(resolveGreeting과 같은 순서).
+  function renderGreetingOverrides() {
+    const host = view('greeting-overrides'); host.replaceChildren();
+    for (const override of project.greetingOverrides) {
+      const row = element('fieldset', undefined, { className: 'ce-override' });
+      row.append(element('legend', '인사말 규칙'));
+      gradeChecks(row, override.gradeIds, { 'data-override-grade': override.id });
+      const theme = element('label', '시즌 테마 · 비우면 모든 테마', { className: 'ce-field' });
+      theme.append(element('input', undefined, { value: override.themeName, maxlength: 80, placeholder: '예: 여름축제', 'data-override-theme': override.id }));
+      row.append(theme);
+      const text = element('label', '이 규칙의 인사말', { className: 'ce-field' });
+      const textInput = element('textarea', undefined, { maxlength: 300, rows: 2, 'data-override-text': override.id });
+      textInput.value = override.text; // textarea의 "value" 속성은 실제 브라우저에 없으므로 속성이 아니라 프로퍼티로 설정한다.
+      text.append(textInput);
+      row.append(text);
+      if (!override.gradeIds.length && !override.themeName) row.append(element('p', '등급이나 테마를 하나 이상 골라야 저장할 수 있어요.', { className: 'ce-help' }));
+      row.append(button('규칙 삭제', 'greeting-override-delete', { 'data-id': override.id }));
+      host.append(row);
+    }
+    syncGreetingPreview();
+  }
   async function drawPreview(time = 0) {
     const sequence = ++renderSequence;
     const copy = cloneProject(project);
     const buffer = document.createElement('canvas'); buffer.width = previewCanvas.width; buffer.height = previewCanvas.height;
     try {
-      await renderCollectible(buffer, copy, selectedGrade, { angle: copy.angle, time, staticFrame: !playing || control('reduce-motion').checked });
+      await renderCollectible(buffer, copy, selectedGrade, { angle: copy.angle, time, staticFrame: !playing || control('reduce-motion').checked, merchantName });
       if (!active || sequence !== renderSequence) return;
       previewCanvas.getContext('2d').clearRect(0, 0, 512, 512); previewCanvas.getContext('2d').drawImage(buffer, 0, 0);
       const grade = project.grades.find(item => item.id === selectedGrade);
@@ -507,18 +622,21 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (mediaPending()) { notice('사진·음성을 불러오거나 녹음을 처리하고 있어요. 처리가 끝난 뒤 저장해 주세요.'); return; }
     if (!project.name.trim()) { navigateStep(1); notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
     if (!project.theme.name.trim()) { navigateStep(4); notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
-    if (project.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
+    if (project.stickers.some(item => !item.text.trim()) || project.back.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
+    if (project.stickers.some(item => item.text.split('\n').length > 4) || project.back.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(3); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄을 지워 주세요.', true); return; }
+    if (project.greetingOverrides.some(item => !item.gradeIds.length && !item.themeName.trim())) { navigateStep(4); notice('등급이나 시즌 테마를 고르지 않은 인사말 규칙이 있어요. 하나를 고르거나 규칙을 삭제해 주세요.', true); return; }
     if (publish) {
       setBusy(true); const refreshed = await refreshCampaigns(); setBusy(false);
       if (!active || !refreshed) return;
       const reason = validatePublish(project, campaigns); if (reason) { navigateStep(!project.photo.originalDataUrl ? 1 : 4); if (project.story.type !== 'none') control('story-type').closest('details').open = true; notice(reason, true); return; } }
     setBusy(true); notice(publish ? '등급별 게시 이미지를 준비하고 있어요…' : '초안을 저장하고 있어요…');
-    const revision = cloneProject(project), savedSerial = editSerial;
+    // 복원·업그레이드 경로에 놓친 곳이 있어도 서버로 나가는 프로젝트는 항상 v2여야 한다(PR #293 P1 방어선).
+    const revision = upgradeProject(cloneProject(project)), savedSerial = editSerial;
     try {
       // Final raster assets are generated once for publication; all originals,
       // strokes, stable sticker IDs and grade assignments remain in the draft.
       if (publish) {
-        revision.derived = await serializeDerived(revision);
+        revision.derived = await serializeDerived(revision, { extraGradeId: selectedGrade, merchantName });
         revision.story.frames = await serializeStoryFrames(revision.story);
       }
       const sizeProblem = publishSizeProblem(revision);
@@ -718,22 +836,42 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (!source.length) { notice(action === 'undo' ? '되돌릴 편집이 아직 없어요.' : '다시 실행할 편집이 없어요.'); return; }
       destination.push(cloneProject(project)); project = source.pop(); restoring = true; syncValues(); restoring = false; changed(); await drawCrop(); schedulePreview(); return;
     }
-    if (action === 'grade-preview') { selectedGrade = id; renderGrades(); [...view('grade-tabs').querySelectorAll('button')].find(tile => tile.dataset.id === id)?.focus({ preventScroll: true }); schedulePreview(); return; }
+    if (action === 'grade-preview') { selectedGrade = id; renderGrades(); renderStickers(); syncGreetingPreview(); [...view('grade-tabs').querySelectorAll('button')].find(tile => tile.dataset.id === id)?.focus({ preventScroll: true }); schedulePreview(); return; }
     if (action === 'crop-reset') { mutate(() => { project.crop = { x: 0, y: 0, zoom: 1 }; }); syncValues(); await drawCrop(); return; }
     if (action === 'auto-fit') { await autoFit(); return; }
     if (action === 'crop-apply') { schedulePreview(); notice('자르기를 반영했어요. 원본 사진은 그대로 보관돼요.'); return; }
     if (action === 'compare') { const copy = cloneProject(project); copy.photoEdits = { brightness: 0, contrast: 0, merge: 0, simplify: 0, cartoon: 0, strokes: [] }; await renderCrop(cropCanvas, copy); notice('원본을 보여 주고 있어요. 사진을 움직이거나 자르기 적용을 누르면 편집 결과로 돌아와요.'); return; }
     if (action === 'edits-reset') { mutate(() => { project.photoEdits = createProject().photoEdits; }); syncValues(); await drawCrop(); return; }
     if (action === 'sticker-add') {
-      const text = control('sticker-new').value.trim(); if (!text) { notice('스티커 내용을 입력해 주세요.', true); return; }
-      if (project.stickers.length >= mediaLimits.stickers) { notice(`스티커는 ${mediaLimits.stickers}개까지 만들 수 있어요.`, true); return; }
-      mutate(() => { const sticker = { id: createId('sticker'), kind: control('sticker-kind').value, text, x: .5, y: .7, size: 42, rotation: 0, color: '#ffffff', order: project.stickers.length }; project.stickers.push(sticker); selectedSticker = sticker.id; }); control('sticker-new').value = ''; renderStickers(); return;
-    }
-    if (action.startsWith('sticker-')) {
-      const sticker = project.stickers.find(item => item.id === selectedSticker); if (!sticker) return;
+      const kind = control('sticker-kind').value;
+      let text = kind === 'mascot' ? control('sticker-new-pose').value : control('sticker-new').value.trim();
+      if (!text) { notice('스티커 내용을 입력해 주세요.', true); return; }
+      if (kind !== 'mascot') {
+        const clamped = clampStickerLines(text); text = clamped.text;
+        if (clamped.truncated) notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄은 지웠어요.', true);
+      }
+      const list = activeStickers(), cap = stickerSide === 'back' ? mediaLimits.backStickers : mediaLimits.stickers;
+      if (list.length >= cap) { notice(`스티커는 ${cap}개까지 만들 수 있어요.`, true); return; }
       mutate(() => {
-        if (action === 'sticker-delete') { project.stickers = project.stickers.filter(item => item.id !== sticker.id); project.effects = project.effects.filter(item => item.target !== sticker.id); }
-        else { const ordered = [...project.stickers].sort((a, b) => a.order - b.order); const index = ordered.indexOf(sticker), other = ordered[index + (action === 'sticker-front' ? 1 : -1)]; if (other) [other.order, sticker.order] = [sticker.order, other.order]; }
+        const sticker = { id: createId('sticker'), kind, text, x: .5, y: .7, size: 42, rotation: 0, color: '#ffffff', order: list.length, align: 'center', ...(stickerSide === 'front' ? { layouts: {} } : {}) };
+        list.push(sticker); selectedSticker = sticker.id;
+      });
+      control('sticker-new').value = '';
+      renderStickers(); return;
+    }
+    if (action === 'sticker-layout-reset') {
+      const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
+      mutate(() => { delete sticker.layouts[selectedGrade]; }); renderStickers(); return;
+    }
+    if (action.startsWith('sticker-') && action !== 'sticker-side') {
+      const list = activeStickers();
+      const sticker = list.find(item => item.id === selectedSticker); if (!sticker) return;
+      mutate(() => {
+        if (action === 'sticker-delete') {
+          const filtered = list.filter(item => item.id !== sticker.id);
+          if (stickerSide === 'back') project.back.stickers = filtered;
+          else { project.stickers = filtered; project.effects = project.effects.filter(item => item.target !== sticker.id); }
+        } else { const ordered = [...list].sort((a, b) => a.order - b.order); const index = ordered.indexOf(sticker), other = ordered[index + (action === 'sticker-front' ? 1 : -1)]; if (other) [other.order, sticker.order] = [sticker.order, other.order]; }
       }); renderStickers(); renderEffects(); return;
     }
     if (action === 'grade-add') {
@@ -743,7 +881,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         const grade = createGrade(name); project.grades.push(grade); const source = control('grade-copy').value;
         if (source) for (const item of [...project.effects, ...project.motion]) if (item.gradeIds.includes(source)) item.gradeIds.push(grade.id);
         selectedGrade = grade.id;
-      }); control('grade-name').value = ''; renderGrades(); renderEffects(); renderMotionGrades(); return;
+      }); control('grade-name').value = ''; renderGrades(); renderEffects(); renderMotionGrades(); renderStickers(); return;
     }
     if (action === 'effect-add') {
       if (project.effects.length >= 64) { notice('효과는 64개까지 만들 수 있어요.', true); return; }
@@ -769,9 +907,11 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       mutate(() => {
         let motion = project.motion.find(item => item.type === id);
         if (action === 'motion-grade-none') { if (motion) motion.gradeIds = []; return; }
-        const gradeIds = project.grades.filter(item => item.enabled).map(item => item.id);
-        for (const other of project.motion) if (other.type !== id) other.gradeIds = other.gradeIds.filter(item => !gradeIds.includes(item));
         if (!motion) { motion = { id: createId('motion'), type: id, gradeIds: [] }; project.motion.push(motion); }
+        const gradeIds = project.grades.filter(item => item.enabled).map(item => item.id);
+        // 단일 토글과 같은 규칙: loop끼리만 등급당 하나로 배타적이다. once 연결은 전체 선택에도 그대로 둔다.
+        const loop = (motion.playback ?? 'loop') === 'loop';
+        if (loop) for (const other of project.motion) if (other !== motion && (other.playback ?? 'loop') === 'loop') other.gradeIds = other.gradeIds.filter(item => !gradeIds.includes(item));
         motion.gradeIds = gradeIds;
       });
       renderMotionGrades(); return;
@@ -783,6 +923,17 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'record') { await record(); return; }
     if (action === 'audio-delete') { audioImportSequence++; stopRecording(true); recordingStream?.getTracks().forEach(track => track.stop()); recordingStream = null; mutate(() => { project.audio = null; }); view('audio').pause(); view('audio').src = ''; view('audio').hidden = true; return; }
     if (action === 'story-frame-delete') { mutate(() => { project.story.frames.splice(Number(id), 1); }); renderStoryFrames(); return; }
+    if (action === 'greeting-override-add') {
+      const text = control('greeting-override-text').value.trim();
+      if (!text) { notice('추가할 인사말을 입력해 주세요.', true); return; }
+      if (project.greetingOverrides.length >= 16) { notice('인사말 규칙은 16개까지 만들 수 있어요.', true); return; }
+      mutate(() => { project.greetingOverrides.push({ id: createId('greeting'), gradeIds: [], themeName: '', text }); });
+      control('greeting-override-text').value = '';
+      renderGreetingOverrides();
+      notice('인사말 규칙을 추가했어요. 적용할 등급이나 시즌 테마를 하나 이상 골라야 저장할 수 있어요.');
+      return;
+    }
+    if (action === 'greeting-override-delete') { mutate(() => { project.greetingOverrides = project.greetingOverrides.filter(item => item.id !== id); }); renderGreetingOverrides(); return; }
     if (action === 'story-test') { const error = validateStory(project.story); if (error) { notice(error, true); return; } if (project.story.type === 'none') { notice('이야기 유형을 골라 주세요.'); return; } storyPlaying = true; start = performance.now(); storyCanvas.hidden = false; schedulePreview(); return; }
     if (action === 'copy') {
       if (wrapper) {
@@ -802,10 +953,17 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     const target = event.target;
     if (target.dataset.edit) { project.photoEdits[target.dataset.edit] = Number(target.value); changed(); drawCrop(); schedulePreview(); return; }
     if (target.dataset.sticker) {
-      const sticker = project.stickers.find(item => item.id === selectedSticker); if (!sticker) return;
-      sticker[target.dataset.sticker] = ['text', 'color'].includes(target.dataset.sticker) ? target.value : Number(target.value); changed(); schedulePreview(); return;
+      const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
+      const key = target.dataset.sticker;
+      if (key === 'text') {
+        const clamped = clampStickerLines(target.value); sticker.text = clamped.text;
+        if (clamped.truncated) { target.value = clamped.text; notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄은 지웠어요.', true); }
+      } else if (key === 'color' || key === 'align') sticker[key] = target.value;
+      else stickerPositionTarget(sticker)[key] = Number(target.value);
+      changed(); schedulePreview(); return;
     }
     const field = target.dataset.control;
+    if (field === 'back-color') { project.back.color = target.value; changed(); schedulePreview(); return; }
     if (['zoom', 'crop-x', 'crop-y'].includes(field)) {
       project.crop[field === 'zoom' ? 'zoom' : field.slice(-1)] = Number(target.value); output('zoom').textContent = `${project.crop.zoom.toFixed(2)}배`; changed(); drawCrop(); schedulePreview();
     } else if (field === 'angle' || field === 'thickness') {
@@ -813,7 +971,13 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       // The value changes immediately. The expensive final is generated on release.
     } else if (['name', 'greeting', 'theme'].includes(field)) {
       if (field === 'theme') project.theme.name = target.value; else project[field] = target.value;
-      view('greeting').textContent = project.greeting; changed();
+      changed();
+    } else if (target.dataset.overrideTheme) {
+      const override = project.greetingOverrides.find(item => item.id === target.dataset.overrideTheme);
+      if (override) { override.themeName = target.value; changed(); }
+    } else if (target.dataset.overrideText) {
+      const override = project.greetingOverrides.find(item => item.id === target.dataset.overrideText);
+      if (override) { override.text = target.value; changed(); }
     } else if (['base-color', 'photo-color', 'relief'].includes(field)) {
       project[{ 'base-color': 'baseColor', 'photo-color': 'photoColor', relief: 'relief' }[field]] = field === 'base-color' ? target.value : Number(target.value); changed(); schedulePreview();
     } else if (field === 'story-cartoon') { project.story.cartoon = Number(target.value); changed(); }
@@ -853,6 +1017,34 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (field === 'shape' || field === 'style') { mutate(() => { project[field] = target.value; if (field === 'style' && target.value !== 'original') project.photoColor = 0; }); control('photo-color').value = project.photoColor; await drawCrop(); return; }
       if (field === 'angle' || field === 'thickness') { project[field] = Number(target.value); changed(); schedulePreview(); return; }
       if (field === 'sticker-list') { selectedSticker = target.value; renderStickers(); return; }
+      if (field === 'sticker-side') { stickerSide = target.value; selectedSticker = ''; renderStickers(); return; }
+      if (field === 'sticker-kind') { syncStickerKindVisibility(); return; }
+      if (field === 'back-mode') { mutate(() => { project.back.mode = target.value; }); renderStickers(); return; }
+      if (field === 'sticker-grade-only') {
+        const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
+        mutate(() => {
+          if (target.checked) sticker.layouts[selectedGrade] = { x: sticker.x, y: sticker.y, size: sticker.size, rotation: sticker.rotation };
+          else delete sticker.layouts[selectedGrade];
+        });
+        renderStickers(); return;
+      }
+      if (field === 'motion-playback' || field === 'motion-particle') {
+        mutate(() => {
+          let motion = project.motion.find(item => item.type === selectedTemplate);
+          if (!motion) { motion = { id: createId('motion'), type: selectedTemplate, gradeIds: [] }; project.motion.push(motion); }
+          if (field === 'motion-playback') motion.playback = target.value; else motion.particle = target.value;
+        });
+        renderMotionGrades(); return;
+      }
+      if (target.dataset.sticker === 'text' && target.dataset.role === 'pose') {
+        const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
+        mutate(() => { sticker.text = target.value; }); return;
+      }
+      if (target.dataset.overrideGrade) {
+        const override = project.greetingOverrides.find(item => item.id === target.dataset.overrideGrade), grade = target.dataset.grade;
+        mutate(() => { override.gradeIds = target.checked ? [...new Set([...override.gradeIds, grade])] : override.gradeIds.filter(item => item !== grade); });
+        renderGreetingOverrides(); return;
+      }
       if (field === 'campaign') {
         const dropped = [];
         mutate(() => {
@@ -873,10 +1065,19 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         let removed = false;
         mutate(() => {
           grade.enabled = target.checked;
-          if (!grade.enabled) for (const count of Object.keys(project.rewardGrades)) if (project.rewardGrades[count] === grade.id) { delete project.rewardGrades[count]; removed = true; }
+          if (!grade.enabled) {
+            for (const count of Object.keys(project.rewardGrades)) if (project.rewardGrades[count] === grade.id) { delete project.rewardGrades[count]; removed = true; }
+            // 끈 등급의 전용 배치·동작·인사말 참조를 지운다(다시 켜면 공통 설정으로 보인다).
+            for (const sticker of project.stickers) if (sticker.layouts) delete sticker.layouts[grade.id];
+            for (const motion of project.motion) motion.gradeIds = motion.gradeIds.filter(id => id !== grade.id);
+            for (const override of project.greetingOverrides) override.gradeIds = override.gradeIds.filter(id => id !== grade.id);
+            // 등급 참조가 모두 사라지고 테마 조건도 없는 인사말 규칙은(둘 다 비면 서버가 거절한다) 함께 지운다.
+            project.greetingOverrides = project.greetingOverrides.filter(item => item.gradeIds.length > 0 || item.themeName !== '');
+          }
         });
         if (removed) notice('끄신 등급의 방문 목표 연결도 해제했어요. 게시할 때 다른 등급을 선택해 주세요.');
-        if (!grade.enabled && selectedGrade === grade.id) selectedGrade = project.grades.find(item => item.enabled).id; renderGrades(); renderEffects(); renderMotionGrades(); return;
+        if (!grade.enabled && selectedGrade === grade.id) selectedGrade = project.grades.find(item => item.enabled).id;
+        renderGrades(); renderEffects(); renderMotionGrades(); renderStickers(); renderGreetingOverrides(); return;
       }
       if (target.dataset.effectGrade) {
         const effect = project.effects.find(item => item.id === target.dataset.effectGrade), grade = target.dataset.grade;
@@ -900,7 +1101,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
           const type = target.dataset.motionGrade, grade = target.dataset.grade;
           let motion = project.motion.find(item => item.type === type);
           if (!motion) { motion = { id: createId('motion'), type, gradeIds: [] }; project.motion.push(motion); }
-          for (const other of project.motion) other.gradeIds = other.gradeIds.filter(item => item !== grade);
+          // 반복(loop) 재생끼리만 등급당 하나로 배타적이다(동시에 두 개가 돌면 어느 쪽인지 알 수 없다).
+          // 한 번만(once) 재생은 서로, 또 loop와도 겹칠 수 있어 다른 예시의 once 연결을 건드리지 않는다.
+          const loop = (motion.playback ?? 'loop') === 'loop';
+          for (const other of project.motion) if (other === motion || (loop && (other.playback ?? 'loop') === 'loop')) other.gradeIds = other.gradeIds.filter(item => item !== grade);
           if (target.checked) motion.gradeIds.push(grade);
         }); renderMotionGrades(); return;
       }
@@ -939,12 +1143,15 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (loading) return;
     const point = pointOn(previewCanvas, event), x = (point.x - 512 * .11) / (512 * .78), y = (point.y - 512 * .11) / (512 * .78);
     if (Math.abs(project.angle) > 15 || playing) { notice('스티커를 드래그하려면 정면 보기와 정지를 눌러 주세요. 위치 조절바는 어느 각도에서도 사용할 수 있어요.'); return; }
-    const candidate = [...project.stickers].sort((a, b) => b.order - a.order).find(sticker => Math.hypot((sticker.x - x) * 512, (sticker.y - y) * 512) < Math.max(25, sticker.size));
-    if (!candidate) return; remember(); selectedSticker = candidate.id; renderStickers(); previewCanvas.setPointerCapture(event.pointerId); pointer = { type: 'sticker', sticker: candidate, start: { x, y }, x: candidate.x, y: candidate.y };
+    // 등급별 배치 중인 스티커는 그 등급의 좌표(stickerPositionTarget)로 맞아야 보이는 자리와 드래그 판정이 일치한다.
+    const candidate = [...project.stickers].sort((a, b) => b.order - a.order).find(sticker => { const pos = stickerPositionTarget(sticker); return Math.hypot((pos.x - x) * 512, (pos.y - y) * 512) < Math.max(25, pos.size); });
+    if (!candidate) return; remember(); selectedSticker = candidate.id; renderStickers(); previewCanvas.setPointerCapture(event.pointerId);
+    const pos = stickerPositionTarget(candidate);
+    pointer = { type: 'sticker', target: pos, start: { x, y }, x: pos.x, y: pos.y };
   });
   listen(previewCanvas, 'pointermove', event => {
     if (pointer?.type !== 'sticker') return;
-    const point = pointOn(previewCanvas, event); pointer.sticker.x = clamp(pointer.x + (point.x - 512 * .11) / (512 * .78) - pointer.start.x, 0, 1); pointer.sticker.y = clamp(pointer.y + (point.y - 512 * .11) / (512 * .78) - pointer.start.y, 0, 1);
+    const point = pointOn(previewCanvas, event); pointer.target.x = clamp(pointer.x + (point.x - 512 * .11) / (512 * .78) - pointer.start.x, 0, 1); pointer.target.y = clamp(pointer.y + (point.y - 512 * .11) / (512 * .78) - pointer.start.y, 0, 1);
     changed(); renderStickers(); schedulePreview();
   });
   listen(previewCanvas, 'pointerup', endPointer); listen(previewCanvas, 'pointercancel', endPointer);
@@ -952,6 +1159,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   listen(window, 'beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   for (const [value, name] of Object.entries(effectNames)) option(control('effect-type'), name, value);
   for (const [value, name] of Object.entries(storyNames)) option(control('story-type'), name, value);
+  for (const pose of MASCOT_POSES) option(control('sticker-new-pose'), mascotPoseNames[pose] || pose, pose);
+  for (const pose of MASCOT_POSES) option(container.querySelector('[data-sticker="text"][data-role="pose"]'), mascotPoseNames[pose] || pose, pose);
+  syncStickerKindVisibility();
   for (const [id, name] of Object.entries(motionNames)) {
     const tile = button(name, 'template', { 'data-id': id, 'aria-pressed': String(id === selectedTemplate) }); const canvas = element('canvas', undefined, { width: 96, height: 96, 'aria-hidden': 'true' }); tile.prepend(canvas); view('templates').append(tile);
     renderCollectible(canvas, demoProject, 'bronze', { animation: id, staticFrame: true, textureSize: 120 }).catch(() => {});
