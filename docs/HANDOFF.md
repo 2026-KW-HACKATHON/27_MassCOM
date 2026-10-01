@@ -121,6 +121,29 @@
 - **다음 담당자가 할 일:** ① 독립 교차 리뷰(서로 다른 모델 2개 — 게시 경로·크기 사다리는 민감 경로). ② 실제 브라우저로 로컬 QA fixture(`tests/fixtures/collectible-qa-server.mjs`)에 홀로그램+패럴랙스+living을 담은 수집품을 게시해 각도별 프레임·living 애니메이션을 눈으로 확인하고 스크린샷을 `docs/evidence/`에 남긴다. ③ Android 실기기·에뮬레이터로 이번에 처음 생기는 `angleFrames`/`living`이 있는 수집품을 열어 WP4 폴백 경로가 아닌 실제 경로를 확인한다(−60/0/60° 홀로그램, `adb emu sensor set acceleration`, 동작 줄이기). ④ PR 생성·CI.
 - 다음 명령: `git -C .worktrees/284-web-b status`, `node --test tests/site/*.test.mjs`, `bash tools/gate.sh`.
 
+### 2026-10-02 후속(PR #310 리뷰 P1·P2 10건 반영, 같은 브랜치)
+
+PR #310(위 WP3)에 Codex gpt-6.1-sol·Claude sonnet 교차 리뷰로 REQUEST_CHANGES 10건이 왔고 전부 고쳤다. origin/main이 25커밋 앞서 있어 먼저 깨끗하게 merge했다(충돌 없음, album-home·showcase-access 등 무관한 변경).
+
+**P1(서버가 저장·게시 자체를 거절하던 결함):**
+1. region 대상 living 항목을 추가한 직후(또는 점을 모두 지운 뒤) `strokes: []`로 남으면, 그 등급을 어디에도 안 써도 실제 서버 검증(`validateCollectibleProject`)이 `COLLECTIBLE_INVALID_PROJECT`로 초안 저장조차 거절했다. `save()`에 사전 확인을 추가해 저장·게시 전에 한국어 안내로 막는다.
+2. 패럴랙스 획과 living region 점은 서버(`rules.ts:316-318`)가 전체 합 20,000개 상한을 같이 쓰는데, 편집기는 붓마다 개별 상한(패럴랙스 100획×512점, living 항목당 20점)만 봐서 섞어 쓰면 넘길 수 있었다. `collectible-model.mjs`에 순수 `parallaxLivingPointTotal`/`PARALLAX_LIVING_POINT_BUDGET`을 추가하고 pointerdown·pointermove 양쪽에서 공유 예산을 먼저 확인한다.
+   - **시험 인프라:** (1)을 "진짜 서버가 거절하는지"로 검증하려고 `tests/fixtures/ts-js-specifier-loader.mjs`(node 모듈 후크, apps/api의 nodenext `./x.js`→`x.ts` 해석을 흉내 낸다)와 `run-collectible-rules.mjs`(자식 프로세스로 `--experimental-transform-types` + 실제 `collectible-project-rules.ts`를 돌림)를 추가했다. apps/api 소스는 건드리지 않았다.
+
+**P2(화면 결함 8건, 전부 고침):**
+3. 패럴랙스·living region 마스크가 사진 고유 치수가 아니라 출력 캔버스 크기로 만들어져 `(0,0)`에 그대로 얹혀, 비정사각·확대·이동 사진에서 칠한 자리와 실제로 움직이는 자리가 어긋났다. 사진과 같은 `cropTransform`으로 얹게 고쳤다.
+4. 편집기 미리보기(`renderCollectible`)가 living 오버레이를 전혀 합성하지 않아 sway/bob/steam/blink를 미리 볼 방법이 없었다. 카드 전체 동작(`staticFrame`)과 독립된 시계(`livingTime`)·깃발(`reducedMotion`)을 받아 합성한다.
+5. 재질·패럴랙스가 없고 living 스티커만 있는 등급은 각도 프레임이 아예 없어, 정지 포즈 위에 뷰어의 living 오버레이가 겹쳐 유령처럼 이중으로 보였다. living 스티커가 있으면(그 스티커만 뺀) 각도 프레임을 만들게 넓혔다.
+6. living 스티커 바운딩 박스가 글자 길이·정렬·회전을 무시해(42px 긴 글자가 실제로는 460px 가까이 그려지는데 박스는 212px 정도만) 게시 후 잘렸다. 모델에 measureText가 없어 글자 수 기반으로 넉넉히 추정하고, align별 비대칭·회전·sway/bob 진폭 범위까지 반영한다.
+7. living만 있고 `animation:'still'`인 프로젝트는 living이 자동재생 안 됐고, "동작 재생"을 누르면 엉뚱하게 전체 회전으로 대신했다. 뷰어의 living을 카드 전체 동작과 독립된 시계로 늘 돌리고(재생을 꺼도 `pause()`가 living 루프는 다시 걸고), living이 있으면 'still'→'rotate' 대체를 하지 않는다.
+8. 기울임이 켜진 채로 동작 줄이기를 켜면 센서 리스너·회전이 그대로 남았다. 끄고 토글을 `disabled`로 막는다(다시 켤 때까지).
+9. iOS 권한 요청 중 뷰어가 닫히거나 숨겨지거나 동작 줄이기가 켜지면, 뒤늦게 허용이 와도 죽은 세션에 리스너를 다시 달 수 있었다. `.then()` 안에서 active·hidden·reduce 상태를 다시 확인한다.
+10. (nit) 패럴랙스 마스크와 living 항목별 합성 마스크가 한 캐시 슬롯을 같이 써 서로 밀어내(각도 프레임 12칸·living 칸마다 다시 만듦) 캐시가 사실상 안 맞았다. 획+치수로 키를 잡은 Map 캐시로 바꿨다.
+- 새 `tests/site/collectible-pr310-p2.test.mjs`: `document.createElement`를 한 번 더 감싸 canvas의 `createImageData`/`drawImage` 호출 인자를 기록하는 전용 계측(이 파일만, 운영 코드는 안 건드림)으로 mini-dom의 no-op 한계를 넘어 (3)(4)(10)을 검증하고, `requestAnimationFrame` 호출 스파이로 (7)을, iOS 권한 프라미스를 수동으로 지연시켜 (8)(9)를 검증한다.
+- **검증:** `node --test tests/site/*.test.mjs` 219/219(신규 27건: `collectible-parallax-living.test.mjs`에 P1 4건, `collectible-pr310-p2.test.mjs` 8건), `bash tools/gate.sh` PASS. 10건 모두 스크래치 되돌리기로 대응 시험이 실제로 실패하는지 확인한 뒤 복구했다. `apps/api`는 여전히 건드리지 않았다.
+- **`NOT_RUN`:** 실제 브라우저로 비정사각 사진·패럴랙스·living 조합을 눈으로 확인하는 스크린샷(mini-dom은 canvas 호출을 전부 no-op으로 흉내 내 픽셀 결과를 검증 못 함), 실기기 `deviceorientation`·iOS 권한 흐름.
+- 다음 담당자가 할 일: 독립 교차 리뷰 재확인, 위 `docs/evidence/` 스크린샷, Android 실기기 확인, 머지.
+
 ## 사진 수집품 제작기 PR 인수인계
 
 (당시 기록이다. PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐다: 아래 Issue #277 항목. 아래 "남은 것"과 "후속"의 병합·배포 항목은 그때 완료됐고 실기기·실제 업로드 확인은 여전히 `NOT_RUN`이다.)
