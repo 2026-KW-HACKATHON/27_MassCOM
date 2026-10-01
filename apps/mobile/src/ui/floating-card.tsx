@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type AccessibilityState, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { lightHaptic } from '../gamification/native-effects';
@@ -13,6 +13,8 @@ type Props = {
   accessibilityLabel?: string;
   /** What a tap does ("자세히 보기"), kept out of the label so the label can read the card's own content. */
   accessibilityHint?: string;
+  /** e.g. `{ expanded }` for a disclosure card (#296 review: expanded state must reach assistive tech, not just the label text). */
+  accessibilityState?: AccessibilityState;
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
 };
@@ -21,7 +23,7 @@ type Props = {
 const fillWrapper = { flexGrow: 1 } as const;
 
 /** White card floating over the sky. Shrinks slightly, tints while pressed and gives a light haptic when pressable. */
-export function FloatingCard({ onPress, accessibilityLabel, accessibilityHint, style, children }: Props) {
+export function FloatingCard({ onPress, accessibilityLabel, accessibilityHint, accessibilityState, style, children }: Props) {
   const styles = useUiStyles();
   const enabled = useMotionEnabled();
   const scale = useSharedValue(1);
@@ -41,6 +43,7 @@ export function FloatingCard({ onPress, accessibilityLabel, accessibilityHint, s
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
+      accessibilityState={accessibilityState}
       onPressIn={() => { if (enabled) scale.set(withSpring(motion.pressScale, motion.spring)); }}
       onPressOut={() => { if (enabled) scale.set(withSpring(1, motion.spring)); }}
       onPress={() => { void lightHaptic(); onPress(); }}

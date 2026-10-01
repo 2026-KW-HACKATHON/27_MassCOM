@@ -5,7 +5,11 @@ type RawCollectible = CollectionSnapshot['collectibles'][number];
 type NftStatus = RawCollectible['nftStatus'];
 type NftAsset = RawCollectible['nft'];
 
-type Collectible = Pick<RawCollectible, 'entitlementId' | 'merchantId' | 'merchantName' | 'artwork' | 'earnedAt' | 'nftStatus' | 'nft' | 'recipient'>;
+// nftStatus/nft/recipient stay optional: PR #297/#299's envelope reveal groups a lighter collectible shape
+// (entitlementId/merchantId/merchantName/artwork/earnedAt only, for NEW/kind-count purposes) through this same
+// function instead of a second grouping rule, and never reads a group's `entitlements` field.
+type Collectible = Pick<RawCollectible, 'entitlementId' | 'merchantId' | 'merchantName' | 'artwork' | 'earnedAt'>
+  & Partial<Pick<RawCollectible, 'nftStatus' | 'nft' | 'recipient'>>;
 
 /** One entitlement's NFT status inside a (possibly grouped) collectible card; the mint action keys off this. */
 export type CollectibleEntitlementStatus = {
@@ -35,7 +39,13 @@ function groupKey(artwork: CollectibleArtwork): string {
 }
 
 function entitlementStatus(item: Collectible): CollectibleEntitlementStatus {
-  return { entitlementId: item.entitlementId, earnedAt: item.earnedAt, nftStatus: item.nftStatus, nft: item.nft, recipient: item.recipient };
+  return {
+    entitlementId: item.entitlementId,
+    earnedAt: item.earnedAt,
+    nftStatus: item.nftStatus ?? 'NOT_REQUESTED',
+    nft: item.nft ?? null,
+    recipient: item.recipient ?? null,
+  };
 }
 
 /**
@@ -102,9 +112,9 @@ export function ungroupedCollectibles(collectibles: readonly LegacyCollectible[]
       campaignTitle: item.campaignTitle,
       targetVisitCount: item.targetVisitCount,
       earnedAt: item.earnedAt,
-      nftStatus: item.nftStatus,
-      nft: item.nft,
-      recipient: item.recipient,
+      nftStatus: item.nftStatus ?? 'NOT_REQUESTED',
+      nft: item.nft ?? null,
+      recipient: item.recipient ?? null,
     }))
     .sort((a, b) => (a.earnedAt < b.earnedAt ? 1 : -1));
 }

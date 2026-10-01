@@ -14,6 +14,7 @@ import {
 } from '@/commerce/collection-recovery';
 import { CommerceApiError, createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
 import { createBadgeApiClient, type Coupon, type MedalKind, type OpenedReward, type RewardMilestone } from '@/gamification/badge-api';
+import { shouldRefreshBadgesQuietly } from '@/gamification/badge-refresh';
 import { couponsOf, explorerRank, shouldStackTrio, type ShareVariant } from '@/gamification/badge-rules';
 import { CouponTicket } from '@/gamification/coupon-ticket';
 import { CouponUseSheet } from '@/gamification/coupon-use-sheet';
@@ -60,8 +61,6 @@ import { mintConsentMessage, mintConsentTitle, mintConsentVersion } from './mint
 import { buildStoreSeries } from './store-series';
 import { useCollectionStyles } from './use-collection-styles';
 
-const quietBadgeRefreshCodes = new Set(['REWARD_LOCKED', 'REWARD_OFFER_UNAVAILABLE', 'REWARD_CAPACITY_EXHAUSTED', 'INVALID_RESPONSE']);
-
 export function CollectionScreen({
   apiUrl,
   accountId,
@@ -99,6 +98,9 @@ export function CollectionScreen({
   const { focus, entitlement } = useLocalSearchParams<{ focus?: string; entitlement?: string | string[] }>();
   const scrollView = useRef<ScrollView>(null);
   const [rewardsY, setRewardsY] = useState<number>();
+  // #296 review: the reward track lives inside a collapsed-by-default Fold; this tracks whether it is open so a
+  // `focus=rewards` link and the passport's "보상" button can force it open instead of scrolling to a hidden card.
+  const [rewardsFoldExpanded, setRewardsFoldExpanded] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
   const [detailKind, setDetailKind] = useState<MedalKind>();
   const [revealed, setRevealed] = useState<OpenedReward>();
@@ -313,17 +315,28 @@ export function CollectionScreen({
   const focusCount = useRef(0);
   const { refreshQuietly: refreshBadgesQuietly } = badges;
 
-  // "도감에서 상자 열기" arrives with ?focus=rewards; scroll once the reward section is laid out.
+  // "도감에서 상자 열기" arrives with ?focus=rewards. The reward track sits inside a Fold that starts collapsed and
+  // unmounts its body, so merely scrolling to a measured y never worked: force that fold open, then scroll to its
+  // own position (reported by Fold's onLayout below on its root view, so it is known whether expanded or not).
   useEffect(() => {
-    if (focus !== 'rewards' || rewardsY === undefined) return;
+    if (focus !== 'rewards') return;
+    // Deferred (not called synchronously in the effect body) to avoid cascading renders.
+    const expandTimer = setTimeout(() => setRewardsFoldExpanded(true), 0);
+    if (rewardsY === undefined) return () => clearTimeout(expandTimer);
     // Clear the param inside the frame: clearing it first re-runs this effect and cancels the scroll.
     const frame = requestAnimationFrame(() => {
-      // The section's y is measured inside the content below the header, so the header's height is added.
       scrollView.current?.scrollTo({ y: Math.max(0, headerHeight + rewardsY - 12), animated: true });
       router.setParams({ focus: undefined });
     });
-    return () => cancelAnimationFrame(frame);
+    return () => { clearTimeout(expandTimer); cancelAnimationFrame(frame); };
   }, [focus, headerHeight, rewardsY, router]);
+
+  // Same fold-aware scroll for the in-app "보상" button (PassportHero, inside the "메달·배지 더보기" fold): the
+  // rewards fold may still be collapsed even though the passport's own fold is open.
+  const scrollToRewards = useCallback(() => {
+    setRewardsFoldExpanded(true);
+    scrollView.current?.scrollTo({ y: Math.max(0, headerHeight + (rewardsY ?? 0) - 12), animated: true });
+  }, [headerHeight, rewardsY]);
 
   useFocusEffect(useCallback(() => {
     focusCount.current += 1;
@@ -440,7 +453,7 @@ export function CollectionScreen({
     setRevealed(result);
   }, [applyOpened, setRevealed]);
   const onOpenFailed = useCallback((code: string | undefined) => {
-    if (code && quietBadgeRefreshCodes.has(code)) void refreshBadgesQuietly();
+    if (shouldRefreshBadgesQuietly(code)) void refreshBadgesQuietly();
   }, [refreshBadgesQuietly]);
   const loadBadgeBook = useCallback(() => badgeApi.getBadgeBook(), [badgeApi]);
   const createIdentity = useCallback(() => api.createCustomerIdentity(), [api]);
@@ -540,7 +553,7 @@ export function CollectionScreen({
             isShowcase={isShowcase}
             stackCounts={stackCounts}
             stackMain={fontScale >= 1.5}
-            onOpenRewards={() => scrollView.current?.scrollTo({ y: Math.max(0, headerHeight + (rewardsY ?? 0) - 12), animated: true })}
+            onOpenRewards={scrollToRewards}
           />
           <Section title="배지">
             {badges.book ? (
@@ -554,8 +567,14 @@ export function CollectionScreen({
         </Fold>
 
         {badges.book ? (
-          <Fold title="쿠폰·NFT 발행 현황" summary={`쿠폰 ${coupons.length}개`}>
-            <Section title="보상 상자" note="배지 3개마다 상자가 하나씩 열려요." onLayout={setRewardsY}>
+          <Fold
+            title="쿠폰·NFT 발행 현황"
+            summary={`쿠폰 ${coupons.length}개`}
+            expanded={rewardsFoldExpanded}
+            onToggle={() => setRewardsFoldExpanded((value) => !value)}
+            onLayout={setRewardsY}
+          >
+            <Section title="보상 상자" note="배지 3개마다 상자가 하나씩 열려요.">
               <RewardTrack
                 book={badges.book}
                 onOpen={openReward}
@@ -662,16 +681,14 @@ export function CollectionScreen({
   );
 }
 
-function Section({ title, note, children, onLayout }: {
+function Section({ title, note, children }: {
   title: string;
   note?: string;
   children: React.ReactNode;
-  /** Reports the section's y inside the scroll content (for scroll-to). */
-  onLayout?: (y: number) => void;
 }) {
   const styles = useCollectionStyles();
   return (
-    <View style={styles.section} onLayout={onLayout ? (event) => onLayout(event.nativeEvent.layout.y) : undefined}>
+    <View style={styles.section}>
       <Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>
       {note ? <Text style={styles.sectionNote}>{note}</Text> : null}
       <View style={styles.sectionBody}>{children}</View>
