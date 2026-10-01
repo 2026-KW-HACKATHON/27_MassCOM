@@ -1032,7 +1032,15 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         mutate(() => {
           let motion = project.motion.find(item => item.type === selectedTemplate);
           if (!motion) { motion = { id: createId('motion'), type: selectedTemplate, gradeIds: [] }; project.motion.push(motion); }
-          if (field === 'motion-playback') motion.playback = target.value; else motion.particle = target.value;
+          if (field === 'motion-playback') {
+            motion.playback = target.value;
+            // PR #293 후속 P2(b): once→loop로 바꾸면 반복끼리의 등급당 하나 배타 규칙(9.14 근처 motionGrade
+            // 토글과 같은 규칙)을 다시 적용해야 한다. 안 그러면 이 모션과 겹치는 등급에 걸린 다른 loop 모션이
+            // 그대로 남아 같은 등급에 loop 둘이 걸린다. 겹치는 등급만 다른 loop에서 뗀다.
+            if (target.value === 'loop') {
+              for (const other of project.motion) if (other !== motion && (other.playback ?? 'loop') === 'loop') other.gradeIds = other.gradeIds.filter(id => !motion.gradeIds.includes(id));
+            }
+          } else motion.particle = target.value;
         });
         renderMotionGrades(); return;
       }

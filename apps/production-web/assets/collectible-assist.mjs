@@ -54,9 +54,14 @@ export function draftEditsOnly(project) {
  * 가진 프로젝트가 schemaVersion:1로 잘못 표시돼 저장 시 업그레이더가 다시 돌며 방금 한 편집을 지운다(PR #293 P1).
  * 호출한 쪽이 결과를 upgradeProject로 한 번 더 정규화해야 한다.
  */
+// PR #293 후속 P2(c): schemaVersion은 서버 값을 그대로 쓰므로(위 설명), 병합 결과는 이미 schemaVersion:2라
+// upgradeProject가 다시 돌지 않는다. 그런데 edits.stickers는 v1 시절 보관본이면 align·layouts가 없을 수 있어,
+// 그대로 덮으면 "이 등급만 따로 배치" 토글(sticker.layouts[grade] = ...)이 undefined에 쓰려다 던진다.
+// 여기서 직접 두 필드를 채워 v1 보관본이든 v2 보관본이든 항상 같은 모양으로 만든다.
 export function applyDraftEdits(serverProject, edits) {
   const { schemaVersion, ...rest } = edits;
-  return { ...serverProject, ...rest, story: { ...rest.story, frames: serverProject.story.frames } };
+  const stickers = (rest.stickers ?? serverProject.stickers).map((sticker) => ({ align: 'center', ...sticker, layouts: { ...sticker.layouts } }));
+  return { ...serverProject, ...rest, stickers, story: { ...rest.story, frames: serverProject.story.frames } };
 }
 
 // 렌더러(collectible-renderer.mjs effectPaint)의 무광·에나멜·유리는 셋 다 같은 표면 전체를 덮어 칠하는
