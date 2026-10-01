@@ -2,6 +2,9 @@ import { CollectibleProjectError, type CollectibleDetail, type CollectibleProjec
 
 const mb = 1024 * 1024;
 const imageMimes = ['image/png', 'image/jpeg', 'image/webp'];
+// 뒷면·각도·living 스프라이트는 픽셀 좌표로 자르고 배치하므로 JPEG의 EXIF Orientation 회전을 허용하지 않는다.
+// 편집기도 이 셋은 WebP/PNG로만 만든다.
+const spriteImageMimes = ['image/png', 'image/webp'];
 const audioMimes = ['audio/mpeg', 'audio/mp3', 'audio/webm', 'audio/ogg'];
 const identifier = /^[a-zA-Z0-9_-]{1,64}$/;
 const hexColor = /^#[0-9a-f]{6}$/i;
@@ -29,13 +32,125 @@ function array(value: unknown, max: number, min = 0): unknown[] { if (!Array.isA
 function id(value: unknown): void { if (typeof value !== 'string' || !identifier.test(value) || ['__proto__','prototype','constructor'].includes(value)) invalid(); }
 function color(value: unknown): void { if (typeof value !== 'string' || !hexColor.test(value)) invalid(); }
 function uniqueIds(values: Record<string, unknown>[]): void { const ids = values.map(value => value.id); if (new Set(ids).size !== ids.length) invalid(); }
+function scopeIds(value: unknown, gradeIds: string[]): void {
+  const refs = array(value, 16);
+  if (new Set(refs).size !== refs.length || refs.some(ref => !gradeIds.includes(ref as string))) invalid();
+}
+
+// v2 스키마 추가분. model.mjs와 값을 맞춰 둔다(서로 import하지 않는 서버/브라우저 쌍둥이 구현).
+const mascotPoses = ['cheer','explore-map','friends','gift','logo-badge','puzzled','search','sky-town-header','sleep','stamp','town-map','wave'];
+const mascotBlink: string[] = [];
+const particleKinds = ['confetti','snow','petals','sparkles'];
+const stickerKinds = ['text','emoji','mascot'];
+const stickerAligns = ['left','center','right'];
+const motionPlaybacks = ['once','loop'];
+const backModes = ['default','custom'];
+const parallaxTools = ['fg','bg'];
+const livingKinds = ['sway','bob','steam','blink'];
+
+// allowLayouts=false는 뒷면 스티커용: layouts 키 자체를 허용하지 않는다(등급별 배치는 앞면 전용).
+function parseSticker(raw: unknown, gradeIds: string[], allowLayouts: boolean): Record<string, unknown> {
+  const sticker = object(raw, ['id','kind','text','x','y','size','rotation','color','order'], allowLayouts ? ['align','layouts'] : ['align']);
+  id(sticker.id); enumeration(sticker.kind, stickerKinds);
+  if (sticker.kind === 'mascot') enumeration(sticker.text, mascotPoses);
+  else {
+    string(sticker.text, 80);
+    if (/[\r\t]/.test(sticker.text as string)) invalid();
+    if ((sticker.text as string).split('\n').length > 4) invalid();
+  }
+  number(sticker.x, 0, 1); number(sticker.y, 0, 1); number(sticker.size, 8, 120); number(sticker.rotation, -180, 180);
+  color(sticker.color); number(sticker.order, 0, 100, true);
+  if (sticker.align !== undefined) enumeration(sticker.align, stickerAligns);
+  let layouts: Record<string, unknown> = {};
+  if (allowLayouts && sticker.layouts !== undefined) {
+    if (!sticker.layouts || typeof sticker.layouts !== 'object' || Array.isArray(sticker.layouts)) invalid();
+    const entries = Object.entries(sticker.layouts as Record<string, unknown>);
+    if (entries.length > 16) invalid();
+    for (const [gradeId, layoutRaw] of entries) {
+      if (!gradeIds.includes(gradeId)) invalid();
+      const layout = object(layoutRaw, ['x','y','size','rotation']);
+      number(layout.x, 0, 1); number(layout.y, 0, 1); number(layout.size, 8, 120); number(layout.rotation, -180, 180);
+    }
+    layouts = sticker.layouts as Record<string, unknown>;
+  }
+  return { ...sticker, align: (sticker.align as string | undefined) ?? 'center', ...(allowLayouts ? { layouts } : {}) };
+}
+// playback·particle은 구 편집기가 아직 보내지 않을 수 있어 선택 항목으로 두고 기본값을 채운다(업그레이드와 같은 기본값).
+// particle은 type이 confetti일 때만 의미가 있어, 다른 종류 모션에 값이 있으면 거부한다.
+function parseMotion(raw: unknown, gradeIds: string[]): Record<string, unknown> {
+  const motion = object(raw, ['id','type','gradeIds'], ['playback','particle']);
+  id(motion.id); enumeration(motion.type, ['still','rotate','shine','float','stamp','sparkle','pulse','confetti']);
+  scopeIds(motion.gradeIds, gradeIds);
+  if (motion.playback !== undefined) enumeration(motion.playback, motionPlaybacks);
+  if (motion.particle !== undefined) { if (motion.type !== 'confetti') invalid(); enumeration(motion.particle, particleKinds); }
+  return {
+    ...motion, playback: (motion.playback as string | undefined) ?? 'loop',
+    ...(motion.type === 'confetti' ? { particle: (motion.particle as string | undefined) ?? 'confetti' } : {}),
+  };
+}
+function parseGreetingOverride(raw: unknown, gradeIds: string[]): Record<string, unknown> {
+  const override = object(raw, ['id','gradeIds','themeName','text']);
+  id(override.id); scopeIds(override.gradeIds, gradeIds); string(override.themeName, 80, true); string(override.text, 300);
+  if ((override.gradeIds as unknown[]).length === 0 && override.themeName === '') invalid();
+  return override;
+}
+// living은 'region'(strokes로 표시한 영역) 또는 앞면 스티커 id만 대상으로 삼는다. blink는 오직 mascot 스티커 대상,
+// 그것도 MASCOT_BLINK에 있는 포즈에서만(지금은 그림이 없어 항상 비어 있다).
+function parseLivingItem(raw: unknown, gradeIds: string[], frontStickers: Record<string, unknown>[]): Record<string, unknown> {
+  const item = object(raw, ['id','kind','target','gradeIds','amplitude','pivot'], ['strokes']);
+  id(item.id); enumeration(item.kind, livingKinds);
+  const stickerIds = frontStickers.map(sticker => sticker.id as string);
+  if (item.target !== 'region' && !stickerIds.includes(item.target as string)) invalid();
+  scopeIds(item.gradeIds, gradeIds); number(item.amplitude, 0, 100);
+  const pivot = object(item.pivot, ['x','y']); number(pivot.x, 0, 1); number(pivot.y, 0, 1);
+  if (item.target === 'region') {
+    if (item.kind === 'blink') invalid();
+    const points = array(item.strokes, 20, 1).map(pointRaw => { const point = object(pointRaw, ['x','y']); number(point.x, 0, 1); number(point.y, 0, 1); return point; });
+    return { ...item, strokes: points };
+  }
+  if (item.strokes !== undefined) invalid();
+  if (item.kind === 'blink') {
+    const sticker = frontStickers.find(candidate => candidate.id === item.target);
+    if (!sticker || sticker.kind !== 'mascot' || !mascotBlink.includes(sticker.text as string)) invalid();
+  }
+  return { ...item };
+}
+// v1 → v2. 순수 재배치이며 구조가 어긋나면(예: stickers가 배열이 아님) 평범한 TypeError를 던져 호출자가 400으로 바꾼다.
+// model.mjs upgradeProject와 값이 같아야 하며 같은 골든 픽스처로 함께 시험한다. 이미 v2면 그대로(깊은 복사) 돌려줘 멱등이다.
+export function upgradeCollectibleProject(value: unknown): CollectibleProject {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) invalid();
+  const source = value as Record<string, unknown>;
+  if (source.schemaVersion === 2) return structuredClone(source) as CollectibleProject;
+  if (source.schemaVersion !== 1) invalid();
+  const upgraded = structuredClone(source) as Record<string, any>;
+  upgraded.schemaVersion = 2;
+  upgraded.stickers = (upgraded.stickers as any[]).map(sticker => ({
+    ...sticker,
+    text: typeof sticker.text === 'string' ? sticker.text.replace(/[\r\n\t]+/g, ' ') : sticker.text,
+    align: 'center',
+    layouts: {},
+  }));
+  upgraded.back = { mode: 'default', color: upgraded.baseColor, stickers: [] };
+  upgraded.motion = (upgraded.motion as any[]).map(motion => ({
+    ...motion,
+    playback: 'loop',
+    ...(motion.type === 'confetti' ? { particle: 'confetti' } : {}),
+  }));
+  upgraded.greetingOverrides = [];
+  upgraded.parallax = { strength: 0, strokes: [] };
+  upgraded.living = { periodMs: 2400, items: [] };
+  return upgraded as CollectibleProject;
+}
 
 // Only inline supported media is accepted. No original file name, EXIF metadata, URL, or arbitrary SVG is interpreted by the server.
-export function validateCollectibleMedia(value: unknown, kind: 'image' | 'audio', maxBytes: number, maxSide = 4096): string {
+// allowedImageMimes narrows image kinds further (e.g. sprite fields that are sliced/positioned by pixel geometry
+// reject JPEG: its EXIF Orientation tag silently rotates the decoded pixels, so a declared 1024x768 sprite could
+// actually display 768x1024 in a renderer/Android grid that only reads the header dimensions).
+export function validateCollectibleMedia(value: unknown, kind: 'image' | 'audio', maxBytes: number, maxSide = 4096, allowedImageMimes: string[] = imageMimes): string {
   if (typeof value !== 'string') invalid();
   if (value.length > Math.ceil(maxBytes / 3) * 4 + 64) throw new CollectibleProjectError('COLLECTIBLE_MEDIA_TOO_LARGE');
   const match = value.match(/^data:([a-z]+\/[a-z0-9]+);base64,([A-Za-z0-9+/]+={0,2})$/);
-  if (!match || !(kind === 'image' ? imageMimes : audioMimes).includes(match[1]!)) invalid();
+  if (!match || !(kind === 'image' ? allowedImageMimes : audioMimes).includes(match[1]!)) invalid();
   const bytes = Buffer.from(match[2]!, 'base64');
   if (bytes.length > maxBytes) throw new CollectibleProjectError('COLLECTIBLE_MEDIA_TOO_LARGE');
   if (bytes.length === 0 || bytes.toString('base64') !== match[2]) invalid();
@@ -96,9 +211,46 @@ function imageDimensions(bytes: Buffer, mime: string): {width: number; height: n
   return undefined;
 }
 
+// 구조 검사 전에 값을 통째로 structuredClone하면, 알려진 키 이름 아래 원소 수만 개짜리 배열 하나를 심은 입력이
+// 실제 배열 상한 검사(뒤에서 array()가 함)에 닿기도 전에 복제 시간·메모리 비용부터 치르게 한다(수백 KB~수 MB
+// 요청으로 수백 ms·수백 MiB를 태울 수 있음). upgrade·구조 복제보다 먼저, 얕게 훑기만 해서 배열 길이와 전체
+// 노드 수를 빠르게 거절한다(이 훑기는 새로 할당하지 않으므로 같은 크기의 입력이라도 훨씬 싸다).
+const MAX_SHAPE_ARRAY_LENGTH = 2000; // 실제로 쓰는 가장 큰 개별 배열 상한(스트로크 점 1,000)보다 넉넉히 커서 정상 입력을 막지 않는다.
+// 정상 최대치: 사진 붓 100획×1,000점(배열 원소+x·y 키 ≈ 300,500) + 패럴랙스·살아 있는 그림 2만 점(≈ 60,000) + 나머지(수천).
+// 이보다 넉넉히 잡아 정상 입력은 통과시키고, 그 이상은 복제 전에 끊는다. 값을 훑는 비용은 수 ms다.
+const MAX_SHAPE_NODES = 450_000;
+// 정상 프로젝트의 가장 깊은 중첩은 living.items[i].strokes[j].points[k].x 까지 8단계다. 깊이 상한이 없으면
+// 길이·노드 예산 안에서도 수만 단계로 겹친 배열 하나가 재귀를 터뜨려(RangeError) 500이 된다.
+const MAX_SHAPE_DEPTH = 16;
+function assertBoundedShape(value: unknown, nodes: { count: number } = { count: 0 }, depth = 0): void {
+  if (depth > MAX_SHAPE_DEPTH) invalid();
+  if (Array.isArray(value)) {
+    if (value.length > MAX_SHAPE_ARRAY_LENGTH) invalid();
+    nodes.count += value.length;
+    if (nodes.count > MAX_SHAPE_NODES) invalid();
+    for (const item of value) assertBoundedShape(item, nodes, depth + 1);
+  } else if (value && typeof value === 'object') {
+    const keys = Object.keys(value as Record<string, unknown>);
+    nodes.count += keys.length;
+    if (nodes.count > MAX_SHAPE_NODES) invalid();
+    for (const key of keys) assertBoundedShape((value as Record<string, unknown>)[key], nodes, depth + 1);
+  }
+}
+
+// v1이면 위의 순수 upgradeCollectibleProject로 재배치한 뒤 v2 규칙 전체로 검증한다(재배치 자체는 값을 검사하지 않으므로,
+// v1 쪽 구조·범위 위반도 이 아래 v2 검증에서 그대로 걸러진다). 그 외 버전은 거부.
 export function validateCollectibleProject(value: unknown, publish = false): CollectibleProject {
-  const p = object(value, ['schemaVersion','name','campaignId','theme','photo','shape','crop','photoEdits','style','baseColor','photoColor','relief','stickers','grades','effects','motion','thickness','angle','greeting','audio','story','derived','rewardGrades']);
-  if (p.schemaVersion !== 1) invalid();
+  assertBoundedShape(value);
+  let upgraded: CollectibleProject;
+  try { upgraded = upgradeCollectibleProject(value); }
+  catch (error) { if (error instanceof CollectibleProjectError) throw error; invalid(); }
+  return validateUpgradedProject(upgraded, publish);
+}
+
+function validateUpgradedProject(value: unknown, publish: boolean): CollectibleProject {
+  const p = object(value, ['schemaVersion','name','campaignId','theme','photo','shape','crop','photoEdits','style','baseColor','photoColor','relief',
+    'stickers','back','grades','effects','motion','thickness','angle','greeting','greetingOverrides','audio','story','parallax','living','derived','rewardGrades']);
+  if (p.schemaVersion !== 2) invalid();
   string(p.name, 80); string(p.campaignId, 120, true); const theme = object(p.theme, ['name']); string(theme.name, 80);
   enumeration(p.shape, ['circle','stamp','serrated']); enumeration(p.style, ['original','incised','raised']);
   color(p.baseColor); number(p.photoColor, 0, 100); number(p.relief, 0, 100); number(p.thickness, 1, 24); number(p.angle, -180, 180);
@@ -118,17 +270,19 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
     const stroke = object(raw, ['tool','points','size','color']); enumeration(stroke.tool, ['clean','erase','restore','color']); color(stroke.color); number(stroke.size, 0.01, 0.2);
     for (const pointRaw of array(stroke.points, 1000, 1)) { const point = object(pointRaw, ['x','y']); number(point.x, 0, 1); number(point.y, 0, 1); }
   }
-  const stickers = array(p.stickers, 30).map(raw => object(raw, ['id','kind','text','x','y','size','rotation','color','order'])); uniqueIds(stickers);
-  for (const sticker of stickers) { id(sticker.id); enumeration(sticker.kind,['text','emoji']); string(sticker.text, 80); number(sticker.x,0,1); number(sticker.y,0,1); number(sticker.size,8,120); number(sticker.rotation,-180,180); color(sticker.color); number(sticker.order,0,100,true); }
   const grades = array(p.grades, 16, 1).map(raw => object(raw, ['id','name','kind','enabled'])); uniqueIds(grades);
   for (const grade of grades) { id(grade.id); string(grade.name, 40); enumeration(grade.kind, ['basic','special']); if (typeof grade.enabled !== 'boolean') invalid(); }
   const gradeIds = grades.map(grade => grade.id as string);
-  const scope = (value: unknown) => { const refs = array(value, 16); if (new Set(refs).size !== refs.length || refs.some(ref => !gradeIds.includes(ref as string))) invalid(); };
+  const scope = (value: unknown) => scopeIds(value, gradeIds);
+  const stickers = array(p.stickers, 30).map(raw => parseSticker(raw, gradeIds, true)); uniqueIds(stickers);
+  const back = object(p.back, ['mode','color','stickers']); enumeration(back.mode, backModes); color(back.color);
+  const backStickers = array(back.stickers, 10).map(raw => parseSticker(raw, gradeIds, false));
+  uniqueIds([...stickers, ...backStickers]);
   const effects = array(p.effects, 64).map(raw => object(raw,['id','type','target','gradeIds','strength','color','roughness'])); uniqueIds(effects);
   for (const effect of effects) { id(effect.id); enumeration(effect.type,['metallic','hologram','pearl','matte','glow','enamel','glass']); if (!['surface','photo','border', ...stickers.map(s => s.id)].includes(effect.target)) invalid(); scope(effect.gradeIds); number(effect.strength,0,100); number(effect.roughness,0,100); color(effect.color); }
-  const motions = array(p.motion, 10).map(raw => object(raw,['id','type','gradeIds'])); uniqueIds(motions);
-  for (const motion of motions) { id(motion.id); enumeration(motion.type,['still','rotate','shine','float','stamp','sparkle','pulse','confetti']); scope(motion.gradeIds); }
+  const motions = array(p.motion, 10).map(raw => parseMotion(raw, gradeIds)); uniqueIds(motions);
   string(p.greeting, 300, true);
+  const greetingOverrides = array(p.greetingOverrides, 16).map(raw => parseGreetingOverride(raw, gradeIds)); uniqueIds(greetingOverrides);
   let normalizedAudio: { dataUrl: string; durationSeconds: number } | undefined;
   if (p.audio !== null) {
     const audio = object(p.audio,['dataUrl','mimeType','durationSeconds']); const mime = validateCollectibleMedia(audio.dataUrl,'audio',mb);
@@ -150,9 +304,21 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
   }
   const storyMinimum = { none: 0, zoom: 0, wide: 1, follow: 2, event: 3 }[story.type as CollectibleProject['story']['type']];
   if (publish && (story.frames as unknown[]).length < storyMinimum) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
+  const parallax = object(p.parallax, ['strength','strokes']); number(parallax.strength, 0, 100);
+  const parallaxStrokes = array(parallax.strokes, 100).map(raw => {
+    const stroke = object(raw, ['tool','size','points']); enumeration(stroke.tool, parallaxTools); number(stroke.size, 0.01, 0.2);
+    const points = array(stroke.points, 1000, 1).map(pointRaw => { const point = object(pointRaw, ['x','y']); number(point.x, 0, 1); number(point.y, 0, 1); return point; });
+    return { ...stroke, points };
+  });
+  const living = object(p.living, ['periodMs','items']); number(living.periodMs, 1000, 4000);
+  const livingItems = array(living.items, 4).map(raw => parseLivingItem(raw, gradeIds, stickers)); uniqueIds(livingItems);
+  let totalPoints = parallaxStrokes.reduce((sum, stroke) => sum + stroke.points.length, 0);
+  for (const item of livingItems) if (item.strokes) totalPoints += (item.strokes as unknown[]).length;
+  if (totalPoints > 20_000) invalid();
   if (!p.derived || typeof p.derived !== 'object' || Array.isArray(p.derived)) invalid();
   for (const [gradeId, raw] of Object.entries(p.derived)) {
-    if (!gradeIds.includes(gradeId)) invalid(); const asset = object(raw,['imageDataUrl','thumbnailDataUrl'],['baseDataUrl','effectMasks']);
+    if (!gradeIds.includes(gradeId)) invalid();
+    const asset = object(raw,['imageDataUrl','thumbnailDataUrl'],['baseDataUrl','effectMasks','backImageDataUrl','angleFrames','living']);
     validateCollectibleMedia(asset.imageDataUrl,'image',mb,editorSide); validateCollectibleMedia(asset.thumbnailDataUrl,'image',128*1024,thumbnailSide);
     if (asset.baseDataUrl !== undefined) validateCollectibleMedia(asset.baseDataUrl,'image',mb,editorSide);
     if (asset.effectMasks !== undefined) {
@@ -161,12 +327,56 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
       const targets = effects.filter(e => (e.gradeIds as string[]).includes(gradeId)).map(e => e.target);
       for (const [target, mask] of masks) { if (!targets.includes(target)) invalid(); validateCollectibleMedia(mask,'image',256*1024,editorSide); }
     }
+    if (asset.backImageDataUrl !== undefined) validateCollectibleMedia(asset.backImageDataUrl, 'image', 256 * 1024, 512, spriteImageMimes);
+    if (asset.angleFrames !== undefined) {
+      const angleFrames = object(asset.angleFrames, ['dataUrl','side','count','columns','stepDegrees']);
+      number(angleFrames.side, 256, 512, true);
+      if (angleFrames.count !== 12 || angleFrames.columns !== 4 || angleFrames.stepDegrees !== 15) invalid();
+      const side = angleFrames.side as number;
+      const mime = validateCollectibleMedia(angleFrames.dataUrl, 'image', mb, side * 4, spriteImageMimes);
+      const actual = imageDimensions(Buffer.from((angleFrames.dataUrl as string).split(',')[1]!, 'base64'), mime);
+      if (!actual || actual.width !== side * 4 || actual.height !== side * 3) invalid();
+    }
+    if (asset.living !== undefined) {
+      const derivedLiving = object(asset.living, ['dataUrl','count','columns','cellWidth','cellHeight','periodMs','box']);
+      number(derivedLiving.count, 8, 24, true); number(derivedLiving.columns, 1, 8, true);
+      number(derivedLiving.cellWidth, 16, 512, true); number(derivedLiving.cellHeight, 16, 512, true); number(derivedLiving.periodMs, 1000, 4000);
+      const box = object(derivedLiving.box, ['x','y','w','h']);
+      number(box.x, 0, 1); number(box.y, 0, 1); number(box.w, 0, 1); number(box.h, 0, 1);
+      if ((box.x as number) + (box.w as number) > 1 || (box.y as number) + (box.h as number) > 1) invalid();
+      const columns = derivedLiving.columns as number, cellWidth = derivedLiving.cellWidth as number, cellHeight = derivedLiving.cellHeight as number, count = derivedLiving.count as number;
+      const width = columns * cellWidth, height = Math.ceil(count / columns) * cellHeight;
+      if (width > 4096 || height > 4096) invalid();
+      const mime = validateCollectibleMedia(derivedLiving.dataUrl, 'image', 512 * 1024, Math.max(width, height), spriteImageMimes);
+      const actual = imageDimensions(Buffer.from((derivedLiving.dataUrl as string).split(',')[1]!, 'base64'), mime);
+      if (!actual || actual.width !== width || actual.height !== height) invalid();
+    }
   }
   if (!p.rewardGrades || typeof p.rewardGrades !== 'object' || Array.isArray(p.rewardGrades)) invalid();
   const mappings = Object.entries(p.rewardGrades);
   for (const [goal, gradeId] of mappings) { if (!['1','3','5'].includes(goal) || !grades.some(g => g.id === gradeId && g.enabled === true)) invalid(); }
-  const derived = p.derived as Record<string, unknown>;
+  const derived = p.derived as Record<string, any>;
   if (publish && (mappings.length === 0 || mappings.some(([, gradeId]) => !Object.hasOwn(derived, gradeId as string)))) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
+  // backImageDataUrl·angleFrames는 지금(WP1 시점) 편집기의 serializeDerived가 아직 만들지 않는다. 여기서 필수로
+  // 두면 이 브랜치가 병합되는 순간 모든 웹 게시가 COLLECTIBLE_NOT_READY로 막힌다. 클라이언트는 이미 없을 때를
+  // 대비한다(뒷면 없음 → 기존 모습, 각도 프레임 없음 → 정면 이미지를 그대로 회전). WP2(뒷면)·WP3(각도 프레임)가
+  // 편집기에서 실제로 만들기 시작하면 그때 다시 필수로 좁힌다(설계 문서·COLLECTIBLE_CREATOR.md에 기록).
+  // living만은 지금 편집기가 만들 방법이 없는 항목을 프로젝트가 스스로 선언했을 때(누군가 API를 직접 쳐서
+  // living 항목을 등급에 걸었을 때)만 필요해, 항상 안전하게 강제할 수 있다.
+  if (publish) {
+    const linkedGrades = new Set(Object.values(p.rewardGrades as Record<string, string>));
+    for (const gradeId of linkedGrades) {
+      if (!gradeId) continue;
+      const needsLiving = livingItems.some(item => (item.gradeIds as string[]).includes(gradeId));
+      if (needsLiving && !derived[gradeId]?.living) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
+    }
+  }
+  (p as Record<string, unknown>).stickers = stickers;
+  (p as Record<string, unknown>).back = { ...back, stickers: backStickers };
+  (p as Record<string, unknown>).motion = motions;
+  (p as Record<string, unknown>).greetingOverrides = greetingOverrides;
+  (p as Record<string, unknown>).parallax = { ...parallax, strokes: parallaxStrokes };
+  (p as Record<string, unknown>).living = { ...living, items: livingItems };
   const result = structuredClone(p) as CollectibleProject;
   if (normalizedAudio && result.audio) { result.audio.dataUrl = normalizedAudio.dataUrl; result.audio.durationSeconds = normalizedAudio.durationSeconds; }
   // Originals are only visible to MANAGE_ART holders and copied with each project copy, but camera EXIF (GPS, device, time)
@@ -180,6 +390,9 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
     asset.imageDataUrl = stripImageMetadata(asset.imageDataUrl); asset.thumbnailDataUrl = stripImageMetadata(asset.thumbnailDataUrl);
     if (asset.baseDataUrl !== undefined) asset.baseDataUrl = stripImageMetadata(asset.baseDataUrl);
     if (asset.effectMasks) for (const target of Object.keys(asset.effectMasks)) asset.effectMasks[target] = stripImageMetadata(asset.effectMasks[target]!);
+    if (asset.backImageDataUrl !== undefined) asset.backImageDataUrl = stripImageMetadata(asset.backImageDataUrl);
+    if (asset.angleFrames !== undefined) asset.angleFrames.dataUrl = stripImageMetadata(asset.angleFrames.dataUrl);
+    if (asset.living !== undefined) asset.living.dataUrl = stripImageMetadata(asset.living.dataUrl);
   }
   return result;
 }
@@ -384,6 +597,9 @@ export function collectibleSnapshot(project: CollectibleProject, projectId: stri
     imageDataUrl: stripImageMetadata(asset.imageDataUrl), thumbnailDataUrl: stripImageMetadata(asset.thumbnailDataUrl),
     ...(asset.baseDataUrl ? {baseDataUrl:stripImageMetadata(asset.baseDataUrl)} : {}),
     ...(asset.effectMasks ? {effectMasks:Object.fromEntries(Object.entries(asset.effectMasks).map(([key,url])=>[key,stripImageMetadata(url)]))} : {}),
+    ...(asset.backImageDataUrl ? { backImageDataUrl: stripImageMetadata(asset.backImageDataUrl) } : {}),
+    ...(asset.angleFrames ? { angleFrames: { ...asset.angleFrames, dataUrl: stripImageMetadata(asset.angleFrames.dataUrl) } } : {}),
+    ...(asset.living ? { living: { ...asset.living, dataUrl: stripImageMetadata(asset.living.dataUrl) } } : {}),
   };
   const story = { type: project.story.type, cartoon: 0, strength: project.story.strength,
     frames: project.story.type==='none' ? [] : project.story.frames.map(frame => {
@@ -393,13 +609,30 @@ export function collectibleSnapshot(project: CollectibleProject, projectId: stri
       return {dataUrl:stripImageMetadata(frame.previewDataUrl),...dimensions};
     }),
   };
+  // motions는 이 등급에 걸린 전체 모션(재생 방식·파티클 포함), animation은 v1 Android가 아는 8종뿐인 "첫 loop 모션(없으면 still)".
+  const gradeMotions = project.motion.filter(m => m.gradeIds.includes(gradeId));
   return {
     projectId, publicationId, gradeId, gradeName: grade.name, name: project.name, shape: project.shape,
     theme: { name: project.theme.name }, ...safeAsset, thickness: project.thickness, angle: project.angle,
-    animation: project.motion.find(m => m.gradeIds.includes(gradeId))?.type ?? 'still', greeting: project.greeting,
+    animation: gradeMotions.find(m => (m.playback ?? 'loop') === 'loop')?.type ?? 'still',
+    motions: gradeMotions.map(({ type, playback, particle }) => ({ type, playback: playback ?? 'loop', ...(particle !== undefined ? { particle } : {}) })),
+    greeting: resolveGreeting(project, gradeId),
     audio: structuredClone(project.audio), story,
     effects: project.effects.filter(effect => effect.gradeIds.includes(gradeId)).map(({type,target,strength,color,roughness}) => ({type,target,strength,color,roughness})),
   };
+}
+// model.mjs resolveGreeting과 값이 같아야 하며(등급+테마 > 등급 > 테마 > 기본, 동점은 배열 순서), 같은 vectors 픽스처로 함께 시험한다.
+export function resolveGreeting(project: CollectibleProject, gradeId: string): string {
+  const themeName = project.theme.name;
+  let best: CollectibleProject['greetingOverrides'][number] | undefined; let bestScore = -1;
+  for (const override of project.greetingOverrides) {
+    const gradeMatch = override.gradeIds.length === 0 || override.gradeIds.includes(gradeId);
+    const themeMatch = override.themeName === '' || override.themeName === themeName;
+    if (!gradeMatch || !themeMatch) continue;
+    const score = (override.gradeIds.length > 0 ? 2 : 0) + (override.themeName !== '' ? 1 : 0);
+    if (score > bestScore) { bestScore = score; best = override; }
+  }
+  return best ? best.text : project.greeting;
 }
 
 // SOF0-3, SOF5-7, SOF9-11, SOF13-15, DHT, DAC, SOS, DQT, DRI.

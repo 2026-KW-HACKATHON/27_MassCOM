@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  cloneProject, createGrade, createProject, cropTransform, effectsForGrade, motionForGrade,
-  shapePath, shapePoints, toggleEffectGrade,
+  angleFrameIndex, cloneProject, createGrade, createProject, cropTransform, effectsForGrade, motionForGrade,
+  particleAt, resolveGreeting, resolveSticker, shapePath, shapePoints, toggleEffectGrade, upgradeProject,
 } from '../../apps/production-web/assets/collectible-model.mjs';
+
+// Issue #284 WP1: 공유 픽스처(tests/fixtures)는 apps/api의 같은 시험이 읽는 파일 그대로다. 서버(rules.ts)와
+// 브라우저(model.mjs)의 업그레이드·인사말·파티클·각도 계산이 같은 값을 내는지 이 파일들로 맞춘다.
+const fixture = (name) => JSON.parse(readFileSync(new URL(`../fixtures/${name}`, import.meta.url), 'utf8'));
 
 test('사진 제작 초안은 보상 규칙·등급 효과를 자동으로 설정하지 않는다', () => {
   const first = createProject({ campaignId: 'campaign-a' });
@@ -113,4 +118,43 @@ test('잘못된 조절값은 유한 자르기 결과로 제한하고 재편집 �
   copy.photo.originalDataUrl = 'replacement';
   assert.equal(project.photo.originalDataUrl, 'data:image/png;base64,original');
   assert.throws(() => cropTransform(project, 0), /유한/);
+});
+
+test('golden v1→v2 upgrade matches the shared fixture the server also checks, and upgrading twice is idempotent', () => {
+  const v1 = fixture('collectible-v1.json');
+  const v2 = fixture('collectible-v2-upgraded.json');
+  const upgraded = upgradeProject(v1);
+  assert.deepEqual(upgraded, v2);
+  assert.deepEqual(upgradeProject(upgraded), v2);
+  assert.throws(() => upgradeProject({ ...v1, schemaVersion: 3 }), /버전/);
+  assert.throws(() => upgradeProject(null), /객체/);
+});
+
+test('resolveSticker applies a grade-specific layout override and leaves stickers without one untouched', () => {
+  const sticker = { id: 's1', x: .5, y: .5, size: 40, rotation: 0, layouts: { gold: { x: .2, y: .3, size: 60, rotation: 15 } } };
+  assert.deepEqual(resolveSticker(sticker, 'gold'), { ...sticker, x: .2, y: .3, size: 60, rotation: 15 });
+  assert.deepEqual(resolveSticker(sticker, 'silver'), sticker);
+  const partial = { id: 's2', x: .1, y: .1, size: 20, rotation: 0, layouts: { gold: { x: .9 } } };
+  assert.deepEqual(resolveSticker(partial, 'gold'), { ...partial, x: .9, y: .1, size: 20, rotation: 0 });
+});
+
+test('resolveGreeting priority vectors match the shared fixture the server also checks: grade+theme > grade > theme > default, ties by array order', () => {
+  const vectors = fixture('collectible-vectors.json');
+  for (const vector of vectors.greeting) {
+    assert.equal(resolveGreeting(vector.project, vector.gradeId), vector.expected, vector.description);
+  }
+});
+
+test('particleAt vectors match the shared fixture the server also checks and reject unknown kinds', () => {
+  const vectors = fixture('collectible-vectors.json');
+  for (const vector of vectors.particleAt) assert.deepEqual(particleAt(vector.kind, vector.i, vector.phase), vector.expected, `${vector.kind}#${vector.i}@${vector.phase}`);
+  assert.throws(() => particleAt('fireworks', 0, 0), /파티클/);
+});
+
+test('angleFrameIndex vectors match the shared fixture the server also checks: front range clamps to the edge cell, beyond ±90 is the back', () => {
+  const vectors = fixture('collectible-vectors.json');
+  for (const vector of vectors.angleFrameIndex) assert.deepEqual(angleFrameIndex(vector.angle), vector.expected, `angle ${vector.angle}`);
+  // 360도 넘겨 계속 도는 회전 애니메이션도 같은 규칙으로 접힌다.
+  assert.deepEqual(angleFrameIndex(360), angleFrameIndex(0));
+  assert.deepEqual(angleFrameIndex(-360 - 82.5), angleFrameIndex(-82.5));
 });

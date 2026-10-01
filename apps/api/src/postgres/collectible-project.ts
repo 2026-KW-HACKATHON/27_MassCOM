@@ -5,7 +5,7 @@ import {
   CollectibleProjectError, type CollectibleArtwork, type CollectibleDetail, type CollectibleProject, type CollectibleProjectService,
   type CollectibleCampaign, type CollectibleProjectSummary, type CollectibleProjectView, type CollectibleUnpublishResult,
 } from '../collectible-project.js';
-import { collectibleSnapshot, validateCollectibleProject } from '../collectible-project-rules.js';
+import { collectibleSnapshot, upgradeCollectibleProject, validateCollectibleProject } from '../collectible-project-rules.js';
 import { MerchantAccessError } from '../merchant-access.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 
@@ -32,7 +32,7 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
          FROM collectible_projects project
          LEFT JOIN campaign_collectible_publications link ON link.publication_id = project.publication_id
          WHERE project.merchant_id = $1 AND project.project IS NOT NULL ORDER BY project.updated_at DESC, project.id DESC LIMIT 100`, [input.merchantId]);
-      return result.rows.map(row => ({ ...mapMetadata(row), name: row.name, schemaVersion: 1, distributingCampaignId: row.distributing_campaign_id }));
+      return result.rows.map(row => ({ ...mapMetadata(row), name: row.name, schemaVersion: 2, distributingCampaignId: row.distributing_campaign_id }));
     });
   }
 
@@ -250,4 +250,5 @@ function mapMetadata(row: Omit<ProjectRow,'project'>): Omit<CollectibleProjectVi
   return { id: row.id, merchantId: row.merchant_id, version: row.version, status: row.status, publicationId: row.publication_id,
     createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString() };
 }
-function mapProject(row: ProjectRow): CollectibleProjectView { return { ...mapMetadata(row), project: row.project }; }
+// 저장된 project jsonb가 이 배포 전에 쓰인 v1 그대로일 수 있어(마이그레이션 없음), 읽을 때마다 v2로 올려 API는 항상 v2만 돌려준다.
+function mapProject(row: ProjectRow): CollectibleProjectView { return { ...mapMetadata(row), project: upgradeCollectibleProject(row.project) }; }

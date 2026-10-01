@@ -56,7 +56,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 
 ## 저장 계약
 
-서버 래퍼는 `{ id, merchantId, version, status, publicationId, createdAt, updatedAt, project }`다. 서버 식별자·작성자 권한·수정 버전을 클라이언트 편집 데이터에 섞지 않는다. `project`의 `schemaVersion`은 1이며 다음 의미를 저장한다.
+서버 래퍼는 `{ id, merchantId, version, status, publicationId, createdAt, updatedAt, project }`다. 서버 식별자·작성자 권한·수정 버전을 클라이언트 편집 데이터에 섞지 않는다. `project`의 `schemaVersion`은 2([Issue #284](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/284) WP1부터, 추가 전용이며 v1은 서버가 자동으로 올린다)이며 다음 의미를 저장한다.
 
 | 필드 | 의미·단위 |
 | --- | --- |
@@ -75,9 +75,33 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | `derived` | 등급 ID별 완성 정면 이미지와 정적 썸네일. 웹의 대상별 재질 재생에 쓰는 바탕·대상 마스크 같은 파생 자료도 원본·편집 상태와 별도. |
 | `rewardGrades` | 기존 목표 문자열 `1 / 3 / 5` 중 명시적으로 선택한 목표와 제작 등급 ID. 빈 초안 초기값. |
 
-공통 브라우저 모델은 `apps/production-web/assets/collectible-model.mjs`에 둔다. `createProject`, `createGrade`, `toggleEffectGrade`, `effectsForGrade`, `motionForGrade`, `shapePoints`, `shapePath`, `cropTransform`은 DOM·네트워크 없이 호출할 수 있다. 미리보기 선택 상태는 프로젝트 효과 토글을 대신하지 않는다.
+### v2 추가 필드 (Issue #284 WP1, 2026-10-01)
 
-보유자 응답은 게시/프로젝트 식별자·수집품 이름·모양·시즌·획득 등급 이름·완성 이미지·두께·각도·동작·대사·선택 음성·선택 장면 등 재생에 필요한 결과만 포함한다. `photo.originalDataUrl`, 붓 이력, 다른 등급의 결과, 점주 계정, 캠페인 내부 관리 정보는 포함하지 않는다. 편집 자료와 보유품 미디어는 공개 NFT 메타데이터·IPFS로 보내지 않는다.
+기존 필드는 그대로 두고 다음만 더했다. v1 프로젝트를 열거나 저장하면 서버(`upgradeCollectibleProject`)와 편집기(`upgradeProject`)가 아래 기본값으로 자동으로 채운다(멱등, 같은 값을 다시 올려도 그대로).
+
+| 필드 | 의미·단위·상한 | v1→v2 기본값 |
+| --- | --- | --- |
+| `stickers[].align`, `stickers[].layouts` | 텍스트 정렬 `left / center / right`. `layouts`는 등급 ID별 `{x,y,size,rotation}` 재배치(최대 16, 키는 등급 ID만). `kind`에 `mascot`이 늘어 `text`가 승인된 포즈 이름(`MASCOT_POSES`)이 됨. 텍스트는 80자·4줄(`\n`)까지, `\r`·`\t` 금지. | `align:'center'`, `layouts:{}`, 개행/탭은 공백 하나로 합침 |
+| `back` | `{mode:'default'|'custom', color, stickers}`. 기본은 바탕색·가게 이름·수집품 이름·등급·마스코트 도장을, 커스텀은 뒷면 전용 스티커(최대 10, 앞뒤 통틀어 ID 유일, 등급별 배치 없음)를 쓴다. | `{mode:'default', color:baseColor, stickers:[]}` |
+| `motion[].playback`, `motion[].particle` | 재생 방식 `once / loop`. `particle`은 `confetti / snow / petals / sparkles`이며 `type==='confetti'`일 때만 값을 가질 수 있다(다른 종류에 값이 있으면 거절). | `playback:'loop'`, confetti면 `particle:'confetti'` |
+| `greetingOverrides` | `{id, gradeIds, themeName, text}` 목록(최대 16). 등급+테마가 모두 맞는 항목 > 등급만 > 테마만 > 기본 `greeting` 순으로 고르고, 동점은 배열에서 먼저 온 항목이 이긴다. `gradeIds`가 비고 `themeName`도 빈 항목은 저장하지 않는다. | `[]`(기본 인사말만 씀) |
+| `parallax` | `{strength:0~100, strokes}`. 획은 `fg/bg` 도구·굵기 0.01~0.2·점(최대 100개 획, 획당 점 1,000개, 사진 0~1 좌표). | `{strength:0, strokes:[]}` |
+| `living` | `{periodMs:1000~4000, items}`(항목 최대 4). 항목은 `sway/bob/steam/blink` 종류, 대상은 `region`(획 1~20점) 또는 앞면 스티커 ID(획 없음), 등급 목록, 진폭 0~100, 중심점. `blink`는 오직 `MASCOT_BLINK`에 있는 포즈의 mascot 스티커만 대상으로 삼을 수 있다(지금은 그림이 없어 빈 목록이라 항상 거절됨). | `{periodMs:2400, items:[]}` |
+| `derived[g].backImageDataUrl` | 뒷면 완성 이미지, 512px 이하·256 KiB 이하. PNG/WebP만(JPEG 금지, 아래 스프라이트 형식 제한 참고). | 없음. **지금 게시를 막지 않는다**(아래 게시 준비 참고) |
+| `derived[g].angleFrames` | `{dataUrl, side:256~512, count:12, columns:4, stepDegrees:15}`. 스프라이트는 정확히 가로 4칸×세로 3칸(`4·side × 3·side`), 1 MiB 이하. 칸 i의 각도는 `−82.5°+15·i`. `dataUrl`은 PNG/WebP만. | 없음. **지금 게시를 막지 않는다** |
+| `derived[g].living` | `{dataUrl, count:8~24, columns:1~8, cellWidth/cellHeight:16~512, periodMs, box:{x,y,w,h}(0~1, x+w≤1, y+h≤1)}`. 스프라이트 크기는 `columns·cellWidth × ⌈count/columns⌉·cellHeight`, 4096px·512 KiB 이하. `dataUrl`은 PNG/WebP만. | 없음 |
+
+패럴랙스·living 획의 점 합계는 프로젝트 전체 20,000개를 넘을 수 없다. 파티클·각도 프레임 배합의 순수 계산(`resolveSticker`·`resolveGreeting`·`particleAt`·`angleFrameIndex`)은 `collectible-model.mjs`에 있고, 서버 `collectible-project-rules.ts`가 같은 값을 내는지 공유 벡터 픽스처(`tests/fixtures/collectible-vectors.json`)로 맞춘다.
+
+**스프라이트 형식 제한(`backImageDataUrl`·`angleFrames.dataUrl`·`living.dataUrl`만):** 이 셋은 PNG·WebP만 받고 JPEG는 거절한다(다른 이미지 필드는 여전히 PNG/JPEG/WebP 모두 허용). JPEG의 EXIF `Orientation` 태그는 브라우저가 표시할 때 픽셀을 돌려 보여 주는데, 이 세 필드는 픽셀 좌표로 그대로 자르고 배치하는 스프라이트라 그 회전이 반영되지 않는다(가로 1024×세로 768로 선언한 스프라이트가 Orientation=6이면 실제로는 세로로 찍혀 있을 수 있음). 편집기도 이 셋은 WebP/PNG로만 만든다.
+
+**게시 준비(등급별, 캠페인 목표에 실제로 연결된 등급만, 2026-10-01 Codex 리뷰 반영):** `living`은 어떤 living 항목이든 그 등급을 목록에 넣었으면 필요하고, 없으면 게시가 409 `COLLECTIBLE_NOT_READY`다. **`backImageDataUrl`과 `angleFrames`는 지금은 선택이며 게시를 막지 않는다** — 지금 편집기의 `serializeDerived`가 이 둘을 아직 만들지 않기 때문에(뒷면 UI는 WP2, 각도 프레임 UI는 WP3), 필수로 두면 이 저장소의 모든 웹 게시가 즉시 막힌다. 클라이언트는 없을 때를 대비한다: 뒷면이 없으면 기존 모습을 보여 주고, 각도 프레임이 없으면 정면 이미지를 그대로 회전해 보여 준다. WP2가 편집기에서 실제로 뒷면 이미지를 만들기 시작하면 `backImageDataUrl`을, WP3가 각도 프레임을 만들기 시작하면(metallic/hologram/pearl 효과가 있거나 패럴랙스가 켜진 등급에 한해) `angleFrames`를 다시 필수로 좁힌다.
+
+**의도적 완화:** `stickers[].align/layouts`와 `motion[].playback`은 서버에서 선택 항목이다(없으면 위 기본값을 채운다). 아직 편집기 UI(WP2)가 이 필드를 채워 보내지 않기 때문이며, WP2가 채우기 시작해도 무해하다.
+
+공통 브라우저 모델은 `apps/production-web/assets/collectible-model.mjs`에 둔다. `createProject`, `createGrade`, `toggleEffectGrade`, `effectsForGrade`, `motionForGrade`, `shapePoints`, `shapePath`, `cropTransform`, `upgradeProject`, `resolveSticker`, `resolveGreeting`, `particleAt`, `angleFrameIndex`는 DOM·네트워크 없이 호출할 수 있다. 미리보기 선택 상태는 프로젝트 효과 토글을 대신하지 않는다.
+
+보유자 응답은 게시/프로젝트 식별자·수집품 이름·모양·시즌·획득 등급 이름·완성 이미지·두께·각도·동작(`animation`: 기존 v1 8종 enum 그대로, 등급의 첫 `loop` 모션이 없으면 `still`)·전체 모션 목록(`motions`)·뒷면 이미지·각도/움직임 스프라이트·대사·선택 음성·선택 장면 등 재생에 필요한 결과만 포함한다. `photo.originalDataUrl`, 붓 이력, `parallax`·`living`의 편집용 획, 다른 등급의 결과, 점주 계정, 캠페인 내부 관리 정보는 포함하지 않는다. 편집 자료와 보유품 미디어는 공개 NFT 메타데이터·IPFS로 보내지 않는다.
 
 ## 제안 상태인 구현 기본값
 
@@ -86,7 +110,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | 항목 | 이번 기본값과 이유 |
 | --- | --- |
 | 시작 재질 | 원본 색 유지, 바탕 `#bf8149`, 사진색 100, 음각/양각 깊이 45. 등급 이름이 재질을 강제하지 않으며 효과·동작 목록은 비어 있음. 골드 고정 효과 없음. |
-| 등급·스티커·편집 상한 | 동적 등급 1~16, 스티커 30, 효과 64, 동작 10, 붓 경로 100개·경로당 점 1,000개. 네 등급 고정 슬롯을 피하면서 초안 크기와 작업량을 제한함. |
+| 등급·스티커·편집 상한 | 동적 등급 1~16, 스티커 30(앞면), 효과 64, 동작 10, 붓 경로 100개·경로당 점 1,000개. 네 등급 고정 슬롯을 피하면서 초안 크기와 작업량을 제한함. **v2:** 뒷면 스티커 10, 스티커 등급별 배치(`layouts`) 16, 인사말 개별화(`greetingOverrides`) 16, 패럴랙스 획 100개·경로당 점 1,000개, living 항목 4개(획 1~20점), 패럴랙스+living 점 합계 20,000개. |
 | 파일·요청 상한 | (게시용 완성 정면·바탕·썸네일·장면 미리보기는 편집기가 WebP 품질 0.9로 만들고, 미지원 브라우저는 PNG, 효과 마스크는 알파 때문에 PNG다.) JSON 본문 8MiB, 원본 사진 3MiB·가로/세로 4,096px 이하, 등급 완성 이미지·바탕·마스크 512px(완성·바탕 1MiB, 마스크 256KiB)·썸네일 160px·128KiB, 장면 원본 512KiB·최대 5장과 미리보기 512px, 음성 1MiB·30초(MP3는 프레임으로 계산). 점포별 미디어 쓰기 1분 20번. 입력 화면에서 제한과 재시도 경로를 안내. 최종 지원 기기 측정 후 조정 대상. |
 | 이미지·음성 형식 | 사진 PNG/JPEG/WebP. 파일 업로드 MP3. 직접 녹음은 브라우저가 지원하는 WebM/Ogg 등을 사용하고 MIME·미디어 바이트 형식을 서버에서 검사. MP3 변환을 했다고 주장하지 않음. |
 | 추가 장면 자료 | 확대는 추가 프레임 불필요, 넓은 장면 1장, 추적 2장, 사건 3장. 기본 사진이 장면 입구이며 실제 사진 밖 공간을 재구성하지 않음. |
@@ -95,7 +119,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | 게시 후 편집 | 게시 버전을 보존하고 수정은 새 초안 복사로 진행. 기존 획득의 게시 버전은 유지. 초안 저장은 명시적 동작과 버전 충돌 안내를 제공. 자동 저장을 구현했다고 기록하지 않음. |
 | 획득 외형 | 기존 캠페인 목표에 점주가 직접 연결한 등급만 이후 보상권에 적용. 최소 하나의 명시 연결 후 게시. 고급 입력·특수등급·음성·장면은 선택 사항. |
 
-미디어 서명 검사·파일 크기·유한 수치·허용 필드·안정 ID·참조 관계를 서버에서 확인한다. 저장할 때 원본 사진·장면 원본·완성 이미지 모두에서 EXIF/XMP/ICC 등 메타데이터를 제거하고(JPEG 방향값만 유지), MP3의 ID3·APE 태그를 제거한다. 미디어 헤더 확인은 모든 디코딩 오류·전체 파일 안전성을 보증하지 않는다. 공개 원본 저장소나 임의 외부 URL을 허용하는 근거가 아니다.
+미디어 서명 검사·파일 크기·유한 수치·허용 필드·안정 ID·참조 관계를 서버에서 확인한다. 저장할 때 원본 사진·장면 원본·완성 이미지 모두에서 EXIF/XMP/ICC 등 메타데이터를 제거하고(JPEG 방향값만 유지), MP3의 ID3·APE 태그를 제거한다. **미디어 헤더(매직 바이트·PNG IHDR/WebP VP8X 같은 치수 필드) 확인은 모든 디코딩 오류·전체 파일 안전성을 보증하지 않는다** — 헤더가 유효한 PNG/WebP/JPEG를 선언해도 그 안의 픽셀 데이터(IDAT 등)까지 실제로 디코드해 내용을 확인하지는 않는다(전체 디코드에는 새 이미지 디코딩 의존성이 필요해 별도 승인 없이 추가하지 않는다). 이 한계는 v1부터 있던 모든 이미지 필드(`photo.originalDataUrl`, `derived[g].imageDataUrl` 등)와 v2에서 추가한 스프라이트 필드(`derived[g].backImageDataUrl`·`angleFrames.dataUrl`·`living.dataUrl`) 모두에 똑같이 적용된다. 공개 원본 저장소나 임의 외부 URL을 허용하는 근거가 아니다.
 
 ## 서버 계약 (PR #257 인수 후속, 2026-09-30)
 
@@ -120,7 +144,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 
 | 경로 | 본문 | 성공 응답 |
 | --- | --- | --- |
-| `GET` | — | `{ projects: [{ id, merchantId, version, status, publicationId, createdAt, updatedAt, name, schemaVersion: 1, distributingCampaignId }] }` (`distributingCampaignId`: 이 게시 버전이 지금 나가는 캠페인, 아니면 `null`) |
+| `GET` | — | `{ projects: [{ id, merchantId, version, status, publicationId, createdAt, updatedAt, name, schemaVersion: 2, distributingCampaignId }] }` (`distributingCampaignId`: 이 게시 버전이 지금 나가는 캠페인, 아니면 `null`) |
 | `POST` | `{ project }` | 201 프로젝트 래퍼 |
 | `GET /:projectId` | — | 래퍼 `{ id, merchantId, version, status, publicationId, createdAt, updatedAt, project }` |
 | `PUT /:projectId` | `{ expectedVersion, project }` | 200 래퍼 |
@@ -151,8 +175,8 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 
 원문의 개발 순서는 일정과 의존성 제안이며 기능을 삭제하는 표가 아니다. 다음 항목은 이번 기본 경로와 구분해서 보존한다.
 
-- 자동 얼굴 감지·중앙 맞춤, 스티커 여러 줄·정렬·등급별 별도 배치, 별도 뒷면 편집, 기기 기울임 연동은 선택 확장이다.
-- 펄·무광·에나멜·유리·발광 외의 패럴랙스, 분리된 부분을 움직이는 살아 있는 그림, 고급 공간 이동·생성 장면은 후속 제안이다. 코인 회전이나 입자를 살아 있는 그림으로 이름 붙이지 않는다.
+- **[Issue #284](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/284)로 일정이 잡혔다(스키마는 WP1 완료, 화면·Android는 WP2~WP4 진행 중):** 스티커 여러 줄·정렬·등급별 별도 배치(v2 `stickers[].align/layouts`), 별도 뒷면 편집(v2 `back`), 마스코트 스티커(v2 `stickers[].kind:'mascot'`), 모션 once/loop 재생과 파티클 종류(v2 `motion[].playback/particle`), 인사말의 등급·테마별 개별화(v2 `greetingOverrides`), 패럴랙스(v2 `parallax`), 분리된 부분이 움직이는 living picture(v2 `living`, 코인 회전·입자와는 구분되는 새 개념), 각도별 재질 재계산(v2 `derived[g].angleFrames`), 기기 기울임 연동(WP3 Android `useAnimatedSensor`). 세부 상한·기본값은 위 "v2 추가 필드"와 [설계 명세](superpowers/specs/2026-10-01-collectible-expression-v2-design.md)를 본다.
+- 자동 얼굴 감지·중앙 맞춤, 고급 공간 이동·생성 장면은 여전히 이번 범위 밖 선택 확장이다.
 - 정확한 템플릿 수·속도·시간, 물리적 두께 단위·모양별 범위, 자동 재생·자동 저장, 공통 설정의 등급/시즌별 덮어쓰기는 추가 검토한다.
 - 시즌의 기간·획득 조건·한정 의미·재발급·중복 표시, 특수등급/테마 생성 권한·이름 변경·삭제 운영 절차는 별도 정책이다. 특수등급은 자동으로 확률형·희귀 보상이 되지 않는다.
 - 마스코트 관계 성장·나의 동네와 거점·시즌 앨범 목표·친구 공동 목표는 17장의 장기 서비스 제안으로 남는다. 첫 사진 제작기 필수 기능으로 혼합하지 않는다. (Issue #283에서 배달한 항목: 획득 연출, 가게·시즌·등급 필터/정렬 보기, 대표 진열, 공유, 중복 획득 묶음 표시, 가게별 1·3·5회 시리즈 칸, 첫 수집품/새 가게/시리즈 완성 마스코트 반응 — 자세한 내용은 [apps/mobile/README.md](../apps/mobile/README.md#도감-수집-경험-issue-283).)
