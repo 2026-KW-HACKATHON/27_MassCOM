@@ -178,13 +178,26 @@ test('the pre-clone shape budget still admits the largest legitimate brush work 
   assert.doesNotThrow(() => validateCollectibleProject(project, false));
 });
 
+test('a deeply nested payload is rejected as an invalid project, not a stack overflow (HTTP 500)', () => {
+  let nested: unknown = [];
+  for (let level = 0; level < 50_000; level += 1) nested = [nested];
+  assert.throws(() => validateCollectibleProject({ schemaVersion: 2, stickers: nested }), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  validateCollectibleProject(richProject());
+});
+
 test('sprite fields (backImageDataUrl, angleFrames, living) accept only PNG/WebP, never JPEG (EXIF Orientation could rotate a pixel-sliced sprite)', () => {
-  const jpegUrl = `data:image/jpeg;base64,${Buffer.from([255, 216, 255]).toString('base64')}`;
-  const back = richProject(); back.derived.custom!.backImageDataUrl = jpegUrl;
+  // 각 필드의 PNG와 같은 크기를 선언한 JPEG(SOI + SOF0 + EOI)로 바꾼다. 크기 검사는 통과하므로 MIME 제한만이 거절 이유다.
+  const jpegLike = (pngUrl: string) => {
+    const png = Buffer.from(pngUrl.split(',')[1]!, 'base64');
+    const width = png.readUInt32BE(16), height = png.readUInt32BE(20);
+    const sof = Buffer.from([0xff, 0xc0, 0x00, 0x11, 0x08, height >> 8, height & 255, width >> 8, width & 255, 0x03, 1, 0x11, 0, 2, 0x11, 1, 3, 0x11, 1]);
+    return `data:image/jpeg;base64,${Buffer.concat([Buffer.from([0xff, 0xd8]), sof, Buffer.from([0xff, 0xd9])]).toString('base64')}`;
+  };
+  const back = richProject(); back.derived.custom!.backImageDataUrl = jpegLike(back.derived.custom!.backImageDataUrl!);
   assert.throws(() => validateCollectibleProject(back), { code: 'COLLECTIBLE_INVALID_PROJECT' });
-  const angle = richProject(); angle.derived.custom!.angleFrames!.dataUrl = jpegUrl;
+  const angle = richProject(); angle.derived.custom!.angleFrames!.dataUrl = jpegLike(angle.derived.custom!.angleFrames!.dataUrl);
   assert.throws(() => validateCollectibleProject(angle), { code: 'COLLECTIBLE_INVALID_PROJECT' });
-  const living = richProject(); living.derived.custom!.living!.dataUrl = jpegUrl;
+  const living = richProject(); living.derived.custom!.living!.dataUrl = jpegLike(living.derived.custom!.living!.dataUrl);
   assert.throws(() => validateCollectibleProject(living), { code: 'COLLECTIBLE_INVALID_PROJECT' });
   // PNG는 그대로 통과한다(위 richProject() 기본값이 이미 PNG로 검증됨).
   validateCollectibleProject(richProject());

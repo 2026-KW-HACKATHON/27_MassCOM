@@ -219,17 +219,21 @@ const MAX_SHAPE_ARRAY_LENGTH = 2000; // 실제로 쓰는 가장 큰 개별 배�
 // 정상 최대치: 사진 붓 100획×1,000점(배열 원소+x·y 키 ≈ 300,500) + 패럴랙스·살아 있는 그림 2만 점(≈ 60,000) + 나머지(수천).
 // 이보다 넉넉히 잡아 정상 입력은 통과시키고, 그 이상은 복제 전에 끊는다. 값을 훑는 비용은 수 ms다.
 const MAX_SHAPE_NODES = 450_000;
-function assertBoundedShape(value: unknown, nodes: { count: number } = { count: 0 }): void {
+// 정상 프로젝트의 가장 깊은 중첩은 living.items[i].strokes[j].points[k].x 까지 8단계다. 깊이 상한이 없으면
+// 길이·노드 예산 안에서도 수만 단계로 겹친 배열 하나가 재귀를 터뜨려(RangeError) 500이 된다.
+const MAX_SHAPE_DEPTH = 16;
+function assertBoundedShape(value: unknown, nodes: { count: number } = { count: 0 }, depth = 0): void {
+  if (depth > MAX_SHAPE_DEPTH) invalid();
   if (Array.isArray(value)) {
     if (value.length > MAX_SHAPE_ARRAY_LENGTH) invalid();
     nodes.count += value.length;
     if (nodes.count > MAX_SHAPE_NODES) invalid();
-    for (const item of value) assertBoundedShape(item, nodes);
+    for (const item of value) assertBoundedShape(item, nodes, depth + 1);
   } else if (value && typeof value === 'object') {
     const keys = Object.keys(value as Record<string, unknown>);
     nodes.count += keys.length;
     if (nodes.count > MAX_SHAPE_NODES) invalid();
-    for (const key of keys) assertBoundedShape((value as Record<string, unknown>)[key], nodes);
+    for (const key of keys) assertBoundedShape((value as Record<string, unknown>)[key], nodes, depth + 1);
   }
 }
 
