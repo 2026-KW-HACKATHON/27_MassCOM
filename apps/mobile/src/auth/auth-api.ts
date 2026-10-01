@@ -27,7 +27,15 @@ export class AuthApiClient {
 
   constructor(options: AuthApiClientOptions) {
     this.#apiUrl = normalizePublicApiUrl(options.apiUrl);
-    this.#fetcher = options.fetcher ?? fetch;
+    // Called later as this.#fetcher(...), a method-call that passes this instance as fetch's
+    // receiver. A real browser's native fetch brand-checks its receiver and throws "Illegal
+    // invocation" unless it is bound back to window first (Node's fetch does not check this,
+    // so this was invisible until the web build, Issue #309).
+    // Called later as this.#fetcher(...), a method-call that passes this instance as fetch's
+    // receiver. A real browser's native fetch brand-checks its receiver and throws "Illegal
+    // invocation" unless it is bound back to window first (Node's fetch does not check this,
+    // so this was invisible until the web build, Issue #309).
+    this.#fetcher = options.fetcher ?? fetch.bind(globalThis);
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
