@@ -673,6 +673,10 @@ test('the OPS grant-approver command run concurrently with that same account bei
       }
     }
     assert.equal(deletionResult.status, 'fulfilled', 'account deletion itself must always complete');
+    // 이 스케줄에서는 OPS가 먼저 줄을 선다. 계정 → 행 순서라면 OPS가 먼저 끝나 관리자 등록에 성공해야 한다.
+    // (옛 행 → 계정 순서에서는 OPS가 교착 피해자가 되어 종료 코드 1로 끝나는데, 그것도 위 검사를 통과하므로 따로 확인한다.)
+    assert.equal(opsResult.status, 'fulfilled', `OPS command must succeed when it queues first: ${opsResult.status === 'rejected' ? String(opsResult.reason) : ''}`);
+    assert.equal(opsResult.status === 'fulfilled' ? opsResult.value : '', 'SHOWCASE_APPROVER_GRANTED');
 
     // Whichever side won the lock race, the deleted account must never end up with a live STAFF grant: either
     // deletion went first and removed the pending row outright (OPS then finds nothing to decide), or OPS
