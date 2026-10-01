@@ -99,17 +99,14 @@ test('one rejection per new v2 bound', () => {
   assert.throws(() => validateCollectibleProject(animated), { code: 'COLLECTIBLE_INVALID_PROJECT' }, 'animated WebP sprite');
 });
 
-test('publish readiness: backImageDataUrl and angleFrames are optional for now (the current editor cannot make them yet), living is required only when referenced', () => {
-  // Codex 리뷰 지적(2026-10-01): 지금 편집기의 serializeDerived는 backImageDataUrl·angleFrames를 만들지 않는다.
-  // 이 둘을 필수로 두면 이 브랜치가 병합되는 순간 웹의 모든 게시가 COLLECTIBLE_NOT_READY로 막힌다.
+test('publish readiness: backImageDataUrl is required again (WP2 editor always makes it), angleFrames stays optional until WP3, living is required only when referenced', () => {
+  // WP2(Issue #284)부터 편집기의 serializeDerived가 연결된 등급마다 backImageDataUrl을 항상 만들므로 다시 필수로 좁혔다.
   const missingBack = richProject(); delete missingBack.derived.custom!.backImageDataUrl;
-  validateCollectibleProject(missingBack, true);
+  assert.throws(() => validateCollectibleProject(missingBack, true), { code: 'COLLECTIBLE_NOT_READY' });
 
+  // angleFrames(각도 프레임)는 WP3 범위라 아직 선택이다.
   const missingAngleForEffect = richProject(); delete missingAngleForEffect.derived.custom!.angleFrames;
   validateCollectibleProject(missingAngleForEffect, true);
-
-  const missingBoth = richProject(); delete missingBoth.derived.custom!.backImageDataUrl; delete missingBoth.derived.custom!.angleFrames;
-  validateCollectibleProject(missingBoth, true);
 
   const missingLiving = richProject(); delete missingLiving.derived.custom!.living;
   assert.throws(() => validateCollectibleProject(missingLiving, true), { code: 'COLLECTIBLE_NOT_READY' });
@@ -120,16 +117,23 @@ test('publish readiness: backImageDataUrl and angleFrames are optional for now (
   validateCollectibleProject(noLivingRef, true);
 });
 
-test('regression: a project shaped exactly like the current editor output (no back image, no angle frames, metallic/hologram enabled) is still publish-ready', () => {
+test('regression: a project shaped like the WP2 editor output (back image present, no angle frames, metallic/hologram enabled) is publish-ready', () => {
   // 현재 collectible-renderer.mjs의 serializeDerived가 실제로 만드는 모양: imageDataUrl·thumbnailDataUrl·
-  // baseDataUrl·effectMasks뿐이며 backImageDataUrl·angleFrames·living은 없다.
+  // baseDataUrl·effectMasks·backImageDataUrl뿐이며 angleFrames·living은 아직 없다(WP3 범위).
   const project = photoProject();
   project.effects.push({ id: 'metal-1', type: 'metallic', target: 'surface', gradeIds: ['custom'], strength: 50, color: '#ffffff', roughness: 10 });
-  project.derived.bronze = { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng, baseDataUrl: tinyPng, effectMasks: {} };
-  project.derived.custom = { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng, baseDataUrl: tinyPng, effectMasks: {} };
+  project.derived.bronze = { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng, baseDataUrl: tinyPng, effectMasks: {}, backImageDataUrl: tinyPng };
+  project.derived.custom = { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng, baseDataUrl: tinyPng, effectMasks: {}, backImageDataUrl: tinyPng };
   const saved = validateCollectibleProject(project, true);
-  assert.equal(saved.derived.custom!.backImageDataUrl, undefined);
+  assert.equal(saved.derived.custom!.backImageDataUrl, tinyPng);
   assert.equal(saved.derived.custom!.angleFrames, undefined);
+});
+
+test('publish is rejected with COLLECTIBLE_NOT_READY (not a 500) when a linked grade is missing backImageDataUrl', () => {
+  const project = photoProject();
+  project.derived.bronze = { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng };
+  project.derived.custom = { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng };
+  assert.throws(() => validateCollectibleProject(project, true), { code: 'COLLECTIBLE_NOT_READY' });
 });
 
 test('snapshot exposes only baked final assets: no strokes, no original photo, no parallax/living edit config, animation stays a v1 value', () => {

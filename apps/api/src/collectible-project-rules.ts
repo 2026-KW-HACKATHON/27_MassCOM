@@ -39,7 +39,8 @@ function scopeIds(value: unknown, gradeIds: string[]): void {
 
 // v2 스키마 추가분. model.mjs와 값을 맞춰 둔다(서로 import하지 않는 서버/브라우저 쌍둥이 구현).
 const mascotPoses = ['cheer','explore-map','friends','gift','logo-badge','puzzled','search','sky-town-header','sleep','stamp','town-map','wave'];
-const mascotBlink: string[] = [];
+// collectible-model.mjs MASCOT_BLINK와 값을 맞춘다(collectible-mascot-blink-parity.test.mjs가 일치를 확인).
+const mascotBlink: string[] = ['cheer','explore-map','friends','gift','logo-badge','puzzled','search','stamp','wave'];
 const particleKinds = ['confetti','snow','petals','sparkles'];
 const stickerKinds = ['text','emoji','mascot'];
 const stickerAligns = ['left','center','right'];
@@ -357,16 +358,15 @@ function validateUpgradedProject(value: unknown, publish: boolean): CollectibleP
   for (const [goal, gradeId] of mappings) { if (!['1','3','5'].includes(goal) || !grades.some(g => g.id === gradeId && g.enabled === true)) invalid(); }
   const derived = p.derived as Record<string, any>;
   if (publish && (mappings.length === 0 || mappings.some(([, gradeId]) => !Object.hasOwn(derived, gradeId as string)))) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
-  // backImageDataUrl·angleFrames는 지금(WP1 시점) 편집기의 serializeDerived가 아직 만들지 않는다. 여기서 필수로
-  // 두면 이 브랜치가 병합되는 순간 모든 웹 게시가 COLLECTIBLE_NOT_READY로 막힌다. 클라이언트는 이미 없을 때를
-  // 대비한다(뒷면 없음 → 기존 모습, 각도 프레임 없음 → 정면 이미지를 그대로 회전). WP2(뒷면)·WP3(각도 프레임)가
-  // 편집기에서 실제로 만들기 시작하면 그때 다시 필수로 좁힌다(설계 문서·COLLECTIBLE_CREATOR.md에 기록).
-  // living만은 지금 편집기가 만들 방법이 없는 항목을 프로젝트가 스스로 선언했을 때(누군가 API를 직접 쳐서
-  // living 항목을 등급에 걸었을 때)만 필요해, 항상 안전하게 강제할 수 있다.
+  // backImageDataUrl은 WP2부터 편집기(serializeDerived)가 연결된 등급마다 항상 만들므로 다시 필수로 좁힌다.
+  // angleFrames는 WP3(각도 프레임)가 아직 범위 밖이라 당분간 선택으로 남긴다(클라이언트는 없을 때 정면 이미지를
+  // 그대로 회전해 대비한다). living만은 지금 편집기가 만들 방법이 없는 항목을 프로젝트가 스스로 선언했을 때
+  // (누군가 API를 직접 쳐서 living 항목을 등급에 걸었을 때)만 필요해, 항상 안전하게 강제할 수 있다.
   if (publish) {
     const linkedGrades = new Set(Object.values(p.rewardGrades as Record<string, string>));
     for (const gradeId of linkedGrades) {
       if (!gradeId) continue;
+      if (!derived[gradeId]?.backImageDataUrl) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
       const needsLiving = livingItems.some(item => (item.gradeIds as string[]).includes(gradeId));
       if (needsLiving && !derived[gradeId]?.living) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
     }

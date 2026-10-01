@@ -22,8 +22,9 @@ export const STORY_TYPES = Object.freeze(['none', 'zoom', 'wide', 'follow', 'eve
 export const ONCE_MS = Object.freeze({ rotate: 4000, shine: 3500, sparkle: 3500, stamp: 3500, float: 2400, pulse: 2400, confetti: 2000 });
 // 얼굴 스티커로 쓸 수 있는 마스코트 포즈(apps/mobile/assets/images/mascot/v2/*.png 파일 stem). 승인된 그림만 추가한다.
 export const MASCOT_POSES = Object.freeze(['cheer', 'explore-map', 'friends', 'gift', 'logo-badge', 'puzzled', 'search', 'sky-town-header', 'sleep', 'stamp', 'town-map', 'wave']);
-// 눈 감은 프레임이 있는 포즈. 그림이 없으면 living의 blink 항목이 그 포즈를 쓸 수 없다.
-export const MASCOT_BLINK = Object.freeze([]);
+// 눈 감은 프레임(apps/production-web/assets/mascot/<pose>-blink.png)이 있는 포즈. 그림이 없으면 living의
+// blink 항목이 그 포즈를 쓸 수 없다. apps/api/src/collectible-project-rules.ts의 mascotBlink와 값을 맞춘다.
+export const MASCOT_BLINK = Object.freeze(['cheer', 'explore-map', 'friends', 'gift', 'logo-badge', 'puzzled', 'search', 'stamp', 'wave']);
 
 export const DEFAULT_GRADES = Object.freeze([
   Object.freeze({ id: 'bronze', name: '브론즈', kind: 'basic', enabled: true }),
