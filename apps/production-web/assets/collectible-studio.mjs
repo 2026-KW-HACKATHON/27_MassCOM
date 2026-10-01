@@ -115,10 +115,14 @@ export function createCollectibleStudio(container, { effectNames }) {
   const targets = node('div', 'ce-target-chips'); targets.dataset.view = 'effect-target-chips'; targets.setAttribute('role', 'group'); targets.setAttribute('aria-label', '새 효과의 적용 대상');
   materials.append(materialsChoices, node('h4', '', '효과 대상'), targets, effectControls, container.querySelector('[data-action="effect-add"]'), view('effects'));
   gradeContent.replaceChildren(); gradesDetail.remove();
+  // Issue #284 WP3: "살아 있는 그림"은 motionDetail과 별개인 <details>라 여기서 명시적으로 모아 주지 않으면
+  // 아래 controls.replaceChildren(...panels)가 panels에 없는 요소를 전부 버려 고아가 된다(브러시 대상 select가
+  // 동작 중인 사진 세부 조정 안에 있는 패럴랙스 컨트롤은 photoDetail에 이미 포함돼 있어 따로 손댈 필요가 없다).
+  const livingDetail = control('living-kind').closest('details');
   const voice = control('greeting').closest('details'), story = control('story-type').closest('details'), rewards = control('theme').closest('details');
   motionDetail.open = true; voice.open = true; rewards.open = true;
   rewards.querySelector('.ce-detail').prepend(seasonTiles('theme'));
-  panels[3].append(motionDetail, materials, voice, story, rewards);
+  panels[3].append(motionDetail, livingDetail, materials, voice, story, rewards);
   controls.replaceChildren(...panels);
   const footer = node('div', 'ce-stage-footer'); footer.append(action('← 이전 단계', 'previous-step'), action('다음 단계 →', 'next-step', undefined, 'primary')); workspace.append(footer, grid.querySelector('.ce-publish'));
   let targetSignature = '';
