@@ -1,5 +1,14 @@
 # HANDOFF
 
+## 2026-10-02 앱 효과음 (Issue #305)
+
+- 기준 main 커밋 SHA: `7e6b39d0a9ba212ae2b2c9fc3158c93729da8c09`. 최신 원격 기본 브랜치를 `C:\Hackerton\masscom-sound`에 새로 클론했고 작업 브랜치는 `feat/305-ui-sounds`다. [Issue #305](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/305), PR 생성 준비 완료.
+- 운영·시연 공통 구현: Kenney CC0 효과음 7개(PCM WAV, 128,026바이트), 기존 `expo-audio` 기반 `src/sound/` 서비스, 공통 버튼·카드·탭·뒤로 가기·방문 수령·쿠폰·봉투 열기/카드 넘김 연결, 기기별 효과음 설정. 기존 수집품 음성과 전경 오디오 모드를 공유해 음성 재생 뒤에도 효과음 정책이 유지된다.
+- 검증 `PASS`: 모바일 `node --import tsx --test "src/**/*.test.ts"` 978/978, typecheck, lint, 개발 Android export와 운영·시연 Android export, `bash tools/gate.sh`. 자동 검사와 독립 검토의 한 건(기존 음성의 부분 오디오 설정 덮어쓰기)을 수정하고 재검토에서 추가 문제 없음.
+- Windows: 저장소 로컬 `core.autocrlf=false`; checkout의 순수 줄바꿈 차이는 LF로 정리했고 코드 변경에 포함하지 않았다. 기존 `npm test`의 작은따옴표 glob은 PowerShell에서 0 tests를 반환하므로 위 명령으로 실제 시험을 발견한다.
+- 운영·시연 export는 오프라인 번들 검증이며 API/OAuth 로그인·APK 서명·설치·배포 증거가 아니다. 시연 OAuth 값은 형식 검증용 가상 값이고 실제 인증에 사용하지 않았다. 로그·번들은 `C:\Hackerton\output\masscom-sounds`에 있다.
+- `NOT_RUN`: 실제 Android 청음, 무음·진동 모드, 다른 앱 음악과 동시 재생, 새 설정의 실기기 라이트·다크·글자 200% 화면, 웹 자동 재생 정책, APK 빌드·서명·설치·배포. 다음 재현: 새 native 빌드에서 효과음 끄기→재시작→꺼짐 유지, 봉투 재생 중 앱 전환→중단, 수집품 음성→탭 이동, 수령 재시도→중복 성공음 없음. GitHub 현재 상태는 `gh pr list` 또는 연결된 GitHub 도구로 다시 확인한다.
+
 **(당시 기록: PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐고 test.5·Preview 14를 게시했다. 지금 상태는 아래 Issue #277 항목이다.) 배포 순서(PR #257 병합 뒤, [D-061](DECISIONS.md)):** ① 병합 → ② 이 코드가 든 운영·시연 Android APK를 새로 빌드해 배포 → ③ **그 뒤에** API·웹 배포. 처리방침 버전이 `privacy-2026-10-01`로 올라 서버가 이 버전을 요구하는 순간, 설치돼 있는 동의 화면 빌드(운영 test.4, 시연 Preview 12·13)는 새 버전을 몰라 "앱을 업데이트해 주세요" 안내에 막힌다(D-059 설계). API·웹을 먼저 배포하면 새 APK가 나오기 전까지 그 사용자가 막힌다. 동의 화면이 없는 더 옛 앱(운영 test.3, 시연 Preview 11 이하)은 막히지 않는다.
 
 ## 2026-10-01 Issue #294 PR1(점주 체험 권한 요청, 서버) 인수인계

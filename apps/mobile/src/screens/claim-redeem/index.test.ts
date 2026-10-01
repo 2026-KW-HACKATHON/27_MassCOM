@@ -28,7 +28,7 @@ test('a code check result reaches the preview only through the current-request c
   assert.match(inspect, /setPendingRedeemToken\(accepted\.pendingRedeemToken\);/);
   // The raw response never goes to state directly, and a stale failure shows no message.
   assert.doesNotMatch(inspect, /setPreview\(next\)|setPendingRedeemToken\(code\)/);
-  assert.match(inspect, /if \(inspectGate\.isCurrent\(request\)\) setMessage\(messageFor\(error\)\);/);
+  assert.match(inspect, /if \(inspectGate\.isCurrent\(request\)\) \{\s*playUiSound\('error'\);\s*setMessage\(messageFor\(error\)\);\s*\}/);
   // The busy flag is always released, so a dropped answer never leaves the buttons disabled.
   assert.match(inspect, /finally \{[^}]*setBusy\(false\);/);
 });

@@ -1,4 +1,5 @@
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { foregroundAudioMode } from '@/sound/playback-audio-mode';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Image, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -289,7 +290,7 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
     const currentAction = ++audioAction.current;
     setAudioError(undefined);
     try {
-      await setAudioModeAsync({ shouldPlayInBackground: false, allowsRecording: false });
+      await setAudioModeAsync(foregroundAudioMode);
       await player.seekTo(0);
       if (alive.current && currentAction === audioAction.current) player.play();
     } catch {

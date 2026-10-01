@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import type { AppColors } from '@/theme/palette';
+import { playUiSound } from '@/sound/ui-sounds';
 
 import { BadgeApiError, type OpenedReward, type Reward, type RewardMilestone } from './badge-api';
 import { openRewardErrorMessage, rewardAccessibilityLabel, rewardBoxName, rewardStatusText } from './badge-rules';
@@ -40,6 +41,7 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
   async function openBox() {
     if (busy) return;
     setBusy(true);
+    playUiSound('open');
     setError(undefined);
     box.current?.shake();
     void lightHaptic();

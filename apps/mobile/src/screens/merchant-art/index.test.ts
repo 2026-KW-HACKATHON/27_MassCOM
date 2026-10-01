@@ -176,7 +176,7 @@ test('the showcase owner page opens it in place, only for the merchant the probe
 test('the back button leaves an inline page through onBack instead of the router', () => {
   const back = read('ui/back-header.tsx');
   assert.match(back, /onBack\?: \(\) => void;/);
-  assert.match(back, /onPress=\{onBack \?\? \(\(\) => \(router\.canGoBack\(\) \? router\.back\(\) : router\.replace\('\/'\)\)\)\}/);
+  assert.match(back, /playUiSound\('close'\);\s*if \(onBack\) onBack\(\);\s*else if \(router\.canGoBack\(\)\) router\.back\(\);\s*else router\.replace\('\/'\);/);
   assert.match(screen, /<BackHeader title="가게 그림 만들기" onBack=\{onBack\} \/>/);
 });
 

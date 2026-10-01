@@ -13,6 +13,7 @@ import { ConsentScreen } from '@/screens/consent';
 import { publicApiConfig } from '@/config/public-api-runtime';
 import { shouldAskConsent } from '@/privacy/consent-flow';
 import { hasPendingFriendLink } from '@/friends/pending-friend-link';
+import { initializeUiSounds } from '@/sound/ui-sounds';
 import { consumeMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, type ShowcaseRoleState } from '@/navigation/showcase-entry';
 import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseMerchantScreen } from '@/screens/showcase-merchant';
@@ -54,6 +55,7 @@ function Routes() {
 }
 
 export default function RootLayout() {
+  useEffect(() => initializeUiSounds(), []);
   return (
     <SafeAreaProvider>
       <StatusBar style="auto" />

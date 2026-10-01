@@ -1,5 +1,9 @@
 # 프로젝트 상태
 
+## 앱 효과음 (Issue #305, 2026-10-02)
+
+최신 main `7e6b39d`에서 `feat/305-ui-sounds`로 구현했다. 운영·시연 공통 모바일 코드에 Kenney CC0 효과음 7개와 기기별 켜기/끄기 설정을 추가했다. 기존 `expo-audio`를 재사용하며 추가 의존성·마이크·백그라운드 재생 권한은 없다. 음소거·백그라운드·초기 설정 읽기 실패·250ms 초과 지연 시 재생을 막고 플레이어를 해제한다. 독립 검토에서 발견한 수집품 음성의 오디오 모드 덮어쓰기는 공유 정책으로 수정했다. 모바일 단위 978/978, typecheck·lint, 개발·운영·시연 Android export, 로컬 gate는 `PASS`. 실제 청음·APK 설치·배포는 `NOT_RUN`이며 현재 공개 APK에 적용됐다는 뜻이 아니다.
+
 ## 점주 체험 권한 요청 서버 (Issue #294 PR1, 2026-10-01, 보안 리뷰 대응 2026-10-02)
 
 [Issue #294](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/294), 브랜치 `feat/294-showcase-access-server`(worktree `.worktrees/294-access-server`), 기준 main `0234a15`, PR 미정, 결정 [D-062](DECISIONS.md). 허용목록 기반 STAFF 부여(`grant-staff.ts`)는 그대로 두고, 시연 로그인 계정이면 누구나 서버에 요청을 넣어(migration 0037 `showcase_access_requests`, 운영 DB는 빈 스키마만) 승인자(시연 DB의 `platform_admins`, 운영 관리자 역할과 같은 표)가 수락하면 같은 가상 점포 A STAFF 권한을 받는 두 번째 경로를 더했다. 승인 핵심은 기존 STAFF 부여에서 뗀 `grantShowcaseStaffTx`를 운영자 명령·승인 경로가 함께 쓴다. 최초 승인자는 승인해 줄 사람이 없어 승인자 후보가 직접 요청을 넣고 코드를 자신의 Gmail로 보내 신원을 증명하면 운영자가 명령(`grant:showcase:approver`) 하나로 승인자 역할과 요청 승인을 함께 끝낸다(지정 승인자 `msocs1324@gmail.com`·`priestess4637@gmail.com`). API는 `resolveShowcaseDeployment`가 `hosted`·`local`로 판정할 때만 열리고 운영 로그인에서는 404다. **PR1(이 항목)은 서버만이고, 모바일 화면(PR2)과 Issue #295 테스트 방문(PR3)은 별도 PR이다.**
