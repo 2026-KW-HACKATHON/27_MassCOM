@@ -2,6 +2,15 @@
 
 **(당시 기록: PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐고 test.5·Preview 14를 게시했다. 지금 상태는 아래 Issue #277 항목이다.) 배포 순서(PR #257 병합 뒤, [D-061](DECISIONS.md)):** ① 병합 → ② 이 코드가 든 운영·시연 Android APK를 새로 빌드해 배포 → ③ **그 뒤에** API·웹 배포. 처리방침 버전이 `privacy-2026-10-01`로 올라 서버가 이 버전을 요구하는 순간, 설치돼 있는 동의 화면 빌드(운영 test.4, 시연 Preview 12·13)는 새 버전을 몰라 "앱을 업데이트해 주세요" 안내에 막힌다(D-059 설계). API·웹을 먼저 배포하면 새 APK가 나오기 전까지 그 사용자가 막힌다. 동의 화면이 없는 더 옛 앱(운영 test.3, 시연 Preview 11 이하)은 막히지 않는다.
 
+## 2026-10-01 Issue #294 PR1(점주 체험 권한 요청, 서버) 인수인계
+
+- 기준: main `0234a15`(PR #292 병합 결과), worktree `.worktrees/294-access-server`, 브랜치 `feat/294-showcase-access-server`, PR 미정. [설계](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/294)는 opus architect(2026-10-01), 결정은 [D-062](DECISIONS.md). 전체 기능은 PR1(이 항목, 서버)·PR2(모바일 화면)·PR3(Issue #295 테스트 방문)로 나뉘고 이 브랜치는 PR1만 구현한다.
+- 구현: migration `0037_showcase_access_requests.sql`(요청/결정 한 표, 운영 DB도 빈 스키마는 생김). `showcase/access-requests.ts`의 `ShowcaseAccessRequestService`(request/mine/listPending/decide, 모든 트랜잭션이 DB 이름을 다시 확인, 계정 advisory lock으로 동시 이중 요청 직렬화, 8자 Crockford base32 코드를 암호학적 난수로 생성해 `ON CONFLICT (code) DO NOTHING`으로 재시도). `showcase/grant-staff.ts`를 `grantShowcaseStaffTx(client, {...})`(DB 이름·계정 활성·가상 점포 A·멤버십)와 기존 `grantShowcaseStaff`(허용목록·세션 검사 뒤 위 핵심 호출)로 나눠 승인 경로와 운영자 명령이 같은 핵심을 쓴다. `showcase/grant-approver-command.ts` + `package.json` 스크립트 `grant:showcase:approver`(hosted·local 시연 DB_URL 가드, 한 트랜잭션에서 `platform_admins` upsert·`platform_admin_role_audit` GRANT·요청을 `decided_via='OPS'`로 승인). `server.ts`의 `resolveShowcaseDeployment(authMode, hostedConfigured, currentDatabaseName)`(순수 함수, `'hosted'|'local'|undefined`)와 다섯 라우트(`GET/POST /showcase/access-requests[/mine]`, `GET /showcase/admin/access-requests`, `POST …/:id/approve|reject`), 계정당 5회/시간 레이트 리밋. `postgres/account-deletion.ts`(요청자·승인자 열 별칭)·`postgres/retention.ts`(결정된 행 3년, 새 단계 `showcase_access_requests`).
+- 검증: `npm test --prefix apps/api` 304/304(+2: `resolveShowcaseDeployment` 단위, 라우트 404·레이트리밋·오류 매핑 통합), `npm run typecheck`·`npm run build --prefix apps/api` PASS. `npm run test:postgres --prefix apps/api`(로컬 폐기용 `postgres:16` 컨테이너, 이 세션에서 만들고 지움) 308개 중 306 PASS·0 FAIL·2 기존 SKIP(hosted 전용, 별도 컨테이너 필요), 새 `access-requests.postgres.integration.ts` 7/7(비시연 DB 거절 0행, 승인이 가상 점포 A만·결정 기록, 비승인자·자기 결정 거절, 동시 이중 요청 1건만 PENDING, 거절 뒤 재요청, 계정 삭제 요청자·승인자 열 별칭, 운영자 명령 승인자 부여+감사). `bash tools/gate.sh` PASS. 네 가지 핵심 가드(자기 결정 거절, 승인자 확인, DB 이름 재확인, 코드 충돌 재시도)를 임시로 지운 사본에서 각각 되돌려 대응 시험이 실패함을 확인하고 복구했다.
+- 문서: `apps/api/README.md`(엔드포인트·PostgreSQL 검증), `docs/SHOWCASE_AUTH_GUARD.md`(새 절), `infra/showcase-host/README.md`(최초 승인자 부트스트랩 절), `docs/DECISIONS.md`(D-062), `docs/BLOCKERS.md`(B-028과의 관계).
+- `NOT_RUN`: 두 지정 승인자(`msocs1324@gmail.com`·`priestess4637@gmail.com`)의 실제 Gmail 로그인·코드 발송·운영자 명령 실행(호스트 미배포), 모바일 화면(PR2), Issue #295 테스트 방문(PR3), 시연 호스트 실배포·migration 0037 적용.
+- 다음 작업: 독립 리뷰, PR 생성·CI, PR2(모바일 UI: 점주 체험 거절 화면·권한 요청 관리 화면)와 PR3(테스트 방문) 착수, 실배포 뒤 두 지정 승인자 부트스트랩 실행.
+
 ## 2026-10-01 병합 충돌 표시 검사 (Issue #291, 브랜치 `fix/291-conflict-markers`)
 
 - 기준: main `eed9d11`(PR #290 병합 결과), worktree `.worktrees/291-conflict-markers`, PR 번호 미정.
