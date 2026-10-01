@@ -191,7 +191,8 @@ export class ShowcaseAccessRequestService {
         [requestId],
       );
       const row = request.rows[0];
-      if (!row) throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_REQUEST_NOT_FOUND');
+      // 잠금 전에 읽은 요청 계정과 잠근 뒤 다시 읽은 계정이 같아야 한다. 잠근 계정이 아닌 계정에 권한을 주지 않는다.
+      if (!row || row.account_id !== targetAccountId) throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_REQUEST_NOT_FOUND');
       await this.assertApprover(client, approverId);
       if (row.account_id === approverId) throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_SELF_DECISION');
       if (row.status !== 'PENDING') throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_ALREADY_DECIDED');

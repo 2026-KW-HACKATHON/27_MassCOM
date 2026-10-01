@@ -45,7 +45,8 @@ async function main() {
         [lookupRow.id],
       );
       const row = request.rows[0];
-      if (!row || row.status !== 'PENDING') throw new Error('SHOWCASE_ACCESS_REQUEST_NOT_FOUND');
+      // 잠근 계정과 잠근 뒤 다시 읽은 요청 계정이 같아야 한다(관리자 등록·감사 기록 전에 확인).
+      if (!row || row.status !== 'PENDING' || row.account_id !== lookupRow.account_id) throw new Error('SHOWCASE_ACCESS_REQUEST_NOT_FOUND');
       // 승인자 역할(platform_admins)과 감사 행. db_user는 이 명령을 돌린 DB 세션 역할이다(승인자의 계정 ID가 아니다).
       await client.query(
         `INSERT INTO platform_admins(account_id) VALUES ($1)
