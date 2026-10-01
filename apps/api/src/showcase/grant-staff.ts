@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 
 import { PostgresAccountLifecycle } from '../postgres/account-lifecycle.js';
+import { isPermittedShowcaseDatabaseName } from './local-seed.js';
 
 type GrantInput = {
   accountId: string;
@@ -24,6 +25,47 @@ export function staffAccountIdForHash(
   return matches[0].account_id;
 }
 
+// hosted(masscom_showcase)와 local(masscom_showcase_test·_ci_*_test) 모두를 받는다: 이 핵심은 두 배치 모두에서 쓰인다(#294).
+function isShowcaseDatabaseName(name: string): boolean {
+  return name === 'masscom_showcase' || isPermittedShowcaseDatabaseName(name);
+}
+
+/**
+ * 가상 점포 STAFF 권한 부여의 핵심(#294). 운영자 명령의 허용목록·세션 검사(아래 grantShowcaseStaff)와
+ * 권한 요청 승인(showcase/access-requests.ts)이 함께 쓴다: 승인 쪽은 요청 행 자체가 자격 증명이라
+ * 허용목록·세션 검사를 다시 하지 않는다. 호출자가 이미 연 트랜잭션의 client를 받는다.
+ */
+export async function grantShowcaseStaffTx(
+  client: PoolClient,
+  input: { accountId: string; merchantId: string; accountLifecycle: PostgresAccountLifecycle },
+): Promise<void> {
+  const target = await client.query<{ name: string }>('SELECT current_database() AS name');
+  if (!target.rows[0] || !isShowcaseDatabaseName(target.rows[0].name)) {
+    throw new Error('SHOWCASE_HOST_DATABASE_REQUIRED');
+  }
+  await input.accountLifecycle.assertActive(client, input.accountId);
+  const merchant = await client.query<{ is_demo: boolean }>(
+    'SELECT is_demo FROM merchants WHERE id = $1 FOR UPDATE',
+    [input.merchantId],
+  );
+  if (merchant.rows[0]?.is_demo !== true) throw new Error('SHOWCASE_STAFF_NOT_ELIGIBLE');
+  await client.query(
+    `INSERT INTO merchant_members (merchant_id, account_id, role, status)
+     VALUES ($1, $2, 'STAFF', 'ACTIVE')
+     ON CONFLICT (merchant_id, account_id) DO NOTHING`,
+    [input.merchantId, input.accountId],
+  );
+  const membership = await client.query<{ role: string; status: string; revoked_at: Date | null }>(
+    `SELECT role, status, revoked_at FROM merchant_members
+     WHERE merchant_id = $1 AND account_id = $2`,
+    [input.merchantId, input.accountId],
+  );
+  if (membership.rows[0]?.role !== 'STAFF' ||
+      membership.rows[0]?.status !== 'ACTIVE' || membership.rows[0]?.revoked_at !== null) {
+    throw new Error('SHOWCASE_STAFF_NOT_ELIGIBLE');
+  }
+}
+
 export async function grantShowcaseStaff(
   pool: Pool,
   input: GrantInput,
@@ -33,15 +75,10 @@ export async function grantShowcaseStaff(
       [...input.allowedSubjectHashes].some((hash) => !/^[0-9a-f]{64}$/.test(hash))) {
     throw new Error('SHOWCASE_STAFF_NOT_ELIGIBLE');
   }
-  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: input.accountDeletionHmacSecret });
+  const accountLifecycle = new PostgresAccountLifecycle({ hmacSecret: input.accountDeletionHmacSecret });
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const target = await client.query<{ name: string }>('SELECT current_database() AS name');
-    if (target.rows[0]?.name !== 'masscom_showcase') {
-      throw new Error('SHOWCASE_HOST_DATABASE_REQUIRED');
-    }
-    await lifecycle.assertActive(client, input.accountId);
     const identity = await client.query<{ subject: string }>(
       `SELECT subject FROM auth_identities
        WHERE provider = 'google' AND account_id = $1`,
@@ -55,29 +92,12 @@ export async function grantShowcaseStaff(
        LIMIT 1`,
       [input.accountId],
     );
-    const merchant = await client.query<{ is_demo: boolean }>(
-      'SELECT is_demo FROM merchants WHERE id = $1 FOR UPDATE',
-      [input.merchantId],
-    );
-    if (!subjectHash || !input.allowedSubjectHashes.has(subjectHash) ||
-        session.rowCount !== 1 || merchant.rows[0]?.is_demo !== true) {
+    if (!subjectHash || !input.allowedSubjectHashes.has(subjectHash) || session.rowCount !== 1) {
       throw new Error('SHOWCASE_STAFF_NOT_ELIGIBLE');
     }
-    await client.query(
-      `INSERT INTO merchant_members (merchant_id, account_id, role, status)
-       VALUES ($1, $2, 'STAFF', 'ACTIVE')
-       ON CONFLICT (merchant_id, account_id) DO NOTHING`,
-      [input.merchantId, input.accountId],
-    );
-    const membership = await client.query<{ role: string; status: string; revoked_at: Date | null }>(
-      `SELECT role, status, revoked_at FROM merchant_members
-       WHERE merchant_id = $1 AND account_id = $2`,
-      [input.merchantId, input.accountId],
-    );
-    if (membership.rows[0]?.role !== 'STAFF' ||
-        membership.rows[0]?.status !== 'ACTIVE' || membership.rows[0]?.revoked_at !== null) {
-      throw new Error('SHOWCASE_STAFF_NOT_ELIGIBLE');
-    }
+    await grantShowcaseStaffTx(client, {
+      accountId: input.accountId, merchantId: input.merchantId, accountLifecycle,
+    });
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
