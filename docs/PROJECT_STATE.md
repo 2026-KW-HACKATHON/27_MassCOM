@@ -1,5 +1,11 @@
 # 프로젝트 상태
 
+## 접이식 앨범 홈, Option A (Issue #296, 2026-10-01)
+
+[Issue #296](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/296), 브랜치 `feat/296-album-home`(worktree `.worktrees/296-album-home`), 기준 main `0234a15`(PR #292 병합 결과), PR 미정. 소유자가 고른 Option A(접이식 앨범)를 구현했다: 탐색(홈) 머리글 아래에 보상 상자 요약 카드(`HomeRewardCard`, 기존 `RewardBoxCard`·보상 열기 흐름·`RewardReveal` 재사용)를 두어 지금 열 수 있는 상자 또는 다음 목표 상자를 바로 보여준다. 도감 머리글은 전체 여권 카드 대신 압축 띠("골목 탐험가 · 배지 4/9")로 줄이고, "내 수집 앨범"을 가장 먼저 보여준다 — 그림이 없는 옛 수집품을 더 이상 별도 평면 목록("앱에서 받은 수집품")으로 중복 그리지 않고 같은 그리드에 한 번만 합치며(`ungroupedCollectibles`), 그림 있는 그룹 카드는 묶인 수집품마다 자기만의 실제 NFT 상태 요약·민트 단추를 갖는다(`CollectibleGroup.entitlements`, `nftGroupSummary`). 메달·배지, 쿠폰·NFT 발행 현황, 도장판·방문 기록은 접근성 있는 기본 접힘 폴드(`src/ui/fold.tsx`: role button, 펼침/접힘 라벨, 색 아닌 글자·글리프 구분)로 옮겼다. 발행 오류·지갑 배너는 폴드 밖에서 항상 보인다. 민트 신청·쿠폰 사용·추천·방문 기록·대표 진열·공유·가게별 시리즈·보상/양도 규칙은 모두 그대로다. 바텀 탭 바는 범위 밖.
+
+모바일 943/943 PASS(신규 7건 포함), typecheck·lint·`bash tools/gate.sh` PASS. 자세한 내용은 [HANDOFF](HANDOFF.md)와 [apps/mobile/README.md](../apps/mobile/README.md#접이식-앨범-홈-issue-296-option-a). 실기기·에뮬레이터 시각 확인(라이트·다크·글자 200%)은 이번 세션에서 `NOT_RUN` — 오케스트레이터가 별도로 진행한다.
+
 ## 병합 충돌 표시 검사 (Issue #291, 2026-10-01)
 
 [Issue #291](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/291), 브랜치 `fix/291-conflict-markers`, 기준 main `eed9d11`: `scripts/check-conflict-markers.sh`가 추적 파일의 줄 맨 앞 충돌 표시를 찾고, `tools/gate.sh`와 CI가 실행한다. 회귀 시험 PASS.
