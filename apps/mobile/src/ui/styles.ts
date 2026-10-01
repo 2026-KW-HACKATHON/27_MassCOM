@@ -76,5 +76,11 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
     // paddingHorizontal is slack for the 800-weight glyphs: on a 411dp phone the name measured narrower than it painted and lost its second line.
     stampName: { color: world.paperInk, fontSize: 13, fontWeight: '800', lineHeight: 18, textAlign: 'center', paddingHorizontal: 2 },
     stampStatus: { color: world.paperInk, fontSize: 11, lineHeight: 16, textAlign: 'center' },
+    // Fold (#296): a FloatingCard header that expands a section in place (passport/medals, coupons·NFT, stamp board·visits).
+    foldRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    foldTitleGroup: { flex: 1, gap: 2 },
+    foldSummary: { color: world.cardMuted, fontSize: 12, fontWeight: '700' },
+    foldToggle: { color: palette.primary, fontSize: 13, fontWeight: '900' },
+    foldBody: { gap: 12, marginTop: 12 },
   } satisfies Record<string, ImageStyle | TextStyle | ViewStyle>;
 }

@@ -136,6 +136,12 @@ export type MintJobResponse = {
   nft: null | { contractAddress: string; tokenId: string };
 };
 
+// 점주 체험 권한 요청(#294). 서버는 코드를 대시 없이 8글자로 돌려준다.
+export type ShowcaseAccessStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type ShowcaseAccessRequest = { code: string; status: ShowcaseAccessStatus; createdAt: string; decidedAt: string | null };
+export type ShowcaseAccessState = { request: ShowcaseAccessRequest | null; staff: boolean; approver: boolean };
+export type PendingShowcaseAccessRequest = { id: string; code: string; createdAt: string };
+
 type Options = {
   apiUrl: string;
   credential: AccountCredential;
@@ -343,6 +349,30 @@ export function createCommerceApiClient(options: Options) {
 
     async getMintJob(jobId: string): Promise<MintJobResponse> {
       return parseMintJob(await request(`/mint-jobs/${encodeURIComponent(jobId)}`));
+    },
+
+    async getShowcaseAccessState(): Promise<ShowcaseAccessState> {
+      return parseShowcaseAccessState(await request('/showcase/access-requests/mine'));
+    },
+
+    async requestShowcaseAccess(): Promise<ShowcaseAccessRequest> {
+      const response = await post('/showcase/access-requests', {});
+      if (!isRecord(response)) throw invalidResponse('점주 체험 권한 요청');
+      return parseShowcaseAccessRequest(response.request);
+    },
+
+    async listPendingShowcaseAccessRequests(): Promise<readonly PendingShowcaseAccessRequest[]> {
+      return parsePendingShowcaseAccessRequests(await request('/showcase/admin/access-requests'));
+    },
+
+    async decideShowcaseAccessRequest(input: { requestId: string; decision: 'approve' | 'reject' }): Promise<void> {
+      const response = await post(
+        `/showcase/admin/access-requests/${encodeURIComponent(input.requestId)}/${input.decision}`,
+        {},
+      );
+      if (!isRecord(response) || (response.status !== 'APPROVED' && response.status !== 'REJECTED')) {
+        throw invalidResponse('권한 요청 처리');
+      }
     },
   };
 }
@@ -683,6 +713,49 @@ function parseMintJob(value: unknown): MintJobResponse {
     recipient: value.recipient,
     nft: value.nft,
   };
+}
+
+function parseShowcaseAccessState(value: unknown): ShowcaseAccessState {
+  if (
+    !isRecord(value) ||
+    typeof value.staff !== 'boolean' ||
+    typeof value.approver !== 'boolean' ||
+    (value.request !== null && !isRecord(value.request))
+  ) {
+    throw invalidResponse('권한 요청 상태');
+  }
+  return {
+    request: value.request === null ? null : parseShowcaseAccessRequest(value.request),
+    staff: value.staff,
+    approver: value.approver,
+  };
+}
+
+function parseShowcaseAccessRequest(value: unknown): ShowcaseAccessRequest {
+  if (
+    !isRecord(value) ||
+    !isString(value.code) ||
+    !isShowcaseAccessStatus(value.status) ||
+    !isDate(value.createdAt) ||
+    (value.decidedAt !== null && !isDate(value.decidedAt))
+  ) {
+    throw invalidResponse('점주 체험 권한 요청');
+  }
+  return { code: value.code, status: value.status, createdAt: value.createdAt, decidedAt: value.decidedAt };
+}
+
+function isShowcaseAccessStatus(value: unknown): value is ShowcaseAccessStatus {
+  return value === 'PENDING' || value === 'APPROVED' || value === 'REJECTED';
+}
+
+function parsePendingShowcaseAccessRequests(value: unknown): readonly PendingShowcaseAccessRequest[] {
+  if (!Array.isArray(value)) throw invalidResponse('권한 요청 목록');
+  return value.map((item): PendingShowcaseAccessRequest => {
+    if (!isRecord(item) || !isString(item.id) || !isString(item.code) || !isDate(item.createdAt)) {
+      throw invalidResponse('권한 요청 목록');
+    }
+    return { id: item.id, code: item.code, createdAt: item.createdAt };
+  });
 }
 
 function isNftStatus(value: unknown): value is CollectionSnapshot['collectibles'][number]['nftStatus'] {

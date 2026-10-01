@@ -27,9 +27,10 @@ test('상세 화면은 사진이 내려간 수집품에 재시도를 주지 않�
   assert.doesNotMatch(screen, /\}, \[entitlementId, load, retry, onUnavailable\]\)/, 'onUnavailable이 effect 의존성이면 목록 갱신이 상세를 다시 읽는 고리가 된다');
   const list = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
   assert.match(list, /onUnavailable=\{\(\) => void refresh\(\)\}/);
-  // 목록은 외형이 없는 수집품을 기존 카드(이름만)로 그린다.
-  assert.match(list, /\{item\.artwork \? \(/);
-  assert.match(list, /item\.artwork\?\.name \?\? item\.displayName/);
+  // #296: 외형이 없는 수집품은 앨범(CollectibleBrowser)의 LegacyCard가 이름만으로 그린다(그림 있는 카드와 별개).
+  const browser = readFileSync(new URL('./collectible-browser.tsx', import.meta.url), 'utf8');
+  assert.match(browser, /function LegacyCard/);
+  assert.match(browser, /\{item\.displayName\}/);
 });
 
 test('각도 슬라이더를 끌거나 동작을 멈추는 등 사람이 직접 조작하면 예약된 다음 자동재생 단계를 지운다(WP4 리뷰 2)', () => {

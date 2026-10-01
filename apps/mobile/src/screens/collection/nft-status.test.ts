@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { canOfferMint, mintRefusalText, nftPreparingLabel, nftPreparingNote, nftStatusLabel } from './nft-status';
+import { canOfferMint, chainLabel, mintRefusalText, nftGroupSummary, nftPreparingLabel, nftPreparingNote, nftStatusLabel, shortAddress } from './nft-status';
 
 test('발행 준비 중인 운영 도감은 접수·진행 문구 대신 "발행 준비 중"을 보이고 발행 단추를 두지 않는다', () => {
   for (const status of ['NOT_REQUESTED', 'QUEUED', 'CONFIRMING', 'REVIEW_REQUIRED'] as const) {
@@ -28,4 +28,37 @@ test('발행 준비 중 거절(409 NFT_MINTING_PREPARING)은 코드 대신 준�
   assert.match(nftPreparingNote, /준비 중.*기록은 그대로/);
   assert.equal(mintRefusalText('MINT_PENDING'), '이미 처리 중인 NFT 작업이 있습니다.');
   assert.equal(mintRefusalText('SOMETHING_NEW'), 'NFT 접수 실패: SOMETHING_NEW');
+});
+
+test('a grouped card with duplicate entitlements summarizes "실제 NFT N개 · APP N개", or the plain label for a single copy', () => {
+  assert.equal(nftGroupSummary([{ nftStatus: 'NOT_REQUESTED' }]), '발행하지 않음');
+  assert.equal(nftGroupSummary([{ nftStatus: 'NOT_REQUESTED' }, { nftStatus: 'NOT_REQUESTED' }, { nftStatus: 'FINALIZED' }]), '실제 NFT 1개 · APP 2개');
+  assert.equal(nftGroupSummary([{ nftStatus: 'FINALIZED' }, { nftStatus: 'FINALIZED' }]), '실제 NFT 2개');
+  assert.equal(nftGroupSummary([{ nftStatus: 'NOT_REQUESTED' }], 'PREPARING'), '발행 준비 중');
+  // 운영이 발행 준비 중일 때는 여러 벌이 묶인 카드도 "접수"·"APP" 대신 "발행 준비 중"으로 말한다.
+  assert.equal(nftGroupSummary([{ nftStatus: 'QUEUED' }, { nftStatus: 'NOT_REQUESTED' }], 'PREPARING'), '발행 준비 중');
+  assert.equal(nftGroupSummary([{ nftStatus: 'FINALIZED' }, { nftStatus: 'NOT_REQUESTED' }], 'PREPARING'), '실제 NFT 1개 · 발행 준비 중 1개');
+  assert.equal(nftGroupSummary([{ nftStatus: 'FINALIZED' }, { nftStatus: 'FINALIZED' }], 'PREPARING'), '실제 NFT 2개');
+});
+
+// PR #301 리뷰: 발행 준비 중이 아닐 때 QUEUED·CONFIRMING·REVIEW_REQUIRED를 모두 "APP"으로 뭉쳐 발행 접수·확인 중인
+// 상태가 사라지던 문제. nftStatusLabel과 같은 범주(실제 NFT/발행 중/확인 필요/APP)로 각각 세어 말한다.
+test('nftGroupSummary keeps in-flight mint state visible instead of folding it into "APP"', () => {
+  assert.equal(nftGroupSummary([{ nftStatus: 'QUEUED' }, { nftStatus: 'NOT_REQUESTED' }]), '발행 중 1개 · APP 1개');
+  assert.equal(nftGroupSummary([{ nftStatus: 'CONFIRMING' }, { nftStatus: 'NOT_REQUESTED' }]), '발행 중 1개 · APP 1개');
+  assert.equal(nftGroupSummary([{ nftStatus: 'REVIEW_REQUIRED' }, { nftStatus: 'NOT_REQUESTED' }]), '확인 필요 1개 · APP 1개');
+  assert.equal(
+    nftGroupSummary([{ nftStatus: 'FINALIZED' }, { nftStatus: 'QUEUED' }, { nftStatus: 'NOT_REQUESTED' }]),
+    '실제 NFT 1개 · 발행 중 1개 · APP 1개',
+  );
+  assert.equal(nftGroupSummary([{ nftStatus: 'QUEUED' }, { nftStatus: 'CONFIRMING' }, { nftStatus: 'REVIEW_REQUIRED' }]), '발행 중 2개 · 확인 필요 1개');
+});
+
+test('chainLabel names the networks this app mints on and shortAddress truncates long hex addresses', () => {
+  assert.equal(chainLabel(84532), 'Base Sepolia');
+  assert.equal(chainLabel(8453), 'Base');
+  assert.equal(chainLabel(31337), 'Local Anvil');
+  assert.equal(chainLabel(1), 'Chain 1');
+  assert.equal(shortAddress('0x1234'), '0x1234');
+  assert.equal(shortAddress('0x1234567890abcdef1234'), '0x123456…ef1234');
 });

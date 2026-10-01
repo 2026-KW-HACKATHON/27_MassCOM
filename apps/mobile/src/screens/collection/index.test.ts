@@ -35,3 +35,31 @@ test('issuing a mint clears the finalized notice before the request, not only af
     'the notice is cleared before the mint request is issued',
   );
 });
+
+// #296 review: `focus=rewards` never worked because the reward track lives inside a Fold that starts collapsed
+// and unmounts its body, so `rewardsY` never got set (and even expanded, the old code measured the Section
+// inside the Fold's body, not the Fold's own position). Both the deep link and the in-app "보상" button must now
+// force that fold open and scroll using the Fold's own `onLayout`.
+test('a focus=rewards link forces the rewards fold open and does not require it to already be expanded', () => {
+  const effect = screen.slice(screen.indexOf("if (focus !== 'rewards') return;"), screen.indexOf('[focus, headerHeight, rewardsY, router]'));
+  assert.match(effect, /setRewardsFoldExpanded\(true\)/);
+  // The fold must be forced open unconditionally, before any early return on `rewardsY`.
+  assert.ok(
+    effect.indexOf('setRewardsFoldExpanded(true)') < effect.indexOf('if (rewardsY === undefined) return'),
+    'the fold is forced open even while rewardsY (its measured position) is still unknown',
+  );
+});
+
+test('the in-app "보상" button (scrollToRewards) also forces the rewards fold open, not just scrolls blindly', () => {
+  const fn = screen.slice(screen.indexOf('const scrollToRewards = useCallback'), screen.indexOf('}, [headerHeight, rewardsY]);'));
+  assert.match(fn, /setRewardsFoldExpanded\(true\)/);
+});
+
+test('the "쿠폰·NFT 발행 현황" fold is controlled and reports its own layout, not the Section inside it', () => {
+  const rewardsFold = screen.slice(screen.indexOf('title="쿠폰·NFT 발행 현황"'), screen.indexOf('<Section title="보상 상자"'));
+  assert.match(rewardsFold, /expanded=\{rewardsFoldExpanded\}/);
+  assert.match(rewardsFold, /onToggle=\{\(\) => setRewardsFoldExpanded/);
+  assert.match(rewardsFold, /onLayout=\{setRewardsY\}/);
+  // The old (broken) wiring put onLayout on the Section inside the fold's body instead of the fold itself.
+  assert.doesNotMatch(screen, /<Section title="보상 상자"[^>]*onLayout=/);
+});
