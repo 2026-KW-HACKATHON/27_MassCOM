@@ -2,6 +2,15 @@
 
 **(당시 기록: PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐고 test.5·Preview 14를 게시했다. 지금 상태는 아래 Issue #277 항목이다.) 배포 순서(PR #257 병합 뒤, [D-061](DECISIONS.md)):** ① 병합 → ② 이 코드가 든 운영·시연 Android APK를 새로 빌드해 배포 → ③ **그 뒤에** API·웹 배포. 처리방침 버전이 `privacy-2026-10-01`로 올라 서버가 이 버전을 요구하는 순간, 설치돼 있는 동의 화면 빌드(운영 test.4, 시연 Preview 12·13)는 새 버전을 몰라 "앱을 업데이트해 주세요" 안내에 막힌다(D-059 설계). API·웹을 먼저 배포하면 새 APK가 나오기 전까지 그 사용자가 막힌다. 동의 화면이 없는 더 옛 앱(운영 test.3, 시연 Preview 11 이하)은 막히지 않는다.
 
+## 2026-10-01 사진 수집품 제작기 제작 부담 감소 (Issue #282, 브랜치 `feat/282-creator-qol`)
+
+- 기준: main `7eb178d`(PR #285 병합 결과), worktree `.worktrees/282-creator-qol`, PR 번호 미정.
+- 범위: 웹 사진 수집품 제작기만(`apps/production-web/assets/collectible-editor.mjs`·`collectible-studio.mjs`·`collectible-errors.mjs`·`collectible-editor.css`, 새 `collectible-assist.mjs`). schema v2(WP1)가 편집 중인 `collectible-model.mjs`·`apps/api/**`는 건드리지 않았다.
+- 구현: **A1 자동 저장(기기 로컬)** 편집이 멈추고 약 1.5초 뒤 `localStorage`(`masscom:collectible-draft:<merchantId>:<계정 마커 해시>`)에 저장하고, 4 MB를 넘으면 사진·장면·음성만 비우고 다시 선택 안내를 남긴다. 마운트 뒤 서버보다 새로운 로컬 사본이 있으면 "저장하지 않은 편집을 이어서 할까요?"를 묻고, 저장·게시·삭제·명시적 폐기가 끝나면 지운다. **A2 등급 전체 선택·해제** 효과·동작의 적용 등급 그룹에 버튼을 추가했다(미리보기 등급 불변, undo 한 단계). **A8 재질 충돌 안내** `collectible-renderer.mjs`의 합성 방식(171~205행)을 근거로 무광·에나멜·유리를 배타 그룹으로 확정하고, 같은 대상·등급에 겹치면 조용히 바꾸지 않고 확인 뒤 바꾸거나 거절하면 되돌린다. **A4 자동 맞춤** 자르기 단계에 버튼을 추가해 `window.FaceDetector`가 있으면 얼굴을, 없으면 가운데를 기준으로 맞추고(둘 다 순수 함수로 계산) 결과는 undo 한 단계로 남는다. `merchant.mjs`는 `mine.accountScope`를 `mountCollectibleEditor`에 넘기도록 한 줄 바꿨다.
+- 검증: `node --test tests/site/collectible-assist.test.mjs` 8/8(새 파일, 순수 로직), `node --test tests/site/collectible-editor-flow.test.mjs` 53/53(기존 38 + 새 회귀 15), `node --test tests/site/collectible-*.test.mjs` 88/88, `node --test tests/site/verify_production_web_test.mjs` 111/111, `bash tools/gate.sh` PASS. 기존 시험을 하나도 고치지 않고 통과시켰다.
+- `NOT_RUN`: 실제 브라우저의 `FaceDetector`(Chrome/Android 계열만 지원) 동작·사생활 보호 모드의 실제 `localStorage` 거부·실제 카메라 사진의 자동 맞춤 캡처. 실기기 스크린샷으로 등급 전체 선택 버튼·재질 충돌 확인창·자동 맞춤 버튼의 배치와 대비를 확인해야 한다.
+- 문서: `docs/COLLECTIBLE_CREATOR.md`에 "제작 부담을 줄이는 보조 기능" 절을 추가하고 "후속" 목록에서 자동 얼굴 감지·자동 저장을 뺐다(자동 저장은 기기 로컬일 뿐 서버 자동 저장이 아니라고 명시). `apps/production-web/README.md`의 제작기 절에 네 기능을 한 문단으로 요약했다.
+- 다음 작업: 독립 리뷰, PR 생성·CI, 실기기 스크린샷 확인(위 NOT_RUN 항목).
 ## 2026-10-01 고객 도감 수집 경험 완성 (Issue #283)
 
 - 기준 커밋: main `61bde48`(PR #278 병합 결과). 브랜치 `feat/283-collection-experience`(worktree `.worktrees/283-collection-experience`), PR 미정.

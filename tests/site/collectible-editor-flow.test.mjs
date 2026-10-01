@@ -5,6 +5,7 @@ import { configureCreator, loadCreatorCampaigns } from '../../apps/production-we
 import { createProject } from '../../apps/production-web/assets/collectible-model.mjs';
 import { createFakeApi } from '../fixtures/collectible-fake-api.mjs';
 import { installMiniDom, settle } from '../fixtures/mini-dom.mjs';
+import { draftStorageKey, faceFitCrop } from '../../apps/production-web/assets/collectible-assist.mjs';
 
 let dom, editors;
 beforeEach(() => { dom = installMiniDom(); editors = []; });
@@ -629,4 +630,484 @@ test('게시한 뒤에는 캠페인 목록을 새로 읽어 배포 연결 변화
   assert.equal(reads - before, 2, '게시 직전 검증용 조회 1번과 게시 뒤 새로 읽기 1번');
   assert.match(ui.notice, /게시했어요/);
   assert.equal(api.campaigns[0].publication.projectId, 'project-1');
+});
+
+// Issue #282: 자동 저장(A1, 단순화: 미디어 없이 편집 값만·서버에 이미 있는 프로젝트만)·등급 전체 선택(A2)·
+// 재질 충돌 안내(A8)·자동 맞춤(A4).
+const readDraft = (win, merchantId, accountScope) => { const raw = win.localStorage.getItem(draftStorageKey(merchantId, accountScope)); return raw ? JSON.parse(raw) : null; };
+
+test('서버에 한 번도 저장하지 않은 새 초안은 자동 저장하지 않는다(wrapper 없음, A1 단순화)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.input('name', '아직 저장 안 한 초안');
+  await settle(10);
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null, '서버에 저장한 적 없는 초안은 자동 저장 대상이 아니다(beforeunload 경고로만 보호한다)');
+  assert.equal(ui.dirty, true);
+});
+
+test('계정 구분값이 없으면 서버에 저장된 프로젝트를 고쳐도 기기에 자동 저장하지 않는다(A1)', async () => {
+  const api = createFakeApi();
+  const saved = api.seed(seeded('계정 없음 시험'));
+  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } }); // accountScope 생략
+  await ui.change('project-list', saved.id);
+  await ui.input('name', '계정 없이 고친 이름');
+  await settle(10);
+  assert.equal(dom.window.localStorage.length, 0, '계정 구분값이 없으면 어떤 보관본도 쓰지 않는다');
+});
+
+test('서버에 이미 저장된 프로젝트를 고치면 편집이 멈춘 뒤 미디어 없이 편집 값만 기기에 자동 저장하고, 서버 저장이 끝나면 지운다(A1)', async () => {
+  const api = createFakeApi();
+  const saved = api.seed(seeded('자동 저장 대상'));
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.change('project-list', saved.id);
+  await ui.upload(photoFile);
+  await ui.input('name', '자동 저장 확인');
+  await settle(10);
+  const draft = readDraft(dom.window, 'm1', 'scope-a');
+  assert.ok(draft, '서버에 이미 있는 프로젝트를 고치면 편집이 멈추면 기기에 저장된다');
+  assert.equal(draft.merchantId, 'm1');
+  assert.equal(draft.wrapperId, saved.id);
+  assert.equal(draft.edits.name, '자동 저장 확인');
+  assert.equal(JSON.stringify(draft).includes('data:'), false, '사진 등 미디어는 어떤 data: URL도 기기에 남기지 않는다');
+  await ui.click('draft');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null, '서버 저장이 끝나면 기기 보관본을 지운다');
+});
+
+test('서버와 같은 버전의 기기 보관본이 있으면 다시 열 때 이어서 할지 묻고, 수락하면 서버의 최신 사진 위에 편집 값만 올린다(A1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.click('draft'); // 서버에 사진을 포함해 먼저 저장해 둔다
+  await ui.input('name', '복원할 이름');
+  await settle(10);
+  editors.pop()();
+
+  const restored = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  assert.match(restored.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
+  assert.equal(restored.control('name').value, '복원할 이름');
+  assert.equal(restored.dirty, true);
+  assert.match(restored.notice, /사진·목소리는 마지막으로 저장한 것을 써요/);
+  await restored.click('draft'); // 복원한 편집을 저장하면 서버의 사진이 그대로 실려 가야 한다
+  const put = api.calls.find(call => call.method === 'PUT');
+  assert.match(put.body.project.photo.originalDataUrl, /#server$/, '복원은 기기가 아니라 서버의 최신 사진을 지킨다');
+  assert.equal(put.body.project.name, '복원할 이름');
+});
+
+test('복원 응답을 기다리는 동안 새로 입력하면 늦게 온 복원이 그 입력을 덮지 않는다(PR #289 P1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  await ui.input('name', '보관한 이름');
+  await settle(10);
+  editors.pop()();
+
+  const held = api.holdNext('GET', /collectible-projects\/[^/]+$/);
+  const restored = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  assert.match(restored.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
+  await restored.input('name', '기다리는 동안 입력');
+  held.release();
+  await settle(10);
+  assert.equal(restored.control('name').value, '기다리는 동안 입력');
+});
+
+test('목록을 본 뒤 다른 곳에서 새 버전이 저장되면 복원하지 않고 보관본을 버린다(PR #289 P1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  const projectId = [...api.store.keys()][0];
+  await ui.input('name', '옛 버전 위의 편집');
+  await settle(10);
+  editors.pop()();
+
+  const held = api.holdNext('GET', /collectible-projects\/[^/]+$/);
+  const restored = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  await api.request(`/api/web/merchant/merchants/m1/collectible-projects/${projectId}`, { method: 'PUT', body: { expectedVersion: 1, project: seeded('다른 곳에서 저장') } });
+  held.release();
+  await settle(10);
+  assert.notEqual(restored.control('name').value, '옛 버전 위의 편집', '새 버전 위에 옛 편집을 얹지 않는다');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null);
+  assert.match(restored.notice, /더 새로 저장된 버전이 있어 보관한 편집은 버렸어요/);
+});
+
+test('저장 중에 더 고친 편집은 저장이 끝난 새 버전 기준으로 다시 보관한다(PR #289 P2)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  await ui.input('name', '첫 저장 뒤 편집');
+  const held = api.holdNext('PUT', /collectible-projects\/[^/]+$/);
+  const saving = ui.click('draft');
+  await settle();
+  await ui.input('greeting', '저장 중 더 고침');
+  held.release();
+  await saving; await settle(10);
+  const draft = readDraft(dom.window, 'm1', 'scope-a');
+  assert.ok(draft, '저장 뒤에도 더 고친 편집이 남아 있으면 보관한다');
+  assert.equal(draft.wrapperVersion, 2, '방금 저장으로 오른 버전을 기준으로 보관한다');
+  assert.equal(draft.edits.greeting, '저장 중 더 고침');
+});
+
+test('기기 보관본보다 새 서버 버전이 있으면 복원을 묻지 않고 조용히 지운다(A1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  const projectId = [...api.store.keys()][0];
+  await ui.input('name', '복원 전 편집');
+  await settle(10);
+  editors.pop()();
+
+  // 다른 곳(다른 기기·탭 등)에서 같은 프로젝트를 먼저 저장해 서버 버전을 올려 둔다.
+  await api.request(`/api/web/merchant/merchants/m1/collectible-projects/${projectId}`, { method: 'PUT', body: { expectedVersion: 1, project: seeded('다른 곳에서 저장') } });
+
+  const remounted = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  assert.equal(remounted.asked.length, 0, '서버가 더 새 버전이면 복원을 묻지 않는다');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null, '낡은 보관본은 조용히 지운다');
+});
+
+test('기기 보관본 복원을 거절하면 지우고 새 초안으로 시작한다(A1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  await ui.input('name', '거절할 이름');
+  await settle(10);
+  editors.pop()();
+
+  const declined = await mount(api, { confirm: false, editor: { accountScope: 'scope-a' } });
+  assert.equal(declined.control('name').value, '월계 식당 수집품');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null);
+});
+
+test('명시적으로 새 초안을 시작하거나 삭제하면 기기 보관본도 함께 지운다(A1)', async () => {
+  const api = createFakeApi();
+  const saved = api.seed(seeded('삭제할 프로젝트'), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 }, confirm: true });
+  await ui.change('project-list', saved.id);
+  await ui.input('name', '삭제 전 편집');
+  await settle(10);
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'));
+  await ui.click('delete');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null, '삭제가 끝나면 기기 보관본을 지운다');
+
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  await ui.input('name', '새로 시작 전 편집');
+  await settle(10);
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'));
+  await ui.click('new');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null, '명시적 새 초안 시작은 기기 보관본을 지운다');
+});
+
+test('사생활 보호 모드처럼 저장 공간 접근이 막혀도 편집과 저장은 그대로 된다(A1)', async () => {
+  dom.restore(); dom = installMiniDom({ storageThrows: true });
+  const api = createFakeApi();
+  const saved = api.seed(seeded('저장 공간 없음 시험'));
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.change('project-list', saved.id); // wrapper가 있어야 자동 저장 시도가 실제로 저장 공간에 닿는다
+  await ui.upload(photoFile);
+  await ui.input('name', '저장 공간 없이도 편집');
+  await settle(10);
+  assert.equal(ui.control('name').value, '저장 공간 없이도 편집');
+  await ui.click('draft');
+  assert.match(ui.notice, /초안을 저장했어요/);
+});
+
+test('효과의 적용 등급 전체 선택·해제는 미리보기 등급을 바꾸지 않고 한 번의 되돌리기로 남는다(A2)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.click('effect-add');
+  const effectId = ui.container.querySelector('[data-effect-strength]').dataset.effectStrength;
+  const captionBefore = ui.container.querySelector('[data-view="preview-caption"]').textContent;
+  ui.container.querySelector(`[data-action="effect-grade-all"][data-id="${effectId}"]`).dispatchEvent({ type: 'click' });
+  await settle();
+  const enabledCount = ui.container.querySelectorAll('[data-grade-enabled]').length;
+  const checks = () => ui.container.querySelectorAll(`[data-effect-grade="${effectId}"]`);
+  assert.equal(checks().length, enabledCount);
+  assert.equal([...checks()].every(box => box.checked), true, '전체 선택은 사용 중인 등급을 모두 켠다');
+  assert.equal(ui.container.querySelector('[data-view="preview-caption"]').textContent, captionBefore, '미리보기 등급은 바뀌지 않는다');
+  ui.container.querySelector(`[data-action="effect-grade-none"][data-id="${effectId}"]`).dispatchEvent({ type: 'click' });
+  await settle();
+  assert.equal([...checks()].some(box => box.checked), false, '전체 해제는 모두 끈다');
+  assert.match(ui.container.querySelector(`[data-effect-grade="${effectId}"]`).closest('fieldset').textContent, /현재 어느 등급에도 적용하지 않아요/);
+  await ui.click('undo');
+  assert.equal([...checks()].every(box => box.checked), true, '전체 해제는 undo 한 번으로 되돌아간다(한 단계)');
+});
+
+test('동작의 적용 등급 전체 선택·해제는 다른 동작과 배타적으로 동작한다(A2)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.container.querySelector('[data-action="motion-grade-all"][data-id="rotate"]').dispatchEvent({ type: 'click' });
+  await settle();
+  const enabledCount = ui.container.querySelectorAll('[data-grade-enabled]').length;
+  const rotateChecks = () => ui.container.querySelectorAll('[data-motion-grade="rotate"]');
+  assert.equal(rotateChecks().length, enabledCount);
+  assert.equal([...rotateChecks()].every(box => box.checked), true);
+  ui.container.querySelector('[data-action="motion-grade-none"][data-id="rotate"]').dispatchEvent({ type: 'click' });
+  await settle();
+  assert.equal([...rotateChecks()].some(box => box.checked), false);
+});
+
+const setEffectTarget = (ui, target) => { ui.control('effect-type').value = target.type; ui.control('effect-type').dispatchEvent({ type: 'change' }); };
+const addMaterial = async (ui, type, excludeId) => {
+  setEffectTarget(ui, { type });
+  await ui.click('effect-add');
+  return [...ui.container.querySelectorAll('[data-effect-strength]')].map(node => node.dataset.effectStrength).find(id => id !== excludeId);
+};
+const toggle = async (ui, effectId, gradeId, value) => {
+  const box = ui.container.querySelector(`[data-effect-grade="${effectId}"][data-grade="${gradeId}"]`);
+  box.checked = value; box.dispatchEvent({ type: 'change' }); await settle();
+};
+
+test('같은 곳의 배타 재질(무광·에나멜·유리)을 겹쳐 켜면 조용히 섞지 않고 확인 뒤 바꾼다(A8)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { confirm: true });
+  const enamelId = await addMaterial(ui, 'enamel');
+  await toggle(ui, enamelId, 'bronze', true);
+  const matteId = await addMaterial(ui, 'matte', enamelId);
+  await toggle(ui, matteId, 'bronze', true);
+  assert.match(ui.asked.at(-1), /^무광과 에나멜은 같은 곳에 함께 쓸 수 없어요\. 에나멜을 끄고 무광을 켤까요\?$/);
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${matteId}"][data-grade="bronze"]`).checked, true, '수락하면 새 재질이 켜진다');
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${enamelId}"][data-grade="bronze"]`).checked, false, '수락하면 기존 재질은 꺼진다');
+  assert.equal(ui.notice, '무광 재질로 바꿨어요. 같은 곳의 에나멜은 껐어요.');
+});
+
+test('재질 충돌 확인을 거절하면 체크를 되돌리고 기존 재질을 그대로 둔다(A8)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { confirm: false });
+  const enamelId = await addMaterial(ui, 'enamel');
+  await toggle(ui, enamelId, 'bronze', true);
+  const matteId = await addMaterial(ui, 'matte', enamelId);
+  await toggle(ui, matteId, 'bronze', true);
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${matteId}"][data-grade="bronze"]`).checked, false, '거절하면 새 재질은 켜지지 않는다');
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${enamelId}"][data-grade="bronze"]`).checked, true, '기존 재질은 그대로 남는다');
+  assert.match(ui.notice, /다른 등급에 적용하거나 먼저 기존 재질을 꺼 주세요/);
+});
+
+test('메탈릭·펄·홀로그램·발광은 같은 등급·대상에 함께 켜도 충돌로 막지 않는다(A8)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { confirm: () => { throw new Error('충돌 확인을 묻지 않아야 한다'); } });
+  const metallicId = await addMaterial(ui, 'metallic');
+  await toggle(ui, metallicId, 'bronze', true);
+  const pearlId = await addMaterial(ui, 'pearl', metallicId);
+  await toggle(ui, pearlId, 'bronze', true);
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${metallicId}"][data-grade="bronze"]`).checked, true);
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${pearlId}"][data-grade="bronze"]`).checked, true);
+});
+
+test('사진을 올리기 전에는 자동 맞춤을 막는다(A4)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.click('auto-fit');
+  assert.match(ui.notice, /먼저 사진을 올려 주세요/);
+});
+
+test('얼굴 감지가 되면 얼굴 기준으로 맞추고 방법을 안내한다(A4, 합성 얼굴 상자)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  const box = { x: 0.4, y: 0.3, width: 1.2, height: 1.2 };
+  globalThis.FaceDetector = class { async detect() { return [{ boundingBox: box }]; } };
+  try { await ui.click('auto-fit'); } finally { delete globalThis.FaceDetector; }
+  const expected = faceFitCrop(2, 2, box);
+  assert.match(ui.notice, /얼굴 기준으로 맞췄어요/);
+  assert.ok(Math.abs(Number(ui.control('zoom').value) - expected.zoom) < 0.01);
+  assert.ok(Math.abs(Number(ui.control('crop-x').value) - expected.x) < 0.02);
+  assert.ok(Math.abs(Number(ui.control('crop-y').value) - expected.y) < 0.02);
+});
+
+test('얼굴 감지 기능이 없으면(feature-detect) 가운데로 채우고 방법을 안내한다(A4)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  assert.equal('FaceDetector' in globalThis, false, '이 시험 환경은 기본으로 얼굴 감지를 지원하지 않는다');
+  await ui.click('auto-fit');
+  assert.match(ui.notice, /가운데로 맞췄어요/);
+  assert.equal(ui.control('zoom').value, '1');
+  assert.equal(ui.control('crop-x').value, '0');
+  assert.equal(ui.control('crop-y').value, '0');
+});
+
+test('자동 맞춤은 누르기 전까지 자동으로 실행되지 않고, 한 번의 되돌리기로 이전 자르기로 돌아간다(A4)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  assert.equal(ui.control('zoom').value, '1', '사진을 올린 직후에는 자동으로 맞추지 않는다');
+  // 작은 얼굴일수록 더 확대해야 하므로 zoom이 1보다 커져 가운데 맞춤(zoom 1)과 구분된다.
+  const box = { x: 0.85, y: 0.85, width: 0.3, height: 0.3 };
+  globalThis.FaceDetector = class { async detect() { return [{ boundingBox: box }]; } };
+  try { await ui.click('auto-fit'); } finally { delete globalThis.FaceDetector; }
+  assert.notEqual(ui.control('zoom').value, '1');
+  await ui.click('undo');
+  assert.equal(ui.control('zoom').value, '1');
+  assert.equal(ui.control('crop-x').value, '0');
+  assert.equal(ui.control('crop-y').value, '0');
+});
+
+// PR #289 리뷰(Claude sonnet·Codex gpt-6.1-sol) 지적 반영, 이후 자동 저장 단순화(미디어 없이 편집 값만·
+// 서버에 이미 있는 프로젝트만).
+
+test('저장 목록을 못 읽으면 복원 여부를 판단하지 않고 보관본을 그대로 두며, 다음 성공한 새로고침에서 다시 판단한다(P2)', async () => {
+  const api = createFakeApi();
+  const saved = api.seed(seeded('목록 실패 시험'));
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.change('project-list', saved.id);
+  await ui.input('name', '목록 실패 전 편집');
+  await settle(10);
+  editors.pop()();
+
+  api.failNext('GET', /collectible-projects$/, { status: 500 });
+  const remounted = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  assert.equal(remounted.asked.length, 0, '목록 조회가 실패했으면 복원 여부를 판단하면 안 된다');
+  assert.equal(remounted.control('name').value, '월계 식당 수집품', '아직 결정 전이라 복원도 하지 않는다');
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'), '실패한 조회가 보관본을 지우지도 않는다');
+  await remounted.click('refresh');
+  assert.equal(remounted.asked.length, 1, '다음에 목록 조회가 성공하면 그때 다시 판단한다');
+  assert.match(remounted.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
+});
+
+test('목록 조회를 기다리는 동안 이미 새 편집을 시작했으면 조용히 건너뛰고 되묻지 않는다(dirty 에디터는 자동 복원하지 않음, 🔴 P1)', async () => {
+  const api = createFakeApi();
+  const saved = api.seed(seeded('경합 시험'));
+  const previous = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await previous.change('project-list', saved.id);
+  await previous.input('name', '이전 세션 편집');
+  await settle(10);
+  editors.pop()();
+
+  const hold = api.holdNext('GET', /collectible-projects$/);
+  const container = document.createElement('div');
+  const asked = [];
+  const cleanup = mountCollectibleEditor(container, {
+    merchantId: 'm1', merchantName: '월계 식당', request: api.request, loadCampaigns: api.listCampaigns,
+    onNotice: () => {}, confirm: message => { asked.push(message); return true; }, autosaveDelayMs: 5, accountScope: 'scope-a',
+  });
+  editors.push(cleanup);
+  await settle(2); // 마운트는 끝났지만 목록 조회는 아직 보류 상태
+  const name = container.querySelector('[data-control="name"]');
+  name.value = '경합 중 입력'; name.dispatchEvent({ type: 'input' });
+  await settle(10); // debounce는 지났지만 지금 편집은 서버에 없는 새 초안이라 덮어쓸 자동 저장도 없다
+
+  hold.release();
+  await settle(10);
+  assert.equal(asked.length, 0, '이미 편집을 시작했으면 조용히 건너뛰고 되묻지 않는다');
+  assert.equal(name.value, '경합 중 입력', '지금 입력을 덮어쓰지 않는다');
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'), '보관본은 지우지 않고 그대로 둔다');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a').edits.name, '이전 세션 편집', '보관본 내용 자체도 바꾸지 않는다');
+});
+
+test('계정이 바뀌면 제작기가 열려 있지 않아도 그 계정의 모든 점포 기기 보관본을 지운다(merchant.mjs, 로그아웃도 같은 경로, P1)', async () => {
+  const api = createFakeApi();
+  const saved = api.seed(seeded('계정 전환 시험'));
+  const ui = await mount(api, { editor: { accountScope: 'scope-shared', autosaveDelayMs: 5 } });
+  await ui.change('project-list', saved.id);
+  await ui.input('name', '계정 전환 전 편집');
+  await settle(10);
+  assert.ok(readDraft(dom.window, 'm1', 'scope-shared'));
+  editors.pop()();
+
+  const doc = dom.document;
+  const page = doc.createElement('div');
+  page.innerHTML = '<section id="merchant-creator" hidden><select id="merchant-creator-store"></select><button id="merchant-creator-open" type="button"></button><div id="merchant-creator-editor"></div></section><p id="merchant-status"></p>';
+  doc.body.append(page);
+  configureCreator(api.fetcher, doc, { accountScope: 'scope-shared', merchants: [owner('m1', '월계 식당')] });
+  // 제작기를 한 번도 열지 않은 채(open 버튼을 누르지 않음) 계정이 바뀌면(로그아웃도 같은 clearDrafts 경로를 쓴다)
+  // 그 계정 보관본을 지운다.
+  configureCreator(api.fetcher, doc, { accountScope: 'scope-other', merchants: [owner('m1', '월계 식당')] });
+  assert.equal(readDraft(dom.window, 'm1', 'scope-shared'), null, '계정이 바뀌면 이전 계정의 보관본을 지운다');
+});
+
+test('같은 계정의 점포·역할 목록만 바뀌면 열린 제작기도, 기기 보관본도 건드리지 않는다(merchant.mjs)', async () => {
+  const api = createFakeApi();
+  const merchants = [owner('m1', '월계 식당')];
+  const saved = api.seed(seeded('역할 변경 시험'));
+  const ui = await mountViaMerchant(api, { confirm: () => true, merchants });
+  // mountViaMerchant는 merchant.mjs의 기본 autosaveDelayMs(1.5초)를 그대로 쓰므로, 디바운스를 기다리는 대신
+  // 이미 자동 저장된 것처럼 보관본을 먼저 심어 둔다(scope-a는 mountViaMerchant의 accountScope 고정값).
+  dom.window.localStorage.setItem(draftStorageKey('m1', 'scope-a'), JSON.stringify({ merchantId: 'm1', accountMarker: 'scope-a', wrapperId: saved.id, wrapperVersion: saved.version, savedAt: Date.now(), edits: { name: '역할 변경 전 편집' } }));
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'));
+  assert.ok(ui.host.children.length > 0, '제작기가 열려 있다');
+
+  // 같은 계정(accountScope 그대로)이 점포·역할 목록만 바뀐 채로 다시 호출되는 상황(예: /me를 다시 읽을 때마다).
+  configureCreator(api.fetcher, document, { accountScope: 'scope-a', merchants: [owner('m2', '두 번째 식당'), ...merchants] });
+  assert.ok(ui.host.children.length > 0, '역할 목록만 바뀐 호출은 열린 제작기를 닫지 않는다');
+  assert.equal(document.getElementById('merchant-creator-store').value, 'm1', '열린 제작기의 점포를 계속 고른 상태로 둔다');
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'), '같은 계정의 점포·역할 목록 변경은 보관본을 지우지 않는다');
+
+  // 같은 계정이지만 열린 점포의 제작 권한이 사라지면 제작기를 닫는다.
+  configureCreator(api.fetcher, document, { accountScope: 'scope-a', merchants: [owner('m2', '두 번째 식당')] });
+  assert.equal(ui.host.children.length, 0, '권한이 사라진 점포의 제작기는 닫는다');
+});
+
+test('명시적으로 편집을 버리고 다른 점포를 열면 그 초안의 기기 보관본만 지우고 다시 저장하지 않는다(P1)', async () => {
+  const api = createFakeApi();
+  const merchants = [owner('m1', '월계 식당'), owner('m2', '두 번째 식당')];
+  // mountViaMerchant는 merchant.mjs의 기본 autosaveDelayMs(1.5초)를 그대로 쓰므로, 디바운스를 기다리는 대신
+  // 이미 자동 저장된 것처럼 보관본을 먼저 심어 두고 dispose('discard')가 그 보관본을 지우는지만 본다.
+  const ui = await mountViaMerchant(api, { confirm: () => true, merchants });
+  dom.window.localStorage.setItem(draftStorageKey('m1', 'scope-a'), JSON.stringify({ merchantId: 'm1', accountMarker: 'scope-a', wrapperId: null, wrapperVersion: 0, savedAt: Date.now(), mediaOmitted: false, project: { name: '버릴 편집' } }));
+  await ui.input('name', '버릴 편집'); // 실제 편집기도 dirty로 만들어야 merchant.mjs가 "버리기"로 판단한다
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'));
+  ui.select.value = 'm2'; ui.select.onchange();
+  await settle(5);
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null, '명시적으로 버린 초안은 기기 보관본도 지우고 dispose가 다시 저장하지 않는다');
+});
+
+test('계정 구분값이 계속 없어도 configureCreator를 다시 불렀다고 열린 제작기를 매번 닫지 않는다(🔵)', async () => {
+  const api = createFakeApi();
+  const merchants = [owner('m1', '월계 식당')];
+  const doc = dom.document;
+  const page = doc.createElement('div');
+  page.innerHTML = '<section id="merchant-creator" hidden><select id="merchant-creator-store"></select><button id="merchant-creator-open" type="button"></button><div id="merchant-creator-editor"></div></section><p id="merchant-status"></p>';
+  doc.body.append(page);
+  configureCreator(api.fetcher, doc, { merchants }); // accountScope 없음(없는 채로 반복 호출돼도 열린 제작기를 지켜야 한다)
+  doc.getElementById('merchant-creator-store').value = 'm1';
+  await doc.getElementById('merchant-creator-open').onclick();
+  await settle();
+  const host = doc.getElementById('merchant-creator-editor');
+  assert.ok(host.children.length > 0, '제작기가 열렸다');
+  const name = host.querySelector('[data-control="name"]'); name.value = '계속 열려 있어야 하는 편집'; name.dispatchEvent({ type: 'input' });
+  configureCreator(api.fetcher, doc, { merchants });
+  assert.ok(host.children.length > 0, '계정 구분값 없이 다시 구성해도 열려 있던 제작기를 닫지 않는다');
+  assert.equal(name.value, '계속 열려 있어야 하는 편집', '편집 내용도 그대로 남는다');
+});
+
+test('얼굴 감지가 끝나기 전에 사진을 바꾸면 낡은 자동 맞춤 결과를 버린다(P2)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  let resolveDetect;
+  globalThis.FaceDetector = class { async detect() { return new Promise(resolve => { resolveDetect = resolve; }); } };
+  ui.action('auto-fit').dispatchEvent({ type: 'click' });
+  await settle(2); // detect() 호출까지만 진행되고 멈춰 있다
+  await ui.upload({ ...photoFile, dataUrl: 'data:image/png;base64,BBBB' }); // 그사이 사진을 바꾼다
+  resolveDetect([{ boundingBox: { x: 0.4, y: 0.3, width: 1.2, height: 1.2 } }]);
+  await settle(10);
+  delete globalThis.FaceDetector;
+  assert.equal(ui.control('zoom').value, '1', '낡은 얼굴 맞춤 결과를 적용하지 않는다');
+  assert.equal(ui.notice.includes('얼굴 기준으로 맞췄어요'), false);
+});
+
+test('같은 대상·등급에 중복으로 켜 둔 배타 재질도(무광 두 개) 전부 끄고 새 재질을 켠다(P2)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { confirm: true });
+  const addEffect = async type => {
+    const before = new Set([...ui.container.querySelectorAll('[data-effect-strength]')].map(node => node.dataset.effectStrength));
+    ui.control('effect-type').value = type; ui.control('effect-type').dispatchEvent({ type: 'change' });
+    await ui.click('effect-add');
+    return [...ui.container.querySelectorAll('[data-effect-strength]')].map(node => node.dataset.effectStrength).find(id => !before.has(id));
+  };
+  const check = async (id, value) => {
+    const box = ui.container.querySelector(`[data-effect-grade="${id}"][data-grade="bronze"]`);
+    box.checked = value; box.dispatchEvent({ type: 'change' }); await settle();
+  };
+  const matte1 = await addEffect('matte'); await check(matte1, true);
+  const matte2 = await addEffect('matte'); await check(matte2, true);
+  const glass = await addEffect('glass'); await check(glass, true);
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${glass}"][data-grade="bronze"]`).checked, true);
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${matte1}"][data-grade="bronze"]`).checked, false, '첫 번째 무광도 꺼진다');
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${matte2}"][data-grade="bronze"]`).checked, false, '두 번째 무광도 꺼진다(이전 버그는 하나만 껐다)');
 });

@@ -20,6 +20,28 @@ test('썸네일 목록 구성은 상세 요청이나 움직임을 자동 실행�
   assert.equal(card.children[1].textContent, '방문 코인 · 브론즈');
   clearCollectibleViewers(doc);
 });
+test('페이지가 불러오는 모듈이 상대 경로로 가져오는 모듈도 모두 같은 경로에서 제공한다(새 파일을 허용 목록에 빠뜨리면 페이지 전체가 멈춘다)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const assetDir = new URL('../../apps/production-web/assets/', import.meta.url);
+  const server = createProductionServer();
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    for (const [prefix, entry] of [['/merchant/assets/', 'merchant.mjs'], ['/assets/', 'production.mjs'], ['/admin/assets/', 'admin.mjs']]) {
+      const seen = new Set(), queue = [entry];
+      while (queue.length) {
+        const file = queue.shift();
+        if (seen.has(file)) continue;
+        seen.add(file);
+        const response = await fetch(`${base}${prefix}${file}`);
+        assert.equal(response.status, 200, `${prefix}${file}`);
+        const source = readFileSync(new URL(file, assetDir), 'utf8');
+        for (const match of source.matchAll(/(?:from|import)\s*\(?\s*['"]\.\/([\w.-]+\.(?:mjs|css))['"]/g)) queue.push(match[1]);
+      }
+    }
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
 test('제작기와 도감의 모듈·스타일은 허용된 정적 경로에서만 제공한다', async () => {
   const server = createProductionServer();
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
