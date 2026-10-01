@@ -43,6 +43,6 @@ Google `sub`·이메일·ID 토큰·세션 토큰·QR 원문은 로그·Git·증
 
 - `POST /auth/guest-trial`이 Google 신원(`auth_identities`) 없는 `acct_` 계정, 그 계정만의 체험 가게(가상 점포 A 복사, `is_demo`), 그 가게의 STAFF 권한, 24시간 `auth_sessions` 세션을 한 트랜잭션에서 만듭니다. 점주 권한은 여전히 서버 멤버십 검사로만 열리고, 체험자가 받는 STAFF는 **자기 체험 가게 하나**에만 걸립니다(가상 점포 A·B·C나 다른 체험 가게 권한은 없음).
 - 체험 세션은 최근 인증 시각이 비어 있어 재인증이 필요한 동작(계정 삭제 요청 등)은 열리지 않습니다. 체험 계정은 승인자가 될 수 없습니다(`grant:showcase:approver`가 `SHOWCASE_GUEST_NOT_ELIGIBLE`로 거절, 끝난 체험 계정 포함). 앱의 권한 요청은 이미 STAFF라 `SHOWCASE_ACCESS_ALREADY_GRANTED`입니다.
-- IP당 15분 5회(`429`), 끝나지 않은 동시 체험자 300명(`503 GUEST_TRIAL_BUSY`, advisory lock으로 직렬화). 시작할 때마다 만료 체험자 최대 20명을 끝냅니다(세션 삭제·멤버십 회수·가게 `PAUSED`·`ended_at`). 기록 행은 지우지 않고, 계정 삭제 때 체험 행의 `account_id`는 별칭으로 바뀝니다(행을 지우면 체험 가게가 목록에 다시 나온다).
-- 체험 가게는 누구의 `/merchants`·추천에도 나오지 않고, AI 그림 생성 비용을 쓰지 않습니다(`403 AI_ART_TRIAL_DISABLED`, OpenAI 호출·예산 행 없음).
+- IP당 15분 20회(`429 GUEST_TRIAL_RATE_LIMITED`), 같은 IP의 끝나지 않은 체험 30개(`429 GUEST_TRIAL_IP_LIMIT`, IP는 HMAC으로만 저장하고 끝나면 지움), 끝나지 않은 동시 체험자 300명(`503 GUEST_TRIAL_BUSY`), 두 상한은 같은 advisory lock으로 직렬화. 시작할 때마다 만료 체험자 최대 20명을 끝냅니다(세션 삭제·멤버십 회수·가게 `PAUSED`·`ended_at`). 기록 행은 지우지 않고, 계정 삭제 때 체험 행의 `account_id`는 별칭으로 바뀝니다(행을 지우면 체험 가게가 목록에 다시 나온다).
+- 체험 가게는 누구의 `/merchants`·추천에도, 친구 화면의 도장·메달에도 나오지 않고, AI 그림 생성 비용을 쓰지 않습니다(`403 AI_ART_TRIAL_DISABLED`, OpenAI 호출·예산 행 없음).
 - 체험자는 이메일·Google `sub`가 없어 개인정보는 체험 중 직접 입력한 값(탐험가 이름 등)뿐입니다. 로컬 DEMO 배치에서는 `Authorization`이 있는 요청만 체험 세션으로 풀고 나머지는 기존 `x-account-id` 그대로입니다.

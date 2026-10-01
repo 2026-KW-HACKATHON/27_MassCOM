@@ -7,7 +7,8 @@
 - 설계와 다른 점(D-064): 체험 캠페인 `is_public`은 `true`로 두고 목록·추천 쿼리에서 뺐다(비공개면 방문 확인·수집품 게시가 막힌다). 보상 상자 혜택은 전역 마일스톤 유일 인덱스 때문에 복사하지 않았다. 점주 화면이 체험 가게를 찾도록 `mine`에 `trialMerchantId`를 더했다(화면 반영은 웹 클라이언트 PR 몫, 계약은 그 에이전트에게 전달함).
 - 검증: [TEST_STATUS](TEST_STATUS.md) 첫 항목(병합 뒤 API 단위 327/327, postgres 338 PASS·2 기존 SKIP, 변이 21건, Caddy 런타임·검증기 시험, `bash tools/gate.sh`).
 - `NOT_RUN`: hosted 실제 기동, 웹 클라이언트 연동·브라우저 흐름, 배포(번들 복사·`current` 링크·Caddy 재생성 순서는 [infra/lightsail/README.md](../infra/lightsail/README.md#시연-웹-체험-경로-issue-309-d-064)).
-- 다음 작업: 서로 다른 모델 2개의 교차 리뷰(인증·DB 스키마 민감 경로), CI, 병합 뒤 웹 클라이언트 PR 통합·로컬 브라우저 QA, 배포 도구.
+- 교차 리뷰 반영(PR #311, Claude opus 보안 P1·Codex gpt-6.1-sol P2): 클라이언트 키 HMAC(`client_key_hash`)으로 같은 IP의 끝나지 않은 체험 30개 상한(`429 GUEST_TRIAL_IP_LIMIT`), 폭주 제한 15분 20회, 정리·계정 삭제의 해시 지우기와 DB CHECK, 공유 "센 방문"에서 체험 가게 제외(친구 도장·메달). 결과는 [TEST_STATUS](TEST_STATUS.md) 첫 항목(postgres 340 PASS·2 기존 SKIP, 변이 28건).
+- 다음 작업: 반영분 재리뷰, CI, 병합 뒤 웹 클라이언트 PR 통합(웹은 `GUEST_TRIAL_IP_LIMIT` 한국어 안내 추가)·로컬 브라우저 QA, 배포 도구.
 
 ## 2026-10-02 Issue #304 시연 권한 요청의 남은 교착 경로 정리
 
