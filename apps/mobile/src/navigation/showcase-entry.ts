@@ -58,6 +58,14 @@ export function canOpenMerchantArtRoute(packageId: string | null | undefined): b
   return packageId === 'kr.masscom.wolgye.demo' || isDevelopmentDemoBuild(packageId);
 }
 
+/**
+ * "테스트 방문 만들기" 섹션(#295)은 가상 점포·QR 우회라 시연 앱과 로컬 QA용 개발 빌드에만 보인다(canOpenMerchantArtRoute와
+ * 같은 경계: 운영 앱은 절대 아니다). 서버도 같은 showcaseDeployment 판정으로 /showcase/test-visits 자체를 닫는다.
+ */
+export function canShowTestVisitSection(packageId: string | null | undefined): boolean {
+  return packageId === 'kr.masscom.wolgye.demo' || isDevelopmentDemoBuild(packageId);
+}
+
 export function canOpenDeveloperMerchantRoute(
   packageId: string | null | undefined,
   credential: AccountCredential | undefined,
