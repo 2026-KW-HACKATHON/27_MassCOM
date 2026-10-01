@@ -674,3 +674,71 @@ test('a redeemed claim carries the staff-self reason only when the server sends 
   assert.equal('progressExcludedReason' in (await api({}).redeemClaim('token')).visit, false);
   assert.equal('progressExcludedReason' in (await api({ progressExcludedReason: 'SOMETHING_NEW' }).redeemClaim('token')).visit, false);
 });
+
+test('점주 체험 권한 요청 조회·생성은 인증 헤더로만 간다(#294)', async () => {
+  const requests: { url: string; method: string | undefined; body: unknown }[] = [];
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (input, init) => {
+      requests.push({ url: String(input), method: init?.method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      if (String(input).endsWith('/mine')) {
+        return Response.json({ request: null, staff: false, approver: true });
+      }
+      return Response.json({ request: { code: 'ABCDEFGH', status: 'PENDING', createdAt: '2026-10-01T00:00:00.000Z', decidedAt: null } }, { status: 201 });
+    },
+  });
+  assert.deepEqual(await client.getShowcaseAccessState(), { request: null, staff: false, approver: true });
+  assert.deepEqual(await client.requestShowcaseAccess(), { code: 'ABCDEFGH', status: 'PENDING', createdAt: '2026-10-01T00:00:00.000Z', decidedAt: null });
+  assert.deepEqual(requests, [
+    { url: 'https://api.example.test/showcase/access-requests/mine', method: undefined, body: undefined },
+    { url: 'https://api.example.test/showcase/access-requests', method: 'POST', body: {} },
+  ]);
+});
+
+test('점주 체험 권한 요청의 잘못된 응답과 요청 실패는 성공으로 바뀌지 않는다(#294)', async () => {
+  const invalidMine = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ request: null, staff: false }),
+  });
+  await assert.rejects(invalidMine.getShowcaseAccessState(), /권한 요청 상태/);
+
+  const rateLimited = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ code: 'SHOWCASE_ACCESS_RATE_LIMITED' }, { status: 429 }),
+  });
+  await assert.rejects(rateLimited.requestShowcaseAccess(), (error: unknown) => error instanceof CommerceApiError && error.status === 429 && error.code === 'SHOWCASE_ACCESS_RATE_LIMITED');
+});
+
+test('관리자 권한 요청 목록·결정은 승인자 계정으로만 가고 잘못된 응답은 거절한다(#294)', async () => {
+  const requests: string[] = [];
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'approver-session' },
+    fetcher: async (input, init) => {
+      requests.push(`${init?.method ?? 'GET'} ${String(input)}`);
+      if (String(input).endsWith('/access-requests')) {
+        return Response.json([{ id: 'req-1', code: 'ABCDEFGH', createdAt: '2026-10-01T00:00:00.000Z' }]);
+      }
+      return Response.json({ status: 'APPROVED' });
+    },
+  });
+  assert.deepEqual(await client.listPendingShowcaseAccessRequests(), [{ id: 'req-1', code: 'ABCDEFGH', createdAt: '2026-10-01T00:00:00.000Z' }]);
+  await client.decideShowcaseAccessRequest({ requestId: 'req-1', decision: 'approve' });
+  assert.deepEqual(requests, [
+    'GET https://api.example.test/showcase/admin/access-requests',
+    'POST https://api.example.test/showcase/admin/access-requests/req-1/approve',
+  ]);
+
+  const invalidDecision = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ status: 'UNKNOWN' }),
+  });
+  await assert.rejects(invalidDecision.decideShowcaseAccessRequest({ requestId: 'req-1', decision: 'reject' }), /권한 요청 처리/);
+
+  const forbidden = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ code: 'SHOWCASE_APPROVER_REQUIRED' }, { status: 403 }),
+  });
+  await assert.rejects(forbidden.listPendingShowcaseAccessRequests(), (error: unknown) => error instanceof CommerceApiError && error.status === 403 && error.code === 'SHOWCASE_APPROVER_REQUIRED');
+});
