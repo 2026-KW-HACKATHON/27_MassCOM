@@ -31,7 +31,7 @@ test('the operating app copy names the Google web login, the receipt, 24 hours a
 });
 
 test('only the showcase package files a deletion inside the app, after a confirmation, and shows a selectable receipt', () => {
-  assert.match(screen, /canRequestShowcaseDeletion\(Application\.applicationId, credential\)/);
+  assert.match(screen, /canRequestShowcaseDeletion\(getAppPackageId\(\), credential\)/);
   assert.match(screen, /: intakeClient \? \(/);
   assert.match(screen, /Alert\.alert\(\s*reissue \? '접수번호 다시 받기' : '삭제 요청'/);
   assert.match(screen, /접수 후 24시간은 취소할 수 있고, 그 뒤 운영자가 7일 안에 처리합니다/);

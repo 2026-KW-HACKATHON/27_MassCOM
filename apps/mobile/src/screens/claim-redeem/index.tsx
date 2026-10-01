@@ -1,5 +1,5 @@
+import { getAppPackageId } from '@/config/app-identity';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Application from 'expo-application';
 import { Link, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
@@ -29,6 +29,7 @@ import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
+import { canUseCamera } from '@/ui/can-use-camera';
 import { FloatingCard } from '@/ui/floating-card';
 import { heroMascotSize } from '@/ui/large-text';
 import { Mascot } from '@/ui/mascot';
@@ -297,7 +298,7 @@ export function ClaimRedeemScreen({
         <Stagger index={2}>
         <FloatingCard style={styles.formCard}>
           <Text style={styles.sectionTitle}>1 · 코드 확인</Text>
-          {scanning ? (
+          {canUseCamera && scanning ? (
             <View style={styles.camera}>
               <CameraView
                 style={StyleSheet.absoluteFill}
@@ -307,16 +308,18 @@ export function ClaimRedeemScreen({
               />
             </View>
           ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="QR 코드 촬영"
-            accessibilityHint="점주 화면의 방문 수령 QR 코드를 카메라로 읽습니다."
-            disabled={busy}
-            onPress={scanning ? () => setScanning(false) : () => void startScan()}
-            style={[styles.button, styles.scanButton, { backgroundColor: palette.surface, borderColor: palette.primary }, busy && styles.disabled]}
-          >
-            <Text style={[styles.buttonText, styles.scanButtonText, { color: palette.primary }]}>{scanning ? '촬영 닫기' : 'QR 촬영'}</Text>
-          </Pressable>
+          {canUseCamera ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="QR 코드 촬영"
+              accessibilityHint="점주 화면의 방문 수령 QR 코드를 카메라로 읽습니다."
+              disabled={busy}
+              onPress={scanning ? () => setScanning(false) : () => void startScan()}
+              style={[styles.button, styles.scanButton, { backgroundColor: palette.surface, borderColor: palette.primary }, busy && styles.disabled]}
+            >
+              <Text style={[styles.buttonText, styles.scanButtonText, { color: palette.primary }]}>{scanning ? '촬영 닫기' : 'QR 촬영'}</Text>
+            </Pressable>
+          ) : null}
           <Text style={styles.inputLabel}>수령 코드</Text>
           <TextInput
             value={token}
@@ -398,7 +401,7 @@ export function ClaimRedeemScreen({
       </SkyScrollView>
       <Celebration
         content={celebration}
-        variant={Application.applicationId === 'kr.masscom.wolgye.demo' ? 'showcase' : 'production'}
+        variant={getAppPackageId() === 'kr.masscom.wolgye.demo' ? 'showcase' : 'production'}
         onClose={() => setCelebration(undefined)}
         onOpenCollection={(focusRewards) => {
           setCelebration(undefined);

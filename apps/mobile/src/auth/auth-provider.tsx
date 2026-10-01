@@ -1,13 +1,14 @@
-import * as Application from 'expo-application';
+import { getAppPackageId } from '@/config/app-identity';
 import Constants from 'expo-constants';
-import * as SecureStore from 'expo-secure-store';
 import { createContext, type PropsWithChildren, use, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 
 import type { AccountCredential } from './account-credential';
 import { AuthApiClient } from './auth-api';
 import { getAuthConfiguration } from './auth-config';
 import { createAuthController, type AuthState } from './auth-controller';
 import { nativeGoogleSignIn } from './google-sign-in-runtime';
+import { platformSecureStore } from './platform-secure-store';
 import { createSessionStore, type StoredAuthSessionV1 } from './session-store';
 import { demoRuntimeConfig, createDemoCredential, isDevelopmentDemoBuild } from '@/config/demo-runtime';
 import { getPublicApiConfig } from '@/config/public-api';
@@ -40,8 +41,10 @@ export type AuthSessionContextValue = {
   session?: StoredAuthSessionV1;
   appKit: AppKitInstance | null;
   canSignIn: boolean;
+  canStartGuestTrial: boolean;
   destructiveReauthentication: 'BLOCKED' | 'DEMO_ALLOWED';
   signIn(): Promise<void>;
+  signInAsGuest(): Promise<void>;
   logout(): Promise<void>;
   switchAccount(): Promise<void>;
   invalidateSession(): Promise<void>;
@@ -50,7 +53,7 @@ export type AuthSessionContextValue = {
 const AuthSessionContext = createContext<AuthSessionContextValue | undefined>(undefined);
 
 const runtimeIdentity = resolveRuntimeIdentity(
-  Application.applicationId,
+  getAppPackageId(),
   Constants.expoConfig?.extra,
   {
     googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
@@ -63,11 +66,15 @@ const authConfiguration = getAuthConfiguration({
 const publicApiConfiguration = getPublicApiConfig({
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
 });
-const developmentBuild = isDevelopmentDemoBuild(Application.applicationId);
-const productionAuthAvailable = authConfiguration.available && publicApiConfiguration.available;
+const developmentBuild = isDevelopmentDemoBuild(getAppPackageId());
+// Google 로그인은 네이티브 전용(react-native-nitro-google-signin에 웹 빌드가 없다), 체험 로그인은 웹 전용
+// (운영·시연 Android 앱에는 체험 버튼을 두지 않는다, Issue #309).
+const isWeb = Platform.OS === 'web';
+const productionAuthAvailable = !isWeb && authConfiguration.available && publicApiConfiguration.available;
+const guestTrialAvailable = isWeb && publicApiConfiguration.available;
 
 function initialAuthState(): AuthSessionState {
-  if (productionAuthAvailable) return { status: 'restoring' };
+  if (productionAuthAvailable || guestTrialAvailable) return { status: 'restoring' };
   if (developmentBuild && demoRuntimeConfig.customerAccountId) {
     return {
       status: 'demo',
@@ -87,11 +94,13 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
   const lastAppKitRef = useRef<AppKitInstance | null>(null);
 
   useEffect(() => {
-    if (!authConfiguration.available || !publicApiConfiguration.available) return;
-
-    nativeGoogleSignIn.configure(authConfiguration.webClientId);
+    if (!publicApiConfiguration.available) return;
+    if (!isWeb) {
+      if (!authConfiguration.available) return;
+      nativeGoogleSignIn.configure(authConfiguration.webClientId);
+    }
     const controller = createAuthController({
-      sessionStore: createSessionStore(SecureStore),
+      sessionStore: createSessionStore(platformSecureStore),
       authApi: new AuthApiClient({ apiUrl: publicApiConfiguration.apiUrl }),
       google: nativeGoogleSignIn,
       clearWalletSession: async () => {
@@ -157,6 +166,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     session,
     appKit,
     canSignIn: productionAuthAvailable,
+    canStartGuestTrial: guestTrialAvailable,
     destructiveReauthentication:
       state.status === 'demo' && state.credential.allowInsecureReauthentication
         ? 'DEMO_ALLOWED'
@@ -164,6 +174,10 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     async signIn() {
       if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
       await controllerRef.current.signIn();
+    },
+    async signInAsGuest() {
+      if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
+      await controllerRef.current.signInAsGuest();
     },
     async logout() {
       // A friend link opened under this account must not be offered to whoever signs in next.
