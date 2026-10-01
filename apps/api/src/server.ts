@@ -231,8 +231,9 @@ export function createApiServer(
     ? (request) => request.headers.authorization === undefined
       ? baseAccountResolver(request) : guestTrials.resolve(requireBearerToken(request))
     : baseAccountResolver;
-  // 로그인 없는 체험 시작은 IP당 15분에 5번(#309). 동시 체험자 상한은 서비스가 따로 지킨다.
-  const guestTrialLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 5, windowMs: 15 * 60 * 1000 });
+  // 로그인 없는 체험 시작의 짧은 폭주 제한: IP당 15분에 20번(#309). 심사장처럼 한 NAT를 여럿이 나눠 써도 막히지 않게 넉넉히 두고,
+  // 한 IP의 끝나지 않은 체험 수(30)와 전역 상한(300)은 서비스가 트랜잭션 안에서 따로 지킨다.
+  const guestTrialLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 20, windowMs: 15 * 60 * 1000 });
   // The receipt lookup needs no login, so it is throttled per client instead (a receipt has 80 bits, this only stops floods).
   const deletionStatusLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60_000 });
   // 계정당 5회/시간(#294). IP가 아니라 계정으로 거는 건 승인 전 계정도 로그인은 됐기 때문이다.
@@ -828,14 +829,15 @@ export function createApiServer(
       // 로그인 없는 시연 웹 체험(#309). guestTrials는 시연 배치에서만 있다: 운영에서는 이 블록을 건너뛰어 맨 아래의 알 수 없는 경로와
       // 같은 404가 된다.
       if (guestTrials && request.method === 'POST' && request.url === '/auth/guest-trial') {
-        const decision = guestTrialLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
+        const clientKey = authLoginClientKey(request, trustProxyClientIp);
+        const decision = guestTrialLimiter.consume(clientKey);
         if (!decision.allowed) {
           response.setHeader('Retry-After', String(decision.retryAfterSeconds));
           sendJson(response, 429, { code: 'GUEST_TRIAL_RATE_LIMITED' });
           return;
         }
         requireEmptyBody(await readJson(request, true));
-        sendJson(response, 200, await guestTrials.start());
+        sendJson(response, 200, await guestTrials.start({ clientKey }));
         return;
       }
 
@@ -1504,7 +1506,7 @@ export function createApiServer(
         return;
       }
       if (error instanceof GuestTrialError) {
-        sendJson(response, 503, { code: error.code });
+        sendJson(response, error.code === 'GUEST_TRIAL_IP_LIMIT' ? 429 : 503, { code: error.code });
         return;
       }
       if (error instanceof ShowcaseAccessRequestError) {

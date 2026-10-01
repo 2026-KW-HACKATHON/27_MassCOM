@@ -800,10 +800,10 @@ test('#309 POST /auth/guest-trial exists only with a guest-trial service, thrott
     sessionToken: 'guest-token', accountId: 'acct_guest', expiresAt: '2026-10-03T00:00:00.000Z', guest: true as const,
   };
   let startError: GuestTrialError | undefined;
-  let starts = 0;
+  const clientKeys: string[] = [];
   const showcase = await guestTrialFixture(t, {
-    start: async () => {
-      starts += 1;
+    start: async ({ clientKey }) => {
+      clientKeys.push(clientKey);
       if (startError) throw startError;
       return session;
     },
@@ -821,23 +821,28 @@ test('#309 POST /auth/guest-trial exists only with a guest-trial service, thrott
   assert.equal((await start('203.0.113.7', '{}')).status, 200);
   // 본문 키는 서비스 호출 전에 거절하지만 횟수에는 든다.
   assert.equal((await start('203.0.113.7', '{"accountId":"acct_other"}')).status, 400);
-  assert.equal((await start('203.0.113.7')).status, 200);
-  assert.equal((await start('203.0.113.7')).status, 200);
-  // IP당 15분 5회. 여섯 번째는 서비스를 부르지 않고 429다.
+  // 짧은 폭주 제한은 IP당 15분 20회(한 NAT를 나눠 쓰는 심사장 고려). 위 세 번을 빼고 17번 더 통과한다.
+  for (let index = 0; index < 17; index += 1) assert.equal((await start('203.0.113.7')).status, 200);
+  // 스물한 번째는 서비스를 부르지 않고 429다.
   const limited = await start('203.0.113.7');
   assert.equal(limited.status, 429);
   assert.deepEqual(await limited.json(), { code: 'GUEST_TRIAL_RATE_LIMITED' });
   assert.ok(Number(limited.headers.get('retry-after')) > 0);
-  assert.equal(starts, 4);
+  // 서비스에는 제한과 같은 클라이언트 키(Caddy가 덮어쓴 IP)가 간다.
+  assert.equal(clientKeys.length, 19);
+  assert.ok(clientKeys.every((key) => key === '203.0.113.7'));
 
-  // 다른 IP는 따로 센다. 서비스 오류(상한·원본 가게 없음·시연 DB 아님)는 503이다.
-  for (const code of ['GUEST_TRIAL_BUSY', 'GUEST_TRIAL_UNAVAILABLE', 'SHOWCASE_HOST_DATABASE_REQUIRED'] as const) {
+  // 다른 IP는 따로 센다. 한 IP의 동시 체험 수 초과는 429, 그 밖의 서비스 오류(상한·원본 가게 없음·시연 DB 아님)는 503이다.
+  for (const [code, status] of [
+    ['GUEST_TRIAL_IP_LIMIT', 429], ['GUEST_TRIAL_BUSY', 503], ['GUEST_TRIAL_UNAVAILABLE', 503],
+    ['SHOWCASE_HOST_DATABASE_REQUIRED', 503],
+  ] as const) {
     startError = new GuestTrialError(code);
     const response = await start('203.0.113.8');
-    assert.equal(response.status, 503, code);
+    assert.equal(response.status, status, code);
     assert.deepEqual(await response.json(), { code });
   }
-  assert.equal(starts, 7);
+  assert.equal(clientKeys.length, 23);
 });
 
 test('#309 the local demo-header deployment also resolves guest Bearer sessions; other resolvers are unchanged', async (t) => {
@@ -850,7 +855,7 @@ test('#309 the local demo-header deployment also resolves guest Bearer sessions;
   });
   const guestResolves: string[] = [];
   const guestTrials = {
-    start: async (): Promise<never> => { throw new Error('unexpected start call'); },
+    start: async (_input: { clientKey: string }): Promise<never> => { throw new Error('unexpected start call'); },
     resolve: async (token: string) => {
       guestResolves.push(token);
       if (token !== 'guest-token') throw new AuthSessionError('SESSION_INVALID');

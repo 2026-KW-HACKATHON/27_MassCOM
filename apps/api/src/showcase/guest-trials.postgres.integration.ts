@@ -14,8 +14,11 @@ import { fakeOpenAiFetch } from '../ai-art-test-support.js';
 import { AuthSessionError } from '../auth-session.js';
 import { MerchantArtError } from '../merchant-art.js';
 import { PostgresAccountDeletionService } from '../postgres/account-deletion.js';
+import { PostgresAccountLifecycle } from '../postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from '../postgres/auth-session.js';
+import { PostgresBadgeRewardService } from '../postgres/badge-rewards.js';
 import { PostgresClaimSlotService } from '../postgres/claim-slot-service.js';
+import { PostgresFriendService } from '../postgres/friends.js';
 import { PostgresMerchantAccessControl } from '../postgres/merchant-access.js';
 import { PostgresMerchantArtService } from '../postgres/merchant-art.js';
 import { PostgresMerchantCatalog } from '../postgres/merchant-catalog.js';
@@ -25,11 +28,13 @@ import { createApiServer, createBearerAccountResolver } from '../server.js';
 import { InMemoryChallengeStore, WalletChallengeService } from '../wallet-challenge-service.js';
 import { ShowcaseAccessRequestError, ShowcaseAccessRequestService } from './access-requests.js';
 import { GUEST_TRIAL_TTL_MS, GuestTrialError, ShowcaseGuestTrialService } from './guest-trials.js';
-import { seedLocalShowcase, SHOWCASE_MERCHANT_ID } from './local-seed.js';
+import { seedLocalShowcase, SHOWCASE_MERCHANT_ID, SHOWCASE_STAFF_ACCOUNT_ID } from './local-seed.js';
 
 const execFileAsync = promisify(execFile);
 const apiRoot = fileURLToPath(new URL('../..', import.meta.url));
 const secret = 'test-only-guest-trial-secret-at-least-32-bytes-long';
+// 체험 시작의 클라이언트 키(서버에서는 Caddy가 덮어쓴 IP). 시험용 문서 대역 주소다.
+const clientA = { clientKey: '198.51.100.7' };
 const refusingVerifier = { verify: async (): Promise<never> => { throw new AuthSessionError('SESSION_INVALID'); } };
 
 /** A fresh `<prefix>_<uuid>_test` database, migrated (and seeded with the three demo merchants when `seed`). */
@@ -185,7 +190,7 @@ test('#309 start creates a guest account, a hidden trial store copied from A, ST
   await withShowcaseDatabase(async (pool) => {
     const before = Date.now();
     const guests = new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret });
-    const session = await guests.start();
+    const session = await guests.start(clientA);
     assert.equal(session.guest, true);
     assert.match(session.accountId, /^acct_[0-9a-f-]{36}$/);
     const expiresAt = Date.parse(session.expiresAt);
@@ -265,22 +270,95 @@ test('#309 start creates a guest account, a hidden trial store copied from A, ST
 
 test('#309 deleting a guest account pseudonymizes its trial row and keeps the trial store hidden', async () => {
   await withShowcaseDatabase(async (pool) => {
-    const guest = await new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret }).start();
+    const guest = await new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret }).start(clientA);
     const merchantId = (await pool.query<{ merchant_id: string }>(
       'SELECT merchant_id FROM showcase_guest_trials WHERE account_id = $1', [guest.accountId])).rows[0]!.merchant_id;
     await new PostgresAccountDeletionService(pool, { hmacSecret: secret, policyVersion: 'test-policy' })
       .requestDeletion({ accountId: guest.accountId, confirmation: 'DELETE MY ACCOUNT' });
     assert.equal((await pool.query('SELECT 1 FROM showcase_guest_trials WHERE account_id = $1', [guest.accountId])).rowCount, 0);
-    assert.equal((await pool.query('SELECT 1 FROM showcase_guest_trials WHERE merchant_id = $1', [merchantId])).rowCount, 1);
+    // 별칭 행은 남고 클라이언트 IP의 HMAC은 지워진다.
+    assert.deepEqual((await pool.query<{ client_key_hash: Buffer | null }>(
+      'SELECT client_key_hash FROM showcase_guest_trials WHERE merchant_id = $1', [merchantId])).rows, [{ client_key_hash: null }]);
     const listed = await new PostgresMerchantCatalog(pool).listPublicMerchants();
     assert.ok(listed.every((merchant) => merchant.id !== merchantId));
+  });
+});
+
+test('#309 one client key holds at most 30 active trials, others still start, expiry frees it, and no raw IP is stored', async () => {
+  await withShowcaseDatabase(async (pool) => {
+    const clock = { now: new Date() };
+    const guests = new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret, now: () => clock.now });
+    const ip = '203.0.113.9';
+    const counts = async () => (await pool.query<{ trials: number; stores: number; sessions: number }>(
+      `SELECT (SELECT count(*)::int FROM showcase_guest_trials) AS trials,
+              (SELECT count(*)::int FROM merchants WHERE id LIKE 'trial-%') AS stores,
+              (SELECT count(*)::int FROM auth_sessions) AS sessions`)).rows[0];
+    for (let index = 0; index < 30; index += 1) await guests.start({ clientKey: ip });
+    assert.deepEqual(await counts(), { trials: 30, stores: 30, sessions: 30 });
+    await assert.rejects(guests.start({ clientKey: ip }),
+      (error: unknown) => error instanceof GuestTrialError && error.code === 'GUEST_TRIAL_IP_LIMIT');
+    assert.deepEqual(await counts(), { trials: 30, stores: 30, sessions: 30 });
+    // 다른 클라이언트는 그대로 시작한다.
+    await guests.start({ clientKey: '203.0.113.10' });
+    assert.deepEqual(await counts(), { trials: 31, stores: 31, sessions: 31 });
+
+    // 원래 IP는 저장하지 않는다: 열 값은 용도 접두어를 붙인 HMAC(32바이트)이고, 평문 IP나 그 SHA-256이 아니다.
+    const leaked = await pool.query(
+      `SELECT 1 FROM showcase_guest_trials trial
+       WHERE trial::text LIKE '%' || $1 || '%' OR position(convert_to($1, 'UTF8') in trial.client_key_hash) > 0`,
+      [ip],
+    );
+    assert.equal(leaked.rowCount, 0);
+    const hashed = await pool.query<{ count: number }>(
+      'SELECT count(*)::int AS count FROM showcase_guest_trials WHERE client_key_hash = $1', [guests.clientKeyHash(ip)]);
+    assert.equal(hashed.rows[0]!.count, 30);
+    assert.equal((await pool.query(
+      `SELECT 1 FROM showcase_guest_trials WHERE client_key_hash = sha256(convert_to($1, 'UTF8'))`, [ip])).rowCount, 0);
+
+    // 만료되면 같은 키도 다시 시작하고, 정리로 끝난 행은 키 해시를 지운다.
+    clock.now = new Date(clock.now.getTime() + GUEST_TRIAL_TTL_MS + 60_000);
+    await guests.start({ clientKey: ip });
+    const ended = await pool.query<{ total: number; keyed: number }>(
+      `SELECT count(*)::int AS total, count(client_key_hash)::int AS keyed
+       FROM showcase_guest_trials WHERE ended_at IS NOT NULL`);
+    assert.deepEqual(ended.rows[0], { total: 20, keyed: 0 });
+  });
+});
+
+test('#309 a trial-store visit never shows in friends stamps or medal counts after the KST date rolls over', async () => {
+  await withShowcaseDatabase(async (pool) => {
+    const clock = { now: new Date() };
+    const now = () => clock.now;
+    const guest = await new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret, now }).start(clientA);
+    const trialStore = (await pool.query<{ merchant_id: string }>(
+      'SELECT merchant_id FROM showcase_guest_trials WHERE account_id = $1', [guest.accountId])).rows[0]!.merchant_id;
+    // 체험자가 고객으로 가상 점포 A와 자기 체험 가게(본인이 STAFF)를 같은 날 방문한다. 둘 다 진행도로 센 방문이다.
+    const claims = new PostgresClaimSlotService(pool, { referenceHmacSecret: secret, now });
+    for (const [merchantId, staff] of [[SHOWCASE_MERCHANT_ID, SHOWCASE_STAFF_ACCOUNT_ID], [trialStore, guest.accountId]] as const) {
+      const issued = await claims.issue({
+        merchantId, customerAccountId: guest.accountId, merchantReference: `order-${merchantId}`, createdByAccountId: staff,
+      });
+      assert.equal((await claims.redeem({ accountId: guest.accountId, token: issued.token })).visit.progressCounted, true);
+    }
+    const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+    const friends = new PostgresFriendService(pool, { accountLifecycle: lifecycle, now });
+    const { me } = await friends.list(guest.accountId);
+    await friends.addByCode({ accountId: 'acct_trial_friend', code: me.code });
+
+    // 친구 화면은 어제(한국 날짜)까지의 방문만 센다. 날짜가 바뀐 뒤에도 숨긴 가게는 도장·메달에 나오지 않는다.
+    clock.now = new Date(clock.now.getTime() + 24 * 60 * 60 * 1000);
+    const seen = await friends.list('acct_trial_friend');
+    assert.equal(seen.friends.length, 1);
+    assert.deepEqual(seen.friends[0]!.stamps, [{ merchantName: '가상 점포 A' }]);
+    const badges = await new PostgresBadgeRewardService(pool, { now, accountLifecycle: lifecycle }).getBadges(guest.accountId);
+    assert.equal(badges.medals.find((medal) => medal.kind === 'explorer')!.value, 1);
   });
 });
 
 test('#309 the active-guest cap holds under concurrent starts', async () => {
   await withShowcaseDatabase(async (pool) => {
     const results = await Promise.allSettled(Array.from({ length: 8 }, () =>
-      new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret, maxActive: 3 }).start()));
+      new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret, maxActive: 3 }).start(clientA)));
     assert.equal(results.filter((result) => result.status === 'fulfilled').length, 3);
     for (const result of results.filter((entry) => entry.status === 'rejected')) {
       assert.ok(result.reason instanceof GuestTrialError && result.reason.code === 'GUEST_TRIAL_BUSY', String(result.reason));
@@ -295,10 +373,10 @@ test('#309 an expired guest token is refused and the next start ends that guest 
     const clock = { now: new Date() };
     const now = () => clock.now;
     const guests = new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret, now });
-    const first = await guests.start();
+    const first = await guests.start(clientA);
     // 첫 체험자가 가장 먼저 만료되도록 나머지 21명은 1초 뒤에 시작한다.
     clock.now = new Date(clock.now.getTime() + 1000);
-    for (let index = 0; index < 21; index += 1) await guests.start();
+    for (let index = 0; index < 21; index += 1) await guests.start(clientA);
     const firstMerchant = (await pool.query<{ merchant_id: string }>(
       'SELECT merchant_id FROM showcase_guest_trials WHERE account_id = $1', [first.accountId])).rows[0]!.merchant_id;
     const api = await startApiServer(t, pool, now);
@@ -313,7 +391,7 @@ test('#309 an expired guest token is refused and the next start ends that guest 
       (error: unknown) => error instanceof AuthSessionError && error.code === 'SESSION_INVALID');
 
     // 다음 시작이 만료된 22명 중 가장 먼저 만료된 20명만 끝낸다.
-    const next = await guests.start();
+    const next = await guests.start(clientA);
     const ended = await pool.query<{ account_id: string }>(
       'SELECT account_id FROM showcase_guest_trials WHERE ended_at IS NOT NULL ORDER BY expires_at, account_id');
     assert.equal(ended.rows.length, 20);
@@ -335,7 +413,7 @@ test('#309 an expired guest token is refused and the next start ends that guest 
 
 test('#309 a guest account can never be made an approver', async () => {
   await withShowcaseDatabase(async (pool, url) => {
-    const guest = await new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret }).start();
+    const guest = await new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret }).start(clientA);
     // 체험자는 앱에서 요청을 만들 수 없으므로(이미 STAFF) 운영자가 코드를 잘못 받은 경우를 행으로 흉내 낸다.
     await pool.query(
       `INSERT INTO showcase_access_requests (id, account_id, code) VALUES ($1, $2, 'GST7K2MQ')`,
@@ -350,7 +428,7 @@ test('#309 a guest account can never be made an approver', async () => {
 
 test('#309 AI art is refused for a trial store before any OpenAI call or budget row', async () => {
   await withShowcaseDatabase(async (pool) => {
-    const guest = await new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret }).start();
+    const guest = await new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret }).start(clientA);
     const merchantId = (await pool.query<{ merchant_id: string }>(
       'SELECT merchant_id FROM showcase_guest_trials WHERE account_id = $1', [guest.accountId])).rows[0]!.merchant_id;
     const fake = fakeOpenAiFetch();
@@ -377,7 +455,7 @@ test('#309 the guest-trial service refuses a database that is not a showcase dat
     const guests = new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret });
     const refused = (error: unknown) =>
       error instanceof GuestTrialError && error.code === 'SHOWCASE_HOST_DATABASE_REQUIRED';
-    await assert.rejects(guests.start(), refused);
+    await assert.rejects(guests.start(clientA), refused);
     await assert.rejects(guests.resolve('any-token'), refused);
     assert.equal((await pool.query('SELECT 1 FROM showcase_guest_trials')).rowCount, 0);
     assert.equal((await pool.query(`SELECT 1 FROM merchants WHERE id LIKE 'trial-%'`)).rowCount, 0);

@@ -64,12 +64,15 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 // 실제 점포(is_demo = false)에서 본인이 직접 발급한 수령 슬롯의 방문은 세지 않는다. 시연 점포는
 // 한 사람이 점원과 고객을 함께 시연하므로 그대로 센다.
 // 친구 화면(friends.ts)이 같은 규칙으로 친구의 메달·도장을 계산하도록 이 두 조각을 함께 쓴다.
+// 로그인 없는 체험 가게(#309)의 방문은 세지 않는다: 친구 도장·메달에 숨긴 가게가 드러나지 않고, 친구 값과 /me/badges·마일리지가
+// 계속 같은 집합을 센다(운영 DB는 체험 표가 비어 있어 바뀌지 않는다).
 export const countedVisitFromSql = `
     FROM visit_events AS visit
     JOIN merchants AS merchant ON merchant.id = visit.merchant_id
     JOIN claim_slots AS slot ON slot.id = visit.claim_slot_id`;
 export const countedVisitFilterSql = `visit.status = 'VALID' AND visit.progress_counted
-      AND (merchant.is_demo OR slot.created_by_account_id <> visit.customer_account_id)`;
+      AND (merchant.is_demo OR slot.created_by_account_id <> visit.customer_account_id)
+      AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials AS trial WHERE trial.merchant_id = visit.merchant_id)`;
 
 export const medalValuesSql = `
   WITH counted AS (

@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
@@ -9,7 +9,9 @@ import { isShowcaseDatabaseName } from './access-requests.js';
 import { SHOWCASE_MERCHANT_ID } from './local-seed.js';
 
 export class GuestTrialError extends Error {
-  constructor(readonly code: 'SHOWCASE_HOST_DATABASE_REQUIRED' | 'GUEST_TRIAL_BUSY' | 'GUEST_TRIAL_UNAVAILABLE') {
+  constructor(
+    readonly code: 'SHOWCASE_HOST_DATABASE_REQUIRED' | 'GUEST_TRIAL_BUSY' | 'GUEST_TRIAL_UNAVAILABLE' | 'GUEST_TRIAL_IP_LIMIT',
+  ) {
     super(code);
     this.name = 'GuestTrialError';
   }
@@ -19,6 +21,9 @@ export type GuestTrialSession = IssuedSession & { guest: true };
 
 export const GUEST_TRIAL_TTL_MS = 24 * 60 * 60 * 1000;
 const defaultMaxActive = 300;
+// 한 클라이언트 IP(키)가 동시에 가질 수 있는 끝나지 않은 체험 수. 심사장처럼 여럿이 한 NAT를 나눠 써도 넉넉하고,
+// 한 IP가 만료 직후 다시 시작하는 식으로 전역 상한을 혼자 채우지는 못하게 한다(300 중 30).
+const defaultMaxActivePerClient = 30;
 // 체험 시작 한 번이 함께 끝내는 만료 체험자 수. 시작 트랜잭션이 길어지지 않게 묶음으로 나눈다.
 const sweepBatchSize = 20;
 const trialMerchantName = '나의 체험 가게';
@@ -30,16 +35,27 @@ const trialMerchantName = '나의 체험 가게';
  */
 export class ShowcaseGuestTrialService {
   private readonly accountLifecycle: PostgresAccountLifecycle;
+  private readonly hmacSecret: string;
   private readonly maxActive: number;
+  private readonly maxActivePerClient: number;
   private readonly now: () => Date;
 
   constructor(
     private readonly pool: Pool,
-    options: { accountDeletionHmacSecret: string; maxActive?: number; now?: () => Date },
+    options: {
+      accountDeletionHmacSecret: string; maxActive?: number; maxActivePerClient?: number; now?: () => Date;
+    },
   ) {
     this.accountLifecycle = new PostgresAccountLifecycle({ hmacSecret: options.accountDeletionHmacSecret });
+    this.hmacSecret = options.accountDeletionHmacSecret;
     this.maxActive = options.maxActive ?? defaultMaxActive;
+    this.maxActivePerClient = options.maxActivePerClient ?? defaultMaxActivePerClient;
     this.now = options.now ?? (() => new Date());
+  }
+
+  // 원래 IP 대신 저장하는 값. 계정 참조 해시와 같은 비밀을 쓰므로 용도 접두어로 값 공간을 나눈다.
+  clientKeyHash(clientKey: string): Buffer {
+    return createHmac('sha256', this.hmacSecret).update(`showcase-guest-trial-client:${clientKey}`).digest();
   }
 
   private async transaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
@@ -61,12 +77,20 @@ export class ShowcaseGuestTrialService {
     }
   }
 
-  async start(): Promise<GuestTrialSession> {
+  /** `clientKey`는 서버가 IP 제한에 쓰는 것과 같은 클라이언트 키(Caddy가 덮어쓴 IP)다. 원래 값은 저장하지 않는다. */
+  async start(input: { clientKey: string }): Promise<GuestTrialSession> {
+    const clientKeyHash = this.clientKeyHash(input.clientKey);
     return this.transaction(async (client) => {
       const now = this.now();
       // 상한 확인과 생성을 직렬화한다: 동시에 시작해도 활성 체험자가 상한을 넘지 않는다.
       await client.query(`SELECT pg_advisory_xact_lock(hashtextextended('showcase-guest-trials', 0))`);
       await this.endExpired(client, now);
+      const sameClient = await client.query<{ count: number }>(
+        `SELECT count(*)::int AS count FROM showcase_guest_trials
+         WHERE client_key_hash = $1 AND ended_at IS NULL AND expires_at > $2`,
+        [clientKeyHash, now],
+      );
+      if (sameClient.rows[0]!.count >= this.maxActivePerClient) throw new GuestTrialError('GUEST_TRIAL_IP_LIMIT');
       const active = await client.query<{ count: number }>(
         `SELECT count(*)::int AS count FROM showcase_guest_trials WHERE ended_at IS NULL AND expires_at > $1`,
         [now],
@@ -119,8 +143,9 @@ export class ShowcaseGuestTrialService {
         [randomUUID(), accountId, tokenHash(sessionToken), now, expiresAt, new Date(0)],
       );
       await client.query(
-        `INSERT INTO showcase_guest_trials (account_id, merchant_id, created_at, expires_at) VALUES ($1, $2, $3, $4)`,
-        [accountId, merchantId, now, expiresAt],
+        `INSERT INTO showcase_guest_trials (account_id, merchant_id, created_at, expires_at, client_key_hash)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [accountId, merchantId, now, expiresAt, clientKeyHash],
       );
       return { sessionToken, accountId, expiresAt: expiresAt.toISOString(), guest: true };
     });
@@ -148,7 +173,7 @@ export class ShowcaseGuestTrialService {
     });
   }
 
-  // 만료된 체험자를 끝낸다: 세션 삭제, 멤버십 회수, 체험 가게 중지, ended_at 기록.
+  // 만료된 체험자를 끝낸다: 세션 삭제, 멤버십 회수, 체험 가게 중지, ended_at 기록과 클라이언트 키 해시 지우기.
   // ponytail: 방문·수집 기록 행은 지우지 않는다. 지워야 하면 운영자 계정 삭제 명령이 계정 단위로 그대로 동작한다.
   private async endExpired(client: PoolClient, now: Date): Promise<void> {
     const expired = await client.query<{ account_id: string; merchant_id: string }>(
@@ -172,7 +197,7 @@ export class ShowcaseGuestTrialService {
       [expired.rows.map((row) => row.merchant_id), now],
     );
     await client.query(
-      'UPDATE showcase_guest_trials SET ended_at = $2 WHERE account_id = ANY($1::text[])',
+      'UPDATE showcase_guest_trials SET ended_at = $2, client_key_hash = NULL WHERE account_id = ANY($1::text[])',
       [accountIds, now],
     );
   }
