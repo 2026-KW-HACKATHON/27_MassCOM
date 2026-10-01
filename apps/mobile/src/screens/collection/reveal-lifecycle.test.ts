@@ -87,6 +87,22 @@ test('backgrounding mid-opening cancels the timer and completes immediately, onc
   }
 });
 
+test('dispose() between completion and its 0 ms notification never reaches the screen', () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const events: string[] = [];
+    const control = lifecycle(events);
+    control.start();
+    control.setMotionAllowed(false);
+    control.dispose();
+    mock.timers.tick(1000);
+    assert.deepEqual(events, ['animate']);
+    assert.equal(control.stage, 'opening');
+  } finally {
+    mock.timers.reset();
+  }
+});
+
 // Regression: turning on reduce-motion mid-opening used to leave stage stuck at 'opening' forever (the effect
 // guarded on motionAllowed but never advanced the stage), so the greeting/detail button never appeared.
 test('turning on reduce-motion mid-opening completes immediately', () => {

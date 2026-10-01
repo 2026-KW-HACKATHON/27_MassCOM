@@ -84,11 +84,13 @@ test('going stale during the capture skips the image share sheet', async () => {
 // awaits (checking availability) before it would open the sheet, and can go stale during those awaits too. isAlive
 // must reach all the way into shareImageFile's own decision, not just gate the call from the outside.
 test('going stale during shareImageFile\'s own internal awaits still prevents the sheet from opening', async () => {
+  const entered = deferred<void>();
   const internalWait = deferred<void>();
   let openedSheet = false;
   let alive = true;
   const result = performShare(baseDeps({
     shareImageFile: async (_uri, isAlive) => {
+      entered.resolve();
       await internalWait.promise; // simulates shareImageFile's own `await Sharing.isAvailableAsync()`
       if (!isAlive()) return false;
       openedSheet = true;
@@ -96,6 +98,8 @@ test('going stale during shareImageFile\'s own internal awaits still prevents th
     },
     isAlive: () => alive,
   }));
+  // performShare의 바깥 검사를 모두 지나 shareImageFile 안에서 기다리는 중에만 화면이 사라지게 한다.
+  await entered.promise;
   alive = false;
   internalWait.resolve();
   assert.equal(await result, 'failed');

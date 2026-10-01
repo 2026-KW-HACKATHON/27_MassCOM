@@ -34,6 +34,8 @@ export class RevealLifecycle {
   #muted = false;
   #playGeneration = 0;
   #timer: ReturnType<typeof setTimeout> | undefined;
+  #completionTimer: ReturnType<typeof setTimeout> | undefined;
+  #disposed = false;
   #started = false;
   #completing = false;
 
@@ -63,11 +65,13 @@ export class RevealLifecycle {
   }
 
   #complete(): void {
-    if (this.stage === 'revealed' || this.#completing) return;
+    if (this.#disposed || this.stage === 'revealed' || this.#completing) return;
     this.#completing = true;
     if (this.#timer) clearTimeout(this.#timer);
     this.#timer = undefined;
-    setTimeout(() => {
+    // 완료 알림도 추적한다. dispose() 뒤에 화면 상태를 바꾸면 안 된다.
+    this.#completionTimer = setTimeout(() => {
+      this.#completionTimer = undefined;
       this.stage = 'revealed';
       this.callbacks.onStageComplete();
     }, 0);
@@ -118,7 +122,11 @@ export class RevealLifecycle {
   }
 
   dispose(): void {
+    this.#disposed = true;
     if (this.#timer) clearTimeout(this.#timer);
+    if (this.#completionTimer) clearTimeout(this.#completionTimer);
+    this.#timer = undefined;
+    this.#completionTimer = undefined;
     this.pause();
   }
 }
