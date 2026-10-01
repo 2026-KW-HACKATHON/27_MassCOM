@@ -46,7 +46,16 @@ async function inspectAudio(dataUrl) {
 // campaigns를 넘기면 서버가 돌려준 "지금 게시할 수 있는 캠페인" 목록과도 맞춰 본다(목록 밖 캠페인·캠페인에 없는 방문 목표는 게시 API가 409로 거절한다).
 // 서버가 받는 크기 상한(docs/COLLECTIBLE_CREATOR.md "서버 계약"). 넘으면 보내기 전에 안내해 413을 받지 않게 한다.
 const MiB = 1024 * 1024;
-export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, back: 256 * 1024, mask: 256 * 1024, scene: 512 * 1024, body: 8 * MiB - 4096, stickers: 30, backStickers: 10 };
+export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, back: 256 * 1024, mask: 256 * 1024, scene: 512 * 1024, living: 512 * 1024, body: 8 * MiB - 4096, stickers: 30, backStickers: 10 };
+// 크기 사다리(설계 문서 "서버 검증·스냅샷·상한·저장"): 프레임 한 변 448→384→320→256px, 화질 .85(앞 두 단계)→
+// .7(나머지)로 angleFrames·living 스프라이트를 다시 구워 publishSizeProblem을 통과할 때까지 시도한다.
+// 그래도 넘으면 가장 작은 단계 결과를 그대로 두고 기존 초과 안내로 넘어간다.
+export const SPRITE_SIZE_LADDER = Object.freeze([
+  Object.freeze({ side: 448, quality: .85 }),
+  Object.freeze({ side: 384, quality: .85 }),
+  Object.freeze({ side: 320, quality: .7 }),
+  Object.freeze({ side: 256, quality: .7 }),
+]);
 const decodedBytes = dataUrl => { const data = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor(data.length * 3 / 4) - (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0); };
 export function publishSizeProblem(revision) {
   for (const assets of Object.values(revision.derived || {})) {
@@ -54,6 +63,8 @@ export function publishSizeProblem(revision) {
       if (assets[name] && decodedBytes(assets[name]) > max) return '완성 이미지가 너무 커요. 작은 사진이나 단순한 보정으로 다시 시도해 주세요. 원본과 입력은 유지했어요.';
     }
     if (Object.values(assets.effectMasks || {}).some(mask => decodedBytes(mask) > mediaLimits.mask)) return '효과 영역 이미지가 너무 커요. 효과 대상이나 스티커를 줄여 다시 시도해 주세요. 원본과 입력은 유지했어요.';
+    if (assets.angleFrames && decodedBytes(assets.angleFrames.dataUrl) > mediaLimits.image) return '회전 각도 이미지가 너무 커요. 효과나 패럴랙스 강도를 줄여 다시 시도해 주세요. 원본과 입력은 유지했어요.';
+    if (assets.living && decodedBytes(assets.living.dataUrl) > mediaLimits.living) return '살아있는 그림 이미지가 너무 커요. 움직이는 영역을 줄이거나 재생 주기를 조정해 다시 시도해 주세요. 원본과 입력은 유지했어요.';
   }
   if ((revision.story?.frames || []).some(frame => frame.previewDataUrl && decodedBytes(frame.previewDataUrl) > mediaLimits.scene)) return '이야기 장면 미리보기가 너무 커요. 더 단순한 장면 사진으로 바꿔 다시 시도해 주세요. 입력은 유지했어요.';
   const body = new TextEncoder().encode(JSON.stringify({ project: revision })).length;
@@ -636,8 +647,11 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       // Final raster assets are generated once for publication; all originals,
       // strokes, stable sticker IDs and grade assignments remain in the draft.
       if (publish) {
-        revision.derived = await serializeDerived(revision, { extraGradeId: selectedGrade, merchantName });
         revision.story.frames = await serializeStoryFrames(revision.story);
+        for (const rung of SPRITE_SIZE_LADDER) {
+          revision.derived = await serializeDerived(revision, { extraGradeId: selectedGrade, merchantName, angleSide: rung.side, spriteQuality: rung.quality });
+          if (!publishSizeProblem(revision)) break;
+        }
       }
       const sizeProblem = publishSizeProblem(revision);
       if (sizeProblem) throw localError(sizeProblem);
