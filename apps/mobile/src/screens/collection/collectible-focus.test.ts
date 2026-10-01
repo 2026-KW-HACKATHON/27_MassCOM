@@ -56,3 +56,9 @@ test('the collection screen only opens the reveal through resolveCollectibleLink
   const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
   assert.match(screen, /resolveCollectibleLink\(/, 'index.tsx는 인라인 판단 대신 resolveCollectibleLink를 써야 한다');
 });
+
+test('the collection screen processes an acquisition link only while the tab is focused and drops it on blur', () => {
+  const source = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
+  assert.match(source, /if \(!tabFocused\) return;/);
+  assert.match(source, /setTabFocused\(false\);[\s\S]*router\.setParams\(\{ focus: undefined, entitlement: undefined \}\);/);
+});

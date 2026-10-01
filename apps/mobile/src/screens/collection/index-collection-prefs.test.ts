@@ -8,7 +8,7 @@ import { test } from 'node:test';
 const source = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
 
 test('leaving the tab closes the acquisition reveal, the detail screen, and invalidates any in-flight link resolution', () => {
-  const cleanup = source.slice(source.indexOf('useFocusEffect(useCallback(() => () => {'), source.indexOf('// 대표 진열·마스코트 반응 기록은'));
+  const cleanup = source.slice(source.indexOf('useFocusEffect(useCallback(() => {'), source.indexOf('// 대표 진열·마스코트 반응 기록은'));
   assert.match(cleanup, /setCollectibleDetail\(undefined\);/);
   assert.match(cleanup, /setRevealEntitlement\(undefined\);/);
   assert.match(cleanup, /linkGeneration\.current \+= 1;/);

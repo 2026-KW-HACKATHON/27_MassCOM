@@ -161,11 +161,18 @@ export function CollectionScreen({
   const linkGeneration = useRef(0);
 
   // 탭을 떠나면 상세뿐 아니라 획득 연출도 닫는다(둘 다 그 사이 새로 받은 수집품에만 걸린 일회성 화면이다).
-  useFocusEffect(useCallback(() => () => {
-    setCollectibleDetail(undefined);
-    setRevealEntitlement(undefined);
-    linkGeneration.current += 1;
-  }, [setCollectibleDetail, setRevealEntitlement]));
+  // 탭을 떠날 때 처리 중이던 획득 링크도 버린다(돌아왔을 때 닫았던 연출이 다시 열리지 않게). 링크 처리는 탭이 보일 때만 한다.
+  const [tabFocused, setTabFocused] = useState(false);
+  useFocusEffect(useCallback(() => {
+    setTabFocused(true);
+    return () => {
+      setTabFocused(false);
+      setCollectibleDetail(undefined);
+      setRevealEntitlement(undefined);
+      linkGeneration.current += 1;
+      router.setParams({ focus: undefined, entitlement: undefined });
+    };
+  }, [setCollectibleDetail, setRevealEntitlement, router]));
 
   // 대표 진열·마스코트 반응 기록은 계정별 로컬 저장소에서 읽는다. 화면은 계정마다 새로 마운트되므로(라우트의 key=accountId) 한 번만 읽으면 된다.
   useEffect(() => {
@@ -202,6 +209,8 @@ export function CollectionScreen({
   const collectibleLink = useRef<{ rereadFor?: string; doneFor?: string }>({});
   useEffect(() => {
     if (focus !== 'collectible') { collectibleLink.current = {}; return; }
+    // 탭을 떠난 뒤 늦게 끝난 재조회가 도감을 갱신해도 이 effect가 새 세대로 다시 열지 않게, 보이는 동안에만 처리한다.
+    if (!tabFocused) return;
     const link = collectibleLink.current;
     if (!collection || link.doneFor === entitlement) return;
     // 이 시도만의 세대: 탭을 떠나거나(위 useFocusEffect) 다른 링크가 새로 시작되면(이 effect가 다시 돎) 세대가 올라가
@@ -225,7 +234,7 @@ export function CollectionScreen({
     }
     const timer = setTimeout(() => finish(collection), 0);
     return () => clearTimeout(timer);
-  }, [focus, entitlement, collection, router, api, startRequest, applySnapshot]);
+  }, [focus, entitlement, collection, router, api, startRequest, applySnapshot, tabFocused]);
   const { merchants: publicMerchants, loading: merchantsLoading, error: merchantsError, retry: retryMerchants, refresh: refreshMerchants } = useMerchantCatalog(apiUrl);
   const stampSlots = useMemo(
     () => buildStampSlots(publicMerchants, collection?.visits ?? []),
