@@ -46,7 +46,8 @@ function parseLiving(value: unknown): CollectibleLiving | undefined {
   if (!record(value) || !image(value.dataUrl, 700_000, spriteMimes)
     || !integerInRange(value.count, 8, 24) || !integerInRange(value.columns, 1, 8)
     || !integerInRange(value.cellWidth, 16, 512) || !integerInRange(value.cellHeight, 16, 512)
-    || !integerInRange(value.periodMs, 1000, 4000) || !record(value.box)
+    // 서버(collectible-project-rules.ts)는 periodMs를 정수로 강제하지 않는다; 여기서만 integer를 요구하면 유효한 서버 값을 버린다.
+    || !inRange(value.periodMs, 1000, 4000) || !record(value.box)
     || !inRange(value.box.x, 0, 1) || !inRange(value.box.y, 0, 1) || !inRange(value.box.w, 0, 1) || !inRange(value.box.h, 0, 1)
     || value.box.x + value.box.w > 1 || value.box.y + value.box.h > 1) return undefined;
   return {
@@ -55,9 +56,9 @@ function parseLiving(value: unknown): CollectibleLiving | undefined {
   };
 }
 
-/** 모션 목록 전체를 하나의 필드로 다룬다: 항목 하나라도 깨지면 배열 전체를 버린다(상세 전체는 거절하지 않는다). */
+/** 모션 목록 전체를 하나의 필드로 다룬다: 항목 하나라도 깨지면 배열 전체를 버린다(상세 전체는 거절하지 않는다). 빈 배열은 "이 등급에 걸린 모션 없음"이라는 유효한 서버 응답이라 받는다. */
 function parseMotions(value: unknown): CollectibleMotion[] | undefined {
-  if (!Array.isArray(value) || value.length === 0 || value.length > 16) return undefined;
+  if (!Array.isArray(value) || value.length > 16) return undefined;
   const motions: CollectibleMotion[] = [];
   for (const item of value) {
     if (!record(item) || typeof item.type !== 'string' || !animations.includes(item.type) || (item.playback !== 'once' && item.playback !== 'loop')) return undefined;

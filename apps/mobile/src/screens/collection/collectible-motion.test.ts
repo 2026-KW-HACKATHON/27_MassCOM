@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { angleFrameBlend, collectibleMotionFrame, livingCell, motionAutoplaySequence, onceMotionTypes, particleAt } from './collectible-motion';
+import {
+  angleFrameBlend, angleFrameOpacities, collectibleMotionFrame, livingCell, type MotionLike, motionAutoplayObjects, motionAutoplaySequence,
+  motionEntrySequence, motionSequenceEnd, onceMotionTypes, particleAt,
+} from './collectible-motion';
 
 const vectors = JSON.parse(readFileSync(new URL('../../../../../tests/fixtures/collectible-vectors.json', import.meta.url), 'utf8')) as {
   particleAt: { kind: string; i: number; phase: number; expected: { x: number; y: number; color: string } }[];
@@ -44,6 +47,49 @@ test('모션 자동재생 순서: 획득 직후(intro)는 once를 전부 보여�
   assert.deepEqual(onceMotionTypes(motions), ['shine', 'stamp']);
   assert.deepEqual(motionAutoplaySequence(undefined, true), []);
   assert.deepEqual(motionAutoplaySequence([{ type: 'confetti', playback: 'once' }], false), [], '한 번만 재생하는 모션뿐이면 나중에 열었을 때는 자동재생하지 않는다');
+});
+
+test('각도 프레임 크로스페이드는 아래 칸을 항상 완전 불투명으로 두고 위 칸만 섞는다(WP4 리뷰 4, 아니면 옆면 틴트가 비친다)', () => {
+  for (const blend of [0, .3, .5, 1]) {
+    assert.deepEqual(angleFrameOpacities(blend), { lower: 1, upper: blend });
+  }
+  assert.equal(angleFrameOpacities(-1).upper, 0);
+  assert.equal(angleFrameOpacities(2).upper, 1);
+});
+
+test('once만 있는 시퀀스가 끝나면 멈추고, 설정된 loop 모션이 있으면 그걸로 넘어간다(WP4 리뷰 1)', () => {
+  const onceOnly: MotionLike = { type: 'confetti', playback: 'once' };
+  assert.deepEqual(motionSequenceEnd([onceOnly], undefined), { action: 'stop' });
+  const loop: MotionLike = { type: 'rotate', playback: 'loop' };
+  assert.deepEqual(motionSequenceEnd([onceOnly], loop), { action: 'loop', motion: loop });
+  // 시퀀스의 마지막이 이미 그 loop 객체 자신이면(연속 재생 중) 더 할 일이 없다.
+  assert.deepEqual(motionSequenceEnd([onceOnly, loop], loop), { action: 'hold' });
+  assert.deepEqual(motionSequenceEnd([], loop), { action: 'stop' });
+});
+
+test('같은 type이어도 once·loop가 서로 다른 파티클이면 객체 단위로 구분해 loop 쪽으로 정확히 넘어간다(WP4 리뷰 6)', () => {
+  type MotionWithParticle = MotionLike & { particle: string };
+  const onceConfetti: MotionWithParticle = { type: 'confetti', playback: 'once', particle: 'confetti' };
+  const loopConfetti: MotionWithParticle = { type: 'confetti', playback: 'loop', particle: 'snow' };
+  const end = motionSequenceEnd([onceConfetti], loopConfetti);
+  assert.equal(end.action, 'loop');
+  assert.equal(end.action === 'loop' ? end.motion.particle : undefined, 'snow');
+});
+
+test('motionAutoplayObjects는 motionAutoplaySequence와 같은 순서를 원본 모션 객체로 담는다', () => {
+  const motions = [{ type: 'shine', playback: 'once' as const }, { type: 'stamp', playback: 'once' as const }, { type: 'rotate', playback: 'loop' as const }];
+  assert.deepEqual(motionAutoplayObjects(motions, true).map((m) => m.type), motionAutoplaySequence(motions, true));
+  assert.deepEqual(motionAutoplayObjects(motions, false), [motions[2]]);
+});
+
+test('재진입(전경 복귀·동작 줄이기 토글)은 이미 보여준 once 시퀀스를 다시 틀지 않고 loop만 이어간다(WP4 리뷰 3)', () => {
+  const motions = [{ type: 'shine', playback: 'once' as const }, { type: 'rotate', playback: 'loop' as const }];
+  // 첫 진입(consumed=false)에서 intro면 once+loop를 그대로 보여준다.
+  assert.deepEqual(motionEntrySequence(motions, true, false), motionAutoplayObjects(motions, true));
+  // 이미 한 번 보여줬다면(consumed=true) intro=true로 재진입해도 loop만 이어간다.
+  assert.deepEqual(motionEntrySequence(motions, true, true), [motions[1]]);
+  // intro가 아니었던 진입은 원래부터 loop만.
+  assert.deepEqual(motionEntrySequence(motions, false, false), [motions[1]]);
 });
 
 test('저장한 동작은 일반 회전으로 바뀌지 않고 각자의 변화만 적용된다', () => {

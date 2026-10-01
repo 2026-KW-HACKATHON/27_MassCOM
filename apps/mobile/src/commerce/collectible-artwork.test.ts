@@ -83,9 +83,25 @@ test('잘못된 새 필드 하나는 그 필드만 버리고 상세 전체는 �
     const parsed = parsePublishedCollectible({ ...detail, ...v2Extras, living: bad });
     assert.deepEqual(parsed, { ...detail, backImageDataUrl: png, angleFrames, motions });
   }
-  for (const bad of [[{ type: 'unknown-motion', playback: 'loop' }], [{ type: 'rotate', playback: 'sometimes' }], [{ type: 'rotate', playback: 'loop', particle: 'snow' }], []]) {
+  for (const bad of [[{ type: 'unknown-motion', playback: 'loop' }], [{ type: 'rotate', playback: 'sometimes' }], [{ type: 'rotate', playback: 'loop', particle: 'snow' }]]) {
     const parsed = parsePublishedCollectible({ ...detail, ...v2Extras, motions: bad });
     assert.deepEqual(parsed, { ...detail, backImageDataUrl: png, angleFrames, living });
+  }
+});
+
+test('빈 모션 목록은 "이 등급에 걸린 모션 없음"이라는 유효한 서버 응답이라 그대로 받는다(WP4 리뷰 8)', () => {
+  const parsed = parsePublishedCollectible({ ...detail, ...v2Extras, motions: [] });
+  assert.deepEqual(parsed, { ...detail, backImageDataUrl: png, angleFrames, living, motions: [] });
+});
+
+test('living.periodMs는 서버처럼 1000~4000 사이 소수도 받는다(정수 강제는 유효한 값을 버린다, WP4 리뷰 8)', () => {
+  const fractional = { ...living, periodMs: 2399.5 };
+  const parsed = parsePublishedCollectible({ ...detail, ...v2Extras, living: fractional });
+  assert.deepEqual(parsed!.living, fractional);
+  // 범위를 벗어난 값은 기존 규칙대로 living 필드만 버리고 상세 전체는 거절하지 않는다.
+  for (const bad of [999.9, 4000.1, Number.NaN]) {
+    const dropped = parsePublishedCollectible({ ...detail, ...v2Extras, living: { ...living, periodMs: bad } });
+    assert.equal('living' in dropped!, false);
   }
 });
 

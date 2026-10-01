@@ -18,6 +18,12 @@ export function particleAt(kind: string, i: number, phase: number): ParticlePoin
   return { x: Math.cos(i * 11 + p * Math.PI * 2) * .4 * p, y: Math.sin(i * 13 + p * Math.PI * 2) * .4 * p, color };
 }
 
+/** 각도 프레임 크로스페이드용 opacity 쌍. 아래 칸은 항상 완전 불투명으로 두고 위 칸만 섞는다 — 둘 다 섞으면(1-blend / blend)
+ * 중간 각도에서 합산 불투명도가 1보다 낮아져 그 아래 갈색 옆면 틴트가 비친다(WP4 리뷰 4). */
+export function angleFrameOpacities(blend: number): { lower: number; upper: number } {
+  return { lower: 1, upper: Math.min(1, Math.max(0, blend)) };
+}
+
 const ANGLE_FRAME_START = -82.5, ANGLE_FRAME_STEP = 15, ANGLE_FRAME_COUNT = 12;
 
 /** Mirrors angleFrameIndex in collectible-model.mjs: nearest two sprite cells for a rotation angle, plus their crossfade mix. */
@@ -41,12 +47,22 @@ export const ONCE_MS: Record<string, number> = { rotate: 4000, shine: 3500, spar
 
 export type MotionLike = { type: string; playback: 'once' | 'loop' };
 
+/** 원본 모션 객체(파티클 포함)로 반환한다; onceMotionTypes는 이 위에 타입 이름만 뽑는다. */
+export function onceMotions<T extends MotionLike>(motions: readonly T[] | undefined): T[] {
+  return (motions ?? []).filter((motion) => motion.playback === 'once');
+}
+
+/** 원본 모션 객체로 반환한다; firstLoopMotionType은 이 위에 타입 이름만 뽑는다. */
+export function firstLoopMotion<T extends MotionLike>(motions: readonly T[] | undefined): T | undefined {
+  return (motions ?? []).find((motion) => motion.playback === 'loop');
+}
+
 export function onceMotionTypes(motions: readonly MotionLike[] | undefined): string[] {
-  return (motions ?? []).filter((motion) => motion.playback === 'once').map((motion) => motion.type);
+  return onceMotions(motions).map((motion) => motion.type);
 }
 
 export function firstLoopMotionType(motions: readonly MotionLike[] | undefined): string | undefined {
-  return (motions ?? []).find((motion) => motion.playback === 'loop')?.type;
+  return firstLoopMotion(motions)?.type;
 }
 
 /** 획득 직후(intro)는 once 모션을 순서대로 다 보여준 다음 첫 loop 모션, 나중에 도감에서 열면 그 loop 모션만 자동재생한다. */
@@ -54,6 +70,32 @@ export function motionAutoplaySequence(motions: readonly MotionLike[] | undefine
   const loop = firstLoopMotionType(motions);
   if (!intro) return loop ? [loop] : [];
   return loop ? [...onceMotionTypes(motions), loop] : onceMotionTypes(motions);
+}
+
+/** motionAutoplaySequence와 같은 순서지만 원본 모션 객체를 그대로 담아, 같은 type이라도 once/loop가 다른 particle을
+ * 가질 때(예: confetti/once/confetti + confetti/loop/snow) 화면이 정확한 객체를 추적할 수 있게 한다(WP4 리뷰 6). */
+export function motionAutoplayObjects<T extends MotionLike>(motions: readonly T[] | undefined, intro: boolean): readonly T[] {
+  const loop = firstLoopMotion(motions);
+  if (!intro) return loop ? [loop] : [];
+  const once = onceMotions(motions);
+  return loop ? [...once, loop] : once;
+}
+
+/** 자동재생 effect가 전경 복귀·동작 줄이기 토글로 다시 돌 때 쓰는 진입 판단: 이미 한 번 보여줬다면(consumed)
+ * intro 여부와 무관하게 loop 모션만 이어간다 — once 시퀀스는 첫 진입과 명시적 "다시 보기"에서만 보여준다(WP4 리뷰 3). */
+export function motionEntrySequence<T extends MotionLike>(motions: readonly T[] | undefined, intro: boolean, consumed: boolean): readonly T[] {
+  return motionAutoplayObjects(motions, intro && !consumed);
+}
+
+export type MotionSequenceEnd<T> = { action: 'hold' } | { action: 'loop'; motion: T } | { action: 'stop' };
+
+/** 재생 시퀀스의 마지막 단계가 끝난 뒤 할 일. 마지막 단계가 이미 loopMotion 그 자체면(연속 loop로 이어지는 중) 그대로
+ * 둔다(hold); 그렇지 않으면(once로 끝남) 설정된 loop 모션으로 넘어가거나, 없으면 멈춘다(WP4 리뷰 1). */
+export function motionSequenceEnd<T extends MotionLike>(sequence: readonly T[], loopMotion: T | undefined): MotionSequenceEnd<T> {
+  const last = sequence[sequence.length - 1];
+  if (!last) return { action: 'stop' };
+  if (loopMotion && last === loopMotion) return { action: 'hold' };
+  return loopMotion ? { action: 'loop', motion: loopMotion } : { action: 'stop' };
 }
 
 /** Shared by the native detail timer and its presentation; milliseconds never become seconds. */

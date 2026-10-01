@@ -4,7 +4,7 @@ import { AppState, Image, PanResponder, Pressable, ScrollView, StyleSheet, Switc
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Image as SvgImage, LinearGradient, Mask, Rect, Stop } from 'react-native-svg';
 
-import type { CollectibleAngleFrames, CollectibleLiving, PublishedCollectible } from '@/commerce/collectible-artwork';
+import type { CollectibleAngleFrames, CollectibleLiving, CollectibleMotion, PublishedCollectible } from '@/commerce/collectible-artwork';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { colorsForScheme } from '@/theme/palette';
@@ -12,7 +12,10 @@ import { Mascot } from '@/ui/mascot';
 import { StateScene } from '@/ui/state-scene';
 
 import { collectibleDetailFailure, type CollectibleDetailFailure } from './collectible-detail-state';
-import { angleFrameBlend, collectibleMotionFrame, livingCell, motionAutoplaySequence, onceMotionTypes, ONCE_MS, particleAt } from './collectible-motion';
+import {
+  angleFrameBlend, angleFrameOpacities, collectibleMotionFrame, firstLoopMotion, livingCell, motionEntrySequence, motionSequenceEnd,
+  onceMotions, ONCE_MS, particleAt,
+} from './collectible-motion';
 import { TiltSensor } from './collectible-tilt';
 
 type Props = {
@@ -39,8 +42,13 @@ function SpriteCell({ frames, index, faceSize, opacity }: { frames: CollectibleA
   );
 }
 
-/** Living picture 스프라이트를 box(얼굴 0..1 좌표) 안에 잘라 보여준다. */
-function LivingOverlay({ living, cell, faceSize, faceTop, faceLeft, scaleX }: { living: CollectibleLiving; cell: number; faceSize: number; faceTop: number; faceLeft: number; scaleX: number }) {
+/**
+ * Living picture 스프라이트를 box(얼굴 0..1 좌표) 안에 잘라 보여준다. 이 box는 얼굴 전체가 아닌 일부 영역이라,
+ * 자기 자신의 중심을 기준으로 scaleX를 걸면(box.x=0,w=.2인 왼쪽 조각이 60°에서 얼굴의 .1 지점에 와야 하는데 .3에
+ * 머무는 식으로) 회전 중 어긋난다. 그래서 여기서는 변환을 걸지 않고, 얼굴과 같은 transform을 이미 두르고 있는
+ * 부모 안에 상대 좌표로만 넣는다(WP4 리뷰 5) — 변환은 얼굴 전체를 감싼 부모가 공유해서 준다.
+ */
+function LivingOverlay({ living, cell, faceSize }: { living: CollectibleLiving; cell: number; faceSize: number }) {
   const col = cell % living.columns;
   const row = Math.floor(cell / living.columns);
   const rows = Math.ceil(living.count / living.columns);
@@ -49,8 +57,8 @@ function LivingOverlay({ living, cell, faceSize, faceTop, faceLeft, scaleX }: { 
   const cellScaleX = boxWidth / living.cellWidth;
   const cellScaleY = boxHeight / living.cellHeight;
   return (
-    <View pointerEvents="none" style={{ position: 'absolute', left: faceLeft + living.box.x * faceSize, top: faceTop + living.box.y * faceSize,
-      width: boxWidth, height: boxHeight, overflow: 'hidden', transform: [{ scaleX }] }}>
+    <View pointerEvents="none" style={{ position: 'absolute', left: living.box.x * faceSize, top: living.box.y * faceSize,
+      width: boxWidth, height: boxHeight, overflow: 'hidden' }}>
       <Image source={{ uri: living.dataUrl }} resizeMode="stretch"
         style={{ position: 'absolute', width: living.cellWidth * living.columns * cellScaleX, height: living.cellHeight * rows * cellScaleY,
           left: -col * living.cellWidth * cellScaleX, top: -row * living.cellHeight * cellScaleY }} />
@@ -112,6 +120,7 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   const [tiltOn, setTiltOn] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [activeAnimation, setActiveAnimation] = useState(snapshot.animation);
+  const [activeMotion, setActiveMotion] = useState<CollectibleMotion | undefined>(undefined);
   const [animationTime, setAnimationTime] = useState(0);
   const [animationReplay, setAnimationReplay] = useState(0);
   // Living picture의 칸을 고르는 벽시계; dragging·scene과 무관하게 moving이면 계속 돈다(동작 줄이기면 0에 고정).
@@ -135,12 +144,19 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   const angleRef = useRef(snapshot.angle);
   const moving = motionAllowed && !reduceMotion && foreground;
 
+  // 획득 직후(intro)엔 once 모션을 순서대로 보여준 뒤 loop 모션, 나중에 열면 loop 모션만 자동재생한다.
+  const sequenceTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // 각도 슬라이더를 끌거나 동작을 멈추는 등 사람이 직접 조작하면, 예약돼 있던 다음 자동재생 단계를 지운다
+  // (WP4 리뷰 2) — 안 지우면 잠시 뒤 자동재생이 멋대로 되돌아온다.
+  const cancelSequence = useCallback(() => clearTimeout(sequenceTimeout.current), []);
+
   const pause = useCallback(() => {
     audioAction.current += 1;
+    cancelSequence();
     setPlaying(false);
     setScene(false);
     try { player.pause(); } catch { /* Hook may already have released a player on unmount. */ }
-  }, [player]);
+  }, [cancelSequence, player]);
 
   useEffect(() => {
     alive.current = true;
@@ -189,36 +205,50 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
     return () => clearInterval(timer);
   }, [playing, moving, dragging, scene, activeAnimation, animationReplay, sceneReplay]);
 
-  // 획득 직후(intro)엔 once 모션을 순서대로 보여준 뒤 loop 모션, 나중에 열면 loop 모션만 자동재생한다.
-  const sequenceTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const playMotionSequence = useCallback((types: readonly string[]) => {
-    clearTimeout(sequenceTimeout.current);
-    if (types.length === 0 || !moving) return;
+  const playMotionSequence = useCallback((sequence: readonly CollectibleMotion[]) => {
+    cancelSequence();
+    if (sequence.length === 0 || !moving) return;
     let index = 0;
     const step = () => {
-      const type = types[index];
-      if (!type) return;
-      setActiveAnimation(type);
+      const motion = sequence[index];
+      if (!motion) return;
+      setActiveAnimation(motion.type);
+      setActiveMotion(motion);
       setAnimationTime(0);
       setAnimationReplay((value) => value + 1);
       setPlaying(true);
       index += 1;
-      if (index < types.length) sequenceTimeout.current = setTimeout(step, ONCE_MS[type] ?? 2000);
+      const holdMs = ONCE_MS[motion.type] ?? 2000;
+      if (index < sequence.length) { sequenceTimeout.current = setTimeout(step, holdMs); return; }
+      // 시퀀스의 마지막 단계가 끝난 뒤: once로 끝났다면 설정된 loop 모션으로 넘어가거나(없으면 멈춘다).
+      // 이미 loop 자신으로 끝났다면(연속 재생 중) 더 할 일이 없다(WP4 리뷰 1).
+      const end = motionSequenceEnd(sequence, firstLoopMotion(snapshot.motions));
+      if (end.action === 'stop') sequenceTimeout.current = setTimeout(() => setPlaying(false), holdMs);
+      if (end.action === 'loop') sequenceTimeout.current = setTimeout(() => {
+        setActiveAnimation(end.motion.type); setActiveMotion(end.motion);
+        setAnimationTime(0); setAnimationReplay((value) => value + 1); setPlaying(true);
+      }, holdMs);
     };
     step();
-  }, [moving]);
+  }, [cancelSequence, moving, snapshot.motions]);
+  // 전경 복귀·동작 줄이기 토글로 이 effect가 다시 돌 때는(playMotionSequence 재생성) 이미 보여준 once 시퀀스를
+  // 다시 틀지 않는다 — 첫 진입과 명시적 "획득 장면 다시 보기"에서만 보여준다(WP4 리뷰 3).
+  const introConsumed = useRef(false);
   useEffect(() => {
-    playMotionSequence(motionAutoplaySequence(snapshot.motions, intro));
-    return () => clearTimeout(sequenceTimeout.current);
-  }, [playMotionSequence, snapshot.motions, intro]);
-  const onceTypes = onceMotionTypes(snapshot.motions);
-  const replayOnceMotions = useCallback(() => { playMotionSequence(onceTypes); }, [playMotionSequence, onceTypes]);
+    const consumed = introConsumed.current;
+    introConsumed.current = true;
+    playMotionSequence(motionEntrySequence(snapshot.motions, intro, consumed));
+    return () => cancelSequence();
+  }, [playMotionSequence, snapshot.motions, intro, cancelSequence]);
+  const onceList = onceMotions(snapshot.motions);
+  const replayOnceMotions = useCallback(() => { playMotionSequence(onceList); }, [playMotionSequence, onceList]);
 
   const handleTiltChange = useCallback((degrees: number) => {
+    cancelSequence();
     setPlaying(false); setScene(false);
     angleRef.current = degrees; gesture.current.angle = degrees;
     setAngle(degrees); setDraftAngle(degrees);
-  }, []);
+  }, [cancelSequence]);
 
   const setDraft = useCallback((x: number) => {
     const value = Math.round(Math.max(-180, Math.min(180, x / gesture.current.width * 360 - 180)));
@@ -231,6 +261,7 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (event) => {
+      cancelSequence();
       setPlaying(false); setScene(false); setDragging(true);
       gesture.current.initialX = event.nativeEvent.locationX;
       setDraft(gesture.current.initialX);
@@ -244,9 +275,10 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
       gesture.current.angle = angleRef.current;
       setDraftAngle(angleRef.current); setDragging(false);
     },
-  }), [setDraft]);
+  }), [cancelSequence, setDraft]);
 
   const stepAngle = (increment: number) => {
+    cancelSequence();
     setPlaying(false); setScene(false);
     const value = Math.max(-180, Math.min(180, angleRef.current + increment));
     angleRef.current = value; gesture.current.angle = value;
@@ -281,7 +313,10 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   const frameBlend = snapshot.angleFrames ? angleFrameBlend(angle) : undefined;
   const showFrames = !reverse && snapshot.angleFrames && frameBlend && !frameBlend.back;
   const livingClock = moving ? clock : 0;
-  const activeMotionParticle = snapshot.motions?.find((motion) => motion.type === activeAnimation)?.particle;
+  // activeMotion이 현재 재생 중인 타입과 일치하면(자동재생 중) 그 정확한 객체를 쓴다 — 같은 type이라도 once/loop가
+  // 서로 다른 particle을 가질 수 있어 type만으로 찾으면 항상 첫 번째 것이 걸린다(WP4 리뷰 6). 수동 조작처럼
+  // activeMotion이 없거나 어긋나면 기존처럼 type으로 찾는다.
+  const activeMotionParticle = (activeMotion?.type === activeAnimation ? activeMotion : snapshot.motions?.find((motion) => motion.type === activeAnimation))?.particle;
   const tiltActive = tiltOn && moving;
 
   return (
@@ -310,17 +345,22 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
                   <Text style={{ position: 'absolute', top: size * .46, left: size * .18, width: size * .64, textAlign: 'center', color: palette.label, fontWeight: '700' }}>{merchantName}</Text>
                 </>
               )
-            ) : showFrames && frameBlend && !frameBlend.back && snapshot.angleFrames ? (
-              <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, overflow: 'hidden', transform: [{ scaleX }] }}>
-                <SpriteCell frames={snapshot.angleFrames} index={frameBlend.index} faceSize={displayFace} opacity={1 - frameBlend.blend} />
-                {frameBlend.blend > 0 ? <SpriteCell frames={snapshot.angleFrames} index={frameBlend.next} faceSize={displayFace} opacity={frameBlend.blend} /> : null}
-              </View>
             ) : (
-              <Image source={{ uri: picture }} resizeMode="contain" accessible={false} onError={() => setImageFailed(true)}
-                style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }} />
+              // 얼굴 전체에 scaleX 하나를 공유하는 부모: living overlay가 이 안에서 상대 좌표로만 위치해야
+              // 얼굴과 같은 기준으로 회전·압축된다(자기 박스 중심으로 따로 scaleX를 걸면 어긋난다, WP4 리뷰 5).
+              <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
+                {showFrames && frameBlend && !frameBlend.back && snapshot.angleFrames ? (
+                  <View style={{ position: 'absolute', width: displayFace, height: displayFace, overflow: 'hidden' }}>
+                    <SpriteCell frames={snapshot.angleFrames} index={frameBlend.index} faceSize={displayFace} opacity={angleFrameOpacities(frameBlend.blend).lower} />
+                    {frameBlend.blend > 0 ? <SpriteCell frames={snapshot.angleFrames} index={frameBlend.next} faceSize={displayFace} opacity={angleFrameOpacities(frameBlend.blend).upper} /> : null}
+                  </View>
+                ) : (
+                  <Image source={{ uri: picture }} resizeMode="contain" accessible={false} onError={() => setImageFailed(true)}
+                    style={{ position: 'absolute', width: displayFace, height: displayFace }} />
+                )}
+                {snapshot.living ? <LivingOverlay living={snapshot.living} cell={livingCell(livingClock, snapshot.living.periodMs, snapshot.living.count)} faceSize={displayFace} /> : null}
+              </View>
             )}
-            {!reverse && snapshot.living ? <LivingOverlay living={snapshot.living} cell={livingCell(livingClock, snapshot.living.periodMs, snapshot.living.count)}
-              faceSize={displayFace} faceTop={size * .09} faceLeft={size * .09} scaleX={scaleX} /> : null}
             {animationFrame.light && !reverse ? <Svg pointerEvents="none" width={displayFace} height={displayFace} style={{ position: 'absolute', top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
               <Defs>
                 <Mask id="collectible-light-mask" maskType="alpha"><SvgImage href={{ uri: picture }} width={displayFace} height={displayFace} /></Mask>
@@ -356,11 +396,16 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
         <View style={styles.controls}>
           <Control label="왼쪽으로 15도" onPress={() => stepAngle(-15)} />
           <Control label="오른쪽으로 15도" onPress={() => stepAngle(15)} />
-          <Control label={playing ? '동작 정지' : '천천히 회전'} disabled={!moving} onPress={() => { setActiveAnimation('rotate'); setAnimationTime(0); setPlaying((value) => !value); }} />
+          <Control label={playing ? '동작 정지' : '천천히 회전'} disabled={!moving}
+            onPress={() => { cancelSequence(); setActiveAnimation('rotate'); setActiveMotion(undefined); setAnimationTime(0); setPlaying((value) => !value); }} />
           <Control label={snapshot.animation === 'still' ? '정지 동작' : '설정한 동작 다시 보기'} disabled={!moving || snapshot.animation === 'still'}
-            onPress={() => { setActiveAnimation(snapshot.animation); setAnimationTime(0); setAnimationReplay((value) => value + 1); setPlaying(true); }} />
+            onPress={() => {
+              cancelSequence();
+              setActiveAnimation(snapshot.animation); setActiveMotion(snapshot.motions?.find((motion) => motion.type === snapshot.animation));
+              setAnimationTime(0); setAnimationReplay((value) => value + 1); setPlaying(true);
+            }} />
           <Control label="정면 다시 보기" onPress={() => { pause(); stepAngle(-angleRef.current); }} />
-          {onceTypes.length > 0 ? <Control label="획득 장면 다시 보기" disabled={!moving} onPress={replayOnceMotions} /> : null}
+          {onceList.length > 0 ? <Control label="획득 장면 다시 보기" disabled={!moving} onPress={replayOnceMotions} /> : null}
         </View>
       </> : null}
       <View style={styles.toggle}><Text style={[styles.controlText, { color: palette.label }]}>동작 줄이기</Text><Switch accessibilityLabel="수집품 동작 줄이기" value={reduceMotion || !motionAllowed} disabled={!motionAllowed} onValueChange={setReduceMotion} /></View>
