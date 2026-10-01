@@ -20,7 +20,9 @@ export function showShowcaseRoleEntry(
   packageId: string | null | undefined,
   selectedRole?: ShowcaseRole,
 ): boolean {
-  return packageId === 'kr.masscom.wolgye.demo' && selectedRole === undefined;
+  // 로컬 QA의 development 빌드도 같은 역할 선택 문을 쓴다(Issue #294 리뷰 #5): 그렇지 않으면 아래
+  // showcaseEntryDestination의 dev-package 분기가 selectedRole을 영영 받을 수 없어 닿지 않는 코드가 된다.
+  return (packageId === 'kr.masscom.wolgye.demo' || packageId === 'kr.masscom.wolgye.dev') && selectedRole === undefined;
 }
 
 export function reconcileShowcaseAccount(
@@ -40,7 +42,8 @@ export function showcaseEntryDestination(
   authenticated: boolean,
 ): 'role' | 'auth' | 'customer' | 'merchant' {
   if (showShowcaseRoleEntry(packageId, selectedRole)) return 'role';
-  if (packageId === 'kr.masscom.wolgye.demo' && selectedRole === 'merchant') {
+  // 로컬 QA(scripts/qa-local.sh)의 development 빌드도 이 문으로 점주 화면에 닿는다(Issue #294). 운영 package는 이 목록에 없다.
+  if ((packageId === 'kr.masscom.wolgye.demo' || packageId === 'kr.masscom.wolgye.dev') && selectedRole === 'merchant') {
     return authenticated ? 'merchant' : 'auth';
   }
   return 'customer';

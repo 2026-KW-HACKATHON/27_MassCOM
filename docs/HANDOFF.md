@@ -1,5 +1,13 @@
 # HANDOFF
 
+## 2026-10-02 Issue #304 시연 권한 요청의 남은 교착 경로 정리
+
+- 기준: main `14672ed`, worktree `.worktrees/304-deadlocks`, 브랜치 `fix/304-access-deadlocks`, PR 미정. [Issue #304](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/304)는 PR #300 병합 시점 Codex gpt-6.1-sol 최종 확인이 남긴 P2 세 건.
+- 구현: `access-requests.ts`의 `decide()`에서 정렬 잠금(`assertAllActive`) 전에 승인자 계정만 단독으로 먼저 잠그던 선행 잠금(`assertActive(approverId)`)을 제거 — 이 선행 잠금 때문에 두 승인자가 서로의 요청을 동시에 결정하면 각자 자기 계정을 쥔 채 상대 계정을 기다려 교착할 수 있었다. 이제 요청의 계정을 잠금 없이 먼저 알아낸 뒤 승인자·요청자 두 계정을 정렬 순서로 함께 잠그고, 요청 행을 잠근(FOR UPDATE) 뒤에야 승인자 권한·자기 결정·상태를 검증한다. `grant-approver-command.ts`는 요청 행(코드로 FOR UPDATE)→계정 순으로 잠가 재요청·계정 삭제(계정→행)와 반대였던 것을, 코드로 계정을 먼저 알아낸(잠금 없이) 뒤 계정을 잠그고(`assertActive`) 요청 행을 id로 잠근(FOR UPDATE) 뒤 PENDING을 다시 검증하도록 바꿨다. `access-requests.postgres.integration.ts`의 `raceOnRequestRow`가 고정 150ms 대기 두 번으로 두 경합자가 줄을 서길 "바라던" 것을, 별도 연결로 `pg_stat_activity`(`wait_event_type='Lock'`)를 폴링해 실제 블록된 백엔드 수를 확인하는 `waitForBlockedBackends`로 바꿔 결정론적으로 만들었다. 신규 시험 3건: (1) 두 승인자가 같은 순간 서로의 요청을 결정(계정별 advisory lock을 쥔 두 holder로 양쪽 `decide()`를 동시에 블록시킨 뒤 해제), (2) OPS 명령이 같은 계정의 재요청과 동시 실행, (3) OPS 명령이 같은 계정의 삭제와 동시 실행. 기존 OPS 시험이 들고 있던 로컬 DB 생성+호스트 적격성 검사를 `withFreshLocalShowcaseDatabase`로 추출해 세 시험이 공유한다.
+- 검증: `npm test --prefix apps/api` 307/307, `npm run typecheck`·`npm run build --prefix apps/api` PASS, `npm run test:postgres --prefix apps/api`(로컬 폐기용 `postgres:16` 컨테이너, 이 세션에서 만들고 지움) 319개 중 317 PASS·0 FAIL·2 기존 SKIP(hosted 전용, 이 PR과 무관), `bash tools/gate.sh` PASS. 변이 시험: 두 파일을 PR #300 시점(선행 잠금 있음·행→계정 순서)으로 임시 되돌리면 신규 3건이 전부 `40P01`로 즉시 실패(기존 두 교착 회귀 시험은 그대로 통과), 복구하면 5건 모두 통과.
+- `NOT_RUN`: 두 지정 승인자의 실제 Gmail 로그인·운영자 명령 실행, 모바일 화면·시연 호스트 실배포(이 Issue 범위 밖).
+- 다음 작업: 독립 리뷰, PR 생성·CI.
+
 **(당시 기록: PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐고 test.5·Preview 14를 게시했다. 지금 상태는 아래 Issue #277 항목이다.) 배포 순서(PR #257 병합 뒤, [D-061](DECISIONS.md)):** ① 병합 → ② 이 코드가 든 운영·시연 Android APK를 새로 빌드해 배포 → ③ **그 뒤에** API·웹 배포. 처리방침 버전이 `privacy-2026-10-01`로 올라 서버가 이 버전을 요구하는 순간, 설치돼 있는 동의 화면 빌드(운영 test.4, 시연 Preview 12·13)는 새 버전을 몰라 "앱을 업데이트해 주세요" 안내에 막힌다(D-059 설계). API·웹을 먼저 배포하면 새 APK가 나오기 전까지 그 사용자가 막힌다. 동의 화면이 없는 더 옛 앱(운영 test.3, 시연 Preview 11 이하)은 막히지 않는다.
 
 ## 2026-10-02 Issue #295(시연 테스트 방문 + 로컬 QA 한 번에 띄우기, PR3) 인수인계
@@ -12,6 +20,25 @@
 - **문서:** `apps/api/README.md`("테스트 방문 만들기" 절, `seed:showcase:qa-collectible`), `apps/mobile/README.md`("테스트 방문 만들기" 절), `docs/LOCAL_QA.md`(새 문서, `scripts/qa-local.sh` 전체 설명).
 - `NOT_RUN`: 실제 Android 에뮬레이터/실기기에서 Metro dev-client 접속·화면 탭(스크립트는 Metro를 띄우는 것까지만 확인), 시연·운영 실배포, 독립 리뷰(이 핵심 방문 경로는 SENSITIVE로 교차 리뷰 필요).
 - 다음 작업: 독립 리뷰(Claude sonnet + Codex, 서로 다른 모델 2개), PR 생성·CI·`bash scripts/check-pr-korean.sh`, 리뷰 반영 뒤 병합.
+
+## 2026-10-01 점주 체험 권한 요청 Android (Issue #294 PR2)
+
+- 기준: main `0234a15`(PR #292 병합 결과), 브랜치 `feat/294-showcase-access-mobile`, worktree `.worktrees/294-access-mobile`, PR 번호 미정. **병합 순서: 서버 PR #300(`feat/294-showcase-access-server`)이 먼저 병합돼야 한다.** 이 PR은 그 계약(`GET/POST /showcase/access-requests*`, `GET/POST /showcase/admin/access-requests*`)만 소비하고 서버 코드는 전혀 건드리지 않는다. 계약은 `git show origin/feat/294-showcase-access-server:apps/api/src/showcase/access-requests.ts`·`:apps/api/src/server.ts`로 직접 읽어 맞췄다.
+- 구현: `apps/mobile/src/screens/showcase-merchant/index.tsx` 거부 상태에 문의 흐름(없음 → "현재 계정으로 문의하기" → 생성 → "요청 번호 XXXX-XXXX · 검토 대기 중"+"메일로 알리기"[mailto, 실패 시 두 주소를 선택 가능 텍스트로] → 수락 시 "수락되었습니다."+5초 간격 폴링으로 자동 재확인[승인 감지 시 기존 점주 권한 조회를 다시 돌림] → 거절 시 "요청이 거절되었습니다."+"다시 문의하기"). 429는 "잠시 후 다시 시도해 주세요."로 고정 안내(서버의 `SHOWCASE_ACCESS_RATE_LIMITED`, 5/h/계정). `approver`가 참이면 거부·허용 두 상태 모두 상단에 "권한 요청 관리"가 뜬다. 새 `apps/mobile/src/screens/showcase-access-admin/index.tsx`(제목 "권한 요청", 빈 목록 "대기 중인 요청이 없습니다.", 행 "{CODE} · {시각}"+수락/거절, 수락 확인창 "이 계정에 가상 점포 A 직원 권한을 줍니다. 수락할까요?"). `apps/mobile/src/commerce/commerce-api.ts`에 `getShowcaseAccessState`·`requestShowcaseAccess`·`listPendingShowcaseAccessRequests`·`decideShowcaseAccessRequest`와 응답 파싱 4종 추가(기존 인증·오류 변환 패턴 그대로). `apps/mobile/src/navigation/showcase-entry.ts`의 `showcaseEntryDestination` 점주 진입 조건에 `kr.masscom.wolgye.dev`(로컬 QA)를 더했다(운영 `kr.masscom.wolgye`는 그대로 제외). 문구·코드 서식(대시 삽입)·오류 코드→한국어 매핑은 새 `apps/mobile/src/showcase/access-copy.ts`·`apps/mobile/src/screens/showcase-access-admin/copy.ts`(둘 다 순수 로직, 단위 시험 포함)에 있다.
+- 검증: `npm test --prefix apps/mobile` 949/949 PASS(신규 12건: `access-copy.test.ts` 4, `showcase-access-admin/copy.test.ts` 4, `commerce-api.test.ts` 신규 3, `showcase-entry.test.ts` 신규 1), `npm run typecheck --prefix apps/mobile` PASS, `npm run lint --prefix apps/mobile` PASS(0 문제; 과정에서 관리자 화면의 effect 안 동기 `setState` 위반[`react-hooks/set-state-in-effect`]을 로딩 상태 설정과 가져오기 함수를 분리해 고쳤다), `npm run export:android --prefix apps/mobile` PASS, `bash tools/gate.sh` PASS. 변이 시험 3건(수정 뒤 되돌려 관련 시험 실패 확인, 복구 후 재통과 재확인): ① `formatAccessCode`를 항등 함수로 바꾸면 `access-copy.test.ts` 3건 실패. ② `showcaseEntryDestination`의 dev package 허용을 빼면 새 `showcase-entry.test.ts` 시험 실패. ③ `decideFailureMessage`에서 `SHOWCASE_ACCESS_SELF_DECISION` 검사를 403 일반 검사 뒤로 옮기면(본인 결정 거절이 "승인 권한 없음"으로 잘못 보임) `showcase-access-admin/copy.test.ts` 실패.
+- `NOT_RUN`: 실기기·에뮬레이터 QA(서버 PR #300이 아직 병합 전이라 실제 API로 end-to-end를 돌릴 수 없음), 독립 리뷰(서버·모바일 두 PR을 함께 봐야 하는 범위라 PR #300 병합 후로 미룸).
+- 다음 명령: `git -C .worktrees/294-access-mobile status`, 서버 PR #300 병합 확인 후 `npm test --prefix apps/mobile`, `bash tools/gate.sh`, PR 생성.
+
+## 2026-10-01 마일리지 상점 서버 (Issue #298)
+
+- 기준: main `0e7ac19`(가게 그림 캐릭터 9종·재뽑기권·마일리지 그림 PR 병합분 포함), 브랜치 `feat/298-shop-server`, worktree `.worktrees/298-shop-server`, PR 미정.
+- 범위: 서버만(`apps/api/**`). Android(상점 탭·뽑기 연출·헤더 대표 캐릭터)는 설계에서 이미 분리한 후속 PR이며 이 작업에서 건드리지 않았다.
+- 구현: migration `0038_mileage_shop.sql`(`mileage_spends`·`account_characters`·`account_profile`). 순수 규칙 `src/mileage-rules.ts`(카탈로그 9종, 공식 가중치, 등급 안 균등 선택, 재뽑기 분기 순서를 고정한 `decideReroll`). `src/postgres/mileage-shop.ts`: 적립은 `badge-rewards.ts`의 `countedVisitFromSql`/`countedVisitFilterSql`을 재사용하고(다시 만들지 않음) 점포 시리즈 완성은 끝났거나 비공개인 캠페인도 포함해 모든 목표에 유효 entitlement가 있어야 센다. 재뽑기/대표 설정 트랜잭션은 기존 `assertActive` 계정 잠금만 쓴다(설계 리뷰 지침대로 별도 잠금 없음). `src/postgres/account-deletion.ts`의 공유 삭제 경로에 세 테이블 삭제를 더했다. `src/server.ts`에 `GET /shop`·`GET /shop/history`·`POST /shop/rerolls`·`PUT /shop/avatar`(모바일 Bearer, 기존 `/me/*` 경로와 같은 인증·본문 검증 패턴)를 추가했다. 웹 세션 API(`/api/web/collection`류) 노출은 보류했다(설계가 허용한 대안; 필요해지면 별도 작업).
+- **migration 번호 의존 관계:** 0037은 이 세션 시작 시점 main에 없었고 PR #300이 먼저 쓸 수 있다. `migrate.ts`는 파일명 순서로 적용하므로 0037·0038 어느 쪽이 먼저 병합돼도 각자의 새 테이블만 만들어 서로 간섭하지 않는다 — 다만 두 PR 모두 같은 번호를 다시 쓰지 않도록 병합 직전에 `ls apps/api/migrations | tail`로 확인한다.
+- 검증: `npm test --prefix apps/api` 315/315 PASS(신규 13건), `npm run typecheck`·`npm run build --prefix apps/api` PASS. 일회용 `postgres:16` 컨테이너(이 세션에서 만들고 지움)로 `src/mileage-shop.postgres.integration.ts` 7/7(연속 5회 재실행으로 안정성 확인), `npm run test:postgres --prefix apps/api` 306 PASS·2 기존 SKIP(다른 전용 컨테이너가 필요한 기존 시험, 무관). `bash tools/gate.sh` PASS. 변이 시험 4건(스크래치 사본으로 가드 제거 → 대응 단위/통합 시험 실패 확인 → 복구): `decideReroll`의 `expectedRemaining`·`GRADE_COMPLETE` 분기, `canSetAvatar` 소유 검사, `account-deletion.ts`의 세 테이블 삭제.
+- 시험 작성 중 실제 결함을 하나 찾아 고쳤다: `postgres/mileage-shop.ts`의 `reroll()`이 같은 `PoolClient`(한 connection)에 `Promise.all`로 비율 제한·소유 목록·적립/지출 질의 세 개를 동시에 보내고 있었다(Pool과 달리 PoolClient는 한 번에 한 질의만 받는다 — pg가 내부적으로 줄 세워 결과는 맞았지만 deprecated 경고가 났다). 순서대로 기다리게 고쳤다.
+- 문서: `apps/api/README.md`에 상점 API 절, `docs/DECISIONS.md` D-063(소유자 결정 1~3·에이전트 구현 선택 a~d), `docs/PRD.md` RQ-024, 새 설계 문서 `docs/superpowers/specs/2026-10-01-mileage-shop-design.md`(스크래치 설계 메모를 리뷰 반영분까지 포함해 저장소에 옮김), `docs/AI_USAGE.md` 기록.
+- 다음 담당자가 할 일: 독립 리뷰(서로 다른 모델 2개 — 재뽑기 트랜잭션·계정 삭제는 보상·양도 규칙과 맞닿아 있어 교차 리뷰가 안전), PR 생성·CI, Android 상점 탭 PR(design-298.md의 Android 절 참고), 필요해지면 웹 세션 API 노출 추가.
 
 ## 2026-10-01 Issue #294 PR1(점주 체험 권한 요청, 서버) 인수인계
 

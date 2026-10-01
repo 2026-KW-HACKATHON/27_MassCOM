@@ -118,6 +118,12 @@ npm run start:local
   | 429 | `FRIEND_CODE_RATE_LIMITED` | 실패한 코드 입력이 계정당 10분 10회를 넘음(`Retry-After` 초, 이후에는 맞는 코드도 거절) |
   | 503 | `FRIENDS_NOT_CONFIGURED` | 친구 서비스가 이 서버에 연결되지 않음 |
 - 계정 삭제는 그 계정의 친구 코드·별명·코드 입력 실패 기록과 양쪽 친구 관계·차단(양쪽 칸)을 같은 거래에서 지운다(가명 처리하지 않음). 친구 추가·코드 바꾸기·별명 저장은 삭제와 같은 계정 잠금을 잡아 삭제 뒤에 관계가 생기지 않는다
+- **마일리지 상점(Bearer, Issue #298, migration 0038, [설계](../../docs/superpowers/specs/2026-10-01-mileage-shop-design.md)).** 마일리지는 저장하지 않고 요청마다 계산한다: `earned = 50 × 센 방문 + 100 × 그 방문들의 서로 다른 점포 + 200 × 완성한 점포 시리즈`. 센 방문·서로 다른 점포는 `GET /me/badges`의 메달 집계와 **같은 SQL**(중복·자기 적립·취소된 방문 제외, 되돌리기로 승격된 방문은 포함)을 재사용하며, 점포 시리즈 완성은 그 점포의 아무 캠페인이든(끝났거나 비공개여도) 캠페인의 모든 보상 목표에 유효·비철회 `reward_entitlements`가 있으면 그 점포를 한 번만 센다(공개 점포 목록은 보지 않음). `balance = earned − spent`이고 방문 취소로 음수가 되면 그 이상 구매만 막되 이미 받은 캐릭터는 되가져가지 않는다.
+  - `GET /shop` → `{mileage: {earned, spent, balance, rules: {visit, newStore, series}}, grades: [{grade, price, total, owned, remaining, probabilityPerItem}], items: [{id, grade, name, owned}], avatar}`. 카탈로그는 정적 9종(브론즈 100P: 요리사 냥이·카페 곰돌이·산책 토끼, 실버 200P: 빵집 다람쥐·꽃집 고슴도치·책방 부엉이, 골드 400P: 떡집 호랑이·시장 너구리·세탁소 물범)이며 `probabilityPerItem`은 `1/remaining`(다 가졌으면 `null`)
+  - `GET /shop/history?cursor=`: 재뽑기 지출을 최신순으로 20개씩, `nextCursor`가 있으면 다음 페이지. 현재 `mileage` 요약도 함께 반환
+  - `POST /shop/rerolls` `{grade, requestId, expectedRemaining}` → `201 {item: {id, grade, name}, balance, replayed}`. `requestId`는 멱등 키이며 같은 값 재요청은 등급이 같으면 새 요청 없이 같은 품목과 **지금** 잔액을 돌려주고(`replayed: true`), 등급이 다르면 거절한다. 그 등급 안 미소유 품목 중 `crypto.randomInt`로 균등하게 하나를 고른다. 오류는 `400 INVALID_REQUEST`, `402 SHOP_INSUFFICIENT_MILEAGE`, `409 SHOP_GRADE_COMPLETE`(그 등급 다 가짐)·`SHOP_STATE_CHANGED`(본문의 `expectedRemaining`이 지금 remaining과 다름, 과금 없음)·`SHOP_REQUEST_CONFLICT`(같은 `requestId`를 다른 등급으로 재사용), `410 ACCOUNT_DELETED`, `429 SHOP_RATE_LIMITED`(계정당 시간당 30회, `Retry-After` 초)
+  - `PUT /shop/avatar` `{itemId}`(소유한 품목 id 또는 `null`) → `200 {avatar}`. 가지지 않은 품목은 `404 SHOP_ITEM_NOT_OWNED`
+  - 트랜잭션은 다른 방문 수령·되돌리기와 같은 계정 잠금(`assertActive`)만 쓰고 상점 전용 별도 잠금은 없다. 계정 삭제는 지출 원장·소유 캐릭터·대표 캐릭터 세 테이블을 가명 처리 없이 지운다(대표 캐릭터는 그 캐릭터가 지워지면 FK로 자동 `NULL`). 운영·시연 모두 동작(시연 전용 게이트 없음)
 - `POST /wallet/challenges`
 - `POST /wallet/verify`
 - `GET /wallets/active-binding`: 서버가 확인한 현재 binding ID·version·주소 조회

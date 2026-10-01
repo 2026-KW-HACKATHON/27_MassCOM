@@ -175,11 +175,10 @@ export class ShowcaseAccessRequestService {
     // uuid 컬럼에 형식이 틀린 값을 보내면 Postgres가 에러를 내 500으로 샌다. 쿼리 전에 걸러 404로 보낸다.
     if (!UUID_PATTERN.test(requestId)) throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_REQUEST_NOT_FOUND');
     return this.transaction(async (client) => {
-      await this.accountLifecycle.assertActive(client, approverId);
-      await this.assertApprover(client, approverId);
-      // 잠금 순서(#294 P2): 재요청과 계정 삭제는 계정(advisory lock) → 요청 행 순으로 잠근다. 승인이 행 → 계정
-      // 순으로 잠그면 반대 순서끼리 서로 기다려 교착 상태가 난다. 요청의 계정을 먼저 알아내 승인자·요청자 계정을
-      // 정렬된 순서로 잠근 뒤에야 요청 행을 잠그고(FOR UPDATE) 다시 검증한다.
+      // 잠금 순서(#304 P2): 승인자 계정을 단독으로 먼저 잠그는 선행 잠금이 있으면, 두 승인자가 서로의 요청을
+      // 동시에 결정할 때 각자 자기 계정을 먼저 쥐고 상대 계정을 기다려 교착한다. 요청의 계정을 먼저 알아내
+      // (잠금 없이) 승인자·요청자 두 계정을 정렬된 순서로 함께 잠그고, 요청 행을 잠근(FOR UPDATE) 뒤에야
+      // 승인자 권한과 상태를 검증한다(재요청·계정 삭제도 계정 → 행 순이라 이 순서와 맞는다).
       const lookup = await client.query<{ account_id: string }>(
         `SELECT account_id FROM showcase_access_requests WHERE id = $1`,
         [requestId],
@@ -192,7 +191,9 @@ export class ShowcaseAccessRequestService {
         [requestId],
       );
       const row = request.rows[0];
-      if (!row) throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_REQUEST_NOT_FOUND');
+      // 잠금 전에 읽은 요청 계정과 잠근 뒤 다시 읽은 계정이 같아야 한다. 잠근 계정이 아닌 계정에 권한을 주지 않는다.
+      if (!row || row.account_id !== targetAccountId) throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_REQUEST_NOT_FOUND');
+      await this.assertApprover(client, approverId);
       if (row.account_id === approverId) throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_SELF_DECISION');
       if (row.status !== 'PENDING') throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_ALREADY_DECIDED');
       if (decision === 'APPROVED') {
