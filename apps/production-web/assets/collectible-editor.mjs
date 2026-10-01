@@ -267,7 +267,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       // 목록을 본 뒤 다른 탭이 새 버전을 저장했으면, 옛 편집을 새 버전 위에 얹지 않고 보관본을 버린다.
       if (serverWrapper.version !== draft.wrapperVersion) { clearDraftStorage(); notice('다른 곳에서 더 새로 저장된 버전이 있어 보관한 편집은 버렸어요.'); return; }
       restoring = true;
-      project = applyDraftEdits(cloneProject(serverWrapper.project), draft.edits);
+      // 기기 보관본은 pre-v2 편집기가 남긴 것일 수 있다. applyDraftEdits는 더 이상 서버의 schemaVersion을
+      // 편집 값으로 덮지 않지만, 혹시 섞인 v1 모양 전체를 바로잡도록 항상 upgradeProject를 한 번 더 거친다(PR #293 P1).
+      project = upgradeProject(applyDraftEdits(cloneProject(serverWrapper.project), draft.edits));
       wrapper = serverWrapper;
       selectedGrade = project.grades.find(item => item.enabled)?.id || project.grades[0].id;
       restoring = false; dirty = true; editSerial++;
@@ -628,7 +630,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (!active || !refreshed) return;
       const reason = validatePublish(project, campaigns); if (reason) { navigateStep(!project.photo.originalDataUrl ? 1 : 4); if (project.story.type !== 'none') control('story-type').closest('details').open = true; notice(reason, true); return; } }
     setBusy(true); notice(publish ? '등급별 게시 이미지를 준비하고 있어요…' : '초안을 저장하고 있어요…');
-    const revision = cloneProject(project), savedSerial = editSerial;
+    // 복원·업그레이드 경로에 놓친 곳이 있어도 서버로 나가는 프로젝트는 항상 v2여야 한다(PR #293 P1 방어선).
+    const revision = upgradeProject(cloneProject(project)), savedSerial = editSerial;
     try {
       // Final raster assets are generated once for publication; all originals,
       // strokes, stable sticker IDs and grade assignments remain in the draft.
@@ -904,9 +907,11 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       mutate(() => {
         let motion = project.motion.find(item => item.type === id);
         if (action === 'motion-grade-none') { if (motion) motion.gradeIds = []; return; }
-        const gradeIds = project.grades.filter(item => item.enabled).map(item => item.id);
-        for (const other of project.motion) if (other.type !== id) other.gradeIds = other.gradeIds.filter(item => !gradeIds.includes(item));
         if (!motion) { motion = { id: createId('motion'), type: id, gradeIds: [] }; project.motion.push(motion); }
+        const gradeIds = project.grades.filter(item => item.enabled).map(item => item.id);
+        // 단일 토글과 같은 규칙: loop끼리만 등급당 하나로 배타적이다. once 연결은 전체 선택에도 그대로 둔다.
+        const loop = (motion.playback ?? 'loop') === 'loop';
+        if (loop) for (const other of project.motion) if (other !== motion && (other.playback ?? 'loop') === 'loop') other.gradeIds = other.gradeIds.filter(item => !gradeIds.includes(item));
         motion.gradeIds = gradeIds;
       });
       renderMotionGrades(); return;
@@ -1096,7 +1101,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
           const type = target.dataset.motionGrade, grade = target.dataset.grade;
           let motion = project.motion.find(item => item.type === type);
           if (!motion) { motion = { id: createId('motion'), type, gradeIds: [] }; project.motion.push(motion); }
-          for (const other of project.motion) other.gradeIds = other.gradeIds.filter(item => item !== grade);
+          // 반복(loop) 재생끼리만 등급당 하나로 배타적이다(동시에 두 개가 돌면 어느 쪽인지 알 수 없다).
+          // 한 번만(once) 재생은 서로, 또 loop와도 겹칠 수 있어 다른 예시의 once 연결을 건드리지 않는다.
+          const loop = (motion.playback ?? 'loop') === 'loop';
+          for (const other of project.motion) if (other === motion || (loop && (other.playback ?? 'loop') === 'loop')) other.gradeIds = other.gradeIds.filter(item => item !== grade);
           if (target.checked) motion.gradeIds.push(grade);
         }); renderMotionGrades(); return;
       }

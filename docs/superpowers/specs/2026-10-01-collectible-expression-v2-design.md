@@ -29,7 +29,9 @@ parallax    {strength 0..100, strokes [{tool 'fg'|'bg', size .01..0.2, points [{
 living      {periodMs 1000..4000, items [{id, kind 'sway'|'bob'|'steam'|'blink', target 'region'|<앞면 스티커 id>, gradeIds,
              amplitude 0..100, pivot {x,y} 0..1 얼굴 좌표, strokes(region 대상만, 1..20)}] ≤4}
             blink는 오직 pose ∈ MASCOT_BLINK인 mascot 스티커에서만; parallax+living 점 합계 ≤ 20,000
-derived[g]  v1 키 유지(baseDataUrl/effectMasks는 이제 선택, 더 이상 만들지 않음) +
+derived[g]  v1 키 유지(baseDataUrl/effectMasks는 서버 계약상 선택이며, 뷰어가 각도별 효과 재합성에 아직 쓰므로
+            WP2 편집기는 연결된 등급에 한해 다시 만든다 — PR #293 P2 반영. WP3가 angleFrames를 실제로
+            쓰기 시작하면 그 등급·효과는 다시 뺄 수 있다) +
   backImageDataUrl  ≤512², ≤256 KiB
   angleFrames {dataUrl, side 256..512 정수, count 12, columns 4, stepDegrees 15}; 스프라이트는 정확히 4side×3side, ≤1 MiB; i번째 칸 = −82.5°+15i
   living {dataUrl, count 8..24, columns 1..8, cellWidth/cellHeight 16..512, periodMs, box {x,y,w,h} 0..1, x+w≤1, y+h≤1};

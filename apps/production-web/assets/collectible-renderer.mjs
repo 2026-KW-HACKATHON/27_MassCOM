@@ -392,11 +392,33 @@ export function encodeImage(canvas, quality = .9) {
   const webp = canvas.toDataURL('image/webp', quality);
   return webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/png');
 }
+async function maskFor(project, target, size) {
+  const canvas = canvasOf(size, size), context = canvas.getContext('2d');
+  traceShape(context, project.shape, size, size); context.clip();
+  if (target === 'surface') { context.fillStyle = '#fff'; context.fillRect(0, 0, size, size); }
+  else if (target === 'photo') {
+    const photo = await photoFor(project); if (photo) { const transform = cropTransform(project, size, size); context.drawImage(photo, transform.x, transform.y, transform.width, transform.height); }
+  } else if (target === 'border') {
+    traceShape(context, project.shape, size * .97, size * .97, size * .015, size * .015); context.strokeStyle = '#fff'; context.lineWidth = size * .055; context.stroke();
+  } else {
+    const sticker = project.stickers.find(item => item.id === target); if (sticker) context.drawImage(await stickerLayer(sticker, size, [], 0, 0), 0, 0);
+  }
+  if (target === 'photo' || target === 'surface') {
+    // Photo/surface effects are under the independently editable sticker/border
+    // layers, so their published masks keep those elements intact as well.
+    context.globalCompositeOperation = 'destination-out';
+    for (const sticker of project.stickers) context.drawImage(await stickerLayer(sticker, size, [], 0, 0), 0, 0);
+    traceShape(context, project.shape, size * .97, size * .97, size * .015, size * .015); context.lineWidth = size * .055; context.strokeStyle = '#fff'; context.stroke();
+  }
+  context.globalCompositeOperation = 'source-in'; context.fillStyle = '#fff'; context.fillRect(0, 0, size, size);
+  return canvas.toDataURL('image/png');
+}
 /**
  * 연결된 등급(campaignId와 무관하게 rewardGrades가 가리키는 등급)만 게시용으로 굽는다(설계 문서 "서버 검증" 3번
  * 근거: 연결되지 않은 등급까지 구우면 본문 용량을 낭비한다). extraGradeId는 편집기 미리보기용으로 지금 보는
- * 등급도 함께 구울 때 쓴다. base·effectMasks는 더 이상 만들지 않는다(설계 문서, WP2): 각도별 질감 재합성은
- * WP3의 angleFrames가 대신한다.
+ * 등급도 함께 구울 때 쓴다. base·effectMasks는 웹 뷰어가 각도별로 효과를 다시 합성하는 데 여전히 필요해
+ * 연결된 등급에 한해 만든다(PR #293 P2: WP2에서 한 번 뺐다가 되살림). WP3가 angleFrames를 실제로 쓰기
+ * 시작하면 그 등급·효과는 다시 뺄 수 있다.
  */
 export async function serializeDerived(project, { extraGradeId, merchantName = '' } = {}) {
   const linked = new Set(Object.values(project.rewardGrades || {}));
@@ -404,9 +426,12 @@ export async function serializeDerived(project, { extraGradeId, merchantName = '
   const derived = {};
   for (const grade of project.grades.filter(item => item.enabled !== false && linked.has(item.id))) {
     const front = await frontFor(project, grade.id, 512, 0, 0);
+    const base = await frontFor(project, grade.id, 512, 0, 0, false);
     const back = await backFor(project, grade.id, 512, merchantName);
     const thumbnail = canvasOf(160, 160); thumbnail.getContext('2d').drawImage(front, 0, 0, 160, 160);
-    derived[grade.id] = { imageDataUrl: encodeImage(front), thumbnailDataUrl: encodeImage(thumbnail), backImageDataUrl: encodeImage(back) };
+    const effectMasks = {};
+    for (const target of new Set(effectsForGrade(project, grade.id).map(effect => effect.target))) effectMasks[target] = await maskFor(project, target, 512);
+    derived[grade.id] = { imageDataUrl: encodeImage(front), thumbnailDataUrl: encodeImage(thumbnail), baseDataUrl: encodeImage(base), backImageDataUrl: encodeImage(back), effectMasks };
   }
   return derived;
 }

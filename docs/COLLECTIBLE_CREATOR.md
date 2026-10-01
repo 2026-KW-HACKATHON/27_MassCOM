@@ -112,7 +112,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 - **뒷면:** `backFor(project, gradeId, size, merchantName)`가 기본(바탕색·안쪽 테두리·가게 이름·수집품 이름·등급·마스코트 도장)과 커스텀(뒷면색 + 뒷면 스티커, 효과 대상 아님) 뒷면을 굽는다. `drawVolume`의 뒷면 분기가 이를 그리며, 없으면(v1 발행본 등) 바탕색+이름의 예전 모습으로 대체한다. 편집기는 "꾸밀 면"(앞/뒤) select로 같은 스티커 컨트롤을 재사용한다.
 - **모션 재생:** 템플릿마다 재생 방식(`once`/`loop`) 라디오와, confetti 템플릿일 때만 보이는 파티클(`confetti`/`snow`/`petals`/`sparkles`) select가 있다. `drawVolume`은 `once`면 `ONCE_MS`(모델)만큼 진행한 뒤 멈추고, confetti는 `particleAt(kind,i,phase)`로 위치·색을 낸다. 뷰어(`collectible-viewer.mjs`)는 loop 모션이 있으면 열자마자 자동재생하고(움직임 줄이기면 정지 화면 유지), once 모션이 있으면 "획득 장면 다시 보기" 버튼을 따로 둔다.
 - **인사말 개별화:** 등급·시즌 테마별 규칙 목록(등급 체크는 `gradeChecks` 재사용) 추가·삭제 UI가 있고, 미리보기는 `resolveGreeting`으로 지금 보는 등급·테마에 맞는 가장 구체적인 규칙을 보여 준다.
-- **파생 이미지 범위 축소:** `serializeDerived(project, {extraGradeId, merchantName})`는 이제 `rewardGrades`로 연결된 등급과(선택) 지금 보는 등급만 굽는다. `base`(각도별 질감 재합성용 비효과 정면)와 `effectMasks`는 더 이상 만들지 않는다(서버는 옛 저장본과의 호환을 위해 계속 선택 항목으로 받는다) — 본문 용량을 아끼기 위한 의도적 축소이며, 각도별 효과 재합성은 WP3의 `angleFrames`가 대신할 예정이다.
+- **파생 이미지 범위 축소:** `serializeDerived(project, {extraGradeId, merchantName})`는 `rewardGrades`로 연결된 등급과(선택) 지금 보는 등급만 굽는다. `base`(각도별 질감 재합성용 비효과 정면)와 `effectMasks`는 그 연결된 등급에 한해 다시 만든다(PR #293 P2: 웹 뷰어가 각도별로 효과를 재합성하는 데 여전히 필요해 WP2에서 한 번 뺐다가 되살렸다). 각도별 효과 재합성을 WP3의 `angleFrames`가 대신하기 시작하면 그 등급·효과는 다시 뺄 수 있다.
 
 ## 제안 상태인 구현 기본값
 

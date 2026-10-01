@@ -257,18 +257,19 @@ test('게시한 프로젝트 삭제는 원본이 지워지고 이미 받은 손�
 const MiB = 1024 * 1024;
 const created = api => api.calls.find(call => call.method === 'POST' && call.path === '/collectible-projects')?.body.project;
 
-test('게시용 완성·뒷면 이미지·썸네일·장면 미리보기는 WebP 0.9로 만든다(Issue #284 WP2: base·effectMasks는 더 만들지 않는다)', async () => {
+test('게시용 완성·뒷면 이미지·썸네일·장면 미리보기는 WebP 0.9로 만들고, 홀로그램 효과가 있는 등급은 base·mask를 다시 만든다(PR #293 P2)', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await readyToPublish(ui, { scenes: true });
+  ui.control('effect-type').value = 'hologram';
   await ui.click('effect-add');
   const grade = ui.container.querySelector('input[data-effect-grade][data-grade="bronze"]');
   grade.checked = true; grade.dispatchEvent({ type: 'change' }); await settle();
   await ui.click('publish');
   const project = created(api), bronze = project.derived.bronze;
-  for (const name of ['imageDataUrl', 'thumbnailDataUrl', 'backImageDataUrl']) assert.match(bronze[name], /^data:image\/webp;base64,/, name);
-  assert.equal(bronze.baseDataUrl, undefined, 'WP2부터 base는 더 만들지 않는다');
-  assert.equal(bronze.effectMasks, undefined, 'WP2부터 effectMasks는 더 만들지 않는다');
+  for (const name of ['imageDataUrl', 'thumbnailDataUrl', 'backImageDataUrl', 'baseDataUrl']) assert.match(bronze[name], /^data:image\/webp;base64,/, name);
+  assert.ok(bronze.effectMasks?.surface, '뷰어가 각도별로 홀로그램을 다시 합성하려면 surface mask가 있어야 한다');
+  assert.match(bronze.effectMasks.surface, /^data:image\/png;base64,/);
   assert.match(project.story.frames[0].previewDataUrl, /^data:image\/webp;base64,/);
   const webp = dom.document.encodes.filter(item => item.type === 'image/webp');
   assert.ok(webp.length >= 3 && webp.every(item => item.quality === .9), 'WebP는 품질 0.9로 인코딩한다');
@@ -289,6 +290,31 @@ test('serializeDerived는 보상에 연결된 등급과 지금 보는 등급만 
   await ui.click('publish');
   const project = created(api);
   assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], 'bronze(미리보기 등급)·silver·gold만 굽고 prism은 빠진다');
+});
+
+test('연결된 세 등급 모두 홀로그램 효과가 있어도 base·mask를 되살린 게시 본문은 8 MB 한도보다 충분히 작다(PR #293 P2 회귀)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  await ui.change('campaign', 'campaign-a');
+  const reward1 = ui.container.querySelector('[data-reward-count="1"]'); reward1.value = 'silver'; reward1.dispatchEvent({ type: 'change' }); await settle();
+  const reward3 = ui.container.querySelector('[data-reward-count="3"]'); reward3.value = 'gold'; reward3.dispatchEvent({ type: 'change' }); await settle();
+  ui.control('effect-type').value = 'hologram';
+  await ui.click('effect-add');
+  for (const gradeId of ['bronze', 'silver', 'gold']) {
+    const checkbox = ui.container.querySelector(`input[data-effect-grade][data-grade="${gradeId}"]`);
+    checkbox.checked = true; checkbox.dispatchEvent({ type: 'change' }); await settle();
+  }
+  dom.document.encodedBytes = 80 * 1024; // 실제 사진 한 장 크기를 흉내 낸 값(개별 상한 안에서 여유 있게 큰 편)
+  await ui.click('publish');
+  const project = created(api);
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], '지금 보는 등급·보상 연결 등급 세 개만 굽는다');
+  for (const asset of Object.values(project.derived)) {
+    assert.match(asset.baseDataUrl, /^data:image\//, '홀로그램 효과가 있는 등급은 base를 다시 만든다');
+    assert.match(asset.effectMasks?.surface, /^data:image\//, '홀로그램 효과가 있는 등급은 surface mask를 다시 만든다');
+  }
+  const bodyBytes = new TextEncoder().encode(JSON.stringify({ project })).length;
+  assert.ok(bodyBytes < 8 * MiB, `세 등급에 base·mask를 되살려도 본문은 8 MB보다 충분히 작아야 한다(${bodyBytes} bytes)`);
 });
 
 test('WebP 인코딩을 지원하지 않는 브라우저는 PNG로 게시한다', async () => {
@@ -541,6 +567,60 @@ test('재생 방식 라디오와 파티클 선택은 지금 고른 템플릿의 
   // 다른 템플릿(rotate)으로 바꾸면 파티클 select가 사라진다.
   ui.container.querySelector('[data-action="template"][data-id="rotate"]').dispatchEvent({ type: 'click' }); await settle();
   assert.equal(ui.container.querySelector('[data-control="motion-particle"]'), null);
+});
+
+test('loop 모션은 등급당 하나로 배타적이지만 once 모션 연결은 그대로 둔다(단일 토글, PR #293 P2)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+
+  // rotate(재생 방식 기본값인 loop)를 bronze에 연결한다.
+  ui.container.querySelector('[data-action="template"][data-id="rotate"]').dispatchEvent({ type: 'click' }); await settle();
+  const rotateBox = ui.container.querySelector('[data-motion-grade="rotate"][data-grade="bronze"]');
+  rotateBox.checked = true; rotateBox.dispatchEvent({ type: 'change' }); await settle();
+
+  // sparkle은 한 번만(once) 재생으로 같은 bronze에 연결한다.
+  ui.container.querySelector('[data-action="template"][data-id="sparkle"]').dispatchEvent({ type: 'click' }); await settle();
+  const sparkleOnce = ui.container.querySelector('#motion-playback-once');
+  sparkleOnce.checked = true; sparkleOnce.dispatchEvent({ type: 'change' }); await settle();
+  const sparkleBox = ui.container.querySelector('[data-motion-grade="sparkle"][data-grade="bronze"]');
+  sparkleBox.checked = true; sparkleBox.dispatchEvent({ type: 'change' }); await settle();
+
+  await ui.click('draft');
+  const first = created(api);
+  assert.ok(first.motion.find(item => item.type === 'rotate').gradeIds.includes('bronze'), 'rotate(loop)는 bronze에 연결돼 있어야 한다');
+  assert.ok(first.motion.find(item => item.type === 'sparkle').gradeIds.includes('bronze'), 'sparkle(once)도 bronze에 연결돼 있어야 한다');
+
+  // shine(재생 방식 기본값인 loop)을 새로 bronze에 연결하면, 같은 loop인 rotate의 bronze 연결만 빠지고 once인 sparkle은 그대로여야 한다.
+  ui.container.querySelector('[data-action="template"][data-id="shine"]').dispatchEvent({ type: 'click' }); await settle();
+  const shineBox = ui.container.querySelector('[data-motion-grade="shine"][data-grade="bronze"]');
+  shineBox.checked = true; shineBox.dispatchEvent({ type: 'change' }); await settle();
+
+  await ui.click('draft');
+  const saved = api.store.get('project-1').project;
+  assert.equal(saved.motion.find(item => item.type === 'rotate').gradeIds.includes('bronze'), false, '같은 loop 모션끼리는 등급당 하나만 남아야 한다');
+  assert.ok(saved.motion.find(item => item.type === 'shine').gradeIds.includes('bronze'), '새로 고른 loop 모션이 그 등급을 차지한다');
+  assert.ok(saved.motion.find(item => item.type === 'sparkle').gradeIds.includes('bronze'), 'once 모션 연결은 다른 loop 토글에 영향받지 않아야 한다');
+});
+
+test('전체 선택도 loop끼리만 배타적이고 once 모션 연결은 그대로 둔다(select-all, PR #293 P2)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+
+  // sparkle을 once로 bronze·silver 전체 선택한다.
+  ui.container.querySelector('[data-action="template"][data-id="sparkle"]').dispatchEvent({ type: 'click' }); await settle();
+  const sparkleOnce = ui.container.querySelector('#motion-playback-once');
+  sparkleOnce.checked = true; sparkleOnce.dispatchEvent({ type: 'change' }); await settle();
+  ui.container.querySelector('[data-action="motion-grade-all"][data-id="sparkle"]').dispatchEvent({ type: 'click' }); await settle();
+
+  // rotate(loop 기본값)를 전체 선택하면 sparkle(once)의 전체 등급 연결은 그대로 남아야 한다.
+  ui.container.querySelector('[data-action="template"][data-id="rotate"]').dispatchEvent({ type: 'click' }); await settle();
+  ui.container.querySelector('[data-action="motion-grade-all"][data-id="rotate"]').dispatchEvent({ type: 'click' }); await settle();
+
+  await ui.click('draft');
+  const saved = created(api);
+  const enabledGradeIds = saved.grades.filter(item => item.enabled).map(item => item.id);
+  assert.deepEqual(saved.motion.find(item => item.type === 'rotate').gradeIds.sort(), [...enabledGradeIds].sort(), 'rotate(loop) 전체 선택은 사용 중인 모든 등급을 차지한다');
+  assert.deepEqual(saved.motion.find(item => item.type === 'sparkle').gradeIds.sort(), [...enabledGradeIds].sort(), 'once인 sparkle의 전체 선택은 이후 loop 전체 선택에 영향받지 않아야 한다');
 });
 
 test('인사말 규칙 추가·삭제와 미리보기는 resolveGreeting 우선순위를 따른다', async () => {
@@ -1038,6 +1118,34 @@ test('서버와 같은 버전의 기기 보관본이 있으면 다시 열 때 �
   const put = api.calls.find(call => call.method === 'PUT');
   assert.match(put.body.project.photo.originalDataUrl, /#server$/, '복원은 기기가 아니라 서버의 최신 사진을 지킨다');
   assert.equal(put.body.project.name, '복원할 이름');
+});
+
+test('pre-v2 편집기가 남긴 schemaVersion:1 기기 보관본을 복원한 뒤 뒷면 편집을 더해 저장하면, 저장 본문은 항상 schemaVersion 2이고 뒷면 편집을 담는다(PR #293 P1 회귀)', async () => {
+  const api = createFakeApi();
+  const saved = api.seed(seeded('구버전 보관본 복원 시험'));
+  assert.equal(saved.project.schemaVersion, 2, '서버 프로젝트는 이미 v2다');
+
+  // pre-v2 편집기의 draftEditsOnly가 남겼을 모양: schemaVersion:1이고 back·layouts·greetingOverrides가 아예 없다.
+  dom.window.localStorage.setItem(draftStorageKey('m1', 'scope-a'), JSON.stringify({
+    merchantId: 'm1', accountMarker: 'scope-a', wrapperId: saved.id, wrapperVersion: saved.version, savedAt: Date.now(),
+    edits: { schemaVersion: 1, name: '복원된 이름' },
+  }));
+
+  const restored = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  assert.match(restored.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
+  assert.equal(restored.control('name').value, '복원된 이름');
+
+  // 복원 뒤 v2 전용(뒷면) 편집을 더한다.
+  await restored.change('sticker-side', 'back');
+  await restored.change('back-mode', 'custom');
+  restored.control('sticker-new').value = '뒷면 글자';
+  await restored.click('sticker-add');
+
+  await restored.click('draft');
+  const put = api.calls.find(call => call.method === 'PUT');
+  assert.equal(put.body.project.schemaVersion, 2, '옛 보관본을 복원해 저장해도 본문은 항상 schemaVersion 2여야 한다');
+  assert.equal(put.body.project.back.mode, 'custom', '복원 뒤 더한 뒷면 편집이 업그레이더에 지워지지 않고 그대로 저장돼야 한다');
+  assert.equal(put.body.project.back.stickers[0]?.text, '뒷면 글자');
 });
 
 test('복원 응답을 기다리는 동안 새로 입력하면 늦게 온 복원이 그 입력을 덮지 않는다(PR #289 P1)', async () => {
