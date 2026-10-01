@@ -2,7 +2,7 @@
 
 ## 2026-10-02 앱 효과음 (Issue #305)
 
-- 기준 main 커밋 SHA: `7e6b39d0a9ba212ae2b2c9fc3158c93729da8c09`. 최신 원격 기본 브랜치를 `C:\Hackerton\masscom-sound`에 새로 클론했고 작업 브랜치는 `feat/305-ui-sounds`다. [Issue #305](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/305), PR 생성 준비 완료.
+- 기준 main 커밋 SHA: `7e6b39d0a9ba212ae2b2c9fc3158c93729da8c09`. 최신 원격 기본 브랜치를 `C:\Hackerton\masscom-sound`에 새로 클론했고 작업 브랜치는 `feat/305-ui-sounds`다. [Issue #305](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/305), 초안 [PR #306](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/306). 효과음 코드 커밋은 `ad8d997`이며 CI·사람 리뷰·실기 확인은 PR에서 구분한다.
 - 운영·시연 공통 구현: Kenney CC0 효과음 7개(PCM WAV, 128,026바이트), 기존 `expo-audio` 기반 `src/sound/` 서비스, 공통 버튼·카드·탭·뒤로 가기·방문 수령·쿠폰·봉투 열기/카드 넘김 연결, 기기별 효과음 설정. 기존 수집품 음성과 전경 오디오 모드를 공유해 음성 재생 뒤에도 효과음 정책이 유지된다.
 - 검증 `PASS`: 모바일 `node --import tsx --test "src/**/*.test.ts"` 978/978, typecheck, lint, 개발 Android export와 운영·시연 Android export, `bash tools/gate.sh`. 자동 검사와 독립 검토의 한 건(기존 음성의 부분 오디오 설정 덮어쓰기)을 수정하고 재검토에서 추가 문제 없음.
 - Windows: 저장소 로컬 `core.autocrlf=false`; checkout의 순수 줄바꿈 차이는 LF로 정리했고 코드 변경에 포함하지 않았다. 기존 `npm test`의 작은따옴표 glob은 PowerShell에서 0 tests를 반환하므로 위 명령으로 실제 시험을 발견한다.
