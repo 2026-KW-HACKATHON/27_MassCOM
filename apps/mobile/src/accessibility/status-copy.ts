@@ -46,5 +46,11 @@ function loginFailureCopy(reason: string | undefined): string {
   if (reason === 'LOGIN_RATE_LIMITED') {
     return '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.';
   }
+  if (reason === 'GUEST_TRIAL_RATE_LIMITED') {
+    return '체험 시작 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.';
+  }
+  if (reason === 'GUEST_TRIAL_BUSY') {
+    return '지금 체험 중인 사람이 많아 새 체험 공간을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.';
+  }
   return '로그인을 완료하지 못했습니다. 다시 시도해 주세요.';
 }

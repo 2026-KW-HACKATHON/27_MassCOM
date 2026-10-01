@@ -47,6 +47,21 @@ export class AuthApiClient {
     };
   }
 
+  async startGuestTrial(): Promise<StoredAuthSessionV1> {
+    const payload = await this.#request('/auth/guest-trial', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    if (!isSession(payload)) throw new AuthApiError(200, 'INVALID_RESPONSE');
+    return {
+      version: 1,
+      sessionToken: payload.sessionToken,
+      accountId: payload.accountId,
+      expiresAt: payload.expiresAt,
+    };
+  }
+
   async logout(sessionToken: string): Promise<void> {
     const token = sessionToken.trim();
     if (!token) throw new AuthApiError(0, 'SESSION_TOKEN_REQUIRED');

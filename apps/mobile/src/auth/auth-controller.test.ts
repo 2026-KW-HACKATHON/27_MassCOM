@@ -39,6 +39,7 @@ function fixture(overrides: Partial<AuthControllerDependencies> = {}) {
       },
     },
     authApi: {
+      async startGuestTrial() { throw new Error('unexpected startGuestTrial'); },
       async signIn() {
         calls.push('api.signIn');
         return newSession;
@@ -117,6 +118,7 @@ test('orders Google sign in, server exchange, and secure storage save', async ()
 test('uninvited showcase account stays signed out with a distinct reason', async () => {
   const f = fixture({
     authApi: {
+      async startGuestTrial() { throw new Error('unexpected startGuestTrial'); },
       async signIn() { throw new AuthApiError(403, 'INVITE_REQUIRED'); },
       async logout() { throw new Error('unexpected logout'); },
     },
@@ -133,6 +135,7 @@ test('uninvited showcase account stays signed out with a distinct reason', async
 test('network failure is not confused with a Google account picker failure', async () => {
   const f = fixture({
     authApi: {
+      async startGuestTrial() { throw new Error('unexpected startGuestTrial'); },
       async signIn() { throw new AuthApiError(0, 'NETWORK_ERROR'); },
       async logout() { throw new Error('unexpected logout'); },
     },
@@ -147,6 +150,7 @@ test('network failure is not confused with a Google account picker failure', asy
 test('a stalled login reports response delay rather than a disconnected network', async () => {
   const f = fixture({
     authApi: {
+      async startGuestTrial() { throw new Error('unexpected startGuestTrial'); },
       async signIn() { throw new AuthApiError(0, 'REQUEST_TIMEOUT'); },
       async logout() { throw new Error('unexpected logout'); },
     },
@@ -175,6 +179,7 @@ test('native Google picker failure stays distinct from a network failure', async
 test('server login rate limit asks for a later retry', async () => {
   const f = fixture({
     authApi: {
+      async startGuestTrial() { throw new Error('unexpected startGuestTrial'); },
       async signIn() { throw new AuthApiError(429, 'LOGIN_RATE_LIMITED'); },
       async logout() { throw new Error('unexpected logout'); },
     },
@@ -218,6 +223,7 @@ test('clears a partially written session even when server revocation also fails'
       },
     },
     authApi: {
+      async startGuestTrial() { throw new Error('unexpected startGuestTrial'); },
       async signIn() {
         f.calls.push('api.signIn');
         return newSession;
@@ -255,6 +261,7 @@ test('serializes overlapping sign-ins so memory and storage cannot select differ
       async signOut() {},
     },
     authApi: {
+      async startGuestTrial() { throw new Error('unexpected startGuestTrial'); },
       async signIn(idToken) {
         return idToken === 'google-1'
           ? { ...oldSession, sessionToken: 'session-1', accountId: 'account-1' }
@@ -290,6 +297,7 @@ test('serializes overlapping sign-ins so memory and storage cannot select differ
 test('logout clears local state but reports unrevoked server session when offline', async () => {
   const f = fixture({
     authApi: {
+      async startGuestTrial() { throw new Error('unexpected startGuestTrial'); },
       async signIn() { return newSession; },
       async logout() {
         f.calls.push('api.logout:old-session');
@@ -364,6 +372,7 @@ test('stops logout and switch success when local wallet storage cannot be purged
 test('rejects an account switch that returns the same server account', async () => {
   const f = fixture({
     authApi: {
+      async startGuestTrial() { throw new Error('unexpected startGuestTrial'); },
       async signIn() { return { ...oldSession, sessionToken: 'replacement-session' }; },
       async logout(token) { f.calls.push(`api.logout:${token}`); },
     },
@@ -398,4 +407,70 @@ test('switch cancellation stays signed out instead of restoring the old credenti
     reason: 'GOOGLE_SIGN_IN_CANCELLED',
   });
   assert.equal(f.stored(), undefined);
+});
+
+test('guest trial sign-in saves and publishes the issued session like a bearer login', async () => {
+  const guestSession: StoredAuthSessionV1 = {
+    version: 1,
+    sessionToken: 'guest-session',
+    accountId: 'guest-account',
+    expiresAt: '2026-10-21T02:00:00.000Z',
+  };
+  const f = fixture({
+    authApi: {
+      async signIn() { throw new Error('unexpected signIn'); },
+      async logout() { throw new Error('unexpected logout'); },
+      async startGuestTrial() {
+        f.calls.push('api.startGuestTrial');
+        return guestSession;
+      },
+    },
+  });
+  f.setStored(undefined);
+  const controller = createAuthController(f.dependencies);
+  await controller.signInAsGuest();
+  assert.deepEqual(f.calls, ['api.startGuestTrial', 'store.save:guest-account']);
+  assert.deepEqual(controller.getState(), {
+    status: 'signedIn',
+    session: guestSession,
+    credential: { kind: 'bearer', sessionToken: 'guest-session' },
+  });
+});
+
+test('guest trial rate limit stays distinct from the global trial capacity limit', async () => {
+  const f = fixture({
+    authApi: {
+      async signIn() { throw new Error('unexpected signIn'); },
+      async logout() { throw new Error('unexpected logout'); },
+      async startGuestTrial() { throw new AuthApiError(429, 'HTTP_429'); },
+    },
+  });
+  f.setStored(undefined);
+  const controller = createAuthController(f.dependencies);
+  await assert.rejects(controller.signInAsGuest(), (error) =>
+    error instanceof AuthControllerError && error.code === 'GUEST_TRIAL_RATE_LIMITED');
+  assert.deepEqual(controller.getState(), { status: 'signedOut', reason: 'GUEST_TRIAL_RATE_LIMITED' });
+
+  const busy = fixture({
+    authApi: {
+      async signIn() { throw new Error('unexpected signIn'); },
+      async logout() { throw new Error('unexpected logout'); },
+      async startGuestTrial() { throw new AuthApiError(503, 'GUEST_TRIAL_BUSY'); },
+    },
+  });
+  busy.setStored(undefined);
+  const busyController = createAuthController(busy.dependencies);
+  await assert.rejects(busyController.signInAsGuest(), (error) =>
+    error instanceof AuthControllerError && error.code === 'GUEST_TRIAL_BUSY');
+  assert.deepEqual(busyController.getState(), { status: 'signedOut', reason: 'GUEST_TRIAL_BUSY' });
+});
+
+test('signInAsGuest is a no-op once already signed in', async () => {
+  const f = fixture();
+  const controller = createAuthController(f.dependencies);
+  await controller.restore();
+  f.calls.length = 0;
+  await controller.signInAsGuest();
+  assert.deepEqual(f.calls, []);
+  assert.equal(controller.getState().status, 'signedIn');
 });

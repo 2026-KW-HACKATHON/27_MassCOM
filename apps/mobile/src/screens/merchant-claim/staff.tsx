@@ -9,6 +9,7 @@ import { ClaimQr } from '@/commerce/claim-qr';
 import { CommerceApiError, createCommerceApiClient, type IssuedClaim, type ResolvedCustomerIdentity, type StaffCoupon } from '@/commerce/commerce-api';
 import { canIssueCustomerIdentity, createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired, parseCustomerIdentityToken } from '@/commerce/customer-identity';
 import { colorsForScheme } from '@/theme/palette';
+import { canUseCamera } from '@/ui/can-use-camera';
 import { StaffReversalCards } from './staff-reversal';
 import { makeMerchantClaimStyles } from './styles';
 
@@ -235,10 +236,14 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
     {topSlot}
     <View style={styles.formCard}>
       <Text style={styles.cardLabel}>1 · 고객 식별</Text>
-      {scanning ? <View style={{ height: 260, overflow: 'hidden', borderRadius: 14 }}>
-        <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => scanned(data)} />
-      </View> : null}
-      <Button styles={styles} label={scanning ? '촬영 취소' : '고객 식별 QR 촬영'} disabled={busy} onPress={scanning ? cancel : () => void startScan()} />
+      {canUseCamera ? <>
+        {scanning ? <View style={{ height: 260, overflow: 'hidden', borderRadius: 14 }}>
+          <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => scanned(data)} />
+        </View> : null}
+        <Button styles={styles} label={scanning ? '촬영 취소' : '고객 식별 QR 촬영'} disabled={busy} onPress={scanning ? cancel : () => void startScan()} />
+      </> : (
+        <Text style={styles.help}>고객 QR 촬영은 카메라가 필요해 Android 앱에서만 할 수 있어요. 이 화면은 미리보기만 확인할 수 있어요.</Text>
+      )}
       {token && !issued ? <>
         <Text selectable style={styles.cardLabel}>확인 코드 {customerIdentityCode(token)}</Text>
         <Text style={styles.help}>고객 화면의 코드와 일치하는지 확인하세요. 일치하지 않으면 취소하고 다시 촬영하세요.</Text>

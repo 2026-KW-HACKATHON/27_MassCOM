@@ -14,7 +14,9 @@ export type SignedOutReason =
   | 'SIGN_IN_FAILED'
   | 'SERVER_SESSION_REVOCATION_FAILED'
   | 'WALLET_STORAGE_CLEANUP_FAILED'
-  | 'ACCOUNT_SWITCH_UNCHANGED';
+  | 'ACCOUNT_SWITCH_UNCHANGED'
+  | 'GUEST_TRIAL_RATE_LIMITED'
+  | 'GUEST_TRIAL_BUSY';
 
 export type AuthState =
   | { status: 'restoring' }
@@ -30,7 +32,7 @@ type SessionStore = ReturnType<typeof createSessionStore>;
 
 export type AuthControllerDependencies = {
   sessionStore: Pick<SessionStore, 'load' | 'save' | 'clear'>;
-  authApi: Pick<AuthApiClient, 'signIn' | 'logout'>;
+  authApi: Pick<AuthApiClient, 'signIn' | 'logout' | 'startGuestTrial'>;
   google: Pick<GoogleSignInAdapter, 'signIn' | 'signOut'>;
   clearWalletSession: () => Promise<void>;
   publish: (state: AuthState) => void;
@@ -92,6 +94,20 @@ export function createAuthController(dependencies: AuthControllerDependencies) {
     }
   }
 
+  async function performGuestSignIn(): Promise<void> {
+    let issued: StoredAuthSessionV1 | undefined;
+    try {
+      issued = await dependencies.authApi.startGuestTrial();
+      await dependencies.sessionStore.save(issued);
+      setState(signedIn(issued));
+    } catch (error) {
+      if (issued) await dependencies.sessionStore.clear().catch(() => undefined);
+      const reason = guestTrialFailureReason(error);
+      setState({ status: 'signedOut', reason });
+      throw new AuthControllerError(reason);
+    }
+  }
+
   async function clearCurrentSession(
     session: StoredAuthSessionV1 | undefined,
     publishSignedOut: boolean,
@@ -146,6 +162,10 @@ export function createAuthController(dependencies: AuthControllerDependencies) {
       if (state.status === 'signedIn' || state.status === 'switchingAccount') return;
       await performSignIn();
     }),
+    signInAsGuest: () => serialize(async () => {
+      if (state.status === 'signedIn' || state.status === 'switchingAccount') return;
+      await performGuestSignIn();
+    }),
     logout: () => serialize(performLogout),
     switchAccount: () => serialize(performSwitchAccount),
     invalidateSession: (sessionToken: string) =>
@@ -159,6 +179,23 @@ function signedIn(session: StoredAuthSessionV1): Extract<AuthState, { status: 's
     session,
     credential: { kind: 'bearer', sessionToken: session.sessionToken },
   };
+}
+
+function guestTrialFailureReason(error: unknown): SignedOutReason {
+  if (error instanceof AuthControllerError) return error.code;
+  if (error instanceof AuthApiError && error.status === 429) return 'GUEST_TRIAL_RATE_LIMITED';
+  if (error instanceof AuthApiError && error.status === 503) return 'GUEST_TRIAL_BUSY';
+  if (error instanceof AuthApiError && error.code === 'NETWORK_ERROR') return 'NETWORK_ERROR';
+  if (error instanceof AuthApiError && error.code === 'REQUEST_TIMEOUT') return 'REQUEST_TIMEOUT';
+  if (
+    typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && ['READ_FAILED', 'WRITE_FAILED', 'DELETE_FAILED'].includes(
+      String((error as { code?: unknown }).code),
+    )
+  ) return 'SECURE_STORAGE_UNAVAILABLE';
+  return 'SIGN_IN_FAILED';
 }
 
 function authFailureReason(error: unknown): SignedOutReason {
