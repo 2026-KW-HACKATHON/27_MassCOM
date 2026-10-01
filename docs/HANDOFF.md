@@ -2,6 +2,14 @@
 
 **(당시 기록: PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐고 test.5·Preview 14를 게시했다. 지금 상태는 아래 Issue #277 항목이다.) 배포 순서(PR #257 병합 뒤, [D-061](DECISIONS.md)):** ① 병합 → ② 이 코드가 든 운영·시연 Android APK를 새로 빌드해 배포 → ③ **그 뒤에** API·웹 배포. 처리방침 버전이 `privacy-2026-10-01`로 올라 서버가 이 버전을 요구하는 순간, 설치돼 있는 동의 화면 빌드(운영 test.4, 시연 Preview 12·13)는 새 버전을 몰라 "앱을 업데이트해 주세요" 안내에 막힌다(D-059 설계). API·웹을 먼저 배포하면 새 APK가 나오기 전까지 그 사용자가 막힌다. 동의 화면이 없는 더 옛 앱(운영 test.3, 시연 Preview 11 이하)은 막히지 않는다.
 
+## 2026-10-01 병합 충돌 표시 검사 (Issue #291, 브랜치 `fix/291-conflict-markers`)
+
+- 기준: main `eed9d11`(PR #290 병합 결과), worktree `.worktrees/291-conflict-markers`, PR 번호 미정.
+- 배경: 브랜치에 main을 합칠 때 상태 문서에 충돌 표시가 남은 채로 문서 검사와 gate가 PASS를 냈다(커밋 전에 발견해 고침).
+- 구현: `scripts/check-conflict-markers.sh`(Git 추적 파일의 줄 맨 앞 `<<<<<<< `·`>>>>>>> `, 단독 `=======`은 Markdown과 겹쳐 제외, 검사 실패는 PASS로 넘기지 않음), `tests/bootstrap/check_conflict_markers_test.sh`, `tools/gate.sh`·CI 단계 추가.
+- 검증: `bash tests/bootstrap/check_conflict_markers_test.sh` PASS, `bash tools/gate.sh` PASS.
+- 다음 명령: `gh pr list`, `bash tools/gate.sh`.
+
 ## 2026-10-01 사진 수집품 제작기 제작 부담 감소 (Issue #282, 브랜치 `feat/282-creator-qol`)
 
 - 기준: main `7eb178d`(PR #285 병합 결과), worktree `.worktrees/282-creator-qol`, PR 번호 미정.

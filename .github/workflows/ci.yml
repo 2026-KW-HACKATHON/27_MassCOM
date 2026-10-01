@@ -50,6 +50,10 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"
+      - name: 병합 충돌 표시 검사
+        run: |
+          bash scripts/check-conflict-markers.sh
+          bash tests/bootstrap/check_conflict_markers_test.sh
       - name: Verify repository contract
         run: bash tests/bootstrap/verify_bootstrap_test.sh
       - name: 운영 문서 정합 검사
