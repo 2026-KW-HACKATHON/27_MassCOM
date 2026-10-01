@@ -30,13 +30,22 @@ async function main() {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const request = await client.query<{ id: string; account_id: string; status: string }>(
-        `SELECT id, account_id, status FROM showcase_access_requests WHERE code = $1 FOR UPDATE`,
+      // 잠금 순서(#304 P2): 재요청·계정 삭제는 계정(advisory lock) → 요청 행 순이다. 이 명령이 행 → 계정 순으로
+      // 잠그면 반대 순서끼리 서로 기다려 교착할 수 있다. 계정을 먼저 알아내 잠근 뒤에야 요청 행을 잠그고(FOR
+      // UPDATE) 다시 검증한다.
+      const lookup = await client.query<{ id: string; account_id: string }>(
+        `SELECT id, account_id FROM showcase_access_requests WHERE code = $1`,
         [code],
+      );
+      const lookupRow = lookup.rows[0];
+      if (!lookupRow) throw new Error('SHOWCASE_ACCESS_REQUEST_NOT_FOUND');
+      await accountLifecycle.assertActive(client, lookupRow.account_id);
+      const request = await client.query<{ id: string; account_id: string; status: string }>(
+        `SELECT id, account_id, status FROM showcase_access_requests WHERE id = $1 FOR UPDATE`,
+        [lookupRow.id],
       );
       const row = request.rows[0];
       if (!row || row.status !== 'PENDING') throw new Error('SHOWCASE_ACCESS_REQUEST_NOT_FOUND');
-      await accountLifecycle.assertActive(client, row.account_id);
       // 승인자 역할(platform_admins)과 감사 행. db_user는 이 명령을 돌린 DB 세션 역할이다(승인자의 계정 ID가 아니다).
       await client.query(
         `INSERT INTO platform_admins(account_id) VALUES ($1)

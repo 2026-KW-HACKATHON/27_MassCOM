@@ -1,5 +1,13 @@
 # HANDOFF
 
+## 2026-10-02 Issue #304 시연 권한 요청의 남은 교착 경로 정리
+
+- 기준: main `14672ed`, worktree `.worktrees/304-deadlocks`, 브랜치 `fix/304-access-deadlocks`, PR 미정. [Issue #304](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/304)는 PR #300 병합 시점 Codex gpt-6.1-sol 최종 확인이 남긴 P2 세 건.
+- 구현: `access-requests.ts`의 `decide()`에서 정렬 잠금(`assertAllActive`) 전에 승인자 계정만 단독으로 먼저 잠그던 선행 잠금(`assertActive(approverId)`)을 제거 — 이 선행 잠금 때문에 두 승인자가 서로의 요청을 동시에 결정하면 각자 자기 계정을 쥔 채 상대 계정을 기다려 교착할 수 있었다. 이제 요청의 계정을 잠금 없이 먼저 알아낸 뒤 승인자·요청자 두 계정을 정렬 순서로 함께 잠그고, 요청 행을 잠근(FOR UPDATE) 뒤에야 승인자 권한·자기 결정·상태를 검증한다. `grant-approver-command.ts`는 요청 행(코드로 FOR UPDATE)→계정 순으로 잠가 재요청·계정 삭제(계정→행)와 반대였던 것을, 코드로 계정을 먼저 알아낸(잠금 없이) 뒤 계정을 잠그고(`assertActive`) 요청 행을 id로 잠근(FOR UPDATE) 뒤 PENDING을 다시 검증하도록 바꿨다. `access-requests.postgres.integration.ts`의 `raceOnRequestRow`가 고정 150ms 대기 두 번으로 두 경합자가 줄을 서길 "바라던" 것을, 별도 연결로 `pg_stat_activity`(`wait_event_type='Lock'`)를 폴링해 실제 블록된 백엔드 수를 확인하는 `waitForBlockedBackends`로 바꿔 결정론적으로 만들었다. 신규 시험 3건: (1) 두 승인자가 같은 순간 서로의 요청을 결정(계정별 advisory lock을 쥔 두 holder로 양쪽 `decide()`를 동시에 블록시킨 뒤 해제), (2) OPS 명령이 같은 계정의 재요청과 동시 실행, (3) OPS 명령이 같은 계정의 삭제와 동시 실행. 기존 OPS 시험이 들고 있던 로컬 DB 생성+호스트 적격성 검사를 `withFreshLocalShowcaseDatabase`로 추출해 세 시험이 공유한다.
+- 검증: `npm test --prefix apps/api` 307/307, `npm run typecheck`·`npm run build --prefix apps/api` PASS, `npm run test:postgres --prefix apps/api`(로컬 폐기용 `postgres:16` 컨테이너, 이 세션에서 만들고 지움) 319개 중 317 PASS·0 FAIL·2 기존 SKIP(hosted 전용, 이 PR과 무관), `bash tools/gate.sh` PASS. 변이 시험: 두 파일을 PR #300 시점(선행 잠금 있음·행→계정 순서)으로 임시 되돌리면 신규 3건이 전부 `40P01`로 즉시 실패(기존 두 교착 회귀 시험은 그대로 통과), 복구하면 5건 모두 통과.
+- `NOT_RUN`: 두 지정 승인자의 실제 Gmail 로그인·운영자 명령 실행, 모바일 화면·시연 호스트 실배포(이 Issue 범위 밖).
+- 다음 작업: 독립 리뷰, PR 생성·CI.
+
 **(당시 기록: PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐고 test.5·Preview 14를 게시했다. 지금 상태는 아래 Issue #277 항목이다.) 배포 순서(PR #257 병합 뒤, [D-061](DECISIONS.md)):** ① 병합 → ② 이 코드가 든 운영·시연 Android APK를 새로 빌드해 배포 → ③ **그 뒤에** API·웹 배포. 처리방침 버전이 `privacy-2026-10-01`로 올라 서버가 이 버전을 요구하는 순간, 설치돼 있는 동의 화면 빌드(운영 test.4, 시연 Preview 12·13)는 새 버전을 몰라 "앱을 업데이트해 주세요" 안내에 막힌다(D-059 설계). API·웹을 먼저 배포하면 새 APK가 나오기 전까지 그 사용자가 막힌다. 동의 화면이 없는 더 옛 앱(운영 test.3, 시연 Preview 11 이하)은 막히지 않는다.
 
 ## 2026-10-01 Issue #294 PR1(점주 체험 권한 요청, 서버) 인수인계
