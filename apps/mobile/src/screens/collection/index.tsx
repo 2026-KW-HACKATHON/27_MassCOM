@@ -124,8 +124,8 @@ export function CollectionScreen({
   const [revealed, setRevealed] = useState<OpenedReward>();
   const [usingCoupon, setUsingCoupon] = useState<Coupon>();
   const [collectibleDetail, setCollectibleDetail] = useState<{ entitlementId: string; merchantName: string; client: typeof api; intro?: boolean }>();
-  // 16장 획득 연출: 방문 수령 직후에만 채워지고, 건너뛰거나 상세로 넘어가면 비운다. 저장은 이미 끝난 상태라 여기서 뭘 하든 보상엔 영향이 없다.
-  const [revealEntitlement, setRevealEntitlement] = useState<{ entitlementId: string; merchantName: string }>();
+  // 297번 봉투 열기 연출: 방문 수령 직후에만 채워지고, 건너뛰거나 상세로 넘어가면 비운다. 저장은 이미 끝난 상태라 여기서 뭘 하든 보상엔 영향이 없다.
+  const [revealEntitlement, setRevealEntitlement] = useState<{ entitlementIds: readonly string[]; merchantName: string }>();
   const [favorites, setFavorites] = useState<readonly string[]>([]);
   const shownReactions = useRef<Set<string>>(new Set());
   const favoritesRef = useRef<readonly string[]>([]);
@@ -204,10 +204,10 @@ export function CollectionScreen({
     });
   }, [accountId, prefsLoaded]);
 
-  // Acquisition links open only an entitlement in the authenticated collection.
-  // A legacy reward without artwork still remains successfully collected.
-  // The tab stays mounted, so the snapshot may predate the reward just received: when the entitlement is missing, re-read the
-  // collection once through the same generation-gated path as every other read, then open it or show the message.
+  // Acquisition links open every entitlement this visit granted (297번: 1·3·5회 목표가 한 번에 여럿이면 모두), comma-joined
+  // into the one `entitlement` param. A legacy reward without artwork still remains successfully collected.
+  // The tab stays mounted, so the snapshot may predate the reward just received: when an entitlement is missing, re-read
+  // the collection once through the same generation-gated path as every other read, then open it or show the message.
   const collectibleLink = useRef<{ rereadFor?: string; doneFor?: string }>({});
   useEffect(() => {
     if (focus !== 'collectible') { collectibleLink.current = {}; return; }
@@ -215,20 +215,22 @@ export function CollectionScreen({
     if (!tabFocused) return;
     const link = collectibleLink.current;
     if (!collection || link.doneFor === entitlement) return;
+    const ids = entitlement ? entitlement.split(',').filter(Boolean) : [];
     // 이 시도만의 세대: 탭을 떠나거나(위 useFocusEffect) 다른 링크가 새로 시작되면(이 effect가 다시 돎) 세대가 올라가
     // resolveCollectibleLink가 이 시도의 뒤늦은 결과를 무시하게 한다. 도감 조회 자체의 세대(startRequest/generation)와는
     // 별개다: 저건 오래된 조회 응답을 거르고, 이건 이미 떠난 링크가 열어보려는 연출을 거른다.
     const linkAttempt = ++linkGeneration.current;
     const finish = (snapshot: CollectionSnapshot) => {
-      const outcome = resolveCollectibleLink(snapshot, entitlement, linkAttempt, () => linkGeneration.current);
-      if (outcome.action === 'stale') return;
+      const outcomes = ids.map((id) => resolveCollectibleLink(snapshot, id, linkAttempt, () => linkGeneration.current));
+      if (outcomes.some((outcome) => outcome.action === 'stale')) return;
       link.doneFor = entitlement;
+      const opened = outcomes.flatMap((outcome) => (outcome.action === 'open' ? [outcome] : []));
       // 방문 수령 직후 도착한 링크만 획득 연출을 연다; 전달은 이미 끝난 뒤라 연출을 건너뛰어도 보관 상태는 그대로다.
-      if (outcome.action === 'open') setRevealEntitlement({ entitlementId: outcome.entitlementId, merchantName: outcome.merchantName });
+      if (opened.length > 0) setRevealEntitlement({ entitlementIds: opened.map((outcome) => outcome.entitlementId), merchantName: opened[0]!.merchantName });
       else setMessage('보상은 도감에 보관됐어요. 다시 볼 수 있는 가게 수집품은 아직 없어요.');
       router.setParams({ focus: undefined, entitlement: undefined });
     };
-    if (collectibleFocusAction(collection, entitlement, link.rereadFor === entitlement) === 'fetch') {
+    if (ids.some((id) => collectibleFocusAction(collection, id, link.rereadFor === entitlement) === 'fetch')) {
       link.rereadFor = entitlement;
       const generation = startRequest();
       void api.getCollection().then((next) => { applySnapshot(next, generation); finish(next); }, () => finish(collection));
@@ -693,14 +695,16 @@ export function CollectionScreen({
         merchantName={collectibleDetail.merchantName} intro={collectibleDetail.intro === true} load={loadCollectible} onClose={() => setCollectibleDetail(undefined)} onUnavailable={() => void refresh()} /> : null}
       {revealEntitlement ? (
         <CollectibleReveal
-          key={revealEntitlement.entitlementId}
-          entitlementId={revealEntitlement.entitlementId}
+          key={revealEntitlement.entitlementIds.join(',')}
+          entitlementIds={revealEntitlement.entitlementIds}
           merchantName={revealEntitlement.merchantName}
           load={loadCollectible}
+          collectibles={collection?.collectibles ?? []}
+          series={storeSeries}
           onSkip={() => setRevealEntitlement(undefined)}
           onOpenDetail={() => {
-            // 방금 받은 수집품이므로 상세에서 획득 때 한 번 재생하는 동작부터 보여 준다.
-            setCollectibleDetail({ entitlementId: revealEntitlement.entitlementId, merchantName: revealEntitlement.merchantName, client: api, intro: true });
+            // 방금 받은 수집품 중 첫 카드이므로 상세에서 획득 때 한 번 재생하는 동작부터 보여 준다.
+            setCollectibleDetail({ entitlementId: revealEntitlement.entitlementIds[0]!, merchantName: revealEntitlement.merchantName, client: api, intro: true });
             setRevealEntitlement(undefined);
           }}
         />
