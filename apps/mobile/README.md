@@ -179,6 +179,12 @@ release build는 시작부터 publish 직전까지 전체 Git worktree가 clean�
 
 방문 수령으로 `artwork`가 붙은 보상을 받으면(`src/screens/collection/collectible-reveal.tsx`) 포장·도장 열림(우표 모양은 도장, 그 밖은 코인 뒤집힘) → 수집품 등장 → 대사(음성은 탭해야 재생, 소리 끄기 존중) → "도감에 보관했어요" 순서로 짧게 보여줍니다. 언제든 건너뛸 수 있고, 보관은 연출 이전에 이미 끝난 상태라 건너뛰어도 보상에는 영향이 없습니다. `AccessibilityInfo`의 동작 줄이기가 켜져 있으면 애니메이션 없이 바로 결과 화면을 보입니다.
 
-도감의 "수집품 모아보기" 절(`src/screens/collection/collectible-browser.tsx`)은 `artwork`가 있는 보상만 정적 썸네일로 모아, 가게·시즌(테마 이름)·등급으로 걸러보고 최신순·가게순·등급순으로 정렬합니다. 같은 게시 수집품(발행 ID+등급)을 여러 캠페인 주기에 걸쳐 여러 번 받았으면 한 장에 개수와 받은 날짜(`earnedAt`)를 함께 보여 줍니다(`src/screens/collection/collectible-groups.ts`). 좋아하는 수집품은 "대표 진열"에 최대 6개까지 놓을 수 있고 이 기기·계정에만 저장하며, 공유는 썸네일·가게 이름·짧은 문구를 담은 이미지를 OS 공유 시트로만 내보냅니다(`src/screens/collection/collectible-share.tsx`, 자동 게시·전송 없음).
+도감의 "내 수집 앨범" 절(`src/screens/collection/collectible-browser.tsx`)은 가게·시즌(테마 이름)·등급으로 걸러보고 최신순·가게순·등급순으로 정렬합니다. `artwork`가 있는 보상은 정적 썸네일 카드로, 같은 게시 수집품(발행 ID+등급)을 여러 캠페인 주기에 걸쳐 여러 번 받았으면 한 장에 개수와 받은 날짜(`earnedAt`)를 함께 보여 줍니다(`src/screens/collection/collectible-groups.ts`). 좋아하는 수집품은 "대표 진열"에 최대 6개까지 놓을 수 있고 이 기기·계정에만 저장하며, 공유는 썸네일·가게 이름·짧은 문구를 담은 이미지를 OS 공유 시트로만 내보냅니다(`src/screens/collection/collectible-share.tsx`, 자동 게시·전송 없음).
 
 같은 절의 "가게별 시리즈"는 그 가게의 기존 방문 목표(1·3·5회)를 칸으로 보여 받은 칸·다음 목표를 표시합니다(`src/screens/collection/store-series.ts`). 새 보상 규칙이나 확률은 만들지 않고 서버가 이미 내려주는 방문 목표·수집 상태만 읽습니다. 첫 수집품, 새 가게의 첫 수집품, 가게 시리즈 완성 때 마스코트가 짧게 반응하며(`src/screens/collection/mascot-reactions.ts`), 같은 반응은 계정별 로컬 기록으로 한 번만 보입니다.
+
+### 접이식 앨범 홈 (Issue #296, Option A)
+
+탐색(홈) 머리글 아래에는 보상 상자 요약 카드가 한 장 있습니다(`src/gamification/home-reward-card.tsx`): 지금 열 수 있는 상자가 있으면 그 상자를, 없으면 다음 목표 상자와 남은 배지 수를 보여주고 "상자 열기"는 도감과 같은 흐름(`RewardBoxCard`)·같은 `RewardReveal` 연출을 그대로 씁니다. 상자 안 쿠폰을 그 자리에서 "사용하기"하면 도감의 보상 절로 이동합니다(실제 사용은 도감에서).
+
+도감 첫 화면은 전체 여권 카드 대신 압축 띠("골목 탐험가 · 배지 4/9")만 머리글에 두고, 그 아래 "내 수집 앨범"을 가장 먼저 보여줍니다. 예전에는 `artwork`가 없는(그림 없는) 수집품을 "앱에서 받은 수집품"이라는 별도 평면 목록으로 다시 그렸는데, 같은 보상이 그림 있는 절과 없는 절 어디에도 속하지 않아 "두 번 보이거나 아예 안 보이는" 혼선이 있었습니다. 지금은 `ungroupedCollectibles`(`src/screens/collection/collectible-groups.ts`)가 그림 없는 수집품만 골라 같은 앨범 그리드에 한 번씩만(`LegacyCard`) 합치고, 그림 있는 쪽 그룹 카드는 묶인 수집품마다 자기만의 실제 NFT 상태·민트 버튼을 갖습니다(`entitlements` 필드, `nftGroupSummary`로 "실제 NFT 1개 · APP 2개"처럼 요약). 메달·배지 더보기(전체 여권+메달), 쿠폰·NFT 발행 현황(보상 상자+내 쿠폰), 도장판·방문 기록은 기본 접힘 폴드(`src/ui/fold.tsx`)로 밀려났고, 각 폴드는 역할이 button이며 펼침/접힘을 라벨로도 말합니다(색만으로 구분하지 않음). 발행 오류·지갑 배너는 폴드 밖, 앨범 바로 아래에서 항상 보입니다. 기존 민트 신청·쿠폰·추천·방문 기록·대표 진열·공유·가게별 시리즈 기능과 보상·양도 규칙은 그대로입니다.
