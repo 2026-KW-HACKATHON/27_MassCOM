@@ -31,3 +31,22 @@ test('상세 화면은 사진이 내려간 수집품에 재시도를 주지 않�
   assert.match(list, /\{item\.artwork \? \(/);
   assert.match(list, /item\.artwork\?\.name \?\? item\.displayName/);
 });
+
+test('각도 슬라이더를 끌거나 동작을 멈추는 등 사람이 직접 조작하면 예약된 다음 자동재생 단계를 지운다(WP4 리뷰 2)', () => {
+  const screen = readFileSync(new URL('./collectible-detail.tsx', import.meta.url), 'utf8');
+  const cancelCalls = screen.match(/cancelSequence\(\)/g) ?? [];
+  // pause(), playMotionSequence, effect 정리, PanResponder 드래그 시작, 기울임 변경, 각도 스텝, 회전 토글, 저장한 동작 다시 보기 — 최소 8곳.
+  assert.ok(cancelCalls.length >= 8, `사람이 조작하는 경로마다 cancelSequence()를 불러야 한다(실제 ${cancelCalls.length}곳)`);
+  for (const site of [
+    /const pause = useCallback\(\(\) => \{\s*audioAction\.current \+= 1;\s*cancelSequence\(\);/,
+    /onPanResponderGrant: \(event\) => \{\s*cancelSequence\(\);/,
+    /const handleTiltChange = useCallback\(\(degrees: number\) => \{\s*cancelSequence\(\);/,
+    /const stepAngle = \(increment: number\) => \{\s*cancelSequence\(\);/,
+  ]) assert.match(screen, site);
+});
+
+test('전경 복귀·동작 줄이기 토글로 자동재생 effect가 다시 돌아도 이미 보여준 once 시퀀스를 다시 틀지 않는다(WP4 리뷰 3)', () => {
+  const screen = readFileSync(new URL('./collectible-detail.tsx', import.meta.url), 'utf8');
+  assert.match(screen, /const introConsumed = useRef\(false\);/);
+  assert.match(screen, /playMotionSequence\(motionEntrySequence\(snapshot\.motions, intro, consumed\)\);/);
+});

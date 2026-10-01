@@ -2,19 +2,72 @@ export type CollectibleArtwork = {
   publicationId: string; projectId: string; gradeId: string; gradeName: string;
   name: string; shape: 'circle' | 'stamp' | 'serrated'; theme: { name: string }; thumbnailDataUrl: string;
 };
+export type CollectibleParticleKind = 'confetti' | 'snow' | 'petals' | 'sparkles';
+export type CollectibleMotion = { type: string; playback: 'once' | 'loop'; particle?: CollectibleParticleKind };
+export type CollectibleAngleFrames = { dataUrl: string; side: number; count: number; columns: number; stepDegrees: number };
+export type CollectibleLiving = {
+  dataUrl: string; count: number; columns: number; cellWidth: number; cellHeight: number; periodMs: number;
+  box: { x: number; y: number; w: number; h: number };
+};
 export type PublishedCollectible = CollectibleArtwork & {
   imageDataUrl: string; thickness: number; angle: number; animation: string;
   greeting: string; audio: null | { dataUrl: string; mimeType: string; durationSeconds: number };
   story: { type: 'none' | 'zoom' | 'wide' | 'follow' | 'event'; frames: { dataUrl: string; width: number; height: number }[]; cartoon: number; strength: number };
+  /** v2 (Issue #284); absent on holders published before WP1/WP2/WP3 or when the web editor hasn't generated them yet. */
+  backImageDataUrl?: string; angleFrames?: CollectibleAngleFrames; living?: CollectibleLiving; motions?: CollectibleMotion[];
 };
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const text = (value: unknown, maximum = 80): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= maximum;
-const image = (value: unknown, maximum = 1_500_000): value is string => typeof value === 'string' && value.length <= maximum
-  && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
+const image = (value: unknown, maximum = 1_500_000, mimes = 'png|jpeg|webp'): value is string => typeof value === 'string' && value.length <= maximum
+  && new RegExp(`^data:image\\/(?:${mimes});base64,[A-Za-z0-9+/]+={0,2}$`).test(value);
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 const inRange = (value: unknown, minimum: number, maximum: number): value is number => finite(value) && value >= minimum && value <= maximum;
+const integerInRange = (value: unknown, minimum: number, maximum: number): value is number => inRange(value, minimum, maximum) && Number.isInteger(value);
 const dimensions = (value: unknown): value is number => inRange(value, 1, 4096) && Number.isInteger(value);
 const animations = ['still', 'rotate', 'shine', 'float', 'stamp', 'sparkle', 'pulse', 'confetti'];
+// EXIF Orientation이 반영되지 않는 스프라이트 치수 함정(design doc PR #288 리뷰) 때문에 jpeg는 받지 않는다.
+const spriteMimes = 'png|webp';
+const particleKinds: readonly CollectibleParticleKind[] = ['confetti', 'snow', 'petals', 'sparkles'];
+
+/** 뒷면 전용 이미지. 유효하지 않으면 호출부가 필드를 버리고 v1 모습(228번 줄 틴트 처리)으로 돌아간다. */
+function parseBackImageDataUrl(value: unknown): string | undefined {
+  return image(value, 350_000, spriteMimes) ? value : undefined;
+}
+
+/** 각도 프레임 스프라이트. count/columns/stepDegrees는 서버가 항상 12/4/15로 고정해 내려보낸다. */
+function parseAngleFrames(value: unknown): CollectibleAngleFrames | undefined {
+  if (!record(value) || !image(value.dataUrl, 1_400_000, spriteMimes) || !integerInRange(value.side, 256, 512)
+    || value.count !== 12 || value.columns !== 4 || value.stepDegrees !== 15) return undefined;
+  return { dataUrl: value.dataUrl, side: value.side, count: 12, columns: 4, stepDegrees: 15 };
+}
+
+/** Living picture 스프라이트. box는 얼굴 영역 0..1 좌표이며 밖으로 넘치지 않아야 한다. */
+function parseLiving(value: unknown): CollectibleLiving | undefined {
+  if (!record(value) || !image(value.dataUrl, 700_000, spriteMimes)
+    || !integerInRange(value.count, 8, 24) || !integerInRange(value.columns, 1, 8)
+    || !integerInRange(value.cellWidth, 16, 512) || !integerInRange(value.cellHeight, 16, 512)
+    // 서버(collectible-project-rules.ts)는 periodMs를 정수로 강제하지 않는다; 여기서만 integer를 요구하면 유효한 서버 값을 버린다.
+    || !inRange(value.periodMs, 1000, 4000) || !record(value.box)
+    || !inRange(value.box.x, 0, 1) || !inRange(value.box.y, 0, 1) || !inRange(value.box.w, 0, 1) || !inRange(value.box.h, 0, 1)
+    || value.box.x + value.box.w > 1 || value.box.y + value.box.h > 1) return undefined;
+  return {
+    dataUrl: value.dataUrl, count: value.count, columns: value.columns, cellWidth: value.cellWidth, cellHeight: value.cellHeight, periodMs: value.periodMs,
+    box: { x: value.box.x, y: value.box.y, w: value.box.w, h: value.box.h },
+  };
+}
+
+/** 모션 목록 전체를 하나의 필드로 다룬다: 항목 하나라도 깨지면 배열 전체를 버린다(상세 전체는 거절하지 않는다). 빈 배열은 "이 등급에 걸린 모션 없음"이라는 유효한 서버 응답이라 받는다. */
+function parseMotions(value: unknown): CollectibleMotion[] | undefined {
+  if (!Array.isArray(value) || value.length > 16) return undefined;
+  const motions: CollectibleMotion[] = [];
+  for (const item of value) {
+    if (!record(item) || typeof item.type !== 'string' || !animations.includes(item.type) || (item.playback !== 'once' && item.playback !== 'loop')) return undefined;
+    if (item.particle === undefined) { motions.push({ type: item.type, playback: item.playback }); continue; }
+    if (item.type !== 'confetti' || typeof item.particle !== 'string' || !particleKinds.includes(item.particle as CollectibleParticleKind)) return undefined;
+    motions.push({ type: item.type, playback: item.playback, particle: item.particle as CollectibleParticleKind });
+  }
+  return motions;
+}
 
 export function parseCollectibleArtwork(value: unknown): CollectibleArtwork | undefined {
   if (!record(value) || !text(value.publicationId) || !text(value.projectId) || !text(value.gradeId)
@@ -48,9 +101,17 @@ export function parsePublishedCollectible(value: unknown): PublishedCollectible 
   }
   const minimumFrames = { none: 0, zoom: 0, wide: 1, follow: 2, event: 3 }[value.story.type as PublishedCollectible['story']['type']];
   if (frames.length < minimumFrames) return undefined;
+  const backImageDataUrl = parseBackImageDataUrl(value.backImageDataUrl);
+  const angleFrames = parseAngleFrames(value.angleFrames);
+  const living = parseLiving(value.living);
+  const motions = parseMotions(value.motions);
   return { ...artwork, imageDataUrl: value.imageDataUrl, thickness: value.thickness, angle: value.angle,
     animation: value.animation, greeting: value.greeting, audio,
-    story: { type: value.story.type as PublishedCollectible['story']['type'], frames, cartoon: value.story.cartoon, strength: value.story.strength } };
+    story: { type: value.story.type as PublishedCollectible['story']['type'], frames, cartoon: value.story.cartoon, strength: value.story.strength },
+    ...(backImageDataUrl !== undefined ? { backImageDataUrl } : {}),
+    ...(angleFrames !== undefined ? { angleFrames } : {}),
+    ...(living !== undefined ? { living } : {}),
+    ...(motions !== undefined ? { motions } : {}) };
 }
 
 /**

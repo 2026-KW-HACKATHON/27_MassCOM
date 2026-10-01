@@ -50,6 +50,65 @@ test('음성은 제한된 inline 형식과 동일 MIME·길이만 받는다', ()
   }
 });
 
+const angleFrames = { dataUrl: png, side: 256, count: 12, columns: 4, stepDegrees: 15 };
+const living = { dataUrl: png, count: 8, columns: 4, cellWidth: 64, cellHeight: 64, periodMs: 2400, box: { x: 0, y: 0, w: .5, h: .5 } };
+const motions = [{ type: 'rotate', playback: 'loop' }, { type: 'confetti', playback: 'once', particle: 'confetti' }];
+const v2Extras = { backImageDataUrl: png, angleFrames, living, motions };
+
+test('v2 필드(뒷면·각도 프레임·living·모션)가 유효하면 그대로 파싱된다', () => {
+  const parsed = parsePublishedCollectible({ ...detail, ...v2Extras });
+  assert.deepEqual(parsed, { ...detail, ...v2Extras });
+});
+
+test('v1 상세는 새 필드 없이 오늘과 똑같이 파싱된다(새 필드는 선택이며 폴백이 v1 모습이다)', () => {
+  const parsed = parsePublishedCollectible(detail);
+  assert.deepEqual(parsed, detail);
+  assert.equal('backImageDataUrl' in parsed!, false);
+  assert.equal('angleFrames' in parsed!, false);
+  assert.equal('living' in parsed!, false);
+  assert.equal('motions' in parsed!, false);
+});
+
+test('잘못된 새 필드 하나는 그 필드만 버리고 상세 전체는 거절하지 않는다', () => {
+  const jpeg = png.replace('image/png', 'image/jpeg');
+  for (const bad of [jpeg, 'https://example.test/back.png', 123]) {
+    const parsed = parsePublishedCollectible({ ...detail, ...v2Extras, backImageDataUrl: bad });
+    assert.deepEqual(parsed, { ...detail, angleFrames, living, motions });
+  }
+  for (const bad of [{ ...angleFrames, count: 11 }, { ...angleFrames, columns: 3 }, { ...angleFrames, stepDegrees: 10 }, { ...angleFrames, side: 100 }, { ...angleFrames, dataUrl: jpeg }]) {
+    const parsed = parsePublishedCollectible({ ...detail, ...v2Extras, angleFrames: bad });
+    assert.deepEqual(parsed, { ...detail, backImageDataUrl: png, living, motions });
+  }
+  for (const bad of [{ ...living, count: 7 }, { ...living, columns: 9 }, { ...living, box: { x: .6, y: 0, w: .5, h: .5 } }, { ...living, periodMs: 500 }]) {
+    const parsed = parsePublishedCollectible({ ...detail, ...v2Extras, living: bad });
+    assert.deepEqual(parsed, { ...detail, backImageDataUrl: png, angleFrames, motions });
+  }
+  for (const bad of [[{ type: 'unknown-motion', playback: 'loop' }], [{ type: 'rotate', playback: 'sometimes' }], [{ type: 'rotate', playback: 'loop', particle: 'snow' }]]) {
+    const parsed = parsePublishedCollectible({ ...detail, ...v2Extras, motions: bad });
+    assert.deepEqual(parsed, { ...detail, backImageDataUrl: png, angleFrames, living });
+  }
+});
+
+test('빈 모션 목록은 "이 등급에 걸린 모션 없음"이라는 유효한 서버 응답이라 그대로 받는다(WP4 리뷰 8)', () => {
+  const parsed = parsePublishedCollectible({ ...detail, ...v2Extras, motions: [] });
+  assert.deepEqual(parsed, { ...detail, backImageDataUrl: png, angleFrames, living, motions: [] });
+});
+
+test('living.periodMs는 서버처럼 1000~4000 사이 소수도 받는다(정수 강제는 유효한 값을 버린다, WP4 리뷰 8)', () => {
+  const fractional = { ...living, periodMs: 2399.5 };
+  const parsed = parsePublishedCollectible({ ...detail, ...v2Extras, living: fractional });
+  assert.deepEqual(parsed!.living, fractional);
+  // 범위를 벗어난 값은 기존 규칙대로 living 필드만 버리고 상세 전체는 거절하지 않는다.
+  for (const bad of [999.9, 4000.1, Number.NaN]) {
+    const dropped = parsePublishedCollectible({ ...detail, ...v2Extras, living: { ...living, periodMs: bad } });
+    assert.equal('living' in dropped!, false);
+  }
+});
+
+test('애니메이션 enum은 v1과 똑같이 8종으로 엄격하다(모션 추가로 느슨해지지 않는다)', () => {
+  assert.equal(parsePublishedCollectible({ ...detail, ...v2Extras, animation: 'new-animation-kind' }), undefined);
+});
+
 test('방문 수령으로 받은 보상 중 외형이 붙은 것만 "받은 수집품 보기" 대상이 된다', () => {
   const granted = [
     { entitlementId: 'goal-1', targetVisitCount: 1 }, { entitlementId: 'goal-3', targetVisitCount: 3 }, { entitlementId: 'goal-5', targetVisitCount: 5 },

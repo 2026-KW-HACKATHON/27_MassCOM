@@ -123,7 +123,7 @@ export function CollectionScreen({
   const [detailKind, setDetailKind] = useState<MedalKind>();
   const [revealed, setRevealed] = useState<OpenedReward>();
   const [usingCoupon, setUsingCoupon] = useState<Coupon>();
-  const [collectibleDetail, setCollectibleDetail] = useState<{ entitlementId: string; merchantName: string; client: typeof api }>();
+  const [collectibleDetail, setCollectibleDetail] = useState<{ entitlementId: string; merchantName: string; client: typeof api; intro?: boolean }>();
   // 16장 획득 연출: 방문 수령 직후에만 채워지고, 건너뛰거나 상세로 넘어가면 비운다. 저장은 이미 끝난 상태라 여기서 뭘 하든 보상엔 영향이 없다.
   const [revealEntitlement, setRevealEntitlement] = useState<{ entitlementId: string; merchantName: string }>();
   const [favorites, setFavorites] = useState<readonly string[]>([]);
@@ -690,7 +690,7 @@ export function CollectionScreen({
 
       <MedalDetail medal={detailMedal} variant={variant} onClose={() => setDetailKind(undefined)} />
       {collectibleDetail?.client === api ? <CollectibleDetail key={collectibleDetail.entitlementId} entitlementId={collectibleDetail.entitlementId}
-        merchantName={collectibleDetail.merchantName} load={loadCollectible} onClose={() => setCollectibleDetail(undefined)} onUnavailable={() => void refresh()} /> : null}
+        merchantName={collectibleDetail.merchantName} intro={collectibleDetail.intro === true} load={loadCollectible} onClose={() => setCollectibleDetail(undefined)} onUnavailable={() => void refresh()} /> : null}
       {revealEntitlement ? (
         <CollectibleReveal
           key={revealEntitlement.entitlementId}
@@ -699,7 +699,8 @@ export function CollectionScreen({
           load={loadCollectible}
           onSkip={() => setRevealEntitlement(undefined)}
           onOpenDetail={() => {
-            setCollectibleDetail({ entitlementId: revealEntitlement.entitlementId, merchantName: revealEntitlement.merchantName, client: api });
+            // 방금 받은 수집품이므로 상세에서 획득 때 한 번 재생하는 동작부터 보여 준다.
+            setCollectibleDetail({ entitlementId: revealEntitlement.entitlementId, merchantName: revealEntitlement.merchantName, client: api, intro: true });
             setRevealEntitlement(undefined);
           }}
         />
