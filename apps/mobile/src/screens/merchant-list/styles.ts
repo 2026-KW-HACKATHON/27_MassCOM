@@ -8,6 +8,8 @@ export function makeMerchantListStyles(palette: AppColors, world: WorldTheme, ha
   // No background: the sky backdrop shows through the list.
   content: { flexGrow: 1 },
   header: { gap: 12, paddingHorizontal: uiMetrics.pageInset, marginBottom: 8 },
+  // Reward box teaser (#296, Option A): sits between the hero and the search/filter block.
+  rewardCardWrap: { paddingHorizontal: uiMetrics.pageInset, marginBottom: 8 },
   heroRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   heroCopy: { flex: 1, minWidth: 176, gap: 10 },
   passportChip: {

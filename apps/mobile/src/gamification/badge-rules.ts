@@ -297,6 +297,18 @@ export function firstReadyReward(book: Pick<BadgeBook, 'rewards'> | undefined): 
   return book?.rewards.find((reward) => reward.state === 'READY');
 }
 
+/**
+ * The one box worth showing on the home screen's compact reward teaser (#296): a box ready to open, else the next
+ * locked box worth working toward, else (every box opened or unavailable) the last one, so the card always has
+ * something to say while any reward exists.
+ */
+export function homeFeaturedReward(book: Pick<BadgeBook, 'earnedTiers' | 'rewards'> | undefined): Reward | undefined {
+  if (!book) return undefined;
+  return firstReadyReward(book)
+    ?? book.rewards.find((reward) => reward.requiredTiers > book.earnedTiers)
+    ?? book.rewards[book.rewards.length - 1];
+}
+
 /** Three-up rows (medals, boxes) fall back to one column when the text would not fit. */
 export function shouldStackTrio(width: number, fontScale: number): boolean {
   return width / Math.max(fontScale, 1) < 340 || fontScale >= 1.5;

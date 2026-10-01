@@ -1,5 +1,5 @@
 import { Link, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -15,7 +15,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { useAuthSession } from '@/auth/auth-provider';
-import { createBadgeApiClient } from '@/gamification/badge-api';
+import { createBadgeApiClient, type OpenedReward } from '@/gamification/badge-api';
+import { shouldRefreshBadgesQuietly } from '@/gamification/badge-refresh';
+import { HomeRewardCard } from '@/gamification/home-reward-card';
+import { RewardReveal } from '@/gamification/reward-reveal';
 import { useBadgeBook } from '@/gamification/use-badge-book';
 import type { PublicMerchant } from '@/merchant/merchant-api';
 import { filterMerchants } from '@/merchant/filter-merchants';
@@ -60,6 +63,13 @@ export function MerchantListScreen({ apiUrl }: Props) {
   const visibleMerchants = useMemo(() => filterMerchants(merchants, query), [merchants, query]);
   const filtering = query.trim().length > 0;
   const openMerchant = (merchantId: string) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId } });
+  // PR #301 리뷰: 홈 새로고침이 음식점 목록만 다시 받고 배지 책은 그대로였다(보상 상자가 거절된 뒤에도 묵은 상태로
+  // 남는다). 당겨서 새로고침마다 올려, 여권 칩·보상 카드가 각자의 badge book도 같이 다시 읽게 한다.
+  const [badgeRefreshToken, setBadgeRefreshToken] = useState(0);
+  const refreshAll = useCallback(() => {
+    void refresh();
+    setBadgeRefreshToken((value) => value + 1);
+  }, [refresh]);
 
   return (
     <SkyBackdrop>
@@ -73,7 +83,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={refresh}
+            onRefresh={refreshAll}
             tintColor={palette.primary}
             colors={[palette.primary]}
             progressBackgroundColor={world.card}
@@ -87,7 +97,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
                 <View style={styles.heroCopy}>
                   <View style={styles.chipRow}>
                     {auth.credential && auth.accountId ? (
-                      <SignedInPassportChip apiUrl={apiUrl} credential={auth.credential} onSessionInvalid={auth.invalidateSession} />
+                      <SignedInPassportChip apiUrl={apiUrl} credential={auth.credential} onSessionInvalid={auth.invalidateSession} refreshToken={badgeRefreshToken} />
                     ) : (
                       <PassportChip copy="로그인하면 여권이 열려요" />
                     )}
@@ -98,6 +108,11 @@ export function MerchantListScreen({ apiUrl }: Props) {
                 <Mascot interactive pose={refreshing ? 'search' : 'explore-map'} size={heroMascotSize(fontScale, 120)} />
               </View>
             </AppHeader>
+            {auth.credential && auth.accountId ? (
+              <View style={styles.rewardCardWrap}>
+                <SignedInRewardCard apiUrl={apiUrl} credential={auth.credential} onSessionInvalid={auth.invalidateSession} refreshToken={badgeRefreshToken} />
+              </View>
+            ) : null}
             <View style={styles.header}>
               {merchants.length > 0 ? (
                 <View style={styles.discoveryTools}>
@@ -222,10 +237,12 @@ function MapChip() {
 }
 
 /** Reads the badge book only when signed in (the hook needs a credential); until it loads or if it fails the plain copy shows. */
-function SignedInPassportChip({ apiUrl, credential, onSessionInvalid }: {
+function SignedInPassportChip({ apiUrl, credential, onSessionInvalid, refreshToken }: {
   apiUrl: string;
   credential: AccountCredential;
   onSessionInvalid: () => Promise<void>;
+  /** Bumped by the home screen's pull-to-refresh (#301 review): it used to reload only the store list. */
+  refreshToken: number;
 }) {
   const badgeApi = useMemo(
     () => createBadgeApiClient({ apiUrl, credential, onSessionInvalid }),
@@ -238,7 +255,63 @@ function SignedInPassportChip({ apiUrl, credential, onSessionInvalid }: {
     if (firstFocus.current) { firstFocus.current = false; return; }
     void refreshQuietly();
   }, [refreshQuietly]));
+  const firstRefreshToken = useRef(true);
+  useEffect(() => {
+    if (firstRefreshToken.current) { firstRefreshToken.current = false; return; }
+    void refreshQuietly();
+  }, [refreshToken, refreshQuietly]);
   return <PassportChip copy="내 탐험 여권 보기" data={passportChipData(book)} />;
+}
+
+/**
+ * 탐색(홈)의 보상 상자 요약 카드(#296, Option A): 여권 칩과 같은 배지 책을 쓰지만 자기만의 조회를 한 번 더 한다.
+ * ponytail: 칩과 카드가 각자 `/me/badges`를 읽는 건 중복이지만(둘 다 짧은 읽기 전용 호출), 서로 다른 화면 위치에 있어
+ * 하나의 훅으로 묶으면 더 복잡해진다 — 홈 화면에서 칩과 카드를 늘 함께 바꿀 일이 생기면 그때 하나로 올린다.
+ */
+function SignedInRewardCard({ apiUrl, credential, onSessionInvalid, refreshToken }: {
+  apiUrl: string;
+  credential: AccountCredential;
+  onSessionInvalid: () => Promise<void>;
+  /** Bumped by the home screen's pull-to-refresh (#301 review): it used to reload only the store list. */
+  refreshToken: number;
+}) {
+  const router = useRouter();
+  const badgeApi = useMemo(
+    () => createBadgeApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
+  const { book, applyOpened, refreshQuietly } = useBadgeBook(badgeApi);
+  const [revealed, setRevealed] = useState<OpenedReward>();
+  const firstFocus = useRef(true);
+  useFocusEffect(useCallback(() => {
+    if (firstFocus.current) { firstFocus.current = false; return; }
+    void refreshQuietly();
+  }, [refreshQuietly]));
+  const firstRefreshToken = useRef(true);
+  useEffect(() => {
+    if (firstRefreshToken.current) { firstRefreshToken.current = false; return; }
+    void refreshQuietly();
+  }, [refreshToken, refreshQuietly]);
+  // PR #301 리뷰: 보상이 거절됐는데(예: 마지막 쿠폰 소진) 책을 다시 읽지 않으면 그 상자가 계속 READY로 보여
+  // homeFeaturedReward가 같은(이제 못 여는) 상자만 돌려주고 그 뒤 진짜 READY 상자를 가린다.
+  const onOpenFailed = useCallback((code: string | undefined) => {
+    if (shouldRefreshBadgesQuietly(code)) void refreshQuietly();
+  }, [refreshQuietly]);
+  const onRevealed = useCallback((result: OpenedReward) => { applyOpened(result); setRevealed(result); }, [applyOpened]);
+  if (!book) return null;
+  return (
+    <>
+      <HomeRewardCard book={book} onOpen={badgeApi.openReward} onRevealed={onRevealed} onOpenFailed={onOpenFailed} />
+      <RewardReveal
+        result={revealed}
+        onClose={() => setRevealed(undefined)}
+        onUse={() => {
+          setRevealed(undefined);
+          router.navigate({ pathname: '/collection', params: { focus: 'rewards' } });
+        }}
+      />
+    </>
+  );
 }
 
 function CatalogEmptyState({ onRefresh, refreshing }: { onRefresh: () => void; refreshing: boolean }) {
