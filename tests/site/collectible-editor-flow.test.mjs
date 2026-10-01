@@ -138,7 +138,8 @@ test('게시한 뒤에도 장면 미리보기 같은 파생 필드 때문에 저
   const publish = api.calls.find(call => call.path.endsWith('/publish'));
   assert.deepEqual(publish.body, { expectedVersion: 1, campaignId: 'campaign-a' });
   const created = api.calls.find(call => call.method === 'POST' && call.path === '/collectible-projects');
-  assert.deepEqual(Object.keys(created.body.project.derived), ['bronze', 'silver', 'gold', 'prism']);
+  // Issue #284 WP2: serializeDerived는 연결된 등급(rewardGrades)만 굽는다. 여기선 1회 보상이 'bronze'에만 연결됐다.
+  assert.deepEqual(Object.keys(created.body.project.derived), ['bronze']);
   assert.ok(created.body.project.story.frames[0].previewDataUrl, '게시용 장면 미리보기를 함께 보낸다');
   assert.match(ui.notice, /게시했어요/);
   assert.equal(api.store.get('project-1').status, 'PUBLISHED');
@@ -256,7 +257,7 @@ test('게시한 프로젝트 삭제는 원본이 지워지고 이미 받은 손�
 const MiB = 1024 * 1024;
 const created = api => api.calls.find(call => call.method === 'POST' && call.path === '/collectible-projects')?.body.project;
 
-test('게시용 완성 이미지·썸네일·장면 미리보기는 WebP 0.9로, 효과 마스크는 PNG로 만든다', async () => {
+test('게시용 완성·뒷면 이미지·썸네일·장면 미리보기는 WebP 0.9로 만든다(Issue #284 WP2: base·effectMasks는 더 만들지 않는다)', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await readyToPublish(ui, { scenes: true });
@@ -265,13 +266,29 @@ test('게시용 완성 이미지·썸네일·장면 미리보기는 WebP 0.9로,
   grade.checked = true; grade.dispatchEvent({ type: 'change' }); await settle();
   await ui.click('publish');
   const project = created(api), bronze = project.derived.bronze;
-  for (const name of ['imageDataUrl', 'baseDataUrl', 'thumbnailDataUrl']) assert.match(bronze[name], /^data:image\/webp;base64,/, name);
+  for (const name of ['imageDataUrl', 'thumbnailDataUrl', 'backImageDataUrl']) assert.match(bronze[name], /^data:image\/webp;base64,/, name);
+  assert.equal(bronze.baseDataUrl, undefined, 'WP2부터 base는 더 만들지 않는다');
+  assert.equal(bronze.effectMasks, undefined, 'WP2부터 effectMasks는 더 만들지 않는다');
   assert.match(project.story.frames[0].previewDataUrl, /^data:image\/webp;base64,/);
-  assert.match(bronze.effectMasks.surface, /^data:image\/png;base64,/, '알파가 중요한 마스크는 PNG로 둔다');
   const webp = dom.document.encodes.filter(item => item.type === 'image/webp');
-  assert.ok(webp.length >= 13 && webp.every(item => item.quality === .9), 'WebP는 품질 0.9로 인코딩한다');
+  assert.ok(webp.length >= 3 && webp.every(item => item.quality === .9), 'WebP는 품질 0.9로 인코딩한다');
   assert.ok(webp.some(item => item.width === 160), '썸네일 160px');
   assert.match(ui.notice, /게시했어요/);
+});
+
+// Issue #284 WP2 설계 6번: 연결된 등급만 derived를 만든다(본문 용량 절약). 미리보기 중인 등급은 보상 연결이
+// 없어도 함께 만든다(편집기가 지금 보는 등급을 publish 직후에도 그대로 보여 줄 수 있어야 한다).
+test('serializeDerived는 보상에 연결된 등급과 지금 보는 등급만 굽고, 연결되지 않은 다른 등급은 비워 둔다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  await ui.change('campaign', 'campaign-a');
+  const reward1 = ui.container.querySelector('[data-reward-count="1"]'); reward1.value = 'silver'; reward1.dispatchEvent({ type: 'change' }); await settle();
+  const reward3 = ui.container.querySelector('[data-reward-count="3"]'); reward3.value = 'gold'; reward3.dispatchEvent({ type: 'change' }); await settle();
+  // 지금 미리보기 등급(기본 bronze)은 어느 보상에도 연결하지 않았다.
+  await ui.click('publish');
+  const project = created(api);
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], 'bronze(미리보기 등급)·silver·gold만 굽고 prism은 빠진다');
 });
 
 test('WebP 인코딩을 지원하지 않는 브라우저는 PNG로 게시한다', async () => {

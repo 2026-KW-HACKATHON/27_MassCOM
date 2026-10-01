@@ -121,6 +121,18 @@ export function resolveSticker(sticker, gradeId) {
   return { ...sticker, x: layout.x ?? sticker.x, y: layout.y ?? sticker.y, size: layout.size ?? sticker.size, rotation: layout.rotation ?? sticker.rotation };
 }
 
+/** 스티커 텍스트를 최대 4줄로 나눈다. 서버(rules.ts parseSticker)도 같은 4줄 상한을 쓴다. */
+export function stickerLines(text) {
+  return String(text ?? '').split('\n').slice(0, 4);
+}
+
+/** 줄 수에 따른 각 줄의 세로 오프셋(스티커 폰트 크기 1 단위, 1.2줄 간격, 블록 전체 중앙이 0). */
+export function stickerLineOffsets(lineCount, lineHeight = 1.2) {
+  if (!Number.isInteger(lineCount) || lineCount < 1) throw new TypeError('줄 수는 1 이상 정수여야 합니다.');
+  const span = (lineCount - 1) * lineHeight;
+  return Array.from({ length: lineCount }, (_, index) => index * lineHeight - span / 2);
+}
+
 /** 인사말 우선순위: 등급+테마 > 등급 > 테마 > 기본. 동점은 배열 순서(먼저 온 항목)가 이긴다. */
 export function resolveGreeting(project, gradeId, themeName = project.theme?.name ?? '') {
   let best; let bestScore = -1;

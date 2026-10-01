@@ -42,11 +42,11 @@ async function inspectAudio(dataUrl) {
 // campaigns를 넘기면 서버가 돌려준 "지금 게시할 수 있는 캠페인" 목록과도 맞춰 본다(목록 밖 캠페인·캠페인에 없는 방문 목표는 게시 API가 409로 거절한다).
 // 서버가 받는 크기 상한(docs/COLLECTIBLE_CREATOR.md "서버 계약"). 넘으면 보내기 전에 안내해 413을 받지 않게 한다.
 const MiB = 1024 * 1024;
-export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, mask: 256 * 1024, scene: 512 * 1024, body: 8 * MiB - 4096, stickers: 30 };
+export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, back: 256 * 1024, mask: 256 * 1024, scene: 512 * 1024, body: 8 * MiB - 4096, stickers: 30 };
 const decodedBytes = dataUrl => { const data = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor(data.length * 3 / 4) - (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0); };
 export function publishSizeProblem(revision) {
   for (const assets of Object.values(revision.derived || {})) {
-    for (const [name, max] of [['imageDataUrl', mediaLimits.image], ['baseDataUrl', mediaLimits.image], ['thumbnailDataUrl', mediaLimits.thumbnail]]) {
+    for (const [name, max] of [['imageDataUrl', mediaLimits.image], ['baseDataUrl', mediaLimits.image], ['thumbnailDataUrl', mediaLimits.thumbnail], ['backImageDataUrl', mediaLimits.back]]) {
       if (assets[name] && decodedBytes(assets[name]) > max) return '완성 이미지가 너무 커요. 작은 사진이나 단순한 보정으로 다시 시도해 주세요. 원본과 입력은 유지했어요.';
     }
     if (Object.values(assets.effectMasks || {}).some(mask => decodedBytes(mask) > mediaLimits.mask)) return '효과 영역 이미지가 너무 커요. 효과 대상이나 스티커를 줄여 다시 시도해 주세요. 원본과 입력은 유지했어요.';
@@ -393,7 +393,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     const copy = cloneProject(project);
     const buffer = document.createElement('canvas'); buffer.width = previewCanvas.width; buffer.height = previewCanvas.height;
     try {
-      await renderCollectible(buffer, copy, selectedGrade, { angle: copy.angle, time, staticFrame: !playing || control('reduce-motion').checked });
+      await renderCollectible(buffer, copy, selectedGrade, { angle: copy.angle, time, staticFrame: !playing || control('reduce-motion').checked, merchantName });
       if (!active || sequence !== renderSequence) return;
       previewCanvas.getContext('2d').clearRect(0, 0, 512, 512); previewCanvas.getContext('2d').drawImage(buffer, 0, 0);
       const grade = project.grades.find(item => item.id === selectedGrade);
@@ -522,7 +522,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       // Final raster assets are generated once for publication; all originals,
       // strokes, stable sticker IDs and grade assignments remain in the draft.
       if (publish) {
-        revision.derived = await serializeDerived(revision);
+        revision.derived = await serializeDerived(revision, { extraGradeId: selectedGrade, merchantName });
         revision.story.frames = await serializeStoryFrames(revision.story);
       }
       const sizeProblem = publishSizeProblem(revision);

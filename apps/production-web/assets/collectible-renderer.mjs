@@ -1,4 +1,4 @@
-import { shapePoints, cropTransform, effectsForGrade, cloneProject } from './collectible-model.mjs';
+import { shapePoints, cropTransform, effectsForGrade, cloneProject, resolveSticker, stickerLines, stickerLineOffsets, particleAt, ONCE_MS } from './collectible-model.mjs';
 
 // Originals and editing instructions stay separate. Preview buffers are bounded
 // and never become the source for a later edit or a published version.
@@ -203,13 +203,22 @@ function effectPaint(context, effect, size, angle, time = 0, shape = 'circle') {
   }
   context.restore();
 }
-function stickerLayer(sticker, size, effects, angle, time) {
+async function stickerLayer(sticker, size, effects, angle, time) {
   const layer = canvasOf(size, size), context = layer.getContext('2d');
   context.translate(sticker.x * size, sticker.y * size); context.rotate((sticker.rotation || 0) * Math.PI / 180);
-  context.font = `700 ${Math.max(8, (sticker.size || 42) * size / 512)}px system-ui, sans-serif`;
-  context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillStyle = sticker.color || '#fff';
   if (effects.some(effect => effect.type === 'glow')) { context.shadowColor = effects.find(effect => effect.type === 'glow').color || '#fff'; context.shadowBlur = size * .025; }
-  context.fillText(sticker.text, 0, 0, size * .9);
+  if (sticker.kind === 'mascot') {
+    const image = await imageFor(`/app/assets/mascot/${sticker.text}.png`);
+    const dimension = Math.max(16, (sticker.size || 42) * size / 512) * 2;
+    if (image) context.drawImage(image, -dimension / 2, -dimension / 2, dimension, dimension);
+  } else {
+    const fontSize = Math.max(8, (sticker.size || 42) * size / 512);
+    context.font = `700 ${fontSize}px system-ui, sans-serif`;
+    context.textAlign = sticker.align || 'center'; context.textBaseline = 'middle'; context.fillStyle = sticker.color || '#fff';
+    const lines = stickerLines(sticker.text);
+    const offsets = stickerLineOffsets(lines.length);
+    lines.forEach((line, index) => context.fillText(line, 0, offsets[index] * fontSize, size * .9));
+  }
   context.setTransform(1, 0, 0, 1, 0, 0);
   for (const effect of effects.filter(effect => effect.type !== 'glow')) {
     const painted = canvasOf(size, size), paint = painted.getContext('2d');
@@ -237,7 +246,10 @@ async function frontFor(project, gradeId, size, angle, time, applyEffects = true
     context.drawImage(photoLayer, 0, 0);
   }
   if (applyEffects) for (const effect of effectsForGrade(project, gradeId, 'surface')) effectPaint(context, effect, size, angle, time, project.shape);
-  for (const sticker of [...(project.stickers || [])].sort((a, b) => a.order - b.order)) context.drawImage(stickerLayer(sticker, size, applyEffects ? effectsForGrade(project, gradeId, sticker.id) : [], angle, time), 0, 0);
+  for (const sticker of [...(project.stickers || [])].sort((a, b) => a.order - b.order)) {
+    const layer = await stickerLayer(resolveSticker(sticker, gradeId), size, applyEffects ? effectsForGrade(project, gradeId, sticker.id) : [], angle, time);
+    context.drawImage(layer, 0, 0);
+  }
   const border = canvasOf(size, size), borderContext = border.getContext('2d');
   traceShape(borderContext, project.shape, size * .97, size * .97, size * .015, size * .015);
   borderContext.strokeStyle = project.baseColor || '#c7974e'; borderContext.lineWidth = size * .055; borderContext.stroke();
@@ -252,11 +264,45 @@ async function frontFor(project, gradeId, size, angle, time, applyEffects = true
   context.strokeStyle = 'rgba(255,255,255,.55)'; context.lineWidth = size * .006; context.stroke();
   return canvas;
 }
+/**
+ * 뒷면. 기본: 바탕색·안쪽 테두리·가게 이름·수집품 이름·등급·마스코트 도장. 커스텀: 뒷면색 + 뒷면 스티커(효과 없음, 앞면 전용 유지).
+ */
+export async function backFor(project, gradeId, size, merchantName = '') {
+  const canvas = canvasOf(size, size), context = canvas.getContext('2d');
+  traceShape(context, project.shape, size, size); context.clip();
+  const back = project.back || { mode: 'default', color: project.baseColor, stickers: [] };
+  context.fillStyle = back.color || project.baseColor || '#c7974e'; context.fillRect(0, 0, size, size);
+  if (back.mode === 'custom') {
+    for (const sticker of [...(back.stickers || [])].sort((a, b) => a.order - b.order)) {
+      context.drawImage(await stickerLayer(sticker, size, [], 0, 0), 0, 0);
+    }
+  } else {
+    traceShape(context, project.shape, size * .86, size * .86, size * .07, size * .07);
+    context.strokeStyle = 'rgba(255,255,255,.55)'; context.lineWidth = size * .012; context.stroke();
+    const grade = project.grades.find(item => item.id === gradeId);
+    context.textAlign = 'center'; context.fillStyle = '#fff6e6';
+    context.font = `700 ${size * .06}px system-ui, sans-serif`; context.fillText(merchantName || '', size / 2, size * .3, size * .7);
+    context.font = `700 ${size * .05}px system-ui, sans-serif`; context.fillText(project.name || '', size / 2, size * .42, size * .7);
+    context.font = `400 ${size * .04}px system-ui, sans-serif`; context.fillText(grade?.name || '', size / 2, size * .5, size * .7);
+    const mascot = await imageFor('/app/assets/mascot/stamp.png');
+    if (mascot) context.drawImage(mascot, size * .35, size * .56, size * .3, size * .3);
+  }
+  const border = canvasOf(size, size), borderContext = border.getContext('2d');
+  traceShape(borderContext, project.shape, size * .97, size * .97, size * .015, size * .015);
+  borderContext.strokeStyle = back.color || project.baseColor || '#c7974e'; borderContext.lineWidth = size * .055; borderContext.stroke();
+  context.drawImage(border, 0, 0);
+  return canvas;
+}
 function drawVolume(canvas, front, project, options = {}) {
   const context = canvas.getContext('2d'), width = canvas.width, height = canvas.height;
   context.clearRect(0, 0, width, height);
-  const time = options.staticFrame ? 0 : (options.time || 0);
   const motion = options.animation || 'still';
+  const playback = options.playback || 'loop';
+  // 'once' 재생은 ONCE_MS만큼 진행한 뒤 그 지점에서 멈춘다(무한 반복하지 않음). 경계값에서 modulo가 0으로
+  // 되감기지 않게 1ms 여유를 둔다.
+  const duration = ONCE_MS[motion];
+  const rawTime = options.staticFrame ? 0 : (options.time || 0);
+  const time = playback === 'once' && duration ? Math.min(rawTime, duration - 1) : rawTime;
   const manualAngle = options.angle ?? project.angle ?? 0;
   const angle = motion === 'rotate' ? manualAngle + time / 75 : manualAngle;
   const radians = angle * Math.PI / 180;
@@ -277,8 +323,12 @@ function drawVolume(canvas, front, project, options = {}) {
   context.shadowBlur = 0; context.shadowOffsetY = 0;
   context.translate(-depth / 2, 0); context.scale(horizontal, 1);
   if (Math.cos(radians) < 0) {
-    traceShape(context, project.shape, size, size, -size / 2, -size / 2); context.fillStyle = project.baseColor || '#c7974e'; context.fill();
-    context.fillStyle = '#39281d'; context.font = `700 ${size * .075}px system-ui`; context.textAlign = 'center'; context.fillText(project.name || '가게 수집품', 0, 0, size * .72);
+    traceShape(context, project.shape, size, size, -size / 2, -size / 2);
+    if (options.back) { context.save(); context.clip(); context.drawImage(options.back, -size / 2, -size / 2, size, size); context.restore(); }
+    else {
+      context.fillStyle = project.baseColor || '#c7974e'; context.fill();
+      context.fillStyle = '#39281d'; context.font = `700 ${size * .075}px system-ui`; context.textAlign = 'center'; context.fillText(project.name || '가게 수집품', 0, 0, size * .72);
+    }
   } else {
     context.drawImage(front, -size / 2, -size / 2, size, size);
     if (motion === 'shine' || motion === 'sparkle') {
@@ -290,11 +340,13 @@ function drawVolume(canvas, front, project, options = {}) {
     }
   }
   context.restore();
-  if (motion === 'confetti' && time % 5000 < 2000) {
+  const confettiPhase = playback === 'once' ? time : time % 5000;
+  if (motion === 'confetti' && confettiPhase < 2000) {
+    const phase = confettiPhase / 2000;
     for (let index = 0; index < 20; index++) {
-      context.fillStyle = ['#ffb165', '#8adcc0', '#da9fdd'][index % 3];
-      const phase = (time % 5000) / 2000;
-      context.fillRect(width / 2 + Math.sin(index * 7) * size * phase, height / 2 + Math.cos(index * 3) * size * phase + phase * phase * height * .3, width * .01, width * .016);
+      const point = particleAt(options.particle || 'confetti', index, phase);
+      context.fillStyle = point.color;
+      context.fillRect(width / 2 + point.x * size, height / 2 + point.y * size, width * .01, width * .016);
     }
   }
 }
@@ -303,9 +355,12 @@ export async function renderCollectible(canvas, project, gradeId, options = {}) 
   const size = Math.min(options.textureSize || 640, 1024);
   const motion = (project.motion || []).find(item => item.gradeIds.includes(gradeId));
   const animation = options.staticFrame ? 'still' : (options.animation || motion?.type || 'still');
+  const playback = options.playback ?? motion?.playback ?? 'loop';
+  const particle = options.particle ?? motion?.particle;
   const angle = options.angle ?? project.angle ?? 0;
   const front = await frontFor(project, gradeId, size, angle + (animation === 'rotate' ? (options.time || 0) / 75 : 0), options.time);
-  drawVolume(canvas, front, project, { ...options, animation });
+  const back = await backFor(project, gradeId, size, options.merchantName || '');
+  drawVolume(canvas, front, project, { ...options, animation, playback, particle, back });
 }
 export async function renderPublishedCollectible(canvas, snapshot, options = {}) {
   let front = await imageFor(snapshot.baseDataUrl || snapshot.imageDataUrl || snapshot.thumbnailDataUrl);
@@ -325,28 +380,9 @@ export async function renderPublishedCollectible(canvas, snapshot, options = {})
     }
     front = painted;
   }
-  drawVolume(canvas, front, snapshot, { ...options, animation: options.staticFrame ? 'still' : snapshot.animation || 'still' });
-}
-async function maskFor(project, target, size) {
-  const canvas = canvasOf(size, size), context = canvas.getContext('2d');
-  traceShape(context, project.shape, size, size); context.clip();
-  if (target === 'surface') { context.fillStyle = '#fff'; context.fillRect(0, 0, size, size); }
-  else if (target === 'photo') {
-    const photo = await photoFor(project); if (photo) { const transform = cropTransform(project, size, size); context.drawImage(photo, transform.x, transform.y, transform.width, transform.height); }
-  } else if (target === 'border') {
-    traceShape(context, project.shape, size * .97, size * .97, size * .015, size * .015); context.strokeStyle = '#fff'; context.lineWidth = size * .055; context.stroke();
-  } else {
-    const sticker = project.stickers.find(item => item.id === target); if (sticker) context.drawImage(stickerLayer(sticker, size, [], 0, 0), 0, 0);
-  }
-  if (target === 'photo' || target === 'surface') {
-    // Photo/surface effects are under the independently editable sticker/border
-    // layers, so their published masks keep those elements intact as well.
-    context.globalCompositeOperation = 'destination-out';
-    for (const sticker of project.stickers) context.drawImage(stickerLayer(sticker, size, [], 0, 0), 0, 0);
-    traceShape(context, project.shape, size * .97, size * .97, size * .015, size * .015); context.lineWidth = size * .055; context.strokeStyle = '#fff'; context.stroke();
-  }
-  context.globalCompositeOperation = 'source-in'; context.fillStyle = '#fff'; context.fillRect(0, 0, size, size);
-  return canvas.toDataURL('image/png');
+  // v1 발행본·뒷면 미생성본은 backImageDataUrl이 없어 drawVolume이 오늘의 모습(바탕색+이름)으로 대체한다.
+  const back = snapshot.backImageDataUrl ? await imageFor(snapshot.backImageDataUrl) : null;
+  drawVolume(canvas, front, snapshot, { ...options, animation: options.staticFrame ? 'still' : snapshot.animation || 'still', back });
 }
 // 게시용 이미지는 WebP(품질 0.9)로 저장해 크기를 줄인다(서버 완성본 1 MiB·썸네일 128 KiB·본문 8 MiB 상한 안에 넣기 위함).
 // WebP 인코딩을 지원하지 않는 브라우저는 toDataURL이 PNG를 돌려주므로 그대로 PNG를 쓴다.
@@ -354,15 +390,21 @@ export function encodeImage(canvas, quality = .9) {
   const webp = canvas.toDataURL('image/webp', quality);
   return webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/png');
 }
-export async function serializeDerived(project) {
+/**
+ * 연결된 등급(campaignId와 무관하게 rewardGrades가 가리키는 등급)만 게시용으로 굽는다(설계 문서 "서버 검증" 3번
+ * 근거: 연결되지 않은 등급까지 구우면 본문 용량을 낭비한다). extraGradeId는 편집기 미리보기용으로 지금 보는
+ * 등급도 함께 구울 때 쓴다. base·effectMasks는 더 이상 만들지 않는다(설계 문서, WP2): 각도별 질감 재합성은
+ * WP3의 angleFrames가 대신한다.
+ */
+export async function serializeDerived(project, { extraGradeId, merchantName = '' } = {}) {
+  const linked = new Set(Object.values(project.rewardGrades || {}));
+  if (extraGradeId) linked.add(extraGradeId);
   const derived = {};
-  for (const grade of project.grades.filter(item => item.enabled !== false)) {
+  for (const grade of project.grades.filter(item => item.enabled !== false && linked.has(item.id))) {
     const front = await frontFor(project, grade.id, 512, 0, 0);
-    const base = await frontFor(project, grade.id, 512, 0, 0, false);
+    const back = await backFor(project, grade.id, 512, merchantName);
     const thumbnail = canvasOf(160, 160); thumbnail.getContext('2d').drawImage(front, 0, 0, 160, 160);
-    const effectMasks = {};
-    for (const target of new Set(effectsForGrade(project, grade.id).map(effect => effect.target))) effectMasks[target] = await maskFor(project, target, 512);
-    derived[grade.id] = { imageDataUrl: encodeImage(front), thumbnailDataUrl: encodeImage(thumbnail), baseDataUrl: encodeImage(base), effectMasks };
+    derived[grade.id] = { imageDataUrl: encodeImage(front), thumbnailDataUrl: encodeImage(thumbnail), backImageDataUrl: encodeImage(back) };
   }
   return derived;
 }
