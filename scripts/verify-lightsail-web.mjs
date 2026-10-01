@@ -46,6 +46,18 @@ export function validateAwsWebCompose(config) {
     siteMount.source?.endsWith('/site/public'));
   const configMount = mounts.find((volume) => volume.target === '/etc/caddy/Caddyfile');
   requireSafe(configMount?.type === 'bind' && configMount.read_only === true);
+  // 시연 웹 체험(Issue #309) 번들은 시연 전용 디렉터리에서 읽기 전용으로만 받는다. 운영 사이트·데이터 경로와 섞지 않는다.
+  const showcaseWebMounts = mounts.filter((volume) => volume.target === '/srv/showcase-web');
+  requireSafe(showcaseWebMounts.length === 1 && showcaseWebMounts[0].type === 'bind' &&
+    showcaseWebMounts[0].read_only === true &&
+    /^\/opt\/masscom-showcase\/web\/[A-Za-z0-9._/-]+$/.test(showcaseWebMounts[0].source ?? '') &&
+    !showcaseWebMounts[0].source.includes('..'));
+  requireSafe(mounts.every((volume) => volume.target === '/srv/showcase-web' ||
+    !String(volume.source ?? '').startsWith('/opt/masscom-showcase/')));
+  for (const name of ['api', 'postgres', 'migrate', 'production-web']) {
+    requireSafe((services[name].volumes ?? []).every((volume) =>
+      !String(volume.source ?? '').startsWith('/opt/masscom-showcase/')));
+  }
   return true;
 }
 

@@ -20,9 +20,21 @@
 
 {$MASSCOM_SHOWCASE_API_DOMAIN:demo-api.masscom.kr} {
 	encode zstd gzip
-	reverse_proxy showcase-api:3000 {
-		# Only Caddy's observed client IP may drive the invited-login rate limit.
-		header_up X-Forwarded-For {remote_host}
+	# 시연 웹 체험(Issue #309)은 시연 API와 같은 출처의 /play/ 아래 정적 Expo 웹이다(CORS 없음, 운영 출처 masscom.kr에서는 돌지 않는다).
+	@playRoot path /play
+	redir @playRoot /play/ 308
+	handle /play/* {
+		uri strip_prefix /play
+		root * /srv/showcase-web
+		try_files {path} /index.html
+		file_server
+		header Content-Security-Policy "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+	}
+	handle {
+		reverse_proxy showcase-api:3000 {
+			# Only Caddy's observed client IP may drive the invited-login rate limit.
+			header_up X-Forwarded-For {remote_host}
+		}
 	}
 
 	header {
@@ -46,6 +58,9 @@
 	redir @merchantRoot /merchant/ 308
 	@previewRoot path /preview
 	redir @previewRoot /preview/ 308
+	# 시연 웹 체험의 공유 주소(Issue #309). 시연 코드는 운영 출처에서 돌리지 않고 시연 API 출처로 넘긴다.
+	@demoEntry path /demo /demo/*
+	redir @demoEntry https://demo-api.masscom.kr/play/ 302
 	@webSession path /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection /api/web/collectibles/* /api/web/badges /api/web/consent /api/web/admin/* /api/web/merchant/* /api/web/account-deletion-intake /api/web/account-deletion-intake/cancel /api/web/account-deletion-status
 	handle @webSession {
 		reverse_proxy api:3000 {
