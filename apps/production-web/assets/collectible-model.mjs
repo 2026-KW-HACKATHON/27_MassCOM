@@ -185,6 +185,107 @@ export function angleFrameIndex(angleDeg) {
   return { back: false, index, next: Math.min(ANGLE_FRAME_COUNT - 1, index + 1), blend: clamp(position - index, 0, 1) };
 }
 
+/**
+ * 획 목록(순서대로 적용)에서 전경/배경 마스크를 낸다. tool:'fg'는 255(전경)를, 'bg'는 0(배경)을 그 자리에 찍는다
+ * (processPhotoPixels의 원 찍기 수식을 그대로 옮겨 같은 붓 느낌을 공유한다). DOM 없이 순수 배열만 다뤄 node로
+ * 바로 시험할 수 있다. 반환값은 길이 w*h인 Uint8ClampedArray(한 채널, 0 또는 255).
+ */
+export function strokeAlpha(strokes, w, h) {
+  if (!Number.isInteger(w) || !Number.isInteger(h) || w <= 0 || h <= 0) throw new TypeError('양수인 정수 크기가 필요합니다.');
+  const alpha = new Uint8ClampedArray(w * h);
+  for (const stroke of strokes || []) {
+    const radius = Math.max(1, clamp(stroke.size ?? .04, .01, .2, .04) * Math.min(w, h) / 2);
+    const value = stroke.tool === 'bg' ? 0 : 255;
+    const points = stroke.points || [];
+    for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
+      const first = points[Math.max(0, pointIndex - 1)], last = points[pointIndex];
+      const distance = Math.hypot((last.x - first.x) * w, (last.y - first.y) * h);
+      const steps = Math.max(1, Math.ceil(distance / Math.max(1, radius / 2)));
+      for (let step = 0; step <= steps; step++) {
+        const cx = (first.x + (last.x - first.x) * step / steps) * w;
+        const cy = (first.y + (last.y - first.y) * step / steps) * h;
+        for (let y = Math.max(0, Math.floor(cy - radius)); y <= Math.min(h - 1, Math.ceil(cy + radius)); y++) {
+          for (let x = Math.max(0, Math.floor(cx - radius)); x <= Math.min(w - 1, Math.ceil(cx + radius)); x++) {
+            if (Math.hypot(x - cx, y - cy) > radius) continue;
+            alpha[y * w + x] = value;
+          }
+        }
+      }
+    }
+  }
+  return alpha;
+}
+
+/**
+ * 패럴랙스 전경/배경 레이어가 각도에 따라 벌어지는 거리(칸버스 size 기준 px). 배경은 이 값의 절반만큼 반대로,
+ * 전경은 그대로, 스티커는 1.2배로 쓴다(renderer.mjs frontFor). strength 0이거나 획이 없으면 호출부가 0으로 둔다.
+ */
+export function parallaxOffset(angleDeg, strength, size = 1) {
+  if (!Number.isFinite(angleDeg) || !Number.isFinite(strength) || !Number.isFinite(size)) throw new TypeError('유한한 값이 필요합니다.');
+  return Math.sin(angleDeg * Math.PI / 180) * (clamp(strength, 0, 100, 0) / 100) * 0.04 * size;
+}
+
+/** t(ms)를 periodMs로 나눈 0..1 주기 phase. t=0과 t=periodMs는 같은 phase(0)다. */
+export function livingPhaseAt(t, periodMs) {
+  if (!Number.isFinite(t) || !Number.isFinite(periodMs) || periodMs <= 0) throw new TypeError('유한한 시간이 필요합니다.');
+  return (((t % periodMs) + periodMs) % periodMs) / periodMs;
+}
+
+/** phase(0..1 또는 그 범위 밖의 t/periodMs)를 0..count-1 살아있는 그림 스프라이트 칸으로 접는다. */
+export function livingFrameAt(t, periodMs, count) {
+  if (!Number.isInteger(count) || count < 1) throw new TypeError('칸 수는 1 이상 정수여야 합니다.');
+  return Math.min(count - 1, Math.floor(livingPhaseAt(t, periodMs) * count));
+}
+
+/** periodMs/100을 8..24칸으로 clamp한 정수 칸 수(설계 문서 "게시본" 항목). */
+export function livingSpriteCount(periodMs) {
+  return Math.round(clamp(Math.round(periodMs / 100), 8, 24));
+}
+
+/**
+ * count칸을 cellWidth×cellHeight로 maxSide(기본 4096px) 안에 배치할 열 수를 고른다. 가능한 많은 열을 써서 세로를
+ * 줄이되, 그래도 한 변이 넘치면 undefined(호출부가 더 작은 크기 사다리 단계로 다시 시도해야 한다).
+ */
+export function livingSpriteGrid(count, cellWidth, cellHeight, maxSide = 4096) {
+  if (!Number.isInteger(count) || count < 1 || cellWidth <= 0 || cellHeight <= 0) throw new TypeError('칸 수·칸 크기가 올바르지 않습니다.');
+  let columns = Math.max(1, Math.min(count, Math.floor(maxSide / cellWidth)));
+  while (columns > 1 && Math.ceil(count / columns) * cellHeight > maxSide) columns -= 1;
+  const rows = Math.ceil(count / columns);
+  const width = columns * cellWidth, height = rows * cellHeight;
+  if (width > maxSide || height > maxSide) return undefined;
+  return { columns, rows, width, height };
+}
+
+/**
+ * living 항목(등급 기준)의 패딩된 합집합 박스(0..1, 사진/스티커 좌표). region은 칠한 점들의 min/max, 스티커
+ * 대상은 그 스티커의 등급별 배치(resolveSticker) 둘레를 쓴다. 비어 있으면 undefined(그 등급엔 living 스프라이트가 없다).
+ */
+export function livingBoundingBox(project, gradeId, padding = 0.1) {
+  const items = (project.living?.items ?? []).filter((item) => item.gradeIds?.includes(gradeId));
+  if (!items.length) return undefined;
+  let minX = 1, minY = 1, maxX = 0, maxY = 0;
+  for (const item of items) {
+    if (item.target === 'region') {
+      for (const point of item.strokes ?? []) {
+        minX = Math.min(minX, point.x); minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x); maxY = Math.max(maxY, point.y);
+      }
+    } else {
+      const sticker = project.stickers.find((candidate) => candidate.id === item.target);
+      if (!sticker) continue;
+      const resolved = resolveSticker(sticker, gradeId);
+      const half = clamp(resolved.size ?? 42, 8, 120, 42) / 512 * 1.3;
+      minX = Math.min(minX, resolved.x - half); minY = Math.min(minY, resolved.y - half);
+      maxX = Math.max(maxX, resolved.x + half); maxY = Math.max(maxY, resolved.y + half);
+    }
+  }
+  if (minX > maxX || minY > maxY) return undefined;
+  const x = clamp(minX - padding, 0, 1, 0), y = clamp(minY - padding, 0, 1, 0);
+  const w = Math.min(clamp(maxX + padding, 0, 1, 1) - x, 1 - x), h = Math.min(clamp(maxY + padding, 0, 1, 1) - y, 1 - y);
+  if (w <= 0 || h <= 0) return undefined;
+  return { x, y, w, h };
+}
+
 /** 서버 래퍼 없이 편집 객체만 복사한다. 원본 문자열은 다시 압축하지 않는다. */
 export function cloneProject(project) {
   return structuredClone(project);
