@@ -11,7 +11,8 @@ CREATE TABLE showcase_access_requests (
   decided_by_account_id text,
   decided_via text CHECK (decided_via IN ('APP', 'OPS')),
   decided_db_user text,
-  CHECK ((status = 'PENDING') = (decided_at IS NULL AND decided_via IS NULL)),
+  CHECK (status <> 'PENDING' OR (decided_at IS NULL AND decided_via IS NULL)),
+  CHECK (status = 'PENDING' OR (decided_at IS NOT NULL AND decided_via IS NOT NULL)),
   CHECK (decided_via IS DISTINCT FROM 'APP' OR decided_by_account_id IS NOT NULL)
 );
 

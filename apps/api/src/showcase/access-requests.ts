@@ -31,6 +31,8 @@ export type AccessRequestView = {
 
 export type PendingAccessRequestSummary = { id: string; code: string; createdAt: string };
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Crockford base32(I·L·O·U 뺀 32자)의 대문자 알파벳. 5비트 = 1글자라 거부 샘플링 없이 그대로 쓴다.
 const CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
@@ -74,9 +76,14 @@ function mapRequest(row: Pick<RequestRow, 'code' | 'status' | 'created_at' | 'de
  */
 export class ShowcaseAccessRequestService {
   private readonly accountLifecycle: PostgresAccountLifecycle;
+  private readonly generateCode: () => string;
 
-  constructor(private readonly pool: Pool, options: { accountDeletionHmacSecret: string }) {
+  constructor(
+    private readonly pool: Pool,
+    options: { accountDeletionHmacSecret: string; generateCode?: () => string },
+  ) {
     this.accountLifecycle = new PostgresAccountLifecycle({ hmacSecret: options.accountDeletionHmacSecret });
+    this.generateCode = options.generateCode ?? generateAccessRequestCode;
   }
 
   private async transaction<T>(operation: (client: PoolClient) => Promise<T>): Promise<T> {
@@ -144,7 +151,7 @@ export class ShowcaseAccessRequestService {
            VALUES ($1, $2, $3)
            ON CONFLICT (code) DO NOTHING
            RETURNING id, code, status, created_at, decided_at`,
-          [randomUUID(), accountId, generateAccessRequestCode()],
+          [randomUUID(), accountId, this.generateCode()],
         );
         if (inserted.rows[0]) return { created: true, request: mapRequest(inserted.rows[0]) };
       }
@@ -165,9 +172,21 @@ export class ShowcaseAccessRequestService {
   }
 
   async decide(approverId: string, requestId: string, decision: 'APPROVED' | 'REJECTED'): Promise<void> {
+    // uuid 컬럼에 형식이 틀린 값을 보내면 Postgres가 에러를 내 500으로 샌다. 쿼리 전에 걸러 404로 보낸다.
+    if (!UUID_PATTERN.test(requestId)) throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_REQUEST_NOT_FOUND');
     return this.transaction(async (client) => {
       await this.accountLifecycle.assertActive(client, approverId);
       await this.assertApprover(client, approverId);
+      // 잠금 순서(#294 P2): 재요청과 계정 삭제는 계정(advisory lock) → 요청 행 순으로 잠근다. 승인이 행 → 계정
+      // 순으로 잠그면 반대 순서끼리 서로 기다려 교착 상태가 난다. 요청의 계정을 먼저 알아내 승인자·요청자 계정을
+      // 정렬된 순서로 잠근 뒤에야 요청 행을 잠그고(FOR UPDATE) 다시 검증한다.
+      const lookup = await client.query<{ account_id: string }>(
+        `SELECT account_id FROM showcase_access_requests WHERE id = $1`,
+        [requestId],
+      );
+      const targetAccountId = lookup.rows[0]?.account_id;
+      if (targetAccountId === undefined) throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_REQUEST_NOT_FOUND');
+      await this.accountLifecycle.assertAllActive(client, [approverId, targetAccountId]);
       const request = await client.query<{ id: string; account_id: string; status: AccessRequestStatus }>(
         `SELECT id, account_id, status FROM showcase_access_requests WHERE id = $1 FOR UPDATE`,
         [requestId],
