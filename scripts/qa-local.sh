@@ -34,6 +34,9 @@ db_url="postgresql://postgres@127.0.0.1:${pg_port}/${db_name}"
 api_pid_file="$state_dir/api.pid"
 metro_pid_file="$state_dir/metro.pid"
 env_backup="$state_dir/mobile.env.local.bak"
+# up이 .env.local을 바꾸기 직전에 만드는 표시. 이 표시가 있을 때만 down이 .env.local을 되돌리거나 지운다.
+# 표시 없이 down만 돌리거나(up 전·두 번째 down) up이 .env.local에 닿기 전에 실패하면 사용자 파일을 건드리지 않는다.
+env_owned="$state_dir/mobile.env.local.owned"
 mobile_env="$repo_root/apps/mobile/.env.local"
 api_log="$state_dir/api.log"
 metro_log="$state_dir/metro.log"
@@ -50,8 +53,11 @@ stop_pid_file() {
 }
 
 restore_mobile_env() {
-  # 백업이 있으면 복사 뒤 cmp로 바이트까지 같은지 확인하고서만 백업을 지운다(다르면 백업을 남겨 둔다).
-  # 백업이 없다면 up이 새로 만든 파일이라는 뜻이라 지운다. 둘 다 없으면 할 일이 없다.
+  # up이 .env.local을 바꾼 세션(표시 있음)에서만 되돌린다. 백업이 있으면 복사 뒤 cmp로 바이트까지 같은지 확인하고서만
+  # 백업과 표시를 지운다(다르면 둘 다 남겨 둔다). 백업이 없으면 up이 새로 만든 파일이라 지운다.
+  if [[ ! -f "$env_owned" ]]; then
+    return 0
+  fi
   if [[ -f "$env_backup" ]]; then
     cp -p "$env_backup" "$mobile_env"
     if cmp -s "$env_backup" "$mobile_env"; then
@@ -63,6 +69,7 @@ restore_mobile_env() {
   elif [[ -f "$mobile_env" ]]; then
     rm -f "$mobile_env"
   fi
+  rm -f "$env_owned"
   return 0
 }
 
@@ -89,8 +96,8 @@ if docker ps -a --format '{{.Names}}' | grep -qx "$pg_container"; then
   echo "qa-local: $pg_container already exists; run '$0 down' first" >&2
   exit 1
 fi
-if [[ -f "$env_backup" ]]; then
-  echo "qa-local: a stale .env.local backup already exists at $env_backup; run '$0 down' first" >&2
+if [[ -f "$env_backup" || -f "$env_owned" ]]; then
+  echo "qa-local: a previous session still owns apps/mobile/.env.local (state in $state_dir); run '$0 down' first" >&2
   exit 1
 fi
 
@@ -156,6 +163,7 @@ echo "qa-local: preparing Metro .env.local (Android emulator: 10.0.2.2)"
 if [[ -f "$mobile_env" ]]; then
   cp -p "$mobile_env" "$env_backup"
 fi
+: >"$env_owned"
 cat >"$mobile_env" <<ENVEOF
 EXPO_PUBLIC_API_URL=http://10.0.2.2:3000
 EXPO_PUBLIC_DEMO_ACCOUNT_ID=showcase-local-customer

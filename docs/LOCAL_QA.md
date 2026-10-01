@@ -24,7 +24,7 @@ scripts/qa-local.sh down   # API·Metro를 끝내고 컨테이너를 지우고 .
 5. `apps/mobile/.env.local`이 있으면 `.tmp/qa-local/mobile.env.local.bak`로 백업한 뒤(이미 백업이 있으면 **거절**하고 먼저 `down`을 하라고 안내합니다), `EXPO_PUBLIC_API_URL=http://10.0.2.2:3000`(Android 에뮬레이터의 호스트 루프백 별칭)과 `EXPO_PUBLIC_DEMO_*` 값을 쓴 새 `.env.local`을 만듭니다.
 6. 짧은 `TMPDIR`(`.tmp/qa-local/tmp`, macOS의 긴 기본 TMPDIR 경로에서 Watchman 소켓이 깨지는 것을 피함)과 `APP_VARIANT=development`로 `npx expo start --dev-client`를 백그라운드로 띄웁니다. 에뮬레이터·실기기 연결은 별도입니다(이 스크립트는 Metro를 띄우기만 합니다).
 
-`down`이 하는 일: Metro·API 프로세스를 끝내고, `masscom-qa-pg` 컨테이너를 지우고, `.env.local`을 백업에서 복사한 뒤 `cmp`로 원본과 바이트까지 같은지 확인하고서만 백업을 지웁니다(다르면 백업을 남기고 실패로 끝냅니다). 백업이 없었다면(= `up`이 새로 만든 파일) 그 `.env.local`을 지웁니다.
+`down`이 하는 일: Metro·API 프로세스를 끝내고, `masscom-qa-pg` 컨테이너를 지우고, `.env.local`을 백업에서 복사한 뒤 `cmp`로 원본과 바이트까지 같은지 확인하고서만 백업을 지웁니다(다르면 백업을 남기고 실패로 끝냅니다). 백업이 없었다면(= `up`이 새로 만든 파일) 그 `.env.local`을 지웁니다. 이 복원·삭제는 `up`이 `.env.local`을 바꾸기 직전에 남긴 표시(`.tmp/qa-local/mobile.env.local.owned`)가 있을 때만 합니다. `up` 전에 `down`만 돌리거나, `down`을 두 번 돌리거나, `up`이 `.env.local`에 닿기 전에 실패하면 사용자의 `.env.local`을 건드리지 않습니다(`tests/ops/qa_local_env_test.sh`, CI의 로컬 시연 API·DB 격리 설정 검사).
 
 ## 확인에 쓰는 로컬 계정
 
