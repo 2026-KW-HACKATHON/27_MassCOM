@@ -1,3 +1,5 @@
+import { clearCollectibleDrafts } from './collectible-assist.mjs';
+
 const merchantRequests = new WeakMap();
 const merchantClaimResolutions = new WeakMap();
 const merchantClaimSlots = new WeakMap();
@@ -8,11 +10,21 @@ const creatorScopes = new WeakMap();
 // 지금 제작기가 열려 있는 점포 ID.
 const creatorStores = new WeakMap();
 
-function closeCreator(doc) {
-  creators.get(doc)?.();
+// reason은 제작기의 dispose(reason)에 그대로 전달된다: 'discard'(사용자가 지금 초안을 명시적으로 버림),
+// 생략(평범한 이동 — 미디어 없는 편집 값만 기기에 남겨 둔다). 로그아웃·계정 전환으로 그 계정의 모든 점포 보관본을
+// 지우는 일은 제작기가 열려 있지 않아도 일어나야 하므로 clearDrafts(scope)로 따로 호출한다.
+function closeCreator(doc, reason) {
+  creators.get(doc)?.(reason);
   creators.delete(doc);
   creatorStores.delete(doc);
   doc.getElementById('merchant-creator-editor')?.replaceChildren();
+}
+
+// 기기 저장소 인자를 생략해(clearCollectibleDrafts가 전역 기기 저장소를 기본값으로 쓴다) 이 화면의 소스에는
+// 그 저장소 이름이 남지 않는다(점주 쿠폰 화면은 마크업·텍스트 노드 렌더링만 쓴다는 시험이 그 문구를 금지한다).
+function clearDrafts(scope) {
+  if (!scope) return;
+  try { clearCollectibleDrafts(undefined, scope); } catch { /* 저장 공간이 없어도 로그아웃·전환은 계속한다 */ }
 }
 
 // 제작기 권한은 서버가 MANAGE_ART로 판정한다(기본은 점포의 점주만, 응답에는 싣지 않는다). 이 화면이 아는 것은 역할뿐이라
@@ -34,8 +46,11 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
   const select = doc.getElementById('merchant-creator-store');
   const open = doc.getElementById('merchant-creator-open');
   if (!panel || !select || !open) return;
-  const scope = `${mine.accountScope ?? ''}:${mine.merchants.map(member => `${member.id}:${member.role}`).sort().join(',')}`;
-  if (!mine.accountScope || creatorScopes.get(doc) !== scope) closeCreator(doc);
+  const scope = mine.accountScope ?? '';
+  const previousScope = creatorScopes.get(doc);
+  // 계정 자체가 바뀔 때만 닫고 그 계정의 보관본을 지운다. 같은 계정의 점포·역할 목록만 바뀐 호출(매번 /me를 다시
+  // 읽을 때 일어난다)은 제작기를 닫지도, 자동 저장·복원을 막지도 않는다.
+  if (previousScope !== undefined && previousScope !== scope) { closeCreator(doc); clearDrafts(previousScope); }
   creatorScopes.set(doc, scope);
   const makers = mine.merchants.filter(canCreate);
   select.replaceChildren();
@@ -44,28 +59,38 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
   }
   panel.hidden = makers.length === 0;
   if (makers.length === 0) closeCreator(doc);
+  // 같은 계정의 목록만 다시 읽었으면 열려 있는 제작기의 점포를 계속 고른 상태로 둔다. 그 점포의 제작 권한이 사라졌으면 닫는다.
+  const mountedStore = creatorStores.get(doc);
+  if (mountedStore) {
+    if (makers.some(merchant => merchant.id === mountedStore)) select.value = mountedStore;
+    else closeCreator(doc);
+  }
   // 저장하지 않은 편집이 있으면 제작기를 다시 열거나 점포를 바꾸기 전에 묻는다. 거절하면 그대로 둔다.
-  const keepEdits = () => creators.get(doc)?.isDirty?.() === true && !confirm(discardMessage);
+  const isDirty = () => creators.get(doc)?.isDirty?.() === true;
+  const keepEdits = () => isDirty() && !confirm(discardMessage);
   select.onchange = () => {
     const mounted = creatorStores.get(doc);
     if (!mounted || select.value === mounted) return;
+    const discarding = isDirty();
     if (keepEdits()) { select.value = mounted; return; }
     // 고른 점포와 열려 있는 제작기가 어긋나지 않게, 바꾸기로 했으면 지금 제작기를 닫는다.
-    closeCreator(doc);
+    // 저장하지 않은 편집을 명시적으로 버리기로 한 것이므로(discarding) 그 초안의 기기 보관본도 지운다.
+    closeCreator(doc, discarding ? 'discard' : undefined);
   };
   open.onclick = async () => {
     const currentRequest = merchantRequests.get(doc);
     const merchant = makers.find(member => member.id === select.value);
     if (!merchant) return;
+    const discarding = isDirty();
     if (keepEdits()) return;
     open.disabled = true;
     try {
       const module = await import('./collectible-editor.mjs');
       if (merchantRequests.get(doc) !== currentRequest) return;
-      closeCreator(doc);
+      closeCreator(doc, discarding ? 'discard' : undefined);
       let denied = false;
       const cleanup = await module.mountCollectibleEditor(doc.getElementById('merchant-creator-editor'), {
-        merchantId: merchant.id, merchantName: merchant.name,
+        merchantId: merchant.id, merchantName: merchant.name, accountScope: mine.accountScope,
         loadCampaigns: () => loadCreatorCampaigns(fetcher, merchant.id),
         request: (path, options = {}) => request(fetcher, path, options.method ?? 'GET', options.body),
         onNotice: message => { doc.getElementById('merchant-status').textContent = message; },
@@ -849,7 +874,9 @@ export function bindMerchant(fetcher, doc) {
     }
   });
   doc.getElementById('merchant-logout')?.addEventListener('click', async () => {
+    // 로그아웃: 같은 기기를 다른 계정이 바로 이어 쓸 수 있으므로, 이 계정이 기기에 남긴 자동 저장 보관본을 지운다.
     closeCreator(doc);
+    clearDrafts(creatorScopes.get(doc));
     creatorScopes.delete(doc);
     stopCamera();
     merchantRequests.set(doc, (merchantRequests.get(doc) ?? 0) + 1);
