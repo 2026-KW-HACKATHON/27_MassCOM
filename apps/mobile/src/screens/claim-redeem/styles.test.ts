@@ -45,6 +45,9 @@ test('the QR and code panels are dashed stamp cards on world.card with readable 
     for (const key of ['button', 'collectionButton'] as const) {
       assert.ok((styles[key].minHeight as number) >= uiMetrics.minTouch, key);
     }
+    assert.ok(contrast(styles.testVisitChipText.color as string, styles.testVisitChip.backgroundColor as string) >= 4.5);
+    assert.ok(contrast(styles.testVisitChipTextSelected.color as string, styles.testVisitChipSelected.backgroundColor as string) >= 4.5);
+    assert.ok((styles.testVisitChip.minHeight as number) >= uiMetrics.minTouch);
   }
 });
 
