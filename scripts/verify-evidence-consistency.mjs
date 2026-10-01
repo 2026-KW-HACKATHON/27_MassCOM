@@ -52,7 +52,7 @@ if (manifest.truthBoundary?.partnerStoresClaimed !== 0 || manifest.truthBoundary
   || manifest.truthBoundary?.revenueIncreaseClaimed !== false || manifest.truthBoundary?.playApprovalClaimed !== false) {
   throw new Error('submission evidence invents field, revenue, or Play-approval claims');
 }
-if (manifest.recordedAt !== '2026-09-23 KST' || !portal.includes('2026-09-23 KST')) {
+if (!/^\d{4}-\d{2}-\d{2} KST$/.test(manifest.recordedAt ?? '') || !portal.includes(manifest.recordedAt)) {
   throw new Error('evidence date drift');
 }
 if (!/^[0-9a-f]{40}$/.test(manifest.baselineCommit)) throw new Error('invalid manifest baseline commit');

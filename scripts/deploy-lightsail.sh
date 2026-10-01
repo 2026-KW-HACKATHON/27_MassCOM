@@ -85,14 +85,6 @@ target="ubuntu@$host"
 remote_release="/opt/masscom/releases/$release_id"
 remote_env="/opt/masscom/runtime.env"
 remote_tmp_env="/tmp/masscom-runtime-$release_id.env"
-ssh_options=(
-  -i "$identity_file"
-  -o IdentitiesOnly=yes
-  -o StrictHostKeyChecking=accept-new
-  -o UserKnownHostsFile="${MASSCOM_KNOWN_HOSTS_FILE:-/tmp/masscom-lightsail-known-hosts}"
-  -o ConnectTimeout=15
-)
-
 echo "target: $target"
 echo "release: $commit"
 echo "mode: ${mode#--}"
@@ -100,6 +92,16 @@ echo "mode: ${mode#--}"
 if [[ "$mode" == "--dry-run" ]]; then
   exit 0
 fi
+
+known_hosts="${MASSCOM_KNOWN_HOSTS_FILE:-$HOME/.ssh/known_hosts}"
+[[ -f "$known_hosts" ]] || { echo 'verified SSH known_hosts file is required' >&2; exit 1; }
+ssh_options=(
+  -i "$identity_file"
+  -o IdentitiesOnly=yes
+  -o StrictHostKeyChecking=yes
+  -o UserKnownHostsFile="$known_hosts"
+  -o ConnectTimeout=15
+)
 
 ssh "${ssh_options[@]}" "$target" bash -s -- "$remote_release" "$release_id" <<'REMOTE_RELEASE_PREFLIGHT'
 set -euo pipefail

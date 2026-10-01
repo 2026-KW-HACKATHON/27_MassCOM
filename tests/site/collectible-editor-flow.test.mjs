@@ -449,6 +449,79 @@ test('시즌 복사가 거절되면 현재 입력과 저장 대상을 바꾸지 
   assert.equal(api.calls.filter(call => call.method === 'PUT').at(-1).path, '/collectible-projects/project-1');
 });
 
+test('저장하지 않은 편집이 있으면 새 초안을 시작하기 전에 묻고, 거절하면 편집과 되돌리기를 그대로 둔다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { confirm: false });
+  await ui.upload(photoFile);
+  await ui.input('name', '버리면 안 되는 이름');
+  await ui.click('new');
+  assert.match(ui.asked[0], /저장하지 않은 편집이 있어요\. 지금 새로 시작하거나 다른 프로젝트를 열면 사라져요/);
+  assert.equal(ui.control('name').value, '버리면 안 되는 이름', '거절하면 편집이 남는다');
+  assert.equal(ui.dirty, true);
+  assert.equal(ui.notice.includes('새 초안을 시작했어요'), false, '거절했으니 새 초안으로 바뀌지 않는다');
+  await ui.click('undo');
+  assert.equal(ui.control('name').value, '월계 식당 수집품', '거절 뒤에도 되돌리기가 그대로 동작한다');
+});
+
+test('저장하지 않은 편집이 있어도 수락하면 새 초안을 시작한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { confirm: true });
+  await ui.upload(photoFile);
+  await ui.input('name', '버려도 되는 이름');
+  await ui.click('new');
+  assert.equal(ui.asked.length, 1);
+  assert.equal(ui.control('name').value, '월계 식당 수집품', '수락하면 새 초안으로 바뀐다');
+  assert.equal(ui.dirty, false);
+  assert.match(ui.notice, /새 초안을 시작했어요/);
+});
+
+test('저장하지 않은 편집이 있으면 저장한 프로젝트를 열기 전에 묻고, 거절하면 편집을 그대로 둔다', async () => {
+  const api = createFakeApi();
+  const published = api.seed(seeded(), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  const ui = await mount(api, { confirm: false });
+  await ui.upload(photoFile);
+  await ui.input('name', '지금 편집 중');
+  await ui.change('project-list', published.id);
+  assert.match(ui.asked[0], /저장하지 않은 편집이 있어요\. 지금 새로 시작하거나 다른 프로젝트를 열면 사라져요/);
+  assert.equal(ui.control('name').value, '지금 편집 중', '거절하면 편집이 남는다');
+  assert.equal(ui.control('project-list').value, '', '거절하면 목록 선택도 지금 편집 중인 새 초안으로 돌아온다');
+  assert.equal(ui.dirty, true);
+  assert.equal(api.calls.some(call => call.path === `/collectible-projects/${published.id}`), false, '거절했으니 열지 않았다');
+});
+
+test('저장하지 않은 편집이 있어도 수락하면 저장한 프로젝트를 연다', async () => {
+  const api = createFakeApi();
+  const published = api.seed(seeded(), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  const ui = await mount(api, { confirm: true });
+  await ui.upload(photoFile);
+  await ui.change('project-list', published.id);
+  assert.equal(ui.asked.length, 1);
+  assert.match(distribution(ui), /게시한 버전/);
+});
+
+test('카드로 저장한 프로젝트를 열 때도 저장하지 않은 편집이 있으면 묻고, 거절하면 그대로 둔다', async () => {
+  const api = createFakeApi();
+  const published = api.seed(seeded(), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  const ui = await mount(api, { confirm: false });
+  await ui.upload(photoFile);
+  cards(ui)[0].dispatchEvent({ type: 'click' });
+  await settle();
+  assert.equal(ui.asked.length, 1);
+  assert.equal(ui.dirty, true);
+  assert.equal(api.calls.some(call => call.path === `/collectible-projects/${published.id}`), false, '거절했으니 열지 않았다');
+});
+
+test('고친 것이 없으면 새 초안 시작·프로젝트 열기는 묻지 않는다', async () => {
+  const api = createFakeApi();
+  const published = api.seed(seeded(), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  const ui = await mount(api, { confirm: false });
+  await ui.click('new');
+  assert.equal(ui.asked.length, 0);
+  await ui.change('project-list', published.id);
+  assert.equal(ui.asked.length, 0);
+  assert.match(distribution(ui), /게시한 버전/);
+});
+
 const owner = (id, name) => ({ id, name, role: 'OWNER' });
 
 test('저장하지 않은 편집이 있으면 제작기를 다시 열기 전에 묻고, 거절하면 편집을 그대로 둔다', async () => {

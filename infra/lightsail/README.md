@@ -41,6 +41,8 @@
 
 정적 페이지 변경은 위의 웹 전용 배포를 사용한다. API와 웹을 함께 교체해야 할 때만 `scripts/deploy-lightsail.sh`를 사용한다. 후속 `fix/release-readiness` 변경은 기존 운영 API의 40자리 배포 커밋, 대상 `HEAD`, `backward_compatible=yes`가 들어간 Git 밖 mode 600 호환성 증거 파일을 `MASSCOM_MIGRATION_COMPATIBILITY_EVIDENCE_FILE`로 요구한다. 이 표시는 실제 migration을 검토했다는 기록이지 DB 복구를 자동화하지 않는다.
 
+**SSH 호스트 키 검증(Issue #279, 2026-10-01):** `--deploy`는 이제 웹 전용 배포와 같은 규칙을 쓴다. 확인된 `known_hosts` 파일(`MASSCOM_KNOWN_HOSTS_FILE`, 기본 `~/.ssh/known_hosts`)이 없으면 원격에 연결하기 전에 거절하고, `StrictHostKeyChecking=yes`로 그 파일에 없거나 바뀐 호스트 키는 받지 않는다(재부팅 등으로 `/tmp`가 비어도 처음 보는 호스트 키를 자동으로 신뢰하지 않는다). 호스트 키 경고가 뜨면 [`docs/SERVER_ACCESS.md`](../../docs/SERVER_ACCESS.md)처럼 `known_hosts` 항목을 지우지 말고 운영진과 실제 서버 지문을 비교한다. `--dry-run`은 이 검사보다 먼저 끝나 원격에 연결하지 않는다.
+
 전체 배포는 기존 런타임 환경·Caddyfile·운영 DB의 custom-format 백업과 복원 목록 검증을 **migration 전에** 수행한다. 실패하면 이전 API·웹·Caddy 이미지와 시연 edge 연결, 환경 파일·배포 포인터·커밋 마커를 되돌리고 운영/시연 HTTPS를 다시 확인한다. migration이 시작된 뒤의 DB 변경은 자동 되돌리지 않는다. 백업 경로와 적용된 migration을 대조해 별도로 수동 복구를 판단해야 하며, 이 코드의 실제 원격 롤백은 아직 `NOT_RUN`이다. 운영 DB 볼륨 삭제나 테스트 데이터 삽입은 복구 방법이 아니다.
 
 기존 원격 release 경로나 API·웹 이미지 태그가 있으면 동일 SHA 재배포를 거절한다. 실패한 업로드도 해당 경로를 남길 수 있으므로 재시도 전에는 남은 파일·이미지·백업과 현재 서비스를 읽기 전용으로 대조하고, 검토된 새 커밋/릴리스 ID로 진행한다. 복구가 필요한 실제 자료를 자동 삭제하지 않는다. 기존 Lightsail의 Docker Compose 2.40.3에서 `--wait`·`--wait-timeout` 지원을 읽기 확인했지만 이 전체 배포 코드를 원격 실행한 것은 아니다.
