@@ -59,6 +59,12 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
   }
   panel.hidden = makers.length === 0;
   if (makers.length === 0) closeCreator(doc);
+  // 같은 계정의 목록만 다시 읽었으면 열려 있는 제작기의 점포를 계속 고른 상태로 둔다. 그 점포의 제작 권한이 사라졌으면 닫는다.
+  const mountedStore = creatorStores.get(doc);
+  if (mountedStore) {
+    if (makers.some(merchant => merchant.id === mountedStore)) select.value = mountedStore;
+    else closeCreator(doc);
+  }
   // 저장하지 않은 편집이 있으면 제작기를 다시 열거나 점포를 바꾸기 전에 묻는다. 거절하면 그대로 둔다.
   const isDirty = () => creators.get(doc)?.isDirty?.() === true;
   const keepEdits = () => isDirty() && !confirm(discardMessage);

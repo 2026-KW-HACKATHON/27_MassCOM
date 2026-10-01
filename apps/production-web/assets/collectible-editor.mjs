@@ -236,7 +236,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     const startProject = project, startSerial = editSerial;
     try {
       const result = await request(`${base}/${encodeURIComponent(draft.wrapperId)}`, { method: 'GET' });
-      if (!active || project !== startProject || editSerial !== startSerial) return;
+      // 기다리는 동안 저장을 시작했어도 복원을 얹지 않는다(저장이 만든 새 프로젝트에 다른 초안의 편집이 붙지 않게).
+      if (!active || busy || project !== startProject || editSerial !== startSerial) return;
       const serverWrapper = result.project?.id ? result.project : result;
       // 목록을 본 뒤 다른 탭이 새 버전을 저장했으면, 옛 편집을 새 버전 위에 얹지 않고 보관본을 버린다.
       if (serverWrapper.version !== draft.wrapperVersion) { clearDraftStorage(); notice('다른 곳에서 더 새로 저장된 버전이 있어 보관한 편집은 버렸어요.'); return; }

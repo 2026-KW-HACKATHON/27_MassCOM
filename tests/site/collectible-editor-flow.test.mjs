@@ -1032,9 +1032,14 @@ test('같은 계정의 점포·역할 목록만 바뀌면 열린 제작기도, �
   assert.ok(ui.host.children.length > 0, '제작기가 열려 있다');
 
   // 같은 계정(accountScope 그대로)이 점포·역할 목록만 바뀐 채로 다시 호출되는 상황(예: /me를 다시 읽을 때마다).
-  configureCreator(api.fetcher, document, { accountScope: 'scope-a', merchants: [...merchants, owner('m2', '두 번째 식당')] });
+  configureCreator(api.fetcher, document, { accountScope: 'scope-a', merchants: [owner('m2', '두 번째 식당'), ...merchants] });
   assert.ok(ui.host.children.length > 0, '역할 목록만 바뀐 호출은 열린 제작기를 닫지 않는다');
+  assert.equal(document.getElementById('merchant-creator-store').value, 'm1', '열린 제작기의 점포를 계속 고른 상태로 둔다');
   assert.ok(readDraft(dom.window, 'm1', 'scope-a'), '같은 계정의 점포·역할 목록 변경은 보관본을 지우지 않는다');
+
+  // 같은 계정이지만 열린 점포의 제작 권한이 사라지면 제작기를 닫는다.
+  configureCreator(api.fetcher, document, { accountScope: 'scope-a', merchants: [owner('m2', '두 번째 식당')] });
+  assert.equal(ui.host.children.length, 0, '권한이 사라진 점포의 제작기는 닫는다');
 });
 
 test('명시적으로 편집을 버리고 다른 점포를 열면 그 초안의 기기 보관본만 지우고 다시 저장하지 않는다(P1)', async () => {
