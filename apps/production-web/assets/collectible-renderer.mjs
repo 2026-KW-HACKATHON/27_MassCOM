@@ -465,16 +465,47 @@ export async function renderCollectible(canvas, project, gradeId, options = {}) 
   const back = await backFor(project, gradeId, size, options.merchantName || '');
   drawVolume(canvas, front, project, { ...options, animation, playback, particle, back });
 }
+/** angleFrames 스프라이트의 i번째 칸(4×side 그리드)만 잘라낸 side×side 캔버스. */
+async function angleFrameCell(angleFrames, index) {
+  const sprite = await imageFor(angleFrames.dataUrl); if (!sprite) return null;
+  const side = angleFrames.side, cell = canvasOf(side, side);
+  cell.getContext('2d').drawImage(sprite, (index % 4) * side, Math.floor(index / 4) * side, side, side, 0, 0, side, side);
+  return cell;
+}
+/** 지금 각도의 가장 가까운 두 칸을 섞은 정면 캔버스. |각도|>90(뒷면)이면 null(뒷면은 backImageDataUrl이 따로 맡는다). */
+async function angleFrameFront(angleFrames, angle) {
+  const position = angleFrameIndex(angle);
+  if (position.back) return null;
+  const a = await angleFrameCell(angleFrames, position.index); if (!a) return null;
+  if (position.blend <= 0) return a;
+  const b = await angleFrameCell(angleFrames, position.next); if (!b) return a;
+  const out = canvasOf(angleFrames.side, angleFrames.side), context = out.getContext('2d');
+  context.drawImage(a, 0, 0);
+  if (position.blend >= 1) { context.clearRect(0, 0, out.width, out.height); context.drawImage(b, 0, 0); return out; }
+  context.globalAlpha = position.blend; context.drawImage(b, 0, 0); context.globalAlpha = 1;
+  return out;
+}
+/** living 스프라이트에서 시간 t(ms)에 맞는 한 칸을 잘라낸다(cellWidth×cellHeight). */
+async function livingOverlayCell(living, t) {
+  const sprite = await imageFor(living.dataUrl); if (!sprite) return null;
+  const index = livingFrameAt(t, living.periodMs, living.count);
+  const column = index % living.columns, row = Math.floor(index / living.columns);
+  const cell = canvasOf(living.cellWidth, living.cellHeight);
+  cell.getContext('2d').drawImage(sprite, column * living.cellWidth, row * living.cellHeight, living.cellWidth, living.cellHeight, 0, 0, living.cellWidth, living.cellHeight);
+  return cell;
+}
 export async function renderPublishedCollectible(canvas, snapshot, options = {}) {
-  let front = await imageFor(snapshot.baseDataUrl || snapshot.imageDataUrl || snapshot.thumbnailDataUrl);
+  const angle = (options.angle ?? snapshot.angle ?? 0) + (!options.staticFrame && snapshot.animation === 'rotate' ? (options.time || 0) / 75 : 0);
+  let front = snapshot.angleFrames ? await angleFrameFront(snapshot.angleFrames, angle) : null;
+  if (!front) front = await imageFor(snapshot.baseDataUrl || snapshot.imageDataUrl || snapshot.thumbnailDataUrl);
   if (!front) return;
-  if (snapshot.baseDataUrl && snapshot.effectMasks) {
+  // angleFrames가 있으면 각도·효과가 이미 그 안에 구워져 있어 base+mask 재합성은 건너뛴다(이중 적용 방지).
+  if (!snapshot.angleFrames && snapshot.baseDataUrl && snapshot.effectMasks) {
     const painted = canvasOf(front.naturalWidth || front.width, front.naturalHeight || front.height), context = painted.getContext('2d');
     context.drawImage(front, 0, 0);
     for (const effect of snapshot.effects || []) {
       const mask = await imageFor(snapshot.effectMasks[effect.target]); if (!mask) continue;
       const overlay = canvasOf(painted.width, painted.height), paint = overlay.getContext('2d'); paint.drawImage(painted, 0, 0);
-      const angle = (options.angle ?? snapshot.angle ?? 0) + (!options.staticFrame && snapshot.animation === 'rotate' ? (options.time || 0) / 75 : 0);
       effectPaint(paint, effect, painted.width, angle, options.time, snapshot.shape);
       paint.globalCompositeOperation = 'destination-in'; paint.drawImage(mask, 0, 0, painted.width, painted.height);
       // Clear the affected material first so translucent glass stays translucent.
@@ -482,6 +513,18 @@ export async function renderPublishedCollectible(canvas, snapshot, options = {})
       context.globalCompositeOperation = 'source-over'; context.drawImage(overlay, 0, 0);
     }
     front = painted;
+  }
+  // living 오버레이는 시간으로 움직이는 칸을 정면 위 박스 자리에 얹는다(동작 줄이기·정지면 t=0 칸).
+  if (snapshot.living) {
+    const overlay = await livingOverlayCell(snapshot.living, options.staticFrame ? 0 : (options.time || 0));
+    if (overlay) {
+      const width = front.naturalWidth || front.width, height = front.naturalHeight || front.height;
+      const composed = canvasOf(width, height), context = composed.getContext('2d');
+      context.drawImage(front, 0, 0, width, height);
+      const box = snapshot.living.box;
+      context.drawImage(overlay, box.x * width, box.y * height, box.w * width, box.h * height);
+      front = composed;
+    }
   }
   // v1 발행본·뒷면 미생성본은 backImageDataUrl이 없어 drawVolume이 오늘의 모습(바탕색+이름)으로 대체한다.
   const back = snapshot.backImageDataUrl ? await imageFor(snapshot.backImageDataUrl) : null;

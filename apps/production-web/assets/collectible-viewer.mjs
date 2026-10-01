@@ -53,6 +53,7 @@ export async function openCollectible(doc, item, fetcher, opener) {
   let audio;
   const controller = new AbortController();
   let onVisibility = () => {};
+  let stopTilt = () => {};
   const shutdown = () => {
     if (!active) return;
     active = false;
@@ -60,6 +61,7 @@ export async function openCollectible(doc, item, fetcher, opener) {
     doc.defaultView.cancelAnimationFrame(frame);
     audio?.pause();
     if (audio) { audio.removeAttribute('src'); audio.load(); }
+    stopTilt();
     doc.removeEventListener('visibilitychange', onVisibility);
     dialog.close();
     dialog.remove();
@@ -199,7 +201,45 @@ export async function openCollectible(doc, item, fetcher, opener) {
       onceControls.append(replayOnce);
       dialog.insertBefore(onceControls, close);
     }
-    onVisibility = () => { if (doc.hidden) { pause(); audio?.pause(); storyStarted = undefined; } };
+    // 웹 기울임(설계 문서 "웹 기울임" 항목): deviceorientation 감마, 켤 때 잡은 값을 0점으로 저역통과(.2)해 ±30°로
+    // 쓴다. 미지원이거나 동작 줄이기면 토글을 보이지 않는다(토글을 연 뒤 동작 줄이기를 켜는 경우는 ponytail: 다음
+    // draw에서 반영, 토글 자체는 그대로 둔다 — 드문 경로라 지금은 숨기지 않는다). iOS는 토글 클릭에서 바로
+    // requestPermission()을 불러야 허용 창이 뜬다.
+    const Orientation = doc.defaultView.DeviceOrientationEvent;
+    if (Orientation && !reduce.checked) {
+      let tiltActive = false, tiltOffset = 0, tiltSmoothed = angle;
+      const onTilt = event => {
+        if (typeof event.gamma !== 'number') return;
+        const relative = Math.max(-30, Math.min(30, event.gamma - tiltOffset));
+        tiltSmoothed += .2 * (relative - tiltSmoothed);
+        angle = tiltSmoothed; rotation.value = String((Math.round(angle) + 360) % 360); angleValue.textContent = `${rotation.value}°`;
+        void draw();
+      };
+      const firstSample = event => {
+        doc.defaultView.removeEventListener('deviceorientation', firstSample);
+        if (typeof event.gamma === 'number') tiltOffset = event.gamma;
+        doc.defaultView.addEventListener('deviceorientation', onTilt);
+      };
+      stopTilt = () => {
+        if (!tiltActive) return;
+        tiltActive = false;
+        doc.defaultView.removeEventListener('deviceorientation', firstSample);
+        doc.defaultView.removeEventListener('deviceorientation', onTilt);
+        tiltToggle.setAttribute('aria-pressed', 'false'); tiltToggle.textContent = '기울여서 보기';
+      };
+      const tiltControls = element(doc, 'div', undefined, 'collectible-controls');
+      const tiltToggle = element(doc, 'button', '기울여서 보기', 'collection-action');
+      tiltToggle.type = 'button'; tiltToggle.setAttribute('aria-pressed', 'false');
+      tiltToggle.addEventListener('click', () => {
+        if (tiltActive) { stopTilt(); return; }
+        const begin = () => { pause(); tiltActive = true; tiltOffset = 0; tiltSmoothed = angle; tiltToggle.setAttribute('aria-pressed', 'true'); tiltToggle.textContent = '기울임 끄기'; doc.defaultView.addEventListener('deviceorientation', firstSample); };
+        if (typeof Orientation.requestPermission === 'function') {
+          Orientation.requestPermission().then(state => { if (state === 'granted') begin(); else status.textContent = '기울임 권한이 없어 수동 회전만 쓸 수 있어요.'; }).catch(() => {});
+        } else begin();
+      });
+      tiltControls.append(tiltToggle); dialog.insertBefore(tiltControls, close);
+    }
+    onVisibility = () => { if (doc.hidden) { pause(); audio?.pause(); storyStarted = undefined; stopTilt(); } };
     doc.addEventListener('visibilitychange', onVisibility);
     // loop 모션(반복 재생)이 있으면 손님이 따로 누르지 않아도 바로 보여 준다. 동작 줄이기면 정지 화면을 유지한다.
     if (snapshot.animation && snapshot.animation !== 'still' && !reduce.checked) { playing = true; started = doc.defaultView.performance.now(); play.textContent = '동작 정지'; }
