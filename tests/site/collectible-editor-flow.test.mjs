@@ -271,9 +271,13 @@ test('게시용 완성·뒷면 이미지·썸네일·장면 미리보기는 WebP
   assert.ok(bronze.effectMasks?.surface, '뷰어가 각도별로 홀로그램을 다시 합성하려면 surface mask가 있어야 한다');
   assert.match(bronze.effectMasks.surface, /^data:image\/png;base64,/);
   assert.match(project.story.frames[0].previewDataUrl, /^data:image\/webp;base64,/);
-  const webp = dom.document.encodes.filter(item => item.type === 'image/webp');
+  // WP3(Issue #284): 홀로그램이 있으면 angleFrames 스프라이트도 함께 굽는데, 그건 크기 사다리 화질(기본 .85)을
+  // 쓴다(설계 문서 "크기 사다리"). 완성·뒷면·썸네일·base(512·512·160·512px)만 여전히 0.9다.
+  const coreSizes = new Set([512, 160]);
+  const webp = dom.document.encodes.filter(item => item.type === 'image/webp' && coreSizes.has(item.width));
   assert.ok(webp.length >= 3 && webp.every(item => item.quality === .9), 'WebP는 품질 0.9로 인코딩한다');
   assert.ok(webp.some(item => item.width === 160), '썸네일 160px');
+  assert.ok(dom.document.encodes.some(item => item.type === 'image/webp' && item.quality === .85), 'angleFrames 스프라이트는 사다리 화질로 인코딩한다');
   assert.match(ui.notice, /게시했어요/);
 });
 
