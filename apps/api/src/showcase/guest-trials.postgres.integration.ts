@@ -13,6 +13,7 @@ import { resolveAiArtConfig } from '../ai-art-rules.js';
 import { fakeOpenAiFetch } from '../ai-art-test-support.js';
 import { AuthSessionError } from '../auth-session.js';
 import { MerchantArtError } from '../merchant-art.js';
+import { PostgresAccountDeletionService } from '../postgres/account-deletion.js';
 import { PostgresAuthSessionService } from '../postgres/auth-session.js';
 import { PostgresClaimSlotService } from '../postgres/claim-slot-service.js';
 import { PostgresMerchantAccessControl } from '../postgres/merchant-access.js';
@@ -259,6 +260,20 @@ test('#309 start creates a guest account, a hidden trial store copied from A, ST
     assert.equal((await access.mine('acct_someone_else')).trialMerchantId, null);
     await assert.rejects(access.request(session.accountId),
       (error: unknown) => error instanceof ShowcaseAccessRequestError && error.code === 'SHOWCASE_ACCESS_ALREADY_GRANTED');
+  });
+});
+
+test('#309 deleting a guest account pseudonymizes its trial row and keeps the trial store hidden', async () => {
+  await withShowcaseDatabase(async (pool) => {
+    const guest = await new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret }).start();
+    const merchantId = (await pool.query<{ merchant_id: string }>(
+      'SELECT merchant_id FROM showcase_guest_trials WHERE account_id = $1', [guest.accountId])).rows[0]!.merchant_id;
+    await new PostgresAccountDeletionService(pool, { hmacSecret: secret, policyVersion: 'test-policy' })
+      .requestDeletion({ accountId: guest.accountId, confirmation: 'DELETE MY ACCOUNT' });
+    assert.equal((await pool.query('SELECT 1 FROM showcase_guest_trials WHERE account_id = $1', [guest.accountId])).rowCount, 0);
+    assert.equal((await pool.query('SELECT 1 FROM showcase_guest_trials WHERE merchant_id = $1', [merchantId])).rowCount, 1);
+    const listed = await new PostgresMerchantCatalog(pool).listPublicMerchants();
+    assert.ok(listed.every((merchant) => merchant.id !== merchantId));
   });
 });
 
