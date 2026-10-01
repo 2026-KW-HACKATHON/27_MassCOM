@@ -1,4 +1,4 @@
-import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK } from './collectible-model.mjs';
+import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
 import { collectibleErrorMessage, localError } from './collectible-errors.mjs';
@@ -722,6 +722,12 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (project.stickers.some(item => !item.text.trim()) || project.back.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
     if (project.stickers.some(item => item.text.split('\n').length > 4) || project.back.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(3); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄을 지워 주세요.', true); return; }
     if (project.greetingOverrides.some(item => !item.gradeIds.length && !item.themeName.trim())) { navigateStep(4); notice('등급이나 시즌 테마를 고르지 않은 인사말 규칙이 있어요. 하나를 고르거나 규칙을 삭제해 주세요.', true); return; }
+    // PR #310 리뷰(P1): region 대상 living 항목은 서버가 점 1~20개를 요구한다(rules.ts parseLivingItem). 칠한
+    // 점을 전부 지운(또는 아직 칠하지 않은) 항목을 그대로 저장하면 그 등급을 쓰지 않아도 COLLECTIBLE_INVALID_PROJECT로
+    // 초안 저장조차 거절된다(validateCollectibleProject는 등급 연결 여부와 무관하게 구조 전체를 검사한다).
+    if (project.living.items.some(item => item.target === 'region' && (!item.strokes || item.strokes.length === 0))) {
+      navigateStep(4); notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
+    }
     if (publish) {
       setBusy(true); const refreshed = await refreshCampaigns(); setBusy(false);
       if (!active || !refreshed) return;
@@ -1272,6 +1278,11 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (loading) return;
     if (!project.photo.originalDataUrl) return;
     remember(); cropCanvas.setPointerCapture(event.pointerId);
+    // 패럴랙스 획과 living region 점은 서버에서 전체 합 20,000개 상한을 같이 쓴다(개별 상한만으로는 둘을 섞어
+    // 넘길 수 있다, PR #310 리뷰 P1). 둘 중 어느 붓이든 이 예산을 먼저 확인한다.
+    if ((brushTarget === 'parallax' || brushTarget.startsWith('living:')) && parallaxLivingPointTotal(project) >= PARALLAX_LIVING_POINT_BUDGET) {
+      notice('패럴랙스·living 점을 전체 20,000개까지 다 썼어요. 기존 점을 지우고 다시 칠해 주세요.', true); return;
+    }
     if (brushTarget === 'parallax') {
       if (project.parallax.strokes.length >= 100) { notice('패럴랙스 획은 100개까지 보관해요. 지우고 다시 칠해 주세요.', true); return; }
       const stroke = { tool: control('parallax-tool').value, size: Number(control('brush-size').value), points: [pointOnPhoto(event)] };
@@ -1298,8 +1309,11 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       project.crop.x = clamp(pointer.crop.x + (point.x - pointer.start.x) / Math.max(1, (transform.width - 512) / 2), -1, 1);
       project.crop.y = clamp(pointer.crop.y + (point.y - pointer.start.y) / Math.max(1, (transform.height - 512) / 2), -1, 1);
       control('crop-x').value = project.crop.x; control('crop-y').value = project.crop.y;
-    } else if (pointer.type === 'living') { if (pointer.item.strokes.length < 20) pointer.item.strokes.push(pointOnPhoto(event)); }
-    else if (pointer.stroke.points.length < 512) pointer.stroke.points.push(pointOnPhoto(event));
+    } else if (pointer.type === 'living') {
+      if (pointer.item.strokes.length < 20 && parallaxLivingPointTotal(project) < PARALLAX_LIVING_POINT_BUDGET) pointer.item.strokes.push(pointOnPhoto(event));
+    } else if (pointer.type === 'parallax') {
+      if (pointer.stroke.points.length < 512 && parallaxLivingPointTotal(project) < PARALLAX_LIVING_POINT_BUDGET) pointer.stroke.points.push(pointOnPhoto(event));
+    } else if (pointer.stroke.points.length < 512) pointer.stroke.points.push(pointOnPhoto(event));
     changed(); drawCrop(); schedulePreview();
   });
   const endPointer = () => { pointer = null; schedulePreview(); };

@@ -216,6 +216,18 @@ export function strokeAlpha(strokes, w, h) {
   return alpha;
 }
 
+// 서버(rules.ts:316-318)가 거절하는 패럴랙스 획 + living region 점의 전체 합 상한. 등급 연결 여부와 무관하게
+// 프로젝트 전체에서 넘으면 저장·게시가 모두 거절된다(PR #310 리뷰 P1).
+export const PARALLAX_LIVING_POINT_BUDGET = 20_000;
+
+/** 패럴랙스 획과 living region 항목의 점을 모두 더한다(서버가 보는 것과 같은 전체 합). */
+export function parallaxLivingPointTotal(project) {
+  let total = 0;
+  for (const stroke of project.parallax?.strokes ?? []) total += stroke.points?.length ?? 0;
+  for (const item of project.living?.items ?? []) if (item.target === 'region') total += item.strokes?.length ?? 0;
+  return total;
+}
+
 /**
  * 패럴랙스 전경/배경 레이어가 각도에 따라 벌어지는 거리(칸버스 size 기준 px). 배경은 이 값의 절반만큼 반대로,
  * 전경은 그대로, 스티커는 1.2배로 쓴다(renderer.mjs frontFor). strength 0이거나 획이 없으면 호출부가 0으로 둔다.

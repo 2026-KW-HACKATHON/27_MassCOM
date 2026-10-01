@@ -120,7 +120,7 @@ export function createCollectibleStudio(container, { effectNames }) {
   // 동작 중인 사진 세부 조정 안에 있는 패럴랙스 컨트롤은 photoDetail에 이미 포함돼 있어 따로 손댈 필요가 없다).
   const livingDetail = control('living-kind').closest('details');
   const voice = control('greeting').closest('details'), story = control('story-type').closest('details'), rewards = control('theme').closest('details');
-  motionDetail.open = true; voice.open = true; rewards.open = true;
+  motionDetail.open = true; livingDetail.open = true; voice.open = true; rewards.open = true;
   rewards.querySelector('.ce-detail').prepend(seasonTiles('theme'));
   panels[3].append(motionDetail, livingDetail, materials, voice, story, rewards);
   controls.replaceChildren(...panels);

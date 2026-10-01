@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { installMiniDom, settle } from '../fixtures/mini-dom.mjs';
 import {
   strokeAlpha, parallaxOffset, livingPhaseAt, livingFrameAt, livingSpriteCount, livingSpriteGrid, livingBoundingBox,
-  createProject, createId,
+  createProject, createId, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET,
 } from '../../apps/production-web/assets/collectible-model.mjs';
 import { serializeDerived } from '../../apps/production-web/assets/collectible-renderer.mjs';
 import { mountCollectibleEditor, SPRITE_SIZE_LADDER } from '../../apps/production-web/assets/collectible-editor.mjs';
@@ -173,6 +173,7 @@ test('(PR #293 P2 a) 등급별로 재배치된 스티커 효과도 마스크를 
 function driver(container) {
   return {
     container,
+    get notice() { return container.querySelector('[data-view="notice"]').textContent; },
     control: (name) => container.querySelector(`[data-control="${name}"]`),
     action: (name) => container.querySelector(`[data-action="${name}"]`),
     async click(name, data) {
@@ -277,4 +278,98 @@ test('(PR #293 P2 c) applyDraftEdits는 v1 시절 스티커(align·layouts 없�
   assert.deepEqual(merged.stickers[0].layouts, {}, 'layouts가 없어도 빈 객체로 채워 toggle이 던지지 않게 한다');
   // "이 등급만 따로 배치" 토글이 하는 일을 그대로 흉내 내 던지지 않는지 확인한다(에디터의 실제 코드와 같은 대입).
   assert.doesNotThrow(() => { merged.stickers[0].layouts['bronze'] = { x: .1, y: .1, size: 20, rotation: 0 }; });
+});
+
+// --- PR #310 리뷰 P1 ---
+
+// 자식 프로세스로 실제 서버 검증(apps/api/src/collectible-project-rules.ts)을 그대로 돌린다. apps/api는
+// nodenext 관례(`./x.js`가 실제로는 `x.ts`)를 쓰고 tsx 없이는 node --test가 못 읽어, 이 자식만
+// `--experimental-transform-types` + 확장자 재해석 로더로 띄운다(부모 node --test는 평범하게 돈다, apps/api
+// 소스 파일은 건드리지 않는다).
+import { execFileSync } from 'node:child_process';
+function runRealServerValidation(project, publish = false) {
+  const out = execFileSync('node', ['--experimental-transform-types', new URL('../fixtures/run-collectible-rules.mjs', import.meta.url).pathname], {
+    input: JSON.stringify({ project, publish }), encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'],
+  });
+  return JSON.parse(out);
+}
+
+// 서버가 실제로 PNG 서명·IHDR 치수까지 검사하므로(validateCollectibleMedia) 가짜 바이트로는 photo 자체가
+// 거절돼 living 검사를 가리게 된다. apps/api 자체 시험이 쓰는 것과 같은 진짜 1×1 PNG를 쓴다.
+const realTinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==';
+
+test('(PR #310 P1 a) 칠한 점이 없는 region living 항목은 실제 서버 검증에서 그 등급을 안 써도 COLLECTIBLE_INVALID_PROJECT로 거절된다', () => {
+  const project = createProject({ name: '빈 영역 시험' });
+  project.photo = { originalDataUrl: realTinyPng, width: 1, height: 1 };
+  project.living.items.push({ id: createId('living'), kind: 'sway', target: 'region', gradeIds: [], amplitude: 50, pivot: { x: .5, y: .5 }, strokes: [] });
+  const result = runRealServerValidation(project, false);
+  assert.equal(result.ok, false, '빈 strokes는 실제 서버가 거절해야 한다(등급 미사용과 무관)');
+  assert.equal(result.code, 'COLLECTIBLE_INVALID_PROJECT');
+  // 점을 채우면(최소 1개) 같은 프로젝트가 통과해야 한다(회귀가 "항상 거절"로 과하게 막은 게 아님을 확인).
+  project.living.items[0].strokes = [{ x: .5, y: .5 }];
+  const fixed = runRealServerValidation(project, false);
+  assert.equal(fixed.ok, true, '점을 채우면 통과해야 한다');
+});
+
+test('(PR #310 P1 a) 편집기는 칠한 점이 없는 living 영역이 있으면 초안 저장·게시를 막고 서버에 보내지 않는다', async () => {
+  const dom = installMiniDom();
+  try {
+    const api = createFakeApi();
+    const { ui, cleanup } = await mountEditor(api);
+    try {
+      await ui.upload({ type: 'image/png', size: 1000, name: 'p.png', dataUrl: 'data:image/png;base64,AAAA' });
+      await ui.click('living-add'); // 기본 대상은 region, strokes는 아직 빈 배열이다.
+      await ui.click('draft');
+      assert.match(ui.notice, /칠한 점이 없는/);
+      assert.equal(api.calls.filter((call) => call.method === 'POST').length, 0, '점을 채우기 전에는 서버로 저장 요청을 보내지 않는다');
+    } finally { cleanup(); }
+  } finally { dom.restore(); }
+});
+
+test('(PR #310 P1 b) 패럴랙스+living 점 전체 합(서버 rules.ts 20,000 상한)을 40×512(=20,480)처럼 넘기면 막는다', () => {
+  // 가짜 추정기 대신, 실제 rung 수식과 같은 산술을 그대로 검사한다: 39획(19,968)은 예산 안, 40획(20,480)은 초과.
+  const project = createProject();
+  for (let stroke = 0; stroke < 39; stroke++) project.parallax.strokes.push({ tool: 'fg', size: .05, points: Array.from({ length: 512 }, () => ({ x: .5, y: .5 })) });
+  assert.equal(parallaxLivingPointTotal(project), 39 * 512);
+  assert.ok(parallaxLivingPointTotal(project) < PARALLAX_LIVING_POINT_BUDGET, '39×512=19,968은 아직 예산 안');
+  project.parallax.strokes.push({ tool: 'fg', size: .05, points: Array.from({ length: 512 }, () => ({ x: .5, y: .5 })) });
+  assert.equal(parallaxLivingPointTotal(project), 40 * 512);
+  assert.ok(parallaxLivingPointTotal(project) > PARALLAX_LIVING_POINT_BUDGET, '40×512=20,480은 예산(20,000)을 넘는다');
+});
+
+test('(PR #310 P1 b) 편집기는 패럴랙스로 예산이 거의 다 찬 프로젝트를 열면 몇 점만 더 찍어도 두 붓 모두 막는다', async () => {
+  const dom = installMiniDom();
+  try {
+    const api = createFakeApi();
+    // 19,968점을 이벤트 디스패치 없이(비용 때문) 직접 서버에 심어, 실제 붓질은 경계를 넘는 몇 번만 한다.
+    const seeded = createProject({ name: '예산 경계 시험' });
+    seeded.photo = { originalDataUrl: 'data:image/png;base64,AAAA', width: 10, height: 10 };
+    for (let stroke = 0; stroke < 39; stroke++) seeded.parallax.strokes.push({ tool: 'fg', size: .05, points: Array.from({ length: 512 }, () => ({ x: .5, y: .5 })) });
+    const created = await api.request('/api/web/merchant/merchants/m1/collectible-projects', { method: 'POST', body: { project: seeded } });
+
+    const { ui, cleanup } = await mountEditor(api);
+    try {
+      await ui.change('project-list', created.id);
+      await ui.change('brush-target', 'parallax');
+      const crop = ui.container.querySelector('[data-view="crop"]');
+      // 남은 예산은 32점(20,000-19,968)이다. 이 한 획(최대 512점까지 허용되는 자리) 동안 그 32점만 쌓이고
+      // 나머지는 조용히 멈춘다(기존 개별 상한도 드래그 중에는 조용히 멈추는 것과 같은 방식).
+      crop.dispatchEvent({ type: 'pointerdown', pointerId: 1, clientX: 100, clientY: 100 });
+      for (let point = 0; point < 60; point++) crop.dispatchEvent({ type: 'pointermove', pointerId: 1, clientX: 100 + point, clientY: 100 });
+      crop.dispatchEvent({ type: 'pointerup', pointerId: 1 });
+      await settle();
+      // 예산이 다 찬 뒤 새 획을 시작하려 하면(pointerdown) 바로 공유 예산 안내로 막혀야 한다.
+      crop.dispatchEvent({ type: 'pointerdown', pointerId: 1, clientX: 150, clientY: 150 });
+      await settle();
+      assert.match(ui.notice, /20,000/, '예산을 다 쓴 뒤 새 패럴랙스 획을 시작하면 공유 예산 안내가 나와야 한다');
+
+      // 같은 예산이 living 붓에도 적용된다(브러시 종류를 바꿔도 공유).
+      await ui.click('living-add');
+      const livingId = ui.action('living-paint').dataset.id;
+      await ui.click('living-paint', livingId);
+      crop.dispatchEvent({ type: 'pointerdown', pointerId: 2, clientX: 200, clientY: 200 });
+      await settle();
+      assert.match(ui.notice, /20,000/, 'living 붓도 같은 공유 예산에 막혀야 한다');
+    } finally { cleanup(); }
+  } finally { dom.restore(); }
 });
