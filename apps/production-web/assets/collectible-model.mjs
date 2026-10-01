@@ -3,15 +3,27 @@
  * 등급은 수집품의 외형이며 방문 메달·보상 조건·NFT 상태와 연결하지 않는다.
  * 원본과 편집 좌표를 보관하고 공개 결과를 derived에 별도로 만든다.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 export const SHAPES = Object.freeze(['circle', 'stamp', 'serrated']);
 export const PHOTO_STYLES = Object.freeze(['original', 'incised', 'raised']);
 export const GRADE_KINDS = Object.freeze(['basic', 'special']);
-export const STICKER_KINDS = Object.freeze(['text', 'emoji']);
+export const STICKER_KINDS = Object.freeze(['text', 'emoji', 'mascot']);
+export const STICKER_ALIGNS = Object.freeze(['left', 'center', 'right']);
 export const BRUSH_TOOLS = Object.freeze(['clean', 'erase', 'restore', 'color']);
 export const EFFECT_TYPES = Object.freeze(['metallic', 'hologram', 'pearl', 'matte', 'glow', 'enamel', 'glass']);
 export const MOTION_TYPES = Object.freeze(['still', 'rotate', 'shine', 'float', 'stamp', 'sparkle', 'pulse', 'confetti']);
+export const MOTION_PLAYBACKS = Object.freeze(['once', 'loop']);
+export const PARTICLE_KINDS = Object.freeze(['confetti', 'snow', 'petals', 'sparkles']);
+export const BACK_MODES = Object.freeze(['default', 'custom']);
+export const PARALLAX_TOOLS = Object.freeze(['fg', 'bg']);
+export const LIVING_KINDS = Object.freeze(['sway', 'bob', 'steam', 'blink']);
 export const STORY_TYPES = Object.freeze(['none', 'zoom', 'wide', 'follow', 'event']);
+// 등급별 프레임 없이 각도만 재생하는 once 재생의 표시 시간(ms). 'still'은 재생이 없어 없다.
+export const ONCE_MS = Object.freeze({ rotate: 4000, shine: 3500, sparkle: 3500, stamp: 3500, float: 2400, pulse: 2400, confetti: 2000 });
+// 얼굴 스티커로 쓸 수 있는 마스코트 포즈(apps/mobile/assets/images/mascot/v2/*.png 파일 stem). 승인된 그림만 추가한다.
+export const MASCOT_POSES = Object.freeze(['cheer', 'explore-map', 'friends', 'gift', 'logo-badge', 'puzzled', 'search', 'sky-town-header', 'sleep', 'stamp', 'town-map', 'wave']);
+// 눈 감은 프레임이 있는 포즈. 그림이 없으면 living의 blink 항목이 그 포즈를 쓸 수 없다.
+export const MASCOT_BLINK = Object.freeze([]);
 
 export const DEFAULT_GRADES = Object.freeze([
   Object.freeze({ id: 'bronze', name: '브론즈', kind: 'basic', enabled: true }),
@@ -56,17 +68,108 @@ export function createProject({ name = '새 수집품', campaignId = '' } = {}) 
     photoColor: 100,
     relief: 45,
     stickers: [],
+    back: { mode: 'default', color: '#bf8149', stickers: [] },
     grades: DEFAULT_GRADES.map((grade) => ({ ...grade })),
     effects: [],
     motion: [],
     thickness: 8,
     angle: 0,
     greeting: '',
+    greetingOverrides: [],
     audio: null,
     story: { type: 'none', frames: [], cartoon: 0, strength: 50 },
+    parallax: { strength: 0, strokes: [] },
+    living: { periodMs: 2400, items: [] },
     derived: {},
     rewardGrades: {},
   };
+}
+
+/**
+ * v1 프로젝트를 v2로 올린다. 순수 함수이며 이미 v2면 그대로(깊은 복사만) 돌려줘 멱등이다.
+ * 서버의 collectible-project-rules.ts upgradeCollectibleProject와 값이 같아야 하며, 같은 골든 픽스처로 함께 시험한다.
+ */
+export function upgradeProject(project) {
+  if (!project || typeof project !== 'object') throw new TypeError('프로젝트 객체가 필요합니다.');
+  if (project.schemaVersion === 2) return structuredClone(project);
+  if (project.schemaVersion !== 1) throw new TypeError('지원하지 않는 프로젝트 버전입니다.');
+  const upgraded = structuredClone(project);
+  upgraded.schemaVersion = 2;
+  upgraded.stickers = upgraded.stickers.map((sticker) => ({
+    ...sticker,
+    text: typeof sticker.text === 'string' ? sticker.text.replace(/[\r\n\t]+/g, ' ') : sticker.text,
+    align: 'center',
+    layouts: {},
+  }));
+  upgraded.back = { mode: 'default', color: upgraded.baseColor, stickers: [] };
+  upgraded.motion = upgraded.motion.map((motion) => ({
+    ...motion,
+    playback: 'loop',
+    ...(motion.type === 'confetti' ? { particle: 'confetti' } : {}),
+  }));
+  upgraded.greetingOverrides = [];
+  upgraded.parallax = { strength: 0, strokes: [] };
+  upgraded.living = { periodMs: 2400, items: [] };
+  return upgraded;
+}
+
+/** 스티커의 기본 배치에 해당 등급 전용 layouts를 얹는다. 없으면 기본값 그대로다. */
+export function resolveSticker(sticker, gradeId) {
+  const layout = sticker.layouts?.[gradeId];
+  if (!layout) return sticker;
+  return { ...sticker, x: layout.x ?? sticker.x, y: layout.y ?? sticker.y, size: layout.size ?? sticker.size, rotation: layout.rotation ?? sticker.rotation };
+}
+
+/** 인사말 우선순위: 등급+테마 > 등급 > 테마 > 기본. 동점은 배열 순서(먼저 온 항목)가 이긴다. */
+export function resolveGreeting(project, gradeId, themeName = project.theme?.name ?? '') {
+  let best; let bestScore = -1;
+  for (const override of project.greetingOverrides ?? []) {
+    const gradeMatch = override.gradeIds.length === 0 || override.gradeIds.includes(gradeId);
+    const themeMatch = override.themeName === '' || override.themeName === themeName;
+    if (!gradeMatch || !themeMatch) continue;
+    const score = (override.gradeIds.length > 0 ? 2 : 0) + (override.themeName !== '' ? 1 : 0);
+    if (score > bestScore) { bestScore = score; best = override; }
+  }
+  return best ? best.text : project.greeting;
+}
+
+const PARTICLE_COLORS = Object.freeze({
+  confetti: Object.freeze(['#ffb165', '#8adcc0', '#da9fdd']),
+  snow: Object.freeze(['#ffffff', '#eaf6ff', '#d7ecff']),
+  petals: Object.freeze(['#f7b6c8', '#f49bc1', '#fcd5e4']),
+  sparkles: Object.freeze(['#fff4c2', '#ffe98a', '#ffffff']),
+});
+
+/**
+ * i번째 파티클의 상대 위치(중심 0,0 기준 -1..1 대략치)와 색을 phase(0..1) 기준으로 낸다. 화면 크기와 무관해
+ * 웹 캔버스와 Android 뷰가 같은 수식을 각자 크기로 늘려 쓴다. confetti는 기존 렌더러 낙하 수식을 그대로 옮겼다.
+ */
+export function particleAt(kind, i, phase) {
+  if (!PARTICLE_KINDS.includes(kind)) throw new TypeError('지원하지 않는 파티클 종류입니다.');
+  if (!Number.isInteger(i) || i < 0) throw new TypeError('파티클 순번은 0 이상 정수여야 합니다.');
+  const p = clamp(phase, 0, 1, 0);
+  const colors = PARTICLE_COLORS[kind];
+  const color = colors[i % colors.length];
+  if (kind === 'confetti') return { x: Math.sin(i * 7) * p, y: Math.cos(i * 3) * p + p * p * 0.3, color };
+  if (kind === 'snow') return { x: Math.sin(i * 5 + p * Math.PI * 2) * 0.4, y: p - 0.5, color };
+  if (kind === 'petals') return { x: Math.sin(i * 3 + p * Math.PI) * 0.5, y: p - 0.5 + Math.sin(p * Math.PI * 2 + i) * 0.08, color };
+  return { x: Math.cos(i * 11 + p * Math.PI * 2) * 0.4 * p, y: Math.sin(i * 13 + p * Math.PI * 2) * 0.4 * p, color };
+}
+
+// derived[g].angleFrames는 -82.5°부터 15° 간격 12칸(정면 -90..90 범위)만 갖는다. 그 바깥은 뒷면이다.
+const ANGLE_FRAME_START = -82.5, ANGLE_FRAME_STEP = 15, ANGLE_FRAME_COUNT = 12;
+
+/**
+ * 회전각(도, 임의 범위)을 정면 프레임 두 칸과 섞음 비율로 낸다. |각도| > 90(정규화 후)이면 뒷면이라 프레임이 없다.
+ * 범위 양 끝을 넘는 각도는 가장 가까운 칸에 고정한다(blend 0 또는 1).
+ */
+export function angleFrameIndex(angleDeg) {
+  if (!Number.isFinite(angleDeg)) throw new TypeError('유한한 각도가 필요합니다.');
+  const normalized = ((angleDeg % 360) + 540) % 360 - 180;
+  if (Math.abs(normalized) > 90) return { back: true };
+  const position = clamp((normalized - ANGLE_FRAME_START) / ANGLE_FRAME_STEP, 0, ANGLE_FRAME_COUNT - 1);
+  const index = Math.min(ANGLE_FRAME_COUNT - 2, Math.floor(position));
+  return { back: false, index, next: Math.min(ANGLE_FRAME_COUNT - 1, index + 1), blend: clamp(position - index, 0, 1) };
 }
 
 /** 서버 래퍼 없이 편집 객체만 복사한다. 원본 문자열은 다시 압축하지 않는다. */

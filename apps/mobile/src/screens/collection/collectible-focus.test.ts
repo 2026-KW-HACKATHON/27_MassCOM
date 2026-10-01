@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import type { CollectionSnapshot } from '../../commerce/commerce-api';
-import { collectibleFocusAction } from './collectible-focus';
+import { collectibleFocusAction, resolveCollectibleLink } from './collectible-focus';
 
 const item = (entitlementId: string, artwork?: unknown) => ({ entitlementId, ...(artwork ? { artwork } : {}) }) as CollectionSnapshot['collectibles'][number];
 const art = { publicationId: 'p', projectId: 'q', gradeId: 'bronze', gradeName: '브론즈', name: '가게 우표', shape: 'stamp', theme: { name: '기본' }, thumbnailDataUrl: 'data:image/png;base64,AAAA' };
@@ -21,14 +21,44 @@ test('스냅샷이 방금 받은 보상보다 오래됐으면 한 번만 다시 
   assert.equal(collectibleFocusAction(stale, undefined, false), 'fetch');
 });
 
-test('도감 화면은 없는 권리를 세대 확인을 거치는 조회로 한 번만 다시 읽은 뒤 열거나 안내한다', () => {
+test('resolveCollectibleLink opens with artwork, messages without it, while the generation is still current', () => {
+  const currentGeneration = () => 1;
+  assert.deepEqual(
+    resolveCollectibleLink({ collectibles: [item('a', art)] }, 'a', 1, currentGeneration),
+    { action: 'open', entitlementId: 'a', merchantName: undefined },
+  );
+  assert.deepEqual(resolveCollectibleLink({ collectibles: [item('a')] }, 'a', 1, currentGeneration), { action: 'message' });
+  assert.deepEqual(resolveCollectibleLink({ collectibles: [] }, 'missing', 1, currentGeneration), { action: 'message' });
+});
+
+// Regression: a re-read that resolves after the person left the tab (or a newer link superseded it) used to still
+// open the reveal / show the message, because nothing checked whether the attempt was still the current one.
+test('resolveCollectibleLink ignores a resolution once the generation has moved on (left the tab, or a newer link started)', () => {
+  let generation = 1;
+  const currentGeneration = () => generation;
+  const startedAt = generation; // captured when the attempt began, same as index.tsx does before its fetch/timer
+
+  // Still current: resolves normally.
+  assert.deepEqual(resolveCollectibleLink({ collectibles: [item('a', art)] }, 'a', startedAt, currentGeneration), {
+    action: 'open', entitlementId: 'a', merchantName: undefined,
+  });
+
+  // Blurring the tab (or starting a newer link) bumps the generation before this attempt's late resolution arrives.
+  generation += 1;
+  assert.deepEqual(resolveCollectibleLink({ collectibles: [item('a', art)] }, 'a', startedAt, currentGeneration), { action: 'stale' });
+  // A fresh attempt started after the bump is still honoured normally.
+  assert.deepEqual(resolveCollectibleLink({ collectibles: [item('a', art)] }, 'a', generation, currentGeneration), {
+    action: 'open', entitlementId: 'a', merchantName: undefined,
+  });
+});
+
+test('the collection screen only opens the reveal through resolveCollectibleLink, never inline', () => {
   const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
-  const effect = screen.slice(screen.indexOf('const collectibleLink = useRef'), screen.indexOf('useMerchantCatalog(apiUrl);'));
-  assert.match(effect, /collectibleFocusAction\(collection, entitlement, link\.rereadFor === entitlement\) === 'fetch'/);
-  assert.match(effect, /link\.rereadFor = entitlement;\s*const generation = startRequest\(\);\s*void api\.getCollection\(\)\.then\(\(next\) => \{ applySnapshot\(next, generation\); finish\(next\); \}, \(\) => finish\(collection\)\);/);
-  assert.match(effect, /if \(item\?\.artwork\) setCollectibleDetail/);
-  assert.match(effect, /else setMessage\('보상은 도감에 보관됐어요/);
-  // 같은 링크를 두 번 처리하지 않고, 링크가 지워지면 상태를 비운다.
-  assert.match(effect, /link\.doneFor === entitlement/);
-  assert.match(effect, /if \(focus !== 'collectible'\) \{ collectibleLink\.current = \{\}; return; \}/);
+  assert.match(screen, /resolveCollectibleLink\(/, 'index.tsx는 인라인 판단 대신 resolveCollectibleLink를 써야 한다');
+});
+
+test('the collection screen processes an acquisition link only while the tab is focused and drops it on blur', () => {
+  const source = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
+  assert.match(source, /if \(!tabFocused\) return;/);
+  assert.match(source, /setTabFocused\(false\);[\s\S]*router\.setParams\(\{ focus: undefined, entitlement: undefined \}\);/);
 });

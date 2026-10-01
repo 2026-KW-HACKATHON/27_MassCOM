@@ -1,4 +1,4 @@
-import { createProject, createGrade, createId, cloneProject, cropTransform, clamp } from './collectible-model.mjs';
+import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
 import { collectibleErrorMessage, localError } from './collectible-errors.mjs';
@@ -558,7 +558,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       const result = await request(`${base}/${encodeURIComponent(id)}`, { method: 'GET' });
       if (!active) return;
       const previous = cloneProject(project);
-      wrapper = result.project?.id ? result.project : result; project = cloneProject(wrapper.project);
+      wrapper = result.project?.id ? result.project : result; project = upgradeProject(cloneProject(wrapper.project));
       selectedGrade = project.grades.find(item => item.enabled)?.id || project.grades[0].id; undo = dirty ? [previous] : []; redo = []; dirty = false; playing = false;
       clearCollectibleRenderCache(); syncValues(); await drawCrop(); schedulePreview(); notice(`저장한 ${project.name}을 열었어요. 게시 후 수정은 새 게시 버전을 만들어요.`);
       studio.showStep(1);

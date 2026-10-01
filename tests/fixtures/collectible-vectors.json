@@ -1,0 +1,88 @@
+{
+  "greeting": [
+    {
+      "description": "겹치는 override가 없으면 기본 인사말",
+      "project": { "theme": { "name": "가을" }, "greeting": "기본 인사", "greetingOverrides": [] },
+      "gradeId": "bronze",
+      "expected": "기본 인사"
+    },
+    {
+      "description": "테마만 맞는 override가 기본을 이긴다",
+      "project": {
+        "theme": { "name": "가을" }, "greeting": "기본 인사",
+        "greetingOverrides": [{ "id": "o1", "gradeIds": [], "themeName": "가을", "text": "가을 인사" }]
+      },
+      "gradeId": "bronze",
+      "expected": "가을 인사"
+    },
+    {
+      "description": "등급만 맞는 override가 테마만 맞는 override를 이긴다",
+      "project": {
+        "theme": { "name": "가을" }, "greeting": "기본 인사",
+        "greetingOverrides": [
+          { "id": "o1", "gradeIds": [], "themeName": "가을", "text": "가을 인사" },
+          { "id": "o2", "gradeIds": ["bronze"], "themeName": "", "text": "브론즈 인사" }
+        ]
+      },
+      "gradeId": "bronze",
+      "expected": "브론즈 인사"
+    },
+    {
+      "description": "등급+테마가 모두 맞는 override가 등급만 맞는 override를 이긴다",
+      "project": {
+        "theme": { "name": "가을" }, "greeting": "기본 인사",
+        "greetingOverrides": [
+          { "id": "o2", "gradeIds": ["bronze"], "themeName": "", "text": "브론즈 인사" },
+          { "id": "o3", "gradeIds": ["bronze"], "themeName": "가을", "text": "가을 브론즈 인사" }
+        ]
+      },
+      "gradeId": "bronze",
+      "expected": "가을 브론즈 인사"
+    },
+    {
+      "description": "동점(같은 등급+테마)은 배열에서 먼저 온 항목이 이긴다",
+      "project": {
+        "theme": { "name": "가을" }, "greeting": "기본 인사",
+        "greetingOverrides": [
+          { "id": "a", "gradeIds": ["bronze"], "themeName": "가을", "text": "첫번째" },
+          { "id": "b", "gradeIds": ["bronze"], "themeName": "가을", "text": "두번째" }
+        ]
+      },
+      "gradeId": "bronze",
+      "expected": "첫번째"
+    },
+    {
+      "description": "등급·테마 어느 쪽도 맞지 않으면 override를 건너뛰고 기본으로 돌아간다",
+      "project": {
+        "theme": { "name": "가을" }, "greeting": "기본 인사",
+        "greetingOverrides": [{ "id": "o", "gradeIds": ["gold"], "themeName": "봄", "text": "안 맞음" }]
+      },
+      "gradeId": "bronze",
+      "expected": "기본 인사"
+    }
+  ],
+  "particleAt": [
+    { "kind": "confetti", "i": 0, "phase": 0, "expected": { "x": 0, "y": 0, "color": "#ffb165" } },
+    { "kind": "confetti", "i": 3, "phase": 0.5, "expected": { "x": 0.41832781926802803, "y": -0.38056513094233846, "color": "#ffb165" } },
+    { "kind": "confetti", "i": 7, "phase": 1, "expected": { "x": -0.9537526527594719, "y": -0.2477292602242684, "color": "#8adcc0" } },
+    { "kind": "snow", "i": 0, "phase": 0, "expected": { "x": 0, "y": -0.5, "color": "#ffffff" } },
+    { "kind": "snow", "i": 3, "phase": 0.5, "expected": { "x": -0.2601151360628468, "y": 0, "color": "#ffffff" } },
+    { "kind": "snow", "i": 7, "phase": 1, "expected": { "x": -0.17127306779846033, "y": 0.5, "color": "#eaf6ff" } },
+    { "kind": "petals", "i": 0, "phase": 0, "expected": { "x": 0, "y": -0.5, "color": "#f7b6c8" } },
+    { "kind": "petals", "i": 3, "phase": 0.5, "expected": { "x": -0.45556513094233847, "y": -0.011289600644789389, "color": "#f7b6c8" } },
+    { "kind": "petals", "i": 7, "phase": 1, "expected": { "x": -0.41832781926802803, "y": 0.5525589278975032, "color": "#f49bc1" } },
+    { "kind": "sparkles", "i": 0, "phase": 0, "expected": { "x": 0, "y": 0, "color": "#fff4c2" } },
+    { "kind": "sparkles", "i": 3, "phase": 0.5, "expected": { "x": 0.002655349444612582, "y": -0.19275907725681773, "color": "#fff4c2" } },
+    { "kind": "sparkles", "i": 7, "phase": 1, "expected": { "x": -0.012390012692489327, "y": 0.04239500470046001, "color": "#ffe98a" } }
+  ],
+  "angleFrameIndex": [
+    { "angle": -90, "expected": { "back": false, "index": 0, "next": 1, "blend": 0 } },
+    { "angle": -82.5, "expected": { "back": false, "index": 0, "next": 1, "blend": 0 } },
+    { "angle": 0, "expected": { "back": false, "index": 5, "next": 6, "blend": 0.5 } },
+    { "angle": 82.5, "expected": { "back": false, "index": 10, "next": 11, "blend": 1 } },
+    { "angle": 90, "expected": { "back": false, "index": 10, "next": 11, "blend": 1 } },
+    { "angle": 180, "expected": { "back": true } },
+    { "angle": -180, "expected": { "back": true } },
+    { "angle": 91, "expected": { "back": true } }
+  ]
+}

@@ -26,10 +26,15 @@ export async function captureViewAsPng(view: View): Promise<string> {
   return captureRef(view, { format: 'png', quality: 1, result: 'tmpfile', fileName: 'masscom-badge' });
 }
 
-/** Returns false when the platform share sheet for files is unavailable. */
-export async function shareImageFile(uri: string, dialogTitle: string): Promise<boolean> {
+/**
+ * Returns false when the platform share sheet for files is unavailable. `isAlive`, if given, is checked immediately
+ * before actually opening the share sheet — after the two awaits above, a caller whose screen unmounted in the
+ * meantime (e.g. an account switch) can stop this from opening the sheet with stale data. Defaults to always alive.
+ */
+export async function shareImageFile(uri: string, dialogTitle: string, isAlive: () => boolean = () => true): Promise<boolean> {
   const Sharing = await import('expo-sharing');
   if (!(await Sharing.isAvailableAsync())) return false;
+  if (!isAlive()) return false;
   await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle, UTI: 'public.png' });
   return true;
 }

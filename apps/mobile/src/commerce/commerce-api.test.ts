@@ -410,6 +410,7 @@ test('parses collection states while keeping app collectibles and NFT state sepa
         campaignTitle: '월계 한 바퀴',
         targetVisitCount: 1,
         displayName: '첫 밥상 잎새',
+        earnedAt: '2026-09-19T03:00:00.000Z',
         appCollectibleStatus: 'COLLECTED',
         mintJobId: null,
         recipient: null,
