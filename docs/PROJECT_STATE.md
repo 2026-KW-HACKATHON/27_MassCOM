@@ -1,5 +1,9 @@
 # 프로젝트 상태
 
+## 점주 체험 권한 요청 Android (Issue #294 PR2, 2026-10-01)
+
+[Issue #294](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/294) 모바일 절반, 브랜치 `feat/294-showcase-access-mobile`(worktree `.worktrees/294-access-mobile`), 기준 main `0234a15`, PR 미정. **서버 PR #300(`feat/294-showcase-access-server`)이 먼저 병합돼야 한다** — 이 PR은 그 브랜치의 `GET/POST /showcase/access-requests*`·`/showcase/admin/access-requests*` 계약만 소비하고 서버 코드는 건드리지 않는다. `showcase-merchant/index.tsx` 거부 상태에 "현재 계정으로 문의하기"(서버에 요청 생성) → "요청 번호 XXXX-XXXX · 검토 대기 중"+"메일로 알리기"(mailto, 실패 시 두 주소 선택 가능 텍스트로 대체) → 수락되면 자동으로 권한을 다시 확인, 거절되면 "다시 문의하기"를 추가했고, 429는 "잠시 후 다시 시도해 주세요."로 안내한다. `approver`가 참이면 거부·허용 상태 모두 상단에 "권한 요청 관리"를 보인다. 새 `screens/showcase-access-admin/`(대기 목록·수락 확인창·거절·실패 안내)을 추가했다. `commerce-api.ts`에 4개 메서드(`getShowcaseAccessState`·`requestShowcaseAccess`·`listPendingShowcaseAccessRequests`·`decideShowcaseAccessRequest`)와 응답 파싱을 더했고, `navigation/showcase-entry.ts`의 점주 화면 진입 조건에 로컬 QA용 `kr.masscom.wolgye.dev`를 추가했다(운영 `kr.masscom.wolgye`는 여전히 닿지 않는다). 코드 서식·문구·오류 매핑은 `showcase/access-copy.ts`·`screens/showcase-access-admin/copy.ts`(순수 로직, 단위 시험)에 있다. **결과:** `npm test --prefix apps/mobile` 949/949 PASS(신규 12건), `npm run typecheck`·`npm run lint --prefix apps/mobile` PASS(0 문제), `npm run export:android --prefix apps/mobile` PASS, `bash tools/gate.sh` PASS. 변이 시험 3건(되돌리면 실패 확인 뒤 복구): `formatAccessCode`의 대시 삽입 제거, `showcaseEntryDestination`의 dev package 허용 제거, `decideFailureMessage`의 코드 우선순위(본인 결정 거절을 승인 권한 없음보다 먼저 검사) 되돌림. **`NOT_RUN`:** 실기기·에뮬레이터 QA(서버 PR #300 병합 전이라 end-to-end 불가), 독립 리뷰. 자세한 내용은 [HANDOFF](HANDOFF.md#2026-10-01-점주-체험-권한-요청-android-issue-294-pr2).
+
 ## 병합 충돌 표시 검사 (Issue #291, 2026-10-01)
 
 [Issue #291](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/291), 브랜치 `fix/291-conflict-markers`, 기준 main `eed9d11`: `scripts/check-conflict-markers.sh`가 추적 파일의 줄 맨 앞 충돌 표시를 찾고, `tools/gate.sh`와 CI가 실행한다. 회귀 시험 PASS.
