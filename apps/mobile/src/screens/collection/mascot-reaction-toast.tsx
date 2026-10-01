@@ -1,24 +1,28 @@
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { successHaptic } from '@/gamification/native-effects';
+import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
 import { Mascot } from '@/ui/mascot';
 
 import { reactionMessage, type ReactionEvent } from './mascot-reactions';
 
-/** 17.1 마스코트 반응: 첫 수집품·새 가게 첫 수집품·시리즈 완성 때 한 번만 보이는 짧은 배너. */
+/** 17.1 마스코트 반응: 첫 수집품·새 가게 첫 수집품·시리즈 완성 때 한 번만 보이는 짧은 배너. 떠 있는 탭 바 위에 놓고 몇 초 뒤 스스로 닫힌다. */
+export const REACTION_TOAST_MS = 6000;
+
 export function MascotReactionToast({ event, onClose }: { event: ReactionEvent | undefined; onClose: () => void }) {
-  const insets = useSafeAreaInsets();
+  const clearance = useTabBarClearance();
   const palette = colorsForScheme('light');
   useEffect(() => {
     if (!event) return;
     void successHaptic();
-  }, [event]);
+    const timer = setTimeout(onClose, REACTION_TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [event, onClose]);
   if (!event) return null;
   return (
-    <View pointerEvents="box-none" style={[styles.host, { bottom: insets.bottom + 16 }]}>
+    <View pointerEvents="box-none" style={[styles.host, { bottom: clearance }]}>
       <View accessibilityLiveRegion="polite" style={[styles.card, { backgroundColor: palette.primary }]}>
         <Mascot pose="cheer" size={44} breathe={false} />
         <Text style={[styles.text, { color: palette.onPrimary }]}>{reactionMessage(event)}</Text>
