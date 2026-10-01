@@ -2,6 +2,17 @@
 
 **(당시 기록: PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐고 test.5·Preview 14를 게시했다. 지금 상태는 아래 Issue #277 항목이다.) 배포 순서(PR #257 병합 뒤, [D-061](DECISIONS.md)):** ① 병합 → ② 이 코드가 든 운영·시연 Android APK를 새로 빌드해 배포 → ③ **그 뒤에** API·웹 배포. 처리방침 버전이 `privacy-2026-10-01`로 올라 서버가 이 버전을 요구하는 순간, 설치돼 있는 동의 화면 빌드(운영 test.4, 시연 Preview 12·13)는 새 버전을 몰라 "앱을 업데이트해 주세요" 안내에 막힌다(D-059 설계). API·웹을 먼저 배포하면 새 APK가 나오기 전까지 그 사용자가 막힌다. 동의 화면이 없는 더 옛 앱(운영 test.3, 시연 Preview 11 이하)은 막히지 않는다.
 
+
+## 2026-10-01 마일리지 상점 서버 (Issue #298)
+
+- 기준: main `0e7ac19`(가게 그림 캐릭터 9종·재뽑기권·마일리지 그림 PR 병합분 포함), 브랜치 `feat/298-shop-server`, worktree `.worktrees/298-shop-server`, PR 미정.
+- 범위: 서버만(`apps/api/**`). Android(상점 탭·뽑기 연출·헤더 대표 캐릭터)는 설계에서 이미 분리한 후속 PR이며 이 작업에서 건드리지 않았다.
+- 구현: migration `0038_mileage_shop.sql`(`mileage_spends`·`account_characters`·`account_profile`). 순수 규칙 `src/mileage-rules.ts`(카탈로그 9종, 공식 가중치, 등급 안 균등 선택, 재뽑기 분기 순서를 고정한 `decideReroll`). `src/postgres/mileage-shop.ts`: 적립은 `badge-rewards.ts`의 `countedVisitFromSql`/`countedVisitFilterSql`을 재사용하고(다시 만들지 않음) 점포 시리즈 완성은 끝났거나 비공개인 캠페인도 포함해 모든 목표에 유효 entitlement가 있어야 센다. 재뽑기/대표 설정 트랜잭션은 기존 `assertActive` 계정 잠금만 쓴다(설계 리뷰 지침대로 별도 잠금 없음). `src/postgres/account-deletion.ts`의 공유 삭제 경로에 세 테이블 삭제를 더했다. `src/server.ts`에 `GET /shop`·`GET /shop/history`·`POST /shop/rerolls`·`PUT /shop/avatar`(모바일 Bearer, 기존 `/me/*` 경로와 같은 인증·본문 검증 패턴)를 추가했다. 웹 세션 API(`/api/web/collection`류) 노출은 보류했다(설계가 허용한 대안; 필요해지면 별도 작업).
+- **migration 번호 의존 관계:** 0037은 이 세션 시작 시점 main에 없었고 PR #300이 먼저 쓸 수 있다. `migrate.ts`는 파일명 순서로 적용하므로 0037·0038 어느 쪽이 먼저 병합돼도 각자의 새 테이블만 만들어 서로 간섭하지 않는다 — 다만 두 PR 모두 같은 번호를 다시 쓰지 않도록 병합 직전에 `ls apps/api/migrations | tail`로 확인한다.
+- 검증: `npm test --prefix apps/api` 315/315 PASS(신규 13건), `npm run typecheck`·`npm run build --prefix apps/api` PASS. 일회용 `postgres:16` 컨테이너(이 세션에서 만들고 지움)로 `src/mileage-shop.postgres.integration.ts` 7/7(연속 5회 재실행으로 안정성 확인), `npm run test:postgres --prefix apps/api` 306 PASS·2 기존 SKIP(다른 전용 컨테이너가 필요한 기존 시험, 무관). `bash tools/gate.sh` PASS. 변이 시험 4건(스크래치 사본으로 가드 제거 → 대응 단위/통합 시험 실패 확인 → 복구): `decideReroll`의 `expectedRemaining`·`GRADE_COMPLETE` 분기, `canSetAvatar` 소유 검사, `account-deletion.ts`의 세 테이블 삭제.
+- 시험 작성 중 실제 결함을 하나 찾아 고쳤다: `postgres/mileage-shop.ts`의 `reroll()`이 같은 `PoolClient`(한 connection)에 `Promise.all`로 비율 제한·소유 목록·적립/지출 질의 세 개를 동시에 보내고 있었다(Pool과 달리 PoolClient는 한 번에 한 질의만 받는다 — pg가 내부적으로 줄 세워 결과는 맞았지만 deprecated 경고가 났다). 순서대로 기다리게 고쳤다.
+- 문서: `apps/api/README.md`에 상점 API 절, `docs/DECISIONS.md` D-062(소유자 결정 1~3·에이전트 구현 선택 a~d), `docs/PRD.md` RQ-024, 새 설계 문서 `docs/superpowers/specs/2026-10-01-mileage-shop-design.md`(스크래치 설계 메모를 리뷰 반영분까지 포함해 저장소에 옮김), `docs/AI_USAGE.md` 기록.
+- 다음 담당자가 할 일: 독립 리뷰(서로 다른 모델 2개 — 재뽑기 트랜잭션·계정 삭제는 보상·양도 규칙과 맞닿아 있어 교차 리뷰가 안전), PR 생성·CI, Android 상점 탭 PR(design-298.md의 Android 절 참고), 필요해지면 웹 세션 API 노출 추가.
 ## 2026-10-01 병합 충돌 표시 검사 (Issue #291, 브랜치 `fix/291-conflict-markers`)
 
 - 기준: main `eed9d11`(PR #290 병합 결과), worktree `.worktrees/291-conflict-markers`, PR 번호 미정.

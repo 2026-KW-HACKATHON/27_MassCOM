@@ -1,5 +1,9 @@
 # 프로젝트 상태
 
+
+## 마일리지 상점 서버 (Issue #298, 2026-10-01)
+
+[Issue #298](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/298), 브랜치 `feat/298-shop-server`(worktree `.worktrees/298-shop-server`), 기준 main `0e7ac19`(가게 그림 PR 병합분 포함), PR 미정. 서버만 구현했다(Android는 후속 PR). 적립 마일리지는 저장하지 않고 `GET /me/badges` 메달 집계와 같은 SQL(`badge-rewards.ts`의 `countedVisitFromSql`/`countedVisitFilterSql`)을 재사용해 계산하며, 점포 시리즈 완성은 끝났거나 비공개인 캠페인도 포함해 모든 보상 목표에 유효 entitlement가 있어야 센다(공개 카탈로그는 보지 않음). `GET /shop`·`/shop/history`·`POST /shop/rerolls`·`PUT /shop/avatar`(모바일 Bearer)를 추가했고, 재뽑기 트랜잭션은 기존 `assertActive` 계정 잠금만 쓴다(별도 잠금 없음). 지출 원장·소유 캐릭터·대표 캐릭터 세 테이블을 migration **0038**로 추가했다(0037은 PR #300이 먼저 쓸 수 있어 번호만 그 뒤를 잡았다 — 두 PR이 어느 순서로 병합돼도 각자 동작한다). 정적 카탈로그 9종(하늘 동네 가게 친구들, 등급마다 3종)은 소유자 결정으로 펭귄이 아니다. 운영·시연 모두 pool만 있으면 동작한다(시연 전용 게이트 없음). `npm test --prefix apps/api` 315/315(신규 13건), 일회용 `postgres:16`으로 `mileage-shop.postgres.integration.ts` 7/7, `npm run test:postgres --prefix apps/api` 306 PASS·2 기존 SKIP, typecheck·build·`bash tools/gate.sh` PASS. 자세한 내용은 [TEST_STATUS](TEST_STATUS.md) 최신 항목과 [설계](superpowers/specs/2026-10-01-mileage-shop-design.md). 독립 리뷰·PR 생성·Android 연동은 다음 단계.
 ## 병합 충돌 표시 검사 (Issue #291, 2026-10-01)
 
 [Issue #291](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/291), 브랜치 `fix/291-conflict-markers`, 기준 main `eed9d11`: `scripts/check-conflict-markers.sh`가 추적 파일의 줄 맨 앞 충돌 표시를 찾고, `tools/gate.sh`와 CI가 실행한다. 회귀 시험 PASS.
