@@ -285,6 +285,15 @@ async function pseudonymizeAccount(
     'UPDATE platform_admin_role_audit SET target_account_id = $1 WHERE target_account_id = $2',
     [deletedAlias, accountId],
   );
+  // 점주 체험 권한 요청(#294): 요청자 열과, 앱에서 직접 승인·거절한 경우의 처리자 열(decided_via='OPS'는 계정 ID가 없다)을 별칭으로 바꾼다.
+  await client.query(
+    'UPDATE showcase_access_requests SET account_id = $1 WHERE account_id = $2',
+    [deletedAlias, accountId],
+  );
+  await client.query(
+    'UPDATE showcase_access_requests SET decided_by_account_id = $1 WHERE decided_by_account_id = $2',
+    [deletedAlias, accountId],
+  );
   await client.query(
     'UPDATE platform_admin_audit SET actor_account_id = $1 WHERE actor_account_id = $2',
     [deletedAlias, accountId],

@@ -9,6 +9,7 @@ import { Pool } from 'pg';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { runMigrations } from './postgres/migrate.js';
 import { PostgresRetentionService, type RetentionCount } from './postgres/retention.js';
+import { generateAccessRequestCode } from './showcase/access-requests.js';
 
 const now = new Date('2026-09-30T12:00:00.000Z');
 const cutoffMs = Date.parse('2025-09-30T12:00:00.000Z'); // exactly one year before `now`
@@ -34,7 +35,7 @@ async function setup(t: TestContext) {
     `TRUNCATE auth_sessions, web_sessions, account_deletion_intake_requests, account_deletion_requests,
               platform_admin_audit, platform_admin_role_audit, staff_registration_audit, staff_registration_requests,
               badge_coupon_audit, badge_coupons, badge_reward_offers, platform_admins, customer_identity_tokens,
-              wallet_challenges, web_oauth_states, merchants CASCADE`,
+              wallet_challenges, web_oauth_states, showcase_access_requests, merchants CASCADE`,
   );
   await pool.query(
     `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
@@ -199,6 +200,18 @@ const auditSeeds: Record<string, AuditSeed> = {
       );
     },
   },
+  // 점주 체험 권한 요청(#294)의 결정된 행. 여기서 걸리는 시각은 created_at이 아니라 decided_at이다.
+  showcase_access_requests: {
+    table: 'showcase_access_requests',
+    boundary: threeYears,
+    insert: async (pool, id, decidedAt) => {
+      await pool.query(
+        `INSERT INTO showcase_access_requests (id, account_id, code, status, decided_at, decided_by_account_id, decided_via)
+         VALUES ($1, $2, $3, 'APPROVED', $4, 'acct_admin', 'APP')`,
+        [id, `acct_req_${id}`, generateAccessRequestCode(), decidedAt],
+      );
+    },
+  },
 };
 
 async function seedCoupon(pool: Pool) {
@@ -290,13 +303,14 @@ test('run deletes exactly the rows older than each period in every table and not
   const ownerRevoked = await seedAudit(pool, 'admin_owner_revoked');
   const oneTime = await seedOneTimeRows(pool);
   const staffRequests = await seedStaffRequests(pool);
+  const showcaseAccessRequests = await seedAudit(pool, 'showcase_access_requests');
   await pool.query(`INSERT INTO platform_admins (account_id) VALUES ('acct_admin')`);
 
   const reported = counts(await service.report());
   assert.deepEqual(reported, {
     auth_sessions: 3, web_sessions: 2, deletion_intake: 3, admin_audit: 1, admin_owner_audit: 2,
     admin_role_audit: 1, staff_registration_audit: 1, coupon_audit: 1, customer_identity_tokens: 1,
-    wallet_challenges: 1, web_oauth_states: 1, staff_registration_requests: 2,
+    wallet_challenges: 1, web_oauth_states: 1, staff_registration_requests: 2, showcase_access_requests: 1,
   });
   // A report is read-only.
   assert.equal((await idsOf(pool, 'SELECT id FROM auth_sessions')).length, 5);
@@ -316,8 +330,11 @@ test('run deletes exactly the rows older than each period in every table and not
     await idsOf(pool, 'SELECT id FROM platform_admin_audit'),
     [...audits.admin_audit.kept, ...ownerGranted.kept, ...ownerRevoked.kept].sort(),
   );
-  for (const audit of [...Object.values(audits), ownerGranted, ownerRevoked]) assert.equal(audit.gone.length, 1);
+  for (const audit of [...Object.values(audits), ownerGranted, ownerRevoked, showcaseAccessRequests]) {
+    assert.equal(audit.gone.length, 1);
+  }
   assert.deepEqual(await idsOf(pool, 'SELECT id FROM staff_registration_requests'), staffRequests.kept);
+  assert.deepEqual(await idsOf(pool, 'SELECT id FROM showcase_access_requests'), showcaseAccessRequests.kept);
   for (const [table, column] of [['customer_identity_tokens', 'encode(token_hash, \'hex\')'], ['wallet_challenges', 'id'],
     ['web_oauth_states', 'encode(state_hash, \'hex\')']] as const) {
     const remaining = (await pool.query<{ id: string }>(`SELECT ${column} AS id FROM ${table}`)).rows.map((row) => row.id).sort();
@@ -335,7 +352,7 @@ test('run deletes exactly the rows older than each period in every table and not
   );
 
   // A second run has nothing left to delete.
-  assert.deepEqual(Object.values(counts((await service.run()).counts)), Array(12).fill(0));
+  assert.deepEqual(Object.values(counts((await service.run()).counts)), Array(13).fill(0));
 });
 
 test('access-right records live three years while other handling records live one year', async (t) => {
@@ -345,26 +362,30 @@ test('access-right records live three years while other handling records live on
   const twoYearsAgo = at(now.getTime() - 2 * 365 * 86_400_000);
   const twoYearIds: Record<string, string> = {};
   for (const name of ['admin_audit', 'admin_owner_granted', 'admin_owner_revoked', 'admin_role_audit',
-    'staff_registration_audit', 'coupon_audit'] as const) {
+    'staff_registration_audit', 'coupon_audit', 'showcase_access_requests'] as const) {
     twoYearIds[name] = randomUUID();
     await auditSeeds[name]!.insert(pool, twoYearIds[name]!, twoYearsAgo);
   }
   // Four years old: past every period.
-  for (const name of ['admin_owner_granted', 'admin_owner_revoked', 'admin_role_audit', 'staff_registration_audit'] as const) {
+  for (const name of ['admin_owner_granted', 'admin_owner_revoked', 'admin_role_audit', 'staff_registration_audit',
+    'showcase_access_requests'] as const) {
     await auditSeeds[name]!.insert(pool, randomUUID(), at(now.getTime() - 4 * 365 * 86_400_000));
   }
   const result = counts(await service.run().then((run) => run.counts));
   assert.deepEqual(
     { admin_audit: result.admin_audit, admin_owner_audit: result.admin_owner_audit, admin_role_audit: result.admin_role_audit,
-      staff_registration_audit: result.staff_registration_audit, coupon_audit: result.coupon_audit },
-    { admin_audit: 1, admin_owner_audit: 2, admin_role_audit: 1, staff_registration_audit: 1, coupon_audit: 1 },
+      staff_registration_audit: result.staff_registration_audit, coupon_audit: result.coupon_audit,
+      showcase_access_requests: result.showcase_access_requests },
+    { admin_audit: 1, admin_owner_audit: 2, admin_role_audit: 1, staff_registration_audit: 1, coupon_audit: 1,
+      showcase_access_requests: 1 },
     'only the one-year kinds lose their two-year-old rows; the four-year-old access-right rows go too',
   );
   for (const name of ['admin_owner_granted', 'admin_owner_revoked']) {
     const alive = await pool.query('SELECT 1 FROM platform_admin_audit WHERE id = $1', [twoYearIds[name]]);
     assert.equal(alive.rowCount, 1, `${name} two years old must stay`);
   }
-  for (const [name, table] of [['admin_role_audit', 'platform_admin_role_audit'], ['staff_registration_audit', 'staff_registration_audit']] as const) {
+  for (const [name, table] of [['admin_role_audit', 'platform_admin_role_audit'], ['staff_registration_audit', 'staff_registration_audit'],
+    ['showcase_access_requests', 'showcase_access_requests']] as const) {
     assert.equal((await pool.query(`SELECT 1 FROM ${table} WHERE id = $1`, [twoYearIds[name]])).rowCount, 1, name);
   }
   assert.equal((await pool.query('SELECT 1 FROM platform_admin_audit WHERE id = $1', [twoYearIds.admin_audit])).rowCount, 0);
@@ -462,7 +483,8 @@ test('the command prints counts only and leaves the exit code at zero when every
   assert.deepEqual(lines.slice(1), [
     'auth_sessions\t2', 'web_sessions\t0', 'deletion_intake\t1', 'admin_audit\t0', 'admin_owner_audit\t0',
     'admin_role_audit\t1', 'staff_registration_audit\t0', 'coupon_audit\t0', 'customer_identity_tokens\t0',
-    'wallet_challenges\t0', 'web_oauth_states\t0', 'staff_registration_requests\t0', 'admin_audit_deleted_targets\t0',
+    'wallet_challenges\t0', 'web_oauth_states\t0', 'staff_registration_requests\t0', 'showcase_access_requests\t0',
+    'admin_audit_deleted_targets\t0',
   ]);
   assert.equal((await idsOf(pool, 'SELECT id FROM auth_sessions')).length, 1);
   // No identifier of any kind reaches the terminal: not a row id, not an account id, not the ledger id.
