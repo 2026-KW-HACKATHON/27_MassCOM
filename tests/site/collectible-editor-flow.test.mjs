@@ -694,6 +694,62 @@ test('서버와 같은 버전의 기기 보관본이 있으면 다시 열 때 �
   assert.equal(put.body.project.name, '복원할 이름');
 });
 
+test('복원 응답을 기다리는 동안 새로 입력하면 늦게 온 복원이 그 입력을 덮지 않는다(PR #289 P1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  await ui.input('name', '보관한 이름');
+  await settle(10);
+  editors.pop()();
+
+  const held = api.holdNext('GET', /collectible-projects\/[^/]+$/);
+  const restored = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  assert.match(restored.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
+  await restored.input('name', '기다리는 동안 입력');
+  held.release();
+  await settle(10);
+  assert.equal(restored.control('name').value, '기다리는 동안 입력');
+});
+
+test('목록을 본 뒤 다른 곳에서 새 버전이 저장되면 복원하지 않고 보관본을 버린다(PR #289 P1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  const projectId = [...api.store.keys()][0];
+  await ui.input('name', '옛 버전 위의 편집');
+  await settle(10);
+  editors.pop()();
+
+  const held = api.holdNext('GET', /collectible-projects\/[^/]+$/);
+  const restored = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  await api.request(`/api/web/merchant/merchants/m1/collectible-projects/${projectId}`, { method: 'PUT', body: { expectedVersion: 1, project: seeded('다른 곳에서 저장') } });
+  held.release();
+  await settle(10);
+  assert.notEqual(restored.control('name').value, '옛 버전 위의 편집', '새 버전 위에 옛 편집을 얹지 않는다');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null);
+  assert.match(restored.notice, /더 새로 저장된 버전이 있어 보관한 편집은 버렸어요/);
+});
+
+test('저장 중에 더 고친 편집은 저장이 끝난 새 버전 기준으로 다시 보관한다(PR #289 P2)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  await ui.input('name', '첫 저장 뒤 편집');
+  const held = api.holdNext('PUT', /collectible-projects\/[^/]+$/);
+  const saving = ui.click('draft');
+  await settle();
+  await ui.input('greeting', '저장 중 더 고침');
+  held.release();
+  await saving; await settle(10);
+  const draft = readDraft(dom.window, 'm1', 'scope-a');
+  assert.ok(draft, '저장 뒤에도 더 고친 편집이 남아 있으면 보관한다');
+  assert.equal(draft.wrapperVersion, 2, '방금 저장으로 오른 버전을 기준으로 보관한다');
+  assert.equal(draft.edits.greeting, '저장 중 더 고침');
+});
+
 test('기기 보관본보다 새 서버 버전이 있으면 복원을 묻지 않고 조용히 지운다(A1)', async () => {
   const api = createFakeApi();
   const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });

@@ -232,10 +232,14 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (dirty) return;
     if (!confirm('저장하지 않은 편집을 이어서 할까요?')) { clearDraftStorage(); draftDecided = true; return; }
     draftDecided = true;
+    // 복원 응답을 기다리는 동안 새로 편집하거나 다른 프로젝트로 바꿨으면 그 편집을 덮지 않는다.
+    const startProject = project, startSerial = editSerial;
     try {
       const result = await request(`${base}/${encodeURIComponent(draft.wrapperId)}`, { method: 'GET' });
-      if (!active) return;
+      if (!active || project !== startProject || editSerial !== startSerial) return;
       const serverWrapper = result.project?.id ? result.project : result;
+      // 목록을 본 뒤 다른 탭이 새 버전을 저장했으면, 옛 편집을 새 버전 위에 얹지 않고 보관본을 버린다.
+      if (serverWrapper.version !== draft.wrapperVersion) { clearDraftStorage(); notice('다른 곳에서 더 새로 저장된 버전이 있어 보관한 편집은 버렸어요.'); return; }
       restoring = true;
       project = applyDraftEdits(cloneProject(serverWrapper.project), draft.edits);
       wrapper = serverWrapper;
@@ -537,7 +541,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         clearDraftStorage();
         project = cloneProject(wrapper.project || revision);
         clearCollectibleRenderCache(); syncValues(); drawCrop(); schedulePreview();
-      } else studio.sync(project, { dirty, wrapper });
+      } else { studio.sync(project, { dirty, wrapper }); saveDraftLocally(); }
       syncPublishState();
       view('save-state').textContent = `${publish ? '게시한 버전을 보존했어요' : '초안을 저장했어요'} · v${wrapper.version}${dirty ? ' · 저장 중 새로 편집한 내용은 한 번 더 저장해 주세요.' : ''}`;
       notice(publish ? '게시했어요. 이후 방문 보상부터 이 버전을 사용해요. 이미 얻은 수집품은 그대로 보존돼요.' : '초안을 저장했어요. 목록에서 다시 열어 이어서 만들 수 있어요.');
