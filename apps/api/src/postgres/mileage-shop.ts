@@ -106,6 +106,8 @@ function requireCatalogItem(itemId: string): { id: string; grade: MileageGrade; 
   return item;
 }
 
+const historyCursorPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export class PostgresMileageShopService implements MileageShopService {
   private readonly now: () => Date;
   private readonly nextSpendId: () => string;
@@ -167,6 +169,8 @@ export class PostgresMileageShopService implements MileageShopService {
     const pageSize = 20;
     let beforeCreatedAt: Date | null = null;
     if (input.cursor !== undefined) {
+      // 커서는 이 계정의 사용 기록 id(uuid)다. 형식이 틀리면 DB까지 보내지 않고 잘못된 요청으로 거절한다.
+      if (!historyCursorPattern.test(input.cursor)) throw new MileageShopError('INVALID_REQUEST');
       const cursorRow = await this.pool.query<{ created_at: Date }>(
         'SELECT created_at FROM mileage_spends WHERE account_id = $1 AND id = $2',
         [input.accountId, input.cursor],

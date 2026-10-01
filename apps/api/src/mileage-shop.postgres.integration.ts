@@ -337,6 +337,10 @@ test('history pages recent spends newest-first with a cursor and surfaces the sa
   assert.equal(history.spends.length, 1);
   assert.equal(history.nextCursor, null);
   assert.equal(history.mileage.earned, (await shop.getShop('historian')).mileage.earned);
+  // 잘못된 형식·빈 커서는 DB 오류(500)가 아니라 잘못된 요청으로 거절한다.
+  for (const cursor of ['not-a-uuid', '']) {
+    await assert.rejects(shop.getHistory({ accountId: 'historian', cursor }), { code: 'INVALID_REQUEST' });
+  }
   assert.equal(history.mileage.balance, (await shop.getShop('historian')).mileage.balance);
 
   await assert.rejects(
