@@ -2,7 +2,7 @@ import { createProject, createGrade, createId, cloneProject, cropTransform, clam
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
 import { collectibleErrorMessage, localError } from './collectible-errors.mjs';
-import { draftStorageKey, prepareDraftForStorage, findMaterialConflict, materialConflictQuestion, materialSwapNotice, faceFitCrop, centerFillCrop } from './collectible-assist.mjs';
+import { draftStorageKey, prepareDraftForStorage, findMaterialConflict, findMaterialConflicts, materialConflictQuestion, materialSwapNotice, faceFitCrop, centerFillCrop, clearAllDraftsForAccount } from './collectible-assist.mjs';
 
 const effectNames = { metallic: '메탈릭', hologram: '홀로그램', pearl: '펄', matte: '무광', enamel: '에나멜', glass: '유리', glow: '발광' };
 const motionNames = { still: '정지', rotate: '천천히 회전', shine: '빛 지나가기', float: '살짝 떠오르기', stamp: '도장 찍기', sparkle: '반짝임 한 번', pulse: '부드러운 맥동', confetti: '작은 축하 입자' };
@@ -81,6 +81,12 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const accountMarker = accountScope || 'anon';
   const draftKey = draftStorageKey(merchantId, accountMarker);
   let autosaveTimer = 0;
+  // 마운트할 때 이 키에 이미 로컬 보관본이 있으면, 복원할지 물어보기 전까지 자동 저장이 그 보관본을 덮어쓰지 못하게 막는다
+  // (초기 저장 목록 조회 중 편집하면 결정 전에 자동 저장이 먼저 실행될 수 있다).
+  let draftDecided = true;
+  try { const raw = window.localStorage?.getItem(draftKey); const existing = raw ? JSON.parse(raw) : null; if (existing?.merchantId === merchantId && existing?.accountMarker === accountMarker) draftDecided = false; } catch { /* 못 읽으면 보호할 것도 없다 */ }
+  // 용량 초과로 사진 등 미디어를 비운 초안을 복원한 뒤에는, 그 미디어를 다시 고르기 전까지 저장·게시를 막는다.
+  let mediaRestoreBlocked = false;
   const controller = new AbortController();
   const signal = controller.signal;
   let project = createProject({ name: `${merchantName || '우리 가게'} 수집품` });
@@ -199,7 +205,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   // 저장·게시·삭제·명시적 새로 시작을 마치면 지운다. 저장 공간 접근은 모두 try/catch로 감싸 실패해도 편집이 끊기지 않는다.
   function clearDraftStorage() { try { window.localStorage?.removeItem(draftKey); } catch { /* 저장 공간이 없어도 편집은 계속한다 */ } }
   function saveDraftLocally() {
-    if (!active || !dirty) return;
+    if (!active || !dirty || !draftDecided) return;
     try {
       const { project: stored, mediaOmitted } = prepareDraftForStorage(project);
       const payload = { merchantId, accountMarker, wrapperId: wrapper?.id ?? null, wrapperVersion: wrapper?.version ?? 0, wrapperStatus: wrapper?.status ?? null, savedAt: Date.now(), mediaOmitted, project: stored };
@@ -210,20 +216,29 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   function readDraftStorage() {
     try { const raw = window.localStorage?.getItem(draftKey); return raw ? JSON.parse(raw) : null; } catch { return null; }
   }
-  // 마운트할 때 같은 점포·계정의 로컬 보관본이 서버가 아는 버전보다 새로우면 이어서 할지 물어본다.
+  // 저장 목록을 성공적으로 읽은 뒤에만 부른다(목록을 못 읽으면 서버 버전을 0으로 잘못 가정하지 않고, 다음에 성공할 때 다시 시도한다).
+  // 같은 점포·계정의 로컬 보관본이 서버보다 "엄밀히" 새로울 때만 이어서 할지 물어본다(같은 버전이면 그 위에 저장하지 않은
+  // 편집이 있을 수 있으므로 지우지 않고 그대로 물어본다).
   function checkLocalDraft() {
     const draft = readDraftStorage();
-    if (!active || !draft || draft.merchantId !== merchantId || draft.accountMarker !== accountMarker) return;
+    if (!active) return;
+    if (!draft || draft.merchantId !== merchantId || draft.accountMarker !== accountMarker) { draftDecided = true; return; }
     const serverVersion = draft.wrapperId ? (listed.get(draft.wrapperId)?.version ?? 0) : 0;
-    if (draft.wrapperId && serverVersion >= draft.wrapperVersion) { clearDraftStorage(); return; }
-    if (!confirm('저장하지 않은 편집을 이어서 할까요?')) { clearDraftStorage(); return; }
+    if (draft.wrapperId && serverVersion > draft.wrapperVersion) { clearDraftStorage(); draftDecided = true; return; }
+    // 목록 조회를 기다리는 동안 이미 편집을 시작했으면(초기 경합), 지금 입력을 조용히 덮어쓰지 않고 바꿀지 분명히 확인한다.
+    const question = dirty
+      ? '지금까지 입력한 내용을 저장하지 않은 이전 편집으로 바꿀까요? 지금 입력한 내용은 사라져요.'
+      : '저장하지 않은 편집을 이어서 할까요?';
+    if (!confirm(question)) { clearDraftStorage(); draftDecided = true; return; }
+    draftDecided = true;
     restoring = true;
     project = cloneProject(draft.project);
     wrapper = draft.wrapperId ? { id: draft.wrapperId, version: draft.wrapperVersion, status: draft.wrapperStatus } : null;
     selectedGrade = project.grades.find(item => item.enabled)?.id || project.grades[0].id;
     restoring = false; dirty = true; editSerial++;
+    mediaRestoreBlocked = draft.mediaOmitted === true;
     clearCollectibleRenderCache(); syncValues(); drawCrop(); schedulePreview();
-    notice(draft.mediaOmitted ? '저장하지 않은 편집을 이어서 열었어요. 사진이 커서 기기에는 저장하지 못했어요. 사진을 다시 선택해 주세요.' : '저장하지 않은 편집을 이어서 열었어요.');
+    notice(mediaRestoreBlocked ? '저장하지 않은 편집을 이어서 열었어요. 사진이 커서 기기에는 저장하지 못했어요. 사진을 다시 선택해야 저장·게시할 수 있어요.' : '저장하지 않은 편집을 이어서 열었어요.');
   }
   const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
   function syncValues() {
@@ -385,16 +400,23 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   // 4.2 자동 맞춤: 결과를 강제하지 않고(버튼을 눌러야만) 얼굴 감지가 되면 얼굴을, 안 되면 가운데를 기준으로 맞춘다. 한 번의 되돌리기 단계로 남긴다.
   async function autoFit() {
     if (!project.photo.originalDataUrl) { notice('먼저 사진을 올려 주세요.', true); return; }
+    // 감지가 끝나기 전에 사진을 바꾸거나 손으로 자르기를 조정했으면(둘 다 project 교체나 editSerial 증가로 나타난다)
+    // 낡은 결과를 덮어쓰지 않고 버린다.
+    const sourceProject = project, startSerial = editSerial, startDataUrl = project.photo.originalDataUrl;
+    const stillCurrent = () => active && project === sourceProject && editSerial === startSerial && project.photo.originalDataUrl === startDataUrl;
     let crop = null;
     if (globalThis.FaceDetector) {
       try {
         const detector = new FaceDetector();
         const image = await loadPhotoElement(project.photo.originalDataUrl);
+        if (!stillCurrent()) return;
         const faces = await detector.detect(image);
+        if (!stillCurrent()) return;
         const largest = [...faces].map(item => item.boundingBox).sort((a, b) => b.width * b.height - a.width * a.height)[0];
         if (largest) crop = faceFitCrop(project.photo.width, project.photo.height, largest);
       } catch { /* 감지에 실패하면 가운데 맞춤으로 물러난다 */ }
     }
+    if (!stillCurrent()) return;
     crop ??= centerFillCrop();
     mutate(() => { project.crop = { x: crop.x, y: crop.y, zoom: crop.zoom }; });
     syncValues(); await drawCrop();
@@ -462,6 +484,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (!active || sequence !== listSequence) return;
       listed = new Map((result.projects || []).map(item => [item.id, item]));
       renderProjectList();
+      // 목록을 성공적으로 읽은 뒤에만 로컬 보관본 복원 여부를 결정한다(실패한 조회는 서버 버전 0으로 잘못 가정하지 않는다).
+      if (!draftDecided) checkLocalDraft();
     } catch (error) {
       // 권한이 없는 계정(예: 직원)은 제작기를 열어 둘 이유가 없다. 호출한 쪽이 제작기를 닫고 이유를 알린다.
       if (active && error?.status === 403 && onAccessDenied) onAccessDenied(error);
@@ -471,6 +495,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   async function save(publish = false) {
     if (busy) return;
     if (mediaPending()) { notice('사진·음성을 불러오거나 녹음을 처리하고 있어요. 처리가 끝난 뒤 저장해 주세요.'); return; }
+    // 기기 보관 용량을 넘어 사진을 비운 초안을 복원했으면, 그 빈 사진이 서버의 실제 사진을 덮어쓰지 않도록 다시 고를 때까지 막는다.
+    if (mediaRestoreBlocked) { navigateStep(1); notice('이어서 연 편집은 사진이 기기에 저장되지 못했어요. 사진을 다시 선택한 뒤 저장·게시해 주세요.', true); return; }
     if (!project.name.trim()) { navigateStep(1); notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
     if (!project.theme.name.trim()) { navigateStep(4); notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
     if (project.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
@@ -530,7 +556,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (!active) return;
       const previous = cloneProject(project);
       wrapper = result.project?.id ? result.project : result; project = cloneProject(wrapper.project);
-      selectedGrade = project.grades.find(item => item.enabled)?.id || project.grades[0].id; undo = dirty ? [previous] : []; redo = []; dirty = false; playing = false;
+      selectedGrade = project.grades.find(item => item.enabled)?.id || project.grades[0].id; undo = dirty ? [previous] : []; redo = []; dirty = false; playing = false; mediaRestoreBlocked = false;
       clearCollectibleRenderCache(); syncValues(); await drawCrop(); schedulePreview(); notice(`저장한 ${project.name}을 열었어요. 게시 후 수정은 새 게시 버전을 만들어요.`);
       studio.showStep(1);
     } catch (error) { notice(collectibleErrorMessage(error, '초안을 열지 못했어요. 현재 입력은 유지했어요. 저장 목록을 새로 불러와 다시 시도해 주세요.'), true); }
@@ -622,7 +648,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   function resetToNewDraft() {
     stopHiddenMedia(); project = createProject({ name: `${merchantName || '우리 가게'} 수집품` }); project.theme.name = studio.newTheme;
-    wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; clearCollectibleRenderCache(); syncValues();
+    wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; mediaRestoreBlocked = false; clearCollectibleRenderCache(); syncValues();
   }
   // 게시 중지: 새 손님에게 나가는 것만 멈춘다. 게시 버전과 이미 받은 손님의 수집품은 그대로다.
   async function unpublish() {
@@ -796,7 +822,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (field === 'photo') {
         if (!target.files[0]) return; const sequence = ++uploadSequence, sourceProject = project;
         const image = await importImage(target.files[0], 3 * 1024 * 1024); if (!active || sequence !== uploadSequence || project !== sourceProject) return;
-        mutate(() => { project.photo = { originalDataUrl: image.dataUrl, width: image.width, height: image.height }; project.crop = { x: 0, y: 0, zoom: 1 }; project.photoEdits.strokes = []; }); clearCollectibleRenderCache(); syncValues(); await drawCrop(); schedulePreview(); notice('사진을 올렸어요. 드래그와 확대 조절로 위치를 맞춰 주세요.'); return;
+        mutate(() => { project.photo = { originalDataUrl: image.dataUrl, width: image.width, height: image.height }; project.crop = { x: 0, y: 0, zoom: 1 }; project.photoEdits.strokes = []; }); mediaRestoreBlocked = false; clearCollectibleRenderCache(); syncValues(); await drawCrop(); schedulePreview(); notice('사진을 올렸어요. 드래그와 확대 조절로 위치를 맞춰 주세요.'); return;
       }
       if (field === 'audio') {
         const file = target.files[0]; if (!file) return;
@@ -848,10 +874,12 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         const effect = project.effects.find(item => item.id === target.dataset.effectGrade), grade = target.dataset.grade;
         // 9.14 재질 충돌 안내: 같은 대상·등급의 배타 재질(무광·에나멜·유리)을 조용히 섞지 않고 이유와 대안을 확인받는다.
         if (target.checked) {
-          const conflict = findMaterialConflict(project.effects, effect.target, grade, effect.type, effect.id);
-          if (conflict) {
+          const conflicts = findMaterialConflicts(project.effects, effect.target, grade, effect.type, effect.id);
+          if (conflicts.length) {
+            const conflict = conflicts[0];
             if (!confirm(materialConflictQuestion(conflict.type, effect.type))) { target.checked = false; notice('다른 등급에 적용하거나 먼저 기존 재질을 꺼 주세요.'); return; }
-            mutate(() => { conflict.gradeIds = conflict.gradeIds.filter(item => item !== grade); effect.gradeIds = [...new Set([...effect.gradeIds, grade])]; });
+            // 같은 대상·등급에 같은 재질군이 중복 등록됐어도(예: 무광 효과 두 개) 전부 끈다.
+            mutate(() => { for (const other of conflicts) other.gradeIds = other.gradeIds.filter(item => item !== grade); effect.gradeIds = [...new Set([...effect.gradeIds, grade])]; });
             notice(materialSwapNotice(conflict.type, effect.type));
             renderEffects(); return;
           }
@@ -926,10 +954,16 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const intersection = globalThis.IntersectionObserver ? new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); if (visible) schedulePreview(); else { if (frame) cancelAnimationFrame(frame); frame = 0; } }) : null;
   intersection?.observe(container);
   syncValues(); drawCrop(); schedulePreview();
-  refreshList().then(() => checkLocalDraft());
+  refreshList();
   refreshCampaigns();
-  const dispose = () => {
-    clearTimeout(autosaveTimer); saveDraftLocally();
+  // reason: 'navigate'(기본, 평범한 이동·탭 닫기) → 지금 편집을 기기에 남긴다. 'discard' → 사용자가 명시적으로 버리기로
+  // 한 이 초안만 지운다. 'logout'·'account-switch' → 같은 기기를 다른 계정이 쓸 수 있으니 그 계정의 모든 점포 보관본을
+  // 전부 지우고 아무것도 남기지 않는다(로그인 화면에 사진이 남지 않게).
+  const dispose = (reason = 'navigate') => {
+    clearTimeout(autosaveTimer);
+    if (reason === 'discard') clearDraftStorage();
+    else if (reason === 'logout' || reason === 'account-switch') { try { clearAllDraftsForAccount(window.localStorage, accountMarker); } catch { /* 못 지워도 편집기는 닫는다 */ } }
+    else saveDraftLocally();
     active = false; controller.abort(); intersection?.disconnect(); if (frame) cancelAnimationFrame(frame); clearTimeout(recordingTimer);
     if (recorder?.state === 'recording') recorder.stop(); recordingStream?.getTracks().forEach(track => track.stop());
     view('audio').pause(); view('audio').removeAttribute('src'); reducedMotion.removeEventListener('change', preferenceChanged);

@@ -3,8 +3,8 @@ import { test } from 'node:test';
 
 import { cropTransform, createProject } from '../../apps/production-web/assets/collectible-model.mjs';
 import {
-  centerFillCrop, draftStorageKey, faceFitCrop, findMaterialConflict, materialConflictQuestion,
-  prepareDraftForStorage, SAFE_AREA_RATIO,
+  centerFillCrop, clearAllDraftsForAccount, draftStorageKey, faceFitCrop, findMaterialConflict, findMaterialConflicts,
+  materialConflictQuestion, prepareDraftForStorage, SAFE_AREA_RATIO,
 } from '../../apps/production-web/assets/collectible-assist.mjs';
 
 test('저장 키는 점포·계정마다 다르고 같은 입력에는 항상 같은 값이다(Issue #282 A1)', () => {
@@ -30,11 +30,15 @@ test('용량 안에서는 그대로 두고, 넘으면 큰 미디어만 비우고
   big.audio = { dataUrl: 'data:audio/mpeg;base64,CCCC', mimeType: 'audio/mpeg', durationSeconds: 5 };
   const result = prepareDraftForStorage(big, 4 * 1024 * 1024);
   assert.equal(result.mediaOmitted, true);
-  assert.equal(result.project.photo.originalDataUrl, '');
-  assert.equal(result.project.story.frames[0].dataUrl, '');
-  assert.equal(result.project.audio.dataUrl, '');
+  // apps/api/src/collectible-project-rules.ts: 빈 photo는 width·height도 0이어야 하고(그렇지 않으면 초안 저장도 거절),
+  // audio는 객체가 아니라 null, story.frames는 빈 값이 섞인 프레임이 아니라 빈 배열이어야 한다. 이 모양이 아니면
+  // 복원한 초안을 그대로 저장 요청에 실어 보낼 때 서버가 거절하거나(감지 못 하면) 실제 프로젝트의 사진을 지워 버린다.
+  assert.deepEqual(result.project.photo, { originalDataUrl: '', width: 0, height: 0 });
+  assert.deepEqual(result.project.story.frames, []);
+  assert.equal(result.project.audio, null);
   assert.equal(result.project.name, '큰 초안', '미디어 아닌 편집 내용은 그대로 남는다');
   assert.equal(big.photo.originalDataUrl.length > 0, true, '원본 project는 바꾸지 않는다');
+  assert.equal(big.audio.dataUrl.length > 0, true, '원본 project는 바꾸지 않는다');
 });
 
 test('무광·에나멜·유리만 서로 충돌하고, 자기 자신·다른 대상·다른 등급·다른 재질군은 걸리지 않는다(A8)', () => {
@@ -48,6 +52,18 @@ test('무광·에나멜·유리만 서로 충돌하고, 자기 자신·다른 �
   assert.equal(findMaterialConflict(effects, 'photo', 'bronze', 'matte'), null, '다른 대상은 충돌 아님');
   assert.equal(findMaterialConflict(effects, 'surface', 'bronze', 'metallic'), null, '메탈릭·펄·홀로그램·발광은 배타 재질이 아니다');
   assert.equal(findMaterialConflict(effects, 'surface', 'bronze', 'matte', 'e1'), null, '자기 자신은 제외한다');
+});
+
+test('중복 등록된 배타 재질도 전부 찾아내 하나도 놓치지 않는다(#289 리뷰 지적)', () => {
+  const effects = [
+    { id: 'e1', type: 'matte', target: 'surface', gradeIds: ['bronze'] },
+    { id: 'e2', type: 'matte', target: 'surface', gradeIds: ['bronze'] },
+    { id: 'e3', type: 'enamel', target: 'surface', gradeIds: ['silver'] },
+  ];
+  const conflicts = findMaterialConflicts(effects, 'surface', 'bronze', 'glass');
+  assert.deepEqual(conflicts.map(item => item.id).sort(), ['e1', 'e2'], '같은 등급의 무광 두 개를 모두 찾아야 한다');
+  assert.equal(findMaterialConflict(effects, 'surface', 'bronze', 'glass')?.id, 'e1', '단일 조회는 여전히 첫 번째만 돌려준다');
+  assert.deepEqual(findMaterialConflicts(effects, 'surface', 'gold', 'glass'), [], '적용 안 된 등급은 충돌 없음');
 });
 
 test('재질 충돌 확인 문구는 기존 재질을 끄고 새 재질을 켤지 예/아니오로 묻는다', () => {
@@ -104,4 +120,28 @@ test('사진이나 얼굴 상자가 없으면 얼굴 맞춤은 null을 돌려주
   assert.equal(faceFitCrop(100, 100, null), null);
   assert.equal(faceFitCrop(100, 100, { x: 0, y: 0, width: 0, height: 0 }), null);
   assert.deepEqual(centerFillCrop(), { x: 0, y: 0, zoom: 1, method: 'center' });
+});
+
+/** 표준 Storage(length·key(i))만 흉내 낸 최소 대역. localStorage 자체를 대신하지 않는다. */
+function fakeStorage() {
+  const map = new Map();
+  return {
+    getItem: key => map.has(key) ? map.get(key) : null,
+    setItem: (key, value) => map.set(key, String(value)),
+    removeItem: key => map.delete(key),
+    key: index => [...map.keys()][index] ?? null,
+    get length() { return map.size; },
+  };
+}
+
+test('로그아웃·계정 전환은 그 계정의 모든 점포 기기 보관본을 지우고 다른 계정·점포는 건드리지 않는다(#289 리뷰 지적)', () => {
+  const storage = fakeStorage();
+  storage.setItem(draftStorageKey('m1', 'account-a'), '{"project":"a1"}');
+  storage.setItem(draftStorageKey('m2', 'account-a'), '{"project":"a2"}');
+  storage.setItem(draftStorageKey('m1', 'account-b'), '{"project":"b1"}');
+  clearAllDraftsForAccount(storage, 'account-a');
+  assert.equal(storage.getItem(draftStorageKey('m1', 'account-a')), null);
+  assert.equal(storage.getItem(draftStorageKey('m2', 'account-a')), null, '같은 계정의 다른 점포 보관본도 지운다');
+  assert.equal(storage.getItem(draftStorageKey('m1', 'account-b')), '{"project":"b1"}', '다른 계정은 그대로 둔다');
+  assert.doesNotThrow(() => clearAllDraftsForAccount(null, 'account-a'), 'storage가 없어도 조용히 넘어간다');
 });

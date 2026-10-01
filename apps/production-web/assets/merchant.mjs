@@ -8,8 +8,10 @@ const creatorScopes = new WeakMap();
 // 지금 제작기가 열려 있는 점포 ID.
 const creatorStores = new WeakMap();
 
-function closeCreator(doc) {
-  creators.get(doc)?.();
+// reason은 제작기의 dispose(reason)에 그대로 전달된다: 'discard'(사용자가 지금 초안을 명시적으로 버림),
+// 'logout'·'account-switch'(같은 기기의 다른 계정 몫 보관본을 전부 지움), 생략(평범한 이동 — 기기에 남겨 둔다).
+function closeCreator(doc, reason) {
+  creators.get(doc)?.(reason);
   creators.delete(doc);
   creatorStores.delete(doc);
   doc.getElementById('merchant-creator-editor')?.replaceChildren();
@@ -35,7 +37,9 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
   const open = doc.getElementById('merchant-creator-open');
   if (!panel || !select || !open) return;
   const scope = `${mine.accountScope ?? ''}:${mine.merchants.map(member => `${member.id}:${member.role}`).sort().join(',')}`;
-  if (!mine.accountScope || creatorScopes.get(doc) !== scope) closeCreator(doc);
+  // accountScope가 없는 계정도(값이 없으면 제작기가 공유 'anon' 보관함을 쓴다) 매번 닫히면 자동 저장·복원이
+  // 전혀 동작하지 못한다. scope 문자열 자체가 이미 accountScope 유무를 담으므로 그 비교만으로 충분하다.
+  if (creatorScopes.get(doc) !== scope) closeCreator(doc, 'account-switch');
   creatorScopes.set(doc, scope);
   const makers = mine.merchants.filter(canCreate);
   select.replaceChildren();
@@ -45,24 +49,28 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
   panel.hidden = makers.length === 0;
   if (makers.length === 0) closeCreator(doc);
   // 저장하지 않은 편집이 있으면 제작기를 다시 열거나 점포를 바꾸기 전에 묻는다. 거절하면 그대로 둔다.
-  const keepEdits = () => creators.get(doc)?.isDirty?.() === true && !confirm(discardMessage);
+  const isDirty = () => creators.get(doc)?.isDirty?.() === true;
+  const keepEdits = () => isDirty() && !confirm(discardMessage);
   select.onchange = () => {
     const mounted = creatorStores.get(doc);
     if (!mounted || select.value === mounted) return;
+    const discarding = isDirty();
     if (keepEdits()) { select.value = mounted; return; }
     // 고른 점포와 열려 있는 제작기가 어긋나지 않게, 바꾸기로 했으면 지금 제작기를 닫는다.
-    closeCreator(doc);
+    // 저장하지 않은 편집을 명시적으로 버리기로 한 것이므로(discarding) 그 초안의 기기 보관본도 지운다.
+    closeCreator(doc, discarding ? 'discard' : undefined);
   };
   open.onclick = async () => {
     const currentRequest = merchantRequests.get(doc);
     const merchant = makers.find(member => member.id === select.value);
     if (!merchant) return;
+    const discarding = isDirty();
     if (keepEdits()) return;
     open.disabled = true;
     try {
       const module = await import('./collectible-editor.mjs');
       if (merchantRequests.get(doc) !== currentRequest) return;
-      closeCreator(doc);
+      closeCreator(doc, discarding ? 'discard' : undefined);
       let denied = false;
       const cleanup = await module.mountCollectibleEditor(doc.getElementById('merchant-creator-editor'), {
         merchantId: merchant.id, merchantName: merchant.name, accountScope: mine.accountScope,
@@ -849,7 +857,8 @@ export function bindMerchant(fetcher, doc) {
     }
   });
   doc.getElementById('merchant-logout')?.addEventListener('click', async () => {
-    closeCreator(doc);
+    // 로그아웃: 같은 기기를 다른 계정이 바로 이어 쓸 수 있으므로 기기에 남긴 자동 저장 사진이 그대로 보이면 안 된다.
+    closeCreator(doc, 'logout');
     creatorScopes.delete(doc);
     stopCamera();
     merchantRequests.set(doc, (merchantRequests.get(doc) ?? 0) + 1);

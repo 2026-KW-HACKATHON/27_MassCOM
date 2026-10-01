@@ -210,6 +210,9 @@ function createFakeStorage({ throwing = false } = {}) {
     setItem: (key, value) => { guard(); map.set(key, String(value)); },
     removeItem: key => { guard(); map.delete(key); },
     clear: () => { guard(); map.clear(); },
+    // 표준 Storage 순회 계약(길이·key(i)). clearAllDraftsForAccount처럼 전체 계정 보관본을 훑는 코드를 시험한다.
+    key: index => { guard(); return [...map.keys()][index] ?? null; },
+    get length() { guard(); return map.size; },
     get size() { return map.size; },
   };
 }

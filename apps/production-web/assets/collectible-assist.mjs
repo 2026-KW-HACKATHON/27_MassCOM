@@ -11,22 +11,44 @@ export function hashMarker(text) {
   return hash.toString(36);
 }
 
+const DRAFT_PREFIX = 'masscom:collectible-draft:';
 /** 점포·계정마다 다른 로컬 저장 키. 다른 점포·계정의 기기 보관본을 절대 섞지 않는다. */
 export function draftStorageKey(merchantId, accountMarker) {
-  return `masscom:collectible-draft:${merchantId}:${hashMarker(accountMarker)}`;
+  return `${DRAFT_PREFIX}${merchantId}:${hashMarker(accountMarker)}`;
+}
+
+/**
+ * 로그아웃·계정 전환처럼 같은 기기를 다른 사람이 이어 쓸 수 있는 상황에서, 그 계정이 어떤 점포를 열었었는지와
+ * 관계없이 그 계정 몫의 기기 보관본을 전부 지운다(공유 PC에 사진이 남지 않게). 표준 Storage(length·key(i))
+ * 인터페이스만 있으면 되므로 실제 localStorage와 시험용 대역 모두에 쓸 수 있다.
+ */
+export function clearAllDraftsForAccount(storage, accountMarker) {
+  if (!storage) return;
+  const suffix = `:${hashMarker(accountMarker)}`;
+  const keys = [];
+  for (let index = 0; index < storage.length; index++) {
+    const key = storage.key(index);
+    if (key && key.startsWith(DRAFT_PREFIX) && key.endsWith(suffix)) keys.push(key);
+  }
+  for (const key of keys) storage.removeItem(key);
 }
 
 const MiB = 1024 * 1024;
 export const DRAFT_MAX_BYTES = 4 * MiB;
 
-/** 로컬 저장 용량을 넘으면 큰 미디어(사진 원본·장면 사진·음성)를 비우고 다시 선택이 필요함을 알린다. 입력 project는 바꾸지 않는다. */
+/**
+ * 로컬 저장 용량을 넘으면 큰 미디어(사진 원본·장면 사진·음성)를 비우고 다시 선택이 필요함을 알린다. 입력 project는 바꾸지 않는다.
+ * apps/api/src/collectible-project-rules.ts가 받아들이는 "미디어 없음" 모양으로만 비운다(빈 photo는 width·height도 0이어야 하고,
+ * audio는 객체가 아니라 null, story.frames는 부분 값이 아니라 빈 배열이어야 한다). 그렇지 않으면 이 상태 그대로 저장 요청을 보낼 때
+ * 서버가 거절하거나 더 나쁘면 사진 없는 값을 실제 프로젝트에 덮어쓴다.
+ */
 export function prepareDraftForStorage(project, maxBytes = DRAFT_MAX_BYTES) {
   const full = JSON.stringify(project);
   if (new TextEncoder().encode(full).length <= maxBytes) return { project, mediaOmitted: false };
   const stripped = JSON.parse(full);
-  if (stripped.photo) stripped.photo = { ...stripped.photo, originalDataUrl: '' };
-  if (stripped.story) stripped.story = { ...stripped.story, frames: (stripped.story.frames ?? []).map(frame => ({ ...frame, dataUrl: '' })) };
-  if (stripped.audio) stripped.audio = { ...stripped.audio, dataUrl: '' };
+  if (stripped.photo) stripped.photo = { originalDataUrl: '', width: 0, height: 0 };
+  if (stripped.story) stripped.story = { ...stripped.story, frames: [] };
+  if (stripped.audio) stripped.audio = null;
   return { project: stripped, mediaOmitted: true };
 }
 
@@ -36,11 +58,16 @@ export function prepareDraftForStorage(project, maxBytes = DRAFT_MAX_BYTES) {
 export const EXCLUSIVE_MATERIAL_GROUP = Object.freeze(['matte', 'enamel', 'glass']);
 export const MATERIAL_LABELS = Object.freeze({ matte: '무광', enamel: '에나멜', glass: '유리' });
 
-/** target+grade에 새 효과 type을 켤 때 이미 그 자리를 차지한 배타 재질 효과를 돌려준다. 없으면 null. */
+/** target+grade에 새 효과 type을 켤 때 이미 그 자리를 차지한 배타 재질 효과를 모두 돌려준다(중복 등록도 놓치지 않는다). */
+export function findMaterialConflicts(effects, target, gradeId, type, excludeEffectId) {
+  if (!EXCLUSIVE_MATERIAL_GROUP.includes(type)) return [];
+  return effects.filter(effect => effect.id !== excludeEffectId && effect.target === target
+    && EXCLUSIVE_MATERIAL_GROUP.includes(effect.type) && effect.type !== type && effect.gradeIds.includes(gradeId));
+}
+
+/** 첫 번째 충돌만 필요할 때(안내 문구용) 쓰는 편의 함수. */
 export function findMaterialConflict(effects, target, gradeId, type, excludeEffectId) {
-  if (!EXCLUSIVE_MATERIAL_GROUP.includes(type)) return null;
-  return effects.find(effect => effect.id !== excludeEffectId && effect.target === target
-    && EXCLUSIVE_MATERIAL_GROUP.includes(effect.type) && effect.type !== type && effect.gradeIds.includes(gradeId)) ?? null;
+  return findMaterialConflicts(effects, target, gradeId, type, excludeEffectId)[0] ?? null;
 }
 
 const hasBatchim = word => {
