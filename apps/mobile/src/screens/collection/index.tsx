@@ -1,7 +1,7 @@
 import * as Application from 'expo-application';
 import { Link, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type ImageStyle, type StyleProp, type TextStyle } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -14,7 +14,7 @@ import {
 } from '@/commerce/collection-recovery';
 import { CommerceApiError, createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
 import { createBadgeApiClient, type Coupon, type MedalKind, type OpenedReward, type RewardMilestone } from '@/gamification/badge-api';
-import { couponsOf, shouldStackTrio, type ShareVariant } from '@/gamification/badge-rules';
+import { couponsOf, explorerRank, shouldStackTrio, type ShareVariant } from '@/gamification/badge-rules';
 import { CouponTicket } from '@/gamification/coupon-ticket';
 import { CouponUseSheet } from '@/gamification/coupon-use-sheet';
 import { MedalDetail } from '@/gamification/medal-detail';
@@ -23,14 +23,11 @@ import { PassportHero } from '@/gamification/passport-hero';
 import { RewardReveal } from '@/gamification/reward-reveal';
 import { RewardTrack } from '@/gamification/reward-track';
 import { useBadgeBook } from '@/gamification/use-badge-book';
-import { collectibleArtNote } from '@/merchant-art/art-source';
-import { useArtFallback } from '@/merchant-art/use-art-fallback';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
-import { uiMetrics } from '@/theme/ui-metrics';
-import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
+import { Fold } from '@/ui/fold';
 import { FloatingCard } from '@/ui/floating-card';
 import { PassportStampPage } from '@/ui/passport-stamp-page';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
@@ -42,7 +39,7 @@ import { collectibleFocusAction, resolveCollectibleLink } from './collectible-fo
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { CollectibleBrowser } from './collectible-browser';
 import { CollectibleDetail } from './collectible-detail';
-import { groupCollectibles } from './collectible-groups';
+import { groupCollectibles, ungroupedCollectibles } from './collectible-groups';
 import { CollectibleReveal } from './collectible-reveal';
 import { useCollectibleShare } from './collectible-share';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
@@ -58,27 +55,10 @@ import {
   type ReactionEvent,
 } from './mascot-reactions';
 import { MascotReactionToast } from './mascot-reaction-toast';
-import { merchantArt, type MerchantArt } from './merchant-art';
-import { canOfferMint, mintRefusalText, nftPreparingNote, nftStatusLabel } from './nft-status';
+import { chainLabel, mintRefusalText } from './nft-status';
 import { mintConsentMessage, mintConsentTitle, mintConsentVersion } from './mint-consent';
-import { collectibleArtSize } from './showcase-collectible-art';
 import { buildStoreSeries } from './store-series';
-import { makeCollectionStyles } from './styles';
-
-// One StyleSheet per colour scheme instead of one per render of every card.
-const styleCache = new Map<'light' | 'dark', ReturnType<typeof createCollectionStyles>>();
-function createCollectionStyles(scheme: 'light' | 'dark') {
-  return StyleSheet.create(makeCollectionStyles(colorsForScheme(scheme), worldForScheme(scheme), StyleSheet.hairlineWidth));
-}
-function useCollectionStyles() {
-  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  let styles = styleCache.get(scheme);
-  if (!styles) {
-    styles = createCollectionStyles(scheme);
-    styleCache.set(scheme, styles);
-  }
-  return styles;
-}
+import { useCollectionStyles } from './use-collection-styles';
 
 const quietBadgeRefreshCodes = new Set(['REWARD_LOCKED', 'REWARD_OFFER_UNAVAILABLE', 'REWARD_CAPACITY_EXHAUSTED', 'INVALID_RESPONSE']);
 
@@ -268,7 +248,7 @@ export function CollectionScreen({
   }, [reactionQueue, accountId, reactionOnScreen]);
 
   const handleDismissReaction = useCallback(() => setReactionQueue(dismissReactionEvent), []);
-  const artSize = collectibleArtSize(width, uiMetrics.pageInset, styles.collectibleCard.padding);
+  const legacyCollectibles = useMemo(() => ungroupedCollectibles(collection?.collectibles ?? []), [collection]);
   const detailMedal = badges.book?.medals.find((medal) => medal.kind === detailKind);
   const coupons = couponsOf(badges.book);
 
@@ -401,7 +381,7 @@ export function CollectionScreen({
     }
   }
 
-  function confirmMint(item: CollectionSnapshot['collectibles'][number]) {
+  function confirmMint(entitlementId: string) {
     if (!binding) return;
     Alert.alert(
       mintConsentTitle,
@@ -410,7 +390,7 @@ export function CollectionScreen({
         { text: '취소', style: 'cancel' },
         {
           text: '주소 확인 후 접수',
-          onPress: () => void submitMint(item.entitlementId),
+          onPress: () => void submitMint(entitlementId),
         },
       ],
     );
@@ -461,7 +441,13 @@ export function CollectionScreen({
   const revokeIdentity = useCallback((token: string) => api.revokeCustomerIdentity(token), [api]);
 
   // The header (sky art included) is the first thing inside the scroll content, so it scrolls away with the page.
-  const header = <AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" />;
+  // Option A(#296): the full PassportHero no longer opens the screen; a one-line strip takes its place here, and the
+  // full card moves into the "메달·배지 더보기" fold below.
+  const header = (
+    <AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요">
+      {badges.book ? <CompactPassportStrip book={badges.book} /> : null}
+    </AppHeader>
+  );
   const sky = (body: ReactNode) => (
     <SkyBackdrop>
       <SkyScrollView
@@ -495,60 +481,20 @@ export function CollectionScreen({
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >
-        <PassportHero
-          book={badges.book}
-          counts={summary}
-          isShowcase={isShowcase}
-          stackCounts={stackCounts}
-          stackMain={fontScale >= 1.5}
-          onOpenRewards={() => scrollView.current?.scrollTo({ y: Math.max(0, headerHeight + (rewardsY ?? 0) - 12), animated: true })}
-        />
-
-        <Section title="배지">
-          {badges.book ? (
-            <MedalShelf medals={badges.book.medals} stacked={stackTrio} onSelect={setDetailKind} />
-          ) : badges.status === 'error' ? (
-            <SectionRetry message="배지를 불러오지 못했어요. 도감의 다른 기록은 그대로예요." onRetry={() => void badges.retry()} busy={badges.retrying} />
-          ) : (
-            <MedalShelfSkeleton stacked={stackTrio} />
-          )}
+        <Section title="내 수집 앨범" note="가게·시즌·등급으로 찾아보고, 좋아하는 수집품을 대표로 놓아요.">
+          <CollectibleBrowser
+            groups={collectibleGroups}
+            legacy={legacyCollectibles}
+            artUrlByMerchant={artUrlByMerchant}
+            series={storeSeries}
+            favorites={favorites}
+            sharing={sharing}
+            mint={{ apiUrl, nftMinting: collection.nftMinting, binding, busyEntitlementId, onConfirmMint: confirmMint }}
+            onToggleFavorite={toggleCollectibleFavorite}
+            onOpenDetail={(entitlementId, merchantName) => setCollectibleDetail({ entitlementId, merchantName, client: api })}
+            onShare={(group) => void shareCollectible({ thumbnailDataUrl: group.artwork.thumbnailDataUrl, merchantName: group.merchantName, name: group.artwork.name })}
+          />
         </Section>
-
-        {badges.book ? (
-          <Section title="보상 상자" note="배지 3개마다 상자가 하나씩 열려요." onLayout={setRewardsY}>
-            <RewardTrack
-              book={badges.book}
-              onOpen={openReward}
-              onRevealed={onRevealed}
-              onOpenFailed={onOpenFailed}
-            />
-            <Text style={styles.subsectionTitle}>내 쿠폰</Text>
-            {coupons.length === 0 ? (
-              <EmptyCopy text="상자를 열면 쿠폰이 여기에 모여요." />
-            ) : (
-              coupons.map((coupon) => <CouponTicket key={coupon.couponId} coupon={coupon} onUse={setUsingCoupon} />)
-            )}
-          </Section>
-        ) : null}
-
-        {merchantsError ? (
-          <Section title="도장판">
-            <Pressable accessibilityRole="button" onPress={retryMerchants} style={styles.recoveryButton}>
-              <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>음식점 목록을 불러오지 못했습니다. 다시 시도</Text>
-            </Pressable>
-          </Section>
-        ) : merchantsLoading ? (
-          <Section title="도장판"><EmptyCopy text="공개 음식점을 불러오는 중입니다." /></Section>
-        ) : stampSlots.length > 0 ? (
-          <Section
-            title="도장판"
-            note={`도장 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length} · 보상 진행은 현재 캠페인의 인정된 방문만 셉니다.`}
-          >
-            <PassportStampPage apiUrl={apiUrl} stamps={stampSlots.map((slot, index) => toPassportStamp(slot, merchantGoals[index]!, artUrlByMerchant.get(slot.merchantId) ?? null))} />
-          </Section>
-        ) : (
-          <Section title="도장판"><EmptyCopy text="현재 공개된 음식점이 없습니다." /></Section>
-        )}
 
         {error ? <Text style={[styles.inlineError, { color: palette.onErrorContainer, backgroundColor: palette.errorContainer }]}>{error}</Text> : null}
         {bindingError ? (
@@ -580,106 +526,85 @@ export function CollectionScreen({
           </Text>
         ) : message ? <Text style={[styles.inlineMessage, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
 
-        <Section title="수집품 모아보기" note="가게·시즌·등급으로 찾아보고, 좋아하는 수집품을 대표로 놓아요.">
-          <CollectibleBrowser
-            groups={collectibleGroups}
-            series={storeSeries}
-            favorites={favorites}
-            sharing={sharing}
-            onToggleFavorite={toggleCollectibleFavorite}
-            onOpenDetail={(entitlementId, merchantName) => setCollectibleDetail({ entitlementId, merchantName, client: api })}
-            onShare={(group) => void shareCollectible({ thumbnailDataUrl: group.artwork.thumbnailDataUrl, merchantName: group.merchantName, name: group.artwork.name })}
+        {/* Option A(#296): 전체 여권/배지·보상 상자/도장판·방문 기록은 기본 접힘(Fold)으로 미뤄, 앨범이 첫 화면을 차지한다. */}
+        <Fold title="메달·배지 더보기" summary={badges.book ? `배지 ${Math.min(9, badges.book.earnedTiers)}/9` : undefined}>
+          <PassportHero
+            book={badges.book}
+            counts={summary}
+            isShowcase={isShowcase}
+            stackCounts={stackCounts}
+            stackMain={fontScale >= 1.5}
+            onOpenRewards={() => scrollView.current?.scrollTo({ y: Math.max(0, headerHeight + (rewardsY ?? 0) - 12), animated: true })}
           />
-        </Section>
+          <Section title="배지">
+            {badges.book ? (
+              <MedalShelf medals={badges.book.medals} stacked={stackTrio} onSelect={setDetailKind} />
+            ) : badges.status === 'error' ? (
+              <SectionRetry message="배지를 불러오지 못했어요. 도감의 다른 기록은 그대로예요." onRetry={() => void badges.retry()} busy={badges.retrying} />
+            ) : (
+              <MedalShelfSkeleton stacked={stackTrio} />
+            )}
+          </Section>
+        </Fold>
 
-        <Section title="앱에서 받은 수집품" note="보상권을 받으면 앱 도감에 먼저 기록됩니다.">
-          {collection.collectibles.length === 0 ? (
-            <EmptyCopy text="아직 받은 수집품이 없습니다. 첫 방문을 인증해 보세요." />
+        {badges.book ? (
+          <Fold title="쿠폰·NFT 발행 현황" summary={`쿠폰 ${coupons.length}개`}>
+            <Section title="보상 상자" note="배지 3개마다 상자가 하나씩 열려요." onLayout={setRewardsY}>
+              <RewardTrack
+                book={badges.book}
+                onOpen={openReward}
+                onRevealed={onRevealed}
+                onOpenFailed={onOpenFailed}
+              />
+              <Text style={styles.subsectionTitle}>내 쿠폰</Text>
+              {coupons.length === 0 ? (
+                <EmptyCopy text="상자를 열면 쿠폰이 여기에 모여요." />
+              ) : (
+                coupons.map((coupon) => <CouponTicket key={coupon.couponId} coupon={coupon} onUse={setUsingCoupon} />)
+              )}
+            </Section>
+          </Fold>
+        ) : null}
+
+        <Fold title="도장판·방문 기록" summary={stampSlots.length > 0 ? `도장 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length}` : undefined}>
+          {merchantsError ? (
+            <Section title="도장판">
+              <Pressable accessibilityRole="button" onPress={retryMerchants} style={styles.recoveryButton}>
+                <Text style={[styles.recoveryButtonText, { color: palette.primary }]}>음식점 목록을 불러오지 못했습니다. 다시 시도</Text>
+              </Pressable>
+            </Section>
+          ) : merchantsLoading ? (
+            <Section title="도장판"><EmptyCopy text="공개 음식점을 불러오는 중입니다." /></Section>
+          ) : stampSlots.length > 0 ? (
+            <Section
+              title="도장판"
+              note={`도장 ${stampSlots.filter((slot) => slot.visited).length}/${stampSlots.length} · 보상 진행은 현재 캠페인의 인정된 방문만 셉니다.`}
+            >
+              <PassportStampPage apiUrl={apiUrl} stamps={stampSlots.map((slot, index) => toPassportStamp(slot, merchantGoals[index]!, artUrlByMerchant.get(slot.merchantId) ?? null))} />
+            </Section>
           ) : (
-            collection.collectibles.map((item) => {
-              const art = merchantArt({ id: item.merchantId, artUrl: artUrlByMerchant.get(item.merchantId) }, apiUrl);
-              return (
-                <FloatingCard key={item.entitlementId} style={styles.collectibleCard}>
-                {item.artwork ? (
-                  <>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`${item.artwork.name}, ${item.artwork.gradeName}, 수집품 상세 보기`}
-                      onPress={() => setCollectibleDetail({ entitlementId: item.entitlementId, merchantName: item.merchantName, client: api })}>
-                      <Image source={{ uri: item.artwork.thumbnailDataUrl }} accessible={false} resizeMode="contain" style={[styles.collectibleArt, { width: artSize, height: artSize }]} />
-                    </Pressable>
-                    <Text style={[styles.collectibleArtNote, { color: palette.secondaryLabel }]}>{item.artwork.gradeName} · {item.artwork.theme.name}</Text>
-                    <Pressable accessibilityRole="button" onPress={() => setCollectibleDetail({ entitlementId: item.entitlementId, merchantName: item.merchantName, client: api })}
-                      style={[styles.walletButton, { borderColor: palette.primary }]}>
-                      <Text style={[styles.walletButtonText, { color: palette.primary }]}>가게 수집품 다시 보기</Text>
-                    </Pressable>
-                  </>
-                ) : art ? (
-                  <CollectibleArt art={art} size={artSize} imageStyle={styles.collectibleArt} noteStyle={[styles.collectibleArtNote, { color: palette.secondaryLabel }]} />
-                ) : null}
-                <View style={styles.collectibleTopline}>
-                  <Text style={[styles.goalBadge, { color: palette.primary }]}>{item.targetVisitCount}회</Text>
-                  <Text style={[styles.appStatus, { color: palette.onSuccessContainer }]}>APP · 수집 완료</Text>
-                </View>
-                <Text selectable style={[styles.itemTitle, { color: palette.label }]}>{item.artwork?.name ?? item.displayName}</Text>
-                <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{item.merchantName} · {item.campaignTitle}</Text>
-                <View style={[styles.nftRow, { borderTopColor: palette.separator }]}>
-                  <Text style={[styles.nftLabel, { color: palette.secondaryLabel }]}>실제 NFT</Text>
-                  <Text style={[styles.nftValue, { color: palette.label }]}>{nftStatusLabel(item.nftStatus, collection.nftMinting)}</Text>
-                </View>
-                {item.recipient ? (
-                  <Text selectable style={[styles.recipient, { color: palette.secondaryLabel }]}>수령인 {shortAddress(item.recipient)}</Text>
-                ) : null}
-                {item.nft ? (
-                  <Text selectable style={[styles.nftIdentity, { color: palette.primary }]}>
-                    {chainLabel(item.nft.chainId)} · {shortAddress(item.nft.contractAddress)} · #{item.nft.tokenId}
-                  </Text>
-                ) : null}
-                {item.nftStatus !== 'FINALIZED' && collection.nftMinting === 'PREPARING' ? (
-                  <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{nftPreparingNote}</Text>
-                ) : null}
-                {canOfferMint(item.nftStatus, collection.nftMinting) ? (
-                  binding ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={busyEntitlementId === item.entitlementId}
-                      onPress={() => confirmMint(item)}
-                      style={[styles.mintButton, { backgroundColor: palette.primary }, busyEntitlementId === item.entitlementId && styles.disabled]}
-                    >
-                      <Text style={[styles.mintButtonText, { color: palette.onPrimary }]}>
-                        {busyEntitlementId === item.entitlementId ? '접수 중…' : '양도 제한 NFT 받기'}
-                      </Text>
-                    </Pressable>
-                  ) : (
-                    <Link href="/wallet" asChild>
-                      <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.walletButton, { borderColor: palette.primary }])}>
-                        <Text style={[styles.walletButtonText, { color: palette.primary }]}>외부 지갑 주소 확인</Text>
-                      </Pressable>
-                    </Link>
-                  )
-                ) : null}
+            <Section title="도장판"><EmptyCopy text="현재 공개된 음식점이 없습니다." /></Section>
+          )}
+
+          <Section title="방문 기록" note="방문한 날짜(한국 기준)만 기록하고, 식사 시각은 남기지 않아요.">
+            {collection.visits.length === 0 ? (
+              <EmptyCopy text="아직 인증한 방문이 없습니다." />
+            ) : (
+              collection.visits.map((visit) => (
+                <FloatingCard key={visit.visitEventId} style={styles.visitRow}>
+                  <View style={styles.visitLeft}>
+                    <Text selectable style={[styles.visitMerchant, { color: palette.label }]}>{visit.merchantName}</Text>
+                    <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{visit.campaignTitle}</Text>
+                  </View>
+                  <View style={styles.visitRight}>
+                    <Text style={[styles.visitDate, { color: palette.label }]}>{visit.businessDate}</Text>
+                    <Text style={[styles.progressLabel, { color: palette.primary }]}>{visit.progressCounted ? '진행 반영' : '방문만 기록'}</Text>
+                  </View>
                 </FloatingCard>
-              );
-            })
-          )}
-        </Section>
-
-        <Section title="방문 기록" note="방문한 날짜(한국 기준)만 기록하고, 식사 시각은 남기지 않아요.">
-          {collection.visits.length === 0 ? (
-            <EmptyCopy text="아직 인증한 방문이 없습니다." />
-          ) : (
-            collection.visits.map((visit) => (
-              <FloatingCard key={visit.visitEventId} style={styles.visitRow}>
-                <View style={styles.visitLeft}>
-                  <Text selectable style={[styles.visitMerchant, { color: palette.label }]}>{visit.merchantName}</Text>
-                  <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{visit.campaignTitle}</Text>
-                </View>
-                <View style={styles.visitRight}>
-                  <Text style={[styles.visitDate, { color: palette.label }]}>{visit.businessDate}</Text>
-                  <Text style={[styles.progressLabel, { color: palette.primary }]}>{visit.progressCounted ? '진행 반영' : '방문만 기록'}</Text>
-                </View>
-              </FloatingCard>
-            ))
-          )}
-        </Section>
+              ))
+            )}
+          </Section>
+        </Fold>
 
         <Link href="/recommendations" asChild>
           <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.primaryButton, { backgroundColor: palette.primary }])}>
@@ -745,27 +670,20 @@ function Section({ title, note, children, onLayout }: {
   );
 }
 
-/**
- * The picture on a collectible card. The owner's AI picture says only that (it is not an NFT and does not claim to be one); the
- * bundled showcase picture keeps its "not proof of a real NFT" note. A picture that fails to load (a stale catalog pointing at
- * art that was reset) leaves the card without one.
- */
-function CollectibleArt({ art, size, imageStyle, noteStyle }: {
-  art: MerchantArt; size: number; imageStyle: StyleProp<ImageStyle>; noteStyle: StyleProp<TextStyle>;
-}) {
-  const { source, onError } = useArtFallback(art.source);
-  if (!source) return null;
-  return (
-    <>
-      <Image source={source} onError={onError} accessible={false} style={[imageStyle, { width: size, height: size }]} />
-      <Text style={noteStyle}>{collectibleArtNote(art.fromServer)}</Text>
-    </>
-  );
-}
-
 function EmptyCopy({ text }: { text: string }) {
   const styles = useCollectionStyles();
   return <Text style={styles.emptyCopy}>{text}</Text>;
+}
+
+/** Compact header strip (Option A, #296): "골목 탐험가 · 배지 4/9", replacing the full PassportHero at the top of the screen. */
+function CompactPassportStrip({ book }: { book: { earnedTiers: number } }) {
+  const styles = useCollectionStyles();
+  const earned = Math.min(9, book.earnedTiers);
+  return (
+    <View style={styles.passportStrip}>
+      <Text style={styles.passportStripText}>{explorerRank(book.earnedTiers).title} · 배지 {earned}/9</Text>
+    </View>
+  );
 }
 
 function mintErrorMessage(error: unknown): string {
@@ -773,15 +691,4 @@ function mintErrorMessage(error: unknown): string {
     return mintRefusalText(error.code);
   }
   return 'NFT 접수 중 네트워크 오류가 발생했습니다. 보상권은 유지됩니다.';
-}
-
-function shortAddress(value: string): string {
-  return value.length > 14 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
-}
-
-function chainLabel(chainId: number): string {
-  if (chainId === 84532) return 'Base Sepolia';
-  if (chainId === 8453) return 'Base';
-  if (chainId === 31337) return 'Local Anvil';
-  return `Chain ${chainId}`;
 }

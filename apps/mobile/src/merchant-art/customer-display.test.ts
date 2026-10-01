@@ -26,17 +26,19 @@ test('list crest, map pin, detail hero, stamp page and collection card all draw 
   const collection = read('screens/collection/index.tsx');
   assert.match(collection, /<PassportStampPage apiUrl=\{apiUrl\}/);
   assert.match(collection, /toPassportStamp\(slot, merchantGoals\[index\]!, artUrlByMerchant\.get\(slot\.merchantId\) \?\? null\)/);
-  assert.match(collection, /merchantArt\(\{ id: item\.merchantId, artUrl: artUrlByMerchant\.get\(item\.merchantId\) \}, apiUrl\)/);
+  // #296: the merged album moved the legacy (no-artwork) card's own picture into CollectibleBrowser.
+  assert.match(read('screens/collection/collectible-browser.tsx'), /merchantArt\(\{ id: item\.merchantId, artUrl \}, mint\.apiUrl\)/);
 });
 
 test('the collection card no longer reaches into the showcase asset module and names an AI picture as one', () => {
   const collection = read('screens/collection/index.tsx');
   assert.doesNotMatch(collection, /showcase-collectible-art-assets|showcaseCollectibleArtKey|showcaseCollectibleArtSource/);
   // The AI picture's note is its own line (no "not an NFT" clause borrowed); the showcase note keeps it. The words are checked by
-  // behavior in art-source.test.ts.
-  assert.match(collection, /collectibleArtNote\(art\.fromServer\)/);
+  // behavior in art-source.test.ts. #296: this card now lives in CollectibleBrowser (the merged album), not index.tsx.
+  const browser = read('screens/collection/collectible-browser.tsx');
+  assert.match(browser, /collectibleArtNote\(art\.fromServer\)/);
   assert.doesNotMatch(collection, /실제 NFT 발행 증거 아님/);
-  assert.match(collection, /useArtFallback\(art\.source\)/);
+  assert.match(browser, /useArtFallback\(art\?\.source\)/);
 });
 
 test('customer screens use the art bridge except for validated acquired inline media; owner art screens can preview API data URLs', () => {
@@ -77,5 +79,6 @@ test('every surface that draws the API picture falls back when it fails to load'
   // The detail hero goes through the header, which hands the error back so the page can stop passing the picture.
   assert.match(read('ui/back-header.tsx'), /<StoreArt source=\{art\} height=\{height\} note=\{artNote\} onError=\{onArtError\} \/>/);
   assert.match(read('ui/store-art.tsx'), /<Image source=\{source\} onError=\{onError\}/);
-  assert.match(read('screens/collection/index.tsx'), /<Image source=\{source\} onError=\{onError\}/);
+  // #296: the merged album's legacy (no-artwork) card lives in CollectibleBrowser now, not index.tsx.
+  assert.match(read('screens/collection/collectible-browser.tsx'), /<Image source=\{source\} onError=\{onError\}/);
 });

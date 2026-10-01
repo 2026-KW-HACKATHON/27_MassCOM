@@ -1,12 +1,24 @@
+import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
 import { collectibleFilterOptions, filterCollectibleGroups, sortCollectibleGroups, type CollectibleFilter, type CollectibleSort } from './collectible-filters';
-import type { CollectibleGroup } from './collectible-groups';
+import type { CollectibleGroup, UngroupedCollectible } from './collectible-groups';
+import { useCollectionStyles } from './use-collection-styles';
+import { canOfferMint, chainLabel, nftGroupSummary, nftPreparingNote, shortAddress } from './nft-status';
+import { collectibleArtNote } from '@/merchant-art/art-source';
+import { useArtFallback } from '@/merchant-art/use-art-fallback';
+import { merchantArt } from './merchant-art';
 import { seriesSlotText, type StoreSeries } from './store-series';
+import type { ActiveWalletBindingResponse } from '@/wallet/wallet-api';
+import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
+
+type NftMinting = CollectionSnapshot['nftMinting'];
+type NftStatus = CollectionSnapshot['collectibles'][number]['nftStatus'];
+type NftAsset = CollectionSnapshot['collectibles'][number]['nft'];
 
 const sortOptions: readonly { value: CollectibleSort; label: string }[] = [
   { value: 'recent', label: '최신순' },
@@ -18,11 +30,24 @@ function earnedDateLabel(iso: string): string {
   return iso.slice(0, 10);
 }
 
-export function CollectibleBrowser({ groups, favorites, series, sharing, onToggleFavorite, onOpenDetail, onShare }: {
+type MintGate = {
+  apiUrl: string;
+  nftMinting: NftMinting;
+  binding: ActiveWalletBindingResponse['binding'] | undefined;
+  busyEntitlementId: string | undefined;
+  onConfirmMint: (entitlementId: string) => void;
+};
+
+export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites, series, sharing, mint, onToggleFavorite, onOpenDetail, onShare }: {
   groups: readonly CollectibleGroup[];
+  /** Entitlements with no published picture (#296): merged into this same album so every collectible appears once. */
+  legacy: readonly UngroupedCollectible[];
+  /** A legacy card's own merchant picture, same lookup the screen already builds for the stamp board. */
+  artUrlByMerchant: ReadonlyMap<string, string | null | undefined>;
   favorites: readonly string[];
   series: readonly StoreSeries[];
   sharing: boolean;
+  mint: MintGate;
   onToggleFavorite: (key: string) => void;
   onOpenDetail: (entitlementId: string, merchantName: string) => void;
   onShare: (group: CollectibleGroup) => void;
@@ -36,7 +61,7 @@ export function CollectibleBrowser({ groups, favorites, series, sharing, onToggl
   const shown = useMemo(() => sortCollectibleGroups(filterCollectibleGroups(groups, filter), sort), [groups, filter, sort]);
   const favoriteGroups = useMemo(() => favorites.map((key) => groups.find((group) => group.key === key)).filter((group): group is CollectibleGroup => !!group), [favorites, groups]);
 
-  if (groups.length === 0 && series.length === 0) {
+  if (groups.length === 0 && legacy.length === 0 && series.length === 0) {
     return <Text style={[styles.empty, { color: world.cardMuted, backgroundColor: world.card }]}>다시 볼 수 있는 가게 수집품을 받으면 여기 모여요.</Text>;
   }
 
@@ -57,27 +82,31 @@ export function CollectibleBrowser({ groups, favorites, series, sharing, onToggl
         </View>
       ) : null}
 
-      {groups.length > 0 ? (
+      {groups.length > 0 || legacy.length > 0 ? (
         <View style={{ gap: 10 }}>
-          <FilterRow label="가게" selected={filter.merchantId} onSelect={(value) => setFilter((current) => ({ ...current, merchantId: value }))}
-            options={options.merchants.map((merchant) => ({ value: merchant.id, label: merchant.name }))} palette={palette} world={world} />
-          {options.themes.length > 1 ? (
-            <FilterRow label="시즌" selected={filter.theme} onSelect={(value) => setFilter((current) => ({ ...current, theme: value }))}
-              options={options.themes.map((theme) => ({ value: theme, label: theme }))} palette={palette} world={world} />
+          {groups.length > 0 ? (
+            <>
+              <FilterRow label="가게" selected={filter.merchantId} onSelect={(value) => setFilter((current) => ({ ...current, merchantId: value }))}
+                options={options.merchants.map((merchant) => ({ value: merchant.id, label: merchant.name }))} palette={palette} world={world} />
+              {options.themes.length > 1 ? (
+                <FilterRow label="시즌" selected={filter.theme} onSelect={(value) => setFilter((current) => ({ ...current, theme: value }))}
+                  options={options.themes.map((theme) => ({ value: theme, label: theme }))} palette={palette} world={world} />
+              ) : null}
+              {options.grades.length > 1 ? (
+                <FilterRow label="등급" selected={filter.gradeId} onSelect={(value) => setFilter((current) => ({ ...current, gradeId: value }))}
+                  options={options.grades.map((grade) => ({ value: grade.id, label: grade.name }))} palette={palette} world={world} />
+              ) : null}
+              <View style={styles.sortRow}>
+                {sortOptions.map((option) => (
+                  <Pressable key={option.value} accessibilityRole="button" accessibilityState={{ selected: sort === option.value }}
+                    onPress={() => setSort(option.value)}
+                    style={[styles.sortChip, { borderColor: palette.primary }, sort === option.value && { backgroundColor: palette.primary }]}>
+                    <Text style={[styles.sortChipText, { color: sort === option.value ? palette.onPrimary : palette.primary }]}>{option.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
           ) : null}
-          {options.grades.length > 1 ? (
-            <FilterRow label="등급" selected={filter.gradeId} onSelect={(value) => setFilter((current) => ({ ...current, gradeId: value }))}
-              options={options.grades.map((grade) => ({ value: grade.id, label: grade.name }))} palette={palette} world={world} />
-          ) : null}
-          <View style={styles.sortRow}>
-            {sortOptions.map((option) => (
-              <Pressable key={option.value} accessibilityRole="button" accessibilityState={{ selected: sort === option.value }}
-                onPress={() => setSort(option.value)}
-                style={[styles.sortChip, { borderColor: palette.primary }, sort === option.value && { backgroundColor: palette.primary }]}>
-                <Text style={[styles.sortChipText, { color: sort === option.value ? palette.onPrimary : palette.primary }]}>{option.label}</Text>
-              </Pressable>
-            ))}
-          </View>
 
           <View style={styles.grid}>
             {shown.map((group) => (
@@ -107,7 +136,13 @@ export function CollectibleBrowser({ groups, favorites, series, sharing, onToggl
                     <Text style={[styles.groupActionText, { color: palette.primary }]}>공유</Text>
                   </Pressable>
                 </View>
+                <NftStatusRow entitlements={group.entitlements} mint={mint} />
               </FloatingCard>
+            ))}
+            {/* 그림이 없는 옛 수집품(#296): 같은 앨범 그리드에 합쳐서 한 번만 보이게 한다. 그림이 없어 상세로 들어갈 수 없는 건
+                원래 평면 목록 때와 같다(그림 있는 수집품만 CollectibleDetail을 열 수 있었다). */}
+            {legacy.map((item) => (
+              <LegacyCard key={item.entitlementId} item={item} mint={mint} artUrl={artUrlByMerchant.get(item.merchantId)} />
             ))}
           </View>
         </View>
@@ -164,6 +199,74 @@ function FilterRow({ label, options, selected, onSelect, palette, world }: {
         })}
       </ScrollView>
     </View>
+  );
+}
+
+/**
+ * #296: per-entitlement NFT status inside the album card. A duplicate group (the same picture earned twice) can have
+ * entries at different mint stages, so the badge summarizes them (`nftGroupSummary`) and the mint action — kept
+ * reachable here rather than only in a detail screen — targets the first entitlement still eligible.
+ * ponytail: one mint button mints the first eligible duplicate, not a per-duplicate list; add a full per-entitlement
+ * picker if someone needs to choose which specific copy to mint.
+ */
+function NftStatusRow({ entitlements, mint }: { entitlements: readonly { entitlementId: string; nftStatus: NftStatus; nft: NftAsset; recipient: string | null }[]; mint: MintGate }) {
+  const collectionStyles = useCollectionStyles();
+  const palette = colorsForScheme(useColorScheme());
+  const summary = nftGroupSummary(entitlements, mint.nftMinting);
+  const mintable = entitlements.find((entry) => canOfferMint(entry.nftStatus, mint.nftMinting));
+  const solo = entitlements.length === 1 ? entitlements[0] : undefined;
+  const busy = mintable ? mint.busyEntitlementId === mintable.entitlementId : false;
+  return (
+    <View style={[collectionStyles.nftRow, { flexDirection: 'column', alignItems: 'stretch', gap: 6 }]}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <Text style={collectionStyles.nftLabel}>실제 NFT</Text>
+        <Text style={collectionStyles.nftValue}>{summary}</Text>
+      </View>
+      {solo?.recipient ? <Text selectable style={collectionStyles.recipient}>수령인 {shortAddress(solo.recipient)}</Text> : null}
+      {solo?.nft ? (
+        <Text selectable style={collectionStyles.nftIdentity}>{chainLabel(solo.nft.chainId)} · {shortAddress(solo.nft.contractAddress)} · #{solo.nft.tokenId}</Text>
+      ) : null}
+      {solo && solo.nftStatus !== 'FINALIZED' && mint.nftMinting === 'PREPARING' ? (
+        <Text style={collectionStyles.itemMeta}>{nftPreparingNote}</Text>
+      ) : null}
+      {mintable ? (
+        mint.binding ? (
+          <Pressable accessibilityRole="button" disabled={busy} onPress={() => mint.onConfirmMint(mintable.entitlementId)}
+            style={[collectionStyles.mintButton, { backgroundColor: palette.primary }, busy && collectionStyles.disabled]}>
+            <Text style={collectionStyles.mintButtonText}>{busy ? '접수 중…' : '양도 제한 NFT 받기'}</Text>
+          </Pressable>
+        ) : (
+          <Link href="/wallet" asChild>
+            <Pressable accessibilityRole="button" style={[collectionStyles.walletButton, { borderColor: palette.primary }]}>
+              <Text style={collectionStyles.walletButtonText}>외부 지갑 주소 확인</Text>
+            </Pressable>
+          </Link>
+        )
+      ) : null}
+    </View>
+  );
+}
+
+/** A collectible earned without a published picture (#296): shown in the same grid, using the merchant's own art as a fallback. */
+function LegacyCard({ item, mint, artUrl }: { item: UngroupedCollectible; mint: MintGate; artUrl: string | null | undefined }) {
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const world = worldForScheme(scheme);
+  const art = merchantArt({ id: item.merchantId, artUrl }, mint.apiUrl);
+  const { source, onError } = useArtFallback(art?.source);
+  return (
+    <FloatingCard style={[styles.groupCard, { backgroundColor: world.card }]}
+      accessibilityLabel={`${item.displayName}, ${item.merchantName}, ${item.targetVisitCount}회 목표`}>
+      {art && source ? (
+        <View style={styles.groupImageFrame}>
+          <Image source={source} onError={onError} resizeMode="contain" style={styles.groupImage} accessible={false} />
+        </View>
+      ) : null}
+      <Text numberOfLines={1} style={[styles.groupName, { color: world.cardInk }]}>{item.displayName}</Text>
+      <Text numberOfLines={1} style={[styles.groupMeta, { color: world.cardMuted }]}>{item.merchantName} · {item.targetVisitCount}회</Text>
+      {art ? <Text style={[styles.groupDates, { color: world.cardMuted }]}>{collectibleArtNote(art.fromServer)}</Text> : null}
+      <Text style={[styles.groupDates, { color: world.cardMuted }]}>받은 날짜 {earnedDateLabel(item.earnedAt)}</Text>
+      <NftStatusRow entitlements={[item]} mint={mint} />
+    </FloatingCard>
   );
 }
 
