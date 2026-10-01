@@ -2,6 +2,9 @@ import { CollectibleProjectError, type CollectibleDetail, type CollectibleProjec
 
 const mb = 1024 * 1024;
 const imageMimes = ['image/png', 'image/jpeg', 'image/webp'];
+// 뒷면·각도·living 스프라이트는 픽셀 좌표로 자르고 배치하므로 JPEG의 EXIF Orientation 회전을 허용하지 않는다.
+// 편집기도 이 셋은 WebP/PNG로만 만든다.
+const spriteImageMimes = ['image/png', 'image/webp'];
 const audioMimes = ['audio/mpeg', 'audio/mp3', 'audio/webm', 'audio/ogg'];
 const identifier = /^[a-zA-Z0-9_-]{1,64}$/;
 const hexColor = /^#[0-9a-f]{6}$/i;
@@ -140,11 +143,14 @@ export function upgradeCollectibleProject(value: unknown): CollectibleProject {
 }
 
 // Only inline supported media is accepted. No original file name, EXIF metadata, URL, or arbitrary SVG is interpreted by the server.
-export function validateCollectibleMedia(value: unknown, kind: 'image' | 'audio', maxBytes: number, maxSide = 4096): string {
+// allowedImageMimes narrows image kinds further (e.g. sprite fields that are sliced/positioned by pixel geometry
+// reject JPEG: its EXIF Orientation tag silently rotates the decoded pixels, so a declared 1024x768 sprite could
+// actually display 768x1024 in a renderer/Android grid that only reads the header dimensions).
+export function validateCollectibleMedia(value: unknown, kind: 'image' | 'audio', maxBytes: number, maxSide = 4096, allowedImageMimes: string[] = imageMimes): string {
   if (typeof value !== 'string') invalid();
   if (value.length > Math.ceil(maxBytes / 3) * 4 + 64) throw new CollectibleProjectError('COLLECTIBLE_MEDIA_TOO_LARGE');
   const match = value.match(/^data:([a-z]+\/[a-z0-9]+);base64,([A-Za-z0-9+/]+={0,2})$/);
-  if (!match || !(kind === 'image' ? imageMimes : audioMimes).includes(match[1]!)) invalid();
+  if (!match || !(kind === 'image' ? allowedImageMimes : audioMimes).includes(match[1]!)) invalid();
   const bytes = Buffer.from(match[2]!, 'base64');
   if (bytes.length > maxBytes) throw new CollectibleProjectError('COLLECTIBLE_MEDIA_TOO_LARGE');
   if (bytes.length === 0 || bytes.toString('base64') !== match[2]) invalid();
@@ -205,9 +211,30 @@ function imageDimensions(bytes: Buffer, mime: string): {width: number; height: n
   return undefined;
 }
 
+// 구조 검사 전에 값을 통째로 structuredClone하면, 알려진 키 이름 아래 원소 수만 개짜리 배열 하나를 심은 입력이
+// 실제 배열 상한 검사(뒤에서 array()가 함)에 닿기도 전에 복제 시간·메모리 비용부터 치르게 한다(수백 KB~수 MB
+// 요청으로 수백 ms·수백 MiB를 태울 수 있음). upgrade·구조 복제보다 먼저, 얕게 훑기만 해서 배열 길이와 전체
+// 노드 수를 빠르게 거절한다(이 훑기는 새로 할당하지 않으므로 같은 크기의 입력이라도 훨씬 싸다).
+const MAX_SHAPE_ARRAY_LENGTH = 2000; // 실제로 쓰는 가장 큰 개별 배열 상한(스트로크 점 1,000)보다 넉넉히 커서 정상 입력을 막지 않는다.
+const MAX_SHAPE_NODES = 50_000;
+function assertBoundedShape(value: unknown, nodes: { count: number } = { count: 0 }): void {
+  if (Array.isArray(value)) {
+    if (value.length > MAX_SHAPE_ARRAY_LENGTH) invalid();
+    nodes.count += value.length;
+    if (nodes.count > MAX_SHAPE_NODES) invalid();
+    for (const item of value) assertBoundedShape(item, nodes);
+  } else if (value && typeof value === 'object') {
+    const keys = Object.keys(value as Record<string, unknown>);
+    nodes.count += keys.length;
+    if (nodes.count > MAX_SHAPE_NODES) invalid();
+    for (const key of keys) assertBoundedShape((value as Record<string, unknown>)[key], nodes);
+  }
+}
+
 // v1이면 위의 순수 upgradeCollectibleProject로 재배치한 뒤 v2 규칙 전체로 검증한다(재배치 자체는 값을 검사하지 않으므로,
 // v1 쪽 구조·범위 위반도 이 아래 v2 검증에서 그대로 걸러진다). 그 외 버전은 거부.
 export function validateCollectibleProject(value: unknown, publish = false): CollectibleProject {
+  assertBoundedShape(value);
   let upgraded: CollectibleProject;
   try { upgraded = upgradeCollectibleProject(value); }
   catch (error) { if (error instanceof CollectibleProjectError) throw error; invalid(); }
@@ -294,13 +321,13 @@ function validateUpgradedProject(value: unknown, publish: boolean): CollectibleP
       const targets = effects.filter(e => (e.gradeIds as string[]).includes(gradeId)).map(e => e.target);
       for (const [target, mask] of masks) { if (!targets.includes(target)) invalid(); validateCollectibleMedia(mask,'image',256*1024,editorSide); }
     }
-    if (asset.backImageDataUrl !== undefined) validateCollectibleMedia(asset.backImageDataUrl, 'image', 256 * 1024, 512);
+    if (asset.backImageDataUrl !== undefined) validateCollectibleMedia(asset.backImageDataUrl, 'image', 256 * 1024, 512, spriteImageMimes);
     if (asset.angleFrames !== undefined) {
       const angleFrames = object(asset.angleFrames, ['dataUrl','side','count','columns','stepDegrees']);
       number(angleFrames.side, 256, 512, true);
       if (angleFrames.count !== 12 || angleFrames.columns !== 4 || angleFrames.stepDegrees !== 15) invalid();
       const side = angleFrames.side as number;
-      const mime = validateCollectibleMedia(angleFrames.dataUrl, 'image', mb, side * 4);
+      const mime = validateCollectibleMedia(angleFrames.dataUrl, 'image', mb, side * 4, spriteImageMimes);
       const actual = imageDimensions(Buffer.from((angleFrames.dataUrl as string).split(',')[1]!, 'base64'), mime);
       if (!actual || actual.width !== side * 4 || actual.height !== side * 3) invalid();
     }
@@ -314,7 +341,7 @@ function validateUpgradedProject(value: unknown, publish: boolean): CollectibleP
       const columns = derivedLiving.columns as number, cellWidth = derivedLiving.cellWidth as number, cellHeight = derivedLiving.cellHeight as number, count = derivedLiving.count as number;
       const width = columns * cellWidth, height = Math.ceil(count / columns) * cellHeight;
       if (width > 4096 || height > 4096) invalid();
-      const mime = validateCollectibleMedia(derivedLiving.dataUrl, 'image', 512 * 1024, Math.max(width, height));
+      const mime = validateCollectibleMedia(derivedLiving.dataUrl, 'image', 512 * 1024, Math.max(width, height), spriteImageMimes);
       const actual = imageDimensions(Buffer.from((derivedLiving.dataUrl as string).split(',')[1]!, 'base64'), mime);
       if (!actual || actual.width !== width || actual.height !== height) invalid();
     }
@@ -324,17 +351,18 @@ function validateUpgradedProject(value: unknown, publish: boolean): CollectibleP
   for (const [goal, gradeId] of mappings) { if (!['1','3','5'].includes(goal) || !grades.some(g => g.id === gradeId && g.enabled === true)) invalid(); }
   const derived = p.derived as Record<string, any>;
   if (publish && (mappings.length === 0 || mappings.some(([, gradeId]) => !Object.hasOwn(derived, gradeId as string)))) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
+  // backImageDataUrl·angleFrames는 지금(WP1 시점) 편집기의 serializeDerived가 아직 만들지 않는다. 여기서 필수로
+  // 두면 이 브랜치가 병합되는 순간 모든 웹 게시가 COLLECTIBLE_NOT_READY로 막힌다. 클라이언트는 이미 없을 때를
+  // 대비한다(뒷면 없음 → 기존 모습, 각도 프레임 없음 → 정면 이미지를 그대로 회전). WP2(뒷면)·WP3(각도 프레임)가
+  // 편집기에서 실제로 만들기 시작하면 그때 다시 필수로 좁힌다(설계 문서·COLLECTIBLE_CREATOR.md에 기록).
+  // living만은 지금 편집기가 만들 방법이 없는 항목을 프로젝트가 스스로 선언했을 때(누군가 API를 직접 쳐서
+  // living 항목을 등급에 걸었을 때)만 필요해, 항상 안전하게 강제할 수 있다.
   if (publish) {
     const linkedGrades = new Set(Object.values(p.rewardGrades as Record<string, string>));
     for (const gradeId of linkedGrades) {
       if (!gradeId) continue;
-      const asset = derived[gradeId];
-      if (!asset?.backImageDataUrl) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
-      const needsAngle = effects.some(effect => (effect.gradeIds as string[]).includes(gradeId) && ['metallic','hologram','pearl'].includes(effect.type as string))
-        || ((parallax.strength as number) > 0 && parallaxStrokes.length > 0);
-      if (needsAngle && !asset.angleFrames) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
       const needsLiving = livingItems.some(item => (item.gradeIds as string[]).includes(gradeId));
-      if (needsLiving && !asset.living) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
+      if (needsLiving && !derived[gradeId]?.living) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
     }
   }
   (p as Record<string, unknown>).stickers = stickers;

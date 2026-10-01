@@ -48,10 +48,16 @@ v1→v2 업그레이드는 순수 함수이며 멱등이다. `upgradeProject`(mo
 
 **구현 결과 메모(WP1):** 위 계획은 스티커 `align`/`layouts`, 모션 `playback`을 항상 있는 값으로 뒀지만, 실제 서버 검증은 이 셋을 선택 항목으로 두고 없으면 업그레이드와 같은 기본값을 채운다. WP2가 아직 편집기의 스티커·모션 생성 코드를 고치지 않아, 그대로 필수로 만들면 이 브랜치만 배포됐을 때 기존 편집기의 저장이 거절되는 회귀가 생기기 때문이다. `particle`은 설계대로 엄격하다(`type!=='confetti'`인데 값이 있으면 거절).
 
+**PR #288 리뷰 반영(Claude sonnet 🔴0 🟡0, Codex gpt-6.1-sol REQUEST_CHANGES → 수정, 2026-10-01):**
+- (P1, 위 게시 준비 참고) `backImageDataUrl`·`angleFrames`를 당분간 게시 준비에서 선택으로 완화.
+- (P2 DoS) `validateCollectibleProject`가 구조 복제(`structuredClone`)보다 먼저 원시 입력을 얕게 훑어 배열 길이(개별 최대 2,000)와 전체 노드 수(5만)를 확인한다(`assertBoundedShape`). 전에는 알려진 키 이름 아래 원소 수십만 개짜리 배열을 심은 5.4 MB 안팎 요청이 구조 복제 비용(약 434 ms·+156 MiB)을 검사보다 먼저 치렀다.
+- (P2 스프라이트 방향) `backImageDataUrl`·`angleFrames.dataUrl`·`living.dataUrl`은 PNG/WebP만 받고 JPEG를 거절한다(EXIF Orientation이 픽셀 좌표로 자르는 스프라이트에는 반영되지 않아 선언한 치수와 실제 표시가 어긋날 수 있음).
+- (P1 문서화, 고치지 않음) 이미지 헤더만 확인하고 픽셀 데이터까지 디코드하지 않는 한계는 v1부터 있던 기존 한계이며 새 이미지 디코딩 의존성 없이는 고칠 수 없다(승인 필요). `docs/COLLECTIBLE_CREATOR.md`에 이 한계가 새 스프라이트 필드에도 그대로 적용됨을 명시했다.
+
 ## 서버 검증·스냅샷·상한·저장
 
 - 검증: 새 `object()` 키 집합, 새 ID에 `id()`. 참조 관계(레이아웃 키·override/living의 gradeIds ⊆ grades, living 대상 ⊆ 앞면 스티커, 효과 대상은 앞면 전용 유지)도 검사한다. 스프라이트는 `validateCollectibleMedia` + 정확한 치수 검사를 거친다. 애니메이션 WebP는 여전히 거절한다. 저장·스냅샷 시점에 새 이미지 3종에 `stripImageMetadata`를 적용한다.
-- 게시 준비(`rules.ts:169` 확장), 연결된 등급마다: `backImageDataUrl`은 항상 필요. metallic/hologram/pearl이 있거나 `parallax.strength>0`이면서 획이 있으면 `angleFrames` 필요. 어떤 living 항목이든 이 등급을 나열하면 `living` 필요. 없으면 `COLLECTIBLE_NOT_READY`.
+- 게시 준비(`rules.ts:169` 확장), 연결된 등급마다: `backImageDataUrl`은 항상 필요. metallic/hologram/pearl이 있거나 `parallax.strength>0`이면서 획이 있으면 `angleFrames` 필요. 어떤 living 항목이든 이 등급을 나열하면 `living` 필요. 없으면 `COLLECTIBLE_NOT_READY`. **구현 결과(PR #288, Codex 리뷰 P1 반영, 2026-10-01):** `backImageDataUrl`·`angleFrames`는 지금 편집기(`serializeDerived`)가 아직 만들지 않아 이 둘을 필수로 두면 병합 즉시 모든 웹 게시가 막힌다. 두 필드 모두 당분간 선택으로 완화했고(클라이언트가 없을 때를 이미 대비: 뒷면 없음 → 기존 모습, 프레임 없음 → 정면 회전), `living`만 원안대로 필수다(지금 편집기로는 living 항목을 만들 수 없어 항상 안전). WP2가 뒷면을, WP3가 각도 프레임을 실제로 만들기 시작하면 다시 필수로 좁힌다.
 - `collectibleSnapshot`(`rules.ts:379-403`): `greeting`은 가장 구체적인 override(등급+테마 > 등급 > 테마 > 기본, 동점은 배열 순서) — 여전히 문자열 하나다. `animation`은 첫 `loop` 모션 타입 또는 `'still'`(v1 enum, 업그레이드된 v1과 오늘 결과가 같다). 새 필드: `motions:[{type,playback,particle?}]`, `backImageDataUrl`, `angleFrames`, `living`. 획·마스크·원본은 절대 포함하지 않는다. 라우트·권한 변경 없음.
 - 본문 상한: 8 MiB 유지(`collectible-project.ts:3`). v2 추정 ≤3등급 × (이미지 ~120K + 뒷면 ~30K + 프레임 ~250–450K + living ~80K) ≈ base64 2.5 MB(오늘은 4등급 ≈ 1.4 MB). 편집기 크기 사다리: 프레임 한 변 448→384→320→256, 화질 .85→.7, `publishSizeProblem` 통과할 때까지, 그 다음은 기존 초과 안내. QA에서 413을 보면 12 MiB로 올리는 것을 대비(WP1에서 검토한 설정 변경).
 - 저장: migration 없음. 스프라이트는 불변 `collectible_publication_grades.detail`에 산다. v1 행은 다시 쓰지 않는다.

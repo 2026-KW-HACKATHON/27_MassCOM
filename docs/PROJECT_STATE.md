@@ -2,7 +2,7 @@
 
 ## 사진 수집품 제작기 변경
 
-**2026-10-01 진행 중 — [Issue #284](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/284) 수집품 표현 v2(스티커 배치·마스코트·뒷면·모션 재생/파티클·인사말 개별화·패럴랙스·living picture·각도 프레임), WP1(스키마+서버)만 완료:** 브랜치 `feat/284-expression-v2-schema`(worktree `.worktrees/284-v2-schema`), 기준 main `61bde48`, PR 미정. 스키마 v2는 기존 v1 필드를 그대로 두고 추가만 하며, 서버는 v1 입력을 자동으로 v2로 올려 옛 편집기 탭·기존 저장분·기존 획득 수집품이 그대로 열린다(마이그레이션 없음, jsonb 형태 검사만). 발행 스냅샷의 `animation`은 여전히 v1 8종 enum이라 기존 Android APK를 깨지 않는다. 세부는 [시험 상태](TEST_STATUS.md) 최신 항목과 [설계 명세](superpowers/specs/2026-10-01-collectible-expression-v2-design.md)를 본다. 렌더러·에디터 UI·Android 반영(WP2~WP4)은 아직 시작하지 않았다.
+**2026-10-01 진행 중 — [Issue #284](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/284) 수집품 표현 v2(스티커 배치·마스코트·뒷면·모션 재생/파티클·인사말 개별화·패럴랙스·living picture·각도 프레임), WP1(스키마+서버)만 완료, PR [#288](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/288):** 브랜치 `feat/284-expression-v2-schema`(worktree `.worktrees/284-v2-schema`), 기준 main `61bde48`. 스키마 v2는 기존 v1 필드를 그대로 두고 추가만 하며, 서버는 v1 입력을 자동으로 v2로 올려 옛 편집기 탭·기존 저장분·기존 획득 수집품이 그대로 열린다(마이그레이션 없음, jsonb 형태 검사만). 발행 스냅샷의 `animation`은 여전히 v1 8종 enum이라 기존 Android APK를 깨지 않는다. 리뷰(Claude sonnet 🔴0 🟡0·Codex REQUEST_CHANGES) 반영으로 `backImageDataUrl`·`angleFrames`는 편집기가 실제로 만들기 전까지 게시 준비에서 선택으로 두고, 구조 복제 전 배열 길이를 먼저 확인하는 DoS 방어와 스프라이트 3종의 JPEG 거절을 추가했다. 세부는 [시험 상태](TEST_STATUS.md) 최신 항목과 [설계 명세](superpowers/specs/2026-10-01-collectible-expression-v2-design.md)를 본다. 렌더러·에디터 UI·Android 반영(WP2~WP4)은 아직 시작하지 않았다.
 
 (당시 기록이다. PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐고 운영 test.5·시연 Preview 14를 게시했다: 아래 Issue #277 항목.) 이 절의 아래 서술은 모두 병합·배포 전의 당시 기록이다.
 

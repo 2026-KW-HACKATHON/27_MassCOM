@@ -99,23 +99,17 @@ test('one rejection per new v2 bound', () => {
   assert.throws(() => validateCollectibleProject(animated), { code: 'COLLECTIBLE_INVALID_PROJECT' }, 'animated WebP sprite');
 });
 
-test('publish readiness: backImageDataUrl always required, angleFrames required for metallic/hologram/pearl or parallax, living required when referenced', () => {
+test('publish readiness: backImageDataUrl and angleFrames are optional for now (the current editor cannot make them yet), living is required only when referenced', () => {
+  // Codex 리뷰 지적(2026-10-01): 지금 편집기의 serializeDerived는 backImageDataUrl·angleFrames를 만들지 않는다.
+  // 이 둘을 필수로 두면 이 브랜치가 병합되는 순간 웹의 모든 게시가 COLLECTIBLE_NOT_READY로 막힌다.
   const missingBack = richProject(); delete missingBack.derived.custom!.backImageDataUrl;
-  assert.throws(() => validateCollectibleProject(missingBack, true), { code: 'COLLECTIBLE_NOT_READY' });
+  validateCollectibleProject(missingBack, true);
 
   const missingAngleForEffect = richProject(); delete missingAngleForEffect.derived.custom!.angleFrames;
-  assert.throws(() => validateCollectibleProject(missingAngleForEffect, true), { code: 'COLLECTIBLE_NOT_READY' });
+  validateCollectibleProject(missingAngleForEffect, true);
 
-  // 홀로그램 효과를 빼면 앵글 프레임 없이도 게시할 수 있다(패럴랙스도 꺼져 있으면).
-  const noHologram = richProject(); noHologram.effects = noHologram.effects.filter(e => e.type !== 'hologram');
-  noHologram.parallax = { strength: 0, strokes: [] };
-  delete noHologram.derived.custom!.angleFrames;
-  validateCollectibleProject(noHologram, true);
-
-  // 패럴랙스가 켜져 있으면(획이 있으면) 홀로그램이 없어도, 모든 게시 등급에 앵글 프레임이 필요하다(등급을 가리지 않는 전역 설정).
-  const parallaxNeedsAngle = richProject(); parallaxNeedsAngle.effects = parallaxNeedsAngle.effects.filter(e => e.type !== 'hologram');
-  parallaxNeedsAngle.parallax = { strength: 40, strokes: [{ tool: 'fg', size: 0.05, points: [{ x: .5, y: .5 }] }] };
-  assert.throws(() => validateCollectibleProject(parallaxNeedsAngle, true), { code: 'COLLECTIBLE_NOT_READY' });
+  const missingBoth = richProject(); delete missingBoth.derived.custom!.backImageDataUrl; delete missingBoth.derived.custom!.angleFrames;
+  validateCollectibleProject(missingBoth, true);
 
   const missingLiving = richProject(); delete missingLiving.derived.custom!.living;
   assert.throws(() => validateCollectibleProject(missingLiving, true), { code: 'COLLECTIBLE_NOT_READY' });
@@ -124,6 +118,18 @@ test('publish readiness: backImageDataUrl always required, angleFrames required 
   const noLivingRef = richProject(); noLivingRef.living = { periodMs: 2000, items: [] };
   delete noLivingRef.derived.custom!.living;
   validateCollectibleProject(noLivingRef, true);
+});
+
+test('regression: a project shaped exactly like the current editor output (no back image, no angle frames, metallic/hologram enabled) is still publish-ready', () => {
+  // 현재 collectible-renderer.mjs의 serializeDerived가 실제로 만드는 모양: imageDataUrl·thumbnailDataUrl·
+  // baseDataUrl·effectMasks뿐이며 backImageDataUrl·angleFrames·living은 없다.
+  const project = photoProject();
+  project.effects.push({ id: 'metal-1', type: 'metallic', target: 'surface', gradeIds: ['custom'], strength: 50, color: '#ffffff', roughness: 10 });
+  project.derived.bronze = { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng, baseDataUrl: tinyPng, effectMasks: {} };
+  project.derived.custom = { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng, baseDataUrl: tinyPng, effectMasks: {} };
+  const saved = validateCollectibleProject(project, true);
+  assert.equal(saved.derived.custom!.backImageDataUrl, undefined);
+  assert.equal(saved.derived.custom!.angleFrames, undefined);
 });
 
 test('snapshot exposes only baked final assets: no strokes, no original photo, no parallax/living edit config, animation stays a v1 value', () => {
@@ -143,4 +149,34 @@ test('snapshot exposes only baked final assets: no strokes, no original photo, n
   const loopingSnapshot = collectibleSnapshot(validateCollectibleProject(looping, true), 'p', 'pub', 'custom');
   assert.equal(loopingSnapshot.animation, 'confetti');
   assert.ok(v1Enum.includes(loopingSnapshot.animation));
+});
+
+test('a payload smuggling a huge array is rejected before any deep clone, not after (P2 DoS fix)', () => {
+  // Codex 리뷰 지적(2026-10-01): 구조 복제(structuredClone)가 배열 길이 검사보다 먼저 일어나면, 5.4MB 정도의
+  // 요청 안에 원소 수십만 개짜리 배열 하나만 심어도 그 복제 비용(약 434ms·+156MiB)을 그대로 치른다.
+  // 이제는 값을 얕게 훑어 배열 길이부터 거절하므로, 원소를 하나도 복제하지 않고 곧장 실패해야 빠르다.
+  const bigStrokes = new Array(300_000).fill(0).map(() => ({ x: 0, y: 0 }));
+  const bomb = { schemaVersion: 2, photoEdits: { strokes: bigStrokes } };
+  const started = performance.now();
+  assert.throws(() => validateCollectibleProject(bomb), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  const elapsed = performance.now() - started;
+  assert.ok(elapsed < 100, `array bomb rejection took ${elapsed.toFixed(1)}ms, expected a fast fail before any deep clone`);
+
+  // 알려지지 않은 키 이름 아래 심어도(구조 키 검사 전에 이미 걸린다), 최상위 배열이어도 똑같이 빠르게 거절한다.
+  const unknownKeyBomb = { schemaVersion: 1, stickers: new Array(300_000).fill(0) };
+  const startedUnknown = performance.now();
+  assert.throws(() => validateCollectibleProject(unknownKeyBomb), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  assert.ok(performance.now() - startedUnknown < 100);
+});
+
+test('sprite fields (backImageDataUrl, angleFrames, living) accept only PNG/WebP, never JPEG (EXIF Orientation could rotate a pixel-sliced sprite)', () => {
+  const jpegUrl = `data:image/jpeg;base64,${Buffer.from([255, 216, 255]).toString('base64')}`;
+  const back = richProject(); back.derived.custom!.backImageDataUrl = jpegUrl;
+  assert.throws(() => validateCollectibleProject(back), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  const angle = richProject(); angle.derived.custom!.angleFrames!.dataUrl = jpegUrl;
+  assert.throws(() => validateCollectibleProject(angle), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  const living = richProject(); living.derived.custom!.living!.dataUrl = jpegUrl;
+  assert.throws(() => validateCollectibleProject(living), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  // PNG는 그대로 통과한다(위 richProject() 기본값이 이미 PNG로 검증됨).
+  validateCollectibleProject(richProject());
 });

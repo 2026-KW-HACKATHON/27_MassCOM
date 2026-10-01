@@ -87,13 +87,15 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | `greetingOverrides` | `{id, gradeIds, themeName, text}` 목록(최대 16). 등급+테마가 모두 맞는 항목 > 등급만 > 테마만 > 기본 `greeting` 순으로 고르고, 동점은 배열에서 먼저 온 항목이 이긴다. `gradeIds`가 비고 `themeName`도 빈 항목은 저장하지 않는다. | `[]`(기본 인사말만 씀) |
 | `parallax` | `{strength:0~100, strokes}`. 획은 `fg/bg` 도구·굵기 0.01~0.2·점(최대 100개 획, 획당 점 1,000개, 사진 0~1 좌표). | `{strength:0, strokes:[]}` |
 | `living` | `{periodMs:1000~4000, items}`(항목 최대 4). 항목은 `sway/bob/steam/blink` 종류, 대상은 `region`(획 1~20점) 또는 앞면 스티커 ID(획 없음), 등급 목록, 진폭 0~100, 중심점. `blink`는 오직 `MASCOT_BLINK`에 있는 포즈의 mascot 스티커만 대상으로 삼을 수 있다(지금은 그림이 없어 빈 목록이라 항상 거절됨). | `{periodMs:2400, items:[]}` |
-| `derived[g].backImageDataUrl` | 뒷면 완성 이미지, 512px 이하·256 KiB 이하. | 없음(v1엔 뒷면이 없어 재게시 전까지 게시 불가, 아래 게시 준비 참고) |
-| `derived[g].angleFrames` | `{dataUrl, side:256~512, count:12, columns:4, stepDegrees:15}`. 스프라이트는 정확히 가로 4칸×세로 3칸(`4·side × 3·side`), 1 MiB 이하. 칸 i의 각도는 `−82.5°+15·i`. | 없음 |
-| `derived[g].living` | `{dataUrl, count:8~24, columns:1~8, cellWidth/cellHeight:16~512, periodMs, box:{x,y,w,h}(0~1, x+w≤1, y+h≤1)}`. 스프라이트 크기는 `columns·cellWidth × ⌈count/columns⌉·cellHeight`, 4096px·512 KiB 이하. | 없음 |
+| `derived[g].backImageDataUrl` | 뒷면 완성 이미지, 512px 이하·256 KiB 이하. PNG/WebP만(JPEG 금지, 아래 스프라이트 형식 제한 참고). | 없음. **지금 게시를 막지 않는다**(아래 게시 준비 참고) |
+| `derived[g].angleFrames` | `{dataUrl, side:256~512, count:12, columns:4, stepDegrees:15}`. 스프라이트는 정확히 가로 4칸×세로 3칸(`4·side × 3·side`), 1 MiB 이하. 칸 i의 각도는 `−82.5°+15·i`. `dataUrl`은 PNG/WebP만. | 없음. **지금 게시를 막지 않는다** |
+| `derived[g].living` | `{dataUrl, count:8~24, columns:1~8, cellWidth/cellHeight:16~512, periodMs, box:{x,y,w,h}(0~1, x+w≤1, y+h≤1)}`. 스프라이트 크기는 `columns·cellWidth × ⌈count/columns⌉·cellHeight`, 4096px·512 KiB 이하. `dataUrl`은 PNG/WebP만. | 없음 |
 
 패럴랙스·living 획의 점 합계는 프로젝트 전체 20,000개를 넘을 수 없다. 파티클·각도 프레임 배합의 순수 계산(`resolveSticker`·`resolveGreeting`·`particleAt`·`angleFrameIndex`)은 `collectible-model.mjs`에 있고, 서버 `collectible-project-rules.ts`가 같은 값을 내는지 공유 벡터 픽스처(`tests/fixtures/collectible-vectors.json`)로 맞춘다.
 
-**게시 준비(등급별, 캠페인 목표에 실제로 연결된 등급만):** `backImageDataUrl`은 항상 있어야 한다. `angleFrames`는 그 등급에 metallic/hologram/pearl 효과가 있거나(등급 무관하게) `parallax.strength>0`이면서 획이 있으면 필요하다. `living`은 어떤 living 항목이든 그 등급을 목록에 넣었으면 필요하다. 하나라도 없으면 게시가 409 `COLLECTIBLE_NOT_READY`다 — v1에서 올라온 프로젝트는 뒷면 이미지가 없어 편집기가 다시 만들어 보내기 전까지 게시할 수 없다.
+**스프라이트 형식 제한(`backImageDataUrl`·`angleFrames.dataUrl`·`living.dataUrl`만):** 이 셋은 PNG·WebP만 받고 JPEG는 거절한다(다른 이미지 필드는 여전히 PNG/JPEG/WebP 모두 허용). JPEG의 EXIF `Orientation` 태그는 브라우저가 표시할 때 픽셀을 돌려 보여 주는데, 이 세 필드는 픽셀 좌표로 그대로 자르고 배치하는 스프라이트라 그 회전이 반영되지 않는다(가로 1024×세로 768로 선언한 스프라이트가 Orientation=6이면 실제로는 세로로 찍혀 있을 수 있음). 편집기도 이 셋은 WebP/PNG로만 만든다.
+
+**게시 준비(등급별, 캠페인 목표에 실제로 연결된 등급만, 2026-10-01 Codex 리뷰 반영):** `living`은 어떤 living 항목이든 그 등급을 목록에 넣었으면 필요하고, 없으면 게시가 409 `COLLECTIBLE_NOT_READY`다. **`backImageDataUrl`과 `angleFrames`는 지금은 선택이며 게시를 막지 않는다** — 지금 편집기의 `serializeDerived`가 이 둘을 아직 만들지 않기 때문에(뒷면 UI는 WP2, 각도 프레임 UI는 WP3), 필수로 두면 이 저장소의 모든 웹 게시가 즉시 막힌다. 클라이언트는 없을 때를 대비한다: 뒷면이 없으면 기존 모습을 보여 주고, 각도 프레임이 없으면 정면 이미지를 그대로 회전해 보여 준다. WP2가 편집기에서 실제로 뒷면 이미지를 만들기 시작하면 `backImageDataUrl`을, WP3가 각도 프레임을 만들기 시작하면(metallic/hologram/pearl 효과가 있거나 패럴랙스가 켜진 등급에 한해) `angleFrames`를 다시 필수로 좁힌다.
 
 **의도적 완화:** `stickers[].align/layouts`와 `motion[].playback`은 서버에서 선택 항목이다(없으면 위 기본값을 채운다). 아직 편집기 UI(WP2)가 이 필드를 채워 보내지 않기 때문이며, WP2가 채우기 시작해도 무해하다.
 
@@ -117,7 +119,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | 게시 후 편집 | 게시 버전을 보존하고 수정은 새 초안 복사로 진행. 기존 획득의 게시 버전은 유지. 초안 저장은 명시적 동작과 버전 충돌 안내를 제공. 자동 저장을 구현했다고 기록하지 않음. |
 | 획득 외형 | 기존 캠페인 목표에 점주가 직접 연결한 등급만 이후 보상권에 적용. 최소 하나의 명시 연결 후 게시. 고급 입력·특수등급·음성·장면은 선택 사항. |
 
-미디어 서명 검사·파일 크기·유한 수치·허용 필드·안정 ID·참조 관계를 서버에서 확인한다. 저장할 때 원본 사진·장면 원본·완성 이미지 모두에서 EXIF/XMP/ICC 등 메타데이터를 제거하고(JPEG 방향값만 유지), MP3의 ID3·APE 태그를 제거한다. 미디어 헤더 확인은 모든 디코딩 오류·전체 파일 안전성을 보증하지 않는다. 공개 원본 저장소나 임의 외부 URL을 허용하는 근거가 아니다.
+미디어 서명 검사·파일 크기·유한 수치·허용 필드·안정 ID·참조 관계를 서버에서 확인한다. 저장할 때 원본 사진·장면 원본·완성 이미지 모두에서 EXIF/XMP/ICC 등 메타데이터를 제거하고(JPEG 방향값만 유지), MP3의 ID3·APE 태그를 제거한다. **미디어 헤더(매직 바이트·PNG IHDR/WebP VP8X 같은 치수 필드) 확인은 모든 디코딩 오류·전체 파일 안전성을 보증하지 않는다** — 헤더가 유효한 PNG/WebP/JPEG를 선언해도 그 안의 픽셀 데이터(IDAT 등)까지 실제로 디코드해 내용을 확인하지는 않는다(전체 디코드에는 새 이미지 디코딩 의존성이 필요해 별도 승인 없이 추가하지 않는다). 이 한계는 v1부터 있던 모든 이미지 필드(`photo.originalDataUrl`, `derived[g].imageDataUrl` 등)와 v2에서 추가한 스프라이트 필드(`derived[g].backImageDataUrl`·`angleFrames.dataUrl`·`living.dataUrl`) 모두에 똑같이 적용된다. 공개 원본 저장소나 임의 외부 URL을 허용하는 근거가 아니다.
 
 ## 서버 계약 (PR #257 인수 후속, 2026-09-30)
 
