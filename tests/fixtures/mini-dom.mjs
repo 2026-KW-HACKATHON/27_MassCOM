@@ -35,12 +35,13 @@ function parseSelector(text) {
   return groups;
 }
 function parseCompound(text) {
-  const compound = { tag: '', classes: [], attrs: [], nots: [] };
+  const compound = { tag: '', id: '', classes: [], attrs: [], nots: [] };
   const tag = text.match(/^[a-zA-Z][a-zA-Z0-9-]*/);
   if (tag) { compound.tag = tag[0].toLowerCase(); text = text.slice(tag[0].length); }
   while (text) {
     let match;
-    if ((match = text.match(/^\.([a-zA-Z0-9_-]+)/))) compound.classes.push(match[1]);
+    if ((match = text.match(/^#([a-zA-Z0-9_-]+)/))) compound.id = match[1];
+    else if ((match = text.match(/^\.([a-zA-Z0-9_-]+)/))) compound.classes.push(match[1]);
     else if ((match = text.match(/^\[([a-zA-Z0-9_:-]+)(?:([~|^$*]?=)(?:"([^"]*)"|'([^']*)'|([^\]]*)))?\]/))) compound.attrs.push({ name: match[1], op: match[2], value: match[3] ?? match[4] ?? match[5] });
     else if ((match = text.match(/^:not\(((?:[^()]|\([^()]*\))*)\)/))) compound.nots.push(parseCompound(match[1]));
     else throw new Error(`mini-dom: unsupported selector "${text}"`);
@@ -50,6 +51,7 @@ function parseCompound(text) {
 }
 function compoundMatches(element, compound) {
   if (compound.tag && element.tagName.toLowerCase() !== compound.tag) return false;
+  if (compound.id && element.getAttribute('id') !== compound.id) return false;
   if (compound.classes.some(name => !element.classList.contains(name))) return false;
   for (const { name, op, value } of compound.attrs) {
     const actual = element.getAttribute(name);
@@ -127,6 +129,12 @@ export class Element {
   append(...nodes) { for (const node of nodes) this.childNodes.push(this.#adopt(node)); }
   prepend(...nodes) { this.childNodes.unshift(...nodes.map(node => this.#adopt(node))); }
   appendChild(node) { this.append(node); return node; }
+  insertBefore(node, reference) {
+    const adopted = this.#adopt(node);
+    const index = reference ? this.childNodes.indexOf(reference) : -1;
+    if (index >= 0) this.childNodes.splice(index, 0, adopted); else this.childNodes.push(adopted);
+    return adopted;
+  }
   removeChild(node) { const index = this.childNodes.indexOf(node); if (index >= 0) { this.childNodes.splice(index, 1); node.parentNode = null; } return node; }
   replaceChildren(...nodes) { for (const node of this.childNodes) node.parentNode = null; this.childNodes = []; this.append(...nodes); }
   remove() { this.parentNode?.removeChild(this); }
@@ -155,6 +163,7 @@ export class Element {
   }
   focus() { this.ownerDocument.activeElement = this; }
   blur() {} click() {} select() {} scrollIntoView() {} setPointerCapture() {} releasePointerCapture() {} pause() {} play() { return Promise.resolve(); }
+  showModal() {} close() {}
   getBoundingClientRect() { return { left: 0, top: 0, width: this.width, height: this.height }; }
   getContext() { return this._context ??= createContext(this); }
   // 인코딩 호출을 document.encodes에 남기고, document.encodedBytes로 결과 크기를 조절한다(크기 상한 시험용).
@@ -235,7 +244,10 @@ export function installMiniDom({ webp = true, storageThrows = false } = {}) {
   const windowStub = { addEventListener: (...args) => windowListeners.addEventListener(...args), removeEventListener: (...args) => windowListeners.removeEventListener(...args),
     dispatch: event => { event.target ??= windowStub; for (const handler of [...(windowListeners.listeners.get(event.type) ?? [])]) handler(event); return event; },
     matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+    // 수집품 뷰어(collectible-viewer.mjs)는 전역이 아니라 doc.defaultView.*로 rAF·시계·matchMedia를 쓴다.
+    performance: globalThis.performance, requestAnimationFrame: () => 1, cancelAnimationFrame() {},
     localStorage: createFakeStorage({ throwing: storageThrows }) };
+  document.defaultView = windowStub;
   document.listeners = new Map();
   set('document', document);
   set('window', windowStub);

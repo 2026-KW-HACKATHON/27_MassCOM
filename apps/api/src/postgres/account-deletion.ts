@@ -285,6 +285,21 @@ async function pseudonymizeAccount(
     'UPDATE platform_admin_role_audit SET target_account_id = $1 WHERE target_account_id = $2',
     [deletedAlias, accountId],
   );
+  // 점주 체험 권한 요청(#294): 대기 중 요청은 그대로 두면 계정이 지워진 뒤에도 승인 가능한 자격 증명으로 남는다
+  // (APP 승인·OPS 명령 모두 요청 행 자체를 자격 증명으로 본다). 삭제해 더는 결정할 수 없게 한다.
+  // 이미 결정된(감사) 행만 요청자 열을 별칭으로 바꿔 남긴다.
+  await client.query(
+    `DELETE FROM showcase_access_requests WHERE account_id = $1 AND status = 'PENDING'`,
+    [accountId],
+  );
+  await client.query(
+    'UPDATE showcase_access_requests SET account_id = $1 WHERE account_id = $2',
+    [deletedAlias, accountId],
+  );
+  await client.query(
+    'UPDATE showcase_access_requests SET decided_by_account_id = $1 WHERE decided_by_account_id = $2',
+    [deletedAlias, accountId],
+  );
   await client.query(
     'UPDATE platform_admin_audit SET actor_account_id = $1 WHERE actor_account_id = $2',
     [deletedAlias, accountId],

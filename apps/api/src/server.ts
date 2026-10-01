@@ -71,6 +71,8 @@ import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
 import { PostgresWebSessionStore } from './postgres/web-session.js';
 import { resolveShowcaseInviteConfig } from './showcase/invite-config.js';
+import { isPermittedShowcaseDatabaseName } from './showcase/local-seed.js';
+import { ShowcaseAccessRequestError, ShowcaseAccessRequestService } from './showcase/access-requests.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresCollectibleProjectService } from './postgres/collectible-project.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
@@ -215,9 +217,12 @@ export function createApiServer(
   consent?: ConsentService,
   nftMetadata?: NftMetadataReader,
   collectibleProjects?: CollectibleProjectService,
+  accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
 ) {
   // The receipt lookup needs no login, so it is throttled per client instead (a receipt has 80 bits, this only stops floods).
   const deletionStatusLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60_000 });
+  // 계정당 5회/시간(#294). IP가 아니라 계정으로 거는 건 승인 전 계정도 로그인은 됐기 때문이다.
+  const showcaseAccessRequestLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 5, windowMs: 60 * 60 * 1000 });
   // Media-bearing collectible writes (create/save/copy/publish parse up to 8 MiB and decode every image) are throttled per store.
   const collectibleWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 20, windowMs: 60_000 });
   const consumeDeletionStatus = (request: IncomingMessage, response: ServerResponse): boolean => {
@@ -1290,6 +1295,49 @@ export function createApiServer(
         return;
       }
 
+      if (request.url === '/showcase/access-requests/mine' && request.method === 'GET') {
+        if (!accessRequests) throw new RequestError(404, 'NOT_FOUND');
+        const accountId = await resolveAccountId(request);
+        sendJson(response, 200, await accessRequests.mine(accountId));
+        return;
+      }
+
+      if (request.url === '/showcase/access-requests' && request.method === 'POST') {
+        if (!accessRequests) throw new RequestError(404, 'NOT_FOUND');
+        const accountId = await resolveAccountId(request);
+        const decision = showcaseAccessRequestLimiter.consume(accountId);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          sendJson(response, 429, { code: 'SHOWCASE_ACCESS_RATE_LIMITED' });
+          return;
+        }
+        requireEmptyBody(await readJson(request, true));
+        const { created, request: view } = await accessRequests.request(accountId);
+        sendJson(response, created ? 201 : 200, { request: view });
+        return;
+      }
+
+      if (request.url === '/showcase/admin/access-requests' && request.method === 'GET') {
+        if (!accessRequests) throw new RequestError(404, 'NOT_FOUND');
+        const accountId = await resolveAccountId(request);
+        sendJson(response, 200, await accessRequests.listPending(accountId));
+        return;
+      }
+
+      const accessRequestDecisionMatch = request.url?.match(
+        /^\/showcase\/admin\/access-requests\/([^/]+)\/(approve|reject)$/,
+      );
+      if (request.method === 'POST' && accessRequestDecisionMatch) {
+        if (!accessRequests) throw new RequestError(404, 'NOT_FOUND');
+        const accountId = await resolveAccountId(request);
+        requireEmptyBody(await readJson(request, true));
+        const requestId = decodePathParameter(accessRequestDecisionMatch[1]!);
+        const decision = accessRequestDecisionMatch[2] === 'approve' ? 'APPROVED' : 'REJECTED';
+        await accessRequests.decide(accountId, requestId, decision);
+        sendJson(response, 200, { status: decision });
+        return;
+      }
+
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
       if (error instanceof CollectibleProjectError) {
@@ -1347,6 +1395,13 @@ export function createApiServer(
         const status = error.code === 'STAFF_FORBIDDEN' ? 403
           : error.code === 'STAFF_MERCHANT_NOT_FOUND' || error.code === 'STAFF_NOT_FOUND' ? 404
             : error.code === 'STAFF_CODE_INVALID' ? 400 : 409;
+        sendJson(response, status, { code: error.code });
+        return;
+      }
+      if (error instanceof ShowcaseAccessRequestError) {
+        const status = error.code === 'SHOWCASE_APPROVER_REQUIRED' || error.code === 'SHOWCASE_ACCESS_SELF_DECISION' ? 403
+          : error.code === 'SHOWCASE_ACCESS_REQUEST_NOT_FOUND' ? 404
+            : error.code === 'ACCOUNT_DELETED' ? 410 : 409;
         sendJson(response, status, { code: error.code });
         return;
       }
@@ -1912,6 +1967,23 @@ export function resolveAuthMode(env: Record<string, string | undefined>): AuthMo
   return { kind: 'unconfigured' };
 }
 
+export type ShowcaseDeployment = 'hosted' | 'local';
+
+// #294: 시연 전용 API(권한 요청)는 hosted(SHOWCASE_MODE)나 local(demo + 시연 DB 이름)에서만 연다. 운영 DB·운영 로그인에서는
+// 항상 undefined라 다른 시연 전용 라우트처럼 404가 된다. local 쪽 DB 이름은 호출자가 미리 조회해서 넘긴다(여기는 순수 함수).
+export function resolveShowcaseDeployment(
+  authMode: AuthMode,
+  hostedConfigured: boolean,
+  currentDatabaseName: string | undefined,
+): ShowcaseDeployment | undefined {
+  if (hostedConfigured) return 'hosted';
+  if (authMode.kind === 'demo' && currentDatabaseName !== undefined &&
+      isPermittedShowcaseDatabaseName(currentDatabaseName)) {
+    return 'local';
+  }
+  return undefined;
+}
+
 function configuredService(
   bindingStore: WalletBindingStore,
   challengeStore: ChallengeStore,
@@ -1983,6 +2055,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const mintRequests = postgresMintRequests && nftMinting === 'PREPARING'
     ? refuseMintRequestsWhilePreparing(postgresMintRequests) : postgresMintRequests;
   const authMode = resolveAuthMode(process.env);
+  // local 배치 판정만 DB 이름 조회가 필요하다(hosted는 이미 위에서 확인했다). 운영 로그인에서는 절대 조회하지 않는다(#294).
+  const currentShowcaseDatabaseName =
+    !showcaseInvites && authMode.kind === 'demo' && pool
+      ? (await pool.query<{ name: string }>('SELECT current_database() AS name')).rows[0]?.name
+      : undefined;
+  const showcaseDeployment = resolveShowcaseDeployment(authMode, Boolean(showcaseInvites), currentShowcaseDatabaseName);
   const accountDeletions =
     pool && accountDeletionHmacSecret
       ? new PostgresAccountDeletionService(pool, {
@@ -2143,6 +2221,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       staffMayManageArt: aiArtConfig.staffMayManage,
       ...(accountLifecycle ? { accountLifecycle } : {}),
     }) : undefined,
+    pool && accountDeletionHmacSecret && showcaseDeployment
+      ? new ShowcaseAccessRequestService(pool, { accountDeletionHmacSecret }) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

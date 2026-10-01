@@ -36,3 +36,7 @@
 - Android 실기기·실제 음성·최대 조합 성능은 NOT_RUN이다. JS export 성공은 새 native APK 설치·재생 증거가 아니다.
 - Docker 부재의 프록시 시험과 python3/Windows 경로 차이로 실행하지 못한 넓은 사이트 회귀는 로컬 BLOCKED다. 병합 전 dd1dc050의 원격 전체 CI는 통과했다. 최신 main 통합·migration 재번호화 뒤 검사는 별도로 실행한다. 코드에 시험 통과용 인증 우회를 추가하지 않는다.
 - 원본은 기여자와 복사 계보까지 삭제하고 작성 발행본의 배포도 멈추지만 다른 고객이 받은 가공 게시 미디어는 남는다. 인물·목소리 삭제 요구는 운영자 제거 함수(`collectible_remove_publication_media`, [API 안내](../apps/api/README.md#운영자-게시-미디어-제거-절차))로 처리한다(2026-09-30 PR #257 인수 후속). 요청이 없을 때 게시 미디어의 별도 보관 기한은 두지 않았다. 운영 점주 OWNER 부여 채널은 main PR #255에 구현됐으며 실제 운영 적용과 권한 확인은 별도 검증 대상이다. 이를 기획노트의 승인 정책으로 확정하지 않는다.
+
+## #294 점주 체험 권한 요청과 B-028의 관계
+
+B-028이 지적한 "시연 직원 부여는 감사 행이 없다"(`grant-staff.ts:67`) 중 **새 요청·승인 경로(PR1, [D-062](DECISIONS.md))는 메웠다:** `showcase_access_requests` 행 자체가 요청자·승인자·시각·수단(`decided_via`)의 감사이고, 최초 승인자를 만드는 운영자 명령은 `platform_admin_role_audit`에도 GRANT 행을 남긴다. **기존 허용목록 경로(`grant-staff.ts`의 `grantShowcaseStaff`, 운영자 명령 `grant:showcase:staff`)는 이 PR이 핵심 로직만 `grantShowcaseStaffTx`로 떼어 재사용했을 뿐 감사 행을 추가하지 않았다** — B-028 본문이 적은 공백은 그대로 남아 있다. 계정 삭제가 `platform_admins`를 지울 때 `REVOKE` 감사 행을 남기지 않는 지적도 범위 밖이다. B-028의 해소 조건(법률 검토)은 바뀌지 않는다.

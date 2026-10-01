@@ -65,7 +65,7 @@ export function assertLocalShowcaseDatabaseUrl(raw: string): string {
     if (
       url.protocol === 'postgresql:' &&
       ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) &&
-      name === 'masscom_showcase_test' &&
+      isPermittedShowcaseDatabaseName(name) &&
       !url.search &&
       !url.hash
     ) {
