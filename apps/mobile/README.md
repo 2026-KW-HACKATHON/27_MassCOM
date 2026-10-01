@@ -178,7 +178,13 @@ release build는 시작부터 publish 직전까지 전체 Git worktree가 clean�
 
 ## 도감 수집 경험 (Issue #283)
 
-방문 수령으로 `artwork`가 붙은 보상을 받으면(`src/screens/collection/collectible-reveal.tsx`) 포장·도장 열림(우표 모양은 도장, 그 밖은 코인 뒤집힘) → 수집품 등장 → 대사(음성은 탭해야 재생, 소리 끄기 존중) → "도감에 보관했어요" 순서로 짧게 보여줍니다. 언제든 건너뛸 수 있고, 보관은 연출 이전에 이미 끝난 상태라 건너뛰어도 보상에는 영향이 없습니다. `AccessibilityInfo`의 동작 줄이기가 켜져 있으면 애니메이션 없이 바로 결과 화면을 보입니다.
+방문 수령으로 `artwork`가 붙은 보상을 받으면(`src/screens/collection/collectible-reveal.tsx`) 봉투 열기 연출(아래 Issue #297)로 보여줍니다. 언제든 건너뛸 수 있고, 보관은 연출 이전에 이미 끝난 상태라 건너뛰어도 보상에는 영향이 없습니다.
+
+## 봉투 열기 연출 (Issue #297)
+
+방문 수령으로 한 번에 받은 수집품 전부(1·3·5회 목표가 겹치면 여럿)를 봉투 하나에 담아 엽니다: 봉투(마스코트 나뭇잎 문장 직접 그림, 참고 영상의 로고·카드 틀·팩 디자인은 쓰지 않음)를 탭하거나 아래로 스와이프 → 흔들림·빛과 함께 찢어져 열림 → 수집품이 한 장씩 뒤집혀 나오며(그 등급에 `shine`/`sparkle` 모션이 있으면 더 진한 두 번 스윕, 없으면 한 번의 가벼운 빛 스윕) 계정에 처음 받은 것이면 NEW 표시, 좌우 스와이프나 탭으로 다음 카드 → 끝 카드에서 "도감에 보관했어요"와 그 가게 시리즈 진행(`store-series.ts` 재사용, 새 보상 규칙 없음), 전체 보유 종류 수가 5/10/20…을 막 넘겼으면 "N종류 달성!"을 보여주고 "자세히 보기"(첫 카드 상세로 `intro` 진입)·"닫기" 버튼을 제공합니다. 언제든 건너뛸 수 있고 무작위 요소는 없습니다(이미 정해진 보상을 보여줄 뿐).
+
+새 디렉터리 `src/screens/collection/envelope/`: `envelope-state.ts`(순수 함수 — 카드 넘기기/되돌리기, 그룹화(`collectible-groups.ts`) 재사용한 NEW 판정, 분포 종류 수 문턱 교차 판정, 배치의 가게 시리즈 찾기, 전부 단위 테스트), `envelope-reveal.tsx`(idle→tearing→cards→end 연출), `envelope-card.tsx`(카드 뒤집기), `envelope-glyphs.tsx`(손으로 그린 봉투·나뭇잎 문장 SVG). 봉투 찢기 전환은 획득 연출이 이미 쓰던 `reveal-lifecycle.ts`의 `RevealLifecycle`을 그대로 재사용합니다(동작 줄이기면 애니메이션 없이 바로 넘어가고, 백그라운드로 가면 즉시 완료, 언마운트 시 타이머 정리) — 단 이 인스턴스는 사람이 실제로 탭한 뒤에만 만들어, 열지 않은 봉투를 백그라운드만으로 자동으로 찢지 않습니다. `claim-redeem/index.tsx`는 방문 수령으로 외형이 붙은 보상 전부를 목표 순서대로 모아 `entitlement` 파라미터에 쉼표로 묶어 넘기고, `collection/index.tsx`는 그 목록을 전부 해석해(`resolveCollectibleLink`를 id마다 호출) 봉투에 넘깁니다.
 
 도감의 "수집품 모아보기" 절(`src/screens/collection/collectible-browser.tsx`)은 `artwork`가 있는 보상만 정적 썸네일로 모아, 가게·시즌(테마 이름)·등급으로 걸러보고 최신순·가게순·등급순으로 정렬합니다. 같은 게시 수집품(발행 ID+등급)을 여러 캠페인 주기에 걸쳐 여러 번 받았으면 한 장에 개수와 받은 날짜(`earnedAt`)를 함께 보여 줍니다(`src/screens/collection/collectible-groups.ts`). 좋아하는 수집품은 "대표 진열"에 최대 6개까지 놓을 수 있고 이 기기·계정에만 저장하며, 공유는 썸네일·가게 이름·짧은 문구를 담은 이미지를 OS 공유 시트로만 내보냅니다(`src/screens/collection/collectible-share.tsx`, 자동 게시·전송 없음).
 

@@ -1,52 +1,71 @@
-import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
-import { useEffect, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { PublishedCollectible } from '@/commerce/collectible-artwork';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
-import { SparkleGlyph } from '@/gamification/glyphs';
-import { successHaptic } from '@/gamification/native-effects';
-import { useMotionEnabled } from '@/motion/use-motion';
-import { Mascot } from '@/ui/mascot';
 import { StateScene } from '@/ui/state-scene';
 
 import { collectibleDetailFailure, type CollectibleDetailFailure } from './collectible-detail-state';
-import { RevealLifecycle, type RevealStage } from './reveal-lifecycle';
+import { EnvelopeReveal, type EnvelopeCardData } from './envelope/envelope-reveal';
+import { milestoneForBatch, newEntitlementIds, seriesForBatch, type EnvelopeCollectibleLite } from './envelope/envelope-state';
+import type { StoreSeries } from './store-series';
 
 type Props = {
-  entitlementId: string;
+  entitlementIds: readonly string[];
   merchantName: string;
   load: (entitlementId: string) => Promise<PublishedCollectible>;
+  /** Account's full collection, lite: decides which of this batch are NEW and whether a distinct-kind milestone was crossed. */
+  collectibles: readonly EnvelopeCollectibleLite[];
+  /** Already built by the caller (store-series.ts); the one for this batch's merchant backs the end card's progress chips. */
+  series: readonly StoreSeries[];
   /** Skips (or finishes) the reveal without opening the full detail. The reward is already stored either way. */
   onSkip: () => void;
-  /** Leaves the reveal for the full collectible detail screen. */
-  onOpenDetail: () => void;
+  /** Leaves the reveal for the full collectible detail screen, for the first successfully loaded card in the batch. */
+  onOpenDetail: (entitlementId: string) => void;
 };
 
 /**
- * 16장 "획득 연출": 방문 수령으로 사진 수집품을 받으면 열리는 짧은 연출. 포장/도장 열림 → 수집품 등장 → 대사(탭해야 소리 재생) →
- * "도감에 보관했어요" 순서로 넘어간다. 언제든 건너뛸 수 있고, 건너뛰어도 보관은 이미 끝난 상태다(이 화면은 저장에 관여하지 않는다).
+ * 297번 "봉투 열기" 연출: 방문 수령으로 한 번에 받은 수집품 전부(1·3·5회 목표가 겹치면 여럿)를 봉투 하나에 담아 연다. 이 화면은
+ * entitlementId별 외형을 불러오고 NEW·시리즈 진행·달성 여부를 계산하는 데이터 준비만 맡고, 봉투 열기 연출 자체는
+ * envelope/envelope-reveal.tsx가 맡는다(봉투 흔들기·찢기는 reveal-lifecycle.ts의 opening/revealed 패턴을 그대로 쓴다).
+ * 언제든 건너뛸 수 있고, 건너뛰어도 보관은 이미 끝난 상태다(이 화면은 저장에 관여하지 않는다).
  */
-export function CollectibleReveal({ entitlementId, merchantName, load, onSkip, onOpenDetail }: Props) {
-  const [snapshot, setSnapshot] = useState<PublishedCollectible>();
+export function CollectibleReveal({ entitlementIds, merchantName, load, collectibles, series, onSkip, onOpenDetail }: Props) {
+  const [cards, setCards] = useState<readonly EnvelopeCardData[]>();
   const [failure, setFailure] = useState<CollectibleDetailFailure>();
+  // 도감은 3초마다 조용히 다시 조회돼 `collectibles`가 새 배열로 바뀐다. 그걸 아래 배치 로드 effect의 의존성에 두면, 느린
+  // 로드가 끝나기 전에 매번 새로 시작돼 영영 로딩만 반복한다 — 그래서 최신 값은 ref로만 들고, effect는 entitlementIds(이
+  // 배치가 무엇인지)가 바뀔 때만 다시 돈다.
+  const collectiblesRef = useRef(collectibles);
+  useEffect(() => { collectiblesRef.current = collectibles; });
+
   useEffect(() => {
     let active = true;
-    void load(entitlementId).then((value) => {
-      if (active) setSnapshot(value);
-    }).catch((caught: unknown) => {
+    void Promise.allSettled(entitlementIds.map((entitlementId) => load(entitlementId))).then((results) => {
       if (!active) return;
-      setFailure(collectibleDetailFailure(caught));
+      const isNew = newEntitlementIds(entitlementIds, collectiblesRef.current);
+      const loaded: EnvelopeCardData[] = [];
+      let firstError: unknown;
+      let hadError = false;
+      results.forEach((result, index) => {
+        const entitlementId = entitlementIds[index]!;
+        if (result.status === 'fulfilled') loaded.push({ entitlementId, collectible: result.value, isNew: isNew.has(entitlementId) });
+        else { hadError = true; firstError ??= result.reason; }
+      });
+      // 일부만 실패했으면 불러온 카드만으로 진행한다(보상은 이미 보관됐다); 전부 실패했을 때만 실패 화면을 보인다.
+      if (loaded.length === 0 && hadError) setFailure(collectibleDetailFailure(firstError));
+      else setCards(loaded);
     });
     return () => { active = false; };
-  }, [entitlementId, load]);
+  }, [entitlementIds, load]);
+
+  const milestone = useMemo(() => milestoneForBatch(entitlementIds, collectibles), [entitlementIds, collectibles]);
+  const batchSeries = useMemo(() => seriesForBatch(series, collectibles, entitlementIds), [series, collectibles, entitlementIds]);
 
   return (
     <FullScreenModal visible animationType="fade" onRequestClose={onSkip}>
-      {snapshot ? (
-        <RevealBody snapshot={snapshot} merchantName={merchantName} onSkip={onSkip} onOpenDetail={onOpenDetail} />
+      {cards ? (
+        <EnvelopeReveal cards={cards} merchantName={merchantName} series={batchSeries} milestone={milestone} onSkip={onSkip} onOpenDetail={onOpenDetail} />
       ) : failure ? (
         <View style={styles.loadingFrame}>
           <SkipButton onPress={onSkip} />
@@ -56,7 +75,7 @@ export function CollectibleReveal({ entitlementId, merchantName, load, onSkip, o
       ) : (
         <View style={styles.loadingFrame}>
           <SkipButton onPress={onSkip} />
-          <StateScene kind="loading" title="수집품을 펼치는 중" />
+          <StateScene kind="loading" title="봉투를 여는 중" />
         </View>
       )}
     </FullScreenModal>
@@ -72,151 +91,18 @@ function SkipButton({ onPress }: { onPress: () => void }) {
   );
 }
 
-function RevealBody({ snapshot, merchantName, onSkip, onOpenDetail }: {
-  snapshot: PublishedCollectible; merchantName: string; onSkip: () => void; onOpenDetail: () => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const motionAllowed = useMotionEnabled();
-  const [foreground, setForeground] = useState(AppState.currentState === 'active');
-  const [muted, setMuted] = useState(false);
-  // Lazy initializers (evaluated once, on the first render only) so an already-static mount (reduce-motion or
-  // backgrounded from the start) never flashes the opening state before the lifecycle effect below corrects it.
-  const [stage, setStage] = useState<RevealStage>(() => (motionAllowed && foreground ? 'opening' : 'revealed'));
-  const reveal = useSharedValue(motionAllowed && foreground ? 0 : 1);
-  const player = useAudioPlayer(snapshot.audio ? { uri: snapshot.audio.dataUrl } : null);
-  const isStamp = snapshot.shape === 'stamp';
-
-  // Owns the opening→revealed transition and the audio play generation; see reveal-lifecycle.ts and its tests for
-  // the races this exists to close (mute/background/unmount racing a pending play(), reduce-motion or backgrounding
-  // mid-opening never advancing the stage). The lazy useState initializer runs exactly once, so the controller is
-  // built a single time per mount — a ref would read the same way but this repo's lint forbids reading ref.current
-  // during render (react-hooks/refs), so a stable piece of state is used instead of a ref for this singleton.
-  const [lifecycle] = useState(() => new RevealLifecycle(
-    {
-      onAnimateOpening: () => reveal.set(withTiming(1, { duration: 650, easing: Easing.out(Easing.cubic) })),
-      onStageComplete: () => { reveal.set(1); setStage('revealed'); },
-    },
-    700,
-    { foreground, motionAllowed },
-  ));
-
-  // start()/dispose() run exactly once (lifecycle's identity never changes across renders). Foreground and mute are
-  // pushed to the controller straight from the event that changes them (the AppState listener, the mute Switch),
-  // not from an effect a render cycle later — a background/mute that arrives while play() is mid-flight must
-  // invalidate it immediately, not after React gets around to committing. motionAllowed has no such event to hook;
-  // useMotionEnabled() only surfaces a new value via re-render, so an effect is the only way to observe it, and it
-  // is not audio-time-sensitive (it never gates play(), only the opening animation) so the one-tick lag is fine.
-  useEffect(() => {
-    lifecycle.start();
-    return () => lifecycle.dispose();
-  }, [lifecycle]);
-  useEffect(() => { lifecycle.setMotionAllowed(motionAllowed); }, [lifecycle, motionAllowed]);
-
-  useEffect(() => {
-    const listener = AppState.addEventListener('change', (state) => {
-      const isForeground = state === 'active';
-      setForeground(isForeground);
-      lifecycle.setForeground(isForeground);
-    });
-    return () => listener.remove();
-  }, [lifecycle]);
-
-  useEffect(() => {
-    if (stage === 'revealed') void successHaptic();
-  }, [stage]);
-
-  const onMutedChange = (value: boolean) => {
-    setMuted(value);
-    lifecycle.setMuted(value);
-    // lifecycle은 대기 중인 재생만 무효화한다. 이미 나오는 음성은 여기서 바로 멈춘다.
-    if (value) player.pause();
-  };
-
-  const openingStyle = useAnimatedStyle(() => isStamp
-    ? { opacity: reveal.get(), transform: [{ translateY: (1 - reveal.get()) * -36 }, { scale: 0.7 + reveal.get() * 0.3 }] }
-    : { opacity: Math.max(0.05, reveal.get()), transform: [{ scaleX: Math.max(0.05, reveal.get()) }] });
-  const burstStyle = useAnimatedStyle(() => ({ opacity: 0.35 + reveal.get() * 0.65, transform: [{ scale: 0.6 + reveal.get() * 0.4 }] }));
-
-  const playGreeting = async () => {
-    if (!snapshot.audio) return;
-    await lifecycle.play({
-      setAudioMode: () => setAudioModeAsync({ shouldPlayInBackground: false, allowsRecording: false }),
-      seekToStart: () => player.seekTo(0),
-      startPlayback: () => player.play(),
-    });
-  };
-
+function Control({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#14213A' }} contentContainerStyle={[styles.body, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 28 }]}>
-      <SkipButton onPress={onSkip} />
-
-      <View style={styles.stage}>
-        <View style={{ alignItems: 'center', justifyContent: 'center', height: 40 }} importantForAccessibility="no-hide-descendants">
-          <Animated.View style={[{ flexDirection: 'row', gap: 14 }, burstStyle]}>
-            <SparkleGlyph size={16} color="#FFD27A" />
-            <SparkleGlyph size={24} color="#FFFFFF" />
-            <SparkleGlyph size={16} color="#FFD27A" />
-          </Animated.View>
-        </View>
-        {isStamp ? <Mascot pose="stamp" size={96} breathe={false} /> : null}
-        <Animated.Image
-          source={{ uri: snapshot.thumbnailDataUrl }}
-          resizeMode="contain"
-          accessibilityLabel={`${merchantName}에서 받은 ${snapshot.name}`}
-          style={[{ width: 220, height: 220 }, openingStyle]}
-        />
-      </View>
-
-      {stage === 'revealed' ? (
-        <View style={styles.revealed}>
-          <Text accessibilityRole="header" style={styles.title}>{snapshot.name}</Text>
-          <Text style={styles.meta}>{merchantName} · {snapshot.gradeName}</Text>
-          {snapshot.greeting ? <Text selectable accessibilityLiveRegion="polite" style={styles.greeting}>{snapshot.greeting}</Text> : null}
-          {snapshot.audio ? (
-            <>
-              <View style={styles.toggle}>
-                <Text style={styles.toggleLabel}>소리 끄기</Text>
-                <Switch accessibilityLabel="사장님 음성 소리 끄기" value={muted} onValueChange={onMutedChange} />
-              </View>
-              <Control label="사장님 음성 듣기" disabled={muted || !foreground} onPress={() => { void playGreeting(); }} />
-            </>
-          ) : null}
-          <Text style={styles.stored}>도감에 보관했어요</Text>
-          <View style={styles.actions}>
-            <Control label="자세히 보기" primary onPress={onOpenDetail} />
-            <Control label="닫기" onPress={onSkip} />
-          </View>
-        </View>
-      ) : null}
-    </ScrollView>
-  );
-}
-
-function Control({ label, onPress, disabled = false, primary = false }: { label: string; onPress: () => void; disabled?: boolean; primary?: boolean }) {
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled}
-      onPress={onPress} style={[styles.control, primary && styles.controlPrimary, disabled && { opacity: 0.5 }]}>
-      <Text style={[styles.controlText, primary && styles.controlTextPrimary]}>{label}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.control}>
+      <Text style={styles.controlText}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   loadingFrame: { flex: 1, alignItems: 'stretch', justifyContent: 'center', padding: 24, gap: 16, backgroundColor: '#14213A' },
-  body: { paddingHorizontal: 24, gap: 16, alignItems: 'stretch' },
   skipButton: { alignSelf: 'flex-end', minHeight: 44, paddingHorizontal: 16, justifyContent: 'center' },
   skipButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  stage: { alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 260 },
-  revealed: { gap: 14, alignItems: 'stretch' },
-  title: { color: '#FFFFFF', fontSize: 24, fontWeight: '900', textAlign: 'center' },
-  meta: { color: '#C9D3EA', fontSize: 13, textAlign: 'center' },
-  greeting: { color: '#FFFFFF', fontSize: 18, lineHeight: 26, textAlign: 'center' },
-  stored: { color: '#FFD27A', fontSize: 15, fontWeight: '800', textAlign: 'center' },
-  toggle: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  toggleLabel: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
   control: { minHeight: 48, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
-  controlPrimary: { backgroundColor: '#FFD27A' },
   controlText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  controlTextPrimary: { color: '#14213A' },
 });
