@@ -35,7 +35,7 @@ export function HomeRewardCard({ book, onOpen, onRevealed, onOpenFailed }: Props
         </Text>
         <Text style={styles.trackSummary}>{summary}</Text>
       </View>
-      <RewardBoxCard reward={reward} earnedTiers={book.earnedTiers} onOpen={onOpen} onRevealed={onRevealed} onOpenFailed={onOpenFailed} />
+      <RewardBoxCard key={reward.milestone} reward={reward} earnedTiers={book.earnedTiers} onOpen={onOpen} onRevealed={onRevealed} onOpenFailed={onOpenFailed} />
     </View>
   );
 }
