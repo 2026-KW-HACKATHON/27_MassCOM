@@ -139,3 +139,20 @@ sudo docker compose -p masscom-showcase --env-file /opt/masscom-showcase/runtime
   `list`는 대기 건을 기한 순으로 먼저 보이고 `READY`(처리 가능)·`COOLING_OFF`(취소 기간 중)·`OVERDUE`(기한 초과)와 마스킹한 계정 표지를 보인다(이메일·전체 ID 없음). `process`는 취소 기간이 지나기 전에는 `DELETION_COOLING_OFF`로 거절되고, 처리하면 그 계정의 로그인·세션·지갑 연결·점주 권한이 삭제 처리되며 `platform_admin_audit`에 `ACCOUNT_DELETION_PROCESSED`(`cli:<이름>`)가 남는다. 제출된 거래가 있는 계정은 `ledger=WAITING_FOR_MINT_FINALITY`로 보이고, 거래가 확정된 뒤 `reconcile`을 실행해야 `COMPLETED`로 진행한다.
 - **DB 가드:** CLI는 시연 호스트 URL(`postgresql://masscom_showcase@postgres:5432/masscom_showcase`) 또는 로컬 시연 `_test` URL만 받고, 운영 DB URL에서는 `ACCOUNT_DELETION_SHOWCASE_DATABASE_REQUIRED`로 멈춘다.
 - **결과 확인:** 시연 앱 사용자는 로그인 중에는 계정 설정에서 상태를 보고, 처리 뒤에는 접수번호로 `POST https://demo-api.masscom.kr/account-deletion-status`(본문 `{"receipt":"…"}`)를 조회할 수 있다. 앱 안 접수→취소는 Samsung에서 두 번 실행했지만([Preview 11 증거](../../docs/evidence/showcase-preview11-release-2026-09-30.json)) 실제 종단 실행(앱 안 접수→CLI 처리→접수번호 조회)은 `NOT_RUN`이다.
+
+## 점주 체험 권한 최초 승인자 부트스트랩 (D-062, Issue #294)
+
+점주 체험 권한 요청·승인은 앱 화면에서 승인자가 직접 처리하지만(서버 설계는 [SHOWCASE_AUTH_GUARD.md](../../docs/SHOWCASE_AUTH_GUARD.md#점주-체험-권한-요청승인-issue-294-pr1-서버)), **최초 승인자는 승인해 줄 사람이 아직 없다.** 그래서 처음 한 번만 운영자가 이 호스트에서 명령으로 만든다. 지정 승인자 두 명은 `msocs1324@gmail.com`·`priestess4637@gmail.com`이다.
+
+1. **승인자 후보가 직접 한다(사람, 에이전트는 이 계정으로 로그인하지 않는다):** 시연 Android 앱에 자신의 Gmail 계정으로 로그인 → 점주 체험 화면 → "현재 계정으로 문의하기" → 화면에 뜬 8자 코드(`XXXX-XXXX`)를 "메일로 알리기"로 **자신의 Gmail에서** 위 두 주소로 보낸다(발신자가 본인 확인이고, 실패하면 두 주소를 선택할 수 있는 글자로 보여 손으로 보낸다).
+2. **운영자가 서버에서 돌린다:** 시연 API 컨테이너 안에서 실행한다(`DATABASE_URL`·`ACCOUNT_DELETION_HMAC_SECRET`는 컨테이너에 이미 있다).
+
+   ```bash
+   # 시연 Compose를 기동할 때 쓴 것과 같은 -f/--env-file 인자를 붙인다.
+   docker compose ... exec -T showcase-api node dist/showcase/grant-approver-command.js <코드> </dev/null
+   ```
+
+   코드는 대시가 있어도(`XXXX-XXXX`) 없어도 받는다. 한 트랜잭션에서 `platform_admins` upsert·`platform_admin_role_audit`에 GRANT 행(`db_user`=DB 세션 역할, 계정 ID 아님)·그 요청을 `decided_via='OPS'`로 승인(가상 점포 A STAFF 권한 포함)까지 끝나고 **`SHOWCASE_APPROVER_GRANTED`만** 출력한다(계정 ID·코드를 다시 보이지 않는다). 요청이 없거나 이미 결정됐으면 `SHOWCASE_APPROVER_GRANT_FAILED`로 끝나고 아무것도 바꾸지 않는다.
+3. 그다음부터 그 계정은 점주 체험 화면의 "권한 요청 관리"에서 다른 요청을 직접 승인·거절한다. 두 지정 승인자를 모두 만들려면 이 절차를 각자 한 번씩 반복한다.
+
+로컬 시험 DB(`masscom_showcase_test`)에서도 같은 명령을 돌릴 수 있다(hosted·local 시연 DB URL만 받고, 운영 DB URL은 `SHOWCASE_HOST_DATABASE_REQUIRED`·`SHOWCASE_LOCAL_DATABASE_REQUIRED`로 거절한다). 실제 호스트에서 이 절차를 실행한 기록은 아직 `NOT_RUN`이다(두 지정 승인자의 실제 Gmail 로그인·메일 발송·운영자 명령 실행).
