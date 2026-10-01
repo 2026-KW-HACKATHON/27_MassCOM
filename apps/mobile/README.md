@@ -185,6 +185,10 @@ release build는 시작부터 publish 직전까지 전체 Git worktree가 clean�
 
 새 디렉터리 `src/screens/collection/envelope/`: `envelope-state.ts`(순수 함수 — 카드 넘기기/되돌리기, 그룹화(`collectible-groups.ts`) 재사용한 NEW 판정, 분포 종류 수 문턱 교차 판정, 배치의 가게 시리즈 찾기, 전부 단위 테스트), `envelope-reveal.tsx`(idle→tearing→cards→end 연출), `envelope-card.tsx`(카드 뒤집기), `envelope-glyphs.tsx`(손으로 그린 봉투·나뭇잎 문장 SVG). 봉투 찢기 전환은 획득 연출이 이미 쓰던 `reveal-lifecycle.ts`의 `RevealLifecycle`을 그대로 재사용합니다(동작 줄이기면 애니메이션 없이 바로 넘어가고, 백그라운드로 가면 즉시 완료, 언마운트 시 타이머 정리) — 단 이 인스턴스는 사람이 실제로 탭한 뒤에만 만들어, 열지 않은 봉투를 백그라운드만으로 자동으로 찢지 않습니다. `claim-redeem/index.tsx`는 방문 수령으로 외형이 붙은 보상 전부를 목표 순서대로 모아 `entitlement` 파라미터에 쉼표로 묶어 넘기고, `collection/index.tsx`는 그 목록을 전부 해석해(`resolveCollectibleLink`를 id마다 호출) 봉투에 넘깁니다.
 
+## 테스트 방문 만들기 (Issue #295)
+
+`claim-redeem/index.tsx`(방문 인증 화면)는 시연 앱과 로컬 개발 빌드(`canShowTestVisitSection`: `kr.masscom.wolgye.demo` 또는 `kr.masscom.wolgye.dev`)에서만 "테스트 방문 만들기" 섹션을 보입니다. 운영 패키지는 섹션 자체가 없습니다(코드에 없음, 숨김이 아님). `GET /merchants`를 걸러 가상 점포(`demo: true`)만 알약으로 보여주고, 고른 점포로 `commerce-api.ts`의 `createTestVisit(merchantId)`가 서버 `POST /showcase/test-visits`를 부릅니다. 실제 QR 없이 방문을 만들고 바로 확정하며, 성공은 일반 방문 수령과 같은 길(`setRedeemed`·받은 수집품 찾기·축하 연출, [봉투 열기 연출](#봉투-열기-연출-issue-297) 포함)을 그대로 탑니다. 실패는 짧은 한국어 안내(`messageFor`)로 끝나고 입력은 그대로 남습니다. 서버 쪽 격리·규칙은 [apps/api/README.md](../api/README.md)의 "테스트 방문 만들기" 절, DB·API·Metro를 한 번에 띄우는 법은 [로컬 QA 안내](../../docs/LOCAL_QA.md)를 봅니다.
+
 도감의 "수집품 모아보기" 절(`src/screens/collection/collectible-browser.tsx`)은 `artwork`가 있는 보상만 정적 썸네일로 모아, 가게·시즌(테마 이름)·등급으로 걸러보고 최신순·가게순·등급순으로 정렬합니다. 같은 게시 수집품(발행 ID+등급)을 여러 캠페인 주기에 걸쳐 여러 번 받았으면 한 장에 개수와 받은 날짜(`earnedAt`)를 함께 보여 줍니다(`src/screens/collection/collectible-groups.ts`). 좋아하는 수집품은 "대표 진열"에 최대 6개까지 놓을 수 있고 이 기기·계정에만 저장하며, 공유는 썸네일·가게 이름·짧은 문구를 담은 이미지를 OS 공유 시트로만 내보냅니다(`src/screens/collection/collectible-share.tsx`, 자동 게시·전송 없음).
 
 같은 절의 "가게별 시리즈"는 그 가게의 기존 방문 목표(1·3·5회)를 칸으로 보여 받은 칸·다음 목표를 표시합니다(`src/screens/collection/store-series.ts`). 새 보상 규칙이나 확률은 만들지 않고 서버가 이미 내려주는 방문 목표·수집 상태만 읽습니다. 첫 수집품, 새 가게의 첫 수집품, 가게 시리즈 완성 때 마스코트가 짧게 반응하며(`src/screens/collection/mascot-reactions.ts`), 같은 반응은 계정별 로컬 기록으로 한 번만 보입니다.
