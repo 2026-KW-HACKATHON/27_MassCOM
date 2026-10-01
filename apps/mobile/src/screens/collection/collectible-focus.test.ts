@@ -62,3 +62,9 @@ test('the collection screen processes an acquisition link only while the tab is 
   assert.match(source, /if \(!tabFocused\) return;/);
   assert.match(source, /setTabFocused\(false\);[\s\S]*router\.setParams\(\{ focus: undefined, entitlement: undefined \}\);/);
 });
+
+test('opening the detail from the acquisition reveal plays the once-on-acquisition motions first', () => {
+  const source = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
+  assert.match(source, /client: api, intro: true \}\);/);
+  assert.match(source, /intro=\{collectibleDetail\.intro === true\}/);
+});
