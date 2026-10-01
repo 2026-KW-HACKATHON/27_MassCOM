@@ -330,6 +330,178 @@ test('스티커는 서버와 같은 30개까지 만들 수 있다', async () => 
   assert.match(ui.notice, /스티커는 30개까지 만들 수 있어요/);
 });
 
+// Issue #284 WP2 미니 DOM 흐름 시험들 ---------------------------------------------------------------
+
+test('이 등급만 따로 배치 토글은 layouts[등급]에 쓰고, 공통으로 되돌리기는 지운다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-new').value = '어서오세요';
+  await ui.click('sticker-add'); // 기본 배치는 x:.5
+
+  const toggle = ui.control('sticker-grade-only');
+  assert.equal(toggle.checked, false, '처음에는 공통 배치를 쓴다');
+  toggle.checked = true; toggle.dispatchEvent({ type: 'change' }); await settle(); // bronze 전용 layouts를 지금 공통값(x:.5)으로 만든다
+  assert.equal(ui.container.querySelector('[data-action="sticker-layout-reset"]').hidden, false);
+
+  // 켠 다음부터는 위치 슬라이더가 bronze의 layouts만 바꾸고 공통(base) 값은 그대로 둔다.
+  const xInput = ui.container.querySelector('[data-sticker="x"]');
+  xInput.value = '0.2'; xInput.dispatchEvent({ type: 'input' }); await settle();
+
+  // 다른 등급(실버)으로 바꾸면 공통 배치(기본값 0.5)를 그대로 보여 준다.
+  ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.container.querySelector('[data-sticker="x"]').value, '0.5');
+  assert.equal(ui.control('sticker-grade-only').checked, false);
+
+  // bronze로 되돌아오면 등급 전용 배치가 그대로 남아 있다.
+  ui.container.querySelector('[data-action="grade-preview"][data-id="bronze"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.container.querySelector('[data-sticker="x"]').value, '0.2');
+  assert.equal(ui.control('sticker-grade-only').checked, true);
+
+  await ui.click('draft');
+  const saved = created(api);
+  assert.deepEqual(saved.stickers[0].layouts.bronze, { x: 0.2, y: 0.7, size: 42, rotation: 0 });
+  assert.equal(saved.stickers[0].layouts.silver, undefined);
+
+  await ui.click('sticker-layout-reset');
+  assert.equal(ui.control('sticker-grade-only').checked, false);
+  assert.equal(ui.container.querySelector('[data-sticker="x"]').value, '0.5', '공통으로 되돌리면 기본 배치로 보인다');
+});
+
+test('뒷면 모드를 커스텀으로 바꾸면 뒷면 스티커를 추가할 수 있고, 기본 모드에서는 폼이 잠긴다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  assert.equal(ui.container.querySelector('[data-view="back-mode-row"]').hidden, true, '앞면을 꾸밀 때는 뒷면 모드가 보이지 않는다');
+
+  await ui.change('sticker-side', 'back');
+  assert.equal(ui.container.querySelector('[data-view="back-mode-row"]').hidden, false);
+  assert.equal(ui.container.querySelector('[data-view="sticker-form"]').hidden, true, '기본 모드에서는 뒷면 스티커를 추가할 수 없다');
+
+  await ui.change('back-mode', 'custom');
+  assert.equal(ui.container.querySelector('[data-view="sticker-form"]').hidden, false);
+  ui.control('sticker-new').value = '뒷면 글자';
+  await ui.click('sticker-add');
+  assert.equal(ui.control('sticker-list').options.length, 1);
+
+  await ui.click('draft');
+  const saved = created(api);
+  assert.equal(saved.back.mode, 'custom');
+  assert.equal(saved.back.stickers.length, 1);
+  assert.equal(saved.back.stickers[0].text, '뒷면 글자');
+  assert.equal(saved.stickers.length, 0, '뒷면 스티커는 앞면 목록에 섞이지 않는다');
+
+  await ui.change('sticker-side', 'front');
+  await ui.change('back-mode', 'default');
+  // back-mode는 side==='back'일 때만 보이므로, 위 change는 뒷면으로 되돌아가 default를 거쳐야 한다.
+  await ui.change('sticker-side', 'back');
+  assert.equal(ui.control('back-mode').value, 'default');
+  assert.equal(ui.container.querySelector('[data-view="sticker-form"]').hidden, true, '기본 모드로 되돌리면 폼이 다시 잠긴다');
+});
+
+test('마스코트 스티커는 포즈를 고르고, 뒷면 스티커는 효과 대상 목록에 나오지 않는다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-kind').value = 'mascot'; ui.control('sticker-kind').dispatchEvent({ type: 'change' });
+  assert.equal(ui.container.querySelector('[data-view="sticker-new-text"]').hidden, true);
+  assert.equal(ui.container.querySelector('[data-view="sticker-new-mascot"]').hidden, false);
+  ui.control('sticker-new-pose').value = 'wave';
+  await ui.click('sticker-add');
+  assert.equal(ui.container.querySelector('[data-view="sticker-pose-field"]').hidden, false);
+  assert.equal(ui.container.querySelector('[data-view="sticker-text-field"]').hidden, true);
+
+  await ui.click('draft');
+  const saved = created(api);
+  assert.equal(saved.stickers[0].kind, 'mascot');
+  assert.equal(saved.stickers[0].text, 'wave');
+
+  const targetOptions = [...ui.container.querySelector('[data-control="effect-target"]').options].map(item => item.value);
+  assert.ok(targetOptions.includes(saved.stickers[0].id), '앞면 마스코트 스티커는 효과 대상이 될 수 있다');
+});
+
+test('재생 방식 라디오와 파티클 선택은 지금 고른 템플릿의 motion에 저장된다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.container.querySelector('[data-action="template"][data-id="confetti"]').dispatchEvent({ type: 'click' }); await settle();
+
+  const onceRadio = ui.container.querySelector('#motion-playback-once');
+  assert.ok(onceRadio, '한 번만 재생 라디오가 있어야 한다');
+  onceRadio.checked = true; onceRadio.dispatchEvent({ type: 'change' }); await settle();
+
+  const particleSelect = ui.container.querySelector('[data-control="motion-particle"]');
+  assert.ok(particleSelect, 'confetti 템플릿에서는 파티클 select가 보여야 한다');
+  particleSelect.value = 'snow'; particleSelect.dispatchEvent({ type: 'change' }); await settle();
+
+  const gradeBox = ui.container.querySelector('[data-motion-grade="confetti"][data-grade="bronze"]');
+  gradeBox.checked = true; gradeBox.dispatchEvent({ type: 'change' }); await settle();
+
+  await ui.click('draft');
+  const motion = created(api).motion.find(item => item.type === 'confetti');
+  assert.equal(motion.playback, 'once');
+  assert.equal(motion.particle, 'snow');
+  assert.ok(motion.gradeIds.includes('bronze'));
+
+  // 다른 템플릿(rotate)으로 바꾸면 파티클 select가 사라진다.
+  ui.container.querySelector('[data-action="template"][data-id="rotate"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.container.querySelector('[data-control="motion-particle"]'), null);
+});
+
+test('인사말 규칙 추가·삭제와 미리보기는 resolveGreeting 우선순위를 따른다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('greeting').value = '기본 인사말'; ui.control('greeting').dispatchEvent({ type: 'input' }); await settle();
+  assert.equal(ui.container.querySelector('[data-view="greeting"]').textContent, '기본 인사말');
+
+  ui.control('greeting-override-text').value = '브론즈 전용 인사말';
+  await ui.click('greeting-override-add');
+  assert.equal(ui.container.querySelectorAll('[data-override-grade]').length > 0, true);
+  const bronzeCheck = ui.container.querySelector('input[data-override-grade][data-grade="bronze"]');
+  bronzeCheck.checked = true; bronzeCheck.dispatchEvent({ type: 'change' }); await settle();
+  assert.equal(ui.container.querySelector('[data-view="greeting"]').textContent, '브론즈 전용 인사말', '지금 보는 등급(bronze)에 맞는 규칙을 미리 보여 준다');
+
+  // 다른 등급으로 바꾸면 기본 인사말로 돌아간다.
+  ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.container.querySelector('[data-view="greeting"]').textContent, '기본 인사말');
+
+  await ui.click('draft');
+  const saved = created(api);
+  assert.equal(saved.greetingOverrides.length, 1);
+  assert.deepEqual(saved.greetingOverrides[0].gradeIds, ['bronze']);
+  assert.equal(saved.greetingOverrides[0].text, '브론즈 전용 인사말');
+
+  const overrideId = ui.container.querySelector('[data-action="greeting-override-delete"]').dataset.id;
+  await ui.click('greeting-override-delete');
+  assert.equal(ui.container.querySelectorAll('[data-action="greeting-override-delete"]').length, 0);
+  assert.ok(overrideId);
+});
+
+test('등급을 끄면(삭제에 준함) 그 등급의 스티커 전용 배치·동작·인사말 규칙 참조를 지운다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-new').value = '글자';
+  await ui.click('sticker-add');
+  const xInput = ui.container.querySelector('[data-sticker="x"]');
+  xInput.value = '0.1'; xInput.dispatchEvent({ type: 'input' }); await settle();
+  ui.control('sticker-grade-only').checked = true; ui.control('sticker-grade-only').dispatchEvent({ type: 'change' }); await settle();
+
+  const motionBox = ui.container.querySelector('[data-motion-grade="rotate"][data-grade="bronze"]');
+  motionBox.checked = true; motionBox.dispatchEvent({ type: 'change' }); await settle();
+
+  ui.control('greeting-override-text').value = '브론즈 인사말';
+  await ui.click('greeting-override-add');
+  const overrideGradeBox = ui.container.querySelector('input[data-override-grade][data-grade="bronze"]');
+  overrideGradeBox.checked = true; overrideGradeBox.dispatchEvent({ type: 'change' }); await settle();
+
+  // 지금 보는 등급을 다른 곳으로 옮긴 뒤(한 개 이상 남겨야 끌 수 있다) bronze를 끈다.
+  ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
+  const bronzeEnabled = ui.container.querySelector('[data-grade-enabled="bronze"]');
+  bronzeEnabled.checked = false; bronzeEnabled.dispatchEvent({ type: 'change' }); await settle();
+
+  await ui.click('draft');
+  const saved = created(api);
+  assert.equal(saved.stickers[0].layouts.bronze, undefined, '끈 등급의 전용 배치는 지운다');
+  assert.equal(saved.motion.find(item => item.type === 'rotate').gradeIds.includes('bronze'), false, '끈 등급의 동작 참조를 지운다');
+  assert.equal(saved.greetingOverrides.length, 0, '등급 참조가 모두 사라지고 테마 조건도 없는 규칙은 함께 지운다');
+});
+
 test('413·429 응답은 원인별 문구와 Retry-After 초를 보여 주고 입력을 지킨다', async () => {
   const api = createFakeApi();
   const ui = await mountViaMerchant(api);
