@@ -88,7 +88,7 @@ export function ClaimRedeemScreen({
   const [celebration, setCelebration] = useState<CelebrationContent>();
 
   // #295 "테스트 방문 만들기": 시연 앱과 로컬 개발 빌드에만 보인다. 운영 패키지는 섹션 자체가 없다.
-  const showTestVisitSection = canShowTestVisitSection(Application.applicationId);
+  const showTestVisitSection = canShowTestVisitSection(getAppPackageId());
   const [testVisitMerchants, setTestVisitMerchants] = useState<readonly PublicMerchant[]>([]);
   const [selectedTestVisitMerchantId, setSelectedTestVisitMerchantId] = useState<string>();
   const [testVisitBusy, setTestVisitBusy] = useState(false);
