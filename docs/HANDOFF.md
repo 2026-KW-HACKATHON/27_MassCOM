@@ -1,5 +1,14 @@
 # HANDOFF
 
+## 2026-10-02 Issue #309 로그인 없는 시연 웹 체험 (서버·Caddy)
+
+- 기준: main `e2091f2`, worktree `.worktrees/309-guest-api`, 브랜치 `feat/309-guest-trial-api`, 커밋 `e37523d`(API)·`a736dbc`(Caddy·검증 스크립트)·계정 삭제 별칭 커밋·문서 커밋, PR 미정. 웹 클라이언트는 같은 Issue의 별도 브랜치 `feat/309-showcase-web`(다른 에이전트)이고 이 PR이 먼저 병합돼야 한다.
+- 구현: migration `0039_showcase_guest_trials.sql`, `apps/api/src/showcase/guest-trials.ts`(`ShowcaseGuestTrialService.start/resolve`, 모든 트랜잭션 DB 이름 재확인), `server.ts`(`POST /auth/guest-trial`·IP 제한·`GuestTrialError` 503·로컬 DEMO 배치의 Bearer 감싸기·시연 배치 배선), `merchant-catalog.ts`·`recommendation.ts`(체험 가게 제외), `access-requests.ts`(`trialMerchantId`), `grant-approver-command.ts`(체험 계정 거절), `merchant-art.ts`(체험 가게 생성·고르기 거절), `postgres/auth-session.ts`(`tokenHash` export), `postgres/account-deletion.ts`(체험 행 `account_id`를 별칭으로; 지우면 체험 가게가 목록에 다시 나온다). Caddyfile(`/play`·`/demo`), compose(Caddy `/srv/showcase-web` 읽기 전용), `verify-showcase-edge-routes.mjs`·`verify-lightsail-web.mjs`와 시험. `verify-showcase-host.mjs`는 바꿀 필요가 없었다(시연 compose 변화 없음; 체험 IP 제한에 필요한 `AUTH_TRUST_CADDY_FORWARDED_FOR=true`·API 볼륨 없음을 이미 강제).
+- 설계와 다른 점(D-064): 체험 캠페인 `is_public`은 `true`로 두고 목록·추천 쿼리에서 뺐다(비공개면 방문 확인·수집품 게시가 막힌다). 보상 상자 혜택은 전역 마일스톤 유일 인덱스 때문에 복사하지 않았다. 점주 화면이 체험 가게를 찾도록 `mine`에 `trialMerchantId`를 더했다(화면 반영은 웹 클라이언트 PR 몫, 계약은 그 에이전트에게 전달함).
+- 검증: [TEST_STATUS](TEST_STATUS.md) 첫 항목(API 단위 323/323, postgres 332 PASS·2 기존 SKIP, 변이 21건, Caddy 런타임·검증기 시험, `bash tools/gate.sh`).
+- `NOT_RUN`: hosted 실제 기동, 웹 클라이언트 연동·브라우저 흐름, 배포(번들 복사·`current` 링크·Caddy 재생성 순서는 [infra/lightsail/README.md](../infra/lightsail/README.md#시연-웹-체험-경로-issue-309-d-064)).
+- 다음 작업: 서로 다른 모델 2개의 교차 리뷰(인증·DB 스키마 민감 경로), CI, 병합 뒤 웹 클라이언트 PR 통합·로컬 브라우저 QA, 배포 도구.
+
 ## 2026-10-02 Issue #304 시연 권한 요청의 남은 교착 경로 정리
 
 - 기준: main `14672ed`, worktree `.worktrees/304-deadlocks`, 브랜치 `fix/304-access-deadlocks`, PR 미정. [Issue #304](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/304)는 PR #300 병합 시점 Codex gpt-6.1-sol 최종 확인이 남긴 P2 세 건.

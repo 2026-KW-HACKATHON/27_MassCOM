@@ -1,5 +1,9 @@
 # 프로젝트 상태
 
+## 로그인 없는 시연 웹 체험 서버 (Issue #309, 2026-10-02)
+
+[Issue #309](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/309) 서버 절반, 브랜치 `feat/309-guest-trial-api`(worktree `.worktrees/309-guest-api`), 기준 main `e2091f2`, 결정 [D-064](DECISIONS.md). 시연 API에만 `POST /auth/guest-trial`을 열어 Google 신원 없는 계정·개인 체험 가게(가상 점포 A 복사, 목록·추천에서 숨김)·STAFF 권한·24시간 세션을 한 트랜잭션에서 만든다(migration 0039 `showcase_guest_trials`, 운영 DB는 빈 표). 운영 API는 알 수 없는 경로와 같은 404, IP당 15분 5회, 동시 체험자 300명, 시작마다 만료 체험자 20명 정리. 체험 계정은 승인자가 될 수 없고 체험 가게는 AI 그림 비용을 쓰지 않는다. Caddy는 `demo-api.masscom.kr/play/`에서 정적 웹 번들(전용 CSP)을, `masscom.kr/demo`는 그리로 302를 낸다(배포는 하지 않음). 웹 클라이언트는 별도 PR(`feat/309-showcase-web`)이고 이 서버 PR이 먼저 병합돼야 한다. 검증은 [TEST_STATUS](TEST_STATUS.md), 계약은 [apps/api/README.md](../apps/api/README.md#엔드포인트).
+
 ## 접이식 앨범 홈, Option A (Issue #296, 2026-10-01)
 
 [Issue #296](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/296), 브랜치 `feat/296-album-home`(worktree `.worktrees/296-album-home`), 기준 main `0234a15`(PR #292 병합 결과), PR 미정. 소유자가 고른 Option A(접이식 앨범)를 구현했다: 탐색(홈) 머리글 아래에 보상 상자 요약 카드(`HomeRewardCard`, 기존 `RewardBoxCard`·보상 열기 흐름·`RewardReveal` 재사용)를 두어 지금 열 수 있는 상자 또는 다음 목표 상자를 바로 보여준다. 도감 머리글은 전체 여권 카드 대신 압축 띠("골목 탐험가 · 배지 4/9")로 줄이고, "내 수집 앨범"을 가장 먼저 보여준다 — 그림이 없는 옛 수집품을 더 이상 별도 평면 목록("앱에서 받은 수집품")으로 중복 그리지 않고 같은 그리드에 한 번만 합치며(`ungroupedCollectibles`), 그림 있는 그룹 카드는 묶인 수집품마다 자기만의 실제 NFT 상태 요약·민트 단추를 갖는다(`CollectibleGroup.entitlements`, `nftGroupSummary`). 메달·배지, 쿠폰·NFT 발행 현황, 도장판·방문 기록은 접근성 있는 기본 접힘 폴드(`src/ui/fold.tsx`: role button, 펼침/접힘 라벨, 색 아닌 글자·글리프 구분)로 옮겼다. 발행 오류·지갑 배너는 폴드 밖에서 항상 보인다. 민트 신청·쿠폰 사용·추천·방문 기록·대표 진열·공유·가게별 시리즈·보상/양도 규칙은 모두 그대로다. 바텀 탭 바는 범위 밖.
