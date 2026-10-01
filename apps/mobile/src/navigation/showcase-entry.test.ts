@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { canOpenDeveloperMerchantRoute, canOpenMerchantArtRoute, canOpenShowcaseTour, consumeMerchantReturn, rememberMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, showShowcaseRoleEntry } from './showcase-entry';
+import { canOpenDeveloperMerchantRoute, canOpenMerchantArtRoute, canOpenShowcaseTour, canShowTestVisitSection, consumeMerchantReturn, rememberMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, showShowcaseRoleEntry } from './showcase-entry';
 
 test('the showcase app and the local development build open role selection before a role is chosen (#294 review finding 5)', () => {
   for (const packageId of ['kr.masscom.wolgye.demo', 'kr.masscom.wolgye.dev']) {
@@ -89,5 +89,13 @@ test('the owner art page opens in the showcase app and the local development bui
   assert.equal(canOpenMerchantArtRoute('kr.masscom.wolgye.dev'), true);
   for (const packageId of ['kr.masscom.wolgye', 'kr.masscom.wolgye.demo.evil', 'kr.masscom.wolgye.dev.evil', null, undefined, '']) {
     assert.equal(canOpenMerchantArtRoute(packageId), false, String(packageId));
+  }
+});
+
+test('the test-visit section (#295) opens in the showcase app and the local development build, never the operating app', () => {
+  assert.equal(canShowTestVisitSection('kr.masscom.wolgye.demo'), true);
+  assert.equal(canShowTestVisitSection('kr.masscom.wolgye.dev'), true);
+  for (const packageId of ['kr.masscom.wolgye', 'kr.masscom.wolgye.demo.evil', 'kr.masscom.wolgye.dev.evil', null, undefined, '']) {
+    assert.equal(canShowTestVisitSection(packageId), false, String(packageId));
   }
 });

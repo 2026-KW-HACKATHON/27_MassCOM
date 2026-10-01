@@ -20,6 +20,7 @@
     "admin:retention:host": "node dist/postgres/retention-command.js",
     "seed:showcase:local": "tsx src/showcase/seed-command.ts",
     "seed:showcase:host": "tsx src/showcase/host-seed-command.ts",
+    "seed:showcase:qa-collectible": "tsx src/showcase/qa-collectible-seed.ts",
     "grant:showcase:staff": "tsx src/showcase/grant-staff-command.ts",
     "grant:showcase:approver": "tsx src/showcase/grant-approver-command.ts",
     "start": "tsx src/server.ts",

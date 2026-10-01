@@ -314,6 +314,11 @@ export function createCommerceApiClient(options: Options) {
       return parseRedeemedClaim(await post('/claim-slots/redeem', { token }));
     },
 
+    // 시연 전용 "테스트 방문 만들기"(#295): 실제 QR 없이 가상 점포 방문을 만들고 바로 확정한다.
+    async createTestVisit(merchantId: string): Promise<RedeemedClaim> {
+      return parseRedeemedClaim(await post('/showcase/test-visits', { merchantId }));
+    },
+
     async getCollection(): Promise<CollectionSnapshot> {
       return parseCollection(await request('/collection'));
     },
