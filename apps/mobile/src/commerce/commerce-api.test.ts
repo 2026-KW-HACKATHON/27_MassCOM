@@ -387,6 +387,51 @@ test('rejects preview and redeem responses without user-facing recovery fields',
   await assert.rejects(client.redeemClaim('token'), /방문 수령 응답 형식/);
 });
 
+test('#295 테스트 방문 만들기는 merchantId만 보내고 방문 수령 응답을 그대로 읽는다', async () => {
+  let requestedUrl: string | undefined;
+  let requestedBody: unknown;
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
+    fetcher: async (input, init) => {
+      requestedUrl = String(input);
+      requestedBody = JSON.parse(String(init?.body));
+      return Response.json({
+        claimSlotId: 'claim-slot-1',
+        merchantId: 'showcase-local-merchant',
+        merchantName: '가상 점포 A',
+        campaignTitle: '체험 방문 도감',
+        status: 'CLAIMED',
+        replayed: false,
+        visit: {
+          visitEventId: 'visit-1',
+          campaignId: 'showcase-local-campaign',
+          businessDate: '2026-10-02',
+          verificationLevel: 'MERCHANT_CONFIRMED',
+          progressCounted: true,
+          progressVisitCount: 1,
+        },
+        grantedRewards: [],
+      });
+    },
+  });
+  const result = await client.createTestVisit('showcase-local-merchant');
+  assert.equal(requestedUrl, 'https://api.example.test/showcase/test-visits');
+  assert.deepEqual(requestedBody, { merchantId: 'showcase-local-merchant' });
+  assert.equal(result.merchantId, 'showcase-local-merchant');
+  assert.equal(result.visit.progressCounted, true);
+});
+
+test('#295 테스트 방문 만들기는 방문 수령과 같은 오류 코드를 그대로 전달한다', async () => {
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
+    fetcher: async () => Response.json({ code: 'SHOWCASE_TEST_VISIT_RATE_LIMITED' }, { status: 429 }),
+  });
+  await assert.rejects(client.createTestVisit('showcase-local-merchant'),
+    (error: unknown) => error instanceof CommerceApiError && error.status === 429 && error.code === 'SHOWCASE_TEST_VISIT_RATE_LIMITED');
+});
+
 test('parses collection states while keeping app collectibles and NFT state separate', async () => {
   const payload = {
     visits: [

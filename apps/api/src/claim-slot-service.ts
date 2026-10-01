@@ -63,6 +63,8 @@ export interface ClaimSlotService {
   }): Promise<IssuedClaimSlot>;
   preview(input: { accountId: string; token: string }): Promise<ClaimSlotPreview>;
   redeem(input: { accountId: string; token: string }): Promise<RedeemedClaimSlot>;
+  // 시연 전용(#295): 실제 QR 없이 가상 점포 방문을 만든다. 반환된 token을 redeem()에 그대로 넘겨야 방문이 확정된다.
+  issueShowcaseTestSlot(input: { merchantId: string; accountId: string }): Promise<IssuedClaimSlot>;
 }
 
 export type ClaimSlotErrorCode =
@@ -74,6 +76,7 @@ export type ClaimSlotErrorCode =
   | 'CLAIM_MERCHANT_INACTIVE'
   | 'CUSTOMER_IDENTITY_UNAVAILABLE'
   | 'CUSTOMER_IDENTITY_EXPIRED'
+  | 'SHOWCASE_MERCHANT_NOT_FOUND'
   | 'ACCOUNT_DELETED';
 
 export class ClaimSlotError extends Error {

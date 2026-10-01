@@ -98,6 +98,7 @@ jobs:
         run: |
           node --test tests/ops/verify_showcase_local_test.mjs
           node scripts/verify-showcase-local.mjs
+          bash tests/ops/qa_local_env_test.sh
       - name: 시연 호스트 격리 설정 검사
         run: |
           bash tests/ops/prepare_showcase_runtime_test.sh
