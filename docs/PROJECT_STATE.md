@@ -1,5 +1,9 @@
 # 프로젝트 상태
 
+## 봉투 열기 연출 (Issue #297, 2026-10-01)
+
+[Issue #297](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/297), 브랜치 `feat/297-envelope-reveal`, 기준 main `0234a15`, PR 미정. 방문 수령으로 받은 수집품(1·3·5회가 한 번에 여럿이면 모두)을 봉투 하나에 담아 여는 연출로 바꿨다: 봉투 흔들기·찢기(마스코트 나뭇잎 문장 손그림, 참고 영상의 로고·카드 틀·팩 디자인은 쓰지 않음) → 카드 한 장씩 뒤집기(NEW 배지, shine/sparkle 모션 있으면 두 번 빛 스윕) → 스와이프/탭 넘기기 → 끝 카드(도감 보관+가게 시리즈 진행 칩+전체 보유 종류 5/10/20… 달성 축하, "자세히 보기"/"닫기"). 보상은 연출 전에 이미 서버에 보관돼 있고 연출은 언제든 건너뛸 수 있으며 무작위 요소는 없다. 새 `src/screens/collection/envelope/`의 순수 로직(카드 넘기기, NEW/달성/시리즈 판정)은 단위 시험으로, 봉투 찢기의 동작 줄이기·백그라운드·언마운트 처리는 기존 `reveal-lifecycle.ts`의 `RevealLifecycle`을 재사용(수정 없음, 단 탭한 뒤에만 생성)해 이미 검증된 동작을 그대로 물려받는다. `claim-redeem/index.tsx`는 외형 붙은 보상 전부를 목표 순서대로 모아 넘기고, `collection/index.tsx`는 이미 들고 있던 도감 스냅샷·가게 시리즈를 그대로 넘겨 새 네트워크 요청이 없다. 모바일 956/956·typecheck/lint/`bash tools/gate.sh` PASS, 변이 시험 3건(되돌리면 실패 확인). 자세한 내용은 [HANDOFF](HANDOFF.md#2026-10-01-봉투-열기-연출-issue-297-브랜치-feat297-envelope-reveal)와 [apps/mobile/README.md](../apps/mobile/README.md#봉투-열기-연출-issue-297). 실기기·에뮬레이터 캡처는 `NOT_RUN`.
+
 ## 병합 충돌 표시 검사 (Issue #291, 2026-10-01)
 
 [Issue #291](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/291), 브랜치 `fix/291-conflict-markers`, 기준 main `eed9d11`: `scripts/check-conflict-markers.sh`가 추적 파일의 줄 맨 앞 충돌 표시를 찾고, `tools/gate.sh`와 CI가 실행한다. 회귀 시험 PASS.
