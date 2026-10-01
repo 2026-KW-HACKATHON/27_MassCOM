@@ -20,6 +20,23 @@ function client(respond: (url: string, init: RequestInit) => Response, credentia
 }
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
 
+test('the default fetcher works called as this.fetchImpl(...), not just as a bare function (#309 web)', async () => {
+  const originalFetch = globalThis.fetch;
+  function brandCheckedFetch(this: unknown) {
+    if (this !== globalThis) {
+      throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
+    }
+    return Promise.resolve(Response.json({ required: false, ...versions }));
+  }
+  globalThis.fetch = brandCheckedFetch as typeof fetch;
+  try {
+    const api = new ConsentApiClient({ apiUrl: 'https://api.example.test', credential: bearer });
+    assert.deepEqual(await api.status(), { required: false, ...versions });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('status reads /me/consent with the bearer session only', async () => {
   const { api, calls } = client(() => json(200, { required: true, ...versions }));
   assert.deepEqual(await api.status(), { required: true, ...versions });
