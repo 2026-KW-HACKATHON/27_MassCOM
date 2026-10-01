@@ -243,12 +243,13 @@ export function livingSpriteCount(periodMs) {
 }
 
 /**
- * count칸을 cellWidth×cellHeight로 maxSide(기본 4096px) 안에 배치할 열 수를 고른다. 가능한 많은 열을 써서 세로를
- * 줄이되, 그래도 한 변이 넘치면 undefined(호출부가 더 작은 크기 사다리 단계로 다시 시도해야 한다).
+ * count칸을 cellWidth×cellHeight로 maxSide(기본 4096px) 안에 배치할 열 수를 고른다. 서버(rules.ts)·Android
+ * 파서가 columns를 1..8로 제한하므로 maxColumns도 그만큼 cap한다. 가능한 많은 열을 써서 세로를 줄이되, 그래도
+ * 한 변이 넘치면 undefined(호출부가 더 작은 크기 사다리 단계로 다시 시도해야 한다).
  */
-export function livingSpriteGrid(count, cellWidth, cellHeight, maxSide = 4096) {
+export function livingSpriteGrid(count, cellWidth, cellHeight, maxSide = 4096, maxColumns = 8) {
   if (!Number.isInteger(count) || count < 1 || cellWidth <= 0 || cellHeight <= 0) throw new TypeError('칸 수·칸 크기가 올바르지 않습니다.');
-  let columns = Math.max(1, Math.min(count, Math.floor(maxSide / cellWidth)));
+  let columns = Math.max(1, Math.min(count, maxColumns, Math.floor(maxSide / cellWidth)));
   while (columns > 1 && Math.ceil(count / columns) * cellHeight > maxSide) columns -= 1;
   const rows = Math.ceil(count / columns);
   const width = columns * cellWidth, height = rows * cellHeight;
