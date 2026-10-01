@@ -43,6 +43,14 @@ test('signed-out customers browse while merchant entry still requires authentica
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye', 'merchant', true), 'customer');
 });
 
+test('a local QA development build also reaches the merchant gate once a role is chosen, but the operating package never does (#294)', () => {
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye.dev', 'merchant', true), 'merchant');
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye.dev', 'merchant', false), 'auth');
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye.dev', undefined, true), 'customer');
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye', 'merchant', true), 'customer');
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye', 'merchant', false), 'customer');
+});
+
 test('the empty five-space tour is available only to the installed showcase app', () => {
   assert.equal(canOpenShowcaseTour('kr.masscom.wolgye.demo'), true);
   assert.equal(canOpenShowcaseTour('kr.masscom.wolgye'), false);

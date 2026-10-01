@@ -40,7 +40,8 @@ export function showcaseEntryDestination(
   authenticated: boolean,
 ): 'role' | 'auth' | 'customer' | 'merchant' {
   if (showShowcaseRoleEntry(packageId, selectedRole)) return 'role';
-  if (packageId === 'kr.masscom.wolgye.demo' && selectedRole === 'merchant') {
+  // 로컬 QA(scripts/qa-local.sh)의 development 빌드도 이 문으로 점주 화면에 닿는다(Issue #294). 운영 package는 이 목록에 없다.
+  if ((packageId === 'kr.masscom.wolgye.demo' || packageId === 'kr.masscom.wolgye.dev') && selectedRole === 'merchant') {
     return authenticated ? 'merchant' : 'auth';
   }
   return 'customer';

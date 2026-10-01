@@ -139,3 +139,19 @@ sudo docker compose -p masscom-showcase --env-file /opt/masscom-showcase/runtime
   `list`는 대기 건을 기한 순으로 먼저 보이고 `READY`(처리 가능)·`COOLING_OFF`(취소 기간 중)·`OVERDUE`(기한 초과)와 마스킹한 계정 표지를 보인다(이메일·전체 ID 없음). `process`는 취소 기간이 지나기 전에는 `DELETION_COOLING_OFF`로 거절되고, 처리하면 그 계정의 로그인·세션·지갑 연결·점주 권한이 삭제 처리되며 `platform_admin_audit`에 `ACCOUNT_DELETION_PROCESSED`(`cli:<이름>`)가 남는다. 제출된 거래가 있는 계정은 `ledger=WAITING_FOR_MINT_FINALITY`로 보이고, 거래가 확정된 뒤 `reconcile`을 실행해야 `COMPLETED`로 진행한다.
 - **DB 가드:** CLI는 시연 호스트 URL(`postgresql://masscom_showcase@postgres:5432/masscom_showcase`) 또는 로컬 시연 `_test` URL만 받고, 운영 DB URL에서는 `ACCOUNT_DELETION_SHOWCASE_DATABASE_REQUIRED`로 멈춘다.
 - **결과 확인:** 시연 앱 사용자는 로그인 중에는 계정 설정에서 상태를 보고, 처리 뒤에는 접수번호로 `POST https://demo-api.masscom.kr/account-deletion-status`(본문 `{"receipt":"…"}`)를 조회할 수 있다. 앱 안 접수→취소는 Samsung에서 두 번 실행했지만([Preview 11 증거](../../docs/evidence/showcase-preview11-release-2026-09-30.json)) 실제 종단 실행(앱 안 접수→CLI 처리→접수번호 조회)은 `NOT_RUN`이다.
+
+## 점주 체험 권한 요청 승인자 부트스트랩 (Issue #294)
+
+**이 절은 서버 PR #300(`feat/294-showcase-access-server`)이 병합·배포된 뒤부터 적용된다.** 점주 체험 권한(가상 점포 A STAFF)은 더 이상 사전 해시 적격자 명단만으로 주지 않는다. 앱 안에서 계정이 직접 요청하고, `platform_admins`에 있는 다른 계정(승인자)이 앱 안 화면에서 수락·거절한다. 첫 승인자는 서버에 아직 아무도 없으므로 운영자가 CLI로 한 번 만든다.
+
+- **첫 승인자 만들기(운영자, 한 번):** 후보가 시연 앱에 실제 Google 계정으로 로그인한 뒤 "점주 체험" → "현재 계정으로 문의하기"로 요청을 만들고, 화면에 뜨는 요청 번호(`XXXX-XXXX`)를 "메일로 알리기"로 운영자에게 보낸다(발신 Gmail 주소 자체가 그 계정의 신원 증거다). 운영자는 받은 메일의 발신 주소와 번호를 확인한 뒤 시연 API 컨테이너 안에서 다음을 실행한다.
+
+  ```bash
+  # 시연 Compose를 기동할 때 쓴 것과 같은 -f/--env-file 인자를 붙인다.
+  docker compose ... exec showcase-api node dist/showcase/grant-approver-command.js <요청 번호>
+  ```
+
+  이 명령은 시연(hosted 또는 local `_test`) DB인지 먼저 확인하고, 한 트랜잭션으로 그 계정을 `platform_admins`에 올리고 `platform_admin_role_audit`에 부여 기록을 남긴 뒤 그 요청을 `decided_via='OPS'`로 수락해 가상 점포 A STAFF도 함께 준다. 완료되면 `SHOWCASE_APPROVER_GRANTED`만 출력하고 계정 식별자·이메일은 찍지 않는다.
+- **이후 승인·거절은 전부 앱 안에서:** 승인자가 된 계정은 "점주 체험" 화면 상단에 "권한 요청 관리"가 보이고, 그 안에서 새 요청을 수락·거절한다(수락 전 "이 계정에 가상 점포 A 직원 권한을 줍니다. 수락할까요?" 확인). 운영자가 CLI를 다시 쓸 필요는 승인자가 전혀 없어졌을 때(예: 전원 계정 삭제)뿐이다.
+- **권한 회수:** 위 "계정 삭제 요청 처리"와 같은 운영 작업 영역이다 — `platform_admins` 행을 직접 회수하는 CLI는 이 PR(#294 PR2, 모바일)의 범위가 아니다.
+- **상태:** 서버 CLI·API는 PR #300(별도 PR)의 구현이라 이 README의 명령은 그 PR 병합 전까지 `NOT_RUN`이다. 모바일 쪽 화면(요청·대기·승인자 메뉴·관리 화면)은 이 PR에서 소스와 자동 시험까지 끝냈고, 실제 서버로의 종단 확인은 PR #300 병합 후로 남는다.
