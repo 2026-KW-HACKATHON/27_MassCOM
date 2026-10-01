@@ -113,7 +113,12 @@ async function withSpawnedApi(env: Record<string, string>, run: (baseUrl: string
   const port = await freePort();
   const child = spawn(process.execPath, ['--import', 'tsx', 'src/server.ts'], {
     cwd: apiRoot,
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', PORT: String(port), ...env },
+    // CI의 PostgreSQL은 비밀번호를 PGPASSWORD로만 받는다(TEST_DATABASE_URL에 비밀번호가 없다). 자식 API에도 넘긴다.
+    env: {
+      PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', PORT: String(port),
+      ...(process.env.PGPASSWORD ? { PGPASSWORD: process.env.PGPASSWORD } : {}),
+      ...env,
+    },
   });
   const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
   try {
