@@ -2,6 +2,14 @@
 
 **(당시 기록: PR #257은 이후 main `7bcfef9`로 병합돼 운영·시연에 배포됐고 test.5·Preview 14를 게시했다. 지금 상태는 아래 Issue #277 항목이다.) 배포 순서(PR #257 병합 뒤, [D-061](DECISIONS.md)):** ① 병합 → ② 이 코드가 든 운영·시연 Android APK를 새로 빌드해 배포 → ③ **그 뒤에** API·웹 배포. 처리방침 버전이 `privacy-2026-10-01`로 올라 서버가 이 버전을 요구하는 순간, 설치돼 있는 동의 화면 빌드(운영 test.4, 시연 Preview 12·13)는 새 버전을 몰라 "앱을 업데이트해 주세요" 안내에 막힌다(D-059 설계). API·웹을 먼저 배포하면 새 APK가 나오기 전까지 그 사용자가 막힌다. 동의 화면이 없는 더 옛 앱(운영 test.3, 시연 Preview 11 이하)은 막히지 않는다.
 
+## 2026-10-01 병합 충돌 표시 검사 (Issue #291, 브랜치 `fix/291-conflict-markers`)
+
+- 기준: main `eed9d11`(PR #290 병합 결과), worktree `.worktrees/291-conflict-markers`, PR 번호 미정.
+- 배경: 브랜치에 main을 합칠 때 상태 문서에 충돌 표시가 남은 채로 문서 검사와 gate가 PASS를 냈다(커밋 전에 발견해 고침).
+- 구현: `scripts/check-conflict-markers.sh`(Git 추적 파일의 줄 맨 앞 `<<<<<<< `·`>>>>>>> `, 단독 `=======`은 Markdown과 겹쳐 제외, 검사 실패는 PASS로 넘기지 않음), `tests/bootstrap/check_conflict_markers_test.sh`, `tools/gate.sh`·CI 단계 추가.
+- 검증: `bash tests/bootstrap/check_conflict_markers_test.sh` PASS, `bash tools/gate.sh` PASS.
+- 다음 명령: `gh pr list`, `bash tools/gate.sh`.
+
 ## 2026-10-01 사진 수집품 제작기 제작 부담 감소 (Issue #282, 브랜치 `feat/282-creator-qol`)
 
 - 기준: main `7eb178d`(PR #285 병합 결과), worktree `.worktrees/282-creator-qol`, PR 번호 미정.
@@ -41,6 +49,14 @@
 - **`NOT_RUN`:** 실제 게시·발행 흐름 전체(사진 업로드가 필요해 QA 라운드에서 생략), 등급별 배치 토글·인사말 규칙·once 재생의 추가 화면 캡처, 모바일 폭·다크 모드·TalkBack, 독립 교차 리뷰(서버 게시 준비 변경은 민감 경로라 서로 다른 모델 2개 리뷰 전 머지 보류).
 - **다음 담당자가 할 일:** ① 독립 교차 리뷰(민감 경로) 요청. ② WP3(패럴랙스·living picture·각도 프레임·크기 사다리) 착수 — 같은 `collectible-renderer.mjs`/`collectible-editor.mjs`를 건드리므로 이 브랜치를 먼저 병합하거나 그 위에서 시작. ③ WP4(Android)는 #283 병합 후 공유 파일 기준으로 이 브랜치의 공유 벡터 픽스처를 재사용.
 - 다음 명령: `git -C .worktrees/284-web-a status`, `node --test tests/site/collectible-*.test.mjs`, `npm test --prefix apps/api`, `bash tools/gate.sh`.
+## 2026-10-01 Issue #284 WP4(Android) 인수인계
+
+- 브랜치 `feat/284-android-frames`, worktree `/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/284-android-frames`, 기준 main `ad5500e`(PR #287 병합 결과, WP1 픽스처가 필요해 #283 병합 뒤로 미뤘던 작업), PR 미정. 설계는 [설계 명세](superpowers/specs/2026-10-01-collectible-expression-v2-design.md)의 "Android (WP4)" 절.
+- **끝낸 것:** `apps/mobile/src/commerce/collectible-artwork.ts`에 `PublishedCollectible`의 선택 필드 `backImageDataUrl`/`angleFrames`/`living`/`motions`와 독립 검증(하나가 유효하지 않으면 그 필드만 버림, v1 `animation` 8종 엄격 유지). `apps/mobile/src/screens/collection/collectible-motion.ts`에 순수 `angleFrameBlend`·`particleAt`·`livingCell`·`ONCE_MS`·`onceMotionTypes`·`firstLoopMotionType`·`motionAutoplaySequence`(모두 `tests/fixtures/collectible-vectors.json` 공유 벡터와 일치 시험). 새 `apps/mobile/src/screens/collection/collectible-tilt-math.ts`(순수: atan2→도, 2° 데드존, 저역통과, ±30° clamp, 계산 상수 `TILT_GAIN`)와 `collectible-tilt.tsx`의 `<TiltSensor>`(Reanimated `useAnimatedSensor(GRAVITY,{interval:50})`, 새 의존성·권한 없음). `collectible-detail.tsx`: 회전·장면·living을 모는 60ms 인터벌 둘을 하나로 합침, 각도 프레임 있으면 정면 스프라이트 두 칸 크로스페이드(없으면 기존 회전 폴백), 뒷면 있으면 `backImageDataUrl`(없으면 기존 틴트+가게 이름), living 있으면 `box` 안 칸 순환 오버레이(동작 줄이기면 0번 칸), confetti 계열 모션의 `particle` 종류로 입자 모양 선택(없으면 기존 하드코딩 입자). 모션 자동재생은 `intro` prop(기본 `false`)이 참이면 once 모션을 순서대로 보여준 뒤 첫 loop 모션, 거짓이면 loop 모션만 자동재생하며 "획득 장면 다시 보기" 버튼으로 once 모션을 다시 본다. "기울여 보기" 토글은 동작 줄이기면 숨기고, 켜짐·동작 허용·foreground일 때만 `<TiltSensor>`를 마운트한다.
+- **의도적으로 범위 밖에 둔 지점(다음 담당자가 알아야 함):** 이번 작업 지시의 파일 범위가 `collectible-artwork.ts`/`collectible-motion.ts`/`collectible-detail.tsx`/새 `collectible-tilt.tsx`/새 pure 모듈로 정해져 있어 설계 명세가 말하는 `apps/mobile/src/screens/collection/index.tsx:136-142`(획득 직후 reveal→상세 전환 시 `intro={true}` 전달)는 건드리지 않았다. `CollectibleDetail`의 `intro` prop은 만들어 뒀고 기본값이 `false`라 지금은 안전하게 동작하지만(모든 상세가 "나중에 연 것"처럼 loop만 자동재생), 방문 수령 직후 열었을 때 once 모션이 먼저 재생되는 설계 의도는 `index.tsx`에서 `<CollectibleDetail ... intro={true} />`(reveal의 `onOpenDetail` 콜백이 여는 인스턴스에만) 한 줄을 추가해야 완성된다.
+- **검증:** `npm test --prefix apps/mobile` 926/926 PASS(신규 24건: v2 필드 독립 파싱/드롭 5건, `angleFrameBlend`/`particleAt`/`livingCell`/`motionAutoplaySequence` 벡터·사양 시험, 기울임 매핑 4건), `npm run typecheck --prefix apps/mobile`·`npm run lint --prefix apps/mobile` PASS, `bash tools/gate.sh` PASS. 변이 시험 3건(되돌리면 실패 확인 뒤 복구): `particleAt` confetti 낙하항 제거, `angleFrameBlend`의 칸 시작각 상수를 -90으로 변경, `motionAutoplaySequence`의 intro 분기 제거.
+- **다음 담당자가 할 일:** ① (완료: 오케스트레이터가 획득 연출 → 상세 경로에 `intro`를 연결했다. 모바일 927/927.) ② WP2(뒷면·모션 UI)·WP3(패럴랙스·living·각도 프레임 생성)가 웹 편집기에서 실제로 새 필드를 만들기 시작하면 실기기에서 뒷면/프레임/living/파티클/기울임을 확인(지금은 이 필드들을 만드는 수집품이 없어 Android 쪽은 전부 폴백 경로만 실행된다). ③ `export:android`·에뮬레이터(`adb emu sensor set acceleration`로 기울임 재현, −60/0/60° 홀로그램, 동작 줄이기, 이전 APK에서 v2 수집품 열기)는 WP3 자료가 준비된 뒤로 미룬다.
+- 다음 명령: `git -C .worktrees/284-android-frames status`, `npm test --prefix apps/mobile`, `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`, `bash tools/gate.sh`.
 
 ## 사진 수집품 제작기 PR 인수인계
 

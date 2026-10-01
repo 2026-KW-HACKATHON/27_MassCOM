@@ -4,6 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 bash scripts/check-secrets.sh
+bash scripts/check-conflict-markers.sh
+bash tests/bootstrap/check_conflict_markers_test.sh
 bash tests/bootstrap/verify_bootstrap_test.sh
 bash tests/bootstrap/verify_operations_docs_test.sh
 bash tests/site/verify_evidence_consistency_test.sh
