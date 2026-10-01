@@ -11,7 +11,7 @@
 - **migration 번호 의존 관계:** 0037은 이 세션 시작 시점 main에 없었고 PR #300이 먼저 쓸 수 있다. `migrate.ts`는 파일명 순서로 적용하므로 0037·0038 어느 쪽이 먼저 병합돼도 각자의 새 테이블만 만들어 서로 간섭하지 않는다 — 다만 두 PR 모두 같은 번호를 다시 쓰지 않도록 병합 직전에 `ls apps/api/migrations | tail`로 확인한다.
 - 검증: `npm test --prefix apps/api` 315/315 PASS(신규 13건), `npm run typecheck`·`npm run build --prefix apps/api` PASS. 일회용 `postgres:16` 컨테이너(이 세션에서 만들고 지움)로 `src/mileage-shop.postgres.integration.ts` 7/7(연속 5회 재실행으로 안정성 확인), `npm run test:postgres --prefix apps/api` 306 PASS·2 기존 SKIP(다른 전용 컨테이너가 필요한 기존 시험, 무관). `bash tools/gate.sh` PASS. 변이 시험 4건(스크래치 사본으로 가드 제거 → 대응 단위/통합 시험 실패 확인 → 복구): `decideReroll`의 `expectedRemaining`·`GRADE_COMPLETE` 분기, `canSetAvatar` 소유 검사, `account-deletion.ts`의 세 테이블 삭제.
 - 시험 작성 중 실제 결함을 하나 찾아 고쳤다: `postgres/mileage-shop.ts`의 `reroll()`이 같은 `PoolClient`(한 connection)에 `Promise.all`로 비율 제한·소유 목록·적립/지출 질의 세 개를 동시에 보내고 있었다(Pool과 달리 PoolClient는 한 번에 한 질의만 받는다 — pg가 내부적으로 줄 세워 결과는 맞았지만 deprecated 경고가 났다). 순서대로 기다리게 고쳤다.
-- 문서: `apps/api/README.md`에 상점 API 절, `docs/DECISIONS.md` D-062(소유자 결정 1~3·에이전트 구현 선택 a~d), `docs/PRD.md` RQ-024, 새 설계 문서 `docs/superpowers/specs/2026-10-01-mileage-shop-design.md`(스크래치 설계 메모를 리뷰 반영분까지 포함해 저장소에 옮김), `docs/AI_USAGE.md` 기록.
+- 문서: `apps/api/README.md`에 상점 API 절, `docs/DECISIONS.md` D-063(소유자 결정 1~3·에이전트 구현 선택 a~d), `docs/PRD.md` RQ-024, 새 설계 문서 `docs/superpowers/specs/2026-10-01-mileage-shop-design.md`(스크래치 설계 메모를 리뷰 반영분까지 포함해 저장소에 옮김), `docs/AI_USAGE.md` 기록.
 - 다음 담당자가 할 일: 독립 리뷰(서로 다른 모델 2개 — 재뽑기 트랜잭션·계정 삭제는 보상·양도 규칙과 맞닿아 있어 교차 리뷰가 안전), PR 생성·CI, Android 상점 탭 PR(design-298.md의 Android 절 참고), 필요해지면 웹 세션 API 노출 추가.
 ## 2026-10-01 병합 충돌 표시 검사 (Issue #291, 브랜치 `fix/291-conflict-markers`)
 
