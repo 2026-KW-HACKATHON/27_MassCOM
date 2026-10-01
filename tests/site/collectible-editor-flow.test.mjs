@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import { mountCollectibleEditor } from '../../apps/production-web/assets/collectible-editor.mjs';
-import { configureCreator, loadCreatorCampaigns } from '../../apps/production-web/assets/merchant.mjs';
+import { configureCreator, loadCreatorCampaigns, loadMerchant } from '../../apps/production-web/assets/merchant.mjs';
 import { createProject } from '../../apps/production-web/assets/collectible-model.mjs';
 import { createFakeApi } from '../fixtures/collectible-fake-api.mjs';
 import { installMiniDom, settle } from '../fixtures/mini-dom.mjs';
@@ -595,6 +595,64 @@ test('목록이 403이면 제작기를 닫고 권한 안내를 보인다', async
   assert.equal(ui.panel.hidden, false, '점주 계정의 일시적인 403이면 다시 열 수 있다');
 });
 
+// PR #289 후속(Issue #284 WP2): merchantRequests는 같은 계정의 /me 새로 고침(예: 주기적 폴링)마다도 올라간다.
+// 열어 둔 제작기가 그 새로 고침 "이후"에 403을 받으면, 예전에는 열 때 찍어 둔 요청 번호가 이미 낡아 콜백이
+// 조용히 무시됐다(제작기가 닫히지 않고 그대로 열린 채 남음). 지금은 제작기 인스턴스 자체로 판정해 놓치지 않는다.
+test('열린 제작기는 같은 계정의 /me 새로 고침을 한 번 더 받아도 그 뒤의 403을 놓치지 않는다', async () => {
+  const api = createFakeApi();
+  const page = document.createElement('div');
+  page.innerHTML = `
+    <p id="merchant-status" role="status" aria-live="polite"></p>
+    <a id="merchant-login" hidden></a>
+    <button id="merchant-logout" type="button" hidden></button>
+    <section id="merchant-content" hidden>
+      <section id="merchant-creator" hidden>
+        <select id="merchant-creator-store"></select>
+        <button id="merchant-creator-open" type="button"></button>
+        <div id="merchant-creator-editor"></div>
+      </section>
+      <div id="merchant-memberships"></div>
+      <form id="merchant-registration" hidden><select></select><button type="submit" disabled></button></form>
+      <p id="merchant-code"></p>
+      <form id="merchant-claim-form" hidden>
+        <select id="merchant-claim-merchant"></select>
+        <input id="merchant-claim-token" type="text">
+        <input id="merchant-claim-reference" type="text">
+        <input id="merchant-claim-confirm" type="checkbox">
+        <button id="merchant-claim-submit" type="submit" disabled></button>
+      </form>
+      <p id="merchant-claim-result"></p>
+      <section id="merchant-coupon" hidden>
+        <ul id="merchant-coupon-list"></ul>
+        <p id="merchant-coupon-status"></p>
+      </section>
+      <img id="merchant-claim-issued-qr" hidden>
+      <div id="merchant-claim-reissue" hidden>
+        <input id="merchant-claim-reissue-confirm" type="checkbox">
+        <button id="merchant-claim-reissue-submit" type="button" disabled></button>
+      </div>
+    </section>`;
+  document.body.append(page);
+
+  await loadMerchant(api.fetcher, document);
+  document.getElementById('merchant-creator-store').value = 'm1';
+  await document.getElementById('merchant-creator-open').onclick();
+  await settle();
+  assert.ok(document.getElementById('merchant-creator-editor').children.length > 0, '제작기가 열려야 한다');
+
+  // 같은 계정(api.fetcher의 accountScope: 'scope-a')의 /me를 한 번 더 읽는다. 열린 제작기의 점포 선택은 유지돼야 한다.
+  await loadMerchant(api.fetcher, document);
+  assert.equal(document.getElementById('merchant-creator-store').value, 'm1');
+  assert.ok(document.getElementById('merchant-creator-editor').children.length > 0, '같은 계정 새로 고침만으로 닫히면 안 된다');
+
+  // 그 새로 고침 "이후"에 온 403도 여전히 제작기를 닫아야 한다.
+  api.failNext('GET', /collectible-projects$/, { status: 403, code: 'MERCHANT_ACCESS_DENIED' });
+  const ui = driver(document.getElementById('merchant-creator-editor'), api);
+  await ui.click('refresh');
+  assert.equal(document.getElementById('merchant-creator-editor').children.length, 0, '새로 고침 이후의 403도 제작기를 닫아야 한다');
+  assert.match(document.getElementById('merchant-status').textContent, /이 점포의 그림 제작 권한이 없어요\. 점주 권한을 확인해 주세요/);
+});
+
 test('이미 게시했고 고친 것이 없으면 게시 버튼을 막고, 고치면 다시 켠다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
@@ -967,6 +1025,29 @@ test('저장 목록을 못 읽으면 복원 여부를 판단하지 않고 보관
   await remounted.click('refresh');
   assert.equal(remounted.asked.length, 1, '다음에 목록 조회가 성공하면 그때 다시 판단한다');
   assert.match(remounted.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
+});
+
+// PR #289 후속(Issue #284 WP2): 목록 조회는 성공했지만(그래서 복원을 물어봤지만) 그 프로젝트 자체의 GET이
+// 실패하면, 예전에는 "결정함"으로 영구히 남아 다시 네트워크가 돌아와도 복원 기회가 없었다. 지금은 다음
+// 성공한 목록 새로고침이 다시 시도한다.
+test('복원 대상 프로젝트의 GET이 실패하면 다음 성공한 목록 새로고침이 다시 복원을 시도한다(P2 후속)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.click('draft'); // 서버에 사진을 포함해 먼저 저장해 둔다
+  await ui.input('name', '복원할 이름');
+  await settle(10);
+  editors.pop()();
+
+  api.failNext('GET', /collectible-projects\/[^/]+$/, { status: 500 });
+  const restored = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  assert.equal(restored.asked.length, 1, '복원 여부는 이미 물었다(실패는 그 응답을 받은 뒤에 난다)');
+  assert.equal(restored.control('name').value, '월계 식당 수집품', '이번 시도는 실패했으니 아직 복원되지 않는다');
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'), '실패한 복원은 기기 보관본을 지우지 않는다');
+
+  await restored.click('refresh'); // 다음 성공한 목록 새로고침
+  assert.equal(restored.asked.length, 2, '다시 복원을 시도하며 한 번 더 물어야 한다');
+  assert.equal(restored.control('name').value, '복원할 이름', '이번엔 네트워크가 돌아와 복원된다');
 });
 
 test('목록 조회를 기다리는 동안 이미 새 편집을 시작했으면 조용히 건너뛰고 되묻지 않는다(dirty 에디터는 자동 복원하지 않음, 🔴 P1)', async () => {

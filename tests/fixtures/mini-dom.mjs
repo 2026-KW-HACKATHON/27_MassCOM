@@ -35,12 +35,13 @@ function parseSelector(text) {
   return groups;
 }
 function parseCompound(text) {
-  const compound = { tag: '', classes: [], attrs: [], nots: [] };
+  const compound = { tag: '', id: '', classes: [], attrs: [], nots: [] };
   const tag = text.match(/^[a-zA-Z][a-zA-Z0-9-]*/);
   if (tag) { compound.tag = tag[0].toLowerCase(); text = text.slice(tag[0].length); }
   while (text) {
     let match;
-    if ((match = text.match(/^\.([a-zA-Z0-9_-]+)/))) compound.classes.push(match[1]);
+    if ((match = text.match(/^#([a-zA-Z0-9_-]+)/))) compound.id = match[1];
+    else if ((match = text.match(/^\.([a-zA-Z0-9_-]+)/))) compound.classes.push(match[1]);
     else if ((match = text.match(/^\[([a-zA-Z0-9_:-]+)(?:([~|^$*]?=)(?:"([^"]*)"|'([^']*)'|([^\]]*)))?\]/))) compound.attrs.push({ name: match[1], op: match[2], value: match[3] ?? match[4] ?? match[5] });
     else if ((match = text.match(/^:not\(((?:[^()]|\([^()]*\))*)\)/))) compound.nots.push(parseCompound(match[1]));
     else throw new Error(`mini-dom: unsupported selector "${text}"`);
@@ -50,6 +51,7 @@ function parseCompound(text) {
 }
 function compoundMatches(element, compound) {
   if (compound.tag && element.tagName.toLowerCase() !== compound.tag) return false;
+  if (compound.id && element.getAttribute('id') !== compound.id) return false;
   if (compound.classes.some(name => !element.classList.contains(name))) return false;
   for (const { name, op, value } of compound.attrs) {
     const actual = element.getAttribute(name);

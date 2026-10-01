@@ -248,7 +248,11 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       restoring = false; dirty = true; editSerial++;
       clearCollectibleRenderCache(); syncValues(); drawCrop(); schedulePreview();
       notice('저장하지 않은 편집을 이어서 열었어요. 사진·목소리는 마지막으로 저장한 것을 써요.');
-    } catch (error) { if (active) notice(collectibleErrorMessage(error, '저장하지 않은 편집을 이어서 열지 못했어요. 저장 목록에서 다시 열어 주세요.'), true); }
+    } catch (error) {
+      // 이 GET 실패를 "결정됨"으로 남기면 다음 목록 새로 고침이 다시 시도하지 않아, 네트워크가 돌아와도
+      // 영영 복원 기회가 없다(PR #289 후속). 기기 보관본은 그대로 두고 다음 성공한 목록 새로 고침이 다시 묻게 한다.
+      if (active) { draftDecided = false; notice(collectibleErrorMessage(error, '저장하지 않은 편집을 이어서 열지 못했어요. 저장 목록을 새로 고치면 다시 시도해요.'), true); }
+    }
   }
   const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
   function syncValues() {
