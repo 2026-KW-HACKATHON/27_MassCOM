@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import type { CollectionSnapshot } from '../../commerce/commerce-api';
-import { collectibleFocusAction, resolveCollectibleLink } from './collectible-focus';
+import { collectibleFocusAction, parseEntitlementIds, resolveCollectibleLink } from './collectible-focus';
 
 const item = (entitlementId: string, artwork?: unknown) => ({ entitlementId, ...(artwork ? { artwork } : {}) }) as CollectionSnapshot['collectibles'][number];
 const art = { publicationId: 'p', projectId: 'q', gradeId: 'bronze', gradeName: '브론즈', name: '가게 우표', shape: 'stamp', theme: { name: '기본' }, thumbnailDataUrl: 'data:image/png;base64,AAAA' };
@@ -67,4 +67,28 @@ test('opening the detail from the acquisition reveal plays the once-on-acquisiti
   const source = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
   assert.match(source, /client: api, intro: true \}\);/);
   assert.match(source, /intro=\{collectibleDetail\.intro === true\}/);
+});
+
+// #299 리뷰: entitlement 쿼리 파라미터는 보통 콤마로 묶인 문자열 하나지만, 같은 키가 반복되면(`?entitlement=a&entitlement=b`)
+// 라우터가 배열로 돌려준다. 이전에는 index.tsx가 그 값에 바로 .split(',')을 호출해 배열이 오면 TypeError가 났다.
+test('parseEntitlementIds normalizes a single string, an array, empty input, and blank entries', () => {
+  assert.deepEqual(parseEntitlementIds('a,b'), ['a', 'b']);
+  assert.deepEqual(parseEntitlementIds(['a', 'b']), ['a', 'b']);
+  assert.deepEqual(parseEntitlementIds(['a,b', 'c']), ['a', 'b', 'c']);
+  assert.deepEqual(parseEntitlementIds(undefined), []);
+  assert.deepEqual(parseEntitlementIds(''), []);
+  assert.deepEqual(parseEntitlementIds(',,'), []);
+  assert.deepEqual(parseEntitlementIds(['', 'a', '']), ['a']);
+});
+
+test('parseEntitlementIds dedupes while keeping first-occurrence order, from either shape', () => {
+  assert.deepEqual(parseEntitlementIds('a,a,b'), ['a', 'b']);
+  assert.deepEqual(parseEntitlementIds(['a', 'a', 'b']), ['a', 'b']);
+  assert.deepEqual(parseEntitlementIds(['b,a', 'a,c']), ['b', 'a', 'c']);
+});
+
+test('the collection screen parses the entitlement param through parseEntitlementIds, not an inline .split', () => {
+  const source = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
+  assert.match(source, /parseEntitlementIds\(entitlement\)/);
+  assert.doesNotMatch(source, /entitlement\.split\(/, 'entitlement은 배열일 수도 있어 바로 .split을 호출하면 안 된다');
 });

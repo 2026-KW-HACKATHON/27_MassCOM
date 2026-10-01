@@ -30,10 +30,12 @@ import {
   renderClaimQr,
   resolveApiBindHost,
   resolveAuthMode,
+  resolveShowcaseDeployment,
   sessionTtlMs,
   type AccountResolver,
   type ReauthenticationGuard,
 } from './server.js';
+import { ShowcaseAccessRequestError, type ShowcaseAccessRequestService } from './showcase/access-requests.js';
 import {
   CampaignEnrollmentError,
   type CampaignEnrollmentErrorCode,
@@ -223,6 +225,7 @@ async function startFixture(
   deletionProcessing?: AccountDeletionProcessingService,
   reversals?: ReversalService,
   consent?: ConsentService,
+  accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -261,6 +264,9 @@ async function startFixture(
     deletionProcessing,
     reversals,
     consent,
+    undefined,
+    undefined,
+    accessRequests,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -641,6 +647,111 @@ test('showcase Bearer deletion intake exists only when the showcase service is w
     'request:acct_showcase:false', 'request:acct_showcase:true', 'request:acct_showcase:false',
     'current:acct_showcase', 'cancel:acct_showcase', 'status:7K2M-Q9XD-4HTB-0RWE',
   ]);
+});
+
+function accessRequestsFixture(
+  overrides: Partial<Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>> = {},
+): Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'> {
+  return {
+    mine: async () => { throw new Error('unexpected mine call'); },
+    request: async () => { throw new Error('unexpected request call'); },
+    listPending: async () => { throw new Error('unexpected listPending call'); },
+    decide: async () => { throw new Error('unexpected decide call'); },
+    ...overrides,
+  };
+}
+
+test('#294 showcase access-request routes exist only when wired, rate-limit requests, and map decision errors', async (t) => {
+  const production = await startFixture(t);
+  for (const [path, method] of [
+    ['/showcase/access-requests/mine', 'GET'],
+    ['/showcase/access-requests', 'POST'],
+    ['/showcase/admin/access-requests', 'GET'],
+    ['/showcase/admin/access-requests/req-1/approve', 'POST'],
+    ['/showcase/admin/access-requests/req-1/reject', 'POST'],
+  ] as const) {
+    assert.equal((await fetch(`${production}${path}`, { method, headers: { 'x-account-id': 'acct_a' } })).status, 404, path);
+  }
+
+  const calls: string[] = [];
+  const view = { code: 'ABCDEFGH', status: 'PENDING' as const, createdAt: '2026-01-01T00:00:00.000Z', decidedAt: null };
+  let decideError: ShowcaseAccessRequestError | undefined;
+  const fake = accessRequestsFixture({
+    mine: async (accountId) => { calls.push(`mine:${accountId}`); return { request: view, staff: false, approver: false }; },
+    request: async (accountId) => { calls.push(`request:${accountId}`); return { created: true, request: view }; },
+    listPending: async (accountId) => {
+      calls.push(`listPending:${accountId}`);
+      return [{ id: 'req-1', code: view.code, createdAt: view.createdAt }];
+    },
+    decide: async (accountId, requestId, decision) => {
+      calls.push(`decide:${accountId}:${requestId}:${decision}`);
+      if (decideError) throw decideError;
+    },
+  });
+  const showcase = await startFixture(
+    t, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, fake,
+  );
+
+  const mine = await fetch(`${showcase}/showcase/access-requests/mine`, { headers: { 'x-account-id': 'acct_a' } });
+  assert.equal(mine.status, 200);
+  assert.deepEqual(await mine.json(), { request: view, staff: false, approver: false });
+
+  const created = await fetch(`${showcase}/showcase/access-requests`, { method: 'POST', headers: { 'x-account-id': 'acct_a' } });
+  assert.equal(created.status, 201);
+  assert.deepEqual(await created.json(), { request: view });
+
+  // A nonempty body is refused before the service is ever called (and still counts against the rate limit below).
+  const invalidBody = await fetch(`${showcase}/showcase/access-requests`, {
+    method: 'POST', headers: { 'x-account-id': 'acct_a', 'content-type': 'application/json' }, body: '{"extra":1}',
+  });
+  assert.equal(invalidBody.status, 400);
+
+  // 계정당 5회/시간(#294). 위 두 호출(created, invalidBody)이 이미 2회를 썼으니 3번 더 통과하고 그다음은 429다.
+  for (let i = 0; i < 3; i += 1) {
+    assert.equal(
+      (await fetch(`${showcase}/showcase/access-requests`, { method: 'POST', headers: { 'x-account-id': 'acct_a' } })).status,
+      201,
+    );
+  }
+  const limited = await fetch(`${showcase}/showcase/access-requests`, { method: 'POST', headers: { 'x-account-id': 'acct_a' } });
+  assert.equal(limited.status, 429);
+  assert.deepEqual(await limited.json(), { code: 'SHOWCASE_ACCESS_RATE_LIMITED' });
+  assert.ok(limited.headers.get('retry-after'));
+  // A different account has its own bucket.
+  assert.equal(
+    (await fetch(`${showcase}/showcase/access-requests`, { method: 'POST', headers: { 'x-account-id': 'acct_b' } })).status,
+    201,
+  );
+
+  const pending = await fetch(`${showcase}/showcase/admin/access-requests`, { headers: { 'x-account-id': 'acct_admin' } });
+  assert.equal(pending.status, 200);
+  assert.deepEqual(await pending.json(), [{ id: 'req-1', code: view.code, createdAt: view.createdAt }]);
+
+  const approved = await fetch(`${showcase}/showcase/admin/access-requests/req-1/approve`, {
+    method: 'POST', headers: { 'x-account-id': 'acct_admin' },
+  });
+  assert.equal(approved.status, 200);
+  assert.deepEqual(await approved.json(), { status: 'APPROVED' });
+
+  for (const [code, status] of [
+    ['SHOWCASE_APPROVER_REQUIRED', 403], ['SHOWCASE_ACCESS_SELF_DECISION', 403],
+    ['SHOWCASE_ACCESS_REQUEST_NOT_FOUND', 404], ['SHOWCASE_ACCESS_ALREADY_DECIDED', 409],
+    ['ACCOUNT_DELETED', 410],
+  ] as const) {
+    decideError = new ShowcaseAccessRequestError(code);
+    const response = await fetch(`${showcase}/showcase/admin/access-requests/req-1/reject`, {
+      method: 'POST', headers: { 'x-account-id': 'acct_admin' },
+    });
+    assert.equal(response.status, status, code);
+    assert.deepEqual(await response.json(), { code });
+  }
+
+  assert.ok(calls.includes('mine:acct_a'));
+  assert.ok(calls.includes('request:acct_a'));
+  assert.ok(calls.includes('listPending:acct_admin'));
+  assert.ok(calls.includes('decide:acct_admin:req-1:APPROVED'));
 });
 
 const adminIntake: AdminDeletionIntake = {
@@ -2858,6 +2969,22 @@ test('D24 picks production login, the DEMO boundary, or neither from the environ
   ]) {
     assert.throws(() => resolveAuthMode(env), /DATABASE_URL is missing/);
   }
+});
+
+test('#294 resolveShowcaseDeployment opens access-request routes only for a recognized showcase deployment', () => {
+  // 운영 로그인은 hosted 설정이 없는 한 항상 undefined다. DB 이름을 조회조차 하지 않았다고 해도(production에서는 호출하지 않는다).
+  assert.equal(
+    resolveShowcaseDeployment({ kind: 'production', audiences: ['x'] }, false, undefined), undefined);
+  assert.equal(resolveShowcaseDeployment({ kind: 'unconfigured' }, false, undefined), undefined);
+  // demo 모드라도 운영 DB 이름(masscom)이면 local이 아니다.
+  assert.equal(resolveShowcaseDeployment({ kind: 'demo' }, false, 'masscom'), undefined);
+  assert.equal(resolveShowcaseDeployment({ kind: 'demo' }, false, undefined), undefined);
+  // demo + 시연 local(test) DB 이름이면 local이다.
+  assert.equal(resolveShowcaseDeployment({ kind: 'demo' }, false, 'masscom_showcase_test'), 'local');
+  assert.equal(resolveShowcaseDeployment({ kind: 'demo' }, false, 'masscom_showcase_ci_ab12cd34_test'), 'local');
+  // hosted 설정(SHOWCASE_MODE)이 있으면 authMode와 무관하게 hosted다.
+  assert.equal(resolveShowcaseDeployment({ kind: 'production', audiences: ['x'] }, true, undefined), 'hosted');
+  assert.equal(resolveShowcaseDeployment({ kind: 'unconfigured' }, true, 'masscom'), 'hosted');
 });
 
 test('session lifetime from the environment must be a sane whole number of milliseconds', () => {
