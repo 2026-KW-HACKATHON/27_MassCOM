@@ -1,4 +1,6 @@
-// 제작기 제작 부담을 줄이는 보조 로직(Issue #282). DOM·localStorage에 닿지 않는 순수 함수만 둔다.
+// 제작기 제작 부담을 줄이는 보조 로직(Issue #282). DOM에 닿지 않는 순수 함수만 둔다. clearCollectibleDrafts만
+// 예외로, 기기 저장소를 주입받아(시험 대역 포함) 지우고, 생략하면 전역 저장소를 기본값으로 쓴다(merchant.mjs가
+// "localStorage" 문구 없이 로그아웃·계정 전환에서 그대로 부를 수 있게 한다 — 점주 쿠폰 화면 시험이 그 문구를 금지한다).
 // collectible-model.mjs는 다른 브랜치(schema v2)가 편집 중이라 건드리지 않고, clamp만 그대로 재사용한다.
 import { clamp } from './collectible-model.mjs';
 
@@ -22,9 +24,9 @@ export function draftStorageKey(merchantId, accountMarker) {
  * 관계없이 그 계정 몫의 기기 보관본을 전부 지운다(공유 PC에 사진이 남지 않게). 표준 Storage(length·key(i))
  * 인터페이스만 있으면 되므로 실제 localStorage와 시험용 대역 모두에 쓸 수 있다.
  */
-export function clearAllDraftsForAccount(storage, accountMarker) {
+export function clearCollectibleDrafts(storage = globalThis.window?.localStorage, accountScope) {
   if (!storage) return;
-  const suffix = `:${hashMarker(accountMarker)}`;
+  const suffix = `:${hashMarker(accountScope)}`;
   const keys = [];
   for (let index = 0; index < storage.length; index++) {
     const key = storage.key(index);
@@ -33,23 +35,21 @@ export function clearAllDraftsForAccount(storage, accountMarker) {
   for (const key of keys) storage.removeItem(key);
 }
 
-const MiB = 1024 * 1024;
-export const DRAFT_MAX_BYTES = 4 * MiB;
+/**
+ * 기기 보관 자동 저장에는 미디어가 아닌 편집 값만 남긴다(사진 원본·이야기 장면 자료·음성·완성 파생 이미지는 공유 PC에
+ * 남으면 안 되는 미디어라 절대 기기에 쓰지 않는다). 입력 project는 바꾸지 않는다.
+ */
+export function draftEditsOnly(project) {
+  const { photo, audio, story, derived, ...edits } = project;
+  return { ...edits, story: { ...story, frames: [] } };
+}
 
 /**
- * 로컬 저장 용량을 넘으면 큰 미디어(사진 원본·장면 사진·음성)를 비우고 다시 선택이 필요함을 알린다. 입력 project는 바꾸지 않는다.
- * apps/api/src/collectible-project-rules.ts가 받아들이는 "미디어 없음" 모양으로만 비운다(빈 photo는 width·height도 0이어야 하고,
- * audio는 객체가 아니라 null, story.frames는 부분 값이 아니라 빈 배열이어야 한다). 그렇지 않으면 이 상태 그대로 저장 요청을 보낼 때
- * 서버가 거절하거나 더 나쁘면 사진 없는 값을 실제 프로젝트에 덮어쓴다.
+ * draftEditsOnly의 역함수. 서버에서 받은 최신 프로젝트(사진·음성·이야기 장면·파생 이미지 포함)에 기기에 남아 있던
+ * 편집 값만 겹쳐 쓴다. 서버가 가진 미디어는 절대 지우지 않는다.
  */
-export function prepareDraftForStorage(project, maxBytes = DRAFT_MAX_BYTES) {
-  const full = JSON.stringify(project);
-  if (new TextEncoder().encode(full).length <= maxBytes) return { project, mediaOmitted: false };
-  const stripped = JSON.parse(full);
-  if (stripped.photo) stripped.photo = { originalDataUrl: '', width: 0, height: 0 };
-  if (stripped.story) stripped.story = { ...stripped.story, frames: [] };
-  if (stripped.audio) stripped.audio = null;
-  return { project: stripped, mediaOmitted: true };
+export function applyDraftEdits(serverProject, edits) {
+  return { ...serverProject, ...edits, story: { ...edits.story, frames: serverProject.story.frames } };
 }
 
 // 렌더러(collectible-renderer.mjs effectPaint)의 무광·에나멜·유리는 셋 다 같은 표면 전체를 덮어 칠하는

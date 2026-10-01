@@ -3,8 +3,8 @@ import { test } from 'node:test';
 
 import { cropTransform, createProject } from '../../apps/production-web/assets/collectible-model.mjs';
 import {
-  centerFillCrop, clearAllDraftsForAccount, draftStorageKey, faceFitCrop, findMaterialConflict, findMaterialConflicts,
-  materialConflictQuestion, prepareDraftForStorage, SAFE_AREA_RATIO,
+  applyDraftEdits, centerFillCrop, clearCollectibleDrafts, draftEditsOnly, draftStorageKey, faceFitCrop,
+  findMaterialConflict, findMaterialConflicts, materialConflictQuestion, SAFE_AREA_RATIO,
 } from '../../apps/production-web/assets/collectible-assist.mjs';
 
 test('저장 키는 점포·계정마다 다르고 같은 입력에는 항상 같은 값이다(Issue #282 A1)', () => {
@@ -17,28 +17,41 @@ test('저장 키는 점포·계정마다 다르고 같은 입력에는 항상 �
   assert.match(a, /^masscom:collectible-draft:m1:/);
 });
 
-test('용량 안에서는 그대로 두고, 넘으면 큰 미디어만 비우고 다시 선택이 필요함을 알린다', () => {
-  const project = createProject({ name: '작은 초안' });
-  project.photo = { originalDataUrl: 'data:image/png;base64,AAAA', width: 10, height: 10 };
-  const small = prepareDraftForStorage(project, 10_000_000);
-  assert.equal(small.mediaOmitted, false);
-  assert.equal(small.project.photo.originalDataUrl, 'data:image/png;base64,AAAA');
+test('기기 보관용 편집 값에는 사진·음성·이야기 장면·파생 이미지 같은 미디어를 절대 담지 않는다(Issue #282 단순화)', () => {
+  const project = createProject({ name: '미디어 있는 편집' });
+  project.photo = { originalDataUrl: `data:image/png;base64,${'A'.repeat(1000)}`, width: 10, height: 10 };
+  project.story = { type: 'wide', frames: [{ dataUrl: `data:image/png;base64,${'B'.repeat(1000)}` }], cartoon: 0 };
+  project.audio = { dataUrl: 'data:audio/mpeg;base64,CCCC', mimeType: 'audio/mpeg', durationSeconds: 5 };
+  project.derived = { bronze: { imageDataUrl: `data:image/png;base64,${'D'.repeat(1000)}` } };
 
-  const big = createProject({ name: '큰 초안' });
-  big.photo = { originalDataUrl: `data:image/png;base64,${'A'.repeat(6_000_000)}`, width: 2000, height: 2000 };
-  big.story = { type: 'wide', frames: [{ dataUrl: `data:image/png;base64,${'B'.repeat(1000)}` }], cartoon: 0 };
-  big.audio = { dataUrl: 'data:audio/mpeg;base64,CCCC', mimeType: 'audio/mpeg', durationSeconds: 5 };
-  const result = prepareDraftForStorage(big, 4 * 1024 * 1024);
-  assert.equal(result.mediaOmitted, true);
-  // apps/api/src/collectible-project-rules.ts: 빈 photo는 width·height도 0이어야 하고(그렇지 않으면 초안 저장도 거절),
-  // audio는 객체가 아니라 null, story.frames는 빈 값이 섞인 프레임이 아니라 빈 배열이어야 한다. 이 모양이 아니면
-  // 복원한 초안을 그대로 저장 요청에 실어 보낼 때 서버가 거절하거나(감지 못 하면) 실제 프로젝트의 사진을 지워 버린다.
-  assert.deepEqual(result.project.photo, { originalDataUrl: '', width: 0, height: 0 });
-  assert.deepEqual(result.project.story.frames, []);
-  assert.equal(result.project.audio, null);
-  assert.equal(result.project.name, '큰 초안', '미디어 아닌 편집 내용은 그대로 남는다');
-  assert.equal(big.photo.originalDataUrl.length > 0, true, '원본 project는 바꾸지 않는다');
-  assert.equal(big.audio.dataUrl.length > 0, true, '원본 project는 바꾸지 않는다');
+  const edits = draftEditsOnly(project);
+  assert.equal(JSON.stringify(edits).includes('data:'), false, '어떤 data: URL도 저장 값에 남지 않는다');
+  assert.equal('photo' in edits, false);
+  assert.equal('audio' in edits, false);
+  assert.equal('derived' in edits, false);
+  assert.deepEqual(edits.story.frames, []);
+  assert.equal(edits.name, '미디어 있는 편집', '미디어 아닌 편집 내용은 그대로 남는다');
+  assert.equal(project.photo.originalDataUrl.length > 0, true, '원본 project는 바꾸지 않는다');
+});
+
+test('applyDraftEdits는 서버의 최신 사진·음성·이야기 장면·파생 이미지를 지키고 편집 값만 겹친다', () => {
+  const server = createProject({ name: '서버 버전' });
+  server.photo = { originalDataUrl: 'data:image/png;base64,SERVER', width: 20, height: 20 };
+  server.audio = { dataUrl: 'data:audio/mpeg;base64,SERVER', mimeType: 'audio/mpeg', durationSeconds: 3 };
+  server.story = { type: 'event', frames: [{ dataUrl: 'data:image/png;base64,FRAME' }], cartoon: 10, strength: 50 };
+  server.derived = { bronze: { imageDataUrl: 'data:image/png;base64,DERIVED' } };
+
+  const edited = createProject({ name: '기기에 남긴 편집' });
+  edited.theme.name = '여름축제';
+  const edits = draftEditsOnly(edited);
+  const merged = applyDraftEdits(server, edits);
+
+  assert.equal(merged.name, '기기에 남긴 편집', '편집 값은 기기 보관본을 따른다');
+  assert.equal(merged.theme.name, '여름축제');
+  assert.deepEqual(merged.photo, server.photo, '사진은 서버의 최신본을 지킨다');
+  assert.deepEqual(merged.audio, server.audio, '음성은 서버의 최신본을 지킨다');
+  assert.deepEqual(merged.story.frames, server.story.frames, '이야기 장면 자료는 서버의 최신본을 지킨다');
+  assert.deepEqual(merged.derived, server.derived, '파생 이미지는 서버의 최신본을 지킨다');
 });
 
 test('무광·에나멜·유리만 서로 충돌하고, 자기 자신·다른 대상·다른 등급·다른 재질군은 걸리지 않는다(A8)', () => {
@@ -139,9 +152,9 @@ test('로그아웃·계정 전환은 그 계정의 모든 점포 기기 보관�
   storage.setItem(draftStorageKey('m1', 'account-a'), '{"project":"a1"}');
   storage.setItem(draftStorageKey('m2', 'account-a'), '{"project":"a2"}');
   storage.setItem(draftStorageKey('m1', 'account-b'), '{"project":"b1"}');
-  clearAllDraftsForAccount(storage, 'account-a');
+  clearCollectibleDrafts(storage, 'account-a');
   assert.equal(storage.getItem(draftStorageKey('m1', 'account-a')), null);
   assert.equal(storage.getItem(draftStorageKey('m2', 'account-a')), null, '같은 계정의 다른 점포 보관본도 지운다');
   assert.equal(storage.getItem(draftStorageKey('m1', 'account-b')), '{"project":"b1"}', '다른 계정은 그대로 둔다');
-  assert.doesNotThrow(() => clearAllDraftsForAccount(null, 'account-a'), 'storage가 없어도 조용히 넘어간다');
+  assert.doesNotThrow(() => clearCollectibleDrafts(null, 'account-a'), 'storage가 없어도 조용히 넘어간다');
 });

@@ -632,85 +632,126 @@ test('게시한 뒤에는 캠페인 목록을 새로 읽어 배포 연결 변화
   assert.equal(api.campaigns[0].publication.projectId, 'project-1');
 });
 
-// Issue #282: 자동 저장(A1)·등급 전체 선택(A2)·재질 충돌 안내(A8)·자동 맞춤(A4).
-const readDraft = (win, merchantId, accountMarker) => { const raw = win.localStorage.getItem(draftStorageKey(merchantId, accountMarker)); return raw ? JSON.parse(raw) : null; };
+// Issue #282: 자동 저장(A1, 단순화: 미디어 없이 편집 값만·서버에 이미 있는 프로젝트만)·등급 전체 선택(A2)·
+// 재질 충돌 안내(A8)·자동 맞춤(A4).
+const readDraft = (win, merchantId, accountScope) => { const raw = win.localStorage.getItem(draftStorageKey(merchantId, accountScope)); return raw ? JSON.parse(raw) : null; };
 
-test('편집이 멈추면 기기에 자동 저장하고, 서버 저장이 끝나면 지운다(A1)', async () => {
+test('서버에 한 번도 저장하지 않은 새 초안은 자동 저장하지 않는다(wrapper 없음, A1 단순화)', async () => {
   const api = createFakeApi();
-  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.input('name', '아직 저장 안 한 초안');
+  await settle(10);
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null, '서버에 저장한 적 없는 초안은 자동 저장 대상이 아니다(beforeunload 경고로만 보호한다)');
+  assert.equal(ui.dirty, true);
+});
+
+test('계정 구분값이 없으면 서버에 저장된 프로젝트를 고쳐도 기기에 자동 저장하지 않는다(A1)', async () => {
+  const api = createFakeApi();
+  const saved = api.seed(seeded('계정 없음 시험'));
+  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } }); // accountScope 생략
+  await ui.change('project-list', saved.id);
+  await ui.input('name', '계정 없이 고친 이름');
+  await settle(10);
+  assert.equal(dom.window.localStorage.length, 0, '계정 구분값이 없으면 어떤 보관본도 쓰지 않는다');
+});
+
+test('서버에 이미 저장된 프로젝트를 고치면 편집이 멈춘 뒤 미디어 없이 편집 값만 기기에 자동 저장하고, 서버 저장이 끝나면 지운다(A1)', async () => {
+  const api = createFakeApi();
+  const saved = api.seed(seeded('자동 저장 대상'));
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.change('project-list', saved.id);
   await ui.upload(photoFile);
   await ui.input('name', '자동 저장 확인');
   await settle(10);
-  const draft = readDraft(dom.window, 'm1', 'anon');
-  assert.ok(draft, '편집이 멈추면 기기에 저장된다');
-  assert.equal(draft.project.name, '자동 저장 확인');
+  const draft = readDraft(dom.window, 'm1', 'scope-a');
+  assert.ok(draft, '서버에 이미 있는 프로젝트를 고치면 편집이 멈추면 기기에 저장된다');
   assert.equal(draft.merchantId, 'm1');
-  assert.equal(draft.wrapperId, null, '서버에 저장하기 전이며, 서버 저장을 주장하지 않는다');
+  assert.equal(draft.wrapperId, saved.id);
+  assert.equal(draft.edits.name, '자동 저장 확인');
+  assert.equal(JSON.stringify(draft).includes('data:'), false, '사진 등 미디어는 어떤 data: URL도 기기에 남기지 않는다');
   await ui.click('draft');
-  assert.equal(readDraft(dom.window, 'm1', 'anon'), null, '서버 저장이 끝나면 기기 보관본을 지운다');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null, '서버 저장이 끝나면 기기 보관본을 지운다');
 });
 
-test('사진이 커서 기기 저장 용량(4MB)을 넘으면 편집만 저장하고 사진은 다시 선택해야 한다고 남긴다(A1)', async () => {
+test('서버와 같은 버전의 기기 보관본이 있으면 다시 열 때 이어서 할지 묻고, 수락하면 서버의 최신 사진 위에 편집 값만 올린다(A1)', async () => {
   const api = createFakeApi();
-  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
-  await ui.upload({ ...photoFile, dataUrl: `data:image/png;base64,${'A'.repeat(6 * MiB)}` });
-  await settle(10);
-  const draft = readDraft(dom.window, 'm1', 'anon');
-  assert.equal(draft.mediaOmitted, true);
-  assert.equal(draft.project.photo.originalDataUrl, '');
-});
-
-test('서버 버전보다 새로운 기기 보관본이 있으면 다시 열 때 이어서 할지 묻고, 수락하면 복원한다(A1)', async () => {
-  const api = createFakeApi();
-  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
   await ui.upload(photoFile);
+  await ui.click('draft'); // 서버에 사진을 포함해 먼저 저장해 둔다
   await ui.input('name', '복원할 이름');
   await settle(10);
   editors.pop()();
 
-  const restored = await mount(api, { confirm: true });
+  const restored = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
   assert.match(restored.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
   assert.equal(restored.control('name').value, '복원할 이름');
   assert.equal(restored.dirty, true);
-  assert.match(restored.notice, /이어서 열었어요/);
+  assert.match(restored.notice, /사진·목소리는 마지막으로 저장한 것을 써요/);
+  await restored.click('draft'); // 복원한 편집을 저장하면 서버의 사진이 그대로 실려 가야 한다
+  const put = api.calls.find(call => call.method === 'PUT');
+  assert.match(put.body.project.photo.originalDataUrl, /#server$/, '복원은 기기가 아니라 서버의 최신 사진을 지킨다');
+  assert.equal(put.body.project.name, '복원할 이름');
 });
 
-test('기기 보관본 복원을 거절하면 지우고 새 편집으로 시작한다(A1)', async () => {
+test('기기 보관본보다 새 서버 버전이 있으면 복원을 묻지 않고 조용히 지운다(A1)', async () => {
   const api = createFakeApi();
-  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
   await ui.upload(photoFile);
+  await ui.click('draft');
+  const projectId = [...api.store.keys()][0];
+  await ui.input('name', '복원 전 편집');
+  await settle(10);
+  editors.pop()();
+
+  // 다른 곳(다른 기기·탭 등)에서 같은 프로젝트를 먼저 저장해 서버 버전을 올려 둔다.
+  await api.request(`/api/web/merchant/merchants/m1/collectible-projects/${projectId}`, { method: 'PUT', body: { expectedVersion: 1, project: seeded('다른 곳에서 저장') } });
+
+  const remounted = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  assert.equal(remounted.asked.length, 0, '서버가 더 새 버전이면 복원을 묻지 않는다');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null, '낡은 보관본은 조용히 지운다');
+});
+
+test('기기 보관본 복원을 거절하면 지우고 새 초안으로 시작한다(A1)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.click('draft');
   await ui.input('name', '거절할 이름');
   await settle(10);
   editors.pop()();
 
-  const declined = await mount(api, { confirm: false });
+  const declined = await mount(api, { confirm: false, editor: { accountScope: 'scope-a' } });
   assert.equal(declined.control('name').value, '월계 식당 수집품');
-  assert.equal(readDraft(dom.window, 'm1', 'anon'), null);
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null);
 });
 
 test('명시적으로 새 초안을 시작하거나 삭제하면 기기 보관본도 함께 지운다(A1)', async () => {
   const api = createFakeApi();
-  const ui = await mount(api, { editor: { autosaveDelayMs: 5 }, confirm: true });
-  await ui.upload(photoFile);
-  await settle(10);
-  assert.ok(readDraft(dom.window, 'm1', 'anon'));
-  await ui.click('new');
-  assert.equal(readDraft(dom.window, 'm1', 'anon'), null, '명시적 새 초안 시작은 기기 보관본을 지운다');
-
-  const published = api.seed(seeded('삭제할 프로젝트'), { status: 'PUBLISHED', campaignId: 'campaign-a' });
-  await ui.click('refresh');
-  await ui.change('project-list', published.id);
+  const saved = api.seed(seeded('삭제할 프로젝트'), { status: 'PUBLISHED', campaignId: 'campaign-a' });
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 }, confirm: true });
+  await ui.change('project-list', saved.id);
   await ui.input('name', '삭제 전 편집');
   await settle(10);
-  assert.ok(readDraft(dom.window, 'm1', 'anon'));
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'));
   await ui.click('delete');
-  assert.equal(readDraft(dom.window, 'm1', 'anon'), null, '삭제가 끝나면 기기 보관본을 지운다');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null, '삭제가 끝나면 기기 보관본을 지운다');
+
+  await ui.upload(photoFile);
+  await ui.click('draft');
+  await ui.input('name', '새로 시작 전 편집');
+  await settle(10);
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'));
+  await ui.click('new');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null, '명시적 새 초안 시작은 기기 보관본을 지운다');
 });
 
 test('사생활 보호 모드처럼 저장 공간 접근이 막혀도 편집과 저장은 그대로 된다(A1)', async () => {
   dom.restore(); dom = installMiniDom({ storageThrows: true });
   const api = createFakeApi();
-  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
+  const saved = api.seed(seeded('저장 공간 없음 시험'));
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.change('project-list', saved.id); // wrapper가 있어야 자동 저장 시도가 실제로 저장 공간에 닿는다
   await ui.upload(photoFile);
   await ui.input('name', '저장 공간 없이도 편집');
   await settle(10);
@@ -850,45 +891,33 @@ test('자동 맞춤은 누르기 전까지 자동으로 실행되지 않고, 한
   assert.equal(ui.control('crop-y').value, '0');
 });
 
-// PR #289 리뷰(Claude sonnet·Codex gpt-6.1-sol) 지적 반영.
+// PR #289 리뷰(Claude sonnet·Codex gpt-6.1-sol) 지적 반영, 이후 자동 저장 단순화(미디어 없이 편집 값만·
+// 서버에 이미 있는 프로젝트만).
 
-test('이미 저장된 프로젝트를 고치면, 서버 버전이 같아도(더 새 버전이 아니면) 다시 열 때 복원을 물어본다(🔴 P1)', async () => {
+test('저장 목록을 못 읽으면 복원 여부를 판단하지 않고 보관본을 그대로 두며, 다음 성공한 새로고침에서 다시 판단한다(P2)', async () => {
   const api = createFakeApi();
-  const published = api.seed(seeded('이미 저장된 프로젝트')); // DRAFT, version 1
-  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
-  await ui.change('project-list', published.id);
-  await ui.input('name', '같은 버전 위의 편집');
-  await settle(10);
-  editors.pop()();
-
-  const remounted = await mount(api, { confirm: true });
-  assert.match(remounted.asked[0], /저장하지 않은 편집을 이어서 할까요\?/, '서버 버전이 그대로여도(더 새 버전이 아니므로) 조용히 지우지 않고 물어봐야 한다');
-  assert.equal(remounted.control('name').value, '같은 버전 위의 편집', '수락하면 복원된다');
-});
-
-test('저장 목록을 못 읽으면 서버 버전을 0으로 가정해 복원 여부를 결정하지 않고, 다음 성공한 새로고침에서 다시 판단한다(P2)', async () => {
-  const api = createFakeApi();
-  const published = api.seed(seeded('목록 실패 시험'), { status: 'PUBLISHED', campaignId: 'campaign-a' }); // version 2
-  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
-  await ui.change('project-list', published.id);
+  const saved = api.seed(seeded('목록 실패 시험'));
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.change('project-list', saved.id);
   await ui.input('name', '목록 실패 전 편집');
   await settle(10);
   editors.pop()();
 
   api.failNext('GET', /collectible-projects$/, { status: 500 });
-  const remounted = await mount(api, { confirm: true });
-  assert.equal(remounted.asked.length, 0, '목록 조회가 실패했으면 서버 버전 0으로 잘못 판단해 묻거나 지우면 안 된다');
+  const remounted = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  assert.equal(remounted.asked.length, 0, '목록 조회가 실패했으면 복원 여부를 판단하면 안 된다');
   assert.equal(remounted.control('name').value, '월계 식당 수집품', '아직 결정 전이라 복원도 하지 않는다');
-  assert.ok(readDraft(dom.window, 'm1', 'anon'), '실패한 조회가 보관본을 지우지도 않는다');
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'), '실패한 조회가 보관본을 지우지도 않는다');
   await remounted.click('refresh');
   assert.equal(remounted.asked.length, 1, '다음에 목록 조회가 성공하면 그때 다시 판단한다');
   assert.match(remounted.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
 });
 
-test('초기 목록 조회를 기다리는 동안 편집해도 자동 저장이 보관본을 먼저 덮어쓰지 않고, 결정 때 바뀐다는 사실을 분명히 확인한다(🔴 P1)', async () => {
+test('목록 조회를 기다리는 동안 이미 새 편집을 시작했으면 조용히 건너뛰고 되묻지 않는다(dirty 에디터는 자동 복원하지 않음, 🔴 P1)', async () => {
   const api = createFakeApi();
-  const previous = await mount(api, { editor: { autosaveDelayMs: 5 } });
-  await previous.upload(photoFile);
+  const saved = api.seed(seeded('경합 시험'));
+  const previous = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await previous.change('project-list', saved.id);
   await previous.input('name', '이전 세션 편집');
   await settle(10);
   editors.pop()();
@@ -898,71 +927,58 @@ test('초기 목록 조회를 기다리는 동안 편집해도 자동 저장이 
   const asked = [];
   const cleanup = mountCollectibleEditor(container, {
     merchantId: 'm1', merchantName: '월계 식당', request: api.request, loadCampaigns: api.listCampaigns,
-    onNotice: () => {}, confirm: message => { asked.push(message); return true; }, autosaveDelayMs: 5,
+    onNotice: () => {}, confirm: message => { asked.push(message); return true; }, autosaveDelayMs: 5, accountScope: 'scope-a',
   });
   editors.push(cleanup);
   await settle(2); // 마운트는 끝났지만 목록 조회는 아직 보류 상태
   const name = container.querySelector('[data-control="name"]');
   name.value = '경합 중 입력'; name.dispatchEvent({ type: 'input' });
-  await settle(10); // debounce는 지났지만 복원 결정 전이라 자동 저장이 보관본을 건드리면 안 된다
-
-  assert.equal(readDraft(dom.window, 'm1', 'anon').project.name, '이전 세션 편집', '결정 전에는 자동 저장이 이전 보관본을 덮어쓰지 않는다');
+  await settle(10); // debounce는 지났지만 지금 편집은 서버에 없는 새 초안이라 덮어쓸 자동 저장도 없다
 
   hold.release();
   await settle(10);
-  assert.equal(asked.length, 1);
-  assert.match(asked[0], /지금까지 입력한 내용을.*이전 편집으로 바꿀까요\?.*지금 입력한 내용은 사라져요/, '조용히 덮어쓰지 않고 바뀐다는 사실을 분명히 확인해야 한다');
-  assert.equal(name.value, '이전 세션 편집', '수락하면 이전 보관본으로 바뀐다');
+  assert.equal(asked.length, 0, '이미 편집을 시작했으면 조용히 건너뛰고 되묻지 않는다');
+  assert.equal(name.value, '경합 중 입력', '지금 입력을 덮어쓰지 않는다');
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'), '보관본은 지우지 않고 그대로 둔다');
+  assert.equal(readDraft(dom.window, 'm1', 'scope-a').edits.name, '이전 세션 편집', '보관본 내용 자체도 바꾸지 않는다');
 });
 
-test('초기 경합 중 복원을 거절하면 지금 입력을 지키고 이전 보관본은 지운다(🔴 P1)', async () => {
+test('계정이 바뀌면 제작기가 열려 있지 않아도 그 계정의 모든 점포 기기 보관본을 지운다(merchant.mjs, 로그아웃도 같은 경로, P1)', async () => {
   const api = createFakeApi();
-  const previous = await mount(api, { editor: { autosaveDelayMs: 5 } });
-  await previous.upload(photoFile);
-  await previous.input('name', '이전 세션 편집');
-  await settle(10);
-  editors.pop()();
-
-  const hold = api.holdNext('GET', /collectible-projects$/);
-  const container = document.createElement('div');
-  const cleanup = mountCollectibleEditor(container, {
-    merchantId: 'm1', merchantName: '월계 식당', request: api.request, loadCampaigns: api.listCampaigns,
-    onNotice: () => {}, confirm: () => false, autosaveDelayMs: 5,
-  });
-  editors.push(cleanup);
-  await settle(2);
-  const name = container.querySelector('[data-control="name"]');
-  name.value = '경합 중 입력'; name.dispatchEvent({ type: 'input' });
-  await settle(10);
-  hold.release();
-  await settle(10);
-  assert.equal(name.value, '경합 중 입력', '거절하면 지금 입력을 지킨다');
-  assert.equal(readDraft(dom.window, 'm1', 'anon'), null, '거절한 이전 보관본은 지운다');
-});
-
-test('로그아웃·계정 전환으로 닫히면 그 계정의 다른 점포 보관본까지 모두 지우고, 평소 닫기는 기기에 남긴다(P1)', async () => {
-  const api = createFakeApi();
-  const container1 = document.createElement('div');
-  const cleanup1 = mountCollectibleEditor(container1, {
-    merchantId: 'm1', merchantName: '가게1', request: api.request, loadCampaigns: api.listCampaigns,
-    accountScope: 'scope-shared', autosaveDelayMs: 5, confirm: () => true,
-  });
-  const container2 = document.createElement('div');
-  const cleanup2 = mountCollectibleEditor(container2, {
-    merchantId: 'm-other', merchantName: '가게2', request: api.request, loadCampaigns: api.listCampaigns,
-    accountScope: 'scope-shared', autosaveDelayMs: 5, confirm: () => true,
-  });
-  editors.push(cleanup2);
-  await settle(4);
-  const name1 = container1.querySelector('[data-control="name"]'), name2 = container2.querySelector('[data-control="name"]');
-  name1.value = '점포1 편집'; name1.dispatchEvent({ type: 'input' });
-  name2.value = '점포2 편집'; name2.dispatchEvent({ type: 'input' });
+  const saved = api.seed(seeded('계정 전환 시험'));
+  const ui = await mount(api, { editor: { accountScope: 'scope-shared', autosaveDelayMs: 5 } });
+  await ui.change('project-list', saved.id);
+  await ui.input('name', '계정 전환 전 편집');
   await settle(10);
   assert.ok(readDraft(dom.window, 'm1', 'scope-shared'));
-  assert.ok(readDraft(dom.window, 'm-other', 'scope-shared'));
-  cleanup1('logout');
-  assert.equal(readDraft(dom.window, 'm1', 'scope-shared'), null);
-  assert.equal(readDraft(dom.window, 'm-other', 'scope-shared'), null, '로그아웃은 같은 계정의 다른 점포 보관본도 지운다');
+  editors.pop()();
+
+  const doc = dom.document;
+  const page = doc.createElement('div');
+  page.innerHTML = '<section id="merchant-creator" hidden><select id="merchant-creator-store"></select><button id="merchant-creator-open" type="button"></button><div id="merchant-creator-editor"></div></section><p id="merchant-status"></p>';
+  doc.body.append(page);
+  configureCreator(api.fetcher, doc, { accountScope: 'scope-shared', merchants: [owner('m1', '월계 식당')] });
+  // 제작기를 한 번도 열지 않은 채(open 버튼을 누르지 않음) 계정이 바뀌면(로그아웃도 같은 clearDrafts 경로를 쓴다)
+  // 그 계정 보관본을 지운다.
+  configureCreator(api.fetcher, doc, { accountScope: 'scope-other', merchants: [owner('m1', '월계 식당')] });
+  assert.equal(readDraft(dom.window, 'm1', 'scope-shared'), null, '계정이 바뀌면 이전 계정의 보관본을 지운다');
+});
+
+test('같은 계정의 점포·역할 목록만 바뀌면 열린 제작기도, 기기 보관본도 건드리지 않는다(merchant.mjs)', async () => {
+  const api = createFakeApi();
+  const merchants = [owner('m1', '월계 식당')];
+  const saved = api.seed(seeded('역할 변경 시험'));
+  const ui = await mountViaMerchant(api, { confirm: () => true, merchants });
+  // mountViaMerchant는 merchant.mjs의 기본 autosaveDelayMs(1.5초)를 그대로 쓰므로, 디바운스를 기다리는 대신
+  // 이미 자동 저장된 것처럼 보관본을 먼저 심어 둔다(scope-a는 mountViaMerchant의 accountScope 고정값).
+  dom.window.localStorage.setItem(draftStorageKey('m1', 'scope-a'), JSON.stringify({ merchantId: 'm1', accountMarker: 'scope-a', wrapperId: saved.id, wrapperVersion: saved.version, savedAt: Date.now(), edits: { name: '역할 변경 전 편집' } }));
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'));
+  assert.ok(ui.host.children.length > 0, '제작기가 열려 있다');
+
+  // 같은 계정(accountScope 그대로)이 점포·역할 목록만 바뀐 채로 다시 호출되는 상황(예: /me를 다시 읽을 때마다).
+  configureCreator(api.fetcher, document, { accountScope: 'scope-a', merchants: [...merchants, owner('m2', '두 번째 식당')] });
+  assert.ok(ui.host.children.length > 0, '역할 목록만 바뀐 호출은 열린 제작기를 닫지 않는다');
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'), '같은 계정의 점포·역할 목록 변경은 보관본을 지우지 않는다');
 });
 
 test('명시적으로 편집을 버리고 다른 점포를 열면 그 초안의 기기 보관본만 지우고 다시 저장하지 않는다(P1)', async () => {
@@ -996,26 +1012,6 @@ test('계정 구분값이 계속 없어도 configureCreator를 다시 불렀다�
   configureCreator(api.fetcher, doc, { merchants });
   assert.ok(host.children.length > 0, '계정 구분값 없이 다시 구성해도 열려 있던 제작기를 닫지 않는다');
   assert.equal(name.value, '계속 열려 있어야 하는 편집', '편집 내용도 그대로 남는다');
-});
-
-test('용량 초과로 사진이 빠진 채 복원한 초안은 사진을 다시 고르기 전까지 저장·게시를 막는다(P2)', async () => {
-  const api = createFakeApi();
-  const ui = await mount(api, { editor: { autosaveDelayMs: 5 } });
-  await ui.upload({ ...photoFile, dataUrl: `data:image/png;base64,${'A'.repeat(6 * MiB)}` });
-  await ui.input('name', '용량 초과 편집');
-  await settle(10);
-  assert.equal(readDraft(dom.window, 'm1', 'anon').mediaOmitted, true);
-  editors.pop()();
-
-  const restored = await mount(api, { confirm: true });
-  assert.match(restored.notice, /사진이 커서 기기에는 저장하지 못했어요/);
-  await restored.click('draft');
-  assert.match(restored.notice, /사진을 다시 선택한 뒤 저장·게시해 주세요/);
-  assert.equal(api.calls.filter(call => call.method === 'POST' && call.path === '/collectible-projects').length, 0, '사진을 다시 고르기 전에는 서버로 보내지 않는다');
-  await restored.upload(photoFile);
-  await restored.click('draft');
-  assert.match(restored.notice, /초안을 저장했어요/);
-  assert.equal(api.calls.filter(call => call.method === 'POST' && call.path === '/collectible-projects').length, 1, '사진을 다시 고르면 저장할 수 있다');
 });
 
 test('얼굴 감지가 끝나기 전에 사진을 바꾸면 낡은 자동 맞춤 결과를 버린다(P2)', async () => {

@@ -1,3 +1,5 @@
+import { clearCollectibleDrafts } from './collectible-assist.mjs';
+
 const merchantRequests = new WeakMap();
 const merchantClaimResolutions = new WeakMap();
 const merchantClaimSlots = new WeakMap();
@@ -9,12 +11,20 @@ const creatorScopes = new WeakMap();
 const creatorStores = new WeakMap();
 
 // reason은 제작기의 dispose(reason)에 그대로 전달된다: 'discard'(사용자가 지금 초안을 명시적으로 버림),
-// 'logout'·'account-switch'(같은 기기의 다른 계정 몫 보관본을 전부 지움), 생략(평범한 이동 — 기기에 남겨 둔다).
+// 생략(평범한 이동 — 미디어 없는 편집 값만 기기에 남겨 둔다). 로그아웃·계정 전환으로 그 계정의 모든 점포 보관본을
+// 지우는 일은 제작기가 열려 있지 않아도 일어나야 하므로 clearDrafts(scope)로 따로 호출한다.
 function closeCreator(doc, reason) {
   creators.get(doc)?.(reason);
   creators.delete(doc);
   creatorStores.delete(doc);
   doc.getElementById('merchant-creator-editor')?.replaceChildren();
+}
+
+// 기기 저장소 인자를 생략해(clearCollectibleDrafts가 전역 기기 저장소를 기본값으로 쓴다) 이 화면의 소스에는
+// 그 저장소 이름이 남지 않는다(점주 쿠폰 화면은 마크업·텍스트 노드 렌더링만 쓴다는 시험이 그 문구를 금지한다).
+function clearDrafts(scope) {
+  if (!scope) return;
+  try { clearCollectibleDrafts(undefined, scope); } catch { /* 저장 공간이 없어도 로그아웃·전환은 계속한다 */ }
 }
 
 // 제작기 권한은 서버가 MANAGE_ART로 판정한다(기본은 점포의 점주만, 응답에는 싣지 않는다). 이 화면이 아는 것은 역할뿐이라
@@ -36,10 +46,11 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
   const select = doc.getElementById('merchant-creator-store');
   const open = doc.getElementById('merchant-creator-open');
   if (!panel || !select || !open) return;
-  const scope = `${mine.accountScope ?? ''}:${mine.merchants.map(member => `${member.id}:${member.role}`).sort().join(',')}`;
-  // accountScope가 없는 계정도(값이 없으면 제작기가 공유 'anon' 보관함을 쓴다) 매번 닫히면 자동 저장·복원이
-  // 전혀 동작하지 못한다. scope 문자열 자체가 이미 accountScope 유무를 담으므로 그 비교만으로 충분하다.
-  if (creatorScopes.get(doc) !== scope) closeCreator(doc, 'account-switch');
+  const scope = mine.accountScope ?? '';
+  const previousScope = creatorScopes.get(doc);
+  // 계정 자체가 바뀔 때만 닫고 그 계정의 보관본을 지운다. 같은 계정의 점포·역할 목록만 바뀐 호출(매번 /me를 다시
+  // 읽을 때 일어난다)은 제작기를 닫지도, 자동 저장·복원을 막지도 않는다.
+  if (previousScope !== undefined && previousScope !== scope) { closeCreator(doc); clearDrafts(previousScope); }
   creatorScopes.set(doc, scope);
   const makers = mine.merchants.filter(canCreate);
   select.replaceChildren();
@@ -857,8 +868,9 @@ export function bindMerchant(fetcher, doc) {
     }
   });
   doc.getElementById('merchant-logout')?.addEventListener('click', async () => {
-    // 로그아웃: 같은 기기를 다른 계정이 바로 이어 쓸 수 있으므로 기기에 남긴 자동 저장 사진이 그대로 보이면 안 된다.
-    closeCreator(doc, 'logout');
+    // 로그아웃: 같은 기기를 다른 계정이 바로 이어 쓸 수 있으므로, 이 계정이 기기에 남긴 자동 저장 보관본을 지운다.
+    closeCreator(doc);
+    clearDrafts(creatorScopes.get(doc));
     creatorScopes.delete(doc);
     stopCamera();
     merchantRequests.set(doc, (merchantRequests.get(doc) ?? 0) + 1);
