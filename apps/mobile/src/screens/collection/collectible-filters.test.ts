@@ -12,6 +12,7 @@ function group(overrides: Partial<CollectibleGroup> & Pick<CollectibleGroup, 'ke
     count: 1,
     entitlementIds: ['e1'],
     earnedDates: ['2026-09-01T00:00:00.000Z'],
+    entitlements: [{ entitlementId: 'e1', earnedAt: '2026-09-01T00:00:00.000Z', nftStatus: 'NOT_REQUESTED', nft: null, recipient: null }],
     ...overrides,
   };
 }
