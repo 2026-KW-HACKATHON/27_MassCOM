@@ -1,5 +1,5 @@
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -13,6 +13,7 @@ import { Mascot } from '@/ui/mascot';
 import { StateScene } from '@/ui/state-scene';
 
 import { collectibleDetailFailure, type CollectibleDetailFailure } from './collectible-detail-state';
+import { RevealLifecycle, type RevealStage } from './reveal-lifecycle';
 
 type Props = {
   entitlementId: string;
@@ -76,47 +77,58 @@ function RevealBody({ snapshot, merchantName, onSkip, onOpenDetail }: {
 }) {
   const insets = useSafeAreaInsets();
   const motionAllowed = useMotionEnabled();
-  const [stage, setStage] = useState<'opening' | 'revealed'>(motionAllowed ? 'opening' : 'revealed');
-  const [muted, setMuted] = useState(false);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
+  const [muted, setMuted] = useState(false);
+  // Lazy initializers (evaluated once, on the first render only) so an already-static mount (reduce-motion or
+  // backgrounded from the start) never flashes the opening state before the lifecycle effect below corrects it.
+  const [stage, setStage] = useState<RevealStage>(() => (motionAllowed && foreground ? 'opening' : 'revealed'));
+  const reveal = useSharedValue(motionAllowed && foreground ? 0 : 1);
   const player = useAudioPlayer(snapshot.audio ? { uri: snapshot.audio.dataUrl } : null);
-  const reveal = useSharedValue(motionAllowed ? 0 : 1);
   const isStamp = snapshot.shape === 'stamp';
-  // 재생 요청마다 올리는 세대. 음을 끄거나 백그라운드로 가면 세대를 올려, 그 이전에 시작한 재생 요청이 나중에 끝나도 소리를 내지 않게 막는다.
-  const audioAction = useRef(0);
-  const moving = motionAllowed && foreground;
 
-  const pause = useCallback(() => {
-    audioAction.current += 1;
-    try { player.pause(); } catch { /* 이미 해제된 player일 수 있다. */ }
-  }, [player]);
+  // Owns the opening→revealed transition and the audio play generation; see reveal-lifecycle.ts and its tests for
+  // the races this exists to close (mute/background/unmount racing a pending play(), reduce-motion or backgrounding
+  // mid-opening never advancing the stage). The lazy useState initializer runs exactly once, so the controller is
+  // built a single time per mount — a ref would read the same way but this repo's lint forbids reading ref.current
+  // during render (react-hooks/refs), so a stable piece of state is used instead of a ref for this singleton.
+  const [lifecycle] = useState(() => new RevealLifecycle(
+    {
+      onAnimateOpening: () => reveal.set(withTiming(1, { duration: 650, easing: Easing.out(Easing.cubic) })),
+      onStageComplete: () => { reveal.set(1); setStage('revealed'); },
+    },
+    700,
+    { foreground, motionAllowed },
+  ));
+
+  // start()/dispose() run exactly once (lifecycle's identity never changes across renders). Foreground and mute are
+  // pushed to the controller straight from the event that changes them (the AppState listener, the mute Switch),
+  // not from an effect a render cycle later — a background/mute that arrives while play() is mid-flight must
+  // invalidate it immediately, not after React gets around to committing. motionAllowed has no such event to hook;
+  // useMotionEnabled() only surfaces a new value via re-render, so an effect is the only way to observe it, and it
+  // is not audio-time-sensitive (it never gates play(), only the opening animation) so the one-tick lag is fine.
+  useEffect(() => {
+    lifecycle.start();
+    return () => lifecycle.dispose();
+  }, [lifecycle]);
+  useEffect(() => { lifecycle.setMotionAllowed(motionAllowed); }, [lifecycle, motionAllowed]);
 
   useEffect(() => {
     const listener = AppState.addEventListener('change', (state) => {
-      setForeground(state === 'active');
-      if (state !== 'active') pause();
+      const isForeground = state === 'active';
+      setForeground(isForeground);
+      lifecycle.setForeground(isForeground);
     });
     return () => listener.remove();
-  }, [pause]);
-
-  useEffect(() => {
-    if (stage !== 'opening') return;
-    if (!moving) {
-      // 동작 줄이기가 켜졌거나 화면이 백그라운드로 간 경우: 진행 중이던 열림 연출을 멈추고 바로 정적 결과 화면으로 넘어간다.
-      // 그래야 동작 줄이기를 연출 중간에 켰을 때 대사·상세 보기 버튼이 영영 나오지 않는 일이 없다.
-      const timer = setTimeout(() => { reveal.set(1); setStage('revealed'); }, 0);
-      return () => clearTimeout(timer);
-    }
-    reveal.set(withTiming(1, { duration: 650, easing: Easing.out(Easing.cubic) }));
-    const timer = setTimeout(() => setStage('revealed'), 700);
-    return () => clearTimeout(timer);
-  }, [moving, stage, reveal]);
+  }, [lifecycle]);
 
   useEffect(() => {
     if (stage === 'revealed') void successHaptic();
   }, [stage]);
 
-  useEffect(() => () => pause(), [pause]);
+  const onMutedChange = (value: boolean) => {
+    setMuted(value);
+    lifecycle.setMuted(value);
+  };
 
   const openingStyle = useAnimatedStyle(() => isStamp
     ? { opacity: reveal.get(), transform: [{ translateY: (1 - reveal.get()) * -36 }, { scale: 0.7 + reveal.get() * 0.3 }] }
@@ -124,19 +136,12 @@ function RevealBody({ snapshot, merchantName, onSkip, onOpenDetail }: {
   const burstStyle = useAnimatedStyle(() => ({ opacity: 0.35 + reveal.get() * 0.65, transform: [{ scale: 0.6 + reveal.get() * 0.4 }] }));
 
   const playGreeting = async () => {
-    if (muted || !snapshot.audio || !foreground) return;
-    const action = ++audioAction.current;
-    try {
-      await setAudioModeAsync({ shouldPlayInBackground: false, allowsRecording: false });
-      await player.seekTo(0);
-      // 대기하는 동안 소리 끄기를 누르거나 백그라운드로 갔다면(세대가 바뀌었다면) 이제 와서 재생을 시작하지 않는다.
-      if (action === audioAction.current) player.play();
-    } catch { /* 소리는 부가 효과라 실패해도 대사 텍스트는 그대로 보인다. */ }
-  };
-
-  const onMutedChange = (value: boolean) => {
-    setMuted(value);
-    if (value) pause();
+    if (!snapshot.audio) return;
+    await lifecycle.play({
+      setAudioMode: () => setAudioModeAsync({ shouldPlayInBackground: false, allowsRecording: false }),
+      seekToStart: () => player.seekTo(0),
+      startPlayback: () => player.play(),
+    });
   };
 
   return (

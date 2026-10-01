@@ -38,15 +38,47 @@ export function pendingReactionEvents(eligible: readonly ReactionEvent[], shown:
   return [...pending].sort((a, b) => rank[a.kind] - rank[b.kind]);
 }
 
+export type ReactionQueue = readonly ReactionEvent[];
+
+/**
+ * A tiny queue "controller" the screen is meant to use directly rather than reimplement: enqueue newly-eligible
+ * events, read the one currently on screen, dismiss it, and find out which key (if any) that display just earned
+ * persisting. Kept as plain functions over a plain array (no React) so it is fully testable without a renderer —
+ * see mascot-reactions.test.ts for the full "several events become eligible at once, only one shown at a time,
+ * only the shown one persisted" cycle this exists to get right.
+ */
+
 /**
  * Adds newly-eligible events to a display queue without duplicating one already waiting (or already showing, since
  * that is the queue's head). The screen shows one reaction at a time; only the event actually displayed is marked
- * shown (see reactionEventKey), so every queued event is still shown even though only one is ever on screen at once.
+ * shown (see reactionKeyToPersist), so every queued event is still shown even though only one is ever on screen at once.
  */
-export function enqueueReactionEvents(queue: readonly ReactionEvent[], additions: readonly ReactionEvent[]): readonly ReactionEvent[] {
+export function enqueueReactionEvents(queue: ReactionQueue, additions: readonly ReactionEvent[]): ReactionQueue {
   const queued = new Set(queue.map(reactionEventKey));
   const newOnes = additions.filter((event) => !queued.has(reactionEventKey(event)));
   return newOnes.length > 0 ? [...queue, ...newOnes] : queue;
+}
+
+/** The event currently on screen, if any — always the queue's head. */
+export function currentReactionEvent(queue: ReactionQueue): ReactionEvent | undefined {
+  return queue[0];
+}
+
+/** Removes the currently-displayed event from the queue, e.g. when its toast closes. A no-op on an empty queue. */
+export function dismissReactionEvent(queue: ReactionQueue): ReactionQueue {
+  return queue.slice(1);
+}
+
+/**
+ * The key to persist as "shown", given what is currently on screen and what has already been persisted — or
+ * undefined if there is nothing new. This is the one place that decides what gets marked shown, and it only ever
+ * looks at the queue's head: an event still waiting its turn is never marked shown before it is actually shown.
+ */
+export function reactionKeyToPersist(queue: ReactionQueue, alreadyShown: ReadonlySet<string>): string | undefined {
+  const current = currentReactionEvent(queue);
+  if (!current) return undefined;
+  const key = reactionEventKey(current);
+  return alreadyShown.has(key) ? undefined : key;
 }
 
 export function reactionMessage(event: ReactionEvent): string {

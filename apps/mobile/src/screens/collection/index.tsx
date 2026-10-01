@@ -38,7 +38,7 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
-import { collectibleFocusAction } from './collectible-focus';
+import { collectibleFocusAction, resolveCollectibleLink } from './collectible-focus';
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { CollectibleBrowser } from './collectible-browser';
 import { CollectibleDetail } from './collectible-detail';
@@ -48,7 +48,15 @@ import { useCollectibleShare } from './collectible-share';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
 import { readFavorites, readShownReactions, writeFavorites, writeShownReactions } from './collection-prefs-storage';
 import { toggleFavorite } from './collection-prefs';
-import { eligibleReactionEvents, enqueueReactionEvents, pendingReactionEvents, reactionEventKey, type ReactionEvent } from './mascot-reactions';
+import {
+  currentReactionEvent,
+  dismissReactionEvent,
+  eligibleReactionEvents,
+  enqueueReactionEvents,
+  pendingReactionEvents,
+  reactionKeyToPersist,
+  type ReactionEvent,
+} from './mascot-reactions';
 import { MascotReactionToast } from './mascot-reaction-toast';
 import { merchantArt, type MerchantArt } from './merchant-art';
 import { canOfferMint, mintRefusalText, nftPreparingNote, nftStatusLabel } from './nft-status';
@@ -124,7 +132,7 @@ export function CollectionScreen({
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   // 화면은 한 번에 하나씩만 반응을 보인다. 큐의 머리만 실제로 보여준 것이라 그것만 "본 것"으로 기록한다(그 아래 effect).
   const [reactionQueue, setReactionQueue] = useState<readonly ReactionEvent[]>([]);
-  const reactionEvent = reactionQueue[0];
+  const reactionEvent = currentReactionEvent(reactionQueue);
   const { host: shareHost, share: shareCollectible, sharing } = useCollectibleShare();
   const [polling, setPolling] = useState<PollingState>();
   const [binding, setBinding] = useState<ActiveWalletBindingResponse['binding']>();
@@ -146,8 +154,16 @@ export function CollectionScreen({
   const collection = polling?.snapshot;
   const loadCollectible = useCallback((entitlementId: string) => api.getCollectible(entitlementId), [api]);
 
+  // focus=collectible 링크를 시도할 때마다 올리는 세대. 탭을 떠나거나 새 링크가 시작되면 세대를 올려, 그 전 시도의 재조회가
+  // 나중에 끝나도 (이미 떠난) 그 결과로 연출을 다시 열지 않게 막는다(resolveCollectibleLink가 이 값을 확인한다).
+  const linkGeneration = useRef(0);
+
   // 탭을 떠나면 상세뿐 아니라 획득 연출도 닫는다(둘 다 그 사이 새로 받은 수집품에만 걸린 일회성 화면이다).
-  useFocusEffect(useCallback(() => () => { setCollectibleDetail(undefined); setRevealEntitlement(undefined); }, [setCollectibleDetail, setRevealEntitlement]));
+  useFocusEffect(useCallback(() => () => {
+    setCollectibleDetail(undefined);
+    setRevealEntitlement(undefined);
+    linkGeneration.current += 1;
+  }, [setCollectibleDetail, setRevealEntitlement]));
 
   // 대표 진열·마스코트 반응 기록은 계정별 로컬 저장소에서 읽는다. 화면은 계정마다 새로 마운트되므로(라우트의 key=accountId) 한 번만 읽으면 된다.
   useEffect(() => {
@@ -180,11 +196,16 @@ export function CollectionScreen({
     if (focus !== 'collectible') { collectibleLink.current = {}; return; }
     const link = collectibleLink.current;
     if (!collection || link.doneFor === entitlement) return;
+    // 이 시도만의 세대: 탭을 떠나거나(위 useFocusEffect) 다른 링크가 새로 시작되면(이 effect가 다시 돎) 세대가 올라가
+    // resolveCollectibleLink가 이 시도의 뒤늦은 결과를 무시하게 한다. 도감 조회 자체의 세대(startRequest/generation)와는
+    // 별개다: 저건 오래된 조회 응답을 거르고, 이건 이미 떠난 링크가 열어보려는 연출을 거른다.
+    const linkAttempt = ++linkGeneration.current;
     const finish = (snapshot: CollectionSnapshot) => {
+      const outcome = resolveCollectibleLink(snapshot, entitlement, linkAttempt, () => linkGeneration.current);
+      if (outcome.action === 'stale') return;
       link.doneFor = entitlement;
-      const item = snapshot.collectibles.find((value) => value.entitlementId === entitlement);
       // 방문 수령 직후 도착한 링크만 획득 연출을 연다; 전달은 이미 끝난 뒤라 연출을 건너뛰어도 보관 상태는 그대로다.
-      if (item?.artwork) setRevealEntitlement({ entitlementId: item.entitlementId, merchantName: item.merchantName });
+      if (outcome.action === 'open') setRevealEntitlement({ entitlementId: outcome.entitlementId, merchantName: outcome.merchantName });
       else setMessage('보상은 도감에 보관됐어요. 다시 볼 수 있는 가게 수집품은 아직 없어요.');
       router.setParams({ focus: undefined, entitlement: undefined });
     };
@@ -207,7 +228,9 @@ export function CollectionScreen({
   const collectibleGroups = useMemo(() => groupCollectibles(collection?.collectibles ?? []), [collection]);
   const storeSeries = useMemo(() => buildStoreSeries(publicMerchants, collection?.collectibles ?? []), [publicMerchants, collection]);
 
-  // 17.1 마스코트 반응: 새로 자격을 얻은 이벤트를 큐에 더한다(이미 큐에 있거나 이미 보여준 것은 다시 넣지 않는다).
+  // 17.1 마스코트 반응: 새로 자격을 얻은 이벤트를 큐에 더한다(이미 큐에 있거나 이미 보여준 것은 다시 넣지 않는다). 큐 조작은
+  // mascot-reactions.ts의 controller 함수(enqueue/currentReactionEvent/reactionKeyToPersist/dismissReactionEvent)만 쓴다:
+  // 여기서 직접 배열을 자르거나 큐 전체를 "본 것"으로 기록하지 않는다(그게 한 번에 여러 반응을 놓치던 원래 버그였다).
   useEffect(() => {
     if (!prefsLoaded) return;
     const eligible = eligibleReactionEvents(collectibleGroups, storeSeries);
@@ -219,14 +242,13 @@ export function CollectionScreen({
   // 큐의 머리만 화면에 실제로 뜬 것이므로 그것만 "본 것"으로 기록한다: 한 틱에 여러 개가 자격을 얻어도 하나씩만 보이고,
   // 나머지는 자기 차례가 와서 실제로 보일 때 각자 기록된다(한꺼번에 지금 다 기록하면 아직 안 보여준 것도 사라진다).
   useEffect(() => {
-    if (!reactionEvent) return;
-    const key = reactionEventKey(reactionEvent);
-    if (shownReactions.current.has(key)) return;
+    const key = reactionKeyToPersist(reactionQueue, shownReactions.current);
+    if (!key) return;
     shownReactions.current = new Set([...shownReactions.current, key]);
     void writeShownReactions(accountId, shownReactions.current);
-  }, [reactionEvent, accountId]);
+  }, [reactionQueue, accountId]);
 
-  const dismissReactionEvent = useCallback(() => setReactionQueue((current) => current.slice(1)), []);
+  const handleDismissReaction = useCallback(() => setReactionQueue(dismissReactionEvent), []);
   const artSize = collectibleArtSize(width, uiMetrics.pageInset, styles.collectibleCard.padding);
   const detailMedal = badges.book?.medals.find((medal) => medal.kind === detailKind);
   const coupons = couponsOf(badges.book);
@@ -664,7 +686,7 @@ export function CollectionScreen({
         />
       ) : null}
       {shareHost}
-      <MascotReactionToast event={reactionEvent} onClose={dismissReactionEvent} />
+      <MascotReactionToast event={reactionEvent} onClose={handleDismissReaction} />
       <RewardReveal
         result={revealed}
         onClose={() => setRevealed(undefined)}

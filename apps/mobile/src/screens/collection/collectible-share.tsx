@@ -4,9 +4,11 @@ import { Image, Share, StyleSheet, Text, View } from 'react-native';
 import { captureViewAsPng, shareImageFile } from '@/gamification/native-effects';
 import { lightColors } from '@/theme/palette';
 
+import { performShare, type ShareOutcome } from './collectible-share-flow';
+
 export type ShareableCollectible = { thumbnailDataUrl: string; merchantName: string; name: string };
 
-export type ShareOutcome = 'image' | 'text' | 'failed';
+export type { ShareOutcome };
 
 const cardSize = { width: 320, height: 400 } as const;
 
@@ -23,8 +25,9 @@ export function useCollectibleShare(): { host: ReactNode; share: (item: Shareabl
   const [sharing, setSharing] = useState(false);
   const card = useRef<View>(null);
   // The screen that owns this hook remounts per account (route key=accountId). If it unmounts while a share is being
-  // prepared (capture, frame waits), the job must stop before it reaches the share sheet with the previous
-  // account's collectible — there is no reward-safety issue, only stale data leaking into a share action.
+  // prepared (capture, frame waits, or even inside shareImageFile's own awaits), the job must stop before it reaches
+  // the share sheet with the previous account's collectible — there is no reward-safety issue, only stale data
+  // leaking into a share action.
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
 
@@ -32,30 +35,20 @@ export function useCollectibleShare(): { host: ReactNode; share: (item: Shareabl
     setSharing(true);
     setItem(target);
     try {
-      try {
+      return await performShare({
         // Two frames so the image lays out before the snapshot, then a short settle like useBadgeShare.
-        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-        await new Promise((resolve) => setTimeout(resolve, 120));
-        if (!alive.current) return 'failed';
-        if (card.current) {
-          const uri = await captureViewAsPng(card.current);
-          if (!alive.current) return 'failed';
-          if (await shareImageFile(uri, '수집품 공유')) return 'image';
-        }
-      } catch {
-        // Image capture or the file share sheet is unavailable on this build; share text instead.
-      } finally {
-        if (alive.current) setItem(undefined);
-      }
-      if (!alive.current) return 'failed';
-      try {
-        await Share.share({ message: shareLine(target) });
-        return 'text';
-      } catch {
-        return 'failed';
-      }
+        nextFrame: () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+        settle: () => new Promise<void>((resolve) => setTimeout(resolve, 120)),
+        captureViewAsPng: () => (card.current ? captureViewAsPng(card.current) : Promise.resolve(undefined)),
+        shareImageFile: (uri, isAlive) => shareImageFile(uri, '수집품 공유', isAlive),
+        shareText: () => Share.share({ message: shareLine(target) }).then(() => undefined),
+        isAlive: () => alive.current,
+      });
     } finally {
-      if (alive.current) setSharing(false);
+      if (alive.current) {
+        setItem(undefined);
+        setSharing(false);
+      }
     }
   }, []);
 

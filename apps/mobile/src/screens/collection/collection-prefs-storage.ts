@@ -1,12 +1,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { favoritesKey, shownReactionsKey } from './collection-prefs';
+import { favoritesKey, parseStoredList, shownReactionsKey } from './collection-prefs';
 
-/** Thin AsyncStorage adapter; the pure key/merge logic lives in collection-prefs.ts. */
+/**
+ * Thin AsyncStorage adapter; the pure key/merge/parse logic lives in collection-prefs.ts. Reads never reject — a
+ * missing key, corrupt JSON, or a storage-layer failure all resolve to empty rather than propagating, so a bad
+ * read never permanently blocks the writes that are gated on it finishing (see index.tsx's prefsLoaded).
+ */
+
+async function readRaw(key: string): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
 
 export async function readFavorites(accountId: string): Promise<readonly string[]> {
-  const raw = await AsyncStorage.getItem(favoritesKey(accountId));
-  return raw ? (JSON.parse(raw) as string[]) : [];
+  return parseStoredList(await readRaw(favoritesKey(accountId)));
 }
 
 export async function writeFavorites(accountId: string, favorites: readonly string[]): Promise<void> {
@@ -14,8 +25,7 @@ export async function writeFavorites(accountId: string, favorites: readonly stri
 }
 
 export async function readShownReactions(accountId: string): Promise<ReadonlySet<string>> {
-  const raw = await AsyncStorage.getItem(shownReactionsKey(accountId));
-  return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  return new Set(parseStoredList(await readRaw(shownReactionsKey(accountId))));
 }
 
 export async function writeShownReactions(accountId: string, events: ReadonlySet<string>): Promise<void> {

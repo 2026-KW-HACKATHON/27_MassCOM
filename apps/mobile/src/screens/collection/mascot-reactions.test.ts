@@ -2,7 +2,17 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { CollectibleGroup } from './collectible-groups';
-import { eligibleReactionEvents, enqueueReactionEvents, pendingReactionEvents, reactionEventKey, reactionMessage } from './mascot-reactions';
+import {
+  currentReactionEvent,
+  dismissReactionEvent,
+  eligibleReactionEvents,
+  enqueueReactionEvents,
+  pendingReactionEvents,
+  reactionEventKey,
+  reactionKeyToPersist,
+  reactionMessage,
+  type ReactionQueue,
+} from './mascot-reactions';
 import type { StoreSeries } from './store-series';
 
 const artwork = { publicationId: 'p', projectId: 'proj', gradeId: 'g', gradeName: '1등급', name: '이름', shape: 'circle' as const, theme: { name: '가을' }, thumbnailDataUrl: 'data:image/png;base64,aa==' };
@@ -54,26 +64,48 @@ test('enqueueReactionEvents never duplicates an event already waiting in the que
   assert.equal(enqueueReactionEvents(queue, [first]).length, 2);
 });
 
+test('currentReactionEvent reads the queue head and dismissReactionEvent drops it', () => {
+  const first = { kind: 'first-collectible' as const };
+  const store = { kind: 'first-store' as const, merchantId: 'm1', merchantName: '가게1' };
+  const queue = enqueueReactionEvents([], [first, store]);
+  assert.deepEqual(currentReactionEvent(queue), first);
+  const afterDismiss = dismissReactionEvent(queue);
+  assert.deepEqual(currentReactionEvent(afterDismiss), store);
+  assert.deepEqual(dismissReactionEvent([]), []);
+});
+
+test('reactionKeyToPersist only ever names the event on screen, never a queued-but-unseen one', () => {
+  const first = { kind: 'first-collectible' as const };
+  const store = { kind: 'first-store' as const, merchantId: 'm1', merchantName: '가게1' };
+  const queue = enqueueReactionEvents([], [first, store]);
+  assert.equal(reactionKeyToPersist(queue, new Set()), reactionEventKey(first));
+  // Already persisted: nothing new to persist, even though `store` is still queued and unseen.
+  assert.equal(reactionKeyToPersist(queue, new Set([reactionEventKey(first)])), undefined);
+  assert.equal(reactionKeyToPersist([], new Set()), undefined);
+});
+
 // Regression for the bug where every pending event was marked shown at once but only the first was ever displayed,
 // silently dropping first-store/store-complete when several events become eligible in the same tick (index.tsx).
-test('every event that becomes pending in the same tick is eventually shown, one at a time', () => {
+// This drives the exact controller functions index.tsx uses (enqueue → currentReactionEvent → reactionKeyToPersist
+// → dismissReactionEvent), not a reimplementation, so reverting index.tsx to call them incorrectly — e.g. persisting
+// the whole batch instead of just the current one — cannot be caught here; see the one light source check below.
+test('every event that becomes pending in the same tick is eventually shown, one at a time, via the queue controller', () => {
   const eligible = eligibleReactionEvents([group('m1', '가게1'), group('m2', '가게2')], [
     { merchantId: 'm1', merchantName: '가게1', slots: [], completed: true, nextSlot: null },
   ]);
   assert.ok(eligible.length >= 3, '테스트 전제: 같은 틱에 세 개 이상 자격을 얻어야 한다');
 
   const shown = new Set<string>();
-  let queue = enqueueReactionEvents([], pendingReactionEvents(eligible, shown));
+  let queue: ReactionQueue = [];
   const displayedInOrder: string[] = [];
-  // Screen loop: show the queue head, mark only that one shown, dequeue, repeat — never mark the rest "shown" up front.
-  while (queue.length > 0) {
-    const head = queue[0]!;
-    const key = reactionEventKey(head);
-    displayedInOrder.push(key);
-    shown.add(key);
-    queue = queue.slice(1);
-    // A later re-run of the eligibility check (e.g. another render) must not re-enqueue what is already shown.
+  for (let round = 0; round < eligible.length; round += 1) {
+    // Each round mimics one render: newly-eligible-but-not-yet-shown events are enqueued first.
     queue = enqueueReactionEvents(queue, pendingReactionEvents(eligible, shown));
+    const key = reactionKeyToPersist(queue, shown);
+    assert.ok(key, `round ${round}에 보여줄 이벤트가 있어야 한다`);
+    shown.add(key!);
+    displayedInOrder.push(key!);
+    queue = dismissReactionEvent(queue);
   }
   assert.deepEqual(displayedInOrder.sort(), eligible.map(reactionEventKey).sort());
   assert.deepEqual(pendingReactionEvents(eligible, shown), []);

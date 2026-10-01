@@ -13,7 +13,7 @@ import { demoRuntimeConfig, createDemoCredential, isDevelopmentDemoBuild } from 
 import { getPublicApiConfig } from '@/config/public-api';
 import { resolveRuntimeIdentity } from '@/config/showcase-identity';
 import { clearPendingFriendLink } from '@/friends/pending-friend-link';
-import { purgeForeignCollectionPrefs, purgeOwnCollectionPrefs } from '@/screens/collection/collection-prefs';
+import { purgeForeignCollectionPrefs } from '@/screens/collection/collection-prefs';
 import { listCollectionPrefKeys, removeCollectionPrefKeys } from '@/screens/collection/collection-prefs-storage';
 import { purgeForeignWalletSessions } from '@/wallet/account-scope';
 import { createAccountScopedAppKit, walletRuntimeConfig } from '@/wallet/appkit';
@@ -150,17 +150,6 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     });
   }, [accountId]);
 
-  // 로그아웃·계정 전환·세션 무효화로 이 계정을 떠날 때 그 계정의 대표 진열·마스코트 반응 기록을 지운다. 그래야 같은 계정으로
-  // 다시 로그인했을 때 지운 적 없는 값이 조용히 되살아나지 않는다(지갑 세션은 forgetWalletSession이 이미 이렇게 한다).
-  async function purgeOutgoingCollectionPrefs(outgoingAccountId: string | undefined) {
-    if (!outgoingAccountId) return;
-    await purgeOwnCollectionPrefs({
-      accountId: outgoingAccountId,
-      listStoredKeys: listCollectionPrefKeys,
-      removeStoredKeys: removeCollectionPrefKeys,
-    });
-  }
-
   const value = useMemo<AuthSessionContextValue>(() => ({
     state,
     accountId,
@@ -179,7 +168,6 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     async logout() {
       // A friend link opened under this account must not be offered to whoever signs in next.
       clearPendingFriendLink();
-      const outgoingAccountId = accountId;
       if (state.status === 'demo') {
         await forgetWalletSession({
           disconnect: async () => {
@@ -188,25 +176,19 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
           listStoredKeys: listAppKitStorageKeys,
           removeStoredKeys: removeAppKitStorageKeys,
         });
-        await purgeOutgoingCollectionPrefs(outgoingAccountId);
         return;
       }
       await controllerRef.current?.logout();
-      await purgeOutgoingCollectionPrefs(outgoingAccountId);
     },
     async switchAccount() {
       clearPendingFriendLink();
       if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
-      const outgoingAccountId = accountId;
       await controllerRef.current.switchAccount();
-      await purgeOutgoingCollectionPrefs(outgoingAccountId);
     },
     async invalidateSession() {
       clearPendingFriendLink();
       if (!session || !controllerRef.current) return;
-      const outgoingAccountId = accountId;
       await controllerRef.current.invalidateSession(session.sessionToken);
-      await purgeOutgoingCollectionPrefs(outgoingAccountId);
     },
   }), [accountId, appKit, credential, session, state]);
 

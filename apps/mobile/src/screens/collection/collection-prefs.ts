@@ -51,21 +51,17 @@ export async function purgeForeignCollectionPrefs(deps: PurgeDeps): Promise<numb
   return foreign.length;
 }
 
-type AccountPurgeDeps = {
-  accountId: string;
-  listStoredKeys: () => Promise<readonly string[]>;
-  removeStoredKeys: (keys: string[]) => Promise<void>;
-};
-
 /**
- * Deletes exactly this account's own collection prefs (favorites, shown reactions). Called on logout, account
- * switch, and session invalidation so a former account's local prefs do not linger on a shared device and are not
- * silently restored if the same account signs back in later (purgeForeignCollectionPrefs above only ever protects
- * the *current* account's keys from *other* accounts — it never touches the current account's own data).
+ * Parses a stored string list, treating anything unreadable (missing key, corrupt JSON, JSON that isn't a string
+ * array) as empty rather than throwing. A prefs read must never permanently fail: the caller (index.tsx) gates every
+ * favorite/reaction write on having finished its initial read, so a rejected read would block writes forever.
  */
-export async function purgeOwnCollectionPrefs(deps: AccountPurgeDeps): Promise<number> {
-  const ownPrefix = collectionPrefsPrefix(deps.accountId);
-  const own = (await deps.listStoredKeys()).filter((key) => key.startsWith(ownPrefix));
-  if (own.length > 0) await deps.removeStoredKeys(own);
-  return own.length;
+export function parseStoredList(raw: string | null): readonly string[] {
+  if (!raw) return [];
+  try {
+    const value: unknown = JSON.parse(raw);
+    return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+  } catch {
+    return [];
+  }
 }

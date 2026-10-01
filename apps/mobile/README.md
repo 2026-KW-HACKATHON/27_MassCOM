@@ -165,7 +165,7 @@ release build는 시작부터 publish 직전까지 전체 Git worktree가 clean�
 
 지갑 세션은 계정별 tag가 붙은 key(`@masscom:appkit:<tag>:`)에만 저장하고 읽습니다. 앱 시작 때 현재 계정의 것이 아닌 지갑 세션 key를 지우며, 계정 ID를 받는 모든 화면은 계정이 바뀌면 remount됩니다. 계정 전환 시 이전 AppKit을 disconnect하고 저장 key를 지운 뒤 새 account ID용 AppKit instance를 만듭니다. 이 변경 뒤 첫 실행에서는 이전 형식의 세션이 지워져 지갑을 한 번 다시 연결해야 할 수 있습니다. 자동 controller 시험은 통과했지만 실제 Google 계정 전환 뒤 이전 사용자 API·지갑 데이터가 보이지 않는지 확인하는 D02 실기는 `NOT_RUN`입니다.
 
-도감의 대표 진열·마스코트 반응 기록도 같은 방식(`@masscom:collection:<tag>:`)으로 계정별 tag를 붙여 저장하고, 앱 시작 때 다른 계정의 key를 지웁니다(`src/screens/collection/collection-prefs.ts`).
+도감의 대표 진열·마스코트 반응 기록은 계정별로 이 기기에 저장하고, 다른 계정이 로그인하면 이전 계정 기록을 지웁니다(같은 `@masscom:collection:<tag>:` 방식, `src/screens/collection/collection-prefs.ts`). 같은 계정이 로그아웃했다가 다시 로그인하면 자신의 기록은 그대로 남아 있습니다: 로그아웃 자체는 지우지 않고, 다른 계정이 현재 계정이 될 때만 정리합니다(지갑 세션은 로그아웃 때도 지우는 것과 다릅니다).
 
 ## 사진 수집품 도감 상세
 
