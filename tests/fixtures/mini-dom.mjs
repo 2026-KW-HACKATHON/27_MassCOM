@@ -129,6 +129,12 @@ export class Element {
   append(...nodes) { for (const node of nodes) this.childNodes.push(this.#adopt(node)); }
   prepend(...nodes) { this.childNodes.unshift(...nodes.map(node => this.#adopt(node))); }
   appendChild(node) { this.append(node); return node; }
+  insertBefore(node, reference) {
+    const adopted = this.#adopt(node);
+    const index = reference ? this.childNodes.indexOf(reference) : -1;
+    if (index >= 0) this.childNodes.splice(index, 0, adopted); else this.childNodes.push(adopted);
+    return adopted;
+  }
   removeChild(node) { const index = this.childNodes.indexOf(node); if (index >= 0) { this.childNodes.splice(index, 1); node.parentNode = null; } return node; }
   replaceChildren(...nodes) { for (const node of this.childNodes) node.parentNode = null; this.childNodes = []; this.append(...nodes); }
   remove() { this.parentNode?.removeChild(this); }
@@ -157,6 +163,7 @@ export class Element {
   }
   focus() { this.ownerDocument.activeElement = this; }
   blur() {} click() {} select() {} scrollIntoView() {} setPointerCapture() {} releasePointerCapture() {} pause() {} play() { return Promise.resolve(); }
+  showModal() {} close() {}
   getBoundingClientRect() { return { left: 0, top: 0, width: this.width, height: this.height }; }
   getContext() { return this._context ??= createContext(this); }
   // 인코딩 호출을 document.encodes에 남기고, document.encodedBytes로 결과 크기를 조절한다(크기 상한 시험용).
@@ -237,7 +244,10 @@ export function installMiniDom({ webp = true, storageThrows = false } = {}) {
   const windowStub = { addEventListener: (...args) => windowListeners.addEventListener(...args), removeEventListener: (...args) => windowListeners.removeEventListener(...args),
     dispatch: event => { event.target ??= windowStub; for (const handler of [...(windowListeners.listeners.get(event.type) ?? [])]) handler(event); return event; },
     matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+    // 수집품 뷰어(collectible-viewer.mjs)는 전역이 아니라 doc.defaultView.*로 rAF·시계·matchMedia를 쓴다.
+    performance: globalThis.performance, requestAnimationFrame: () => 1, cancelAnimationFrame() {},
     localStorage: createFakeStorage({ throwing: storageThrows }) };
+  document.defaultView = windowStub;
   document.listeners = new Map();
   set('document', document);
   set('window', windowStub);

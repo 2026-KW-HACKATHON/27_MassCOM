@@ -382,7 +382,9 @@ export async function renderPublishedCollectible(canvas, snapshot, options = {})
   }
   // v1 발행본·뒷면 미생성본은 backImageDataUrl이 없어 drawVolume이 오늘의 모습(바탕색+이름)으로 대체한다.
   const back = snapshot.backImageDataUrl ? await imageFor(snapshot.backImageDataUrl) : null;
-  drawVolume(canvas, front, snapshot, { ...options, animation: options.staticFrame ? 'still' : snapshot.animation || 'still', back });
+  // 호출자가 특정 동작(예: once 모션 "다시 보기")을 명시하면 그 값을, 아니면 게시된 기본(loop 또는 still) 동작을 쓴다.
+  const animation = options.staticFrame ? 'still' : (options.animation ?? snapshot.animation ?? 'still');
+  drawVolume(canvas, front, snapshot, { ...options, animation, back });
 }
 // 게시용 이미지는 WebP(품질 0.9)로 저장해 크기를 줄인다(서버 완성본 1 MiB·썸네일 128 KiB·본문 8 MiB 상한 안에 넣기 위함).
 // WebP 인코딩을 지원하지 않는 브라우저는 toDataURL이 PNG를 돌려주므로 그대로 PNG를 쓴다.
