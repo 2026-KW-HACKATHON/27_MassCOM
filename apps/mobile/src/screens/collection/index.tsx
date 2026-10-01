@@ -162,8 +162,8 @@ export function CollectionScreen({
   // 탭을 떠나면 상세뿐 아니라 획득 연출도 닫는다(둘 다 그 사이 새로 받은 수집품에만 걸린 일회성 화면이다).
   // 탭을 떠날 때 처리 중이던 획득 링크도 버린다(돌아왔을 때 닫았던 연출이 다시 열리지 않게). 링크 처리는 탭이 보일 때만 한다.
   const [tabFocused, setTabFocused] = useState(false);
-  // 마스코트 반응은 도감 탭이 보이고 획득 연출·상세·보상 상자 같은 전체 화면이 덮지 않을 때만 띄우고 "본 것"으로 기록한다.
-  const reactionOnScreen = tabFocused && !revealEntitlement && !collectibleDetail && !revealed;
+  // 마스코트 반응은 도감 탭이 보이고 획득 연출·상세·보상 상자·메달 상세·쿠폰 같은 전체 화면이 덮지 않을 때만 띄우고 "본 것"으로 기록한다.
+  const reactionOnScreen = tabFocused && !revealEntitlement && !collectibleDetail && !revealed && !detailKind && !usingCoupon;
   const reactionEvent = visibleReactionEvent(reactionQueue, reactionOnScreen);
   useFocusEffect(useCallback(() => {
     setTabFocused(true);

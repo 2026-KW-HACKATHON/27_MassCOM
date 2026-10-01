@@ -97,7 +97,7 @@ export class RevealLifecycle {
     if (muted) this.pause();
   }
 
-  /** Invalidates any in-flight play() so its startPlayback() never fires, and stops anything already playing. */
+  /** Invalidates any in-flight play() so its startPlayback() never fires. The screen stops audio that is already playing. */
   pause(): void {
     this.#playGeneration += 1;
   }

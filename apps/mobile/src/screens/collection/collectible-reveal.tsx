@@ -128,6 +128,8 @@ function RevealBody({ snapshot, merchantName, onSkip, onOpenDetail }: {
   const onMutedChange = (value: boolean) => {
     setMuted(value);
     lifecycle.setMuted(value);
+    // lifecycle은 대기 중인 재생만 무효화한다. 이미 나오는 음성은 여기서 바로 멈춘다.
+    if (value) player.pause();
   };
 
   const openingStyle = useAnimatedStyle(() => isStamp
