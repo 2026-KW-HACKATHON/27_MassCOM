@@ -32,7 +32,7 @@ for (const relativePath of requiredLiveRegions) {
 }
 
 // Screen copy that moved into pure builders (e.g. the passport stamp labels) still counts as user-facing text.
-const copySources = ['screens/collection/collection-stamps.ts'];
+const copySources = ['screens/collection/collection-stamps.ts', 'screens/collection/collectible-browser.tsx'];
 for (const relativePath of copySources) {
   sources.push(readFileSync(join(sourceRoot, relativePath), 'utf8'));
 }

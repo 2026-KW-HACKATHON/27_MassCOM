@@ -21,6 +21,16 @@
 - `NOT_RUN`: 실제 Android 에뮬레이터/실기기에서 Metro dev-client 접속·화면 탭(스크립트는 Metro를 띄우는 것까지만 확인), 시연·운영 실배포, 독립 리뷰(이 핵심 방문 경로는 SENSITIVE로 교차 리뷰 필요).
 - 다음 작업: 독립 리뷰(Claude sonnet + Codex, 서로 다른 모델 2개), PR 생성·CI·`bash scripts/check-pr-korean.sh`, 리뷰 반영 뒤 병합.
 
+## 2026-10-01 접이식 앨범 홈, Option A (Issue #296, 브랜치 `feat/296-album-home`)
+
+- 기준: main `0234a15`(PR #292 병합 결과), worktree `.worktrees/296-album-home`, PR 번호 미정.
+- 구현: 탐색(홈) 머리글 아래 보상 상자 요약 카드(`src/gamification/home-reward-card.tsx`, `badge-rules.ts`의 `homeFeaturedReward`가 보일 상자를 고르고 기존 `RewardBoxCard`·열기 흐름·`RewardReveal`을 재사용). 도감(`src/screens/collection/index.tsx`)은 머리글을 압축 여권 띠("골목 탐험가 · 배지 4/9")로 줄이고 "내 수집 앨범"을 가장 먼저 보여준다 — `ungroupedCollectibles`(`collectible-groups.ts`)로 그림 없는 옛 수집품을 골라 같은 그리드에 `LegacyCard`로 한 번만 합치고(예전엔 "앱에서 받은 수집품" 평면 목록과 중복해서 그렸다), 그림 있는 그룹 카드는 묶인 수집품마다 `entitlements` 필드로 자기만의 NFT 상태(`nftGroupSummary`)·민트 단추를 갖는다. 메달·배지/쿠폰·NFT 발행 현황/도장판·방문 기록은 접근성 있는 기본 접힘 `Fold`(`src/ui/fold.tsx`: role button, 펼침/접힘 라벨, 색 아닌 글자·글리프 구분)로 옮겼다. 발행 오류·지갑 배너는 폴드 밖에서 항상 보인다.
+- 설계 메모: `screens/collection/styles.ts`는 `makeCollectionStyles` 순수 함수만 남겨야 한다 — react-native를 직접 import하는 순간 `styles.test.ts`가 쓰는 esbuild 기반 node:test 러너가 react-native 패키지의 Flow 문법("Unexpected typeof")에서 바로 깨진다. 훅(`useCollectionStyles`)은 새 `use-collection-styles.ts`로 분리했다(`ui/`의 `styles.ts`·`use-ui-styles.ts` 분리와 같은 모양). 비슷한 분리가 필요한 다른 `screens/*/styles.ts`를 건드릴 때 참고한다.
+- 의도적 범위 제한: 바텀 탭 바는 범위 밖(그대로 둠). 그룹 카드의 민트 단추는 묶인 수집품 중 첫 번째로 발행 가능한 것 하나만 민트한다(묶음별 개별 선택 UI는 만들지 않음, `collectible-browser.tsx`의 ponytail 주석 참고). 여권 칩(탐색 머리글)과 새 보상 카드는 각자 `/me/badges`를 읽어 짧은 중복 조회가 있다(둘 다 읽기 전용, 허용 가능한 트레이드오프로 남김).
+- 검증: `npm test --prefix apps/mobile` 943/943 PASS(신규 7건), `npm run typecheck --prefix apps/mobile`·`npm run lint --prefix apps/mobile` PASS, `bash tools/gate.sh` PASS.
+- `NOT_RUN`: 실기기·에뮬레이터(`MassCOM_Design_QA`) 시각 확인(홈 머리글/보상 카드, 도감 앨범 첫 화면, 폴드 펼친 모습을 라이트·다크·글자 200%로)은 이번 세션에서 돌리지 않았다 — 오케스트레이터가 별도로 진행한다.
+- 다음 작업: 독립 리뷰, 실기기·에뮬레이터 시각 확인, PR 생성.
+
 ## 2026-10-01 점주 체험 권한 요청 Android (Issue #294 PR2)
 
 - 기준: main `0234a15`(PR #292 병합 결과), 브랜치 `feat/294-showcase-access-mobile`, worktree `.worktrees/294-access-mobile`, PR 번호 미정. **병합 순서: 서버 PR #300(`feat/294-showcase-access-server`)이 먼저 병합돼야 한다.** 이 PR은 그 계약(`GET/POST /showcase/access-requests*`, `GET/POST /showcase/admin/access-requests*`)만 소비하고 서버 코드는 전혀 건드리지 않는다. 계약은 `git show origin/feat/294-showcase-access-server:apps/api/src/showcase/access-requests.ts`·`:apps/api/src/server.ts`로 직접 읽어 맞췄다.

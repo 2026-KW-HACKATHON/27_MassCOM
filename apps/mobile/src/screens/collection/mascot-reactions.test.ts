@@ -19,7 +19,10 @@ import type { StoreSeries } from './store-series';
 const artwork = { publicationId: 'p', projectId: 'proj', gradeId: 'g', gradeName: '1등급', name: '이름', shape: 'circle' as const, theme: { name: '가을' }, thumbnailDataUrl: 'data:image/png;base64,aa==' };
 
 function group(merchantId: string, merchantName: string): CollectibleGroup {
-  return { key: `${merchantId}-key`, artwork, merchantId, merchantName, count: 1, entitlementIds: ['e1'], earnedDates: ['2026-09-19T00:00:00.000Z'] };
+  return {
+    key: `${merchantId}-key`, artwork, merchantId, merchantName, count: 1, entitlementIds: ['e1'], earnedDates: ['2026-09-19T00:00:00.000Z'],
+    entitlements: [{ entitlementId: 'e1', earnedAt: '2026-09-19T00:00:00.000Z', nftStatus: 'NOT_REQUESTED', nft: null, recipient: null }],
+  };
 }
 
 test('eligibleReactionEvents fires first-collectible once and one first-store event per owned store', () => {

@@ -245,6 +245,14 @@ test('the passport call to action points at the first openable box', () => {
   assert.equal(firstReadyReward(undefined), undefined);
 });
 
+test('the home reward teaser picks a ready box first, else the next locked one, else the last box', () => {
+  const { homeFeaturedReward } = rules;
+  assert.equal(homeFeaturedReward(book({ explorer: 3, regular: 5, steady: 7 }, ['OPENED', 'READY', 'READY']))?.milestone, 2);
+  assert.equal(homeFeaturedReward(book({ explorer: 1, regular: 0, steady: 0 }))?.milestone, 1);
+  assert.equal(homeFeaturedReward(book({ explorer: 3, regular: 5, steady: 7 }, ['OPENED', 'OPENED', 'OPENED']))?.milestone, 3);
+  assert.equal(homeFeaturedReward(undefined), undefined);
+});
+
 test('celebration stage and coupon QR shrink on short screens', () => {
   const { celebrationStageSize, couponQrSize } = rules;
   assert.equal(celebrationStageSize(360, 640), 187);

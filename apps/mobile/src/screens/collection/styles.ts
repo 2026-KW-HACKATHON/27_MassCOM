@@ -1,4 +1,5 @@
 import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
+import { withAlpha } from '../../theme/contrast';
 import type { AppColors } from '../../theme/palette';
 import { uiMetrics } from '../../theme/ui-metrics';
 import type { WorldTheme } from '../../theme/world';
@@ -13,6 +14,9 @@ export function makeCollectionStyles(palette: AppColors, world: WorldTheme, hair
   recoveryText: { color: palette.onErrorContainer, fontSize: 13, lineHeight: 20 },
   recoveryButton: { minHeight: uiMetrics.minTouch, maxWidth: '100%', alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 13, paddingVertical: 9, borderRadius: 12, backgroundColor: world.card },
   recoveryButtonText: { color: palette.primary, fontSize: 12, fontWeight: '900' },
+  // Compact header strip (#296, Option A): replaces the full PassportHero at the top of the screen.
+  passportStrip: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: world.radius.chip, backgroundColor: withAlpha(world.headerScrim, world.headerScrimAlpha) },
+  passportStripText: { color: world.skyInk, fontSize: 13, fontWeight: '800' },
   section: { gap: 5 },
   sectionTitle: { color: world.skyInk, fontSize: 22, fontWeight: '900' },
   subsectionTitle: { marginTop: 8, color: world.skyInk, fontSize: 17, fontWeight: '800' },
