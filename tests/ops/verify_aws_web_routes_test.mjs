@@ -22,6 +22,7 @@ function safe() {
         volumes: [
           { type: 'bind', source: '/release/infra/lightsail/Caddyfile', target: '/etc/caddy/Caddyfile', read_only: true },
           { type: 'bind', source: '/release/site/public', target: '/srv/masscom', read_only: true },
+          { type: 'bind', source: '/opt/masscom-showcase/web/current', target: '/srv/showcase-web', read_only: true },
         ],
         networks: { default: null, showcase_edge: null },
         security_opt: ['no-new-privileges:true'],
@@ -45,6 +46,24 @@ test('web-only service does not publish a host port or mount operating data', ()
     (config) => { config.services.caddy.volumes[1].source = '/release/docs'; },
     (config) => { config.services.caddy.volumes[1].read_only = false; },
     (config) => { config.services.caddy.volumes.splice(1, 1); },
+  ];
+  for (const mutate of mutations) {
+    const config = safe();
+    mutate(config);
+    assert.throws(() => validateAwsWebCompose(config), mutate.toString());
+  }
+});
+
+test('#309 Caddy reads the showcase web bundle only read-only from the showcase directory', () => {
+  const mutations = [
+    (config) => { config.services.caddy.volumes[2].read_only = false; },
+    (config) => { config.services.caddy.volumes[2].source = '/release/site/public'; },
+    (config) => { config.services.caddy.volumes[2].source = '/opt/masscom/current'; },
+    (config) => { config.services.caddy.volumes[2].source = '/opt/masscom-showcase/web/../../masscom'; },
+    (config) => { config.services.caddy.volumes.splice(2, 1); },
+    (config) => { config.services.caddy.volumes.push(structuredClone(config.services.caddy.volumes[2])); },
+    (config) => { config.services.caddy.volumes[1].source = '/opt/masscom-showcase/web/current'; },
+    (config) => { config.services.api.volumes = [{ type: 'bind', source: '/opt/masscom-showcase/web/current', target: '/srv' }]; },
   ];
   for (const mutate of mutations) {
     const config = safe();

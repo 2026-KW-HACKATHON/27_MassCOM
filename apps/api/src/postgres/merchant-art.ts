@@ -126,6 +126,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
 
   async createRound(input: { merchantId: string; accountId: string }): Promise<ArtRoundView> {
     if (!this.client) throw new MerchantArtError('AI_ART_NOT_CONFIGURED');
+    await this.refuseGuestTrialMerchant(input.merchantId);
     const merchant = (await this.pool.query<{ name: string; menu_items: unknown }>(
       'SELECT name, menu_items FROM merchants WHERE id = $1', [input.merchantId],
     )).rows[0];
@@ -198,6 +199,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
     input: { merchantId: string; roundId: string; index: number; accountId: string },
   ): Promise<ArtRoundView> {
     if (!this.client) throw new MerchantArtError('AI_ART_NOT_CONFIGURED');
+    await this.refuseGuestTrialMerchant(input.merchantId);
     if (!Number.isInteger(input.index) || input.index < 0 || input.index >= draftCount) {
       throw new RangeError('draft index out of range');
     }
@@ -515,6 +517,13 @@ export class PostgresMerchantArtService implements MerchantArtService {
     if (this.accountLifecycle) await this.accountLifecycle.assertActive(client, accountId);
     const { role } = await requireActiveMerchantMember(client, merchantId, accountId);
     if (!canManageArt(role, this.staffMayManageArt)) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+  }
+
+  // 로그인 없는 체험 가게(#309)는 AI 그림 비용을 쓰지 않는다: 예산 행·OpenAI 호출 전에 거절한다. 체험 가게는 만들어질 때부터
+  // 체험 행이 있고 이 행은 지워지지 않으므로 트랜잭션 밖에서 한 번 읽어도 된다.
+  private async refuseGuestTrialMerchant(merchantId: string): Promise<void> {
+    const trial = await this.pool.query('SELECT 1 FROM showcase_guest_trials WHERE merchant_id = $1', [merchantId]);
+    if (trial.rowCount) throw new MerchantArtError('AI_ART_TRIAL_DISABLED');
   }
 
   private async lockMerchant(client: PoolClient, merchantId: string): Promise<void> {
