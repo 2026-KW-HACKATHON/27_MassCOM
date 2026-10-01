@@ -24,7 +24,7 @@ type Props = {
   milestone: EnvelopeMilestone;
   onSkip: () => void;
   /** Opens the full detail for the first card. */
-  onOpenDetail: () => void;
+  onOpenDetail: (entitlementId: string) => void;
 };
 
 const TEAR_MS = 650;
@@ -137,23 +137,27 @@ export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip,
 
       {uiStage !== 'open' ? (
         <View style={styles.idleStage}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="봉투를 눌러 열기"
-            accessibilityHint="받은 수집품을 꺼내요"
-            onPress={openEnvelope}
-            {...panResponder.panHandlers}
-          >
-            <Animated.View style={envelopeStyle}>
-              <EnvelopeBody width={220} height={151} bodyColor="#F4EFE2" flapColor="#EADFC4" seamColor="#C9B98C" />
-              <View style={styles.sealWrap}>
-                <LeafSealGlyph size={44} color="#4F7A57" ringColor="#F4EFE2" />
-              </View>
-            </Animated.View>
-            <Animated.View style={[styles.flapTornWrap, flapStyle]} pointerEvents="none">
-              <EnvelopeFlapTorn width={220} height={151} flapColor="#EADFC4" />
-            </Animated.View>
-          </Pressable>
+          {/* Pressable wires its own responder internally and ignores panHandlers spread directly onto it, so the
+              swipe-down-to-tear gesture is claimed by this wrapping View instead; the Pressable inside still handles
+              the plain tap-to-open. */}
+          <View {...panResponder.panHandlers}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="봉투를 눌러 열기"
+              accessibilityHint="받은 수집품을 꺼내요"
+              onPress={openEnvelope}
+            >
+              <Animated.View style={envelopeStyle}>
+                <EnvelopeBody width={220} height={151} bodyColor="#F4EFE2" flapColor="#EADFC4" seamColor="#C9B98C" />
+                <View style={styles.sealWrap}>
+                  <LeafSealGlyph size={44} color="#4F7A57" ringColor="#F4EFE2" />
+                </View>
+              </Animated.View>
+              <Animated.View style={[styles.flapTornWrap, flapStyle]} pointerEvents="none">
+                <EnvelopeFlapTorn width={220} height={151} flapColor="#EADFC4" />
+              </Animated.View>
+            </Pressable>
+          </View>
           <Text style={styles.idleHint}>봉투를 눌러 열어요</Text>
           {uiStage === 'idle' && motionAllowed ? <Mascot pose="gift" size={64} breathe /> : null}
           {uiStage === 'tearing' && motionAllowed ? (
@@ -193,7 +197,7 @@ export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip,
           </View>
         </View>
       ) : (
-        <EndCard merchantName={merchantName} series={series} milestone={milestone} onOpenDetail={onOpenDetail} onSkip={onSkip} />
+        <EndCard merchantName={merchantName} series={series} milestone={milestone} onOpenDetail={() => onOpenDetail(cards[0]!.entitlementId)} onSkip={onSkip} />
       )}
     </View>
   );

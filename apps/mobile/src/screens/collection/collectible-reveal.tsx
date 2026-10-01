@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { PublishedCollectible } from '@/commerce/collectible-artwork';
@@ -20,8 +20,8 @@ type Props = {
   series: readonly StoreSeries[];
   /** Skips (or finishes) the reveal without opening the full detail. The reward is already stored either way. */
   onSkip: () => void;
-  /** Leaves the reveal for the full collectible detail screen, for the first card in the batch. */
-  onOpenDetail: () => void;
+  /** Leaves the reveal for the full collectible detail screen, for the first successfully loaded card in the batch. */
+  onOpenDetail: (entitlementId: string) => void;
 };
 
 /**
@@ -33,12 +33,17 @@ type Props = {
 export function CollectibleReveal({ entitlementIds, merchantName, load, collectibles, series, onSkip, onOpenDetail }: Props) {
   const [cards, setCards] = useState<readonly EnvelopeCardData[]>();
   const [failure, setFailure] = useState<CollectibleDetailFailure>();
+  // 도감은 3초마다 조용히 다시 조회돼 `collectibles`가 새 배열로 바뀐다. 그걸 아래 배치 로드 effect의 의존성에 두면, 느린
+  // 로드가 끝나기 전에 매번 새로 시작돼 영영 로딩만 반복한다 — 그래서 최신 값은 ref로만 들고, effect는 entitlementIds(이
+  // 배치가 무엇인지)가 바뀔 때만 다시 돈다.
+  const collectiblesRef = useRef(collectibles);
+  useEffect(() => { collectiblesRef.current = collectibles; });
 
   useEffect(() => {
     let active = true;
-    const isNew = newEntitlementIds(entitlementIds, collectibles);
     void Promise.allSettled(entitlementIds.map((entitlementId) => load(entitlementId))).then((results) => {
       if (!active) return;
+      const isNew = newEntitlementIds(entitlementIds, collectiblesRef.current);
       const loaded: EnvelopeCardData[] = [];
       let firstError: unknown;
       let hadError = false;
@@ -52,7 +57,7 @@ export function CollectibleReveal({ entitlementIds, merchantName, load, collecti
       else setCards(loaded);
     });
     return () => { active = false; };
-  }, [entitlementIds, collectibles, load]);
+  }, [entitlementIds, load]);
 
   const milestone = useMemo(() => milestoneForBatch(entitlementIds, collectibles), [entitlementIds, collectibles]);
   const batchSeries = useMemo(() => seriesForBatch(series, collectibles, entitlementIds), [series, collectibles, entitlementIds]);

@@ -38,7 +38,7 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
 import { WalletApiClient, type ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 
-import { collectibleFocusAction, resolveCollectibleLink } from './collectible-focus';
+import { collectibleFocusAction, parseEntitlementIds, resolveCollectibleLink } from './collectible-focus';
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { CollectibleBrowser } from './collectible-browser';
 import { CollectibleDetail } from './collectible-detail';
@@ -116,7 +116,7 @@ export function CollectionScreen({
   );
   const badges = useBadgeBook(badgeApi);
   const router = useRouter();
-  const { focus, entitlement } = useLocalSearchParams<{ focus?: string; entitlement?: string }>();
+  const { focus, entitlement } = useLocalSearchParams<{ focus?: string; entitlement?: string | string[] }>();
   const scrollView = useRef<ScrollView>(null);
   const [rewardsY, setRewardsY] = useState<number>();
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -214,8 +214,12 @@ export function CollectionScreen({
     // 탭을 떠난 뒤 늦게 끝난 재조회가 도감을 갱신해도 이 effect가 새 세대로 다시 열지 않게, 보이는 동안에만 처리한다.
     if (!tabFocused) return;
     const link = collectibleLink.current;
-    if (!collection || link.doneFor === entitlement) return;
-    const ids = entitlement ? entitlement.split(',').filter(Boolean) : [];
+    // entitlement는 보통 콤마로 묶인 문자열 하나지만, 쿼리 키가 반복되면(`?entitlement=a&entitlement=b`) 라우터가 배열로
+    // 돌려준다; 둘 다 받아 콤마 분리·중복 제거까지 한 번에 하는 parseEntitlementIds를 거친다. 비교·캐시 키는 원래 값(entitlement)
+    // 대신 이 정규화된 목록의 join으로 쓴다 — 중복 제거 전 값으로 비교하면 "a,a,b"와 "a,b"를 다른 링크로 취급하게 된다.
+    const ids = parseEntitlementIds(entitlement);
+    const linkKey = ids.join(',');
+    if (!collection || link.doneFor === linkKey) return;
     // 이 시도만의 세대: 탭을 떠나거나(위 useFocusEffect) 다른 링크가 새로 시작되면(이 effect가 다시 돎) 세대가 올라가
     // resolveCollectibleLink가 이 시도의 뒤늦은 결과를 무시하게 한다. 도감 조회 자체의 세대(startRequest/generation)와는
     // 별개다: 저건 오래된 조회 응답을 거르고, 이건 이미 떠난 링크가 열어보려는 연출을 거른다.
@@ -223,15 +227,15 @@ export function CollectionScreen({
     const finish = (snapshot: CollectionSnapshot) => {
       const outcomes = ids.map((id) => resolveCollectibleLink(snapshot, id, linkAttempt, () => linkGeneration.current));
       if (outcomes.some((outcome) => outcome.action === 'stale')) return;
-      link.doneFor = entitlement;
+      link.doneFor = linkKey;
       const opened = outcomes.flatMap((outcome) => (outcome.action === 'open' ? [outcome] : []));
       // 방문 수령 직후 도착한 링크만 획득 연출을 연다; 전달은 이미 끝난 뒤라 연출을 건너뛰어도 보관 상태는 그대로다.
       if (opened.length > 0) setRevealEntitlement({ entitlementIds: opened.map((outcome) => outcome.entitlementId), merchantName: opened[0]!.merchantName });
       else setMessage('보상은 도감에 보관됐어요. 다시 볼 수 있는 가게 수집품은 아직 없어요.');
       router.setParams({ focus: undefined, entitlement: undefined });
     };
-    if (ids.some((id) => collectibleFocusAction(collection, id, link.rereadFor === entitlement) === 'fetch')) {
-      link.rereadFor = entitlement;
+    if (ids.some((id) => collectibleFocusAction(collection, id, link.rereadFor === linkKey) === 'fetch')) {
+      link.rereadFor = linkKey;
       const generation = startRequest();
       void api.getCollection().then((next) => { applySnapshot(next, generation); finish(next); }, () => finish(collection));
       return;
@@ -702,9 +706,10 @@ export function CollectionScreen({
           collectibles={collection?.collectibles ?? []}
           series={storeSeries}
           onSkip={() => setRevealEntitlement(undefined)}
-          onOpenDetail={() => {
-            // 방금 받은 수집품 중 첫 카드이므로 상세에서 획득 때 한 번 재생하는 동작부터 보여 준다.
-            setCollectibleDetail({ entitlementId: revealEntitlement.entitlementIds[0]!, merchantName: revealEntitlement.merchantName, client: api, intro: true });
+          onOpenDetail={(entitlementId) => {
+            // 실제로 불러오는 데 성공한 첫 카드(봉투 쪽이 넘겨준 id)이므로 상세에서 획득 때 한 번 재생하는 동작부터 보여 준다.
+            // 배치의 원래 첫 id(entitlementIds[0])를 그대로 쓰면, 그게 로드에 실패해 카드로 보이지도 않은 경우 엉뚱한 걸 연다.
+            setCollectibleDetail({ entitlementId, merchantName: revealEntitlement.merchantName, client: api, intro: true });
             setRevealEntitlement(undefined);
           }}
         />

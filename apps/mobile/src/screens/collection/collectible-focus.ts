@@ -6,6 +6,18 @@ import type { CollectionSnapshot } from '../../commerce/commerce-api';
  */
 export type CollectibleFocusAction = 'open' | 'message' | 'fetch';
 
+/**
+ * `entitlement` query param for a "받은 수집품 보기" link: usually one comma-joined string, but a repeated query key
+ * (`?entitlement=a&entitlement=b`) makes the router hand back an array instead, and a `.split()` on that would throw.
+ * Flattens either shape, splits any comma-joined entries, and dedupes (first occurrence kept) since the same id
+ * appearing twice must still only open one card.
+ */
+export function parseEntitlementIds(value: string | readonly string[] | undefined): string[] {
+  const raw = value === undefined ? [] : Array.isArray(value) ? value : [value];
+  const ids = raw.flatMap((entry) => entry.split(',')).filter(Boolean);
+  return [...new Set(ids)];
+}
+
 export function collectibleFocusAction(
   snapshot: Pick<CollectionSnapshot, 'collectibles'>,
   entitlementId: string | undefined,
