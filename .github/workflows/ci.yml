@@ -191,7 +191,7 @@ jobs:
         run: |
           bash tests/ops/showcase_host_readiness_test.sh
           bash tests/ops/run_showcase_host_postgres.sh
-      - name: Android 앱 테스트·정적검사·운영/시연 번들
+      - name: 앱 테스트·정적검사·운영/시연/웹 번들
         run: |
           npm test --prefix apps/mobile
           npm run typecheck --prefix apps/mobile
@@ -205,4 +205,8 @@ jobs:
             EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
             npm run export:android --prefix apps/mobile -- --output-dir dist/showcase
           node scripts/verify-mobile-variant-assets.mjs
+          CI=1 EXPO_NO_DOTENV=1 \
+            MASSCOM_BUILD_SOURCE_COMMIT="$GITHUB_SHA" \
+            MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID=123-ci.apps.googleusercontent.com \
+            npm run export:web:showcase --prefix apps/mobile -- --output-dir dist/showcase-web
           npm run audit:ci --prefix apps/mobile
