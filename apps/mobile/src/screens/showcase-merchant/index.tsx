@@ -93,17 +93,23 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
     if (!apiUrl || !client) return;
     let mounted = true;
     void Promise.all([
-      createMerchantApiClient(apiUrl).listMerchants()
-        .then(async (merchants) => {
-          const demoMerchants = merchants.filter((merchant) => merchant.demo);
-          const context = await findShowcaseStaffMerchant(demoMerchants.map((merchant) => merchant.id), client.getMerchantContext);
-          return context
-            ? { merchantId: context.merchantId, artUrl: demoMerchants.find((merchant) => merchant.id === context.merchantId)?.artUrl ?? null }
-            : undefined;
-        }),
+      createMerchantApiClient(apiUrl).listMerchants(),
       client.getShowcaseAccessState(),
     ])
-      .then(([allowed, accessState]) => {
+      .then(async ([merchants, accessState]) => {
+        const demoMerchants = merchants.filter((merchant) => merchant.demo);
+        // 체험 로그인(#309)의 개인 체험 가게는 is_public = false라 공개 목록에 없다 — 자기 가게 id를 먼저 넣어 찾는다.
+        const merchantIds = accessState.trialMerchantId
+          ? [accessState.trialMerchantId, ...demoMerchants.map((merchant) => merchant.id)]
+          : demoMerchants.map((merchant) => merchant.id);
+        const context = await findShowcaseStaffMerchant(merchantIds, client.getMerchantContext);
+        // 체험 가게는 /merchants 목록에 없어 artUrl을 거기서 가져올 수 없다 — art 화면이 첫 조회로 채운다.
+        const allowed = context
+          ? { merchantId: context.merchantId, artUrl: demoMerchants.find((merchant) => merchant.id === context.merchantId)?.artUrl ?? null }
+          : undefined;
+        return { allowed, accessState };
+      })
+      .then(({ allowed, accessState }) => {
         if (!mounted) return;
         const nextStatus = allowed ? 'allowed' : 'denied';
         setState(allowed ? { status: 'allowed', ...allowed } : { status: 'denied' });

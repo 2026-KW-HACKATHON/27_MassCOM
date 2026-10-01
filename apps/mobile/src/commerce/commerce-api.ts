@@ -139,7 +139,9 @@ export type MintJobResponse = {
 // 점주 체험 권한 요청(#294). 서버는 코드를 대시 없이 8글자로 돌려준다.
 export type ShowcaseAccessStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type ShowcaseAccessRequest = { code: string; status: ShowcaseAccessStatus; createdAt: string; decidedAt: string | null };
-export type ShowcaseAccessState = { request: ShowcaseAccessRequest | null; staff: boolean; approver: boolean };
+// trialMerchantId: 체험 로그인(Issue #309)으로 들어온 계정이면 자기 체험 가게 id, 아니면 null. 체험 가게는
+// is_public = false라 /merchants에 안 나오니, 점주 화면은 이 id를 공개 목록 앞에 더해 찾아야 한다.
+export type ShowcaseAccessState = { request: ShowcaseAccessRequest | null; staff: boolean; approver: boolean; trialMerchantId: string | null };
 export type PendingShowcaseAccessRequest = { id: string; code: string; createdAt: string };
 
 type Options = {
@@ -733,6 +735,8 @@ function parseShowcaseAccessState(value: unknown): ShowcaseAccessState {
     request: value.request === null ? null : parseShowcaseAccessRequest(value.request),
     staff: value.staff,
     approver: value.approver,
+    // 오래된 서버 응답에는 이 필드가 아직 없을 수 있다 — 없거나 모양이 다르면 체험 계정이 아닌 것으로 본다.
+    trialMerchantId: typeof value.trialMerchantId === 'string' ? value.trialMerchantId : null,
   };
 }
 
