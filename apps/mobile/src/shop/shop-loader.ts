@@ -62,7 +62,11 @@ export function createShopLoader(
     const request = gate.begin();
     try {
       const next = await api.getShop();
-      if (gate.isLatest(request)) apply(() => loaded(next));
+      // cross-review 2번: 그 사이 구매·대표 설정이 확정되어(applyReroll/applyAvatar) 이 조회가 낡은 것이 됐으면
+      // 아무것도 반영하지 않은 것이니 성공으로 보고하면 안 된다 — 호출자(buy()의 SHOP_STATE_CHANGED 처리)가
+      // "새로고침됨"으로 믿고 낡은 확률 위에 "업데이트됨" 안내를 보여주는 결함으로 이어졌다.
+      if (!gate.isLatest(request)) return false;
+      apply(() => loaded(next));
       return true;
     } catch (caught) {
       if (gate.isLatest(request)) apply((state) => failed(state, caught, quiet));

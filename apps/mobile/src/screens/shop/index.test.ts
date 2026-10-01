@@ -52,12 +52,21 @@ test('PR #312 "대표 해제": 가진 친구는(대표든 아니든) 탭할 수 
 
 test('PR #312 리뷰 7번: 뽑기 연출이 열려 있는 동안 대표 설정 실패는 그 모달 안에서 보여준다(뒤에 깔린 알림이 아님)', () => {
   const chooseFn = screen.slice(screen.indexOf('async function chooseAvatar('), screen.indexOf('function confirmAvatar('));
-  assert.match(chooseFn, /if \(reveal\) setAvatarError\(shopErrorMessage\(error\)\);/);
+  assert.match(chooseFn, /if \(revealRef\.current\) setAvatarError\(shopErrorMessage\(error\)\);/);
   assert.match(chooseFn, /else setNotice\(\{ tone: 'error', text: shopErrorMessage\(error\) \}\);/);
   assert.match(screen, /avatarError=\{avatarError\}/);
   assert.match(screen, /onClose=\{\(\) => \{ setReveal\(undefined\); setAvatarError\(undefined\); \}\}/);
   assert.match(reveal, /avatarError\?: string;/);
   assert.match(reveal, /\{avatarError \? <Text accessibilityLiveRegion="polite"/);
+});
+
+test('cross-review 3번: 요청이 날아간 뒤 모달이 닫혀도, 실패는 그 순간의 실제 모달 상태(ref)로 판단한다', () => {
+  // revealRef는 reveal이 바뀔 때마다 동기화돼, chooseAvatar의 catch가 요청을 시작할 때 캡처한 낡은 reveal이
+  // 아니라 응답이 왔을 때의 실제 모달 상태를 읽는다(friends/index.tsx의 myCodeRef와 같은 패턴).
+  assert.match(screen, /const revealRef = useRef\(reveal\);/);
+  assert.match(screen, /useEffect\(\(\) => \{ revealRef\.current = reveal; \}, \[reveal\]\);/);
+  const chooseFn = screen.slice(screen.indexOf('async function chooseAvatar('), screen.indexOf('function confirmAvatar('));
+  assert.doesNotMatch(chooseFn, /if \(reveal\)/, 'catch는 reveal을 직접 읽으면 안 된다(요청 시작 시점의 낡은 값)');
 });
 
 test('PR #312 리뷰 6번: 구매 성공과 당겨서 새로고침 둘 다 사용 내역의 첫 페이지를 다시 불러오게 한다', () => {

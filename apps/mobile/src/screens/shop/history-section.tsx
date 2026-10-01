@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import { createLatestGate } from '@/friends/friends-loader';
 import { formatKstMinute } from '@/privacy/deletion-intake-copy';
 import type { ShopApiClient } from '@/shop/shop-api';
 import { shopErrorMessage } from '@/shop/shop-api';
@@ -25,16 +26,24 @@ export function HistorySection({ api, refreshToken }: { api: Pick<ShopApiClient,
   const expandedRef = useRef(expanded);
   useEffect(() => { expandedRef.current = expanded; });
   const seenRefreshToken = useRef(refreshToken);
+  // 구매·새로고침이 펼쳐 둔 사용 내역을 다시 불러오는 동안, 그 전에 시작해 아직 안 끝난 요청의 뒤늦은 응답이 새 목록을
+  // 덮어쓰거나(중복 행·엉뚱한 커서) 하지 않도록 shop-loader.ts와 같은 latest-gate를 쓴다(cross-review 1번: "Invalidate
+  // a request generation on refresh/unmount; apply a response only if its generation is current").
+  const gate = useRef(createLatestGate()).current;
+  useEffect(() => () => gate.invalidate(), [gate]);
 
   async function load(cursor?: string) {
     if (!canStartHistoryLoad(statusRef.current)) return;
+    const request = gate.begin();
     statusRef.current = 'loading';
     setState((current) => historyLoading(current));
     try {
       const page = await api.getHistory(cursor);
+      if (!gate.isLatest(request)) return;
       statusRef.current = 'ready';
       setState((current) => historyLoaded(current, page, cursor));
     } catch (error) {
+      if (!gate.isLatest(request)) return;
       statusRef.current = 'error';
       setState((current) => historyFailed(current, error));
     }
@@ -45,6 +54,7 @@ export function HistorySection({ api, refreshToken }: { api: Pick<ShopApiClient,
   useEffect(() => {
     if (refreshToken === seenRefreshToken.current) return;
     seenRefreshToken.current = refreshToken;
+    gate.invalidate();
     statusRef.current = 'idle';
     setState(initialHistoryLoad);
     if (expandedRef.current) void load();

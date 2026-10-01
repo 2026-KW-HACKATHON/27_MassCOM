@@ -90,6 +90,32 @@ test('createShopLoader reports a failure for the latest request only', async () 
   assert.equal((states.at(-1) as { status: string }).status, 'error');
 });
 
+// cross-review 2번: 그 사이 구매·대표 설정이 확정돼(applyReroll/applyAvatar) 이 GET이 낡은 것으로 밀려났으면,
+// 응답 자체는 왔어도 아무것도 반영하지 못한 것이니 load()는 false를 돌려줘야 한다. 그렇지 않으면 buy()의
+// SHOP_STATE_CHANGED 처리가 "새로고침됨"으로 믿고 실제로는 갱신되지 않은 낡은 확률 위에 "업데이트됨" 안내를 보여준다.
+test('load() returns false when its answer was invalidated before it resolved, even though the fetch itself succeeded', async () => {
+  const states: unknown[] = [];
+  let resolveGet: (value: ShopSnapshot) => void = () => {};
+  const api = { getShop: () => new Promise<ShopSnapshot>((resolve) => { resolveGet = resolve; }) };
+  const loader = createShopLoader(api, (update) => states.push(update(states.at(-1) as never ?? initialShopLoad)));
+  states.push(loaded(snapshot()));
+  const pendingLoad = loader.load(true);
+  // 동시에 다른 대표 설정이 먼저 확정돼 이 GET을 낡은 것으로 만든다.
+  loader.applyAvatar('cafe-bear');
+  resolveGet(snapshot({ avatar: 'cook-cat' }));
+  const succeeded = await pendingLoad;
+  assert.equal(succeeded, false, '적용되지 않은 응답은 성공으로 보고하면 안 된다');
+  assert.equal((states.at(-1) as { snapshot?: ShopSnapshot }).snapshot?.avatar, 'cafe-bear', '확정된 대표 설정이 유지되어야 한다');
+});
+
+test('load() returns true when its answer was actually applied', async () => {
+  const states: unknown[] = [];
+  const api = { getShop: async () => snapshot({ avatar: 'cook-cat' }) };
+  const loader = createShopLoader(api, (update) => states.push(update(states.at(-1) as never ?? initialShopLoad)));
+  const succeeded = await loader.load(true);
+  assert.equal(succeeded, true);
+});
+
 // PR #312 리뷰 2번: 구매·대표 설정이 확정한 상태를, 그보다 먼저 시작해 아직 끝나지 않은 GET /shop 응답이 뒤늦게
 // 덮어써서는 안 된다(재현: 400P·남은 2종 → 뒤늦은 GET이 500P·남은 3종으로 되돌림).
 test('applyReroll invalidates an in-flight getShop so its late answer cannot overwrite the confirmed purchase', async () => {

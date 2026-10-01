@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Image, Pressable, RefreshControl, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -51,6 +51,11 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
   const [busyGrade, setBusyGrade] = useState<MileageGrade>();
   const [notice, setNotice] = useState<Notice>();
   const [reveal, setReveal] = useState<ShopRerollResult>();
+  // chooseAvatar()는 요청이 날아가 있는 동안 모달이 닫혀도(onClose) 실패를 어디에 보여줄지 그 순간의 실제 모달
+  // 상태로 판단해야 한다 — state를 그대로 읽으면 요청을 시작할 때의 render가 캡처한 낡은 값을 쓰게 된다
+  // (cross-review 3번). friends/index.tsx의 myCodeRef와 같은 모양으로 ref를 최신 값으로 맞춰 둔다.
+  const revealRef = useRef(reveal);
+  useEffect(() => { revealRef.current = reveal; }, [reveal]);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarError, setAvatarError] = useState<string>();
   // 구매가 성공할 때마다, 그리고 화면을 당겨서 새로고침할 때마다 올려 펼쳐 둔 "사용 내역"이 첫 페이지부터
@@ -112,8 +117,9 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
       setReveal(undefined);
     } catch (error) {
       // 뽑기 연출(DrawReveal)이 열려 있는 동안의 실패는 그 안에서 보여준다 — 뒤에 깔린 알림은 전체 화면 모달에
-      // 가려 아무도 못 본다(PR #312 리뷰 7번).
-      if (reveal) setAvatarError(shopErrorMessage(error));
+      // 가려 아무도 못 본다(PR #312 리뷰 7번). 지금 실제로 모달이 열려 있는지는 revealRef로 읽는다: 요청이 날아간
+      // 뒤 모달이 닫혔으면(cross-review 3번) 화면 알림으로 보내야 한다.
+      if (revealRef.current) setAvatarError(shopErrorMessage(error));
       else setNotice({ tone: 'error', text: shopErrorMessage(error) });
     } finally {
       setAvatarBusy(false);
