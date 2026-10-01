@@ -38,5 +38,11 @@ export function makeClaimRedeemStyles(palette: AppColors, world: WorldTheme, hai
   collectionButton: { minHeight: uiMetrics.minTouch, maxWidth: '100%', alignSelf: 'flex-start', justifyContent: 'center', marginTop: 4, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, backgroundColor: palette.primary },
   collectionButtonText: { color: palette.onPrimary, fontSize: 14, fontWeight: '900', textAlign: 'center' },
   successActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  // #295 "테스트 방문 만들기": 시연·로컬 개발 빌드에만 보이는 가상 점포 선택 알약.
+  testVisitChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  testVisitChip: { minHeight: uiMetrics.minTouch, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: world.cardMuted, backgroundColor: palette.background },
+  testVisitChipSelected: { borderColor: palette.primary, backgroundColor: palette.primaryContainer },
+  testVisitChipText: { color: world.cardInk, fontSize: 13, fontWeight: '700' },
+  testVisitChipTextSelected: { color: palette.onPrimaryContainer },
   } satisfies Record<string, ImageStyle | TextStyle | ViewStyle>;
 }

@@ -113,6 +113,10 @@ type ClaimSlotFixture = {
     expiresAt: string;
     status: 'AVAILABLE' | 'EXPIRED';
   }>;
+  issueShowcaseTestSlot(input: {
+    merchantId: string;
+    accountId: string;
+  }): Promise<{ claimSlotId: string; token: string; tokenVersion: number; expiresAt: string }>;
 };
 
 type CollectionFixture = {
@@ -182,6 +186,9 @@ function claimSlotFixture(overrides: Partial<ClaimSlotFixture>): ClaimSlotFixtur
     },
     preview: async () => {
       throw new Error('unexpected claim slot preview call');
+    },
+    issueShowcaseTestSlot: async () => {
+      throw new Error('unexpected claim slot issueShowcaseTestSlot call');
     },
     ...overrides,
   };
@@ -907,6 +914,88 @@ test('#309 AI art refusal for a trial store is 403 with a Korean message', async
   });
   assert.equal(response.status, 403);
   assert.deepEqual(await response.json(), { code: 'AI_ART_TRIAL_DISABLED', message: '체험 가게에서는 AI 그림을 만들 수 없어요.' });
+});
+
+test('#295 showcase test-visit route exists only when wired, rate-limits, issues then redeems, and maps errors', async (t) => {
+  const production = await startFixture(t);
+  assert.equal((await fetch(`${production}/showcase/test-visits`, {
+    method: 'POST', headers: { 'x-account-id': 'acct_a' },
+  })).status, 404);
+
+  const calls: unknown[][] = [];
+  let issueError: ClaimSlotError | undefined;
+  const redeemed: RedeemedClaimSlot = {
+    claimSlotId: 'slot-1', merchantId: 'showcase-merchant-a', merchantName: '가상 점포 A', campaignTitle: '체험 방문 도감',
+    status: 'CLAIMED', replayed: false,
+    visit: { visitEventId: 'visit-1', campaignId: 'campaign-a', businessDate: '2026-10-02', verificationLevel: 'MERCHANT_CONFIRMED',
+      progressCounted: true, progressVisitCount: 1 },
+    grantedRewards: [],
+  };
+  const claims = claimSlotFixture({
+    issueShowcaseTestSlot: async (input) => {
+      calls.push(['issue', input]);
+      if (issueError) throw issueError;
+      return { claimSlotId: 'slot-1', token: 'showcase-token', tokenVersion: 1, expiresAt: '2026-10-02T00:15:00.000Z' };
+    },
+    redeem: async (input) => {
+      calls.push(['redeem', input]);
+      return redeemed;
+    },
+  });
+  const fake = accessRequestsFixture();
+  const showcase = await startFixture(
+    t, undefined, undefined, undefined, claims, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, fake,
+  );
+
+  const invalidBody = await fetch(`${showcase}/showcase/test-visits`, {
+    method: 'POST', headers: { 'x-account-id': 'acct_a', 'content-type': 'application/json' }, body: '{"extra":1}',
+  });
+  assert.equal(invalidBody.status, 400);
+
+  const issued = await fetch(`${showcase}/showcase/test-visits`, {
+    method: 'POST', headers: { 'x-account-id': 'acct_a', 'content-type': 'application/json' },
+    body: JSON.stringify({ merchantId: 'showcase-merchant-a' }),
+  });
+  assert.equal(issued.status, 201);
+  assert.deepEqual(await issued.json(), redeemed);
+  assert.deepEqual(calls, [
+    ['issue', { merchantId: 'showcase-merchant-a', accountId: 'acct_a' }],
+    ['redeem', { accountId: 'acct_a', token: 'showcase-token' }],
+  ]);
+
+  // 계정당 10회/시간(#295). 위 두 호출(invalidBody, issued)이 이미 2회를 썼으니 8번 더 통과하고 그다음은 429다.
+  for (let i = 0; i < 8; i += 1) {
+    assert.equal((await fetch(`${showcase}/showcase/test-visits`, {
+      method: 'POST', headers: { 'x-account-id': 'acct_a', 'content-type': 'application/json' },
+      body: JSON.stringify({ merchantId: 'showcase-merchant-a' }),
+    })).status, 201);
+  }
+  const limited = await fetch(`${showcase}/showcase/test-visits`, {
+    method: 'POST', headers: { 'x-account-id': 'acct_a', 'content-type': 'application/json' },
+    body: JSON.stringify({ merchantId: 'showcase-merchant-a' }),
+  });
+  assert.equal(limited.status, 429);
+  assert.deepEqual(await limited.json(), { code: 'SHOWCASE_TEST_VISIT_RATE_LIMITED' });
+  assert.ok(limited.headers.get('retry-after'));
+  // A different account has its own bucket.
+  assert.equal((await fetch(`${showcase}/showcase/test-visits`, {
+    method: 'POST', headers: { 'x-account-id': 'acct_b', 'content-type': 'application/json' },
+    body: JSON.stringify({ merchantId: 'showcase-merchant-a' }),
+  })).status, 201);
+
+  for (const [code, status] of [
+    ['SHOWCASE_MERCHANT_NOT_FOUND', 404], ['CLAIM_MERCHANT_INACTIVE', 409], ['ACCOUNT_DELETED', 410],
+  ] as const) {
+    issueError = new ClaimSlotError(code);
+    const response = await fetch(`${showcase}/showcase/test-visits`, {
+      method: 'POST', headers: { 'x-account-id': `acct_${code}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ merchantId: 'showcase-merchant-a' }),
+    });
+    assert.equal(response.status, status, code);
+    assert.deepEqual(await response.json(), { code });
+  }
 });
 
 const adminIntake: AdminDeletionIntake = {
@@ -2153,7 +2242,7 @@ test('maps claim slot conflicts and expiration without exposing stored data', as
         permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT'],
       }),
     },
-    { issue: fail, reissue: fail, redeem: fail, preview: fail },
+    { issue: fail, reissue: fail, redeem: fail, preview: fail, issueShowcaseTestSlot: fail },
   );
 
   const cases = [

@@ -166,6 +166,7 @@ npm run start:local
   - `GET /showcase/admin/access-requests`(승인자만) → 대기 중 요청을 오래된 순 최대 50개 `[{id, code, createdAt}]`. 승인자가 아니면 `403 SHOWCASE_APPROVER_REQUIRED`.
   - `POST /showcase/admin/access-requests/:id/approve` · `POST …/reject`(본문 `{}`) → `200`. 자기 요청의 자기 결정은 `403 SHOWCASE_ACCESS_SELF_DECISION`, 없는 요청은 `404 SHOWCASE_ACCESS_REQUEST_NOT_FOUND`, 이미 결정된 요청은 `409 SHOWCASE_ACCESS_ALREADY_DECIDED`(결정된 행은 다시 바꾸지 않습니다). 승인은 기존 STAFF 부여(`showcase/grant-staff.ts`)에서 뗀 핵심(`grantShowcaseStaffTx`: DB 이름·계정 활성·가상 점포 A인지·멤버십)만 재사용하고 허용목록·세션 검사는 건너뜁니다(대기 중 요청 행 자체가 자격 증명). 승인자 역할은 **시연 DB의 `platform_admins`를 그대로 씁니다**(운영 관리자 역할과 같은 표, 다른 DB): 계정 삭제 purge·3년 접근권한 감사(Issue #253/D-059)를 그대로 물려받습니다.
   - 최초 승인자 부트스트랩: `npm run grant:showcase:approver -- <코드>`(hosted·local 시연 DB_URL만 받음). 요청 계정이 체험 계정(`showcase_guest_trials`, 끝난 것 포함)이면 `SHOWCASE_GUEST_NOT_ELIGIBLE`로 거절합니다(#309). 한 트랜잭션에서 `platform_admins` upsert·`platform_admin_role_audit` GRANT 행(`db_user`=DB 세션 역할)·요청을 `decided_via='OPS'`로 승인(가상 점포 A STAFF 포함)까지 하고 `SHOWCASE_APPROVER_GRANTED`만 출력합니다. 사람이 하는 절차는 [시연 호스트 안내](../../infra/showcase-host/README.md)에 있습니다.
+- **테스트 방문 만들기(Issue #295, [로컬 QA 안내](../../docs/LOCAL_QA.md)).** `POST /showcase/test-visits {merchantId}`도 `resolveShowcaseDeployment`가 `hosted`/`local`로 판정할 때만 열리고(그 밖은 `404 NOT_FOUND`), 실제 QR 없이 가상 점포(`merchants.is_demo`) 방문을 만들어 바로 확정합니다. `PostgresClaimSlotService.issueShowcaseTestSlot`가 한 트랜잭션에서 DB 이름을 다시 확인하고, 점포가 가상이고 `ACTIVE`인지 본 뒤(아니면 `404 SHOWCASE_MERCHANT_NOT_FOUND`·`409 CLAIM_MERCHANT_INACTIVE`, 둘 다 `claim_slots` 행을 만들지 않습니다), 발급자(`showcase-test-visit-issuer`, FK를 채우기 위한 `merchant_members` 행을 `STAFF`·`REVOKED`로 늦게 만들고 영원히 그 상태여야 함)로 `claim_slots`를 발급한 뒤 라우트가 그 토큰으로 **바꾸지 않은** `redeem()`을 그대로 부릅니다. 방문·보상 규칙(1·3·5회 목표, 같은 날 중복, 쿨다운)은 전혀 건드리지 않고, 가상 점포는 `isStaffAccountClaim`이 항상 `false`라 일반 방문처럼 진행도·배지·수집품에 셉니다. 계정당 시간당 10회를 넘으면 `429 SHOWCASE_TEST_VISIT_RATE_LIMITED`, 삭제된 계정은 `410 ACCOUNT_DELETED`. 통합 시험은 `src/showcase/test-visit.postgres.integration.ts`.
 
 ### 방문 취소·쿠폰 사용 되돌리기·직원 자기 적립 차단 (Issue #243, D-051, migration 0030)
 
@@ -324,6 +325,8 @@ npm run seed:showcase:local
 첫 실행은 migration·가상 점포 3곳·각각의 진행 중 캠페인·1/3/5회 목표·`showcase-local-staff` 직원 멤버십을 만들고, 같은 명령 재실행은 행 수를 늘리지 않습니다. 기존 A점포만 있는 전용 시연 DB에서는 A의 진행 수치를 보존한 채 B·C만 추가합니다. 이미 있는 fixture가 일부 누락·변조됐거나 캠페인이 만료됐으면 자동으로 덮어쓰지 않고 `SHOWCASE_LOCAL_SEED_FAILED`로 멈춥니다. 이 경우 **전용 시험 DB 이름과 백업을 확인한 뒤** 수동 조사·정리하세요. 전체 테이블을 지우는 seed 명령은 없습니다.
 
 개발 API를 이 DB에 연결하려면 별도 로컬 셸에서만 `DATABASE_URL="$SHOWCASE_TEST_DATABASE_URL"`와 `ALLOW_INSECURE_DEMO_ACCOUNT=true`를 설정하고 loopback으로 기동합니다. 이 DEMO 헤더는 실제 인증이 아니므로 공개 서버에서는 켜지지 않습니다. Android USB 개발 앱은 필요할 때 `adb reverse tcp:3000 tcp:3000`으로 로컬 API에 접근합니다. 현재 seed는 QR·방문 기록·수집품·NFT를 미리 만들지 않으며, 실제 점주 확인과 폰 수령은 별도 검증입니다.
+
+같은 `SHOWCASE_TEST_DATABASE_URL`로 `npm run seed:showcase:qa-collectible`(Issue #295, `src/showcase/qa-collectible-seed.ts`)을 실행하면 가상 점포 A의 캠페인에 사진 수집품 하나를 만들어 바로 게시합니다(목표 1·3회에 연결). 위 DB·API 기동과 이 수집품 seed, 그리고 Metro(dev-client)까지 한 번에 하는 스크립트는 [로컬 QA 한 번에 띄우기](../../docs/LOCAL_QA.md)의 `scripts/qa-local.sh up`/`down`입니다.
 
 ```bash
 read -s PGPASSWORD && export PGPASSWORD

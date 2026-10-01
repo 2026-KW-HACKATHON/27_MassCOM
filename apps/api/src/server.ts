@@ -237,6 +237,8 @@ export function createApiServer(
   const deletionStatusLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60_000 });
   // 계정당 5회/시간(#294). IP가 아니라 계정으로 거는 건 승인 전 계정도 로그인은 됐기 때문이다.
   const showcaseAccessRequestLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 5, windowMs: 60 * 60 * 1000 });
+  // 계정당 10회/시간(#295). 가상 점포 방문이라 점주 쪽 쿨다운은 없지만, 발급 자체를 계정별로 묶어 둔다.
+  const showcaseTestVisitLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 10, windowMs: 60 * 60 * 1000 });
   // Media-bearing collectible writes (create/save/copy/publish parse up to 8 MiB and decode every image) are throttled per store.
   const collectibleWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 20, windowMs: 60_000 });
   const consumeDeletionStatus = (request: IncomingMessage, response: ServerResponse): boolean => {
@@ -1411,6 +1413,26 @@ export function createApiServer(
         return;
       }
 
+      // 시연 전용 "테스트 방문 만들기"(#295): 운영 API에는 경로 자체가 없다(accessRequests와 같은 showcaseDeployment 판정).
+      if (request.url === '/showcase/test-visits' && request.method === 'POST') {
+        if (!accessRequests) throw new RequestError(404, 'NOT_FOUND');
+        if (!claimSlots) throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const decision = showcaseTestVisitLimiter.consume(accountId);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          sendJson(response, 429, { code: 'SHOWCASE_TEST_VISIT_RATE_LIMITED' });
+          return;
+        }
+        const body = await readJson(request);
+        requireOnlyKeys(body, ['merchantId']);
+        const merchantId = requireString(body, 'merchantId');
+        const issued = await claimSlots.issueShowcaseTestSlot({ merchantId, accountId });
+        const redeemed = await claimSlots.redeem({ accountId, token: issued.token });
+        sendJson(response, 201, redeemed);
+        return;
+      }
+
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
       if (error instanceof CollectibleProjectError) {
@@ -1728,6 +1750,7 @@ function statusFor(code: string): number {
 function statusForClaimSlot(code: string): number {
   if (code === 'CLAIM_TOKEN_EXPIRED' || code === 'CUSTOMER_IDENTITY_EXPIRED') return 410;
   if (code === 'ACCOUNT_DELETED') return 410;
+  if (code === 'SHOWCASE_MERCHANT_NOT_FOUND') return 404;
   return 409;
 }
 

@@ -12,6 +12,7 @@ import {
 } from '../claim-slot-service.js';
 import { MerchantAccessError } from '../merchant-access.js';
 import { isStaffAccountClaim, staffProgressExcludedReason } from '../reversal-rules.js';
+import { isPermittedShowcaseDatabaseName } from '../showcase/local-seed.js';
 import { grantReachedGoals } from './visit-rewards.js';
 import { hashCustomerIdentityToken, isCustomerIdentityToken } from './customer-identity.js';
 import { requireActiveMerchantMember } from './merchant-membership.js';
@@ -19,6 +20,15 @@ import {
   AccountLifecycleError,
   type PostgresAccountLifecycle,
 } from './account-lifecycle.js';
+
+// 시연 테스트 방문 발급자(#295). FK 때문에 merchant_members 행이 필요하지만 REVOKED로 둬 점원 권한은 절대 주지 않는다
+// (postgres/merchant-access.ts의 모든 권한 조회가 status='ACTIVE'만 보므로 REVOKED는 아무 권한도 못 연다).
+const SHOWCASE_TEST_VISIT_ISSUER = 'showcase-test-visit-issuer';
+
+// hosted(masscom_showcase)와 local(masscom_showcase_test·_ci_*_test) 모두에서 열리는 시연 전용 기능이다(#295, access-requests.ts·grant-staff.ts와 같은 판정).
+function isShowcaseDatabaseName(name: string): boolean {
+  return name === 'masscom_showcase' || isPermittedShowcaseDatabaseName(name);
+}
 
 type ClaimSlotServiceOptions = {
   now: () => Date;
@@ -636,6 +646,93 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     } finally {
       client.release();
     }
+  }
+
+  // 시연 전용(#295): 가상 점포에서 실제 QR 없이 방문을 만든다. 발급만 하고 확정은 안 하므로, 호출자가 반환된 token으로
+  // 바로 UNCHANGED redeem()을 불러야 방문이 잡힌다. 방문·보상 규칙은 redeem()이 그대로 적용한다(여기서 손대지 않는다).
+  async issueShowcaseTestSlot(input: {
+    merchantId: string;
+    accountId: string;
+  }): Promise<IssuedClaimSlot> {
+    const issuedAt = this.options.now();
+    const expiresAt = new Date(issuedAt.getTime() + this.options.ttlMs);
+    const client = await this.pool.connect();
+    let issued: IssuedClaimSlot | undefined;
+    try {
+      await client.query('BEGIN');
+      // 호출자가 이미 showcaseDeployment를 확인했어도(server.ts), 쓰기 트랜잭션마다 DB 이름을 다시 본다(#294 원칙).
+      const target = await client.query<{ name: string }>('SELECT current_database() AS name');
+      if (!target.rows[0] || !isShowcaseDatabaseName(target.rows[0].name)) {
+        throw new Error('SHOWCASE_HOST_DATABASE_REQUIRED');
+      }
+      await this.options.accountLifecycle?.assertActive(client, input.accountId);
+      const merchant = await client.query<{ is_demo: boolean; status: string }>(
+        `SELECT is_demo, status FROM merchants WHERE id = $1 FOR UPDATE`,
+        [input.merchantId],
+      );
+      const merchantRow = merchant.rows[0];
+      if (!merchantRow || !merchantRow.is_demo) {
+        throw new ClaimSlotError('SHOWCASE_MERCHANT_NOT_FOUND');
+      }
+      if (merchantRow.status !== 'ACTIVE') {
+        throw new ClaimSlotError('CLAIM_MERCHANT_INACTIVE');
+      }
+      // merchant_members FK를 채우는 발급자 행을 늦게(필요할 때) 만든다. REVOKED로 시작하고 영원히 REVOKED여야 한다
+      // (merchant-access.ts는 status='ACTIVE'만 권한을 주므로, 이 행이 ACTIVE가 됐다면 무언가 잘못됐다는 뜻이다).
+      await client.query(
+        `INSERT INTO merchant_members (merchant_id, account_id, role, status, revoked_at)
+         VALUES ($1, $2, 'STAFF', 'REVOKED', $3)
+         ON CONFLICT (merchant_id, account_id) DO NOTHING`,
+        [input.merchantId, SHOWCASE_TEST_VISIT_ISSUER, issuedAt],
+      );
+      const issuer = await client.query<{ status: string }>(
+        `SELECT status FROM merchant_members WHERE merchant_id = $1 AND account_id = $2`,
+        [input.merchantId, SHOWCASE_TEST_VISIT_ISSUER],
+      );
+      if (issuer.rows[0]?.status !== 'REVOKED') {
+        throw new Error('SHOWCASE_TEST_VISIT_ISSUER_COMPROMISED');
+      }
+      const reference = `showcase-test:${randomUUID()}`;
+      const referenceHash = hashMerchantReference(this.options.referenceHmacSecret, input.merchantId, reference);
+      const token = this.options.nextToken();
+      const claimSlotId = this.options.nextId();
+      await client.query(
+        `INSERT INTO claim_slots (
+           id, merchant_id, customer_account_id, merchant_reference_hash,
+           created_by_account_id, token_hash, status, expires_at, created_at, updated_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, 'ISSUED', $7, $8, $8)`,
+        [
+          claimSlotId,
+          input.merchantId,
+          input.accountId,
+          referenceHash,
+          SHOWCASE_TEST_VISIT_ISSUER,
+          hashValue(token),
+          expiresAt,
+          issuedAt,
+        ],
+      );
+      issued = { claimSlotId, token, tokenVersion: 1, expiresAt: expiresAt.toISOString() };
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (error instanceof AccountLifecycleError) {
+        throw new ClaimSlotError('ACCOUNT_DELETED');
+      }
+      if (isPostgresConstraint(error, 'claim_slots_unique_reference')) {
+        throw new ClaimSlotError('CLAIM_SLOT_ALREADY_EXISTS');
+      }
+      if (isPostgresConstraint(error, 'claim_slots_unique_token')) {
+        throw new ClaimSlotError('CLAIM_TOKEN_UNAVAILABLE');
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    if (!issued) throw new Error('showcase test visit issue completed without a result');
+    return issued;
   }
 }
 
