@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { favoritesKey, MAX_FAVORITES, parseStoredList, purgeForeignCollectionPrefs, toggleFavorite } from './collection-prefs';
+import { favoritesBaseForWrite, favoritesKey, MAX_FAVORITES, parseStoredList, purgeForeignCollectionPrefs, toggleFavorite } from './collection-prefs';
 
 test('storage keys are scoped per account without containing the account ID', () => {
   const key = favoritesKey('customer-alice');
@@ -93,4 +93,13 @@ test('a delayed purge for a since-replaced account never deletes the new account
   assert.equal(removed, 0);
   assert.equal(removeCalls, 0);
   assert.deepEqual([...stored].sort(), [aliceKey, bobKey].sort());
+});
+
+test('after a failed storage read the first favorite write re-reads, and skips the write if that fails too', async () => {
+  let rereads = 0;
+  const saved = ['p1:gold'];
+  assert.deepEqual(await favoritesBaseForWrite([], true, async () => { rereads += 1; return saved; }), saved);
+  assert.equal(await favoritesBaseForWrite([], true, async () => { rereads += 1; return undefined; }), undefined);
+  assert.deepEqual(await favoritesBaseForWrite(['a'], false, async () => { rereads += 1; return saved; }), ['a']);
+  assert.equal(rereads, 2);
 });

@@ -65,3 +65,16 @@ export function parseStoredList(raw: string | null): readonly string[] {
     return [];
   }
 }
+
+/**
+ * The list a favorite toggle should start from. After a failed storage read the screen shows an empty list, so the
+ * first write re-reads first; if that also fails it returns undefined and the caller skips the write rather than
+ * overwriting saved favorites.
+ */
+export async function favoritesBaseForWrite(
+  current: readonly string[],
+  readFailed: boolean,
+  reread: () => Promise<readonly string[] | undefined>,
+): Promise<readonly string[] | undefined> {
+  return readFailed ? reread() : current;
+}

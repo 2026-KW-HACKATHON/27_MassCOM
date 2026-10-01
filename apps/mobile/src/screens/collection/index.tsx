@@ -47,7 +47,7 @@ import { CollectibleReveal } from './collectible-reveal';
 import { useCollectibleShare } from './collectible-share';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
 import { readFavorites, readShownReactions, writeFavorites, writeShownReactions } from './collection-prefs-storage';
-import { toggleFavorite } from './collection-prefs';
+import { favoritesBaseForWrite, toggleFavorite } from './collection-prefs';
 import {
   currentReactionEvent,
   dismissReactionEvent,
@@ -128,6 +128,8 @@ export function CollectionScreen({
   const [revealEntitlement, setRevealEntitlement] = useState<{ entitlementId: string; merchantName: string }>();
   const [favorites, setFavorites] = useState<readonly string[]>([]);
   const shownReactions = useRef<Set<string>>(new Set());
+  const favoritesRef = useRef<readonly string[]>([]);
+  const favoritesReadFailed = useRef(false);
   // 대표 진열·마스코트 반응의 저장된 값을 계정별 저장소에서 다 읽을 때까지는 참(true)이 아니다.
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   // 화면은 한 번에 하나씩만 반응을 보인다. 큐의 머리만 실제로 보여준 것이라 그것만 "본 것"으로 기록한다(그 아래 effect).
@@ -170,7 +172,9 @@ export function CollectionScreen({
     let active = true;
     void Promise.all([readFavorites(accountId), readShownReactions(accountId)]).then(([favoritesValue, shownValue]) => {
       if (!active) return;
-      setFavorites(favoritesValue);
+      favoritesReadFailed.current = favoritesValue === undefined;
+      favoritesRef.current = favoritesValue ?? [];
+      setFavorites(favoritesRef.current);
       shownReactions.current = new Set(shownValue);
       setPrefsLoaded(true);
     });
@@ -180,10 +184,14 @@ export function CollectionScreen({
   const toggleCollectibleFavorite = useCallback((key: string) => {
     // 저장된 값을 아직 못 읽었으면 무시한다: 지금 건드리면 빈 초기값 위에 쓰게 되고, 뒤늦게 도착하는 실제 값이 그 변경을 덮어써 버린다.
     if (!prefsLoaded) return;
-    setFavorites((current) => {
-      const next = toggleFavorite(current, key);
+    // 저장소 읽기가 실패했으면 첫 쓰기 전에 다시 읽는다. 다시 읽기도 실패하면 저장된 대표 진열을 빈 목록으로 덮지 않게 쓰지 않는다.
+    void favoritesBaseForWrite(favoritesRef.current, favoritesReadFailed.current, () => readFavorites(accountId)).then((base) => {
+      if (base === undefined) return;
+      favoritesReadFailed.current = false;
+      const next = toggleFavorite(base, key);
+      favoritesRef.current = next;
+      setFavorites(next);
       void writeFavorites(accountId, next);
-      return next;
     });
   }, [accountId, prefsLoaded]);
 
