@@ -266,6 +266,7 @@ async function startFixture(
     consent,
     undefined,
     undefined,
+    undefined,
     accessRequests,
   );
 
