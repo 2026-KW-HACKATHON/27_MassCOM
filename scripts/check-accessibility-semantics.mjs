@@ -12,6 +12,7 @@ const requiredLiveRegions = [
   'screens/wallet-link/index.tsx',
   'screens/account-settings/index.tsx',
   'screens/consent/index.tsx',
+  'screens/shop/index.tsx',
 ];
 let failures = 0;
 const sources = [];

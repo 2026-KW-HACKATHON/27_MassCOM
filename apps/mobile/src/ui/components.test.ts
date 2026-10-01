@@ -83,7 +83,8 @@ test('the claim hero tells people what to show or type', () => {
 
 test('header titles sit on the frosted panel while the avatar stays outside it', () => {
   const header = read('app-header.tsx');
-  assert.match(header, /<View style=\{\[styles\.headerPanel[^\]]*\]\}>[\s\S]*?<\/View>\s*<Link href="\/settings"/);
+  // #298: an optional 친구 entry (showFriendsEntry) can sit between the panel and the account avatar.
+  assert.match(header, /<View style=\{\[styles\.headerPanel[^\]]*\]\}>[\s\S]*?<\/View>[\s\S]*?<Link href="\/settings"/);
   const back = read('back-header.tsx');
   assert.match(back, /<View style=\{\[styles\.headerPanel[^\]]*\]\}>[\s\S]*?styles\.backTitle[\s\S]*?<\/View>/);
 });
@@ -129,7 +130,7 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
       assert.match(control, /progressViewOffset=\{insets\.top\}/, `${file} RefreshControl`);
     }
   }
-  assert.equal(controls, 7, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport');
+  assert.equal(controls, 8, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport, shop');
 });
 
 test('the sky art is the top of the scroll content: the headers carry it and SkyBackdrop is only the page colour', () => {
@@ -145,7 +146,7 @@ test('no tab screen, the settings page or a stack page pins its header outside t
   const screens = [
     'screens/merchant-list/index.tsx', 'screens/collection/index.tsx', 'screens/claim-redeem/index.tsx',
     'screens/account-settings/index.tsx', 'screens/merchant-detail/index.tsx', 'screens/recommendations/index.tsx',
-    'screens/town-map/index.tsx', 'screens/friends/index.tsx', 'screens/friends/passport.tsx',
+    'screens/town-map/index.tsx', 'screens/friends/index.tsx', 'screens/friends/passport.tsx', 'screens/shop/index.tsx',
   ];
   for (const file of screens) {
     const source = readSource(file);
@@ -155,8 +156,13 @@ test('no tab screen, the settings page or a stack page pins its header outside t
   }
   assert.match(readSource('screens/merchant-list/index.tsx'), /ListHeaderComponent=\{\s*<>\s*<AppHeader/);
   // Route files only pass a header down; they never sit one above the screen.
-  for (const file of ['app/(tabs)/claim.tsx', 'app/(tabs)/collection.tsx', 'app/(tabs)/index.tsx', 'app/(tabs)/map.tsx', 'app/(tabs)/settings.tsx', 'app/(tabs)/friends.tsx', 'app/friends/[friendshipId].tsx']) {
-    const source = readSource(file).replace(/header=\{<(?:AppHeader|BackHeader)[^>]*\/>\}/g, '').replace(/const header = <(?:AppHeader|BackHeader)[^>]*\/>;/, '');
+  for (const file of ['app/(tabs)/claim.tsx', 'app/(tabs)/collection.tsx', 'app/(tabs)/index.tsx', 'app/(tabs)/map.tsx', 'app/(tabs)/settings.tsx', 'app/(tabs)/shop.tsx', 'app/(tabs)/friends.tsx', 'app/friends/[friendshipId].tsx']) {
+    const source = readSource(file)
+      .replace(/header=\{<(?:AppHeader|BackHeader)[^>]*\/>\}/g, '')
+      .replace(/const header = <(?:AppHeader|BackHeader)[^>]*\/>;/, '')
+      // #298: 친구 route now builds its BackHeader with a mascot child (multi-line, not self-closing) — still just a
+      // value assigned to `header` and handed down, never rendered directly above the screen.
+      .replace(/const header = \(\s*<(?:AppHeader|BackHeader)[\s\S]*?<\/(?:AppHeader|BackHeader)>\s*\);/, '');
     assert.doesNotMatch(source, /<(?:AppHeader|BackHeader)/, `${file} pins a header`);
   }
 });
@@ -203,7 +209,7 @@ test('every state of the collection measures its header and clears the tab bar',
 
 test('the explore header asks one short question that fits on one line', () => {
   const list = readSource('screens/merchant-list/index.tsx');
-  assert.match(list, /<AppHeader title="어디로 탐험할까요\?" subtitle="안 가본 가게에 도장을 찍어요">/);
+  assert.match(list, /title="어디로 탐험할까요\?"\s*\n\s*subtitle="안 가본 가게에 도장을 찍어요"/);
   assert.doesNotMatch(list, /오늘은 어디를 탐험할까요/);
 });
 

@@ -9,16 +9,48 @@ const passport = read('./passport.tsx');
 const tabRoute = read('../../app/(tabs)/friends.tsx');
 const passportRoute = read('../../app/friends/[friendshipId].tsx');
 
-test('the friends tab wears the standard sky header with the friends mascot, once, and a signed-out prompt like the other tabs', () => {
+test('#298: 친구 is a hidden tab reached from the home header / 내 정보, with a BackHeader (home fallback) instead of the tab AppHeader', () => {
   assert.match(screen, /export const FRIENDS_TITLE = '친구'/);
-  assert.match(screen, /export const FRIENDS_SUBTITLE = '코드를 주고받으면 서로의 여권을 볼 수 있어요'/);
-  assert.match(screen, /<AppHeader title=\{FRIENDS_TITLE\} subtitle=\{FRIENDS_SUBTITLE\}>/);
-  assert.match(screen, /<Mascot interactive pose="friends" size=\{heroMascotSize\(fontScale, 112\)\} \/>/);
-  assert.match(tabRoute, /<AppHeader title=\{FRIENDS_TITLE\} subtitle=\{FRIENDS_SUBTITLE\} \/>/);
+  assert.doesNotMatch(screen, /AppHeader/, '친구 no longer builds its own tab header');
+  // The route builds the header (same split as settings.tsx/account-settings) and hands it down, so every state — signed-out,
+  // demo-not-configured, loaded — keeps a way back even though 친구 is no longer in the bottom bar.
+  assert.match(tabRoute, /<BackHeader title=\{FRIENDS_TITLE\}>/);
+  assert.match(tabRoute, /<Mascot interactive pose="friends" size=\{heroMascotSize\(fontScale, 112\)\} \/>/);
   assert.match(tabRoute, /<SkyBackdrop><AuthRequiredRoute header=\{header\} \/><\/SkyBackdrop>/);
   assert.match(tabRoute, /key=\{auth\.accountId\}/);
+  assert.match(tabRoute, /header=\{header\}/);
+  assert.match(screen, /header: ReactNode/);
   assert.match(screen, /useTabBarClearance\(\)/);
   assert.match(screen, /progressViewOffset=\{insets\.top\}/);
+});
+
+test('#298: the layout hides the 친구 tab slot but keeps the route, and offers two other ways in', () => {
+  const layout = read('../../app/(tabs)/_layout.tsx');
+  assert.match(layout, /name="friends" options=\{\{ title: '친구', href: null \}\}/);
+  const appHeader = read('../../ui/app-header.tsx');
+  assert.match(appHeader, /showFriendsEntry/);
+  assert.match(appHeader, /href="\/friends"/);
+  const settingsScreen = read('../account-settings/index.tsx');
+  assert.match(settingsScreen, /href="\/friends"/);
+});
+
+test('#298: BackHeader defaults to the home fallback when there is no back history (cold deep link, post-login continuation)', () => {
+  const backHeader = read('../../ui/back-header.tsx');
+  assert.match(backHeader, /onBack \?\? \(\(\) => \(router\.canGoBack\(\) \? router\.back\(\) : router\.replace\('\/'\)\)\)/);
+  // open.tsx still lands a cold link (or one resumed after sign-in) on /friends; BackHeader's default onBack is what makes
+  // "뒤로" fall back home from there instead of leaving the person stuck or bouncing to a screen they never visited.
+  const openRoute = read('../../app/open.tsx');
+  assert.match(openRoute, /router\.replace\('\/friends'\)/);
+  assert.match(openRoute, /rememberPendingFriendCode\(target\.code\)/);
+});
+
+test('#298: returning from a friend passport lands back on 친구, where the floating tab bar reappears (settings already proved this pattern)', () => {
+  // The friends screen's own ranking rows push /friends/[friendshipId] (a plain stack route, not a tab); coming back is a
+  // plain router.back(), which refocuses the hidden 친구 route. floating-tab-bar.tsx already hides the bar away from any
+  // route not in its visible list and shows it again once the focused route is visible — the same mechanism 내 정보 relies on.
+  const bar = read('../../navigation/floating-tab-bar.tsx');
+  assert.match(bar, /away = keyboardShown \|\| !visible\.some\(\(route\) => route\.key === focusedKey\)/);
+  assert.match(screen, /router\.push\(\{ pathname: '\/friends\/\[friendshipId\]'/);
 });
 
 test('my card shows the nickname, the big code, a QR of the fragment link, a system share and a confirmed code change', () => {

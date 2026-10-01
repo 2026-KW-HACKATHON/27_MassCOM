@@ -27,11 +27,8 @@ import { useFriends } from '@/friends/use-friends';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
-import { AppHeader } from '@/ui/app-header';
 import { BounceButton } from '@/ui/bounce-button';
 import { FloatingCard } from '@/ui/floating-card';
-import { heroMascotSize } from '@/ui/large-text';
-import { Mascot } from '@/ui/mascot';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { Stagger } from '@/ui/stagger';
@@ -41,7 +38,6 @@ import { TierDots } from './tier-dots';
 import { useFriendsStyles } from './use-friends-styles';
 
 export const FRIENDS_TITLE = '친구';
-export const FRIENDS_SUBTITLE = '코드를 주고받으면 서로의 여권을 볼 수 있어요';
 
 const NOT_A_FRIEND_QR = '친구 코드 QR이 아니에요. 친구 화면의 QR을 다시 비춰 주세요.';
 const OWN_CODE_NOTICE = '내 친구 코드예요.';
@@ -53,10 +49,14 @@ export function FriendsScreen({
   apiUrl,
   credential,
   onSessionInvalid,
+  header,
 }: {
   apiUrl: string;
   credential: AccountCredential;
   onSessionInvalid: () => Promise<void>;
+  /** BackHeader (sky art included); drawn first inside the scroll content so it scrolls away with the page — the
+   *  route builds it, same as account-settings, now that this screen is reached through a hidden tab, not the bar. */
+  header: ReactNode;
 }) {
   const clearance = useTabBarClearance();
   const insets = useSafeAreaInsets();
@@ -65,7 +65,7 @@ export function FriendsScreen({
   const palette = colorsForScheme(scheme);
   const world = worldForScheme(scheme);
   const styles = useFriendsStyles();
-  const { width, fontScale } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const variant = linkVariantFor(Application.applicationId);
   const api = useMemo(
     () => createFriendsApiClient({ apiUrl, credential, onSessionInvalid }),
@@ -278,15 +278,6 @@ export function FriendsScreen({
     }
   }
 
-  // The header (sky art included) is the first thing inside the scroll content, so it scrolls away with the page.
-  const header = (
-    <AppHeader title={FRIENDS_TITLE} subtitle={FRIENDS_SUBTITLE}>
-      <View style={styles.hero}>
-        {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
-        <Mascot interactive pose="friends" size={heroMascotSize(fontScale, 112)} />
-      </View>
-    </AppHeader>
-  );
   const sky = (body: ReactNode, refreshControl?: ScrollViewProps['refreshControl']) => (
     <SkyBackdrop>
       <SkyScrollView
