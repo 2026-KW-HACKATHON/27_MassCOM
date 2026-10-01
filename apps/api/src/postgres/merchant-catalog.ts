@@ -60,6 +60,8 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
        WHERE m.status = 'ACTIVE'
          AND c.status = 'ACTIVE'
          AND c.is_public = true
+         -- 로그인 없는 체험 가게(#309)는 체험자 본인에게도 공개 목록에 나오지 않는다(D-064). 운영 DB는 이 표가 비어 있다.
+         AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial WHERE trial.merchant_id = m.id)
          AND c.starts_at <= $1
          AND c.ends_at > $1
        GROUP BY m.id, c.id

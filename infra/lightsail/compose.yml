@@ -150,6 +150,8 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ../../site/public:/srv/masscom:ro
+      # 시연 웹 체험(Issue #309) 정적 번들. demo-api.masscom.kr/play/만 이 경로를 읽는다(운영 출처는 읽지 않는다).
+      - ${MASSCOM_SHOWCASE_WEB_DIR:-/opt/masscom-showcase/web/current}:/srv/showcase-web:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

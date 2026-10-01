@@ -36,6 +36,7 @@ import {
   type ReauthenticationGuard,
 } from './server.js';
 import { ShowcaseAccessRequestError, type ShowcaseAccessRequestService } from './showcase/access-requests.js';
+import { GuestTrialError, type ShowcaseGuestTrialService } from './showcase/guest-trials.js';
 import {
   CampaignEnrollmentError,
   type CampaignEnrollmentErrorCode,
@@ -233,6 +234,7 @@ async function startFixture(
   reversals?: ReversalService,
   consent?: ConsentService,
   accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
+  guestTrials?: Pick<ShowcaseGuestTrialService, 'start' | 'resolve'>,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -275,6 +277,7 @@ async function startFixture(
     undefined,
     undefined,
     accessRequests,
+    guestTrials,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -685,7 +688,10 @@ test('#294 showcase access-request routes exist only when wired, rate-limit requ
   const view = { code: 'ABCDEFGH', status: 'PENDING' as const, createdAt: '2026-01-01T00:00:00.000Z', decidedAt: null };
   let decideError: ShowcaseAccessRequestError | undefined;
   const fake = accessRequestsFixture({
-    mine: async (accountId) => { calls.push(`mine:${accountId}`); return { request: view, staff: false, approver: false }; },
+    mine: async (accountId) => {
+      calls.push(`mine:${accountId}`);
+      return { request: view, staff: false, approver: false, trialMerchantId: null };
+    },
     request: async (accountId) => { calls.push(`request:${accountId}`); return { created: true, request: view }; },
     listPending: async (accountId) => {
       calls.push(`listPending:${accountId}`);
@@ -704,7 +710,7 @@ test('#294 showcase access-request routes exist only when wired, rate-limit requ
 
   const mine = await fetch(`${showcase}/showcase/access-requests/mine`, { headers: { 'x-account-id': 'acct_a' } });
   assert.equal(mine.status, 200);
-  assert.deepEqual(await mine.json(), { request: view, staff: false, approver: false });
+  assert.deepEqual(await mine.json(), { request: view, staff: false, approver: false, trialMerchantId: null });
 
   const created = await fetch(`${showcase}/showcase/access-requests`, { method: 'POST', headers: { 'x-account-id': 'acct_a' } });
   assert.equal(created.status, 201);
@@ -760,6 +766,159 @@ test('#294 showcase access-request routes exist only when wired, rate-limit requ
   assert.ok(calls.includes('request:acct_a'));
   assert.ok(calls.includes('listPending:acct_admin'));
   assert.ok(calls.includes('decide:acct_admin:req-1:APPROVED'));
+});
+
+function guestTrialFixture(
+  t: TestContext,
+  guestTrials: Pick<ShowcaseGuestTrialService, 'start' | 'resolve'> | undefined,
+  options: {
+    resolveAccountId?: AccountResolver;
+    merchantAccess?: MerchantAccessFixture;
+    claimSlots?: ClaimSlotFixture;
+    trustProxyClientIp?: boolean;
+    accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>;
+  } = {},
+) {
+  return startFixture(
+    t, options.resolveAccountId, undefined, options.merchantAccess, options.claimSlots,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, options.trustProxyClientIp,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, options.accessRequests, guestTrials,
+  );
+}
+
+test('#309 POST /auth/guest-trial exists only with a guest-trial service, throttles per client IP and maps errors', async (t) => {
+  // 운영 배치(서비스 없음): 알 수 없는 경로와 상태·본문이 같다.
+  const production = await guestTrialFixture(t, undefined);
+  const unknown = await fetch(`${production}/auth/no-such-route`, { method: 'POST' });
+  const absent = await fetch(`${production}/auth/guest-trial`, { method: 'POST' });
+  assert.equal(absent.status, 404);
+  assert.equal(unknown.status, 404);
+  assert.deepEqual(await absent.json(), await unknown.json());
+
+  const session = {
+    sessionToken: 'guest-token', accountId: 'acct_guest', expiresAt: '2026-10-03T00:00:00.000Z', guest: true as const,
+  };
+  let startError: GuestTrialError | undefined;
+  const clientKeys: string[] = [];
+  const showcase = await guestTrialFixture(t, {
+    start: async ({ clientKey }) => {
+      clientKeys.push(clientKey);
+      if (startError) throw startError;
+      return session;
+    },
+    resolve: async () => { throw new Error('unexpected resolve call'); },
+  }, { trustProxyClientIp: true });
+  const start = (ip: string, body?: string) => fetch(`${showcase}/auth/guest-trial`, {
+    method: 'POST',
+    headers: { 'x-forwarded-for': ip, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    ...(body === undefined ? {} : { body }),
+  });
+
+  const ok = await start('203.0.113.7');
+  assert.equal(ok.status, 200);
+  assert.deepEqual(await ok.json(), session);
+  assert.equal((await start('203.0.113.7', '{}')).status, 200);
+  // 본문 키는 서비스 호출 전에 거절하지만 횟수에는 든다.
+  assert.equal((await start('203.0.113.7', '{"accountId":"acct_other"}')).status, 400);
+  // 짧은 폭주 제한은 IP당 15분 20회(한 NAT를 나눠 쓰는 심사장 고려). 위 세 번을 빼고 17번 더 통과한다.
+  for (let index = 0; index < 17; index += 1) assert.equal((await start('203.0.113.7')).status, 200);
+  // 스물한 번째는 서비스를 부르지 않고 429다.
+  const limited = await start('203.0.113.7');
+  assert.equal(limited.status, 429);
+  assert.deepEqual(await limited.json(), { code: 'GUEST_TRIAL_RATE_LIMITED' });
+  assert.ok(Number(limited.headers.get('retry-after')) > 0);
+  // 서비스에는 제한과 같은 클라이언트 키(Caddy가 덮어쓴 IP)가 간다.
+  assert.equal(clientKeys.length, 19);
+  assert.ok(clientKeys.every((key) => key === '203.0.113.7'));
+
+  // 다른 IP는 따로 센다. 한 IP의 동시 체험 수 초과는 429, 그 밖의 서비스 오류(상한·원본 가게 없음·시연 DB 아님)는 503이다.
+  for (const [code, status] of [
+    ['GUEST_TRIAL_IP_LIMIT', 429], ['GUEST_TRIAL_BUSY', 503], ['GUEST_TRIAL_UNAVAILABLE', 503],
+    ['SHOWCASE_HOST_DATABASE_REQUIRED', 503],
+  ] as const) {
+    startError = new GuestTrialError(code);
+    const response = await start('203.0.113.8');
+    assert.equal(response.status, status, code);
+    assert.deepEqual(await response.json(), { code });
+  }
+  assert.equal(clientKeys.length, 23);
+});
+
+test('#309 the local demo-header deployment also resolves guest Bearer sessions; other resolvers are unchanged', async (t) => {
+  const seen: string[] = [];
+  const accessRequests = accessRequestsFixture({
+    mine: async (accountId) => {
+      seen.push(accountId);
+      return { request: null, staff: true, approver: false, trialMerchantId: null };
+    },
+  });
+  const guestResolves: string[] = [];
+  const guestTrials = {
+    start: async (_input: { clientKey: string }): Promise<never> => { throw new Error('unexpected start call'); },
+    resolve: async (token: string) => {
+      guestResolves.push(token);
+      if (token !== 'guest-token') throw new AuthSessionError('SESSION_INVALID');
+      return 'acct_guest';
+    },
+  };
+  let issuedFor: string | undefined;
+  const local = await guestTrialFixture(t, guestTrials, {
+    accessRequests,
+    merchantAccess: {
+      requirePermission: async ({ merchantId }) => ({ merchantId, role: 'STAFF', permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT'] }),
+    },
+    claimSlots: claimSlotFixture({
+      issue: async (input) => {
+        issuedFor = 'customerAccountId' in input ? input.customerAccountId : undefined;
+        return { claimSlotId: 'claim-slot-1', token: 'claim-token', tokenVersion: 1, expiresAt: '2026-10-03T00:00:00.000Z' };
+      },
+    }),
+  });
+  const mine = (base: string, headers: Record<string, string>) =>
+    fetch(`${base}/showcase/access-requests/mine`, { headers });
+
+  assert.equal((await mine(local, { 'x-account-id': 'acct_a' })).status, 200);
+  assert.equal((await mine(local, { authorization: 'Bearer guest-token' })).status, 200);
+  const stale = await mine(local, { authorization: 'Bearer stale-token' });
+  assert.equal(stale.status, 401);
+  assert.deepEqual(await stale.json(), { code: 'SESSION_INVALID' });
+  assert.deepEqual(seen, ['acct_a', 'acct_guest']);
+  assert.deepEqual(guestResolves, ['guest-token', 'stale-token']);
+  // 계정 id로 바로 발급하는 DEMO 전용 경로는 감싼 해석기에서도 그대로 열린다(로컬 QA 회귀 방지).
+  const issued = await fetch(`${local}/merchant/merchants/merchant-visible/claim-slots`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-account-id': 'merchant-staff-1' },
+    body: JSON.stringify({ customerAccountId: 'customer-1', merchantReference: 'demo-order-1' }),
+  });
+  assert.equal(issued.status, 201);
+  assert.equal(issuedFor, 'customer-1');
+
+  // 체험 서비스가 없으면 DEMO 헤더 해석은 Bearer를 모른다(기존 그대로).
+  const plain = await guestTrialFixture(t, undefined, { accessRequests });
+  assert.equal((await mine(plain, { authorization: 'Bearer guest-token' })).status, 401);
+
+  // hosted(Bearer 세션 해석기)는 체험 서비스의 resolve를 쓰지 않고 일반 세션 해석이 같은 행을 읽는다.
+  const sessions = authSessionFixture({ resolve: async () => 'acct_hosted_guest' });
+  const hosted = await guestTrialFixture(t, guestTrials, { resolveAccountId: createBearerAccountResolver(sessions), accessRequests });
+  assert.equal((await mine(hosted, { authorization: 'Bearer guest-token' })).status, 200);
+  assert.deepEqual(seen, ['acct_a', 'acct_guest', 'acct_hosted_guest']);
+  assert.deepEqual(guestResolves, ['guest-token', 'stale-token']);
+});
+
+test('#309 AI art refusal for a trial store is 403 with a Korean message', async (t) => {
+  const art = {
+    createRound: async () => { throw new MerchantArtError('AI_ART_TRIAL_DISABLED'); },
+  } as unknown as MerchantArtService;
+  const baseUrl = await startFixture(t, developmentHeaderAccountResolver, undefined, {
+    requirePermission: async ({ merchantId }) => ({ merchantId, role: 'STAFF', permissions: ['VIEW_MERCHANT', 'CONFIRM_VISIT', 'MANAGE_ART'] }),
+  }, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
+  undefined, false, undefined, undefined, undefined, undefined, undefined, undefined, art);
+  const response = await fetch(`${baseUrl}/merchant/merchants/trial-1/art/rounds`, {
+    method: 'POST', headers: { 'x-account-id': 'acct_guest' },
+  });
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { code: 'AI_ART_TRIAL_DISABLED', message: '체험 가게에서는 AI 그림을 만들 수 없어요.' });
 });
 
 test('#295 showcase test-visit route exists only when wired, rate-limits, issues then redeems, and maps errors', async (t) => {

@@ -52,6 +52,8 @@ export class PostgresRecommendationSource implements RecommendationSource {
        WHERE merchant.status = 'ACTIVE'
          AND campaign.status = 'ACTIVE'
          AND campaign.is_public = true
+         -- 로그인 없는 체험 가게(#309)는 누구의 추천에도 나오지 않는다(D-064).
+         AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial WHERE trial.merchant_id = merchant.id)
          AND campaign.starts_at <= $2
          AND campaign.ends_at > $2
        GROUP BY merchant.id, campaign.id
