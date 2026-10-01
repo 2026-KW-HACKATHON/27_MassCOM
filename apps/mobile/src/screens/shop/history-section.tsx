@@ -1,38 +1,57 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { formatKstMinute } from '@/privacy/deletion-intake-copy';
-import type { ShopApiClient, ShopHistoryEntry } from '@/shop/shop-api';
+import type { ShopApiClient } from '@/shop/shop-api';
 import { shopErrorMessage } from '@/shop/shop-api';
+import {
+  canStartHistoryLoad, historyFailed, historyLoaded, historyLoading, initialHistoryLoad, type HistoryLoad,
+} from '@/shop/history-loader';
 import { formatMileage } from '@/shop/shop-rules';
 import { Fold } from '@/ui/fold';
 import { StateScene } from '@/ui/state-scene';
 
 import { useShopStyles } from './use-shop-styles';
 
-type LoadState = { status: 'idle' | 'loading' | 'ready' | 'error'; entries: readonly ShopHistoryEntry[]; nextCursor: string | null; error?: unknown };
-
-const initial: LoadState = { status: 'idle', entries: [], nextCursor: null };
-
 /** "사용 내역 ›"(design-298.md Android): #296의 접이식 Fold를 그대로 써서 펼칠 때 첫 페이지를 불러온다. */
-export function HistorySection({ api }: { api: Pick<ShopApiClient, 'getHistory'> }) {
+export function HistorySection({ api, refreshToken }: { api: Pick<ShopApiClient, 'getHistory'>; refreshToken: number }) {
   const styles = useShopStyles();
   const [expanded, setExpanded] = useState(false);
-  const [state, setState] = useState<LoadState>(initial);
+  const [state, setState] = useState<HistoryLoad>(initialHistoryLoad);
+  // 빠른 두 번 탭("더 보기"를 두 번 연속)이 같은 커서를 중복 로드해 행을 두 번 붙이는 것을 막는다(PR #312 리뷰 1번).
+  // React state는 탭 사이에 재렌더링이 끝나지 않을 수 있어(다른 화면의 addingNow 같은 ref 가드와 같은 이유) 상태가 아닌
+  // ref로 동기 확인한다.
+  const statusRef = useRef(state.status);
+  const expandedRef = useRef(expanded);
+  useEffect(() => { expandedRef.current = expanded; });
+  const seenRefreshToken = useRef(refreshToken);
 
   async function load(cursor?: string) {
-    setState((current) => ({ ...current, status: 'loading' }));
+    if (!canStartHistoryLoad(statusRef.current)) return;
+    statusRef.current = 'loading';
+    setState((current) => historyLoading(current));
     try {
       const page = await api.getHistory(cursor);
-      setState((current) => ({
-        status: 'ready',
-        entries: cursor ? [...current.entries, ...page.spends] : page.spends,
-        nextCursor: page.nextCursor,
-      }));
+      statusRef.current = 'ready';
+      setState((current) => historyLoaded(current, page, cursor));
     } catch (error) {
-      setState((current) => ({ ...current, status: 'error', error }));
+      statusRef.current = 'error';
+      setState((current) => historyFailed(current, error));
     }
   }
+
+  // 구매가 끝나거나(사용 내역에 새 줄이 생김) 화면을 당겨서 새로고침하면, 펼쳐 둔 사용 내역을 첫 페이지부터 다시
+  // 불러온다. 접혀 있었으면 idle로만 되돌려 다음에 펼칠 때 다시 불러오게 한다(PR #312 리뷰 6번).
+  useEffect(() => {
+    if (refreshToken === seenRefreshToken.current) return;
+    seenRefreshToken.current = refreshToken;
+    statusRef.current = 'idle';
+    setState(initialHistoryLoad);
+    if (expandedRef.current) void load();
+    // load()는 렌더마다 새로 만들어지는 안정적 동작이고 expandedRef로 최신 펼침 상태를 읽는다; refreshToken이
+    // 바뀔 때만 다시 돈다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   function toggle() {
     const next = !expanded;
@@ -63,7 +82,13 @@ export function HistorySection({ api }: { api: Pick<ShopApiClient, 'getHistory'>
             </View>
           ))}
           {state.nextCursor ? (
-            <Pressable accessibilityRole="button" onPress={() => void load(state.nextCursor!)} style={styles.loadMore}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: state.status === 'loading' }}
+              disabled={state.status === 'loading'}
+              onPress={() => void load(state.nextCursor!)}
+              style={styles.loadMore}
+            >
               <Text style={styles.loadMoreText}>{state.status === 'loading' ? '불러오는 중…' : '더 보기'}</Text>
             </Pressable>
           ) : null}

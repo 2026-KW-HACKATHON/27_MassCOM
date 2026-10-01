@@ -16,6 +16,8 @@ type Props = {
   /** The drawn character is already the account's representative (rare: a replayed retry after setting it). */
   isAvatar: boolean;
   avatarBusy: boolean;
+  /** A failed "대표로 설정" attempt: shown here, not as a notice behind this full-screen modal (PR #312 리뷰 7번). */
+  avatarError?: string;
   onSetAvatar: () => void;
   onClose: () => void;
 };
@@ -26,7 +28,7 @@ type Props = {
  * 스윕이 필요 없어 이 화면만을 위한 작은 버전으로 다시 쓴다. reduce-motion이면 흔들기 단계 없이 바로 열린 상태로
  * 시작한다.
  */
-export function DrawReveal({ result, isAvatar, avatarBusy, onSetAvatar, onClose }: Props) {
+export function DrawReveal({ result, isAvatar, avatarBusy, avatarError, onSetAvatar, onClose }: Props) {
   const motionAllowed = useMotionEnabled();
   const [stage, setStage] = useState<'shaking' | 'open'>(motionAllowed ? 'shaking' : 'open');
   const shake = useSharedValue(0);
@@ -95,10 +97,13 @@ export function DrawReveal({ result, isAvatar, avatarBusy, onSetAvatar, onClose 
         </View>
 
         {stage === 'open' ? (
-          <View style={styles.actions}>
-            <Control label={avatarLabel} primary disabled={isAvatar || avatarBusy} onPress={onSetAvatar} />
-            <Control label="닫기" onPress={onClose} />
-          </View>
+          <>
+            {avatarError ? <Text accessibilityLiveRegion="polite" style={styles.avatarErrorText}>{avatarError}</Text> : null}
+            <View style={styles.actions}>
+              <Control label={avatarLabel} primary disabled={isAvatar || avatarBusy} onPress={onSetAvatar} />
+              <Control label="닫기" onPress={onClose} />
+            </View>
+          </>
         ) : null}
       </View>
     </FullScreenModal>
@@ -135,6 +140,7 @@ const styles = StyleSheet.create({
   newBadge: { position: 'absolute', top: 10, left: 10, backgroundColor: '#FF5D73', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   newBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
   name: { color: '#FFFFFF', fontSize: 18, fontWeight: '900', textAlign: 'center' },
+  avatarErrorText: { color: '#FFB4B4', fontSize: 13, textAlign: 'center' },
   srOnly: { position: 'absolute', opacity: 0, height: 1, width: 1 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
   control: { minHeight: 48, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },

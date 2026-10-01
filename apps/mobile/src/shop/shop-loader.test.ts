@@ -89,3 +89,46 @@ test('createShopLoader reports a failure for the latest request only', async () 
   await loader.load(false);
   assert.equal((states.at(-1) as { status: string }).status, 'error');
 });
+
+// PR #312 리뷰 2번: 구매·대표 설정이 확정한 상태를, 그보다 먼저 시작해 아직 끝나지 않은 GET /shop 응답이 뒤늦게
+// 덮어써서는 안 된다(재현: 400P·남은 2종 → 뒤늦은 GET이 500P·남은 3종으로 되돌림).
+test('applyReroll invalidates an in-flight getShop so its late answer cannot overwrite the confirmed purchase', async () => {
+  const states: unknown[] = [];
+  let resolveGet: (value: ShopSnapshot) => void = () => {};
+  const api = { getShop: () => new Promise<ShopSnapshot>((resolve) => { resolveGet = resolve; }) };
+  const loader = createShopLoader(api, (update) => states.push(update(states.at(-1) as never ?? initialShopLoad)));
+  states.push(loaded(snapshot()));
+  const pendingGet = loader.load(true);
+  loader.applyReroll({ item: { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이' }, balance: 300, replayed: false });
+  resolveGet(snapshot()); // 재뽑기 전의 낡은 스냅샷(400P·남은 2종)이 뒤늦게 돌아온다.
+  await pendingGet;
+  const last = states.at(-1) as { snapshot?: ShopSnapshot };
+  assert.equal(last.snapshot?.mileage.balance, 300, '낡은 GET이 확정된 잔액을 되돌리면 안 된다');
+  assert.equal(last.snapshot?.grades[0]!.remaining, 1, '낡은 GET이 확정된 남은 수를 되돌리면 안 된다');
+});
+
+test('applyAvatar also invalidates an in-flight getShop so its late answer cannot overwrite the confirmed avatar', async () => {
+  const states: unknown[] = [];
+  let resolveGet: (value: ShopSnapshot) => void = () => {};
+  const api = { getShop: () => new Promise<ShopSnapshot>((resolve) => { resolveGet = resolve; }) };
+  const loader = createShopLoader(api, (update) => states.push(update(states.at(-1) as never ?? initialShopLoad)));
+  states.push(loaded(snapshot({ avatar: 'cook-cat' })));
+  const pendingGet = loader.load(true);
+  loader.applyAvatar('cafe-bear');
+  resolveGet(snapshot({ avatar: 'cook-cat' })); // 바꾸기 전의 낡은 대표 캐릭터가 뒤늦게 돌아온다.
+  await pendingGet;
+  assert.equal((states.at(-1) as { snapshot?: ShopSnapshot }).snapshot?.avatar, 'cafe-bear');
+});
+
+// PR #312 리뷰 3번: dispose() 뒤(세션 만료로 화면이 다시 마운트되는 동안 등) 뒤늦게 끝난 호출이 사라진 화면에
+// setState하면 안 된다.
+test('applyReroll and applyAvatar do nothing after dispose', () => {
+  const states: unknown[] = [];
+  const api = { getShop: async () => snapshot() };
+  const loader = createShopLoader(api, (update) => states.push(update(states.at(-1) as never ?? initialShopLoad)));
+  states.push(loaded(snapshot()));
+  loader.dispose();
+  loader.applyReroll({ item: { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이' }, balance: 300, replayed: false });
+  loader.applyAvatar('cafe-bear');
+  assert.equal(states.length, 1, 'no update must be applied after dispose');
+});

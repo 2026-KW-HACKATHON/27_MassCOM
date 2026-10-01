@@ -54,26 +54,38 @@ export function createShopLoader(
   apply: (update: (state: ShopLoad) => ShopLoad) => void,
 ) {
   const gate = createLatestGate();
+  // PR #312 리뷰: dispose() 뒤(세션 만료로 화면이 다시 마운트되는 동안 등) 뒤늦게 끝난 호출이 사라진 화면에 setState하지
+  // 않도록 막는다.
+  let disposed = false;
 
-  async function load(quiet: boolean): Promise<void> {
+  async function load(quiet: boolean): Promise<boolean> {
     const request = gate.begin();
     try {
       const next = await api.getShop();
       if (gate.isLatest(request)) apply(() => loaded(next));
+      return true;
     } catch (caught) {
       if (gate.isLatest(request)) apply((state) => failed(state, caught, quiet));
+      return false;
     }
   }
 
   return {
     load,
     applyReroll(result: ShopRerollResult): void {
+      if (disposed) return;
+      // 구매·대표 설정이 확정한 상태를, 그 전에 시작해 아직 끝나지 않은 GET /shop 응답이 뒤늦게 덮어쓰지 않도록
+      // 지금 진행 중인 조회를 낡은 것으로 만든다(friends-loader.ts의 changeMe와 같은 모양, PR #312 리뷰).
+      gate.invalidate();
       apply((state) => withReroll(state, result));
     },
     applyAvatar(avatar: string | null): void {
+      if (disposed) return;
+      gate.invalidate();
       apply((state) => withAvatar(state, avatar));
     },
     dispose(): void {
+      disposed = true;
       gate.invalidate();
     },
   };

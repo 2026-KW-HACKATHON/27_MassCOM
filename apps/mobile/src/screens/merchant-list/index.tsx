@@ -60,8 +60,6 @@ export function MerchantListScreen({ apiUrl }: Props) {
   const clearance = useTabBarClearance();
   const scrim = useStatusBarScrim();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
-  // design-298.md: 홈 헤더 아바타가 상점에서 고른 대표 캐릭터를 보여준다(없으면 AppHeader의 기본 마스코트).
-  const avatarArt = useShopAvatarArt(apiUrl, auth.credential);
   const [query, setQuery] = useState('');
   const visibleMerchants = useMemo(() => filterMerchants(merchants, query), [merchants, query]);
   const filtering = query.trim().length > 0;
@@ -73,6 +71,9 @@ export function MerchantListScreen({ apiUrl }: Props) {
     void refresh();
     setBadgeRefreshToken((value) => value + 1);
   }, [refresh]);
+  // design-298.md: 홈 헤더 아바타가 상점에서 고른 대표 캐릭터를 보여준다(없으면 AppHeader의 기본 마스코트). 탭 포커스가
+  // 돌아올 때(useShopAvatarArt 내부)와 이 당겨서 새로고침에도 다시 읽는다(PR #312 리뷰 5번).
+  const avatarArt = useShopAvatarArt(apiUrl, auth.credential, badgeRefreshToken);
 
   return (
     <SkyBackdrop>
