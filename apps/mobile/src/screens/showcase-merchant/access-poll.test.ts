@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { ACCESS_POLL_INTERVAL_MS, createAccessPoller, needsPermissionRecheck, type PollTimers } from './access-poll';
+import { ACCESS_POLL_INTERVAL_MS, createAccessPoller, decidePermissionRecheck, shouldHandleHardwareBack, type PollTimers } from './access-poll';
 
 type Answer = { status: 'PENDING' | 'APPROVED' | 'REJECTED' };
 
@@ -169,11 +169,81 @@ test('starting twice does not double the polling', async () => {
   assert.equal(clock.pending, 1);
 });
 
-test('needsPermissionRecheck asks for a recheck only when an approval has not been reflected on screen yet', () => {
-  assert.equal(needsPermissionRecheck('APPROVED', 'denied'), true);
-  assert.equal(needsPermissionRecheck('APPROVED', 'loading'), true);
-  assert.equal(needsPermissionRecheck('APPROVED', 'allowed'), false);
-  assert.equal(needsPermissionRecheck('PENDING', 'denied'), false);
-  assert.equal(needsPermissionRecheck('REJECTED', 'denied'), false);
-  assert.equal(needsPermissionRecheck(undefined, 'denied'), false);
+test('pokeNow asks right now instead of waiting for the next interval tick', async () => {
+  const { clock, poller, requests } = harness(['PENDING', 'PENDING']);
+  poller.start();
+  clock.advance(5000);
+  await settle();
+  assert.equal(requests(), 1);
+  // Idle, waiting out the interval for the next scheduled tick: pokeNow should not wait for it.
+  poller.pokeNow();
+  await settle();
+  assert.equal(requests(), 2);
+  poller.stop();
+});
+
+test('pokeNow does nothing while a request is already in flight: it never overlaps the one already out', async () => {
+  const clock = fakeTimers();
+  let requests = 0;
+  const first = deferred<Answer>();
+  const poller = createAccessPoller<Answer>({
+    poll: () => { requests += 1; return first.promise; },
+    onResult: () => undefined,
+    shouldContinue: () => false,
+    timers: clock.timers,
+  });
+  poller.pokeNow();
+  poller.pokeNow();
+  assert.equal(requests, 1);
+  first.resolve({ status: 'PENDING' });
+  await settle();
+});
+
+test('a stale pokeNow reply arriving after stop() (resume raced a screen exit) is dropped, not applied', async () => {
+  const clock = fakeTimers();
+  const first = deferred<Answer>();
+  const seen: Answer[] = [];
+  const poller = createAccessPoller<Answer>({
+    poll: () => first.promise,
+    onResult: (result) => seen.push(result),
+    shouldContinue: () => false,
+    timers: clock.timers,
+  });
+  poller.pokeNow();
+  assert.equal(poller.isRunning(), true);
+  poller.stop();
+  first.resolve({ status: 'REJECTED' });
+  await settle();
+  assert.deepEqual(seen, []);
+});
+
+test('decidePermissionRecheck allows exactly one automatic recheck per request code, then reports stuck', () => {
+  const request = { code: 'ABC123', status: 'APPROVED' as const };
+  // First sighting of this APPROVED request on a non-allowed screen: ask for a recheck.
+  const first = decidePermissionRecheck(request, 'denied', undefined);
+  assert.deepEqual(first, { action: 'recheck', code: 'ABC123' });
+  // The recheck ran (caller recorded code 'ABC123') and the screen is STILL not allowed: stop, don't loop.
+  const second = decidePermissionRecheck(request, 'denied', 'ABC123');
+  assert.deepEqual(second, { action: 'stuck' });
+  // A later recheck that lands on the allowed screen needs nothing further.
+  assert.deepEqual(decidePermissionRecheck(request, 'allowed', 'ABC123'), { action: 'none' });
+  // Not approved yet, or no request at all: nothing to do.
+  assert.deepEqual(decidePermissionRecheck({ code: 'ABC123', status: 'PENDING' }, 'denied', undefined), { action: 'none' });
+  assert.deepEqual(decidePermissionRecheck(null, 'denied', undefined), { action: 'none' });
+  // A different (newer) request gets its own single automatic attempt even if an old code is stuck.
+  const nextRequest = { code: 'XYZ999', status: 'APPROVED' as const };
+  assert.deepEqual(decidePermissionRecheck(nextRequest, 'denied', 'ABC123'), { action: 'recheck', code: 'XYZ999' });
+});
+
+test('shouldHandleHardwareBack registers while the admin screen is open even without merchant staff permission', () => {
+  // The bug (review #3): an approver without staff permission opens the admin screen from the denied status, but back is unhandled.
+  assert.equal(shouldHandleHardwareBack({ tour: false, adminOpen: true, screenStatus: 'denied' }), true);
+  assert.equal(shouldHandleHardwareBack({ tour: false, adminOpen: true, screenStatus: 'loading' }), true);
+  assert.equal(shouldHandleHardwareBack({ tour: false, adminOpen: true, screenStatus: 'allowed' }), true);
+  // Merchant screen itself still gets back handling without the admin screen open.
+  assert.equal(shouldHandleHardwareBack({ tour: false, adminOpen: false, screenStatus: 'allowed' }), true);
+  // Neither admin open nor staff permission: nothing for this screen to handle.
+  assert.equal(shouldHandleHardwareBack({ tour: false, adminOpen: false, screenStatus: 'denied' }), false);
+  // The tour screen handles its own exit.
+  assert.equal(shouldHandleHardwareBack({ tour: true, adminOpen: true, screenStatus: 'allowed' }), false);
 });
