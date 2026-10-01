@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import { mountCollectibleEditor } from '../../apps/production-web/assets/collectible-editor.mjs';
-import { configureCreator, loadCreatorCampaigns } from '../../apps/production-web/assets/merchant.mjs';
+import { configureCreator, loadCreatorCampaigns, loadMerchant } from '../../apps/production-web/assets/merchant.mjs';
 import { createProject } from '../../apps/production-web/assets/collectible-model.mjs';
 import { createFakeApi } from '../fixtures/collectible-fake-api.mjs';
 import { installMiniDom, settle } from '../fixtures/mini-dom.mjs';
@@ -138,7 +138,8 @@ test('게시한 뒤에도 장면 미리보기 같은 파생 필드 때문에 저
   const publish = api.calls.find(call => call.path.endsWith('/publish'));
   assert.deepEqual(publish.body, { expectedVersion: 1, campaignId: 'campaign-a' });
   const created = api.calls.find(call => call.method === 'POST' && call.path === '/collectible-projects');
-  assert.deepEqual(Object.keys(created.body.project.derived), ['bronze', 'silver', 'gold', 'prism']);
+  // Issue #284 WP2: serializeDerived는 연결된 등급(rewardGrades)만 굽는다. 여기선 1회 보상이 'bronze'에만 연결됐다.
+  assert.deepEqual(Object.keys(created.body.project.derived), ['bronze']);
   assert.ok(created.body.project.story.frames[0].previewDataUrl, '게시용 장면 미리보기를 함께 보낸다');
   assert.match(ui.notice, /게시했어요/);
   assert.equal(api.store.get('project-1').status, 'PUBLISHED');
@@ -256,22 +257,64 @@ test('게시한 프로젝트 삭제는 원본이 지워지고 이미 받은 손�
 const MiB = 1024 * 1024;
 const created = api => api.calls.find(call => call.method === 'POST' && call.path === '/collectible-projects')?.body.project;
 
-test('게시용 완성 이미지·썸네일·장면 미리보기는 WebP 0.9로, 효과 마스크는 PNG로 만든다', async () => {
+test('게시용 완성·뒷면 이미지·썸네일·장면 미리보기는 WebP 0.9로 만들고, 홀로그램 효과가 있는 등급은 base·mask를 다시 만든다(PR #293 P2)', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await readyToPublish(ui, { scenes: true });
+  ui.control('effect-type').value = 'hologram';
   await ui.click('effect-add');
   const grade = ui.container.querySelector('input[data-effect-grade][data-grade="bronze"]');
   grade.checked = true; grade.dispatchEvent({ type: 'change' }); await settle();
   await ui.click('publish');
   const project = created(api), bronze = project.derived.bronze;
-  for (const name of ['imageDataUrl', 'baseDataUrl', 'thumbnailDataUrl']) assert.match(bronze[name], /^data:image\/webp;base64,/, name);
+  for (const name of ['imageDataUrl', 'thumbnailDataUrl', 'backImageDataUrl', 'baseDataUrl']) assert.match(bronze[name], /^data:image\/webp;base64,/, name);
+  assert.ok(bronze.effectMasks?.surface, '뷰어가 각도별로 홀로그램을 다시 합성하려면 surface mask가 있어야 한다');
+  assert.match(bronze.effectMasks.surface, /^data:image\/png;base64,/);
   assert.match(project.story.frames[0].previewDataUrl, /^data:image\/webp;base64,/);
-  assert.match(bronze.effectMasks.surface, /^data:image\/png;base64,/, '알파가 중요한 마스크는 PNG로 둔다');
   const webp = dom.document.encodes.filter(item => item.type === 'image/webp');
-  assert.ok(webp.length >= 13 && webp.every(item => item.quality === .9), 'WebP는 품질 0.9로 인코딩한다');
+  assert.ok(webp.length >= 3 && webp.every(item => item.quality === .9), 'WebP는 품질 0.9로 인코딩한다');
   assert.ok(webp.some(item => item.width === 160), '썸네일 160px');
   assert.match(ui.notice, /게시했어요/);
+});
+
+// Issue #284 WP2 설계 6번: 연결된 등급만 derived를 만든다(본문 용량 절약). 미리보기 중인 등급은 보상 연결이
+// 없어도 함께 만든다(편집기가 지금 보는 등급을 publish 직후에도 그대로 보여 줄 수 있어야 한다).
+test('serializeDerived는 보상에 연결된 등급과 지금 보는 등급만 굽고, 연결되지 않은 다른 등급은 비워 둔다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  await ui.change('campaign', 'campaign-a');
+  const reward1 = ui.container.querySelector('[data-reward-count="1"]'); reward1.value = 'silver'; reward1.dispatchEvent({ type: 'change' }); await settle();
+  const reward3 = ui.container.querySelector('[data-reward-count="3"]'); reward3.value = 'gold'; reward3.dispatchEvent({ type: 'change' }); await settle();
+  // 지금 미리보기 등급(기본 bronze)은 어느 보상에도 연결하지 않았다.
+  await ui.click('publish');
+  const project = created(api);
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], 'bronze(미리보기 등급)·silver·gold만 굽고 prism은 빠진다');
+});
+
+test('연결된 세 등급 모두 홀로그램 효과가 있어도 base·mask를 되살린 게시 본문은 8 MB 한도보다 충분히 작다(PR #293 P2 회귀)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  await ui.change('campaign', 'campaign-a');
+  const reward1 = ui.container.querySelector('[data-reward-count="1"]'); reward1.value = 'silver'; reward1.dispatchEvent({ type: 'change' }); await settle();
+  const reward3 = ui.container.querySelector('[data-reward-count="3"]'); reward3.value = 'gold'; reward3.dispatchEvent({ type: 'change' }); await settle();
+  ui.control('effect-type').value = 'hologram';
+  await ui.click('effect-add');
+  for (const gradeId of ['bronze', 'silver', 'gold']) {
+    const checkbox = ui.container.querySelector(`input[data-effect-grade][data-grade="${gradeId}"]`);
+    checkbox.checked = true; checkbox.dispatchEvent({ type: 'change' }); await settle();
+  }
+  dom.document.encodedBytes = 80 * 1024; // 실제 사진 한 장 크기를 흉내 낸 값(개별 상한 안에서 여유 있게 큰 편)
+  await ui.click('publish');
+  const project = created(api);
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], '지금 보는 등급·보상 연결 등급 세 개만 굽는다');
+  for (const asset of Object.values(project.derived)) {
+    assert.match(asset.baseDataUrl, /^data:image\//, '홀로그램 효과가 있는 등급은 base를 다시 만든다');
+    assert.match(asset.effectMasks?.surface, /^data:image\//, '홀로그램 효과가 있는 등급은 surface mask를 다시 만든다');
+  }
+  const bodyBytes = new TextEncoder().encode(JSON.stringify({ project })).length;
+  assert.ok(bodyBytes < 8 * MiB, `세 등급에 base·mask를 되살려도 본문은 8 MB보다 충분히 작아야 한다(${bodyBytes} bytes)`);
 });
 
 test('WebP 인코딩을 지원하지 않는 브라우저는 PNG로 게시한다', async () => {
@@ -311,6 +354,331 @@ test('스티커는 서버와 같은 30개까지 만들 수 있다', async () => 
   await settle();
   assert.equal(ui.control('sticker-list').options.length, 30);
   assert.match(ui.notice, /스티커는 30개까지 만들 수 있어요/);
+});
+
+// PR #293 리뷰(Codex gpt-6.1-sol P2): 서버는 스티커 텍스트를 80자·4줄까지만 받는데, 편집기 textarea는
+// maxlength=83이라 81~83자를 입력할 수 있었고(저장 때 거절), 줄 수 제한은 아예 없어 5줄 이상 입력해도
+// 막지 않았다(미리보기는 4줄까지만 그려 입력과 다르게 보임).
+test('스티커 textarea는 서버와 같은 80자까지만 받는다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  assert.equal(ui.control('sticker-new').getAttribute('maxlength'), '80');
+  ui.control('sticker-new').value = '글자'.repeat(40); // 80자
+  await ui.click('sticker-add');
+  assert.equal(ui.container.querySelector('[data-sticker="text"]').getAttribute('maxlength'), '80');
+});
+
+test('스티커 추가 시 5줄을 입력하면 4줄까지만 저장되고 안내한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-new').value = '첫째\n둘째\n셋째\n넷째\n다섯째';
+  await ui.click('sticker-add');
+  assert.match(ui.notice, /4줄까지만 가능해요/);
+  assert.equal(ui.container.querySelector('[data-sticker="text"]').value, '첫째\n둘째\n셋째\n넷째');
+  await ui.click('draft');
+  assert.equal(created(api).stickers[0].text, '첫째\n둘째\n셋째\n넷째');
+});
+
+test('기존 스티커 내용을 5줄로 고치면 4줄까지만 남기고 안내한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-new').value = '어서오세요';
+  await ui.click('sticker-add');
+  const textarea = ui.container.querySelector('[data-sticker="text"]');
+  textarea.value = '첫째\n둘째\n셋째\n넷째\n다섯째';
+  textarea.dispatchEvent({ type: 'input' }); await settle();
+  assert.match(ui.notice, /4줄까지만 가능해요/);
+  assert.equal(textarea.value, '첫째\n둘째\n셋째\n넷째');
+  await ui.click('draft');
+  assert.equal(created(api).stickers[0].text, '첫째\n둘째\n셋째\n넷째');
+});
+
+// Issue #284 WP2 미니 DOM 흐름 시험들 ---------------------------------------------------------------
+
+test('이 등급만 따로 배치 토글은 layouts[등급]에 쓰고, 공통으로 되돌리기는 지운다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-new').value = '어서오세요';
+  await ui.click('sticker-add'); // 기본 배치는 x:.5
+
+  const toggle = ui.control('sticker-grade-only');
+  assert.equal(toggle.checked, false, '처음에는 공통 배치를 쓴다');
+  toggle.checked = true; toggle.dispatchEvent({ type: 'change' }); await settle(); // bronze 전용 layouts를 지금 공통값(x:.5)으로 만든다
+  assert.equal(ui.container.querySelector('[data-action="sticker-layout-reset"]').hidden, false);
+
+  // 켠 다음부터는 위치 슬라이더가 bronze의 layouts만 바꾸고 공통(base) 값은 그대로 둔다.
+  const xInput = ui.container.querySelector('[data-sticker="x"]');
+  xInput.value = '0.2'; xInput.dispatchEvent({ type: 'input' }); await settle();
+
+  // 다른 등급(실버)으로 바꾸면 공통 배치(기본값 0.5)를 그대로 보여 준다.
+  ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.container.querySelector('[data-sticker="x"]').value, '0.5');
+  assert.equal(ui.control('sticker-grade-only').checked, false);
+
+  // bronze로 되돌아오면 등급 전용 배치가 그대로 남아 있다.
+  ui.container.querySelector('[data-action="grade-preview"][data-id="bronze"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.container.querySelector('[data-sticker="x"]').value, '0.2');
+  assert.equal(ui.control('sticker-grade-only').checked, true);
+
+  await ui.click('draft');
+  const saved = created(api);
+  assert.deepEqual(saved.stickers[0].layouts.bronze, { x: 0.2, y: 0.7, size: 42, rotation: 0 });
+  assert.equal(saved.stickers[0].layouts.silver, undefined);
+
+  await ui.click('sticker-layout-reset');
+  assert.equal(ui.control('sticker-grade-only').checked, false);
+  assert.equal(ui.container.querySelector('[data-sticker="x"]').value, '0.5', '공통으로 되돌리면 기본 배치로 보인다');
+});
+
+// PR #293 리뷰(Codex gpt-6.1-sol P2): 등급별 배치가 켜져 있으면 미리보기 드래그는 선택한 등급의 "보이는" 좌표로
+// 맞아야 하고, 이동도 그 등급의 layouts에 써야 한다(공통 좌표를 건드리면 다른 등급이 대신 움직인다).
+test('등급별 배치 중 미리보기 드래그는 그 등급의 layouts만 바꾸고 공통 좌표는 그대로 둔다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-new').value = '어서오세요';
+  await ui.click('sticker-add'); // 공통 배치 x:.5, y:.7
+
+  const toggle = ui.control('sticker-grade-only');
+  toggle.checked = true; toggle.dispatchEvent({ type: 'change' }); await settle(); // bronze layouts를 지금 공통값으로 만든다
+
+  // previewCanvas는 512x512이고, pointOn()은 .11~.89 구간을 0~1 좌표로 맞춘다(collectible-editor.mjs:1136).
+  const clientFor = value => 512 * .11 + value * 512 * .78;
+  const preview = ui.container.querySelector('[data-view="preview"]');
+  preview.dispatchEvent({ type: 'pointerdown', pointerId: 1, clientX: clientFor(.5), clientY: clientFor(.7) });
+  preview.dispatchEvent({ type: 'pointermove', pointerId: 1, clientX: clientFor(.6), clientY: clientFor(.7) });
+  preview.dispatchEvent({ type: 'pointerup', pointerId: 1 });
+  await settle();
+
+  assert.equal(ui.control('sticker-grade-only').checked, true, '드래그 뒤에도 등급별 배치가 켜져 있어야 한다(히트 테스트가 등급 좌표를 못 찾으면 선택이 풀린다)');
+  assert.equal(Number(ui.container.querySelector('[data-sticker="x"]').value).toFixed(1), '0.6', 'bronze layouts.x가 드래그만큼 움직여야 한다');
+
+  // 실버로 바꾸면 공통 좌표(.5)를 그대로 보여 줘야 한다 — 버그라면 드래그가 공통 좌표에 써서 여기서도 0.6이 보인다.
+  ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.container.querySelector('[data-sticker="x"]').value, '0.5', '등급별 배치가 없는 실버는 공통 좌표를 써야 한다');
+});
+
+// PR #293 리뷰(Codex gpt-6.1-sol P2): 등급별 배치를 켠 뒤 새 등급을 추가하면 체크박스·좌표가 이전 등급에 남아,
+// 슬라이더가 실제로는 공통 layouts를 바꾸는 혼선이 있었다. grade-add는 selectedGrade를 바꾼 뒤 반드시
+// renderStickers()를 다시 불러 폼이 새 등급을 반영해야 한다.
+test('등급별 배치 중 새 등급을 추가하면 스티커 폼이 새 등급 기준으로 다시 그려진다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-new').value = '어서오세요';
+  await ui.click('sticker-add');
+  const toggle = ui.control('sticker-grade-only');
+  toggle.checked = true; toggle.dispatchEvent({ type: 'change' }); await settle(); // bronze 전용으로 켠다
+
+  await ui.change('grade-name', '축제한정');
+  await ui.click('grade-add');
+
+  const tabs = ui.container.querySelectorAll('[data-action="grade-preview"]');
+  assert.equal(tabs.at(-1).getAttribute('aria-pressed'), 'true', '새로 만든 등급이 선택돼야 한다');
+  // 새 등급은 전용 배치가 없으므로 체크박스가 꺼지고, 슬라이더는 공통 좌표(.5)를 보여야 한다(버그라면 bronze 상태가 남는다).
+  assert.equal(ui.control('sticker-grade-only').checked, false, '새 등급에는 전용 배치가 없어야 한다');
+  assert.equal(ui.container.querySelector('[data-sticker="x"]').value, '0.5', '새 등급은 공통 좌표를 보여야 한다');
+});
+
+// PR #293 리뷰(Codex gpt-6.1-sol P2): 추가 폼의 마스코트 포즈 select만 채워져 있었고, 기존 마스코트 스티커를
+// 고치는 select(sticker-pose-field)는 옵션이 하나도 없어 늘 빈 채로 보였다.
+test('기존 마스코트 스티커의 포즈 select도 추가 폼처럼 포즈 선택지가 채워진다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.change('sticker-kind', 'mascot');
+  ui.control('sticker-new-pose').value = 'wave';
+  await ui.click('sticker-add');
+
+  const poseSelect = ui.container.querySelector('[data-sticker="text"][data-role="pose"]');
+  assert.ok(poseSelect.options.length > 1, '기존 스티커를 고치는 포즈 select도 MASCOT_POSES로 채워져야 한다');
+  assert.equal(poseSelect.value, 'wave', '고른 포즈가 선택돼 있어야 한다');
+});
+
+test('뒷면 모드를 커스텀으로 바꾸면 뒷면 스티커를 추가할 수 있고, 기본 모드에서는 폼이 잠긴다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  assert.equal(ui.container.querySelector('[data-view="back-mode-row"]').hidden, true, '앞면을 꾸밀 때는 뒷면 모드가 보이지 않는다');
+
+  await ui.change('sticker-side', 'back');
+  assert.equal(ui.container.querySelector('[data-view="back-mode-row"]').hidden, false);
+  assert.equal(ui.container.querySelector('[data-view="sticker-form"]').hidden, true, '기본 모드에서는 뒷면 스티커를 추가할 수 없다');
+
+  await ui.change('back-mode', 'custom');
+  assert.equal(ui.container.querySelector('[data-view="sticker-form"]').hidden, false);
+  ui.control('sticker-new').value = '뒷면 글자';
+  await ui.click('sticker-add');
+  assert.equal(ui.control('sticker-list').options.length, 1);
+
+  await ui.click('draft');
+  const saved = created(api);
+  assert.equal(saved.back.mode, 'custom');
+  assert.equal(saved.back.stickers.length, 1);
+  assert.equal(saved.back.stickers[0].text, '뒷면 글자');
+  assert.equal(saved.stickers.length, 0, '뒷면 스티커는 앞면 목록에 섞이지 않는다');
+
+  await ui.change('sticker-side', 'front');
+  await ui.change('back-mode', 'default');
+  // back-mode는 side==='back'일 때만 보이므로, 위 change는 뒷면으로 되돌아가 default를 거쳐야 한다.
+  await ui.change('sticker-side', 'back');
+  assert.equal(ui.control('back-mode').value, 'default');
+  assert.equal(ui.container.querySelector('[data-view="sticker-form"]').hidden, true, '기본 모드로 되돌리면 폼이 다시 잠긴다');
+});
+
+test('마스코트 스티커는 포즈를 고르고, 뒷면 스티커는 효과 대상 목록에 나오지 않는다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-kind').value = 'mascot'; ui.control('sticker-kind').dispatchEvent({ type: 'change' });
+  assert.equal(ui.container.querySelector('[data-view="sticker-new-text"]').hidden, true);
+  assert.equal(ui.container.querySelector('[data-view="sticker-new-mascot"]').hidden, false);
+  ui.control('sticker-new-pose').value = 'wave';
+  await ui.click('sticker-add');
+  assert.equal(ui.container.querySelector('[data-view="sticker-pose-field"]').hidden, false);
+  assert.equal(ui.container.querySelector('[data-view="sticker-text-field"]').hidden, true);
+
+  await ui.click('draft');
+  const saved = created(api);
+  assert.equal(saved.stickers[0].kind, 'mascot');
+  assert.equal(saved.stickers[0].text, 'wave');
+
+  const targetOptions = [...ui.container.querySelector('[data-control="effect-target"]').options].map(item => item.value);
+  assert.ok(targetOptions.includes(saved.stickers[0].id), '앞면 마스코트 스티커는 효과 대상이 될 수 있다');
+});
+
+test('재생 방식 라디오와 파티클 선택은 지금 고른 템플릿의 motion에 저장된다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.container.querySelector('[data-action="template"][data-id="confetti"]').dispatchEvent({ type: 'click' }); await settle();
+
+  const onceRadio = ui.container.querySelector('#motion-playback-once');
+  assert.ok(onceRadio, '한 번만 재생 라디오가 있어야 한다');
+  onceRadio.checked = true; onceRadio.dispatchEvent({ type: 'change' }); await settle();
+
+  const particleSelect = ui.container.querySelector('[data-control="motion-particle"]');
+  assert.ok(particleSelect, 'confetti 템플릿에서는 파티클 select가 보여야 한다');
+  particleSelect.value = 'snow'; particleSelect.dispatchEvent({ type: 'change' }); await settle();
+
+  const gradeBox = ui.container.querySelector('[data-motion-grade="confetti"][data-grade="bronze"]');
+  gradeBox.checked = true; gradeBox.dispatchEvent({ type: 'change' }); await settle();
+
+  await ui.click('draft');
+  const motion = created(api).motion.find(item => item.type === 'confetti');
+  assert.equal(motion.playback, 'once');
+  assert.equal(motion.particle, 'snow');
+  assert.ok(motion.gradeIds.includes('bronze'));
+
+  // 다른 템플릿(rotate)으로 바꾸면 파티클 select가 사라진다.
+  ui.container.querySelector('[data-action="template"][data-id="rotate"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.container.querySelector('[data-control="motion-particle"]'), null);
+});
+
+test('loop 모션은 등급당 하나로 배타적이지만 once 모션 연결은 그대로 둔다(단일 토글, PR #293 P2)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+
+  // rotate(재생 방식 기본값인 loop)를 bronze에 연결한다.
+  ui.container.querySelector('[data-action="template"][data-id="rotate"]').dispatchEvent({ type: 'click' }); await settle();
+  const rotateBox = ui.container.querySelector('[data-motion-grade="rotate"][data-grade="bronze"]');
+  rotateBox.checked = true; rotateBox.dispatchEvent({ type: 'change' }); await settle();
+
+  // sparkle은 한 번만(once) 재생으로 같은 bronze에 연결한다.
+  ui.container.querySelector('[data-action="template"][data-id="sparkle"]').dispatchEvent({ type: 'click' }); await settle();
+  const sparkleOnce = ui.container.querySelector('#motion-playback-once');
+  sparkleOnce.checked = true; sparkleOnce.dispatchEvent({ type: 'change' }); await settle();
+  const sparkleBox = ui.container.querySelector('[data-motion-grade="sparkle"][data-grade="bronze"]');
+  sparkleBox.checked = true; sparkleBox.dispatchEvent({ type: 'change' }); await settle();
+
+  await ui.click('draft');
+  const first = created(api);
+  assert.ok(first.motion.find(item => item.type === 'rotate').gradeIds.includes('bronze'), 'rotate(loop)는 bronze에 연결돼 있어야 한다');
+  assert.ok(first.motion.find(item => item.type === 'sparkle').gradeIds.includes('bronze'), 'sparkle(once)도 bronze에 연결돼 있어야 한다');
+
+  // shine(재생 방식 기본값인 loop)을 새로 bronze에 연결하면, 같은 loop인 rotate의 bronze 연결만 빠지고 once인 sparkle은 그대로여야 한다.
+  ui.container.querySelector('[data-action="template"][data-id="shine"]').dispatchEvent({ type: 'click' }); await settle();
+  const shineBox = ui.container.querySelector('[data-motion-grade="shine"][data-grade="bronze"]');
+  shineBox.checked = true; shineBox.dispatchEvent({ type: 'change' }); await settle();
+
+  await ui.click('draft');
+  const saved = api.store.get('project-1').project;
+  assert.equal(saved.motion.find(item => item.type === 'rotate').gradeIds.includes('bronze'), false, '같은 loop 모션끼리는 등급당 하나만 남아야 한다');
+  assert.ok(saved.motion.find(item => item.type === 'shine').gradeIds.includes('bronze'), '새로 고른 loop 모션이 그 등급을 차지한다');
+  assert.ok(saved.motion.find(item => item.type === 'sparkle').gradeIds.includes('bronze'), 'once 모션 연결은 다른 loop 토글에 영향받지 않아야 한다');
+});
+
+test('전체 선택도 loop끼리만 배타적이고 once 모션 연결은 그대로 둔다(select-all, PR #293 P2)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+
+  // sparkle을 once로 bronze·silver 전체 선택한다.
+  ui.container.querySelector('[data-action="template"][data-id="sparkle"]').dispatchEvent({ type: 'click' }); await settle();
+  const sparkleOnce = ui.container.querySelector('#motion-playback-once');
+  sparkleOnce.checked = true; sparkleOnce.dispatchEvent({ type: 'change' }); await settle();
+  ui.container.querySelector('[data-action="motion-grade-all"][data-id="sparkle"]').dispatchEvent({ type: 'click' }); await settle();
+
+  // rotate(loop 기본값)를 전체 선택하면 sparkle(once)의 전체 등급 연결은 그대로 남아야 한다.
+  ui.container.querySelector('[data-action="template"][data-id="rotate"]').dispatchEvent({ type: 'click' }); await settle();
+  ui.container.querySelector('[data-action="motion-grade-all"][data-id="rotate"]').dispatchEvent({ type: 'click' }); await settle();
+
+  await ui.click('draft');
+  const saved = created(api);
+  const enabledGradeIds = saved.grades.filter(item => item.enabled).map(item => item.id);
+  assert.deepEqual(saved.motion.find(item => item.type === 'rotate').gradeIds.sort(), [...enabledGradeIds].sort(), 'rotate(loop) 전체 선택은 사용 중인 모든 등급을 차지한다');
+  assert.deepEqual(saved.motion.find(item => item.type === 'sparkle').gradeIds.sort(), [...enabledGradeIds].sort(), 'once인 sparkle의 전체 선택은 이후 loop 전체 선택에 영향받지 않아야 한다');
+});
+
+test('인사말 규칙 추가·삭제와 미리보기는 resolveGreeting 우선순위를 따른다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('greeting').value = '기본 인사말'; ui.control('greeting').dispatchEvent({ type: 'input' }); await settle();
+  assert.equal(ui.container.querySelector('[data-view="greeting"]').textContent, '기본 인사말');
+
+  ui.control('greeting-override-text').value = '브론즈 전용 인사말';
+  await ui.click('greeting-override-add');
+  assert.equal(ui.container.querySelectorAll('[data-override-grade]').length > 0, true);
+  const bronzeCheck = ui.container.querySelector('input[data-override-grade][data-grade="bronze"]');
+  bronzeCheck.checked = true; bronzeCheck.dispatchEvent({ type: 'change' }); await settle();
+  assert.equal(ui.container.querySelector('[data-view="greeting"]').textContent, '브론즈 전용 인사말', '지금 보는 등급(bronze)에 맞는 규칙을 미리 보여 준다');
+
+  // 다른 등급으로 바꾸면 기본 인사말로 돌아간다.
+  ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.container.querySelector('[data-view="greeting"]').textContent, '기본 인사말');
+
+  await ui.click('draft');
+  const saved = created(api);
+  assert.equal(saved.greetingOverrides.length, 1);
+  assert.deepEqual(saved.greetingOverrides[0].gradeIds, ['bronze']);
+  assert.equal(saved.greetingOverrides[0].text, '브론즈 전용 인사말');
+
+  const overrideId = ui.container.querySelector('[data-action="greeting-override-delete"]').dataset.id;
+  await ui.click('greeting-override-delete');
+  assert.equal(ui.container.querySelectorAll('[data-action="greeting-override-delete"]').length, 0);
+  assert.ok(overrideId);
+});
+
+test('등급을 끄면(삭제에 준함) 그 등급의 스티커 전용 배치·동작·인사말 규칙 참조를 지운다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  ui.control('sticker-new').value = '글자';
+  await ui.click('sticker-add');
+  const xInput = ui.container.querySelector('[data-sticker="x"]');
+  xInput.value = '0.1'; xInput.dispatchEvent({ type: 'input' }); await settle();
+  ui.control('sticker-grade-only').checked = true; ui.control('sticker-grade-only').dispatchEvent({ type: 'change' }); await settle();
+
+  const motionBox = ui.container.querySelector('[data-motion-grade="rotate"][data-grade="bronze"]');
+  motionBox.checked = true; motionBox.dispatchEvent({ type: 'change' }); await settle();
+
+  ui.control('greeting-override-text').value = '브론즈 인사말';
+  await ui.click('greeting-override-add');
+  const overrideGradeBox = ui.container.querySelector('input[data-override-grade][data-grade="bronze"]');
+  overrideGradeBox.checked = true; overrideGradeBox.dispatchEvent({ type: 'change' }); await settle();
+
+  // 지금 보는 등급을 다른 곳으로 옮긴 뒤(한 개 이상 남겨야 끌 수 있다) bronze를 끈다.
+  ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
+  const bronzeEnabled = ui.container.querySelector('[data-grade-enabled="bronze"]');
+  bronzeEnabled.checked = false; bronzeEnabled.dispatchEvent({ type: 'change' }); await settle();
+
+  await ui.click('draft');
+  const saved = created(api);
+  assert.equal(saved.stickers[0].layouts.bronze, undefined, '끈 등급의 전용 배치는 지운다');
+  assert.equal(saved.motion.find(item => item.type === 'rotate').gradeIds.includes('bronze'), false, '끈 등급의 동작 참조를 지운다');
+  assert.equal(saved.greetingOverrides.length, 0, '등급 참조가 모두 사라지고 테마 조건도 없는 규칙은 함께 지운다');
 });
 
 test('413·429 응답은 원인별 문구와 Retry-After 초를 보여 주고 입력을 지킨다', async () => {
@@ -595,6 +963,64 @@ test('목록이 403이면 제작기를 닫고 권한 안내를 보인다', async
   assert.equal(ui.panel.hidden, false, '점주 계정의 일시적인 403이면 다시 열 수 있다');
 });
 
+// PR #289 후속(Issue #284 WP2): merchantRequests는 같은 계정의 /me 새로 고침(예: 주기적 폴링)마다도 올라간다.
+// 열어 둔 제작기가 그 새로 고침 "이후"에 403을 받으면, 예전에는 열 때 찍어 둔 요청 번호가 이미 낡아 콜백이
+// 조용히 무시됐다(제작기가 닫히지 않고 그대로 열린 채 남음). 지금은 제작기 인스턴스 자체로 판정해 놓치지 않는다.
+test('열린 제작기는 같은 계정의 /me 새로 고침을 한 번 더 받아도 그 뒤의 403을 놓치지 않는다', async () => {
+  const api = createFakeApi();
+  const page = document.createElement('div');
+  page.innerHTML = `
+    <p id="merchant-status" role="status" aria-live="polite"></p>
+    <a id="merchant-login" hidden></a>
+    <button id="merchant-logout" type="button" hidden></button>
+    <section id="merchant-content" hidden>
+      <section id="merchant-creator" hidden>
+        <select id="merchant-creator-store"></select>
+        <button id="merchant-creator-open" type="button"></button>
+        <div id="merchant-creator-editor"></div>
+      </section>
+      <div id="merchant-memberships"></div>
+      <form id="merchant-registration" hidden><select></select><button type="submit" disabled></button></form>
+      <p id="merchant-code"></p>
+      <form id="merchant-claim-form" hidden>
+        <select id="merchant-claim-merchant"></select>
+        <input id="merchant-claim-token" type="text">
+        <input id="merchant-claim-reference" type="text">
+        <input id="merchant-claim-confirm" type="checkbox">
+        <button id="merchant-claim-submit" type="submit" disabled></button>
+      </form>
+      <p id="merchant-claim-result"></p>
+      <section id="merchant-coupon" hidden>
+        <ul id="merchant-coupon-list"></ul>
+        <p id="merchant-coupon-status"></p>
+      </section>
+      <img id="merchant-claim-issued-qr" hidden>
+      <div id="merchant-claim-reissue" hidden>
+        <input id="merchant-claim-reissue-confirm" type="checkbox">
+        <button id="merchant-claim-reissue-submit" type="button" disabled></button>
+      </div>
+    </section>`;
+  document.body.append(page);
+
+  await loadMerchant(api.fetcher, document);
+  document.getElementById('merchant-creator-store').value = 'm1';
+  await document.getElementById('merchant-creator-open').onclick();
+  await settle();
+  assert.ok(document.getElementById('merchant-creator-editor').children.length > 0, '제작기가 열려야 한다');
+
+  // 같은 계정(api.fetcher의 accountScope: 'scope-a')의 /me를 한 번 더 읽는다. 열린 제작기의 점포 선택은 유지돼야 한다.
+  await loadMerchant(api.fetcher, document);
+  assert.equal(document.getElementById('merchant-creator-store').value, 'm1');
+  assert.ok(document.getElementById('merchant-creator-editor').children.length > 0, '같은 계정 새로 고침만으로 닫히면 안 된다');
+
+  // 그 새로 고침 "이후"에 온 403도 여전히 제작기를 닫아야 한다.
+  api.failNext('GET', /collectible-projects$/, { status: 403, code: 'MERCHANT_ACCESS_DENIED' });
+  const ui = driver(document.getElementById('merchant-creator-editor'), api);
+  await ui.click('refresh');
+  assert.equal(document.getElementById('merchant-creator-editor').children.length, 0, '새로 고침 이후의 403도 제작기를 닫아야 한다');
+  assert.match(document.getElementById('merchant-status').textContent, /이 점포의 그림 제작 권한이 없어요\. 점주 권한을 확인해 주세요/);
+});
+
 test('이미 게시했고 고친 것이 없으면 게시 버튼을 막고, 고치면 다시 켠다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
@@ -692,6 +1118,34 @@ test('서버와 같은 버전의 기기 보관본이 있으면 다시 열 때 �
   const put = api.calls.find(call => call.method === 'PUT');
   assert.match(put.body.project.photo.originalDataUrl, /#server$/, '복원은 기기가 아니라 서버의 최신 사진을 지킨다');
   assert.equal(put.body.project.name, '복원할 이름');
+});
+
+test('pre-v2 편집기가 남긴 schemaVersion:1 기기 보관본을 복원한 뒤 뒷면 편집을 더해 저장하면, 저장 본문은 항상 schemaVersion 2이고 뒷면 편집을 담는다(PR #293 P1 회귀)', async () => {
+  const api = createFakeApi();
+  const saved = api.seed(seeded('구버전 보관본 복원 시험'));
+  assert.equal(saved.project.schemaVersion, 2, '서버 프로젝트는 이미 v2다');
+
+  // pre-v2 편집기의 draftEditsOnly가 남겼을 모양: schemaVersion:1이고 back·layouts·greetingOverrides가 아예 없다.
+  dom.window.localStorage.setItem(draftStorageKey('m1', 'scope-a'), JSON.stringify({
+    merchantId: 'm1', accountMarker: 'scope-a', wrapperId: saved.id, wrapperVersion: saved.version, savedAt: Date.now(),
+    edits: { schemaVersion: 1, name: '복원된 이름' },
+  }));
+
+  const restored = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  assert.match(restored.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
+  assert.equal(restored.control('name').value, '복원된 이름');
+
+  // 복원 뒤 v2 전용(뒷면) 편집을 더한다.
+  await restored.change('sticker-side', 'back');
+  await restored.change('back-mode', 'custom');
+  restored.control('sticker-new').value = '뒷면 글자';
+  await restored.click('sticker-add');
+
+  await restored.click('draft');
+  const put = api.calls.find(call => call.method === 'PUT');
+  assert.equal(put.body.project.schemaVersion, 2, '옛 보관본을 복원해 저장해도 본문은 항상 schemaVersion 2여야 한다');
+  assert.equal(put.body.project.back.mode, 'custom', '복원 뒤 더한 뒷면 편집이 업그레이더에 지워지지 않고 그대로 저장돼야 한다');
+  assert.equal(put.body.project.back.stickers[0]?.text, '뒷면 글자');
 });
 
 test('복원 응답을 기다리는 동안 새로 입력하면 늦게 온 복원이 그 입력을 덮지 않는다(PR #289 P1)', async () => {
@@ -967,6 +1421,29 @@ test('저장 목록을 못 읽으면 복원 여부를 판단하지 않고 보관
   await remounted.click('refresh');
   assert.equal(remounted.asked.length, 1, '다음에 목록 조회가 성공하면 그때 다시 판단한다');
   assert.match(remounted.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
+});
+
+// PR #289 후속(Issue #284 WP2): 목록 조회는 성공했지만(그래서 복원을 물어봤지만) 그 프로젝트 자체의 GET이
+// 실패하면, 예전에는 "결정함"으로 영구히 남아 다시 네트워크가 돌아와도 복원 기회가 없었다. 지금은 다음
+// 성공한 목록 새로고침이 다시 시도한다.
+test('복원 대상 프로젝트의 GET이 실패하면 다음 성공한 목록 새로고침이 다시 복원을 시도한다(P2 후속)', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { editor: { accountScope: 'scope-a', autosaveDelayMs: 5 } });
+  await ui.upload(photoFile);
+  await ui.click('draft'); // 서버에 사진을 포함해 먼저 저장해 둔다
+  await ui.input('name', '복원할 이름');
+  await settle(10);
+  editors.pop()();
+
+  api.failNext('GET', /collectible-projects\/[^/]+$/, { status: 500 });
+  const restored = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
+  assert.equal(restored.asked.length, 1, '복원 여부는 이미 물었다(실패는 그 응답을 받은 뒤에 난다)');
+  assert.equal(restored.control('name').value, '월계 식당 수집품', '이번 시도는 실패했으니 아직 복원되지 않는다');
+  assert.ok(readDraft(dom.window, 'm1', 'scope-a'), '실패한 복원은 기기 보관본을 지우지 않는다');
+
+  await restored.click('refresh'); // 다음 성공한 목록 새로고침
+  assert.equal(restored.asked.length, 2, '다시 복원을 시도하며 한 번 더 물어야 한다');
+  assert.equal(restored.control('name').value, '복원할 이름', '이번엔 네트워크가 돌아와 복원된다');
 });
 
 test('목록 조회를 기다리는 동안 이미 새 편집을 시작했으면 조용히 건너뛰고 되묻지 않는다(dirty 에디터는 자동 복원하지 않음, 🔴 P1)', async () => {

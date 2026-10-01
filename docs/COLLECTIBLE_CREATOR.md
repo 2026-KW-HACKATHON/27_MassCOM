@@ -97,13 +97,22 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 
 **스프라이트 형식 제한(`backImageDataUrl`·`angleFrames.dataUrl`·`living.dataUrl`만):** 이 셋은 PNG·WebP만 받고 JPEG는 거절한다(다른 이미지 필드는 여전히 PNG/JPEG/WebP 모두 허용). JPEG의 EXIF `Orientation` 태그는 브라우저가 표시할 때 픽셀을 돌려 보여 주는데, 이 세 필드는 픽셀 좌표로 그대로 자르고 배치하는 스프라이트라 그 회전이 반영되지 않는다(가로 1024×세로 768로 선언한 스프라이트가 Orientation=6이면 실제로는 세로로 찍혀 있을 수 있음). 편집기도 이 셋은 WebP/PNG로만 만든다.
 
-**게시 준비(등급별, 캠페인 목표에 실제로 연결된 등급만, 2026-10-01 Codex 리뷰 반영):** `living`은 어떤 living 항목이든 그 등급을 목록에 넣었으면 필요하고, 없으면 게시가 409 `COLLECTIBLE_NOT_READY`다. **`backImageDataUrl`과 `angleFrames`는 지금은 선택이며 게시를 막지 않는다** — 지금 편집기의 `serializeDerived`가 이 둘을 아직 만들지 않기 때문에(뒷면 UI는 WP2, 각도 프레임 UI는 WP3), 필수로 두면 이 저장소의 모든 웹 게시가 즉시 막힌다. 클라이언트는 없을 때를 대비한다: 뒷면이 없으면 기존 모습을 보여 주고, 각도 프레임이 없으면 정면 이미지를 그대로 회전해 보여 준다. WP2가 편집기에서 실제로 뒷면 이미지를 만들기 시작하면 `backImageDataUrl`을, WP3가 각도 프레임을 만들기 시작하면(metallic/hologram/pearl 효과가 있거나 패럴랙스가 켜진 등급에 한해) `angleFrames`를 다시 필수로 좁힌다.
+**게시 준비(등급별, 캠페인 목표에 실제로 연결된 등급만, PR #293 리뷰로 2026-10-01 재확정):** `living`은 어떤 living 항목이든 그 등급을 목록에 넣었으면 필요하고, 없으면 게시가 409 `COLLECTIBLE_NOT_READY`다. **`backImageDataUrl`은 선택으로 남긴다** — 새 편집기의 `serializeDerived`는 연결된 등급마다 항상 뒷면 이미지를 만들지만, 배포 스큐 동안 이미 열려 있던 구 편집기 탭이나 v1에서 올라온 기존 프로젝트는 이 필드 없이 게시를 시도할 수 있어 필수로 두면 그 순간 게시가 전부 막힌다. 클라이언트는 없을 때 기존 모습으로 대체한다. **`angleFrames`는 WP3(각도 프레임 UI) 범위라 아직 선택이며 게시를 막지 않는다**: 클라이언트는 없을 때 정면 이미지를 그대로 회전해 보여 준다. WP3가 각도 프레임을 만들기 시작하면(metallic/hologram/pearl 효과가 있거나 패럴랙스가 켜진 등급에 한해) 다시 필수로 좁힌다.
 
-**의도적 완화:** `stickers[].align/layouts`와 `motion[].playback`은 서버에서 선택 항목이다(없으면 위 기본값을 채운다). 아직 편집기 UI(WP2)가 이 필드를 채워 보내지 않기 때문이며, WP2가 채우기 시작해도 무해하다.
+**의도적 완화:** `stickers[].align/layouts`와 `motion[].playback`은 서버에서 여전히 선택 항목이다(없으면 위 기본값을 채운다) — WP2 편집기는 항상 이 필드를 채워 보내지만, 과거에 저장된 v1 프로젝트를 올리는 옛 탭이나 API를 직접 쓰는 호출도 계속 받아야 하기 때문이다.
 
 공통 브라우저 모델은 `apps/production-web/assets/collectible-model.mjs`에 둔다. `createProject`, `createGrade`, `toggleEffectGrade`, `effectsForGrade`, `motionForGrade`, `shapePoints`, `shapePath`, `cropTransform`, `upgradeProject`, `resolveSticker`, `resolveGreeting`, `particleAt`, `angleFrameIndex`는 DOM·네트워크 없이 호출할 수 있다. 미리보기 선택 상태는 프로젝트 효과 토글을 대신하지 않는다.
 
 보유자 응답은 게시/프로젝트 식별자·수집품 이름·모양·시즌·획득 등급 이름·완성 이미지·두께·각도·동작(`animation`: 기존 v1 8종 enum 그대로, 등급의 첫 `loop` 모션이 없으면 `still`)·전체 모션 목록(`motions`)·뒷면 이미지·각도/움직임 스프라이트·대사·선택 음성·선택 장면 등 재생에 필요한 결과만 포함한다. `photo.originalDataUrl`, 붓 이력, `parallax`·`living`의 편집용 획, 다른 등급의 결과, 점주 계정, 캠페인 내부 관리 정보는 포함하지 않는다. 편집 자료와 보유품 미디어는 공개 NFT 메타데이터·IPFS로 보내지 않는다.
+
+### WP2 웹 A 구현 결과 (Issue #284, 2026-10-01)
+
+- **스티커:** `stickerLayer`(렌더러)가 `resolveSticker`로 등급별 배치(`layouts`)를 적용하고, 텍스트는 `stickerLines`·`stickerLineOffsets`(모델의 순수 함수, 1.2줄 간격 중앙 정렬)로 최대 4줄을 그린다. `kind:'mascot'` 스티커는 `MASCOT_POSES`의 포즈 이름을 받아 `/app/assets/mascot/<pose>.png`를 그린다. 편집기는 종류(텍스트/이모티콘/마스코트)·정렬·"이 등급만 따로 배치" 토글("공통으로 되돌리기" 포함)을 제공한다. 등급을 끄면 그 등급의 `layouts`·동작 참조·인사말 규칙 참조를 지운다(참조가 전부 사라진 인사말 규칙은 함께 지운다).
+- **마스코트 자산:** `apps/mobile/assets/images/mascot/v2`의 승인된 포즈 12장과 눈 깜빡임 프레임 9장(`MASCOT_BLINK`에 있는 포즈만)을 `apps/production-web/assets/mascot/`로 복사하고 `apps/production-web/server.mjs`(그리고 로컬 QA 전용 `tests/fixtures/collectible-qa-server.mjs`)의 정적 허용 목록에 등록했다. `MASCOT_BLINK`는 `collectible-model.mjs`와 `collectible-project-rules.ts`에서 같은 값을 유지해야 하며(전용 동치 시험 있음), 다르면 living의 blink 항목이 서버·브라우저에서 다르게 검증된다.
+- **뒷면:** `backFor(project, gradeId, size, merchantName)`가 기본(바탕색·안쪽 테두리·가게 이름·수집품 이름·등급·마스코트 도장)과 커스텀(뒷면색 + 뒷면 스티커, 효과 대상 아님) 뒷면을 굽는다. `drawVolume`의 뒷면 분기가 이를 그리며, 없으면(v1 발행본 등) 바탕색+이름의 예전 모습으로 대체한다. 편집기는 "꾸밀 면"(앞/뒤) select로 같은 스티커 컨트롤을 재사용한다.
+- **모션 재생:** 템플릿마다 재생 방식(`once`/`loop`) 라디오와, confetti 템플릿일 때만 보이는 파티클(`confetti`/`snow`/`petals`/`sparkles`) select가 있다. `drawVolume`은 `once`면 `ONCE_MS`(모델)만큼 진행한 뒤 멈추고, confetti는 `particleAt(kind,i,phase)`로 위치·색을 낸다. 뷰어(`collectible-viewer.mjs`)는 loop 모션이 있으면 열자마자 자동재생하고(움직임 줄이기면 정지 화면 유지), once 모션이 있으면 "획득 장면 다시 보기" 버튼을 따로 둔다.
+- **인사말 개별화:** 등급·시즌 테마별 규칙 목록(등급 체크는 `gradeChecks` 재사용) 추가·삭제 UI가 있고, 미리보기는 `resolveGreeting`으로 지금 보는 등급·테마에 맞는 가장 구체적인 규칙을 보여 준다.
+- **파생 이미지 범위 축소:** `serializeDerived(project, {extraGradeId, merchantName})`는 `rewardGrades`로 연결된 등급과(선택) 지금 보는 등급만 굽는다. `base`(각도별 질감 재합성용 비효과 정면)와 `effectMasks`는 그 연결된 등급에 한해 다시 만든다(PR #293 P2: 웹 뷰어가 각도별로 효과를 재합성하는 데 여전히 필요해 WP2에서 한 번 뺐다가 되살렸다). 각도별 효과 재합성을 WP3의 `angleFrames`가 대신하기 시작하면 그 등급·효과는 다시 뺄 수 있다.
 
 ## 제안 상태인 구현 기본값
 

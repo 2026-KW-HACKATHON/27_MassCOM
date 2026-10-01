@@ -24,7 +24,7 @@ test('every retention step is named once, in the order the command reports them'
   assert.deepEqual([...retentionStepNames], [
     'auth_sessions', 'web_sessions', 'deletion_intake', 'admin_audit', 'admin_owner_audit', 'admin_role_audit',
     'staff_registration_audit', 'coupon_audit', 'customer_identity_tokens', 'wallet_challenges', 'web_oauth_states',
-    'staff_registration_requests', 'admin_audit_deleted_targets',
+    'staff_registration_requests', 'showcase_access_requests', 'admin_audit_deleted_targets',
   ]);
 });
 

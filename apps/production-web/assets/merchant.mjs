@@ -89,19 +89,26 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
       if (merchantRequests.get(doc) !== currentRequest) return;
       closeCreator(doc, discarding ? 'discard' : undefined);
       let denied = false;
+      // 등록(creators.set) 전에는 undefined로 남아 있어, 이 호출이 지금 막 여는 바로 그 제작기임을 안다.
+      let cleanupRef;
       const cleanup = await module.mountCollectibleEditor(doc.getElementById('merchant-creator-editor'), {
         merchantId: merchant.id, merchantName: merchant.name, accountScope: mine.accountScope,
         loadCampaigns: () => loadCreatorCampaigns(fetcher, merchant.id),
         request: (path, options = {}) => request(fetcher, path, options.method ?? 'GET', options.body),
         onNotice: message => { doc.getElementById('merchant-status').textContent = message; },
         // 목록이 403이면 이 계정은 이 점포의 제작 권한이 없다(예: 직원). 제작기를 닫고 이유를 알린다.
+        // merchantRequests는 같은 계정의 /me 새로 고침마다도 올라가므로, 그 값으로 판정하면 제작기를 열어 둔 채로
+        // 같은 계정의 /me가 한 번만 더 와도 그 뒤에 온 403을 영영 놓친다(실측, PR #289 후속). 등록 전이면(아래
+        // cleanupRef가 아직 비어 있으면) 지금 여는 이 호출이 맞으므로 항상 처리하고, 등록 후에는 지금도 이
+        // 인스턴스가 그대로 열려 있는 제작기일 때만(다른 점포로 바뀌었거나 닫혔으면 무시) 처리한다.
         onAccessDenied: () => {
-          if (merchantRequests.get(doc) !== currentRequest) return;
+          if (cleanupRef !== undefined && creators.get(doc) !== cleanupRef) return;
           denied = true;
           closeCreator(doc);
           doc.getElementById('merchant-status').textContent = creatorDenied;
         },
       });
+      cleanupRef = cleanup;
       // 권한 거절이 등록(creators.set)보다 먼저 도착했다면 방금 만든 제작기를 여기서 닫는다.
       if (denied) { cleanup?.(); doc.getElementById('merchant-creator-editor')?.replaceChildren(); return; }
       if (merchantRequests.get(doc) !== currentRequest) { cleanup?.(); return; }

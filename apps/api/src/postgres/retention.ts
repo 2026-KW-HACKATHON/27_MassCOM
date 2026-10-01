@@ -15,6 +15,7 @@ export type RetentionStepName =
   | 'wallet_challenges'
   | 'web_oauth_states'
   | 'staff_registration_requests'
+  | 'showcase_access_requests'
   | 'admin_audit_deleted_targets';
 
 export type RetentionCount = { step: RetentionStepName; count: number };
@@ -71,6 +72,13 @@ const steps: readonly Step[] = [
     name: 'staff_registration_requests',
     table: 'staff_registration_requests',
     where: `consumed_at < ${oneDayAgo} OR expires_at < ${oneDayAgo}`,
+  },
+  // 점주 체험 권한 요청(#294)의 결정된(승인·거절) 행. 결정 자체가 접근권한 부여·말소 기록이라 3년 보관(제5조 제3항).
+  // 대기 중(PENDING) 행은 건드리지 않는다.
+  {
+    name: 'showcase_access_requests',
+    table: 'showcase_access_requests',
+    where: `status <> 'PENDING' AND decided_at < ${threeYearsAgo}`,
   },
 ];
 

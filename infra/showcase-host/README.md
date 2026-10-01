@@ -155,3 +155,19 @@ sudo docker compose -p masscom-showcase --env-file /opt/masscom-showcase/runtime
 - **이후 승인·거절은 전부 앱 안에서:** 승인자가 된 계정은 "점주 체험" 화면 상단에 "권한 요청 관리"가 보이고, 그 안에서 새 요청을 수락·거절한다(수락 전 "이 계정에 가상 점포 A 직원 권한을 줍니다. 수락할까요?" 확인). 운영자가 CLI를 다시 쓸 필요는 승인자가 전혀 없어졌을 때(예: 전원 계정 삭제)뿐이다.
 - **권한 회수:** 위 "계정 삭제 요청 처리"와 같은 운영 작업 영역이다 — `platform_admins` 행을 직접 회수하는 CLI는 이 PR(#294 PR2, 모바일)의 범위가 아니다.
 - **상태:** 서버 CLI·API는 PR #300(별도 PR)의 구현이라 이 README의 명령은 그 PR 병합 전까지 `NOT_RUN`이다. 모바일 쪽 화면(요청·대기·승인자 메뉴·관리 화면)은 이 PR에서 소스와 자동 시험까지 끝냈고, 실제 서버로의 종단 확인은 PR #300 병합 후로 남는다.
+## 점주 체험 권한 최초 승인자 부트스트랩 (D-062, Issue #294)
+
+점주 체험 권한 요청·승인은 앱 화면에서 승인자가 직접 처리하지만(서버 설계는 [SHOWCASE_AUTH_GUARD.md](../../docs/SHOWCASE_AUTH_GUARD.md#점주-체험-권한-요청승인-issue-294-pr1-서버)), **최초 승인자는 승인해 줄 사람이 아직 없다.** 그래서 처음 한 번만 운영자가 이 호스트에서 명령으로 만든다. 지정 승인자 두 명은 `msocs1324@gmail.com`·`priestess4637@gmail.com`이다.
+
+1. **승인자 후보가 직접 한다(사람, 에이전트는 이 계정으로 로그인하지 않는다):** 시연 Android 앱에 자신의 Gmail 계정으로 로그인 → 점주 체험 화면 → "현재 계정으로 문의하기" → 화면에 뜬 8자 코드(`XXXX-XXXX`)를 "메일로 알리기"로 **자신의 Gmail에서** 위 두 주소로 보낸다(발신자가 본인 확인이고, 실패하면 두 주소를 선택할 수 있는 글자로 보여 손으로 보낸다).
+2. **운영자가 서버에서 돌린다:** 시연 API 컨테이너 안에서 실행한다(`DATABASE_URL`·`ACCOUNT_DELETION_HMAC_SECRET`는 컨테이너에 이미 있다).
+
+   ```bash
+   # 시연 Compose를 기동할 때 쓴 것과 같은 -f/--env-file 인자를 붙인다.
+   docker compose ... exec -T showcase-api node dist/showcase/grant-approver-command.js <코드> </dev/null
+   ```
+
+   코드는 대시가 있어도(`XXXX-XXXX`) 없어도 받는다. 한 트랜잭션에서 `platform_admins` upsert·`platform_admin_role_audit`에 GRANT 행(`db_user`=DB 세션 역할, 계정 ID 아님)·그 요청을 `decided_via='OPS'`로 승인(가상 점포 A STAFF 권한 포함)까지 끝나고 **`SHOWCASE_APPROVER_GRANTED`만** 출력한다(계정 ID·코드를 다시 보이지 않는다). 요청이 없거나 이미 결정됐으면 `SHOWCASE_APPROVER_GRANT_FAILED`로 끝나고 아무것도 바꾸지 않는다.
+3. 그다음부터 그 계정은 점주 체험 화면의 "권한 요청 관리"에서 다른 요청을 직접 승인·거절한다. 두 지정 승인자를 모두 만들려면 이 절차를 각자 한 번씩 반복한다.
+
+로컬 시험 DB(`masscom_showcase_test`)에서도 같은 명령을 돌릴 수 있다(hosted·local 시연 DB URL만 받고, 운영 DB URL은 `SHOWCASE_HOST_DATABASE_REQUIRED`·`SHOWCASE_LOCAL_DATABASE_REQUIRED`로 거절한다). 실제 호스트에서 이 절차를 실행한 기록은 아직 `NOT_RUN`이다(두 지정 승인자의 실제 Gmail 로그인·메일 발송·운영자 명령 실행).

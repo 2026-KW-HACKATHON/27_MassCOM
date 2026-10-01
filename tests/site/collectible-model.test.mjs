@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 import {
   angleFrameIndex, cloneProject, createGrade, createProject, cropTransform, effectsForGrade, motionForGrade,
-  particleAt, resolveGreeting, resolveSticker, shapePath, shapePoints, toggleEffectGrade, upgradeProject,
+  particleAt, resolveGreeting, resolveSticker, shapePath, shapePoints, stickerLineOffsets, stickerLines, toggleEffectGrade, upgradeProject,
 } from '../../apps/production-web/assets/collectible-model.mjs';
 
 // Issue #284 WP1: 공유 픽스처(tests/fixtures)는 apps/api의 같은 시험이 읽는 파일 그대로다. 서버(rules.ts)와
@@ -149,6 +149,29 @@ test('particleAt vectors match the shared fixture the server also checks and rej
   const vectors = fixture('collectible-vectors.json');
   for (const vector of vectors.particleAt) assert.deepEqual(particleAt(vector.kind, vector.i, vector.phase), vector.expected, `${vector.kind}#${vector.i}@${vector.phase}`);
   assert.throws(() => particleAt('fireworks', 0, 0), /파티클/);
+});
+
+test('stickerLines splits on \\n and keeps at most 4 lines(server rules.ts 상한과 맞춘다)', () => {
+  assert.deepEqual(stickerLines('어서오세요'), ['어서오세요']);
+  assert.deepEqual(stickerLines('첫째\n둘째\n셋째\n넷째'), ['첫째', '둘째', '셋째', '넷째']);
+  assert.deepEqual(stickerLines('1\n2\n3\n4\n5'), ['1', '2', '3', '4'], '5번째 줄은 잘려서 렌더링된다(서버는 이를 거절한다)');
+  assert.deepEqual(stickerLines(''), ['']);
+  assert.deepEqual(stickerLines(undefined), ['']);
+});
+
+const closeToAll = (actual, expected) => actual.forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < 1e-9, `${value} ~= ${expected[index]}`));
+test('stickerLineOffsets centers the whole block vertically with 1.2x line height', () => {
+  assert.deepEqual(stickerLineOffsets(1), [0]);
+  closeToAll(stickerLineOffsets(2), [-0.6, 0.6]);
+  closeToAll(stickerLineOffsets(3), [-1.2, 0, 1.2]);
+  closeToAll(stickerLineOffsets(4), [-1.8, -0.6, 0.6, 1.8]);
+  // 블록 중앙(모든 오프셋의 평균)은 항상 0이다.
+  for (const count of [1, 2, 3, 4]) {
+    const offsets = stickerLineOffsets(count);
+    assert.ok(Math.abs(offsets.reduce((sum, value) => sum + value, 0) / count) < 1e-9);
+  }
+  assert.throws(() => stickerLineOffsets(0), TypeError);
+  assert.throws(() => stickerLineOffsets(1.5), TypeError);
 });
 
 test('angleFrameIndex vectors match the shared fixture the server also checks: front range clamps to the edge cell, beyond ±90 is the back', () => {

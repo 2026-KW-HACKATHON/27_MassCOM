@@ -26,6 +26,16 @@ test('showcase URL accepts only the named loopback database without overrides', 
   }
 });
 
+test('showcase URL also accepts a generated per-run CI database name (#294 P1)', () => {
+  // grant-approver-command.ts and seed-command.ts both gate on this function; a postgres integration test that
+  // wants its own throwaway database (instead of fighting over the one fixed name) needs this to pass too.
+  const ciUrl = 'postgresql://postgres@127.0.0.1:55433/masscom_showcase_ci_ab12_test';
+  assert.equal(assertLocalShowcaseDatabaseUrl(ciUrl), ciUrl);
+  assert.throws(() => assertLocalShowcaseDatabaseUrl('postgresql://postgres@127.0.0.1:55433/masscom_showcase_ci_not-hex_test'), {
+    message: 'SHOWCASE_LOCAL_DATABASE_REQUIRED',
+  });
+});
+
 test('showcase seed only permits its exact CLI database and generated CI databases', () => {
   assert.equal(isPermittedShowcaseDatabaseName('masscom_showcase_test'), true);
   assert.equal(isPermittedShowcaseDatabaseName('masscom_showcase_ci_ab12_test'), true);
