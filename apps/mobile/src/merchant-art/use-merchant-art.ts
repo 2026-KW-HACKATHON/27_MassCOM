@@ -25,7 +25,7 @@ type Options = {
 };
 
 /** True while the app is in the foreground; drawing goes on at the server when it is not, so polling waits instead of running blind. */
-function useAppForeground(): boolean {
+export function useAppForeground(): boolean {
   const [active, setActive] = useState(AppState.currentState === 'active');
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) => setActive(next === 'active'));

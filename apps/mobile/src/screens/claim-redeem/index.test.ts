@@ -55,3 +55,24 @@ test('"받은 수집품 보기"는 받은 보상 중 수집품 외형이 실제�
   assert.match(between('function changeToken', 'async function startScan'), /setArtworkReward\(undefined\);/);
   assert.match(between('async function redeem', 'async function findGrantedArtwork'), /setArtworkReward\(undefined\);\s*void findGrantedArtwork\(result\);/);
 });
+
+test('#295 테스트 방문 만들기는 시연·개발 빌드에만 보이고 운영 패키지는 섹션 자체가 없다', () => {
+  assert.match(screen, /canShowTestVisitSection\(Application\.applicationId\)/);
+  assert.match(screen, /\{showTestVisitSection \? \(/);
+});
+
+test('#295 테스트 방문 만들기 성공은 일반 방문 수령과 같은 길(setRedeemed·findGrantedArtwork·celebrate)을 탄다', () => {
+  const createTestVisit = between('async function createTestVisit', 'async function findGrantedArtwork');
+  assert.match(createTestVisit, /await api\.createTestVisit\(selectedTestVisitMerchantId\)/);
+  assert.match(createTestVisit, /setRedeemed\(result\);/);
+  assert.match(createTestVisit, /void findGrantedArtwork\(result\);/);
+  assert.match(createTestVisit, /void celebrate\(result, before\);/);
+  assert.match(createTestVisit, /setTestVisitMessage\(messageFor\(error\)\);/);
+  // 버튼이 항상 다시 풀린다(응답이 버려져도 "만드는 중…"에 멈추지 않는다).
+  assert.match(createTestVisit, /finally \{[^}]*setTestVisitBusy\(false\);/);
+});
+
+test('#295 테스트 방문 만들기는 가상 점포만 /merchants에서 걸러 고른다', () => {
+  assert.match(screen, /createMerchantApiClient\(apiUrl\)\.listMerchants\(\)/);
+  assert.match(screen, /merchants\.filter\(\(merchant\) => merchant\.demo\)/);
+});

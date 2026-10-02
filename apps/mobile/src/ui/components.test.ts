@@ -52,7 +52,8 @@ test('screen copy fits its space and does not repeat the heading below it', () =
   assert.match(list, /copy="로그인하면 여권이 열려요"/);
   assert.doesNotMatch(list, /도감에서 내 도장 보기/);
   const collection = readSource('screens/collection/index.tsx');
-  assert.match(collection, /<AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" \/>/);
+  // #296 Option A: a compact passport strip now sits in the header as a child (replacing the self-closing tag).
+  assert.match(collection, /<AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요">/);
   // The passport hero under the header already says "나의 탐험 여권".
   assert.doesNotMatch(collection, /<AppHeader title="나의 탐험 여권"/);
 });

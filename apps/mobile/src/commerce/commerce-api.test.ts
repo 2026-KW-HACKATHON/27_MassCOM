@@ -387,6 +387,51 @@ test('rejects preview and redeem responses without user-facing recovery fields',
   await assert.rejects(client.redeemClaim('token'), /방문 수령 응답 형식/);
 });
 
+test('#295 테스트 방문 만들기는 merchantId만 보내고 방문 수령 응답을 그대로 읽는다', async () => {
+  let requestedUrl: string | undefined;
+  let requestedBody: unknown;
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
+    fetcher: async (input, init) => {
+      requestedUrl = String(input);
+      requestedBody = JSON.parse(String(init?.body));
+      return Response.json({
+        claimSlotId: 'claim-slot-1',
+        merchantId: 'showcase-local-merchant',
+        merchantName: '가상 점포 A',
+        campaignTitle: '체험 방문 도감',
+        status: 'CLAIMED',
+        replayed: false,
+        visit: {
+          visitEventId: 'visit-1',
+          campaignId: 'showcase-local-campaign',
+          businessDate: '2026-10-02',
+          verificationLevel: 'MERCHANT_CONFIRMED',
+          progressCounted: true,
+          progressVisitCount: 1,
+        },
+        grantedRewards: [],
+      });
+    },
+  });
+  const result = await client.createTestVisit('showcase-local-merchant');
+  assert.equal(requestedUrl, 'https://api.example.test/showcase/test-visits');
+  assert.deepEqual(requestedBody, { merchantId: 'showcase-local-merchant' });
+  assert.equal(result.merchantId, 'showcase-local-merchant');
+  assert.equal(result.visit.progressCounted, true);
+});
+
+test('#295 테스트 방문 만들기는 방문 수령과 같은 오류 코드를 그대로 전달한다', async () => {
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
+    fetcher: async () => Response.json({ code: 'SHOWCASE_TEST_VISIT_RATE_LIMITED' }, { status: 429 }),
+  });
+  await assert.rejects(client.createTestVisit('showcase-local-merchant'),
+    (error: unknown) => error instanceof CommerceApiError && error.status === 429 && error.code === 'SHOWCASE_TEST_VISIT_RATE_LIMITED');
+});
+
 test('parses collection states while keeping app collectibles and NFT state separate', async () => {
   const payload = {
     visits: [
@@ -673,4 +718,72 @@ test('a redeemed claim carries the staff-self reason only when the server sends 
   // 모르는 값이나 없는 값은 기존 문구로 떨어진다(오래된 서버·새 이유 코드에도 화면이 깨지지 않는다).
   assert.equal('progressExcludedReason' in (await api({}).redeemClaim('token')).visit, false);
   assert.equal('progressExcludedReason' in (await api({ progressExcludedReason: 'SOMETHING_NEW' }).redeemClaim('token')).visit, false);
+});
+
+test('점주 체험 권한 요청 조회·생성은 인증 헤더로만 간다(#294)', async () => {
+  const requests: { url: string; method: string | undefined; body: unknown }[] = [];
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (input, init) => {
+      requests.push({ url: String(input), method: init?.method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      if (String(input).endsWith('/mine')) {
+        return Response.json({ request: null, staff: false, approver: true });
+      }
+      return Response.json({ request: { code: 'ABCDEFGH', status: 'PENDING', createdAt: '2026-10-01T00:00:00.000Z', decidedAt: null } }, { status: 201 });
+    },
+  });
+  assert.deepEqual(await client.getShowcaseAccessState(), { request: null, staff: false, approver: true });
+  assert.deepEqual(await client.requestShowcaseAccess(), { code: 'ABCDEFGH', status: 'PENDING', createdAt: '2026-10-01T00:00:00.000Z', decidedAt: null });
+  assert.deepEqual(requests, [
+    { url: 'https://api.example.test/showcase/access-requests/mine', method: undefined, body: undefined },
+    { url: 'https://api.example.test/showcase/access-requests', method: 'POST', body: {} },
+  ]);
+});
+
+test('점주 체험 권한 요청의 잘못된 응답과 요청 실패는 성공으로 바뀌지 않는다(#294)', async () => {
+  const invalidMine = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ request: null, staff: false }),
+  });
+  await assert.rejects(invalidMine.getShowcaseAccessState(), /권한 요청 상태/);
+
+  const rateLimited = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ code: 'SHOWCASE_ACCESS_RATE_LIMITED' }, { status: 429 }),
+  });
+  await assert.rejects(rateLimited.requestShowcaseAccess(), (error: unknown) => error instanceof CommerceApiError && error.status === 429 && error.code === 'SHOWCASE_ACCESS_RATE_LIMITED');
+});
+
+test('관리자 권한 요청 목록·결정은 승인자 계정으로만 가고 잘못된 응답은 거절한다(#294)', async () => {
+  const requests: string[] = [];
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'approver-session' },
+    fetcher: async (input, init) => {
+      requests.push(`${init?.method ?? 'GET'} ${String(input)}`);
+      if (String(input).endsWith('/access-requests')) {
+        return Response.json([{ id: 'req-1', code: 'ABCDEFGH', createdAt: '2026-10-01T00:00:00.000Z' }]);
+      }
+      return Response.json({ status: 'APPROVED' });
+    },
+  });
+  assert.deepEqual(await client.listPendingShowcaseAccessRequests(), [{ id: 'req-1', code: 'ABCDEFGH', createdAt: '2026-10-01T00:00:00.000Z' }]);
+  await client.decideShowcaseAccessRequest({ requestId: 'req-1', decision: 'approve' });
+  assert.deepEqual(requests, [
+    'GET https://api.example.test/showcase/admin/access-requests',
+    'POST https://api.example.test/showcase/admin/access-requests/req-1/approve',
+  ]);
+
+  const invalidDecision = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ status: 'UNKNOWN' }),
+  });
+  await assert.rejects(invalidDecision.decideShowcaseAccessRequest({ requestId: 'req-1', decision: 'reject' }), /권한 요청 처리/);
+
+  const forbidden = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ code: 'SHOWCASE_APPROVER_REQUIRED' }, { status: 403 }),
+  });
+  await assert.rejects(forbidden.listPendingShowcaseAccessRequests(), (error: unknown) => error instanceof CommerceApiError && error.status === 403 && error.code === 'SHOWCASE_APPROVER_REQUIRED');
 });

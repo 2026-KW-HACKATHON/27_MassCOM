@@ -26,6 +26,8 @@ import { diffBadgeBooks } from '@/gamification/badge-rules';
 import { progressNote } from '@/commerce/progress-note';
 import { playUiSound } from '@/sound/ui-sounds';
 import { Celebration, type CelebrationContent } from '@/gamification/celebration';
+import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
+import { canShowTestVisitSection } from '@/navigation/showcase-entry';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
@@ -84,6 +86,29 @@ export function ClaimRedeemScreen({
   // Badge book seen when the code was checked; compared after the claim for the celebration.
   const badgesBeforeClaim = useRef<Promise<BadgeBook | undefined> | undefined>(undefined);
   const [celebration, setCelebration] = useState<CelebrationContent>();
+
+  // #295 "테스트 방문 만들기": 시연 앱과 로컬 개발 빌드에만 보인다. 운영 패키지는 섹션 자체가 없다.
+  const showTestVisitSection = canShowTestVisitSection(Application.applicationId);
+  const [testVisitMerchants, setTestVisitMerchants] = useState<readonly PublicMerchant[]>([]);
+  const [selectedTestVisitMerchantId, setSelectedTestVisitMerchantId] = useState<string>();
+  const [testVisitBusy, setTestVisitBusy] = useState(false);
+  const [testVisitMessage, setTestVisitMessage] = useState<string>();
+
+  useEffect(() => {
+    if (!showTestVisitSection) return;
+    let active = true;
+    void createMerchantApiClient(apiUrl).listMerchants()
+      .then((merchants) => {
+        if (!active) return;
+        const demo = merchants.filter((merchant) => merchant.demo);
+        setTestVisitMerchants(demo);
+        setSelectedTestVisitMerchantId((current) => current ?? demo[0]?.id);
+      })
+      .catch(() => {
+        if (active) setTestVisitMessage('가상 점포 목록을 불러오지 못했습니다.');
+      });
+    return () => { active = false; };
+  }, [apiUrl, showTestVisitSection]);
 
   useEffect(() => {
     if (!identity) return;
@@ -228,6 +253,31 @@ export function ClaimRedeemScreen({
     }
   }
 
+  // #295: 실제 QR 없이 가상 점포 방문을 만들고 바로 확정한다. 성공 경로는 일반 redeem()과 같다(setRedeemed/celebrate 재사용).
+  async function createTestVisit() {
+    if (!selectedTestVisitMerchantId || testVisitBusy) return;
+    setTestVisitBusy(true);
+    setTestVisitMessage(undefined);
+    const before = badgeApi.getBadgeBook().catch(() => undefined);
+    try {
+      const result = await api.createTestVisit(selectedTestVisitMerchantId);
+      setRedeemed(result);
+      setArtworkReward(undefined);
+      void findGrantedArtwork(result);
+      setPreview(undefined);
+      setToken('');
+      setPendingRedeemToken(undefined);
+      setRecoveryAction(undefined);
+      setMessage(claimSuccessCopy(result).body);
+      requestAnimationFrame(() => scrollView.current?.scrollToEnd({ animated: true }));
+      void celebrate(result, before);
+    } catch (error) {
+      setTestVisitMessage(messageFor(error));
+    } finally {
+      setTestVisitBusy(false);
+    }
+  }
+
   // 방문 수령 응답에는 수집품 외형 정보가 없다. 받은 보상 중 도감에서 외형을 가진 것이 있어야 "받은 수집품 보기"를 보인다.
   // 1·3·5회 목표가 한 번에 여럿 달성되면 외형이 붙은 보상 전부를 모아 봉투 연출에 넘긴다(목표 순서대로).
   // 조회가 실패하거나 외형 없는 기존 보상뿐이면 버튼만 생략하고 방문 수령 결과는 그대로다.
@@ -341,6 +391,42 @@ export function ClaimRedeemScreen({
         </FloatingCard>
         </Stagger>
 
+        {showTestVisitSection ? (
+          <Stagger index={3}>
+          <FloatingCard style={styles.formCard}>
+            <Text style={styles.sectionTitle}>테스트 방문 만들기</Text>
+            <Text selectable style={styles.securityNote}>실제 QR 없이 가상 점포 방문을 기록합니다. 진행도는 하루 한 번만 올라요.</Text>
+            <View style={styles.testVisitChipRow}>
+              {testVisitMerchants.map((merchant) => {
+                const selected = merchant.id === selectedTestVisitMerchantId;
+                return (
+                  <Pressable
+                    key={merchant.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    onPress={() => setSelectedTestVisitMerchantId(merchant.id)}
+                    style={[styles.testVisitChip, selected && styles.testVisitChipSelected]}
+                  >
+                    <Text style={[styles.testVisitChipText, selected && styles.testVisitChipTextSelected]}>{merchant.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {testVisitMessage ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{testVisitMessage}</Text> : null}
+            <Pressable
+              accessibilityRole="button"
+              disabled={!selectedTestVisitMerchantId || testVisitBusy}
+              onPress={() => void createTestVisit()}
+              style={[styles.button, { backgroundColor: !selectedTestVisitMerchantId || testVisitBusy ? palette.primaryContainer : palette.primary }]}
+            >
+              <Text style={[styles.buttonText, { color: !selectedTestVisitMerchantId || testVisitBusy ? palette.onPrimaryContainer : palette.onPrimary }]}>
+                {testVisitBusy ? '만드는 중…' : '테스트 방문 만들기'}
+              </Text>
+            </Pressable>
+          </FloatingCard>
+          </Stagger>
+        ) : null}
+
         {message ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
 
         {preview ? (
@@ -433,6 +519,11 @@ function messageFor(error: unknown): string {
       CLAIM_TOKEN_EXPIRED: '코드가 만료됐습니다. 점주에게 재발급을 요청해 주세요.',
       CLAIM_CAMPAIGN_UNAVAILABLE: '현재 수령 가능한 캠페인이 아닙니다. 코드는 소비되지 않았습니다.',
       ACCOUNT_AUTH_NOT_CONFIGURED: 'loopback 개발 계정 모드가 꺼져 있습니다.',
+      // #295 테스트 방문 만들기 전용 코드.
+      SHOWCASE_MERCHANT_NOT_FOUND: '가상 점포를 찾을 수 없습니다.',
+      CLAIM_MERCHANT_INACTIVE: '지금은 쉬고 있는 점포입니다.',
+      SHOWCASE_TEST_VISIT_RATE_LIMITED: '테스트 방문을 너무 많이 만들었어요. 잠시 후 다시 시도해 주세요.',
+      ACCOUNT_DELETED: '계정이 삭제 처리 중입니다.',
     };
     return messages[error.code] ?? `수령 실패: ${error.code}`;
   }

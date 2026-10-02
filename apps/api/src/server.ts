@@ -52,6 +52,8 @@ import {
   MintRequestError, mintConsentVersionFromEnv, refuseMintRequestsWhilePreparing, type MintRequestService,
 } from './mint-request-service.js';
 import { ReversalError, type ReversalService } from './reversal.js';
+import { MileageShopError, type MileageShopService } from './mileage-shop.js';
+import { isMileageGrade } from './mileage-rules.js';
 import {
   RecommendationService,
   type RecommendationReader,
@@ -73,6 +75,7 @@ import { PostgresWebSessionStore } from './postgres/web-session.js';
 import { resolveShowcaseInviteConfig } from './showcase/invite-config.js';
 import { isPermittedShowcaseDatabaseName } from './showcase/local-seed.js';
 import { ShowcaseAccessRequestError, ShowcaseAccessRequestService } from './showcase/access-requests.js';
+import { GuestTrialError, ShowcaseGuestTrialService } from './showcase/guest-trials.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresCollectibleProjectService } from './postgres/collectible-project.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
@@ -82,6 +85,7 @@ import { PostgresNftMetadataReader } from './postgres/nft-metadata.js';
 import { PostgresStaffRegistration, StaffRegistrationError } from './postgres/staff-registration.js';
 import { PostgresMintRequestService } from './postgres/mint-request-service.js';
 import { PostgresReversalService } from './postgres/reversal.js';
+import { PostgresMileageShopService } from './postgres/mileage-shop.js';
 import { PostgresRecommendationSource } from './postgres/recommendation.js';
 import { PostgresChallengeStore } from './postgres/wallet-challenge-store.js';
 import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
@@ -185,7 +189,7 @@ export const developmentHeaderReauthenticationGuard: ReauthenticationGuard = (
 
 export function createApiServer(
   service: WalletChallengeService,
-  resolveAccountId: AccountResolver,
+  baseAccountResolver: AccountResolver,
   merchantCatalog?: MerchantCatalog,
   merchantAccess?: MerchantAccessControl,
   claimSlots?: ClaimSlotService,
@@ -217,12 +221,25 @@ export function createApiServer(
   consent?: ConsentService,
   nftMetadata?: NftMetadataReader,
   collectibleProjects?: CollectibleProjectService,
+  mileageShop?: MileageShopService,
   accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
+  guestTrials?: Pick<ShowcaseGuestTrialService, 'start' | 'resolve'>,
 ) {
+  // 로컬 시연(DEMO 헤더) 배치에서는 체험 세션 Bearer도 받는다(#309). Authorization이 없으면 기존 헤더 해석 그대로이고,
+  // 운영·hosted 해석기(Bearer 세션)는 이미 같은 auth_sessions 행으로 체험 세션을 푼다.
+  const resolveAccountId: AccountResolver = guestTrials && baseAccountResolver === developmentHeaderAccountResolver
+    ? (request) => request.headers.authorization === undefined
+      ? baseAccountResolver(request) : guestTrials.resolve(requireBearerToken(request))
+    : baseAccountResolver;
+  // 로그인 없는 체험 시작의 짧은 폭주 제한: IP당 15분에 20번(#309). 심사장처럼 한 NAT를 여럿이 나눠 써도 막히지 않게 넉넉히 두고,
+  // 한 IP의 끝나지 않은 체험 수(30)와 전역 상한(300)은 서비스가 트랜잭션 안에서 따로 지킨다.
+  const guestTrialLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 20, windowMs: 15 * 60 * 1000 });
   // The receipt lookup needs no login, so it is throttled per client instead (a receipt has 80 bits, this only stops floods).
   const deletionStatusLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60_000 });
   // 계정당 5회/시간(#294). IP가 아니라 계정으로 거는 건 승인 전 계정도 로그인은 됐기 때문이다.
   const showcaseAccessRequestLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 5, windowMs: 60 * 60 * 1000 });
+  // 계정당 10회/시간(#295). 가상 점포 방문이라 점주 쪽 쿨다운은 없지만, 발급 자체를 계정별로 묶어 둔다.
+  const showcaseTestVisitLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 10, windowMs: 60 * 60 * 1000 });
   // Media-bearing collectible writes (create/save/copy/publish parse up to 8 MiB and decode every image) are throttled per store.
   const collectibleWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 20, windowMs: 60_000 });
   const consumeDeletionStatus = (request: IncomingMessage, response: ServerResponse): boolean => {
@@ -809,6 +826,21 @@ export function createApiServer(
         return;
       }
 
+      // 로그인 없는 시연 웹 체험(#309). guestTrials는 시연 배치에서만 있다: 운영에서는 이 블록을 건너뛰어 맨 아래의 알 수 없는 경로와
+      // 같은 404가 된다.
+      if (guestTrials && request.method === 'POST' && request.url === '/auth/guest-trial') {
+        const clientKey = authLoginClientKey(request, trustProxyClientIp);
+        const decision = guestTrialLimiter.consume(clientKey);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          sendJson(response, 429, { code: 'GUEST_TRIAL_RATE_LIMITED' });
+          return;
+        }
+        requireEmptyBody(await readJson(request, true));
+        sendJson(response, 200, await guestTrials.start({ clientKey }));
+        return;
+      }
+
       if (request.method === 'POST' && request.url === '/auth/logout') {
         const sessions = requireAuthSessions(authSessions);
         await sessions.logout(requireBearerToken(request));
@@ -942,6 +974,51 @@ export function createApiServer(
         return;
       }
 
+      if (request.method === 'GET' && request.url === '/shop') {
+        if (!mileageShop) throw new RequestError(503, 'MILEAGE_SHOP_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        sendJson(response, 200, await mileageShop.getShop(accountId));
+        return;
+      }
+
+      if (request.method === 'GET' && path === '/shop/history') {
+        if (!mileageShop) throw new RequestError(503, 'MILEAGE_SHOP_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const cursor = new URL(request.url!, 'http://localhost').searchParams.get('cursor');
+        sendJson(response, 200, await mileageShop.getHistory({
+          accountId, ...(cursor !== null ? { cursor } : {}),
+        }));
+        return;
+      }
+
+      if (request.method === 'POST' && request.url === '/shop/rerolls') {
+        if (!mileageShop) throw new RequestError(503, 'MILEAGE_SHOP_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        if (Object.keys(body).some((key) => !['grade', 'requestId', 'expectedRemaining'].includes(key))) {
+          throw new RequestError(400, 'INVALID_REQUEST');
+        }
+        const grade = requireString(body, 'grade');
+        if (!isMileageGrade(grade)) throw new RequestError(400, 'INVALID_REQUEST');
+        const requestId = requireString(body, 'requestId');
+        if (requestId.length > 128) throw new RequestError(400, 'INVALID_REQUEST');
+        const expectedRemaining = requireNumber(body, 'expectedRemaining');
+        if (expectedRemaining < 0) throw new RequestError(400, 'INVALID_REQUEST');
+        sendJson(response, 201, await mileageShop.reroll({ accountId, grade, requestId, expectedRemaining }));
+        return;
+      }
+
+      if (request.method === 'PUT' && request.url === '/shop/avatar') {
+        if (!mileageShop) throw new RequestError(503, 'MILEAGE_SHOP_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        if (Object.keys(body).some((key) => key !== 'itemId')) throw new RequestError(400, 'INVALID_REQUEST');
+        const itemId = body.itemId;
+        if (itemId !== null && typeof itemId !== 'string') throw new RequestError(400, 'INVALID_REQUEST');
+        sendJson(response, 200, await mileageShop.setAvatar({ accountId, itemId }));
+        return;
+      }
+
       if (request.method === 'GET' && request.url === '/recommendations') {
         if (!recommendations) {
           throw new RequestError(503, 'RECOMMENDATIONS_NOT_CONFIGURED');
@@ -998,7 +1075,7 @@ export function createApiServer(
           sendJson(response, 'replayed' in issued ? 200 : 201, issued);
         } else {
           if ('useConfirmed' in body) throw new RequestError(400, 'INVALID_REQUEST');
-          if (resolveAccountId !== developmentHeaderAccountResolver) throw new RequestError(403, 'CUSTOMER_IDENTITY_REQUIRED');
+          if (baseAccountResolver !== developmentHeaderAccountResolver) throw new RequestError(403, 'CUSTOMER_IDENTITY_REQUIRED');
           const issued = await claimSlots.issue({ merchantId,
             customerAccountId: requireString(body, 'customerAccountId'),
             merchantReference: requireString(body, 'merchantReference'),
@@ -1338,6 +1415,26 @@ export function createApiServer(
         return;
       }
 
+      // 시연 전용 "테스트 방문 만들기"(#295): 운영 API에는 경로 자체가 없다(accessRequests와 같은 showcaseDeployment 판정).
+      if (request.url === '/showcase/test-visits' && request.method === 'POST') {
+        if (!accessRequests) throw new RequestError(404, 'NOT_FOUND');
+        if (!claimSlots) throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const decision = showcaseTestVisitLimiter.consume(accountId);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          sendJson(response, 429, { code: 'SHOWCASE_TEST_VISIT_RATE_LIMITED' });
+          return;
+        }
+        const body = await readJson(request);
+        requireOnlyKeys(body, ['merchantId']);
+        const merchantId = requireString(body, 'merchantId');
+        const issued = await claimSlots.issueShowcaseTestSlot({ merchantId, accountId });
+        const redeemed = await claimSlots.redeem({ accountId, token: issued.token });
+        sendJson(response, 201, redeemed);
+        return;
+      }
+
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
       if (error instanceof CollectibleProjectError) {
@@ -1364,6 +1461,13 @@ export function createApiServer(
         sendJson(response, statusForReversal(error.code), { code: error.code });
         return;
       }
+      if (error instanceof MileageShopError) {
+        if (error.retryAfterSeconds !== undefined) {
+          response.setHeader('Retry-After', String(error.retryAfterSeconds));
+        }
+        sendJson(response, statusForMileageShop(error.code), { code: error.code });
+        return;
+      }
       if (error instanceof ConsentError) {
         sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'CONSENT_VERSION_MISMATCH' ? 409 : 400,
           { code: error.code });
@@ -1380,7 +1484,10 @@ export function createApiServer(
         if (error.retryAfterSeconds !== undefined) {
           response.setHeader('Retry-After', String(error.retryAfterSeconds));
         }
-        sendJson(response, statusForMerchantArt(error.code), { code: error.code });
+        sendJson(response, statusForMerchantArt(error.code), {
+          code: error.code,
+          ...(error.code === 'AI_ART_TRIAL_DISABLED' ? { message: '체험 가게에서는 AI 그림을 만들 수 없어요.' } : {}),
+        });
         return;
       }
       if (error instanceof MerchantAccessError) {
@@ -1396,6 +1503,10 @@ export function createApiServer(
           : error.code === 'STAFF_MERCHANT_NOT_FOUND' || error.code === 'STAFF_NOT_FOUND' ? 404
             : error.code === 'STAFF_CODE_INVALID' ? 400 : 409;
         sendJson(response, status, { code: error.code });
+        return;
+      }
+      if (error instanceof GuestTrialError) {
+        sendJson(response, error.code === 'GUEST_TRIAL_IP_LIMIT' ? 429 : 503, { code: error.code });
         return;
       }
       if (error instanceof ShowcaseAccessRequestError) {
@@ -1641,6 +1752,7 @@ function statusFor(code: string): number {
 function statusForClaimSlot(code: string): number {
   if (code === 'CLAIM_TOKEN_EXPIRED' || code === 'CUSTOMER_IDENTITY_EXPIRED') return 410;
   if (code === 'ACCOUNT_DELETED') return 410;
+  if (code === 'SHOWCASE_MERCHANT_NOT_FOUND') return 404;
   return 409;
 }
 
@@ -1662,6 +1774,7 @@ function statusForFriend(code: string): number {
 function statusForMerchantArt(code: string): number {
   if (code === 'AI_ART_ROUND_NOT_FOUND') return 404;
   if (code === 'AI_ART_DAILY_LIMIT') return 429;
+  if (code === 'AI_ART_TRIAL_DISABLED') return 403;
   if (code === 'AI_ART_NOT_CONFIGURED' || code === 'AI_ART_BUDGET_EXHAUSTED') return 503;
   if (code === 'ACCOUNT_DELETED') return 410;
   return 409;
@@ -1754,6 +1867,16 @@ function statusForReversal(code: string): number {
   if (code === 'COUPON_SELF_UNDO') return 403;
   if (code === 'VISIT_NOT_FOUND' || code === 'COUPON_NOT_FOUND') return 404;
   if (code === 'ACCOUNT_DELETED') return 410;
+  return 409;
+}
+
+function statusForMileageShop(code: string): number {
+  if (code === 'INVALID_REQUEST') return 400;
+  if (code === 'SHOP_INSUFFICIENT_MILEAGE') return 402;
+  if (code === 'SHOP_ITEM_NOT_OWNED') return 404;
+  if (code === 'ACCOUNT_DELETED') return 410;
+  if (code === 'SHOP_RATE_LIMITED') return 429;
+  // SHOP_GRADE_COMPLETE, SHOP_STATE_CHANGED, SHOP_REQUEST_CONFLICT
   return 409;
 }
 
@@ -2094,6 +2217,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const friends = pool && accountLifecycle
     ? new PostgresFriendService(pool, { accountLifecycle })
     : undefined;
+  // 운영·시연 모두 pool·accountLifecycle만 있으면 동작한다(시연 전용 게이트 없음, design-298.md).
+  const mileageShop = pool && accountLifecycle
+    ? new PostgresMileageShopService(pool, { accountLifecycle })
+    : undefined;
   // 동의 기록(D-059): 앱 경로 값은 시연 서버면 SHOWCASE_APP, 운영이면 ANDROID다. 쓰기 요청은 막지 않고 required만 알린다.
   const consent = pool && accountLifecycle
     ? new PostgresAccountConsentService(pool, {
@@ -2221,8 +2348,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       staffMayManageArt: aiArtConfig.staffMayManage,
       ...(accountLifecycle ? { accountLifecycle } : {}),
     }) : undefined,
+    mileageShop,
     pool && accountDeletionHmacSecret && showcaseDeployment
       ? new ShowcaseAccessRequestService(pool, { accountDeletionHmacSecret }) : undefined,
+    // 로그인 없는 시연 웹 체험(#309)도 권한 요청과 같은 시연 배치에서만 만든다. 운영 로그인에서는 undefined라 경로가 404다.
+    pool && accountDeletionHmacSecret && showcaseDeployment
+      ? new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret }) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

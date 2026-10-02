@@ -36,3 +36,13 @@ Google `sub`·이메일·ID 토큰·세션 토큰·QR 원문은 로그·Git·증
 - API는 [resolveShowcaseDeployment](../apps/api/README.md#엔드포인트)가 `hosted`(SHOWCASE_MODE)나 `local`(demo + 시연 local/CI DB 이름)로 판정할 때만 열리고, 그 밖(운영 로그인)에서는 다른 시연 전용 라우트처럼 `404 NOT_FOUND`입니다.
 - **부트스트랩(최초 승인자를 만드는 법, 사람이 함):** 승인자 후보가 시연 Android 앱에 **본인 계정**으로 로그인해 점주 체험 화면에서 "현재 계정으로 문의하기"로 요청을 넣고 화면에 뜬 8자 코드를 자신의 Gmail로 `msocs1324@gmail.com`·`priestess4637@gmail.com`에 메일로 보냅니다(발신자 확인이 신원 증명이며, 에이전트는 그 계정으로 로그인하지 않습니다). 운영자가 코드를 받아 `npm run grant:showcase:approver -- <코드>`를 시연 DB에 돌리면 한 트랜잭션에서 `platform_admins` upsert·`platform_admin_role_audit` GRANT 행(`db_user`=세션 역할)·요청을 `decided_via='OPS'`로 승인(가상 점포 A STAFF 포함)까지 끝나고 `SHOWCASE_APPROVER_GRANTED`만 출력합니다. 그다음부터는 새 승인자가 된 계정이 앱 화면에서 다른 요청을 직접 승인·거절합니다. 절차는 [시연 호스트 안내](../infra/showcase-host/README.md)에 있습니다.
 - 계정당 요청은 **시간당 5회**로 막혀 있고(`SHOWCASE_ACCESS_RATE_LIMITED`), 이미 STAFF면 새 요청을 거절합니다(`SHOWCASE_ACCESS_ALREADY_GRANTED`). 자기 요청의 자기 승인·거절은 금지합니다(`SHOWCASE_ACCESS_SELF_DECISION`).
+
+## 로그인 없는 시연 웹 체험 (Issue #309, 서버)
+
+시연 웹(`https://demo-api.masscom.kr/play/`, 입구 `masscom.kr/demo`)은 Google 로그인 없이 시작합니다. 이 경로는 **시연 API에만** 있고 운영 API에는 경로 자체가 없어 알 수 없는 경로와 같은 `404`입니다(실제 `server.ts`를 운영 설정으로 띄운 통합 시험). 결정은 [D-064](DECISIONS.md).
+
+- `POST /auth/guest-trial`이 Google 신원(`auth_identities`) 없는 `acct_` 계정, 그 계정만의 체험 가게(가상 점포 A 복사, `is_demo`), 그 가게의 STAFF 권한, 24시간 `auth_sessions` 세션을 한 트랜잭션에서 만듭니다. 점주 권한은 여전히 서버 멤버십 검사로만 열리고, 체험자가 받는 STAFF는 **자기 체험 가게 하나**에만 걸립니다(가상 점포 A·B·C나 다른 체험 가게 권한은 없음).
+- 체험 세션은 최근 인증 시각이 비어 있어 재인증이 필요한 동작(계정 삭제 요청 등)은 열리지 않습니다. 체험 계정은 승인자가 될 수 없습니다(`grant:showcase:approver`가 `SHOWCASE_GUEST_NOT_ELIGIBLE`로 거절, 끝난 체험 계정 포함). 앱의 권한 요청은 이미 STAFF라 `SHOWCASE_ACCESS_ALREADY_GRANTED`입니다.
+- IP당 15분 20회(`429 GUEST_TRIAL_RATE_LIMITED`), 같은 IP의 끝나지 않은 체험 30개(`429 GUEST_TRIAL_IP_LIMIT`, IP는 HMAC으로만 저장하고 끝나면 지움), 끝나지 않은 동시 체험자 300명(`503 GUEST_TRIAL_BUSY`), 두 상한은 같은 advisory lock으로 직렬화. 시작할 때마다 만료 체험자 최대 20명을 끝냅니다(세션 삭제·멤버십 회수·가게 `PAUSED`·`ended_at`). 기록 행은 지우지 않고, 계정 삭제 때 체험 행의 `account_id`는 별칭으로 바뀝니다(행을 지우면 체험 가게가 목록에 다시 나온다).
+- 체험 가게는 누구의 `/merchants`·추천에도, 친구 화면의 도장·메달에도 나오지 않고, AI 그림 생성 비용을 쓰지 않습니다(`403 AI_ART_TRIAL_DISABLED`, OpenAI 호출·예산 행 없음).
+- 체험자는 이메일·Google `sub`가 없어 개인정보는 체험 중 직접 입력한 값(탐험가 이름 등)뿐입니다. 로컬 DEMO 배치에서는 `Authorization`이 있는 요청만 체험 세션으로 풀고 나머지는 기존 `x-account-id` 그대로입니다.

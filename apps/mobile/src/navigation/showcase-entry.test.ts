@@ -1,17 +1,19 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { canOpenDeveloperMerchantRoute, canOpenMerchantArtRoute, canOpenShowcaseTour, consumeMerchantReturn, rememberMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, showShowcaseRoleEntry } from './showcase-entry';
+import { canOpenDeveloperMerchantRoute, canOpenMerchantArtRoute, canOpenShowcaseTour, canShowTestVisitSection, consumeMerchantReturn, rememberMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, showShowcaseRoleEntry } from './showcase-entry';
 
-test('only the installed showcase app opens role selection before a role is chosen', () => {
-  assert.equal(showShowcaseRoleEntry('kr.masscom.wolgye.demo'), true);
-  assert.equal(showShowcaseRoleEntry('kr.masscom.wolgye.demo', 'customer'), false);
-  assert.equal(showShowcaseRoleEntry('kr.masscom.wolgye.demo', 'merchant'), false);
+test('the showcase app and the local development build open role selection before a role is chosen (#294 review finding 5)', () => {
+  for (const packageId of ['kr.masscom.wolgye.demo', 'kr.masscom.wolgye.dev']) {
+    assert.equal(showShowcaseRoleEntry(packageId), true, packageId);
+    assert.equal(showShowcaseRoleEntry(packageId, 'customer'), false, packageId);
+    assert.equal(showShowcaseRoleEntry(packageId, 'merchant'), false, packageId);
+  }
 });
 
-test('operating, development, and unknown packages keep their existing entry', () => {
-  for (const packageId of ['kr.masscom.wolgye', 'kr.masscom.wolgye.dev', null, undefined, '']) {
-    assert.equal(showShowcaseRoleEntry(packageId), false);
+test('the operating package and unknown packages never show role selection', () => {
+  for (const packageId of ['kr.masscom.wolgye', null, undefined, '']) {
+    assert.equal(showShowcaseRoleEntry(packageId), false, String(packageId));
   }
 });
 
@@ -41,6 +43,18 @@ test('signed-out customers browse while merchant entry still requires authentica
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye', undefined, true), 'customer');
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye', undefined, false), 'customer');
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye', 'merchant', true), 'customer');
+});
+
+test('a local QA development build also reaches the merchant gate once a role is chosen, but the operating package never does (#294, review finding 5)', () => {
+  // The dev package opens the same role-selection entry the demo package does: without this, selectedRole could never become
+  // 'merchant' for the dev package and the branch below would be unreachable.
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye.dev', undefined, true), 'role');
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye.dev', 'merchant', true), 'merchant');
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye.dev', 'merchant', false), 'auth');
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye', 'merchant', true), 'customer');
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye', 'merchant', false), 'customer');
+  // The operating package must never reach role selection or the merchant gate, with or without a role.
+  assert.equal(showcaseEntryDestination('kr.masscom.wolgye', undefined, true), 'customer');
 });
 
 test('the empty five-space tour is available only to the installed showcase app', () => {
@@ -75,5 +89,13 @@ test('the owner art page opens in the showcase app and the local development bui
   assert.equal(canOpenMerchantArtRoute('kr.masscom.wolgye.dev'), true);
   for (const packageId of ['kr.masscom.wolgye', 'kr.masscom.wolgye.demo.evil', 'kr.masscom.wolgye.dev.evil', null, undefined, '']) {
     assert.equal(canOpenMerchantArtRoute(packageId), false, String(packageId));
+  }
+});
+
+test('the test-visit section (#295) opens in the showcase app and the local development build, never the operating app', () => {
+  assert.equal(canShowTestVisitSection('kr.masscom.wolgye.demo'), true);
+  assert.equal(canShowTestVisitSection('kr.masscom.wolgye.dev'), true);
+  for (const packageId of ['kr.masscom.wolgye', 'kr.masscom.wolgye.demo.evil', 'kr.masscom.wolgye.dev.evil', null, undefined, '']) {
+    assert.equal(canShowTestVisitSection(packageId), false, String(packageId));
   }
 });
