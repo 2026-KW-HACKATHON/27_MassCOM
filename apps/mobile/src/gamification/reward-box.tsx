@@ -52,6 +52,8 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
       onRevealed(result);
     } catch (caught) {
       box.current?.settle();
+      // 여는 소리를 이미 냈으니 실패도 소리로 알린다(방문 수령 실패와 같은 신호).
+      playUiSound('error');
       const code = caught instanceof BadgeApiError ? caught.code : undefined;
       setError(openRewardErrorMessage(code));
       onOpenFailed?.(code);
