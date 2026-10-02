@@ -75,15 +75,13 @@
     "retentionTimer": "masscom-retention.timer HOST_JOB_ENABLED; first run success",
     "databaseAfter": {
       "schemaMigrations": "39|0039_showcase_guest_trials.sql",
-      "merchantsWhereIsDemo0": "checked (the query was `merchants WHERE is_demo = 0`; the count is not recorded here)",
-      "showcaseGuestTrialsRows": 0
+      "isDemoMerchants": 0,
+      "showcaseGuestTrials": 0
     },
     "publicMerchants": "https://api.masscom.kr/merchants lists 0 merchants",
     "recheck": {
       "time": "2026-10-02 about 21:00 KST, read-only, by the main thread",
       "schemaMigrations": "39|0039_showcase_guest_trials.sql",
-      "merchantsWhereIsDemo0": "as reported by the main thread (query `merchants WHERE is_demo = 0`); the count is not stated in the report",
-      "showcaseGuestTrialsRows": 0,
       "showcaseAccessRequestsRows": 0,
       "deployedCommitFiles": {
         "/opt/masscom/DEPLOYED_COMMIT": "a39b983c02de032ea24602f635cca94bf6319d93",
@@ -96,7 +94,9 @@
         "masscom-showcase-showcase-api-1": "masscom-showcase-api:a39b983 (healthy)",
         "postgres": "both postgres containers healthy"
       },
-      "acceptance": "PASS for the Issue #321 item `운영 DB에 가상 데이터 0건` (as judged by the main thread from these numbers)"
+      "acceptance": "PASS: Issue #321 item `운영 DB에 가상 데이터 0건` (is_demo merchants 0, showcase_guest_trials 0, showcase_access_requests 0)",
+      "isDemoMerchants": 0,
+      "showcaseGuestTrials": 0
     }
   },
   "externalHttps": {
