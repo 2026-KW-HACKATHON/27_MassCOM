@@ -45,6 +45,7 @@ import {
   type MerchantAccessControl,
 } from './merchant-access.js';
 import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
+import { MerchantOverviewError, type MerchantOverviewReader } from './merchant-overview-rules.js';
 import { DEFAULT_STAMP_V1_PNG } from './nft-default-stamp.js';
 import { matchNftMetadataRoute, type NftMetadataReader } from './nft-metadata.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
@@ -68,6 +69,7 @@ import { PostgresAccountDeletionIntakeService } from './postgres/account-deletio
 import { PostgresAccountDeletionProcessingService } from './postgres/account-deletion-processing.js';
 import { PostgresBadgeRewardService } from './postgres/badge-rewards.js';
 import { PostgresFriendService } from './postgres/friends.js';
+import { PostgresMerchantOverviewService } from './postgres/merchant-overview.js';
 import { AdminError, PostgresAdminService, type AdminCampaignDraftInput, type MerchantInput } from './postgres/admin.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
@@ -224,6 +226,7 @@ export function createApiServer(
   mileageShop?: MileageShopService,
   accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
   guestTrials?: Pick<ShowcaseGuestTrialService, 'start' | 'resolve'>,
+  merchantOverview?: MerchantOverviewReader,
 ) {
   // 로컬 시연(DEMO 헤더) 배치에서는 체험 세션 Bearer도 받는다(#309). Authorization이 없으면 기존 헤더 해석 그대로이고,
   // 운영·hosted 해석기(Bearer 세션)는 이미 같은 auth_sessions 행으로 체험 세션을 푼다.
@@ -658,6 +661,19 @@ export function createApiServer(
             throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
           }
           sendJson(response, 200, await runReversalRoute(reversals, webReversal, merchantId, accountId, request));
+          return;
+        }
+        // 가게 현황(#330): 읽기 전용. 최근 방문 목록과 같은 권한(CONFIRM_VISIT)과 점포 소속 확인이라 활성 점주·직원 모두 볼 수 있다.
+        const overviewMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/overview$/);
+        if (overviewMatch && request.method === 'GET') {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          if (!merchantOverview) throw new RequestError(503, 'MERCHANT_OVERVIEW_NOT_CONFIGURED');
+          const merchantId = decodePathParameter(overviewMatch[1]!);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+          if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) {
+            throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+          }
+          sendJson(response, 200, await merchantOverview.overview({ merchantId }));
           return;
         }
         const claimMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/(customer-identities\/resolve|claim-slots)$/);
@@ -1492,6 +1508,10 @@ export function createApiServer(
       }
       if (error instanceof MerchantAccessError) {
         sendJson(response, 403, { code: error.code });
+        return;
+      }
+      if (error instanceof MerchantOverviewError) {
+        sendJson(response, 404, { code: error.code });
         return;
       }
       if (error instanceof AdminError) {
@@ -2354,6 +2374,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     // 로그인 없는 시연 웹 체험(#309)도 권한 요청과 같은 시연 배치에서만 만든다. 운영 로그인에서는 undefined라 경로가 404다.
     pool && accountDeletionHmacSecret && showcaseDeployment
       ? new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret }) : undefined,
+    // 점주 가게 현황(#330)은 읽기 전용 집계라 pool만 있으면 만든다. 경로는 점주 웹(staffRegistration)이 있는 배치에서만 열린다.
+    pool ? new PostgresMerchantOverviewService(pool) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });
