@@ -274,7 +274,8 @@ function NftStatusRow({ entitlements, mint }: { entitlements: readonly { entitle
           </Pressable>
         ) : (
           <Link href="/wallet" asChild>
-            <Pressable accessibilityRole="button" style={[collectionStyles.walletButton, { borderColor: palette.primary }]}>
+            {/* #314: expo-router의 Slot은 asChild 자식에 배열 style을 넘기면 렌더 오류를 던진다(경고가 아니다). */}
+            <Pressable accessibilityRole="button" style={StyleSheet.flatten([collectionStyles.walletButton, { borderColor: palette.primary }])}>
               <Text style={collectionStyles.walletButtonText}>외부 지갑 주소 확인</Text>
             </Pressable>
           </Link>

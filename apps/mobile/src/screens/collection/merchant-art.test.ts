@@ -16,7 +16,7 @@ function sources(directory: string): string[] {
 test('merchant artwork reaches screens only through the metro-swapped showcase selection module', () => {
   const art = readFileSync(fileURLToPath(new URL('./merchant-art.ts', import.meta.url)), 'utf8');
   assert.match(art, /from '\.\/showcase-collectible-art-assets'/);
-  assert.match(art, /showcaseCollectibleArtKey\(Application\.applicationId, merchantId\)/);
+  assert.match(art, /showcaseCollectibleArtKey\(getAppPackageId\(\), merchantId\)/);
   const offenders = sources(src).filter((path) => {
     if (path.endsWith('.test.ts')) return false;
     if (path.endsWith('showcase-collectible-art-assets.showcase.ts')) return false;

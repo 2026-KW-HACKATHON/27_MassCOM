@@ -57,7 +57,7 @@ test('"받은 수집품 보기"는 받은 보상 중 수집품 외형이 실제�
 });
 
 test('#295 테스트 방문 만들기는 시연·개발 빌드에만 보이고 운영 패키지는 섹션 자체가 없다', () => {
-  assert.match(screen, /canShowTestVisitSection\(Application\.applicationId\)/);
+  assert.match(screen, /canShowTestVisitSection\(getAppPackageId\(\)\)/);
   assert.match(screen, /\{showTestVisitSection \? \(/);
 });
 

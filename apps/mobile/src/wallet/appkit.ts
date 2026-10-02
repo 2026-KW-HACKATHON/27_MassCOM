@@ -2,7 +2,6 @@ import '@walletconnect/react-native-compat';
 
 import { EthersAdapter } from '@reown/appkit-ethers-react-native';
 import { createAppKit } from '@reown/appkit-react-native';
-import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 
 import { walletSessionPrefix } from './account-scope';
@@ -11,10 +10,11 @@ import { baseSepolia } from './base-sepolia';
 import { getWalletRuntimeConfig } from './wallet-runtime-config';
 import { createWalletMetadata } from './wallet-metadata';
 import { resolveWalletReturnScheme } from './return-scheme';
+import { getAppPackageId } from '@/config/app-identity';
 import { resolveRuntimeIdentity } from '@/config/showcase-identity';
 
 const runtimeIdentity = resolveRuntimeIdentity(
-  Application.applicationId,
+  getAppPackageId(),
   Constants.expoConfig?.extra,
   {
     googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
@@ -27,7 +27,7 @@ export const walletRuntimeConfig = getWalletRuntimeConfig({
 });
 
 // The installed package decides the return scheme; a stale embedded config may not override it.
-const appScheme = resolveWalletReturnScheme(Constants.expoConfig?.scheme, Application.applicationId);
+const appScheme = resolveWalletReturnScheme(Constants.expoConfig?.scheme, getAppPackageId());
 
 export function createAccountScopedAppKit(
   config: typeof walletRuntimeConfig,

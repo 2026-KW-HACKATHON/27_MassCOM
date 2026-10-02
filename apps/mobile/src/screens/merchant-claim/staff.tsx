@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -9,6 +9,7 @@ import { ClaimQr } from '@/commerce/claim-qr';
 import { CommerceApiError, createCommerceApiClient, type IssuedClaim, type ResolvedCustomerIdentity, type StaffCoupon } from '@/commerce/commerce-api';
 import { canIssueCustomerIdentity, createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired, parseCustomerIdentityToken } from '@/commerce/customer-identity';
 import { colorsForScheme } from '@/theme/palette';
+import { canUseCamera } from '@/ui/can-use-camera';
 import { StaffReversalCards } from './staff-reversal';
 import { makeMerchantClaimStyles } from './styles';
 
@@ -226,7 +227,15 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
     }
   }
 
-  return <ScrollView ref={scrollView} contentInsetAdjustmentBehavior="automatic" style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}>
+  return <ScrollView
+    ref={scrollView}
+    contentInsetAdjustmentBehavior="automatic"
+    // 웹에서는 이 화면을 감싸는 바깥 View도 같이 늘어나 페이지 스크롤바와 이 안쪽 스크롤바가 겹쳐 보인다
+    // (PR #313 리뷰) — 안쪽 막대만 숨기고 실제 스크롤은 그대로 둔다.
+    showsVerticalScrollIndicator={Platform.OS !== 'web'}
+    style={{ flex: 1 }}
+    contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
+  >
     <View style={styles.hero}>
       <Text style={styles.eyebrow}>체험용 점주·직원 화면</Text>
       <Text selectable style={styles.title}>고객 QR로{`\n`}방문을 확인합니다.</Text>
@@ -235,10 +244,14 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
     {topSlot}
     <View style={styles.formCard}>
       <Text style={styles.cardLabel}>1 · 고객 식별</Text>
-      {scanning ? <View style={{ height: 260, overflow: 'hidden', borderRadius: 14 }}>
-        <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => scanned(data)} />
-      </View> : null}
-      <Button styles={styles} label={scanning ? '촬영 취소' : '고객 식별 QR 촬영'} disabled={busy} onPress={scanning ? cancel : () => void startScan()} />
+      {canUseCamera ? <>
+        {scanning ? <View style={{ height: 260, overflow: 'hidden', borderRadius: 14 }}>
+          <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => scanned(data)} />
+        </View> : null}
+        <Button styles={styles} label={scanning ? '촬영 취소' : '고객 식별 QR 촬영'} disabled={busy} onPress={scanning ? cancel : () => void startScan()} />
+      </> : (
+        <Text style={styles.help}>고객 QR 촬영은 카메라가 필요해 Android 앱에서만 할 수 있어요. 이 화면은 미리보기만 확인할 수 있어요.</Text>
+      )}
       {token && !issued ? <>
         <Text selectable style={styles.cardLabel}>확인 코드 {customerIdentityCode(token)}</Text>
         <Text style={styles.help}>고객 화면의 코드와 일치하는지 확인하세요. 일치하지 않으면 취소하고 다시 촬영하세요.</Text>

@@ -67,6 +67,20 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
   // `contentOffset`은 첫 마운트에만 적용되니 재시도 버튼이 하단 탭 바 밑에 가려도 스크롤해 보여줄 길이
   // 없다 — 아래 sky()에서 로딩/오류 두 갈래에만 이 ref를 건네 내용 크기가 바뀔 때마다 다시 스크롤한다.
   const skyScrollView = useRef<ScrollView>(null);
+  // #320 리뷰(도감에서 같은 수정): onContentSizeChange는 재시도 재렌더처럼 높이가 그대로여도 다시 불릴 수
+  // 있어, 매번 스크롤하면 오류를 다시 읽으려고 위로 스크롤한 사용자를 끌어내린다. 이전 높이를 여기 쥐고
+  // 실제로 늘었을 때만 스크롤한다.
+  const skyContentHeight = useRef(0);
+  // #320 리뷰: JSX 안 인라인 화살표로 쓰면 eslint-plugin-react-hooks의 refs 규칙이 "prop으로 바로 넘긴 함수
+  // 리터럴 안의 ref 읽기"를 렌더 중 접근 가능성으로 보고 막는다 — useCallback으로 뺀다(도감과 같은 조치).
+  const onSkyContentSizeChange = useCallback((_width: number, height: number) => {
+    if (height <= skyContentHeight.current) return;
+    skyContentHeight.current = height;
+    // 이 자리에서 바로 scrollTo를 부르면 아무 효과가 없다 — 네이티브 쪽이 새 크기를 아직 반영하기 전,
+    // 짧았던 예전 범위로 요청이 그대로 잘려 나간다. 한 프레임 미뤄 네이티브가 크기를 반영한 뒤에
+    // 스크롤한다(#314 PR #320과 같은 방식).
+    requestAnimationFrame(() => skyScrollView.current?.scrollTo({ y: height, animated: false }));
+  }, []);
 
   // 새로고침이 서버의 최신 결과를 보여줬으면 그 전 구매 시도는 이미 끝난 일로 본다 — 다음 구매는 새 requestId로
   // 시작해, 그 사이 응답을 놓친 옛 시도를 재생(replay)하지 않는다(PR #312 리뷰 2번). 당겨서 새로고침·탭 포커스
@@ -188,12 +202,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
         header={header}
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} progressViewOffset={insets.top} colors={[palette.primary]} />}
-        onContentSizeChange={retryScroll ? (_width, height) => {
-          // 이 자리에서 바로 scrollTo를 부르면 아무 효과가 없다 — 네이티브 쪽이 새 크기를 아직 반영하기 전,
-          // 짧았던 예전 범위로 요청이 그대로 잘려 나간다. 한 프레임 미뤄 네이티브가 크기를 반영한 뒤에
-          // 스크롤한다(#314 PR #320과 같은 방식). 이미 다 보이는 내용이면 더 스크롤할 곳이 없어 no-op이다.
-          requestAnimationFrame(() => skyScrollView.current?.scrollTo({ y: height, animated: false }));
-        } : undefined}
+        onContentSizeChange={retryScroll ? onSkyContentSizeChange : undefined}
       >
         {body}
       </SkyScrollView>

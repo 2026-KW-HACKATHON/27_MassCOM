@@ -1,4 +1,4 @@
-import * as Application from 'expo-application';
+import { getAppPackageId } from '@/config/app-identity';
 import { Button, Host } from '@expo/ui';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
@@ -14,10 +14,14 @@ import { colorsForScheme } from '@/theme/palette';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { makeAuthRequiredStyles } from './styles';
 
-type Props = {
+// Shared with index.web.tsx (the web build has no Google sign-in, Issue #309), so both screens
+// accept the same props from _layout.tsx / route.tsx regardless of platform.
+export type Props = {
   state: Exclude<AuthSessionState, { status: 'signedIn' } | { status: 'demo' }>;
   canSignIn: boolean;
+  canStartGuestTrial: boolean;
   onSignIn: () => Promise<void>;
+  onGuestSignIn: () => Promise<void>;
   onBackToRole?: () => void;
   onBackToBrowse?: () => void;
   /** Sky header for a page reached from the header avatar; it scrolls with the prompt and lets the sky show through. */
@@ -57,7 +61,7 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole, o
       header={header}
       contentContainerStyle={[styles.content, header ? { backgroundColor: 'transparent' } : null, { paddingBottom: Math.max(40 + insets.bottom, clearance) }]}
     >
-      <Text style={styles.eyebrow}>{accountContextLabel(Application.applicationId)}</Text>
+      <Text style={styles.eyebrow}>{accountContextLabel(getAppPackageId())}</Text>
       <Text selectable style={styles.title}>방문 기록을 안전하게{`\n`}이어서 확인합니다.</Text>
       <Text selectable style={styles.body}>
         Google 계정으로 로그인하면 로그인 후 서버가 발급한 보안 토큰만 기기의 보안 저장소에 보관해요. 지갑이 없어도 음식점 탐색과 방문 도감은 사용할 수 있어요.

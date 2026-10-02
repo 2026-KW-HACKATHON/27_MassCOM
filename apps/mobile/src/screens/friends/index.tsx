@@ -1,5 +1,5 @@
+import { getAppPackageId } from '@/config/app-identity';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Application from 'expo-application';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Pressable, RefreshControl, Share, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions, type ScrollViewProps } from 'react-native';
@@ -28,6 +28,7 @@ import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { BounceButton } from '@/ui/bounce-button';
+import { canUseCamera } from '@/ui/can-use-camera';
 import { FloatingCard } from '@/ui/floating-card';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
@@ -66,7 +67,7 @@ export function FriendsScreen({
   const world = worldForScheme(scheme);
   const styles = useFriendsStyles();
   const { width } = useWindowDimensions();
-  const variant = linkVariantFor(Application.applicationId);
+  const variant = linkVariantFor(getAppPackageId());
   const api = useMemo(
     () => createFriendsApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
@@ -395,7 +396,7 @@ export function FriendsScreen({
       <Stagger index={1}>
         <FloatingCard style={styles.card}>
           <Text accessibilityRole="header" style={styles.eyebrow}>친구 추가</Text>
-          {scanning ? (
+          {canUseCamera && scanning ? (
             <View style={styles.camera}>
               <CameraView
                 style={StyleSheet.absoluteFill}
@@ -427,14 +428,16 @@ export function FriendsScreen({
           ) : null}
           <View style={styles.actions}>
             <View style={styles.action}><BounceButton label={adding ? '추가하는 중…' : '추가'} disabled={adding} onPress={submitTyped} /></View>
-            <View style={styles.action}>
-              <BounceButton
-                label={scanning ? '촬영 닫기' : 'QR 촬영'}
-                variant="secondary"
-                disabled={adding}
-                onPress={scanning ? () => setScanning(false) : () => void startScan()}
-              />
-            </View>
+            {canUseCamera ? (
+              <View style={styles.action}>
+                <BounceButton
+                  label={scanning ? '촬영 닫기' : 'QR 촬영'}
+                  variant="secondary"
+                  disabled={adding}
+                  onPress={scanning ? () => setScanning(false) : () => void startScan()}
+                />
+              </View>
+            ) : null}
           </View>
         </FloatingCard>
       </Stagger>

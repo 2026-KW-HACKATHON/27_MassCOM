@@ -96,7 +96,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
                 </View>
                 <View style={styles.roleChoices}>
                   <RoleChoice title="사용자예요" subtitle="나의 공간으로 시작" role="customer" onPress={() => choose('customer')} />
-                  <RoleChoice title="점주예요" subtitle={onChooseRole ? '로그인하면 점주 권한을 확인해요' : '점주 화면 미리보기'} role="merchant" onPress={() => choose('merchant')} />
+                  <RoleChoice title="점주예요" subtitle={!onChooseRole ? '점주 화면 미리보기' : Platform.OS === 'web' ? '내 체험 가게가 바로 열려요' : '로그인하면 점주 권한을 확인해요'} role="merchant" onPress={() => choose('merchant')} />
                 </View>
                 <Text style={[styles.footnote, { color: world.skyMuted }]}>편하게 선택해 주세요. 언제든 바꿀 수 있어요.</Text>
               </>

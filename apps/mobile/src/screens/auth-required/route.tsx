@@ -13,9 +13,17 @@ export function AuthRequiredRoute({ header }: { header?: ReactNode }) {
     header={header}
     state={auth.state}
     canSignIn={auth.canSignIn}
+    canStartGuestTrial={auth.canStartGuestTrial}
     onSignIn={async () => {
       rememberMerchantReturn(merchantId);
       try { await auth.signIn(); } catch (error) {
+        rememberMerchantReturn(undefined);
+        throw error;
+      }
+    }}
+    onGuestSignIn={async () => {
+      rememberMerchantReturn(merchantId);
+      try { await auth.signInAsGuest(); } catch (error) {
         rememberMerchantReturn(undefined);
         throw error;
       }

@@ -66,7 +66,7 @@ test('my card shows the nickname, the big code, a QR of the fragment link, a sys
   assert.match(screen, /const ROTATE_CONFIRM = '새 코드를 만들면 예전 코드로는 더 이상 추가할 수 없어요\. 지금 친구는 그대로예요\.'/);
   assert.match(screen, /Alert\.alert\('코드 바꾸기', ROTATE_CONFIRM/);
   // The QR and share text follow the installed package: the showcase app shares no https link (its host does not exist yet).
-  assert.match(screen, /linkVariantFor\(Application\.applicationId\)/);
+  assert.match(screen, /linkVariantFor\(getAppPackageId\(\)\)/);
 });
 
 test('adding takes a typed code in upper case or a scanned QR, and a QR or link is confirmed before it adds', () => {

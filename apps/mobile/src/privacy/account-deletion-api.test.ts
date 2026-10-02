@@ -3,6 +3,30 @@ import { test } from 'node:test';
 
 import { AccountDeletionApiClient } from './account-deletion-api';
 
+test('the default fetcher works called as this.fetchImpl(...), not just as a bare function (#309 web)', async () => {
+  const originalFetch = globalThis.fetch;
+  function brandCheckedFetch(this: unknown) {
+    if (this !== globalThis) {
+      throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
+    }
+    return Promise.resolve(Response.json({
+      requestId: 'req-1', status: 'COMPLETED', requestedAt: '2026-10-01T00:00:00.000Z',
+      completedAt: '2026-10-01T00:00:01.000Z', cancelledMintJobs: 0, pendingMintJobs: 0,
+      retainedFinalizedNfts: 0, replayed: false,
+    }));
+  }
+  globalThis.fetch = brandCheckedFetch as typeof fetch;
+  try {
+    const client = new AccountDeletionApiClient({
+      apiUrl: 'https://api.example.test',
+      credential: { kind: 'bearer', sessionToken: 'session' },
+    });
+    assert.equal((await client.requestDeletion()).requestId, 'req-1');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('requests account deletion through the authenticated API without wallet secrets', async () => {
   let receivedUrl = '';
   let receivedInit: RequestInit | undefined;

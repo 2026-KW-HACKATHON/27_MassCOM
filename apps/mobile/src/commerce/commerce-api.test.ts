@@ -733,12 +733,26 @@ test('점주 체험 권한 요청 조회·생성은 인증 헤더로만 간다(#
       return Response.json({ request: { code: 'ABCDEFGH', status: 'PENDING', createdAt: '2026-10-01T00:00:00.000Z', decidedAt: null } }, { status: 201 });
     },
   });
-  assert.deepEqual(await client.getShowcaseAccessState(), { request: null, staff: false, approver: true });
+  assert.deepEqual(await client.getShowcaseAccessState(), { request: null, staff: false, approver: true, trialMerchantId: null });
   assert.deepEqual(await client.requestShowcaseAccess(), { code: 'ABCDEFGH', status: 'PENDING', createdAt: '2026-10-01T00:00:00.000Z', decidedAt: null });
   assert.deepEqual(requests, [
     { url: 'https://api.example.test/showcase/access-requests/mine', method: undefined, body: undefined },
     { url: 'https://api.example.test/showcase/access-requests', method: 'POST', body: {} },
   ]);
+});
+
+test('체험 로그인 계정의 권한 조회는 자기 체험 가게 id를 돌려주고, 없는 필드는 null로 본다(#309)', async () => {
+  const withTrial = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'guest-session' },
+    fetcher: async () => Response.json({ request: null, staff: true, approver: false, trialMerchantId: 'trial-abc123' }),
+  });
+  assert.deepEqual(await withTrial.getShowcaseAccessState(), { request: null, staff: true, approver: false, trialMerchantId: 'trial-abc123' });
+
+  const olderServer = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ request: null, staff: false, approver: true }),
+  });
+  assert.equal((await olderServer.getShowcaseAccessState()).trialMerchantId, null);
 });
 
 test('점주 체험 권한 요청의 잘못된 응답과 요청 실패는 성공으로 바뀌지 않는다(#294)', async () => {

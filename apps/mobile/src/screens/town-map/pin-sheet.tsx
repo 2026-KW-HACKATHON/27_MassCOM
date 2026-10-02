@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Alert, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
+import { focusForAccessibility } from '@/accessibility/focus-component';
 import { recommendMerchant } from '@/friends/recommend-share';
 import { motion } from '@/motion/timing';
 import { useMotionEnabled } from '@/motion/use-motion';
@@ -42,7 +43,7 @@ export function PinSheet({ pin, bottom, onClose, onMeasure }: Props) {
   // A screen reader would stay on the pin underneath: move it to the shop name whenever a shop's card opens.
   useEffect(() => {
     const focus = setTimeout(() => {
-      if (title.current) AccessibilityInfo.sendAccessibilityEvent(title.current, 'focus');
+      if (title.current) focusForAccessibility(title.current);
     }, FOCUS_DELAY_MS);
     return () => clearTimeout(focus);
   }, [pin.merchantId]);

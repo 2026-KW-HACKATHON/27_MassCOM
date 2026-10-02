@@ -22,12 +22,18 @@ export function getPublicApiConfig(environment: PublicApiEnvironment): PublicApi
   };
 }
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '10.0.2.2']);
+
+/** 로컬 개발 API가 흔히 쓰는 호스트 이름(Android 에뮬레이터의 `10.0.2.2` 포함). */
+export function isLoopbackHost(hostname: string): boolean {
+  return LOOPBACK_HOSTS.has(hostname);
+}
+
 export function normalizePublicApiUrl(value: string): string {
   const normalized = value.replace(/\/+$/, '');
   const url = new URL(normalized);
-  const loopbackHosts = new Set(['127.0.0.1', 'localhost', '10.0.2.2']);
 
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopbackHosts.has(url.hostname))) {
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopbackHost(url.hostname))) {
     throw new Error('EXPO_PUBLIC_API_URL must use HTTPS outside approved local development hosts');
   }
 

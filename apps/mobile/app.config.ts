@@ -15,12 +15,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const showcase = variant === 'showcase';
   const releaseLike = production || showcase;
   const buildSourceCommit = process.env.MASSCOM_BUILD_SOURCE_COMMIT;
+  const webBaseUrl = process.env.MASSCOM_WEB_BASE_URL?.trim();
   validateBuildEnvironment(variant, {
     EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
     EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     EXPO_PUBLIC_REOWN_PROJECT_ID: process.env.EXPO_PUBLIC_REOWN_PROJECT_ID,
     MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID: process.env.MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID,
     MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+    MASSCOM_WEB_BASE_URL: webBaseUrl,
     EXPO_PUBLIC_DEMO_ACCOUNT_ID: process.env.EXPO_PUBLIC_DEMO_ACCOUNT_ID,
     EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID: process.env.EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID,
     EXPO_PUBLIC_DEMO_MERCHANT_ID: process.env.EXPO_PUBLIC_DEMO_MERCHANT_ID,
@@ -50,6 +52,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         : (config.name ?? '월계 마스코트 개발'),
     slug: config.slug ?? 'masscom-mobile',
     scheme: production ? 'masscom' : showcase ? 'masscom-demo' : 'masscom-dev',
+    // 웹 체험은 시연 전용이다(PR #313 리뷰 P1). 실측(2026-10-02): `platforms`를 좁혀도
+    // `expo export --platform web`은 여전히 성공한다 — Expo CLI가 export 때 이 필드를 보지
+    // 않는다(`expo start`의 플랫폼 메뉴 등에만 영향). 그래서 이 필드는 참고용으로만 남기고,
+    // 실제 방어는 MASSCOM_WEB_BASE_URL이 showcase에만 허용되는 위 validateBuildEnvironment 검사와
+    // (그 검사를 피해 web을 내보내도) auth-provider.tsx의 런타임 가드
+    // (getAppPackageId() + API origin 조합, isApprovedGuestTrialOrigin)가 맡는다.
+    platforms: showcase ? ['android', 'web'] : ['android'],
+    experiments: {
+      ...config.experiments,
+      ...(webBaseUrl ? { baseUrl: webBaseUrl } : null),
+    },
     extra: {
       ...config.extra,
       masscomShowcase: showcase

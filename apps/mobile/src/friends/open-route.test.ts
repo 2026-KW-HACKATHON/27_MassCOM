@@ -10,7 +10,7 @@ test('the open route sends a friend link to the friends tab, a merchant link to 
   assert.match(route, /Linking\.useLinkingURL\(\)/);
   assert.match(route, /useLocalSearchParams<\{ '#'\?: string \}>\(\)/);
   // Each build reads only its own links, told apart by its installed package.
-  assert.match(route, /resolveOpenTarget\(url, fragment, linkVariantFor\(Application\.applicationId\)\)/);
+  assert.match(route, /resolveOpenTarget\(url, fragment, linkVariantFor\(getAppPackageId\(\)\)\)/);
   assert.match(route, /rememberPendingFriendCode\(target\.code\);\s*router\.replace\('\/friends'\)/);
   // A friend link that cannot be used still opens the friends tab, which says why in one line.
   assert.match(route, /rememberPendingFriendProblem\(target\.problem\);\s*router\.replace\('\/friends'\)/);

@@ -10,6 +10,29 @@ type ActiveBindingMatcher = (
   chainId: number,
 ) => string | undefined;
 
+test('the default fetcher works called as this.#fetcher(...), not just as a bare function (#309 web)', async () => {
+  // A real browser's native fetch brand-checks its receiver and throws "Illegal invocation" unless
+  // bound to window first; Node's fetch never checks this, so a mocked fetcher elsewhere in this
+  // file would never catch a regression. This replaces the global to reproduce that browser check.
+  const originalFetch = globalThis.fetch;
+  function brandCheckedFetch(this: unknown) {
+    if (this !== globalThis) {
+      throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
+    }
+    return Promise.resolve(Response.json({ binding: null }));
+  }
+  globalThis.fetch = brandCheckedFetch as typeof fetch;
+  try {
+    const client = new WalletApiClient({
+      apiUrl: 'https://api.example.test',
+      credential: { kind: 'bearer', sessionToken: 'server-session' },
+    });
+    assert.deepEqual(await client.getActiveBinding(), { binding: null });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('sends the account boundary and Base Sepolia challenge request', async () => {
   const requests: { url: string; init?: RequestInit }[] = [];
   const client = new WalletApiClient({

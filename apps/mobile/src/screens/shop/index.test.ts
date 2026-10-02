@@ -113,9 +113,23 @@ test('#314가 찾은 근본 원인(도감의 같은 sky()와 동일): 로딩→�
   assert.match(skyFn, /ref=\{retryScroll \? skyScrollView : undefined\}/);
   // retryScroll이 꺼진 호출(성공 화면)에서는 onContentSizeChange를 아예 안 달아, 정상적인 당겨서 새로고침 때
   // 사용자가 보고 있던 위치로 되돌리지 않는다.
-  assert.match(skyFn, /onContentSizeChange=\{retryScroll \? \(_width, height\) => \{/);
-  // 이 자리의 scrollTo는 아무 효과가 없다 — 한 프레임 미뤄야 네이티브가 새 크기를 반영한다(#314 PR #320과 동일).
-  assert.match(skyFn, /requestAnimationFrame\(\(\) => skyScrollView\.current\?\.scrollTo\(\{ y: height, animated: false \}\)\);/);
+  assert.match(skyFn, /onContentSizeChange=\{retryScroll \? onSkyContentSizeChange : undefined\}/);
+});
+
+test('PR #320 리뷰(도감에서 같은 수정을 상점에도 포팅): 재스크롤은 내용 높이가 실제로 늘었을 때만 일어난다 — 오류를 다시 읽으려 위로 스크롤한 사용자를 끌어내리지 않는다', () => {
+  assert.match(screen, /const skyContentHeight = useRef\(0\);/);
+  // JSX 안 인라인 화살표로 ref를 읽으면 react-hooks/refs가 "prop으로 바로 넘긴 함수 리터럴 안의 ref 읽기"를
+  // 렌더 중 접근 가능성으로 보고 lint를 막는다(도감 PR #320 리뷰에서 실제로 겪은 lint 실패) — useCallback으로 뺀다.
+  const callbackFn = screen.slice(screen.indexOf('const onSkyContentSizeChange ='), screen.indexOf('const quietRefresh ='));
+  assert.match(callbackFn, /useCallback\(\(_width: number, height: number\) => \{/);
+  // 가드가 먼저 — 늘지 않았으면 쥐고 있던 높이도 안 바꾸고 스크롤도 안 한다(재시도 재렌더가 같은 높이로
+  // 다시 불러도 no-op).
+  assert.match(callbackFn, /if \(height <= skyContentHeight\.current\) return;/);
+  assert.match(callbackFn, /skyContentHeight\.current = height;/);
+  assert.ok(
+    callbackFn.indexOf('if (height <= skyContentHeight.current) return;') < callbackFn.indexOf('requestAnimationFrame'),
+    '가드는 스크롤을 예약하기 전에 와야 한다',
+  );
 });
 
 test('PR #312 QA: 뽑기 연출은 다른 화면의 모달들처럼 SkyBackdrop 안, SkyScrollView의 형제로 둔다(RefreshControl 중복 없이)', () => {
