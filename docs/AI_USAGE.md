@@ -146,6 +146,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드) | Issue #318 모바일 npm audit 좁은 예외(D-066, 소유자 결정) | `scripts/audit-ci.mjs`·예외 목록·시험 작성 | `node --test tests/ops/audit_ci_test.mjs` 6/6, 변이 3건, `npm run audit:ci` PASS, Claude 독립 검토 |
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드) | Issue #316 계정 삭제 처리 시험의 고정 시계 시한폭탄 수정 | 시험 하나에서 서비스 시계를 옛 INSERT 행의 `requested_at`에 맞춤(운영 코드 무변경) | CI와 같은 비밀번호 인증 PostgreSQL로 통합 시험 전체 실행, Codex 검토 |
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드 오케스트레이션, Sonnet 5.5 executor) | 운영·시연 서버 재배포(`a39b983`) 기록(Issue #321 서버 부분) | 메인 스레드가 확인한 배포·브라우저 결과를 증거 JSON(`deployment-a39b983-2026-10-02.json`)과 HANDOFF·PROJECT_STATE·TEST_STATUS·README·두 인프라 README·BLOCKERS로 정리(Sonnet 문서 작업, 서버 접근 없음) | `python3 -m json.tool`, `bash tools/gate.sh`, 사람이 검토할 수 있는 PR |
+| 2026-10-03 | Claude Code(Opus 5.5 메인 스레드가 배포·실기 확인, Sonnet 5.5 executor가 이 문서 PR 작성) | 운영·시연 서버 재배포(`b8d981d`)와 시연 봉투 열기 실기 확인 기록(Issue #321 마무리) | 메인 스레드가 한 시연·운영 배포(시연 수동 절차, 운영 `scripts/deploy-lightsail.sh --deploy`)와 Samsung 실기 확인 결과를 증거 JSON(`deployment-b8d981d-2026-10-03.json`)과 README·HANDOFF·TEST_STATUS·PROJECT_STATE·인프라 README에 옮겨 적었다. 앱·API·서버 코드와 시험은 바꾸지 않았다 | `bash tests/site/verify_project_site_test.sh`, `node --test tests/site/*.mjs`, `bash tests/site/verify_evidence_consistency_test.sh`, `git diff --check`, 배포 사실은 메인 스레드가 서버·실기로 직접 확인(증거 JSON) |
 
 ## 팀 설명 체크리스트
 
