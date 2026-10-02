@@ -30,11 +30,16 @@ test('PR #312 리뷰 4번: SHOP_STATE_CHANGED는 새로고침이 끝날 때까�
 });
 
 test('PR #312 리뷰 8번: 한 등급을 구매하는 동안 다른 등급 버튼도 모두 비활성화된다(조용히 무시되는 탭 방지)', () => {
-  assert.match(screen, /purchaseBusy=\{Boolean\(busyGrade\)\}/);
+  assert.match(screen, /purchaseBusy=\{Boolean\(busyGrade\) \|\| avatarBusy\}/);
   const gradeRow = screen.slice(screen.indexOf('function GradeRow('), screen.indexOf('function FriendCell('));
   assert.match(gradeRow, /purchaseBusy: boolean/);
   assert.match(gradeRow, /const disabled = button\.disabled \|\| purchaseBusy;/);
   assert.match(gradeRow, /disabled=\{disabled\}/);
+});
+
+test('PR #312 리뷰 라운드 4: avatarBusy 동안에도 새 뽑기를 막는다 — 닫힌 모달의 대표 설정 실패가 새로 연 뽑기 모달 뒤에 숨지 않는다', () => {
+  const buyFn = screen.slice(screen.indexOf('async function buy('), screen.indexOf('async function chooseAvatar('));
+  assert.match(buyFn, /if \(busyGrade \|\| avatarBusy\) return;/);
 });
 
 test('PR #312 "대표 해제": 가진 친구는(대표든 아니든) 탭할 수 있고, 이미 대표면 해제를, 아니면 설정을 묻는다', () => {
@@ -73,10 +78,10 @@ test('cross-review 3번: revealRef는 reveal이 바뀔 때마다 동기화돼 �
   assert.doesNotMatch(chooseFn, /if \(reveal\)/, 'catch/then은 reveal을 직접 읽으면 안 된다(요청 시작 시점의 낡은 값)');
 });
 
-test('PR #312 QA: 오류 문구가 줄바꿈돼도 "다시 불러오기" 버튼이 하단 탭 바에 가려지지 않게 clearance를 한 번 더 비워 둔다', () => {
+test('PR #312 리뷰 라운드 4: 오류 화면의 중복 clearance spacer는 되돌렸다(근본 원인 불명 — 에뮬레이터 QA가 재현해서 실제 원인을 고친다)', () => {
   const errorBranch = screen.slice(screen.indexOf("shop.status === 'error'"), screen.indexOf(": sky(<StateScene kind=\"loading\""));
   assert.match(errorBranch, /<StateScene kind="error" title="상점을 불러오지 못했어요"/);
-  assert.match(errorBranch, /<View style=\{\{ height: clearance \}\} \/>/);
+  assert.doesNotMatch(errorBranch, /<View style=\{\{ height: clearance \}\} \/>/, '100% 글자에서 섹션 간격+clearance만큼 빈 공간이 남는 중복 여백을 다시 넣지 않는다');
 });
 
 test('PR #312 QA: 뽑기 연출은 다른 화면의 모달들처럼 SkyBackdrop 안, SkyScrollView의 형제로 둔다(RefreshControl 중복 없이)', () => {

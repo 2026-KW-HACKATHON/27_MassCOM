@@ -141,6 +141,9 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
   const scrimElevation = Number(scrim.match(/scrim: \{[\s\S]*?elevation: (\d+)/)?.[1]);
   assert.ok(Number.isInteger(cardElevation) && cardElevation > 0, 'base card elevation found');
   assert.ok(scrimElevation > cardElevation, `scrim elevation (${scrimElevation}) must exceed every card's (${cardElevation})`);
+  // elevation만 Z 순서에 쓰고 Android의 네이티브 드롭 섀도는 받지 않는다 — 안 그러면 스크림 밑에 옅은 그림자 선이
+  // 생긴다(PR #312 리뷰, Claude P1).
+  assert.match(scrim, /scrim: \{[\s\S]*?shadowColor: 'transparent'/);
 });
 
 test('the sky art is the top of the scroll content: the headers carry it and SkyBackdrop is only the page colour', () => {

@@ -1,5 +1,13 @@
 # HANDOFF
 
+## 2026-10-02 Issue #298 PR #312 리뷰 라운드 4(Claude REQUEST_CHANGES 3건)
+
+- 기준: main `36fed73`(변동 없음), 브랜치 `feat/298-shop-mobile`, worktree `.worktrees/298-shop-mobile`, PR #312(같은 PR에 반영). Claude의 2a6f83f 리뷰가 지적한 3건을 고쳤다. 상태 바 스크림·오류 화면 여백(앞 라운드 1·3번)은 기기로 재확인하기로 했으므로 더 추정하지 않았다.
+- 구현: (1) [P1] `ui/status-bar-scrim.tsx`: `elevation: 24`가 Android에서 스크림 아래에도 네이티브 드롭 섀도를 그려 옅은 그림자 선이 생길 수 있었다 — `shadowColor: 'transparent'`를 더해 elevation은 Z 순서에만 쓰고 그림자는 받지 않게 했다(`pointerEvents="none"`은 이미 있음). (2) [P2] `screens/shop/index.tsx`: 오류 화면의 중복 clearance spacer(`<View style={{height: clearance}} />`)를 되돌렸다 — 근본 원인이 불명확한 채 100% 글자에서 섹션 간격+clearance만큼 빈 공간을 남기고 있었다. 기기 QA가 두 줄 줄바꿈을 재현해 실제 원인을 찾을 것. (3) [P2] `screens/shop/index.tsx`: `buy()`가 `avatarBusy` 동안에도 막게 했고(`if (busyGrade || avatarBusy) return;`), `GradeRow`의 `purchaseBusy`에도 `avatarBusy`를 더했다 — 안 그러면 닫힌 모달에서 아직 날아가고 있는 대표 설정 요청이 늦게 실패했을 때, 그 사이 새로 연 뽑기 모달 뒤에 그 알림이 깔려 아무도 못 봤다.
+- 검증: `npm test --prefix apps/mobile` 1076/1076 PASS(신규 1건, 기존 시험 갱신 3건), `npm run typecheck`·`npm run lint --prefix apps/mobile` PASS, `node scripts/check-accessibility-semantics.mjs apps/mobile/src` PASS, `npm run export:android --prefix apps/mobile` PASS, `bash tools/gate.sh` PASS. `collection/**`·claim 관련 파일은 건드리지 않았다(git diff로 확인). 변이 시험 3건(스크래치 사본에서 되돌려 실패 확인 뒤 복구): `shadowColor: 'transparent'` 제거, 되돌린 spacer를 다시 넣기, `buy()`의 `avatarBusy` 검사 제거 — 전부 대응 시험이 실패함을 확인했다.
+- `NOT_RUN`: 실기기·에뮬레이터 재확인(오케스트레이터가 다음 라운드에서 상태 바 스크림·오류 화면 여백을 직접 재현), 이번 수정에 대한 독립 리뷰.
+- 다음 작업: [PR #312](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/312) 에뮬레이터 QA(상태 바 스크림 재확인, 오류 화면 두 줄 줄바꿈 재현), 재리뷰·CI.
+
 ## 2026-10-02 Issue #298 PR #312 에뮬레이터 QA 대응(상태 바 스크림·큰 글자 부제·오류 화면 여백·뽑기 모달 경합)
 
 - 기준: main `36fed73`(변동 없음), 브랜치 `feat/298-shop-mobile`, worktree `.worktrees/298-shop-mobile`, PR #312(같은 PR에 반영). 오케스트레이터의 실제 에뮬레이터 QA가 지적한 4건(HIGH 2·MEDIUM 1·Codex 2차 confirm-review P2 1)을 고쳤다. `collection/**`·방문 인증 clearance는 다른 에이전트가 #314를 고치는 중이라 건드리지 않았다.

@@ -76,7 +76,9 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
   }
 
   async function buy(grade: ShopGradeView) {
-    if (busyGrade) return;
+    // avatarBusy 동안에도 새 뽑기를 막는다 — 안 그러면 닫힌 모달에서 아직 날아가고 있는 대표 설정 요청이
+    // 실패했을 때 그 알림이 방금 연 새 뽑기 모달 뒤에 깔려 아무도 못 본다(PR #312 리뷰 라운드 4).
+    if (busyGrade || avatarBusy) return;
     const attempt = resumeOrStartPurchase(pending, grade.grade);
     setPending(attempt);
     setBusyGrade(grade.grade);
@@ -169,15 +171,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
 
   if (!shop.snapshot) {
     return shop.status === 'error'
-      ? sky(
-          <>
-            <StateScene kind="error" title="상점을 불러오지 못했어요" body={shopErrorMessage(shop.error)} action={{ label: '다시 불러오기', onPress: () => { void shop.retry(); }, disabled: shop.retrying }} />
-            {/* PR #312 QA: 오류 문구가 두 줄로 줄바꿈되면 마지막 줄과 "다시 불러오기" 버튼이 하단 플로팅 탭 바에
-                가려졌다. contentContainerStyle의 paddingBottom(clearance)이 이미 여백을 두지만, 긴 문구 뒤에는
-                그만큼을 한 번 더 비워 둔다. */}
-            <View style={{ height: clearance }} />
-          </>,
-        )
+      ? sky(<StateScene kind="error" title="상점을 불러오지 못했어요" body={shopErrorMessage(shop.error)} action={{ label: '다시 불러오기', onPress: () => { void shop.retry(); }, disabled: shop.retrying }} />)
       : sky(<StateScene kind="loading" title="상점을 불러오는 중" />);
   }
 
@@ -212,7 +206,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
               grade={grade}
               balance={snapshot.mileage.balance}
               busy={busyGrade === grade.grade}
-              purchaseBusy={Boolean(busyGrade)}
+              purchaseBusy={Boolean(busyGrade) || avatarBusy}
               onBuy={() => void buy(grade)}
               styles={styles}
             />
