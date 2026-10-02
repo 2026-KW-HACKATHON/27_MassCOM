@@ -48,6 +48,7 @@ import {
   type RedeemedClaimSlot,
 } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
+import type { MileageShopHistory, MileageShopService, MileageShopSnapshot } from './mileage-shop.js';
 import { ReversalError, type ReversalErrorCode, type ReversalService } from './reversal.js';
 import {
   MerchantArtError,
@@ -235,6 +236,7 @@ async function startFixture(
   consent?: ConsentService,
   accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
   guestTrials?: Pick<ShowcaseGuestTrialService, 'start' | 'resolve'>,
+  mileageShop?: MileageShopService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -275,7 +277,7 @@ async function startFixture(
     consent,
     undefined,
     undefined,
-    undefined,
+    mileageShop,
     accessRequests,
     guestTrials,
   );
@@ -970,8 +972,8 @@ test('#295 showcase test-visit route exists only when wired, rate-limits, issues
     ['redeem', { accountId: 'acct_a', token: 'showcase-token' }],
   ]);
 
-  // 계정당 10회/시간(#295). 위 두 호출(invalidBody, issued)이 이미 2회를 썼으니 8번 더 통과하고 그다음은 429다.
-  for (let i = 0; i < 8; i += 1) {
+  // 계정당 60회/시간(#333이 #295의 10회에서 올림). 위 두 호출(invalidBody, issued)이 이미 2회를 썼으니 58번 더 통과하고 그다음은 429다.
+  for (let i = 0; i < 58; i += 1) {
     assert.equal((await fetch(`${showcase}/showcase/test-visits`, {
       method: 'POST', headers: { 'x-account-id': 'acct_a', 'content-type': 'application/json' },
       body: JSON.stringify({ merchantId: 'showcase-merchant-a' }),
@@ -1001,6 +1003,84 @@ test('#295 showcase test-visit route exists only when wired, rate-limits, issues
     assert.equal(response.status, status, code);
     assert.deepEqual(await response.json(), { code });
   }
+});
+
+// #333: 서버 배선(옵션을 시연 배치에서만 넘기는 일)은 server.ts 시작 코드라 showcase/all-access.test.ts가 showcaseAllAccessOptions로,
+// 서비스 동작은 Postgres 통합 시험이 따로 증명한다. 여기서는 HTTP 층이 운영에서 시연 경로를 열지 않고 마일리지 응답을 그대로 전달하는지만 본다.
+function mileageShopFixture(snapshot: MileageShopSnapshot, history: MileageShopHistory): MileageShopService {
+  return {
+    getShop: async () => snapshot,
+    getHistory: async () => history,
+    reroll: async () => { throw new Error('unexpected reroll call'); },
+    setAvatar: async () => { throw new Error('unexpected setAvatar call'); },
+  };
+}
+
+async function startShopFixture(
+  t: TestContext,
+  shop: MileageShopService,
+  claims?: ClaimSlotFixture,
+  accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
+): Promise<string> {
+  // claimSlots(5번째)와 accessRequests(28번째) 사이, 그리고 guestTrials(29번째)는 비워 두고 mileageShop(30번째)만 채운다.
+  return startFixture(
+    t, undefined, undefined, undefined, claims, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, accessRequests, undefined, shop,
+  );
+}
+
+test('#333 operating server keeps /showcase/test-visits closed even with claim slots, and its shop response has no showcaseBonus', async (t) => {
+  const rules = { visit: 50, newStore: 100, series: 200 };
+  const operatingSnapshot: MileageShopSnapshot = {
+    mileage: { earned: 150, spent: 0, balance: 150, rules }, grades: [], items: [], avatar: null,
+  };
+  const operatingHistory: MileageShopHistory = {
+    mileage: { earned: 150, spent: 0, balance: 150 }, spends: [], nextCursor: null,
+  };
+  const calls: string[] = [];
+  const claims = claimSlotFixture({
+    issueShowcaseTestSlot: async () => { calls.push('issue'); throw new Error('must not be called in operating'); },
+    redeem: async () => { calls.push('redeem'); throw new Error('must not be called in operating'); },
+  });
+  const operating = await startShopFixture(t, mileageShopFixture(operatingSnapshot, operatingHistory), claims);
+
+  // accessRequests(시연 배치 신호)가 없으면 서비스가 설정돼 있어도 404이고 발급·수령은 호출되지 않는다.
+  const closed = await fetch(`${operating}/showcase/test-visits`, {
+    method: 'POST', headers: { 'x-account-id': 'acct_a', 'content-type': 'application/json' },
+    body: JSON.stringify({ merchantId: 'showcase-merchant-a' }),
+  });
+  assert.equal(closed.status, 404);
+  assert.deepEqual(await closed.json(), { code: 'NOT_FOUND' });
+  assert.deepEqual(calls, []);
+
+  const shop = await fetch(`${operating}/shop`, { headers: { 'x-account-id': 'acct_a' } });
+  assert.equal(shop.status, 200);
+  const shopBody = await shop.json() as { mileage: Record<string, unknown> };
+  assert.deepEqual(shopBody.mileage, { earned: 150, spent: 0, balance: 150, rules });
+  assert.equal('showcaseBonus' in shopBody.mileage, false);
+  const history = await fetch(`${operating}/shop/history`, { headers: { 'x-account-id': 'acct_a' } });
+  assert.deepEqual(((await history.json()) as { mileage: unknown }).mileage, { earned: 150, spent: 0, balance: 150 });
+});
+
+test('#333 a showcase server passes the shop showcaseBonus through next to the real earned mileage', async (t) => {
+  const rules = { visit: 50, newStore: 100, series: 200 };
+  const boosted: MileageShopSnapshot = {
+    mileage: { earned: 150, spent: 0, balance: 100_150, showcaseBonus: 100_000, rules }, grades: [], items: [], avatar: null,
+  };
+  const showcase = await startShopFixture(
+    t,
+    mileageShopFixture(boosted, { mileage: { earned: 150, spent: 0, balance: 100_150, showcaseBonus: 100_000 }, spends: [], nextCursor: null }),
+    undefined,
+    accessRequestsFixture(),
+  );
+  const shop = await fetch(`${showcase}/shop`, { headers: { 'x-account-id': 'acct_a' } });
+  assert.deepEqual(((await shop.json()) as { mileage: unknown }).mileage, boosted.mileage);
+  const history = await fetch(`${showcase}/shop/history`, { headers: { 'x-account-id': 'acct_a' } });
+  assert.deepEqual(
+    ((await history.json()) as { mileage: unknown }).mileage,
+    { earned: 150, spent: 0, balance: 100_150, showcaseBonus: 100_000 },
+  );
 });
 
 const adminIntake: AdminDeletionIntake = {

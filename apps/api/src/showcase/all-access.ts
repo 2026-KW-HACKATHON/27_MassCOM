@@ -13,6 +13,18 @@ export const SHOWCASE_MAX_BACKDATE_DAYS = 29;
 // 시연 시드 캠페인의 시작 시각을 시드 시각보다 이만큼(일) 앞에 둔다. SHOWCASE_MAX_BACKDATE_DAYS(29)보다 하루 크다.
 export const SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS = 30;
 
+// server.ts가 서비스를 만들 때 펼쳐 넘기는 시연 전용 옵션의 유일한 출처. 운영(false)은 빈 객체라 서비스는 옵션 기본값 그대로 만들어진다.
+export function showcaseAllAccessOptions(showcaseDeployment: boolean): {
+  claimSlots: { showcaseTestVisitBackdating?: true };
+  mileageShop: { showcaseBonusMileage?: number; rerollRateLimit?: number };
+} {
+  if (!showcaseDeployment) return { claimSlots: {}, mileageShop: {} };
+  return {
+    claimSlots: { showcaseTestVisitBackdating: true },
+    mileageShop: { showcaseBonusMileage: SHOWCASE_BONUS_MILEAGE, rerollRateLimit: SHOWCASE_REROLL_RATE_LIMIT },
+  };
+}
+
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const kstDatePattern = /^\d{4}-\d{2}-\d{2}$/;

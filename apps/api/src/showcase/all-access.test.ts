@@ -9,6 +9,7 @@ import {
   SHOWCASE_TEST_VISIT_LIMIT_PER_HOUR,
   earliestShowcaseVisitDate,
   pickShowcaseVisitDate,
+  showcaseAllAccessOptions,
 } from './all-access.js';
 
 // 한국 시각을 읽기 쉽게 쓰려는 도우미: '2026-10-03T09:30:00+09:00' 같은 ISO 문자열을 ms로 바꾼다.
@@ -25,6 +26,17 @@ test('showcase all-access constants are the owner-visible numbers', () => {
   assert.equal(SHOWCASE_TEST_VISIT_LIMIT_PER_HOUR, 60);
   assert.equal(SHOWCASE_MAX_BACKDATE_DAYS, 29);
   assert.equal(SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS, 30);
+});
+
+test('showcaseAllAccessOptions: operating passes nothing at all, only a showcase deployment opens bonus, backdating and the wider reroll limit', () => {
+  const operating = showcaseAllAccessOptions(false);
+  assert.deepEqual(operating, { claimSlots: {}, mileageShop: {} });
+  assert.deepEqual(Object.keys(operating.claimSlots), []);
+  assert.deepEqual(Object.keys(operating.mileageShop), []);
+  assert.deepEqual(showcaseAllAccessOptions(true), {
+    claimSlots: { showcaseTestVisitBackdating: true },
+    mileageShop: { showcaseBonusMileage: 100_000, rerollRateLimit: 600 },
+  });
 });
 
 test('pickShowcaseVisitDate: with nothing used it picks today and occurredAt is exactly now', () => {
