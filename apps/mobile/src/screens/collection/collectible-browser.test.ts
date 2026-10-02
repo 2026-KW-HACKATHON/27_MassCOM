@@ -17,3 +17,16 @@ test('NftStatusRow lets a grouped (duplicate) card expand to each entitlement\'s
   assert.match(row, /nftGroupSummary\(entitlements, mint\.nftMinting\)/);
   assert.match(row, /entitlements\.find\(\(entry\) => canOfferMint\(entry\.nftStatus, mint\.nftMinting\)\)/);
 });
+
+// Issue #314: this Pressable is the direct child of `<Link asChild>`, which renders through expo-router's <Slot>.
+// Slot throws a render error (not just a warning) when a direct child receives an array-valued `style` — this was
+// the true first failure behind the 도감 탭 white-screen crash for any account with an NFT-eligible, unbound-wallet
+// collectible. See primary-tabs.test.ts for the same convention elsewhere in the app.
+test('the "외부 지갑 주소 확인" Link child does not pass a style array to Expo Router Slot (#314)', () => {
+  const link = source.match(/<Link href="\/wallet" asChild>([\s\S]*?)<\/Link>/)?.[1];
+  assert.ok(link, 'wallet Link in NftStatusRow');
+  const pressable = link.match(/<Pressable\b[^>]*>/)?.[0];
+  assert.ok(pressable, 'Link direct Pressable child');
+  assert.doesNotMatch(pressable, /style=\{\s*\[/, 'Expo Router Slot rejects array-valued child styles');
+  assert.match(pressable, /style=\{StyleSheet\.flatten\(/);
+});

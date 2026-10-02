@@ -1,5 +1,15 @@
 # HANDOFF
 
+## 2026-10-02 Issue #314 도감 탭 흰 화면 크래시 (Android, release blocker)
+
+- 기준: main `439ba83`, worktree `.worktrees/314-album-crash`, 브랜치 `fix/314-album-crash`, PR 미정. 운영·시연 두 variant가 공유하는 `apps/mobile/src/screens/collection/` 공통 코드만 고쳤다.
+- 재현: 로컬 QA(`scripts/qa-local.sh`) 에뮬레이터 `MassCOM_Design_QA`에서 수집품을 하나 이상 가진 계정이 도감 탭을 열면(직접 탭 또는 방문 수령 뒤 "도감에서 보기") 흰 화면으로 멈췄다. `adb logcat`·Metro 로그로 두 레드박스의 실제 발생 순서를 확인해야 했다(겉보기엔 둘 다 index.tsx:157을 가리켜 혼동하기 쉬움).
+- 진짜 원인(1차 레드박스): `collectible-browser.tsx`의 `NftStatusRow`가 그리는 "외부 지갑 주소 확인" `<Link href="/wallet" asChild>`의 `Pressable`이 배열 `style`을 그대로 받아, expo-router의 `<Slot>`이 개발 모드에서 **렌더 오류를 던졌다**(`[expo-router]: You are passing an array of styles to a child of <Slot>`, 경고가 아니라 오류). 이 분기는 `nftStatus === 'NOT_REQUESTED'`이고 외부 지갑을 아직 연결하지 않은 계정에서만 렌더되므로, 수집품이 없는 계정은 이 코드 경로 자체를 타지 않아 못 봤다. `StyleSheet.flatten`으로 고쳤다 — 같은 파일의 다른 `<Link asChild>`(가게 추천, 역할 미리보기 등)와 `primary-tabs.test.ts`가 이미 쓰던 관례와 동일.
+- 2차 레드박스("Attempted to navigate before mounting the Root Layout")는 1차 오류가 Root Layout을 다시 마운트시키는 동안 `index.tsx`의 `useFocusEffect` 정리 함수가 여전히 `router.setParams`를 호출해 생긴 연쇄 충돌이었다. **실기 반증:** `useNavigationContainerRef().isReady()`로 호출 전 확인하는 1차 수정을 실제 에뮬레이터에 올려 글꼴 배율(1.0→2.0)·명암 전환으로 액티비티가 재생성되는 상황을 재현했더니 **가드를 통과한 뒤에도 같은 오류가 또 던져졌다** — 언마운트 중인 화면이 들고 있는 `navigationRef`는 전역 스토어가 이미 새 ref로 바뀐 뒤에도 예전 네이티브 컨테이너 기준으로 "준비됨"을 잘못 보고하기 때문이다(hook으로 캡처한 값은 구조적으로 언마운트 cleanup 시점의 "지금" 전역 상태를 읽을 수 없다). expo-router는 렌더 밖에서 그 "지금"을 읽는 공개 API를 제공하지 않아(`router.canGoBack()`은 tab 네비게이터에서 항상 false라 대체 불가), `clearCollectionFocusParams` 헬퍼로 바꿔 그 문서화된 실패 메시지만 좁게 잡는 `try/catch`로 교체했다(다른 예외는 그대로 다시 던진다).
+- 같은 QA에서 발견한 2차 버그: 도감 "도감을 불러오지 못했어요" 오류 화면의 "다시 불러오기" 버튼이 **첫 화면에서부터** 탭 막대 뒤에 가려져 있었다(스크롤하면 나오지만 아무 단서가 없었다). `sky()` 로딩 장면(짧음)이 먼저 마운트되고 오류 장면(김)으로 내용이 자라는데, `contentOffset`은 최초 마운트에만 적용돼 그 성장을 따라가지 못했다. `onContentSizeChange` 콜백에서 `scrollTo`를 바로 부르는 것도 실기로는 무효였다(네이티브 쪽이 새 크기를 아직 스크롤 가능 범위에 반영하기 전이라 그대로 clamp됨) — `requestAnimationFrame` 한 프레임을 미루고 나서야 먹혔다.
+- 검증: `npm test --prefix apps/mobile` 1023/1023 PASS(새 `test()` 3건: 지갑 Link flatten 회귀, `clearCollectionFocusParams` 가드 회귀, 오류 장면 재스크롤 회귀 + 기존 1건 기대값 갱신), `npm run typecheck`·`npm run lint --prefix apps/mobile` PASS, `npm run export:android --prefix apps/mobile` PASS, `bash tools/gate.sh` PASS. 변이 시험 3건(각각 되돌려 새 시험이 실패함을 확인 후 복구): `StyleSheet.flatten` 제거, `try/catch` 가드를 평범한 `router.setParams` 호출로 되돌림, `requestAnimationFrame` 지연 제거. 에뮬레이터 `MassCOM_Design_QA`에서 글꼴 1.0(밝은 테마)·2.0(어두운 테마) 양쪽으로 두 진입 경로·오류 화면을 각각 재확인하고 [캡처 7장](evidence/314-album-crash/)을 남겼다.
+- `NOT_RUN`: 방문 인증 탭의 "테스트 방문 만들기"·가상 점포 B·C가 가운데 뜬 탭 버튼에 가려진다는 제보는 이번 QA에서 코드를 읽고(`useTabBarClearance` 정상 적용 확인) 글꼴 1.0·2.0 정지 상태에서 여러 차례 재현을 시도했으나 재현하지 못했다 — 코드를 바꾸지 않았다. 독립 리뷰, 실제 기기(에뮬레이터 아닌) 확인.
+
 ## 2026-10-02 Issue #309(시연 웹 체험, 클라이언트) 인수인계
 
 - 기준: main `e2091f2`에 origin/main(#308 병합분 포함) 병합, worktree `.worktrees/309-web`, 브랜치 `feat/309-showcase-web`, PR 미정. 서버 쪽(체험 세션·체험 가게 목록 제외·로컬 Bearer)은 별도 PR #311(`feat/309-guest-trial-api`, 미병합)이 다루고, 이 브랜치는 Expo 웹 빌드 클라이언트만 구현한다.
