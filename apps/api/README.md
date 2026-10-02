@@ -79,7 +79,7 @@ npm run start:local
 - `POST /auth/reauthenticate`(Bearer + `{ idToken }`) → 같은 Google 계정일 때만 재인증 시각 갱신
 
 - `GET /health`
-- `GET /merchants`: 로그인·지갑 없이 활성 점포와 공개 중인 현재 캠페인 조회. 각 점포에 `artUrl`(사장님이 적용한 AI 그림의 상대 경로 `/merchant-art/<sha256>.webp`, 없으면 `null`)이 있다
+- `GET /merchants`: 로그인·지갑 없이 활성 점포와 공개 중인 현재 캠페인 조회. 각 점포에 `artUrl`(사장님이 적용한 AI 그림의 상대 경로 `/merchant-art/<sha256>.webp`, 없으면 `null`)이 있다. 또 `visitorTags: [{code, count}]`(방문한 손님이 고른 가게 특징 집계, 아래 "방문 후 가게 특징" 참고)가 있고 아무도 안 골랐으면 빈 배열이다
 - `GET /collection`: 서버가 확인한 계정의 유효 방문·앱 수집품과 `NOT_REQUESTED / QUEUED / CONFIRMING / FINALIZED / REVIEW_REQUIRED` NFT 상태 조회; 정확한 식사 시각과 token 제외. 각 수집품에 `earnedAt`(보상을 받은 시각, `reward_entitlements.earned_at`)이 있어, 같은 게시 수집품을 다른 캠페인 주기로 여러 번 받았을 때 앱이 개수와 받은 날짜로 묶어 보일 수 있다(#283).
 - `GET /recommendations`: 정원 마감 제외·미방문 우선·다음 고정 보상과 한국 날짜 회전을 reason code와 함께 조회
 - `POST /campaigns/:id/enrollments`: 공개·진행 중·기간 내 캠페인의 참여 정원을 단일 조건부 UPDATE로 예약합니다. 신규 `201`, 같은 계정 재요청 `200`(자리 추가 사용 없음), 정원 마감·참여 불가 `409`, 없는·비공개 캠페인 `404`, 삭제된 계정 `410`. 삭제·취소로 자리를 반환하지 않습니다.
@@ -125,6 +125,12 @@ npm run start:local
   - `POST /shop/rerolls` `{grade, requestId, expectedRemaining}` → `201 {item: {id, grade, name}, balance, replayed}`. `requestId`는 멱등 키이며 같은 값 재요청은 등급이 같으면 새 요청 없이 같은 품목과 **지금** 잔액을 돌려주고(`replayed: true`), 등급이 다르면 거절한다. 그 등급 안 미소유 품목 중 `crypto.randomInt`로 균등하게 하나를 고른다. 오류는 `400 INVALID_REQUEST`, `402 SHOP_INSUFFICIENT_MILEAGE`, `409 SHOP_GRADE_COMPLETE`(그 등급 다 가짐)·`SHOP_STATE_CHANGED`(본문의 `expectedRemaining`이 지금 remaining과 다름, 과금 없음)·`SHOP_REQUEST_CONFLICT`(같은 `requestId`를 다른 등급으로 재사용), `410 ACCOUNT_DELETED`, `429 SHOP_RATE_LIMITED`(계정당 시간당 30회, `Retry-After` 초)
   - `PUT /shop/avatar` `{itemId}`(소유한 품목 id 또는 `null`) → `200 {avatar}`. 가지지 않은 품목은 `404 SHOP_ITEM_NOT_OWNED`
   - 트랜잭션은 다른 방문 수령·되돌리기와 같은 계정 잠금(`assertActive`)만 쓰고 상점 전용 별도 잠금은 없다. 계정 삭제는 지출 원장·소유 캐릭터·대표 캐릭터 세 테이블을 가명 처리 없이 지운다(대표 캐릭터는 그 캐릭터가 지워지면 FK로 자동 `NULL`). 운영·시연 모두 동작(시연 전용 게이트 없음)
+- **방문 후 가게 특징·바라는 점·의견(Bearer, Issue #334, D-069, migration 0040).** 방문을 인증받은 손님이 그 가게의 특징 태그(최대 3, 공개 집계)와 사장님께 바라는 점(최대 2)·짧은 의견(100자 이하)을 남긴다. 계정당 가게마다 한 줄이고 다시 저장하면 통째로 덮어쓴다. 자유 글 후기·별점은 없고, 바라는 점·의견은 그 가게 점주·직원에게만 보이며 공개 응답에는 어디에도 없다. 코드·라벨 목록은 `src/visitor-feedback-rules.ts` 한 곳에 있다(태그 `SOLO`·`TAKEOUT`·`GENEROUS`·`QUIET`·`KIND`·`VALUE`·`STUDENT`·`DESSERT`, 바라는 점 `SOLO_MENU`·`SPICE_LABEL`·`MORE_PHOTOS`·`STUDENT_DISCOUNT`·`HOURS_INFO`).
+  - `GET /me/merchant-feedback/:merchantId` → `{tags, suggestions, note}`. 남긴 것이 없으면 `{tags: [], suggestions: [], note: null}`. 내 선택만 돌려준다
+  - `PUT /me/merchant-feedback/:merchantId` `{tags, suggestions, note}`(이 세 키만, `tags`·`suggestions`는 배열 필수, `note`는 없거나 `null`이면 비어 있음) → `200 {tags, suggestions, note}`(정규화한 저장값: 중복 제거, 정해진 순서). 의견은 되돌리기 메모와 같은 거름망(공백 정리, 100자 코드 포인트, 이메일·웹 주소·긴 숫자열 거절)을 거치고 빈 의견은 `null`이다. 세 칸이 모두 비면 행을 지운다(방문 자격이 없어져도 스스로 거둘 수 있다). 오류는 `400 VISITOR_FEEDBACK_TAGS_INVALID`(모르는 코드·중복을 접은 뒤 3개 초과)·`VISITOR_FEEDBACK_SUGGESTIONS_INVALID`(2개 초과)·`VISITOR_FEEDBACK_NOTE_INVALID`(100자 초과·개인정보 거절), `400 INVALID_REQUEST`(모르는 키), `403 VISITOR_FEEDBACK_NOT_ELIGIBLE`(그 가게에 유효한 방문이 없음, 직원 본인 적립은 세지 않음, 로그인 없는 체험 가게), `410 ACCOUNT_DELETED`, `429 VISITOR_FEEDBACK_RATE_LIMITED`(계정당 시간당 30회, `Retry-After` 초, API 프로세스 메모리 기준), `503 VISITOR_FEEDBACK_NOT_CONFIGURED`
+  - `GET /api/web/merchant/merchants/:merchantId/visitor-feedback`(점주 웹 쿠키, `CONFIRM_VISIT`이고 내 실제 점포 소속 검사, 방문 취소 경로와 같음) → `{tags: [{code, label, count}], suggestions: [{code, label, count}], notes: [{customerLabel, date, text}]}`. 점포 안에서는 기준 없이 1표도 센다(개수 내림차순 뒤 정해진 코드 순서). `notes`는 의견이 있는 최근 50건(마지막 수정 순)이며 `customerLabel`은 방문 취소 화면과 같은 가림 표시(`손님 K7QM`), `date`는 한국 날짜 `YYYY-MM-DD`뿐이고 시각·계정 ID는 없다. 다른 점포·권한 없음은 `403 MERCHANT_ACCESS_DENIED`
+  - 공개 집계는 `GET /merchants`의 `visitorTags`다. 같은 태그를 실제 점포는 3명 이상(시연 점포는 1명 이상)이 골랐을 때만 싣고 개수 내림차순, 같으면 정해진 코드 순서다. 바라는 점·의견은 싣지 않는다. 피드백이 없는 점포도 목록에 나오고 목록 순서·공개 조건은 그대로다
+  - 방문 자격은 `visit_events`에 그 가게의 `status = 'VALID'`이고 `progress_excluded_reason IS NULL`인 행이 하나라도 있는 것이다. 저장은 다른 계정 쓰기 서비스와 같은 계정 잠금(`assertActive`)을 잡아 삭제 중인 계정은 쓸 수 없고, 계정 삭제는 이 계정의 행을 가명 없이 지운다. 개인정보 동의 버전은 올리지 않았다(D-069)
 - `POST /wallet/challenges`
 - `POST /wallet/verify`
 - `GET /wallets/active-binding`: 서버가 확인한 현재 binding ID·version·주소 조회
