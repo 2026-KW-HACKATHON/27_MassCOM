@@ -24,6 +24,18 @@
 - **정리:** 이번 라운드에 쓴 로컬 API 프로세스·프록시·`masscom-qa-pg-309c` 컨테이너는 모두 종료·삭제했다. 기존 로컬 PostgreSQL+API(포트 3102, worktree `apps/api`)는 다음 작업자가 계속 쓸 수 있도록 남겨 뒀다(필요 없으면 정리).
 - `NOT_RUN`(이전 항목과 동일): 실제 서버 PR #311과의 배포 통합, Caddy·compose 배포, 실제 Chrome 외 브라우저 수동 QA.
 - 다음 작업: 사람 PR 리뷰·병합, B-029 원인 조사(React-DOM 소스맵·최소 재현으로 컴포넌트 특정), 그 뒤 Android variant에도 같은 결함이 있는지 실기 교차 확인.
+## 2026-10-02 Issue #318 모바일 npm audit 좁은 예외
+
+- 기준: main, worktree `.worktrees/318-audit`, 브랜치 `fix/318-audit-exception`.
+- 원인: 2026-10-02 공개된 `node-forge` GHSA-86w9-cpqp-85rv(high, 고친 버전 없음)가 `expo` → `@expo/cli` → `@expo/code-signing-certificates` 경로로 잡혀 모든 PR의 모바일 CI(`audit:ci`)가 실패했다.
+- 수정(소유자 결정 D-066): `scripts/audit-ci.mjs` + `scripts/audit-exceptions.json`(만료 2026-10-31), `apps/mobile` `audit:ci` 교체, CI에 시험 추가. API·worker 감사는 그대로다.
+- 다음 작업: 고친 버전이 나오면 의존성을 올리고 예외를 지운다(B-030).
+## 2026-10-02 Issue #316 계정 삭제 처리 시험 시계 수정
+
+- 기준: main `439ba83`, worktree `.worktrees/316-test-clock`, 브랜치 `fix/316-deletion-test-clock`.
+- 원인: 옛 배포 API의 INSERT를 흉내 낸 행은 `requested_at`이 DB 실제 시각인데 서비스 시계는 `2026-10-01T00:00Z` 고정이라, 2026-10-02 00:00 UTC부터 다시 접수 시 `cancel_until`이 `requested_at`보다 일러 CHECK 위반. 시험 전용 문제.
+- 수정: 그 시험에서만 `clock.now = legacy.requested_at`. 운영 코드·migration 무변경.
+- 다음 작업: CI 통과 뒤 병합, 막혀 있던 PR(#310 등) CI 재실행.
 
 ## 2026-10-02 Issue #309 로그인 없는 시연 웹 체험 (서버·Caddy)
 
