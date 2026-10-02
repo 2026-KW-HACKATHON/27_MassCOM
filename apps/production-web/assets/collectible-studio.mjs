@@ -174,7 +174,34 @@ export function createCollectibleStudio(container, { effectNames }) {
   rewardsBody.prepend(seasonTiles('theme')); rewardsBody.prepend(field('name'));
   panels[3].append(motionDetail, materials, voice, rewards, livingDetail, story);
   controls.replaceChildren(...panels);
-  const footer = node('div', 'ce-stage-footer'); footer.append(action('← 이전 단계', 'previous-step'), action('다음 단계 →', 'next-step', undefined, 'primary')); workspace.append(footer, grid.querySelector('.ce-publish'));
+  const preview = grid.querySelector('.ce-preview'), publishBox = grid.querySelector('.ce-publish');
+  const previewActions = field('angle').nextElementSibling;
+  const iconize = (button, icon) => { button.setAttribute('aria-label', button.textContent); button.textContent = icon; button.classList.add('ce-icon-button'); return button; };
+  const play = iconize(previewActions.querySelector('[data-action="play"]'), '▶'), pause = iconize(previewActions.querySelector('[data-action="pause"]'), '❚❚');
+  const previewRow = node('div', 'ce-preview-row'); previewRow.append(play, pause, field('angle'));
+  const previewMore = disclosure('미리보기 옵션', previewActions.querySelector('[data-action="replay"]'), previewActions.querySelector('[data-action="angle-reset"]'), control('reduce-motion').closest('label'), view('preview-caption'), view('greeting'));
+  previewMore.classList.add('ce-preview-more');
+  previewActions.remove();
+  // 예전 게시 묶음(.ce-publish)은 해체한다: 초안·게시 중지·삭제는 ⋯ 메뉴로, 게시는 하단 바로, 안내·배포 상태는 4단계 게시 정보로, 저장 상태는 알림 줄로 옮긴다. 복제하지 않고 옮기기만 한다.
+  const draft = container.querySelector('[data-action="draft"]'), publish = container.querySelector('[data-action="publish"]');
+  const unpublish = container.querySelector('[data-action="unpublish"]'), remove = container.querySelector('[data-action="delete"]');
+  rewardsBody.append(publishBox.querySelector('.ce-help'), view('distribution'));
+  const statusLine = node('div', 'ce-status-line'); statusLine.append(view('save-state'));
+  publishBox.remove();
+  preview.append(previewRow, previewMore);
+  publish.textContent = '게시하기';
+  const previous = action('← 이전', 'previous-step'), nextButton = action('다음 →', 'next-step', undefined, 'primary'), fullPreview = action('전체 미리보기', 'replay', undefined, 'ce-full-preview');
+  const footer = node('div', 'ce-stage-footer'); footer.append(previous, fullPreview, nextButton, publish);
+  const menu = node('div', 'ce-menu'); menu.id = `${title.id}-menu`; menu.hidden = true; menu.append(draft, unpublish, remove);
+  const menuToggle = node('button', 'ce-menu-button', '⋯'); menuToggle.type = 'button';
+  menuToggle.setAttribute('aria-label', '더 많은 작업'); menuToggle.setAttribute('aria-expanded', 'false'); menuToggle.setAttribute('aria-controls', menu.id);
+  const setMenu = open => { menu.hidden = !open; menuToggle.setAttribute('aria-expanded', String(open)); };
+  menuToggle.addEventListener('click', () => setMenu(menu.hidden));
+  menu.addEventListener('click', event => { if (event.target.closest('[data-action]')) setMenu(false); });
+  workspaceHeading.append(menuToggle, menu);
+  workspace.append(statusLine, footer);
+  // 알림은 작업 영역에서는 하단 바 위 알림 줄, 스튜디오 홈에서는 홈 맨 위에 둔다(showStep·showHome이 옮긴다).
+  const noticeView = view('notice');
   let targetSignature = '';
   function syncChoices() {
     for (const tile of container.querySelectorAll('[data-action="choice"]')) tile.setAttribute('aria-pressed', String(control(tile.dataset.controlFor)?.value === tile.dataset.id));
@@ -204,13 +231,14 @@ export function createCollectibleStudio(container, { effectNames }) {
     for (const panel of panels) panel.hidden = Number(panel.dataset.stepPanel) !== currentStep;
     for (const tile of navigation.children) { if (Number(tile.dataset.id) === currentStep) tile.setAttribute('aria-current', 'step'); else tile.removeAttribute('aria-current'); }
     grid.querySelector('.ce-preview').hidden = currentStep === 1;
-    footer.querySelector('[data-action="previous-step"]').hidden = currentStep === 1;
-    footer.querySelector('[data-action="next-step"]').hidden = currentStep === 4;
+    previous.hidden = currentStep === 1; nextButton.hidden = currentStep === 4;
+    fullPreview.hidden = currentStep !== 4; publish.hidden = currentStep !== 4;
+    statusLine.prepend(noticeView); setMenu(false);
     if (focus) { title.focus({ preventScroll: true }); title.scrollIntoView({ block: 'start', behavior: 'instant' }); }
     syncChoices();
   }
   function showHome(focus = true) {
-    workspace.hidden = true; home.hidden = false; resume.hidden = !hasCurrent;
+    workspace.hidden = true; home.hidden = false; resume.hidden = !hasCurrent; home.prepend(noticeView); setMenu(false);
     if (focus) { const heading = home.querySelector('h3'); heading.tabIndex = -1; heading.focus({ preventScroll: true }); heading.scrollIntoView({ block: 'start', behavior: 'instant' }); }
   }
   function renderProjects(projects, selectedId = '') {

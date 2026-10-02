@@ -735,7 +735,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     // 점을 전부 지운(또는 아직 칠하지 않은) 항목을 그대로 저장하면 그 등급을 쓰지 않아도 COLLECTIBLE_INVALID_PROJECT로
     // 초안 저장조차 거절된다(validateCollectibleProject는 등급 연결 여부와 무관하게 구조 전체를 검사한다).
     if (project.living.items.some(item => item.target === 'region' && (!item.strokes || item.strokes.length === 0))) {
-      navigateStep(4); notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
+      navigateStep(4); control('living-kind').closest('details').open = true; notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
     }
     if (publish) {
       setBusy(true); const refreshed = await refreshCampaigns(); setBusy(false);

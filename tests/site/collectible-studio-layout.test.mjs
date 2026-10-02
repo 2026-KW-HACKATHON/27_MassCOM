@@ -308,3 +308,68 @@ test('값이 있는 필터가 여럿이면 먼저 오는 것을 보인다', asyn
   assert.equal(ui.q('[data-filter="simplify"]').getAttribute('aria-pressed'), 'true');
   assert.equal(ui.q('[data-edit="cartoon"]').value, '20', '보이지 않는 필터 값도 그대로다');
 });
+
+const visible = node => { for (let item = node; item; item = item.parentElement) if (item.hidden) return false; return true; };
+
+test('하단 바: 1단계는 다음만, 2~3단계는 이전·다음, 4단계는 전체 미리보기·게시하기', async () => {
+  const ui = await mountStudio();
+  const footer = ui.q('.ce-stage-footer');
+  const shown = () => ['previous-step', 'replay', 'next-step', 'publish'].filter(name => { const button = footer.querySelector(`[data-action="${name}"]`); return button && !button.hidden; });
+  assert.deepEqual(shown(), ['next-step']);
+  await ui.act('next-step'); assert.deepEqual(shown(), ['previous-step', 'next-step']);
+  await ui.act('next-step'); assert.deepEqual(shown(), ['previous-step', 'next-step']);
+  await ui.act('next-step'); assert.deepEqual(shown(), ['previous-step', 'replay', 'publish']);
+  assert.equal(footer.querySelector('[data-action="publish"]').textContent, '게시하기');
+});
+
+test('초안 저장·게시 중지·삭제는 ⋯ 메뉴에만 있고 메뉴는 열고 닫힌다', async () => {
+  const ui = await mountStudio();
+  const menu = ui.q('.ce-menu'), toggle = ui.q('.ce-menu-button');
+  for (const name of ['draft', 'unpublish', 'delete']) {
+    assert.equal(ui.all(`[data-action="${name}"]`).length, 1, name);
+    assert.ok(ui.q(`[data-action="${name}"]`).closest('.ce-menu'), name);
+  }
+  assert.equal(ui.all('[data-action="publish"]').length, 1);
+  assert.equal(ui.q('.ce-publish'), null, '예전 게시 묶음은 없어졌다');
+  assert.equal(menu.hidden, true); assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  await ui.click(toggle);
+  assert.equal(menu.hidden, false); assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  assert.equal(toggle.getAttribute('aria-controls'), menu.id);
+  await ui.act('step', '2');
+  assert.equal(menu.hidden, true, '단계를 옮기면 메뉴가 닫힌다');
+});
+
+test('알림은 작업 영역에서는 하단 바 위, 스튜디오 홈에서는 홈 위에 있다', async () => {
+  const ui = await mountStudio();
+  const notice = ui.q('[data-view="notice"]');
+  assert.ok(notice.closest('.ce-status-line'), '작업 영역의 알림 줄');
+  assert.ok(ui.q('[data-view="save-state"]').closest('.ce-status-line'));
+  await ui.act('home');
+  assert.ok(notice.closest('[data-view="studio-home"]'), '홈으로 돌아오면 홈 위로');
+  assert.equal(visible(notice), true);
+});
+
+test('미리보기는 등급·캔버스·재생/각도 줄만 펼치고 나머지는 미리보기 옵션에 접는다', async () => {
+  const ui = await mountStudio();
+  const preview = ui.q('.ce-preview');
+  assert.ok(ui.q('[data-action="play"]').closest('.ce-preview-row'));
+  assert.ok(ui.q('[data-control="angle"]').closest('.ce-preview-row'));
+  assert.equal(ui.q('[data-action="play"]').getAttribute('aria-label'), '재생');
+  const more = preview.querySelector('.ce-preview-more');
+  assert.equal(more.open, false);
+  for (const selector of ['[data-action="angle-reset"]', '[data-control="reduce-motion"]', '[data-view="preview-caption"]', '[data-view="greeting"]']) assert.ok(ui.q(selector).closest('.ce-preview-more'), selector);
+  assert.ok(ui.q('[data-view="distribution"]').closest('details').querySelector('[data-control="campaign"]'), '배포 상태는 게시 정보 안');
+});
+
+test('칠한 점이 없는 살아 있는 그림이 있어 저장이 4단계로 돌려보내면 "살아 있는 그림"이 열려 있다', async () => {
+  const ui = await mountStudio();
+  const living = ui.q('[data-control="living-kind"]').closest('details');
+  assert.equal(living.open, false, '처음에는 접혀 있다');
+  await ui.act('living-add'); await ui.act('step', '1');
+  assert.equal(ui.q('[data-view="workspace"]').dataset.step, '1');
+  await ui.act('draft');
+  assert.match(ui.q('[data-view="notice"]').textContent, /칠한 점이 없는/);
+  assert.equal(ui.q('[data-view="workspace"]').dataset.step, '4', '저장 검증이 4단계로 돌려보낸다');
+  assert.equal(living.open, true, '칠할 영역이 보이도록 살아 있는 그림이 열린다');
+  assert.equal(ui.api.calls.filter(call => call.method === 'POST').length, 0, '서버로 저장 요청을 보내지 않는다');
+});
