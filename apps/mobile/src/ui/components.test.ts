@@ -155,6 +155,15 @@ test('the sky art is the top of the scroll content: the headers carry it and Sky
   assert.match(read('sky-scroll-view.tsx'), /<ScrollView[\s\S]*\{header\}[\s\S]*<\/ScrollView>/);
 });
 
+test('SkyScrollView forwards refreshControl (and other ScrollView props) to the native ScrollView unchanged (PR #312 리뷰 라운드 6)', () => {
+  // 기기 QA: 상점의 당겨서 새로고침이 의심받았다 — 실제로는 `{...rest}`로 그대로 전달돼 멀쩡하다. `refreshControl`을
+  // 따로 분해해 어딘가 다른 곳에 두면(예: 새 기능 추가 중) 당겨도 아무 일도 없는 것처럼 보이는 회귀가 생긴다.
+  const source = read('sky-scroll-view.tsx');
+  const props = source.slice(source.indexOf('{ header, onHeaderLayout'), source.indexOf(') {'));
+  assert.doesNotMatch(props, /refreshControl/, 'refreshControl은 구조분해하지 않고 ...rest로 그대로 넘긴다');
+  assert.match(source, /<ScrollView[\s\S]*\{\.\.\.rest\}[\s\S]*<\/ScrollView>/);
+});
+
 test('no tab screen, the settings page or a stack page pins its header outside the scroll content', () => {
   const screens = [
     'screens/merchant-list/index.tsx', 'screens/collection/index.tsx', 'screens/claim-redeem/index.tsx',

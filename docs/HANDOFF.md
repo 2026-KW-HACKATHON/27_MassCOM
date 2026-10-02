@@ -1,5 +1,14 @@
 # HANDOFF
 
+## 2026-10-02 Issue #298 PR #312 리뷰 라운드 6(기기 QA: 상점 탭 재진입 시 마일리지 잔액이 낡음)
+
+- 기준: main(라운드 5와 동일, 이번 라운드에서 main이 더 움직이지 않아 병합 없음), 브랜치 `feat/298-shop-mobile`, worktree `.worktrees/298-shop-mobile`, PR #312(같은 PR에 반영). 257d1c7(라운드 5)의 기기 QA에서 스크림·오류 화면·부제 줄바꿈·구매→대표 설정 경합 4건은 모두 PASS했고, 새로 찾은 실제 결함 1건을 고쳤다.
+- 원인: 상점 탭은(홈 탭과 같은 이유로, `use-shop-avatar-art.ts` 참고) 다른 탭으로 옮겨도 마운트된 채로 남는다(탭이 언마운트되지 않음). 방문으로 마일리지를 번 뒤 상점으로 돌아와도 처음 마운트할 때 불러온 잔액이 그대로 보였다 — 탭을 다시 포커스해도 다시 불러오는 코드가 없었다. 당겨서 새로고침(`RefreshControl`→`refresh()`→`shop.refreshQuietly()`)은 코드를 확인한 결과 처음부터 정상 배선돼 있었다(`ui/sky-scroll-view.tsx`가 `refreshControl`을 `{...rest}`로 그대로 네이티브 `ScrollView`에 넘긴다) — 기기 QA가 "당겨도 안 됐다"고 본 것은 아마 포커스 재진입 때 낡은 값이 다시 덮어써진 것과 혼동됐을 가능성이 있다(재현 안 됨, `NOT_RUN`으로 남김).
+- 구현: `screens/shop/index.tsx`에서 `refresh()`의 "새로고침 성공 시 대기 중인 구매 시도 지우기" 로직을 `quietRefresh()`로 뽑아 당겨서 새로고침과 탭 포커스 재진입이 같은 규칙을 공유하게 했다. `useFocusEffect(useCallback(() => { void quietRefresh(); }, [quietRefresh]))`를 더해 탭이 다시 포커스를 받을 때마다 조용히 새로고침한다 — `refreshQuietly()`는 `shop-loader.ts`의 기존 latest-gate를 그대로 타므로 그사이 확정된 구매·대표 설정을 뒤늦게 덮어쓰지 않는다. `quietRefresh`의 의존성은 `shop.refreshQuietly`(use-shop.ts에서 이미 `useCallback`으로 고정됨)만 쓰고 `shop` 전체는 넣지 않았다 — `shop`은 매 렌더 새 객체라, 전체를 넣으면 구매 중 상태가 바뀔 때마다 `useFocusEffect`가 다시 실행돼 쓸데없는 GET /shop을 또 보낸다(`eslint-disable-next-line react-hooks/exhaustive-deps`로 표시). 당겨서 새로고침 배선이 회귀하지 않도록 `ui/components.test.ts`에 `SkyScrollView`가 `refreshControl`을 구조분해하지 않고 그대로 넘긴다는 시험을 더했다.
+- 검증: `npm test --prefix apps/mobile` 1094/1094 PASS(신규 2건: `screens/shop/index.test.ts` 1건, `ui/components.test.ts` 1건), `npm run typecheck`·`npm run lint --prefix apps/mobile` PASS(경고 0건), `node scripts/check-accessibility-semantics.mjs apps/mobile/src` PASS, `npm run export:android --prefix apps/mobile` PASS, `bash tools/gate.sh` PASS. `collection/**`은 건드리지 않았다(git diff로 확인). 변이 시험 2건(스크래치 사본에서 되돌려 실패 확인 뒤 복구): `useFocusEffect` 배선 제거(새 시험 실패 확인), `sky-scroll-view.tsx`에서 `refreshControl`을 구조분해해 떼어내기(새 시험 실패 확인) — 둘 다 복구했다.
+- `NOT_RUN`: 실기기·에뮬레이터 재확인(탭 재진입 시 최신 잔액을 실제로 보여주는지), "당겨서 새로고침이 안 됐다"는 기기 QA 관찰의 재현(코드상으로는 처음부터 정상 배선이었다), 이번 수정에 대한 독립 리뷰.
+- 다음 작업: [PR #312](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/312) 기기 QA(탭 재진입 시 잔액 갱신 확인), 재리뷰·CI.
+
 ## 2026-10-02 Issue #298 PR #312 리뷰 라운드 5(#314가 에뮬레이터에서 찾은 오류 화면 clearance 근본 원인 포팅)
 
 - 기준: main `715881e`(PR #310 병합분, apps/mobile 겹침 없음), 브랜치 `feat/298-shop-mobile`, worktree `.worktrees/298-shop-mobile`, PR #312(같은 PR에 반영). 오케스트레이터가 전해준 #314 에이전트의 실제 에뮬레이터 QA 근본 원인(도감의 같은 `sky()` 헬퍼에서 재현, PR #320 `fix/314-album-crash`)을 상점의 `sky()`에 포팅했다. 라운드 3·4에서 내가 추정으로 시도했던 "clearance 두 배"와 "되돌리기"는 둘 다 근본 원인을 고치지 못한 추측이었다.

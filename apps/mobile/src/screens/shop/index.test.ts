@@ -11,9 +11,20 @@ const screen = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url
 const reveal = readFileSync(fileURLToPath(new URL('./draw-reveal.tsx', import.meta.url)), 'utf8');
 
 test('PR #312 리뷰 2번: 새로고침이 서버 결과를 보여줬을 때만 대기 중인 구매 시도를 지운다 — 다음 탭은 새 requestId로 시작한다', () => {
+  // 리뷰 라운드 6에서 당겨서 새로고침·탭 포커스 재진입이 같은 규칙을 공유하도록 quietRefresh()로 뽑았다
+  // (refresh()는 이제 그 결과만 기다린다).
+  const quietRefreshFn = screen.slice(screen.indexOf('const quietRefresh ='), screen.indexOf('useFocusEffect('));
+  assert.match(quietRefreshFn, /const refreshed = await shop\.refreshQuietly\(\);/);
+  assert.match(quietRefreshFn, /if \(refreshed\) setPending\(undefined\);/);
   const refreshFn = screen.slice(screen.indexOf('async function refresh()'), screen.indexOf('async function buy('));
-  assert.match(refreshFn, /const refreshed = await shop\.refreshQuietly\(\);/);
-  assert.match(refreshFn, /if \(refreshed\) setPending\(undefined\);/);
+  assert.match(refreshFn, /await quietRefresh\(\);/);
+});
+
+test('PR #312 리뷰 라운드 6: 상점 탭이 다시 포커스를 받을 때마다 조용히 새로고침한다 — 다른 화면에서 번 마일리지가 돌아왔을 때 옛 잔액으로 남지 않는다', () => {
+  // 기기 QA: 방문으로 마일리지를 번 뒤 상점 탭으로 돌아와도(탭은 마운트된 채로 남는다) 다시 포커스를 받을
+  // 때까지는 처음 불러온 잔액이 그대로 보였다. use-shop-avatar-art.ts의 useFocusEffect와 같은 모양.
+  assert.match(screen, /import \{ useFocusEffect \} from 'expo-router';/);
+  assert.match(screen, /useFocusEffect\(useCallback\(\(\) => \{ void quietRefresh\(\); \}, \[quietRefresh\]\)\);/);
 });
 
 test('PR #312 리뷰 4번: SHOP_STATE_CHANGED는 새로고침이 끝날 때까지 구매를 막고(실패하면 안내만 다르게), 성공 문구를 재사용한다', () => {

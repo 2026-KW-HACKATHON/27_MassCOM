@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Image, Pressable, RefreshControl, Text, View, useColorScheme, useWindowDimensions, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -67,14 +68,30 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
   // 없다 — 아래 sky()에서 로딩/오류 두 갈래에만 이 ref를 건네 내용 크기가 바뀔 때마다 다시 스크롤한다.
   const skyScrollView = useRef<ScrollView>(null);
 
+  // 새로고침이 서버의 최신 결과를 보여줬으면 그 전 구매 시도는 이미 끝난 일로 본다 — 다음 구매는 새 requestId로
+  // 시작해, 그 사이 응답을 놓친 옛 시도를 재생(replay)하지 않는다(PR #312 리뷰 2번). 당겨서 새로고침·탭 포커스
+  // 재진입 둘 다 같은 규칙이라 공유한다.
+  const quietRefresh = useCallback(async () => {
+    const refreshed = await shop.refreshQuietly();
+    if (refreshed) setPending(undefined);
+    return refreshed;
+    // use-shop.ts의 shop은 매 렌더 새 객체지만 shop.refreshQuietly 자체는 useCallback으로 고정돼 있다(loader가
+    // 바뀔 때만 바뀜) — shop 전체를 의존성에 넣으면 구매 중 상태가 바뀔 때마다 이 콜백이 재생성돼 아래
+    // useFocusEffect가 다시 실행되며 쓸데없는 GET /shop을 또 보낸다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shop.refreshQuietly]);
+
+  // 홈 탭과 같은 이유(use-shop-avatar-art.ts): 상점 탭도 다른 탭으로 옮겨도 마운트된 채로 남는다(언마운트 아님).
+  // 방문으로 마일리지를 번 뒤 상점으로 돌아와도 다시 포커스를 받을 때까지는 처음 불러온 잔액이 그대로 보인다
+  // (기기 QA). 탭이 다시 포커스를 받을 때마다 조용히 새로고침한다 — refreshQuietly()는 shop-loader.ts의 기존
+  // latest-gate를 그대로 타므로, 그사이 확정된 구매·대표 설정을 뒤늦게 덮어쓰지 않는다.
+  useFocusEffect(useCallback(() => { void quietRefresh(); }, [quietRefresh]));
+
   async function refresh() {
     setRefreshing(true);
     setHistoryRefreshToken((value) => value + 1);
     try {
-      const refreshed = await shop.refreshQuietly();
-      // 새로고침이 서버의 최신 결과를 보여줬으면 그 전 구매 시도는 이미 끝난 일로 본다 — 다음 구매는 새
-      // requestId로 시작해, 그 사이 응답을 놓친 옛 시도를 재생(replay)하지 않는다(PR #312 리뷰 2번).
-      if (refreshed) setPending(undefined);
+      await quietRefresh();
     } finally {
       setRefreshing(false);
     }
