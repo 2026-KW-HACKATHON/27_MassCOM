@@ -91,6 +91,26 @@ test('every router.setParams call in the collection screen goes through clearCol
 test('the loading/error scene re-scrolls to the end whenever its measured content size changes (#314)', () => {
   const sky = screen.slice(screen.indexOf('const sky = (body: ReactNode) =>'), screen.indexOf('if (loading && !collection)'));
   assert.match(sky, /ref=\{skyScrollView\}/);
-  assert.match(sky, /onContentSizeChange=\{\(_, height\) => \{/);
-  assert.match(sky, /requestAnimationFrame\(\(\) => skyScrollView\.current\?\.scrollTo\(\{ y: height, animated: false \}\)\);/);
+  assert.match(sky, /onContentSizeChange=\{onSkyContentSizeChange\}/);
+  const handler = screen.slice(screen.indexOf('const onSkyContentSizeChange = useCallback'), screen.indexOf('const sky = (body: ReactNode) =>'));
+  assert.match(handler, /requestAnimationFrame\(\(\) => skyScrollView\.current\?\.scrollTo\(\{ y: height, animated: false \}\)\);/);
+});
+
+// PR #320 review: onContentSizeChange can re-fire with no real growth (e.g. a retry re-render keeps the same
+// error height), and a plain re-scroll on every call would yank someone who scrolled back up to reread the
+// error. The height must be tracked across calls and only re-scrolled on an actual increase. Pulled into its own
+// useCallback (rather than an inline arrow in the JSX) because eslint-plugin-react-hooks's `refs` rule flags a
+// ref read inside a function literal passed directly as a prop as a possible render-time ref access.
+test('the re-scroll only fires when the measured height actually grows, not on every onContentSizeChange call (#320)', () => {
+  assert.match(screen, /const skyContentHeight = useRef\(0\);/);
+  const handler = screen.slice(screen.indexOf('const onSkyContentSizeChange = useCallback'), screen.indexOf('const sky = (body: ReactNode) =>'));
+  assert.match(handler, /if \(height <= skyContentHeight\.current\) return;/);
+  assert.match(handler, /skyContentHeight\.current = height;/);
+  // The early return must come before the ref is updated, and both before the actual scroll.
+  assert.ok(
+    handler.indexOf('if (height <= skyContentHeight.current) return;') < handler.indexOf('skyContentHeight.current = height;'),
+    'the height check must run before the stored height is overwritten',
+  );
+  // useCallback with an empty dependency array: it must not close over any per-render value.
+  assert.match(handler, /\}, \[\]\);\s*$/);
 });

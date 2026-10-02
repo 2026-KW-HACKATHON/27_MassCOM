@@ -116,6 +116,9 @@ export function CollectionScreen({
   const scrollView = useRef<ScrollView>(null);
   // #314: only sky()'s loading/error scene uses this (the loaded album below uses `scrollView` above).
   const skyScrollView = useRef<ScrollView>(null);
+  // #320 review: onContentSizeChange can re-fire with no real growth (e.g. a retry re-render keeps the same
+  // error height) — tracked here so the re-scroll below only fires on an actual increase, not every call.
+  const skyContentHeight = useRef(0);
   const [rewardsY, setRewardsY] = useState<number>();
   // #296 review: the reward track lives inside a collapsed-by-default Fold; this tracks whether it is open so a
   // `focus=rewards` link and the passport's "보상" button can force it open instead of scrolling to a hidden card.
@@ -486,6 +489,22 @@ export function CollectionScreen({
       {badges.book ? <CompactPassportStrip book={badges.book} /> : null}
     </AppHeader>
   );
+  // #314: the sky header art leaves little room under it, and the loading/error scene (mascot + title + a wrapped
+  // error body + retry button) can end up just tall enough to need scrolling past the floating tab bar — with
+  // nothing on screen hinting the retry button is reachable at all. `contentOffset` only applies on first mount,
+  // but this view mounts once while still showing the short "loading" scene and only grows once it flips to the
+  // (taller) error scene, so it must re-scroll whenever the content's measured size changes instead. A scene that
+  // already fits just no-ops here (nothing left to scroll to).
+  const onSkyContentSizeChange = useCallback((_width: number, height: number) => {
+    // #320 review: this can re-fire with no real growth (e.g. retrying keeps the same error height) — only
+    // re-scroll on an actual increase, so it never yanks someone who scrolled back up to reread the error.
+    if (height <= skyContentHeight.current) return;
+    skyContentHeight.current = height;
+    // A plain scrollTo() here is a no-op: at the moment this fires the native side has only just learned the new
+    // size and has not yet applied it to the scrollable area, so the call is clamped against the still-stale
+    // (shorter) range. Deferring one frame lets that settle first.
+    requestAnimationFrame(() => skyScrollView.current?.scrollTo({ y: height, animated: false }));
+  }, []);
   const sky = (body: ReactNode) => (
     <SkyBackdrop>
       <SkyScrollView
@@ -493,18 +512,7 @@ export function CollectionScreen({
         header={header}
         onHeaderLayout={setHeaderHeight}
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
-        // #314: the sky header art leaves little room under it, and the loading/error scene (mascot + title + a
-        // wrapped error body + retry button) can end up just tall enough to need scrolling past the floating tab
-        // bar — with nothing on screen hinting the retry button is reachable at all. `contentOffset` only applies
-        // on first mount, but this view mounts once while still showing the short "loading" scene and only grows
-        // once it flips to the (taller) error scene, so it must re-scroll whenever the content's measured size
-        // changes instead. A scene that already fits just no-ops here (nothing left to scroll to).
-        onContentSizeChange={(_, height) => {
-          // A plain scrollTo() here is a no-op: at the moment this fires the native side has only just learned
-          // the new size and has not yet applied it to the scrollable area, so the call is clamped against the
-          // still-stale (shorter) range. Deferring one frame lets that settle first.
-          requestAnimationFrame(() => skyScrollView.current?.scrollTo({ y: height, animated: false }));
-        }}
+        onContentSizeChange={onSkyContentSizeChange}
       >
         {body}
       </SkyScrollView>
