@@ -77,7 +77,7 @@ const productionAuthAvailable = !isWeb && authConfiguration.available && publicA
 // 체험 로그인을 열지 않는다 — 안 맞는 조합으로 web export 자체가 안 되는 build-environment 검사와
 // 별개로, 로컬 `expo start --web` 같은 경로를 통해서도 새지 않게 막는 2차 방어선이다.
 const guestTrialAvailable = isWeb && publicApiConfiguration.available
-  && isApprovedGuestTrialOrigin(getAppPackageId(), publicApiConfiguration.apiUrl);
+  && isApprovedGuestTrialOrigin(getAppPackageId(), publicApiConfiguration.apiUrl, Constants.expoConfig?.extra);
 
 function initialAuthState(): AuthSessionState {
   if (productionAuthAvailable || guestTrialAvailable) return { status: 'restoring' };

@@ -1,5 +1,13 @@
 # HANDOFF
 
+## 2026-10-02 Issue #325 운영 release AAB의 시연 API 주소 포함(test.6 차단) 수정
+
+- 기준: main `5660bb9`, 브랜치 `fix/325-operating-embedded-origin`, worktree `.worktrees/325-embedded-origin`.
+- 발견: Issue #321의 운영 test.6을 만들려고 `MASSCOM_RELEASE_USE_KEYCHAIN=1 bash scripts/build-release-aab.sh`를 main `5660bb9`에서 돌렸더니 마지막 검사가 `embedded API check FAILED: app-release-5660bb9.aab embeds https://demo-api.masscom.kr`로 막았다. 첫 시도는 시연 빌드를 같은 기계에서 병렬로 돌려 Metro 캐시 오염을 의심했지만, 전용 `TMPDIR`로 캐시를 비운 두 번째 빌드(`Bundler cache is empty, rebuilding`)도 같아서 캐시 문제가 아니다. (병렬 Gradle 두 개는 시연 쪽 `mergeDexRelease`의 `OutOfMemoryError`도 냈다. 릴리스 빌드는 한 번에 하나만 돌린다.)
+- 원인: PR #313 리뷰 후속 `b3ab467`이 `apps/mobile/src/config/guest-trial-origin.ts`에 `'https://demo-api.masscom.kr'` 리터럴을 두었고, 이 모듈을 `auth-provider.tsx`가 가져와 모든 variant 번들에 시연 주소가 들어갔다. test.5(`7bcfef9`) 이후 생긴 결함이다.
+- 수정: 시연 API origin을 `app.config.ts`의 시연 전용 `extra.masscomShowcase.apiOrigin`으로 옮겼다(시연 Google client id와 같은 자리). `isApprovedGuestTrialOrigin(packageId, apiUrl, extra)`는 그 값과만 비교하고 값이 없거나 `https://`가 아니면 닫힌다. 운영 config에는 `extra.masscomShowcase`가 없다(시험으로 고정). 새 `src/config/embedded-api-origin.test.ts`는 앱 소스(시험·빌드 전용 `build-environment.cjs` 제외)에 두 API origin 리터럴이 있으면 실패해 릴리스 전에 CI에서 잡는다. 빌드 검사(`scripts/check-embedded-api.sh`)는 바꾸지 않았다. 리뷰 nit을 받아 시연 origin은 빌드 전용 `build-environment.cjs`의 `SHOWCASE_API_ORIGIN` 하나만 두고 `app.config.ts`가 그 값을 쓴다.
+- 검증: [TEST_STATUS](TEST_STATUS.md) 첫 항목. 수정 커밋의 실제 운영 release AAB가 빌드 검사를 통과했다(운영 api만 포함). 교차 리뷰는 Codex 쿼터 소진(10/4까지)으로 Claude sonnet + opus.
+- 다음 작업: 이 PR 병합 뒤 병합 커밋에서 운영 test.6 AAB→범용 APK, 시연 Preview 15 APK를 **순서대로** 빌드하고 Samsung 실기 확인·게시(Issue #321).
 ## 2026-10-02 Issue #322 시연 가상 점포 수집품 게시물 시드
 
 - 기준: main `a39b983`(시연 API가 지금 이 커밋을 실행 중이라 이 수정은 아직 라이브가 아니다. 위 #321 배포 기록의 "발견"이 이 Issue를 가리킨다), 브랜치 `fix/322-showcase-seed-artwork`, worktree `.worktrees/322-showcase-seed-artwork`.

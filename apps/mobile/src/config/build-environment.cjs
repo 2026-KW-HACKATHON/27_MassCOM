@@ -7,6 +7,9 @@ const demoKeys = [
   'EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION',
 ];
 
+// 빌드 때만 읽는 파일이라 앱 번들에 들어가지 않는다. 시연 origin은 여기 하나만 둔다(Issue #325).
+const SHOWCASE_API_ORIGIN = 'https://demo-api.masscom.kr';
+
 const localAddresses = new BlockList();
 localAddresses.addSubnet('127.0.0.0', 8, 'ipv4');
 localAddresses.addAddress('0.0.0.0', 'ipv4');
@@ -42,7 +45,7 @@ function validateBuildEnvironment(variant, environment) {
     throw new Error('production API must use non-loopback HTTPS');
   }
   const expectedOrigin = selectedVariant === 'production'
-    ? 'https://api.masscom.kr' : 'https://demo-api.masscom.kr';
+    ? 'https://api.masscom.kr' : SHOWCASE_API_ORIGIN;
   if (apiUrl.origin !== expectedOrigin || apiUrl.pathname !== '/' ||
       rawApiUrl.includes('?') || rawApiUrl.includes('#') ||
       apiUrl.username || apiUrl.password || apiUrl.port) {
@@ -78,4 +81,4 @@ function isLocalHostname(hostname) {
   return false;
 }
 
-module.exports = { validateBuildEnvironment };
+module.exports = { validateBuildEnvironment, SHOWCASE_API_ORIGIN };
