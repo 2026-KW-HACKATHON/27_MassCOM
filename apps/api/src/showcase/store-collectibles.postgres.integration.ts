@@ -9,6 +9,7 @@ import { PostgresClaimSlotService } from '../postgres/claim-slot-service.js';
 import { PostgresCollectionReader } from '../postgres/collection.js';
 import { runMigrations } from '../postgres/migrate.js';
 import { seedHostedShowcase } from './host-seed.js';
+import { storeCollectibleArt } from './store-collectible-art.js';
 
 const testUrl = process.env.TEST_SHOWCASE_HOST_DATABASE_URL;
 const safeTestTarget = (() => {
@@ -58,7 +59,9 @@ test('hosted seed publishes one collectible per virtual store, idempotently, and
       const item = snapshot.collectibles.find((entry) => entry.campaignId === storeCampaigns[index]);
       assert.ok(item?.artwork, `store ${index} first visit reward has artwork`);
       assert.equal(item.artwork.gradeId, 'bronze');
-      assert.match(item.artwork.thumbnailDataUrl, /^data:image\/jpeg;base64,/);
+      assert.ok(item.artwork.name);
+      assert.ok(item.artwork.shape);
+      assert.equal(item.artwork.thumbnailDataUrl, storeCollectibleArt[(['a', 'b', 'c'] as const)[index]!].thumbnail);
     }
     assert.deepEqual(await publicationCounts(pool), [3, 3, 3, 3]);
   } finally {

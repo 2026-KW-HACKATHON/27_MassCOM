@@ -20,6 +20,7 @@ const merchants = [
   {
     merchantId: SHOWCASE_MERCHANT_ID,
     campaignId: SHOWCASE_CAMPAIGN_ID,
+    art: 'a',
     name: '가상 점포 A',
     story: '체험용 가상 데이터이며 실제 영업점·방문 혜택이 아닙니다.',
     category: '카페',
@@ -27,6 +28,7 @@ const merchants = [
   {
     merchantId: 'showcase-local-merchant-b',
     campaignId: 'showcase-local-campaign-b',
+    art: 'b',
     name: '가상 점포 B',
     story: '다음 가게를 찾아보는 흐름을 보여주는 가상 점포입니다. 실제 영업점·방문 혜택이 아닙니다.',
     category: '분식',
@@ -34,6 +36,7 @@ const merchants = [
   {
     merchantId: 'showcase-local-merchant-c',
     campaignId: 'showcase-local-campaign-c',
+    art: 'c',
     name: '가상 점포 C',
     story: '여러 가게의 방문을 모으는 흐름을 보여주는 가상 점포입니다. 실제 영업점·방문 혜택이 아닙니다.',
     category: '한식',
@@ -262,8 +265,8 @@ export async function seedShowcaseFixtureData(
     await seedRewardOffers(client);
     // #322: 호스트 시연 DB에서만 가상 점포 수집품 게시물을 붙인다(로컬 QA는 qa-collectible-seed가 따로 게시한다).
     if (mode === 'hosted') {
-      await seedStoreCollectibles(client, merchants.map((entry, index) => ({
-        merchantId: entry.merchantId, campaignId: entry.campaignId, storeName: entry.name, art: (['a', 'b', 'c'] as const)[index]!,
+      await seedStoreCollectibles(client, merchants.map((entry) => ({
+        merchantId: entry.merchantId, campaignId: entry.campaignId, storeName: entry.name, art: entry.art,
       })), now);
     }
     await client.query('COMMIT');
