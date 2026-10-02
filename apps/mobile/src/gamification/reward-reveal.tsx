@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { focusForAccessibility } from '@/accessibility/focus-component';
 import { Mascot } from '@/ui/mascot';
 import { playUiSound } from '@/sound/ui-sounds';
 
@@ -55,7 +56,7 @@ function RevealBody({ result, onClose, onUse }: { result: OpenedReward; onClose:
       spin.set(withTiming(1, { duration: 2400, easing: Easing.out(Easing.cubic) }));
     }
     const focus = setTimeout(() => {
-      if (title.current) AccessibilityInfo.sendAccessibilityEvent(title.current, 'focus');
+      if (title.current) focusForAccessibility(title.current);
     }, 400);
     return () => clearTimeout(focus);
   }, [reduceMotion, result.coupon.couponId, result.replayed, rise, spin]);

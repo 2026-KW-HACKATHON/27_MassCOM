@@ -1,4 +1,4 @@
-import * as Application from 'expo-application';
+import { getAppPackageId } from '@/config/app-identity';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
@@ -38,7 +38,7 @@ export default function MerchantArtRoute() {
     </SkyBackdrop>
   );
 
-  if (!canOpenMerchantArtRoute(Application.applicationId)) {
+  if (!canOpenMerchantArtRoute(getAppPackageId())) {
     return frame(<StateScene kind="empty" title="이 앱에서는 열 수 없어요" body="가게 그림 만들기는 시연 앱의 점주 화면과 로컬 개발 빌드에서만 쓸 수 있어요." />);
   }
   if (!auth.credential || !auth.accountId) {

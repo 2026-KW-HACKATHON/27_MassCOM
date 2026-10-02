@@ -77,7 +77,8 @@ export class WalletApiClient {
     this.#apiUrl = options.apiUrl.replace(/\/$/, '');
     this.#credential = options.credential;
     this.#onSessionInvalid = options.onSessionInvalid;
-    this.#fetcher = options.fetcher ?? fetch;
+    // Called later as this.#fetcher(...); see auth-api.ts for why this must be bound (web only).
+    this.#fetcher = options.fetcher ?? fetch.bind(globalThis);
   }
 
   createChallenge(address: string): Promise<WalletChallengeResponse> {

@@ -25,6 +25,7 @@ const buildEnvironmentKeys = [
 type EvaluatedExpoConfig = {
   name?: string;
   scheme?: string;
+  platforms?: string[];
   extra?: { masscomShowcase?: { googleWebClientId?: string } };
   android?: {
     package?: string;
@@ -249,6 +250,50 @@ test('development build environment keeps loopback and DEMO settings available',
   );
 });
 
+test('only showcase may set MASSCOM_WEB_BASE_URL; development and production reject it', () => {
+  assert.doesNotThrow(() => validateBuildEnvironment('showcase', {
+    EXPO_PUBLIC_API_URL: 'https://demo-api.masscom.kr',
+    MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+    MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID: '123-demo.apps.googleusercontent.com',
+    MASSCOM_WEB_BASE_URL: '/play',
+  }));
+  assert.throws(() => validateBuildEnvironment('development', {
+    EXPO_PUBLIC_API_URL: 'http://127.0.0.1:3000',
+    MASSCOM_WEB_BASE_URL: '/play',
+  }), /development build rejects MASSCOM_WEB_BASE_URL/);
+  assert.throws(() => validateBuildEnvironment('production', {
+    EXPO_PUBLIC_API_URL: 'https://api.masscom.kr',
+    MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+    MASSCOM_WEB_BASE_URL: '/play',
+  }), /production build rejects MASSCOM_WEB_BASE_URL/);
+});
+
+test('actual Expo showcase config sets experiments.baseUrl only when MASSCOM_WEB_BASE_URL is given', () => {
+  const withBaseUrl = evaluateExpoConfig({
+    APP_VARIANT: 'showcase',
+    EXPO_PUBLIC_API_URL: 'https://demo-api.masscom.kr',
+    MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+    MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID: '123-demo.apps.googleusercontent.com',
+    MASSCOM_WEB_BASE_URL: '/play',
+  });
+  assert.equal(withBaseUrl.status, 0, withBaseUrl.stderr);
+  const configWithBaseUrl = JSON.parse(withBaseUrl.stdout) as { experiments?: { baseUrl?: string } };
+  assert.equal(configWithBaseUrl.experiments?.baseUrl, '/play');
+
+  // PR #313 리뷰 P1: MASSCOM_WEB_BASE_URL을 안 주면(흔한 `expo export --platform web` 그대로 호출)
+  // showcase도 baseUrl 없이 export가 "성공"한다 — 이 값 하나로는 웹 export를 막지 못한다는 뜻이고,
+  // 그래서 auth-provider.tsx의 런타임 가드(isApprovedGuestTrialOrigin)가 실제 방어선이다.
+  const withoutBaseUrl = evaluateExpoConfig({
+    APP_VARIANT: 'showcase',
+    EXPO_PUBLIC_API_URL: 'https://demo-api.masscom.kr',
+    MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+    MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID: '123-demo.apps.googleusercontent.com',
+  });
+  assert.equal(withoutBaseUrl.status, 0, withoutBaseUrl.stderr);
+  const configWithoutBaseUrl = JSON.parse(withoutBaseUrl.stdout) as { experiments?: { baseUrl?: string } };
+  assert.equal(configWithoutBaseUrl.experiments?.baseUrl, undefined);
+});
+
 test('actual Expo production config preserves release identity, plugins, and blocked permissions', () => {
   const result = evaluateExpoConfig({
     APP_VARIANT: 'production',
@@ -260,6 +305,7 @@ test('actual Expo production config preserves release identity, plugins, and blo
   const config = JSON.parse(result.stdout) as EvaluatedExpoConfig;
   assert.equal(config.android?.package, 'kr.masscom.wolgye');
   assert.equal(config.scheme, 'masscom');
+  assert.deepEqual(config.platforms, ['android']);
   assert.deepEqual(pluginNames(config), [
     'expo-router',
     'expo-camera',
@@ -334,6 +380,7 @@ test('actual Expo development config preserves local DEMO identity, plugins, and
   const config = JSON.parse(result.stdout) as EvaluatedExpoConfig;
   assert.equal(config.android?.package, 'kr.masscom.wolgye.dev');
   assert.equal(config.scheme, 'masscom-dev');
+  assert.deepEqual(config.platforms, ['android']);
   assert.deepEqual(pluginNames(config), [
     'expo-router',
     'expo-dev-client',
@@ -359,6 +406,7 @@ test('actual Expo showcase config has its own Android identity and no dev launch
   assert.equal(config.name, '월계 마스코트 체험용');
   assert.equal(config.android?.package, 'kr.masscom.wolgye.demo');
   assert.equal(config.scheme, 'masscom-demo');
+  assert.deepEqual(config.platforms, ['android', 'web']);
   assert.deepEqual(pluginNames(config), [
     'expo-router',
     'expo-camera',

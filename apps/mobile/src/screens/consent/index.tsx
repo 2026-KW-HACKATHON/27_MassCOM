@@ -1,4 +1,4 @@
-import * as Application from 'expo-application';
+import { getAppPackageId } from '@/config/app-identity';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -98,7 +98,7 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
 
   const header = (
     <>
-      <Text style={styles.eyebrow}>{accountContextLabel(Application.applicationId)}</Text>
+      <Text style={styles.eyebrow}>{accountContextLabel(getAppPackageId())}</Text>
     </>
   );
 

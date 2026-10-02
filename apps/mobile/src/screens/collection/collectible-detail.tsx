@@ -9,6 +9,7 @@ import type { CollectibleAngleFrames, CollectibleLiving, CollectibleMotion, Publ
 import { FullScreenModal } from '@/gamification/full-screen-modal';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { colorsForScheme } from '@/theme/palette';
+import { canUseTiltSensor } from '@/ui/can-use-tilt-sensor';
 import { Mascot } from '@/ui/mascot';
 import { StateScene } from '@/ui/state-scene';
 
@@ -318,7 +319,7 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   // 서로 다른 particle을 가질 수 있어 type만으로 찾으면 항상 첫 번째 것이 걸린다(WP4 리뷰 6). 수동 조작처럼
   // activeMotion이 없거나 어긋나면 기존처럼 type으로 찾는다.
   const activeMotionParticle = (activeMotion?.type === activeAnimation ? activeMotion : snapshot.motions?.find((motion) => motion.type === activeAnimation))?.particle;
-  const tiltActive = tiltOn && moving;
+  const tiltActive = canUseTiltSensor && tiltOn && moving;
 
   return (
     <DetailFrame>
@@ -410,7 +411,7 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
         </View>
       </> : null}
       <View style={styles.toggle}><Text style={[styles.controlText, { color: palette.label }]}>동작 줄이기</Text><Switch accessibilityLabel="수집품 동작 줄이기" value={reduceMotion || !motionAllowed} disabled={!motionAllowed} onValueChange={setReduceMotion} /></View>
-      {motionAllowed && !reduceMotion ? <View style={styles.toggle}><Text style={[styles.controlText, { color: palette.label }]}>기울여 보기</Text>
+      {canUseTiltSensor && motionAllowed && !reduceMotion ? <View style={styles.toggle}><Text style={[styles.controlText, { color: palette.label }]}>기울여 보기</Text>
         <Switch accessibilityLabel="수집품 기울여 보기" value={tiltOn} onValueChange={setTiltOn} /></View> : null}
       {snapshot.greeting ? <Text selectable style={[styles.greeting, { color: palette.label }]}>{snapshot.greeting}</Text> : null}
       {snapshot.audio ? <>

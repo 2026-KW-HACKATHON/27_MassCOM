@@ -93,17 +93,24 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
     if (!apiUrl || !client) return;
     let mounted = true;
     void Promise.all([
-      createMerchantApiClient(apiUrl).listMerchants()
-        .then(async (merchants) => {
-          const demoMerchants = merchants.filter((merchant) => merchant.demo);
-          const context = await findShowcaseStaffMerchant(demoMerchants.map((merchant) => merchant.id), client.getMerchantContext);
-          return context
-            ? { merchantId: context.merchantId, artUrl: demoMerchants.find((merchant) => merchant.id === context.merchantId)?.artUrl ?? null }
-            : undefined;
-        }),
+      createMerchantApiClient(apiUrl).listMerchants(),
       client.getShowcaseAccessState(),
     ])
-      .then(([allowed, accessState]) => {
+      .then(async ([merchants, accessState]) => {
+        const demoMerchants = merchants.filter((merchant) => merchant.demo);
+        // 체험 로그인(#309)의 개인 체험 가게는 is_public은 true지만(D-064(e)) 서버가 공개 목록·추천에서
+        // 걸러 내므로 여기서도 보이지 않는다 — 자기 가게 id를 먼저 넣어 찾는다.
+        const merchantIds = accessState.trialMerchantId
+          ? [accessState.trialMerchantId, ...demoMerchants.map((merchant) => merchant.id)]
+          : demoMerchants.map((merchant) => merchant.id);
+        const context = await findShowcaseStaffMerchant(merchantIds, client.getMerchantContext);
+        // 체험 가게는 /merchants 목록에 없어 artUrl을 거기서 가져올 수 없다 — art 화면이 첫 조회로 채운다.
+        const allowed = context
+          ? { merchantId: context.merchantId, artUrl: demoMerchants.find((merchant) => merchant.id === context.merchantId)?.artUrl ?? null }
+          : undefined;
+        return { allowed, accessState };
+      })
+      .then(({ allowed, accessState }) => {
         if (!mounted) return;
         const nextStatus = allowed ? 'allowed' : 'denied';
         setState(allowed ? { status: 'allowed', ...allowed } : { status: 'denied' });
@@ -200,17 +207,18 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
 
   if (state.status === 'allowed' && apiUrl) {
     return <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: 20, paddingTop: 12 }}>
-        <Pressable accessibilityRole="button" onPress={onBrowse} style={{ minHeight: 48, justifyContent: 'center' }}>
+      {/* 390px 폭에서 줄바꿈될 때 너무 붙어 보이던 문제(#313 리뷰) — 가로·세로 간격을 나눠 주고 각 버튼에 좌우 여백을 둬 48px 탭 영역을 눈으로도 분명하게 한다. */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 8, columnGap: 16, paddingHorizontal: 20, paddingTop: 12 }}>
+        <Pressable accessibilityRole="button" onPress={onBrowse} style={{ minHeight: 48, paddingHorizontal: 4, justifyContent: 'center' }}>
           <Text style={{ color: colors.primary, fontWeight: '700' }}>고객 탐색으로</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => setTour(true)} style={{ minHeight: 48, justifyContent: 'center' }}>
+        <Pressable accessibilityRole="button" onPress={() => setTour(true)} style={{ minHeight: 48, paddingHorizontal: 4, justifyContent: 'center' }}>
           <Text style={{ color: colors.primary, fontWeight: '700' }}>빈 공간 투어</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => void onLogout().catch(() => setLogoutError(true))} style={{ minHeight: 48, justifyContent: 'center' }}>
+        <Pressable accessibilityRole="button" onPress={() => void onLogout().catch(() => setLogoutError(true))} style={{ minHeight: 48, paddingHorizontal: 4, justifyContent: 'center' }}>
           <Text style={{ color: colors.primary, fontWeight: '700' }}>로그아웃</Text>
         </Pressable>
-        {showAdminEntry ? <Pressable accessibilityRole="button" onPress={() => setAdminOpen(true)} style={{ minHeight: 48, justifyContent: 'center' }}>
+        {showAdminEntry ? <Pressable accessibilityRole="button" onPress={() => setAdminOpen(true)} style={{ minHeight: 48, paddingHorizontal: 4, justifyContent: 'center' }}>
           <Text style={{ color: colors.primary, fontWeight: '700' }}>권한 요청 관리</Text>
         </Pressable> : null}
       </View>

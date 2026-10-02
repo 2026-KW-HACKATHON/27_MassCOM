@@ -1,4 +1,4 @@
-import * as Application from 'expo-application';
+import { getAppPackageId } from '@/config/app-identity';
 import * as Linking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
@@ -25,7 +25,7 @@ export default function OpenRoute() {
     const key = `${url ?? ''}|${fragment ?? ''}`;
     if (handled.current === key) return;
     handled.current = key;
-    const target = resolveOpenTarget(url, fragment, linkVariantFor(Application.applicationId));
+    const target = resolveOpenTarget(url, fragment, linkVariantFor(getAppPackageId()));
     if (target.kind === 'friend') {
       // Remembered before the move so the friends tab, or the sign-in that comes first, can pick it up.
       rememberPendingFriendCode(target.code);

@@ -1,4 +1,4 @@
-import * as Application from 'expo-application';
+import { getAppPackageId } from '@/config/app-identity';
 import { AppKit, AppKitProvider, useAppKitTheme } from '@reown/appkit-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router/stack';
@@ -80,7 +80,7 @@ function AuthenticatedRoot() {
   }
 
   const destination = showcaseEntryDestination(
-    Application.applicationId,
+    getAppPackageId(),
     activeEntry.role,
     auth.state.status === 'signedIn' || auth.state.status === 'demo',
   );
@@ -94,8 +94,10 @@ function AuthenticatedRoot() {
       <AuthRequiredScreen
         state={auth.state}
         canSignIn={auth.canSignIn}
+        canStartGuestTrial={auth.canStartGuestTrial}
         onSignIn={auth.signIn}
-        onBackToRole={Application.applicationId === 'kr.masscom.wolgye.demo'
+        onGuestSignIn={auth.signInAsGuest}
+        onBackToRole={getAppPackageId() === 'kr.masscom.wolgye.demo'
           ? () => setEntry({ accountId: auth.accountId }) : undefined}
       />
     );

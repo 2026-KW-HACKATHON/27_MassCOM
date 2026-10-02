@@ -152,7 +152,7 @@ test('a step the server had moved past, or a reply the app could not read, reloa
 
 test('the page is a stack route for the showcase app only, registered without the native header', () => {
   assert.match(read('app/_layout.tsx'), /<Stack\.Screen name="merchant-art" options=\{\{ headerShown: false \}\} \/>/);
-  assert.match(route, /canOpenMerchantArtRoute\(Application\.applicationId\)/);
+  assert.match(route, /canOpenMerchantArtRoute\(getAppPackageId\(\)\)/);
   // The local development build opens it too, and both the comment and the message to a build that cannot say so.
   assert.match(route, /for the showcase app and the local development build/);
   assert.match(route, /body="가게 그림 만들기는 시연 앱의 점주 화면과 로컬 개발 빌드에서만 쓸 수 있어요\."/);

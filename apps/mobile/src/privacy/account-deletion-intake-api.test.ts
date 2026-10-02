@@ -24,6 +24,23 @@ function client(respond: (url: string, init: RequestInit) => Response) {
 }
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
 
+test('the default fetcher works called as this.fetchImpl(...), not just as a bare function (#309 web)', async () => {
+  const originalFetch = globalThis.fetch;
+  function brandCheckedFetch(this: unknown) {
+    if (this !== globalThis) {
+      throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
+    }
+    return Promise.resolve(Response.json({ request: null }));
+  }
+  globalThis.fetch = brandCheckedFetch as typeof fetch;
+  try {
+    const client = new AccountDeletionIntakeApiClient({ apiUrl: 'https://api.example.test', credential: bearer });
+    assert.equal(await client.current(), undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('filing posts an empty body with the bearer session and returns the receipt once', async () => {
   const { api, calls } = client(() => json(202, { receipt: '7K2M-Q9XD-4HTB-0RWE', receiptIssued: true, status: 'REQUESTED', ...dates }));
   const filed = await api.request();

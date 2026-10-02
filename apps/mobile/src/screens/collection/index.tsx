@@ -1,4 +1,4 @@
-import * as Application from 'expo-application';
+import { getAppPackageId } from '@/config/app-identity';
 import { Link, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
@@ -74,7 +74,7 @@ export function CollectionScreen({
 }) {
   const clearance = useTabBarClearance();
   const insets = useSafeAreaInsets();
-  const isShowcase = Application.applicationId === 'kr.masscom.wolgye.demo';
+  const isShowcase = getAppPackageId() === 'kr.masscom.wolgye.demo';
   const variant: ShareVariant = isShowcase ? 'showcase' : 'production';
   const palette = colorsForScheme(useColorScheme());
   const styles = useCollectionStyles();

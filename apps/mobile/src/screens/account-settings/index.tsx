@@ -1,4 +1,4 @@
-import * as Application from 'expo-application';
+import { getAppPackageId } from '@/config/app-identity';
 import { Button, Host } from '@expo/ui';
 import { Link } from 'expo-router';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -79,7 +79,7 @@ export function AccountSettingsScreen({
   );
   // 시연 앱만 앱 안에서 삭제 요청을 접수한다(D-052). 운영 앱은 웹 삭제 페이지를 쓴다.
   const intakeClient = useMemo(
-    () => canRequestShowcaseDeletion(Application.applicationId, credential)
+    () => canRequestShowcaseDeletion(getAppPackageId(), credential)
       ? new AccountDeletionIntakeApiClient({ apiUrl, credential }) : undefined,
     [apiUrl, credential],
   );
@@ -272,7 +272,7 @@ export function AccountSettingsScreen({
             </Text>
             <Text selectable style={styles.accountDiagnostic}>
               현재 계정 {shortAccountId(accountId)} · {credential.kind === 'bearer'
-                ? `${accountContextLabel(Application.applicationId)} 세션` : '개발 DEMO'}
+                ? `${accountContextLabel(getAppPackageId())} 세션` : '개발 DEMO'}
             </Text>
           </View>
           {credential.kind === 'bearer' ? <View style={styles.sessionActions}>
@@ -342,7 +342,7 @@ export function AccountSettingsScreen({
         </FloatingCard>
       ) : null}
 
-      {canOpenShowcaseTour(Application.applicationId) ? (
+      {canOpenShowcaseTour(getAppPackageId()) ? (
         <FloatingCard style={styles.groupCard}>
           <Text style={styles.sectionTitle}>체험용 화면</Text>
           <Text selectable style={styles.intro}>아래 다섯 공간은 빈 화면 시안이며 실제 방문·수집품은 도감에서 확인합니다.</Text>

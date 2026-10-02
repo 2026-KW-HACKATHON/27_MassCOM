@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -14,6 +14,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Ellipse, LinearGradient, Rect, Stop } from 'react-native-svg';
 
+import { focusForAccessibility } from '@/accessibility/focus-component';
 import { celebrationNote } from '@/commerce/progress-note';
 import { tierColors } from '@/theme/medal-colors';
 import { Mascot } from '@/ui/mascot';
@@ -85,7 +86,7 @@ function CelebrationBody({ content, variant, onClose, onOpenCollection }: Props 
   useEffect(() => {
     const haptic = setTimeout(() => void successHaptic(), reduceMotion ? 0 : impactAt);
     const focus = setTimeout(() => {
-      if (title.current) AccessibilityInfo.sendAccessibilityEvent(title.current, 'focus');
+      if (title.current) focusForAccessibility(title.current);
     }, reduceMotion ? 250 : 900);
     return () => {
       clearTimeout(haptic);

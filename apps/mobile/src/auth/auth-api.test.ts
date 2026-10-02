@@ -47,6 +47,74 @@ test('maps login errors without retaining or echoing the Google ID token', async
     && !error.message.includes(idToken));
 });
 
+test('starts a guest trial without any token and returns one validated server session', async () => {
+  let receivedHeaders: Headers | undefined;
+  let receivedBody: string | undefined;
+  const client = new AuthApiClient({
+    apiUrl: 'https://api.example.test/',
+    fetcher: async (input, init) => {
+      assert.equal(input, 'https://api.example.test/auth/guest-trial');
+      assert.equal(init?.method, 'POST');
+      receivedHeaders = new Headers(init?.headers);
+      receivedBody = String(init?.body);
+      return Response.json({
+        sessionToken: 'guest-session',
+        accountId: 'guest-account',
+        expiresAt: '2026-10-21T00:00:00.000Z',
+        guest: true,
+      }, { status: 201 });
+    },
+  });
+
+  assert.deepEqual(await client.startGuestTrial(), {
+    version: 1,
+    sessionToken: 'guest-session',
+    accountId: 'guest-account',
+    expiresAt: '2026-10-21T00:00:00.000Z',
+  });
+  assert.equal(receivedBody, '{}');
+  assert.equal(receivedHeaders?.get('content-type'), 'application/json');
+  assert.equal(receivedHeaders?.has('authorization'), false);
+});
+
+test('surfaces the guest trial rate limit and capacity errors by status', async () => {
+  const rateLimited = new AuthApiClient({
+    apiUrl: 'https://api.example.test',
+    fetcher: async () => Response.json({ code: 'HTTP_429' }, { status: 429 }),
+  });
+  await assert.rejects(rateLimited.startGuestTrial(), (error) =>
+    error instanceof AuthApiError && error.status === 429);
+
+  const busy = new AuthApiClient({
+    apiUrl: 'https://api.example.test',
+    fetcher: async () => Response.json({ code: 'GUEST_TRIAL_BUSY' }, { status: 503 }),
+  });
+  await assert.rejects(busy.startGuestTrial(), (error) =>
+    error instanceof AuthApiError && error.status === 503 && error.code === 'GUEST_TRIAL_BUSY');
+});
+
+test('the default fetcher works called as this.#fetcher(...), not just as a bare function (#309 web)', async () => {
+  // A real browser's native fetch brand-checks its receiver and throws "Illegal invocation" unless
+  // bound to window first; Node's fetch never checks this, so a mocked fetcher in other tests here
+  // would never catch a regression. This replaces the global to reproduce that browser check.
+  const originalFetch = globalThis.fetch;
+  function brandCheckedFetch(this: unknown) {
+    if (this !== globalThis) {
+      throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
+    }
+    return Promise.resolve(Response.json({
+      sessionToken: 'guest-session', accountId: 'guest-account', expiresAt: '2026-10-21T00:00:00.000Z',
+    }));
+  }
+  globalThis.fetch = brandCheckedFetch as typeof fetch;
+  try {
+    const client = new AuthApiClient({ apiUrl: 'https://api.example.test' });
+    assert.equal((await client.startGuestTrial()).sessionToken, 'guest-session');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('rejects a malformed successful session response', async () => {
   const client = new AuthApiClient({
     apiUrl: 'https://api.example.test',
