@@ -49,6 +49,9 @@ function loginFailureCopy(reason: string | undefined): string {
   if (reason === 'GUEST_TRIAL_RATE_LIMITED') {
     return '체험 시작 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.';
   }
+  if (reason === 'GUEST_TRIAL_IP_LIMIT') {
+    return '이 네트워크에서 체험이 너무 많아요. 잠시 뒤 다시 시도해 주세요.';
+  }
   if (reason === 'GUEST_TRIAL_BUSY') {
     return '지금 체험 중인 사람이 많아 새 체험 공간을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.';
   }

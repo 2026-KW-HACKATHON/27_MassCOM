@@ -463,6 +463,20 @@ test('guest trial rate limit stays distinct from the global trial capacity limit
   await assert.rejects(busyController.signInAsGuest(), (error) =>
     error instanceof AuthControllerError && error.code === 'GUEST_TRIAL_BUSY');
   assert.deepEqual(busyController.getState(), { status: 'signedOut', reason: 'GUEST_TRIAL_BUSY' });
+
+  // 같은 429 상태 코드라도 서버 코드가 다르면(한 IP의 끝나지 않은 체험 30개 상한, Retry-After 없음) 별도 사유다.
+  const ipLimited = fixture({
+    authApi: {
+      async signIn() { throw new Error('unexpected signIn'); },
+      async logout() { throw new Error('unexpected logout'); },
+      async startGuestTrial() { throw new AuthApiError(429, 'GUEST_TRIAL_IP_LIMIT'); },
+    },
+  });
+  ipLimited.setStored(undefined);
+  const ipLimitedController = createAuthController(ipLimited.dependencies);
+  await assert.rejects(ipLimitedController.signInAsGuest(), (error) =>
+    error instanceof AuthControllerError && error.code === 'GUEST_TRIAL_IP_LIMIT');
+  assert.deepEqual(ipLimitedController.getState(), { status: 'signedOut', reason: 'GUEST_TRIAL_IP_LIMIT' });
 });
 
 test('signInAsGuest is a no-op once already signed in', async () => {

@@ -44,11 +44,15 @@ test('only a true connection failure suggests checking the network', () => {
   assert.match(statusAnnouncement('login-failed', { reason: 'LOGIN_RATE_LIMITED' }), /잠시 후/);
 });
 
-test('guest trial rate limit and capacity reasons stay distinct from each other', () => {
+test('guest trial rate limit, IP cap and capacity reasons stay distinct from each other', () => {
   const rateLimited = statusAnnouncement('login-failed', { reason: 'GUEST_TRIAL_RATE_LIMITED' });
+  const ipLimited = statusAnnouncement('login-failed', { reason: 'GUEST_TRIAL_IP_LIMIT' });
   const busy = statusAnnouncement('login-failed', { reason: 'GUEST_TRIAL_BUSY' });
   assert.match(rateLimited, /체험 시작 시도/);
+  assert.match(ipLimited, /이 네트워크/);
   assert.match(busy, /체험 중인 사람이 많아/);
+  assert.notEqual(rateLimited, ipLimited);
+  assert.notEqual(ipLimited, busy);
   assert.notEqual(rateLimited, busy);
 });
 

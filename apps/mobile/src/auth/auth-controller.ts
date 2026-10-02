@@ -16,6 +16,7 @@ export type SignedOutReason =
   | 'WALLET_STORAGE_CLEANUP_FAILED'
   | 'ACCOUNT_SWITCH_UNCHANGED'
   | 'GUEST_TRIAL_RATE_LIMITED'
+  | 'GUEST_TRIAL_IP_LIMIT'
   | 'GUEST_TRIAL_BUSY';
 
 export type AuthState =
@@ -183,6 +184,9 @@ function signedIn(session: StoredAuthSessionV1): Extract<AuthState, { status: 's
 
 function guestTrialFailureReason(error: unknown): SignedOutReason {
   if (error instanceof AuthControllerError) return error.code;
+  // 같은 429도 코드로 갈린다: 짧은 폭주(IP당 15분 20회)는 GUEST_TRIAL_RATE_LIMITED, 한 IP의
+  // 끝나지 않은 체험 30개 상한은 GUEST_TRIAL_IP_LIMIT(Retry-After 없음, 둘 중 하나가 끝나야 열림).
+  if (error instanceof AuthApiError && error.code === 'GUEST_TRIAL_IP_LIMIT') return 'GUEST_TRIAL_IP_LIMIT';
   if (error instanceof AuthApiError && error.status === 429) return 'GUEST_TRIAL_RATE_LIMITED';
   if (error instanceof AuthApiError && error.status === 503) return 'GUEST_TRIAL_BUSY';
   if (error instanceof AuthApiError && error.code === 'NETWORK_ERROR') return 'NETWORK_ERROR';
