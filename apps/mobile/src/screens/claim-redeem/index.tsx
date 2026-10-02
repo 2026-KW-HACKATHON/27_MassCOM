@@ -24,11 +24,13 @@ import {
 import { createBadgeApiClient, type BadgeBook } from '@/gamification/badge-api';
 import { diffBadgeBooks } from '@/gamification/badge-rules';
 import { progressNote } from '@/commerce/progress-note';
+import { defaultVisitGoals, mileageBalanceLine, visitRewardGuide, type VisitGoal } from '@/commerce/visit-reward-guide';
 import { playUiSound } from '@/sound/ui-sounds';
 import { Celebration, type CelebrationContent } from '@/gamification/celebration';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
 import { canShowTestVisitSection } from '@/navigation/showcase-entry';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
+import { createShopApiClient } from '@/shop/shop-api';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
@@ -66,6 +68,10 @@ export function ClaimRedeemScreen({
   // 이 방문 수령으로 받은 보상 중 다시 볼 수 있는 가게 수집품(외형)이 실제로 붙은 것 전부(1·3·5회 목표가 한 번에 여럿이면 모두).
   // 도감을 확인한 뒤에만 채운다.
   const [artworkReward, setArtworkReward] = useState<{ claimSlotId: string; entitlementIds: readonly string[] }>();
+  // #332 방문 완료 카드의 "다음 등급까지"(점포 캠페인 목표)와 "보유 마일리지"(상점 요약). 방문(claimSlotId)에 묶어 두고,
+  // 늦게 온 이전 방문의 응답이 새 방문의 안내를 덮지 못하게 요청 번호로 거른다.
+  const [rewardContext, setRewardContext] = useState<{ claimSlotId: string; goals: readonly VisitGoal[] | null; balance: number | null }>();
+  const rewardContextRequest = useRef(0);
   const [pendingRedeemToken, setPendingRedeemToken] = useState<string>();
   const [recoveryAction, setRecoveryAction] = useState<ClaimRecoveryAction>();
   const [busy, setBusy] = useState(false);
@@ -159,6 +165,8 @@ export function ClaimRedeemScreen({
     setPreview(undefined);
     setRedeemed(undefined);
     setArtworkReward(undefined);
+    rewardContextRequest.current += 1;
+    setRewardContext(undefined);
     setPendingRedeemToken(undefined);
     setRecoveryAction(undefined);
     setMessage(undefined);
@@ -231,6 +239,7 @@ export function ClaimRedeemScreen({
       setRedeemed(result);
       setArtworkReward(undefined);
       void findGrantedArtwork(result);
+      void loadRewardContext(result);
       setPreview(undefined);
       setToken('');
       setPendingRedeemToken(undefined);
@@ -265,6 +274,7 @@ export function ClaimRedeemScreen({
       setRedeemed(result);
       setArtworkReward(undefined);
       void findGrantedArtwork(result);
+      void loadRewardContext(result);
       setPreview(undefined);
       setToken('');
       setPendingRedeemToken(undefined);
@@ -311,6 +321,34 @@ export function ClaimRedeemScreen({
       after,
     });
   }
+
+  // #332: 방문 완료 카드에 점포의 실제 수집품 목표와 상점의 보유 마일리지를 붙인다. 둘 다 덤이라 하나라도 못 읽으면 그 줄만
+  // 빠지고(목표는 기본 1·3·5회로 안내) 방문 수령 결과와 카드는 그대로다. 상점 요약이 401이어도 세션을 무효화하지 않도록
+  // onSessionInvalid는 넘기지 않는다: 조용히 실패해야 하는 호출이다.
+  async function loadRewardContext(result: RedeemedClaim) {
+    const request = ++rewardContextRequest.current;
+    const [merchants, shop] = await Promise.allSettled([
+      createMerchantApiClient(apiUrl).listMerchants(),
+      createShopApiClient({ apiUrl, credential }).getShop(),
+    ]);
+    if (request !== rewardContextRequest.current) return;
+    const merchant = merchants.status === 'fulfilled' ? merchants.value.find((item) => item.id === result.merchantId) : undefined;
+    setRewardContext({
+      claimSlotId: result.claimSlotId,
+      goals: merchant ? merchant.campaign.rewardGoals.map((goal) => goal.targetVisitCount) : null,
+      balance: shop.status === 'fulfilled' ? shop.value.mileage.balance : null,
+    });
+  }
+
+  const currentRewardContext = redeemed && rewardContext?.claimSlotId === redeemed.claimSlotId ? rewardContext : undefined;
+  const rewardBalance = currentRewardContext?.balance ?? null;
+  const rewardGuide = redeemed
+    ? visitRewardGuide({
+      progressCounted: redeemed.visit.progressCounted,
+      progressCount: redeemed.visit.progressVisitCount,
+      goals: currentRewardContext?.goals ?? defaultVisitGoals,
+    })
+    : undefined;
 
   return (
     <>
@@ -471,6 +509,9 @@ export function ClaimRedeemScreen({
             <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
               새 보상권 {redeemed.grantedRewards.length}개 · NFT 발행은 아직 요청하지 않았습니다.
             </Text>
+            {rewardGuide?.mileageLine ? <Text style={styles.successHighlight}>{rewardGuide.mileageLine}</Text> : null}
+            {rewardBalance !== null ? <Text style={styles.successBody}>{mileageBalanceLine(rewardBalance)}</Text> : null}
+            {rewardGuide?.nextGradeLine ? <Text style={styles.successBody}>{rewardGuide.nextGradeLine}</Text> : null}
             <View style={styles.successActions}>
               {artworkReward?.claimSlotId === redeemed.claimSlotId ? (
                 <Pressable accessibilityRole="button" onPress={() => router.navigate({ pathname: '/collection', params: { focus: 'collectible', entitlement: artworkReward.entitlementIds.join(',') } })}
@@ -485,6 +526,10 @@ export function ClaimRedeemScreen({
                   </Pressable>
                 </Link>
               ))}
+              <Pressable accessibilityRole="button" onPress={() => router.navigate('/shop')}
+                style={[styles.collectionButton, { backgroundColor: palette.primary }]}>
+                <Text style={[styles.collectionButtonText, { color: palette.onPrimary }]}>상점에서 뽑기</Text>
+              </Pressable>
             </View>
           </FloatingCard>
           </View>
