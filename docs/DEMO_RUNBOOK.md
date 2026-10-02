@@ -49,3 +49,12 @@ bash scripts/check-privacy.sh
 - **취소 주의:** 점원 화면에서는 오늘 날짜의 방문만 취소할 수 있고, 테스트 방문 중 오늘 날짜는 가장 먼저 만든 방문(1회 보상을 낳은 방문)입니다. 이를 취소하면 그 방문이 낳은 1회 보상과 남은 방문 수보다 목표가 큰 보상이 함께 회수됩니다(5번 눌렀다면 1회와 5회). 다음 테스트 방문이 오늘 날짜를 다시 채우면 회수된 보상이 새로 지급되어 저절로 복구됩니다. 회수될 보상이 이미 NFT 발행 요청으로 넘어갔다면 취소는 409로 거절됩니다.
 - **운영:** 운영 서버·운영 앱은 이 규칙을 쓰지 않으며 하루 한 번 진행과 실제 적립 규칙이 그대로입니다.
 - **배포 뒤 해야 할 일(시연 서버):** 이미 시드된 시연 DB는 시연 호스트 시드(`node dist/showcase/host-seed-command.js`, 로컬은 `npm run seed:showcase:local`)를 **캠페인이 끝나기 전에** 한 번 다시 돌려야 합니다. 재시드는 ① 캠페인 시작을 시드 시각의 30일 전까지 앞당기고 ② 캠페인 끝을 시드 시각의 30일 뒤까지 늘리며(줄이지 않음, 돌릴 때마다 끝이 "지금 + 30일"까지 밀림) ③ 옛 단일 등급 수집품 게시물을 3등급 게시물로 한 번 갈아 끼웁니다. 시연 캠페인은 처음 시드한 지 30일 뒤에 끝나고, 끝난 캠페인은 재시드가 거절하며 방문 수령이 `CLAIM_CAMPAIGN_UNAVAILABLE`로 막히므로 끝나기 전에 돌립니다. 코드를 먼저 배포한 뒤 돌립니다.
+- **재시드 뒤 확인(시연 DB, 읽기 전용):** 세 가상 점포 캠페인의 수집품 연결이 3등급 게시물을 가리키는지 확인합니다. 아래 질의가 캠페인마다 한 줄씩 `{bronze,gold,silver}`를 돌려주면 정상입니다. 옛 단일 등급 게시물을 알아보는 조건(작성자 열이 비어 있음·이름·테마·등급 배열이 정확히 일치)은 하나라도 다르면 건드리지 않고 넘어가는 안전한 쪽이므로, 일치하는 것이 없으면 아무것도 바뀌지 않고 `{bronze}`가 그대로 남습니다. 그 경우 재시드가 실패한 것이 아니니 연결이 어떤 게시물인지 확인한 뒤 판단합니다(점주가 만든 게시물이면 그대로 둡니다).
+
+```sql
+SELECT link.campaign_id, array_agg(grade.grade_id ORDER BY grade.grade_id) AS grades
+FROM campaign_collectible_publications link
+JOIN collectible_publication_grades grade ON grade.publication_id = link.publication_id
+WHERE link.campaign_id IN ('showcase-local-campaign', 'showcase-local-campaign-b', 'showcase-local-campaign-c')
+GROUP BY link.campaign_id ORDER BY link.campaign_id;
+```

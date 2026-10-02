@@ -472,6 +472,18 @@ test('(R-333a) a fresh collectible seed publishes bronze, silver and gold for go
         { grade_id: 'silver', grade_name: '실버', animation: 'shine' },
       ]);
     }
+    // DEMO_RUNBOOK의 "재시드 뒤 확인" 질의가 그대로 동작하고 점포마다 {bronze,gold,silver}를 돌려준다.
+    const runbookCheck = await pool.query<{ campaign_id: string; grades: string[] }>(
+      `SELECT link.campaign_id, array_agg(grade.grade_id ORDER BY grade.grade_id) AS grades
+       FROM campaign_collectible_publications link
+       JOIN collectible_publication_grades grade ON grade.publication_id = link.publication_id
+       WHERE link.campaign_id IN ('showcase-local-campaign', 'showcase-local-campaign-b', 'showcase-local-campaign-c')
+       GROUP BY link.campaign_id ORDER BY link.campaign_id`);
+    assert.deepEqual(runbookCheck.rows.map((row) => [row.campaign_id, row.grades]), [
+      ['showcase-local-campaign', ['bronze', 'gold', 'silver']],
+      ['showcase-local-campaign-b', ['bronze', 'gold', 'silver']],
+      ['showcase-local-campaign-c', ['bronze', 'gold', 'silver']],
+    ]);
     // 두 번 돌려도(이미 3등급으로 걸려 있음) 아무것도 더하지 않는다.
     assert.deepEqual(await seedCollectibles(pool), []);
     assert.deepEqual(await collectibleCounts(pool), [3, 3, 9, 3]);
