@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { focusForAccessibility } from '@/accessibility/focus-component';
 import { ClaimQr } from '@/commerce/claim-qr';
 import type { CustomerIdentity } from '@/commerce/commerce-api';
 import { createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired } from '@/commerce/customer-identity';
@@ -83,7 +84,7 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
   useEffect(() => {
     void requestIdentity(gate.start());
     const focus = setTimeout(() => {
-      if (heading.current) AccessibilityInfo.sendAccessibilityEvent(heading.current, 'focus');
+      if (heading.current) focusForAccessibility(heading.current);
     }, 350);
     return () => {
       clearTimeout(focus);

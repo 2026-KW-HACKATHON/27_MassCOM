@@ -1,8 +1,9 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, BackHandler, Image, Pressable, RefreshControl, ScrollView, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { BackHandler, Image, Pressable, RefreshControl, ScrollView, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { focusForAccessibility } from '@/accessibility/focus-component';
 import type { AccountCredential } from '@/auth/account-credential';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { useMotionEnabled } from '@/motion/use-motion';
@@ -101,7 +102,7 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
     if (selectedId !== undefined || id === undefined) return;
     returnFocusTo.current = undefined;
     const opener = openers.current.get(id);
-    if (opener) AccessibilityInfo.sendAccessibilityEvent(opener, 'focus');
+    if (opener) focusForAccessibility(opener);
   }, [selectedId]);
 
   const openerRef = (id: string) => (node: View | null) => {
