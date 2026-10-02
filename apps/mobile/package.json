@@ -54,7 +54,7 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
-    "audit:ci": "npm audit --omit=dev --audit-level=high",
+    "audit:ci": "node ../../scripts/audit-ci.mjs",
     "export:android": "expo export --platform android --output-dir dist",
     "ios": "expo run:ios",
     "test": "tsx --test 'src/**/*.test.ts'",
