@@ -9,6 +9,9 @@ export const collectionShareCardTitle = '나의 월계 도감';
 export const collectionShareCardFooter = 'MassCOM · 월계 동네 수집';
 /** 한 장에 담는 수집품 수: 3×2 격자. */
 export const collectionShareCardSlots = 6;
+/** 피드에서 잘리지 않는 4:5. 화면에 그리는 크기(dp)와, 공유 이미지로 찍는 크기(px)는 비율이 같다. */
+export const collectionShareCardSize = { width: 360, height: 450 } as const;
+export const collectionShareCaptureSize = { width: 1080, height: 1350 } as const;
 
 export type ShareCardGrade = 'BRONZE' | 'SILVER' | 'GOLD';
 

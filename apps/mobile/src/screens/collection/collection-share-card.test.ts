@@ -3,7 +3,9 @@ import { test } from 'node:test';
 
 import {
   buildCollectionShareCard,
+  collectionShareCaptureSize,
   collectionShareCardFooter,
+  collectionShareCardSize,
   collectionShareCardTitle,
   type CollectionShareCardInput,
 } from './collection-share-card';
@@ -166,4 +168,10 @@ test('the model never carries an account, nickname, email, date, wallet, QR or f
   assert.deepEqual(Object.keys(model).sort(), ['demoNote', 'footer', 'items', 'medals', 'subtitle', 'title', 'visitedStoreCount']);
   for (const item of model.items) assert.deepEqual(Object.keys(item).sort(), ['grade', 'imageUri', 'storeName', 'title']);
   for (const medal of model.medals) assert.deepEqual(Object.keys(medal).sort(), ['kind', 'label', 'tier', 'tierLabel']);
+});
+
+test('the card is 4:5 and is captured at 1080×1350 with the same ratio', () => {
+  assert.equal(collectionShareCardSize.width * 5, collectionShareCardSize.height * 4);
+  assert.deepEqual({ ...collectionShareCaptureSize }, { width: 1080, height: 1350 });
+  assert.equal(collectionShareCaptureSize.width * collectionShareCardSize.height, collectionShareCaptureSize.height * collectionShareCardSize.width);
 });
