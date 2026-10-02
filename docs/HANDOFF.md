@@ -1,5 +1,13 @@
 # HANDOFF
 
+## 2026-10-02 Issue #298 PR #312 confirm-review 대응(Codex gpt-6.1-sol, 58ed4e2 확인 리뷰)
+
+- 기준: main `36fed73`, 브랜치 `feat/298-shop-mobile`, worktree `.worktrees/298-shop-mobile`, PR #312(같은 PR에 반영). 바로 앞 cross-review 대응 커밋(58ed4e2)에 대한 확인 리뷰가 새로 지적한 경합 3건.
+- 구현: (1) `screens/shop/history-section.tsx`: 로딩 가드(ref)는 같은 요청이 두 번 시작되는 것만 막았을 뿐, 구매·새로고침이 진행 중인 요청을 무효화하지 않아 뒤늦은 응답이 새로 시작된 목록을 덮어쓸 수 있었다. `shop-loader.ts`와 같은 `createLatestGate`(friends-loader.ts)를 가져와 새로고침·언마운트마다 `invalidate()`하고, `load()`는 자신의 요청이 여전히 최신일 때만 반영한다. (2) `shop/shop-loader.ts`: `load()`가 자신의 응답이 무효화돼 반영되지 않았을 때도 `true`를 돌려줬다. `buy()`의 `SHOP_STATE_CHANGED` 처리가 이를 "새로고침 성공"으로 믿어, 동시에 끝난 다른 대표 설정 때문에 실제로는 갱신되지 않은 낡은 확률 위에 "업데이트됨" 안내를 보여줄 수 있었다. 반영됐을 때만 `true`를 돌려주게 고쳤다. (3) `screens/shop/index.tsx`: `chooseAvatar()`의 catch가 요청을 시작한 순간의 렌더가 캡처한 `reveal` 값을 그대로 읽어, 요청이 날아간 뒤 모달이 닫히면 실패가 이미 사라진 모달 쪽으로 가 아무도 못 봤다. `friends/index.tsx`의 `myCodeRef`와 같은 모양으로 `revealRef`를 두어 항상 최신 모달 상태를 읽는다.
+- 검증: `npm test --prefix apps/mobile` 1073/1073 PASS(신규 4건: `shop/shop-loader.test.ts` 신규 2건·`screens/shop/history-section.test.ts`·`screens/shop/index.test.ts` 각 신규 1건), `npm run typecheck`·`npm run lint --prefix apps/mobile` PASS, `node scripts/check-accessibility-semantics.mjs apps/mobile/src` PASS, `npm run export:android --prefix apps/mobile` PASS, `bash tools/gate.sh` PASS(origin/main이 PR #311 Issue #309 병합분까지 움직여 병합, mobile 쪽은 겹치지 않고 문서 3건만 추가 병합). 변이 시험 3건(스크래치 사본에서 각 수정을 되돌려 대응 시험이 실제로 실패하는지 확인한 뒤 복구): history-section.tsx의 `gate.begin()`/`isLatest` 검사 제거, shop-loader.ts의 `!gate.isLatest(request)) return false` 되돌리기, index.tsx의 `revealRef.current`를 `reveal`로 되돌리기 — 각각 대응 시험이 실패함을 확인했다.
+- `NOT_RUN`: 실기기·에뮬레이터 QA, 이번 수정에 대한 독립 리뷰.
+- 다음 작업: [PR #312](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/312) 재리뷰·CI.
+
 ## 2026-10-02 Issue #298 PR #312 cross-review 대응(Codex gpt-6.1-sol 🔴6, Claude sonnet 🔴1·🟡2)
 
 - 기준: main `36fed73`(PR #308 병합분, 브랜치·worktree 그대로), 브랜치 `feat/298-shop-mobile`, worktree `.worktrees/298-shop-mobile`, PR #312(같은 PR에 반영). 아래 HANDOFF의 "마일리지 상점 Android" 구현에 대한 독립 cross-review 9건을 전부 고쳤다.
@@ -17,6 +25,16 @@
 - 문서: `docs/TEST_STATUS.md`에 결과 기록, `apps/mobile/README.md`에 "마일리지 상점 (Issue #298, Android)" 절 추가. 새 소유자 결정은 없다(design-298.md와 그 "Design review fixes"가 이미 범위를 정했음) — `docs/DECISIONS.md`에 새 D-번호를 추가하지 않았다.
 - `NOT_RUN`: 실기기·에뮬레이터 QA(오케스트레이터가 별도 진행 예정), 독립 리뷰, 서버 측 재검증(이미 PR #303으로 병합·검증됨).
 - 다음 작업: [PR #312](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/312) 독립 리뷰(서로 다른 모델 2개)·CI, 실기기·에뮬레이터 확인(라이트·다크·글자 200%, 가게 친구 그림·뽑기 연출·친구 진입점).
+
+## 2026-10-02 Issue #309 로그인 없는 시연 웹 체험 (서버·Caddy)
+
+- 기준: main `e2091f2`에서 시작해 `36fed73`(#295 테스트 방문·`scripts/qa-local.sh`, PR #308)을 합침, worktree `.worktrees/309-guest-api`, 브랜치 `feat/309-guest-trial-api`, 커밋 `e37523d`(API)·`a736dbc`(Caddy·검증 스크립트)·계정 삭제 별칭 커밋·문서 커밋, PR 미정. 웹 클라이언트는 같은 Issue의 별도 브랜치 `feat/309-showcase-web`(다른 에이전트)이고 이 PR이 먼저 병합돼야 한다.
+- 구현: migration `0039_showcase_guest_trials.sql`, `apps/api/src/showcase/guest-trials.ts`(`ShowcaseGuestTrialService.start/resolve`, 모든 트랜잭션 DB 이름 재확인), `server.ts`(`POST /auth/guest-trial`·IP 제한·`GuestTrialError` 503·로컬 DEMO 배치의 Bearer 감싸기·시연 배치 배선), `merchant-catalog.ts`·`recommendation.ts`(체험 가게 제외), `access-requests.ts`(`trialMerchantId`), `grant-approver-command.ts`(체험 계정 거절), `merchant-art.ts`(체험 가게 생성·고르기 거절), `postgres/auth-session.ts`(`tokenHash` export), `postgres/account-deletion.ts`(체험 행 `account_id`를 별칭으로; 지우면 체험 가게가 목록에 다시 나온다). Caddyfile(`/play`·`/demo`), compose(Caddy `/srv/showcase-web` 읽기 전용), `verify-showcase-edge-routes.mjs`·`verify-lightsail-web.mjs`와 시험. `verify-showcase-host.mjs`는 바꿀 필요가 없었다(시연 compose 변화 없음; 체험 IP 제한에 필요한 `AUTH_TRUST_CADDY_FORWARDED_FOR=true`·API 볼륨 없음을 이미 강제).
+- 설계와 다른 점(D-064): 체험 캠페인 `is_public`은 `true`로 두고 목록·추천 쿼리에서 뺐다(비공개면 방문 확인·수집품 게시가 막힌다). 보상 상자 혜택은 전역 마일스톤 유일 인덱스 때문에 복사하지 않았다. 점주 화면이 체험 가게를 찾도록 `mine`에 `trialMerchantId`를 더했다(화면 반영은 웹 클라이언트 PR 몫, 계약은 그 에이전트에게 전달함).
+- 검증: [TEST_STATUS](TEST_STATUS.md) 첫 항목(병합 뒤 API 단위 327/327, postgres 338 PASS·2 기존 SKIP, 변이 21건, Caddy 런타임·검증기 시험, `bash tools/gate.sh`).
+- `NOT_RUN`: hosted 실제 기동, 웹 클라이언트 연동·브라우저 흐름, 배포(번들 복사·`current` 링크·Caddy 재생성 순서는 [infra/lightsail/README.md](../infra/lightsail/README.md#시연-웹-체험-경로-issue-309-d-064)).
+- 교차 리뷰 반영(PR #311, Claude opus 보안 P1·Codex gpt-6.1-sol P2): 클라이언트 키 HMAC(`client_key_hash`)으로 같은 IP의 끝나지 않은 체험 30개 상한(`429 GUEST_TRIAL_IP_LIMIT`), 폭주 제한 15분 20회, 정리·계정 삭제의 해시 지우기와 DB CHECK, 공유 "센 방문"에서 체험 가게 제외(친구 도장·메달). 결과는 [TEST_STATUS](TEST_STATUS.md) 첫 항목(postgres 340 PASS·2 기존 SKIP, 변이 28건).
+- 다음 작업: 반영분 재리뷰, CI, 병합 뒤 웹 클라이언트 PR 통합(웹은 `GUEST_TRIAL_IP_LIMIT` 한국어 안내 추가)·로컬 브라우저 QA, 배포 도구.
 
 ## 2026-10-02 Issue #304 시연 권한 요청의 남은 교착 경로 정리
 

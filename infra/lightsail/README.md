@@ -53,6 +53,12 @@
 
 `masscom.kr`·`www`의 `/nft-metadata/<series>/<tokenId>.json`, `/nft-metadata/images/<sha256>.webp`, 판이 붙은 기본 도장 `/nft-metadata/default/mascot-stamp-v1.png`는 `GET`·`HEAD`이고 정해진 모양일 때만 Caddy가 `api:3000`으로 넘긴다(발행 확정 때 고정한 스냅샷, [설계](../../docs/superpowers/specs/2026-09-30-nft-metadata-design.md)). 컨트랙트에 고정된 실증 토큰 `/nft-metadata/base-sepolia-proof/1.json`은 지금처럼 정적 파일이다. `Access-Control-Allow-Origin: *`는 `defer`로 붙여 API 값과 겹치지 않는다. 시연 `demo-api.masscom.kr`는 원래 모든 경로를 시연 API로 넘기므로 바꾸지 않았다. 웹 전용 배포의 전환 뒤 확인은 `/nft-metadata/no-such/1.json`이 API의 JSON 404(no-store)와 CORS `*` 한 줄인지 본다(`scripts/lightsail-web-probe-guard.sh`의 `nft_metadata_probe_response`, 옛 API여도 같다). 로컬 검사: `node --test tests/ops/verify_nft_metadata_proxy_test.mjs`(Docker Caddy), `bash tests/ops/deploy_lightsail_web_test.sh`. 운영 반영은 API(migration 0036 포함)를 먼저 배포한 뒤 웹·Caddy 순서이며 2026-09-30 main `3f5b2fa`의 `scripts/deploy-lightsail.sh --deploy`로 반영했다(없는 토큰 404·기본 도장 200·실증 토큰 200을 외부 HTTPS에서 확인: [실측](../../docs/evidence/store-consent-nft-deployment-2026-09-30.json)).
 
+## 시연 웹 체험 경로 (Issue #309, D-064)
+
+`demo-api.masscom.kr`의 `/play`는 `/play/`로 308, `/play/*`는 Caddy가 `/srv/showcase-web`의 정적 Expo 웹(SPA, 없는 경로는 `index.html`)을 전용 CSP(`default-src 'self'; connect-src 'self'; …; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`)와 함께 준다. 그 밖의 경로는 그대로 시연 API로 간다(같은 출처라 CORS 없음). `masscom.kr`·`www`의 `/demo`·`/demo/*`는 `https://demo-api.masscom.kr/play/`로 302만 하고, 운영 출처는 시연 번들을 읽지 않는다. Caddy는 `${MASSCOM_SHOWCASE_WEB_DIR:-/opt/masscom-showcase/web/current}`를 `/srv/showcase-web`에 읽기 전용으로 붙인다. 검사: `node --test tests/ops/verify_showcase_edge_routes_test.mjs tests/ops/verify_aws_web_routes_test.mjs`, `node --test tests/ops/verify_showcase_edge_runtime_test.mjs`(Docker Caddy로 `/play`·CSP·`/demo` 302 확인), `caddy adapt | node scripts/verify-showcase-edge-routes.mjs`, `node scripts/verify-lightsail-web.mjs`.
+
+**배포 전제(이 PR은 배포하지 않음):** 번들을 `/opt/masscom-showcase/web/releases/<sha>`에 복사하고 `current` 심볼릭 링크를 **Caddy를 다시 만들기 전에** 만들어야 한다. 경로가 없으면 Docker가 빈 디렉터리 `current`를 만들어(그 뒤 `ln -sfn`이 그 안에 링크를 만든다) `/play/`가 404가 된다. 바인드 마운트는 컨테이너 생성 때 링크를 따라가므로 `current`를 바꾼 뒤에는 Caddy를 다시 만든다. 번들 복사 도구는 웹 클라이언트 PR 몫이다.
+
 ## 사장님 AI 가게 그림 키 (D-048, Issue #236)
 
 기능은 `OPENAI_API_KEY`가 **비어 있으면 꺼진 채**(앱에는 "준비 중")이고 다른 기능에는 영향이 없다. 그래서 `scripts/deploy-lightsail.sh`는 이 키를 필수로 요구하지 않고, [`compose.yml`](compose.yml)은 비어 있으면 빈 값을 API에 넘긴다.
