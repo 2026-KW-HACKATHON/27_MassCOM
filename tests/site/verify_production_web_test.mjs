@@ -2632,7 +2632,6 @@ test('가게 현황 카드 링크는 방문 카드는 오늘 방문 기록, 쿠�
   const link = (label) => first(fixture.cardOf(label), 'overview-card-link');
   for (const label of ['오늘 방문', '이번 주 방문', '최근 7일', '누적 방문']) {
     assert.equal(link(label).getAttribute('href'), '#merchant-visit-title', label);
-    assert.match(link(label).getAttribute('aria-label'), new RegExp(label.replace(/[()]/g, '\\$&')), label);
   }
   assert.equal(link('이번 주 쿠폰 사용').getAttribute('href'), '#merchant-redemption-title');
   assert.equal(link('재방문 고객(2일 이상)'), undefined);
@@ -2641,15 +2640,31 @@ test('가게 현황 카드 링크는 방문 카드는 오늘 방문 기록, 쿠�
   assert.equal(link('캠페인 상태'), undefined);
   assert.match(textOf(campaign), /가을 방문 · 9월 1일부터 12월 31일까지/);
   assert.match(textOf(campaign), /캠페인 변경은 운영팀에 요청해 주세요/);
-  // 링크 글자는 서로 다른 카드를 구분하는 이름을 따로 가진다.
-  const names = ['오늘 방문', '이번 주 방문', '최근 7일', '누적 방문', '이번 주 쿠폰 사용'].map((label) => link(label).getAttribute('aria-label'));
-  assert.equal(new Set(names).size, 5);
+  // 접근 가능한 이름: 보이는 글자가 화면에서 하나뿐인 링크는 aria-label이 없고, 같은 글자의 링크는 `글자 (카드 이름)`이다.
+  // 어느 쪽이든 보이는 글자가 이름 안에 그대로 있고 단어가 겹치지 않으며, 서로 다른 링크의 이름은 모두 다르다.
+  const names = {};
+  for (const label of ['오늘 방문', '이번 주 방문', '최근 7일', '누적 방문', '이번 주 쿠폰 사용']) {
+    const anchor = link(label);
+    names[label] = anchor.getAttribute('aria-label') ?? anchor.textContent;
+    assert.ok(names[label].startsWith(anchor.textContent), label);
+  }
+  assert.equal(link('오늘 방문').getAttribute('aria-label'), null);
+  assert.equal(link('이번 주 쿠폰 사용').getAttribute('aria-label'), null);
+  assert.equal(names['오늘 방문'], '오늘 방문 기록 보기');
+  assert.equal(names['이번 주 쿠폰 사용'], '쿠폰 사용 내역 보기');
+  assert.equal(names['이번 주 방문'], '방문 기록 보기 (이번 주 방문)');
+  assert.equal(names['최근 7일'], '방문 기록 보기 (최근 7일)');
+  assert.equal(names['누적 방문'], '방문 기록 보기 (누적 방문)');
+  assert.equal(new Set(Object.values(names)).size, 5);
+  for (const name of Object.values(names)) assert.doesNotMatch(name, /(\S+) \1/);
+  // 7일 막대 목록은 화면 낭독기가 무엇의 목록인지 알도록 이름을 가진다.
+  assert.equal(findAll(fixture.cardOf('최근 7일'), 'overview-days')[0].getAttribute('aria-label'), '최근 7일 방문 수');
 });
 
 test('가게 현황은 지난주 대비를 비교가 있을 때만 이번 주 방문 카드에 보인다', async () => {
   const noteOf = (fixture) => findAll(fixture.cardOf('이번 주 방문'), 'overview-card-note').map((node) => node.textContent);
   const shown = await overviewMerchant();
-  assert.deepEqual(noteOf(shown), ['지난주 대비 +2건', '지난주 같은 요일까지와 비교해요.']);
+  assert.deepEqual(noteOf(shown), ['지난주 대비 +2건', '지난주 같은 시각까지와 비교해요.']);
   const hidden = await overviewMerchant({ overview: () => okJson(overviewData({ comparison: null })) });
   assert.deepEqual(noteOf(hidden), []);
   assert.doesNotMatch(textOf(hidden.cardOf('이번 주 방문')), /지난주/);

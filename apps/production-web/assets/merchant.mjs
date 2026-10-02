@@ -899,11 +899,13 @@ export function bindMerchant(fetcher, doc) {
     node.textContent = text;
     return node;
   };
-  const cardLink = (target, label, text) => {
+  // 접근 가능한 이름은 보이는 글자를 그대로 포함한다. 화면 전체에서 그 글자가 하나뿐이면 aria-label을 달지 않고,
+  // 같은 글자의 링크가 여럿이면 `보이는 글자 (카드 이름)`으로 구분한다.
+  const cardLink = (target, text, cardLabel) => {
     const link = doc.createElement('a');
     link.className = 'overview-card-link';
     link.setAttribute('href', target);
-    link.setAttribute('aria-label', label);
+    if (cardLabel) link.setAttribute('aria-label', `${text} (${cardLabel})`);
     link.textContent = text;
     return link;
   };
@@ -915,13 +917,14 @@ export function bindMerchant(fetcher, doc) {
   };
   const valueCard = (label, value, { notes = [], link } = {}) => overviewCard(label,
     [textNode('p', 'overview-card-value', value), ...notes.map(note => textNode('p', 'overview-card-note', note))],
-    link ? [cardLink(link.target, `${label} ${link.name}`, link.text)] : []);
-  const visitLink = { target: '#merchant-visit-title', name: '방문 기록으로 이동', text: '오늘 방문 기록 보기' };
+    link ? [cardLink(link.target, link.text, link.distinguishBy ? label : undefined)] : []);
+  const visitLink = { target: '#merchant-visit-title', text: '방문 기록 보기', distinguishBy: true };
   const renderOverview = overview => {
     const { visits, comparison, campaign, readiness } = overview;
     const max = Math.max(...visits.last7Days.map(day => day.count));
     const days = doc.createElement('ol');
     days.className = 'overview-days';
+    days.setAttribute('aria-label', '최근 7일 방문 수');
     for (const day of visits.last7Days) {
       const row = doc.createElement('li');
       const bar = doc.createElement('span');
@@ -939,15 +942,15 @@ export function bindMerchant(fetcher, doc) {
     const comparisonText = overviewComparisonText(comparison);
     overviewCards.replaceChildren();
     overviewCards.append(
-      valueCard('오늘 방문', `${visits.today}건`, { link: visitLink }),
+      valueCard('오늘 방문', `${visits.today}건`, { link: { target: visitLink.target, text: '오늘 방문 기록 보기' } }),
       valueCard('이번 주 방문', `${visits.thisWeek}건`, {
-        notes: comparisonText ? [comparisonText, '지난주 같은 요일까지와 비교해요.'] : [],
-        link: { ...visitLink, text: '방문 기록 보기' },
+        notes: comparisonText ? [comparisonText, '지난주 같은 시각까지와 비교해요.'] : [],
+        link: visitLink,
       }),
-      overviewCard('최근 7일', [days], [cardLink('#merchant-visit-title', '최근 7일 방문 기록으로 이동', '방문 기록 보기')]),
-      valueCard('누적 방문', `${visits.total}건`, { link: { ...visitLink, text: '방문 기록 보기' } }),
+      overviewCard('최근 7일', [days], [cardLink(visitLink.target, visitLink.text, '최근 7일')]),
+      valueCard('누적 방문', `${visits.total}건`, { link: visitLink }),
       valueCard('이번 주 쿠폰 사용', `${overview.couponsRedeemedThisWeek}장`, {
-        link: { target: '#merchant-redemption-title', name: '쿠폰 사용 내역으로 이동', text: '쿠폰 사용 내역 보기' },
+        link: { target: '#merchant-redemption-title', text: '쿠폰 사용 내역 보기' },
       }),
       valueCard('재방문 고객(2일 이상)', `${overview.repeatVisitors}명`, {
         notes: ['서로 다른 날 2번 이상 방문한 손님이에요. 전체 기간 기준이에요.'],
