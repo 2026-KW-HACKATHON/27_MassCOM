@@ -5,6 +5,8 @@ const merchantClaimResolutions = new WeakMap();
 const merchantClaimSlots = new WeakMap();
 // bindMerchant이 둔 최근 목록 읽기 함수. loadMerchant가 점포 권한을 확인하고 구역을 연 뒤 부른다.
 const reversalRefreshers = new WeakMap();
+// bindMerchant이 둔 가게 현황 읽기 함수(#330). loadMerchant가 구역을 연 뒤 최근 목록과 함께 부른다.
+const overviewRefreshers = new WeakMap();
 const creators = new WeakMap();
 const creatorScopes = new WeakMap();
 // 지금 제작기가 열려 있는 점포 ID.
@@ -187,6 +189,67 @@ export function couponUndoMessage(error) {
   }
 }
 
+// ---- 가게 현황(#330): 요약 카드와 오픈 준비 체크리스트의 글자·검증 도우미 ----
+const readinessStateLabels = {
+  DONE: '완료', NEEDS_SETUP: '설정 필요', CHECK: '확인 필요', WAITING_APPROVAL: '승인 대기', SCHEDULED: '공개 예정',
+};
+export const readinessStateLabel = state => readinessStateLabels[state] ?? '확인 필요';
+
+const campaignPhaseLabels = {
+  LIVE: '진행 중', SCHEDULED: '시작 전', NOT_PUBLIC: '고객에게 비공개', EXPIRED: '기간 종료', DRAFT: '초안', PAUSED: '일시정지', ENDED: '종료',
+};
+export const campaignPhaseLabel = phase => campaignPhaseLabels[phase] ?? '확인 필요';
+
+// 지난주 대비는 서버가 비교가 공정하다고 판단했을 때만(comparison이 null이 아닐 때) 보인다.
+export function overviewComparisonText(comparison) {
+  if (!comparison) return null;
+  if (comparison.delta > 0) return `지난주 대비 +${comparison.delta}건`;
+  if (comparison.delta < 0) return `지난주 대비 −${Math.abs(comparison.delta)}건`;
+  return '지난주 대비 변화 없음';
+}
+
+const weekdayNames = ['일', '월', '화', '수', '목', '금', '토'];
+// 'YYYY-MM-DD'(서버가 센 한국 날짜)를 시간대 변환 없이 읽는다.
+function dateParts(date) {
+  const [year, month, day] = date.split('-').map(Number);
+  return { month, day, weekday: weekdayNames[new Date(Date.UTC(year, month - 1, day)).getUTCDay()] };
+}
+export function dayLabel(date) {
+  const { month, day, weekday } = dateParts(date);
+  return `${month}/${day}(${weekday})`;
+}
+const businessDateLabel = date => {
+  const { month, day, weekday } = dateParts(date);
+  return `${month}월 ${day}일(${weekday})`;
+};
+// 막대 길이(%). 0건이면 0%, 0이 아니면 보이도록 최소 1%.
+export function barWidthPercent(count, max) {
+  if (!(max > 0) || !(count > 0)) return 0;
+  return Math.max(1, Math.round((count / max) * 100));
+}
+const monthDayLabel = iso => {
+  const parts = kstMonthDay.formatToParts(new Date(iso));
+  const part = type => parts.find(item => item.type === type)?.value;
+  return `${part('month')}월 ${part('day')}일`;
+};
+
+const isCount = value => Number.isInteger(value) && value >= 0;
+const isDateOnly = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+const isOverviewStep = step => step !== null && typeof step === 'object' && typeof step.key === 'string'
+  && typeof step.label === 'string' && Object.hasOwn(readinessStateLabels, step.state) && typeof step.hint === 'string';
+const isOverviewCampaign = campaign => campaign !== null && typeof campaign === 'object' && typeof campaign.title === 'string'
+  && Object.hasOwn(campaignPhaseLabels, campaign.phase) && isDateText(campaign.startsAt) && isDateText(campaign.endsAt);
+const isOverview = value => value !== null && typeof value === 'object' && isDateOnly(value.businessDate)
+  && value.visits !== null && typeof value.visits === 'object'
+  && ['today', 'thisWeek', 'lastWeek', 'total'].every(key => isCount(value.visits[key]))
+  && Array.isArray(value.visits.last7Days) && value.visits.last7Days.length === 7
+  && value.visits.last7Days.every(day => day !== null && typeof day === 'object' && isDateOnly(day.date) && isCount(day.count))
+  && (value.comparison === null || (typeof value.comparison === 'object' && Number.isInteger(value.comparison.delta)))
+  && isCount(value.couponsRedeemedThisWeek) && isCount(value.repeatVisitors)
+  && (value.campaign === null || isOverviewCampaign(value.campaign))
+  && value.readiness !== null && typeof value.readiness === 'object' && typeof value.readiness.message === 'string'
+  && Array.isArray(value.readiness.steps) && value.readiness.steps.length > 0 && value.readiness.steps.every(isOverviewStep);
+
 async function request(fetcher, path, method = 'GET', body) {
   const response = await fetcher(path, {
     method, credentials: 'same-origin', cache: 'no-store',
@@ -250,6 +313,18 @@ export async function loadMerchant(fetcher, doc) {
     const node = doc.getElementById(id);
     if (node) node.textContent = '';
   }
+  const overviewPanel = doc.getElementById('merchant-overview');
+  const overviewPicker = doc.getElementById('merchant-overview-picker');
+  const overviewSelect = doc.getElementById('merchant-overview-merchant');
+  if (overviewPanel) overviewPanel.hidden = true;
+  overviewSelect?.replaceChildren();
+  for (const id of ['merchant-overview-cards', 'merchant-readiness-list']) doc.getElementById(id)?.replaceChildren();
+  for (const id of ['merchant-overview-status', 'merchant-readiness-message']) {
+    const node = doc.getElementById(id);
+    if (node) node.textContent = '';
+  }
+  const overviewRefresh = doc.getElementById('merchant-overview-refresh');
+  if (overviewRefresh) overviewRefresh.disabled = false;
   try {
     const [mine, eligible] = await Promise.all([
       request(fetcher, '/api/web/merchant/me'),
@@ -272,8 +347,17 @@ export async function loadMerchant(fetcher, doc) {
         reversalOption.textContent = merchant.name;
         reversalSelect.append(reversalOption);
       }
+      if (overviewSelect) {
+        const overviewOption = doc.createElement('option');
+        overviewOption.value = merchant.id;
+        overviewOption.textContent = merchant.name;
+        overviewSelect.append(overviewOption);
+      }
     }
     if (reversalPanel) reversalPanel.hidden = mine.merchants.length === 0;
+    if (overviewPanel) overviewPanel.hidden = mine.merchants.length === 0;
+    // 점포가 하나뿐이면 점포 고르기는 보이지 않아도 된다.
+    if (overviewPicker) overviewPicker.hidden = mine.merchants.length <= 1;
     claimForm.hidden = mine.merchants.length === 0;
     if (!mine.merchants.length) list.textContent = '아직 승인된 점포가 없습니다.';
     for (const merchant of eligible.merchants) {
@@ -289,8 +373,8 @@ export async function loadMerchant(fetcher, doc) {
     content.hidden = false;
     logout.hidden = false;
     status.textContent = '점포 권한을 확인했습니다.';
-    // 구역이 열리면 최근 방문·쿠폰 사용을 바로 읽는다(실패해도 점포 화면은 그대로다).
-    if (mine.merchants.length > 0) await reversalRefreshers.get(doc)?.();
+    // 구역이 열리면 가게 현황과 최근 방문·쿠폰 사용을 바로 읽는다(실패해도 점포 화면은 그대로다).
+    if (mine.merchants.length > 0) await Promise.all([overviewRefreshers.get(doc)?.(), reversalRefreshers.get(doc)?.()]);
   } catch (error) {
     if (merchantRequests.get(doc) !== requestId) return;
     if (error.status === 401) {
@@ -792,9 +876,151 @@ export function bindMerchant(fetcher, doc) {
     }
   };
   reversalRefresh?.addEventListener('click', () => refreshReversal());
-  // 점포를 바꾸면 이전 점포 목록을 지우고 새 점포 목록을 바로 읽는다.
-  reversalSelect?.addEventListener('change', () => { resetReversal(); void refreshReversal(); });
+
+  // ---- 가게 현황(#330): 선택한 점포의 요약 카드와 오픈 준비 체크리스트. 점포 선택은 최근 방문 목록과 같은 값을 쓴다. ----
+  const overviewSelect = doc.getElementById('merchant-overview-merchant');
+  const overviewRefresh = doc.getElementById('merchant-overview-refresh');
+  const overviewStatus = doc.getElementById('merchant-overview-status');
+  const overviewCards = doc.getElementById('merchant-overview-cards');
+  const readinessMessage = doc.getElementById('merchant-readiness-message');
+  const readinessList = doc.getElementById('merchant-readiness-list');
+  let overviewGeneration = 0;
+  const resetOverview = () => {
+    overviewGeneration += 1;
+    overviewCards?.replaceChildren();
+    readinessList?.replaceChildren();
+    if (readinessMessage) readinessMessage.textContent = '';
+    if (overviewStatus) overviewStatus.textContent = '';
+    if (overviewRefresh) overviewRefresh.disabled = false;
+  };
+  const textNode = (tag, className, text) => {
+    const node = doc.createElement(tag);
+    node.className = className;
+    node.textContent = text;
+    return node;
+  };
+  const cardLink = (target, label, text) => {
+    const link = doc.createElement('a');
+    link.className = 'overview-card-link';
+    link.setAttribute('href', target);
+    link.setAttribute('aria-label', label);
+    link.textContent = text;
+    return link;
+  };
+  const overviewCard = (label, body, extras = []) => {
+    const card = doc.createElement('li');
+    card.className = 'overview-card';
+    card.append(textNode('p', 'overview-card-label', label), ...body, ...extras);
+    return card;
+  };
+  const valueCard = (label, value, { notes = [], link } = {}) => overviewCard(label,
+    [textNode('p', 'overview-card-value', value), ...notes.map(note => textNode('p', 'overview-card-note', note))],
+    link ? [cardLink(link.target, `${label} ${link.name}`, link.text)] : []);
+  const visitLink = { target: '#merchant-visit-title', name: '방문 기록으로 이동', text: '오늘 방문 기록 보기' };
+  const renderOverview = overview => {
+    const { visits, comparison, campaign, readiness } = overview;
+    const max = Math.max(...visits.last7Days.map(day => day.count));
+    const days = doc.createElement('ol');
+    days.className = 'overview-days';
+    for (const day of visits.last7Days) {
+      const row = doc.createElement('li');
+      const bar = doc.createElement('span');
+      bar.className = 'overview-bar';
+      bar.setAttribute('aria-hidden', 'true');
+      const fill = doc.createElement('span');
+      fill.className = 'overview-bar-fill';
+      // CSP(style-src 'self')가 막는 것은 style 속성이다. CSSOM으로 너비만 정한다.
+      fill.style.setProperty('width', `${barWidthPercent(day.count, max)}%`);
+      bar.append(fill);
+      row.append(textNode('span', 'overview-day', dayLabel(day.date)), bar, textNode('span', 'overview-day-count', `${day.count}건`));
+      days.append(row);
+    }
+    const visibleStep = readiness.steps.find(step => step.key === 'visible');
+    const comparisonText = overviewComparisonText(comparison);
+    overviewCards.replaceChildren();
+    overviewCards.append(
+      valueCard('오늘 방문', `${visits.today}건`, { link: visitLink }),
+      valueCard('이번 주 방문', `${visits.thisWeek}건`, {
+        notes: comparisonText ? [comparisonText, '지난주 같은 요일까지와 비교해요.'] : [],
+        link: { ...visitLink, text: '방문 기록 보기' },
+      }),
+      overviewCard('최근 7일', [days], [cardLink('#merchant-visit-title', '최근 7일 방문 기록으로 이동', '방문 기록 보기')]),
+      valueCard('누적 방문', `${visits.total}건`, { link: { ...visitLink, text: '방문 기록 보기' } }),
+      valueCard('이번 주 쿠폰 사용', `${overview.couponsRedeemedThisWeek}장`, {
+        link: { target: '#merchant-redemption-title', name: '쿠폰 사용 내역으로 이동', text: '쿠폰 사용 내역 보기' },
+      }),
+      valueCard('재방문 고객(2일 이상)', `${overview.repeatVisitors}명`, {
+        notes: ['서로 다른 날 2번 이상 방문한 손님이에요. 전체 기간 기준이에요.'],
+      }),
+      valueCard('캠페인 상태', campaign ? campaignPhaseLabel(campaign.phase) : '캠페인 없음', {
+        notes: [
+          ...(campaign ? [`${campaign.title} · ${monthDayLabel(campaign.startsAt)}부터 ${monthDayLabel(campaign.endsAt)}까지`] : []),
+          '캠페인 변경은 운영팀에 요청해 주세요.',
+        ],
+      }),
+      valueCard('고객 앱 공개', visibleStep?.state === 'DONE' ? '고객 앱에 보여요'
+        : visibleStep?.state === 'WAITING_APPROVAL' ? '운영팀 승인 대기' : '아직 안 보여요', { notes: [readiness.message] }),
+    );
+    readinessMessage.textContent = readiness.message;
+    readinessList.replaceChildren();
+    readinessList.append(...readiness.steps.map(step => {
+      const item = doc.createElement('li');
+      item.className = 'readiness-step';
+      const badge = textNode('span', `readiness-badge readiness-${step.state.toLowerCase().replaceAll('_', '-')}`, readinessStateLabel(step.state));
+      item.append(textNode('span', 'readiness-label', step.label), badge);
+      if (step.hint) item.append(textNode('span', 'readiness-hint', step.hint));
+      return item;
+    }));
+  };
+  const refreshOverview = async () => {
+    if (!overviewSelect || !overviewCards || !readinessList || !readinessMessage || !overviewStatus) return;
+    const merchantId = overviewSelect.value;
+    if (!merchantId) return;
+    const generation = ++overviewGeneration;
+    const requestId = merchantRequests.get(doc);
+    const stale = () => generation !== overviewGeneration || merchantRequests.get(doc) !== requestId || overviewSelect.value !== merchantId;
+    overviewStatus.textContent = '가게 현황을 불러오는 중이에요.';
+    if (overviewRefresh) overviewRefresh.disabled = true;
+    try {
+      const overview = await request(fetcher, `${reversalBase(merchantId)}/overview`);
+      if (stale()) return;
+      if (!isOverview(overview)) throw new Error('invalid overview');
+      renderOverview(overview);
+      overviewStatus.textContent = `${businessDateLabel(overview.businessDate)} 기준으로 센 값이에요.`;
+    } catch (error) {
+      if (stale()) return;
+      overviewCards.replaceChildren();
+      readinessList.replaceChildren();
+      readinessMessage.textContent = '';
+      overviewStatus.textContent = error.status === 403 || error.status === 401
+        ? '이 점포의 현황을 볼 권한이 없어요.' : '가게 현황을 불러오지 못했어요. 다시 시도해 주세요.';
+    } finally {
+      if (generation === overviewGeneration && overviewRefresh) overviewRefresh.disabled = false;
+    }
+  };
+  overviewRefresh?.addEventListener('click', () => refreshOverview());
+  // 점포를 바꾸면 이전 점포 현황을 지우고 새 점포 현황을 바로 읽는다. 최근 방문 목록의 점포도 같은 값으로 맞춘다.
+  overviewSelect?.addEventListener('change', () => {
+    resetOverview();
+    if (reversalSelect) {
+      reversalSelect.value = overviewSelect.value;
+      resetReversal();
+      void refreshReversal();
+    }
+    return refreshOverview();
+  });
+  // 점포를 바꾸면 이전 점포 목록을 지우고 새 점포 목록을 바로 읽는다. 가게 현황도 같은 점포로 따라간다.
+  reversalSelect?.addEventListener('change', () => {
+    resetReversal();
+    void refreshReversal();
+    if (overviewSelect) {
+      overviewSelect.value = reversalSelect.value;
+      resetOverview();
+      void refreshOverview();
+    }
+  });
   reversalRefreshers.set(doc, () => refreshReversal());
+  overviewRefreshers.set(doc, () => refreshOverview());
   claimForm.addEventListener('submit', async event => {
     event.preventDefault();
     if (issuing || couponBusy) return;
@@ -896,6 +1122,7 @@ export function bindMerchant(fetcher, doc) {
     invalidateClaim();
     clearSlot();
     resetReversal();
+    resetOverview();
     setIssuing(false);
     try {
       await request(fetcher, '/api/web/logout', 'POST');
@@ -914,6 +1141,7 @@ export function bindMerchant(fetcher, doc) {
     invalidateClaim();
     clearSlot();
     resetReversal();
+    resetOverview();
     setIssuing(false);
   };
   doc.defaultView?.addEventListener('pagehide', () => { closeCreator(doc); creatorScopes.delete(doc); clear(); });

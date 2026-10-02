@@ -6,7 +6,10 @@ import { after, before, test } from 'node:test';
 
 import * as productionWeb from '../../apps/production-web/assets/production.mjs';
 import { bindAdmin, campaignDraftPayload, couponVoidMessage, formatKst, loadAdmin, parseMenuLines } from '../../apps/production-web/assets/admin.mjs';
-import { bindMerchant, couponUndoMessage, loadMerchant, visitCancelMessage } from '../../apps/production-web/assets/merchant.mjs';
+import {
+  barWidthPercent, bindMerchant, campaignPhaseLabel, couponUndoMessage, dayLabel, loadMerchant, overviewComparisonText,
+  readinessStateLabel, visitCancelMessage,
+} from '../../apps/production-web/assets/merchant.mjs';
 import { createProductionServer, resolveProductionBindHost } from '../../apps/production-web/server.mjs';
 
 const { loadMerchants } = productionWeb;
@@ -2503,6 +2506,323 @@ test('관리자 웹은 시연 점포처럼 서버가 대상이 아니라고 답�
   const generic = await adminCoupons({ list: () => apiError(500, 'INTERNAL_ERROR') });
   await generic.load();
   assert.match(generic.status(), /쿠폰 목록을 불러오지 못했어요/);
+});
+
+// ---- Issue #330: 점주 웹 가게 현황(요약 카드 + 오픈 준비 체크리스트) ----
+const overviewPath = `${merchantBase}/overview`;
+const readinessSteps = () => [
+  { key: 'basic', label: '가게 기본 정보', state: 'DONE', hint: '' },
+  { key: 'menu', label: '메뉴', state: 'DONE', hint: '메뉴 2개가 등록돼 있어요.' },
+  { key: 'members', label: '점주·직원', state: 'DONE', hint: '점주 1명 · 직원 2명' },
+  { key: 'reward', label: '방문 보상', state: 'NEEDS_SETUP', hint: '<b>수집품</b>을 연결해 주세요. 쿠폰 혜택은 운영팀이 플랫폼 단위로 설정해요.' },
+  { key: 'campaign', label: '캠페인', state: 'SCHEDULED', hint: '캠페인 시작일이 아직 되지 않아 고객 목록에는 표시되지 않습니다.' },
+  { key: 'visible', label: '고객 앱 공개', state: 'WAITING_APPROVAL', hint: '운영팀 공개 처리 대기 중이에요.' },
+];
+const overviewData = (over = {}) => ({
+  generatedAt: '2026-10-07T03:00:00.000Z', businessDate: '2026-10-07', weekStartsOn: '2026-10-05',
+  visits: { today: 2, thisWeek: 4, lastWeek: 4, total: 9,
+    last7Days: ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07']
+      .map((date, index) => ({ date, count: [0, 0, 0, 2, 1, 1, 2][index] })) },
+  comparison: { lastWeekSameSpan: 2, delta: 2 },
+  couponsRedeemedThisWeek: 2, repeatVisitors: 3,
+  campaign: { title: '가을 방문', status: 'ACTIVE', isPublic: true, phase: 'LIVE',
+    startsAt: '2026-09-01T00:00:00.000Z', endsAt: '2026-12-31T00:00:00.000Z' },
+  readiness: { steps: readinessSteps(), remaining: 3, message: '고객 앱 공개까지 3단계 남았습니다.' },
+  ...over,
+});
+
+async function overviewMerchant({ overview = () => okJson(overviewData()), withReversal = true, deferBind = false,
+  merchants = [{ id: 'real-merchant', name: '실제 점포', role: 'OWNER' }] } = {}) {
+  const fixture = merchantDocument();
+  const { nodes, doc } = fixture;
+  const ids = ['merchant-overview', 'merchant-overview-picker', 'merchant-overview-merchant', 'merchant-overview-refresh',
+    'merchant-overview-status', 'merchant-overview-cards', 'merchant-readiness-message', 'merchant-readiness-list'];
+  if (withReversal) ids.push('merchant-reversal', 'merchant-reversal-merchant', 'merchant-reversal-refresh', 'merchant-visit-list',
+    'merchant-visit-status', 'merchant-redemption-list', 'merchant-redemption-status');
+  for (const id of ids) nodes[id] = { ...element(), hidden: true };
+  nodes['merchant-overview-merchant'].value = 'real-merchant';
+  if (withReversal) nodes['merchant-reversal-merchant'].value = 'real-merchant';
+  // 막대 너비는 CSSOM으로만 정한다: style 속성이 아니라 style.setProperty 호출을 기록한다.
+  doc.createElement = () => ({ ...element(), style: { props: {}, setProperty(name, value) { this.props[name] = value; } } });
+  const calls = [];
+  const fetcher = async (path, options) => {
+    if (path === '/api/web/merchant/me') return okJson({ merchants });
+    if (path === '/api/web/merchant/registration-merchants') return okJson({ merchants: [] });
+    calls.push({ path, options });
+    if (path.endsWith('/overview')) return overview(path);
+    if (path.endsWith('/recent-visits')) return okJson(recentVisits());
+    if (path.endsWith('/recent-coupon-redemptions')) return okJson(recentRedemptions());
+    throw new Error(`unexpected ${path}`);
+  };
+  const bound = bindMerchant(fetcher, doc);
+  const overviewCalls = () => calls.filter((call) => call.path.endsWith('/overview'));
+  const cards = () => nodes['merchant-overview-cards'].children;
+  const cardOf = (label) => cards().find((card) => first(card, 'overview-card-label')?.textContent === label);
+  const api = { ...fixture, calls, overviewCalls, cards, cardOf, bound,
+    status: () => nodes['merchant-overview-status'].textContent,
+    steps: () => nodes['merchant-readiness-list'].children,
+    message: () => nodes['merchant-readiness-message'].textContent };
+  if (!deferBind) await bound;
+  return api;
+}
+
+test('가게 현황 글자 도우미는 비교 부호·캠페인·체크리스트 상태·요일·막대 너비를 한국어로 정한다', () => {
+  assert.equal(overviewComparisonText({ lastWeekSameSpan: 2, delta: 3 }), '지난주 대비 +3건');
+  assert.equal(overviewComparisonText({ lastWeekSameSpan: 9, delta: -7 }), '지난주 대비 −7건');
+  assert.equal(overviewComparisonText({ lastWeekSameSpan: 4, delta: 0 }), '지난주 대비 변화 없음');
+  assert.equal(overviewComparisonText(null), null);
+  assert.deepEqual(['DONE', 'NEEDS_SETUP', 'CHECK', 'WAITING_APPROVAL', 'SCHEDULED'].map(readinessStateLabel),
+    ['완료', '설정 필요', '확인 필요', '승인 대기', '공개 예정']);
+  assert.deepEqual(['LIVE', 'SCHEDULED', 'NOT_PUBLIC', 'EXPIRED', 'DRAFT', 'PAUSED', 'ENDED'].map(campaignPhaseLabel),
+    ['진행 중', '시작 전', '고객에게 비공개', '기간 종료', '초안', '일시정지', '종료']);
+  assert.equal(dayLabel('2026-10-07'), '10/7(수)');
+  assert.equal(dayLabel('2026-10-04'), '10/4(일)');
+  assert.equal(dayLabel('2026-10-05'), '10/5(월)');
+  assert.equal(dayLabel('2026-12-31'), '12/31(목)');
+  assert.equal(barWidthPercent(0, 0), 0);
+  assert.equal(barWidthPercent(0, 5), 0);
+  assert.equal(barWidthPercent(5, 5), 100);
+  assert.equal(barWidthPercent(1, 3), 33);
+  assert.equal(barWidthPercent(1, 200), 1); // 0이 아니면 막대가 보이도록 최소 1%
+});
+
+test('가게 현황은 구역이 열리면 첫 점포의 현황을 한 번 읽고 요약 카드를 글자로 그린다', async () => {
+  const fixture = await overviewMerchant();
+  const { nodes } = fixture;
+  assert.equal(nodes['merchant-overview'].hidden, false);
+  assert.equal(nodes['merchant-overview-merchant'].children.length, 1);
+  assert.deepEqual(fixture.overviewCalls().map((call) => [call.path, call.options.method]), [[overviewPath, 'GET']]);
+  assert.equal(fixture.overviewCalls()[0].options.credentials, 'same-origin');
+  assert.equal(fixture.overviewCalls()[0].options.cache, 'no-store');
+  assert.deepEqual(fixture.cards().map((card) => first(card, 'overview-card-label').textContent),
+    ['오늘 방문', '이번 주 방문', '최근 7일', '누적 방문', '이번 주 쿠폰 사용', '재방문 고객(2일 이상)', '캠페인 상태', '고객 앱 공개']);
+  const value = (label) => first(fixture.cardOf(label), 'overview-card-value').textContent;
+  assert.equal(value('오늘 방문'), '2건');
+  assert.equal(value('이번 주 방문'), '4건');
+  assert.equal(value('누적 방문'), '9건');
+  assert.equal(value('이번 주 쿠폰 사용'), '2장');
+  assert.equal(value('재방문 고객(2일 이상)'), '3명');
+  assert.equal(value('캠페인 상태'), '진행 중');
+  assert.equal(value('고객 앱 공개'), '운영팀 승인 대기');
+  assert.match(textOf(fixture.cardOf('재방문 고객(2일 이상)')), /서로 다른 날 2번 이상/);
+  assert.match(fixture.status(), /10월 7일\(수\) 기준/);
+  // 점포가 하나뿐이면 점포 고르기는 숨긴다.
+  assert.equal(nodes['merchant-overview-picker'].hidden, true);
+});
+
+test('가게 현황 최근 7일은 읽을 수 있는 글자 목록이고 막대 너비는 style 속성 없이 CSSOM으로만 정한다', async () => {
+  const fixture = await overviewMerchant();
+  const week = fixture.cardOf('최근 7일');
+  const days = findAll(week, 'overview-days')[0].children;
+  assert.equal(days.length, 7);
+  assert.deepEqual(days.map((day) => `${first(day, 'overview-day').textContent} ${first(day, 'overview-day-count').textContent}`), [
+    '10/1(목) 0건', '10/2(금) 0건', '10/3(토) 0건', '10/4(일) 2건', '10/5(월) 1건', '10/6(화) 1건', '10/7(수) 2건',
+  ]);
+  const fills = days.map((day) => first(day, 'overview-bar-fill'));
+  assert.deepEqual(fills.map((fill) => fill.style.props.width), ['0%', '0%', '0%', '100%', '50%', '50%', '100%']);
+  for (const fill of fills) assert.equal(fill.attributes.style, undefined);
+  for (const day of days) assert.equal(first(day, 'overview-bar').getAttribute('aria-hidden'), 'true');
+  // 어떤 노드에도 style 속성을 쓰지 않는다(CSP style-src 'self').
+  const walk = (node) => [node, ...(node.children ?? []).flatMap(walk)];
+  assert.equal(walk(fixture.nodes['merchant-overview-cards']).some((node) => node.attributes?.style !== undefined), false);
+});
+
+test('가게 현황 카드 링크는 방문 카드는 오늘 방문 기록, 쿠폰 카드는 최근 쿠폰 사용으로 가고 캠페인 카드는 운영팀 안내만 둔다', async () => {
+  const fixture = await overviewMerchant();
+  const link = (label) => first(fixture.cardOf(label), 'overview-card-link');
+  for (const label of ['오늘 방문', '이번 주 방문', '최근 7일', '누적 방문']) {
+    assert.equal(link(label).getAttribute('href'), '#merchant-visit-title', label);
+    assert.match(link(label).getAttribute('aria-label'), new RegExp(label.replace(/[()]/g, '\\$&')), label);
+  }
+  assert.equal(link('이번 주 쿠폰 사용').getAttribute('href'), '#merchant-redemption-title');
+  assert.equal(link('재방문 고객(2일 이상)'), undefined);
+  assert.equal(link('고객 앱 공개'), undefined);
+  const campaign = fixture.cardOf('캠페인 상태');
+  assert.equal(link('캠페인 상태'), undefined);
+  assert.match(textOf(campaign), /가을 방문 · 9월 1일부터 12월 31일까지/);
+  assert.match(textOf(campaign), /캠페인 변경은 운영팀에 요청해 주세요/);
+  // 링크 글자는 서로 다른 카드를 구분하는 이름을 따로 가진다.
+  const names = ['오늘 방문', '이번 주 방문', '최근 7일', '누적 방문', '이번 주 쿠폰 사용'].map((label) => link(label).getAttribute('aria-label'));
+  assert.equal(new Set(names).size, 5);
+});
+
+test('가게 현황은 지난주 대비를 비교가 있을 때만 이번 주 방문 카드에 보인다', async () => {
+  const noteOf = (fixture) => findAll(fixture.cardOf('이번 주 방문'), 'overview-card-note').map((node) => node.textContent);
+  const shown = await overviewMerchant();
+  assert.deepEqual(noteOf(shown), ['지난주 대비 +2건', '지난주 같은 요일까지와 비교해요.']);
+  const hidden = await overviewMerchant({ overview: () => okJson(overviewData({ comparison: null })) });
+  assert.deepEqual(noteOf(hidden), []);
+  assert.doesNotMatch(textOf(hidden.cardOf('이번 주 방문')), /지난주/);
+  assert.equal(first(hidden.cardOf('이번 주 방문'), 'overview-card-value').textContent, '4건');
+  const down = await overviewMerchant({ overview: () => okJson(overviewData({ comparison: { lastWeekSameSpan: 9, delta: -5 } })) });
+  assert.equal(noteOf(down)[0], '지난주 대비 −5건');
+  const same = await overviewMerchant({ overview: () => okJson(overviewData({ comparison: { lastWeekSameSpan: 4, delta: 0 } })) });
+  assert.equal(noteOf(same)[0], '지난주 대비 변화 없음');
+});
+
+test('가게 현황 체크리스트는 여섯 단계를 순서 목록으로 상태 글자·안내·남은 단계 문구와 함께 그린다', async () => {
+  const fixture = await overviewMerchant();
+  assert.equal(fixture.message(), '고객 앱 공개까지 3단계 남았습니다.');
+  const steps = fixture.steps();
+  assert.equal(steps.length, 6);
+  assert.deepEqual(steps.map((step) => first(step, 'readiness-label').textContent),
+    ['가게 기본 정보', '메뉴', '점주·직원', '방문 보상', '캠페인', '고객 앱 공개']);
+  assert.deepEqual(steps.map((step) => first(step, 'readiness-badge').textContent),
+    ['완료', '완료', '완료', '설정 필요', '공개 예정', '승인 대기']);
+  // 색만으로 구분하지 않도록 상태 글자 외에 상태별 클래스도 따로 둔다.
+  assert.deepEqual(steps.map((step) => classesOf(first(step, 'readiness-badge')).find((name) => name !== 'readiness-badge')),
+    ['readiness-done', 'readiness-done', 'readiness-done', 'readiness-needs-setup', 'readiness-scheduled', 'readiness-waiting-approval']);
+  assert.equal(first(steps[0], 'readiness-hint'), undefined); // 안내가 빈 단계는 안내 칸을 만들지 않는다
+  assert.equal(first(steps[2], 'readiness-hint').textContent, '점주 1명 · 직원 2명');
+  // 서버 문구는 글자로만 넣는다: 태그처럼 보여도 그대로 글자다.
+  assert.match(first(steps[3], 'readiness-hint').textContent, /^<b>수집품<\/b>을 연결해 주세요\. 쿠폰 혜택은 운영팀이 플랫폼 단위로 설정해요\.$/);
+  assert.equal(first(steps[4], 'readiness-hint').textContent, '캠페인 시작일이 아직 되지 않아 고객 목록에는 표시되지 않습니다.');
+  assert.equal(first(steps[5], 'readiness-hint').textContent, '운영팀 공개 처리 대기 중이에요.');
+  // 쿠폰 오퍼는 단계가 아니다.
+  assert.equal(steps.some((step) => /쿠폰/.test(first(step, 'readiness-label').textContent)), false);
+
+  const visible = await overviewMerchant({ overview: () => okJson(overviewData({ readiness: {
+    steps: readinessSteps().map((step) => ({ ...step, state: 'DONE', hint: '' })), remaining: 0, message: '고객 앱에 보이고 있어요.' } })) });
+  assert.equal(visible.message(), '고객 앱에 보이고 있어요.');
+  assert.equal(first(visible.cardOf('고객 앱 공개'), 'overview-card-value').textContent, '고객 앱에 보여요');
+  assert.match(textOf(visible.cardOf('고객 앱 공개')), /고객 앱에 보이고 있어요\./);
+  assert.ok(visible.steps().every((step) => first(step, 'readiness-badge').textContent === '완료'));
+});
+
+test('가게 현황은 캠페인이 없으면 안내를 보이고 캠페인 단계가 확인 필요여도 그대로 그린다', async () => {
+  const none = await overviewMerchant({ overview: () => okJson(overviewData({ campaign: null })) });
+  assert.equal(first(none.cardOf('캠페인 상태'), 'overview-card-value').textContent, '캠페인 없음');
+  assert.match(textOf(none.cardOf('캠페인 상태')), /캠페인 변경은 운영팀에 요청해 주세요/);
+  const checking = await overviewMerchant({ overview: () => okJson(overviewData({
+    campaign: { title: '여름', status: 'PAUSED', isPublic: false, phase: 'PAUSED',
+      startsAt: '2026-06-01T00:00:00.000Z', endsAt: '2026-07-01T00:00:00.000Z' },
+    readiness: { steps: readinessSteps().map((step) => (step.key === 'campaign'
+      ? { ...step, state: 'CHECK', hint: '캠페인이 일시정지 상태예요. 운영팀에 재개를 요청해 주세요.' } : step)),
+    remaining: 3, message: '고객 앱 공개까지 3단계 남았습니다.' } })) });
+  assert.equal(first(checking.cardOf('캠페인 상태'), 'overview-card-value').textContent, '일시정지');
+  assert.equal(first(checking.steps()[4], 'readiness-badge').textContent, '확인 필요');
+});
+
+test('가게 현황은 점포를 바꾸면 이전 현황을 지우고 새 점포 현황을 읽으며 늦은 응답은 그리지 않는다', async () => {
+  const otherPath = '/api/web/merchant/merchants/other-merchant/overview';
+  let finish;
+  const late = new Promise((resolve) => { finish = resolve; });
+  const merchants = [{ id: 'real-merchant', name: '실제 점포', role: 'OWNER' }, { id: 'other-merchant', name: '다른 점포', role: 'STAFF' }];
+  const fixture = await overviewMerchant({ merchants, deferBind: true,
+    overview: (path) => (path === otherPath ? okJson(overviewData({ visits: { today: 7, thisWeek: 7, lastWeek: 0, total: 7,
+      last7Days: overviewData().visits.last7Days } })) : late) });
+  await new Promise((resolve) => setImmediate(resolve));
+  const { nodes } = fixture;
+  // 점포가 둘 이상이면 점포 고르기가 보이고, 점포 고르기를 바꾸면 방문 목록 쪽 점포도 같이 바뀐다.
+  assert.equal(nodes['merchant-overview-picker'].hidden, false);
+  assert.equal(nodes['merchant-overview-merchant'].children.length, 2);
+  nodes['merchant-overview-merchant'].value = 'other-merchant';
+  await nodes['merchant-overview-merchant'].dispatch('change');
+  assert.equal(nodes['merchant-reversal-merchant'].value, 'other-merchant');
+  assert.equal(fixture.overviewCalls().some((call) => call.path === otherPath), true);
+  assert.equal(fixture.calls.some((call) => call.path === '/api/web/merchant/merchants/other-merchant/recent-visits'), true);
+  assert.equal(first(fixture.cardOf('오늘 방문'), 'overview-card-value').textContent, '7건');
+  finish(okJson(overviewData()));
+  await fixture.bound;
+  assert.equal(first(fixture.cardOf('오늘 방문'), 'overview-card-value').textContent, '7건');
+
+  // 방문 목록 쪽 점포 고르기를 바꾸면 현황도 그 점포로 따라간다.
+  const before = fixture.overviewCalls().length;
+  nodes['merchant-reversal-merchant'].value = 'real-merchant';
+  await nodes['merchant-reversal-merchant'].dispatch('change');
+  assert.equal(nodes['merchant-overview-merchant'].value, 'real-merchant');
+  assert.equal(fixture.overviewCalls().length, before + 1);
+  assert.equal(fixture.overviewCalls().at(-1).path, overviewPath);
+});
+
+test('가게 현황 새로 고침은 같은 점포를 다시 읽고 실패하면 이전 카드를 지우고 이유를 알린다', async () => {
+  let mode = 'ok';
+  const fixture = await overviewMerchant({ overview: () => {
+    if (mode === 'forbidden') return apiError(403, 'MERCHANT_ACCESS_DENIED');
+    if (mode === 'down') return { ok: false, status: 500, json: async () => ({}) };
+    if (mode === 'invalid') return okJson({ visits: 'nope' });
+    return okJson(overviewData());
+  } });
+  await fixture.nodes['merchant-overview-refresh'].click();
+  assert.equal(fixture.overviewCalls().length, 2);
+  assert.equal(fixture.cards().length, 8);
+  for (const [next, pattern] of [['forbidden', /권한이 없어요/], ['down', /불러오지 못했어요/], ['invalid', /불러오지 못했어요/]]) {
+    mode = 'ok';
+    await fixture.nodes['merchant-overview-refresh'].click();
+    assert.equal(fixture.cards().length, 8);
+    mode = next;
+    await fixture.nodes['merchant-overview-refresh'].click();
+    assert.equal(fixture.cards().length, 0, next);
+    assert.equal(fixture.steps().length, 0, next);
+    assert.equal(fixture.message(), '', next);
+    assert.match(fixture.status(), pattern, next);
+  }
+  mode = 'ok';
+  await fixture.nodes['merchant-overview-refresh'].click();
+  assert.equal(fixture.cards().length, 8);
+  assert.equal(fixture.nodes['merchant-overview-refresh'].disabled, false);
+});
+
+test('가게 현황은 소속 점포가 없으면 닫힌 채 읽지 않고, 쪽을 떠나거나 로그아웃하면 지운다', async () => {
+  const none = await overviewMerchant({ merchants: [] });
+  assert.equal(none.nodes['merchant-overview'].hidden, true);
+  assert.deepEqual(none.overviewCalls(), []);
+
+  const fixture = await overviewMerchant();
+  assert.equal(fixture.cards().length, 8);
+  fixture.listeners.get('pagehide')();
+  assert.equal(fixture.cards().length, 0);
+  assert.equal(fixture.steps().length, 0);
+  assert.equal(fixture.message(), '');
+  assert.equal(fixture.status(), '');
+  const second = await overviewMerchant();
+  await second.nodes['merchant-logout'].click();
+  assert.equal(second.cards().length, 0);
+  assert.equal(second.steps().length, 0);
+});
+
+test('가게 현황은 방문 목록 영역이 없는 화면에서도 혼자 동작한다', async () => {
+  const fixture = await overviewMerchant({ withReversal: false });
+  assert.equal(fixture.cards().length, 8);
+  fixture.nodes['merchant-overview-merchant'].value = 'real-merchant';
+  await fixture.nodes['merchant-overview-merchant'].dispatch('change');
+  assert.equal(fixture.overviewCalls().length, 2);
+});
+
+test('점포 웹 가게 현황 화면은 점포 운영 화면 맨 위에 있고 HTML 문자열·인라인 스타일 없이 접근성 연결을 갖춘다', () => {
+  const merchantHtml = readFileSync(join(web, 'merchant.html'), 'utf8');
+  const merchantScript = readFileSync(join(web, 'assets/merchant.mjs'), 'utf8');
+  assert.match(merchantHtml, /<section id="merchant-overview" class="panel[^"]*" aria-labelledby="merchant-overview-title" hidden>/);
+  assert.match(merchantHtml, /<h2 id="merchant-overview-title">가게 현황<\/h2>/);
+  assert.match(merchantHtml, /id="merchant-overview-status"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(merchantHtml, /<h3 id="merchant-readiness-title">오픈 준비 체크리스트<\/h3>/);
+  assert.match(merchantHtml, /<ol id="merchant-readiness-list"[^>]*aria-labelledby="merchant-readiness-title"/);
+  assert.match(merchantHtml, /<ul id="merchant-overview-cards"/);
+  // #merchant-content의 첫 구역이다(제작기·내 점포·직원 등록보다 앞).
+  const content = merchantHtml.indexOf('<section id="merchant-content"');
+  const overviewAt = merchantHtml.indexOf('<section id="merchant-overview"');
+  assert.ok(content > 0 && overviewAt > content);
+  for (const later of ['id="merchant-creator"', 'aria-labelledby="merchant-stores-title"', 'id="merchant-reversal"']) {
+    assert.ok(merchantHtml.indexOf(later) > overviewAt, later);
+  }
+  assert.equal(merchantHtml.slice(content, overviewAt).replace(/<section id="merchant-content"[^>]*>/, '').trim(), '');
+  // 카드 링크가 가리키는 제목은 키보드 이동이 되도록 tabindex -1을 가진다.
+  assert.match(merchantHtml, /<h3 id="merchant-visit-title" tabindex="-1">/);
+  assert.match(merchantHtml, /<h3 id="merchant-redemption-title" tabindex="-1">/);
+  assert.doesNotMatch(merchantHtml + merchantScript, /innerHTML|outerHTML|insertAdjacentHTML/);
+  assert.doesNotMatch(merchantHtml, /\sstyle=/);
+  assert.doesNotMatch(merchantScript, /setAttribute\(\s*['"]style['"]/);
+  assert.match(merchantScript, /style\.setProperty\('width'/);
+  assert.match(css, /\.overview-cards \{/);
+  assert.match(css, /\.readiness-list \{/);
+  for (const state of ['done', 'needs-setup', 'check', 'waiting-approval', 'scheduled']) {
+    assert.match(css, new RegExp(`\\.readiness-${state} \\{`), state);
+  }
+  assert.match(css, /\.overview-card-link \{[^}]*min-height: 44px/);
+  const emptyStatus = css.match(/#merchant-overview-status:empty \{[^}]*\}/)?.[0];
+  assert.ok(emptyStatus, 'a visually hidden rule for the empty overview status');
+  assert.doesNotMatch(emptyStatus, /display: none/);
+  assert.match(emptyStatus, /clip-path: inset\(50%\)/);
 });
 
 test('비어 있는 상태 안내 영역은 display none으로 지우지 않고 화면에서만 감춘다', () => {
