@@ -41,9 +41,10 @@ function matchesQuery(merchant: PublicMerchant, needle: string): boolean {
 function matchesProgress(merchant: PublicMerchant, progress: ProgressFilter, context: MerchantFilterContext): boolean {
   switch (progress) {
     case 'oneLeft': {
-      // 도감이 "수집품까지 1번"이라고 보여 주는 가게만이다: 진행 중인 캠페인에서 다음 목표가 정확히 1번 남은 곳.
+      // 이미 가 본 가게 중 도감이 "수집품까지 1번"이라고 보여 주는 곳만이다: 진행 중인 캠페인에서 다음 목표가 정확히 1번 남은 곳.
+      // 첫 목표가 1번짜리라 안 가 본 가게도 남은 횟수가 1이지만, 그곳은 "안 가 본 곳"의 몫이다(컨트롤러 판정).
       const goal = context.goalsByMerchant.get(merchant.id);
-      return goal?.campaignStatus === 'open' && goal.remainingVisits === 1;
+      return context.visitedMerchantIds.has(merchant.id) && goal?.campaignStatus === 'open' && goal.remainingVisits === 1;
     }
     case 'unvisited':
       return !context.visitedMerchantIds.has(merchant.id);

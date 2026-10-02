@@ -13,7 +13,7 @@ function merchant(id: string, overrides: Partial<PublicMerchant> = {}): PublicMe
   };
 }
 
-// a: 한식, 김밥, 다음 목표까지 1번 · b: 카페, 커피, 2번 · c: 카페, 케이크, 1번(방문 전) · d: 분식 없음(업종 미지정), 보상 모두 받음 · e: 한식, 캠페인 종료 직전 1번
+// a: 한식, 김밥, 다음 목표까지 1번(가 봄) · b: 카페, 커피, 2번 · c: 카페, 케이크, 1번이지만 방문 전(첫 목표) · d: 분식 없음(업종 미지정), 보상 모두 받음 · e: 한식, 캠페인 종료 직전 1번
 const a = merchant('a', { name: '월계 김밥집', story: '아침을 여는 집', category: '한식', menuItems: [{ name: '참치김밥', priceWon: 4500 }, { name: '라면', priceWon: 4000 }] });
 const b = merchant('b', { name: '골목 카페', story: 'Coffee와 휴식', roadAddress: '서울 노원구 광운로 2', category: '카페', menuItems: [{ name: '아메리카노', priceWon: 3000 }] });
 const c = merchant('c', { name: '달콤 베이커리', category: '카페', menuItems: [{ name: '딸기 케이크', priceWon: 6500 }], campaign: { ...merchant('c').campaign, title: '디저트 탐험' } });
@@ -70,13 +70,25 @@ test('a category keeps only that category; null means all; an unset category mat
   assert.deepEqual(ids(applyMerchantFilters(all, { ...none, category: null }, context)), ['a', 'b', 'c', 'd', 'e']);
 });
 
-test('oneLeft: the next goal is exactly one visit away, by the same remainingVisits as the collection screen', () => {
-  assert.deepEqual(ids(applyMerchantFilters(all, { ...none, progress: 'oneLeft' }, context)), ['a', 'c']);
+test('oneLeft: a shop already visited whose next goal is exactly one visit away, by the same remainingVisits as the collection screen', () => {
+  assert.deepEqual(ids(applyMerchantFilters(all, { ...none, progress: 'oneLeft' }, context)), ['a']);
+});
+
+test('an unvisited shop is not oneLeft even though its first goal is one visit away, and it stays in unvisited', () => {
+  // c has remainingVisits 1 (the first goal) but no visit row yet.
+  assert.equal(context.goalsByMerchant.get('c')?.remainingVisits, 1);
+  assert.equal(context.visitedMerchantIds.has('c'), false);
+  assert.deepEqual(ids(applyMerchantFilters(all, { ...none, progress: 'oneLeft' }, context)).includes('c'), false);
+  assert.deepEqual(ids(applyMerchantFilters(all, { ...none, progress: 'unvisited' }, context)).includes('c'), true);
+  // Once it has a visit row (and still one to go) it becomes oneLeft.
+  const visitedC: MerchantFilterContext = { ...context, visitedMerchantIds: new Set([...context.visitedMerchantIds, 'c']) };
+  assert.deepEqual(ids(applyMerchantFilters(all, { ...none, progress: 'oneLeft' }, visitedC)), ['a', 'c']);
 });
 
 test('oneLeft drops two-away, finished, ended-campaign and unknown shops', () => {
   const edge: MerchantFilterContext = {
     ...context,
+    visitedMerchantIds: new Set(['a', 'b', 'c', 'd', 'e']),
     goalsByMerchant: new Map([
       ['a', { remainingVisits: 0, campaignStatus: 'open' }],
       ['b', { remainingVisits: 3, campaignStatus: 'open' }],
@@ -102,7 +114,8 @@ test('coupon keeps only shops where the account holds an unredeemed coupon', () 
 test('filters combine with AND and keep the API order', () => {
   assert.deepEqual(ids(applyMerchantFilters(all, { query: '카페', category: '카페', progress: null }, context)), ['b']);
   assert.deepEqual(ids(applyMerchantFilters(all, { query: '', category: '한식', progress: 'unvisited' }, context)), ['e']);
-  assert.deepEqual(ids(applyMerchantFilters(all, { query: '', category: '카페', progress: 'oneLeft' }, context)), ['c']);
+  assert.deepEqual(ids(applyMerchantFilters(all, { query: '', category: '카페', progress: 'oneLeft' }, context)), []);
+  assert.deepEqual(ids(applyMerchantFilters(all, { query: '', category: '한식', progress: 'oneLeft' }, context)), ['a']);
   assert.deepEqual(ids(applyMerchantFilters(all, { query: '케이크', category: '카페', progress: 'unvisited' }, context)), ['c']);
   assert.deepEqual(ids(applyMerchantFilters(all, { query: '케이크', category: '한식', progress: null }, context)), []);
   assert.deepEqual(ids(applyMerchantFilters(all, { query: '', category: '카페', progress: 'coupon' }, context)), ['b']);
