@@ -100,3 +100,20 @@ test('explore links to the map tab from the hero, next to the passport chip', ()
   assert.match(source, /<TabGlyph name="map"/);
   assert.match(source, />지도로 보기</);
 });
+
+test('the discovery chips are 48dp buttons that stay readable and bounded, selected or not (#331)', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeMerchantListStyles(palette, world);
+    assert.ok((styles.discoveryChip.minHeight as number) >= uiMetrics.minTouch);
+    assert.ok(contrast(styles.discoveryChipText.color as string, styles.discoveryChip.backgroundColor as string) >= 4.5, 'unselected text');
+    assert.ok(contrast(styles.discoveryChipTextSelected.color as string, styles.discoveryChipSelected.backgroundColor as string) >= 4.5, 'selected text');
+    // An unselected chip's edge against the sky page, and a selected chip's fill against both the page and an unselected chip.
+    assert.ok((styles.discoveryChip.borderWidth as number) >= 1.5);
+    assert.ok(contrast(styles.discoveryChip.borderColor as string, world.page) >= 3, 'unselected edge on the page');
+    assert.ok(contrast(styles.discoveryChipSelected.backgroundColor as string, world.page) >= 3, 'selected fill on the page');
+    assert.notEqual(styles.discoveryChipSelected.backgroundColor, styles.discoveryChip.backgroundColor);
+    // The rows bleed to the screen edge but their first chip lines up with the page inset.
+    assert.equal(styles.discoveryChipScroll.marginHorizontal, -uiMetrics.pageInset);
+    assert.equal(styles.discoveryChipRow.paddingHorizontal, uiMetrics.pageInset);
+  }
+});

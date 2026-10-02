@@ -20,8 +20,9 @@ import { shouldRefreshBadgesQuietly } from '@/gamification/badge-refresh';
 import { HomeRewardCard } from '@/gamification/home-reward-card';
 import { RewardReveal } from '@/gamification/reward-reveal';
 import { useBadgeBook } from '@/gamification/use-badge-book';
+import { applyMerchantFilters, hasActiveFilters, type ProgressFilter } from '@/merchant/apply-merchant-filters';
 import type { PublicMerchant } from '@/merchant/merchant-api';
-import { filterMerchants } from '@/merchant/filter-merchants';
+import type { MerchantCategory } from '@/merchant/merchant-categories';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
@@ -38,10 +39,20 @@ import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
 import { StatusBarScrim, useStatusBarScrim } from '@/ui/status-bar-scrim';
 
+import { DiscoveryChips } from './discovery-chips';
+import {
+  buildFilterContext,
+  categoryChipOptions,
+  emptyFilterCopy,
+  keepAvailableFilters,
+  progressChipOptions,
+  toggleProgress,
+} from './discovery-filters';
 import { MerchantCrest } from './merchant-crest';
 import { merchantCardHint, merchantCardLabel } from './merchant-card-label';
 import { passportChipData, type PassportChipData } from './passport-chip';
 import { makeMerchantListStyles } from './styles';
+import { useDiscoveryProgress } from './use-discovery-progress';
 import { useMerchantListStyles } from './use-merchant-list-styles';
 
 type Props = {
@@ -61,8 +72,8 @@ export function MerchantListScreen({ apiUrl }: Props) {
   const scrim = useStatusBarScrim();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const [query, setQuery] = useState('');
-  const visibleMerchants = useMemo(() => filterMerchants(merchants, query), [merchants, query]);
-  const filtering = query.trim().length > 0;
+  const [category, setCategory] = useState<MerchantCategory | null>(null);
+  const [progress, setProgress] = useState<ProgressFilter | null>(null);
   const openMerchant = (merchantId: string) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId } });
   // PR #301 리뷰: 홈 새로고침이 음식점 목록만 다시 받고 배지 책은 그대로였다(보상 상자가 거절된 뒤에도 묵은 상태로
   // 남는다). 당겨서 새로고침마다 올려, 여권 칩·보상 카드가 각자의 badge book도 같이 다시 읽게 한다.
@@ -74,6 +85,37 @@ export function MerchantListScreen({ apiUrl }: Props) {
   // design-298.md: 홈 헤더 아바타가 상점에서 고른 대표 캐릭터를 보여준다(없으면 AppHeader의 기본 마스코트). 탭 포커스가
   // 돌아올 때(useShopAvatarArt 내부)와 이 당겨서 새로고침에도 다시 읽는다(PR #312 리뷰 5번).
   const avatarArt = useShopAvatarArt(apiUrl, auth.credential, badgeRefreshToken);
+
+  // Issue #331: 검색어·업종·진행 칩으로 거른다. 진행 칩은 로그인했고 데이터(/collection, /me/badges)를 불러왔을 때만 보인다.
+  const signedIn = Boolean(auth.credential && auth.accountId);
+  const discovery = useDiscoveryProgress({
+    apiUrl, credential: auth.credential, onSessionInvalid: auth.invalidateSession, refreshToken: badgeRefreshToken,
+  });
+  const categoryOptions = useMemo(() => categoryChipOptions(merchants), [merchants]);
+  const progressOptions = useMemo(
+    () => progressChipOptions({ signedIn, collectionReady: discovery.collection !== undefined, badgesReady: discovery.book !== undefined }),
+    [signedIn, discovery.collection, discovery.book],
+  );
+  // 칩이 사라진 선택(로그아웃, 목록에서 빠진 업종)은 전체로 되돌린다.
+  const filters = useMemo(
+    () => keepAvailableFilters({ query, category, progress }, { categories: categoryOptions, progressOptions }),
+    [query, category, progress, categoryOptions, progressOptions],
+  );
+  // 되돌린 선택은 상태에서도 지운다(adjusting state while rendering): 안 그러면 칩이 다시 나타날 때 조용히 되살아난다.
+  if (filters.category !== category) setCategory(filters.category);
+  if (filters.progress !== progress) setProgress(filters.progress);
+  const filterContext = useMemo(
+    () => buildFilterContext({ merchants, collection: discovery.collection, book: discovery.book, now: new Date().toISOString() }),
+    [merchants, discovery.collection, discovery.book],
+  );
+  const visibleMerchants = useMemo(() => applyMerchantFilters(merchants, filters, filterContext), [merchants, filters, filterContext]);
+  const filtering = hasActiveFilters(filters);
+  const emptyCopy = useMemo(() => emptyFilterCopy(filters), [filters]);
+  const clearFilters = useCallback(() => {
+    setQuery('');
+    setCategory(null);
+    setProgress(null);
+  }, []);
 
   return (
     <SkyBackdrop>
@@ -133,7 +175,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
                       value={query}
                       onChangeText={setQuery}
                       accessibilityLabel="음식점 검색"
-                      placeholder="이름·주소·이야기로 찾기"
+                      placeholder="이름·메뉴·주소로 찾기"
                       placeholderTextColor={world.cardMuted}
                       autoCapitalize="none"
                       autoCorrect={false}
@@ -146,6 +188,14 @@ export function MerchantListScreen({ apiUrl }: Props) {
                       </Pressable>
                     ) : null}
                   </View>
+                  <DiscoveryChips
+                    categories={categoryOptions}
+                    category={filters.category}
+                    onCategory={setCategory}
+                    progressOptions={progressOptions}
+                    progress={filters.progress}
+                    onProgress={(next) => setProgress(toggleProgress(filters.progress, next))}
+                  />
                 </View>
               ) : null}
               <View style={styles.sectionHeading}>
@@ -188,9 +238,9 @@ export function MerchantListScreen({ apiUrl }: Props) {
             ) : merchants.length > 0 ? (
               <StateScene
                 kind="empty"
-                title="검색 결과가 없어요"
-                body="다른 이름이나 주소로 찾아보세요."
-                action={{ label: '검색 초기화', onPress: () => setQuery('') }}
+                title={emptyCopy.title}
+                body={emptyCopy.body}
+                action={{ label: emptyCopy.actionLabel, onPress: clearFilters }}
               />
             ) : (
               <FloatingCard>
