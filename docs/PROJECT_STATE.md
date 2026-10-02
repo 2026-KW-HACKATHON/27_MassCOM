@@ -1,5 +1,9 @@
 # 프로젝트 상태
 
+## 도감 탭 흰 화면 크래시 수정 (Issue #314, 2026-10-02)
+
+[Issue #314](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/314), 브랜치 `fix/314-album-crash`(worktree `.worktrees/314-album-crash`), 기준 main `439ba83`, PR 미정. 수집품을 하나 이상 가진 계정이 도감 탭을 열면 흰 화면으로 멈추던 release blocker. 진짜 원인은 `collectible-browser.tsx`의 "외부 지갑 주소 확인" Link가 배열 `style`을 expo-router `<Slot>`에 넘겨 렌더 오류를 던진 것이었고(`StyleSheet.flatten`으로 수정), 그 오류가 Root Layout을 다시 마운트시키는 틈에 `index.tsx`의 effect 정리가 여전히 `router.setParams`를 불러 "Attempted to navigate before mounting the Root Layout" 2차 오류로 번져 흰 화면이 굳어졌다(`clearCollectionFocusParams` 헬퍼의 좁은 `try/catch`로 수정; `navigationRef.isReady()` 사전 확인은 실기에서 통과한 뒤에도 같은 오류가 또 던져져 폐기했다). 같은 QA에서 도감 오류 화면의 "다시 불러오기" 버튼이 첫 화면부터 탭 막대에 가려지던 문제도 `onContentSizeChange` 기반 재스크롤로 고쳤다. 운영·시연 두 variant가 공유하는 공통 화면 코드만 바꿨다. 검증은 [TEST_STATUS](TEST_STATUS.md), 상세 경위는 [HANDOFF](HANDOFF.md#2026-10-02-issue-314-도감-탭-흰-화면-크래시-android-release-blocker).
+
 ## 로그인 없는 시연 웹 체험 서버 (Issue #309, 2026-10-02)
 
 [Issue #309](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/309) 서버 절반, 브랜치 `feat/309-guest-trial-api`(worktree `.worktrees/309-guest-api`), 기준 main `e2091f2`(이후 `36fed73` 병합), 결정 [D-064](DECISIONS.md). 시연 API에만 `POST /auth/guest-trial`을 열어 Google 신원 없는 계정·개인 체험 가게(가상 점포 A 복사, 목록·추천에서 숨김)·STAFF 권한·24시간 세션을 한 트랜잭션에서 만든다(migration 0039 `showcase_guest_trials`, 운영 DB는 빈 표). 운영 API는 알 수 없는 경로와 같은 404, IP당 15분 20회·같은 IP의 끝나지 않은 체험 30개(IP는 HMAC으로만 저장)·동시 체험자 300명, 시작마다 만료 체험자 20명 정리. 체험 가게는 공개 목록·추천·친구 도장/메달에 나오지 않는다(PR #311 교차 리뷰 P1·P2 반영). 체험 계정은 승인자가 될 수 없고 체험 가게는 AI 그림 비용을 쓰지 않는다. Caddy는 `demo-api.masscom.kr/play/`에서 정적 웹 번들(전용 CSP)을, `masscom.kr/demo`는 그리로 302를 낸다(배포는 하지 않음). 웹 클라이언트는 별도 PR(`feat/309-showcase-web`)이고 이 서버 PR이 먼저 병합돼야 한다. 검증은 [TEST_STATUS](TEST_STATUS.md), 계약은 [apps/api/README.md](../apps/api/README.md#엔드포인트).

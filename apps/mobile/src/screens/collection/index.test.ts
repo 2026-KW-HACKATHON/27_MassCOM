@@ -63,3 +63,34 @@ test('the "쿠폰·NFT 발행 현황" fold is controlled and reports its own lay
   // The old (broken) wiring put onLayout on the Section inside the fold's body instead of the fold itself.
   assert.doesNotMatch(screen, /<Section title="보상 상자"[^>]*onLayout=/);
 });
+
+// Issue #314: a render error elsewhere (e.g. #301 review's NftStatusRow), or even an OS config change (font
+// scale, light/dark), can make expo-router tear down and remount the Root Layout while this tab's own effect
+// cleanup is mid-flight. A `navigationRef.isReady()` pre-check does NOT catch this: that ref is only the one
+// captured at this component's last render, and by the time an unmount cleanup runs, the global router may have
+// already swapped to a fresh, not-yet-ready one — the stale ref still (wrongly) reports itself ready. Confirmed
+// live on-device: the guard let `router.setParams` through anyway, which still threw "Attempted to navigate
+// before mounting the Root Layout component" and left a white screen. Every call must instead go through the
+// shared helper, which catches exactly that documented expo-router failure.
+test('every router.setParams call in the collection screen goes through clearCollectionFocusParams (#314)', () => {
+  assert.match(screen, /function clearCollectionFocusParams\(router: ReturnType<typeof useRouter>, params:/);
+  const tryBlock = screen.slice(screen.indexOf('function clearCollectionFocusParams'), screen.indexOf('export function CollectionScreen'));
+  assert.match(tryBlock, /try \{\s*router\.setParams\(params\);/);
+  assert.match(tryBlock, /caught\.message\.includes\('mounting the Root Layout'\)/);
+  // No call site is allowed to call router.setParams directly, bypassing the guard.
+  assert.doesNotMatch(screen.slice(screen.indexOf('export function CollectionScreen')), /router\.setParams\(/);
+  const calls = [...screen.matchAll(/clearCollectionFocusParams\(router, /g)];
+  assert.ok(calls.length >= 3, 'expected the focus-cleanup, collectible-link and rewards-scroll call sites');
+});
+
+// Issue #314 (same QA pass): the loading/error scene's mascot + title + a wrapped error body + retry button could
+// end up just tall enough that the retry button sat behind the floating tab bar on first paint, with nothing on
+// screen hinting it was reachable by scrolling. The scene only grows into that (taller) error state after first
+// mounting the short "loading" one, so a one-time `contentOffset` cannot reach it; it must re-scroll whenever the
+// content's measured size changes.
+test('the loading/error scene re-scrolls to the end whenever its measured content size changes (#314)', () => {
+  const sky = screen.slice(screen.indexOf('const sky = (body: ReactNode) =>'), screen.indexOf('if (loading && !collection)'));
+  assert.match(sky, /ref=\{skyScrollView\}/);
+  assert.match(sky, /onContentSizeChange=\{\(_, height\) => \{/);
+  assert.match(sky, /requestAnimationFrame\(\(\) => skyScrollView\.current\?\.scrollTo\(\{ y: height, animated: false \}\)\);/);
+});

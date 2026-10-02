@@ -60,7 +60,10 @@ test('the collection screen only opens the reveal through resolveCollectibleLink
 test('the collection screen processes an acquisition link only while the tab is focused and drops it on blur', () => {
   const source = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
   assert.match(source, /if \(!tabFocused\) return;/);
-  assert.match(source, /setTabFocused\(false\);[\s\S]*router\.setParams\(\{ focus: undefined, entitlement: undefined \}\);/);
+  // #314: this used to call router.setParams directly; it now goes through clearCollectionFocusParams, which
+  // catches expo-router's own "Root Layout not mounted" race instead of letting it crash to a white screen
+  // (see index.test.ts for the dedicated regression test on that guard).
+  assert.match(source, /setTabFocused\(false\);[\s\S]*clearCollectionFocusParams\(router, \{ focus: undefined, entitlement: undefined \}\);/);
 });
 
 test('opening the detail from the acquisition reveal plays the once-on-acquisition motions first', () => {

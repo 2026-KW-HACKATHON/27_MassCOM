@@ -61,6 +61,23 @@ import { mintConsentMessage, mintConsentTitle, mintConsentVersion } from './mint
 import { buildStoreSeries } from './store-series';
 import { useCollectionStyles } from './use-collection-styles';
 
+/**
+ * #314: a render error elsewhere (e.g. an array style reaching expo-router's `<Slot>`, see collectible-browser.tsx)
+ * can make expo-router tear down and remount the Root Layout while this tab's own effect cleanup is mid-flight.
+ * `useNavigationContainerRef()` only returns the ref captured at this component's last render — by the time an
+ * unmount cleanup runs, the global router may have already swapped to a fresh, not-yet-ready one, so that ref
+ * still (wrongly) reports itself ready and cannot gate this safely. expo-router has no public hook that reads
+ * live readiness outside of a render, so this catches its own documented failure instead of guessing beforehand.
+ * The params are only being cleared as tidy-up here; if the navigator is gone there is nothing left to clear.
+ */
+function clearCollectionFocusParams(router: ReturnType<typeof useRouter>, params: { focus: undefined; entitlement?: undefined }): void {
+  try {
+    router.setParams(params);
+  } catch (caught) {
+    if (!(caught instanceof Error) || !caught.message.includes('mounting the Root Layout')) throw caught;
+  }
+}
+
 export function CollectionScreen({
   apiUrl,
   accountId,
@@ -97,6 +114,8 @@ export function CollectionScreen({
   const router = useRouter();
   const { focus, entitlement } = useLocalSearchParams<{ focus?: string; entitlement?: string | string[] }>();
   const scrollView = useRef<ScrollView>(null);
+  // #314: only sky()'s loading/error scene uses this (the loaded album below uses `scrollView` above).
+  const skyScrollView = useRef<ScrollView>(null);
   const [rewardsY, setRewardsY] = useState<number>();
   // #296 review: the reward track lives inside a collapsed-by-default Fold; this tracks whether it is open so a
   // `focus=rewards` link and the passport's "보상" button can force it open instead of scrolling to a hidden card.
@@ -154,7 +173,7 @@ export function CollectionScreen({
       setCollectibleDetail(undefined);
       setRevealEntitlement(undefined);
       linkGeneration.current += 1;
-      router.setParams({ focus: undefined, entitlement: undefined });
+      clearCollectionFocusParams(router, { focus: undefined, entitlement: undefined });
     };
   }, [setCollectibleDetail, setRevealEntitlement, router]));
 
@@ -214,7 +233,7 @@ export function CollectionScreen({
       // 방문 수령 직후 도착한 링크만 획득 연출을 연다; 전달은 이미 끝난 뒤라 연출을 건너뛰어도 보관 상태는 그대로다.
       if (opened.length > 0) setRevealEntitlement({ entitlementIds: opened.map((outcome) => outcome.entitlementId), merchantName: opened[0]!.merchantName });
       else setMessage('보상은 도감에 보관됐어요. 다시 볼 수 있는 가게 수집품은 아직 없어요.');
-      router.setParams({ focus: undefined, entitlement: undefined });
+      clearCollectionFocusParams(router, { focus: undefined, entitlement: undefined });
     };
     if (ids.some((id) => collectibleFocusAction(collection, id, link.rereadFor === linkKey) === 'fetch')) {
       link.rereadFor = linkKey;
@@ -326,7 +345,7 @@ export function CollectionScreen({
     // Clear the param inside the frame: clearing it first re-runs this effect and cancels the scroll.
     const frame = requestAnimationFrame(() => {
       scrollView.current?.scrollTo({ y: Math.max(0, headerHeight + rewardsY - 12), animated: true });
-      router.setParams({ focus: undefined });
+      clearCollectionFocusParams(router, { focus: undefined });
     });
     return () => { clearTimeout(expandTimer); cancelAnimationFrame(frame); };
   }, [focus, headerHeight, rewardsY, router]);
@@ -470,9 +489,22 @@ export function CollectionScreen({
   const sky = (body: ReactNode) => (
     <SkyBackdrop>
       <SkyScrollView
+        ref={skyScrollView}
         header={header}
         onHeaderLayout={setHeaderHeight}
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
+        // #314: the sky header art leaves little room under it, and the loading/error scene (mascot + title + a
+        // wrapped error body + retry button) can end up just tall enough to need scrolling past the floating tab
+        // bar — with nothing on screen hinting the retry button is reachable at all. `contentOffset` only applies
+        // on first mount, but this view mounts once while still showing the short "loading" scene and only grows
+        // once it flips to the (taller) error scene, so it must re-scroll whenever the content's measured size
+        // changes instead. A scene that already fits just no-ops here (nothing left to scroll to).
+        onContentSizeChange={(_, height) => {
+          // A plain scrollTo() here is a no-op: at the moment this fires the native side has only just learned
+          // the new size and has not yet applied it to the scrollable area, so the call is clamped against the
+          // still-stale (shorter) range. Deferring one frame lets that settle first.
+          requestAnimationFrame(() => skyScrollView.current?.scrollTo({ y: height, animated: false }));
+        }}
       >
         {body}
       </SkyScrollView>
