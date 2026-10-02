@@ -1,4 +1,4 @@
-import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET } from './collectible-model.mjs';
+import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
 import { attachWaveform } from './collectible-waveform.mjs';
@@ -588,7 +588,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (!active || sequence !== renderSequence) return;
       previewCanvas.getContext('2d').clearRect(0, 0, 512, 512); previewCanvas.getContext('2d').drawImage(buffer, 0, 0);
       const grade = project.grades.find(item => item.id === selectedGrade);
-      view('preview-caption').textContent = `${project.name} · ${grade?.name || ''} · ${project.theme.name} · ${project.thickness} 두께`;
+      view('preview-caption').textContent = `${project.name} · ${grade?.name || ''} · ${project.theme.name} · 두께 ${thicknessPresetLabel(project.thickness) ?? project.thickness}`;
     } catch (error) { notice(error.message || '미리보기를 만들지 못했어요. 입력은 유지했어요. 자르기 적용을 눌러 다시 시도해 주세요.', true); }
   }
   function schedulePreview() {
@@ -940,6 +940,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (!name) return;
       control(name).value = id; control(name).dispatchEvent(new Event('change', { bubbles: true })); studio.sync(project, { dirty, wrapper }); return;
     }
+    if (action === 'zoom-step') { const input = control('zoom'); remember(); input.value = String(clamp(Number(input.value) + Number(id), Number(input.getAttribute('min')), Number(input.getAttribute('max')))); input.dispatchEvent(new Event('input', { bubbles: true })); return; }
     if (action === 'photo-choose') { control('photo').click(); return; }
     if (action === 'draft' || action === 'publish') { await save(action === 'publish'); return; }
     if (action === 'refresh') { await Promise.all([refreshList(), refreshCampaigns()]); return; }
@@ -1070,7 +1071,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'template') { selectedTemplate = id; playing = true; start = performance.now(); renderMotionGrades(); schedulePreview(); return; }
     if (action === 'play' || action === 'replay') { playing = true; if (action === 'replay') start = performance.now(); schedulePreview(); return; }
     if (action === 'angle-reset') { mutate(() => { project.angle = 0; }); control('angle').value = 0; output('angle').textContent = '0°'; return; }
-    if (action === 'thickness-reset') { mutate(() => { project.thickness = 8; }); control('thickness').value = 8; output('thickness').textContent = '8'; return; }
+    if (action === 'thickness-reset') { mutate(() => { project.thickness = 8; }); control('thickness').value = 8; output('thickness').textContent = '8'; studio.sync(project, { dirty, wrapper }); return; }
     if (action === 'record') { await record(); return; }
     if (action === 'audio-delete') { audioImportSequence++; stopRecording(true); recordingStream?.getTracks().forEach(track => track.stop()); recordingStream = null; mutate(() => { project.audio = null; }); view('audio').pause(); view('audio').src = ''; view('audio').hidden = true; waveform.refresh(); return; }
     if (action === 'story-frame-delete') { mutate(() => { project.story.frames.splice(Number(id), 1); }); renderStoryFrames(); return; }

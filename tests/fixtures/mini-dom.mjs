@@ -258,6 +258,8 @@ export function installMiniDom({ webp = true, storageThrows = false } = {}) {
     get src() { return this._src; }
   }
   set('Image', FakeImage);
+  // Node의 실제 Event는 target이 읽기 전용이라 이 대역의 dispatchEvent가 쓸 수 없다. 합성 이벤트(new Event('change', { bubbles: true }))용 대역.
+  set('Event', class { constructor(type, init = {}) { this.type = type; this.bubbles = Boolean(init.bubbles); } });
   set('FileReader', class { readAsDataURL(file) { setTimeout(() => { this.result = file.dataUrl ?? `data:${file.type};base64,AAAA`; this.onload?.(); }, 0); } });
   return { document, window: windowStub, restore() { for (const [name, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; } } };
 }

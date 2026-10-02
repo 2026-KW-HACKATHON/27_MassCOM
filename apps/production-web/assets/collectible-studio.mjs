@@ -1,3 +1,4 @@
+import { THICKNESS_PRESETS, thicknessPresetLabel } from './collectible-model.mjs';
 const steps = ['사진 배치', '등급 미리보기', '세부 조정', '연출과 목소리'];
 const seasons = [['기본', '기본'], ['여름축제', '여름축제'], ['겨울방학', '겨울방학'], ['custom', '자유 입력']];
 const node = (tag, className, text) => {
@@ -14,6 +15,12 @@ const action = (label, name, id, className = '') => {
 const section = (title, text) => {
   const value = node('section', 'ce-panel'); value.append(node('h3', '', title));
   if (text) value.append(node('p', 'ce-help', text));
+  return value;
+};
+/** "더 보기"처럼 접어 두는 묶음. 지우지 않고 옮긴 컨트롤만 담는다. */
+const disclosure = (summary, ...children) => {
+  const value = node('details', 'ce-more'), body = node('div', 'ce-detail');
+  body.append(...children); value.append(node('summary', '', summary), body);
   return value;
 };
 function shapeIcon(shape) {
@@ -91,24 +98,33 @@ export function createCollectibleStudio(container, { effectNames }) {
   const panels = steps.map((_, index) => { const panel = node('section', 'ce-step-panel'); panel.dataset.stepPanel = String(index + 1); panel.setAttribute('aria-labelledby', title.id); return panel; });
   const photo = field('photo'), photoHelp = photo.nextElementSibling, shape = field('shape'), crop = view('crop');
   const cropZoom = field('zoom'), cropMoves = field('crop-x').parentElement, cropActions = cropMoves.nextElementSibling;
-  const photoStage = node('div', 'ce-photo-stage'); photoStage.append(node('p', 'ce-photo-instruction', '사진을 움직여 원하는 모양에 맞춰 주세요.'), crop, cropZoom, cropMoves, cropActions);
-  const cropSlots = [node('div', 'ce-crop-slot'), node('div', 'ce-crop-slot')]; cropSlots[0].append(photoStage);
+  const zoomOut = action('−', 'zoom-step', '-0.25', 'ce-icon-button'), zoomIn = action('+', 'zoom-step', '0.25', 'ce-icon-button');
+  zoomOut.setAttribute('aria-label', '사진 축소'); zoomIn.setAttribute('aria-label', '사진 확대');
+  const zoomRow = node('div', 'ce-zoom-row'); zoomRow.append(zoomOut, cropZoom, zoomIn);
+  const photoStage = node('div', 'ce-photo-stage');
+  photoStage.append(node('p', 'ce-photo-instruction', '사진을 움직여 원하는 모양에 맞춰 주세요.'), crop, zoomRow, disclosure('더 보기 · 위치 미세 조정', cropMoves, cropActions));
   shape.hidden = true;
   const shapes = section('모양', '사진의 위치와 확대는 모양을 바꿔도 유지돼요.'); shapes.append(shape, choices('shape', [['circle', '원형'], ['stamp', '우표'], ['serrated', '톱니']], '모양', 'shape'));
-  panels[0].append(field('name'), photo, photoHelp, shapes, cropSlots[0]);
+  panels[0].append(photo, photoHelp, shapes, photoStage);
   const style = field('style'); style.hidden = true;
-  const styles = section('표현 스타일', '원본 색, 음각, 양각을 직접 비교해 보세요.'); styles.append(style, choices('style', [['original', '원본'], ['incised', '음각'], ['raised', '양각']], '표현 스타일', 'style')); panels[1].append(styles);
+  const styles = section('표현 스타일', '원본 색, 음각, 양각을 직접 비교해 보세요.');
+  styles.append(style, choices('style', [['original', '원본'], ['incised', '음각'], ['raised', '양각']], '표현 스타일', 'style'), field('relief'));
+  panels[1].append(styles);
+  const thickness = field('thickness'), thicknessReset = container.querySelector('[data-action="thickness-reset"]'), thicknessHelp = thicknessReset.nextElementSibling;
+  const thicknessCustom = node('p', 'ce-thickness-custom'); thicknessCustom.hidden = true;
+  const volume = section('수집품 두께', '화면에 보이는 측면 깊이예요. 실물 제작 치수가 아니에요.');
+  volume.append(choices('thickness', THICKNESS_PRESETS.map(([value, label]) => [String(value), label]), '두께', 'thickness'), thicknessCustom, disclosure('더 보기 · 두께 세밀하게', thickness, thicknessReset, thicknessHelp));
+  panels[1].append(volume);
   const gradesDetail = view('grade-manager').closest('details'), gradeContent = gradesDetail.querySelector('.ce-detail');
-  const gradePanel = section('내가 만드는 등급', '등급 이름과 사용 여부를 바꿀 수 있어요. 이름이 특정 재질을 강제하지 않아요.');
-  const gradeManager = view('grade-manager'), gradeNew = field('grade-name').parentElement, gradeAdd = container.querySelector('[data-action="grade-add"]'); gradePanel.append(gradeManager, gradeNew, gradeAdd); panels[1].append(gradePanel);
-  const motionDetail = view('templates').closest('details'), thickness = field('thickness'), thicknessReset = container.querySelector('[data-action="thickness-reset"]'), thicknessHelp = thicknessReset.nextElementSibling;
-  const volume = section('수집품 두께', '화면에 보이는 측면 깊이예요. 실물 제작 치수가 아니에요.'); volume.append(thickness, thicknessReset, thicknessHelp); panels[1].append(volume);
+  const gradeManager = view('grade-manager'), gradeNew = field('grade-name').parentElement, gradeAdd = container.querySelector('[data-action="grade-add"]');
+  panels[1].append(disclosure('더 보기 · 등급 관리(이름·사용·특수 등급)', node('p', 'ce-help', '등급 이름과 사용 여부를 바꿀 수 있어요. 이름이 특정 재질을 강제하지 않아요.'), gradeManager, gradeNew, gradeAdd));
+  const motionDetail = view('templates').closest('details');
   const photoDetail = control('brush').closest('details'), stickerDetail = control('sticker-kind').closest('details');
   photoDetail.open = true; stickerDetail.open = true;
   const brush = field('brush'); brush.hidden = true;
   const brushes = choices('brush', [['move', '사진 이동'], ['clean', '잡티'], ['erase', '투명'], ['restore', '복원'], ['color', '색 통일']], '붓 도구', 'brush');
   photoDetail.querySelector('.ce-detail').prepend(brushes);
-  panels[2].append(action('다른 사진 선택', 'photo-choose', undefined, 'ce-photo-change'), cropSlots[1], photoDetail, stickerDetail);
+  panels[2].append(action('다른 사진 선택', 'photo-choose', undefined, 'ce-photo-change'), photoDetail, stickerDetail);
   const materials = section('효과 스튜디오', '지금 보는 등급 한 개와 효과를 적용할 여러 등급은 따로 골라요.');
   const effectControls = field('effect-type').parentElement; field('effect-type').hidden = true; field('effect-target').hidden = true;
   const materialsChoices = choices('effect-type', Object.entries(effectNames), '재질 효과', 'material');
@@ -122,7 +138,7 @@ export function createCollectibleStudio(container, { effectNames }) {
   const voice = control('greeting').closest('details'), story = control('story-type').closest('details'), rewards = control('theme').closest('details');
   motionDetail.open = true; livingDetail.open = true; voice.open = true; rewards.open = true;
   rewards.querySelector('.ce-detail').prepend(seasonTiles('theme'));
-  panels[3].append(motionDetail, livingDetail, materials, voice, story, rewards);
+  panels[3].append(motionDetail, livingDetail, materials, voice, story, rewards, field('name'));
   controls.replaceChildren(...panels);
   const footer = node('div', 'ce-stage-footer'); footer.append(action('← 이전 단계', 'previous-step'), action('다음 단계 →', 'next-step', undefined, 'primary')); workspace.append(footer, grid.querySelector('.ce-publish'));
   let targetSignature = '';
@@ -134,13 +150,14 @@ export function createCollectibleStudio(container, { effectNames }) {
       for (const item of targetControl.options) { const tile = action(item.textContent, 'choice', item.value, 'ce-target-chip'); tile.dataset.controlFor = 'effect-target'; targets.append(tile); }
     }
     for (const tile of targets.children) tile.setAttribute('aria-pressed', String(tile.dataset.id === targetControl.value));
+    const thicknessValue = Number(control('thickness').value);
+    thicknessCustom.hidden = thicknessPresetLabel(thicknessValue) !== null; thicknessCustom.textContent = `직접 지정 ${thicknessValue}`;
   }
   function showStep(step, focus = true) {
     currentStep = Math.max(1, Math.min(4, Number(step) || 1)); home.hidden = true; workspace.hidden = false; hasCurrent = true;
     workspace.dataset.step = String(currentStep); title.textContent = steps[currentStep - 1]; workspace.querySelector('.ce-step-count').textContent = `${currentStep} / 4`;
     for (const panel of panels) panel.hidden = Number(panel.dataset.stepPanel) !== currentStep;
     for (const tile of navigation.children) { if (Number(tile.dataset.id) === currentStep) tile.setAttribute('aria-current', 'step'); else tile.removeAttribute('aria-current'); }
-    cropSlots[currentStep === 3 ? 1 : 0].append(photoStage);
     grid.querySelector('.ce-preview').hidden = currentStep === 1;
     footer.querySelector('[data-action="previous-step"]').hidden = currentStep === 1;
     footer.querySelector('[data-action="next-step"]').hidden = currentStep === 4;
