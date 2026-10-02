@@ -67,6 +67,12 @@ export function storeCollectibleProject(target: StoreCollectibleTarget): Collect
 /**
  * 호출자가 이미 연 거래 안에서 실행한다. 게시물이 새로 걸렸거나 옛 시드 게시물에서 3등급으로 갈아 끼워진 캠페인 id 목록을 돌려준다.
  * 이미 걸린 게시물이 점주가 만든 것이거나(작성자 열이 채워짐) 이미 3등급이면 건드리지 않는다.
+ *
+ * 동시 점주 게시와의 경합: 실제 게시(PostgresCollectibleProjectService.publish)와 같이 캠페인 행을 "연결을 읽기 전에" 무조건 FOR UPDATE로
+ * 잠근다. 그래서 점주 게시가 커밋하기 전에는 이 시드가 기다리고, 커밋한 뒤에는 새 연결을 읽어 건드리지 않는다. 연결이 없을 때는 일반
+ * INSERT라 (잠금이 깨진다 해도) 동시에 생긴 연결은 유일 제약 위반으로 이 거래 전체를 되돌린다 — 덮어쓰지 않는다. 옛 시드 게시물을 갈아
+ * 끼울 때는 읽은 옛 게시물 id를 조건으로 건 UPDATE(비교 후 교체)이고, 한 행도 바뀌지 않으면 시드 거래 전체를 되돌리는 고정 오류를 던진다
+ * (시드의 다른 실패와 같이 부분 결과를 남기지 않는다).
  */
 export async function seedStoreCollectibles(
   client: PoolClient,
@@ -75,29 +81,29 @@ export async function seedStoreCollectibles(
 ): Promise<string[]> {
   const published: string[] = [];
   for (const target of targets) {
-    const linked = await client.query<{ legacy_seed: boolean }>(
-      `SELECT EXISTS (
-         SELECT 1
-         FROM collectible_publications AS publication
-         JOIN collectible_projects AS source
-           ON source.id = publication.project_id AND source.merchant_id = publication.merchant_id
-         WHERE publication.id = link.publication_id
-           AND publication.merchant_id = $2
-           AND publication.media_removed_at IS NULL
-           AND source.created_by_account_id IS NULL
-           AND source.edited_by_account_id IS NULL
-           AND source.project IS NOT NULL
-           AND source.name = $3
-           AND source.project #>> '{theme,name}' = $4
-           AND source.project -> 'grades' = $5::jsonb
-       ) AS legacy_seed
+    await client.query('SELECT 1 FROM campaigns WHERE id = $1 FOR UPDATE', [target.campaignId]);
+    const linked = await client.query<{ publication_id: string; legacy_seed: boolean }>(
+      `SELECT link.publication_id,
+              EXISTS (
+                SELECT 1
+                FROM collectible_publications AS publication
+                JOIN collectible_projects AS source
+                  ON source.id = publication.project_id AND source.merchant_id = publication.merchant_id
+                WHERE publication.id = link.publication_id
+                  AND publication.merchant_id = $2
+                  AND publication.media_removed_at IS NULL
+                  AND source.created_by_account_id IS NULL
+                  AND source.edited_by_account_id IS NULL
+                  AND source.project IS NOT NULL
+                  AND source.name = $3
+                  AND source.project #>> '{theme,name}' = $4
+                  AND source.project -> 'grades' = $5::jsonb
+              ) AS legacy_seed
        FROM campaign_collectible_publications AS link
        WHERE link.campaign_id = $1`,
       [target.campaignId, target.merchantId, projectName(target), themeName, JSON.stringify(legacyGrades)]);
     const link = linked.rows[0];
     if (link && !link.legacy_seed) continue;
-    // 실제 게시와 같이 캠페인 행을 잠가 보상권 트리거의 FOR KEY SHARE와 직렬화한 뒤 연결을 바꾼다.
-    if (link) await client.query('SELECT 1 FROM campaigns WHERE id = $1 FOR UPDATE', [target.campaignId]);
     const project = validateCollectibleProject(storeCollectibleProject(target), true);
     const projectId = randomUUID();
     const publicationId = randomUUID();
@@ -117,9 +123,15 @@ export async function seedStoreCollectibles(
         'INSERT INTO collectible_publication_grades (publication_id, grade_id, summary, detail) VALUES ($1, $2, $3::jsonb, $4::jsonb)',
         [publicationId, gradeId, JSON.stringify(summary), JSON.stringify(detail)]);
     }
-    await client.query(
-      `INSERT INTO campaign_collectible_publications (campaign_id, publication_id) VALUES ($1, $2)
-       ON CONFLICT (campaign_id) DO UPDATE SET publication_id = EXCLUDED.publication_id`, [target.campaignId, publicationId]);
+    if (link) {
+      const swapped = await client.query(
+        'UPDATE campaign_collectible_publications SET publication_id = $3 WHERE campaign_id = $1 AND publication_id = $2',
+        [target.campaignId, link.publication_id, publicationId]);
+      if (swapped.rowCount !== 1) throw new Error('SHOWCASE_COLLECTIBLE_LINK_CHANGED');
+    } else {
+      await client.query(
+        'INSERT INTO campaign_collectible_publications (campaign_id, publication_id) VALUES ($1, $2)', [target.campaignId, publicationId]);
+    }
     await client.query(
       `UPDATE collectible_projects SET status = 'PUBLISHED', publication_id = $2, version = 2, updated_at = $3 WHERE id = $1`,
       [projectId, publicationId, now]);

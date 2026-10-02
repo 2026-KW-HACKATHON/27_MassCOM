@@ -388,30 +388,56 @@ function legacySingleGradeProject(target: StoreCollectibleTarget): CollectiblePr
   } as CollectibleProject;
 }
 
-/** 옛 시드 게시물을 직접 넣는다. createdBy가 있으면 점주 편집기로 만든 게시물처럼 작성자 열을 채운다(같은 이름·테마여도 시드 것이 아니다). */
-async function insertLegacyPublication(pool: Pool, target: StoreCollectibleTarget, options: { createdBy?: string } = {}): Promise<string> {
-  const project = validateCollectibleProject(legacySingleGradeProject(target), true);
+type PublicationFixture = {
+  // 점주 편집기로 만든 게시물처럼 작성자 열을 채운다(같은 이름·테마여도 시드 것이 아니다).
+  createdBy?: string;
+  editedBy?: string;
+  // 옛 시드 모양에서 한 가지씩만 어긋나게 만든다(식별 조건을 하나씩 고정하는 시험용).
+  mutate?: (project: CollectibleProject) => void;
+  // false면 게시물만 만들고 캠페인 연결은 걸지 않는다.
+  link?: boolean;
+};
+
+/** 옛 시드 게시물(또는 그것을 한 가지만 어긋나게 만든 것)을 주어진 연결(거래)로 넣는다. 거래 시작·끝은 호출자가 정한다. */
+async function insertPublicationRows(client: PoolClient, target: StoreCollectibleTarget, options: PublicationFixture = {}): Promise<string> {
+  const draft = legacySingleGradeProject(target);
+  options.mutate?.(draft);
+  const project = validateCollectibleProject(draft, true);
   const projectId = randomUUID();
   const publicationId = randomUUID();
-  await inTransaction(pool, async (client) => {
-    await client.query(
-      `INSERT INTO collectible_projects (id, merchant_id, created_by_account_id, edited_by_account_id, project, name, lineage_id)
-       VALUES ($1, $2, $3, $3, $4::jsonb, $5, $1)`,
-      [projectId, target.merchantId, options.createdBy ?? null, JSON.stringify(project), project.name]);
-    await client.query(
-      `INSERT INTO collectible_publications (id, project_id, merchant_id, campaign_id, project_version, reward_grades)
-       VALUES ($1, $2, $3, $4, 1, $5::jsonb)`,
-      [publicationId, projectId, target.merchantId, target.campaignId, JSON.stringify(project.rewardGrades)]);
-    const { projectId: _p, publicationId: _u, gradeId: _g, gradeName, shape, theme, name, thumbnailDataUrl, ...detail } =
-      collectibleSnapshot(project, projectId, publicationId, 'bronze');
-    const summary: CollectibleArtwork = { projectId, publicationId, gradeId: 'bronze', gradeName, shape, theme, name, thumbnailDataUrl };
-    await client.query(
-      'INSERT INTO collectible_publication_grades (publication_id, grade_id, summary, detail) VALUES ($1, $2, $3::jsonb, $4::jsonb)',
-      [publicationId, 'bronze', JSON.stringify(summary), JSON.stringify(detail)]);
+  await client.query(
+    `INSERT INTO collectible_projects (id, merchant_id, created_by_account_id, edited_by_account_id, project, name, lineage_id)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6, $1)`,
+    [projectId, target.merchantId, options.createdBy ?? null, options.editedBy ?? null, JSON.stringify(project), project.name]);
+  await client.query(
+    `INSERT INTO collectible_publications (id, project_id, merchant_id, campaign_id, project_version, reward_grades)
+     VALUES ($1, $2, $3, $4, 1, $5::jsonb)`,
+    [publicationId, projectId, target.merchantId, target.campaignId, JSON.stringify(project.rewardGrades)]);
+  const { projectId: _p, publicationId: _u, gradeId: _g, gradeName, shape, theme, name, thumbnailDataUrl, ...detail } =
+    collectibleSnapshot(project, projectId, publicationId, 'bronze');
+  const summary: CollectibleArtwork = { projectId, publicationId, gradeId: 'bronze', gradeName, shape, theme, name, thumbnailDataUrl };
+  await client.query(
+    'INSERT INTO collectible_publication_grades (publication_id, grade_id, summary, detail) VALUES ($1, $2, $3::jsonb, $4::jsonb)',
+    [publicationId, 'bronze', JSON.stringify(summary), JSON.stringify(detail)]);
+  if (options.link !== false) {
     await client.query('INSERT INTO campaign_collectible_publications (campaign_id, publication_id) VALUES ($1, $2)', [target.campaignId, publicationId]);
-    await client.query(`UPDATE collectible_projects SET status = 'PUBLISHED', publication_id = $2, version = 2 WHERE id = $1`, [projectId, publicationId]);
-  });
+  }
+  await client.query(`UPDATE collectible_projects SET status = 'PUBLISHED', publication_id = $2, version = 2 WHERE id = $1`, [projectId, publicationId]);
   return publicationId;
+}
+
+const insertLegacyPublication = (pool: Pool, target: StoreCollectibleTarget, options: PublicationFixture = {}): Promise<string> =>
+  inTransaction(pool, (client) => insertPublicationRows(client, target, options));
+
+/** 다른 연결이 잠금을 기다리는 중이 될 때까지 기다린다(경합 시험에서 시드가 막혔음을 확인하는 데만 쓴다). */
+async function waitUntilSomeoneBlocks(pool: Pool): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const waiting = await pool.query(
+      `SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND pid <> pg_backend_pid()`);
+    if (waiting.rowCount) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('the seed never blocked on the concurrent writer');
 }
 
 async function collectibleCounts(pool: Pool): Promise<number[]> {
@@ -552,5 +578,132 @@ test('(R-333a) a seed publication whose media was removed by an operator is not 
     assert.deepEqual(published, [], 'a removed publication is not silently replaced by the seed');
     assert.deepEqual(await collectibleCounts(pool), before);
     assert.equal(await linkedPublication(pool, storeA.campaignId), legacy);
+  });
+});
+
+test('(R-333a race) a merchant publish that commits while the seed waits is never overwritten by the seed', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const storeA = collectibleTargets[0]!;
+    const merchant = await pool.connect();
+    try {
+      // 점주 게시와 같은 순서: 캠페인 행을 FOR UPDATE로 잠그고(아직 연결이 없음) 새 게시물을 넣어 연결하지만 아직 커밋하지 않는다.
+      await merchant.query('BEGIN');
+      await merchant.query('SELECT 1 FROM campaigns WHERE id = $1 FOR UPDATE', [storeA.campaignId]);
+      const authored = await insertPublicationRows(merchant, storeA, { createdBy: 'owner-1', mutate: (project) => { project.name = '점주가 만든 수집품'; } });
+      const seeding = seedCollectibles(pool, [storeA]).then((value) => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }));
+      await waitUntilSomeoneBlocks(pool);
+      await merchant.query('COMMIT');
+      const outcome = await seeding;
+      assert.deepEqual(outcome, { ok: true, value: [] }, 'the seed sees the merchant link after the lock and leaves it alone');
+      assert.equal(await linkedPublication(pool, storeA.campaignId), authored, 'the merchant link survives');
+      assert.deepEqual(await collectibleCounts(pool), [1, 1, 1, 1], 'and the seed added nothing');
+    } finally {
+      merchant.release();
+    }
+  });
+});
+
+test('(R-333a race) a link writer that never locks the campaign itself is still serialized, because its foreign key holds the campaign row', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const storeA = collectibleTargets[0]!;
+    // 이미 커밋된, 아직 연결 안 된 점주 게시물을 만들어 두고, 캠페인을 직접 잠그지 않은 채 그 연결 행만 거는 쓰기를 열어 둔다.
+    // campaign_collectible_publications.campaign_id의 외래 키가 캠페인 행에 FOR KEY SHARE를 걸므로 시드의 FOR UPDATE가 기다린다.
+    // (그래서 "연결이 없다고 읽은 뒤 다른 쓰기가 연결을 거는" 틈은 잠금을 먼저 잡는 한 생기지 않는다. 일반 INSERT는 그래도 남기는 안전망이다.)
+    const authored = await insertLegacyPublication(pool, storeA, {
+      createdBy: 'owner-1', link: false, mutate: (project) => { project.name = '점주가 만든 수집품'; },
+    });
+    const before = await collectibleCounts(pool);
+    assert.deepEqual(before, [1, 1, 1, 0]);
+    const writer = await pool.connect();
+    try {
+      await writer.query('BEGIN');
+      await writer.query('INSERT INTO campaign_collectible_publications (campaign_id, publication_id) VALUES ($1, $2)', [storeA.campaignId, authored]);
+      const seeding = seedCollectibles(pool, [storeA]).then((value) => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }));
+      await waitUntilSomeoneBlocks(pool);
+      await writer.query('COMMIT');
+      assert.deepEqual(await seeding, { ok: true, value: [] }, 'the seed waited, then saw the merchant link and left it alone');
+      assert.equal(await linkedPublication(pool, storeA.campaignId), authored);
+      assert.deepEqual(await collectibleCounts(pool), [1, 1, 1, 1]);
+    } finally {
+      writer.release();
+    }
+  });
+});
+
+test('(R-333a race) the legacy re-point is compare-and-swap: a link changed behind the lock makes the whole seed roll back', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const storeA = collectibleTargets[0]!;
+    const legacy = await insertLegacyPublication(pool, storeA);
+    const replacement = await insertLegacyPublication(pool, storeA, {
+      createdBy: 'owner-1', link: false, mutate: (project) => { project.name = '점주가 바꾼 수집품'; },
+    });
+    const before = await collectibleCounts(pool);
+    assert.deepEqual(before, [2, 2, 2, 1]);
+    // 캠페인 잠금을 쓰지 않는 쓰기(잠금 규칙을 어긴 경로)가 연결을 점주 게시물로 바꾸는 중이다.
+    const writer = await pool.connect();
+    try {
+      await writer.query('BEGIN');
+      await writer.query('UPDATE campaign_collectible_publications SET publication_id = $2 WHERE campaign_id = $1', [storeA.campaignId, replacement]);
+      const seeding = seedCollectibles(pool, [storeA]).then((value) => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }));
+      await waitUntilSomeoneBlocks(pool);
+      await writer.query('COMMIT');
+      const outcome = await seeding;
+      assert.equal(outcome.ok, false);
+      assert.match(String((outcome as { error: unknown }).error), /SHOWCASE_COLLECTIBLE_LINK_CHANGED/);
+      assert.equal(await linkedPublication(pool, storeA.campaignId), replacement, 'the changed link is not overwritten');
+      assert.deepEqual(await collectibleCounts(pool), before, 'the seed transaction rolled back, leaving no orphan project, publication or grade rows');
+    } finally {
+      writer.release();
+    }
+    // 다음 재시드는 연결이 이제 점주 게시물이라 아무것도 하지 않는다.
+    assert.deepEqual(await seedCollectibles(pool, [storeA]), []);
+    assert.notEqual(legacy, replacement);
+  });
+});
+
+test('(R-333a) each condition that identifies the seed\'s own publication is pinned: any one difference leaves the link alone', async () => {
+  const variants: [string, PublicationFixture][] = [
+    ['created_by only', { createdBy: 'owner-1' }],
+    ['edited_by only', { editedBy: 'owner-2' }],
+    ['a different project name', { mutate: (project) => { project.name = '다른 이름의 수집품'; } }],
+    ['a different theme', { mutate: (project) => { project.theme.name = '다른 도감'; } }],
+    ['a different grade name', { mutate: (project) => { project.grades[0]!.name = '다른 등급'; } }],
+    ['an extra (disabled) grade', {
+      mutate: (project) => {
+        project.grades.push({ id: 'extra', name: '추가', kind: 'basic', enabled: false });
+        project.derived.extra = { ...project.derived.bronze! };
+      },
+    }],
+  ];
+  for (const [label, fixture] of variants) {
+    await withFreshShowcaseDatabase(async (pool) => {
+      const storeA = collectibleTargets[0]!;
+      const publicationId = await insertLegacyPublication(pool, storeA, fixture);
+      const before = await collectibleCounts(pool);
+      assert.deepEqual(await seedCollectibles(pool, [storeA]), [], label);
+      assert.equal(await linkedPublication(pool, storeA.campaignId), publicationId, label);
+      assert.deepEqual(await collectibleCounts(pool), before, label);
+    });
+  }
+  // 대조군: 모든 조건이 맞는 옛 시드 게시물은 갈아 끼워진다.
+  await withFreshShowcaseDatabase(async (pool) => {
+    const storeA = collectibleTargets[0]!;
+    const legacy = await insertLegacyPublication(pool, storeA);
+    assert.deepEqual(await seedCollectibles(pool, [storeA]), [storeA.campaignId]);
+    assert.notEqual(await linkedPublication(pool, storeA.campaignId), legacy);
+  });
+});
+
+test('(seed) a campaign that started one day ago but ends in 90 days gets an earlier start and keeps its later end', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const seedNow = new Date();
+    const end = new Date(seedNow.getTime() + 90 * DAY_MS);
+    await pool.query('UPDATE campaigns SET starts_at = $2, ends_at = $3 WHERE id = $1',
+      [SHOWCASE_CAMPAIGN_ID, new Date(seedNow.getTime() - DAY_MS), end]);
+    await seedLocalShowcase(pool, seedNow);
+    const row = (await pool.query<{ starts_at: Date; ends_at: Date }>(
+      'SELECT starts_at, ends_at FROM campaigns WHERE id = $1', [SHOWCASE_CAMPAIGN_ID])).rows[0]!;
+    assert.equal(row.starts_at.getTime(), seedNow.getTime() - 30 * DAY_MS, 'the start is pulled 30 days back');
+    assert.equal(row.ends_at.getTime(), end.getTime(), 'the later end (+90 days) is never pulled in to +30 days');
   });
 });
