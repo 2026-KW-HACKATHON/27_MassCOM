@@ -32,7 +32,7 @@ test('1단계에는 사진·모양·자르기만 펼치고 이름은 4단계로 
   const fine = ui.q('[data-control="crop-x"]').closest('details');
   assert.ok(fine, '가로·세로 미세 조정은 접힌 더 보기 안에 있다');
   assert.equal(fine.open, false);
-  for (const name of ['crop-reset', 'auto-fit', 'crop-apply', 'undo', 'redo']) {
+  for (const name of ['crop-reset', 'auto-fit', 'crop-apply']) {
     const more = ui.q(`[data-action="${name}"]`).closest('details');
     assert.ok(more?.classList.contains('ce-more'), `${name}은 더 보기 안에 있다`);
     assert.equal(more.open, false, `${name}이 든 더 보기는 접혀 있다`);
@@ -118,4 +118,50 @@ test('두께 버튼도 되돌리기 한 번으로 돌아오고 숫자 표시가 
   await ui.click(ui.choice('thickness', '8'));
   await ui.act('undo');
   assert.equal(ui.q('[data-view="notice"]').textContent, '되돌릴 편집이 아직 없어요.', '이미 고른 값을 다시 눌러도 기록이 늘지 않는다');
+});
+
+test('3단계는 자르기를 반복하지 않고 1단계로 가는 버튼·되돌리기·붓·필터·스티커를 보인다', async () => {
+  const ui = await mountStudio();
+  assert.notEqual(ui.stepOf(ui.q('[data-view="crop"]')), '3');
+  const back = ui.all('[data-action="step"]').find(node => node.dataset.id === '1' && ui.stepOf(node) === '3');
+  assert.ok(back, '3단계에 1단계로 가는 버튼이 있다');
+  for (const name of ['undo', 'redo', 'compare']) assert.equal(ui.stepOf(ui.q(`[data-action="${name}"]`)), '3', name);
+  assert.equal(ui.stepOf(ui.choice('brush', 'erase')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-control="brush-size"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-control="sticker-kind"]')), '3');
+  const more = ui.q('[data-edit="brightness"]').closest('details');
+  assert.equal(ui.stepOf(more), '3'); assert.equal(more.open, false);
+});
+
+test('필터 선택은 보이는 강도 슬라이더만 바꾸고 값은 그대로 둔다', async () => {
+  const ui = await mountStudio();
+  const slider = name => ui.q(`[data-edit="${name}"]`).closest('label');
+  const tile = name => ui.q(`[data-filter="${name}"]`);
+  assert.equal(slider('cartoon').hidden, false, '모두 0이면 만화풍을 보인다');
+  assert.equal(slider('merge').hidden, true);
+  const merge = ui.q('[data-edit="merge"]'); merge.value = '30'; merge.dispatchEvent({ type: 'input' }); await settle();
+  await ui.click(tile('merge'));
+  assert.equal(slider('merge').hidden, false); assert.equal(slider('cartoon').hidden, true);
+  assert.equal(tile('merge').getAttribute('aria-pressed'), 'true');
+  assert.equal(merge.value, '30', '선택을 바꿔도 값은 그대로다');
+});
+
+test('다른 초안을 열면 필터 선택을 그 초안 값으로 다시 정한다', async () => {
+  const ui = await mountStudio();
+  await ui.click(ui.q('[data-filter="simplify"]'));
+  await ui.act('new');
+  assert.equal(ui.q('[data-edit="cartoon"]').closest('label').hidden, false, '새 초안은 기본(만화풍)으로 돌아간다');
+});
+
+test('4단계에 움직임·효과·음성·게시 정보가 펼쳐져 있고 이야기·살아 있는 그림은 접혀 있다', async () => {
+  const ui = await mountStudio();
+  for (const selector of ['[data-view="templates"]', '[data-control="effect-type"]', '[data-control="greeting"]', '[data-view="waveform"]', '[data-control="name"]', '[data-control="campaign"]']) {
+    assert.equal(ui.stepOf(ui.q(selector)), '4', selector);
+  }
+  for (const control of ['templates', 'greeting', 'campaign']) {
+    // data-view="greeting"은 미리보기 쪽 안내 문단이라 먼저 찾으면 안 된다. 입력 컨트롤을 먼저 찾는다.
+    const details = (ui.q(`[data-control="${control}"]`) || ui.q(`[data-view="${control}"]`)).closest('details');
+    assert.equal(details.open, true, control);
+  }
+  for (const control of ['living-kind', 'story-type']) assert.equal(ui.q(`[data-control="${control}"]`).closest('details').open, false, control);
 });
