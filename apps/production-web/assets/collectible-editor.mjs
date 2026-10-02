@@ -969,7 +969,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         list.push(sticker); selectedSticker = sticker.id;
       });
       control('sticker-new').value = '';
-      renderStickers(); return;
+      // PR #310 리뷰 2차 P2: 추가한 스티커가 바로 living 대상 목록(앞면 스티커만)에 보여야 블링크 등으로 고를 수 있다.
+      renderStickers(); renderLivingItems(); return;
     }
     if (action === 'sticker-layout-reset') {
       const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
@@ -1200,12 +1201,33 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       }
       if (target.dataset.sticker === 'text' && target.dataset.role === 'pose') {
         const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
-        mutate(() => { sticker.text = target.value; }); return;
+        let droppedBlink = false;
+        mutate(() => {
+          sticker.text = target.value;
+          // PR #310 리뷰 2차 P1: blink living 항목은 추가할 때만 포즈를 확인했다. 이미 연결된 뒤 포즈를 바꿔
+          // (예: 손 흔들기→잠자기) MASCOT_BLINK 밖으로 나가면, 그 등급에 안 걸려 있어도 실제 서버 검증이
+          // 거절한다(rules.ts: region 빈 strokes와 같은 무조건 거절). 안 맞게 된 블링크 링크를 바로 지운다.
+          if (!MASCOT_BLINK.includes(target.value)) {
+            const before = project.living.items.length;
+            project.living.items = project.living.items.filter(item => !(item.kind === 'blink' && item.target === sticker.id));
+            droppedBlink = project.living.items.length !== before;
+          }
+        });
+        if (droppedBlink) { notice('포즈를 바꿔 눈 감은 그림이 없어져 그 블링크(blink) living 항목을 지웠어요.', true); renderLivingItems(); renderBrushTargetOptions(); }
+        return;
       }
       if (target.dataset.overrideGrade) {
         const override = project.greetingOverrides.find(item => item.id === target.dataset.overrideGrade), grade = target.dataset.grade;
         mutate(() => { override.gradeIds = target.checked ? [...new Set([...override.gradeIds, grade])] : override.gradeIds.filter(item => item !== grade); });
         renderGreetingOverrides(); return;
+      }
+      // PR #310 리뷰 2차 P2: living 항목의 등급 체크박스(gradeChecks의 data-living-grade)는 change 처리기가 없어
+      // 체크해도 저장된 gradeIds가 그대로였다. 효과·인사말 규칙과 같은 방식으로 mutate를 거친다.
+      if (target.dataset.livingGrade) {
+        const item = project.living.items.find(candidate => candidate.id === target.dataset.livingGrade), grade = target.dataset.grade;
+        if (!item) return;
+        mutate(() => { item.gradeIds = target.checked ? [...new Set([...item.gradeIds, grade])] : item.gradeIds.filter(id => id !== grade); });
+        renderLivingItems(); return;
       }
       if (field === 'campaign') {
         const dropped = [];

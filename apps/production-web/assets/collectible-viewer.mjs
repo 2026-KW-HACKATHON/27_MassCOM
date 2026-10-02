@@ -127,6 +127,10 @@ export async function openCollectible(doc, item, fetcher, opener) {
     // 리셋하지 않는다.
     const livingStarted = doc.defaultView.performance.now();
     let storyStarted;
+    // PR #310 리뷰 2차 P2: 애니메이션 루프가 지금 돌고 있는지 하나의 깃발로 추적한다. 동작 줄이기를 끄거나
+    // 숨겨진 탭이 다시 보일 때 새 루프를 거듭 걸면(겹친 rAF 체인) draw가 중복으로 돈다. 이 깃발로 "이미 돌고
+    // 있으면 또 걸지 않는다"를 모든 시작 지점(재생, 다시 보기, 탭 복귀, 동작 줄이기 해제)에서 보장한다.
+    let looping = false;
     const draw = async () => {
       if (!active) return;
       if (rendering) { dirty = true; return; }
@@ -162,20 +166,26 @@ export async function openCollectible(doc, item, fetcher, opener) {
       }
     };
     const loop = now => {
-      if (!active || doc.hidden || reduce.checked) return;
-      if (!playing && !onceMotion && storyStarted === undefined && !snapshot.living) return;
+      if (!active || doc.hidden || reduce.checked) { looping = false; return; }
+      if (!playing && !onceMotion && storyStarted === undefined && !snapshot.living) { looping = false; return; }
       void draw();
       frame = doc.defaultView.requestAnimationFrame(loop);
     };
+    // 이미 돌고 있으면 또 걸지 않는다(위 looping 깃발). living만 있어도(재생 중이 아니어도) 돌 수 있다.
+    const ensureLoop = () => {
+      if (looping || !active || doc.hidden || reduce.checked) return;
+      if (!playing && !onceMotion && storyStarted === undefined && !snapshot.living) return;
+      looping = true; frame = doc.defaultView.requestAnimationFrame(loop);
+    };
     const pause = () => {
-      playing = false; onceMotion = null; onceQueue = []; doc.defaultView.cancelAnimationFrame(frame); play.textContent = '동작 재생';
+      playing = false; onceMotion = null; onceQueue = []; doc.defaultView.cancelAnimationFrame(frame); looping = false; play.textContent = '동작 재생';
       // 카드 전체 동작만 멈춘다. living이 있으면(그리고 동작 줄이기가 아니면) 독립된 시계로 계속 돌아야 하므로
       // 다시 돌린다(loop 자체는 숨김·동작 줄이기면 스스로 멈춘다).
-      if (snapshot.living && !reduce.checked) frame = doc.defaultView.requestAnimationFrame(loop);
+      ensureLoop();
     };
     play.addEventListener('click', () => {
       if (playing) pause();
-      else if (!reduce.checked) { playing = true; onceMotion = null; onceQueue = []; storyStarted = undefined; started = doc.defaultView.performance.now(); play.textContent = '동작 정지'; loop(started); }
+      else if (!reduce.checked) { playing = true; onceMotion = null; onceQueue = []; storyStarted = undefined; started = doc.defaultView.performance.now(); play.textContent = '동작 정지'; void draw(); ensureLoop(); }
       else status.textContent = '움직임 줄이기를 끄면 동작을 재생할 수 있어요.';
     });
     rotation.addEventListener('input', () => { pause(); angleValue.textContent = `${rotation.value}°`; });
@@ -189,6 +199,9 @@ export async function openCollectible(doc, item, fetcher, opener) {
       }
       if (tiltToggleEl) tiltToggleEl.disabled = reduce.checked;
       void draw();
+      // PR #310 리뷰 2차 P2: 동작 줄이기를 끄면 living(독립 시계) 재생이 저절로 다시 돌아야 한다. 이미 돌고
+      // 있으면 ensureLoop가 그대로 넘긴다(중복 루프 없음).
+      if (!reduce.checked) ensureLoop();
     });
     if (snapshot.audio?.dataUrl) {
       audio = element(doc, 'audio'); audio.controls = true; audio.preload = 'none'; audio.src = snapshot.audio.dataUrl;
@@ -201,8 +214,9 @@ export async function openCollectible(doc, item, fetcher, opener) {
       const replay = element(doc, 'button', '가게 이야기 다시 보기', 'collection-action');
       const skip = element(doc, 'button', '이야기 건너뛰기', 'collection-action secondary');
       replay.type = skip.type = 'button';
-      replay.addEventListener('click', () => { pause(); audio?.pause(); storyStarted = doc.defaultView.performance.now(); void draw(); loop(storyStarted); });
-      skip.addEventListener('click', () => { storyStarted = undefined; doc.defaultView.cancelAnimationFrame(frame); void draw(); });
+      replay.addEventListener('click', () => { pause(); audio?.pause(); storyStarted = doc.defaultView.performance.now(); void draw(); ensureLoop(); });
+      // looping을 안 내리면 이야기를 건너뛴 뒤 living이 있어도 다시 걸리지 않는다(이 틀의 looping 불변식).
+      skip.addEventListener('click', () => { storyStarted = undefined; doc.defaultView.cancelAnimationFrame(frame); looping = false; void draw(); ensureLoop(); });
       storyControls.append(replay, skip);
       dialog.insertBefore(storyControls, close);
     }
@@ -220,7 +234,7 @@ export async function openCollectible(doc, item, fetcher, opener) {
         onceQueue = rest.map(item => ({ type: item.type, particle: item.particle }));
         onceMotion = { type: first.type, particle: first.particle };
         started = doc.defaultView.performance.now();
-        void draw(); loop(started);
+        void draw(); ensureLoop();
       });
       onceControls.append(replayOnce);
       dialog.insertBefore(onceControls, close);
@@ -270,12 +284,13 @@ export async function openCollectible(doc, item, fetcher, opener) {
       });
       tiltControls.append(tiltToggle); dialog.insertBefore(tiltControls, close);
     }
-    onVisibility = () => { if (doc.hidden) { pause(); audio?.pause(); storyStarted = undefined; stopTilt(); } };
+    // PR #310 리뷰 2차 P2: 숨겨졌던 탭이 다시 보이면 living(독립 시계) 재생을 다시 건다(동작 줄이기가 아닐 때만).
+    onVisibility = () => { if (doc.hidden) { pause(); audio?.pause(); storyStarted = undefined; stopTilt(); } else ensureLoop(); };
     doc.addEventListener('visibilitychange', onVisibility);
     // loop 모션(반복 재생)이 있으면 손님이 따로 누르지 않아도 바로 보여 준다. 동작 줄이기면 정지 화면을 유지한다.
     if (snapshot.animation && snapshot.animation !== 'still' && !reduce.checked) { playing = true; started = doc.defaultView.performance.now(); play.textContent = '동작 정지'; }
     await draw();
-    if (playing || (snapshot.living && !reduce.checked)) frame = doc.defaultView.requestAnimationFrame(loop);
+    ensureLoop();
   } catch {
     if (active) status.textContent = '수집품을 불러오지 못했어요. 도감으로 돌아가 다시 열어 주세요. 받은 수집품은 그대로 보관돼요.';
   }

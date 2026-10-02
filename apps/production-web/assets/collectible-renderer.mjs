@@ -469,7 +469,9 @@ export async function renderCollectible(canvas, project, gradeId, options = {}) 
   const playback = options.playback ?? motion?.playback ?? 'loop';
   const particle = options.particle ?? motion?.particle;
   const angle = options.angle ?? project.angle ?? 0;
-  let front = await frontFor(project, gradeId, size, angle + (animation === 'rotate' ? (options.time || 0) / 75 : 0), options.time);
+  // PR #310 리뷰 2차 P2: living이 가져다 쓰는 스티커는 정지 포즈로 frontFor가 또 그리면, 아래서 합성하는
+  // living 오버레이와 겹쳐 이중으로 보인다(발행 경로의 angleFramesFor·livingStickerTargets와 같은 규칙).
+  let front = await frontFor(project, gradeId, size, angle + (animation === 'rotate' ? (options.time || 0) / 75 : 0), options.time, true, livingStickerTargets(project, gradeId));
   // 편집기 미리보기도 living 항목(sway/bob/steam/blink)을 시간에 맞춰 보여준다(PR #310 리뷰 P2: 전에는 게시된
   // 스프라이트를 뷰어만 그리고 편집 중에는 미리 볼 방법이 없었다). 카드 전체 동작(staticFrame, "지금 재생 중인가")과는
   // 독립적인 시계(livingTime)와 깃발(reducedMotion, "동작 줄이기인가")을 따로 받는다 — 재생 중이 아니어도 living은

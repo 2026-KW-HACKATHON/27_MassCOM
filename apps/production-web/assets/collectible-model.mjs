@@ -300,12 +300,31 @@ function rotatedHalfExtent(halfW, halfH, rotationDeg) {
 export function livingBoundingBox(project, gradeId, padding = 0.1) {
   const items = (project.living?.items ?? []).filter((item) => item.gradeIds?.includes(gradeId));
   if (!items.length) return undefined;
+  // region 점은 사진 안 비율(pointOnPhoto, cropTransform의 photo rect 기준)이라 사진이 정사각이 아니거나
+  // 확대·이동됐으면 출력 캔버스 비율과 다르다. 출력 기준(스티커 쪽과 같은 좌표계)으로 옮긴 뒤 합집합을 낸다
+  // (PR #310 리뷰 2차 P2: 이전 crop 보정이 렌더러에만 반영되고 이 박스에는 닿지 않아, 게시 후 움직이는 영역이
+  // 잘리거나 어긋났다).
+  const transform = cropTransform(project, 1, 1);
+  const photo = project.photo;
+  const photoScale = photo?.width > 0 && photo?.height > 0 ? transform.width / photo.width : 1;
   let minX = 1, minY = 1, maxX = 0, maxY = 0;
   for (const item of items) {
     if (item.target === 'region') {
+      // 붓 반경(strokeAlpha·paintLivingItem의 고정 size .1과 같은 공식, 사진 고유 치수 기준)을 출력 반경으로 바꾼다.
+      const brushRadius = photo?.width > 0 ? .1 * Math.min(photo.width, photo.height) / 2 * photoScale : 0;
+      const swayRad = item.kind === 'sway' ? (clamp(item.amplitude, 0, 100, 0) / 100) * 6 * Math.PI / 180 : 0;
+      const bobFrac = item.kind === 'bob' ? (clamp(item.amplitude, 0, 100, 0) / 100) * .03 : 0;
+      const pivot = { x: (item.pivot?.x ?? .5), y: (item.pivot?.y ?? .5) };
       for (const point of item.strokes ?? []) {
-        minX = Math.min(minX, point.x); minY = Math.min(minY, point.y);
-        maxX = Math.max(maxX, point.x); maxY = Math.max(maxY, point.y);
+        const x = transform.x + point.x * transform.width, y = transform.y + point.y * transform.height;
+        // sway는 paintLivingItem처럼 pivot 둘레로 ±최대각까지 돌아간다. 두 극단만 보면 회전 중 지나가는 자리를 다 덮는다.
+        for (const rad of swayRad ? [swayRad, -swayRad] : [0]) {
+          const dx = x - pivot.x, dy = y - pivot.y;
+          const rx = pivot.x + dx * Math.cos(rad) - dy * Math.sin(rad);
+          const ry = pivot.y + dx * Math.sin(rad) + dy * Math.cos(rad);
+          minX = Math.min(minX, rx - brushRadius); maxX = Math.max(maxX, rx + brushRadius);
+          minY = Math.min(minY, ry - brushRadius - bobFrac); maxY = Math.max(maxY, ry + brushRadius + bobFrac);
+        }
       }
     } else {
       const sticker = project.stickers.find((candidate) => candidate.id === item.target);
