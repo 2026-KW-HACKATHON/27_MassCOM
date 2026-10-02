@@ -4,6 +4,7 @@ import { Pressable, Text, View, useWindowDimensions, type ImageSourcePropType } 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { uiMetrics } from '../theme/ui-metrics';
+import { playUiSound } from '../sound/ui-sounds';
 import { SkyArt } from './sky-art';
 import { compactArtHeight, storeArtHeight } from './sky-art-size';
 import { StoreArt } from './store-art';
@@ -45,7 +46,12 @@ export function BackHeader({ title, art, artNote, onArtError, onBack, children }
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="뒤로"
-          onPress={onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/')))}
+          onPress={() => {
+            playUiSound('close');
+            if (onBack) onBack();
+            else if (router.canGoBack()) router.back();
+            else router.replace('/');
+          }}
           style={styles.backButton}
         >
           <Text accessible={false} maxFontSizeMultiplier={1.2} style={styles.backGlyph}>‹</Text>

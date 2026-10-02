@@ -7,6 +7,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { lightHaptic } from '@/gamification/native-effects';
 import { motion } from '@/motion/timing';
 import { useMotionEnabled } from '@/motion/use-motion';
+import { playUiSound } from '@/sound/ui-sounds';
 import { colorsForScheme } from '@/theme/palette';
 import { uiMetrics } from '@/theme/ui-metrics';
 import { worldForScheme } from '@/theme/world';
@@ -86,7 +87,10 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
             const onPress = () => {
               void lightHaptic();
               const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-              if (!selected && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+              if (!selected && !event.defaultPrevented) {
+                playUiSound('navigate');
+                navigation.navigate(route.name, route.params);
+              }
             };
             return route.name === 'claim'
               ? <ClaimSlot key={route.key} route={route} label={label} accessibilityLabel={options.tabBarAccessibilityLabel} selected={selected} onPress={onPress} />

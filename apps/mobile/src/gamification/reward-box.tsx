@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import type { AppColors } from '@/theme/palette';
+import { playUiSound } from '@/sound/ui-sounds';
 
 import { BadgeApiError, type OpenedReward, type Reward, type RewardMilestone } from './badge-api';
 import { openRewardErrorMessage, rewardAccessibilityLabel, rewardBoxName, rewardStatusText } from './badge-rules';
@@ -40,6 +41,7 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
   async function openBox() {
     if (busy) return;
     setBusy(true);
+    playUiSound('open');
     setError(undefined);
     box.current?.shake();
     void lightHaptic();
@@ -50,6 +52,8 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
       onRevealed(result);
     } catch (caught) {
       box.current?.settle();
+      // 여는 소리를 이미 냈으니 실패도 소리로 알린다(방문 수령 실패와 같은 신호).
+      playUiSound('error');
       const code = caught instanceof BadgeApiError ? caught.code : undefined;
       setError(openRewardErrorMessage(code));
       onOpenFailed?.(code);
