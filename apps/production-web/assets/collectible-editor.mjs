@@ -1374,6 +1374,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   listen(previewCanvas, 'pointerup', endPointer); listen(previewCanvas, 'pointercancel', endPointer);
   listen(document, 'visibilitychange', () => { if (document.hidden) stopHiddenMedia(); else { start = performance.now(); if (!studio.isHome) schedulePreview(); } });
   listen(window, 'beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
+  // Issue #329: 폰 제스처 뒤로가기는 페이지를 떠나지 않고 스튜디오 홈으로 돌아온다(편집 내용은 메모리에 남는다).
+  listen(window, 'popstate', () => { if (!active || studio.isHome) return; stopHiddenMedia(); studio.sync(project, { dirty, wrapper }); studio.showHome(true, { fromHistory: true }); });
   for (const [value, name] of Object.entries(effectNames)) option(control('effect-type'), name, value);
   for (const [value, name] of Object.entries(storyNames)) option(control('story-type'), name, value);
   for (const kind of LIVING_KINDS) option(control('living-kind'), livingKindNames[kind] || kind, kind);

@@ -11,7 +11,10 @@ afterEach(() => { for (const cleanup of cleanups) cleanup(); dom.restore(); });
 /** 스튜디오 배치 시험용: 편집기를 올리고 단계·노드 위치를 묻는 도우미를 돌려준다. */
 export async function mountStudio() {
   const api = createFakeApi(), container = document.createElement('div');
-  cleanups.push(mountCollectibleEditor(container, { merchantId: 'm1', merchantName: '월계 식당', request: api.request, loadCampaigns: api.listCampaigns, onNotice() {}, confirm: () => true }));
+  const unmount = mountCollectibleEditor(container, { merchantId: 'm1', merchantName: '월계 식당', request: api.request, loadCampaigns: api.listCampaigns, onNotice() {}, confirm: () => true });
+  let disposed = false;
+  const dispose = () => { if (!disposed) { disposed = true; unmount(); } };
+  cleanups.push(dispose);
   await settle();
   const q = selector => container.querySelector(selector);
   const all = selector => [...container.querySelectorAll(selector)];
@@ -20,7 +23,7 @@ export async function mountStudio() {
   const stepOf = node => node?.closest('[data-step-panel]')?.dataset.stepPanel;
   const choice = (control, id) => all('[data-action="choice"]').find(node => node.dataset.controlFor === control && node.dataset.id === id);
   await act('new');
-  return { api, container, q, all, click, act, stepOf, choice };
+  return { api, container, q, all, click, act, stepOf, choice, dispose };
 }
 
 test('1단계에는 사진·모양·자르기만 펼치고 이름은 4단계로 간다', async () => {
@@ -416,4 +419,94 @@ test('⋯ 메뉴는 동작·홈·단계 이동·Esc로 닫히고 동작·Esc 뒤
   assert.equal(ui.q('[data-view="workspace"]').dataset.step, '2');
   await open(); await ui.click(ui.q('[data-action="next-step"]')); closed('다음 단계 버튼 뒤');
   await open(); await ui.click(ui.q('.ce-step-title')); closed('메뉴 밖을 누른 뒤');
+});
+
+test('작업 영역을 열면 기록을 하나 넣고, 뒤로가기는 페이지를 떠나지 않고 홈으로 간다', async () => {
+  const pushes = []; let backs = 0;
+  window.history = { pushState: (...args) => pushes.push(args), back: () => { backs++; } };
+  try {
+    const ui = await mountStudio();
+    assert.equal(pushes.length, 1); assert.deepEqual(pushes[0][0], { collectibleWorkspace: true });
+    await ui.act('next-step');
+    assert.equal(pushes.length, 1, '단계 이동은 기록을 더 넣지 않는다');
+    dom.window.dispatch({ type: 'popstate' }); await settle();
+    assert.equal(ui.q('[data-view="studio-home"]').hidden, false);
+    assert.equal(ui.q('[data-view="workspace"]').hidden, true);
+    assert.equal(backs, 0, '뒤로가기로 온 홈 이동은 history.back()을 다시 부르지 않는다');
+    await ui.act('resume');
+    assert.equal(pushes.length, 2, '다시 들어가면 새 기록');
+    await ui.act('home');
+    assert.equal(backs, 1, '← 스튜디오 버튼은 넣었던 기록을 한 번 소비한다');
+    dom.window.dispatch({ type: 'popstate' }); await settle();
+    assert.equal(ui.q('[data-view="studio-home"]').hidden, false, '이미 홈이면 그대로');
+  } finally { delete window.history; }
+});
+
+test('history가 없는 환경에서도 열고 닫힌다', async () => {
+  const ui = await mountStudio();
+  await ui.act('home');
+  assert.equal(ui.q('[data-view="studio-home"]').hidden, false);
+});
+
+test('저장한 초안을 열 때와 새 초안을 시작할 때도 이어서 편집하기처럼 기록을 하나씩만 넣는다', async () => {
+  const pushes = []; let backs = 0;
+  window.history = { pushState: (...args) => pushes.push(args), back: () => { backs++; } };
+  try {
+    const ui = await mountStudio();
+    assert.equal(pushes.length, 1, '새 초안으로 처음 들어온다');
+    await ui.act('draft'); await ui.act('next-step');
+    assert.equal(pushes.length, 1, '저장과 단계 이동은 기록을 더 넣지 않는다');
+    await ui.act('home');
+    assert.equal(backs, 1);
+    assert.equal(ui.q('[data-view="workspace"]').hidden, true);
+    await ui.click(ui.all('[data-action="open-project"]')[0]);
+    assert.equal(ui.q('[data-view="workspace"]').hidden, false, '저장한 초안을 열면 작업 영역이다');
+    assert.equal(pushes.length, 2, '저장한 초안 열기는 기록 하나');
+    await ui.act('home');
+    assert.equal(backs, 2);
+    await ui.act('new');
+    assert.equal(ui.q('[data-view="workspace"]').hidden, false, '새 초안을 시작하면 작업 영역이다');
+    assert.equal(pushes.length, 3, '새 초안 시작은 기록 하나');
+    assert.equal(ui.q('[data-view="workspace"]').dataset.step, '1');
+    for (const [state] of pushes) assert.deepEqual(state, { collectibleWorkspace: true });
+    dom.window.dispatch({ type: 'popstate' }); await settle();
+    assert.equal(ui.q('[data-view="studio-home"]').hidden, false, '새 초안에서도 뒤로가기는 홈이다');
+    assert.equal(backs, 2, '뒤로가기로 온 홈 이동은 back()을 부르지 않는다');
+  } finally { delete window.history; }
+});
+
+test('← 스튜디오 버튼 뒤에 따라오는 popstate는 홈 이동도 초점 이동도 다시 하지 않는다', async () => {
+  const pushes = []; let backs = 0;
+  window.history = { pushState: (...args) => pushes.push(args), back: () => { backs++; } };
+  try {
+    const ui = await mountStudio();
+    await ui.act('home');
+    assert.equal(backs, 1);
+    const heading = ui.q('[data-view="studio-home"] h3'); let scrolls = 0;
+    heading.scrollIntoView = () => { scrolls++; };
+    const marker = ui.q('[data-action="resume"]'); marker.focus();
+    dom.window.dispatch({ type: 'popstate' }); await settle();
+    assert.ok(document.activeElement === marker, '이미 홈이면 초점을 머리글로 다시 옮기지 않는다'); // 실패 때 DOM 노드 전체를 비교·출력하느라 오래 걸리지 않게 equal 대신 ok
+    assert.equal(scrolls, 0, '홈 머리글로 다시 스크롤하지 않는다');
+    assert.equal(backs, 1, 'history.back()을 한 번 더 부르지 않는다');
+    assert.equal(ui.q('[data-view="studio-home"]').hidden, false);
+    assert.equal(ui.q('[data-view="workspace"]').hidden, true);
+    assert.equal(pushes.length, 1);
+  } finally { delete window.history; }
+});
+
+test('작업 영역이 열린 채 제작기를 닫아도 history.back()을 부르지 않고 그 뒤 popstate도 무시한다', async () => {
+  const pushes = []; let backs = 0;
+  window.history = { pushState: (...args) => pushes.push(args), back: () => { backs++; } };
+  try {
+    const ui = await mountStudio();
+    assert.equal(ui.q('[data-view="workspace"]').hidden, false);
+    assert.equal(pushes.length, 1);
+    assert.doesNotThrow(() => ui.dispose());
+    assert.equal(backs, 0, '제작기를 닫을 때 기록을 소비하지 않는다');
+    assert.doesNotThrow(() => { dom.window.dispatch({ type: 'popstate' }); });
+    await settle();
+    assert.equal(backs, 0);
+    assert.equal(pushes.length, 1);
+  } finally { delete window.history; }
 });

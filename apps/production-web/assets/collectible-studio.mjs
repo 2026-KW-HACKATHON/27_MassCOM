@@ -87,6 +87,7 @@ export function createCollectibleStudio(container, { effectNames }) {
   const customField = node('label', 'ce-field', '자유 입력 테마'); customField.hidden = true;
   const custom = node('input'); custom.type = 'text'; custom.maxLength = 80; custom.placeholder = '예: 우리 동네 생일 축제'; custom.dataset.control = 'home-theme'; customField.append(custom); season.append(customField); home.append(season);
   let homeTheme = '기본', currentStep = 1, hasCurrent = false;
+  let historyEntry = false;
   const workspace = node('div', 'ce-workspace'); workspace.hidden = true; workspace.dataset.view = 'workspace'; workspace.dataset.step = '1';
   const workspaceHeading = node('div', 'ce-workspace-heading');
   const title = node('h3', 'ce-step-title'); title.tabIndex = -1; title.id = `collectible-step-${Math.random().toString(36).slice(2, 9)}`;
@@ -224,6 +225,7 @@ export function createCollectibleStudio(container, { effectNames }) {
     thicknessCustom.hidden = thicknessPresetLabel(thicknessValue) !== null; thicknessCustom.textContent = `직접 지정 ${thicknessValue}`;
   }
   function showStep(step, focus = true) {
+    const entering = workspace.hidden;
     const next = Math.max(1, Math.min(4, Number(step) || 1));
     // 붓(지우개 등)과 붓 대상(패럴랙스·living 영역)은 칠하는 단계(3·4단계) 안에서만 쓴다. 단계가 바뀌거나 홈에서 들어올 때마다 "사진 이동"·"사진 보정"으로 되돌려
     // 1단계 끌기가 사진을 옮기는 대신 지우거나 점을 찍지 않게 한다. 붓 값은 편집기가 pointerdown에서 읽기만 하고, 붓 대상은 편집기의 change 처리가
@@ -247,8 +249,10 @@ export function createCollectibleStudio(container, { effectNames }) {
     // 폰에서는 .ce-workspace가 스크롤 칸이고 제목은 고정 머리 안이라 scrollIntoView가 위치를 되돌리지 못하고 1px쯤 밀기도 한다. 마지막에 맨 위로 맞춘다.
     workspace.scrollTop = 0;
     syncChoices();
+    if (entering && !historyEntry && window.history?.pushState) { window.history.pushState({ collectibleWorkspace: true }, ''); historyEntry = true; }
   }
-  function showHome(focus = true) {
+  function showHome(focus = true, { fromHistory = false } = {}) {
+    if (historyEntry) { historyEntry = false; if (!fromHistory) window.history?.back?.(); }
     workspace.hidden = true; home.hidden = false; resume.hidden = !hasCurrent; home.prepend(noticeView); setMenu(false);
     if (focus) { const heading = home.querySelector('h3'); heading.tabIndex = -1; heading.focus({ preventScroll: true }); heading.scrollIntoView({ block: 'start', behavior: 'instant' }); }
   }
