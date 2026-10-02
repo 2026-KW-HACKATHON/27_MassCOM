@@ -1,5 +1,14 @@
 # HANDOFF
 
+## 2026-10-02 Issue #322 시연 가상 점포 수집품 게시물 시드
+
+- 기준: main `a39b983`, 브랜치 `fix/322-showcase-seed-artwork`, worktree `.worktrees/322-showcase-seed-artwork`.
+- 원인: 시연 호스트 시드(`node dist/showcase/host-seed-command.js` → `seedShowcaseFixtureData(pool, 'hosted')`)가 가상 점포 A·B·C·캠페인·목표·체험 혜택만 넣고 수집품 게시물은 넣지 않아, 방문 보상의 `/collection` 항목에 `artwork`가 없고 앱이 "받은 수집품 보기"(봉투 연출 #297 진입)를 숨겼다.
+- 수정: `apps/api/src/showcase/store-collectibles.ts`의 `seedStoreCollectibles`가 같은 시드 거래·advisory lock 안에서, 게시물이 걸리지 않은 가상 점포 캠페인에만 수집품 프로젝트·발행본·등급 행·`campaign_collectible_publications` 연결을 넣는다(캠페인당 하나, 이미 걸려 있으면 건너뜀). 호스트 모드(`masscom_showcase` DB 이름 검사를 통과한 경우)에서만 호출하고 로컬 시드·운영 DB는 건드리지 않는다. 그림은 기존 `showcase-{a,b,c}.png`를 서버 한도(변 512px·썸네일 160px)에 맞춰 줄인 JPEG(`store-collectible-art.ts`)다. 점주 발행 서비스는 ACTIVE 점주 멤버 행을 요구하는데 호스트 시드는 멤버 행을 만들지 않는 것이 규칙(기존 시험이 0건을 못 박음)이라, 같은 `validateCollectibleProject`·`collectibleSnapshot`으로 같은 표에 직접 넣는다.
+- 기존 보상권: 시드 전에 이미 받은 보상권은 소급되지 않는다(획득 행은 보상권 INSERT 트리거가 만든다). 시드 뒤 새로 받는 보상권부터 `artwork`가 붙는다.
+- 검증: `bash tests/ops/run_showcase_host_postgres.sh` 3개 파일 PASS(새 `store-collectibles.postgres.integration.ts` 포함), `npx tsx --test src/showcase/*.test.ts` 15/15, `tsc --noEmit` PASS. 시연 서버 재배포·실제 브라우저 확인은 `NOT_RUN`.
+- 다음 작업: 시연 API 재배포(host seed 재실행) 뒤 `/demo` 테스트 방문 → "받은 수집품 보기" → 봉투 열기 → 도감 확인.
+
 ## 2026-10-02 Issue #298 PR #312 리뷰 라운드 7(도감 PR #320 리뷰의 높이 증가 가드를 상점에도 포팅 + main 병합)
 
 - 기준: main `4830070`(#313 시연 웹 체험 1167c56, #320 도감 크래시 수정 병합), 브랜치 `feat/298-shop-mobile`, worktree `.worktrees/298-shop-mobile`, PR #312(같은 PR에 반영). 라운드 5에서 포팅한 오류 화면 재스크롤이 도감 쪽 후속 리뷰(21db3f9, PR #320)에서 "재시도 재렌더처럼 높이가 그대로여도 onContentSizeChange가 다시 불려, 오류를 다시 읽으려 위로 스크롤한 사용자를 끌어내린다"는 지적을 받아 고쳐졌다 — 같은 가드를 상점의 `sky()`에도 포팅했다.

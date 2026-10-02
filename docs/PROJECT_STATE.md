@@ -1,5 +1,9 @@
 # 프로젝트 상태
 
+## 시연 가상 점포 수집품 게시물 시드 (Issue #322, 2026-10-02)
+
+[Issue #322](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/322), 브랜치 `fix/322-showcase-seed-artwork`, 기준 main `a39b983`. 시연 호스트 시드가 가상 점포 A·B·C 캠페인마다 수집품 게시물을 하나씩 멱등으로 붙인다(기존 `showcase-{a,b,c}` 그림을 줄인 JPEG). 시드 뒤 받는 보상권부터 `/collection`에 `artwork`가 있어 "받은 수집품 보기"→봉투 연출이 열린다. 시드 전에 받은 보상권은 소급되지 않는다. 운영 DB는 건드리지 않는다. 라이브 시연 확인은 재배포 뒤이며 `NOT_RUN`이다.
+
 ## 도감 탭 흰 화면 크래시 수정 (Issue #314, 2026-10-02)
 
 [Issue #314](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/314), 브랜치 `fix/314-album-crash`(worktree `.worktrees/314-album-crash`), 기준 main `439ba83`, PR 미정. 수집품을 하나 이상 가진 계정이 도감 탭을 열면 흰 화면으로 멈추던 release blocker. 진짜 원인은 `collectible-browser.tsx`의 "외부 지갑 주소 확인" Link가 배열 `style`을 expo-router `<Slot>`에 넘겨 렌더 오류를 던진 것이었고(`StyleSheet.flatten`으로 수정), 그 오류가 Root Layout을 다시 마운트시키는 틈에 `index.tsx`의 effect 정리가 여전히 `router.setParams`를 불러 "Attempted to navigate before mounting the Root Layout" 2차 오류로 번져 흰 화면이 굳어졌다(`clearCollectionFocusParams` 헬퍼의 좁은 `try/catch`로 수정; `navigationRef.isReady()` 사전 확인은 실기에서 통과한 뒤에도 같은 오류가 또 던져져 폐기했다). 같은 QA에서 도감 오류 화면의 "다시 불러오기" 버튼이 첫 화면부터 탭 막대에 가려지던 문제도 `onContentSizeChange` 기반 재스크롤로 고쳤다. 운영·시연 두 variant가 공유하는 공통 화면 코드만 바꿨다. 검증은 [TEST_STATUS](TEST_STATUS.md), 상세 경위는 [HANDOFF](HANDOFF.md#2026-10-02-issue-314-도감-탭-흰-화면-크래시-android-release-blocker).

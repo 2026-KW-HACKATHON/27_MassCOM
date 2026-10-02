@@ -54,4 +54,5 @@ run_case() {
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   run_case host-seed-existing.postgres.integration.ts
   run_case host-seed.postgres.integration.ts
+  run_case store-collectibles.postgres.integration.ts
 fi

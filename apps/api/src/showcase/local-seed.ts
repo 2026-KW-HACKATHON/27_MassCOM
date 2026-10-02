@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
+import { seedStoreCollectibles } from './store-collectibles.js';
+
 export const SHOWCASE_MERCHANT_ID = 'showcase-local-merchant';
 export const SHOWCASE_CAMPAIGN_ID = 'showcase-local-campaign';
 export const SHOWCASE_STAFF_ACCOUNT_ID = 'showcase-local-staff';
@@ -258,6 +260,12 @@ export async function seedShowcaseFixtureData(
       );
     }
     await seedRewardOffers(client);
+    // #322: 호스트 시연 DB에서만 가상 점포 수집품 게시물을 붙인다(로컬 QA는 qa-collectible-seed가 따로 게시한다).
+    if (mode === 'hosted') {
+      await seedStoreCollectibles(client, merchants.map((entry, index) => ({
+        merchantId: entry.merchantId, campaignId: entry.campaignId, storeName: entry.name, art: (['a', 'b', 'c'] as const)[index]!,
+      })), now);
+    }
     await client.query('COMMIT');
     transactionStarted = false;
     return { merchantId: SHOWCASE_MERCHANT_ID, campaignId: SHOWCASE_CAMPAIGN_ID };
