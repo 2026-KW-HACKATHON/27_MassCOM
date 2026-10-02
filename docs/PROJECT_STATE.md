@@ -2,7 +2,10 @@
 
 ## 시연 가상 점포 수집품 게시물 시드 (Issue #322, 2026-10-02)
 
-[Issue #322](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/322), 브랜치 `fix/322-showcase-seed-artwork`, 기준 main `a39b983`. 시연 호스트 시드가 가상 점포 A·B·C 캠페인마다 수집품 게시물을 하나씩 멱등으로 붙인다(기존 `showcase-{a,b,c}` 그림을 줄인 JPEG). 시드 뒤 받는 보상권부터 `/collection`에 `artwork`가 있어 "받은 수집품 보기"→봉투 연출이 열린다. 시드 전에 받은 보상권은 소급되지 않는다. 운영 DB는 건드리지 않는다. 라이브 시연 확인은 재배포 뒤이며 `NOT_RUN`이다.
+[Issue #322](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/322), 브랜치 `fix/322-showcase-seed-artwork`, 기준 main `a39b983`. 시연 호스트 시드가 가상 점포 A·B·C 캠페인마다 수집품 게시물을 하나씩 멱등으로 붙인다(기존 `showcase-{a,b,c}` 그림을 줄인 JPEG). 시드 뒤 받는 보상권부터 `/collection`에 `artwork`가 있어 "받은 수집품 보기"→봉투 연출이 열린다. 시드 전에 받은 보상권은 소급되지 않는다. 운영 DB는 건드리지 않는다. 시연은 지금 `a39b983`을 실행 중이라([#321 배포 기록](evidence/deployment-a39b983-2026-10-02.json)의 봉투 열기 도달 불가 발견이 이 Issue) 이 수정은 시연 API 재배포와 host seed 재실행 뒤에 효과가 있고, 둘 다 `NOT_RUN`이다.
+## 운영·시연 서버 재배포(`a39b983`) (Issue #321, 2026-10-02)
+
+[Issue #321](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/321)(서버 쪽 완료, Issue는 열어 둠), 브랜치 `docs/321-deploy-evidence`. main `a39b983c02de032ea24602f635cca94bf6319d93`(PR #312 병합 결과)을 시연 API·웹 체험 번들과 운영 API·웹에 [배포했다](evidence/deployment-a39b983-2026-10-02.json). 배포 전 운영은 `61bde48`, 시연은 `7bcfef9`였고 migration 0037~0039가 시연과 운영 모두에 적용돼 `schema_migrations`는 39개다. 운영 DB의 `is_demo` 점포는 0개, `showcase_guest_trials`는 0행이고(약 21:00 KST 읽기 전용 재확인에서도 같고 `showcase_access_requests`도 0행, `DEPLOYED_COMMIT` 두 파일과 컨테이너 이미지가 `a39b983`, Issue #321 수용 항목 "운영 DB에 가상 데이터 0건" PASS) 운영 API의 `POST /auth/guest-trial`은 404다. 소유자가 2026-10-02에 "운영 배포 먼저, APK는 나중에 (추천)"을 골라 계획(시연 → Preview 15 기기 확인 → 운영) 대신 운영을 먼저 배포했다. **APK(시연 Preview 15·운영 test.6)는 만들지 않았다**: 서명 키스토어 위치를 에이전트가 몰라 소유자의 서명 정보를 기다린다. 따라서 공개 설치본은 여전히 운영 test.5·시연 Preview 14이고 `/open`도 바꾸지 않았다. 실제 브라우저(앞선 세션 20:43~20:44 KST의 축하 연출 도중 스크린샷 두 장과 이번 세션 20:48~20:51 KST 390×844 스크린샷 세 장·접근성 스냅샷)로 시연 웹 체험의 테스트 방문·도감·상점 뽑기를 확인했지만 시연 seed가 가상 점포 수집품을 게시하지 않아 서버 `artwork`가 없고(도감 카드는 앱 내장 대체 이미지) 봉투 열기(#297)에는 닿지 못했다(후속 Issue #322). 승인자 부트스트랩·백업 복원·웹의 실제 Google 로그인·지갑·QR·NFT는 `NOT_RUN`이다.
 
 ## 도감 탭 흰 화면 크래시 수정 (Issue #314, 2026-10-02)
 

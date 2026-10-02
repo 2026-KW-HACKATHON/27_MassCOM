@@ -1,0 +1,162 @@
+{
+  "observedAt": "2026-10-02 KST",
+  "serverClock": "showcase steps about 2026-10-02 10:59-11:00 UTC (about 19:59-20:00 KST); the operating deploy time is not recorded in this file",
+  "sourceCommit": "a39b983c02de032ea24602f635cca94bf6319d93",
+  "sourceBranch": "main (merge of PR #312)",
+  "previousCommits": {
+    "operatingApiAndWebBefore": "61bde483149a9b1b266af79d7de2463962919b8c",
+    "showcaseBefore": "7bcfef9fa52842f4a9a5a089a64293f6cd26df92"
+  },
+  "issues": [
+    321
+  ],
+  "followUpIssues": [
+    322
+  ],
+  "scope": "server side only (showcase API, showcase web trial bundle, operating API and web); no Android APK was built or published in this deploy",
+  "contentSince7bcfef9": [
+    "#284 collectible expression v2 WP1-WP4",
+    "#296 album/home reward box",
+    "#297 envelope reveal",
+    "#294 showcase access request",
+    "#295 test visit",
+    "#298 mileage shop",
+    "#309 guest web trial",
+    "#305 UI sounds",
+    "#314 album white-screen fix"
+  ],
+  "migrations": [
+    "0037_showcase_access_requests",
+    "0038_mileage_shop",
+    "0039_showcase_guest_trials"
+  ],
+  "order": {
+    "plannedInIssue321": "showcase, then Preview 15 device check, then operating",
+    "ownerDecision": {
+      "date": "2026-10-02",
+      "answer": "운영 배포 먼저, APK는 나중에 (추천)",
+      "meaning": "deploy operating first and build the APKs later",
+      "reason": "the agent could not access the signing keystore location",
+      "note": "recorded as an owner decision, not as a deviation by the agent"
+    }
+  },
+  "showcase": {
+    "time": "2026-10-02 about 10:59-11:00 UTC",
+    "release": "release copied to /opt/masscom-showcase/releases/<sha>",
+    "backup": "/opt/masscom-showcase/backups/pre-a39b983-20261002.dump, 166906 bytes, mode 600, 328 entries; actual restore NOT_RUN",
+    "image": "masscom-showcase-api:a39b983 built on the server",
+    "schemaMigrationsBefore": "36|0036_nft_metadata.sql",
+    "schemaMigrationsAfter": "39|0039_showcase_guest_trials.sql",
+    "migration": "PASS: `database migrations applied`",
+    "apiContainer": "healthy",
+    "seed": "SHOWCASE_HOST_SEEDED",
+    "aiStoreArt": "API log: AI store art: disabled (OPENAI_API_KEY is empty)",
+    "retentionTimer": "reinstalled and verified for this release; manual run result success (showcase_access_requests 0 deleted, admin_audit_deleted_targets 0, BACKUPS_DELETED 0)"
+  },
+  "webTrialBundle": {
+    "build": "Expo web export of a39b983",
+    "path": "/opt/masscom-showcase/web/releases/a39b983c02de032ea24602f635cca94bf6319d93 (14M)",
+    "currentSymlink": "points to the release above",
+    "entryJsEmbeddedApiOrigins": {
+      "https://api.masscom.kr": 0,
+      "https://demo-api.masscom.kr": 4
+    },
+    "assetBasePath": "/play/_expo",
+    "inlineScriptsInIndexHtml": 0
+  },
+  "operating": {
+    "dryRun": "PASS: scripts/deploy-lightsail.sh --dry-run (target, release a39b983, mode dry-run)",
+    "runtimeEnv": "local and server runtime env SHA-256 prefix equal (d2e13880890b1418) and the same key set; values were never printed",
+    "migrationCompatibility": "from=61bde48... to=a39b983... backward_compatible=yes (0037-0039 only CREATE new tables and indexes)",
+    "deploy": "scripts/deploy-lightsail.sh --deploy exit 0; `Lightsail deployment completed: a39b983c02de032ea24602f635cca94bf6319d93`",
+    "preDeployBackups": "the script's own backups (database-before-<release>.dump, runtime env, Caddyfile) were taken; their sizes were not recorded; actual restore NOT_RUN",
+    "migration": "PASS: migrations applied",
+    "images": "masscom-api:a39b983c02de and masscom-production-web:a39b983c02de healthy; caddy recreated",
+    "retentionTimer": "masscom-retention.timer HOST_JOB_ENABLED; first run success",
+    "databaseAfter": {
+      "schemaMigrations": "39|0039_showcase_guest_trials.sql",
+      "isDemoMerchants": 0,
+      "showcaseGuestTrials": 0
+    },
+    "publicMerchants": "https://api.masscom.kr/merchants lists 0 merchants",
+    "recheck": {
+      "time": "2026-10-02 about 21:00 KST, read-only, by the main thread",
+      "schemaMigrations": "39|0039_showcase_guest_trials.sql",
+      "showcaseAccessRequestsRows": 0,
+      "deployedCommitFiles": {
+        "/opt/masscom/DEPLOYED_COMMIT": "a39b983c02de032ea24602f635cca94bf6319d93",
+        "/opt/masscom/web/DEPLOYED_COMMIT": "a39b983c02de032ea24602f635cca94bf6319d93"
+      },
+      "containers": {
+        "masscom-api-1": "masscom-api:a39b983c02de (healthy)",
+        "masscom-production-web-1": "masscom-production-web:a39b983c02de (healthy)",
+        "masscom-caddy-1": "caddy:2.10.2-alpine (up)",
+        "masscom-showcase-showcase-api-1": "masscom-showcase-api:a39b983 (healthy)",
+        "postgres": "both postgres containers healthy"
+      },
+      "acceptance": "PASS: Issue #321 item `운영 DB에 가상 데이터 0건` (is_demo merchants 0, showcase_guest_trials 0, showcase_access_requests 0)",
+      "isDemoMerchants": 0,
+      "showcaseGuestTrials": 0
+    }
+  },
+  "externalHttps": {
+    "status200": [
+      "https://api.masscom.kr/health",
+      "https://www.masscom.kr/app/",
+      "https://www.masscom.kr/merchant/",
+      "https://masscom.kr/",
+      "https://demo-api.masscom.kr/health",
+      "https://demo-api.masscom.kr/play/"
+    ],
+    "redirects": "https://masscom.kr/demo and https://masscom.kr/demo/anything -> 302 to https://demo-api.masscom.kr/play/",
+    "operatingGuestTrial": "POST https://api.masscom.kr/auth/guest-trial -> 404",
+    "playHeaders": {
+      "contentSecurityPolicy": "default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'",
+      "hsts": "max-age=31536000; includeSubDomains",
+      "xFrameOptions": "DENY"
+    },
+    "playFavicon": "/play/favicon.ico 200",
+    "playDeepLink": "/play/collection 200"
+  },
+  "realBrowser": {
+    "previousSessionRun": {
+      "time": "2026-10-02 about 20:43-20:44 KST, Playwright Chromium",
+      "screenshots": {
+        "live-01-after-test-visit.png": "docs/evidence/deployment-a39b983-2026-10-02/live-01-after-test-visit.png (taken 20:44:00 at a 1200x1103 desktop viewport, after the 가상 점포 A test visit)",
+        "live-02-celebration-390.png": "docs/evidence/deployment-a39b983-2026-10-02/live-02-celebration-390.png (taken 20:44:15 after resizing to 390x844)"
+      },
+      "note": "both are mid-animation frames of the `가상 점포 A 도장 쾅!` celebration: text overlaps the page behind it, and the lower buttons are clipped in 02"
+    },
+    "thisSessionRun": {
+      "time": "2026-10-02 about 20:48-20:51 KST, Playwright Chromium, 390x844",
+      "flow": [
+        "masscom.kr/demo -> /play/",
+        "storage cleared first visit: 사용자예요 -> 방문 인증 -> 로그인 없이 체험하기 -> 3 required consent boxes -> 동의하고 시작",
+        "도감 renders the album with 1 collectible (no white screen, #314)",
+        "상점 balance 150P (50 visit + 100 first store); bronze draw (100P) -> `카페 곰돌이` NEW reveal; balance 50P after",
+        "test visit at 가상 점포 B -> celebration with a silver badge share button"
+      ],
+      "screenshots": {
+        "live-03-collection-390.png": "docs/evidence/deployment-a39b983-2026-10-02/live-03-collection-390.png (20:49:04, album)",
+        "live-04-shop-390.png": "docs/evidence/deployment-a39b983-2026-10-02/live-04-shop-390.png (20:49:14, shop, 150P)",
+        "live-05-shop-draw-390.png": "docs/evidence/deployment-a39b983-2026-10-02/live-05-shop-draw-390.png (20:49:27, draw reveal 카페 곰돌이 NEW)"
+      },
+      "withoutScreenshot": "스크린샷 없음, 접근성 스냅샷으로 확인: the 가상 점포 B test visit with the silver badge share button, the 50P balance after the draw, the storage-cleared first-visit flow (로그인 없이 체험하기 -> consent), and console errors 0"
+    },
+    "consoleErrors": 0
+  },
+  "finding": {
+    "issue": 322,
+    "summary": "the envelope reveal (#297) cannot be reached on the showcase: the showcase seed publishes no collectible for the virtual stores, so the /collection items have no server `artwork` (no store collectible publication) and the `받은 수집품 보기` button is hidden by design. The album card in live-03 shows the app's built-in fallback image for the virtual store (docs/SHOWCASE_COLLECTIBLE_ART.md), so the screenshot does not contradict this"
+  },
+  "notRun": [
+    "Preview 15 and operating test.6 APK build, publish and device check (the signing keystore location was not available to the agent; the owner builds or provides it)",
+    "database restore from any backup",
+    "approver bootstrap (a person must log in and create the request code)",
+    "the envelope reveal on the showcase (Issue #322)",
+    "a real Google login on the web",
+    "wallet, QR and NFT flows",
+    "the /open page is unchanged and still links operating test.5 and showcase Preview 14 (not touched by this deploy)",
+    "the sizes of the operating deploy script's own pre-deploy backups (not recorded)"
+  ]
+}

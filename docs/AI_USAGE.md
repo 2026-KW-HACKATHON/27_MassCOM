@@ -143,6 +143,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-10-02 | Claude Code Sonnet 5 executor(메인 스레드 Opus 오케스트레이션) | PR #310 재확인 리뷰(Codex gpt-6.1-sol) P1 1건·P2 5건 2차 반영, 같은 브랜치 | P1: blink 호환 확인을 포즈 변경 처리기에도 추가(안 맞으면 항목 삭제+안내). P2 5건: `livingBoundingBox` region 점에 cropTransform·붓 반경·sway 동작 범위 반영, 편집기 미리보기 `frontFor`가 living 스티커를 빼게(이중 노출 방지), living 등급 체크박스 change 처리기 추가, `sticker-add`도 living 대상 목록 갱신, 뷰어 애니메이션 루프를 `looping` 깃발 기반 `ensureLoop()`로 통일(동작 줄이기 해제·탭 복귀 재개 + 중복 루프 방지). 새 `tests/site/collectible-pr310-p2b.test.mjs` | `node --test tests/site/*.test.mjs` 225/225(신규 6건), `bash tools/gate.sh` PASS. 6건 모두 스크래치 되돌리기로 대응 시험 실패 확인 뒤 복구(P2 #6은 재개 처리기 2곳+중복 방지 가드 자체도 따로 확인) | 독립 교차 리뷰 재확인 대기. 이번 2차 수정의 실제 브라우저 재확인은 `NOT_RUN`(1차 화면 증거는 이미 있음) |
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드) | Issue #318 모바일 npm audit 좁은 예외(D-066, 소유자 결정) | `scripts/audit-ci.mjs`·예외 목록·시험 작성 | `node --test tests/ops/audit_ci_test.mjs` 6/6, 변이 3건, `npm run audit:ci` PASS, Claude 독립 검토 |
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드) | Issue #316 계정 삭제 처리 시험의 고정 시계 시한폭탄 수정 | 시험 하나에서 서비스 시계를 옛 INSERT 행의 `requested_at`에 맞춤(운영 코드 무변경) | CI와 같은 비밀번호 인증 PostgreSQL로 통합 시험 전체 실행, Codex 검토 |
+| 2026-10-02 | Claude Code(Opus 5.5 메인 스레드 오케스트레이션, Sonnet 5.5 executor) | 운영·시연 서버 재배포(`a39b983`) 기록(Issue #321 서버 부분) | 메인 스레드가 확인한 배포·브라우저 결과를 증거 JSON(`deployment-a39b983-2026-10-02.json`)과 HANDOFF·PROJECT_STATE·TEST_STATUS·README·두 인프라 README·BLOCKERS로 정리(Sonnet 문서 작업, 서버 접근 없음) | `python3 -m json.tool`, `bash tools/gate.sh`, 사람이 검토할 수 있는 PR |
 
 ## 팀 설명 체크리스트
 
