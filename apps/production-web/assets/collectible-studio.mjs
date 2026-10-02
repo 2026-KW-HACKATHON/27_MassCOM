@@ -99,7 +99,7 @@ export function createCollectibleStudio(container, { effectNames }) {
   const photo = field('photo'), photoHelp = photo.nextElementSibling, shape = field('shape'), crop = view('crop');
   const cropZoom = field('zoom'), cropMoves = field('crop-x').parentElement, cropActions = cropMoves.nextElementSibling;
   const zoomOut = action('−', 'zoom-step', '-0.25', 'ce-icon-button'), zoomIn = action('+', 'zoom-step', '0.25', 'ce-icon-button');
-  zoomOut.setAttribute('aria-label', '사진 축소'); zoomIn.setAttribute('aria-label', '사진 확대');
+  zoomOut.setAttribute('aria-label', '사진 0.25배 축소'); zoomIn.setAttribute('aria-label', '사진 0.25배 확대');
   const zoomRow = node('div', 'ce-zoom-row'); zoomRow.append(zoomOut, cropZoom, zoomIn);
   const photoStage = node('div', 'ce-photo-stage');
   photoStage.append(node('p', 'ce-photo-instruction', '사진을 움직여 원하는 모양에 맞춰 주세요.'), crop, zoomRow, disclosure('더 보기 · 위치 미세 조정', cropMoves, cropActions));

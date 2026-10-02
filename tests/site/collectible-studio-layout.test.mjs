@@ -32,17 +32,45 @@ test('1단계에는 사진·모양·자르기만 펼치고 이름은 4단계로 
   const fine = ui.q('[data-control="crop-x"]').closest('details');
   assert.ok(fine, '가로·세로 미세 조정은 접힌 더 보기 안에 있다');
   assert.equal(fine.open, false);
+  for (const name of ['crop-reset', 'auto-fit', 'crop-apply', 'undo', 'redo']) {
+    const more = ui.q(`[data-action="${name}"]`).closest('details');
+    assert.ok(more?.classList.contains('ce-more'), `${name}은 더 보기 안에 있다`);
+    assert.equal(more.open, false, `${name}이 든 더 보기는 접혀 있다`);
+  }
+  for (const node of [ui.q('[data-control="zoom"]'), ...ui.all('[data-action="zoom-step"]'), ui.choice('shape', 'circle'), ui.choice('shape', 'stamp'), ui.choice('shape', 'serrated')]) {
+    assert.equal(node.closest('details'), null, '확대 줄과 모양 타일은 어떤 접힘 안에도 없다');
+  }
 });
 
 test('확대 −/+ 버튼은 0.25배씩 바꾸고 1~8배를 넘지 않는다', async () => {
   const ui = await mountStudio();
-  const zoom = ui.q('[data-control="zoom"]');
+  const zoom = ui.q('[data-control="zoom"]'), readout = ui.q('[data-value="zoom"]');
+  const [zoomOut, zoomIn] = ui.all('[data-action="zoom-step"]');
+  assert.notEqual(zoomOut.getAttribute('aria-label'), zoom.getAttribute('aria-label'));
+  assert.notEqual(zoomIn.getAttribute('aria-label'), zoom.getAttribute('aria-label'));
   await ui.act('zoom-step', '0.25');
   assert.equal(Number(zoom.value), 1.25);
+  assert.equal(readout.textContent, '1.25배');
+  await ui.act('undo');
+  assert.equal(Number(zoom.value), 1, '한 번 되돌리면 확대 버튼 이전 값으로 돌아온다');
+  assert.equal(readout.textContent, '1.00배');
+  await ui.act('zoom-step', '0.25');
   await ui.act('zoom-step', '-0.25'); await ui.act('zoom-step', '-0.25');
   assert.equal(Number(zoom.value), 1, '1배 아래로 내려가지 않는다');
   zoom.value = '8'; await ui.act('zoom-step', '0.25');
   assert.equal(Number(zoom.value), 8, '8배를 넘지 않는다');
+});
+
+test('확대가 한계에 닿은 −/+ 는 되돌리기 기록도 편집 표시도 남기지 않는다', async () => {
+  const ui = await mountStudio();
+  const saveState = ui.q('[data-view="save-state"]'), readout = ui.q('[data-value="zoom"]'), before = saveState.textContent;
+  await ui.act('zoom-step', '-0.25');
+  assert.equal(saveState.textContent, before, '편집 표시가 바뀌지 않는다');
+  ui.q('[data-control="zoom"]').value = '8'; await ui.act('zoom-step', '0.25');
+  assert.equal(readout.textContent, '1.00배', '최대에서 +는 값 변경 이벤트를 보내지 않는다');
+  assert.equal(saveState.textContent, before);
+  await ui.act('undo');
+  assert.equal(ui.q('[data-view="notice"]').textContent, '되돌릴 편집이 아직 없어요.', '되돌리기 기록이 비어 있다');
 });
 
 test('2단계에 표현 스타일·깊이·두께 3단계가 있고 등급 관리는 접혀 있다', async () => {
@@ -74,4 +102,20 @@ test('기본 두께로 되돌리면 두께 버튼 선택도 보통으로 돌아�
   assert.equal(ui.q('[data-control="thickness"]').value, '8');
   assert.equal(ui.choice('thickness', '8').getAttribute('aria-pressed'), 'true');
   assert.equal(ui.choice('thickness', '14').getAttribute('aria-pressed'), 'false');
+});
+
+test('두께 버튼도 되돌리기 한 번으로 돌아오고 숫자 표시가 값을 따른다', async () => {
+  const ui = await mountStudio();
+  const thickness = ui.q('[data-control="thickness"]'), readout = ui.q('[data-value="thickness"]');
+  await ui.click(ui.choice('thickness', '14'));
+  assert.equal(readout.textContent, '14');
+  assert.equal(ui.choice('thickness', '14').getAttribute('aria-pressed'), 'true');
+  await ui.act('undo');
+  assert.equal(thickness.value, '8');
+  assert.equal(readout.textContent, '8');
+  assert.equal(ui.choice('thickness', '8').getAttribute('aria-pressed'), 'true');
+  assert.equal(ui.choice('thickness', '14').getAttribute('aria-pressed'), 'false');
+  await ui.click(ui.choice('thickness', '8'));
+  await ui.act('undo');
+  assert.equal(ui.q('[data-view="notice"]').textContent, '되돌릴 편집이 아직 없어요.', '이미 고른 값을 다시 눌러도 기록이 늘지 않는다');
 });

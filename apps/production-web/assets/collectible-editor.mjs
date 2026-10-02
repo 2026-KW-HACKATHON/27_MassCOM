@@ -938,9 +938,15 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'choice') {
       const name = source?.dataset.controlFor;
       if (!name) return;
+      // 두께 버튼은 슬라이더와 달리 pointerdown이 없어 되돌리기 기록과 숫자 표시를 여기서 맡는다(모양·스타일은 mutate()가 기록한다).
+      if (name === 'thickness' && control(name).value !== id) { remember(); output('thickness').textContent = id; }
       control(name).value = id; control(name).dispatchEvent(new Event('change', { bubbles: true })); studio.sync(project, { dirty, wrapper }); return;
     }
-    if (action === 'zoom-step') { const input = control('zoom'); remember(); input.value = String(clamp(Number(input.value) + Number(id), Number(input.getAttribute('min')), Number(input.getAttribute('max')))); input.dispatchEvent(new Event('input', { bubbles: true })); return; }
+    if (action === 'zoom-step') {
+      const input = control('zoom'), current = Number(input.value), next = clamp(current + Number(id), Number(input.getAttribute('min')), Number(input.getAttribute('max')));
+      if (next === current) return;
+      remember(); input.value = String(next); input.dispatchEvent(new Event('input', { bubbles: true })); return;
+    }
     if (action === 'photo-choose') { control('photo').click(); return; }
     if (action === 'draft' || action === 'publish') { await save(action === 'publish'); return; }
     if (action === 'refresh') { await Promise.all([refreshList(), refreshCampaigns()]); return; }
