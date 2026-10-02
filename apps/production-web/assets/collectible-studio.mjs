@@ -187,8 +187,13 @@ export function createCollectibleStudio(container, { effectNames }) {
   }
   function showStep(step, focus = true) {
     const next = Math.max(1, Math.min(4, Number(step) || 1));
-    // 3단계의 붓(지우개 등)이 1단계 끌기로 새어 나가지 않게 떠날 때 "사진 이동"으로 되돌린다. 값만 바꾸므로 되돌리기 기록은 없다.
-    if (currentStep === 3 && next !== 3) control('brush').value = 'move';
+    // 3단계의 붓(지우개 등)과 붓 대상(패럴랙스·living 영역)이 1단계 끌기로 새어 나가지 않게 떠날 때 "사진 이동"·"사진 보정"으로 되돌린다.
+    // 붓 값은 편집기가 pointerdown에서 읽기만 하고, 붓 대상은 편집기의 change 처리가 상태와 화면을 맞춘다. 둘 다 되돌리기 기록은 만들지 않는다.
+    if (currentStep === 3 && next !== 3) {
+      control('brush').value = 'move';
+      const brushTarget = control('brush-target');
+      if (brushTarget.value !== 'photo') { brushTarget.value = 'photo'; brushTarget.dispatchEvent(new Event('change', { bubbles: true })); }
+    }
     currentStep = next; home.hidden = true; workspace.hidden = false; hasCurrent = true;
     cropSlots[currentStep === 3 ? 1 : 0].append(crop);
     workspace.dataset.step = String(currentStep); title.textContent = steps[currentStep - 1]; workspace.querySelector('.ce-step-count').textContent = `${currentStep} / 4`;

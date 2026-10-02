@@ -195,6 +195,33 @@ test('4단계에 움직임·효과·음성·게시 정보가 펼쳐져 있고 �
   for (const control of ['living-kind', 'story-type']) assert.equal(ui.q(`[data-control="${control}"]`).closest('details').open, false, control);
 });
 
+test('3단계를 떠나면 붓 대상도 사진 보정으로 돌아와 1단계에서 끌어도 패럴랙스 점이 생기지 않는다', async () => {
+  const ui = await mountStudio();
+  const target = ui.q('[data-control="brush-target"]'), parallaxControls = ui.q('[data-view="parallax-controls"]');
+  const pick = async value => { target.value = value; target.dispatchEvent({ type: 'change' }); await settle(); };
+  // 사진이 없을 때: 값만 되돌아오고 되돌리기 기록은 만들지 않는다.
+  await ui.act('step', '3'); await pick('parallax');
+  assert.equal(parallaxControls.hidden, false, '3단계에서 패럴랙스 붓이 켜진다');
+  await ui.act('step', '1');
+  assert.equal(target.value, 'photo');
+  assert.equal(parallaxControls.hidden, true, '패럴랙스 조절도 다시 숨는다');
+  await ui.act('undo');
+  assert.equal(ui.q('[data-view="notice"]').textContent, '되돌릴 편집이 아직 없어요.', '붓 대상을 되돌리는 일은 되돌리기 기록을 만들지 않는다');
+  // 사진이 있을 때: 1단계에서 끌어도 패럴랙스 획이 쌓이지 않는다.
+  const photo = ui.q('[data-control="photo"]');
+  photo.files = [{ type: 'image/png', size: 1000, name: 'p.png', dataUrl: 'data:image/png;base64,AAAA' }]; photo.dispatchEvent({ type: 'change' }); await settle();
+  await ui.act('step', '3'); await pick('parallax'); await ui.act('step', '1');
+  assert.equal(target.value, 'photo');
+  const crop = ui.q('[data-view="crop"]');
+  crop.dispatchEvent({ type: 'pointerdown', pointerId: 1, clientX: 256, clientY: 256 });
+  for (let point = 0; point < 5; point++) crop.dispatchEvent({ type: 'pointermove', pointerId: 1, clientX: 256 + point, clientY: 256 });
+  crop.dispatchEvent({ type: 'pointerup', pointerId: 1 }); await settle();
+  await ui.act('draft');
+  const saves = ui.api.calls.filter(call => call.body?.project);
+  assert.ok(saves.length > 0, '초안을 저장했다');
+  assert.equal(saves.at(-1).body.project.parallax.strokes.length, 0, '패럴랙스 획이 생기지 않았다');
+}); 
+
 test('다른 필터로 옮겨도 값이 남고 슬라이더를 움직여도 선택이 튀지 않는다', async () => {
   const ui = await mountStudio();
   const slider = n => ui.q(`[data-edit="${n}"]`), label = n => slider(n).closest('label');
