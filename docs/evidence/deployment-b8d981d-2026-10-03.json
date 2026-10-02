@@ -34,7 +34,7 @@
     "seed": "`node dist/showcase/host-seed-command.js` -> SHOWCASE_HOST_SEEDED; campaign_collectible_publications 0 -> 3 (virtual stores A/B/C)",
     "retentionTimer": "reinstalled from this release; `install.sh --verify` -> `verified: masscom-showcase-retention.timer is enabled and matches this release`; manual run Result=success (admin_audit_deleted_targets 0, BACKUPS_DELETED 0)",
     "knownQuirk": "runtime.env MASSCOM_SHOWCASE_IMAGE_TAG still says a stale 7dba450; the deploy passed MASSCOM_SHOWCASE_IMAGE_TAG=b8d981d on the command line (same as earlier deploys)",
-    "webTrialBundle": "NOT_RUN (not rebuilt): /opt/masscom-showcase/web/releases/a39b983c02de032ea24602f635cca94bf6319d93 is unchanged and still serves the a39b983 export; the only app change since is #325, which does not change web-trial behaviour",
+    "webTrialBundle": "NOT_RUN (not rebuilt): /opt/masscom-showcase/web/releases/a39b983c02de032ea24602f635cca94bf6319d93 is unchanged and still serves the a39b983 export; the only app change since is #325, which by code reading (not measured on the live web trial) keeps the web-trial guard's approve/deny behaviour the same",
     "public": {
       "https://demo-api.masscom.kr/health": 200,
       "https://demo-api.masscom.kr/play/": 200
