@@ -505,10 +505,13 @@ export class PostgresClaimSlotService implements ClaimSlotService {
         JSON.stringify([input.accountId, campaign.id]),
       ]);
 
-      // 시연 전부 체험(#333): 시연 서버가 옵션을 켰고 슬롯 발급자가 시연 테스트 방문 발급자일 때만 방문 날짜를 이미 센 날과
-      // 겹치지 않게 뒤로 옮긴다(클라이언트 값은 쓰지 않는다). 그 밖의 모든 슬롯은 redeemedAt 그대로다.
+      // 시연 전부 체험(#333): 시연 서버가 옵션을 켰고, 가상(is_demo) 점포이며, 슬롯 발급자가 시연 테스트 방문 발급자일 때만
+      // 방문 날짜를 이미 센 날과 겹치지 않게 뒤로 옮긴다(클라이언트 값은 쓰지 않는다). 세 조건 중 하나라도 아니면
+      // 모든 슬롯은 redeemedAt 그대로다. 실제 점포는 옵션이 켜져 있어도 옮기지 않는다.
       const visitOccurredAt =
-        this.options.showcaseTestVisitBackdating && slot.created_by_account_id === SHOWCASE_TEST_VISIT_ISSUER
+        this.options.showcaseTestVisitBackdating &&
+        campaign.merchant_is_demo &&
+        slot.created_by_account_id === SHOWCASE_TEST_VISIT_ISSUER
           ? await pickShowcaseOccurredAt(client, {
               accountId: input.accountId,
               merchantId: slot.merchant_id,

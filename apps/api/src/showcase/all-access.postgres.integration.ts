@@ -214,6 +214,24 @@ test('(a) a visit never lands before the campaign start, down to the time of day
   });
 });
 
+test('(a) a test-issuer slot at a store that is no longer is_demo is never backdated, even with the showcase option on', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const svc = service(pool, { showcase: true });
+    const first = await testVisit(svc, 'customer-a');
+    assert.equal(first.visit.progressCounted, true);
+    const issued = await svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-a' });
+    // 발급 뒤 점포가 가상이 아니게 되는 상황(있어서는 안 되지만 마지막 방어선): 수령은 날짜를 옮기지 않는다.
+    await pool.query('UPDATE merchants SET is_demo = false WHERE id = $1', [SHOWCASE_MERCHANT_ID]);
+    const second = await svc.redeem({ accountId: 'customer-a', token: issued.token });
+    assert.equal(second.visit.progressCounted, false);
+    assert.equal(second.visit.businessDate, kstDateOf(testNow.getTime()));
+    assert.equal(second.grantedRewards.length, 0);
+    const visits = await visitsOf(pool, 'customer-a');
+    assert.equal(visits.length, 2);
+    assert.ok(visits.every((visit) => visit.occurred_at.getTime() === testNow.getTime()));
+  });
+});
+
 test('(b) a normal staff-issued slot redeemed twice on the same day still yields one counted visit', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     // 기본 서비스(옵션 없음)와 시연 옵션을 켠 서비스 둘 다 직원 발급 슬롯은 지금 시각 그대로다.
