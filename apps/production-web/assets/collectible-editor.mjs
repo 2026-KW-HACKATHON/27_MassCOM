@@ -1,4 +1,4 @@
-import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES } from './collectible-model.mjs';
+import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
 import { collectibleErrorMessage, localError } from './collectible-errors.mjs';
@@ -46,7 +46,16 @@ async function inspectAudio(dataUrl) {
 // campaigns를 넘기면 서버가 돌려준 "지금 게시할 수 있는 캠페인" 목록과도 맞춰 본다(목록 밖 캠페인·캠페인에 없는 방문 목표는 게시 API가 409로 거절한다).
 // 서버가 받는 크기 상한(docs/COLLECTIBLE_CREATOR.md "서버 계약"). 넘으면 보내기 전에 안내해 413을 받지 않게 한다.
 const MiB = 1024 * 1024;
-export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, back: 256 * 1024, mask: 256 * 1024, scene: 512 * 1024, body: 8 * MiB - 4096, stickers: 30, backStickers: 10 };
+export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, back: 256 * 1024, mask: 256 * 1024, scene: 512 * 1024, living: 512 * 1024, body: 8 * MiB - 4096, stickers: 30, backStickers: 10 };
+// 크기 사다리(설계 문서 "서버 검증·스냅샷·상한·저장"): 프레임 한 변 448→384→320→256px, 화질 .85(앞 두 단계)→
+// .7(나머지)로 angleFrames·living 스프라이트를 다시 구워 publishSizeProblem을 통과할 때까지 시도한다.
+// 그래도 넘으면 가장 작은 단계 결과를 그대로 두고 기존 초과 안내로 넘어간다.
+export const SPRITE_SIZE_LADDER = Object.freeze([
+  Object.freeze({ side: 448, quality: .85 }),
+  Object.freeze({ side: 384, quality: .85 }),
+  Object.freeze({ side: 320, quality: .7 }),
+  Object.freeze({ side: 256, quality: .7 }),
+]);
 const decodedBytes = dataUrl => { const data = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor(data.length * 3 / 4) - (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0); };
 export function publishSizeProblem(revision) {
   for (const assets of Object.values(revision.derived || {})) {
@@ -54,6 +63,8 @@ export function publishSizeProblem(revision) {
       if (assets[name] && decodedBytes(assets[name]) > max) return '완성 이미지가 너무 커요. 작은 사진이나 단순한 보정으로 다시 시도해 주세요. 원본과 입력은 유지했어요.';
     }
     if (Object.values(assets.effectMasks || {}).some(mask => decodedBytes(mask) > mediaLimits.mask)) return '효과 영역 이미지가 너무 커요. 효과 대상이나 스티커를 줄여 다시 시도해 주세요. 원본과 입력은 유지했어요.';
+    if (assets.angleFrames && decodedBytes(assets.angleFrames.dataUrl) > mediaLimits.image) return '회전 각도 이미지가 너무 커요. 효과나 패럴랙스 강도를 줄여 다시 시도해 주세요. 원본과 입력은 유지했어요.';
+    if (assets.living && decodedBytes(assets.living.dataUrl) > mediaLimits.living) return '살아있는 그림 이미지가 너무 커요. 움직이는 영역을 줄이거나 재생 주기를 조정해 다시 시도해 주세요. 원본과 입력은 유지했어요.';
   }
   if ((revision.story?.frames || []).some(frame => frame.previewDataUrl && decodedBytes(frame.previewDataUrl) > mediaLimits.scene)) return '이야기 장면 미리보기가 너무 커요. 더 단순한 장면 사진으로 바꿔 다시 시도해 주세요. 입력은 유지했어요.';
   const body = new TextEncoder().encode(JSON.stringify({ project: revision })).length;
@@ -95,8 +106,14 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const signal = controller.signal;
   let project = createProject({ name: `${merchantName || '우리 가게'} 수집품` });
   let wrapper = null, selectedGrade = project.grades[0].id, selectedSticker = '', selectedTemplate = 'rotate', stickerSide = 'front';
+  // 자르기 캔버스의 붓이 지금 어디에 칠하는지: 'photo'(사진 보정, 기존), 'parallax'(패럴랙스 전경/배경),
+  // 'living:<id>'(그 living 항목의 영역). 설계 문서 "패럴랙스" 항목: 사진 브러시 포인터 코드를 그대로 재사용한다.
+  let brushTarget = 'photo', selectedLivingId = '';
   let active = true, playing = false, storyPlaying = false, frame = 0, renderSequence = 0, cropSequence = 0, previewQueued = false;
   let start = performance.now(), lastFrame = 0, recorder = null, recordingStream = null, recordingTimer = 0;
+  // living 미리보기 전용 시계(PR #310 리뷰 P2). start는 재생·단계 이동마다 리셋되지만(카드 전체 동작용), living은
+  // "지금 보는 등급" 선택이 바뀌어도 계속 흐르는 시간이 필요해 따로 둔다.
+  const livingStart = performance.now();
   let dirty = false, editSerial = 0, busy = false, restoring = false, pointer = null, visible = true, uploadSequence = 0;
   let audioImportSequence = 0, storyImportSequence = 0, recordSequence = 0, recordingPending = false;
   const pendingFiles = new Set();
@@ -124,9 +141,16 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       <div class="ce-actions"><button type="button" data-action="crop-reset">틀 채우기</button><button type="button" data-action="auto-fit">자동 맞춤</button><button type="button" data-action="crop-apply">자르기 적용</button><button type="button" data-action="undo">되돌리기</button><button type="button" data-action="redo">다시 실행</button></div>
       <label class="ce-field">빠른 스타일<select data-control="style"><option value="original">원본 색 유지</option><option value="incised">단색 음각 · 안으로 파인 명암</option><option value="raised">단색 양각 · 올라온 명암</option></select></label>
       <details><summary>사진 세부 조정</summary><div class="ce-detail">
+        <label class="ce-field">붓 대상<select data-control="brush-target"><option value="photo">사진 보정</option><option value="parallax">패럴랙스 깊이</option></select></label>
         <label class="ce-field">붓 도구<select data-control="brush"><option value="move">사진 이동</option><option value="clean">잡티 정리 · 주변색으로 정리</option><option value="erase">투명 처리</option><option value="restore">원본 복원</option><option value="color">영역 색 일관화</option></select></label>
         <label class="ce-field">붓 크기<input data-control="brush-size" type="range" min="0.01" max="0.2" step="0.01" value="0.05"></label>
         <label class="ce-field">영역 색<input data-control="brush-color" type="color" value="#c69b71"></label>
+        <div data-view="parallax-controls" hidden>
+          <label class="ce-field">패럴랙스 강도<input data-control="parallax-strength" type="range" min="0" max="100" value="0"></label>
+          <label class="ce-field">패럴랙스 붓<select data-control="parallax-tool"><option value="fg">전경(튀어나와 보임)</option><option value="bg">배경(물러나 보임)</option></select></label>
+          <button type="button" data-action="parallax-clear">패럴랙스 획 지우기</button>
+          <p class="ce-help">전경으로 칠한 부분은 기울이거나 회전할 때 더 튀어나와 보이고, 배경으로 칠한 부분은 반대로 물러나 보여요.</p>
+        </div>
         <p class="ce-help">사진 위를 칠하면 바로 반영돼요. 투명한 영역의 체크무늬는 편집용이며, 완성품에는 바탕색이 비쳐요.</p>
         <button type="button" data-action="compare">원본과 비교</button><button type="button" data-action="edits-reset">사진 보정 초기화</button>
         <label class="ce-field">밝기<input data-edit="brightness" type="range" min="-100" max="100" value="0"></label>
@@ -175,9 +199,18 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       <details><summary>움직임과 두께</summary><div class="ce-detail">
         <p class="ce-help">예시는 모두 같은 기본 동전이에요. 선택한 예시 한 개만 재생하고, 원하는 등급에 적용할 수 있어요.</p>
         <div data-view="templates" class="ce-templates"></div><div data-view="motion-grades"></div><div data-view="motion-settings"></div>
-        <p class="ce-help">살아 있는 그림은 분리된 그림과 반복 동작 자료가 필요해요. 현재 공통 템플릿은 전체 수집품의 움직임이에요.</p>
         <label class="ce-field">두께 <output data-value="thickness"></output><input data-control="thickness" type="range" min="1" max="24" step="1" value="8"></label><button type="button" data-action="thickness-reset">기본 두께로</button>
         <p class="ce-help">각도와 두께는 놓으면 완성 미리보기가 갱신돼요.</p>
+      </div></details>
+      <details><summary>살아 있는 그림</summary><div class="ce-detail">
+        <p class="ce-help">사진 속 일부가 가만히 있는 포즈 위에서 살짝 움직여요. sway·bob은 영역(칠한 점)이나 앞면 스티커를 흔들고, steam은 영역에서 김이 올라요. blink는 눈 감은 그림이 있는 마스코트 스티커만 눈을 감았다 떠요.</p>
+        <label class="ce-field">반복 주기(ms) <output data-value="living-period"></output><input data-control="living-period" type="range" min="1000" max="4000" step="100" value="2400"></label>
+        <div data-view="living-items"></div>
+        <div class="ce-row">
+          <label class="ce-field">새 항목 종류<select data-control="living-kind"></select></label>
+          <label class="ce-field">대상<select data-control="living-target"><option value="region">칠한 영역</option></select></label>
+        </div>
+        <button type="button" data-action="living-add">살아 있는 그림 항목 추가</button>
       </div></details>
       <details><summary>인사말과 음성</summary><div class="ce-detail">
         <label class="ce-field">사장님 인사말 · 기본값<textarea data-control="greeting" maxlength="300" rows="3" placeholder="들러 주셔서 고마워요"></textarea></label>
@@ -284,14 +317,15 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
   function syncValues() {
     renderCampaignOptions();
-    const values = { name: project.name, shape: project.shape, style: project.style, zoom: project.crop.zoom, 'crop-x': project.crop.x, 'crop-y': project.crop.y, 'base-color': project.baseColor, 'photo-color': project.photoColor, relief: project.relief, angle: project.angle, thickness: project.thickness, greeting: project.greeting, theme: project.theme.name, campaign: project.campaignId, 'story-type': project.story.type, 'story-cartoon': project.story.cartoon };
+    const values = { name: project.name, shape: project.shape, style: project.style, zoom: project.crop.zoom, 'crop-x': project.crop.x, 'crop-y': project.crop.y, 'base-color': project.baseColor, 'photo-color': project.photoColor, relief: project.relief, angle: project.angle, thickness: project.thickness, greeting: project.greeting, theme: project.theme.name, campaign: project.campaignId, 'story-type': project.story.type, 'story-cartoon': project.story.cartoon, 'parallax-strength': project.parallax.strength, 'living-period': project.living.periodMs };
     for (const [name, value] of Object.entries(values)) control(name).value = value;
     for (const input of container.querySelectorAll('[data-edit]')) input.value = project.photoEdits[input.dataset.edit];
     output('zoom').textContent = `${project.crop.zoom.toFixed(2)}배`;
     output('angle').textContent = `${project.angle}°`; output('thickness').textContent = `${project.thickness}`;
+    output('living-period').textContent = `${project.living.periodMs}ms`;
     syncGreetingPreview();
     const audio = view('audio'); audio.pause(); audio.src = project.audio?.dataUrl || ''; audio.hidden = !project.audio;
-    renderGrades(); renderStickers(); renderEffects(); renderMotionGrades(); renderGreetingOverrides(); renderStoryFrames();
+    renderGrades(); renderStickers(); renderEffects(); renderMotionGrades(); renderGreetingOverrides(); renderStoryFrames(); renderLivingItems(); renderBrushTargetOptions();
     studio.sync(project, { dirty, wrapper }); syncPublishState();
   }
   function option(select, text, value) { select.append(element('option', text, { value })); }
@@ -396,8 +430,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   function gradeChecks(parent, selected, attributes) {
     const motion = attributes['data-motion-grade'];
     const override = attributes['data-override-grade'];
-    const kind = motion ? 'motion' : override ? 'greeting' : 'effect';
-    const group = element('div', undefined, { className: 'ce-grade-checks', role: 'group', 'aria-label': { motion: '동작을 적용할 등급 여러 개 선택', greeting: '이 인사말 규칙을 적용할 등급 여러 개 선택', effect: '효과를 적용할 등급 여러 개 선택' }[kind] });
+    const living = attributes['data-living-grade'];
+    const kind = motion ? 'motion' : override ? 'greeting' : living ? 'living' : 'effect';
+    const group = element('div', undefined, { className: 'ce-grade-checks', role: 'group', 'aria-label': { motion: '동작을 적용할 등급 여러 개 선택', greeting: '이 인사말 규칙을 적용할 등급 여러 개 선택', living: '이 living 항목을 적용할 등급 여러 개 선택', effect: '효과를 적용할 등급 여러 개 선택' }[kind] });
     for (const grade of project.grades) {
       const label = element('label', undefined, { className: 'ce-check' });
       const checkbox = element('input', undefined, { type: 'checkbox', ...attributes, 'data-grade': grade.id }); checkbox.checked = selected.includes(grade.id); checkbox.disabled = !grade.enabled;
@@ -406,10 +441,51 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     parent.append(group);
     if (kind === 'greeting') return; // 인사말 규칙은 몇 개 없어 전체 선택·해제 없이 하나씩 고른다.
     // 8.1 등급 전체 선택·해제. 미리보기 등급(selectedGrade)은 건드리지 않는다.
-    const id = motion || attributes['data-effect-grade'];
+    const id = motion || living || attributes['data-effect-grade'];
     const bulk = element('div', undefined, { className: 'ce-grade-bulk' });
-    bulk.append(button('전체 선택', motion ? 'motion-grade-all' : 'effect-grade-all', { 'data-id': id }), button('전체 해제', motion ? 'motion-grade-none' : 'effect-grade-none', { 'data-id': id }));
+    const allAction = motion ? 'motion-grade-all' : living ? 'living-grade-all' : 'effect-grade-all';
+    const noneAction = motion ? 'motion-grade-none' : living ? 'living-grade-none' : 'effect-grade-none';
+    bulk.append(button('전체 선택', allAction, { 'data-id': id }), button('전체 해제', noneAction, { 'data-id': id }));
     parent.append(bulk);
+  }
+  const livingKindNames = { sway: '좌우로 살짝 흔들림(sway)', bob: '위아래로 살짝 흔들림(bob)', steam: '김 오르기(steam)', blink: '눈 감았다 뜨기(blink, 마스코트만)' };
+  // blink는 마스코트 스티커(눈 감은 그림이 있는 포즈)만 대상으로 고를 수 있다(설계 문서 "living picture" 항목, 서버 rules.ts와 같은 규칙).
+  function renderLivingTargetOptions() {
+    const select = control('living-target'), previous = select.value; select.replaceChildren();
+    option(select, '칠한 영역', 'region');
+    for (const sticker of project.stickers) option(select, `스티커 · ${stickerLabel(sticker)}`, sticker.id);
+    if ([...select.options].some(item => item.value === previous)) select.value = previous;
+  }
+  function livingTargetLabel(item) {
+    if (item.target === 'region') return '칠한 영역';
+    const sticker = project.stickers.find(candidate => candidate.id === item.target);
+    return sticker ? `스티커 · ${stickerLabel(sticker)}` : '(삭제된 스티커)';
+  }
+  function renderLivingItems() {
+    renderLivingTargetOptions();
+    const host = view('living-items'); host.replaceChildren();
+    for (const item of project.living.items) {
+      const row = element('fieldset', undefined, { className: 'ce-living-item' });
+      row.append(element('legend', `${livingKindNames[item.kind] || item.kind} · ${livingTargetLabel(item)}`));
+      gradeChecks(row, item.gradeIds, { 'data-living-grade': item.id });
+      const amplitude = element('label', '움직임 크기', { className: 'ce-field' });
+      amplitude.append(element('input', undefined, { type: 'range', min: 0, max: 100, value: item.amplitude, 'data-living-amplitude': item.id }));
+      row.append(amplitude);
+      if (item.target === 'region') {
+        row.append(element('p', `칠한 점 ${item.strokes?.length ?? 0}/20개`, { className: 'ce-help' }));
+        row.append(button(brushTarget === `living:${item.id}` ? '지금 이 영역을 칠하는 중' : '이 영역 칠하기', 'living-paint', { 'data-id': item.id, 'aria-pressed': String(brushTarget === `living:${item.id}`) }));
+        row.append(button('점 지우기', 'living-clear', { 'data-id': item.id }));
+      }
+      row.append(button('항목 삭제', 'living-delete', { 'data-id': item.id })); host.append(row);
+    }
+  }
+  function renderBrushTargetOptions() {
+    const select = control('brush-target'), previous = brushTarget;
+    select.replaceChildren(element('option', '사진 보정', { value: 'photo' }), element('option', '패럴랙스 깊이', { value: 'parallax' }));
+    for (const item of project.living.items.filter(candidate => candidate.target === 'region')) option(select, `living 영역 · ${livingKindNames[item.kind] || item.kind}`, `living:${item.id}`);
+    if (![...select.options].some(item => item.value === previous)) brushTarget = 'photo';
+    select.value = brushTarget;
+    view('parallax-controls').hidden = brushTarget !== 'parallax';
   }
   function renderEffects() {
     const previousFocus = document.activeElement;
@@ -499,12 +575,13 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     }
     syncGreetingPreview();
   }
-  async function drawPreview(time = 0) {
+  async function drawPreview(time = 0, livingTime = 0) {
     const sequence = ++renderSequence;
     const copy = cloneProject(project);
     const buffer = document.createElement('canvas'); buffer.width = previewCanvas.width; buffer.height = previewCanvas.height;
     try {
-      await renderCollectible(buffer, copy, selectedGrade, { angle: copy.angle, time, staticFrame: !playing || control('reduce-motion').checked, merchantName });
+      const reducedMotion = control('reduce-motion').checked;
+      await renderCollectible(buffer, copy, selectedGrade, { angle: copy.angle, time, livingTime, reducedMotion, staticFrame: !playing || reducedMotion, merchantName });
       if (!active || sequence !== renderSequence) return;
       previewCanvas.getContext('2d').clearRect(0, 0, 512, 512); previewCanvas.getContext('2d').drawImage(buffer, 0, 0);
       const grade = project.grades.find(item => item.id === selectedGrade);
@@ -515,9 +592,33 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     previewQueued = true;
     if (!frame) frame = requestAnimationFrame(tick);
   }
+  // 패럴랙스/living 영역을 칠하는 동안 자르기 캔버스에 색 오버레이로 지금까지 칠한 자리를 보여 준다(설계 문서
+  // "패럴랙스" 항목: 사진 브러시 포인터 코드를 틴트 오버레이와 함께 재사용). 128×128 저해상도 마스크로 충분하다.
+  function paintBrushTint(context) {
+    if (brushTarget === 'photo') return;
+    const strokes = brushTarget === 'parallax' ? project.parallax.strokes
+      : [{ tool: 'fg', size: .1, points: project.living.items.find(item => item.id === brushTarget.slice(7))?.strokes ?? [] }];
+    const maskSize = 128, alpha = strokeAlpha(strokes, maskSize, maskSize);
+    const tint = document.createElement('canvas'); tint.width = maskSize; tint.height = maskSize;
+    const tintContext = tint.getContext('2d'), image = tintContext.createImageData(maskSize, maskSize);
+    const [r, g, b] = brushTarget === 'parallax' ? [255, 90, 90] : [90, 190, 255];
+    for (let index = 0; index < alpha.length; index++) {
+      image.data[index * 4] = r; image.data[index * 4 + 1] = g; image.data[index * 4 + 2] = b;
+      image.data[index * 4 + 3] = alpha[index] ? 140 : 0;
+    }
+    tintContext.putImageData(image, 0, 0);
+    const transform = cropTransform(project, 512, 512);
+    context.drawImage(tint, transform.x, transform.y, transform.width, transform.height);
+  }
   async function drawCrop() {
     const sequence = ++cropSequence, buffer = document.createElement('canvas'); buffer.width = 512; buffer.height = 512;
-    try { await renderCrop(buffer, project); if (active && sequence === cropSequence) { cropCanvas.getContext('2d').clearRect(0, 0, 512, 512); cropCanvas.getContext('2d').drawImage(buffer, 0, 0); } } catch (error) { notice(error.message, true); }
+    try {
+      await renderCrop(buffer, project);
+      if (!active || sequence !== cropSequence) return;
+      const context = cropCanvas.getContext('2d');
+      context.clearRect(0, 0, 512, 512); context.drawImage(buffer, 0, 0);
+      paintBrushTint(context);
+    } catch (error) { notice(error.message, true); }
   }
   function loadPhotoElement(dataUrl) {
     return new Promise((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = () => reject(new Error('사진을 불러오지 못했어요.')); image.src = dataUrl; });
@@ -551,8 +652,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     frame = 0;
     if (!active || document.hidden || !visible || studio.isHome) return;
     const allowMotion = !control('reduce-motion').checked;
-    if (previewQueued || (playing && allowMotion && now - lastFrame >= 65)) {
-      previewQueued = false; lastFrame = now; await drawPreview(now - start);
+    // living은 재생 버튼과 무관하게 "지금 보는 등급"에 걸려 있으면 계속 움직여야 한다(PR #310 리뷰 P2).
+    const hasLiving = allowMotion && project.living.items.some(item => item.gradeIds.includes(selectedGrade));
+    if (previewQueued || ((playing || hasLiving) && allowMotion && now - lastFrame >= 65)) {
+      previewQueued = false; lastFrame = now; await drawPreview(now - start, now - livingStart);
     }
     if (playing && allowMotion) {
       const tile = view('templates').querySelector(`[data-id="${selectedTemplate}"] canvas`);
@@ -562,7 +665,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       try { await renderStory(storyCanvas, project, { time: now - start, reducedMotion: !allowMotion }); } catch (error) { storyPlaying = false; notice(error.message || '이야기를 재생하지 못했어요. 장면 사진을 확인하고 다시 시도해 주세요.', true); }
       if (now - start >= 6000 || !allowMotion) storyPlaying = false;
     }
-    if (active && visible && !document.hidden && (playing && allowMotion || storyPlaying || previewQueued)) frame = requestAnimationFrame(tick);
+    if (active && visible && !document.hidden && (playing && allowMotion || storyPlaying || previewQueued || hasLiving)) frame = requestAnimationFrame(tick);
   }
   function mediaPending() { return recordingPending || recorder?.state === 'recording' || [...pendingFiles].some(item => item.project === project); }
   function updateMediaLocks() {
@@ -625,6 +728,12 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (project.stickers.some(item => !item.text.trim()) || project.back.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
     if (project.stickers.some(item => item.text.split('\n').length > 4) || project.back.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(3); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄을 지워 주세요.', true); return; }
     if (project.greetingOverrides.some(item => !item.gradeIds.length && !item.themeName.trim())) { navigateStep(4); notice('등급이나 시즌 테마를 고르지 않은 인사말 규칙이 있어요. 하나를 고르거나 규칙을 삭제해 주세요.', true); return; }
+    // PR #310 리뷰(P1): region 대상 living 항목은 서버가 점 1~20개를 요구한다(rules.ts parseLivingItem). 칠한
+    // 점을 전부 지운(또는 아직 칠하지 않은) 항목을 그대로 저장하면 그 등급을 쓰지 않아도 COLLECTIBLE_INVALID_PROJECT로
+    // 초안 저장조차 거절된다(validateCollectibleProject는 등급 연결 여부와 무관하게 구조 전체를 검사한다).
+    if (project.living.items.some(item => item.target === 'region' && (!item.strokes || item.strokes.length === 0))) {
+      navigateStep(4); notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
+    }
     if (publish) {
       setBusy(true); const refreshed = await refreshCampaigns(); setBusy(false);
       if (!active || !refreshed) return;
@@ -636,8 +745,11 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       // Final raster assets are generated once for publication; all originals,
       // strokes, stable sticker IDs and grade assignments remain in the draft.
       if (publish) {
-        revision.derived = await serializeDerived(revision, { extraGradeId: selectedGrade, merchantName });
         revision.story.frames = await serializeStoryFrames(revision.story);
+        for (const rung of SPRITE_SIZE_LADDER) {
+          revision.derived = await serializeDerived(revision, { extraGradeId: selectedGrade, merchantName, angleSide: rung.side, spriteQuality: rung.quality });
+          if (!publishSizeProblem(revision)) break;
+        }
       }
       const sizeProblem = publishSizeProblem(revision);
       if (sizeProblem) throw localError(sizeProblem);
@@ -857,7 +969,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         list.push(sticker); selectedSticker = sticker.id;
       });
       control('sticker-new').value = '';
-      renderStickers(); return;
+      // PR #310 리뷰 2차 P2: 추가한 스티커가 바로 living 대상 목록(앞면 스티커만)에 보여야 블링크 등으로 고를 수 있다.
+      renderStickers(); renderLivingItems(); return;
     }
     if (action === 'sticker-layout-reset') {
       const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
@@ -870,9 +983,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         if (action === 'sticker-delete') {
           const filtered = list.filter(item => item.id !== sticker.id);
           if (stickerSide === 'back') project.back.stickers = filtered;
-          else { project.stickers = filtered; project.effects = project.effects.filter(item => item.target !== sticker.id); }
+          else { project.stickers = filtered; project.effects = project.effects.filter(item => item.target !== sticker.id); project.living.items = project.living.items.filter(item => item.target !== sticker.id); }
         } else { const ordered = [...list].sort((a, b) => a.order - b.order); const index = ordered.indexOf(sticker), other = ordered[index + (action === 'sticker-front' ? 1 : -1)]; if (other) [other.order, sticker.order] = [sticker.order, other.order]; }
-      }); renderStickers(); renderEffects(); return;
+      }); renderStickers(); renderEffects(); renderLivingItems(); renderBrushTargetOptions(); return;
     }
     if (action === 'grade-add') {
       const name = control('grade-name').value.trim(); if (!name) { notice('새 등급의 이름을 입력해 주세요.', true); return; }
@@ -915,6 +1028,41 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         motion.gradeIds = gradeIds;
       });
       renderMotionGrades(); return;
+    }
+    if (action === 'living-add') {
+      if (project.living.items.length >= 4) { notice('living 항목은 4개까지 만들 수 있어요.', true); return; }
+      const kind = control('living-kind').value, targetValue = control('living-target').value;
+      if (kind === 'blink') {
+        const sticker = project.stickers.find(item => item.id === targetValue);
+        if (!sticker || sticker.kind !== 'mascot' || !MASCOT_BLINK.includes(sticker.text)) { notice('blink는 눈 감은 그림이 있는 마스코트 스티커에서만 쓸 수 있어요.', true); return; }
+      }
+      mutate(() => {
+        const item = { id: createId('living'), kind, target: targetValue, gradeIds: [], amplitude: 50, pivot: { x: .5, y: .5 } };
+        if (targetValue === 'region') item.strokes = [];
+        project.living.items.push(item);
+      });
+      renderLivingItems(); renderBrushTargetOptions(); return;
+    }
+    if (action === 'living-delete') {
+      mutate(() => { project.living.items = project.living.items.filter(item => item.id !== id); });
+      if (brushTarget === `living:${id}`) brushTarget = 'photo';
+      renderLivingItems(); renderBrushTargetOptions(); drawCrop(); return;
+    }
+    if (action === 'living-clear') {
+      const item = project.living.items.find(candidate => candidate.id === id); if (!item) return;
+      mutate(() => { item.strokes = []; }); renderLivingItems(); drawCrop(); return;
+    }
+    if (action === 'living-paint') {
+      brushTarget = brushTarget === `living:${id}` ? 'photo' : `living:${id}`;
+      renderBrushTargetOptions(); renderLivingItems(); drawCrop(); return;
+    }
+    if (action === 'living-grade-all' || action === 'living-grade-none') {
+      const item = project.living.items.find(candidate => candidate.id === id); if (!item) return;
+      mutate(() => { item.gradeIds = action === 'living-grade-none' ? [] : project.grades.filter(grade => grade.enabled).map(grade => grade.id); });
+      renderLivingItems(); return;
+    }
+    if (action === 'parallax-clear') {
+      mutate(() => { project.parallax.strokes = []; }); drawCrop(); return;
     }
     if (action === 'template') { selectedTemplate = id; playing = true; start = performance.now(); renderMotionGrades(); schedulePreview(); return; }
     if (action === 'play' || action === 'replay') { playing = true; if (action === 'replay') start = performance.now(); schedulePreview(); return; }
@@ -981,8 +1129,14 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     } else if (['base-color', 'photo-color', 'relief'].includes(field)) {
       project[{ 'base-color': 'baseColor', 'photo-color': 'photoColor', relief: 'relief' }[field]] = field === 'base-color' ? target.value : Number(target.value); changed(); schedulePreview();
     } else if (field === 'story-cartoon') { project.story.cartoon = Number(target.value); changed(); }
+    else if (field === 'parallax-strength') { project.parallax.strength = Number(target.value); changed(); drawCrop(); schedulePreview(); }
+    else if (field === 'living-period') { project.living.periodMs = Number(target.value); output('living-period').textContent = `${target.value}ms`; changed(); }
     for (const [attribute, property] of [['effectStrength', 'strength'], ['effectRoughness', 'roughness'], ['effectColor', 'color']]) if (target.dataset[attribute]) {
       const effect = project.effects.find(item => item.id === target.dataset[attribute]); effect[property] = property === 'color' ? target.value : Number(target.value); changed(); schedulePreview();
+    }
+    if (target.dataset.livingAmplitude) {
+      const item = project.living.items.find(candidate => candidate.id === target.dataset.livingAmplitude);
+      if (item) { item.amplitude = Number(target.value); changed(); schedulePreview(); }
     }
   });
   listen(container, 'change', async event => {
@@ -1020,6 +1174,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (field === 'sticker-side') { stickerSide = target.value; selectedSticker = ''; renderStickers(); return; }
       if (field === 'sticker-kind') { syncStickerKindVisibility(); return; }
       if (field === 'back-mode') { mutate(() => { project.back.mode = target.value; }); renderStickers(); return; }
+      if (field === 'brush-target') { brushTarget = target.value; renderBrushTargetOptions(); renderLivingItems(); drawCrop(); return; }
       if (field === 'sticker-grade-only') {
         const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
         mutate(() => {
@@ -1032,18 +1187,47 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         mutate(() => {
           let motion = project.motion.find(item => item.type === selectedTemplate);
           if (!motion) { motion = { id: createId('motion'), type: selectedTemplate, gradeIds: [] }; project.motion.push(motion); }
-          if (field === 'motion-playback') motion.playback = target.value; else motion.particle = target.value;
+          if (field === 'motion-playback') {
+            motion.playback = target.value;
+            // PR #293 후속 P2(b): once→loop로 바꾸면 반복끼리의 등급당 하나 배타 규칙(9.14 근처 motionGrade
+            // 토글과 같은 규칙)을 다시 적용해야 한다. 안 그러면 이 모션과 겹치는 등급에 걸린 다른 loop 모션이
+            // 그대로 남아 같은 등급에 loop 둘이 걸린다. 겹치는 등급만 다른 loop에서 뗀다.
+            if (target.value === 'loop') {
+              for (const other of project.motion) if (other !== motion && (other.playback ?? 'loop') === 'loop') other.gradeIds = other.gradeIds.filter(id => !motion.gradeIds.includes(id));
+            }
+          } else motion.particle = target.value;
         });
         renderMotionGrades(); return;
       }
       if (target.dataset.sticker === 'text' && target.dataset.role === 'pose') {
         const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
-        mutate(() => { sticker.text = target.value; }); return;
+        let droppedBlink = false;
+        mutate(() => {
+          sticker.text = target.value;
+          // PR #310 리뷰 2차 P1: blink living 항목은 추가할 때만 포즈를 확인했다. 이미 연결된 뒤 포즈를 바꿔
+          // (예: 손 흔들기→잠자기) MASCOT_BLINK 밖으로 나가면, 그 등급에 안 걸려 있어도 실제 서버 검증이
+          // 거절한다(rules.ts: region 빈 strokes와 같은 무조건 거절). 안 맞게 된 블링크 링크를 바로 지운다.
+          if (!MASCOT_BLINK.includes(target.value)) {
+            const before = project.living.items.length;
+            project.living.items = project.living.items.filter(item => !(item.kind === 'blink' && item.target === sticker.id));
+            droppedBlink = project.living.items.length !== before;
+          }
+        });
+        if (droppedBlink) { notice('포즈를 바꿔 눈 감은 그림이 없어져 그 블링크(blink) living 항목을 지웠어요.', true); renderLivingItems(); renderBrushTargetOptions(); }
+        return;
       }
       if (target.dataset.overrideGrade) {
         const override = project.greetingOverrides.find(item => item.id === target.dataset.overrideGrade), grade = target.dataset.grade;
         mutate(() => { override.gradeIds = target.checked ? [...new Set([...override.gradeIds, grade])] : override.gradeIds.filter(item => item !== grade); });
         renderGreetingOverrides(); return;
+      }
+      // PR #310 리뷰 2차 P2: living 항목의 등급 체크박스(gradeChecks의 data-living-grade)는 change 처리기가 없어
+      // 체크해도 저장된 gradeIds가 그대로였다. 효과·인사말 규칙과 같은 방식으로 mutate를 거친다.
+      if (target.dataset.livingGrade) {
+        const item = project.living.items.find(candidate => candidate.id === target.dataset.livingGrade), grade = target.dataset.grade;
+        if (!item) return;
+        mutate(() => { item.gradeIds = target.checked ? [...new Set([...item.gradeIds, grade])] : item.gradeIds.filter(id => id !== grade); });
+        renderLivingItems(); return;
       }
       if (field === 'campaign') {
         const dropped = [];
@@ -1071,13 +1255,14 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
             for (const sticker of project.stickers) if (sticker.layouts) delete sticker.layouts[grade.id];
             for (const motion of project.motion) motion.gradeIds = motion.gradeIds.filter(id => id !== grade.id);
             for (const override of project.greetingOverrides) override.gradeIds = override.gradeIds.filter(id => id !== grade.id);
+            for (const item of project.living.items) item.gradeIds = item.gradeIds.filter(id => id !== grade.id);
             // 등급 참조가 모두 사라지고 테마 조건도 없는 인사말 규칙은(둘 다 비면 서버가 거절한다) 함께 지운다.
             project.greetingOverrides = project.greetingOverrides.filter(item => item.gradeIds.length > 0 || item.themeName !== '');
           }
         });
         if (removed) notice('끄신 등급의 방문 목표 연결도 해제했어요. 게시할 때 다른 등급을 선택해 주세요.');
         if (!grade.enabled && selectedGrade === grade.id) selectedGrade = project.grades.find(item => item.enabled).id;
-        renderGrades(); renderEffects(); renderMotionGrades(); renderStickers(); renderGreetingOverrides(); return;
+        renderGrades(); renderEffects(); renderMotionGrades(); renderStickers(); renderGreetingOverrides(); renderLivingItems(); return;
       }
       if (target.dataset.effectGrade) {
         const effect = project.effects.find(item => item.id === target.dataset.effectGrade), grade = target.dataset.grade;
@@ -1120,7 +1305,25 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   listen(cropCanvas, 'pointerdown', event => {
     if (loading) return;
     if (!project.photo.originalDataUrl) return;
-    remember(); cropCanvas.setPointerCapture(event.pointerId); const mode = control('brush').value;
+    remember(); cropCanvas.setPointerCapture(event.pointerId);
+    // 패럴랙스 획과 living region 점은 서버에서 전체 합 20,000개 상한을 같이 쓴다(개별 상한만으로는 둘을 섞어
+    // 넘길 수 있다, PR #310 리뷰 P1). 둘 중 어느 붓이든 이 예산을 먼저 확인한다.
+    if ((brushTarget === 'parallax' || brushTarget.startsWith('living:')) && parallaxLivingPointTotal(project) >= PARALLAX_LIVING_POINT_BUDGET) {
+      notice('패럴랙스·living 점을 전체 20,000개까지 다 썼어요. 기존 점을 지우고 다시 칠해 주세요.', true); return;
+    }
+    if (brushTarget === 'parallax') {
+      if (project.parallax.strokes.length >= 100) { notice('패럴랙스 획은 100개까지 보관해요. 지우고 다시 칠해 주세요.', true); return; }
+      const stroke = { tool: control('parallax-tool').value, size: Number(control('brush-size').value), points: [pointOnPhoto(event)] };
+      project.parallax.strokes.push(stroke); pointer = { type: 'parallax', stroke }; changed(); drawCrop(); return;
+    }
+    if (brushTarget.startsWith('living:')) {
+      const item = project.living.items.find(candidate => candidate.id === brushTarget.slice(7));
+      if (!item || item.target !== 'region') return;
+      if (!item.strokes) item.strokes = [];
+      if (item.strokes.length >= 20) { notice('living 영역은 점 20개까지 찍을 수 있어요. 점을 지우고 다시 찍어 주세요.', true); return; }
+      item.strokes.push(pointOnPhoto(event)); pointer = { type: 'living', item }; changed(); drawCrop(); renderLivingItems(); return;
+    }
+    const mode = control('brush').value;
     if (mode === 'move') pointer = { type: 'crop', start: pointOn(cropCanvas, event), crop: { ...project.crop } };
     else {
       if (project.photoEdits.strokes.length >= 100) { notice('붓 획은 100개까지 보관해요. 되돌리거나 초기화 후 다시 편집해 주세요.', true); return; }
@@ -1134,6 +1337,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       project.crop.x = clamp(pointer.crop.x + (point.x - pointer.start.x) / Math.max(1, (transform.width - 512) / 2), -1, 1);
       project.crop.y = clamp(pointer.crop.y + (point.y - pointer.start.y) / Math.max(1, (transform.height - 512) / 2), -1, 1);
       control('crop-x').value = project.crop.x; control('crop-y').value = project.crop.y;
+    } else if (pointer.type === 'living') {
+      if (pointer.item.strokes.length < 20 && parallaxLivingPointTotal(project) < PARALLAX_LIVING_POINT_BUDGET) pointer.item.strokes.push(pointOnPhoto(event));
+    } else if (pointer.type === 'parallax') {
+      if (pointer.stroke.points.length < 512 && parallaxLivingPointTotal(project) < PARALLAX_LIVING_POINT_BUDGET) pointer.stroke.points.push(pointOnPhoto(event));
     } else if (pointer.stroke.points.length < 512) pointer.stroke.points.push(pointOnPhoto(event));
     changed(); drawCrop(); schedulePreview();
   });
@@ -1159,6 +1366,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   listen(window, 'beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
   for (const [value, name] of Object.entries(effectNames)) option(control('effect-type'), name, value);
   for (const [value, name] of Object.entries(storyNames)) option(control('story-type'), name, value);
+  for (const kind of LIVING_KINDS) option(control('living-kind'), livingKindNames[kind] || kind, kind);
   for (const pose of MASCOT_POSES) option(control('sticker-new-pose'), mascotPoseNames[pose] || pose, pose);
   for (const pose of MASCOT_POSES) option(container.querySelector('[data-sticker="text"][data-role="pose"]'), mascotPoseNames[pose] || pose, pose);
   syncStickerKindVisibility();

@@ -13,6 +13,7 @@ import Animated, {
 
 import { focusForAccessibility } from '@/accessibility/focus-component';
 import { Mascot } from '@/ui/mascot';
+import { playUiSound } from '@/sound/ui-sounds';
 
 import type { Coupon, OpenedReward } from './badge-api';
 import { rewardBoxName } from './badge-rules';
@@ -40,11 +41,16 @@ function RevealBody({ result, onClose, onUse }: { result: OpenedReward; onClose:
   const reduceMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
   const title = useRef<Text>(null);
+  const celebratedCoupon = useRef<string | undefined>(undefined);
   const rise = useSharedValue(reduceMotion ? 1 : 0);
   const spin = useSharedValue(0);
 
   useEffect(() => {
-    if (!result.replayed) void successHaptic();
+    if (!result.replayed && celebratedCoupon.current !== result.coupon.couponId) {
+      celebratedCoupon.current = result.coupon.couponId;
+      void successHaptic();
+      playUiSound('success');
+    }
     if (!reduceMotion) {
       rise.set(withDelay(80, withSpring(1, { damping: 13, stiffness: 150 })));
       spin.set(withTiming(1, { duration: 2400, easing: Easing.out(Easing.cubic) }));
@@ -53,7 +59,7 @@ function RevealBody({ result, onClose, onUse }: { result: OpenedReward; onClose:
       if (title.current) focusForAccessibility(title.current);
     }, 400);
     return () => clearTimeout(focus);
-  }, [reduceMotion, result.replayed, rise, spin]);
+  }, [reduceMotion, result.coupon.couponId, result.replayed, rise, spin]);
 
   const ticketStyle = useAnimatedStyle(() => ({
     opacity: Math.min(1, rise.get() * 1.6),

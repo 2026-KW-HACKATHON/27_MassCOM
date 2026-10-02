@@ -24,6 +24,7 @@ import {
 import { createBadgeApiClient, type BadgeBook } from '@/gamification/badge-api';
 import { diffBadgeBooks } from '@/gamification/badge-rules';
 import { progressNote } from '@/commerce/progress-note';
+import { playUiSound } from '@/sound/ui-sounds';
 import { Celebration, type CelebrationContent } from '@/gamification/celebration';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
 import { canShowTestVisitSection } from '@/navigation/showcase-entry';
@@ -208,7 +209,10 @@ export function ClaimRedeemScreen({
       setMessage(accepted.message);
       requestAnimationFrame(() => scrollView.current?.scrollToEnd({ animated: true }));
     } catch (error) {
-      if (inspectGate.isCurrent(request)) setMessage(messageFor(error));
+      if (inspectGate.isCurrent(request)) {
+        playUiSound('error');
+        setMessage(messageFor(error));
+      }
     } finally {
       // 한 번에 한 작업만 두므로, 버려진 응답이어도 처리 중 표시는 항상 푼다.
       setBusy(false);
@@ -223,6 +227,7 @@ export function ClaimRedeemScreen({
     setMessage(undefined);
     try {
       const result = await api.redeemClaim(target);
+      if (!result.replayed) playUiSound('success');
       setRedeemed(result);
       setArtworkReward(undefined);
       void findGrantedArtwork(result);
@@ -236,6 +241,7 @@ export function ClaimRedeemScreen({
       badgesBeforeClaim.current = undefined;
       if (!result.replayed) void celebrate(result, before);
     } catch (error) {
+      playUiSound('error');
       const action = claimFailureAction(error, preview);
       setRecoveryAction(action);
       setMessage(action.message);

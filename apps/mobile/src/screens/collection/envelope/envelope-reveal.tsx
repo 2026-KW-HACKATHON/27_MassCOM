@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
@@ -7,6 +7,7 @@ import type { PublishedCollectible } from '@/commerce/collectible-artwork';
 import { ConfettiBurst } from '@/gamification/confetti';
 import { lightHaptic, successHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
+import { playUiSound } from '@/sound/ui-sounds';
 import { Mascot } from '@/ui/mascot';
 
 import { seriesSlotText, type StoreSeries } from '../store-series';
@@ -44,6 +45,7 @@ export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip,
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [uiStage, setUiStage] = useState<'idle' | 'tearing' | 'open'>('idle');
   const [cardStep, setCardStep] = useState<EnvelopeCardStep>(() => startCards(cards.length));
+  const previousCardStep = useRef(cardStep);
   const [lifecycle, setLifecycle] = useState<RevealLifecycle>();
   const float = useSharedValue(0);
   const shake = useSharedValue(0);
@@ -68,11 +70,19 @@ export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip,
   }, [lifecycle]);
   useEffect(() => { lifecycle?.setMotionAllowed(motionAllowed); }, [lifecycle, motionAllowed]);
   useEffect(() => () => lifecycle?.dispose(), [lifecycle]);
+  useEffect(() => {
+    const previous = previousCardStep.current;
+    if (previous.stage !== cardStep.stage || (previous.stage === 'cards' && cardStep.stage === 'cards' && previous.index !== cardStep.index)) {
+      playUiSound('flip');
+    }
+    previousCardStep.current = cardStep;
+  }, [cardStep]);
 
   function openEnvelope() {
     if (uiStage !== 'idle') return;
     tear.set(motionAllowed && foreground ? 0 : 1);
     setUiStage('tearing');
+    playUiSound('open');
     void lightHaptic();
     const created = new RevealLifecycle(
       {
@@ -87,6 +97,7 @@ export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip,
           tear.set(1);
           setUiStage('open');
           void successHaptic();
+          if (AppState.currentState === 'active') playUiSound('success');
         },
       },
       TEAR_MS,
@@ -97,7 +108,11 @@ export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip,
   }
 
   function goTo(direction: 1 | -1) {
-    setCardStep((current) => stepCard(current, cards.length, direction));
+    setCardStep((current) => {
+      const next = stepCard(current, cards.length, direction);
+      return current.stage === 'end' ? (next.stage === 'end' ? current : next)
+        : next.stage === 'cards' && next.index === current.index ? current : next;
+    });
   }
 
   // Recreated every render (cheap: it just builds a handlers object) so each handler always closes over the latest

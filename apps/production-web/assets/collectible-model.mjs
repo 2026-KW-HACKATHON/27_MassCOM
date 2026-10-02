@@ -185,6 +185,175 @@ export function angleFrameIndex(angleDeg) {
   return { back: false, index, next: Math.min(ANGLE_FRAME_COUNT - 1, index + 1), blend: clamp(position - index, 0, 1) };
 }
 
+/**
+ * 획 목록(순서대로 적용)에서 전경/배경 마스크를 낸다. tool:'fg'는 255(전경)를, 'bg'는 0(배경)을 그 자리에 찍는다
+ * (processPhotoPixels의 원 찍기 수식을 그대로 옮겨 같은 붓 느낌을 공유한다). DOM 없이 순수 배열만 다뤄 node로
+ * 바로 시험할 수 있다. 반환값은 길이 w*h인 Uint8ClampedArray(한 채널, 0 또는 255).
+ */
+export function strokeAlpha(strokes, w, h) {
+  if (!Number.isInteger(w) || !Number.isInteger(h) || w <= 0 || h <= 0) throw new TypeError('양수인 정수 크기가 필요합니다.');
+  const alpha = new Uint8ClampedArray(w * h);
+  for (const stroke of strokes || []) {
+    const radius = Math.max(1, clamp(stroke.size ?? .04, .01, .2, .04) * Math.min(w, h) / 2);
+    const value = stroke.tool === 'bg' ? 0 : 255;
+    const points = stroke.points || [];
+    for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
+      const first = points[Math.max(0, pointIndex - 1)], last = points[pointIndex];
+      const distance = Math.hypot((last.x - first.x) * w, (last.y - first.y) * h);
+      const steps = Math.max(1, Math.ceil(distance / Math.max(1, radius / 2)));
+      for (let step = 0; step <= steps; step++) {
+        const cx = (first.x + (last.x - first.x) * step / steps) * w;
+        const cy = (first.y + (last.y - first.y) * step / steps) * h;
+        for (let y = Math.max(0, Math.floor(cy - radius)); y <= Math.min(h - 1, Math.ceil(cy + radius)); y++) {
+          for (let x = Math.max(0, Math.floor(cx - radius)); x <= Math.min(w - 1, Math.ceil(cx + radius)); x++) {
+            if (Math.hypot(x - cx, y - cy) > radius) continue;
+            alpha[y * w + x] = value;
+          }
+        }
+      }
+    }
+  }
+  return alpha;
+}
+
+// 서버(rules.ts:316-318)가 거절하는 패럴랙스 획 + living region 점의 전체 합 상한. 등급 연결 여부와 무관하게
+// 프로젝트 전체에서 넘으면 저장·게시가 모두 거절된다(PR #310 리뷰 P1).
+export const PARALLAX_LIVING_POINT_BUDGET = 20_000;
+
+/** 패럴랙스 획과 living region 항목의 점을 모두 더한다(서버가 보는 것과 같은 전체 합). */
+export function parallaxLivingPointTotal(project) {
+  let total = 0;
+  for (const stroke of project.parallax?.strokes ?? []) total += stroke.points?.length ?? 0;
+  for (const item of project.living?.items ?? []) if (item.target === 'region') total += item.strokes?.length ?? 0;
+  return total;
+}
+
+/**
+ * 패럴랙스 전경/배경 레이어가 각도에 따라 벌어지는 거리(칸버스 size 기준 px). 배경은 이 값의 절반만큼 반대로,
+ * 전경은 그대로, 스티커는 1.2배로 쓴다(renderer.mjs frontFor). strength 0이거나 획이 없으면 호출부가 0으로 둔다.
+ */
+export function parallaxOffset(angleDeg, strength, size = 1) {
+  if (!Number.isFinite(angleDeg) || !Number.isFinite(strength) || !Number.isFinite(size)) throw new TypeError('유한한 값이 필요합니다.');
+  return Math.sin(angleDeg * Math.PI / 180) * (clamp(strength, 0, 100, 0) / 100) * 0.04 * size;
+}
+
+/** t(ms)를 periodMs로 나눈 0..1 주기 phase. t=0과 t=periodMs는 같은 phase(0)다. */
+export function livingPhaseAt(t, periodMs) {
+  if (!Number.isFinite(t) || !Number.isFinite(periodMs) || periodMs <= 0) throw new TypeError('유한한 시간이 필요합니다.');
+  return (((t % periodMs) + periodMs) % periodMs) / periodMs;
+}
+
+/** phase(0..1 또는 그 범위 밖의 t/periodMs)를 0..count-1 살아있는 그림 스프라이트 칸으로 접는다. */
+export function livingFrameAt(t, periodMs, count) {
+  if (!Number.isInteger(count) || count < 1) throw new TypeError('칸 수는 1 이상 정수여야 합니다.');
+  return Math.min(count - 1, Math.floor(livingPhaseAt(t, periodMs) * count));
+}
+
+/** periodMs/100을 8..24칸으로 clamp한 정수 칸 수(설계 문서 "게시본" 항목). */
+export function livingSpriteCount(periodMs) {
+  return Math.round(clamp(Math.round(periodMs / 100), 8, 24));
+}
+
+/**
+ * count칸을 cellWidth×cellHeight로 maxSide(기본 4096px) 안에 배치할 열 수를 고른다. 서버(rules.ts)·Android
+ * 파서가 columns를 1..8로 제한하므로 maxColumns도 그만큼 cap한다. 가능한 많은 열을 써서 세로를 줄이되, 그래도
+ * 한 변이 넘치면 undefined(호출부가 더 작은 크기 사다리 단계로 다시 시도해야 한다).
+ */
+export function livingSpriteGrid(count, cellWidth, cellHeight, maxSide = 4096, maxColumns = 8) {
+  if (!Number.isInteger(count) || count < 1 || cellWidth <= 0 || cellHeight <= 0) throw new TypeError('칸 수·칸 크기가 올바르지 않습니다.');
+  let columns = Math.max(1, Math.min(count, maxColumns, Math.floor(maxSide / cellWidth)));
+  while (columns > 1 && Math.ceil(count / columns) * cellHeight > maxSide) columns -= 1;
+  const rows = Math.ceil(count / columns);
+  const width = columns * cellWidth, height = rows * cellHeight;
+  if (width > maxSide || height > maxSide) return undefined;
+  return { columns, rows, width, height };
+}
+
+/**
+ * living 항목(등급 기준)의 패딩된 합집합 박스(0..1, 사진/스티커 좌표). region은 칠한 점들의 min/max, 스티커
+ * 대상은 그 스티커의 등급별 배치(resolveSticker) 둘레를 쓴다. 비어 있으면 undefined(그 등급엔 living 스프라이트가 없다).
+ */
+/**
+ * 스티커의 (대략) 좌/우/상/하 반경(0..1, size=512 기준). model.mjs는 DOM이 없어 실제 measureText를 못 쓰므로
+ * 가장 긴 줄의 글자 수 × 넉넉한 em 폭으로 추정한다(모자라서 잘리기보다 넘치게, PR #310 리뷰 P2). align에 따라
+ * 글자 블록이 x를 기준으로 한쪽으로만 뻗는 것도 반영한다(stickerLayer의 textAlign과 같은 규칙).
+ */
+function stickerHalfExtent(resolved) {
+  const fontSize = clamp(resolved.size ?? 42, 8, 120, 42);
+  if (resolved.kind === 'mascot') { const half = fontSize / 512; return { left: half, right: half, top: half, bottom: half }; }
+  const lines = stickerLines(resolved.text ?? '');
+  const longest = Math.max(1, ...lines.map((line) => line.length));
+  const width = (longest * fontSize * .95) / 512;
+  const height = (lines.length * fontSize * 1.2) / 512;
+  const align = resolved.align || 'center';
+  const left = align === 'left' ? 0 : align === 'right' ? width : width / 2;
+  const right = align === 'left' ? width : align === 'right' ? 0 : width / 2;
+  return { left, right, top: height / 2, bottom: height / 2 };
+}
+
+/** 가로·세로 반경을 rotationDeg만큼 돌렸을 때의 축 정렬 바운딩 반경. */
+function rotatedHalfExtent(halfW, halfH, rotationDeg) {
+  const r = rotationDeg * Math.PI / 180, c = Math.abs(Math.cos(r)), s = Math.abs(Math.sin(r));
+  return { halfW: halfW * c + halfH * s, halfH: halfW * s + halfH * c };
+}
+
+export function livingBoundingBox(project, gradeId, padding = 0.1) {
+  const items = (project.living?.items ?? []).filter((item) => item.gradeIds?.includes(gradeId));
+  if (!items.length) return undefined;
+  // region 점은 사진 안 비율(pointOnPhoto, cropTransform의 photo rect 기준)이라 사진이 정사각이 아니거나
+  // 확대·이동됐으면 출력 캔버스 비율과 다르다. 출력 기준(스티커 쪽과 같은 좌표계)으로 옮긴 뒤 합집합을 낸다
+  // (PR #310 리뷰 2차 P2: 이전 crop 보정이 렌더러에만 반영되고 이 박스에는 닿지 않아, 게시 후 움직이는 영역이
+  // 잘리거나 어긋났다).
+  const transform = cropTransform(project, 1, 1);
+  const photo = project.photo;
+  const photoScale = photo?.width > 0 && photo?.height > 0 ? transform.width / photo.width : 1;
+  let minX = 1, minY = 1, maxX = 0, maxY = 0;
+  for (const item of items) {
+    if (item.target === 'region') {
+      // 붓 반경(strokeAlpha·paintLivingItem의 고정 size .1과 같은 공식, 사진 고유 치수 기준)을 출력 반경으로 바꾼다.
+      const brushRadius = photo?.width > 0 ? .1 * Math.min(photo.width, photo.height) / 2 * photoScale : 0;
+      const swayRad = item.kind === 'sway' ? (clamp(item.amplitude, 0, 100, 0) / 100) * 6 * Math.PI / 180 : 0;
+      const bobFrac = item.kind === 'bob' ? (clamp(item.amplitude, 0, 100, 0) / 100) * .03 : 0;
+      const pivot = { x: (item.pivot?.x ?? .5), y: (item.pivot?.y ?? .5) };
+      for (const point of item.strokes ?? []) {
+        const x = transform.x + point.x * transform.width, y = transform.y + point.y * transform.height;
+        // sway는 paintLivingItem처럼 pivot 둘레로 ±최대각까지 돌아간다. 두 극단만 보면 회전 중 지나가는 자리를 다 덮는다.
+        for (const rad of swayRad ? [swayRad, -swayRad] : [0]) {
+          const dx = x - pivot.x, dy = y - pivot.y;
+          const rx = pivot.x + dx * Math.cos(rad) - dy * Math.sin(rad);
+          const ry = pivot.y + dx * Math.sin(rad) + dy * Math.cos(rad);
+          minX = Math.min(minX, rx - brushRadius); maxX = Math.max(maxX, rx + brushRadius);
+          minY = Math.min(minY, ry - brushRadius - bobFrac); maxY = Math.max(maxY, ry + brushRadius + bobFrac);
+        }
+      }
+    } else {
+      const sticker = project.stickers.find((candidate) => candidate.id === item.target);
+      if (!sticker) continue;
+      const resolved = resolveSticker(sticker, gradeId);
+      const extent = stickerHalfExtent(resolved);
+      // sway/bob은 정지 자리보다 더 넓게 움직인다(각각 6°·3% 상한, renderer.mjs paintLivingItem과 같은 공식).
+      // 이 범위까지 박스에 포함하지 않으면 애니메이션 중 스프라이트 칸 밖으로 잘린다.
+      const swayDeg = item.kind === 'sway' ? (clamp(item.amplitude, 0, 100, 0) / 100) * 6 : 0;
+      const bobFrac = item.kind === 'bob' ? (clamp(item.amplitude, 0, 100, 0) / 100) * .03 : 0;
+      const rotationDeg = (resolved.rotation ?? 0) + swayDeg;
+      let { left, right, top, bottom } = extent;
+      if (rotationDeg) {
+        // 회전이 있으면 비대칭 상자를 정확히 굴리는 대신 가장 넓은 변 기준으로 둥글게 넉넉히 잡는다.
+        const rotated = rotatedHalfExtent(Math.max(left, right), Math.max(top, bottom), rotationDeg);
+        left = right = rotated.halfW; top = bottom = rotated.halfH;
+      }
+      top += bobFrac; bottom += bobFrac;
+      minX = Math.min(minX, resolved.x - left); minY = Math.min(minY, resolved.y - top);
+      maxX = Math.max(maxX, resolved.x + right); maxY = Math.max(maxY, resolved.y + bottom);
+    }
+  }
+  if (minX > maxX || minY > maxY) return undefined;
+  const x = clamp(minX - padding, 0, 1, 0), y = clamp(minY - padding, 0, 1, 0);
+  const w = Math.min(clamp(maxX + padding, 0, 1, 1) - x, 1 - x), h = Math.min(clamp(maxY + padding, 0, 1, 1) - y, 1 - y);
+  if (w <= 0 || h <= 0) return undefined;
+  return { x, y, w, h };
+}
+
 /** 서버 래퍼 없이 편집 객체만 복사한다. 원본 문자열은 다시 압축하지 않는다. */
 export function cloneProject(project) {
   return structuredClone(project);
