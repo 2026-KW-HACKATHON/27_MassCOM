@@ -11,6 +11,7 @@ import { nativeGoogleSignIn } from './google-sign-in-runtime';
 import { platformSecureStore } from './platform-secure-store';
 import { createSessionStore, type StoredAuthSessionV1 } from './session-store';
 import { demoRuntimeConfig, createDemoCredential, isDevelopmentDemoBuild } from '@/config/demo-runtime';
+import { isApprovedGuestTrialOrigin } from '@/config/guest-trial-origin';
 import { getPublicApiConfig } from '@/config/public-api';
 import { resolveRuntimeIdentity } from '@/config/showcase-identity';
 import { clearPendingFriendLink } from '@/friends/pending-friend-link';
@@ -29,7 +30,7 @@ type DemoState = {
 
 export type AuthSessionState = AuthState | DemoState | {
   status: 'signedOut';
-  reason: 'CONFIGURATION_REQUIRED';
+  reason: 'CONFIGURATION_REQUIRED' | 'WEB_SHOWCASE_ONLY';
 };
 
 type AppKitInstance = NonNullable<ReturnType<typeof createAccountScopedAppKit>>;
@@ -71,7 +72,12 @@ const developmentBuild = isDevelopmentDemoBuild(getAppPackageId());
 // (운영·시연 Android 앱에는 체험 버튼을 두지 않는다, Issue #309).
 const isWeb = Platform.OS === 'web';
 const productionAuthAvailable = !isWeb && authConfiguration.available && publicApiConfiguration.available;
-const guestTrialAvailable = isWeb && publicApiConfiguration.available;
+// 체험 로그인은 시연 웹 빌드 전용이다(PR #313 리뷰): 패키지와 API origin이 서로 맞물려야 한다
+// (실제 시연 빌드 ↔ 실제 시연 API, 로컬 개발 빌드 ↔ loopback API만). 둘 중 하나라도 안 맞으면 웹에서도
+// 체험 로그인을 열지 않는다 — 안 맞는 조합으로 web export 자체가 안 되는 build-environment 검사와
+// 별개로, 로컬 `expo start --web` 같은 경로를 통해서도 새지 않게 막는 2차 방어선이다.
+const guestTrialAvailable = isWeb && publicApiConfiguration.available
+  && isApprovedGuestTrialOrigin(getAppPackageId(), publicApiConfiguration.apiUrl);
 
 function initialAuthState(): AuthSessionState {
   if (productionAuthAvailable || guestTrialAvailable) return { status: 'restoring' };
@@ -85,7 +91,7 @@ function initialAuthState(): AuthSessionState {
       ),
     };
   }
-  return { status: 'signedOut', reason: 'CONFIGURATION_REQUIRED' };
+  return { status: 'signedOut', reason: isWeb ? 'WEB_SHOWCASE_ONLY' : 'CONFIGURATION_REQUIRED' };
 }
 
 export function AuthSessionProvider({ children }: PropsWithChildren) {
@@ -95,7 +101,10 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!publicApiConfiguration.available) return;
-    if (!isWeb) {
+    if (isWeb) {
+      // 체험 로그인은 승인된 패키지·origin 조합에서만 연다 — 아니면 클라이언트 자체를 만들지 않는다.
+      if (!guestTrialAvailable) return;
+    } else {
       if (!authConfiguration.available) return;
       nativeGoogleSignIn.configure(authConfiguration.webClientId);
     }
