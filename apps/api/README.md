@@ -173,7 +173,7 @@ npm run start:local
 설계: [중간발표 피드백 반영 설계](../../docs/superpowers/specs/2026-10-03-midterm-feedback-features-design.md) 2·3절. 점주 웹 쿠키 `GET /api/web/merchant/merchants/:id/overview`는 읽기 전용이며 `CONFIRM_VISIT` 권한과 실제 점포 소속을 최근 방문 경로와 똑같이 확인한다(권한 없음·다른 점포 403, 점포 행이 사라졌으면 404 `MERCHANT_NOT_FOUND`). 한 번의 `REPEATABLE READ READ ONLY` 거래에서 읽는다.
 
 - 방문(`visits.today`·`thisWeek`·`lastWeek`·`last7Days`·`total`)과 `repeatVisitors`(세어지는 방문 2일 이상인 고객, 전체 기간)는 배지·마일리지와 같은 `countedVisitFilterSql`로 센다(취소·같은 날 두 번째 방문·실제 점포의 직원 본인 적립·체험 가게 제외). 날짜는 `business_date`(KST)이고 주는 KST 월요일 00:00에 시작한다. `last7Days`는 방문이 없는 날도 0으로 채운 7개다. `couponsRedeemedThisWeek`는 이번 주(월요일 00:00 KST 이상) `REDEEMED`이고 `redeemed_at`이 있는 쿠폰이다.
-- `comparison`은 `published_at`이 있고 지난주 시작(KST)보다 이르거나 같을 때만 `{lastWeekSameSpan, delta}`이고 아니면 `null`이다. 이번 주는 아직 끝나지 않았으므로 지난주 전체가 아니라 **지난주 같은 요일까지**와 비교한다.
+- `comparison`은 `published_at`이 있고 지난주 시작(KST)보다 이르거나 같을 때만 `{lastWeekSameSpan, delta}`이고 아니면 `null`이다. 이번 주는 아직 끝나지 않았으므로 지난주 전체가 아니라 **지난주 같은 시각까지**(월요일 00:00 KST부터 지금에서 7일 전 시각까지)와 비교한다. 오늘 방문이 지금까지만 세어지므로 지난주 같은 요일도 하루 전체가 아니라 같은 시각까지만 세어, 월요일 아침마다 거짓 감소가 보이지 않는다. `published_at`은 점포를 다시 공개할 때마다 새 시각으로 덮어쓰이므로, 점포를 숨겼다가 다시 공개하면 1~2주 동안은 비교가 숨겨진다.
 - `campaign`은 고객에게 보이는 캠페인 → 진행 중 → 시작 전 → 가장 최근 순으로 고른 하나(`phase`: `LIVE`·`SCHEDULED`·`NOT_PUBLIC`·`EXPIRED`·`DRAFT`·`PAUSED`·`ENDED`)이고 없으면 `null`이다.
 - `readiness`는 6단계(`basic`·`menu`·`members`·`reward`·`campaign`·`visible`)와 `remaining`·`message`다. 판정은 순수 함수 `merchant-overview-rules.ts`에 모았고, `visible` 단계는 공개 목록 SQL과 같은 조건이라 `merchant-overview.postgres.integration.ts`가 17개 점포 상태에서 목록 포함 여부와 일치함을 확인한다. 공개 조건을 바꾸면 `merchant-catalog.ts`의 SQL과 이 함수를 함께 바꾼다.
 
