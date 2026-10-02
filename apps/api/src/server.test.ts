@@ -1854,6 +1854,7 @@ test('lists public merchants without requiring login or a wallet', async (t) => 
     minimumSpendWon: 10_000,
     menuItems: [],
     businessHours: '',
+    category: '한식',
     campaign: {
       id: 'campaign-demo-autumn',
       title: '가을 방문 도감',
