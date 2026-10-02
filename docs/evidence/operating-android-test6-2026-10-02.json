@@ -1,0 +1,81 @@
+{
+  "status": "PASS",
+  "releaseReadiness": "BLOCKED; Google Play submission remains unresolved and no real QR visit, NFT or wallet flow was run on this APK",
+  "verifiedAt": "2026-10-02 KST",
+  "sourceCommit": "4c0c6db37791c7f5e821e2d94913d19d88187551",
+  "pullRequests": [326],
+  "issues": [321, 325],
+  "checks": {
+    "aabBuild": "PASS; MASSCOM_RELEASE_USE_KEYCHAIN=1 bash scripts/build-release-aab.sh with a dedicated TMPDIR (Metro cache isolated); the automated gates PASS: embedded API verified (embeds https://api.masscom.kr and not https://demo-api.masscom.kr), signature verified against the approved upload certificate, release wallet surface verified",
+    "embeddedApi": "PASS; scripts/check-embedded-api.sh on the APK reports the operating api only",
+    "recordAudioPermission": "PASS; RECORD_AUDIO is absent from the manifest (aapt2)",
+    "manifestSourceCommit": "PASS; the manifest source commit is 4c0c6db"
+  },
+  "acceptedArtifact": {
+    "aab": "app-release-4c0c6db.aab",
+    "aabBytes": 100506923,
+    "aabSha256": "d47b55a5f852d13c99f64d088aadf164d7c9ff6d84c8d98622b801578a558090",
+    "apk": "MassCOM-operating-android-4c0c6db.apk",
+    "apkBytes": 154127647,
+    "apkSha256": "e52f32ef60925a52ec0b69ea2f635f605658f1b043d0f8a04f74af7edf4ab263",
+    "apkOrigin": "universal APK made from the AAB with bundletool 1.18.3 (build-apks --mode=universal), signed with the upload key; the password only went Keychain to stdin",
+    "package": "kr.masscom.wolgye",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256": "5e5ed3c31971e5a88ea752b3a2ae50772fea1c956b9d97a82dd5ca7130cfa395",
+    "signingCertificate": "apksigner certificate; identical to test.3, test.4 and test.5"
+  },
+  "githubRelease": {
+    "tag": "android-v0.1.0-test.6",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.6",
+    "kind": "public prerelease; not Google Play",
+    "target": "4c0c6db",
+    "assets": [
+      {
+        "name": "MassCOM-operating-android-4c0c6db.apk",
+        "bytes": 154127647,
+        "sha256": "e52f32ef60925a52ec0b69ea2f635f605658f1b043d0f8a04f74af7edf4ab263"
+      },
+      {
+        "name": "app-release-4c0c6db.provenance.json",
+        "bytes": 1008,
+        "sha256": "119b214efb621eb64288a7635bae085dea9080d730eba70568f4f61308b04f2b"
+      },
+      {
+        "name": "SHA256SUMS.txt",
+        "bytes": 206,
+        "sha256": "ecd658802210e4e42a855d434837acf8d513af9c96946940cc0ad35a9f852b4e"
+      }
+    ],
+    "githubDigestVsLocal": "PASS; the GitHub asset digests match the local files",
+    "anonymousDownload": "PASS; an anonymous download of SHA256SUMS.txt returned HTTPS 200 and the anonymously downloaded APK re-hashed to the same SHA-256 (the first time the APK itself was re-hashed after download)"
+  },
+  "physicalAndroid": {
+    "device": "Samsung SM-S928N (Android 16)",
+    "window": "2026-10-02 about 23:27-23:35 KST",
+    "apkInstall": "PASS; adb install -r over test.5 returned Success",
+    "session": "PASS; the session was restored for the owner's allowed account and the consent had already been given",
+    "explore": "PASS; badges 0/9 and neighborhood restaurants 0 (matches production having 0 public stores)",
+    "map": "PASS; empty state",
+    "collection": "PASS; renders without a white screen (Issue #314)",
+    "shop": "PASS; 0P with the bronze redraw ticket showing the 100P mileage shortfall",
+    "settings": "PASS; the sound-effects switch is shown (Issue #305); no screenshot is kept because the screen shows an account id",
+    "variantIsolation": "PASS; the visit-verification screen has no 'create test visit' section",
+    "logcat": "PASS; no ReactNativeJS errors and no app crash in the app process (one FATAL line in logcat came from uiautomator conflicting with the mobile automation service, not from the app)",
+    "productionData": "no visits or purchases were created on production",
+    "screenshots": [
+      "android-test6-preview15-2026-10-02/op-01-explore.png",
+      "android-test6-preview15-2026-10-02/op-02-collection.png",
+      "android-test6-preview15-2026-10-02/op-03-shop.png"
+    ]
+  },
+  "serverCompatibility": "the servers still run a39b983; the app code between a39b983 and 4c0c6db differs only by the Issue #325 fix (PR #326), so the APIs are compatible",
+  "notRun": [
+    "real QR visit and NFT flows on this APK",
+    "wallet connection and the mint consent dialog",
+    "the received-collectible envelope (Issue #322 is not deployed to the showcase server and production has no store)",
+    "approver bootstrap",
+    "TalkBack, dark mode and 200% font on this APK",
+    "Google Play upload, approval, closed testing or production release",
+    "the production web redeploy needed for the public /open page to serve the test.6 link (this change only updates the repository copy of docs/open.html)"
+  ]
+}

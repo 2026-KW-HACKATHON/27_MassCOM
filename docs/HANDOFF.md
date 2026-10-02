@@ -1,5 +1,14 @@
 # HANDOFF
 
+## 2026-10-02 운영 test.6·시연 Preview 15 공개와 현재 링크 이동 (Issue #321 3·5단계)
+
+- 기준 커밋: main `4c0c6db37791c7f5e821e2d94913d19d88187551`(PR #326 병합 결과, Issue #325 수정), 브랜치 `docs/321-android-releases`, worktree `.worktrees/321-android-releases`. 서버는 운영·시연 모두 아직 `a39b983`이고 앱 코드 차이는 #325 수정뿐이라 API는 호환이다.
+- 공개 사전 릴리스: [운영 test.6](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.6)(APK `MassCOM-operating-android-4c0c6db.apk` 154127647바이트 SHA-256 `e52f32ef…b263`)와 [시연 Preview 15](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.15)(APK `MassCOM-showcase-android-4c0c6db.apk` 159776692바이트 SHA-256 `c0d8ccc9…bcc2`). 둘 다 GitHub digest가 로컬 파일과 일치하고, 익명 다운로드한 APK를 다시 해시해 같은 값을 확인했다(APK 재해시는 이번이 처음). 증거: [운영](evidence/operating-android-test6-2026-10-02.json)·[시연](evidence/showcase-preview15-release-2026-10-02.json), 캡처 `docs/evidence/android-test6-preview15-2026-10-02/`(계정 id·QR 없음).
+- 실기(Samsung SM-S928N Android 16, 약 23:27~23:35 KST): 운영 test.5 위 설치 Success·세션 복원·탐색 0/9·도감 정상(#314)·상점 0P·효과음 스위치(#305)·`테스트 방문 만들기` 없음, 시연 Preview 14 위 설치 Success·로그인·가상 점포 3곳·도감의 `외부 지갑 주소 확인`·뽑기 150P→50P·테스트 방문→배지·상자·쿠폰·딥링크 보상 상자. 앱 프로세스 logcat에 JS 오류·크래시 없음. 도감 이동 직후 접힘이 풀리지 않고 아래쪽에 머문 현상은 1회 관찰·재현 안 됨. 운영 서버에 방문·구매는 만들지 않았다.
+- 이 PR이 옮긴 "현재" 링크: README 배지·표·본문, `docs/open.html`(저장소 사본), `docs/ANDROID_DOWNLOADS.md`, `scripts/verify-project-site.sh`·`tests/site/verify_project_site_test.sh`(test.6·preview.15 요구, test.0~5·preview.4~14 금지). 옛 날짜 기록은 그대로 둔다.
+- 빌드 사고: 운영·시연 Gradle 빌드를 병렬로 돌리면 `java.lang.OutOfMemoryError: Java heap space`(mergeDexRelease), 운영 데몬을 재사용한 순차 시연 빌드도 packageReleaseBundle에서 같은 오류 → **릴리스 빌드는 한 번에 하나씩, variant 사이에 Gradle 데몬을 멈추고 전용 TMPDIR로** 돌린다.
+- `NOT_RUN`: 실제 QR 방문·NFT·지갑, 받은 수집품 봉투(`받은 수집품 보기`, #297 — #322 시드가 시연 서버에 아직 배포되지 않아 도달 불가), 승인자 부트스트랩, TalkBack·다크·글자 200%, Google Play. **공개 `/open` 페이지는 운영 웹 재배포 전까지 test.5·Preview 14를 가리키며, 이 PR은 저장소 사본만 바꾼다.**
+- 다음 작업: 이 PR 병합 뒤 Issue #321은 `/open` 운영 웹 재배포만 남기고 닫을 수 있다. 재배포 뒤 live `/open`의 test.6·Preview 15 링크를 확인하고, #322 시연 API 재배포·시드 재실행 뒤 봉투 흐름을 확인한다.
 ## 2026-10-02 Issue #325 운영 release AAB의 시연 API 주소 포함(test.6 차단) 수정
 
 - 기준: main `5660bb9`, 브랜치 `fix/325-operating-embedded-origin`, worktree `.worktrees/325-embedded-origin`.
