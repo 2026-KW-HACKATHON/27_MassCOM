@@ -1,5 +1,12 @@
 # HANDOFF
 
+## 2026-10-02 Issue #318 모바일 npm audit 좁은 예외
+
+- 기준: main, worktree `.worktrees/318-audit`, 브랜치 `fix/318-audit-exception`.
+- 원인: 2026-10-02 공개된 `node-forge` GHSA-86w9-cpqp-85rv(high, 고친 버전 없음)가 `expo` → `@expo/cli` → `@expo/code-signing-certificates` 경로로 잡혀 모든 PR의 모바일 CI(`audit:ci`)가 실패했다.
+- 수정(소유자 결정 D-066): `scripts/audit-ci.mjs` + `scripts/audit-exceptions.json`(만료 2026-10-31), `apps/mobile` `audit:ci` 교체, CI에 시험 추가. API·worker 감사는 그대로다.
+- 다음 작업: 고친 버전이 나오면 의존성을 올리고 예외를 지운다(B-030).
+
 ## 2026-10-02 Issue #309 로그인 없는 시연 웹 체험 (서버·Caddy)
 
 - 기준: main `e2091f2`에서 시작해 `36fed73`(#295 테스트 방문·`scripts/qa-local.sh`, PR #308)을 합침, worktree `.worktrees/309-guest-api`, 브랜치 `feat/309-guest-trial-api`, 커밋 `e37523d`(API)·`a736dbc`(Caddy·검증 스크립트)·계정 삭제 별칭 커밋·문서 커밋, PR 미정. 웹 클라이언트는 같은 Issue의 별도 브랜치 `feat/309-showcase-web`(다른 에이전트)이고 이 PR이 먼저 병합돼야 한다.
