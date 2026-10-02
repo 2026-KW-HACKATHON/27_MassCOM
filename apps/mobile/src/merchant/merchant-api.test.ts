@@ -15,6 +15,7 @@ const merchantPayload = {
       menuItems: [{ name: '김밥', priceWon: 4500 }],
       demo: true,
       artUrl: null,
+      category: '분식',
       campaign: {
         id: 'campaign-1',
         title: '월계 한 바퀴',
@@ -57,7 +58,7 @@ test('older operating and demo catalogs without menu or hours remain readable', 
   const client = createMerchantApiClient('https://api.example.test', async () =>
     Response.json({ merchants: legacyMerchants }));
   assert.deepEqual(await client.listMerchants(), legacyMerchants.map(merchant => ({
-    ...merchant, menuItems: [], businessHours: '', artUrl: null,
+    ...merchant, menuItems: [], businessHours: '', artUrl: null, category: null,
   })));
 });
 
@@ -119,4 +120,18 @@ test('an older catalog that has no artUrl field still reads, with no art', async
   const { artUrl: _omitted, ...legacy } = merchantPayload.merchants[0]!;
   const client = createMerchantApiClient('https://api.example.test', async () => Response.json({ merchants: [legacy] }));
   assert.equal((await client.listMerchants())[0]?.artUrl, null);
+});
+
+test('reads the category, and a missing, null or unknown one becomes null without rejecting the list (#331)', async () => {
+  const { category: _omitted, ...legacy } = merchantPayload.merchants[0]!;
+  const categories = ['한식', '카페', '기타', undefined, null, '', '프랑스식', 42, {}];
+  const client = createMerchantApiClient('https://api.example.test', async () => Response.json({
+    merchants: [
+      legacy,
+      ...categories.map((category, index) => ({ ...merchantPayload.merchants[0], id: `merchant-${index}`, category })),
+    ],
+  }));
+  const parsed = await client.listMerchants();
+  assert.equal(parsed[0]?.category, null, 'an older server that has no category field');
+  assert.deepEqual(parsed.slice(1).map((merchant) => merchant.category), ['한식', '카페', '기타', null, null, null, null, null, null]);
 });
