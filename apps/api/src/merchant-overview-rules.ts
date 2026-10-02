@@ -7,7 +7,8 @@ import { missingPublishRequirements } from './store-go-live-rules.js';
 export type DailyVisitCount = { date: string; count: number };
 
 export type VisitComparison = {
-  // 지난주 같은 기간(월요일부터 오늘과 같은 요일까지)의 방문 수. 이번 주는 아직 끝나지 않았으므로 지난주 전체와 비교하지 않는다.
+  // 지난주 같은 시각까지의 방문 수(월요일 00:00부터 지금에서 7일 전 시각까지). 이번 주는 아직 끝나지 않았으므로 지난주 전체와
+  // 비교하지 않고, 오늘도 지금까지만 세어지므로 지난주 같은 요일은 하루 전체가 아니라 같은 시각까지만 센다.
   lastWeekSameSpan: number;
   delta: number;
 };
@@ -101,7 +102,7 @@ export type OverviewPeriods = {
   thisWeekStart: string;
   nextWeekStart: string;
   lastWeekStart: string;
-  // 지난주에서 "이번 주가 지금까지 흐른 만큼"의 마지막 날(포함).
+  // 지난주에서 "이번 주가 지금까지 흐른 만큼"의 마지막 날(포함). 이 날은 시각까지 맞춰 세야 하므로 SQL이 지금에서 7일 전 시각으로 한 번 더 자른다.
   lastWeekSameSpanEnd: string;
   // 최근 7일(오늘 포함)의 첫날.
   sevenDayStart: string;

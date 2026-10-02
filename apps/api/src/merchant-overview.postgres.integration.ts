@@ -95,9 +95,11 @@ async function addMember(pool: Pool, merchantId: string, accountId: string, role
 async function addVisit(pool: Pool, input: {
   merchantId: string; campaignId: string; customer: string; date: string; slotBy?: string;
   status?: 'VALID' | 'CANCELED'; counted?: boolean;
+  // 방문 시각(기본: 그 날 12:00 KST). business_date와 일치하는 시각을 직접 줄 때만 쓴다.
+  at?: string;
 }): Promise<void> {
   const slotId = randomUUID();
-  const at = `${input.date}T03:00:00Z`;
+  const at = input.at ?? `${input.date}T03:00:00Z`;
   await pool.query(
     `INSERT INTO claim_slots (id, merchant_id, customer_account_id, merchant_reference_hash, created_by_account_id,
        token_hash, status, expires_at, claimed_at, created_at, updated_at)
@@ -257,8 +259,35 @@ test('week boundaries move at Monday 00:00 KST and the comparison depends on the
   assert.equal(await comparisonOf('fresh'), null);
 
   // 다음 월요일(2026-10-12 00:00 KST)에는 지난주 시작이 2026-10-05라 10-01에 공개한 가게도 비교가 보인다.
+  // 월요일 00:00 정각에는 지난주 월요일(10-05)에서 아직 시각이 흐르지 않았으므로 지난주 같은 시각까지는 0건이다.
   db.state.now = new Date('2026-10-11T15:00:00.000Z');
-  assert.deepEqual(await comparisonOf('fresh'), { lastWeekSameSpan: 1, delta: -1 });
+  assert.deepEqual(await comparisonOf('fresh'), { lastWeekSameSpan: 0, delta: 0 });
+});
+
+test('early on Monday the comparison counts last week only up to the same time of day, so there is no false drop', { skip }, async t => {
+  const db = await setup(t, '2026-10-04T15:05:00.000Z'); // 월요일 00:05 KST
+  const { pool } = db;
+  await seedMerchant(pool, 'monday', { publishedAt: '2026-09-01T00:00:00Z' });
+  const campaign = await seedCampaign(pool, 'camp-monday', 'monday');
+  await addMember(pool, 'monday', 'staff-of-monday', 'STAFF');
+  const visit = (customer: string, date: string, at: string) =>
+    addVisit(pool, { merchantId: 'monday', campaignId: campaign, customer, date, at });
+  await visit(customers.c1, '2026-09-28', '2026-09-28T03:00:00Z'); // 지난주 월요일 12:00 KST
+  await visit(customers.c2, '2026-09-28', '2026-09-28T09:00:00Z'); // 지난주 월요일 18:00 KST
+  const comparison = async () => (await db.overview.overview({ merchantId: 'monday' })).comparison;
+
+  // 월요일 00:05에는 이번 주 방문이 0건이고, 지난주 월요일 00:05까지도 0건이라 줄어든 것으로 보이지 않는다.
+  assert.deepEqual(await comparison(), { lastWeekSameSpan: 0, delta: 0 });
+  // 월요일 13:00 KST: 지난주 월요일 13:00까지 12:00 방문 1건. 오늘 방문이 없으면 진짜 감소다.
+  db.state.now = new Date('2026-10-05T04:00:00.000Z');
+  assert.deepEqual(await comparison(), { lastWeekSameSpan: 1, delta: -1 });
+  // 오늘 같은 시각까지 한 건 방문하면 같다.
+  await visit(customers.c3, '2026-10-05', '2026-10-05T03:30:00Z');
+  assert.deepEqual(await comparison(), { lastWeekSameSpan: 1, delta: 0 });
+  // 월요일 19:00 KST: 지난주 월요일 18:00 방문도 포함된다. 지난주 전체(visits.lastWeek)는 시각과 무관하게 세어진다.
+  db.state.now = new Date('2026-10-05T10:00:00.000Z');
+  assert.deepEqual(await comparison(), { lastWeekSameSpan: 2, delta: -1 });
+  assert.equal((await db.overview.overview({ merchantId: 'monday' })).visits.lastWeek, 2);
 });
 
 test('the staff-own-visit rule follows the counted-visit definition: real stores skip it, demo stores keep it', { skip }, async t => {

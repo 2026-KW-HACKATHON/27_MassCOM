@@ -52,6 +52,8 @@ export class PostgresMerchantOverviewService implements MerchantOverviewReader {
     let broken = false;
     try {
       await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      // 점포 하나의 집계가 오래 걸려 연결을 붙잡지 않게 한다(관리자 운영 현황 admin.ts operationsStatus와 같은 5초).
+      await client.query("SET LOCAL statement_timeout = '5s'");
       const merchant = await this.readMerchant(client, input.merchantId);
       if (!merchant) throw new MerchantOverviewError('MERCHANT_NOT_FOUND');
       const members = await client.query<{ owners: number; staff: number }>(
@@ -66,7 +68,7 @@ export class PostgresMerchantOverviewService implements MerchantOverviewReader {
       // 같은 날 두 번째 방문(progress_counted = false), 실제 점포의 직원 본인 적립, 체험 가게 방문은 빠진다.
       const totals = await client.query<VisitTotalsRow>(
         `WITH counted AS (
-           SELECT visit.customer_account_id, visit.business_date
+           SELECT visit.customer_account_id, visit.business_date, visit.occurred_at
            ${countedVisitFromSql}
            WHERE visit.merchant_id = $1 AND ${countedVisitFilterSql}
          )
@@ -74,13 +76,17 @@ export class PostgresMerchantOverviewService implements MerchantOverviewReader {
            count(*) FILTER (WHERE business_date = $2::date)::integer AS today,
            count(*) FILTER (WHERE business_date >= $3::date AND business_date <= $2::date)::integer AS this_week,
            count(*) FILTER (WHERE business_date >= $4::date AND business_date < $3::date)::integer AS last_week,
-           count(*) FILTER (WHERE business_date >= $4::date AND business_date <= $5::date)::integer AS last_week_same_span,
+           -- 지난주 같은 시각까지: 오늘의 방문은 지금까지만 세어지므로, 지난주 쪽도 지금에서 7일 전 시각까지만 센다(KST는 서머타임이
+           -- 없어 7일 전이 같은 벽시계 시각이다). 이렇게 하지 않으면 월요일 아침마다 지난주 월요일 하루치와 비교해 거짓 감소가 보인다.
+           count(*) FILTER (
+             WHERE business_date >= $4::date AND business_date <= $5::date AND occurred_at <= $6::timestamptz - interval '7 days'
+           )::integer AS last_week_same_span,
            count(*)::integer AS total,
            (SELECT count(*) FROM (
               SELECT 1 FROM counted GROUP BY customer_account_id HAVING count(*) >= 2
             ) AS repeaters)::integer AS repeat_visitors
          FROM counted`,
-        [input.merchantId, periods.today, periods.thisWeekStart, periods.lastWeekStart, periods.lastWeekSameSpanEnd],
+        [input.merchantId, periods.today, periods.thisWeekStart, periods.lastWeekStart, periods.lastWeekSameSpanEnd, now],
       );
       const days = await client.query<{ date: string; count: number }>(
         `SELECT visit.business_date::text AS date, count(*)::integer AS count
