@@ -1,4 +1,5 @@
 import { parseMerchantArtPath } from '../merchant-art/art-source';
+import { parseMerchantCategory, type MerchantCategory } from './merchant-categories';
 
 export type RewardGoal = {
   targetVisitCount: 1 | 3 | 5;
@@ -22,6 +23,8 @@ export type PublicMerchant = {
   minimumSpendWon: number;
   menuItems: readonly { name: string; priceWon: number }[];
   businessHours: string;
+  /** 업종. 옛 서버가 안 보냈거나 모르는 값이면 null이다(업종 칩에서만 빠진다). */
+  category: MerchantCategory | null;
   demo: boolean;
   /** `/merchant-art/<sha256>.webp` on the API when the owner picked an AI picture, else null. */
   artUrl: string | null;
@@ -92,6 +95,7 @@ function parseMerchant(value: unknown): PublicMerchant {
     minimumSpendWon: value.minimumSpendWon as number,
     menuItems: (value.menuItems ?? []) as PublicMerchant['menuItems'],
     businessHours: typeof value.businessHours === 'string' ? value.businessHours : '',
+    category: parseMerchantCategory(value.category),
     demo: value.demo,
     artUrl: parseMerchantArtPath(value.artUrl),
     campaign: parseCampaign(value.campaign),
