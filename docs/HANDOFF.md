@@ -1,5 +1,12 @@
 # HANDOFF
 
+## 2026-10-02 Issue #316 계정 삭제 처리 시험 시계 수정
+
+- 기준: main `439ba83`, worktree `.worktrees/316-test-clock`, 브랜치 `fix/316-deletion-test-clock`.
+- 원인: 옛 배포 API의 INSERT를 흉내 낸 행은 `requested_at`이 DB 실제 시각인데 서비스 시계는 `2026-10-01T00:00Z` 고정이라, 2026-10-02 00:00 UTC부터 다시 접수 시 `cancel_until`이 `requested_at`보다 일러 CHECK 위반. 시험 전용 문제.
+- 수정: 그 시험에서만 `clock.now = legacy.requested_at`. 운영 코드·migration 무변경.
+- 다음 작업: CI 통과 뒤 병합, 막혀 있던 PR(#310 등) CI 재실행.
+
 ## 2026-10-02 Issue #309 로그인 없는 시연 웹 체험 (서버·Caddy)
 
 - 기준: main `e2091f2`에서 시작해 `36fed73`(#295 테스트 방문·`scripts/qa-local.sh`, PR #308)을 합침, worktree `.worktrees/309-guest-api`, 브랜치 `feat/309-guest-trial-api`, 커밋 `e37523d`(API)·`a736dbc`(Caddy·검증 스크립트)·계정 삭제 별칭 커밋·문서 커밋, PR 미정. 웹 클라이언트는 같은 Issue의 별도 브랜치 `feat/309-showcase-web`(다른 에이전트)이고 이 PR이 먼저 병합돼야 한다.
