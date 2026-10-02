@@ -7,14 +7,17 @@ export type BadgeBookStatus = 'loading' | 'ready' | 'error';
 /**
  * Loads the badge book independently of the collection so a badge failure only affects the
  * badge sections. Stale responses (older request finishing last) are ignored.
+ * `api` is undefined while signed out (#331 discovery chips share this hook): nothing is requested and a book from the
+ * account that just left is dropped.
  */
-export function useBadgeBook(api: BadgeApiClient) {
+export function useBadgeBook(api: BadgeApiClient | undefined) {
   const [book, setBook] = useState<BadgeBook>();
   const [status, setStatus] = useState<BadgeBookStatus>('loading');
   const [retrying, setRetrying] = useState(false);
   const generation = useRef(0);
 
   const fetchBook = useCallback(async (quiet: boolean) => {
+    if (!api) return;
     const request = ++generation.current;
     try {
       const next = await api.getBadgeBook();
@@ -28,7 +31,18 @@ export function useBadgeBook(api: BadgeApiClient) {
     }
   }, [api]);
 
+  // Signing out drops the book of the account that left (adjusting state while rendering, as React documents for a prop change).
+  const [lastApi, setLastApi] = useState(api);
+  if (api !== lastApi) {
+    setLastApi(api);
+    if (!api) {
+      setBook(undefined);
+      setStatus('loading');
+    }
+  }
+
   useEffect(() => {
+    if (!api) return;
     const request = ++generation.current;
     void api.getBadgeBook()
       .then((next) => {

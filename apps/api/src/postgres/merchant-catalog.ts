@@ -15,6 +15,7 @@ type MerchantCatalogRow = {
   minimum_spend_won: number;
   menu_items: PublicMerchant['menuItems'];
   business_hours: string;
+  category: string | null;
   is_demo: boolean;
   art_sha256: string | null;
   campaign_id: string;
@@ -41,6 +42,7 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
          m.minimum_spend_won,
          m.menu_items,
          m.business_hours,
+         m.category,
          m.is_demo,
          (SELECT art.sha256 FROM merchant_art art WHERE art.merchant_id = m.id) AS art_sha256,
          c.id AS campaign_id,
@@ -78,6 +80,7 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
       minimumSpendWon: row.minimum_spend_won,
       menuItems: row.menu_items,
       businessHours: row.business_hours,
+      category: row.category,
       campaign: {
         id: row.campaign_id,
         title: row.campaign_title,
