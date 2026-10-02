@@ -12,11 +12,9 @@ import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 import { PostgresMerchantOverviewService } from './postgres/merchant-overview.js';
 import { runMigrations } from './postgres/migrate.js';
 
-// 이 이슈의 시험 DB 이름은 masscom_test_330이라 다른 파일의 `_test` 끝맺음 검사를 그대로 쓸 수 없다. 이름이 `_test`이거나
-// `_test_<숫자>`인 시험 전용 DB만 받는다(운영·시연 DB 이름은 이 모양이 아니다).
+// 다른 통합 시험과 같이 이름이 `_test`로 끝나는 시험 전용 DB만 받는다(운영·시연 DB 이름은 이 모양이 아니다).
 const testUrl = process.env.TEST_DATABASE_URL;
-const safeTestTarget = testUrl !== undefined &&
-  /_test(_[0-9]+)?$/.test(decodeURIComponent(new URL(testUrl).pathname.slice(1)));
+const safeTestTarget = testUrl !== undefined && decodeURIComponent(new URL(testUrl).pathname.slice(1)).endsWith('_test');
 const skip = safeTestTarget ? false : 'requires a disposable _test PostgreSQL database';
 
 // 수요일 낮 12시(KST). 이번 주 월요일은 2026-10-05, 지난주 월요일은 2026-09-28이다.
