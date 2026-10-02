@@ -91,6 +91,11 @@ test('A-only hosted visit survives B/C expansion and a failed B insertion rolls 
     await pool.query('ALTER TABLE campaigns DROP CONSTRAINT showcase_test_reject_b');
     await seedHostedShowcase(pool);
     assert.deepEqual(await counts(pool), [3, 3, 9, 1, 1, 1]);
+    // #322: 시드 전에 받은 보상권은 소급되지 않아 수집품 획득 행이 없고, 게시물은 A·B·C 캠페인에 하나씩 붙는다.
+    const acquisitions = await pool.query('SELECT 1 FROM collectible_acquisitions');
+    assert.equal(acquisitions.rowCount, 0);
+    const publications = await pool.query('SELECT 1 FROM campaign_collectible_publications');
+    assert.equal(publications.rowCount, 3);
     const afterVisit = await pool.query(
       `SELECT to_jsonb(v) AS snapshot FROM visit_events v
        WHERE id = '66666666-6666-4666-8666-666666666666'`,
