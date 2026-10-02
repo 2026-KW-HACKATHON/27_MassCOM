@@ -1,0 +1,106 @@
+{
+  "observedAt": "2026-10-03 KST",
+  "serverClock": "showcase steps about 2026-10-03 00:05-00:08 KST; operating steps about 2026-10-03 00:12-00:20 KST",
+  "sourceCommit": "b8d981db48d8ed9644feb1cf7a904bb96094a66f",
+  "sourceBranch": "main (merge of PR #327)",
+  "previousCommits": {
+    "operatingApiAndWebBefore": "a39b983c02de032ea24602f635cca94bf6319d93",
+    "showcaseBefore": "a39b983c02de032ea24602f635cca94bf6319d93"
+  },
+  "issues": [
+    321
+  ],
+  "closedFollowUpIssues": [
+    322
+  ],
+  "scope": "server side only (showcase API and host seed, operating API and web); no Android APK was built or published in this deploy (Preview 15 and test.6 were published earlier, see showcase-preview15-release-2026-10-02.json and operating-android-test6-2026-10-02.json)",
+  "contentSinceA39b983": [
+    "#322 showcase seed of virtual-store collectible publications",
+    "#325/#326 app build fix (embedded API origin)",
+    "docs (Preview 15 / test.6 release records and the /open page copy)"
+  ],
+  "migrations": [],
+  "migrationNote": "no migration between a39b983 and b8d981d; schema_migrations stays 39 (last 0039_showcase_guest_trials.sql) on both databases",
+  "showcase": {
+    "time": "2026-10-03 about 00:05-00:08 KST, manual procedure (no script)",
+    "release": "release copied to /opt/masscom-showcase/releases/b8d981db48d8ed9644feb1cf7a904bb96094a66f, trimmed to apps/ and infra/ like the previous release (19M)",
+    "backup": "/opt/masscom-showcase/backups/pre-b8d981d-20261003.dump, 182049 bytes, mode 600, 338 entries; actual restore NOT_RUN",
+    "image": "masscom-showcase-api:b8d981d built on the server (370MB)",
+    "schemaMigrationsBefore": "39|0039_showcase_guest_trials.sql",
+    "schemaMigrationsAfter": "39|0039_showcase_guest_trials.sql",
+    "migration": "PASS: `docker compose run --rm -T migrate` -> `database migrations applied` (nothing new to apply)",
+    "apiContainer": "up -d --no-deps showcase-api -> healthy",
+    "aiStoreArt": "API log: AI store art: disabled (OPENAI_API_KEY is empty)",
+    "seed": "`node dist/showcase/host-seed-command.js` -> SHOWCASE_HOST_SEEDED; campaign_collectible_publications 0 -> 3 (virtual stores A/B/C)",
+    "retentionTimer": "reinstalled from this release; `install.sh --verify` -> `verified: masscom-showcase-retention.timer is enabled and matches this release`; manual run Result=success (admin_audit_deleted_targets 0, BACKUPS_DELETED 0)",
+    "knownQuirk": "runtime.env MASSCOM_SHOWCASE_IMAGE_TAG still says a stale 7dba450; the deploy passed MASSCOM_SHOWCASE_IMAGE_TAG=b8d981d on the command line (same as earlier deploys)",
+    "webTrialBundle": "NOT_RUN (not rebuilt): /opt/masscom-showcase/web/releases/a39b983c02de032ea24602f635cca94bf6319d93 is unchanged and still serves the a39b983 export; the only app change since is #325, which by code reading (not measured on the live web trial) keeps the web-trial guard's approve/deny behaviour the same",
+    "public": {
+      "https://demo-api.masscom.kr/health": 200,
+      "https://demo-api.masscom.kr/play/": 200
+    }
+  },
+  "operating": {
+    "time": "2026-10-03 about 00:12-00:20 KST",
+    "migrationCompatibility": "from=a39b983c02de032ea24602f635cca94bf6319d93 to=b8d981db48d8ed9644feb1cf7a904bb96094a66f backward_compatible=yes (no migration; the API diff is showcase-host-only seed code)",
+    "dryRun": "PASS: scripts/deploy-lightsail.sh --dry-run exit 0 (target ubuntu@43.200.56.97, release b8d981d, mode dry-run)",
+    "deploy": "scripts/deploy-lightsail.sh --deploy exit 0; `Lightsail deployment completed: b8d981db48d8ed9644feb1cf7a904bb96094a66f`",
+    "preDeployBackups": "the script's own pre-deploy backups exist per its design; their sizes were not recorded; actual restore NOT_RUN",
+    "migration": "PASS: `database migrations applied`",
+    "images": "masscom-api:b8d981db48d8 and masscom-production-web:b8d981db48d8 healthy",
+    "deployedCommitFiles": {
+      "/opt/masscom/DEPLOYED_COMMIT": "b8d981db48d8ed9644feb1cf7a904bb96094a66f",
+      "/opt/masscom/web/DEPLOYED_COMMIT": "b8d981db48d8ed9644feb1cf7a904bb96094a66f"
+    },
+    "databaseAfter": {
+      "schemaMigrations": 39,
+      "isDemoMerchants": 0,
+      "showcaseGuestTrials": 0,
+      "campaignCollectiblePublications": 0,
+      "note": "the showcase seed did not touch production"
+    }
+  },
+  "externalHttps": {
+    "status200": [
+      "https://api.masscom.kr/health",
+      "https://www.masscom.kr/app/",
+      "https://masscom.kr/",
+      "https://www.masscom.kr/open",
+      "https://demo-api.masscom.kr/health"
+    ],
+    "openPage": {
+      "links": [
+        "android-v0.1.0-test.6",
+        "showcase-android-v0.1.0-preview.15",
+        "the historic preview.3 link that the portal check requires"
+      ],
+      "servedOpenHtmlSha256Prefix": "e902e6bdcb2ce892",
+      "matchesRepoFileAtCommit": "b8d981db48d8ed9644feb1cf7a904bb96094a66f",
+      "note": "resolves the earlier record that /open still linked test.5 and Preview 14 until the operating web was redeployed"
+    }
+  },
+  "realDevice": {
+    "device": "Samsung SM-S928N, showcase Preview 15 app, allowed account",
+    "time": "2026-10-03 about 00:09-00:10 KST",
+    "flow": [
+      "test visit at 가상 점포 C -> `가상 점포 C 도장 쾅!`, 동네 탐험가 골드 달성",
+      "result card `가상 점포 C 방문 인증 완료 ... 새 보상권 1개` now shows `받은 수집품 보기` (hidden before #322)",
+      "tapping it opens the envelope (#297) `봉투를 눌러 열어요`; tapping reveals `가상 점포 C 방문 수집품` NEW 1/1"
+    ],
+    "screenshots": {
+      "sc-01-received-collectible-button.png": "docs/evidence/deployment-b8d981d-2026-10-03/sc-01-received-collectible-button.png",
+      "sc-02-envelope.png": "docs/evidence/deployment-b8d981d-2026-10-03/sc-02-envelope.png",
+      "sc-03-envelope-open.png": "docs/evidence/deployment-b8d981d-2026-10-03/sc-03-envelope-open.png"
+    },
+    "finding": "first real-device confirmation of the envelope reveal on the showcase; Issue #322 resolved",
+    "observation": "the showcase app shows the role picker (사용자예요/점주예요) on every cold start; recorded as an observation only"
+  },
+  "notRun": [
+    "database restore from any backup",
+    "showcase web-trial bundle rebuild (still the a39b983 export)",
+    "approver bootstrap (a person must log in and create the request code)",
+    "real QR visit, NFT and wallet flows",
+    "Google Play",
+    "the sizes of the operating deploy script's own pre-deploy backups (not recorded)"
+  ]
+}
