@@ -163,8 +163,26 @@ PR #310(위 WP3)에 Codex gpt-6.1-sol·Claude sonnet 교차 리뷰로 REQUEST_CH
 10. (nit) 패럴랙스 마스크와 living 항목별 합성 마스크가 한 캐시 슬롯을 같이 써 서로 밀어내(각도 프레임 12칸·living 칸마다 다시 만듦) 캐시가 사실상 안 맞았다. 획+치수로 키를 잡은 Map 캐시로 바꿨다.
 - 새 `tests/site/collectible-pr310-p2.test.mjs`: `document.createElement`를 한 번 더 감싸 canvas의 `createImageData`/`drawImage` 호출 인자를 기록하는 전용 계측(이 파일만, 운영 코드는 안 건드림)으로 mini-dom의 no-op 한계를 넘어 (3)(4)(10)을 검증하고, `requestAnimationFrame` 호출 스파이로 (7)을, iOS 권한 프라미스를 수동으로 지연시켜 (8)(9)를 검증한다.
 - **검증:** `node --test tests/site/*.test.mjs` 219/219(신규 27건: `collectible-parallax-living.test.mjs`에 P1 4건, `collectible-pr310-p2.test.mjs` 8건), `bash tools/gate.sh` PASS. 10건 모두 스크래치 되돌리기로 대응 시험이 실제로 실패하는지 확인한 뒤 복구했다. `apps/api`는 여전히 건드리지 않았다.
-- **`NOT_RUN`:** 실제 브라우저로 비정사각 사진·패럴랙스·living 조합을 눈으로 확인하는 스크린샷(mini-dom은 canvas 호출을 전부 no-op으로 흉내 내 픽셀 결과를 검증 못 함), 실기기 `deviceorientation`·iOS 권한 흐름.
-- 다음 담당자가 할 일: 독립 교차 리뷰 재확인, 위 `docs/evidence/` 스크린샷, Android 실기기 확인, 머지.
+- **실기 증거:** 로컬 QA fixture(`tests/fixtures/collectible-qa-server.mjs`, 포트 4199)를 띄우고 chrome-devtools MCP(실제 Chromium)로 점주 제작기(패럴랙스·living 브러시 틴트, 게시 직후 미리보기)와 고객 뷰어(회전 0°/45°/90°, 라이트+다크, angleFrames 크로스페이드, "움직임 줄이기"→기울임 비활성화)를 직접 확인했다. 화면 8장+README는 [`docs/evidence/collectible-expression-web-b-pr310-2026-10-02/`](evidence/collectible-expression-web-b-pr310-2026-10-02/README.md). `NOT_RUN`: 다크 모드 90°, iOS 기울임 권한 실기기, 모바일 뷰포트, 스크린리더.
+- 다음 담당자가 할 일: 독립 교차 리뷰 재확인, Android 실기기 확인, 머지.
+
+### 2026-10-02 후속 2차(PR #310 재확인 리뷰 P1 1건·P2 5건 반영, 같은 브랜치)
+
+1차 반영(위) 뒤 Codex gpt-6.1-sol 재확인에서 또 REQUEST_CHANGES(P1 1·P2 5)가 왔고 전부 고쳤다. 병합 기준은 그대로(이번 라운드는 origin/main이 더 앞서지 않아 추가 merge 없음).
+
+**P1(서버가 저장·게시를 거절):**
+1. blink 호환 확인(MASCOT_BLINK)은 living 항목을 **추가할 때만** 했다. 이미 연결된 뒤 마스코트 스티커의 포즈를 바꿔(예: 손 흔들기→잠자기) MASCOT_BLINK 밖으로 나가면, 그 등급에 안 걸려 있어도 실제 서버 검증이 `COLLECTIBLE_INVALID_PROJECT`로 거절했다(region 빈 strokes와 같은 무조건 거절 규칙, `rules.ts`). 포즈 변경 처리기에서 안 맞게 된 blink living 항목을 바로 지우고 한국어 안내를 띄운다.
+
+**P2(화면 결함 5건, 전부 고침):**
+2. `livingBoundingBox`가 region 점에는 1차의 crop 보정이 닿지 않아(렌더러에만 적용됨), 사진이 정사각이 아니거나 확대·이동됐으면 박스가 실제 움직이는 자리와 어긋나 게시 후 영역이 잘리거나 사라졌다. region 점·붓 반경(렌더러의 고정 `.1` 공식과 같은 값)·sway 동작 범위(pivot 둘레 회전)까지 `cropTransform`으로 출력 좌표로 옮겨 계산한다.
+3. 편집기 미리보기(`renderCollectible`)가 living 스티커를 frontFor의 정지 포즈 루프에서도 그리고 living 오버레이로 또 그려 이중 노출이었다(발행 경로의 `angleFramesFor`는 이미 뺐지만 미리보기는 안 뺐다). `livingStickerTargets`로 그 스티커를 frontFor에서도 뺀다.
+4. living 항목의 등급 체크박스(`gradeChecks`의 `data-living-grade`)에 change 처리기가 없어 체크해도 저장되는 `gradeIds`가 안 바뀌었다(효과·인사말 규칙엔 있던 처리기가 living만 빠짐). 같은 방식으로 `mutate`를 거치는 처리기를 추가했다.
+5. 스티커를 추가해도 living 대상 select가 그 자리에서 안 바뀌어, 추가한 스티커를 바로 living 대상으로 고를 수 없었다(스티커 삭제·순서 변경은 이미 다시 그렸는데 추가만 빠졌다). `sticker-add`도 `renderLivingItems()`를 부른다.
+6. 뷰어에서 동작 줄이기를 끄거나 숨긴 탭이 다시 보여도 living(독립 시계) 재생이 저절로 안 돌아왔다. 애니메이션 루프 전체를 `looping` 깃발 하나로 추적하는 `ensureLoop()`로 통일해, 동작 줄이기 해제·탭 복귀 양쪽에서 다시 걸되 이미 도는 중이면 중복으로 안 건다(재생·다시 보기·이야기 건너뛰기 등 기존 시작 지점도 전부 이 틀을 거치게 다시 짰다).
+- 새 `tests/site/collectible-pr310-p2b.test.mjs`: (1)은 포즈 변경 뒤 저장한 프로젝트로 실제 서버 검증(`run-collectible-rules.mjs`)까지 돌린다. (2)는 비정사각·확대 사진에서 `livingBoundingBox`가 cropTransform을 타는지(점 위치), 정사각 사진에서 붓 반경만큼 상자가 넓어지는지, sway 진폭이 클수록 상자가 넓어지는지 세 가지를 확인한다. (3)은 canvas `drawImage` 호출 수를 "living 스티커 있음 vs 없음"으로 비교해(측정값: 고치면 차이 0, 안 고치면 스티커 레이어 자체 draw 비용만큼 늘어 차이 2) 이중 노출을 잡는다. (4)(5)는 mini-dom 편집기 흐름으로 실제 저장되는 프로젝트·DOM을 확인한다. (6)은 `requestAnimationFrame` 호출 수를 스파이로 세어(열기 1회, 동작 줄이기 켜면 0 추가, 이미 도는 중 재생을 눌러도 0 추가, 동작 줄이기 끄면 정확히 1 추가, 탭 숨김 0 추가, 탭 복귀 정확히 1 추가) 재개와 "중복 없음"을 둘 다 확인한다.
+- **검증:** `node --test tests/site/*.test.mjs` 225/225(신규 6건), `bash tools/gate.sh` PASS. 6건 모두 스크래치 되돌리기로 대응 시험이 실제로 실패하는지 확인한 뒤 복구했다(P2 #6은 재개 처리기 2곳과 "looping 중복 방지 가드" 자체를 따로따로 되돌려 각각 실패를 확인했다). `apps/api`는 여전히 건드리지 않았다.
+- **`NOT_RUN`:** 1차와 같다(실기 증거는 이미 위에 있고, 2차의 블링크·박스·중복-루프 수정은 실제 브라우저로 다시 확인하지 않았다).
+- 다음 담당자가 할 일: 독립 교차 리뷰 재확인, 머지.
 
 ## 사진 수집품 제작기 PR 인수인계
 
