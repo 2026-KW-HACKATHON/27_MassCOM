@@ -124,6 +124,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 
 | 2026-10-01 | Claude Code(Sonnet 5 executor) | Issue #298 마일리지 상점 서버(적립 계산·재뽑기·대표 캐릭터) | migration 0038(`mileage_spends`·`account_characters`·`account_profile`), 순수 `mileage-rules.ts`(공식·균등 선택·재뽑기 결정 순서), `postgres/mileage-shop.ts`(배지 집계 SQL 재사용, `assertActive` 계정 잠금만 사용), `GET /shop`·`/shop/history`·`POST /shop/rerolls`·`PUT /shop/avatar`, `account-deletion.ts` 세 테이블 정리, README·DECISIONS(D-063)·PRD(RQ-024) 갱신 | `npm test --prefix apps/api` 315/315(신규 13건), PostgreSQL 통합(일회용 `postgres:16`) 7/7 연속 5회 안정, `npm run test:postgres --prefix apps/api` 306 PASS·2 기존 SKIP, typecheck·build PASS, 변이 시험 4건(가드 제거 시 대응 시험 실패 확인 후 복구) | 독립 리뷰 대기, Android(상점 탭·뽑기 연출)는 후속 PR, 웹 세션 API 노출은 보류(모바일 Bearer 경로만) |
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드) | Issue #318 모바일 npm audit 좁은 예외(D-066, 소유자 결정) | `scripts/audit-ci.mjs`·예외 목록·시험 작성 | `node --test tests/ops/audit_ci_test.mjs` 6/6, 변이 3건, `npm run audit:ci` PASS, Claude 독립 검토 |
+| 2026-10-02 | Claude Code(Opus 5.5 메인 스레드) | Issue #316 계정 삭제 처리 시험의 고정 시계 시한폭탄 수정 | 시험 하나에서 서비스 시계를 옛 INSERT 행의 `requested_at`에 맞춤(운영 코드 무변경) | CI와 같은 비밀번호 인증 PostgreSQL로 통합 시험 전체 실행, Codex 검토 |
 
 ## 팀 설명 체크리스트
 
