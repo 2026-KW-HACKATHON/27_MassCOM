@@ -57,11 +57,11 @@ export function collectionShareNotice(outcome: CollectionShareOutcome): string |
 export function createImageLoadGate(expected: number) {
   let remaining = Math.max(0, expected);
   const waiters: (() => void)[] = [];
-  const open = () => { for (const resolve of waiters.splice(0)) resolve(); };
+  const releaseWaiters = () => { for (const resolve of waiters.splice(0)) resolve(); };
   return {
     markLoaded() {
       if (remaining > 0) remaining -= 1;
-      if (remaining === 0) open();
+      if (remaining === 0) releaseWaiters();
     },
     wait(timeoutMs: number): Promise<void> {
       if (remaining === 0) return Promise.resolve();
