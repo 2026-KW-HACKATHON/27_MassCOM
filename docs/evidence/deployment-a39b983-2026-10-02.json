@@ -119,28 +119,35 @@
     "playDeepLink": "/play/collection 200"
   },
   "realBrowser": {
-    "tool": "Playwright Chromium, 390x844",
-    "time": "2026-10-02 about 20:48-20:51 KST",
-    "flow": [
-      "masscom.kr/demo -> /play/",
-      "사용자예요 -> 방문 인증 -> 로그인 없이 체험하기 -> 3 required consent boxes -> 동의하고 시작",
-      "test visit at 가상 점포 A -> `가상 점포 A 도장 쾅!` celebration",
-      "도감 renders the album with 1 collectible (no white screen, #314)",
-      "상점 balance 150P (50 visit + 100 first store); bronze draw (100P) -> `카페 곰돌이` NEW reveal; balance 50P after",
-      "test visit at 가상 점포 B -> celebration with a silver badge share button"
-    ],
-    "consoleErrors": 0,
-    "screenshots": {
-      "live-01-after-test-visit.png": "docs/evidence/deployment-a39b983-2026-10-02/live-01-after-test-visit.png (taken by the previous session's browser run)",
-      "live-02-celebration-390.png": "docs/evidence/deployment-a39b983-2026-10-02/live-02-celebration-390.png (taken by the previous session's browser run)",
-      "live-03-collection-390.png": "docs/evidence/deployment-a39b983-2026-10-02/live-03-collection-390.png",
-      "live-04-shop-390.png": "docs/evidence/deployment-a39b983-2026-10-02/live-04-shop-390.png",
-      "live-05-shop-draw-390.png": "docs/evidence/deployment-a39b983-2026-10-02/live-05-shop-draw-390.png"
-    }
+    "previousSessionRun": {
+      "time": "2026-10-02 about 20:43-20:44 KST, Playwright Chromium",
+      "screenshots": {
+        "live-01-after-test-visit.png": "docs/evidence/deployment-a39b983-2026-10-02/live-01-after-test-visit.png (taken 20:44:00 at a 1200x1103 desktop viewport, after the 가상 점포 A test visit)",
+        "live-02-celebration-390.png": "docs/evidence/deployment-a39b983-2026-10-02/live-02-celebration-390.png (taken 20:44:15 after resizing to 390x844)"
+      },
+      "note": "both are mid-animation frames of the `가상 점포 A 도장 쾅!` celebration: text overlaps the page behind it, and the lower buttons are clipped in 02"
+    },
+    "thisSessionRun": {
+      "time": "2026-10-02 about 20:48-20:51 KST, Playwright Chromium, 390x844",
+      "flow": [
+        "masscom.kr/demo -> /play/",
+        "storage cleared first visit: 사용자예요 -> 방문 인증 -> 로그인 없이 체험하기 -> 3 required consent boxes -> 동의하고 시작",
+        "도감 renders the album with 1 collectible (no white screen, #314)",
+        "상점 balance 150P (50 visit + 100 first store); bronze draw (100P) -> `카페 곰돌이` NEW reveal; balance 50P after",
+        "test visit at 가상 점포 B -> celebration with a silver badge share button"
+      ],
+      "screenshots": {
+        "live-03-collection-390.png": "docs/evidence/deployment-a39b983-2026-10-02/live-03-collection-390.png (20:49:04, album)",
+        "live-04-shop-390.png": "docs/evidence/deployment-a39b983-2026-10-02/live-04-shop-390.png (20:49:14, shop, 150P)",
+        "live-05-shop-draw-390.png": "docs/evidence/deployment-a39b983-2026-10-02/live-05-shop-draw-390.png (20:49:27, draw reveal 카페 곰돌이 NEW)"
+      },
+      "withoutScreenshot": "스크린샷 없음, 접근성 스냅샷으로 확인: the 가상 점포 B test visit with the silver badge share button, the 50P balance after the draw, the storage-cleared first-visit flow (로그인 없이 체험하기 -> consent), and console errors 0"
+    },
+    "consoleErrors": 0
   },
   "finding": {
     "issue": 322,
-    "summary": "the envelope reveal (#297) cannot be reached on the showcase: the showcase seed publishes no collectible for the virtual stores, so /collection items have no `artwork` and the `받은 수집품 보기` button is hidden by design"
+    "summary": "the envelope reveal (#297) cannot be reached on the showcase: the showcase seed publishes no collectible for the virtual stores, so the /collection items have no server `artwork` (no store collectible publication) and the `받은 수집품 보기` button is hidden by design. The album card in live-03 shows the app's built-in fallback image for the virtual store (docs/SHOWCASE_COLLECTIBLE_ART.md), so the screenshot does not contradict this"
   },
   "notRun": [
     "Preview 15 and operating test.6 APK build, publish and device check (the signing keystore location was not available to the agent; the owner builds or provides it)",
