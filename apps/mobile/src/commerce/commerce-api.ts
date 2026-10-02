@@ -140,7 +140,9 @@ export type MintJobResponse = {
 export type ShowcaseAccessStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type ShowcaseAccessRequest = { code: string; status: ShowcaseAccessStatus; createdAt: string; decidedAt: string | null };
 // trialMerchantId: 체험 로그인(Issue #309)으로 들어온 계정이면 자기 체험 가게 id, 아니면 null. 체험 가게는
-// is_public = false라 /merchants에 안 나오니, 점주 화면은 이 id를 공개 목록 앞에 더해 찾아야 한다.
+// is_public은 true로 두지만(D-064(e), 참여 등록 같은 공개 캠페인 전용 경로가 동작해야 한다) 서버가
+// showcase_guest_trials를 NOT EXISTS로 걸러 /merchants·추천에서 뺀다 — 그래서 점주 화면은 이 id를
+// 공개 목록 앞에 더해 찾아야 한다.
 export type ShowcaseAccessState = { request: ShowcaseAccessRequest | null; staff: boolean; approver: boolean; trialMerchantId: string | null };
 export type PendingShowcaseAccessRequest = { id: string; code: string; createdAt: string };
 

@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -227,7 +227,15 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
     }
   }
 
-  return <ScrollView ref={scrollView} contentInsetAdjustmentBehavior="automatic" style={{ flex: 1 }} contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}>
+  return <ScrollView
+    ref={scrollView}
+    contentInsetAdjustmentBehavior="automatic"
+    // 웹에서는 이 화면을 감싸는 바깥 View도 같이 늘어나 페이지 스크롤바와 이 안쪽 스크롤바가 겹쳐 보인다
+    // (PR #313 리뷰) — 안쪽 막대만 숨기고 실제 스크롤은 그대로 둔다.
+    showsVerticalScrollIndicator={Platform.OS !== 'web'}
+    style={{ flex: 1 }}
+    contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
+  >
     <View style={styles.hero}>
       <Text style={styles.eyebrow}>체험용 점주·직원 화면</Text>
       <Text selectable style={styles.title}>고객 QR로{`\n`}방문을 확인합니다.</Text>
