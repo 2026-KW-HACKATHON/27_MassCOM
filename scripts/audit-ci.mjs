@@ -30,6 +30,11 @@ export function evaluateAudit(report, exceptions, today) {
       const label = `${id} (${name}, ${via.severity})`;
       if (!rule) {
         failures.push(`${label}: 예외 없음`);
+      } else if (!/^\d{4}-\d{2}-\d{2}$/.test(rule.expires ?? '') || !Array.isArray(rule.allowedDependents) || rule.allowedDependents.length === 0) {
+        failures.push(`${label}: 예외 형식이 잘못됨(만료일·허용 의존 패키지 필요)`);
+      } else if (entry.isDirect !== false) {
+        // 앱이 직접 의존하면 번들에 들어갈 수 있다. npm은 직접 의존을 effects가 아니라 isDirect로 알린다.
+        failures.push(`${label}: 앱의 직접 의존(또는 직접 여부 불명)`);
       } else if (today > rule.expires) {
         failures.push(`${label}: 예외가 ${rule.expires}에 만료됨`);
       } else if (dependents.length === 0 || !dependents.every((dependent) => rule.allowedDependents.includes(dependent))) {

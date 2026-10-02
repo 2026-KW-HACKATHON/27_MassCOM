@@ -13,7 +13,7 @@ const today = '2026-10-02';
 
 test('the excepted advisory on its allowed path passes, transitive string vias are not judged again', () => {
   const result = evaluateAudit(report({
-    'node-forge': { severity: 'high', via: [forge], effects: ['@expo/cli', '@expo/code-signing-certificates'] },
+    'node-forge': { severity: 'high', isDirect: false, via: [forge], effects: ['@expo/cli', '@expo/code-signing-certificates'] },
     '@expo/cli': { severity: 'high', via: ['node-forge', '@expo/code-signing-certificates'], effects: ['expo'] },
     uuid: { severity: 'moderate', via: [{ url: 'https://github.com/advisories/GHSA-w5hq-g745-h8pq', severity: 'moderate' }], effects: ['xcode'] },
   }), [rule], today);
@@ -30,23 +30,36 @@ test('any other high or critical advisory fails', () => {
 
 test('the exception stops working after it expires', () => {
   const result = evaluateAudit(report({
-    'node-forge': { severity: 'high', via: [forge], effects: ['@expo/cli'] },
+    'node-forge': { severity: 'high', isDirect: false, via: [forge], effects: ['@expo/cli'] },
   }), [rule], '2026-11-01');
   assert.match(result.failures[0], /만료/);
 });
 
 test('the same advisory reached through a package outside the allowed dependents fails', () => {
   const result = evaluateAudit(report({
-    'node-forge': { severity: 'high', via: [forge], effects: ['@expo/cli', 'some-runtime-lib'] },
+    'node-forge': { severity: 'high', isDirect: false, via: [forge], effects: ['@expo/cli', 'some-runtime-lib'] },
   }), [rule], today);
   assert.match(result.failures[0], /허용하지 않은/);
 });
 
 test('the excepted advisory with no recorded dependents (e.g. a direct dependency) fails', () => {
   const result = evaluateAudit(report({
-    'node-forge': { severity: 'high', via: [forge], effects: [] },
+    'node-forge': { severity: 'high', isDirect: false, via: [forge], effects: [] },
   }), [rule], today);
   assert.match(result.failures[0], /허용하지 않은/);
+});
+
+test('a direct dependency on the excepted package fails even on allowed paths', () => {
+  const effects = ['@expo/cli', '@expo/code-signing-certificates'];
+  assert.match(evaluateAudit(report({ 'node-forge': { severity: 'high', isDirect: true, via: [forge], effects } }), [rule], today).failures[0], /직접 의존/);
+  assert.match(evaluateAudit(report({ 'node-forge': { severity: 'high', via: [forge], effects } }), [rule], today).failures[0], /직접 의존/);
+});
+
+test('a malformed exception never applies', () => {
+  const entry = { 'node-forge': { severity: 'high', isDirect: false, via: [forge], effects: ['@expo/cli'] } };
+  assert.match(evaluateAudit(report(entry), [{ ...rule, expires: undefined }], today).failures[0], /형식/);
+  assert.match(evaluateAudit(report(entry), [{ ...rule, expires: '2026/10/31' }], today).failures[0], /형식/);
+  assert.match(evaluateAudit(report(entry), [{ ...rule, allowedDependents: [] }], today).failures[0], /형식/);
 });
 
 test('the same advisory id on a different package is not covered', () => {
