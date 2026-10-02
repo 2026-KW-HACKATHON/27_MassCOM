@@ -48,7 +48,7 @@ export function generateAccessRequestCode(): string {
 }
 
 // hosted(masscom_showcase)와 local(masscom_showcase_test·_ci_*_test) 모두에서 열리는 시연 전용 기능이다(#294).
-function isShowcaseDatabaseName(name: string): boolean {
+export function isShowcaseDatabaseName(name: string): boolean {
   return name === 'masscom_showcase' || isPermittedShowcaseDatabaseName(name);
 }
 
@@ -106,7 +106,9 @@ export class ShowcaseAccessRequestService {
     }
   }
 
-  async mine(accountId: string): Promise<{ request: AccessRequestView | null; staff: boolean; approver: boolean }> {
+  async mine(accountId: string): Promise<{
+    request: AccessRequestView | null; staff: boolean; approver: boolean; trialMerchantId: string | null;
+  }> {
     return this.transaction(async (client) => {
       await this.accountLifecycle.assertActive(client, accountId);
       const request = await client.query<RequestRow>(
@@ -122,10 +124,16 @@ export class ShowcaseAccessRequestService {
         `SELECT 1 FROM platform_admins WHERE account_id = $1 AND revoked_at IS NULL`,
         [accountId],
       );
+      // 체험 가게는 /merchants에 나오지 않으므로 체험자 본인의 점주 화면은 이 id로 가게를 찾는다(#309).
+      const trial = await client.query<{ merchant_id: string }>(
+        `SELECT merchant_id FROM showcase_guest_trials WHERE account_id = $1 AND ended_at IS NULL`,
+        [accountId],
+      );
       return {
         request: request.rows[0] ? mapRequest(request.rows[0]) : null,
         staff: staff.rowCount! > 0,
         approver: approver.rowCount! > 0,
+        trialMerchantId: trial.rows[0]?.merchant_id ?? null,
       };
     });
   }

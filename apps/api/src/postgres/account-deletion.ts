@@ -300,6 +300,12 @@ async function pseudonymizeAccount(
     'UPDATE showcase_access_requests SET decided_by_account_id = $1 WHERE decided_by_account_id = $2',
     [deletedAlias, accountId],
   );
+  // 로그인 없는 체험(#309): 체험 행은 지우지 않고 별칭으로 남긴다. 지우면 체험 가게가 공개 목록·추천 제외(이 표로 거른다)에서
+  // 빠지고 만료 정리도 그 가게를 멈추지 못한다. 클라이언트 IP의 HMAC은 더 둘 이유가 없어 지운다.
+  await client.query(
+    'UPDATE showcase_guest_trials SET account_id = $1, client_key_hash = NULL WHERE account_id = $2',
+    [deletedAlias, accountId],
+  );
   await client.query(
     'UPDATE platform_admin_audit SET actor_account_id = $1 WHERE actor_account_id = $2',
     [deletedAlias, accountId],

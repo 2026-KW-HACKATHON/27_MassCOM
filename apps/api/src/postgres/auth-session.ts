@@ -241,6 +241,6 @@ async function activeSession(
 }
 
 // Only the digest is persisted, so a database leak cannot replay a live session.
-function tokenHash(sessionToken: string): Buffer {
+export function tokenHash(sessionToken: string): Buffer {
   return createHash('sha256').update(sessionToken).digest();
 }

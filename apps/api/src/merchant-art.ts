@@ -39,6 +39,7 @@ export type MerchantArtErrorCode =
   | 'AI_ART_BUDGET_EXHAUSTED'
   | 'AI_ART_ROUND_STATE'
   | 'AI_ART_ROUND_NOT_FOUND'
+  | 'AI_ART_TRIAL_DISABLED'
   | 'ACCOUNT_DELETED';
 
 export class MerchantArtError extends Error {

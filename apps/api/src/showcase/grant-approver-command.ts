@@ -40,6 +40,9 @@ async function main() {
       const lookupRow = lookup.rows[0];
       if (!lookupRow) throw new Error('SHOWCASE_ACCESS_REQUEST_NOT_FOUND');
       await accountLifecycle.assertActive(client, lookupRow.account_id);
+      // 로그인 없는 체험 계정(#309)은 신원이 없어 승인자가 될 수 없다(끝난 체험 계정도 마찬가지).
+      const guest = await client.query('SELECT 1 FROM showcase_guest_trials WHERE account_id = $1', [lookupRow.account_id]);
+      if (guest.rowCount) throw new Error('SHOWCASE_GUEST_NOT_ELIGIBLE');
       const request = await client.query<{ id: string; account_id: string; status: string }>(
         `SELECT id, account_id, status FROM showcase_access_requests WHERE id = $1 FOR UPDATE`,
         [lookupRow.id],
