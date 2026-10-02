@@ -567,7 +567,7 @@ test('the admin list shows pending filings first by deadline with masked labels 
 });
 
 test('the statements of the deployed API f1bba2d still work on the migrated schema and legacy rows can get a receipt', { skip }, async () => {
-  await withFixture(async ({ pool, web, processing }) => {
+  await withFixture(async ({ pool, web, processing, clock }) => {
     const accountId = await seedAccount(pool);
     const operator = { kind: 'admin' as const, accountId: await seedAdmin(pool) };
     const insert = `INSERT INTO account_deletion_intake_requests (account_id) VALUES ($1)
@@ -583,6 +583,9 @@ test('the statements of the deployed API f1bba2d still work on the migrated sche
     assert.equal(legacy.cancel_until.getTime() - legacy.requested_at.getTime(), 24 * hour);
     assert.equal(legacy.due_at.getTime() - legacy.requested_at.getTime(), 7 * 24 * hour);
 
+    // 옛 INSERT의 requested_at은 DB의 실제 현재 시각이다. 고정 시계(t0)로 다시 접수하면 cancel_until이 그보다 이를 수
+    // 있어(2026-10-02 00:00 UTC부터 항상) 운영과 달리 기한 CHECK에 걸린다. 운영처럼 서비스 시계를 그 행의 접수 시각에 맞춘다(#316).
+    clock.now = legacy.requested_at as Date;
     const legacyId = legacy.id as string;
     assert.equal((await processing.list(operator)).find((item) => item.id === legacyId)!.hasReceipt, false,
       'the operator list marks a filing that has no receipt number');
