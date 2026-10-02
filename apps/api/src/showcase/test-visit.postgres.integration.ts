@@ -51,6 +51,8 @@ function kstNoonToday(): Date {
   const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
   return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), 3));
 }
+// 한 번만 계산한다. 호출마다 다시 계산하면 실행 중 한국 자정을 넘을 때 시계가 하루 뛴다.
+const testNow = kstNoonToday();
 
 function service(pool: Pool, now?: () => Date): PostgresClaimSlotService {
   return new PostgresClaimSlotService(pool, { referenceHmacSecret, ...(now ? { now } : {}) });
@@ -119,7 +121,7 @@ test('a paused demo merchant is refused with CLAIM_MERCHANT_INACTIVE', async () 
 
 test('a demo-store test visit counts like a normal visit: progress, badge goal 1, and a REVOKED issuer row', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
-    const svc = service(pool, () => kstNoonToday());
+    const svc = service(pool, () => testNow);
     const issued = await svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-1' });
     const redeemed = await svc.redeem({ accountId: 'customer-1', token: issued.token });
 
@@ -150,7 +152,7 @@ test('a demo-store test visit counts like a normal visit: progress, badge goal 1
 
 test('issuing twice the same day counts the second visit but not its progress', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
-    const svc = service(pool, () => kstNoonToday());
+    const svc = service(pool, () => testNow);
     const first = await svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-2' });
     const firstRedeemed = await svc.redeem({ accountId: 'customer-2', token: first.token });
     assert.equal(firstRedeemed.visit.progressCounted, true);
@@ -164,7 +166,7 @@ test('issuing twice the same day counts the second visit but not its progress', 
 
 test('an issuer row that was somehow promoted to ACTIVE blocks further issuing instead of granting it power', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
-    const svc = service(pool, () => kstNoonToday());
+    const svc = service(pool, () => testNow);
     // Issue once so the lazy REVOKED issuer row exists, then simulate tampering (should never happen in practice).
     const first = await svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-4' });
     await svc.redeem({ accountId: 'customer-4', token: first.token });
