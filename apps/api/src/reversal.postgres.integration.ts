@@ -1253,13 +1253,16 @@ test('a visit cancellation leaves an already expired coupon alone and a revival 
 
   // 원래 만료가 새 유효 기간보다 이르면 되살려도 원래 만료를 넘지 않는다.
   const early = await voidedByCancel(db, 'cust-early');
-  await db.pool.query(`UPDATE badge_coupons SET issued_at = '2026-09-01T00:00:00Z', expires_at = '2026-10-05T14:59:59.999Z' WHERE id = $1`, [early.couponId]);
+  // ponytail: 되살리기의 잠금 뒤 확인은 DB의 clock_timestamp()와 비교하므로 이 만료는 실제 날짜보다 뒤여야 한다. 아래 늦은
+  // 경우의 새 유효 기간(2026-10-30)보다 이르게 두되 최대한 늦춘다(2026-10-05였을 때 그 날 이후 항상 실패, #316). 2026-10-29
+  // 이후에도 이 시험을 돌리려면 서비스 시계와 시드 날짜를 DB 시각 하나에서 끌어내도록 바꾼다.
+  await db.pool.query(`UPDATE badge_coupons SET issued_at = '2026-09-01T00:00:00Z', expires_at = '2026-10-29T14:59:59.999Z' WHERE id = $1`, [early.couponId]);
   await addVisit(db.pool, { account: 'cust-early', shop: 'demo-shop', date: '2026-09-29' });
   const revived = await db.badges.openReward({ accountId: 'cust-early', milestone: 1 });
   assert.equal(revived.replayed, false);
   assert.equal(revived.coupon.couponId, early.couponId);
   assert.equal(revived.coupon.status, 'ISSUED');
-  assert.equal(revived.coupon.expiresAt, '2026-10-05T14:59:59.999Z');
+  assert.equal(revived.coupon.expiresAt, '2026-10-29T14:59:59.999Z');
   // 원래 만료가 새 유효 기간(발급일 + 30일)보다 늦으면 새 유효 기간을 넘지 않게 짧은 쪽을 쓴다.
   const late = await voidedByCancel(db, 'cust-late');
   await db.pool.query(`UPDATE badge_coupons SET expires_at = '2027-01-01T14:59:59.999Z' WHERE id = $1`, [late.couponId]);

@@ -10,6 +10,19 @@
 - 검증: `npm test --prefix apps/mobile` 1023/1023 PASS(새 `test()` 3건: 지갑 Link flatten 회귀, `clearCollectionFocusParams` 가드 회귀, 오류 장면 재스크롤 회귀 + 기존 1건 기대값 갱신), `npm run typecheck`·`npm run lint --prefix apps/mobile` PASS, `npm run export:android --prefix apps/mobile` PASS, `bash tools/gate.sh` PASS. 변이 시험 3건(각각 되돌려 새 시험이 실패함을 확인 후 복구): `StyleSheet.flatten` 제거, `try/catch` 가드를 평범한 `router.setParams` 호출로 되돌림, `requestAnimationFrame` 지연 제거. 에뮬레이터 `MassCOM_Design_QA`에서 글꼴 1.0(밝은 테마)·2.0(어두운 테마) 양쪽으로 두 진입 경로·오류 화면을 각각 재확인하고 [캡처 7장](evidence/314-album-crash/)을 남겼다.
 - `NOT_RUN`: 방문 인증 탭의 "테스트 방문 만들기"·가상 점포 B·C가 가운데 뜬 탭 버튼에 가려진다는 제보는 이번 QA에서 코드를 읽고(`useTabBarClearance` 정상 적용 확인) 글꼴 1.0·2.0 정지 상태에서 여러 차례 재현을 시도했으나 재현하지 못했다 — 코드를 바꾸지 않았다. 독립 리뷰, 실제 기기(에뮬레이터 아닌) 확인.
 
+## 2026-10-02 Issue #318 모바일 npm audit 좁은 예외
+
+- 기준: main, worktree `.worktrees/318-audit`, 브랜치 `fix/318-audit-exception`.
+- 원인: 2026-10-02 공개된 `node-forge` GHSA-86w9-cpqp-85rv(high, 고친 버전 없음)가 `expo` → `@expo/cli` → `@expo/code-signing-certificates` 경로로 잡혀 모든 PR의 모바일 CI(`audit:ci`)가 실패했다.
+- 수정(소유자 결정 D-066): `scripts/audit-ci.mjs` + `scripts/audit-exceptions.json`(만료 2026-10-31), `apps/mobile` `audit:ci` 교체, CI에 시험 추가. API·worker 감사는 그대로다.
+- 다음 작업: 고친 버전이 나오면 의존성을 올리고 예외를 지운다(B-030).
+## 2026-10-02 Issue #316 계정 삭제 처리 시험 시계 수정
+
+- 기준: main `439ba83`, worktree `.worktrees/316-test-clock`, 브랜치 `fix/316-deletion-test-clock`.
+- 원인: 옛 배포 API의 INSERT를 흉내 낸 행은 `requested_at`이 DB 실제 시각인데 서비스 시계는 `2026-10-01T00:00Z` 고정이라, 2026-10-02 00:00 UTC부터 다시 접수 시 `cancel_until`이 `requested_at`보다 일러 CHECK 위반. 시험 전용 문제.
+- 수정: 그 시험에서만 `clock.now = legacy.requested_at`. 운영 코드·migration 무변경.
+- 다음 작업: CI 통과 뒤 병합, 막혀 있던 PR(#310 등) CI 재실행.
+
 ## 2026-10-02 Issue #309 로그인 없는 시연 웹 체험 (서버·Caddy)
 
 - 기준: main `e2091f2`에서 시작해 `36fed73`(#295 테스트 방문·`scripts/qa-local.sh`, PR #308)을 합침, worktree `.worktrees/309-guest-api`, 브랜치 `feat/309-guest-trial-api`, 커밋 `e37523d`(API)·`a736dbc`(Caddy·검증 스크립트)·계정 삭제 별칭 커밋·문서 커밋, PR 미정. 웹 클라이언트는 같은 Issue의 별도 브랜치 `feat/309-showcase-web`(다른 에이전트)이고 이 PR이 먼저 병합돼야 한다.
@@ -142,6 +155,57 @@
 - **검증:** `npm test --prefix apps/mobile` 926/926 PASS(신규 24건: v2 필드 독립 파싱/드롭 5건, `angleFrameBlend`/`particleAt`/`livingCell`/`motionAutoplaySequence` 벡터·사양 시험, 기울임 매핑 4건), `npm run typecheck --prefix apps/mobile`·`npm run lint --prefix apps/mobile` PASS, `bash tools/gate.sh` PASS. 변이 시험 3건(되돌리면 실패 확인 뒤 복구): `particleAt` confetti 낙하항 제거, `angleFrameBlend`의 칸 시작각 상수를 -90으로 변경, `motionAutoplaySequence`의 intro 분기 제거.
 - **다음 담당자가 할 일:** ① (완료: 오케스트레이터가 획득 연출 → 상세 경로에 `intro`를 연결했다. 모바일 927/927.) ② WP2(뒷면·모션 UI)·WP3(패럴랙스·living·각도 프레임 생성)가 웹 편집기에서 실제로 새 필드를 만들기 시작하면 실기기에서 뒷면/프레임/living/파티클/기울임을 확인(지금은 이 필드들을 만드는 수집품이 없어 Android 쪽은 전부 폴백 경로만 실행된다). ③ `export:android`·에뮬레이터(`adb emu sensor set acceleration`로 기울임 재현, −60/0/60° 홀로그램, 동작 줄이기, 이전 APK에서 v2 수집품 열기)는 WP3 자료가 준비된 뒤로 미룬다.
 - 다음 명령: `git -C .worktrees/284-android-frames status`, `npm test --prefix apps/mobile`, `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`, `bash tools/gate.sh`.
+
+## 2026-10-02 Issue #284 WP3 웹 B(패럴랙스·living picture·각도 프레임·크기 사다리·뷰어) 인수인계 — Issue #284 네 WP 전부 완료
+
+- 브랜치 `feat/284-web-expression-b`, worktree `/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/284-web-b`, 기준 main(WP1 #288·WP2 #293·WP4 #290 모두 병합분 포함), PR 미정. 이 WP가 설계 명세의 마지막 작업 분할이라 병합되면 Issue #284가 끝난다.
+- **끝낸 것:** ① 패럴랙스 — `collectible-model.mjs`에 순수 `strokeAlpha`(전경/배경 획 마스크)·`parallaxOffset`을 추가하고 `collectible-renderer.mjs`의 `frontFor`가 배경(확대+`-s/2`)·전경(사진∩마스크, `+s`)·스티커(`+1.2s`)·테두리(고정)로 합성한다. 편집기 "사진 세부 조정"에 붓 대상(사진/패럴랙스) select·강도 슬라이더·fg/bg 붓을 더해 기존 자르기 캔버스 포인터 코드를 재사용했다. ② living picture — 순수 `livingPhaseAt`/`livingFrameAt`(주기성)·`livingSpriteCount`·`livingSpriteGrid`(격자, columns 1..8 cap)·`livingBoundingBox`(등급별 합집합 박스)를 모델에 두고, 렌더러의 `livingOverlayFor`/`paintLivingItem`이 sway(회전)·bob(이동)·steam(올라가는 김)·blink(마스코트 포즈 교체)를 그린다. 편집기에 "살아 있는 그림" 섹션(항목 추가·삭제·등급 토글·반복 주기·대상별 붓 칠하기)을 새로 만들었다. ③ `serializeDerived`가 metallic/hologram/pearl 효과나 패럴랙스가 있는 등급에 12칸(4×3, −82.5°+15°·i) 각도 프레임을, living 항목이 있는 등급에 living 스프라이트(count 8..24, columns 1..8, box 패딩 합집합)를 굽는다(각도 프레임은 living 대상 스티커를 뺀다). 편집기 게시 경로에 크기 사다리(`SPRITE_SIZE_LADDER`: 448→384→320→256px, 화질 .85→.7)를 연결해 `publishSizeProblem`을 통과할 때까지 다시 굽는다. ④ 뷰어(`collectible-viewer.mjs`) — `angleFrames`가 있으면 가장 가까운 두 칸을 크로스페이드(`angleFrameIndex`)하고 없으면 기존 base+mask 재합성으로 폴백, living이 있으면 시간에 맞는 칸을 정면 위에 얹는다. "기울여서 보기" 토글이 `deviceorientation` 감마(켤 때 잡은 값을 0점, 저역통과 .2, ±30°)로 각도를 돌리고 iOS는 토글 클릭에서 `requestPermission()`을 부르며 미지원·동작 줄이기면 토글을 만들지 않는다. 편집기 미리보기에는 기울임을 넣지 않았다(설계 그대로). ⑤ PR #293 후속 P2 3건 — (a) `maskFor`가 `gradeId`를 받아 `resolveSticker`를 거쳐 등급별 재배치 스티커 효과 마스크도 바르게 만든다. (b) 모션을 once→loop로 바꿀 때도 반복끼리 등급당 하나 배타 규칙을 다시 적용해 겹치는 등급만 다른 loop에서 뗀다. (c) `applyDraftEdits`가 v1 시절 스티커(align·layouts 없음)를 병합할 때 직접 두 필드를 채워, "이 등급만 따로 배치" 토글이 던지지 않게 한다.
+- **의도적으로 남긴 것(알려진 한계, 설계 문서 "위험" 항목 그대로):** living 스티커 오버레이는 패럴랙스를 받지 않고 항상 각도 0 재질을 쓴다. living 영역 마스크는 사용자가 찍은 점(최대 20개)을 하나의 붓 자국처럼 잇는 간단한 경로이며, 자동 분리(ML)는 쓰지 않는다(오너가 직접 찍는다, 설계 그대로). `SPRITE_SIZE_LADDER`의 네 단계(side/quality 조합)는 설계 문서가 수치만 주고 조합 방식은 정하지 않아 직접 골랐다(앞 두 단계는 화질 유지하고 크기만 줄이고, 뒤 두 단계는 화질도 낮춤).
+- **검증:** `node --test tests/site/*.test.mjs` 207/207(신규 15건은 `tests/site/collectible-parallax-living.test.mjs`: 패럴랙스/living 순수 계산, 크기 사다리 선택(가짜 추정기), `serializeDerived`의 angleFrames·living 스프라이트 모양(Android `collectible-artwork.ts` 파서와 같은 상한), PR #293 후속 P2 세 건, 붓 대상 전환·living 항목 편집 mini-dom 흐름), `bash tools/gate.sh` PASS. 변이 시험 4건을 임시 사본으로 되돌려 대응 시험이 실제로 실패하는지 확인한 뒤 복구했다(`livingSpriteGrid`의 columns cap, 모션 once→loop 배타 규칙, `applyDraftEdits`의 sticker 정규화, `gradeNeedsAngleFrames`의 패럴랙스 조건). 이 과정에서 `livingSpriteGrid`가 열 수를 1..8로 제한하지 않아 서버·Android가 거절할 값(예: 20)을 고를 수 있던 실제 버그를 찾아 고쳤다. `apps/api`는 건드리지 않아 WP1이 이미 둔 검증(선택 유지, `living`만 참조된 등급에서 필수)을 그대로 쓴다(`npm test --prefix apps/api`는 미실행, 변경 없음).
+- **`NOT_RUN`:** mini-dom은 모든 canvas 2d 호출을 no-op으로 흉내 내 실제 픽셀 합성(패럴랙스 깊이감·living 애니메이션·각도 크로스페이드가 눈으로 보이는 결과)은 검증하지 못한다(모양·치수·DOM 상태만 확인). 실제 브라우저 스크린샷(홀로그램+패럴랙스+living 조합, 각도별 차이, 기울임)은 이번 세션에서 돌리지 않았다. `deviceorientation`·iOS 권한 흐름의 실기기 확인, Android 쪽 실기기·에뮬레이터 종단 확인(WP4가 이미 끝냈지만 WP3 산출물이 이제 처음 생기므로 실제 조합 확인은 아직 없음)도 `NOT_RUN`이다.
+- **다음 담당자가 할 일:** ① 독립 교차 리뷰(서로 다른 모델 2개 — 게시 경로·크기 사다리는 민감 경로). ② 실제 브라우저로 로컬 QA fixture(`tests/fixtures/collectible-qa-server.mjs`)에 홀로그램+패럴랙스+living을 담은 수집품을 게시해 각도별 프레임·living 애니메이션을 눈으로 확인하고 스크린샷을 `docs/evidence/`에 남긴다. ③ Android 실기기·에뮬레이터로 이번에 처음 생기는 `angleFrames`/`living`이 있는 수집품을 열어 WP4 폴백 경로가 아닌 실제 경로를 확인한다(−60/0/60° 홀로그램, `adb emu sensor set acceleration`, 동작 줄이기). ④ PR 생성·CI.
+- 다음 명령: `git -C .worktrees/284-web-b status`, `node --test tests/site/*.test.mjs`, `bash tools/gate.sh`.
+
+### 2026-10-02 후속(PR #310 리뷰 P1·P2 10건 반영, 같은 브랜치)
+
+PR #310(위 WP3)에 Codex gpt-6.1-sol·Claude sonnet 교차 리뷰로 REQUEST_CHANGES 10건이 왔고 전부 고쳤다. origin/main이 25커밋 앞서 있어 먼저 깨끗하게 merge했다(충돌 없음, album-home·showcase-access 등 무관한 변경).
+
+**P1(서버가 저장·게시 자체를 거절하던 결함):**
+1. region 대상 living 항목을 추가한 직후(또는 점을 모두 지운 뒤) `strokes: []`로 남으면, 그 등급을 어디에도 안 써도 실제 서버 검증(`validateCollectibleProject`)이 `COLLECTIBLE_INVALID_PROJECT`로 초안 저장조차 거절했다. `save()`에 사전 확인을 추가해 저장·게시 전에 한국어 안내로 막는다.
+2. 패럴랙스 획과 living region 점은 서버(`rules.ts:316-318`)가 전체 합 20,000개 상한을 같이 쓰는데, 편집기는 붓마다 개별 상한(패럴랙스 100획×512점, living 항목당 20점)만 봐서 섞어 쓰면 넘길 수 있었다. `collectible-model.mjs`에 순수 `parallaxLivingPointTotal`/`PARALLAX_LIVING_POINT_BUDGET`을 추가하고 pointerdown·pointermove 양쪽에서 공유 예산을 먼저 확인한다.
+   - **시험 인프라:** (1)을 "진짜 서버가 거절하는지"로 검증하려고 `tests/fixtures/ts-js-specifier-loader.mjs`(node 모듈 후크, apps/api의 nodenext `./x.js`→`x.ts` 해석을 흉내 낸다)와 `run-collectible-rules.mjs`(자식 프로세스로 `--experimental-transform-types` + 실제 `collectible-project-rules.ts`를 돌림)를 추가했다. apps/api 소스는 건드리지 않았다.
+
+**P2(화면 결함 8건, 전부 고침):**
+3. 패럴랙스·living region 마스크가 사진 고유 치수가 아니라 출력 캔버스 크기로 만들어져 `(0,0)`에 그대로 얹혀, 비정사각·확대·이동 사진에서 칠한 자리와 실제로 움직이는 자리가 어긋났다. 사진과 같은 `cropTransform`으로 얹게 고쳤다.
+4. 편집기 미리보기(`renderCollectible`)가 living 오버레이를 전혀 합성하지 않아 sway/bob/steam/blink를 미리 볼 방법이 없었다. 카드 전체 동작(`staticFrame`)과 독립된 시계(`livingTime`)·깃발(`reducedMotion`)을 받아 합성한다.
+5. 재질·패럴랙스가 없고 living 스티커만 있는 등급은 각도 프레임이 아예 없어, 정지 포즈 위에 뷰어의 living 오버레이가 겹쳐 유령처럼 이중으로 보였다. living 스티커가 있으면(그 스티커만 뺀) 각도 프레임을 만들게 넓혔다.
+6. living 스티커 바운딩 박스가 글자 길이·정렬·회전을 무시해(42px 긴 글자가 실제로는 460px 가까이 그려지는데 박스는 212px 정도만) 게시 후 잘렸다. 모델에 measureText가 없어 글자 수 기반으로 넉넉히 추정하고, align별 비대칭·회전·sway/bob 진폭 범위까지 반영한다.
+7. living만 있고 `animation:'still'`인 프로젝트는 living이 자동재생 안 됐고, "동작 재생"을 누르면 엉뚱하게 전체 회전으로 대신했다. 뷰어의 living을 카드 전체 동작과 독립된 시계로 늘 돌리고(재생을 꺼도 `pause()`가 living 루프는 다시 걸고), living이 있으면 'still'→'rotate' 대체를 하지 않는다.
+8. 기울임이 켜진 채로 동작 줄이기를 켜면 센서 리스너·회전이 그대로 남았다. 끄고 토글을 `disabled`로 막는다(다시 켤 때까지).
+9. iOS 권한 요청 중 뷰어가 닫히거나 숨겨지거나 동작 줄이기가 켜지면, 뒤늦게 허용이 와도 죽은 세션에 리스너를 다시 달 수 있었다. `.then()` 안에서 active·hidden·reduce 상태를 다시 확인한다.
+10. (nit) 패럴랙스 마스크와 living 항목별 합성 마스크가 한 캐시 슬롯을 같이 써 서로 밀어내(각도 프레임 12칸·living 칸마다 다시 만듦) 캐시가 사실상 안 맞았다. 획+치수로 키를 잡은 Map 캐시로 바꿨다.
+- 새 `tests/site/collectible-pr310-p2.test.mjs`: `document.createElement`를 한 번 더 감싸 canvas의 `createImageData`/`drawImage` 호출 인자를 기록하는 전용 계측(이 파일만, 운영 코드는 안 건드림)으로 mini-dom의 no-op 한계를 넘어 (3)(4)(10)을 검증하고, `requestAnimationFrame` 호출 스파이로 (7)을, iOS 권한 프라미스를 수동으로 지연시켜 (8)(9)를 검증한다.
+- **검증:** `node --test tests/site/*.test.mjs` 219/219(신규 27건: `collectible-parallax-living.test.mjs`에 P1 4건, `collectible-pr310-p2.test.mjs` 8건), `bash tools/gate.sh` PASS. 10건 모두 스크래치 되돌리기로 대응 시험이 실제로 실패하는지 확인한 뒤 복구했다. `apps/api`는 여전히 건드리지 않았다.
+- **실기 증거:** 로컬 QA fixture(`tests/fixtures/collectible-qa-server.mjs`, 포트 4199)를 띄우고 chrome-devtools MCP(실제 Chromium)로 점주 제작기(패럴랙스·living 브러시 틴트, 게시 직후 미리보기)와 고객 뷰어(회전 0°/45°/90°, 라이트+다크, angleFrames 크로스페이드, "움직임 줄이기"→기울임 비활성화)를 직접 확인했다. 화면 8장+README는 [`docs/evidence/collectible-expression-web-b-pr310-2026-10-02/`](evidence/collectible-expression-web-b-pr310-2026-10-02/README.md). `NOT_RUN`: 다크 모드 90°, iOS 기울임 권한 실기기, 모바일 뷰포트, 스크린리더.
+- 다음 담당자가 할 일: 독립 교차 리뷰 재확인, Android 실기기 확인, 머지.
+
+### 2026-10-02 후속 2차(PR #310 재확인 리뷰 P1 1건·P2 5건 반영, 같은 브랜치)
+
+1차 반영(위) 뒤 Codex gpt-6.1-sol 재확인에서 또 REQUEST_CHANGES(P1 1·P2 5)가 왔고 전부 고쳤다. 병합 기준은 그대로(이번 라운드는 origin/main이 더 앞서지 않아 추가 merge 없음).
+
+**P1(서버가 저장·게시를 거절):**
+1. blink 호환 확인(MASCOT_BLINK)은 living 항목을 **추가할 때만** 했다. 이미 연결된 뒤 마스코트 스티커의 포즈를 바꿔(예: 손 흔들기→잠자기) MASCOT_BLINK 밖으로 나가면, 그 등급에 안 걸려 있어도 실제 서버 검증이 `COLLECTIBLE_INVALID_PROJECT`로 거절했다(region 빈 strokes와 같은 무조건 거절 규칙, `rules.ts`). 포즈 변경 처리기에서 안 맞게 된 blink living 항목을 바로 지우고 한국어 안내를 띄운다.
+
+**P2(화면 결함 5건, 전부 고침):**
+2. `livingBoundingBox`가 region 점에는 1차의 crop 보정이 닿지 않아(렌더러에만 적용됨), 사진이 정사각이 아니거나 확대·이동됐으면 박스가 실제 움직이는 자리와 어긋나 게시 후 영역이 잘리거나 사라졌다. region 점·붓 반경(렌더러의 고정 `.1` 공식과 같은 값)·sway 동작 범위(pivot 둘레 회전)까지 `cropTransform`으로 출력 좌표로 옮겨 계산한다.
+3. 편집기 미리보기(`renderCollectible`)가 living 스티커를 frontFor의 정지 포즈 루프에서도 그리고 living 오버레이로 또 그려 이중 노출이었다(발행 경로의 `angleFramesFor`는 이미 뺐지만 미리보기는 안 뺐다). `livingStickerTargets`로 그 스티커를 frontFor에서도 뺀다.
+4. living 항목의 등급 체크박스(`gradeChecks`의 `data-living-grade`)에 change 처리기가 없어 체크해도 저장되는 `gradeIds`가 안 바뀌었다(효과·인사말 규칙엔 있던 처리기가 living만 빠짐). 같은 방식으로 `mutate`를 거치는 처리기를 추가했다.
+5. 스티커를 추가해도 living 대상 select가 그 자리에서 안 바뀌어, 추가한 스티커를 바로 living 대상으로 고를 수 없었다(스티커 삭제·순서 변경은 이미 다시 그렸는데 추가만 빠졌다). `sticker-add`도 `renderLivingItems()`를 부른다.
+6. 뷰어에서 동작 줄이기를 끄거나 숨긴 탭이 다시 보여도 living(독립 시계) 재생이 저절로 안 돌아왔다. 애니메이션 루프 전체를 `looping` 깃발 하나로 추적하는 `ensureLoop()`로 통일해, 동작 줄이기 해제·탭 복귀 양쪽에서 다시 걸되 이미 도는 중이면 중복으로 안 건다(재생·다시 보기·이야기 건너뛰기 등 기존 시작 지점도 전부 이 틀을 거치게 다시 짰다).
+- 새 `tests/site/collectible-pr310-p2b.test.mjs`: (1)은 포즈 변경 뒤 저장한 프로젝트로 실제 서버 검증(`run-collectible-rules.mjs`)까지 돌린다. (2)는 비정사각·확대 사진에서 `livingBoundingBox`가 cropTransform을 타는지(점 위치), 정사각 사진에서 붓 반경만큼 상자가 넓어지는지, sway 진폭이 클수록 상자가 넓어지는지 세 가지를 확인한다. (3)은 canvas `drawImage` 호출 수를 "living 스티커 있음 vs 없음"으로 비교해(측정값: 고치면 차이 0, 안 고치면 스티커 레이어 자체 draw 비용만큼 늘어 차이 2) 이중 노출을 잡는다. (4)(5)는 mini-dom 편집기 흐름으로 실제 저장되는 프로젝트·DOM을 확인한다. (6)은 `requestAnimationFrame` 호출 수를 스파이로 세어(열기 1회, 동작 줄이기 켜면 0 추가, 이미 도는 중 재생을 눌러도 0 추가, 동작 줄이기 끄면 정확히 1 추가, 탭 숨김 0 추가, 탭 복귀 정확히 1 추가) 재개와 "중복 없음"을 둘 다 확인한다.
+- **검증:** `node --test tests/site/*.test.mjs` 225/225(신규 6건), `bash tools/gate.sh` PASS. 6건 모두 스크래치 되돌리기로 대응 시험이 실제로 실패하는지 확인한 뒤 복구했다(P2 #6은 재개 처리기 2곳과 "looping 중복 방지 가드" 자체를 따로따로 되돌려 각각 실패를 확인했다). `apps/api`는 여전히 건드리지 않았다.
+- **`NOT_RUN`:** 1차와 같다(실기 증거는 이미 위에 있고, 2차의 블링크·박스·중복-루프 수정은 실제 브라우저로 다시 확인하지 않았다).
+- 다음 담당자가 할 일: 독립 교차 리뷰 재확인, 머지.
 
 ## 사진 수집품 제작기 PR 인수인계
 

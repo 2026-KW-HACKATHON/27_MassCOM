@@ -1,0 +1,9 @@
+[
+  {
+    "id": "GHSA-86w9-cpqp-85rv",
+    "package": "node-forge",
+    "allowedDependents": ["@expo/cli", "@expo/code-signing-certificates"],
+    "expires": "2026-10-31",
+    "reason": "Expo CLI(빌드 도구)의 코드 서명 인증서 경로에만 있고 앱 번들에 들어가지 않으며, expo-updates 코드 서명을 쓰지 않는다. 2026-10-02 공개 당시 고친 버전이 없다. D-066·B-030 참고."
+  }
+]
