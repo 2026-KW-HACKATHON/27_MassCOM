@@ -1005,8 +1005,10 @@ test('#295 showcase test-visit route exists only when wired, rate-limits, issues
   }
 });
 
-// #333: 서버 배선(옵션을 시연 배치에서만 넘기는 일)은 server.ts 시작 코드라 showcase/all-access.test.ts가 showcaseAllAccessOptions로,
-// 서비스 동작은 Postgres 통합 시험이 따로 증명한다. 여기서는 HTTP 층이 운영에서 시연 경로를 열지 않고 마일리지 응답을 그대로 전달하는지만 본다.
+// #333: 서버 배선(옵션을 시연 배치에서만 넘기는 일)은 server.ts 시작 코드라 showcase/all-access.test.ts(옵션 값)와
+// showcase/all-access-wiring.test.ts(server.ts 소스 배선)가, 서비스 동작은 Postgres 통합 시험이 따로 증명한다.
+// 여기서는 가짜 서비스를 쓰므로 HTTP 층이 시연 배치 신호가 없을 때 시연 경로를 열지 않고 서비스의 마일리지 응답을 그대로 전달하는지만 본다
+// (운영 응답에 showcaseBonus가 없다는 증명은 mileage-shop.postgres.integration.ts의 키 목록 시험이다).
 function mileageShopFixture(snapshot: MileageShopSnapshot, history: MileageShopHistory): MileageShopService {
   return {
     getShop: async () => snapshot,
@@ -1030,7 +1032,7 @@ async function startShopFixture(
   );
 }
 
-test('#333 operating server keeps /showcase/test-visits closed even with claim slots, and its shop response has no showcaseBonus', async (t) => {
+test('#333 without the showcase signal /showcase/test-visits stays 404 even with claim slots, and /shop relays the service mileage exactly as returned', async (t) => {
   const rules = { visit: 50, newStore: 100, series: 200 };
   const operatingSnapshot: MileageShopSnapshot = {
     mileage: { earned: 150, spent: 0, balance: 150, rules }, grades: [], items: [], avatar: null,
