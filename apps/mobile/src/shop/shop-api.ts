@@ -22,7 +22,8 @@ export type ShopGradeView = {
 export type ShopItemView = { id: string; grade: MileageGrade; name: string; owned: boolean };
 
 export type ShopSnapshot = {
-  mileage: { earned: number; spent: number; balance: number; rules: { visit: number; newStore: number; series: number } };
+  // showcaseBonus는 시연 서버가 balance에 따로 더해 준 체험 마일리지다(#333). 운영 응답에는 없고, 없으면 0으로 읽는다.
+  mileage: { earned: number; spent: number; balance: number; showcaseBonus?: number; rules: { visit: number; newStore: number; series: number } };
   grades: readonly ShopGradeView[];
   items: readonly ShopItemView[];
   avatar: string | null;
@@ -171,10 +172,12 @@ function parseMileage(value: unknown): ShopSnapshot['mileage'] {
   }
   if (!isRecord(value.rules) || !isNonNegativeInteger(value.rules.visit) || !isNonNegativeInteger(value.rules.newStore)
     || !isNonNegativeInteger(value.rules.series)) throw invalidResponse();
+  if (value.showcaseBonus !== undefined && !isNonNegativeInteger(value.showcaseBonus)) throw invalidResponse();
   return {
     earned: value.earned,
     spent: value.spent,
     balance: value.balance,
+    showcaseBonus: value.showcaseBonus ?? 0,
     rules: { visit: value.rules.visit, newStore: value.rules.newStore, series: value.rules.series },
   };
 }
