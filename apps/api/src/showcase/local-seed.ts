@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
+import { SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS } from './all-access.js';
 import { seedStoreCollectibles } from './store-collectibles.js';
 
 export const SHOWCASE_MERCHANT_ID = 'showcase-local-merchant';
@@ -215,6 +216,12 @@ export async function seedShowcaseFixtureData(
       );
       if (hasExisting) {
         assertFixtureMatches(existing, entry, now, Boolean(staffAccountId));
+        // #333: 이미 시드된 시연 캠페인(시작 = 시드 시각 - 24시간)도 다시 시드하면 시작 시각만 앞으로 당긴다. 늦추는 일은 없고
+        // 다른 열은 건드리지 않는다. 방문·보상·등록 수는 그대로다.
+        await client.query(
+          `UPDATE campaigns SET starts_at = $2 WHERE id = $1 AND starts_at > $2`,
+          [entry.campaignId, new Date(now.getTime() - SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS * 24 * 60 * 60 * 1000)],
+        );
         // 0036 전에 seed된 시연 점포는 동네·업종이 둘 다 비어 있을 때만 채운다(다른 값은 건드리지 않는다).
         await client.query(
           `UPDATE merchants SET neighborhood = $2, category = $3
@@ -238,7 +245,8 @@ export async function seedShowcaseFixtureData(
          ON CONFLICT (id) DO NOTHING`,
         [
           entry.campaignId, entry.merchantId, campaignTitle,
-          new Date(now.getTime() - 24 * 60 * 60 * 1000),
+          // 시연 전부 체험(#333): 테스트 방문을 서로 다른 날로 옮겨 세려면 캠페인이 충분히 일찍 시작해 있어야 한다(오늘 포함 30일).
+          new Date(now.getTime() - SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS * 24 * 60 * 60 * 1000),
           new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
         ],
       );
