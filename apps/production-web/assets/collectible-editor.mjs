@@ -1,6 +1,7 @@
 import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
+import { attachWaveform } from './collectible-waveform.mjs';
 import { collectibleErrorMessage, localError } from './collectible-errors.mjs';
 import { draftStorageKey, draftEditsOnly, applyDraftEdits, findMaterialConflict, findMaterialConflicts, materialConflictQuestion, materialSwapNotice, faceFitCrop, centerFillCrop } from './collectible-assist.mjs';
 
@@ -221,6 +222,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         <label class="ce-field">MP3 음성 · 30초, 1 MB까지<input data-control="audio" type="file" accept="audio/mpeg,.mp3"></label>
         <div class="ce-actions"><button type="button" data-action="record">직접 녹음 / 다시 녹음</button><button type="button" data-action="record-stop" disabled>녹음 종료</button><button type="button" data-action="audio-delete">음성 삭제</button></div>
         <audio data-view="audio" controls preload="metadata" aria-label="사장님 음성 미리 듣기"></audio>
+        <canvas data-view="waveform" width="320" height="56" aria-hidden="true" hidden></canvas>
         <p class="ce-help">녹음은 최대 30초예요. 마이크 권한을 거절해도 텍스트 인사말로 계속 만들 수 있어요. 소리는 재생 버튼을 누를 때 나와요.</p>
       </div></details>
       <details><summary>가게 이야기</summary><div class="ce-detail">
@@ -251,6 +253,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const view = name => container.querySelector(`[data-view="${name}"]`);
   const output = name => container.querySelector(`[data-value="${name}"]`);
   studio = createCollectibleStudio(container, { effectNames });
+  const waveform = attachWaveform(view('audio'), view('waveform'), { signal });
   const previewCanvas = view('preview'), cropCanvas = view('crop'), storyCanvas = view('story');
   for (const [name, label] of [['zoom', '사진 확대'], ['angle', '회전 각도'], ['thickness', '두께']]) control(name).setAttribute('aria-label', label);
   const notice = (text, error = false) => { if (!active) return; view('notice').textContent = text; view('notice').classList.toggle('ce-error', error); onNotice(text); };
@@ -324,7 +327,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     output('angle').textContent = `${project.angle}°`; output('thickness').textContent = `${project.thickness}`;
     output('living-period').textContent = `${project.living.periodMs}ms`;
     syncGreetingPreview();
-    const audio = view('audio'); audio.pause(); audio.src = project.audio?.dataUrl || ''; audio.hidden = !project.audio;
+    const audio = view('audio'); audio.pause(); audio.src = project.audio?.dataUrl || ''; audio.hidden = !project.audio; waveform.refresh();
     renderGrades(); renderStickers(); renderEffects(); renderMotionGrades(); renderGreetingOverrides(); renderStoryFrames(); renderLivingItems(); renderBrushTargetOptions();
     studio.sync(project, { dirty, wrapper }); syncPublishState();
   }
@@ -848,7 +851,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
           const dataUrl = await readFile(blob);
           if (!active || sequence !== audioImportSequence || recordingGeneration !== recordSequence || recorder !== currentRecorder || project !== sourceProject) return;
           mutate(() => { project.audio = { dataUrl, mimeType: blob.type.split(';')[0], durationSeconds }; });
-          view('audio').src = dataUrl; view('audio').hidden = false; notice('녹음을 저장할 준비가 됐어요. 미리 듣고, 초안 저장 또는 게시를 눌러 보관하세요.');
+          view('audio').src = dataUrl; view('audio').hidden = false; waveform.refresh(); notice('녹음을 저장할 준비가 됐어요. 미리 듣고, 초안 저장 또는 게시를 눌러 보관하세요.');
         } catch (error) { if (sequence === audioImportSequence && recordingGeneration === recordSequence && project === sourceProject) notice(error.message, true); }
         finally { if (sequence === audioImportSequence && recordingGeneration === recordSequence) recordingPending = false; updateMediaLocks(); }
       };
@@ -1069,7 +1072,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'angle-reset') { mutate(() => { project.angle = 0; }); control('angle').value = 0; output('angle').textContent = '0°'; return; }
     if (action === 'thickness-reset') { mutate(() => { project.thickness = 8; }); control('thickness').value = 8; output('thickness').textContent = '8'; return; }
     if (action === 'record') { await record(); return; }
-    if (action === 'audio-delete') { audioImportSequence++; stopRecording(true); recordingStream?.getTracks().forEach(track => track.stop()); recordingStream = null; mutate(() => { project.audio = null; }); view('audio').pause(); view('audio').src = ''; view('audio').hidden = true; return; }
+    if (action === 'audio-delete') { audioImportSequence++; stopRecording(true); recordingStream?.getTracks().forEach(track => track.stop()); recordingStream = null; mutate(() => { project.audio = null; }); view('audio').pause(); view('audio').src = ''; view('audio').hidden = true; waveform.refresh(); return; }
     if (action === 'story-frame-delete') { mutate(() => { project.story.frames.splice(Number(id), 1); }); renderStoryFrames(); return; }
     if (action === 'greeting-override-add') {
       const text = control('greeting-override-text').value.trim();
@@ -1158,7 +1161,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         const dataUrl = normalizeMp3DataUrl(await readFile(file)), durationSeconds = await inspectAudio(dataUrl);
         if (!active || sequence !== audioImportSequence || project !== sourceProject) return;
         if (durationSeconds > 30) throw new Error('음성은 30초 이하로 선택해 주세요.');
-        mutate(() => { project.audio = { dataUrl, mimeType: 'audio/mpeg', durationSeconds }; }); view('audio').src = dataUrl; view('audio').hidden = false; notice('MP3를 불러왔어요. 재생 버튼으로 미리 들어 보세요.'); return;
+        mutate(() => { project.audio = { dataUrl, mimeType: 'audio/mpeg', durationSeconds }; }); view('audio').src = dataUrl; view('audio').hidden = false; waveform.refresh(); notice('MP3를 불러왔어요. 재생 버튼으로 미리 들어 보세요.'); return;
       }
       if (field === 'story-files') {
         const sequence = ++storyImportSequence, sourceProject = project;
