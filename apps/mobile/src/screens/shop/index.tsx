@@ -106,7 +106,13 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
     }
   }
 
-  async function chooseAvatar(itemId: string | null) {
+  /**
+   * `targetReveal`는 이 호출이 어느 뽑기 결과 모달에서 시작됐는지(그리드에서 바로 불렀으면 undefined)를 들고
+   * 있다가, 응답이 왔을 때 그 모달이 **여전히** 떠 있을 때만 건드린다. 요청이 날아간 뒤 사용자가 모달을 닫거나
+   * (cross-review 3번) 그사이 다른 뽑기로 전혀 다른 결과 모달이 열렸으면(2차 확인 리뷰) 이 응답으로 그 엉뚱한
+   * 모달을 닫거나 그 안에 실패를 적지 않는다 — revealRef(최신 모달 참조)와 참조 비교로 판단한다.
+   */
+  async function chooseAvatar(itemId: string | null, targetReveal?: ShopRerollResult) {
     if (avatarBusy) return;
     setAvatarBusy(true);
     setNotice(undefined);
@@ -114,12 +120,9 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
     try {
       const { avatar } = await api.setAvatar(itemId);
       shop.applyAvatar(avatar);
-      setReveal(undefined);
+      if (targetReveal && revealRef.current === targetReveal) setReveal(undefined);
     } catch (error) {
-      // 뽑기 연출(DrawReveal)이 열려 있는 동안의 실패는 그 안에서 보여준다 — 뒤에 깔린 알림은 전체 화면 모달에
-      // 가려 아무도 못 본다(PR #312 리뷰 7번). 지금 실제로 모달이 열려 있는지는 revealRef로 읽는다: 요청이 날아간
-      // 뒤 모달이 닫혔으면(cross-review 3번) 화면 알림으로 보내야 한다.
-      if (revealRef.current) setAvatarError(shopErrorMessage(error));
+      if (targetReveal && revealRef.current === targetReveal) setAvatarError(shopErrorMessage(error));
       else setNotice({ tone: 'error', text: shopErrorMessage(error) });
     } finally {
       setAvatarBusy(false);
@@ -148,7 +151,10 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
       </View>
     </AppHeader>
   );
-  const sky = (body: ReactNode) => (
+  // extra는 뽑기 연출(DrawReveal)을 위한 자리: 다른 화면의 모달들(collection/index.tsx의 CollectibleReveal 등)과
+  // 같게 SkyScrollView 다음, 여전히 SkyBackdrop 안에 둔다(PR #312 QA) — 둘을 따로 반환하면 RefreshControl 등
+  // 머리글 배선을 통째로 또 써야 한다.
+  const sky = (body: ReactNode, extra?: ReactNode) => (
     <SkyBackdrop>
       <SkyScrollView
         header={header}
@@ -157,77 +163,82 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
       >
         {body}
       </SkyScrollView>
+      {extra}
     </SkyBackdrop>
   );
 
   if (!shop.snapshot) {
     return shop.status === 'error'
-      ? sky(<StateScene kind="error" title="상점을 불러오지 못했어요" body={shopErrorMessage(shop.error)} action={{ label: '다시 불러오기', onPress: () => { void shop.retry(); }, disabled: shop.retrying }} />)
+      ? sky(
+          <>
+            <StateScene kind="error" title="상점을 불러오지 못했어요" body={shopErrorMessage(shop.error)} action={{ label: '다시 불러오기', onPress: () => { void shop.retry(); }, disabled: shop.retrying }} />
+            {/* PR #312 QA: 오류 문구가 두 줄로 줄바꿈되면 마지막 줄과 "다시 불러오기" 버튼이 하단 플로팅 탭 바에
+                가려졌다. contentContainerStyle의 paddingBottom(clearance)이 이미 여백을 두지만, 긴 문구 뒤에는
+                그만큼을 한 번 더 비워 둔다. */}
+            <View style={{ height: clearance }} />
+          </>,
+        )
       : sky(<StateScene kind="loading" title="상점을 불러오는 중" />);
   }
 
   const { snapshot } = shop;
   const grid = buildFriendGrid(snapshot.items, snapshot.avatar);
 
-  return (
+  return sky(
     <>
-      {sky(
-        <>
-          <Stagger index={0}>
-            <FloatingCard style={styles.card}>
-              <View style={styles.mileageRow}>
-                <Image source={mileageCoinArt} style={styles.coin} accessible={false} accessibilityIgnoresInvertColors />
-                <Text accessibilityLabel={`마일리지 ${snapshot.mileage.balance}포인트`} style={styles.balance}>{formatMileage(snapshot.mileage.balance)}</Text>
-              </View>
-              <Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text>
-              <View accessibilityLiveRegion="polite">
-                {notice ? <Text style={notice.tone === 'success' ? styles.successMessage : styles.errorMessage}>{notice.text}</Text> : null}
-              </View>
-            </FloatingCard>
-          </Stagger>
+      <Stagger index={0}>
+        <FloatingCard style={styles.card}>
+          <View style={styles.mileageRow}>
+            <Image source={mileageCoinArt} style={styles.coin} accessible={false} accessibilityIgnoresInvertColors />
+            <Text accessibilityLabel={`마일리지 ${snapshot.mileage.balance}포인트`} style={styles.balance}>{formatMileage(snapshot.mileage.balance)}</Text>
+          </View>
+          <Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text>
+          <View accessibilityLiveRegion="polite">
+            {notice ? <Text style={notice.tone === 'success' ? styles.successMessage : styles.errorMessage}>{notice.text}</Text> : null}
+          </View>
+        </FloatingCard>
+      </Stagger>
 
-          <Stagger index={1}>
-            <HistorySection api={api} refreshToken={historyRefreshToken} />
-          </Stagger>
+      <Stagger index={1}>
+        <HistorySection api={api} refreshToken={historyRefreshToken} />
+      </Stagger>
 
-          <Stagger index={2}>
-            <View style={styles.section}>
-              <Text accessibilityRole="header" style={styles.sectionTitle}>재뽑기권</Text>
-              {snapshot.grades.map((grade) => (
-                <GradeRow
-                  key={grade.grade}
-                  grade={grade}
-                  balance={snapshot.mileage.balance}
-                  busy={busyGrade === grade.grade}
-                  purchaseBusy={Boolean(busyGrade)}
-                  onBuy={() => void buy(grade)}
-                  styles={styles}
-                />
-              ))}
-            </View>
-          </Stagger>
+      <Stagger index={2}>
+        <View style={styles.section}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>재뽑기권</Text>
+          {snapshot.grades.map((grade) => (
+            <GradeRow
+              key={grade.grade}
+              grade={grade}
+              balance={snapshot.mileage.balance}
+              busy={busyGrade === grade.grade}
+              purchaseBusy={Boolean(busyGrade)}
+              onBuy={() => void buy(grade)}
+              styles={styles}
+            />
+          ))}
+        </View>
+      </Stagger>
 
-          <Stagger index={3}>
-            <View style={styles.section}>
-              <Text accessibilityRole="header" style={styles.sectionTitle}>가게 친구</Text>
-              <View style={styles.grid}>
-                {grid.map((cell) => <FriendCell key={cell.id} cell={cell} onPress={() => confirmAvatar(cell)} styles={styles} />)}
-              </View>
-            </View>
-          </Stagger>
-        </>,
-      )}
-      {reveal ? (
-        <DrawReveal
-          result={reveal}
-          isAvatar={snapshot.avatar === reveal.item.id}
-          avatarBusy={avatarBusy}
-          avatarError={avatarError}
-          onSetAvatar={() => void chooseAvatar(reveal.item.id)}
-          onClose={() => { setReveal(undefined); setAvatarError(undefined); }}
-        />
-      ) : null}
-    </>
+      <Stagger index={3}>
+        <View style={styles.section}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>가게 친구</Text>
+          <View style={styles.grid}>
+            {grid.map((cell) => <FriendCell key={cell.id} cell={cell} onPress={() => confirmAvatar(cell)} styles={styles} />)}
+          </View>
+        </View>
+      </Stagger>
+    </>,
+    reveal ? (
+      <DrawReveal
+        result={reveal}
+        isAvatar={snapshot.avatar === reveal.item.id}
+        avatarBusy={avatarBusy}
+        avatarError={avatarError}
+        onSetAvatar={() => void chooseAvatar(reveal.item.id, reveal)}
+        onClose={() => { setReveal(undefined); setAvatarError(undefined); }}
+      />
+    ) : null,
   );
 }
 

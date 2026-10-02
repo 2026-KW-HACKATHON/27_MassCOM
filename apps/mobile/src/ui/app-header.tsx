@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TabGlyph } from '../navigation/tab-glyph';
 import { uiMetrics } from '../theme/ui-metrics';
 import { worldForScheme } from '../theme/world';
-import { isLargeText } from './large-text';
 import { mascotArt } from './mascot-art';
 import { SkyArt } from './sky-art';
 import { skyArtHeight } from './sky-art-size';
@@ -30,10 +29,8 @@ type Props = {
 export function AppHeader({ title, subtitle, children, avatarArt, showFriendsEntry }: Props) {
   const styles = useUiStyles();
   const insets = useSafeAreaInsets();
-  const { width, fontScale } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const world = worldForScheme(useColorScheme());
-  // At 150% text and up the subtitle goes: the title and the hero carry the screen, and the header must not fill the first page.
-  const large = isLargeText(fontScale);
   return (
     <View style={{ minHeight: skyArtHeight(width), marginBottom: 8 }}>
       <SkyArt />
@@ -45,7 +42,9 @@ export function AppHeader({ title, subtitle, children, avatarArt, showFriendsEnt
       >
         <View style={[styles.headerPanel, { flex: 1 }]}>
           <Text accessibilityRole="header" maxFontSizeMultiplier={1.6} style={styles.headerTitle}>{title}</Text>
-          {subtitle && !large ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
+          {/* 큰 글자에서도 부제를 숨기지 않는다 — 대신 줄바꿈한다(PR #312 QA: 2.0배에서 사라지던 문제). 줄 수를
+              제한하지 않아 Text가 원래 하듯 자유롭게 줄바꿈하고, 제목과 같은 1.6배로만 더 커지는 것을 막는다. */}
+          {subtitle ? <Text maxFontSizeMultiplier={1.6} style={styles.headerSubtitle}>{subtitle}</Text> : null}
         </View>
         {showFriendsEntry ? (
           <Link href="/friends" asChild>

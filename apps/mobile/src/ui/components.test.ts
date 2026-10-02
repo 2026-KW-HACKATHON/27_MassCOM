@@ -66,11 +66,14 @@ test('the header keeps account tools one tap away, and says so under the avatar'
   assert.match(header, /styles\.avatarLabelPill[\s\S]*?styles\.avatarLabel[^>]*>내 정보</);
 });
 
-test('at 150% text and up the header keeps the essentials: a capped title, no subtitle, a small hero', () => {
+test('at 150% text and up the header keeps a capped title and a small hero; the subtitle wraps instead of disappearing', () => {
   const header = read('app-header.tsx');
-  assert.match(header, /isLargeText\(fontScale\)/);
   assert.match(header, /maxFontSizeMultiplier=\{1\.6\}[^>]*>\{title\}/);
-  assert.match(header, /subtitle && !large/);
+  // PR #312 QA: at 2.0x the subtitle used to vanish outright instead of wrapping. It always renders now (capped at the
+  // same 1.6x as the title) and is never given numberOfLines/a fixed height, so Text wraps it freely and the header's
+  // own minHeight (not a fixed height) grows to fit.
+  assert.match(header, /\{subtitle \? <Text maxFontSizeMultiplier=\{1\.6\}[^>]*>\{subtitle\}<\/Text> : null\}/);
+  assert.doesNotMatch(header, /isLargeText|numberOfLines/);
   assert.match(readSource('screens/merchant-list/index.tsx'), /size=\{heroMascotSize\(fontScale, 120\)\}/);
   assert.match(readSource('screens/claim-redeem/index.tsx'), /size=\{heroMascotSize\(fontScale, 112\)\}/);
 });
@@ -131,6 +134,13 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
     }
   }
   assert.equal(controls, 8, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport, shop');
+  // PR #312 QA: Android의 elevation은 JSX 순서와 별개로 Z 스택을 정한다. 카드류(ui/styles.ts의 card)가 쓰는
+  // elevation보다 스크림의 elevation이 뚜렷이 더 커야, 스크롤이 지난 카드가 스크림 위로 올라와 그 텍스트가
+  // 상태 바 아이콘 자리에 다시 비치지 않는다.
+  const cardElevation = Number(readSource('ui/styles.ts').match(/card: \{[\s\S]*?elevation: (\d+)/)?.[1]);
+  const scrimElevation = Number(scrim.match(/scrim: \{[\s\S]*?elevation: (\d+)/)?.[1]);
+  assert.ok(Number.isInteger(cardElevation) && cardElevation > 0, 'base card elevation found');
+  assert.ok(scrimElevation > cardElevation, `scrim elevation (${scrimElevation}) must exceed every card's (${cardElevation})`);
 });
 
 test('the sky art is the top of the scroll content: the headers carry it and SkyBackdrop is only the page colour', () => {

@@ -44,29 +44,49 @@ test('PR #312 "대표 해제": 가진 친구는(대표든 아니든) 탭할 수 
   assert.match(confirmFn, /'대표 해제'/);
   assert.match(confirmFn, /onPress: \(\) => void chooseAvatar\(null\)/);
   assert.match(confirmFn, /onPress: \(\) => void chooseAvatar\(cell\.id\)/);
-  assert.match(screen, /async function chooseAvatar\(itemId: string \| null\)/);
+  assert.match(screen, /async function chooseAvatar\(itemId: string \| null, targetReveal\?: ShopRerollResult\)/);
   const friendCell = screen.slice(screen.indexOf('function FriendCell('));
   assert.match(friendCell, /accessibilityRole=\{cell\.owned \? 'button' : undefined\}/);
   assert.match(friendCell, /disabled=\{!cell\.owned\}/);
 });
 
-test('PR #312 리뷰 7번: 뽑기 연출이 열려 있는 동안 대표 설정 실패는 그 모달 안에서 보여준다(뒤에 깔린 알림이 아님)', () => {
+test('PR #312 리뷰 7번 + 2차 confirm-review: 대표 설정 성공·실패 둘 다, 그 응답이 시작된 모달이 아직 떠 있을 때만 그 모달을 건드린다', () => {
+  // 그리드에서 바로 부르면(confirmAvatar) targetReveal이 없어 reveal을 전혀 건드리지 않는다 — 그 사이 열린
+  // 전혀 다른 뽑기 결과 모달을 실수로 닫거나 그 안에 엉뚱한 실패를 적지 않는다(2차 confirm-review: "a delayed
+  // avatar-set success closes a NEWER draw's result modal"). 뽑기 연출에서 부르면(reveal.item.id, reveal) 그
+  // reveal 객체 자체를 넘겨, 응답이 왔을 때 revealRef.current가 여전히 그 객체일 때만 닫거나 실패를 적는다.
   const chooseFn = screen.slice(screen.indexOf('async function chooseAvatar('), screen.indexOf('function confirmAvatar('));
-  assert.match(chooseFn, /if \(revealRef\.current\) setAvatarError\(shopErrorMessage\(error\)\);/);
+  assert.match(chooseFn, /if \(targetReveal && revealRef\.current === targetReveal\) setReveal\(undefined\);/);
+  assert.match(chooseFn, /if \(targetReveal && revealRef\.current === targetReveal\) setAvatarError\(shopErrorMessage\(error\)\);/);
   assert.match(chooseFn, /else setNotice\(\{ tone: 'error', text: shopErrorMessage\(error\) \}\);/);
+  assert.match(screen, /onSetAvatar=\{\(\) => void chooseAvatar\(reveal\.item\.id, reveal\)\}/);
   assert.match(screen, /avatarError=\{avatarError\}/);
   assert.match(screen, /onClose=\{\(\) => \{ setReveal\(undefined\); setAvatarError\(undefined\); \}\}/);
   assert.match(reveal, /avatarError\?: string;/);
   assert.match(reveal, /\{avatarError \? <Text accessibilityLiveRegion="polite"/);
 });
 
-test('cross-review 3번: 요청이 날아간 뒤 모달이 닫혀도, 실패는 그 순간의 실제 모달 상태(ref)로 판단한다', () => {
-  // revealRef는 reveal이 바뀔 때마다 동기화돼, chooseAvatar의 catch가 요청을 시작할 때 캡처한 낡은 reveal이
-  // 아니라 응답이 왔을 때의 실제 모달 상태를 읽는다(friends/index.tsx의 myCodeRef와 같은 패턴).
+test('cross-review 3번: revealRef는 reveal이 바뀔 때마다 동기화돼 늦게 끝난 요청이 낡은 모달 상태를 읽지 않는다', () => {
   assert.match(screen, /const revealRef = useRef\(reveal\);/);
   assert.match(screen, /useEffect\(\(\) => \{ revealRef\.current = reveal; \}, \[reveal\]\);/);
   const chooseFn = screen.slice(screen.indexOf('async function chooseAvatar('), screen.indexOf('function confirmAvatar('));
-  assert.doesNotMatch(chooseFn, /if \(reveal\)/, 'catch는 reveal을 직접 읽으면 안 된다(요청 시작 시점의 낡은 값)');
+  assert.doesNotMatch(chooseFn, /if \(reveal\)/, 'catch/then은 reveal을 직접 읽으면 안 된다(요청 시작 시점의 낡은 값)');
+});
+
+test('PR #312 QA: 오류 문구가 줄바꿈돼도 "다시 불러오기" 버튼이 하단 탭 바에 가려지지 않게 clearance를 한 번 더 비워 둔다', () => {
+  const errorBranch = screen.slice(screen.indexOf("shop.status === 'error'"), screen.indexOf(": sky(<StateScene kind=\"loading\""));
+  assert.match(errorBranch, /<StateScene kind="error" title="상점을 불러오지 못했어요"/);
+  assert.match(errorBranch, /<View style=\{\{ height: clearance \}\} \/>/);
+});
+
+test('PR #312 QA: 뽑기 연출은 다른 화면의 모달들처럼 SkyBackdrop 안, SkyScrollView의 형제로 둔다(RefreshControl 중복 없이)', () => {
+  const skyFn = screen.slice(screen.indexOf('const sky = (body'), screen.indexOf('if (!shop.snapshot)'));
+  assert.match(skyFn, /<SkyBackdrop>\s*<SkyScrollView/);
+  assert.match(skyFn, /<\/SkyScrollView>\s*\{extra\}\s*<\/SkyBackdrop>/, 'extra(모달)는 SkyScrollView 다음, 여전히 SkyBackdrop 안에 있다');
+  assert.match(screen, /return sky\(\s*<>/, '성공 화면은 sky()의 두 번째 인자로 DrawReveal을 넘긴다(머리글·RefreshControl 중복 없음)');
+  assert.match(screen, /<DrawReveal[\s\S]*?\/>\s*\) : null,\s*\);/);
+  // RefreshControl 배선은 sky() 안에 한 번만 있다 — 되돌리면 중복돼 ui/components.test.ts의 전체 개수 시험이 깨진다.
+  assert.equal((screen.match(/<RefreshControl/g) ?? []).length, 1);
 });
 
 test('PR #312 리뷰 6번: 구매 성공과 당겨서 새로고침 둘 다 사용 내역의 첫 페이지를 다시 불러오게 한다', () => {

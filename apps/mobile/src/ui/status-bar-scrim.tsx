@@ -43,5 +43,9 @@ export function StatusBarScrim({ scrollY }: { scrollY: SharedValue<number> }) {
 }
 
 const styles = StyleSheet.create({
-  scrim: { position: 'absolute', top: 0, left: 0, right: 0 },
+  // elevation은 paint order와 별개로 Android의 Z 스택을 정한다: 뒤에 그려지는(JSX 순서상 뒤) 뷰라도 elevation이
+  // 더 큰 형제(카드류는 ui/styles.ts의 card에서 elevation:3·2를 쓴다)가 있으면 그 카드가 이 스크림 위로 올라와
+  // 스크롤이 지난 카드 텍스트가 상태 바 아이콘 자리에 다시 비치는 것처럼 보일 수 있다. 이 저장소에서 쓰는 카드류
+  // elevation보다 뚜렷이 높은 값을 줘 항상 맨 위에 그려지게 한다.
+  scrim: { position: 'absolute', top: 0, left: 0, right: 0, elevation: 24 },
 });
