@@ -1,6 +1,9 @@
-// 시연 전부 체험(#333): 시연 서버에서만 쓰는 상수와 순수 규칙. 운영 코드 경로는 이 파일의 값을 하나도 읽지 않는다
-// (server.ts가 showcaseDeployment일 때만 서비스 옵션으로 넘긴다). 운영 규칙(D-004 하루 한 번 진행, D-006 점포·캠페인 기간,
-// D-063 마일리지 적립)은 그대로이고, 시연 테스트 방문 발급자(SHOWCASE_TEST_VISIT_ISSUER) 슬롯에만 아래 규칙이 붙는다.
+// 시연 전부 체험(#333): 시연 서버에서만 쓰는 상수와 순수 규칙. 운영 규칙(D-004 하루 한 번 진행, D-006 점포·캠페인 기간,
+// D-063 마일리지 상점 적립)은 그대로이고, 시연 테스트 방문 발급자(SHOWCASE_TEST_VISIT_ISSUER) 슬롯에만 아래 규칙이 붙는다.
+// 이 파일의 값은 showcaseDeployment가 참일 때만 런타임에 읽힌다: server.ts는 showcaseAllAccessOptions(Boolean(showcaseDeployment))로
+// 서비스 옵션을 만들어 넘기고(운영은 빈 객체), 서비스의 날짜 규칙 함수도 그 옵션이 켜진 분기에서만 불린다. 예외는 두 가지다 —
+// SHOWCASE_TEST_VISIT_LIMIT_PER_HOUR는 운영 서버에서도 한도 객체를 만들 때 읽히지만 시연 전용 라우트(운영에서는 404)만 그 한도를 쓰고,
+// SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS는 시연 시드 명령에서만 읽힌다. server.ts 배선은 all-access-wiring.test.ts가 고정한다.
 
 // 마일리지 상점 전체(브론즈 3종 100·실버 3종 200·골드 3종 400 = 2,100)를 몇 번이고 뽑아 볼 수 있는 시연 보너스.
 export const SHOWCASE_BONUS_MILEAGE = 100_000;
