@@ -37,24 +37,31 @@ async function decodeSamples(buffer) {
   const Context = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
   if (!Context) throw new Error('NO_AUDIO_DECODER');
   const decoded = await new Context(1, 1, 44100).decodeAudioData(buffer);
-  return decoded.getChannelData(0);
+  return { samples: decoded.getChannelData(0), duration: decoded.duration };
 }
 
+/** decode는 표본 배열 또는 { samples, duration }을 돌려준다. MediaRecorder 녹음은 audio.duration이 Infinity일 수 있어 디코딩한 길이로 진행률을 센다. */
 export function attachWaveform(audio, canvas, { decode = decodeSamples, signal } = {}) {
-  let values = [], sequence = 0;
-  const redraw = () => drawWaveform(canvas, values, audio.duration ? audio.currentTime / audio.duration : 0);
+  let values = [], decodedSeconds = 0, shownSource = null, sequence = 0;
+  const redraw = () => {
+    const total = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : decodedSeconds;
+    drawWaveform(canvas, values, total > 0 ? audio.currentTime / total : 0);
+  };
   audio.addEventListener('timeupdate', redraw, { signal });
   audio.addEventListener('ended', redraw, { signal });
   return {
     async refresh() {
       const current = ++sequence;
-      values = []; canvas.hidden = true;
-      const buffer = dataUrlBytes(audio.getAttribute('src') || '');
-      if (!buffer) return;
+      const source = audio.getAttribute('src') || audio.src || '';
+      if (source && source === shownSource) { redraw(); return; }
+      values = []; decodedSeconds = 0; shownSource = null; canvas.hidden = true;
       try {
-        const samples = await decode(buffer);
+        const buffer = dataUrlBytes(source);
+        if (!buffer) return;
+        const decoded = await decode(buffer);
         if (current !== sequence) return;
-        values = peaks(samples, BARS); canvas.hidden = values.length === 0; redraw();
+        values = peaks(decoded?.samples ?? decoded, BARS); decodedSeconds = Number(decoded?.duration) || 0;
+        canvas.hidden = values.length === 0; shownSource = values.length ? source : null; redraw();
       } catch {
         if (current === sequence) canvas.hidden = true;
       }
