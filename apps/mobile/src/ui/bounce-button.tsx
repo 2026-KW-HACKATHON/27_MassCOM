@@ -4,6 +4,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import { lightHaptic } from '../gamification/native-effects';
 import { motion } from '../motion/timing';
 import { useMotionEnabled } from '../motion/use-motion';
+import { playUiSound } from '../sound/ui-sounds';
 import { useUiStyles } from './use-ui-styles';
 
 type Props = {
@@ -31,7 +32,7 @@ export function BounceButton({ label, onPress, variant = 'primary', disabled }: 
       disabled={disabled}
       onPressIn={() => { if (enabled) scale.set(withSpring(motion.pressScale, motion.spring)); }}
       onPressOut={() => { if (enabled) scale.set(withSpring(1, motion.spring)); }}
-      onPress={() => { void lightHaptic(); onPress(); }}
+      onPress={() => { void lightHaptic(); playUiSound('tap'); onPress(); }}
     >
       {({ pressed }) => (
         <Animated.View

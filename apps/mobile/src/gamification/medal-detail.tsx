@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { focusForAccessibility } from '@/accessibility/focus-component';
 import { tierColors } from '@/theme/medal-colors';
 
 import type { Medal } from './badge-api';
@@ -42,7 +43,7 @@ function DetailBody({ medal, variant, onClose }: { medal: Medal; variant: ShareV
 
   useEffect(() => {
     const focus = setTimeout(() => {
-      if (heading.current) AccessibilityInfo.sendAccessibilityEvent(heading.current, 'focus');
+      if (heading.current) focusForAccessibility(heading.current);
     }, 350);
     return () => clearTimeout(focus);
   }, []);

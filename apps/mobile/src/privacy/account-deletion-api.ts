@@ -34,7 +34,8 @@ export class AccountDeletionApiClient {
 
   constructor(private readonly options: Options) {
     this.apiUrl = normalizePublicApiUrl(options.apiUrl);
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    // Called later as this.fetchImpl(...); see auth-api.ts for why this must be bound (web only).
+    this.fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
   }
 
   async requestDeletion(): Promise<AccountDeletionResult> {

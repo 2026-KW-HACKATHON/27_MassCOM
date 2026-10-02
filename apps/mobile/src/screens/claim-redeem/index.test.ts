@@ -28,7 +28,7 @@ test('a code check result reaches the preview only through the current-request c
   assert.match(inspect, /setPendingRedeemToken\(accepted\.pendingRedeemToken\);/);
   // The raw response never goes to state directly, and a stale failure shows no message.
   assert.doesNotMatch(inspect, /setPreview\(next\)|setPendingRedeemToken\(code\)/);
-  assert.match(inspect, /if \(inspectGate\.isCurrent\(request\)\) setMessage\(messageFor\(error\)\);/);
+  assert.match(inspect, /if \(inspectGate\.isCurrent\(request\)\) \{\s*playUiSound\('error'\);\s*setMessage\(messageFor\(error\)\);\s*\}/);
   // The busy flag is always released, so a dropped answer never leaves the buttons disabled.
   assert.match(inspect, /finally \{[^}]*setBusy\(false\);/);
 });
@@ -57,7 +57,7 @@ test('"받은 수집품 보기"는 받은 보상 중 수집품 외형이 실제�
 });
 
 test('#295 테스트 방문 만들기는 시연·개발 빌드에만 보이고 운영 패키지는 섹션 자체가 없다', () => {
-  assert.match(screen, /canShowTestVisitSection\(Application\.applicationId\)/);
+  assert.match(screen, /canShowTestVisitSection\(getAppPackageId\(\)\)/);
   assert.match(screen, /\{showTestVisitSection \? \(/);
 });
 

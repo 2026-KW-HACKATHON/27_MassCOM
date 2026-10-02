@@ -22,6 +22,10 @@ function validateBuildEnvironment(variant, environment) {
   if (!['development', 'showcase', 'production'].includes(selectedVariant)) {
     throw new Error('UNSUPPORTED_APP_VARIANT');
   }
+  // 웹 내보내기는 시연 전용이다: masscom.kr(운영)과 겹치지 않는 별도 origin(demo-api.masscom.kr/play)에만 둔다.
+  if (environment.MASSCOM_WEB_BASE_URL?.trim() && selectedVariant !== 'showcase') {
+    throw new Error(`${selectedVariant} build rejects MASSCOM_WEB_BASE_URL`);
+  }
   if (selectedVariant === 'development') return;
 
   const rawApiUrl = environment.EXPO_PUBLIC_API_URL?.trim();

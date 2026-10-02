@@ -124,9 +124,9 @@ test('Android back closes the sheet only while the map is the focused screen, an
 test('screen reader focus moves to the shop name when a card opens, and back to the pin that opened it when it closes', () => {
   assert.match(sheet, /const title = useRef<Text>\(null\)/);
   assert.match(sheet, /<Text ref=\{title\} accessibilityRole="header"/);
-  const focus = callBodies(sheet, 'useEffect').find((effect) => effect.includes('sendAccessibilityEvent'));
+  const focus = callBodies(sheet, 'useEffect').find((effect) => effect.includes('focusForAccessibility'));
   assert.ok(focus, 'the sheet moves focus');
-  assert.match(focus, /sendAccessibilityEvent\(title\.current, 'focus'\)/);
+  assert.match(focus, /focusForAccessibility\(title\.current\)/);
   assert.match(focus, /setTimeout\(/);
   assert.match(focus, /clearTimeout\(/);
   assert.match(focus, /\[pin\.merchantId\]/);
@@ -136,7 +136,7 @@ test('screen reader focus moves to the shop name when a card opens, and back to 
   const back = callBodies(screen, 'useEffect').find((effect) => effect.includes('returnFocusTo.current'));
   assert.ok(back, 'an effect hands focus back');
   assert.match(back, /selectedId !== undefined/);
-  assert.match(back, /sendAccessibilityEvent\(opener, 'focus'\)/);
+  assert.match(back, /focusForAccessibility\(opener\)/);
   assert.match(screen, /pressableRef=\{openerRef\(pin\.merchantId\)\}/);
   assert.match(screen, /ref=\{openerRef\(item\.merchantId\)\}/);
   assert.match(pin, /ref=\{pressableRef\}/);

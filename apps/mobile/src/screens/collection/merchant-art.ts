@@ -1,4 +1,4 @@
-import * as Application from 'expo-application';
+import { getAppPackageId } from '@/config/app-identity';
 import type { ImageSourcePropType } from 'react-native';
 
 import { chooseMerchantArt } from '@/merchant-art/art-source';
@@ -19,7 +19,7 @@ export type MerchantArt = { source: ImageSourcePropType; fromServer: boolean };
  */
 export function merchantArt(merchant: MerchantArtSubject, apiUrl?: string): MerchantArt | undefined {
   const { id: merchantId, artUrl } = merchant;
-  const key = showcaseCollectibleArtKey(Application.applicationId, merchantId);
+  const key = showcaseCollectibleArtKey(getAppPackageId(), merchantId);
   const chosen = chooseMerchantArt<ImageSourcePropType>({ artUrl, apiUrl, bundled: key ? showcaseCollectibleArtSource(key) : undefined });
   return chosen ? { source: chosen.source, fromServer: chosen.fromServer } : undefined;
 }

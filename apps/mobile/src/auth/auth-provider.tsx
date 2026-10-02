@@ -1,15 +1,17 @@
-import * as Application from 'expo-application';
+import { getAppPackageId } from '@/config/app-identity';
 import Constants from 'expo-constants';
-import * as SecureStore from 'expo-secure-store';
 import { createContext, type PropsWithChildren, use, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 
 import type { AccountCredential } from './account-credential';
 import { AuthApiClient } from './auth-api';
 import { getAuthConfiguration } from './auth-config';
 import { createAuthController, type AuthState } from './auth-controller';
 import { nativeGoogleSignIn } from './google-sign-in-runtime';
+import { platformSecureStore } from './platform-secure-store';
 import { createSessionStore, type StoredAuthSessionV1 } from './session-store';
 import { demoRuntimeConfig, createDemoCredential, isDevelopmentDemoBuild } from '@/config/demo-runtime';
+import { isApprovedGuestTrialOrigin } from '@/config/guest-trial-origin';
 import { getPublicApiConfig } from '@/config/public-api';
 import { resolveRuntimeIdentity } from '@/config/showcase-identity';
 import { clearPendingFriendLink } from '@/friends/pending-friend-link';
@@ -28,7 +30,7 @@ type DemoState = {
 
 export type AuthSessionState = AuthState | DemoState | {
   status: 'signedOut';
-  reason: 'CONFIGURATION_REQUIRED';
+  reason: 'CONFIGURATION_REQUIRED' | 'WEB_SHOWCASE_ONLY';
 };
 
 type AppKitInstance = NonNullable<ReturnType<typeof createAccountScopedAppKit>>;
@@ -40,8 +42,10 @@ export type AuthSessionContextValue = {
   session?: StoredAuthSessionV1;
   appKit: AppKitInstance | null;
   canSignIn: boolean;
+  canStartGuestTrial: boolean;
   destructiveReauthentication: 'BLOCKED' | 'DEMO_ALLOWED';
   signIn(): Promise<void>;
+  signInAsGuest(): Promise<void>;
   logout(): Promise<void>;
   switchAccount(): Promise<void>;
   invalidateSession(): Promise<void>;
@@ -50,7 +54,7 @@ export type AuthSessionContextValue = {
 const AuthSessionContext = createContext<AuthSessionContextValue | undefined>(undefined);
 
 const runtimeIdentity = resolveRuntimeIdentity(
-  Application.applicationId,
+  getAppPackageId(),
   Constants.expoConfig?.extra,
   {
     googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
@@ -63,11 +67,20 @@ const authConfiguration = getAuthConfiguration({
 const publicApiConfiguration = getPublicApiConfig({
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
 });
-const developmentBuild = isDevelopmentDemoBuild(Application.applicationId);
-const productionAuthAvailable = authConfiguration.available && publicApiConfiguration.available;
+const developmentBuild = isDevelopmentDemoBuild(getAppPackageId());
+// Google 로그인은 네이티브 전용(react-native-nitro-google-signin에 웹 빌드가 없다), 체험 로그인은 웹 전용
+// (운영·시연 Android 앱에는 체험 버튼을 두지 않는다, Issue #309).
+const isWeb = Platform.OS === 'web';
+const productionAuthAvailable = !isWeb && authConfiguration.available && publicApiConfiguration.available;
+// 체험 로그인은 시연 웹 빌드 전용이다(PR #313 리뷰): 패키지와 API origin이 서로 맞물려야 한다
+// (실제 시연 빌드 ↔ 실제 시연 API, 로컬 개발 빌드 ↔ loopback API만). 둘 중 하나라도 안 맞으면 웹에서도
+// 체험 로그인을 열지 않는다 — 안 맞는 조합으로 web export 자체가 안 되는 build-environment 검사와
+// 별개로, 로컬 `expo start --web` 같은 경로를 통해서도 새지 않게 막는 2차 방어선이다.
+const guestTrialAvailable = isWeb && publicApiConfiguration.available
+  && isApprovedGuestTrialOrigin(getAppPackageId(), publicApiConfiguration.apiUrl);
 
 function initialAuthState(): AuthSessionState {
-  if (productionAuthAvailable) return { status: 'restoring' };
+  if (productionAuthAvailable || guestTrialAvailable) return { status: 'restoring' };
   if (developmentBuild && demoRuntimeConfig.customerAccountId) {
     return {
       status: 'demo',
@@ -78,7 +91,7 @@ function initialAuthState(): AuthSessionState {
       ),
     };
   }
-  return { status: 'signedOut', reason: 'CONFIGURATION_REQUIRED' };
+  return { status: 'signedOut', reason: isWeb ? 'WEB_SHOWCASE_ONLY' : 'CONFIGURATION_REQUIRED' };
 }
 
 export function AuthSessionProvider({ children }: PropsWithChildren) {
@@ -87,11 +100,16 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
   const lastAppKitRef = useRef<AppKitInstance | null>(null);
 
   useEffect(() => {
-    if (!authConfiguration.available || !publicApiConfiguration.available) return;
-
-    nativeGoogleSignIn.configure(authConfiguration.webClientId);
+    if (!publicApiConfiguration.available) return;
+    if (isWeb) {
+      // 체험 로그인은 승인된 패키지·origin 조합에서만 연다 — 아니면 클라이언트 자체를 만들지 않는다.
+      if (!guestTrialAvailable) return;
+    } else {
+      if (!authConfiguration.available) return;
+      nativeGoogleSignIn.configure(authConfiguration.webClientId);
+    }
     const controller = createAuthController({
-      sessionStore: createSessionStore(SecureStore),
+      sessionStore: createSessionStore(platformSecureStore),
       authApi: new AuthApiClient({ apiUrl: publicApiConfiguration.apiUrl }),
       google: nativeGoogleSignIn,
       clearWalletSession: async () => {
@@ -157,6 +175,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     session,
     appKit,
     canSignIn: productionAuthAvailable,
+    canStartGuestTrial: guestTrialAvailable,
     destructiveReauthentication:
       state.status === 'demo' && state.credential.allowInsecureReauthentication
         ? 'DEMO_ALLOWED'
@@ -164,6 +183,10 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     async signIn() {
       if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
       await controllerRef.current.signIn();
+    },
+    async signInAsGuest() {
+      if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
+      await controllerRef.current.signInAsGuest();
     },
     async logout() {
       // A friend link opened under this account must not be offered to whoever signs in next.

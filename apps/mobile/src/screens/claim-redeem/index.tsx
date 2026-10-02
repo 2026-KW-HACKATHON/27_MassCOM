@@ -1,5 +1,5 @@
+import { getAppPackageId } from '@/config/app-identity';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Application from 'expo-application';
 import { Link, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
@@ -24,6 +24,7 @@ import {
 import { createBadgeApiClient, type BadgeBook } from '@/gamification/badge-api';
 import { diffBadgeBooks } from '@/gamification/badge-rules';
 import { progressNote } from '@/commerce/progress-note';
+import { playUiSound } from '@/sound/ui-sounds';
 import { Celebration, type CelebrationContent } from '@/gamification/celebration';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
 import { canShowTestVisitSection } from '@/navigation/showcase-entry';
@@ -31,6 +32,7 @@ import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
+import { canUseCamera } from '@/ui/can-use-camera';
 import { FloatingCard } from '@/ui/floating-card';
 import { heroMascotSize } from '@/ui/large-text';
 import { Mascot } from '@/ui/mascot';
@@ -87,7 +89,7 @@ export function ClaimRedeemScreen({
   const [celebration, setCelebration] = useState<CelebrationContent>();
 
   // #295 "테스트 방문 만들기": 시연 앱과 로컬 개발 빌드에만 보인다. 운영 패키지는 섹션 자체가 없다.
-  const showTestVisitSection = canShowTestVisitSection(Application.applicationId);
+  const showTestVisitSection = canShowTestVisitSection(getAppPackageId());
   const [testVisitMerchants, setTestVisitMerchants] = useState<readonly PublicMerchant[]>([]);
   const [selectedTestVisitMerchantId, setSelectedTestVisitMerchantId] = useState<string>();
   const [testVisitBusy, setTestVisitBusy] = useState(false);
@@ -207,7 +209,10 @@ export function ClaimRedeemScreen({
       setMessage(accepted.message);
       requestAnimationFrame(() => scrollView.current?.scrollToEnd({ animated: true }));
     } catch (error) {
-      if (inspectGate.isCurrent(request)) setMessage(messageFor(error));
+      if (inspectGate.isCurrent(request)) {
+        playUiSound('error');
+        setMessage(messageFor(error));
+      }
     } finally {
       // 한 번에 한 작업만 두므로, 버려진 응답이어도 처리 중 표시는 항상 푼다.
       setBusy(false);
@@ -222,6 +227,7 @@ export function ClaimRedeemScreen({
     setMessage(undefined);
     try {
       const result = await api.redeemClaim(target);
+      if (!result.replayed) playUiSound('success');
       setRedeemed(result);
       setArtworkReward(undefined);
       void findGrantedArtwork(result);
@@ -235,6 +241,7 @@ export function ClaimRedeemScreen({
       badgesBeforeClaim.current = undefined;
       if (!result.replayed) void celebrate(result, before);
     } catch (error) {
+      playUiSound('error');
       const action = claimFailureAction(error, preview);
       setRecoveryAction(action);
       setMessage(action.message);
@@ -347,7 +354,7 @@ export function ClaimRedeemScreen({
         <Stagger index={2}>
         <FloatingCard style={styles.formCard}>
           <Text style={styles.sectionTitle}>1 · 코드 확인</Text>
-          {scanning ? (
+          {canUseCamera && scanning ? (
             <View style={styles.camera}>
               <CameraView
                 style={StyleSheet.absoluteFill}
@@ -357,16 +364,18 @@ export function ClaimRedeemScreen({
               />
             </View>
           ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="QR 코드 촬영"
-            accessibilityHint="점주 화면의 방문 수령 QR 코드를 카메라로 읽습니다."
-            disabled={busy}
-            onPress={scanning ? () => setScanning(false) : () => void startScan()}
-            style={[styles.button, styles.scanButton, { backgroundColor: palette.surface, borderColor: palette.primary }, busy && styles.disabled]}
-          >
-            <Text style={[styles.buttonText, styles.scanButtonText, { color: palette.primary }]}>{scanning ? '촬영 닫기' : 'QR 촬영'}</Text>
-          </Pressable>
+          {canUseCamera ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="QR 코드 촬영"
+              accessibilityHint="점주 화면의 방문 수령 QR 코드를 카메라로 읽습니다."
+              disabled={busy}
+              onPress={scanning ? () => setScanning(false) : () => void startScan()}
+              style={[styles.button, styles.scanButton, { backgroundColor: palette.surface, borderColor: palette.primary }, busy && styles.disabled]}
+            >
+              <Text style={[styles.buttonText, styles.scanButtonText, { color: palette.primary }]}>{scanning ? '촬영 닫기' : 'QR 촬영'}</Text>
+            </Pressable>
+          ) : null}
           <Text style={styles.inputLabel}>수령 코드</Text>
           <TextInput
             value={token}
@@ -484,7 +493,7 @@ export function ClaimRedeemScreen({
       </SkyScrollView>
       <Celebration
         content={celebration}
-        variant={Application.applicationId === 'kr.masscom.wolgye.demo' ? 'showcase' : 'production'}
+        variant={getAppPackageId() === 'kr.masscom.wolgye.demo' ? 'showcase' : 'production'}
         onClose={() => setCelebration(undefined)}
         onOpenCollection={(focusRewards) => {
           setCelebration(undefined);

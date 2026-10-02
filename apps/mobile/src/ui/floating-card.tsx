@@ -5,6 +5,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import { lightHaptic } from '../gamification/native-effects';
 import { motion } from '../motion/timing';
 import { useMotionEnabled } from '../motion/use-motion';
+import { playUiSound } from '../sound/ui-sounds';
 import { splitCardStyle } from './card-style';
 import { useUiStyles } from './use-ui-styles';
 
@@ -46,7 +47,7 @@ export function FloatingCard({ onPress, accessibilityLabel, accessibilityHint, a
       accessibilityState={accessibilityState}
       onPressIn={() => { if (enabled) scale.set(withSpring(motion.pressScale, motion.spring)); }}
       onPressOut={() => { if (enabled) scale.set(withSpring(1, motion.spring)); }}
-      onPress={() => { void lightHaptic(); onPress(); }}
+      onPress={() => { void lightHaptic(); playUiSound('tap'); onPress(); }}
       style={outer}
     >
       {({ pressed }) => (

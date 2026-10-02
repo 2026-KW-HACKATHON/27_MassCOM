@@ -1,8 +1,8 @@
-import * as Application from 'expo-application';
+import { getAppPackageId } from '@/config/app-identity';
 import { Button, Host } from '@expo/ui';
 import { Link } from 'expo-router';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
+import { Alert, Image, Linking, Pressable, StyleSheet, Switch, Text, TextInput, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -36,6 +36,7 @@ import {
   type IntakeDescription,
 } from '@/privacy/deletion-intake-copy';
 import { legalLinks } from '@/privacy/consent-copy';
+import { useUiSoundSettings } from '@/sound/ui-sounds';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
@@ -70,6 +71,7 @@ export function AccountSettingsScreen({
   const palette = colorsForScheme(scheme);
   const world = worldForScheme(scheme);
   const styles = StyleSheet.create(makeAccountSettingsStyles(palette, world, StyleSheet.hairlineWidth));
+  const soundSettings = useUiSoundSettings();
   const capability = deletionCapability(credential, destructiveReauthentication);
   const client = useMemo(
     () => capability.allowed ? new AccountDeletionApiClient({ apiUrl, credential }) : undefined,
@@ -77,7 +79,7 @@ export function AccountSettingsScreen({
   );
   // 시연 앱만 앱 안에서 삭제 요청을 접수한다(D-052). 운영 앱은 웹 삭제 페이지를 쓴다.
   const intakeClient = useMemo(
-    () => canRequestShowcaseDeletion(Application.applicationId, credential)
+    () => canRequestShowcaseDeletion(getAppPackageId(), credential)
       ? new AccountDeletionIntakeApiClient({ apiUrl, credential }) : undefined,
     [apiUrl, credential],
   );
@@ -270,7 +272,7 @@ export function AccountSettingsScreen({
             </Text>
             <Text selectable style={styles.accountDiagnostic}>
               현재 계정 {shortAccountId(accountId)} · {credential.kind === 'bearer'
-                ? `${accountContextLabel(Application.applicationId)} 세션` : '개발 DEMO'}
+                ? `${accountContextLabel(getAppPackageId())} 세션` : '개발 DEMO'}
             </Text>
           </View>
           {credential.kind === 'bearer' ? <View style={styles.sessionActions}>
@@ -296,6 +298,27 @@ export function AccountSettingsScreen({
         </FloatingCard>
       </Stagger>
 
+      <FloatingCard style={styles.groupCard}>
+        <View style={styles.soundRow}>
+          <View style={styles.soundCopy}>
+            <Text style={styles.sectionTitle}>효과음</Text>
+            <Text style={styles.intro}>버튼·화면 이동·보상 획득 효과음. 이 기기에 저장돼요.</Text>
+          </View>
+          <Switch
+            accessibilityLabel="효과음"
+            accessibilityHint="버튼, 화면 이동, 보상 획득 효과음을 켜거나 끕니다."
+            value={soundSettings.enabled}
+            disabled={!soundSettings.ready}
+            onValueChange={soundSettings.setEnabled}
+            trackColor={{ true: palette.primary, false: palette.separator }}
+            thumbColor={palette.surface}
+          />
+        </View>
+        {soundSettings.persistenceError ? (
+          <Text accessibilityLiveRegion="polite" style={styles.error}>{soundSettings.persistenceError}</Text>
+        ) : null}
+      </FloatingCard>
+
       {canOpenMerchantDemo(credential, demoRuntimeConfig) ? (
         <FloatingCard style={styles.groupCard}>
           <Text style={styles.sectionTitle}>점주·직원 도구</Text>
@@ -319,7 +342,7 @@ export function AccountSettingsScreen({
         </FloatingCard>
       ) : null}
 
-      {canOpenShowcaseTour(Application.applicationId) ? (
+      {canOpenShowcaseTour(getAppPackageId()) ? (
         <FloatingCard style={styles.groupCard}>
           <Text style={styles.sectionTitle}>체험용 화면</Text>
           <Text selectable style={styles.intro}>아래 다섯 공간은 빈 화면 시안이며 실제 방문·수집품은 도감에서 확인합니다.</Text>

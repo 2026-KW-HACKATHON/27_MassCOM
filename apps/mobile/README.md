@@ -193,9 +193,28 @@ release build는 시작부터 publish 직전까지 전체 Git worktree가 clean�
 도감의 "내 수집 앨범" 절(`src/screens/collection/collectible-browser.tsx`)은 가게·시즌(테마 이름)·등급으로 걸러보고 최신순·가게순·등급순으로 정렬합니다. `artwork`가 있는 보상은 정적 썸네일 카드로, 같은 게시 수집품(발행 ID+등급)을 여러 캠페인 주기에 걸쳐 여러 번 받았으면 한 장에 개수와 받은 날짜(`earnedAt`)를 함께 보여 줍니다(`src/screens/collection/collectible-groups.ts`). 좋아하는 수집품은 "대표 진열"에 최대 6개까지 놓을 수 있고 이 기기·계정에만 저장하며, 공유는 썸네일·가게 이름·짧은 문구를 담은 이미지를 OS 공유 시트로만 내보냅니다(`src/screens/collection/collectible-share.tsx`, 자동 게시·전송 없음).
 
 같은 절의 "가게별 시리즈"는 그 가게의 기존 방문 목표(1·3·5회)를 칸으로 보여 받은 칸·다음 목표를 표시합니다(`src/screens/collection/store-series.ts`). 새 보상 규칙이나 확률은 만들지 않고 서버가 이미 내려주는 방문 목표·수집 상태만 읽습니다. 첫 수집품, 새 가게의 첫 수집품, 가게 시리즈 완성 때 마스코트가 짧게 반응하며(`src/screens/collection/mascot-reactions.ts`), 같은 반응은 계정별 로컬 기록으로 한 번만 보입니다.
+## UI 효과음 (Issue #305)
+
+운영·시연 모바일 앱의 공통 버튼·카드, 탭 이동, 뒤로 가기, 방문 수령 결과, 보상 상자와 수집품 봉투에 짧은 Kenney 효과음을 사용합니다. 설정의 **효과음** 스위치는 이 기기의 선택을 기억하며, 사장님이 게시한 수집품 음성은 상세 화면의 별도 음소거 설정을 사용합니다.
+
+기존 `expo-audio`를 재사용하고 새 라이브러리나 마이크·백그라운드 재생 권한은 추가하지 않습니다. 음원은 CC0이며 [원본 대응표와 라이선스](assets/sounds/README.md)에 기록했습니다. 효과음 파일 7개는 총 128,026바이트의 PCM WAV입니다. 재생기는 재사용하고 앱 종료 시 해제합니다. 설정을 읽기 전·음소거·백그라운드·재생 준비 실패 시에는 소리를 내지 않습니다. 250ms 이상 지연된 재생과 빠른 중복 탭도 건너뜁니다. 수집품 음성과 효과음은 같은 전경 오디오 정책을 사용합니다.
+
+검증 명령은 `npm run typecheck`, `npm run lint`, `npm run export:android`입니다. Windows PowerShell에서는 기존 `npm test`의 작은따옴표 glob이 테스트를 0개만 실행할 수 있으므로, `apps/mobile`에서 `node --import tsx --test "src/**/*.test.ts"`로 실제 시험 수를 확인합니다. 실제 Android 청음·무음 모드·다른 앱 음악과 함께 재생은 [시험 상태](../../docs/TEST_STATUS.md)에 별도로 기록합니다.
 
 ### 접이식 앨범 홈 (Issue #296, Option A)
 
 탐색(홈) 머리글 아래에는 보상 상자 요약 카드가 한 장 있습니다(`src/gamification/home-reward-card.tsx`): 지금 열 수 있는 상자가 있으면 그 상자를, 없으면 다음 목표 상자와 남은 배지 수를 보여주고 "상자 열기"는 도감과 같은 흐름(`RewardBoxCard`)·같은 `RewardReveal` 연출을 그대로 씁니다. 상자 안 쿠폰을 그 자리에서 "사용하기"하면 도감의 보상 절로 이동합니다(실제 사용은 도감에서).
 
 도감 첫 화면은 전체 여권 카드 대신 압축 띠("골목 탐험가 · 배지 4/9")만 머리글에 두고, 그 아래 "내 수집 앨범"을 가장 먼저 보여줍니다. 예전에는 `artwork`가 없는(그림 없는) 수집품을 "앱에서 받은 수집품"이라는 별도 평면 목록으로 다시 그렸는데, 같은 보상이 그림 있는 절과 없는 절 어디에도 속하지 않아 "두 번 보이거나 아예 안 보이는" 혼선이 있었습니다. 지금은 `ungroupedCollectibles`(`src/screens/collection/collectible-groups.ts`)가 그림 없는 수집품만 골라 같은 앨범 그리드에 한 번씩만(`LegacyCard`) 합치고, 그림 있는 쪽 그룹 카드는 묶인 수집품마다 자기만의 실제 NFT 상태·민트 버튼을 갖습니다(`entitlements` 필드, `nftGroupSummary`로 "실제 NFT 1개 · APP 2개"처럼 요약). 메달·배지 더보기(전체 여권+메달), 쿠폰·NFT 발행 현황(보상 상자+내 쿠폰), 도장판·방문 기록은 기본 접힘 폴드(`src/ui/fold.tsx`)로 밀려났고, 각 폴드는 역할이 button이며 펼침/접힘을 라벨로도 말합니다(색만으로 구분하지 않음). 발행 오류·지갑 배너는 폴드 밖, 앨범 바로 아래에서 항상 보입니다. 기존 민트 신청·쿠폰·추천·방문 기록·대표 진열·공유·가게별 시리즈 기능과 보상·양도 규칙은 그대로입니다.
+
+## 시연 웹 체험 (Issue #309)
+
+showcase variant만 웹으로도 빌드됩니다: `npm run export:web:showcase`(= `APP_VARIANT=showcase EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr MASSCOM_WEB_BASE_URL=/play expo export --platform web --output-dir dist-web`, `MASSCOM_BUILD_SOURCE_COMMIT`·`MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`는 호출하는 쪽이 넘김). 배포는 `https://demo-api.masscom.kr/play/`에만 올라갑니다(API와 같은 origin — CORS는 origin 문제라 path가 달라도 상관없고, 운영 origin `masscom.kr`에는 이 번들이 전혀 올라가지 않습니다). `production`·`development` variant는 웹 export 자체를 거절합니다(`MASSCOM_WEB_BASE_URL`을 받지 않음, `build-environment.cjs`).
+
+`Application.applicationId`는 웹에서 항상 `null`이라 시연·개발 판별은 `src/config/app-identity.ts`의 `getAppPackageId()`로 모았습니다. 웹에서는 `Constants.expoConfig`가 `android` 키를 아예 내려 주지 않으므로(네이티브 전용 키 제거), 남아 있는 `scheme`(variant마다 다른 `masscom`/`masscom-dev`/`masscom-demo`)을 거꾸로 package id로 되돌리는 `src/config/package-id-from-scheme.ts`(`src/wallet/return-scheme.ts`의 역방향 매핑과 같이 봐야 함)를 씁니다.
+
+웹은 Google 로그인이 없습니다(`react-native-nitro-google-signin`은 웹 빌드가 없음 — `google-sign-in-runtime.web.ts` 스텁으로 대체). 로그인 화면(`screens/auth-required/index.web.tsx`)은 "로그인 없이 체험하기" 버튼만 보여주고 서버의 `POST /auth/guest-trial`(본문 없음, 24시간 세션)로 시작합니다. 429/503은 각각 "체험 시작 시도가 너무 많습니다"/"지금 체험 중인 사람이 많아..."로 안내합니다(`auth-controller.ts`의 `GUEST_TRIAL_RATE_LIMITED`/`GUEST_TRIAL_BUSY`, HTTP 상태 코드로 구분). 세션 저장소는 `platform-secure-store`(웹은 `localStorage`, `expo-secure-store`의 웹 구현은 호출하면 던지는 빈 객체라 반드시 교체해야 함). 운영·시연 Android 앱은 이전처럼 Google 로그인만 쓰고 체험 버튼을 두지 않습니다.
+
+방문 수령·친구·점주 직원 화면의 QR 촬영과 수집품 기울임 토글은 웹에서 안내 문구로 가립니다(`ui/can-use-camera.ts`·`can-use-tilt-sensor.ts`). 점주 직원 화면의 고객 QR 식별은 카메라 없이는 할 수 없습니다(확인 코드는 43자 보안 토큰의 앞 8자일 뿐이라 그것만으로 서버를 부를 수 없고, 전체 토큰을 손으로 입력하게 하는 대체 입력은 비현실적이고 노출 위험이 커 만들지 않았습니다) — 이 화면은 웹에서 미리보기만 됩니다. 체험 로그인 계정이 "점주" 역할로 들어가면 `GET /showcase/access-requests/mine`의 `trialMerchantId`(공개 목록에 없는 개인 체험 가게)로 자기 가게를 찾습니다.
+
+**브라우저 전용 버그(발견·수정):** `AuthApiClient`를 비롯한 5개 API 클라이언트 클래스가 기본 `fetch`를 `this.<필드>(...)`(메서드 호출 문법)로 불러, 실제 브라우저에서 "Illegal invocation"으로 모든 요청이 실패했습니다(Node의 `fetch`는 호출 주체를 검사하지 않아 Android·기존 유닛 테스트에서는 드러나지 않았습니다). `fetch.bind(globalThis)`로 저장해 고쳤습니다.
