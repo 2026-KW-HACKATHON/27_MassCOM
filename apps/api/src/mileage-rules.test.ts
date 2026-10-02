@@ -11,6 +11,7 @@ import {
   findCatalogItem,
   isMileageGrade,
   itemsOfGrade,
+  summarizeMileage,
 } from './mileage-rules.js';
 
 test('catalog has exactly 9 items, 3 per grade, with the owner-chosen ids/names/prices', () => {
@@ -121,4 +122,25 @@ test('decideReroll: insufficient balance is reported only after completeness pas
 test('decideReroll: proceeds once every earlier check passes', () => {
   assert.deepEqual(decideReroll({ ...base, balance: 100 }), { kind: 'PROCEED' });
   assert.deepEqual(decideReroll({ ...base, balance: 150 }), { kind: 'PROCEED' });
+});
+
+// 시연 전부 체험(#333): 시연 보너스는 balance에만 더하고 earned(진짜 적립)는 그대로 둔다. 보너스가 0이면(운영 기본) 응답에
+// showcaseBonus 키 자체가 없어 운영 응답 모양이 한 바이트도 바뀌지 않는다.
+test('summarizeMileage without a bonus keeps the operating shape: no showcaseBonus key at all', () => {
+  const summary = summarizeMileage({ earned: 300, spent: 100, showcaseBonus: 0 });
+  assert.deepEqual(summary, { earned: 300, spent: 100, balance: 200 });
+  assert.equal('showcaseBonus' in summary, false);
+  assert.deepEqual(Object.keys(summary), ['earned', 'spent', 'balance']);
+  assert.equal(JSON.stringify(summary), '{"earned":300,"spent":100,"balance":200}');
+});
+
+test('summarizeMileage with a bonus adds it to balance only, and reports it separately', () => {
+  assert.deepEqual(
+    summarizeMileage({ earned: 300, spent: 100, showcaseBonus: 100_000 }),
+    { earned: 300, spent: 100, balance: 100_200, showcaseBonus: 100_000 },
+  );
+  // 진짜 적립이 0이어도 보너스가 상점 전체(2,100)를 사고도 남게 해 준다.
+  const everything = Object.values(MILEAGE_GRADE_PRICES).reduce((sum, price) => sum + price * 3, 0);
+  assert.equal(everything, 2_100);
+  assert.ok(summarizeMileage({ earned: 0, spent: 0, showcaseBonus: 100_000 }).balance >= everything);
 });
