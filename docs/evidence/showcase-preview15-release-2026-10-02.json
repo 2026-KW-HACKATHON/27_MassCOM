@@ -1,0 +1,65 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-10-02 KST",
+  "sourceCommit": "4c0c6db37791c7f5e821e2d94913d19d88187551",
+  "pullRequests": [326],
+  "issues": [321, 325],
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.15",
+  "repositoryVisibility": "PUBLIC",
+  "releaseKind": "prerelease",
+  "releaseTarget": "4c0c6db",
+  "artifact": {
+    "name": "MassCOM-showcase-android-4c0c6db.apk",
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "bytes": 159776692,
+    "sha256": "c0d8ccc9bcac52fea502ebcfbaad1ad6015b4f67ccfc4b2b1cd21bca80e7cbc2",
+    "provenanceName": "MassCOM-showcase-android-4c0c6db.provenance.json",
+    "provenanceBytes": 659,
+    "provenanceSha256": "5ce4a943f4ef90c0e8e6ad8cba54c49c4e9d5bf8a06d8d5242294f5c5a8e91ab",
+    "checksumsName": "SHA256SUMS.txt",
+    "checksumsBytes": 218,
+    "checksumsGithubDigest": "sha256:99ca0a71f969b7ebc3fae0c501b153daec7b6c4ed0d5346ac863a3c692370182",
+    "package": "kr.masscom.wolgye.demo",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256": "cdb0dc37750c907eaa2f1b9eb172b0911f14b9c9f2dab78b481f1751d8ebf28a"
+  },
+  "checks": {
+    "build": "PASS; run-showcase-build.command (scripts/build-showcase-apk.sh --build) with Keychain signing and a dedicated TMPDIR; the provenance file records api, package, sourceMarker, signature, walletSurface and embeddedApi all PASS",
+    "embeddedApi": "PASS; the APK and the AAB embed only https://demo-api.masscom.kr",
+    "recordAudioPermission": "PASS; RECORD_AUDIO is absent",
+    "githubDigestVsLocalSha256": "PASS; the GitHub asset digests match the local SHA-256 values",
+    "anonymousDownload": "PASS; an anonymous download of SHA256SUMS.txt returned HTTPS 200 and the anonymously downloaded APK re-hashed to the same SHA-256",
+    "deviceInstall": "PASS; Samsung SM-S928N (Android 16), adb install -r over Preview 14 returned Success"
+  },
+  "physicalAndroid": {
+    "device": "Samsung SM-S928N (Android 16)",
+    "window": "2026-10-02 about 23:27-23:35 KST",
+    "login": "PASS; role picker, then the user role, signed in",
+    "explore": "PASS; 3 virtual stores, badges 1/9",
+    "map": "PASS; illustrated map",
+    "collection": "PASS; the card and the 'external wallet address check' button render (the Issue #314 crash spot)",
+    "shopAndDraw": "PASS; 150P, bronze draw gave a new friend, balance 50P, owned 1/3, remaining 2 kinds 1/2",
+    "testVisit": "PASS; 'create test visit' (virtual store B) gave the stamp, the explorer silver and steady-steps bronze badges and opened the first box; the collection gained the virtual store B collectible and store filter chips A/B",
+    "boxOpen": "PASS; opening the box on the explore home gave the demo coupon (virtual store A, demo only) and 'later' dismissed it",
+    "deepLink": "PASS; masscom-demo://collection?focus=rewards expands the coupon and NFT issuance status and shows the reward box",
+    "observationNotReproduced": "observed once and not reproduced: right after the celebration's 'open the box in the collection' the collection landed at the bottom with the folds still collapsed; the deep link path worked",
+    "logcat": "PASS; no JS errors and no crash",
+    "screenshots": [
+      "android-test6-preview15-2026-10-02/sc-04-shop.png",
+      "android-test6-preview15-2026-10-02/sc-06-draw.png",
+      "android-test6-preview15-2026-10-02/sc-08-test-visit.png",
+      "android-test6-preview15-2026-10-02/sc-13-box-open.png",
+      "android-test6-preview15-2026-10-02/sc-14-focus-rewards.png"
+    ]
+  },
+  "serverCompatibility": "the servers still run a39b983; the app code between a39b983 and 4c0c6db differs only by the Issue #325 fix (PR #326), so the APIs are compatible. The Issue #322 showcase seed is merged but not deployed to the showcase server",
+  "notRun": [
+    "the received-collectible envelope ('받은 수집품 보기', Issue #297) because the Issue #322 seed is not deployed to the showcase server",
+    "real QR, visit and NFT flows",
+    "the wallet connection and the mint consent dialog",
+    "TalkBack, dark mode and 200% font on this APK",
+    "Google Play upload, approval or release",
+    "the production web redeploy needed for the public /open page to serve the Preview 15 link"
+  ],
+  "limitations": "Preview 15 denotes GitHub release order. This is a demo-only prerelease built from main 4c0c6db (PR #326). The three seeded showcase offers are demo examples, not partner-store benefits. The live /open page keeps linking test.5 and Preview 14 until the web redeploy of this repository copy."
+}

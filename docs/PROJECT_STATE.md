@@ -1,5 +1,9 @@
 # 프로젝트 상태
 
+## 운영 test.6·시연 Preview 15 공개 (Issue #321, 2026-10-02)
+
+[Issue #321](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/321) 3·5단계, 브랜치 `docs/321-android-releases`, 기준 main `4c0c6db`(PR #326 병합 결과). 공개 사전 릴리스 [운영 test.6](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.6)·[시연 Preview 15](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.15)을 만들고 Samsung 실기로 기존 앱 위 설치와 주요 화면을 확인했다([운영 증거](evidence/operating-android-test6-2026-10-02.json), [시연 증거](evidence/showcase-preview15-release-2026-10-02.json)). README·`docs/ANDROID_DOWNLOADS.md`·`docs/open.html` 저장소 사본·사이트 검사가 가리키는 "현재" 설치본을 이 둘로 옮겼다. 서버는 아직 `a39b983`이며 시연 #322 시드는 병합됐지만 배포 전이라 봉투 흐름은 도달 불가다. Issue #321은 이 PR 병합 뒤 **`/open` 운영 웹 재배포만 남기고** 닫을 수 있다. `NOT_RUN`: 실제 QR·NFT·지갑·TalkBack·다크·글자 200%·Google Play·`/open` 재배포.
+
 ## 운영 release AAB의 시연 API 주소 포함 수정 (Issue #325, 2026-10-02)
 
 [Issue #325](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/325), 브랜치 `fix/325-operating-embedded-origin`, 기준 main `5660bb9`. PR #313 리뷰 후속이 체험 로그인 가드에 시연 API 주소를 리터럴로 넣어 운영 번들에도 들어갔고, 빌드 검사(Issue #273)가 운영 test.6 AAB를 막았다. 시연 origin을 시연 빌드의 `extra`로 옮기고 소스 리터럴 재유입을 막는 단위 시험을 더했다. 병합 뒤 Issue #321의 test.6·Preview 15 빌드를 이어 간다.
