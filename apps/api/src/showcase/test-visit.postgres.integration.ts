@@ -45,6 +45,13 @@ async function withFreshShowcaseDatabase(run: (pool: Pool) => Promise<void>): Pr
   }
 }
 
+// 같은 영업일(한국 날짜) 판정을 고정하려고 오늘 한국 날짜의 정오(03:00 UTC)를 쓴다. 시드 캠페인은 실제 현재 시각 기준
+// (시작 = 지금 - 24시간)이라, 날짜를 하드코딩하면 그 날이 지난 뒤 CLAIM_CAMPAIGN_UNAVAILABLE로 실패한다(#316).
+function kstNoonToday(): Date {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), 3));
+}
+
 function service(pool: Pool, now?: () => Date): PostgresClaimSlotService {
   return new PostgresClaimSlotService(pool, { referenceHmacSecret, ...(now ? { now } : {}) });
 }
@@ -112,7 +119,7 @@ test('a paused demo merchant is refused with CLAIM_MERCHANT_INACTIVE', async () 
 
 test('a demo-store test visit counts like a normal visit: progress, badge goal 1, and a REVOKED issuer row', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
-    const svc = service(pool, () => new Date('2026-10-02T03:00:00.000Z'));
+    const svc = service(pool, () => kstNoonToday());
     const issued = await svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-1' });
     const redeemed = await svc.redeem({ accountId: 'customer-1', token: issued.token });
 
@@ -143,7 +150,7 @@ test('a demo-store test visit counts like a normal visit: progress, badge goal 1
 
 test('issuing twice the same day counts the second visit but not its progress', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
-    const svc = service(pool, () => new Date('2026-10-02T03:00:00.000Z'));
+    const svc = service(pool, () => kstNoonToday());
     const first = await svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-2' });
     const firstRedeemed = await svc.redeem({ accountId: 'customer-2', token: first.token });
     assert.equal(firstRedeemed.visit.progressCounted, true);
@@ -157,7 +164,7 @@ test('issuing twice the same day counts the second visit but not its progress', 
 
 test('an issuer row that was somehow promoted to ACTIVE blocks further issuing instead of granting it power', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
-    const svc = service(pool, () => new Date('2026-10-02T03:00:00.000Z'));
+    const svc = service(pool, () => kstNoonToday());
     // Issue once so the lazy REVOKED issuer row exists, then simulate tampering (should never happen in practice).
     const first = await svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-4' });
     await svc.redeem({ accountId: 'customer-4', token: first.token });
