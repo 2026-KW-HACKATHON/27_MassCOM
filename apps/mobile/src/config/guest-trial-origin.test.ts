@@ -21,6 +21,9 @@ test('the showcase package fails closed without the showcase build origin', () =
     { masscomShowcase: { googleWebClientId: '123-demo.apps.googleusercontent.com' } },
     { masscomShowcase: { apiOrigin: 42 } },
     { masscomShowcase: { apiOrigin: 'http://demo-api.masscom.kr' } },
+    { masscomShowcase: { apiOrigin: 'https://demo-api.masscom.kr/' } },
+    { masscomShowcase: { apiOrigin: 'https://demo-api.masscom.kr/v1' } },
+    { masscomShowcase: { apiOrigin: 'not-a-url' } },
   ]) {
     assert.equal(isApprovedGuestTrialOrigin('kr.masscom.wolgye.demo', 'https://demo-api.masscom.kr', extra), false, JSON.stringify(extra));
   }

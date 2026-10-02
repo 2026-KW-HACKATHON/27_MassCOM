@@ -2,7 +2,7 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 import type * as BuildEnvironment from './src/config/build-environment';
 
-const { validateBuildEnvironment } = require(
+const { SHOWCASE_API_ORIGIN, validateBuildEnvironment } = require(
   './src/config/build-environment.cjs'
 ) as typeof BuildEnvironment;
 
@@ -66,12 +66,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     extra: {
       ...config.extra,
       // 시연 API origin은 시연 빌드의 extra에만 둔다(Issue #325). JS 소스에 리터럴로 두면 운영 번들에도
-      // 들어가 scripts/check-embedded-api.sh가 운영 AAB를 막는다. 값은 validateBuildEnvironment가
-      // 시연 EXPO_PUBLIC_API_URL에 요구하는 origin과 같다.
+      // 들어가 scripts/check-embedded-api.sh가 운영 AAB를 막는다. validateBuildEnvironment가 시연
+      // EXPO_PUBLIC_API_URL에 요구하는 것과 같은 상수다.
       masscomShowcase: showcase
         ? {
             googleWebClientId: process.env.MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID?.trim(),
-            apiOrigin: 'https://demo-api.masscom.kr',
+            apiOrigin: SHOWCASE_API_ORIGIN,
           }
         : undefined,
     },

@@ -13,7 +13,8 @@ const DEVELOPMENT_PACKAGE = 'kr.masscom.wolgye.dev';
  * The showcase origin comes from the showcase build's `extra.masscomShowcase.apiOrigin`
  * (app.config.ts), not from a literal here: this module ships in every variant, and a literal
  * would put the showcase host into the operating bundle, which scripts/check-embedded-api.sh
- * rejects (Issue #325). A build without that value never approves the showcase package.
+ * rejects (Issue #325). A build without that value, or with anything but a bare https origin,
+ * never approves the showcase package.
  */
 export function isApprovedGuestTrialOrigin(
   packageId: string | null | undefined,
@@ -40,5 +41,11 @@ export function isApprovedGuestTrialOrigin(
 function showcaseApiOrigin(extra: unknown): string | undefined {
   const showcase = extra && typeof extra === 'object' ? Reflect.get(extra, 'masscomShowcase') : undefined;
   const value = showcase && typeof showcase === 'object' ? Reflect.get(showcase, 'apiOrigin') : undefined;
-  return typeof value === 'string' && value.startsWith('https://') ? value : undefined;
+  if (typeof value !== 'string') return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.origin === value ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }

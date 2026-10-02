@@ -14,4 +14,4 @@ export type MobileBuildEnvironment = Partial<
   >
 >;
 
-export { validateBuildEnvironment } from './build-environment.cjs';
+export { SHOWCASE_API_ORIGIN, validateBuildEnvironment } from './build-environment.cjs';
