@@ -32,7 +32,8 @@ export function evaluateAudit(report, exceptions, today) {
         failures.push(`${label}: 예외 없음`);
       } else if (today > rule.expires) {
         failures.push(`${label}: 예외가 ${rule.expires}에 만료됨`);
-      } else if (!dependents.every((dependent) => rule.allowedDependents.includes(dependent))) {
+      } else if (dependents.length === 0 || !dependents.every((dependent) => rule.allowedDependents.includes(dependent))) {
+        // 의존 패키지가 비면(직접 의존이 되었거나 npm이 경로를 못 밝힘) 허용 경로라고 볼 수 없다.
         failures.push(`${label}: 허용하지 않은 패키지가 의존함(${dependents.join(', ')})`);
       } else {
         excused.push(`${label}: ${rule.expires}까지 예외`);

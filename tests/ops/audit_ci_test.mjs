@@ -42,6 +42,13 @@ test('the same advisory reached through a package outside the allowed dependents
   assert.match(result.failures[0], /허용하지 않은/);
 });
 
+test('the excepted advisory with no recorded dependents (e.g. a direct dependency) fails', () => {
+  const result = evaluateAudit(report({
+    'node-forge': { severity: 'high', via: [forge], effects: [] },
+  }), [rule], today);
+  assert.match(result.failures[0], /허용하지 않은/);
+});
+
 test('the same advisory id on a different package is not covered', () => {
   const result = evaluateAudit(report({
     'other-forge': { severity: 'high', via: [forge], effects: [] },
