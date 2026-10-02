@@ -14,6 +14,11 @@ export type CollectionShareDeps = {
   shareImageFile: (uri: string, isAlive: () => boolean) => Promise<boolean>;
   /** 캡처 전, 공유 시트를 열기 전에 다시 확인한다. 화면이 사라졌으면 낡은 도감으로 시트를 열지 않는다. */
   isAlive: () => boolean;
+  /**
+   * 캡처·파일 공유를 지원하지 않는 곳(웹)이면 true. 그곳의 캡처·공유 실패는 "잠시 후 다시"로 고쳐질 일이 아니라
+   * 환경 문제라, 실패(failed)가 아니라 지원 안 함(unavailable)으로 알린다.
+   */
+  captureUnsupported: boolean;
 };
 
 export async function performCollectionShare(deps: CollectionShareDeps): Promise<CollectionShareOutcome> {
@@ -24,18 +29,23 @@ export async function performCollectionShare(deps: CollectionShareDeps): Promise
     if (!deps.isAlive()) return 'stopped';
     const uri = await deps.captureViewAsPng();
     if (!deps.isAlive()) return 'stopped';
-    if (!uri) return 'failed';
+    if (!uri) return failure(deps);
     if (await deps.shareImageFile(uri, deps.isAlive)) return 'shared';
     // shareImageFile은 화면이 사라졌을 때도 false를 돌려준다: 그때는 "공유 불가"라고 알릴 화면이 없다.
     return deps.isAlive() ? 'unavailable' : 'stopped';
   } catch {
-    return deps.isAlive() ? 'failed' : 'stopped';
+    return failure(deps);
   }
+}
+
+function failure(deps: Pick<CollectionShareDeps, 'isAlive' | 'captureUnsupported'>): CollectionShareOutcome {
+  if (!deps.isAlive()) return 'stopped';
+  return deps.captureUnsupported ? 'unavailable' : 'failed';
 }
 
 /** 사람에게 알릴 일이 있을 때만 한국어 안내를 준다. */
 export function collectionShareNotice(outcome: CollectionShareOutcome): string | undefined {
-  if (outcome === 'unavailable') return '이 기기에서는 이미지 공유 창을 열 수 없어요. 도감 화면을 캡처해서 직접 올려 보세요.';
+  if (outcome === 'unavailable') return '공유를 지원하지 않는 환경이에요. 도감 화면을 캡처해서 직접 올려 보세요.';
   if (outcome === 'failed') return '도감 카드를 만들지 못했어요. 잠시 후 다시 시도해 주세요.';
   return undefined;
 }

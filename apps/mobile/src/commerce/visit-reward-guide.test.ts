@@ -1,100 +1,58 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 
-import {
-  defaultVisitGoals,
-  mileageBalanceLine,
-  newStoreMileage,
-  seriesCompleteMileage,
-  visitMileage,
-  visitRewardGuide,
-} from './visit-reward-guide';
+import { defaultVisitGoals, mileageBalanceLine, mileageDeltaLine, settleWithin, visitRewardGuide } from './visit-reward-guide';
 
 const goals = [1, 3, 5] as const;
 
-test('a counted visit earns the 50 mileage line', () => {
-  assert.equal(visitRewardGuide({ progressCounted: true, progressCount: 2, goals }).mileageLine, '+50 마일리지 적립');
-  assert.equal(visitRewardGuide({ progressCounted: true, progressCount: 4, goals }).mileageLine, '+50 마일리지 적립');
-});
-
-test('the first counted visit at a store adds the first-visit bonus', () => {
-  assert.equal(
-    visitRewardGuide({ progressCounted: true, progressCount: 1, goals }).mileageLine,
-    '+50 마일리지 적립 · 첫 방문 +100',
-  );
-});
-
-test('the fifth counted visit completes the series and adds its bonus', () => {
-  assert.equal(
-    visitRewardGuide({ progressCounted: true, progressCount: 5, goals }).mileageLine,
-    '+50 마일리지 적립 · 시리즈 완성 +200',
-  );
-});
-
-test('a visit beyond the series earns the plain line only', () => {
-  assert.equal(visitRewardGuide({ progressCounted: true, progressCount: 6, goals }).mileageLine, '+50 마일리지 적립');
-});
-
-test('a visit that was not counted has no mileage line, whatever the count says', () => {
-  for (const progressCount of [0, 1, 3, 5]) {
-    assert.equal(visitRewardGuide({ progressCounted: false, progressCount, goals }).mileageLine, null);
-  }
-});
-
 test('the next-grade line counts down to the first goal above the current count', () => {
   assert.equal(
-    visitRewardGuide({ progressCounted: true, progressCount: 0, goals }).nextGradeLine,
+    visitRewardGuide({ progressCount: 0, goals }).nextGradeLine,
     '브론즈 수집품까지 1번 남았어요 (같은 가게는 하루 1번)',
   );
   assert.equal(
-    visitRewardGuide({ progressCounted: true, progressCount: 1, goals }).nextGradeLine,
+    visitRewardGuide({ progressCount: 1, goals }).nextGradeLine,
     '실버 수집품까지 2번 남았어요 (같은 가게는 하루 1번)',
   );
   assert.equal(
-    visitRewardGuide({ progressCounted: true, progressCount: 2, goals }).nextGradeLine,
+    visitRewardGuide({ progressCount: 2, goals }).nextGradeLine,
     '실버 수집품까지 1번 남았어요 (같은 가게는 하루 1번)',
   );
   assert.equal(
-    visitRewardGuide({ progressCounted: true, progressCount: 3, goals }).nextGradeLine,
+    visitRewardGuide({ progressCount: 3, goals }).nextGradeLine,
     '골드 수집품까지 2번 남았어요 (같은 가게는 하루 1번)',
   );
   assert.equal(
-    visitRewardGuide({ progressCounted: true, progressCount: 4, goals }).nextGradeLine,
+    visitRewardGuide({ progressCount: 4, goals }).nextGradeLine,
     '골드 수집품까지 1번 남았어요 (같은 가게는 하루 1번)',
   );
 });
 
 test('with every goal reached the line says gold is collected', () => {
-  assert.equal(visitRewardGuide({ progressCounted: true, progressCount: 5, goals }).nextGradeLine, '골드까지 모았어요');
-  assert.equal(visitRewardGuide({ progressCounted: true, progressCount: 9, goals }).nextGradeLine, '골드까지 모았어요');
-});
-
-test('a visit that was not counted still shows how far the next grade is', () => {
-  const guide = visitRewardGuide({ progressCounted: false, progressCount: 2, goals });
-  assert.equal(guide.mileageLine, null);
-  assert.equal(guide.nextGradeLine, '실버 수집품까지 1번 남았어요 (같은 가게는 하루 1번)');
+  assert.equal(visitRewardGuide({ progressCount: 5, goals }).nextGradeLine, '골드까지 모았어요');
+  assert.equal(visitRewardGuide({ progressCount: 9, goals }).nextGradeLine, '골드까지 모았어요');
 });
 
 test('goals are read in ascending order whatever order the store lists them in', () => {
   assert.equal(
-    visitRewardGuide({ progressCounted: true, progressCount: 1, goals: [5, 1, 3] }).nextGradeLine,
+    visitRewardGuide({ progressCount: 1, goals: [5, 1, 3] }).nextGradeLine,
     '실버 수집품까지 2번 남았어요 (같은 가게는 하루 1번)',
   );
 });
 
 test('a store with only some of the goals counts down to the goals it has', () => {
   assert.equal(
-    visitRewardGuide({ progressCounted: true, progressCount: 1, goals: [1, 5] }).nextGradeLine,
+    visitRewardGuide({ progressCount: 1, goals: [1, 5] }).nextGradeLine,
     '골드 수집품까지 4번 남았어요 (같은 가게는 하루 1번)',
   );
 });
 
 test('a store without any goal gives no next-grade line instead of claiming gold', () => {
-  const guide = visitRewardGuide({ progressCounted: true, progressCount: 1, goals: [] });
-  assert.equal(guide.nextGradeLine, null);
-  assert.equal(guide.mileageLine, '+50 마일리지 적립 · 첫 방문 +100');
+  assert.equal(visitRewardGuide({ progressCount: 1, goals: [] }).nextGradeLine, null);
+});
+
+test('the guide no longer guesses mileage: it only carries the next-grade line', () => {
+  assert.deepEqual(Object.keys(visitRewardGuide({ progressCount: 1, goals })), ['nextGradeLine']);
 });
 
 test('the default goals are the fixed 1, 3 and 5 counted visits', () => {
@@ -107,10 +65,42 @@ test('the balance line shows the mileage the account holds', () => {
   assert.equal(mileageBalanceLine(1250), '보유 1,250마일리지');
 });
 
-// 서버(apps/api/src/mileage-rules.ts)가 적립 규칙의 정본이다. 앱 문구가 서버 값과 어긋나면 이 시험이 먼저 깨진다.
-test('the bonus numbers in the copy match the server earn rules', () => {
-  const rules = readFileSync(fileURLToPath(new URL('../../../api/src/mileage-rules.ts', import.meta.url)), 'utf8');
-  const earn = rules.match(/MILEAGE_EARN_RULES = \{ visit: (\d+), newStore: (\d+), series: (\d+) \}/);
-  assert.ok(earn, 'MILEAGE_EARN_RULES is still declared on one line');
-  assert.deepEqual([visitMileage, newStoreMileage, seriesCompleteMileage], [Number(earn[1]), Number(earn[2]), Number(earn[3])]);
+test('the mileage line is the real change in the earned total, whatever the server counted', () => {
+  assert.equal(mileageDeltaLine({ replayed: false, before: 0, after: 150 }), '+150 마일리지 적립');
+  assert.equal(mileageDeltaLine({ replayed: false, before: 150, after: 200 }), '+50 마일리지 적립');
+  assert.equal(mileageDeltaLine({ replayed: false, before: 400, after: 650 }), '+250 마일리지 적립');
+  assert.equal(mileageDeltaLine({ replayed: false, before: 100, after: 1350 }), '+1,250 마일리지 적립');
+});
+
+test('no change in the earned total means no mileage line (a repeat visit the same day, a second campaign cycle)', () => {
+  assert.equal(mileageDeltaLine({ replayed: false, before: 300, after: 300 }), null);
+  assert.equal(mileageDeltaLine({ replayed: false, before: 0, after: 0 }), null);
+});
+
+test('a missing or unusable snapshot never produces a guessed number', () => {
+  assert.equal(mileageDeltaLine({ replayed: false, before: undefined, after: 150 }), null);
+  assert.equal(mileageDeltaLine({ replayed: false, before: 0, after: undefined }), null);
+  assert.equal(mileageDeltaLine({ replayed: false, before: undefined, after: undefined }), null);
+  assert.equal(mileageDeltaLine({ replayed: false, before: Number.NaN, after: 150 }), null);
+  assert.equal(mileageDeltaLine({ replayed: false, before: 0, after: Number.POSITIVE_INFINITY }), null);
+});
+
+test('a total that went down (a cancelled visit between the snapshots) is not shown as earned', () => {
+  assert.equal(mileageDeltaLine({ replayed: false, before: 300, after: 250 }), null);
+});
+
+test('a recovered (replayed) claim never shows an earned line, even if the totals differ', () => {
+  assert.equal(mileageDeltaLine({ replayed: true, before: 0, after: 150 }), null);
+});
+
+test('a snapshot that settles in time is returned as is', async () => {
+  assert.equal(await settleWithin(Promise.resolve(120), 50), 120);
+});
+
+test('a missing snapshot, a failed one and one that never settles all give undefined', async () => {
+  assert.equal(await settleWithin(undefined, 50), undefined);
+  assert.equal(await settleWithin(Promise.reject(new Error('offline')), 50), undefined);
+  const started = Date.now();
+  assert.equal(await settleWithin(new Promise<number>(() => {}), 20), undefined);
+  assert.ok(Date.now() - started < 500);
 });

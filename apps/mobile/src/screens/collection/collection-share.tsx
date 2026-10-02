@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { mascotStamp } from '@/gamification/glyphs';
@@ -161,6 +161,8 @@ export function useCollectionShare(): {
           : Promise.resolve(undefined)),
         shareImageFile: (uri, isAlive) => shareImageFile(uri, '도감 공유', isAlive),
         isAlive: () => alive.current,
+        // 웹은 캡처·파일 공유를 지원하지 않는 환경으로 본다: 실패해도 "다시 시도"가 아니라 지원 안 함으로 알린다.
+        captureUnsupported: Platform.OS === 'web',
       });
     } finally {
       busy.current = false;

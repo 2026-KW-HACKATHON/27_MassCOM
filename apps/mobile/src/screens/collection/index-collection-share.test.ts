@@ -61,3 +61,23 @@ test('카드에는 계정·날짜·지갑·QR 자리가 없다: 모델의 제목
   }
   assert.doesNotMatch(share, /accountId|email|nickname|earnedAt|businessDate|recipient|contractAddress|<ClaimQr|friendCode/);
 });
+
+test('카드 컴포넌트는 시각을 읽거나 날짜 형식을 만들지 않는다(그리는 시각이 이미지에 찍히지 않게)', () => {
+  assert.doesNotMatch(share, /new Date|Date\.now|toISOString|toLocale|Intl\./);
+});
+
+test('카드의 모든 <Text> 내용은 model·item·medal의 값이거나 상수뿐이다: 화면에서 새로 만든 문구가 끼어들지 않는다', () => {
+  const texts = [...share.matchAll(/<Text\b[^>]*>([\s\S]*?)<\/Text>/g)].map((match) => match[1]!.trim());
+  assert.ok(texts.length >= 6, `found ${texts.length} Text nodes`);
+  for (const child of texts) {
+    assert.match(child, /^\{(?:model|item|medal)\.[A-Za-z]+\}$|^\{[A-Z][A-Za-z]*\}$/, `unexpected <Text> child: ${child}`);
+  }
+  // 그림의 출처도 모델의 imageUri 하나뿐이다.
+  const sources = [...share.matchAll(/uri: ([^ }]+)/g)].map((match) => match[1]);
+  assert.deepEqual(sources, ['item.imageUri']);
+});
+
+test('웹처럼 캡처·공유를 지원하지 않는 곳에서는 캡처 실패를 "지원하지 않음"으로 알린다', () => {
+  assert.match(share, /import \{ Image, Platform, StyleSheet, Text, View \} from 'react-native';/);
+  assert.match(share, /captureUnsupported: Platform\.OS === 'web'/);
+});

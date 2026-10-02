@@ -22,6 +22,7 @@ function baseDeps(overrides: Partial<CollectionShareDeps> = {}): CollectionShare
     captureViewAsPng: async () => 'file://card.png',
     shareImageFile: async () => true,
     isAlive: () => true,
+    captureUnsupported: false,
     ...overrides,
   };
 }
@@ -103,9 +104,29 @@ test('a share step that declined because the screen went away is stopped, not "u
   assert.equal(outcome, 'stopped');
 });
 
+test('on a platform that cannot capture or share (web), a capture failure is "unsupported", not a retry-later failure', async () => {
+  const web = { captureUnsupported: true };
+  assert.equal(await performCollectionShare(baseDeps({ ...web, captureViewAsPng: async () => { throw new Error('html2canvas failed'); } })), 'unavailable');
+  assert.equal(await performCollectionShare(baseDeps({ ...web, captureViewAsPng: async () => undefined })), 'unavailable');
+  assert.equal(await performCollectionShare(baseDeps({ ...web, shareImageFile: async () => { throw new Error('Sharing is not available'); } })), 'unavailable');
+  assert.equal(await performCollectionShare(baseDeps({ ...web, shareImageFile: async () => false })), 'unavailable');
+});
+
+test('on web a screen that went away is still stopped, not reported as unsupported', async () => {
+  let alive = true;
+  const outcome = await performCollectionShare(baseDeps({
+    captureUnsupported: true,
+    isAlive: () => alive,
+    captureViewAsPng: async () => { alive = false; throw new Error('capture failed'); },
+  }));
+  assert.equal(outcome, 'stopped');
+});
+
 test('the notice is Korean and only shown when the person still needs to know', () => {
-  assert.match(collectionShareNotice('unavailable') ?? '', /이 기기에서는 이미지 공유 창을 열 수 없어요/);
+  assert.match(collectionShareNotice('unavailable') ?? '', /공유를 지원하지 않는 환경이에요/);
+  assert.doesNotMatch(collectionShareNotice('unavailable') ?? '', /다시 시도/);
   assert.match(collectionShareNotice('failed') ?? '', /도감 카드를 만들지 못했어요/);
+  assert.match(collectionShareNotice('failed') ?? '', /잠시 후 다시 시도해 주세요/);
   assert.equal(collectionShareNotice('shared'), undefined);
   assert.equal(collectionShareNotice('stopped'), undefined);
 });

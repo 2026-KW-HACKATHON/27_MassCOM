@@ -24,13 +24,13 @@ import {
 import { createBadgeApiClient, type BadgeBook } from '@/gamification/badge-api';
 import { diffBadgeBooks } from '@/gamification/badge-rules';
 import { progressNote } from '@/commerce/progress-note';
-import { defaultVisitGoals, mileageBalanceLine, visitRewardGuide, type VisitGoal } from '@/commerce/visit-reward-guide';
+import { defaultVisitGoals, mileageBalanceLine, mileageDeltaLine, settleWithin, visitRewardGuide } from '@/commerce/visit-reward-guide';
 import { playUiSound } from '@/sound/ui-sounds';
 import { Celebration, type CelebrationContent } from '@/gamification/celebration';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
 import { canShowTestVisitSection } from '@/navigation/showcase-entry';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
-import { createShopApiClient } from '@/shop/shop-api';
+import { createShopApiClient, type ShopApiClient } from '@/shop/shop-api';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
@@ -42,6 +42,14 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { Stagger } from '@/ui/stagger';
 
 import { makeClaimRedeemStyles } from './styles';
+
+/** 방문 수령 전·후의 적립 합계(`mileage.earned`). 못 읽으면 undefined라 그 방문은 "+N 적립" 줄만 빠진다. */
+function readEarnedMileage(client: ShopApiClient): Promise<number | undefined> {
+  return client.getShop().then((shop) => shop.mileage.earned, () => undefined);
+}
+
+/** 방문 전 적립 합계를 이만큼만 기다린다: 상점 요약이 멈춰 있어도 방문 수령을 붙잡지 않는다. */
+const mileageSnapshotWaitMs = 1500;
 
 export function ClaimRedeemScreen({
   apiUrl,
@@ -62,16 +70,23 @@ export function ClaimRedeemScreen({
     () => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
   );
+  // #332: 상점 요약은 덤이라 세션 만료 처리(onSessionInvalid)를 넘기지 않는다. 못 읽으면 조용히 그 줄만 빠진다.
+  const shopApi = useMemo(
+    () => createShopApiClient({ apiUrl, credential }),
+    [apiUrl, credential],
+  );
   const [token, setToken] = useState('');
   const [preview, setPreview] = useState<ClaimPreview>();
   const [redeemed, setRedeemed] = useState<RedeemedClaim>();
   // 이 방문 수령으로 받은 보상 중 다시 볼 수 있는 가게 수집품(외형)이 실제로 붙은 것 전부(1·3·5회 목표가 한 번에 여럿이면 모두).
   // 도감을 확인한 뒤에만 채운다.
   const [artworkReward, setArtworkReward] = useState<{ claimSlotId: string; entitlementIds: readonly string[] }>();
-  // #332 방문 완료 카드의 "다음 등급까지"(점포 캠페인 목표)와 "보유 마일리지"(상점 요약). 방문(claimSlotId)에 묶어 두고,
-  // 늦게 온 이전 방문의 응답이 새 방문의 안내를 덮지 못하게 요청 번호로 거른다.
-  const [rewardContext, setRewardContext] = useState<{ claimSlotId: string; goals: readonly VisitGoal[] | null; balance: number | null }>();
+  // #332 방문 완료 카드의 "+N 마일리지 적립"(방문 전·후 적립 합계의 차이)과 "보유 N마일리지"(방문 뒤 상점 요약). 방문(claimSlotId)에
+  // 묶어 두고, 늦게 온 이전 방문의 응답이 새 방문의 안내를 덮지 못하게 요청 번호로 거른다.
+  const [rewardContext, setRewardContext] = useState<{ claimSlotId: string; mileageLine: string | null; balance: number | null }>();
   const rewardContextRequest = useRef(0);
+  // 코드를 확인할 때의 적립 합계. badgesBeforeClaim과 같은 방식으로 방문 수령 직전까지 쥐고 있다가 방문 뒤 값과 비교한다.
+  const mileageBeforeClaim = useRef<Promise<number | undefined> | undefined>(undefined);
   const [pendingRedeemToken, setPendingRedeemToken] = useState<string>();
   const [recoveryAction, setRecoveryAction] = useState<ClaimRecoveryAction>();
   const [busy, setBusy] = useState(false);
@@ -166,6 +181,7 @@ export function ClaimRedeemScreen({
     setRedeemed(undefined);
     setArtworkReward(undefined);
     rewardContextRequest.current += 1;
+    mileageBeforeClaim.current = undefined;
     setRewardContext(undefined);
     setPendingRedeemToken(undefined);
     setRecoveryAction(undefined);
@@ -211,6 +227,7 @@ export function ClaimRedeemScreen({
       badgesBeforeClaim.current = next.status === 'AVAILABLE'
         ? badgeApi.getBadgeBook().catch(() => undefined)
         : undefined;
+      mileageBeforeClaim.current = next.status === 'AVAILABLE' ? readEarnedMileage(shopApi) : undefined;
       setPreview(accepted.preview);
       setPendingRedeemToken(accepted.pendingRedeemToken);
       setRecoveryAction(undefined);
@@ -234,12 +251,15 @@ export function ClaimRedeemScreen({
     setBusy(true);
     setMessage(undefined);
     try {
+      // 방문이 먼저 반영된 뒤의 값을 "이전"으로 읽지 않도록, 요청을 보내기 전에 스냅샷이 끝났는지(또는 시간 안에 못 끝냈는지) 확인한다.
+      const mileageBefore = await settleWithin(mileageBeforeClaim.current, mileageSnapshotWaitMs);
+      mileageBeforeClaim.current = undefined;
       const result = await api.redeemClaim(target);
       if (!result.replayed) playUiSound('success');
       setRedeemed(result);
       setArtworkReward(undefined);
       void findGrantedArtwork(result);
-      void loadRewardContext(result);
+      void loadRewardContext(result, mileageBefore);
       setPreview(undefined);
       setToken('');
       setPendingRedeemToken(undefined);
@@ -270,11 +290,12 @@ export function ClaimRedeemScreen({
     setTestVisitMessage(undefined);
     const before = badgeApi.getBadgeBook().catch(() => undefined);
     try {
+      const mileageBefore = await settleWithin(readEarnedMileage(shopApi), mileageSnapshotWaitMs);
       const result = await api.createTestVisit(selectedTestVisitMerchantId);
       setRedeemed(result);
       setArtworkReward(undefined);
       void findGrantedArtwork(result);
-      void loadRewardContext(result);
+      void loadRewardContext(result, mileageBefore);
       setPreview(undefined);
       setToken('');
       setPendingRedeemToken(undefined);
@@ -322,32 +343,24 @@ export function ClaimRedeemScreen({
     });
   }
 
-  // #332: 방문 완료 카드에 점포의 실제 수집품 목표와 상점의 보유 마일리지를 붙인다. 둘 다 덤이라 하나라도 못 읽으면 그 줄만
-  // 빠지고(목표는 기본 1·3·5회로 안내) 방문 수령 결과와 카드는 그대로다. 상점 요약이 401이어도 세션을 무효화하지 않도록
-  // onSessionInvalid는 넘기지 않는다: 조용히 실패해야 하는 호출이다.
-  async function loadRewardContext(result: RedeemedClaim) {
+  // #332: 방문 뒤 상점 요약을 읽어 이번 방문으로 늘어난 적립 합계(전·후 차이)와 보유 마일리지를 방문 완료 카드에 붙인다. 적립 규칙은
+  // 따라 계산하지 않고 서버가 센 합계의 차이만 쓰므로, 전·후 값 중 하나라도 없으면 "+N 적립" 줄이 빠지고(추측하지 않는다) 상점
+  // 요약을 못 읽으면 보유 줄도 빠진다. 방문 수령 결과와 카드는 어떤 경우에도 그대로다(조용히 실패).
+  async function loadRewardContext(result: RedeemedClaim, earnedBefore: number | undefined) {
     const request = ++rewardContextRequest.current;
-    const [merchants, shop] = await Promise.allSettled([
-      createMerchantApiClient(apiUrl).listMerchants(),
-      createShopApiClient({ apiUrl, credential }).getShop(),
-    ]);
+    const shop = await shopApi.getShop().then((value) => value, () => undefined);
     if (request !== rewardContextRequest.current) return;
-    const merchant = merchants.status === 'fulfilled' ? merchants.value.find((item) => item.id === result.merchantId) : undefined;
     setRewardContext({
       claimSlotId: result.claimSlotId,
-      goals: merchant ? merchant.campaign.rewardGoals.map((goal) => goal.targetVisitCount) : null,
-      balance: shop.status === 'fulfilled' ? shop.value.mileage.balance : null,
+      mileageLine: mileageDeltaLine({ replayed: result.replayed, before: earnedBefore, after: shop?.mileage.earned }),
+      balance: shop ? shop.mileage.balance : null,
     });
   }
 
   const currentRewardContext = redeemed && rewardContext?.claimSlotId === redeemed.claimSlotId ? rewardContext : undefined;
   const rewardBalance = currentRewardContext?.balance ?? null;
   const rewardGuide = redeemed
-    ? visitRewardGuide({
-      progressCounted: redeemed.visit.progressCounted,
-      progressCount: redeemed.visit.progressVisitCount,
-      goals: currentRewardContext?.goals ?? defaultVisitGoals,
-    })
+    ? visitRewardGuide({ progressCount: redeemed.visit.progressVisitCount, goals: defaultVisitGoals })
     : undefined;
 
   return (
@@ -509,7 +522,7 @@ export function ClaimRedeemScreen({
             <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
               새 보상권 {redeemed.grantedRewards.length}개 · NFT 발행은 아직 요청하지 않았습니다.
             </Text>
-            {rewardGuide?.mileageLine ? <Text style={styles.successHighlight}>{rewardGuide.mileageLine}</Text> : null}
+            {currentRewardContext?.mileageLine ? <Text style={styles.successHighlight}>{currentRewardContext.mileageLine}</Text> : null}
             {rewardBalance !== null ? <Text style={styles.successBody}>{mileageBalanceLine(rewardBalance)}</Text> : null}
             {rewardGuide?.nextGradeLine ? <Text style={styles.successBody}>{rewardGuide.nextGradeLine}</Text> : null}
             <View style={styles.successActions}>
