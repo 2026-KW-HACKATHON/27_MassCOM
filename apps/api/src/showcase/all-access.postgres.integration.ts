@@ -4,16 +4,21 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 
+import type { CollectibleArtwork, CollectibleProject } from '../collectible-project.js';
+import { collectibleSnapshot, validateCollectibleProject } from '../collectible-project-rules.js';
 import { runMigrations } from '../postgres/migrate.js';
 import { PostgresClaimSlotService } from '../postgres/claim-slot-service.js';
+import { PostgresCollectionReader } from '../postgres/collection.js';
 import {
   seedLocalShowcase,
   SHOWCASE_CAMPAIGN_ID,
   SHOWCASE_MERCHANT_ID,
   SHOWCASE_STAFF_ACCOUNT_ID,
 } from './local-seed.js';
+import { storeCollectibleArt } from './store-collectible-art.js';
+import { seedStoreCollectibles, type StoreCollectibleTarget } from './store-collectibles.js';
 
 const referenceHmacSecret = 'test-only-all-access-reference-secret-32-bytes';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -334,5 +339,218 @@ test('(seed) a campaign that already ended is still refused instead of being sil
     const before = (await pool.query('SELECT id, starts_at, ends_at FROM campaigns ORDER BY id')).rows;
     await assert.rejects(seedLocalShowcase(pool), /SHOWCASE_FIXTURE_COLLISION/);
     assert.deepEqual((await pool.query('SELECT id, starts_at, ends_at FROM campaigns ORDER BY id')).rows, before);
+  });
+});
+
+// ---- R-333a: 시연 가상 점포 수집품의 세 등급(브론즈·실버·골드) ----
+// 호스트 시드(seedShowcaseFixtureData 'hosted')는 DB 이름이 masscom_showcase일 때만 돌아 이 일회용 DB에서는 부를 수 없으므로,
+// 그 안에서 부르는 seedStoreCollectibles를 같은 거래 방식으로 직접 부른다(같은 함수·같은 대상 모양).
+const collectibleTargets: StoreCollectibleTarget[] = [
+  { merchantId: SHOWCASE_MERCHANT_ID, campaignId: SHOWCASE_CAMPAIGN_ID, storeName: '가상 점포 A', art: 'a' },
+  { merchantId: 'showcase-local-merchant-b', campaignId: 'showcase-local-campaign-b', storeName: '가상 점포 B', art: 'b' },
+  { merchantId: 'showcase-local-merchant-c', campaignId: 'showcase-local-campaign-c', storeName: '가상 점포 C', art: 'c' },
+];
+
+async function inTransaction<T>(pool: Pool, work: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await work(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+const seedCollectibles = (pool: Pool, targets: readonly StoreCollectibleTarget[] = collectibleTargets) =>
+  inTransaction(pool, (client) => seedStoreCollectibles(client, targets, new Date()));
+
+/** #322가 처음 시드하던 모양 그대로의 단일 등급(bronze '체험') 수집품. 이미 배포된 시연 DB가 가진 옛 시드 게시물을 흉내 낸다. */
+function legacySingleGradeProject(target: StoreCollectibleTarget): CollectibleProject {
+  const { image, thumbnail } = storeCollectibleArt[target.art];
+  return {
+    schemaVersion: 2, name: `${target.storeName} 방문 수집품`, campaignId: target.campaignId, theme: { name: '체험 방문 도감' },
+    photo: { originalDataUrl: image, width: 512, height: 512 }, shape: 'circle', crop: { x: 0, y: 0, zoom: 1 },
+    photoEdits: { brightness: 0, contrast: 0, merge: 0, simplify: 0, cartoon: 0, strokes: [] },
+    style: 'original', baseColor: '#bf8149', photoColor: 100, relief: 45, stickers: [],
+    back: { mode: 'default', color: '#bf8149', stickers: [] },
+    grades: [{ id: 'bronze', name: '체험', kind: 'basic', enabled: true }],
+    effects: [], motion: [], thickness: 8, angle: 0,
+    greeting: '시연용 가상 점포 수집품입니다.', greetingOverrides: [], audio: null,
+    story: { type: 'zoom', frames: [], cartoon: 0, strength: 50 },
+    parallax: { strength: 0, strokes: [] }, living: { periodMs: 2400, items: [] },
+    derived: { bronze: { imageDataUrl: image, thumbnailDataUrl: thumbnail } },
+    rewardGrades: { 1: 'bronze', 3: 'bronze', 5: 'bronze' },
+  } as CollectibleProject;
+}
+
+/** 옛 시드 게시물을 직접 넣는다. createdBy가 있으면 점주 편집기로 만든 게시물처럼 작성자 열을 채운다(같은 이름·테마여도 시드 것이 아니다). */
+async function insertLegacyPublication(pool: Pool, target: StoreCollectibleTarget, options: { createdBy?: string } = {}): Promise<string> {
+  const project = validateCollectibleProject(legacySingleGradeProject(target), true);
+  const projectId = randomUUID();
+  const publicationId = randomUUID();
+  await inTransaction(pool, async (client) => {
+    await client.query(
+      `INSERT INTO collectible_projects (id, merchant_id, created_by_account_id, edited_by_account_id, project, name, lineage_id)
+       VALUES ($1, $2, $3, $3, $4::jsonb, $5, $1)`,
+      [projectId, target.merchantId, options.createdBy ?? null, JSON.stringify(project), project.name]);
+    await client.query(
+      `INSERT INTO collectible_publications (id, project_id, merchant_id, campaign_id, project_version, reward_grades)
+       VALUES ($1, $2, $3, $4, 1, $5::jsonb)`,
+      [publicationId, projectId, target.merchantId, target.campaignId, JSON.stringify(project.rewardGrades)]);
+    const { projectId: _p, publicationId: _u, gradeId: _g, gradeName, shape, theme, name, thumbnailDataUrl, ...detail } =
+      collectibleSnapshot(project, projectId, publicationId, 'bronze');
+    const summary: CollectibleArtwork = { projectId, publicationId, gradeId: 'bronze', gradeName, shape, theme, name, thumbnailDataUrl };
+    await client.query(
+      'INSERT INTO collectible_publication_grades (publication_id, grade_id, summary, detail) VALUES ($1, $2, $3::jsonb, $4::jsonb)',
+      [publicationId, 'bronze', JSON.stringify(summary), JSON.stringify(detail)]);
+    await client.query('INSERT INTO campaign_collectible_publications (campaign_id, publication_id) VALUES ($1, $2)', [target.campaignId, publicationId]);
+    await client.query(`UPDATE collectible_projects SET status = 'PUBLISHED', publication_id = $2, version = 2 WHERE id = $1`, [projectId, publicationId]);
+  });
+  return publicationId;
+}
+
+async function collectibleCounts(pool: Pool): Promise<number[]> {
+  const tables = ['collectible_projects', 'collectible_publications', 'collectible_publication_grades', 'campaign_collectible_publications'];
+  const results = await Promise.all(tables.map((table) => pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM ${table}`)));
+  return results.map(({ rows }) => rows[0]!.total);
+}
+
+async function linkedPublication(pool: Pool, campaignId: string): Promise<string> {
+  return (await pool.query<{ publication_id: string }>(
+    'SELECT publication_id FROM campaign_collectible_publications WHERE campaign_id = $1', [campaignId])).rows[0]!.publication_id;
+}
+
+async function gradesOf(pool: Pool, publicationId: string): Promise<{ grade_id: string; grade_name: string; animation: string }[]> {
+  return (await pool.query<{ grade_id: string; grade_name: string; animation: string }>(
+    `SELECT grade_id, summary ->> 'gradeName' AS grade_name, detail ->> 'animation' AS animation
+     FROM collectible_publication_grades WHERE publication_id = $1 ORDER BY grade_id`, [publicationId])).rows;
+}
+
+test('(R-333a) a fresh collectible seed publishes bronze, silver and gold for goals 1, 3 and 5 on every virtual store', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    assert.equal((await seedCollectibles(pool)).length, 3);
+    assert.deepEqual(await collectibleCounts(pool), [3, 3, 9, 3]);
+    for (const target of collectibleTargets) {
+      const publicationId = await linkedPublication(pool, target.campaignId);
+      const publication = (await pool.query<{ reward_grades: Record<string, string> }>(
+        'SELECT reward_grades FROM collectible_publications WHERE id = $1', [publicationId])).rows[0]!;
+      assert.deepEqual(publication.reward_grades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
+      assert.deepEqual(await gradesOf(pool, publicationId), [
+        { grade_id: 'bronze', grade_name: '브론즈', animation: 'still' },
+        { grade_id: 'gold', grade_name: '골드', animation: 'sparkle' },
+        { grade_id: 'silver', grade_name: '실버', animation: 'shine' },
+      ]);
+    }
+    // 두 번 돌려도(이미 3등급으로 걸려 있음) 아무것도 더하지 않는다.
+    assert.deepEqual(await seedCollectibles(pool), []);
+    assert.deepEqual(await collectibleCounts(pool), [3, 3, 9, 3]);
+  });
+});
+
+test('(R-333a) five showcase test visits yield a bronze, a silver and a gold collectible from the same store', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    await seedCollectibles(pool);
+    const svc = service(pool, { showcase: true });
+    for (let i = 0; i < 5; i += 1) await testVisit(svc, 'customer-a');
+    const collection = await new PostgresCollectionReader(pool).getCollection('customer-a');
+    const byGoal = Object.fromEntries(collection.collectibles.map((item) => [item.targetVisitCount, item.artwork]));
+    assert.deepEqual(
+      [1, 3, 5].map((goal) => [byGoal[goal]?.gradeId, byGoal[goal]?.gradeName]),
+      [['bronze', '브론즈'], ['silver', '실버'], ['gold', '골드']],
+    );
+    assert.equal(new Set(collection.collectibles.map((item) => item.artwork?.publicationId)).size, 1);
+  });
+});
+
+test('(R-333a) a re-seed upgrades the old single-grade seed link exactly once, keeps old acquisitions on their snapshot, and a second re-seed is a no-op', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const [storeA, storeB, storeC] = collectibleTargets as [StoreCollectibleTarget, StoreCollectibleTarget, StoreCollectibleTarget];
+    // 배포된 시연 DB의 모양: 세 점포 모두 옛 단일 등급 게시물이 걸려 있다. 한 고객은 그 게시물로 1회 보상을 이미 받았다.
+    const legacy = { a: await insertLegacyPublication(pool, storeA), b: await insertLegacyPublication(pool, storeB), c: await insertLegacyPublication(pool, storeC) };
+    assert.deepEqual(await collectibleCounts(pool), [3, 3, 3, 3]);
+    const early = service(pool, { showcase: true });
+    const firstVisit = await testVisit(early, 'early-customer');
+    assert.equal(firstVisit.grantedRewards.length, 1);
+    const oldRows = async () => (await pool.query(
+      `SELECT to_jsonb(publication) AS publication,
+              (SELECT jsonb_agg(to_jsonb(grade) ORDER BY grade.grade_id) FROM collectible_publication_grades grade WHERE grade.publication_id = publication.id) AS grades,
+              (SELECT to_jsonb(project) FROM collectible_projects project WHERE project.id = publication.project_id) AS project
+       FROM collectible_publications publication WHERE publication.id = ANY($1::uuid[]) ORDER BY publication.id`,
+      [Object.values(legacy)])).rows;
+    const oldBefore = await oldRows();
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM collectible_acquisitions')).rows[0]!.n, 1);
+
+    // 첫 재시드: 세 점포 모두 3등급 게시물로 한 번 갈아 끼워진다.
+    assert.deepEqual((await seedCollectibles(pool)).sort(), collectibleTargets.map((target) => target.campaignId).sort());
+    assert.deepEqual(await collectibleCounts(pool), [6, 6, 12, 3]);
+    const upgraded: Record<string, string> = {};
+    for (const [key, target] of [['a', storeA], ['b', storeB], ['c', storeC]] as const) {
+      upgraded[key] = await linkedPublication(pool, target.campaignId);
+      assert.notEqual(upgraded[key], legacy[key], `${key} now points at a new publication`);
+      assert.deepEqual((await gradesOf(pool, upgraded[key]!)).map((grade) => grade.grade_id), ['bronze', 'gold', 'silver']);
+    }
+    // 옛 게시물·프로젝트·등급 행은 한 글자도 바뀌지 않고, 이미 받은 획득은 옛 스냅샷을 그대로 가리킨다.
+    assert.deepEqual(await oldRows(), oldBefore);
+    const early1 = await new PostgresCollectionReader(pool).getCollection('early-customer');
+    assert.equal(early1.collectibles[0]?.artwork?.publicationId, legacy.a);
+    assert.equal(early1.collectibles[0]?.artwork?.gradeName, '체험');
+    // 새 방문은 새 3등급 게시물을 잡는다(1회 보상은 브론즈).
+    const later = await testVisit(service(pool, { showcase: true }), 'new-customer');
+    assert.equal(later.grantedRewards.length, 1);
+    const fresh = await new PostgresCollectionReader(pool).getCollection('new-customer');
+    assert.deepEqual([fresh.collectibles[0]?.artwork?.publicationId, fresh.collectibles[0]?.artwork?.gradeId], [upgraded.a, 'bronze']);
+
+    // 두 번째·세 번째 재시드는 아무것도 바꾸지 않는다.
+    const linksAfterFirst = (await pool.query('SELECT campaign_id, publication_id FROM campaign_collectible_publications ORDER BY campaign_id')).rows;
+    assert.deepEqual(await seedCollectibles(pool), []);
+    assert.deepEqual(await seedCollectibles(pool), []);
+    assert.deepEqual(await collectibleCounts(pool), [6, 6, 12, 3]);
+    assert.deepEqual((await pool.query('SELECT campaign_id, publication_id FROM campaign_collectible_publications ORDER BY campaign_id')).rows, linksAfterFirst);
+  });
+});
+
+test('(R-333a) a merchant-authored publication, even with the seed\'s name and one grade, is never replaced; only the seed\'s own is', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const [storeA, storeB] = collectibleTargets as [StoreCollectibleTarget, StoreCollectibleTarget, StoreCollectibleTarget];
+    // 점포 A: 점주 계정이 만든(작성자 열이 채워진) 게시물이 같은 이름·같은 단일 등급이어도 시드 것이 아니다.
+    const authored = await insertLegacyPublication(pool, storeA, { createdBy: 'owner-1' });
+    // 점포 B: 시드가 직접 넣은(작성자 열이 빈) 옛 게시물.
+    const seedOwned = await insertLegacyPublication(pool, storeB);
+    const authoredRows = async () => (await pool.query(
+      `SELECT to_jsonb(project) AS project, to_jsonb(publication) AS publication
+       FROM collectible_projects project JOIN collectible_publications publication ON publication.project_id = project.id
+       WHERE publication.id = $1`, [authored])).rows;
+    const authoredBefore = await authoredRows();
+
+    const published = await seedCollectibles(pool);
+    assert.deepEqual(published.sort(), ['showcase-local-campaign-c', 'showcase-local-campaign-b'].sort(), 'B upgraded, C is new, A left alone');
+    assert.equal(await linkedPublication(pool, storeA.campaignId), authored, 'the merchant-authored link is untouched');
+    assert.notEqual(await linkedPublication(pool, storeB.campaignId), seedOwned);
+    assert.deepEqual(await authoredRows(), authoredBefore);
+    // 시작은 A·B 옛 게시물 각 1(프로젝트 2·게시물 2·등급 2). 거기에 B 업그레이드 1세트(3등급)와 C 신규 1세트(3등급)만 더해지고
+    // A에는 새 행이 하나도 생기지 않는다.
+    assert.deepEqual(await collectibleCounts(pool), [2 + 2, 2 + 2, 2 + 3 + 3, 3]);
+    assert.deepEqual(await seedCollectibles(pool), []);
+  });
+});
+
+test('(R-333a) a seed publication whose media was removed by an operator is not touched either', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const storeA = collectibleTargets[0]!;
+    const legacy = await insertLegacyPublication(pool, storeA);
+    await inTransaction(pool, async (client) => {
+      await client.query(`SET LOCAL masscom.collectible_media_removal = 'on'`);
+      await client.query('UPDATE collectible_publications SET media_removed_at = now() WHERE id = $1', [legacy]);
+    });
+    const before = await collectibleCounts(pool);
+    const published = await seedCollectibles(pool, [storeA]);
+    assert.deepEqual(published, [], 'a removed publication is not silently replaced by the seed');
+    assert.deepEqual(await collectibleCounts(pool), before);
+    assert.equal(await linkedPublication(pool, storeA.campaignId), legacy);
   });
 });
