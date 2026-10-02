@@ -1,5 +1,8 @@
 # 프로젝트 상태
 
+## 앱 효과음 (Issue #305, 2026-10-02)
+
+최신 main `7e6b39d`에서 `feat/305-ui-sounds`로 구현했다. 운영·시연 공통 모바일 코드에 Kenney CC0 효과음 7개와 기기별 켜기/끄기 설정을 추가했다. 기존 `expo-audio`를 재사용하며 추가 의존성·마이크·백그라운드 재생 권한은 없다. 음소거·백그라운드·초기 설정 읽기 실패·250ms 초과 지연 시 재생을 막고 플레이어를 해제한다. 독립 검토에서 발견한 수집품 음성의 오디오 모드 덮어쓰기는 공유 정책으로 수정했다. 모바일 단위 978/978, typecheck·lint, 개발·운영·시연 Android export, 로컬 gate는 `PASS`. 실제 청음·APK 설치·배포는 `NOT_RUN`이며 현재 공개 APK에 적용됐다는 뜻이 아니다.
 ## 로그인 없는 시연 웹 체험 서버 (Issue #309, 2026-10-02)
 
 [Issue #309](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/309) 서버 절반, 브랜치 `feat/309-guest-trial-api`(worktree `.worktrees/309-guest-api`), 기준 main `e2091f2`(이후 `36fed73` 병합), 결정 [D-064](DECISIONS.md). 시연 API에만 `POST /auth/guest-trial`을 열어 Google 신원 없는 계정·개인 체험 가게(가상 점포 A 복사, 목록·추천에서 숨김)·STAFF 권한·24시간 세션을 한 트랜잭션에서 만든다(migration 0039 `showcase_guest_trials`, 운영 DB는 빈 표). 운영 API는 알 수 없는 경로와 같은 404, IP당 15분 20회·같은 IP의 끝나지 않은 체험 30개(IP는 HMAC으로만 저장)·동시 체험자 300명, 시작마다 만료 체험자 20명 정리. 체험 가게는 공개 목록·추천·친구 도장/메달에 나오지 않는다(PR #311 교차 리뷰 P1·P2 반영). 체험 계정은 승인자가 될 수 없고 체험 가게는 AI 그림 비용을 쓰지 않는다. Caddy는 `demo-api.masscom.kr/play/`에서 정적 웹 번들(전용 CSP)을, `masscom.kr/demo`는 그리로 302를 낸다(배포는 하지 않음). 웹 클라이언트는 별도 PR(`feat/309-showcase-web`)이고 이 서버 PR이 먼저 병합돼야 한다. 검증은 [TEST_STATUS](TEST_STATUS.md), 계약은 [apps/api/README.md](../apps/api/README.md#엔드포인트).

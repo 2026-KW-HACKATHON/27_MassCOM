@@ -193,6 +193,13 @@ release build는 시작부터 publish 직전까지 전체 Git worktree가 clean�
 도감의 "내 수집 앨범" 절(`src/screens/collection/collectible-browser.tsx`)은 가게·시즌(테마 이름)·등급으로 걸러보고 최신순·가게순·등급순으로 정렬합니다. `artwork`가 있는 보상은 정적 썸네일 카드로, 같은 게시 수집품(발행 ID+등급)을 여러 캠페인 주기에 걸쳐 여러 번 받았으면 한 장에 개수와 받은 날짜(`earnedAt`)를 함께 보여 줍니다(`src/screens/collection/collectible-groups.ts`). 좋아하는 수집품은 "대표 진열"에 최대 6개까지 놓을 수 있고 이 기기·계정에만 저장하며, 공유는 썸네일·가게 이름·짧은 문구를 담은 이미지를 OS 공유 시트로만 내보냅니다(`src/screens/collection/collectible-share.tsx`, 자동 게시·전송 없음).
 
 같은 절의 "가게별 시리즈"는 그 가게의 기존 방문 목표(1·3·5회)를 칸으로 보여 받은 칸·다음 목표를 표시합니다(`src/screens/collection/store-series.ts`). 새 보상 규칙이나 확률은 만들지 않고 서버가 이미 내려주는 방문 목표·수집 상태만 읽습니다. 첫 수집품, 새 가게의 첫 수집품, 가게 시리즈 완성 때 마스코트가 짧게 반응하며(`src/screens/collection/mascot-reactions.ts`), 같은 반응은 계정별 로컬 기록으로 한 번만 보입니다.
+## UI 효과음 (Issue #305)
+
+운영·시연 모바일 앱의 공통 버튼·카드, 탭 이동, 뒤로 가기, 방문 수령 결과, 보상 상자와 수집품 봉투에 짧은 Kenney 효과음을 사용합니다. 설정의 **효과음** 스위치는 이 기기의 선택을 기억하며, 사장님이 게시한 수집품 음성은 상세 화면의 별도 음소거 설정을 사용합니다.
+
+기존 `expo-audio`를 재사용하고 새 라이브러리나 마이크·백그라운드 재생 권한은 추가하지 않습니다. 음원은 CC0이며 [원본 대응표와 라이선스](assets/sounds/README.md)에 기록했습니다. 효과음 파일 7개는 총 128,026바이트의 PCM WAV입니다. 재생기는 재사용하고 앱 종료 시 해제합니다. 설정을 읽기 전·음소거·백그라운드·재생 준비 실패 시에는 소리를 내지 않습니다. 250ms 이상 지연된 재생과 빠른 중복 탭도 건너뜁니다. 수집품 음성과 효과음은 같은 전경 오디오 정책을 사용합니다.
+
+검증 명령은 `npm run typecheck`, `npm run lint`, `npm run export:android`입니다. Windows PowerShell에서는 기존 `npm test`의 작은따옴표 glob이 테스트를 0개만 실행할 수 있으므로, `apps/mobile`에서 `node --import tsx --test "src/**/*.test.ts"`로 실제 시험 수를 확인합니다. 실제 Android 청음·무음 모드·다른 앱 음악과 함께 재생은 [시험 상태](../../docs/TEST_STATUS.md)에 별도로 기록합니다.
 
 ### 접이식 앨범 홈 (Issue #296, Option A)
 
