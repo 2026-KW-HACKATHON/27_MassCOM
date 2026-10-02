@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Image, Pressable, RefreshControl, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { Alert, Image, Pressable, RefreshControl, Text, View, useColorScheme, useWindowDimensions, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -61,6 +61,11 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
   // 구매가 성공할 때마다, 그리고 화면을 당겨서 새로고침할 때마다 올려 펼쳐 둔 "사용 내역"이 첫 페이지부터
   // 다시 불러오게 한다(PR #312 리뷰 6번).
   const [historyRefreshToken, setHistoryRefreshToken] = useState(0);
+  // #314가 도감의 같은 sky()에서 찾은 원인: 이 뷰는 짧은 "불러오는 중" 내용으로 먼저 마운트되고, 더 큰
+  // "오류" 내용으로 바뀔 때는 다시 마운트되지 않는다(같은 모양의 JSX라 리액트가 인스턴스를 그대로 쓴다).
+  // `contentOffset`은 첫 마운트에만 적용되니 재시도 버튼이 하단 탭 바 밑에 가려도 스크롤해 보여줄 길이
+  // 없다 — 아래 sky()에서 로딩/오류 두 갈래에만 이 ref를 건네 내용 크기가 바뀔 때마다 다시 스크롤한다.
+  const skyScrollView = useRef<ScrollView>(null);
 
   async function refresh() {
     setRefreshing(true);
@@ -156,12 +161,22 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
   // extra는 뽑기 연출(DrawReveal)을 위한 자리: 다른 화면의 모달들(collection/index.tsx의 CollectibleReveal 등)과
   // 같게 SkyScrollView 다음, 여전히 SkyBackdrop 안에 둔다(PR #312 QA) — 둘을 따로 반환하면 RefreshControl 등
   // 머리글 배선을 통째로 또 써야 한다.
-  const sky = (body: ReactNode, extra?: ReactNode) => (
+  // retryScroll은 로딩/오류 두 갈래에서만 true다 — skyScrollView를 매개변수로 건네면(ref를 함수에 전달) lint의
+  // react-hooks/refs가 "렌더 중 ref를 읽을 수 있다"고 막는다. 대신 이 컴포넌트 스코프의 ref를 클로저로 직접
+  // 읽어, 실제로 ref.current를 건드리는 곳은 onContentSizeChange·rAF 콜백(렌더 중이 아님) 뿐으로 유지한다.
+  const sky = (body: ReactNode, extra?: ReactNode, retryScroll?: boolean) => (
     <SkyBackdrop>
       <SkyScrollView
+        ref={retryScroll ? skyScrollView : undefined}
         header={header}
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} progressViewOffset={insets.top} colors={[palette.primary]} />}
+        onContentSizeChange={retryScroll ? (_width, height) => {
+          // 이 자리에서 바로 scrollTo를 부르면 아무 효과가 없다 — 네이티브 쪽이 새 크기를 아직 반영하기 전,
+          // 짧았던 예전 범위로 요청이 그대로 잘려 나간다. 한 프레임 미뤄 네이티브가 크기를 반영한 뒤에
+          // 스크롤한다(#314 PR #320과 같은 방식). 이미 다 보이는 내용이면 더 스크롤할 곳이 없어 no-op이다.
+          requestAnimationFrame(() => skyScrollView.current?.scrollTo({ y: height, animated: false }));
+        } : undefined}
       >
         {body}
       </SkyScrollView>
@@ -171,8 +186,8 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
 
   if (!shop.snapshot) {
     return shop.status === 'error'
-      ? sky(<StateScene kind="error" title="상점을 불러오지 못했어요" body={shopErrorMessage(shop.error)} action={{ label: '다시 불러오기', onPress: () => { void shop.retry(); }, disabled: shop.retrying }} />)
-      : sky(<StateScene kind="loading" title="상점을 불러오는 중" />);
+      ? sky(<StateScene kind="error" title="상점을 불러오지 못했어요" body={shopErrorMessage(shop.error)} action={{ label: '다시 불러오기', onPress: () => { void shop.retry(); }, disabled: shop.retrying }} />, undefined, true)
+      : sky(<StateScene kind="loading" title="상점을 불러오는 중" />, undefined, true);
   }
 
   const { snapshot } = shop;

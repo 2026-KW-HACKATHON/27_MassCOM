@@ -36,7 +36,9 @@ test('#298: the layout hides the 친구 tab slot but keeps the route, and offers
 
 test('#298: BackHeader defaults to the home fallback when there is no back history (cold deep link, post-login continuation)', () => {
   const backHeader = read('../../ui/back-header.tsx');
-  assert.match(backHeader, /onBack \?\? \(\(\) => \(router\.canGoBack\(\) \? router\.back\(\) : router\.replace\('\/'\)\)\)/);
+  // Issue #305(효과음)가 onPress에 playUiSound('close')를 더하며 삼항 표현식 대신 블록 본문으로 바뀌었다 — 동작은
+  // 그대로: onBack이 있으면 그걸 쓰고, 없으면 뒤로 기록이 있을 때만 뒤로, 없으면 홈으로 보낸다.
+  assert.match(backHeader, /if \(onBack\) onBack\(\);\s*else if \(router\.canGoBack\(\)\) router\.back\(\);\s*else router\.replace\('\/'\);/);
   // open.tsx still lands a cold link (or one resumed after sign-in) on /friends; BackHeader's default onBack is what makes
   // "뒤로" fall back home from there instead of leaving the person stuck or bouncing to a screen they never visited.
   const openRoute = read('../../app/open.tsx');

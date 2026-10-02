@@ -84,6 +84,29 @@ test('PR #312 리뷰 라운드 4: 오류 화면의 중복 clearance spacer는 �
   assert.doesNotMatch(errorBranch, /<View style=\{\{ height: clearance \}\} \/>/, '100% 글자에서 섹션 간격+clearance만큼 빈 공간이 남는 중복 여백을 다시 넣지 않는다');
 });
 
+test('#314가 찾은 근본 원인(도감의 같은 sky()와 동일): 로딩→오류로 바뀌며 커진 내용을 다시 스크롤해 탭 바 밑 재시도 버튼을 보여준다', () => {
+  // 로딩과 오류 두 갈래만 retryScroll을 켠다 — 성공 화면(아래 return sky(<>...))은 그대로 둬, 당겨서
+  // 새로고침할 때 사용자 스크롤 위치를 건드리지 않는다(팀장 지시: "don't scroll users on normal refresh").
+  assert.match(screen, /const skyScrollView = useRef<ScrollView>\(null\);/);
+  const errorBranch = screen.slice(screen.indexOf("shop.status === 'error'"), screen.indexOf(": sky(<StateScene kind=\"loading\""));
+  assert.match(errorBranch, /, undefined, true\)/);
+  const loadingBranch = screen.slice(screen.indexOf(": sky(<StateScene kind=\"loading\""), screen.indexOf('if (!shop.snapshot)') + 500);
+  assert.match(loadingBranch, /: sky\(<StateScene kind="loading" title="상점을 불러오는 중" \/>, undefined, true\);/);
+  const successReturn = screen.slice(screen.indexOf('const { snapshot } = shop;'));
+  assert.doesNotMatch(successReturn, /, true\)/, '성공 화면의 sky() 호출에는 retryScroll을 넘기지 않는다');
+
+  const skyFn = screen.slice(screen.indexOf('const sky = (body'), screen.indexOf('if (!shop.snapshot)'));
+  assert.match(skyFn, /retryScroll\?: boolean/);
+  // ref를 함수 매개변수로 건네면 react-hooks/refs가 "렌더 중 ref를 읽을 수 있다"고 lint를 막는다 — 그래서
+  // bool만 받고, 실제 ref는 이 컴포넌트 스코프의 skyScrollView를 클로저로 직접 읽는다.
+  assert.match(skyFn, /ref=\{retryScroll \? skyScrollView : undefined\}/);
+  // retryScroll이 꺼진 호출(성공 화면)에서는 onContentSizeChange를 아예 안 달아, 정상적인 당겨서 새로고침 때
+  // 사용자가 보고 있던 위치로 되돌리지 않는다.
+  assert.match(skyFn, /onContentSizeChange=\{retryScroll \? \(_width, height\) => \{/);
+  // 이 자리의 scrollTo는 아무 효과가 없다 — 한 프레임 미뤄야 네이티브가 새 크기를 반영한다(#314 PR #320과 동일).
+  assert.match(skyFn, /requestAnimationFrame\(\(\) => skyScrollView\.current\?\.scrollTo\(\{ y: height, animated: false \}\)\);/);
+});
+
 test('PR #312 QA: 뽑기 연출은 다른 화면의 모달들처럼 SkyBackdrop 안, SkyScrollView의 형제로 둔다(RefreshControl 중복 없이)', () => {
   const skyFn = screen.slice(screen.indexOf('const sky = (body'), screen.indexOf('if (!shop.snapshot)'));
   assert.match(skyFn, /<SkyBackdrop>\s*<SkyScrollView/);
