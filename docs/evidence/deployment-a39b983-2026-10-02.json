@@ -7,8 +7,12 @@
     "operatingApiAndWebBefore": "61bde483149a9b1b266af79d7de2463962919b8c",
     "showcaseBefore": "7bcfef9fa52842f4a9a5a089a64293f6cd26df92"
   },
-  "issues": [321],
-  "followUpIssues": [322],
+  "issues": [
+    321
+  ],
+  "followUpIssues": [
+    322
+  ],
   "scope": "server side only (showcase API, showcase web trial bundle, operating API and web); no Android APK was built or published in this deploy",
   "contentSince7bcfef9": [
     "#284 collectible expression v2 WP1-WP4",
@@ -21,7 +25,11 @@
     "#305 UI sounds",
     "#314 album white-screen fix"
   ],
-  "migrations": ["0037_showcase_access_requests", "0038_mileage_shop", "0039_showcase_guest_trials"],
+  "migrations": [
+    "0037_showcase_access_requests",
+    "0038_mileage_shop",
+    "0039_showcase_guest_trials"
+  ],
   "order": {
     "plannedInIssue321": "showcase, then Preview 15 device check, then operating",
     "ownerDecision": {
@@ -70,7 +78,26 @@
       "merchantsWhereIsDemo0": "checked (the query was `merchants WHERE is_demo = 0`; the count is not recorded here)",
       "showcaseGuestTrialsRows": 0
     },
-    "publicMerchants": "https://api.masscom.kr/merchants lists 0 merchants"
+    "publicMerchants": "https://api.masscom.kr/merchants lists 0 merchants",
+    "recheck": {
+      "time": "2026-10-02 about 21:00 KST, read-only, by the main thread",
+      "schemaMigrations": "39|0039_showcase_guest_trials.sql",
+      "merchantsWhereIsDemo0": "as reported by the main thread (query `merchants WHERE is_demo = 0`); the count is not stated in the report",
+      "showcaseGuestTrialsRows": 0,
+      "showcaseAccessRequestsRows": 0,
+      "deployedCommitFiles": {
+        "/opt/masscom/DEPLOYED_COMMIT": "a39b983c02de032ea24602f635cca94bf6319d93",
+        "/opt/masscom/web/DEPLOYED_COMMIT": "a39b983c02de032ea24602f635cca94bf6319d93"
+      },
+      "containers": {
+        "masscom-api-1": "masscom-api:a39b983c02de (healthy)",
+        "masscom-production-web-1": "masscom-production-web:a39b983c02de (healthy)",
+        "masscom-caddy-1": "caddy:2.10.2-alpine (up)",
+        "masscom-showcase-showcase-api-1": "masscom-showcase-api:a39b983 (healthy)",
+        "postgres": "both postgres containers healthy"
+      },
+      "acceptance": "PASS for the Issue #321 item `운영 DB에 가상 데이터 0건` (as judged by the main thread from these numbers)"
+    }
   },
   "externalHttps": {
     "status200": [
