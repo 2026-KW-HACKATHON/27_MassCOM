@@ -7,7 +7,6 @@ export function makeFriendsStyles(palette: AppColors, world: WorldTheme) {
   return {
   // No background: the sky backdrop shows through.
   content: { gap: uiMetrics.sectionGap, padding: uiMetrics.pageInset },
-  hero: { flexDirection: 'row', justifyContent: 'flex-end' },
   section: { gap: 5 },
   sectionTitle: { color: world.skyInk, fontSize: 22, fontWeight: '900' },
   sectionNote: { color: world.skyMuted, fontSize: 13, lineHeight: 20 },

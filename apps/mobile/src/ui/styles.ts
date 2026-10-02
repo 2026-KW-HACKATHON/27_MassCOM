@@ -40,6 +40,12 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
       minWidth: uiMetrics.minTouch, minHeight: uiMetrics.minTouch, borderRadius: 24, gap: 2,
       alignItems: 'center', justifyContent: 'center',
     },
+    // The 친구 entry (design-298.md: moved out of the tab bar) draws an SVG glyph, not a square mascot picture, so it needs its
+    // own translucent circle behind the strokes to read over the sky art — same treatment as headerPanel.
+    avatarIconPill: {
+      width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: withAlpha(world.headerScrim, world.headerScrimAlpha),
+    },
     // The negative margin lets the pill overhang the 48dp column instead of widening it: the title beside it keeps its width
     // (a wider column wrapped "어디로 탐험할까요?" onto two lines at 360dp). The Pressable's hitSlop covers the overhang.
     avatarLabelPill: {

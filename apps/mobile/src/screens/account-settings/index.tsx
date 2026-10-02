@@ -299,6 +299,16 @@ export function AccountSettingsScreen({
       </Stagger>
 
       <FloatingCard style={styles.groupCard}>
+        <Text style={styles.sectionTitle}>친구</Text>
+        <Text selectable style={styles.intro}>친구 코드를 주고받고 순위를 봐요.</Text>
+        <Link href="/friends" asChild>
+          <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.secondaryLink, { borderColor: palette.primary }])}>
+            <Text style={[styles.secondaryLinkText, { color: palette.primary }]}>친구 코드·순위 보기 →</Text>
+          </Pressable>
+        </Link>
+      </FloatingCard>
+
+      <FloatingCard style={styles.groupCard}>
         <View style={styles.soundRow}>
           <View style={styles.soundCopy}>
             <Text style={styles.sectionTitle}>효과음</Text>

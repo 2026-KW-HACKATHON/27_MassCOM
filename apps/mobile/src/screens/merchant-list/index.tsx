@@ -25,6 +25,7 @@ import { filterMerchants } from '@/merchant/filter-merchants';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
+import { useShopAvatarArt } from '@/shop/use-shop-avatar-art';
 import { medalColorsForScheme, tierColors } from '@/theme/medal-colors';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
@@ -70,6 +71,9 @@ export function MerchantListScreen({ apiUrl }: Props) {
     void refresh();
     setBadgeRefreshToken((value) => value + 1);
   }, [refresh]);
+  // design-298.md: 홈 헤더 아바타가 상점에서 고른 대표 캐릭터를 보여준다(없으면 AppHeader의 기본 마스코트). 탭 포커스가
+  // 돌아올 때(useShopAvatarArt 내부)와 이 당겨서 새로고침에도 다시 읽는다(PR #312 리뷰 5번).
+  const avatarArt = useShopAvatarArt(apiUrl, auth.credential, badgeRefreshToken);
 
   return (
     <SkyBackdrop>
@@ -92,7 +96,12 @@ export function MerchantListScreen({ apiUrl }: Props) {
         }
         ListHeaderComponent={
           <>
-            <AppHeader title="어디로 탐험할까요?" subtitle="안 가본 가게에 도장을 찍어요">
+            <AppHeader
+              title="어디로 탐험할까요?"
+              subtitle="안 가본 가게에 도장을 찍어요"
+              showFriendsEntry
+              avatarArt={avatarArt}
+            >
               <View style={styles.heroRow}>
                 <View style={styles.heroCopy}>
                   <View style={styles.chipRow}>

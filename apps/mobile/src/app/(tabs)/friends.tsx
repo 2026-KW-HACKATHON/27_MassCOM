@@ -1,16 +1,29 @@
+import { View, useWindowDimensions } from 'react-native';
+
 import { useAuthSession } from '@/auth/auth-provider';
 import { publicApiConfig } from '@/config/public-api-runtime';
 import { AuthRequiredRoute } from '@/screens/auth-required/route';
 import { DemoConfigurationRequired } from '@/screens/demo-configuration-required';
-import { FRIENDS_SUBTITLE, FRIENDS_TITLE, FriendsScreen } from '@/screens/friends';
-import { AppHeader } from '@/ui/app-header';
+import { FRIENDS_TITLE, FriendsScreen } from '@/screens/friends';
+import { BackHeader } from '@/ui/back-header';
+import { heroMascotSize } from '@/ui/large-text';
+import { Mascot } from '@/ui/mascot';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 
 export default function FriendsRoute() {
   const auth = useAuthSession();
-  // Signed-out and set-up states draw the same sky header as the screen itself, inside their own scroll content.
-  const header = <AppHeader title={FRIENDS_TITLE} subtitle={FRIENDS_SUBTITLE} />;
+  const { fontScale } = useWindowDimensions();
+  // #298: 친구는 탭이 아니라 홈 헤더·내 정보에서 들어오는 숨은 라우트가 됐다. settings.tsx와 같은 BackHeader로 바꾸고,
+  // 뒤로가기가 없으면(차가운 딥링크, 로그인 뒤 이어보기) 홈으로 떨어진다(BackHeader의 기본 onBack).
+  const header = (
+    <BackHeader title={FRIENDS_TITLE}>
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+        {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
+        <Mascot interactive pose="friends" size={heroMascotSize(fontScale, 112)} />
+      </View>
+    </BackHeader>
+  );
   if (!auth.credential || !auth.accountId) return <SkyBackdrop><AuthRequiredRoute header={header} /></SkyBackdrop>;
   if (!publicApiConfig.available) {
     return (
@@ -28,6 +41,7 @@ export default function FriendsRoute() {
       apiUrl={publicApiConfig.apiUrl}
       credential={auth.credential}
       onSessionInvalid={auth.invalidateSession}
+      header={header}
     />
   );
 }

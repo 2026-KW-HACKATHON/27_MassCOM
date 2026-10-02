@@ -66,11 +66,14 @@ test('the header keeps account tools one tap away, and says so under the avatar'
   assert.match(header, /styles\.avatarLabelPill[\s\S]*?styles\.avatarLabel[^>]*>내 정보</);
 });
 
-test('at 150% text and up the header keeps the essentials: a capped title, no subtitle, a small hero', () => {
+test('at 150% text and up the header keeps a capped title and a small hero; the subtitle wraps instead of disappearing', () => {
   const header = read('app-header.tsx');
-  assert.match(header, /isLargeText\(fontScale\)/);
   assert.match(header, /maxFontSizeMultiplier=\{1\.6\}[^>]*>\{title\}/);
-  assert.match(header, /subtitle && !large/);
+  // PR #312 QA: at 2.0x the subtitle used to vanish outright instead of wrapping. It always renders now (capped at the
+  // same 1.6x as the title) and is never given numberOfLines/a fixed height, so Text wraps it freely and the header's
+  // own minHeight (not a fixed height) grows to fit.
+  assert.match(header, /\{subtitle \? <Text maxFontSizeMultiplier=\{1\.6\}[^>]*>\{subtitle\}<\/Text> : null\}/);
+  assert.doesNotMatch(header, /isLargeText|numberOfLines/);
   assert.match(readSource('screens/merchant-list/index.tsx'), /size=\{heroMascotSize\(fontScale, 120\)\}/);
   assert.match(readSource('screens/claim-redeem/index.tsx'), /size=\{heroMascotSize\(fontScale, 112\)\}/);
 });
@@ -83,7 +86,8 @@ test('the claim hero tells people what to show or type', () => {
 
 test('header titles sit on the frosted panel while the avatar stays outside it', () => {
   const header = read('app-header.tsx');
-  assert.match(header, /<View style=\{\[styles\.headerPanel[^\]]*\]\}>[\s\S]*?<\/View>\s*<Link href="\/settings"/);
+  // #298: an optional 친구 entry (showFriendsEntry) can sit between the panel and the account avatar.
+  assert.match(header, /<View style=\{\[styles\.headerPanel[^\]]*\]\}>[\s\S]*?<\/View>[\s\S]*?<Link href="\/settings"/);
   const back = read('back-header.tsx');
   assert.match(back, /<View style=\{\[styles\.headerPanel[^\]]*\]\}>[\s\S]*?styles\.backTitle[\s\S]*?<\/View>/);
 });
@@ -129,7 +133,17 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
       assert.match(control, /progressViewOffset=\{insets\.top\}/, `${file} RefreshControl`);
     }
   }
-  assert.equal(controls, 7, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport');
+  assert.equal(controls, 8, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport, shop');
+  // PR #312 QA: Android의 elevation은 JSX 순서와 별개로 Z 스택을 정한다. 카드류(ui/styles.ts의 card)가 쓰는
+  // elevation보다 스크림의 elevation이 뚜렷이 더 커야, 스크롤이 지난 카드가 스크림 위로 올라와 그 텍스트가
+  // 상태 바 아이콘 자리에 다시 비치지 않는다.
+  const cardElevation = Number(readSource('ui/styles.ts').match(/card: \{[\s\S]*?elevation: (\d+)/)?.[1]);
+  const scrimElevation = Number(scrim.match(/scrim: \{[\s\S]*?elevation: (\d+)/)?.[1]);
+  assert.ok(Number.isInteger(cardElevation) && cardElevation > 0, 'base card elevation found');
+  assert.ok(scrimElevation > cardElevation, `scrim elevation (${scrimElevation}) must exceed every card's (${cardElevation})`);
+  // elevation만 Z 순서에 쓰고 Android의 네이티브 드롭 섀도는 받지 않는다 — 안 그러면 스크림 밑에 옅은 그림자 선이
+  // 생긴다(PR #312 리뷰, Claude P1).
+  assert.match(scrim, /scrim: \{[\s\S]*?shadowColor: 'transparent'/);
 });
 
 test('the sky art is the top of the scroll content: the headers carry it and SkyBackdrop is only the page colour', () => {
@@ -141,11 +155,20 @@ test('the sky art is the top of the scroll content: the headers carry it and Sky
   assert.match(read('sky-scroll-view.tsx'), /<ScrollView[\s\S]*\{header\}[\s\S]*<\/ScrollView>/);
 });
 
+test('SkyScrollView forwards refreshControl (and other ScrollView props) to the native ScrollView unchanged (PR #312 리뷰 라운드 6)', () => {
+  // 기기 QA: 상점의 당겨서 새로고침이 의심받았다 — 실제로는 `{...rest}`로 그대로 전달돼 멀쩡하다. `refreshControl`을
+  // 따로 분해해 어딘가 다른 곳에 두면(예: 새 기능 추가 중) 당겨도 아무 일도 없는 것처럼 보이는 회귀가 생긴다.
+  const source = read('sky-scroll-view.tsx');
+  const props = source.slice(source.indexOf('{ header, onHeaderLayout'), source.indexOf(') {'));
+  assert.doesNotMatch(props, /refreshControl/, 'refreshControl은 구조분해하지 않고 ...rest로 그대로 넘긴다');
+  assert.match(source, /<ScrollView[\s\S]*\{\.\.\.rest\}[\s\S]*<\/ScrollView>/);
+});
+
 test('no tab screen, the settings page or a stack page pins its header outside the scroll content', () => {
   const screens = [
     'screens/merchant-list/index.tsx', 'screens/collection/index.tsx', 'screens/claim-redeem/index.tsx',
     'screens/account-settings/index.tsx', 'screens/merchant-detail/index.tsx', 'screens/recommendations/index.tsx',
-    'screens/town-map/index.tsx', 'screens/friends/index.tsx', 'screens/friends/passport.tsx',
+    'screens/town-map/index.tsx', 'screens/friends/index.tsx', 'screens/friends/passport.tsx', 'screens/shop/index.tsx',
   ];
   for (const file of screens) {
     const source = readSource(file);
@@ -155,8 +178,13 @@ test('no tab screen, the settings page or a stack page pins its header outside t
   }
   assert.match(readSource('screens/merchant-list/index.tsx'), /ListHeaderComponent=\{\s*<>\s*<AppHeader/);
   // Route files only pass a header down; they never sit one above the screen.
-  for (const file of ['app/(tabs)/claim.tsx', 'app/(tabs)/collection.tsx', 'app/(tabs)/index.tsx', 'app/(tabs)/map.tsx', 'app/(tabs)/settings.tsx', 'app/(tabs)/friends.tsx', 'app/friends/[friendshipId].tsx']) {
-    const source = readSource(file).replace(/header=\{<(?:AppHeader|BackHeader)[^>]*\/>\}/g, '').replace(/const header = <(?:AppHeader|BackHeader)[^>]*\/>;/, '');
+  for (const file of ['app/(tabs)/claim.tsx', 'app/(tabs)/collection.tsx', 'app/(tabs)/index.tsx', 'app/(tabs)/map.tsx', 'app/(tabs)/settings.tsx', 'app/(tabs)/shop.tsx', 'app/(tabs)/friends.tsx', 'app/friends/[friendshipId].tsx']) {
+    const source = readSource(file)
+      .replace(/header=\{<(?:AppHeader|BackHeader)[^>]*\/>\}/g, '')
+      .replace(/const header = <(?:AppHeader|BackHeader)[^>]*\/>;/, '')
+      // #298: 친구 route now builds its BackHeader with a mascot child (multi-line, not self-closing) — still just a
+      // value assigned to `header` and handed down, never rendered directly above the screen.
+      .replace(/const header = \(\s*<(?:AppHeader|BackHeader)[\s\S]*?<\/(?:AppHeader|BackHeader)>\s*\);/, '');
     assert.doesNotMatch(source, /<(?:AppHeader|BackHeader)/, `${file} pins a header`);
   }
 });
@@ -203,7 +231,7 @@ test('every state of the collection measures its header and clears the tab bar',
 
 test('the explore header asks one short question that fits on one line', () => {
   const list = readSource('screens/merchant-list/index.tsx');
-  assert.match(list, /<AppHeader title="어디로 탐험할까요\?" subtitle="안 가본 가게에 도장을 찍어요">/);
+  assert.match(list, /title="어디로 탐험할까요\?"\s*\n\s*subtitle="안 가본 가게에 도장을 찍어요"/);
   assert.doesNotMatch(list, /오늘은 어디를 탐험할까요/);
 });
 

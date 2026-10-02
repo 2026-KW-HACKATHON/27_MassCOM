@@ -18,7 +18,7 @@ import { CLAIM_SLOT_FLEX, barHeightFor, tabIndicator } from './tab-bar-style';
 type GlyphName = ComponentProps<typeof TabGlyph>['name'];
 type Route = BottomTabBarProps['state']['routes'][number];
 
-const glyphByRoute: Record<string, GlyphName> = { index: 'explore', map: 'map', claim: 'claim', collection: 'collection', friends: 'friends' };
+const glyphByRoute: Record<string, GlyphName> = { index: 'explore', map: 'map', claim: 'claim', collection: 'collection', shop: 'shop', friends: 'friends' };
 // The raised claim button rises this far above the bar; the wrapper is that much taller so every tap lands inside it.
 const LIFT = 22;
 const GAP = 16;
@@ -36,7 +36,7 @@ function useKeyboardShown(): boolean {
   return shown;
 }
 
-/** Floating five-slot bar: 탐색 · 지도 · (raised 방문 인증 stamp) · 도감 · 친구, the stamp exactly in the middle. Routes hidden with `href: null` get no slot. */
+/** Floating five-slot bar: 탐색 · 지도 · (raised 방문 인증 stamp) · 도감 · 상점, the stamp exactly in the middle. Routes hidden with `href: null` (친구, 내 정보) get no slot. */
 export function FloatingTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
   const world = worldForScheme(useColorScheme());
   const { fontScale } = useWindowDimensions();

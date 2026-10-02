@@ -7,8 +7,9 @@ import { fileURLToPath } from 'node:url';
 const app = fileURLToPath(new URL('../app/', import.meta.url));
 
 test('the primary route files keep the production root while the foundation preview stays separate', () => {
-  // Six files, five tab slots: 지도 (Issue #228) and 친구 (Issue #230) joined 탐색, 방문 인증 and 도감, and 내 정보 stays a hidden route.
-  for (const name of ['index', 'map', 'claim', 'collection', 'friends', 'settings']) {
+  // Seven files, five tab slots: 지도(#228)와 상점(#298)이 탐색·방문 인증·도감에 합류했고, 친구(#230)는 #298에서 탭을 나와
+  // 내 정보처럼 숨은 라우트가 됐다(화면은 그대로, 홈 헤더·내 정보에서 들어간다).
+  for (const name of ['index', 'map', 'claim', 'collection', 'shop', 'friends', 'settings']) {
     assert.ok(existsSync(join(app, '(tabs)', name + '.tsx')), name);
     assert.equal(existsSync(join(app, name + '.tsx')), false, name);
   }
@@ -21,16 +22,18 @@ test('the primary route files keep the production root while the foundation prev
   assert.match(root, /<AuthenticatedRoot\s*\/>/);
 });
 
-test('floating tab bar shows explore, map, a raised claim stamp, collection and friends; account moves to the header', () => {
+test('floating tab bar shows explore, map, a raised claim stamp, collection and shop; account and friends move to the header', () => {
   const layout = readFileSync(join(app, '(tabs)', '_layout.tsx'), 'utf8');
-  for (const title of ['탐색', '지도', '방문 인증', '도감', '친구']) assert.ok(layout.includes(title), title);
-  assert.match(layout, /name="friends" options=\{\{ title: '친구', tabBarAccessibilityLabel: '친구' \}\}/);
-  assert.doesNotMatch(layout, /name="friends"[^\n]*href: null/, 'the friends tab is visible');
+  for (const title of ['탐색', '지도', '방문 인증', '도감', '상점']) assert.ok(layout.includes(title), title);
+  assert.match(layout, /name="shop" options=\{\{ title: '상점', tabBarAccessibilityLabel: '상점' \}\}/);
+  assert.doesNotMatch(layout, /name="shop"[^\n]*href: null/, 'the shop tab is visible');
   assert.match(layout, /name="map" options=\{\{ title: '지도', tabBarAccessibilityLabel: '지도' \}\}/);
   assert.doesNotMatch(layout, /name="map"[^\n]*href: null/, 'the map tab is visible');
+  // #298: 친구 kept its screen and route, but left the bar (settings-style hidden tab) when 상점 took its slot.
+  assert.match(layout, /name="friends" options=\{\{ title: '친구', href: null \}\}/);
   assert.match(layout, /name="settings"[\s\S]*?href: null/);
-  // The bar draws routes in the order they are declared: 탐색 · 지도 · (방문 인증) · 도감 · 친구, so the raised claim stamp is the third of five slots: dead centre.
-  const order = ['index', 'map', 'claim', 'collection', 'friends', 'settings'].map((name) => layout.indexOf(`name="${name}"`));
+  // The bar draws routes in the order they are declared: 탐색 · 지도 · (방문 인증) · 도감 · 상점, so the raised claim stamp is the third of five visible slots: dead centre.
+  const order = ['index', 'map', 'claim', 'collection', 'shop'].map((name) => layout.indexOf(`name="${name}"`));
   assert.ok(order.every((position) => position >= 0), 'every route is declared');
   assert.deepEqual(order, [...order].sort((a, b) => a - b), 'declared in bar order');
   assert.match(layout, /tabBar=\{\(props\) => <FloatingTabBar \{\.\.\.props\} \/>\}/);
@@ -42,7 +45,7 @@ test('floating tab bar shows explore, map, a raised claim stamp, collection and 
   assert.match(bar, /accessibilityRole="tab"/);
   // Every visible tab has its own glyph; an unmapped route would silently show the explore magnifier.
   assert.match(bar, /const glyphByRoute[^\n]*map: 'map'/);
-  assert.match(bar, /const glyphByRoute[^\n]*friends: 'friends'/);
+  assert.match(bar, /const glyphByRoute[^\n]*shop: 'shop'/);
   assert.match(bar, /route\.name === 'claim'/);
 });
 
@@ -60,7 +63,7 @@ test('the floating bar skips hidden routes and steps aside for the keyboard', ()
 
 test('every primary screen offers the account avatar', () => {
   // The header is the first thing inside each screen's scroll content, so the claim route no longer draws one itself.
-  for (const screen of ['merchant-list', 'collection', 'claim-redeem']) {
+  for (const screen of ['merchant-list', 'collection', 'claim-redeem', 'shop']) {
     const source = readFileSync(fileURLToPath(new URL(`../screens/${screen}/index.tsx`, import.meta.url)), 'utf8');
     assert.match(source, /<AppHeader/, screen);
   }
