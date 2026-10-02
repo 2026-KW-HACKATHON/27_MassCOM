@@ -318,8 +318,10 @@ test('하단 바: 1단계는 다음만, 2~3단계는 이전·다음, 4단계는 
   assert.deepEqual(shown(), ['next-step']);
   await ui.act('next-step'); assert.deepEqual(shown(), ['previous-step', 'next-step']);
   await ui.act('next-step'); assert.deepEqual(shown(), ['previous-step', 'next-step']);
-  await ui.act('next-step'); assert.deepEqual(shown(), ['previous-step', 'replay', 'publish']);
+  // 규칙 R17: 4단계 하단 바는 전체 미리보기·게시하기만 둔다(명세 우선). 돌아가기는 단계 타일로 한다.
+  await ui.act('next-step'); assert.deepEqual(shown(), ['replay', 'publish']);
   assert.equal(footer.querySelector('[data-action="publish"]').textContent, '게시하기');
+  await ui.act('step', '3'); assert.deepEqual(shown(), ['previous-step', 'next-step'], '단계 타일로 돌아오면 다시 이전·다음');
 });
 
 test('초안 저장·게시 중지·삭제는 ⋯ 메뉴에만 있고 메뉴는 열고 닫힌다', async () => {
@@ -372,4 +374,46 @@ test('칠한 점이 없는 살아 있는 그림이 있어 저장이 4단계로 �
   assert.equal(ui.q('[data-view="workspace"]').dataset.step, '4', '저장 검증이 4단계로 돌려보낸다');
   assert.equal(living.open, true, '칠할 영역이 보이도록 살아 있는 그림이 열린다');
   assert.equal(ui.api.calls.filter(call => call.method === 'POST').length, 0, '서버로 저장 요청을 보내지 않는다');
+});
+
+test('알림 줄과 하단 바는 하나의 고정 하단 묶음 안에 알림 줄이 위, 하단 바가 아래로 있다', async () => {
+  const ui = await mountStudio();
+  const bottom = ui.q('.ce-stage-bottom'), status = ui.q('.ce-status-line'), footer = ui.q('.ce-stage-footer');
+  assert.ok(bottom, '고정 하단 묶음');
+  assert.equal(status.parentElement, bottom); assert.equal(footer.parentElement, bottom);
+  assert.equal(status.nextElementSibling, footer, '알림 줄이 하단 바 바로 위');
+  assert.equal(bottom.parentElement, ui.q('[data-view="workspace"]'));
+  await ui.act('step', '3');
+  assert.ok(ui.q('[data-view="notice"]').closest('.ce-stage-bottom'), '단계가 바뀌어도 알림은 하단 묶음 안');
+  assert.ok(ui.q('[data-view="save-state"]').closest('.ce-stage-bottom'));
+});
+
+test('단계를 옮기면 스크롤 칸(작업 영역)을 맨 위로 되돌린다', async () => {
+  const ui = await mountStudio();
+  const workspace = ui.q('[data-view="workspace"]');
+  workspace.scrollTop = 500;
+  await ui.act('next-step');
+  assert.equal(workspace.scrollTop, 0, '다음 단계');
+  workspace.scrollTop = 500;
+  await ui.act('step', '4');
+  assert.equal(workspace.scrollTop, 0, '단계 타일');
+  workspace.scrollTop = 500;
+  await ui.act('previous-step');
+  assert.equal(workspace.scrollTop, 0, '이전 단계');
+});
+
+test('⋯ 메뉴는 동작·홈·단계 이동·Esc로 닫히고 동작·Esc 뒤에만 초점이 ⋯로 돌아온다', async () => {
+  const ui = await mountStudio();
+  const menu = ui.q('.ce-menu'), toggle = ui.q('.ce-menu-button');
+  const open = async () => { if (menu.hidden) await ui.click(toggle); assert.equal(menu.hidden, false); assert.equal(toggle.getAttribute('aria-expanded'), 'true'); };
+  const closed = label => { assert.equal(menu.hidden, true, label); assert.equal(toggle.getAttribute('aria-expanded'), 'false', label); };
+  await open(); await ui.act('draft'); closed('초안 저장 뒤'); assert.equal(document.activeElement, toggle, '동작 뒤 초점은 ⋯로');
+  await open(); await ui.act('home'); closed('홈으로 간 뒤');
+  await ui.act('resume'); await open(); toggle.focus(); toggle.dispatchEvent({ type: 'keydown', key: 'Escape', bubbles: true }); await settle();
+  closed('Esc 뒤'); assert.equal(document.activeElement, toggle, 'Esc 뒤 초점은 ⋯로');
+  await open(); await ui.act('next-step'); closed('단계 이동 뒤');
+  assert.notEqual(document.activeElement, toggle, '단계 이동은 초점을 ⋯로 돌리지 않는다');
+  assert.equal(ui.q('[data-view="workspace"]').dataset.step, '2');
+  await open(); await ui.click(ui.q('[data-action="next-step"]')); closed('다음 단계 버튼 뒤');
+  await open(); await ui.click(ui.q('.ce-step-title')); closed('메뉴 밖을 누른 뒤');
 });

@@ -195,11 +195,20 @@ export function createCollectibleStudio(container, { effectNames }) {
   const menu = node('div', 'ce-menu'); menu.id = `${title.id}-menu`; menu.hidden = true; menu.append(draft, unpublish, remove);
   const menuToggle = node('button', 'ce-menu-button', '⋯'); menuToggle.type = 'button';
   menuToggle.setAttribute('aria-label', '더 많은 작업'); menuToggle.setAttribute('aria-expanded', 'false'); menuToggle.setAttribute('aria-controls', menu.id);
-  const setMenu = open => { menu.hidden = !open; menuToggle.setAttribute('aria-expanded', String(open)); };
+  // 메뉴를 닫을 때 초점을 ⋯로 돌리는 것은 Esc와 메뉴 동작 뒤뿐이다(단계·홈 이동은 자기 초점 규칙을 따른다).
+  const setMenu = (open, returnFocus = false) => {
+    menu.hidden = !open; menuToggle.setAttribute('aria-expanded', String(open));
+    if (!open && returnFocus) menuToggle.focus();
+  };
   menuToggle.addEventListener('click', () => setMenu(menu.hidden));
-  menu.addEventListener('click', event => { if (event.target.closest('[data-action]')) setMenu(false); });
+  menu.addEventListener('click', event => { if (event.target.closest('[data-action]')) setMenu(false, true); });
+  // 메뉴 밖을 누르거나 Esc를 누르면 닫는다. ⋯와 메뉴 자체의 클릭은 위 두 처리기가 맡는다.
+  workspace.addEventListener('click', event => { if (!menu.hidden && !event.target.closest('.ce-menu') && !event.target.closest('.ce-menu-button')) setMenu(false); });
+  workspace.addEventListener('keydown', event => { if (event.key === 'Escape' && !menu.hidden) setMenu(false, true); });
   workspaceHeading.append(menuToggle, menu);
-  workspace.append(statusLine, footer);
+  // 알림 줄(알림·저장 상태)과 하단 바는 한 고정 묶음이라 스크롤 위치와 상관없이 항상 하단 바 바로 위에서 보인다.
+  const bottom = node('div', 'ce-stage-bottom'); bottom.append(statusLine, footer);
+  workspace.append(bottom);
   // 알림은 작업 영역에서는 하단 바 위 알림 줄, 스튜디오 홈에서는 홈 맨 위에 둔다(showStep·showHome이 옮긴다).
   const noticeView = view('notice');
   let targetSignature = '';
@@ -231,10 +240,12 @@ export function createCollectibleStudio(container, { effectNames }) {
     for (const panel of panels) panel.hidden = Number(panel.dataset.stepPanel) !== currentStep;
     for (const tile of navigation.children) { if (Number(tile.dataset.id) === currentStep) tile.setAttribute('aria-current', 'step'); else tile.removeAttribute('aria-current'); }
     grid.querySelector('.ce-preview').hidden = currentStep === 1;
-    previous.hidden = currentStep === 1; nextButton.hidden = currentStep === 4;
+    previous.hidden = currentStep === 1 || currentStep === 4; nextButton.hidden = currentStep === 4;
     fullPreview.hidden = currentStep !== 4; publish.hidden = currentStep !== 4;
     statusLine.prepend(noticeView); setMenu(false);
     if (focus) { title.focus({ preventScroll: true }); title.scrollIntoView({ block: 'start', behavior: 'instant' }); }
+    // 폰에서는 .ce-workspace가 스크롤 칸이고 제목은 고정 머리 안이라 scrollIntoView가 위치를 되돌리지 못하고 1px쯤 밀기도 한다. 마지막에 맨 위로 맞춘다.
+    workspace.scrollTop = 0;
     syncChoices();
   }
   function showHome(focus = true) {
