@@ -144,22 +144,71 @@ test('3단계는 자르기 조작을 반복하지 않고 1단계로 가는 버�
   for (const control of ['sticker-kind', 'greeting']) assert.equal(ui.q(`[data-control="${control}"]`).closest('details').classList.contains('ce-more'), false, `${control}은 펼쳐 둔 묶음이라 점선 모양이 아니다`);
 });
 
-test('1단계로 돌아오면 사진 캔버스도 1단계로 돌아오고 붓은 사진 이동으로 되돌아온다', async () => {
+test('단계를 옮기면 붓은 사진 이동으로 되돌아오고 사진 캔버스는 그 단계의 칸을 따라간다', async () => {
   const ui = await mountStudio();
-  await ui.act('step', '3');
-  await ui.click(ui.choice('brush', 'erase'));
-  assert.equal(ui.q('[data-control="brush"]').value, 'erase');
-  assert.equal(ui.choice('brush', 'erase').getAttribute('aria-pressed'), 'true');
-  const undoNotice = () => ui.q('[data-view="notice"]').textContent;
+  const brush = () => ui.q('[data-control="brush"]'), crop = () => ui.q('[data-view="crop"]');
+  const pressed = id => ui.choice('brush', id).getAttribute('aria-pressed');
+  for (const destination of ['1', '2', '4']) {
+    await ui.act('step', '3');
+    await ui.click(ui.choice('brush', 'erase'));
+    assert.equal(brush().value, 'erase');
+    assert.equal(pressed('erase'), 'true');
+    await ui.act('step', destination);
+    assert.equal(brush().value, 'move', `3단계에서 ${destination}단계로 가면 붓이 사진 이동으로 돌아온다`);
+    assert.equal(pressed('move'), 'true'); assert.equal(pressed('erase'), 'false');
+  }
+  await ui.act('step', '3'); await ui.click(ui.choice('brush', 'erase'));
+  await ui.act('home'); await ui.act('resume');
+  assert.equal(ui.stepOf(crop()), '3', '스튜디오 홈에서 3단계로 돌아오면 캔버스도 3단계에 있다');
+  assert.equal(brush().value, 'move', '홈에서 단계로 들어올 때도 붓이 돌아온다');
   await ui.act('step', '1');
-  assert.equal(ui.stepOf(ui.q('[data-view="crop"]')), '1', '캔버스가 1단계로 돌아온다');
-  assert.equal(ui.q('[data-control="brush"]').value, 'move', '1단계에서 끌어도 지워지지 않는다');
-  assert.equal(ui.choice('brush', 'move').getAttribute('aria-pressed'), 'true');
-  assert.equal(ui.choice('brush', 'erase').getAttribute('aria-pressed'), 'false');
+  assert.equal(ui.stepOf(crop()), '1', '캔버스가 1단계로 돌아온다');
   await ui.act('undo');
-  assert.equal(undoNotice(), '되돌릴 편집이 아직 없어요.', '붓을 되돌리는 일은 되돌리기 기록을 만들지 않는다');
+  assert.equal(ui.q('[data-view="notice"]').textContent, '되돌릴 편집이 아직 없어요.', '붓을 되돌리는 일은 되돌리기 기록을 만들지 않는다');
   await ui.act('step', '4'); await ui.act('step', '3');
-  assert.equal(ui.stepOf(ui.q('[data-view="crop"]')), '3', '3단계로 다시 가면 캔버스도 따라온다');
+  assert.equal(ui.stepOf(crop()), '3', '3단계로 다시 가면 캔버스도 따라온다');
+  await ui.act('step', '2');
+  assert.notEqual(ui.stepOf(crop()), '2', '2단계에는 사진 캔버스를 보이지 않는다');
+});
+
+test('4단계에서는 사진 캔버스가 살아 있는 그림 안에 있고 2단계에는 나타나지 않는다', async () => {
+  const ui = await mountStudio();
+  const crop = ui.q('[data-view="crop"]'), living = ui.q('[data-control="living-kind"]').closest('details');
+  await ui.act('step', '4');
+  assert.equal(ui.stepOf(crop), '4');
+  assert.equal(crop.closest('details'), living, '캔버스는 "살아 있는 그림" 묶음 안에 있다');
+  assert.equal(living.querySelector('.ce-detail').children[0].querySelector('[data-view="crop"]'), crop, '살아 있는 그림 조작보다 앞에 있다');
+  assert.equal(living.open, false, '묶음은 접혀 있다');
+  for (const step of ['2', '3', '1']) {
+    await ui.act('step', step);
+    assert.notEqual(crop.closest('details'), living, `${step}단계에는 캔버스가 살아 있는 그림 묶음에 남지 않는다`);
+    if (step === '2') assert.notEqual(ui.stepOf(crop), '2', '2단계에는 사진 캔버스를 보이지 않는다');
+  }
+});
+
+test('4단계에서 영역 칠하기를 켜도 다른 단계로 가면 사진 보정으로 돌아와 1단계 끌기가 점을 찍지 않는다', async () => {
+  const ui = await mountStudio();
+  const target = ui.q('[data-control="brush-target"]'), crop = ui.q('[data-view="crop"]');
+  const photo = ui.q('[data-control="photo"]');
+  photo.files = [{ type: 'image/png', size: 1000, name: 'p.png', dataUrl: 'data:image/png;base64,AAAA' }]; photo.dispatchEvent({ type: 'change' }); await settle();
+  await ui.act('step', '4');
+  await ui.act('living-add');
+  const paint = ui.all('[data-action="living-paint"]')[0];
+  assert.ok(paint, '영역 항목에는 "이 영역 칠하기"가 있다');
+  await ui.click(paint);
+  assert.match(target.value, /^living:/, '4단계에서 칠하기를 켜면 living 대상이 된다');
+  assert.equal(ui.stepOf(crop), '4');
+  crop.dispatchEvent({ type: 'pointerdown', pointerId: 1, clientX: 100, clientY: 100 });
+  crop.dispatchEvent({ type: 'pointerup', pointerId: 1 }); await settle();
+  await ui.act('step', '1');
+  assert.equal(target.value, 'photo', '단계를 옮기면 붓 대상이 사진 보정으로 돌아온다');
+  crop.dispatchEvent({ type: 'pointerdown', pointerId: 2, clientX: 256, clientY: 256 });
+  for (let point = 0; point < 5; point++) crop.dispatchEvent({ type: 'pointermove', pointerId: 2, clientX: 256 + point, clientY: 256 });
+  crop.dispatchEvent({ type: 'pointerup', pointerId: 2 }); await settle();
+  await ui.act('draft');
+  const saved = ui.api.calls.filter(call => call.body?.project).at(-1).body.project;
+  assert.equal(saved.living.items.length, 1);
+  assert.equal(saved.living.items[0].strokes.length, 1, '점은 4단계에서 찍은 한 개뿐이고 1단계 끌기는 점을 더하지 않았다');
 });
 
 test('필터 선택은 보이는 강도 슬라이더만 바꾸고 값은 그대로 둔다', async () => {
@@ -199,12 +248,14 @@ test('3단계를 떠나면 붓 대상도 사진 보정으로 돌아와 1단계�
   const ui = await mountStudio();
   const target = ui.q('[data-control="brush-target"]'), parallaxControls = ui.q('[data-view="parallax-controls"]');
   const pick = async value => { target.value = value; target.dispatchEvent({ type: 'change' }); await settle(); };
-  // 사진이 없을 때: 값만 되돌아오고 되돌리기 기록은 만들지 않는다.
-  await ui.act('step', '3'); await pick('parallax');
-  assert.equal(parallaxControls.hidden, false, '3단계에서 패럴랙스 붓이 켜진다');
-  await ui.act('step', '1');
-  assert.equal(target.value, 'photo');
-  assert.equal(parallaxControls.hidden, true, '패럴랙스 조절도 다시 숨는다');
+  // 사진이 없을 때: 어느 단계로 가든 값만 되돌아오고 되돌리기 기록은 만들지 않는다.
+  for (const destination of ['1', '2', '4']) {
+    await ui.act('step', '3'); await pick('parallax');
+    assert.equal(parallaxControls.hidden, false, '3단계에서 패럴랙스 붓이 켜진다');
+    await ui.act('step', destination);
+    assert.equal(target.value, 'photo', `${destination}단계로 가면 붓 대상이 돌아온다`);
+    assert.equal(parallaxControls.hidden, true, '패럴랙스 조절도 다시 숨는다');
+  }
   await ui.act('undo');
   assert.equal(ui.q('[data-view="notice"]').textContent, '되돌릴 편집이 아직 없어요.', '붓 대상을 되돌리는 일은 되돌리기 기록을 만들지 않는다');
   // 사진이 있을 때: 1단계에서 끌어도 패럴랙스 획이 쌓이지 않는다.
@@ -220,7 +271,7 @@ test('3단계를 떠나면 붓 대상도 사진 보정으로 돌아와 1단계�
   const saves = ui.api.calls.filter(call => call.body?.project);
   assert.ok(saves.length > 0, '초안을 저장했다');
   assert.equal(saves.at(-1).body.project.parallax.strokes.length, 0, '패럴랙스 획이 생기지 않았다');
-}); 
+});
 
 test('다른 필터로 옮겨도 값이 남고 슬라이더를 움직여도 선택이 튀지 않는다', async () => {
   const ui = await mountStudio();
@@ -242,4 +293,18 @@ test('값이 있는 저장 초안을 열면 0이 아닌 첫 필터를 보인다'
   await ui.click(ui.all('[data-action="open-project"]')[0]);
   assert.equal(ui.q('[data-edit="simplify"]').closest('label').hidden, false);
   assert.equal(ui.q('[data-edit="cartoon"]').closest('label').hidden, true);
+});
+
+test('값이 있는 필터가 여럿이면 먼저 오는 것을 보인다', async () => {
+  const ui = await mountStudio();
+  const set = async (name, value) => { const input = ui.q(`[data-edit="${name}"]`); input.value = String(value); input.dispatchEvent({ type: 'input' }); await settle(); };
+  const hidden = name => ui.q(`[data-edit="${name}"]`).closest('label').hidden;
+  await set('simplify', 10); await set('cartoon', 20);
+  await ui.act('draft'); await ui.act('new');
+  assert.equal(hidden('cartoon'), false, '새 초안은 기본(만화풍)이다');
+  await ui.click(ui.all('[data-action="open-project"]')[0]);
+  assert.equal(hidden('simplify'), false, 'merge가 0이면 값이 있는 첫 필터인 단순화를 보인다');
+  assert.equal(hidden('merge'), true); assert.equal(hidden('cartoon'), true);
+  assert.equal(ui.q('[data-filter="simplify"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(ui.q('[data-edit="cartoon"]').value, '20', '보이지 않는 필터 값도 그대로다');
 });

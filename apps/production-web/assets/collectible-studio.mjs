@@ -102,8 +102,9 @@ export function createCollectibleStudio(container, { effectNames }) {
   zoomOut.setAttribute('aria-label', '사진 0.25배 축소'); zoomIn.setAttribute('aria-label', '사진 0.25배 확대');
   const zoomRow = node('div', 'ce-zoom-row'); zoomRow.append(zoomOut, cropZoom, zoomIn);
   // 붓·패럴랙스·living 점·"원본과 비교"는 사진 캔버스(crop)에만 그려지므로 3단계에도 같은 캔버스가 있어야 한다.
-  // 캔버스만 1단계·3단계 칸 사이에서 옮기고, 확대 줄·모양·자르기 동작은 1단계에만 둔다(showStep).
-  const cropSlots = [node('div', 'ce-crop-slot'), node('div', 'ce-crop-slot')]; cropSlots[0].append(crop);
+  // 4단계 "살아 있는 그림"의 "이 영역 칠하기"도 같은 캔버스에 칠하므로 4단계에도 칸이 있다.
+  // 캔버스만 1·3·4단계 칸 사이에서 옮기고(2단계는 1단계 칸에 숨겨 둔다), 확대 줄·모양·자르기 동작은 1단계에만 둔다(showStep).
+  const cropSlots = [node('div', 'ce-crop-slot'), node('div', 'ce-crop-slot'), node('div', 'ce-crop-slot')]; cropSlots[0].append(crop);
   const photoStage = node('div', 'ce-photo-stage');
   photoStage.append(node('p', 'ce-photo-instruction', '사진을 움직여 원하는 모양에 맞춰 주세요.'), cropSlots[0], zoomRow, disclosure('더 보기 · 위치 미세 조정', cropMoves, cropActions));
   shape.hidden = true;
@@ -164,6 +165,7 @@ export function createCollectibleStudio(container, { effectNames }) {
   const voice = control('greeting').closest('details'), story = control('story-type').closest('details'), rewards = control('theme').closest('details');
   motionDetail.open = true; voice.open = true; rewards.open = true; livingDetail.open = false; story.open = false;
   livingDetail.classList.add('ce-more'); story.classList.add('ce-more');
+  livingDetail.querySelector('.ce-detail').prepend(cropSlots[2]);
   motionDetail.querySelector('summary').textContent = '움직임';
   livingDetail.querySelector('summary').textContent = '더 보기 · 살아 있는 그림';
   story.querySelector('summary').textContent = '더 보기 · 가게 이야기';
@@ -187,15 +189,17 @@ export function createCollectibleStudio(container, { effectNames }) {
   }
   function showStep(step, focus = true) {
     const next = Math.max(1, Math.min(4, Number(step) || 1));
-    // 3단계의 붓(지우개 등)과 붓 대상(패럴랙스·living 영역)이 1단계 끌기로 새어 나가지 않게 떠날 때 "사진 이동"·"사진 보정"으로 되돌린다.
-    // 붓 값은 편집기가 pointerdown에서 읽기만 하고, 붓 대상은 편집기의 change 처리가 상태와 화면을 맞춘다. 둘 다 되돌리기 기록은 만들지 않는다.
-    if (currentStep === 3 && next !== 3) {
+    // 붓(지우개 등)과 붓 대상(패럴랙스·living 영역)은 칠하는 단계(3·4단계) 안에서만 쓴다. 단계가 바뀌거나 홈에서 들어올 때마다 "사진 이동"·"사진 보정"으로 되돌려
+    // 1단계 끌기가 사진을 옮기는 대신 지우거나 점을 찍지 않게 한다. 붓 값은 편집기가 pointerdown에서 읽기만 하고, 붓 대상은 편집기의 change 처리가
+    // 상태와 화면을 맞춘다(4단계 "이 영역 칠하기"는 눌렀을 때 대상을 직접 정한다). 둘 다 되돌리기 기록은 만들지 않는다.
+    if (workspace.hidden || next !== currentStep) {
       control('brush').value = 'move';
       const brushTarget = control('brush-target');
       if (brushTarget.value !== 'photo') { brushTarget.value = 'photo'; brushTarget.dispatchEvent(new Event('change', { bubbles: true })); }
     }
     currentStep = next; home.hidden = true; workspace.hidden = false; hasCurrent = true;
-    cropSlots[currentStep === 3 ? 1 : 0].append(crop);
+    const cropSlot = cropSlots[currentStep === 3 ? 1 : currentStep === 4 ? 2 : 0];
+    if (crop.parentElement !== cropSlot) cropSlot.append(crop);
     workspace.dataset.step = String(currentStep); title.textContent = steps[currentStep - 1]; workspace.querySelector('.ce-step-count').textContent = `${currentStep} / 4`;
     for (const panel of panels) panel.hidden = Number(panel.dataset.stepPanel) !== currentStep;
     for (const tile of navigation.children) { if (Number(tile.dataset.id) === currentStep) tile.setAttribute('aria-current', 'step'); else tile.removeAttribute('aria-current'); }

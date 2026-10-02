@@ -876,7 +876,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   function navigateStep(step) {
     stopHiddenMedia(); studio.showStep(step); start = performance.now();
-    if (studio.step === 1 || studio.step === 3) drawCrop();
+    if (studio.step === 1 || studio.step === 3 || studio.step === 4) drawCrop(); // 4단계 "살아 있는 그림"에도 같은 사진 캔버스가 있다.
     if (studio.step !== 1) schedulePreview();
   }
   // 저장하지 않은 편집이 있으면 새로 시작하거나 다른 프로젝트를 열기 전에 묻는다. 거절하면 지금 프로젝트를 그대로 둔다.
