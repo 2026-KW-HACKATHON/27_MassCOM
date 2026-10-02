@@ -273,38 +273,66 @@ test('(b) without the showcase option even a test-issuer slot keeps the same-day
   });
 });
 
-test('(seed) a fresh seed starts campaigns 30 days back, and a re-seed pulls an older-seeded campaign earlier but never pushes one later', async () => {
+test('(seed) a fresh seed spans 30 days back to 30 days ahead; a re-seed widens an older-seeded campaign but never shortens one, and the same moment is idempotent', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
-    const startsAt = async (): Promise<Map<string, number>> => new Map(
-      (await pool.query<{ id: string; starts_at: Date }>('SELECT id, starts_at FROM campaigns ORDER BY id')).rows
-        .map((row) => [row.id, row.starts_at.getTime()]),
+    const period = async (): Promise<Map<string, [number, number]>> => new Map(
+      (await pool.query<{ id: string; starts_at: Date; ends_at: Date }>('SELECT id, starts_at, ends_at FROM campaigns ORDER BY id')).rows
+        .map((row) => [row.id, [row.starts_at.getTime(), row.ends_at.getTime()]]),
     );
-    const fresh = await startsAt();
+    const fresh = await period();
     assert.equal(fresh.size, 3);
-    for (const value of fresh.values()) {
-      assert.ok(value <= Date.now() - 30 * DAY_MS, 'at least 30 days in the past');
-      assert.ok(value > Date.now() - 30 * DAY_MS - 60_000, 'and only just that far');
+    for (const [starts, ends] of fresh.values()) {
+      assert.ok(starts <= Date.now() - 30 * DAY_MS, 'at least 30 days in the past');
+      assert.ok(starts > Date.now() - 30 * DAY_MS - 60_000, 'and only just that far');
+      assert.ok(ends > Date.now() + 30 * DAY_MS - 60_000 && ends <= Date.now() + 30 * DAY_MS, 'ends 30 days ahead');
     }
 
-    // 옛 시드(시작 = 시드 시각 - 24시간)와 이미 더 일찍 시작한 캠페인을 흉내 낸다.
-    const oldSeededB = Date.now() - DAY_MS;
-    const alreadyEarlierC = Date.now() - 90 * DAY_MS;
-    await pool.query('UPDATE campaigns SET starts_at = $2 WHERE id = $1', ['showcase-local-campaign-b', new Date(oldSeededB)]);
-    await pool.query('UPDATE campaigns SET starts_at = $2 WHERE id = $1', ['showcase-local-campaign-c', new Date(alreadyEarlierC)]);
+    // 옛 시드(시작 = 시드 시각 - 24시간, 끝이 곧 다가옴)와 이미 더 넓은 기간을 가진 캠페인을 흉내 낸다.
+    const reseedNow = new Date();
+    const oldStartB = reseedNow.getTime() - DAY_MS;
+    const soonEndB = reseedNow.getTime() + 5 * DAY_MS;
+    const earlierStartC = reseedNow.getTime() - 90 * DAY_MS;
+    const laterEndC = reseedNow.getTime() + 90 * DAY_MS;
+    await pool.query('UPDATE campaigns SET starts_at = $2, ends_at = $3 WHERE id = $1',
+      ['showcase-local-campaign-b', new Date(oldStartB), new Date(soonEndB)]);
+    await pool.query('UPDATE campaigns SET starts_at = $2, ends_at = $3 WHERE id = $1',
+      ['showcase-local-campaign-c', new Date(earlierStartC), new Date(laterEndC)]);
     const others = async () => (await pool.query(
-      'SELECT id, ends_at, status, is_public, enrollment_capacity, enrolled_count FROM campaigns ORDER BY id',
+      'SELECT id, status, is_public, enrollment_capacity, enrolled_count FROM campaigns ORDER BY id',
     )).rows;
     const othersBefore = await others();
 
-    await seedLocalShowcase(pool);
-    const reseeded = await startsAt();
-    assert.ok(reseeded.get('showcase-local-campaign-b')! <= Date.now() - 30 * DAY_MS, 'the old 24h-back campaign is pulled earlier');
-    assert.equal(reseeded.get('showcase-local-campaign-c'), alreadyEarlierC, 'an earlier start is never pushed later');
-    assert.equal(reseeded.get(SHOWCASE_CAMPAIGN_ID), fresh.get(SHOWCASE_CAMPAIGN_ID), 'an already 30-day-old start is left alone');
-    assert.deepEqual(await others(), othersBefore, 'nothing but starts_at changes');
+    await seedLocalShowcase(pool, reseedNow);
+    const reseeded = await period();
+    const b = reseeded.get('showcase-local-campaign-b')!;
+    assert.equal(b[0], reseedNow.getTime() - 30 * DAY_MS, 'the old 24h-back campaign starts 30 days back');
+    assert.equal(b[1], reseedNow.getTime() + 30 * DAY_MS, 'and ends 30 days ahead instead of 5');
+    assert.deepEqual(reseeded.get('showcase-local-campaign-c'), [earlierStartC, laterEndC], 'a wider period is never shortened');
+    const a = reseeded.get(SHOWCASE_CAMPAIGN_ID)!;
+    assert.equal(a[0], fresh.get(SHOWCASE_CAMPAIGN_ID)![0], 'a campaign already starting 30 days back keeps its start');
+    assert.equal(a[1], reseedNow.getTime() + 30 * DAY_MS, 'and its end only moves later (the clock moved on a few ms)');
+    assert.ok(a[1] >= fresh.get(SHOWCASE_CAMPAIGN_ID)![1]);
+    assert.deepEqual(await others(), othersBefore, 'nothing but starts_at/ends_at changes');
 
-    // 두 번째 재시드는 아무것도 바꾸지 않는다(멱등).
-    await seedLocalShowcase(pool);
-    assert.deepEqual(await startsAt(), reseeded);
+    // 같은 시각의 두 번째 재시드는 아무것도 바꾸지 않는다(멱등). 더 늦은 시각의 재시드는 끝만 더 뒤로 민다.
+    await seedLocalShowcase(pool, reseedNow);
+    assert.deepEqual(await period(), reseeded);
+    const later = new Date(reseedNow.getTime() + DAY_MS);
+    await seedLocalShowcase(pool, later);
+    const slid = await period();
+    for (const [id, [starts, ends]] of slid) {
+      assert.equal(starts, reseeded.get(id)![0], `${id} start is never moved later`);
+      assert.ok(ends >= reseeded.get(id)![1], `${id} end is never moved earlier`);
+    }
+    assert.equal(slid.get('showcase-local-campaign-b')![1], later.getTime() + 30 * DAY_MS);
+  });
+});
+
+test('(seed) a campaign that already ended is still refused instead of being silently revived', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    await pool.query(`UPDATE campaigns SET ends_at = now() - interval '1 day' WHERE id = $1`, [SHOWCASE_CAMPAIGN_ID]);
+    const before = (await pool.query('SELECT id, starts_at, ends_at FROM campaigns ORDER BY id')).rows;
+    await assert.rejects(seedLocalShowcase(pool), /SHOWCASE_FIXTURE_COLLISION/);
+    assert.deepEqual((await pool.query('SELECT id, starts_at, ends_at FROM campaigns ORDER BY id')).rows, before);
   });
 });

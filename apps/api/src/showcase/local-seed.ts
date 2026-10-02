@@ -60,6 +60,10 @@ const rewardOffers = [
   { milestone: 3, merchantId: 'showcase-local-merchant-c', title: '체험 세트 20% 할인' },
 ] as const;
 
+// 시연 전부 체험(#333): 테스트 방문을 서로 다른 날로 옮겨 세려면 캠페인이 충분히 일찍 시작해 있어야 한다(오늘 포함 30일).
+const campaignStartsAt = (now: Date): Date => new Date(now.getTime() - SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS * 24 * 60 * 60 * 1000);
+const campaignEndsAt = (now: Date): Date => new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
 export function isPermittedShowcaseDatabaseName(name: string): boolean {
   return name === 'masscom_showcase_test' || /^masscom_showcase_ci_[0-9a-f]+_test$/.test(name);
 }
@@ -216,11 +220,13 @@ export async function seedShowcaseFixtureData(
       );
       if (hasExisting) {
         assertFixtureMatches(existing, entry, now, Boolean(staffAccountId));
-        // #333: 이미 시드된 시연 캠페인(시작 = 시드 시각 - 24시간)도 다시 시드하면 시작 시각만 앞으로 당긴다. 늦추는 일은 없고
-        // 다른 열은 건드리지 않는다. 방문·보상·등록 수는 그대로다.
+        // #333: 이미 시드된 시연 캠페인(시작 = 시드 시각 - 24시간, 끝 = 시드 시각 + 30일)도 다시 시드하면 기간만 넓힌다 — 시작은 시드
+        // 시각의 30일 전까지 앞으로, 끝은 시드 시각의 30일 뒤까지 뒤로. 줄이는 일은 없고(시작을 늦추지도 끝을 당기지도 않음) 다른 열과
+        // 방문·보상·등록 수는 그대로다. 이미 끝난 캠페인은 위 fixture 확인이 거절하므로 끝나기 전에 다시 시드해야 한다.
         await client.query(
-          `UPDATE campaigns SET starts_at = $2 WHERE id = $1 AND starts_at > $2`,
-          [entry.campaignId, new Date(now.getTime() - SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS * 24 * 60 * 60 * 1000)],
+          `UPDATE campaigns SET starts_at = LEAST(starts_at, $2), ends_at = GREATEST(ends_at, $3)
+           WHERE id = $1 AND (starts_at > $2 OR ends_at < $3)`,
+          [entry.campaignId, campaignStartsAt(now), campaignEndsAt(now)],
         );
         // 0036 전에 seed된 시연 점포는 동네·업종이 둘 다 비어 있을 때만 채운다(다른 값은 건드리지 않는다).
         await client.query(
@@ -243,12 +249,7 @@ export async function seedShowcaseFixtureData(
           enrollment_capacity, enrolled_count)
          VALUES ($1, $2, $3, $4, $5, 'ACTIVE', true, 20, 0)
          ON CONFLICT (id) DO NOTHING`,
-        [
-          entry.campaignId, entry.merchantId, campaignTitle,
-          // 시연 전부 체험(#333): 테스트 방문을 서로 다른 날로 옮겨 세려면 캠페인이 충분히 일찍 시작해 있어야 한다(오늘 포함 30일).
-          new Date(now.getTime() - SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS * 24 * 60 * 60 * 1000),
-          new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
-        ],
+        [entry.campaignId, entry.merchantId, campaignTitle, campaignStartsAt(now), campaignEndsAt(now)],
       );
       for (const [count, name] of goals) {
         await client.query(
