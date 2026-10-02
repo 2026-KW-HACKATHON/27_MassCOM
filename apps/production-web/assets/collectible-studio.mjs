@@ -101,8 +101,11 @@ export function createCollectibleStudio(container, { effectNames }) {
   const zoomOut = action('−', 'zoom-step', '-0.25', 'ce-icon-button'), zoomIn = action('+', 'zoom-step', '0.25', 'ce-icon-button');
   zoomOut.setAttribute('aria-label', '사진 0.25배 축소'); zoomIn.setAttribute('aria-label', '사진 0.25배 확대');
   const zoomRow = node('div', 'ce-zoom-row'); zoomRow.append(zoomOut, cropZoom, zoomIn);
+  // 붓·패럴랙스·living 점·"원본과 비교"는 사진 캔버스(crop)에만 그려지므로 3단계에도 같은 캔버스가 있어야 한다.
+  // 캔버스만 1단계·3단계 칸 사이에서 옮기고, 확대 줄·모양·자르기 동작은 1단계에만 둔다(showStep).
+  const cropSlots = [node('div', 'ce-crop-slot'), node('div', 'ce-crop-slot')]; cropSlots[0].append(crop);
   const photoStage = node('div', 'ce-photo-stage');
-  photoStage.append(node('p', 'ce-photo-instruction', '사진을 움직여 원하는 모양에 맞춰 주세요.'), crop, zoomRow, disclosure('더 보기 · 위치 미세 조정', cropMoves, cropActions));
+  photoStage.append(node('p', 'ce-photo-instruction', '사진을 움직여 원하는 모양에 맞춰 주세요.'), cropSlots[0], zoomRow, disclosure('더 보기 · 위치 미세 조정', cropMoves, cropActions));
   shape.hidden = true;
   const shapes = section('모양', '사진의 위치와 확대는 모양을 바꿔도 유지돼요.'); shapes.append(shape, choices('shape', [['circle', '원형'], ['stamp', '우표'], ['serrated', '톱니']], '모양', 'shape'));
   panels[0].append(photo, photoHelp, shapes, photoStage);
@@ -120,14 +123,14 @@ export function createCollectibleStudio(container, { effectNames }) {
   panels[1].append(disclosure('더 보기 · 등급 관리(이름·사용·특수 등급)', node('p', 'ce-help', '등급 이름과 사용 여부를 바꿀 수 있어요. 이름이 특정 재질을 강제하지 않아요.'), gradeManager, gradeNew, gradeAdd));
   const motionDetail = view('templates').closest('details');
   const photoDetail = control('brush').closest('details'), stickerDetail = control('sticker-kind').closest('details');
-  photoDetail.open = false; stickerDetail.open = true;
+  photoDetail.open = false; stickerDetail.open = true; photoDetail.classList.add('ce-more');
   photoDetail.querySelector('summary').textContent = '더 보기 · 밝기·바탕·패럴랙스';
   const brush = field('brush'); brush.hidden = true;
   const tools = node('div', 'ce-step-tools');
   // undo·redo는 1단계 "위치 미세 조정" 접힘(cropActions)이 이미 container 밖의 panels[0]으로 옮겨 가 container에서는 찾을 수 없다.
   tools.append(cropActions.querySelector('[data-action="undo"]'), cropActions.querySelector('[data-action="redo"]'), container.querySelector('[data-action="compare"]'));
   const brushPanel = section('붓 도구');
-  brushPanel.append(brush, choices('brush', [['move', '사진 이동'], ['clean', '잡티'], ['erase', '투명'], ['restore', '복원'], ['color', '색 통일']], '붓 도구', 'brush'), field('brush-size'), field('brush-color'));
+  brushPanel.append(cropSlots[1], brush, choices('brush', [['move', '사진 이동'], ['clean', '잡티'], ['erase', '투명'], ['restore', '복원'], ['color', '색 통일']], '붓 도구', 'brush'), field('brush-size'), field('brush-color'));
   const FILTERS = [['merge', '색 합치기'], ['simplify', '단순화'], ['cartoon', '만화풍']];
   const filterSliders = new Map(FILTERS.map(([name]) => [name, container.querySelector(`[data-edit="${name}"]`).closest('label')]));
   const filterTiles = node('div', 'ce-choice-grid ce-filter-choices'); filterTiles.setAttribute('role', 'group'); filterTiles.setAttribute('aria-label', '필터 선택');
@@ -160,6 +163,7 @@ export function createCollectibleStudio(container, { effectNames }) {
   const livingDetail = control('living-kind').closest('details');
   const voice = control('greeting').closest('details'), story = control('story-type').closest('details'), rewards = control('theme').closest('details');
   motionDetail.open = true; voice.open = true; rewards.open = true; livingDetail.open = false; story.open = false;
+  livingDetail.classList.add('ce-more'); story.classList.add('ce-more');
   motionDetail.querySelector('summary').textContent = '움직임';
   livingDetail.querySelector('summary').textContent = '더 보기 · 살아 있는 그림';
   story.querySelector('summary').textContent = '더 보기 · 가게 이야기';
@@ -182,7 +186,11 @@ export function createCollectibleStudio(container, { effectNames }) {
     thicknessCustom.hidden = thicknessPresetLabel(thicknessValue) !== null; thicknessCustom.textContent = `직접 지정 ${thicknessValue}`;
   }
   function showStep(step, focus = true) {
-    currentStep = Math.max(1, Math.min(4, Number(step) || 1)); home.hidden = true; workspace.hidden = false; hasCurrent = true;
+    const next = Math.max(1, Math.min(4, Number(step) || 1));
+    // 3단계의 붓(지우개 등)이 1단계 끌기로 새어 나가지 않게 떠날 때 "사진 이동"으로 되돌린다. 값만 바꾸므로 되돌리기 기록은 없다.
+    if (currentStep === 3 && next !== 3) control('brush').value = 'move';
+    currentStep = next; home.hidden = true; workspace.hidden = false; hasCurrent = true;
+    cropSlots[currentStep === 3 ? 1 : 0].append(crop);
     workspace.dataset.step = String(currentStep); title.textContent = steps[currentStep - 1]; workspace.querySelector('.ce-step-count').textContent = `${currentStep} / 4`;
     for (const panel of panels) panel.hidden = Number(panel.dataset.stepPanel) !== currentStep;
     for (const tile of navigation.children) { if (Number(tile.dataset.id) === currentStep) tile.setAttribute('aria-current', 'step'); else tile.removeAttribute('aria-current'); }

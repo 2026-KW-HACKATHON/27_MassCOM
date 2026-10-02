@@ -120,17 +120,46 @@ test('두께 버튼도 되돌리기 한 번으로 돌아오고 숫자 표시가 
   assert.equal(ui.q('[data-view="notice"]').textContent, '되돌릴 편집이 아직 없어요.', '이미 고른 값을 다시 눌러도 기록이 늘지 않는다');
 });
 
-test('3단계는 자르기를 반복하지 않고 1단계로 가는 버튼·되돌리기·붓·필터·스티커를 보인다', async () => {
+test('3단계는 자르기 조작을 반복하지 않고 1단계로 가는 버튼·되돌리기·붓·필터·스티커를 보인다', async () => {
   const ui = await mountStudio();
-  assert.notEqual(ui.stepOf(ui.q('[data-view="crop"]')), '3');
+  await ui.act('step', '3');
+  const crop = ui.q('[data-view="crop"]');
+  assert.equal(ui.stepOf(crop), '3', '붓이 칠하는 사진 캔버스가 3단계에 있다');
+  assert.equal(crop.closest('.ce-panel').querySelector('h3').textContent, '붓 도구', '캔버스는 붓 도구 칸 안에 있다');
+  for (const node of [ui.q('[data-control="zoom"]'), ui.q('[data-action="crop-apply"]'), ui.q('[data-action="crop-reset"]'), ui.q('[data-action="auto-fit"]'), ui.choice('shape', 'circle'), ui.choice('shape', 'stamp'), ui.choice('shape', 'serrated')]) {
+    assert.equal(ui.stepOf(node), '1', '확대·모양·자르기 동작은 1단계에만 있다');
+  }
   const back = ui.all('[data-action="step"]').find(node => node.dataset.id === '1' && ui.stepOf(node) === '3');
   assert.ok(back, '3단계에 1단계로 가는 버튼이 있다');
   for (const name of ['undo', 'redo', 'compare']) assert.equal(ui.stepOf(ui.q(`[data-action="${name}"]`)), '3', name);
   assert.equal(ui.stepOf(ui.choice('brush', 'erase')), '3');
   assert.equal(ui.stepOf(ui.q('[data-control="brush-size"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-control="brush-color"]')), '3');
   assert.equal(ui.stepOf(ui.q('[data-control="sticker-kind"]')), '3');
+  assert.equal(ui.q('[data-control="sticker-kind"]').closest('details').open, true);
   const more = ui.q('[data-edit="brightness"]').closest('details');
   assert.equal(ui.stepOf(more), '3'); assert.equal(more.open, false);
+  for (const control of ['living-kind', 'story-type']) assert.ok(ui.q(`[data-control="${control}"]`).closest('details').classList.contains('ce-more'), `${control}의 더 보기도 같은 점선 모양이다`);
+  assert.ok(more.classList.contains('ce-more'));
+  for (const control of ['sticker-kind', 'greeting']) assert.equal(ui.q(`[data-control="${control}"]`).closest('details').classList.contains('ce-more'), false, `${control}은 펼쳐 둔 묶음이라 점선 모양이 아니다`);
+});
+
+test('1단계로 돌아오면 사진 캔버스도 1단계로 돌아오고 붓은 사진 이동으로 되돌아온다', async () => {
+  const ui = await mountStudio();
+  await ui.act('step', '3');
+  await ui.click(ui.choice('brush', 'erase'));
+  assert.equal(ui.q('[data-control="brush"]').value, 'erase');
+  assert.equal(ui.choice('brush', 'erase').getAttribute('aria-pressed'), 'true');
+  const undoNotice = () => ui.q('[data-view="notice"]').textContent;
+  await ui.act('step', '1');
+  assert.equal(ui.stepOf(ui.q('[data-view="crop"]')), '1', '캔버스가 1단계로 돌아온다');
+  assert.equal(ui.q('[data-control="brush"]').value, 'move', '1단계에서 끌어도 지워지지 않는다');
+  assert.equal(ui.choice('brush', 'move').getAttribute('aria-pressed'), 'true');
+  assert.equal(ui.choice('brush', 'erase').getAttribute('aria-pressed'), 'false');
+  await ui.act('undo');
+  assert.equal(undoNotice(), '되돌릴 편집이 아직 없어요.', '붓을 되돌리는 일은 되돌리기 기록을 만들지 않는다');
+  await ui.act('step', '4'); await ui.act('step', '3');
+  assert.equal(ui.stepOf(ui.q('[data-view="crop"]')), '3', '3단계로 다시 가면 캔버스도 따라온다');
 });
 
 test('필터 선택은 보이는 강도 슬라이더만 바꾸고 값은 그대로 둔다', async () => {
@@ -164,4 +193,26 @@ test('4단계에 움직임·효과·음성·게시 정보가 펼쳐져 있고 �
     assert.equal(details.open, true, control);
   }
   for (const control of ['living-kind', 'story-type']) assert.equal(ui.q(`[data-control="${control}"]`).closest('details').open, false, control);
+});
+
+test('다른 필터로 옮겨도 값이 남고 슬라이더를 움직여도 선택이 튀지 않는다', async () => {
+  const ui = await mountStudio();
+  const slider = n => ui.q(`[data-edit="${n}"]`), label = n => slider(n).closest('label');
+  const set = async (n, v) => { slider(n).value = String(v); slider(n).dispatchEvent({ type: 'input' }); await settle(); };
+  await set('merge', 30);
+  await ui.click(ui.q('[data-filter="simplify"]'));
+  assert.equal(slider('merge').value, '30');
+  await set('simplify', 20);
+  assert.equal(label('simplify').hidden, false); assert.equal(label('merge').hidden, true);
+  assert.equal(slider('merge').value, '30'); assert.equal(slider('simplify').value, '20');
+});
+
+test('값이 있는 저장 초안을 열면 0이 아닌 첫 필터를 보인다', async () => {
+  const ui = await mountStudio();
+  const s = ui.q('[data-edit="simplify"]'); s.value = '40'; s.dispatchEvent({ type: 'input' }); await settle();
+  await ui.act('draft'); await ui.act('new');
+  assert.equal(ui.q('[data-edit="cartoon"]').closest('label').hidden, false);
+  await ui.click(ui.all('[data-action="open-project"]')[0]);
+  assert.equal(ui.q('[data-edit="simplify"]').closest('label').hidden, false);
+  assert.equal(ui.q('[data-edit="cartoon"]').closest('label').hidden, true);
 });

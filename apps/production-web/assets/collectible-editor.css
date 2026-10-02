@@ -153,6 +153,7 @@
   .ce-project-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ce-grid { grid-template-columns: minmax(0, 1fr); }
   .ce-preview { position: static; max-height: none; overflow: visible; grid-row: 1; padding: .8rem; }
+  .ce-workspace[data-step="3"] .ce-preview { grid-row: auto; }
   .ce-resume { flex-direction: column; align-items: stretch; }
   .ce-step-nav button { flex-direction: column; gap: .3rem; padding: .5rem .15rem; font-size: .75rem; }
   .ce-workspace-heading { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .4rem; }
