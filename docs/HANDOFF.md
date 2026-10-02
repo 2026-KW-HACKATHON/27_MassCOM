@@ -8,6 +8,19 @@
 - Windows: 저장소 로컬 `core.autocrlf=false`; checkout의 순수 줄바꿈 차이는 LF로 정리했고 코드 변경에 포함하지 않았다. 기존 `npm test`의 작은따옴표 glob은 PowerShell에서 0 tests를 반환하므로 위 명령으로 실제 시험을 발견한다.
 - 운영·시연 export는 오프라인 번들 검증이며 API/OAuth 로그인·APK 서명·설치·배포 증거가 아니다. 시연 OAuth 값은 형식 검증용 가상 값이고 실제 인증에 사용하지 않았다. 로그·번들은 `C:\Hackerton\output\masscom-sounds`에 있다.
 - `NOT_RUN`: 실제 Android 청음, 무음·진동 모드, 다른 앱 음악과 동시 재생, 새 설정의 실기기 라이트·다크·글자 200% 화면, 웹 자동 재생 정책, APK 빌드·서명·설치·배포. 다음 재현: 새 native 빌드에서 효과음 끄기→재시작→꺼짐 유지, 봉투 재생 중 앱 전환→중단, 수집품 음성→탭 이동, 수령 재시도→중복 성공음 없음. GitHub 현재 상태는 `gh pr list` 또는 연결된 GitHub 도구로 다시 확인한다.
+## 2026-10-02 Issue #318 모바일 npm audit 좁은 예외
+
+- 기준: main, worktree `.worktrees/318-audit`, 브랜치 `fix/318-audit-exception`.
+- 원인: 2026-10-02 공개된 `node-forge` GHSA-86w9-cpqp-85rv(high, 고친 버전 없음)가 `expo` → `@expo/cli` → `@expo/code-signing-certificates` 경로로 잡혀 모든 PR의 모바일 CI(`audit:ci`)가 실패했다.
+- 수정(소유자 결정 D-066): `scripts/audit-ci.mjs` + `scripts/audit-exceptions.json`(만료 2026-10-31), `apps/mobile` `audit:ci` 교체, CI에 시험 추가. API·worker 감사는 그대로다.
+- 다음 작업: 고친 버전이 나오면 의존성을 올리고 예외를 지운다(B-030).
+## 2026-10-02 Issue #316 계정 삭제 처리 시험 시계 수정
+
+- 기준: main `439ba83`, worktree `.worktrees/316-test-clock`, 브랜치 `fix/316-deletion-test-clock`.
+- 원인: 옛 배포 API의 INSERT를 흉내 낸 행은 `requested_at`이 DB 실제 시각인데 서비스 시계는 `2026-10-01T00:00Z` 고정이라, 2026-10-02 00:00 UTC부터 다시 접수 시 `cancel_until`이 `requested_at`보다 일러 CHECK 위반. 시험 전용 문제.
+- 수정: 그 시험에서만 `clock.now = legacy.requested_at`. 운영 코드·migration 무변경.
+- 다음 작업: CI 통과 뒤 병합, 막혀 있던 PR(#310 등) CI 재실행.
+
 ## 2026-10-02 Issue #309 로그인 없는 시연 웹 체험 (서버·Caddy)
 
 - 기준: main `e2091f2`에서 시작해 `36fed73`(#295 테스트 방문·`scripts/qa-local.sh`, PR #308)을 합침, worktree `.worktrees/309-guest-api`, 브랜치 `feat/309-guest-trial-api`, 커밋 `e37523d`(API)·`a736dbc`(Caddy·검증 스크립트)·계정 삭제 별칭 커밋·문서 커밋, PR 미정. 웹 클라이언트는 같은 Issue의 별도 브랜치 `feat/309-showcase-web`(다른 에이전트)이고 이 PR이 먼저 병합돼야 한다.
