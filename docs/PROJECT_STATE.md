@@ -1,5 +1,9 @@
 # 프로젝트 상태
 
+## 운영 release AAB의 시연 API 주소 포함 수정 (Issue #325, 2026-10-02)
+
+[Issue #325](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/325), 브랜치 `fix/325-operating-embedded-origin`, 기준 main `5660bb9`. PR #313 리뷰 후속이 체험 로그인 가드에 시연 API 주소를 리터럴로 넣어 운영 번들에도 들어갔고, 빌드 검사(Issue #273)가 운영 test.6 AAB를 막았다. 시연 origin을 시연 빌드의 `extra`로 옮기고 소스 리터럴 재유입을 막는 단위 시험을 더했다. 병합 뒤 Issue #321의 test.6·Preview 15 빌드를 이어 간다.
+
 ## 시연 가상 점포 수집품 게시물 시드 (Issue #322, 2026-10-02)
 
 [Issue #322](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/322), 브랜치 `fix/322-showcase-seed-artwork`, 기준 main `a39b983`. 시연 호스트 시드가 가상 점포 A·B·C 캠페인마다 수집품 게시물을 하나씩 멱등으로 붙인다(기존 `showcase-{a,b,c}` 그림을 줄인 JPEG). 시드 뒤 받는 보상권부터 `/collection`에 `artwork`가 있어 "받은 수집품 보기"→봉투 연출이 열린다. 시드 전에 받은 보상권은 소급되지 않는다. 운영 DB는 건드리지 않는다. 시연은 지금 `a39b983`을 실행 중이라([#321 배포 기록](evidence/deployment-a39b983-2026-10-02.json)의 봉투 열기 도달 불가 발견이 이 Issue) 이 수정은 시연 API 재배포와 host seed 재실행 뒤에 효과가 있고, 둘 다 `NOT_RUN`이다.

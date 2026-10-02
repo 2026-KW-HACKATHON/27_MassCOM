@@ -2,7 +2,6 @@ import { isLoopbackHost } from './public-api';
 
 const SHOWCASE_PACKAGE = 'kr.masscom.wolgye.demo';
 const DEVELOPMENT_PACKAGE = 'kr.masscom.wolgye.dev';
-const SHOWCASE_ORIGIN = 'https://demo-api.masscom.kr';
 
 /**
  * Guest trial login is a showcase-only feature (PR #313 review): the real showcase build must
@@ -10,10 +9,16 @@ const SHOWCASE_ORIGIN = 'https://demo-api.masscom.kr';
  * (scripts/qa-local.sh-style local QA) gets an exception. Every other combination — including a
  * `.dev` build pointed at a non-loopback host, or any package talking to the production API —
  * fails closed.
+ *
+ * The showcase origin comes from the showcase build's `extra.masscomShowcase.apiOrigin`
+ * (app.config.ts), not from a literal here: this module ships in every variant, and a literal
+ * would put the showcase host into the operating bundle, which scripts/check-embedded-api.sh
+ * rejects (Issue #325). A build without that value never approves the showcase package.
  */
 export function isApprovedGuestTrialOrigin(
   packageId: string | null | undefined,
   apiUrl: string,
+  extra: unknown,
 ): boolean {
   let origin: string;
   let hostname: string;
@@ -24,7 +29,16 @@ export function isApprovedGuestTrialOrigin(
   } catch {
     return false;
   }
-  if (packageId === SHOWCASE_PACKAGE) return origin === SHOWCASE_ORIGIN;
+  if (packageId === SHOWCASE_PACKAGE) {
+    const showcaseOrigin = showcaseApiOrigin(extra);
+    return showcaseOrigin !== undefined && origin === showcaseOrigin;
+  }
   if (packageId === DEVELOPMENT_PACKAGE) return isLoopbackHost(hostname);
   return false;
+}
+
+function showcaseApiOrigin(extra: unknown): string | undefined {
+  const showcase = extra && typeof extra === 'object' ? Reflect.get(extra, 'masscomShowcase') : undefined;
+  const value = showcase && typeof showcase === 'object' ? Reflect.get(showcase, 'apiOrigin') : undefined;
+  return typeof value === 'string' && value.startsWith('https://') ? value : undefined;
 }

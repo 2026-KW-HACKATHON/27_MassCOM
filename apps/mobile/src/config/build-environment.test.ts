@@ -26,7 +26,7 @@ type EvaluatedExpoConfig = {
   name?: string;
   scheme?: string;
   platforms?: string[];
-  extra?: { masscomShowcase?: { googleWebClientId?: string } };
+  extra?: { masscomShowcase?: { googleWebClientId?: string; apiOrigin?: string } };
   android?: {
     package?: string;
     blockedPermissions?: string[];
@@ -132,6 +132,7 @@ test('showcase requires its own Google Web client and exposes only that public I
   assert.equal(result.status, 0, result.stderr);
   const config = JSON.parse(result.stdout) as EvaluatedExpoConfig;
   assert.equal(config.extra?.masscomShowcase?.googleWebClientId, '123-demo.apps.googleusercontent.com');
+  assert.equal(config.extra?.masscomShowcase?.apiOrigin, 'https://demo-api.masscom.kr');
 });
 
 test('showcase refuses every insecure development DEMO variable, including false', () => {
@@ -306,6 +307,8 @@ test('actual Expo production config preserves release identity, plugins, and blo
   assert.equal(config.android?.package, 'kr.masscom.wolgye');
   assert.equal(config.scheme, 'masscom');
   assert.deepEqual(config.platforms, ['android']);
+  // 운영 빌드에는 시연 API origin이 없어야 한다(Issue #325).
+  assert.equal(config.extra?.masscomShowcase, undefined);
   assert.deepEqual(pluginNames(config), [
     'expo-router',
     'expo-camera',
