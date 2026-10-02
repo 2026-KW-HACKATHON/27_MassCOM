@@ -4284,6 +4284,12 @@ test('web merchant overview route needs session, permission and membership and m
   const served = () => calls.filter(call => call[0] === 'overview').length;
   const servedBefore = served();
 
+  // 다른 점포 ID로 부르면(이 계정은 그 점포의 소속이 아니다) 403이고 현황은 읽지 않는다.
+  const cross = await read(cookie, 'masscom.kr', 'other-merchant');
+  assert.equal(cross.status, 403);
+  assert.deepEqual(await cross.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  assert.equal(served(), servedBefore);
+
   assert.equal((await read({ cookie: '' })).status, 401);
   assert.equal((await read(cookie, 'evil.example')).status, 403);
   assert.equal((await read(cookie, 'api.masscom.kr')).status, 403);
@@ -4322,6 +4328,39 @@ test('web merchant overview route needs session, permission and membership and m
   const notReady = await webRequest(unconfigured, '/api/web/merchant/merchants/real-merchant/overview', { headers: cookie });
   assert.equal(notReady.status, 503);
   assert.deepEqual(await notReady.json(), { code: 'MERCHANT_OVERVIEW_NOT_CONFIGURED' });
+});
+
+test('a path id that decodes to a NUL character is refused with 400 before it can reach PostgreSQL', async (t) => {
+  const calls: unknown[][] = [];
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'staff-account', logout: async () => {},
+  };
+  const staff = { mine: async () => [{ id: 'real-merchant', name: '실제 점포', role: 'OWNER' }] } as unknown as
+    Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const access: MerchantAccessFixture = { requirePermission: async input => {
+    calls.push(['permission', input]);
+    return { merchantId: input.merchantId, role: 'OWNER', permissions: ['CONFIRM_VISIT', 'MANAGE_ART'] };
+  } };
+  const overview: MerchantOverviewReader = { overview: async input => { calls.push(['overview', input]); return sampleOverview; } };
+  const base = await startFixture(t, undefined, undefined, access, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
+    webAuth, false, undefined, undefined, staff, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, overview);
+  const cookie = { cookie: 'web_session=staff-cookie' };
+  // 점주 현황과, 같은 경로 해석기를 쓰는 기존 수집품 캠페인 경로가 모두 500이 아니라 400이다.
+  for (const path of [
+    '/api/web/merchant/merchants/real%00merchant/overview',
+    '/api/web/merchant/merchants/%00/overview',
+    '/api/web/merchant/merchants/real%00merchant/collectible-campaigns',
+  ]) {
+    const response = await webRequest(base, path, { headers: cookie });
+    assert.equal(response.status, 400, path);
+    assert.deepEqual(await response.json(), { code: 'INVALID_PATH_PARAMETER' }, path);
+  }
+  assert.deepEqual(calls, []);
+  // 정상 ID는 그대로 통과한다.
+  assert.equal((await webRequest(base, '/api/web/merchant/merchants/real-merchant/overview', { headers: cookie })).status, 200);
 });
 
 test('admin coupon routes list and void behind the admin cookie, origin and JSON checks', async (t) => {

@@ -1615,11 +1615,15 @@ function authLoginClientKey(request: IncomingMessage, trustProxyClientIp: boolea
 
 // Malformed percent-encoding is the caller's mistake, not a server fault.
 function decodePathParameter(value: string): string {
+  let decoded: string;
   try {
-    return decodeURIComponent(value);
+    decoded = decodeURIComponent(value);
   } catch {
     throw new RequestError(400, 'INVALID_PATH_PARAMETER');
   }
+  // `%00`은 NUL 문자로 풀리는데 PostgreSQL 텍스트 값은 NUL을 받지 않아 질의가 500으로 끝난다. 경로 값이 DB에 닿기 전에 거절한다.
+  if (decoded.includes('\0')) throw new RequestError(400, 'INVALID_PATH_PARAMETER');
+  return decoded;
 }
 
 class RequestError extends Error {
