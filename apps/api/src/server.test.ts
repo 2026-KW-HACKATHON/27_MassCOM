@@ -48,6 +48,7 @@ import {
   type RedeemedClaimSlot,
 } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
+import { MerchantOverviewError, type MerchantOverview, type MerchantOverviewReader } from './merchant-overview-rules.js';
 import { ReversalError, type ReversalErrorCode, type ReversalService } from './reversal.js';
 import {
   MerchantArtError,
@@ -235,6 +236,7 @@ async function startFixture(
   consent?: ConsentService,
   accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
   guestTrials?: Pick<ShowcaseGuestTrialService, 'start' | 'resolve'>,
+  merchantOverview?: MerchantOverviewReader,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -278,6 +280,7 @@ async function startFixture(
     undefined,
     accessRequests,
     guestTrials,
+    merchantOverview,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -4220,6 +4223,145 @@ test('web merchant reversal routes require origin, JSON, session, permission and
   const missing = await webRequest(unconfigured, `${prefix}/recent-visits`, { headers: { cookie: headers.cookie } });
   assert.equal(missing.status, 503);
   assert.deepEqual(await missing.json(), { code: 'REVERSALS_NOT_CONFIGURED' });
+});
+
+const sampleOverview: MerchantOverview = {
+  generatedAt: '2026-10-07T03:00:00.000Z', businessDate: '2026-10-07', weekStartsOn: '2026-10-05',
+  visits: {
+    today: 2, thisWeek: 4, lastWeek: 4, total: 9,
+    last7Days: ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07']
+      .map((date, index) => ({ date, count: index % 3 })),
+  },
+  comparison: { lastWeekSameSpan: 2, delta: 2 },
+  couponsRedeemedThisWeek: 2, repeatVisitors: 3,
+  campaign: { title: '가을 방문', status: 'ACTIVE', isPublic: true, phase: 'LIVE',
+    startsAt: '2026-09-01T00:00:00.000Z', endsAt: '2026-12-31T00:00:00.000Z' },
+  readiness: { steps: [{ key: 'basic', label: '가게 기본 정보', state: 'DONE', hint: '' }], remaining: 0, message: '고객 앱에 보이고 있어요.' },
+};
+
+test('web merchant overview route needs session, permission and membership and maps a missing store to 404', async (t) => {
+  const calls: unknown[][] = [];
+  let allowed = true;
+  let member = true;
+  let failure: MerchantOverviewError | undefined;
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async token => {
+      if (token !== 'staff-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'staff-account';
+    }, logout: async () => {},
+  };
+  const staff = { mine: async () => member ? [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF' }] : [] } as unknown as
+    Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const access: MerchantAccessFixture = { requirePermission: async input => {
+    calls.push(['permission', input]);
+    if (!allowed) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    return { merchantId: input.merchantId, role: 'STAFF', permissions: ['CONFIRM_VISIT'] };
+  } };
+  const overview: MerchantOverviewReader = { overview: async input => {
+    calls.push(['overview', input]);
+    if (failure) throw failure;
+    return sampleOverview;
+  } };
+  const start = (withOverview = true) => startFixture(t, undefined, undefined, access, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
+    webAuth, false, undefined, undefined, staff, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, withOverview ? overview : undefined);
+  const base = await start();
+  const cookie = { cookie: 'web_session=staff-cookie' };
+  const read = (customHeaders: Record<string, string> = cookie, host = 'masscom.kr', id = 'real-merchant') =>
+    webRequest(base, `/api/web/merchant/merchants/${id}/overview`, { headers: customHeaders, host });
+
+  const ok = await read();
+  assert.equal(ok.status, 200);
+  assert.deepEqual(await ok.json(), sampleOverview);
+  assert.equal(ok.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.equal(ok.headers.get('cache-control'), 'no-store');
+  // 직원도 볼 수 있어야 하므로 방문 확인 권한(CONFIRM_VISIT)을 요구하고, 점포는 경로의 값 그대로(디코딩 뒤) 넘긴다.
+  assert.deepEqual(calls, [
+    ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'CONFIRM_VISIT' }],
+    ['overview', { merchantId: 'real-merchant' }],
+  ]);
+  const served = () => calls.filter(call => call[0] === 'overview').length;
+  const servedBefore = served();
+
+  // 다른 점포 ID로 부르면(이 계정은 그 점포의 소속이 아니다) 403이고 현황은 읽지 않는다.
+  const cross = await read(cookie, 'masscom.kr', 'other-merchant');
+  assert.equal(cross.status, 403);
+  assert.deepEqual(await cross.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  assert.equal(served(), servedBefore);
+
+  assert.equal((await read({ cookie: '' })).status, 401);
+  assert.equal((await read(cookie, 'evil.example')).status, 403);
+  assert.equal((await read(cookie, 'api.masscom.kr')).status, 403);
+  const percent = await read(cookie, 'masscom.kr', '%E0%A4%A');
+  assert.equal(percent.status, 400);
+  assert.deepEqual(await percent.json(), { code: 'INVALID_PATH_PARAMETER' });
+  // 읽기 전용이다: 다른 메서드와 이어 붙인 경로는 현황 경로가 아니다.
+  const postHeaders = { ...cookie, origin: 'https://masscom.kr', 'content-type': 'application/json' };
+  const posted = await webRequest(base, '/api/web/merchant/merchants/real-merchant/overview',
+    { method: 'POST', headers: postHeaders, body: '{}' });
+  assert.equal(posted.status, 404);
+  const extra = await webRequest(base, '/api/web/merchant/merchants/real-merchant/overview/extra', { headers: cookie });
+  assert.equal(extra.status, 404);
+
+  // 권한이 없거나 이 계정의 점포가 아니면 403이고 현황은 읽지 않는다.
+  allowed = false;
+  const denied = await read();
+  assert.equal(denied.status, 403);
+  assert.deepEqual(await denied.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  allowed = true;
+  member = false;
+  const outsider = await read();
+  assert.equal(outsider.status, 403);
+  assert.deepEqual(await outsider.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  member = true;
+  assert.equal(served(), servedBefore);
+
+  // 권한 검사를 통과한 뒤에 점포 행이 사라졌으면 404다.
+  failure = new MerchantOverviewError('MERCHANT_NOT_FOUND');
+  const missing = await read();
+  assert.equal(missing.status, 404);
+  assert.deepEqual(await missing.json(), { code: 'MERCHANT_NOT_FOUND' });
+  failure = undefined;
+
+  const unconfigured = await start(false);
+  const notReady = await webRequest(unconfigured, '/api/web/merchant/merchants/real-merchant/overview', { headers: cookie });
+  assert.equal(notReady.status, 503);
+  assert.deepEqual(await notReady.json(), { code: 'MERCHANT_OVERVIEW_NOT_CONFIGURED' });
+});
+
+test('a path id that decodes to a NUL character is refused with 400 before it can reach PostgreSQL', async (t) => {
+  const calls: unknown[][] = [];
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'staff-account', logout: async () => {},
+  };
+  const staff = { mine: async () => [{ id: 'real-merchant', name: '실제 점포', role: 'OWNER' }] } as unknown as
+    Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const access: MerchantAccessFixture = { requirePermission: async input => {
+    calls.push(['permission', input]);
+    return { merchantId: input.merchantId, role: 'OWNER', permissions: ['CONFIRM_VISIT', 'MANAGE_ART'] };
+  } };
+  const overview: MerchantOverviewReader = { overview: async input => { calls.push(['overview', input]); return sampleOverview; } };
+  const base = await startFixture(t, undefined, undefined, access, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
+    webAuth, false, undefined, undefined, staff, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, overview);
+  const cookie = { cookie: 'web_session=staff-cookie' };
+  // 점주 현황과, 같은 경로 해석기를 쓰는 기존 수집품 캠페인 경로가 모두 500이 아니라 400이다.
+  for (const path of [
+    '/api/web/merchant/merchants/real%00merchant/overview',
+    '/api/web/merchant/merchants/%00/overview',
+    '/api/web/merchant/merchants/real%00merchant/collectible-campaigns',
+  ]) {
+    const response = await webRequest(base, path, { headers: cookie });
+    assert.equal(response.status, 400, path);
+    assert.deepEqual(await response.json(), { code: 'INVALID_PATH_PARAMETER' }, path);
+  }
+  assert.deepEqual(calls, []);
+  // 정상 ID는 그대로 통과한다.
+  assert.equal((await webRequest(base, '/api/web/merchant/merchants/real-merchant/overview', { headers: cookie })).status, 200);
 });
 
 test('admin coupon routes list and void behind the admin cookie, origin and JSON checks', async (t) => {
