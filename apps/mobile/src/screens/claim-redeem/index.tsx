@@ -28,6 +28,8 @@ import { defaultVisitGoals, mileageBalanceLine, mileageDeltaLine, settleWithin, 
 import { playUiSound } from '@/sound/ui-sounds';
 import { Celebration, type CelebrationContent } from '@/gamification/celebration';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
+import { createVisitorFeedbackApiClient, VisitorFeedbackApiError, type VisitorFeedbackSelection } from '@/merchant/visitor-feedback-api';
+import { VisitorFeedbackForm } from '../merchant-detail/visitor-feedback-form';
 import { canShowTestVisitSection } from '@/navigation/showcase-entry';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { createShopApiClient, type ShopApiClient } from '@/shop/shop-api';
@@ -70,6 +72,18 @@ export function ClaimRedeemScreen({
     () => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
   );
+  const feedbackApi = useMemo(
+    () => createVisitorFeedbackApiClient({ apiUrl, credential }),
+    [apiUrl, credential],
+  );
+  const [feedbackOffer, setFeedbackOffer] = useState<{
+    claim: RedeemedClaim;
+    client: typeof feedbackApi;
+    selection: VisitorFeedbackSelection;
+  }>();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackThanks, setFeedbackThanks] = useState<RedeemedClaim>();
+  const [feedbackNotEligible, setFeedbackNotEligible] = useState<RedeemedClaim>();
   // #332: 상점 요약은 덤이라 세션 만료 처리(onSessionInvalid)를 넘기지 않는다. 못 읽으면 조용히 그 줄만 빠진다.
   const shopApi = useMemo(
     () => createShopApiClient({ apiUrl, credential }),
@@ -108,6 +122,27 @@ export function ClaimRedeemScreen({
   // Badge book seen when the code was checked; compared after the claim for the celebration.
   const badgesBeforeClaim = useRef<Promise<BadgeBook | undefined> | undefined>(undefined);
   const [celebration, setCelebration] = useState<CelebrationContent>();
+
+  // 의견 조회는 선택 사항이다. 이전 방문·계정의 늦은 응답은 현재 수령 카드에 붙이지 않는다.
+  useEffect(() => {
+    let current = true;
+    if (redeemed && !redeemed.replayed) {
+      void feedbackApi.getMine(redeemed.merchantId).then((selection) => {
+        if (current && selection.tags.length === 0 && selection.suggestions.length === 0 && selection.note === null) {
+          setFeedbackOpen(false);
+          setFeedbackOffer({ claim: redeemed, client: feedbackApi, selection });
+        }
+      }).catch((cause) => {
+        if (current && cause instanceof VisitorFeedbackApiError && cause.status === 401) {
+          setFeedbackOpen(false);
+          setFeedbackOffer(undefined);
+        }
+      });
+    }
+    return () => { current = false; };
+  }, [redeemed, feedbackApi]);
+  const currentFeedbackOffer = feedbackOffer?.claim === redeemed && feedbackOffer?.client === feedbackApi
+    ? feedbackOffer : undefined;
 
   // #295 "테스트 방문 만들기": 시연 앱과 로컬 개발 빌드에만 보인다. 운영 패키지는 섹션 자체가 없다.
   const showTestVisitSection = canShowTestVisitSection(getAppPackageId());
@@ -544,6 +579,28 @@ export function ClaimRedeemScreen({
                 <Text style={[styles.collectionButtonText, { color: palette.onPrimary }]}>상점에서 뽑기</Text>
               </Pressable>
             </View>
+            {currentFeedbackOffer ? (
+              feedbackOpen ? (
+                <VisitorFeedbackForm
+                  key={redeemed.claimSlotId}
+                  merchantId={redeemed.merchantId}
+                  client={feedbackApi}
+                  initialSelection={currentFeedbackOffer.selection}
+                  onClose={() => { setFeedbackOpen(false); setFeedbackOffer(undefined); }}
+                  onSaved={() => { setFeedbackOpen(false); setFeedbackOffer(undefined); setFeedbackThanks(redeemed); }}
+                  onUnauthorized={() => { setFeedbackOpen(false); setFeedbackOffer(undefined); }}
+                  onNotEligible={() => { setFeedbackOpen(false); setFeedbackOffer(undefined); setFeedbackNotEligible(redeemed); }}
+                />
+              ) : (
+                <Pressable accessibilityRole="button" accessibilityLabel="이 가게는 어땠나요? (선택)"
+                  accessibilityState={{ expanded: false }} onPress={() => setFeedbackOpen(true)}
+                  style={[styles.collectionButton, { backgroundColor: palette.primaryContainer }]}>
+                  <Text style={[styles.collectionButtonText, { color: palette.onPrimaryContainer }]}>이 가게는 어땠나요? (선택)</Text>
+                </Pressable>
+              )
+            ) : null}
+            {feedbackNotEligible === redeemed ? <Text accessibilityLiveRegion="polite" style={styles.successBody}>방문 인증한 가게에서만 고를 수 있어요.</Text> : null}
+            {feedbackThanks === redeemed ? <Text accessibilityLiveRegion="polite" style={styles.successBody}>고마워요! 다른 손님이 가게를 고를 때 도움이 돼요.</Text> : null}
           </FloatingCard>
           </View>
           </Stagger>

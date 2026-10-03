@@ -55,6 +55,7 @@ import {
 import { ReversalError, type ReversalService } from './reversal.js';
 import { MileageShopError, type MileageShopService } from './mileage-shop.js';
 import { isMileageGrade } from './mileage-rules.js';
+import { VisitorFeedbackError, type VisitorFeedbackService } from './visitor-feedback.js';
 import {
   RecommendationService,
   type RecommendationReader,
@@ -88,6 +89,7 @@ import { PostgresStaffRegistration, StaffRegistrationError } from './postgres/st
 import { PostgresMintRequestService } from './postgres/mint-request-service.js';
 import { PostgresReversalService } from './postgres/reversal.js';
 import { PostgresMileageShopService } from './postgres/mileage-shop.js';
+import { PostgresVisitorFeedbackService } from './postgres/visitor-feedback.js';
 import { SHOWCASE_TEST_VISIT_LIMIT_PER_HOUR, showcaseAllAccessOptions } from './showcase/all-access.js';
 import { PostgresRecommendationSource } from './postgres/recommendation.js';
 import { PostgresChallengeStore } from './postgres/wallet-challenge-store.js';
@@ -228,6 +230,7 @@ export function createApiServer(
   accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
   guestTrials?: Pick<ShowcaseGuestTrialService, 'start' | 'resolve'>,
   merchantOverview?: MerchantOverviewReader,
+  visitorFeedback?: VisitorFeedbackService,
 ) {
   // 로컬 시연(DEMO 헤더) 배치에서는 체험 세션 Bearer도 받는다(#309). Authorization이 없으면 기존 헤더 해석 그대로이고,
   // 운영·hosted 해석기(Bearer 세션)는 이미 같은 auth_sessions 행으로 체험 세션을 푼다.
@@ -246,6 +249,8 @@ export function createApiServer(
   const showcaseTestVisitLimiter = new FixedWindowAuthLoginLimiter({
     maxAttempts: SHOWCASE_TEST_VISIT_LIMIT_PER_HOUR, windowMs: 60 * 60 * 1000,
   });
+  // 방문 후 가게 특징·바라는 점·의견 저장은 계정당 30회/시간(#334). 같은 가게를 고쳐 쓰는 것도 한 번으로 센다.
+  const visitorFeedbackWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60 * 60 * 1000 });
   // Media-bearing collectible writes (create/save/copy/publish parse up to 8 MiB and decode every image) are throttled per store.
   const collectibleWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 20, windowMs: 60_000 });
   const consumeDeletionStatus = (request: IncomingMessage, response: ServerResponse): boolean => {
@@ -679,6 +684,19 @@ export function createApiServer(
           sendJson(response, 200, await merchantOverview.overview({ merchantId }));
           return;
         }
+        // 그 가게 점주·직원만 보는 손님 의견 요약(#334): 태그·바라는 점 개수와 최근 의견 50건(가린 손님 표시와 날짜만).
+        const webVisitorFeedback = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/visitor-feedback$/);
+        if (webVisitorFeedback && request.method === 'GET') {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          if (!visitorFeedback) throw new RequestError(503, 'VISITOR_FEEDBACK_NOT_CONFIGURED');
+          const merchantId = decodePathParameter(webVisitorFeedback[1]!);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+          if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) {
+            throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+          }
+          sendJson(response, 200, await visitorFeedback.merchantSummary(merchantId));
+          return;
+        }
         const claimMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/(customer-identities\/resolve|claim-slots)$/);
         const reissueMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/claim-slots\/([^/]+)\/reissue$/);
         if (reissueMatch && request.method === 'POST') {
@@ -1035,6 +1053,30 @@ export function createApiServer(
         const itemId = body.itemId;
         if (itemId !== null && typeof itemId !== 'string') throw new RequestError(400, 'INVALID_REQUEST');
         sendJson(response, 200, await mileageShop.setAvatar({ accountId, itemId }));
+        return;
+      }
+
+      // 방문한 가게에 남기는 특징 태그·바라는 점·짧은 의견(#334). 공개 집계는 /merchants의 visitorTags이고 바라는 점·의견은 점주에게만 간다.
+      const visitorFeedbackMatch = path.match(/^\/me\/merchant-feedback\/([^/]+)$/);
+      if (visitorFeedbackMatch && (request.method === 'GET' || request.method === 'PUT')) {
+        if (!visitorFeedback) throw new RequestError(503, 'VISITOR_FEEDBACK_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const merchantId = decodePathParameter(visitorFeedbackMatch[1]!);
+        if (request.method === 'GET') {
+          sendJson(response, 200, await visitorFeedback.getMine(accountId, merchantId));
+          return;
+        }
+        const decision = visitorFeedbackWriteLimiter.consume(accountId);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          sendJson(response, 429, { code: 'VISITOR_FEEDBACK_RATE_LIMITED' });
+          return;
+        }
+        const body = await readJson(request);
+        requireOnlyKeys(body, ['tags', 'suggestions', 'note']);
+        sendJson(response, 200, await visitorFeedback.upsert(accountId, merchantId, {
+          tags: body.tags, suggestions: body.suggestions, note: body.note,
+        }));
         return;
       }
 
@@ -1487,6 +1529,10 @@ export function createApiServer(
         sendJson(response, statusForMileageShop(error.code), { code: error.code });
         return;
       }
+      if (error instanceof VisitorFeedbackError) {
+        sendJson(response, statusForVisitorFeedback(error.code), { code: error.code });
+        return;
+      }
       if (error instanceof ConsentError) {
         sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'CONSENT_VERSION_MISMATCH' ? 409 : 400,
           { code: error.code });
@@ -1907,6 +1953,13 @@ function statusForMileageShop(code: string): number {
   return 409;
 }
 
+function statusForVisitorFeedback(code: string): number {
+  if (code === 'VISITOR_FEEDBACK_NOT_ELIGIBLE') return 403;
+  if (code === 'ACCOUNT_DELETED') return 410;
+  // VISITOR_FEEDBACK_TAGS_INVALID, VISITOR_FEEDBACK_SUGGESTIONS_INVALID, VISITOR_FEEDBACK_NOTE_INVALID
+  return 400;
+}
+
 type MerchantArtRoute =
   | { kind: 'state' | 'create' | 'reset' }
   | { kind: 'get' | 'choose' | 'apply'; roundId: string };
@@ -2251,6 +2304,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const mileageShop = pool && accountLifecycle
     ? new PostgresMileageShopService(pool, { accountLifecycle, ...allAccess.mileageShop })
     : undefined;
+  // 방문 후 가게 특징·바라는 점·의견(#334). 점주 요약의 가림 표시는 방문 취소 화면(reversals)과 같은 비밀에서 만든다.
+  const visitorFeedback = pool && accountLifecycle && process.env.MERCHANT_REFERENCE_HMAC_SECRET
+    ? new PostgresVisitorFeedbackService(pool, {
+        accountLifecycle, labelHmacSecret: process.env.MERCHANT_REFERENCE_HMAC_SECRET,
+      })
+    : undefined;
   // 동의 기록(D-059): 앱 경로 값은 시연 서버면 SHOWCASE_APP, 운영이면 ANDROID다. 쓰기 요청은 막지 않고 required만 알린다.
   const consent = pool && accountLifecycle
     ? new PostgresAccountConsentService(pool, {
@@ -2386,6 +2445,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ? new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret }) : undefined,
     // 점주 가게 현황(#330)은 읽기 전용 집계라 pool만 있으면 만든다. 경로는 점주 웹(staffRegistration)이 있는 배치에서만 열린다.
     pool ? new PostgresMerchantOverviewService(pool) : undefined,
+    visitorFeedback,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

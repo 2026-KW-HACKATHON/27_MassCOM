@@ -62,6 +62,18 @@ test('GET /merchants reads only active merchants with a public current campaign 
      CROSS JOIN (VALUES (1), (3), (5)) AS selected_goals(target_visit_count)`,
   );
 
+  // 손님 피드백(#334): 실제 점포는 3명 이상이 고른 태그만(KIND 3표만 나오고 SOLO 2표는 숨김), 시연 점포는 1표부터 나온다.
+  // 바라는 점·의견이 있어도 공개 목록에는 태그만 실린다. 공개되지 않는 점포의 피드백은 목록에 영향이 없다.
+  await pool.query(
+    `INSERT INTO merchant_visitor_feedback (customer_account_id, merchant_id, tags, suggestions, note)
+     VALUES
+       ('voter-1', 'merchant-visible', '{SOLO,KIND}', '{HOURS_INFO}', '공개되면 안 되는 의견'),
+       ('voter-2', 'merchant-visible', '{SOLO,KIND}', '{}', NULL),
+       ('voter-3', 'merchant-visible', '{KIND}', '{}', NULL),
+       ('voter-1', 'merchant-full', '{DESSERT}', '{SOLO_MENU}', NULL),
+       ('voter-1', 'merchant-paused', '{KIND}', '{}', NULL)`,
+  );
+
   const catalog = new PostgresMerchantCatalog(pool, () => new Date('2026-09-18T00:00:00.000Z'));
   const walletService = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -111,6 +123,7 @@ test('GET /merchants reads only active merchants with a public current campaign 
         },
         demo: false,
         artUrl: null,
+        visitorTags: [{ code: 'KIND', count: 3 }],
       },
       {
         id: 'merchant-full',
@@ -135,6 +148,7 @@ test('GET /merchants reads only active merchants with a public current campaign 
         },
         demo: true,
         artUrl: null,
+        visitorTags: [{ code: 'DESSERT', count: 1 }],
       },
     ],
   });

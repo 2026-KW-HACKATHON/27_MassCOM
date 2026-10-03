@@ -21,7 +21,7 @@ const goals = [
 function merchant(id: string, category: PublicMerchant['category'] = null): PublicMerchant {
   return {
     id, name: `가게 ${id}`, story: '', roadAddress: '서울 노원구 월계로 1', minimumSpendWon: 5_000, menuItems: [], businessHours: '',
-    category, demo: false, artUrl: null,
+    category, demo: false, artUrl: null, visitorTags: [],
     campaign: { id: `c-${id}`, title: '가을', startsAt: '2026-09-01T00:00:00Z', endsAt: '2026-10-31T00:00:00Z', enrollmentStatus: 'OPEN', rewardGoals: goals },
   };
 }

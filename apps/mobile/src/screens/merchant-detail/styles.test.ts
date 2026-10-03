@@ -46,3 +46,15 @@ test('title, story and DEMO disclosure stay legible on the floating hero card', 
     assert.ok((styles.walletAction.minHeight as number) >= uiMetrics.minTouch);
   }
 });
+
+test('visitor feedback counts remain legible and its action meets the touch target', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeMerchantDetailStyles(palette, world);
+    assert.equal(styles.feedbackCard.backgroundColor, world.card);
+    assert.ok(contrast(styles.feedbackHeading.color, world.card) >= 4.5);
+    assert.ok(contrast(styles.feedbackEmpty.color, world.card) >= 4.5);
+    assert.ok(contrast(styles.feedbackTagText.color, styles.feedbackTag.backgroundColor) >= 4.5);
+    assert.ok(contrast(styles.feedbackActionText.color, styles.feedbackAction.backgroundColor) >= 4.5);
+    assert.ok(styles.feedbackAction.minHeight >= uiMetrics.minTouch);
+  }
+});
