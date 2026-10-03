@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { createMerchantInsightsApiClient, MerchantInsightsApiError, parseMerchantOverview, parseVisitorFeedbackSummary } from './api';
-import { feedbackSections, overviewCards } from './view-model';
+import { feedbackSections, overviewCards, visitBars } from './view-model';
 
 const overview = {
   generatedAt: '2026-10-03T04:00:00.000Z', businessDate: '2026-10-03', weekStartsOn: '2026-09-28',
@@ -84,4 +84,36 @@ test('view models show four cards, conditional comparison, and safe feedback tex
     notes: [{ customerLabel: '손님 K7QM', date: '2026-10-03', text: '좋았어요' }], empty: false,
   });
   assert.equal(feedbackSections(parseVisitorFeedbackSummary({ tags: [], suggestions: [], notes: [] })).empty, true);
+});
+
+test('API-3 fields are optional, validated, and retain zero values in cards', () => {
+  const current = parseMerchantOverview({ ...overview,
+    weekVisitors: { first: 0, repeat: 2 },
+    weekCollectibles: [{ gradeId: 'bronze', gradeName: '브론즈', count: 0 }, { gradeId: 'gold', gradeName: '골드', count: 1 }],
+    weekCoupons: { issued: 0, redeemed: 1 }, weekDetailViews: 0,
+  });
+  assert.deepEqual(overviewCards(current).map(({ label, value }) => [label, value]), [
+    ['오늘 방문', '3'], ['이번 주 방문', '9'], ['재방문 고객', '4'],
+    ['이번 주 첫 방문', '0'], ['이번 주 재방문', '2'],
+    ['이번 주 받은 수집품 · 브론즈', '0'], ['이번 주 받은 수집품 · 골드', '1'],
+    ['이번 주 쿠폰 발급', '0'], ['이번 주 쿠폰 사용', '1'], ['이번 주 가게 상세 조회', '0'],
+  ]);
+  assert.deepEqual(overviewCards(parseMerchantOverview({ ...overview, weekCollectibles: [] })).at(-2),
+    { label: '이번 주 받은 수집품', value: '0' });
+  for (const patch of [
+    { weekVisitors: { first: -1, repeat: 1 } },
+    { weekCollectibles: [{ gradeId: 'bronze', gradeName: '브론즈', count: '1' }] },
+    { weekCoupons: { issued: 0, redeemed: -1 } },
+    { weekDetailViews: '0' },
+  ]) assert.throws(() => parseMerchantOverview({ ...overview, ...patch }),
+    (error: unknown) => error instanceof MerchantInsightsApiError && error.code === 'INVALID_RESPONSE');
+});
+
+test('seven-day visit bars preserve daily counts and expose a readable summary', () => {
+  const model = visitBars(parseMerchantOverview({ ...overview, visits: { ...overview.visits, last7Days: [
+    { date: '2026-10-01', count: 0 }, { date: '2026-10-02', count: 2 }, { date: '2026-10-03', count: 4 },
+  ] } }));
+  assert.equal(model.summary, '최근 7일 방문: 10월 1일 0회, 10월 2일 2회, 10월 3일 4회');
+  assert.deepEqual(model.days.map(({ heightPercent }) => heightPercent), [0, 50, 100]);
+  assert.equal(visitBars(parseMerchantOverview({ ...overview, visits: { ...overview.visits, last7Days: [{ date: '2026-10-03', count: 0 }] } })).days[0]?.heightPercent, 0);
 });

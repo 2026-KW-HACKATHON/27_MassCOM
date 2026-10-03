@@ -10,6 +10,10 @@ export type MerchantOverview = {
   comparison: { lastWeekSameSpan: number; delta: number } | null;
   couponsRedeemedThisWeek: number;
   repeatVisitors: number;
+  weekVisitors?: { first: number; repeat: number };
+  weekCollectibles?: { gradeId: string; gradeName: string; count: number }[];
+  weekCoupons?: { issued: number; redeemed: number };
+  weekDetailViews?: number;
   campaign: { title: string; status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ENDED'; isPublic: boolean; startsAt: string; endsAt: string; phase: 'LIVE' | 'SCHEDULED' | 'NOT_PUBLIC' | 'EXPIRED' | 'DRAFT' | 'PAUSED' | 'ENDED' } | null;
   readiness: { steps: { key: 'basic' | 'menu' | 'members' | 'reward' | 'campaign' | 'visible'; label: string; state: 'DONE' | 'NEEDS_SETUP' | 'CHECK' | 'WAITING_APPROVAL' | 'SCHEDULED'; hint: string }[]; remaining: number; message: string };
 };
@@ -91,6 +95,14 @@ export function parseMerchantOverview(value: unknown): MerchantOverview {
     !value.visits.last7Days.every((day: unknown) => isRecord(day) && isDate(day.date) && isCount(day.count)) ||
     (value.comparison !== null && (!isRecord(value.comparison) || !isCount(value.comparison.lastWeekSameSpan) || !Number.isSafeInteger(value.comparison.delta))) ||
     !isCount(value.couponsRedeemedThisWeek) || !isCount(value.repeatVisitors) ||
+    (value.weekVisitors !== undefined && (!isRecord(value.weekVisitors) ||
+      !isCount(value.weekVisitors.first) || !isCount(value.weekVisitors.repeat))) ||
+    (value.weekCollectibles !== undefined && (!Array.isArray(value.weekCollectibles) ||
+      !value.weekCollectibles.every((grade: unknown) => isRecord(grade) && typeof grade.gradeId === 'string' &&
+        typeof grade.gradeName === 'string' && isCount(grade.count)))) ||
+    (value.weekCoupons !== undefined && (!isRecord(value.weekCoupons) ||
+      !isCount(value.weekCoupons.issued) || !isCount(value.weekCoupons.redeemed))) ||
+    (value.weekDetailViews !== undefined && !isCount(value.weekDetailViews)) ||
     (value.campaign !== null && (!isRecord(value.campaign) || typeof value.campaign.title !== 'string' ||
       !oneOf(value.campaign.status, ['DRAFT', 'ACTIVE', 'PAUSED', 'ENDED']) || typeof value.campaign.isPublic !== 'boolean' ||
       !isInstant(value.campaign.startsAt) || !isInstant(value.campaign.endsAt) ||
