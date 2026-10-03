@@ -40,6 +40,7 @@ import { collectibleFocusAction, parseEntitlementIds, resolveCollectibleLink } f
 import { collectionCounts, shouldStackCounts } from './collection-counts';
 import { CollectibleBrowser } from './collectible-browser';
 import { CollectibleDetail } from './collectible-detail';
+import type { LegacyCollectibleDetail } from './legacy-collectible-detail';
 import { groupCollectibles, ungroupedCollectibles } from './collectible-groups';
 import { CollectibleReveal } from './collectible-reveal';
 import { useCollectibleShare } from './collectible-share';
@@ -130,7 +131,7 @@ export function CollectionScreen({
   const [detailKind, setDetailKind] = useState<MedalKind>();
   const [revealed, setRevealed] = useState<OpenedReward>();
   const [usingCoupon, setUsingCoupon] = useState<Coupon>();
-  const [collectibleDetail, setCollectibleDetail] = useState<{ entitlementId: string; merchantName: string; client: typeof api; intro?: boolean }>();
+  const [collectibleDetail, setCollectibleDetail] = useState<{ entitlementId: string; merchantName: string; client: typeof api; intro?: boolean; localDetail?: LegacyCollectibleDetail }>();
   // 297번 봉투 열기 연출: 방문 수령 직후에만 채워지고, 건너뛰거나 상세로 넘어가면 비운다. 저장은 이미 끝난 상태라 여기서 뭘 하든 보상엔 영향이 없다.
   const [revealEntitlement, setRevealEntitlement] = useState<{ entitlementIds: readonly string[]; merchantName: string }>();
   const [favorites, setFavorites] = useState<readonly string[]>([]);
@@ -578,7 +579,7 @@ export function CollectionScreen({
             sharing={sharing || sharingCollection}
             mint={{ apiUrl, nftMinting: collection.nftMinting, binding, busyEntitlementId, onConfirmMint: confirmMint }}
             onToggleFavorite={toggleCollectibleFavorite}
-            onOpenDetail={(entitlementId, merchantName) => setCollectibleDetail({ entitlementId, merchantName, client: api })}
+            onOpenDetail={(entitlementId, merchantName, localDetail) => setCollectibleDetail({ entitlementId, merchantName, localDetail, client: api })}
             onShare={(group) => void shareCollectible({ thumbnailDataUrl: group.artwork.thumbnailDataUrl, merchantName: group.merchantName, name: group.artwork.name })}
           />
         </Section>
@@ -708,7 +709,7 @@ export function CollectionScreen({
 
       <MedalDetail medal={detailMedal} variant={variant} onClose={() => setDetailKind(undefined)} />
       {collectibleDetail?.client === api ? <CollectibleDetail key={collectibleDetail.entitlementId} entitlementId={collectibleDetail.entitlementId}
-        merchantName={collectibleDetail.merchantName} intro={collectibleDetail.intro === true} load={loadCollectible} onClose={() => setCollectibleDetail(undefined)} onUnavailable={() => void refresh()} /> : null}
+        merchantName={collectibleDetail.merchantName} intro={collectibleDetail.intro === true} localDetail={collectibleDetail.localDetail} load={loadCollectible} onClose={() => setCollectibleDetail(undefined)} onUnavailable={() => void refresh()} /> : null}
       {revealEntitlement ? (
         <CollectibleReveal
           key={revealEntitlement.entitlementIds.join(',')}

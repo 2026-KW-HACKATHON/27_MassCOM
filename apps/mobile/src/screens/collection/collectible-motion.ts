@@ -1,5 +1,17 @@
 export type ParticlePoint = { x: number; y: number; color: string };
 
+/** 옆면 경계(±90도)는 앞면으로 고정해 부동소수점 cos 부호에 의존하지 않는다. */
+export function collectibleFace(angle: number): 'front' | 'back' {
+  const normalized = ((angle % 360) + 540) % 360 - 180;
+  return Math.abs(normalized) > 90 ? 'back' : 'front';
+}
+
+/** 두께는 화면 픽셀 단위. 회전 방향에 맞춰 옆면을 밀고 정면에서는 숨긴다. */
+export function collectibleEdgeOffset(angle: number, thickness: number): number {
+  const sine = Math.sin(angle * Math.PI / 180);
+  return Math.abs(sine) < 1e-10 ? 0 : sine * thickness;
+}
+
 const PARTICLE_COLORS: Record<string, readonly string[]> = {
   confetti: ['#ffb165', '#8adcc0', '#da9fdd'],
   snow: ['#ffffff', '#eaf6ff', '#d7ecff'],

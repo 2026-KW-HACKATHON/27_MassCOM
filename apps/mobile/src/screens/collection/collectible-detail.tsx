@@ -13,9 +13,11 @@ import { canUseTiltSensor } from '@/ui/can-use-tilt-sensor';
 import { Mascot } from '@/ui/mascot';
 import { StateScene } from '@/ui/state-scene';
 
+import { CollectibleDefaultBack, CollectibleFaceShape, collectibleGradeColors } from './collectible-default-back';
 import { collectibleDetailFailure, type CollectibleDetailFailure } from './collectible-detail-state';
+import type { CollectibleDetailInput, LegacyCollectibleDetail } from './legacy-collectible-detail';
 import {
-  angleFrameBlend, angleFrameOpacities, collectibleMotionFrame, firstLoopMotion, livingCell, motionEntrySequence, motionSequenceEnd,
+  angleFrameBlend, angleFrameOpacities, collectibleFace, collectibleEdgeOffset, collectibleMotionFrame, firstLoopMotion, livingCell, motionEntrySequence, motionSequenceEnd,
   onceMotions, ONCE_MS, particleAt,
 } from './collectible-motion';
 import { TiltSensor } from './collectible-tilt';
@@ -24,6 +26,7 @@ type Props = {
   entitlementId: string;
   merchantName: string;
   load: (entitlementId: string) => Promise<PublishedCollectible>;
+  localDetail?: LegacyCollectibleDetail;
   onClose: () => void;
   /** 게시 사진이 내려가 상세가 없었다면(404) 닫을 때 불러, 목록이 같은 수집품을 사진 없는 기존 카드로 다시 그리게 한다. */
   onUnavailable?: () => void;
@@ -69,11 +72,12 @@ function LivingOverlay({ living, cell, faceSize }: { living: CollectibleLiving; 
 }
 
 /** Mounted for one acquired entitlement; closing it discards pending reads and playback. */
-export function CollectibleDetail({ entitlementId, merchantName, load, onClose, onUnavailable, intro = false }: Props) {
+export function CollectibleDetail({ entitlementId, merchantName, load, onClose, onUnavailable, localDetail, intro = false }: Props) {
   const [snapshot, setSnapshot] = useState<PublishedCollectible>();
   const [failure, setFailure] = useState<CollectibleDetailFailure>();
   const [retry, setRetry] = useState(0);
   useEffect(() => {
+    if (localDetail) return;
     let active = true;
     void load(entitlementId).then((value) => {
       if (active) setSnapshot(value);
@@ -82,13 +86,14 @@ export function CollectibleDetail({ entitlementId, merchantName, load, onClose, 
       setFailure(collectibleDetailFailure(caught));
     });
     return () => { active = false; };
-  }, [entitlementId, load, retry]);
+  }, [entitlementId, load, retry, localDetail]);
   // 사진이 내려간 수집품이면 닫을 때 목록을 다시 읽어 사진 없는 기존 카드로 보이게 한다. 여기서 부르면 effect가 다시 돌 수 있다.
   const close = () => { if (failure?.removed) onUnavailable?.(); onClose(); };
 
+  const shown = localDetail ?? snapshot;
   return (
     <FullScreenModal visible animationType="fade" onRequestClose={close}>
-      {snapshot ? <DetailBody key={`${snapshot.publicationId}:${snapshot.gradeId}`} snapshot={snapshot} merchantName={merchantName} intro={intro} onClose={onClose} /> : (
+      {shown ? <DetailBody key={entitlementId} snapshot={shown} merchantName={merchantName} intro={intro} onClose={onClose} /> : (
         <DetailFrame>
           <StateScene kind={failure ? (failure.removed ? 'empty' : 'error') : 'loading'} title={failure ? failure.title : '가게 수집품을 펼치는 중'} body={failure?.body}
             action={failure && !failure.removed ? { label: '다시 불러오기', onPress: () => { setFailure(undefined); setRetry((value) => value + 1); } } : undefined} />
@@ -113,8 +118,10 @@ function Control({ label, onPress, disabled = false }: { label: string; onPress:
   </Pressable>;
 }
 
-function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapshot: PublishedCollectible; merchantName: string; intro?: boolean; onClose: () => void }) {
-  const palette = colorsForScheme(useColorScheme());
+function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapshot: CollectibleDetailInput; merchantName: string; intro?: boolean; onClose: () => void }) {
+  const scheme = useColorScheme();
+  const palette = colorsForScheme(scheme);
+  const gradeColors = collectibleGradeColors(snapshot.gradeId, snapshot.gradeName, scheme);
   const { width } = useWindowDimensions();
   const size = Math.max(160, Math.min(360, width - 48));
   const motionAllowed = useMotionEnabled();
@@ -301,8 +308,8 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   const close = () => { pause(); onClose(); };
   const radians = angle * Math.PI / 180;
   const scaleX = Math.max(.04, Math.abs(Math.cos(radians)));
-  const depth = Math.abs(Math.sin(radians)) * snapshot.thickness * size / 512;
-  const reverse = Math.cos(radians) < 0;
+  const depth = collectibleEdgeOffset(angle, snapshot.thickness * size / 512);
+  const reverse = collectibleFace(angle) === 'back';
   const picture = imageFailed ? snapshot.thumbnailDataUrl : snapshot.imageDataUrl;
   const animationFrame = collectibleMotionFrame(playing && moving ? activeAnimation : 'still', animationTime, size);
   const frames = snapshot.story.frames;
@@ -333,19 +340,20 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
             {snapshot.story.type === 'follow' ? <View style={{ position: 'absolute', left: size * (.1 + shownProgress * .65), bottom: size * .1 }}><Mascot pose="wave" size={size * .16} breathe={false} /></View> : null}
           </>
         ) : (
-          <View style={{ width: size, height: size, transform: [{ translateY: animationFrame.lift }, { scale: animationFrame.scale }] }} accessible accessibilityLabel={`${snapshot.gradeName} ${shapeName(snapshot.shape)}, 두께 ${snapshot.thickness}, 각도 ${Math.round(angle)}도`}>
-            {[1, .8, .6, .4, .2].map((fraction) => <Image key={fraction} source={{ uri: picture }} resizeMode="contain" accessible={false}
-              style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09 + depth * fraction, tintColor: '#765931', transform: [{ scaleX }] }} />)}
+          <View style={{ width: size, height: size, transform: [{ translateY: animationFrame.lift }, { scale: animationFrame.scale }] }} accessible accessibilityLabel={`${reverse ? '뒷면' : '앞면'} ${snapshot.name}, ${snapshot.gradeName} ${shapeName(snapshot.shape)}, 두께 ${snapshot.thickness}, 각도 ${Math.round(angle)}도`}>
+            {[1, .8, .6, .4, .2].map((fraction) => <View key={fraction} pointerEvents="none" accessible={false}
+              style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09 + depth * fraction, transform: [{ scaleX }] }}>
+              <CollectibleFaceShape shape={snapshot.shape} size={displayFace} fill={gradeColors.shade} />
+            </View>)}
             {reverse ? (
               snapshot.backImageDataUrl ? (
                 <Image source={{ uri: snapshot.backImageDataUrl }} resizeMode="contain" accessible={false}
                   style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }} />
               ) : (
-                <>
-                  <Image source={{ uri: picture }} resizeMode="contain" accessible={false} onError={() => setImageFailed(true)}
-                    style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, tintColor: '#bf8149', transform: [{ scaleX }] }} />
-                  <Text style={{ position: 'absolute', top: size * .46, left: size * .18, width: size * .64, textAlign: 'center', color: palette.label, fontWeight: '700' }}>{merchantName}</Text>
-                </>
+                <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
+                  <CollectibleDefaultBack shape={snapshot.shape} size={displayFace} merchantName={merchantName}
+                    name={snapshot.name} gradeId={snapshot.gradeId} gradeName={snapshot.gradeName} />
+                </View>
               )
             ) : (
               // 얼굴 전체에 scaleX 하나를 공유하는 부모: living overlay가 이 안에서 상대 좌표로만 위치해야
@@ -357,8 +365,15 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
                     {frameBlend.blend > 0 ? <SpriteCell frames={snapshot.angleFrames} index={frameBlend.next} faceSize={displayFace} opacity={angleFrameOpacities(frameBlend.blend).upper} /> : null}
                   </View>
                 ) : (
-                  <Image source={{ uri: picture }} resizeMode="contain" accessible={false} onError={() => setImageFailed(true)}
-                    style={{ position: 'absolute', width: displayFace, height: displayFace }} />
+                  snapshot.frontImageSource && !imageFailed ? (
+                    <Image source={snapshot.frontImageSource} resizeMode="contain" accessible={false} onError={() => setImageFailed(true)}
+                      style={{ position: 'absolute', width: displayFace, height: displayFace }} />
+                  ) : picture ? (
+                    <Image source={{ uri: picture }} resizeMode="contain" accessible={false} onError={() => setImageFailed(true)}
+                      style={{ position: 'absolute', width: displayFace, height: displayFace }} />
+                  ) : (
+                    <Mascot pose="stamp" size={displayFace} breathe={false} />
+                  )
                 )}
                 {snapshot.living ? <LivingOverlay living={snapshot.living} cell={livingCell(livingClock, snapshot.living.periodMs, snapshot.living.count)} faceSize={displayFace} /> : null}
               </View>

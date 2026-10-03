@@ -4,6 +4,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 
 | 날짜 | 도구 | 담당 작업 | 생성·수정 범위 | 실제 검증 | 사람 검토 |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-03 | Codex | Issue #340 수정 1차: 외형 없는 수집품 상세 연결 | 모바일 공통 LegacyCard·로컬 표시 어댑터·기존 회전 상세·회귀 시험 | 수집 화면 시험 199/199, tsc·lint·diff 검사 PASS; tsx CLI는 IPC EPERM으로 BLOCKED, 같은 시험을 Node 로더로 실행 | 운영·시연 설치본 실기 NOT_RUN; 사용자 지시로 커밋 없음 |
 | 2026-10-03 | Codex(메인 API·문서 수정, 독립 모바일 구현·코드 검토 에이전트) | Issue #334 수정 2차: 옛 직원 본인 발급 자격·취소 거래, 선택형 의견 401 부작용, 안내 문구·시연 빈 상태·시험 보완 | API `postgres/visitor-feedback.ts`·`postgres/reversal.ts`·통합 시험 2개, 모바일 수령·상세·폼·시험 6개, `privacy.html`·D-069·시험/AI 기록. 배지 FROM 조각을 재사용하고 진행도 미집계 방문 자격을 유지 | API 타입 검사·대상 단위 25/25, 모바일 대상 104/104·타입 검사·lint, 처리방침 8/8·`git diff --check` PASS. 모바일 수정 전 의도한 회귀 단언 3개 실패 확인. DB 통합 신규 1건·기존 HTTP 403/미집계 자격·취소 실패 6경우 행 복구 단언 보완; 모바일 신규 2건·소스 단언 강화. DB 시험은 컨트롤러 실행으로 NOT_RUN, 실제 Android 두 variant·API 통합·실기·배포 NOT_RUN. 의존성·커밋·HANDOFF·BLOCKERS 변경 없음 | 사람 검토 NOT_RUN. 독립 읽기 전용 API·모바일 코드 검토 CLEAR; 실행하지 않은 DB·실기 검증을 대신하지 않음 |
 | 2026-10-03 | Codex(일반 구현 하위 에이전트·독립 코드/구조 검토) | Issue #334 2단계: 모바일 방문 특징·비공개 의견 폼과 점주 웹 조회 | `apps/mobile/src/merchant/visitor-feedback-*`·점포 파서·상세/목록/수령 화면·시험, `apps/production-web/merchant.html`·`assets/merchant.mjs`·가짜 DOM 시험, README·시험/인수인계 기록. 서버는 원문 조회만 | 모바일 대상 102/102·타입검사·lint·웹 정적 문법·diff PASS. tsx CLI IPC EPERM → 같은 파일 Node 로더 PASS. 부모 웹 전체는 loopback EPERM으로 BLOCKED; 서버 준비 훅을 뺀 임시 사본의 신규 가짜 DOM 3/3 PASS(원본 시험 불변·임시 삭제). 실기·배포 NOT_RUN; 커밋 없음 | 사람 검토 NOT_RUN. 독립 구조 검토 CLEAR·코드 검토 COMMENT(신규 시험 URL 타입 보완, 남은 구체적 결함 0건); 전체 웹·실기 검증 한계 유지 |
 | 2026-10-03 | Claude Code(Sonnet 5.5 executor, 최초 구현)·Codex(수정 1차 구현·통합 시험·독립 코드 검토) | Issue #334 1단계 수정 1차(fix round 1) 포함: 방문한 가게의 특징 선택·사장님께 바라는 점·100자 이하 의견(서버) | `migrations/0040_merchant_visitor_feedback.sql`, `visitor-feedback-rules.ts`·`visitor-feedback.ts`·`postgres/visitor-feedback.ts`, `merchant-catalog.ts`·`postgres/merchant-catalog.ts`(`visitorTags`), `server.ts`(고객 경로 2개·점주 웹 요약 경로), `postgres/account-deletion.ts`, 시험, `docs/privacy.html`·`DECISIONS.md`(D-069)·`apps/api/README.md`; 수정 1차는 `postgres/reversal.ts`·`postgres/visitor-feedback.ts`·규칙·시험·migration 0040·D-069·시험/AI 기록 | 최초 구현: 규칙 시험을 먼저 작성한 뒤 구현, 규칙 11/11·`server.test.ts` 101/101·전체 단위 342/342·typecheck, 전체 postgres 통합 350 PASS·0 FAIL·3 SKIP(기존 시드 시험), 처리방침 시험 8/8  수정 1차: 마지막 유효 방문 취소 시 삭제·체험 계정 저장 금지·의견 전용 HMAC·배열 차원 CHECK와 회귀 시험(통합 신규 7건·단위 신규 1건·기존 단언 강화); 규칙 12/12 PASS(Node tsx 로더, 기존 도메인에서 새 시험 실패 확인), 설치된 API 컴파일러 타입 검사 PASS(루트 npx는 registry ENOTFOUND로 BLOCKED), 요청한 tsx CLI는 IPC EPERM으로 BLOCKED, DB 통합·변이 시험은 컨트롤러 실행으로 NOT_RUN(`TEST_DATABASE_URL=…/masscom_334_test`), 독립 코드 검토 지적 2건(중복 방문 fixture·잠금 대기 확인) 보완 후 남은 구체적 결함 없음, diff 검사 PASS, 커밋·배포 없음. | 독립 교차 리뷰(서로 다른 모델 2개) `NOT_RUN` — 민감 변경이라 병합 전 필요. 앱·점주 웹 화면은 2단계 |
@@ -168,3 +169,9 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 - 실패와 복구
 - 보안·개인정보 한계
 - 실제 시연 방법
+
+
+## 2026-10-03 — Issue #340 모바일 수집품 기본 뒷면·두께
+
+- Codex가 모바일 기본 뒷면 컴포넌트, 등급 금속색 재사용, 로컬 마스코트 도장, 각도별 면 판정·옆면 이동, 접근성 이름과 회귀 시험을 구현했다. 독립 시험 담당이 신규 시험 9개를 작성했고, 독립 코드 검토에서 구체적인 결함은 발견되지 않았다. 서버·DB·공유·봉투·축하 로직 변경, 새 의존성, 커밋은 없다.
+- 검증: 수집 화면 196/196, `npx tsc --noEmit`, `npm run lint`, `git diff --check` PASS. `npx tsx`의 IPC `EPERM`으로 같은 시험 전체를 `node --import tsx --test`로 실행했다. Android 운영·시연 실기와 스크린샷·TalkBack·동작 줄이기는 NOT_RUN이다.

@@ -29,7 +29,7 @@ const animations = ['still', 'rotate', 'shine', 'float', 'stamp', 'sparkle', 'pu
 const spriteMimes = 'png|webp';
 const particleKinds: readonly CollectibleParticleKind[] = ['confetti', 'snow', 'petals', 'sparkles'];
 
-/** 뒷면 전용 이미지. 유효하지 않으면 호출부가 필드를 버리고 v1 모습(228번 줄 틴트 처리)으로 돌아간다. */
+/** 뒷면 전용 이미지. 유효하지 않으면 호출부가 필드를 버리고 로컬 기본 뒷면을 표시한다. */
 function parseBackImageDataUrl(value: unknown): string | undefined {
   return image(value, 350_000, spriteMimes) ? value : undefined;
 }
