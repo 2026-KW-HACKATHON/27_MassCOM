@@ -60,6 +60,7 @@ function MerchantDetailContent({ merchantId, apiUrl, from }: { merchantId: strin
   const [previewRetry, setPreviewRetry] = useState(0);
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const merchant = merchants.find((item) => item.id === merchantId);
+  const hasVisibleMerchant = merchant !== undefined;
   const visibleMerchantId = merchant?.id;
   const goal = merchant && collection ? buildMerchantGoals([merchant], collection.visits, collection.collectibles, new Date().toISOString())[0] : undefined;
   const visiblePreview = preview && preview.merchantId === visibleMerchantId && preview.campaignId === merchant?.campaign.id ? preview : null;
@@ -71,10 +72,10 @@ function MerchantDetailContent({ merchantId, apiUrl, from }: { merchantId: strin
       .catch(() => { if (!controller.signal.aborted) setPreviewErrorFor(visibleMerchantId); });
     return () => controller.abort();
   }, [apiUrl, visibleMerchantId, previewRetry]);
-  useEffect(() => {
-    if (!visibleMerchantId) return;
-    void sendMerchantDetailView(apiUrl, visibleMerchantId, detailViewSource(from)).catch(() => undefined);
-  }, [apiUrl, visibleMerchantId, from]);
+  useFocusEffect(useCallback(() => {
+    if (!hasVisibleMerchant) return;
+    void sendMerchantDetailView(apiUrl, merchantId, detailViewSource(from)).catch(() => undefined);
+  }, [apiUrl, merchantId, hasVisibleMerchant, from]));
   // The hero picture; one that fails to load (a stale catalog pointing at art that was reset) is dropped and the sky shows.
   const art = merchant ? merchantArt(merchant, apiUrl) : undefined;
   const hero = useArtFallback(art?.source);

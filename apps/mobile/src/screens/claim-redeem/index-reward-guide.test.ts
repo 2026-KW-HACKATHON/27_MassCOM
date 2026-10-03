@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
+
+import { visitRewardGuide, type VisitGoal } from '../../commerce/visit-reward-guide';
 
 import { contrast } from '../../theme/contrast';
 import { darkColors, lightColors } from '../../theme/palette';
@@ -22,9 +26,9 @@ test('the success card shows the real earned delta, the held balance and the nex
   assert.match(screen, /import \{ mileageBalanceLine, mileageDeltaLine, settleWithin, visitRewardGuide, type VisitGoal \} from '@\/commerce\/visit-reward-guide';/);
   const guide = between('const rewardGuide = redeemed', 'return (');
   assert.match(guide, /progressCount: redeemed\.visit\.progressVisitCount,/);
-  // 실제 캠페인 목표를 읽고, 알 수 없을 때만 안내 함수의 기본값을 쓴다.
+  // 실제 캠페인 목표 조회가 성공한 뒤에만 등급 안내를 보여 준다.
   assert.match(screen, /merchant\.campaign\.rewardGoals/);
-  assert.match(guide, /campaignGoals\?\.claimSlotId === redeemed\.claimSlotId \? campaignGoals\.goals : undefined/);
+  assert.match(guide, /campaignGoals\?\.claimSlotId === redeemed\.claimSlotId && campaignGoals\.status === 'ready' \? campaignGoals\.goals : undefined/);
   assert.doesNotMatch(guide, /progressCounted/);
   const card = between('{redeemed ? (', '</SkyScrollView>');
   assert.match(card, /\{currentRewardContext\?\.mileageLine \? <Text style=\{styles\.successHighlight\}>\{currentRewardContext\.mileageLine\}<\/Text> : null\}/);
@@ -33,6 +37,54 @@ test('the success card shows the real earned delta, the held balance and the nex
   // 새 줄은 기존 안내 줄(진행 횟수·진행 안내·새 보상권) 뒤, 버튼 앞에 놓인다.
   assert.ok(card.indexOf('progressNote(redeemed.visit)') < card.indexOf('currentRewardContext?.mileageLine'));
   assert.ok(card.indexOf('rewardGuide?.nextGradeLine') < card.indexOf('styles.successActions'));
+});
+
+test('목표 지연·실패·재시도 중에는 가짜 등급이 없고 성공한 실제 목표만 안내한다', async () => {
+  const source = between('// 수령 후 추천과 목표', '// 의견 조회는 선택 사항');
+  const effect = source.slice(0, source.indexOf('  useEffect(() => {', source.indexOf('  useEffect(() => {') + 1));
+  type GoalsState = { claimSlotId: string; status: 'ready'; goals: readonly VisitGoal[] } | { claimSlotId: string; status: 'error' } | undefined;
+  let state: GoalsState;
+  const getState = (): GoalsState => state;
+  let load!: () => (() => void);
+  let resolve!: (merchants: unknown[]) => void;
+  let reject!: (error: Error) => void;
+  let response = new Promise<unknown[]>((yes, no) => { resolve = yes; reject = no; });
+  const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
+  runInNewContext(ts.transpileModule(effect, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, {
+    apiUrl: 'api', campaignGoalsRetry: 0, AbortController,
+    redeemed: { claimSlotId: 'claim', merchantId: 'merchant', visit: { campaignId: 'campaign' } },
+    useEffect: (callback: typeof load) => { load = callback; },
+    setCampaignGoals: (next: GoalsState) => { state = next; },
+    createMerchantApiClient: () => ({ listMerchants: () => response }),
+  });
+  const guide = () => visitRewardGuide({ progressCount: 1, goals: state?.status === 'ready' ? state.goals : undefined });
+  let cleanup = load();
+  assert.equal(state, undefined);
+  assert.equal(guide().nextGradeLine, null);
+  reject(new Error('offline')); await flush();
+  assert.equal(getState()?.status, 'error');
+  assert.equal(guide().nextGradeLine, null);
+  assert.match(effect, /\[apiUrl, redeemed, campaignGoalsRetry\]/);
+  const card = between('{redeemed ? (', '</SkyScrollView>');
+  assert.match(card, /campaignGoals\.status === 'error'/);
+  assert.match(card, /수집품 목표를 확인하지 못했어요/);
+  assert.match(card, /accessibilityLabel="수집품 목표 다시 불러오기"[\s\S]*?onPress=\{\(\) => \{ setCampaignGoals\(undefined\); setCampaignGoalsRetry\(\(value\) => value \+ 1\); \}\}/);
+  cleanup();
+  state = undefined;
+  response = new Promise<unknown[]>((yes, no) => { resolve = yes; reject = no; });
+  cleanup = load();
+  assert.equal(guide().nextGradeLine, null);
+  resolve([{ id: 'merchant', campaign: { id: 'campaign', rewardGoals: [
+    { targetVisitCount: 2, displayName: '새싹' }, { targetVisitCount: 4, displayName: '단골' },
+  ] } }]); await flush();
+  assert.equal(guide().nextGradeLine, '새싹 수집품까지 1번 남았어요 (같은 가게는 하루 1번)');
+  cleanup();
+});
+
+test('조회 성공해도 같은 캠페인을 찾지 못하면 재시도 가능한 오류로 남긴다', async () => {
+  const source = between('// 수령 후 추천과 목표', '// 의견 조회는 선택 사항');
+  assert.match(source, /item\.id === redeemed\.merchantId && item\.campaign\.id === redeemed\.visit\.campaignId/);
+  assert.match(source, /merchant \? \{ claimSlotId, status: 'ready', goals: merchant\.campaign\.rewardGoals \} : \{ claimSlotId, status: 'error' \}/);
 });
 
 test('no app copy guesses the earn rules: no bonus suffixes and no hardcoded 50/100/200 anywhere in the screen or the guide', () => {

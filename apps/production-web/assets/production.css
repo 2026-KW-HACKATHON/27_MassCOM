@@ -377,7 +377,7 @@ video { width: 100%; max-width: 28rem; aspect-ratio: 4 / 3; object-fit: cover; b
 .admin-coupons { display: grid; gap: 12px; margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--mc-separator); }
 .admin-coupons > p { color: var(--mc-secondary); }
 /* 비어 있는 상태 안내(role=status)는 display:none으로 지우지 않고 화면에서만 감춘다: 나중에 글이 들어올 때 보조 기술이 읽어 주도록 */
-.admin-coupons > p:empty, #merchant-visit-status:empty, #merchant-redemption-status:empty {
+.admin-coupons > p:empty, #merchant-visit-status:empty, #merchant-redemption-status:empty, .readiness-copy-status:empty {
   display: block; position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
   overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
@@ -424,7 +424,6 @@ video { width: 100%; max-width: 28rem; aspect-ratio: 4 / 3; object-fit: cover; b
 .readiness-hint { flex-basis: 100%; margin-left: calc(1.4em + 10px); color: var(--mc-secondary); font-size: .92rem; overflow-wrap: anywhere; }
 .readiness-action { margin-left: calc(1.4em + 10px); max-width: 100%; white-space: normal; }
 .readiness-copy-status, .readiness-copy-fallback { flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; }
-.readiness-copy-status:empty { display: none; }
 .admin-heading h1 { font-size: clamp(1.9rem, 4.2vw, 3.2rem); }
 /* 흐름 지표: 합계는 카드 폭에 맞춰 접고 점포별 표는 패널 안에서만 가로 스크롤한다. */
 #admin-funnel { grid-template-columns: minmax(0, 1fr); }

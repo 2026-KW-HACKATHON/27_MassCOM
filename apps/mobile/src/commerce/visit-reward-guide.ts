@@ -1,9 +1,6 @@
 // 방문 완료 카드의 "이번 방문으로 얻은 것·다음 등급까지" 안내(Issue #332). 적립·등급 판정은 서버가 정본이라, 화면은 서버가
 // 센 값을 말로 옮기기만 하고 규칙(50·100·200)을 따라 계산하지 않는다.
 
-/** 점포 목록을 읽지 못했을 때에만 쓰는 이전 캠페인 목표. */
-export const defaultVisitGoals = [{ targetVisitCount: 1, displayName: '브론즈' }, { targetVisitCount: 3, displayName: '실버' }, { targetVisitCount: 5, displayName: '골드' }] as const;
-
 export type VisitGoal = { targetVisitCount: number; displayName: string };
 
 export type VisitRewardGuide = { nextGradeLine: string | null };
@@ -13,7 +10,9 @@ export function visitRewardGuide(input: { progressCount: number; goals?: readonl
 }
 
 function nextGradeLine(progressCount: number, goals: readonly VisitGoal[] | undefined): string | null {
-  const actualGoals = goals ?? defaultVisitGoals;
+  // 서버 목표를 아직 모르면 등급·횟수를 추측하지 않는다.
+  if (goals === undefined) return null;
+  const actualGoals = goals;
   // 목표가 하나도 없는 가게는 시리즈 자체가 없어 "골드까지 모았어요"라고 말할 수 없다.
   if (actualGoals.length === 0) return null;
   const sorted = [...actualGoals].sort((a, b) => a.targetVisitCount - b.targetVisitCount);

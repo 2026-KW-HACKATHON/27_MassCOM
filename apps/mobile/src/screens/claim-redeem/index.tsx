@@ -132,9 +132,14 @@ export function ClaimRedeemScreen({
   const [gachaOpen, setGachaOpen] = useState(false);
   const [celebration, setCelebration] = useState<CelebrationContent>();
   const [openableBoxClaimSlot, setOpenableBoxClaimSlot] = useState<string>();
+  // focus 조회와 축하 조회가 같은 세대를 공유해 늦은 READY 응답으로 열린 상자를 되살리지 않는다.
+  const badgeBookGate = useRef(createIdentityRequestGate()).current;
   const [presentedIds, setPresentedIds] = useState<ReadonlySet<string>>(() => presentedCollectibleIds(apiUrl, accountId));
   const [nextSuggestion, setNextSuggestion] = useState<{ claimSlotId: string; item: Recommendation }>();
-  const [campaignGoals, setCampaignGoals] = useState<{ claimSlotId: string; goals: readonly VisitGoal[] }>();
+  const [campaignGoals, setCampaignGoals] = useState<
+    { claimSlotId: string; status: 'ready'; goals: readonly VisitGoal[] } | { claimSlotId: string; status: 'error' }
+  >();
+  const [campaignGoalsRetry, setCampaignGoalsRetry] = useState(0);
 
   // 도감에서 상자를 열고 돌아오면 현재 READY 상태를 다시 읽어 다음 행동을 갱신한다.
   useFocusEffect(useCallback(() => {
@@ -142,13 +147,14 @@ export function ClaimRedeemScreen({
     if (!redeemed) return;
     let current = true;
     const claimSlotId = redeemed.claimSlotId;
+    const request = badgeBookGate.start();
     void badgeApi.getBadgeBook().then((book) => {
-      if (current && activeClaimSlot.current === claimSlotId) {
+      if (current && badgeBookGate.isCurrent(request) && activeClaimSlot.current === claimSlotId) {
         setOpenableBoxClaimSlot(hasOpenableBox(book) ? claimSlotId : undefined);
       }
     }).catch(() => undefined);
-    return () => { current = false; };
-  }, [apiUrl, accountId, badgeApi, redeemed]));
+    return () => { current = false; badgeBookGate.cancel(); };
+  }, [apiUrl, accountId, badgeApi, badgeBookGate, redeemed]));
 
   // 수령 후 추천과 목표는 화면 안내만 보강한다. 실패해도 완료된 방문은 그대로 보여 준다.
   useEffect(() => {
@@ -159,8 +165,16 @@ export function ClaimRedeemScreen({
     void createMerchantApiClient(apiUrl).listMerchants(controller.signal).then((merchants) => {
       if (!current) return;
       const merchant = merchants.find((item) => item.id === redeemed.merchantId && item.campaign.id === redeemed.visit.campaignId);
-      if (merchant) setCampaignGoals({ claimSlotId, goals: merchant.campaign.rewardGoals });
-    }).catch(() => undefined);
+      setCampaignGoals(merchant ? { claimSlotId, status: 'ready', goals: merchant.campaign.rewardGoals } : { claimSlotId, status: 'error' });
+    }).catch(() => { if (current) setCampaignGoals({ claimSlotId, status: 'error' }); });
+    return () => { current = false; controller.abort(); };
+  }, [apiUrl, redeemed, campaignGoalsRetry]);
+
+  useEffect(() => {
+    if (!redeemed) return;
+    let current = true;
+    const controller = new AbortController();
+    const claimSlotId = redeemed.claimSlotId;
     void createRecommendationApiClient({ apiUrl, credential, onSessionInvalid }).listRecommendations(controller.signal).then((items) => {
       if (current && items[0]) setNextSuggestion({ claimSlotId, item: items[0] });
     }).catch(() => undefined);
@@ -254,6 +268,8 @@ export function ClaimRedeemScreen({
 
   function changeToken(value: string) {
     inspectGate.cancel();
+    badgeBookGate.cancel();
+    setOpenableBoxClaimSlot(undefined);
     badgesBeforeClaim.current = undefined;
     setToken(value);
     setPreview(undefined);
@@ -337,6 +353,7 @@ export function ClaimRedeemScreen({
       const result = await api.redeemClaim(target);
       if (!result.replayed) playUiSound('success');
       activeClaimSlot.current = result.claimSlotId;
+      setCampaignGoals(undefined);
       setRedeemed(result);
       setArtworkReward(undefined);
       void findGrantedArtwork(result);
@@ -374,6 +391,7 @@ export function ClaimRedeemScreen({
       const mileageBefore = await settleWithin(readEarnedMileage(shopApi), mileageSnapshotWaitMs);
       const result = await api.createTestVisit(selectedTestVisitMerchantId);
       activeClaimSlot.current = result.claimSlotId;
+      setCampaignGoals(undefined);
       setRedeemed(result);
       setArtworkReward(undefined);
       void findGrantedArtwork(result);
@@ -419,13 +437,14 @@ export function ClaimRedeemScreen({
 
   // Runs after the claim is final; a badge lookup failure only trims the celebration, never the claim.
   async function celebrate(result: RedeemedClaim, before: Promise<BadgeBook | undefined> | undefined) {
+    const request = badgeBookGate.start();
     const [previous, after] = await Promise.all([
       before ?? Promise.resolve(undefined),
       badgeApi.getBadgeBook().catch(() => undefined),
     ]);
     if (activeClaimSlot.current !== result.claimSlotId) return;
     const diff = diffBadgeBooks(previous, after);
-    setOpenableBoxClaimSlot(hasOpenableBox(after) ? result.claimSlotId : undefined);
+    if (badgeBookGate.isCurrent(request)) setOpenableBoxClaimSlot(hasOpenableBox(after) ? result.claimSlotId : undefined);
     setCelebration({
       claimSlotId: result.claimSlotId,
       grantedRewards: result.grantedRewards,
@@ -457,7 +476,7 @@ export function ClaimRedeemScreen({
   const rewardBalance = currentRewardContext?.balance ?? null;
   const rewardGuide = redeemed
     ? visitRewardGuide({ progressCount: redeemed.visit.progressVisitCount,
-      goals: campaignGoals?.claimSlotId === redeemed.claimSlotId ? campaignGoals.goals : undefined })
+      goals: campaignGoals?.claimSlotId === redeemed.claimSlotId && campaignGoals.status === 'ready' ? campaignGoals.goals : undefined })
     : undefined;
   const currentArtworkReward = artworkReward?.claimSlotId === redeemed?.claimSlotId ? artworkReward : undefined;
   const currentNextSuggestion = nextSuggestion && nextSuggestion.claimSlotId === redeemed?.claimSlotId ? nextSuggestion.item : undefined;
@@ -642,6 +661,13 @@ export function ClaimRedeemScreen({
             {currentRewardContext?.mileageLine ? <Text style={styles.successHighlight}>{currentRewardContext.mileageLine}</Text> : null}
             {rewardBalance !== null ? <Text style={styles.successBody}>{mileageBalanceLine(rewardBalance)}</Text> : null}
             {rewardGuide?.nextGradeLine ? <Text style={styles.successBody}>{rewardGuide.nextGradeLine}</Text> : null}
+            {campaignGoals?.claimSlotId === redeemed.claimSlotId && campaignGoals.status === 'error' ? <View>
+              <Text style={styles.successBody}>수집품 목표를 확인하지 못했어요. 방문 완료 기록은 그대로예요.</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="수집품 목표 다시 불러오기"
+                onPress={() => { setCampaignGoals(undefined); setCampaignGoalsRetry((value) => value + 1); }} style={styles.textLink}>
+                <Text style={styles.textLinkText}>수집품 목표 다시 불러오기</Text>
+              </Pressable>
+            </View> : null}
             <View style={styles.successActions}>
               <Pressable accessibilityRole="button" onPress={() => followAfterVisitAction(primaryAction)}
                 style={[styles.collectionButton, { backgroundColor: palette.primary }]}>

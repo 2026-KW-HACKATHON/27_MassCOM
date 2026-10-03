@@ -354,7 +354,7 @@ test('#309 a trial-store visit never shows in friends stamps or medal counts aft
     clock.now = new Date(clock.now.getTime() + 24 * 60 * 60 * 1000);
     const seen = await friends.list('acct_trial_friend');
     assert.equal(seen.friends.length, 1);
-    assert.deepEqual(seen.friends[0]!.stamps, [{ merchantName: '가상 점포 A' }]);
+    assert.deepEqual(seen.friends[0]!.stamps, [{ merchantId: 'showcase-local-merchant', merchantName: '가상 점포 A' }]);
     const badges = await new PostgresBadgeRewardService(pool, { now, accountLifecycle: lifecycle }).getBadges(guest.accountId);
     assert.equal(badges.medals.find((medal) => medal.kind === 'explorer')!.value, 1);
   });

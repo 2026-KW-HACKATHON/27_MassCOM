@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { defaultVisitGoals, mileageBalanceLine, mileageDeltaLine, settleWithin, visitRewardGuide } from './visit-reward-guide';
+import { mileageBalanceLine, mileageDeltaLine, settleWithin, visitRewardGuide } from './visit-reward-guide';
 
-const goals = defaultVisitGoals;
+const goals = [{ targetVisitCount: 1, displayName: '브론즈' }, { targetVisitCount: 3, displayName: '실버' }, { targetVisitCount: 5, displayName: '골드' }] as const;
 
 test('the next-grade line counts down to the first goal above the current count', () => {
   assert.equal(
@@ -62,9 +62,8 @@ test('the guide no longer guesses mileage: it only carries the next-grade line',
   assert.deepEqual(Object.keys(visitRewardGuide({ progressCount: 1, goals })), ['nextGradeLine']);
 });
 
-test('unknown goals alone use the legacy visit thresholds', () => {
-  assert.deepEqual(defaultVisitGoals.map((goal) => goal.targetVisitCount), [1, 3, 5]);
-  assert.equal(visitRewardGuide({ progressCount: 2 }).nextGradeLine, '실버 수집품까지 1번 남았어요 (같은 가게는 하루 1번)');
+test('목표 조회가 아직 끝나지 않았거나 실패하면 등급을 추측하지 않는다', () => {
+  assert.equal(visitRewardGuide({ progressCount: 2 }).nextGradeLine, null);
 });
 
 test('the balance line shows the mileage the account holds', () => {

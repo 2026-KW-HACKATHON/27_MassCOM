@@ -2964,8 +2964,9 @@ test('점포 웹 가게 현황 화면은 점포 운영 화면 맨 위에 있고 
 
 test('비어 있는 상태 안내 영역은 display none으로 지우지 않고 화면에서만 감춘다', () => {
   assert.doesNotMatch(css, /\.admin-coupons > p:empty \{ display: none/);
-  const rule = css.match(/\.admin-coupons > p:empty, #merchant-visit-status:empty, #merchant-redemption-status:empty \{[^}]*\}/)?.[0];
+  const rule = css.match(/\.admin-coupons > p:empty, #merchant-visit-status:empty, #merchant-redemption-status:empty, \.readiness-copy-status:empty \{[^}]*\}/)?.[0];
   assert.ok(rule, 'a visually hidden rule for the empty status regions');
+  assert.doesNotMatch(css, /\.readiness-copy-status:empty\s*\{\s*display:\s*none/);
   assert.doesNotMatch(rule, /display: none/);
   assert.match(rule, /position: absolute/);
   assert.match(rule, /clip-path: inset\(50%\)/);
