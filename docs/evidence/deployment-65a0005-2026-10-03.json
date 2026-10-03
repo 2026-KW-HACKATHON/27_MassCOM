@@ -1,0 +1,108 @@
+{
+  "observedAt": "2026-10-03 UTC",
+  "sourceCommit": "65a0005285e1bfbc04af93903054685118633bff",
+  "sourceBranch": "main (PR #351 병합)",
+  "previousCommits": {
+    "operatingApiAndWebBefore": "b8d981db48d8ed9644feb1cf7a904bb96094a66f",
+    "showcaseBefore": "b8d981db48d8ed9644feb1cf7a904bb96094a66f"
+  },
+  "issues": [
+    352
+  ],
+  "mergedPullRequestsSinceB8d981d": [
+    328,
+    335,
+    336,
+    337,
+    344,
+    339,
+    345,
+    346,
+    347,
+    348,
+    350,
+    351
+  ],
+  "scope": "시연 API와 호스트 시드, 운영 API와 웹을 65a0005로 배포했다. Android test.7과 Preview 16은 별도 증빙 파일을 참조한다.",
+  "migrationNote": "0040_merchant_visitor_feedback.sql은 함수·merchant_visitor_feedback 테이블·인덱스 1개를 추가하는 변경이며, 외부 호환성 판정은 backward_compatible=yes였다.",
+  "showcase": {
+    "release": "/opt/masscom-showcase/releases/65a0005285e1bfbc04af93903054685118633bff에 git archive의 apps/와 infra/를 복사했다 (20M).",
+    "backup": "/opt/masscom-showcase/backups/pre-65a0005-20261003.dump: 1133538바이트, mode 600, 338항목, 2026-10-03 04:01:17Z에 migration 전에 생성; 실제 복원 NOT_RUN",
+    "image": "masscom-showcase-api:65a0005를 서버에서 빌드했다 (370MB).",
+    "schemaMigrationsBefore": "39|0039_showcase_guest_trials.sql",
+    "schemaMigrationsAfter": "40|0040_merchant_visitor_feedback.sql (2026-10-03 04:13:37Z 적용)",
+    "migration": "PASS: docker compose run --rm -T migrate → database migrations applied",
+    "apiContainer": "up -d --no-deps showcase-api → healthy (2026-10-03 04:13:48Z 시작); PostgreSQL 컨테이너는 재생성하지 않았다.",
+    "aiStoreArt": "API 로그: AI store art: disabled (OPENAI_API_KEY is empty)",
+    "seed": "node dist/showcase/host-seed-command.js → SHOWCASE_HOST_SEEDED; showcase-local-campaign, showcase-local-campaign-b, showcase-local-campaign-c의 campaign_collectible_publications에 각각 bronze·gold·silver가 있음을 읽기 전용으로 확인했다. 캠페인 기간은 2026-09-03 04:14:00Z부터 2026-11-02 04:14:00Z까지다 (D-068의 시드 시각 ±30일).",
+    "retentionTimer": "이 릴리스에서 재설치했다. systemd-analyze verify 출력 없음, 수동 실행 Result=success, install.sh --verify → last run result: success 및 verified: masscom-showcase-retention.timer is enabled and matches this release",
+    "knownQuirk": "runtime.env의 MASSCOM_SHOWCASE_IMAGE_TAG는 여전히 이전 값이며, 이번 태그는 명령줄에서 전달했다.",
+    "webTrialBundle": "NOT_RUN: /play 웹 번들은 다시 빌드하지 않았고 a39b983 export를 계속 사용한다.",
+    "public": {
+      "https://demo-api.masscom.kr/health": 200,
+      "https://demo-api.masscom.kr/play/": 200
+    }
+  },
+  "operating": {
+    "backup": "/opt/masscom/backups/pre-65a0005-20261003.dump: 174144바이트, mode 600, 338항목, 2026-10-03 04:01:47Z에 생성. 배포 스크립트의 database-before-65a0005285e1.dump.* 백업도 존재하며 크기는 기록되지 않았다. 실제 복원 NOT_RUN",
+    "migrationCompatibility": "b8d981d → 65a0005 backward_compatible=yes; 0040은 함수·테이블·인덱스 1개를 추가한다.",
+    "dryRun": "PASS: scripts/deploy-lightsail.sh --dry-run exit 0",
+    "deploy": "PASS: scripts/deploy-lightsail.sh --deploy exit 0 → Lightsail deployment completed: 65a0005285e1bfbc04af93903054685118633bff",
+    "retentionTimer": "배포 스크립트가 재설치했다: HOST_JOB_ENABLED masscom-retention.timer (first run: success)",
+    "images": "masscom-api:65a0005285e1과 masscom-production-web:65a0005285e1 healthy (2026-10-03 04:15:08Z 시작); Caddy는 04:15:15Z 재생성, PostgreSQL은 유지",
+    "deployedCommitFiles": {
+      "/opt/masscom/DEPLOYED_COMMIT": "65a0005285e1bfbc04af93903054685118633bff",
+      "/opt/masscom/web/DEPLOYED_COMMIT": "65a0005285e1bfbc04af93903054685118633bff"
+    },
+    "databaseAfter": {
+      "schemaMigrations": 40,
+      "lastMigration": "0040_merchant_visitor_feedback.sql (2026-10-03 04:14:57Z 적용)",
+      "isDemoMerchants": 0,
+      "merchantVisitorFeedbackRows": 0
+    }
+  },
+  "externalHttps": {
+    "status200": [
+      "https://api.masscom.kr/health",
+      "https://www.masscom.kr/app/",
+      "https://masscom.kr/",
+      "https://www.masscom.kr/open",
+      "https://demo-api.masscom.kr/health"
+    ],
+    "servedFiles": {
+      "/app/assets/collectible-studio.mjs": "저장소 65a0005와 SHA-256 일치 (앞자리 3b69685338d859fe)",
+      "/app/assets/collectible-editor.mjs": "저장소 65a0005와 SHA-256 일치 (앞자리 6b8adc6c918a5947)"
+    },
+    "openPage": {
+      "links": [
+        "android-v0.1.0-test.6",
+        "showcase-android-v0.1.0-preview.15"
+      ],
+      "servedOpenHtmlSha256Prefix": "e902e6bdcb2ce892",
+      "matchesRepoFileAtCommit": "65a0005285e1bfbc04af93903054685118633bff",
+      "note": "배포 당시 /open은 이전 링크를 제공했다. test.7·Preview 16으로의 저장소 문서 변경은 이 배포에 포함되지 않았다."
+    }
+  },
+  "notRun": [
+    "두 데이터베이스 백업의 실제 복원",
+    "시연 /play 웹 번들 재빌드",
+    "운영 배포 스크립트 자체 백업의 크기 기록"
+  ],
+  "migrations": [
+    "0040_merchant_visitor_feedback.sql"
+  ],
+  "contentSinceB8d981d": [
+    "#328 이전 b8d981d 배포 문서",
+    "#335 탐색 필터 (Issue #331)",
+    "#336 공유·보상 연결 (Issue #332)",
+    "#337 가게 현황 (Issue #330)",
+    "#344 braces 감사 예외 (Issue #343, D-070)",
+    "#339 시연 전체 접근 (Issue #333, D-068)",
+    "#345 방문자 태그·의견 (Issue #334, migration 0040, D-069)",
+    "#346 수집품 기본 뒷면 (Issue #340)",
+    "#347 방문 보상 릴·뽑기 기계 (Issue #342)",
+    "#348 모바일 웹 제작 마법사 (Issue #329)",
+    "#350 점주 앱 3탭·Bearer GET overview/visitor-feedback (Issue #341)",
+    "#351 등급 재질 조명·Android SVG 점 시작 숫자 수정 (Issue #349)"
+  ]
+}

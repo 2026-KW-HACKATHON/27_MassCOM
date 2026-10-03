@@ -1,0 +1,55 @@
+{
+  "status": "PASS",
+  "releaseReadiness": "BLOCKED; Samsung 실기기 설치와 로그인·방문 흐름, Google Play 제출은 검증되지 않았다.",
+  "verifiedAt": "2026-10-03",
+  "sourceCommit": "65a0005285e1bfbc04af93903054685118633bff",
+  "pullRequests": [351],
+  "issues": [352],
+  "checks": {
+    "aab": "PASS; 서명과 release wallet surface를 확인했다.",
+    "recordAudioPermission": "PASS; RECORD_AUDIO 권한이 없다.",
+    "apkSignature": "PASS; bundletool universal APK의 apksigner 인증서가 upload 인증서와 일치한다."
+  },
+  "acceptedArtifact": {
+    "aab": "app-release-65a0005.aab",
+    "aabSha256": "d79f025d5844242894b0eabcbab91cedf7706855f75d350507c000ebaebe4f34",
+    "apk": "MassCOM-operating-android-65a0005.apk",
+    "apkSha256": "c3c4666a1ce2f8814e781b4821748c30e0743cc33edea2cbc3f2ed776f593241",
+    "apkOrigin": "AAB에서 bundletool로 만든 universal APK이며 apksigner 인증서가 upload 인증서와 일치한다.",
+    "package": "kr.masscom.wolgye",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256": "5e5ed3c31971e5a88ea752b3a2ae50772fea1c956b9d97a82dd5ca7130cfa395",
+    "signingCertificate": "test.3–test.6과 동일한 upload 인증서"
+  },
+  "githubRelease": {
+    "tag": "android-v0.1.0-test.7",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.7",
+    "kind": "GitHub prerelease",
+    "target": "65a0005",
+    "assets": [
+      {
+        "name": "MassCOM-operating-android-65a0005.apk",
+        "sha256": "c3c4666a1ce2f8814e781b4821748c30e0743cc33edea2cbc3f2ed776f593241"
+      },
+      {
+        "name": "app-release-65a0005.provenance.json",
+        "sha256": "0a2af2108ee2fb14ef5828f5ec2fab367319f3bd5e26798aeaed3ca8fbfa38b1"
+      },
+      {
+        "name": "SHA256SUMS.txt"
+      }
+    ],
+    "githubDigestVsLocal": "PASS; GitHub asset digest가 로컬 값과 일치한다.",
+    "anonymousDownload": "PASS; 익명 다운로드한 APK의 SHA-256이 c3c4666a1ce2f8814e781b4821748c30e0743cc33edea2cbc3f2ed776f593241과 일치한다."
+  },
+  "physicalAndroid": {
+    "device": "Samsung 실기기 미연결",
+    "apkInstall": "NOT_RUN",
+    "login": "NOT_RUN"
+  },
+  "notRun": [
+    "Samsung 실기기 설치 및 계정·기능 QA",
+    "운영 APK의 에뮬레이터 설치 (운영 API에 접속하므로 사용하지 않음)",
+    "Google Play 업로드·심사·배포"
+  ]
+}
