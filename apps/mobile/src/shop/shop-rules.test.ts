@@ -9,6 +9,7 @@ import {
   rerollButtonState,
   rerollDisclosure,
   resumeOrStartPurchase,
+  showcaseBonusLabel,
 } from './shop-rules';
 
 function grade(overrides: Partial<ShopGradeView> = {}): ShopGradeView {
@@ -81,4 +82,11 @@ test('resumeOrStartPurchase starts a fresh id for a different grade', () => {
   const gold = resumeOrStartPurchase(bronze, 'GOLD', makeId);
   assert.notEqual(gold.requestId, bronze.requestId);
   assert.equal(calls, 2);
+});
+
+test('showcaseBonusLabel shows only when the server reports a positive bonus', () => {
+  assert.equal(showcaseBonusLabel(100_000), '시연 체험 마일리지 포함');
+  assert.equal(showcaseBonusLabel(1), '시연 체험 마일리지 포함');
+  assert.equal(showcaseBonusLabel(0), null);
+  assert.equal(showcaseBonusLabel(undefined), null);
 });
