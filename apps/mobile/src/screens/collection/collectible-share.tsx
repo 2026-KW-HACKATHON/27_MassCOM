@@ -5,8 +5,13 @@ import { captureViewAsPng, shareImageFile } from '@/gamification/native-effects'
 import { lightColors } from '@/theme/palette';
 
 import { performShare, type ShareOutcome } from './collectible-share-flow';
+import { gradeMaterialFor } from './grade-material';
+import { GradeMaterialLayer } from './grade-material-layer';
 
-export type ShareableCollectible = { thumbnailDataUrl: string; merchantName: string; name: string };
+export type ShareableCollectible = {
+  thumbnailDataUrl: string; merchantName: string; name: string;
+  gradeId: string; gradeName: string; shape: 'circle' | 'stamp' | 'serrated';
+};
 
 export type { ShareOutcome };
 
@@ -62,9 +67,16 @@ export function useCollectibleShare(): { host: ReactNode; share: (item: Shareabl
 }
 
 function ShareableCollectibleCard({ item, ref }: { item: ShareableCollectible; ref?: Ref<View> }) {
+  const material = gradeMaterialFor(item.gradeId, item.gradeName);
   return (
     <View ref={ref} collapsable={false} style={styles.card}>
-      <Image source={{ uri: item.thumbnailDataUrl }} resizeMode="contain" style={styles.image} />
+      <View style={styles.image}>
+        <Image source={{ uri: item.thumbnailDataUrl }} resizeMode="contain" style={StyleSheet.absoluteFill} />
+        {material === 'gold' || material === 'prism' ? (
+          <GradeMaterialLayer material={material} size={200} faceUri={item.thumbnailDataUrl} shape={item.shape}
+            variant="card" active={false} />
+        ) : null}
+      </View>
       <Text allowFontScaling={false} style={styles.merchant}>{item.merchantName}</Text>
       <Text allowFontScaling={false} style={styles.line}>{shareLine(item)}</Text>
       <Text allowFontScaling={false} style={styles.footer}>MassCOM 도감</Text>

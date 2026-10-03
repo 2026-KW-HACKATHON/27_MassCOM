@@ -49,6 +49,8 @@ test('customer screens use the art bridge except for validated acquired inline m
     'screens/collection/envelope/envelope-card.tsx',
     'screens/collection/collectible-browser.tsx',
     'screens/collection/collectible-share.tsx',
+    // #349: 검증된 수집품 사진 또는 기존 art bridge가 고른 그림의 알파만 재사용하는 재질 마스크다.
+    'screens/collection/grade-material-layer.tsx',
     // #332: the 인스타 카드 draws the same validated data-URL thumbnails (never a remote URL), just six at a time.
     'screens/collection/collection-share.tsx',
   ]);
@@ -59,6 +61,7 @@ test('customer screens use the art bridge except for validated acquired inline m
   assert.match(read('commerce/commerce-api.ts'), /parsePublishedCollectible/);
   assert.match(read('commerce/collectible-artwork.ts'), /data:image/);
   assert.doesNotMatch(read('screens/collection/collectible-detail.tsx'), /https?:\/\//);
+  assert.doesNotMatch(read('screens/collection/grade-material-layer.tsx'), /https?:\/\/|fetch\(/);
 });
 
 test('the friend passport stays glyph-only: it never asks the art bridge', () => {
