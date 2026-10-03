@@ -7,8 +7,7 @@ import { createMerchantApiClient } from '@/merchant/merchant-api';
 import { findShowcaseStaffMerchant } from '@/merchant/showcase-staff';
 import { useAppForeground } from '@/merchant-art/use-merchant-art';
 import { MerchantArtScreen } from '@/screens/merchant-art';
-import { MerchantArtEntryCard } from '@/screens/merchant-art/entry-card';
-import { StaffClaimScreen } from '@/screens/merchant-claim/staff';
+import { MerchantHomeScreen } from '@/screens/merchant-home';
 import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseAccessAdminScreen } from '@/screens/showcase-access-admin';
 import { ACCESS_CONTACT_ADDRESSES, accessMailtoUrl, accessUiState, requestAccessFailureMessage } from '@/showcase/access-copy';
@@ -30,10 +29,9 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
   const [tour, setTour] = useState(false);
   const [artOpen, setArtOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
-  const [logoutError, setLogoutError] = useState(false);
   const [state, setState] = useState<
     { status: 'loading' } | { status: 'denied' } | { status: 'error' } |
-    { status: 'allowed'; merchantId: string; artUrl: string | null }
+    { status: 'allowed'; merchantId: string; merchantName: string; role: 'OWNER' | 'STAFF'; artUrl: string | null }
   >({ status: 'loading' });
   // 권한 요청 상태(#294). 점주 체험 가능 여부와 별개로 읽는다: 거부 화면의 문의 흐름과, 두 상태 모두에서 보이는 승인자 메뉴가 이 값을 쓴다.
   const [access, setAccess] = useState<
@@ -106,7 +104,7 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
         const context = await findShowcaseStaffMerchant(merchantIds, client.getMerchantContext);
         // 체험 가게는 /merchants 목록에 없어 artUrl을 거기서 가져올 수 없다 — art 화면이 첫 조회로 채운다.
         const allowed = context
-          ? { merchantId: context.merchantId, artUrl: demoMerchants.find((merchant) => merchant.id === context.merchantId)?.artUrl ?? null }
+          ? { merchantId: context.merchantId, role: context.role, merchantName: demoMerchants.find((merchant) => merchant.id === context.merchantId)?.name ?? '나의 체험 가게', artUrl: demoMerchants.find((merchant) => merchant.id === context.merchantId)?.artUrl ?? null }
           : undefined;
         return { allowed, accessState };
       })
@@ -206,31 +204,20 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
   }
 
   if (state.status === 'allowed' && apiUrl) {
-    return <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* 390px 폭에서 줄바꿈될 때 너무 붙어 보이던 문제(#313 리뷰) — 가로·세로 간격을 나눠 주고 각 버튼에 좌우 여백을 둬 48px 탭 영역을 눈으로도 분명하게 한다. */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 8, columnGap: 16, paddingHorizontal: 20, paddingTop: 12 }}>
-        <Pressable accessibilityRole="button" onPress={onBrowse} style={{ minHeight: 48, paddingHorizontal: 4, justifyContent: 'center' }}>
-          <Text style={{ color: colors.primary, fontWeight: '700' }}>고객 탐색으로</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => setTour(true)} style={{ minHeight: 48, paddingHorizontal: 4, justifyContent: 'center' }}>
-          <Text style={{ color: colors.primary, fontWeight: '700' }}>빈 공간 투어</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => void onLogout().catch(() => setLogoutError(true))} style={{ minHeight: 48, paddingHorizontal: 4, justifyContent: 'center' }}>
-          <Text style={{ color: colors.primary, fontWeight: '700' }}>로그아웃</Text>
-        </Pressable>
-        {showAdminEntry ? <Pressable accessibilityRole="button" onPress={() => setAdminOpen(true)} style={{ minHeight: 48, paddingHorizontal: 4, justifyContent: 'center' }}>
-          <Text style={{ color: colors.primary, fontWeight: '700' }}>권한 요청 관리</Text>
-        </Pressable> : null}
-      </View>
-      {logoutError ? <Text accessibilityLiveRegion="polite" style={{ paddingHorizontal: 20, color: colors.label }}>로그아웃을 완료하지 못했습니다. 다시 시도해 주세요.</Text> : null}
-      <StaffClaimScreen
-        apiUrl={apiUrl}
-        merchantId={state.merchantId}
-        credential={credential}
-        onSessionInvalid={onSessionInvalid}
-        topSlot={<MerchantArtEntryCard apiUrl={apiUrl} merchantId={state.merchantId} artUrl={state.artUrl} onPress={() => setArtOpen(true)} />}
-      />
-    </View>;
+    return <MerchantHomeScreen
+      apiUrl={apiUrl}
+      merchantId={state.merchantId}
+      merchantName={state.merchantName}
+      role={state.role}
+      artUrl={state.artUrl}
+      credential={credential}
+      onSessionInvalid={onSessionInvalid}
+      onBrowse={onBrowse}
+      onTour={() => setTour(true)}
+      onArt={() => setArtOpen(true)}
+      onAdmin={showAdminEntry ? () => setAdminOpen(true) : undefined}
+      onLogout={onLogout}
+    />;
   }
 
   return <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', gap: 20, padding: 28, backgroundColor: colors.background }}>

@@ -7,10 +7,14 @@ const read = (name: string) => readFileSync(fileURLToPath(new URL(`./${name}`, i
 const reversal = read('staff-reversal.tsx');
 const staff = read('staff.tsx');
 
-test('the staff screen shows the reversal cards before the issued claim QR so the QR stays the last card', () => {
-  assert.match(staff, /<StaffReversalCards api=\{api\} merchantId=\{merchantId\} styles=\{styles\} \/>/);
-  assert.ok(staff.indexOf('<StaffReversalCards') < staff.indexOf('{issued ? <View style={styles.tokenCard}>'));
-  assert.match(staff, /scrollToEnd/);
+test('reversal cards belong to the status tab and issued QR has its own full screen', () => {
+  const status = readFileSync(fileURLToPath(new URL('../merchant-home/status.tsx', import.meta.url)), 'utf8');
+  assert.match(status, /<StaffReversalCards api=\{commerce\} merchantId=\{merchantId\} styles=\{reversalStyles\} refreshSignal=\{reversalRefresh\} \/>/);
+  assert.doesNotMatch(staff, /StaffReversalCards|scrollToEnd/);
+  const modal = staff.slice(staff.indexOf('<Modal'), staff.indexOf('</Modal>'));
+  assert.match(modal, /presentationStyle="fullScreen"/);
+  assert.match(modal, /<ClaimQr code=\{issued.token\}/);
+  assert.doesNotMatch(modal, /ScrollView/);
 });
 
 test('cancelling a visit and undoing a coupon both ask first with a destructive confirmation', () => {
@@ -49,5 +53,6 @@ test('the screen delegates every request to the controller and rebuilds it when 
   assert.doesNotMatch(reversal, /api\.(listRecent|cancelVisit|undoCoupon)/);
   assert.match(reversal, /label="목록 새로 고침"/);
   assert.match(reversal, /label="쿠폰 목록 새로 고침"/);
-  assert.equal((reversal.match(/controller\.current\?\.refresh\(\)/g) ?? []).length, 2);
+  assert.equal((reversal.match(/controller\.current\?\.refresh\(\)/g) ?? []).length, 3);
+  assert.match(reversal, /if \(refreshSignal > 0\) void controller\.current\?\.refresh\(\)/);
 });

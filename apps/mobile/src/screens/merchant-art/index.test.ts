@@ -167,8 +167,11 @@ test('the showcase owner page opens it in place, only for the merchant the probe
   assert.match(owner, /merchantId=\{state\.merchantId\}/);
   assert.match(owner, /onBack=\{\(\) => setArtOpen\(false\)\}/);
   assert.match(owner, /if \(artOpen\) setArtOpen\(false\);\s+else onBrowse\(\);/);
-  assert.match(owner, /topSlot=\{<MerchantArtEntryCard apiUrl=\{apiUrl\} merchantId=\{state\.merchantId\} artUrl=\{state\.artUrl\} onPress=\{\(\) => setArtOpen\(true\)\} \/>\}/);
-  assert.match(read('screens/merchant-claim/staff.tsx'), /\{topSlot\}\s+<View style=\{styles\.formCard\}>/);
+  const home = read('screens/merchant-home/index.tsx');
+  assert.match(owner, /<MerchantHomeScreen/);
+  assert.match(owner, /onArt=\{\(\) => setArtOpen\(true\)\}/);
+  assert.match(home, /tab === 'decorate'/);
+  assert.match(home, /<MerchantArtEntryCard apiUrl=\{props.apiUrl\} merchantId=\{props.merchantId\} artUrl=\{props.artUrl\} onPress=\{props.onArt\} \/>/);
   assert.match(card, /accessibilityLabel="가게 그림 만들기"/);
   assert.match(card, /merchantArt\(\{ id: merchantId, artUrl \}, apiUrl\)/);
 });
