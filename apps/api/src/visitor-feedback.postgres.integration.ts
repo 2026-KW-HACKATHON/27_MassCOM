@@ -588,10 +588,10 @@ test('over HTTP, an account without a visit gets 403 and one with a visit saves 
     store: new InMemoryChallengeStore(), domain: 'api.masscom.local', uri: 'https://api.masscom.local/wallet/verify',
     chainId: 84532, ttlMs: 5 * 60 * 1000,
   });
-  // visitorFeedback은 createApiServer의 33번째 인자다. 사이의 서비스는 쓰지 않으므로 undefined로 채운다.
+  // visitorFeedback은 createApiServer의 34번째 인자다(#330 merchantOverview 다음). 사이의 서비스는 쓰지 않으므로 undefined로 채운다.
   const start = createApiServer as (...args: unknown[]) => ReturnType<typeof createApiServer>;
   const server = start(walletService, developmentHeaderAccountResolver, db.catalog,
-    ...Array<undefined>(29).fill(undefined), db.feedback);
+    ...Array<undefined>(30).fill(undefined), db.feedback);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))));
   const address = server.address();
