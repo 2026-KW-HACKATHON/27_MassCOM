@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 // 6건의 수정이 실제 소스에 있는지, 되돌리면 이 시험들이 바로 실패하는지로 회귀를 막는다.
 
 const screen = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
-const reveal = readFileSync(fileURLToPath(new URL('./draw-reveal.tsx', import.meta.url)), 'utf8');
+const machine = readFileSync(fileURLToPath(new URL('./gacha-machine.tsx', import.meta.url)), 'utf8');
 
 test('PR #312 리뷰 2번: 새로고침이 서버 결과를 보여줬을 때만 대기 중인 구매 시도를 지운다 — 다음 탭은 새 requestId로 시작한다', () => {
   // 리뷰 라운드 6에서 당겨서 새로고침·탭 포커스 재진입이 같은 규칙을 공유하도록 quietRefresh()로 뽑았다
@@ -50,7 +50,7 @@ test('PR #312 리뷰 8번: 한 등급을 구매하는 동안 다른 등급 버�
 
 test('PR #312 리뷰 라운드 4: avatarBusy 동안에도 새 뽑기를 막는다 — 닫힌 모달의 대표 설정 실패가 새로 연 뽑기 모달 뒤에 숨지 않는다', () => {
   const buyFn = screen.slice(screen.indexOf('async function buy('), screen.indexOf('async function chooseAvatar('));
-  assert.match(buyFn, /if \(busyGrade \|\| avatarBusy\) return;/);
+  assert.match(buyFn, /if \(busyGrade \|\| avatarBusy\) return false;/);
 });
 
 test('PR #312 "대표 해제": 가진 친구는(대표든 아니든) 탭할 수 있고, 이미 대표면 해제를, 아니면 설정을 묻는다', () => {
@@ -72,14 +72,14 @@ test('PR #312 리뷰 7번 + 2차 confirm-review: 대표 설정 성공·실패 �
   // avatar-set success closes a NEWER draw's result modal"). 뽑기 연출에서 부르면(reveal.item.id, reveal) 그
   // reveal 객체 자체를 넘겨, 응답이 왔을 때 revealRef.current가 여전히 그 객체일 때만 닫거나 실패를 적는다.
   const chooseFn = screen.slice(screen.indexOf('async function chooseAvatar('), screen.indexOf('function confirmAvatar('));
-  assert.match(chooseFn, /if \(targetReveal && revealRef\.current === targetReveal\) setReveal\(undefined\);/);
+  assert.match(chooseFn, /if \(targetReveal && revealRef\.current === targetReveal\) \{\s*setReveal\(undefined\);\s*setMachineOpen\(false\);/);
   assert.match(chooseFn, /if \(targetReveal && revealRef\.current === targetReveal\) setAvatarError\(shopErrorMessage\(error\)\);/);
   assert.match(chooseFn, /else setNotice\(\{ tone: 'error', text: shopErrorMessage\(error\) \}\);/);
-  assert.match(screen, /onSetAvatar=\{\(\) => void chooseAvatar\(reveal\.item\.id, reveal\)\}/);
+  assert.match(screen, /onSetAvatar=\{\(\) => \{ if \(reveal\) void chooseAvatar\(reveal\.item\.id, reveal\); \}\}/);
   assert.match(screen, /avatarError=\{avatarError\}/);
-  assert.match(screen, /onClose=\{\(\) => \{ setReveal\(undefined\); setAvatarError\(undefined\); \}\}/);
-  assert.match(reveal, /avatarError\?: string;/);
-  assert.match(reveal, /\{avatarError \? <Text accessibilityLiveRegion="polite"/);
+  assert.match(screen, /onClose=\{\(\) => \{ setMachineOpen\(false\); setReveal\(undefined\); setAvatarError\(undefined\); onGachaClose\?\.\(\); \}\}/);
+  assert.match(machine, /avatarError\?: string;/);
+  assert.match(machine, /\{avatarError \? <Text accessibilityLiveRegion="polite"/);
 });
 
 test('cross-review 3번: revealRef는 reveal이 바뀔 때마다 동기화돼 늦게 끝난 요청이 낡은 모달 상태를 읽지 않는다', () => {
@@ -132,12 +132,13 @@ test('PR #320 리뷰(도감에서 같은 수정을 상점에도 포팅): 재스�
   );
 });
 
-test('PR #312 QA: 뽑기 연출은 다른 화면의 모달들처럼 SkyBackdrop 안, SkyScrollView의 형제로 둔다(RefreshControl 중복 없이)', () => {
+test('PR #312 QA: 뽑기 기계는 SkyBackdrop 안, SkyScrollView의 형제로 둔다(RefreshControl 중복 없이)', () => {
   const skyFn = screen.slice(screen.indexOf('const sky = (body'), screen.indexOf('if (!shop.snapshot)'));
   assert.match(skyFn, /<SkyBackdrop>\s*<SkyScrollView/);
   assert.match(skyFn, /<\/SkyScrollView>\s*\{extra\}\s*<\/SkyBackdrop>/, 'extra(모달)는 SkyScrollView 다음, 여전히 SkyBackdrop 안에 있다');
-  assert.match(screen, /return sky\(\s*<>/, '성공 화면은 sky()의 두 번째 인자로 DrawReveal을 넘긴다(머리글·RefreshControl 중복 없음)');
-  assert.match(screen, /<DrawReveal[\s\S]*?\/>\s*\) : null,\s*\);/);
+  assert.match(screen, /return sky\(\s*<>/, '성공 화면은 sky()의 두 번째 인자로 뽑기 기계를 넘긴다(머리글·RefreshControl 중복 없음)');
+  assert.match(screen, /const machine = \(gachaOnly \? gachaVisible : machineOpen\) \? <GachaMachine[\s\S]*?\/> : null;/);
+  assert.match(screen, /\n\s*machine,\s*\);/);
   // RefreshControl 배선은 sky() 안에 한 번만 있다 — 되돌리면 중복돼 ui/components.test.ts의 전체 개수 시험이 깨진다.
   assert.equal((screen.match(/<RefreshControl/g) ?? []).length, 1);
 });
@@ -148,4 +149,15 @@ test('PR #312 리뷰 6번: 구매 성공과 당겨서 새로고침 둘 다 사�
   const buySuccess = screen.slice(screen.indexOf('const result = await api.reroll'), screen.indexOf('} catch (error) {'));
   assert.match(buySuccess, /setHistoryRefreshToken\(\(value\) => value \+ 1\);/);
   assert.match(screen, /<HistorySection api=\{api\} refreshToken=\{historyRefreshToken\} \/>/);
+});
+
+test('#333: 서버가 시연 보너스를 보낸 때만 잔액 아래에 "시연 체험 마일리지 포함" 작은 문구를 보인다 — 계산은 서버 balance 그대로', () => {
+  const rules = readFileSync(fileURLToPath(new URL('../../shop/shop-rules.ts', import.meta.url)), 'utf8');
+  assert.match(rules, /export function showcaseBonusLabel\(bonus: number \| undefined\): string \| null/);
+  assert.match(rules, /'시연 체험 마일리지 포함'/);
+  const card = screen.slice(screen.indexOf('<View style={styles.mileageRow}>'), screen.indexOf('<HistorySection'));
+  assert.match(screen, /const bonusLabel = showcaseBonusLabel\(snapshot\.mileage\.showcaseBonus\);/);
+  assert.match(card, /\{bonusLabel \? <Text style=\{styles\.rulesText\}>\{bonusLabel\}<\/Text> : null\}/);
+  // 화면은 잔액을 다시 계산하지 않는다: 표시도 구매 가능 판정도 snapshot.mileage.balance 하나만 쓴다.
+  assert.doesNotMatch(card, /showcaseBonus\s*[-+]|[-+]\s*snapshot\.mileage\.showcaseBonus/);
 });

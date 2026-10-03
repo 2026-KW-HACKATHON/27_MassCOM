@@ -7,6 +7,7 @@ const merchantClaimSlots = new WeakMap();
 const reversalRefreshers = new WeakMap();
 // bindMerchant이 둔 가게 현황 읽기 함수(#330). loadMerchant가 구역을 연 뒤 최근 목록과 함께 부른다.
 const overviewRefreshers = new WeakMap();
+const feedbackRefreshers = new WeakMap();
 const creators = new WeakMap();
 const creatorScopes = new WeakMap();
 // 지금 제작기가 열려 있는 점포 ID.
@@ -325,6 +326,13 @@ export async function loadMerchant(fetcher, doc) {
   }
   const overviewRefresh = doc.getElementById('merchant-overview-refresh');
   if (overviewRefresh) overviewRefresh.disabled = false;
+  const feedbackPanel = doc.getElementById('merchant-feedback');
+  if (feedbackPanel) feedbackPanel.hidden = true;
+  for (const id of ['merchant-feedback-tags', 'merchant-feedback-suggestions', 'merchant-feedback-notes']) {
+    doc.getElementById(id)?.replaceChildren();
+  }
+  const feedbackStatus = doc.getElementById('merchant-feedback-status');
+  if (feedbackStatus) feedbackStatus.textContent = '';
   try {
     const [mine, eligible] = await Promise.all([
       request(fetcher, '/api/web/merchant/me'),
@@ -356,6 +364,7 @@ export async function loadMerchant(fetcher, doc) {
     }
     if (reversalPanel) reversalPanel.hidden = mine.merchants.length === 0;
     if (overviewPanel) overviewPanel.hidden = mine.merchants.length === 0;
+    if (feedbackPanel) feedbackPanel.hidden = mine.merchants.length === 0;
     // 점포가 하나뿐이면 점포 고르기는 보이지 않아도 된다.
     if (overviewPicker) overviewPicker.hidden = mine.merchants.length <= 1;
     claimForm.hidden = mine.merchants.length === 0;
@@ -374,7 +383,9 @@ export async function loadMerchant(fetcher, doc) {
     logout.hidden = false;
     status.textContent = '점포 권한을 확인했습니다.';
     // 구역이 열리면 가게 현황과 최근 방문·쿠폰 사용을 바로 읽는다(실패해도 점포 화면은 그대로다).
-    if (mine.merchants.length > 0) await Promise.all([overviewRefreshers.get(doc)?.(), reversalRefreshers.get(doc)?.()]);
+    if (mine.merchants.length > 0) await Promise.all([
+      overviewRefreshers.get(doc)?.(), feedbackRefreshers.get(doc)?.(), reversalRefreshers.get(doc)?.(),
+    ]);
   } catch (error) {
     if (merchantRequests.get(doc) !== requestId) return;
     if (error.status === 401) {
@@ -899,6 +910,55 @@ export function bindMerchant(fetcher, doc) {
     node.textContent = text;
     return node;
   };
+  // 방문 고객 의견(#334)은 가게 현황의 점포 선택을 따른다. 공개 목록과 달리 점주에게는 모든 개수를 보여 준다.
+  const feedbackStatus = doc.getElementById('merchant-feedback-status');
+  const feedbackTags = doc.getElementById('merchant-feedback-tags');
+  const feedbackSuggestions = doc.getElementById('merchant-feedback-suggestions');
+  const feedbackNotes = doc.getElementById('merchant-feedback-notes');
+  let feedbackGeneration = 0;
+  const resetFeedback = () => {
+    feedbackGeneration += 1;
+    feedbackTags?.replaceChildren();
+    feedbackSuggestions?.replaceChildren();
+    feedbackNotes?.replaceChildren();
+    if (feedbackStatus) feedbackStatus.textContent = '';
+  };
+  const isFeedbackCount = item => item !== null && typeof item === 'object'
+    && typeof item.code === 'string' && typeof item.label === 'string' && isCount(item.count);
+  const isFeedbackNote = item => item !== null && typeof item === 'object'
+    && typeof item.customerLabel === 'string' && isDateOnly(item.date) && typeof item.text === 'string';
+  const refreshFeedback = async () => {
+    if (!overviewSelect || !feedbackStatus || !feedbackTags || !feedbackSuggestions || !feedbackNotes) return;
+    const merchantId = overviewSelect.value;
+    if (!merchantId) return;
+    const generation = ++feedbackGeneration;
+    const requestId = merchantRequests.get(doc);
+    const stale = () => generation !== feedbackGeneration || merchantRequests.get(doc) !== requestId || overviewSelect.value !== merchantId;
+    feedbackStatus.textContent = '방문 고객 의견을 불러오는 중이에요.';
+    try {
+      const summary = await request(fetcher, `${reversalBase(merchantId)}/visitor-feedback`);
+      if (stale()) return;
+      if (!summary || !Array.isArray(summary.tags) || !summary.tags.every(isFeedbackCount)
+        || !Array.isArray(summary.suggestions) || !summary.suggestions.every(isFeedbackCount)
+        || !Array.isArray(summary.notes) || !summary.notes.every(isFeedbackNote)) throw new Error('invalid feedback');
+      feedbackTags.replaceChildren();
+      feedbackTags.append(...summary.tags.map(item => textNode('li', '', `${item.label} · ${item.count}명`)));
+      feedbackSuggestions.replaceChildren();
+      feedbackSuggestions.append(...summary.suggestions.map(item => textNode('li', '', `${item.label} · ${item.count}명`)));
+      feedbackNotes.replaceChildren();
+      feedbackNotes.append(...summary.notes.map(item => {
+        const [, month, day] = item.date.split('-').map(Number);
+        return textNode('li', '', `${item.customerLabel} · ${month}/${day} · ${item.text}`);
+      }));
+      feedbackStatus.textContent = summary.tags.length || summary.suggestions.length || summary.notes.length
+        ? '' : '아직 받은 의견이 없어요.';
+    } catch (error) {
+      if (stale()) return;
+      resetFeedback();
+      feedbackStatus.textContent = error.status === 403 || error.status === 401
+        ? '이 점포의 현황을 볼 권한이 없어요.' : '가게 현황을 불러오지 못했어요. 다시 시도해 주세요.';
+    }
+  };
   // 접근 가능한 이름은 보이는 글자를 그대로 포함한다. 화면 전체에서 그 글자가 하나뿐이면 aria-label을 달지 않고,
   // 같은 글자의 링크가 여럿이면 `보이는 글자 (카드 이름)`으로 구분한다.
   const cardLink = (target, text, cardLabel) => {
@@ -1001,10 +1061,15 @@ export function bindMerchant(fetcher, doc) {
       if (generation === overviewGeneration && overviewRefresh) overviewRefresh.disabled = false;
     }
   };
-  overviewRefresh?.addEventListener('click', () => refreshOverview());
+  overviewRefresh?.addEventListener('click', () => {
+    void refreshFeedback();
+    return refreshOverview();
+  });
   // 점포를 바꾸면 이전 점포 현황을 지우고 새 점포 현황을 바로 읽는다. 최근 방문 목록의 점포도 같은 값으로 맞춘다.
   overviewSelect?.addEventListener('change', () => {
     resetOverview();
+    resetFeedback();
+    void refreshFeedback();
     if (reversalSelect) {
       reversalSelect.value = overviewSelect.value;
       resetReversal();
@@ -1019,11 +1084,14 @@ export function bindMerchant(fetcher, doc) {
     if (overviewSelect) {
       overviewSelect.value = reversalSelect.value;
       resetOverview();
+      resetFeedback();
+      void refreshFeedback();
       void refreshOverview();
     }
   });
   reversalRefreshers.set(doc, () => refreshReversal());
   overviewRefreshers.set(doc, () => refreshOverview());
+  feedbackRefreshers.set(doc, () => refreshFeedback());
   claimForm.addEventListener('submit', async event => {
     event.preventDefault();
     if (issuing || couponBusy) return;
@@ -1126,6 +1194,7 @@ export function bindMerchant(fetcher, doc) {
     clearSlot();
     resetReversal();
     resetOverview();
+    resetFeedback();
     setIssuing(false);
     try {
       await request(fetcher, '/api/web/logout', 'POST');
@@ -1145,8 +1214,25 @@ export function bindMerchant(fetcher, doc) {
     clearSlot();
     resetReversal();
     resetOverview();
+    resetFeedback();
     setIssuing(false);
   };
+  // 페이지 안 이동은 제작기 뒤로가기 이력을 늘리지 않고 스크롤과 초점만 옮긴다.
+  doc.addEventListener?.('click', event => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    const anchor = event.target.closest?.('a[href^="#"]');
+    const href = anchor?.getAttribute('href');
+    if (!href || href.length <= 1) return;
+    event.preventDefault();
+    const target = doc.getElementById(href.slice(1));
+    if (!target) return;
+    if (target.tabIndex < 0 && !target.hasAttribute('tabindex')) {
+      target.setAttribute('tabindex', '-1');
+      target.addEventListener('blur', () => target.removeAttribute('tabindex'), { once: true });
+    }
+    target.scrollIntoView({ block: 'start' });
+    target.focus({ preventScroll: true });
+  });
   doc.defaultView?.addEventListener('pagehide', () => { closeCreator(doc); creatorScopes.delete(doc); clear(); });
   doc.defaultView?.addEventListener('pageshow', event => {
     if (event.persisted) { invalidateClaim(); clearSlot(); void loadMerchant(fetcher, doc); }

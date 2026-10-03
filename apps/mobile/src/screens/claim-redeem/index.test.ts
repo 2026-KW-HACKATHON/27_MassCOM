@@ -45,7 +45,7 @@ test('"받은 수집품 보기"는 받은 보상 중 수집품 외형이 실제�
   const find = between('async function findGrantedArtwork', 'async function celebrate');
   assert.match(find, /await api\.getCollection\(\)/);
   assert.match(find, /\.sort\(\(a, b\) => a\.targetVisitCount - b\.targetVisitCount\)/);
-  assert.match(find, /setArtworkReward\(\{ claimSlotId: result\.claimSlotId, entitlementIds \}\)/);
+  assert.match(find, /setArtworkReward\(\{ claimSlotId: result\.claimSlotId, entitlementIds,[\s\S]*?artworkRewards:/);
   // 조회 실패는 버튼만 숨긴다.
   assert.match(find, /catch \{[^}]*\}/);
   assert.doesNotMatch(screen, /grantedRewards\[0\]/);

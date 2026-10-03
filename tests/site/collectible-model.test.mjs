@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 import {
   angleFrameIndex, cloneProject, createGrade, createProject, cropTransform, effectsForGrade, motionForGrade,
-  particleAt, resolveGreeting, resolveSticker, shapePath, shapePoints, stickerLineOffsets, stickerLines, toggleEffectGrade, upgradeProject,
+  particleAt, resolveGreeting, resolveSticker, shapePath, shapePoints, stickerLineOffsets, stickerLines, THICKNESS_PRESETS, thicknessPresetLabel, toggleEffectGrade, upgradeProject,
 } from '../../apps/production-web/assets/collectible-model.mjs';
 
 // Issue #284 WP1: 공유 픽스처(tests/fixtures)는 apps/api의 같은 시험이 읽는 파일 그대로다. 서버(rules.ts)와
@@ -180,4 +180,13 @@ test('angleFrameIndex vectors match the shared fixture the server also checks: f
   // 360도 넘겨 계속 도는 회전 애니메이션도 같은 규칙으로 접힌다.
   assert.deepEqual(angleFrameIndex(360), angleFrameIndex(0));
   assert.deepEqual(angleFrameIndex(-360 - 82.5), angleFrameIndex(-82.5));
+});
+
+test('두께 3단계는 4·8·14이고 그 밖의 값은 이름이 없다', () => {
+  assert.deepEqual(THICKNESS_PRESETS.map(([value]) => value), [4, 8, 14]);
+  assert.equal(thicknessPresetLabel(4), '얇게');
+  assert.equal(thicknessPresetLabel(8), '보통');
+  assert.equal(thicknessPresetLabel(14), '두껍게');
+  assert.equal(thicknessPresetLabel(11), null);
+  assert.equal(thicknessPresetLabel(NaN), null);
 });

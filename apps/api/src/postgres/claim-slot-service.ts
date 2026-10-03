@@ -12,6 +12,11 @@ import {
 } from '../claim-slot-service.js';
 import { MerchantAccessError } from '../merchant-access.js';
 import { isStaffAccountClaim, staffProgressExcludedReason } from '../reversal-rules.js';
+import {
+  SHOWCASE_MAX_BACKDATE_DAYS,
+  earliestShowcaseVisitDate,
+  pickShowcaseVisitDate,
+} from '../showcase/all-access.js';
 import { isPermittedShowcaseDatabaseName } from '../showcase/local-seed.js';
 import { grantReachedGoals } from './visit-rewards.js';
 import { hashCustomerIdentityToken, isCustomerIdentityToken } from './customer-identity.js';
@@ -40,6 +45,9 @@ type ClaimSlotServiceOptions = {
   rewardClaimTtlMs: number;
   referenceHmacSecret: string;
   accountLifecycle?: PostgresAccountLifecycle;
+  // 시연 전부 체험(#333): server.ts가 showcaseDeployment일 때만 true로 넘긴다. 켜져 있어도 슬롯 발급자가
+  // SHOWCASE_TEST_VISIT_ISSUER인 방문만 서로 다른 날로 옮겨 세고, 운영(기본 false)은 이 분기를 아예 타지 않는다.
+  showcaseTestVisitBackdating: boolean;
 };
 
 type ClaimSlotServiceOverrides = Partial<Omit<ClaimSlotServiceOptions, 'referenceHmacSecret'>> &
@@ -116,6 +124,7 @@ const defaultOptions: ClaimSlotServiceOptions = {
   ttlMs: 15 * 60 * 1000,
   rewardClaimTtlMs: 90 * 24 * 60 * 60 * 1000,
   referenceHmacSecret: '',
+  showcaseTestVisitBackdating: false,
 };
 
 export class PostgresClaimSlotService implements ClaimSlotService {
@@ -496,6 +505,21 @@ export class PostgresClaimSlotService implements ClaimSlotService {
         JSON.stringify([input.accountId, campaign.id]),
       ]);
 
+      // 시연 전부 체험(#333): 시연 서버가 옵션을 켰고, 가상(is_demo) 점포이며, 슬롯 발급자가 시연 테스트 방문 발급자일 때만
+      // 방문 날짜를 이미 센 날과 겹치지 않게 뒤로 옮긴다(클라이언트 값은 쓰지 않는다). 세 조건 중 하나라도 아니면
+      // 모든 슬롯은 redeemedAt 그대로다. 실제 점포는 옵션이 켜져 있어도 옮기지 않는다.
+      const visitOccurredAt =
+        this.options.showcaseTestVisitBackdating &&
+        campaign.merchant_is_demo &&
+        slot.created_by_account_id === SHOWCASE_TEST_VISIT_ISSUER
+          ? await pickShowcaseOccurredAt(client, {
+              accountId: input.accountId,
+              merchantId: slot.merchant_id,
+              campaignId: campaign.id,
+              now: redeemedAt,
+            })
+          : redeemedAt;
+
       const visitEventId = this.options.nextVisitEventId();
       // 실제 점포에서 직원 계정으로 받은 방문(본인 적립, 또는 방문한 계정이 그 점포의 ACTIVE 직원)은
       // 기록만 하고 진행·보상·NFT·도감에 세지 않는다. 멤버 여부는 수령 시점 기준이다.
@@ -540,7 +564,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
                 slot.merchant_id,
                 campaign.id,
                 input.accountId,
-                redeemedAt,
+                visitOccurredAt,
               ],
             )
           ).rows[0];
@@ -575,7 +599,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
               slot.merchant_id,
               campaign.id,
               input.accountId,
-              redeemedAt,
+              visitOccurredAt,
               staffAccountClaim ? staffProgressExcludedReason : null,
             ],
           )
@@ -734,6 +758,37 @@ export class PostgresClaimSlotService implements ClaimSlotService {
     if (!issued) throw new Error('showcase test visit issue completed without a result');
     return issued;
   }
+}
+
+// 시연 테스트 방문 전용(#333): 이 고객이 이 점포에서 이미 센 한국 날짜(VALID·progress_counted, 일일 중복 제약과 같은 조건)를 피해
+// 캠페인 시작 시각 이후·최대 SHOWCASE_MAX_BACKDATE_DAYS일 전 중 가장 최근 날의 "지금과 같은 시각"을 돌려준다.
+// 고를 날이 없으면 지금 시각 그대로 돌려줘, 지금까지처럼 같은 날 두 번째 방문(세어지지 않음)이 된다.
+async function pickShowcaseOccurredAt(
+  client: PoolClient,
+  input: { accountId: string; merchantId: string; campaignId: string; now: Date },
+): Promise<Date> {
+  const used = await client.query<{ business_date: string }>(
+    `SELECT business_date::text AS business_date
+     FROM visit_events
+     WHERE customer_account_id = $1
+       AND merchant_id = $2
+       AND status = 'VALID'
+       AND progress_counted`,
+    [input.accountId, input.merchantId],
+  );
+  const campaign = await client.query<{ starts_at: Date }>(
+    'SELECT starts_at FROM campaigns WHERE id = $1',
+    [input.campaignId],
+  );
+  const startsAt = campaign.rows[0]?.starts_at;
+  if (!startsAt) return input.now;
+  const picked = pickShowcaseVisitDate({
+    nowMs: input.now.getTime(),
+    usedKstDates: new Set(used.rows.map((row) => row.business_date)),
+    earliestKstDate: earliestShowcaseVisitDate(startsAt.getTime(), input.now.getTime()),
+    maxBackDays: SHOWCASE_MAX_BACKDATE_DAYS,
+  });
+  return picked?.occurredAt ?? input.now;
 }
 
 async function isActiveMember(client: PoolClient, merchantId: string, accountId: string): Promise<boolean> {

@@ -1,6 +1,7 @@
-import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET } from './collectible-model.mjs';
+import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
+import { attachWaveform } from './collectible-waveform.mjs';
 import { collectibleErrorMessage, localError } from './collectible-errors.mjs';
 import { draftStorageKey, draftEditsOnly, applyDraftEdits, findMaterialConflict, findMaterialConflicts, materialConflictQuestion, materialSwapNotice, faceFitCrop, centerFillCrop } from './collectible-assist.mjs';
 
@@ -114,7 +115,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   // living 미리보기 전용 시계(PR #310 리뷰 P2). start는 재생·단계 이동마다 리셋되지만(카드 전체 동작용), living은
   // "지금 보는 등급" 선택이 바뀌어도 계속 흐르는 시간이 필요해 따로 둔다.
   const livingStart = performance.now();
-  let dirty = false, editSerial = 0, busy = false, restoring = false, pointer = null, visible = true, uploadSequence = 0;
+  let dirty = false, editSerial = 0, busy = false, restoring = false, pointer = null, uploadSequence = 0;
   let audioImportSequence = 0, storyImportSequence = 0, recordSequence = 0, recordingPending = false;
   const pendingFiles = new Set();
   let listed = new Map();
@@ -221,6 +222,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         <label class="ce-field">MP3 음성 · 30초, 1 MB까지<input data-control="audio" type="file" accept="audio/mpeg,.mp3"></label>
         <div class="ce-actions"><button type="button" data-action="record">직접 녹음 / 다시 녹음</button><button type="button" data-action="record-stop" disabled>녹음 종료</button><button type="button" data-action="audio-delete">음성 삭제</button></div>
         <audio data-view="audio" controls preload="metadata" aria-label="사장님 음성 미리 듣기"></audio>
+        <canvas data-view="waveform" width="320" height="56" aria-hidden="true" hidden></canvas>
         <p class="ce-help">녹음은 최대 30초예요. 마이크 권한을 거절해도 텍스트 인사말로 계속 만들 수 있어요. 소리는 재생 버튼을 누를 때 나와요.</p>
       </div></details>
       <details><summary>가게 이야기</summary><div class="ce-detail">
@@ -250,10 +252,20 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const control = name => container.querySelector(`[data-control="${name}"]`);
   const view = name => container.querySelector(`[data-view="${name}"]`);
   const output = name => container.querySelector(`[data-value="${name}"]`);
-  studio = createCollectibleStudio(container, { effectNames });
+  const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
+  studio = createCollectibleStudio(container, { effectNames, listen });
+  const waveform = attachWaveform(view('audio'), view('waveform'), { signal });
   const previewCanvas = view('preview'), cropCanvas = view('crop'), storyCanvas = view('story');
   for (const [name, label] of [['zoom', '사진 확대'], ['angle', '회전 각도'], ['thickness', '두께']]) control(name).setAttribute('aria-label', label);
-  const notice = (text, error = false) => { if (!active) return; view('notice').textContent = text; view('notice').classList.toggle('ce-error', error); onNotice(text); };
+  const renderVisibility = new Map([[previewCanvas, true], [storyCanvas, true]]);
+  const anyRenderVisible = () => [...renderVisibility.values()].some(Boolean);
+  const notice = (text, error = false) => {
+    if (!active) return;
+    const target = view('notice');
+    target.setAttribute('role', error ? 'alert' : 'status');
+    target.setAttribute('aria-live', error ? 'assertive' : 'polite');
+    target.textContent = text; target.classList.toggle('ce-error', error); onNotice(text);
+  };
   function remember() { if (restoring) return; undo.push(cloneProject(project)); if (undo.length > 12) undo.shift(); redo = []; }
   // 15.1 인사말 미리보기: 지금 보는 등급·시즌 테마에 맞는 가장 구체적인 규칙을 보여 준다(서버 resolveGreeting과 같은 우선순위).
   function syncGreetingPreview() { view('greeting').textContent = resolveGreeting(project, selectedGrade); }
@@ -314,7 +326,6 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (active) { draftDecided = false; notice(collectibleErrorMessage(error, '저장하지 않은 편집을 이어서 열지 못했어요. 저장 목록을 새로 고치면 다시 시도해요.'), true); }
     }
   }
-  const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
   function syncValues() {
     renderCampaignOptions();
     const values = { name: project.name, shape: project.shape, style: project.style, zoom: project.crop.zoom, 'crop-x': project.crop.x, 'crop-y': project.crop.y, 'base-color': project.baseColor, 'photo-color': project.photoColor, relief: project.relief, angle: project.angle, thickness: project.thickness, greeting: project.greeting, theme: project.theme.name, campaign: project.campaignId, 'story-type': project.story.type, 'story-cartoon': project.story.cartoon, 'parallax-strength': project.parallax.strength, 'living-period': project.living.periodMs };
@@ -324,7 +335,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     output('angle').textContent = `${project.angle}°`; output('thickness').textContent = `${project.thickness}`;
     output('living-period').textContent = `${project.living.periodMs}ms`;
     syncGreetingPreview();
-    const audio = view('audio'); audio.pause(); audio.src = project.audio?.dataUrl || ''; audio.hidden = !project.audio;
+    const audio = view('audio'); audio.pause(); audio.src = project.audio?.dataUrl || ''; audio.hidden = !project.audio; waveform.refresh();
     renderGrades(); renderStickers(); renderEffects(); renderMotionGrades(); renderGreetingOverrides(); renderStoryFrames(); renderLivingItems(); renderBrushTargetOptions();
     studio.sync(project, { dirty, wrapper }); syncPublishState();
   }
@@ -585,7 +596,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (!active || sequence !== renderSequence) return;
       previewCanvas.getContext('2d').clearRect(0, 0, 512, 512); previewCanvas.getContext('2d').drawImage(buffer, 0, 0);
       const grade = project.grades.find(item => item.id === selectedGrade);
-      view('preview-caption').textContent = `${project.name} · ${grade?.name || ''} · ${project.theme.name} · ${project.thickness} 두께`;
+      view('preview-caption').textContent = `${project.name} · ${grade?.name || ''} · ${project.theme.name} · 두께 ${thicknessPresetLabel(project.thickness) ?? project.thickness}`;
     } catch (error) { notice(error.message || '미리보기를 만들지 못했어요. 입력은 유지했어요. 자르기 적용을 눌러 다시 시도해 주세요.', true); }
   }
   function schedulePreview() {
@@ -650,22 +661,23 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   async function tick(now) {
     frame = 0;
-    if (!active || document.hidden || !visible || studio.isHome) return;
+    if (!active || document.hidden || !anyRenderVisible() || studio.isHome) return;
     const allowMotion = !control('reduce-motion').checked;
     // living은 재생 버튼과 무관하게 "지금 보는 등급"에 걸려 있으면 계속 움직여야 한다(PR #310 리뷰 P2).
     const hasLiving = allowMotion && project.living.items.some(item => item.gradeIds.includes(selectedGrade));
-    if (previewQueued || ((playing || hasLiving) && allowMotion && now - lastFrame >= 65)) {
+    const coinVisible = renderVisibility.get(previewCanvas), storyVisible = renderVisibility.get(storyCanvas);
+    if (coinVisible && (previewQueued || ((playing || hasLiving) && allowMotion && now - lastFrame >= 65))) {
       previewQueued = false; lastFrame = now; await drawPreview(now - start, now - livingStart);
     }
-    if (playing && allowMotion) {
+    if (coinVisible && playing && allowMotion) {
       const tile = view('templates').querySelector(`[data-id="${selectedTemplate}"] canvas`);
       if (tile) try { await renderCollectible(tile, demoProject, 'bronze', { animation: selectedTemplate, time: now - start, textureSize: 120 }); } catch { playing = false; notice('애니메이션을 준비하지 못했어요. 정지 미리보기로 계속 편집할 수 있어요.', true); }
     }
-    if (storyPlaying) {
+    if (storyPlaying && storyVisible) {
       try { await renderStory(storyCanvas, project, { time: now - start, reducedMotion: !allowMotion }); } catch (error) { storyPlaying = false; notice(error.message || '이야기를 재생하지 못했어요. 장면 사진을 확인하고 다시 시도해 주세요.', true); }
       if (now - start >= 6000 || !allowMotion) storyPlaying = false;
     }
-    if (active && visible && !document.hidden && (playing && allowMotion || storyPlaying || previewQueued || hasLiving)) frame = requestAnimationFrame(tick);
+    if (active && !document.hidden && !studio.isHome && (coinVisible && (playing && allowMotion || previewQueued || hasLiving) || storyPlaying && storyVisible)) frame = requestAnimationFrame(tick);
   }
   function mediaPending() { return recordingPending || recorder?.state === 'recording' || [...pendingFiles].some(item => item.project === project); }
   function updateMediaLocks() {
@@ -723,7 +735,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   async function save(publish = false) {
     if (busy) return;
     if (mediaPending()) { notice('사진·음성을 불러오거나 녹음을 처리하고 있어요. 처리가 끝난 뒤 저장해 주세요.'); return; }
-    if (!project.name.trim()) { navigateStep(1); notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
+    if (!project.name.trim()) { navigateStep(4); control('name').closest('details').open = true; notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
     if (!project.theme.name.trim()) { navigateStep(4); notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
     if (project.stickers.some(item => !item.text.trim()) || project.back.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
     if (project.stickers.some(item => item.text.split('\n').length > 4) || project.back.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(3); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄을 지워 주세요.', true); return; }
@@ -732,7 +744,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     // 점을 전부 지운(또는 아직 칠하지 않은) 항목을 그대로 저장하면 그 등급을 쓰지 않아도 COLLECTIBLE_INVALID_PROJECT로
     // 초안 저장조차 거절된다(validateCollectibleProject는 등급 연결 여부와 무관하게 구조 전체를 검사한다).
     if (project.living.items.some(item => item.target === 'region' && (!item.strokes || item.strokes.length === 0))) {
-      navigateStep(4); notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
+      navigateStep(4); control('living-kind').closest('details').open = true; notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
     }
     if (publish) {
       setBusy(true); const refreshed = await refreshCampaigns(); setBusy(false);
@@ -848,7 +860,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
           const dataUrl = await readFile(blob);
           if (!active || sequence !== audioImportSequence || recordingGeneration !== recordSequence || recorder !== currentRecorder || project !== sourceProject) return;
           mutate(() => { project.audio = { dataUrl, mimeType: blob.type.split(';')[0], durationSeconds }; });
-          view('audio').src = dataUrl; view('audio').hidden = false; notice('녹음을 저장할 준비가 됐어요. 미리 듣고, 초안 저장 또는 게시를 눌러 보관하세요.');
+          view('audio').src = dataUrl; view('audio').hidden = false; waveform.refresh(); notice('녹음을 저장할 준비가 됐어요. 미리 듣고, 초안 저장 또는 게시를 눌러 보관하세요.');
         } catch (error) { if (sequence === audioImportSequence && recordingGeneration === recordSequence && project === sourceProject) notice(error.message, true); }
         finally { if (sequence === audioImportSequence && recordingGeneration === recordSequence) recordingPending = false; updateMediaLocks(); }
       };
@@ -873,7 +885,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   function navigateStep(step) {
     stopHiddenMedia(); studio.showStep(step); start = performance.now();
-    if (studio.step === 1 || studio.step === 3) drawCrop();
+    if (studio.step === 1 || studio.step === 3 || studio.step === 4) drawCrop(); // 4단계 "살아 있는 그림"에도 같은 사진 캔버스가 있다.
     if (studio.step !== 1) schedulePreview();
   }
   // 저장하지 않은 편집이 있으면 새로 시작하거나 다른 프로젝트를 열기 전에 묻는다. 거절하면 지금 프로젝트를 그대로 둔다.
@@ -935,7 +947,14 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'choice') {
       const name = source?.dataset.controlFor;
       if (!name) return;
+      // 두께 버튼은 슬라이더와 달리 pointerdown이 없어 되돌리기 기록과 숫자 표시를 여기서 맡는다(모양·스타일은 mutate()가 기록한다).
+      if (name === 'thickness' && control(name).value !== id) { remember(); output('thickness').textContent = id; }
       control(name).value = id; control(name).dispatchEvent(new Event('change', { bubbles: true })); studio.sync(project, { dirty, wrapper }); return;
+    }
+    if (action === 'zoom-step') {
+      const input = control('zoom'), current = Number(input.value), next = clamp(current + Number(id), Number(input.getAttribute('min')), Number(input.getAttribute('max')));
+      if (next === current) return;
+      remember(); input.value = String(next); input.dispatchEvent(new Event('input', { bubbles: true })); return;
     }
     if (action === 'photo-choose') { control('photo').click(); return; }
     if (action === 'draft' || action === 'publish') { await save(action === 'publish'); return; }
@@ -1067,9 +1086,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'template') { selectedTemplate = id; playing = true; start = performance.now(); renderMotionGrades(); schedulePreview(); return; }
     if (action === 'play' || action === 'replay') { playing = true; if (action === 'replay') start = performance.now(); schedulePreview(); return; }
     if (action === 'angle-reset') { mutate(() => { project.angle = 0; }); control('angle').value = 0; output('angle').textContent = '0°'; return; }
-    if (action === 'thickness-reset') { mutate(() => { project.thickness = 8; }); control('thickness').value = 8; output('thickness').textContent = '8'; return; }
+    if (action === 'thickness-reset') { mutate(() => { project.thickness = 8; }); control('thickness').value = 8; output('thickness').textContent = '8'; studio.sync(project, { dirty, wrapper }); return; }
     if (action === 'record') { await record(); return; }
-    if (action === 'audio-delete') { audioImportSequence++; stopRecording(true); recordingStream?.getTracks().forEach(track => track.stop()); recordingStream = null; mutate(() => { project.audio = null; }); view('audio').pause(); view('audio').src = ''; view('audio').hidden = true; return; }
+    if (action === 'audio-delete') { audioImportSequence++; stopRecording(true); recordingStream?.getTracks().forEach(track => track.stop()); recordingStream = null; mutate(() => { project.audio = null; }); view('audio').pause(); view('audio').src = ''; view('audio').hidden = true; waveform.refresh(); return; }
     if (action === 'story-frame-delete') { mutate(() => { project.story.frames.splice(Number(id), 1); }); renderStoryFrames(); return; }
     if (action === 'greeting-override-add') {
       const text = control('greeting-override-text').value.trim();
@@ -1158,7 +1177,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         const dataUrl = normalizeMp3DataUrl(await readFile(file)), durationSeconds = await inspectAudio(dataUrl);
         if (!active || sequence !== audioImportSequence || project !== sourceProject) return;
         if (durationSeconds > 30) throw new Error('음성은 30초 이하로 선택해 주세요.');
-        mutate(() => { project.audio = { dataUrl, mimeType: 'audio/mpeg', durationSeconds }; }); view('audio').src = dataUrl; view('audio').hidden = false; notice('MP3를 불러왔어요. 재생 버튼으로 미리 들어 보세요.'); return;
+        mutate(() => { project.audio = { dataUrl, mimeType: 'audio/mpeg', durationSeconds }; }); view('audio').src = dataUrl; view('audio').hidden = false; waveform.refresh(); notice('MP3를 불러왔어요. 재생 버튼으로 미리 들어 보세요.'); return;
       }
       if (field === 'story-files') {
         const sequence = ++storyImportSequence, sourceProject = project;
@@ -1364,6 +1383,17 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   listen(previewCanvas, 'pointerup', endPointer); listen(previewCanvas, 'pointercancel', endPointer);
   listen(document, 'visibilitychange', () => { if (document.hidden) stopHiddenMedia(); else { start = performance.now(); if (!studio.isHome) schedulePreview(); } });
   listen(window, 'beforeunload', event => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
+  // Issue #329: 폰 제스처 뒤로가기는 페이지를 떠나지 않고 스튜디오 홈으로 돌아온다(편집 내용은 메모리에 남는다).
+  listen(window, 'popstate', event => {
+    if (studio.consumePendingBack()) return;
+    if (!active) return;
+    const ownEntry = event.state?.collectibleWorkspace === true;
+    // 홈에서도 현재 기록을 추적한다.
+    if (studio.isHome) { studio.setHistoryEntry(ownEntry); return; }
+    // 작업 영역 기록으로의 복귀는 편집을 유지한다.
+    if (ownEntry) return;
+    stopHiddenMedia(); studio.sync(project, { dirty, wrapper }); studio.showHome(true, { fromHistory: true });
+  });
   for (const [value, name] of Object.entries(effectNames)) option(control('effect-type'), name, value);
   for (const [value, name] of Object.entries(storyNames)) option(control('story-type'), name, value);
   for (const kind of LIVING_KINDS) option(control('living-kind'), livingKindNames[kind] || kind, kind);
@@ -1377,8 +1407,14 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   control('reduce-motion').checked = reducedMotion.matches;
   const preferenceChanged = event => { control('reduce-motion').checked = event.matches; if (event.matches) playing = false; schedulePreview(); };
   reducedMotion.addEventListener('change', preferenceChanged);
-  const intersection = globalThis.IntersectionObserver ? new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); if (visible) schedulePreview(); else { if (frame) cancelAnimationFrame(frame); frame = 0; } }) : null;
-  intersection?.observe(container);
+  const intersection = globalThis.IntersectionObserver ? new IntersectionObserver(entries => {
+    for (const entry of entries) renderVisibility.set(entry.target, entry.isIntersecting);
+    if (anyRenderVisible()) schedulePreview();
+    else { if (frame) cancelAnimationFrame(frame); frame = 0; }
+  }) : null;
+  // 모바일 고정 오버레이는 컨테이너와 위치가 달라 실제 미리보기 캔버스를 관찰한다.
+  intersection?.observe(previewCanvas);
+  intersection?.observe(storyCanvas);
   syncValues(); drawCrop(); schedulePreview();
   refreshList();
   refreshCampaigns();
@@ -1389,6 +1425,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     clearTimeout(autosaveTimer);
     if (reason === 'discard') clearDraftStorage();
     else saveDraftLocally();
+    studio.dispose();
     active = false; controller.abort(); intersection?.disconnect(); if (frame) cancelAnimationFrame(frame); clearTimeout(recordingTimer);
     if (recorder?.state === 'recording') recorder.stop(); recordingStream?.getTracks().forEach(track => track.stop());
     view('audio').pause(); view('audio').removeAttribute('src'); reducedMotion.removeEventListener('change', preferenceChanged);
