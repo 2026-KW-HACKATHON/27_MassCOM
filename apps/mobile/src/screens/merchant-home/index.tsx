@@ -6,6 +6,7 @@ import { focusMerchantHeading } from './focus-heading';
 import type { AccountCredential } from '@/auth/account-credential';
 import { MerchantArtEntryCard } from '@/screens/merchant-art/entry-card';
 import { StaffClaimScreen } from '@/screens/merchant-claim/staff';
+import type { VisitSelection } from '@/screens/merchant-claim/issued-visit';
 import { colorsForScheme } from '@/theme/palette';
 import { MerchantStatusScreen } from './status';
 
@@ -34,6 +35,14 @@ export function MerchantHomeScreen(props: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [message, setMessage] = useState<string>();
   const decorateHeading = useRef<Text>(null);
+  const [selection, setSelection] = useState<{ visit: VisitSelection; merchantId: string; apiUrl: string; credential: AccountCredential }>();
+  const selectedVisit = selection?.merchantId === props.merchantId && selection.apiUrl === props.apiUrl
+    && selection.credential === props.credential ? selection.visit : undefined;
+
+  function showVisitReversal(visit: VisitSelection) {
+    setSelection({ visit: { claimSlotId: visit.claimSlotId, visitEventId: visit.visitEventId }, merchantId: props.merchantId, apiUrl: props.apiUrl, credential: props.credential });
+    setTab('status');
+  }
 
   useEffect(() => {
     if (tab !== 'decorate') return;
@@ -84,9 +93,9 @@ export function MerchantHomeScreen(props: Props) {
     </View>
 
     <View style={{ flex: 1, display: tab === 'visit' ? 'flex' : 'none' }} accessibilityElementsHidden={tab !== 'visit'} importantForAccessibility={tab === 'visit' ? 'auto' : 'no-hide-descendants'}>
-      <StaffClaimScreen apiUrl={props.apiUrl} merchantId={props.merchantId} merchantName={props.merchantName} credential={props.credential} onSessionInvalid={props.onSessionInvalid} active={tab === 'visit'} />
+      <StaffClaimScreen apiUrl={props.apiUrl} merchantId={props.merchantId} merchantName={props.merchantName} credential={props.credential} onSessionInvalid={props.onSessionInvalid} active={tab === 'visit'} onVisitReversal={showVisitReversal} />
     </View>
-    {tab === 'status' ? <MerchantStatusScreen apiUrl={props.apiUrl} merchantId={props.merchantId} credential={props.credential} onSessionInvalid={props.onSessionInvalid} /> : null}
+    {tab === 'status' ? <MerchantStatusScreen apiUrl={props.apiUrl} merchantId={props.merchantId} credential={props.credential} onSessionInvalid={props.onSessionInvalid} selectedVisit={selectedVisit} /> : null}
     {tab === 'decorate' ? <ScrollView contentContainerStyle={{ gap: 16, padding: 20, paddingBottom: 28 }}>
       <Text ref={decorateHeading} accessible accessibilityRole="header" style={{ color: colors.label, fontSize: 25, fontWeight: '900' }}>가게 꾸미기</Text>
       <MerchantArtEntryCard apiUrl={props.apiUrl} merchantId={props.merchantId} artUrl={props.artUrl} onPress={props.onArt} />
@@ -105,7 +114,7 @@ export function MerchantHomeScreen(props: Props) {
         { id: 'visit', icon: '◎', label: '방문 확인' },
         { id: 'status', icon: '▥', label: '오늘·현황' },
         { id: 'decorate', icon: '✦', label: '가게 꾸미기' },
-      ] as const).map((item) => <Pressable key={item.id} accessibilityRole="tab" accessibilityLabel={item.label} accessibilityState={{ selected: tab === item.id }} onPress={() => { setMenuOpen(false); setTab(item.id); }} style={{ flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+      ] as const).map((item) => <Pressable key={item.id} accessibilityRole="tab" accessibilityLabel={item.label} accessibilityState={{ selected: tab === item.id }} onPress={() => { setMenuOpen(false); setSelection(undefined); setTab(item.id); }} style={{ flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 2 }}>
         <Text accessible={false} style={{ color: tab === item.id ? colors.primary : colors.secondaryLabel, fontSize: 22 }}>{item.icon}</Text>
         <Text style={{ color: tab === item.id ? colors.primary : colors.secondaryLabel, fontSize: 12, fontWeight: '800' }}>{item.label}</Text>
       </Pressable>)}

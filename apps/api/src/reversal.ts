@@ -3,6 +3,7 @@
 
 export type RecentVisit = {
   visitEventId: string;
+  claimSlotId: string;
   occurredAt: string;
   customerLabel: string;
   status: 'VALID' | 'CANCELED';

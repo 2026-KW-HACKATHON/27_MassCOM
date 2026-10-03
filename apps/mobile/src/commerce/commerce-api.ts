@@ -27,6 +27,7 @@ export type VisitCancelReason = 'WRONG_CUSTOMER' | 'DUPLICATE' | 'NOT_A_REAL_VIS
 // 점원 화면 전용 응답. 고객 계정 ID·이메일 없이 점포별 가림 표시(customerLabel)만 온다.
 export type RecentVisit = {
   visitEventId: string;
+  claimSlotId: string;
   occurredAt: string;
   customerLabel: string;
   status: 'VALID' | 'CANCELED';
@@ -425,6 +426,7 @@ function parseRecentVisit(value: unknown): RecentVisit {
   if (
     !isRecord(value) ||
     !isString(value.visitEventId) ||
+    !isString(value.claimSlotId) ||
     !isDate(value.occurredAt) ||
     !isString(value.customerLabel) ||
     (value.status !== 'VALID' && value.status !== 'CANCELED') ||
@@ -436,6 +438,7 @@ function parseRecentVisit(value: unknown): RecentVisit {
   }
   return {
     visitEventId: value.visitEventId,
+    claimSlotId: value.claimSlotId,
     occurredAt: value.occurredAt,
     customerLabel: value.customerLabel,
     status: value.status,

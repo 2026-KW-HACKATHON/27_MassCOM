@@ -1709,7 +1709,8 @@ test('merchant registration uses host-bound web cookie and rejects foreign-origi
   };
   let writes = 0;
   const staff = {
-    mine: async () => [], eligible: async () => [{ id: 'real-merchant', name: '실제 점포' }],
+    mine: async () => [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF', artUrl: '/merchant-art/test.webp' }],
+    eligible: async () => [{ id: 'real-merchant', name: '실제 점포' }],
     request: async (accountId: string, merchantId: string) => {
       assert.equal(accountId, 'staff-account');
       assert.equal(merchantId, 'real-merchant');
@@ -1728,6 +1729,10 @@ test('merchant registration uses host-bound web cookie and rejects foreign-origi
   });
   assert.equal(callback.headers.get('location'), '/merchant/');
   assert.equal((await webRequest(base, '/api/web/merchant/me')).status, 401);
+  const me = await webRequest(base, '/api/web/merchant/me', { headers: { cookie: 'web_session=merchant-cookie' } });
+  assert.equal(me.status, 200);
+  assert.deepEqual((await me.json() as { merchants: unknown[] }).merchants,
+    [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF', artUrl: '/merchant-art/test.webp' }]);
   assert.equal((await webRequest(base, '/api/web/merchant/me', {
     headers: { cookie: 'web_session=merchant-cookie' }, host: 'api.masscom.kr',
   })).status, 403);
@@ -4230,7 +4235,7 @@ test('art routes are closed without configuration and the public image route nee
 
 const sampleRecentVisits = {
   businessDate: '2026-09-30',
-  visits: [{ visitEventId: '11111111-1111-4111-8111-111111111111', occurredAt: '2026-09-30T03:00:00.000Z',
+  visits: [{ visitEventId: '11111111-1111-4111-8111-111111111111', claimSlotId: '33333333-3333-4333-8333-333333333333', occurredAt: '2026-09-30T03:00:00.000Z',
     customerLabel: '손님 K7QM', status: 'VALID' as const, progressCounted: true, cancellationReason: null,
     canCancel: true }],
 };

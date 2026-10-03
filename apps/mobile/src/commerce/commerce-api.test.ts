@@ -605,7 +605,7 @@ test('lists recent visits and cancels one with a fixed reason and a trimmed opti
       if (url.endsWith('/recent-visits')) {
         return Response.json({
           businessDate: '2026-09-30',
-          visits: [{ visitEventId: 'v/1', occurredAt: '2026-09-30T03:05:00.000Z', customerLabel: '손님 K7QM', status: 'VALID',
+          visits: [{ visitEventId: 'v/1', claimSlotId: 'slot-mine', occurredAt: '2026-09-30T03:05:00.000Z', customerLabel: '손님 K7QM', status: 'VALID',
             progressCounted: false, cancellationReason: null, canCancel: true, customerAccountId: 'ignored' }],
         });
       }
@@ -618,7 +618,7 @@ test('lists recent visits and cancels one with a fixed reason and a trimmed opti
   const listed = await client.listRecentVisits('merchant/1');
   assert.deepEqual(listed, {
     businessDate: '2026-09-30',
-    visits: [{ visitEventId: 'v/1', occurredAt: '2026-09-30T03:05:00.000Z', customerLabel: '손님 K7QM', status: 'VALID',
+    visits: [{ visitEventId: 'v/1', claimSlotId: 'slot-mine', occurredAt: '2026-09-30T03:05:00.000Z', customerLabel: '손님 K7QM', status: 'VALID',
       progressCounted: false, cancellationReason: null, canCancel: true }],
   });
   assert.equal('customerAccountId' in listed.visits[0]!, false);
@@ -662,10 +662,16 @@ test('lists recent coupon redemptions and undoes one with an empty POST body', a
 test('rejects malformed reversal responses before showing them and keeps error codes', async () => {
   const bodies: [string, unknown, (client: ReturnType<typeof createCommerceApiClient>) => Promise<unknown>, RegExp][] = [
     ['visits without a date', { visits: [] }, (client) => client.listRecentVisits('m'), /최근 방문 응답 형식/],
-    ['visit with a bad status', { businessDate: '2026-09-30', visits: [{ visitEventId: 'v', occurredAt: '2026-09-30T03:05:00.000Z',
+    ['visit without a claim slot', { businessDate: '2026-09-30', visits: [{ visitEventId: 'v', occurredAt: '2026-09-30T03:05:00.000Z',
+      customerLabel: '손님', status: 'VALID', progressCounted: true, cancellationReason: null, canCancel: true }] },
+      (client) => client.listRecentVisits('m'), /최근 방문 응답 형식/],
+    ['visit with an empty claim slot', { businessDate: '2026-09-30', visits: [{ visitEventId: 'v', claimSlotId: '', occurredAt: '2026-09-30T03:05:00.000Z',
+      customerLabel: '손님', status: 'VALID', progressCounted: true, cancellationReason: null, canCancel: true }] },
+      (client) => client.listRecentVisits('m'), /최근 방문 응답 형식/],
+    ['visit with a bad status', { businessDate: '2026-09-30', visits: [{ visitEventId: 'v', claimSlotId: 'slot-v', occurredAt: '2026-09-30T03:05:00.000Z',
       customerLabel: '손님', status: 'DONE', progressCounted: true, cancellationReason: null, canCancel: true }] },
       (client) => client.listRecentVisits('m'), /최근 방문 응답 형식/],
-    ['visit without a label', { businessDate: '2026-09-30', visits: [{ visitEventId: 'v', occurredAt: '2026-09-30T03:05:00.000Z',
+    ['visit without a label', { businessDate: '2026-09-30', visits: [{ visitEventId: 'v', claimSlotId: 'slot-v', occurredAt: '2026-09-30T03:05:00.000Z',
       customerLabel: '', status: 'VALID', progressCounted: true, cancellationReason: null, canCancel: true }] },
       (client) => client.listRecentVisits('m'), /최근 방문 응답 형식/],
     ['cancel with a wrong status', { visitEventId: 'v', status: 'VALID', reason: 'DUPLICATE', note: null,

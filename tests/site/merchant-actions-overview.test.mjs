@@ -22,7 +22,7 @@ const overview = () => ({
   weekCoupons: { issued: 3, redeemed: 2 }, weekDetailViews: 12,
 });
 const response = body => ({ ok: true, status: 200, json: async () => body });
-async function fixture({ role = 'OWNER', data = overview(), clipboard, campaigns = [] } = {}) {
+async function fixture({ role = 'OWNER', data = overview(), clipboard, campaigns = [], merchants } = {}) {
   const env = installMiniDom();
   const { document: doc } = env;
   const createElement = doc.createElement.bind(doc);
@@ -35,9 +35,10 @@ async function fixture({ role = 'OWNER', data = overview(), clipboard, campaigns
   doc.defaultView.navigator = { clipboard: clipboard ?? {} };
   const calls = [];
   const merchant = { id: 'm1', name: '월계 식당', role };
+  const mine = merchants ?? [merchant];
   const fetcher = async (path, options) => {
     calls.push({ path, options });
-    if (path.endsWith('/me')) return response({ accountScope: 'local-test', merchants: [merchant] });
+    if (path.endsWith('/me')) return response({ accountScope: 'local-test', merchants: mine });
     if (path.endsWith('/registration-merchants')) return response({ merchants: [merchant] });
     if (path.endsWith('/overview')) return response(data);
     if (path.endsWith('/recent-visits')) return response({ businessDate: '2026-10-03', visits: [] });
@@ -98,6 +99,28 @@ test('체크리스트 제작 버튼은 선택 점포와 유일한 1·3·5 캠페
     assert.equal(f.doc.querySelector('[data-control="name"]').value, '월계 식당 방문 수집품');
     assert.equal(f.doc.querySelector('[data-control="campaign"]').value, 'c1');
     assert.equal(f.doc.activeElement.id, 'merchant-creator-title');
+  } finally { f.window.dispatch({ type: 'pagehide' }); f.restore(); }
+});
+
+test('/me의 가게 그림은 선택한 점포 제작기에만 전달되고 null이면 시작 버튼이 없다', async () => {
+  const artUrl = `/merchant-art/${'a'.repeat(64)}.webp`;
+  const f = await fixture({ merchants: [
+    { id: 'm1', name: '월계 식당', role: 'OWNER', artUrl: null },
+    { id: 'm2', name: '두 번째 가게', role: 'OWNER', artUrl },
+  ] });
+  try {
+    const store = f.doc.getElementById('merchant-creator-store');
+    const start = f.doc.getElementById('merchant-creator-open');
+    await start.onclick();
+    await settle();
+    assert.equal(f.doc.querySelector('[data-action="art-photo"]'), null);
+    store.value = 'm2';
+    store.onchange();
+    await start.onclick();
+    await settle();
+    assert.equal(store.value, 'm2');
+    assert.equal(f.doc.querySelector('[data-action="art-photo"]')?.textContent, '가게 그림으로 시작');
+    assert.ok(f.calls.some(call => call.path === '/api/web/merchant/merchants/m2/collectible-projects'));
   } finally { f.window.dispatch({ type: 'pagehide' }); f.restore(); }
 });
 

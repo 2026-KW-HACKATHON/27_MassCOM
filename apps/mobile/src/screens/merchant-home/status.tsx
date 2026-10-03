@@ -3,11 +3,13 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { focusMerchantHeading } from './focus-heading';
+import { createVisitReversalScroll } from './visit-reversal-scroll';
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { createMerchantInsightsApiClient, type MerchantOverview, type VisitorFeedbackSummary } from '@/merchant-insights/api';
 import { feedbackSections, overviewCards, visitBars } from '@/merchant-insights/view-model';
 import { StaffReversalCards } from '@/screens/merchant-claim/staff-reversal';
+import type { VisitSelection } from '@/screens/merchant-claim/issued-visit';
 import { makeMerchantClaimStyles } from '@/screens/merchant-claim/styles';
 import { colorsForScheme } from '@/theme/palette';
 
@@ -16,9 +18,10 @@ type Props = {
   merchantId: string;
   credential: AccountCredential;
   onSessionInvalid: () => void | Promise<void>;
+  selectedVisit?: VisitSelection;
 };
 
-export function MerchantStatusScreen({ apiUrl, merchantId, credential, onSessionInvalid }: Props) {
+export function MerchantStatusScreen({ apiUrl, merchantId, credential, onSessionInvalid, selectedVisit }: Props) {
   const colors = colorsForScheme(useColorScheme());
   const { fontScale } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -37,6 +40,8 @@ export function MerchantStatusScreen({ apiUrl, merchantId, credential, onSession
   const feedbackRequest = useRef(0);
   const mounted = useRef(true);
   const heading = useRef<Text>(null);
+  const scroll = useRef<ScrollView>(null);
+  const [visitScroll] = useState(createVisitReversalScroll);
 
   const loadOverview = useCallback(async () => {
     const request = ++overviewRequest.current;
@@ -88,10 +93,15 @@ export function MerchantStatusScreen({ apiUrl, merchantId, credential, onSession
     if (mounted.current) setRefreshing(false);
   }, [loadOverview, loadFeedback, refreshing]);
 
+  const scrollToVisit = useCallback((y: number | undefined) => {
+    if (y !== undefined) scroll.current?.scrollTo({ y, animated: true });
+  }, []);
+  const showPreselectedVisit = useCallback((offset: number | undefined) => scrollToVisit(visitScroll.select(offset)), [scrollToVisit, visitScroll]);
+
   const sections = feedback ? feedbackSections(feedback) : undefined;
   const bars = overview ? visitBars(overview) : undefined;
 
-  return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 18, padding: 20, paddingBottom: 36 }} refreshControl={<RefreshControl progressViewOffset={insets.top} refreshing={refreshing} onRefresh={() => void refresh()} />}>
+  return <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ gap: 18, padding: 20, paddingBottom: 36 }} refreshControl={<RefreshControl progressViewOffset={insets.top} refreshing={refreshing} onRefresh={() => void refresh()} />}>
     <View style={{ gap: 12 }}>
       <Text ref={heading} accessible accessibilityRole="header" style={{ color: colors.label, fontSize: 25, fontWeight: '900' }}>오늘·현황</Text>
       {overviewLoading && !overview ? <ActivityIndicator accessibilityLabel="현황 불러오는 중" color={colors.primary} /> : null}
@@ -123,7 +133,9 @@ export function MerchantStatusScreen({ apiUrl, merchantId, credential, onSession
       </> : null}
     </View>
 
-    <StaffReversalCards api={commerce} merchantId={merchantId} styles={reversalStyles} refreshSignal={reversalRefresh} />
+    <View onLayout={({ nativeEvent }) => scrollToVisit(visitScroll.layout(nativeEvent.layout.y))}>
+      <StaffReversalCards api={commerce} merchantId={merchantId} styles={reversalStyles} refreshSignal={reversalRefresh} selectedVisit={selectedVisit} onVisitPreselected={showPreselectedVisit} />
+    </View>
 
     <View style={{ gap: 12, padding: 18, borderRadius: 20, backgroundColor: colors.surface }}>
       <Text accessibilityRole="header" style={{ color: colors.label, fontSize: 18, fontWeight: '900' }}>손님 의견</Text>

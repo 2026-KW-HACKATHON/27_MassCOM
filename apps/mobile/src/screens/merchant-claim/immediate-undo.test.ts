@@ -28,7 +28,7 @@ test('사용 성공 안내는 확인창 뒤 기존 undo API를 호출하고 닫�
   assert.match(staff, /!couponMutation.acquire\(\)/);
   assert.match(staff, /if \(!undoGate.isCurrent\(current\)\) return/);
   assert.match(staff, /undoGate.cancel\(\)/);
-  assert.match(staff, /\[issued, recentCoupon\]/);
+  assert.match(staff, /\[issued, recentCoupon, issuedVisit\]/);
   assert.doesNotMatch(staff, /되돌릴 수 없어요/);
 });
 

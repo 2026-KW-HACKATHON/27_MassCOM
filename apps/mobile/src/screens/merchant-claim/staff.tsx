@@ -1,7 +1,7 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { BottomSheet, RNHostView } from '@expo/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { Alert, AppState, Modal, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -17,6 +17,7 @@ import { canUndoNow, createCouponMutationGate, redeemedCouponTarget } from './im
 import { undoConfirmText, undoFailureMessage, undoSuccessMessage } from './reversal-copy';
 import { makeMerchantClaimStyles } from './styles';
 import { claimQrSizeForArea, minimumClaimQrSize } from './qr-layout';
+import { createIssuedVisitController, issuedVisitNotice, type IssuedVisitState, type VisitSelection } from './issued-visit';
 
 type StaffClaimProps = {
   apiUrl: string;
@@ -25,6 +26,7 @@ type StaffClaimProps = {
   onSessionInvalid: () => void | Promise<void>;
   merchantName: string;
   active?: boolean;
+  onVisitReversal?: (visit: VisitSelection) => void;
 };
 
 export function StaffClaimScreen(props: StaffClaimProps) {
@@ -37,7 +39,7 @@ export function StaffClaimScreen(props: StaffClaimProps) {
   return <StaffClaimSession key={scope.version} {...props} />;
 }
 
-function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, merchantName, active = true }: StaffClaimProps) {
+function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, merchantName, active = true, onVisitReversal }: StaffClaimProps) {
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeMerchantClaimStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
@@ -52,6 +54,9 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
   const [token, setToken] = useState<string>();
   const [resolved, setResolved] = useState<ResolvedCustomerIdentity>();
   const [issued, setIssued] = useState<IssuedClaim>();
+  const [issuedVisit, setIssuedVisit] = useState<IssuedVisitState>();
+  const [visitRefreshing, setVisitRefreshing] = useState(false);
+  const issuedVisitController = useRef<ReturnType<typeof createIssuedVisitController> | undefined>(undefined);
   const [recentCoupon, setRecentCoupon] = useState<RecentCouponRedemption>();
   const [undoMessage, setUndoMessage] = useState<string>();
   const [undoBusy, setUndoBusy] = useState(false);
@@ -72,6 +77,38 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
   const seconds = issued ? claimSecondsRemaining(issued.expiresAt, now) : 0;
   const compact = width > height;
   const qrSize = claimQrSizeForArea(qrArea.width, qrArea.height);
+  const visitNotice = issuedVisitNotice(issuedVisit, now);
+
+  useEffect(() => {
+    const next = createIssuedVisitController(api, merchantId, setIssuedVisit);
+    issuedVisitController.current = next;
+    return () => {
+      next.dispose();
+      if (issuedVisitController.current === next) issuedVisitController.current = undefined;
+    };
+  }, [api, merchantId]);
+  // 탭과 앱으로 돌아왔을 때 다시 확인한다. 자동 확인 3회 뒤에도 수령을 찾을 수 있다.
+  useEffect(() => {
+    if (active) void issuedVisitController.current?.refresh();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (active && state === 'active') void issuedVisitController.current?.refresh();
+    });
+    return () => subscription.remove();
+  }, [active]);
+  useEffect(() => {
+    if (issuedVisit && !visitNotice) issuedVisitController.current?.clear();
+  }, [issuedVisit, visitNotice]);
+
+  async function refreshIssuedVisit() {
+    if (visitRefreshing) return;
+    const controller = issuedVisitController.current;
+    setVisitRefreshing(true);
+    await controller?.refresh();
+    if (issuedVisitController.current === controller) {
+      setNow(Date.now());
+      setVisitRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     if (!active || qrVisible) return;
@@ -79,10 +116,10 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
     return () => cancelAnimationFrame(frame);
   }, [step, active, qrVisible]);
   useEffect(() => {
-    if (!issued && !recentCoupon) return;
+    if (!issued && !recentCoupon && !issuedVisit) return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [issued, recentCoupon]);
+  }, [issued, recentCoupon, issuedVisit]);
   // 점포·세션 변경과 화면 해제 시 이전 요청의 성공·실패·완료를 모두 무효화한다.
   useEffect(() => () => requestGate.cancel(), [api, merchantId, requestGate]);
   useEffect(() => () => undoGate.cancel(), [api, merchantId, undoGate]);
@@ -300,6 +337,7 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
     }
     const current = requestGate.start();
     setCouponLoading(false);
+    issuedVisitController.current?.clear();
     setBusy(true);
     setMessage(undefined);
     setIssueAttempted(true);
@@ -309,6 +347,7 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
       setNow(Date.now());
       setCouponOpen(false);
       setIssued(next);
+      void issuedVisitController.current?.issued(next);
       setQrVisible(true);
       setResolved(undefined);
       setMessage('방문 코드를 발급했습니다. 고객이 아래 QR을 촬영해 수령을 확정합니다.');
@@ -334,6 +373,7 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
       const next = await api.reissueClaim({ merchantId, claimSlotId: issued.claimSlotId, expectedTokenVersion: issued.tokenVersion });
       if (!requestGate.isCurrent(current)) return;
       setIssued(next);
+      void issuedVisitController.current?.issued(next);
       setIssuedUncertain(false);
       setMessage('이전 코드를 폐기하고 새 코드로 교체했습니다.');
     } catch (error) {
@@ -354,6 +394,7 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
       const next = await api.issueOrReissueIdentityClaim({ merchantId, customerIdentityToken: token });
       if (!requestGate.isCurrent(current)) return;
       setIssued(next);
+      void issuedVisitController.current?.issued(next);
       setIssuedUncertain(false);
       setMessage('현재 방문 코드를 복구했습니다. 고객에게 아래 QR을 보여주세요.');
     } catch (error) {
@@ -365,7 +406,7 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
   }
 
   return <View style={{ flex: 1 }}>
-    <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={Platform.OS !== 'web'} contentContainerStyle={styles.content}>
+    <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={Platform.OS !== 'web'} contentContainerStyle={styles.content} refreshControl={<RefreshControl progressViewOffset={insets.top} refreshing={visitRefreshing} onRefresh={() => void refreshIssuedVisit()} />}>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         {['① 고객 QR 찍기', '② 고객 확인', '③ 방문 코드'].map((label, index) => <Text key={label} accessibilityLabel={`${label}${step === index + 1 ? ', 현재 단계' : ''}`} style={[styles.help, { flex: 1, color: step === index + 1 ? palette.primary : palette.secondaryLabel, fontWeight: '700' }]}>{label}</Text>)}
       </View>
@@ -390,6 +431,17 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
         <Button styles={styles} label="이 고객 취소" variant="secondary" disabled={busy && Boolean(resolved)} onPress={cancel} />
       </View> : null}
       {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
+      {visitNotice ? <View style={styles.formCard}>
+        <Text accessibilityLiveRegion="polite" style={styles.message}>{visitNotice.kind === 'pending'
+          ? '손님이 아직 받지 않았어요. 잘못 만들었다면 그냥 닫으면 돼요(코드는 곧 만료돼요)'
+          : visitNotice.kind === 'unknown' ? '방문 확정 여부를 확인하지 못했어요. 당겨서 새로 고침해 주세요.'
+            : '방금 방문이 확정됐어요'}</Text>
+        {visitNotice.canCancel && onVisitReversal ? <Button styles={styles} label="잘못이면 방문 취소" variant="secondary" disabled={busy || undoBusy} onPress={() => {
+          const current = issuedVisitNotice(issuedVisit, Date.now());
+          const visit = current?.visit;
+          if (current?.canCancel && visit) onVisitReversal?.(visit);
+        }} /> : null}
+      </View> : null}
       {!couponOpen ? immediateCouponNotice : null}
       {couponMessage && !couponOpen ? <Text accessibilityLiveRegion="polite" style={styles.message}>{couponMessage}</Text> : null}
     </ScrollView>

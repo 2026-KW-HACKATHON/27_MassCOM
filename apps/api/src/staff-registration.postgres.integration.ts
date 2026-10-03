@@ -50,6 +50,15 @@ test('registration code is account and merchant bound, single use, and its audit
       await pool.query('DROP FUNCTION staff_audit_fail_test()');
     }
     await staff.approve(adminId, merchantId, issued.code);
+    assert.deepEqual(await staff.mine(accountId), [
+      { id: merchantId, name: '실제 상점', role: 'STAFF', artUrl: null },
+    ]);
+    const artSha = 'a'.repeat(64);
+    await pool.query('INSERT INTO merchant_art (merchant_id, image, sha256) VALUES ($1, $2, $3)',
+      [merchantId, Buffer.from('art'), artSha]);
+    assert.deepEqual(await staff.mine(accountId), [
+      { id: merchantId, name: '실제 상점', role: 'STAFF', artUrl: `/merchant-art/${artSha}.webp` },
+    ]);
     await assert.rejects(staff.approve(adminId, merchantId, issued.code), { code: 'STAFF_CODE_INVALID' });
     assert.equal((await pool.query(`SELECT role FROM merchant_members WHERE merchant_id = $1 AND account_id = $2`,
       [merchantId, accountId])).rows[0].role, 'STAFF');

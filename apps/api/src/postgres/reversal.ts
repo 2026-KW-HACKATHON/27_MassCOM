@@ -102,13 +102,14 @@ export class PostgresReversalService implements ReversalService {
     const businessDate = kstBusinessDate(this.now());
     const result = await this.pool.query<{
       id: string;
+      claim_slot_id: string;
       occurred_at: Date;
       customer_account_id: string;
       status: 'VALID' | 'CANCELED';
       progress_counted: boolean;
       cancellation_reason: string | null;
     }>(
-      `SELECT id, occurred_at, customer_account_id, status, progress_counted, cancellation_reason
+      `SELECT id, claim_slot_id, occurred_at, customer_account_id, status, progress_counted, cancellation_reason
        FROM visit_events
        WHERE merchant_id = $1 AND business_date = $2::date
        ORDER BY occurred_at DESC, id
@@ -119,6 +120,7 @@ export class PostgresReversalService implements ReversalService {
       businessDate,
       visits: result.rows.map((row) => ({
         visitEventId: row.id,
+        claimSlotId: row.claim_slot_id,
         occurredAt: row.occurred_at.toISOString(),
         customerLabel: maskedCustomerLabel(this.labelHmacSecret, input.merchantId, row.customer_account_id),
         status: row.status,

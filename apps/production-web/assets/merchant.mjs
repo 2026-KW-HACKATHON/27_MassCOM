@@ -97,7 +97,7 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
       let cleanupRef;
       const cleanup = await module.mountCollectibleEditor(doc.getElementById('merchant-creator-editor'), {
         merchantId: merchant.id, merchantName: merchant.name, accountScope: mine.accountScope,
-        merchantArtUrl: merchant.artUrl,
+        merchantArtUrl: merchant.artUrl ?? '',
         loadCampaigns: () => loadCreatorCampaigns(fetcher, merchant.id),
         request: (path, options = {}) => request(fetcher, path, options.method ?? 'GET', options.body),
         onNotice: message => { doc.getElementById('merchant-status').textContent = message; },
