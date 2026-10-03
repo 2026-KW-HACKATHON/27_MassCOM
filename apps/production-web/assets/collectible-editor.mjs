@@ -1399,7 +1399,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const preferenceChanged = event => { control('reduce-motion').checked = event.matches; if (event.matches) playing = false; schedulePreview(); };
   reducedMotion.addEventListener('change', preferenceChanged);
   const intersection = globalThis.IntersectionObserver ? new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); if (visible) schedulePreview(); else { if (frame) cancelAnimationFrame(frame); frame = 0; } }) : null;
-  intersection?.observe(container);
+  // 모바일 고정 오버레이는 컨테이너와 위치가 달라 실제 미리보기 캔버스를 관찰한다.
+  intersection?.observe(previewCanvas);
   syncValues(); drawCrop(); schedulePreview();
   refreshList();
   refreshCampaigns();

@@ -26,6 +26,37 @@ export async function mountStudio() {
   return { api, container, q, all, click, act, stepOf, choice, dispose };
 }
 
+test('고정 작업 영역의 미리보기 캔버스를 관찰하고 표시되면 렌더를 다시 예약한다', async () => {
+  const originalObserver = Object.getOwnPropertyDescriptor(globalThis, 'IntersectionObserver');
+  const originalRaf = globalThis.requestAnimationFrame;
+  const observed = [];
+  let callback, rafCalls = 0, ui;
+  globalThis.IntersectionObserver = class {
+    constructor(handler) { callback = handler; }
+    observe(target) { observed.push(target); }
+    disconnect() {}
+  };
+  globalThis.requestAnimationFrame = () => ++rafCalls;
+  try {
+    ui = await mountStudio();
+    const preview = ui.q('[data-view="preview"]');
+    assert.equal(observed.length, 1);
+    assert.ok(observed[0] === preview, '편집기 컨테이너 대신 미리보기 캔버스를 관찰한다');
+    callback([{ target: preview, isIntersecting: false }]);
+    await ui.act('step', '2');
+    // 단계 이동이 예약한 프레임도 취소한 뒤 표시 콜백 자체의 예약을 확인한다.
+    callback([{ target: preview, isIntersecting: false }]);
+    const before = rafCalls;
+    callback([{ target: preview, isIntersecting: true }]);
+    assert.equal(rafCalls, before + 1, '미리보기가 표시되면 새 렌더 프레임을 예약한다');
+  } finally {
+    ui?.dispose();
+    globalThis.requestAnimationFrame = originalRaf;
+    if (originalObserver) Object.defineProperty(globalThis, 'IntersectionObserver', originalObserver);
+    else delete globalThis.IntersectionObserver;
+  }
+});
+
 test('1단계에는 사진·모양·자르기만 펼치고 이름은 4단계로 간다', async () => {
   const ui = await mountStudio();
   assert.equal(ui.stepOf(ui.q('[data-control="photo"]')), '1');
