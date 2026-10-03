@@ -20,6 +20,7 @@ import {
   visitorTagLabels,
 } from '../visitor-feedback-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
+import { countedVisitFromSql } from './badge-rewards.js';
 
 type Options = {
   accountLifecycle: PostgresAccountLifecycle;
@@ -36,11 +37,12 @@ const emptySelection = (): VisitorFeedbackSelection => ({ tags: [], suggestions:
 // 실제 방문이 있어도 체험 계정·체험 가게의 가상 실적은 의견 자격에서 제외한다.
 const eligibleVisitSql = `
   SELECT 1
-  FROM visit_events AS visit
+  ${countedVisitFromSql}
   WHERE visit.customer_account_id = $1
     AND visit.merchant_id = $2
     AND visit.status = 'VALID'
     AND visit.progress_excluded_reason IS NULL
+    AND (merchant.is_demo OR slot.created_by_account_id <> visit.customer_account_id)
     AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials WHERE account_id = $1)
     AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials AS trial WHERE trial.merchant_id = visit.merchant_id)
   LIMIT 1`;

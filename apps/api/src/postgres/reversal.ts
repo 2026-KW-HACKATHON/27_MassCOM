@@ -28,7 +28,7 @@ import {
   selectEntitlementsToRevoke,
 } from '../reversal-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
-import { medalValuesSql } from './badge-rewards.js';
+import { countedVisitFromSql, medalValuesSql } from './badge-rewards.js';
 import { requireActiveMerchantMember } from './merchant-membership.js';
 import { grantReachedGoals } from './visit-rewards.js';
 
@@ -213,10 +213,11 @@ export class PostgresReversalService implements ReversalService {
         `DELETE FROM merchant_visitor_feedback AS feedback
          WHERE feedback.customer_account_id = $1 AND feedback.merchant_id = $2
            AND NOT EXISTS (
-             SELECT 1 FROM visit_events AS other
-             WHERE other.customer_account_id = feedback.customer_account_id
-               AND other.merchant_id = feedback.merchant_id
-               AND other.status = 'VALID' AND other.progress_excluded_reason IS NULL)`,
+             SELECT 1 ${countedVisitFromSql}
+             WHERE visit.customer_account_id = feedback.customer_account_id
+               AND visit.merchant_id = feedback.merchant_id
+               AND visit.status = 'VALID' AND visit.progress_excluded_reason IS NULL
+               AND (merchant.is_demo OR slot.created_by_account_id <> visit.customer_account_id))`,
         [visit.customer_account_id, input.merchantId],
       );
 

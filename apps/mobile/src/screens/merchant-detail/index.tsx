@@ -127,7 +127,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
                     </View>
                   ))}
                 </View>
-              ) : <Text style={styles.feedbackEmpty}>아직 충분히 모이지 않았어요(같은 특징을 3명 이상 고르면 보여요)</Text>}
+              ) : <Text style={styles.feedbackEmpty}>{merchant.demo ? '아직 고른 손님이 없어요' : '아직 충분히 모이지 않았어요(같은 특징을 3명 이상 고르면 보여요)'}</Text>}
               {auth.credential && auth.accountId ? (
                 <MyVisitorFeedback
                   key={`${merchant.id}:${auth.accountId}`}

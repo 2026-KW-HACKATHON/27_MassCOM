@@ -72,3 +72,23 @@ test('calls the session invalidation hook for an expired bearer session', async 
   await assert.rejects(client.getMine('shop'), VisitorFeedbackApiError);
   assert.equal(invalidations, 1);
 });
+
+test('optional feedback GET and PUT return typed 401 errors without a session callback', async () => {
+  const requests: string[] = [];
+  const client = createVisitorFeedbackApiClient({
+    apiUrl: 'https://api.example.test', credential,
+    fetcher: async (_input, init) => {
+      requests.push(init?.method ?? 'GET');
+      return Response.json({ code: 'SESSION_INVALID' }, { status: 401 });
+    },
+  });
+  for (const request of [client.getMine('shop'), client.save('shop', empty)]) {
+    await assert.rejects(request, (error: unknown) => {
+      assert.ok(error instanceof VisitorFeedbackApiError);
+      assert.equal(error.status, 401);
+      assert.equal(error.code, 'INVALID');
+      return true;
+    });
+  }
+  assert.deepEqual(requests, ['GET', 'PUT']);
+});

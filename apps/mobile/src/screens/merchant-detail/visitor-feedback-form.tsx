@@ -26,10 +26,11 @@ type Props = {
   onClose: () => void;
   onSaved: () => void;
   onNotEligible: () => void;
+  onUnauthorized?: () => void;
   editContext?: boolean;
 };
 
-export function VisitorFeedbackForm({ merchantId, client, initialSelection, onClose, onSaved, onNotEligible, editContext = false }: Props) {
+export function VisitorFeedbackForm({ merchantId, client, initialSelection, onClose, onSaved, onNotEligible, onUnauthorized, editContext = false }: Props) {
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
   const world = worldForScheme(scheme);
@@ -70,7 +71,9 @@ export function VisitorFeedbackForm({ merchantId, client, initialSelection, onCl
     } catch (cause) {
       if (requestVersion.current !== version) return;
       if (cause instanceof VisitorFeedbackApiError) {
-        if (cause.code === 'NOT_ELIGIBLE') {
+        if (cause.status === 401 && onUnauthorized) {
+          onUnauthorized();
+        } else if (cause.code === 'NOT_ELIGIBLE') {
           setError('방문 인증한 가게에서만 고를 수 있어요.');
           onNotEligible();
         } else if (cause.code === 'NOTE_REJECTED') {
@@ -119,7 +122,7 @@ export function VisitorFeedbackForm({ merchantId, client, initialSelection, onCl
         style={styles.input}
       />
       <Text accessibilityLabel={`의견 ${noteLength}/${visitorFeedbackNoteMaxLength}자`} style={styles.counter}>{noteLength}/{visitorFeedbackNoteMaxLength}</Text>
-      <Text style={styles.privacy}>의견과 바라는 점은 이 가게 사장님께만 보여요. 연락처·주소 같은 개인정보는 적지 마세요.</Text>
+      <Text style={styles.privacy}>의견과 바라는 점은 이 가게 점주·직원에게만 보여요. 연락처·주소 같은 개인정보는 적지 마세요.</Text>
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" accessibilityLabel="방문 의견 저장" accessibilityState={{ disabled: saving }} disabled={saving} onPress={() => { void save(); }} style={styles.save}>

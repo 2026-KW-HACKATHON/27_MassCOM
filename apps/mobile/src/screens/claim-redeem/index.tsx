@@ -28,7 +28,7 @@ import { defaultVisitGoals, mileageBalanceLine, mileageDeltaLine, settleWithin, 
 import { playUiSound } from '@/sound/ui-sounds';
 import { Celebration, type CelebrationContent } from '@/gamification/celebration';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
-import { createVisitorFeedbackApiClient, type VisitorFeedbackSelection } from '@/merchant/visitor-feedback-api';
+import { createVisitorFeedbackApiClient, VisitorFeedbackApiError, type VisitorFeedbackSelection } from '@/merchant/visitor-feedback-api';
 import { VisitorFeedbackForm } from '../merchant-detail/visitor-feedback-form';
 import { canShowTestVisitSection } from '@/navigation/showcase-entry';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
@@ -73,8 +73,8 @@ export function ClaimRedeemScreen({
     [apiUrl, credential, onSessionInvalid],
   );
   const feedbackApi = useMemo(
-    () => createVisitorFeedbackApiClient({ apiUrl, credential, onSessionInvalid }),
-    [apiUrl, credential, onSessionInvalid],
+    () => createVisitorFeedbackApiClient({ apiUrl, credential }),
+    [apiUrl, credential],
   );
   const [feedbackOffer, setFeedbackOffer] = useState<{
     claim: RedeemedClaim;
@@ -132,7 +132,12 @@ export function ClaimRedeemScreen({
           setFeedbackOpen(false);
           setFeedbackOffer({ claim: redeemed, client: feedbackApi, selection });
         }
-      }).catch(() => { /* 방문 수령 결과는 선택 조회 실패와 관계없이 유지한다. */ });
+      }).catch((cause) => {
+        if (current && cause instanceof VisitorFeedbackApiError && cause.status === 401) {
+          setFeedbackOpen(false);
+          setFeedbackOffer(undefined);
+        }
+      });
     }
     return () => { current = false; };
   }, [redeemed, feedbackApi]);
@@ -583,6 +588,7 @@ export function ClaimRedeemScreen({
                   initialSelection={currentFeedbackOffer.selection}
                   onClose={() => { setFeedbackOpen(false); setFeedbackOffer(undefined); }}
                   onSaved={() => { setFeedbackOpen(false); setFeedbackOffer(undefined); setFeedbackThanks(redeemed); }}
+                  onUnauthorized={() => { setFeedbackOpen(false); setFeedbackOffer(undefined); }}
                   onNotEligible={() => { setFeedbackOpen(false); setFeedbackOffer(undefined); setFeedbackNotEligible(redeemed); }}
                 />
               ) : (

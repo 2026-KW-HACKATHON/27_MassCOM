@@ -249,7 +249,7 @@ test('saving all three empty deletes the row, also for someone who can no longer
   assert.equal(await rowCount(db.pool), 0);
 });
 
-test('only a counted, valid visit to that very store qualifies, and a trial store never does', async (t) => {
+test('only an eligible valid visit to that very store qualifies, and a trial store never does', async (t) => {
   const db = await setup(t);
   for (const shop of ['shop-a', 'shop-b', 'shop-c', 'trial-shop']) await addMerchant(db.pool, shop);
   const save = (account: string, merchant: string) =>
@@ -270,6 +270,9 @@ test('only a counted, valid visit to that very store qualifies, and a trial stor
   await addVisit(db.pool, { account: 'canceled', merchant: 'shop-a', date: '2026-09-21' });
   assert.deepEqual((await save('canceled', 'shop-a')).tags, ['KIND']);
   assert.deepEqual((await save('visited-b', 'shop-b')).tags, ['KIND']);
+  // 같은 날 두 번째 방문처럼 진행도에 안 세어진 정당한 방문도 의견 자격은 있다.
+  await addVisit(db.pool, { account: 'uncounted', merchant: 'shop-a', counted: false });
+  assert.deepEqual((await save('uncounted', 'shop-a')).tags, ['KIND']);
 
   // 로그인 없는 체험 가게(#309)는 방문이 있어도 쓸 수 없다.
   await addVisit(db.pool, { account: 'trialist', merchant: 'trial-shop' });
@@ -326,6 +329,24 @@ test('canceling a new visit keeps feedback when an older valid visit exists', as
   await db.reversal.cancelVisit({ merchantId: 'shop-a', staffAccountId: 'staff', visitEventId: today, reason: 'OTHER' });
   assert.deepEqual(await db.feedback.getMine('customer-1', 'shop-a'), selection);
   assert.equal(await rowCount(db.pool, `customer_account_id = 'customer-1' AND merchant_id = 'shop-a'`), 1);
+});
+
+test('마지막 정당한 방문을 취소하면 NULL 플래그의 옛 직원 본인 방문만으로 의견을 유지하지 않는다', async (t) => {
+  const db = await setup(t);
+  await addMerchant(db.pool, 'shop-a');
+  const legacy = await addVisit(db.pool, {
+    account: 'customer-1', merchant: 'shop-a', date: '2026-09-20', excluded: 'STAFF_SELF',
+  });
+  // 0030 이전 본인 발급 방문: 제외 플래그가 없고 진행도에도 세어졌다.
+  await db.pool.query(
+    'UPDATE visit_events SET progress_excluded_reason = NULL, progress_counted = true WHERE id = $1', [legacy],
+  );
+  const today = await addVisit(db.pool, { account: 'customer-1', merchant: 'shop-a', date: '2026-10-03' });
+  await db.feedback.upsert('customer-1', 'shop-a', { tags: ['KIND'], suggestions: [], note: '좋아요' });
+  await db.reversal.cancelVisit({ merchantId: 'shop-a', staffAccountId: 'staff', visitEventId: today, reason: 'OTHER' });
+  assert.equal((await db.pool.query('SELECT status FROM visit_events WHERE id = $1', [legacy])).rows[0]!.status, 'VALID');
+  assert.equal(await rowCount(db.pool, `customer_account_id = 'customer-1' AND merchant_id = 'shop-a'`), 0);
+  assert.deepEqual(await db.feedback.getMine('customer-1', 'shop-a'), empty);
 });
 
 test('canceling one same-day visit keeps feedback when another remains VALID', async (t) => {
@@ -584,6 +605,11 @@ test('over HTTP, an account without a visit gets 403 and one with a visit saves 
   await addMerchant(db.pool, 'shop-a');
   await addMerchant(db.pool, 'shop-b');
   await addVisit(db.pool, { account: 'customer-1', merchant: 'shop-a' });
+  // 옛 본인 발급 방문은 NULL 제외 플래그여도 HTTP 저장을 허용하지 않는다.
+  const legacy = await addVisit(db.pool, { account: 'legacy-self', merchant: 'shop-a', excluded: 'STAFF_SELF' });
+  await db.pool.query(
+    'UPDATE visit_events SET progress_excluded_reason = NULL, progress_counted = true WHERE id = $1', [legacy],
+  );
   const walletService = new WalletChallengeService({
     store: new InMemoryChallengeStore(), domain: 'api.masscom.local', uri: 'https://api.masscom.local/wallet/verify',
     chainId: 84532, ttlMs: 5 * 60 * 1000,
@@ -607,6 +633,10 @@ test('over HTTP, an account without a visit gets 403 and one with a visit saves 
   const stranger = await call('shop-a', 'PUT', 'stranger', selection);
   assert.equal(stranger.status, 403);
   assert.deepEqual(await stranger.json(), { code: 'VISITOR_FEEDBACK_NOT_ELIGIBLE' });
+  const legacySelf = await call('shop-a', 'PUT', 'legacy-self', selection);
+  assert.equal(legacySelf.status, 403);
+  assert.deepEqual(await legacySelf.json(), { code: 'VISITOR_FEEDBACK_NOT_ELIGIBLE' });
+  assert.equal(await rowCount(db.pool, `customer_account_id = 'legacy-self'`), 0);
   // 다른 가게에 간 손님은 이 가게에 쓸 수 없다.
   const wrongStore = await call('shop-b', 'PUT', 'customer-1', selection);
   assert.equal(wrongStore.status, 403);
