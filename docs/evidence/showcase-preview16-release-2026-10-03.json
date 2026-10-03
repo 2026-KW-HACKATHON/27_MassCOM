@@ -1,0 +1,37 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-10-03",
+  "sourceCommit": "65a0005285e1bfbc04af93903054685118633bff",
+  "pullRequests": [351],
+  "issues": [352],
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.16",
+  "releaseKind": "GitHub prerelease",
+  "releaseTarget": "65a0005",
+  "artifact": {
+    "name": "MassCOM-showcase-android-65a0005.apk",
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "sha256": "222665a88d88b68a835288f3cc5525b8322fc232e57ef286810f9779047d79ab",
+    "provenanceName": "MassCOM-showcase-android-65a0005.provenance.json",
+    "checksumsName": "SHA256SUMS.txt",
+    "package": "kr.masscom.wolgye.demo",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256": "cdb0dc37750c907eaa2f1b9eb172b0911f14b9c9f2dab78b481f1751d8ebf28a"
+  },
+  "checks": {
+    "embeddedApi": "PASS; APK와 AAB에 https://demo-api.masscom.kr가 포함되고 https://api.masscom.kr는 포함되지 않는다.",
+    "walletSurface": "PASS; release wallet surface를 확인했다.",
+    "recordAudioPermission": "PASS; RECORD_AUDIO 권한이 없다.",
+    "anonymousDownload": "PASS; 익명 다운로드한 APK의 SHA-256이 222665a88d88b68a835288f3cc5525b8322fc232e57ef286810f9779047d79ab와 일치한다.",
+    "emulatorInstall": "PASS; Android API 34, 720×1280 에뮬레이터에서 설치 Success"
+  },
+  "androidEmulator": {
+    "device": "Android API 34, 720×1280",
+    "firstScreen": "PASS; 역할 선택 화면 표시",
+    "logcat": "PASS; JS 오류 없음"
+  },
+  "notRun": [
+    "Samsung 실기기 설치와 QA",
+    "로그인 흐름"
+  ],
+  "limitations": "Preview 16은 시연 전용 GitHub prerelease다. 실제 Samsung 기기와 로그인 흐름은 확인하지 않았다."
+}
