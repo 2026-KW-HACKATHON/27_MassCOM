@@ -31,7 +31,7 @@ const blankForm = (merchantId: string): CancelForm => ({ merchantId, openVisitId
  * 되돌릴 수 있는지는 서버가 정하고(canCancel·canUndo) 실패 코드는 한국어 안내로 바꾼다.
  * 목록 읽기·낡은 응답 버리기·중복 누름 방지는 reversal-loader.ts(순수 로직, 시험 있음)가 맡고 이 화면은 그 상태를 그린다.
  */
-export function StaffReversalCards({ api, merchantId, styles }: { api: Api; merchantId: string; styles: Styles }) {
+export function StaffReversalCards({ api, merchantId, styles, refreshSignal = 0 }: { api: Api; merchantId: string; styles: Styles; refreshSignal?: number }) {
   const [rawState, setState] = useState<ReversalState>(initialReversalState);
   const [rawForm, setForm] = useState<CancelForm>(() => blankForm(merchantId));
   const controller = useRef<ReturnType<typeof createReversalController> | undefined>(undefined);
@@ -52,6 +52,11 @@ export function StaffReversalCards({ api, merchantId, styles }: { api: Api; merc
       if (controller.current === next) controller.current = undefined;
     };
   }, [api, merchantId]);
+
+  // 탭의 당겨서 새로 고침도 기존 컨트롤러를 사용한다.
+  useEffect(() => {
+    if (refreshSignal > 0) void controller.current?.refresh();
+  }, [refreshSignal]);
 
   function confirmCancel(visit: RecentVisit) {
     if (busy) return;

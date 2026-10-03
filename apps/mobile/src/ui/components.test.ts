@@ -133,7 +133,8 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
       assert.match(control, /progressViewOffset=\{insets\.top\}/, `${file} RefreshControl`);
     }
   }
-  assert.equal(controls, 8, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport, shop');
+  assert.equal(controls, 9, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport, shop, merchant status');
+  assert.equal((readSource('screens/merchant-home/status.tsx').match(/<RefreshControl/g) ?? []).length, 1, '점주 현황에만 하나의 당겨서 새로 고침을 둔다');
   // PR #312 QA: Android의 elevation은 JSX 순서와 별개로 Z 스택을 정한다. 카드류(ui/styles.ts의 card)가 쓰는
   // elevation보다 스크림의 elevation이 뚜렷이 더 커야, 스크롤이 지난 카드가 스크림 위로 올라와 그 텍스트가
   // 상태 바 아이콘 자리에 다시 비치지 않는다.
