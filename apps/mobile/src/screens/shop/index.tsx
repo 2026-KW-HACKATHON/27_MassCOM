@@ -19,7 +19,7 @@ import { StateScene } from '@/ui/state-scene';
 import { ShopApiError, createShopApiClient, shopErrorMessage, type MileageGrade, type ShopGradeView, type ShopRerollResult } from '@/shop/shop-api';
 import { friendArt, mileageCoinArt, ticketArt } from '@/shop/shop-art';
 import {
-  buildFriendGrid, earnRulesText, formatMileage, rerollDisclosure, rerollButtonState, resumeOrStartPurchase,
+  buildFriendGrid, earnRulesText, formatMileage, rerollDisclosure, rerollButtonState, resumeOrStartPurchase, showcaseBonusLabel,
   type FriendGridCell, type PendingPurchase,
 } from '@/shop/shop-rules';
 import { shopDrawHeading, shopDrawIntro } from '@/shop/shop-copy';
@@ -264,6 +264,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
   /> : null;
   if (gachaOnly) return machine;
 
+  const bonusLabel = showcaseBonusLabel(snapshot.mileage.showcaseBonus);
 
   return sky(
     <>
@@ -273,6 +274,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
             <Image source={mileageCoinArt} style={styles.coin} accessible={false} accessibilityIgnoresInvertColors />
             <Text accessibilityLabel={`마일리지 ${snapshot.mileage.balance}포인트`} style={styles.balance}>{formatMileage(snapshot.mileage.balance)}</Text>
           </View>
+          {bonusLabel ? <Text style={styles.rulesText}>{bonusLabel}</Text> : null}
           <Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text>
           <View accessibilityLiveRegion="polite">
             {notice ? <Text style={notice.tone === 'success' ? styles.successMessage : styles.errorMessage}>{notice.text}</Text> : null}

@@ -1,5 +1,6 @@
 import { parseMerchantArtPath } from '../merchant-art/art-source';
 import { parseMerchantCategory, type MerchantCategory } from './merchant-categories';
+import { isVisitorTagCode, type VisitorTagCode } from './visitor-feedback-codes';
 
 export type RewardGoal = {
   targetVisitCount: 1 | 3 | 5;
@@ -29,6 +30,7 @@ export type PublicMerchant = {
   /** `/merchant-art/<sha256>.webp` on the API when the owner picked an AI picture, else null. */
   artUrl: string | null;
   campaign: PublicCampaign;
+  visitorTags: readonly { code: VisitorTagCode; count: number }[];
 };
 
 type Fetcher = typeof fetch;
@@ -99,7 +101,15 @@ function parseMerchant(value: unknown): PublicMerchant {
     demo: value.demo,
     artUrl: parseMerchantArtPath(value.artUrl),
     campaign: parseCampaign(value.campaign),
+    visitorTags: parseVisitorTags(value.visitorTags),
   };
+}
+
+function parseVisitorTags(value: unknown): PublicMerchant['visitorTags'] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is { code: VisitorTagCode; count: number } =>
+    isRecord(item) && isVisitorTagCode(item.code) && Number.isSafeInteger(item.count) && (item.count as number) > 0)
+    .map(({ code, count }) => ({ code, count }));
 }
 
 function parseCampaign(value: unknown): PublicCampaign {

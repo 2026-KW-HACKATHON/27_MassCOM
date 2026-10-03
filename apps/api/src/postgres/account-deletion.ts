@@ -403,6 +403,9 @@ async function pseudonymizeAccount(
   await client.query('DELETE FROM account_profile WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM account_characters WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM mileage_spends WHERE account_id = $1', [accountId]);
+  // 방문 후 가게 특징·바라는 점·의견(Issue #334)도 가명으로 남기지 않고 지운다: 보존 기간이 없고 계정 수명만큼만 둔다.
+  // 저장은 같은 계정 잠금(assertActive, postgres/visitor-feedback.ts)을 잡으므로 이 거래와 직렬화되어 삭제 뒤에 행이 생기지 않는다.
+  await client.query('DELETE FROM merchant_visitor_feedback WHERE customer_account_id = $1', [accountId]);
   // AI 가게 그림 라운드는 가게의 자산이라 지우지 않고 요청자 열만 비운다(가게 그림·비용 기록에는 계정 ID가 없다).
   await client.query(
     'UPDATE merchant_art_rounds SET requested_by_account_id = NULL WHERE requested_by_account_id = $1',

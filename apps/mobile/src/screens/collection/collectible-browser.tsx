@@ -9,6 +9,7 @@ import { canOfferMint, chainLabel, nftGroupSummary, nftPreparingNote, nftStatusL
 import { collectibleArtNote } from '@/merchant-art/art-source';
 import { useArtFallback } from '@/merchant-art/use-art-fallback';
 import { merchantArt } from './merchant-art';
+import { legacyCollectibleDetail, type LegacyCollectibleDetail } from './legacy-collectible-detail';
 import { seriesSlotText, type StoreSeries } from './store-series';
 import type { ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
@@ -49,7 +50,7 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
   sharing: boolean;
   mint: MintGate;
   onToggleFavorite: (key: string) => void;
-  onOpenDetail: (entitlementId: string, merchantName: string) => void;
+  onOpenDetail: (entitlementId: string, merchantName: string, localDetail?: LegacyCollectibleDetail) => void;
   onShare: (group: CollectibleGroup) => void;
 }) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
@@ -111,7 +112,7 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
               <GroupCard key={entry.group.key} group={entry.group} favorites={favorites} sharing={sharing} mint={mint}
                 onToggleFavorite={onToggleFavorite} onOpenDetail={onOpenDetail} onShare={onShare} />
             ) : (
-              <LegacyCard key={entry.item.entitlementId} item={entry.item} mint={mint} artUrl={artUrlByMerchant.get(entry.item.merchantId)} />
+              <LegacyCard key={entry.item.entitlementId} item={entry.item} mint={mint} onOpenDetail={onOpenDetail} artUrl={artUrlByMerchant.get(entry.item.merchantId)} />
             ))}
           </View>
         </View>
@@ -178,7 +179,7 @@ function GroupCard({ group, favorites, sharing, mint, onToggleFavorite, onOpenDe
   sharing: boolean;
   mint: MintGate;
   onToggleFavorite: (key: string) => void;
-  onOpenDetail: (entitlementId: string, merchantName: string) => void;
+  onOpenDetail: (entitlementId: string, merchantName: string, localDetail?: LegacyCollectibleDetail) => void;
   onShare: (group: CollectibleGroup) => void;
 }) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
@@ -286,14 +287,18 @@ function NftStatusRow({ entitlements, mint }: { entitlements: readonly { entitle
 }
 
 /** A collectible earned without a published picture (#296): shown in the same grid, using the merchant's own art as a fallback. */
-function LegacyCard({ item, mint, artUrl }: { item: UngroupedCollectible; mint: MintGate; artUrl: string | null | undefined }) {
+function LegacyCard({ item, mint, artUrl, onOpenDetail }: {
+  item: UngroupedCollectible; mint: MintGate; artUrl: string | null | undefined;
+  onOpenDetail: (entitlementId: string, merchantName: string, localDetail?: LegacyCollectibleDetail) => void;
+}) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const world = worldForScheme(scheme);
   const art = merchantArt({ id: item.merchantId, artUrl }, mint.apiUrl);
   const { source, onError } = useArtFallback(art?.source);
   return (
     <FloatingCard style={[styles.groupCard, { backgroundColor: world.card }]}
-      accessibilityLabel={`${item.displayName}, ${item.merchantName}, ${item.targetVisitCount}회 목표`}>
+      accessibilityLabel={`${item.displayName}, ${item.merchantName}, ${item.targetVisitCount}회 목표 상세 보기`}
+      onPress={() => onOpenDetail(item.entitlementId, item.merchantName, legacyCollectibleDetail(item, source))}>
       {art && source ? (
         <View style={styles.groupImageFrame}>
           <Image source={source} onError={onError} resizeMode="contain" style={styles.groupImage} accessible={false} />

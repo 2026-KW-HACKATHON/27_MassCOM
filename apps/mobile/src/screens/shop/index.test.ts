@@ -150,3 +150,14 @@ test('PR #312 리뷰 6번: 구매 성공과 당겨서 새로고침 둘 다 사�
   assert.match(buySuccess, /setHistoryRefreshToken\(\(value\) => value \+ 1\);/);
   assert.match(screen, /<HistorySection api=\{api\} refreshToken=\{historyRefreshToken\} \/>/);
 });
+
+test('#333: 서버가 시연 보너스를 보낸 때만 잔액 아래에 "시연 체험 마일리지 포함" 작은 문구를 보인다 — 계산은 서버 balance 그대로', () => {
+  const rules = readFileSync(fileURLToPath(new URL('../../shop/shop-rules.ts', import.meta.url)), 'utf8');
+  assert.match(rules, /export function showcaseBonusLabel\(bonus: number \| undefined\): string \| null/);
+  assert.match(rules, /'시연 체험 마일리지 포함'/);
+  const card = screen.slice(screen.indexOf('<View style={styles.mileageRow}>'), screen.indexOf('<HistorySection'));
+  assert.match(screen, /const bonusLabel = showcaseBonusLabel\(snapshot\.mileage\.showcaseBonus\);/);
+  assert.match(card, /\{bonusLabel \? <Text style=\{styles\.rulesText\}>\{bonusLabel\}<\/Text> : null\}/);
+  // 화면은 잔액을 다시 계산하지 않는다: 표시도 구매 가능 판정도 snapshot.mileage.balance 하나만 쓴다.
+  assert.doesNotMatch(card, /showcaseBonus\s*[-+]|[-+]\s*snapshot\.mileage\.showcaseBonus/);
+});

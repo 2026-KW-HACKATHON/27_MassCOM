@@ -445,8 +445,18 @@ test('a mint already submitted, finalized or with a lost response refuses the ca
   for (const [index, item] of cases.entries()) {
     const account = `cust-${index}`;
     const { visitId, entitlementId, jobId } = await visitWithJob(db, account, item.job);
+    const feedback = { tags: ['KIND'], suggestions: ['HOURS_INFO'], note: '좋아요' };
+    await db.pool.query(
+      `INSERT INTO merchant_visitor_feedback (customer_account_id, merchant_id, tags, suggestions, note)
+       VALUES ($1, 'real-shop', $2::text[], $3::text[], $4)`,
+      [account, feedback.tags, feedback.suggestions, feedback.note],
+    );
     await assert.rejects(cancel(db, visitId), reversalCode('VISIT_REWARD_ALREADY_MINTED'), item.name);
     assert.equal((await visitState(db.pool, visitId)).status, 'VALID', item.name);
+    // 뒤의 발행 검사에서 실패하면 앞서 지운 의견도 같은 거래에서 복구된다.
+    assert.deepEqual(await rows(db.pool,
+      `SELECT tags, suggestions, note FROM merchant_visitor_feedback
+       WHERE customer_account_id = $1 AND merchant_id = 'real-shop'`, [account]), [feedback], item.name);
     const [entitlement] = await rows<{ status: string; revoked_by_visit_event_id: string | null }>(db.pool,
       'SELECT status, revoked_by_visit_event_id FROM reward_entitlements WHERE id = $1', [entitlementId]);
     assert.equal(entitlement!.status, item.job.entitlementStatus ?? 'MINT_REQUESTED', item.name);
