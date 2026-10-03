@@ -90,7 +90,12 @@ test('새 발급·화면 해제 뒤 이전 읽기 응답과 예약 확인은 버
   const controller = createIssuedVisitController({ listRecentVisits: async () => {
     if (++requests === 1) return new Promise((done) => { resolve = done; });
     return { visits: [] };
-  } }, 'shop', (next) => { state = next; });
+  // 실제 시계를 쓰면 픽스처 날짜(2026-10-03)가 지난 뒤 안내가 만료돼 요청 순서가 바뀌고 시험이 끝나지 않는다(#358). 시각을 고정한다.
+  } }, 'shop', (next) => { state = next; }, {
+    now: () => Date.parse('2026-10-03T03:02:00Z'),
+    schedule: () => 0,
+    unschedule: () => {},
+  });
   const old = controller.issued(claim);
   await controller.issued({ ...claim, claimSlotId: 'new-slot', expiresAt: '2099-01-01T00:00:00Z' });
   resolve({ visits: [visit()] });
