@@ -23,6 +23,19 @@ createServer(async (request,response) => {
       // 운영 production-web 프록시(apps/production-web/server.mjs)와 같은 모양: 시연이 아닌 점포의 이름·소개·주소·메뉴·영업시간만, id·campaign은 없다.
       if (path === '/merchants') return json(response,{merchants:[{name:merchant.name,story:'검수용 가상 자료',roadAddress:'',menuItems:[],businessHours:'',demo:false}]});
       if (path === `/api/web/merchant/merchants/${merchant.id}/collectible-campaigns`) return json(response,{campaigns:[structuredClone(campaign)]});
+      // 점주 웹 가게 현황(#330) 화면 검수용 합성 응답. 실제 집계·권한은 API 시험이 확인한다.
+      if (path === `/api/web/merchant/merchants/${merchant.id}/overview`) {
+        const steps = [['basic','가게 기본 정보','DONE',''],['menu','메뉴','DONE','메뉴 2개가 등록돼 있어요.'],['members','점주·직원','DONE','점주 1명 · 직원 2명'],
+          ['reward','방문 보상','NEEDS_SETUP','방문 보상 수집품이 아직 캠페인에 연결되지 않았어요. 점주 계정으로 "가게 수집품 만들기"에서 수집품을 만들어 게시해 주세요. 쿠폰 혜택은 운영팀이 플랫폼 단위로 설정해요.'],
+          ['campaign','캠페인','SCHEDULED','캠페인 시작일이 아직 되지 않아 고객 목록에는 표시되지 않습니다.'],['visible','고객 앱 공개','WAITING_APPROVAL','운영팀 공개 처리 대기 중이에요.']]
+          .map(([key,label,state,hint]) => ({key,label,state,hint}));
+        const counts = [0,0,0,2,1,1,2];
+        return json(response,{generatedAt:new Date().toISOString(),businessDate:'2026-10-07',weekStartsOn:'2026-10-05',
+          visits:{today:2,thisWeek:4,lastWeek:4,total:9,last7Days:['2026-10-01','2026-10-02','2026-10-03','2026-10-04','2026-10-05','2026-10-06','2026-10-07'].map((date,index)=>({date,count:counts[index]}))},
+          comparison:{lastWeekSameSpan:2,delta:2},couponsRedeemedThisWeek:2,repeatVisitors:3,
+          campaign:{title:campaign.title,status:'ACTIVE',isPublic:true,phase:'LIVE',startsAt:campaign.startsAt,endsAt:campaign.endsAt},
+          readiness:{steps,remaining:3,message:'고객 앱 공개까지 3단계 남았습니다.'}});
+      }
       if (path.endsWith('/recent-visits')) return json(response,{businessDate:'2026-09-30',visits:[]});
       if (path.endsWith('/recent-coupon-redemptions')) return json(response,{coupons:[]});
       const match = path.match(/\/collectible-projects(?:\/([^/]+))?(?:\/(publish|copy|unpublish|delete))?$/);

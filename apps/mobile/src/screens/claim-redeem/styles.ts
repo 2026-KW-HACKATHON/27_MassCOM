@@ -35,6 +35,7 @@ export function makeClaimRedeemStyles(palette: AppColors, world: WorldTheme, hai
   successEyebrow: { color: palette.onSuccessContainer, fontSize: 12, fontWeight: '900' },
   successTitle: { color: palette.onSuccessContainer, fontSize: 22, fontWeight: '900' },
   successBody: { color: palette.onSuccessContainer, fontSize: 14, lineHeight: 22 },
+  successHighlight: { color: palette.onSuccessContainer, fontSize: 15, lineHeight: 22, fontWeight: '900' },
   collectionButton: { minHeight: uiMetrics.minTouch, maxWidth: '100%', alignSelf: 'flex-start', justifyContent: 'center', marginTop: 4, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, backgroundColor: palette.primary },
   collectionButtonText: { color: palette.onPrimary, fontSize: 14, fontWeight: '900', textAlign: 'center' },
   successActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
