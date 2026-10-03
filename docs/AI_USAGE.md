@@ -1,5 +1,7 @@
 # AI 사용 기록
 
+2026-10-04 — Issue #360: Codex Sol 6.1 medium이 오케스트레이터 검증 사실과 이전 기록 커밋 `38a01a7c`의 변경 방식을 근거로 운영 test.9·시연 Preview 18 증거와 현재 다운로드 안내를 갱신했다. 서버 배포 없음; 지정된 문서 검사 결과와 실기 PASS/NOT_RUN 경계는 TEST_STATUS에 기록한다. 커밋 없음.
+
 2026-10-03 — Issue #358: Claude Code(Opus 5.5)가 Samsung 실기와 에뮬레이터 개발 빌드로 수집품 상세 결함(Modal 안 제스처 루트 누락, 재질 감쇠)을 찾아 직접 고쳤다(두 줄 수정과 회귀 단언). 리뷰는 Codex Sol 6.1 High.
 
 2026-10-03 — Issue #356: Codex Sol 6.1 medium이 오케스트레이터 검증 사실과 #352 변경 형태를 근거로 0fcdfe8 운영·시연 배포, 운영 test.8·시연 Preview 17 기록과 현재 다운로드 안내를 갱신했다. 지정된 문서 검사는 TEST_STATUS에 기록하며 Samsung 실기·로그인과 웹 체험 번들 재빌드는 NOT_RUN이다. 커밋 없음.

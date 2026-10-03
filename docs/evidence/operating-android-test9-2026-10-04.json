@@ -1,0 +1,60 @@
+{
+  "status": "PASS",
+  "releaseReadiness": "BLOCKED; Samsung 실기 설치·실행은 PASS이나 운영 로그인 흐름과 Google Play 제출은 검증되지 않았다.",
+  "verifiedAt": "2026-10-04",
+  "sourceCommit": "cb8030ac3d082c3aac9461e2f6db23bf73f4cc46",
+  "pullRequests": [
+    359
+  ],
+  "issues": [
+    358,
+    360
+  ],
+  "checks": {
+    "aab": "PASS; 서명과 release wallet surface를 확인했다.",
+    "recordAudioPermission": "PASS; RECORD_AUDIO 권한이 없다.",
+    "apkSignature": "PASS; apksigner 인증서가 upload 인증서와 일치한다."
+  },
+  "acceptedArtifact": {
+    "aab": "app-release-cb8030a.aab",
+    "aabSha256": "32144b5008a1ae2ae6106c1411903fed631d7648460c88d17708035ec65e52e7",
+    "apk": "MassCOM-operating-android-cb8030a.apk",
+    "apkSha256": "12a8823bc7454bb74372b66e4d0339957f95bee154eadecbd0bda96cccbd6eca",
+    "apkOrigin": "apksigner 인증서가 upload 인증서와 일치한다.",
+    "package": "kr.masscom.wolgye",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256": "5E5ED3C31971E5A88EA752B3A2AE50772FEA1C956B9D97A82DD5CA7130CFA395",
+    "signingCertificate": "test.3–test.8과 동일한 upload 인증서"
+  },
+  "githubRelease": {
+    "tag": "android-v0.1.0-test.9",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.9",
+    "kind": "GitHub prerelease",
+    "target": "cb8030a",
+    "assets": [
+      {
+        "name": "MassCOM-operating-android-cb8030a.apk",
+        "sha256": "12a8823bc7454bb74372b66e4d0339957f95bee154eadecbd0bda96cccbd6eca"
+      },
+      {
+        "name": "app-release-cb8030a.provenance.json",
+        "sha256": "f0fa4706179470f13e4eb2a9a9ff52fb71a6bebf771fe94c19d265dbc22591b7"
+      },
+      {
+        "name": "SHA256SUMS.txt"
+      }
+    ],
+    "anonymousDownload": "PASS; 익명 다운로드한 APK의 SHA-256이 12a8823bc7454bb74372b66e4d0339957f95bee154eadecbd0bda96cccbd6eca과 일치한다."
+  },
+  "physicalAndroid": {
+    "device": "Samsung SM-S928N",
+    "apkInstall": "PASS; test.8 위 설치 Success",
+    "launch": "PASS; 실행 뒤 logcat JS 오류·크래시 없음",
+    "usage": "읽기 전용 확인; 운영 공개 점포 0곳",
+    "login": "NOT_RUN"
+  },
+  "notRun": [
+    "운영 로그인 흐름",
+    "Google Play 업로드·심사·배포"
+  ]
+}
