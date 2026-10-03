@@ -1,11 +1,15 @@
 import { Link } from 'expo-router';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { AccountCredential } from '@/auth/account-credential';
+import { useAuthSession } from '@/auth/auth-provider';
 import { recommendMerchant } from '@/friends/recommend-share';
 import { useArtFallback } from '@/merchant-art/use-art-fallback';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
+import { createVisitorFeedbackApiClient, VisitorFeedbackApiError, type VisitorFeedbackSelection } from '@/merchant/visitor-feedback-api';
+import { visitorTagLabels } from '@/merchant/visitor-feedback-codes';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { BounceButton } from '@/ui/bounce-button';
@@ -18,6 +22,7 @@ import { StateScene } from '@/ui/state-scene';
 
 import { merchantArt } from '../collection/merchant-art';
 import { makeMerchantDetailStyles } from './styles';
+import { VisitorFeedbackForm } from './visitor-feedback-form';
 
 type MerchantDetailStyles = ReturnType<typeof makeMerchantDetailStyles>;
 
@@ -30,6 +35,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
     [palette, world],
   );
   const insets = useSafeAreaInsets();
+  const auth = useAuthSession();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const merchant = merchants.find((item) => item.id === merchantId);
   // The hero picture; one that fails to load (a stale catalog pointing at art that was reset) is dropped and the sky shows.
@@ -111,6 +117,31 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
           </Stagger>
 
           <Stagger index={4}>
+            <FloatingCard style={styles.feedbackCard}>
+              <Text accessibilityRole="header" style={styles.feedbackHeading}>방문자들이 고른 특징</Text>
+              {merchant.visitorTags.length > 0 ? (
+                <View style={styles.feedbackTags}>
+                  {merchant.visitorTags.map(({ code, count }) => (
+                    <View key={code} style={styles.feedbackTag}>
+                      <Text style={styles.feedbackTagText}>{visitorTagLabels[code]} · {count}명</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : <Text style={styles.feedbackEmpty}>아직 충분히 모이지 않았어요(같은 특징을 3명 이상 고르면 보여요)</Text>}
+              {auth.credential && auth.accountId ? (
+                <MyVisitorFeedback
+                  key={`${merchant.id}:${auth.accountId}`}
+                  merchantId={merchant.id}
+                  apiUrl={apiUrl}
+                  credential={auth.credential}
+                  onSessionInvalid={auth.invalidateSession}
+                  styles={styles}
+                />
+              ) : null}
+            </FloatingCard>
+          </Stagger>
+
+          <Stagger index={5}>
             <FloatingCard style={styles.rewardCard}>
               <Text style={styles.sectionEyebrow}>진행 중인 캠페인</Text>
               <Text selectable style={styles.campaignTitle}>{merchant.campaign.title}</Text>
@@ -133,7 +164,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
             </FloatingCard>
           </Stagger>
 
-          <Stagger index={5}>
+          <Stagger index={6}>
             <FloatingCard style={styles.boundaryCard}>
               <Text style={styles.boundaryTitle}>지갑은 나중에 선택해도 됩니다.</Text>
               <Text selectable style={styles.boundaryBody}>
@@ -148,7 +179,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
             </FloatingCard>
           </Stagger>
 
-          <Stagger index={6}>
+          <Stagger index={7}>
             <FloatingCard style={styles.nextStep}>
               <Text style={styles.nextStepLabel}>이용했다면</Text>
               <Text style={styles.nextStepText}>점주가 만든 1회 코드로 방문과 보상권을 안전하게 받습니다.</Text>
@@ -162,6 +193,60 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
         </View>
       </SkyScrollView>
     </SkyBackdrop>
+  );
+}
+
+function MyVisitorFeedback({ merchantId, apiUrl, credential, onSessionInvalid, styles }: {
+  merchantId: string;
+  apiUrl: string;
+  credential: AccountCredential;
+  onSessionInvalid: () => Promise<void>;
+  styles: MerchantDetailStyles;
+}) {
+  const client = useMemo(
+    () => createVisitorFeedbackApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
+  const [selection, setSelection] = useState<VisitorFeedbackSelection | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const requestVersion = useRef(0);
+  useEffect(() => () => { requestVersion.current += 1; }, [client, merchantId]);
+
+  async function open() {
+    if (loading) return;
+    const version = ++requestVersion.current;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const mine = await client.getMine(merchantId);
+      if (requestVersion.current === version) setSelection(mine);
+    } catch (cause) {
+      if (requestVersion.current === version) setMessage(cause instanceof VisitorFeedbackApiError && cause.code === 'NOT_ELIGIBLE'
+        ? '방문 인증한 가게에서만 고를 수 있어요.'
+        : '내 선택을 불러오지 못했어요. 다시 시도해 주세요.');
+    } finally {
+      if (requestVersion.current === version) setLoading(false);
+    }
+  }
+
+  return selection ? (
+    <VisitorFeedbackForm
+      merchantId={merchantId}
+      client={client}
+      initialSelection={selection}
+      editContext
+      onClose={() => setSelection(null)}
+      onSaved={() => { setSelection(null); setMessage('고마워요! 다른 손님이 가게를 고를 때 도움이 돼요.'); }}
+      onNotEligible={() => { setSelection(null); setMessage('방문 인증한 가게에서만 고를 수 있어요.'); }}
+    />
+  ) : (
+    <View>
+      <Pressable accessibilityRole="button" accessibilityLabel="내 선택 남기기 또는 바꾸기" accessibilityState={{ disabled: loading }} disabled={loading} onPress={() => { void open(); }} style={styles.feedbackAction}>
+        <Text style={styles.feedbackActionText}>{loading ? '내 선택 불러오는 중' : '내 선택 남기기/바꾸기'}</Text>
+      </Pressable>
+      {message ? <Text accessibilityRole="alert" style={styles.feedbackMessage}>{message}</Text> : null}
+    </View>
   );
 }
 
