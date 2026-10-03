@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { defaultVisitGoals, mileageBalanceLine, mileageDeltaLine, settleWithin, visitRewardGuide } from './visit-reward-guide';
 
-const goals = [1, 3, 5] as const;
+const goals = defaultVisitGoals;
 
 test('the next-grade line counts down to the first goal above the current count', () => {
   assert.equal(
@@ -35,14 +35,14 @@ test('with every goal reached the line says gold is collected', () => {
 
 test('goals are read in ascending order whatever order the store lists them in', () => {
   assert.equal(
-    visitRewardGuide({ progressCount: 1, goals: [5, 1, 3] }).nextGradeLine,
+    visitRewardGuide({ progressCount: 1, goals: [goals[2], goals[0], goals[1]] }).nextGradeLine,
     '실버 수집품까지 2번 남았어요 (같은 가게는 하루 1번)',
   );
 });
 
 test('a store with only some of the goals counts down to the goals it has', () => {
   assert.equal(
-    visitRewardGuide({ progressCount: 1, goals: [1, 5] }).nextGradeLine,
+    visitRewardGuide({ progressCount: 1, goals: [goals[0], goals[2]] }).nextGradeLine,
     '골드 수집품까지 4번 남았어요 (같은 가게는 하루 1번)',
   );
 });
@@ -51,12 +51,20 @@ test('a store without any goal gives no next-grade line instead of claiming gold
   assert.equal(visitRewardGuide({ progressCount: 1, goals: [] }).nextGradeLine, null);
 });
 
+test('the campaign display names and actual visit thresholds determine the guide', () => {
+  const campaignGoals = [{ targetVisitCount: 2, displayName: '새싹' }, { targetVisitCount: 4, displayName: '단골' }];
+  assert.equal(visitRewardGuide({ progressCount: 1, goals: campaignGoals }).nextGradeLine, '새싹 수집품까지 1번 남았어요 (같은 가게는 하루 1번)');
+  assert.equal(visitRewardGuide({ progressCount: 3, goals: campaignGoals }).nextGradeLine, '단골 수집품까지 1번 남았어요 (같은 가게는 하루 1번)');
+  assert.equal(visitRewardGuide({ progressCount: 4, goals: campaignGoals }).nextGradeLine, '단골까지 모았어요');
+});
+
 test('the guide no longer guesses mileage: it only carries the next-grade line', () => {
   assert.deepEqual(Object.keys(visitRewardGuide({ progressCount: 1, goals })), ['nextGradeLine']);
 });
 
-test('the default goals are the fixed 1, 3 and 5 counted visits', () => {
-  assert.deepEqual([...defaultVisitGoals], [1, 3, 5]);
+test('unknown goals alone use the legacy visit thresholds', () => {
+  assert.deepEqual(defaultVisitGoals.map((goal) => goal.targetVisitCount), [1, 3, 5]);
+  assert.equal(visitRewardGuide({ progressCount: 2 }).nextGradeLine, '실버 수집품까지 1번 남았어요 (같은 가게는 하루 1번)');
 });
 
 test('the balance line shows the mileage the account holds', () => {

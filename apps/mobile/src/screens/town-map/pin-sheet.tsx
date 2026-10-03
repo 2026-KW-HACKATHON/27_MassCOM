@@ -85,7 +85,7 @@ export function PinSheet({ pin, bottom, onClose, onMeasure }: Props) {
             <View style={styles.sheetAction}>
               <BounceButton
                 label="자세히 보기"
-                onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: pin.merchantId } })}
+                onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: pin.merchantId, from: 'map' } })}
               />
             </View>
             {targets ? (

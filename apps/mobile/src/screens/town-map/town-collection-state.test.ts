@@ -14,6 +14,14 @@ test('it starts by checking, with nothing shown and nothing stale', () => {
   assert.deepEqual(INITIAL_TOWN_COLLECTION, { collection: undefined, status: 'loading', stale: false });
 });
 
+test('계정이 바뀌면 이전 방문·수집품과 stale 상태를 즉시 버린다', () => {
+  const shown: TownCollectionState = { collection: second, status: 'ready', stale: true };
+  const reset = townCollectionReducer(shown, { type: 'accountChanged' });
+  assert.deepEqual(reset, INITIAL_TOWN_COLLECTION);
+  assert.equal(reset.collection, undefined);
+  assert.equal(townCollectionReducer(reset, { type: 'failed' }).collection, undefined);
+});
+
 test('a load that succeeds shows the stamps and clears any doubt', () => {
   assert.deepEqual(townCollectionReducer(INITIAL_TOWN_COLLECTION, { type: 'loaded', collection: first }), ready(first));
   const stale: TownCollectionState = { collection: first, status: 'ready', stale: true };

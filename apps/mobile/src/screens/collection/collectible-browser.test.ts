@@ -47,3 +47,19 @@ test('grouped, featured, and legacy thumbnails use the same card material overla
   assert.match(source, /gradeMaterialFor\(group\.artwork\.gradeId, group\.artwork\.gradeName\)/);
   assert.match(source, /gradeMaterialFor\(detail\.gradeId, detail\.gradeName\)/);
 });
+
+test('unowned series goals link to their merchant detail from the collection', () => {
+  const series = source.slice(source.indexOf('{series.length > 0 ? ('), source.indexOf('function GroupCard'));
+  assert.match(series, /slot\.owned \? \(/);
+  assert.match(series, /merchantId: store\.merchantId, from: 'collection'/);
+  assert.match(series, /accessibilityRole="link"/);
+  assert.match(series, /StyleSheet\.flatten\(\[styles\.seriesSlot/);
+});
+
+test('an acquired collectible can show its store using the entitlement merchant id', () => {
+  const detail = readFileSync(new URL('./collectible-detail.tsx', import.meta.url), 'utf8');
+  const collection = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
+  assert.match(collection, /collection\?\.collectibles\.find\(\(item\) => item\.entitlementId === collectibleDetail\.entitlementId\)\?\.merchantId/);
+  assert.match(detail, /accessibilityRole="link" accessibilityLabel=\{`\$\{merchantName\} 보기`\}/);
+  assert.match(detail, /params: \{ merchantId, from: 'collection' \}/);
+});

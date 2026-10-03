@@ -19,11 +19,12 @@ function between(start: string, end: string): string {
 }
 
 test('the success card shows the real earned delta, the held balance and the next-grade line', () => {
-  assert.match(screen, /import \{ defaultVisitGoals, mileageBalanceLine, mileageDeltaLine, settleWithin, visitRewardGuide \} from '@\/commerce\/visit-reward-guide';/);
+  assert.match(screen, /import \{ mileageBalanceLine, mileageDeltaLine, settleWithin, visitRewardGuide, type VisitGoal \} from '@\/commerce\/visit-reward-guide';/);
   const guide = between('const rewardGuide = redeemed', 'return (');
   assert.match(guide, /progressCount: redeemed\.visit\.progressVisitCount,/);
-  // 점포 목록을 다시 읽지 않고 고정 1·3·5회 목표로 안내한다.
-  assert.match(guide, /goals: defaultVisitGoals/);
+  // 실제 캠페인 목표를 읽고, 알 수 없을 때만 안내 함수의 기본값을 쓴다.
+  assert.match(screen, /merchant\.campaign\.rewardGoals/);
+  assert.match(guide, /campaignGoals\?\.claimSlotId === redeemed\.claimSlotId \? campaignGoals\.goals : undefined/);
   assert.doesNotMatch(guide, /progressCounted/);
   const card = between('{redeemed ? (', '</SkyScrollView>');
   assert.match(card, /\{currentRewardContext\?\.mileageLine \? <Text style=\{styles\.successHighlight\}>\{currentRewardContext\.mileageLine\}<\/Text> : null\}/);
@@ -42,17 +43,18 @@ test('no app copy guesses the earn rules: no bonus suffixes and no hardcoded 50/
   assert.doesNotMatch(guideSource, /progressCounted|newStoreMileage|seriesCompleteMileage|visitMileage/);
 });
 
-test('"상점에서 뽑기" sits next to the existing buttons and routes to the shop tab; none of them is removed', () => {
+test('완료 카드에는 주 행동 하나와 도감·상점·의견의 보조 링크가 있다', () => {
   const actions = between('<View style={styles.successActions}>', '</SkyScrollView>');
-  assert.match(actions, /받은 수집품 보기/);
-  assert.match(actions, /claimSuccessCopy\(redeemed\)\.destinations\.map/);
+  assert.match(actions, /followAfterVisitAction\(primaryAction\)/);
+  assert.match(actions, /\{primaryAction\.label\}/);
+  assert.match(actions, /styles\.secondaryLinks/);
   assert.match(actions, /router\.navigate\('\/shop'\)/);
-  assert.match(actions, />상점에서 뽑기</);
-  assert.match(actions, /accessibilityRole="button"[^>]*onPress=\{\(\) => router\.navigate\('\/shop'\)\}/);
-  assert.ok(actions.indexOf('destinations.map') < actions.indexOf('상점에서 뽑기'), 'next to (after) the existing destinations');
+  assert.match(actions, />상점 뽑기</);
+  assert.match(actions, />도감</);
+  assert.match(actions, /이 가게 어땠나요\?\(선택\)/);
 });
 
-test('the guide context loads best-effort: the shop summary after the claim never blocks or breaks it, and no store list is fetched', () => {
+test('the mileage context loads best-effort: the shop summary after the claim never blocks it', () => {
   const loader = between('async function loadRewardContext', 'return (');
   assert.match(loader, /shopApi\.getShop\(\)/);
   assert.doesNotMatch(loader, /listMerchants|createMerchantApiClient/);

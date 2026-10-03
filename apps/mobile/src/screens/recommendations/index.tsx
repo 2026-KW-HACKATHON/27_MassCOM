@@ -138,7 +138,7 @@ function RecommendationCard({ styles, palette, item, index }: { styles: Recommen
       style={styles.card}
       accessibilityLabel={recommendationLabel(item)}
       accessibilityHint={recommendationHint()}
-      onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } })}
+      onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId, from: 'recommendation' } })}
     >
       <View style={styles.cardTopline}>
         <Text style={styles.reasonCode}>{reasonLabel(item.reasonCode)}</Text>

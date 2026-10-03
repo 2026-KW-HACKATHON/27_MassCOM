@@ -11,6 +11,7 @@ export type TownCollectionState = {
 };
 
 export type TownCollectionEvent =
+  | { type: 'accountChanged' }
   | { type: 'loaded'; collection: CollectionSnapshot }
   | { type: 'failed' }
   /** A person's retry or pull-to-refresh starts. */
@@ -24,6 +25,8 @@ export const INITIAL_TOWN_COLLECTION: TownCollectionState = { collection: undefi
  */
 export function townCollectionReducer(state: TownCollectionState, event: TownCollectionEvent): TownCollectionState {
   switch (event.type) {
+    case 'accountChanged':
+      return INITIAL_TOWN_COLLECTION;
     case 'loaded':
       return { collection: event.collection, status: 'ready', stale: false };
     case 'failed':

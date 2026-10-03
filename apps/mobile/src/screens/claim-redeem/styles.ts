@@ -38,7 +38,11 @@ export function makeClaimRedeemStyles(palette: AppColors, world: WorldTheme, hai
   successHighlight: { color: palette.onSuccessContainer, fontSize: 15, lineHeight: 22, fontWeight: '900' },
   collectionButton: { minHeight: uiMetrics.minTouch, maxWidth: '100%', alignSelf: 'flex-start', justifyContent: 'center', marginTop: 4, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, backgroundColor: palette.primary },
   collectionButtonText: { color: palette.onPrimary, fontSize: 14, fontWeight: '900', textAlign: 'center' },
-  successActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  successActions: { gap: 6 },
+  secondaryLinks: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 2 },
+  textLink: { minHeight: uiMetrics.minTouch, justifyContent: 'center', paddingHorizontal: 4 },
+  textLinkText: { color: palette.primary, fontSize: 14, fontWeight: '700' },
+  linkSeparator: { color: palette.secondaryLabel, fontSize: 14 },
   // #295 "테스트 방문 만들기": 시연·로컬 개발 빌드에만 보이는 가상 점포 선택 알약.
   testVisitChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   testVisitChip: { minHeight: uiMetrics.minTouch, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: world.cardMuted, backgroundColor: palette.background },

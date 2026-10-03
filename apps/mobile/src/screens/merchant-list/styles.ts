@@ -27,6 +27,10 @@ export function makeMerchantListStyles(palette: AppColors, world: WorldTheme, ha
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: world.radius.chip, backgroundColor: palette.primaryContainer,
   },
   mapChipText: { flexShrink: 1, color: palette.onPrimaryContainer, fontSize: 14, fontWeight: '800', lineHeight: 20 },
+  nextGoalCard: { minHeight: uiMetrics.minTouch, justifyContent: 'center', gap: 6 },
+  nextGoalTitle: { color: world.cardInk, fontSize: 16, lineHeight: 24, fontWeight: '800' },
+  nextGoalReason: { color: world.cardMuted, fontSize: 14, lineHeight: 21 },
+  recommendationRetry: { minHeight: uiMetrics.minTouch, justifyContent: 'center', padding: 12, borderRadius: world.radius.chip, backgroundColor: world.card },
   discoveryTools: { gap: 12 },
   // 필터 칩 줄(#331): 가로로 밀린다. 머리글의 좌우 여백을 뚫고 화면 끝까지 흐르게 하고, 첫 칩은 다른 내용과 같은 선에서 시작한다.
   discoveryChipScroll: { marginHorizontal: -uiMetrics.pageInset, flexGrow: 0 },

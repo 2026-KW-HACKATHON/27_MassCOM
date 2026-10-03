@@ -31,14 +31,12 @@ export function useBadgeBook(api: BadgeApiClient | undefined) {
     }
   }, [api]);
 
-  // Signing out drops the book of the account that left (adjusting state while rendering, as React documents for a prop change).
+  // 로그아웃뿐 아니라 계정·API 변경에도 이전 책을 지워 다른 계정의 보상을 보여 주지 않는다.
   const [lastApi, setLastApi] = useState(api);
   if (api !== lastApi) {
     setLastApi(api);
-    if (!api) {
-      setBook(undefined);
-      setStatus('loading');
-    }
+    setBook(undefined);
+    setStatus('loading');
   }
 
   useEffect(() => {

@@ -20,6 +20,8 @@ type Props = {
   series: readonly StoreSeries[];
   /** Skips (or finishes) the reveal without opening the full detail. The reward is already stored either way. */
   onSkip: () => void;
+  /** 카드가 실제로 표시된 경우에만 방문 화면의 열기 안내를 완료 처리한다. */
+  onCardShown: (entitlementId: string) => void;
   /** Leaves the reveal for the full collectible detail screen, for the first successfully loaded card in the batch. */
   onOpenDetail: (entitlementId: string) => void;
 };
@@ -30,7 +32,7 @@ type Props = {
  * envelope/envelope-reveal.tsx가 맡는다(봉투 흔들기·찢기는 reveal-lifecycle.ts의 opening/revealed 패턴을 그대로 쓴다).
  * 언제든 건너뛸 수 있고, 건너뛰어도 보관은 이미 끝난 상태다(이 화면은 저장에 관여하지 않는다).
  */
-export function CollectibleReveal({ entitlementIds, merchantName, load, collectibles, series, onSkip, onOpenDetail }: Props) {
+export function CollectibleReveal({ entitlementIds, merchantName, load, collectibles, series, onSkip, onCardShown, onOpenDetail }: Props) {
   const [cards, setCards] = useState<readonly EnvelopeCardData[]>();
   const [failure, setFailure] = useState<CollectibleDetailFailure>();
   // 도감은 3초마다 조용히 다시 조회돼 `collectibles`가 새 배열로 바뀐다. 그걸 아래 배치 로드 effect의 의존성에 두면, 느린
@@ -65,7 +67,7 @@ export function CollectibleReveal({ entitlementIds, merchantName, load, collecti
   return (
     <FullScreenModal visible animationType="fade" onRequestClose={onSkip}>
       {cards ? (
-        <EnvelopeReveal cards={cards} merchantName={merchantName} series={batchSeries} milestone={milestone} onSkip={onSkip} onOpenDetail={onOpenDetail} />
+        <EnvelopeReveal cards={cards} merchantName={merchantName} series={batchSeries} milestone={milestone} onSkip={onSkip} onCardShown={onCardShown} onOpenDetail={onOpenDetail} />
       ) : failure ? (
         <View style={styles.loadingFrame}>
           <SkipButton onPress={onSkip} />

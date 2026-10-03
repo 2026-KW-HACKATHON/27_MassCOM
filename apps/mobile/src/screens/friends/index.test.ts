@@ -112,9 +112,11 @@ test('the friend passport is read only: medals, badges, stamp names, and a confi
   assert.match(passport, /visitedShopSummary\(friend\.stamps\.length\)/);
   assert.match(passport, /accessibilityLabel=\{`\$\{name\} 도장 받음`\}/);
   assert.match(passport, /caught\.code === 'FRIEND_NOT_FOUND'/);
-  // A stamp is not a link and has no date: nothing here reads a merchant id, a visit date or a count.
-  assert.doesNotMatch(passport, /Link |merchantId|businessDate|visitedAt/);
-  assert.doesNotMatch(passport, /onPress=\{\(\) => router\.push\(\{ pathname: '\/merchants/);
+  // 공개 목록에서 이름이 유일한 도장만 가게 상세로 이어진다. 친구의 방문 날짜·횟수는 여전히 받지 않는다.
+  assert.match(passport, /friendStampMerchantId\(name, merchants\)/);
+  assert.match(passport, /accessibilityRole="link" accessibilityLabel=\{`\$\{name\} 도장 받음, 가게 보기`\}/);
+  assert.match(passport, /params: \{ merchantId, from: 'friend' \}/);
+  assert.doesNotMatch(passport, /businessDate|visitedAt/);
   assert.match(passportRoute, /<BackHeader title="친구 여권" \/>/);
   assert.match(passportRoute, /<SkyBackdrop><AuthRequiredRoute header=\{header\} \/><\/SkyBackdrop>/);
 });

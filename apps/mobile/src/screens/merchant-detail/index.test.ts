@@ -6,11 +6,16 @@ import test from 'node:test';
 const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
 const form = readFileSync(new URL('./visitor-feedback-form.tsx', import.meta.url), 'utf8');
 
-test('detail shows public counts after the menu and loads only the signed-in visitor selection', () => {
+test('detail leads with collectible goals, then shows public counts after the menu and private selection only when signed in', () => {
+  const collectibles = screen.indexOf('이 가게에서 모을 수 있는 수집품');
+  const address = screen.indexOf('label="주소"');
   const menu = screen.indexOf('메뉴·가격');
   const tags = screen.indexOf('방문자들이 고른 특징');
-  const campaign = screen.indexOf('진행 중인 캠페인');
-  assert.ok(menu < tags && tags < campaign);
+  const claim = screen.indexOf('방문 코드 받기');
+  const wallet = screen.indexOf('지갑 연결은 나중에');
+  assert.ok(collectibles < address && address < menu && menu < tags && tags < claim && claim < wallet);
+  assert.match(screen, /<GradeMaterialLayer material=\{material\}/);
+  assert.match(screen, /directionsTargets\(merchant\)/);
   assert.match(screen, /merchant\.visitorTags\.map\(\(\{ code, count \}\)/);
   assert.match(screen, /visitorTagLabels\[code\].*\{count\}명/);
   assert.match(screen, /merchant\.demo \? '아직 고른 손님이 없어요' : '아직 충분히 모이지 않았어요\(같은 특징을 3명 이상 고르면 보여요\)'/);

@@ -18,12 +18,12 @@ test('선택 조회는 새 수령 뒤에만 하고 빈 선택에만 안내하며
   assert.doesNotMatch(screen.slice(screen.indexOf('void feedbackApi.getMine'), screen.indexOf('}, [redeemed, feedbackApi]')), /setRedeemed\(/);
 });
 
-test('기존 완료 버튼을 유지하고 선택 폼과 403 숨김·안내를 연결한다', () => {
-  for (const text of ['받은 수집품 보기', '상점에서 뽑기', '이 가게는 어땠나요? (선택)', '방문 인증한 가게에서만 고를 수 있어요.']) assert.ok(screen.includes(text));
-  assert.match(screen, /claimSuccessCopy\(redeemed\)\.destinations\.map/);
+test('의견은 보조 링크에서 선택할 수 있고 403 뒤에는 숨기고 안내한다', () => {
+  for (const text of ['이 가게 어땠나요?(선택)', '방문 인증한 가게에서만 고를 수 있어요.']) assert.ok(screen.includes(text));
+  assert.match(screen, /currentFeedbackOffer \? <>/);
   assert.match(screen, /<VisitorFeedbackForm[\s\S]*?merchantId=\{redeemed\.merchantId\}/);
   assert.match(screen, /onNotEligible=\{\(\) => \{ setFeedbackOpen\(false\); setFeedbackOffer\(undefined\);/);
   assert.match(screen, /onUnauthorized=\{\(\) => \{ setFeedbackOpen\(false\); setFeedbackOffer\(undefined\); \}\}/);
-  assert.match(screen, /accessibilityState=\{\{ expanded: false \}\}/);
+  assert.match(screen, /accessibilityLabel="이 가게 어땠나요\? 선택"/);
   assert.doesNotMatch(screen, /dangerouslySetInnerHTML|https?:\/\//);
 });

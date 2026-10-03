@@ -58,7 +58,7 @@ function StampSlot({ stamp, width, apiUrl }: { stamp: PassportStamp; width: numb
   }));
 
   return (
-    <Link href={{ pathname: '/merchants/[merchantId]', params: { merchantId: stamp.merchantId } }} asChild>
+    <Link href={{ pathname: '/merchants/[merchantId]', params: { merchantId: stamp.merchantId, from: 'collection' } }} asChild>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={stamp.label}

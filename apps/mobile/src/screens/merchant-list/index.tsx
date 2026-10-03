@@ -1,5 +1,5 @@
 import { Link, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -13,13 +13,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { AccountCredential } from '@/auth/account-credential';
 import { useAuthSession } from '@/auth/auth-provider';
-import { createBadgeApiClient, type OpenedReward } from '@/gamification/badge-api';
+import type { BadgeApiClient, BadgeBook, OpenedReward } from '@/gamification/badge-api';
 import { shouldRefreshBadgesQuietly } from '@/gamification/badge-refresh';
 import { HomeRewardCard } from '@/gamification/home-reward-card';
 import { RewardReveal } from '@/gamification/reward-reveal';
-import { useBadgeBook } from '@/gamification/use-badge-book';
 import { applyMerchantFilters, hasActiveFilters, type ProgressFilter } from '@/merchant/apply-merchant-filters';
 import type { PublicMerchant } from '@/merchant/merchant-api';
 import type { MerchantCategory } from '@/merchant/merchant-categories';
@@ -27,6 +25,7 @@ import { visitorTagLabels } from '@/merchant/visitor-feedback-codes';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
+import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
 import { useShopAvatarArt } from '@/shop/use-shop-avatar-art';
 import { medalColorsForScheme, tierColors } from '@/theme/medal-colors';
 import { colorsForScheme } from '@/theme/palette';
@@ -52,6 +51,7 @@ import {
 import { MerchantCrest } from './merchant-crest';
 import { merchantCardHint, merchantCardLabel } from './merchant-card-label';
 import { passportChipData, type PassportChipData } from './passport-chip';
+import { homeNextGoalTitle } from './next-goal-card';
 import { makeMerchantListStyles } from './styles';
 import { useDiscoveryProgress } from './use-discovery-progress';
 import { useMerchantListStyles } from './use-merchant-list-styles';
@@ -75,9 +75,8 @@ export function MerchantListScreen({ apiUrl }: Props) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<MerchantCategory | null>(null);
   const [progress, setProgress] = useState<ProgressFilter | null>(null);
-  const openMerchant = (merchantId: string) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId } });
-  // PR #301 리뷰: 홈 새로고침이 음식점 목록만 다시 받고 배지 책은 그대로였다(보상 상자가 거절된 뒤에도 묵은 상태로
-  // 남는다). 당겨서 새로고침마다 올려, 여권 칩·보상 카드가 각자의 badge book도 같이 다시 읽게 한다.
+  const openMerchant = (merchantId: string) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId, from: 'list' } });
+  // 목록과 공유 배지 책을 당겨 새로고침에서 함께 갱신한다.
   const [badgeRefreshToken, setBadgeRefreshToken] = useState(0);
   const refreshAll = useCallback(() => {
     void refresh();
@@ -92,6 +91,34 @@ export function MerchantListScreen({ apiUrl }: Props) {
   const discovery = useDiscoveryProgress({
     apiUrl, credential: auth.credential, onSessionInvalid: auth.invalidateSession, refreshToken: badgeRefreshToken,
   });
+  const recommendationApi = useMemo(
+    () => signedIn && auth.credential ? createRecommendationApiClient({ apiUrl, credential: auth.credential, onSessionInvalid: auth.invalidateSession }) : undefined,
+    [apiUrl, signedIn, auth.credential, auth.invalidateSession],
+  );
+  const [nextGoal, setNextGoal] = useState<{ api: typeof recommendationApi; item: Recommendation | undefined }>();
+  const [recommendationFailure, setRecommendationFailure] = useState<typeof recommendationApi>();
+  const [recommendationRetry, setRecommendationRetry] = useState(0);
+  const bestNextGoal = signedIn && nextGoal?.api === recommendationApi ? nextGoal?.item : undefined;
+  const recommendationStale = Boolean(recommendationApi && recommendationFailure === recommendationApi);
+  useFocusEffect(useCallback(() => {
+    // 포커스 중 당겨 새로고침·재시도도 같은 조회를 다시 시작한다.
+    void badgeRefreshToken;
+    void recommendationRetry;
+    if (!recommendationApi) return;
+    const controller = new AbortController();
+    void recommendationApi.listRecommendations(controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) {
+          setNextGoal({ api: recommendationApi, item: items[0] });
+          setRecommendationFailure(undefined);
+        }
+      })
+      .catch(() => {
+        // 기존 추천은 남겨 두되 최신 안내가 아님을 알리고 다시 확인할 수 있게 한다.
+        if (!controller.signal.aborted) setRecommendationFailure(recommendationApi);
+      });
+    return () => controller.abort();
+  }, [recommendationApi, badgeRefreshToken, recommendationRetry]));
   const categoryOptions = useMemo(() => categoryChipOptions(merchants), [merchants]);
   const progressOptions = useMemo(
     () => progressChipOptions({ signedIn, collectionReady: discovery.collection !== undefined, badgesReady: discovery.book !== undefined }),
@@ -149,7 +176,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
                 <View style={styles.heroCopy}>
                   <View style={styles.chipRow}>
                     {auth.credential && auth.accountId ? (
-                      <SignedInPassportChip apiUrl={apiUrl} credential={auth.credential} onSessionInvalid={auth.invalidateSession} refreshToken={badgeRefreshToken} />
+                      <PassportChip copy="내 탐험 여권 보기" data={passportChipData(discovery.book)} />
                     ) : (
                       <PassportChip copy="로그인하면 여권이 열려요" />
                     )}
@@ -162,10 +189,30 @@ export function MerchantListScreen({ apiUrl }: Props) {
             </AppHeader>
             {auth.credential && auth.accountId ? (
               <View style={styles.rewardCardWrap}>
-                <SignedInRewardCard apiUrl={apiUrl} credential={auth.credential} onSessionInvalid={auth.invalidateSession} refreshToken={badgeRefreshToken} />
+                <SignedInRewardCard book={discovery.book} badgeApi={discovery.badgeApi} refreshQuietly={discovery.refreshQuietly} applyOpened={discovery.applyOpened} key={auth.accountId} />
               </View>
             ) : null}
             <View style={styles.header}>
+              {bestNextGoal ? (
+                <FloatingCard>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${homeNextGoalTitle(bestNextGoal)}, ${bestNextGoal.reasonText}`}
+                    accessibilityHint="추천 가게 상세 보기"
+                    onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: bestNextGoal.merchantId, from: 'recommendation' } })}
+                    style={styles.nextGoalCard}
+                  >
+                    <Text style={styles.nextGoalTitle}>{homeNextGoalTitle(bestNextGoal)}</Text>
+                    <Text style={styles.nextGoalReason}>{bestNextGoal.reasonText}</Text>
+                  </Pressable>
+                </FloatingCard>
+              ) : null}
+              {recommendationStale ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="최신 추천 다시 확인"
+                  onPress={() => setRecommendationRetry((value) => value + 1)} style={styles.recommendationRetry}>
+                  <Text style={styles.nextGoalReason}>최신 추천을 확인하지 못했어요 · 다시 확인</Text>
+                </Pressable>
+              ) : null}
               {merchants.length > 0 ? (
                 <View style={styles.discoveryTools}>
                   <View style={styles.searchField}>
@@ -296,69 +343,22 @@ function MapChip() {
   );
 }
 
-/** Reads the badge book only when signed in (the hook needs a credential); until it loads or if it fails the plain copy shows. */
-function SignedInPassportChip({ apiUrl, credential, onSessionInvalid, refreshToken }: {
-  apiUrl: string;
-  credential: AccountCredential;
-  onSessionInvalid: () => Promise<void>;
-  /** Bumped by the home screen's pull-to-refresh (#301 review): it used to reload only the store list. */
-  refreshToken: number;
-}) {
-  const badgeApi = useMemo(
-    () => createBadgeApiClient({ apiUrl, credential, onSessionInvalid }),
-    [apiUrl, credential, onSessionInvalid],
-  );
-  const { book, refreshQuietly } = useBadgeBook(badgeApi);
-  // The tab stays mounted, so coming back after a visit claim quietly picks up new badges.
-  const firstFocus = useRef(true);
-  useFocusEffect(useCallback(() => {
-    if (firstFocus.current) { firstFocus.current = false; return; }
-    void refreshQuietly();
-  }, [refreshQuietly]));
-  const firstRefreshToken = useRef(true);
-  useEffect(() => {
-    if (firstRefreshToken.current) { firstRefreshToken.current = false; return; }
-    void refreshQuietly();
-  }, [refreshToken, refreshQuietly]);
-  return <PassportChip copy="내 탐험 여권 보기" data={passportChipData(book)} />;
-}
-
-/**
- * 탐색(홈)의 보상 상자 요약 카드(#296, Option A): 여권 칩과 같은 배지 책을 쓰지만 자기만의 조회를 한 번 더 한다.
- * ponytail: 칩과 카드가 각자 `/me/badges`를 읽는 건 중복이지만(둘 다 짧은 읽기 전용 호출), 서로 다른 화면 위치에 있어
- * 하나의 훅으로 묶으면 더 복잡해진다 — 홈 화면에서 칩과 카드를 늘 함께 바꿀 일이 생기면 그때 하나로 올린다.
- */
-function SignedInRewardCard({ apiUrl, credential, onSessionInvalid, refreshToken }: {
-  apiUrl: string;
-  credential: AccountCredential;
-  onSessionInvalid: () => Promise<void>;
-  /** Bumped by the home screen's pull-to-refresh (#301 review): it used to reload only the store list. */
-  refreshToken: number;
+/** 배지 책은 진행 필터·여권 칩과 공유하고, 상자를 열면 같은 책에 즉시 반영한다. */
+function SignedInRewardCard({ book, badgeApi, refreshQuietly, applyOpened }: {
+  book: BadgeBook | undefined;
+  badgeApi: BadgeApiClient | undefined;
+  refreshQuietly: () => Promise<void>;
+  applyOpened: (result: OpenedReward) => void;
 }) {
   const router = useRouter();
-  const badgeApi = useMemo(
-    () => createBadgeApiClient({ apiUrl, credential, onSessionInvalid }),
-    [apiUrl, credential, onSessionInvalid],
-  );
-  const { book, applyOpened, refreshQuietly } = useBadgeBook(badgeApi);
   const [revealed, setRevealed] = useState<OpenedReward>();
-  const firstFocus = useRef(true);
-  useFocusEffect(useCallback(() => {
-    if (firstFocus.current) { firstFocus.current = false; return; }
-    void refreshQuietly();
-  }, [refreshQuietly]));
-  const firstRefreshToken = useRef(true);
-  useEffect(() => {
-    if (firstRefreshToken.current) { firstRefreshToken.current = false; return; }
-    void refreshQuietly();
-  }, [refreshToken, refreshQuietly]);
   // PR #301 리뷰: 보상이 거절됐는데(예: 마지막 쿠폰 소진) 책을 다시 읽지 않으면 그 상자가 계속 READY로 보여
   // homeFeaturedReward가 같은(이제 못 여는) 상자만 돌려주고 그 뒤 진짜 READY 상자를 가린다.
   const onOpenFailed = useCallback((code: string | undefined) => {
     if (shouldRefreshBadgesQuietly(code)) void refreshQuietly();
   }, [refreshQuietly]);
   const onRevealed = useCallback((result: OpenedReward) => { applyOpened(result); setRevealed(result); }, [applyOpened]);
-  if (!book) return null;
+  if (!book || !badgeApi) return null;
   return (
     <>
       <HomeRewardCard book={book} onOpen={badgeApi.openReward} onRevealed={onRevealed} onOpenFailed={onOpenFailed} />
