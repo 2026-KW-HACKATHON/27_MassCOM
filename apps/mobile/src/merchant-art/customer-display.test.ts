@@ -49,6 +49,8 @@ test('customer screens use the art bridge except for validated acquired inline m
     'screens/collection/envelope/envelope-card.tsx',
     'screens/collection/collectible-browser.tsx',
     'screens/collection/collectible-share.tsx',
+    // #332: the 인스타 카드 draws the same validated data-URL thumbnails (never a remote URL), just six at a time.
+    'screens/collection/collection-share.tsx',
   ]);
   const offenders = [...sources(join(src, 'screens')), ...sources(join(src, 'ui'))]
     .map((path) => ({ path, name: relative(src, path).replaceAll('\\', '/') }))
