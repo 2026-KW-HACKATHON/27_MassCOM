@@ -8,7 +8,7 @@ import * as productionWeb from '../../apps/production-web/assets/production.mjs'
 import { bindAdmin, campaignDraftPayload, couponVoidMessage, formatKst, loadAdmin, parseMenuLines } from '../../apps/production-web/assets/admin.mjs';
 import {
   barWidthPercent, bindMerchant, campaignPhaseLabel, couponUndoMessage, dayLabel, loadMerchant, overviewComparisonText,
-  readinessStateLabel, visitCancelMessage,
+  readinessStateLabel, readinessRequestText, operatorContact, visitCancelMessage,
 } from '../../apps/production-web/assets/merchant.mjs';
 import { createProductionServer, resolveProductionBindHost } from '../../apps/production-web/server.mjs';
 
@@ -1013,7 +1013,7 @@ test('점포 개요 앵커와 건너뛰기는 이력 변경 없이 대상을 스
   doc.defaultView.location = { get hash() { return ''; }, set hash(value) { hashWrites++; } };
   await bindMerchant(async () => ({ ok: true, json: async () => ({ merchants: [] }) }), doc);
   assert.equal(documentRegistrations.filter(type => type === 'click').length, 1);
-  for (const id of ['merchant-visit-title', 'merchant-redemption-title', 'main']) {
+  for (const id of ['merchant-visit-title', 'merchant-redemption-title', 'merchant-registration-title', 'main']) {
     const target = element(); target.tabIndex = -1;
     if (id !== 'main') target.setAttribute('tabindex', '-1');
     target.hasAttribute = name => target.getAttribute(name) !== null;
@@ -2660,7 +2660,7 @@ test('가게 현황은 구역이 열리면 첫 점포의 현황을 한 번 읽�
   assert.equal(fixture.overviewCalls()[0].options.credentials, 'same-origin');
   assert.equal(fixture.overviewCalls()[0].options.cache, 'no-store');
   assert.deepEqual(fixture.cards().map((card) => first(card, 'overview-card-label').textContent),
-    ['오늘 방문', '이번 주 방문', '최근 7일', '누적 방문', '이번 주 쿠폰 사용', '재방문 고객(2일 이상)', '캠페인 상태', '고객 앱 공개']);
+    ['오늘 방문', '이번 주 방문', '최근 7일', '누적 방문', '이번 주 쿠폰 사용', '재방문 고객(2일 이상)', '캠페인 상태', '고객 앱 공개', '이번 주 첫 방문 / 재방문', '이번 주 받은 수집품(등급별)', '쿠폰 발급·사용(이번 주)', '가게 상세 조회(이번 주)']);
   const value = (label) => first(fixture.cardOf(label), 'overview-card-value').textContent;
   assert.equal(value('오늘 방문'), '2건');
   assert.equal(value('이번 주 방문'), '4건');
@@ -2825,11 +2825,11 @@ test('가게 현황 새로 고침은 같은 점포를 다시 읽고 실패하면
   } });
   await fixture.nodes['merchant-overview-refresh'].click();
   assert.equal(fixture.overviewCalls().length, 2);
-  assert.equal(fixture.cards().length, 8);
+  assert.equal(fixture.cards().length, 12);
   for (const [next, pattern] of [['forbidden', /권한이 없어요/], ['down', /불러오지 못했어요/], ['invalid', /불러오지 못했어요/]]) {
     mode = 'ok';
     await fixture.nodes['merchant-overview-refresh'].click();
-    assert.equal(fixture.cards().length, 8);
+    assert.equal(fixture.cards().length, 12);
     mode = next;
     await fixture.nodes['merchant-overview-refresh'].click();
     assert.equal(fixture.cards().length, 0, next);
@@ -2839,7 +2839,7 @@ test('가게 현황 새로 고침은 같은 점포를 다시 읽고 실패하면
   }
   mode = 'ok';
   await fixture.nodes['merchant-overview-refresh'].click();
-  assert.equal(fixture.cards().length, 8);
+  assert.equal(fixture.cards().length, 12);
   assert.equal(fixture.nodes['merchant-overview-refresh'].disabled, false);
 });
 
@@ -2849,7 +2849,7 @@ test('가게 현황은 소속 점포가 없으면 닫힌 채 읽지 않고, 쪽�
   assert.deepEqual(none.overviewCalls(), []);
 
   const fixture = await overviewMerchant();
-  assert.equal(fixture.cards().length, 8);
+  assert.equal(fixture.cards().length, 12);
   fixture.listeners.get('pagehide')();
   assert.equal(fixture.cards().length, 0);
   assert.equal(fixture.steps().length, 0);
@@ -2863,7 +2863,7 @@ test('가게 현황은 소속 점포가 없으면 닫힌 채 읽지 않고, 쪽�
 
 test('가게 현황은 방문 목록 영역이 없는 화면에서도 혼자 동작한다', async () => {
   const fixture = await overviewMerchant({ withReversal: false });
-  assert.equal(fixture.cards().length, 8);
+  assert.equal(fixture.cards().length, 12);
   fixture.nodes['merchant-overview-merchant'].value = 'real-merchant';
   await fixture.nodes['merchant-overview-merchant'].dispatch('change');
   assert.equal(fixture.overviewCalls().length, 2);

@@ -1,4 +1,4 @@
-import { createProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel } from './collectible-model.mjs';
+import { createProject, createMerchantStarterProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
 import { attachWaveform } from './collectible-waveform.mjs';
@@ -88,7 +88,7 @@ export function validatePublish(project, campaigns) {
 }
 
 /** Editing is local until the merchant explicitly saves or publishes a version. */
-export function mountCollectibleEditor(container, { merchantId, merchantName = '', campaigns: initialCampaigns = [], loadCampaigns, request, onNotice = () => {}, onAccessDenied, confirm = message => globalThis.confirm?.(message) === true, accountScope = '', autosaveDelayMs = 1500 }) {
+export function mountCollectibleEditor(container, { merchantId, merchantName = '', merchantArtUrl = '', preferredCampaignId = '', campaigns: initialCampaigns = [], loadCampaigns, request, onNotice = () => {}, onAccessDenied, confirm = message => globalThis.confirm?.(message) === true, accountScope = '', autosaveDelayMs = 1500 }) {
   if (!container || typeof request !== 'function') return () => {};
   let campaigns = initialCampaigns;
   let campaignSequence = 0;
@@ -105,7 +105,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   const controller = new AbortController();
   const signal = controller.signal;
-  let project = createProject({ name: `${merchantName || '우리 가게'} 수집품` });
+  const artUrl = /^\/merchant-art\/[0-9a-f]{64}\.webp$/.test(merchantArtUrl) ? merchantArtUrl : '';
+  let campaignSelectionTouched = false;
+  let project = createMerchantStarterProject({ merchantName, campaigns, preferredCampaignId });
   let wrapper = null, selectedGrade = project.grades[0].id, selectedSticker = '', selectedTemplate = 'rotate', stickerSide = 'front';
   // 자르기 캔버스의 붓이 지금 어디에 칠하는지: 'photo'(사진 보정, 기존), 'parallax'(패럴랙스 전경/배경),
   // 'living:<id>'(그 living 항목의 영역). 설계 문서 "패럴랙스" 항목: 사진 브러시 포인터 코드를 그대로 재사용한다.
@@ -253,7 +255,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const view = name => container.querySelector(`[data-view="${name}"]`);
   const output = name => container.querySelector(`[data-value="${name}"]`);
   const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
-  studio = createCollectibleStudio(container, { effectNames, listen });
+  studio = createCollectibleStudio(container, { effectNames, listen, merchantArtUrl: artUrl });
   const waveform = attachWaveform(view('audio'), view('waveform'), { signal });
   const previewCanvas = view('preview'), cropCanvas = view('crop'), storyCanvas = view('story');
   for (const [name, label] of [['zoom', '사진 확대'], ['angle', '회전 각도'], ['thickness', '두께']]) control(name).setAttribute('aria-label', label);
@@ -375,7 +377,11 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     try {
       const loaded = await loadCampaigns();
       if (!active || sequence !== campaignSequence) return true;
-      campaigns = loaded; renderCampaignOptions(); renderRewardGrades(); renderProjectList();
+      campaigns = loaded;
+      if (!wrapper && !campaignSelectionTouched && !project.campaignId) {
+        project.campaignId = createMerchantStarterProject({ merchantName, campaigns, preferredCampaignId }).campaignId;
+      }
+      renderCampaignOptions(); renderRewardGrades(); renderProjectList();
       return true;
     } catch (error) {
       if (active && error?.status === 403 && onAccessDenied) onAccessDenied(error);
@@ -875,6 +881,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (Math.max(dimensions.width, dimensions.height) > 4096) throw new Error('사진은 한 변 4,096픽셀 이하로 선택해 주세요.');
     return { dataUrl, ...dimensions };
   }
+  async function usePhoto(image, message) {
+    mutate(() => { project.photo = { originalDataUrl: image.dataUrl, width: image.width, height: image.height }; project.crop = { x: 0, y: 0, zoom: 1 }; project.photoEdits.strokes = []; });
+    clearCollectibleRenderCache(); syncValues(); await drawCrop(); schedulePreview(); notice(message);
+  }
   function stopHiddenMedia() {
     navigationSequence++;
     playing = false; storyPlaying = false; pointer = null;
@@ -897,7 +907,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     return accepted;
   }
   function resetToNewDraft() {
-    stopHiddenMedia(); project = createProject({ name: `${merchantName || '우리 가게'} 수집품` }); project.theme.name = studio.newTheme;
+    stopHiddenMedia(); project = createMerchantStarterProject({ merchantName, campaigns, preferredCampaignId }); project.theme.name = studio.newTheme;
+    campaignSelectionTouched = false;
     wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; clearCollectibleRenderCache(); syncValues();
   }
   // 게시 중지: 새 손님에게 나가는 것만 멈춘다. 게시 버전과 이미 받은 손님의 수집품은 그대로다.
@@ -957,6 +968,20 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       remember(); input.value = String(next); input.dispatchEvent(new Event('input', { bubbles: true })); return;
     }
     if (action === 'photo-choose') { control('photo').click(); return; }
+    if (action === 'art-photo' && artUrl) {
+      const sequence = ++uploadSequence, sourceProject = project, pending = { project };
+      pendingFiles.add(pending); updateMediaLocks();
+      try {
+        const response = await fetch(artUrl, { credentials: 'same-origin' });
+        if (!response.ok) throw new Error('가게 그림을 가져오지 못했어요. 사진을 직접 올려 계속해 주세요.');
+        const image = await importImage(await response.blob(), 3 * 1024 * 1024);
+        if (!active || sequence !== uploadSequence || project !== sourceProject) return;
+        await usePhoto(image, '가게 그림을 사진으로 가져왔어요. 드래그와 확대 조절로 위치를 맞춰 주세요.');
+      } catch (error) {
+        if (active && sequence === uploadSequence && project === sourceProject) notice(error.message || '가게 그림을 가져오지 못했어요. 사진을 직접 올려 계속해 주세요.', true);
+      } finally { pendingFiles.delete(pending); updateMediaLocks(); }
+      return;
+    }
     if (action === 'draft' || action === 'publish') { await save(action === 'publish'); return; }
     if (action === 'refresh') { await Promise.all([refreshList(), refreshCampaigns()]); return; }
     if (action === 'new') { if (!confirmDiscardIfDirty()) return; resetToNewDraft(); studio.showStep(1); await drawCrop(); schedulePreview(); notice('새 초안을 시작했어요.'); return; }
@@ -1167,7 +1192,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (field === 'photo') {
         if (!target.files[0]) return; const sequence = ++uploadSequence, sourceProject = project;
         const image = await importImage(target.files[0], 3 * 1024 * 1024); if (!active || sequence !== uploadSequence || project !== sourceProject) return;
-        mutate(() => { project.photo = { originalDataUrl: image.dataUrl, width: image.width, height: image.height }; project.crop = { x: 0, y: 0, zoom: 1 }; project.photoEdits.strokes = []; }); clearCollectibleRenderCache(); syncValues(); await drawCrop(); schedulePreview(); notice('사진을 올렸어요. 드래그와 확대 조절로 위치를 맞춰 주세요.'); return;
+        await usePhoto(image, '사진을 올렸어요. 드래그와 확대 조절로 위치를 맞춰 주세요.'); return;
       }
       if (field === 'audio') {
         const file = target.files[0]; if (!file) return;
@@ -1249,6 +1274,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         renderLivingItems(); return;
       }
       if (field === 'campaign') {
+        campaignSelectionTouched = true;
         const dropped = [];
         mutate(() => {
           project.campaignId = target.value; const goals = goalsFor(target.value);

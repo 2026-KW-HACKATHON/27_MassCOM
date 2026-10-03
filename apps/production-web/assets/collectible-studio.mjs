@@ -59,7 +59,7 @@ function seasonTiles(name) {
 }
 
 /** Reuses the editor's controls and canvases; navigation never copies project state. */
-export function createCollectibleStudio(container, { effectNames, listen }) {
+export function createCollectibleStudio(container, { effectNames, listen, merchantArtUrl = '' }) {
   const controlsByName = new Map([...container.querySelectorAll('[data-control]')].map(value => [value.dataset.control, value]));
   const viewsByName = new Map([...container.querySelectorAll('[data-view]')].map(value => [value.dataset.view, value]));
   const control = name => controlsByName.get(name) || container.querySelector(`[data-control="${name}"]`);
@@ -128,7 +128,9 @@ export function createCollectibleStudio(container, { effectNames, listen }) {
   photoStage.append(node('p', 'ce-photo-instruction', '사진을 움직여 원하는 모양에 맞춰 주세요.'), cropSlots[0], zoomRow, disclosure('더 보기 · 위치 미세 조정', cropMoves, cropActions));
   shape.hidden = true;
   const shapes = section('모양', '사진의 위치와 확대는 모양을 바꿔도 유지돼요.'); shapes.append(shape, choices('shape', [['circle', '원형'], ['stamp', '우표'], ['serrated', '톱니']], '모양', 'shape'));
-  panels[0].append(photo, photoHelp, shapes, photoStage);
+  panels[0].append(photo);
+  if (merchantArtUrl) panels[0].append(action('가게 그림으로 시작', 'art-photo', undefined, 'ce-text-button'));
+  panels[0].append(photoHelp, shapes, photoStage);
   const style = field('style'); style.hidden = true;
   const styles = section('표현 스타일', '원본 색, 음각, 양각을 직접 비교해 보세요.');
   styles.append(style, choices('style', [['original', '원본'], ['incised', '음각'], ['raised', '양각']], '표현 스타일', 'style'), field('relief'));
