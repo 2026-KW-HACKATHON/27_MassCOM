@@ -12,6 +12,7 @@ const creators = new WeakMap();
 const creatorScopes = new WeakMap();
 // 지금 제작기가 열려 있는 점포 ID.
 const creatorStores = new WeakMap();
+const merchantMemberships = new WeakMap();
 
 // reason은 제작기의 dispose(reason)에 그대로 전달된다: 'discard'(사용자가 지금 초안을 명시적으로 버림),
 // 생략(평범한 이동 — 미디어 없는 편집 값만 기기에 남겨 둔다). 로그아웃·계정 전환으로 그 계정의 모든 점포 보관본을
@@ -96,6 +97,7 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
       let cleanupRef;
       const cleanup = await module.mountCollectibleEditor(doc.getElementById('merchant-creator-editor'), {
         merchantId: merchant.id, merchantName: merchant.name, accountScope: mine.accountScope,
+        merchantArtUrl: merchant.artUrl,
         loadCampaigns: () => loadCreatorCampaigns(fetcher, merchant.id),
         request: (path, options = {}) => request(fetcher, path, options.method ?? 'GET', options.body),
         onNotice: message => { doc.getElementById('merchant-status').textContent = message; },
@@ -196,6 +198,22 @@ const readinessStateLabels = {
 };
 export const readinessStateLabel = state => readinessStateLabels[state] ?? '확인 필요';
 
+// 개인정보 처리방침에 공개된 운영팀 문의처를 그대로 안내한다.
+export const operatorContact = 'choijunhuk2007@gmail.com';
+export function readinessRequestText(merchant, step, steps = []) {
+  let missing = step.hint || `${step.label} 확인`;
+  if (step.key === 'basic') {
+    const fields = step.hint.match(/비어 있는 항목:\s*([^。]+?)\.\s*운영팀/);
+    if (fields) missing = `${fields[1]} 입력`;
+  } else if (step.key === 'menu') missing = '메뉴 1개 이상 등록';
+  else if (step.key === 'visible') {
+    const prerequisites = steps.filter(item => item.state !== 'DONE' && item.key !== 'visible')
+      .map(item => `${item.label}: ${item.hint || '확인 필요'}`);
+    missing = [step.hint || '고객 앱 공개 확인', ...prerequisites].join('\n');
+  }
+  return `가게 운영 요청\n가게: ${merchant.name}\n가게 ID: ${merchant.id}\n요청 항목: ${step.label}\n필요한 내용: ${missing}`;
+}
+
 const campaignPhaseLabels = {
   LIVE: '진행 중', SCHEDULED: '시작 전', NOT_PUBLIC: '고객에게 비공개', EXPIRED: '기간 종료', DRAFT: '초안', PAUSED: '일시정지', ENDED: '종료',
 };
@@ -247,6 +265,11 @@ const isOverview = value => value !== null && typeof value === 'object' && isDat
   && value.visits.last7Days.every(day => day !== null && typeof day === 'object' && isDateOnly(day.date) && isCount(day.count))
   && (value.comparison === null || (typeof value.comparison === 'object' && Number.isInteger(value.comparison.delta)))
   && isCount(value.couponsRedeemedThisWeek) && isCount(value.repeatVisitors)
+  && (value.weekVisitors === undefined || (value.weekVisitors !== null && isCount(value.weekVisitors.first) && isCount(value.weekVisitors.repeat)))
+  && (value.weekCollectibles === undefined || (Array.isArray(value.weekCollectibles) && value.weekCollectibles.every(grade =>
+    grade !== null && typeof grade.gradeId === 'string' && typeof grade.gradeName === 'string' && isCount(grade.count))))
+  && (value.weekCoupons === undefined || (value.weekCoupons !== null && isCount(value.weekCoupons.issued) && isCount(value.weekCoupons.redeemed)))
+  && (value.weekDetailViews === undefined || isCount(value.weekDetailViews))
   && (value.campaign === null || isOverviewCampaign(value.campaign))
   && value.readiness !== null && typeof value.readiness === 'object' && typeof value.readiness.message === 'string'
   && Array.isArray(value.readiness.steps) && value.readiness.steps.length > 0 && value.readiness.steps.every(isOverviewStep);
@@ -273,6 +296,7 @@ async function request(fetcher, path, method = 'GET', body) {
 export async function loadMerchant(fetcher, doc) {
   const requestId = (merchantRequests.get(doc) ?? 0) + 1;
   merchantRequests.set(doc, requestId);
+  merchantMemberships.delete(doc);
   merchantClaimResolutions.delete(doc);
   merchantClaimSlots.delete(doc);
   const status = doc.getElementById('merchant-status');
@@ -340,6 +364,7 @@ export async function loadMerchant(fetcher, doc) {
     ]);
     if (merchantRequests.get(doc) !== requestId) return;
     if (!Array.isArray(mine.merchants) || !Array.isArray(eligible.merchants)) throw new Error('invalid merchant data');
+    merchantMemberships.set(doc, mine.merchants);
     configureCreator(fetcher, doc, mine);
     for (const merchant of mine.merchants) {
       const item = doc.createElement('p');
@@ -1024,6 +1049,24 @@ export function bindMerchant(fetcher, doc) {
       valueCard('고객 앱 공개', visibleStep?.state === 'DONE' ? '고객 앱에 보여요'
         : visibleStep?.state === 'WAITING_APPROVAL' ? '운영팀 승인 대기' : '아직 안 보여요', { notes: [readiness.message] }),
     );
+    // API 추가 배포 전에는 0으로 꾸미지 않고 새 항목만 아직 집계되지 않았다고 알린다.
+    overviewCards.append(
+      valueCard('이번 주 첫 방문 / 재방문', overview.weekVisitors
+        ? `${overview.weekVisitors.first}건 / ${overview.weekVisitors.repeat}건` : '집계 준비 중', {
+        notes: ['방문 인증 기준이며 매출과 다를 수 있어요', '한국 시간 이번 주 기준이에요. 이전 날짜에 이 가게 방문 인증이 있으면 재방문, 없으면 첫 방문으로 세요. 사람 수가 아니라 방문 건수예요.'],
+      }),
+      overviewCard('이번 주 받은 수집품(등급별)', overview.weekCollectibles === undefined
+        ? [textNode('p', 'overview-card-note', '집계 준비 중')]
+        : overview.weekCollectibles.length === 0 ? [textNode('p', 'overview-card-note', '이번 주 받은 수집품이 없어요.')]
+          : overview.weekCollectibles.map(grade => textNode('p', 'overview-card-note', `${grade.gradeName} ${grade.count}개`))),
+      valueCard('쿠폰 발급·사용(이번 주)', overview.weekCoupons
+        ? `발급 ${overview.weekCoupons.issued}장 · 사용 ${overview.weekCoupons.redeemed}장` : '집계 준비 중', {
+        notes: ['이번 주 발급한 쿠폰과 이번 주 사용한 쿠폰을 각각 세요. 이전 주에 발급된 쿠폰 사용도 포함해요.'],
+      }),
+      valueCard('가게 상세 조회(이번 주)', overview.weekDetailViews === undefined ? '집계 준비 중' : `${overview.weekDetailViews}회`, {
+        notes: ['조회는 사람 수가 아니라 열람 횟수예요(조회와 방문은 같은 사람으로 연결하지 않아요)'],
+      }),
+    );
     readinessMessage.textContent = readiness.message;
     readinessList.replaceChildren();
     readinessList.append(...readiness.steps.map(step => {
@@ -1032,6 +1075,63 @@ export function bindMerchant(fetcher, doc) {
       const badge = textNode('span', `readiness-badge readiness-${step.state.toLowerCase().replaceAll('_', '-')}`, readinessStateLabel(step.state));
       item.append(textNode('span', 'readiness-label', step.label), badge);
       if (step.hint) item.append(textNode('span', 'readiness-hint', step.hint));
+      if (step.state !== 'DONE') {
+        const merchant = merchantMemberships.get(doc)?.find(member => member.id === overviewSelect.value);
+        if (step.key === 'members') {
+          const link = cardLink('#merchant-registration-title', '직원 등록 요청으로 이동');
+          link.className = 'collection-action secondary readiness-action';
+          item.append(link);
+        } else if (step.key === 'reward' && merchant && canCreate(merchant)) {
+          const button = doc.createElement('button');
+          button.type = 'button'; button.className = 'readiness-action'; button.textContent = '수집품 만들기';
+          button.addEventListener('click', async () => {
+            const select = doc.getElementById('merchant-creator-store');
+            const opener = doc.getElementById('merchant-creator-open');
+            if (!select || !opener || opener.disabled) return;
+            const previous = select.value;
+            select.value = merchant.id;
+            select.onchange?.();
+            if (select.value !== merchant.id) return;
+            button.disabled = true;
+            try {
+              await opener.onclick?.();
+              if (creatorStores.get(doc) === merchant.id) jumpTo(doc.getElementById('merchant-creator-title'));
+              else select.value = previous;
+            } finally { button.disabled = false; }
+          });
+          item.append(button);
+        } else {
+          const button = doc.createElement('button');
+          button.type = 'button'; button.className = 'readiness-action secondary';
+          button.textContent = '운영팀에 보낼 내용 복사';
+          const notice = textNode('p', 'readiness-copy-status', '');
+          notice.setAttribute('role', 'status'); notice.setAttribute('aria-live', 'polite');
+          const label = doc.createElement('label'); label.className = 'readiness-copy-fallback'; label.hidden = true;
+          label.append(textNode('span', '', '운영팀에 보낼 내용(선택해서 복사)'));
+          const fallback = doc.createElement('textarea'); fallback.readOnly = true;
+          label.append(fallback);
+          button.addEventListener('click', async () => {
+            if (button.disabled || !merchant) return;
+            const generation = overviewGeneration;
+            const requestId = merchantRequests.get(doc);
+            const text = readinessRequestText(merchant, step, readiness.steps);
+            button.disabled = true; label.hidden = true;
+            try {
+              const clipboard = doc.defaultView?.navigator?.clipboard ?? globalThis.navigator?.clipboard;
+              if (!clipboard?.writeText) throw new Error('clipboard unavailable');
+              await clipboard.writeText(text);
+              if (generation !== overviewGeneration || requestId !== merchantRequests.get(doc)) return;
+              notice.textContent = `복사했어요. 운영팀 ${operatorContact}으로 보내 주세요.`;
+            } catch {
+              if (generation !== overviewGeneration || requestId !== merchantRequests.get(doc)) return;
+              fallback.value = text; label.hidden = false;
+              notice.textContent = `자동 복사를 사용할 수 없어요. 아래 내용을 선택해 복사한 뒤 운영팀 ${operatorContact}으로 보내 주세요.`;
+              fallback.focus(); fallback.select?.();
+            } finally { button.disabled = false; }
+          });
+          item.append(button, notice, label);
+        }
+      }
       return item;
     }));
   };
@@ -1218,13 +1318,7 @@ export function bindMerchant(fetcher, doc) {
     setIssuing(false);
   };
   // 페이지 안 이동은 제작기 뒤로가기 이력을 늘리지 않고 스크롤과 초점만 옮긴다.
-  doc.addEventListener?.('click', event => {
-    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
-    const anchor = event.target.closest?.('a[href^="#"]');
-    const href = anchor?.getAttribute('href');
-    if (!href || href.length <= 1) return;
-    event.preventDefault();
-    const target = doc.getElementById(href.slice(1));
+  function jumpTo(target) {
     if (!target) return;
     if (target.tabIndex < 0 && !target.hasAttribute('tabindex')) {
       target.setAttribute('tabindex', '-1');
@@ -1232,6 +1326,15 @@ export function bindMerchant(fetcher, doc) {
     }
     target.scrollIntoView({ block: 'start' });
     target.focus({ preventScroll: true });
+  }
+  doc.addEventListener?.('click', event => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    const anchor = event.target.closest?.('a[href^="#"]');
+    const href = anchor?.getAttribute('href');
+    if (!href || href.length <= 1) return;
+    event.preventDefault();
+    const target = doc.getElementById(href.slice(1));
+    jumpTo(target);
   });
   doc.defaultView?.addEventListener('pagehide', () => { closeCreator(doc); creatorScopes.delete(doc); clear(); });
   doc.defaultView?.addEventListener('pageshow', event => {

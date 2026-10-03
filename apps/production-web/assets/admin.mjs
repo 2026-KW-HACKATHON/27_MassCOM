@@ -3,6 +3,7 @@ const deletionEndpoint = '/api/web/admin/account-deletion-intakes';
 const offerEndpoint = '/api/web/admin/reward-offers';
 const campaignEndpoint = '/api/web/admin/campaigns';
 const adminRequests = new WeakMap();
+const funnelRequests = new WeakMap();
 
 // 점포 공개·점주·보상 혜택·캠페인(Issue #246). 참조 번호는 서버(store-go-live-rules.ts)와 같은 규칙을 먼저 알려 주고
 // 최종 판단은 서버가 한다. 동의서·확인 기록 자체와 사업자등록번호·이름·전화번호는 받지 않는다.
@@ -157,6 +158,90 @@ async function jsonRequest(fetcher, path, method = 'GET', body) {
     throw error;
   }
   return response.json();
+}
+
+const funnelTotals = [
+  ['detailViews', '상세 조회'], ['countedVisits', '방문'], ['newVisitors', '새 방문자'],
+  ['newVisitorsWithSecondStore', '그중 두 번째 가게 방문'], ['repeatVisitors', '재방문자'],
+];
+const funnelColumns = [
+  ['name', '가게'], ['detailViews', '상세 조회'], ['countedVisits', '방문'],
+  ['uniqueVisitors', '방문자'], ['repeatVisitors', '재방문자'], ['couponsIssued', '쿠폰 발급'],
+  ['couponsRedeemed', '쿠폰 사용'], ['collectiblesAcquired', '받은 수집품'],
+];
+const countText = value => new Intl.NumberFormat('ko-KR').format(value);
+const validCount = value => Number.isSafeInteger(value) && value >= 0;
+
+// 관리자 본문을 읽은 뒤에만 호출한다. 기간 선택과 전체 새로고침은 서로의 늦은 응답을 무효화한다.
+export async function loadAdminFunnel(fetcher, doc, current = () => true) {
+  const days = doc.getElementById('admin-funnel-days')?.value;
+  const status = doc.getElementById('admin-funnel-status');
+  const totals = doc.getElementById('admin-funnel-totals');
+  const table = doc.getElementById('admin-funnel-table');
+  if (!days || !status || !totals || !table) return;
+  const requestId = (funnelRequests.get(doc) ?? 0) + 1;
+  funnelRequests.set(doc, requestId);
+  const latest = () => current() && funnelRequests.get(doc) === requestId;
+  totals.replaceChildren();
+  table.replaceChildren();
+  status.textContent = '흐름 지표를 불러오는 중이에요.';
+  try {
+    const payload = await jsonRequest(fetcher, `/api/web/admin/funnel?days=${days}`);
+    if (!latest()) return;
+    if (payload?.days !== Number(days) || !/^\d{4}-\d{2}-\d{2}$/.test(payload.from)
+      || !/^\d{4}-\d{2}-\d{2}$/.test(payload.to)
+      || !payload.totals || !funnelTotals.every(([key]) => validCount(payload.totals[key]))
+      || !Array.isArray(payload.merchants) || !payload.merchants.every(merchant =>
+        typeof merchant?.merchantId === 'string' && typeof merchant.name === 'string'
+        && funnelColumns.slice(1).every(([key]) => validCount(merchant[key])))) {
+      throw new Error('invalid funnel');
+    }
+    for (const [key, label] of funnelTotals) {
+      const item = doc.createElement('div');
+      const term = doc.createElement('dt');
+      const value = doc.createElement('dd');
+      term.textContent = label;
+      value.textContent = countText(payload.totals[key]);
+      item.append(term, value);
+      totals.append(item);
+    }
+    if (payload.merchants.length) {
+      const caption = doc.createElement('caption');
+      caption.textContent = '점포별 흐름 지표';
+      const head = doc.createElement('thead');
+      const headers = doc.createElement('tr');
+      for (const [, label] of funnelColumns) {
+        const cell = doc.createElement('th');
+        cell.scope = 'col';
+        cell.textContent = label;
+        headers.append(cell);
+      }
+      head.append(headers);
+      const body = doc.createElement('tbody');
+      for (const merchant of payload.merchants) {
+        const row = doc.createElement('tr');
+        for (const [key] of funnelColumns) {
+          const cell = doc.createElement(key === 'name' ? 'th' : 'td');
+          if (key === 'name') cell.scope = 'row';
+          cell.textContent = key === 'name' ? merchant.name : countText(merchant[key]);
+          row.append(cell);
+        }
+        body.append(row);
+      }
+      table.append(caption, head, body);
+    }
+    status.textContent = payload.merchants.length
+      ? `${payload.from}부터 ${payload.to}까지 실제 점포 ${payload.merchants.length}곳의 흐름이에요.`
+      : `${payload.from}부터 ${payload.to}까지 표시할 실제 점포가 없습니다.`;
+  } catch (error) {
+    if (!latest()) return;
+    totals.replaceChildren();
+    table.replaceChildren();
+    status.textContent = error.status === 401 || error.status === 403
+      ? '관리자 권한을 확인하지 못했어요. 다시 로그인해 주세요.'
+      : '흐름 지표를 불러오지 못했어요. 기간을 다시 선택해 주세요.';
+    if (error.status === 401 || error.status === 403) throw error;
+  }
 }
 
 function fields(form, FormDataOf = FormData) {
@@ -585,6 +670,9 @@ export async function loadAdmin(fetcher, doc) {
   const offerMerchant = offerForm?.querySelector('select[name="merchantId"]');
   const offerList = doc.getElementById('admin-offers');
   const campaignList = doc.getElementById('admin-campaigns');
+  const funnelStatus = doc.getElementById('admin-funnel-status');
+  const funnelTotalsNode = doc.getElementById('admin-funnel-totals');
+  const funnelTable = doc.getElementById('admin-funnel-table');
   if (!status || !login || !logout || !content || !list || !create) return;
   content.hidden = true;
   login.hidden = true;
@@ -597,6 +685,10 @@ export async function loadAdmin(fetcher, doc) {
   offerList?.replaceChildren();
   offerMerchant?.replaceChildren();
   campaignList?.replaceChildren();
+  funnelRequests.set(doc, (funnelRequests.get(doc) ?? 0) + 1);
+  funnelTotalsNode?.replaceChildren();
+  funnelTable?.replaceChildren();
+  if (funnelStatus) funnelStatus.textContent = '';
   if (draftForm) draftForm.hidden = true;
   if (offerForm) offerForm.hidden = true;
   const current = () => adminRequests.get(doc) === requestId;
@@ -954,6 +1046,7 @@ export async function loadAdmin(fetcher, doc) {
         operations.textContent = '운영 현황을 불러오지 못했습니다.';
       }
     }
+    await loadAdminFunnel(fetcher, doc, current);
     if (draftList) {
       try {
         const campaigns = await jsonRequest(fetcher, '/api/web/admin/campaign-drafts');
@@ -1049,6 +1142,10 @@ export async function loadAdmin(fetcher, doc) {
     offerList?.replaceChildren();
     offerMerchant?.replaceChildren();
     campaignList?.replaceChildren();
+    funnelRequests.set(doc, (funnelRequests.get(doc) ?? 0) + 1);
+    funnelTotalsNode?.replaceChildren();
+    funnelTable?.replaceChildren();
+    if (funnelStatus) funnelStatus.textContent = '';
     if (draftForm) draftForm.hidden = true;
     if (offerForm) offerForm.hidden = true;
     if (error.status === 401) {
@@ -1071,6 +1168,7 @@ export function bindAdmin(fetcher, doc) {
   const logout = doc.getElementById('admin-logout');
   const clear = () => {
     adminRequests.set(doc, (adminRequests.get(doc) ?? 0) + 1);
+    funnelRequests.set(doc, (funnelRequests.get(doc) ?? 0) + 1);
     openOwnerPanels.delete(doc);
     doc.getElementById('admin-merchants')?.replaceChildren();
     doc.getElementById('admin-operations')?.replaceChildren();
@@ -1078,6 +1176,10 @@ export function bindAdmin(fetcher, doc) {
     doc.getElementById('admin-deletions')?.replaceChildren();
     doc.getElementById('admin-offers')?.replaceChildren();
     doc.getElementById('admin-campaigns')?.replaceChildren();
+    doc.getElementById('admin-funnel-totals')?.replaceChildren();
+    doc.getElementById('admin-funnel-table')?.replaceChildren();
+    const funnelStatus = doc.getElementById('admin-funnel-status');
+    if (funnelStatus) funnelStatus.textContent = '';
     const draftForm = doc.getElementById('admin-campaign-draft');
     draftForm?.querySelector('select')?.replaceChildren();
     if (draftForm) draftForm.hidden = true;
@@ -1087,6 +1189,17 @@ export function bindAdmin(fetcher, doc) {
     doc.getElementById('admin-content').hidden = true;
   };
   doc.defaultView?.addEventListener('pagehide', clear);
+  doc.getElementById('admin-funnel-days')?.addEventListener('change', async () => {
+    if (doc.getElementById('admin-content')?.hidden) return;
+    const requestId = adminRequests.get(doc);
+    try {
+      await loadAdminFunnel(fetcher, doc, () => adminRequests.get(doc) === requestId);
+    } catch (error) {
+      if (adminRequests.get(doc) === requestId && (error.status === 401 || error.status === 403)) {
+        await loadAdmin(fetcher, doc);
+      }
+    }
+  });
   doc.defaultView?.addEventListener('pageshow', event => {
     if (event.persisted) void loadAdmin(fetcher, doc);
   });
