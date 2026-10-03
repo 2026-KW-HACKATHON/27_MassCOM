@@ -3,11 +3,11 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensio
 import Animated, {
   Easing,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withDelay,
   withSequence,
   withSpring,
+  withRepeat,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -16,6 +16,7 @@ import Svg, { Defs, Ellipse, LinearGradient, Rect, Stop } from 'react-native-svg
 
 import { focusForAccessibility } from '@/accessibility/focus-component';
 import { celebrationNote } from '@/commerce/progress-note';
+import { useMotionEnabled } from '@/motion/use-motion';
 import { tierColors } from '@/theme/medal-colors';
 import { Mascot } from '@/ui/mascot';
 
@@ -31,17 +32,25 @@ import {
 } from './badge-rules';
 import { ConfettiBurst } from './confetti';
 import { FullScreenModal } from './full-screen-modal';
-import { CloseGlyph, GiftGlyph, MedalGlyph, mascotStamp } from './glyphs';
+import { Medallion } from './medallion';
+import { CloseGlyph, GiftGlyph, mascotStamp } from './glyphs';
 import { successHaptic } from './native-effects';
 import { useBadgeShare } from './share-card';
 import { useGamificationTheme, type GamificationTheme } from './theme';
+import { rewardReel, type RewardReelItem } from './reward-reel';
+import type { RedeemedClaim } from '@/commerce/commerce-api';
 
 export type CelebrationContent = {
+  claimSlotId?: string;
   merchantName: string;
   progressCounted: boolean;
   progressExcludedReason?: 'STAFF_SELF';
   diff: BadgeBookDiff;
   after?: BadgeBook;
+  grantedRewards?: RedeemedClaim['grantedRewards'];
+  artworkRewards?: readonly { entitlementId: string; targetVisitCount: 1 | 3 | 5; name: string; gradeName: string; imageUri: string }[];
+  mileageDelta?: number;
+  mileageBalance?: number;
 };
 
 type Props = {
@@ -50,28 +59,32 @@ type Props = {
   onClose: () => void;
   /** focusRewards: a box became openable, so land on the reward section. */
   onOpenCollection: (focusRewards: boolean) => void;
+  onOpenEnvelope?: () => void;
+  onOpenGacha?: () => void;
 };
 
 const impactAt = 420;
 
 /** "도장 쾅!" — full-screen celebration after a confirmed visit. Static under reduced motion. */
-export function Celebration({ content, variant, onClose, onOpenCollection }: Props) {
+export function Celebration({ content, variant, onClose, onOpenCollection, onOpenEnvelope, onOpenGacha }: Props) {
   return (
     <FullScreenModal visible={content !== undefined} animationType="fade" onRequestClose={onClose}>
-        {content ? <CelebrationBody content={content} variant={variant} onClose={onClose} onOpenCollection={onOpenCollection} /> : null}
+        {content ? <CelebrationBody key={content.claimSlotId} content={content} variant={variant} onClose={onClose} onOpenCollection={onOpenCollection} onOpenEnvelope={onOpenEnvelope} onOpenGacha={onOpenGacha} /> : null}
       </FullScreenModal>
   );
 }
 
-function CelebrationBody({ content, variant, onClose, onOpenCollection }: Props & { content: CelebrationContent }) {
+function CelebrationBody({ content, variant, onClose, onOpenCollection, onOpenEnvelope, onOpenGacha }: Props & { content: CelebrationContent }) {
   const theme = useGamificationTheme();
-  const { styles, palette, medal } = theme;
+  const { styles, medal } = theme;
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = !useMotionEnabled();
   const title = useRef<Text>(null);
   const { host, share, sharing } = useBadgeShare(variant);
   const [shareError, setShareError] = useState<string>();
+  const [beat, setBeat] = useState(reduceMotion ? 3 : 1);
+  const shownBeat = reduceMotion ? 3 : beat;
   const [stageCenterY, setStageCenterY] = useState<number>();
   const stage = celebrationStageSize(width, height);
   const featured = featuredRaisedMedal(content.diff);
@@ -82,6 +95,25 @@ function CelebrationBody({ content, variant, onClose, onOpenCollection }: Props 
   const hint = content.diff.raisedMedals.length === 0 && !openable
     ? closestNextGoal(content.after)
     : null;
+  const artworkById = new Map(content.artworkRewards?.map((item) => [item.entitlementId, item]));
+  const items = rewardReel({
+    grantedRewards: (content.grantedRewards ?? []).map((reward) => ({ ...reward, artwork: artworkById.has(reward.entitlementId) })),
+    raisedMedals: content.diff.raisedMedals,
+    openableBox: content.diff.newlyReady,
+    mileageDelta: content.mileageDelta,
+  });
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    const next = setTimeout(() => setBeat((current) => Math.max(2, current)), 1400);
+    return () => clearTimeout(next);
+  }, [reduceMotion, content.claimSlotId]);
+
+  useEffect(() => {
+    if (beat !== 2) return;
+    const next = setTimeout(() => setBeat(3), Math.max(450, items.length * 180 + 350));
+    return () => clearTimeout(next);
+  }, [beat, items.length]);
 
   useEffect(() => {
     const haptic = setTimeout(() => void successHaptic(), reduceMotion ? 0 : impactAt);
@@ -106,13 +138,13 @@ function CelebrationBody({ content, variant, onClose, onOpenCollection }: Props 
       <ScrollView
         contentContainerStyle={[styles.celebrationScroll, { paddingTop: insets.top + 52, paddingBottom: insets.bottom + 16 }]}
       >
-        <View onLayout={(event) => {
+        <Pressable accessibilityRole="button" accessibilityLabel="도장 축하 다음 보상 보기" onPress={() => setBeat((current) => Math.max(2, current))} onLayout={(event) => {
           const { y, height: stageHeight } = event.nativeEvent.layout;
           setStageCenterY(y + stageHeight / 2);
         }}>
-          <StampStage theme={theme} reduceMotion={reduceMotion} size={stageSize} />
-        </View>
-        {cheering ? <Mascot pose="cheer" size={Math.min(140, Math.round(stage * 0.62))} /> : null}
+          <StampStage theme={theme} reduceMotion={reduceMotion} size={shownBeat > 1 && !reduceMotion ? Math.round(stageSize * 0.6) : stageSize} />
+        </Pressable>
+        {cheering && shownBeat === 1 ? <Mascot pose="cheer" size={Math.min(140, Math.round(stage * 0.62))} /> : null}
 
         <Text ref={title} accessibilityRole="header" style={styles.celebrationTitle}>
           {content.merchantName} 도장 쾅!
@@ -122,29 +154,26 @@ function CelebrationBody({ content, variant, onClose, onOpenCollection }: Props 
           {hint ? `\n다음 목표 · ${hint}` : ''}
         </Text>
 
-        {content.diff.raisedMedals.length > 0 || openable ? (
-          <View style={styles.chipColumn}>
-            {content.diff.raisedMedals.map(({ kind, toTier, medal: raised }) => {
-              const colors = tierColors(medal, toTier as 1 | 2 | 3);
-              return (
-                <View key={kind} style={[styles.celebrationChip, { backgroundColor: colors.container }]}>
-                  <MedalGlyph kind={kind} size={20} color={colors.onContainer} />
-                  <Text style={[styles.celebrationChipText, { color: colors.onContainer }]}>{medalTitle(raised)} 달성!</Text>
-                </View>
-              );
-            })}
-            {content.diff.newlyReady.map((reward) => (
-              <View key={reward.milestone} style={[styles.celebrationChip, { backgroundColor: palette.primaryContainer }]}>
-                <GiftGlyph size={20} color={medal.giftGold} ribbon={medal.ribbon} />
-                <Text style={[styles.celebrationChipText, { color: palette.onPrimaryContainer }]}>
-                  {rewardBoxName(reward.milestone)}를 열 수 있어요
-                </Text>
-              </View>
+        {shownBeat >= 2 ? (
+          <View style={{ alignSelf: 'stretch', gap: 10 }}>
+            <Text accessibilityRole="header" style={[styles.celebrationTitle, { fontSize: 21 }]}>이번에 받은 것</Text>
+            {items.length === 0 ? <Text style={styles.celebrationBody}>도장이 기록되었어요.</Text> : null}
+            {items.map((item, index) => (
+              <ReelCard key={`${item.type}-${index}`} item={item} index={index} theme={theme} reduceMotion={reduceMotion}
+                artwork={item.type === 'collectible' ? artworkById.get(item.reward.entitlementId) : undefined}
+                onOpenEnvelope={onOpenEnvelope} onOpenCollection={() => onOpenCollection(true)} />
             ))}
           </View>
         ) : null}
 
         <View style={styles.celebrationActions}>
+          {shownBeat >= 3 && content.mileageBalance !== undefined && onOpenGacha ? (
+            content.mileageBalance >= 100 ? (
+              <Pressable accessibilityRole="button" onPress={onOpenGacha} style={({ pressed }) => [styles.button, { minHeight: 56 }, pressed && styles.pressed]}>
+                <Text style={[styles.buttonText, { fontSize: 18 }]}>지금 뽑기 (보유 {content.mileageBalance})</Text>
+              </Pressable>
+            ) : <Text style={styles.celebrationBody}>{100 - content.mileageBalance}마일리지 더 모으면 뽑을 수 있어요</Text>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             onPress={() => onOpenCollection(openable)}
@@ -196,6 +225,114 @@ function CelebrationBody({ content, variant, onClose, onOpenCollection }: Props 
       </Pressable>
       {host}
     </View>
+  );
+}
+
+function ReelCard({ item, index, theme, reduceMotion, artwork, onOpenEnvelope, onOpenCollection }: {
+  item: RewardReelItem;
+  index: number;
+  theme: GamificationTheme;
+  reduceMotion: boolean;
+  artwork?: CelebrationContent['artworkRewards'] extends readonly (infer T)[] | undefined ? T : never;
+  onOpenEnvelope?: () => void;
+  onOpenCollection: () => void;
+}) {
+  const { palette, medal, styles } = theme;
+  const scale = useSharedValue(reduceMotion ? 1 : 0.94);
+  const opacity = useSharedValue(reduceMotion ? 1 : 0);
+  const accent = useSharedValue(1);
+  const accentRotation = useSharedValue(0);
+  const glow = useSharedValue(0);
+  const mileageAmount = item.type === 'mileage' ? item.amount : undefined;
+  const [mileageShown, setMileageShown] = useState(reduceMotion && item.type === 'mileage' ? item.amount : 0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      scale.set(1);
+      opacity.set(1);
+      accent.set(1);
+      accentRotation.set(0);
+      glow.set(0);
+      return;
+    }
+    scale.set(withDelay(index * 180, withSpring(1, { duration: 400, dampingRatio: 0.72 })));
+    opacity.set(withDelay(index * 180, withTiming(1, { duration: 180 })));
+    if (item.type === 'medal') {
+      accent.set(withDelay(index * 180 + 200, withRepeat(withSequence(withTiming(1.08, { duration: 450 }), withTiming(1, { duration: 450 })), 2)));
+      glow.set(withDelay(index * 180 + 200, withRepeat(withSequence(withTiming(0.48, { duration: 450 }), withTiming(0.12, { duration: 450 })), 2)));
+    }
+    if (item.type === 'box') accentRotation.set(withDelay(index * 180 + 160, withSequence(
+      withTiming(-8, { duration: 75 }), withTiming(8, { duration: 110 }),
+      withTiming(-6, { duration: 110 }), withTiming(5, { duration: 100 }), withTiming(0, { duration: 100 }),
+    )));
+  }, [reduceMotion, index, item.type, scale, opacity, accent, accentRotation, glow]);
+
+  useEffect(() => {
+    if (mileageAmount === undefined || reduceMotion) return;
+    let interval: ReturnType<typeof setInterval> | undefined;
+    const start = setTimeout(() => {
+      const started = Date.now();
+      const tick = setInterval(() => {
+        const fraction = Math.min(1, (Date.now() - started) / 650);
+        setMileageShown(Math.round(mileageAmount * fraction));
+        if (fraction === 1) clearInterval(tick);
+      }, 32);
+      interval = tick;
+    }, index * 180);
+    return () => {
+      clearTimeout(start);
+      if (interval) clearInterval(interval);
+    };
+  }, [mileageAmount, index, reduceMotion]);
+
+  const cardStyle = useAnimatedStyle(() => ({ opacity: opacity.get(), transform: [{ scale: scale.get() }] }));
+  const accentStyle = useAnimatedStyle(() => ({ transform: [{ scale: accent.get() }, { rotate: `${accentRotation.get()}deg` }] }));
+  const glowStyle = useAnimatedStyle(() => ({ opacity: glow.get(), transform: [{ scale: accent.get() * 1.2 }] }));
+
+  return (
+    <Animated.View style={[{ minHeight: 80, borderRadius: 20, padding: 14, backgroundColor: palette.surface,
+      borderWidth: 2, borderColor: item.type === 'collectible'
+        ? tierColors(medal, item.reward.targetVisitCount === 1 ? 1 : item.reward.targetVisitCount === 3 ? 2 : 3).base
+        : palette.primaryContainer,
+      flexDirection: 'row', alignItems: 'center', gap: 12 }, cardStyle]}>
+      {item.type === 'collectible' ? (
+        <>
+          {artwork ? <Image source={{ uri: artwork.imageUri }} style={{ width: 62, height: 62, borderRadius: 12 }} /> : null}
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text style={{ color: palette.secondaryLabel, fontSize: 12, fontWeight: '800' }}>{artwork?.gradeName ?? `${item.reward.targetVisitCount}회 보상`}</Text>
+            <Text style={{ color: palette.label, fontSize: 16, fontWeight: '900' }}>{artwork?.name ?? '새 수집품'}</Text>
+          </View>
+          <Pressable accessibilityRole="button" onPress={onOpenEnvelope} style={[styles.secondaryButton, { minWidth: 90 }]}>
+            <Text style={styles.secondaryButtonText}>봉투 열기</Text>
+          </Pressable>
+        </>
+      ) : item.type === 'medal' ? (
+        <>
+          <Animated.View style={accentStyle}>
+            <Animated.View pointerEvents="none" style={[{ position: 'absolute', width: 58, height: 58, borderRadius: 29,
+              backgroundColor: tierColors(medal, item.raised.toTier as 1 | 2 | 3).highlight }, glowStyle]} />
+            <Medallion kind={item.raised.kind} tier={item.raised.toTier} progress={null} size={58} colors={medal} arcColor={palette.primary} trackColor={palette.separator} />
+          </Animated.View>
+          <Text style={{ flex: 1, color: palette.label, fontSize: 16, fontWeight: '900' }}>{medalTitle(item.raised.medal)} 달성!</Text>
+        </>
+      ) : item.type === 'box' ? (
+        <>
+          <Animated.View style={accentStyle}><GiftGlyph size={45} color={medal.giftGold} ribbon={medal.ribbon} /></Animated.View>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={{ color: palette.label, fontSize: 16, fontWeight: '900' }}>{rewardBoxName(item.reward.milestone)}</Text>
+            <Text style={{ color: palette.secondaryLabel, fontSize: 13 }}>열 수 있어요!</Text>
+          </View>
+          <Pressable accessibilityRole="button" onPress={onOpenCollection} style={[styles.secondaryButton, { minWidth: 88 }]}>
+            <Text style={styles.secondaryButtonText}>상자 열기</Text>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <Text style={{ fontSize: 33 }}>✦</Text>
+          <Text style={{ color: palette.label, fontSize: 19, fontWeight: '900', fontVariant: ['tabular-nums'] }}>+{reduceMotion ? item.amount : mileageShown} 마일리지</Text>
+        </>
+      )}
+    </Animated.View>
   );
 }
 
