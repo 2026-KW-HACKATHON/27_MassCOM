@@ -15,6 +15,7 @@ import { StateScene } from '@/ui/state-scene';
 
 import { CollectibleDefaultBack, CollectibleFaceShape, collectibleGradeColors } from './collectible-default-back';
 import { collectibleDetailFailure, type CollectibleDetailFailure } from './collectible-detail-state';
+import type { CollectibleDetailInput, LegacyCollectibleDetail } from './legacy-collectible-detail';
 import {
   angleFrameBlend, angleFrameOpacities, collectibleFace, collectibleEdgeOffset, collectibleMotionFrame, firstLoopMotion, livingCell, motionEntrySequence, motionSequenceEnd,
   onceMotions, ONCE_MS, particleAt,
@@ -25,6 +26,7 @@ type Props = {
   entitlementId: string;
   merchantName: string;
   load: (entitlementId: string) => Promise<PublishedCollectible>;
+  localDetail?: LegacyCollectibleDetail;
   onClose: () => void;
   /** 게시 사진이 내려가 상세가 없었다면(404) 닫을 때 불러, 목록이 같은 수집품을 사진 없는 기존 카드로 다시 그리게 한다. */
   onUnavailable?: () => void;
@@ -70,11 +72,12 @@ function LivingOverlay({ living, cell, faceSize }: { living: CollectibleLiving; 
 }
 
 /** Mounted for one acquired entitlement; closing it discards pending reads and playback. */
-export function CollectibleDetail({ entitlementId, merchantName, load, onClose, onUnavailable, intro = false }: Props) {
+export function CollectibleDetail({ entitlementId, merchantName, load, onClose, onUnavailable, localDetail, intro = false }: Props) {
   const [snapshot, setSnapshot] = useState<PublishedCollectible>();
   const [failure, setFailure] = useState<CollectibleDetailFailure>();
   const [retry, setRetry] = useState(0);
   useEffect(() => {
+    if (localDetail) return;
     let active = true;
     void load(entitlementId).then((value) => {
       if (active) setSnapshot(value);
@@ -83,13 +86,14 @@ export function CollectibleDetail({ entitlementId, merchantName, load, onClose, 
       setFailure(collectibleDetailFailure(caught));
     });
     return () => { active = false; };
-  }, [entitlementId, load, retry]);
+  }, [entitlementId, load, retry, localDetail]);
   // 사진이 내려간 수집품이면 닫을 때 목록을 다시 읽어 사진 없는 기존 카드로 보이게 한다. 여기서 부르면 effect가 다시 돌 수 있다.
   const close = () => { if (failure?.removed) onUnavailable?.(); onClose(); };
 
+  const shown = localDetail ?? snapshot;
   return (
     <FullScreenModal visible animationType="fade" onRequestClose={close}>
-      {snapshot ? <DetailBody key={`${snapshot.publicationId}:${snapshot.gradeId}`} snapshot={snapshot} merchantName={merchantName} intro={intro} onClose={onClose} /> : (
+      {shown ? <DetailBody key={entitlementId} snapshot={shown} merchantName={merchantName} intro={intro} onClose={onClose} /> : (
         <DetailFrame>
           <StateScene kind={failure ? (failure.removed ? 'empty' : 'error') : 'loading'} title={failure ? failure.title : '가게 수집품을 펼치는 중'} body={failure?.body}
             action={failure && !failure.removed ? { label: '다시 불러오기', onPress: () => { setFailure(undefined); setRetry((value) => value + 1); } } : undefined} />
@@ -114,7 +118,7 @@ function Control({ label, onPress, disabled = false }: { label: string; onPress:
   </Pressable>;
 }
 
-function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapshot: PublishedCollectible; merchantName: string; intro?: boolean; onClose: () => void }) {
+function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapshot: CollectibleDetailInput; merchantName: string; intro?: boolean; onClose: () => void }) {
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
   const gradeColors = collectibleGradeColors(snapshot.gradeId, snapshot.gradeName, scheme);
@@ -361,8 +365,15 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
                     {frameBlend.blend > 0 ? <SpriteCell frames={snapshot.angleFrames} index={frameBlend.next} faceSize={displayFace} opacity={angleFrameOpacities(frameBlend.blend).upper} /> : null}
                   </View>
                 ) : (
-                  <Image source={{ uri: picture }} resizeMode="contain" accessible={false} onError={() => setImageFailed(true)}
-                    style={{ position: 'absolute', width: displayFace, height: displayFace }} />
+                  snapshot.frontImageSource && !imageFailed ? (
+                    <Image source={snapshot.frontImageSource} resizeMode="contain" accessible={false} onError={() => setImageFailed(true)}
+                      style={{ position: 'absolute', width: displayFace, height: displayFace }} />
+                  ) : picture ? (
+                    <Image source={{ uri: picture }} resizeMode="contain" accessible={false} onError={() => setImageFailed(true)}
+                      style={{ position: 'absolute', width: displayFace, height: displayFace }} />
+                  ) : (
+                    <Mascot pose="stamp" size={displayFace} breathe={false} />
+                  )
                 )}
                 {snapshot.living ? <LivingOverlay living={snapshot.living} cell={livingCell(livingClock, snapshot.living.periodMs, snapshot.living.count)} faceSize={displayFace} /> : null}
               </View>

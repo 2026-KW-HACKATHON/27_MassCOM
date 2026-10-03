@@ -514,3 +514,12 @@ Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되�
 - `PASS`: `cd apps/mobile && npx tsc --noEmit`, `npm run lint`, `git diff --check`.
 - `BLOCKED`: 요청 명령 `npx tsx --test 'src/screens/collection/*.test.ts'`은 macOS 샌드박스의 IPC 파이프 생성 `listen EPERM`으로 시작 실패. 위 Node 실행은 같은 전체 수집 화면 시험을 제외 없이 실행했다.
 - `NOT_RUN`: Android 운영·시연 설치본의 실제 회전/센서, 동작 줄이기, TalkBack, 글자 확대, 스크린샷 비교. 자동 시험 통과를 두 variant의 실기 통과로 해석하지 않는다. 재현: 뒷면 그림 없는 수집품 상세에서 각도를 ±90도·180도로 바꿔 옆면·기본 뒷면을 확인한다. 기존 뒷면 그림이 있는 수집품은 해당 그림을 유지한다.
+
+
+## Issue #340 수정 1차 — 외형 없는 수집품 회전 상세 (2026-10-03)
+
+- 브랜치 `feat/340-collectible-back`, 기준 HEAD `997eab23`, 작업 파일은 미커밋 상태(사용자 지시). LegacyCard를 버튼으로 연결하고 가게 그림·표시 이름·1/3/5회 목표 등급을 로컬 어댑터로 기존 회전 상세에 전달한다. 가게 그림이 없거나 실패하면 마스코트 도장, 뒷면 그림 필드가 없으므로 공통 기본 뒷면을 표시한다. 로컬 상세는 게시물 API를 호출하지 않으며 서버 게시물 식별자를 만들지 않는다. 서버·DB·의존성 변경 없음.
+- 공통 모바일 코드에 적용해 운영·시연 모두 같은 경로를 사용한다. 원격 가게 그림과 시연 번들 이미지 입력을 순수 시험으로 확인했다. README의 설정·실행법 변화가 없어 수정하지 않았다.
+- `PASS`: `cd apps/mobile && node --import tsx --test src/screens/collection/*.test.ts` — 199/199(신규 3개); `npx tsc --noEmit`; `npm run lint`; `git diff --check`. 환경: macOS 샌드박스, Node 25.9.0.
+- `BLOCKED`: 요청 명령 `cd apps/mobile && npx tsx --test 'src/screens/collection/*.test.ts'` — CLI의 IPC 파이프 생성에서 `listen EPERM`. Node 로더 실행으로 같은 전체 수집 화면 시험을 통과했다.
+- `NOT_RUN`: 운영·시연 실제 설치본 터치·회전·TalkBack·글자 확대. 재현: 외형 없는 보유 수집품(가게 그림 있음/없음)을 누르고 회전시켜 기본 뒷면과 목표별 등급을 확인한다.
