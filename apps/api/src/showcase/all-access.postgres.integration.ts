@@ -11,6 +11,7 @@ import { collectibleSnapshot, validateCollectibleProject } from '../collectible-
 import { runMigrations } from '../postgres/migrate.js';
 import { PostgresClaimSlotService } from '../postgres/claim-slot-service.js';
 import { PostgresCollectionReader } from '../postgres/collection.js';
+import { PostgresCollectibleProjectService } from '../postgres/collectible-project.js';
 import {
   seedLocalShowcase,
   SHOWCASE_CAMPAIGN_ID,
@@ -440,6 +441,18 @@ async function waitUntilSomeoneBlocks(pool: Pool): Promise<void> {
   throw new Error('the seed never blocked on the concurrent writer');
 }
 
+async function waitUntilTwoBlockOrWorkFinishes(pool: Pool, finished: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (finished()) return;
+    const waiting = await pool.query<{ total: number }>(
+      `SELECT count(*)::int AS total FROM pg_stat_activity
+       WHERE datname = current_database() AND wait_event_type = 'Lock' AND pid <> pg_backend_pid()`);
+    if (waiting.rows[0]!.total >= 2) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('the two concurrent operations never reached their lock gate');
+}
+
 async function collectibleCounts(pool: Pool): Promise<number[]> {
   const tables = ['collectible_projects', 'collectible_publications', 'collectible_publication_grades', 'campaign_collectible_publications'];
   const results = await Promise.all(tables.map((table) => pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM ${table}`)));
@@ -611,6 +624,162 @@ test('(R-333a race) a merchant publish that commits while the seed waits is neve
       assert.deepEqual(await collectibleCounts(pool), [1, 1, 1, 1], 'and the seed added nothing');
     } finally {
       merchant.release();
+    }
+  });
+});
+
+test('(R-333 round 3) full re-seed and real merchant publish finish without deadlock when old merchant metadata needs backfill', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const storeA = collectibleTargets[0]!;
+    const projects = new PostgresCollectibleProjectService(pool);
+    await pool.query(
+      `INSERT INTO merchant_members (merchant_id, account_id, role, status)
+       VALUES ($1, 'showcase-race-owner', 'OWNER', 'ACTIVE')`, [storeA.merchantId]);
+    const draft = await projects.create({
+      merchantId: storeA.merchantId, accountId: 'showcase-race-owner', project: legacySingleGradeProject(storeA),
+    });
+    await pool.query('UPDATE merchants SET neighborhood = NULL, category = NULL WHERE id = ANY($1::text[])',
+      [collectibleTargets.map((target) => target.merchantId)]);
+    await pool.query(
+      `UPDATE campaigns SET starts_at = now() - interval '1 day', ends_at = now() + interval '1 day' WHERE id = $1`,
+      [storeA.campaignId]);
+
+    // AFTER 트리거는 캠페인 행 잠금이 잡힌 뒤 시드를 멈춘다.
+    await pool.query(`CREATE FUNCTION showcase_campaign_race_gate() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        PERFORM pg_advisory_xact_lock(333596::bigint);
+        IF EXISTS (SELECT 1 FROM merchants
+                   WHERE id IN ('showcase-local-merchant', 'showcase-local-merchant-b', 'showcase-local-merchant-c')
+                     AND (neighborhood IS NULL OR category IS NULL)) THEN
+          RAISE EXCEPTION 'SHOWCASE_MERCHANT_BACKFILL_ORDER';
+        END IF;
+        RETURN NEW;
+      END $$`);
+    await pool.query(`CREATE TRIGGER showcase_campaign_race_gate AFTER UPDATE OF starts_at, ends_at ON campaigns
+      FOR EACH ROW WHEN (NEW.id = 'showcase-local-campaign') EXECUTE FUNCTION showcase_campaign_race_gate()`);
+    const gate = await pool.connect();
+    const pending: Promise<unknown>[] = [];
+    let gateOpen = false;
+    try {
+      await gate.query('BEGIN');
+      gateOpen = true;
+      await gate.query('SELECT pg_advisory_xact_lock(333596::bigint)');
+      const reseeding = seedLocalShowcase(pool, new Date());
+      pending.push(reseeding);
+      reseeding.catch(() => undefined);
+      await waitUntilSomeoneBlocks(pool);
+      const publishing = projects.publish({
+        merchantId: storeA.merchantId, accountId: 'showcase-race-owner', projectId: draft.id,
+        expectedVersion: 1, campaignId: storeA.campaignId,
+      });
+      pending.push(publishing);
+      publishing.catch(() => undefined);
+      await waitUntilTwoBlockOrWorkFinishes(pool, () => false);
+      await gate.query('COMMIT');
+      gateOpen = false;
+      const [seedResult, publishResult] = await Promise.allSettled([reseeding, publishing]);
+      assert.equal(seedResult.status, 'fulfilled', 'the full re-seed completes without 40P01');
+      assert.equal(publishResult.status, 'fulfilled', 'real publish completes without 40P01');
+      if (publishResult.status !== 'fulfilled') return;
+      assert.equal(await linkedPublication(pool, storeA.campaignId), publishResult.value.publicationId);
+      const merchant = (await pool.query<{ neighborhood: string; category: string }>(
+        'SELECT neighborhood, category FROM merchants WHERE id = $1', [storeA.merchantId])).rows[0]!;
+      assert.ok(merchant.neighborhood && merchant.category, 'the legacy merchant metadata was filled');
+    } finally {
+      if (gateOpen) await gate.query('ROLLBACK');
+      await Promise.allSettled(pending);
+      gate.release();
+    }
+  });
+});
+
+test('(R-333 round 3) media removal after legacy upgrade also removes the newly linked publication', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const storeA = collectibleTargets[0]!;
+    const legacy = await insertLegacyPublication(pool, storeA);
+    const gate = await pool.connect();
+    const pending: Promise<unknown>[] = [];
+    let gateOpen = false;
+    try {
+      await gate.query('BEGIN');
+      gateOpen = true;
+      await gate.query('SELECT 1 FROM campaigns WHERE id = $1 FOR UPDATE', [storeA.campaignId]);
+      const upgrading = seedCollectibles(pool, [storeA]);
+      pending.push(upgrading);
+      upgrading.catch(() => undefined);
+      await waitUntilSomeoneBlocks(pool);
+      let removalFinished = false;
+      const removing = pool.query('SELECT * FROM collectible_remove_publication_media($1)', [legacy])
+        .finally(() => { removalFinished = true; });
+      pending.push(removing);
+      removing.catch(() => undefined);
+      await waitUntilTwoBlockOrWorkFinishes(pool, () => removalFinished);
+      assert.equal(removalFinished, false, 'removal waits on the upgrade source lock before the gate opens');
+      await gate.query('COMMIT');
+      gateOpen = false;
+      const [upgradeResult, removalResult] = await Promise.allSettled([upgrading, removing]);
+      assert.equal(upgradeResult.status, 'fulfilled', 'the upgrade commits before removal');
+      if (upgradeResult.status === 'fulfilled') assert.deepEqual(upgradeResult.value, [storeA.campaignId]);
+      assert.equal(removalResult.status, 'fulfilled', 'the real removal function completes');
+      assert.equal((await pool.query(
+        'SELECT 1 FROM campaign_collectible_publications WHERE campaign_id = $1', [storeA.campaignId])).rowCount, 0);
+      const publications = await pool.query<{ media_removed_at: Date | null }>(
+        'SELECT media_removed_at FROM collectible_publications WHERE campaign_id = $1', [storeA.campaignId]);
+      assert.equal(publications.rowCount, 2, 'legacy and upgraded publications both remain as redacted records');
+      assert.ok(publications.rows.every((row) => row.media_removed_at !== null));
+      assert.equal((await pool.query(
+        'SELECT 1 FROM collectible_projects WHERE merchant_id = $1 AND project IS NOT NULL', [storeA.merchantId])).rowCount, 0);
+      assert.deepEqual(await seedCollectibles(pool, [storeA]), [], 'a later seed does not restore removed media');
+    } finally {
+      if (gateOpen) await gate.query('ROLLBACK');
+      await Promise.allSettled(pending);
+      gate.release();
+    }
+  });
+});
+
+test('(R-333 round 3) legacy upgrade leaves a publication removed first unlinked', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const storeA = collectibleTargets[0]!;
+    const legacy = await insertLegacyPublication(pool, storeA);
+    // 제거 함수가 source 잠금을 가진 채 연결을 끊은 시점에서 멈춘다.
+    await pool.query(`CREATE FUNCTION showcase_removal_race_gate() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN PERFORM pg_advisory_xact_lock(333597::bigint); RETURN OLD; END $$`);
+    await pool.query(`CREATE TRIGGER showcase_removal_race_gate AFTER DELETE ON campaign_collectible_publications
+      FOR EACH ROW EXECUTE FUNCTION showcase_removal_race_gate()`);
+    const gate = await pool.connect();
+    const pending: Promise<unknown>[] = [];
+    let gateOpen = false;
+    try {
+      await gate.query('BEGIN');
+      gateOpen = true;
+      await gate.query('SELECT pg_advisory_xact_lock(333597::bigint)');
+      const removing = pool.query('SELECT * FROM collectible_remove_publication_media($1)', [legacy]);
+      pending.push(removing);
+      removing.catch(() => undefined);
+      await waitUntilSomeoneBlocks(pool);
+      const upgrading = seedCollectibles(pool, [storeA]);
+      pending.push(upgrading);
+      upgrading.catch(() => undefined);
+      await waitUntilTwoBlockOrWorkFinishes(pool, () => false);
+      await gate.query('COMMIT');
+      gateOpen = false;
+      const [removalResult, upgradeResult] = await Promise.allSettled([removing, upgrading]);
+      assert.equal(removalResult.status, 'fulfilled', 'the real removal function completes first');
+      assert.equal(upgradeResult.status, 'fulfilled', 'the seed skips media already removed');
+      if (upgradeResult.status === 'fulfilled') assert.deepEqual(upgradeResult.value, []);
+      assert.equal((await pool.query(
+        'SELECT 1 FROM campaign_collectible_publications WHERE campaign_id = $1', [storeA.campaignId])).rowCount, 0);
+      const removed = await pool.query<{ media_removed_at: Date | null }>(
+        'SELECT media_removed_at FROM collectible_publications WHERE id = $1', [legacy]);
+      assert.ok(removed.rows[0]?.media_removed_at, 'the original publication media remains removed');
+      assert.equal((await pool.query(
+        'SELECT 1 FROM collectible_projects WHERE merchant_id = $1 AND project IS NOT NULL', [storeA.merchantId])).rowCount, 0);
+      assert.deepEqual(await seedCollectibles(pool, [storeA]), [], 'a later seed does not restore removed media');
+    } finally {
+      if (gateOpen) await gate.query('ROLLBACK');
+      await Promise.allSettled(pending);
+      gate.release();
     }
   });
 });

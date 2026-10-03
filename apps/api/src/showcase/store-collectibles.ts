@@ -68,6 +68,7 @@ export function storeCollectibleProject(target: StoreCollectibleTarget): Collect
  * 호출자가 이미 연 거래 안에서 실행한다. 게시물이 새로 걸렸거나 옛 시드 게시물에서 3등급으로 갈아 끼워진 캠페인 id 목록을 돌려준다.
  * 이미 걸린 게시물이 점주가 만든 것이거나(작성자 열이 채워짐) 이미 3등급이면 건드리지 않는다.
  *
+ * 게시·미디어 제거와 같은 점포 원본 잠금을 먼저 잡는다. 전체 시드는 이 잠금을 점포 갱신 전부터 잡아 순서를 맞춘다.
  * 동시 점주 게시와의 경합: 실제 게시(PostgresCollectibleProjectService.publish)와 같이 캠페인 행을 "연결을 읽기 전에" 무조건 FOR UPDATE로
  * 잠근다. 그래서 점주 게시가 커밋하기 전에는 이 시드가 기다리고, 커밋한 뒤에는 새 연결을 읽어 건드리지 않는다. 연결이 없을 때는 일반
  * INSERT라 (잠금이 깨진다 해도) 동시에 생긴 연결은 유일 제약 위반으로 이 거래 전체를 되돌린다 — 덮어쓰지 않는다. 옛 시드 게시물을 갈아
@@ -81,6 +82,7 @@ export async function seedStoreCollectibles(
 ): Promise<string[]> {
   const published: string[] = [];
   for (const target of targets) {
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`collectible-sources:${target.merchantId}`]);
     await client.query('SELECT 1 FROM campaigns WHERE id = $1 FOR UPDATE', [target.campaignId]);
     const linked = await client.query<{ publication_id: string; legacy_seed: boolean }>(
       `SELECT link.publication_id,
@@ -104,6 +106,14 @@ export async function seedStoreCollectibles(
       [target.campaignId, target.merchantId, projectName(target), themeName, JSON.stringify(legacyGrades)]);
     const link = linked.rows[0];
     if (link && !link.legacy_seed) continue;
+    if (!link) {
+      // 제거가 먼저 커밋해 연결을 지웠다면 같은 캠페인에 자동 재발행하지 않는다.
+      const removed = await client.query(
+        `SELECT 1 FROM collectible_publications
+         WHERE merchant_id = $1 AND campaign_id = $2 AND media_removed_at IS NOT NULL LIMIT 1`,
+        [target.merchantId, target.campaignId]);
+      if (removed.rowCount) continue;
+    }
     const project = validateCollectibleProject(storeCollectibleProject(target), true);
     const projectId = randomUUID();
     const publicationId = randomUUID();

@@ -213,6 +213,11 @@ export async function seedShowcaseFixtureData(
     await client.query('BEGIN');
     transactionStarted = true;
     await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [showcaseSeedLockId]);
+    // 게시·미디어 제거와 같은 순서: 원본 잠금 → 모든 점포 갱신 → 캠페인 갱신.
+    for (const entry of merchants) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`collectible-sources:${entry.merchantId}`]);
+    }
+    const existingEntries = new Set<ShowcaseMerchant>();
     for (const entry of merchants) {
       const existing = await readFixture(client, entry, staffAccountId);
       const hasExisting = Boolean(
@@ -220,14 +225,7 @@ export async function seedShowcaseFixtureData(
       );
       if (hasExisting) {
         assertFixtureMatches(existing, entry, now, Boolean(staffAccountId));
-        // #333: 이미 시드된 시연 캠페인(시작 = 시드 시각 - 24시간, 끝 = 시드 시각 + 30일)도 다시 시드하면 기간만 넓힌다 — 시작은 시드
-        // 시각의 30일 전까지 앞으로, 끝은 시드 시각의 30일 뒤까지 뒤로. 줄이는 일은 없고(시작을 늦추지도 끝을 당기지도 않음) 다른 열과
-        // 방문·보상·등록 수는 그대로다. 이미 끝난 캠페인은 위 fixture 확인이 거절하므로 끝나기 전에 다시 시드해야 한다.
-        await client.query(
-          `UPDATE campaigns SET starts_at = LEAST(starts_at, $2), ends_at = GREATEST(ends_at, $3)
-           WHERE id = $1 AND (starts_at > $2 OR ends_at < $3)`,
-          [entry.campaignId, campaignStartsAt(now), campaignEndsAt(now)],
-        );
+        existingEntries.add(entry);
         // 0036 전에 seed된 시연 점포는 동네·업종이 둘 다 비어 있을 때만 채운다(다른 값은 건드리지 않는다).
         await client.query(
           `UPDATE merchants SET neighborhood = $2, category = $3
@@ -243,6 +241,25 @@ export async function seedShowcaseFixtureData(
          ON CONFLICT (id) DO NOTHING`,
         [entry.merchantId, entry.name, entry.story, merchantAddress, merchantNeighborhood, entry.category],
       );
+      if (staffAccountId) {
+        await client.query(
+          `INSERT INTO merchant_members (merchant_id, account_id, role, status)
+           VALUES ($1, $2, 'STAFF', 'ACTIVE')
+           ON CONFLICT (merchant_id, account_id) DO NOTHING`,
+          [entry.merchantId, staffAccountId],
+        );
+      }
+    }
+    for (const entry of merchants) {
+      if (existingEntries.has(entry)) {
+        // 기간은 넓히기만 한다. 종료된 캠페인은 앞의 fixture 검사에서 거절한다.
+        await client.query(
+          `UPDATE campaigns SET starts_at = LEAST(starts_at, $2), ends_at = GREATEST(ends_at, $3)
+           WHERE id = $1 AND (starts_at > $2 OR ends_at < $3)`,
+          [entry.campaignId, campaignStartsAt(now), campaignEndsAt(now)],
+        );
+        continue;
+      }
       await client.query(
         `INSERT INTO campaigns
          (id, merchant_id, title, starts_at, ends_at, status, is_public,
@@ -257,14 +274,6 @@ export async function seedShowcaseFixtureData(
            VALUES ($1, $2, $3)
            ON CONFLICT (campaign_id, target_visit_count) DO NOTHING`,
           [entry.campaignId, count, name],
-        );
-      }
-      if (staffAccountId) {
-        await client.query(
-          `INSERT INTO merchant_members (merchant_id, account_id, role, status)
-           VALUES ($1, $2, 'STAFF', 'ACTIVE')
-           ON CONFLICT (merchant_id, account_id) DO NOTHING`,
-          [entry.merchantId, staffAccountId],
         );
       }
       assertFixtureMatches(
