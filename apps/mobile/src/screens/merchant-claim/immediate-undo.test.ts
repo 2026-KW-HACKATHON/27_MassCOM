@@ -32,6 +32,16 @@ test('사용 성공 안내는 확인창 뒤 기존 undo API를 호출하고 닫�
   assert.doesNotMatch(staff, /되돌릴 수 없어요/);
 });
 
+test('즉시 되돌리기 카드가 있으면 같은 성공 안내를 한 번만 보여주고 재처리·오류 안내는 유지한다', () => {
+  const staff = readFileSync(new URL('./staff.tsx', import.meta.url), 'utf8');
+  assert.match(staff, /recentCoupon \? <Text[^>]*>\{couponMessage === '이미 사용 처리된 쿠폰이에요' \? couponMessage : '쿠폰 사용을 처리했어요'\} · \{recentCoupon\.title\}/);
+  assert.match(staff, /recentCoupon && \(couponMessage === '쿠폰 사용을 처리했어요' \|\| couponMessage === '이미 사용 처리된 쿠폰이에요'\) \? undefined : couponMessage/);
+  assert.equal((staff.match(/\{visibleCouponMessage \? <Text/g) ?? []).length, 1);
+  assert.match(staff, /\{visibleCouponMessage && !couponOpen \? <Text/);
+  assert.match(staff, /result\.replayed \? '이미 사용 처리된 쿠폰이에요' : '쿠폰 사용을 처리했어요'/);
+  assert.match(staff, /setCouponMessage\(messageFor\(error\)\)/);
+});
+
 test('다음 쿠폰 사용 응답을 기다리는 동안 이전 쿠폰 되돌리기와 이중 사용을 차단한다', async () => {
   const gate = createCouponMutationGate();
   let finish!: () => void;

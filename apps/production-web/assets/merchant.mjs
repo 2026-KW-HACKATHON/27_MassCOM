@@ -206,6 +206,7 @@ export function readinessRequestText(merchant, step, steps = []) {
     const fields = step.hint.match(/비어 있는 항목:\s*([^。]+?)\.\s*운영팀/);
     if (fields) missing = `${fields[1]} 입력`;
   } else if (step.key === 'menu') missing = '메뉴 1개 이상 등록';
+  else if (step.key === 'members') missing = '현재 가게의 점주 지정';
   else if (step.key === 'visible') {
     const prerequisites = steps.filter(item => item.state !== 'DONE' && item.key !== 'visible')
       .map(item => `${item.label}: ${item.hint || '확인 필요'}`);
@@ -1077,11 +1078,7 @@ export function bindMerchant(fetcher, doc) {
       if (step.hint) item.append(textNode('span', 'readiness-hint', step.hint));
       if (step.state !== 'DONE') {
         const merchant = merchantMemberships.get(doc)?.find(member => member.id === overviewSelect.value);
-        if (step.key === 'members') {
-          const link = cardLink('#merchant-registration-title', '직원 등록 요청으로 이동');
-          link.className = 'collection-action secondary readiness-action';
-          item.append(link);
-        } else if (step.key === 'reward' && merchant && canCreate(merchant)) {
+        if (step.key === 'reward' && merchant && canCreate(merchant)) {
           const button = doc.createElement('button');
           button.type = 'button'; button.className = 'readiness-action'; button.textContent = '수집품 만들기';
           button.addEventListener('click', async () => {

@@ -65,20 +65,26 @@ test('운영 요청은 가게 ID와 서버가 알려준 누락값만 포함하�
   assert.match(text, /필요한 내용: 영업시간, 도로명 주소 입력$/);
   assert.doesNotMatch(text, /메뉴|전화번호/);
   assert.match(readinessRequestText({ id: 'm1', name: '월계 식당' }, steps()[1]), /메뉴 1개 이상 등록/);
+  assert.match(readinessRequestText({ id: 'm1', name: '월계 식당' }, steps()[2]), /필요한 내용: 현재 가게의 점주 지정$/);
 });
 
-test('미완료 단계는 실행 하나씩, 직원 이동은 기존 앵커로, 점주만 제작기로 연결한다', async () => {
+test('미완료 단계는 실행 하나씩, 점주 부재는 운영 요청으로, 점주만 제작기로 연결한다', async () => {
   const f = await fixture();
   try {
     for (const row of f.rows()) assert.equal(row.querySelectorAll('button, a').length, 1);
-    assert.equal(f.rows()[2].querySelector('a').getAttribute('href'), '#merchant-registration-title');
+    assert.equal(f.rows()[2].querySelector('a'), null);
+    assert.equal(f.rows()[2].querySelector('button').textContent, '운영팀에 보낼 내용 복사');
     assert.equal(f.rows()[3].querySelector('button').textContent, '수집품 만들기');
-    const row = f.rows()[2], link = row.querySelector('a');
-    for (const handler of f.doc.listeners.get('click')) handler({ target: link, button: 0, preventDefault() {} });
-    assert.equal(f.doc.activeElement.id, 'merchant-registration-title');
+    await f.click(f.rows()[2].querySelector('button'));
+    assert.match(f.rows()[2].querySelector('textarea').value, /필요한 내용: 현재 가게의 점주 지정$/);
   } finally { f.restore(); }
   const staff = await fixture({ role: 'STAFF' });
-  try { assert.equal(staff.rows()[3].querySelector('button').textContent, '운영팀에 보낼 내용 복사'); }
+  try {
+    assert.equal(staff.rows()[3].querySelector('button').textContent, '운영팀에 보낼 내용 복사');
+    assert.equal(staff.rows()[2].querySelector('a'), null);
+    await staff.click(staff.rows()[2].querySelector('button'));
+    assert.match(staff.rows()[2].querySelector('textarea').value, /현재 가게의 점주 지정/);
+  }
   finally { staff.restore(); }
 });
 
@@ -134,6 +140,10 @@ test('클립보드 성공은 라이브 알림과 전송 위치를 보여준다',
     assert.equal(notice.getAttribute('aria-live'), 'polite');
     assert.match(notice.textContent, /복사했어요.*choijunhuk2007@gmail.com/);
     assert.equal(f.rows()[0].querySelector('label').hidden, true);
+    await f.click(f.rows()[2].querySelector('button'));
+    assert.match(copied[1], /가게: 월계 식당\n가게 ID: m1/);
+    assert.match(copied[1], /필요한 내용: 현재 가게의 점주 지정$/);
+    assert.match(f.rows()[2].querySelector('[role="status"]').textContent, /복사했어요/);
   } finally { f.restore(); }
 });
 
