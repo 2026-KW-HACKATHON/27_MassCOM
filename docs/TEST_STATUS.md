@@ -505,3 +505,12 @@ PR #164 독립 검토에서 비정규 OAuth 환경변수 형식의 덮어쓰기 
 | 2026-09-30 KST | Issue #263, 브랜치 `fix/263-deploy-rollback-drill`(PR #268, main `e7a3bfb` 병합) | `bash tests/ops/deploy_lightsail_rollback_test.sh`·`deploy_lightsail_test.sh`·`host_retention_job_test.sh`·`db_restore_drill_backup_file_test.sh`·`db_restore_drill_test.sh`, `bash -n`, `npm run typecheck`·`npm test`·`npm run test:postgres --prefix apps/api`(`TEST_DATABASE_URL=…/ops263_test`) | macOS bash 3.2.57·Linux(debian:bookworm-slim, bash 5.2.15)·일회용 PostgreSQL 16.10 | PASS (rollback mock 두 환경, API 단위 262/262, `retention.postgres.integration.ts` 8/8, `test:postgres` 245 PASS·0 실패·2 skipped) | 시연 health 실패는 운영을 되돌리지 않음·삭제된 계정의 감사 대상 ID 비식별·백업 파일 mode 600과 실패 시 보존. 자세한 내용은 위 2026-09-30 KST 항목. 운영 서버 실행·배포·운영 DB 접속은 `NOT_RUN` |
 
 Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되어 있습니다. Q01~Q05·R01·R02·R03은 실제 PostgreSQL 동시성·권한·원자성 증거로만 `PASS` 처리했습니다. Q04는 사람별 슬롯 독립성만 실증했으며 단체 인원·금액 한도 정책은 구현하지 않았습니다. Phase 3의 W07·M01~M08 ID 판정은 기존 Local Anvil·PostgreSQL 증거를 유지하며, Base Sepolia Worker proof는 별도 추가 실증이라 필수 36개 집계를 바꾸지 않습니다.
+
+
+## Issue #340 — 모바일 회전 수집품 기본 뒷면·두께 (2026-10-03)
+
+- 범위: `feat/340-collectible-back`, 기준 커밋 `8bd91c79`, 모바일 공통 화면(운영·시연). 서버·DB 변경 없음. 뒷면 그림이 없을 때 로컬 마스코트·등급색·안쪽 테두리·한국어 등급·가게/수집품 이름·하단 문구를 표시하고, 부호 있는 sin 각도에 따라 등급색 옆면을 이동한다. 기존 scaleX 압축과 공유·봉투·축하 동작은 유지한다.
+- `PASS`: `cd apps/mobile && node --import tsx --test src/screens/collection/*.test.ts` — 196/196, 그중 #340 신규 9개. 0·89·91·180·-180·270도 면 판정과 옆면 이동, 기본 뒷면 분기·틴트 제거·접근성 이름·로컬 자산 검사.
+- `PASS`: `cd apps/mobile && npx tsc --noEmit`, `npm run lint`, `git diff --check`.
+- `BLOCKED`: 요청 명령 `npx tsx --test 'src/screens/collection/*.test.ts'`은 macOS 샌드박스의 IPC 파이프 생성 `listen EPERM`으로 시작 실패. 위 Node 실행은 같은 전체 수집 화면 시험을 제외 없이 실행했다.
+- `NOT_RUN`: Android 운영·시연 설치본의 실제 회전/센서, 동작 줄이기, TalkBack, 글자 확대, 스크린샷 비교. 자동 시험 통과를 두 variant의 실기 통과로 해석하지 않는다. 재현: 뒷면 그림 없는 수집품 상세에서 각도를 ±90도·180도로 바꿔 옆면·기본 뒷면을 확인한다. 기존 뒷면 그림이 있는 수집품은 해당 그림을 유지한다.

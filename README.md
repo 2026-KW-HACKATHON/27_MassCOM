@@ -29,6 +29,8 @@
 
 MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모으는 Android 서비스입니다. 지역 이용자와 점주·직원이 대상입니다. 핵심 루프는 "가게 탐색 → 방문 인증(QR) → 도감·배지 적립 → 다음 가게 추천"입니다.
 
+모바일 회전 수집품은 뒷면 그림이 없어도 등급색·안쪽 테두리·가게와 수집품 이름·마스코트 도장의 기본 뒷면과 각도별 두께를 표시합니다(#340).
+
 | 지금 실제로 되는 것 | 근거 |
 | --- | --- |
 | 시연 앱: 가상 점포 3곳 탐색·QR 방문·도감, 하늘 동네·탐험 여권(배지·상자·쿠폰), 동네 지도·길찾기, 친구 탭 | [Preview 15 설치·실기](docs/evidence/showcase-preview15-release-2026-10-02.json), [탐험 여권 실기](docs/evidence/explorer-passport-emulator-2026-09-29/README.md), [지도 실폰](docs/evidence/town-map-2026-09-29/README.md), [친구 배포](docs/evidence/friends-deployment-2026-09-29.json) (두 계정 사이 친구 코드·QR 추가는 `NOT_RUN`) |

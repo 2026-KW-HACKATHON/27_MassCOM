@@ -13,9 +13,10 @@ import { canUseTiltSensor } from '@/ui/can-use-tilt-sensor';
 import { Mascot } from '@/ui/mascot';
 import { StateScene } from '@/ui/state-scene';
 
+import { CollectibleDefaultBack, CollectibleFaceShape, collectibleGradeColors } from './collectible-default-back';
 import { collectibleDetailFailure, type CollectibleDetailFailure } from './collectible-detail-state';
 import {
-  angleFrameBlend, angleFrameOpacities, collectibleMotionFrame, firstLoopMotion, livingCell, motionEntrySequence, motionSequenceEnd,
+  angleFrameBlend, angleFrameOpacities, collectibleFace, collectibleEdgeOffset, collectibleMotionFrame, firstLoopMotion, livingCell, motionEntrySequence, motionSequenceEnd,
   onceMotions, ONCE_MS, particleAt,
 } from './collectible-motion';
 import { TiltSensor } from './collectible-tilt';
@@ -114,7 +115,9 @@ function Control({ label, onPress, disabled = false }: { label: string; onPress:
 }
 
 function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapshot: PublishedCollectible; merchantName: string; intro?: boolean; onClose: () => void }) {
-  const palette = colorsForScheme(useColorScheme());
+  const scheme = useColorScheme();
+  const palette = colorsForScheme(scheme);
+  const gradeColors = collectibleGradeColors(snapshot.gradeId, snapshot.gradeName, scheme);
   const { width } = useWindowDimensions();
   const size = Math.max(160, Math.min(360, width - 48));
   const motionAllowed = useMotionEnabled();
@@ -301,8 +304,8 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   const close = () => { pause(); onClose(); };
   const radians = angle * Math.PI / 180;
   const scaleX = Math.max(.04, Math.abs(Math.cos(radians)));
-  const depth = Math.abs(Math.sin(radians)) * snapshot.thickness * size / 512;
-  const reverse = Math.cos(radians) < 0;
+  const depth = collectibleEdgeOffset(angle, snapshot.thickness * size / 512);
+  const reverse = collectibleFace(angle) === 'back';
   const picture = imageFailed ? snapshot.thumbnailDataUrl : snapshot.imageDataUrl;
   const animationFrame = collectibleMotionFrame(playing && moving ? activeAnimation : 'still', animationTime, size);
   const frames = snapshot.story.frames;
@@ -333,19 +336,20 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
             {snapshot.story.type === 'follow' ? <View style={{ position: 'absolute', left: size * (.1 + shownProgress * .65), bottom: size * .1 }}><Mascot pose="wave" size={size * .16} breathe={false} /></View> : null}
           </>
         ) : (
-          <View style={{ width: size, height: size, transform: [{ translateY: animationFrame.lift }, { scale: animationFrame.scale }] }} accessible accessibilityLabel={`${snapshot.gradeName} ${shapeName(snapshot.shape)}, 두께 ${snapshot.thickness}, 각도 ${Math.round(angle)}도`}>
-            {[1, .8, .6, .4, .2].map((fraction) => <Image key={fraction} source={{ uri: picture }} resizeMode="contain" accessible={false}
-              style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09 + depth * fraction, tintColor: '#765931', transform: [{ scaleX }] }} />)}
+          <View style={{ width: size, height: size, transform: [{ translateY: animationFrame.lift }, { scale: animationFrame.scale }] }} accessible accessibilityLabel={`${reverse ? '뒷면' : '앞면'} ${snapshot.name}, ${snapshot.gradeName} ${shapeName(snapshot.shape)}, 두께 ${snapshot.thickness}, 각도 ${Math.round(angle)}도`}>
+            {[1, .8, .6, .4, .2].map((fraction) => <View key={fraction} pointerEvents="none" accessible={false}
+              style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09 + depth * fraction, transform: [{ scaleX }] }}>
+              <CollectibleFaceShape shape={snapshot.shape} size={displayFace} fill={gradeColors.shade} />
+            </View>)}
             {reverse ? (
               snapshot.backImageDataUrl ? (
                 <Image source={{ uri: snapshot.backImageDataUrl }} resizeMode="contain" accessible={false}
                   style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }} />
               ) : (
-                <>
-                  <Image source={{ uri: picture }} resizeMode="contain" accessible={false} onError={() => setImageFailed(true)}
-                    style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, tintColor: '#bf8149', transform: [{ scaleX }] }} />
-                  <Text style={{ position: 'absolute', top: size * .46, left: size * .18, width: size * .64, textAlign: 'center', color: palette.label, fontWeight: '700' }}>{merchantName}</Text>
-                </>
+                <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
+                  <CollectibleDefaultBack shape={snapshot.shape} size={displayFace} merchantName={merchantName}
+                    name={snapshot.name} gradeId={snapshot.gradeId} gradeName={snapshot.gradeName} />
+                </View>
               )
             ) : (
               // 얼굴 전체에 scaleX 하나를 공유하는 부모: living overlay가 이 안에서 상대 좌표로만 위치해야
