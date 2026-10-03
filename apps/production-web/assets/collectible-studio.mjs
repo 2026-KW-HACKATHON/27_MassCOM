@@ -92,7 +92,7 @@ export function createCollectibleStudio(container, { effectNames, listen }) {
   const phoneLayout = window.matchMedia?.('(max-width: 820px)');
   const inertBackground = new Map();
   function restoreBackground() {
-    for (const [target, previous] of inertBackground) target.inert = previous;
+    for (const [target, previous] of inertBackground) target.inert = workspace.contains(target) ? false : previous;
     inertBackground.clear();
   }
   function syncBackground() {
@@ -253,7 +253,7 @@ export function createCollectibleStudio(container, { effectNames, listen }) {
       const brushTarget = control('brush-target');
       if (brushTarget.value !== 'photo') { brushTarget.value = 'photo'; brushTarget.dispatchEvent(new Event('change', { bubbles: true })); }
     }
-    currentStep = next; home.hidden = true; workspace.hidden = false; hasCurrent = true; syncBackground();
+    currentStep = next; home.hidden = true; workspace.hidden = false; hasCurrent = true;
     const cropSlot = cropSlots[currentStep === 3 ? 1 : currentStep === 4 ? 2 : 0];
     if (crop.parentElement !== cropSlot) cropSlot.append(crop);
     workspace.dataset.step = String(currentStep); title.textContent = steps[currentStep - 1]; workspace.querySelector('.ce-step-count').textContent = `${currentStep} / 4`;
@@ -262,7 +262,7 @@ export function createCollectibleStudio(container, { effectNames, listen }) {
     grid.querySelector('.ce-preview').hidden = currentStep === 1;
     previous.hidden = currentStep === 1 || currentStep === 4; nextButton.hidden = currentStep === 4;
     fullPreview.hidden = currentStep !== 4; publish.hidden = currentStep !== 4;
-    statusLine.prepend(noticeView); setMenu(false);
+    statusLine.prepend(noticeView); syncBackground(); setMenu(false);
     if (focus) { title.focus({ preventScroll: true }); title.scrollIntoView({ block: 'start', behavior: 'instant' }); }
     // 폰에서는 .ce-workspace가 스크롤 칸이고 제목은 고정 머리 안이라 scrollIntoView가 위치를 되돌리지 못하고 1px쯤 밀기도 한다. 마지막에 맨 위로 맞춘다.
     workspace.scrollTop = 0;

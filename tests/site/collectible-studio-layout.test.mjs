@@ -652,6 +652,7 @@ for (const phone of [true, false]) {
     const outer = document.createElement('main'), background = document.createElement('button'), preserved = document.createElement('button');
     background.inert = false; preserved.inert = true;
     const ui = await mountStudio(), sibling = document.createElement('button'); sibling.inert = false;
+    assert.notEqual(ui.q('[data-view="notice"]').inert, true, '첫 작업 영역 진입에서도 알림은 inert가 아니다');
     outer.append(ui.container, sibling); document.body.append(outer, background, preserved);
     await ui.act('home'); await ui.act('resume');
     assert.equal(background.inert, phone); assert.equal(sibling.inert, phone);
@@ -659,6 +660,9 @@ for (const phone of [true, false]) {
     assert.equal(Boolean(outer.inert), false); assert.equal(Boolean(ui.container.inert), false);
     assert.equal(Boolean(ui.q('[data-view="workspace"]').inert), false);
     assert.equal(Boolean(ui.q('[data-view="studio-home"]').inert), phone);
+    ui.q('[data-view="workspace"]').append(sibling); media.dispatchEvent({ type: 'change' });
+    assert.equal(sibling.inert, false, '배경에서 작업 영역으로 옮긴 요소는 inert를 해제한다');
+    outer.append(sibling); media.dispatchEvent({ type: 'change' });
     await ui.act('home');
     assert.equal(background.inert, false); assert.equal(sibling.inert, false); assert.equal(preserved.inert, true);
     await ui.act('resume'); media.matches = false; media.dispatchEvent({ type: 'change' });
