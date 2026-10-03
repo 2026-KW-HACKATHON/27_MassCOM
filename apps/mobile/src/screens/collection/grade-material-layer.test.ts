@@ -26,3 +26,17 @@ test('반사 계산은 재질 레이어당 한 번만 파생해 그라데이션�
   assert.match(source, /const reflection = useDerivedValue\(/);
   assert.match(source, /reflection=\{reflection\}/);
 });
+
+test('색·반사 합성은 사진과 같은 부모의 형제 뷰이며 각 층은 터치·접근성에서 제외된다', () => {
+  const visual = source.slice(source.indexOf('function MaterialVisual'), source.indexOf('function AutonomousLayer'));
+  assert.match(visual, /return <>/);
+  assert.match(visual, /mixBlendMode: vivid \? 'overlay' : 'soft-light'/);
+  assert.match(visual, /mixBlendMode: 'screen'/);
+  assert.equal((visual.match(/<View pointerEvents="none" accessible=\{false\} importantForAccessibility="no-hide-descendants"/g) ?? []).length, 2);
+});
+
+test('림은 사진 반사 좌표를 윤곽 공간으로 보정하고 별빛은 네이티브 SVG 행렬로 커졌다 작아진다', () => {
+  assert.match(source, /id=\{rimId\}[\s\S]*?gradientTransform=\{`scale\(\$\{100 \/ size\}\)`\}/);
+  assert.match(source, /<G scale=\{size \/ 100\} opacity=\{coreAlpha\}>/);
+  assert.match(source, /matrix: \[zoom, 0, 0, zoom, x \* size, y \* size\]/);
+});

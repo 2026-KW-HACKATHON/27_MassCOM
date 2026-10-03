@@ -8,6 +8,7 @@ export type GradeMaterialPreset = {
   baseOpacity: number;
   intensity: number;
   sweepPeriodMs: number;
+  cardPeriodMs: number;
   glintCount: number;
   rainbowStops: readonly string[];
 };
@@ -22,18 +23,31 @@ export function gradeMaterialFor(gradeId: string, gradeName: string): GradeMater
   return 'bronze';
 }
 
-/** 원래 그림을 보존하는 낮은 바탕 광량과 좁고 밝은 반사띠를 분리한다. */
+/** 바탕 불투명도와 반사띠 중심 광량을 분리해 사진 위에서도 재질을 읽을 수 있게 한다. */
 export const gradeMaterialPresets: Readonly<Record<GradeMaterial, GradeMaterialPreset>> = {
   bronze: { material: 'bronze', tint: '#BE8755', colors: ['#E3BB8B', '#FFF1DC', '#A9673F'],
-    bandWidth: .18, baseOpacity: .035, intensity: .12, sweepPeriodMs: 11000, glintCount: 0, rainbowStops: [] },
+    bandWidth: .18, baseOpacity: .035, intensity: .12, sweepPeriodMs: 11000, cardPeriodMs: 11000, glintCount: 0, rainbowStops: [] },
   silver: { material: 'silver', tint: '#BBD4EA', colors: ['#D3E2EF', '#FFFFFF', '#8DACC8'],
-    bandWidth: .22, baseOpacity: .065, intensity: .24, sweepPeriodMs: 9500, glintCount: 0, rainbowStops: [] },
+    bandWidth: .22, baseOpacity: .10, intensity: .50, sweepPeriodMs: 3400, cardPeriodMs: 4000, glintCount: 0, rainbowStops: [] },
   gold: { material: 'gold', tint: '#F5B82E', colors: ['#B9750C', '#FFE18A', '#FFFFFF', '#D99A1C'],
-    bandWidth: .27, baseOpacity: .13, intensity: .56, sweepPeriodMs: 8000, glintCount: 4, rainbowStops: [] },
+    bandWidth: .22, baseOpacity: .30, intensity: .80, sweepPeriodMs: 3000, cardPeriodMs: 4000, glintCount: 5, rainbowStops: [] },
   prism: { material: 'prism', tint: '#B8E9FF', colors: ['#67E8F9', '#E8C5FF', '#FFFFFF'],
-    bandWidth: .32, baseOpacity: .21, intensity: .62, sweepPeriodMs: 7200, glintCount: 8,
+    bandWidth: .24, baseOpacity: .44, intensity: .85, sweepPeriodMs: 2800, cardPeriodMs: 4000, glintCount: 10,
     rainbowStops: ['#52E5EF', '#9B72FF', '#F68CCF', '#FFD66F', '#7EE7BB', '#52E5EF'] },
 };
+
+export const PRISM_FOIL_STOPS = ['#00E5FF', '#8E4DFF', '#FF4ABA', '#FFD447', '#39EDAC', '#00E5FF'] as const;
+export const RAINBOW_PERIODS = 8;
+
+/** SVG 반복 속성에 의존하지 않고 화면을 덮는 색 주기를 나열해 정확히 한 주기만큼 대각 이동한다. */
+export function rainbowGradientAt(phase: number) {
+  'worklet';
+  const dx = .32;
+  const dy = -.16;
+  const x1 = -(2 + phase) * dx;
+  const y1 = .5 - (2 + phase) * dy;
+  return { x1, y1, x2: x1 + RAINBOW_PERIODS * dx, y2: y1 + RAINBOW_PERIODS * dy };
+}
 
 function clampTilt(value: number): number {
   'worklet';
@@ -62,6 +76,7 @@ export type ReflectionFrame = {
   bandOffset: number;
   bandAngle: number;
   rainbowPhase: number;
+  rainbowGradient: ReturnType<typeof rainbowGradientAt>;
   highlightX: number;
   highlightY: number;
   glintOpacities: number[];
@@ -76,18 +91,21 @@ export function reflectionAt(input: ReflectionInput, preset: GradeMaterialPreset
   // 먼저 나머지를 취해 매우 큰 시간에도 삼각함수 입력이 유한하고 정밀하게 유지되도록 한다.
   const time = active && Number.isFinite(input.timeMs) ? Math.max(0, input.timeMs) : 0;
   const cycle = (time % preset.sweepPeriodMs) / preset.sweepPeriodMs;
-  const drift = active ? Math.sin(cycle * Math.PI * 2) * .7 : 0;
+  // 주기의 80% 동안 가로지르고 나머지는 윤곽 밖에서 쉰다. 반복 위치 초기화는 그림 밖에서 일어난다.
+  const drift = active ? -2.2 + Math.min(1, cycle / .8) * 4.4 : 0;
   const rainbow = .25 + x * .28 + y * .18 + cycle;
+  const rainbowPhase = ((rainbow % 1) + 1) % 1;
   const glintOpacities = Array.from({ length: preset.glintCount }, (_, index) => {
-    const wave = active ? Math.max(0, Math.sin(cycle * Math.PI * 4 + index * 2.399 + x * 1.7 + y)) : .46;
-    return unit(.12 + wave ** 4 * preset.intensity);
+    const wave = active ? Math.max(0, Math.sin(cycle * Math.PI * 4 + index * 2.399 + x * 1.7 + y)) : .70;
+    return unit(wave ** 2 * (.65 + preset.intensity * .35));
   });
   return {
-    bandOffset: .5 + x * .5 + y * .22 + drift,
-    bandAngle: -28 + x * 14 - y * 10,
-    rainbowPhase: ((rainbow % 1) + 1) % 1,
-    highlightX: unit(.5 + x * .3 + drift * .13),
-    highlightY: unit(.42 + y * .28 - drift * .08),
+    bandOffset: .5 + x * .8 + y * .3 + drift,
+    bandAngle: -25 + x * 6 - y * 5,
+    rainbowPhase,
+    rainbowGradient: rainbowGradientAt(rainbowPhase),
+    highlightX: unit(.5 + x * .3 + Math.sin(cycle * Math.PI * 2) * .13),
+    highlightY: unit(.42 + y * .28 - Math.sin(cycle * Math.PI * 2) * .08),
     glintOpacities,
   };
 }

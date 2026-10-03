@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { combineMaterialTilt, gradeMaterialFor, gradeMaterialPresets, reflectionAt } from './grade-material';
+import { combineMaterialTilt, gradeMaterialFor, gradeMaterialPresets, PRISM_FOIL_STOPS, RAINBOW_PERIODS, rainbowGradientAt, reflectionAt } from './grade-material';
 
 test('등급 id·한국어 이름·특별 별칭은 같은 재질을 고르고 모르는 등급은 브론즈다', () => {
   for (const [id, name, expected] of [
@@ -20,9 +20,19 @@ test('골드·프리즘의 강도와 바탕 불투명도는 실버보다 높고 
     assert.ok(silver[key] < gold[key]);
     assert.ok(silver[key] < prism[key]);
   }
-  assert.ok(gold.glintCount >= 3 && gold.glintCount <= 5);
-  assert.ok(prism.glintCount >= 6 && prism.glintCount <= 10);
+  assert.ok(gold.glintCount >= 4 && gold.glintCount <= 6);
+  assert.ok(prism.glintCount >= 8 && prism.glintCount <= 10);
   assert.ok(prism.rainbowStops.length >= 6);
+  assert.equal(gold.baseOpacity, .30);
+  assert.equal(prism.baseOpacity, .44);
+  assert.equal(silver.intensity, .50);
+  assert.equal(gold.intensity, .80);
+  assert.equal(prism.intensity, .85);
+  for (const preset of [silver, gold, prism]) {
+    assert.ok(preset.bandWidth >= .18 && preset.bandWidth <= .24);
+    assert.ok(preset.sweepPeriodMs >= 2600 && preset.sweepPeriodMs <= 3400);
+    assert.equal(preset.cardPeriodMs, 4000);
+  }
 });
 
 test('같은 기울기·시간은 같은 반사 프레임을 재현하고 프리셋을 변경하지 않는다', () => {
@@ -75,6 +85,54 @@ test('비활성·동작 줄이기 프레임은 기울기·시간을 무시하고
     assert.equal(frame.bandOffset, .5);
     assert.equal(frame.highlightX, .5);
     assert.equal(frame.highlightY, .42);
+    if (preset.glintCount > 0) assert.ok(frame.glintOpacities.every((alpha) => alpha > .4));
+  }
+});
+
+// 렌더러와 별도로 SVG 선형 그라데이션의 투영과 RGB 보간을 계산해 실제 색 연속성을 검사한다.
+function foilColorAt(x: number, y: number, phase: number): number[] {
+  const { x1, y1, x2, y2 } = rainbowGradientAt(phase);
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const t = ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy);
+  assert.ok(t > 0 && t < 1, '카드 안에서 끝 색상이 늘어나지 않는다');
+  const stop = t * RAINBOW_PERIODS * (PRISM_FOIL_STOPS.length - 1);
+  const index = Math.floor(stop);
+  const fraction = stop - index;
+  const rgb = (hex: string) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255);
+  const a = rgb(PRISM_FOIL_STOPS[index % 5]!);
+  const b = rgb(PRISM_FOIL_STOPS[(index + 1) % 5]!);
+  return a.map((channel, i) => channel + (b[i]! - channel) * fraction);
+}
+
+test('프리즘 반복 경계 직전·직후의 사진 위 RGB는 작은 오차 안에서 연속이다', () => {
+  const preset = gradeMaterialPresets.prism;
+  for (const tilt of [{ x: 0, y: 0 }, { x: .7, y: -.4 }, { x: -1, y: 1 }]) {
+    const startPhase = .25 + tilt.x * .28 + tilt.y * .18;
+    const wrapTime = (1 - startPhase) * preset.sweepPeriodMs;
+    const before = reflectionAt({ tiltX: tilt.x, tiltY: tilt.y, timeMs: wrapTime - .01 }, preset);
+    const after = reflectionAt({ tiltX: tilt.x, tiltY: tilt.y, timeMs: wrapTime + .01 }, preset);
+    assert.ok(before.rainbowPhase > .99 && after.rainbowPhase < .01);
+    for (const x of [0, .2, .5, .8, 1]) for (const y of [0, .25, .5, .75, 1]) {
+      const a = foilColorAt(x, y, before.rainbowPhase);
+      const b = foilColorAt(x, y, after.rainbowPhase);
+      assert.ok(a.every((channel, i) => Math.abs(channel - b[i]!) < .001));
+    }
+  }
+});
+
+test('기울기를 강하게 밀어도 반사띠 반복 위치 초기화는 카드 밖에서 일어난다', () => {
+  for (const preset of Object.values(gradeMaterialPresets)) {
+    for (const tiltX of [-1, 0, 1]) for (const tiltY of [-1, 0, 1]) {
+      for (const timeMs of [0, preset.sweepPeriodMs - .01]) {
+        const frame = reflectionAt({ tiltX, tiltY, timeMs }, preset);
+        const angle = frame.bandAngle * Math.PI / 180;
+        const distances = [0, 1].flatMap((x) => [0, 1].map((y) =>
+          (x - frame.bandOffset) * Math.cos(angle) + (y - .5) * Math.sin(angle)));
+        assert.ok(distances.every((v) => v > preset.bandWidth / 2)
+          || distances.every((v) => v < -preset.bandWidth / 2));
+      }
+    }
   }
 });
 

@@ -112,14 +112,18 @@ test('빛의 위치는 재생 시간에 반응하고 축하 입자는 짧은 구
   assert.equal(collectibleMotionFrame('still', 1000, 320).light, false);
   assert.equal(collectibleMotionFrame('still', 1000, 320).particles, false);
 });
-test('등급 조명은 회전 토글과 별개인 UI 센서·카드 제스처를 사용하고 동작 줄이기·이야기·배경에서 정지한다', () => {
+test('등급 조명은 회전 토글과 별개로 동작하며 카드가 가려지면 센서·시계를 멈춘다', () => {
   const detail = readFileSync(new URL('./collectible-detail.tsx', import.meta.url), 'utf8');
   const sensor = readFileSync(new URL('./grade-material-sensor.tsx', import.meta.url), 'utf8');
   assert.match(detail, /const moving = motionAllowed && !reduceMotion && foreground/);
-  assert.match(detail, /const materialActive = moving && !scene/);
+  assert.match(detail, /const materialActive = moving && !scene && cardVisible/);
+  assert.match(detail, /<DetailFrame onLayout=\{onViewportLayout\} onScroll=\{onDetailScroll\}>/);
+  assert.match(detail, /<View onLayout=\{onCardLayout\} style=\{\[styles\.stage/);
+  assert.match(detail, /y < scrollY \+ viewportHeight && y \+ height > scrollY/);
+  assert.match(detail, /cardVisibleRef\.current === intersects/);
   assert.match(detail, /canUseTiltSensor && materialActive \? <GradeMaterialSensor/);
   assert.doesNotMatch(detail, /tiltOn[^\n]*<GradeMaterialSensor/);
-  assert.match(detail, /Gesture\.Pan\(\)[\s\S]*\.onUpdate/);
+  assert.match(detail, /Gesture\.Pan\(\)\.activeOffsetX\(\[-16, 16\]\)\.failOffsetY\(\[-6, 6\]\)[\s\S]*\.onUpdate/);
   assert.match(detail, /useDerivedValue\(\(\) => combineMaterialTilt/);
   assert.match(sensor, /useAnimatedSensor\(SensorType\.GRAVITY, \{ interval: 32 \}\)/);
   assert.match(sensor, /frame\.setActive\(false\)/);

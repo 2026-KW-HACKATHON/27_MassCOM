@@ -1,7 +1,7 @@
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { foregroundAudioMode } from '@/sound/playback-audio-mode';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Image, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { AppState, Image, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useColorScheme, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Image as SvgImage, LinearGradient, Mask, Rect, Stop } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -117,10 +117,11 @@ export function CollectibleDetail({ entitlementId, merchantName, load, onClose, 
   );
 }
 
-function DetailFrame({ children }: { children: React.ReactNode }) {
+function DetailFrame({ children, onLayout, onScroll }: { children: React.ReactNode; onLayout?: (event: LayoutChangeEvent) => void; onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void }) {
   const insets = useSafeAreaInsets();
   const palette = colorsForScheme(useColorScheme());
-  return <ScrollView style={{ flex: 1, backgroundColor: palette.background }} contentContainerStyle={[styles.body, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 28 }]}>{children}</ScrollView>;
+  return <ScrollView style={{ flex: 1, backgroundColor: palette.background }} contentContainerStyle={[styles.body, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 28 }]}
+    onLayout={onLayout} onScroll={onScroll} scrollEventThrottle={32}>{children}</ScrollView>;
 }
 
 function Control({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
@@ -158,6 +159,30 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   const [muted, setMuted] = useState(false);
   const [audioError, setAudioError] = useState<string>();
   const [imageFailed, setImageFailed] = useState(false);
+  const [cardVisible, setCardVisible] = useState(true);
+  const cardVisibleRef = useRef(true);
+  const cardViewport = useRef({ y: 0, height: 0, scrollY: 0, viewportHeight: 0 });
+  const updateCardVisibility = useCallback(() => {
+    const { y, height, scrollY, viewportHeight } = cardViewport.current;
+    if (!height || !viewportHeight) return;
+    const intersects = y < scrollY + viewportHeight && y + height > scrollY;
+    if (cardVisibleRef.current === intersects) return;
+    cardVisibleRef.current = intersects;
+    setCardVisible(intersects);
+  }, []);
+  const onCardLayout = useCallback((event: LayoutChangeEvent) => {
+    cardViewport.current.y = event.nativeEvent.layout.y;
+    cardViewport.current.height = event.nativeEvent.layout.height;
+    updateCardVisibility();
+  }, [updateCardVisibility]);
+  const onViewportLayout = useCallback((event: LayoutChangeEvent) => {
+    cardViewport.current.viewportHeight = event.nativeEvent.layout.height;
+    updateCardVisibility();
+  }, [updateCardVisibility]);
+  const onDetailScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    cardViewport.current.scrollY = event.nativeEvent.contentOffset.y;
+    updateCardVisibility();
+  }, [updateCardVisibility]);
   const player = useAudioPlayer(snapshot.audio ? { uri: snapshot.audio.dataUrl } : null);
   const audioStatus = useAudioPlayerStatus(player);
   const alive = useRef(true);
@@ -166,7 +191,7 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   const angleRef = useRef(snapshot.angle);
   const moving = motionAllowed && !reduceMotion && foreground;
   const material = gradeMaterialFor(snapshot.gradeId, snapshot.gradeName);
-  const materialActive = moving && !scene;
+  const materialActive = moving && !scene && cardVisible;
   const materialClock = useGradeMaterialClock(materialActive);
   const materialAngle = useSharedValue(snapshot.angle);
   const dragLight = useSharedValue({ x: 0, y: 0 });
@@ -181,7 +206,7 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
     return () => cancelAnimation(dragLight);
   }, [materialActive, dragLight]);
   // 카드를 끄는 손가락은 빛만 밀고 기존 회전 슬라이더의 면 전환은 바꾸지 않는다.
-  const materialGesture = useMemo(() => Gesture.Pan().minDistance(8).enabled(materialActive)
+  const materialGesture = useMemo(() => Gesture.Pan().activeOffsetX([-16, 16]).failOffsetY([-6, 6]).enabled(materialActive)
     .onUpdate((event) => {
       dragLight.set({ x: Math.max(-1, Math.min(1, event.translationX / size * 2)),
         y: Math.max(-1, Math.min(1, event.translationY / size * 2)) });
@@ -368,10 +393,10 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   const tiltActive = canUseTiltSensor && tiltOn && moving;
 
   return (
-    <DetailFrame>
+    <DetailFrame onLayout={onViewportLayout} onScroll={onDetailScroll}>
       <Text accessibilityRole="header" style={[styles.title, { color: palette.label }]}>{snapshot.name}</Text>
       <Text selectable style={[styles.meta, { color: palette.secondaryLabel }]}>{merchantName} · {snapshot.gradeName} · {snapshot.theme.name}</Text>
-      <View style={[styles.stage, { width: size, height: size, backgroundColor: palette.surface }]}>
+      <View onLayout={onCardLayout} style={[styles.stage, { width: size, height: size, backgroundColor: palette.surface }]}>
         {scene ? (
           <>
             <Image source={{ uri: sceneUri }} resizeMode="cover" accessibilityLabel={`${merchantName} 가게 이야기`}

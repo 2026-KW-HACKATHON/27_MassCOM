@@ -6,7 +6,7 @@ import Svg, { Circle, Defs, G, Image as SvgImage, Line, LinearGradient, Mask, Pa
 import { useMotionEnabled } from '@/motion/use-motion';
 
 import { CollectibleFaceOutline } from './collectible-default-back';
-import { gradeMaterialPresets, reflectionAt, type GradeMaterial, type ReflectionFrame } from './grade-material';
+import { gradeMaterialPresets, PRISM_FOIL_STOPS, RAINBOW_PERIODS, reflectionAt, type GradeMaterial, type ReflectionFrame } from './grade-material';
 
 const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
 const AnimatedRadialGradient = Animated.createAnimatedComponent(RadialGradient);
@@ -57,28 +57,41 @@ function Glint({ index, size, color, material, reflection, opacityScale }: {
   reflection: SharedValue<ReflectionFrame>; opacityScale: number;
 }) {
   const [x, y] = STAR_POINTS[index];
-  const radius = size * (material === 'prism' ? .029 : .023);
+  const radius = size * (material === 'prism' ? .048 : .043);
+  const glowId = `glint-${useId().replace(/:/g, '')}`;
   const animatedProps = useAnimatedProps(() => {
-    return { opacity: (reflection.get().glintOpacities[index] ?? 0) * opacityScale };
+    const pulse = reflection.get().glintOpacities[index] ?? 0;
+    const zoom = Math.sqrt(pulse);
+    return { opacity: Math.min(1, pulse * opacityScale),
+      matrix: [zoom, 0, 0, zoom, x * size, y * size] };
   });
-  const px = x * size;
-  const py = y * size;
   return <AnimatedGroup animatedProps={animatedProps}>
-    <Path d={`M ${px} ${py - radius * 1.7} Q ${px + radius * .14} ${py - radius * .13} ${px + radius} ${py} Q ${px + radius * .14} ${py + radius * .13} ${px} ${py + radius * 1.7} Q ${px - radius * .14} ${py + radius * .13} ${px - radius} ${py} Q ${px - radius * .14} ${py - radius * .13} ${px} ${py - radius * 1.7} Z`} fill={color} />
-    <Circle cx={px} cy={py} r={radius * .25} fill="white" />
+    <Defs><RadialGradient id={glowId}>
+      <Stop offset={0} stopColor="white" stopOpacity={0.8} />
+      <Stop offset={0.35} stopColor={color} stopOpacity={0.45} />
+      <Stop offset={1} stopColor={color} stopOpacity={0} />
+    </RadialGradient></Defs>
+    <Circle r={radius * 2.2} fill={`url(#${glowId})`} />
+    <Path d={`M 0 ${-radius * 1.7} Q ${radius * .14} ${-radius * .13} ${radius} 0 Q ${radius * .14} ${radius * .13} 0 ${radius * 1.7} Q ${-radius * .14} ${radius * .13} ${-radius} 0 Q ${-radius * .14} ${-radius * .13} 0 ${-radius * 1.7} Z`} fill={color} />
+    <Circle r={radius * .25} fill="white" />
   </AnimatedGroup>;
 }
 
 function MaterialVisual({ material, size, faceUri, faceMask, shape, tilt, clock, variant, moving, intensityScale = 1 }: VisualProps) {
-  const preset = gradeMaterialPresets[material];
+  const basePreset = gradeMaterialPresets[material];
+  const preset = variant === 'card' ? { ...basePreset, sweepPeriodMs: basePreset.cardPeriodMs } : basePreset;
   const key = useId().replace(/:/g, '');
   const maskId = `${key}mask`;
+  const lightMaskId = `${key}lightmask`;
   const bandId = `${key}band`;
+  const rimId = `${key}rim`;
   const rainbowId = `${key}rainbow`;
   const hotspotId = `${key}hotspot`;
   const lightScale = Math.min(1.4, Math.max(0, intensityScale));
-  const variantScale = variant === 'card' ? .72 : variant === 'envelope' ? 1.1 : 1;
-  const alpha = Math.min(.56, preset.baseOpacity * variantScale * lightScale);
+  const variantScale = variant === 'card' ? .8 : variant === 'envelope' ? 1.15 : 1;
+  const scale = variantScale * lightScale;
+  const alpha = Math.min(.55, preset.baseOpacity * scale);
+  const coreAlpha = Math.min(.95, preset.intensity * scale);
   const isPrism = material === 'prism';
   const isGold = material === 'gold';
   const vivid = isGold || isPrism;
@@ -93,13 +106,13 @@ function MaterialVisual({ material, size, faceUri, faceMask, shape, tilt, clock,
     const angle = light.bandAngle * Math.PI / 180;
     const nx = Math.cos(angle);
     const ny = Math.sin(angle);
-    const half = Math.max(size * .02, preset.bandWidth * size * .5);
+    const half = preset.bandWidth * size * .5;
     return { x1: centerX - half * nx, y1: centerY - half * ny,
       x2: centerX + half * nx, y2: centerY + half * ny };
   });
   const rainbowProps = useAnimatedProps(() => {
-    const start = (reflection.get().rainbowPhase - 1) * size * 1.3;
-    return { x1: start, y1: 0, x2: start + size * 2.6, y2: size };
+    const coords = reflection.get().rainbowGradient;
+    return { x1: coords.x1 * size, y1: coords.y1 * size, x2: coords.x2 * size, y2: coords.y2 * size };
   });
   const hotspotProps = useAnimatedProps(() => {
     const light = reflection.get();
@@ -108,50 +121,72 @@ function MaterialVisual({ material, size, faceUri, faceMask, shape, tilt, clock,
     return { cx, cy, fx: cx, fy: cy };
   });
   const linesProps = useAnimatedProps(() => {
-    return { opacity: .08 + .065 * Math.sin(reflection.get().rainbowPhase * Math.PI * 2) };
+    return { opacity: (.25 + .05 * Math.sin(reflection.get().rainbowPhase * Math.PI * 2)) * scale };
   });
-  const rainbowStops = preset.rainbowStops.length > 0 ? preset.rainbowStops : preset.colors;
-  const rainbowColors = [...rainbowStops, ...rainbowStops.slice(1)];
-  return <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants"
-    style={{ position: 'absolute', width: size, height: size, left: 0, top: 0 }}>
-    <Svg pointerEvents="none" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <Defs>
-        <Mask id={maskId} maskType="alpha">
-          {faceMask ?? (faceUri ? <SvgImage href={{ uri: faceUri }} width={size} height={size} preserveAspectRatio="xMidYMid meet" />
-            : <G scale={size / 100}><CollectibleFaceOutline shape={shape} fill="white" /></G>)}
-        </Mask>
-        <AnimatedGradient id={bandId} animatedProps={bandProps} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor={isPrism ? '#76dff9' : preset.tint} stopOpacity="0" />
-          <Stop offset=".29" stopColor={isGold ? '#d59431' : '#cdeafb'} stopOpacity={isGold ? .17 : .11} />
-          <Stop offset=".46" stopColor="white" stopOpacity={vivid ? .02 : .0} />
-          <Stop offset=".5" stopColor="white" stopOpacity={vivid ? .89 : .54} />
-          <Stop offset=".54" stopColor="white" stopOpacity={vivid ? .14 : .04} />
-          <Stop offset=".72" stopColor={isGold ? '#ffcc57' : '#a4d7ec'} stopOpacity={isGold ? .27 : .14} />
-          <Stop offset="1" stopColor={preset.tint} stopOpacity="0" />
-        </AnimatedGradient>
-        <AnimatedGradient id={rainbowId} animatedProps={rainbowProps} gradientUnits="userSpaceOnUse">
-          {rainbowColors.map((color, index) => <Stop key={index} offset={index / (rainbowColors.length - 1)} stopColor={color} />)}
-        </AnimatedGradient>
-        <AnimatedRadialGradient id={hotspotId} animatedProps={hotspotProps} r={size * .52} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor={isGold ? '#fff6c2' : '#ffffff'} stopOpacity={vivid ? .36 : .16} />
-          <Stop offset="1" stopColor={preset.tint} stopOpacity="0" />
-        </AnimatedRadialGradient>
-      </Defs>
-      <G mask={`url(#${maskId})`}>
-        <Rect width={size} height={size} fill={preset.tint} opacity={alpha * (isPrism ? .1 : isGold ? .45 : .05)} />
-        {isPrism ? <Rect width={size} height={size} fill={`url(#${rainbowId})`} opacity={alpha * .95} /> : null}
-        {vivid ? <Rect width={size} height={size} fill={`url(#${hotspotId})`} opacity={alpha} /> : null}
-        {isPrism ? <AnimatedGroup animatedProps={linesProps}>
-          {Array.from({ length: 28 }, (_, index) => <Line key={index} x1={-size + index * size / 16} y1={0}
-            x2={index * size / 16} y2={size} stroke={index % 2 ? '#e9fcff' : '#f9e5ff'} strokeWidth={size * .003} />)}
-        </AnimatedGroup> : null}
-        <Rect width={size} height={size} fill={`url(#${bandId})`} opacity={Math.min(.75, alpha * (isGold ? 1.8 : isPrism ? 1.3 : .85))} />
-        {vivid && variant !== 'card' ? Array.from({ length: Math.min(preset.glintCount, STAR_POINTS.length) }, (_, index) =>
-          <Glint key={index} index={index} size={size} color={isGold ? '#fff2b9' : index % 2 ? '#fff1ff' : '#dcffff'}
-            material={material} reflection={reflection} opacityScale={lightScale * variantScale} />) : null}
-      </G>
-    </Svg>
-  </View>;
+  // 그림보다 긴 색 주기를 나열해 양끝 색의 늘어짐이 카드 안에 들어오지 않게 한다.
+  const rainbowColors = Array.from({ length: RAINBOW_PERIODS * (PRISM_FOIL_STOPS.length - 1) + 1 },
+    (_, index) => PRISM_FOIL_STOPS[index % (PRISM_FOIL_STOPS.length - 1)]);
+  const maskFace = faceMask ?? (faceUri ? <SvgImage href={{ uri: faceUri }} width={size} height={size} preserveAspectRatio="xMidYMid meet" />
+    : <G scale={size / 100}><CollectibleFaceOutline shape={shape} fill="white" /></G>);
+  const svgStyle = { position: 'absolute' as const, left: 0, top: 0 };
+  const glintCount = variant === 'card' ? isPrism ? 4 : isGold ? 3 : 0 : preset.glintCount;
+  const bandStops = [
+    <Stop key={0} offset={0} stopColor={preset.tint} stopOpacity={0} />,
+    <Stop key={1} offset={0.25} stopColor={isGold ? '#FFC349' : '#B9E9FF'} stopOpacity={0.28} />,
+    <Stop key={2} offset={0.44} stopColor={isGold ? '#FFF2C4' : '#EDF9FF'} stopOpacity={0.65} />,
+    <Stop key={3} offset={0.5} stopColor="white" stopOpacity={1} />,
+    <Stop key={4} offset={0.56} stopColor={isGold ? '#FFF2C4' : '#EDF9FF'} stopOpacity={0.65} />,
+    <Stop key={5} offset={0.75} stopColor={preset.tint} stopOpacity={0.28} />,
+    <Stop key={6} offset={1} stopColor={preset.tint} stopOpacity={0} />,
+  ];
+  // 합성 부모가 사진도 포함하도록 효과만 감싸는 네이티브 격리 뷰를 만들지 않는다.
+  return <>
+    {/* 색과 빛의 합성을 분리하고 합성 미지원 환경에서도 사진을 보존할 불투명도를 쓴다. */}
+    <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={[svgStyle, { width: size, height: size, mixBlendMode: vivid ? 'overlay' : 'soft-light' }]}>
+      <Svg pointerEvents="none" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <Defs>
+          <Mask id={maskId} maskType="alpha">{maskFace}</Mask>
+          <AnimatedGradient id={rainbowId} animatedProps={rainbowProps} gradientUnits="userSpaceOnUse">
+            {rainbowColors.map((color, index) => <Stop key={index} offset={index / (rainbowColors.length - 1)} stopColor={color} />)}
+          </AnimatedGradient>
+        </Defs>
+        <G mask={`url(#${maskId})`}>
+          <Rect width={size} height={size} fill={isPrism ? `url(#${rainbowId})` : preset.tint} opacity={alpha} />
+          {isPrism ? <AnimatedGroup animatedProps={linesProps}>
+            {Array.from({ length: 48 }, (_, index) => <Line key={index} x1={-size + index * size / 20} y1={0}
+              x2={index * size / 20} y2={size} stroke={index % 2 ? '#e9fcff' : '#b871ff'} strokeWidth={size * .004} />)}
+          </AnimatedGroup> : null}
+        </G>
+      </Svg>
+    </View>
+    <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={[svgStyle, { width: size, height: size, mixBlendMode: 'screen' }]}>
+      <Svg pointerEvents="none" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <Defs>
+          <Mask id={lightMaskId} maskType="alpha">{maskFace}</Mask>
+          <AnimatedGradient id={bandId} animatedProps={bandProps} gradientUnits="userSpaceOnUse">
+            {bandStops}
+          </AnimatedGradient>
+          <AnimatedGradient id={rimId} animatedProps={bandProps} gradientUnits="userSpaceOnUse" gradientTransform={`scale(${100 / size})`}>
+            {bandStops}
+          </AnimatedGradient>
+          <AnimatedRadialGradient id={hotspotId} animatedProps={hotspotProps} r={size * .32} gradientUnits="userSpaceOnUse">
+            <Stop offset={0} stopColor={isGold ? '#FFE396' : '#DAA6FF'} stopOpacity={0.35} />
+            <Stop offset={0.45} stopColor={isGold ? '#FFC349' : '#76F6EE'} stopOpacity={0.18} />
+            <Stop offset={1} stopColor={preset.tint} stopOpacity={0} />
+          </AnimatedRadialGradient>
+        </Defs>
+        <G mask={`url(#${lightMaskId})`}>
+          {vivid ? <Rect width={size} height={size} fill={`url(#${hotspotId})`} opacity={Math.min(1, scale)} /> : null}
+          <Rect width={size} height={size} fill={`url(#${bandId})`} opacity={coreAlpha} />
+          {vivid ? <G scale={size / 100} opacity={coreAlpha}><CollectibleFaceOutline shape={shape} fill="none"
+            stroke={`url(#${rimId})`} strokeWidth={1.4} /></G> : null}
+          {Array.from({ length: Math.min(glintCount, STAR_POINTS.length) }, (_, index) =>
+            <Glint key={index} index={index} size={size} color={isGold ? '#FFF2B9' : index % 2 ? '#FFF1FF' : '#DCFFFF'}
+              material={material} reflection={reflection} opacityScale={scale} />)}
+        </G>
+      </Svg>
+    </View>
+  </>;
 }
 
 function AutonomousLayer(props: Props & { moving: boolean }) {
