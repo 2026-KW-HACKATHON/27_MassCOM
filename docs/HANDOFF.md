@@ -1,5 +1,11 @@
 # HANDOFF
 
+## 2026-10-03 하늘 동네 테마에서 빠졌던 화면 통일 ([Issue #338](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/338), 브랜치 `feat/sky-theme-unify-screens`)
+
+- 기준: main `5a0465ed`에서 딴 로컬 브랜치. **아직 커밋·push·PR 없음.** 같은 작업 트리에 이 작업과 무관한 미커밋 변경(`apps/mobile/app.json`·`package.json`·`package-lock.json`, `scripts/qa-local.sh`)과 캡처 PNG들이 있으니 커밋할 때 바뀐 화면 파일·`src/ui/sky-banner.tsx`·`DESIGN.md`·`docs/` 네 문서만 골라 담는다. `app.json`의 `expo-sharing` 때문에 `config/build-environment` 시험 3건이 실패한다(이 작업과 무관).
+- 한 일·안 한 일은 [PROJECT_STATE](PROJECT_STATE.md) 맨 위 항목, 시험 결과는 [TEST_STATUS](TEST_STATUS.md) 맨 위 항목. 점주 방문 확인(`merchant-claim`)은 일부러 제외했다(공유 스타일).
+- 다음 작업: ① 이 방향(월드 테마로 통일)을 소유자가 승인한 결정으로 DECISIONS.md에 새 `D-0xx`로 남길지 정한다 — 소유자가 수정본을 직접 보았다고 알렸지만 결정 문구는 받지 못해 쓰지 않았다. ② `bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"`로 PR 제목·본문을 검사한 뒤 PR을 연다(본문 `Issue:` 줄은 `Related #338`; 이슈의 모든 화면이 끝났을 때만 `Closes #338`). ③ 소유자 눈 확인은 기기·빌드·화면 범위가 기록되지 않았으므로, 지갑 연결·로그아웃 상태 로그인 필요·첫 로그인 동의·설정 필요 안내를 라이트·다크·글자 200%로 보고 `BackHeader`/`SkyBanner` 높이, 카드 그림자, 상태 표시줄 겹침을 증거 캡처로 남긴다(`NOT_RUN`). 운영·시연 두 설치본을 따로 본다. ④ `merchant-claim` 계열을 옮길지 결정한다(#338의 남은 범위).
+
 ## 2026-10-03 `0fcdfe8` 운영·시연 배포와 운영 test.8·시연 Preview 17 공개 (Issue #356)
 
 - 기준 커밋: main `0fcdfe8cc5da500c308d9b2c92404777ef5b5fdc`(PR #355 병합 결과, Issue #354), 브랜치 `docs/release-0fcdfe8`, worktree `.worktrees/release-docs2`. 배포 전 운영·시연 모두 `723c35cc9fa6d1efac360686938121238e2e8fdb`(65a0005 코드의 문서 재배포). 이 작업은 문서·포털 링크 기대값만 갱신한다.

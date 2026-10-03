@@ -1,5 +1,9 @@
 # 프로젝트 상태
 
+## 하늘 동네 테마에서 빠졌던 화면 통일 ([Issue #338](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/338), 2026-10-03)
+
+브랜치 `feat/sky-theme-unify-screens`(main `5a0465ed` 기준, 미커밋 작업 중이면 로컬 변경). #142(파란 UI 일관화)가 통일했지만 #224(하늘 동네 재설계) 화면 목록에서 빠져 구세대 단색 스타일로 남았던 화면을 월드 테마로 옮겼다. **옮긴 화면:** `wallet-link`·`wallet-link/configuration-required`(스택 머리글을 숨기고 `BackHeader`), `auth-required`(네이티브·웹), `consent`(`SkyBanner` 머리글), `demo-configuration-required`(카드). 카드는 `FloatingCard`로 바꿨고 새 공통 조각 `src/ui/sky-banner.tsx`를 더했다. **옮기지 않은 화면:** `merchant-claim`(개발용 점주 발급 화면 `merchant` 라우트). 같은 스타일 파일을 `merchant-home/status.tsx`·직원 방문 확인·되돌리기 화면이 공유하고 이 화면들은 머리글 없는 시연 점주 루트에서 열리므로, 시연 점주 앱 쪽 영향을 함께 확인하는 별도 변경으로 남긴다. 지갑 요청 정책(`personal_sign`만 허용)·SIWE 흐름·API·DB·권한은 바꾸지 않았다. 화면은 두 앱(운영·시연)이 공유하는 고객 코드다. 소유자가 수정본을 직접 실행해 바뀐 디자인을 눈으로 확인했다고 알렸으나(사용자 보고, 기기·빌드·화면 범위 미기록) 저장된 캡처·라이트/다크/글자 200%/TalkBack·두 설치본 각각의 확인은 `NOT_RUN`이다. 검증은 [TEST_STATUS](TEST_STATUS.md)를 따른다.
+
 ## 운영·시연 `0fcdfe8` 배포와 운영 test.8·시연 Preview 17 공개 (Issue #356, 2026-10-03)
 
 [Issue #356](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/356), 브랜치 `docs/release-0fcdfe8`, 기준 main `0fcdfe8cc5da500c308d9b2c92404777ef5b5fdc`(PR #355·Issue #354). 이전 배포 `723c35cc9fa6d1efac360686938121238e2e8fdb` 이후 양쪽 서버에 `0fcdfe8`을 배포했다([배포 증거](evidence/deployment-0fcdfe8-2026-10-03.json)). migration `0041_merchant_detail_view_counts.sql` 적용으로 `schema_migrations`가 40→41이 됐다. 시연 host seed는 `SHOWCASE_HOST_SEEDED`이고 세 캠페인의 `{bronze,gold,silver}` 게시물을 확인했다. 운영 `merchants.is_demo`는 0건, `merchant_detail_view_counts`는 0행이다. 두 서버의 배포 전 백업은 존재하지만 복원은 `NOT_RUN`; 시연 `/play/`는 200이나 웹 체험 번들은 `a39b983` export 그대로라 재빌드는 `NOT_RUN`이다. 운영의 새 프록시·없는 점포 미리보기·익명 관리자 funnel 경로는 각각 예상한 404·404·401을 돌려줬으며 운영 `POST /views`는 보내지 않았다. D-071에 따라 코드 롤백 때도 `merchant_detail_view_counts` 표와 `schema_migrations`의 0041 기록을 유지한다.

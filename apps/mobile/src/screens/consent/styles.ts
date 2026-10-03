@@ -11,23 +11,17 @@ export function consentBoxSize(fontScale: number): number {
 /** 동의 화면 스타일. 줄 높이·최소 높이만 정하고 고정 높이는 두지 않아 글자 200%에서도 잘리지 않는다. */
 export function makeConsentStyles(palette: AppColors, hairlineWidth = 1) {
   return {
+    // No page background: the sky page (SkyBackdrop) shows through. The two cards below are FloatingCards, which own their surface.
     content: {
       flexGrow: 1,
       gap: 16,
       paddingHorizontal: 24,
-      paddingTop: 32,
-      backgroundColor: palette.background,
+      paddingTop: 8,
     },
     eyebrow: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: '800' },
     title: { color: palette.label, fontSize: 28, lineHeight: 36, fontWeight: '900' },
     body: { color: palette.secondaryLabel, fontSize: 16, lineHeight: 25 },
-    noticeCard: {
-      gap: 12,
-      padding: 18,
-      borderRadius: 20,
-      borderCurve: 'continuous',
-      backgroundColor: palette.surface,
-    },
+    noticeCard: { gap: 12 },
     noticeHeading: { color: palette.label, fontSize: 17, lineHeight: 24, fontWeight: '800' },
     noticeItem: { gap: 2 },
     noticeTitle: { color: palette.primary, fontSize: 14, lineHeight: 20, fontWeight: '800' },
@@ -60,13 +54,7 @@ export function makeConsentStyles(palette: AppColors, hairlineWidth = 1) {
       paddingLeft: 40,
     },
     linkText: { color: palette.primary, fontSize: 15, lineHeight: 22, fontWeight: '800', textDecorationLine: 'underline' },
-    statusCard: {
-      gap: 10,
-      padding: 16,
-      borderRadius: 16,
-      borderCurve: 'continuous',
-      backgroundColor: palette.surface,
-    },
+    statusCard: { gap: 10 },
     statusText: { color: palette.label, fontSize: 15, lineHeight: 22, fontWeight: '700' },
     errorText: { color: palette.error, fontSize: 15, lineHeight: 22, fontWeight: '700' },
     submit: {
