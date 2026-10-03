@@ -45,7 +45,7 @@ test('claim and reward success sounds require fresh server results', () => {
   assert.doesNotMatch(claim.slice(claim.indexOf('function handleScanned'), claim.indexOf('async function inspect')), /playUiSound\('error'\)/);
 
   const box = source('./gamification/reward-box.tsx');
-  assert.match(box, /catch \(caught\) \{\s*box\.current\?\.settle\(\);[\s\S]*?playUiSound\('error'\);\s*const code/);
+  assert.match(box, /catch \(caught\) \{\s*if \(!isCurrent\(\)\) return;\s*box\.current\?\.settle\(\);[\s\S]*?playUiSound\('error'\);\s*const code/);
 
   const reveal = source('./gamification/reward-reveal.tsx');
   assert.match(reveal, /!result\.replayed && celebratedCoupon\.current !== result\.coupon\.couponId/);

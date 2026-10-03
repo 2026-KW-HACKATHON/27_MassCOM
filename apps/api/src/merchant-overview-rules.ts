@@ -41,6 +41,10 @@ export type MerchantOverview = {
   businessDate: string;
   weekStartsOn: string;
   visits: { today: number; thisWeek: number; lastWeek: number; last7Days: DailyVisitCount[]; total: number };
+  weekVisitors: { first: number; repeat: number };
+  weekCollectibles: { gradeId: string; gradeName: string; count: number }[];
+  weekCoupons: { issued: number; redeemed: number };
+  weekDetailViews: number;
   comparison: VisitComparison | null;
   couponsRedeemedThisWeek: number;
   repeatVisitors: number;

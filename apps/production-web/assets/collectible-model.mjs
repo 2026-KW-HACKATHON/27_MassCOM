@@ -89,6 +89,20 @@ export function createProject({ name = '새 수집품', campaignId = '' } = {}) 
   };
 }
 
+/** 새 점포 수집품은 기존 방문 목표의 외형을 미리 연결한다. 저장한 프로젝트에는 적용하지 않는다. */
+export function createMerchantStarterProject({ merchantName = '', campaigns = [], preferredCampaignId = '' } = {}) {
+  const eligible = campaigns.filter(campaign => campaign?.id &&
+    (!campaign.status || campaign.status === 'ACTIVE') &&
+    Array.isArray(campaign.goals) &&
+    campaign.goals.length === 3 &&
+    [...campaign.goals].sort((a, b) => a - b).every((goal, index) => goal === [1, 3, 5][index]));
+  const campaignId = eligible.find(campaign => campaign.id === preferredCampaignId)?.id ??
+    (eligible.length === 1 ? eligible[0].id : '');
+  const project = createProject({ name: `${merchantName.trim() || '우리 가게'} 방문 수집품`, campaignId });
+  project.rewardGrades = { 1: 'bronze', 3: 'silver', 5: 'gold' };
+  return project;
+}
+
 /**
  * v1 프로젝트를 v2로 올린다. 순수 함수이며 이미 v2면 그대로(깊은 복사만) 돌려줘 멱등이다.
  * 서버의 collectible-project-rules.ts upgradeCollectibleProject와 값이 같아야 하며, 같은 골든 픽스처로 함께 시험한다.

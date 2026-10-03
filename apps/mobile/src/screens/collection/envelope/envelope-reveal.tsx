@@ -24,6 +24,7 @@ type Props = {
   series: StoreSeries | undefined;
   milestone: EnvelopeMilestone;
   onSkip: () => void;
+  onCardShown: (entitlementId: string) => void;
   /** Opens the full detail for the first card. */
   onOpenDetail: (entitlementId: string) => void;
 };
@@ -37,7 +38,7 @@ const TEAR_MS = 650;
  * but the instance is only created once the person actually taps, so backgrounding the idle, untapped envelope
  * cannot auto-complete a tear nobody asked for (RevealLifecycle's `stage` starts at 'opening' from construction).
  */
-export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip, onOpenDetail }: Props) {
+export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip, onCardShown, onOpenDetail }: Props) {
   const motionAllowed = useMotionEnabled();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -145,6 +146,9 @@ export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip,
   const dragStyle = useAnimatedStyle(() => ({ transform: [{ translateX: dragX.get() }] }));
 
   const current = cardStep.stage === 'cards' ? cards[cardStep.index] : undefined;
+  useEffect(() => {
+    if (foreground && uiStage === 'open' && current) onCardShown(current.entitlementId);
+  }, [foreground, uiStage, current, onCardShown]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 28 }]}>

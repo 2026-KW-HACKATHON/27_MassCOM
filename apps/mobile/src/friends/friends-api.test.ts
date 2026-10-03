@@ -25,7 +25,7 @@ function medals(explorer: number, regular: number, steady: number) {
 function friend(overrides: Record<string, unknown> = {}) {
   return {
     friendshipId: friendA, nickname: '민지', badges: { earned: 5, total: 9 }, medals: medals(2, 2, 1),
-    stamps: [{ merchantName: '월계 국밥집' }, { merchantName: '월계 분식' }], rank: 1,
+    stamps: [{ merchantName: '월계 국밥집', merchantId: null }, { merchantName: '월계 분식', merchantId: null }], rank: 1,
     ...overrides,
   };
 }
@@ -51,10 +51,22 @@ test('parses the friends list and keeps only the allowed fields', () => {
   assert.equal(parsed.me.asOf, '2026-09-28');
   assert.deepEqual(parsed.friends[0], {
     friendshipId: friendA, nickname: '민지', badges: { earned: 5, total: 9 }, medals: medals(2, 2, 1),
-    stamps: [{ merchantName: '월계 국밥집' }, { merchantName: '월계 분식' }], rank: 1,
+    stamps: [{ merchantName: '월계 국밥집', merchantId: null }, { merchantName: '월계 분식', merchantId: null }], rank: 1,
   });
-  assert.deepEqual(Object.keys(parsed.friends[0]!.stamps[0]!), ['merchantName']);
+  assert.deepEqual(Object.keys(parsed.friends[0]!.stamps[0]!), ['merchantName', 'merchantId']);
   assert.deepEqual(Object.keys(parsed.me), ['nickname', 'code', 'badges', 'medals', 'rank', 'asOf']);
+});
+
+test('친구 도장은 공개 가게 ID만 보존하고 숨겨진 가게는 연결하지 않는다', () => {
+  const raw = snapshot();
+  raw.friends[0]!.stamps = [
+    { merchantName: '같은 이름', merchantId: 'public-2', visitedAt: 'secret' },
+    { merchantName: '같은 이름', merchantId: null },
+  ] as typeof raw.friends[0]['stamps'];
+  assert.deepEqual(parseFriendsSnapshot(raw).friends[0]!.stamps, [
+    { merchantName: '같은 이름', merchantId: 'public-2' },
+    { merchantName: '같은 이름', merchantId: null },
+  ]);
 });
 
 test('puts medals in the fixed explorer, regular, steady order', () => {
@@ -92,6 +104,9 @@ test('rejects a snapshot that is not the documented shape instead of showing gue
     ['friend badges not the sum of tiers', (raw) => { raw.friends[0]!.badges.earned = 9; }],
     ['stamp without a name field', (raw) => { (raw.friends[0]!.stamps as unknown[])[0] = {}; }],
     ['stamp name not a string', (raw) => { (raw.friends[0]!.stamps as unknown[])[0] = { merchantName: 5 }; }],
+    ['stamp ID not a string or null', (raw) => { (raw.friends[0]!.stamps as unknown[])[0] = { merchantName: '가게', merchantId: 5 }; }],
+    ['stamp ID blank', (raw) => { (raw.friends[0]!.stamps as unknown[])[0] = { merchantName: '가게', merchantId: ' ' }; }],
+    ['stamp ID missing', (raw) => { (raw.friends[0]!.stamps as unknown[])[0] = { merchantName: '가게' }; }],
     ['stamp that is not an object', (raw) => { (raw.friends[0]!.stamps as unknown[])[0] = '월계 국밥집'; }],
     ['stamps not a list', (raw) => { (raw.friends[0] as Record<string, unknown>).stamps = {}; }],
     ['duplicate friendshipId', (raw) => { raw.friends.push(friend({ rank: 3 })); raw.me.rank = 2; }],
@@ -113,7 +128,7 @@ test('one stamp whose shop name is blank shows as an unnamed shop instead of hid
   assert.equal(UNNAMED_SHOP, '이름 없는 가게');
   for (const blank of ['', ' ', '   ', '\t\n', '\u3000', '\u3000 \u00a0\u2003', '\ufeff']) {
     const raw = snapshot();
-    raw.friends[0]!.stamps = [{ merchantName: '월계 국밥집' }, { merchantName: blank }, { merchantName: '월계 분식' }];
+    raw.friends[0]!.stamps = [{ merchantName: '월계 국밥집', merchantId: null }, { merchantName: blank, merchantId: null }, { merchantName: '월계 분식', merchantId: null }];
     const parsed = parseFriendsSnapshot(raw);
     assert.deepEqual(
       parsed.friends[0]!.stamps.map((stamp) => stamp.merchantName),
@@ -125,7 +140,7 @@ test('one stamp whose shop name is blank shows as an unnamed shop instead of hid
   // word joiner, byte order mark, soft hyphen, and any mix of them with spaces.
   for (const invisible of ['\u200b', '\u200c', '\u200d', '\u2060', '\u00ad', '\u200b\u2060\ufeff', ' \u200b ', '\u3000\u2060\u200d\ufeff']) {
     const raw = snapshot();
-    raw.friends[0]!.stamps = [{ merchantName: '월계 국밥집' }, { merchantName: invisible }];
+    raw.friends[0]!.stamps = [{ merchantName: '월계 국밥집', merchantId: null }, { merchantName: invisible, merchantId: null }];
     assert.deepEqual(
       parseFriendsSnapshot(raw).friends[0]!.stamps.map((stamp) => stamp.merchantName),
       ['월계 국밥집', UNNAMED_SHOP],
@@ -135,12 +150,12 @@ test('one stamp whose shop name is blank shows as an unnamed shop instead of hid
   // A name that has a visible letter is never touched, even with invisible characters around or inside it.
   for (const real of ['월계\u200b국밥', '\u200b월계', '월계\u2060', '\ufeff월계 분식 ', '가']) {
     const raw = snapshot();
-    raw.friends[0]!.stamps = [{ merchantName: real }];
+    raw.friends[0]!.stamps = [{ merchantName: real, merchantId: null }];
     assert.equal(parseFriendsSnapshot(raw).friends[0]!.stamps[0]!.merchantName, real, JSON.stringify(real));
   }
   // The other friends and my own numbers are read as usual, and a real name is left exactly as the server wrote it.
   const raw = snapshot();
-  raw.friends[0]!.stamps = [{ merchantName: ' 월계 국밥집 ' }, { merchantName: '\u3000' }];
+  raw.friends[0]!.stamps = [{ merchantName: ' 월계 국밥집 ', merchantId: null }, { merchantName: '\u3000', merchantId: null }];
   const parsed = parseFriendsSnapshot(raw);
   assert.equal(parsed.friends[0]!.stamps[0]!.merchantName, ' 월계 국밥집 ');
   assert.equal(parsed.me.code, 'K7M2Q9XP');

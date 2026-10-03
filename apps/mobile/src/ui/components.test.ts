@@ -133,8 +133,9 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
       assert.match(control, /progressViewOffset=\{insets\.top\}/, `${file} RefreshControl`);
     }
   }
-  assert.equal(controls, 9, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport, shop, merchant status');
-  assert.equal((readSource('screens/merchant-home/status.tsx').match(/<RefreshControl/g) ?? []).length, 1, '점주 현황에만 하나의 당겨서 새로 고침을 둔다');
+  assert.equal(controls, 10, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport, shop, merchant status, merchant claim');
+  assert.equal((readSource('screens/merchant-home/status.tsx').match(/<RefreshControl/g) ?? []).length, 1, '점주 현황에 하나의 당겨서 새로 고침을 둔다');
+  assert.equal((readSource('screens/merchant-claim/staff.tsx').match(/<RefreshControl/g) ?? []).length, 1, '방문 확인에 발급 상태 새로 고침을 둔다');
   // PR #312 QA: Android의 elevation은 JSX 순서와 별개로 Z 스택을 정한다. 카드류(ui/styles.ts의 card)가 쓰는
   // elevation보다 스크림의 elevation이 뚜렷이 더 커야, 스크롤이 지난 카드가 스크림 위로 올라와 그 텍스트가
   // 상태 바 아이콘 자리에 다시 비치지 않는다.
@@ -205,7 +206,9 @@ test('stack pages use the sky header with a back button instead of the plain nat
   assert.match(detail, /const hero = useArtFallback\(art\?\.source\);/);
   // The owner's AI picture says so; the bundled showcase picture keeps its own note (D-048).
   assert.match(detail, /const artNote = art \? \(art\.fromServer \? '사장님이 고른 AI 그림' : '가상 점포 시연 그림'\) : undefined;/);
-  assert.doesNotMatch(detail, /styles\.banner|<Image/);
+  assert.doesNotMatch(detail, /styles\.banner/);
+  // #354: 헤더와 별개로 수집품 미리보기는 검증된 썸네일을 그린다.
+  assert.match(detail, /<Image source=\{\{ uri: item\.thumbnailDataUrl \}\}/);
   const back = read('back-header.tsx');
   assert.match(back, /art \? <StoreArt source=\{art\}/);
   assert.match(back, /<SkyArt compact \/>/);
@@ -316,12 +319,14 @@ test('the collection says 도장 for the passport page, not 스탬프', () => {
 
 test('the explore passport chip shows earned badges from the badge book when signed in, and no dot otherwise', () => {
   const list = readSource('screens/merchant-list/index.tsx');
-  assert.match(list, /useBadgeBook\(badgeApi\)/);
+  const progress = readSource('screens/merchant-list/use-discovery-progress.ts');
+  assert.match(progress, /useBadgeBook\(badgeApi\)/);
   assert.match(list, /passportChipData\(/);
-  assert.match(list, /createBadgeApiClient\(/);
-  // The hook needs a credential, so it lives in a component that only renders when signed in.
-  assert.match(list, /function SignedInPassportChip/);
-  assert.match(list, /auth\.credential && auth\.accountId \? \(\s*<SignedInPassportChip/);
+  assert.match(progress, /createBadgeApiClient\(/);
+  // #354: 필터와 여권 칩·보상 카드가 하나의 계정 배지 조회를 공유한다.
+  assert.match(list, /auth\.credential && auth\.accountId \? \(\s*<PassportChip/);
+  assert.match(list, /passportChipData\(discovery\.book\)/);
+  assert.doesNotMatch(list, /useBadgeBook\(/);
   assert.doesNotMatch(list, /stampOrange/);
 });
 

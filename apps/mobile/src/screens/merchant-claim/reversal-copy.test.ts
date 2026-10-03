@@ -22,7 +22,7 @@ import {
 } from './reversal-copy';
 
 const visit = (over: Partial<RecentVisit> = {}): RecentVisit => ({
-  visitEventId: 'v1', occurredAt: '2026-09-30T03:05:00.000Z', customerLabel: '손님 K7QM', status: 'VALID',
+  visitEventId: 'v1', claimSlotId: 'slot-v1', occurredAt: '2026-09-30T03:05:00.000Z', customerLabel: '손님 K7QM', status: 'VALID',
   progressCounted: true, cancellationReason: null, canCancel: true, ...over,
 });
 const coupon = (over: Partial<RecentCouponRedemption> = {}): RecentCouponRedemption => ({

@@ -121,7 +121,7 @@ export function orderAccountPair(first: string, second: string): { low: string; 
 }
 
 export type FriendMedalView = { key: MedalKind; tier: MedalTier };
-export type FriendStampView = { merchantName: string };
+export type FriendStampView = { merchantName: string; merchantId: string | null };
 
 // 친구에게 보이는 유일한 모양이다. 여기에 없는 값(계정 ID, 방문 날짜·횟수, 쿠폰, 지갑, 이메일)은 응답에 넣지 않는다.
 export type FriendView = {
@@ -175,7 +175,7 @@ export function serializeFriendView(source: FriendSource, rank: number): FriendV
     nickname: source.nickname,
     badges: badgesOf(source.medals),
     medals: medalsOf(source.medals),
-    stamps: source.stamps.map((stamp) => ({ merchantName: stamp.merchantName })),
+    stamps: source.stamps.map((stamp) => ({ merchantName: stamp.merchantName, merchantId: stamp.merchantId })),
     rank,
   };
 }

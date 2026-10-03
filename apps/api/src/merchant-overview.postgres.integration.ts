@@ -97,8 +97,9 @@ async function addVisit(pool: Pool, input: {
   status?: 'VALID' | 'CANCELED'; counted?: boolean;
   // 방문 시각(기본: 그 날 12:00 KST). business_date와 일치하는 시각을 직접 줄 때만 쓴다.
   at?: string;
-}): Promise<void> {
+}): Promise<string> {
   const slotId = randomUUID();
+  const visitId = randomUUID();
   const at = input.at ?? `${input.date}T03:00:00Z`;
   await pool.query(
     `INSERT INTO claim_slots (id, merchant_id, customer_account_id, merchant_reference_hash, created_by_account_id,
@@ -111,8 +112,9 @@ async function addVisit(pool: Pool, input: {
     `INSERT INTO visit_events (id, claim_slot_id, merchant_id, campaign_id, customer_account_id, occurred_at,
        business_date, verification_level, status, progress_counted, cancellation_reason)
      VALUES ($1, $2, $3, $4, $5, $6, $7::date, 'MERCHANT_CONFIRMED', $8, $9, $10)`,
-    [randomUUID(), slotId, input.merchantId, input.campaignId, input.customer, at, input.date, input.status ?? 'VALID',
+    [visitId, slotId, input.merchantId, input.campaignId, input.customer, at, input.date, input.status ?? 'VALID',
       input.counted ?? !canceled, canceled ? 'WRONG_CUSTOMER' : null]);
+  return visitId;
 }
 
 async function seedOffer(pool: Pool, merchantId: string, milestone: 1 | 2 | 3): Promise<string> {
@@ -125,15 +127,15 @@ async function seedOffer(pool: Pool, merchantId: string, milestone: 1 | 2 | 3): 
 }
 
 async function addCoupon(pool: Pool, input: {
-  merchantId: string; offerId: string; milestone: 1 | 2 | 3; customer: string; redeemedAt: string | null;
+  merchantId: string; offerId: string; milestone: 1 | 2 | 3; customer: string; redeemedAt: string | null; issuedAt?: string;
 }): Promise<void> {
   const redeemed = input.redeemedAt !== null;
   await pool.query(
     `INSERT INTO badge_coupons (id, customer_account_id, milestone, offer_id, merchant_id, title, detail, status,
        issued_at, expires_at, redeemed_at, redeemed_by_account_id)
-     VALUES ($1, $2, $3, $4, $5, '음료 1잔', '시험 쿠폰', $6, '2026-09-01T00:00:00Z', '2027-01-01T00:00:00Z', $7, $8)`,
+     VALUES ($1, $2, $3, $4, $5, '음료 1잔', '시험 쿠폰', $6, $9, '2027-01-01T00:00:00Z', $7, $8)`,
     [randomUUID(), input.customer, input.milestone, input.offerId, input.merchantId, redeemed ? 'REDEEMED' : 'ISSUED',
-      input.redeemedAt, redeemed ? `staff-of-${input.merchantId}` : null]);
+      input.redeemedAt, redeemed ? `staff-of-${input.merchantId}` : null, input.issuedAt ?? '2026-09-01T00:00:00Z']);
 }
 
 const customers = { c1: 'cust-1', c2: 'cust-2', c3: 'cust-3', c4: 'cust-4', c5: 'cust-5' } as const;
@@ -174,10 +176,15 @@ test('counts only counted visits by KST day and week, with zero-filled 7 days, c
   await addCoupon(pool, { merchantId: 'shop-a', offerId: offerA, milestone: 1, customer: customers.c1, redeemedAt: '2026-10-06T05:00:00Z' });
   // 일요일 23:59:59 KST는 지난주, 월요일 00:00:00 KST부터 이번 주다.
   await addCoupon(pool, { merchantId: 'shop-a', offerId: offerA, milestone: 1, customer: customers.c2, redeemedAt: '2026-10-04T14:59:59Z' });
-  await addCoupon(pool, { merchantId: 'shop-a', offerId: offerA, milestone: 1, customer: customers.c4, redeemedAt: '2026-10-04T15:00:00Z' });
+  await addCoupon(pool, { merchantId: 'shop-a', offerId: offerA, milestone: 1, customer: customers.c4,
+    redeemedAt: '2026-10-04T15:00:00Z', issuedAt: '2026-10-04T15:00:00Z' });
   // 사용 처리를 되돌려 redeemed_at이 비었거나 다른 점포의 쿠폰은 세지 않는다.
-  await addCoupon(pool, { merchantId: 'shop-a', offerId: offerA, milestone: 1, customer: customers.c5, redeemedAt: null });
+  await addCoupon(pool, { merchantId: 'shop-a', offerId: offerA, milestone: 1, customer: customers.c5,
+    redeemedAt: null, issuedAt: '2026-10-07T02:59:59Z' });
   await addCoupon(pool, { merchantId: 'shop-b', offerId: offerB, milestone: 2, customer: customers.c1, redeemedAt: '2026-10-06T05:00:00Z' });
+  await pool.query(`INSERT INTO merchant_detail_view_counts (merchant_id, business_date, source, views) VALUES
+    ('shop-a', '2026-10-04', 'list', 9), ('shop-a', '2026-10-05', 'list', 2),
+    ('shop-a', '2026-10-07', 'map', 3), ('shop-b', '2026-10-07', 'list', 7)`);
 
   const overview = await db.overview.overview({ merchantId: 'shop-a' });
   assert.equal(overview.businessDate, '2026-10-07');
@@ -193,6 +200,10 @@ test('counts only counted visits by KST day and week, with zero-filled 7 days, c
   // 공개 시각(2026-09-01)이 지난주 시작보다 이르므로 비교가 보이고, 지난주 같은 기간(월~수)은 2건이다.
   assert.deepEqual(overview.comparison, { lastWeekSameSpan: 2, delta: 2 });
   assert.equal(overview.couponsRedeemedThisWeek, 2);
+  assert.deepEqual(overview.weekVisitors, { first: 1, repeat: 3 });
+  assert.deepEqual(overview.weekCollectibles, []);
+  assert.deepEqual(overview.weekCoupons, { issued: 2, redeemed: 2 });
+  assert.equal(overview.weekDetailViews, 5);
   assert.equal(overview.repeatVisitors, 3);
   assert.equal(overview.generatedAt, WEDNESDAY_NOON);
 
@@ -201,7 +212,104 @@ test('counts only counted visits by KST day and week, with zero-filled 7 days, c
   assert.equal(other.visits.today, 1);
   assert.equal(other.visits.total, 1);
   assert.equal(other.couponsRedeemedThisWeek, 1);
+  assert.deepEqual(other.weekVisitors, { first: 1, repeat: 0 });
+  assert.deepEqual(other.weekCoupons, { issued: 0, redeemed: 1 });
+  assert.equal(other.weekDetailViews, 7);
   assert.equal(other.repeatVisitors, 0);
+});
+
+test('weekly collectibles keep grade counts after media removal and use available grade names', { skip }, async t => {
+  const db = await setup(t);
+  const { pool } = db;
+  await seedMerchant(pool, 'collectible-a');
+  await seedMerchant(pool, 'collectible-b');
+  await addMember(pool, 'collectible-a', 'staff-of-collectible-a', 'STAFF');
+  await addMember(pool, 'collectible-b', 'staff-of-collectible-b', 'STAFF');
+  const campaignA = await seedCampaign(pool, 'collectible-camp-a', 'collectible-a');
+  const campaignB = await seedCampaign(pool, 'collectible-camp-b', 'collectible-b');
+  const entitlements: string[] = [];
+  for (const [index, goal] of [5, 1, 3, 1, 1].entries()) {
+    const merchantId = index === 4 ? 'collectible-b' : 'collectible-a';
+    const campaignId = index === 4 ? campaignB : campaignA;
+    const customer = `collectible-customer-${index}`;
+    const visitId = await addVisit(pool, { merchantId, campaignId, customer, date: '2026-10-05' });
+    const entitlementId = randomUUID();
+    await pool.query(
+      `INSERT INTO reward_entitlements (id, customer_account_id, campaign_id, target_visit_count, source_visit_event_id,
+         status, policy_version, earned_at, claim_expires_at)
+       VALUES ($1, $2, $3, $4, $5, 'GRANTED', 'test', '2026-10-05T03:00:00Z', '2027-01-01T00:00:00Z')`,
+      [entitlementId, customer, campaignId, goal, visitId]);
+    entitlements.push(entitlementId);
+  }
+  let publicationA = '';
+  for (const [merchantId, campaignId] of [['collectible-a', campaignA], ['collectible-b', campaignB]]) {
+    const projectId = randomUUID();
+    const publicationId = randomUUID();
+    if (merchantId === 'collectible-a') publicationA = publicationId;
+    await pool.query(`INSERT INTO collectible_projects (id, merchant_id, lineage_id) VALUES ($1, $2, $1)`,
+      [projectId, merchantId]);
+    await pool.query(
+      `INSERT INTO collectible_publications (id, project_id, merchant_id, campaign_id, project_version, reward_grades)
+       VALUES ($1, $2, $3, $4, 1, '{"1":"bronze","3":"silver","5":"gold"}'::jsonb)`,
+      [publicationId, projectId, merchantId, campaignId]);
+    for (const [gradeId, gradeName] of [['bronze', '브론즈'], ['silver', '실버'], ['gold', '골드']]) {
+      await pool.query(
+        `INSERT INTO collectible_publication_grades (publication_id, grade_id, summary, detail)
+         VALUES ($1, $2, $3::jsonb, '{}'::jsonb)`,
+        [publicationId, gradeId, JSON.stringify({ gradeName })]);
+    }
+    const offset = merchantId === 'collectible-a' ? 0 : 4;
+    const count = merchantId === 'collectible-a' ? 4 : 1;
+    for (let index = offset; index < offset + count; index++) {
+      const gradeId = ['gold', 'bronze', 'silver', 'bronze', 'bronze'][index]!;
+      const acquiredAt = index === 3 ? '2026-10-04T14:59:59Z' : '2026-10-04T15:00:00Z';
+      await pool.query(
+        `INSERT INTO collectible_acquisitions (entitlement_id, publication_id, grade_id, acquired_at)
+         VALUES ($1, $2, $3, $4)`, [entitlements[index], publicationId, gradeId, acquiredAt]);
+    }
+  }
+  const overview = await db.overview.overview({ merchantId: 'collectible-a' });
+  assert.deepEqual(overview.weekCollectibles, [
+    { gradeId: 'bronze', gradeName: '브론즈', count: 1 },
+    { gradeId: 'silver', gradeName: '실버', count: 1 },
+    { gradeId: 'gold', gradeName: '골드', count: 1 },
+  ]);
+  await pool.query('SELECT * FROM collectible_remove_publication_media($1)', [publicationA]);
+  assert.deepEqual((await db.overview.overview({ merchantId: 'collectible-a' })).weekCollectibles, [
+    { gradeId: 'bronze', gradeName: '미디어가 제거된 수집품', count: 1 },
+    { gradeId: 'silver', gradeName: '미디어가 제거된 수집품', count: 1 },
+    { gradeId: 'gold', gradeName: '미디어가 제거된 수집품', count: 1 },
+  ]);
+
+  // 같은 등급의 새 발행본이 있으면 제거된 등급의 획득 수도 합치고 새 발행본의 공개 이름을 쓴다.
+  const visitId = await addVisit(pool, {
+    merchantId: 'collectible-a', campaignId: campaignA, customer: 'new-bronze-holder', date: '2026-10-05',
+  });
+  const entitlementId = randomUUID();
+  await pool.query(
+    `INSERT INTO reward_entitlements (id, customer_account_id, campaign_id, target_visit_count, source_visit_event_id,
+       status, policy_version, earned_at, claim_expires_at)
+     VALUES ($1, 'new-bronze-holder', $2, 1, $3, 'GRANTED', 'test', '2026-10-05T03:00:00Z', '2027-01-01T00:00:00Z')`,
+    [entitlementId, campaignA, visitId]);
+  const newProjectId = randomUUID();
+  const newPublicationId = randomUUID();
+  await pool.query(`INSERT INTO collectible_projects (id, merchant_id, lineage_id) VALUES ($1, 'collectible-a', $1)`,
+    [newProjectId]);
+  await pool.query(
+    `INSERT INTO collectible_publications (id, project_id, merchant_id, campaign_id, project_version, reward_grades)
+     VALUES ($1, $2, 'collectible-a', $3, 1, '{"1":"bronze"}'::jsonb)`,
+    [newPublicationId, newProjectId, campaignA]);
+  await pool.query(
+    `INSERT INTO collectible_publication_grades (publication_id, grade_id, summary, detail)
+     VALUES ($1, 'bronze', '{"gradeName":"새 브론즈"}'::jsonb, '{}'::jsonb)`, [newPublicationId]);
+  await pool.query(
+    `INSERT INTO collectible_acquisitions (entitlement_id, publication_id, grade_id, acquired_at)
+     VALUES ($1, $2, 'bronze', '2026-10-05T03:00:00Z')`, [entitlementId, newPublicationId]);
+  assert.deepEqual((await db.overview.overview({ merchantId: 'collectible-a' })).weekCollectibles, [
+    { gradeId: 'bronze', gradeName: '새 브론즈', count: 2 },
+    { gradeId: 'silver', gradeName: '미디어가 제거된 수집품', count: 1 },
+    { gradeId: 'gold', gradeName: '미디어가 제거된 수집품', count: 1 },
+  ]);
 });
 
 test('a store with no visits gets zeros, seven zero days and no comparison without a publish time', { skip }, async t => {
@@ -215,6 +323,10 @@ test('a store with no visits gets zeros, seven zero days and no comparison witho
   });
   assert.equal(overview.comparison, null);
   assert.equal(overview.couponsRedeemedThisWeek, 0);
+  assert.deepEqual(overview.weekVisitors, { first: 0, repeat: 0 });
+  assert.deepEqual(overview.weekCollectibles, []);
+  assert.deepEqual(overview.weekCoupons, { issued: 0, redeemed: 0 });
+  assert.equal(overview.weekDetailViews, 0);
   assert.equal(overview.repeatVisitors, 0);
   assert.equal(overview.campaign, null);
 });

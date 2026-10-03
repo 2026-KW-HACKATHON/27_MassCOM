@@ -8,10 +8,10 @@ const celebration = read('../../gamification/celebration.tsx');
 const shop = read('./index.tsx');
 const machine = read('./gacha-machine.tsx');
 
-test('#342 축하 화면은 이번 보상을 릴로 보여주고 뽑기 CTA를 제공한다', () => {
+test('#342 축하 화면은 이번 보상을 릴로 보여주고 뽑기 보조 링크를 제공한다', () => {
   assert.match(celebration, /rewardReel\(/);
   assert.match(celebration, /이번에 받은 것/);
-  assert.match(celebration, /지금 뽑기/);
+  assert.match(celebration, /상점 뽑기/);
 });
 
 test('#342 상점 구매 결과는 공통 뽑기 기계에 전달한다', () => {

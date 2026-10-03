@@ -29,6 +29,13 @@ test('skip is always available, independent of the current stage', () => {
   assert.match(source, /<SkipButton onPress=\{onSkip\} \/>/);
 });
 
+test('only a card that reached the visible stage is acknowledged as presented', () => {
+  assert.match(source, /if \(foreground && uiStage === 'open' && current\) onCardShown\(current\.entitlementId\);/);
+  assert.match(source, /\[foreground, uiStage, current, onCardShown\]/);
+  assert.doesNotMatch(source.slice(source.indexOf('function openEnvelope'), source.indexOf('function goTo')), /onCardShown/);
+  assert.doesNotMatch(source, /<SkipButton onPress=\{\(\) => onCardShown/);
+});
+
 // Regression (#299 리뷰): Pressable wires its own gesture responder internally, so panHandlers spread directly onto
 // a Pressable are silently ignored and swipe-down-to-tear never fires. The pan handlers must sit on a plain View
 // wrapping the Pressable so the View can claim the responder on a vertical drag while the Pressable still gets taps.

@@ -46,6 +46,27 @@ if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Do
 fi
 mv "$scratch/Caddyfile.bak" "$scratch/Caddyfile"
 
+sed -i.bak '/path_regexp .*merchant-art/d' "$scratch/Caddyfile"
+if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
+  echo "verifier accepted an unrestricted merchant art path" >&2
+  exit 1
+fi
+mv "$scratch/Caddyfile.bak" "$scratch/Caddyfile"
+
+sed -i.bak '/@merchantArtApi {/,/^[[:space:]]*}/s/method GET HEAD/method GET POST/' "$scratch/Caddyfile"
+if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
+  echo "verifier accepted a merchant art write method" >&2
+  exit 1
+fi
+mv "$scratch/Caddyfile.bak" "$scratch/Caddyfile"
+
+sed -i.bak '/handle @merchantArtApi {/,/^[[:space:]]*}/s/reverse_proxy api:3000/reverse_proxy production-web:4173/' "$scratch/Caddyfile"
+if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
+  echo "verifier accepted merchant art routed away from the API" >&2
+  exit 1
+fi
+mv "$scratch/Caddyfile.bak" "$scratch/Caddyfile"
+
 sed -i.bak '/header_up X-Forwarded-For {remote_host}/d' "$scratch/Caddyfile"
 if node "$verifier" "$scratch/compose.yml" "$scratch/Caddyfile" "$scratch/api.Dockerfile" >/dev/null 2>&1; then
   echo "verifier accepted a proxy without sanitized client IP" >&2

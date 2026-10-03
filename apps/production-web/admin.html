@@ -32,6 +32,22 @@
         <p>실제 점포 최대 100곳의 현재 집계입니다. 방문은 유효한 기록, 보상은 취소되지 않은 기록만 셉니다.</p>
         <div id="admin-operations"></div>
       </section>
+      <section id="admin-funnel" class="admin-panel" aria-labelledby="admin-funnel-heading">
+        <h3 id="admin-funnel-heading">흐름 지표</h3>
+        <label for="admin-funnel-days">조회 기간</label>
+        <select id="admin-funnel-days">
+          <option value="7">최근 7일</option>
+          <option value="30" selected>최근 30일</option>
+          <option value="90">최근 90일</option>
+        </select>
+        <p>방문 인증 기준이며 매출과 다를 수 있어요</p>
+        <p>조회는 사람 수가 아니라 열람 횟수예요(조회와 방문은 같은 사람으로 연결하지 않아요)</p>
+        <p id="admin-funnel-status" class="admin-hint" role="status" aria-live="polite"></p>
+        <dl id="admin-funnel-totals" class="admin-funnel-totals"></dl>
+        <div class="admin-funnel-table-wrap" role="region" aria-label="점포별 흐름 지표" tabindex="0">
+          <table id="admin-funnel-table"></table>
+        </div>
+      </section>
       <p class="admin-intro">새 점포는 비공개로 저장됩니다. 메뉴·영업시간·도로명 주소를 채우고 점포의 가게 이름·사진 사용 동의서 참조 번호를 적으면 공개할 수 있습니다. 점포를 숨기면 활성 캠페인의 신규 참여와 보상 혜택 발급도 중지됩니다. 유효한 미수령 QR이 있으면 숨김은 보류됩니다. 참조 번호에는 사업자등록번호·이름·전화번호를 쓰지 않습니다.</p>
       <div class="admin-grid">
         <form id="admin-create" class="admin-panel">

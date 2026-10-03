@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 
-import { validateAwsWebCompose } from '../../scripts/verify-lightsail-web.mjs';
+import { validateAwsWebCompose, validateMerchantArtCaddy } from '../../scripts/verify-lightsail-web.mjs';
 
 function safe() {
   return {
@@ -34,6 +36,22 @@ function safe() {
     },
   };
 }
+
+test('web deployment pins the read-only hashed merchant art route to the production API', () => {
+  const caddyfile = readFileSync(resolve(import.meta.dirname, '../../infra/lightsail/Caddyfile'), 'utf8');
+  assert.doesNotThrow(() => validateMerchantArtCaddy(caddyfile));
+  const mutations = [
+    (value) => value.replace('method GET HEAD\n\t\tpath_regexp ^/merchant-art/', 'method GET POST\n\t\tpath_regexp ^/merchant-art/'),
+    (value) => value.replace('path_regexp ^/merchant-art/[0-9a-f]{64}\\.webp$', 'path /merchant-art/*'),
+    (value) => value.replace('handle @merchantArtApi {\n\t\treverse_proxy api:3000', 'handle @merchantArtApi {\n\t\treverse_proxy production-web:4173'),
+    (value) => value.replace('handle @merchantArtApi {\n\t\treverse_proxy api:3000 {\n\t\t\theader_up X-Forwarded-For {remote_host}',
+      'handle @merchantArtApi {\n\t\treverse_proxy api:3000 {\n\t\t\theader_up X-Forwarded-For {http.request.header.X-Forwarded-For}'),
+    (value) => `${value}\n# /merchant-art/ would be a second art route\n`,
+  ];
+  for (const mutate of mutations) {
+    assert.throws(() => validateMerchantArtCaddy(mutate(caddyfile)), mutate.toString());
+  }
+});
 
 test('web-only service does not publish a host port or mount operating data', () => {
   assert.doesNotThrow(() => validateAwsWebCompose(safe()));

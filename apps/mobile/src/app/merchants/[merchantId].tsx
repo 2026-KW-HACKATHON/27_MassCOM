@@ -8,7 +8,7 @@ import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 
 export default function MerchantDetailRoute() {
-  const { merchantId } = useLocalSearchParams<{ merchantId?: string }>();
+  const { merchantId, from } = useLocalSearchParams<{ merchantId?: string; from?: string }>();
 
   if (!publicApiConfig.available) {
     // The native stack header is hidden for this page, so even this state keeps a way back.
@@ -21,5 +21,5 @@ export default function MerchantDetailRoute() {
     );
   }
 
-  return <MerchantDetailScreen merchantId={merchantId ?? ''} apiUrl={publicApiConfig.apiUrl} />;
+  return <MerchantDetailScreen merchantId={merchantId ?? ''} apiUrl={publicApiConfig.apiUrl} from={from} />;
 }

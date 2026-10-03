@@ -46,6 +46,8 @@ import {
 } from './merchant-access.js';
 import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
 import { MerchantOverviewError, type MerchantOverviewReader } from './merchant-overview-rules.js';
+import { MerchantDiscoveryError, isDetailViewSource, type CollectiblePreviewService, type MerchantDetailViewService } from './merchant-discovery.js';
+import type { AdminFunnelReader } from './admin-funnel.js';
 import { DEFAULT_STAMP_V1_PNG } from './nft-default-stamp.js';
 import { matchNftMetadataRoute, type NftMetadataReader } from './nft-metadata.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
@@ -71,6 +73,8 @@ import { PostgresAccountDeletionProcessingService } from './postgres/account-del
 import { PostgresBadgeRewardService } from './postgres/badge-rewards.js';
 import { PostgresFriendService } from './postgres/friends.js';
 import { PostgresMerchantOverviewService } from './postgres/merchant-overview.js';
+import { PostgresCollectiblePreviewService, PostgresMerchantDetailViewService } from './postgres/merchant-discovery.js';
+import { PostgresAdminFunnelService } from './postgres/admin-funnel.js';
 import { AdminError, PostgresAdminService, type AdminCampaignDraftInput, type MerchantInput } from './postgres/admin.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
@@ -231,6 +235,9 @@ export function createApiServer(
   guestTrials?: Pick<ShowcaseGuestTrialService, 'start' | 'resolve'>,
   merchantOverview?: MerchantOverviewReader,
   visitorFeedback?: VisitorFeedbackService,
+  collectiblePreview?: CollectiblePreviewService,
+  merchantDetailViews?: MerchantDetailViewService,
+  adminFunnel?: AdminFunnelReader,
 ) {
   // 로컬 시연(DEMO 헤더) 배치에서는 체험 세션 Bearer도 받는다(#309). Authorization이 없으면 기존 헤더 해석 그대로이고,
   // 운영·hosted 해석기(Bearer 세션)는 이미 같은 auth_sessions 행으로 체험 세션을 푼다.
@@ -251,6 +258,8 @@ export function createApiServer(
   });
   // 방문 후 가게 특징·바라는 점·의견 저장은 계정당 30회/시간(#334). 같은 가게를 고쳐 쓰는 것도 한 번으로 센다.
   const visitorFeedbackWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60 * 60 * 1000 });
+  // IP는 기존 로그인 제한과 같은 메모리 창에만 두고 조회 집계 서비스로 보내지 않는다.
+  const merchantDetailViewLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 300, windowMs: 60 * 60 * 1000 });
   // Media-bearing collectible writes (create/save/copy/publish parse up to 8 MiB and decode every image) are throttled per store.
   const collectibleWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 20, windowMs: 60_000 });
   const consumeDeletionStatus = (request: IncomingMessage, response: ServerResponse): boolean => {
@@ -393,6 +402,18 @@ export function createApiServer(
         if (!(await admin.isAdmin(accountId))) throw new AdminError('ADMIN_FORBIDDEN');
         if (path === '/api/web/admin/me' && request.method === 'GET') {
           sendJson(response, 200, { admin: true });
+          return;
+        }
+        if (path === '/api/web/admin/funnel' && request.method === 'GET') {
+          if (!adminFunnel) throw new RequestError(503, 'ADMIN_FUNNEL_NOT_CONFIGURED');
+          const values = new URL(request.url!, 'http://localhost').searchParams.getAll('days');
+          const rawDays = values[0];
+          const days = rawDays === undefined ? 30 : Number(rawDays);
+          if (values.length > 1 || (rawDays !== undefined && !/^\d+$/.test(rawDays)) ||
+              !Number.isInteger(days) || days < 7 || days > 90) {
+            throw new RequestError(400, 'FUNNEL_DAYS_INVALID');
+          }
+          sendJson(response, 200, await adminFunnel.funnel(days));
           return;
         }
         if (path === '/api/web/admin/operations-status' && request.method === 'GET') {
@@ -894,6 +915,32 @@ export function createApiServer(
         return;
       }
 
+      const collectiblePreviewMatch = path.match(/^\/merchants\/([^/]+)\/collectible-preview$/);
+      if (request.method === 'GET' && collectiblePreviewMatch) {
+        if (!collectiblePreview) throw new RequestError(503, 'COLLECTIBLE_PREVIEW_NOT_CONFIGURED');
+        const merchantId = decodePathParameter(collectiblePreviewMatch[1]!);
+        const preview = await collectiblePreview.preview(merchantId);
+        response.setHeader('cache-control', 'public, max-age=300');
+        sendJson(response, 200, preview);
+        return;
+      }
+      const merchantDetailViewMatch = path.match(/^\/merchants\/([^/]+)\/views$/);
+      if (request.method === 'POST' && merchantDetailViewMatch) {
+        if (!merchantDetailViews) throw new RequestError(503, 'MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED');
+        const merchantId = decodePathParameter(merchantDetailViewMatch[1]!);
+        const body = await readJson(request);
+        if (!isDetailViewSource(body.source)) throw new RequestError(400, 'VIEW_SOURCE_INVALID');
+        if (Object.keys(body).some(key => key !== 'source')) throw new RequestError(400, 'INVALID_REQUEST');
+        const decision = merchantDetailViewLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          sendJson(response, 429, { code: 'VIEW_RATE_LIMITED' });
+          return;
+        }
+        await merchantDetailViews.record(merchantId, body.source);
+        response.writeHead(204).end();
+        return;
+      }
       if (request.method === 'GET' && request.url === '/merchants') {
         if (!merchantCatalog) {
           throw new RequestError(503, 'MERCHANT_CATALOG_NOT_CONFIGURED');
@@ -1551,6 +1598,10 @@ export function createApiServer(
           response.setHeader('Retry-After', String(error.retryAfterSeconds));
         }
         sendJson(response, statusForMileageShop(error.code), { code: error.code });
+        return;
+      }
+      if (error instanceof MerchantDiscoveryError) {
+        sendJson(response, 404, { code: error.code });
         return;
       }
       if (error instanceof VisitorFeedbackError) {
@@ -2470,6 +2521,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     // 점주 가게 현황(#330)은 읽기 전용 집계라 pool만 있으면 만든다. 경로는 점주 웹(staffRegistration)이 있는 배치에서만 열린다.
     pool ? new PostgresMerchantOverviewService(pool) : undefined,
     visitorFeedback,
+    pool ? new PostgresCollectiblePreviewService(pool) : undefined,
+    pool ? new PostgresMerchantDetailViewService(pool) : undefined,
+    pool ? new PostgresAdminFunnelService(pool) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

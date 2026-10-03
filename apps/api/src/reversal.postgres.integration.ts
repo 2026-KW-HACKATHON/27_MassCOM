@@ -319,6 +319,7 @@ test('a visit is cancelled with its reason, actor and time and the customer reco
   const badges = await db.badges.getBadges('cust-1');
   assert.deepEqual(badges.medals.map(({ value }) => value), [0, 0, 0]);
   const listed = await db.reversal.listRecentVisits({ merchantId: 'real-shop', staffAccountId: 'staff-r' });
+  assert.equal(listed.visits[0]!.claimSlotId, visit.claimSlotId);
   assert.equal(listed.visits[0]!.status, 'CANCELED');
   assert.equal(listed.visits[0]!.canCancel, false);
   assert.equal(listed.visits[0]!.cancellationReason, 'DUPLICATE');

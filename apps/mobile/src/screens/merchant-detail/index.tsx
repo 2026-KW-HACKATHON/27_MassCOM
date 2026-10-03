@@ -1,12 +1,15 @@
-import { Link } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Link, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg from 'react-native-svg';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { useAuthSession } from '@/auth/auth-provider';
 import { recommendMerchant } from '@/friends/recommend-share';
 import { useArtFallback } from '@/merchant-art/use-art-fallback';
+import { fetchCollectiblePreview, type CollectiblePreview } from '@/merchant/collectible-preview-api';
+import { detailViewSource, sendMerchantDetailView } from '@/merchant/detail-view-api';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { createVisitorFeedbackApiClient, VisitorFeedbackApiError, type VisitorFeedbackSelection } from '@/merchant/visitor-feedback-api';
 import { visitorTagLabels } from '@/merchant/visitor-feedback-codes';
@@ -21,12 +24,24 @@ import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
 
 import { merchantArt } from '../collection/merchant-art';
+import { buildMerchantGoals } from '../collection/collection-stamps';
+import { CollectibleFaceOutline } from '../collection/collectible-default-back';
+import { gradeMaterialFor, gradeMaterialPresets } from '../collection/grade-material';
+import { GradeMaterialLayer, useGradeMaterialClock } from '../collection/grade-material-layer';
+import { directionsChooserButtons, directionsNotice, directionsTargets, openDirections, type DirectionsProvider } from '../town-map/directions';
+import { useTownCollection } from '../town-map/use-town-collection';
 import { makeMerchantDetailStyles } from './styles';
 import { VisitorFeedbackForm } from './visitor-feedback-form';
 
 type MerchantDetailStyles = ReturnType<typeof makeMerchantDetailStyles>;
 
-export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: string; apiUrl: string }) {
+export function MerchantDetailScreen(props: { merchantId: string; apiUrl: string; from?: string }) {
+  const { accountId } = useAuthSession();
+  // 계정이 바뀌면 /collection의 이전 계정 스냅샷을 가진 화면을 즉시 버린다.
+  return <MerchantDetailContent key={`${props.apiUrl}:${accountId ?? 'guest'}`} {...props} />;
+}
+
+function MerchantDetailContent({ merchantId, apiUrl, from }: { merchantId: string; apiUrl: string; from?: string }) {
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
   const world = worldForScheme(scheme);
@@ -35,9 +50,32 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
     [palette, world],
   );
   const insets = useSafeAreaInsets();
+  const [focused, setFocused] = useState(false);
+  useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
+  const materialClock = useGradeMaterialClock(focused);
   const auth = useAuthSession();
+  const { collection, status: collectionStatus, stale: collectionStale, reload: reloadCollection } = useTownCollection({ apiUrl, credential: auth.credential, onSessionInvalid: auth.invalidateSession });
+  const [preview, setPreview] = useState<CollectiblePreview | null>(null);
+  const [previewErrorFor, setPreviewErrorFor] = useState<string | null>(null);
+  const [previewRetry, setPreviewRetry] = useState(0);
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
   const merchant = merchants.find((item) => item.id === merchantId);
+  const hasVisibleMerchant = merchant !== undefined;
+  const visibleMerchantId = merchant?.id;
+  const goal = merchant && collection ? buildMerchantGoals([merchant], collection.visits, collection.collectibles, new Date().toISOString())[0] : undefined;
+  const visiblePreview = preview && preview.merchantId === visibleMerchantId && preview.campaignId === merchant?.campaign.id ? preview : null;
+  useEffect(() => {
+    if (!visibleMerchantId) return;
+    const controller = new AbortController();
+    void fetchCollectiblePreview(apiUrl, visibleMerchantId, fetch, controller.signal)
+      .then((result) => { if (!controller.signal.aborted) { setPreview(result); setPreviewErrorFor(null); } })
+      .catch(() => { if (!controller.signal.aborted) setPreviewErrorFor(visibleMerchantId); });
+    return () => controller.abort();
+  }, [apiUrl, visibleMerchantId, previewRetry]);
+  useFocusEffect(useCallback(() => {
+    if (!hasVisibleMerchant) return;
+    void sendMerchantDetailView(apiUrl, merchantId, detailViewSource(from)).catch(() => undefined);
+  }, [apiUrl, merchantId, hasVisibleMerchant, from]));
   // The hero picture; one that fails to load (a stale catalog pointing at art that was reset) is dropped and the sky shows.
   const art = merchant ? merchantArt(merchant, apiUrl) : undefined;
   const hero = useArtFallback(art?.source);
@@ -69,7 +107,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
       <SkyScrollView
         header={<BackHeader title="음식점 상세" art={hero.source} artNote={hero.source ? artNote : undefined} onArtError={hero.onError} />}
         contentContainerStyle={{ paddingBottom: 48 + insets.bottom }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void refresh(); void reloadCollection(); setPreviewRetry((value) => value + 1); }} progressViewOffset={insets.top} />}
       >
         <View style={styles.content}>
           <Stagger index={0}>
@@ -95,19 +133,72 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
           ) : null}
 
           <Stagger index={1}>
-            <FloatingCard style={styles.infoCard}>
-              <InfoRow styles={styles} label="주소" value={merchant.roadAddress} />
-              <InfoRow styles={styles} label="최소 이용" value={`${merchant.minimumSpendWon.toLocaleString('ko-KR')}원`} />
-              <InfoRow styles={styles} label="참여 상태" value="방문하면 누구나 적립" />
+            <FloatingCard style={styles.rewardCard}>
+              <Text accessibilityRole="header" style={styles.rewardHeading}>이 가게에서 모을 수 있는 수집품</Text>
+              <Text selectable style={styles.campaignTitle}>{merchant.campaign.title}</Text>
+              <Text selectable style={styles.period}>
+                {formatDate(merchant.campaign.startsAt)} — {formatDate(merchant.campaign.endsAt)}
+              </Text>
+              <View style={styles.previewList}>
+                {visiblePreview?.goals.length ? visiblePreview.goals.map((item) => {
+                  const state = goal ? goal.earnedGoals.includes(item.visitCount) ? '소장' : goal.nextGoal?.targetVisitCount === item.visitCount ? '다음 목표' : '잠김' : undefined;
+                  const material = gradeMaterialFor(item.gradeId, item.gradeName);
+                  return <View key={`${item.visitCount}-${item.gradeId}`} style={styles.previewRow}
+                    accessible accessibilityLabel={`${item.visitCount}번 방문, ${item.gradeName} 수집품${state ? `, ${state}` : ''}`}>
+                    <View style={styles.previewArt}>
+                      {item.thumbnailDataUrl ? <Image source={{ uri: item.thumbnailDataUrl }} resizeMode="contain" style={styles.previewImage} accessible={false} />
+                        : <Svg width={72} height={72} viewBox="0 0 100 100" accessible={false}>
+                          <CollectibleFaceOutline shape={item.shape} fill={gradeMaterialPresets[material].tint} />
+                        </Svg>}
+                      <GradeMaterialLayer material={material} size={72} clock={materialClock}
+                        faceUri={item.thumbnailDataUrl ?? undefined} shape={item.shape} variant="card" active={focused} />
+                    </View>
+                    <View style={styles.previewCopy}>
+                      <Text style={styles.previewLabel}>{item.visitCount}번 방문 · {item.gradeName}</Text>
+                      {state ? <Text style={styles.previewState}>{state}</Text> : null}
+                    </View>
+                  </View>;
+                }) : merchant.campaign.rewardGoals.map((item) => (
+                  <Text key={item.targetVisitCount} style={styles.fallbackGoal}>{item.targetVisitCount}번 방문 · {item.displayName}</Text>
+                ))}
+              </View>
+              {previewErrorFor === merchant.id ? <Pressable accessibilityRole="button" accessibilityLabel="수집품 미리보기 다시 불러오기"
+                onPress={() => setPreviewRetry((value) => value + 1)} style={styles.previewRetry}>
+                <Text style={styles.previewRetryText}>수집품 그림을 불러오지 못했어요 · 다시 시도</Text>
+              </Pressable> : null}
+              {goal ? <Text style={styles.progressLine}>{collectionStale ? '이전 방문 기록' : '내 진행 · 지금'} {goal.progressCount}번 방문{goal.nextGoal && goal.remainingVisits !== null
+                ? ` · ${visiblePreview?.goals.find((item) => item.visitCount === goal.nextGoal?.targetVisitCount)?.gradeName ?? goal.nextGoal.displayName}까지 ${goal.remainingVisits}번`
+                : ' · 수집품 목표 완료'}</Text> : null}
+              {collectionStale || collectionStatus === 'error' ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="내 방문 진행 다시 불러오기"
+                  accessibilityHint={collectionStale ? '이전 방문 기록이에요. 최신 진행을 확인하지 못했어요.' : '내 방문 진행을 불러오지 못했어요.'}
+                  onPress={() => { void reloadCollection(); }} style={styles.previewRetry}>
+                  <Text style={styles.previewRetryText}>{collectionStale
+                    ? '이전 방문 기록이에요. 최신 진행을 확인하지 못했어요 · 다시 불러오기'
+                    : '내 방문 진행을 불러오지 못했어요 · 다시 불러오기'}</Text>
+                </Pressable>
+              ) : null}
             </FloatingCard>
           </Stagger>
 
           <Stagger index={2}>
             <FloatingCard style={styles.infoCard}>
+              <InfoRow styles={styles} label="주소" value={merchant.roadAddress} />
+              {directionsTargets(merchant) ? <Pressable accessibilityRole="button" accessibilityLabel={`${merchant.name} 길찾기`}
+                onPress={() => chooseDirections(merchant)} style={styles.directionsAction}>
+                <Text style={styles.directionsText}>길찾기</Text>
+              </Pressable> : <Text style={styles.directionsNotice}>{directionsNotice(merchant)}</Text>}
+              <InfoRow styles={styles} label="최소 이용" value={`${merchant.minimumSpendWon.toLocaleString('ko-KR')}원`} />
+              <InfoRow styles={styles} label="참여 상태" value="방문하면 누구나 적립" />
+            </FloatingCard>
+          </Stagger>
+
+          <Stagger index={3}>
+            <FloatingCard style={styles.infoCard}>
               <InfoRow styles={styles} label="점포 제공 영업시간" value={merchant.businessHours || '영업시간 정보가 아직 없습니다.'} />
             </FloatingCard>
           </Stagger>
-          <Stagger index={3}>
+          <Stagger index={4}>
             <FloatingCard style={styles.infoCard}>
               <Text accessibilityRole="header" style={[styles.sectionEyebrow, styles.menuHeading]}>메뉴·가격</Text>
               {merchant.menuItems.length ? merchant.menuItems.map((item, index) =>
@@ -116,7 +207,7 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
             </FloatingCard>
           </Stagger>
 
-          <Stagger index={4}>
+          <Stagger index={5}>
             <FloatingCard style={styles.feedbackCard}>
               <Text accessibilityRole="header" style={styles.feedbackHeading}>방문자들이 고른 특징</Text>
               {merchant.visitorTags.length > 0 ? (
@@ -141,51 +232,24 @@ export function MerchantDetailScreen({ merchantId, apiUrl }: { merchantId: strin
             </FloatingCard>
           </Stagger>
 
-          <Stagger index={5}>
-            <FloatingCard style={styles.rewardCard}>
-              <Text style={styles.sectionEyebrow}>진행 중인 캠페인</Text>
-              <Text selectable style={styles.campaignTitle}>{merchant.campaign.title}</Text>
-              <Text selectable style={styles.period}>
-                {formatDate(merchant.campaign.startsAt)} — {formatDate(merchant.campaign.endsAt)}
-              </Text>
-              <Text style={styles.rewardHeading}>방문할수록 쌓이는 고정 보상</Text>
-              <Text style={styles.rewardNote}>랜덤 뽑기나 결제 없이 1·3·5회 목표로만 진행합니다.</Text>
-              <View style={styles.goalList}>
-                {merchant.campaign.rewardGoals.map((goal, index) => (
-                  <RewardGoalRow
-                    styles={styles}
-                    key={`${goal.targetVisitCount}-${goal.displayName}`}
-                    target={goal.targetVisitCount}
-                    name={goal.displayName}
-                    final={index === merchant.campaign.rewardGoals.length - 1}
-                  />
-                ))}
-              </View>
-            </FloatingCard>
-          </Stagger>
-
           <Stagger index={6}>
-            <FloatingCard style={styles.boundaryCard}>
-              <Text style={styles.boundaryTitle}>지갑은 나중에 선택해도 됩니다.</Text>
-              <Text selectable style={styles.boundaryBody}>
-                음식점 탐색·방문 인증·앱 도감은 외부 지갑 없이 사용할 수 있습니다. 앱 수집품과 실제 NFT는
-                별도 상태로 표시합니다.
-              </Text>
-              <Link href={{ pathname: '/wallet', params: { merchantId } }} asChild>
-                <Pressable accessibilityRole="button" style={styles.walletAction}>
-                  <Text style={styles.walletActionText}>외부 지갑 연결 화면 보기</Text>
-                </Pressable>
-              </Link>
-            </FloatingCard>
-          </Stagger>
-
-          <Stagger index={7}>
             <FloatingCard style={styles.nextStep}>
               <Text style={styles.nextStepLabel}>이용했다면</Text>
               <Text style={styles.nextStepText}>점주가 만든 1회 코드로 방문과 보상권을 안전하게 받습니다.</Text>
               <Link href={{ pathname: '/claim', params: { merchantId } }} asChild>
                 <Pressable accessibilityRole="button" style={styles.walletAction}>
                   <Text style={styles.walletActionText}>방문 코드 받기</Text>
+                </Pressable>
+              </Link>
+            </FloatingCard>
+          </Stagger>
+          <Stagger index={7}>
+            <FloatingCard style={styles.boundaryCard}>
+              <Text style={styles.boundaryTitle}>지갑 연결은 나중에</Text>
+              <Text style={styles.boundaryBody}>방문 인증과 앱 도감은 외부 지갑 없이 이용할 수 있어요.</Text>
+              <Link href={{ pathname: '/wallet', params: { merchantId } }} asChild>
+                <Pressable accessibilityRole="button" style={styles.walletLink}>
+                  <Text style={styles.walletLinkText}>외부 지갑 연결 보기</Text>
                 </Pressable>
               </Link>
             </FloatingCard>
@@ -259,21 +323,14 @@ function InfoRow({ styles, label, value }: { styles: MerchantDetailStyles; label
   );
 }
 
-function RewardGoalRow({ styles, target, name, final }: { styles: MerchantDetailStyles; target: number; name: string; final: boolean }) {
-  return (
-    <View style={styles.goalRow}>
-      <View style={styles.timeline}>
-        <View style={styles.goalNumber}>
-          <Text style={styles.goalNumberText}>{target}</Text>
-        </View>
-        {!final ? <View style={styles.timelineLine} /> : null}
-      </View>
-      <View style={styles.goalCopy}>
-        <Text style={styles.goalLabel}>{target}회 방문</Text>
-        <Text selectable style={styles.goalName}>{name}</Text>
-      </View>
-    </View>
-  );
+function chooseDirections(merchant: { name: string; roadAddress: string; demo: boolean }) {
+  const targets = directionsTargets(merchant);
+  if (!targets) return;
+  const go = async (provider: DirectionsProvider) => {
+    if (!(await openDirections(targets, provider))) Alert.alert('지도를 열지 못했어요', '지도 앱이나 인터넷 연결을 확인하고 다시 눌러 주세요.');
+  };
+  Alert.alert('길찾기', `${merchant.name}\n${merchant.roadAddress}\n\n어느 지도로 열까요? 지도 앱에는 가게 도로명 주소만 넘기고, 이 앱은 내 위치를 읽지 않아요.`,
+    directionsChooserButtons((provider) => void go(provider)), { cancelable: true });
 }
 
 function StateFrame({ styles, children }: { styles: MerchantDetailStyles; children: React.ReactNode }) {

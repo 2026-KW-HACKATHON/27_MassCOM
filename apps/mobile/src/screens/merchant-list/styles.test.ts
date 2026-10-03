@@ -96,7 +96,7 @@ test('explore links to the map tab from the hero, next to the passport chip', ()
   const source = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
   assert.match(source, /<Link href="\/map" asChild>/);
   assert.match(source, /accessibilityLabel="지도로 보기, 동네 그림 지도 열기"/);
-  assert.match(source, /style=\{styles\.chipRow\}[\s\S]*?<SignedInPassportChip[\s\S]*?<MapChip \/>/);
+  assert.match(source, /style=\{styles\.chipRow\}[\s\S]*?<PassportChip[\s\S]*?<MapChip \/>/);
   assert.match(source, /<TabGlyph name="map"/);
   assert.match(source, />지도로 보기</);
 });
@@ -115,5 +115,15 @@ test('the discovery chips are 48dp buttons that stay readable and bounded, selec
     // The rows bleed to the screen edge but their first chip lines up with the page inset.
     assert.equal(styles.discoveryChipScroll.marginHorizontal, -uiMetrics.pageInset);
     assert.equal(styles.discoveryChipRow.paddingHorizontal, uiMetrics.pageInset);
+  }
+});
+
+
+test('홈 다음 목표는 두 테마에서 읽을 수 있고 최소 터치 높이를 갖는다 (#354)', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeMerchantListStyles(palette, world);
+    assert.ok(styles.nextGoalCard.minHeight >= uiMetrics.minTouch);
+    assert.ok(contrast(styles.nextGoalTitle.color, world.card) >= 4.5);
+    assert.ok(contrast(styles.nextGoalReason.color, world.card) >= 4.5);
   }
 });

@@ -138,8 +138,8 @@ test('게시한 뒤에도 장면 미리보기 같은 파생 필드 때문에 저
   const publish = api.calls.find(call => call.path.endsWith('/publish'));
   assert.deepEqual(publish.body, { expectedVersion: 1, campaignId: 'campaign-a' });
   const created = api.calls.find(call => call.method === 'POST' && call.path === '/collectible-projects');
-  // Issue #284 WP2: serializeDerived는 연결된 등급(rewardGrades)만 굽는다. 여기선 1회 보상이 'bronze'에만 연결됐다.
-  assert.deepEqual(Object.keys(created.body.project.derived), ['bronze']);
+  // 새 점포 초안은 1·3·5회 목표가 기본 연결되므로 세 등급 모두 굽는다.
+  assert.deepEqual(Object.keys(created.body.project.derived), ['bronze', 'silver', 'gold']);
   assert.ok(created.body.project.story.frames[0].previewDataUrl, '게시용 장면 미리보기를 함께 보낸다');
   assert.match(ui.notice, /게시했어요/);
   assert.equal(api.store.get('project-1').status, 'PUBLISHED');
@@ -234,7 +234,7 @@ test('초안 삭제는 확인을 받고 지운 뒤 편집기를 새 초안으로
   const call = api.calls.find(item => item.path.endsWith('/delete'));
   assert.deepEqual(call.body, { expectedVersion: 1 });
   assert.equal(api.store.size, 0);
-  assert.equal(ui.control('name').value, '월계 식당 수집품');
+  assert.equal(ui.control('name').value, '월계 식당 방문 수집품');
   assert.equal(ui.dirty, false);
   assert.equal(ui.action('delete').disabled, true);
   assert.equal(cards(ui).length, 0);
@@ -795,7 +795,7 @@ test('시즌 복사는 서버에 새 초안을 만들고 캠페인·보상 연�
   await ui.click('copy');
   const copy = api.calls.find(call => call.path.endsWith('/copy'));
   assert.deepEqual(copy.body, { expectedVersion: 1 });
-  assert.equal(ui.control('name').value, '월계 식당 수집품 · 시즌 복사');
+  assert.equal(ui.control('name').value, '월계 식당 방문 수집품 · 시즌 복사');
   assert.equal(ui.control('campaign').value, '');
   assert.equal(ui.container.querySelector('[data-reward-count="1"]').value, '');
   assert.equal(ui.dirty, true, '복사본의 이름·연결을 바꿨으니 저장해야 한다');
@@ -804,7 +804,7 @@ test('시즌 복사는 서버에 새 초안을 만들고 캠페인·보상 연�
   assert.notEqual(put.path, '/collectible-projects/project-1', '원래 초안이 아니라 복사본에 저장한다');
   assert.equal(put.body.expectedVersion, 1);
   assert.equal(put.body.project.campaignId, '');
-  assert.equal(api.store.get('project-1').project.name, '월계 식당 수집품', '원래 초안은 그대로');
+  assert.equal(api.store.get('project-1').project.name, '월계 식당 방문 수집품', '원래 초안은 그대로');
 });
 
 test('시즌 복사가 거절되면 현재 입력과 저장 대상을 바꾸지 않는다', async () => {
@@ -815,7 +815,7 @@ test('시즌 복사가 거절되면 현재 입력과 저장 대상을 바꾸지 
   api.failNext('POST', /copy$/, { status: 409, code: 'COLLECTIBLE_PROJECT_LIMIT' });
   await ui.click('copy');
   assert.match(ui.notice, /점포마다 100개까지/);
-  assert.equal(ui.control('name').value, '월계 식당 수집품');
+  assert.equal(ui.control('name').value, '월계 식당 방문 수집품');
   assert.equal(ui.dirty, false);
   await ui.input('name', '복사 실패 뒤 저장');
   await ui.click('draft');
@@ -833,7 +833,7 @@ test('저장하지 않은 편집이 있으면 새 초안을 시작하기 전에 
   assert.equal(ui.dirty, true);
   assert.equal(ui.notice.includes('새 초안을 시작했어요'), false, '거절했으니 새 초안으로 바뀌지 않는다');
   await ui.click('undo');
-  assert.equal(ui.control('name').value, '월계 식당 수집품', '거절 뒤에도 되돌리기가 그대로 동작한다');
+  assert.equal(ui.control('name').value, '월계 식당 방문 수집품', '거절 뒤에도 되돌리기가 그대로 동작한다');
 });
 
 test('저장하지 않은 편집이 있어도 수락하면 새 초안을 시작한다', async () => {
@@ -843,7 +843,7 @@ test('저장하지 않은 편집이 있어도 수락하면 새 초안을 시작�
   await ui.input('name', '버려도 되는 이름');
   await ui.click('new');
   assert.equal(ui.asked.length, 1);
-  assert.equal(ui.control('name').value, '월계 식당 수집품', '수락하면 새 초안으로 바뀐다');
+  assert.equal(ui.control('name').value, '월계 식당 방문 수집품', '수락하면 새 초안으로 바뀐다');
   assert.equal(ui.dirty, false);
   assert.match(ui.notice, /새 초안을 시작했어요/);
 });
@@ -913,7 +913,7 @@ test('저장하지 않은 편집이 있어도 수락하면 새 제작기를 연�
   await accepted.input('name', '버려도 되는 편집');
   await accepted.openEditor();
   assert.equal(accepted.asked.length, 1);
-  assert.equal(accepted.control('name').value, '월계 식당 수집품', '수락하면 새 제작기가 열린다');
+  assert.equal(accepted.control('name').value, '월계 식당 방문 수집품', '수락하면 새 제작기가 열린다');
 });
 
 test('저장한 뒤나 고친 것이 없으면 묻지 않고 다시 연다', async () => {
@@ -1236,7 +1236,7 @@ test('기기 보관본 복원을 거절하면 지우고 새 초안으로 시작�
   editors.pop()();
 
   const declined = await mount(api, { confirm: false, editor: { accountScope: 'scope-a' } });
-  assert.equal(declined.control('name').value, '월계 식당 수집품');
+  assert.equal(declined.control('name').value, '월계 식당 방문 수집품');
   assert.equal(readDraft(dom.window, 'm1', 'scope-a'), null);
 });
 
@@ -1420,7 +1420,7 @@ test('저장 목록을 못 읽으면 복원 여부를 판단하지 않고 보관
   api.failNext('GET', /collectible-projects$/, { status: 500 });
   const remounted = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
   assert.equal(remounted.asked.length, 0, '목록 조회가 실패했으면 복원 여부를 판단하면 안 된다');
-  assert.equal(remounted.control('name').value, '월계 식당 수집품', '아직 결정 전이라 복원도 하지 않는다');
+  assert.equal(remounted.control('name').value, '월계 식당 방문 수집품', '아직 결정 전이라 복원도 하지 않는다');
   assert.ok(readDraft(dom.window, 'm1', 'scope-a'), '실패한 조회가 보관본을 지우지도 않는다');
   await remounted.click('refresh');
   assert.equal(remounted.asked.length, 1, '다음에 목록 조회가 성공하면 그때 다시 판단한다');
@@ -1442,7 +1442,7 @@ test('복원 대상 프로젝트의 GET이 실패하면 다음 성공한 목록 
   api.failNext('GET', /collectible-projects\/[^/]+$/, { status: 500 });
   const restored = await mount(api, { confirm: true, editor: { accountScope: 'scope-a' } });
   assert.equal(restored.asked.length, 1, '복원 여부는 이미 물었다(실패는 그 응답을 받은 뒤에 난다)');
-  assert.equal(restored.control('name').value, '월계 식당 수집품', '이번 시도는 실패했으니 아직 복원되지 않는다');
+  assert.equal(restored.control('name').value, '월계 식당 방문 수집품', '이번 시도는 실패했으니 아직 복원되지 않는다');
   assert.ok(readDraft(dom.window, 'm1', 'scope-a'), '실패한 복원은 기기 보관본을 지우지 않는다');
 
   await restored.click('refresh'); // 다음 성공한 목록 새로고침

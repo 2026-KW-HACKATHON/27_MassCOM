@@ -41,8 +41,10 @@ test('the collection card no longer reaches into the showcase asset module and n
   assert.match(browser, /useArtFallback\(art\?\.source\)/);
 });
 
-test('customer screens use the art bridge except for validated acquired inline media; owner art screens can preview API data URLs', () => {
+test('customer screens use the art bridge except for validated collectible inline media; owner art screens can preview API data URLs', () => {
   const inlineMediaScreens = new Set([
+    // #354: 공개 수집품 API도 도감과 같은 검증된 인라인 썸네일만 제공한다.
+    'screens/merchant-detail/index.tsx',
     'screens/collection/index.tsx',
     'screens/collection/collectible-detail.tsx',
     'screens/collection/collectible-reveal.tsx',
@@ -60,6 +62,8 @@ test('customer screens use the art bridge except for validated acquired inline m
   assert.deepEqual(offenders.map(({ name }) => name), []);
   assert.match(read('commerce/commerce-api.ts'), /parsePublishedCollectible/);
   assert.match(read('commerce/collectible-artwork.ts'), /data:image/);
+  assert.match(read('merchant/collectible-preview-api.ts'), /data:image/);
+  assert.doesNotMatch(read('screens/merchant-detail/index.tsx'), /https?:\/\//);
   assert.doesNotMatch(read('screens/collection/collectible-detail.tsx'), /https?:\/\//);
   assert.doesNotMatch(read('screens/collection/grade-material-layer.tsx'), /https?:\/\/|fetch\(/);
 });

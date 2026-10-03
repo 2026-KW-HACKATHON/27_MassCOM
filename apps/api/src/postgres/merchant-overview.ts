@@ -37,6 +37,8 @@ type VisitTotalsRow = {
   last_week_same_span: number;
   total: number;
   repeat_visitors: number;
+  week_first: number;
+  week_repeat: number;
 };
 
 export class PostgresMerchantOverviewService implements MerchantOverviewReader {
@@ -71,6 +73,9 @@ export class PostgresMerchantOverviewService implements MerchantOverviewReader {
            SELECT visit.customer_account_id, visit.business_date, visit.occurred_at
            ${countedVisitFromSql}
            WHERE visit.merchant_id = $1 AND ${countedVisitFilterSql}
+         ), first_date AS (
+           SELECT customer_account_id, min(business_date) AS first_business_date
+           FROM counted GROUP BY customer_account_id
          )
          SELECT
            count(*) FILTER (WHERE business_date = $2::date)::integer AS today,
@@ -82,10 +87,19 @@ export class PostgresMerchantOverviewService implements MerchantOverviewReader {
              WHERE business_date >= $4::date AND business_date <= $5::date AND occurred_at <= $6::timestamptz - interval '7 days'
            )::integer AS last_week_same_span,
            count(*)::integer AS total,
+           count(*) FILTER (
+             WHERE business_date >= $3::date AND business_date <= $2::date
+               AND current_visit.business_date = first_date.first_business_date
+           )::integer AS week_first,
+           count(*) FILTER (
+             WHERE business_date >= $3::date AND business_date <= $2::date
+               AND current_visit.business_date > first_date.first_business_date
+           )::integer AS week_repeat,
            (SELECT count(*) FROM (
               SELECT 1 FROM counted GROUP BY customer_account_id HAVING count(*) >= 2
             ) AS repeaters)::integer AS repeat_visitors
-         FROM counted`,
+         FROM counted AS current_visit
+         JOIN first_date ON first_date.customer_account_id = current_visit.customer_account_id`,
         [input.merchantId, periods.today, periods.thisWeekStart, periods.lastWeekStart, periods.lastWeekSameSpanEnd, now],
       );
       const days = await client.query<{ date: string; count: number }>(
@@ -97,11 +111,37 @@ export class PostgresMerchantOverviewService implements MerchantOverviewReader {
         [input.merchantId, periods.sevenDayStart, periods.today],
       );
       // 쿠폰 사용 되돌리기는 redeemed_at을 비우므로 status = 'REDEEMED'인 행만 센다. 이번 주 = 월요일 00:00 KST 이상 다음 월요일 미만.
-      const coupons = await client.query<{ count: number }>(
-        `SELECT count(*)::integer AS count
+      const coupons = await client.query<{ issued: number; redeemed: number }>(
+        `SELECT count(*) FILTER (WHERE issued_at >= $2 AND issued_at < $3)::integer AS issued,
+                count(*) FILTER (WHERE status = 'REDEEMED' AND redeemed_at >= $2 AND redeemed_at < $3)::integer AS redeemed
          FROM badge_coupons
-         WHERE merchant_id = $1 AND status = 'REDEEMED' AND redeemed_at >= $2 AND redeemed_at < $3`,
+         WHERE merchant_id = $1`,
         [input.merchantId, kstMidnight(periods.thisWeekStart), kstMidnight(periods.nextWeekStart)],
+      );
+      const collectibles = await client.query<{ grade_id: string; grade_name: string; count: number }>(
+        `SELECT acquisition.grade_id,
+                coalesce(min(grade.summary->>'gradeName'), '미디어가 제거된 수집품') AS grade_name,
+                count(*)::integer AS count, min(goal_order.target_visit_count) AS goal_order
+         FROM collectible_acquisitions AS acquisition
+         JOIN collectible_publications AS publication ON publication.id = acquisition.publication_id
+         JOIN collectible_publication_grades AS grade
+           ON grade.publication_id = acquisition.publication_id AND grade.grade_id = acquisition.grade_id
+         JOIN LATERAL (
+           SELECT min(goal.target_visit_count) AS target_visit_count
+           FROM campaign_goals AS goal
+           WHERE goal.campaign_id = publication.campaign_id
+             AND publication.reward_grades->>goal.target_visit_count::text = acquisition.grade_id
+         ) AS goal_order ON goal_order.target_visit_count IS NOT NULL
+         WHERE publication.merchant_id = $1 AND acquisition.acquired_at >= $2 AND acquisition.acquired_at < $3
+         GROUP BY acquisition.grade_id
+         ORDER BY goal_order, acquisition.grade_id`,
+        [input.merchantId, kstMidnight(periods.thisWeekStart), kstMidnight(periods.nextWeekStart)],
+      );
+      const detailViews = await client.query<{ count: number }>(
+        `SELECT coalesce(sum(views), 0)::integer AS count
+         FROM merchant_detail_view_counts
+         WHERE merchant_id = $1 AND business_date >= $2::date AND business_date < $3::date`,
+        [input.merchantId, periods.thisWeekStart, periods.nextWeekStart],
       );
       await client.query('COMMIT');
 
@@ -126,7 +166,11 @@ export class PostgresMerchantOverviewService implements MerchantOverviewReader {
         comparison: buildComparison({
           publishedAt: merchant.published_at, now, thisWeek: counts.this_week, lastWeekSameSpan: counts.last_week_same_span,
         }),
-        couponsRedeemedThisWeek: coupons.rows[0]!.count,
+        weekVisitors: { first: counts.week_first, repeat: counts.week_repeat },
+        weekCollectibles: collectibles.rows.map(row => ({ gradeId: row.grade_id, gradeName: row.grade_name, count: row.count })),
+        weekCoupons: { issued: coupons.rows[0]!.issued, redeemed: coupons.rows[0]!.redeemed },
+        weekDetailViews: detailViews.rows[0]!.count,
+        couponsRedeemedThisWeek: coupons.rows[0]!.redeemed,
         repeatVisitors: counts.repeat_visitors,
         campaign: selected && {
           title: selected.title,

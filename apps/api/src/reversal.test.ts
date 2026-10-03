@@ -45,3 +45,17 @@ test('other database failures are not disguised as a mint in progress', async ()
     (error: unknown) => !(error instanceof ReversalError) && (error as { code?: string }).code === '23505',
   );
 });
+
+test('recent visits expose the issued claim slot id without customer account id', async () => {
+  const claimSlotId = randomUUID();
+  const pool = { query: async (sql: string) => {
+    if (sql.includes('FROM merchant_members')) return { rowCount: 1, rows: [{ '?column?': 1 }] };
+    assert.match(sql, /SELECT id, claim_slot_id, occurred_at/u);
+    return { rows: [{ id: randomUUID(), claim_slot_id: claimSlotId, occurred_at: new Date(),
+      customer_account_id: 'customer-secret', status: 'VALID', progress_counted: true,
+      cancellation_reason: null }] };
+  } } as unknown as Pool;
+  const result = await serviceOver(pool).listRecentVisits({ merchantId: 'shop', staffAccountId: 'staff' });
+  assert.equal(result.visits[0]?.claimSlotId, claimSlotId);
+  assert.equal(JSON.stringify(result).includes('customer-secret'), false);
+});

@@ -19,6 +19,8 @@ import {
   visitRowText,
 } from './reversal-copy';
 import { createReversalController, initialReversalState, type ReversalState } from './reversal-loader';
+import { preselectedCancelableVisit, type VisitSelection } from './issued-visit';
+import { focusMerchantHeading } from '../merchant-home/focus-heading';
 
 type Styles = ReturnType<typeof makeMerchantClaimStyles>;
 type Api = ReturnType<typeof createCommerceApiClient>;
@@ -31,10 +33,14 @@ const blankForm = (merchantId: string): CancelForm => ({ merchantId, openVisitId
  * 되돌릴 수 있는지는 서버가 정하고(canCancel·canUndo) 실패 코드는 한국어 안내로 바꾼다.
  * 목록 읽기·낡은 응답 버리기·중복 누름 방지는 reversal-loader.ts(순수 로직, 시험 있음)가 맡고 이 화면은 그 상태를 그린다.
  */
-export function StaffReversalCards({ api, merchantId, styles, refreshSignal = 0 }: { api: Api; merchantId: string; styles: Styles; refreshSignal?: number }) {
+export function StaffReversalCards({ api, merchantId, styles, refreshSignal = 0, selectedVisit, onVisitPreselected }: { api: Api; merchantId: string; styles: Styles; refreshSignal?: number; selectedVisit?: VisitSelection; onVisitPreselected?: (offset: number | undefined) => void }) {
   const [rawState, setState] = useState<ReversalState>(initialReversalState);
   const [rawForm, setForm] = useState<CancelForm>(() => blankForm(merchantId));
   const controller = useRef<ReturnType<typeof createReversalController> | undefined>(undefined);
+  const selectedRequest = useRef<VisitSelection | undefined>(undefined);
+  const reasonHeading = useRef<Text>(null);
+  const rowPositions = useRef(new Map<string, number>());
+  const reasonOffset = useRef(0);
   // 다른 점포의 상태·입력은 그리지 않는다: 점포가 바뀐 첫 렌더에도 이전 점포의 목록과 열어 둔 취소 양식이 비치지 않는다.
   const { visits, redemptions, visitMessage, redemptionMessage, busy } =
     rawState.merchantId === merchantId ? rawState : initialReversalState;
@@ -57,6 +63,28 @@ export function StaffReversalCards({ api, merchantId, styles, refreshSignal = 0 
   useEffect(() => {
     if (refreshSignal > 0) void controller.current?.refresh();
   }, [refreshSignal]);
+
+  // 발급 바로가기도 목록을 다시 읽은 뒤 기존 사유 단계만 연다. 취소 요청과 확인창은 그대로 유지한다.
+  useEffect(() => {
+    if (!selectedVisit || selectedRequest.current === selectedVisit) return;
+    const visit = preselectedCancelableVisit(visits, selectedVisit, Date.now());
+    if (!visit) return;
+    const frame = requestAnimationFrame(() => {
+      selectedRequest.current = selectedVisit;
+      setForm({ merchantId, openVisitId: visit.visitEventId, reason: 'WRONG_CUSTOMER', note: '' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [merchantId, selectedVisit, visits]);
+  useEffect(() => {
+    if (!selectedVisit || openVisitId !== selectedVisit.visitEventId) {
+      onVisitPreselected?.(undefined);
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      focusMerchantHeading(reasonHeading.current);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [openVisitId, selectedVisit, onVisitPreselected]);
 
   function confirmCancel(visit: RecentVisit) {
     if (busy) return;
@@ -85,10 +113,20 @@ export function StaffReversalCards({ api, merchantId, styles, refreshSignal = 0 
       <Text style={styles.help}>오늘(한국 시간) 이 점포에서 확인한 방문이에요. 잘못 확인했다면 그날 안에 취소할 수 있고, 이미 NFT를 발행했거나 발행 중인 방문은 취소되지 않아요.</Text>
       <Button styles={styles} label="목록 새로 고침" variant="secondary" disabled={busy} onPress={() => void controller.current?.refresh()} />
       {visitMessage ? <Text accessibilityLiveRegion="polite" style={styles.message}>{visitMessage}</Text> : null}
-      {visits?.map((visit) => <View key={visit.visitEventId} style={styles.couponRow}>
+      {visits?.map((visit) => <View key={visit.visitEventId} style={styles.couponRow} onLayout={({ nativeEvent }) => {
+        rowPositions.current.set(visit.visitEventId, nativeEvent.layout.y);
+        if (openVisitId === visit.visitEventId && selectedVisit?.visitEventId === visit.visitEventId) {
+          onVisitPreselected?.(nativeEvent.layout.y + reasonOffset.current);
+        }
+      }}>
         <Text selectable accessibilityLabel={visitRowAccessibilityLabel(visit)} style={styles.couponTitle}>{visitRowText(visit)}</Text>
         {visit.canCancel ? openVisitId === visit.visitEventId ? <>
-          <Text style={styles.inputLabel}>취소 사유</Text>
+          <Text ref={reasonHeading} accessible accessibilityRole="header" style={styles.inputLabel} onLayout={({ nativeEvent }) => {
+            reasonOffset.current = nativeEvent.layout.y;
+            if (selectedVisit?.visitEventId === visit.visitEventId) {
+              onVisitPreselected?.((rowPositions.current.get(visit.visitEventId) ?? 0) + nativeEvent.layout.y);
+            }
+          }}>취소 사유</Text>
           <View accessibilityRole="radiogroup" style={{ gap: 8 }}>
             {visitCancelReasons.map((option) => {
               const selected = reason === option.code;

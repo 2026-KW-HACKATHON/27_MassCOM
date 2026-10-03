@@ -24,6 +24,7 @@ import {
 } from '../friends-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { countedVisitFilterSql, countedVisitFromSql } from './badge-rewards.js';
+import { publicCampaignGoalsHaving, publicCampaignPredicate } from './merchant-catalog.js';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // 코드 충돌은 32^8분의 1 확률이라 몇 번만 다시 뽑는다.
@@ -49,9 +50,17 @@ const medalValuesForAccountsSql = `
   FROM per_merchant
   GROUP BY per_merchant.account_id`;
 
-// 도장은 가본 점포 이름뿐이다. 방문 날짜·횟수는 고르지 않고, 순서는 이름순이라 방문 순서도 드러나지 않는다.
+// 도장은 가본 점포 이름과 현재 공개 목록에 있는 점포의 ID만 준다. 방문 날짜·횟수는 고르지 않는다.
 const stampsForAccountsSql = `
-  SELECT visit.customer_account_id AS account_id, merchant.name AS merchant_name
+  SELECT visit.customer_account_id AS account_id, merchant.name AS merchant_name,
+         CASE WHEN EXISTS (
+           SELECT 1 FROM merchants m
+           JOIN campaigns c ON c.merchant_id = m.id
+           JOIN campaign_goals g ON g.campaign_id = c.id
+           WHERE m.id = visit.merchant_id AND ${publicCampaignPredicate(3)}
+           GROUP BY c.id
+           HAVING ${publicCampaignGoalsHaving}
+         ) THEN visit.merchant_id ELSE NULL END AS merchant_id
   ${countedVisitFromSql}
   WHERE visit.customer_account_id = ANY($1::text[]) AND ${countedVisitFilterSql}
     AND visit.business_date <= $2::date
@@ -94,7 +103,8 @@ export class PostgresFriendService implements FriendService {
   async list(accountId: string): Promise<FriendsSnapshot> {
     await this.getOrCreateCode(accountId);
     // 친구 화면은 어제까지의 방문만 센다. 기준 날짜는 요청마다 한 번만 정해 나와 친구가 같은 기준을 쓴다.
-    const asOf = friendsAsOf(this.now());
+    const now = this.now();
+    const asOf = friendsAsOf(now);
     // 한 스냅샷에서 읽어 친구 관계·별명·메달이 서로 어긋나지 않게 한다.
     const client = await this.pool.connect();
     try {
@@ -118,8 +128,8 @@ export class PostgresFriendService implements FriendService {
       const values = await client.query<MedalValues & { account_id: string }>(
         medalValuesForAccountsSql, [accountIds, asOf],
       );
-      const stamps = await client.query<{ account_id: string; merchant_name: string }>(
-        stampsForAccountsSql, [accountIds, asOf],
+      const stamps = await client.query<{ account_id: string; merchant_name: string; merchant_id: string | null }>(
+        stampsForAccountsSql, [accountIds, asOf, now],
       );
       await client.query('COMMIT');
 
@@ -133,7 +143,7 @@ export class PostgresFriendService implements FriendService {
       };
       const stampsOf = (id: string) => stamps.rows
         .filter((row) => row.account_id === id)
-        .map((row) => ({ merchantName: row.merchant_name }));
+        .map((row) => ({ merchantName: row.merchant_name, merchantId: row.merchant_id }));
       // 기본 별명은 첫 코드와 함께 저장된다. 행이 없는 옛 계정은 코드에서 별명을 만들지 않고 "탐험가"로 보인다.
       const nicknameOf = (id: string) => nicknames.get(id) ?? defaultNicknamePrefix;
 

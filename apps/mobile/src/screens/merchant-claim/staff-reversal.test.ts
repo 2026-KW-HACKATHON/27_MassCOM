@@ -9,7 +9,7 @@ const staff = read('staff.tsx');
 
 test('reversal cards belong to the status tab and issued QR has its own full screen', () => {
   const status = readFileSync(fileURLToPath(new URL('../merchant-home/status.tsx', import.meta.url)), 'utf8');
-  assert.match(status, /<StaffReversalCards api=\{commerce\} merchantId=\{merchantId\} styles=\{reversalStyles\} refreshSignal=\{reversalRefresh\} \/>/);
+  assert.match(status, /<StaffReversalCards api=\{commerce\} merchantId=\{merchantId\} styles=\{reversalStyles\} refreshSignal=\{reversalRefresh\} selectedVisit=\{selectedVisit\} onVisitPreselected=\{showPreselectedVisit\} \/>/);
   assert.doesNotMatch(staff, /StaffReversalCards|scrollToEnd/);
   const modal = staff.slice(staff.indexOf('<Modal'), staff.indexOf('</Modal>'));
   assert.match(modal, /presentationStyle="fullScreen"/);

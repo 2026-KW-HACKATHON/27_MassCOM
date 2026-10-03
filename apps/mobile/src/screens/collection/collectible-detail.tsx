@@ -1,4 +1,5 @@
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { useRouter } from 'expo-router';
 import { foregroundAudioMode } from '@/sound/playback-audio-mode';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Image, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useColorScheme, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
@@ -30,6 +31,7 @@ import { GradeMaterialSensor } from './grade-material-sensor';
 type Props = {
   entitlementId: string;
   merchantName: string;
+  merchantId?: string;
   load: (entitlementId: string) => Promise<PublishedCollectible>;
   localDetail?: LegacyCollectibleDetail;
   onClose: () => void;
@@ -85,7 +87,7 @@ function LivingOverlay({ living, cell, faceSize }: { living: CollectibleLiving; 
 }
 
 /** Mounted for one acquired entitlement; closing it discards pending reads and playback. */
-export function CollectibleDetail({ entitlementId, merchantName, load, onClose, onUnavailable, localDetail, intro = false }: Props) {
+export function CollectibleDetail({ entitlementId, merchantId, merchantName, load, onClose, onUnavailable, localDetail, intro = false }: Props) {
   const [snapshot, setSnapshot] = useState<PublishedCollectible>();
   const [failure, setFailure] = useState<CollectibleDetailFailure>();
   const [retry, setRetry] = useState(0);
@@ -106,7 +108,7 @@ export function CollectibleDetail({ entitlementId, merchantName, load, onClose, 
   const shown = localDetail ?? snapshot;
   return (
     <FullScreenModal visible animationType="fade" onRequestClose={close}>
-      {shown ? <DetailBody key={entitlementId} snapshot={shown} merchantName={merchantName} intro={intro} onClose={onClose} /> : (
+      {shown ? <DetailBody key={entitlementId} snapshot={shown} merchantId={merchantId} merchantName={merchantName} intro={intro} onClose={onClose} /> : (
         <DetailFrame>
           <StateScene kind={failure ? (failure.removed ? 'empty' : 'error') : 'loading'} title={failure ? failure.title : '가게 수집품을 펼치는 중'} body={failure?.body}
             action={failure && !failure.removed ? { label: '다시 불러오기', onPress: () => { setFailure(undefined); setRetry((value) => value + 1); } } : undefined} />
@@ -132,7 +134,8 @@ function Control({ label, onPress, disabled = false }: { label: string; onPress:
   </Pressable>;
 }
 
-function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapshot: CollectibleDetailInput; merchantName: string; intro?: boolean; onClose: () => void }) {
+function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose }: { snapshot: CollectibleDetailInput; merchantId?: string; merchantName: string; intro?: boolean; onClose: () => void }) {
+  const router = useRouter();
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
   const gradeColors = collectibleGradeColors(snapshot.gradeId, snapshot.gradeName, scheme);
@@ -519,6 +522,9 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
         {scene ? <Control label="장면 건너뛰기" onPress={pause} /> : null}
       </View> : null}
       <Text style={[styles.meta, { color: palette.secondaryLabel }]}>이 수집품은 도감에 보관되어 있어요.</Text>
+      {merchantId ? <Pressable accessibilityRole="link" accessibilityLabel={`${merchantName} 보기`}
+        onPress={() => { close(); router.push({ pathname: '/merchants/[merchantId]', params: { merchantId, from: 'collection' } }); }}
+        style={styles.merchantLink}><Text style={[styles.controlText, { color: palette.primary }]}>{merchantName} 보기 →</Text></Pressable> : null}
       <Control label="도감으로 돌아가기" onPress={close} />
     </DetailFrame>
   );
@@ -536,6 +542,7 @@ const styles = StyleSheet.create({
   controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   control: { minHeight: 48, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   controlText: { fontSize: 14, fontWeight: '700' },
+  merchantLink: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start', paddingHorizontal: 8 },
   slider: { height: 48, borderRadius: 14, justifyContent: 'center' },
   track: { height: 4, borderRadius: 4 },
   thumb: { position: 'absolute', width: 24, height: 24, borderRadius: 12, top: 12 },

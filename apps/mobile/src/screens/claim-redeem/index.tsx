@@ -1,7 +1,7 @@
 import { getAppPackageId } from '@/config/app-identity';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Link, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -22,12 +22,14 @@ import {
   type ClaimRecoveryAction,
 } from '@/commerce/claim-recovery';
 import { createBadgeApiClient, type BadgeBook } from '@/gamification/badge-api';
+import { afterVisitAction, hasOpenableBox, type AfterVisitAction } from '@/commerce/after-visit-action';
 import { diffBadgeBooks } from '@/gamification/badge-rules';
 import { progressNote } from '@/commerce/progress-note';
-import { defaultVisitGoals, mileageBalanceLine, mileageDeltaLine, settleWithin, visitRewardGuide } from '@/commerce/visit-reward-guide';
+import { mileageBalanceLine, mileageDeltaLine, settleWithin, visitRewardGuide, type VisitGoal } from '@/commerce/visit-reward-guide';
 import { playUiSound } from '@/sound/ui-sounds';
 import { Celebration, type CelebrationContent } from '@/gamification/celebration';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
+import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
 import { createVisitorFeedbackApiClient, VisitorFeedbackApiError, type VisitorFeedbackSelection } from '@/merchant/visitor-feedback-api';
 import { VisitorFeedbackForm } from '../merchant-detail/visitor-feedback-form';
 import { canShowTestVisitSection } from '@/navigation/showcase-entry';
@@ -45,6 +47,7 @@ import { Stagger } from '@/ui/stagger';
 
 import { makeClaimRedeemStyles } from './styles';
 import { ShopScreen } from '@/screens/shop';
+import { presentedCollectibleIds } from '@/screens/collection/presented-collectibles';
 
 /** 방문 수령 전·후의 적립 합계(`mileage.earned`). 못 읽으면 undefined라 그 방문은 "+N 적립" 줄만 빠진다. */
 function readEarnedMileage(client: ShopApiClient): Promise<number | undefined> {
@@ -56,10 +59,12 @@ const mileageSnapshotWaitMs = 1500;
 
 export function ClaimRedeemScreen({
   apiUrl,
+  accountId,
   credential,
   onSessionInvalid,
 }: {
   apiUrl: string;
+  accountId: string;
   credential: AccountCredential;
   onSessionInvalid: () => Promise<void>;
 }) {
@@ -126,6 +131,55 @@ export function ClaimRedeemScreen({
   const [gachaStarted, setGachaStarted] = useState(false);
   const [gachaOpen, setGachaOpen] = useState(false);
   const [celebration, setCelebration] = useState<CelebrationContent>();
+  const [openableBoxClaimSlot, setOpenableBoxClaimSlot] = useState<string>();
+  // focus 조회와 축하 조회가 같은 세대를 공유해 늦은 READY 응답으로 열린 상자를 되살리지 않는다.
+  const badgeBookGate = useRef(createIdentityRequestGate()).current;
+  const [presentedIds, setPresentedIds] = useState<ReadonlySet<string>>(() => presentedCollectibleIds(apiUrl, accountId));
+  const [nextSuggestion, setNextSuggestion] = useState<{ claimSlotId: string; item: Recommendation }>();
+  const [campaignGoals, setCampaignGoals] = useState<
+    { claimSlotId: string; status: 'ready'; goals: readonly VisitGoal[] } | { claimSlotId: string; status: 'error' }
+  >();
+  const [campaignGoalsRetry, setCampaignGoalsRetry] = useState(0);
+
+  // 도감에서 상자를 열고 돌아오면 현재 READY 상태를 다시 읽어 다음 행동을 갱신한다.
+  useFocusEffect(useCallback(() => {
+    setPresentedIds(presentedCollectibleIds(apiUrl, accountId));
+    if (!redeemed) return;
+    let current = true;
+    const claimSlotId = redeemed.claimSlotId;
+    const request = badgeBookGate.start();
+    void badgeApi.getBadgeBook().then((book) => {
+      if (current && badgeBookGate.isCurrent(request) && activeClaimSlot.current === claimSlotId) {
+        setOpenableBoxClaimSlot(hasOpenableBox(book) ? claimSlotId : undefined);
+      }
+    }).catch(() => undefined);
+    return () => { current = false; badgeBookGate.cancel(); };
+  }, [apiUrl, accountId, badgeApi, badgeBookGate, redeemed]));
+
+  // 수령 후 추천과 목표는 화면 안내만 보강한다. 실패해도 완료된 방문은 그대로 보여 준다.
+  useEffect(() => {
+    if (!redeemed) return;
+    let current = true;
+    const controller = new AbortController();
+    const claimSlotId = redeemed.claimSlotId;
+    void createMerchantApiClient(apiUrl).listMerchants(controller.signal).then((merchants) => {
+      if (!current) return;
+      const merchant = merchants.find((item) => item.id === redeemed.merchantId && item.campaign.id === redeemed.visit.campaignId);
+      setCampaignGoals(merchant ? { claimSlotId, status: 'ready', goals: merchant.campaign.rewardGoals } : { claimSlotId, status: 'error' });
+    }).catch(() => { if (current) setCampaignGoals({ claimSlotId, status: 'error' }); });
+    return () => { current = false; controller.abort(); };
+  }, [apiUrl, redeemed, campaignGoalsRetry]);
+
+  useEffect(() => {
+    if (!redeemed) return;
+    let current = true;
+    const controller = new AbortController();
+    const claimSlotId = redeemed.claimSlotId;
+    void createRecommendationApiClient({ apiUrl, credential, onSessionInvalid }).listRecommendations(controller.signal).then((items) => {
+      if (current && items[0]) setNextSuggestion({ claimSlotId, item: items[0] });
+    }).catch(() => undefined);
+    return () => { current = false; controller.abort(); };
+  }, [apiUrl, credential, onSessionInvalid, redeemed]);
 
   // 의견 조회는 선택 사항이다. 이전 방문·계정의 늦은 응답은 현재 수령 카드에 붙이지 않는다.
   useEffect(() => {
@@ -214,6 +268,8 @@ export function ClaimRedeemScreen({
 
   function changeToken(value: string) {
     inspectGate.cancel();
+    badgeBookGate.cancel();
+    setOpenableBoxClaimSlot(undefined);
     badgesBeforeClaim.current = undefined;
     setToken(value);
     setPreview(undefined);
@@ -297,6 +353,7 @@ export function ClaimRedeemScreen({
       const result = await api.redeemClaim(target);
       if (!result.replayed) playUiSound('success');
       activeClaimSlot.current = result.claimSlotId;
+      setCampaignGoals(undefined);
       setRedeemed(result);
       setArtworkReward(undefined);
       void findGrantedArtwork(result);
@@ -334,6 +391,7 @@ export function ClaimRedeemScreen({
       const mileageBefore = await settleWithin(readEarnedMileage(shopApi), mileageSnapshotWaitMs);
       const result = await api.createTestVisit(selectedTestVisitMerchantId);
       activeClaimSlot.current = result.claimSlotId;
+      setCampaignGoals(undefined);
       setRedeemed(result);
       setArtworkReward(undefined);
       void findGrantedArtwork(result);
@@ -379,18 +437,21 @@ export function ClaimRedeemScreen({
 
   // Runs after the claim is final; a badge lookup failure only trims the celebration, never the claim.
   async function celebrate(result: RedeemedClaim, before: Promise<BadgeBook | undefined> | undefined) {
+    const request = badgeBookGate.start();
     const [previous, after] = await Promise.all([
       before ?? Promise.resolve(undefined),
       badgeApi.getBadgeBook().catch(() => undefined),
     ]);
     if (activeClaimSlot.current !== result.claimSlotId) return;
+    const diff = diffBadgeBooks(previous, after);
+    if (badgeBookGate.isCurrent(request)) setOpenableBoxClaimSlot(hasOpenableBox(after) ? result.claimSlotId : undefined);
     setCelebration({
       claimSlotId: result.claimSlotId,
       grantedRewards: result.grantedRewards,
       merchantName: result.merchantName,
       progressCounted: result.visit.progressCounted,
       ...(result.visit.progressExcludedReason ? { progressExcludedReason: result.visit.progressExcludedReason } : {}),
-      diff: diffBadgeBooks(previous, after),
+      diff,
       after,
     });
   }
@@ -414,8 +475,29 @@ export function ClaimRedeemScreen({
   const currentRewardContext = redeemed && rewardContext?.claimSlotId === redeemed.claimSlotId ? rewardContext : undefined;
   const rewardBalance = currentRewardContext?.balance ?? null;
   const rewardGuide = redeemed
-    ? visitRewardGuide({ progressCount: redeemed.visit.progressVisitCount, goals: defaultVisitGoals })
+    ? visitRewardGuide({ progressCount: redeemed.visit.progressVisitCount,
+      goals: campaignGoals?.claimSlotId === redeemed.claimSlotId && campaignGoals.status === 'ready' ? campaignGoals.goals : undefined })
     : undefined;
+  const currentArtworkReward = artworkReward?.claimSlotId === redeemed?.claimSlotId ? artworkReward : undefined;
+  const currentNextSuggestion = nextSuggestion && nextSuggestion.claimSlotId === redeemed?.claimSlotId ? nextSuggestion.item : undefined;
+  const primaryAction = afterVisitAction({
+    hasUnopenedCollectible: !!currentArtworkReward && currentArtworkReward.entitlementIds.some((id) => !presentedIds.has(id)),
+    hasOpenableBox: openableBoxClaimSlot === redeemed?.claimSlotId,
+    nextSuggestion: currentNextSuggestion,
+  });
+
+  function followAfterVisitAction(action: AfterVisitAction) {
+    setCelebration(undefined);
+    if (action.kind === 'collectible' && currentArtworkReward) {
+      router.navigate({ pathname: '/collection', params: { focus: 'collectible', entitlement: currentArtworkReward.entitlementIds.join(',') } });
+    } else if (action.kind === 'box') {
+      router.navigate({ pathname: '/collection', params: { focus: 'rewards' } });
+    } else if (action.kind === 'recommendation') {
+      router.navigate({ pathname: '/merchants/[merchantId]', params: { merchantId: action.merchantId, from: 'recommendation' } });
+    } else {
+      router.navigate('/collection');
+    }
+  }
 
   return (
     <>
@@ -579,24 +661,34 @@ export function ClaimRedeemScreen({
             {currentRewardContext?.mileageLine ? <Text style={styles.successHighlight}>{currentRewardContext.mileageLine}</Text> : null}
             {rewardBalance !== null ? <Text style={styles.successBody}>{mileageBalanceLine(rewardBalance)}</Text> : null}
             {rewardGuide?.nextGradeLine ? <Text style={styles.successBody}>{rewardGuide.nextGradeLine}</Text> : null}
-            <View style={styles.successActions}>
-              {artworkReward?.claimSlotId === redeemed.claimSlotId ? (
-                <Pressable accessibilityRole="button" onPress={() => router.navigate({ pathname: '/collection', params: { focus: 'collectible', entitlement: artworkReward.entitlementIds.join(',') } })}
-                  style={[styles.collectionButton, { backgroundColor: palette.primary }]}>
-                  <Text style={[styles.collectionButtonText, { color: palette.onPrimary }]}>받은 수집품 보기</Text>
-                </Pressable>
-              ) : null}
-              {claimSuccessCopy(redeemed).destinations.map((destination) => (
-                <Link key={destination.href} href={destination.href} asChild>
-                  <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.collectionButton, { backgroundColor: palette.primary }])}>
-                    <Text style={[styles.collectionButtonText, { color: palette.onPrimary }]}>{destination.label}</Text>
-                  </Pressable>
-                </Link>
-              ))}
-              <Pressable accessibilityRole="button" onPress={() => router.navigate('/shop')}
-                style={[styles.collectionButton, { backgroundColor: palette.primary }]}>
-                <Text style={[styles.collectionButtonText, { color: palette.onPrimary }]}>상점에서 뽑기</Text>
+            {campaignGoals?.claimSlotId === redeemed.claimSlotId && campaignGoals.status === 'error' ? <View>
+              <Text style={styles.successBody}>수집품 목표를 확인하지 못했어요. 방문 완료 기록은 그대로예요.</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="수집품 목표 다시 불러오기"
+                onPress={() => { setCampaignGoals(undefined); setCampaignGoalsRetry((value) => value + 1); }} style={styles.textLink}>
+                <Text style={styles.textLinkText}>수집품 목표 다시 불러오기</Text>
               </Pressable>
+            </View> : null}
+            <View style={styles.successActions}>
+              <Pressable accessibilityRole="button" onPress={() => followAfterVisitAction(primaryAction)}
+                style={[styles.collectionButton, { backgroundColor: palette.primary }]}>
+                <Text style={[styles.collectionButtonText, { color: palette.onPrimary }]}>{primaryAction.label}</Text>
+              </Pressable>
+              {primaryAction.kind === 'recommendation' ? <Text style={styles.successBody}>{primaryAction.detail}</Text> : null}
+            </View>
+            <View style={styles.secondaryLinks}>
+              <Pressable accessibilityRole="button" accessibilityLabel="도감 보기" onPress={() => router.navigate('/collection')} style={styles.textLink}>
+                <Text style={styles.textLinkText}>도감</Text>
+              </Pressable>
+              <Text style={styles.linkSeparator}>·</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="상점 뽑기" onPress={() => router.navigate('/shop')} style={styles.textLink}>
+                <Text style={styles.textLinkText}>상점 뽑기</Text>
+              </Pressable>
+              {currentFeedbackOffer ? <>
+                <Text style={styles.linkSeparator}>·</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="이 가게 어땠나요? 선택" onPress={() => setFeedbackOpen(true)} style={styles.textLink}>
+                  <Text style={styles.textLinkText}>이 가게 어땠나요?(선택)</Text>
+                </Pressable>
+              </> : null}
             </View>
             {currentFeedbackOffer ? (
               feedbackOpen ? (
@@ -610,13 +702,7 @@ export function ClaimRedeemScreen({
                   onUnauthorized={() => { setFeedbackOpen(false); setFeedbackOffer(undefined); }}
                   onNotEligible={() => { setFeedbackOpen(false); setFeedbackOffer(undefined); setFeedbackNotEligible(redeemed); }}
                 />
-              ) : (
-                <Pressable accessibilityRole="button" accessibilityLabel="이 가게는 어땠나요? (선택)"
-                  accessibilityState={{ expanded: false }} onPress={() => setFeedbackOpen(true)}
-                  style={[styles.collectionButton, { backgroundColor: palette.primaryContainer }]}>
-                  <Text style={[styles.collectionButtonText, { color: palette.onPrimaryContainer }]}>이 가게는 어땠나요? (선택)</Text>
-                </Pressable>
-              )
+              ) : null
             ) : null}
             {feedbackNotEligible === redeemed ? <Text accessibilityLiveRegion="polite" style={styles.successBody}>방문 인증한 가게에서만 고를 수 있어요.</Text> : null}
             {feedbackThanks === redeemed ? <Text accessibilityLiveRegion="polite" style={styles.successBody}>고마워요! 다른 손님이 가게를 고를 때 도움이 돼요.</Text> : null}
@@ -632,11 +718,9 @@ export function ClaimRedeemScreen({
           mileageDelta: currentRewardContext?.mileageDelta,
           mileageBalance: currentRewardContext?.balance ?? undefined,
         } : undefined}
-        onOpenEnvelope={() => {
-          if (!artworkReward || artworkReward.claimSlotId !== redeemed?.claimSlotId) return;
-          setCelebration(undefined);
-          router.navigate({ pathname: '/collection', params: { focus: 'collectible', entitlement: artworkReward.entitlementIds.join(',') } });
-        }}
+        primaryAction={primaryAction}
+        onPrimaryAction={() => followAfterVisitAction(primaryAction)}
+        onOpenFeedback={currentFeedbackOffer ? () => { setCelebration(undefined); setFeedbackOpen(true); } : undefined}
         onOpenGacha={() => { setCelebration(undefined); setGachaStarted(true); setGachaOpen(true); }}
         variant={getAppPackageId() === 'kr.masscom.wolgye.demo' ? 'showcase' : 'production'}
         onClose={() => setCelebration(undefined)}

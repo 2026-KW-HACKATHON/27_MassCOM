@@ -10,10 +10,11 @@ import test from 'node:test';
 import { buildPublicSite } from '../../scripts/build-public-site.mjs';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
-// API를 흉내 낸다: /nft-metadata/ 아래 요청은 모두 200과 자기 표시(X-From-Api)·CORS·immutable 캐시를 돌려준다.
+// API를 흉내 낸다: 허용된 NFT 메타데이터·가게 그림 요청은 자기 표시(X-From-Api)를 돌려준다.
 const fixture = `require('node:http').createServer((request, response) => {
   response.setHeader('X-From-Api', request.method + ' ' + request.url);
-  if (request.url.startsWith('/nft-metadata/')) {
+  response.setHeader('X-Received-Forwarded-For', request.headers['x-forwarded-for'] || '');
+  if (request.url.startsWith('/nft-metadata/') || request.url.startsWith('/merchant-art/')) {
     response.setHeader('Access-Control-Allow-Origin', '*');
     response.setHeader('Cache-Control', 'public, max-age=86400');
     response.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -100,13 +101,27 @@ test('Caddy는 확정된 메타데이터·그림 경로만 API로 넘기고 실�
       assert.equal(routed.headers.get('x-content-type-options'), 'nosniff', `${method} ${path}`);
     }
 
+    // 운영 웹 출처의 가게 그림은 API의 원래 경로로 전달한다.
+    for (const method of ['GET', 'HEAD']) {
+      const path = `/merchant-art/${sha}.webp`;
+      const routed = await fetch(`${url}${path}`, { method, headers: { 'X-Forwarded-For': '203.0.113.77' } });
+      assert.equal(routed.status, 200, `${method} ${path}`);
+      assert.equal(routed.headers.get('x-from-api'), `${method} ${path}`);
+      assert.ok(routed.headers.get('x-received-forwarded-for'), `${method} ${path}`);
+      assert.ok(!routed.headers.get('x-received-forwarded-for').includes('203.0.113.77'), `${method} ${path}`);
+    }
+
     // 쓰기 메서드·다른 모양의 경로·다른 공개 경로는 API로 넘기지 않는다.
     for (const [method, path] of [['POST', '/nft-metadata/series-a/7.json'], ['DELETE', '/nft-metadata/series-a/7.json'],
       ['GET', '/nft-metadata/series-a/07.json'], ['GET', '/nft-metadata/series-a/7.json.bak'],
       ['GET', '/nft-metadata/a/b/7.json'], ['GET', '/nft-metadata/series-a/'], ['GET', '/nft-metadata/-a/7.json'],
       ['GET', `/nft-metadata/images/${sha}.png`], ['GET', '/nft-metadata/images/abc.webp'],
       ['GET', '/nft-metadata/default/mascot-stamp-v2.png'],
-      ['GET', '/nft-metadata/series-a/%2e%2e/7.json'], ['GET', '/merchant-art/x.webp']]) {
+      ['GET', '/nft-metadata/series-a/%2e%2e/7.json'], ['GET', '/merchant-art/x.webp'],
+      ['POST', `/merchant-art/${sha}.webp`], ['PUT', `/merchant-art/${sha}.webp`],
+      ['GET', `/merchant-art/${sha.toUpperCase()}.webp`], ['GET', `/merchant-art/${sha.slice(1)}.webp`],
+      ['GET', `/merchant-art/${sha}e.webp`], ['GET', `/merchant-art/${sha}.png`],
+      ['GET', `/merchant-art/${sha}.webp/extra`]]) {
       const blocked = await fetch(`${url}${path}`, { method });
       assert.equal(blocked.headers.get('x-from-api'), null, `${method} ${path}`);
       assert.notEqual(blocked.status, 200, `${method} ${path}`);

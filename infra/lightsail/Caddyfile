@@ -67,6 +67,16 @@
 			header_up X-Forwarded-For {remote_host}
 		}
 	}
+	# 공개 가게 그림은 운영 API가 보관한다. 읽기 요청과 정확한 그림 경로만 넘긴다.
+	@merchantArtApi {
+		method GET HEAD
+		path_regexp ^/merchant-art/[0-9a-f]{64}\.webp$
+	}
+	handle @merchantArtApi {
+		reverse_proxy api:3000 {
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
 	# 발행 확정 때 고정한 NFT 메타데이터·그림(Issue #254)은 API가 준다. 읽기만, 정해진 모양의 경로만 넘긴다.
 	# 컨트랙트에 고정된 실증 토큰(base-sepolia-proof)은 지금처럼 정적 파일로 남긴다.
 	@nftMetadataApi {

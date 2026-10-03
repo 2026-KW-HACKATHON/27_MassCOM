@@ -15,7 +15,7 @@ import {
 } from './reversal-loader';
 
 const visit = (id: string, over: Partial<RecentVisit> = {}): RecentVisit => ({
-  visitEventId: id, occurredAt: '2026-09-30T03:05:00.000Z', customerLabel: '손님 K7QM', status: 'VALID',
+  visitEventId: id, claimSlotId: 'slot-' + id, occurredAt: '2026-09-30T03:05:00.000Z', customerLabel: '손님 K7QM', status: 'VALID',
   progressCounted: true, cancellationReason: null, canCancel: true, ...over,
 });
 const redemption = (id: string): RecentCouponRedemption => ({

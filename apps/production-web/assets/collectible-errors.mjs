@@ -1,4 +1,4 @@
-// 수집품 제작·저장 API가 돌려주는 오류 코드마다 점주가 바로 할 수 있는 말을 붙인다(docs/COLLECTIBLE_CREATOR.md "서버 계약").
+// 수집품 제작·탐색·열람·집계 API가 돌려주는 오류 코드마다 한국어 안내를 붙인다(docs/COLLECTIBLE_CREATOR.md "서버 계약").
 // 새 코드가 생기면 여기에 문구를 추가해야 한다. tests/site/collectible-errors.test.mjs가 문서·서버의 코드 목록과 맞는지 검사한다.
 export const COLLECTIBLE_ERROR_MESSAGES = {
   INVALID_REQUEST: '요청 형식이 맞지 않아요. 화면을 새로 열어 다시 시도해 주세요. 입력은 그대로 있어요.',
@@ -17,6 +17,14 @@ export const COLLECTIBLE_ERROR_MESSAGES = {
   MERCHANT_ACCESS_DENIED: '이 점포의 수집품 제작 권한이 없어요. 점주 권한을 확인해 주세요.',
   ACCOUNT_DELETED: '계정이 삭제돼 처리할 수 없어요.',
   COLLECTIBLE_PROJECTS_NOT_CONFIGURED: '수집품 저장 기능이 아직 준비되지 않았어요. 잠시 뒤 다시 시도해 주세요. 입력은 그대로 있어요.',
+  COLLECTIBLE_PREVIEW_NOT_CONFIGURED: '수집품 미리보기 기능이 아직 준비되지 않았어요. 잠시 뒤 다시 확인해 주세요.',
+  COLLECTIBLE_PREVIEW_NOT_FOUND: '지금 공개된 수집품 미리보기가 없어요. 가게의 공개 상태와 수집품 연결을 확인해 주세요.',
+  MERCHANT_NOT_FOUND: '공개 중인 가게를 찾을 수 없어요. 가게 목록을 새로 불러와 주세요.',
+  MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED: '가게 상세 열람 집계가 아직 준비되지 않았어요. 잠시 뒤 다시 확인해 주세요.',
+  VIEW_SOURCE_INVALID: '가게 상세 화면에 들어온 경로를 확인하지 못했어요. 화면을 다시 열어 주세요.',
+  VIEW_RATE_LIMITED: '가게 상세 열람 요청이 너무 잦아요.',
+  ADMIN_FUNNEL_NOT_CONFIGURED: '방문 효과 집계가 아직 준비되지 않았어요. 잠시 뒤 다시 조회해 주세요.',
+  FUNNEL_DAYS_INVALID: '방문 효과 조회 기간은 7일부터 90일까지 선택해 주세요.',
 };
 export const COLLECTIBLE_ERROR_CODES = Object.keys(COLLECTIBLE_ERROR_MESSAGES);
 
@@ -28,6 +36,7 @@ export function collectibleErrorMessage(error, fallback = '저장하지 못했�
   const seconds = Number.isFinite(error?.retryAfterSeconds) && error.retryAfterSeconds > 0 ? error.retryAfterSeconds : 0;
   const wait = seconds ? ` ${seconds}초 뒤에 다시 시도해 주세요.` : ' 잠시 뒤에 다시 시도해 주세요.';
   const known = COLLECTIBLE_ERROR_MESSAGES[error?.code];
+  if (error?.code === 'VIEW_RATE_LIMITED') return `${known}${wait}`;
   if (error?.code === 'COLLECTIBLE_RATE_LIMITED' || error?.status === 429) return `${COLLECTIBLE_ERROR_MESSAGES.COLLECTIBLE_RATE_LIMITED}${wait} 입력은 그대로 있어요.`;
   if (known) return known;
   // 코드 없이 상태만 온 응답(프록시·세션 만료 등)도 원인별로 안내한다.
