@@ -147,8 +147,8 @@ export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip,
 
   const current = cardStep.stage === 'cards' ? cards[cardStep.index] : undefined;
   useEffect(() => {
-    if (uiStage === 'open' && current) onCardShown(current.entitlementId);
-  }, [uiStage, current, onCardShown]);
+    if (foreground && uiStage === 'open' && current) onCardShown(current.entitlementId);
+  }, [foreground, uiStage, current, onCardShown]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 28 }]}>

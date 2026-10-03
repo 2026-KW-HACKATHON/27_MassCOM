@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
@@ -33,6 +33,17 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
   const box = useRef<GiftBoxHandle>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [openApi, setOpenApi] = useState(() => onOpen);
+  const request = useRef(0);
+  if (openApi !== onOpen) {
+    setOpenApi(() => onOpen);
+    setBusy(false);
+    setError(undefined);
+  }
+  useLayoutEffect(() => {
+    request.current += 1;
+    return () => { request.current += 1; };
+  }, [openApi]);
   const ready = reward.state === 'READY';
   const offerLine = reward.offer && (reward.state === 'LOCKED' || reward.state === 'READY')
     ? `${reward.offer.merchantName} · ${reward.offer.title}`
@@ -40,6 +51,8 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
 
   async function openBox() {
     if (busy) return;
+    const opening = ++request.current;
+    const isCurrent = () => opening === request.current;
     setBusy(true);
     playUiSound('open');
     setError(undefined);
@@ -48,9 +61,12 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
     try {
       // Let the wobble read even on a fast network.
       const [result] = await Promise.all([onOpen(reward.milestone), wait(reduceMotion ? 0 : 750)]);
+      if (!isCurrent()) return;
       await box.current?.pop();
+      if (!isCurrent()) return;
       onRevealed(result);
     } catch (caught) {
+      if (!isCurrent()) return;
       box.current?.settle();
       // 여는 소리를 이미 냈으니 실패도 소리로 알린다(방문 수령 실패와 같은 신호).
       playUiSound('error');
@@ -58,7 +74,7 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
       setError(openRewardErrorMessage(code));
       onOpenFailed?.(code);
     } finally {
-      setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   }
 

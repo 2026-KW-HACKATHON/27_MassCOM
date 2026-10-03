@@ -23,7 +23,7 @@ function friend(id: string, nickname: string, rank: number, tiers: [0 | 1 | 2 | 
   return {
     friendshipId: id, nickname, rank, medals: medals(...tiers),
     badges: { earned: tiers[0] + tiers[1] + tiers[2], total: 9 },
-    stamps: Array.from({ length: stamps }, (_, index) => ({ merchantName: `가게 ${index}` })),
+    stamps: Array.from({ length: stamps }, (_, index) => ({ merchantName: `가게 ${index}`, merchantId: null })),
   };
 }
 

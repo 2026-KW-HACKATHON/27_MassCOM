@@ -45,3 +45,18 @@ test('successful save closes the detail form and shows thanks', () => {
   assert.match(form, /await client\.save\(merchantId, toVisitorFeedbackPayload\(form\)\);\s*if \(requestVersion\.current === version\) onSaved\(\);/);
   assert.match(screen, /onSaved=\{\(\) => \{ setSelection\(null\); setMessage\('고마워요! 다른 손님이 가게를 고를 때 도움이 돼요\.'\); \}\}/);
 });
+
+test('진행 최초 실패·오래된 상태를 설명하고 collection 재시도를 제공한다', () => {
+  assert.match(screen, /status: collectionStatus, stale: collectionStale/);
+  assert.match(screen, /collectionStale \|\| collectionStatus === 'error'/);
+  assert.match(screen, /collectionStale \? '이전 방문 기록' : '내 진행 · 지금'/);
+  assert.match(screen, /이전 방문 기록이에요\. 최신 진행을 확인하지 못했어요/);
+  assert.match(screen, /내 방문 진행을 불러오지 못했어요/);
+  assert.match(screen, /accessibilityLabel="내 방문 진행 다시 불러오기"[\s\S]*?onPress=\{\(\) => \{ void reloadCollection\(\); \}\}/);
+});
+
+test('화면 포커스에서만 상세 재질 시계와 레이어를 활성화한다', () => {
+  assert.match(screen, /useFocusEffect\(useCallback\(\(\) => \{ setFocused\(true\); return \(\) => setFocused\(false\); \}, \[\]\)\)/);
+  assert.match(screen, /useGradeMaterialClock\(focused\)/);
+  assert.match(screen, /variant="card" active=\{focused\}/);
+});

@@ -1,5 +1,5 @@
-import { Link } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg from 'react-native-svg';
@@ -50,9 +50,11 @@ function MerchantDetailContent({ merchantId, apiUrl, from }: { merchantId: strin
     [palette, world],
   );
   const insets = useSafeAreaInsets();
-  const materialClock = useGradeMaterialClock(true);
+  const [focused, setFocused] = useState(false);
+  useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
+  const materialClock = useGradeMaterialClock(focused);
   const auth = useAuthSession();
-  const { collection, reload: reloadCollection } = useTownCollection({ apiUrl, credential: auth.credential, onSessionInvalid: auth.invalidateSession });
+  const { collection, status: collectionStatus, stale: collectionStale, reload: reloadCollection } = useTownCollection({ apiUrl, credential: auth.credential, onSessionInvalid: auth.invalidateSession });
   const [preview, setPreview] = useState<CollectiblePreview | null>(null);
   const [previewErrorFor, setPreviewErrorFor] = useState<string | null>(null);
   const [previewRetry, setPreviewRetry] = useState(0);
@@ -148,7 +150,7 @@ function MerchantDetailContent({ merchantId, apiUrl, from }: { merchantId: strin
                           <CollectibleFaceOutline shape={item.shape} fill={gradeMaterialPresets[material].tint} />
                         </Svg>}
                       <GradeMaterialLayer material={material} size={72} clock={materialClock}
-                        faceUri={item.thumbnailDataUrl ?? undefined} shape={item.shape} variant="card" active />
+                        faceUri={item.thumbnailDataUrl ?? undefined} shape={item.shape} variant="card" active={focused} />
                     </View>
                     <View style={styles.previewCopy}>
                       <Text style={styles.previewLabel}>{item.visitCount}번 방문 · {item.gradeName}</Text>
@@ -163,9 +165,18 @@ function MerchantDetailContent({ merchantId, apiUrl, from }: { merchantId: strin
                 onPress={() => setPreviewRetry((value) => value + 1)} style={styles.previewRetry}>
                 <Text style={styles.previewRetryText}>수집품 그림을 불러오지 못했어요 · 다시 시도</Text>
               </Pressable> : null}
-              {goal ? <Text style={styles.progressLine}>내 진행 · 지금 {goal.progressCount}번 방문{goal.nextGoal && goal.remainingVisits !== null
+              {goal ? <Text style={styles.progressLine}>{collectionStale ? '이전 방문 기록' : '내 진행 · 지금'} {goal.progressCount}번 방문{goal.nextGoal && goal.remainingVisits !== null
                 ? ` · ${visiblePreview?.goals.find((item) => item.visitCount === goal.nextGoal?.targetVisitCount)?.gradeName ?? goal.nextGoal.displayName}까지 ${goal.remainingVisits}번`
                 : ' · 수집품 목표 완료'}</Text> : null}
+              {collectionStale || collectionStatus === 'error' ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="내 방문 진행 다시 불러오기"
+                  accessibilityHint={collectionStale ? '이전 방문 기록이에요. 최신 진행을 확인하지 못했어요.' : '내 방문 진행을 불러오지 못했어요.'}
+                  onPress={() => { void reloadCollection(); }} style={styles.previewRetry}>
+                  <Text style={styles.previewRetryText}>{collectionStale
+                    ? '이전 방문 기록이에요. 최신 진행을 확인하지 못했어요 · 다시 불러오기'
+                    : '내 방문 진행을 불러오지 못했어요 · 다시 불러오기'}</Text>
+                </Pressable>
+              ) : null}
             </FloatingCard>
           </Stagger>
 
