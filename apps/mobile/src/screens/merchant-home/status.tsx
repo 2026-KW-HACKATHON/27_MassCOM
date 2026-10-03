@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { focusMerchantHeading } from './focus-heading';
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { createMerchantInsightsApiClient, type MerchantOverview, type VisitorFeedbackSummary } from '@/merchant-insights/api';
-import { feedbackSections, overviewCards } from '@/merchant-insights/view-model';
+import { feedbackSections, overviewCards, visitBars } from '@/merchant-insights/view-model';
 import { StaffReversalCards } from '@/screens/merchant-claim/staff-reversal';
 import { makeMerchantClaimStyles } from '@/screens/merchant-claim/styles';
 import { colorsForScheme } from '@/theme/palette';
@@ -20,6 +20,7 @@ type Props = {
 
 export function MerchantStatusScreen({ apiUrl, merchantId, credential, onSessionInvalid }: Props) {
   const colors = colorsForScheme(useColorScheme());
+  const { fontScale } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const reversalStyles = StyleSheet.create(makeMerchantClaimStyles(colors, StyleSheet.hairlineWidth));
   const insights = useMemo(() => createMerchantInsightsApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
@@ -88,6 +89,7 @@ export function MerchantStatusScreen({ apiUrl, merchantId, credential, onSession
   }, [loadOverview, loadFeedback, refreshing]);
 
   const sections = feedback ? feedbackSections(feedback) : undefined;
+  const bars = overview ? visitBars(overview) : undefined;
 
   return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 18, padding: 20, paddingBottom: 36 }} refreshControl={<RefreshControl progressViewOffset={insets.top} refreshing={refreshing} onRefresh={() => void refresh()} />}>
     <View style={{ gap: 12 }}>
@@ -96,12 +98,27 @@ export function MerchantStatusScreen({ apiUrl, merchantId, credential, onSession
       {overviewError ? <Retry label="현황을 불러오지 못했어요. 다시 시도" onPress={() => void loadOverview()} color={colors.primary} disabled={overviewLoading} /> : null}
       {overview ? <>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-          {overviewCards(overview).map((card) => <View key={card.label} style={{ width: '48%', minWidth: 135, flexGrow: 1, gap: 5, padding: 16, borderRadius: 18, backgroundColor: colors.surface }}>
+          {overviewCards(overview).map((card) => <View key={card.id ?? card.label} style={{ width: fontScale >= 1.5 ? '100%' : '48%', minWidth: 135, flexGrow: 1, gap: 5, padding: 16, borderRadius: 18, backgroundColor: colors.surface }}>
             <Text style={{ color: colors.secondaryLabel, fontSize: 13 }}>{card.label}</Text>
             <Text selectable style={{ color: colors.label, fontSize: 24, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{card.value}</Text>
             {card.comparison ? <Text selectable style={{ color: colors.secondaryLabel, fontSize: 12 }}>{card.comparison}</Text> : null}
           </View>)}
         </View>
+        <View style={{ gap: 10, padding: 16, borderRadius: 18, backgroundColor: colors.surface }}>
+          <Text accessibilityRole="header" style={{ color: colors.label, fontSize: 18, fontWeight: '900' }}>최근 7일 방문</Text>
+          <Text selectable style={{ color: colors.secondaryLabel }}>{bars?.summary}</Text>
+          <ScrollView horizontal contentContainerStyle={{ gap: 10, minWidth: '100%', justifyContent: 'space-between' }} showsHorizontalScrollIndicator={false}>
+            {bars?.days.map((day) => <View key={day.date} style={{ width: fontScale >= 1.5 ? 76 : 44, alignItems: 'center', gap: 5 }}>
+              <Text style={{ color: colors.label, fontSize: 12, fontWeight: '700' }}>{day.count}</Text>
+              <View style={{ width: 28, height: 64, justifyContent: 'flex-end' }}>
+                <View style={{ width: 28, height: `${day.heightPercent}%`, minHeight: day.count ? 3 : 0, borderRadius: 4, backgroundColor: colors.primary }} />
+              </View>
+              <Text style={{ color: colors.secondaryLabel, fontSize: 12 }}>{day.label}</Text>
+            </View>)}
+          </ScrollView>
+        </View>
+        <Text selectable style={{ color: colors.secondaryLabel }}>방문 인증 기준이며 매출과 다를 수 있어요</Text>
+        {overview.weekDetailViews !== undefined ? <Text selectable style={{ color: colors.secondaryLabel }}>가게 상세 조회는 사람 수가 아니라 열람 횟수예요</Text> : null}
         <Text selectable style={{ color: colors.onPrimaryContainer, backgroundColor: colors.primaryContainer, padding: 14, borderRadius: 14, lineHeight: 21 }}>{overview.readiness.message}</Text>
       </> : null}
     </View>

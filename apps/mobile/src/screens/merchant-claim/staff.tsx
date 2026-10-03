@@ -7,12 +7,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountCredential } from '@/auth/account-credential';
 import { createScanGate } from '@/commerce/claim-code';
 import { ClaimQr } from '@/commerce/claim-qr';
-import { CommerceApiError, createCommerceApiClient, type IssuedClaim, type ResolvedCustomerIdentity, type StaffCoupon } from '@/commerce/commerce-api';
+import { CommerceApiError, createCommerceApiClient, type RecentCouponRedemption, type IssuedClaim, type ResolvedCustomerIdentity, type StaffCoupon } from '@/commerce/commerce-api';
 import { canIssueCustomerIdentity, createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired, parseCustomerIdentityToken } from '@/commerce/customer-identity';
 import { colorsForScheme } from '@/theme/palette';
 import { canUseCamera } from '@/ui/can-use-camera';
 import { focusMerchantHeading } from '../merchant-home/focus-heading';
 import { claimSecondsRemaining, merchantStepFor } from '../merchant-home/visit-step';
+import { canUndoNow, createCouponMutationGate, redeemedCouponTarget } from './immediate-undo';
+import { undoConfirmText, undoFailureMessage, undoSuccessMessage } from './reversal-copy';
 import { makeMerchantClaimStyles } from './styles';
 import { claimQrSizeForArea, minimumClaimQrSize } from './qr-layout';
 
@@ -50,6 +52,11 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
   const [token, setToken] = useState<string>();
   const [resolved, setResolved] = useState<ResolvedCustomerIdentity>();
   const [issued, setIssued] = useState<IssuedClaim>();
+  const [recentCoupon, setRecentCoupon] = useState<RecentCouponRedemption>();
+  const [undoMessage, setUndoMessage] = useState<string>();
+  const [undoBusy, setUndoBusy] = useState(false);
+  const [couponMutation] = useState(createCouponMutationGate);
+  const [undoGate] = useState(createIdentityRequestGate);
   const [qrVisible, setQrVisible] = useState(false);
   const [issueAttempted, setIssueAttempted] = useState(false);
   const [issuedUncertain, setIssuedUncertain] = useState(false);
@@ -72,12 +79,13 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
     return () => cancelAnimationFrame(frame);
   }, [step, active, qrVisible]);
   useEffect(() => {
-    if (!issued) return;
+    if (!issued && !recentCoupon) return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [issued]);
+  }, [issued, recentCoupon]);
   // 점포·세션 변경과 화면 해제 시 이전 요청의 성공·실패·완료를 모두 무효화한다.
   useEffect(() => () => requestGate.cancel(), [api, merchantId, requestGate]);
+  useEffect(() => () => undoGate.cancel(), [api, merchantId, undoGate]);
 
   function done() {
     // 요청 중에도 닫고, 늦은 응답은 요청 세대로 무효화한다.
@@ -202,17 +210,18 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
   }
 
   function confirmRedeem(coupon: StaffCoupon) {
-    if (busy || couponLoading) return;
+    if (busy || couponLoading || couponMutation.isBusy()) return;
     // 확인창이 열린 동안 취소하거나 다시 촬영하면 이전 확인 요청을 무효화한다.
     const current = requestGate.start();
-    Alert.alert(coupon.title, '고객이 이 혜택을 지금 받나요? 되돌릴 수 없어요', [
+    Alert.alert(coupon.title, '고객이 이 혜택을 지금 받나요? 잘못 처리했다면 10분 안에 되돌릴 수 있어요', [
       { text: '취소', style: 'cancel' },
       { text: '사용 처리', style: 'destructive', onPress: () => void redeem(coupon, current) },
     ]);
   }
 
   async function redeem(coupon: StaffCoupon, current: number) {
-    if (!token || !requestGate.isCurrent(current)) return;
+    if (!token || !requestGate.isCurrent(current) || !couponMutation.acquire()) return;
+    undoGate.cancel();
     setBusy(true);
     setCouponMessage(undefined);
     try {
@@ -220,6 +229,19 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
       if (!requestGate.isCurrent(current)) return;
       setCoupons((list) => list?.filter((item) => item.couponId !== coupon.couponId));
       setCouponMessage(result.replayed ? '이미 사용 처리된 쿠폰이에요' : '쿠폰 사용을 처리했어요');
+      setRecentCoupon(undefined);
+      setUndoMessage(undefined);
+      const undoRequest = undoGate.start();
+      // 쿠폰 ID뿐 아니라 실제 사용 시각을 대조하고 서버의 canUndo를 따른다.
+      try {
+        const recent = await api.listRecentCouponRedemptions(merchantId);
+        if (undoGate.isCurrent(undoRequest)) {
+          setRecentCoupon(redeemedCouponTarget(result, recent));
+          setNow(Date.now());
+        }
+      } catch {
+        if (undoGate.isCurrent(undoRequest)) setUndoMessage('되돌리기 가능 여부를 확인하지 못했어요. 현황 탭의 최근 쿠폰 사용에서 다시 확인해 주세요.');
+      }
     } catch (error) {
       if (!requestGate.isCurrent(current)) return;
       if (closeExpiredIdentity(error)) return;
@@ -228,9 +250,47 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
       }
       setCouponMessage(messageFor(error));
     } finally {
+      couponMutation.release();
       if (requestGate.isCurrent(current)) setBusy(false);
     }
   }
+
+  function confirmImmediateUndo() {
+    if (!canUndoNow(recentCoupon, Date.now()) || !recentCoupon || couponMutation.isBusy()) return;
+    const coupon = recentCoupon;
+    const current = undoGate.start();
+    Alert.alert('쿠폰 사용 되돌리기', undoConfirmText(coupon), [
+      { text: '닫기', style: 'cancel' },
+      { text: '사용 되돌리기', style: 'destructive', onPress: () => void undoImmediateCoupon(coupon, current) },
+    ]);
+  }
+
+  async function undoImmediateCoupon(coupon: RecentCouponRedemption, current: number) {
+    if (!undoGate.isCurrent(current) || !canUndoNow(coupon, Date.now()) || !couponMutation.acquire()) return;
+    setUndoBusy(true);
+    try {
+      const result = await api.undoCouponRedemption({ merchantId, couponId: coupon.couponId });
+      if (!undoGate.isCurrent(current)) return;
+      setRecentCoupon(undefined);
+      setUndoMessage(undoSuccessMessage(result));
+      // 기존 목록에는 되돌린 쿠폰이 없으므로 다시 조회하도록 비운다.
+      setCoupons(undefined);
+      setCouponMessage(undefined);
+    } catch (error) {
+      if (!undoGate.isCurrent(current)) return;
+      setUndoMessage(undoFailureMessage(error instanceof CommerceApiError ? error.status : undefined, error instanceof CommerceApiError ? error.code : ''));
+      if (error instanceof CommerceApiError && ['COUPON_UNDO_WINDOW_CLOSED', 'COUPON_NOT_REDEEMED', 'COUPON_NOT_FOUND', 'COUPON_REQUIREMENT_LOST', 'COUPON_SELF_UNDO'].includes(error.code)) setRecentCoupon(undefined);
+    } finally {
+      couponMutation.release();
+      if (undoGate.isCurrent(current)) setUndoBusy(false);
+    }
+  }
+
+  const immediateCouponNotice = recentCoupon || undoMessage ? <View style={styles.formCard}>
+    {recentCoupon ? <Text accessibilityLiveRegion="polite" style={styles.message}>쿠폰 사용을 처리했어요 · {recentCoupon.title} · {recentCoupon.customerLabel}</Text> : null}
+    {canUndoNow(recentCoupon, now) ? <Button styles={styles} label="사용 되돌리기 (10분 안)" variant="secondary" disabled={busy || undoBusy} onPress={confirmImmediateUndo} /> : null}
+    {undoMessage ? <Text accessibilityLiveRegion="polite" style={styles.message}>{undoMessage}</Text> : null}
+  </View> : null;
 
   async function issue() {
     if (!token || !resolved || busy) return;
@@ -330,6 +390,7 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
         <Button styles={styles} label="이 고객 취소" variant="secondary" disabled={busy && Boolean(resolved)} onPress={cancel} />
       </View> : null}
       {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
+      {!couponOpen ? immediateCouponNotice : null}
       {couponMessage && !couponOpen ? <Text accessibilityLiveRegion="polite" style={styles.message}>{couponMessage}</Text> : null}
     </ScrollView>
       <BottomSheet isPresented={couponOpen && active && Boolean(resolved)} onDismiss={() => setCouponOpen(false)} snapPoints={['full']} containerColor={palette.surface}>
@@ -340,11 +401,12 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
           <Button styles={styles} label={couponLoading ? '확인 중…' : coupons ? '쿠폰 다시 확인' : '이 고객 쿠폰 확인'} disabled={busy || couponLoading} onPress={() => void lookupCoupons()} />
           {coupons?.length === 0 ? <Text style={styles.help}>이 점포에서 쓸 수 있는 쿠폰이 없어요</Text> : null}
           {couponMessage ? <Text accessibilityLiveRegion="polite" style={styles.message}>{couponMessage}</Text> : null}
+          {immediateCouponNotice}
           {coupons?.map((coupon) => <View key={coupon.couponId} style={styles.couponRow}>
             <Text selectable style={styles.couponTitle}>{coupon.title}</Text>
             {coupon.detail ? <Text selectable style={styles.help}>{coupon.detail}</Text> : null}
             <Text style={styles.expiry}>만료: {new Date(coupon.expiresAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</Text>
-            <Button styles={styles} label="사용 처리" accessibilityLabel={`${coupon.title} 사용 처리`} disabled={busy || couponLoading} onPress={() => confirmRedeem(coupon)} />
+            <Button styles={styles} label="사용 처리" accessibilityLabel={`${coupon.title} 사용 처리`} disabled={busy || couponLoading || undoBusy} onPress={() => confirmRedeem(coupon)} />
           </View>)}
           <Button styles={styles} label="닫기" variant="secondary" onPress={() => setCouponOpen(false)} />
         </ScrollView>
@@ -388,7 +450,7 @@ function Button({ styles, label, accessibilityLabel, onPress, disabled = false, 
   disabled?: boolean;
   variant?: 'primary' | 'secondary';
 }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} disabled={disabled} onPress={onPress} style={[styles.button, variant === 'secondary' && styles.secondaryButton, disabled && styles.disabled]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} disabled={disabled} onPress={onPress} style={[styles.button, { paddingVertical: 10 }, variant === 'secondary' && styles.secondaryButton, disabled && styles.disabled]}>
     <Text style={[styles.buttonText, variant === 'secondary' && styles.secondaryButtonText]}>{label}</Text>
   </Pressable>;
 }

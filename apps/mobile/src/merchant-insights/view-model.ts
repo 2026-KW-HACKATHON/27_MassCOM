@@ -1,16 +1,40 @@
 import type { MerchantOverview, VisitorFeedbackSummary } from './api';
 
-export type OverviewCard = { label: string; value: string; comparison?: string };
+export type OverviewCard = { label: string; value: string; comparison?: string; id?: string };
 
 export function overviewCards(overview: MerchantOverview): OverviewCard[] {
   const comparison = overview.comparison;
-  return [
+  const cards: OverviewCard[] = [
     { label: '오늘 방문', value: String(overview.visits.today) },
     { label: '이번 주 방문', value: String(overview.visits.thisWeek),
       ...(comparison === null ? {} : { comparison: `지난주 같은 시간보다 ${comparison.delta > 0 ? '+' : ''}${comparison.delta}명` }) },
     { label: '재방문 고객', value: String(overview.repeatVisitors) },
-    { label: '이번 주 쿠폰 사용', value: String(overview.couponsRedeemedThisWeek) },
   ];
+  if (overview.weekVisitors) cards.push(
+    { label: '이번 주 첫 방문', value: String(overview.weekVisitors.first) },
+    { label: '이번 주 재방문', value: String(overview.weekVisitors.repeat) },
+  );
+  if (overview.weekCollectibles) {
+    if (overview.weekCollectibles.length === 0) cards.push({ label: '이번 주 받은 수집품', value: '0' });
+    else cards.push(...overview.weekCollectibles.map(({ gradeId, gradeName, count }) =>
+      ({ id: `collectible-${gradeId}`, label: `이번 주 받은 수집품 · ${gradeName}`, value: String(count) })));
+  }
+  if (overview.weekCoupons) cards.push(
+    { label: '이번 주 쿠폰 발급', value: String(overview.weekCoupons.issued) },
+    { label: '이번 주 쿠폰 사용', value: String(overview.weekCoupons.redeemed) },
+  );
+  else cards.push({ label: '이번 주 쿠폰 사용', value: String(overview.couponsRedeemedThisWeek) });
+  if (overview.weekDetailViews !== undefined) cards.push({ label: '이번 주 가게 상세 조회', value: String(overview.weekDetailViews) });
+  return cards;
+}
+
+export function visitBars(overview: MerchantOverview) {
+  const days = overview.visits.last7Days;
+  const maximum = Math.max(1, ...days.map(({ count }) => count));
+  return {
+    summary: days.length ? `최근 7일 방문: ${days.map(({ date, count }) => `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일 ${count}회`).join(', ')}` : '최근 7일 방문 기록이 없어요',
+    days: days.map(({ date, count }) => ({ date, label: `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`, count, heightPercent: count / maximum * 100 })),
+  };
 }
 
 export function feedbackSections(summary: VisitorFeedbackSummary) {
