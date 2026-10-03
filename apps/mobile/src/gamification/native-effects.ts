@@ -21,9 +21,25 @@ export async function lightHaptic(): Promise<void> {
   }
 }
 
-export async function captureViewAsPng(view: View): Promise<string> {
+/** Output size in pixels and file name; both optional so the original badge callers keep working untouched. */
+export type CaptureOptions = { width?: number; height?: number; fileName?: string };
+
+/**
+ * A size is passed only when both sides are usable: one side alone would stretch the picture along one axis.
+ * Kept free of the lazy import below so it can be unit-tested without the native module.
+ */
+export function captureRefOptions(options: CaptureOptions = {}) {
+  const size = isPixels(options.width) && isPixels(options.height) ? { width: options.width, height: options.height } : {};
+  return { format: 'png' as const, quality: 1, result: 'tmpfile' as const, fileName: options.fileName ?? 'masscom-badge', ...size };
+}
+
+function isPixels(value: number | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+export async function captureViewAsPng(view: View, options?: CaptureOptions): Promise<string> {
   const { captureRef } = await import('react-native-view-shot');
-  return captureRef(view, { format: 'png', quality: 1, result: 'tmpfile', fileName: 'masscom-badge' });
+  return captureRef(view, captureRefOptions(options));
 }
 
 /**

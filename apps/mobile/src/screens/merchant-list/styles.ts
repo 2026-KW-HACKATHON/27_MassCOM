@@ -28,6 +28,17 @@ export function makeMerchantListStyles(palette: AppColors, world: WorldTheme, ha
   },
   mapChipText: { flexShrink: 1, color: palette.onPrimaryContainer, fontSize: 14, fontWeight: '800', lineHeight: 20 },
   discoveryTools: { gap: 12 },
+  // 필터 칩 줄(#331): 가로로 밀린다. 머리글의 좌우 여백을 뚫고 화면 끝까지 흐르게 하고, 첫 칩은 다른 내용과 같은 선에서 시작한다.
+  discoveryChipScroll: { marginHorizontal: -uiMetrics.pageInset, flexGrow: 0 },
+  discoveryChipRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: uiMetrics.pageInset },
+  // 안 고른 칩은 카드색 바탕에 3:1 이상의 테두리(WCAG 1.4.11), 고른 칩은 primary로 채운다(+ ✓ 표시로 색에만 기대지 않는다).
+  discoveryChip: {
+    minHeight: uiMetrics.minTouch, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: world.radius.chip,
+    backgroundColor: world.card, borderWidth: 1.5, borderColor: world.cardMuted,
+  },
+  discoveryChipSelected: { backgroundColor: palette.primary, borderColor: palette.primary },
+  discoveryChipText: { color: world.cardInk, fontSize: 14, fontWeight: '800', lineHeight: 20 },
+  discoveryChipTextSelected: { color: palette.onPrimary },
   searchField: {
     minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 16,
     backgroundColor: world.card,

@@ -43,6 +43,9 @@ import { CollectibleDetail } from './collectible-detail';
 import { groupCollectibles, ungroupedCollectibles } from './collectible-groups';
 import { CollectibleReveal } from './collectible-reveal';
 import { useCollectibleShare } from './collectible-share';
+import { buildCollectionShareCard } from './collection-share-card';
+import { collectionShareNotice } from './collection-share-flow';
+import { useCollectionShare } from './collection-share';
 import { buildMerchantGoals, buildStampSlots, toPassportStamp } from './collection-stamps';
 import { readFavorites, readShownReactions, writeFavorites, writeShownReactions } from './collection-prefs-storage';
 import { favoritesBaseForWrite, toggleFavorite } from './collection-prefs';
@@ -139,6 +142,9 @@ export function CollectionScreen({
   // 화면은 한 번에 하나씩만 반응을 보인다. 큐의 머리만 실제로 보여준 것이라 그것만 "본 것"으로 기록한다(그 아래 effect).
   const [reactionQueue, setReactionQueue] = useState<readonly ReactionEvent[]>([]);
   const { host: shareHost, share: shareCollectible, sharing } = useCollectibleShare();
+  // #332 "인스타에 자랑하기": 도감 전체를 한 장짜리 4:5 카드로 찍어 공유 시트로만 내보낸다. 실패·공유 불가 안내는 버튼 바로 아래에 둔다.
+  const { host: collectionShareHost, share: shareCollection, sharing: sharingCollection } = useCollectionShare();
+  const [shareNotice, setShareNotice] = useState<string>();
   const [polling, setPolling] = useState<PollingState>();
   const [binding, setBinding] = useState<ActiveWalletBindingResponse['binding']>();
   const [bindingError, setBindingError] = useState<string>();
@@ -400,6 +406,14 @@ export function CollectionScreen({
     }
   }
 
+  async function shareCollectionCard() {
+    if (!collection || sharingCollection) return;
+    setShareNotice(undefined);
+    const card = buildCollectionShareCard({ visits: collection.visits, collectibles: collection.collectibles, medals: badges.book?.medals ?? [] }, variant);
+    const notice = collectionShareNotice(await shareCollection(card));
+    if (notice) setShareNotice(notice);
+  }
+
   async function refreshBinding() {
     setBindingError(undefined);
     try {
@@ -541,13 +555,27 @@ export function CollectionScreen({
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >
         <Section title="내 수집 앨범" note="가게·시즌·등급으로 찾아보고, 좋아하는 수집품을 대표로 놓아요.">
+          {collection.collectibles.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="인스타에 자랑하기"
+              accessibilityHint="내 도감을 한 장의 카드 이미지로 만들어 공유 창을 엽니다. 자동으로 게시되지 않아요."
+              accessibilityState={{ disabled: sharingCollection || sharing, busy: sharingCollection }}
+              disabled={sharingCollection || sharing}
+              onPress={() => void shareCollectionCard()}
+              style={[styles.primaryButton, { backgroundColor: palette.primary }, (sharingCollection || sharing) && styles.disabled]}
+            >
+              <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>{sharingCollection ? '카드 만드는 중…' : '인스타에 자랑하기'}</Text>
+            </Pressable>
+          ) : null}
+          {shareNotice ? <Text accessibilityLiveRegion="polite" style={styles.inlineMessage}>{shareNotice}</Text> : null}
           <CollectibleBrowser
             groups={collectibleGroups}
             legacy={legacyCollectibles}
             artUrlByMerchant={artUrlByMerchant}
             series={storeSeries}
             favorites={favorites}
-            sharing={sharing}
+            sharing={sharing || sharingCollection}
             mint={{ apiUrl, nftMinting: collection.nftMinting, binding, busyEntitlementId, onConfirmMint: confirmMint }}
             onToggleFavorite={toggleCollectibleFavorite}
             onOpenDetail={(entitlementId, merchantName) => setCollectibleDetail({ entitlementId, merchantName, client: api })}
@@ -699,6 +727,7 @@ export function CollectionScreen({
         />
       ) : null}
       {shareHost}
+      {collectionShareHost}
       <MascotReactionToast event={reactionEvent} onClose={handleDismissReaction} />
       <RewardReveal
         result={revealed}
