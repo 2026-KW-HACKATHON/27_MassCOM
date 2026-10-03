@@ -90,6 +90,7 @@ import { PostgresMintRequestService } from './postgres/mint-request-service.js';
 import { PostgresReversalService } from './postgres/reversal.js';
 import { PostgresMileageShopService } from './postgres/mileage-shop.js';
 import { PostgresVisitorFeedbackService } from './postgres/visitor-feedback.js';
+import { SHOWCASE_TEST_VISIT_LIMIT_PER_HOUR, showcaseAllAccessOptions } from './showcase/all-access.js';
 import { PostgresRecommendationSource } from './postgres/recommendation.js';
 import { PostgresChallengeStore } from './postgres/wallet-challenge-store.js';
 import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
@@ -244,8 +245,10 @@ export function createApiServer(
   const deletionStatusLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60_000 });
   // 계정당 5회/시간(#294). IP가 아니라 계정으로 거는 건 승인 전 계정도 로그인은 됐기 때문이다.
   const showcaseAccessRequestLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 5, windowMs: 60 * 60 * 1000 });
-  // 계정당 10회/시간(#295). 가상 점포 방문이라 점주 쪽 쿨다운은 없지만, 발급 자체를 계정별로 묶어 둔다.
-  const showcaseTestVisitLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 10, windowMs: 60 * 60 * 1000 });
+  // 계정당 60회/시간(#295의 10에서 #333이 올림). 가상 점포 방문이라 점주 쪽 쿨다운은 없지만, 발급 자체를 계정별로 묶어 둔다.
+  const showcaseTestVisitLimiter = new FixedWindowAuthLoginLimiter({
+    maxAttempts: SHOWCASE_TEST_VISIT_LIMIT_PER_HOUR, windowMs: 60 * 60 * 1000,
+  });
   // 방문 후 가게 특징·바라는 점·의견 저장은 계정당 30회/시간(#334). 같은 가게를 고쳐 쓰는 것도 한 번으로 센다.
   const visitorFeedbackWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60 * 60 * 1000 });
   // Media-bearing collectible writes (create/save/copy/publish parse up to 8 MiB and decode every image) are throttled per store.
@@ -2294,11 +2297,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
           ...(accountLifecycle ? { accountLifecycle } : {}),
         })
       : undefined;
+  // #333: 시연 전부 체험 옵션은 시연 배치에서만 서비스에 넘긴다. 운영은 빈 객체라 옵션 기본값(꺼짐·보너스 0·재뽑기 30회) 그대로다.
+  const allAccess = showcaseAllAccessOptions(Boolean(showcaseDeployment));
   const claimSlots =
     pool && process.env.MERCHANT_REFERENCE_HMAC_SECRET
       ? new PostgresClaimSlotService(pool, {
           referenceHmacSecret: process.env.MERCHANT_REFERENCE_HMAC_SECRET,
           ...(accountLifecycle ? { accountLifecycle } : {}),
+          ...allAccess.claimSlots,
         })
       : undefined;
   const customerIdentities = pool && accountLifecycle
@@ -2320,7 +2326,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     : undefined;
   // 운영·시연 모두 pool·accountLifecycle만 있으면 동작한다(시연 전용 게이트 없음, design-298.md).
   const mileageShop = pool && accountLifecycle
-    ? new PostgresMileageShopService(pool, { accountLifecycle })
+    ? new PostgresMileageShopService(pool, { accountLifecycle, ...allAccess.mileageShop })
     : undefined;
   // 방문 후 가게 특징·바라는 점·의견(#334). 점주 요약의 가림 표시는 방문 취소 화면(reversals)과 같은 비밀에서 만든다.
   const visitorFeedback = pool && accountLifecycle && process.env.MERCHANT_REFERENCE_HMAC_SECRET

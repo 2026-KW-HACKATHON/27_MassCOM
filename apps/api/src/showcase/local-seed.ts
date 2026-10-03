@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
+import { SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS } from './all-access.js';
 import { seedStoreCollectibles } from './store-collectibles.js';
 
 export const SHOWCASE_MERCHANT_ID = 'showcase-local-merchant';
@@ -58,6 +59,10 @@ const rewardOffers = [
   { milestone: 2, merchantId: 'showcase-local-merchant-b', title: '체험 디저트 한 접시' },
   { milestone: 3, merchantId: 'showcase-local-merchant-c', title: '체험 세트 20% 할인' },
 ] as const;
+
+// 시연 전부 체험(#333): 테스트 방문을 서로 다른 날로 옮겨 세려면 캠페인이 충분히 일찍 시작해 있어야 한다(오늘 포함 30일).
+const campaignStartsAt = (now: Date): Date => new Date(now.getTime() - SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS * 24 * 60 * 60 * 1000);
+const campaignEndsAt = (now: Date): Date => new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
 export function isPermittedShowcaseDatabaseName(name: string): boolean {
   return name === 'masscom_showcase_test' || /^masscom_showcase_ci_[0-9a-f]+_test$/.test(name);
@@ -208,6 +213,11 @@ export async function seedShowcaseFixtureData(
     await client.query('BEGIN');
     transactionStarted = true;
     await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [showcaseSeedLockId]);
+    // 게시·미디어 제거와 같은 순서: 원본 잠금 → 모든 점포 갱신 → 캠페인 갱신.
+    for (const entry of merchants) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`collectible-sources:${entry.merchantId}`]);
+    }
+    const existingEntries = new Set<ShowcaseMerchant>();
     for (const entry of merchants) {
       const existing = await readFixture(client, entry, staffAccountId);
       const hasExisting = Boolean(
@@ -215,6 +225,7 @@ export async function seedShowcaseFixtureData(
       );
       if (hasExisting) {
         assertFixtureMatches(existing, entry, now, Boolean(staffAccountId));
+        existingEntries.add(entry);
         // 0036 전에 seed된 시연 점포는 동네·업종이 둘 다 비어 있을 때만 채운다(다른 값은 건드리지 않는다).
         await client.query(
           `UPDATE merchants SET neighborhood = $2, category = $3
@@ -230,17 +241,32 @@ export async function seedShowcaseFixtureData(
          ON CONFLICT (id) DO NOTHING`,
         [entry.merchantId, entry.name, entry.story, merchantAddress, merchantNeighborhood, entry.category],
       );
+      if (staffAccountId) {
+        await client.query(
+          `INSERT INTO merchant_members (merchant_id, account_id, role, status)
+           VALUES ($1, $2, 'STAFF', 'ACTIVE')
+           ON CONFLICT (merchant_id, account_id) DO NOTHING`,
+          [entry.merchantId, staffAccountId],
+        );
+      }
+    }
+    for (const entry of merchants) {
+      if (existingEntries.has(entry)) {
+        // 기간은 넓히기만 한다. 종료된 캠페인은 앞의 fixture 검사에서 거절한다.
+        await client.query(
+          `UPDATE campaigns SET starts_at = LEAST(starts_at, $2), ends_at = GREATEST(ends_at, $3)
+           WHERE id = $1 AND (starts_at > $2 OR ends_at < $3)`,
+          [entry.campaignId, campaignStartsAt(now), campaignEndsAt(now)],
+        );
+        continue;
+      }
       await client.query(
         `INSERT INTO campaigns
          (id, merchant_id, title, starts_at, ends_at, status, is_public,
           enrollment_capacity, enrolled_count)
          VALUES ($1, $2, $3, $4, $5, 'ACTIVE', true, 20, 0)
          ON CONFLICT (id) DO NOTHING`,
-        [
-          entry.campaignId, entry.merchantId, campaignTitle,
-          new Date(now.getTime() - 24 * 60 * 60 * 1000),
-          new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
-        ],
+        [entry.campaignId, entry.merchantId, campaignTitle, campaignStartsAt(now), campaignEndsAt(now)],
       );
       for (const [count, name] of goals) {
         await client.query(
@@ -248,14 +274,6 @@ export async function seedShowcaseFixtureData(
            VALUES ($1, $2, $3)
            ON CONFLICT (campaign_id, target_visit_count) DO NOTHING`,
           [entry.campaignId, count, name],
-        );
-      }
-      if (staffAccountId) {
-        await client.query(
-          `INSERT INTO merchant_members (merchant_id, account_id, role, status)
-           VALUES ($1, $2, 'STAFF', 'ACTIVE')
-           ON CONFLICT (merchant_id, account_id) DO NOTHING`,
-          [entry.merchantId, staffAccountId],
         );
       }
       assertFixtureMatches(

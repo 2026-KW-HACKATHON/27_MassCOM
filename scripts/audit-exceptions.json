@@ -2,8 +2,35 @@
   {
     "id": "GHSA-86w9-cpqp-85rv",
     "package": "node-forge",
-    "allowedDependents": ["@expo/cli", "@expo/code-signing-certificates"],
     "expires": "2026-10-31",
-    "reason": "Expo CLI(빌드 도구)의 코드 서명 인증서 경로에만 있고 앱 번들에 들어가지 않으며, expo-updates 코드 서명을 쓰지 않는다. 2026-10-02 공개 당시 고친 버전이 없다. D-066·B-030 참고."
+    "reason": "Expo CLI(빌드 도구)의 코드 서명 인증서 경로에만 있고 앱 번들에 들어가지 않으며, expo-updates 코드 서명을 쓰지 않는다. 2026-10-02 공개 당시 고친 버전이 없다. D-066·B-030 참고. 예외는 levels의 두 단계 의존 관계만 검사하고, 첫 단계 직접 의존·허용 밖 패키지·audit 목록 누락은 거절하며 둘째 단계 직접 의존은 allowedRoots만 허용한다.",
+    "allowedRoots": [
+      "expo"
+    ],
+    "levels": [
+      [
+        "@expo/cli",
+        "@expo/code-signing-certificates"
+      ],
+      [
+        "expo"
+      ]
+    ]
+  },
+  {
+    "id": "GHSA-vfj7-8cjw-p6xm",
+    "package": "braces",
+    "expires": "2026-10-31",
+    "reason": "expo → @expo/cli·metro → (@expo/)metro-file-map → micromatch 경로의 빌드 도구(번들러 파일 감시)에만 있고 앱 번들에 들어가지 않는다. 2026-10-03 공개 당시 braces는 3.0.3까지 모두 해당이고 고친 버전이 없다. 소유자 결정(2026-10-03) D-070·B-032 참고. 예외는 levels의 두 단계 의존 관계만 검사하고, 첫 단계 직접 의존·허용 밖 패키지·audit 목록 누락은 거절하며 둘째 단계 직접 의존은 allowedRoots만 허용한다.",
+    "allowedRoots": [],
+    "levels": [
+      [
+        "micromatch"
+      ],
+      [
+        "@expo/metro-file-map",
+        "metro-file-map"
+      ]
+    ]
   }
 ]

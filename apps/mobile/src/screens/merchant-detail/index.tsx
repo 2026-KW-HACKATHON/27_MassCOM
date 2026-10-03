@@ -213,7 +213,7 @@ function MyVisitorFeedback({ merchantId, apiUrl, credential, onSessionInvalid, s
   const requestVersion = useRef(0);
   useEffect(() => () => { requestVersion.current += 1; }, [client, merchantId]);
 
-  async function open() {
+  async function openFeedbackForm() {
     if (loading) return;
     const version = ++requestVersion.current;
     setLoading(true);
@@ -242,7 +242,7 @@ function MyVisitorFeedback({ merchantId, apiUrl, credential, onSessionInvalid, s
     />
   ) : (
     <View>
-      <Pressable accessibilityRole="button" accessibilityLabel="내 선택 남기기 또는 바꾸기" accessibilityState={{ disabled: loading }} disabled={loading} onPress={() => { void open(); }} style={styles.feedbackAction}>
+      <Pressable accessibilityRole="button" accessibilityLabel="내 선택 남기기 또는 바꾸기" accessibilityState={{ disabled: loading }} disabled={loading} onPress={() => { void openFeedbackForm(); }} style={styles.feedbackAction}>
         <Text style={styles.feedbackActionText}>{loading ? '내 선택 불러오는 중' : '내 선택 남기기/바꾸기'}</Text>
       </Pressable>
       {message ? <Text accessibilityRole="alert" style={styles.feedbackMessage}>{message}</Text> : null}

@@ -19,6 +19,7 @@ import {
   decideReroll,
   findCatalogItem,
   itemsOfGrade,
+  summarizeMileage,
   type MileageGrade,
 } from '../mileage-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
@@ -117,6 +118,8 @@ export class PostgresMileageShopService implements MileageShopService {
   // 문제가 되면 별도 시도 기록 테이블(friend_code_attempts와 같은 모양)을 추가한다.
   private readonly rerollRateLimit: number;
   private readonly rerollRateLimitWindowMs: number;
+  // 시연 전부 체험(#333): 시연 서버만 server.ts에서 양수로 넘긴다. 잔액(balance)에만 더해지고 earned·spent는 진짜 값 그대로다.
+  private readonly showcaseBonusMileage: number;
 
   constructor(
     private readonly pool: Pool,
@@ -126,6 +129,7 @@ export class PostgresMileageShopService implements MileageShopService {
       nextSpendId?: () => string;
       rerollRateLimit?: number;
       rerollRateLimitWindowMs?: number;
+      showcaseBonusMileage?: number;
     },
   ) {
     this.accountLifecycle = options.accountLifecycle;
@@ -133,6 +137,10 @@ export class PostgresMileageShopService implements MileageShopService {
     this.nextSpendId = options.nextSpendId ?? randomUUID;
     this.rerollRateLimit = options.rerollRateLimit ?? 30;
     this.rerollRateLimitWindowMs = options.rerollRateLimitWindowMs ?? 60 * 60 * 1000;
+    this.showcaseBonusMileage = options.showcaseBonusMileage ?? 0;
+    if (!Number.isSafeInteger(this.showcaseBonusMileage) || this.showcaseBonusMileage < 0) {
+      throw new Error('mileage shop showcaseBonusMileage must be a non-negative safe integer');
+    }
   }
 
   async getShop(accountId: string): Promise<MileageShopSnapshot> {
@@ -158,7 +166,10 @@ export class PostgresMileageShopService implements MileageShopService {
       };
     });
     return {
-      mileage: { earned, spent, balance: earned - spent, rules: { ...MILEAGE_EARN_RULES } },
+      mileage: {
+        ...summarizeMileage({ earned, spent, showcaseBonus: this.showcaseBonusMileage }),
+        rules: { ...MILEAGE_EARN_RULES },
+      },
       grades,
       items: MILEAGE_CATALOG.map((item) => ({ ...item, owned: owned.has(item.id) })),
       avatar: avatarResult.rows[0]?.avatar_item_id ?? null,
@@ -191,7 +202,7 @@ export class PostgresMileageShopService implements MileageShopService {
     ]);
     const page = rows.rows.slice(0, pageSize);
     return {
-      mileage: { earned, spent, balance: earned - spent },
+      mileage: summarizeMileage({ earned, spent, showcaseBonus: this.showcaseBonusMileage }),
       spends: page.map((row) => ({
         id: row.id,
         amount: row.amount,
@@ -234,7 +245,8 @@ export class PostgresMileageShopService implements MileageShopService {
       const { earned, spent } = await earnedAndSpent(client, input.accountId);
       const unowned = itemsOfGrade(input.grade).filter((item) => !owned.has(item.id));
       const price = MILEAGE_GRADE_PRICES[input.grade];
-      const balance = earned - spent;
+      // 시연 서버에서는 보너스가 잔액에 들어가 진짜 적립을 넘겨 쓰지 않고도 살 수 있다. 운영은 보너스 0이라 earned - spent 그대로다.
+      const { balance } = summarizeMileage({ earned, spent, showcaseBonus: this.showcaseBonusMileage });
 
       const decision = decideReroll({
         existingRequest: previous ? { grade: previous.grade } : undefined,
