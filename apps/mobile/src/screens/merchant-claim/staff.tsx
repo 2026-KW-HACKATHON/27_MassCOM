@@ -324,10 +324,11 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
   }
 
   const immediateCouponNotice = recentCoupon || undoMessage ? <View style={styles.formCard}>
-    {recentCoupon ? <Text accessibilityLiveRegion="polite" style={styles.message}>쿠폰 사용을 처리했어요 · {recentCoupon.title} · {recentCoupon.customerLabel}</Text> : null}
+    {recentCoupon ? <Text accessibilityLiveRegion="polite" style={styles.message}>{couponMessage === '이미 사용 처리된 쿠폰이에요' ? couponMessage : '쿠폰 사용을 처리했어요'} · {recentCoupon.title} · {recentCoupon.customerLabel}</Text> : null}
     {canUndoNow(recentCoupon, now) ? <Button styles={styles} label="사용 되돌리기 (10분 안)" variant="secondary" disabled={busy || undoBusy} onPress={confirmImmediateUndo} /> : null}
     {undoMessage ? <Text accessibilityLiveRegion="polite" style={styles.message}>{undoMessage}</Text> : null}
   </View> : null;
+  const visibleCouponMessage = recentCoupon && (couponMessage === '쿠폰 사용을 처리했어요' || couponMessage === '이미 사용 처리된 쿠폰이에요') ? undefined : couponMessage;
 
   async function issue() {
     if (!token || !resolved || busy) return;
@@ -443,7 +444,7 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
         }} /> : null}
       </View> : null}
       {!couponOpen ? immediateCouponNotice : null}
-      {couponMessage && !couponOpen ? <Text accessibilityLiveRegion="polite" style={styles.message}>{couponMessage}</Text> : null}
+      {visibleCouponMessage && !couponOpen ? <Text accessibilityLiveRegion="polite" style={styles.message}>{visibleCouponMessage}</Text> : null}
     </ScrollView>
       <BottomSheet isPresented={couponOpen && active && Boolean(resolved)} onDismiss={() => setCouponOpen(false)} snapPoints={['full']} containerColor={palette.surface}>
         <RNHostView style={{ width: width - 32, height: Math.max(120, height - insets.top - insets.bottom - 72) }}>
@@ -452,7 +453,7 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
           <Text style={styles.help}>방문 코드를 발급하면 이 식별 QR은 다시 쓸 수 없으니 쿠폰을 먼저 처리해 주세요.</Text>
           <Button styles={styles} label={couponLoading ? '확인 중…' : coupons ? '쿠폰 다시 확인' : '이 고객 쿠폰 확인'} disabled={busy || couponLoading} onPress={() => void lookupCoupons()} />
           {coupons?.length === 0 ? <Text style={styles.help}>이 점포에서 쓸 수 있는 쿠폰이 없어요</Text> : null}
-          {couponMessage ? <Text accessibilityLiveRegion="polite" style={styles.message}>{couponMessage}</Text> : null}
+          {visibleCouponMessage ? <Text accessibilityLiveRegion="polite" style={styles.message}>{visibleCouponMessage}</Text> : null}
           {immediateCouponNotice}
           {coupons?.map((coupon) => <View key={coupon.couponId} style={styles.couponRow}>
             <Text selectable style={styles.couponTitle}>{coupon.title}</Text>
