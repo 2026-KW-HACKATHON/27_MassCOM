@@ -1147,6 +1147,22 @@ export function bindMerchant(fetcher, doc) {
     resetOverview();
     setIssuing(false);
   };
+  // 페이지 안 이동은 제작기 뒤로가기 이력을 늘리지 않고 스크롤과 초점만 옮긴다.
+  doc.addEventListener?.('click', event => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    const anchor = event.target.closest?.('a[href^="#"]');
+    const href = anchor?.getAttribute('href');
+    if (!href || href.length <= 1) return;
+    event.preventDefault();
+    const target = doc.getElementById(href.slice(1));
+    if (!target) return;
+    if (target.tabIndex < 0 && !target.hasAttribute('tabindex')) {
+      target.setAttribute('tabindex', '-1');
+      target.addEventListener('blur', () => target.removeAttribute('tabindex'), { once: true });
+    }
+    target.scrollIntoView({ block: 'start' });
+    target.focus({ preventScroll: true });
+  });
   doc.defaultView?.addEventListener('pagehide', () => { closeCreator(doc); creatorScopes.delete(doc); clear(); });
   doc.defaultView?.addEventListener('pageshow', event => {
     if (event.persisted) { invalidateClaim(); clearSlot(); void loadMerchant(fetcher, doc); }

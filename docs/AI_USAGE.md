@@ -151,6 +151,11 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드) | Issue #316 계정 삭제 처리 시험의 고정 시계 시한폭탄 수정 | 시험 하나에서 서비스 시계를 옛 INSERT 행의 `requested_at`에 맞춤(운영 코드 무변경) | CI와 같은 비밀번호 인증 PostgreSQL로 통합 시험 전체 실행, Codex 검토 |
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드 오케스트레이션, Sonnet 5.5 executor) | 운영·시연 서버 재배포(`a39b983`) 기록(Issue #321 서버 부분) | 메인 스레드가 확인한 배포·브라우저 결과를 증거 JSON(`deployment-a39b983-2026-10-02.json`)과 HANDOFF·PROJECT_STATE·TEST_STATUS·README·두 인프라 README·BLOCKERS로 정리(Sonnet 문서 작업, 서버 접근 없음) | `python3 -m json.tool`, `bash tools/gate.sh`, 사람이 검토할 수 있는 PR |
 
+## 2026-10-03 Issue #329 Task 5 수정 2차
+
+- Codex: R18 지정 설계에 따라 merchant 앵커의 fragment 이력 생성 방지, workspaceHash 제거, fake DOM 회귀 시험 수정. 커밋 없음.
+- 검증: studio 전체 33/33, merchant 앵커 선택 시험 1/1, 변경 모듈 문법·diff 검사 PASS. 전체 production-web 시험은 sandbox의 localhost listen EPERM으로 BLOCKED. 실제 브라우저 시험 NOT_RUN.
+
 ## 팀 설명 체크리스트
 
 각 컴포넌트가 구현될 때 팀원이 다음을 설명할 수 있도록 Issue 또는 문서에 기록합니다.
