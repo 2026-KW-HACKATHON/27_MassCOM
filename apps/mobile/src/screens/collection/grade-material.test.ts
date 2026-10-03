@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { combineMaterialTilt, gradeMaterialFor, gradeMaterialPresets, PRISM_FOIL_STOPS, RAINBOW_PERIODS, rainbowGradientAt, reflectionAt } from './grade-material';
+import { combineMaterialTilt, GOLD_BAND_STOPS, GOLD_WARM_STOPS, gradeMaterialFor, gradeMaterialPresets, PRISM_FOIL_STOPS, RAINBOW_PERIODS, rainbowGradientAt, reflectionAt } from './grade-material';
 
 test('등급 id·한국어 이름·특별 별칭은 같은 재질을 고르고 모르는 등급은 브론즈다', () => {
   for (const [id, name, expected] of [
@@ -23,7 +23,7 @@ test('골드·프리즘의 강도와 바탕 불투명도는 실버보다 높고 
   assert.ok(gold.glintCount >= 4 && gold.glintCount <= 6);
   assert.ok(prism.glintCount >= 8 && prism.glintCount <= 10);
   assert.ok(prism.rainbowStops.length >= 6);
-  assert.equal(gold.baseOpacity, .30);
+  assert.ok(gold.baseOpacity >= .18 && gold.baseOpacity <= .25);
   assert.equal(prism.baseOpacity, .44);
   assert.equal(silver.intensity, .50);
   assert.equal(gold.intensity, .80);
@@ -33,6 +33,36 @@ test('골드·프리즘의 강도와 바탕 불투명도는 실버보다 높고 
     assert.ok(preset.sweepPeriodMs >= 2600 && preset.sweepPeriodMs <= 3400);
     assert.equal(preset.cardPeriodMs, 4000);
   }
+});
+
+test('골드 별빛은 전 주기·기울기에서 최소 두 개가 보이고 작은 카드도 상세 광량의 80%를 유지한다', () => {
+  const gold = gradeMaterialPresets.gold;
+  for (const tiltX of [-1, 0, 1]) for (const tiltY of [-1, 0, 1]) {
+    for (let timeMs = 0; timeMs <= gold.sweepPeriodMs; timeMs += 25) {
+      const frame = reflectionAt({ tiltX, tiltY, timeMs }, gold);
+      assert.ok(frame.glintOpacities.filter((alpha) => alpha >= .55).length >= 2);
+      assert.ok(frame.glintOpacities.slice(0, 3).filter((alpha) => alpha * .8 >= .44).length >= 2);
+    }
+  }
+});
+
+test('흰 그림도 골드 바탕·반사띠 가장자리에서 금빛이 남고 좁은 흰 중심은 유지한다', () => {
+  // 렌더러와 독립적으로 일반 알파 합성의 흰 픽셀 출력을 계산한다.
+  const overWhite = (color: string, alpha: number) => [1, 3, 5].map((offset) =>
+    255 * (1 - alpha) + parseInt(color.slice(offset, offset + 2), 16) * alpha);
+  for (const color of GOLD_WARM_STOPS) {
+    const [r, g, b] = overWhite(color, gradeMaterialPresets.gold.baseOpacity);
+    assert.ok(r! > g! && g! > b!, '바탕의 흰색은 따뜻한 금빛으로 바뀐다');
+    assert.ok(r! - b! > 20, '흰색 위에서도 금빛 채도 차이가 남는다');
+  }
+  for (const stop of GOLD_BAND_STOPS.filter(({ offset }) => offset > 0 && offset < 1 && offset !== .5)) {
+    const alpha = stop.opacity * gradeMaterialPresets.gold.intensity;
+    assert.ok(alpha >= .45 && alpha <= .55, '양쪽 유색 가장자리의 상세 광량');
+    const [r, g, b] = overWhite(stop.color, alpha);
+    assert.ok(r! > g! && g! > b! && r! - b! > 40, '유색 띠가 밝은 그림에도 구분된다');
+  }
+  const core = GOLD_BAND_STOPS.find(({ offset }) => offset === .5)!;
+  assert.deepEqual(overWhite(core.color, core.opacity), [255, 255, 255]);
 });
 
 test('같은 기울기·시간은 같은 반사 프레임을 재현하고 프리셋을 변경하지 않는다', () => {

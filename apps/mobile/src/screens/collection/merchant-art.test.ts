@@ -17,10 +17,8 @@ test('merchant artwork reaches screens only through the metro-swapped showcase s
   const art = readFileSync(fileURLToPath(new URL('./merchant-art.ts', import.meta.url)), 'utf8');
   assert.match(art, /from '\.\/showcase-collectible-art-assets'/);
   assert.match(art, /showcaseCollectibleArtKey\(getAppPackageId\(\), merchantId\)/);
-  // 임시 개발 QA 경로는 배포 화면의 자산 격리 검사 대상에서 제외한다.
   const offenders = sources(src).filter((path) => {
     if (path.endsWith('.test.ts')) return false;
-    if (path === join(src, 'app/material-preview.tsx')) return false;
     if (path.endsWith('showcase-collectible-art-assets.showcase.ts')) return false;
     return /collectibles\/showcase-[abc]\.png/.test(readFileSync(path, 'utf8'));
   });

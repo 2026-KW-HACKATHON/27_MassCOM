@@ -457,7 +457,7 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
               <Defs>
                 <Mask id="collectible-light-mask" maskType="alpha">{frontMask ?? <SvgImage href={{ uri: frontUri }} width={displayFace} height={displayFace} />}</Mask>
                 <LinearGradient id="collectible-light" x1={animationFrame.lightX} y1={0} x2={animationFrame.lightX + size * .28} y2={0} gradientUnits="userSpaceOnUse">
-                  <Stop offset="0" stopColor="#fff" stopOpacity="0" /><Stop offset=".5" stopColor="#fff" stopOpacity="1" /><Stop offset="1" stopColor="#fff" stopOpacity="0" />
+                  <Stop offset={0} stopColor="#fff" stopOpacity={0} /><Stop offset={0.5} stopColor="#fff" stopOpacity={1} /><Stop offset={1} stopColor="#fff" stopOpacity={0} />
                 </LinearGradient>
               </Defs>
               <Rect width={displayFace} height={displayFace} fill="url(#collectible-light)" mask="url(#collectible-light-mask)" opacity={animationFrame.lightOpacity} />

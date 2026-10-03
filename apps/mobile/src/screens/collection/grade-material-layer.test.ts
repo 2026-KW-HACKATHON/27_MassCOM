@@ -30,13 +30,27 @@ test('반사 계산은 재질 레이어당 한 번만 파생해 그라데이션�
 test('색·반사 합성은 사진과 같은 부모의 형제 뷰이며 각 층은 터치·접근성에서 제외된다', () => {
   const visual = source.slice(source.indexOf('function MaterialVisual'), source.indexOf('function AutonomousLayer'));
   assert.match(visual, /return <>/);
-  assert.match(visual, /mixBlendMode: vivid \? 'overlay' : 'soft-light'/);
-  assert.match(visual, /mixBlendMode: 'screen'/);
-  assert.equal((visual.match(/<View pointerEvents="none" accessible=\{false\} importantForAccessibility="no-hide-descendants"/g) ?? []).length, 2);
+  assert.match(visual, /mixBlendMode: isGold \? 'normal' : isPrism \? 'overlay' : 'soft-light'/);
+  assert.match(visual, /mixBlendMode: isGold \? 'normal' : 'screen'/);
+  assert.equal((visual.match(/<View pointerEvents="none" accessible=\{false\} importantForAccessibility="no-hide-descendants"/g) ?? []).length, 3);
 });
 
 test('림은 사진 반사 좌표를 윤곽 공간으로 보정하고 별빛은 네이티브 SVG 행렬로 커졌다 작아진다', () => {
-  assert.match(source, /id=\{rimId\}[\s\S]*?gradientTransform=\{`scale\(\$\{100 \/ size\}\)`\}/);
+  assert.match(source, /id=\{rimLightId\}[\s\S]*?animatedProps=\{bandProps\}[\s\S]*?gradientTransform=\{`scale\(\$\{100 \/ size\}\)`\}/);
   assert.match(source, /<G scale=\{size \/ 100\} opacity=\{coreAlpha\}>/);
   assert.match(source, /matrix: \[zoom, 0, 0, zoom, x \* size, y \* size\]/);
+});
+
+test('골드 바탕과 반사띠는 유색 그라데이션을 쓰고 두 등급의 림은 지속 색·이동 빛을 일반 합성한다', () => {
+  assert.match(source, /GOLD_WARM_STOPS\.map/);
+  assert.match(source, /const bandStops = isGold \? GOLD_BAND_STOPS\.map/);
+  assert.match(source, /fill=\{isGold \? `url\(#\$\{warmId\}\)`/);
+  const rim = source.slice(source.indexOf('{vivid ? <View'));
+  assert.match(rim, /mixBlendMode: 'normal'/);
+  assert.match(rim, /mask=\{`url\(#\$\{rimMaskId\}\)`\}/);
+  assert.match(rim, /: PRISM_FOIL_STOPS/);
+  assert.match(rim, /stroke=\{`url\(#\$\{rimId\}\)`\} strokeWidth=\{4\.5\}/);
+  assert.match(rim, /stroke=\{`url\(#\$\{rimLightId\}\)`\} strokeWidth=\{4\.5\}/);
+  assert.match(source, /variant === 'card' \? \.8/);
+  assert.match(source, /material === 'gold' \? \.057 : \.048/);
 });

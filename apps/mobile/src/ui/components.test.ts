@@ -373,9 +373,7 @@ test('animated style worklets only touch shared values and captured numbers, nev
   // Calling a plain JS function inside useAnimatedStyle crashed the collection tab on device:
   // "[Worklets] Tried to synchronously call a Remote Function stampTilt on the UI Runtime".
   // Every screen and component, not a hand-kept list: a new animated piece anywhere is covered without touching this test.
-  // 오케스트레이터의 미커밋 개발 QA 경로는 제품 화면 계약 검사에 포함하지 않는다.
-  const preview = fileURLToPath(new URL('../app/material-preview.tsx', import.meta.url));
-  const files = sourceFiles(fileURLToPath(new URL('../', import.meta.url))).filter((file) => file.endsWith('.tsx') && file !== preview);
+  const files = sourceFiles(fileURLToPath(new URL('../', import.meta.url))).filter((file) => file.endsWith('.tsx'));
   let checked = 0;
   for (const file of files) {
     const source = readFileSync(file, 'utf8');
