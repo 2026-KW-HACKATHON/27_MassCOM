@@ -1190,6 +1190,30 @@ export function createApiServer(
         return;
       }
 
+      // 모바일 점주 현황(#341): 시연 점포도 활성 멤버십과 방문 확인 권한으로 조회한다.
+      const mobileOverview = path.match(/^\/merchant\/merchants\/([^/]+)\/overview$/);
+      if (mobileOverview && request.method === 'GET') {
+        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+        if (!merchantOverview) throw new RequestError(503, 'MERCHANT_OVERVIEW_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const merchantId = decodePathParameter(mobileOverview[1]!);
+        await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+        sendJson(response, 200, await merchantOverview.overview({ merchantId }));
+        return;
+      }
+
+      // 모바일 손님 의견 요약은 웹과 같은 응답을 쓰되 실제 점포 전용 목록으로 제한하지 않는다.
+      const mobileVisitorFeedback = path.match(/^\/merchant\/merchants\/([^/]+)\/visitor-feedback$/);
+      if (mobileVisitorFeedback && request.method === 'GET') {
+        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+        if (!visitorFeedback) throw new RequestError(503, 'VISITOR_FEEDBACK_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const merchantId = decodePathParameter(mobileVisitorFeedback[1]!);
+        await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+        sendJson(response, 200, await visitorFeedback.merchantSummary(merchantId));
+        return;
+      }
+
       const reissueMatch = request.url?.match(
         /^\/merchant\/merchants\/([^/]+)\/claim-slots\/([^/]+)\/reissue$/,
       );
