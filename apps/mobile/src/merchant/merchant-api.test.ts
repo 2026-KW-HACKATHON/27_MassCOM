@@ -38,7 +38,7 @@ test('returns a validated public merchant list', async () => {
     return Response.json(merchantPayload);
   });
 
-  assert.deepEqual(await client.listMerchants(), merchantPayload.merchants);
+  assert.deepEqual(await client.listMerchants(), merchantPayload.merchants.map((merchant) => ({ ...merchant, visitorTags: [] })));
 });
 
 test('accepts genuinely empty story, menu, and hours without inventing operating content', async () => {
@@ -58,7 +58,7 @@ test('older operating and demo catalogs without menu or hours remain readable', 
   const client = createMerchantApiClient('https://api.example.test', async () =>
     Response.json({ merchants: legacyMerchants }));
   assert.deepEqual(await client.listMerchants(), legacyMerchants.map(merchant => ({
-    ...merchant, menuItems: [], businessHours: '', artUrl: null, category: null,
+    ...merchant, menuItems: [], businessHours: '', artUrl: null, category: null, visitorTags: [],
   })));
 });
 
@@ -134,4 +134,19 @@ test('reads the category, and a missing, null or unknown one becomes null withou
   const parsed = await client.listMerchants();
   assert.equal(parsed[0]?.category, null, 'an older server that has no category field');
   assert.deepEqual(parsed.slice(1).map((merchant) => merchant.category), ['한식', '카페', '기타', null, null, null, null, null, null]);
+});
+
+test('reads public visitor tag counts in server order and drops unknown or non-positive values (#334)', async () => {
+  const client = createMerchantApiClient('https://api.example.test', async () => Response.json({
+    merchants: [{ ...merchantPayload.merchants[0], visitorTags: [
+      { code: 'SOLO', count: 18 }, { code: 'UNKNOWN', count: 5 }, { code: 'QUIET', count: 3 },
+      { code: 'KIND', count: 0 }, { code: 'TAKEOUT', count: -1 }, { code: 'DESSERT', count: '4' },
+    ] }],
+  }));
+  assert.deepEqual((await client.listMerchants())[0]?.visitorTags, [{ code: 'SOLO', count: 18 }, { code: 'QUIET', count: 3 }]);
+});
+
+test('old catalogs without visitorTags parse with an empty list (#334)', async () => {
+  const client = createMerchantApiClient('https://api.example.test', async () => Response.json(merchantPayload));
+  assert.deepEqual((await client.listMerchants())[0]?.visitorTags, []);
 });

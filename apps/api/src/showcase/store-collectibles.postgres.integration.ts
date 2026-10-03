@@ -38,7 +38,11 @@ test('hosted seed publishes one collectible per virtual store, idempotently, and
     await seedHostedShowcase(pool);
     await Promise.all(Array.from({ length: 4 }, () => seedHostedShowcase(pool)));
     await seedHostedShowcase(pool);
-    assert.deepEqual(await publicationCounts(pool), [3, 3, 3, 3]);
+    // #333(R-333a): 게시물마다 브론즈·실버·골드 세 등급 행이 있어 등급 행은 3 × 3 = 9개다.
+    assert.deepEqual(await publicationCounts(pool), [3, 3, 9, 3]);
+    const gradeRows = await pool.query<{ grades: string[] }>(
+      `SELECT array_agg(grade_id ORDER BY grade_id) AS grades FROM collectible_publication_grades GROUP BY publication_id`);
+    assert.deepEqual(gradeRows.rows.map((row) => row.grades), [['bronze', 'gold', 'silver'], ['bronze', 'gold', 'silver'], ['bronze', 'gold', 'silver']]);
     const linked = await pool.query<{ campaign_id: string }>(
       'SELECT campaign_id FROM campaign_collectible_publications ORDER BY campaign_id');
     assert.deepEqual(linked.rows.map((row) => row.campaign_id), [...storeCampaigns].sort());
@@ -63,7 +67,7 @@ test('hosted seed publishes one collectible per virtual store, idempotently, and
       assert.ok(item.artwork.shape);
       assert.equal(item.artwork.thumbnailDataUrl, storeCollectibleArt[(['a', 'b', 'c'] as const)[index]!].thumbnail);
     }
-    assert.deepEqual(await publicationCounts(pool), [3, 3, 3, 3]);
+    assert.deepEqual(await publicationCounts(pool), [3, 3, 9, 3]);
   } finally {
     await pool.end();
   }

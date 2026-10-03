@@ -23,6 +23,7 @@ import { useBadgeBook } from '@/gamification/use-badge-book';
 import { applyMerchantFilters, hasActiveFilters, type ProgressFilter } from '@/merchant/apply-merchant-filters';
 import type { PublicMerchant } from '@/merchant/merchant-api';
 import type { MerchantCategory } from '@/merchant/merchant-categories';
+import { visitorTagLabels } from '@/merchant/visitor-feedback-codes';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
@@ -441,6 +442,9 @@ function MerchantCard({ merchant, apiUrl, onOpen }: { merchant: PublicMerchant; 
           <Text selectable numberOfLines={2} style={styles.cardAddress}>{merchant.roadAddress}</Text>
           <Text style={styles.cardArrow}>→</Text>
         </View>
+        {merchant.visitorTags[0] ? (
+          <Text style={styles.campaignName}>{visitorTagLabels[merchant.visitorTags[0].code]} · {merchant.visitorTags[0].count}명</Text>
+        ) : null}
         <Text style={styles.campaignName}>{merchant.campaign.title}</Text>
       </View>
     </FloatingCard>
