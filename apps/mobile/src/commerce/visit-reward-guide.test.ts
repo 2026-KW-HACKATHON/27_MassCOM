@@ -111,3 +111,10 @@ test('a missing snapshot, a failed one and one that never settles all give undef
   assert.equal(await settleWithin(new Promise<number>(() => {}), 20), undefined);
   assert.ok(Date.now() - started < 500);
 });
+
+test('a reward name that already ends with 수집품 is not doubled', () => {
+  assert.equal(
+    visitRewardGuide({ progressCount: 1, goals: [{ targetVisitCount: 3, displayName: '가상 세 번째 방문 수집품' }] }).nextGradeLine,
+    '가상 세 번째 방문 수집품까지 2번 남았어요 (같은 가게는 하루 1번)',
+  );
+});

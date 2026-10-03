@@ -18,7 +18,9 @@ function nextGradeLine(progressCount: number, goals: readonly VisitGoal[] | unde
   const sorted = [...actualGoals].sort((a, b) => a.targetVisitCount - b.targetVisitCount);
   const next = sorted.find((goal) => goal.targetVisitCount > progressCount);
   if (next === undefined) return `${sorted[sorted.length - 1]!.displayName}까지 모았어요`;
-  return `${next.displayName} 수집품까지 ${next.targetVisitCount - progressCount}번 남았어요 (같은 가게는 하루 1번)`;
+  // 보상 이름이 이미 "수집품"으로 끝나면 낱말을 겹쳐 쓰지 않는다.
+  const label = next.displayName.trim().endsWith('수집품') ? next.displayName.trim() : `${next.displayName} 수집품`;
+  return `${label}까지 ${next.targetVisitCount - progressCount}번 남았어요 (같은 가게는 하루 1번)`;
 }
 
 /**
