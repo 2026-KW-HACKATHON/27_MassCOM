@@ -15,7 +15,7 @@ export const UNNAMED_SHOP = '이름 없는 가게';
 
 export type FriendMedal = { key: MedalKind; tier: MedalTier };
 export type FriendBadges = { earned: number; total: typeof TOTAL_BADGES };
-export type FriendStamp = { merchantName: string };
+export type FriendStamp = { merchantName: string; merchantId: string | null };
 
 export type Friend = {
   friendshipId: string;
@@ -224,9 +224,14 @@ function parseStamps(value: unknown): FriendStamp[] {
   if (!Array.isArray(value)) throw invalidResponse();
   return value.map((stamp): FriendStamp => {
     if (!isRecord(stamp) || typeof stamp.merchantName !== 'string') throw invalidResponse();
+    if (stamp.merchantId !== null &&
+      (typeof stamp.merchantId !== 'string' || stamp.merchantId.trim().length === 0)) throw invalidResponse();
     // One shop whose name is blank must not hide the friend's whole passport: spaces of any width and invisible format characters
     // (zero-width space and joiner, word joiner, byte order mark) draw nothing, so a name made only of them is blank too.
-    return { merchantName: blankName.test(stamp.merchantName) ? UNNAMED_SHOP : stamp.merchantName };
+    return {
+      merchantName: blankName.test(stamp.merchantName) ? UNNAMED_SHOP : stamp.merchantName,
+      merchantId: stamp.merchantId,
+    };
   });
 }
 

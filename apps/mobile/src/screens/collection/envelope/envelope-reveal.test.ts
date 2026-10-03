@@ -30,7 +30,8 @@ test('skip is always available, independent of the current stage', () => {
 });
 
 test('only a card that reached the visible stage is acknowledged as presented', () => {
-  assert.match(source, /if \(uiStage === 'open' && current\) onCardShown\(current\.entitlementId\);/);
+  assert.match(source, /if \(foreground && uiStage === 'open' && current\) onCardShown\(current\.entitlementId\);/);
+  assert.match(source, /\[foreground, uiStage, current, onCardShown\]/);
   assert.doesNotMatch(source.slice(source.indexOf('function openEnvelope'), source.indexOf('function goTo')), /onCardShown/);
   assert.doesNotMatch(source, /<SkipButton onPress=\{\(\) => onCardShown/);
 });
