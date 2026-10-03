@@ -44,3 +44,8 @@
 ## #294 점주 체험 권한 요청과 B-028의 관계
 
 B-028이 지적한 "시연 직원 부여는 감사 행이 없다"(`grant-staff.ts:67`) 중 **새 요청·승인 경로(PR1, [D-062](DECISIONS.md))는 메웠다:** `showcase_access_requests` 행 자체가 요청자·승인자·시각·수단(`decided_via`)의 감사이고, 최초 승인자를 만드는 운영자 명령은 `platform_admin_role_audit`에도 GRANT 행을 남긴다. **기존 허용목록 경로(`grant-staff.ts`의 `grantShowcaseStaff`, 운영자 명령 `grant:showcase:staff`)는 이 PR이 핵심 로직만 `grantShowcaseStaffTx`로 떼어 재사용했을 뿐 감사 행을 추가하지 않았다** — B-028 본문이 적은 공백은 그대로 남아 있다. 계정 삭제가 `platform_admins`를 지울 때 `REVOKE` 감사 행을 남기지 않는 지적도 범위 밖이다. B-028의 해소 조건(법률 검토)은 바뀌지 않는다.
+
+## 2026-10-03 Issue #343 수정 2차 검증 제한
+
+- `BLOCKED` 환경: 이 sandbox에서 `cd apps/mobile && node ../../scripts/audit-ci.mjs`(종료 1, 결과를 읽지 못함)와 `npm audit --omit=dev --json`을 실행했지만 registry DNS 접근이 차단됐다(`ENOTFOUND registry.npmjs.org`; 재시도 0회·요청 상한 5초로 실행, 로그 `/private/tmp/343-round2-live-check.log`·`/private/tmp/343-round2-live-audit.json`). 네트워크가 가능한 환경에서 같은 명령으로 재검증한다.
+- 수정 1차의 전체 순회가 `expo`·`react-native` 이후 런타임 의존까지 검사하던 설계 문제는 두 단계 `levels` 검사로 해소했다. 제공된 실제 덤프(`/private/tmp/claude-501/audit-mobile.json`) 전체 재평가는 `PASS`(실패 0개·braces/node-forge 예외 2개), 관련 항목을 복사한 내장 fixture 회귀 시험도 `PASS`이며 실시간 audit 통과와는 구분한다.
