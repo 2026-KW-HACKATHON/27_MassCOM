@@ -14,7 +14,9 @@ test('reversal cards belong to the status tab and issued QR has its own full scr
   const modal = staff.slice(staff.indexOf('<Modal'), staff.indexOf('</Modal>'));
   assert.match(modal, /presentationStyle="fullScreen"/);
   assert.match(modal, /<ClaimQr code=\{issued.token\}/);
-  assert.doesNotMatch(modal, /ScrollView/);
+  const guidance = modal.slice(modal.indexOf('<ScrollView'), modal.indexOf('</ScrollView>'));
+  assert.match(guidance, /고객이 QR을 촬영/);
+  assert.doesNotMatch(guidance, /<ClaimQr|label="다 됐어요"/);
 });
 
 test('cancelling a visit and undoing a coupon both ask first with a destructive confirmation', () => {

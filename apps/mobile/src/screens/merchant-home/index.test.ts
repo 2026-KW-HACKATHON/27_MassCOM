@@ -34,7 +34,13 @@ test('기존 기능 진입점과 전체 화면 발급·복구를 모두 유지�
   assert.match(modal, /남은 시간/);
   assert.match(modal, /label="다 됐어요"/);
   assert.match(modal, /merchantName/);
-  assert.doesNotMatch(modal, /ScrollView/);
+  // 안내만 스크롤되고 QR과 완료 버튼은 스크롤 밖에서 공간을 유지한다.
+  const guidance = modal.slice(modal.indexOf('<ScrollView'), modal.indexOf('</ScrollView>'));
+  assert.match(guidance, /minHeight: 0/);
+  assert.match(guidance, /accessibilityLiveRegion="polite"/);
+  assert.doesNotMatch(guidance, /<ClaimQr|label="다 됐어요"/);
+  assert.match(modal.slice(modal.indexOf('</ScrollView>')), /label="다 됐어요" onPress=\{done\}/);
+  assert.match(modal, /minHeight: minimumClaimQrSize \+ 16/);
   assert.match(modal, /onLayout=\{/);
   assert.match(modal, /flexDirection: compact \? 'row' : 'column'/);
   assert.match(staff, /focusMerchantHeading\(heading.current\)/);

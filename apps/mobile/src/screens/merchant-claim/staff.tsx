@@ -14,15 +14,28 @@ import { canUseCamera } from '@/ui/can-use-camera';
 import { focusMerchantHeading } from '../merchant-home/focus-heading';
 import { claimSecondsRemaining, merchantStepFor } from '../merchant-home/visit-step';
 import { makeMerchantClaimStyles } from './styles';
+import { claimQrSizeForArea, minimumClaimQrSize } from './qr-layout';
 
-export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInvalid, merchantName, active = true }: {
+type StaffClaimProps = {
   apiUrl: string;
   merchantId: string;
   credential: AccountCredential;
   onSessionInvalid: () => void | Promise<void>;
   merchantName: string;
   active?: boolean;
-}) {
+};
+
+export function StaffClaimScreen(props: StaffClaimProps) {
+  const identity = JSON.stringify([props.apiUrl, props.merchantId, props.credential]);
+  const [scope, setScope] = useState({ identity, credential: props.credential, callback: props.onSessionInvalid, version: 0 });
+  // 점포·세션·클라이언트가 바뀌면 대기 상태도 새로 시작한다. 인증 값은 렌더링 키에 넣지 않는다.
+  if (scope.identity !== identity || scope.credential !== props.credential || scope.callback !== props.onSessionInvalid) {
+    setScope({ identity, credential: props.credential, callback: props.onSessionInvalid, version: scope.version + 1 });
+  }
+  return <StaffClaimSession key={scope.version} {...props} />;
+}
+
+function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, merchantName, active = true }: StaffClaimProps) {
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeMerchantClaimStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
@@ -37,6 +50,7 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
   const [token, setToken] = useState<string>();
   const [resolved, setResolved] = useState<ResolvedCustomerIdentity>();
   const [issued, setIssued] = useState<IssuedClaim>();
+  const [qrVisible, setQrVisible] = useState(false);
   const [issueAttempted, setIssueAttempted] = useState(false);
   const [issuedUncertain, setIssuedUncertain] = useState(false);
   const [coupons, setCoupons] = useState<readonly StaffCoupon[]>();
@@ -50,30 +64,30 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
   const step = merchantStepFor({ scanning, identified: Boolean(token), issued: Boolean(issued) });
   const seconds = issued ? claimSecondsRemaining(issued.expiresAt, now) : 0;
   const compact = width > height;
-  const qrSize = Math.max(0, Math.min(320, qrArea.width - 16, qrArea.height - 16));
+  const qrSize = claimQrSizeForArea(qrArea.width, qrArea.height);
 
   useEffect(() => {
-    if (!active || issued) return;
+    if (!active || qrVisible) return;
     const frame = requestAnimationFrame(() => focusMerchantHeading(heading.current));
     return () => cancelAnimationFrame(frame);
-  }, [step, active, issued]);
+  }, [step, active, qrVisible]);
   useEffect(() => {
     if (!issued) return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [issued]);
-  useEffect(() => () => requestGate.cancel(), [requestGate]);
+  // 점포·세션 변경과 화면 해제 시 이전 요청의 성공·실패·완료를 모두 무효화한다.
+  useEffect(() => () => requestGate.cancel(), [api, merchantId, requestGate]);
 
   function done() {
-    if (busy) return;
+    // 요청 중에도 닫고, 늦은 응답은 요청 세대로 무효화한다.
     cancel();
-    setIssued(undefined);
-    setIssueAttempted(false);
-    setIssuedUncertain(false);
   }
 
   async function startScan() {
+    const current = requestGate.start();
     const permission = await requestCameraPermission();
+    if (!requestGate.isCurrent(current)) return;
     if (!permission.granted) {
       setMessage('카메라 권한이 필요합니다. 기기 설정에서 카메라를 허용한 뒤 다시 시도해 주세요.');
       return;
@@ -83,6 +97,7 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
     setToken(undefined);
     setResolved(undefined);
     setIssued(undefined);
+    setQrVisible(false);
     setIssueAttempted(false);
     setIssuedUncertain(false);
     setCouponLoading(false);
@@ -94,6 +109,10 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
 
   function cancel() {
     requestGate.cancel();
+    setQrVisible(false);
+    setIssued(undefined);
+    setIssueAttempted(false);
+    setIssuedUncertain(false);
     setBusy(false);
     setScanning(false);
     setCouponOpen(false);
@@ -184,7 +203,7 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
 
   function confirmRedeem(coupon: StaffCoupon) {
     if (busy || couponLoading) return;
-    // Advancing the gate invalidates this confirmation if staff cancels or rescans while the alert is open.
+    // 확인창이 열린 동안 취소하거나 다시 촬영하면 이전 확인 요청을 무효화한다.
     const current = requestGate.start();
     Alert.alert(coupon.title, '고객이 이 혜택을 지금 받나요? 되돌릴 수 없어요', [
       { text: '취소', style: 'cancel' },
@@ -230,6 +249,7 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
       setNow(Date.now());
       setCouponOpen(false);
       setIssued(next);
+      setQrVisible(true);
       setResolved(undefined);
       setMessage('방문 코드를 발급했습니다. 고객이 아래 QR을 촬영해 수령을 확정합니다.');
     } catch (error) {
@@ -246,35 +266,41 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
 
   async function reissue() {
     if (!issued || busy) return;
+    const current = requestGate.start();
     setBusy(true);
     setIssuedUncertain(true);
     setMessage(undefined);
     try {
       const next = await api.reissueClaim({ merchantId, claimSlotId: issued.claimSlotId, expectedTokenVersion: issued.tokenVersion });
+      if (!requestGate.isCurrent(current)) return;
       setIssued(next);
       setIssuedUncertain(false);
       setMessage('이전 코드를 폐기하고 새 코드로 교체했습니다.');
     } catch (error) {
+      if (!requestGate.isCurrent(current)) return;
       setMessage(`${messageFor(error)} 재발급 결과가 불확실합니다. 아래에서 현재 코드를 복구해 주세요.`);
     } finally {
-      setBusy(false);
+      if (requestGate.isCurrent(current)) setBusy(false);
     }
   }
 
   async function recoverCurrent() {
     if (!token || busy) return;
+    const current = requestGate.start();
     setBusy(true);
     setIssuedUncertain(true);
     setMessage(undefined);
     try {
       const next = await api.issueOrReissueIdentityClaim({ merchantId, customerIdentityToken: token });
+      if (!requestGate.isCurrent(current)) return;
       setIssued(next);
       setIssuedUncertain(false);
       setMessage('현재 방문 코드를 복구했습니다. 고객에게 아래 QR을 보여주세요.');
     } catch (error) {
+      if (!requestGate.isCurrent(current)) return;
       setMessage(`${messageFor(error)} 현재 코드를 확인하지 못했습니다. 다시 시도하거나 고객에게 새 QR을 요청해 주세요.`);
     } finally {
-      setBusy(false);
+      if (requestGate.isCurrent(current)) setBusy(false);
     }
   }
 
@@ -290,7 +316,7 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
           {scanning && active ? <View style={{ height: 260, overflow: 'hidden', borderRadius: 14 }}>
             <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => scanned(data)} />
           </View> : null}
-          <Button styles={styles} label={scanning ? '촬영 취소' : '고객 QR 찍기'} accessibilityLabel="고객 식별 QR 촬영" disabled={busy} onPress={scanning ? cancel : () => void startScan()} />
+          <Button styles={styles} label={scanning ? '촬영 취소' : '고객 QR 찍기'} disabled={busy} onPress={scanning ? cancel : () => void startScan()} />
         </> : <Text style={styles.help}>고객 QR 촬영은 카메라가 필요해 Android 앱에서만 할 수 있어요. 이 화면은 미리보기만 확인할 수 있어요.</Text>}
       </View> : null}
       {token && !issued ? <View style={styles.formCard}>
@@ -299,7 +325,7 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
         {resolved ? <Text style={styles.expiry}>식별 QR 만료: {new Date(resolved.expiresAt).toLocaleTimeString('ko-KR')}</Text> : null}
         {resolved ? <>
           {!issueAttempted ? <Button styles={styles} label={couponLoading ? '쿠폰 확인 중…' : coupons ? `쿠폰 ${coupons.length}장` : '이 고객 쿠폰 확인'} variant="secondary" disabled={busy} onPress={() => { setCouponOpen(true); if (!coupons && !couponLoading) void lookupCoupons(); }} /> : null}
-          <Button styles={styles} label={busy ? '확인 중…' : issueAttempted ? '발급 결과 확인·복구' : '방문 코드 발급'} accessibilityLabel="실제 사용 확인 · 방문 코드 발급" disabled={busy} onPress={() => void issue()} />
+          <Button styles={styles} label={busy ? '확인 중…' : issueAttempted ? '발급 결과 확인·복구' : '방문 코드 발급'} disabled={busy} onPress={() => void issue()} />
         </> : <Button styles={styles} label={busy ? '확인 중…' : '고객 다시 확인'} disabled={busy} onPress={() => void resolve(token)} />}
         <Button styles={styles} label="이 고객 취소" variant="secondary" disabled={busy && Boolean(resolved)} onPress={cancel} />
       </View> : null}
@@ -324,24 +350,30 @@ export function StaffClaimScreen({ apiUrl, merchantId, credential, onSessionInva
         </ScrollView>
         </RNHostView>
       </BottomSheet>
-    <Modal visible={Boolean(issued) && active} presentationStyle="fullScreen" animationType="fade" onShow={() => focusMerchantHeading(modalHeading.current)} onRequestClose={done}>
-      {issued ? <View accessibilityViewIsModal style={{ flex: 1, paddingHorizontal: 20, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8, backgroundColor: palette.background }}>
-        <Text ref={modalHeading} accessible accessibilityRole="header" style={styles.cardLabel}>③ 방문 코드 · {merchantName}</Text>
-        <Text style={[styles.expiry, { paddingVertical: 8 }]}>{seconds > 0 ? `남은 시간 ${Math.floor(seconds / 60)}분 ${seconds % 60}초` : '방문 코드가 만료됐습니다. 새 QR을 요청해 주세요.'}</Text>
-        <View style={{ flex: 1, flexDirection: compact ? 'row' : 'column', gap: 12 }}>
-          <View onLayout={({ nativeEvent }) => setQrArea({ width: nativeEvent.layout.width, height: nativeEvent.layout.height })} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            {issuedUncertain ? <Text style={styles.help}>이전 QR이 폐기됐을 수 있습니다. 현재 코드를 복구한 뒤 고객에게 보여주세요.</Text> : seconds > 0 && qrSize > 0 ? <ClaimQr code={issued.token} size={qrSize} /> : null}
+    <Modal visible={qrVisible && active} presentationStyle="fullScreen" animationType="fade" onShow={() => focusMerchantHeading(modalHeading.current)} onRequestClose={done}>
+      {issued ? <View accessibilityViewIsModal style={{ flex: 1, gap: 12, paddingHorizontal: 20, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8, backgroundColor: palette.background }}>
+        <View style={{ flex: 1, minHeight: 0, flexDirection: compact ? 'row' : 'column', gap: 12 }}>
+          <View onLayout={({ nativeEvent }) => setQrArea({ width: nativeEvent.layout.width, height: nativeEvent.layout.height })} style={{ flex: 1, flexShrink: 0, minWidth: minimumClaimQrSize + 16, minHeight: minimumClaimQrSize + 16, alignItems: 'center', justifyContent: 'center' }}>
+            {!issuedUncertain && seconds > 0 ? <ClaimQr code={issued.token} size={qrSize} /> : null}
           </View>
-          <View style={[{ gap: 8, justifyContent: 'center' }, compact && { flex: 1 }]}>
+          <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>
+            <Text ref={modalHeading} accessible accessibilityRole="header" style={styles.cardLabel}>③ 방문 코드 · {merchantName}</Text>
+            <Text style={[styles.expiry, { paddingVertical: 8 }]}>{seconds > 0 ? `남은 시간 ${Math.floor(seconds / 60)}분 ${seconds % 60}초` : '방문 코드가 만료됐습니다. 새 QR을 요청해 주세요.'}</Text>
+            {issuedUncertain ? <Text style={styles.help}>이전 QR이 폐기됐을 수 있습니다. 현재 코드를 복구한 뒤 고객에게 보여주세요.</Text> : null}
             <Text style={styles.help}>고객이 QR을 촬영하고 확정해야 방문이 기록됩니다.</Text>
             {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
-            {issuedUncertain ? <Button styles={styles} label={busy ? '복구 중…' : '현재 코드 복구'} disabled={busy} onPress={() => void recoverCurrent()} /> : <Button styles={styles} label="코드 관리" variant="secondary" disabled={busy} onPress={() => Alert.alert('방문 코드 관리', '공유하거나 이전 코드를 폐기하고 재발급할 수 있어요.', [
-              { text: '닫기', style: 'cancel' },
-              { text: '안전하게 공유', onPress: () => { if (seconds > 0) void Share.share({ title: '월계 마스코트 1회 수령 코드', message: issued.token }).catch(() => setMessage('공유를 완료하지 못했습니다. 다시 시도해 주세요.')); } },
-              { text: '이전 코드 폐기·재발급', onPress: () => void reissue() },
-            ])} />}
-            <Button styles={styles} label="다 됐어요" disabled={busy} onPress={done} />
-          </View>
+            {issuedUncertain ? <Button styles={styles} label={busy ? '복구 중…' : '현재 코드 복구'} disabled={busy} onPress={() => void recoverCurrent()} /> : <Button styles={styles} label="코드 관리" variant="secondary" disabled={busy} onPress={() => {
+              const current = requestGate.start();
+              Alert.alert('방문 코드 관리', '공유하거나 이전 코드를 폐기하고 재발급할 수 있어요.', [
+                { text: '닫기', style: 'cancel' },
+                { text: '안전하게 공유', onPress: () => { if (requestGate.isCurrent(current) && seconds > 0) void Share.share({ title: '월계 마스코트 1회 수령 코드', message: issued.token }).catch(() => { if (requestGate.isCurrent(current)) setMessage('공유를 완료하지 못했습니다. 다시 시도해 주세요.'); }); } },
+                { text: '이전 코드 폐기·재발급', onPress: () => { if (requestGate.isCurrent(current)) void reissue(); } },
+              ]);
+            }} />}
+          </ScrollView>
+        </View>
+        <View style={{ flexShrink: 0 }}>
+          <Button styles={styles} label="다 됐어요" onPress={done} />
         </View>
       </View> : null}
     </Modal>
@@ -356,7 +388,7 @@ function Button({ styles, label, accessibilityLabel, onPress, disabled = false, 
   disabled?: boolean;
   variant?: 'primary' | 'secondary';
 }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} disabled={disabled} onPress={onPress} style={[styles.button, variant === 'secondary' && styles.secondaryButton, disabled && styles.disabled]}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} disabled={disabled} onPress={onPress} style={[styles.button, variant === 'secondary' && styles.secondaryButton, disabled && styles.disabled]}>
     <Text style={[styles.buttonText, variant === 'secondary' && styles.secondaryButtonText]}>{label}</Text>
   </Pressable>;
 }
