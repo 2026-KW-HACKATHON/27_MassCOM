@@ -1,0 +1,96 @@
+{
+  "observedAt": "2026-10-03 UTC",
+  "sourceCommit": "0fcdfe8cc5da500c308d9b2c92404777ef5b5fdc",
+  "sourceBranch": "main (PR #355 병합)",
+  "previousCommits": {
+    "operatingApiAndWebBefore": "723c35cc9fa6d1efac360686938121238e2e8fdb",
+    "showcaseBefore": "723c35cc9fa6d1efac360686938121238e2e8fdb"
+  },
+  "issues": [
+    356
+  ],
+  "scope": "시연 API와 호스트 시드, 운영 API와 웹을 0fcdfe8로 배포했다. Android test.8과 Preview 17은 별도 증빙 파일을 참조한다.",
+  "migrationNote": "0041_merchant_detail_view_counts.sql은 개인 데이터 없는 merchant_detail_view_counts 표를 추가하는 변경이다. 저장소 밖 호환성 판정은 723c35c → 0fcdfe8 backward_compatible=yes이며 Caddyfile은 웹 사이트 블록에 /merchant-art/<64 hex>.webp GET/HEAD 프록시 경로 하나를 추가한다.",
+  "showcase": {
+    "release": "/opt/masscom-showcase/releases/0fcdfe8cc5da500c308d9b2c92404777ef5b5fdc에 apps/와 infra/를 복사했다 (20M).",
+    "backup": "/opt/masscom-showcase/backups/pre-0fcdfe8-20261003.dump: 3402021바이트, mode 600, 344항목, 2026-10-03 10:51:25Z에 migration 전에 생성; 실제 복원 NOT_RUN",
+    "image": "masscom-showcase-api:0fcdfe8를 서버에서 빌드했다 (370MB).",
+    "schemaMigrationsBefore": "40|0040_merchant_visitor_feedback.sql",
+    "schemaMigrationsAfter": "41|0041_merchant_detail_view_counts.sql",
+    "migration": "PASS: docker compose run --rm -T migrate → database migrations applied",
+    "apiContainer": "up -d --no-deps showcase-api → healthy (2026-10-03 11:03:41Z 시작); PostgreSQL 컨테이너는 재생성하지 않았다.",
+    "aiStoreArt": "API 로그: AI store art: disabled (OPENAI_API_KEY is empty)",
+    "seed": "host seed → SHOWCASE_HOST_SEEDED; showcase-local-campaign, showcase-local-campaign-b, showcase-local-campaign-c의 campaign_collectible_publications에 각각 bronze·gold·silver 연결이 유지된다. 캠페인 기간은 2026-09-03 04:14:00Z부터 2026-11-02 11:03:48Z까지다.",
+    "retentionTimer": "이 릴리스에서 재설치했다. systemd-analyze verify 출력 없음, 수동 실행 Result=success, install.sh --verify → last run result: success 및 verified: masscom-showcase-retention.timer is enabled and matches this release",
+    "knownQuirk": "runtime.env의 이미지 태그 특이점은 변하지 않았다.",
+    "webTrialBundle": "NOT_RUN: /play 웹 번들은 다시 빌드하지 않았고 a39b983 export를 계속 사용한다.",
+    "public": {
+      "https://demo-api.masscom.kr/health": 200,
+      "https://demo-api.masscom.kr/play/": 200,
+      "https://demo-api.masscom.kr/merchants/showcase-local-merchant/collectible-preview": 200
+    }
+  },
+  "operating": {
+    "backup": "/opt/masscom/backups/pre-0fcdfe8-20261003.dump: 177938바이트, mode 600, 344항목, 2026-10-03 10:51:26Z에 생성. 배포 스크립트 자체 사전 백업도 생성됐으며 크기는 기록되지 않았다. 실제 복원 NOT_RUN",
+    "migrationCompatibility": "723c35c → 0fcdfe8 backward_compatible=yes; 0041은 개인 데이터 없는 merchant_detail_view_counts 표만 추가한다. Caddyfile은 웹 사이트 블록에 /merchant-art/<64 hex>.webp GET/HEAD 프록시 경로 하나를 추가한다.",
+    "dryRun": "PASS: scripts/deploy-lightsail.sh --dry-run exit 0",
+    "deploy": "PASS: scripts/deploy-lightsail.sh --deploy exit 0 → Lightsail deployment completed: 0fcdfe8cc5da500c308d9b2c92404777ef5b5fdc",
+    "retentionTimer": "배포 스크립트가 재설치했다: HOST_JOB_ENABLED masscom-retention.timer (first run: success)",
+    "images": "masscom-api:0fcdfe8cc5da와 masscom-production-web:0fcdfe8cc5da healthy (2026-10-03 11:04:54Z 시작); Caddy는 11:05:01Z 재생성, PostgreSQL은 유지",
+    "deployedCommitFiles": {
+      "/opt/masscom/DEPLOYED_COMMIT": "0fcdfe8cc5da500c308d9b2c92404777ef5b5fdc",
+      "/opt/masscom/web/DEPLOYED_COMMIT": "0fcdfe8cc5da500c308d9b2c92404777ef5b5fdc"
+    },
+    "databaseAfter": {
+      "schemaMigrations": 41,
+      "lastMigration": "0041_merchant_detail_view_counts.sql (2026-10-03 11:04:43Z 적용)",
+      "isDemoMerchants": 0,
+      "merchantDetailViewCountsRows": 0
+    },
+    "readOnlyRoutes": {
+      "https://www.masscom.kr/merchant-art/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.webp": "404 application/json; 새 프록시를 통해 API에 도달",
+      "https://www.masscom.kr/merchant-art/x.webp": "404 정적 응답; 프록시되지 않음",
+      "https://api.masscom.kr/merchants/nope/collectible-preview": "404 {\"code\":\"COLLECTIBLE_PREVIEW_NOT_FOUND\"}",
+      "https://www.masscom.kr/api/web/admin/funnel?days=30": "익명 요청 401"
+    },
+    "productionViewsPost": "NOT_RUN; 운영에 POST /views를 보내지 않았다."
+  },
+  "externalHttps": {
+    "status200": [
+      "https://api.masscom.kr/health",
+      "https://www.masscom.kr/app/",
+      "https://masscom.kr/",
+      "https://www.masscom.kr/open",
+      "https://demo-api.masscom.kr/health"
+    ],
+    "servedFiles": {
+      "/merchant/assets/merchant.mjs": "저장소 0fcdfe8와 SHA-256 일치 (앞자리 c10d90f79a501d38)",
+      "/admin/assets/admin.mjs": "저장소 0fcdfe8와 SHA-256 일치 (앞자리 c701d6272c3a0cda)",
+      "/app/assets/collectible-editor.mjs": "저장소 0fcdfe8와 SHA-256 일치 (앞자리 7474b49de3740d00)",
+      "/app/assets/production.css": "저장소 0fcdfe8와 SHA-256 일치 (앞자리 2862d8476ca9e9ae)",
+      "/privacy": "저장소 0fcdfe8와 SHA-256 일치 (앞자리 b10fa8f7858a9d1d)"
+    },
+    "openPage": {
+      "links": [
+        "android-v0.1.0-test.7",
+        "showcase-android-v0.1.0-preview.16"
+      ],
+      "note": "배포 당시 /open은 이전 링크를 제공했다. test.8·Preview 17의 저장소 링크 변경은 병합 뒤 운영 웹 재배포가 필요하다."
+    }
+  },
+  "notRun": [
+    "두 데이터베이스 백업의 실제 복원",
+    "시연 /play 웹 번들 재빌드",
+    "운영 배포 스크립트 자체 백업의 크기 기록"
+  ],
+  "migrations": [
+    "0041_merchant_detail_view_counts.sql"
+  ],
+  "mergedPullRequestsSince723c35c": [
+    355
+  ],
+  "contentSince723c35c": [
+    "PR #355, Issue #354: 가게 상세 수집품 미리보기·내 진행·길찾기, 방문 뒤 주요 행동 하나, 가게 연결, 홈 다음 목표, 점주 체크리스트 동작·제작기 첫 시작 기본값, 점주 앱 되돌리기 바로가기, 현황 지표·운영자 퍼널, 상세 조회 집계(D-071/D-072, migration 0041)"
+  ],
+  "rollbackRule": "D-071: 옛 API로 코드 롤백해도 merchant_detail_view_counts 표와 schema_migrations의 0041 기록을 유지한다. 새 API가 표를 조회하는 동안 DROP하지 않는다."
+}

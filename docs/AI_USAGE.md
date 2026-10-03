@@ -1,5 +1,7 @@
 # AI 사용 기록
 
+2026-10-03 — Issue #356: Codex Sol 6.1 medium이 오케스트레이터 검증 사실과 #352 변경 형태를 근거로 0fcdfe8 운영·시연 배포, 운영 test.8·시연 Preview 17 기록과 현재 다운로드 안내를 갱신했다. 지정된 문서 검사는 TEST_STATUS에 기록하며 Samsung 실기·로그인과 웹 체험 번들 재빌드는 NOT_RUN이다. 커밋 없음.
+
 2026-10-03 — Issue #354: Claude Code(Opus 5.5)가 최신 코드 흐름 조사 결과로 범위·계약·판정을 정하고 지휘했다. 조사는 Codex Luna 6 low 4건, 구현은 Codex Sol 6.1 high(서버·고객 앱·점주 웹·연결 보완)와 medium(점주 앱·작은 수정), 리뷰는 Sol 6.1 XHigh(API·migration·인프라)와 High(앱·웹)였다. 통합 시험·DB 통합 시험·에뮬레이터 화면 확인·커밋·병합은 지휘 스레드가 했고, 방문 뒤 문구 겹침 한 줄은 지휘 스레드가 직접 고쳤다. 실기 확인은 `NOT_RUN`이다.
 
 2026-10-03 — Issue #352: Codex Sol 6.1 medium이 오케스트레이터가 검증한 사실을 근거로 65a0005 운영·시연 배포와 운영 test.7·시연 Preview 16 기록 및 현재 다운로드 안내를 작성했다.

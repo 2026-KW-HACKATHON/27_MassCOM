@@ -1,0 +1,58 @@
+{
+  "status": "PASS",
+  "releaseReadiness": "BLOCKED; Samsung 실기기 설치와 로그인·방문 흐름, Google Play 제출은 검증되지 않았다.",
+  "verifiedAt": "2026-10-03",
+  "sourceCommit": "0fcdfe8cc5da500c308d9b2c92404777ef5b5fdc",
+  "pullRequests": [
+    355
+  ],
+  "issues": [
+    356
+  ],
+  "checks": {
+    "aab": "PASS; 서명과 release wallet surface를 확인했다.",
+    "recordAudioPermission": "PASS; RECORD_AUDIO 권한이 없다.",
+    "apkSignature": "PASS; bundletool universal APK의 apksigner 인증서가 upload 인증서와 일치한다."
+  },
+  "acceptedArtifact": {
+    "aab": "app-release-0fcdfe8.aab",
+    "aabSha256": "a03bbe1f330651d38e24235865452d55ee1d8b6baf8567360a0f14d367547e30",
+    "apk": "MassCOM-operating-android-0fcdfe8.apk",
+    "apkSha256": "7dfad1e1f414574585637c9e0d413c0fe8fdc61e9bb4893fb211067294091be9",
+    "apkOrigin": "AAB에서 bundletool로 만든 universal APK이며 apksigner 인증서가 upload 인증서와 일치한다.",
+    "package": "kr.masscom.wolgye",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256": "5E5ED3C31971E5A88EA752B3A2AE50772FEA1C956B9D97A82DD5CA7130CFA395",
+    "signingCertificate": "test.3–test.7과 동일한 upload 인증서"
+  },
+  "githubRelease": {
+    "tag": "android-v0.1.0-test.8",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.8",
+    "kind": "GitHub prerelease",
+    "target": "0fcdfe8",
+    "assets": [
+      {
+        "name": "MassCOM-operating-android-0fcdfe8.apk",
+        "sha256": "7dfad1e1f414574585637c9e0d413c0fe8fdc61e9bb4893fb211067294091be9"
+      },
+      {
+        "name": "app-release-0fcdfe8.provenance.json",
+        "sha256": "ba9c11f4033fd8ad2590cdb3aff867b3b406cf44c78420b71e9b074de1de448d"
+      },
+      {
+        "name": "SHA256SUMS.txt"
+      }
+    ],
+    "anonymousDownload": "PASS; 익명 다운로드한 APK의 SHA-256이 7dfad1e1f414574585637c9e0d413c0fe8fdc61e9bb4893fb211067294091be9과 일치한다."
+  },
+  "physicalAndroid": {
+    "device": "Samsung 실기기 미연결",
+    "apkInstall": "NOT_RUN",
+    "login": "NOT_RUN"
+  },
+  "notRun": [
+    "Samsung 실기기 설치 및 계정·기능 QA",
+    "운영 APK의 에뮬레이터 설치 (운영 API에 접속하므로 사용하지 않음)",
+    "Google Play 업로드·심사·배포"
+  ]
+}

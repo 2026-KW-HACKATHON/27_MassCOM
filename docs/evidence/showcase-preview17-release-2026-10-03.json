@@ -1,0 +1,45 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-10-03",
+  "sourceCommit": "0fcdfe8cc5da500c308d9b2c92404777ef5b5fdc",
+  "pullRequests": [
+    355
+  ],
+  "issues": [
+    356
+  ],
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.17",
+  "releaseKind": "GitHub prerelease",
+  "releaseTarget": "0fcdfe8",
+  "artifact": {
+    "name": "MassCOM-showcase-android-0fcdfe8.apk",
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "sha256": "f93a123b7d771c9b5391ae9876d1702b54c163df40141ba17f15b1aa8ad3e9a0",
+    "provenanceName": "MassCOM-showcase-android-0fcdfe8.provenance.json",
+    "checksumsName": "SHA256SUMS.txt",
+    "package": "kr.masscom.wolgye.demo",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256": "CDB0DC37750C907EAA2F1B9EB172B0911F14B9C9F2DAB78B481F1751D8EBF28A",
+    "provenanceSha256": "e0e6815ff1ee867a218992be440895e1537f1190df0253a3bee19538ee94e600"
+  },
+  "checks": {
+    "embeddedApi": "PASS; APK와 AAB에 https://demo-api.masscom.kr가 포함되고 https://api.masscom.kr는 포함되지 않는다.",
+    "walletSurface": "PASS; release wallet surface를 확인했다.",
+    "recordAudioPermission": "PASS; RECORD_AUDIO 권한이 없다.",
+    "anonymousDownload": "PASS; 익명 다운로드한 APK의 SHA-256이 f93a123b7d771c9b5391ae9876d1702b54c163df40141ba17f15b1aa8ad3e9a0과 일치한다.",
+    "emulatorInstall": "PASS; Android API 34, 720×1280 에뮬레이터에서 Preview 16 위 설치 Success"
+  },
+  "androidEmulator": {
+    "device": "Android API 34, 720×1280",
+    "storeList": "PASS; 로그아웃 상태에서 가상 점포 3곳 표시",
+    "storeDetail": "PASS; 가상 점포 B 상세에 \"이 가게에서 모을 수 있는 수집품\"과 시연 서버의 1·3·5회 방문 bronze/silver/gold 썸네일 표시",
+    "detailViewCount": "showcase-local-merchant-b | 2026-10-03 | list | 1",
+    "screenshot": "docs/evidence/deployment-0fcdfe8-2026-10-03/preview17-emulator-store-detail.png",
+    "transientObservation": "API 교체 중 앞선 실행에서 목록이 한 번 비었으나 다시 불러온 뒤 정상 표시"
+  },
+  "notRun": [
+    "Samsung 실기기 설치와 QA",
+    "로그인 흐름"
+  ],
+  "limitations": "Preview 17은 시연 전용 GitHub prerelease다. 실제 Samsung 기기와 로그인 흐름은 확인하지 않았다."
+}
