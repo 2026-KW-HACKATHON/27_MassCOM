@@ -87,7 +87,7 @@ export function createCollectibleStudio(container, { effectNames }) {
   const customField = node('label', 'ce-field', '자유 입력 테마'); customField.hidden = true;
   const custom = node('input'); custom.type = 'text'; custom.maxLength = 80; custom.placeholder = '예: 우리 동네 생일 축제'; custom.dataset.control = 'home-theme'; customField.append(custom); season.append(customField); home.append(season);
   let homeTheme = '기본', currentStep = 1, hasCurrent = false;
-  let historyEntry = false, pendingBack = false;
+  let historyEntry = window.history?.state?.collectibleWorkspace === true, pendingBack = false;
   const workspace = node('div', 'ce-workspace'); workspace.hidden = true; workspace.dataset.view = 'workspace'; workspace.dataset.step = '1';
   const workspaceHeading = node('div', 'ce-workspace-heading');
   const title = node('h3', 'ce-step-title'); title.tabIndex = -1; title.id = `collectible-step-${Math.random().toString(36).slice(2, 9)}`;
@@ -272,6 +272,7 @@ export function createCollectibleStudio(container, { effectNames }) {
   }
   return {
     showStep, showHome, renderProjects, setBusy,
+    setHistoryEntry(value) { historyEntry = value; },
     // 홈 버튼의 늦은 기록 이동은 재진입한 작업 영역을 닫지 않는다.
     consumePendingBack() { const pending = pendingBack; pendingBack = false; return pending; },
     get step() { return currentStep; },

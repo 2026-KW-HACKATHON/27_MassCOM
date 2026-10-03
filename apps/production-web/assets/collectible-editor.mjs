@@ -1377,8 +1377,12 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   // Issue #329: 폰 제스처 뒤로가기는 페이지를 떠나지 않고 스튜디오 홈으로 돌아온다(편집 내용은 메모리에 남는다).
   listen(window, 'popstate', event => {
     if (studio.consumePendingBack()) return;
+    if (!active) return;
+    const ownEntry = event.state?.collectibleWorkspace === true;
+    // 홈에서도 현재 기록을 추적한다.
+    if (studio.isHome) { studio.setHistoryEntry(ownEntry); return; }
     // 작업 영역 기록으로의 복귀는 편집을 유지한다.
-    if (!active || studio.isHome || event.state?.collectibleWorkspace === true) return;
+    if (ownEntry) return;
     stopHiddenMedia(); studio.sync(project, { dirty, wrapper }); studio.showHome(true, { fromHistory: true });
   });
   for (const [value, name] of Object.entries(effectNames)) option(control('effect-type'), name, value);

@@ -421,58 +421,106 @@ test('⋯ 메뉴는 동작·홈·단계 이동·Esc로 닫히고 동작·Esc 뒤
   await open(); await ui.click(ui.q('.ce-step-title')); closed('메뉴 밖을 누른 뒤');
 });
 
+/** 기록 위치는 즉시 바꾸고 이벤트는 다음 마이크로태스크에 보낸다. */
+function installHistory(entries = [null], index = entries.length - 1) {
+  const pushes = [];
+  let backs = 0, forwards = 0;
+  const move = target => {
+    if (target < 0 || target >= entries.length) return;
+    index = target;
+    const state = entries[index];
+    queueMicrotask(() => dom.window.dispatch({ type: 'popstate', state }));
+  };
+  window.history = {
+    get state() { return entries[index]; },
+    pushState(state, title) {
+      entries.splice(index + 1); entries.push(state); index++;
+      pushes.push([state, title]);
+    },
+    back() { backs++; move(index - 1); },
+    forward() { forwards++; move(index + 1); },
+  };
+  cleanups.push(() => { delete window.history; });
+  return { entries, pushes, get index() { return index; }, get backs() { return backs; }, get forwards() { return forwards; } };
+}
+
+function assertHome(ui) {
+  assert.equal(ui.q('[data-view="studio-home"]').hidden, false);
+  assert.equal(ui.q('[data-view="workspace"]').hidden, true);
+}
+
 test('작업 영역을 열면 기록을 하나 넣고, 뒤로가기는 페이지를 떠나지 않고 홈으로 간다', async () => {
-  const pushes = []; let backs = 0;
-  window.history = { pushState: (...args) => pushes.push(args), back: () => { backs++; } };
-  try {
-    const ui = await mountStudio();
-    assert.equal(pushes.length, 1); assert.deepEqual(pushes[0][0], { collectibleWorkspace: true });
-    await ui.act('next-step');
-    assert.equal(pushes.length, 1, '단계 이동은 기록을 더 넣지 않는다');
-    dom.window.dispatch({ type: 'popstate' }); await settle();
-    assert.equal(ui.q('[data-view="studio-home"]').hidden, false);
-    assert.equal(ui.q('[data-view="workspace"]').hidden, true);
-    assert.equal(backs, 0, '뒤로가기로 온 홈 이동은 history.back()을 다시 부르지 않는다');
-    await ui.act('resume');
-    assert.equal(pushes.length, 2, '다시 들어가면 새 기록');
-    await ui.act('home');
-    assert.equal(backs, 1, '← 스튜디오 버튼은 넣었던 기록을 한 번 소비한다');
-    dom.window.dispatch({ type: 'popstate' }); await settle();
-    assert.equal(ui.q('[data-view="studio-home"]').hidden, false, '이미 홈이면 그대로');
-  } finally { delete window.history; }
+  const history = installHistory(), ui = await mountStudio();
+  assert.equal(history.pushes.length, 1); assert.deepEqual(history.pushes[0][0], { collectibleWorkspace: true });
+  await ui.act('next-step');
+  assert.equal(history.pushes.length, 1, '단계 이동은 기록을 더 넣지 않는다');
+  window.history.back(); await settle();
+  assertHome(ui);
+  assert.equal(history.backs, 1, '뒤로가기로 온 홈 이동은 history.back()을 다시 부르지 않는다');
+  assert.equal(history.index, 0);
+  await ui.act('resume');
+  assert.equal(history.pushes.length, 2, '다시 들어가면 새 기록');
+  await ui.act('home');
+  assert.equal(history.backs, 2, '← 스튜디오 버튼은 넣었던 기록을 한 번 소비한다');
+  assertHome(ui);
 });
 
-test('작업 영역 기록으로의 복귀는 편집을 유지하고 다른 기록으로의 이동은 홈을 연다', async () => {
-  window.history = { pushState() {}, back() {} };
-  try {
-    const ui = await mountStudio();
-    dom.window.dispatch({ type: 'popstate', state: { collectibleWorkspace: true } }); await settle();
-    assert.equal(ui.q('[data-view="workspace"]').hidden, false, '작업 영역 기록으로 돌아와도 편집을 유지한다');
-    assert.equal(ui.q('[data-view="studio-home"]').hidden, true);
-    dom.window.dispatch({ type: 'popstate', state: null }); await settle();
-    assert.equal(ui.q('[data-view="workspace"]').hidden, true, '원래 기록으로 돌아오면 홈이다');
-    assert.equal(ui.q('[data-view="studio-home"]').hidden, false);
-  } finally { delete window.history; }
+test('작업 영역 기록으로의 복귀는 편집을 유지하고 다른 객체 기록으로의 이동은 홈을 연다', async () => {
+  const history = installHistory([{ other: 1 }, { collectibleWorkspace: true }], 0);
+  const ui = await mountStudio();
+  window.history.pushState({ collectibleWorkspace: true }, '');
+  window.history.back(); await settle();
+  assert.equal(ui.q('[data-view="workspace"]').hidden, false, '작업 영역 기록으로 돌아와도 편집을 유지한다');
+  assert.equal(ui.q('[data-view="studio-home"]').hidden, true);
+  window.history.back(); await settle();
+  assertHome(ui);
+  assert.deepEqual(window.history.state, { other: 1 });
+  assert.equal(history.backs, 2, '다른 객체 기록에서도 back()을 다시 부르지 않는다');
 });
 
 test('홈 버튼 직후 다시 들어오면 늦은 뒤로가기 이벤트를 한 번 소비하고 다음 제스처는 홈으로 간다', async () => {
-  const pushes = []; let backs = 0;
-  window.history = { pushState: (...args) => pushes.push(args), back: () => { backs++; } };
-  try {
-    const ui = await mountStudio();
-    await ui.act('home');
-    assert.equal(backs, 1);
-    assert.equal(ui.q('[data-view="studio-home"]').hidden, false);
-    await ui.act('resume');
-    assert.equal(pushes.length, 2, '기록 이동을 기다리지 않고 재진입한다');
-    dom.window.dispatch({ type: 'popstate', state: null }); await settle();
-    assert.equal(ui.q('[data-view="workspace"]').hidden, false, '늦은 이벤트는 새 작업 영역을 닫지 않는다');
-    assert.equal(ui.q('[data-view="studio-home"]').hidden, true);
-    dom.window.dispatch({ type: 'popstate', state: null }); await settle();
-    assert.equal(ui.q('[data-view="workspace"]').hidden, true, '다음 실제 제스처는 홈으로 간다');
-    assert.equal(ui.q('[data-view="studio-home"]').hidden, false);
-    assert.equal(backs, 1, '제스처에서 back()을 다시 부르지 않는다');
-  } finally { delete window.history; }
+  const history = installHistory(), ui = await mountStudio();
+  ui.q('[data-action="home"]').dispatchEvent({ type: 'click' });
+  assert.equal(history.backs, 1);
+  assertHome(ui);
+  ui.q('[data-action="resume"]').dispatchEvent({ type: 'click' });
+  assert.equal(history.pushes.length, 2, '기록 이동을 기다리지 않고 재진입한다');
+  await settle();
+  assert.equal(ui.q('[data-view="workspace"]').hidden, false, '늦은 이벤트는 새 작업 영역을 닫지 않는다');
+  assert.equal(ui.q('[data-view="studio-home"]').hidden, true);
+  window.history.back(); await settle();
+  assertHome(ui);
+  assert.equal(history.backs, 2, '다음 실제 제스처 한 번으로 홈에 오고 back()을 다시 부르지 않는다');
+  assert.equal(history.index, 0);
+});
+
+test('홈에서 앞으로 간 작업 영역 기록을 재사용하면 뒤로가기 한 번으로 홈에 온다', async () => {
+  const history = installHistory(), ui = await mountStudio();
+  window.history.back(); await settle(); assertHome(ui);
+  assert.equal(history.backs, 1);
+  window.history.forward(); await settle(); assertHome(ui);
+  assert.equal(history.forwards, 1);
+  assert.deepEqual(window.history.state, { collectibleWorkspace: true });
+  await ui.act('resume');
+  assert.equal(ui.q('[data-view="workspace"]').hidden, false);
+  assert.equal(history.pushes.length, 1, '앞으로 도착한 현재 항목을 재사용한다');
+  assert.equal(history.entries.length, 2);
+  window.history.back(); await settle(); assertHome(ui);
+  assert.equal(history.backs, 2, '재진입 뒤 뒤로가기는 한 번이다');
+  assert.equal(history.index, 0);
+});
+
+test('현재 작업 영역 기록에서 제작기를 다시 올리면 새 기록 없이 뒤로가기 한 번으로 홈에 온다', async () => {
+  const history = installHistory(), previous = await mountStudio();
+  previous.dispose();
+  assert.deepEqual(window.history.state, { collectibleWorkspace: true });
+  const ui = await mountStudio();
+  assert.equal(ui.q('[data-view="workspace"]').hidden, false);
+  assert.equal(history.pushes.length, 1, '다시 올린 제작기는 현재 항목을 재사용한다');
+  assert.equal(history.entries.length, 2);
+  window.history.back(); await settle(); assertHome(ui);
+  assert.equal(history.backs, 1);
+  assert.equal(history.index, 0);
 });
 
 test('history가 없는 환경에서도 열고 닫힌다', async () => {
@@ -482,66 +530,51 @@ test('history가 없는 환경에서도 열고 닫힌다', async () => {
 });
 
 test('저장한 초안을 열 때와 새 초안을 시작할 때도 이어서 편집하기처럼 기록을 하나씩만 넣는다', async () => {
-  const pushes = []; let backs = 0;
-  window.history = { pushState: (...args) => pushes.push(args), back: () => { backs++; } };
-  try {
-    const ui = await mountStudio();
-    assert.equal(pushes.length, 1, '새 초안으로 처음 들어온다');
-    await ui.act('draft'); await ui.act('next-step');
-    assert.equal(pushes.length, 1, '저장과 단계 이동은 기록을 더 넣지 않는다');
-    await ui.act('home');
-    assert.equal(backs, 1);
-    assert.equal(ui.q('[data-view="workspace"]').hidden, true);
-    dom.window.dispatch({ type: 'popstate' }); await settle();
-    await ui.click(ui.all('[data-action="open-project"]')[0]);
-    assert.equal(ui.q('[data-view="workspace"]').hidden, false, '저장한 초안을 열면 작업 영역이다');
-    assert.equal(pushes.length, 2, '저장한 초안 열기는 기록 하나');
-    await ui.act('home');
-    assert.equal(backs, 2);
-    dom.window.dispatch({ type: 'popstate' }); await settle();
-    await ui.act('new');
-    assert.equal(ui.q('[data-view="workspace"]').hidden, false, '새 초안을 시작하면 작업 영역이다');
-    assert.equal(pushes.length, 3, '새 초안 시작은 기록 하나');
-    assert.equal(ui.q('[data-view="workspace"]').dataset.step, '1');
-    for (const [state] of pushes) assert.deepEqual(state, { collectibleWorkspace: true });
-    dom.window.dispatch({ type: 'popstate' }); await settle();
-    assert.equal(ui.q('[data-view="studio-home"]').hidden, false, '새 초안에서도 뒤로가기는 홈이다');
-    assert.equal(backs, 2, '뒤로가기로 온 홈 이동은 back()을 부르지 않는다');
-  } finally { delete window.history; }
+  const history = installHistory(), ui = await mountStudio();
+  assert.equal(history.pushes.length, 1, '새 초안으로 처음 들어온다');
+  await ui.act('draft'); await ui.act('next-step');
+  assert.equal(history.pushes.length, 1, '저장과 단계 이동은 기록을 더 넣지 않는다');
+  await ui.act('home');
+  assert.equal(history.backs, 1);
+  assert.equal(ui.q('[data-view="workspace"]').hidden, true);
+  await ui.click(ui.all('[data-action="open-project"]')[0]);
+  assert.equal(ui.q('[data-view="workspace"]').hidden, false, '저장한 초안을 열면 작업 영역이다');
+  assert.equal(history.pushes.length, 2, '저장한 초안 열기는 기록 하나');
+  await ui.act('home');
+  assert.equal(history.backs, 2);
+  await ui.act('new');
+  assert.equal(ui.q('[data-view="workspace"]').hidden, false, '새 초안을 시작하면 작업 영역이다');
+  assert.equal(history.pushes.length, 3, '새 초안 시작은 기록 하나');
+  assert.equal(ui.q('[data-view="workspace"]').dataset.step, '1');
+  for (const [state] of history.pushes) assert.deepEqual(state, { collectibleWorkspace: true });
+  window.history.back(); await settle();
+  assert.equal(ui.q('[data-view="studio-home"]').hidden, false, '새 초안에서도 뒤로가기는 홈이다');
+  assert.equal(history.backs, 3, '뒤로가기로 온 홈 이동은 back()을 부르지 않는다');
 });
 
 test('← 스튜디오 버튼 뒤에 따라오는 popstate는 홈 이동도 초점 이동도 다시 하지 않는다', async () => {
-  const pushes = []; let backs = 0;
-  window.history = { pushState: (...args) => pushes.push(args), back: () => { backs++; } };
-  try {
-    const ui = await mountStudio();
-    await ui.act('home');
-    assert.equal(backs, 1);
-    const heading = ui.q('[data-view="studio-home"] h3'); let scrolls = 0;
-    heading.scrollIntoView = () => { scrolls++; };
-    const marker = ui.q('[data-action="resume"]'); marker.focus();
-    dom.window.dispatch({ type: 'popstate' }); await settle();
-    assert.ok(document.activeElement === marker, '이미 홈이면 초점을 머리글로 다시 옮기지 않는다'); // 실패 때 DOM 노드 전체를 비교·출력하느라 오래 걸리지 않게 equal 대신 ok
-    assert.equal(scrolls, 0, '홈 머리글로 다시 스크롤하지 않는다');
-    assert.equal(backs, 1, 'history.back()을 한 번 더 부르지 않는다');
-    assert.equal(ui.q('[data-view="studio-home"]').hidden, false);
-    assert.equal(ui.q('[data-view="workspace"]').hidden, true);
-    assert.equal(pushes.length, 1);
-  } finally { delete window.history; }
+  const history = installHistory(), ui = await mountStudio();
+  ui.q('[data-action="home"]').dispatchEvent({ type: 'click' });
+  assert.equal(history.backs, 1);
+  const heading = ui.q('[data-view="studio-home"] h3'); let scrolls = 0;
+  heading.scrollIntoView = () => { scrolls++; };
+  const marker = ui.q('[data-action="resume"]'); marker.focus();
+  await settle();
+  assert.ok(document.activeElement === marker, '이미 홈이면 초점을 머리글로 다시 옮기지 않는다');
+  assert.equal(scrolls, 0, '홈 머리글로 다시 스크롤하지 않는다');
+  assert.equal(history.backs, 1, 'history.back()을 한 번 더 부르지 않는다');
+  assertHome(ui);
+  assert.equal(history.pushes.length, 1);
 });
 
 test('작업 영역이 열린 채 제작기를 닫아도 history.back()을 부르지 않고 그 뒤 popstate도 무시한다', async () => {
-  const pushes = []; let backs = 0;
-  window.history = { pushState: (...args) => pushes.push(args), back: () => { backs++; } };
-  try {
-    const ui = await mountStudio();
-    assert.equal(ui.q('[data-view="workspace"]').hidden, false);
-    assert.equal(pushes.length, 1);
-    assert.doesNotThrow(() => ui.dispose());
-    assert.equal(backs, 0, '제작기를 닫을 때 기록을 소비하지 않는다');
-    assert.doesNotThrow(() => { dom.window.dispatch({ type: 'popstate' }); });
-    await settle();
-    assert.equal(backs, 0);
-    assert.equal(pushes.length, 1);
-  } finally { delete window.history; }
+  const history = installHistory(), ui = await mountStudio();
+  assert.equal(ui.q('[data-view="workspace"]').hidden, false);
+  assert.equal(history.pushes.length, 1);
+  assert.doesNotThrow(() => ui.dispose());
+  assert.equal(history.backs, 0, '제작기를 닫을 때 기록을 소비하지 않는다');
+  assert.doesNotThrow(() => window.history.back());
+  await settle();
+  assert.equal(history.backs, 1, '닫힌 제작기는 뒤로가기 이벤트에 반응하지 않는다');
+  assert.equal(history.pushes.length, 1);
 });
