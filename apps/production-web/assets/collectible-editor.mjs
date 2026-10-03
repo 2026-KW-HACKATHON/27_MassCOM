@@ -115,7 +115,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   // living 미리보기 전용 시계(PR #310 리뷰 P2). start는 재생·단계 이동마다 리셋되지만(카드 전체 동작용), living은
   // "지금 보는 등급" 선택이 바뀌어도 계속 흐르는 시간이 필요해 따로 둔다.
   const livingStart = performance.now();
-  let dirty = false, editSerial = 0, busy = false, restoring = false, pointer = null, visible = true, uploadSequence = 0;
+  let dirty = false, editSerial = 0, busy = false, restoring = false, pointer = null, uploadSequence = 0;
   let audioImportSequence = 0, storyImportSequence = 0, recordSequence = 0, recordingPending = false;
   const pendingFiles = new Set();
   let listed = new Map();
@@ -252,11 +252,20 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const control = name => container.querySelector(`[data-control="${name}"]`);
   const view = name => container.querySelector(`[data-view="${name}"]`);
   const output = name => container.querySelector(`[data-value="${name}"]`);
-  studio = createCollectibleStudio(container, { effectNames });
+  const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
+  studio = createCollectibleStudio(container, { effectNames, listen });
   const waveform = attachWaveform(view('audio'), view('waveform'), { signal });
   const previewCanvas = view('preview'), cropCanvas = view('crop'), storyCanvas = view('story');
   for (const [name, label] of [['zoom', '사진 확대'], ['angle', '회전 각도'], ['thickness', '두께']]) control(name).setAttribute('aria-label', label);
-  const notice = (text, error = false) => { if (!active) return; view('notice').textContent = text; view('notice').classList.toggle('ce-error', error); onNotice(text); };
+  const renderVisibility = new Map([[previewCanvas, true], [storyCanvas, true]]);
+  const anyRenderVisible = () => [...renderVisibility.values()].some(Boolean);
+  const notice = (text, error = false) => {
+    if (!active) return;
+    const target = view('notice');
+    target.setAttribute('role', error ? 'alert' : 'status');
+    target.setAttribute('aria-live', error ? 'assertive' : 'polite');
+    target.textContent = text; target.classList.toggle('ce-error', error); onNotice(text);
+  };
   function remember() { if (restoring) return; undo.push(cloneProject(project)); if (undo.length > 12) undo.shift(); redo = []; }
   // 15.1 인사말 미리보기: 지금 보는 등급·시즌 테마에 맞는 가장 구체적인 규칙을 보여 준다(서버 resolveGreeting과 같은 우선순위).
   function syncGreetingPreview() { view('greeting').textContent = resolveGreeting(project, selectedGrade); }
@@ -317,7 +326,6 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (active) { draftDecided = false; notice(collectibleErrorMessage(error, '저장하지 않은 편집을 이어서 열지 못했어요. 저장 목록을 새로 고치면 다시 시도해요.'), true); }
     }
   }
-  const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
   function syncValues() {
     renderCampaignOptions();
     const values = { name: project.name, shape: project.shape, style: project.style, zoom: project.crop.zoom, 'crop-x': project.crop.x, 'crop-y': project.crop.y, 'base-color': project.baseColor, 'photo-color': project.photoColor, relief: project.relief, angle: project.angle, thickness: project.thickness, greeting: project.greeting, theme: project.theme.name, campaign: project.campaignId, 'story-type': project.story.type, 'story-cartoon': project.story.cartoon, 'parallax-strength': project.parallax.strength, 'living-period': project.living.periodMs };
@@ -653,22 +661,23 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   async function tick(now) {
     frame = 0;
-    if (!active || document.hidden || !visible || studio.isHome) return;
+    if (!active || document.hidden || !anyRenderVisible() || studio.isHome) return;
     const allowMotion = !control('reduce-motion').checked;
     // living은 재생 버튼과 무관하게 "지금 보는 등급"에 걸려 있으면 계속 움직여야 한다(PR #310 리뷰 P2).
     const hasLiving = allowMotion && project.living.items.some(item => item.gradeIds.includes(selectedGrade));
-    if (previewQueued || ((playing || hasLiving) && allowMotion && now - lastFrame >= 65)) {
+    const coinVisible = renderVisibility.get(previewCanvas), storyVisible = renderVisibility.get(storyCanvas);
+    if (coinVisible && (previewQueued || ((playing || hasLiving) && allowMotion && now - lastFrame >= 65))) {
       previewQueued = false; lastFrame = now; await drawPreview(now - start, now - livingStart);
     }
-    if (playing && allowMotion) {
+    if (coinVisible && playing && allowMotion) {
       const tile = view('templates').querySelector(`[data-id="${selectedTemplate}"] canvas`);
       if (tile) try { await renderCollectible(tile, demoProject, 'bronze', { animation: selectedTemplate, time: now - start, textureSize: 120 }); } catch { playing = false; notice('애니메이션을 준비하지 못했어요. 정지 미리보기로 계속 편집할 수 있어요.', true); }
     }
-    if (storyPlaying) {
+    if (storyPlaying && storyVisible) {
       try { await renderStory(storyCanvas, project, { time: now - start, reducedMotion: !allowMotion }); } catch (error) { storyPlaying = false; notice(error.message || '이야기를 재생하지 못했어요. 장면 사진을 확인하고 다시 시도해 주세요.', true); }
       if (now - start >= 6000 || !allowMotion) storyPlaying = false;
     }
-    if (active && visible && !document.hidden && (playing && allowMotion || storyPlaying || previewQueued || hasLiving)) frame = requestAnimationFrame(tick);
+    if (active && !document.hidden && !studio.isHome && (coinVisible && (playing && allowMotion || previewQueued || hasLiving) || storyPlaying && storyVisible)) frame = requestAnimationFrame(tick);
   }
   function mediaPending() { return recordingPending || recorder?.state === 'recording' || [...pendingFiles].some(item => item.project === project); }
   function updateMediaLocks() {
@@ -726,7 +735,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   async function save(publish = false) {
     if (busy) return;
     if (mediaPending()) { notice('사진·음성을 불러오거나 녹음을 처리하고 있어요. 처리가 끝난 뒤 저장해 주세요.'); return; }
-    if (!project.name.trim()) { navigateStep(1); notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
+    if (!project.name.trim()) { navigateStep(4); control('name').closest('details').open = true; notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
     if (!project.theme.name.trim()) { navigateStep(4); notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
     if (project.stickers.some(item => !item.text.trim()) || project.back.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
     if (project.stickers.some(item => item.text.split('\n').length > 4) || project.back.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(3); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄을 지워 주세요.', true); return; }
@@ -1398,9 +1407,14 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   control('reduce-motion').checked = reducedMotion.matches;
   const preferenceChanged = event => { control('reduce-motion').checked = event.matches; if (event.matches) playing = false; schedulePreview(); };
   reducedMotion.addEventListener('change', preferenceChanged);
-  const intersection = globalThis.IntersectionObserver ? new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); if (visible) schedulePreview(); else { if (frame) cancelAnimationFrame(frame); frame = 0; } }) : null;
+  const intersection = globalThis.IntersectionObserver ? new IntersectionObserver(entries => {
+    for (const entry of entries) renderVisibility.set(entry.target, entry.isIntersecting);
+    if (anyRenderVisible()) schedulePreview();
+    else { if (frame) cancelAnimationFrame(frame); frame = 0; }
+  }) : null;
   // 모바일 고정 오버레이는 컨테이너와 위치가 달라 실제 미리보기 캔버스를 관찰한다.
   intersection?.observe(previewCanvas);
+  intersection?.observe(storyCanvas);
   syncValues(); drawCrop(); schedulePreview();
   refreshList();
   refreshCampaigns();
@@ -1411,6 +1425,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     clearTimeout(autosaveTimer);
     if (reason === 'discard') clearDraftStorage();
     else saveDraftLocally();
+    studio.dispose();
     active = false; controller.abort(); intersection?.disconnect(); if (frame) cancelAnimationFrame(frame); clearTimeout(recordingTimer);
     if (recorder?.state === 'recording') recorder.stop(); recordingStream?.getTracks().forEach(track => track.stop());
     view('audio').pause(); view('audio').removeAttribute('src'); reducedMotion.removeEventListener('change', preferenceChanged);

@@ -40,12 +40,13 @@ test('고정 작업 영역의 미리보기 캔버스를 관찰하고 표시되�
   try {
     ui = await mountStudio();
     const preview = ui.q('[data-view="preview"]');
-    assert.equal(observed.length, 1);
+    assert.equal(observed.length, 2);
+    assert.equal(observed[1], ui.q('[data-view="story"]'), '이야기 캔버스도 관찰한다');
     assert.ok(observed[0] === preview, '편집기 컨테이너 대신 미리보기 캔버스를 관찰한다');
-    callback([{ target: preview, isIntersecting: false }]);
+    callback([{ target: preview, isIntersecting: false }, { target: observed[1], isIntersecting: false }]);
     await ui.act('step', '2');
     // 단계 이동이 예약한 프레임도 취소한 뒤 표시 콜백 자체의 예약을 확인한다.
-    callback([{ target: preview, isIntersecting: false }]);
+    callback([{ target: preview, isIntersecting: false }, { target: observed[1], isIntersecting: false }]);
     const before = rafCalls;
     callback([{ target: preview, isIntersecting: true }]);
     assert.equal(rafCalls, before + 1, '미리보기가 표시되면 새 렌더 프레임을 예약한다');
@@ -608,4 +609,106 @@ test('작업 영역이 열린 채 제작기를 닫아도 history.back()을 부�
   await settle();
   assert.equal(history.backs, 1, '닫힌 제작기는 뒤로가기 이벤트에 반응하지 않는다');
   assert.equal(history.pushes.length, 1);
+});
+
+
+for (const action of ['draft', 'publish']) {
+  test(`${action}: 빈 이름은 4단계 접힘을 열고 이름 입력에 초점을 둔다`, async () => {
+    const ui = await mountStudio(), name = ui.q('[data-control="name"]');
+    name.value = ' '; name.dispatchEvent({ type: 'input' }); await settle();
+    name.closest('details').open = false;
+    if (action === 'draft') await ui.click(ui.q('.ce-menu-button'));
+    await ui.act(action);
+    assert.equal(ui.q('[data-view="workspace"]').dataset.step, '4');
+    assert.equal(name.closest('details').open, true);
+    assert.equal(document.activeElement, name);
+    assert.equal(ui.api.calls.some(call => call.method === 'POST' || call.method === 'PUT'), false);
+  });
+}
+
+test('오류 알림은 내용을 쓰기 전에 alert·assertive로, 일반 알림은 status·polite로 바꾼다', async () => {
+  const ui = await mountStudio(), notice = ui.q('[data-view="notice"]');
+  let prototype = notice;
+  while (!Object.getOwnPropertyDescriptor(prototype, 'textContent')) prototype = Object.getPrototypeOf(prototype);
+  const descriptor = Object.getOwnPropertyDescriptor(prototype, 'textContent'), writes = [];
+  Object.defineProperty(notice, 'textContent', {
+    get() { return descriptor.get.call(this); },
+    set(value) { writes.push([this.getAttribute('role'), this.getAttribute('aria-live')]); descriptor.set.call(this, value); },
+  });
+  await ui.act('auto-fit');
+  assert.match(notice.textContent, /먼저 사진/);
+  assert.deepEqual(writes.at(-1), ['alert', 'assertive']);
+  assert.equal(notice.classList.contains('ce-error'), true);
+  await ui.act('undo');
+  assert.match(notice.textContent, /되돌릴 편집/);
+  assert.deepEqual(writes.at(-1), ['status', 'polite']);
+  assert.equal(notice.classList.contains('ce-error'), false);
+});
+
+for (const phone of [true, false]) {
+  test(`${phone ? '폰' : '데스크톱'}: 배경 inert는 홈·화면 폭 변경·dispose에서 원래대로 복원한다`, async () => {
+    const media = document.createElement('div'); media.matches = phone;
+    dom.window.matchMedia = query => query === '(max-width: 820px)' ? media : { matches: false, addEventListener() {}, removeEventListener() {} };
+    const outer = document.createElement('main'), background = document.createElement('button'), preserved = document.createElement('button');
+    background.inert = false; preserved.inert = true;
+    const ui = await mountStudio(), sibling = document.createElement('button'); sibling.inert = false;
+    outer.append(ui.container, sibling); document.body.append(outer, background, preserved);
+    await ui.act('home'); await ui.act('resume');
+    assert.equal(background.inert, phone); assert.equal(sibling.inert, phone);
+    assert.equal(preserved.inert, true);
+    assert.equal(Boolean(outer.inert), false); assert.equal(Boolean(ui.container.inert), false);
+    assert.equal(Boolean(ui.q('[data-view="workspace"]').inert), false);
+    assert.equal(Boolean(ui.q('[data-view="studio-home"]').inert), phone);
+    await ui.act('home');
+    assert.equal(background.inert, false); assert.equal(sibling.inert, false); assert.equal(preserved.inert, true);
+    await ui.act('resume'); media.matches = false; media.dispatchEvent({ type: 'change' });
+    assert.equal(background.inert, false); assert.equal(sibling.inert, false);
+    media.matches = phone; media.dispatchEvent({ type: 'change' });
+    assert.equal(background.inert, phone); assert.equal(sibling.inert, phone);
+    ui.dispose();
+    assert.equal(background.inert, false); assert.equal(sibling.inert, false); assert.equal(preserved.inert, true);
+    media.matches = true; media.dispatchEvent({ type: 'change' });
+    assert.equal(background.inert, false, 'dispose는 화면 폭 리스너도 해제한다');
+  });
+}
+
+test('코인이 화면 밖이어도 보이는 이야기 캔버스는 RAF에서 계속 그린다', async () => {
+  const originalObserver = Object.getOwnPropertyDescriptor(globalThis, 'IntersectionObserver');
+  const originalRaf = globalThis.requestAnimationFrame, originalCancel = globalThis.cancelAnimationFrame;
+  let callback, sequence = 0, ui;
+  const frames = new Map();
+  globalThis.IntersectionObserver = class { constructor(handler) { callback = handler; } observe() {} disconnect() {} };
+  globalThis.requestAnimationFrame = handler => { frames.set(++sequence, handler); return sequence; };
+  globalThis.cancelAnimationFrame = id => frames.delete(id);
+  try {
+    ui = await mountStudio(); await ui.act('step', '4');
+    const photo = ui.q('[data-control="photo"]');
+    photo.files = [{ type: 'image/png', size: 1000, name: 'shop.png', dataUrl: 'data:image/png;base64,AAAA' }];
+    photo.dispatchEvent({ type: 'change' }); await settle();
+    const type = ui.q('[data-control="story-type"]'); type.value = 'zoom'; type.dispatchEvent({ type: 'change' }); await settle();
+    const coin = ui.q('[data-view="preview"]'), story = ui.q('[data-view="story"]');
+    let storyDraws = 0, coinDraws = 0;
+    story.getContext('2d').drawImage = () => storyDraws++;
+    coin.getContext('2d').drawImage = () => coinDraws++;
+    callback([{ target: coin, isIntersecting: false }, { target: story, isIntersecting: true }]);
+    await ui.act('story-test');
+    const now = performance.now();
+    for (const time of [now + 100, now + 200]) {
+      const pending = [...frames.values()]; frames.clear();
+      assert.ok(pending.length > 0, '이야기 재생 프레임이 예약된다');
+      for (const run of pending) await run(time);
+    }
+    assert.equal(storyDraws, 2, '연속 RAF가 이야기 렌더를 호출한다');
+    assert.equal(coinDraws, 0, '화면 밖 코인은 그리지 않는다');
+    callback([{ target: story, isIntersecting: false }]);
+    assert.equal(frames.size, 0, '모든 대상이 화면 밖이면 중지한다');
+    callback([{ target: coin, isIntersecting: true }]);
+    const pending = [...frames.values()]; frames.clear();
+    for (const run of pending) await run(now + 300);
+    assert.equal(coinDraws, 1, '코인이 다시 보이면 그린다');
+    assert.equal(storyDraws, 2, '화면 밖 이야기는 그리지 않는다');
+  } finally {
+    ui?.dispose(); globalThis.requestAnimationFrame = originalRaf; globalThis.cancelAnimationFrame = originalCancel;
+    if (originalObserver) Object.defineProperty(globalThis, 'IntersectionObserver', originalObserver); else delete globalThis.IntersectionObserver;
+  }
 });

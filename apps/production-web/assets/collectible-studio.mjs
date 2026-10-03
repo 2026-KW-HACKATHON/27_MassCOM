@@ -59,7 +59,7 @@ function seasonTiles(name) {
 }
 
 /** Reuses the editor's controls and canvases; navigation never copies project state. */
-export function createCollectibleStudio(container, { effectNames }) {
+export function createCollectibleStudio(container, { effectNames, listen }) {
   const controlsByName = new Map([...container.querySelectorAll('[data-control]')].map(value => [value.dataset.control, value]));
   const viewsByName = new Map([...container.querySelectorAll('[data-view]')].map(value => [value.dataset.view, value]));
   const control = name => controlsByName.get(name) || container.querySelector(`[data-control="${name}"]`);
@@ -89,6 +89,24 @@ export function createCollectibleStudio(container, { effectNames }) {
   let homeTheme = '기본', currentStep = 1, hasCurrent = false;
   let historyEntry = window.history?.state?.collectibleWorkspace === true, pendingBack = false;
   const workspace = node('div', 'ce-workspace'); workspace.hidden = true; workspace.dataset.view = 'workspace'; workspace.dataset.step = '1';
+  const phoneLayout = window.matchMedia?.('(max-width: 820px)');
+  const inertBackground = new Map();
+  function restoreBackground() {
+    for (const [target, previous] of inertBackground) target.inert = previous;
+    inertBackground.clear();
+  }
+  function syncBackground() {
+    restoreBackground();
+    if (workspace.hidden || !phoneLayout?.matches) return;
+    // 작업 영역의 조상은 그대로 두고 형제만 잠근다.
+    for (let current = workspace; current !== document.body && current.parentElement; current = current.parentElement) {
+      for (const sibling of current.parentElement.children) {
+        if (sibling === current || sibling.inert) continue;
+        inertBackground.set(sibling, Boolean(sibling.inert)); sibling.inert = true;
+      }
+    }
+  }
+  if (phoneLayout?.addEventListener) listen(phoneLayout, 'change', syncBackground);
   const workspaceHeading = node('div', 'ce-workspace-heading');
   const title = node('h3', 'ce-step-title'); title.tabIndex = -1; title.id = `collectible-step-${Math.random().toString(36).slice(2, 9)}`;
   workspaceHeading.append(action('← 스튜디오', 'home', undefined, 'ce-home-button'), title, node('span', 'ce-step-count', '1 / 4')); workspace.append(workspaceHeading);
@@ -235,7 +253,7 @@ export function createCollectibleStudio(container, { effectNames }) {
       const brushTarget = control('brush-target');
       if (brushTarget.value !== 'photo') { brushTarget.value = 'photo'; brushTarget.dispatchEvent(new Event('change', { bubbles: true })); }
     }
-    currentStep = next; home.hidden = true; workspace.hidden = false; hasCurrent = true;
+    currentStep = next; home.hidden = true; workspace.hidden = false; hasCurrent = true; syncBackground();
     const cropSlot = cropSlots[currentStep === 3 ? 1 : currentStep === 4 ? 2 : 0];
     if (crop.parentElement !== cropSlot) cropSlot.append(crop);
     workspace.dataset.step = String(currentStep); title.textContent = steps[currentStep - 1]; workspace.querySelector('.ce-step-count').textContent = `${currentStep} / 4`;
@@ -253,6 +271,7 @@ export function createCollectibleStudio(container, { effectNames }) {
   }
   function showHome(focus = true, { fromHistory = false } = {}) {
     if (historyEntry) { historyEntry = false; if (!fromHistory && window.history?.back) { pendingBack = true; window.history.back(); } }
+    restoreBackground();
     workspace.hidden = true; home.hidden = false; resume.hidden = !hasCurrent; home.prepend(noticeView); setMenu(false);
     if (focus) { const heading = home.querySelector('h3'); heading.tabIndex = -1; heading.focus({ preventScroll: true }); heading.scrollIntoView({ block: 'start', behavior: 'instant' }); }
   }
@@ -271,7 +290,7 @@ export function createCollectibleStudio(container, { effectNames }) {
     for (const tile of container.querySelectorAll('[data-action="home"],[data-action="step"],[data-action="resume"],[data-action="open-project"],[data-action="previous-step"],[data-action="next-step"],[data-action="season"],[data-action="theme"]')) tile.disabled = value;
   }
   return {
-    showStep, showHome, renderProjects, setBusy,
+    showStep, showHome, renderProjects, setBusy, dispose: restoreBackground,
     setHistoryEntry(value) { historyEntry = value; },
     // 홈 버튼의 늦은 기록 이동은 재진입한 작업 영역을 닫지 않는다.
     consumePendingBack() { const pending = pendingBack; pendingBack = false; return pending; },
