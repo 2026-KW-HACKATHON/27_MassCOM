@@ -25,7 +25,8 @@ import {
 import { shopDrawHeading, shopDrawIntro } from '@/shop/shop-copy';
 import { useShop } from '@/shop/use-shop';
 
-import { DrawReveal } from './draw-reveal';
+import { GachaMachine } from './gacha-machine';
+import { FullScreenModal } from '@/gamification/full-screen-modal';
 import { HistorySection } from './history-section';
 import { useShopStyles } from './use-shop-styles';
 
@@ -34,10 +35,13 @@ export const SHOP_SUBTITLE = '마일리지를 모아 가게 친구를 뽑아요'
 
 type Notice = { tone: 'success' | 'error'; text: string };
 
-export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
+export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = false, gachaVisible = true, onGachaClose }: {
   apiUrl: string;
   credential: AccountCredential;
   onSessionInvalid: () => Promise<void>;
+  gachaOnly?: boolean;
+  gachaVisible?: boolean;
+  onGachaClose?: () => void;
 }) {
   const clearance = useTabBarClearance();
   const insets = useSafeAreaInsets();
@@ -48,10 +52,18 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
 
   const api = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const shop = useShop(api);
+  // 방문 진입을 다시 열 때 최신 적립분을 읽되, 응답을 놓친 구매의 requestId/소유 스냅샷은 유지한다.
+  const refreshGachaSnapshot = shop.refreshQuietly;
+  useEffect(() => {
+    if (gachaOnly && gachaVisible) void refreshGachaSnapshot();
+  }, [gachaOnly, gachaVisible, refreshGachaSnapshot]);
   const [refreshing, setRefreshing] = useState(false);
   const [pending, setPending] = useState<PendingPurchase>();
   const [busyGrade, setBusyGrade] = useState<MileageGrade>();
   const [notice, setNotice] = useState<Notice>();
+  const [machineOpen, setMachineOpen] = useState(gachaOnly);
+  const [ownedBefore, setOwnedBefore] = useState<readonly string[]>([]);
+  const purchaseOwnership = useRef<readonly string[]>([]);
   const [reveal, setReveal] = useState<ShopRerollResult>();
   // chooseAvatar()는 요청이 날아가 있는 동안 모달이 닫혀도(onClose) 실패를 어디에 보여줄지 그 순간의 실제 모달
   // 상태로 판단해야 한다 — state를 그대로 읽으면 요청을 시작할 때의 render가 캡처한 낡은 값을 쓰게 된다
@@ -106,7 +118,8 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
     setRefreshing(true);
     setHistoryRefreshToken((value) => value + 1);
     try {
-      await quietRefresh();
+      const refreshed = await quietRefresh();
+      if (refreshed) setNotice(undefined);
     } finally {
       setRefreshing(false);
     }
@@ -116,7 +129,11 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
     // avatarBusy 동안에도 새 뽑기를 막는다 — 안 그러면 닫힌 모달에서 아직 날아가고 있는 대표 설정 요청이
     // 실패했을 때 그 알림이 방금 연 새 뽑기 모달 뒤에 깔려 아무도 못 본다(PR #312 리뷰 라운드 4).
     if (busyGrade || avatarBusy) return;
+    if (refreshing) return;
     const attempt = resumeOrStartPurchase(pending, grade.grade);
+    if (attempt !== pending) purchaseOwnership.current = shop.snapshot?.items.filter((item) => item.owned).map((item) => item.id) ?? [];
+    setOwnedBefore(purchaseOwnership.current);
+    setReveal(undefined);
     setPending(attempt);
     setBusyGrade(grade.grade);
     setNotice(undefined);
@@ -135,7 +152,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
         const refreshed = await shop.refreshQuietly();
         setNotice({
           tone: 'error',
-          text: refreshed ? shopErrorMessage(error) : '상품 정보를 다시 불러오지 못했어요. 아래로 당겨 새로고침한 뒤 다시 시도해 주세요.',
+          text: refreshed ? shopErrorMessage(error) : '상품 정보를 다시 불러오지 못했어요. 상점 다시 불러오기를 누른 뒤 다시 시도해 주세요.',
         });
       } else {
         setNotice({ tone: 'error', text: shopErrorMessage(error) });
@@ -159,7 +176,11 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
     try {
       const { avatar } = await api.setAvatar(itemId);
       shop.applyAvatar(avatar);
-      if (targetReveal && revealRef.current === targetReveal) setReveal(undefined);
+      if (targetReveal && revealRef.current === targetReveal) {
+        setReveal(undefined);
+        setMachineOpen(false);
+        onGachaClose?.();
+      }
     } catch (error) {
       if (targetReveal && revealRef.current === targetReveal) setAvatarError(shopErrorMessage(error));
       else setNotice({ tone: 'error', text: shopErrorMessage(error) });
@@ -190,7 +211,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
       </View>
     </AppHeader>
   );
-  // extra는 뽑기 연출(DrawReveal)을 위한 자리: 다른 화면의 모달들(collection/index.tsx의 CollectibleReveal 등)과
+  // extra는 뽑기 연출(GachaMachine)을 위한 자리: 다른 화면의 모달들(collection/index.tsx의 CollectibleReveal 등)과
   // 같게 SkyScrollView 다음, 여전히 SkyBackdrop 안에 둔다(PR #312 QA) — 둘을 따로 반환하면 RefreshControl 등
   // 머리글 배선을 통째로 또 써야 한다.
   // retryScroll은 로딩/오류 두 갈래에서만 true다 — skyScrollView를 매개변수로 건네면(ref를 함수에 전달) lint의
@@ -211,6 +232,17 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
     </SkyBackdrop>
   );
 
+  if (!shop.snapshot && gachaOnly) {
+    if (!gachaVisible) return null;
+    return <FullScreenModal visible animationType="fade" onRequestClose={onGachaClose ?? (() => {})}>
+      <View style={{ flex: 1, justifyContent: 'center', backgroundColor: palette.background }}>
+        <StateScene kind={shop.status === 'error' ? 'error' : 'loading'} title={shop.status === 'error' ? '상점을 불러오지 못했어요' : '상점을 불러오는 중'}
+          action={shop.status === 'error' ? { label: '다시 불러오기', onPress: () => { void shop.retry(); } } : undefined} />
+        <BounceButton label="닫기" onPress={onGachaClose ?? (() => {})} />
+      </View>
+    </FullScreenModal>;
+  }
+
   if (!shop.snapshot) {
     return shop.status === 'error'
       ? sky(<StateScene kind="error" title="상점을 불러오지 못했어요" body={shopErrorMessage(shop.error)} action={{ label: '다시 불러오기', onPress: () => { void shop.retry(); }, disabled: shop.retrying }} />, undefined, true)
@@ -219,6 +251,17 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
 
   const { snapshot } = shop;
   const grid = buildFriendGrid(snapshot.items, snapshot.avatar);
+  const machine = (gachaOnly ? gachaVisible : machineOpen) ? <GachaMachine
+    snapshot={snapshot} result={reveal} ownedBefore={ownedBefore} isAvatar={snapshot.avatar === reveal?.item.id}
+    busy={Boolean(busyGrade) || avatarBusy} error={notice?.tone === 'error' ? notice.text : undefined}
+    avatarBusy={avatarBusy} avatarError={avatarError}
+    refreshing={refreshing} onRefresh={() => { void refresh(); }}
+    onDraw={(grade) => { void buy(grade); }}
+    onSetAvatar={() => { if (reveal) void chooseAvatar(reveal.item.id, reveal); }}
+    onClose={() => { setMachineOpen(false); setReveal(undefined); setAvatarError(undefined); onGachaClose?.(); }}
+  /> : null;
+  if (gachaOnly) return machine;
+
 
   return sky(
     <>
@@ -250,7 +293,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
               balance={snapshot.mileage.balance}
               busy={busyGrade === grade.grade}
               purchaseBusy={Boolean(busyGrade) || avatarBusy}
-              onBuy={() => void buy(grade)}
+              onBuy={() => { setReveal(undefined); setNotice(undefined); setMachineOpen(true); }}
               styles={styles}
             />
           ))}
@@ -266,16 +309,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
         </View>
       </Stagger>
     </>,
-    reveal ? (
-      <DrawReveal
-        result={reveal}
-        isAvatar={snapshot.avatar === reveal.item.id}
-        avatarBusy={avatarBusy}
-        avatarError={avatarError}
-        onSetAvatar={() => void chooseAvatar(reveal.item.id, reveal)}
-        onClose={() => { setReveal(undefined); setAvatarError(undefined); }}
-      />
-    ) : null,
+    machine,
   );
 }
 
