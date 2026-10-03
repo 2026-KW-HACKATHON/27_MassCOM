@@ -8,9 +8,11 @@ import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 import { runMigrations } from './postgres/migrate.js';
+import { PostgresReversalService } from './postgres/reversal.js';
 import { PostgresVisitorFeedbackService } from './postgres/visitor-feedback.js';
 import { maskedCustomerLabel } from './reversal-rules.js';
 import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { maskedVisitorFeedbackLabel } from './visitor-feedback-rules.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 const hmacSecret = 'test-only-visitor-feedback-account-secret-at-least-32-bytes';
@@ -33,9 +35,11 @@ async function setup(t: TestContext) {
   const lifecycle = new PostgresAccountLifecycle({ hmacSecret });
   return {
     pool,
+    lifecycle,
     state,
     now,
     feedback: new PostgresVisitorFeedbackService(pool, { accountLifecycle: lifecycle, labelHmacSecret: labelSecret, now }),
+    reversal: new PostgresReversalService(pool, { accountLifecycle: lifecycle, labelHmacSecret: labelSecret, now }),
     catalog: new PostgresMerchantCatalog(pool, now),
     deletion: new PostgresAccountDeletionService(pool, {
       hmacSecret, policyVersion: 'account-deletion-v1', now, accountLifecycle: lifecycle,
@@ -73,8 +77,8 @@ async function addMerchant(pool: Pool, id: string, options: { isDemo?: boolean }
 }
 
 async function addVisit(pool: Pool, input: {
-  account: string; merchant: string; date?: string; status?: 'VALID' | 'CANCELED'; excluded?: 'STAFF_SELF';
-}): Promise<void> {
+  account: string; merchant: string; date?: string; status?: 'VALID' | 'CANCELED'; excluded?: 'STAFF_SELF'; counted?: boolean;
+}): Promise<string> {
   const claimSlotId = randomUUID();
   // 직원 본인 적립은 직원 계정이 그 가게의 멤버여야 만들어진다(claim_slots의 멤버 FK).
   if (input.excluded) {
@@ -96,14 +100,17 @@ async function addVisit(pool: Pool, input: {
       randomBytes(32), at],
   );
   const canceled = input.status === 'CANCELED';
+  const visitId = randomUUID();
   await pool.query(
     `INSERT INTO visit_events (
        id, claim_slot_id, merchant_id, campaign_id, customer_account_id, occurred_at, business_date,
        verification_level, status, progress_counted, cancellation_reason, progress_excluded_reason
      ) VALUES ($1, $2, $3, $4, $5, $6, $7::date, 'MERCHANT_CONFIRMED', $8, $9, $10, $11)`,
-    [randomUUID(), claimSlotId, input.merchant, `campaign-${input.merchant}`, input.account, at, date,
-      canceled ? 'CANCELED' : 'VALID', !canceled && !input.excluded, canceled ? '시험 취소' : null, input.excluded ?? null],
+    [visitId, claimSlotId, input.merchant, `campaign-${input.merchant}`, input.account, at, date,
+      canceled ? 'CANCELED' : 'VALID', !canceled && !input.excluded && (input.counted ?? true),
+      canceled ? '시험 취소' : null, input.excluded ?? null],
   );
+  return visitId;
 }
 
 // 방문 자격을 갖춘 손님이 같은 가게에 태그를 남긴 상태를 직접 만든다(집계·요약 시험용).
@@ -133,14 +140,20 @@ test('migration 0040 creates the feedback table with its key, index and the code
   await rejected('{SOLO,SOLO}', '{}', null, 'merchant_visitor_feedback_tags_check');
   await rejected('{SOLO,NULL}', '{}', null, 'merchant_visitor_feedback_tags_check');
   await rejected('{{SOLO,SOLO,KIND}}', '{}', null, 'merchant_visitor_feedback_tags_check');
+  await rejected('{{SOLO},{KIND}}', '{}', null, 'merchant_visitor_feedback_tags_check');
   await rejected('{}', '{TAKEOUT}', null, 'merchant_visitor_feedback_suggestions_check');
   await rejected('{}', '{SOLO_MENU,SPICE_LABEL,MORE_PHOTOS}', null, 'merchant_visitor_feedback_suggestions_check');
   await rejected('{}', '{HOURS_INFO,HOURS_INFO}', null, 'merchant_visitor_feedback_suggestions_check');
+  await rejected('{}', '{{SOLO_MENU},{HOURS_INFO}}', null, 'merchant_visitor_feedback_suggestions_check');
   await rejected('{KIND}', '{}', '가'.repeat(101), 'merchant_visitor_feedback_note_check');
   await rejected('{KIND}', '{}', '   ', 'merchant_visitor_feedback_note_check');
   await rejected('{}', '{}', null, 'merchant_visitor_feedback_not_empty_check');
   // 경계값은 들어간다: 태그 3개·바라는 점 2개·100자 의견.
   await insert('{SOLO,TAKEOUT,GENEROUS}', '{SOLO_MENU,HOURS_INFO}', '가'.repeat(100));
+  assert.equal(await rowCount(pool), 1);
+  await pool.query(
+    `UPDATE merchant_visitor_feedback SET tags = '{}'::text[], suggestions = '{}'::text[], note = '빈 배열도 허용'`
+  );
   assert.equal(await rowCount(pool), 1);
   // 계정·가게당 한 줄이고 없는 가게는 가리킬 수 없다.
   await assert.rejects(insert('{KIND}', '{}', null), { code: '23505' });
@@ -177,6 +190,38 @@ test('a visitor with a counted visit can save, re-save overwrites the single row
   assert.equal(row.updated_at.toISOString(), '2026-10-04T05:00:00.000Z');
   // 다른 손님·다른 가게의 선택은 건드리지 않는다.
   assert.deepEqual(await db.feedback.getMine('customer-2', 'shop-a'), empty);
+});
+
+test('getMine reads only this store when one customer has different selections at two stores', async (t) => {
+  const db = await setup(t);
+  await addMerchant(db.pool, 'shop-a');
+  await addMerchant(db.pool, 'shop-b');
+  await addVisit(db.pool, { account: 'customer-1', merchant: 'shop-a' });
+  await addVisit(db.pool, { account: 'customer-1', merchant: 'shop-b' });
+  const inA = { tags: ['KIND'], suggestions: [], note: '가게 A' };
+  const inB = { tags: ['SOLO'], suggestions: ['HOURS_INFO'], note: '가게 B' };
+  await db.feedback.upsert('customer-1', 'shop-a', inA);
+  await db.feedback.upsert('customer-1', 'shop-b', inB);
+  assert.deepEqual(await db.feedback.getMine('customer-1', 'shop-a'), inA);
+  assert.deepEqual(await db.feedback.getMine('customer-1', 'shop-b'), inB);
+});
+
+test('empty withdrawal removes only this customer at this store', async (t) => {
+  const db = await setup(t);
+  await addMerchant(db.pool, 'shop-a');
+  await addMerchant(db.pool, 'shop-b');
+  const removed = { tags: ['KIND'], suggestions: [], note: null };
+  const otherStore = { tags: ['SOLO'], suggestions: [], note: '다른 가게' };
+  const otherCustomer = { tags: ['QUIET'], suggestions: [], note: '다른 손님' };
+  await vote(db, 'customer-1', 'shop-a', removed);
+  await vote(db, 'customer-1', 'shop-b', otherStore);
+  await vote(db, 'customer-2', 'shop-a', otherCustomer);
+  assert.equal(await rowCount(db.pool), 3);
+  assert.deepEqual(await db.feedback.upsert('customer-1', 'shop-a', empty), empty);
+  assert.deepEqual(await db.feedback.getMine('customer-1', 'shop-a'), empty);
+  assert.deepEqual(await db.feedback.getMine('customer-1', 'shop-b'), otherStore);
+  assert.deepEqual(await db.feedback.getMine('customer-2', 'shop-a'), otherCustomer);
+  assert.equal(await rowCount(db.pool), 2);
 });
 
 test('saving all three empty deletes the row, also for someone who can no longer save', async (t) => {
@@ -232,6 +277,163 @@ test('only a counted, valid visit to that very store qualifies, and a trial stor
     `INSERT INTO showcase_guest_trials (account_id, merchant_id, expires_at) VALUES ('trialist', 'trial-shop', now() + interval '1 day')`);
   await assert.rejects(save('trialist', 'trial-shop'), notEligible, 'a trial store does not accept feedback');
   assert.equal(await rowCount(db.pool, `merchant_id = 'trial-shop'`), 0);
+
+  // 체험 계정 자체는 일반 가게 방문이 있어도 새 의견을 쓸 수 없다.
+  await addVisit(db.pool, { account: 'trialist', merchant: 'shop-a' });
+  await assert.rejects(save('trialist', 'shop-a'), notEligible);
+  await db.pool.query(
+    `INSERT INTO merchant_visitor_feedback (customer_account_id, merchant_id, tags)
+     VALUES ('trialist', 'shop-a', '{KIND}')`,
+  );
+  assert.deepEqual(await db.feedback.upsert('trialist', 'shop-a', empty), empty);
+  assert.equal(await rowCount(db.pool, `customer_account_id = 'trialist'`), 0);
+});
+
+test('another account trial at another store does not block a normal visitor at shop-a', async (t) => {
+  const db = await setup(t);
+  await addMerchant(db.pool, 'shop-a');
+  await addMerchant(db.pool, 'trial-shop');
+  await db.pool.query(
+    `INSERT INTO showcase_guest_trials (account_id, merchant_id, expires_at)
+     VALUES ('other-trialist', 'trial-shop', now() + interval '1 day')`,
+  );
+  await addVisit(db.pool, { account: 'customer-1', merchant: 'shop-a' });
+  assert.deepEqual(await db.feedback.upsert('customer-1', 'shop-a', {
+    tags: ['KIND'], suggestions: [], note: null,
+  }), { tags: ['KIND'], suggestions: [], note: null });
+  assert.equal(await rowCount(db.pool, `customer_account_id = 'customer-1' AND merchant_id = 'shop-a'`), 1);
+});
+
+test('canceling the only valid visit removes its feedback in the same transaction', async (t) => {
+  const db = await setup(t);
+  await addMerchant(db.pool, 'shop-a');
+  const visitId = await addVisit(db.pool, { account: 'customer-1', merchant: 'shop-a', date: '2026-10-03' });
+  await addVisit(db.pool, { account: 'customer-1', merchant: 'shop-a', date: '2026-09-20', excluded: 'STAFF_SELF' });
+  await addVisit(db.pool, { account: 'customer-1', merchant: 'shop-a', date: '2026-09-19', status: 'CANCELED' });
+  await db.feedback.upsert('customer-1', 'shop-a', { tags: ['KIND'], suggestions: [], note: null });
+  await db.reversal.cancelVisit({ merchantId: 'shop-a', staffAccountId: 'staff', visitEventId: visitId, reason: 'OTHER' });
+  assert.equal(await rowCount(db.pool, `customer_account_id = 'customer-1' AND merchant_id = 'shop-a'`), 0);
+  assert.deepEqual(await db.feedback.getMine('customer-1', 'shop-a'), empty);
+});
+
+test('canceling a new visit keeps feedback when an older valid visit exists', async (t) => {
+  const db = await setup(t);
+  await addMerchant(db.pool, 'shop-a');
+  await addVisit(db.pool, { account: 'customer-1', merchant: 'shop-a', date: '2026-09-20' });
+  const today = await addVisit(db.pool, { account: 'customer-1', merchant: 'shop-a', date: '2026-10-03' });
+  const selection = { tags: ['KIND'], suggestions: [], note: '좋아요' };
+  await db.feedback.upsert('customer-1', 'shop-a', selection);
+  await db.reversal.cancelVisit({ merchantId: 'shop-a', staffAccountId: 'staff', visitEventId: today, reason: 'OTHER' });
+  assert.deepEqual(await db.feedback.getMine('customer-1', 'shop-a'), selection);
+  assert.equal(await rowCount(db.pool, `customer_account_id = 'customer-1' AND merchant_id = 'shop-a'`), 1);
+});
+
+test('canceling one same-day visit keeps feedback when another remains VALID', async (t) => {
+  const db = await setup(t);
+  await addMerchant(db.pool, 'shop-a');
+  const canceled = await addVisit(db.pool, { account: 'customer-1', merchant: 'shop-a', date: '2026-10-03' });
+  const remaining = await addVisit(db.pool, { account: 'customer-1', merchant: 'shop-a', date: '2026-10-03', counted: false });
+  const selection = { tags: ['SOLO'], suggestions: [], note: null };
+  await db.feedback.upsert('customer-1', 'shop-a', selection);
+  await db.reversal.cancelVisit({ merchantId: 'shop-a', staffAccountId: 'staff', visitEventId: canceled, reason: 'DUPLICATE' });
+  assert.deepEqual(await db.feedback.getMine('customer-1', 'shop-a'), selection);
+  assert.equal((await db.pool.query<{ status: string }>('SELECT status FROM visit_events WHERE id = $1', [remaining])).rows[0]!.status, 'VALID');
+});
+
+async function waitForDbLock(pool: Pool, applicationName: string, event?: string): Promise<void> {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const waiting = await pool.query<{ waiting: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM pg_stat_activity
+         WHERE datname = current_database() AND application_name = $1
+           AND wait_event_type = 'Lock' AND ($2::text IS NULL OR wait_event = $2)
+       ) AS waiting`,
+      [applicationName, event ?? null],
+    );
+    if (waiting.rows[0]!.waiting) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.fail(`${applicationName} did not wait on a database lock`);
+}
+
+test('cancel and upsert serialize through the customer account lock in either order', async (t) => {
+  const db = await setup(t);
+  await addMerchant(db.pool, 'shop-a');
+  const connectionString = process.env.TEST_DATABASE_URL!;
+  const cancelPool = new Pool({ connectionString, application_name: 'feedback-cancel-race', max: 1 });
+  const savePool = new Pool({ connectionString, application_name: 'feedback-save-race', max: 1 });
+  t.after(async () => { await cancelPool.end(); await savePool.end(); });
+  const canceler = new PostgresReversalService(cancelPool, {
+    accountLifecycle: db.lifecycle, labelHmacSecret: labelSecret, now: db.now,
+  });
+  const saver = new PostgresVisitorFeedbackService(savePool, {
+    accountLifecycle: db.lifecycle, labelHmacSecret: labelSecret, now: db.now,
+  });
+  const cancel = (visitEventId: string) => canceler.cancelVisit({
+    merchantId: 'shop-a', staffAccountId: 'staff', visitEventId, reason: 'OTHER',
+  });
+
+  // 저장이 계정 잠금을 쥔 채 피드백 행을 기다리면 취소가 뒤따라 지운다.
+  const first = await addVisit(db.pool, { account: 'customer-first-save', merchant: 'shop-a', date: '2026-10-03' });
+  await db.feedback.upsert('customer-first-save', 'shop-a', { tags: ['KIND'], suggestions: [], note: null });
+  const feedbackBlocker = await db.pool.connect();
+  await feedbackBlocker.query('BEGIN');
+  const firstPending: Promise<unknown>[] = [];
+  try {
+    await feedbackBlocker.query(
+      `SELECT 1 FROM merchant_visitor_feedback WHERE customer_account_id = 'customer-first-save' AND merchant_id = 'shop-a' FOR UPDATE`,
+    );
+    const saving = saver.upsert('customer-first-save', 'shop-a', { tags: ['SOLO'], suggestions: [], note: null });
+    void saving.catch(() => undefined);
+    firstPending.push(saving);
+    await waitForDbLock(db.pool, 'feedback-save-race');
+    const canceling = cancel(first);
+    void canceling.catch(() => undefined);
+    firstPending.push(canceling);
+    await waitForDbLock(db.pool, 'feedback-cancel-race', 'advisory');
+    await feedbackBlocker.query('COMMIT');
+    await saving;
+    await canceling;
+  } finally {
+    await feedbackBlocker.query('ROLLBACK');
+    feedbackBlocker.release();
+    await Promise.allSettled(firstPending);
+  }
+  assert.equal(await rowCount(db.pool, `customer_account_id = 'customer-first-save' AND merchant_id = 'shop-a'`), 0);
+
+  // 취소가 계정 잠금을 쥔 채 방문 행을 기다리면 뒤의 저장은 취소 후 자격 검사를 받는다.
+  const second = await addVisit(db.pool, { account: 'customer-first-cancel', merchant: 'shop-a', date: '2026-10-03' });
+  await db.feedback.upsert('customer-first-cancel', 'shop-a', { tags: ['KIND'], suggestions: [], note: null });
+  const visitBlocker = await db.pool.connect();
+  await visitBlocker.query('BEGIN');
+  const secondPending: Promise<unknown>[] = [];
+  try {
+    await visitBlocker.query('SELECT 1 FROM visit_events WHERE id = $1 FOR UPDATE', [second]);
+    const canceling = cancel(second);
+    void canceling.catch(() => undefined);
+    secondPending.push(canceling);
+    await waitForDbLock(db.pool, 'feedback-cancel-race');
+    const saving = saver.upsert('customer-first-cancel', 'shop-a', { tags: ['SOLO'], suggestions: [], note: null });
+    void saving.catch(() => undefined);
+    secondPending.push(saving);
+    await waitForDbLock(db.pool, 'feedback-save-race', 'advisory');
+    await visitBlocker.query('COMMIT');
+    await canceling;
+    await assert.rejects(saving, rejectsWith('VISITOR_FEEDBACK_NOT_ELIGIBLE'));
+  } finally {
+    await visitBlocker.query('ROLLBACK');
+    visitBlocker.release();
+    await Promise.allSettled(secondPending);
+  }
+  assert.equal(await rowCount(db.pool, `customer_account_id = 'customer-first-cancel' AND merchant_id = 'shop-a'`), 0);
+  assert.equal((await db.pool.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM merchant_visitor_feedback AS feedback
+     WHERE NOT EXISTS (SELECT 1 FROM visit_events AS visit
+       WHERE visit.customer_account_id = feedback.customer_account_id
+         AND visit.merchant_id = feedback.merchant_id
+         AND visit.status = 'VALID' AND visit.progress_excluded_reason IS NULL)`,
+  )).rows[0]!.n, 0);
 });
 
 test('invalid tags, suggestions and notes are rejected with distinct codes before anything is written', async (t) => {
@@ -319,17 +521,19 @@ test('the store summary counts every tag and suggestion, lists the latest notes 
   ]);
   // 의견은 최근 것부터이고 의견 없는 손님은 빠진다. 표시는 가린 라벨, 날짜는 한국 날짜뿐이다.
   assert.deepEqual(summary.notes, [
-    { customerLabel: maskedCustomerLabel(labelSecret, 'shop-a', 'customer-3'), date: '2026-10-04', text: '가성비 최고' },
-    { customerLabel: maskedCustomerLabel(labelSecret, 'shop-a', 'customer-1'), date: '2026-10-03', text: '또 올게요' },
+    { customerLabel: maskedVisitorFeedbackLabel(labelSecret, 'shop-a', 'customer-3'), date: '2026-10-04', text: '가성비 최고' },
+    { customerLabel: maskedVisitorFeedbackLabel(labelSecret, 'shop-a', 'customer-1'), date: '2026-10-03', text: '또 올게요' },
   ]);
   for (const note of summary.notes) assert.match(note.customerLabel, /^손님 [A-Z2-9]{4}$/);
+  assert.notEqual(summary.notes[1]!.customerLabel, maskedCustomerLabel(labelSecret, 'shop-a', 'customer-1'));
+  assert.equal((await db.feedback.merchantSummary('shop-a')).notes[1]!.customerLabel, summary.notes[1]!.customerLabel);
   const text = JSON.stringify(summary);
   assert.equal(/customer-\d|accountId|T\d\d:\d\d|Z"/.test(text), false, 'no account id and no time of day');
   assert.equal(text.includes('다른 가게 의견'), false);
   // 가게마다 가림 표시가 다르다(같은 손님이어도 두 가게의 표시를 이어 붙일 수 없다).
   const other = await db.feedback.merchantSummary('shop-b');
-  assert.equal(other.notes[0]!.customerLabel, maskedCustomerLabel(labelSecret, 'shop-b', 'customer-1'));
-  assert.notEqual(other.notes[0]!.customerLabel, maskedCustomerLabel(labelSecret, 'shop-a', 'customer-1'));
+  assert.equal(other.notes[0]!.customerLabel, maskedVisitorFeedbackLabel(labelSecret, 'shop-b', 'customer-1'));
+  assert.notEqual(other.notes[0]!.customerLabel, summary.notes[1]!.customerLabel);
   assert.deepEqual(await db.feedback.merchantSummary('no-such-shop'), { tags: [], suggestions: [], notes: [] });
 });
 

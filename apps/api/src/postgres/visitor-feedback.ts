@@ -1,6 +1,6 @@
 import type { Pool } from 'pg';
 
-import { kstBusinessDate, maskedCustomerLabel } from '../reversal-rules.js';
+import { kstBusinessDate } from '../reversal-rules.js';
 import {
   VisitorFeedbackError,
   type VisitorFeedbackCount,
@@ -10,6 +10,7 @@ import {
 } from '../visitor-feedback.js';
 import {
   isEmptyVisitorFeedback,
+  maskedVisitorFeedbackLabel,
   normalizeVisitorFeedback,
   rankVisitorCounts,
   visitorFeedbackNoteListLimit,
@@ -32,7 +33,7 @@ type CountRow = { code: string; count: number };
 
 const emptySelection = (): VisitorFeedbackSelection => ({ tags: [], suggestions: [], note: null });
 
-// 이 계정이 그 가게의 실제 방문(유효하고 직원 본인 적립이 아닌 것)을 한 번이라도 했고, 그 가게가 로그인 없는 체험 가게(#309)가 아니다.
+// 실제 방문이 있어도 체험 계정·체험 가게의 가상 실적은 의견 자격에서 제외한다.
 const eligibleVisitSql = `
   SELECT 1
   FROM visit_events AS visit
@@ -40,6 +41,7 @@ const eligibleVisitSql = `
     AND visit.merchant_id = $2
     AND visit.status = 'VALID'
     AND visit.progress_excluded_reason IS NULL
+    AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials WHERE account_id = $1)
     AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials AS trial WHERE trial.merchant_id = visit.merchant_id)
   LIMIT 1`;
 
@@ -78,7 +80,7 @@ export class PostgresVisitorFeedbackService implements VisitorFeedbackService {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      // 계정 삭제와 같은 계정 잠금: 삭제 중인 계정은 쓸 수 없고, 삭제가 끝난 뒤에 행이 생기지 않는다.
+      // 계정 삭제·방문 취소와 같은 잠금: 자격 확인과 저장 사이에 마지막 방문이 취소되지 않는다.
       await this.accountLifecycle.assertActive(client, accountId);
       if (isEmptyVisitorFeedback(selection)) {
         // 거둬들이기는 방문 자격과 상관없이 허용한다(자기 데이터를 지울 뿐이라 새로 만드는 것이 없다).
@@ -145,7 +147,7 @@ export class PostgresVisitorFeedbackService implements VisitorFeedbackService {
         }),
       ),
       notes: noteRows.rows.map((row) => ({
-        customerLabel: maskedCustomerLabel(this.labelHmacSecret, merchantId, row.customer_account_id),
+        customerLabel: maskedVisitorFeedbackLabel(this.labelHmacSecret, merchantId, row.customer_account_id),
         date: kstBusinessDate(row.updated_at),
         text: row.note,
       })),

@@ -208,6 +208,18 @@ export class PostgresReversalService implements ReversalService {
         [visit.id, reason, note, now, input.staffAccountId],
       );
 
+      // 방문 후 가게 의견(#334): 이 가게에 셀 수 있는 유효한 방문이 하나도 안 남으면 그 손님의 선택을 같은 거래에서 지운다.
+      await client.query(
+        `DELETE FROM merchant_visitor_feedback AS feedback
+         WHERE feedback.customer_account_id = $1 AND feedback.merchant_id = $2
+           AND NOT EXISTS (
+             SELECT 1 FROM visit_events AS other
+             WHERE other.customer_account_id = feedback.customer_account_id
+               AND other.merchant_id = feedback.merchant_id
+               AND other.status = 'VALID' AND other.progress_excluded_reason IS NULL)`,
+        [visit.customer_account_id, input.merchantId],
+      );
+
       // 세어지던 방문이 취소되면 같은 날 가려져 있던 정당한 방문(직원 자기 적립 제외)을 세어 준다.
       let promotedVisitId: string | undefined;
       if (visit.progress_counted) {

@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
+import { maskedCustomerLabel } from './reversal-rules.js';
 import {
   isEmptyVisitorFeedback,
+  maskedVisitorFeedbackLabel,
   maxVisitorSuggestions,
   maxVisitorTags,
   normalizeVisitorFeedback,
@@ -19,6 +21,14 @@ import {
 
 const feedback = (input: { tags?: unknown; suggestions?: unknown; note?: unknown }) =>
   normalizeVisitorFeedback({ tags: [], suggestions: [], note: null, ...input });
+
+test('feedback labels keep their format and use a separate domain from recent visits', () => {
+  const secret = 'test-only-visitor-feedback-label-secret-at-least-32-bytes';
+  const label = maskedVisitorFeedbackLabel(secret, 'shop-a', 'customer-1');
+  assert.match(label, /^손님 [ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/u);
+  assert.equal(maskedVisitorFeedbackLabel(secret, 'shop-a', 'customer-1'), label);
+  assert.notEqual(label, maskedCustomerLabel(secret, 'shop-a', 'customer-1'));
+});
 
 test('the tag and suggestion codes and Korean labels are exactly the owner-approved lists, in display order', () => {
   assert.deepEqual(visitorTagCodes, ['SOLO', 'TAKEOUT', 'GENEROUS', 'QUIET', 'KIND', 'VALUE', 'STUDENT', 'DESSERT']);

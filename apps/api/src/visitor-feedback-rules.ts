@@ -1,6 +1,22 @@
 // 방문한 가게의 특징 태그·사장님께 바라는 점·짧은 의견 규칙(Issue #334, D-069). DB 없이 시험할 수 있는 순수 함수만 둔다.
 // 코드 목록은 migration 0040의 CHECK와 같아야 하고(시험이 대조한다), 앱이 나중에 같은 목록을 거울처럼 복사해 시험으로 지킨다.
+import { createHmac } from 'node:crypto';
+
 import { normalizeReversalNote, reversalNoteMaxLength } from './reversal-rules.js';
+
+// 방문 목록과 의견을 같은 손님 표시로 연결하지 못하도록 도메인을 분리한다.
+export function maskedVisitorFeedbackLabel(secret: string, merchantId: string, customerAccountId: string): string {
+  const digest = createHmac('sha256', secret)
+    .update('feedback-label\0')
+    .update(merchantId, 'utf8')
+    .update('\0')
+    .update(customerAccountId, 'utf8')
+    .digest();
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let label = '';
+  for (let index = 0; index < 4; index += 1) label += alphabet[digest[index]! % alphabet.length];
+  return `손님 ${label}`;
+}
 
 // 손님이 고르는 가게의 특징(최대 3). 목록 순서가 화면·정렬 동률의 기준 순서다.
 export const visitorTagOptions = [

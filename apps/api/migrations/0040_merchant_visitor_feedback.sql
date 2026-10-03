@@ -19,6 +19,9 @@ CREATE TABLE merchant_visitor_feedback (
   customer_account_id text NOT NULL CHECK (length(btrim(customer_account_id)) > 0),
   merchant_id text NOT NULL REFERENCES merchants(id),
   tags text[] NOT NULL DEFAULT '{}' CONSTRAINT merchant_visitor_feedback_tags_check CHECK (
+    -- 빈 배열의 차원 수는 NULL이므로 별도로 허용한다.
+    (cardinality(tags) = 0 OR array_ndims(tags) IS NOT DISTINCT FROM 1)
+    AND
     merchant_visitor_feedback_codes_ok(
       tags,
       ARRAY['SOLO', 'TAKEOUT', 'GENEROUS', 'QUIET', 'KIND', 'VALUE', 'STUDENT', 'DESSERT']::text[],
@@ -26,6 +29,8 @@ CREATE TABLE merchant_visitor_feedback (
     )
   ),
   suggestions text[] NOT NULL DEFAULT '{}' CONSTRAINT merchant_visitor_feedback_suggestions_check CHECK (
+    (cardinality(suggestions) = 0 OR array_ndims(suggestions) IS NOT DISTINCT FROM 1)
+    AND
     merchant_visitor_feedback_codes_ok(
       suggestions,
       ARRAY['SOLO_MENU', 'SPICE_LABEL', 'MORE_PHOTOS', 'STUDENT_DISCOUNT', 'HOURS_INFO']::text[],
