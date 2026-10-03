@@ -1,9 +1,11 @@
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { foregroundAudioMode } from '@/sound/playback-audio-mode';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Image, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { AppState, Image, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useColorScheme, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Image as SvgImage, LinearGradient, Mask, Rect, Stop } from 'react-native-svg';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { cancelAnimation, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import type { CollectibleAngleFrames, CollectibleLiving, CollectibleMotion, PublishedCollectible } from '@/commerce/collectible-artwork';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
@@ -21,6 +23,9 @@ import {
   onceMotions, ONCE_MS, particleAt,
 } from './collectible-motion';
 import { TiltSensor } from './collectible-tilt';
+import { combineMaterialTilt, gradeMaterialFor } from './grade-material';
+import { GradeMaterialLayer, useGradeMaterialClock } from './grade-material-layer';
+import { GradeMaterialSensor } from './grade-material-sensor';
 
 type Props = {
   entitlementId: string;
@@ -45,6 +50,14 @@ function SpriteCell({ frames, index, faceSize, opacity }: { frames: CollectibleA
         style={{ position: 'absolute', width: faceSize * frames.columns, height: faceSize * rows, left: -col * faceSize, top: -row * faceSize }} />
     </View>
   );
+}
+
+/** 얼굴과 같은 스프라이트 좌표·섞음으로 조명을 자른다. 기본 사진의 윤곽을 대신 쓰지 않는다. */
+function SpriteCellMask({ frames, index, faceSize, opacity }: { frames: CollectibleAngleFrames; index: number; faceSize: number; opacity: number }) {
+  const rows = Math.ceil(frames.count / frames.columns);
+  return <SvgImage href={{ uri: frames.dataUrl }} preserveAspectRatio="none" opacity={opacity}
+    x={-(index % frames.columns) * faceSize} y={-Math.floor(index / frames.columns) * faceSize}
+    width={faceSize * frames.columns} height={faceSize * rows} />;
 }
 
 /**
@@ -104,10 +117,11 @@ export function CollectibleDetail({ entitlementId, merchantName, load, onClose, 
   );
 }
 
-function DetailFrame({ children }: { children: React.ReactNode }) {
+function DetailFrame({ children, onLayout, onScroll }: { children: React.ReactNode; onLayout?: (event: LayoutChangeEvent) => void; onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void }) {
   const insets = useSafeAreaInsets();
   const palette = colorsForScheme(useColorScheme());
-  return <ScrollView style={{ flex: 1, backgroundColor: palette.background }} contentContainerStyle={[styles.body, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 28 }]}>{children}</ScrollView>;
+  return <ScrollView style={{ flex: 1, backgroundColor: palette.background }} contentContainerStyle={[styles.body, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 28 }]}
+    onLayout={onLayout} onScroll={onScroll} scrollEventThrottle={32}>{children}</ScrollView>;
 }
 
 function Control({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
@@ -145,6 +159,30 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   const [muted, setMuted] = useState(false);
   const [audioError, setAudioError] = useState<string>();
   const [imageFailed, setImageFailed] = useState(false);
+  const [cardVisible, setCardVisible] = useState(true);
+  const cardVisibleRef = useRef(true);
+  const cardViewport = useRef({ y: 0, height: 0, scrollY: 0, viewportHeight: 0 });
+  const updateCardVisibility = useCallback(() => {
+    const { y, height, scrollY, viewportHeight } = cardViewport.current;
+    if (!height || !viewportHeight) return;
+    const intersects = y < scrollY + viewportHeight && y + height > scrollY;
+    if (cardVisibleRef.current === intersects) return;
+    cardVisibleRef.current = intersects;
+    setCardVisible(intersects);
+  }, []);
+  const onCardLayout = useCallback((event: LayoutChangeEvent) => {
+    cardViewport.current.y = event.nativeEvent.layout.y;
+    cardViewport.current.height = event.nativeEvent.layout.height;
+    updateCardVisibility();
+  }, [updateCardVisibility]);
+  const onViewportLayout = useCallback((event: LayoutChangeEvent) => {
+    cardViewport.current.viewportHeight = event.nativeEvent.layout.height;
+    updateCardVisibility();
+  }, [updateCardVisibility]);
+  const onDetailScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    cardViewport.current.scrollY = event.nativeEvent.contentOffset.y;
+    updateCardVisibility();
+  }, [updateCardVisibility]);
   const player = useAudioPlayer(snapshot.audio ? { uri: snapshot.audio.dataUrl } : null);
   const audioStatus = useAudioPlayerStatus(player);
   const alive = useRef(true);
@@ -152,6 +190,27 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   const gesture = useRef({ initialX: 0, width: 240, angle: snapshot.angle });
   const angleRef = useRef(snapshot.angle);
   const moving = motionAllowed && !reduceMotion && foreground;
+  const material = gradeMaterialFor(snapshot.gradeId, snapshot.gradeName);
+  const materialActive = moving && !scene && cardVisible;
+  const materialClock = useGradeMaterialClock(materialActive);
+  const materialAngle = useSharedValue(snapshot.angle);
+  const dragLight = useSharedValue({ x: 0, y: 0 });
+  const gravityLight = useSharedValue({ x: 0, y: 0 });
+  const materialTilt = useDerivedValue(() => combineMaterialTilt(materialAngle.get(), dragLight.get(), gravityLight.get()));
+  useEffect(() => { materialAngle.set(dragging ? draftAngle : angle); }, [angle, draftAngle, dragging, materialAngle]);
+  useEffect(() => {
+    if (!materialActive) {
+      cancelAnimation(dragLight);
+      dragLight.set({ x: 0, y: 0 });
+    }
+    return () => cancelAnimation(dragLight);
+  }, [materialActive, dragLight]);
+  // 카드를 끄는 손가락은 빛만 밀고 기존 회전 슬라이더의 면 전환은 바꾸지 않는다.
+  const materialGesture = useMemo(() => Gesture.Pan().activeOffsetX([-16, 16]).failOffsetY([-6, 6]).enabled(materialActive)
+    .onUpdate((event) => {
+      dragLight.set({ x: Math.max(-1, Math.min(1, event.translationX / size * 2)),
+        y: Math.max(-1, Math.min(1, event.translationY / size * 2)) });
+    }).onFinalize(() => { dragLight.set(withTiming({ x: 0, y: 0 }, { duration: 240 })); }), [dragLight, materialActive, size]);
 
   // 획득 직후(intro)엔 once 모션을 순서대로 보여준 뒤 loop 모션, 나중에 열면 loop 모션만 자동재생한다.
   const sequenceTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -321,6 +380,11 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   const displayFace = size * .82;
   const frameBlend = snapshot.angleFrames ? angleFrameBlend(angle) : undefined;
   const showFrames = !reverse && snapshot.angleFrames && frameBlend && !frameBlend.back;
+  const frontMask = showFrames && snapshot.angleFrames && frameBlend && !frameBlend.back ? <>
+    <SpriteCellMask frames={snapshot.angleFrames} index={frameBlend.index} faceSize={displayFace} opacity={angleFrameOpacities(frameBlend.blend).lower} />
+    {frameBlend.blend > 0 ? <SpriteCellMask frames={snapshot.angleFrames} index={frameBlend.next} faceSize={displayFace} opacity={angleFrameOpacities(frameBlend.blend).upper} /> : null}
+  </> : undefined;
+  const frontUri = snapshot.frontImageSource && !imageFailed ? Image.resolveAssetSource(snapshot.frontImageSource)?.uri : picture || undefined;
   const livingClock = moving ? clock : 0;
   // activeMotion이 현재 재생 중인 타입과 일치하면(자동재생 중) 그 정확한 객체를 쓴다 — 같은 type이라도 once/loop가
   // 서로 다른 particle을 가질 수 있어 type만으로 찾으면 항상 첫 번째 것이 걸린다(WP4 리뷰 6). 수동 조작처럼
@@ -329,10 +393,10 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
   const tiltActive = canUseTiltSensor && tiltOn && moving;
 
   return (
-    <DetailFrame>
+    <DetailFrame onLayout={onViewportLayout} onScroll={onDetailScroll}>
       <Text accessibilityRole="header" style={[styles.title, { color: palette.label }]}>{snapshot.name}</Text>
       <Text selectable style={[styles.meta, { color: palette.secondaryLabel }]}>{merchantName} · {snapshot.gradeName} · {snapshot.theme.name}</Text>
-      <View style={[styles.stage, { width: size, height: size, backgroundColor: palette.surface }]}>
+      <View onLayout={onCardLayout} style={[styles.stage, { width: size, height: size, backgroundColor: palette.surface }]}>
         {scene ? (
           <>
             <Image source={{ uri: sceneUri }} resizeMode="cover" accessibilityLabel={`${merchantName} 가게 이야기`}
@@ -340,6 +404,7 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
             {snapshot.story.type === 'follow' ? <View style={{ position: 'absolute', left: size * (.1 + shownProgress * .65), bottom: size * .1 }}><Mascot pose="wave" size={size * .16} breathe={false} /></View> : null}
           </>
         ) : (
+          <GestureDetector gesture={materialGesture}>
           <View style={{ width: size, height: size, transform: [{ translateY: animationFrame.lift }, { scale: animationFrame.scale }] }} accessible accessibilityLabel={`${reverse ? '뒷면' : '앞면'} ${snapshot.name}, ${snapshot.gradeName} ${shapeName(snapshot.shape)}, 두께 ${snapshot.thickness}, 각도 ${Math.round(angle)}도`}>
             {[1, .8, .6, .4, .2].map((fraction) => <View key={fraction} pointerEvents="none" accessible={false}
               style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09 + depth * fraction, transform: [{ scaleX }] }}>
@@ -347,12 +412,18 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
             </View>)}
             {reverse ? (
               snapshot.backImageDataUrl ? (
+                <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
                 <Image source={{ uri: snapshot.backImageDataUrl }} resizeMode="contain" accessible={false}
-                  style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }} />
+                  style={{ width: displayFace, height: displayFace }} />
+                <GradeMaterialLayer material={material} size={displayFace} faceUri={snapshot.backImageDataUrl} shape={snapshot.shape}
+                  tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive} />
+                </View>
               ) : (
                 <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
                   <CollectibleDefaultBack shape={snapshot.shape} size={displayFace} merchantName={merchantName}
                     name={snapshot.name} gradeId={snapshot.gradeId} gradeName={snapshot.gradeName} />
+                  <GradeMaterialLayer material={material} size={displayFace} shape={snapshot.shape}
+                    tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive} intensityScale={.45} />
                 </View>
               )
             ) : (
@@ -376,13 +447,17 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
                   )
                 )}
                 {snapshot.living ? <LivingOverlay living={snapshot.living} cell={livingCell(livingClock, snapshot.living.periodMs, snapshot.living.count)} faceSize={displayFace} /> : null}
+                <GradeMaterialLayer material={material} size={displayFace}
+                  faceUri={frontUri} faceMask={frontMask}
+                  shape={snapshot.shape} tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive}
+                  intensityScale={animationFrame.light ? .55 : 1} />
               </View>
             )}
             {animationFrame.light && !reverse ? <Svg pointerEvents="none" width={displayFace} height={displayFace} style={{ position: 'absolute', top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
               <Defs>
-                <Mask id="collectible-light-mask" maskType="alpha"><SvgImage href={{ uri: picture }} width={displayFace} height={displayFace} /></Mask>
+                <Mask id="collectible-light-mask" maskType="alpha">{frontMask ?? <SvgImage href={{ uri: frontUri }} width={displayFace} height={displayFace} />}</Mask>
                 <LinearGradient id="collectible-light" x1={animationFrame.lightX} y1={0} x2={animationFrame.lightX + size * .28} y2={0} gradientUnits="userSpaceOnUse">
-                  <Stop offset="0" stopColor="#fff" stopOpacity="0" /><Stop offset=".5" stopColor="#fff" stopOpacity="1" /><Stop offset="1" stopColor="#fff" stopOpacity="0" />
+                  <Stop offset={0} stopColor="#fff" stopOpacity={0} /><Stop offset={0.5} stopColor="#fff" stopOpacity={1} /><Stop offset={1} stopColor="#fff" stopOpacity={0} />
                 </LinearGradient>
               </Defs>
               <Rect width={displayFace} height={displayFace} fill="url(#collectible-light)" mask="url(#collectible-light-mask)" opacity={animationFrame.lightOpacity} />
@@ -395,9 +470,11 @@ function DetailBody({ snapshot, merchantName, intro = false, onClose }: { snapsh
                 backgroundColor: point ? point.color : ['#d89944', '#56ab8e', '#b475b8'][index % 3], transform: [{ rotate: `${index * 23}deg` }] }} />;
             }) : null}
           </View>
+          </GestureDetector>
         )}
       </View>
       {tiltActive ? <TiltSensor onChange={handleTiltChange} /> : null}
+      {canUseTiltSensor && materialActive ? <GradeMaterialSensor output={gravityLight} /> : null}
       {!scene ? <>
         <Text style={[styles.meta, { color: palette.label }]}>각도 {Math.round(draftAngle)}° · 두께 {snapshot.thickness}</Text>
         <View {...responder.panHandlers} accessibilityRole="adjustable" accessibilityLabel="수집품 회전 각도"

@@ -30,3 +30,20 @@ test('the "외부 지갑 주소 확인" Link child does not pass a style array t
   assert.doesNotMatch(pressable, /style=\{\s*\[/, 'Expo Router Slot rejects array-valued child styles');
   assert.match(pressable, /style=\{StyleSheet\.flatten\(/);
 });
+
+test('grade materials share one collection clock and stop outside the focused foreground album (#349)', () => {
+  assert.equal((source.match(/useGradeMaterialClock\(/g) ?? []).length, 1);
+  assert.match(source, /materialActive = motionEnabled && focused && foreground && materialVisible/);
+  assert.match(source, /materialScrollY=\{materialScrollY\}/);
+  assert.match(source, /useAnimatedReaction\(/);
+  assert.match(source, /measure\(ref\)/);
+  assert.match(source, /if \(inView !== visible\) scheduleOnRN\(setVisible, inView\)/);
+  assert.doesNotMatch(source, /useDerivedValue|visibleClock/);
+  assert.match(source, /active=\{active && visible && \(material === 'gold' \|\| material === 'prism'\)\}/);
+});
+
+test('grouped, featured, and legacy thumbnails use the same card material overlay (#349)', () => {
+  assert.equal((source.match(/<MaterialThumbnail /g) ?? []).length, 3);
+  assert.match(source, /gradeMaterialFor\(group\.artwork\.gradeId, group\.artwork\.gradeName\)/);
+  assert.match(source, /gradeMaterialFor\(detail\.gradeId, detail\.gradeName\)/);
+});

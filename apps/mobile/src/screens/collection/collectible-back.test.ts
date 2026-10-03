@@ -50,3 +50,28 @@ test('기본 뒷면의 마스코트 도장은 앱 자산만 사용한다', () =>
   assert.doesNotMatch(back, /\buri\s*:/);
   assert.doesNotMatch(back, /https?:\/\//);
 });
+
+test('기본 뒷면은 공통 등급 판별과 프리즘 무지개·골드 금속 그라데이션을 쓰고 글자를 패널 위에 둔다', () => {
+  const back = readFileSync(new URL('./collectible-default-back.tsx', import.meta.url), 'utf8');
+  assert.match(back, /const material = gradeMaterialFor\(gradeId, gradeName\)/);
+  assert.match(back, /gradeMaterialPresets\.prism\.rainbowStops/);
+  assert.match(back, /gradeMaterialPresets\.gold\.colors/);
+  assert.match(back, /<CollectibleFaceShape[^>]*material=\{material\}/);
+  assert.match(back, /backgroundColor: colors\.container/);
+  assert.match(back, /color: colors\.onContainer/);
+});
+
+test('앞면·사용자 뒷면·기본 뒷면은 회전 부모 안에서 같은 조명 입력과 시계를 쓴다', () => {
+  assert.equal((detail.match(/<GradeMaterialLayer\b/g) ?? []).length, 3);
+  assert.equal((detail.match(/tilt=\{materialTilt\} clock=\{materialClock\}/g) ?? []).length, 3);
+  assert.match(detail, /faceUri=\{snapshot\.backImageDataUrl\}/);
+  assert.match(detail, /intensityScale=\{animationFrame\.light \? \.55 : 1\}/);
+});
+
+test('앞면 조명 마스크는 이미지 실패 대체 그림과 각도별 스프라이트 좌표를 따라간다', () => {
+  assert.match(detail, /const frontUri = snapshot\.frontImageSource && !imageFailed/);
+  assert.match(detail, /faceUri=\{frontUri\} faceMask=\{frontMask\}/);
+  assert.match(detail, /<SpriteCellMask frames=\{snapshot\.angleFrames\} index=\{frameBlend\.index\}/);
+  assert.match(detail, /<SpriteCellMask frames=\{snapshot\.angleFrames\} index=\{frameBlend\.next\}/);
+  assert.match(detail, /width=\{faceSize \* frames\.columns\} height=\{faceSize \* rows\}/);
+});

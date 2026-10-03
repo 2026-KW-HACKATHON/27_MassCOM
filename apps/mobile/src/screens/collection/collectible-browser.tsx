@@ -1,6 +1,8 @@
-import { Link } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Link, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AppState, Image, Pressable, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import Animated, { measure, useAnimatedReaction, useAnimatedRef, useSharedValue, type SharedValue } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { collectibleFilterOptions, filterAndSortAlbum, type CollectibleFilter, type CollectibleSort } from './collectible-filters';
 import type { CollectibleGroup, UngroupedCollectible } from './collectible-groups';
@@ -16,6 +18,9 @@ import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
+import { useMotionEnabled } from '@/motion/use-motion';
+import { gradeMaterialFor } from './grade-material';
+import { GradeMaterialLayer, useGradeMaterialClock } from './grade-material-layer';
 
 type NftMinting = CollectionSnapshot['nftMinting'];
 type NftStatus = CollectionSnapshot['collectibles'][number]['nftStatus'];
@@ -39,7 +44,7 @@ type MintGate = {
   onConfirmMint: (entitlementId: string) => void;
 };
 
-export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites, series, sharing, mint, onToggleFavorite, onOpenDetail, onShare }: {
+export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites, series, sharing, mint, materialScrollY, materialVisible, onToggleFavorite, onOpenDetail, onShare }: {
   groups: readonly CollectibleGroup[];
   /** Entitlements with no published picture (#296): merged into this same album so every collectible appears once. */
   legacy: readonly UngroupedCollectible[];
@@ -49,6 +54,8 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
   series: readonly StoreSeries[];
   sharing: boolean;
   mint: MintGate;
+  materialScrollY: SharedValue<number>;
+  materialVisible: boolean;
   onToggleFavorite: (key: string) => void;
   onOpenDetail: (entitlementId: string, merchantName: string, localDetail?: LegacyCollectibleDetail) => void;
   onShare: (group: CollectibleGroup) => void;
@@ -58,6 +65,18 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
   const world = worldForScheme(scheme);
   const [filter, setFilter] = useState<CollectibleFilter>({});
   const [sort, setSort] = useState<CollectibleSort>('recent');
+  const motionEnabled = useMotionEnabled();
+  const [focused, setFocused] = useState(false);
+  const [foreground, setForeground] = useState(AppState.currentState === 'active');
+  const favoriteScrollX = useSharedValue(0);
+  useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
+  useEffect(() => {
+    const listener = AppState.addEventListener('change', (state) => setForeground(state === 'active'));
+    return () => listener.remove();
+  }, []);
+  // 목록 전체가 하나의 UI 스레드 시계를 읽는다. 축소 모션·탭 이탈·백그라운드에서는 멈춘다.
+  const materialActive = motionEnabled && focused && foreground && materialVisible;
+  const materialClock = useGradeMaterialClock(materialActive);
   const options = useMemo(() => collectibleFilterOptions(groups, legacy), [groups, legacy]);
   // #296 review: filter and sort the grouped and legacy (no-picture) cards together, so the store filter also
   // hides other stores' legacy cards and "newest first" holds across the whole album, not just within groups.
@@ -73,11 +92,16 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
       {favoriteGroups.length > 0 ? (
         <View style={{ gap: 8 }}>
           <Text style={[styles.subtitle, { color: world.skyInk }]}>대표 진열</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={16}
+            onScroll={(event) => favoriteScrollX.set(event.nativeEvent.contentOffset.x)} contentContainerStyle={{ gap: 10 }}>
             {favoriteGroups.map((group) => (
               <Pressable key={group.key} accessibilityRole="button" accessibilityLabel={`대표로 놓은 ${group.artwork.name} 상세 보기`}
                 onPress={() => onOpenDetail(group.entitlementIds[0]!, group.merchantName)} style={[styles.favoriteCard, { backgroundColor: world.card }]}>
-                <Image source={{ uri: group.artwork.thumbnailDataUrl }} resizeMode="contain" style={styles.favoriteImage} accessible={false} />
+                <MaterialThumbnail material={gradeMaterialFor(group.artwork.gradeId, group.artwork.gradeName)}
+                  size={80} faceUri={group.artwork.thumbnailDataUrl} shape={group.artwork.shape}
+                  clock={materialClock} scrollY={materialScrollY} horizontalScroll={favoriteScrollX} active={materialActive}>
+                  <Image source={{ uri: group.artwork.thumbnailDataUrl }} resizeMode="contain" style={StyleSheet.absoluteFill} accessible={false} />
+                </MaterialThumbnail>
                 <Text numberOfLines={1} style={[styles.favoriteName, { color: world.cardInk }]}>{group.artwork.name}</Text>
               </Pressable>
             ))}
@@ -110,9 +134,11 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
           <View style={styles.grid}>
             {shown.map((entry) => entry.kind === 'group' ? (
               <GroupCard key={entry.group.key} group={entry.group} favorites={favorites} sharing={sharing} mint={mint}
+                materialClock={materialClock} materialScrollY={materialScrollY} materialActive={materialActive}
                 onToggleFavorite={onToggleFavorite} onOpenDetail={onOpenDetail} onShare={onShare} />
             ) : (
-              <LegacyCard key={entry.item.entitlementId} item={entry.item} mint={mint} onOpenDetail={onOpenDetail} artUrl={artUrlByMerchant.get(entry.item.merchantId)} />
+              <LegacyCard key={entry.item.entitlementId} item={entry.item} mint={mint} onOpenDetail={onOpenDetail}
+                materialClock={materialClock} materialScrollY={materialScrollY} materialActive={materialActive} artUrl={artUrlByMerchant.get(entry.item.merchantId)} />
             ))}
           </View>
         </View>
@@ -173,11 +199,14 @@ function FilterRow({ label, options, selected, onSelect, palette, world }: {
 }
 
 /** A grouped (pictured) album card: the picture, count badge, favorite/share actions, and its NFT status row. */
-function GroupCard({ group, favorites, sharing, mint, onToggleFavorite, onOpenDetail, onShare }: {
+function GroupCard({ group, favorites, sharing, mint, materialClock, materialScrollY, materialActive, onToggleFavorite, onOpenDetail, onShare }: {
   group: CollectibleGroup;
   favorites: readonly string[];
   sharing: boolean;
   mint: MintGate;
+  materialClock: SharedValue<number>;
+  materialScrollY: SharedValue<number>;
+  materialActive: boolean;
   onToggleFavorite: (key: string) => void;
   onOpenDetail: (entitlementId: string, merchantName: string, localDetail?: LegacyCollectibleDetail) => void;
   onShare: (group: CollectibleGroup) => void;
@@ -185,12 +214,16 @@ function GroupCard({ group, favorites, sharing, mint, onToggleFavorite, onOpenDe
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const palette = colorsForScheme(scheme);
   const world = worldForScheme(scheme);
+  const material = gradeMaterialFor(group.artwork.gradeId, group.artwork.gradeName);
   return (
     <FloatingCard style={[styles.groupCard, { backgroundColor: world.card }]}
       accessibilityLabel={`${group.artwork.name}, ${group.merchantName}, ${group.artwork.gradeName}${group.count > 1 ? `, ${group.count}개 보유` : ''}`}
       onPress={() => onOpenDetail(group.entitlementIds[0]!, group.merchantName)}>
       <View style={styles.groupImageFrame}>
-        <Image source={{ uri: group.artwork.thumbnailDataUrl }} resizeMode="contain" style={styles.groupImage} accessible={false} />
+        <MaterialThumbnail material={material} size={104} faceUri={group.artwork.thumbnailDataUrl} shape={group.artwork.shape}
+          clock={materialClock} scrollY={materialScrollY} active={materialActive}>
+          <Image source={{ uri: group.artwork.thumbnailDataUrl }} resizeMode="contain" style={styles.groupImage} accessible={false} />
+        </MaterialThumbnail>
         {group.count > 1 ? (
           <View style={[styles.countBadge, { backgroundColor: palette.primary }]}>
             <Text style={[styles.countBadgeText, { color: palette.onPrimary }]}>{group.count}</Text>
@@ -287,21 +320,28 @@ function NftStatusRow({ entitlements, mint }: { entitlements: readonly { entitle
 }
 
 /** A collectible earned without a published picture (#296): shown in the same grid, using the merchant's own art as a fallback. */
-function LegacyCard({ item, mint, artUrl, onOpenDetail }: {
+function LegacyCard({ item, mint, artUrl, materialClock, materialScrollY, materialActive, onOpenDetail }: {
   item: UngroupedCollectible; mint: MintGate; artUrl: string | null | undefined;
+  materialClock: SharedValue<number>; materialScrollY: SharedValue<number>; materialActive: boolean;
   onOpenDetail: (entitlementId: string, merchantName: string, localDetail?: LegacyCollectibleDetail) => void;
 }) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const world = worldForScheme(scheme);
   const art = merchantArt({ id: item.merchantId, artUrl }, mint.apiUrl);
   const { source, onError } = useArtFallback(art?.source);
+  const detail = legacyCollectibleDetail(item, source);
+  const material = gradeMaterialFor(detail.gradeId, detail.gradeName);
   return (
     <FloatingCard style={[styles.groupCard, { backgroundColor: world.card }]}
       accessibilityLabel={`${item.displayName}, ${item.merchantName}, ${item.targetVisitCount}회 목표 상세 보기`}
       onPress={() => onOpenDetail(item.entitlementId, item.merchantName, legacyCollectibleDetail(item, source))}>
       {art && source ? (
         <View style={styles.groupImageFrame}>
-          <Image source={source} onError={onError} resizeMode="contain" style={styles.groupImage} accessible={false} />
+          <MaterialThumbnail material={material} size={104} shape={detail.shape}
+            faceUri={Image.resolveAssetSource(source)?.uri}
+            clock={materialClock} scrollY={materialScrollY} active={materialActive}>
+            <Image source={source} onError={onError} resizeMode="contain" style={styles.groupImage} accessible={false} />
+          </MaterialThumbnail>
         </View>
       ) : null}
       <Text numberOfLines={1} style={[styles.groupName, { color: world.cardInk }]}>{item.displayName}</Text>
@@ -311,6 +351,34 @@ function LegacyCard({ item, mint, artUrl, onOpenDetail }: {
       <NftStatusRow entitlements={[item]} mint={mint} />
     </FloatingCard>
   );
+}
+
+function MaterialThumbnail({ material, size, faceUri, shape, clock, scrollY, horizontalScroll, active, children }: {
+  material: ReturnType<typeof gradeMaterialFor>; size: number; faceUri?: string; shape: string;
+  clock: SharedValue<number>; scrollY: SharedValue<number>; horizontalScroll?: SharedValue<number>;
+  active: boolean; children: ReactNode;
+}) {
+  const { width, height } = useWindowDimensions();
+  const ref = useAnimatedRef<View>();
+  const layoutRevision = useSharedValue(0);
+  const [visible, setVisible] = useState(false);
+  useAnimatedReaction(
+    () => ({ scroll: scrollY.get(), horizontal: horizontalScroll?.get() ?? 0, layout: layoutRevision.get() }),
+    () => {
+      const box = measure(ref);
+      const inView = !!box && box.pageX < width && box.pageX + box.width > 0
+        && box.pageY < height && box.pageY + box.height > 0;
+      // 스크롤마다 React를 갱신하지 않고 화면 진입·이탈 경계에서만 구독을 전환한다.
+      if (inView !== visible) scheduleOnRN(setVisible, inView);
+    },
+    [width, height, visible],
+  );
+  return <Animated.View ref={ref} onLayout={() => layoutRevision.set((value) => value + 1)}
+    style={{ width: size, height: size }}>
+    {children}
+    <GradeMaterialLayer material={material} size={size} faceUri={faceUri} shape={shape} variant="card"
+      clock={clock} active={active && visible && (material === 'gold' || material === 'prism')} />
+  </Animated.View>;
 }
 
 const styles = StyleSheet.create({
@@ -328,7 +396,7 @@ const styles = StyleSheet.create({
   sortChipText: { fontSize: 12, fontWeight: '800' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   groupCard: { width: 156, borderRadius: 18, padding: 12, gap: 5 },
-  groupImageFrame: { alignItems: 'center', justifyContent: 'center' },
+  groupImageFrame: { width: 104, height: 104, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
   groupImage: { width: 104, height: 104 },
   countBadge: { position: 'absolute', top: 0, right: 8, minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   countBadgeText: { fontSize: 11, fontWeight: '900' },

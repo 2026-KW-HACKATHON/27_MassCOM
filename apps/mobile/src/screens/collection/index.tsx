@@ -3,6 +3,7 @@ import { Link, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-rout
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSharedValue } from 'react-native-reanimated';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import {
@@ -118,6 +119,7 @@ export function CollectionScreen({
   const router = useRouter();
   const { focus, entitlement } = useLocalSearchParams<{ focus?: string; entitlement?: string | string[] }>();
   const scrollView = useRef<ScrollView>(null);
+  const materialScrollY = useSharedValue(0);
   // #314: only sky()'s loading/error scene uses this (the loaded album below uses `scrollView` above).
   const skyScrollView = useRef<ScrollView>(null);
   // #320 review: onContentSizeChange can re-fire with no real growth (e.g. a retry re-render keeps the same
@@ -550,6 +552,7 @@ export function CollectionScreen({
     <SkyBackdrop>
       <SkyScrollView
         ref={scrollView}
+        onScroll={(event) => materialScrollY.set(event.nativeEvent.contentOffset.y)}
         header={header}
         onHeaderLayout={setHeaderHeight}
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
@@ -571,6 +574,8 @@ export function CollectionScreen({
           ) : null}
           {shareNotice ? <Text accessibilityLiveRegion="polite" style={styles.inlineMessage}>{shareNotice}</Text> : null}
           <CollectibleBrowser
+            materialScrollY={materialScrollY}
+            materialVisible={!collectibleDetail && !revealEntitlement && !revealed && !detailKind && !usingCoupon}
             groups={collectibleGroups}
             legacy={legacyCollectibles}
             artUrlByMerchant={artUrlByMerchant}
@@ -580,7 +585,8 @@ export function CollectionScreen({
             mint={{ apiUrl, nftMinting: collection.nftMinting, binding, busyEntitlementId, onConfirmMint: confirmMint }}
             onToggleFavorite={toggleCollectibleFavorite}
             onOpenDetail={(entitlementId, merchantName, localDetail) => setCollectibleDetail({ entitlementId, merchantName, localDetail, client: api })}
-            onShare={(group) => void shareCollectible({ thumbnailDataUrl: group.artwork.thumbnailDataUrl, merchantName: group.merchantName, name: group.artwork.name })}
+            onShare={(group) => void shareCollectible({ thumbnailDataUrl: group.artwork.thumbnailDataUrl, merchantName: group.merchantName,
+              name: group.artwork.name, gradeId: group.artwork.gradeId, gradeName: group.artwork.gradeName, shape: group.artwork.shape })}
           />
         </Section>
 

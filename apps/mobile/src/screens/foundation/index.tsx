@@ -229,7 +229,7 @@ function Glyph({ kind, color, size }: { kind: Role | 'wallet' | number; color: s
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" accessible={Platform.OS === 'web' ? undefined : false} aria-hidden>
     {kind === 'customer' ? <><Circle cx="12" cy="8" r="3.5" {...stroke} /><Path d="M5 21v-2a7 7 0 0 1 14 0v2" {...stroke} /></> : null}
     {kind === 'merchant' ? <><Path d="M4 10v10h16V10M3 10l2-6h14l2 6M3 10c0 4 5 4 5 0 0 4 8 4 8 0 0 4 5 4 5 0M10 20v-5h4v5" {...stroke} /></> : null}
-    {kind === 'wallet' ? <><Rect x="3" y="5" width="18" height="15" rx="3" {...stroke} /><Path d="M16 10h5v6h-5a3 3 0 0 1 0-6Z" {...stroke} /><Circle cx="17" cy="13" r=".7" fill={color} /></> : null}
+    {kind === 'wallet' ? <><Rect x="3" y="5" width="18" height="15" rx="3" {...stroke} /><Path d="M16 10h5v6h-5a3 3 0 0 1 0-6Z" {...stroke} /><Circle cx="17" cy="13" r={0.7} fill={color} /></> : null}
     {kind === 0 ? <Circle cx="12" cy="12" r="7" {...stroke} /> : null}
     {kind === 1 ? <Rect x="5" y="5" width="14" height="14" rx="4" {...stroke} /> : null}
     {kind === 2 ? <Path d="m12 3 9 9-9 9-9-9 9-9Z" {...stroke} /> : null}
