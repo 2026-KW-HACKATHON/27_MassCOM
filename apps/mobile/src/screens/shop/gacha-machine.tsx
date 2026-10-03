@@ -13,7 +13,7 @@ import type { MileageGrade, ShopGradeView, ShopRerollResult, ShopSnapshot } from
 import { friendArt, ticketArt } from '@/shop/shop-art';
 import { rerollDisclosure } from '@/shop/shop-rules';
 
-import { gachaAffordability, gachaTimeline, isNewDraw, type GachaStage } from './gacha-rules';
+import { gachaAffordability, gachaPhaseAfter, gachaTimeline, isNewDraw, type GachaPhase, type GachaStage } from './gacha-rules';
 
 type Props = {
   snapshot: ShopSnapshot;
@@ -25,7 +25,7 @@ type Props = {
   avatarBusy: boolean;
   avatarError?: string;
   isAvatar?: boolean;
-  onDraw: (grade: ShopGradeView) => void;
+  onDraw: (grade: ShopGradeView) => Promise<boolean>;
   onSetAvatar: () => void;
   onClose: () => void;
   onRefresh?: () => void;
@@ -43,7 +43,7 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
   onDraw, onSetAvatar, onClose, onRefresh }: Props) {
   const insets = useSafeAreaInsets();
   const motionAllowed = useMotionEnabled();
-  const [phase, setPhase] = useState<'picker' | 'pending' | GachaStage | 'result'>('picker');
+  const [phase, setPhase] = useState<GachaPhase>('picker');
   const phaseRef = useRef<typeof phase>('picker');
   const consumedResult = useRef<ShopRerollResult | undefined>(undefined);
   const activeResult = useRef<ShopRerollResult | undefined>(undefined);
@@ -131,22 +131,32 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
   const burstStyle = useAnimatedStyle(() => ({ opacity: burst.get(), transform: [{ rotate: `${burst.get() * 35}deg` }, { scale: 0.7 + burst.get() * 0.6 }] }));
   const resultStyle = useAnimatedStyle(() => ({ opacity: cardOpacity.get(), transform: [{ scale: cardScale.get() }] }));
 
-  const startDraw = (selected: ShopGradeView) => {
+  const startDraw = async (selected: ShopGradeView) => {
     setDrawing(selected);
     skipRequested.current = false;
     activeResult.current = undefined;
-    advancePhase('pending');
+    advancePhase(gachaPhaseAfter(phaseRef.current, { type: 'draw-started' }));
     crank.set(0); shake.set(0); jiggle.set(0); capsuleDrop.set(0); capsuleWobble.set(0); capsuleSplit.set(0); burst.set(0);
     cardScale.set(0.55); cardOpacity.set(0);
-    onDraw(selected);
+    const succeeded = await onDraw(selected);
+    if (!succeeded) {
+      skipRequested.current = false;
+      advancePhase(gachaPhaseAfter(phaseRef.current, { type: 'purchase-failed' }));
+    }
   };
   const skip = () => {
-    if (phaseRef.current === 'pending' || !result) { skipRequested.current = true; return; }
+    const next = gachaPhaseAfter(phaseRef.current, { type: 'skip', busy });
+    if (next === 'pending') { skipRequested.current = true; return; }
+    if (next === 'picker' || !result) {
+      skipRequested.current = false;
+      advancePhase('picker');
+      return;
+    }
     timelineTimers.current.forEach(clearTimeout);
     crank.set(360); shake.set(0); jiggle.set(0); capsuleDrop.set(1); capsuleWobble.set(0); capsuleSplit.set(1);
     burst.set(1); cardScale.set(1); cardOpacity.set(1); activeResult.current = undefined; advancePhase('result');
   };
-  const displayPhase = phase === 'pending' && !busy && error ? 'picker' : phase;
+  const displayPhase = phase;
   const showResult = displayPhase === 'result' || displayPhase === 'pop';
   const animating = result && displayPhase !== 'picker' && displayPhase !== 'pending' && displayPhase !== 'result';
 
@@ -169,7 +179,7 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
                   const label = gradeStyle[item.grade].name;
                   return <Pressable key={item.grade} accessibilityRole="button" accessibilityLabel={`${label} ${item.price}마일리지${available.reason ? `, ${available.reason}` : ''}`}
                     accessibilityState={{ disabled: !available.enabled || busy || !!refreshing }} disabled={!available.enabled || busy || refreshing}
-                    onPress={() => startDraw(item)} style={[styles.ticketButton, !available.enabled && styles.disabled]}>
+                    onPress={() => { void startDraw(item); }} style={[styles.ticketButton, !available.enabled && styles.disabled]}>
                     <Image source={ticketArt[item.grade]} style={styles.ticketArt} resizeMode="contain" accessible={false} />
                     <View style={styles.ticketCopy}><Text style={styles.ticketName}>{label} · {item.price}P</Text><Text style={styles.ticketNote}>{available.reason ?? rerollDisclosure(item)}</Text></View>
                   </Pressable>;

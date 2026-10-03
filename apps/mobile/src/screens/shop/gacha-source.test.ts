@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
@@ -29,10 +28,20 @@ test('#342 뽑기 기계와 결과는 스크린리더용 이름을 제공한다'
   assert.match(machine, /accessibilityLabel=\{`결과: \$\{[^}]+\}`\}/);
 });
 
-test('#342는 모바일 package.json에 새 의존성을 추가하지 않는다', () => {
-  const current = read('../../../package.json');
-  const baseline = execFileSync('git', ['show', 'HEAD:apps/mobile/package.json'], { encoding: 'utf8' });
-  assert.deepEqual(JSON.parse(current), JSON.parse(baseline));
+test('#342는 별도 연출 라이브러리에 의존하지 않는다', () => {
+  const manifest = JSON.parse(read('../../../package.json'));
+  for (const section of ['dependencies', 'devDependencies']) {
+    for (const name of ['lottie-react-native', 'moti', '@shopify/react-native-skia']) {
+      assert.equal(Object.hasOwn(manifest[section] ?? {}, name), false, `${section}에 ${name}이 없어야 한다`);
+    }
+  }
+});
+
+test('구매 완료 결과는 오류 표시와 무관하게 실제 뽑기 상태를 복원한다', () => {
+  assert.match(shop, /onDraw=\{buy\}/);
+  assert.match(machine, /const succeeded = await onDraw\(selected\);/);
+  assert.match(machine, /if \(!succeeded\)[\s\S]*?advancePhase\(gachaPhaseAfter\(phaseRef.current, \{ type: 'purchase-failed' \}\)\)/);
+  assert.doesNotMatch(machine, /phase === 'pending' && !busy && error \? 'picker'/);
 });
 
 

@@ -125,11 +125,11 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
     }
   }
 
-  async function buy(grade: ShopGradeView) {
+  async function buy(grade: ShopGradeView): Promise<boolean> {
     // avatarBusy 동안에도 새 뽑기를 막는다 — 안 그러면 닫힌 모달에서 아직 날아가고 있는 대표 설정 요청이
     // 실패했을 때 그 알림이 방금 연 새 뽑기 모달 뒤에 깔려 아무도 못 본다(PR #312 리뷰 라운드 4).
-    if (busyGrade || avatarBusy) return;
-    if (refreshing) return;
+    if (busyGrade || avatarBusy) return false;
+    if (refreshing) return false;
     const attempt = resumeOrStartPurchase(pending, grade.grade);
     if (attempt !== pending) purchaseOwnership.current = shop.snapshot?.items.filter((item) => item.owned).map((item) => item.id) ?? [];
     setOwnedBefore(purchaseOwnership.current);
@@ -143,6 +143,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
       shop.applyReroll(result);
       setReveal(result);
       setHistoryRefreshToken((value) => value + 1);
+      return true;
     } catch (error) {
       if (error instanceof ShopApiError && error.code === 'SHOP_STATE_CHANGED') {
         // 요금은 빠지지 않았으니(design-298.md 리뷰 6번) 이 requestId는 더 쓸 일이 없다. 새 공개 문구를 실제로
@@ -157,6 +158,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
       } else {
         setNotice({ tone: 'error', text: shopErrorMessage(error) });
       }
+      return false;
     } finally {
       setBusyGrade(undefined);
     }
@@ -256,7 +258,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
     busy={Boolean(busyGrade) || avatarBusy} error={notice?.tone === 'error' ? notice.text : undefined}
     avatarBusy={avatarBusy} avatarError={avatarError}
     refreshing={refreshing} onRefresh={() => { void refresh(); }}
-    onDraw={(grade) => { void buy(grade); }}
+    onDraw={buy}
     onSetAvatar={() => { if (reveal) void chooseAvatar(reveal.item.id, reveal); }}
     onClose={() => { setMachineOpen(false); setReveal(undefined); setAvatarError(undefined); onGachaClose?.(); }}
   /> : null;

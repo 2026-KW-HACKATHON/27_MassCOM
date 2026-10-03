@@ -21,6 +21,17 @@ export function isNewDraw(item: { id: string }, ownedBefore: readonly string[]):
 }
 
 export type GachaStage = 'crank' | 'shake' | 'drop' | 'wobble' | 'split' | 'burst' | 'pop';
+export type GachaPhase = 'picker' | 'pending' | GachaStage | 'result';
+type GachaEvent = { type: 'draw-started' } | { type: 'purchase-failed' } | { type: 'skip'; busy: boolean };
+
+/** 구매 실패는 오류 문구와 독립적으로 선택 상태를 복원한다. */
+export function gachaPhaseAfter(phase: GachaPhase, event: GachaEvent): GachaPhase {
+  if (event.type === 'draw-started') return 'pending';
+  if (event.type === 'purchase-failed') return phase === 'pending' ? 'picker' : phase;
+  if (phase === 'pending') return event.busy ? 'pending' : 'picker';
+  return phase === 'picker' ? 'picker' : 'result';
+}
+
 const stageDurations: Readonly<Record<GachaStage, number>> = {
   crank: 500, shake: 450, drop: 500, wobble: 300, split: 400, burst: 350, pop: 300,
 };
