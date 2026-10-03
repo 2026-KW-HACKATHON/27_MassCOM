@@ -10,6 +10,7 @@ import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresBadgeRewardService } from './postgres/badge-rewards.js';
 import { PostgresFriendService } from './postgres/friends.js';
+import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 import { runMigrations } from './postgres/migrate.js';
 
 const hmacSecret = 'test-only-account-deletion-secret-at-least-32-bytes';
@@ -692,11 +693,13 @@ test('a friend list computes medals, badges and stamps with the same rules as /m
   // 실제 점포 방문은 세지 않으므로 탐험가 3곳(3) · 단골 최다 3번(2) · 꾸준한 걸음 4일(2)이다.
   assert.deepEqual(rich.medals, [{ key: 'explorer', tier: 3 }, { key: 'regular', tier: 2 }, { key: 'steady', tier: 2 }]);
   assert.deepEqual(rich.badges, { earned: 7, total: 9 });
-  // 도장은 센 방문의 점포 이름뿐이고 이름순("C" 정렬)이다. 본인 발급·취소·미반영 방문의 점포는 없다.
+  // 도장은 센 방문의 점포 이름과 공개 목록 ID만 있고 이름순("C" 정렬)이다. 목표가 없는 점포의 ID는 숨긴다.
   assert.deepEqual(rich.stamps, [
-    { merchantName: '가상 real-shop' }, { merchantName: '가상 shop-a' }, { merchantName: '가상 shop-b' },
+    { merchantName: '가상 real-shop', merchantId: null },
+    { merchantName: '가상 shop-a', merchantId: null },
+    { merchantName: '가상 shop-b', merchantId: null },
   ]);
-  assert.deepEqual(poor.stamps, [{ merchantName: '가상 shop-c' }]);
+  assert.deepEqual(poor.stamps, [{ merchantName: '가상 shop-c', merchantId: null }]);
   // 순위: 부자(배지 7) → 배지·도장이 같은 뚜벅이와 나는 별명순("뚜벅이" < "탐험가 xxxx").
   assert.equal(rich.rank, 1);
   assert.equal(poor.rank, 2);
@@ -709,7 +712,7 @@ test('a friend list computes medals, badges and stamps with the same rules as /m
     assert.deepEqual(Object.keys(friend).sort(), ['badges', 'friendshipId', 'medals', 'nickname', 'rank', 'stamps']);
     assert.deepEqual(Object.keys(friend.badges).sort(), ['earned', 'total']);
     for (const medal of friend.medals) assert.deepEqual(Object.keys(medal).sort(), ['key', 'tier']);
-    for (const stamp of friend.stamps) assert.deepEqual(Object.keys(stamp), ['merchantName']);
+    for (const stamp of friend.stamps) assert.deepEqual(Object.keys(stamp), ['merchantName', 'merchantId']);
   }
   const text = JSON.stringify(snapshot);
   // asOf(어제 날짜)는 응답에 있어야 하는 값이라 방문 날짜(9월 1~10일)만 흔적 검사 대상이다.
@@ -717,6 +720,60 @@ test('a friend list computes medals, badges and stamps with the same rules as /m
   for (const leaked of ['rich"', 'poor"', 'stranger', 'staff-', ...visitDates, 'T03:', 'coupon', 'wallet', 'email', 'accountId']) {
     assert.equal(text.includes(leaked), false, leaked);
   }
+});
+
+test('친구 도장 ID는 현재 공개 카탈로그와 일치하고 비공개 전환 뒤에도 이름은 남는다', async (t) => {
+  const db = await setup(t);
+  const catalog = new PostgresMerchantCatalog(db.pool, db.now);
+  for (const shop of ['shop-a', 'real-shop'] as const) {
+    await db.pool.query(
+      `INSERT INTO campaign_goals (campaign_id, target_visit_count, display_name)
+       SELECT $1, goal, goal::text FROM unnest(ARRAY[1, 3, 5]) goal`, [`campaign-${shop}`],
+    );
+    await addVisit(db.pool, { account: 'friend', shop, date: '2026-09-01' });
+  }
+  await befriend(db, 'viewer', 'friend');
+
+  const check = async (expectedId: string | null) => {
+    const listed = (await catalog.listPublicMerchants()).some((merchant) => merchant.id === 'shop-a');
+    assert.equal(listed, expectedId !== null);
+    assert.deepEqual((await db.friends.list('viewer')).friends[0]!.stamps, [
+      { merchantName: '가상 real-shop', merchantId: 'real-shop' },
+      { merchantName: '가상 shop-a', merchantId: expectedId },
+    ]);
+  };
+  await check('shop-a'); // 시연 여부는 공개 목록의 숨김 조건이 아니다.
+  await db.pool.query(`UPDATE campaigns SET enrolled_count = enrollment_capacity WHERE id = 'campaign-shop-a'`);
+  await check('shop-a'); // 모집이 마감돼도 공개 가게다.
+
+  const cases = [
+    [`UPDATE merchants SET status = 'PAUSED' WHERE id = 'shop-a'`,
+      `UPDATE merchants SET status = 'ACTIVE' WHERE id = 'shop-a'`],
+    [`UPDATE campaigns SET is_public = false WHERE id = 'campaign-shop-a'`,
+      `UPDATE campaigns SET is_public = true WHERE id = 'campaign-shop-a'`],
+    ...['DRAFT', 'PAUSED', 'ENDED'].map((status) => [
+      `UPDATE campaigns SET status = '${status}' WHERE id = 'campaign-shop-a'`,
+      `UPDATE campaigns SET status = 'ACTIVE' WHERE id = 'campaign-shop-a'`,
+    ]),
+    [`UPDATE campaigns SET starts_at = '2026-10-01T00:00:00Z' WHERE id = 'campaign-shop-a'`,
+      `UPDATE campaigns SET starts_at = '2026-01-01T00:00:00Z' WHERE id = 'campaign-shop-a'`],
+    [`UPDATE campaigns SET ends_at = '2026-09-29T00:00:00Z' WHERE id = 'campaign-shop-a'`,
+      `UPDATE campaigns SET ends_at = '2027-01-01T00:00:00Z' WHERE id = 'campaign-shop-a'`],
+    [`DELETE FROM campaign_goals WHERE campaign_id = 'campaign-shop-a' AND target_visit_count = 5`,
+      `INSERT INTO campaign_goals (campaign_id, target_visit_count, display_name) VALUES ('campaign-shop-a', 5, '5회')`],
+  ];
+  for (const [hide, restore] of cases) {
+    await db.pool.query(hide!);
+    await check(null);
+    await db.pool.query(restore!);
+    await check('shop-a');
+  }
+  // 시작 시각은 포함, 종료 시각은 제외한다. 방문 집계 기준(어제)과 별개로 요청 시각을 쓴다.
+  await db.pool.query(`UPDATE campaigns SET starts_at = '2026-09-29T00:00:00Z',
+    ends_at = '2026-09-29T00:00:01Z' WHERE id = 'campaign-shop-a'`);
+  await check('shop-a');
+  db.state.now = new Date('2026-09-29T00:00:01Z');
+  await check(null);
 });
 
 test('friends see stamps and medals only through yesterday; today counts for /me/badges but not for the friends list', async (t) => {
@@ -734,7 +791,7 @@ test('friends see stamps and medals only through yesterday; today counts for /me
   assert.equal(today.me.asOf, '2026-09-28');
   assert.deepEqual(today.me.badges, { earned: 0, total: 9 });
   assert.deepEqual(today.me.medals.map((medal) => medal.tier), [0, 0, 0]);
-  assert.deepEqual(today.friends[0]!.stamps, [{ merchantName: '가상 shop-a' }]);
+  assert.deepEqual(today.friends[0]!.stamps, [{ merchantName: '가상 shop-a', merchantId: null }]);
   assert.deepEqual(today.friends[0]!.badges, { earned: 1, total: 9 });
   assert.deepEqual(today.friends.map((friend) => friend.rank), [1]);
   assert.equal(today.me.rank, 2);
@@ -752,7 +809,9 @@ test('friends see stamps and medals only through yesterday; today counts for /me
   const next = await db.friends.list('viewer');
   assert.equal(next.me.asOf, '2026-09-29');
   assert.deepEqual(next.me.badges, { earned: 3 + 0 + 0, total: 9 });
-  assert.deepEqual(next.friends[0]!.stamps, [{ merchantName: '가상 shop-a' }, { merchantName: '가상 shop-b' }]);
+  assert.deepEqual(next.friends[0]!.stamps, [
+    { merchantName: '가상 shop-a', merchantId: null }, { merchantName: '가상 shop-b', merchantId: null },
+  ]);
   // 친구는 탐험가 2곳(2) + 꾸준한 걸음 이틀(1)이라 배지 3개로 나와 같고, 도장이 3대 2라 내가 앞선다.
   assert.deepEqual(next.friends[0]!.badges, { earned: 3, total: 9 });
   assert.equal(next.me.rank, 1);

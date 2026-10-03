@@ -223,6 +223,8 @@ test('weekly collectibles keep grade counts after media removal and use availabl
   const { pool } = db;
   await seedMerchant(pool, 'collectible-a');
   await seedMerchant(pool, 'collectible-b');
+  await addMember(pool, 'collectible-a', 'staff-of-collectible-a', 'STAFF');
+  await addMember(pool, 'collectible-b', 'staff-of-collectible-b', 'STAFF');
   const campaignA = await seedCampaign(pool, 'collectible-camp-a', 'collectible-a');
   const campaignB = await seedCampaign(pool, 'collectible-camp-b', 'collectible-b');
   const entitlements: string[] = [];

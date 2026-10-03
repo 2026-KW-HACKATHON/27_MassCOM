@@ -8,16 +8,25 @@ const doc = read('docs/COLLECTIBLE_CREATOR.md');
 const customerOnly = new Set(['COLLECTIBLE_NOT_FOUND']); // 보유자 상세 API 전용이라 제작기에서는 나오지 않는다.
 const generic = collectibleErrorMessage({ status: 400, code: 'UNKNOWN_CODE' });
 
-// 점주 경로가 돌려줄 수 있는 모든 코드: 계약 문서의 "오류 코드 전체" 줄 + 서버 코드 목록 + 서버 경로의 문자열 코드.
+// 제작·탐색·열람·집계 경로의 코드: 계약 문서, 서비스 오류 타입, 서버 응답을 함께 검사한다.
 const documented = [...(doc.match(/- 오류 코드 전체.*$/m)?.[0] ?? '').matchAll(/`([A-Z][A-Z_]+)`/g)].map(match => match[1]);
 const union = read('apps/api/src/collectible-project.ts').match(/CollectibleProjectErrorCode =([^;]+);/)?.[1] ?? '';
 const fromService = [...union.matchAll(/'([A-Z_]+)'/g)].map(match => match[1]);
-const fromServer = [...read('apps/api/src/server.ts').matchAll(/'((?:COLLECTIBLE_[A-Z_]+)|BODY_TOO_LARGE|MERCHANT_ACCESS_DENIED)'/g)].map(match => match[1]);
-const all = [...new Set([...documented, ...fromService, ...fromServer])].filter(code => !customerOnly.has(code));
+const discoveryUnion = read('apps/api/src/merchant-discovery.ts').match(/MerchantDiscoveryErrorCode =([^;]+);/)?.[1] ?? '';
+const fromDiscoveryService = [...discoveryUnion.matchAll(/'([A-Z_]+)'/g)].map(match => match[1]);
+const fromServer = [...read('apps/api/src/server.ts').matchAll(/'((?:COLLECTIBLE_[A-Z_]+)|BODY_TOO_LARGE|MERCHANT_ACCESS_DENIED|MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED|VIEW_SOURCE_INVALID|VIEW_RATE_LIMITED|ADMIN_FUNNEL_NOT_CONFIGURED|FUNNEL_DAYS_INVALID)'/g)].map(match => match[1]);
+const all = [...new Set([...documented, ...fromService, ...fromDiscoveryService, ...fromServer])].filter(code => !customerOnly.has(code));
 
-test('계약 문서·서버가 돌려주는 점주 경로 오류 코드를 모두 읽어 낸다', () => {
+test('계약 문서·서버가 돌려주는 수집품·탐색·집계 오류 코드를 모두 읽어 낸다', () => {
   assert.ok(documented.length >= 14, `문서에서 코드를 읽지 못했어요: ${documented}`);
   assert.ok(fromService.length >= 10 && fromServer.includes('COLLECTIBLE_RATE_LIMITED'), '서버 코드 목록을 읽지 못했어요');
+  for (const code of ['COLLECTIBLE_PREVIEW_NOT_FOUND', 'MERCHANT_NOT_FOUND']) {
+    assert.ok(fromDiscoveryService.includes(code), `${code}를 탐색 서비스 오류 타입에서 읽지 못했어요`);
+  }
+  for (const code of ['COLLECTIBLE_PREVIEW_NOT_CONFIGURED', 'MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED',
+    'VIEW_SOURCE_INVALID', 'VIEW_RATE_LIMITED', 'ADMIN_FUNNEL_NOT_CONFIGURED', 'FUNNEL_DAYS_INVALID']) {
+    assert.ok(fromServer.includes(code), `${code}를 서버 응답에서 읽지 못했어요`);
+  }
 });
 
 test('서버·문서의 모든 오류 코드는 자기 한국어 문구가 있고 인터넷 안내로 새지 않는다', () => {
@@ -35,6 +44,9 @@ test('서버·문서의 모든 오류 코드는 자기 한국어 문구가 있�
 test('429는 Retry-After 초를 알려 주고, 413·401·서버 오류·오프라인을 각각 안내한다', () => {
   assert.match(collectibleErrorMessage({ status: 429, code: 'COLLECTIBLE_RATE_LIMITED', retryAfterSeconds: 42 }), /42초 뒤/);
   assert.match(collectibleErrorMessage({ status: 429 }), /잠시 뒤/);
+  const viewLimited = collectibleErrorMessage({ status: 429, code: 'VIEW_RATE_LIMITED', retryAfterSeconds: 42 });
+  assert.match(viewLimited, /열람.*42초 뒤/);
+  assert.doesNotMatch(viewLimited, /저장·게시/);
   assert.match(collectibleErrorMessage({ status: 413 }), /8 MB/);
   assert.match(collectibleErrorMessage({ status: 401, code: 'WEB_SESSION_EXPIRED' }), /다시 로그인/);
   assert.match(collectibleErrorMessage({ status: 403 }), /권한/);

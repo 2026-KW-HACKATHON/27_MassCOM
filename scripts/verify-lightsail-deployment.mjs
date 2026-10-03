@@ -5,6 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateMerchantArtCaddy } from './verify-lightsail-web.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const composePath = resolve(process.argv[2] ?? resolve(repoRoot, 'infra/lightsail/compose.yml'));
@@ -87,6 +88,7 @@ try {
     'Caddy must overwrite incoming client IP chains before proxying',
   );
   assert(!caddyfile.includes('postgres:5432'), 'Caddy must never proxy PostgreSQL');
+  validateMerchantArtCaddy(caddyfile);
 
   const dockerfile = readFileSync(dockerfilePath, 'utf8');
   assert(/^USER node$/m.test(dockerfile), 'runtime image must drop root privileges');

@@ -29,6 +29,10 @@ async function merchant(pool: Pool, id: string, demo = false) {
      VALUES ($1, $1, '시험', '2026-01-01T00:00:00Z', '2027-01-01T00:00:00Z', 'ACTIVE', true, 50)`, [id],
   );
   await pool.query(`INSERT INTO campaign_goals (campaign_id, target_visit_count, display_name) VALUES ($1, 1, '첫 방문')`, [id]);
+  await pool.query(
+    `INSERT INTO merchant_members (merchant_id, account_id, role, status)
+     VALUES ($1, $2, 'STAFF', 'ACTIVE')`, [id, `staff-${id}`],
+  );
 }
 
 async function visit(pool: Pool, id: string, customer: string, date: string, options: {
@@ -37,6 +41,12 @@ async function visit(pool: Pool, id: string, customer: string, date: string, opt
   const slot = randomUUID();
   const eventId = randomUUID();
   const at = `${date}T03:00:00Z`;
+  if (options.self) {
+    await pool.query(
+      `INSERT INTO merchant_members (merchant_id, account_id, role, status)
+       VALUES ($1, $2, 'STAFF', 'ACTIVE') ON CONFLICT (merchant_id, account_id) DO NOTHING`, [id, customer],
+    );
+  }
   await pool.query(
     `INSERT INTO claim_slots (id, merchant_id, customer_account_id, merchant_reference_hash, created_by_account_id,
        token_hash, status, expires_at, claimed_at, created_at, updated_at)

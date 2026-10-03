@@ -3869,7 +3869,7 @@ const sampleFriend = {
   badges: { earned: 4, total: 9 as const },
   medals: [{ key: 'explorer' as const, tier: 3 as const }, { key: 'regular' as const, tier: 1 as const },
     { key: 'steady' as const, tier: 0 as const }],
-  stamps: [{ merchantName: '가상 A' }],
+  stamps: [{ merchantName: '가상 A', merchantId: 'shop-a' }],
   rank: 1,
 };
 const sampleFriends = {

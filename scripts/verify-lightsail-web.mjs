@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -7,6 +8,23 @@ const fail = () => { throw new Error('AWS_WEB_BOUNDARY_INVALID'); };
 const requireSafe = (condition) => { if (!condition) fail(); };
 const keysAre = (value, expected) =>
   value && Object.keys(value).sort().join(',') === [...expected].sort().join(',');
+
+export function validateMerchantArtCaddy(caddyfile) {
+  const webSite = caddyfile.slice(caddyfile.indexOf('{$MASSCOM_WEB_DOMAIN:masscom.kr}'));
+  requireSafe(webSite.includes([
+    '\t@merchantArtApi {',
+    '\t\tmethod GET HEAD',
+    '\t\tpath_regexp ^/merchant-art/[0-9a-f]{64}\\.webp$',
+    '\t}',
+    '\thandle @merchantArtApi {',
+    '\t\treverse_proxy api:3000 {',
+    '\t\t\theader_up X-Forwarded-For {remote_host}',
+    '\t\t}',
+    '\t}',
+  ].join('\n')));
+  requireSafe((webSite.match(/\/merchant-art\//g) ?? []).length === 1);
+  return true;
+}
 
 export function validateAwsWebCompose(config) {
   requireSafe(config?.name === 'masscom');
@@ -76,6 +94,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       },
     });
     validateAwsWebCompose(JSON.parse(rendered));
+    validateMerchantArtCaddy(readFileSync(resolve(repoRoot, 'infra/lightsail/Caddyfile'), 'utf8'));
     console.log('AWS web Compose boundary verified (not deployed)');
   } catch {
     console.error('AWS_WEB_BOUNDARY_INVALID');

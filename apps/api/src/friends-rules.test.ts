@@ -21,7 +21,8 @@ import {
 const asOf = '2026-09-28';
 const medalsFor = (explorer: number, regular = 0, steady = 0) => buildMedals({ explorer, regular, steady });
 const friend = (id: string, nickname: string, explorer: number, stamps: string[] = []): FriendSource => ({
-  friendshipId: id, nickname, medals: medalsFor(explorer), stamps: stamps.map((merchantName) => ({ merchantName })),
+  friendshipId: id, nickname, medals: medalsFor(explorer),
+  stamps: stamps.map((merchantName) => ({ merchantName, merchantId: null })),
 });
 
 test('the friend code alphabet has 32 unambiguous characters and matches the stored pattern', () => {
@@ -182,24 +183,27 @@ test('the friend view exposes exactly the allowed key set and drops everything e
     friendshipId: '0d2b8e3c-3f51-4ea3-9a53-0c2c5d0c8a11',
     nickname: '별명',
     medals: medalsFor(3, 2, 4),
-    stamps: [{ merchantName: '가게 A', merchantId: 'm-1', visitedAt: '2026-09-01', visits: 4 }],
+    stamps: [
+      { merchantName: '가게 A', merchantId: 'm-1', visitedAt: '2026-09-01', visits: 4 },
+      { merchantName: '비공개 가게', merchantId: null, privateMerchantId: 'hidden-id', visits: 2 },
+    ],
     accountId: 'google-123', email: 'a@b.c', coupons: [{ id: 1 }], wallet: '0xabc', businessDate: '2026-09-01',
   } as unknown as FriendSource;
   const view = serializeFriendView(polluted, 2);
   assert.deepEqual(Object.keys(view).sort(), ['badges', 'friendshipId', 'medals', 'nickname', 'rank', 'stamps']);
   assert.deepEqual(Object.keys(view.badges).sort(), ['earned', 'total']);
   for (const medal of view.medals) assert.deepEqual(Object.keys(medal).sort(), ['key', 'tier']);
-  for (const stamp of view.stamps) assert.deepEqual(Object.keys(stamp), ['merchantName']);
+  for (const stamp of view.stamps) assert.deepEqual(Object.keys(stamp), ['merchantName', 'merchantId']);
   assert.deepEqual(view, {
     friendshipId: '0d2b8e3c-3f51-4ea3-9a53-0c2c5d0c8a11',
     nickname: '별명',
     badges: { earned: 3 + 2 + 1, total: 9 },
     medals: [{ key: 'explorer', tier: 3 }, { key: 'regular', tier: 1 }, { key: 'steady', tier: 2 }],
-    stamps: [{ merchantName: '가게 A' }],
+    stamps: [{ merchantName: '가게 A', merchantId: 'm-1' }, { merchantName: '비공개 가게', merchantId: null }],
     rank: 2,
   });
   const text = JSON.stringify(view);
-  for (const leaked of ['google-123', 'a@b.c', 'coupons', '0xabc', '2026-09-01', 'm-1', 'visits']) {
+  for (const leaked of ['google-123', 'a@b.c', 'coupons', '0xabc', '2026-09-01', 'visits', 'hidden-id']) {
     assert.equal(text.includes(leaked), false, leaked);
   }
 });
