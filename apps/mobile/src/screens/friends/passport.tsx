@@ -7,6 +7,7 @@ import type { AccountCredential } from '@/auth/account-credential';
 import { FriendsApiError, createFriendsApiClient, friendsErrorMessage, rotateFailureCopy, type Friend } from '@/friends/friends-api';
 import { passportAsOfNote, visitedShopSummary } from '@/friends/friends-model';
 import { useFriends } from '@/friends/use-friends';
+import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { Medallion, medallionSizes } from '@/gamification/medallion';
 import { TierChip } from '@/gamification/medal-shelf';
 import { medalCopy, shouldStackTrio, tierName } from '@/gamification/badge-rules';
@@ -24,6 +25,7 @@ import { StateScene } from '@/ui/state-scene';
 import { useUiStyles } from '@/ui/use-ui-styles';
 
 import { createLeaveOnce, type LeaveOnce } from './leave-once';
+import { friendStampMerchantId } from './friend-stamp-destination';
 import { useFriendsStyles } from './use-friends-styles';
 
 // The block is kept per account, not per code: it holds for every code of mine, but not for someone who signs in with another
@@ -57,6 +59,7 @@ export function FriendPassportScreen({
     [apiUrl, credential, onSessionInvalid],
   );
   const friends = useFriends(api);
+  const { merchants } = useMerchantCatalog(apiUrl);
   // Busy from the confirmed unfriend until the flow ends (the new-code prompt and a possible rotate included), so the button and
   // a second prompt cannot start it again in between.
   const [removing, setRemoving] = useState(false);
@@ -193,7 +196,7 @@ export function FriendPassportScreen({
         <View style={styles.section}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>도장판</Text>
           <Text style={styles.sectionNote}>{visitedShopSummary(friend.stamps.length)} · 방문 날짜와 횟수는 보이지 않아요.</Text>
-          <View style={styles.sectionBody}><FriendStampPage names={friend.stamps.map((stamp) => stamp.merchantName)} /></View>
+          <View style={styles.sectionBody}><FriendStampPage names={friend.stamps.map((stamp) => stamp.merchantName)} merchants={merchants} /></View>
         </View>
       </Stagger>
 
@@ -250,7 +253,8 @@ function FriendMedals({ friend }: { friend: Friend }) {
 }
 
 /** The cream passport page with one ink stamp per shop the friend has visited, named and undated. */
-function FriendStampPage({ names }: { names: readonly string[] }) {
+function FriendStampPage({ names, merchants }: { names: readonly string[]; merchants: readonly { id: string; name: string }[] }) {
+  const router = useRouter();
   const ui = useUiStyles();
   const styles = useFriendsStyles();
   const world = worldForScheme(useColorScheme());
@@ -266,13 +270,9 @@ function FriendStampPage({ names }: { names: readonly string[] }) {
   }
   return (
     <View style={ui.stampPage}>
-      {names.map((name, index) => (
-        <View
-          key={`${index}-${name}`}
-          accessible
-          accessibilityLabel={`${name} 도장 받음`}
-          style={[styles.stampSlotStatic, { width: slotWidth }]}
-        >
+      {names.map((name, index) => {
+        const merchantId = friendStampMerchantId(name, merchants);
+        const content = <>
           {/* The tilt is computed here on the JS thread, like the passport's own stamps. */}
           <View accessible={false} style={[ui.stampRing, { backgroundColor: world.paper, transform: [{ rotate: `${stampTilt(name)}deg` }] }]}>
             <View style={ui.stampRingInner}>
@@ -280,8 +280,16 @@ function FriendStampPage({ names }: { names: readonly string[] }) {
             </View>
           </View>
           <Text numberOfLines={2} textBreakStrategy="simple" style={ui.stampName}>{name}</Text>
-        </View>
-      ))}
+        </>;
+        const style = [styles.stampSlotStatic, { width: slotWidth }];
+        return merchantId ? (
+          <Pressable key={`${index}-${name}`} accessibilityRole="link" accessibilityLabel={`${name} 도장 받음, 가게 보기`}
+            onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId, from: 'friend' } })}
+            style={style}>{content}</Pressable>
+        ) : (
+          <View key={`${index}-${name}`} accessible accessibilityLabel={`${name} 도장 받음`} style={style}>{content}</View>
+        );
+      })}
     </View>
   );
 }

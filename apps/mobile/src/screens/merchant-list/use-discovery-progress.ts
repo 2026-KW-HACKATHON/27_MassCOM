@@ -26,13 +26,19 @@ export function useDiscoveryProgress(options: {
     () => (credential ? createBadgeApiClient({ apiUrl, credential, onSessionInvalid }) : undefined),
     [apiUrl, credential, onSessionInvalid],
   );
-  const { book, refreshQuietly } = useBadgeBook(badgeApi);
+  const { book, refreshQuietly, applyOpened } = useBadgeBook(badgeApi);
 
+  const focusedApi = useRef(badgeApi);
   const firstFocus = useRef(true);
   useFocusEffect(useCallback(() => {
-    if (firstFocus.current) { firstFocus.current = false; return; }
+    // 새 클라이언트의 첫 조회는 useBadgeBook이 맡는다. 계정 변경으로 재진입해도 중복 요청하지 않는다.
+    if (firstFocus.current || focusedApi.current !== badgeApi) {
+      firstFocus.current = false;
+      focusedApi.current = badgeApi;
+      return;
+    }
     void refreshQuietly();
-  }, [refreshQuietly]));
+  }, [badgeApi, refreshQuietly]));
 
   const { reload } = town;
   const seenToken = useRef(refreshToken);
@@ -43,5 +49,6 @@ export function useDiscoveryProgress(options: {
     void refreshQuietly();
   }, [refreshToken, reload, refreshQuietly]);
 
-  return { collection: town.collection, book: credential ? book : undefined };
+  // 여권 칩·보상 카드·진행 필터가 한 번 읽은 책과 상자 갱신을 함께 쓴다.
+  return { collection: town.collection, book: credential ? book : undefined, badgeApi, refreshQuietly, applyOpened };
 }

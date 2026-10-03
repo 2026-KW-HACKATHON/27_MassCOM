@@ -16,6 +16,7 @@ import Svg, { Defs, Ellipse, LinearGradient, Rect, Stop } from 'react-native-svg
 
 import { focusForAccessibility } from '@/accessibility/focus-component';
 import { celebrationNote } from '@/commerce/progress-note';
+import type { AfterVisitAction } from '@/commerce/after-visit-action';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { tierColors } from '@/theme/medal-colors';
 import { Mascot } from '@/ui/mascot';
@@ -57,24 +58,26 @@ type Props = {
   content: CelebrationContent | undefined;
   variant: ShareVariant;
   onClose: () => void;
+  primaryAction: AfterVisitAction;
+  onPrimaryAction: () => void;
+  onOpenFeedback?: () => void;
   /** focusRewards: a box became openable, so land on the reward section. */
   onOpenCollection: (focusRewards: boolean) => void;
-  onOpenEnvelope?: () => void;
   onOpenGacha?: () => void;
 };
 
 const impactAt = 420;
 
 /** "도장 쾅!" — full-screen celebration after a confirmed visit. Static under reduced motion. */
-export function Celebration({ content, variant, onClose, onOpenCollection, onOpenEnvelope, onOpenGacha }: Props) {
+export function Celebration({ content, variant, onClose, primaryAction, onPrimaryAction, onOpenFeedback, onOpenCollection, onOpenGacha }: Props) {
   return (
     <FullScreenModal visible={content !== undefined} animationType="fade" onRequestClose={onClose}>
-        {content ? <CelebrationBody key={content.claimSlotId} content={content} variant={variant} onClose={onClose} onOpenCollection={onOpenCollection} onOpenEnvelope={onOpenEnvelope} onOpenGacha={onOpenGacha} /> : null}
+        {content ? <CelebrationBody key={content.claimSlotId} content={content} variant={variant} onClose={onClose} primaryAction={primaryAction} onPrimaryAction={onPrimaryAction} onOpenFeedback={onOpenFeedback} onOpenCollection={onOpenCollection} onOpenGacha={onOpenGacha} /> : null}
       </FullScreenModal>
   );
 }
 
-function CelebrationBody({ content, variant, onClose, onOpenCollection, onOpenEnvelope, onOpenGacha }: Props & { content: CelebrationContent }) {
+function CelebrationBody({ content, variant, onClose, primaryAction, onPrimaryAction, onOpenFeedback, onOpenCollection, onOpenGacha }: Props & { content: CelebrationContent }) {
   const theme = useGamificationTheme();
   const { styles, medal } = theme;
   const insets = useSafeAreaInsets();
@@ -161,26 +164,26 @@ function CelebrationBody({ content, variant, onClose, onOpenCollection, onOpenEn
             {items.map((item, index) => (
               <ReelCard key={`${item.type}-${index}`} item={item} index={index} theme={theme} reduceMotion={reduceMotion}
                 artwork={item.type === 'collectible' ? artworkById.get(item.reward.entitlementId) : undefined}
-                onOpenEnvelope={onOpenEnvelope} onOpenCollection={() => onOpenCollection(true)} />
+              />
             ))}
           </View>
         ) : null}
 
         <View style={styles.celebrationActions}>
-          {shownBeat >= 3 && content.mileageBalance !== undefined && onOpenGacha ? (
-            content.mileageBalance >= 100 ? (
-              <Pressable accessibilityRole="button" onPress={onOpenGacha} style={({ pressed }) => [styles.button, { minHeight: 56 }, pressed && styles.pressed]}>
-                <Text style={[styles.buttonText, { fontSize: 18 }]}>지금 뽑기 (보유 {content.mileageBalance})</Text>
-              </Pressable>
-            ) : <Text style={styles.celebrationBody}>{100 - content.mileageBalance}마일리지 더 모으면 뽑을 수 있어요</Text>
-          ) : null}
           <Pressable
             accessibilityRole="button"
-            onPress={() => onOpenCollection(openable)}
+            onPress={onPrimaryAction}
             style={({ pressed }) => [styles.button, pressed && styles.pressed]}
           >
-            <Text style={styles.buttonText}>{openable ? '도감에서 상자 열기' : '도감에서 보기'}</Text>
+            <Text style={styles.buttonText}>{primaryAction.label}</Text>
           </Pressable>
+          {primaryAction.kind === 'recommendation' ? <Text style={styles.celebrationBody}>{primaryAction.detail}</Text> : null}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="도감 보기" onPress={() => onOpenCollection(false)} style={styles.ghostButton}><Text style={styles.ghostButtonText}>도감</Text></Pressable>
+            <Text style={styles.celebrationBody}>·</Text>
+            {onOpenGacha ? <Pressable accessibilityRole="button" accessibilityLabel="상점 뽑기" onPress={onOpenGacha} style={styles.ghostButton}><Text style={styles.ghostButtonText}>상점 뽑기</Text></Pressable> : null}
+            {onOpenFeedback ? <><Text style={styles.celebrationBody}>·</Text><Pressable accessibilityRole="button" accessibilityLabel="이 가게 어땠나요? 선택" onPress={onOpenFeedback} style={styles.ghostButton}><Text style={styles.ghostButtonText}>이 가게 어땠나요?(선택)</Text></Pressable></> : null}
+          </View>
           {featured ? (
             <Pressable
               accessibilityRole="button"
@@ -228,16 +231,14 @@ function CelebrationBody({ content, variant, onClose, onOpenCollection, onOpenEn
   );
 }
 
-function ReelCard({ item, index, theme, reduceMotion, artwork, onOpenEnvelope, onOpenCollection }: {
+function ReelCard({ item, index, theme, reduceMotion, artwork }: {
   item: RewardReelItem;
   index: number;
   theme: GamificationTheme;
   reduceMotion: boolean;
   artwork?: CelebrationContent['artworkRewards'] extends readonly (infer T)[] | undefined ? T : never;
-  onOpenEnvelope?: () => void;
-  onOpenCollection: () => void;
 }) {
-  const { palette, medal, styles } = theme;
+  const { palette, medal } = theme;
   const scale = useSharedValue(reduceMotion ? 1 : 0.94);
   const opacity = useSharedValue(reduceMotion ? 1 : 0);
   const accent = useSharedValue(1);
@@ -302,9 +303,6 @@ function ReelCard({ item, index, theme, reduceMotion, artwork, onOpenEnvelope, o
             <Text style={{ color: palette.secondaryLabel, fontSize: 12, fontWeight: '800' }}>{artwork?.gradeName ?? `${item.reward.targetVisitCount}회 보상`}</Text>
             <Text style={{ color: palette.label, fontSize: 16, fontWeight: '900' }}>{artwork?.name ?? '새 수집품'}</Text>
           </View>
-          <Pressable accessibilityRole="button" onPress={onOpenEnvelope} style={[styles.secondaryButton, { minWidth: 90 }]}>
-            <Text style={styles.secondaryButtonText}>봉투 열기</Text>
-          </Pressable>
         </>
       ) : item.type === 'medal' ? (
         <>
@@ -322,9 +320,6 @@ function ReelCard({ item, index, theme, reduceMotion, artwork, onOpenEnvelope, o
             <Text style={{ color: palette.label, fontSize: 16, fontWeight: '900' }}>{rewardBoxName(item.reward.milestone)}</Text>
             <Text style={{ color: palette.secondaryLabel, fontSize: 13 }}>열 수 있어요!</Text>
           </View>
-          <Pressable accessibilityRole="button" onPress={onOpenCollection} style={[styles.secondaryButton, { minWidth: 88 }]}>
-            <Text style={styles.secondaryButtonText}>상자 열기</Text>
-          </Pressable>
         </>
       ) : (
         <>

@@ -15,6 +15,8 @@ test('skip is offered in every stage, including while loading and on failure', (
 
 test('a partial load failure still shows the cards that did load; only a total failure shows the failure screen', () => {
   assert.match(source, /loaded\.length === 0 && hadError/);
+  assert.match(source, /<EnvelopeReveal cards=\{cards\}[\s\S]*?onCardShown=\{onCardShown\}/);
+  assert.doesNotMatch(source, /if \(loaded\.length === 0 && hadError\) onCardShown/);
 });
 
 test('the reveal screen computes NEW/milestone/series through envelope-state.ts, not an inline reimplementation', () => {

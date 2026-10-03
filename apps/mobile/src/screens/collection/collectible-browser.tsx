@@ -151,10 +151,17 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
             <FloatingCard key={store.merchantId} style={[styles.seriesCard, { backgroundColor: world.card }]}>
               <Text style={[styles.groupName, { color: world.cardInk }]}>{store.merchantName}</Text>
               <View style={styles.seriesSlots}>
-                {store.slots.map((slot) => (
-                  <View key={slot.targetVisitCount} style={[styles.seriesSlot, { borderColor: slot.owned ? palette.primary : palette.separator, backgroundColor: slot.owned ? palette.primaryContainer : 'transparent' }]}>
-                    <Text style={[styles.seriesSlotText, { color: slot.owned ? palette.onPrimaryContainer : world.cardMuted }]}>{seriesSlotText(slot)}</Text>
+                {store.slots.map((slot) => slot.owned ? (
+                  <View key={slot.targetVisitCount} style={[styles.seriesSlot, { borderColor: palette.primary, backgroundColor: palette.primaryContainer }]}>
+                    <Text style={[styles.seriesSlotText, { color: palette.onPrimaryContainer }]}>{seriesSlotText(slot)}</Text>
                   </View>
+                ) : (
+                  <Link key={slot.targetVisitCount} href={{ pathname: '/merchants/[merchantId]', params: { merchantId: store.merchantId, from: 'collection' } }} asChild>
+                    <Pressable accessibilityRole="link" accessibilityLabel={`${store.merchantName}, ${seriesSlotText(slot)}, 가게 보기`}
+                      style={StyleSheet.flatten([styles.seriesSlot, { borderColor: palette.separator, backgroundColor: 'transparent' }])}>
+                      <Text style={[styles.seriesSlotText, { color: world.cardMuted }]}>{seriesSlotText(slot)}</Text>
+                    </Pressable>
+                  </Link>
                 ))}
               </View>
               {store.completed ? (

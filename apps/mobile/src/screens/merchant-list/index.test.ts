@@ -23,8 +23,9 @@ test('pull-to-refresh also refreshes the badge book, not just the store list (#3
   const refreshAll = screen.slice(screen.indexOf('const refreshAll = useCallback'), screen.indexOf('}, [refresh]);'));
   assert.match(refreshAll, /void refresh\(\);/);
   assert.match(refreshAll, /setBadgeRefreshToken/);
-  assert.match(screen, /SignedInPassportChip[^/]*refreshToken=\{badgeRefreshToken\}/);
-  assert.match(screen, /SignedInRewardCard[^/]*refreshToken=\{badgeRefreshToken\}/);
+  assert.match(screen, /refreshToken: badgeRefreshToken/);
+  assert.match(screen, /PassportChip copy="내 탐험 여권 보기" data=\{passportChipData\(discovery\.book\)\}/);
+  assert.match(screen, /SignedInRewardCard book=\{discovery\.book\}/);
 });
 
 // Issue #331: 탐색 목록의 메뉴 검색·업종 칩·진행 칩. 화면은 렌더러로 못 읽으니 소스를 검사하고, 규칙은 discovery-filters.test.ts가 맡는다.
@@ -81,4 +82,21 @@ test('discovery data reuses the collection and badge-book reads: no new endpoint
   assert.match(progressHook, /void reload\(\);\s*void refreshQuietly\(\);/);
   assert.match(screen, /refreshToken: badgeRefreshToken/);
   assert.match(progressHook, /book: credential \? book : undefined/);
+});
+
+
+test('홈 여권·보상·필터는 배지 책을 한 번 읽고 같은 갱신을 쓴다 (#354)', () => {
+  assert.doesNotMatch(screen, /useBadgeBook\(|createBadgeApiClient\(/);
+  assert.equal((progressHook.match(/useBadgeBook\(badgeApi\)/g) ?? []).length, 1);
+  assert.match(screen, /refreshQuietly=\{discovery\.refreshQuietly\} applyOpened=\{discovery\.applyOpened\}/);
+  assert.match(progressHook, /badgeApi, refreshQuietly, applyOpened/);
+});
+
+test('홈 다음 목표는 서버 첫 추천을 사용하고 출처를 넘긴다 (#354)', () => {
+  assert.match(screen, /item: items\[0\]/);
+  assert.match(screen, /bestNextGoal = signedIn && nextGoal\?\.api === recommendationApi/);
+  assert.match(screen, /from: 'recommendation'/);
+  assert.match(screen, /accessibilityHint="추천 가게 상세 보기"/);
+  assert.match(screen, /params: \{ merchantId, from: 'list' \}/);
+  assert.match(screen, /return \(\) => controller\.abort\(\)/);
 });

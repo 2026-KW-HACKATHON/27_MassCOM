@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useReducer, useRef } from 'react';
+import { useCallback, useMemo, useReducer, useRef, useState } from 'react';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
@@ -26,6 +26,12 @@ export function useTownCollection(options: {
   );
   const [state, dispatch] = useReducer(townCollectionReducer, INITIAL_TOWN_COLLECTION);
   const generation = useRef(0);
+  const [lastApi, setLastApi] = useState(api);
+  if (lastApi !== api) {
+    // 새 계정의 첫 응답이 오기 전에 이전 도장·수집품을 노출하지 않는다.
+    setLastApi(api);
+    dispatch({ type: 'accountChanged' });
+  }
 
   const fetchCollection = useCallback(async () => {
     if (!api) return;

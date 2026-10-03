@@ -1,25 +1,25 @@
 // 방문 완료 카드의 "이번 방문으로 얻은 것·다음 등급까지" 안내(Issue #332). 적립·등급 판정은 서버가 정본이라, 화면은 서버가
 // 센 값을 말로 옮기기만 하고 규칙(50·100·200)을 따라 계산하지 않는다.
 
-/** 가게 캠페인의 수집품 목표는 인정된 방문 1·3·5회다(점포 목록에서 다시 읽지 않고 이 값으로 안내한다). */
-export const defaultVisitGoals: readonly VisitGoal[] = [1, 3, 5];
+/** 점포 목록을 읽지 못했을 때에만 쓰는 이전 캠페인 목표. */
+export const defaultVisitGoals = [{ targetVisitCount: 1, displayName: '브론즈' }, { targetVisitCount: 3, displayName: '실버' }, { targetVisitCount: 5, displayName: '골드' }] as const;
 
-export type VisitGoal = 1 | 3 | 5;
-
-const gradeByGoal: Record<VisitGoal, string> = { 1: '브론즈', 3: '실버', 5: '골드' };
+export type VisitGoal = { targetVisitCount: number; displayName: string };
 
 export type VisitRewardGuide = { nextGradeLine: string | null };
 
-export function visitRewardGuide(input: { progressCount: number; goals: readonly VisitGoal[] }): VisitRewardGuide {
+export function visitRewardGuide(input: { progressCount: number; goals?: readonly VisitGoal[] }): VisitRewardGuide {
   return { nextGradeLine: nextGradeLine(input.progressCount, input.goals) };
 }
 
-function nextGradeLine(progressCount: number, goals: readonly VisitGoal[]): string | null {
+function nextGradeLine(progressCount: number, goals: readonly VisitGoal[] | undefined): string | null {
+  const actualGoals = goals ?? defaultVisitGoals;
   // 목표가 하나도 없는 가게는 시리즈 자체가 없어 "골드까지 모았어요"라고 말할 수 없다.
-  if (goals.length === 0) return null;
-  const next = [...goals].sort((a, b) => a - b).find((goal) => goal > progressCount);
-  if (next === undefined) return '골드까지 모았어요';
-  return `${gradeByGoal[next]} 수집품까지 ${next - progressCount}번 남았어요 (같은 가게는 하루 1번)`;
+  if (actualGoals.length === 0) return null;
+  const sorted = [...actualGoals].sort((a, b) => a.targetVisitCount - b.targetVisitCount);
+  const next = sorted.find((goal) => goal.targetVisitCount > progressCount);
+  if (next === undefined) return `${sorted[sorted.length - 1]!.displayName}까지 모았어요`;
+  return `${next.displayName} 수집품까지 ${next.targetVisitCount - progressCount}번 남았어요 (같은 가게는 하루 1번)`;
 }
 
 /**
