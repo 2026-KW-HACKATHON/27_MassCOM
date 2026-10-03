@@ -22,6 +22,7 @@ import {
   buildFriendGrid, earnRulesText, formatMileage, rerollDisclosure, rerollButtonState, resumeOrStartPurchase,
   type FriendGridCell, type PendingPurchase,
 } from '@/shop/shop-rules';
+import { shopDrawHeading, shopDrawIntro } from '@/shop/shop-copy';
 import { useShop } from '@/shop/use-shop';
 
 import { DrawReveal } from './draw-reveal';
@@ -240,7 +241,8 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid }: {
 
       <Stagger index={2}>
         <View style={styles.section}>
-          <Text accessibilityRole="header" style={styles.sectionTitle}>재뽑기권</Text>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>{shopDrawHeading}</Text>
+          <Text style={styles.sectionNote}>{shopDrawIntro}</Text>
           {snapshot.grades.map((grade) => (
             <GradeRow
               key={grade.grade}

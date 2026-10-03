@@ -10,6 +10,7 @@ export function makeShopStyles(palette: AppColors, world: WorldTheme) {
     hero: { flexDirection: 'row', justifyContent: 'flex-end' },
     section: { gap: 5 },
     sectionTitle: { color: world.skyInk, fontSize: 22, fontWeight: '900' },
+    sectionNote: { color: world.skyMuted, fontSize: 13, lineHeight: 20 },
     card: { gap: 12, padding: 18 },
     mileageRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     coin: { width: 40, height: 40 },
