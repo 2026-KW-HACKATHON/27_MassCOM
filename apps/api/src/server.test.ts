@@ -4733,12 +4733,100 @@ function startVisitorFeedbackFixture(
     merchantAccess?: MerchantAccessFixture;
     webAuth?: TestWebAuth;
     staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+    merchantOverview?: MerchantOverviewReader;
   } = {},
 ) {
   return startFixture(t, extra.resolveAccountId, undefined, extra.merchantAccess, undefined, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
     extra.webAuth, false, undefined, undefined, extra.staffRegistration, undefined, undefined, undefined,
-    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, visitorFeedback);
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, extra.merchantOverview, visitorFeedback);
+}
+
+for (const route of [
+  { path: 'overview', result: sampleOverview, notConfigured: 'MERCHANT_OVERVIEW_NOT_CONFIGURED' },
+  { path: 'visitor-feedback', result: sampleVisitorSummary, notConfigured: 'VISITOR_FEEDBACK_NOT_CONFIGURED' },
+]) {
+  test(`mobile merchant ${route.path} requires Bearer and merchant permission including demo stores (#341)`, async (t) => {
+    const calls: unknown[][] = [];
+    let allowed = true;
+    const resolveAccountId = createBearerAccountResolver(authSessionFixture({
+      resolve: async token => {
+        if (token !== 'staff-session') throw new AuthSessionError('SESSION_INVALID');
+        return 'staff-account';
+      },
+    }));
+    const access: MerchantAccessFixture = { requirePermission: async input => {
+      calls.push(['permission', input]);
+      if (!allowed || !['real-merchant', 'demo-merchant'].includes(input.merchantId)) {
+        throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+      }
+      return { merchantId: input.merchantId, role: 'STAFF', permissions: ['CONFIRM_VISIT'] };
+    } };
+    const overview: MerchantOverviewReader = { overview: async input => {
+      calls.push(['overview', input]);
+      return sampleOverview;
+    } };
+    // 웹 전용 실제 점포 목록에 의존하면 시연 점포 접근이 막히므로 호출 자체를 금지한다.
+    const staff = { mine: async () => { throw new Error('모바일 경로는 웹 점포 목록을 호출하면 안 된다'); } } as unknown as
+      Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+    const base = await startVisitorFeedbackFixture(t, visitorFeedbackFixture(calls), {
+      resolveAccountId, merchantAccess: access, merchantOverview: overview, staffRegistration: staff,
+    });
+    const headers = { authorization: 'Bearer staff-session', 'x-account-id': 'forged-account' };
+    const read = (id = 'demo-merchant', customHeaders: Record<string, string> = headers, method = 'GET') =>
+      fetch(`${base}/merchant/merchants/${id}/${route.path}`, { headers: customHeaders, method });
+
+    for (const customHeaders of [{}, { 'x-account-id': 'staff-account', cookie: 'web_session=staff-session' }]) {
+      const unauthenticated = await read('demo-merchant', customHeaders);
+      assert.equal(unauthenticated.status, 401);
+      assert.deepEqual(await unauthenticated.json(), { code: 'SESSION_REQUIRED' });
+    }
+    const stale = await read('demo-merchant', { authorization: 'Bearer stale-session' });
+    assert.equal(stale.status, 401);
+    assert.deepEqual(await stale.json(), { code: 'SESSION_INVALID' });
+    assert.deepEqual(calls, []);
+
+    for (const merchantId of ['real-merchant', 'demo-merchant']) {
+      const response = await read(merchantId.replace('-', '%2D'));
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), route.result);
+      assert.deepEqual(calls.splice(0), [
+        ['permission', { accountId: 'staff-account', merchantId, permission: 'CONFIRM_VISIT' }],
+        route.path === 'overview' ? ['overview', { merchantId }] : ['summary', merchantId],
+      ]);
+    }
+
+    allowed = false;
+    const denied = await read();
+    assert.equal(denied.status, 403);
+    assert.deepEqual(await denied.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+    assert.deepEqual(calls.splice(0), [
+      ['permission', { accountId: 'staff-account', merchantId: 'demo-merchant', permission: 'CONFIRM_VISIT' }],
+    ]);
+    allowed = true;
+    const cross = await read('other-merchant');
+    assert.equal(cross.status, 403);
+    assert.deepEqual(await cross.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+    assert.deepEqual(calls.splice(0), [
+      ['permission', { accountId: 'staff-account', merchantId: 'other-merchant', permission: 'CONFIRM_VISIT' }],
+    ]);
+
+    for (const id of ['demo%00merchant', '%E0%A4%A']) {
+      const malformed = await read(id);
+      assert.equal(malformed.status, 400);
+      assert.deepEqual(await malformed.json(), { code: 'INVALID_PATH_PARAMETER' });
+    }
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']) {
+      assert.equal((await read('demo-merchant', headers, method)).status, 404);
+    }
+    assert.deepEqual(calls, []);
+
+    const unconfigured = await startVisitorFeedbackFixture(t, undefined, { resolveAccountId, merchantAccess: access });
+    const notReady = await fetch(`${unconfigured}/merchant/merchants/demo-merchant/${route.path}`, { headers });
+    assert.equal(notReady.status, 503);
+    assert.deepEqual(await notReady.json(), { code: route.notConfigured });
+    assert.deepEqual(calls, []);
+  });
 }
 
 const visitorFeedbackErrorStatuses: [VisitorFeedbackErrorCode, number][] = [

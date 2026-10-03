@@ -85,6 +85,8 @@ npm run start:local
 - `POST /campaigns/:id/enrollments`: 공개·진행 중·기간 내 캠페인의 참여 정원을 단일 조건부 UPDATE로 예약합니다. 신규 `201`, 같은 계정 재요청 `200`(자리 추가 사용 없음), 정원 마감·참여 불가 `409`, 없는·비공개 캠페인 `404`, 삭제된 계정 `410`. 삭제·취소로 자리를 반환하지 않습니다.
 - 경로 값의 percent-encoding이 잘못되면 모든 라우트가 `400 INVALID_PATH_PARAMETER`로 응답합니다.
 - `GET /merchant/merchants/:merchantId/context`: 서버가 확인한 계정의 활성 점포 멤버십과 허용 권한 조회
+- `GET /merchant/merchants/:merchantId/overview`(앱 Bearer, `CONFIRM_VISIT`, Issue #341): 실제·DEMO 점포의 활성 멤버십을 검사하고 점주 웹 현황 경로와 같은 JSON을 반환. 권한 없음·다른 점포는 `403 MERCHANT_ACCESS_DENIED`, 서비스 미설정은 `503 MERCHANT_OVERVIEW_NOT_CONFIGURED`
+- `GET /merchant/merchants/:merchantId/visitor-feedback`(앱 Bearer, `CONFIRM_VISIT`, Issue #341): 실제·DEMO 점포의 활성 멤버십을 검사하고 점주 웹 손님 의견 요약과 같은 `{tags, suggestions, notes}`를 반환. 권한 없음·다른 점포는 `403 MERCHANT_ACCESS_DENIED`, 서비스 미설정은 `503 VISITOR_FEEDBACK_NOT_CONFIGURED`. 두 경로 모두 GET만 허용하며 다른 메서드는 기존 404로 응답
 - `POST /customer/identity-tokens`(Bearer) → 고객의 2분 식별 QR token 발급. 새 발급은 이전 미사용 token을 폐기하며 DB에는 해시와 내부 계정 귀속만 저장
 - `POST /customer/identity-tokens/revoke`(Bearer) → 본인의 미사용 식별 QR 폐기
 - `POST /merchant/merchants/:merchantId/customer-identities/resolve`(Bearer STAFF) → 식별 QR을 해당 점포·직원에게 묶고 만료 시각만 반환. 이 단계에서는 방문·보상 효과 없음
