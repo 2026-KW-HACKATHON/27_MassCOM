@@ -36,6 +36,32 @@ test('parses a GET /shop snapshot', async () => {
   assert.equal(shop.items[0]!.owned, true);
 });
 
+test('showcaseBonus: a missing field means 0, a present one is read as the separate bonus on top of the real balance', async () => {
+  const fetchSnapshot = async (mileage: Record<string, unknown>) => createShopApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json(snapshotBody({ mileage })),
+  }).getShop();
+  const rules = { visit: 50, newStore: 100, series: 200 };
+
+  const operating = await fetchSnapshot({ earned: 500, spent: 100, balance: 400, rules });
+  assert.equal(operating.mileage.showcaseBonus, 0);
+  assert.equal(operating.mileage.balance, 400);
+
+  const showcase = await fetchSnapshot({ earned: 500, spent: 100, balance: 100_400, showcaseBonus: 100_000, rules });
+  assert.equal(showcase.mileage.showcaseBonus, 100_000);
+  assert.equal(showcase.mileage.earned, 500);
+  assert.equal(showcase.mileage.balance, 100_400);
+
+  for (const bad of [-1, 1.5, '100000', null, true]) {
+    await assert.rejects(
+      fetchSnapshot({ earned: 500, spent: 100, balance: 400, showcaseBonus: bad, rules }),
+      (error) => error instanceof ShopApiError && error.code === 'INVALID_RESPONSE',
+      `showcaseBonus ${JSON.stringify(bad)}`,
+    );
+  }
+});
+
 test('rejects a snapshot that is not the documented shape', async () => {
   const cases: [string, (body: ReturnType<typeof snapshotBody>) => void][] = [
     ['unknown grade letter', (body) => { body.grades[0]!.grade = 'PLATINUM' as never; }],

@@ -22,6 +22,8 @@ export type MileageShopSnapshot = {
     earned: number;
     spent: number;
     balance: number;
+    // 시연 서버에서만, 진짜 적립과 따로 balance에 더해진 시연 체험 마일리지(#333). 운영 응답에는 키가 없다.
+    showcaseBonus?: number;
     rules: { visit: number; newStore: number; series: number };
   };
   grades: MileageShopGradeView[];
@@ -39,7 +41,7 @@ export type MileageShopHistoryEntry = {
 };
 
 export type MileageShopHistory = {
-  mileage: { earned: number; spent: number; balance: number };
+  mileage: { earned: number; spent: number; balance: number; showcaseBonus?: number };
   spends: MileageShopHistoryEntry[];
   nextCursor: string | null;
 };
