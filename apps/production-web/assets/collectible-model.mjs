@@ -17,6 +17,9 @@ export const PARTICLE_KINDS = Object.freeze(['confetti', 'snow', 'petals', 'spar
 export const BACK_MODES = Object.freeze(['default', 'custom']);
 export const PARALLAX_TOOLS = Object.freeze(['fg', 'bg']);
 export const LIVING_KINDS = Object.freeze(['sway', 'bob', 'steam', 'blink']);
+/** 두께 3단계(Issue #329). 저장 값은 그대로 1~24 정수이고, 이 표는 화면 이름만 정한다. */
+export const THICKNESS_PRESETS = Object.freeze([Object.freeze([4, '얇게']), Object.freeze([8, '보통']), Object.freeze([14, '두껍게'])]);
+export function thicknessPresetLabel(value) { return THICKNESS_PRESETS.find(([preset]) => preset === value)?.[1] ?? null; }
 export const STORY_TYPES = Object.freeze(['none', 'zoom', 'wide', 'follow', 'event']);
 // 등급별 프레임 없이 각도만 재생하는 once 재생의 표시 시간(ms). 'still'은 재생이 없어 없다.
 export const ONCE_MS = Object.freeze({ rotate: 4000, shine: 3500, sparkle: 3500, stamp: 3500, float: 2400, pulse: 2400, confetti: 2000 });

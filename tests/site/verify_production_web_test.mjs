@@ -986,14 +986,74 @@ function merchantDocument() {
   const button = element();
   nodes['merchant-registration'].querySelector = name => name === 'select' ? select : button;
   const listeners = new Map();
+  const documentListeners = new Map();
+  const documentRegistrations = [];
   const doc = {
+    addEventListener(type, callback) { documentRegistrations.push(type); documentListeners.set(type, callback); },
     getElementById(id) { return nodes[id]; },
     querySelector() { return select; },
     createElement() { return element(); },
     defaultView: { addEventListener(type, callback) { listeners.set(type, callback); } },
   };
-  return { nodes, select, button, listeners, doc };
+  const click = (target, options = {}) => {
+    const event = { target, button: 0, defaultPrevented: false,
+      preventDefault() { this.defaultPrevented = true; }, ...options };
+    documentListeners.get('click')?.(event);
+    return event;
+  };
+  return { nodes, select, button, listeners, documentRegistrations, doc, click };
 }
+
+test('점포 개요 앵커와 건너뛰기는 이력 변경 없이 대상을 스크롤하고 초점을 옮긴다', async () => {
+  const { nodes, documentRegistrations, doc, click } = merchantDocument();
+  const historyCalls = [];
+  doc.defaultView.history = Object.fromEntries(['pushState', 'replaceState', 'back', 'forward', 'go']
+    .map(method => [method, (...args) => historyCalls.push({ method, args })]));
+  let hashWrites = 0;
+  doc.defaultView.location = { get hash() { return ''; }, set hash(value) { hashWrites++; } };
+  await bindMerchant(async () => ({ ok: true, json: async () => ({ merchants: [] }) }), doc);
+  assert.equal(documentRegistrations.filter(type => type === 'click').length, 1);
+  for (const id of ['merchant-visit-title', 'merchant-redemption-title', 'main']) {
+    const target = element(); target.tabIndex = -1;
+    if (id !== 'main') target.setAttribute('tabindex', '-1');
+    target.hasAttribute = name => target.getAttribute(name) !== null;
+    target.removeAttribute = name => { delete target.attributes[name]; };
+    const calls = [];
+    target.scrollIntoView = options => calls.push({ method: 'scroll', options });
+    target.focus = options => calls.push({ method: 'focus', options });
+    nodes[id] = target;
+    const anchor = element(); anchor.setAttribute('href', `#${id}`);
+    const child = { closest(selector) { assert.equal(selector, 'a[href^="#"]'); return anchor; } };
+    const event = click(child);
+    assert.equal(event.defaultPrevented, true);
+    assert.deepEqual(calls, [
+      { method: 'scroll', options: { block: 'start' } },
+      { method: 'focus', options: { preventScroll: true } },
+    ]);
+    assert.equal(target.getAttribute('tabindex'), '-1');
+    await target.dispatch('blur');
+    assert.equal(target.getAttribute('tabindex'), id === 'main' ? null : '-1');
+    for (const options of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }, { button: 2 }]) {
+      assert.equal(click(child, options).defaultPrevented, false);
+    }
+    assert.equal(calls.length, 2, '보조 키 클릭은 스크롤과 초점을 옮기지 않는다');
+    if (id === 'main') {
+      assert.equal(click(child, { detail: 0 }).defaultPrevented, true);
+      assert.deepEqual(calls.slice(2), [
+        { method: 'scroll', options: { block: 'start' } },
+        { method: 'focus', options: { preventScroll: true } },
+      ]);
+    }
+  }
+  assert.deepEqual(historyCalls, []);
+  assert.equal(hashWrites, 0);
+  for (const href of ['#', '#missing']) {
+    const anchor = element(); anchor.setAttribute('href', href);
+    const event = click({ closest() { return anchor; } });
+    assert.equal(event.defaultPrevented, href !== '#');
+  }
+  assert.equal(click({ closest() { return null; } }).defaultPrevented, false);
+});
 
 test('점포 웹은 고객 QR 확인 후 명시적 사용 동의로만 방문 코드를 발급한다', async () => {
   const { nodes, doc, listeners } = merchantDocument();

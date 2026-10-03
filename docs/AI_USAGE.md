@@ -6,6 +6,7 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 
 | 날짜 | 도구 | 담당 작업 | 생성·수정 범위 | 실제 검증 | 사람 검토 |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-03 | Claude Opus 오케스트레이션, Claude Sonnet 구현·리뷰(Tasks 1~4), Codex Sol 6.1 수정(Task 5·IO 수정)·문서(Task 6 Step 4), Sol High 최종 리뷰 | Issue #329 점주 수집품 제작기 폰 개편 | 운영 웹 순수 ESM의 4단계 펼침·접힘, 폰 전체 화면·고정 머리글·하단 바·⋯ 메뉴, 붓 캔버스·필터·두께·음성 파형, 뒤로가기·앵커·앞으로가기·재마운트(R18/R19), IntersectionObserver의 미리보기 캔버스 관찰 수정, 회귀 시험·화면 캡처와 COLLECTIBLE_CREATOR·README·TEST_STATUS·AI_USAGE | 제공된 구현·QA 기록: `node --test tests/site/collectible-*.test.mjs tests/site/verify_production_web_test.mjs` 347/347 PASS. 문서 작업의 `bash tools/gate.sh`·`git diff --check` PASS, 편집기·파형 94/94 및 배치·기록 이동 36/36 PASS, 전체 회귀 재실행은 샌드박스 서버 바인딩 `EPERM`으로 BLOCKED. 제공된 QA fixture 브라우저 검수: 360/390/412/1280px 가로 넘침·버튼 잘림 없음, ⋯ 메뉴 뷰포트 안, 라이트·다크 캡처 `docs/evidence/creator-wizard-mobile-2026-10-03/` | 독립 리뷰(Claude Sonnet 구현·리뷰 컨텍스트 분리, Sol High 최종 리뷰). 실기기 확인은 `NOT_RUN`: Samsung Chrome(폰 미연결), 실제 Android 제스처 뒤로가기, 기기의 실제 MP3·녹음 파형. 브라우저 QA·자동 시험과 사람·실기 검증을 구분 |
 | 2026-10-03 | Codex | Issue #340 수정 1차: 외형 없는 수집품 상세 연결 | 모바일 공통 LegacyCard·로컬 표시 어댑터·기존 회전 상세·회귀 시험 | 수집 화면 시험 199/199, tsc·lint·diff 검사 PASS; tsx CLI는 IPC EPERM으로 BLOCKED, 같은 시험을 Node 로더로 실행 | 운영·시연 설치본 실기 NOT_RUN; 사용자 지시로 커밋 없음 |
 | 2026-10-03 | Codex(메인 API·문서 수정, 독립 모바일 구현·코드 검토 에이전트) | Issue #334 수정 2차: 옛 직원 본인 발급 자격·취소 거래, 선택형 의견 401 부작용, 안내 문구·시연 빈 상태·시험 보완 | API `postgres/visitor-feedback.ts`·`postgres/reversal.ts`·통합 시험 2개, 모바일 수령·상세·폼·시험 6개, `privacy.html`·D-069·시험/AI 기록. 배지 FROM 조각을 재사용하고 진행도 미집계 방문 자격을 유지 | API 타입 검사·대상 단위 25/25, 모바일 대상 104/104·타입 검사·lint, 처리방침 8/8·`git diff --check` PASS. 모바일 수정 전 의도한 회귀 단언 3개 실패 확인. DB 통합 신규 1건·기존 HTTP 403/미집계 자격·취소 실패 6경우 행 복구 단언 보완; 모바일 신규 2건·소스 단언 강화. DB 시험은 컨트롤러 실행으로 NOT_RUN, 실제 Android 두 variant·API 통합·실기·배포 NOT_RUN. 의존성·커밋·HANDOFF·BLOCKERS 변경 없음 | 사람 검토 NOT_RUN. 독립 읽기 전용 API·모바일 코드 검토 CLEAR; 실행하지 않은 DB·실기 검증을 대신하지 않음 |
 | 2026-10-03 | Codex(일반 구현 하위 에이전트·독립 코드/구조 검토) | Issue #334 2단계: 모바일 방문 특징·비공개 의견 폼과 점주 웹 조회 | `apps/mobile/src/merchant/visitor-feedback-*`·점포 파서·상세/목록/수령 화면·시험, `apps/production-web/merchant.html`·`assets/merchant.mjs`·가짜 DOM 시험, README·시험/인수인계 기록. 서버는 원문 조회만 | 모바일 대상 102/102·타입검사·lint·웹 정적 문법·diff PASS. tsx CLI IPC EPERM → 같은 파일 Node 로더 PASS. 부모 웹 전체는 loopback EPERM으로 BLOCKED; 서버 준비 훅을 뺀 임시 사본의 신규 가짜 DOM 3/3 PASS(원본 시험 불변·임시 삭제). 실기·배포 NOT_RUN; 커밋 없음 | 사람 검토 NOT_RUN. 독립 구조 검토 CLEAR·코드 검토 COMMENT(신규 시험 URL 타입 보완, 남은 구체적 결함 0건); 전체 웹·실기 검증 한계 유지 |
@@ -160,6 +161,11 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드) | Issue #318 모바일 npm audit 좁은 예외(D-066, 소유자 결정) | `scripts/audit-ci.mjs`·예외 목록·시험 작성 | `node --test tests/ops/audit_ci_test.mjs` 6/6, 변이 3건, `npm run audit:ci` PASS, Claude 독립 검토 |
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드) | Issue #316 계정 삭제 처리 시험의 고정 시계 시한폭탄 수정 | 시험 하나에서 서비스 시계를 옛 INSERT 행의 `requested_at`에 맞춤(운영 코드 무변경) | CI와 같은 비밀번호 인증 PostgreSQL로 통합 시험 전체 실행, Codex 검토 |
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드 오케스트레이션, Sonnet 5.5 executor) | 운영·시연 서버 재배포(`a39b983`) 기록(Issue #321 서버 부분) | 메인 스레드가 확인한 배포·브라우저 결과를 증거 JSON(`deployment-a39b983-2026-10-02.json`)과 HANDOFF·PROJECT_STATE·TEST_STATUS·README·두 인프라 README·BLOCKERS로 정리(Sonnet 문서 작업, 서버 접근 없음) | `python3 -m json.tool`, `bash tools/gate.sh`, 사람이 검토할 수 있는 PR |
+
+## 2026-10-03 Issue #329 Task 5 수정 2차
+
+- Codex: R18 지정 설계에 따라 merchant 앵커의 fragment 이력 생성 방지, workspaceHash 제거, fake DOM 회귀 시험 수정. 커밋 없음.
+- 검증: studio 전체 33/33, merchant 앵커 선택 시험 1/1, 변경 모듈 문법·diff 검사 PASS. 전체 production-web 시험은 sandbox의 localhost listen EPERM으로 BLOCKED. 실제 브라우저 시험 NOT_RUN.
 
 ## 팀 설명 체크리스트
 
