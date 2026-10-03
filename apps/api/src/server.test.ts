@@ -4724,7 +4724,7 @@ function visitorFeedbackFixture(
   };
 }
 
-// 서비스 자리(29번째)까지 채운 시작 도우미. 나머지는 시험마다 필요한 것만 넘긴다.
+// 서비스 자리(30번째)까지 채운 시작 도우미. 나머지는 시험마다 필요한 것만 넘긴다.
 function startVisitorFeedbackFixture(
   t: TestContext,
   visitorFeedback: VisitorFeedbackService | undefined,
@@ -4738,7 +4738,7 @@ function startVisitorFeedbackFixture(
   return startFixture(t, extra.resolveAccountId, undefined, extra.merchantAccess, undefined, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
     extra.webAuth, false, undefined, undefined, extra.staffRegistration, undefined, undefined, undefined,
-    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, visitorFeedback);
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, visitorFeedback);
 }
 
 const visitorFeedbackErrorStatuses: [VisitorFeedbackErrorCode, number][] = [
