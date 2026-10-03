@@ -107,3 +107,19 @@ export function decideReroll(input: {
   if (input.balance < input.price) return { kind: 'INSUFFICIENT_MILEAGE' };
   return { kind: 'PROCEED' };
 }
+
+// 시연 전부 체험(#333): 마일리지 합계의 한 곳. 시연 서버만 showcaseBonus > 0을 넘기고(서비스 옵션), 그 값은 balance에만 더한다 —
+// earned는 진짜 적립 그대로이고 spent는 진짜 사용 그대로다. 보너스가 0이면 showcaseBonus 키를 아예 싣지 않아 운영 응답은 바뀌지 않는다.
+export function summarizeMileage(input: { earned: number; spent: number; showcaseBonus: number }): {
+  earned: number;
+  spent: number;
+  balance: number;
+  showcaseBonus?: number;
+} {
+  return {
+    earned: input.earned,
+    spent: input.spent,
+    balance: input.earned + input.showcaseBonus - input.spent,
+    ...(input.showcaseBonus > 0 ? { showcaseBonus: input.showcaseBonus } : {}),
+  };
+}

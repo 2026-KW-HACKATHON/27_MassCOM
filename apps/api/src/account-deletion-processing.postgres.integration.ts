@@ -1011,6 +1011,9 @@ test('deleting an account deletes its sessions, so a leaked token finds no row a
     await pool.query('INSERT INTO friend_codes (account_id, code) VALUES ($1, $2)', [target, friendCode]);
     await pool.query('INSERT INTO explorer_profiles (account_id, nickname) VALUES ($1, $2)', [target, '시험별명']);
     await pool.query('INSERT INTO friend_code_attempts (account_id, attempted_at) VALUES ($1, $2)', [target, t0]);
+    await pool.query(
+      `INSERT INTO merchant_visitor_feedback (customer_account_id, merchant_id, tags, suggestions, note)
+       VALUES ($1, $2, '{KIND}', '{HOURS_INFO}', '삭제 시험 의견')`, [target, merchant]);
     await pool.query('INSERT INTO merchant_art_rounds (id, merchant_id, requested_by_account_id, status, business_date) VALUES ($1, $2, $3, \'FAILED\', $4)',
       [randomUUID(), merchant, target, '2026-09-30']);
     const request = (await pool.query<{ id: string }>(
@@ -1073,7 +1076,8 @@ test('deleting an account deletes its sessions, so a leaked token finds no row a
     const seededCells = await accountIdCells(pool, target);
     assert.ok(seededCells.length >= 15, 'the fixture reaches many tables');
     for (const cell of ['visit_events.canceled_by_account_id', 'badge_coupons.voided_by_account_id',
-      'badge_coupon_audit.actor_account_id', 'badge_coupon_audit.previous_redeemed_by_account_id']) {
+      'badge_coupon_audit.actor_account_id', 'badge_coupon_audit.previous_redeemed_by_account_id',
+      'merchant_visitor_feedback.customer_account_id']) {
       assert.ok(seededCells.includes(cell), `the fixture puts the raw ID in ${cell}`);
     }
     assert.equal(await webStore.resolve(webSession.token, 'masscom.kr'), target);

@@ -6,6 +6,7 @@ import type {
   PublicMerchant,
   PublicRewardGoal,
 } from '../merchant-catalog.js';
+import { publicVisitorTags } from '../visitor-feedback-rules.js';
 
 type MerchantCatalogRow = {
   merchant_id: string;
@@ -18,6 +19,7 @@ type MerchantCatalogRow = {
   category: string | null;
   is_demo: boolean;
   art_sha256: string | null;
+  visitor_tag_counts: unknown;
   campaign_id: string;
   campaign_title: string;
   starts_at: Date;
@@ -45,6 +47,14 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
          m.category,
          m.is_demo,
          (SELECT art.sha256 FROM merchant_art art WHERE art.merchant_id = m.id) AS art_sha256,
+         -- 가게 특징 태그별 표 수(Issue #334). 공개 기준(3표, 시연 1표)은 아래에서 코드로 적용한다. 피드백이 없어도 목록에는 나온다.
+         (SELECT coalesce(jsonb_agg(jsonb_build_object('code', vote.code, 'count', vote.votes)), '[]'::jsonb)
+          FROM (
+            SELECT tag.code, count(*)::integer AS votes
+            FROM merchant_visitor_feedback feedback, unnest(feedback.tags) AS tag(code)
+            WHERE feedback.merchant_id = m.id
+            GROUP BY tag.code
+          ) vote) AS visitor_tag_counts,
          c.id AS campaign_id,
          c.title AS campaign_title,
          c.starts_at,
@@ -91,8 +101,23 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
       },
       demo: row.is_demo,
       artUrl: artUrlFor(row.art_sha256),
+      visitorTags: publicVisitorTags(parseVisitorTagCounts(row.visitor_tag_counts), row.is_demo),
     }));
   }
+}
+
+function parseVisitorTagCounts(value: unknown): { code: string; count: number }[] {
+  if (!Array.isArray(value)) {
+    throw new Error('invalid visitor tag counts');
+  }
+  return value.map((entry) => {
+    const code = entry && typeof entry === 'object' ? Reflect.get(entry, 'code') : undefined;
+    const count = entry && typeof entry === 'object' ? Reflect.get(entry, 'count') : undefined;
+    if (typeof code !== 'string' || typeof count !== 'number') {
+      throw new Error('invalid visitor tag count');
+    }
+    return { code, count };
+  });
 }
 
 export function parseRewardGoals(value: unknown): readonly PublicRewardGoal[] {

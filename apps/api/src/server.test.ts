@@ -48,8 +48,10 @@ import {
   type RedeemedClaimSlot,
 } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
+import type { MileageShopHistory, MileageShopService, MileageShopSnapshot } from './mileage-shop.js';
 import { MerchantOverviewError, type MerchantOverview, type MerchantOverviewReader } from './merchant-overview-rules.js';
 import { ReversalError, type ReversalErrorCode, type ReversalService } from './reversal.js';
+import { VisitorFeedbackError, type VisitorFeedbackErrorCode, type VisitorFeedbackService } from './visitor-feedback.js';
 import {
   MerchantArtError,
   type ArtRoundView,
@@ -236,7 +238,9 @@ async function startFixture(
   consent?: ConsentService,
   accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
   guestTrials?: Pick<ShowcaseGuestTrialService, 'start' | 'resolve'>,
+  mileageShop?: MileageShopService,
   merchantOverview?: MerchantOverviewReader,
+  visitorFeedback?: VisitorFeedbackService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -277,10 +281,11 @@ async function startFixture(
     consent,
     undefined,
     undefined,
-    undefined,
+    mileageShop,
     accessRequests,
     guestTrials,
     merchantOverview,
+    visitorFeedback,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -973,8 +978,8 @@ test('#295 showcase test-visit route exists only when wired, rate-limits, issues
     ['redeem', { accountId: 'acct_a', token: 'showcase-token' }],
   ]);
 
-  // 계정당 10회/시간(#295). 위 두 호출(invalidBody, issued)이 이미 2회를 썼으니 8번 더 통과하고 그다음은 429다.
-  for (let i = 0; i < 8; i += 1) {
+  // 계정당 60회/시간(#333이 #295의 10회에서 올림). 위 두 호출(invalidBody, issued)이 이미 2회를 썼으니 58번 더 통과하고 그다음은 429다.
+  for (let i = 0; i < 58; i += 1) {
     assert.equal((await fetch(`${showcase}/showcase/test-visits`, {
       method: 'POST', headers: { 'x-account-id': 'acct_a', 'content-type': 'application/json' },
       body: JSON.stringify({ merchantId: 'showcase-merchant-a' }),
@@ -1004,6 +1009,86 @@ test('#295 showcase test-visit route exists only when wired, rate-limits, issues
     assert.equal(response.status, status, code);
     assert.deepEqual(await response.json(), { code });
   }
+});
+
+// #333: 서버 배선(옵션을 시연 배치에서만 넘기는 일)은 server.ts 시작 코드라 showcase/all-access.test.ts(옵션 값)와
+// showcase/all-access-wiring.test.ts(server.ts 소스 배선)가, 서비스 동작은 Postgres 통합 시험이 따로 증명한다.
+// 여기서는 가짜 서비스를 쓰므로 HTTP 층이 시연 배치 신호가 없을 때 시연 경로를 열지 않고 서비스의 마일리지 응답을 그대로 전달하는지만 본다
+// (운영 응답에 showcaseBonus가 없다는 증명은 mileage-shop.postgres.integration.ts의 키 목록 시험이다).
+function mileageShopFixture(snapshot: MileageShopSnapshot, history: MileageShopHistory): MileageShopService {
+  return {
+    getShop: async () => snapshot,
+    getHistory: async () => history,
+    reroll: async () => { throw new Error('unexpected reroll call'); },
+    setAvatar: async () => { throw new Error('unexpected setAvatar call'); },
+  };
+}
+
+async function startShopFixture(
+  t: TestContext,
+  shop: MileageShopService,
+  claims?: ClaimSlotFixture,
+  accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
+): Promise<string> {
+  // claimSlots(5번째)와 accessRequests(28번째) 사이, 그리고 guestTrials(29번째)는 비워 두고 mileageShop(30번째)만 채운다.
+  return startFixture(
+    t, undefined, undefined, undefined, claims, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, accessRequests, undefined, shop,
+  );
+}
+
+test('#333 without the showcase signal /showcase/test-visits stays 404 even with claim slots, and /shop relays the service mileage exactly as returned', async (t) => {
+  const rules = { visit: 50, newStore: 100, series: 200 };
+  const operatingSnapshot: MileageShopSnapshot = {
+    mileage: { earned: 150, spent: 0, balance: 150, rules }, grades: [], items: [], avatar: null,
+  };
+  const operatingHistory: MileageShopHistory = {
+    mileage: { earned: 150, spent: 0, balance: 150 }, spends: [], nextCursor: null,
+  };
+  const calls: string[] = [];
+  const claims = claimSlotFixture({
+    issueShowcaseTestSlot: async () => { calls.push('issue'); throw new Error('must not be called in operating'); },
+    redeem: async () => { calls.push('redeem'); throw new Error('must not be called in operating'); },
+  });
+  const operating = await startShopFixture(t, mileageShopFixture(operatingSnapshot, operatingHistory), claims);
+
+  // accessRequests(시연 배치 신호)가 없으면 서비스가 설정돼 있어도 404이고 발급·수령은 호출되지 않는다.
+  const closed = await fetch(`${operating}/showcase/test-visits`, {
+    method: 'POST', headers: { 'x-account-id': 'acct_a', 'content-type': 'application/json' },
+    body: JSON.stringify({ merchantId: 'showcase-merchant-a' }),
+  });
+  assert.equal(closed.status, 404);
+  assert.deepEqual(await closed.json(), { code: 'NOT_FOUND' });
+  assert.deepEqual(calls, []);
+
+  const shop = await fetch(`${operating}/shop`, { headers: { 'x-account-id': 'acct_a' } });
+  assert.equal(shop.status, 200);
+  const shopBody = await shop.json() as { mileage: Record<string, unknown> };
+  assert.deepEqual(shopBody.mileage, { earned: 150, spent: 0, balance: 150, rules });
+  assert.equal('showcaseBonus' in shopBody.mileage, false);
+  const history = await fetch(`${operating}/shop/history`, { headers: { 'x-account-id': 'acct_a' } });
+  assert.deepEqual(((await history.json()) as { mileage: unknown }).mileage, { earned: 150, spent: 0, balance: 150 });
+});
+
+test('#333 a showcase server passes the shop showcaseBonus through next to the real earned mileage', async (t) => {
+  const rules = { visit: 50, newStore: 100, series: 200 };
+  const boosted: MileageShopSnapshot = {
+    mileage: { earned: 150, spent: 0, balance: 100_150, showcaseBonus: 100_000, rules }, grades: [], items: [], avatar: null,
+  };
+  const showcase = await startShopFixture(
+    t,
+    mileageShopFixture(boosted, { mileage: { earned: 150, spent: 0, balance: 100_150, showcaseBonus: 100_000 }, spends: [], nextCursor: null }),
+    undefined,
+    accessRequestsFixture(),
+  );
+  const shop = await fetch(`${showcase}/shop`, { headers: { 'x-account-id': 'acct_a' } });
+  assert.deepEqual(((await shop.json()) as { mileage: unknown }).mileage, boosted.mileage);
+  const history = await fetch(`${showcase}/shop/history`, { headers: { 'x-account-id': 'acct_a' } });
+  assert.deepEqual(
+    ((await history.json()) as { mileage: unknown }).mileage,
+    { earned: 150, spent: 0, balance: 100_150, showcaseBonus: 100_000 },
+  );
 });
 
 const adminIntake: AdminDeletionIntake = {
@@ -1872,6 +1957,7 @@ test('lists public merchants without requiring login or a wallet', async (t) => 
     },
     demo: true,
     artUrl: null,
+    visitorTags: [{ code: 'SOLO', count: 3 }, { code: 'KIND', count: 1 }],
   } as const;
   const baseUrl = await startFixture(t, developmentHeaderAccountResolver, {
     listPublicMerchants: async () => [merchant],
@@ -4266,7 +4352,7 @@ test('web merchant overview route needs session, permission and membership and m
   const start = (withOverview = true) => startFixture(t, undefined, undefined, access, undefined, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
     webAuth, false, undefined, undefined, staff, undefined, undefined, undefined, undefined, undefined, undefined,
-    undefined, undefined, undefined, undefined, withOverview ? overview : undefined);
+    undefined, undefined, undefined, undefined, undefined, withOverview ? overview : undefined);
   const base = await start();
   const cookie = { cookie: 'web_session=staff-cookie' };
   const read = (customHeaders: Record<string, string> = cookie, host = 'masscom.kr', id = 'real-merchant') =>
@@ -4347,7 +4433,7 @@ test('a path id that decodes to a NUL character is refused with 400 before it ca
   const base = await startFixture(t, undefined, undefined, access, undefined, undefined,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
     webAuth, false, undefined, undefined, staff, undefined, undefined, undefined, undefined, undefined, undefined,
-    undefined, undefined, undefined, undefined, overview);
+    undefined, undefined, undefined, undefined, undefined, overview);
   const cookie = { cookie: 'web_session=staff-cookie' };
   // 점주 현황과, 같은 경로 해석기를 쓰는 기존 수집품 캠페인 경로가 모두 500이 아니라 400이다.
   for (const path of [
@@ -4613,4 +4699,216 @@ test('owner promotion and demotion need a web login from the last ten minutes', 
   assert.equal((await promote()).status, 200);
   assert.equal((await demote()).status, 200);
   assert.deepEqual(calls, ['publish', 'promote', 'demote']);
+});
+
+// ---- 방문 후 가게 특징·바라는 점·의견(Issue #334, D-069) ----
+const sampleVisitorSelection = { tags: ['SOLO', 'KIND'], suggestions: ['HOURS_INFO'], note: '국물이 진해요' };
+const sampleVisitorSummary = {
+  tags: [{ code: 'SOLO', label: '혼밥하기 좋아요', count: 3 }, { code: 'KIND', label: '친절해요', count: 1 }],
+  suggestions: [{ code: 'HOURS_INFO', label: '영업시간 안내가 있으면 좋겠어요', count: 2 }],
+  notes: [{ customerLabel: '손님 K7QM', date: '2026-10-03', text: '국물이 진해요' }],
+};
+
+function visitorFeedbackFixture(
+  calls: unknown[][] = [],
+  overrides: Partial<VisitorFeedbackService> = {},
+): VisitorFeedbackService {
+  return {
+    getMine: async (accountId, merchantId) => { calls.push(['mine', accountId, merchantId]); return sampleVisitorSelection as never; },
+    upsert: async (accountId, merchantId, input) => {
+      calls.push(['upsert', accountId, merchantId, input]);
+      return sampleVisitorSelection as never;
+    },
+    merchantSummary: async merchantId => { calls.push(['summary', merchantId]); return sampleVisitorSummary as never; },
+    ...overrides,
+  };
+}
+
+// 서비스 자리(30번째)까지 채운 시작 도우미. 나머지는 시험마다 필요한 것만 넘긴다.
+function startVisitorFeedbackFixture(
+  t: TestContext,
+  visitorFeedback: VisitorFeedbackService | undefined,
+  extra: {
+    resolveAccountId?: AccountResolver;
+    merchantAccess?: MerchantAccessFixture;
+    webAuth?: TestWebAuth;
+    staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  } = {},
+) {
+  return startFixture(t, extra.resolveAccountId, undefined, extra.merchantAccess, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
+    extra.webAuth, false, undefined, undefined, extra.staffRegistration, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, visitorFeedback);
+}
+
+const visitorFeedbackErrorStatuses: [VisitorFeedbackErrorCode, number][] = [
+  ['VISITOR_FEEDBACK_TAGS_INVALID', 400], ['VISITOR_FEEDBACK_SUGGESTIONS_INVALID', 400],
+  ['VISITOR_FEEDBACK_NOTE_INVALID', 400], ['VISITOR_FEEDBACK_NOT_ELIGIBLE', 403], ['ACCOUNT_DELETED', 410],
+];
+
+test('customer feedback routes need login, take only the three fields, and map the errors with distinct codes', async (t) => {
+  const calls: unknown[][] = [];
+  let failure: VisitorFeedbackError | undefined;
+  const base = await startVisitorFeedbackFixture(t, visitorFeedbackFixture(calls, {
+    getMine: async (accountId, merchantId) => { calls.push(['mine', accountId, merchantId]); if (failure) throw failure; return sampleVisitorSelection as never; },
+    upsert: async (accountId, merchantId, input) => {
+      calls.push(['upsert', accountId, merchantId, input]);
+      if (failure) throw failure;
+      return sampleVisitorSelection as never;
+    },
+  }));
+  const call = (path: string, method = 'GET', body?: object | string, account: string | null = 'customer-1') =>
+    fetch(`${base}/me/merchant-feedback/${path}`, {
+      method,
+      headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(account ? { 'x-account-id': account } : {}) },
+      ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
+    });
+
+  // 로그인 없이는 읽기도 쓰기도 401이고 서비스까지 가지 않는다.
+  assert.equal((await call('shop-1', 'GET', undefined, null)).status, 401);
+  assert.equal((await call('shop-1', 'PUT', sampleVisitorSelection, null)).status, 401);
+  assert.deepEqual(calls, []);
+
+  const mine = await call('shop-1');
+  assert.equal(mine.status, 200);
+  assert.deepEqual(await mine.json(), sampleVisitorSelection);
+  const saved = await call('shop-1', 'PUT', sampleVisitorSelection);
+  assert.equal(saved.status, 200);
+  assert.deepEqual(await saved.json(), sampleVisitorSelection);
+  // 가게는 주소의 값만 쓰고 퍼센트 인코딩은 풀어서 넘긴다. 의견을 안 보내면 undefined다(서비스가 null로 접는다).
+  await call('shop%2D2', 'PUT', { tags: [], suggestions: [] });
+  assert.deepEqual(calls, [
+    ['mine', 'customer-1', 'shop-1'],
+    ['upsert', 'customer-1', 'shop-1', { tags: sampleVisitorSelection.tags, suggestions: sampleVisitorSelection.suggestions, note: sampleVisitorSelection.note }],
+    ['upsert', 'customer-1', 'shop-2', { tags: [], suggestions: [], note: undefined }],
+  ]);
+
+  // 모르는 키(다른 계정·다른 가게를 가리키려는 시도 포함)·JSON이 아닌 본문은 400이고 서비스에 닿지 않는다.
+  const served = calls.length;
+  for (const body of [
+    { ...sampleVisitorSelection, customerAccountId: 'victim' }, { ...sampleVisitorSelection, merchantId: 'shop-9' },
+    { ...sampleVisitorSelection, extra: 1 },
+  ]) {
+    const response = await call('shop-1', 'PUT', body);
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { code: 'INVALID_REQUEST' });
+  }
+  const notJson = await call('shop-1', 'PUT', 'not json');
+  assert.equal(notJson.status, 400);
+  assert.deepEqual(await notJson.json(), { code: 'INVALID_JSON_BODY' });
+  assert.equal((await call('shop-1', 'PUT', '[]')).status, 400);
+  assert.equal(calls.length, served);
+  const percent = await call('%E0%A4%A');
+  assert.equal(percent.status, 400);
+  assert.deepEqual(await percent.json(), { code: 'INVALID_PATH_PARAMETER' });
+  // 알 수 없는 메서드·경로는 이 경로가 아니다.
+  for (const [method, path] of [['POST', 'shop-1'], ['DELETE', 'shop-1'], ['GET', 'shop-1/extra'], ['GET', '']] as const) {
+    assert.equal((await call(path, method, method === 'POST' ? {} : undefined)).status, 404, `${method} ${path}`);
+  }
+
+  for (const [code, status] of visitorFeedbackErrorStatuses) {
+    failure = new VisitorFeedbackError(code);
+    for (const response of [await call('shop-1'), await call('shop-1', 'PUT', sampleVisitorSelection)]) {
+      assert.equal(response.status, status, code);
+      assert.deepEqual(await response.json(), { code });
+    }
+  }
+});
+
+test('customer feedback writes are limited to 30 an hour per account, and reads and other accounts are not', async (t) => {
+  const calls: unknown[][] = [];
+  const base = await startVisitorFeedbackFixture(t, visitorFeedbackFixture(calls));
+  const put = (account: string) => fetch(`${base}/me/merchant-feedback/shop-1`, {
+    method: 'PUT', headers: { 'content-type': 'application/json', 'x-account-id': account },
+    body: JSON.stringify(sampleVisitorSelection),
+  });
+  for (let index = 0; index < 30; index += 1) assert.equal((await put('busy')).status, 200, `write ${index + 1}`);
+  const limited = await put('busy');
+  assert.equal(limited.status, 429);
+  assert.deepEqual(await limited.json(), { code: 'VISITOR_FEEDBACK_RATE_LIMITED' });
+  assert.ok(Number(limited.headers.get('retry-after')) >= 1);
+  assert.equal(calls.filter(call => call[0] === 'upsert').length, 30);
+  assert.equal((await put('calm')).status, 200);
+  assert.equal((await fetch(`${base}/me/merchant-feedback/shop-1`, { headers: { 'x-account-id': 'busy' } })).status, 200);
+});
+
+test('customer feedback routes report unavailable when the service is not configured', async (t) => {
+  const base = await startVisitorFeedbackFixture(t, undefined);
+  for (const method of ['GET', 'PUT']) {
+    const response = await fetch(`${base}/me/merchant-feedback/shop-1`, {
+      method, headers: { 'x-account-id': 'customer-1', ...(method === 'PUT' ? { 'content-type': 'application/json' } : {}) },
+      ...(method === 'PUT' ? { body: JSON.stringify(sampleVisitorSelection) } : {}),
+    });
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { code: 'VISITOR_FEEDBACK_NOT_CONFIGURED' });
+  }
+});
+
+test('web merchant feedback summary needs the web session, permission and membership of that very store', async (t) => {
+  const calls: unknown[][] = [];
+  let allowed = true;
+  let members = ['real-merchant'];
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async token => {
+      if (token !== 'staff-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'staff-account';
+    }, logout: async () => {},
+  };
+  const staff = { mine: async () => members.map(id => ({ id, name: `점포 ${id}`, role: 'STAFF' })) } as unknown as
+    Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const access: MerchantAccessFixture = { requirePermission: async input => {
+    calls.push(['permission', input]);
+    if (!allowed) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    return { merchantId: input.merchantId, role: 'STAFF', permissions: ['CONFIRM_VISIT'] };
+  } };
+  const base = await startVisitorFeedbackFixture(t, visitorFeedbackFixture(calls), { merchantAccess: access, webAuth, staffRegistration: staff });
+  const cookie = 'web_session=staff-cookie';
+  const read = (merchant: string, headers: Record<string, string> = { cookie }, host = 'masscom.kr') =>
+    webRequest(base, `/api/web/merchant/merchants/${merchant}/visitor-feedback`, { headers, host });
+
+  const summary = await read('real-merchant');
+  assert.equal(summary.status, 200);
+  const body = await summary.json();
+  assert.deepEqual(body, sampleVisitorSummary);
+  assert.equal(summary.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.equal(summary.headers.get('cache-control'), 'no-store');
+  // 계정 ID·이메일·시각은 응답에 없다.
+  assert.equal(/customerAccountId|accountId|@|T\d\d:\d\d/.test(JSON.stringify(body)), false);
+  assert.deepEqual(calls.filter(call => call[0] === 'permission'),
+    [['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'CONFIRM_VISIT' }]]);
+  assert.deepEqual(calls.filter(call => call[0] === 'summary'), [['summary', 'real-merchant']]);
+  const served = () => calls.filter(call => call[0] === 'summary').length;
+  const servedBefore = served();
+
+  assert.equal((await read('real-merchant', { cookie: '' })).status, 401);
+  assert.equal((await read('real-merchant', { cookie: 'web_session=other' })).status, 401);
+  assert.equal((await read('real-merchant', { cookie }, 'evil.example')).status, 403);
+  // 다른 가게: 권한 확인은 통과해도 내 점포 목록에 없으면 거절한다(가게 간 조회 차단).
+  const otherStore = await read('other-merchant');
+  assert.equal(otherStore.status, 403);
+  assert.deepEqual(await otherStore.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  members = [];
+  assert.equal((await read('real-merchant')).status, 403);
+  members = ['real-merchant'];
+  allowed = false;
+  const denied = await read('real-merchant');
+  assert.equal(denied.status, 403);
+  assert.deepEqual(await denied.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  allowed = true;
+  const percent = await read('%E0%A4%A');
+  assert.equal(percent.status, 400);
+  assert.deepEqual(await percent.json(), { code: 'INVALID_PATH_PARAMETER' });
+  assert.equal(served(), servedBefore);
+
+  // 읽기 전용 경로다: 같은 주소의 다른 메서드는 이 경로가 아니다.
+  const put = await webRequest(base, '/api/web/merchant/merchants/real-merchant/visitor-feedback', {
+    method: 'PUT', headers: { cookie, origin: 'https://masscom.kr', 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(put.status, 404);
+  assert.equal(served(), servedBefore);
+
+  const unconfigured = await startVisitorFeedbackFixture(t, undefined, { merchantAccess: access, webAuth, staffRegistration: staff });
+  const missing = await webRequest(unconfigured, '/api/web/merchant/merchants/real-merchant/visitor-feedback', { headers: { cookie } });
+  assert.equal(missing.status, 503);
+  assert.deepEqual(await missing.json(), { code: 'VISITOR_FEEDBACK_NOT_CONFIGURED' });
 });

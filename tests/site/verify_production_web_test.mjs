@@ -2591,12 +2591,15 @@ const overviewData = (over = {}) => ({
   ...over,
 });
 
-async function overviewMerchant({ overview = () => okJson(overviewData()), withReversal = true, deferBind = false,
+async function overviewMerchant({ overview = () => okJson(overviewData()), feedback = () => okJson({ tags: [], suggestions: [], notes: [] }),
+  withFeedback = false, withReversal = true, deferBind = false,
   merchants = [{ id: 'real-merchant', name: '실제 점포', role: 'OWNER' }] } = {}) {
   const fixture = merchantDocument();
   const { nodes, doc } = fixture;
   const ids = ['merchant-overview', 'merchant-overview-picker', 'merchant-overview-merchant', 'merchant-overview-refresh',
     'merchant-overview-status', 'merchant-overview-cards', 'merchant-readiness-message', 'merchant-readiness-list'];
+  if (withFeedback) ids.push('merchant-feedback', 'merchant-feedback-status', 'merchant-feedback-tags',
+    'merchant-feedback-suggestions', 'merchant-feedback-notes');
   if (withReversal) ids.push('merchant-reversal', 'merchant-reversal-merchant', 'merchant-reversal-refresh', 'merchant-visit-list',
     'merchant-visit-status', 'merchant-redemption-list', 'merchant-redemption-status');
   for (const id of ids) nodes[id] = { ...element(), hidden: true };
@@ -2610,15 +2613,17 @@ async function overviewMerchant({ overview = () => okJson(overviewData()), withR
     if (path === '/api/web/merchant/registration-merchants') return okJson({ merchants: [] });
     calls.push({ path, options });
     if (path.endsWith('/overview')) return overview(path);
+    if (path.endsWith('/visitor-feedback')) return feedback(path);
     if (path.endsWith('/recent-visits')) return okJson(recentVisits());
     if (path.endsWith('/recent-coupon-redemptions')) return okJson(recentRedemptions());
     throw new Error(`unexpected ${path}`);
   };
   const bound = bindMerchant(fetcher, doc);
   const overviewCalls = () => calls.filter((call) => call.path.endsWith('/overview'));
+  const feedbackCalls = () => calls.filter((call) => call.path.endsWith('/visitor-feedback'));
   const cards = () => nodes['merchant-overview-cards'].children;
   const cardOf = (label) => cards().find((card) => first(card, 'overview-card-label')?.textContent === label);
-  const api = { ...fixture, calls, overviewCalls, cards, cardOf, bound,
+  const api = { ...fixture, calls, overviewCalls, feedbackCalls, cards, cardOf, bound,
     status: () => nodes['merchant-overview-status'].textContent,
     steps: () => nodes['merchant-readiness-list'].children,
     message: () => nodes['merchant-readiness-message'].textContent };
@@ -2864,6 +2869,58 @@ test('가게 현황은 방문 목록 영역이 없는 화면에서도 혼자 동
   assert.equal(fixture.overviewCalls().length, 2);
 });
 
+test('방문 고객 의견은 가게 현황의 점포를 따라가며 개수와 최근 의견을 글자 목록으로 표시한다', async () => {
+  const fixture = await overviewMerchant({ withFeedback: true, feedback: () => okJson({
+    tags: [{ code: 'SOLO', label: '혼밥하기 좋아요', count: 3 }],
+    suggestions: [{ code: 'HOURS_INFO', label: '영업시간 안내가 있으면 좋겠어요', count: 2 }],
+    notes: [{ customerLabel: '손님 K7QM', date: '2026-10-03', text: '<b>국물이 진해요</b>' }],
+  }) });
+  const { nodes } = fixture;
+  assert.equal(nodes['merchant-feedback'].hidden, false);
+  assert.deepEqual(fixture.feedbackCalls().map(call => [call.path, call.options.credentials]),
+    [[`${merchantBase}/visitor-feedback`, 'same-origin']]);
+  assert.deepEqual(nodes['merchant-feedback-tags'].children.map(row => row.textContent), ['혼밥하기 좋아요 · 3명']);
+  assert.deepEqual(nodes['merchant-feedback-suggestions'].children.map(row => row.textContent), ['영업시간 안내가 있으면 좋겠어요 · 2명']);
+  assert.deepEqual(nodes['merchant-feedback-notes'].children.map(row => row.textContent), ['손님 K7QM · 10/3 · <b>국물이 진해요</b>']);
+  assert.equal(nodes['merchant-feedback-notes'].children[0].children.length, 0);
+});
+
+test('방문 고객 의견은 점포 변경과 로그아웃 때 지우며 늦은 응답을 무시한다', async () => {
+  let finish;
+  const late = new Promise(resolve => { finish = resolve; });
+  const fixture = await overviewMerchant({ withFeedback: true, deferBind: true,
+    merchants: [{ id: 'real-merchant', name: '실제 점포', role: 'OWNER' }, { id: 'other-merchant', name: '다른 점포', role: 'STAFF' }],
+    feedback: path => path.includes('/other-merchant/')
+      ? okJson({ tags: [], suggestions: [], notes: [{ customerLabel: '손님 ABCD', date: '2026-10-04', text: '다른 점포 의견' }] }) : late,
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  fixture.nodes['merchant-overview-merchant'].value = 'other-merchant';
+  await fixture.nodes['merchant-overview-merchant'].dispatch('change');
+  assert.equal(fixture.feedbackCalls().length, 2);
+  assert.equal(fixture.nodes['merchant-feedback-notes'].children[0].textContent, '손님 ABCD · 10/4 · 다른 점포 의견');
+  finish(okJson({ tags: [{ code: 'SOLO', label: '혼밥하기 좋아요', count: 8 }], suggestions: [], notes: [] }));
+  await fixture.bound;
+  assert.equal(fixture.nodes['merchant-feedback-tags'].children.length, 0);
+  fixture.listeners.get('pagehide')();
+  assert.equal(fixture.nodes['merchant-feedback-notes'].children.length, 0);
+  assert.equal(fixture.nodes['merchant-feedback-status'].textContent, '');
+});
+
+test('방문 고객 의견은 빈 결과를 안내하고 재조회 전의 의견을 로그아웃 때 지운다', async () => {
+  let hasNote = false;
+  const fixture = await overviewMerchant({ withFeedback: true, feedback: () => okJson({ tags: [], suggestions: [],
+    notes: hasNote ? [{ customerLabel: '손님 K7QM', date: '2026-10-03', text: '첫 의견' }] : [] }) });
+  assert.equal(fixture.nodes['merchant-feedback-status'].textContent, '아직 받은 의견이 없어요.');
+  hasNote = true;
+  fixture.nodes['merchant-overview-merchant'].value = 'real-merchant';
+  await fixture.nodes['merchant-overview-merchant'].dispatch('change');
+  assert.equal(fixture.nodes['merchant-feedback-notes'].children.length, 1);
+  hasNote = false;
+  await fixture.nodes['merchant-logout'].click();
+  assert.equal(fixture.nodes['merchant-feedback-notes'].children.length, 0);
+  assert.equal(fixture.nodes['merchant-feedback-status'].textContent, '');
+});
+
 test('점포 웹 가게 현황 화면은 점포 운영 화면 맨 위에 있고 HTML 문자열·인라인 스타일 없이 접근성 연결을 갖춘다', () => {
   const merchantHtml = readFileSync(join(web, 'merchant.html'), 'utf8');
   const merchantScript = readFileSync(join(web, 'assets/merchant.mjs'), 'utf8');
@@ -2873,6 +2930,11 @@ test('점포 웹 가게 현황 화면은 점포 운영 화면 맨 위에 있고 
   assert.match(merchantHtml, /<h3 id="merchant-readiness-title">오픈 준비 체크리스트<\/h3>/);
   assert.match(merchantHtml, /<ol id="merchant-readiness-list"[^>]*aria-labelledby="merchant-readiness-title"/);
   assert.match(merchantHtml, /<ul id="merchant-overview-cards"/);
+  assert.match(merchantHtml, /<section id="merchant-feedback"[^>]*aria-labelledby="merchant-feedback-title" hidden>/);
+  assert.match(merchantHtml, /<h2 id="merchant-feedback-title">방문 고객 의견<\/h2>/);
+  assert.match(merchantHtml, /<ul id="merchant-feedback-notes"[^>]*aria-labelledby="merchant-feedback-notes-title"/);
+  assert.ok(merchantHtml.indexOf('<section id="merchant-feedback"') > merchantHtml.indexOf('<section id="merchant-overview"'));
+  assert.ok(merchantHtml.indexOf('<section id="merchant-feedback"') < merchantHtml.indexOf('<section id="merchant-creator"'));
   // #merchant-content의 첫 구역이다(제작기·내 점포·직원 등록보다 앞).
   const content = merchantHtml.indexOf('<section id="merchant-content"');
   const overviewAt = merchantHtml.indexOf('<section id="merchant-overview"');

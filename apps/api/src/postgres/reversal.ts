@@ -28,7 +28,7 @@ import {
   selectEntitlementsToRevoke,
 } from '../reversal-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
-import { medalValuesSql } from './badge-rewards.js';
+import { countedVisitFromSql, medalValuesSql } from './badge-rewards.js';
 import { requireActiveMerchantMember } from './merchant-membership.js';
 import { grantReachedGoals } from './visit-rewards.js';
 
@@ -206,6 +206,19 @@ export class PostgresReversalService implements ReversalService {
              canceled_at = $4, canceled_by_account_id = $5, updated_at = $4
          WHERE id = $1`,
         [visit.id, reason, note, now, input.staffAccountId],
+      );
+
+      // 방문 후 가게 의견(#334): 이 가게에 셀 수 있는 유효한 방문이 하나도 안 남으면 그 손님의 선택을 같은 거래에서 지운다.
+      await client.query(
+        `DELETE FROM merchant_visitor_feedback AS feedback
+         WHERE feedback.customer_account_id = $1 AND feedback.merchant_id = $2
+           AND NOT EXISTS (
+             SELECT 1 ${countedVisitFromSql}
+             WHERE visit.customer_account_id = feedback.customer_account_id
+               AND visit.merchant_id = feedback.merchant_id
+               AND visit.status = 'VALID' AND visit.progress_excluded_reason IS NULL
+               AND (merchant.is_demo OR slot.created_by_account_id <> visit.customer_account_id))`,
+        [visit.customer_account_id, input.merchantId],
       );
 
       // 세어지던 방문이 취소되면 같은 날 가려져 있던 정당한 방문(직원 자기 적립 제외)을 세어 준다.

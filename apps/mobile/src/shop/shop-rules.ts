@@ -28,6 +28,11 @@ export function earnRulesText(rules: { visit: number; newStore: number; series: 
   return `방문마다 ${rules.visit}P, 처음 가는 가게마다 ${rules.newStore}P, 가게 시리즈를 완성하면 ${rules.series}P를 받아요.`;
 }
 
+/** 시연 서버가 체험 마일리지를 더해 준 때만 잔액 아래에 붙는 작은 안내(#333). 운영 응답은 보너스가 없어 null이다. */
+export function showcaseBonusLabel(bonus: number | undefined): string | null {
+  return bonus !== undefined && bonus > 0 ? '시연 체험 마일리지 포함' : null;
+}
+
 export type FriendGridCell = { id: string; grade: MileageGrade; name: string; owned: boolean; isAvatar: boolean };
 
 /** 가게 친구 그리드: 가진 친구는 색이, 안 가진 친구는 실루엣 "?"로 표시된다(design-298.md Android). */

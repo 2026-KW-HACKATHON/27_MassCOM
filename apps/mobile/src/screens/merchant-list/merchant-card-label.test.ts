@@ -22,3 +22,8 @@ test('a full campaign is not called closed (visits still earn, D-023), a real me
   assert.equal(label, '가상 점포 A, 참여 가능, 서울 노원구 월계로 1, 가을 도장 캠페인');
   assert.doesNotMatch(label, /마감/);
 });
+
+
+test('공개 대표 태그 집계도 카드의 접근성 이름에 포함한다', () => {
+  assert.match(merchantCardLabel({ ...merchant, visitorTags: [{ code: 'SOLO', count: 18 }] }), /혼밥하기 좋아요 · 18명/);
+});
