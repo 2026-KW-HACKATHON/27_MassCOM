@@ -61,6 +61,8 @@ import {
 import { AdminError, type PostgresAdminService } from './postgres/admin.js';
 import type { PostgresStaffRegistration } from './postgres/staff-registration.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
+import { MerchantDiscoveryError, detailViewSources, type CollectiblePreviewService, type MerchantDetailViewService } from './merchant-discovery.js';
+import type { AdminFunnelReader } from './admin-funnel.js';
 import type {
   MintJobView,
   MintRequestResult,
@@ -241,6 +243,9 @@ async function startFixture(
   mileageShop?: MileageShopService,
   merchantOverview?: MerchantOverviewReader,
   visitorFeedback?: VisitorFeedbackService,
+  collectiblePreview?: CollectiblePreviewService,
+  merchantDetailViews?: MerchantDetailViewService,
+  adminFunnel?: AdminFunnelReader,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -286,6 +291,9 @@ async function startFixture(
     guestTrials,
     merchantOverview,
     visitorFeedback,
+    collectiblePreview,
+    merchantDetailViews,
+    adminFunnel,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -329,6 +337,144 @@ async function webRequest(baseUrl: string, path: string, options: {
     request.end(options.body);
   });
 }
+
+// 기존 위치 인자를 유지하면서 #354 서비스만 끝에 넣는다.
+async function startDiscoveryFixture(t: TestContext, options: {
+  preview?: CollectiblePreviewService;
+  views?: MerchantDetailViewService;
+  funnel?: AdminFunnelReader;
+  webAuth?: TestWebAuth;
+  admin?: Parameters<typeof startFixture>[16];
+  trustProxyClientIp?: boolean;
+} = {}) {
+  const args: Parameters<typeof startFixture> = [t];
+  args[1] = () => { throw new Error('공개 경로에서 인증을 요청하면 안 됩니다.'); };
+  args[13] = options.trustProxyClientIp ?? false;
+  args[14] = options.webAuth;
+  args[16] = options.admin;
+  args[32] = options.preview;
+  args[33] = options.views;
+  args[34] = options.funnel;
+  return startFixture(...args);
+}
+
+test('public collectible preview has five-minute cache and rejects hidden merchants and invalid IDs', async t => {
+  const calls: string[] = [];
+  const preview = { merchantId: 'shop', campaignId: 'campaign', name: '가게 방문 수집품',
+    goals: [{ visitCount: 1, gradeId: 'bronze', gradeName: '브론즈', shape: 'circle', theme: '동네', thumbnailDataUrl: null }] };
+  const base = await startDiscoveryFixture(t, { preview: { preview: async id => {
+    calls.push(id);
+    if (id !== 'shop') throw new MerchantDiscoveryError('COLLECTIBLE_PREVIEW_NOT_FOUND');
+    return preview;
+  } } });
+  const ok = await webRequest(base, '/merchants/shop/collectible-preview');
+  assert.equal(ok.status, 200);
+  assert.deepEqual(await ok.json(), preview);
+  assert.equal(ok.headers.get('cache-control'), 'public, max-age=300');
+  assert.equal(ok.headers.get('x-content-type-options'), 'nosniff');
+  for (const id of ['hidden', 'unknown']) {
+    const missing = await webRequest(base, `/merchants/${id}/collectible-preview`);
+    assert.equal(missing.status, 404);
+    assert.deepEqual(await missing.json(), { code: 'COLLECTIBLE_PREVIEW_NOT_FOUND' });
+    assert.equal(missing.headers.get('cache-control'), 'no-store');
+  }
+  for (const id of ['%00', '%E0%A4%A']) {
+    const invalid = await webRequest(base, `/merchants/${id}/collectible-preview`);
+    assert.equal(invalid.status, 400);
+    assert.deepEqual(await invalid.json(), { code: 'INVALID_PATH_PARAMETER' });
+  }
+  assert.deepEqual(calls, ['shop', 'hidden', 'unknown']);
+  assert.equal((await webRequest(base, '/merchants/shop/collectible-preview', { method: 'POST' })).status, 404);
+  const unconfigured = await startDiscoveryFixture(t);
+  assert.equal((await webRequest(unconfigured, '/merchants/shop/collectible-preview')).status, 503);
+});
+
+test('public detail views accept only sources and never pass identity or IP to the counter', async t => {
+  const calls: unknown[][] = [];
+  const base = await startDiscoveryFixture(t, { views: { record: async (...args) => {
+    calls.push(args);
+    if (args[0] !== 'shop') throw new MerchantDiscoveryError('MERCHANT_NOT_FOUND');
+  } } });
+  const post = (id: string, body: object) => webRequest(base, `/merchants/${id}/views`, {
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ignored' }, body: JSON.stringify(body),
+  });
+  for (const source of detailViewSources) {
+    const response = await post('shop', { source });
+    assert.equal(response.status, 204);
+    assert.equal(await response.text(), '');
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+  }
+  for (const source of ['invalid', 'LIST', '', null, 1]) {
+    const invalid = await post('shop', { source });
+    assert.equal(invalid.status, 400);
+    assert.deepEqual(await invalid.json(), { code: 'VIEW_SOURCE_INVALID' });
+  }
+  assert.deepEqual(await (await post('shop', {})).json(), { code: 'VIEW_SOURCE_INVALID' });
+  assert.equal((await post('shop', { source: 'list', accountId: 'account' })).status, 400);
+  for (const id of ['%00', '%E0%A4%A']) assert.equal((await post(id, { source: 'list' })).status, 400);
+  assert.deepEqual(calls, detailViewSources.map(source => ['shop', source]));
+  const missing = await post('hidden', { source: 'list' });
+  assert.equal(missing.status, 404);
+  assert.deepEqual(await missing.json(), { code: 'MERCHANT_NOT_FOUND' });
+  assert.equal((await webRequest(base, '/merchants/shop/views')).status, 404);
+  const unconfigured = await startDiscoveryFixture(t);
+  assert.equal((await webRequest(unconfigured, '/merchants/shop/views', { method: 'POST', body: '{"source":"list"}' })).status, 503);
+});
+
+test('detail view limit is per client IP, honors only trusted proxies and returns Retry-After', async t => {
+  for (const trustProxyClientIp of [false, true]) {
+    let writes = 0;
+    const base = await startDiscoveryFixture(t, { trustProxyClientIp, views: { record: async () => { writes += 1; } } });
+    const post = (forwarded: string) => webRequest(base, '/merchants/shop/views', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': forwarded }, body: '{"source":"map"}',
+    });
+    for (let i = 0; i < 300; i += 1) assert.equal((await post('192.0.2.1')).status, 204);
+    const limited = await post('192.0.2.1');
+    assert.equal(limited.status, 429);
+    assert.deepEqual(await limited.json(), { code: 'VIEW_RATE_LIMITED' });
+    const retryAfter = Number(limited.headers.get('retry-after'));
+    assert.ok(retryAfter > 0 && retryAfter <= 3600);
+    assert.equal(limited.headers.get('cache-control'), 'no-store');
+    assert.equal(writes, 300);
+    assert.equal((await post('192.0.2.2')).status, trustProxyClientIp ? 204 : 429);
+    assert.equal(writes, trustProxyClientIp ? 301 : 300);
+  }
+});
+
+test('admin funnel requires a web admin session and validates the day window', async t => {
+  const daysRead: number[] = [];
+  const data = { from: '2026-09-04', to: '2026-10-03', days: 30,
+    totals: { detailViews: 7, countedVisits: 3, newVisitors: 2, newVisitorsWithSecondStore: 1, repeatVisitors: 0 },
+    merchants: [] };
+  const funnel: AdminFunnelReader = { funnel: async days => { daysRead.push(days); return { ...data, days }; } };
+  const webAuth = intakeWebAuth('admin-account');
+  const admin = { isAdmin: async () => true } as unknown as NonNullable<Parameters<typeof startFixture>[16]>;
+  const base = await startDiscoveryFixture(t, { webAuth, admin, funnel });
+  const path = '/api/web/admin/funnel';
+  const cookie = { cookie: 'web_session=valid-cookie' };
+  assert.equal((await webRequest(base, path)).status, 401);
+  assert.equal((await webRequest(base, path, { headers: { authorization: 'Bearer valid-cookie' } })).status, 401);
+  assert.equal((await webRequest(base, path, { host: 'api.masscom.kr', headers: cookie })).status, 403);
+  const ok = await webRequest(base, path, { headers: cookie });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(await ok.json(), data);
+  assert.equal(ok.headers.get('cache-control'), 'no-store');
+  assert.equal(ok.headers.get('x-robots-tag'), 'noindex, nofollow');
+  for (const days of [7, 90]) assert.equal((await webRequest(base, `${path}?days=${days}`, { headers: cookie })).status, 200);
+  for (const days of ['6', '91', '0', '-7', '7.5', 'nope', '', '7e1', 'Infinity', '30&days=7']) {
+    const invalid = await webRequest(base, `${path}?days=${days}`, { headers: cookie });
+    assert.equal(invalid.status, 400);
+    assert.deepEqual(await invalid.json(), { code: 'FUNNEL_DAYS_INVALID' });
+  }
+  assert.deepEqual(daysRead, [30, 7, 90]);
+  const denied = await startDiscoveryFixture(t, { webAuth, admin: { ...admin, isAdmin: async () => false }, funnel });
+  assert.equal((await webRequest(denied, path, { headers: cookie })).status, 403);
+  assert.deepEqual(daysRead, [30, 7, 90]);
+  assert.equal((await webRequest(base, path, { method: 'POST', headers: cookie })).status, 403);
+  const unconfigured = await startDiscoveryFixture(t, { webAuth, admin });
+  assert.equal((await webRequest(unconfigured, path, { headers: cookie })).status, 503);
+});
 
 test('serves health without exposing wallet data', async (t) => {
   const baseUrl = await startFixture(t);
@@ -4320,6 +4466,9 @@ const sampleOverview: MerchantOverview = {
   },
   comparison: { lastWeekSameSpan: 2, delta: 2 },
   couponsRedeemedThisWeek: 2, repeatVisitors: 3,
+  weekVisitors: { first: 1, repeat: 3 },
+  weekCollectibles: [{ gradeId: 'bronze', gradeName: '브론즈', count: 1 }],
+  weekCoupons: { issued: 3, redeemed: 2 }, weekDetailViews: 12,
   campaign: { title: '가을 방문', status: 'ACTIVE', isPublic: true, phase: 'LIVE',
     startsAt: '2026-09-01T00:00:00.000Z', endsAt: '2026-12-31T00:00:00.000Z' },
   readiness: { steps: [{ key: 'basic', label: '가게 기본 정보', state: 'DONE', hint: '' }], remaining: 0, message: '고객 앱에 보이고 있어요.' },

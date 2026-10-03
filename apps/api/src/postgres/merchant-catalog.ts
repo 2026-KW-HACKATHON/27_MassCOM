@@ -28,6 +28,19 @@ type MerchantCatalogRow = {
   reward_goals: unknown;
 };
 
+// 공개 목록과 상세 미리보기·열람 집계가 같은 점포만 다루도록 조건을 공유한다.
+export function publicCampaignPredicate(nowParameter: number): string {
+  return `m.status = 'ACTIVE'
+         AND c.status = 'ACTIVE'
+         AND c.is_public = true
+         AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial WHERE trial.merchant_id = m.id)
+         AND c.starts_at <= $${nowParameter}
+         AND c.ends_at > $${nowParameter}`;
+}
+
+export const publicCampaignGoalsHaving =
+  'array_agg(g.target_visit_count ORDER BY g.target_visit_count) = ARRAY[1, 3, 5]::integer[]';
+
 export class PostgresMerchantCatalog implements MerchantCatalog {
   constructor(
     private readonly pool: Pool,
@@ -69,15 +82,9 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
        FROM merchants m
        JOIN campaigns c ON c.merchant_id = m.id
        JOIN campaign_goals g ON g.campaign_id = c.id
-       WHERE m.status = 'ACTIVE'
-         AND c.status = 'ACTIVE'
-         AND c.is_public = true
-         -- 로그인 없는 체험 가게(#309)는 체험자 본인에게도 공개 목록에 나오지 않는다(D-064). 운영 DB는 이 표가 비어 있다.
-         AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial WHERE trial.merchant_id = m.id)
-         AND c.starts_at <= $1
-         AND c.ends_at > $1
+       WHERE ${publicCampaignPredicate(1)}
        GROUP BY m.id, c.id
-       HAVING array_agg(g.target_visit_count ORDER BY g.target_visit_count) = ARRAY[1, 3, 5]::integer[]
+       HAVING ${publicCampaignGoalsHaving}
        ORDER BY m.name, m.id`,
       [this.now()],
     );

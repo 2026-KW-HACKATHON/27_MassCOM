@@ -139,3 +139,10 @@
 
 - **D-069 시연 조회(#341에서 해소):** 점주 웹 경로는 계속 운영 점포만 제공한다. 대신 점주 앱의 Bearer 경로 `GET /merchant/merchants/:id/visitor-feedback`이 그 점포의 활성 OWNER·STAFF(`CONFIRM_VISIT`)에게 시연 점포를 포함해 같은 요약(집계·가린 손님 표시·날짜·의견 본문, 계정 id·정확한 시각 없음)을 준다. 체험 계정은 자기 체험 점포의 STAFF만이라 다른 점포 의견을 볼 수 없다.
 - **D-069 배포 주의(수정 2차):** 첫 의견 저장 이후 API를 0040 이전 버전으로 되돌리려면, 그동안 계정 삭제가 완료된 손님의 의견 행을 먼저 지운다. 옛 API의 계정 삭제는 새 표를 정리하지 않는다. 확인 SQL(집계 결과가 0이어야 함): `SELECT count(*) AS deleted_account_feedback_rows FROM merchant_visitor_feedback AS feedback JOIN unnest($1::text[], $2::bytea[]) AS refs(account_id, reference_hash) ON refs.account_id = feedback.customer_account_id JOIN account_deletion_requests AS deletion ON deletion.account_reference_hash = refs.reference_hash WHERE deletion.status = 'COMPLETED';` `$1`에는 의견 표의 중복 없는 모든 `customer_account_id` 배열, `$2`에는 같은 순서로 운영 계정 삭제 HMAC 비밀을 써서 `PostgresAccountLifecycle.referenceHash`로 계산한 bytea 배열을 바인딩한다. 삭제 기록에는 원래 계정 ID가 없으므로 HMAC으로 대조하며, 비밀·배열 값은 문서나 로그에 남기지 않는다.
+
+## 2026-10-03 가게 상세 열람과 방문 효과 집계 (Issue #354)
+
+| ID | 항목 | 결정·구현 기본값 | 현재 상태 | 근거·영향 |
+| --- | --- | --- | --- | --- |
+| D-071 | 개인 데이터 없는 가게 상세 열람 집계 | 공개 목록에 보이는 점포의 상세 열람만 가게·KST 날짜·들어온 경로별 양의 횟수로 센다. 경로는 list·map·recommendation·collection·friend·link·other이며 계정·기기·IP는 집계 DB에 저장하지 않는다. 공개 POST는 로그인 없이 동작하고 IP별 메모리 고정 창 제한 300회/시간을 사용하되 IP를 집계 서비스에 넘기지 않는다. 앱은 가게·앱 세션·KST 날짜마다 한 번 전송한다. 탐색 관심을 점주에게 보여 주면서 고객을 추적하거나 방문 계정과 연결하지 않기 위한 선택이다. 계정 삭제 때 지울 개인 데이터가 없다. | `USER_CONFIRMED`(공유 계약) | Issue #354 공유 계약 API-2, migration 0041, `docs/privacy.html` |
+| D-072 | 점주 주간 현황과 운영자 퍼널의 정의 | **방문 인증 기준, 매출 아님**. 기존 counted-visit SQL을 재사용해 취소·같은 날 추가 방문·실제 점포 직원 본인 발급·체험 가게를 제외한다. 주는 KST 월요일 시작이다. 주간 첫 방문·재방문은 각 인증의 해당 가게 이전 날짜 인증 유무로 나누며 사람 수가 아니라 방문 수다. 주간 수집품은 해당 가게 게시본의 획득을 등급·목표 순서로, 쿠폰은 주간 발급·현재 REDEEMED 사용을 센다. 운영자 퍼널은 실제(비-DEMO) 점포만, 오늘을 포함한 7~90일(기본 30)이다. 신규 고객은 전체 실제 점포의 첫 인증 날짜가 기간 안인 계정, 두 번째 가게는 그 신규 고객 중 기간 안 서로 다른 2곳 이상, 가게별 재방문은 기간 안 서로 다른 2일 이상 인증한 계정이다. 전체 재방문 고객은 가게 간 중복을 제거한다. 상세 조회는 사람 수가 아니라 열람 횟수이며 조회와 방문을 같은 사람으로 연결하지 않는다. | `USER_CONFIRMED`(공유 계약) | Issue #354 공유 계약 API-3·API-4, `merchant-overview-rules.ts`, `admin-funnel.ts` |
