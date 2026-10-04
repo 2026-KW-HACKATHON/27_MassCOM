@@ -27,7 +27,7 @@ case "$1" in
         python3 -c 'import os, stat, sys; fd = os.fstat(0); sys.exit(not (stat.S_ISCHR(fd.st_mode) and fd.st_rdev == os.stat("/dev/null").st_rdev))' || exit 2
         if [[ "${FAKE_NOISY_OUTPUT:-}" == 1 ]]; then
           echo "DATABASE_URL=$DATABASE_URL"
-          echo "GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET" >&2
+          echo "PRIVATE_DEMO_SETTING=$PRIVATE_DEMO_SETTING" >&2
         fi
         printf '%s\n' "${FAKE_SEED_OUTPUT-SHOWCASE_HOST_SEEDED}"
         [[ "${FAKE_SEED_FAIL:-}" != 1 ]] || exit 1
@@ -140,15 +140,15 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
 
     # 시드 단계의 stdout/stderr에 환경값이 섞여도 출력하지 않는다(정리 명령의 개수 출력은 전처럼 남는다). 완료 줄은 여러 줄 중 정확히 일치하면 된다.
     make_backups "$scratch/backups"
-    run_job "$script" env FAKE_NOISY_OUTPUT=1 DATABASE_URL='postgresql://private-demo-value/db' GOOGLE_CLIENT_SECRET='private-secret-value' \
+    run_job "$script" env FAKE_NOISY_OUTPUT=1 DATABASE_URL='postgresql://private-demo-value/db' PRIVATE_DEMO_SETTING='private-secret-value' \
       FAKE_SEED_OUTPUT=$'extra output\nSHOWCASE_HOST_SEEDED\nmore output' >"$scratch/out" 2>"$scratch/err" || fail "$label: exact seed line among noisy output was rejected"
     [[ ! -s "$scratch/err" ]] || fail "$label: container stderr reached the output"
     [[ "$(cat "$scratch/out")" == $'RETENTION_RUN\nSHOWCASE_SEED_STEP_SUCCEEDED\nBACKUPS_DELETED\t3' ]] || fail "$label: seed step output reached the job output"
     for failed_step in FAKE_DOCKER_EXEC_FAIL=1 FAKE_SEED_FAIL=1; do
       make_backups "$scratch/backups"
       if run_job "$script" env "$failed_step" FAKE_NOISY_OUTPUT=1 DATABASE_URL='postgresql://private-demo-value/db' \
-          GOOGLE_CLIENT_SECRET='private-secret-value' FAKE_SEED_OUTPUT='private-secret-value' >"$scratch/out" 2>"$scratch/err"; then fail "$label: noisy failed command must fail"; fi
-      if grep -Eq 'private-demo-value|private-secret-value|DATABASE_URL|GOOGLE_CLIENT_SECRET|SHOWCASE_HOST_SEEDED' "$scratch/out" "$scratch/err"; then fail "$label: failed command output leaked"; fi
+          PRIVATE_DEMO_SETTING='private-secret-value' FAKE_SEED_OUTPUT='private-secret-value' >"$scratch/out" 2>"$scratch/err"; then fail "$label: noisy failed command must fail"; fi
+      if grep -Eq 'private-demo-value|private-secret-value|DATABASE_URL|PRIVATE_DEMO_SETTING|SHOWCASE_HOST_SEEDED' "$scratch/out" "$scratch/err"; then fail "$label: failed command output leaked"; fi
     done
   fi
 
