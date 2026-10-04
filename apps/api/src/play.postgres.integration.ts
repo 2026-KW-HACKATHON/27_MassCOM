@@ -67,7 +67,9 @@ test('play runs replay once, studio requires ownership, friend view hides identi
   await pool.query(`INSERT INTO campaigns (id,merchant_id,title,starts_at,ends_at,status,is_public,enrollment_capacity)
     VALUES ('play-campaign','play-merchant','Play campaign','2026-01-01','2027-01-01','ACTIVE',true,100)`);
   await pool.query(`INSERT INTO campaign_goals (campaign_id,target_visit_count,display_name)
-    VALUES ('play-campaign',1,'First collectible')`);
+    VALUES ('play-campaign',1,'First collectible'),
+      ('play-campaign',3,'Third collectible'),
+      ('play-campaign',5,'Fifth collectible')`);
   await pool.query(`INSERT INTO merchant_members (merchant_id,account_id,role,status)
     VALUES ('play-merchant','staff','STAFF','ACTIVE')`);
   const slot = randomUUID();
@@ -160,6 +162,15 @@ test('play runs replay once, studio requires ownership, friend view hides identi
   assert.equal(friendView.items[0]?.merchantId, 'play-merchant');
   assert.equal(JSON.stringify(friendView).includes(entitlement), false);
   assert.equal(JSON.stringify(friendView).includes('player'), false);
+  await pool.query(`DELETE FROM campaign_goals WHERE campaign_id='play-campaign' AND target_visit_count=5`);
+  await assert.rejects(() => play.saveStudio({ accountId: 'player', studio }),
+    (error) => error instanceof PlayError && error.code === 'STUDIO_GOAL_UNAVAILABLE');
+  assert.equal((await play.getStudio('player')).studio.goal, null);
+  assert.equal((await play.getFriendStudio({ accountId: 'friend', friendshipId })).studio.goal, null);
+  await pool.query(`INSERT INTO campaign_goals (campaign_id,target_visit_count,display_name)
+    VALUES ('play-campaign',5,'Fifth collectible')`);
+  assert.deepEqual((await play.getStudio('player')).studio.goal, studio.goal);
+  assert.deepEqual((await play.getFriendStudio({ accountId: 'friend', friendshipId })).studio.goal, studio.goal);
   await pool.query(`UPDATE reward_entitlements SET status='CANCELED' WHERE id=$1`, [entitlement]);
   await pool.query(`UPDATE campaigns SET status='PAUSED' WHERE id='play-campaign'`);
   const sanitized = await play.getStudio('player');

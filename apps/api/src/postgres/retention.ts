@@ -20,8 +20,10 @@ export type RetentionStepName =
   | 'deleted_play_data'
   | 'admin_audit_deleted_targets';
 
-export type RetentionCount = { step: RetentionStepName; count: number };
+export type RetentionCount = { step: RetentionStepName; count: number; capHit?: boolean };
 export type RetentionRun = { counts: RetentionCount[]; failed: RetentionStepName[] };
+
+export const playRetentionLimits = { batchSize: 500, maxBatches: 10 } as const;
 
 // 보관 기간(D-059). 처리·감사 기록은 1년(개인정보의 안전성 확보조치 기준 제8조의 접속기록 최소 보관 기간)이지만
 // 접근권한을 부여·변경·말소한 기록은 제5조 제3항에 따라 **최소 3년**이라 3년 뒤에 지운다.
@@ -99,9 +101,20 @@ export const retentionStepNames: readonly RetentionStepName[] = [...steps.map((s
 
 export class PostgresRetentionService {
   private readonly now: () => Date;
+  private readonly playBatchSize: number;
+  private readonly playMaxBatches: number;
 
-  constructor(private readonly pool: Pool, options: { now?: () => Date } = {}) {
+  constructor(private readonly pool: Pool, options: {
+    now?: () => Date; playBatchSize?: number; playMaxBatches?: number;
+  } = {}) {
     this.now = options.now ?? (() => new Date());
+    this.playBatchSize = options.playBatchSize ?? playRetentionLimits.batchSize;
+    this.playMaxBatches = options.playMaxBatches ?? playRetentionLimits.maxBatches;
+    // Tests/operators may lower the limits, but cannot turn a daily repair into an unbounded purge.
+    for (const [value, maximum] of [[this.playBatchSize, playRetentionLimits.batchSize],
+      [this.playMaxBatches, playRetentionLimits.maxBatches]] as const) {
+      if (!Number.isInteger(value) || value < 1 || value > maximum) throw new Error('RETENTION_LIMIT_INVALID');
+    }
   }
 
   /** 지우지 않고 지울 개수만 센다. */
@@ -119,8 +132,8 @@ export class PostgresRetentionService {
   }
 
   /**
-   * 단계마다 하나의 거래로 지운다. 한 단계가 실패하면 그 단계만 되돌리고 나머지는 계속한다(한 표의 문제가
-   * 다른 표의 정리를 매일 막지 않도록). 실패한 단계 이름은 failed에 담긴다.
+   * 기존 단계는 하나의 거래로, 놀이 단계는 한정된 행 수씩 거래를 나눠 지운다. 실패하면 현재 거래만 되돌리고
+   * 나머지 단계는 계속한다. 놀이 단계의 앞선 커밋과 개수는 유지하며 실행 상한은 capHit로 보고한다.
    * `hmacSecret`(계정 삭제와 같은 `ACCOUNT_DELETION_HMAC_SECRET`)을 주면 지우기 단계 뒤에 롤백 이미지가 남긴
    * 놀이·공간 행을 지우고 감사 대상 ID도 비식별화한다. 각 단계는 독립적으로 실패를 보고한다.
    */
@@ -129,6 +142,17 @@ export class PostgresRetentionService {
     const counts: RetentionCount[] = [];
     const failed: RetentionStepName[] = [];
     for (const step of steps) {
+      if (step.name === 'play_runs') {
+        const progress: RetentionCount = { step: step.name, count: 0 };
+        try {
+          await this.prunePlayRuns(step, now, progress);
+          counts.push(progress);
+        } catch {
+          if (progress.count > 0) counts.push(progress);
+          failed.push(step.name);
+        }
+        continue;
+      }
       let client;
       try {
         client = await this.pool.connect();
@@ -149,9 +173,12 @@ export class PostgresRetentionService {
       }
     }
     if (options.hmacSecret !== undefined) {
+      const progress: RetentionCount = { step: deletedPlayDataStep, count: 0 };
       try {
-        counts.push({ step: deletedPlayDataStep, count: await this.purgeDeletedPlayData(options.hmacSecret) });
+        await this.purgeDeletedPlayData(options.hmacSecret, progress);
+        counts.push(progress);
       } catch {
+        if (progress.count > 0) counts.push(progress);
         failed.push(deletedPlayDataStep);
       }
       try {
@@ -163,47 +190,98 @@ export class PostgresRetentionService {
     return { counts, failed };
   }
 
-  /**
-   * Rollback repair for 0042: older API images still insert the deletion ledger but do not know the play tables.
-   * The ledger stores only an HMAC, so match candidate account IDs with the deletion secret and purge all three
-   * tables in one transaction per batch. Repeated daily runs have no rows left to remove.
-   */
-  private async purgeDeletedPlayData(hmacSecret: string): Promise<number> {
-    const lifecycle = new PostgresAccountLifecycle({ hmacSecret });
-    const accounts = (await this.pool.query<{ account_id: string }>(
-      `SELECT account_id FROM play_runs
-       UNION SELECT account_id FROM play_records
-       UNION SELECT account_id FROM studios`,
-    )).rows.map((row) => row.account_id);
-    let deleted = 0;
-    for (let start = 0; start < accounts.length; start += 500) {
-      const batch = accounts.slice(start, start + 500);
+  private async prunePlayRuns(step: Step, now: Date, progress: RetentionCount): Promise<void> {
+    for (let batch = 0; batch < this.playMaxBatches; batch++) {
       const client = await this.pool.connect();
+      let deleted: number;
       try {
         await client.query('BEGIN');
-        const hashes = batch.map((accountId) => lifecycle.referenceHash(accountId));
-        const known = await client.query<{ account_reference_hash: Buffer }>(
-          `SELECT account_reference_hash FROM account_deletion_requests
-           WHERE account_reference_hash = ANY($1::bytea[])`,
-          [hashes],
-        );
-        const gone = new Set(known.rows.map((row) => row.account_reference_hash.toString('hex')));
-        const goneAccounts = batch.filter((_, index) => gone.has(hashes[index]!.toString('hex')));
-        if (goneAccounts.length > 0) {
-          for (const table of ['play_runs', 'play_records', 'studios'] as const) {
-            const result = await client.query(`DELETE FROM ${table} WHERE account_id = ANY($1::text[])`, [goneAccounts]);
-            deleted += result.rowCount ?? 0;
-          }
-        }
+        const result = await client.query(`DELETE FROM play_runs WHERE id IN (
+          SELECT id FROM play_runs WHERE ${step.where} ORDER BY id LIMIT $2
+        )`, [now, this.playBatchSize]);
         await client.query('COMMIT');
+        deleted = result.rowCount ?? 0;
+        progress.count += deleted;
       } catch (error) {
         await client.query('ROLLBACK').catch(() => undefined);
         throw error;
-      } finally {
-        client.release();
-      }
+      } finally { client.release(); }
+      if (deleted < this.playBatchSize) return;
     }
-    return deleted;
+    // A conservative signal avoids an unbounded count of the remaining backlog.
+    progress.capHit = true;
+  }
+
+  /**
+   * Rollback repair for 0042: older API images still insert the deletion ledger but do not know the play tables.
+   * Keyset-page candidate IDs, including live-only pages. Each deletion transaction shares one row budget across
+   * all three tables; even a single account's run backlog cannot exceed the daily deletion cap. The next daily
+   * invocation starts from the beginning so partially purged accounts are retried without a persisted ID cursor.
+   */
+  private async purgeDeletedPlayData(hmacSecret: string, progress: RetentionCount): Promise<void> {
+    const lifecycle = new PostgresAccountLifecycle({ hmacSecret });
+    let cursor: string | null = null;
+    let batches = 0;
+    while (batches < this.playMaxBatches) {
+      const accounts: string[] = (await this.pool.query<{ account_id: string }>(
+        `SELECT account_id FROM (
+           (SELECT DISTINCT account_id FROM play_runs WHERE ($1::text IS NULL OR account_id > $1)
+            ORDER BY account_id LIMIT $2)
+           UNION
+           (SELECT account_id FROM play_records WHERE ($1::text IS NULL OR account_id > $1)
+            GROUP BY account_id ORDER BY account_id LIMIT $2)
+           UNION
+           (SELECT account_id FROM studios WHERE ($1::text IS NULL OR account_id > $1)
+            ORDER BY account_id LIMIT $2)
+         ) candidates ORDER BY account_id LIMIT $2`,
+        [cursor, this.playBatchSize],
+      )).rows.map((row) => row.account_id);
+      if (accounts.length === 0) return;
+      const hashes = accounts.map((accountId) => lifecycle.referenceHash(accountId));
+      const known = await this.pool.query<{ account_reference_hash: Buffer }>(
+        `SELECT account_reference_hash FROM account_deletion_requests
+         WHERE account_reference_hash = ANY($1::bytea[])`, [hashes],
+      );
+      const gone = new Set(known.rows.map((row) => row.account_reference_hash.toString('hex')));
+      const goneAccounts = accounts.filter((_, index) => gone.has(hashes[index]!.toString('hex')));
+      if (goneAccounts.length === 0) {
+        cursor = accounts.at(-1)!;
+        continue;
+      }
+      while (batches < this.playMaxBatches) {
+        const client = await this.pool.connect();
+        let deleted = 0;
+        try {
+          await client.query('BEGIN');
+          // All identifiers are fixed here; every table has a primary key for the limited selection.
+          for (const [table, key] of [['play_runs', 'id'], ['play_records', '(account_id, kind)'],
+            ['studios', 'account_id']] as const) {
+            const remaining = this.playBatchSize - deleted;
+            if (remaining === 0) break;
+            const result = await client.query(`DELETE FROM ${table} WHERE ${key} IN (
+              SELECT ${key === '(account_id, kind)' ? 'account_id, kind' : key} FROM ${table}
+              WHERE account_id = ANY($1::text[]) ORDER BY ${key} LIMIT $2
+            )`, [goneAccounts, remaining]);
+            deleted += result.rowCount ?? 0;
+          }
+          await client.query('COMMIT');
+          progress.count += deleted;
+          batches++;
+        } catch (error) {
+          await client.query('ROLLBACK').catch(() => undefined);
+          throw error;
+        } finally {
+          client.release();
+        }
+        if (deleted < this.playBatchSize) {
+          // A short candidate page and a short delete batch exhaust this scan naturally, even on the last batch.
+          if (accounts.length < this.playBatchSize) return;
+          break;
+        }
+      }
+      cursor = accounts.at(-1)!;
+    }
+    progress.capHit = true;
   }
 
   /**

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { gameDurationMs, getGameBoard, minimumCompletedElapsedMs, scoreRun, scoreRunAtElapsed, stackCursor } from './play-rules.js';
+import { gameDurationMs, getGameBoard, minimumActionGapMs, minimumCompletedElapsedMs, scoreRun, scoreRunAtElapsed, stackCursor } from './play-rules.js';
 
 test('boards are deterministic and each game has its own input model', () => {
   for (const kind of ['stack', 'memory', 'delivery', 'orders'] as const) {
@@ -86,11 +86,51 @@ test('instant scripted completions fail for every game; fast human logs pass', (
   }
 });
 
+test('client-shaped completed logs pass at each minimum gap and require minimum server elapsed', () => {
+  const seed = 17;
+  assert.deepEqual(minimumActionGapMs, { stack: 150, memory: 80, delivery: 150, orders: 100 });
+  for (const kind of ['stack', 'memory', 'delivery', 'orders'] as const) {
+    const board = getGameBoard(kind, seed);
+    let actions: { at: number; choice: number }[];
+    if (board.kind === 'stack') actions = board.rounds.map((_, index) =>
+      ({ at: index * minimumActionGapMs.stack, choice: 0 }));
+    else if (board.kind === 'memory') {
+      actions = [...new Set(board.cards)].flatMap((symbol) => board.cards.flatMap((card, index) =>
+        card === symbol ? [{ at: 0, choice: index }] : []));
+      actions.forEach((action, index) => { action.at = index * minimumActionGapMs.memory; });
+    } else if (board.kind === 'delivery') {
+      actions = [{ at: 0, choice: 0 }, { at: minimumActionGapMs.delivery, choice: 2 },
+        { at: 23999, choice: 1 }, { at: 24000, choice: 1 }];
+    } else actions = board.orders.flat().map((choice, index) =>
+      ({ at: index * minimumActionGapMs.orders, choice }));
+
+    const minimumElapsed = minimumCompletedElapsedMs(kind, seed);
+    assert.equal(scoreRunAtElapsed(kind, seed, actions, minimumElapsed).completed, true, kind);
+    assert.throws(() => scoreRunAtElapsed(kind, seed, actions, minimumElapsed - 1), /INVALID_GAME_ACTIONS/, kind);
+  }
+});
+
+test('each game accepts the minimum input gap and rejects a gap one millisecond short', () => {
+  const seed = 17;
+  for (const kind of ['stack', 'memory', 'delivery', 'orders'] as const) {
+    const gap = minimumActionGapMs[kind];
+    const board = getGameBoard(kind, seed);
+    const choices = kind === 'memory' ? [0, 1] : kind === 'delivery' ? [1, 2] :
+      board.kind === 'orders' ? board.orders[0]!.slice(0, 2) : [0, 0];
+    const first = { at: 0, choice: choices[0]! };
+    assert.doesNotThrow(() => scoreRun(kind, seed, [first, { at: gap, choice: choices[1]! }]), kind);
+    assert.throws(() => scoreRun(kind, seed, [first, { at: gap - 1, choice: choices[1]! }]),
+      /INVALID_GAME_ACTIONS/, kind);
+  }
+});
+
 test('delivery final sample may repeat the current lane immediately after a move', () => {
   const actions = [{ at: 1000, choice: 2 }, { at: 23999, choice: 0 }, { at: 24000, choice: 0 }];
   assert.equal(scoreRunAtElapsed('delivery', 17, actions, 24000).completed, true);
   assert.equal(scoreRunAtElapsed('delivery', 17, [{ at: 1000, choice: 2 }, { at: 1050, choice: 2 }], 1050).completed,
     false, 'manual finish can append the current lane before the last tick');
+  assert.equal(scoreRunAtElapsed('delivery', 17, [{ at: 1000, choice: 2 }, { at: 1001, choice: 2 }], 1001).completed,
+    false, 'manual finish can append the current lane one millisecond after the last move');
   assert.throws(() => scoreRunAtElapsed('delivery', 17,
     [{ at: 1000, choice: 2 }, { at: 23999, choice: 0 }, { at: 24000, choice: 1 }], 24000),
   /INVALID_GAME_ACTIONS/);

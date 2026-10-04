@@ -41,6 +41,17 @@ test('run prints one tab-separated count per step and nothing else', async () =>
   assert.equal(result.lines.slice(1).every((line) => /^[a-z_]+\t\d+$/.test(line)), true);
 });
 
+test('run reports daily play deletion caps without exposing candidate identifiers', async () => {
+  const { service: fake } = service(async () => ({ counts: [
+    { step: 'play_runs', count: 5000, capHit: true },
+    { step: 'deleted_play_data', count: 5000, capHit: true },
+  ], failed: [] }));
+  const result = await runRetentionCommand(fake, ['run']);
+  assert.deepEqual(result.lines, ['RETENTION_RUN', 'play_runs\t5000', 'play_runs_cap_hit\t1',
+    'deleted_play_data\t5000', 'deleted_play_data_cap_hit\t1']);
+  assert.deepEqual(result.failed, []);
+});
+
 test('report never calls run, and a failed step is reported by name while the others still print', async () => {
   const { service: fake, calls } = service(async () => ({
     counts: counts(0).filter((row) => row.step !== 'web_sessions'), failed: ['web_sessions'],

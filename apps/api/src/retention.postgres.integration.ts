@@ -393,6 +393,103 @@ test('play run retention removes old expired and finished runs but preserves bou
   assert.equal(counts((await service.run()).counts).play_runs, 0);
 });
 
+test('old play runs stop at the per-run cap and finish over repeated runs without deleting best records', async (t) => {
+  const { pool } = await setup(t);
+  const service = new PostgresRetentionService(pool, { now: () => now, playBatchSize: 2, playMaxBatches: 2 });
+  const oldIds = Array.from({ length: 5 }, () => randomUUID());
+  const recentId = randomUUID();
+  await pool.query(
+    `INSERT INTO play_runs (id, account_id, kind, seed, started_at, expires_at, rules_version)
+     SELECT id, 'acct_play_batches', 'stack', 1, $2::timestamptz, $3::timestamptz, 1
+     FROM unnest($1::uuid[]) AS runs(id)`,
+    [oldIds, at(thirtyDayMs - 600_000), at(thirtyDayMs - 1)],
+  );
+  await pool.query(
+    `INSERT INTO play_runs (id, account_id, kind, seed, started_at, expires_at, rules_version)
+     VALUES ($1, 'acct_play_batches', 'stack', 1, $2, $3, 1)`,
+    [recentId, now, at(now.getTime() + 300_000)],
+  );
+  await pool.query(
+    `INSERT INTO play_records (account_id, kind, best_score, plays)
+     VALUES ('acct_play_batches', 'stack', 42, 7)`,
+  );
+
+  const first = await service.run();
+  assert.deepEqual(first.failed, []);
+  assert.equal(counts(first.counts).play_runs, 4);
+  assert.equal(first.counts.find(({ step }) => step === 'play_runs')?.capHit, true);
+  assert.equal((await pool.query('SELECT 1 FROM play_runs WHERE id = ANY($1::uuid[])', [oldIds])).rowCount, 1);
+
+  const second = await service.run();
+  assert.deepEqual(second.failed, []);
+  assert.equal(counts(second.counts).play_runs, 1);
+  assert.notEqual(second.counts.find(({ step }) => step === 'play_runs')?.capHit, true);
+  assert.deepEqual(await idsOf(pool, 'SELECT id FROM play_runs'), [recentId]);
+  assert.deepEqual((await pool.query('SELECT best_score, plays FROM play_records')).rows, [{ best_score: 42, plays: 7 }]);
+  assert.equal(counts((await service.run()).counts).play_runs, 0);
+});
+
+test('deleted play data pages past live accounts and obeys the row cap across all three tables', async (t) => {
+  const { pool } = await setup(t);
+  const service = new PostgresRetentionService(pool, { now: () => now, playBatchSize: 2, playMaxBatches: 2 });
+  const secret = 'test-only-account-deletion-secret-at-least-32-bytes';
+  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+  const goneAccount = 'acct_10_deleted';
+  const liveAccounts = ['acct_00_live', 'acct_01_live'];
+  const goneIds = Array.from({ length: 5 }, () => randomUUID());
+  const liveIds = liveAccounts.map(() => randomUUID());
+  await pool.query(
+    `INSERT INTO account_deletion_requests (
+       id, account_reference_hash, deleted_account_alias, status, policy_version, cancelled_mint_jobs,
+       pending_mint_jobs, retained_finalized_nfts, requested_at, completed_at, updated_at
+     ) VALUES ($1, $2, $3, 'COMPLETED', 'account-deletion-v1', 0, 0, 0, now(), now(), now())`,
+    [randomUUID(), lifecycle.referenceHash(goneAccount), `deleted:${lifecycle.referenceHash(goneAccount).toString('hex')}`],
+  );
+  await pool.query(
+    `INSERT INTO play_runs (id, account_id, kind, seed, started_at, expires_at, rules_version)
+     SELECT id, $2, 'stack', 1, $3::timestamptz, $4::timestamptz, 1
+     FROM unnest($1::uuid[]) AS runs(id)`,
+    [goneIds, goneAccount, now, at(now.getTime() + 300_000)],
+  );
+  await pool.query(
+    `INSERT INTO play_runs (id, account_id, kind, seed, started_at, expires_at, rules_version)
+     SELECT id, account_id, 'stack', 1, $3::timestamptz, $4::timestamptz, 1
+     FROM unnest($1::uuid[], $2::text[]) AS live(id, account_id)`,
+    [liveIds, liveAccounts, now, at(now.getTime() + 300_000)],
+  );
+  await pool.query(
+    `INSERT INTO play_records (account_id, kind, best_score, plays)
+     VALUES ($1, 'stack', 12, 3), ($2, 'stack', 20, 4)`,
+    [goneAccount, liveAccounts[0]],
+  );
+  await pool.query(
+    `INSERT INTO studios (account_id, studio, updated_at)
+     VALUES ($1, '{}'::jsonb, $3), ($2, '{}'::jsonb, $3)`,
+    [goneAccount, liveAccounts[1], now],
+  );
+
+  const first = await service.run({ hmacSecret: secret });
+  assert.deepEqual(first.failed, []);
+  assert.equal(counts(first.counts).deleted_play_data, 4);
+  assert.equal(first.counts.find(({ step }) => step === 'deleted_play_data')?.capHit, true);
+  assert.equal((await pool.query('SELECT 1 FROM play_runs WHERE account_id = $1', [goneAccount])).rowCount!
+    + (await pool.query('SELECT 1 FROM play_records WHERE account_id = $1', [goneAccount])).rowCount!
+    + (await pool.query('SELECT 1 FROM studios WHERE account_id = $1', [goneAccount])).rowCount!, 3);
+
+  const second = await service.run({ hmacSecret: secret });
+  assert.deepEqual(second.failed, []);
+  assert.equal(counts(second.counts).deleted_play_data, 3);
+  assert.notEqual(second.counts.find(({ step }) => step === 'deleted_play_data')?.capHit, true);
+  for (const table of ['play_runs', 'play_records', 'studios'] as const) {
+    assert.equal((await pool.query(`SELECT 1 FROM ${table} WHERE account_id = $1`, [goneAccount])).rowCount, 0, table);
+  }
+  assert.deepEqual(await idsOf(pool, 'SELECT id FROM play_runs'), liveIds.sort());
+  assert.deepEqual((await pool.query('SELECT account_id, best_score, plays FROM play_records')).rows,
+    [{ account_id: liveAccounts[0], best_score: 20, plays: 4 }]);
+  assert.deepEqual((await pool.query('SELECT account_id FROM studios')).rows, [{ account_id: liveAccounts[1] }]);
+  assert.equal(counts((await service.run({ hmacSecret: secret })).counts).deleted_play_data, 0);
+});
+
 test('access-right records live three years while other handling records live one year', async (t) => {
   const { pool, service } = await setup(t);
   await seedCoupon(pool);
