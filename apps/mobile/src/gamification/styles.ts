@@ -166,7 +166,7 @@ export function makeGamificationStyles(palette: AppColors, medal: MedalColors) {
     revealTitle: { color: palette.label, fontSize: 24, fontWeight: '900', lineHeight: 31, textAlign: 'center' },
     revealBody: { color: palette.secondaryLabel, fontSize: 15, lineHeight: 22, textAlign: 'center' },
     revealCard: { alignSelf: 'stretch', gap: 16, marginHorizontal: 16, padding: 20, borderRadius: 28, backgroundColor: palette.background },
-    revealCenter: { flex: 1, justifyContent: 'center', paddingVertical: 24 },
+    revealCenter: { flexGrow: 1, justifyContent: 'center', paddingVertical: 24 },
   } satisfies Record<string, ImageStyle | TextStyle | ViewStyle>;
 }
 

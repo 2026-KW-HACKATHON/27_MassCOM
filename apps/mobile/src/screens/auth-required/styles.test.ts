@@ -39,7 +39,13 @@ test('both the native and web sign-in screens sit on the sky page with a sky hea
     const source = readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf8');
     assert.match(source, /<SkyBackdrop>/, file);
     assert.match(source, /header=\{header \?\? <SkyBanner \/>\}/, file);
-    assert.match(source, /<FloatingCard style=\{styles\.statusCard\}>/, file);
+    if (file === './index.tsx') {
+      assert.match(source, /<SignInActions/);
+      const actions = readFileSync(fileURLToPath(new URL('./sign-in-actions.tsx', import.meta.url)), 'utf8');
+      assert.match(actions, /<FloatingCard style=\{styles\.statusCard\}>/, file);
+    } else {
+      assert.match(source, /<FloatingCard style=\{styles\.statusCard\}>/, file);
+    }
     assert.doesNotMatch(source, /backgroundColor: 'transparent'/, `${file} must not paper over a solid page colour`);
   }
 });

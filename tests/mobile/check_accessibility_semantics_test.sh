@@ -10,7 +10,7 @@ node "$checker" "$repo_root/apps/mobile/src"
 fixture="$(mktemp -d -t accessibility-semantics.XXXXXX)"
 trap 'rm -rf "$fixture"' EXIT
 cp -R "$repo_root/apps/mobile/src/screens" "$fixture/screens"
-sed -i.bak 's/accessibilityLiveRegion="polite"//' "$fixture/screens/auth-required/index.tsx"
+sed -i.bak 's/accessibilityLiveRegion="polite"//' "$fixture/screens/auth-required/sign-in-actions.tsx"
 if node "$checker" "$fixture" >/dev/null 2>&1; then
   echo 'accessibility checker accepted a missing live region' >&2
   exit 1

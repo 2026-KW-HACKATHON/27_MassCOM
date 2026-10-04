@@ -7,6 +7,7 @@ import { createVisitReversalScroll } from './visit-reversal-scroll';
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { createMerchantInsightsApiClient, type MerchantOverview, type VisitorFeedbackSummary } from '@/merchant-insights/api';
+import { campaignEndingNotice } from '@/merchant-insights/campaign-ending';
 import { feedbackSections, overviewCards, visitBars } from '@/merchant-insights/view-model';
 import { StaffReversalCards } from '@/screens/merchant-claim/staff-reversal';
 import type { VisitSelection } from '@/screens/merchant-claim/issued-visit';
@@ -100,10 +101,12 @@ export function MerchantStatusScreen({ apiUrl, merchantId, credential, onSession
 
   const sections = feedback ? feedbackSections(feedback) : undefined;
   const bars = overview ? visitBars(overview) : undefined;
+  const endingNotice = overview ? campaignEndingNotice(overview, Date.parse(overview.generatedAt)) : null;
 
   return <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ gap: 18, padding: 20, paddingBottom: 36 }} refreshControl={<RefreshControl progressViewOffset={insets.top} refreshing={refreshing} onRefresh={() => void refresh()} />}>
     <View style={{ gap: 12 }}>
       <Text ref={heading} accessible accessibilityRole="header" style={{ color: colors.label, fontSize: 25, fontWeight: '900' }}>오늘·현황</Text>
+      {endingNotice ? <Text selectable accessibilityLiveRegion="polite" style={{ color: colors.onPrimaryContainer, backgroundColor: colors.primaryContainer, padding: 16, borderRadius: 18, lineHeight: 22 }}>{endingNotice}</Text> : null}
       {overviewLoading && !overview ? <ActivityIndicator accessibilityLabel="현황 불러오는 중" color={colors.primary} /> : null}
       {overviewError ? <Retry label="현황을 불러오지 못했어요. 다시 시도" onPress={() => void loadOverview()} color={colors.primary} disabled={overviewLoading} /> : null}
       {overview ? <>

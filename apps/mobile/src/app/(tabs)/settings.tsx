@@ -34,6 +34,9 @@ export default function SettingsRoute() {
             canSwitchAccount={auth.canSignIn}
             onLogout={auth.logout}
             onSwitchAccount={auth.switchAccount}
+            session={auth.session}
+            canStartGuestTrial={auth.canStartGuestTrial}
+            onRestartGuestTrial={auth.restartGuestTrial}
           />
         )}
     </SkyBackdrop>

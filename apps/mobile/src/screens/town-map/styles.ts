@@ -9,8 +9,6 @@ import { PIN_SIZE, PIN_TOUCH } from './layout';
 export function makeTownMapStyles(palette: AppColors, world: WorldTheme) {
   return {
     content: { paddingHorizontal: uiMetrics.pageInset, gap: 16 },
-    // Said in the header normally; at 150% text the header drops its subtitle, so the same sentence sits above the map instead.
-    disclosure: { color: world.skyMuted, fontSize: 14, lineHeight: 20 },
     mapFrame: {
       borderRadius: world.radius.card, overflow: 'hidden', backgroundColor: world.card,
       shadowColor: world.cardShadow, shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 3,

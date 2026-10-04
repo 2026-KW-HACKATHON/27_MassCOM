@@ -1,3 +1,5 @@
+import { campaignTiming, extendedCampaignEnd, orderedCampaigns } from './commercial-operation.mjs';
+
 const endpoint = '/api/web/admin/merchants';
 const deletionEndpoint = '/api/web/admin/account-deletion-intakes';
 const offerEndpoint = '/api/web/admin/reward-offers';
@@ -69,6 +71,16 @@ const goLiveMessages = {
   ADMIN_OFFER_TEXT_INVALID: '혜택 이름·설명에 이메일·웹 주소·전화번호처럼 보이는 내용(숫자 8자리 이상 포함)이나 보이지 않는 글자는 쓸 수 없어요.',
   WEB_SESSION_REAUTH_REQUIRED: '점주 올리기·내리기는 10분 안에 한 로그인이 필요해요. 로그아웃한 뒤 관리자 계정으로 다시 로그인해 주세요.',
 };
+
+export function campaignExtensionMessage(error) {
+  if (error?.code === 'ADMIN_VERSION_CONFLICT') return '다른 곳에서 먼저 바뀌었어요. 목록을 새로 불러왔어요.';
+  if (error?.code === 'ADMIN_CAMPAIGN_EXTENSION_LIMIT') {
+    return '종료일은 오늘부터 365일을 넘길 수 없어요.';
+  }
+  if (error?.code === 'ADMIN_CAMPAIGN_NOT_EXTENDABLE') return '초안이거나 이미 종료 처리된 캠페인은 연장할 수 없어요.';
+  if (error?.code === 'ADMIN_CAMPAIGN_ACTIVE_EXISTS') return '이 점포에는 이미 공개 중인 캠페인이 있어요. 먼저 그 캠페인을 중지해 주세요.';
+  return goLiveMessage(error, '캠페인을 연장하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+}
 
 export function goLiveMessage(error, fallback) {
   if (error?.local === true) return error.message;
@@ -709,6 +721,62 @@ function campaignButton(fetcher, doc, act, campaign, action, text) {
   return button;
 }
 
+function campaignExtensionButton(fetcher, doc, campaign, days, generatedAt, current, status, extensionState) {
+  const button = doc.createElement('button');
+  button.type = 'button';
+  button.textContent = `${days}일 연장`;
+  button.setAttribute('aria-label', `${campaign.merchantName} ${campaign.title} 캠페인 ${days}일 연장`);
+  button.addEventListener('click', async () => {
+    if (extensionState.busy) return;
+    const newEnd = extendedCampaignEnd(campaign.endsAt, generatedAt, days);
+    if (!newEnd) {
+      status.textContent = '캠페인 종료일을 확인하지 못했어요. 목록을 새로 불러와 주세요.';
+      return;
+    }
+    if (!confirmed(doc, `${campaign.merchantName}\n캠페인 종료일을 ${formatKst(newEnd)}로 연장할까요?`)) return;
+    extensionState.busy = true;
+    button.disabled = true;
+    try {
+      const updated = await jsonRequest(fetcher, `${campaignEndpoint}/${encodeURIComponent(campaign.id)}/extend`, 'POST', {
+        days, expectedEndsAt: campaign.endsAt,
+      });
+      if (!current()) return;
+      const nextRequestId = (adminRequests.get(doc) ?? 0) + 1;
+      const campaignLoaded = await loadAdmin(fetcher, doc);
+      if (adminRequests.get(doc) !== nextRequestId) return;
+      if (!campaignLoaded) {
+        if (!doc.getElementById('admin-content').hidden) {
+          status.textContent = '캠페인 목록을 다시 불러오지 못했습니다. 새로고침해 주세요.';
+        }
+        return;
+      }
+      if (!doc.getElementById('admin-content').hidden) {
+        status.textContent = `캠페인을 ${days}일 연장했습니다. 새 종료일은 ${formatKst(updated.endsAt)}입니다.`;
+      }
+      status.focus?.();
+    } catch (error) {
+      if (!current()) return;
+      if (error.code === 'ADMIN_VERSION_CONFLICT') {
+        const nextRequestId = (adminRequests.get(doc) ?? 0) + 1;
+        const campaignLoaded = await loadAdmin(fetcher, doc);
+        if (adminRequests.get(doc) !== nextRequestId) return;
+        if (!campaignLoaded) {
+          if (!doc.getElementById('admin-content').hidden) {
+            status.textContent = '캠페인 목록을 다시 불러오지 못했습니다. 새로고침해 주세요.';
+          }
+          return;
+        }
+      }
+      status.textContent = campaignExtensionMessage(error);
+      status.focus?.();
+    } finally {
+      extensionState.busy = false;
+      button.disabled = false;
+    }
+  });
+  return button;
+}
+
 export async function loadAdmin(fetcher, doc) {
   ensurePlayMetricsPanel(doc);
   const requestId = (adminRequests.get(doc) ?? 0) + 1;
@@ -728,6 +796,8 @@ export async function loadAdmin(fetcher, doc) {
   const offerMerchant = offerForm?.querySelector('select[name="merchantId"]');
   const offerList = doc.getElementById('admin-offers');
   const campaignList = doc.getElementById('admin-campaigns');
+  const campaignSummary = doc.getElementById('admin-campaign-summary');
+  let campaignLoaded = !campaignList;
   const funnelStatus = doc.getElementById('admin-funnel-status');
   const funnelTotalsNode = doc.getElementById('admin-funnel-totals');
   const funnelTable = doc.getElementById('admin-funnel-table');
@@ -743,6 +813,7 @@ export async function loadAdmin(fetcher, doc) {
   offerList?.replaceChildren();
   offerMerchant?.replaceChildren();
   campaignList?.replaceChildren();
+  if (campaignSummary) { campaignSummary.textContent = ''; campaignSummary.hidden = true; }
   funnelRequests.set(doc, (funnelRequests.get(doc) ?? 0) + 1);
   playMetricRequests.set(doc, (playMetricRequests.get(doc) ?? 0) + 1);
   funnelTotalsNode?.replaceChildren();
@@ -1139,18 +1210,44 @@ export async function loadAdmin(fetcher, doc) {
         if (adminRequests.get(doc) !== requestId) return;
         if (!Array.isArray(published.campaigns) || !published.campaigns.every(item => typeof item?.id === 'string'
           && Object.hasOwn(campaignStatusLabels, item.status))) throw new Error('invalid campaigns');
+        const hasServerTime = typeof published.generatedAt === 'string' && Number.isFinite(Date.parse(published.generatedAt));
+        const campaigns = hasServerTime ? orderedCampaigns(published.campaigns, published.generatedAt) : published.campaigns;
+        if (campaignSummary && !hasServerTime) {
+          campaignSummary.hidden = false;
+          campaignSummary.textContent = '서버 기준 시각을 확인하지 못했어요. 캠페인 남은 기간과 연장은 잠시 후 다시 확인해 주세요.';
+        }
+        if (campaignSummary && hasServerTime) {
+          const timings = campaigns.map(item => campaignTiming(item.endsAt, published.generatedAt));
+          const soonCount = timings.filter(item => item.soon && !item.ended).length;
+          const endedCount = timings.filter(item => item.ended).length;
+          campaignSummary.hidden = soonCount === 0 && endedCount === 0;
+          campaignSummary.textContent = campaignSummary.hidden ? ''
+            : `14일 안에 끝나는 캠페인 ${soonCount}개 · 이미 끝난 캠페인 ${endedCount}개`;
+        }
         if (!published.campaigns.length) campaignList.textContent = '공개하거나 중지한 캠페인이 없습니다.';
-        for (const item of published.campaigns) {
+        for (const item of campaigns) {
           const row = doc.createElement('p');
-          row.textContent = `${item.merchantName} · ${item.title} · ${campaignStatusLabels[item.status]} · ${formatKst(item.startsAt)}부터 ${formatKst(item.endsAt)}까지 · 보이는 참여자 ${item.enrolledCount}/${item.enrollmentCapacity}명`;
+          const timing = hasServerTime ? campaignTiming(item.endsAt, published.generatedAt) : null;
+          const ending = timing?.ended ? ' · 종료됨' : timing?.daysLeft !== null && timing?.daysLeft !== undefined
+            ? ` · 종료까지 ${timing.daysLeft}일${timing.soon ? ' · 곧 종료' : ''}` : '';
+          row.textContent = `${item.merchantName} · ${item.title} · ${campaignStatusLabels[item.status]} · ${formatKst(item.startsAt)}부터 ${formatKst(item.endsAt)}까지${ending} · 보이는 참여자 ${item.enrolledCount}/${item.enrollmentCapacity}명`;
           if (item.status === 'ACTIVE') row.append(campaignButton(fetcher, doc, act, item, 'pause', '중지'));
-          if (canRepublishCampaign(item)) row.append(campaignButton(fetcher, doc, act, item, 'publish', '다시 공개'));
+          if (canRepublishCampaign(item, hasServerTime ? Date.parse(published.generatedAt) : Date.now())) {
+            row.append(campaignButton(fetcher, doc, act, item, 'publish', '다시 공개'));
+          }
+          if (hasServerTime && item.status !== 'DRAFT') {
+            const extensionState = { busy: false };
+            row.append(campaignExtensionButton(fetcher, doc, item, 30, published.generatedAt, current, status, extensionState));
+            row.append(campaignExtensionButton(fetcher, doc, item, 90, published.generatedAt, current, status, extensionState));
+          }
           campaignList.append(row);
         }
+        campaignLoaded = true;
       } catch (error) {
         if (adminRequests.get(doc) !== requestId) return;
         if (error.status === 401 || error.status === 403) throw error;
         campaignList.textContent = '캠페인 목록을 불러오지 못했습니다.';
+        if (campaignSummary) { campaignSummary.textContent = ''; campaignSummary.hidden = true; }
       }
     }
     if (offerList) {
@@ -1196,6 +1293,7 @@ export async function loadAdmin(fetcher, doc) {
     content.hidden = false;
     logout.textContent = '로그아웃';
     logout.hidden = false;
+    return campaignLoaded;
   } catch (error) {
     if (adminRequests.get(doc) !== requestId) return;
     list.replaceChildren();

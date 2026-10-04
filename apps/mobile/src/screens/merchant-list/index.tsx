@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthSession } from '@/auth/auth-provider';
 import type { BadgeApiClient, BadgeBook, OpenedReward } from '@/gamification/badge-api';
 import { shouldRefreshBadgesQuietly } from '@/gamification/badge-refresh';
+import { couponExpiryNotice } from '@/gamification/coupon-expiry';
 import { HomeRewardCard } from '@/gamification/home-reward-card';
 import { RewardReveal } from '@/gamification/reward-reveal';
 import { applyMerchantFilters, hasActiveFilters, type ProgressFilter } from '@/merchant/apply-merchant-filters';
@@ -33,7 +34,7 @@ import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
 import { FloatingCard } from '@/ui/floating-card';
-import { heroMascotSize } from '@/ui/large-text';
+import { heroMascotSize, isLargeText } from '@/ui/large-text';
 import { Mascot } from '@/ui/mascot';
 import { Companion } from '@/ui/companion';
 import { ExperienceEntry } from '@/ui/experience-entry';
@@ -310,7 +311,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
           return (
             <Stagger index={index}>
               <View style={styles.itemWrap}>
-                <MerchantCard merchant={item} apiUrl={apiUrl} onOpen={openMerchant} />
+                <MerchantCard merchant={item} apiUrl={apiUrl} fontScale={fontScale} onOpen={openMerchant} />
               </View>
             </Stagger>
           );
@@ -360,6 +361,8 @@ function SignedInRewardCard({ book, badgeApi, refreshQuietly, applyOpened, compa
   companionArt?: ImageSourcePropType;
 }) {
   const router = useRouter();
+  const styles = useMerchantListStyles();
+  const expiryNotice = couponExpiryNotice(book, new Date());
   const [revealed, setRevealed] = useState<OpenedReward>();
   // PR #301 리뷰: 보상이 거절됐는데(예: 마지막 쿠폰 소진) 책을 다시 읽지 않으면 그 상자가 계속 READY로 보여
   // homeFeaturedReward가 같은(이제 못 여는) 상자만 돌려주고 그 뒤 진짜 READY 상자를 가린다.
@@ -370,6 +373,13 @@ function SignedInRewardCard({ book, badgeApi, refreshQuietly, applyOpened, compa
   if (!book || !badgeApi) return null;
   return (
     <>
+      {expiryNotice ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={expiryNotice}
+          accessibilityHint="도감의 쿠폰과 보상을 확인해요." onPress={() => router.navigate({ pathname: '/collection', params: { focus: 'rewards' } })}
+          style={styles.couponExpiryNotice}>
+          <Text style={styles.couponExpiryNoticeText}>{expiryNotice}</Text>
+        </Pressable>
+      ) : null}
       <HomeRewardCard book={book} onOpen={badgeApi.openReward} onRevealed={onRevealed} onOpenFailed={onOpenFailed} />
       <RewardReveal
         result={revealed}
@@ -423,7 +433,7 @@ export function MerchantApiConfigurationRequired() {
   );
 }
 
-function MerchantCard({ merchant, apiUrl, onOpen }: { merchant: PublicMerchant; apiUrl: string; onOpen: (merchantId: string) => void }) {
+function MerchantCard({ merchant, apiUrl, fontScale, onOpen }: { merchant: PublicMerchant; apiUrl: string; fontScale: number; onOpen: (merchantId: string) => void }) {
   const styles = useMerchantListStyles();
   // 방문한 사람은 누구나 적립한다(D-023). 참여 정원이 차도 "마감"으로 보이지 않는다.
   const status = '참여 가능';
@@ -447,9 +457,9 @@ function MerchantCard({ merchant, apiUrl, onOpen }: { merchant: PublicMerchant; 
           ) : null}
         </View>
         <Text selectable style={styles.cardTitle}>{merchant.name}</Text>
-        <Text selectable numberOfLines={2} style={styles.cardStory}>{merchant.story}</Text>
+        <Text selectable numberOfLines={isLargeText(fontScale) ? 4 : 2} style={styles.cardStory}>{merchant.story}</Text>
         <View style={styles.cardMeta}>
-          <Text selectable numberOfLines={2} style={styles.cardAddress}>{merchant.roadAddress}</Text>
+          <Text selectable style={styles.cardAddress}>{merchant.roadAddress}</Text>
           <Text style={styles.cardArrow}>→</Text>
         </View>
         {merchant.visitorTags[0] ? (

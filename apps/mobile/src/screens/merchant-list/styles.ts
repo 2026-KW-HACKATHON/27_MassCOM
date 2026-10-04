@@ -10,6 +10,9 @@ export function makeMerchantListStyles(palette: AppColors, world: WorldTheme, ha
   header: { gap: 12, paddingHorizontal: uiMetrics.pageInset, marginBottom: 8 },
   // Reward box teaser (#296, Option A): sits between the hero and the search/filter block.
   rewardCardWrap: { paddingHorizontal: uiMetrics.pageInset, marginBottom: 8 },
+  couponExpiryNotice: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 4,
+    marginBottom: 4, borderRadius: 12, backgroundColor: palette.accentContainer },
+  couponExpiryNoticeText: { color: palette.onAccentContainer, fontSize: 12, lineHeight: 17, flexShrink: 1 },
   heroRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   heroCopy: { flex: 1, minWidth: 176, gap: 10 },
   passportChip: {

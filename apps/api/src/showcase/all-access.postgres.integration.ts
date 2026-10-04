@@ -19,7 +19,7 @@ import {
   SHOWCASE_STAFF_ACCOUNT_ID,
 } from './local-seed.js';
 import { storeCollectibleArt } from './store-collectible-art.js';
-import { seedStoreCollectibles, type StoreCollectibleTarget } from './store-collectibles.js';
+import { seedStoreCollectibles, storeCollectibleProject, type StoreCollectibleTarget } from './store-collectibles.js';
 
 const referenceHmacSecret = 'test-only-all-access-reference-secret-32-bytes';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -343,13 +343,13 @@ test('(seed) a campaign that already ended is still refused instead of being sil
   });
 });
 
-// ---- R-333a: 시연 가상 점포 수집품의 세 등급(브론즈·실버·골드) ----
+// ---- R-333a, #365: 시연 가상 점포 수집품의 세 등급(A/B 골드, C 프리즘) ----
 // 호스트 시드(seedShowcaseFixtureData 'hosted')는 DB 이름이 masscom_showcase일 때만 돌아 이 일회용 DB에서는 부를 수 없으므로,
 // 그 안에서 부르는 seedStoreCollectibles를 같은 거래 방식으로 직접 부른다(같은 함수·같은 대상 모양).
 const collectibleTargets: StoreCollectibleTarget[] = [
   { merchantId: SHOWCASE_MERCHANT_ID, campaignId: SHOWCASE_CAMPAIGN_ID, storeName: '가상 점포 A', art: 'a' },
   { merchantId: 'showcase-local-merchant-b', campaignId: 'showcase-local-campaign-b', storeName: '가상 점포 B', art: 'b' },
-  { merchantId: 'showcase-local-merchant-c', campaignId: 'showcase-local-campaign-c', storeName: '가상 점포 C', art: 'c' },
+  { merchantId: 'showcase-local-merchant-c', campaignId: 'showcase-local-campaign-c', storeName: '가상 점포 C', art: 'c', topGrade: 'prism' },
 ];
 
 async function inTransaction<T>(pool: Pool, work: (client: PoolClient) => Promise<T>): Promise<T> {
@@ -395,13 +395,15 @@ type PublicationFixture = {
   editedBy?: string;
   // 옛 시드 모양에서 한 가지씩만 어긋나게 만든다(식별 조건을 하나씩 고정하는 시험용).
   mutate?: (project: CollectibleProject) => void;
+  // #365 이전 C 시드가 발행하던 bronze/silver/gold 프로젝트를 그대로 재현한다.
+  project?: CollectibleProject;
   // false면 게시물만 만들고 캠페인 연결은 걸지 않는다.
   link?: boolean;
 };
 
 /** 옛 시드 게시물(또는 그것을 한 가지만 어긋나게 만든 것)을 주어진 연결(거래)로 넣는다. 거래 시작·끝은 호출자가 정한다. */
 async function insertPublicationRows(client: PoolClient, target: StoreCollectibleTarget, options: PublicationFixture = {}): Promise<string> {
-  const draft = legacySingleGradeProject(target);
+  const draft = options.project ?? legacySingleGradeProject(target);
   options.mutate?.(draft);
   const project = validateCollectibleProject(draft, true);
   const projectId = randomUUID();
@@ -414,12 +416,15 @@ async function insertPublicationRows(client: PoolClient, target: StoreCollectibl
     `INSERT INTO collectible_publications (id, project_id, merchant_id, campaign_id, project_version, reward_grades)
      VALUES ($1, $2, $3, $4, 1, $5::jsonb)`,
     [publicationId, projectId, target.merchantId, target.campaignId, JSON.stringify(project.rewardGrades)]);
-  const { projectId: _p, publicationId: _u, gradeId: _g, gradeName, shape, theme, name, thumbnailDataUrl, ...detail } =
-    collectibleSnapshot(project, projectId, publicationId, 'bronze');
-  const summary: CollectibleArtwork = { projectId, publicationId, gradeId: 'bronze', gradeName, shape, theme, name, thumbnailDataUrl };
-  await client.query(
-    'INSERT INTO collectible_publication_grades (publication_id, grade_id, summary, detail) VALUES ($1, $2, $3::jsonb, $4::jsonb)',
-    [publicationId, 'bronze', JSON.stringify(summary), JSON.stringify(detail)]);
+  // 꺼진 등급은 발행 스냅샷이 없다(실제 게시와 같다).
+  for (const { id: gradeId } of project.grades.filter((grade) => grade.enabled)) {
+    const { projectId: _p, publicationId: _u, gradeId: _g, gradeName, shape, theme, name, thumbnailDataUrl, ...detail } =
+      collectibleSnapshot(project, projectId, publicationId, gradeId);
+    const summary: CollectibleArtwork = { projectId, publicationId, gradeId, gradeName, shape, theme, name, thumbnailDataUrl };
+    await client.query(
+      'INSERT INTO collectible_publication_grades (publication_id, grade_id, summary, detail) VALUES ($1, $2, $3::jsonb, $4::jsonb)',
+      [publicationId, gradeId, JSON.stringify(summary), JSON.stringify(detail)]);
+  }
   if (options.link !== false) {
     await client.query('INSERT INTO campaign_collectible_publications (campaign_id, publication_id) VALUES ($1, $2)', [target.campaignId, publicationId]);
   }
@@ -429,6 +434,16 @@ async function insertPublicationRows(client: PoolClient, target: StoreCollectibl
 
 const insertLegacyPublication = (pool: Pool, target: StoreCollectibleTarget, options: PublicationFixture = {}): Promise<string> =>
   inTransaction(pool, (client) => insertPublicationRows(client, target, options));
+
+function previousThreeGradeProject(target: StoreCollectibleTarget): CollectibleProject {
+  const project = storeCollectibleProject({ ...target, topGrade: 'gold' });
+  assert.deepEqual(project.grades, [
+    { id: 'bronze', name: '브론즈', kind: 'basic', enabled: true },
+    { id: 'silver', name: '실버', kind: 'special', enabled: true },
+    { id: 'gold', name: '골드', kind: 'special', enabled: true },
+  ], 'the fixture matches the previous seed grade array exactly');
+  return project;
+}
 
 /** 다른 연결이 잠금을 기다리는 중이 될 때까지 기다린다(경합 시험에서 시드가 막혔음을 확인하는 데만 쓴다). */
 async function waitUntilSomeoneBlocks(pool: Pool): Promise<void> {
@@ -470,7 +485,7 @@ async function gradesOf(pool: Pool, publicationId: string): Promise<{ grade_id: 
      FROM collectible_publication_grades WHERE publication_id = $1 ORDER BY grade_id`, [publicationId])).rows;
 }
 
-test('(R-333a) a fresh collectible seed publishes bronze, silver and gold for goals 1, 3 and 5 on every virtual store', async () => {
+test('(R-333a, #365) a fresh collectible seed publishes gold for A/B and prism for C at the fifth visit', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     assert.equal((await seedCollectibles(pool)).length, 3);
     assert.deepEqual(await collectibleCounts(pool), [3, 3, 9, 3]);
@@ -478,14 +493,15 @@ test('(R-333a) a fresh collectible seed publishes bronze, silver and gold for go
       const publicationId = await linkedPublication(pool, target.campaignId);
       const publication = (await pool.query<{ reward_grades: Record<string, string> }>(
         'SELECT reward_grades FROM collectible_publications WHERE id = $1', [publicationId])).rows[0]!;
-      assert.deepEqual(publication.reward_grades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
+      const topGrade = target.art === 'c' ? 'prism' : 'gold';
+      assert.deepEqual(publication.reward_grades, { 1: 'bronze', 3: 'silver', 5: topGrade });
       assert.deepEqual(await gradesOf(pool, publicationId), [
         { grade_id: 'bronze', grade_name: '브론즈', animation: 'still' },
-        { grade_id: 'gold', grade_name: '골드', animation: 'sparkle' },
+        { grade_id: topGrade, grade_name: topGrade === 'prism' ? '프리즘' : '골드', animation: 'sparkle' },
         { grade_id: 'silver', grade_name: '실버', animation: 'shine' },
       ]);
     }
-    // DEMO_RUNBOOK의 "재시드 뒤 확인" 질의가 그대로 동작하고 점포마다 {bronze,gold,silver}를 돌려준다.
+    // DEMO_RUNBOOK의 "재시드 뒤 확인" 질의가 그대로 동작하고 점포마다 목표 1·3·5에 맞는 세 등급을 돌려준다.
     const runbookCheck = await pool.query<{ campaign_id: string; grades: string[] }>(
       `SELECT link.campaign_id, array_agg(grade.grade_id ORDER BY grade.grade_id) AS grades
        FROM campaign_collectible_publications link
@@ -495,7 +511,7 @@ test('(R-333a) a fresh collectible seed publishes bronze, silver and gold for go
     assert.deepEqual(runbookCheck.rows.map((row) => [row.campaign_id, row.grades]), [
       ['showcase-local-campaign', ['bronze', 'gold', 'silver']],
       ['showcase-local-campaign-b', ['bronze', 'gold', 'silver']],
-      ['showcase-local-campaign-c', ['bronze', 'gold', 'silver']],
+      ['showcase-local-campaign-c', ['bronze', 'prism', 'silver']],
     ]);
     // 두 번 돌려도(이미 3등급으로 걸려 있음) 아무것도 더하지 않는다.
     assert.deepEqual(await seedCollectibles(pool), []);
@@ -543,7 +559,8 @@ test('(R-333a) a re-seed upgrades the old single-grade seed link exactly once, k
     for (const [key, target] of [['a', storeA], ['b', storeB], ['c', storeC]] as const) {
       upgraded[key] = await linkedPublication(pool, target.campaignId);
       assert.notEqual(upgraded[key], legacy[key], `${key} now points at a new publication`);
-      assert.deepEqual((await gradesOf(pool, upgraded[key]!)).map((grade) => grade.grade_id), ['bronze', 'gold', 'silver']);
+      assert.deepEqual((await gradesOf(pool, upgraded[key]!)).map((grade) => grade.grade_id),
+        key === 'c' ? ['bronze', 'prism', 'silver'] : ['bronze', 'gold', 'silver']);
     }
     // 옛 게시물·프로젝트·등급 행은 한 글자도 바뀌지 않고, 이미 받은 획득은 옛 스냅샷을 그대로 가리킨다.
     assert.deepEqual(await oldRows(), oldBefore);
@@ -563,6 +580,62 @@ test('(R-333a) a re-seed upgrades the old single-grade seed link exactly once, k
     assert.deepEqual(await collectibleCounts(pool), [6, 6, 12, 3]);
     assert.deepEqual((await pool.query('SELECT campaign_id, publication_id FROM campaign_collectible_publications ORDER BY campaign_id')).rows, linksAfterFirst);
   });
+});
+
+test('(#365) re-seeding the previous three-grade C seed swaps only C once and preserves issued gold snapshots', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const [storeA, storeB, storeC] = collectibleTargets as [StoreCollectibleTarget, StoreCollectibleTarget, StoreCollectibleTarget];
+    assert.deepEqual(await seedCollectibles(pool, [storeA, storeB]), [storeA.campaignId, storeB.campaignId]);
+    const previous = await insertLegacyPublication(pool, storeC, { project: previousThreeGradeProject(storeC) });
+    const oldRows = async () => (await pool.query(
+      `SELECT to_jsonb(publication) AS publication,
+              (SELECT jsonb_agg(to_jsonb(grade) ORDER BY grade.grade_id) FROM collectible_publication_grades grade WHERE grade.publication_id = publication.id) AS grades,
+              (SELECT to_jsonb(project) FROM collectible_projects project WHERE project.id = publication.project_id) AS project
+       FROM collectible_publications publication WHERE publication.id = $1`, [previous])).rows;
+    const previousBefore = await oldRows();
+    const unchangedA = await linkedPublication(pool, storeA.campaignId);
+    const unchangedB = await linkedPublication(pool, storeB.campaignId);
+    const oldService = service(pool, { showcase: true });
+    for (let i = 0; i < 5; i += 1) await testVisit(oldService, 'old-c-customer', storeC.merchantId);
+    const oldCollection = await new PostgresCollectionReader(pool).getCollection('old-c-customer');
+    const oldGold = oldCollection.collectibles.find((item) => item.targetVisitCount === 5)?.artwork;
+    assert.deepEqual([oldGold?.publicationId, oldGold?.gradeId, oldGold?.gradeName], [previous, 'gold', '골드']);
+
+    assert.deepEqual(await seedCollectibles(pool), [storeC.campaignId]);
+    const replacement = await linkedPublication(pool, storeC.campaignId);
+    assert.notEqual(replacement, previous);
+    assert.equal(await linkedPublication(pool, storeA.campaignId), unchangedA);
+    assert.equal(await linkedPublication(pool, storeB.campaignId), unchangedB);
+    assert.deepEqual(await collectibleCounts(pool), [4, 4, 12, 3]);
+    assert.deepEqual((await gradesOf(pool, replacement)).map((grade) => [grade.grade_id, grade.grade_name]),
+      [['bronze', '브론즈'], ['prism', '프리즘'], ['silver', '실버']]);
+    assert.deepEqual(await oldRows(), previousBefore, 'old immutable publication and project rows are unchanged');
+    const after = await new PostgresCollectionReader(pool).getCollection('old-c-customer');
+    const retained = after.collectibles.find((item) => item.targetVisitCount === 5)?.artwork;
+    assert.deepEqual([retained?.publicationId, retained?.gradeId, retained?.gradeName], [previous, 'gold', '골드']);
+    assert.deepEqual(await seedCollectibles(pool), []);
+    assert.equal(await linkedPublication(pool, storeC.campaignId), replacement);
+    assert.deepEqual(await collectibleCounts(pool), [4, 4, 12, 3]);
+  });
+});
+
+test('(#365) C publications with a merchant author or other grades are never replaced', async () => {
+  for (const options of [
+    { createdBy: 'owner-1' },
+    { editedBy: 'owner-1' },
+    { mutate: (project: CollectibleProject) => { project.grades[2]!.name = '점주 골드'; } },
+  ]) {
+    await withFreshShowcaseDatabase(async (pool) => {
+      const storeC = collectibleTargets[2]!;
+      const previous = await insertLegacyPublication(pool, storeC, {
+        project: previousThreeGradeProject(storeC), ...options,
+      });
+      const before = await collectibleCounts(pool);
+      assert.deepEqual(await seedCollectibles(pool, [storeC]), []);
+      assert.equal(await linkedPublication(pool, storeC.campaignId), previous);
+      assert.deepEqual(await collectibleCounts(pool), before);
+    });
+  }
 });
 
 test('(R-333a) a merchant-authored publication, even with the seed\'s name and one grade, is never replaced; only the seed\'s own is', async () => {

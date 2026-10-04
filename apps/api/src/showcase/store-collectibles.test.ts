@@ -25,6 +25,52 @@ test('goals 1, 3 and 5 map to three distinct grades: bronze, silver, gold', () =
   assert.deepEqual(Object.keys(project.derived), ['bronze', 'silver', 'gold']);
 });
 
+test('A and B keep the default gold project unchanged', () => {
+  for (const art of ['a', 'b'] as const) {
+    const storeTarget = { ...target, art };
+    const project = storeCollectibleProject(storeTarget);
+    assert.deepEqual(project, storeCollectibleProject({ ...storeTarget, topGrade: 'gold' }));
+    assert.deepEqual(project.grades.map((grade) => grade.id), ['bronze', 'silver', 'gold']);
+    assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
+    assert.deepEqual(Object.keys(project.derived), ['bronze', 'silver', 'gold']);
+  }
+});
+
+test('C explicitly selects prism for five visits with its own validated snapshot', () => {
+  const project = validateCollectibleProject(storeCollectibleProject({
+    merchantId: 'showcase-local-merchant-c', campaignId: 'showcase-local-campaign-c',
+    storeName: '가상 점포 C', art: 'c', topGrade: 'prism',
+  }), true);
+  assert.deepEqual(project.grades.map((grade) => [grade.id, grade.name, grade.kind, grade.enabled]), [
+    ['bronze', '브론즈', 'basic', true],
+    ['silver', '실버', 'special', true],
+    ['prism', '프리즘', 'special', true],
+  ]);
+  assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'prism' });
+  assert.deepEqual(Object.keys(project.derived), ['bronze', 'silver', 'prism']);
+  assert.ok(project.motion.filter((motion) => motion.gradeIds.includes('prism'))
+    .every((motion) => motion.id.startsWith('motion-prism-')));
+  const snapshot = collectibleSnapshot(project, 'project-c', 'publication-c', 'prism');
+  assert.equal(snapshot.gradeId, 'prism');
+  assert.equal(snapshot.gradeName, '프리즘');
+  assert.equal(snapshot.animation, 'sparkle');
+  assert.deepEqual(snapshot.motions, [
+    { type: 'sparkle', playback: 'loop' },
+    { type: 'pulse', playback: 'loop' },
+    { type: 'confetti', playback: 'once', particle: 'sparkles' },
+  ]);
+  assert.equal(snapshot.greeting, '프리즘 수집품: 다섯 번째 방문까지 모두 채웠어요! 시연용 가상 점포 수집품입니다.');
+  for (const grade of project.grades) {
+    const gradeSnapshot = collectibleSnapshot(project, 'project-c', 'publication-c', grade.id);
+    assert.equal(gradeSnapshot.imageDataUrl, storeCollectibleArt.c.image);
+    assert.equal(gradeSnapshot.thumbnailDataUrl, storeCollectibleArt.c.thumbnail);
+    assert.deepEqual(gradeSnapshot.effects, []);
+    assert.equal('effectMasks' in gradeSnapshot, false);
+  }
+  assert.equal(collectibleSnapshot(project, 'project-c', 'publication-c', 'bronze').animation, 'still');
+  assert.equal(collectibleSnapshot(project, 'project-c', 'publication-c', 'silver').animation, 'shine');
+});
+
 test('the three-grade seed project passes the same publish validation the owner editor uses', () => {
   for (const art of ['a', 'b', 'c'] as const) {
     const validated = validateCollectibleProject(storeCollectibleProject({ ...target, art }), true);

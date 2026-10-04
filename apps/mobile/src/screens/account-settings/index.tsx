@@ -6,6 +6,8 @@ import { Alert, Image, Linking, Pressable, StyleSheet, Switch, Text, TextInput, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import type { StoredAuthSessionV1 } from '@/auth/session-store';
+import { guestTrialAccountLabel, guestTrialRestartLabel, guestTrialRestartConfirmation } from '@/auth/guest-trial-copy';
 import { accountContextLabel } from '@/config/app-context';
 import { canOpenMerchantDemo, demoRuntimeConfig } from '@/config/demo-runtime';
 import { canOpenShowcaseTour } from '@/navigation/showcase-entry';
@@ -54,6 +56,9 @@ export function AccountSettingsScreen({
   canSwitchAccount,
   onLogout,
   onSwitchAccount,
+  session,
+  canStartGuestTrial = false,
+  onRestartGuestTrial,
   header,
 }: {
   apiUrl: string;
@@ -63,6 +68,9 @@ export function AccountSettingsScreen({
   canSwitchAccount: boolean;
   onLogout: () => Promise<void>;
   onSwitchAccount: () => Promise<void>;
+  session?: StoredAuthSessionV1;
+  canStartGuestTrial?: boolean;
+  onRestartGuestTrial?: () => Promise<void>;
   /** BackHeader (sky art included); drawn first inside the scroll content so it scrolls away with the page. */
   header: ReactNode;
 }) {
@@ -83,10 +91,11 @@ export function AccountSettingsScreen({
       ? new AccountDeletionIntakeApiClient({ apiUrl, credential }) : undefined,
     [apiUrl, credential],
   );
-  const [busy, setBusy] = useState<'delete' | 'logout' | 'switch' | 'intake'>();
+  const [busy, setBusy] = useState<'delete' | 'logout' | 'switch' | 'intake' | 'restart'>();
   const [result, setResult] = useState<AccountDeletionResult>();
   const [error, setError] = useState<string>();
   const [legalError, setLegalError] = useState<string>();
+  const [confirmingGuestRestart, setConfirmingGuestRestart] = useState(false);
   const [message, setMessage] = useState<string>();
   // undefined는 아직 모름, null은 활성 요청 없음. 접수번호는 이 화면이 열려 있는 동안 메모리에만 둔다.
   const [intake, setIntake] = useState<DeletionIntakeView | null>();
@@ -241,6 +250,25 @@ export function AccountSettingsScreen({
     }
   }
 
+  function confirmGuestTrialRestart() {
+    if (busy || !session?.guest || !canStartGuestTrial || !onRestartGuestTrial) return;
+    setConfirmingGuestRestart(true);
+  }
+
+  async function restartGuestTrial() {
+    if (busy || !session?.guest || !canStartGuestTrial || !onRestartGuestTrial) return;
+    setBusy('restart');
+    setConfirmingGuestRestart(false);
+    setError(undefined);
+    try {
+      await onRestartGuestTrial();
+    } catch {
+      // 인증 컨트롤러가 로그아웃 상태와 사유를 입구 화면에 전달한다.
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
   async function openLegalPage(url: string) {
     setLegalError(undefined);
     try {
@@ -274,6 +302,7 @@ export function AccountSettingsScreen({
               현재 계정 {shortAccountId(accountId)} · {credential.kind === 'bearer'
                 ? `${accountContextLabel(getAppPackageId())} 세션` : '개발 DEMO'}
             </Text>
+            {session?.guest ? <Text selectable style={styles.intro}>{guestTrialAccountLabel(session.expiresAt)}</Text> : null}
           </View>
           {credential.kind === 'bearer' ? <View style={styles.sessionActions}>
             <Host matchContents seedColor={palette.primary} style={styles.sessionButtonHost}>
@@ -293,6 +322,29 @@ export function AccountSettingsScreen({
                   onPress={() => void runSessionAction('switch')}
                 />
               </Host>
+            ) : null}
+            {session?.guest && canStartGuestTrial && onRestartGuestTrial ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={guestTrialRestartLabel}
+                accessibilityState={{ disabled: Boolean(busy), busy: busy === 'restart' }}
+                disabled={Boolean(busy)}
+                onPress={confirmGuestTrialRestart}
+                style={[styles.secondaryLink, styles.trialAction, busy && styles.disabled]}
+              >
+                <Text style={styles.secondaryLinkText}>{busy === 'restart' ? '체험 다시 시작 중' : guestTrialRestartLabel}</Text>
+              </Pressable>
+            ) : null}
+            {confirmingGuestRestart ? (
+              <View accessibilityLiveRegion="polite" style={{ gap: 10 }}>
+                <Text selectable style={styles.intro}>{guestTrialRestartConfirmation}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="체험 처음부터 다시 시작 확인" onPress={() => void restartGuestTrial()} disabled={Boolean(busy)} style={[styles.secondaryLink, styles.trialAction]}>
+                  <Text style={styles.secondaryLinkText}>다시 시작</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" onPress={() => setConfirmingGuestRestart(false)} disabled={Boolean(busy)} style={[styles.secondaryLink, styles.trialAction]}>
+                  <Text style={styles.secondaryLinkText}>돌아가기</Text>
+                </Pressable>
+              </View>
             ) : null}
           </View> : null}
         </FloatingCard>

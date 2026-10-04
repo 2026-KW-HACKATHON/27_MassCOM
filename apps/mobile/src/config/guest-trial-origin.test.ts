@@ -44,3 +44,17 @@ test('the production package and any unknown or missing package never approve', 
 test('a malformed API URL fails closed instead of throwing', () => {
   assert.equal(isApprovedGuestTrialOrigin('kr.masscom.wolgye.demo', 'not-a-url', showcaseExtra), false);
 });
+
+test('native operating builds never enable guest trials, including with showcase extras or loopback', () => {
+  for (const apiUrl of ['https://api.masscom.kr', 'https://demo-api.masscom.kr', 'http://localhost:3000', 'http://10.0.2.2:3000', 'not-a-url']) {
+    assert.equal(isApprovedGuestTrialOrigin('kr.masscom.wolgye', apiUrl, showcaseExtra), false, apiUrl);
+  }
+});
+
+test('native showcase and development builds reject non-approved API origins', () => {
+  for (const packageId of ['kr.masscom.wolgye.demo', 'kr.masscom.wolgye.dev']) {
+    for (const apiUrl of ['https://api.masscom.kr', 'https://example.test', 'https://demo-api.masscom.kr.evil.test', 'https://demo-api.masscom.kr:444', 'not-a-url']) {
+      assert.equal(isApprovedGuestTrialOrigin(packageId, apiUrl, showcaseExtra), false, `${packageId}: ${apiUrl}`);
+    }
+  }
+});

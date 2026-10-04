@@ -37,7 +37,7 @@ export function makeCollectionStyles(palette: AppColors, world: WorldTheme, hair
   nftIdentity: { color: palette.primary, fontFamily: 'monospace', fontSize: 11, lineHeight: 17 },
   mintButton: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, backgroundColor: palette.primary },
   mintButtonText: { color: palette.onPrimary, fontSize: 13, fontWeight: '900', textAlign: 'center' },
-  walletButton: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: palette.primary },
+  walletButton: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, borderRadius: 14, borderWidth: 1, borderColor: palette.primary },
   walletButtonText: { color: palette.primary, fontSize: 13, fontWeight: '900', textAlign: 'center' },
   primaryButton: { minHeight: uiMetrics.minTouch, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, backgroundColor: palette.primary },
   primaryButtonText: { color: palette.onPrimary, fontSize: 14, fontWeight: '900', textAlign: 'center' },
