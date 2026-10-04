@@ -6,12 +6,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
 import { getAppPackageId } from '@/config/app-identity';
+import { consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
+import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
 import { createShopApiClient, type ShopSnapshot } from '@/shop/shop-api';
 import { friendArt } from '@/shop/shop-art';
 import { StudioScene } from '@/studio/studio-scene';
 import { ShareFormatButtons, useStudioShare } from '@/studio/studio-share';
-import { createStudioApiClient, type Studio, type StudioGoal, type StudioItem, type StudioSnapshot, type StudioTheme } from '@/studio/studio-api';
+import { createStudioApiClient, studioErrorMessage, type Studio, type StudioGoal, type StudioItem, type StudioSnapshot, type StudioTheme } from '@/studio/studio-api';
 import { studioGoalOptions } from '@/studio/studio-goals';
 import { ownedPage, ownedPageSize } from '@/studio/owned-page';
 import { runStudioSave } from '@/studio/studio-save';
@@ -31,17 +33,12 @@ function itemFromCollection(item: CollectionSnapshot['collectibles'][number]): S
   };
 }
 
-function studioError(error: unknown): string {
-  if (error instanceof Error && error.message === 'NETWORK_ERROR') return '연결을 확인하고 다시 시도해 주세요.';
-  if (error instanceof Error && error.message === 'INVALID_STUDIO') return '공간 정보가 올바르지 않아요. 다시 불러와 주세요.';
-  return '공간을 불러오거나 저장하지 못했어요. 다시 시도해 주세요.';
-}
-
 export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEntitlement, requestedAvatar }: {
   apiUrl: string; credential: AccountCredential; onSessionInvalid: () => Promise<void>;
   requestedEntitlement?: string; requestedAvatar?: string;
 }) {
   const router = useRouter();
+  const recheckConsent = useConsentRecheck();
   const insets = useSafeAreaInsets();
   const appId = getAppPackageId();
   const palette = colorsForScheme(useColorScheme());
@@ -63,6 +60,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
+  const [errorNeedsConsent, setErrorNeedsConsent] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [shareStatus, setShareStatus] = useState<string>();
   const [collectionPage, setCollectionPage] = useState(0);
@@ -82,6 +80,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
     const request = ++generation.current;
     if (refresh) setRefreshing(true); else setLoading(true);
     setError(undefined);
+    setErrorNeedsConsent(false);
     try {
       const [studio, owned, shopSnapshot, catalog] = await Promise.all([
         client.getMine(), collectionClient.getCollection(), shopClient.getShop(),
@@ -101,7 +100,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         ? requestedAvatar : studio.avatar);
       setNotice(needsPlace && studio.studio.slots.length >= 6 ? '전시가 가득 찼어요. 다른 수집품을 빼고 골라 주세요.' : undefined);
     } catch (caught) {
-      if (active.current && request === generation.current) setError(studioError(caught));
+      if (active.current && request === generation.current) { setError(studioErrorMessage(caught)); setErrorNeedsConsent(needsConsentRecheck(caught)); }
     } finally {
       if (active.current && request === generation.current) { setLoading(false); setRefreshing(false); }
     }
@@ -133,20 +132,20 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
 
   async function save() {
     if (!draft || saving || !goalAvailable) return;
-    setSaving(true); setError(undefined); setNotice(undefined);
+    setSaving(true); setError(undefined); setErrorNeedsConsent(false); setNotice(undefined);
     const request = generation.current;
     await runStudioSave(() => client.save(draft), {
       isMounted: () => mounted.current,
       canApply: () => active.current && request === generation.current,
       onSuccess: (saved) => { setSnapshot(saved); setDraft(saved.studio); setNotice('내 공간에 저장했어요.'); },
-      onError: (caught) => setError(studioError(caught)),
+      onError: (caught) => { setError(studioErrorMessage(caught)); setErrorNeedsConsent(needsConsentRecheck(caught)); },
       onSettled: () => setSaving(false),
     });
   }
 
   async function saveAvatar() {
     if (avatarSaving || !shop || !shop.items.some((item) => item.id === avatarChoice && item.owned)) return;
-    setAvatarSaving(true); setError(undefined); setNotice(undefined);
+    setAvatarSaving(true); setError(undefined); setErrorNeedsConsent(false); setNotice(undefined);
     const request = generation.current;
     await runStudioSave(() => shopClient.setAvatar(avatarChoice), {
       isMounted: () => mounted.current,
@@ -156,7 +155,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         setShop((current) => current ? { ...current, avatar: result.avatar } : current);
         setNotice('동행을 바꿨어요.');
       },
-      onError: (caught) => setError(studioError(caught)),
+      onError: (caught) => { setError(studioErrorMessage(caught)); setErrorNeedsConsent(needsConsentRecheck(caught)); },
       onSettled: () => setAvatarSaving(false),
     });
   }
@@ -175,7 +174,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   function chooseGoal(goal: StudioGoal) { setDraft((current) => current ? { ...current, goal } : current); }
   const header = <BackHeader title="내 공간" />;
   if (loading && !snapshot) return <SkyBackdrop><SkyScrollView header={header}><StateScene kind="loading" title="공간을 불러오는 중" /></SkyScrollView></SkyBackdrop>;
-  if (!snapshot || !draft || !collection || !shop) return <SkyBackdrop><SkyScrollView header={header}><StateScene kind="error" title="공간을 열지 못했어요" body={error} action={{ label: '다시 불러오기', onPress: () => void load() }} /></SkyScrollView></SkyBackdrop>;
+  if (!snapshot || !draft || !collection || !shop) return <SkyBackdrop><SkyScrollView header={header}><StateScene kind="error" title="공간을 열지 못했어요" body={error} action={{ label: errorNeedsConsent ? consentRecheckLabel : '다시 불러오기', onPress: errorNeedsConsent ? recheckConsent : () => void load() }} /></SkyScrollView></SkyBackdrop>;
   const owned = collection.collectibles;
   const page = ownedPage(owned, collectionPage);
   return <SkyBackdrop>
@@ -269,6 +268,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         })}
       </View>
       {error ? <Text accessibilityRole="alert" style={[styles.error, { color: palette.error }]}>{error}</Text> : null}
+      {errorNeedsConsent ? <Pressable accessibilityRole="button" onPress={recheckConsent} style={styles.goButton}><Text style={styles.goText}>{consentRecheckLabel}</Text></Pressable> : null}
       {notice ? <Text accessibilityRole="alert" style={[styles.notice, { color: palette.success }]}>{notice}</Text> : null}
       <Pressable accessibilityRole="button" disabled={!dirty || saving || !goalAvailable} onPress={() => void save()} style={[styles.save, (!dirty || saving || !goalAvailable) && styles.locked]}>
         <Text style={styles.saveText}>{saving ? '저장 중…' : '내 공간 저장'}</Text>

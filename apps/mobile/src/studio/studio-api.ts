@@ -1,5 +1,6 @@
 import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
 import { shouldInvalidateSession } from '@/auth/session-invalid';
+import { consentRequiredMessage, needsConsentRecheck } from '@/privacy/consent-flow';
 import { parseCollectibleArtwork, type CollectibleArtwork } from '@/commerce/collectible-artwork';
 
 export type StudioTheme = 'daylight' | 'evening' | 'garden';
@@ -83,6 +84,13 @@ export function parseFriendStudioSnapshot(value: unknown): FriendStudioSnapshot 
 
 export class StudioApiError extends Error {
   constructor(readonly status: number, readonly code: string) { super(code); }
+}
+
+export function studioErrorMessage(error: unknown): string {
+  if (needsConsentRecheck(error)) return consentRequiredMessage;
+  if (error instanceof Error && error.message === 'NETWORK_ERROR') return '연결을 확인하고 다시 시도해 주세요.';
+  if (error instanceof Error && error.message === 'INVALID_STUDIO') return '공간 정보가 올바르지 않아요. 다시 불러와 주세요.';
+  return '공간을 불러오거나 저장하지 못했어요. 다시 시도해 주세요.';
 }
 
 export function createStudioApiClient(options: {

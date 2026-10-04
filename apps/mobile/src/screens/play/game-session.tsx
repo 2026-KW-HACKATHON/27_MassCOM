@@ -4,8 +4,10 @@ import { Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions 
 import { getGameBoard, stackCursor, type GameAction, type PlayRun } from '../../../../api/src/play-rules';
 import { lightHaptic, successHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
-import { appendAction, finalizeDeliveryActions, memoryRevealDelay } from '@/play/run-actions';
+import { appendAction, finalizeDeliveryActions, memoryRevealDelay, shouldWaitForDeliverySample } from '@/play/run-actions';
 import { playErrorMessage, type PlayFinish } from '@/play/play-api';
+import { consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
+import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { playUiSound } from '@/sound/ui-sounds';
 import { colorsForScheme } from '@/theme/palette';
 import { BounceButton } from '@/ui/bounce-button';
@@ -25,8 +27,8 @@ type Props = {
 
 const foodNames = ['크루아상', '커피', '샌드위치', '과일 타르트'];
 const laneNames = ['왼쪽', '가운데', '오른쪽'];
-const currentTime = () => Date.now();
-const elapsedSince = (startedAt: number) => Math.max(0, Math.floor(currentTime() - startedAt));
+const currentTime = () => performance.now();
+const elapsedSince = (startedAt: number) => Math.max(0, currentTime() - startedAt);
 type MomentFeedback = { text: string; good: boolean };
 
 function laneAtTick(actions: readonly GameAction[], at: number): number {
@@ -40,6 +42,7 @@ function laneAtTick(actions: readonly GameAction[], at: number): number {
 
 export function GameSession({ run, art, avatar, previousBest, onFinish, onResult, onRetry, onExit }: Props) {
   const router = useRouter();
+  const recheckConsent = useConsentRecheck();
   const board = useMemo(() => getGameBoard(run.kind, run.seed), [run.kind, run.seed]);
   const palette = colorsForScheme(useColorScheme());
   const { width, height, fontScale } = useWindowDimensions();
@@ -49,11 +52,13 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
   const [elapsed, setElapsed] = useState(0);
   const [actions, setActions] = useState<readonly GameAction[]>([]);
   const actionsRef = useRef<readonly GameAction[]>([]);
+  const lastAcceptedElapsedRef = useRef<number | undefined>(undefined);
   const startedRef = useRef<number | null>(null);
   const abort = useRef(new AbortController());
   const phaseRef = useRef<'playing' | 'finishing' | 'finishError' | 'result'>('playing');
   const [phase, setPhase] = useState<'playing' | 'finishing' | 'finishError' | 'result'>('playing');
   const [error, setError] = useState<string>();
+  const [errorNeedsConsent, setErrorNeedsConsent] = useState(false);
   const [result, setResult] = useState<PlayFinish>();
   const [startingBest] = useState(previousBest);
   const [flipped, setFlipped] = useState<number[]>([]);
@@ -76,6 +81,7 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
     if (phaseRef.current !== 'playing' && phaseRef.current !== 'finishError') return;
     setRunPhase('finishing');
     setError(undefined);
+    setErrorNeedsConsent(false);
     try {
       const saved = await onFinish(run, log, abort.current.signal);
       if (abort.current.signal.aborted) return;
@@ -87,6 +93,7 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
     } catch (caught) {
       if (abort.current.signal.aborted) return;
       setError(playErrorMessage(caught));
+      setErrorNeedsConsent(needsConsentRecheck(caught));
       setRunPhase('finishError');
       playUiSound('error');
     }
@@ -94,8 +101,11 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
 
   function add(choice: number, quiet = false, earliestAt = 0): GameAction[] | undefined {
     if (phaseRef.current !== 'playing') return undefined;
-    const next = appendAction(actionsRef.current, choice, Math.max(getElapsed(), earliestAt), run.durationMs);
+    const at = getElapsed();
+    if (at < earliestAt) return undefined;
+    const next = appendAction(actionsRef.current, choice, at, run.durationMs, run.kind, lastAcceptedElapsedRef.current);
     if (!next) return undefined;
+    lastAcceptedElapsedRef.current = at;
     actionsRef.current = next;
     setActions(next);
     if (!quiet) { void lightHaptic(); playUiSound('tap'); }
@@ -103,8 +113,9 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
   }
 
   function finishDelivery(at: number) {
-    if (phaseRef.current !== 'playing') return;
-    const next = finalizeDeliveryActions(actionsRef.current, laneRef.current, at, run.durationMs);
+    if (phaseRef.current !== 'playing' || board.kind !== 'delivery') return;
+    const next = finalizeDeliveryActions(actionsRef.current, laneRef.current, at, run.durationMs, lastAcceptedElapsedRef.current);
+    if (shouldWaitForDeliverySample(next, at, run.durationMs, board.ticks.at(-1)!.at)) return;
     actionsRef.current = next;
     setActions(next);
     void finishCurrent(next);
@@ -180,7 +191,7 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
   }
 
   function changeLane(nextLane: number) {
-    if (board.kind !== 'delivery' || nextLane === lane || actionsRef.current.length >= 19) return;
+    if (board.kind !== 'delivery' || nextLane === laneRef.current || actionsRef.current.length >= 19) return;
     const lastCrossing = board.ticks[crossedRef.current - 1]?.at ?? -1;
     if (add(nextLane, false, lastCrossing + 1)) { laneRef.current = nextLane; setLane(nextLane); }
   }
@@ -229,7 +240,7 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
     </View> : phase === 'finishing' || phase === 'finishError' ? <View style={styles.result}>
       <Text style={[styles.resultLabel, { color: palette.label }]}>{phase === 'finishing' ? '기록을 저장하고 있어요' : '기록을 보내지 못했어요'}</Text>
       {error ? <Text style={[styles.resultText, { color: palette.error }]}>{error}</Text> : null}
-      {phase === 'finishError' ? <View style={styles.actions}><BounceButton label="같은 기록 다시 보내기" onPress={() => void finishCurrent(actionsRef.current)} /><BounceButton label="나가기" variant="secondary" onPress={onExit} /></View> : null}
+      {phase === 'finishError' ? <View style={styles.actions}><BounceButton label={errorNeedsConsent ? consentRecheckLabel : '같은 기록 다시 보내기'} onPress={errorNeedsConsent ? recheckConsent : () => void finishCurrent(actionsRef.current)} /><BounceButton label="나가기" variant="secondary" onPress={onExit} /></View> : null}
     </View> : <>
       {board.kind === 'stack' ? <StackBoard board={board} actions={actions} elapsed={elapsed} motionEnabled={motionEnabled} onDrop={dropStack} /> : null}
       {board.kind === 'memory' ? <View style={styles.memoryGrid}>{board.cards.map((value, index) => {

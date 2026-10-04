@@ -1,5 +1,6 @@
 import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
 import { shouldInvalidateSession } from '@/auth/session-invalid';
+import { consentRequiredMessage, needsConsentRecheck } from '@/privacy/consent-flow';
 import type { GameAction, GameKind, PlayRun } from '../../../api/src/play-rules';
 
 export type PlayRecord = { kind: GameKind; bestScore: number; plays: number };
@@ -78,6 +79,7 @@ export function createPlayApiClient({ apiUrl, credential, onSessionInvalid, fetc
 }
 
 export function playErrorMessage(error: unknown): string {
+  if (needsConsentRecheck(error)) return consentRequiredMessage;
   if (error instanceof PlayApiError) {
     if (error.code === 'NETWORK_ERROR') return '연결을 확인한 뒤 다시 시도해 주세요.';
     if (error.code === 'RUN_EXPIRED' || error.code === 'PLAY_RUN_EXPIRED') return '시간이 지나 게임이 끝났어요. 새로 시작해 주세요.';

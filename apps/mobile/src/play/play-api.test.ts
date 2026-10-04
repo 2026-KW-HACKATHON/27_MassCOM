@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createPlayApiClient, PlayApiError } from './play-api';
+import { createPlayApiClient, playErrorMessage, PlayApiError } from './play-api';
 import { finalizeDeliveryActions } from './run-actions';
 
 const credential = { kind: 'bearer', sessionToken: 'test-session' } as const;
@@ -27,6 +27,14 @@ test('play client scopes reads, start and finish to bearer account and sends onl
 test('network errors retain retryable finish semantics', async () => {
   const api = createPlayApiClient({ apiUrl: 'https://api.test', credential, fetcher: async () => { throw new Error('offline'); } });
   await assert.rejects(() => api.finish(run, []), (error) => error instanceof PlayApiError && error.code === 'NETWORK_ERROR');
+});
+
+test('play retains 403 CONSENT_REQUIRED and explains re-consent in Korean', async () => {
+  const api = createPlayApiClient({ apiUrl: 'https://api.test', credential,
+    fetcher: async () => Response.json({ code: 'CONSENT_REQUIRED' }, { status: 403 }) });
+  await assert.rejects(() => api.getPlay(), (error) => error instanceof PlayApiError
+    && error.status === 403 && error.code === 'CONSENT_REQUIRED'
+    && playErrorMessage(error) === '개인정보 처리방침이 바뀌어 다시 동의가 필요해요.');
 });
 
 test('start rejects seeds outside the game board range as invalid responses', async () => {

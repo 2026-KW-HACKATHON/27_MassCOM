@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { gameKinds, type GameAction, type GameKind, type PlayRun } from '../../../../api/src/play-rules';
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
+import { consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
+import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { createPlayApiClient, playErrorMessage, type PlayFinish, type PlaySnapshot } from '@/play/play-api';
 import { createPlayRequests } from '@/play/play-requests';
 import { createShopApiClient } from '@/shop/shop-api';
@@ -44,6 +46,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
   apiUrl: string; credential: AccountCredential; onSessionInvalid: () => Promise<void>;
 }) {
   const palette = colorsForScheme(useColorScheme());
+  const recheckConsent = useConsentRecheck();
   const insets = useSafeAreaInsets();
   const playApi = useMemo(() => createPlayApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const shopApi = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
@@ -55,10 +58,12 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
   const [avatarLoaded, setAvatarLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string>();
+  const [loadNeedsConsent, setLoadNeedsConsent] = useState(false);
   const [selection, setSelection] = useState<GameKind>();
   const [run, setRun] = useState<PlayRun>();
   const [startBusy, setStartBusy] = useState(false);
   const [startError, setStartError] = useState<string>();
+  const [startNeedsConsent, setStartNeedsConsent] = useState(false);
   const requests = useRef(createPlayRequests());
   const startLock = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -67,12 +72,13 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
     const signal = requests.current.beginLoad();
     setLoading(true);
     setLoadError(undefined);
+    setLoadNeedsConsent(false);
     const [play, shop, collection] = await Promise.allSettled([
       playApi.getPlay(signal), shopApi.getShop(), commerceApi.getCollection(),
     ]);
     if (signal.aborted) return;
     if (play.status === 'fulfilled') setSnapshot(play.value);
-    else setLoadError(playErrorMessage(play.reason));
+    else { setLoadError(playErrorMessage(play.reason)); setLoadNeedsConsent(needsConsentRecheck(play.reason)); }
     if (shop.status === 'fulfilled') { setAvatar(shop.value.avatar); setAvatarLoaded(true); }
     if (collection.status === 'fulfilled') { setArt(ownedGameArt(collection.value)); setArtLoaded(true); }
     setLoading(false);
@@ -96,6 +102,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
     setSelection(kind);
     setStartBusy(true);
     setStartError(undefined);
+    setStartNeedsConsent(false);
     const signal = requests.current.beginStart();
     try {
       const issued = await playApi.start(kind, signal);
@@ -104,7 +111,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
         scrollRef.current?.scrollTo({ y: 0, animated: false });
       }
     } catch (caught) {
-      if (!signal.aborted) setStartError(playErrorMessage(caught));
+      if (!signal.aborted) { setStartError(playErrorMessage(caught)); setStartNeedsConsent(needsConsentRecheck(caught)); }
     } finally {
       if (!signal.aborted) setStartBusy(false);
       startLock.current = false;
@@ -144,6 +151,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
       <View style={styles.prepCompanion}><Companion avatar={avatar} /><Text style={[styles.prepMeta, { color: palette.secondaryLabel }]}>{avatar ? '선택한 동행과 함께' : avatarLoaded ? '동행은 상점에서 고를 수 있어요' : '동행 정보를 확인하지 못했어요'}{record ? ` · 최고 ${record.bestScore.toLocaleString()}점` : ''}</Text></View>
       <UnlockPreview snapshot={snapshot} label={palette.label} muted={palette.secondaryLabel} />
       {startError ? <Text style={[styles.error, { color: palette.error }]}>{startError}</Text> : null}
+      {startNeedsConsent ? <BounceButton label={consentRecheckLabel} variant="secondary" onPress={recheckConsent} /> : null}
       <BounceButton label={startBusy ? '시작 준비 중' : '시작하기'} disabled={startBusy} onPress={() => void start(selection)} />
       <BounceButton label="다른 게임" variant="secondary" onPress={() => setSelection(undefined)} />
     </> : <>
@@ -151,7 +159,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
         <View style={styles.heroShade}><Companion avatar={avatar} /><Text style={styles.heroTitle}>오늘은 뭘 해볼까요?</Text></View>
       </ImageBackground>
       {loading && !snapshot ? <StateScene kind="loading" title="놀이 기록을 불러오는 중" /> : null}
-      {loadError ? <View style={styles.loadIssue}><Text style={[styles.error, { color: palette.error }]}>{loadError}</Text><BounceButton label="기록 다시 불러오기" variant="secondary" onPress={() => void load()} /></View> : null}
+      {loadError ? <View style={styles.loadIssue}><Text style={[styles.error, { color: palette.error }]}>{loadError}</Text><BounceButton label={loadNeedsConsent ? consentRecheckLabel : '기록 다시 불러오기'} variant="secondary" onPress={loadNeedsConsent ? recheckConsent : () => void load()} /></View> : null}
       <View style={styles.gameList}>{gameKinds.map((kind) => {
         const copy = gameCopy[kind];
         const best = snapshot?.records.find((entry) => entry.kind === kind);
