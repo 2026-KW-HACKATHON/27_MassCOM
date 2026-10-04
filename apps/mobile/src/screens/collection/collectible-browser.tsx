@@ -5,6 +5,7 @@ import Animated, { measure, useAnimatedReaction, useAnimatedRef, useSharedValue,
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { collectibleFilterOptions, filterAndSortAlbum, type CollectibleFilter, type CollectibleSort } from './collectible-filters';
+import { earnedDateLabel } from './collectible-groups';
 import type { CollectibleGroup, UngroupedCollectible } from './collectible-groups';
 import { useCollectionStyles } from './use-collection-styles';
 import { canOfferMint, chainLabel, nftGroupSummary, nftPreparingNote, nftStatusLabel, shortAddress } from './nft-status';
@@ -21,7 +22,6 @@ import { FloatingCard } from '@/ui/floating-card';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { gradeMaterialFor } from './grade-material';
 import { GradeMaterialLayer, useGradeMaterialClock } from './grade-material-layer';
-import { asOfLabel } from '@/friends/friends-model';
 import { isLargeText } from '@/ui/large-text';
 
 type NftMinting = CollectionSnapshot['nftMinting'];
@@ -34,9 +34,6 @@ const sortOptions: readonly { value: CollectibleSort; label: string }[] = [
   { value: 'grade', label: '등급순' },
 ];
 
-function earnedDateLabel(iso: string): string {
-  return asOfLabel(iso.slice(0, 10));
-}
 
 type MintGate = {
   apiUrl: string;

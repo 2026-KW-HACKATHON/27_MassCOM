@@ -1,5 +1,6 @@
 import type { CollectibleArtwork } from '@/commerce/collectible-artwork';
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
+import { kstParts } from '@/gamification/badge-rules';
 
 type RawCollectible = CollectionSnapshot['collectibles'][number];
 type NftStatus = RawCollectible['nftStatus'];
@@ -117,4 +118,10 @@ export function ungroupedCollectibles(collectibles: readonly LegacyCollectible[]
       recipient: item.recipient ?? null,
     }))
     .sort((a, b) => (a.earnedAt < b.earnedAt ? 1 : -1));
+}
+
+/** 받은 날짜는 한국 날짜로 보인다. UTC 날짜를 자르면 자정~오전 9시에 받은 수집품이 전날로 보인다. */
+export function earnedDateLabel(iso: string): string {
+  const { month, day } = kstParts(iso);
+  return `${month}월 ${day}일`;
 }

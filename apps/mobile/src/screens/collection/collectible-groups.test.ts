@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { groupCollectibles, ungroupedCollectibles } from './collectible-groups';
+import { earnedDateLabel, groupCollectibles, ungroupedCollectibles } from './collectible-groups';
 
 const artworkA = {
   publicationId: 'pub-a', projectId: 'proj-a', gradeId: 'grade-1', gradeName: '1등급',
@@ -66,4 +66,12 @@ test('ungroupedCollectibles returns only the legacy entitlements that groupColle
   assert.deepEqual(legacy.map((item) => item.entitlementId), ['e3', 'e1']);
   assert.equal(legacy[0]!.nftStatus, 'FINALIZED');
   assert.equal(legacy[1]!.displayName, '첫 방문 보상');
+});
+
+test('the earned date is shown as the Korea-time calendar day, not the UTC date', () => {
+  // 10월 5일 06:28 KST = 10월 4일 21:28 UTC
+  assert.equal(earnedDateLabel('2026-10-04T21:28:00.000Z'), '10월 5일');
+  assert.equal(earnedDateLabel('2026-10-04T14:59:59.000Z'), '10월 4일');
+  assert.equal(earnedDateLabel('2026-10-04T15:00:00.000Z'), '10월 5일');
+  assert.equal(earnedDateLabel('2026-12-31T15:00:00.000Z'), '1월 1일');
 });

@@ -22,7 +22,9 @@ test('both card types fill one column at large font scale and keep grades visibl
 test('NFT label and value stack inside both cards and earned dates use the Korean date formatter', () => {
   assert.match(source, /<View style=\{styles\.nftSummary\}>\s*<Text style=\{collectionStyles\.nftLabel\}>실제 NFT<\/Text>\s*<Text style=\{collectionStyles\.nftValue\}>\{summary\}<\/Text>/);
   assert.match(source, /nftSummary: \{ alignItems: 'flex-start', gap: 2 \}/);
-  assert.match(source, /return asOfLabel\(iso\.slice\(0, 10\)\)/);
+  // 날짜는 한국 날짜 계산을 쓰는 collectible-groups의 earnedDateLabel로만 만든다.
+  assert.match(source, /earnedDateLabel/);
+  assert.doesNotMatch(source, /iso\.slice\(0, 10\)/);
 });
 
 // PR #301 리뷰: 묶인 카드(같은 그림을 두 번 이상 받음)는 요약 배지(nftGroupSummary)만 보이고, 각 벌의 실제 상태·수령인·
