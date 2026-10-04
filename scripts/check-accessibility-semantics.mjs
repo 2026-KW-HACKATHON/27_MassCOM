@@ -5,7 +5,8 @@ import { join, resolve } from 'node:path';
 
 const sourceRoot = resolve(process.argv[2] ?? 'apps/mobile/src');
 const requiredLiveRegions = [
-  'screens/auth-required/index.tsx',
+  // 로그인 안내의 상태 문구는 로그인 필요 화면과 역할 선택 화면이 함께 쓰는 조각으로 옮겨졌다(#365).
+  'screens/auth-required/sign-in-actions.tsx',
   'screens/claim-redeem/index.tsx',
   'screens/collection/index.tsx',
   'screens/recommendations/index.tsx',
