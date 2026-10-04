@@ -8,7 +8,7 @@ import { defaultStudio, PlayError, type FriendStudioSnapshot, type PlayEvent, ty
   type StudioSnapshot } from '../play.js';
 import { gameDurationMs, gameKinds, isGameKind, scoreRunAtElapsed, type GameAction, type GameKind, type PlayRun } from '../play-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
-import { publicCampaignPredicate } from './merchant-catalog.js';
+import { publicCampaignGoalsHaving, publicCampaignPredicate } from './merchant-catalog.js';
 
 type RunRow = { id: string; kind: GameKind; seed: number; started_at: Date; expires_at: Date;
   result: PlayResult | null };
@@ -260,8 +260,13 @@ export class PostgresPlayService implements PlayService {
   }
 
   private async publicMerchant(client: PoolClient, merchantId: string): Promise<boolean> {
-    const result = await client.query(`SELECT 1 FROM merchants m JOIN campaigns c ON c.merchant_id=m.id
-      WHERE m.id=$1 AND ${publicCampaignPredicate(2)} LIMIT 1`, [merchantId, this.now()]);
+    const result = await client.query(`SELECT 1 FROM merchants m
+      JOIN campaigns c ON c.merchant_id=m.id
+      JOIN campaign_goals g ON g.campaign_id=c.id
+      WHERE m.id=$1 AND ${publicCampaignPredicate(2)}
+      GROUP BY m.id,c.id
+      HAVING ${publicCampaignGoalsHaving}
+      LIMIT 1`, [merchantId, this.now()]);
     return Boolean(result.rowCount);
   }
 
