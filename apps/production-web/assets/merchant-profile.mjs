@@ -20,8 +20,10 @@ export function serializeMerchantProfile({ story, businessHours, menuItems, vers
       menuErrors[item.index].name = '메뉴 이름은 1~200자로 적어 주세요.';
       errors.menuItems = menuErrors[item.index].name;
     }
+    // 쉼표는 올바른 세 자리 구분(1,000)일 때만 받는다. 1,5 같은 입력을 15로 바꿔 저장하지 않는다.
+    const wellFormed = /^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(item.price);
     const price = item.price.replace(/,/g, '');
-    if (!/^\d+$/.test(price) || Number(price) > 1_000_000_000) {
+    if (!wellFormed || Number(price) > 1_000_000_000) {
       menuErrors[item.index].price = '가격은 0~1,000,000,000원의 숫자로 적어 주세요.';
       errors.menuItems = menuErrors[item.index].price;
     }

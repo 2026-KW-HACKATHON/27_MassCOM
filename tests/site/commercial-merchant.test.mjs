@@ -193,7 +193,8 @@ for (const statusCode of [400, 429]) {
   });
 }
 
-for (const [typed, expected] of [['-100', null], ['1.5', null], ['1e3', null], ['1,000', 1000], [' 3000 ', 3000], ['0', 0], ['1,000,000,000', 1000000000], ['1000000001', null]]) {
+for (const [typed, expected] of [['-100', null], ['1.5', null], ['1e3', null], ['1,000', 1000], [' 3000 ', 3000], ['0', 0], ['1,000,000,000', 1000000000], ['1000000001', null],
+  ['1,5', null], ['1,00', null], ['1,,000', null], [',000', null], ['1000,000', null]]) {
   test(`가격 원문 ${JSON.stringify(typed)}의 input 뒤 submit은 검증된 값만 전송한다`, async () => {
     const f = await profileFixture(() => ok(profile('m1')));
     try {
