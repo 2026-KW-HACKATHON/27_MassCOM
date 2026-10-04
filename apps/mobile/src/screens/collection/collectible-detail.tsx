@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Image, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useColorScheme, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Image as SvgImage, LinearGradient, Mask, Rect, Stop } from 'react-native-svg';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { cancelAnimation, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import type { CollectibleAngleFrames, CollectibleLiving, CollectibleMotion, PublishedCollectible } from '@/commerce/collectible-artwork';
@@ -122,8 +122,11 @@ export function CollectibleDetail({ entitlementId, merchantId, merchantName, loa
 function DetailFrame({ children, onLayout, onScroll }: { children: React.ReactNode; onLayout?: (event: LayoutChangeEvent) => void; onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void }) {
   const insets = useSafeAreaInsets();
   const palette = colorsForScheme(useColorScheme());
-  return <ScrollView style={{ flex: 1, backgroundColor: palette.background }} contentContainerStyle={[styles.body, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 28 }]}
-    onLayout={onLayout} onScroll={onScroll} scrollEventThrottle={32}>{children}</ScrollView>;
+  // 상세는 전체 화면 Modal 안이라 앱 루트의 제스처 루트가 닿지 않는다. 카드 끌기 조명(GestureDetector)을 위해 여기에 다시 둔다.
+  return <GestureHandlerRootView style={{ flex: 1 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: palette.background }} contentContainerStyle={[styles.body, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 28 }]}
+      onLayout={onLayout} onScroll={onScroll} scrollEventThrottle={32}>{children}</ScrollView>
+  </GestureHandlerRootView>;
 }
 
 function Control({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
@@ -450,10 +453,11 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
                   )
                 )}
                 {snapshot.living ? <LivingOverlay living={snapshot.living} cell={livingCell(livingClock, snapshot.living.periodMs, snapshot.living.count)} faceSize={displayFace} /> : null}
+                {/* 상세는 수집품을 감상하는 화면이다. 점주 빛 모션과 겹쳐도 재질이 묻히지 않게 조금만 낮춘다. */}
                 <GradeMaterialLayer material={material} size={displayFace}
                   faceUri={frontUri} faceMask={frontMask}
                   shape={snapshot.shape} tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive}
-                  intensityScale={animationFrame.light ? .55 : 1} />
+                  intensityScale={animationFrame.light ? .9 : 1} />
               </View>
             )}
             {animationFrame.light && !reverse ? <Svg pointerEvents="none" width={displayFace} height={displayFace} style={{ position: 'absolute', top: size * .09, left: size * .09, transform: [{ scaleX }] }}>

@@ -65,7 +65,9 @@ test('앞면·사용자 뒷면·기본 뒷면은 회전 부모 안에서 같은 
   assert.equal((detail.match(/<GradeMaterialLayer\b/g) ?? []).length, 3);
   assert.equal((detail.match(/tilt=\{materialTilt\} clock=\{materialClock\}/g) ?? []).length, 3);
   assert.match(detail, /faceUri=\{snapshot\.backImageDataUrl\}/);
-  assert.match(detail, /intensityScale=\{animationFrame\.light \? \.55 : 1\}/);
+  assert.match(detail, /intensityScale=\{animationFrame\.light \? \.9 : 1\}/);
+  // 상세는 Modal 안이라 제스처 루트를 다시 둬야 한다(#358: 없으면 개발 빌드는 렌더 오류, 릴리스는 재질·끌기가 빠진다).
+  assert.match(detail, /<GestureHandlerRootView style=\{\{ flex: 1 \}\}>\s*<ScrollView/);
 });
 
 test('앞면 조명 마스크는 이미지 실패 대체 그림과 각도별 스프라이트 좌표를 따라간다', () => {

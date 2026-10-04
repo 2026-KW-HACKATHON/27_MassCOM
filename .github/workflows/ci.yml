@@ -11,6 +11,8 @@ permissions:
 jobs:
   bootstrap-contract:
     runs-on: ubuntu-latest
+    # 평소 11~12분이다. 시험이 끝나지 않을 때 기본 6시간을 다 쓰지 않도록 끊는다(#358).
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
