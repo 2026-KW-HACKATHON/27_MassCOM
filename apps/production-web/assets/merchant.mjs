@@ -941,6 +941,7 @@ export function bindMerchant(fetcher, doc) {
   let profileData;
   let profileSnapshot = '';
   let profileBusy = false;
+  let profileRowSequence = 0;
   const profileFields = () => ({
     story: profileStory.value, businessHours: profileHours.value,
     menuItems: [...profileMenu.children].map(row => ({ name: row.querySelectorAll('input')[0].value,
@@ -958,6 +959,10 @@ export function bindMerchant(fetcher, doc) {
   const clearProfileErrors = () => {
     for (const field of ['story', 'hours', 'menu']) doc.getElementById(`merchant-profile-${field}-error`).textContent = '';
     profileStory.removeAttribute('aria-invalid'); profileHours.removeAttribute('aria-invalid');
+    for (const row of profileMenu.children) {
+      for (const input of row.querySelectorAll('input')) input.removeAttribute('aria-invalid');
+      for (const error of row.querySelectorAll('.merchant-field-error')) error.textContent = '';
+    }
   };
   const setProfileBusy = busy => {
     profileBusy = busy;
@@ -979,16 +984,29 @@ export function bindMerchant(fetcher, doc) {
     name.value = item.name ?? ''; name.readOnly = !editable; nameLabel.append(name);
     const priceLabel = doc.createElement('label'); priceLabel.textContent = `메뉴 ${index} 가격(원)`;
     const price = doc.createElement('input'); price.name = 'priceWon'; price.setAttribute('name', 'priceWon'); price.type = 'text';
-    price.inputMode = 'numeric'; price.pattern = '[0-9]*'; price.value = item.priceWon == null ? '' : String(item.priceWon);
+    price.inputMode = 'numeric'; price.value = item.priceWon == null ? '' : String(item.priceWon);
     price.readOnly = !editable; priceLabel.append(price);
+    const rowId = ++profileRowSequence;
+    for (const [field, input, label] of [['name', name, nameLabel], ['price', price, priceLabel]]) {
+      const error = doc.createElement('span');
+      error.id = `merchant-menu-${rowId}-${field}-error`; error.className = 'merchant-field-error';
+      input.setAttribute('aria-describedby', error.id); label.append(error);
+    }
     row.append(nameLabel, priceLabel);
     if (editable) {
       const remove = doc.createElement('button'); remove.type = 'button'; remove.textContent = '메뉴 삭제';
-      remove.addEventListener('click', () => { row.remove(); syncProfileDirty(); });
+      remove.addEventListener('click', () => {
+        const rows = [...profileMenu.children];
+        const position = rows.indexOf(row);
+        const adjacent = rows[position + 1] ?? rows[position - 1];
+        row.remove(); syncProfileDirty();
+        (adjacent?.querySelector('input') ?? profileAdd).focus();
+      });
       row.append(remove);
     }
     profileMenu.append(row);
     syncProfileDirty();
+    return name;
   };
   const resetProfile = () => {
     if (!hasProfile) return;
@@ -1045,11 +1063,8 @@ export function bindMerchant(fetcher, doc) {
   };
   profileStory?.addEventListener('input', syncProfileDirty);
   profileHours?.addEventListener('input', syncProfileDirty);
-  profileMenu?.addEventListener('input', event => {
-    if (event.target?.name === 'priceWon') event.target.value = event.target.value.replace(/\D/g, '');
-    syncProfileDirty();
-  });
-  profileAdd?.addEventListener('click', () => { if (profileData?.canEdit && profileMenu.children.length < 30) addProfileRow(); });
+  profileMenu?.addEventListener('input', syncProfileDirty);
+  profileAdd?.addEventListener('click', () => { if (profileData?.canEdit && profileMenu.children.length < 30) addProfileRow().focus(); });
   profilePrint?.addEventListener('click', () => {
     if (profileData?.merchantId === doc.getElementById('merchant-overview-merchant')?.value) doc.defaultView?.print?.();
   });
@@ -1058,11 +1073,18 @@ export function bindMerchant(fetcher, doc) {
     event.preventDefault();
     if (!profileData?.canEdit || profileSave.disabled) return;
     const merchantId = profileData.merchantId;
-    const { body, errors } = serializeMerchantProfile(profileFields());
+    const { body, errors, menuErrors } = serializeMerchantProfile(profileFields());
     clearProfileErrors();
     doc.getElementById('merchant-profile-story-error').textContent = errors.story;
     doc.getElementById('merchant-profile-hours-error').textContent = errors.businessHours;
     doc.getElementById('merchant-profile-menu-error').textContent = errors.menuItems;
+    [...profileMenu.children].forEach((row, index) => {
+      row.querySelectorAll('input').forEach((input, fieldIndex) => {
+        const message = menuErrors[index][fieldIndex === 0 ? 'name' : 'price'];
+        doc.getElementById(input.getAttribute('aria-describedby')).textContent = message;
+        if (message) input.setAttribute('aria-invalid', 'true');
+      });
+    });
     if (errors.story) profileStory.setAttribute('aria-invalid', 'true');
     if (errors.businessHours) profileHours.setAttribute('aria-invalid', 'true');
     if (Object.values(errors).some(Boolean)) { profileStatus.textContent = '입력 내용을 확인해 주세요.'; return; }

@@ -109,7 +109,7 @@ test('버전 충돌은 새 목록을 읽고 알리며, 취소는 전송하지 �
   assert.equal(cancelled.writes.filter(call => call.path.endsWith('/extend')).length, 0);
 
   const capped = page([campaign('long', '2027-09-30T00:00:00.000Z')],
-    { onExtend: () => error(400, 'ADMIN_CAMPAIGN_EXTENSION_LIMIT') });
+    { onExtend: () => error(409, 'ADMIN_CAMPAIGN_EXTENSION_LIMIT') });
   await loadAdmin(capped.fetcher, capped.doc);
   await capped.nodes['admin-campaigns'].children[0].children[2].click();
   assert.match(capped.nodes['admin-status'].textContent, /365일/);

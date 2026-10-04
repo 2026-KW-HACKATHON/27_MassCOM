@@ -192,3 +192,80 @@ for (const statusCode of [400, 429]) {
     } finally { f.restore(); }
   });
 }
+
+for (const [typed, expected] of [['-100', null], ['1.5', null], ['1e3', null], ['1,000', 1000], [' 3000 ', 3000], ['0', 0], ['1,000,000,000', 1000000000], ['1000000001', null]]) {
+  test(`가격 원문 ${JSON.stringify(typed)}의 input 뒤 submit은 검증된 값만 전송한다`, async () => {
+    const f = await profileFixture(() => ok(profile('m1')));
+    try {
+      const row = f.doc.getElementById('merchant-profile-menu').children[0];
+      const price = row.querySelectorAll('input')[1];
+      price.value = typed;
+      price.dispatchEvent({ type: 'input', bubbles: true });
+      assert.equal(price.value, typed);
+      assert.equal(price.getAttribute('pattern'), null);
+      f.doc.getElementById('merchant-profile-form').dispatchEvent({ type: 'submit', preventDefault() {} });
+      await settle();
+      const writes = f.calls.filter(call => call.options.method === 'PUT');
+      if (expected === null) {
+        assert.equal(writes.length, 0);
+        assert.equal(price.value, typed);
+        assert.equal(price.getAttribute('aria-invalid'), 'true');
+        const error = f.doc.getElementById(price.getAttribute('aria-describedby'));
+        assert.match(error.textContent, /가격.*0~1,000,000,000/);
+        assert.ok(row.querySelectorAll('span').includes(error));
+        price.value = '1000';
+        price.dispatchEvent({ type: 'input', bubbles: true });
+        f.doc.getElementById('merchant-profile-form').dispatchEvent({ type: 'submit', preventDefault() {} });
+        await settle();
+        assert.equal(f.calls.filter(call => call.options.method === 'PUT').length, 1);
+        assert.equal(price.getAttribute('aria-invalid'), null);
+        assert.equal(error.textContent, '');
+      } else {
+        assert.equal(writes.length, 1);
+        assert.equal(JSON.parse(writes[0].options.body).menuItems[0].priceWon, expected);
+      }
+    } finally { f.restore(); }
+  });
+}
+
+test('메뉴 추가는 새 이름으로, 삭제는 다음·이전 이름 또는 추가 버튼으로 초점을 옮긴다', async () => {
+  const f = await profileFixture(() => ok(profile('m1')));
+  try {
+    const menu = f.doc.getElementById('merchant-profile-menu');
+    const add = f.doc.getElementById('merchant-profile-add-menu');
+    const first = menu.children[0];
+    const nameOf = row => row.querySelector('input');
+    for (let index = 0; index < 2; index += 1) {
+      add.focus(); add.dispatchEvent({ type: 'click' });
+      assert.ok(f.doc.activeElement === nameOf(menu.children[index + 1]));
+    }
+    const second = menu.children[1];
+    const third = menu.children[2];
+    const remove = row => {
+      const button = row.querySelector('button');
+      button.focus(); button.dispatchEvent({ type: 'click' });
+    };
+    remove(second);
+    assert.ok(f.doc.activeElement === nameOf(third));
+    remove(third);
+    assert.ok(f.doc.activeElement === nameOf(first));
+    remove(first);
+    assert.ok(f.doc.activeElement === add);
+    assert.equal(menu.children.length, 0);
+  } finally { f.restore(); }
+});
+
+test('새 상태 안내와 캠페인 안내는 비어 있어도 접근성 트리에서 숨기지 않는다', () => {
+  const css = readFileSync(new URL('../../apps/production-web/assets/production.css', import.meta.url), 'utf8');
+  const adminHtml = readFileSync(new URL('../../apps/production-web/admin.html', import.meta.url), 'utf8');
+  for (const [html, id] of [[merchantHtml, 'merchant-profile-status'], [merchantHtml, 'merchant-profile-dirty'],
+    [merchantHtml, 'merchant-campaign-ending'], [adminHtml, 'admin-status']]) {
+    assert.match(html, new RegExp(`id="${id}"[^>]*role="status"[^>]*aria-live="polite"`));
+    const rule = [...css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].find(([, selectors, declarations]) =>
+      selectors.split(',').some(selector => selector.trim() === `#${id}:empty`) && /display:\s*block/.test(declarations));
+    assert.ok(rule, `${id} needs a visually hidden empty-state rule`);
+    assert.match(rule[2], /position:\s*absolute/);
+    assert.match(rule[2], /clip-path:\s*inset\(50%\)/);
+    assert.doesNotMatch(rule[2], /display:\s*none|visibility:\s*hidden/);
+  }
+});
