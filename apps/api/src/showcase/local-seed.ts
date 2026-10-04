@@ -38,6 +38,7 @@ const merchants = [
     merchantId: 'showcase-local-merchant-c',
     campaignId: 'showcase-local-campaign-c',
     art: 'c',
+    topGrade: 'prism',
     name: '가상 점포 C',
     story: '여러 가게의 방문을 모으는 흐름을 보여주는 가상 점포입니다. 실제 영업점·방문 혜택이 아닙니다.',
     category: '한식',
@@ -285,6 +286,7 @@ export async function seedShowcaseFixtureData(
     if (mode === 'hosted') {
       await seedStoreCollectibles(client, merchants.map((entry) => ({
         merchantId: entry.merchantId, campaignId: entry.campaignId, storeName: entry.name, art: entry.art,
+        ...('topGrade' in entry ? { topGrade: entry.topGrade } : {}),
       })), now);
     }
     await client.query('COMMIT');
