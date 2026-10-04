@@ -15,7 +15,26 @@ cat > "$scratch/bin/docker" <<'DOCKER'
 echo "$*" >> "$FAKE_DOCKER_LOG"
 case "$1" in
   ps) [[ -z "${FAKE_DOCKER_PS-container-abc}" ]] || printf '%b\n' "${FAKE_DOCKER_PS-container-abc}" ;;
-  exec) [[ "${FAKE_DOCKER_EXEC_FAIL:-}" != 1 ]] || exit 1; echo 'RETENTION_RUN' ;;
+  exec)
+    case "$4" in
+      dist/postgres/retention-command.js)
+        [[ "${FAKE_DOCKER_EXEC_FAIL:-}" != 1 ]] || exit 1
+        echo 'RETENTION_RUN'
+        ;;
+      dist/showcase/host-seed-command.js)
+        [[ "$*" == 'exec container-abc node dist/showcase/host-seed-command.js' ]] || exit 2
+        [[ ! -t 0 && ! -t 1 ]] || exit 2
+        python3 -c 'import os, stat, sys; fd = os.fstat(0); sys.exit(not (stat.S_ISCHR(fd.st_mode) and fd.st_rdev == os.stat("/dev/null").st_rdev))' || exit 2
+        if [[ "${FAKE_NOISY_OUTPUT:-}" == 1 ]]; then
+          echo "DATABASE_URL=$DATABASE_URL"
+          echo "GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET" >&2
+        fi
+        printf '%s\n' "${FAKE_SEED_OUTPUT-SHOWCASE_HOST_SEEDED}"
+        [[ "${FAKE_SEED_FAIL:-}" != 1 ]] || exit 1
+        ;;
+      *) exit 2 ;;
+    esac
+    ;;
 esac
 DOCKER
 chmod +x "$scratch/bin/docker"
@@ -82,7 +101,14 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
     || fail "$label: container is not selected by compose labels"
   [[ "$(sed -n 2p "$scratch/docker.log")" == 'exec container-abc node dist/postgres/retention-command.js run' ]] \
     || fail "$label: retention command is not run inside the API container"
-  [[ "$(wc -l < "$scratch/docker.log" | tr -d ' ')" == 2 ]] || fail "$label: unexpected extra docker calls"
+  expected_calls=2
+  if [[ "$label" == showcase ]]; then
+    expected_calls=3
+    [[ "$(sed -n 3p "$scratch/docker.log")" == 'exec container-abc node dist/showcase/host-seed-command.js' ]] \
+      || fail "$label: seed must run after retention in the same container, without TTY or attached stdin"
+    grep -qx SHOWCASE_SEED_STEP_SUCCEEDED <<<"$out" || fail "$label: seed success result is missing"
+  fi
+  [[ "$(wc -l < "$scratch/docker.log" | tr -d ' ')" == "$expected_calls" ]] || fail "$label: unexpected extra docker calls"
   expect_files "$scratch/backups" "$label" "${kept_after_run[@]}"
   [[ -e "$scratch/outside/target.dump" ]] || fail "$label: a symlink target outside the backup folder was deleted"
   grep -q $'^BACKUPS_DELETED\t3$' <<<"$out" || fail "$label: expected exactly three deleted backups, got: $out"
@@ -98,6 +124,33 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   if run_job "$script" env FAKE_DOCKER_EXEC_FAIL=1 >"$scratch/out" 2>"$scratch/err"; then fail "$label: a failed retention command must fail the job"; fi
   grep -q RETENTION_DB_STEP_FAILED "$scratch/err" || fail "$label: failed DB step is not named"
   expect_files "$scratch/backups" "$label failed-db" "${kept_after_run[@]}"
+  if [[ "$label" == showcase ]]; then
+    grep -qx 'exec container-abc node dist/showcase/host-seed-command.js' "$scratch/docker.log" || fail "$label: failed retention skipped seed"
+    grep -qx SHOWCASE_SEED_STEP_SUCCEEDED "$scratch/out" || fail "$label: seed result after failed retention is missing"
+
+    # seed는 종료 0과 정확한 완료 줄이 모두 필요하다. 어떤 실패라도 백업 정리는 계속한다.
+    for seed_error in 'FAKE_SEED_FAIL=1' 'FAKE_SEED_OUTPUT=' 'FAKE_SEED_OUTPUT=prefix SHOWCASE_HOST_SEEDED' 'FAKE_SEED_OUTPUT=SHOWCASE_HOST_SEEDED suffix'; do
+      make_backups "$scratch/backups"; : > "$scratch/docker.log"
+      if run_job "$script" env "$seed_error" >"$scratch/out" 2>"$scratch/err"; then fail "$label: seed error '$seed_error' must fail the job"; fi
+      grep -qx SHOWCASE_SEED_STEP_FAILED "$scratch/err" || fail "$label: seed failure is not named"
+      grep -qx RETENTION_RUN "$scratch/out" || fail "$label: seed failure lost the retention output"
+      expect_files "$scratch/backups" "$label failed-seed" "${kept_after_run[@]}"
+      grep -q $'^BACKUPS_DELETED\t3$' "$scratch/out" || fail "$label: seed failure skipped backup cleanup"
+    done
+
+    # 시드 단계의 stdout/stderr에 환경값이 섞여도 출력하지 않는다(정리 명령의 개수 출력은 전처럼 남는다). 완료 줄은 여러 줄 중 정확히 일치하면 된다.
+    make_backups "$scratch/backups"
+    run_job "$script" env FAKE_NOISY_OUTPUT=1 DATABASE_URL='postgresql://private-demo-value/db' GOOGLE_CLIENT_SECRET='private-secret-value' \
+      FAKE_SEED_OUTPUT=$'extra output\nSHOWCASE_HOST_SEEDED\nmore output' >"$scratch/out" 2>"$scratch/err" || fail "$label: exact seed line among noisy output was rejected"
+    [[ ! -s "$scratch/err" ]] || fail "$label: container stderr reached the output"
+    [[ "$(cat "$scratch/out")" == $'RETENTION_RUN\nSHOWCASE_SEED_STEP_SUCCEEDED\nBACKUPS_DELETED\t3' ]] || fail "$label: seed step output reached the job output"
+    for failed_step in FAKE_DOCKER_EXEC_FAIL=1 FAKE_SEED_FAIL=1; do
+      make_backups "$scratch/backups"
+      if run_job "$script" env "$failed_step" FAKE_NOISY_OUTPUT=1 DATABASE_URL='postgresql://private-demo-value/db' \
+          GOOGLE_CLIENT_SECRET='private-secret-value' FAKE_SEED_OUTPUT='private-secret-value' >"$scratch/out" 2>"$scratch/err"; then fail "$label: noisy failed command must fail"; fi
+      if grep -Eq 'private-demo-value|private-secret-value|DATABASE_URL|GOOGLE_CLIENT_SECRET|SHOWCASE_HOST_SEEDED' "$scratch/out" "$scratch/err"; then fail "$label: failed command output leaked"; fi
+    done
+  fi
 
   # 컨테이너가 없거나 둘이면 어느 DB인지 모르므로 실행하지 않는다(그래도 백업은 정리한다).
   for ps_output in '' 'one\ntwo'; do
@@ -105,6 +158,9 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
     if run_job "$script" env "FAKE_DOCKER_PS=$ps_output" >"$scratch/out" 2>"$scratch/err"; then fail "$label: ambiguous container must fail"; fi
     grep -q RETENTION_API_CONTAINER_NOT_FOUND_OR_AMBIGUOUS "$scratch/err" || fail "$label: missing container is not named"
     grep -q '^exec ' "$scratch/docker.log" && fail "$label: retention ran without exactly one container"
+    if [[ "$label" == showcase ]]; then
+      grep -qx SHOWCASE_SEED_STEP_SKIPPED "$scratch/err" || fail "$label: skipped seed result is missing"
+    fi
     expect_files "$scratch/backups" "$label no-container" "${kept_after_run[@]}"
   done
 
@@ -167,6 +223,10 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   grep -q '"\$systemctl_bin" enable --now "\$name.timer"' "$install_file" || fail "$label: installer does not enable the timer"
   grep -q '"\$systemctl_bin" is-enabled "\$name.timer"' "$install_file" || fail "$label: installer does not verify the timer is enabled"
   grep -q -- '--verify)' "$install_file" || fail "$label: installer has no read-only verify mode"
+  if [[ "$label" == showcase ]]; then
+    grep -q 'host-seed-command.js' "$install_file" || fail "$label: verify does not check the installed seed step"
+    grep -q 'SHOWCASE_HOST_SEEDED' "$install_file" || fail "$label: verify does not check the seed success marker"
+  fi
   grep -q 'show -p Result --value "\$name.service"' "$install_file" || fail "$label: verify does not report the last run result"
   grep -q 'show -p ExecMainStartTimestamp --value "\$name.service"' "$install_file" || fail "$label: verify does not tell a never-run job from a successful one"
   grep -q 'last run result:' "$install_file" || fail "$label: verify does not print the last run result"
@@ -207,6 +267,11 @@ FAKE
     if grep -q '^verified: ' <<<"$bad_out"; then fail "$label: '$bad' still printed a verified line"; fi
   done
   # 설치된 스크립트가 이 릴리스와 다르면(오래된 설치) 실패한다.
+  if [[ "$label" == showcase ]]; then
+    sed '/node dist\/showcase\/host-seed-command.js/d' "$script" > "$verify_dir/sbin/$unit"
+    if run_verify >/dev/null 2>&1; then fail "$label: --verify accepted an installed script without seed"; fi
+    cp "$script" "$verify_dir/sbin/$unit"
+  fi
   echo '# drift' >> "$verify_dir/sbin/$unit"
   if run_verify >/dev/null 2>&1; then fail "$label: --verify accepted a stale installed script"; fi
   # 시험 표시가 없으면 재정의가 무시되고 root가 아니면 --verify도 멈춘다.
