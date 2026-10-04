@@ -91,4 +91,12 @@ test('the collection grid uses two columns only when both cards and the gap real
     if (layout.columns === 2) assert.ok(layout.width * 2 + 12 <= width, `two cards fit in ${width}`);
   }
   assert.deepEqual(collectionCardLayout(0, 1), { columns: 1, width: 0 });
+  // 소수 폭: 311.6dp는 반 폭이 149.8이라 한 열, 313.6dp는 150 + 12 + 150 = 312로 두 열이 들어간다.
+  for (const measured of [311.6, 313.6]) {
+    const layout = collectionCardLayout(Math.floor(measured), 1);
+    if (layout.columns === 2) assert.ok(layout.width * 2 + 12 <= measured);
+  }
+  assert.equal(collectionCardLayout(Math.floor(311.6), 1).columns, 1);
+  assert.deepEqual(collectionCardLayout(Math.floor(313.6), 1), { columns: 2, width: 150 });
+  assert.equal(collectionCardLayout(311.6, 1).columns, 1);
 });

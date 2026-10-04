@@ -8,7 +8,8 @@ const source = readFileSync(new URL('./collectible-browser.tsx', import.meta.url
 test('both card types fill one column at large font scale and keep grades visible', () => {
   // 카드 폭은 격자의 실제 폭으로 정한다(비율 폭은 좁은 화면에서 한 줄에 한 장만 좁게 남는다).
   assert.match(source, /collectionCardLayout\(gridWidth, fontScale\)\.width/);
-  assert.match(source, /onLayout=\{\(event\) => setGridWidth\(Math\.round\(event\.nativeEvent\.layout\.width\)\)\}/);
+  // 잰 폭은 내림한다. 올림하면 311.6dp 격자가 312로 저장돼 150dp 카드 두 장과 간격이 실제 폭을 넘는다.
+  assert.match(source, /onLayout=\{\(event\) => setGridWidth\(Math\.floor\(event\.nativeEvent\.layout\.width\)\)\}/);
   assert.match(source, /<GroupCard[^>]*cardWidth=\{cardWidth\}/s);
   assert.match(source, /<LegacyCard[^>]*cardWidth=\{cardWidth\}/s);
   assert.equal((source.match(/styles\.groupCard, \{ width: cardWidth \}/g) ?? []).length, 2);

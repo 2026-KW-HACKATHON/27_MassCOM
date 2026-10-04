@@ -135,7 +135,7 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
             ))}
           </View>
 
-          <View style={styles.grid} onLayout={(event) => setGridWidth(Math.round(event.nativeEvent.layout.width))}>
+          <View style={styles.grid} onLayout={(event) => setGridWidth(Math.floor(event.nativeEvent.layout.width))}>
             {shown.map((entry) => entry.kind === 'group' ? (
               <GroupCard key={entry.group.key} group={entry.group} favorites={favorites} sharing={sharing} mint={mint}
                 cardWidth={cardWidth}
