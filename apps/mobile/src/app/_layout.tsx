@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router/stack';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { useColorScheme, View } from 'react-native';
+import { Platform, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthSessionProvider, useAuthSession } from '@/auth/auth-provider';
@@ -94,7 +94,8 @@ function AuthenticatedRoot() {
   if (destination === 'role') {
     return <FoundationScreen
       onChooseRole={(role) => setEntry({ role, accountId: auth.accountId })}
-      authActions={auth.state.status !== 'signedIn' && auth.state.status !== 'demo' ? (
+      // 웹 체험은 역할을 고른 뒤 로그인 필요 화면에서 시작하던 흐름을 그대로 둔다(#365 검토). 여기 단추는 네이티브 시연 앱만 쓴다.
+      authActions={Platform.OS !== 'web' && auth.state.status !== 'signedIn' && auth.state.status !== 'demo' ? (
         <SignInActions
           state={auth.state}
           canSignIn={auth.canSignIn}
