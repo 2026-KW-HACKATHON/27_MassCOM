@@ -14,6 +14,7 @@ import { demoRuntimeConfig, createDemoCredential, isDevelopmentDemoBuild } from 
 import { isApprovedGuestTrialOrigin } from '@/config/guest-trial-origin';
 import { getPublicApiConfig } from '@/config/public-api';
 import { resolveRuntimeIdentity } from '@/config/showcase-identity';
+import { consumeMerchantReturn } from '@/navigation/showcase-entry';
 import { clearPendingFriendLink } from '@/friends/pending-friend-link';
 import { purgeForeignCollectionPrefs } from '@/screens/collection/collection-prefs';
 import { listCollectionPrefKeys, removeCollectionPrefKeys } from '@/screens/collection/collection-prefs-storage';
@@ -46,6 +47,7 @@ export type AuthSessionContextValue = {
   destructiveReauthentication: 'BLOCKED' | 'DEMO_ALLOWED';
   signIn(): Promise<void>;
   signInAsGuest(): Promise<void>;
+  restartGuestTrial(): Promise<void>;
   logout(): Promise<void>;
   switchAccount(): Promise<void>;
   invalidateSession(): Promise<void>;
@@ -68,15 +70,14 @@ const publicApiConfiguration = getPublicApiConfig({
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
 });
 const developmentBuild = isDevelopmentDemoBuild(getAppPackageId());
-// Google 로그인은 네이티브 전용(react-native-nitro-google-signin에 웹 빌드가 없다), 체험 로그인은 웹 전용
-// (운영·시연 Android 앱에는 체험 버튼을 두지 않는다, Issue #309).
+// Google 로그인은 네이티브 전용(react-native-nitro-google-signin에 웹 빌드가 없다).
 const isWeb = Platform.OS === 'web';
 const productionAuthAvailable = !isWeb && authConfiguration.available && publicApiConfiguration.available;
-// 체험 로그인은 시연 웹 빌드 전용이다(PR #313 리뷰): 패키지와 API origin이 서로 맞물려야 한다
+// 체험 로그인은 승인된 시연·개발 빌드 전용이다: 패키지와 API origin이 서로 맞물려야 한다
 // (실제 시연 빌드 ↔ 실제 시연 API, 로컬 개발 빌드 ↔ loopback API만). 둘 중 하나라도 안 맞으면 웹에서도
 // 체험 로그인을 열지 않는다 — 안 맞는 조합으로 web export 자체가 안 되는 build-environment 검사와
 // 별개로, 로컬 `expo start --web` 같은 경로를 통해서도 새지 않게 막는 2차 방어선이다.
-const guestTrialAvailable = isWeb && publicApiConfiguration.available
+const guestTrialAvailable = publicApiConfiguration.available
   && isApprovedGuestTrialOrigin(getAppPackageId(), publicApiConfiguration.apiUrl, Constants.expoConfig?.extra);
 
 function initialAuthState(): AuthSessionState {
@@ -101,11 +102,8 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!publicApiConfiguration.available) return;
-    if (isWeb) {
-      // 체험 로그인은 승인된 패키지·origin 조합에서만 연다 — 아니면 클라이언트 자체를 만들지 않는다.
-      if (!guestTrialAvailable) return;
-    } else {
-      if (!authConfiguration.available) return;
+    if (!productionAuthAvailable && !guestTrialAvailable) return;
+    if (productionAuthAvailable && authConfiguration.available) {
       nativeGoogleSignIn.configure(authConfiguration.webClientId);
     }
     const controller = createAuthController({
@@ -185,8 +183,16 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       await controllerRef.current.signIn();
     },
     async signInAsGuest() {
-      if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
+      if (!guestTrialAvailable || !controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
       await controllerRef.current.signInAsGuest();
+    },
+    async restartGuestTrial() {
+      if (!guestTrialAvailable || !session?.guest || !controllerRef.current) {
+        throw new Error('AUTH_CONFIGURATION_REQUIRED');
+      }
+      clearPendingFriendLink();
+      consumeMerchantReturn();
+      await controllerRef.current.restartGuestTrial();
     },
     async logout() {
       // A friend link opened under this account must not be offered to whoever signs in next.

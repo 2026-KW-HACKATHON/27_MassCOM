@@ -15,6 +15,13 @@ const validSession: StoredAuthSessionV1 = {
   accountId: 'account-1',
   expiresAt: '2026-09-21T13:00:00.000Z',
 };
+const guestSession: StoredAuthSessionV1 = {
+  version: 1,
+  sessionToken: 'guest-session-token',
+  accountId: 'guest-account',
+  expiresAt: '2026-09-22T12:00:00.000Z',
+  guest: true,
+};
 
 function fakeSecureStore(initialValue: string | null = null) {
   let value = initialValue;
@@ -60,6 +67,29 @@ test('restores one valid v1 server session', async () => {
   const session = await createSessionStore(fake.surface, now).load();
   assert.deepEqual(session, validSession);
   assert.equal(fake.deleteCount(), 0);
+});
+
+test('restores a saved guest trial from a fresh secure session store', async () => {
+  const fake = fakeSecureStore();
+  await createSessionStore(fake.surface, now).save(guestSession);
+
+  assert.deepEqual(await createSessionStore(fake.surface, now).load(), guestSession);
+  assert.deepEqual(JSON.parse(fake.value() ?? '{}'), guestSession);
+  assert.equal(fake.deleteCount(), 0);
+});
+
+test('deletes an expired guest trial before it can be restored', async () => {
+  const fake = fakeSecureStore(JSON.stringify({ ...guestSession, expiresAt: now().toISOString() }));
+
+  assert.equal(await createSessionStore(fake.surface, now).load(), undefined);
+  assert.equal(fake.deleteCount(), 1);
+});
+
+test('deletes a malformed guest trial before it can be restored', async () => {
+  const fake = fakeSecureStore(JSON.stringify({ ...guestSession, sessionToken: '' }));
+
+  assert.equal(await createSessionStore(fake.surface, now).load(), undefined);
+  assert.equal(fake.deleteCount(), 1);
 });
 
 test('deletes an expired session instead of restoring it', async () => {

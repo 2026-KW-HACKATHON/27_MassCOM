@@ -18,5 +18,10 @@ export function makeAuthRequiredStyles(palette: AppColors, hairlineWidth = 1) {
   statusCard: { gap: 10 },
   statusTitle: { color: palette.label, fontSize: 15, lineHeight: 22, fontWeight: '700' },
   buttonHost: { minHeight: 48 },
+  actions: { gap: 18 },
+  guestActionGroup: { gap: 8 },
+  guestButton: { minHeight: 48, justifyContent: 'center', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16 },
+  guestButtonLabel: { color: palette.primary, fontSize: 16, fontWeight: '700', textAlign: 'center', flexShrink: 1 },
+  guestDescription: { color: palette.secondaryLabel, fontSize: 14, lineHeight: 22, textAlign: 'center' },
 } satisfies Record<string, ImageStyle | TextStyle | ViewStyle>;
 }

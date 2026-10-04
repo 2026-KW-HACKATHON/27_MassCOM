@@ -67,6 +67,7 @@ export class AuthApiClient {
       sessionToken: payload.sessionToken,
       accountId: payload.accountId,
       expiresAt: payload.expiresAt,
+      guest: true,
     };
   }
 

@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthSessionProvider, useAuthSession } from '@/auth/auth-provider';
 import { AuthRequiredScreen } from '@/screens/auth-required';
+import { SignInActions } from '@/screens/auth-required/sign-in-actions';
 import { ConsentScreen } from '@/screens/consent';
 import { publicApiConfig } from '@/config/public-api-runtime';
 import { shouldAskConsent } from '@/privacy/consent-flow';
@@ -86,7 +87,18 @@ function AuthenticatedRoot() {
   );
 
   if (destination === 'role') {
-    return <FoundationScreen onChooseRole={(role) => setEntry({ role, accountId: auth.accountId })} />;
+    return <FoundationScreen
+      onChooseRole={(role) => setEntry({ role, accountId: auth.accountId })}
+      authActions={auth.state.status !== 'signedIn' && auth.state.status !== 'demo' ? (
+        <SignInActions
+          state={auth.state}
+          canSignIn={auth.canSignIn}
+          canStartGuestTrial={auth.canStartGuestTrial}
+          onSignIn={auth.signIn}
+          onGuestSignIn={auth.signInAsGuest}
+        />
+      ) : undefined}
+    />;
   }
 
   if (destination === 'auth' && auth.state.status !== 'signedIn' && auth.state.status !== 'demo') {
