@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { contrast } from '../../theme/contrast';
@@ -49,6 +50,22 @@ test('title, story and DEMO disclosure stay legible on the floating hero card', 
     assert.ok(contrast(styles.directionsText.color as string, styles.directionsAction.backgroundColor as string) >= 4.5);
     assert.ok((styles.directionsAction.minHeight as number) >= uiMetrics.minTouch);
   }
+});
+
+test('large or wrapped detail labels stack above left-aligned values, while the hero badge can grow', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeMerchantDetailStyles(palette, world);
+    assert.equal(styles.infoRowStacked.flexDirection, 'column');
+    assert.equal(styles.infoValueStacked.textAlign, 'left');
+    assert.equal(styles.infoLabelStacked.width, undefined);
+    assert.equal(styles.heroTopline.flexWrap, 'wrap');
+    assert.equal('width' in styles.demoBadge, false);
+    assert.equal('overflow' in styles.demoBadge, false);
+  }
+  const source = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
+  assert.match(source, /isLargeText\(fontScale\) \|\| wrappedAtWidth === width/);
+  assert.match(source, /event\.nativeEvent\.lines\.length > 1/);
+  assert.match(source, />월계 동네 식탁<\/Text>/);
 });
 
 test('visitor feedback counts remain legible and its action meets the touch target', () => {

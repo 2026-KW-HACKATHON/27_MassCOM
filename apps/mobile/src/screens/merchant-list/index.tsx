@@ -34,7 +34,7 @@ import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
 import { FloatingCard } from '@/ui/floating-card';
-import { heroMascotSize } from '@/ui/large-text';
+import { heroMascotSize, isLargeText } from '@/ui/large-text';
 import { Mascot } from '@/ui/mascot';
 import { Companion } from '@/ui/companion';
 import { ExperienceEntry } from '@/ui/experience-entry';
@@ -311,7 +311,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
           return (
             <Stagger index={index}>
               <View style={styles.itemWrap}>
-                <MerchantCard merchant={item} apiUrl={apiUrl} onOpen={openMerchant} />
+                <MerchantCard merchant={item} apiUrl={apiUrl} fontScale={fontScale} onOpen={openMerchant} />
               </View>
             </Stagger>
           );
@@ -433,7 +433,7 @@ export function MerchantApiConfigurationRequired() {
   );
 }
 
-function MerchantCard({ merchant, apiUrl, onOpen }: { merchant: PublicMerchant; apiUrl: string; onOpen: (merchantId: string) => void }) {
+function MerchantCard({ merchant, apiUrl, fontScale, onOpen }: { merchant: PublicMerchant; apiUrl: string; fontScale: number; onOpen: (merchantId: string) => void }) {
   const styles = useMerchantListStyles();
   // 방문한 사람은 누구나 적립한다(D-023). 참여 정원이 차도 "마감"으로 보이지 않는다.
   const status = '참여 가능';
@@ -457,9 +457,9 @@ function MerchantCard({ merchant, apiUrl, onOpen }: { merchant: PublicMerchant; 
           ) : null}
         </View>
         <Text selectable style={styles.cardTitle}>{merchant.name}</Text>
-        <Text selectable numberOfLines={2} style={styles.cardStory}>{merchant.story}</Text>
+        <Text selectable numberOfLines={isLargeText(fontScale) ? 4 : 2} style={styles.cardStory}>{merchant.story}</Text>
         <View style={styles.cardMeta}>
-          <Text selectable numberOfLines={2} style={styles.cardAddress}>{merchant.roadAddress}</Text>
+          <Text selectable style={styles.cardAddress}>{merchant.roadAddress}</Text>
           <Text style={styles.cardArrow}>→</Text>
         </View>
         {merchant.visitorTags[0] ? (

@@ -14,7 +14,6 @@ import { uiMetrics } from '@/theme/ui-metrics';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
 import { FloatingCard } from '@/ui/floating-card';
-import { isLargeText } from '@/ui/large-text';
 import { townMapArt } from '@/ui/mascot-art';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
@@ -45,7 +44,7 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   const world = worldForScheme(scheme);
   const styles = useTownMapStyles();
   const insets = useSafeAreaInsets();
-  const { width, height: windowHeight, fontScale } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
   const clearance = useTabBarClearance();
   const enabled = useMotionEnabled();
   const catalog = useMerchantCatalog(apiUrl);
@@ -177,8 +176,6 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
           )
         ) : (
           <>
-            {/* The header drops its subtitle at 150% text, so the sentence is said here instead. */}
-            {isLargeText(fontScale) ? <Text style={styles.disclosure}>{TOWN_MAP_DISCLOSURE}</Text> : null}
             {signedOut ? <Text style={styles.banner}>로그인하면 도장 받은 곳이 표시돼요.</Text> : null}
             {stamps.status === 'loading' ? <Text accessibilityLiveRegion="polite" style={styles.banner}>도장 상태를 확인하고 있어요.</Text> : null}
             {stamps.status === 'error' ? (
