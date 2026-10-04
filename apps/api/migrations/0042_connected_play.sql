@@ -34,3 +34,11 @@ CREATE TABLE play_flow_counts (
   count integer NOT NULL CHECK (count > 0),
   PRIMARY KEY (event_date, event, kind)
 );
+
+-- Ops-only sweep offsets: no account identifiers and no account-deletion cleanup needed.
+-- Previous API images and rollback images can safely leave this unused table in place.
+CREATE TABLE retention_scan_progress (
+  step text PRIMARY KEY,
+  position bigint NOT NULL CHECK (position >= 0),
+  updated_at timestamptz NOT NULL
+);

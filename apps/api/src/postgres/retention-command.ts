@@ -17,7 +17,7 @@ const countLines = (counts: RetentionCount[]): string[] => counts.flatMap(({ ste
 /**
  * 보관 기간이 지난 기록을 지운다(`run`) 또는 지울 개수만 센다(`report`). 출력은 `단계<TAB>개수`뿐이며
  * 놀이 삭제가 실행 상한에 도달하면 `단계_cap_hit<TAB>1`도 출력해 다음 일일 실행이 이어서 정리하도록 알린다.
- * 후보 조회가 페이지 상한에 도달하면 `단계_scan_cap_hit<TAB>1`을 출력한다. UTC 날짜마다 조회 시작 위치가 바뀐다.
+ * 후보 조회가 페이지 상한에 도달하면 `단계_scan_cap_hit<TAB>1`을 출력한다. 다음 실행은 저장된 sweep 위치에서 이어간다.
  * 계정 식별자·행 식별자·접수번호는 어디에도 나오지 않는다.
  */
 export async function runRetentionCommand(

@@ -49,7 +49,7 @@ test('play runs replay once, studio requires ownership, friend view hides identi
   t.after(() => pool.end());
   await runMigrations(pool);
   await pool.query(`TRUNCATE merchants, account_deletion_requests, account_profile, account_characters,
-    play_runs, play_records, studios, play_flow_counts CASCADE`);
+    play_runs, play_records, studios, play_flow_counts, retention_scan_progress CASCADE`);
   const state = { now: new Date('2026-10-04T10:00:00.000Z') };
   const now = () => state.now;
   const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
