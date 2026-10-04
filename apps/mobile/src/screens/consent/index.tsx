@@ -16,6 +16,9 @@ import {
   type ConsentGateState,
 } from '@/privacy/consent-flow';
 import { colorsForScheme } from '@/theme/palette';
+import { FloatingCard } from '@/ui/floating-card';
+import { SkyBackdrop } from '@/ui/sky-backdrop';
+import { SkyBanner } from '@/ui/sky-banner';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { consentBoxSize, makeConsentStyles } from './styles';
 
@@ -104,24 +107,31 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
 
   if (gate.kind === 'loading' || gate.kind === 'accepted') {
     return (
-      <SkyScrollView header={undefined} contentContainerStyle={[styles.content, { justifyContent: 'center', paddingBottom: 40 + insets.bottom }]}>
+      <SkyBackdrop>
+      <SkyScrollView header={<SkyBanner />} contentContainerStyle={[styles.content, { justifyContent: 'center', paddingBottom: 40 + insets.bottom }]}>
         {header}
-        <View accessibilityLiveRegion="polite" style={styles.statusCard}>
-          <ActivityIndicator color={palette.primary} />
-          <Text selectable style={styles.statusText}>{consentCopy.loading}</Text>
+        <View accessibilityLiveRegion="polite">
+          <FloatingCard style={styles.statusCard}>
+            <ActivityIndicator color={palette.primary} />
+            <Text selectable style={styles.statusText}>{consentCopy.loading}</Text>
+          </FloatingCard>
         </View>
       </SkyScrollView>
+      </SkyBackdrop>
     );
   }
 
   if (gate.kind === 'failed' || gate.kind === 'outdated') {
     return (
-      <SkyScrollView header={undefined} contentContainerStyle={[styles.content, { justifyContent: 'center', paddingBottom: 40 + insets.bottom }]}>
+      <SkyBackdrop>
+      <SkyScrollView header={<SkyBanner />} contentContainerStyle={[styles.content, { justifyContent: 'center', paddingBottom: 40 + insets.bottom }]}>
         {header}
-        <View accessibilityLiveRegion="polite" style={styles.statusCard}>
-          <Text selectable style={styles.errorText}>
-            {gate.kind === 'outdated' ? consentCopy.versionMismatch : consentCopy.checkFailed}
-          </Text>
+        <View accessibilityLiveRegion="polite">
+          <FloatingCard style={styles.statusCard}>
+            <Text selectable style={styles.errorText}>
+              {gate.kind === 'outdated' ? consentCopy.versionMismatch : consentCopy.checkFailed}
+            </Text>
+          </FloatingCard>
         </View>
         {gate.kind === 'failed' ? (
           <Pressable
@@ -143,23 +153,27 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
           <Text style={styles.secondaryText}>{consentCopy.logoutNeutral}</Text>
         </Pressable>
       </SkyScrollView>
+      </SkyBackdrop>
     );
   }
 
   return (
-    <SkyScrollView header={undefined} contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}>
+    <SkyBackdrop>
+    <SkyScrollView header={<SkyBanner />} contentContainerStyle={[styles.content, { paddingBottom: 40 + insets.bottom }]}>
       {header}
       <Text accessibilityRole="header" selectable style={styles.title}>{consentCopy.title}</Text>
       <Text selectable style={styles.body}>{consentCopy.intro}</Text>
 
-      <View accessible={false} style={styles.noticeCard}>
-        <Text accessibilityRole="header" style={styles.noticeHeading}>{consentCopy.noticeTitle}</Text>
-        {consentNotice.map((item) => (
-          <View key={item.title} style={styles.noticeItem}>
-            <Text style={styles.noticeTitle}>{item.title}</Text>
-            <Text selectable style={styles.noticeBody}>{item.body}</Text>
-          </View>
-        ))}
+      <View accessible={false}>
+        <FloatingCard style={styles.noticeCard}>
+          <Text accessibilityRole="header" style={styles.noticeHeading}>{consentCopy.noticeTitle}</Text>
+          {consentNotice.map((item) => (
+            <View key={item.title} style={styles.noticeItem}>
+              <Text style={styles.noticeTitle}>{item.title}</Text>
+              <Text selectable style={styles.noticeBody}>{item.body}</Text>
+            </View>
+          ))}
+        </FloatingCard>
       </View>
 
       {consentChecks.map((check) => {
@@ -226,5 +240,6 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
         <Text style={styles.secondaryText}>{consentCopy.logout}</Text>
       </Pressable>
     </SkyScrollView>
+    </SkyBackdrop>
   );
 }

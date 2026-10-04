@@ -6,11 +6,15 @@ import {
   useProvider,
 } from '@reown/appkit-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { AppState, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { colorsForScheme } from '@/theme/palette';
+import { BackHeader } from '@/ui/back-header';
+import { FloatingCard } from '@/ui/floating-card';
+import { SkyBackdrop } from '@/ui/sky-backdrop';
+import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { baseSepolia } from '@/wallet/base-sepolia';
 import { matchActiveBinding, WalletApiClient, WalletApiError } from '@/wallet/wallet-api';
 import {
@@ -261,8 +265,9 @@ export function WalletLinkScreen({ config, credential, onSessionInvalid }: Props
   }
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
+    <SkyBackdrop>
+    <SkyScrollView
+      header={<BackHeader title="외부 지갑 연결" />}
       contentContainerStyle={[styles.content, { paddingBottom: 48 + insets.bottom }]}
     >
       <View style={styles.hero}>
@@ -274,12 +279,12 @@ export function WalletLinkScreen({ config, credential, onSessionInvalid }: Props
         </Text>
       </View>
 
-      <View style={styles.card}>
+      <FloatingCard style={styles.card}>
         <StatusRow styles={styles} label="연결" value={hasWalletSession ? 'CONNECTED' : 'NOT_CONNECTED'} />
         <StatusRow styles={styles} label="체인" value={currentChainId === 84532 ? 'BASE_SEPOLIA' : 'CHECK_REQUIRED'} />
         <StatusRow styles={styles} label="주소 확인" value={verifiedAddress ? 'VERIFIED' : 'UNVERIFIED'} />
         {connectedAddress ? <Text selectable style={styles.address}>{connectedAddress}</Text> : null}
-      </View>
+      </FloatingCard>
 
       <View accessibilityLiveRegion="polite" style={[styles.message, phase === 'error' || phase === 'cancelled' ? styles.messageError : null]}>
         <Text selectable style={styles.messageText}>{message}</Text>
@@ -309,7 +314,7 @@ export function WalletLinkScreen({ config, credential, onSessionInvalid }: Props
         )}
       </View>
 
-      <View style={styles.boundaryCard}>
+      <FloatingCard style={styles.boundaryCard}>
         <Text style={styles.boundaryTitle}>이 화면에서 허용하는 요청</Text>
         <Text selectable style={styles.boundaryText}>
           계정 조회 · 체인 확인/전환 · personal_sign
@@ -318,8 +323,9 @@ export function WalletLinkScreen({ config, credential, onSessionInvalid }: Props
         <Text selectable style={styles.boundaryText}>
           송금 · signTransaction · approve · permit · swap · purchase · 내장 지갑
         </Text>
-      </View>
-    </ScrollView>
+      </FloatingCard>
+    </SkyScrollView>
+    </SkyBackdrop>
   );
 }
 

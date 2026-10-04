@@ -9,7 +9,8 @@ export function makeDemoConfigurationRequiredStyles(palette: AppColors, hairline
   eyebrow: { color: palette.primary, fontSize: 13, fontWeight: '900' },
   title: { color: palette.label, fontSize: 30, fontWeight: '900', lineHeight: 38 },
   body: { color: palette.secondaryLabel, fontSize: 15, lineHeight: 24 },
-  card: { gap: 10, padding: 18, borderRadius: 18, backgroundColor: palette.surface },
+  // A FloatingCard: it owns the surface, radius, padding and shadow.
+  card: { gap: 10 },
   code: { color: palette.primary, fontFamily: 'monospace', fontSize: 13, fontWeight: '700' },
 } satisfies Record<string, ImageStyle | TextStyle | ViewStyle>;
 }
