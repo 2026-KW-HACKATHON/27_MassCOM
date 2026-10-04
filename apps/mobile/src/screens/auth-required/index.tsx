@@ -11,6 +11,9 @@ import { statusAnnouncement } from '@/accessibility/status-copy';
 import { accountContextLabel } from '@/config/app-context';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
+import { FloatingCard } from '@/ui/floating-card';
+import { SkyBackdrop } from '@/ui/sky-backdrop';
+import { SkyBanner } from '@/ui/sky-banner';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { makeAuthRequiredStyles } from './styles';
 
@@ -57,9 +60,10 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole, o
   const configurationRequired = state.status === 'signedOut'
     && state.reason === 'CONFIGURATION_REQUIRED';
   return (
+    <SkyBackdrop>
     <SkyScrollView
-      header={header}
-      contentContainerStyle={[styles.content, header ? { backgroundColor: 'transparent' } : null, { paddingBottom: Math.max(40 + insets.bottom, clearance) }]}
+      header={header ?? <SkyBanner />}
+      contentContainerStyle={[styles.content, { paddingBottom: Math.max(40 + insets.bottom, clearance) }]}
     >
       <Text style={styles.eyebrow}>{accountContextLabel(getAppPackageId())}</Text>
       <Text selectable style={styles.title}>방문 기록을 안전하게{`\n`}이어서 확인합니다.</Text>
@@ -67,12 +71,14 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole, o
         Google 계정으로 로그인하면 로그인 후 서버가 발급한 보안 토큰만 기기의 보안 저장소에 보관해요. 지갑이 없어도 음식점 탐색과 방문 도감은 사용할 수 있어요.
       </Text>
 
-      <View accessibilityLiveRegion="polite" style={styles.statusCard}>
-        {restoring || busy ? <ActivityIndicator color={palette.primary} /> : null}
-        <Text selectable style={styles.statusTitle}>
-          {restoring ? '저장된 로그인을 확인하는 중입니다.' : configurationRequired
-            ? 'Google 로그인 설정이 필요합니다.' : error ?? reasonMessage(state)}
-        </Text>
+      <View accessibilityLiveRegion="polite">
+        <FloatingCard style={styles.statusCard}>
+          {restoring || busy ? <ActivityIndicator color={palette.primary} /> : null}
+          <Text selectable style={styles.statusTitle}>
+            {restoring ? '저장된 로그인을 확인하는 중입니다.' : configurationRequired
+              ? 'Google 로그인 설정이 필요합니다.' : error ?? reasonMessage(state)}
+          </Text>
+        </FloatingCard>
       </View>
 
       {!configurationRequired && !restoring ? (
@@ -92,6 +98,7 @@ export function AuthRequiredScreen({ state, canSignIn, onSignIn, onBackToRole, o
         <Text style={{ color: palette.primary, fontSize: 16, fontWeight: '700' }}>음식점으로 돌아가기</Text>
       </Pressable> : null}
     </SkyScrollView>
+    </SkyBackdrop>
   );
 }
 

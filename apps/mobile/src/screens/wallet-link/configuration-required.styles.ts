@@ -4,11 +4,12 @@ import { type AppColors } from '../../theme/palette';
 export function makeWalletConfigurationRequiredStyles(palette: AppColors, hairlineWidth = 1) {
   return {
 
+  // No page background: the sky page (SkyBackdrop) shows through. `card` is a FloatingCard, which owns its surface.
   content: {
     flexGrow: 1,
     gap: 18,
-    padding: 24,
-    backgroundColor: palette.background,
+    paddingHorizontal: 24,
+    paddingTop: 8,
   },
   badge: {
     alignSelf: 'flex-start',
@@ -33,14 +34,7 @@ export function makeWalletConfigurationRequiredStyles(palette: AppColors, hairli
     fontSize: 17,
     lineHeight: 27,
   },
-  card: {
-    gap: 10,
-    padding: 18,
-    borderRadius: 18,
-    borderCurve: 'continuous',
-    backgroundColor: palette.surface,
-    boxShadow: '0 8px 24px rgba(16, 40, 51, 0.08)',
-  },
+  card: { gap: 10 },
   cardTitle: {
     color: palette.label,
     fontSize: 16,
