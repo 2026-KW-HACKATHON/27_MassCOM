@@ -61,6 +61,17 @@ export function stackCursor(round: { periodMs: number; phase: number }, at: numb
   return Math.round((progress <= 0.5 ? progress * 2 : (1 - progress) * 2) * 100);
 }
 
+const minimumActionGapMs: Record<GameKind, number> = { stack: 150, memory: 80, delivery: 150, orders: 100 };
+
+export function minimumCompletedElapsedMs(kind: GameKind, seed: number): number {
+  const board = getGameBoard(kind, seed);
+  if (board.kind === 'delivery') return board.ticks.at(-1)!.at;
+  // 첫 입력은 즉시 가능하므로, 모바일 로그가 요구 간격을 지켰다면 완료 시점에 추가 대기를 요구하지 않는다.
+  const requiredInputs = board.kind === 'stack' ? board.rounds.length :
+    board.kind === 'memory' ? board.cards.length : board.orders.flat().length;
+  return (requiredInputs - 1) * minimumActionGapMs[kind];
+}
+
 export function scoreRun(kind: GameKind, seed: number, actions: readonly GameAction[]): {
   score: number; completed: boolean; correct: number; total: number;
 } {
@@ -68,9 +79,12 @@ export function scoreRun(kind: GameKind, seed: number, actions: readonly GameAct
   const maxActions = kind === 'memory' ? 36 : kind === 'delivery' ? 20 : kind === 'stack' ? 6 : 12;
   if (!Array.isArray(actions) || actions.length > maxActions) throw new Error('INVALID_GAME_ACTIONS');
   let previous = -1;
-  for (const action of actions) {
+  for (const [index, action] of actions.entries()) {
     const maxChoice = kind === 'memory' ? 12 : kind === 'delivery' ? 3 : kind === 'orders' ? 4 : 1;
+    const finalDeliverySample = board.kind === 'delivery' && index === actions.length - 1 && actions.length > 1 && action &&
+      action.choice === actions.at(-2)?.choice;
     if (!action || !Number.isSafeInteger(action.at) || action.at <= previous || action.at > gameDurationMs ||
+        (previous >= 0 && action.at - previous < minimumActionGapMs[kind] && !finalDeliverySample) ||
         !Number.isInteger(action.choice) || action.choice < 0 || action.choice >= maxChoice) throw new Error('INVALID_GAME_ACTIONS');
     previous = action.at;
   }
@@ -126,4 +140,15 @@ export function scoreRun(kind: GameKind, seed: number, actions: readonly GameAct
     else combo = 0;
   });
   return { score, completed: actions.length === tokens.length, correct, total: tokens.length };
+}
+
+export function scoreRunAtElapsed(kind: GameKind, seed: number, actions: readonly GameAction[], elapsedMs: number):
+  ReturnType<typeof scoreRun> {
+  const score = scoreRun(kind, seed, actions);
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0 ||
+      actions.some((action) => action.at > elapsedMs + 2000) ||
+      (score.completed && elapsedMs < minimumCompletedElapsedMs(kind, seed))) {
+    throw new Error('INVALID_GAME_ACTIONS');
+  }
+  return score;
 }

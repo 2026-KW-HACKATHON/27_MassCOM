@@ -10,7 +10,7 @@ import {
   AccountDeletionError,
   type AccountDeletionService,
 } from './account-deletion.js';
-import { ConsentError, type ConsentService } from './account-consent.js';
+import { ConsentError, CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, type ConsentService } from './account-consent.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardService } from './badge-rewards.js';
 import { OpenAiImageClient } from './ai-art-client.js';
@@ -263,6 +263,15 @@ export function createApiServer(
   // 방문 후 가게 특징·바라는 점·의견 저장은 계정당 30회/시간(#334). 같은 가게를 고쳐 쓰는 것도 한 번으로 센다.
   const visitorFeedbackWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60 * 60 * 1000 });
   const playFlowWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 120, windowMs: 60 * 60 * 1000 });
+  // 실행별 멱등 재시도도 본문·DB 진입 전에 계정별로 센다. 분당 60회는 정상 완료·재시도에 여유를 둔다.
+  const playFinishLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60_000 });
+  const requireCurrentPlayConsent = async (accountId: string): Promise<void> => {
+    if (!consent) throw new RequestError(503, 'CONSENT_NOT_CONFIGURED');
+    const state = await consent.status(accountId);
+    if (state.required || state.termsVersion !== CURRENT_TERMS_VERSION || state.privacyVersion !== CURRENT_PRIVACY_VERSION) {
+      throw new RequestError(403, 'CONSENT_REQUIRED');
+    }
+  };
   // IP는 기존 로그인 제한과 같은 메모리 창에만 두고 조회 집계 서비스로 보내지 않는다.
   const merchantDetailViewLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 300, windowMs: 60 * 60 * 1000 });
   // Media-bearing collectible writes (create/save/copy/publish parse up to 8 MiB and decode every image) are throttled per store.
@@ -976,12 +985,15 @@ export function createApiServer(
 
       if (request.method === 'GET' && request.url === '/me/play') {
         if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
-        sendJson(response, 200, await play.getPlay(await resolveAccountId(request)));
+        const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
+        sendJson(response, 200, await play.getPlay(accountId));
         return;
       }
       if (request.method === 'POST' && request.url === '/me/play/runs') {
         if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
         const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
         const body = await readJson(request);
         if (Object.keys(body).join(',') !== 'kind' || !isGameKind(body.kind)) {
           throw new RequestError(400, 'PLAY_KIND_INVALID');
@@ -993,6 +1005,12 @@ export function createApiServer(
       if (request.method === 'POST' && finishPlayMatch) {
         if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
         const accountId = await resolveAccountId(request);
+        const decision = playFinishLimiter.consume(accountId);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          throw new RequestError(429, 'PLAY_FLOW_RATE_LIMITED');
+        }
+        await requireCurrentPlayConsent(accountId);
         const body = await readJson(request);
         if (Object.keys(body).join(',') !== 'actions' || !Array.isArray(body.actions) ||
             body.actions.some((action) => !action || typeof action !== 'object' || Array.isArray(action) ||
@@ -1006,6 +1024,7 @@ export function createApiServer(
       if (request.method === 'POST' && request.url === '/me/play/events') {
         if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
         const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
         const decision = playFlowWriteLimiter.consume(accountId);
         if (!decision.allowed) {
           response.setHeader('Retry-After', String(decision.retryAfterSeconds));
@@ -1022,12 +1041,15 @@ export function createApiServer(
       }
       if (request.method === 'GET' && request.url === '/me/studio') {
         if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
-        sendJson(response, 200, await play.getStudio(await resolveAccountId(request)));
+        const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
+        sendJson(response, 200, await play.getStudio(accountId));
         return;
       }
       if (request.method === 'PUT' && request.url === '/me/studio') {
         if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
         const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
         const decision = playFlowWriteLimiter.consume(accountId);
         if (!decision.allowed) {
           response.setHeader('Retry-After', String(decision.retryAfterSeconds));
@@ -1041,7 +1063,9 @@ export function createApiServer(
       const friendStudioMatch = request.url?.match(/^\/friends\/([^/]+)\/studio$/);
       if (request.method === 'GET' && friendStudioMatch) {
         if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
-        sendJson(response, 200, await play.getFriendStudio({ accountId: await resolveAccountId(request),
+        const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
+        sendJson(response, 200, await play.getFriendStudio({ accountId,
           friendshipId: decodePathParameter(friendStudioMatch[1]!) }));
         return;
       }

@@ -16,6 +16,8 @@ export type RetentionStepName =
   | 'web_oauth_states'
   | 'staff_registration_requests'
   | 'showcase_access_requests'
+  | 'play_runs'
+  | 'deleted_play_data'
   | 'admin_audit_deleted_targets';
 
 export type RetentionCount = { step: RetentionStepName; count: number };
@@ -28,6 +30,7 @@ const ago = (interval: string) => `(($1::timestamptz AT TIME ZONE 'UTC') - inter
 const oneYearAgo = ago('1 year');
 const threeYearsAgo = ago('3 years');
 const oneDayAgo = ago('1 day');
+const thirtyDaysAgo = ago('30 days');
 // 점주를 지정·해제한 감사(0032). 점포 접근권한의 부여·말소 기록이라 3년 보관 대상이다.
 const ownerChangeActions = `('MERCHANT_OWNER_GRANTED', 'MERCHANT_OWNER_REVOKED')`;
 
@@ -80,12 +83,19 @@ const steps: readonly Step[] = [
     table: 'showcase_access_requests',
     where: `status <> 'PENDING' AND decided_at < ${threeYearsAgo}`,
   },
+  // 진행 중인 판은 만료 시각부터, 끝난 판은 완료 시각부터 30일 보관한다. 최고 점수는 play_records에 따로 남는다.
+  {
+    name: 'play_runs',
+    table: 'play_runs',
+    where: `(finished_at IS NULL AND expires_at < ${thirtyDaysAgo}) OR finished_at < ${thirtyDaysAgo}`,
+  },
 ];
 
-// 마지막 단계는 지우기가 아니라 비식별화다(아래 `pseudonymizeDeletedAuditTargets`). 삭제 계정의 원 ID를 가진 행을 별칭으로 바꾼 개수를 보고한다.
+// 비밀이 필요한 마지막 두 단계: 롤백 이미지가 남긴 놀이·공간 행 삭제와 감사 대상 비식별화.
 const deletedTargetsStep = 'admin_audit_deleted_targets' as const;
+const deletedPlayDataStep = 'deleted_play_data' as const;
 
-export const retentionStepNames: readonly RetentionStepName[] = [...steps.map((step) => step.name), deletedTargetsStep];
+export const retentionStepNames: readonly RetentionStepName[] = [...steps.map((step) => step.name), deletedPlayDataStep, deletedTargetsStep];
 
 export class PostgresRetentionService {
   private readonly now: () => Date;
@@ -111,8 +121,8 @@ export class PostgresRetentionService {
   /**
    * 단계마다 하나의 거래로 지운다. 한 단계가 실패하면 그 단계만 되돌리고 나머지는 계속한다(한 표의 문제가
    * 다른 표의 정리를 매일 막지 않도록). 실패한 단계 이름은 failed에 담긴다.
-   * `hmacSecret`(계정 삭제와 같은 `ACCOUNT_DELETION_HMAC_SECRET`)을 주면 지우기 단계 뒤에 삭제된 계정의 감사 대상 ID 비식별화도 한다
-   * (`admin_audit_deleted_targets`). 비밀이 없거나 32바이트보다 짧으면 이 단계만 실패로 보고된다.
+   * `hmacSecret`(계정 삭제와 같은 `ACCOUNT_DELETION_HMAC_SECRET`)을 주면 지우기 단계 뒤에 롤백 이미지가 남긴
+   * 놀이·공간 행을 지우고 감사 대상 ID도 비식별화한다. 각 단계는 독립적으로 실패를 보고한다.
    */
   async run(options: { hmacSecret?: string } = {}): Promise<RetentionRun> {
     const now = this.now();
@@ -140,12 +150,60 @@ export class PostgresRetentionService {
     }
     if (options.hmacSecret !== undefined) {
       try {
+        counts.push({ step: deletedPlayDataStep, count: await this.purgeDeletedPlayData(options.hmacSecret) });
+      } catch {
+        failed.push(deletedPlayDataStep);
+      }
+      try {
         counts.push({ step: deletedTargetsStep, count: await this.pseudonymizeDeletedAuditTargets(options.hmacSecret) });
       } catch {
         failed.push(deletedTargetsStep);
       }
     }
     return { counts, failed };
+  }
+
+  /**
+   * Rollback repair for 0042: older API images still insert the deletion ledger but do not know the play tables.
+   * The ledger stores only an HMAC, so match candidate account IDs with the deletion secret and purge all three
+   * tables in one transaction per batch. Repeated daily runs have no rows left to remove.
+   */
+  private async purgeDeletedPlayData(hmacSecret: string): Promise<number> {
+    const lifecycle = new PostgresAccountLifecycle({ hmacSecret });
+    const accounts = (await this.pool.query<{ account_id: string }>(
+      `SELECT account_id FROM play_runs
+       UNION SELECT account_id FROM play_records
+       UNION SELECT account_id FROM studios`,
+    )).rows.map((row) => row.account_id);
+    let deleted = 0;
+    for (let start = 0; start < accounts.length; start += 500) {
+      const batch = accounts.slice(start, start + 500);
+      const client = await this.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const hashes = batch.map((accountId) => lifecycle.referenceHash(accountId));
+        const known = await client.query<{ account_reference_hash: Buffer }>(
+          `SELECT account_reference_hash FROM account_deletion_requests
+           WHERE account_reference_hash = ANY($1::bytea[])`,
+          [hashes],
+        );
+        const gone = new Set(known.rows.map((row) => row.account_reference_hash.toString('hex')));
+        const goneAccounts = batch.filter((_, index) => gone.has(hashes[index]!.toString('hex')));
+        if (goneAccounts.length > 0) {
+          for (const table of ['play_runs', 'play_records', 'studios'] as const) {
+            const result = await client.query(`DELETE FROM ${table} WHERE account_id = ANY($1::text[])`, [goneAccounts]);
+            deleted += result.rowCount ?? 0;
+          }
+        }
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+    return deleted;
   }
 
   /**

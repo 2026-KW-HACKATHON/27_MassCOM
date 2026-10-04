@@ -24,7 +24,7 @@ test('every retention step is named once, in the order the command reports them'
   assert.deepEqual([...retentionStepNames], [
     'auth_sessions', 'web_sessions', 'deletion_intake', 'admin_audit', 'admin_owner_audit', 'admin_role_audit',
     'staff_registration_audit', 'coupon_audit', 'customer_identity_tokens', 'wallet_challenges', 'web_oauth_states',
-    'staff_registration_requests', 'showcase_access_requests', 'admin_audit_deleted_targets',
+    'staff_registration_requests', 'showcase_access_requests', 'play_runs', 'deleted_play_data', 'admin_audit_deleted_targets',
   ]);
 });
 
@@ -70,7 +70,7 @@ test('purge-deleted-consents needs the deletion secret, runs only on request and
   assert.deepEqual(result.lines, ['RETENTION_PURGE_DELETED_CONSENTS', 'deleted_account_consents\t4']);
   assert.deepEqual(result.failed, []);
   assert.deepEqual(calls, ['purge:secret-value-at-least-32-bytes-long!!']);
-  // The daily run never purges consents by itself, even when it has the secret (it uses it only for the audit target step).
+  // The daily run never purges consents by itself, even when it has the secret (it uses it for play cleanup and audit target repair).
   await runRetentionCommand(fake, ['run'], 'secret-value-at-least-32-bytes-long!!');
   assert.equal((calls as string[]).filter((call) => call.startsWith('purge')).length, 1);
 });
