@@ -269,5 +269,7 @@ test('merchant profile PUT is limited per account with Retry-After', async () =>
   assert.deepEqual(limited.body, { code: 'MERCHANT_PROFILE_RATE_LIMITED' });
   assert.ok(Number(limited.headers['retry-after']) > 0);
   assert.equal(calls.filter(call => call[0] === 'update').length, 30);
+  // 제한된 요청은 멤버십 조회에도 닿지 않는다.
+  assert.equal(calls.filter(call => call[0] === 'permission').length, 30);
   assert.equal((await request(server, 'PUT', profilePath, { ...merchantAuthenticated, cookie: 'other', body: profileUpdate })).status, 200);
 });

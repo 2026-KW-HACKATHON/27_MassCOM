@@ -687,18 +687,21 @@ export function createApiServer(
         const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
         if (profileMatch && (request.method === 'GET' || request.method === 'PUT')) {
           if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
-          const merchantId = decodePathParameter(profileMatch[1]!);
-          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'VIEW_MERCHANT' });
-          if (!merchantProfile) throw new RequestError(503, 'MERCHANT_PROFILE_NOT_CONFIGURED');
-          if (request.method === 'GET') {
-            sendJson(response, 200, await merchantProfile.getProfile({ accountId, merchantId }));
-          } else {
+          // 저장 제한은 멤버십 조회보다 먼저 센다: 멤버가 아닌 계정의 반복 요청도 DB에 닿기 전에 막는다.
+          if (request.method === 'PUT') {
             const decision = merchantProfileWriteLimiter.consume(accountId);
             if (!decision.allowed) {
               response.setHeader('Retry-After', String(decision.retryAfterSeconds));
               sendJson(response, 429, { code: 'MERCHANT_PROFILE_RATE_LIMITED' });
               return;
             }
+          }
+          const merchantId = decodePathParameter(profileMatch[1]!);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'VIEW_MERCHANT' });
+          if (!merchantProfile) throw new RequestError(503, 'MERCHANT_PROFILE_NOT_CONFIGURED');
+          if (request.method === 'GET') {
+            sendJson(response, 200, await merchantProfile.getProfile({ accountId, merchantId }));
+          } else {
             const body = await readJson(request);
             const keys = ['story', 'businessHours', 'menuItems', 'expectedVersion'];
             if (Object.keys(body).some(key => !keys.includes(key)) || keys.some(key => !(key in body)) ||
