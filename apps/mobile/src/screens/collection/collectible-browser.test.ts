@@ -6,12 +6,14 @@ import test from 'node:test';
 const source = readFileSync(new URL('./collectible-browser.tsx', import.meta.url), 'utf8');
 
 test('both card types fill one column at large font scale and keep grades visible', () => {
-  assert.match(source, /singleColumn = isLargeText\(fontScale\)/);
-  assert.match(source, /<GroupCard[^>]*singleColumn=\{singleColumn\}/s);
-  assert.match(source, /<LegacyCard[^>]*singleColumn=\{singleColumn\}/s);
-  assert.equal((source.match(/singleColumn && styles\.groupCardFull/g) ?? []).length, 2);
-  assert.match(source, /groupCard: \{ width: '48%'/);
-  assert.match(source, /groupCardFull: \{ width: '100%'/);
+  // 카드 폭은 격자의 실제 폭으로 정한다(비율 폭은 좁은 화면에서 한 줄에 한 장만 좁게 남는다).
+  assert.match(source, /collectionCardLayout\(gridWidth, fontScale\)\.width/);
+  assert.match(source, /onLayout=\{\(event\) => setGridWidth\(Math\.round\(event\.nativeEvent\.layout\.width\)\)\}/);
+  assert.match(source, /<GroupCard[^>]*cardWidth=\{cardWidth\}/s);
+  assert.match(source, /<LegacyCard[^>]*cardWidth=\{cardWidth\}/s);
+  assert.equal((source.match(/styles\.groupCard, \{ width: cardWidth \}/g) ?? []).length, 2);
+  assert.doesNotMatch(source, /width: '48%'/);
+  assert.match(source, /numberOfLines=\{1\} adjustsFontSizeToFit minimumFontScale=\{0\.8\} style=\{collectionStyles\.walletButtonText\}/);
   assert.match(source, /numberOfLines=\{2\}[^>]*groupName[^>]*>\{group\.artwork\.name\}/);
   assert.match(source, /numberOfLines=\{2\}[^>]*groupMeta[^>]*>\{group\.artwork\.gradeName\} · \{group\.merchantName\}/);
   assert.match(source, /numberOfLines=\{2\}[^>]*groupMeta[^>]*>\{detail\.gradeName\} · \{item\.merchantName\}/);

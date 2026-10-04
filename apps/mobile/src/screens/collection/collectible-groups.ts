@@ -1,6 +1,7 @@
 import type { CollectibleArtwork } from '@/commerce/collectible-artwork';
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import { kstParts } from '@/gamification/badge-rules';
+import { isLargeText } from '@/ui/large-text';
 
 type RawCollectible = CollectionSnapshot['collectibles'][number];
 type NftStatus = RawCollectible['nftStatus'];
@@ -124,4 +125,19 @@ export function ungroupedCollectibles(collectibles: readonly LegacyCollectible[]
 export function earnedDateLabel(iso: string): string {
   const { month, day } = kstParts(iso);
   return `${month}월 ${day}일`;
+}
+
+export const COLLECTION_GRID_GAP = 12;
+/** 두 열 카드의 최소 폭. 이보다 좁으면 카드 안의 글자·단추가 접히므로 한 열로 넓게 둔다. */
+export const MIN_TWO_COLUMN_CARD_WIDTH = 150;
+
+/**
+ * 격자의 실제 폭으로 카드 폭을 정한다. '48%'처럼 비율로 두면 좁은 화면(320dp)에서 두 장과 간격이 격자보다 넓어져
+ * 한 줄에 한 장만 좁게 남는다. 큰 글씨(150% 이상)에서는 늘 한 열이다.
+ */
+export function collectionCardLayout(gridWidth: number, fontScale: number): { columns: 1 | 2; width: number } {
+  const full = Math.max(0, Math.floor(gridWidth));
+  const half = Math.floor((full - COLLECTION_GRID_GAP) / 2);
+  if (isLargeText(fontScale) || half < MIN_TWO_COLUMN_CARD_WIDTH) return { columns: 1, width: full };
+  return { columns: 2, width: half };
 }
