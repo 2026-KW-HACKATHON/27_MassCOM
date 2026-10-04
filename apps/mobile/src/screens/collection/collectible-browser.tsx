@@ -21,6 +21,8 @@ import { FloatingCard } from '@/ui/floating-card';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { gradeMaterialFor } from './grade-material';
 import { GradeMaterialLayer, useGradeMaterialClock } from './grade-material-layer';
+import { asOfLabel } from '@/friends/friends-model';
+import { isLargeText } from '@/ui/large-text';
 
 type NftMinting = CollectionSnapshot['nftMinting'];
 type NftStatus = CollectionSnapshot['collectibles'][number]['nftStatus'];
@@ -33,7 +35,7 @@ const sortOptions: readonly { value: CollectibleSort; label: string }[] = [
 ];
 
 function earnedDateLabel(iso: string): string {
-  return iso.slice(0, 10);
+  return asOfLabel(iso.slice(0, 10));
 }
 
 type MintGate = {
@@ -63,6 +65,8 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const palette = colorsForScheme(scheme);
   const world = worldForScheme(scheme);
+  const { fontScale } = useWindowDimensions();
+  const singleColumn = isLargeText(fontScale);
   const [filter, setFilter] = useState<CollectibleFilter>({});
   const [sort, setSort] = useState<CollectibleSort>('recent');
   const motionEnabled = useMotionEnabled();
@@ -102,7 +106,8 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
                   clock={materialClock} scrollY={materialScrollY} horizontalScroll={favoriteScrollX} active={materialActive}>
                   <Image source={{ uri: group.artwork.thumbnailDataUrl }} resizeMode="contain" style={StyleSheet.absoluteFill} accessible={false} />
                 </MaterialThumbnail>
-                <Text numberOfLines={1} style={[styles.favoriteName, { color: world.cardInk }]}>{group.artwork.name}</Text>
+                <Text numberOfLines={2} style={[styles.favoriteName, { color: world.cardInk }]}>{group.artwork.name}</Text>
+                <Text style={[styles.favoriteGrade, { color: world.cardMuted }]}>{group.artwork.gradeName}</Text>
               </Pressable>
             ))}
           </ScrollView>
@@ -134,10 +139,12 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
           <View style={styles.grid}>
             {shown.map((entry) => entry.kind === 'group' ? (
               <GroupCard key={entry.group.key} group={entry.group} favorites={favorites} sharing={sharing} mint={mint}
+                singleColumn={singleColumn}
                 materialClock={materialClock} materialScrollY={materialScrollY} materialActive={materialActive}
                 onToggleFavorite={onToggleFavorite} onOpenDetail={onOpenDetail} onShare={onShare} />
             ) : (
               <LegacyCard key={entry.item.entitlementId} item={entry.item} mint={mint} onOpenDetail={onOpenDetail}
+                singleColumn={singleColumn}
                 materialClock={materialClock} materialScrollY={materialScrollY} materialActive={materialActive} artUrl={artUrlByMerchant.get(entry.item.merchantId)} />
             ))}
           </View>
@@ -206,11 +213,12 @@ function FilterRow({ label, options, selected, onSelect, palette, world }: {
 }
 
 /** A grouped (pictured) album card: the picture, count badge, favorite/share actions, and its NFT status row. */
-function GroupCard({ group, favorites, sharing, mint, materialClock, materialScrollY, materialActive, onToggleFavorite, onOpenDetail, onShare }: {
+function GroupCard({ group, favorites, sharing, mint, singleColumn, materialClock, materialScrollY, materialActive, onToggleFavorite, onOpenDetail, onShare }: {
   group: CollectibleGroup;
   favorites: readonly string[];
   sharing: boolean;
   mint: MintGate;
+  singleColumn: boolean;
   materialClock: SharedValue<number>;
   materialScrollY: SharedValue<number>;
   materialActive: boolean;
@@ -223,7 +231,7 @@ function GroupCard({ group, favorites, sharing, mint, materialClock, materialScr
   const world = worldForScheme(scheme);
   const material = gradeMaterialFor(group.artwork.gradeId, group.artwork.gradeName);
   return (
-    <FloatingCard style={[styles.groupCard, { backgroundColor: world.card }]}
+    <FloatingCard style={[styles.groupCard, singleColumn && styles.groupCardFull, { backgroundColor: world.card }]}
       accessibilityLabel={`${group.artwork.name}, ${group.merchantName}, ${group.artwork.gradeName}${group.count > 1 ? `, ${group.count}개 보유` : ''}`}
       onPress={() => onOpenDetail(group.entitlementIds[0]!, group.merchantName)}>
       <View style={styles.groupImageFrame}>
@@ -237,8 +245,8 @@ function GroupCard({ group, favorites, sharing, mint, materialClock, materialScr
           </View>
         ) : null}
       </View>
-      <Text numberOfLines={1} style={[styles.groupName, { color: world.cardInk }]}>{group.artwork.name}</Text>
-      <Text numberOfLines={1} style={[styles.groupMeta, { color: world.cardMuted }]}>{group.merchantName} · {group.artwork.gradeName}</Text>
+      <Text numberOfLines={2} style={[styles.groupName, { color: world.cardInk }]}>{group.artwork.name}</Text>
+      <Text numberOfLines={2} style={[styles.groupMeta, { color: world.cardMuted }]}>{group.artwork.gradeName} · {group.merchantName}</Text>
       <Text style={[styles.groupDates, { color: world.cardMuted }]}>
         {group.count > 1 ? `받은 날짜 ${group.earnedDates.map(earnedDateLabel).join(', ')}` : `받은 날짜 ${earnedDateLabel(group.earnedDates[0]!)}`}
       </Text>
@@ -274,7 +282,7 @@ function NftStatusRow({ entitlements, mint }: { entitlements: readonly { entitle
   const busy = mintable ? mint.busyEntitlementId === mintable.entitlementId : false;
   return (
     <View style={[collectionStyles.nftRow, { flexDirection: 'column', alignItems: 'stretch', gap: 6 }]}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+      <View style={styles.nftSummary}>
         <Text style={collectionStyles.nftLabel}>실제 NFT</Text>
         <Text style={collectionStyles.nftValue}>{summary}</Text>
       </View>
@@ -327,8 +335,8 @@ function NftStatusRow({ entitlements, mint }: { entitlements: readonly { entitle
 }
 
 /** A collectible earned without a published picture (#296): shown in the same grid, using the merchant's own art as a fallback. */
-function LegacyCard({ item, mint, artUrl, materialClock, materialScrollY, materialActive, onOpenDetail }: {
-  item: UngroupedCollectible; mint: MintGate; artUrl: string | null | undefined;
+function LegacyCard({ item, mint, artUrl, singleColumn, materialClock, materialScrollY, materialActive, onOpenDetail }: {
+  item: UngroupedCollectible; mint: MintGate; artUrl: string | null | undefined; singleColumn: boolean;
   materialClock: SharedValue<number>; materialScrollY: SharedValue<number>; materialActive: boolean;
   onOpenDetail: (entitlementId: string, merchantName: string, localDetail?: LegacyCollectibleDetail) => void;
 }) {
@@ -339,7 +347,7 @@ function LegacyCard({ item, mint, artUrl, materialClock, materialScrollY, materi
   const detail = legacyCollectibleDetail(item, source);
   const material = gradeMaterialFor(detail.gradeId, detail.gradeName);
   return (
-    <FloatingCard style={[styles.groupCard, { backgroundColor: world.card }]}
+    <FloatingCard style={[styles.groupCard, singleColumn && styles.groupCardFull, { backgroundColor: world.card }]}
       accessibilityLabel={`${item.displayName}, ${item.merchantName}, ${item.targetVisitCount}회 목표 상세 보기`}
       onPress={() => onOpenDetail(item.entitlementId, item.merchantName, legacyCollectibleDetail(item, source))}>
       {art && source ? (
@@ -351,8 +359,8 @@ function LegacyCard({ item, mint, artUrl, materialClock, materialScrollY, materi
           </MaterialThumbnail>
         </View>
       ) : null}
-      <Text numberOfLines={1} style={[styles.groupName, { color: world.cardInk }]}>{item.displayName}</Text>
-      <Text numberOfLines={1} style={[styles.groupMeta, { color: world.cardMuted }]}>{item.merchantName} · {item.targetVisitCount}회</Text>
+      <Text numberOfLines={2} style={[styles.groupName, { color: world.cardInk }]}>{item.displayName}</Text>
+      <Text numberOfLines={2} style={[styles.groupMeta, { color: world.cardMuted }]}>{detail.gradeName} · {item.merchantName} · {item.targetVisitCount}회</Text>
       {art ? <Text style={[styles.groupDates, { color: world.cardMuted }]}>{collectibleArtNote(art.fromServer)}</Text> : null}
       <Text style={[styles.groupDates, { color: world.cardMuted }]}>받은 날짜 {earnedDateLabel(item.earnedAt)}</Text>
       <NftStatusRow entitlements={[item]} mint={mint} />
@@ -393,7 +401,8 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 17, fontWeight: '800' },
   favoriteCard: { width: 108, borderRadius: 16, padding: 10, gap: 6, alignItems: 'center' },
   favoriteImage: { width: 80, height: 80 },
-  favoriteName: { fontSize: 12, fontWeight: '800' },
+  favoriteName: { fontSize: 12, fontWeight: '800', textAlign: 'center' },
+  favoriteGrade: { fontSize: 11, textAlign: 'center' },
   filterRow: { gap: 6 },
   filterLabel: { fontSize: 12, fontWeight: '800' },
   filterChip: { minHeight: 36, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
@@ -402,7 +411,8 @@ const styles = StyleSheet.create({
   sortChip: { minHeight: 36, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   sortChipText: { fontSize: 12, fontWeight: '800' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  groupCard: { width: 156, borderRadius: 18, padding: 12, gap: 5 },
+  groupCard: { width: '48%', borderRadius: 18, padding: 12, gap: 5 },
+  groupCardFull: { width: '100%' },
   groupImageFrame: { width: 104, height: 104, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
   groupImage: { width: 104, height: 104 },
   countBadge: { position: 'absolute', top: 0, right: 8, minWidth: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
@@ -410,6 +420,7 @@ const styles = StyleSheet.create({
   groupName: { fontSize: 14, fontWeight: '900' },
   groupMeta: { fontSize: 11 },
   groupDates: { fontSize: 10, lineHeight: 14 },
+  nftSummary: { alignItems: 'flex-start', gap: 2 },
   groupActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
   groupActionButton: { minHeight: 30, paddingHorizontal: 9, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   groupActionText: { fontSize: 11, fontWeight: '800' },

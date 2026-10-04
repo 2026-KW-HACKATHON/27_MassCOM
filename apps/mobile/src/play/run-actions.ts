@@ -1,4 +1,22 @@
-import type { GameAction, GameKind } from '../../../api/src/play-rules';
+import type { GameAction, GameBoard, GameKind } from '../../../api/src/play-rules';
+
+export type MomentFeedback = { text: string; good: boolean };
+
+export function sessionProgress(board: GameBoard, actions: number, matchedCards: number, crossedTicks: number): { label: string; width: `${number}%` } {
+  const count = board.kind === 'memory' ? matchedCards / 2 : board.kind === 'delivery' ? crossedTicks : actions;
+  const total = board.kind === 'stack' ? board.rounds.length : board.kind === 'memory' ? board.cards.length / 2
+    : board.kind === 'delivery' ? board.ticks.length : board.orders.flat().length;
+  const unit = board.kind === 'stack' ? '층' : board.kind === 'memory' ? '쌍' : board.kind === 'delivery' ? '구간' : '개';
+  return { label: `${count} / ${total}${unit}`, width: `${Math.min(100, count / total * 100)}%` };
+}
+
+export function activeMomentFeedback(phase: string, kind: GameKind, stack?: MomentFeedback, delivery?: MomentFeedback): MomentFeedback | undefined {
+  return phase === 'playing' ? kind === 'stack' ? stack : kind === 'delivery' ? delivery : undefined : undefined;
+}
+
+export function completedRecordLabel(plays: number, bestScore: number): string {
+  return plays > 0 ? `최고 ${bestScore.toLocaleString()}점` : '아직 기록이 없어요';
+}
 
 // Kept local for input gating; the contract test checks the server's values.
 export const mobileMinimumActionGapMs: Readonly<Record<GameKind, number>> = { stack: 150, memory: 80, delivery: 150, orders: 100 };

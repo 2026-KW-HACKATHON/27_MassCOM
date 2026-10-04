@@ -5,6 +5,7 @@ import { blend, contrast } from '../../theme/contrast';
 import { darkColors, lightColors } from '../../theme/palette';
 import { uiMetrics } from '../../theme/ui-metrics';
 import { darkWorld, lightWorld } from '../../theme/world';
+import { makeUiStyles } from '../../ui/styles';
 import { PIN_SIZE, PIN_TOUCH } from './layout';
 import { makeTownMapStyles } from './styles';
 
@@ -81,14 +82,15 @@ test('the selected halo stands out from the card it is drawn on', () => {
   }
 });
 
-test('sheet and list text is readable on the card, and the note under the header on the page', () => {
+test('sheet and list text is readable on the card, and the disclosure in the header on the page', () => {
   for (const [palette, world] of schemes) {
     const styles = makeTownMapStyles(palette, world);
+    const header = makeUiStyles(palette, world);
     for (const text of [styles.sheetName, styles.sheetAddress, styles.sheetStatus, styles.sheetGoal, styles.sheetNotice, styles.overflowName, styles.overflowState]) {
       assert.ok(contrast(text.color as string, world.card) >= 4.5, `${text.color} on card`);
     }
     for (const sky of [world.page, ...world.sky]) {
-      assert.ok(contrast(styles.disclosure.color as string, sky) >= 4.5, 'illustration note on the sky');
+      assert.ok(contrast(header.headerSubtitle.color as string, sky) >= 4.5, 'illustration note in the header');
       assert.ok(contrast(styles.retryText.color as string, sky) >= 4.5, 'retry text on the sky');
     }
   }

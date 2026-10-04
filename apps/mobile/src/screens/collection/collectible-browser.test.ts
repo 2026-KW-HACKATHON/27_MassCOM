@@ -5,6 +5,26 @@ import test from 'node:test';
 // Source checks (react-native views can't go through the node:test/esbuild runner, see HANDOFF).
 const source = readFileSync(new URL('./collectible-browser.tsx', import.meta.url), 'utf8');
 
+test('both card types fill one column at large font scale and keep grades visible', () => {
+  assert.match(source, /singleColumn = isLargeText\(fontScale\)/);
+  assert.match(source, /<GroupCard[^>]*singleColumn=\{singleColumn\}/s);
+  assert.match(source, /<LegacyCard[^>]*singleColumn=\{singleColumn\}/s);
+  assert.equal((source.match(/singleColumn && styles\.groupCardFull/g) ?? []).length, 2);
+  assert.match(source, /groupCard: \{ width: '48%'/);
+  assert.match(source, /groupCardFull: \{ width: '100%'/);
+  assert.match(source, /numberOfLines=\{2\}[^>]*groupName[^>]*>\{group\.artwork\.name\}/);
+  assert.match(source, /numberOfLines=\{2\}[^>]*groupMeta[^>]*>\{group\.artwork\.gradeName\} · \{group\.merchantName\}/);
+  assert.match(source, /numberOfLines=\{2\}[^>]*groupMeta[^>]*>\{detail\.gradeName\} · \{item\.merchantName\}/);
+  assert.match(source, /numberOfLines=\{2\}[^>]*favoriteName[^>]*>\{group\.artwork\.name\}/);
+  assert.match(source, /favoriteGrade[^>]*>\{group\.artwork\.gradeName\}/);
+});
+
+test('NFT label and value stack inside both cards and earned dates use the Korean date formatter', () => {
+  assert.match(source, /<View style=\{styles\.nftSummary\}>\s*<Text style=\{collectionStyles\.nftLabel\}>실제 NFT<\/Text>\s*<Text style=\{collectionStyles\.nftValue\}>\{summary\}<\/Text>/);
+  assert.match(source, /nftSummary: \{ alignItems: 'flex-start', gap: 2 \}/);
+  assert.match(source, /return asOfLabel\(iso\.slice\(0, 10\)\)/);
+});
+
 // PR #301 리뷰: 묶인 카드(같은 그림을 두 번 이상 받음)는 요약 배지(nftGroupSummary)만 보이고, 각 벌의 실제 상태·수령인·
 // 토큰 정보를 볼 길이 없었다. 요약 줄과 민트 단추(첫 발행 가능한 벌 대상)는 유지한 채 펼쳐 볼 수 있게 했다.
 test('NftStatusRow lets a grouped (duplicate) card expand to each entitlement\'s own status/recipient/token (#301 review)', () => {

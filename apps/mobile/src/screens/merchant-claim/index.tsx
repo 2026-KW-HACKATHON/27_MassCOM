@@ -186,7 +186,7 @@ export function MerchantClaimScreen({ apiUrl, accountId, merchantId, defaultCust
             <ClaimQr code={issued.token} />
           </View>
           <Text selectable style={styles.token}>{issued.token}</Text>
-          <Text style={styles.help}>고객 화면의 ‘QR 촬영’으로 읽습니다. 카메라를 쓸 수 없으면 아래 코드를 직접 입력합니다.</Text>
+          <Text style={styles.help}>고객 화면의 ‘QR 촬영’으로 읽습니다. 카메라를 쓸 수 없으면 위 코드를 직접 입력합니다.</Text>
           <View style={styles.actions}>
             <PrimaryButton styles={styles} label="안전하게 공유" onPress={shareToken} />
             <PrimaryButton styles={styles} label="이전 코드 폐기·재발급" variant="secondary" disabled={busy} onPress={reissue} />

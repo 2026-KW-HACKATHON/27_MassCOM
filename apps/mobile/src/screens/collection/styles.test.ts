@@ -40,3 +40,11 @@ test('section headings on the sky and floating cards stay readable in light and 
     assert.ok((styles.recoveryButton.minHeight as number) >= uiMetrics.minTouch);
   }
 });
+
+test('the wallet confirmation label has enough horizontal room in a two-column card', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeCollectionStyles(palette, world);
+    assert.ok((styles.walletButton.paddingHorizontal as number) <= 6);
+    assert.equal(styles.walletButtonText.textAlign, 'center');
+  }
+});

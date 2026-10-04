@@ -158,6 +158,17 @@ function CelebrationBody({ content, variant, onClose, primaryAction, onPrimaryAc
           {hint ? `\n다음 목표 · ${hint}` : ''}
         </Text>
 
+        <View style={styles.celebrationActions}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onPrimaryAction}
+            style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+          >
+            <Text style={styles.buttonText}>{primaryAction.label}</Text>
+          </Pressable>
+          {primaryAction.kind === 'recommendation' ? <Text style={styles.celebrationBody}>{primaryAction.detail}</Text> : null}
+        </View>
+
         {shownBeat >= 2 ? (
           <View style={{ alignSelf: 'stretch', gap: 10 }}>
             <Text accessibilityRole="header" style={[styles.celebrationTitle, { fontSize: 21 }]}>이번에 받은 것</Text>
@@ -171,19 +182,10 @@ function CelebrationBody({ content, variant, onClose, primaryAction, onPrimaryAc
         ) : null}
 
         <View style={styles.celebrationActions}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={onPrimaryAction}
-            style={({ pressed }) => [styles.button, pressed && styles.pressed]}
-          >
-            <Text style={styles.buttonText}>{primaryAction.label}</Text>
-          </Pressable>
-          {primaryAction.kind === 'recommendation' ? <Text style={styles.celebrationBody}>{primaryAction.detail}</Text> : null}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 8 }}>
             <Pressable accessibilityRole="button" accessibilityLabel="도감 보기" onPress={() => onOpenCollection(false)} style={styles.ghostButton}><Text style={styles.ghostButtonText}>도감</Text></Pressable>
-            <Text style={styles.celebrationBody}>·</Text>
             {onOpenGacha ? <Pressable accessibilityRole="button" accessibilityLabel="상점 뽑기" onPress={onOpenGacha} style={styles.ghostButton}><Text style={styles.ghostButtonText}>상점 뽑기</Text></Pressable> : null}
-            {onOpenFeedback ? <><Text style={styles.celebrationBody}>·</Text><Pressable accessibilityRole="button" accessibilityLabel="이 가게 어땠나요? 선택" onPress={onOpenFeedback} style={styles.ghostButton}><Text style={styles.ghostButtonText}>이 가게 어땠나요?(선택)</Text></Pressable></> : null}
+            {onOpenFeedback ? <Pressable accessibilityRole="button" accessibilityLabel="이 가게 어땠나요? 선택" onPress={onOpenFeedback} style={styles.ghostButton}><Text style={styles.ghostButtonText}>이 가게 어땠나요?(선택)</Text></Pressable> : null}
           </View>
           {featured ? (
             <Pressable

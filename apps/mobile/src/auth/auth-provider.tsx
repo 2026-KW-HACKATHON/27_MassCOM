@@ -6,12 +6,14 @@ import { Platform } from 'react-native';
 import type { AccountCredential } from './account-credential';
 import { AuthApiClient } from './auth-api';
 import { getAuthConfiguration } from './auth-config';
-import { createAuthController, type AuthState } from './auth-controller';
+import { createAuthController } from './auth-controller';
+import { resolveAuthStartup, type AuthSessionState } from './auth-startup';
 import { nativeGoogleSignIn } from './google-sign-in-runtime';
 import { platformSecureStore } from './platform-secure-store';
 import { createSessionStore, type StoredAuthSessionV1 } from './session-store';
-import { demoRuntimeConfig, createDemoCredential, isDevelopmentDemoBuild } from '@/config/demo-runtime';
+import { demoRuntimeConfig, isDevelopmentDemoBuild } from '@/config/demo-runtime';
 import { isApprovedGuestTrialOrigin } from '@/config/guest-trial-origin';
+import { isGuestTrialAvailable } from './guest-trial-availability';
 import { getPublicApiConfig } from '@/config/public-api';
 import { resolveRuntimeIdentity } from '@/config/showcase-identity';
 import { consumeMerchantReturn } from '@/navigation/showcase-entry';
@@ -23,16 +25,7 @@ import { createAccountScopedAppKit, walletRuntimeConfig } from '@/wallet/appkit'
 import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
 import { forgetWalletSession } from '@/wallet/forget-wallet-session';
 
-type DemoState = {
-  status: 'demo';
-  accountId: string;
-  credential: Extract<AccountCredential, { kind: 'demo' }>;
-};
-
-export type AuthSessionState = AuthState | DemoState | {
-  status: 'signedOut';
-  reason: 'CONFIGURATION_REQUIRED' | 'WEB_SHOWCASE_ONLY';
-};
+export type { AuthSessionState } from './auth-startup';
 
 type AppKitInstance = NonNullable<ReturnType<typeof createAccountScopedAppKit>>;
 
@@ -77,32 +70,34 @@ const productionAuthAvailable = !isWeb && authConfiguration.available && publicA
 // (실제 시연 빌드 ↔ 실제 시연 API, 로컬 개발 빌드 ↔ loopback API만). 둘 중 하나라도 안 맞으면 웹에서도
 // 체험 로그인을 열지 않는다 — 안 맞는 조합으로 web export 자체가 안 되는 build-environment 검사와
 // 별개로, 로컬 `expo start --web` 같은 경로를 통해서도 새지 않게 막는 2차 방어선이다.
-const guestTrialAvailable = publicApiConfiguration.available
-  && isApprovedGuestTrialOrigin(getAppPackageId(), publicApiConfiguration.apiUrl, Constants.expoConfig?.extra);
+const guestTrialAvailable = isGuestTrialAvailable({
+  packageId: getAppPackageId(),
+  platform: isWeb ? 'web' : 'native',
+  demoAccountInjected: Boolean(demoRuntimeConfig.customerAccountId),
+  productionAuthAvailable,
+  publicApiAvailable: publicApiConfiguration.available,
+  approvedOrigin: publicApiConfiguration.available && isApprovedGuestTrialOrigin(
+    getAppPackageId(), publicApiConfiguration.apiUrl, Constants.expoConfig?.extra,
+  ),
+});
 
-function initialAuthState(): AuthSessionState {
-  if (productionAuthAvailable || guestTrialAvailable) return { status: 'restoring' };
-  if (developmentBuild && demoRuntimeConfig.customerAccountId) {
-    return {
-      status: 'demo',
-      accountId: demoRuntimeConfig.customerAccountId,
-      credential: createDemoCredential(
-        demoRuntimeConfig.customerAccountId,
-        demoRuntimeConfig.allowInsecureDemoReauthentication,
-      ),
-    };
-  }
-  return { status: 'signedOut', reason: isWeb ? 'WEB_SHOWCASE_ONLY' : 'CONFIGURATION_REQUIRED' };
-}
+const startup = resolveAuthStartup({
+  productionAuthAvailable,
+  guestTrialAvailable,
+  developmentBuild,
+  customerAccountId: demoRuntimeConfig.customerAccountId,
+  allowInsecureDemoReauthentication: demoRuntimeConfig.allowInsecureDemoReauthentication,
+  isWeb,
+});
 
 export function AuthSessionProvider({ children }: PropsWithChildren) {
-  const [state, setState] = useState<AuthSessionState>(initialAuthState);
+  const [state, setState] = useState<AuthSessionState>(startup.initialState);
   const controllerRef = useRef<ReturnType<typeof createAuthController> | undefined>(undefined);
   const lastAppKitRef = useRef<AppKitInstance | null>(null);
 
   useEffect(() => {
     if (!publicApiConfiguration.available) return;
-    if (!productionAuthAvailable && !guestTrialAvailable) return;
+    if (!startup.createController) return;
     if (productionAuthAvailable && authConfiguration.available) {
       nativeGoogleSignIn.configure(authConfiguration.webClientId);
     }
