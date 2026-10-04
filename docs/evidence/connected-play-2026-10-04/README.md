@@ -30,7 +30,7 @@
 - 웹: 설치된 Chrome + Playwright, 390×844와 1280×900, 로컬 시연 DB·API를 같은 origin의 미리보기로 제공.
 - DB: 별도 `masscom_connected_full_test`, PostgreSQL 16, 루프백 전용 Docker. 실제 운영 DB나 계정을 변경하지 않았다.
 - Android: 기존 개발 signing key로 debug APK를 빌드, `kr.masscom.wolgye.dev` 에뮬레이터에 덮어 설치. 실제 폰과 운영/시연 앱은 변경하지 않았다.
-- 로컬 설정: Expo 57의 `expo/virtual/env`가 기존 `.env.local` 값을 합치는 현상을 확인했다. 사용자 파일을 내용/권한 그대로 임시 보관한 뒤 테스트 환경을 분리하며, 검증 후 바이트를 비교해 원상 복구한다.
+- 로컬 설정: Expo 57의 `expo/virtual/env`가 기존 `.env.local` 값을 합치는 현상을 확인했다. 사용자 파일을 내용/권한 그대로 임시 보관해 테스트 환경을 분리했고, 검증 후 SHA-256·권한·mtime을 비교해 원상 복구했다. 에뮬레이터의 글자·전환 설정도 원래대로 돌렸다.
 
 ## PASS 근거
 
