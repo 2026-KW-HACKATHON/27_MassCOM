@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,6 +13,8 @@ import { StudioScene } from '@/studio/studio-scene';
 import { ShareFormatButtons, useStudioShare } from '@/studio/studio-share';
 import { createStudioApiClient, type Studio, type StudioGoal, type StudioItem, type StudioSnapshot, type StudioTheme } from '@/studio/studio-api';
 import { studioGoalOptions } from '@/studio/studio-goals';
+import { ownedPage, ownedPageSize } from '@/studio/owned-page';
+import { runStudioSave } from '@/studio/studio-save';
 import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
@@ -63,11 +65,18 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [shareStatus, setShareStatus] = useState<string>();
+  const [collectionPage, setCollectionPage] = useState(0);
+  const mounted = useRef(false);
   const active = useRef(false);
   const generation = useRef(0);
   const share = useStudioShare(apiUrl, useCallback(() => active.current, []),
     appId === 'kr.masscom.wolgye.demo' || appId === 'kr.masscom.wolgye.dev' || credential.kind === 'demo',
     useCallback((event) => { if (active.current) void client.trackShare(event).catch(() => {}); }, [client]));
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const load = useCallback(async (refresh = false) => {
     const request = ++generation.current;
@@ -82,6 +91,8 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
       if (!active.current || request !== generation.current) return;
       setSnapshot(studio); setCollection(owned); setShop(shopSnapshot); setMerchants(catalog.items);
       setMerchantError(catalog.failed);
+      const requestedIndex = owned.collectibles.findIndex((item) => item.entitlementId === requestedEntitlement);
+      setCollectionPage(Math.floor(Math.max(0, requestedIndex) / ownedPageSize));
       const canPlace = requestedEntitlement && owned.collectibles.some((item) => item.entitlementId === requestedEntitlement);
       const needsPlace = canPlace && !studio.studio.slots.includes(requestedEntitlement);
       setDraft(needsPlace && studio.studio.slots.length < 6
@@ -97,11 +108,12 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   }, [client, collectionClient, shopClient, merchantClient, requestedEntitlement, requestedAvatar]);
 
   async function retryMerchants() {
+    const request = generation.current;
     try {
       const catalog = await merchantClient.listMerchants();
-      if (!active.current) return;
+      if (!active.current || request !== generation.current) return;
       setMerchants(catalog); setMerchantError(false);
-    } catch { if (active.current) setMerchantError(true); }
+    } catch { if (active.current && request === generation.current) setMerchantError(true); }
   }
 
   useFocusEffect(useCallback(() => {
@@ -122,26 +134,31 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   async function save() {
     if (!draft || saving || !goalAvailable) return;
     setSaving(true); setError(undefined); setNotice(undefined);
-    try {
-      const saved = await client.save(draft);
-      if (!active.current) return;
-      setSnapshot(saved); setDraft(saved.studio); setNotice('내 공간에 저장했어요.');
-    } catch (caught) {
-      if (active.current) setError(studioError(caught));
-    } finally { if (active.current) setSaving(false); }
+    const request = generation.current;
+    await runStudioSave(() => client.save(draft), {
+      isMounted: () => mounted.current,
+      canApply: () => active.current && request === generation.current,
+      onSuccess: (saved) => { setSnapshot(saved); setDraft(saved.studio); setNotice('내 공간에 저장했어요.'); },
+      onError: (caught) => setError(studioError(caught)),
+      onSettled: () => setSaving(false),
+    });
   }
 
   async function saveAvatar() {
     if (avatarSaving || !shop || !shop.items.some((item) => item.id === avatarChoice && item.owned)) return;
     setAvatarSaving(true); setError(undefined); setNotice(undefined);
-    try {
-      const result = await shopClient.setAvatar(avatarChoice);
-      if (!active.current) return;
-      setSnapshot((current) => current ? { ...current, avatar: result.avatar } : current);
-      setShop((current) => current ? { ...current, avatar: result.avatar } : current);
-      setNotice('동행을 바꿨어요.');
-    } catch (caught) { if (active.current) setError(studioError(caught)); }
-    finally { if (active.current) setAvatarSaving(false); }
+    const request = generation.current;
+    await runStudioSave(() => shopClient.setAvatar(avatarChoice), {
+      isMounted: () => mounted.current,
+      canApply: () => active.current && request === generation.current,
+      onSuccess: (result) => {
+        setSnapshot((current) => current ? { ...current, avatar: result.avatar } : current);
+        setShop((current) => current ? { ...current, avatar: result.avatar } : current);
+        setNotice('동행을 바꿨어요.');
+      },
+      onError: (caught) => setError(studioError(caught)),
+      onSettled: () => setAvatarSaving(false),
+    });
   }
 
   function toggleSlot(id: string) {
@@ -160,6 +177,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   if (loading && !snapshot) return <SkyBackdrop><SkyScrollView header={header}><StateScene kind="loading" title="공간을 불러오는 중" /></SkyScrollView></SkyBackdrop>;
   if (!snapshot || !draft || !collection || !shop) return <SkyBackdrop><SkyScrollView header={header}><StateScene kind="error" title="공간을 열지 못했어요" body={error} action={{ label: '다시 불러오기', onPress: () => void load() }} /></SkyScrollView></SkyBackdrop>;
   const owned = collection.collectibles;
+  const page = ownedPage(owned, collectionPage);
   return <SkyBackdrop>
     <SkyScrollView header={header} contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} progressViewOffset={insets.top} />}>
@@ -210,14 +228,24 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
       </View>
       <View style={styles.section} pointerEvents={saving ? 'none' : 'auto'}>
         <Text style={[styles.heading, { color: palette.label }]}>내 수집품</Text>
-        {owned.length ? <View style={styles.list}>{owned.map((item) => {
+        {owned.length ? <View style={styles.list}>{page.items.map((item) => {
           const selectedItem = draft.slots.includes(item.entitlementId);
           return <Pressable key={item.entitlementId} accessibilityRole="checkbox" accessibilityState={{ checked: selectedItem }}
-            onPress={() => toggleSlot(item.entitlementId)} style={[styles.row, selectedItem && styles.rowSelected]}>
+            onPress={() => toggleSlot(item.entitlementId)} style={[styles.row, styles.ownedRow, selectedItem && styles.rowSelected]}>
             <Text style={styles.checkbox}>{selectedItem ? '✓' : '+'}</Text>
-            <View style={styles.rowText}><Text numberOfLines={1} style={styles.rowTitle}>{item.displayName}</Text><Text numberOfLines={1} style={styles.rowMeta}>{item.merchantName}</Text></View>
+            <View style={styles.rowText}><Text style={styles.rowTitle}>{item.displayName}</Text><Text style={styles.rowMeta}>{item.merchantName}</Text></View>
           </Pressable>;
-        })}</View> : <Text style={[styles.emptyText, { color: palette.secondaryLabel }]}>아직 받은 수집품이 없어요. 가게에서 첫 방문 도장을 모아 보세요.</Text>}
+        })}
+          {page.totalPages > 1 ? <View style={styles.pagination}>
+            <Text accessibilityLiveRegion="polite" style={[styles.rowMeta, { color: palette.secondaryLabel }]}>{page.page + 1}/{page.totalPages}쪽 · 총 {owned.length}개</Text>
+            <View style={styles.choices}>
+              <Pressable accessibilityRole="button" accessibilityState={{ disabled: !page.hasPrevious }} disabled={!page.hasPrevious}
+                onPress={() => setCollectionPage(page.page - 1)} style={[styles.choice, !page.hasPrevious && styles.locked]}><Text style={styles.choiceText}>이전 수집품</Text></Pressable>
+              <Pressable accessibilityRole="button" accessibilityState={{ disabled: !page.hasNext }} disabled={!page.hasNext}
+                onPress={() => setCollectionPage(page.page + 1)} style={[styles.choice, !page.hasNext && styles.locked]}><Text style={styles.choiceText}>더 보기</Text></Pressable>
+            </View>
+          </View> : null}
+        </View> : <Text style={[styles.emptyText, { color: palette.secondaryLabel }]}>아직 받은 수집품이 없어요. 가게에서 첫 방문 도장을 모아 보세요.</Text>}
       </View>
       <View style={styles.section} pointerEvents={saving ? 'none' : 'auto'}>
         <Text style={[styles.heading, { color: palette.label }]}>다음 목표</Text>
@@ -284,7 +312,7 @@ const styles = StyleSheet.create({
   locked: { opacity: 0.45 },
   swatch: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: '#FFFFFF' },
   swatchSelected: { borderColor: '#24374E', borderWidth: 4 },
-  list: { gap: 7 },
+  list: { gap: 7 }, pagination: { gap: 8 }, ownedRow: { paddingVertical: 8 },
   row: { minHeight: 55, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: '#DBE3EC', borderRadius: 6, paddingHorizontal: 12, backgroundColor: '#FFFFFF' },
   rowSelected: { borderColor: '#78B8B3', backgroundColor: '#EDF8F5' },
   checkbox: { fontSize: 22, fontWeight: '800', color: '#2456D6', width: 22, textAlign: 'center' },

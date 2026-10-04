@@ -7,3 +7,12 @@ export function appendAction(actions: readonly GameAction[], choice: number, ela
   if (at > durationMs) return undefined;
   return [...actions, { at, choice }];
 }
+
+export function finalizeDeliveryActions(actions: readonly GameAction[], lane: number, elapsedMs: number, durationMs: number): readonly GameAction[] {
+  if (actions.length >= 20 || !Number.isInteger(lane) || lane < 0 || lane > 2) return actions;
+  return appendAction(actions, lane, Math.min(elapsedMs, durationMs), durationMs) ?? actions;
+}
+
+export function memoryRevealDelay(isMatch: boolean, motionEnabled: boolean): number {
+  return isMatch && !motionEnabled ? 0 : isMatch ? 440 : 750;
+}

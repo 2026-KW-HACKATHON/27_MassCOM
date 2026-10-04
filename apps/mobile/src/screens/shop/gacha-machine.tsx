@@ -1,7 +1,8 @@
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
 import { ConfettiBurst } from '@/gamification/confetti';
@@ -73,11 +74,10 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
   const grade = result?.item.grade ?? drawing?.grade ?? 'BRONZE';
   const tone = gradeStyle[grade];
 
-  useEffect(() => {
-    if (!motionAllowed) return;
-    bob.set(withRepeat(withSequence(withTiming(-5, { duration: 1100 }), withTiming(0, { duration: 1100 })), -1));
-    return () => { bob.set(0); };
-  }, [bob, motionAllowed]);
+  useFocusEffect(useCallback(() => {
+    if (motionAllowed) bob.set(withRepeat(withSequence(withTiming(-5, { duration: 1100 }), withTiming(0, { duration: 1100 })), -1));
+    return () => { cancelAnimation(bob); bob.set(0); };
+  }, [bob, motionAllowed]));
 
   useEffect(() => {
     if (!result) return;

@@ -5,6 +5,7 @@ import { gameKinds, type GameAction, type GameKind, type PlayRun } from '../../.
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { createPlayApiClient, playErrorMessage, type PlayFinish, type PlaySnapshot } from '@/play/play-api';
+import { createPlayRequests } from '@/play/play-requests';
 import { createShopApiClient } from '@/shop/shop-api';
 import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
@@ -58,20 +59,18 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
   const [run, setRun] = useState<PlayRun>();
   const [startBusy, setStartBusy] = useState(false);
   const [startError, setStartError] = useState<string>();
-  const request = useRef<AbortController | undefined>(undefined);
+  const requests = useRef(createPlayRequests());
   const startLock = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const load = useCallback(async () => {
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
+    const signal = requests.current.beginLoad();
     setLoading(true);
     setLoadError(undefined);
     const [play, shop, collection] = await Promise.allSettled([
-      playApi.getPlay(controller.signal), shopApi.getShop(), commerceApi.getCollection(),
+      playApi.getPlay(signal), shopApi.getShop(), commerceApi.getCollection(),
     ]);
-    if (controller.signal.aborted) return;
+    if (signal.aborted) return;
     if (play.status === 'fulfilled') setSnapshot(play.value);
     else setLoadError(playErrorMessage(play.reason));
     if (shop.status === 'fulfilled') { setAvatar(shop.value.avatar); setAvatarLoaded(true); }
@@ -81,8 +80,9 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
 
   useEffect(() => {
     let active = true;
+    const pending = requests.current;
     void Promise.resolve().then(() => { if (active) void load(); });
-    return () => { active = false; request.current?.abort(); };
+    return () => { active = false; pending.dispose(); };
   }, [load]);
 
   useEffect(() => {
@@ -96,18 +96,17 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
     setSelection(kind);
     setStartBusy(true);
     setStartError(undefined);
-    const controller = new AbortController();
-    request.current = controller;
+    const signal = requests.current.beginStart();
     try {
-      const issued = await playApi.start(kind, controller.signal);
-      if (!controller.signal.aborted) {
+      const issued = await playApi.start(kind, signal);
+      if (!signal.aborted) {
         setRun(issued);
         scrollRef.current?.scrollTo({ y: 0, animated: false });
       }
     } catch (caught) {
-      if (!controller.signal.aborted) setStartError(playErrorMessage(caught));
+      if (!signal.aborted) setStartError(playErrorMessage(caught));
     } finally {
-      if (!controller.signal.aborted) setStartBusy(false);
+      if (!signal.aborted) setStartBusy(false);
       startLock.current = false;
     }
   }

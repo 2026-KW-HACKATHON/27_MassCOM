@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions 
 import { getGameBoard, stackCursor, type GameAction, type PlayRun } from '../../../../api/src/play-rules';
 import { lightHaptic, successHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
-import { appendAction } from '@/play/run-actions';
+import { appendAction, finalizeDeliveryActions, memoryRevealDelay } from '@/play/run-actions';
 import { playErrorMessage, type PlayFinish } from '@/play/play-api';
 import { playUiSound } from '@/sound/ui-sounds';
 import { colorsForScheme } from '@/theme/palette';
@@ -102,6 +102,14 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
     return next;
   }
 
+  function finishDelivery(at: number) {
+    if (phaseRef.current !== 'playing') return;
+    const next = finalizeDeliveryActions(actionsRef.current, laneRef.current, at, run.durationMs);
+    actionsRef.current = next;
+    setActions(next);
+    void finishCurrent(next);
+  }
+
   useEffect(() => {
     startedRef.current = currentTime();
     const interval = setInterval(() => {
@@ -130,10 +138,7 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
         }
       }
       if (board.kind === 'delivery' && at >= board.ticks.at(-1)!.at) {
-        // The final lane sample is part of the replay log, even if the player did not move at the last tick.
-        const next = appendAction(actionsRef.current, laneRef.current, at, run.durationMs);
-        if (next) { actionsRef.current = next; setActions(next); void finishCurrent(next); }
-        else void finishCurrent(actionsRef.current);
+        finishDelivery(at);
       } else if (at >= run.durationMs) void finishCurrent(actionsRef.current);
     }, 50);
     return () => clearInterval(interval);
@@ -164,13 +169,13 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
         setFlipped([]);
         setMemoryLocked(false);
         if (newMatched.length === board.cards.length || next.length === 36) void finishCurrent(next);
-      }, motionEnabled ? 440 : 0);
+      }, memoryRevealDelay(true, motionEnabled));
     } else {
       hideTimer.current = setTimeout(() => {
         setFlipped([]);
         setMemoryLocked(false);
         if (next.length === 36) void finishCurrent(next);
-      }, motionEnabled ? 750 : 0);
+      }, memoryRevealDelay(false, motionEnabled));
     }
   }
 
@@ -237,7 +242,7 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
       })}</View> : null}
       {board.kind === 'delivery' ? <DeliveryBoard board={board} elapsed={elapsed} crossed={crossed} points={deliveryPoints} lane={lane} avatar={avatar} motionEnabled={motionEnabled} compact={compactControls} roadHeight={roadHeight} onLane={changeLane} /> : null}
       {board.kind === 'orders' ? <OrdersBoard board={board} actions={actions} compact={compactControls} onChoose={(choice) => { const next = add(choice); if (next && next.length === 12) void finishCurrent(next); }} /> : null}
-      <Pressable accessibilityRole="button" onPress={() => void finishCurrent(actionsRef.current)} style={styles.giveUp}><Text style={[styles.giveUpText, { color: palette.secondaryLabel }]}>여기서 끝내기</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={() => board.kind === 'delivery' ? finishDelivery(getElapsed()) : void finishCurrent(actionsRef.current)} style={styles.giveUp}><Text style={[styles.giveUpText, { color: palette.secondaryLabel }]}>여기서 끝내기</Text></Pressable>
     </>}
   </View>;
 }

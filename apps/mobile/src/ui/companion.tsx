@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { Image, Pressable, type ImageSourcePropType } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
 import { lightHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
@@ -16,12 +17,13 @@ export function Companion({ art, size = 120, celebrate = false, interactive = fa
   const motion = useMotionEnabled();
   const lift = useSharedValue(0);
   const scale = useSharedValue(1);
-  useEffect(() => {
-    if (!motion || !art) return;
-    lift.set(withRepeat(withSequence(withTiming(-4, { duration: 1200 }), withTiming(0, { duration: 1200 })), -1));
-    if (celebrate) scale.set(withSequence(withSpring(1.08), withSpring(1)));
-    return () => { lift.set(0); scale.set(1); };
-  }, [art, celebrate, lift, motion, scale]);
+  useFocusEffect(useCallback(() => {
+    if (motion && art) {
+      lift.set(withRepeat(withSequence(withTiming(-4, { duration: 1200 }), withTiming(0, { duration: 1200 })), -1));
+      if (celebrate) scale.set(withSequence(withSpring(1.08), withSpring(1)));
+    }
+    return () => { cancelAnimation(lift); cancelAnimation(scale); lift.set(0); scale.set(1); };
+  }, [art, celebrate, lift, motion, scale]));
   const style = useAnimatedStyle(() => ({ transform: [{ translateY: lift.get() }, { scale: scale.get() }] }));
   if (!art) return <Mascot pose={celebrate ? 'cheer' : 'wave'} size={size} interactive={interactive} />;
   const character = <Animated.View style={[{ width: size, height: size }, style]}>

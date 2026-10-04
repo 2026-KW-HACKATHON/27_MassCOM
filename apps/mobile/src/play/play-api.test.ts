@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createPlayApiClient, PlayApiError } from './play-api';
+import { finalizeDeliveryActions } from './run-actions';
 
 const credential = { kind: 'bearer', sessionToken: 'test-session' } as const;
 const run = { id: 'run-1', kind: 'stack', seed: 123, startedAt: '2026-10-04T00:00:00.000Z', expiresAt: '2026-10-04T00:01:00.000Z', durationMs: 30000, rulesVersion: 1 } as const;
@@ -28,6 +29,14 @@ test('network errors retain retryable finish semantics', async () => {
   await assert.rejects(() => api.finish(run, []), (error) => error instanceof PlayApiError && error.code === 'NETWORK_ERROR');
 });
 
+test('start rejects seeds outside the game board range as invalid responses', async () => {
+  for (const seed of [0, 0x7fffffff, -1, 0x80000000, 1.5]) {
+    const api = createPlayApiClient({ apiUrl: 'https://api.test', credential, fetcher: async () => Response.json({ ...run, seed }) });
+    if (seed >= 0 && seed <= 0x7fffffff && Number.isInteger(seed)) assert.equal((await api.start('stack')).seed, seed);
+    else await assert.rejects(() => api.start('stack'), (error) => error instanceof PlayApiError && error.code === 'INVALID_RESPONSE');
+  }
+});
+
 test('retrying a lost finish response resends the same run and actions', async () => {
   const requests: { url: string; body: string }[] = [];
   const api = createPlayApiClient({ apiUrl: 'https://api.test', credential, fetcher: async (url, init) => {
@@ -39,4 +48,21 @@ test('retrying a lost finish response resends the same run and actions', async (
   await assert.rejects(() => api.finish(run, actions), PlayApiError);
   await api.finish(run, actions);
   assert.deepEqual(requests[0], requests[1]);
+});
+
+
+test('배달 종료 응답이 유실돼도 확정한 종료 시각과 lane을 그대로 다시 전송한다', async () => {
+  const bodies: string[] = [];
+  const delivery = { ...run, kind: 'delivery' } as const;
+  const log = finalizeDeliveryActions([], 1, 2_500, delivery.durationMs);
+  const api = createPlayApiClient({ apiUrl: 'https://api.test', credential, fetcher: async (_url, init) => {
+    bodies.push(String(init?.body));
+    if (bodies.length === 1) throw new Error('응답 유실');
+    return Response.json({ kind: 'delivery', score: 100, bestScore: 100, plays: 0, completed: false,
+      correct: 1, total: 12, unlockedThemes: ['daylight'] });
+  } });
+  await assert.rejects(() => api.finish(delivery, log), PlayApiError);
+  await api.finish(delivery, log);
+  assert.deepEqual(bodies, [JSON.stringify({ actions: [{ at: 2_500, choice: 1 }] }),
+    JSON.stringify({ actions: [{ at: 2_500, choice: 1 }] })]);
 });
