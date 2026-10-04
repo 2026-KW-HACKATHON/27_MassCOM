@@ -1,12 +1,12 @@
 import { memo, useEffect, useId, useMemo } from 'react';
-import { Image, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedProps, useReducedMotion, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Defs, G, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { tierColors, type MedalColors } from '@/theme/medal-colors';
 
 import type { MedalKind, MedalTier } from './badge-api';
-import { MedalGlyph, mascotStamp, mascotStampEmpty } from './glyphs';
+import { MedalGlyph } from './glyphs';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -27,8 +27,8 @@ type Props = {
 };
 
 /**
- * A collectible medal: tier-coloured scalloped rim with a bevelled coin, the mascot stamp in the
- * centre, tier stars, and a kind mark. Not earned yet = grey mascot with a dashed ring.
+ * Compass, rosette and shield silhouettes carry a large achievement mark and tier metal.
+ * Unlocked progress stays visible independently of the decorative silhouette.
  * Decorative only — the caller supplies the accessible text.
  */
 export const Medallion = memo(function Medallion({ kind, tier, progress, size, colors, arcColor, trackColor, animateArc = false }: Props) {
@@ -48,7 +48,11 @@ export const Medallion = memo(function Medallion({ kind, tier, progress, size, c
   const badgeOffset = rim * 0.74;
   const showStars = size >= 80;
 
-  const scallop = useMemo(() => scallopPath(center, rim, size * 0.02, 24), [center, rim, size]);
+  const scallop = useMemo(() => {
+    if (kind === 'regular') return scallopPath(center, rim, size * 0.07, 8);
+    if (kind === 'explorer') return `M${center} ${center - rim}L${center + rim * 0.45} ${center - rim * 0.45}L${center + rim} ${center}L${center + rim * 0.45} ${center + rim * 0.45}L${center} ${center + rim}L${center - rim * 0.45} ${center + rim * 0.45}L${center - rim} ${center}L${center - rim * 0.45} ${center - rim * 0.45}Z`;
+    return `M${center} ${center - rim}Q${center + rim * 0.55} ${center - rim * 0.85} ${center + rim * 0.86} ${center - rim * 0.45}L${center + rim * 0.74} ${center + rim * 0.4}Q${center + rim * 0.5} ${center + rim * 0.85} ${center} ${center + rim}Q${center - rim * 0.5} ${center + rim * 0.85} ${center - rim * 0.74} ${center + rim * 0.4}L${center - rim * 0.86} ${center - rim * 0.45}Q${center - rim * 0.55} ${center - rim * 0.85} ${center} ${center - rim}Z`;
+  }, [center, kind, rim, size]);
 
   const shown = useSharedValue(animateArc && !reduceMotion ? 0 : 1);
   useEffect(() => {
@@ -133,19 +137,18 @@ export const Medallion = memo(function Medallion({ kind, tier, progress, size, c
         }) : null}
       </Svg>
 
-      <Image
-        source={earned ? mascotStamp : mascotStampEmpty}
-        accessible={false}
+      <View
         style={{
           position: 'absolute',
           left: center - window,
           top: center - window,
           width: window * 2,
           height: window * 2,
-          borderRadius: window,
+          alignItems: 'center',
+          justifyContent: 'center',
           opacity: earned ? 1 : 0.55,
         }}
-      />
+      ><MedalGlyph kind={kind} size={window * 1.55} color={metal ? metal.shade : colors.lockedEdge} /></View>
 
       <View
         style={{
@@ -162,7 +165,7 @@ export const Medallion = memo(function Medallion({ kind, tier, progress, size, c
           borderColor: '#FFFFFF',
         }}
       >
-        <MedalGlyph kind={kind} size={badgeRadius * 1.25} color="#FFFFFF" />
+        <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: badgeRadius * 1.2 }}>{earned ? tier : '?'}</Text>
       </View>
     </View>
   );

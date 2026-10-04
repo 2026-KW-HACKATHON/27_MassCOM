@@ -33,12 +33,39 @@
         <label id="merchant-overview-picker">점포 <select id="merchant-overview-merchant"></select></label>
         <button id="merchant-overview-refresh" class="collection-action secondary" type="button">현황 새로 고침</button>
         <p id="merchant-overview-status" class="status" role="status" aria-live="polite"></p>
+        <p id="merchant-campaign-ending" class="status" role="status" aria-live="polite"></p>
         <ul id="merchant-overview-cards" class="overview-cards"></ul>
         <section class="readiness" aria-labelledby="merchant-readiness-title">
           <h3 id="merchant-readiness-title">오픈 준비 체크리스트</h3>
           <p id="merchant-readiness-message" class="readiness-message"></p>
           <ol id="merchant-readiness-list" class="readiness-list" aria-labelledby="merchant-readiness-title"></ol>
         </section>
+      </section>
+      <section id="merchant-profile" class="panel" aria-labelledby="merchant-profile-title" hidden>
+        <h2 id="merchant-profile-title">가게 정보</h2>
+        <p>이름·주소는 운영자에게 요청해 주세요.</p>
+        <p id="merchant-profile-status" class="status" role="status" aria-live="polite"></p>
+        <button id="merchant-profile-retry" class="collection-action secondary" type="button" hidden>다시 불러오기</button>
+        <p id="merchant-profile-read-only" class="status"></p>
+        <p id="merchant-profile-dirty" class="merchant-dirty" role="status" aria-live="polite"></p>
+        <p><strong>이름</strong> <span id="merchant-profile-name"></span></p>
+        <p><strong>주소</strong> <span id="merchant-profile-address"></span></p>
+        <form id="merchant-profile-form" class="merchant-profile-form">
+          <label for="merchant-profile-story">소개</label>
+          <textarea id="merchant-profile-story" maxlength="4000" aria-describedby="merchant-profile-story-error"></textarea>
+          <p><span id="merchant-profile-story-count">0</span>/4000</p>
+          <p id="merchant-profile-story-error" class="merchant-field-error"></p>
+          <label for="merchant-profile-hours">영업시간</label>
+          <textarea id="merchant-profile-hours" maxlength="1000" aria-describedby="merchant-profile-hours-error"></textarea>
+          <p><span id="merchant-profile-hours-count">0</span>/1000</p>
+          <p id="merchant-profile-hours-error" class="merchant-field-error"></p>
+          <h3 id="merchant-profile-menu-title">메뉴</h3>
+          <div id="merchant-profile-menu" aria-labelledby="merchant-profile-menu-title"></div>
+          <p id="merchant-profile-menu-error" class="merchant-field-error"></p>
+          <button id="merchant-profile-add-menu" class="collection-action secondary" type="button">메뉴 추가</button>
+          <button id="merchant-profile-save" class="collection-action" type="submit">저장</button>
+        </form>
+        <button id="merchant-profile-print" class="collection-action secondary" type="button">매장 안내문 인쇄</button>
       </section>
       <section id="merchant-feedback" class="panel" aria-labelledby="merchant-feedback-title" hidden>
         <h2 id="merchant-feedback-title">방문 고객 의견</h2>
@@ -112,5 +139,17 @@
       </section>
     </section>
   </main>
+  <section id="merchant-install-poster" class="install-poster" aria-label="매장 안내문">
+    <p>월계 마스코트</p>
+    <h1 id="merchant-poster-name"></h1>
+    <h2>방문하면 수집품을 모아요</h2>
+    <ol>
+      <li>① QR로 앱 설치</li>
+      <li>② 방문 후 직원에게 내 방문 코드 보여 주기</li>
+      <li>③ 1·3·5번째 방문마다 수집품 받기</li>
+    </ol>
+    <figure><img src="/merchant/assets/install-qr.png" alt="앱 설치 QR 코드" width="280" height="280"><figcaption>www.masscom.kr/open</figcaption></figure>
+    <footer>월계 마스코트 · MassCOM</footer>
+  </section>
 </body>
 </html>

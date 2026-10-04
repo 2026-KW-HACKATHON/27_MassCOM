@@ -1,5 +1,19 @@
 # Android 고객 앱
 
+## 동행 공간과 네 가지 놀이
+
+Issue #363의 `/play`는 타이밍 쌓기·12장 짝 찾기·세 갈래 배달·주문 순서 게임의 준비, 실제 조작, 종료, 재도전, 서버 기록과 꾸미기 해금을 제공합니다. 서버가 발급한 실행의 입력만 보내며 점수나 보상량을 클라이언트가 지정하지 않습니다. 3회/10회 완주는 저녁/정원 배경을 열고 방문 마일리지·쿠폰에는 영향을 주지 않습니다.
+
+`/studio`는 보유 수집품 최대 6개, 서버에서 선택한 동행, 배경·배치·색과 다음 목표를 저장합니다. 친구 여권에서 `/friends/[friendshipId]/studio`로 이동하며 저장하기 전 공간과 기존 동행은 친구에게 노출하지 않습니다. 외부 공유는 1080×1350 피드, 1080×1920 스토리 PNG입니다. 사진 로드 실패는 재시도로 안내하고, 데스크톱은 저장, Android는 시스템 공유 창으로 연결합니다. 공유 창 완료 알림은 외부 게시 실적이 아닙니다.
+
+홈·방문 축하·도감에 선택한 동행이 나타나고, 뽑기 결과와 소장품 상세에서 공간으로 이동합니다. 홈의 주간 탐험과 동네 수집 세트는 현재 캠페인·인정된 방문·서로 다른 보상 목표로 계산합니다. 새 서버 migration 0042, 처리방침 `privacy-2026-10-04`, 최신 앱/웹이 함께 필요합니다. [수용 조건과 실제 검증](../../docs/evidence/connected-play-2026-10-04/README.md)은 공개 배포와 구분합니다.
+
+## 쿠폰 안내와 도감 큰 글자 배치 (Issue #365)
+
+홈은 만료까지 3일 이내인 쿠폰을 안내하고 쿠폰에는 만료 칩을 표시합니다. 점주 현황 탭은 캠페인 종료까지 14일 이내일 때 안내하며 push 알림은 없습니다. 쿠폰 공개 모달은 세로 스크롤을 제공합니다. 도감 카드는 등급을 먼저 표시하고 날짜는 한국 시간의 한국어 날짜, NFT 상태는 세로로 배치합니다. 큰 글자에서는 한 열, 그 외에는 실제 잰 폭에 맞춰 두 열로 표시합니다.
+
+[720×1280 로컬 개발 빌드 화면](../../docs/evidence/demo-ready-2026-10-05/README.md)에서 글자 200% 한 열·100% 두 열·한국 시간 날짜, 쿠폰 스크롤·만료 안내, 점포 C의 5회 프리즘 목록·상세와 임시 체험 진입→동의→홈→내 정보·재시작 확인창을 확인했습니다(PASS). 실제 시연 서버의 재시작 성공은 `NOT_RUN`: 로컬 API는 세션을 회수할 수 없어 이유와 로그아웃·새 체험을 안내했고, 로그아웃→새 체험 순서는 단위 시험으로 검증했습니다. 기기의 점주 현황 캠페인 안내·점주 홈, Samsung·TalkBack·물리 기울임·운영 로그인·실제 QR·지갑, 새 공개 APK·공개 서버 배포·웹 체험 번들 재빌드는 `NOT_RUN`입니다. 전체 결과는 [TEST_STATUS](../../docs/TEST_STATUS.md)를 따릅니다.
+
 ## 세 빌드의 경계
 
 | `APP_VARIANT` | Android package | 복귀 scheme | API | 현재 검증 |
@@ -213,13 +227,13 @@ release build는 시작부터 publish 직전까지 전체 Git worktree가 clean�
 
 상점 탭(`src/screens/shop/`, 경로 `src/app/(tabs)/shop.tsx`)은 `GET /shop`(마일리지 카드: 코인·잔액·적립 규칙은 서버가 보낸 가중치 그대로 문구화, "사용 내역"은 `Fold`로 펼쳐 `GET /shop/history` 페이지를 불러옴) · 등급별 재뽑기권 카드(가격·보유 수·"남은 N종 중 하나를 같은 확률(1/N)로"가 구매 전에 항상 보이고, 완료·잔액 부족이면 버튼이 이유와 함께 비활성화) · 가게 친구 9종 그리드(가진 친구는 그림, 안 가진 친구는 실루엣 "?"; 가진 친구를 탭하면 "대표로 설정" 확인)를 보여줍니다. 등급·가격·카탈로그·확률은 전부 `GET /shop` 응답을 그대로 읽고(`src/shop/shop-api.ts`), 앱은 다시 적지 않습니다. 뽑기 연출(`src/screens/shop/gacha-machine.tsx`)은 등급 선택 뒤 캡슐 기계의 손잡이·흔들림·캡슐 낙하·개봉·캐릭터 공개 순서로 진행하며, 언제든 건너뛸 수 있습니다. 동작 줄이기에서는 결과 카드로 바로 넘어가고, NEW 표시는 구매 직전 실제 보유 목록과 비교해 정합니다. 홈 헤더 아바타는 상점에서 고른 대표 캐릭터를 보여주고(없으면 기존 마스코트, `src/shop/use-shop-avatar-art.ts`), 구매 요청은 한 시도 동안 같은 `requestId`를 유지해(`src/shop/shop-rules.ts`의 `resumeOrStartPurchase`) 네트워크 오류 뒤 재시도가 중복 차감되지 않습니다(서버가 같은 id를 재생 응답). `expectedRemaining`이 바뀌어 서버가 409(SHOP_STATE_CHANGED)를 돌려주면 요금 없이 조용히 새로고침만 합니다. 운영·시연 두 빌드가 쓰는 공통 코드입니다. 상점 탭은 다른 탭(도감·내 정보와 같은 이유)으로 옮겨도 마운트된 채로 남아, 다른 화면에서 번 마일리지가 반영되도록 탭이 다시 포커스를 받을 때마다 조용히 새로고침합니다(`useFocusEffect`).
 
-## 시연 웹 체험 (Issue #309)
+## 시연 임시 체험 (웹 Issue #309·네이티브 Issue #365)
 
 showcase variant만 웹으로도 빌드됩니다: `npm run export:web:showcase`(= `APP_VARIANT=showcase EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr MASSCOM_WEB_BASE_URL=/play expo export --platform web --output-dir dist-web`, `MASSCOM_BUILD_SOURCE_COMMIT`·`MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`는 호출하는 쪽이 넘김). 배포는 `https://demo-api.masscom.kr/play/`에만 올라갑니다(API와 같은 origin — CORS는 origin 문제라 path가 달라도 상관없고, 운영 origin `masscom.kr`에는 이 번들이 전혀 올라가지 않습니다). `production`·`development` variant는 웹 export 자체를 거절합니다(`MASSCOM_WEB_BASE_URL`을 받지 않음, `build-environment.cjs`).
 
 `Application.applicationId`는 웹에서 항상 `null`이라 시연·개발 판별은 `src/config/app-identity.ts`의 `getAppPackageId()`로 모았습니다. 웹에서는 `Constants.expoConfig`가 `android` 키를 아예 내려 주지 않으므로(네이티브 전용 키 제거), 남아 있는 `scheme`(variant마다 다른 `masscom`/`masscom-dev`/`masscom-demo`)을 거꾸로 package id로 되돌리는 `src/config/package-id-from-scheme.ts`(`src/wallet/return-scheme.ts`의 역방향 매핑과 같이 봐야 함)를 씁니다.
 
-웹은 Google 로그인이 없습니다(`react-native-nitro-google-signin`은 웹 빌드가 없음 — `google-sign-in-runtime.web.ts` 스텁으로 대체). 로그인 화면(`screens/auth-required/index.web.tsx`)은 "로그인 없이 체험하기" 버튼만 보여주고 서버의 `POST /auth/guest-trial`(본문 없음, 24시간 세션)로 시작합니다. 429/503은 각각 "체험 시작 시도가 너무 많습니다"/"지금 체험 중인 사람이 많아..."로 안내합니다(`auth-controller.ts`의 `GUEST_TRIAL_RATE_LIMITED`/`GUEST_TRIAL_BUSY`, HTTP 상태 코드로 구분). 세션 저장소는 `platform-secure-store`(웹은 `localStorage`, `expo-secure-store`의 웹 구현은 호출하면 던지는 빈 객체라 반드시 교체해야 함). 운영·시연 Android 앱은 이전처럼 Google 로그인만 쓰고 체험 버튼을 두지 않습니다.
+웹은 Google 로그인이 없습니다(`react-native-nitro-google-signin`은 웹 빌드가 없음 — `google-sign-in-runtime.web.ts` 스텁으로 대체). 로그인 화면(`screens/auth-required/index.web.tsx`)은 "로그인 없이 체험하기" 버튼만 보여주고 서버의 `POST /auth/guest-trial`(본문 없음, 24시간 세션)로 시작합니다. 429/503은 각각 "체험 시작 시도가 너무 많습니다"/"지금 체험 중인 사람이 많아..."로 안내합니다(`auth-controller.ts`의 `GUEST_TRIAL_RATE_LIMITED`/`GUEST_TRIAL_BUSY`, HTTP 상태 코드로 구분). 세션 저장소는 `platform-secure-store`(웹은 `localStorage`, `expo-secure-store`의 웹 구현은 호출하면 던지는 빈 객체라 반드시 교체해야 함). Issue #365부터 네이티브 시연 앱의 첫 화면에도 테두리 버튼 “로그인 없이 바로 체험”을 제공합니다. 24시간 임시 계정에는 전용 체험 가게와 점주 화면이 있고, 내 정보에는 “임시 체험 계정 · 24시간 남음”과 “체험 처음부터 다시”가 표시됩니다. 운영 앱은 임시 체험 버튼·다시 시작을 표시하거나 호출하지 않습니다. DEMO 계정을 주입한 네이티브 개발 빌드는 로컬 QA를 위해 계속 DEMO 상태로 시작합니다.
 
 방문 수령·친구·점주 직원 화면의 QR 촬영과 수집품 기울임 토글은 웹에서 안내 문구로 가립니다(`ui/can-use-camera.ts`·`can-use-tilt-sensor.ts`). 점주 직원 화면의 고객 QR 식별은 카메라 없이는 할 수 없습니다(확인 코드는 43자 보안 토큰의 앞 8자일 뿐이라 그것만으로 서버를 부를 수 없고, 전체 토큰을 손으로 입력하게 하는 대체 입력은 비현실적이고 노출 위험이 커 만들지 않았습니다) — 이 화면은 웹에서 미리보기만 됩니다. 체험 로그인 계정이 "점주" 역할로 들어가면 `GET /showcase/access-requests/mine`의 `trialMerchantId`(공개 목록에 없는 개인 체험 가게)로 자기 가게를 찾습니다.
 

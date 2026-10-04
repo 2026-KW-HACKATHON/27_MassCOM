@@ -21,6 +21,7 @@ import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyBanner } from '@/ui/sky-banner';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { consentBoxSize, makeConsentStyles } from './styles';
+import { finishConsentLogout } from './consent-logout';
 
 type Props = {
   apiUrl: string;
@@ -93,7 +94,7 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
     if (busy) return;
     setBusy(true);
     try {
-      await onLogout();
+      await finishConsentLogout(onLogout);
     } finally {
       setBusy(false);
     }

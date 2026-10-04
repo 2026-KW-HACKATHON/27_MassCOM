@@ -16,10 +16,14 @@ export type RetentionStepName =
   | 'web_oauth_states'
   | 'staff_registration_requests'
   | 'showcase_access_requests'
+  | 'play_runs'
+  | 'deleted_play_data'
   | 'admin_audit_deleted_targets';
 
-export type RetentionCount = { step: RetentionStepName; count: number };
+export type RetentionCount = { step: RetentionStepName; count: number; capHit?: boolean; scanCapHit?: boolean };
 export type RetentionRun = { counts: RetentionCount[]; failed: RetentionStepName[] };
+
+export const playRetentionLimits = { batchSize: 500, maxBatches: 10, maxCandidatePages: 100 } as const;
 
 // 보관 기간(D-059). 처리·감사 기록은 1년(개인정보의 안전성 확보조치 기준 제8조의 접속기록 최소 보관 기간)이지만
 // 접근권한을 부여·변경·말소한 기록은 제5조 제3항에 따라 **최소 3년**이라 3년 뒤에 지운다.
@@ -28,6 +32,7 @@ const ago = (interval: string) => `(($1::timestamptz AT TIME ZONE 'UTC') - inter
 const oneYearAgo = ago('1 year');
 const threeYearsAgo = ago('3 years');
 const oneDayAgo = ago('1 day');
+const thirtyDaysAgo = ago('30 days');
 // 점주를 지정·해제한 감사(0032). 점포 접근권한의 부여·말소 기록이라 3년 보관 대상이다.
 const ownerChangeActions = `('MERCHANT_OWNER_GRANTED', 'MERCHANT_OWNER_REVOKED')`;
 
@@ -80,18 +85,38 @@ const steps: readonly Step[] = [
     table: 'showcase_access_requests',
     where: `status <> 'PENDING' AND decided_at < ${threeYearsAgo}`,
   },
+  // 진행 중인 판은 만료 시각부터, 끝난 판은 완료 시각부터 30일 보관한다. 최고 점수는 play_records에 따로 남는다.
+  {
+    name: 'play_runs',
+    table: 'play_runs',
+    where: `(finished_at IS NULL AND expires_at < ${thirtyDaysAgo}) OR finished_at < ${thirtyDaysAgo}`,
+  },
 ];
 
-// 마지막 단계는 지우기가 아니라 비식별화다(아래 `pseudonymizeDeletedAuditTargets`). 삭제 계정의 원 ID를 가진 행을 별칭으로 바꾼 개수를 보고한다.
+// 비밀이 필요한 마지막 두 단계: 롤백 이미지가 남긴 놀이·공간 행 삭제와 감사 대상 비식별화.
 const deletedTargetsStep = 'admin_audit_deleted_targets' as const;
+const deletedPlayDataStep = 'deleted_play_data' as const;
+const saveScanPosition = `INSERT INTO retention_scan_progress (step, position, updated_at) VALUES ($1, $2, $3)
+  ON CONFLICT (step) DO UPDATE SET position = EXCLUDED.position, updated_at = EXCLUDED.updated_at`;
 
-export const retentionStepNames: readonly RetentionStepName[] = [...steps.map((step) => step.name), deletedTargetsStep];
+export const retentionStepNames: readonly RetentionStepName[] = [...steps.map((step) => step.name), deletedPlayDataStep, deletedTargetsStep];
 
 export class PostgresRetentionService {
   private readonly now: () => Date;
+  private readonly playBatchSize: number;
+  private readonly playMaxBatches: number;
 
-  constructor(private readonly pool: Pool, options: { now?: () => Date } = {}) {
+  constructor(private readonly pool: Pool, options: {
+    now?: () => Date; playBatchSize?: number; playMaxBatches?: number;
+  } = {}) {
     this.now = options.now ?? (() => new Date());
+    this.playBatchSize = options.playBatchSize ?? playRetentionLimits.batchSize;
+    this.playMaxBatches = options.playMaxBatches ?? playRetentionLimits.maxBatches;
+    // Tests/operators may lower the limits, but cannot turn a daily repair into an unbounded purge.
+    for (const [value, maximum] of [[this.playBatchSize, playRetentionLimits.batchSize],
+      [this.playMaxBatches, playRetentionLimits.maxBatches]] as const) {
+      if (!Number.isInteger(value) || value < 1 || value > maximum) throw new Error('RETENTION_LIMIT_INVALID');
+    }
   }
 
   /** 지우지 않고 지울 개수만 센다. */
@@ -109,16 +134,27 @@ export class PostgresRetentionService {
   }
 
   /**
-   * 단계마다 하나의 거래로 지운다. 한 단계가 실패하면 그 단계만 되돌리고 나머지는 계속한다(한 표의 문제가
-   * 다른 표의 정리를 매일 막지 않도록). 실패한 단계 이름은 failed에 담긴다.
-   * `hmacSecret`(계정 삭제와 같은 `ACCOUNT_DELETION_HMAC_SECRET`)을 주면 지우기 단계 뒤에 삭제된 계정의 감사 대상 ID 비식별화도 한다
-   * (`admin_audit_deleted_targets`). 비밀이 없거나 32바이트보다 짧으면 이 단계만 실패로 보고된다.
+   * 기존 단계는 하나의 거래로, 놀이 단계는 한정된 행 수씩 거래를 나눠 지운다. 실패하면 현재 거래만 되돌리고
+   * 나머지 단계는 계속한다. 놀이 단계의 앞선 커밋과 개수는 유지하며 실행 상한은 capHit로 보고한다.
+   * `hmacSecret`(계정 삭제와 같은 `ACCOUNT_DELETION_HMAC_SECRET`)을 주면 지우기 단계 뒤에 롤백 이미지가 남긴
+   * 놀이·공간 행을 지우고 감사 대상 ID도 비식별화한다. 각 단계는 독립적으로 실패를 보고한다.
    */
   async run(options: { hmacSecret?: string } = {}): Promise<RetentionRun> {
     const now = this.now();
     const counts: RetentionCount[] = [];
     const failed: RetentionStepName[] = [];
     for (const step of steps) {
+      if (step.name === 'play_runs') {
+        const progress: RetentionCount = { step: step.name, count: 0 };
+        try {
+          await this.prunePlayRuns(step, now, progress);
+          counts.push(progress);
+        } catch {
+          if (progress.count > 0) counts.push(progress);
+          failed.push(step.name);
+        }
+        continue;
+      }
       let client;
       try {
         client = await this.pool.connect();
@@ -139,6 +175,14 @@ export class PostgresRetentionService {
       }
     }
     if (options.hmacSecret !== undefined) {
+      const progress: RetentionCount = { step: deletedPlayDataStep, count: 0 };
+      try {
+        await this.purgeDeletedPlayData(options.hmacSecret, now, progress);
+        counts.push(progress);
+      } catch {
+        if (progress.count > 0) counts.push(progress);
+        failed.push(deletedPlayDataStep);
+      }
       try {
         counts.push({ step: deletedTargetsStep, count: await this.pseudonymizeDeletedAuditTargets(options.hmacSecret) });
       } catch {
@@ -146,6 +190,132 @@ export class PostgresRetentionService {
       }
     }
     return { counts, failed };
+  }
+
+  private async prunePlayRuns(step: Step, now: Date, progress: RetentionCount): Promise<void> {
+    for (let batch = 0; batch < this.playMaxBatches; batch++) {
+      const client = await this.pool.connect();
+      let deleted: number;
+      try {
+        await client.query('BEGIN');
+        const result = await client.query(`DELETE FROM play_runs WHERE id IN (
+          SELECT id FROM play_runs WHERE ${step.where} ORDER BY id LIMIT $2
+        )`, [now, this.playBatchSize]);
+        await client.query('COMMIT');
+        deleted = result.rowCount ?? 0;
+        progress.count += deleted;
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        throw error;
+      } finally { client.release(); }
+      if (deleted < this.playBatchSize) return;
+    }
+    // A conservative signal avoids an unbounded count of the remaining backlog.
+    progress.capHit = true;
+  }
+
+  /**
+   * Rollback repair for 0042: older API images still insert the deletion ledger but do not know the play tables.
+   * Persist only the number of fully processed candidates, never an account ID. Resume with one OFFSET query,
+   * then keyset-page within this run, including live-only pages. Each deletion transaction shares one row budget
+   * across all three tables and commits its scan position with its deletes. A partial page stays at its start.
+   * Candidate pages have their own fixed budget; reaching the end resets the position for the next sweep.
+   */
+  private async purgeDeletedPlayData(hmacSecret: string, now: Date, progress: RetentionCount): Promise<void> {
+    const lifecycle = new PostgresAccountLifecycle({ hmacSecret });
+    let position = BigInt((await this.pool.query<{ position: string }>(
+      'SELECT position FROM retention_scan_progress WHERE step = $1', [deletedPlayDataStep],
+    )).rows[0]?.position ?? '0');
+    let cursor: string | null = null;
+    let pages = 0;
+    let batches = 0;
+    while (pages < playRetentionLimits.maxCandidatePages) {
+      const accounts: string[] = (await this.pool.query<{ account_id: string }>(
+        `SELECT account_id FROM (
+           (SELECT DISTINCT account_id FROM play_runs WHERE ($1::text IS NULL OR account_id > $1)
+            ORDER BY account_id LIMIT ($2::bigint + $3::bigint))
+           UNION
+           (SELECT account_id FROM play_records WHERE ($1::text IS NULL OR account_id > $1)
+            GROUP BY account_id ORDER BY account_id LIMIT ($2::bigint + $3::bigint))
+           UNION
+           (SELECT account_id FROM studios WHERE ($1::text IS NULL OR account_id > $1)
+            ORDER BY account_id LIMIT ($2::bigint + $3::bigint))
+         ) candidates ORDER BY account_id LIMIT $2 OFFSET $3`,
+        [cursor, this.playBatchSize, cursor === null ? position.toString() : '0'],
+      )).rows.map((row) => row.account_id);
+      pages++;
+      if (accounts.length === 0) {
+        await this.pool.query(saveScanPosition, [deletedPlayDataStep, '0', now]);
+        return;
+      }
+      const hashes = accounts.map((accountId) => lifecycle.referenceHash(accountId));
+      const known = await this.pool.query<{ account_reference_hash: Buffer }>(
+        `SELECT account_reference_hash FROM account_deletion_requests
+         WHERE account_reference_hash = ANY($1::bytea[])`, [hashes],
+      );
+      const gone = new Set(known.rows.map((row) => row.account_reference_hash.toString('hex')));
+      let goneAccounts = accounts.filter((_, index) => gone.has(hashes[index]!.toString('hex')));
+      const deletedCandidates = goneAccounts.length;
+      const pageCompletePosition = position + BigInt(accounts.length - deletedCandidates);
+      const atEnd = accounts.length < this.playBatchSize;
+      if (goneAccounts.length === 0) {
+        position = atEnd ? 0n : pageCompletePosition;
+        await this.pool.query(saveScanPosition, [deletedPlayDataStep, position.toString(), now]);
+        if (atEnd) return;
+      }
+      if (goneAccounts.length > 0 && batches === this.playMaxBatches) {
+        progress.capHit = true;
+        if (pages === playRetentionLimits.maxCandidatePages) progress.scanCapHit = true;
+        return;
+      }
+      while (goneAccounts.length > 0 && batches < this.playMaxBatches) {
+        const client = await this.pool.connect();
+        let deleted = 0;
+        try {
+          await client.query('BEGIN');
+          // All identifiers are fixed here; every table has a primary key for the limited selection.
+          for (const [table, key] of [['play_runs', 'id'], ['play_records', '(account_id, kind)'],
+            ['studios', 'account_id']] as const) {
+            const remaining = this.playBatchSize - deleted;
+            if (remaining === 0) break;
+            const result = await client.query(`DELETE FROM ${table} WHERE ${key} IN (
+              SELECT ${key === '(account_id, kind)' ? 'account_id, kind' : key} FROM ${table}
+              WHERE account_id = ANY($1::text[]) ORDER BY ${key} LIMIT $2
+            )`, [goneAccounts, remaining]);
+            deleted += result.rowCount ?? 0;
+          }
+          const remainingAccounts = (await client.query<{ account_id: string }>(
+            `SELECT account_id FROM play_runs WHERE account_id = ANY($1::text[])
+             UNION SELECT account_id FROM play_records WHERE account_id = ANY($1::text[])
+             UNION SELECT account_id FROM studios WHERE account_id = ANY($1::text[])`, [goneAccounts],
+          )).rows.map((row) => row.account_id);
+          // Deleted candidates disappear from the ordered list, so only surviving accounts advance the offset.
+          // Partial pages retain their starting offset, even when some accounts have already disappeared.
+          // Concurrent inserts/deletes can shift this count; the following sweep catches any occasional skip.
+          const nextPosition = remainingAccounts.length > 0 ? position : atEnd ? 0n : pageCompletePosition;
+          await client.query(saveScanPosition, [deletedPlayDataStep, nextPosition.toString(), now]);
+          await client.query('COMMIT');
+          position = nextPosition;
+          goneAccounts = remainingAccounts;
+          progress.count += deleted;
+          batches++;
+        } catch (error) {
+          await client.query('ROLLBACK').catch(() => undefined);
+          throw error;
+        } finally {
+          client.release();
+        }
+        if (batches === this.playMaxBatches && (deleted === this.playBatchSize || goneAccounts.length > 0)) {
+          // Conservative signal, including a full last batch that happened to finish the page/sweep.
+          progress.capHit = true;
+          if (pages === playRetentionLimits.maxCandidatePages) progress.scanCapHit = true;
+          return;
+        }
+      }
+      if (atEnd) return;
+      cursor = accounts.at(-1)!;
+    }
+    progress.scanCapHit = true;
   }
 
   /**

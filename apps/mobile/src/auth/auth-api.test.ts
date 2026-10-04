@@ -71,6 +71,7 @@ test('starts a guest trial without any token and returns one validated server se
     sessionToken: 'guest-session',
     accountId: 'guest-account',
     expiresAt: '2026-10-21T00:00:00.000Z',
+    guest: true,
   });
   assert.equal(receivedBody, '{}');
   assert.equal(receivedHeaders?.get('content-type'), 'application/json');

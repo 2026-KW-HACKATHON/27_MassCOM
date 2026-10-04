@@ -24,7 +24,7 @@ test('every retention step is named once, in the order the command reports them'
   assert.deepEqual([...retentionStepNames], [
     'auth_sessions', 'web_sessions', 'deletion_intake', 'admin_audit', 'admin_owner_audit', 'admin_role_audit',
     'staff_registration_audit', 'coupon_audit', 'customer_identity_tokens', 'wallet_challenges', 'web_oauth_states',
-    'staff_registration_requests', 'showcase_access_requests', 'admin_audit_deleted_targets',
+    'staff_registration_requests', 'showcase_access_requests', 'play_runs', 'deleted_play_data', 'admin_audit_deleted_targets',
   ]);
 });
 
@@ -39,6 +39,36 @@ test('run prints one tab-separated count per step and nothing else', async () =>
   ]);
   // Counts only: no UUID, no account id, no receipt number can appear in the output.
   assert.equal(result.lines.slice(1).every((line) => /^[a-z_]+\t\d+$/.test(line)), true);
+});
+
+test('run reports daily play deletion caps without exposing candidate identifiers', async () => {
+  const { service: fake } = service(async () => ({ counts: [
+    { step: 'play_runs', count: 5000, capHit: true },
+    { step: 'deleted_play_data', count: 5000, capHit: true },
+  ], failed: [] }));
+  const result = await runRetentionCommand(fake, ['run']);
+  assert.deepEqual(result.lines, ['RETENTION_RUN', 'play_runs\t5000', 'play_runs_cap_hit\t1',
+    'deleted_play_data\t5000', 'deleted_play_data_cap_hit\t1']);
+  assert.deepEqual(result.failed, []);
+});
+
+test('run reports a live-only candidate scan cap separately from the deletion cap', async () => {
+  const { service: fake } = service(async () => ({ counts: [
+    { step: 'deleted_play_data', count: 0, scanCapHit: true },
+  ], failed: [] }));
+  const result = await runRetentionCommand(fake, ['run']);
+  assert.deepEqual(result.lines, ['RETENTION_RUN', 'deleted_play_data\t0', 'deleted_play_data_scan_cap_hit\t1']);
+  assert.deepEqual(result.failed, []);
+});
+
+test('run reports both limits when a partial deletion page also exhausts the scan budget', async () => {
+  const { service: fake } = service(async () => ({ counts: [
+    { step: 'deleted_play_data', count: 4, capHit: true, scanCapHit: true },
+  ], failed: [] }));
+  const result = await runRetentionCommand(fake, ['run']);
+  assert.deepEqual(result.lines, ['RETENTION_RUN', 'deleted_play_data\t4',
+    'deleted_play_data_cap_hit\t1', 'deleted_play_data_scan_cap_hit\t1']);
+  assert.deepEqual(result.failed, []);
 });
 
 test('report never calls run, and a failed step is reported by name while the others still print', async () => {
@@ -70,7 +100,7 @@ test('purge-deleted-consents needs the deletion secret, runs only on request and
   assert.deepEqual(result.lines, ['RETENTION_PURGE_DELETED_CONSENTS', 'deleted_account_consents\t4']);
   assert.deepEqual(result.failed, []);
   assert.deepEqual(calls, ['purge:secret-value-at-least-32-bytes-long!!']);
-  // The daily run never purges consents by itself, even when it has the secret (it uses it only for the audit target step).
+  // The daily run never purges consents by itself, even when it has the secret (it uses it for play cleanup and audit target repair).
   await runRetentionCommand(fake, ['run'], 'secret-value-at-least-32-bytes-long!!');
   assert.equal((calls as string[]).filter((call) => call.startsWith('purge')).length, 1);
 });

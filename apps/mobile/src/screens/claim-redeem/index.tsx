@@ -35,6 +35,7 @@ import { VisitorFeedbackForm } from '../merchant-detail/visitor-feedback-form';
 import { canShowTestVisitSection } from '@/navigation/showcase-entry';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { createShopApiClient, type ShopApiClient } from '@/shop/shop-api';
+import { useShopAvatarArt } from '@/shop/use-shop-avatar-art';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
@@ -70,6 +71,7 @@ export function ClaimRedeemScreen({
 }) {
   const scrollView = useRef<ScrollView>(null);
   const clearance = useTabBarClearance();
+  const companionArt = useShopAvatarArt(apiUrl, credential);
   const { fontScale } = useWindowDimensions();
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
@@ -712,6 +714,7 @@ export function ClaimRedeemScreen({
         ) : null}
       </SkyScrollView>
       <Celebration
+        companionArt={companionArt}
         content={celebration ? {
           ...celebration,
           artworkRewards: artworkReward?.claimSlotId === redeemed?.claimSlotId ? artworkReward?.artworkRewards : undefined,

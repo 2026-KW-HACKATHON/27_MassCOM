@@ -4,6 +4,7 @@ import Svg, { Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import type { Coupon } from './badge-api';
 import { couponAccessibilityLabel, couponExpiryLabel, couponStatusLabel, rewardBoxName } from './badge-rules';
+import { couponExpiryReminderLabel } from './coupon-expiry';
 import { useGamificationTheme } from './theme';
 
 const notch = 11;
@@ -13,7 +14,7 @@ const corner = 18;
  * A paper coupon: title and shop above a perforation with side notches, status and expiry below.
  * Used coupons get a tilted ink stamp; expired ones fade. Meaning is always in text too.
  */
-export function CouponTicket({ coupon, onUse }: { coupon: Coupon; onUse?: (coupon: Coupon) => void }) {
+export function CouponTicket({ coupon, onUse, now = new Date() }: { coupon: Coupon; onUse?: (coupon: Coupon) => void; now?: Date }) {
   const { styles, palette, medal, scheme } = useGamificationTheme();
   const [size, setSize] = useState<{ width: number; height: number }>();
   const [perforation, setPerforation] = useState<number>();
@@ -21,6 +22,8 @@ export function CouponTicket({ coupon, onUse }: { coupon: Coupon; onUse?: (coupo
   // Used/expired tickets read quieter through colour, not opacity, so the text keeps AA contrast.
   const muted = faded ? { color: medal.ticketMuted, opacity: 1 } : undefined;
   const stamped = coupon.status === 'REDEEMED';
+  const expiryReminder = couponExpiryReminderLabel(coupon, now);
+  const accessibleCopy = [couponAccessibilityLabel(coupon), expiryReminder].filter(Boolean).join(', ');
   const statusStyle = coupon.status === 'ISSUED'
     ? { backgroundColor: palette.successContainer, color: palette.onSuccessContainer }
     : coupon.status === 'REDEEMED'
@@ -62,7 +65,7 @@ export function CouponTicket({ coupon, onUse }: { coupon: Coupon; onUse?: (coupo
 
       <View
         accessible
-        accessibilityLabel={couponAccessibilityLabel(coupon)}
+        accessibilityLabel={accessibleCopy}
         onLayout={(event) => {
           const next = event.nativeEvent.layout.height;
           setPerforation((current) => (current === next ? current : next));
@@ -81,12 +84,17 @@ export function CouponTicket({ coupon, onUse }: { coupon: Coupon; onUse?: (coupo
           <View style={[styles.chip, { backgroundColor: statusStyle.backgroundColor }]}>
             <Text style={[styles.chipText, { color: statusStyle.color }]}>{couponStatusLabel(coupon.status)}</Text>
           </View>
+          {expiryReminder ? (
+            <View style={[styles.chip, { backgroundColor: palette.accentContainer }]}>
+              <Text style={[styles.chipText, { color: palette.onAccentContainer }]}>{expiryReminder}</Text>
+            </View>
+          ) : null}
           {coupon.status === 'VOIDED' ? null : <Text style={[styles.ticketExpiry, muted]}>{couponExpiryLabel(coupon.expiresAt)}</Text>}
         </View>
         {coupon.status === 'ISSUED' && onUse ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${coupon.title} 매장에서 사용하기`}
+            accessibilityLabel={`${coupon.title} 매장에서 사용하기${expiryReminder ? `, ${expiryReminder}` : ''}`}
             accessibilityHint="직원에게 보여줄 QR을 열어요."
             onPress={() => onUse(coupon)}
             style={({ pressed }) => [styles.button, pressed && styles.pressed]}

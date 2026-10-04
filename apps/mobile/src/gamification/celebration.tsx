@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ImageSourcePropType } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -19,7 +19,7 @@ import { celebrationNote } from '@/commerce/progress-note';
 import type { AfterVisitAction } from '@/commerce/after-visit-action';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { tierColors } from '@/theme/medal-colors';
-import { Mascot } from '@/ui/mascot';
+import { Companion } from '@/ui/companion';
 
 import type { BadgeBook } from './badge-api';
 import {
@@ -64,20 +64,21 @@ type Props = {
   /** focusRewards: a box became openable, so land on the reward section. */
   onOpenCollection: (focusRewards: boolean) => void;
   onOpenGacha?: () => void;
+  companionArt?: ImageSourcePropType;
 };
 
 const impactAt = 420;
 
 /** "도장 쾅!" — full-screen celebration after a confirmed visit. Static under reduced motion. */
-export function Celebration({ content, variant, onClose, primaryAction, onPrimaryAction, onOpenFeedback, onOpenCollection, onOpenGacha }: Props) {
+export function Celebration({ content, variant, onClose, primaryAction, onPrimaryAction, onOpenFeedback, onOpenCollection, onOpenGacha, companionArt }: Props) {
   return (
     <FullScreenModal visible={content !== undefined} animationType="fade" onRequestClose={onClose}>
-        {content ? <CelebrationBody key={content.claimSlotId} content={content} variant={variant} onClose={onClose} primaryAction={primaryAction} onPrimaryAction={onPrimaryAction} onOpenFeedback={onOpenFeedback} onOpenCollection={onOpenCollection} onOpenGacha={onOpenGacha} /> : null}
+        {content ? <CelebrationBody key={content.claimSlotId} content={content} variant={variant} onClose={onClose} primaryAction={primaryAction} onPrimaryAction={onPrimaryAction} onOpenFeedback={onOpenFeedback} onOpenCollection={onOpenCollection} onOpenGacha={onOpenGacha} companionArt={companionArt} /> : null}
       </FullScreenModal>
   );
 }
 
-function CelebrationBody({ content, variant, onClose, primaryAction, onPrimaryAction, onOpenFeedback, onOpenCollection, onOpenGacha }: Props & { content: CelebrationContent }) {
+function CelebrationBody({ content, variant, onClose, primaryAction, onPrimaryAction, onOpenFeedback, onOpenCollection, onOpenGacha, companionArt }: Props & { content: CelebrationContent }) {
   const theme = useGamificationTheme();
   const { styles, medal } = theme;
   const insets = useSafeAreaInsets();
@@ -147,7 +148,7 @@ function CelebrationBody({ content, variant, onClose, primaryAction, onPrimaryAc
         }}>
           <StampStage theme={theme} reduceMotion={reduceMotion} size={shownBeat > 1 && !reduceMotion ? Math.round(stageSize * 0.6) : stageSize} />
         </Pressable>
-        {cheering && shownBeat === 1 ? <Mascot pose="cheer" size={Math.min(140, Math.round(stage * 0.62))} /> : null}
+        {(cheering || companionArt) && shownBeat === 1 ? <Companion art={companionArt} celebrate size={Math.min(140, Math.round(stage * 0.62))} /> : null}
 
         <Text ref={title} accessibilityRole="header" style={styles.celebrationTitle}>
           {content.merchantName} 도장 쾅!
@@ -156,6 +157,17 @@ function CelebrationBody({ content, variant, onClose, primaryAction, onPrimaryAc
           {celebrationNote(content)}
           {hint ? `\n다음 목표 · ${hint}` : ''}
         </Text>
+
+        <View style={styles.celebrationActions}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onPrimaryAction}
+            style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+          >
+            <Text style={styles.buttonText}>{primaryAction.label}</Text>
+          </Pressable>
+          {primaryAction.kind === 'recommendation' ? <Text style={styles.celebrationBody}>{primaryAction.detail}</Text> : null}
+        </View>
 
         {shownBeat >= 2 ? (
           <View style={{ alignSelf: 'stretch', gap: 10 }}>
@@ -170,19 +182,10 @@ function CelebrationBody({ content, variant, onClose, primaryAction, onPrimaryAc
         ) : null}
 
         <View style={styles.celebrationActions}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={onPrimaryAction}
-            style={({ pressed }) => [styles.button, pressed && styles.pressed]}
-          >
-            <Text style={styles.buttonText}>{primaryAction.label}</Text>
-          </Pressable>
-          {primaryAction.kind === 'recommendation' ? <Text style={styles.celebrationBody}>{primaryAction.detail}</Text> : null}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 8 }}>
             <Pressable accessibilityRole="button" accessibilityLabel="도감 보기" onPress={() => onOpenCollection(false)} style={styles.ghostButton}><Text style={styles.ghostButtonText}>도감</Text></Pressable>
-            <Text style={styles.celebrationBody}>·</Text>
             {onOpenGacha ? <Pressable accessibilityRole="button" accessibilityLabel="상점 뽑기" onPress={onOpenGacha} style={styles.ghostButton}><Text style={styles.ghostButtonText}>상점 뽑기</Text></Pressable> : null}
-            {onOpenFeedback ? <><Text style={styles.celebrationBody}>·</Text><Pressable accessibilityRole="button" accessibilityLabel="이 가게 어땠나요? 선택" onPress={onOpenFeedback} style={styles.ghostButton}><Text style={styles.ghostButtonText}>이 가게 어땠나요?(선택)</Text></Pressable></> : null}
+            {onOpenFeedback ? <Pressable accessibilityRole="button" accessibilityLabel="이 가게 어땠나요? 선택" onPress={onOpenFeedback} style={styles.ghostButton}><Text style={styles.ghostButtonText}>이 가게 어땠나요?(선택)</Text></Pressable> : null}
           </View>
           {featured ? (
             <Pressable

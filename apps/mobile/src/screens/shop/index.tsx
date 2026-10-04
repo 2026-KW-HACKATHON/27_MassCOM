@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Image, Pressable, RefreshControl, Text, View, useColorScheme, useWindowDimensions, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,6 +44,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
   onGachaClose?: () => void;
 }) {
   const clearance = useTabBarClearance();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
@@ -194,13 +195,13 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
   function confirmAvatar(cell: FriendGridCell) {
     if (!cell.owned || avatarBusy) return;
     if (cell.isAvatar) {
-      Alert.alert('대표 해제', `${cell.name} 대표 설정을 해제할까요? 홈 화면에 다시 마스코트가 보여요.`, [
+      Alert.alert('동행 해제', `${cell.name} 동행 설정을 해제할까요? 기본 마스코트와 함께해요.`, [
         { text: '취소', style: 'cancel' },
         { text: '해제', onPress: () => void chooseAvatar(null) },
       ]);
       return;
     }
-    Alert.alert('대표로 설정', `${cell.name}을 대표 캐릭터로 설정할까요? 홈 화면 아바타에 보여요.`, [
+    Alert.alert('동행으로 설정', `${cell.name}과 함께할까요? 홈·놀이·내 공간에 등장해요.`, [
       { text: '취소', style: 'cancel' },
       { text: '설정', onPress: () => void chooseAvatar(cell.id) },
     ]);
@@ -260,6 +261,11 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
     refreshing={refreshing} onRefresh={() => { void refresh(); }}
     onDraw={buy}
     onSetAvatar={() => { if (reveal) void chooseAvatar(reveal.item.id, reveal); }}
+    onOpenStudio={() => {
+      const avatarItemId = reveal?.item.id;
+      setMachineOpen(false); setReveal(undefined); onGachaClose?.();
+      router.push({ pathname: '/studio', params: avatarItemId ? { avatar: avatarItemId } : {} });
+    }}
     onClose={() => { setMachineOpen(false); setReveal(undefined); setAvatarError(undefined); onGachaClose?.(); }}
   /> : null;
   if (gachaOnly) return machine;

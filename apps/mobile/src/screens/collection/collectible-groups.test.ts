@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { groupCollectibles, ungroupedCollectibles } from './collectible-groups';
+import { collectionCardLayout, earnedDateLabel, groupCollectibles, ungroupedCollectibles } from './collectible-groups';
 
 const artworkA = {
   publicationId: 'pub-a', projectId: 'proj-a', gradeId: 'grade-1', gradeName: '1등급',
@@ -66,4 +66,37 @@ test('ungroupedCollectibles returns only the legacy entitlements that groupColle
   assert.deepEqual(legacy.map((item) => item.entitlementId), ['e3', 'e1']);
   assert.equal(legacy[0]!.nftStatus, 'FINALIZED');
   assert.equal(legacy[1]!.displayName, '첫 방문 보상');
+});
+
+test('the earned date is shown as the Korea-time calendar day, not the UTC date', () => {
+  // 10월 5일 06:28 KST = 10월 4일 21:28 UTC
+  assert.equal(earnedDateLabel('2026-10-04T21:28:00.000Z'), '10월 5일');
+  assert.equal(earnedDateLabel('2026-10-04T14:59:59.000Z'), '10월 4일');
+  assert.equal(earnedDateLabel('2026-10-04T15:00:00.000Z'), '10월 5일');
+  assert.equal(earnedDateLabel('2026-12-31T15:00:00.000Z'), '1월 1일');
+});
+
+test('the collection grid uses two columns only when both cards and the gap really fit', () => {
+  // 360dp 화면: 격자 320 → 154 + 12 + 154 = 320
+  assert.deepEqual(collectionCardLayout(320, 1), { columns: 2, width: 154 });
+  // 320dp 화면: 격자 280 → 반 폭 134는 너무 좁아 한 열 전체 폭
+  assert.deepEqual(collectionCardLayout(280, 1), { columns: 1, width: 280 });
+  // 큰 글씨는 넓은 화면에서도 한 열
+  assert.deepEqual(collectionCardLayout(320, 1.5), { columns: 1, width: 320 });
+  assert.deepEqual(collectionCardLayout(800, 2), { columns: 1, width: 800 });
+  // 넓은 화면
+  assert.deepEqual(collectionCardLayout(560, 1.3), { columns: 2, width: 274 });
+  for (const width of [300, 312, 313, 320, 411, 600]) {
+    const layout = collectionCardLayout(width, 1);
+    if (layout.columns === 2) assert.ok(layout.width * 2 + 12 <= width, `two cards fit in ${width}`);
+  }
+  assert.deepEqual(collectionCardLayout(0, 1), { columns: 1, width: 0 });
+  // 소수 폭: 311.6dp는 반 폭이 149.8이라 한 열, 313.6dp는 150 + 12 + 150 = 312로 두 열이 들어간다.
+  for (const measured of [311.6, 313.6]) {
+    const layout = collectionCardLayout(Math.floor(measured), 1);
+    if (layout.columns === 2) assert.ok(layout.width * 2 + 12 <= measured);
+  }
+  assert.equal(collectionCardLayout(Math.floor(311.6), 1).columns, 1);
+  assert.deepEqual(collectionCardLayout(Math.floor(313.6), 1), { columns: 2, width: 150 });
+  assert.equal(collectionCardLayout(311.6, 1).columns, 1);
 });

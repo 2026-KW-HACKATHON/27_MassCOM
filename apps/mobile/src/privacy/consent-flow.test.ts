@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import { ConsentApiError, type ConsentState } from './consent-api';
 import { consentChecks, CONSENT_PRIVACY_VERSION, CONSENT_TERMS_VERSION } from './consent-copy';
 import {
-  canSubmitConsent, loadConsentState, noChecks, shouldAskConsent, stateFromServer, submitConsent, type ConsentChecks,
+  canSubmitConsent, consentRequiredMessage, consentRecheckLabel, loadConsentState, needsConsentRecheck,
+  noChecks, shouldAskConsent, stateFromServer, submitConsent, type ConsentChecks,
 } from './consent-flow';
 
 const bearer = { kind: 'bearer', sessionToken: 'session' } as const;
@@ -92,4 +93,14 @@ test('states without a real server session or API never ask', () => {
   assert.equal(ask({ accountId: undefined }), false);
   assert.equal(ask({ credential: undefined }), false);
   assert.equal(ask({ accountId: '' }), false);
+});
+
+test('a 403 consent error asks to re-check the current Korean notice through the root gate', () => {
+  assert.equal(consentRequiredMessage, '개인정보 처리방침이 바뀌어 다시 동의가 필요해요.');
+  assert.equal(consentRecheckLabel, '동의 확인하기');
+  assert.equal(needsConsentRecheck({ status: 403, code: 'CONSENT_REQUIRED' }), true);
+  assert.equal(needsConsentRecheck({ status: 403, code: 'OTHER' }), false);
+  assert.equal(needsConsentRecheck({ status: 401, code: 'CONSENT_REQUIRED' }), false);
+  assert.equal(ask({ consentedAccountId: 'acct-a' }), false);
+  assert.equal(ask({ consentedAccountId: undefined }), true, 'clearing the root cache re-checks the server');
 });

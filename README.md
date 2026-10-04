@@ -31,7 +31,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 
 모바일 회전 수집품은 뒷면 그림이 없어도 등급색·안쪽 테두리·가게와 수집품 이름·마스코트 도장의 기본 뒷면과 각도별 두께를 표시합니다(#340).
 
-모바일 수집품에는 등급 재질 조명도 적용합니다(#349): 골드는 따뜻한 금속 반사·별빛, 프리즘은 움직이는 무지개 홀로그램을 상세 앞·뒷면·목록·봉투에 표시하며 공유 이미지에는 정적 재질을 담습니다. 기울기·끌기·자동 반사를 결합하고 동작 줄이기에서는 한 프레임으로 고정합니다. [자동 검증은 PASS, 기기/시각 QA는 NOT_RUN — 사용자 판정 필요](docs/TEST_STATUS.md)입니다.
+모바일 수집품에는 등급 재질 조명도 적용합니다(#349): 골드는 따뜻한 금속 반사·별빛, 프리즘은 움직이는 무지개 홀로그램을 상세 앞·뒷면·목록·봉투에 표시하며 공유 이미지에는 정적 재질을 담습니다. 기울기·끌기·자동 반사를 결합하고 동작 줄이기에서는 한 프레임으로 고정합니다. [Issue #365 로컬 에뮬레이터의 프리즘 목록·상세 확인은 PASS, 이 빌드의 실폰·물리 기울임은 NOT_RUN](docs/TEST_STATUS.md)입니다.
 
 | 지금 실제로 되는 것 | 근거 |
 | --- | --- |
@@ -55,9 +55,21 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 
 **설치·시연:** [masscom.kr/open](https://www.masscom.kr/open)에서 운영(고객 전용, 실제 API·DB)과 시연(가상 점포 체험용, 별도 API·DB) 중 고릅니다. 시연 웹은 설치 없이 [masscom.kr/preview](https://www.masscom.kr/preview/)에서 바로 봅니다.
 
-현재 자동 시험 합계(2026-10-01 KST, main `61bde48` 기준): API 단위 291/291 · Worker 단위 55/55 · 모바일 853/853 · Foundry 8/8. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)).
+현재 자동 시험 합계(2026-10-01 KST, main `61bde48` 기준): API 단위 291/291 · Worker 단위 55/55 · 모바일 853/853 · Foundry 8/8. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). Issue #365 브랜치의 로컬 검증(2026-10-05)은 API 단위 462/462 · PostgreSQL 통합 413 통과와 기존 조건부 3 건너뜀 · 모바일 1502/1502 · 사이트 339/339와 186/186입니다.
 
 아래 "실제 기능 상태" 표가 기능별 자세한 근거이며, 이 요약과 어긋나면 아래 표·링크한 문서를 최신으로 봅니다.
+
+## 시연 준비와 점포 운영 보완 (Issue #365)
+
+시연 점포 A·B는 1·3·5회 브론즈·실버·골드, C는 5회에 프리즘을 줍니다. 재시드는 이전 seed 게시물만 한 번 교체하고 점주 게시물·발급된 보상을 보존합니다. 시연 호스트 일일 정리 뒤 seed로 캠페인을 유지하며 운영 작업은 그대로입니다. 웹 임시 체험에 더해 네이티브 시연 첫 화면에 테두리 버튼 “로그인 없이 바로 체험”(24시간 임시 계정·전용 체험 가게·점주 화면), 내 정보에 “체험 처음부터 다시”를 추가했습니다. 운영 앱에는 표시·호출하지 않습니다.
+
+점주는 소개·영업시간·메뉴 편집, 14일 전 캠페인 종료 안내와 설치 QR A4 포스터를 사용하고, 운영자는 남은 일수와 30/90일 연장을 확인합니다. 앱은 3일 이내 쿠폰 만료 안내·칩과 점주 현황의 캠페인 종료 안내를 표시하며 push 알림은 없습니다. **로컬 자동 시험·에뮬레이터·mock API 웹 확인은 PASS, 이 브랜치의 공개 서버 배포·새 공개 APK·시연 웹 체험 번들 재빌드·시연 호스트 일일 seed 설치는 NOT_RUN입니다.** [검증과 남은 확인](docs/TEST_STATUS.md), [화면 근거](docs/evidence/demo-ready-2026-10-05/README.md), [5분 발표 안내](docs/DEMO_RUNBOOK.md)를 참고하세요.
+
+## 방문과 놀이를 잇는 새 경험
+
+[Issue #363](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/363)의 공통 고객 앱·웹 소스에 타이밍 쌓기, 12장 짝 찾기, 세 갈래 배달, 주문 순서 게임과 서버 기록을 추가했습니다. 방문으로 받은 수집품과 선택한 동행을 내 공간에 진열하고 친구에게 보여 주며, 피드·스토리 PNG로 내보냅니다. 매주 실제 참여 가게에 맞는 탐험과 수집 세트가 이어지고, 놀이 완주는 공간 배경을 해금합니다. 게임은 방문 마일리지·쿠폰·기존 보상권을 발급하거나 바꾸지 않습니다.
+
+점주 제작기는 권한 있는 점포의 메뉴·그림으로 시작하고 방문 단계별 문양·재질·동작을 제안합니다. 운영자는 실제 놀이·공간 처리와 앱이 보낸 공유 완료 알림을 기존 방문·쿠폰 집계와 구분해서 봅니다. **새 소스는 공개 설치본과 서버에 아직 반영하지 않았습니다.** [구현·검증과 화면](docs/evidence/connected-play-2026-10-04/README.md), [피드·스토리 홍보 원본](docs/instagram/connected-play.html)을 참고하세요.
 
 ## 왜 만드는가
 
@@ -318,7 +330,10 @@ sequenceDiagram
 | 하늘 동네·탐험 여권(메달·상자·쿠폰·지도) | `VERIFIED` | [Issue #216](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/216)·[#224](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/224)·[#228](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/228), 에뮬레이터·Samsung 실기에서 방문→축하→상자→쿠폰→점원 사용 처리 확인([증거](docs/evidence/explorer-passport-emulator-2026-09-29/README.md)). 운영 혜택은 0건이고 TalkBack 낭독·시연 빌드 반영 확인은 `NOT_RUN` |
 | 사진 수집품 제작기 | `IMPLEMENTED` | [Issue #329](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/329) 폰 개편은 `feat/329-creator-wizard-mobile`에서 4단계 펼침·접힘, 전체 화면 작업 영역, 고정 머리글·하단 바, ⋯ 메뉴, 뒤로가기와 음성 파형을 구현했다. 로컬 QA fixture 브라우저 화면과 347/347 시험·gate는 PASS, Samsung 실기·Android 제스처 뒤로가기·기기 실제 음성 파형은 `NOT_RUN`이며 이 개편의 운영 배포 근거는 아니다([화면 구성](docs/COLLECTIBLE_CREATOR.md#화면-구성-issue-329-2026-10-03), [검증·캡처](docs/TEST_STATUS.md)). [Issue #252](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/252), PR #257 병합 main `7bcfef9`로 운영·시연 배포, 운영 test.5·시연 Preview 14부터 포함(현재 최신은 test.9·Preview 18)([증거](docs/evidence/deployment-7bcfef9-2026-10-01.json)). 시연 앱 도감 카드의 실기 확인(라이트·다크·글자 200%, 잘림 없음)은 PASS했지만 이 카드는 일반 보상권이고, `artwork`가 있는 #257 수집품의 native 상세 화면은 보유 허용 계정이 없어 `NOT_RUN`이다([실기 캡처](docs/evidence/device-captures-2026-10-01/README.md)). 실제 브라우저 녹음 업로드·실제 카메라 사진은 `NOT_RUN`([세부](docs/COLLECTIBLE_CREATOR.md)). [Issue #284](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/284) 표현 v2(스티커 배치·뒷면·모션 재생·인사말 개별화·패럴랙스·living picture·각도 프레임·기울임)는 스키마·웹 A·Android·웹 B 네 WP가 모두 코드·node/모바일 단위 시험으로 완료됐다(세부는 [COLLECTIBLE_CREATOR.md](docs/COLLECTIBLE_CREATOR.md#wp3-웹-b-구현-결과-issue-284-2026-10-02--네-wp-전부-완료)). 실제 브라우저로 패럴랙스·living·각도 프레임을 눈으로 확인하는 스크린샷과 Android 실기기·에뮬레이터의 새 필드 조합 확인은 `NOT_RUN`이다 |
 | 발견→방문→다음 방문 연결과 점주 효과 지표 | `IMPLEMENTED`(운영·시연 배포) | [Issue #354](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/354): 가게 상세에 방문 전 수집품 미리보기(등급 그림·획득 조건)·내 진행·길찾기, 방문 뒤 상태별 주요 행동 하나, 도감·수집품·친구 여권에서 가게로 연결, 홈 다음 목표. 점주 웹 체크리스트의 항목별 해결 동작과 제작기 첫 시작 기본값, 점주 앱의 방금 처리한 방문·쿠폰 되돌리기. 점주 현황의 첫/재방문·수집품 획득·쿠폰 발급 대비 사용·가게 상세 조회, 운영자 흐름 지표. 조회는 계정·기기·IP 없이 가게·날짜·경로별 횟수만 센다(D-071). 지표는 방문 인증 기준이며 매출이 아니다(D-072). [0fcdfe8 배포](docs/evidence/deployment-0fcdfe8-2026-10-03.json)·[Preview 17 가상 점포 B 상세](docs/evidence/showcase-preview17-release-2026-10-03.json) 확인. [Preview 18 Samsung 고객 흐름](docs/evidence/showcase-preview18-release-2026-10-04.json)은 가상 점포 C 방문 5회·보상·골드 상세·점포 재진입 PASS이며 점주 앱 실기는 권한이 없어 `NOT_RUN` |
-| 시연 전부 체험(보너스 마일리지·서로 다른 날의 테스트 방문) | `IMPLEMENTED`(시연 서버만, 미배포) | [Issue #333](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/333), [D-068](docs/DECISIONS.md): 시연 앱에서 `테스트 방문 만들기`를 같은 점포에 5번 누르면 오늘부터 하루씩 앞선 서로 다른 날로 세어져 1·3·5회에 브론즈·실버·골드 수집품이 나오고, 상점에는 시연 체험 마일리지 100,000P가 더해져 골드까지 뽑을 수 있다(상점에 "시연 체험 마일리지 포함" 표시). 운영 규칙·응답은 그대로. 자동 시험은 [TEST_STATUS](docs/TEST_STATUS.md), 배포·실기 확인은 `NOT_RUN` |
+| 시연 전부 체험(보너스 마일리지·테스트 방문·임시 계정) | `IMPLEMENTED`(#365 공개 반영 `NOT_RUN`) | 시연 체험 마일리지 100,000P와 서로 다른 날의 테스트 방문, 목표 1·3·5 유지. A·B는 브론즈·실버·골드, C는 5회 프리즘이며 기존 발급 보상은 그대로. 네이티브 시연에도 24시간 임시 체험·다시 시작 추가, 운영 앱 제외. [로컬 에뮬레이터 근거](docs/evidence/demo-ready-2026-10-05/README.md); 실제 서버 재시작 성공·새 공개 APK·웹 체험 번들 재빌드·일일 seed 설치 `NOT_RUN` |
+| 점주 가게 정보·포스터·캠페인 안내 | `IMPLEMENTED`(공개 반영 `NOT_RUN`) | 소개·영업시간·메뉴 편집, 종료 14일 전 안내, 설치 QR A4 포스터. [mock API 웹 확인](docs/evidence/demo-ready-2026-10-05/README.md) PASS; 실제 Google 웹 세션·기기 점주 홈/현황·종이 인쇄 `NOT_RUN` |
+| 운영자 캠페인 연장 | `IMPLEMENTED`(공개 반영 `NOT_RUN`) | 남은 일수·30/90일 연장, 종료 시각 비교 후 갱신·365일 상한·감사 기록(migration 0043). 로컬 mock API 30일 연장 확인 PASS, 실제 Google 웹 세션 `NOT_RUN` |
+| 쿠폰 만료·캠페인 종료 앱 안내 | `IMPLEMENTED`(공개 반영 `NOT_RUN`) | 홈 쿠폰 만료 3일 이내 안내·쿠폰 칩, 점주 현황 캠페인 종료 14일 이내 안내, push 없음. 쿠폰 안내 에뮬레이터 PASS, 기기 점주 현황 안내 `NOT_RUN` |
 
 상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED / NOT_RUN`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
 

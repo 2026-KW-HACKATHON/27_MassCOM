@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AuthControllerError } from '@/auth/auth-controller';
-import { statusAnnouncement } from '@/accessibility/status-copy';
+import { guestTrialFailureMessage } from '@/auth/guest-trial-copy';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
 import { FloatingCard } from '@/ui/floating-card';
@@ -99,11 +99,5 @@ export function AuthRequiredScreen({ state, canStartGuestTrial, onGuestSignIn, o
 
 function reasonMessage(state: Props['state']): string {
   if (state.status !== 'signedOut' || !state.reason) return '체험 시작이 필요합니다.';
-  if (state.reason === 'SECURE_STORAGE_UNAVAILABLE') {
-    return '이 브라우저에 체험 기록을 저장할 수 없어 복원하지 않았습니다.';
-  }
-  if (state.reason === 'WEB_SHOWCASE_ONLY' || state.reason === 'CONFIGURATION_REQUIRED') {
-    return '웹 체험판은 시연 전용이에요.';
-  }
-  return statusAnnouncement('login-failed', { reason: state.reason });
+  return guestTrialFailureMessage(state.reason, 'web');
 }

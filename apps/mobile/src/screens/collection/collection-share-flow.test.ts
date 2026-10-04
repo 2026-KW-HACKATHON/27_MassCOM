@@ -20,9 +20,8 @@ function baseDeps(overrides: Partial<CollectionShareDeps> = {}): CollectionShare
     imagesReady: async () => {},
     settle: async () => {},
     captureViewAsPng: async () => 'file://card.png',
-    shareImageFile: async () => true,
+    exportImageFile: async () => 'shared',
     isAlive: () => true,
-    captureUnsupported: false,
     ...overrides,
   };
 }
@@ -34,22 +33,24 @@ test('a normal share captures the card and opens the share sheet', async () => {
     imagesReady: async () => { calls.push('images'); },
     settle: async () => { calls.push('settle'); },
     captureViewAsPng: async () => { calls.push('capture'); return 'file://card.png'; },
-    shareImageFile: async (uri) => { calls.push(`share:${uri}`); return true; },
+    exportImageFile: async (uri) => { calls.push(`export:${uri}`); return 'shared'; },
   }));
   assert.equal(outcome, 'shared');
   // 그림이 다 불러와진 뒤에 찍는다.
-  assert.deepEqual(calls, ['frame', 'images', 'settle', 'capture', 'share:file://card.png']);
+  assert.deepEqual(calls, ['frame', 'images', 'settle', 'capture', 'export:file://card.png']);
 });
 
-test('an unavailable share sheet is reported as unavailable, not as a failure', async () => {
-  assert.equal(await performCollectionShare(baseDeps({ shareImageFile: async () => false })), 'unavailable');
+test('browser save and platform cancellation are reported accurately', async () => {
+  assert.equal(await performCollectionShare(baseDeps({ exportImageFile: async () => 'saved' })), 'saved');
+  assert.equal(await performCollectionShare(baseDeps({ exportImageFile: async () => 'cancelled' })), 'cancelled');
+  assert.equal(await performCollectionShare(baseDeps({ exportImageFile: async () => 'unavailable' })), 'unavailable');
 });
 
 test('a card that never mounted (nothing to capture) fails without opening the sheet', async () => {
   let shareCalls = 0;
   const outcome = await performCollectionShare(baseDeps({
     captureViewAsPng: async () => undefined,
-    shareImageFile: async () => { shareCalls += 1; return true; },
+    exportImageFile: async () => { shareCalls += 1; return 'shared'; },
   }));
   assert.equal(outcome, 'failed');
   assert.equal(shareCalls, 0);
@@ -57,7 +58,8 @@ test('a card that never mounted (nothing to capture) fails without opening the s
 
 test('a capture or share error resolves to failed instead of throwing', async () => {
   assert.equal(await performCollectionShare(baseDeps({ captureViewAsPng: async () => { throw new Error('capture failed'); } })), 'failed');
-  assert.equal(await performCollectionShare(baseDeps({ shareImageFile: async () => { throw new Error('share failed'); } })), 'failed');
+  assert.equal(await performCollectionShare(baseDeps({ exportImageFile: async () => { throw new Error('share failed'); } })), 'failed');
+  assert.equal(await performCollectionShare(baseDeps({ imagesReady: async () => { throw new Error('image timeout'); } })), 'failed');
 });
 
 test('a screen that unmounted before the capture stops the job there', async () => {
@@ -80,7 +82,7 @@ test('a screen that unmounted while capturing never reaches the share sheet', as
   const running = performCollectionShare(baseDeps({
     isAlive: () => alive,
     captureViewAsPng: () => { captureStarted.resolve(); return capture.promise; },
-    shareImageFile: async () => { shareCalls += 1; return true; },
+    exportImageFile: async () => { shareCalls += 1; return 'shared'; },
   }));
   await captureStarted.promise;
   alive = false;
@@ -91,31 +93,22 @@ test('a screen that unmounted while capturing never reaches the share sheet', as
 
 test('isAlive is handed to the share step so it can re-check right before the sheet opens', async () => {
   let handedOver: (() => boolean) | undefined;
-  await performCollectionShare(baseDeps({ shareImageFile: async (_uri, isAlive) => { handedOver = isAlive; return true; } }));
+  await performCollectionShare(baseDeps({ exportImageFile: async (_uri, isAlive) => { handedOver = isAlive; return 'shared'; } }));
   assert.equal(typeof handedOver, 'function');
 });
 
-test('a share step that declined because the screen went away is stopped, not "unavailable"', async () => {
+test('an export step that ended with account cancellation is stopped', async () => {
   let alive = true;
   const outcome = await performCollectionShare(baseDeps({
     isAlive: () => alive,
-    shareImageFile: async () => { alive = false; return false; },
+    exportImageFile: async () => { alive = false; return 'cancelled'; },
   }));
   assert.equal(outcome, 'stopped');
 });
 
-test('on a platform that cannot capture or share (web), a capture failure is "unsupported", not a retry-later failure', async () => {
-  const web = { captureUnsupported: true };
-  assert.equal(await performCollectionShare(baseDeps({ ...web, captureViewAsPng: async () => { throw new Error('html2canvas failed'); } })), 'unavailable');
-  assert.equal(await performCollectionShare(baseDeps({ ...web, captureViewAsPng: async () => undefined })), 'unavailable');
-  assert.equal(await performCollectionShare(baseDeps({ ...web, shareImageFile: async () => { throw new Error('Sharing is not available'); } })), 'unavailable');
-  assert.equal(await performCollectionShare(baseDeps({ ...web, shareImageFile: async () => false })), 'unavailable');
-});
-
-test('on web a screen that went away is still stopped, not reported as unsupported', async () => {
+test('a screen that went away during a failed capture is stopped', async () => {
   let alive = true;
   const outcome = await performCollectionShare(baseDeps({
-    captureUnsupported: true,
     isAlive: () => alive,
     captureViewAsPng: async () => { alive = false; throw new Error('capture failed'); },
   }));
@@ -123,11 +116,11 @@ test('on web a screen that went away is still stopped, not reported as unsupport
 });
 
 test('the notice is Korean and only shown when the person still needs to know', () => {
-  assert.match(collectionShareNotice('unavailable') ?? '', /공유를 지원하지 않는 환경이에요/);
-  assert.doesNotMatch(collectionShareNotice('unavailable') ?? '', /다시 시도/);
+  assert.match(collectionShareNotice('unavailable') ?? '', /내보낼 수 없어요/);
+  assert.match(collectionShareNotice('saved') ?? '', /이미지를 저장했어요/);
+  assert.match(collectionShareNotice('shared') ?? '', /공유 창을 열었어요/);
+  assert.match(collectionShareNotice('cancelled') ?? '', /취소했어요/);
   assert.match(collectionShareNotice('failed') ?? '', /도감 카드를 만들지 못했어요/);
-  assert.match(collectionShareNotice('failed') ?? '', /잠시 후 다시 시도해 주세요/);
-  assert.equal(collectionShareNotice('shared'), undefined);
   assert.equal(collectionShareNotice('stopped'), undefined);
 });
 
@@ -135,10 +128,10 @@ test('the image gate opens once every expected picture reported in', async () =>
   const gate = createImageLoadGate(2);
   let opened = false;
   const waiting = gate.wait(1000).then(() => { opened = true; });
-  gate.markLoaded();
+  gate.markLoaded('mascot');
   await Promise.resolve();
   assert.equal(opened, false);
-  gate.markLoaded();
+  gate.markLoaded('picture-1');
   await waiting;
   assert.equal(opened, true);
 });
@@ -147,15 +140,19 @@ test('the image gate does not wait when no picture is expected', async () => {
   await createImageLoadGate(0).wait(1000);
 });
 
-test('the image gate gives up after its timeout so a broken picture cannot hold the share forever', async () => {
+test('image failure or timeout rejects before capture', async () => {
+  const failed = createImageLoadGate(2);
+  const waiting = failed.wait(1000);
+  failed.markFailed('picture-1');
+  await assert.rejects(waiting, /IMAGE_LOAD_FAILED/);
   const started = Date.now();
-  await createImageLoadGate(3).wait(20);
+  await assert.rejects(createImageLoadGate(3).wait(20), /IMAGE_LOAD_TIMEOUT/);
   assert.ok(Date.now() - started < 500);
 });
 
 test('extra load reports after the gate opened change nothing', async () => {
   const gate = createImageLoadGate(1);
-  gate.markLoaded();
-  gate.markLoaded();
+  gate.markLoaded('mascot');
+  gate.markLoaded('mascot');
   await gate.wait(1000);
 });

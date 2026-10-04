@@ -31,9 +31,9 @@ function callBodies(source: string, name: string): string[] {
 test('the map route wears the standard sky header with the illustration disclosure, once', () => {
   assert.match(route, /<AppHeader title=\{TOWN_MAP_TITLE\} subtitle=\{TOWN_MAP_DISCLOSURE\} \/>/);
   assert.match(screen, /<AppHeader title=\{TOWN_MAP_TITLE\} subtitle=\{TOWN_MAP_DISCLOSURE\} \/>/);
-  // The header drops its subtitle at 150% text; the same sentence then sits above the map instead.
-  assert.match(screen, /isLargeText\(fontScale\)/);
-  assert.equal((screen.match(/TOWN_MAP_DISCLOSURE/g) ?? []).length >= 2, true);
+  // AppHeader wraps its subtitle at large text, so an extra disclosure below duplicates it.
+  assert.equal((screen.match(/TOWN_MAP_DISCLOSURE/g) ?? []).length, 2, 'import and one rendered occurrence');
+  assert.doesNotMatch(screen, /styles\.disclosure/);
 });
 
 test('the map screen sits on the sky like the other tabs: scrim, header in the scroll content, tab bar clearance', () => {

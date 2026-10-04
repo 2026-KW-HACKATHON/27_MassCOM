@@ -5,6 +5,31 @@ import test from 'node:test';
 // Source checks (react-native views can't go through the node:test/esbuild runner, see HANDOFF).
 const source = readFileSync(new URL('./collectible-browser.tsx', import.meta.url), 'utf8');
 
+test('both card types fill one column at large font scale and keep grades visible', () => {
+  // 카드 폭은 격자의 실제 폭으로 정한다(비율 폭은 좁은 화면에서 한 줄에 한 장만 좁게 남는다).
+  assert.match(source, /collectionCardLayout\(gridWidth, fontScale\)\.width/);
+  // 잰 폭은 내림한다. 올림하면 311.6dp 격자가 312로 저장돼 150dp 카드 두 장과 간격이 실제 폭을 넘는다.
+  assert.match(source, /onLayout=\{\(event\) => setGridWidth\(Math\.floor\(event\.nativeEvent\.layout\.width\)\)\}/);
+  assert.match(source, /<GroupCard[^>]*cardWidth=\{cardWidth\}/s);
+  assert.match(source, /<LegacyCard[^>]*cardWidth=\{cardWidth\}/s);
+  assert.equal((source.match(/styles\.groupCard, \{ width: cardWidth \}/g) ?? []).length, 2);
+  assert.doesNotMatch(source, /width: '48%'/);
+  assert.match(source, /numberOfLines=\{1\} adjustsFontSizeToFit minimumFontScale=\{0\.8\} style=\{collectionStyles\.walletButtonText\}/);
+  assert.match(source, /numberOfLines=\{2\}[^>]*groupName[^>]*>\{group\.artwork\.name\}/);
+  assert.match(source, /numberOfLines=\{2\}[^>]*groupMeta[^>]*>\{group\.artwork\.gradeName\} · \{group\.merchantName\}/);
+  assert.match(source, /numberOfLines=\{2\}[^>]*groupMeta[^>]*>\{detail\.gradeName\} · \{item\.merchantName\}/);
+  assert.match(source, /numberOfLines=\{2\}[^>]*favoriteName[^>]*>\{group\.artwork\.name\}/);
+  assert.match(source, /favoriteGrade[^>]*>\{group\.artwork\.gradeName\}/);
+});
+
+test('NFT label and value stack inside both cards and earned dates use the Korean date formatter', () => {
+  assert.match(source, /<View style=\{styles\.nftSummary\}>\s*<Text style=\{collectionStyles\.nftLabel\}>실제 NFT<\/Text>\s*<Text style=\{collectionStyles\.nftValue\}>\{summary\}<\/Text>/);
+  assert.match(source, /nftSummary: \{ alignItems: 'flex-start', gap: 2 \}/);
+  // 날짜는 한국 날짜 계산을 쓰는 collectible-groups의 earnedDateLabel로만 만든다.
+  assert.match(source, /earnedDateLabel/);
+  assert.doesNotMatch(source, /iso\.slice\(0, 10\)/);
+});
+
 // PR #301 리뷰: 묶인 카드(같은 그림을 두 번 이상 받음)는 요약 배지(nftGroupSummary)만 보이고, 각 벌의 실제 상태·수령인·
 // 토큰 정보를 볼 길이 없었다. 요약 줄과 민트 단추(첫 발행 가능한 벌 대상)는 유지한 채 펼쳐 볼 수 있게 했다.
 test('NftStatusRow lets a grouped (duplicate) card expand to each entitlement\'s own status/recipient/token (#301 review)', () => {

@@ -432,6 +432,9 @@ video { width: 100%; max-width: 28rem; aspect-ratio: 4 / 3; object-fit: cover; b
 .admin-funnel-totals > div { min-width: 0; padding: 12px 14px; border-radius: var(--mc-radius-control); background: var(--mc-bg); }
 .admin-funnel-totals dt { color: var(--mc-secondary); font-size: .88rem; font-weight: 700; }
 .admin-funnel-totals dd { margin: 4px 0 0; color: var(--mc-label); font-size: 1.4rem; font-weight: 800; }
+#admin-play-metrics { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--mc-separator); }
+#admin-play-games { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; }
+#admin-play-games p { margin: 0; padding: 10px 12px; background: var(--mc-surface); border-radius: var(--mc-radius-control); }
 .admin-funnel-table-wrap { max-width: 100%; overflow-x: auto; }
 .admin-funnel-table-wrap:focus-visible { outline: 2px solid var(--mc-primary); outline-offset: 2px; }
 #admin-funnel-table { width: 100%; min-width: 48rem; border-collapse: collapse; text-align: right; font-variant-numeric: tabular-nums; }
@@ -516,4 +519,35 @@ fieldset.admin-consent legend { padding: 0 6px; font-weight: 800; }
   .passport-stamp { width: 84px; height: 84px; }
   .ticket-redeemed .ticket-main { padding-right: 116px; }
   .ticket-stamp { right: 14px; width: 84px; height: 84px; top: calc((100% - var(--foot)) / 2 - 42px); font-size: .95rem; }
+}
+
+/* 운영 정보와 인쇄 안내문은 외부 스타일시트만 사용한다. */
+.merchant-profile-form { display: grid; gap: 16px; }
+.merchant-profile-form textarea { width: 100%; min-height: 6rem; }
+.merchant-menu-row { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-block: 12px; }
+.merchant-menu-row label { flex: 1 1 12rem; min-width: 0; }
+.merchant-menu-row input { width: 100%; }
+.merchant-field-error { color: var(--mc-error); }
+.merchant-dirty { color: var(--mc-secondary); }
+.install-poster { display: none; }
+@page merchant-poster { size: A4 portrait; margin: 15mm; }
+@media print {
+  body:has(> .install-poster) { background: white; color: black; min-height: 0; }
+  body:has(> .install-poster) > :not(.install-poster) { display: none !important; }
+  body:has(> .install-poster) > .install-poster { display: block !important; color: black; background: white; }
+  /* 매장에 붙여 두고 떨어져서 읽는 안내문: 글자와 QR을 크게, 단계는 가운데 한 묶음으로 둔다. */
+  .install-poster { page: merchant-poster; width: 100%; padding: 8mm 12mm; font-size: 20pt; line-height: 1.4;
+    text-align: center; break-inside: avoid; }
+  .install-poster h1 { font-size: 40pt; margin-block: 8mm 4mm; }
+  .install-poster h2 { font-size: 30pt; margin-block: 4mm 10mm; }
+  .install-poster ol { display: inline-block; list-style: none; margin: 0; padding: 0; text-align: left; }
+  .install-poster li { margin-block: 6mm; }
+  .install-poster img { display: block; width: 75mm; height: 75mm; margin: 10mm auto 3mm; }
+  .install-poster footer { font-size: 12pt; margin-top: 10mm; }
+}
+
+/* 가게 정보와 캠페인 안내는 빈 상태에서도 보조 기술의 알림 영역을 유지한다. */
+#merchant-profile-status:empty, #merchant-profile-dirty:empty, #merchant-campaign-ending:empty, #admin-status:empty {
+  display: block; position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }

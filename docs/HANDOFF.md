@@ -1,5 +1,26 @@
 # HANDOFF
 
+## 2026-10-05 시연 준비와 점포 운영 보완 (Issue #365)
+
+- 브랜치 `feat/365-demo-ready`, 기준 main `f1013b7f`, 문서 수정 전 HEAD `fb5d8c54`. PR #362(지갑·로그인·동의 하늘 테마)·PR #364(동행 공간·네 게임, migration 0042·처리방침 04, 리뷰 수정)는 이미 main에 병합됐다.
+- 시연 점포 C는 5회에 프리즘(A·B는 브론즈·실버·골드, 목표 1·3·5 유지), 재시드는 이전 seed 게시물만 한 번 교체하며 점주 게시물·이미 발급된 보상을 보존한다. 시연 일일 작업은 보관 기간 정리 후 host seed를 실행해 타이머가 도는 동안 가상 점포 캠페인을 유지한다. 운영 호스트 작업은 그대로다. 네이티브 시연 첫 화면의 테두리 버튼 “로그인 없이 바로 체험”과 내 정보 “체험 처음부터 다시”, 24시간 임시 계정·전용 체험 가게·점주 화면을 추가했다. 운영 앱에는 노출·호출하지 않으며, 계정을 주입한 로컬 개발 빌드는 DEMO로 시작한다. 5분 발표 안내는 [DEMO_RUNBOOK](DEMO_RUNBOOK.md), 결정은 D-073…D-079다.
+- 운영자 캠페인은 남은 일수·“곧 종료”/“종료됨”, 30/90일 연장(종료 시각 비교 후 갱신·365일 상한·`CAMPAIGN_EXTENDED` 감사, migration `0043_campaign_extended_audit.sql`)을 제공한다. 점주 웹은 14일 전 종료 안내, 소개·영업시간·메뉴 편집(OWNER 또는 배포 설정이 허용한 STAFF, 공용 시연 가게 읽기 전용·버전 충돌 409·이름/주소는 운영자만), `www.masscom.kr/open` 설치 QR의 A4 포스터를 제공한다. 앱은 3일 이내 쿠폰 만료 홈 안내·쿠폰 칩과 점주 현황 탭의 14일 이내 캠페인 종료 안내를 제공하며 push 알림은 없다.
+- 쿠폰 공개 모달 스크롤, 가게 주소·큰 글자 상세·배지·한국어 소제목, 도감 등급 우선·한국 시간 날짜·NFT 상태 세로 배치·글자 200% 한 열/100% 잰 폭의 두 열, 방문 축하 주요 행동 우선·남은 구분선 제거, `/merchant` 이용 불가 안내 스타일, 지도 안내 한 번 표시, 놀이 결과 진행·오래된 토스트·“아직 기록이 없어요”, 발급 코드 문구·단일 카드 봉투 페이지 표시를 보완했다.
+- 검증은 [TEST_STATUS](TEST_STATUS.md)·[근거](evidence/demo-ready-2026-10-05/README.md). PASS: API 462/462·DB 통합 413 PASS/기존 조건부 3 SKIP, 모바일 1502/1502, 사이트 339/339·관련 웹 186/186, 타입·API 빌드·모바일 lint·지갑 표면·접근성·호스트 작업·gate. 독립 재검토 Critical 0 / Important 0. 에뮬레이터 개발 빌드·로컬 시연 DB의 200%/100% 화면과 mock API 웹 확인을 공개 서버·실폰 검증과 구분한다.
+- 다음 작업: 병합 → 운영·시연 새 APK 빌드·게시를 서버 배포와 함께 진행한다. 처리방침 `privacy-2026-10-04`가 이전 설치본을 업데이트 안내로 막으므로 서버만 먼저 반영하지 않는다. 시연 배포에는 migration 0042·0043 적용 → 재시드 → 새 일일 host seed 작업 설치·실행 확인 → 시연 웹 체험 번들 재빌드가 필요하다. 이어 두 설치본의 실폰 확인과 새 웹 기능의 실제 점주/운영자 Google 세션 확인을 진행한다. 이 브랜치의 공개 서버 배포·새 공개 APK·시연 웹 체험 번들 재빌드·시연 호스트 작업 설치는 모두 `NOT_RUN`이다.
+- 위험·남은 확인: 점포 C를 이미 완료한 계정의 기존 골드는 프리즘으로 교체되지 않는다. 프리즘 확인은 C를 아직 완료하지 않은 계정으로 한다. 가상 점포 fixture 문구를 바꾸면 일일 seed는 오류로 실패하므로 실행 로그를 확인한다. `NOT_RUN`: Samsung·TalkBack·물리 기울임, 실제 시연 서버의 체험 다시 시작 성공, 기기의 점주 현황 안내·점주 홈, 운영 로그인·실제 QR·지갑, 실제 웹 로그인 세션·종이 인쇄·DB 복원 훈련. 로컬 재시작은 세션 회수 불가 사유와 로그아웃·새 체험 안내까지 확인했고, 로그아웃→새 체험 순서는 단위 시험만 검증했다.
+- `tools/gate.sh`는 PASS다. README와 PROJECT_STATE의 “현재 자동 시험 합계” 한 줄은 운영 문서 검사가 서로 같은지 보는 고정 문구라 그대로 두고, 이번 수치는 그 뒤에 따로 적었다. 후속 배포·실기 결과는 해당 작업의 새 기록으로 갱신한다.
+
+## 2026-10-04 방문·동행·공간·네 게임 (Issue #363)
+
+- 브랜치 `feat/connected-play-collection`, 기준 `origin/main 237d5471`. 최신 원격을 다시 fetch해 동일 기준을 확인했다. 새 게임 4종, 서버 검증, 공간·친구·공유, 주간 목표, 점주 제작기, 운영 집계를 통합했고 기존 보유권·마일리지·쿠폰·방문 규칙을 유지했다.
+- 구현 `779d15d7`, 환경 복구 기록 `3604be5b`를 push했고 [PR #364](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/364)를 생성했다. GitHub CI 완료나 공개 배포를 PR 생성으로 대신 주장하지 않는다.
+- 검증은 [TEST_STATUS](TEST_STATUS.md)와 [전용 증거](evidence/connected-play-2026-10-04/README.md). API 403/403·모바일 1395/1395·사이트 467/467, PostgreSQL 400 PASS/3 SKIP, 타입/lint/build 및 실제 Chrome·개발 APK/에뮬레이터를 구분한다. 독립 핵심 재검토 APPROVE. 공개 서버/새 공개 설치본/실제 점포 QR/Samsung 새 기능/TalkBack은 NOT_RUN이다.
+- 미리보기: 로컬 8095 Node 게이트웨이 → 로컬 API 4310 → 별도 Docker `masscom-connected-play-qa` 55542의 `masscom_showcase_test`; 실제 운영 DB/계정은 건드리지 않았다. `/play`, `/studio`, 기존 방문·도감·상점에서 연결된다. 게이트웨이 스크립트/QA 로그는 ignored `.tmp`에 있다.
+- Expo57의 `expo/virtual/env`가 기존 ignored `.env.local`을 합쳐 테스트 설정을 덮어쓰는 것을 확인했다. 변형별 번들 검증 동안만 격리했고, 완료 뒤 SHA-256·권한·원래 mtime을 확인해 복구했다. 에뮬레이터 font_scale 2.0과 transition scale 1.0도 원상 복구했다. Metro8094는 종료했고 미리보기8095/API4310은 유지한다. 원본값이나 키는 로그·커밋에 넣지 않았다.
+- 공개반영전 migration0042·개인정보04 문서/동의·최신앱을 함께 배포하고 새그림/게임/공간을 실기최종확인한다. 코드롤백때새사용자기록표를 DROP하지 않는다. 기존공개 test.9/Preview18이 새기능을 포함한다고 기록하지 않는다.
+- 다음 확인 명령: `gh pr checks 364`, `bash tests/site/verify_project_site_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh`. 공개 반영은 별도 출시 결정 범위다.
+
 ## 2026-10-03 하늘 동네 테마에서 빠졌던 화면 통일 ([Issue #338](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/338), 브랜치 `feat/sky-theme-unify-screens`)
 
 - 기준: main `5a0465ed`에서 딴 로컬 브랜치. **아직 커밋·push·PR 없음.** 같은 작업 트리에 이 작업과 무관한 미커밋 변경(`apps/mobile/app.json`·`package.json`·`package-lock.json`, `scripts/qa-local.sh`)과 캡처 PNG들이 있으니 커밋할 때 바뀐 화면 파일·`src/ui/sky-banner.tsx`·`DESIGN.md`·`docs/` 네 문서만 골라 담는다. `app.json`의 `expo-sharing` 때문에 `config/build-environment` 시험 3건이 실패한다(이 작업과 무관).

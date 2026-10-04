@@ -15,10 +15,12 @@ import {
   type AdminDeletionIntake,
   type DeletionIntakeStatusView,
 } from './account-deletion-intake.js';
-import { ConsentError, type ConsentErrorCode, type ConsentService } from './account-consent.js';
+import { ConsentError, CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION,
+  type ConsentErrorCode, type ConsentService } from './account-consent.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardErrorCode, type BadgeRewardService } from './badge-rewards.js';
 import { FriendError, type FriendErrorCode, type FriendService } from './friends.js';
+import type { PlayService } from './play.js';
 import { GoogleIdTokenError } from './google-id-token.js';
 import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
 import { WebAuthError, type WebAuthHandler } from './web-auth.js';
@@ -48,6 +50,7 @@ import {
   type RedeemedClaimSlot,
 } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
+import type { MerchantProfileService } from './merchant-profile.js';
 import type { MileageShopHistory, MileageShopService, MileageShopSnapshot } from './mileage-shop.js';
 import { MerchantOverviewError, type MerchantOverview, type MerchantOverviewReader } from './merchant-overview-rules.js';
 import { ReversalError, type ReversalErrorCode, type ReversalService } from './reversal.js';
@@ -75,11 +78,11 @@ type MerchantAccessFixture = {
   requirePermission(input: {
     accountId: string;
     merchantId: string;
-    permission: 'VIEW_MERCHANT' | 'CONFIRM_VISIT' | 'MANAGE_ART';
+    permission: 'VIEW_MERCHANT' | 'CONFIRM_VISIT' | 'MANAGE_ART' | 'MANAGE_PROFILE';
   }): Promise<{
     merchantId: string;
     role: 'OWNER' | 'STAFF';
-    permissions: readonly ('VIEW_MERCHANT' | 'CONFIRM_VISIT' | 'MANAGE_ART')[];
+    permissions: readonly ('VIEW_MERCHANT' | 'CONFIRM_VISIT' | 'MANAGE_ART' | 'MANAGE_PROFILE')[];
   }>;
 };
 
@@ -246,6 +249,8 @@ async function startFixture(
   collectiblePreview?: CollectiblePreviewService,
   merchantDetailViews?: MerchantDetailViewService,
   adminFunnel?: AdminFunnelReader,
+  play?: PlayService,
+  merchantProfile?: MerchantProfileService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -294,6 +299,8 @@ async function startFixture(
     collectiblePreview,
     merchantDetailViews,
     adminFunnel,
+    play,
+    merchantProfile,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -1641,7 +1648,11 @@ test('admin store go-live routes need the admin session, same-origin JSON and kn
   assert.deepEqual(await (await webRequest(base, '/api/web/admin/reward-offers', { headers: cookie })).json(), { offers: [offer] });
   assert.equal((await post(`/api/web/admin/reward-offers/${offer.id}/pause`, { force: true })).status, 400);
   assert.deepEqual(await (await post(`/api/web/admin/reward-offers/${offer.id}/pause`, {})).json(), { offer, replayed: false });
-  assert.deepEqual(await (await webRequest(base, '/api/web/admin/campaigns', { headers: cookie })).json(), { campaigns: [campaign] });
+  const campaignList = await (await webRequest(base, '/api/web/admin/campaigns', { headers: cookie })).json() as {
+    campaigns: unknown[]; generatedAt: string;
+  };
+  assert.deepEqual(campaignList.campaigns, [campaign]);
+  assert.equal(new Date(campaignList.generatedAt).toISOString(), campaignList.generatedAt);
   assert.deepEqual(await (await post('/api/web/admin/campaigns/campaign-1/publish', {})).json(), { campaign, replayed: false });
   assert.deepEqual(await (await post('/api/web/admin/campaigns/campaign-1/pause', {})).json(), { campaign, replayed: true });
   assert.deepEqual(calls, [
@@ -1709,7 +1720,8 @@ test('merchant registration uses host-bound web cookie and rejects foreign-origi
   };
   let writes = 0;
   const staff = {
-    mine: async () => [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF', artUrl: '/merchant-art/test.webp' }],
+    mine: async () => [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF', artUrl: '/merchant-art/test.webp',
+      menuItems: [{ name: '대표 메뉴', priceWon: 9000 }] }],
     eligible: async () => [{ id: 'real-merchant', name: '실제 점포' }],
     request: async (accountId: string, merchantId: string) => {
       assert.equal(accountId, 'staff-account');
@@ -1732,7 +1744,8 @@ test('merchant registration uses host-bound web cookie and rejects foreign-origi
   const me = await webRequest(base, '/api/web/merchant/me', { headers: { cookie: 'web_session=merchant-cookie' } });
   assert.equal(me.status, 200);
   assert.deepEqual((await me.json() as { merchants: unknown[] }).merchants,
-    [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF', artUrl: '/merchant-art/test.webp' }]);
+    [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF', artUrl: '/merchant-art/test.webp',
+      menuItems: [{ name: '대표 메뉴', priceWon: 9000 }] }]);
   assert.equal((await webRequest(base, '/api/web/merchant/me', {
     headers: { cookie: 'web_session=merchant-cookie' }, host: 'api.masscom.kr',
   })).status, 403);
@@ -4666,7 +4679,7 @@ test('admin coupon routes list and void behind the admin cookie, origin and JSON
   assert.equal((await webRequest(denied, voidPath, { method: 'POST', headers, body: '{"reason":"OTHER"}' })).status, 403);
 });
 
-const consentVersions = { termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-01' };
+const consentVersions = { termsVersion: CURRENT_TERMS_VERSION, privacyVersion: CURRENT_PRIVACY_VERSION };
 const consentBody = { ...consentVersions, ageConfirmed: true, termsAccepted: true, privacyAccepted: true };
 
 function consentFixture(
@@ -5153,4 +5166,65 @@ test('web merchant feedback summary needs the web session, permission and member
   const missing = await webRequest(unconfigured, '/api/web/merchant/merchants/real-merchant/visitor-feedback', { headers: { cookie } });
   assert.equal(missing.status, 503);
   assert.deepEqual(await missing.json(), { code: 'VISITOR_FEEDBACK_NOT_CONFIGURED' });
+});
+
+test('play and studio routes require identity and reject malformed actions before invoking the service', async (t) => {
+  const calls: string[] = [];
+  const play: PlayService = {
+    start: async ({ accountId, kind }) => {
+      calls.push(`start:${accountId}:${kind}`);
+      return { id: '00000000-0000-4000-8000-000000000001', kind, seed: 1,
+        startedAt: '2026-10-04T00:00:00.000Z', expiresAt: '2026-10-04T00:00:45.000Z',
+        durationMs: 30000, rulesVersion: 1 };
+    },
+    finish: async ({ accountId, actions }) => {
+      calls.push(`finish:${accountId}:${actions.length}`);
+      return { kind: 'stack', score: 100, bestScore: 100, plays: 1, completed: true,
+        correct: 1, total: 6, unlockedThemes: [] };
+    },
+    getPlay: async (accountId) => { calls.push(`play:${accountId}`); return { records: [], unlockedThemes: [] }; },
+    getStudio: async (accountId) => { calls.push(`studio:${accountId}`); return {
+      studio: { theme: 'daylight', layout: 'shelf', accent: 'mint', slots: [], goal: null },
+      records: [], unlockedThemes: [], items: [], avatar: null,
+    }; },
+    saveStudio: async ({ accountId, studio }) => { calls.push(`save:${accountId}`); return {
+      studio, records: [], unlockedThemes: [], items: [], avatar: null,
+    }; },
+    getFriendStudio: async ({ accountId, friendshipId }) => { calls.push(`friend:${accountId}:${friendshipId}`); return {
+      nickname: 'Friend', studio: { theme: 'daylight', layout: 'shelf', accent: 'mint', goal: null },
+      items: [], avatar: null,
+    }; },
+    recordEvent: async ({ accountId, event }) => { calls.push(`event:${accountId}:${event}`); },
+    aggregate: async (days) => ({ days, events: [], games: [] }),
+  };
+  const args: Parameters<typeof startFixture> = [t];
+  args[26] = consentFixture({ status: async () => ({ required: false, ...consentVersions }) });
+  args[35] = play;
+  const base = await startFixture(...args);
+  const headers = { 'x-account-id': 'player', 'content-type': 'application/json' };
+  for (const [method, path, body] of [
+    ['GET', '/me/play', undefined],
+    ['POST', '/me/play/runs', JSON.stringify({ kind: 'stack' })],
+    ['POST', '/me/play/runs/00000000-0000-4000-8000-000000000001/finish', JSON.stringify({ actions: [] })],
+    ['POST', '/me/play/events', JSON.stringify({ event: 'share-open' })],
+    ['GET', '/me/studio', undefined],
+    ['PUT', '/me/studio', JSON.stringify({ studio: { theme: 'daylight', layout: 'shelf', accent: 'mint', slots: [], goal: null } })],
+    ['GET', '/friends/friendship-1/studio', undefined],
+  ] as const) {
+    assert.equal((await fetch(`${base}${path}`, { method, headers: { 'content-type': 'application/json' },
+      ...(body === undefined ? {} : { body }) })).status, 401,
+      `${method} ${path}`);
+  }
+  assert.equal((await fetch(`${base}/me/play`, { headers })).status, 200);
+  assert.equal((await fetch(`${base}/me/play/runs`, { method: 'POST', headers,
+    body: JSON.stringify({ kind: 'unknown' }) })).status, 400);
+  assert.equal((await fetch(`${base}/me/play/runs`, { method: 'POST', headers,
+    body: JSON.stringify({ kind: 'stack' }) })).status, 201);
+  assert.equal((await fetch(`${base}/me/play/runs/00000000-0000-4000-8000-000000000001/finish`, {
+    method: 'POST', headers, body: JSON.stringify({ actions: [{ at: 1, choice: 0, score: 999 }] }),
+  })).status, 400);
+  assert.equal((await fetch(`${base}/me/play/runs/00000000-0000-4000-8000-000000000001/finish`, {
+    method: 'POST', headers, body: JSON.stringify({ actions: [{ at: 1, choice: 0 }] }),
+  })).status, 200);
+  assert.deepEqual(calls, ['play:player', 'start:player:stack', 'finish:player:1']);
 });

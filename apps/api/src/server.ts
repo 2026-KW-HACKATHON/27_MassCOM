@@ -10,7 +10,7 @@ import {
   AccountDeletionError,
   type AccountDeletionService,
 } from './account-deletion.js';
-import { ConsentError, type ConsentService } from './account-consent.js';
+import { ConsentError, CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, type ConsentService } from './account-consent.js';
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardService } from './badge-rewards.js';
 import { OpenAiImageClient } from './ai-art-client.js';
@@ -19,6 +19,8 @@ import { isRewardMilestone } from './badge-rules.js';
 import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
 import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
 import { FriendError, type FriendService } from './friends.js';
+import { PlayError, type PlayService, type Studio } from './play.js';
+import { isGameKind, type GameAction } from './play-rules.js';
 import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js';
 import { WebAuthError, WebAuthService, resolveWebAuthConfig, type WebAuthHandler } from './web-auth.js';
 import { WebSessionError, freshWebSessionMs } from './web-session.js';
@@ -45,6 +47,7 @@ import {
   type MerchantAccessControl,
 } from './merchant-access.js';
 import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
+import { MerchantProfileError, type MerchantProfileService } from './merchant-profile.js';
 import { MerchantOverviewError, type MerchantOverviewReader } from './merchant-overview-rules.js';
 import { MerchantDiscoveryError, isDetailViewSource, type CollectiblePreviewService, type MerchantDetailViewService } from './merchant-discovery.js';
 import type { AdminFunnelReader } from './admin-funnel.js';
@@ -72,6 +75,7 @@ import { PostgresAccountDeletionIntakeService } from './postgres/account-deletio
 import { PostgresAccountDeletionProcessingService } from './postgres/account-deletion-processing.js';
 import { PostgresBadgeRewardService } from './postgres/badge-rewards.js';
 import { PostgresFriendService } from './postgres/friends.js';
+import { PostgresPlayService } from './postgres/play.js';
 import { PostgresMerchantOverviewService } from './postgres/merchant-overview.js';
 import { PostgresCollectiblePreviewService, PostgresMerchantDetailViewService } from './postgres/merchant-discovery.js';
 import { PostgresAdminFunnelService } from './postgres/admin-funnel.js';
@@ -86,6 +90,7 @@ import { GuestTrialError, ShowcaseGuestTrialService } from './showcase/guest-tri
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresCollectibleProjectService } from './postgres/collectible-project.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
+import { PostgresMerchantProfileService } from './postgres/merchant-profile.js';
 import { PostgresMerchantArtService } from './postgres/merchant-art.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 import { PostgresNftMetadataReader } from './postgres/nft-metadata.js';
@@ -218,7 +223,7 @@ export function createApiServer(
     Partial<Pick<PostgresAdminService, 'operationsStatus' | 'listCampaignDrafts' | 'createCampaignDraft' |
       'listMerchantCoupons' | 'voidCoupon' | 'publishMerchant' | 'listOwners' | 'promoteOwner' | 'demoteOwner' |
       'listRewardOffers' | 'createRewardOffer' | 'pauseRewardOffer' | 'listCampaigns' | 'publishCampaign' |
-      'pauseCampaign'>>,
+      'pauseCampaign' | 'extendCampaign'>>,
   deletionIntake?: AccountDeletionIntakeService,
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
   badges?: BadgeRewardService,
@@ -238,6 +243,8 @@ export function createApiServer(
   collectiblePreview?: CollectiblePreviewService,
   merchantDetailViews?: MerchantDetailViewService,
   adminFunnel?: AdminFunnelReader,
+  play?: PlayService,
+  merchantProfile?: MerchantProfileService,
 ) {
   // 로컬 시연(DEMO 헤더) 배치에서는 체험 세션 Bearer도 받는다(#309). Authorization이 없으면 기존 헤더 해석 그대로이고,
   // 운영·hosted 해석기(Bearer 세션)는 이미 같은 auth_sessions 행으로 체험 세션을 푼다.
@@ -258,6 +265,18 @@ export function createApiServer(
   });
   // 방문 후 가게 특징·바라는 점·의견 저장은 계정당 30회/시간(#334). 같은 가게를 고쳐 쓰는 것도 한 번으로 센다.
   const visitorFeedbackWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60 * 60 * 1000 });
+  // 점포 정보 저장은 점포 수와 무관하게 계정당 30회/시간으로 제한한다(#365).
+  const merchantProfileWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60 * 60 * 1000 });
+  const playFlowWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 120, windowMs: 60 * 60 * 1000 });
+  // 실행별 멱등 재시도도 본문·DB 진입 전에 계정별로 센다. 분당 60회는 정상 완료·재시도에 여유를 둔다.
+  const playFinishLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60_000 });
+  const requireCurrentPlayConsent = async (accountId: string): Promise<void> => {
+    if (!consent) throw new RequestError(503, 'CONSENT_NOT_CONFIGURED');
+    const state = await consent.status(accountId);
+    if (state.required || state.termsVersion !== CURRENT_TERMS_VERSION || state.privacyVersion !== CURRENT_PRIVACY_VERSION) {
+      throw new RequestError(403, 'CONSENT_REQUIRED');
+    }
+  };
   // IP는 기존 로그인 제한과 같은 메모리 창에만 두고 조회 집계 서비스로 보내지 않는다.
   const merchantDetailViewLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 300, windowMs: 60 * 60 * 1000 });
   // Media-bearing collectible writes (create/save/copy/publish parse up to 8 MiB and decode every image) are throttled per store.
@@ -414,6 +433,17 @@ export function createApiServer(
             throw new RequestError(400, 'FUNNEL_DAYS_INVALID');
           }
           sendJson(response, 200, await adminFunnel.funnel(days));
+          return;
+        }
+        if (path === '/api/web/admin/play/metrics' && request.method === 'GET') {
+          if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
+          const values = new URL(request.url!, 'http://localhost').searchParams.getAll('days');
+          const days = values.length ? Number(values[0]) : 30;
+          if (values.length > 1 || (values.length === 1 && !/^\d+$/.test(values[0]!)) ||
+              !Number.isInteger(days) || days < 7 || days > 90) {
+            throw new RequestError(400, 'PLAY_METRICS_DAYS_INVALID');
+          }
+          sendJson(response, 200, await play.aggregate(days));
           return;
         }
         if (path === '/api/web/admin/operations-status' && request.method === 'GET') {
@@ -573,7 +603,23 @@ export function createApiServer(
         }
         if (path === '/api/web/admin/campaigns' && request.method === 'GET') {
           if (!admin.listCampaigns) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
-          sendJson(response, 200, { campaigns: await admin.listCampaigns(accountId) });
+          const campaigns = await admin.listCampaigns(accountId);
+          sendJson(response, 200, { campaigns, generatedAt: new Date().toISOString() });
+          return;
+        }
+        const campaignExtendMatch = path.match(/^\/api\/web\/admin\/campaigns\/([^/]+)\/extend$/);
+        if (campaignExtendMatch && request.method === 'POST') {
+          if (!admin.extendCampaign) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          const body = await readJson(request);
+          requireOnlyKeys(body, ['days', 'expectedEndsAt']);
+          if ((body.days !== 30 && body.days !== 90) || typeof body.expectedEndsAt !== 'string' ||
+              !Number.isFinite(Date.parse(body.expectedEndsAt)) ||
+              new Date(body.expectedEndsAt).toISOString() !== body.expectedEndsAt) {
+            throw new AdminError('ADMIN_INVALID_INPUT');
+          }
+          sendJson(response, 200, await admin.extendCampaign(
+            accountId, decodePathParameter(campaignExtendMatch[1]!), body.days, body.expectedEndsAt,
+          ));
           return;
         }
         const campaignActionMatch = path.match(/^\/api\/web\/admin\/campaigns\/([^/]+)\/(publish|pause)$/);
@@ -617,7 +663,8 @@ export function createApiServer(
       if (path.startsWith('/api/web/merchant/')) {
         const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
         response.setHeader('x-robots-tag', 'noindex, nofollow');
-        if (!webAuth || !staffRegistration) throw new RequestError(503, 'WEB_MERCHANT_NOT_CONFIGURED');
+        const profileMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/profile$/);
+        if (!webAuth || (!staffRegistration && !profileMatch)) throw new RequestError(503, 'WEB_MERCHANT_NOT_CONFIGURED');
         if (path === '/api/web/merchant/auth/start' && request.method === 'GET') {
           if (authLoginLimiter) {
             const decision = authLoginLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
@@ -638,6 +685,34 @@ export function createApiServer(
           throw new RequestError(403, 'MERCHANT_CSRF_FORBIDDEN');
         }
         const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        if (profileMatch && (request.method === 'GET' || request.method === 'PUT')) {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          // 저장 제한은 멤버십 조회보다 먼저 센다: 멤버가 아닌 계정의 반복 요청도 DB에 닿기 전에 막는다.
+          if (request.method === 'PUT') {
+            const decision = merchantProfileWriteLimiter.consume(accountId);
+            if (!decision.allowed) {
+              response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+              sendJson(response, 429, { code: 'MERCHANT_PROFILE_RATE_LIMITED' });
+              return;
+            }
+          }
+          const merchantId = decodePathParameter(profileMatch[1]!);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'VIEW_MERCHANT' });
+          if (!merchantProfile) throw new RequestError(503, 'MERCHANT_PROFILE_NOT_CONFIGURED');
+          if (request.method === 'GET') {
+            sendJson(response, 200, await merchantProfile.getProfile({ accountId, merchantId }));
+          } else {
+            const body = await readJson(request);
+            const keys = ['story', 'businessHours', 'menuItems', 'expectedVersion'];
+            if (Object.keys(body).some(key => !keys.includes(key)) || keys.some(key => !(key in body)) ||
+                !Number.isSafeInteger(body.expectedVersion) || (body.expectedVersion as number) < 1) {
+              throw new MerchantProfileError('MERCHANT_PROFILE_INVALID');
+            }
+            sendJson(response, 200, await merchantProfile.updateProfile({ accountId, merchantId, body }));
+          }
+          return;
+        }
+        if (!staffRegistration) throw new RequestError(503, 'WEB_MERCHANT_NOT_CONFIGURED');
         if (path === '/api/web/merchant/me' && request.method === 'GET') {
           sendJson(response, 200, { merchants: await staffRegistration.mine(accountId),
             accountScope: createHash('sha256').update(`collectible-editor:${accountId}`).digest('hex') });
@@ -955,6 +1030,93 @@ export function createApiServer(
         }
         const accountId = await resolveAccountId(request);
         sendJson(response, 200, await collection.getCollection(accountId));
+        return;
+      }
+
+      if (request.method === 'GET' && request.url === '/me/play') {
+        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
+        sendJson(response, 200, await play.getPlay(accountId));
+        return;
+      }
+      if (request.method === 'POST' && request.url === '/me/play/runs') {
+        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
+        const body = await readJson(request);
+        if (Object.keys(body).join(',') !== 'kind' || !isGameKind(body.kind)) {
+          throw new RequestError(400, 'PLAY_KIND_INVALID');
+        }
+        sendJson(response, 201, await play.start({ accountId, kind: body.kind }));
+        return;
+      }
+      const finishPlayMatch = request.url?.match(/^\/me\/play\/runs\/([^/]+)\/finish$/);
+      if (request.method === 'POST' && finishPlayMatch) {
+        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const decision = playFinishLimiter.consume(accountId);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          throw new RequestError(429, 'PLAY_FLOW_RATE_LIMITED');
+        }
+        await requireCurrentPlayConsent(accountId);
+        const body = await readJson(request);
+        if (Object.keys(body).join(',') !== 'actions' || !Array.isArray(body.actions) ||
+            body.actions.some((action) => !action || typeof action !== 'object' || Array.isArray(action) ||
+              Object.keys(action).sort().join(',') !== 'at,choice')) {
+          throw new RequestError(400, 'PLAY_ACTIONS_INVALID');
+        }
+        sendJson(response, 200, await play.finish({ accountId,
+          runId: decodePathParameter(finishPlayMatch[1]!), actions: body.actions as GameAction[] }));
+        return;
+      }
+      if (request.method === 'POST' && request.url === '/me/play/events') {
+        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
+        const decision = playFlowWriteLimiter.consume(accountId);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          throw new RequestError(429, 'PLAY_FLOW_RATE_LIMITED');
+        }
+        const body = await readJson(request);
+        if (Object.keys(body).join(',') !== 'event' ||
+            (body.event !== 'share-open' && body.event !== 'image-created')) {
+          throw new RequestError(400, 'PLAY_EVENT_INVALID');
+        }
+        await play.recordEvent({ accountId, event: body.event });
+        response.writeHead(204).end();
+        return;
+      }
+      if (request.method === 'GET' && request.url === '/me/studio') {
+        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
+        sendJson(response, 200, await play.getStudio(accountId));
+        return;
+      }
+      if (request.method === 'PUT' && request.url === '/me/studio') {
+        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
+        const decision = playFlowWriteLimiter.consume(accountId);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          throw new RequestError(429, 'PLAY_FLOW_RATE_LIMITED');
+        }
+        const body = await readJson(request);
+        if (Object.keys(body).join(',') !== 'studio') throw new RequestError(400, 'STUDIO_INVALID');
+        sendJson(response, 200, await play.saveStudio({ accountId, studio: body.studio as Studio }));
+        return;
+      }
+      const friendStudioMatch = request.url?.match(/^\/friends\/([^/]+)\/studio$/);
+      if (request.method === 'GET' && friendStudioMatch) {
+        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
+        sendJson(response, 200, await play.getFriendStudio({ accountId,
+          friendshipId: decodePathParameter(friendStudioMatch[1]!) }));
         return;
       }
 
@@ -1569,6 +1731,14 @@ export function createApiServer(
 
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
+      if (error instanceof PlayError) {
+        const status = error.code === 'ACCOUNT_DELETED' ? 410
+          : error.code === 'PLAY_RUN_NOT_FOUND' || error.code === 'FRIEND_STUDIO_NOT_FOUND' ? 404
+          : error.code === 'PLAY_RATE_LIMITED' ? 429
+          : error.code === 'PLAY_RUN_EXPIRED' ? 409 : 400;
+        sendJson(response, status, { code: error.code });
+        return;
+      }
       if (error instanceof CollectibleProjectError) {
         const status = error.code === 'COLLECTIBLE_INVALID_PROJECT' ? 400
           : error.code === 'COLLECTIBLE_MEDIA_TOO_LARGE' ? 413
@@ -1632,6 +1802,12 @@ export function createApiServer(
       }
       if (error instanceof MerchantAccessError) {
         sendJson(response, 403, { code: error.code });
+        return;
+      }
+      if (error instanceof MerchantProfileError) {
+        const status = error.code === 'MERCHANT_PROFILE_INVALID' ? 400
+          : error.code === 'MERCHANT_PROFILE_VERSION_CONFLICT' ? 409 : 403;
+        sendJson(response, status, { code: error.code });
         return;
       }
       if (error instanceof MerchantOverviewError) {
@@ -2103,6 +2279,8 @@ function statusForAdmin(code: AdminError['code']): number {
     case 'ADMIN_OFFER_MILESTONE_TAKEN':
     case 'ADMIN_CAMPAIGN_NOT_PUBLISHABLE':
     case 'ADMIN_CAMPAIGN_NOT_PAUSABLE':
+    case 'ADMIN_CAMPAIGN_NOT_EXTENDABLE':
+    case 'ADMIN_CAMPAIGN_EXTENSION_LIMIT':
     case 'ADMIN_CAMPAIGN_ACTIVE_EXISTS':
       return 409;
     default:
@@ -2524,6 +2702,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     pool ? new PostgresCollectiblePreviewService(pool) : undefined,
     pool ? new PostgresMerchantDetailViewService(pool) : undefined,
     pool ? new PostgresAdminFunnelService(pool) : undefined,
+    pool && accountLifecycle ? new PostgresPlayService(pool, accountLifecycle) : undefined,
+    pool ? new PostgresMerchantProfileService(pool, {
+      staffMayManageArt: aiArtConfig.staffMayManage,
+      ...(accountLifecycle ? { accountLifecycle } : {}),
+    }) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

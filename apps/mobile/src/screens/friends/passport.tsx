@@ -180,6 +180,11 @@ export function FriendPassportScreen({
           <Text accessibilityRole="header" maxFontSizeMultiplier={1.6} style={styles.passportNickname}>{friend.nickname}</Text>
           <Text style={styles.passportRank}>친구 순위 {friend.rank}위 · 배지 {friend.badges.earned}/{friend.badges.total}</Text>
           <Text style={styles.note}>{passportAsOfNote(snapshot.me.asOf)}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${friend.nickname}의 꾸민 공간 보기`}
+            onPress={() => router.push({ pathname: '/friends/[friendshipId]/studio', params: { friendshipId } })}
+            style={{ minHeight: 48, justifyContent: 'center', marginTop: 8 }}>
+            <Text style={styles.sectionTitle}>동행과 수집 공간 보기</Text>
+          </Pressable>
         </FloatingCard>
       </Stagger>
 

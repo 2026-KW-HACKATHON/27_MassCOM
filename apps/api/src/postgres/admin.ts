@@ -8,7 +8,7 @@ import {
   missingPublishRequirements, normalizeDocumentReference, ownerOfferConsentChecklistVersion, rewardOfferIssuanceCapMax,
   type OwnerDemotionReason,
 } from '../store-go-live-rules.js';
-import { normalizeCategory, normalizeNeighborhood } from '../merchant-profile-rules.js';
+import { normalizeCategory, normalizeMerchantProfileFields, normalizeNeighborhood } from '../merchant-profile-rules.js';
 import { AccountLifecycleError, PostgresAccountLifecycle } from './account-lifecycle.js';
 
 export type AdminMerchant = {
@@ -161,7 +161,8 @@ export class AdminError extends Error {
     'ADMIN_MERCHANT_NOT_ACTIVE' | 'ADMIN_SELF_ROLE_CHANGE' | 'ADMIN_MEMBER_NOT_FOUND' | 'ADMIN_ALREADY_OWNER' |
     'ADMIN_OWNER_LIMIT' | 'ADMIN_CONSENT_INCOMPLETE' | 'ADMIN_OFFER_NOT_FOUND' | 'ADMIN_OFFER_MILESTONE_TAKEN' |
     'ADMIN_CAMPAIGN_NOT_FOUND' | 'ADMIN_CAMPAIGN_NOT_PUBLISHABLE' | 'ADMIN_CAMPAIGN_NOT_PAUSABLE' |
-    'ADMIN_CAMPAIGN_ACTIVE_EXISTS' | 'ADMIN_OFFER_TEXT_INVALID') {
+    'ADMIN_CAMPAIGN_ACTIVE_EXISTS' | 'ADMIN_OFFER_TEXT_INVALID' |
+    'ADMIN_CAMPAIGN_NOT_EXTENDABLE' | 'ADMIN_CAMPAIGN_EXTENSION_LIMIT') {
     super(code);
     this.name = 'AdminError';
   }
@@ -256,15 +257,10 @@ function validateRewardOffer(raw: AdminRewardOfferInput): ValidRewardOffer {
 }
 
 function validate(input: MerchantInput): MerchantInput {
-  if (typeof input.name !== 'string' || !input.name.trim() || input.name.length > 200 ||
-      typeof input.story !== 'string' || input.story.length > 4000 ||
+  const profile = normalizeMerchantProfileFields(input);
+  if (typeof input.name !== 'string' || !input.name.trim() || input.name.length > 200 || !profile ||
       typeof input.roadAddress !== 'string' || !input.roadAddress.trim() || input.roadAddress.length > 500 ||
-      !Number.isSafeInteger(input.minimumSpendWon) || input.minimumSpendWon < 0 || input.minimumSpendWon > 1_000_000_000 ||
-      (input.businessHours !== undefined && (typeof input.businessHours !== 'string' || input.businessHours.length > 1000)) ||
-      (input.menuItems !== undefined && (!Array.isArray(input.menuItems) || input.menuItems.length > 30 ||
-        input.menuItems.some(item => !item || typeof item.name !== 'string' || !item.name.trim() ||
-          item.name.length > 200 || !Number.isSafeInteger(item.priceWon) || item.priceWon < 0 ||
-          item.priceWon > 1_000_000_000)))) {
+      !Number.isSafeInteger(input.minimumSpendWon) || input.minimumSpendWon < 0 || input.minimumSpendWon > 1_000_000_000) {
     throw new AdminError('ADMIN_INVALID_INPUT');
   }
   const neighborhood = input.neighborhood === undefined ? undefined : normalizeNeighborhood(input.neighborhood);
@@ -273,12 +269,8 @@ function validate(input: MerchantInput): MerchantInput {
       (input.category !== undefined && category === undefined)) {
     throw new AdminError('ADMIN_INVALID_INPUT');
   }
-  return { name: input.name.trim(), story: input.story.trim(),
+  return { name: input.name.trim(), ...profile,
     roadAddress: input.roadAddress.trim(), minimumSpendWon: input.minimumSpendWon,
-    ...(input.menuItems === undefined ? {} : {
-      menuItems: input.menuItems.map(item => ({ name: item.name.trim(), priceWon: item.priceWon })),
-    }),
-    ...(input.businessHours === undefined ? {} : { businessHours: input.businessHours.trim() }),
     ...(neighborhood === undefined ? {} : { neighborhood }),
     ...(category === undefined ? {} : { category }) };
 }
@@ -905,6 +897,51 @@ export class PostgresAdminService {
         before: { campaignId, title: current.title, status: current.status, public: current.is_public },
         after: { campaignId, title: current.title, status: 'PAUSED', public: false } });
       return { campaign: paused, replayed: false };
+    });
+  }
+
+  async extendCampaign(accountId: string, campaignId: string, days: 30 | 90,
+    expectedEndsAt: string): Promise<AdminCampaign> {
+    if ((days !== 30 && days !== 90) || typeof expectedEndsAt !== 'string' ||
+        !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(expectedEndsAt) ||
+        !Number.isFinite(Date.parse(expectedEndsAt)) || new Date(expectedEndsAt).toISOString() !== expectedEndsAt) {
+      throw new AdminError('ADMIN_INVALID_INPUT');
+    }
+    return this.transaction(async client => {
+      await this.requireAdmin(client, accountId);
+      const { current } = await this.lockCampaign(client, campaignId);
+      if (current.ends_at.toISOString() !== expectedEndsAt) throw new AdminError('ADMIN_VERSION_CONFLICT');
+      if (current.status === 'DRAFT') throw new AdminError('ADMIN_CAMPAIGN_NOT_EXTENDABLE');
+      const now = new Date();
+      const endsAt = new Date(Math.max(now.getTime(), current.ends_at.getTime()) + days * 86_400_000);
+      if (endsAt.getTime() > now.getTime() + 365 * 86_400_000) throw new AdminError('ADMIN_CAMPAIGN_EXTENSION_LIMIT');
+
+      // 저장된 ENDED 캠페인은 다시 공개해야 고객 탐색에 나타난다.
+      const revive = current.status === 'ENDED' && current.ends_at <= now;
+      if (current.status === 'ENDED' && !revive) throw new AdminError('ADMIN_CAMPAIGN_NOT_EXTENDABLE');
+      if (revive) {
+        const other = await client.query(
+          `SELECT 1 FROM campaigns WHERE merchant_id = $1 AND status = 'ACTIVE' AND is_public AND id <> $2`,
+          [current.merchant_id, campaignId],
+        );
+        if (other.rowCount) throw new AdminError('ADMIN_CAMPAIGN_ACTIVE_EXISTS');
+      }
+      try {
+        await client.query(
+          `UPDATE campaigns SET ends_at = $2, status = $3, is_public = $4, updated_at = now() WHERE id = $1`,
+          [campaignId, endsAt, revive ? 'ACTIVE' : current.status, revive ? true : current.is_public],
+        );
+      } catch (error) {
+        if (isUniqueViolation(error, 'campaigns_one_active_public_per_merchant')) {
+          throw new AdminError('ADMIN_CAMPAIGN_ACTIVE_EXISTS');
+        }
+        throw error;
+      }
+      await this.auditEvent(client, { actor: accountId, merchantId: current.merchant_id, action: 'CAMPAIGN_EXTENDED',
+        before: { campaignId, endsAt: current.ends_at.toISOString() },
+        after: { campaignId, endsAt: endsAt.toISOString() } });
+      return { ...campaign(current), endsAt: endsAt.toISOString(),
+        status: revive ? 'ACTIVE' : current.status, public: revive ? true : current.is_public };
     });
   }
 
