@@ -377,7 +377,7 @@ function SignedInRewardCard({ book, badgeApi, refreshQuietly, applyOpened, compa
         <Pressable accessibilityRole="button" accessibilityLabel={expiryNotice}
           accessibilityHint="도감의 쿠폰과 보상을 확인해요." onPress={() => router.navigate({ pathname: '/collection', params: { focus: 'rewards' } })}
           style={styles.couponExpiryNotice}>
-          <Text numberOfLines={2} style={styles.couponExpiryNoticeText}>{expiryNotice}</Text>
+          <Text style={styles.couponExpiryNoticeText}>{expiryNotice}</Text>
         </Pressable>
       ) : null}
       <HomeRewardCard book={book} onOpen={badgeApi.openReward} onRevealed={onRevealed} onOpenFailed={onOpenFailed} />
