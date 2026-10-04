@@ -265,6 +265,9 @@ async function pseudonymizeAccount(
   deletedAlias: string,
   now: Date,
 ): Promise<void> {
+  await client.query('DELETE FROM play_runs WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM play_records WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM studios WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM wallet_challenges WHERE account_id = $1', [accountId]);
   // Sessions are deleted, not just revoked: a revoked row would keep the raw account id. A leaked token then finds no
   // row and fails as SESSION_INVALID / WEB_SESSION_INVALID, and the account tombstone still refuses anything that

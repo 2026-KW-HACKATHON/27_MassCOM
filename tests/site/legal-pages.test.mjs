@@ -171,7 +171,7 @@ test('the versions named on the two pages are the ones the server, the app and t
   const serverTerms = api.match(/CURRENT_TERMS_VERSION = '([^']+)'/)?.[1];
   const serverPrivacy = api.match(/CURRENT_PRIVACY_VERSION = '([^']+)'/)?.[1];
   assert.equal(serverTerms, 'terms-2026-09-30');
-  assert.equal(serverPrivacy, 'privacy-2026-10-01');
+  assert.equal(serverPrivacy, 'privacy-2026-10-04');
   assert.ok(terms.includes(serverTerms));
   assert.ok(privacy.includes(serverPrivacy));
   const mobile = source('apps/mobile/src/privacy/consent-copy.ts');

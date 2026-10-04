@@ -2,6 +2,8 @@ const { resolve } = require('node:path');
 const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
+// The browser-safe scoring rules are also the API's authoritative replay rules.
+config.watchFolders = [...(config.watchFolders || []), resolve(__dirname, '../api/src')];
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (process.env.APP_VARIANT === 'showcase' && moduleName === './showcase-collectible-art-assets') {

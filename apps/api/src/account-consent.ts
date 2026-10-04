@@ -4,7 +4,7 @@
  * 서버는 동의 여부를 알려 주기만 하고 기존 쓰기 요청을 막지 않는다(옛 앱 호환, 단계적 강제).
  */
 export const CURRENT_TERMS_VERSION = 'terms-2026-09-30';
-export const CURRENT_PRIVACY_VERSION = 'privacy-2026-10-01';
+export const CURRENT_PRIVACY_VERSION = 'privacy-2026-10-04';
 
 export type ConsentSource = 'WEB' | 'ANDROID' | 'SHOWCASE_APP';
 

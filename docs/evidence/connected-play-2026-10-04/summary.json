@@ -1,0 +1,26 @@
+{
+  "issue": 363,
+  "branch": "feat/connected-play-collection",
+  "baseline": "237d5471f38a8900ec52c755bff3627625b38612",
+  "dateKst": "2026-10-04",
+  "tests": {
+    "api": {"status": "PASS", "passed": 403},
+    "mobile": {"status": "PASS", "passed": 1395},
+    "site": {"status": "PASS", "passed": 467},
+    "postgres": {"status": "PASS", "passed": 400, "skipped": 3, "skipReason": "Dedicated disposable host-seed container 55435 not supplied"},
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "apiBuild": "PASS",
+    "cleanSourceGate": "PASS"
+  },
+  "exports": {"productionAndroid": "PASS", "showcaseAndroid": "PASS", "web": "PASS", "separateEmbeddedOrigins": "PASS"},
+  "browser": {"viewportMobile": [390,844], "viewportDesktop": [1280,900], "fourGamesCompleted": true, "visitDrawCompanionStudio": "PASS", "feedStoryAlbumDownload": "PASS", "pageErrors": 0},
+  "native": {"device": "emulator-5554", "package": "kr.masscom.wolgye.dev", "debugBuildInstall": "PASS", "textScales": [1,2], "fourGameControls": "PASS", "reducedMotionTiming": "PASS", "darkStudio": "PASS"},
+  "review": "APPROVE",
+  "publicDeployment": "NOT_RUN",
+  "newPublicApk": "NOT_RUN",
+  "realStoreQr": "NOT_RUN",
+  "physicalDeviceNewFeatures": "NOT_RUN",
+  "talkBack": "NOT_RUN",
+  "data": "Isolated local demonstration and QA fixtures; not production activity"
+}

@@ -58,10 +58,16 @@ async function mountViaMerchant(api, { confirm = () => true, merchants = [{ id: 
   return Object.assign(ui, { asked, select, host, openEditor, panel: document.getElementById('merchant-creator') });
 }
 
-test('캠페인 목록은 점주 전용 API에서 받아 고르고, 공개 /merchants의 id·campaign 없는 응답에 의존하지 않는다', async () => {
+test('메뉴는 인증된 점포 항목만 쓰고 같은 이름의 공개 점포 메뉴를 섞지 않는다', async () => {
   const api = createFakeApi();
   const requested = [];
-  const fetcher = async (path, init) => { requested.push(path); return api.fetcher(path, init); };
+  const fetcher = async (path, init) => {
+    requested.push(path);
+    if (path === '/merchants') return { ok: true, status: 200, json: async () => ({ merchants: [
+      { name: '월계 식당', menuItems: [{ name: '다른 점포 메뉴', priceWon: 7000 }] },
+    ] }) };
+    return api.fetcher(path, init);
+  };
   // 운영 프록시가 돌려주는 /merchants 모양(id·campaign 없음)을 그대로 확인한다.
   const catalog = await (await api.fetcher('/merchants')).json();
   assert.equal(catalog.merchants.some(item => 'id' in item || 'campaign' in item), false);
@@ -70,7 +76,7 @@ test('캠페인 목록은 점주 전용 API에서 받아 고르고, 공개 /merc
   const page = doc.createElement('div');
   page.innerHTML = '<section id="merchant-creator" hidden><select id="merchant-creator-store"></select><button id="merchant-creator-open" type="button"></button><div id="merchant-creator-editor"></div></section><p id="merchant-status"></p>';
   doc.body.append(page);
-  configureCreator(fetcher, doc, { accountScope: 'scope-a', merchants: [{ id: 'm1', name: '월계 식당', role: 'OWNER' }] });
+  configureCreator(fetcher, doc, { accountScope: 'scope-a', merchants: [{ id: 'm1', name: '월계 식당', role: 'OWNER', menuItems: [{ name: '국수', priceWon: 7000 }] }] });
   doc.getElementById('merchant-creator-store').value = 'm1';
   await doc.getElementById('merchant-creator-open').onclick();
   await settle();
@@ -78,9 +84,25 @@ test('캠페인 목록은 점주 전용 API에서 받아 고르고, 공개 /merc
   const select = doc.getElementById('merchant-creator-editor').querySelector('[data-control="campaign"]');
   assert.deepEqual(select.options.map(item => item.value), ['', 'campaign-a', 'campaign-b']);
   assert.equal(select.options[1].textContent, '가상 방문 캠페인');
-  assert.equal(requested.includes('/merchants'), false, '제작기가 공개 /merchants를 읽으면 운영에서 캠페인이 비어 버린다');
+  assert.match(doc.getElementById('merchant-creator-editor').querySelector('[data-action="starter"][data-id="0"]').textContent, /국수/);
+  assert.doesNotMatch(doc.getElementById('merchant-creator-editor').textContent, /다른 점포 메뉴/);
+  assert.equal(requested.includes('/merchants'), false);
   assert.ok(requested.includes('/api/web/merchant/merchants/m1/collectible-campaigns'));
   assert.deepEqual((await loadCreatorCampaigns(fetcher, 'm1')).map(item => item.id), ['campaign-a', 'campaign-b']);
+});
+
+test('인증된 점포에 메뉴가 없으면 같은 이름의 공개 점포가 있어도 메뉴 선택지를 만들지 않는다', async () => {
+  const api = createFakeApi();
+  const requested = [];
+  const fetcher = async (path, init) => { requested.push(path); return api.fetcher(path, init); };
+  const doc = dom.document;
+  const page = doc.createElement('div');
+  page.innerHTML = '<section id="merchant-creator" hidden><select id="merchant-creator-store"></select><button id="merchant-creator-open" type="button"></button><div id="merchant-creator-editor"></div></section><p id="merchant-status"></p>';
+  doc.body.append(page);
+  configureCreator(fetcher, doc, { accountScope: 'scope-a', merchants: [{ id: 'm1', name: '월계 식당', role: 'OWNER', menuItems: [] }] });
+  await doc.getElementById('merchant-creator-open').onclick(); await settle();
+  assert.equal(page.querySelector('[data-action="starter"][data-id="0"]'), null);
+  assert.equal(requested.includes('/merchants'), false);
 });
 
 test('캠페인 목록을 읽지 못하면 이유를 알리고 게시는 막되 편집은 계속한다', async () => {

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { ConsentApiClient, ConsentApiError } from './consent-api';
 
 const bearer = { kind: 'bearer', sessionToken: 'app-session' } as const;
-const versions = { termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-01' };
+const versions = { termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-04' };
 
 function client(respond: (url: string, init: RequestInit) => Response, credential = bearer as never) {
   const calls: { url: string; init: RequestInit }[] = [];

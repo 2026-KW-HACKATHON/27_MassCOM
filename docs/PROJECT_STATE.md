@@ -1,5 +1,11 @@
 # 프로젝트 상태
 
+## 방문·수집·동행·놀이 통합 (Issue #363, 2026-10-04)
+
+`feat/connected-play-collection`은 최신 `origin/main 237d5471`에서 공통 고객 앱/웹, API·DB, 점주/운영자 웹을 확장했다. 서로 다른 게임4종은 시작·조작·끝·기록·재도전·장면해금까지 구현됐고 방문 마일리지/쿠폰과 분리된다. 실제 보유품과 동행을 서버 공간에 저장해 친구·피드/스토리 이미지로 연결한다. 주간 탐험·현재 캠페인 수집 목표, 배지 실루엣과 뽑기 대상/활용, 실제 점주 메뉴의 제작 시작점, 익명 흐름 집계를 추가했다. 기존 권리·방문/운영 권한을 보존한다.
+
+코드·로컬 검증과 공개 반영은 별개다. 새 기능의 운영/시연 배포와 공개 APK는 아직 없다. migration0042와 `privacy-2026-10-04`에 맞는 API·웹·최신앱을 함께 준비해야 하며, 기존 앱은 업데이트 안내가 필요하다. [전체 구현·근거·제한](evidence/connected-play-2026-10-04/README.md), [검증 결과](TEST_STATUS.md)를 따른다.
+
 ## 운영 test.9·시연 Preview 18 공개 (Issue #360, 2026-10-04)
 
 [Issue #360](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/360), 브랜치 `docs/release-cb8030a`, worktree `.worktrees/release-docs3`, 기준 main `cb8030ac3d082c3aac9461e2f6db23bf73f4cc46`(PR #359·Issue #358). 수집품 상세 Modal에 `GestureHandlerRootView`를 넣어 개발 빌드의 `GestureDetector must be used as a descendant of GestureHandlerRootView` 크래시와 release 빌드의 등급 재질·끌기 빛 누락을 고쳤고, 점주 빛 모션이 있는 상세의 재질 감쇠를 .55 → .9로 바꿨다. `apps/mobile/src/screens/merchant-claim/issued-visit.test.ts`는 KST 날짜가 2026-10-03을 지나면 끝나지 않던 시험에 고정 시계를 사용한다. CI job은 `timeout-minutes: 25`; PR #359의 처음 두 실행은 모바일 시험에서 34분·20분 뒤 취소됐고 수정 뒤 9m12s에 PASS했다.

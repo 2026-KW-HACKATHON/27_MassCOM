@@ -1,5 +1,7 @@
 # AI 사용 기록
 
+2026-10-04 — Issue #363: Codex가 최신 origin/main `237d5471`에서 전체 요청을 설계·구현·통합했다. native subagents는 고객/서버/점주 구조 탐색, 게임 서버와 공통 규칙, 네 가지 게임 UI, 동행 공간·공유, 점주 제작기, 실제 bitmap 자산, Android 빌드·시각 QA를 독립 범위로 맡았다. 별도 code-reviewer가 실행 소유권·완료 재시도·취소된 진열·친구 공개·계정 삭제·공유 실패를 검토했고 지적을 수정했다. 이미지 자산은 built-in image_gen으로 제작하고 SOURCES에 프롬프트를 기록했다. 검증·배포 경계는 TEST_STATUS와 전용 증거 문서에 기록하며 운영 키·실제 계정·공개 출시를 변경하지 않았다.
+
 2026-10-04 — Issue #360: Codex Sol 6.1 medium이 오케스트레이터 검증 사실과 이전 기록 커밋 `38a01a7c`의 변경 방식을 근거로 운영 test.9·시연 Preview 18 증거와 현재 다운로드 안내를 갱신했다. 서버 배포 없음; 지정된 문서 검사 결과와 실기 PASS/NOT_RUN 경계는 TEST_STATUS에 기록한다. 커밋 없음.
 
 2026-10-03 — Issue #358: Claude Code(Opus 5.5)가 Samsung 실기와 에뮬레이터 개발 빌드로 수집품 상세 결함(Modal 안 제스처 루트 누락, 재질 감쇠)을 찾아 직접 고쳤다(두 줄 수정과 회귀 단언). 리뷰는 Codex Sol 6.1 High.

@@ -1,5 +1,22 @@
 # MassCOM API
 
+## 놀이 기록과 동행 공간 (Issue #363)
+
+migration `0042_connected_play.sql`은 실행·종류별 개인 기록·공간 설정·개인 식별자 없는 날짜별 흐름 합계를 추가합니다. 기존 방문·마일리지·쿠폰 표의 규칙을 변경하지 않습니다. 계정 삭제는 실행·기록·공간도 같은 거래에서 제거합니다.
+
+| 경로 | 계약 |
+| --- | --- |
+| `GET /me/play` | `{records:[{kind,bestScore,plays}],unlockedThemes}` |
+| `POST /me/play/runs` | `{kind}` → `{id,kind,seed,startedAt,expiresAt,durationMs,rulesVersion}`. 계정당 시간당 30회 이하 |
+| `POST /me/play/runs/:id/finish` | `{actions:[{at,choice}]}` → 서버 재계산 `{kind,score,completed,correct,total,bestScore,plays,unlockedThemes}`. 동일 실행 재시도는 같은 결과 |
+| `GET /me/studio` | `{studio:{theme,layout,accent,slots,goal},items,avatar,records,unlockedThemes}`. 취소된 소장품과 이용 불가 목표는 읽을 때 정리 |
+| `PUT /me/studio` | `{studio}`. 보유 소장품 최대 6개, 해금 배경과 현재 공개 캠페인만 허용 |
+| `GET /friends/:friendshipId/studio` | 유지 중인 친구 관계와 활성 계정만. 저장한 공간의 닉네임·그림·가게·동행만 반환; 계정·보상권·방문 시각·지갑 식별자는 제외 |
+| `POST /me/play/events` | `{event:'share-open'|'image-created'}`. 앱이 보낸 완료 알림이며 외부 게시 증거가 아님 |
+| `GET /api/web/admin/play/metrics?days=30` | 기존 웹 관리자 세션·권한으로 7~90일 `{days,events,games}` 익명 처리 횟수 조회 |
+
+`kind`는 `stack|memory|delivery|orders`. 게임 입력 범위·순서·시간·실행 소유권을 확인하고 seed로 점수를 재계산합니다. 이는 사람의 플레이나 외부 SNS 게시를 증명하는 방식은 아닙니다. 게임은 비금전 장면 해금만 제공합니다. `/api/web/merchant/me`의 점포별 `menuItems`도 실제 권한 있는 점포 ID로 읽으며 이름으로 다른 점포 메뉴를 추정하지 않습니다.
+
 ERC-4361(SIWE) 주소 확인, Phase 2 공개 점포·캠페인·방문·도감·추천, Phase 3 wallet binding·mint job·Outbox·체인 확정 상태 조회를 제공하는 Node.js API입니다.
 
 ## 사진 수집품 제작

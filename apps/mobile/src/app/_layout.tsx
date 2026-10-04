@@ -46,6 +46,9 @@ function Routes() {
       <Stack.Screen name="showcase-tour" options={{ title: '체험용 다섯 공간' }} />
       <Stack.Screen name="merchants/[merchantId]" options={{ headerShown: false }} />
       <Stack.Screen name="friends/[friendshipId]" options={{ headerShown: false }} />
+      <Stack.Screen name="friends/[friendshipId]/studio" options={{ headerShown: false }} />
+      <Stack.Screen name="studio" options={{ headerShown: false }} />
+      <Stack.Screen name="play" options={{ headerShown: false }} />
       <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
       <Stack.Screen name="merchant-art" options={{ headerShown: false }} />
       <Stack.Screen name="recommendations" options={{ headerShown: false }} />

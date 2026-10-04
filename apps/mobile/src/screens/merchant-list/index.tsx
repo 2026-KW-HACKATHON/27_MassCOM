@@ -10,6 +10,7 @@ import {
   View,
   useColorScheme,
   useWindowDimensions,
+  type ImageSourcePropType,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -34,6 +35,9 @@ import { AppHeader } from '@/ui/app-header';
 import { FloatingCard } from '@/ui/floating-card';
 import { heroMascotSize } from '@/ui/large-text';
 import { Mascot } from '@/ui/mascot';
+import { Companion } from '@/ui/companion';
+import { ExperienceEntry } from '@/ui/experience-entry';
+import { HomeExploration } from '@/ui/home-exploration';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
@@ -184,15 +188,19 @@ export function MerchantListScreen({ apiUrl }: Props) {
                   </View>
                 </View>
                 {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
-                <Mascot interactive pose={refreshing ? 'search' : 'explore-map'} size={heroMascotSize(fontScale, 120)} />
+                {avatarArt ? <Companion art={avatarArt} interactive size={heroMascotSize(fontScale, 120)} />
+                  : <Mascot interactive pose={refreshing ? 'search' : 'explore-map'} size={heroMascotSize(fontScale, 120)} />}
               </View>
             </AppHeader>
             {auth.credential && auth.accountId ? (
               <View style={styles.rewardCardWrap}>
-                <SignedInRewardCard book={discovery.book} badgeApi={discovery.badgeApi} refreshQuietly={discovery.refreshQuietly} applyOpened={discovery.applyOpened} key={auth.accountId} />
+                <SignedInRewardCard book={discovery.book} badgeApi={discovery.badgeApi} refreshQuietly={discovery.refreshQuietly} applyOpened={discovery.applyOpened} companionArt={avatarArt} key={auth.accountId} />
               </View>
             ) : null}
             <View style={styles.header}>
+              {signedIn ? <ExperienceEntry /> : null}
+              {auth.credential ? <HomeExploration apiUrl={apiUrl} credential={auth.credential}
+                onSessionInvalid={auth.invalidateSession} merchants={merchants} collection={discovery.collection} /> : null}
               {bestNextGoal ? (
                 <FloatingCard>
                   <Pressable
@@ -344,11 +352,12 @@ function MapChip() {
 }
 
 /** 배지 책은 진행 필터·여권 칩과 공유하고, 상자를 열면 같은 책에 즉시 반영한다. */
-function SignedInRewardCard({ book, badgeApi, refreshQuietly, applyOpened }: {
+function SignedInRewardCard({ book, badgeApi, refreshQuietly, applyOpened, companionArt }: {
   book: BadgeBook | undefined;
   badgeApi: BadgeApiClient | undefined;
   refreshQuietly: () => Promise<void>;
   applyOpened: (result: OpenedReward) => void;
+  companionArt?: ImageSourcePropType;
 }) {
   const router = useRouter();
   const [revealed, setRevealed] = useState<OpenedReward>();
@@ -364,6 +373,7 @@ function SignedInRewardCard({ book, badgeApi, refreshQuietly, applyOpened }: {
       <HomeRewardCard book={book} onOpen={badgeApi.openReward} onRevealed={onRevealed} onOpenFailed={onOpenFailed} />
       <RewardReveal
         result={revealed}
+        companionArt={companionArt}
         onClose={() => setRevealed(undefined)}
         onUse={() => {
           setRevealed(undefined);

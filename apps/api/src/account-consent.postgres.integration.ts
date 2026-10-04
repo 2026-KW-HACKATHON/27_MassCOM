@@ -25,7 +25,7 @@ async function setup(t: TestContext) {
   t.after(() => pool.end());
   await runMigrations(pool);
   await pool.query('TRUNCATE account_consents, account_deletion_requests CASCADE');
-  const state = { now: new Date('2026-09-30T01:00:00.000Z') };
+  const state = { now: new Date('2026-10-04T01:00:00.000Z') };
   const lifecycle = new PostgresAccountLifecycle({ hmacSecret });
   const consent = new PostgresAccountConsentService(pool, {
     accountLifecycle: lifecycle, appSource: 'ANDROID', now: () => state.now,
@@ -69,16 +69,16 @@ test('a new account is asked, agreeing records versions, time and source, and a 
   const [first] = await rows(pool, 'customer-1');
   assert.deepEqual(
     { terms: first!.terms_version, privacy: first!.privacy_version, source: first!.source, at: first!.agreed_at.toISOString() },
-    { terms: 'terms-2026-09-30', privacy: 'privacy-2026-10-01', source: 'ANDROID', at: '2026-09-30T01:00:00.000Z' },
+    { terms: 'terms-2026-09-30', privacy: 'privacy-2026-10-04', source: 'ANDROID', at: '2026-10-04T01:00:00.000Z' },
   );
 
   // Agreeing again, even through another route later, keeps the first time and route (idempotent).
-  state.now = new Date('2026-10-01T05:00:00.000Z');
+  state.now = new Date('2026-10-05T05:00:00.000Z');
   assert.equal((await consent.record(agree('customer-1', { source: 'WEB' }))).required, false);
   const repeated = await rows(pool, 'customer-1');
   assert.equal(repeated.length, 1);
   assert.equal(repeated[0]!.source, 'ANDROID');
-  assert.equal(repeated[0]!.agreed_at.toISOString(), '2026-09-30T01:00:00.000Z');
+  assert.equal(repeated[0]!.agreed_at.toISOString(), '2026-10-04T01:00:00.000Z');
 });
 
 test('the route is whatever the server says and only the three known routes are stored', async (t) => {
@@ -122,6 +122,7 @@ test('agreeing to a version other than the current ones is refused so an old scr
   for (const overrides of [
     { termsVersion: 'terms-2026-01-01' },
     { privacyVersion: 'privacy-2026-01-01' },
+    { privacyVersion: 'privacy-2026-10-01' },
     { termsVersion: '' },
   ]) {
     await assert.rejects(
@@ -140,19 +141,26 @@ test('when either version changes the account is asked again and the older agree
     `INSERT INTO account_consents (account_id, terms_version, privacy_version, age_confirmed, source, agreed_at)
      VALUES ('customer-1', 'terms-old', 'privacy-old', true, 'WEB', '2026-08-01T00:00:00Z'),
             ('customer-2', $1, 'privacy-old', true, 'WEB', '2026-08-01T00:00:00Z'),
-            ('customer-3', 'terms-old', $2, true, 'WEB', '2026-08-01T00:00:00Z')`,
+            ('customer-3', 'terms-old', $2, true, 'WEB', '2026-08-01T00:00:00Z'),
+            ('customer-4', $1, 'privacy-2026-10-01', true, 'WEB', '2026-10-01T00:00:00Z')`,
     [CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION],
   );
-  for (const account of ['customer-1', 'customer-2', 'customer-3']) {
+  for (const account of ['customer-1', 'customer-2', 'customer-3', 'customer-4']) {
     assert.equal((await consent.status(account)).required, true, account);
   }
+  await assert.rejects(consent.record(agree('customer-4', { privacyVersion: 'privacy-2026-10-01' })),
+    (error) => error instanceof ConsentError && error.code === 'CONSENT_VERSION_MISMATCH');
+  await consent.record(agree('customer-4'));
+  assert.equal((await consent.status('customer-4')).required, false);
+  assert.deepEqual((await rows(pool, 'customer-4')).map((row) => row.privacy_version),
+    ['privacy-2026-10-01', CURRENT_PRIVACY_VERSION]);
   await consent.record(agree('customer-1'));
   assert.equal((await consent.status('customer-1')).required, false);
   assert.deepEqual(
     (await rows(pool, 'customer-1')).map((row) => [row.terms_version, row.privacy_version]),
-    [['terms-old', 'privacy-old'], ['terms-2026-09-30', 'privacy-2026-10-01']],
+    [['terms-old', 'privacy-old'], ['terms-2026-09-30', 'privacy-2026-10-04']],
   );
-  assert.equal(state.now.toISOString(), '2026-09-30T01:00:00.000Z');
+  assert.equal(state.now.toISOString(), '2026-10-04T01:00:00.000Z');
 });
 
 test('concurrent agreements from the app and the web leave one row', async (t) => {

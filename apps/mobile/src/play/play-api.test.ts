@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createPlayApiClient, PlayApiError } from './play-api';
+
+const credential = { kind: 'bearer', sessionToken: 'test-session' } as const;
+const run = { id: 'run-1', kind: 'stack', seed: 123, startedAt: '2026-10-04T00:00:00.000Z', expiresAt: '2026-10-04T00:01:00.000Z', durationMs: 30000, rulesVersion: 1 } as const;
+
+test('play client scopes reads, start and finish to bearer account and sends only action log', async () => {
+  const calls: { path: string; body: unknown; auth: string | null }[] = [];
+  const responses = [
+    { records: [{ kind: 'stack', bestScore: 70, plays: 2 }], unlockedThemes: ['garden'] },
+    run,
+    { kind: 'stack', score: 80, bestScore: 80, plays: 3, completed: true, correct: 8, total: 8, unlockedThemes: ['garden'] },
+  ];
+  const api = createPlayApiClient({ apiUrl: 'https://api.test/', credential, fetcher: async (url, init) => {
+    calls.push({ path: String(url), body: init?.body ? JSON.parse(String(init.body)) : undefined, auth: new Headers(init?.headers).get('authorization') });
+    return Response.json(responses.shift());
+  } });
+  assert.equal((await api.getPlay()).records[0]?.bestScore, 70);
+  assert.equal((await api.start('stack')).id, 'run-1');
+  assert.equal((await api.finish(run, [{ at: 42, choice: 2 }])).score, 80);
+  assert.deepEqual(calls.map((call) => call.auth), ['Bearer test-session', 'Bearer test-session', 'Bearer test-session']);
+  assert.deepEqual(calls[2]?.body, { actions: [{ at: 42, choice: 2 }] });
+});
+
+test('network errors retain retryable finish semantics', async () => {
+  const api = createPlayApiClient({ apiUrl: 'https://api.test', credential, fetcher: async () => { throw new Error('offline'); } });
+  await assert.rejects(() => api.finish(run, []), (error) => error instanceof PlayApiError && error.code === 'NETWORK_ERROR');
+});
+
+test('retrying a lost finish response resends the same run and actions', async () => {
+  const requests: { url: string; body: string }[] = [];
+  const api = createPlayApiClient({ apiUrl: 'https://api.test', credential, fetcher: async (url, init) => {
+    requests.push({ url: String(url), body: String(init?.body) });
+    if (requests.length === 1) throw new Error('response lost');
+    return Response.json({ kind: 'stack', score: 50, bestScore: 50, plays: 1, completed: true, correct: 1, total: 6, unlockedThemes: ['daylight'] });
+  } });
+  const actions = [{ at: 42, choice: 0 }];
+  await assert.rejects(() => api.finish(run, actions), PlayApiError);
+  await api.finish(run, actions);
+  assert.deepEqual(requests[0], requests[1]);
+});

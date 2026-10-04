@@ -55,6 +55,8 @@ test('customer screens use the art bridge except for validated collectible inlin
     'screens/collection/grade-material-layer.tsx',
     // #332: the 인스타 카드 draws the same validated data-URL thumbnails (never a remote URL), just six at a time.
     'screens/collection/collection-share.tsx',
+    // 게임 카드도 commerce-api가 검증한 보유 수집품 인라인 그림만 사용한다.
+    'screens/play/play-art.tsx',
   ]);
   const offenders = [...sources(join(src, 'screens')), ...sources(join(src, 'ui'))]
     .map((path) => ({ path, name: relative(src, path).replaceAll('\\', '/') }))

@@ -1,5 +1,13 @@
 # HANDOFF
 
+## 2026-10-04 방문·동행·공간·네 게임 (Issue #363)
+
+- 브랜치 `feat/connected-play-collection`, 기준 `origin/main 237d5471`. 최신 원격을 다시 fetch해 동일 기준을 확인했다. 새게임4종/서버검증/공간·친구·공유/주간목표/점주제작기/운영집계를 통합했고 기존 보유권·마일리지·쿠폰·방문 규칙을 유지했다.
+- 검증은 [TEST_STATUS](TEST_STATUS.md)와 [전용 증거](evidence/connected-play-2026-10-04/README.md). API403/403·모바일1395/1395·사이트467/467, PostgreSQL400 PASS/3 SKIP, 타입/lint/build 및 실제Chrome·개발APK/에뮬레이터를 구분한다. 독립핵심재검토APPROVE. 공개서버/새공개설치본/실제점포QR/Samsung새기능/TalkBack은 NOT_RUN이다.
+- 미리보기: 로컬8095 Node게이트웨이 → 로컬API4310 → 별도Docker `masscom-connected-play-qa` 55542의 `masscom_showcase_test`; 실제운영DB/계정은 건드리지 않았다. `/play`, `/studio`, 기존방문·도감·상점에서 연결된다. 게이트웨이스크립트/QA로그는 ignored `.tmp`에 있다.
+- Expo57의 `expo/virtual/env`는 기존ignored `.env.local`을 합치므로 격리해서 변형별번들을 확인했다. 사용자설정은내용/권한을보존해원상복구한다. 원본값이나키는로그/커밋에 넣지 않는다.
+- 공개반영전 migration0042·개인정보04 문서/동의·최신앱을 함께 배포하고 새그림/게임/공간을 실기최종확인한다. 코드롤백때새사용자기록표를 DROP하지 않는다. 기존공개 test.9/Preview18이 새기능을 포함한다고 기록하지 않는다.
+
 ## 2026-10-04 `cb8030a` 운영 test.9·시연 Preview 18 공개 (Issue #360)
 
 - 기준 커밋: main `cb8030ac3d082c3aac9461e2f6db23bf73f4cc46`(PR #359 병합 결과, Issue #358), 브랜치 `docs/release-cb8030a`, worktree `.worktrees/release-docs3`. 문서·포털 링크 기대값만 갱신한다.

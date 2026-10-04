@@ -7,6 +7,7 @@ import {
   collectionShareCardFooter,
   collectionShareCardSize,
   collectionShareCardTitle,
+  collectionShareColumns,
   type CollectionShareCardInput,
 } from './collection-share-card';
 
@@ -37,7 +38,7 @@ test('the card names the stores visited, counting each store once', () => {
   const model = buildCollectionShareCard({ visits, collectibles: [collectible('a', 'm1', 1, '2026-10-01T00:00:00Z')], medals: noMedals });
   assert.equal(model.visitedStoreCount, 2);
   assert.equal(model.title, '나의 월계 도감');
-  assert.equal(model.subtitle, '2곳의 가게를 모았어요');
+  assert.equal(model.subtitle, '2곳 방문 · 수집품 1개');
   assert.equal(model.footer, 'MassCOM · 월계 동네 수집');
   assert.equal(collectionShareCardTitle, '나의 월계 도감');
   assert.equal(collectionShareCardFooter, 'MassCOM · 월계 동네 수집');
@@ -72,6 +73,27 @@ test('the grid keeps at most six collectibles', () => {
   assert.deepEqual(model.items.map((item) => item.title), ['수집품 8', '수집품 7', '수집품 6', '수집품 5', '수집품 4', '수집품 3']);
 });
 
+test('long names use wider cells and fewer representatives without reducing the true count', () => {
+  const many = Array.from({ length: 6 }, (_, index) => collectible(String(index), `m${index}`, 5, `2026-10-0${index + 1}T00:00:00Z`, {
+    artwork: { publicationId: `p${index}`, gradeId: 'gold', name: '따뜻한 오후의 조용한 책방에서 만난 이야기', thumbnailDataUrl: 'data:image/png;base64,art' },
+  }));
+  const model = buildCollectionShareCard({ visits, collectibles: many, medals: noMedals });
+  assert.equal(collectionShareColumns(model.items), 2);
+  assert.equal(model.items.length, 4);
+  assert.equal(model.collectedCount, 6);
+});
+
+test('extreme names use full-width cells while keeping their real wording', () => {
+  const many = Array.from({ length: 6 }, (_, index) => collectible(String(index), `m${index}`, 5, `2026-10-0${index + 1}T00:00:00Z`, {
+    artwork: { publicationId: `p${index}`, gradeId: 'gold', name: '동네에서 오랫동안 기다린 아주 특별하고 다정한 수집품과 함께했던 우리의 새로운 이야기', thumbnailDataUrl: 'data:image/png;base64,art' },
+  }));
+  const model = buildCollectionShareCard({ visits, collectibles: many, medals: noMedals });
+  assert.equal(collectionShareColumns(model.items), 1);
+  assert.equal(model.items.length, 2);
+  assert.equal(model.collectedCount, 6);
+  assert.equal(model.items[0]?.title, many[5]?.artwork?.name);
+});
+
 test('each item carries only its title, store, grade and picture', () => {
   const model = buildCollectionShareCard({ visits, collectibles: [collectible('a', 'm1', 5, '2026-10-01T00:00:00Z')], medals: noMedals });
   assert.deepEqual(model.items, [{ title: '수집품 a', storeName: '가게 m1', grade: 'GOLD', imageUri: 'data:image/png;base64,thumba' }]);
@@ -84,6 +106,19 @@ test('the same published picture earned twice shows once, as its best copy', () 
   ];
   const model = buildCollectionShareCard({ visits, collectibles: twice, medals: noMedals });
   assert.equal(model.items.length, 1);
+});
+
+test('one publication occupies one cell at its highest owned grade while total copies remain counted', () => {
+  const copies = [
+    collectible('bronze', 'm1', 1, '2026-10-01T00:00:00Z', { artwork: { publicationId: 'pub-shared', gradeId: 'bronze', name: '동네 그림', thumbnailDataUrl: 'data:image/png;base64,bronze' } }),
+    collectible('gold', 'm1', 5, '2026-09-01T00:00:00Z', { artwork: { publicationId: 'pub-shared', gradeId: 'gold', name: '동네 그림', thumbnailDataUrl: 'data:image/png;base64,gold' } }),
+  ];
+  const model = buildCollectionShareCard({ visits, collectibles: copies, medals: noMedals });
+  assert.equal(model.items.length, 1);
+  assert.equal(model.items[0]?.grade, 'GOLD');
+  assert.equal(model.items[0]?.imageUri, 'data:image/png;base64,gold');
+  assert.equal(model.collectedCount, 2);
+  assert.equal(model.subtitle, '2곳 방문 · 수집품 2개');
 });
 
 test('a collectible without a published picture still gets a frame, named by its display name', () => {
@@ -165,7 +200,7 @@ test('the model never carries an account, nickname, email, date, wallet, QR or f
   assert.doesNotMatch(json, /0x[0-9a-fA-F]{6}/, 'no wallet address');
   assert.doesNotMatch(json, /qr/i, 'no QR');
   // 모델의 키는 화면에 그릴 것만이다.
-  assert.deepEqual(Object.keys(model).sort(), ['demoNote', 'footer', 'items', 'medals', 'subtitle', 'title', 'visitedStoreCount']);
+  assert.deepEqual(Object.keys(model).sort(), ['collectedCount', 'demoNote', 'footer', 'items', 'medals', 'subtitle', 'title', 'visitedStoreCount']);
   for (const item of model.items) assert.deepEqual(Object.keys(item).sort(), ['grade', 'imageUri', 'storeName', 'title']);
   for (const medal of model.medals) assert.deepEqual(Object.keys(medal).sort(), ['kind', 'label', 'tier', 'tierLabel']);
 });
