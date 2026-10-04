@@ -535,13 +535,15 @@ fieldset.admin-consent legend { padding: 0 6px; font-weight: 800; }
   body:has(> .install-poster) { background: white; color: black; min-height: 0; }
   body:has(> .install-poster) > :not(.install-poster) { display: none !important; }
   body:has(> .install-poster) > .install-poster { display: block !important; color: black; background: white; }
-  .install-poster { page: merchant-poster; width: 100%; font-size: 16pt; text-align: center; break-inside: avoid; }
-  .install-poster h1 { font-size: 28pt; margin-block: 10mm; }
-  .install-poster h2 { font-size: 24pt; margin-block: 8mm; }
-  .install-poster ol { list-style: none; padding: 0; text-align: left; }
-  .install-poster li { margin-block: 8mm; }
-  .install-poster img { display: block; width: 55mm; height: 55mm; margin: 8mm auto 3mm; }
-  .install-poster footer { font-size: 11pt; margin-top: 10mm; }
+  /* 매장에 붙여 두고 떨어져서 읽는 안내문: 글자와 QR을 크게, 단계는 가운데 한 묶음으로 둔다. */
+  .install-poster { page: merchant-poster; width: 100%; padding: 8mm 12mm; font-size: 20pt; line-height: 1.4;
+    text-align: center; break-inside: avoid; }
+  .install-poster h1 { font-size: 40pt; margin-block: 8mm 4mm; }
+  .install-poster h2 { font-size: 30pt; margin-block: 4mm 10mm; }
+  .install-poster ol { display: inline-block; list-style: none; margin: 0; padding: 0; text-align: left; }
+  .install-poster li { margin-block: 6mm; }
+  .install-poster img { display: block; width: 75mm; height: 75mm; margin: 10mm auto 3mm; }
+  .install-poster footer { font-size: 12pt; margin-top: 10mm; }
 }
 
 /* 가게 정보와 캠페인 안내는 빈 상태에서도 보조 기술의 알림 영역을 유지한다. */
