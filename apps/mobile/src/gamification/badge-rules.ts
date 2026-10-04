@@ -212,9 +212,14 @@ export function shareMessage(medal: Medal, variant: ShareVariant): string {
 
 const kstOffsetMs = 9 * 60 * 60 * 1000;
 
-function kstParts(iso: string) {
+export function kstParts(iso: string) {
   const shifted = new Date(Date.parse(iso) + kstOffsetMs);
   return { month: shifted.getUTCMonth() + 1, day: shifted.getUTCDate() };
+}
+
+/** KST 달력 날짜의 순번. 시각 차이가 아니라 자정을 지난 횟수를 비교한다. */
+export function kstCalendarDay(iso: string): number {
+  return Math.floor((Date.parse(iso) + kstOffsetMs) / (24 * 60 * 60 * 1000));
 }
 
 /** "~10월 29일까지" in Asia/Seoul (no DST, so a fixed +9h offset is exact). */
