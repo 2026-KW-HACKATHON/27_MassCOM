@@ -15,6 +15,7 @@ const now = new Date('2026-09-30T12:00:00.000Z');
 const cutoffMs = Date.parse('2025-09-30T12:00:00.000Z'); // exactly one year before `now`
 const threeYearMs = Date.parse('2023-09-30T12:00:00.000Z'); // exactly three years before `now`
 const dayMs = Date.parse('2026-09-29T12:00:00.000Z'); // exactly one day before `now`
+const thirtyDayMs = now.getTime() - 30 * 86_400_000;
 const at = (ms: number) => new Date(ms);
 // Each period has the same three rows: one millisecond older is deleted, exactly at the boundary and younger are kept.
 const around = (boundary: number) => ({ before: at(boundary - 1), exactly: at(boundary), after: at(boundary + 1) });
@@ -35,7 +36,8 @@ async function setup(t: TestContext) {
     `TRUNCATE auth_sessions, web_sessions, account_deletion_intake_requests, account_deletion_requests,
               platform_admin_audit, platform_admin_role_audit, staff_registration_audit, staff_registration_requests,
               badge_coupon_audit, badge_coupons, badge_reward_offers, platform_admins, customer_identity_tokens,
-              wallet_challenges, web_oauth_states, showcase_access_requests, merchants CASCADE`,
+              wallet_challenges, web_oauth_states, showcase_access_requests, merchants,
+              play_runs, play_records, studios CASCADE`,
   );
   await pool.query(
     `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
@@ -311,6 +313,7 @@ test('run deletes exactly the rows older than each period in every table and not
     auth_sessions: 3, web_sessions: 2, deletion_intake: 3, admin_audit: 1, admin_owner_audit: 2,
     admin_role_audit: 1, staff_registration_audit: 1, coupon_audit: 1, customer_identity_tokens: 1,
     wallet_challenges: 1, web_oauth_states: 1, staff_registration_requests: 2, showcase_access_requests: 1,
+    play_runs: 0,
   });
   // A report is read-only.
   assert.equal((await idsOf(pool, 'SELECT id FROM auth_sessions')).length, 5);
@@ -352,7 +355,42 @@ test('run deletes exactly the rows older than each period in every table and not
   );
 
   // A second run has nothing left to delete.
-  assert.deepEqual(Object.values(counts((await service.run()).counts)), Array(13).fill(0));
+  assert.deepEqual(Object.values(counts((await service.run()).counts)), Array(14).fill(0));
+});
+
+test('play run retention removes old expired and finished runs but preserves boundary runs and best records', async (t) => {
+  const { pool, service } = await setup(t);
+  const gone: string[] = [];
+  const kept: string[] = [];
+  const insert = async (bucket: string[], expiresAt: Date, finishedAt: Date | null) => {
+    const id = randomUUID();
+    bucket.push(id);
+    await pool.query(
+      `INSERT INTO play_runs (id, account_id, kind, seed, started_at, expires_at, rules_version, finished_at, result)
+       VALUES ($1, 'acct_play_retention', 'stack', 1, $2, $3, 1, $4, $5)`,
+      [id, at((finishedAt ?? expiresAt).getTime() - 300_000), expiresAt, finishedAt, finishedAt === null ? null : '{}'],
+    );
+  };
+  await insert(gone, at(thirtyDayMs - 1), null);
+  await insert(kept, at(thirtyDayMs), null);
+  await insert(kept, at(thirtyDayMs + 1), null);
+  await insert(kept, at(now.getTime() + 60_000), null);
+  await insert(gone, at(thirtyDayMs + 299_999), at(thirtyDayMs - 1));
+  await insert(kept, at(thirtyDayMs + 300_000), at(thirtyDayMs));
+  await insert(kept, at(thirtyDayMs + 300_001), at(thirtyDayMs + 1));
+  await pool.query(
+    `INSERT INTO play_records (account_id, kind, best_score, plays)
+     VALUES ('acct_play_retention', 'stack', 42, 7)`,
+  );
+
+  assert.equal(counts(await service.report()).play_runs, gone.length);
+  assert.equal((await pool.query('SELECT 1 FROM play_runs')).rowCount, gone.length + kept.length);
+  const first = await service.run();
+  assert.deepEqual(first.failed, []);
+  assert.equal(counts(first.counts).play_runs, gone.length);
+  assert.deepEqual(await idsOf(pool, 'SELECT id FROM play_runs'), kept.sort());
+  assert.deepEqual((await pool.query('SELECT best_score, plays FROM play_records')).rows, [{ best_score: 42, plays: 7 }]);
+  assert.equal(counts((await service.run()).counts).play_runs, 0);
 });
 
 test('access-right records live three years while other handling records live one year', async (t) => {
@@ -484,7 +522,8 @@ test('the command prints counts only and leaves the exit code at zero when every
     'auth_sessions\t2', 'web_sessions\t0', 'deletion_intake\t1', 'admin_audit\t0', 'admin_owner_audit\t0',
     'admin_role_audit\t1', 'staff_registration_audit\t0', 'coupon_audit\t0', 'customer_identity_tokens\t0',
     'wallet_challenges\t0', 'web_oauth_states\t0', 'staff_registration_requests\t0', 'showcase_access_requests\t0',
-    'admin_audit_deleted_targets\t0',
+    'play_runs\t0',
+    'deleted_play_data\t0', 'admin_audit_deleted_targets\t0',
   ]);
   assert.equal((await idsOf(pool, 'SELECT id FROM auth_sessions')).length, 1);
   // No identifier of any kind reaches the terminal: not a row id, not an account id, not the ledger id.
@@ -493,10 +532,12 @@ test('the command prints counts only and leaves the exit code at zero when every
   assert.equal(output.includes(ledgerId), false);
   assert.throws(() => run(['delete']), (error: { status?: number; stderr?: string }) =>
     error.status === 1 && /RETENTION_USAGE/.test(String(error.stderr)));
-  // Without the secret only the audit target step fails (by name); the delete steps still ran and printed their counts.
+  // Without the secret both HMAC repair steps fail by name; ordinary delete steps still run.
   assert.throws(() => run(['run'], { ACCOUNT_DELETION_HMAC_SECRET: '' }), (error: { status?: number; stdout?: string; stderr?: string }) =>
-    error.status === 1 && String(error.stderr).trim() === 'RETENTION_STEP_FAILED\tadmin_audit_deleted_targets'
-      && /^auth_sessions\t0$/m.test(String(error.stdout)) && !/admin_audit_deleted_targets/.test(String(error.stdout)));
+    error.status === 1 && String(error.stderr).trim() ===
+      'RETENTION_STEP_FAILED\tdeleted_play_data\nRETENTION_STEP_FAILED\tadmin_audit_deleted_targets'
+      && /^auth_sessions\t0$/m.test(String(error.stdout))
+      && !/deleted_play_data|admin_audit_deleted_targets/.test(String(error.stdout)));
 });
 
 test('after a rollback to an API without consent cleanup, purge-deleted-consents removes only deleted accounts consent rows', async (t) => {
@@ -576,9 +617,9 @@ test('after a rollback to an API that does not de-identify audit targets, the da
 
   // Not part of report(): it only counts what the delete steps would remove.
   assert.equal('admin_audit_deleted_targets' in counts(await service.report()), false);
-  // Without a secret the step does not run at all; with an unusable one it is the only step reported as failed.
+  // Without a secret HMAC repair does not run; with an unusable one both repair steps report failure.
   assert.equal('admin_audit_deleted_targets' in counts((await service.run()).counts), false);
-  assert.deepEqual((await service.run({ hmacSecret: 'too-short' })).failed, ['admin_audit_deleted_targets']);
+  assert.deepEqual((await service.run({ hmacSecret: 'too-short' })).failed, ['deleted_play_data', 'admin_audit_deleted_targets']);
   assert.equal((await targetsOf())[goneA], 'acct_gone', 'a step that could not run changed nothing');
   // A secret that is not the deletion secret hashes every account to a value the ledger does not know: nothing changes.
   const wrong = await service.run({ hmacSecret: 'another-secret-of-at-least-32-bytes-long!' });

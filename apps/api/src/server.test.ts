@@ -5191,10 +5191,23 @@ test('play and studio routes require identity and reject malformed actions befor
     aggregate: async (days) => ({ days, events: [], games: [] }),
   };
   const args: Parameters<typeof startFixture> = [t];
+  args[26] = consentFixture({ status: async () => ({ required: false, ...consentVersions }) });
   args[35] = play;
   const base = await startFixture(...args);
   const headers = { 'x-account-id': 'player', 'content-type': 'application/json' };
-  assert.equal((await fetch(`${base}/me/play`)).status, 401);
+  for (const [method, path, body] of [
+    ['GET', '/me/play', undefined],
+    ['POST', '/me/play/runs', JSON.stringify({ kind: 'stack' })],
+    ['POST', '/me/play/runs/00000000-0000-4000-8000-000000000001/finish', JSON.stringify({ actions: [] })],
+    ['POST', '/me/play/events', JSON.stringify({ event: 'share-open' })],
+    ['GET', '/me/studio', undefined],
+    ['PUT', '/me/studio', JSON.stringify({ studio: { theme: 'daylight', layout: 'shelf', accent: 'mint', slots: [], goal: null } })],
+    ['GET', '/friends/friendship-1/studio', undefined],
+  ] as const) {
+    assert.equal((await fetch(`${base}${path}`, { method, headers: { 'content-type': 'application/json' },
+      ...(body === undefined ? {} : { body }) })).status, 401,
+      `${method} ${path}`);
+  }
   assert.equal((await fetch(`${base}/me/play`, { headers })).status, 200);
   assert.equal((await fetch(`${base}/me/play/runs`, { method: 'POST', headers,
     body: JSON.stringify({ kind: 'unknown' }) })).status, 400);

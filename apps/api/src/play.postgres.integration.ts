@@ -1,17 +1,44 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { IncomingMessage, ServerResponse, type Server } from 'node:http';
+import { Socket } from 'node:net';
+import { PassThrough } from 'node:stream';
 import { test } from 'node:test';
 
 import { Pool } from 'pg';
 
+import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, type ConsentService } from './account-consent.js';
 import { PlayError, type Studio } from './play.js';
 import { getGameBoard } from './play-rules.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { runMigrations } from './postgres/migrate.js';
 import { PostgresPlayService } from './postgres/play.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 const secret = 'test-only-account-deletion-secret-at-least-32-bytes';
+
+async function friendStudioRequest(server: Server, accountId: string, friendshipId: string) {
+  const request = new IncomingMessage(new Socket());
+  request.method = 'GET';
+  request.url = `/friends/${friendshipId}/studio`;
+  request.httpVersion = '1.0';
+  request.headers = { 'x-account-id': accountId };
+  request.push(null);
+  const response = new ServerResponse(request);
+  const transport = new PassThrough();
+  const chunks: Buffer[] = [];
+  transport.on('data', (chunk: Buffer) => chunks.push(chunk));
+  response.assignSocket(transport as unknown as Socket);
+  await new Promise<void>((resolve, reject) => {
+    response.once('finish', resolve);
+    response.once('error', reject);
+    server.emit('request', request, response);
+  });
+  return { status: response.statusCode,
+    body: JSON.parse(Buffer.concat(chunks).toString('utf8').split('\r\n\r\n')[1]!) as unknown };
+}
 
 test('play runs replay once, studio requires ownership, friend view hides identifiers, deletion clears data', async (t) => {
   const connectionString = process.env.TEST_DATABASE_URL;
@@ -63,8 +90,11 @@ test('play runs replay once, studio requires ownership, friend view hides identi
     const run = await play.start({ accountId: 'player', kind: 'orders' });
     const board = getGameBoard('orders', run.seed);
     if (board.kind !== 'orders') throw new Error('unexpected board');
-    state.now = new Date(state.now.getTime() + 2000);
-    const actions = board.orders.flat().map((choice, step) => ({ at: step * 100 + 1, choice }));
+    const actions = board.orders.flat().map((choice, step) => ({ at: (step + 1) * 180, choice }));
+    state.now = new Date(state.now.getTime() + 1000);
+    await assert.rejects(() => play.finish({ accountId: 'player', runId: run.id, actions }),
+      (error) => error instanceof PlayError && error.code === 'PLAY_ACTIONS_INVALID');
+    state.now = new Date(state.now.getTime() + 100);
     const finished = await play.finish({ accountId: 'player', runId: run.id, actions });
     assert.equal(finished.completed, true);
     assert.equal(finished.plays, index + 1);
@@ -99,7 +129,27 @@ test('play runs replay once, studio requires ownership, friend view hides identi
   assert.deepEqual(beforeSave.studio, { theme: 'daylight', layout: 'shelf', accent: 'mint', goal: null });
   const studio: Studio = { theme: 'evening', layout: 'gallery', accent: 'rose', slots: [entitlement],
     goal: { kind: 'regular', merchantId: 'play-merchant' } };
+  await pool.query(`INSERT INTO showcase_guest_trials (account_id,merchant_id,created_at,expires_at)
+    VALUES ('guest-player','play-merchant',$1,$2)`, [state.now, new Date(state.now.getTime() + 86400_000)]);
+  await assert.rejects(() => play.saveStudio({ accountId: 'player', studio }),
+    (error) => error instanceof PlayError && error.code === 'STUDIO_GOAL_UNAVAILABLE');
+  await pool.query(`DELETE FROM showcase_guest_trials WHERE account_id='guest-player'`);
+  const currentTime = state.now;
+  for (const outsideCampaign of ['2025-12-31T23:59:59Z', '2027-01-01T00:00:00Z']) {
+    state.now = new Date(outsideCampaign);
+    await assert.rejects(() => play.saveStudio({ accountId: 'player', studio }),
+      (error) => error instanceof PlayError && error.code === 'STUDIO_GOAL_UNAVAILABLE');
+  }
+  state.now = currentTime;
   assert.equal((await play.saveStudio({ accountId: 'player', studio })).items[0]?.entitlementId, entitlement);
+  assert.deepEqual((await play.getFriendStudio({ accountId: 'friend', friendshipId })).items, [],
+    'saved studio stays private without current consent');
+  await pool.query(`INSERT INTO account_consents (account_id,terms_version,privacy_version,age_confirmed,source)
+    VALUES ('player',$1,'privacy-old',true,'ANDROID')`, [CURRENT_TERMS_VERSION]);
+  assert.deepEqual((await play.getFriendStudio({ accountId: 'friend', friendshipId })).items, [],
+    'old privacy consent does not expose the saved studio');
+  await pool.query(`INSERT INTO account_consents (account_id,terms_version,privacy_version,age_confirmed,source)
+    VALUES ('player',$1,$2,true,'ANDROID')`, [CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION]);
   await assert.rejects(() => play.saveStudio({ accountId: 'player', studio: { ...studio,
     slots: [randomUUID()] } }),
   (error) => error instanceof PlayError && error.code === 'STUDIO_ITEM_NOT_OWNED');
@@ -125,6 +175,40 @@ test('play runs replay once, studio requires ownership, friend view hides identi
 
   const deletion = new PostgresAccountDeletionService(pool, { hmacSecret: secret,
     policyVersion: 'test', now, accountLifecycle: lifecycle });
+  const consent: ConsentService = { appSource: 'ANDROID',
+    status: async () => ({ required: false, termsVersion: CURRENT_TERMS_VERSION, privacyVersion: CURRENT_PRIVACY_VERSION }),
+    record: async () => { throw new Error('unexpected consent write'); },
+  };
+  const challenge = new WalletChallengeService({ store: new InMemoryChallengeStore(),
+    domain: 'api.masscom.local', uri: 'https://api.masscom.local/wallet/verify', chainId: 84532,
+    ttlMs: 300000, nonce: () => 'abc12345def67890', challengeId: () => 'challenge-studio-race' });
+  for (const deletedRole of ['viewer', 'friend'] as const) {
+    const viewerId = `race-viewer-${deletedRole}`;
+    const friendId = `race-friend-${deletedRole}`;
+    const pair = [viewerId, friendId].sort();
+    const raceFriendshipId = randomUUID();
+    await pool.query('INSERT INTO friendships (id,account_low,account_high) VALUES ($1,$2,$3)',
+      [raceFriendshipId, ...pair]);
+    const racingLifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+    const assertAllActive = racingLifecycle.assertAllActive.bind(racingLifecycle);
+    let raced = false;
+    racingLifecycle.assertAllActive = async (client, accounts) => {
+      if (!raced && accounts.length === 2) {
+        raced = true;
+        // The relationship has been read, but neither account lock has been acquired yet.
+        await deletion.requestDeletion({ accountId: deletedRole === 'viewer' ? viewerId : friendId,
+          confirmation: 'DELETE MY ACCOUNT' });
+      }
+      await assertAllActive(client, accounts);
+    };
+    const args: Parameters<typeof createApiServer> = [challenge, developmentHeaderAccountResolver];
+    args[26] = consent;
+    args[37] = new PostgresPlayService(pool, racingLifecycle, { now });
+    const result = await friendStudioRequest(createApiServer(...args), viewerId, raceFriendshipId);
+    assert.equal(raced, true);
+    assert.equal(result.status, deletedRole === 'viewer' ? 410 : 404);
+    assert.deepEqual(result.body, { code: deletedRole === 'viewer' ? 'ACCOUNT_DELETED' : 'FRIEND_STUDIO_NOT_FOUND' });
+  }
   await deletion.requestDeletion({ accountId: 'player', confirmation: 'DELETE MY ACCOUNT' });
   for (const table of ['play_runs', 'play_records', 'studios']) {
     assert.equal((await pool.query<{ count: number }>(

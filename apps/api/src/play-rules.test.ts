@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { gameDurationMs, getGameBoard, scoreRun, stackCursor } from './play-rules.js';
+import { gameDurationMs, getGameBoard, minimumCompletedElapsedMs, scoreRun, scoreRunAtElapsed, stackCursor } from './play-rules.js';
 
 test('boards are deterministic and each game has its own input model', () => {
   for (const kind of ['stack', 'memory', 'delivery', 'orders'] as const) {
@@ -53,4 +53,45 @@ test('rejects impossible action ranges and timing', () => {
   assert.throws(() => scoreRun('stack', 1, [{ at: 1, choice: 0 }, { at: 1, choice: 0 }]));
   assert.throws(() => scoreRun('orders', 1, [{ at: 1, choice: 4 }]));
   assert.throws(() => getGameBoard('memory', -1));
+});
+
+test('instant scripted completions fail for every game; fast human logs pass', () => {
+  const seed = 17;
+  const expectedMinimum = { stack: 750, memory: 880, delivery: 24000, orders: 1100 } as const;
+  const inputGap = { stack: 150, memory: 80, orders: 100 } as const;
+  for (const kind of ['stack', 'memory', 'delivery', 'orders'] as const) {
+    const board = getGameBoard(kind, seed);
+    let actions: { at: number; choice: number }[];
+    if (board.kind === 'stack') actions = board.rounds.map((_, index) => ({ at: (index + 1) * 300, choice: 0 }));
+    else if (board.kind === 'memory') {
+      actions = [...new Set(board.cards)].flatMap((symbol) => board.cards.flatMap((card, index) =>
+        card === symbol ? [{ at: 0, choice: index }] : []));
+      actions.forEach((action, index) => { action.at = (index + 1) * 140; });
+    } else if (board.kind === 'delivery') actions = board.ticks.map((tick) => ({ at: tick.at, choice: tick.bonusLane }));
+    else actions = board.orders.flat().map((choice, index) => ({ at: (index + 1) * 180, choice }));
+
+    const minimumElapsed = minimumCompletedElapsedMs(kind, seed);
+    assert.equal(minimumElapsed, expectedMinimum[kind], kind);
+    assert.equal(scoreRunAtElapsed(kind, seed, actions, minimumElapsed).completed, true, kind);
+    assert.throws(() => scoreRunAtElapsed(kind, seed, actions, minimumElapsed - 1), /INVALID_GAME_ACTIONS/, kind);
+    if (kind !== 'delivery') {
+      const paced = actions.map((action, index) => ({ ...action, at: index * inputGap[kind] }));
+      assert.equal(scoreRunAtElapsed(kind, seed, paced, minimumElapsed).completed, true, kind);
+      assert.throws(() => scoreRunAtElapsed(kind, seed, paced, minimumElapsed - 1), /INVALID_GAME_ACTIONS/, kind);
+    }
+    const instant = actions.map((action, index) => ({ ...action, at: index + 1 }));
+    assert.throws(() => scoreRunAtElapsed(kind, seed, instant, 12), /INVALID_GAME_ACTIONS/, kind);
+    assert.throws(() => scoreRunAtElapsed(kind, seed, instant, gameDurationMs), /INVALID_GAME_ACTIONS/,
+      `${kind}: waiting before submission must not bypass input spacing`);
+  }
+});
+
+test('delivery final sample may repeat the current lane immediately after a move', () => {
+  const actions = [{ at: 1000, choice: 2 }, { at: 23999, choice: 0 }, { at: 24000, choice: 0 }];
+  assert.equal(scoreRunAtElapsed('delivery', 17, actions, 24000).completed, true);
+  assert.equal(scoreRunAtElapsed('delivery', 17, [{ at: 1000, choice: 2 }, { at: 1050, choice: 2 }], 1050).completed,
+    false, 'manual finish can append the current lane before the last tick');
+  assert.throws(() => scoreRunAtElapsed('delivery', 17,
+    [{ at: 1000, choice: 2 }, { at: 23999, choice: 0 }, { at: 24000, choice: 1 }], 24000),
+  /INVALID_GAME_ACTIONS/);
 });

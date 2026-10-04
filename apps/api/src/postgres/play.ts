@@ -2,11 +2,13 @@ import { randomInt, randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
+import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '../account-consent.js';
 import { defaultStudio, PlayError, type FriendStudioSnapshot, type PlayEvent, type PlayMetrics, type PlayRecord,
   type PlayResult, type PlayService, type PlaySnapshot, type Studio, type StudioItem,
   type StudioSnapshot } from '../play.js';
-import { gameDurationMs, gameKinds, isGameKind, scoreRun, type GameAction, type GameKind, type PlayRun } from '../play-rules.js';
+import { gameDurationMs, gameKinds, isGameKind, scoreRunAtElapsed, type GameAction, type GameKind, type PlayRun } from '../play-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
+import { publicCampaignPredicate } from './merchant-catalog.js';
 
 type RunRow = { id: string; kind: GameKind; seed: number; started_at: Date; expires_at: Date;
   result: PlayResult | null };
@@ -22,6 +24,7 @@ function validStudio(value: unknown): value is Studio {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const studio = value as Record<string, unknown>;
   if (Object.keys(studio).sort().join(',') !== 'accent,goal,layout,slots,theme' ||
+      typeof studio.theme !== 'string' || typeof studio.layout !== 'string' || typeof studio.accent !== 'string' ||
       !themes.includes(studio.theme as typeof themes[number]) ||
       !layouts.includes(studio.layout as typeof layouts[number]) ||
       !accents.includes(studio.accent as typeof accents[number]) ||
@@ -31,8 +34,9 @@ function validStudio(value: unknown): value is Studio {
   if (studio.goal === null) return true;
   if (!studio.goal || typeof studio.goal !== 'object' || Array.isArray(studio.goal)) return false;
   const goal = studio.goal as Record<string, unknown>;
+  if (typeof goal.kind !== 'string') return false;
   if (goal.kind === 'play') return Object.keys(goal).sort().join(',') === 'gameKind,kind' && isGameKind(goal.gameKind);
-  return ['discover', 'regular', 'series'].includes(String(goal.kind)) &&
+  return ['discover', 'regular', 'series'].includes(goal.kind) &&
     Object.keys(goal).sort().join(',') === 'kind,merchantId' &&
     typeof goal.merchantId === 'string' && goal.merchantId.length > 0 && goal.merchantId.length <= 200;
 }
@@ -80,13 +84,10 @@ export class PostgresPlayService implements PlayService {
       if (run.result) return run.result;
       const now = this.now();
       if (now > run.expires_at) throw new PlayError('PLAY_RUN_EXPIRED');
-      let score: ReturnType<typeof scoreRun>;
-      try { score = scoreRun(run.kind, run.seed, input.actions); }
-      catch { throw new PlayError('PLAY_ACTIONS_INVALID'); }
       const elapsed = now.getTime() - run.started_at.getTime();
-      if (elapsed < 0 || input.actions.some((action) => action.at > elapsed + 2000)) {
-        throw new PlayError('PLAY_ACTIONS_INVALID');
-      }
+      let score: ReturnType<typeof scoreRunAtElapsed>;
+      try { score = scoreRunAtElapsed(run.kind, run.seed, input.actions, elapsed); }
+      catch { throw new PlayError('PLAY_ACTIONS_INVALID'); }
       let record: PlayRecord | undefined;
       if (score.completed) {
         const updated = await client.query<RecordRow>(`INSERT INTO play_records (account_id, kind, best_score, plays)
@@ -151,7 +152,13 @@ export class PostgresPlayService implements PlayService {
         `SELECT account_low,account_high FROM friendships WHERE id=$1 AND (account_low=$2 OR account_high=$2)`,
         [input.friendshipId, input.accountId])).rows[0];
       if (!pair) throw new PlayError('FRIEND_STUDIO_NOT_FOUND');
-      await this.accountLifecycle.assertAllActive(client, [pair.account_low, pair.account_high]);
+      try {
+        await this.accountLifecycle.assertAllActive(client, [pair.account_low, pair.account_high]);
+      } catch (error) {
+        if (!(error instanceof AccountLifecycleError)) throw error;
+        await this.accountLifecycle.assertActive(client, input.accountId);
+        throw new PlayError('FRIEND_STUDIO_NOT_FOUND');
+      }
       const friendId = pair.account_low === input.accountId ? pair.account_high : pair.account_low;
       const stillFriends = await client.query(`SELECT 1 FROM friendships WHERE id=$1 AND account_low=$2 AND account_high=$3`,
         [input.friendshipId, pair.account_low, pair.account_high]);
@@ -159,7 +166,9 @@ export class PostgresPlayService implements PlayService {
       const nickname = (await client.query<{ nickname: string }>(
         `SELECT nickname FROM explorer_profiles WHERE account_id=$1`, [friendId])).rows[0]?.nickname ?? '탐험가';
       const saved = (await client.query<{ studio: Studio }>(
-        `SELECT studio FROM studios WHERE account_id=$1`, [friendId])).rows[0];
+        `SELECT studio FROM studios WHERE account_id=$1 AND EXISTS (
+          SELECT 1 FROM account_consents WHERE account_id=$1 AND terms_version=$2 AND privacy_version=$3)`,
+        [friendId, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION])).rows[0];
       if (!saved) return { nickname, studio: { theme: defaultStudio.theme, layout: defaultStudio.layout,
         accent: defaultStudio.accent, goal: null }, items: [], avatar: null };
       const studio = saved.studio;
@@ -251,9 +260,8 @@ export class PostgresPlayService implements PlayService {
   }
 
   private async publicMerchant(client: PoolClient, merchantId: string): Promise<boolean> {
-    const result = await client.query(`SELECT 1 FROM merchants merchant JOIN campaigns campaign ON campaign.merchant_id=merchant.id
-      WHERE merchant.id=$1 AND merchant.status='ACTIVE' AND campaign.status='ACTIVE' AND campaign.is_public=true
-        AND campaign.starts_at<=now() AND campaign.ends_at>now() LIMIT 1`, [merchantId]);
+    const result = await client.query(`SELECT 1 FROM merchants m JOIN campaigns c ON c.merchant_id=m.id
+      WHERE m.id=$1 AND ${publicCampaignPredicate(2)} LIMIT 1`, [merchantId, this.now()]);
     return Boolean(result.rowCount);
   }
 
