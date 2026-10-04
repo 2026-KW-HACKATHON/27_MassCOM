@@ -93,6 +93,15 @@ npm run start:local
 
 ## 엔드포인트
 
+- `GET /api/web/admin/campaigns`(관리자 웹 세션, Issue #365) → `{campaigns, generatedAt}`. `generatedAt`은 서버의 ISO 시각이며 각 캠페인은 기존 `AdminCampaign` 형태다.
+- `POST /api/web/admin/campaigns/:campaignId/extend`(관리자 웹 세션·동일 Origin·JSON) `{days: 30 | 90, expectedEndsAt}` → 갱신한 `AdminCampaign`. 목록에서 받은 종료 시각과 저장값이 다르면 `409 ADMIN_VERSION_CONFLICT`. 새 종료는 `max(서버 현재 시각, 기존 종료) + days`이며 현재부터 365일 초과는 `409 ADMIN_CAMPAIGN_EXTENSION_LIMIT`. DRAFT는 `409 ADMIN_CAMPAIGN_NOT_EXTENDABLE`, 다른 공개 활성 캠페인과 충돌하면 `409 ADMIN_CAMPAIGN_ACTIVE_EXISTS`. 일시 중지는 유지하며 날짜상 종료된 캠페인은 다시 기간 안으로 들어온다. 감사 기록 `CAMPAIGN_EXTENDED`에 이전·새 종료 시각을 기록한다.
+- `GET /api/web/merchant/merchants/:merchantId/profile`(점주 웹 세션·활성 멤버십) → `{merchantId, name, roadAddress, story, businessHours, menuItems: [{name, priceWon}], version, canEdit, readOnlyReason}`. 읽기 전용 사유는 `ROLE`·`SHARED_DEMO_STORE` 또는 `null`이다.
+- `PUT /api/web/merchant/merchants/:merchantId/profile`(점주 웹 세션·동일 Origin·JSON) `{story, businessHours, menuItems, expectedVersion}` → GET과 같은 형태. OWNER는 편집 가능하고 STAFF는 기존 `AI_ART_STAFF_MAY_MANAGE=true` 설정에서만 가능(`403 MERCHANT_PROFILE_FORBIDDEN`). 공유 시연 점포는 항상 `403 MERCHANT_PROFILE_READ_ONLY`; 개인 체험 점포는 해당 체험 멤버만 같은 역할 규칙으로 편집한다. 관리자 편집과 같은 소개 4000자·영업시간 1000자·메뉴 30개·메뉴 이름 1~200자·정수 가격 0~1,000,000,000원 제한이며 잘못된 필드·추가 키는 `400 MERCHANT_PROFILE_INVALID`. 버전 불일치는 `409 MERCHANT_PROFILE_VERSION_CONFLICT`, 성공 시 점포 버전과 수정 시각을 갱신한다. 이름·주소·업종·상태는 편집하지 않는다. 저장은 계정당 30회/시간의 프로세스 메모리 제한이며 초과 시 기존 오류 형태 `{code: 'MERCHANT_PROFILE_RATE_LIMITED'}`와 `Retry-After`를 포함한 429를 반환한다.
+
+캠페인 연장 감사는 migration `0043_campaign_extended_audit.sql`이 기존 action 목록에 `CAMPAIGN_EXTENDED`를 더해 지원한다. 기존 행 재검사 없이 새 쓰기에 CHECK를 적용하며 잠금 대기는 5초로 제한한다. 이전 API 이미지로 롤백해도 확장한 CHECK와 migration 기록은 유지한다.
+
+개인 체험 점포의 편집 규칙은 서비스에서 지원하지만, 현재 `/auth/guest-trial`은 `auth_sessions` Bearer만 발급한다. 이 웹 API의 `web_session`은 별도 `web_sessions`이며 발급 시 Google 신원이 필요하다. 따라서 실제 체험 로그인에서 프로필 API까지 연결하려면 별도의 웹 세션 발급 설계가 필요하다. 이 작업은 계약의 웹 세션 검사를 유지하며 Bearer 대체 인증을 추가하지 않는다.
+
 - `POST /auth/google` `{ idToken }` → `{ sessionToken, accountId, expiresAt }`
 - `POST /auth/logout`(Bearer) → 해당 세션만 폐기
 - `POST /auth/reauthenticate`(Bearer + `{ idToken }`) → 같은 Google 계정일 때만 재인증 시각 갱신

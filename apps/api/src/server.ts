@@ -47,6 +47,7 @@ import {
   type MerchantAccessControl,
 } from './merchant-access.js';
 import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
+import { MerchantProfileError, type MerchantProfileService } from './merchant-profile.js';
 import { MerchantOverviewError, type MerchantOverviewReader } from './merchant-overview-rules.js';
 import { MerchantDiscoveryError, isDetailViewSource, type CollectiblePreviewService, type MerchantDetailViewService } from './merchant-discovery.js';
 import type { AdminFunnelReader } from './admin-funnel.js';
@@ -89,6 +90,7 @@ import { GuestTrialError, ShowcaseGuestTrialService } from './showcase/guest-tri
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresCollectibleProjectService } from './postgres/collectible-project.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
+import { PostgresMerchantProfileService } from './postgres/merchant-profile.js';
 import { PostgresMerchantArtService } from './postgres/merchant-art.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 import { PostgresNftMetadataReader } from './postgres/nft-metadata.js';
@@ -221,7 +223,7 @@ export function createApiServer(
     Partial<Pick<PostgresAdminService, 'operationsStatus' | 'listCampaignDrafts' | 'createCampaignDraft' |
       'listMerchantCoupons' | 'voidCoupon' | 'publishMerchant' | 'listOwners' | 'promoteOwner' | 'demoteOwner' |
       'listRewardOffers' | 'createRewardOffer' | 'pauseRewardOffer' | 'listCampaigns' | 'publishCampaign' |
-      'pauseCampaign'>>,
+      'pauseCampaign' | 'extendCampaign'>>,
   deletionIntake?: AccountDeletionIntakeService,
   staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
   badges?: BadgeRewardService,
@@ -242,6 +244,7 @@ export function createApiServer(
   merchantDetailViews?: MerchantDetailViewService,
   adminFunnel?: AdminFunnelReader,
   play?: PlayService,
+  merchantProfile?: MerchantProfileService,
 ) {
   // 로컬 시연(DEMO 헤더) 배치에서는 체험 세션 Bearer도 받는다(#309). Authorization이 없으면 기존 헤더 해석 그대로이고,
   // 운영·hosted 해석기(Bearer 세션)는 이미 같은 auth_sessions 행으로 체험 세션을 푼다.
@@ -262,6 +265,8 @@ export function createApiServer(
   });
   // 방문 후 가게 특징·바라는 점·의견 저장은 계정당 30회/시간(#334). 같은 가게를 고쳐 쓰는 것도 한 번으로 센다.
   const visitorFeedbackWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60 * 60 * 1000 });
+  // 점포 정보 저장은 점포 수와 무관하게 계정당 30회/시간으로 제한한다(#365).
+  const merchantProfileWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60 * 60 * 1000 });
   const playFlowWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 120, windowMs: 60 * 60 * 1000 });
   // 실행별 멱등 재시도도 본문·DB 진입 전에 계정별로 센다. 분당 60회는 정상 완료·재시도에 여유를 둔다.
   const playFinishLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60_000 });
@@ -598,7 +603,23 @@ export function createApiServer(
         }
         if (path === '/api/web/admin/campaigns' && request.method === 'GET') {
           if (!admin.listCampaigns) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
-          sendJson(response, 200, { campaigns: await admin.listCampaigns(accountId) });
+          const campaigns = await admin.listCampaigns(accountId);
+          sendJson(response, 200, { campaigns, generatedAt: new Date().toISOString() });
+          return;
+        }
+        const campaignExtendMatch = path.match(/^\/api\/web\/admin\/campaigns\/([^/]+)\/extend$/);
+        if (campaignExtendMatch && request.method === 'POST') {
+          if (!admin.extendCampaign) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
+          const body = await readJson(request);
+          requireOnlyKeys(body, ['days', 'expectedEndsAt']);
+          if ((body.days !== 30 && body.days !== 90) || typeof body.expectedEndsAt !== 'string' ||
+              !Number.isFinite(Date.parse(body.expectedEndsAt)) ||
+              new Date(body.expectedEndsAt).toISOString() !== body.expectedEndsAt) {
+            throw new AdminError('ADMIN_INVALID_INPUT');
+          }
+          sendJson(response, 200, await admin.extendCampaign(
+            accountId, decodePathParameter(campaignExtendMatch[1]!), body.days, body.expectedEndsAt,
+          ));
           return;
         }
         const campaignActionMatch = path.match(/^\/api\/web\/admin\/campaigns\/([^/]+)\/(publish|pause)$/);
@@ -642,7 +663,8 @@ export function createApiServer(
       if (path.startsWith('/api/web/merchant/')) {
         const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
         response.setHeader('x-robots-tag', 'noindex, nofollow');
-        if (!webAuth || !staffRegistration) throw new RequestError(503, 'WEB_MERCHANT_NOT_CONFIGURED');
+        const profileMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/profile$/);
+        if (!webAuth || (!staffRegistration && !profileMatch)) throw new RequestError(503, 'WEB_MERCHANT_NOT_CONFIGURED');
         if (path === '/api/web/merchant/auth/start' && request.method === 'GET') {
           if (authLoginLimiter) {
             const decision = authLoginLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
@@ -663,6 +685,31 @@ export function createApiServer(
           throw new RequestError(403, 'MERCHANT_CSRF_FORBIDDEN');
         }
         const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        if (profileMatch && (request.method === 'GET' || request.method === 'PUT')) {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          const merchantId = decodePathParameter(profileMatch[1]!);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'VIEW_MERCHANT' });
+          if (!merchantProfile) throw new RequestError(503, 'MERCHANT_PROFILE_NOT_CONFIGURED');
+          if (request.method === 'GET') {
+            sendJson(response, 200, await merchantProfile.getProfile({ accountId, merchantId }));
+          } else {
+            const decision = merchantProfileWriteLimiter.consume(accountId);
+            if (!decision.allowed) {
+              response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+              sendJson(response, 429, { code: 'MERCHANT_PROFILE_RATE_LIMITED' });
+              return;
+            }
+            const body = await readJson(request);
+            const keys = ['story', 'businessHours', 'menuItems', 'expectedVersion'];
+            if (Object.keys(body).some(key => !keys.includes(key)) || keys.some(key => !(key in body)) ||
+                !Number.isSafeInteger(body.expectedVersion) || (body.expectedVersion as number) < 1) {
+              throw new MerchantProfileError('MERCHANT_PROFILE_INVALID');
+            }
+            sendJson(response, 200, await merchantProfile.updateProfile({ accountId, merchantId, body }));
+          }
+          return;
+        }
+        if (!staffRegistration) throw new RequestError(503, 'WEB_MERCHANT_NOT_CONFIGURED');
         if (path === '/api/web/merchant/me' && request.method === 'GET') {
           sendJson(response, 200, { merchants: await staffRegistration.mine(accountId),
             accountScope: createHash('sha256').update(`collectible-editor:${accountId}`).digest('hex') });
@@ -1754,6 +1801,12 @@ export function createApiServer(
         sendJson(response, 403, { code: error.code });
         return;
       }
+      if (error instanceof MerchantProfileError) {
+        const status = error.code === 'MERCHANT_PROFILE_INVALID' ? 400
+          : error.code === 'MERCHANT_PROFILE_VERSION_CONFLICT' ? 409 : 403;
+        sendJson(response, status, { code: error.code });
+        return;
+      }
       if (error instanceof MerchantOverviewError) {
         sendJson(response, 404, { code: error.code });
         return;
@@ -2223,6 +2276,8 @@ function statusForAdmin(code: AdminError['code']): number {
     case 'ADMIN_OFFER_MILESTONE_TAKEN':
     case 'ADMIN_CAMPAIGN_NOT_PUBLISHABLE':
     case 'ADMIN_CAMPAIGN_NOT_PAUSABLE':
+    case 'ADMIN_CAMPAIGN_NOT_EXTENDABLE':
+    case 'ADMIN_CAMPAIGN_EXTENSION_LIMIT':
     case 'ADMIN_CAMPAIGN_ACTIVE_EXISTS':
       return 409;
     default:
@@ -2645,6 +2700,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     pool ? new PostgresMerchantDetailViewService(pool) : undefined,
     pool ? new PostgresAdminFunnelService(pool) : undefined,
     pool && accountLifecycle ? new PostgresPlayService(pool, accountLifecycle) : undefined,
+    pool ? new PostgresMerchantProfileService(pool, {
+      staffMayManageArt: aiArtConfig.staffMayManage,
+      ...(accountLifecycle ? { accountLifecycle } : {}),
+    }) : undefined,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });

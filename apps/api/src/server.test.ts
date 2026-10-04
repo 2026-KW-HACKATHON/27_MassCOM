@@ -50,6 +50,7 @@ import {
   type RedeemedClaimSlot,
 } from './claim-slot-service.js';
 import { MerchantAccessError } from './merchant-access.js';
+import type { MerchantProfileService } from './merchant-profile.js';
 import type { MileageShopHistory, MileageShopService, MileageShopSnapshot } from './mileage-shop.js';
 import { MerchantOverviewError, type MerchantOverview, type MerchantOverviewReader } from './merchant-overview-rules.js';
 import { ReversalError, type ReversalErrorCode, type ReversalService } from './reversal.js';
@@ -77,11 +78,11 @@ type MerchantAccessFixture = {
   requirePermission(input: {
     accountId: string;
     merchantId: string;
-    permission: 'VIEW_MERCHANT' | 'CONFIRM_VISIT' | 'MANAGE_ART';
+    permission: 'VIEW_MERCHANT' | 'CONFIRM_VISIT' | 'MANAGE_ART' | 'MANAGE_PROFILE';
   }): Promise<{
     merchantId: string;
     role: 'OWNER' | 'STAFF';
-    permissions: readonly ('VIEW_MERCHANT' | 'CONFIRM_VISIT' | 'MANAGE_ART')[];
+    permissions: readonly ('VIEW_MERCHANT' | 'CONFIRM_VISIT' | 'MANAGE_ART' | 'MANAGE_PROFILE')[];
   }>;
 };
 
@@ -249,6 +250,7 @@ async function startFixture(
   merchantDetailViews?: MerchantDetailViewService,
   adminFunnel?: AdminFunnelReader,
   play?: PlayService,
+  merchantProfile?: MerchantProfileService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -298,6 +300,7 @@ async function startFixture(
     merchantDetailViews,
     adminFunnel,
     play,
+    merchantProfile,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -1645,7 +1648,11 @@ test('admin store go-live routes need the admin session, same-origin JSON and kn
   assert.deepEqual(await (await webRequest(base, '/api/web/admin/reward-offers', { headers: cookie })).json(), { offers: [offer] });
   assert.equal((await post(`/api/web/admin/reward-offers/${offer.id}/pause`, { force: true })).status, 400);
   assert.deepEqual(await (await post(`/api/web/admin/reward-offers/${offer.id}/pause`, {})).json(), { offer, replayed: false });
-  assert.deepEqual(await (await webRequest(base, '/api/web/admin/campaigns', { headers: cookie })).json(), { campaigns: [campaign] });
+  const campaignList = await (await webRequest(base, '/api/web/admin/campaigns', { headers: cookie })).json() as {
+    campaigns: unknown[]; generatedAt: string;
+  };
+  assert.deepEqual(campaignList.campaigns, [campaign]);
+  assert.equal(new Date(campaignList.generatedAt).toISOString(), campaignList.generatedAt);
   assert.deepEqual(await (await post('/api/web/admin/campaigns/campaign-1/publish', {})).json(), { campaign, replayed: false });
   assert.deepEqual(await (await post('/api/web/admin/campaigns/campaign-1/pause', {})).json(), { campaign, replayed: true });
   assert.deepEqual(calls, [
