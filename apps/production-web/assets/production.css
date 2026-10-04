@@ -432,6 +432,9 @@ video { width: 100%; max-width: 28rem; aspect-ratio: 4 / 3; object-fit: cover; b
 .admin-funnel-totals > div { min-width: 0; padding: 12px 14px; border-radius: var(--mc-radius-control); background: var(--mc-bg); }
 .admin-funnel-totals dt { color: var(--mc-secondary); font-size: .88rem; font-weight: 700; }
 .admin-funnel-totals dd { margin: 4px 0 0; color: var(--mc-label); font-size: 1.4rem; font-weight: 800; }
+#admin-play-metrics { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--mc-separator); }
+#admin-play-games { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; }
+#admin-play-games p { margin: 0; padding: 10px 12px; background: var(--mc-surface); border-radius: var(--mc-radius-control); }
 .admin-funnel-table-wrap { max-width: 100%; overflow-x: auto; }
 .admin-funnel-table-wrap:focus-visible { outline: 2px solid var(--mc-primary); outline-offset: 2px; }
 #admin-funnel-table { width: 100%; min-width: 48rem; border-collapse: collapse; text-align: right; font-variant-numeric: tabular-nums; }

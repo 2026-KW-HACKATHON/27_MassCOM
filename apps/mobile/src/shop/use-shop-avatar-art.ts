@@ -21,7 +21,7 @@ export function useShopAvatarArt(
   credential: AccountCredential | undefined,
   refreshToken = 0,
 ): ImageSourcePropType | undefined {
-  const [art, setArt] = useState<ImageSourcePropType>();
+  const [loaded, setLoaded] = useState<{ apiUrl: string; credential: AccountCredential; art: ImageSourcePropType | undefined }>();
   const [focusToken, setFocusToken] = useState(0);
   useFocusEffect(useCallback(() => { setFocusToken((value) => value + 1); }, []));
 
@@ -29,19 +29,19 @@ export function useShopAvatarArt(
     let current = true;
     void (async () => {
       if (!credential) {
-        if (current) setArt(undefined);
+        if (current) setLoaded(undefined);
         return;
       }
       const api = createShopApiClient({ apiUrl, credential });
       try {
         const snapshot = await api.getShop();
-        if (current) setArt(snapshot.avatar ? friendArt[snapshot.avatar] : undefined);
+        if (current) setLoaded({ apiUrl, credential, art: snapshot.avatar ? friendArt[snapshot.avatar] : undefined });
       } catch {
-        if (current) setArt(undefined);
+        if (current) setLoaded(undefined);
       }
     })();
     return () => { current = false; };
   }, [apiUrl, credential, refreshToken, focusToken]);
 
-  return art;
+  return loaded?.apiUrl === apiUrl && loaded.credential === credential ? loaded.art : undefined;
 }

@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { Pressable } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
 import { motion } from '../motion/timing';
 import { useMotionEnabled } from '../motion/use-motion';
@@ -20,10 +21,10 @@ export function Mascot({ pose, size, breathe = true, accessibilityLabel, interac
   const enabled = useMotionEnabled();
   const scale = useSharedValue(1);
   const rotate = useSharedValue(0);
-  useEffect(() => {
-    if (!enabled || !breathe) { scale.set(1); return; }
-    scale.set(withRepeat(withTiming(1.03, { duration: motion.breatheMs / 2, easing: Easing.inOut(Easing.sin) }), -1, true));
-  }, [enabled, breathe, scale]);
+  useFocusEffect(useCallback(() => {
+    if (enabled && breathe) scale.set(withRepeat(withTiming(1.03, { duration: motion.breatheMs / 2, easing: Easing.inOut(Easing.sin) }), -1, true));
+    return () => { cancelAnimation(scale); cancelAnimation(rotate); scale.set(1); rotate.set(0); };
+  }, [enabled, breathe, scale, rotate]));
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }, { rotate: `${rotate.value}deg` }] }));
   const wiggle = () => {
     if (!enabled) return;

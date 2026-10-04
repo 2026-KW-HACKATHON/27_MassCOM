@@ -90,7 +90,7 @@ export function createProject({ name = '새 수집품', campaignId = '' } = {}) 
 }
 
 /** 새 점포 수집품은 기존 방문 목표의 외형을 미리 연결한다. 저장한 프로젝트에는 적용하지 않는다. */
-export function createMerchantStarterProject({ merchantName = '', campaigns = [], preferredCampaignId = '' } = {}) {
+export function createMerchantStarterProject({ merchantName = '', menuName = '', suggested = false, campaigns = [], preferredCampaignId = '' } = {}) {
   const eligible = campaigns.filter(campaign => campaign?.id &&
     (!campaign.status || campaign.status === 'ACTIVE') &&
     Array.isArray(campaign.goals) &&
@@ -98,8 +98,34 @@ export function createMerchantStarterProject({ merchantName = '', campaigns = []
     [...campaign.goals].sort((a, b) => a - b).every((goal, index) => goal === [1, 3, 5][index]));
   const campaignId = eligible.find(campaign => campaign.id === preferredCampaignId)?.id ??
     (eligible.length === 1 ? eligible[0].id : '');
-  const project = createProject({ name: `${merchantName.trim() || '우리 가게'} 방문 수집품`, campaignId });
+  const store = merchantName.trim() || '우리 가게';
+  const menu = typeof menuName === 'string' ? menuName.trim().slice(0, 40) : '';
+  const project = createProject({ name: `${menu || store} 방문 수집품`, campaignId });
   project.rewardGrades = { 1: 'bronze', 3: 'silver', 5: 'gold' };
+  if (!suggested) return project;
+  project.back.mode = 'custom';
+  project.back.stickers.push({ id: createId('sticker'), kind: 'text', text: store.slice(0, 40), x: .5, y: .5, size: 42, rotation: 0, color: '#ffffff', order: 0, align: 'center' });
+  if (menu) project.back.stickers.push({ id: createId('sticker'), kind: 'text', text: menu, x: .5, y: .66, size: 28, rotation: 0, color: '#ffffff', order: 1, align: 'center' });
+  const motifs = [
+    { text: '⌂', color: '#58331f', layouts: { bronze: [.3, .29, 110], silver: [.2, .18, 20], gold: [.2, .18, 20] } },
+    { text: '◯', color: '#173c50', layouts: { bronze: [.82, .82, 8], silver: [.72, .7, 110], gold: [.72, .7, 24] } },
+    { text: '✦', color: '#7d3700', layouts: { bronze: [.85, .18, 8], silver: [.84, .18, 8], gold: [.73, .26, 120] } },
+  ];
+  for (const [order, motif] of motifs.entries()) {
+    const layouts = Object.fromEntries(Object.entries(motif.layouts).map(([grade, [x, y, size]]) => [grade, { x, y, size, rotation: 0 }]));
+    project.stickers.push({ id: createId('sticker'), kind: 'text', text: motif.text, x: .5, y: .5, size: 8,
+      rotation: 0, color: motif.color, order, align: 'center', layouts });
+  }
+  if (menu) project.stickers.push({ id: createId('sticker'), kind: 'text', text: menu, x: .5, y: .81,
+    size: 24, rotation: 0, color: '#ffffff', order: motifs.length, align: 'center', layouts: {} });
+  for (const [gradeId, type, target, color, motion] of [
+    ['bronze', 'matte', 'surface', '#ac7044', 'stamp'],
+    ['silver', 'pearl', 'surface', '#dceaf1', 'float'],
+    ['gold', 'metallic', 'border', '#f4c957', 'shine'],
+  ]) {
+    project.effects.push({ id: createId('effect'), type, target, gradeIds: [gradeId], strength: 55, color, roughness: 25 });
+    project.motion.push({ id: createId('motion'), type: motion, gradeIds: [gradeId], playback: 'once' });
+  }
   return project;
 }
 

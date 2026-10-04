@@ -14,6 +14,14 @@ export type ConsentGateState =
 
 export type ConsentChecks = Record<ConsentCheckKey, boolean>;
 
+export const consentRequiredMessage = '개인정보 처리방침이 바뀌어 다시 동의가 필요해요.';
+export const consentRecheckLabel = '동의 확인하기';
+
+export function needsConsentRecheck(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'status' in error && error.status === 403
+    && 'code' in error && error.code === 'CONSENT_REQUIRED';
+}
+
 /**
  * 동의 화면을 보일지(루트 레이아웃의 결정). 실제 로그인한 Bearer 세션이고 API가 설정돼 있고, 이 실행에서 서버가 "이미 동의했다"고 답한 계정이
  * 지금 계정이 아닐 때만 묻는다. 로그아웃하면 묻지 않고(로그인 화면이 먼저), 다른 계정 B로 로그인하면 A의 답을 물려받지 않고 B를 다시 묻는다.

@@ -43,6 +43,14 @@
 .ce-create-card strong { font-size: 1.15rem; }
 .ce-create-card > span:last-child { font-weight: 400; font-size: .85rem; }
 .ce-camera-icon { display: grid; place-items: center; font-size: 2rem; width: 54px; height: 44px; border: 3px solid #fff; border-radius: .75rem; line-height: 1; }
+.ce-starter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; }
+.collectible-editor .ce-starter-choice { display: grid; gap: .35rem; min-width: 0; padding: 0 0 .8rem; overflow: hidden; text-align: left; border-color: var(--ce-line); }
+.ce-starter-visual { display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; background: #edf4f5; }
+.ce-starter-visual img { width: 100%; height: 100%; object-fit: contain; }
+.ce-starter-empty { font-size: 2rem; color: #477b7c; }
+.ce-starter-choice > :not(.ce-starter-visual) { margin-inline: .7rem; overflow-wrap: anywhere; }
+.ce-starter-source { font-size: .75rem; color: #496e70; }
+.ce-starter-detail { font-size: .76rem; color: #526477; }
 .ce-resume { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .8rem 1rem; margin-top: 1rem; background: #eaf3ff; border: 1px solid #adc9f0; border-radius: 1rem; }
 .ce-resume p { margin: 0; font-size: .9rem; }
 .collectible-editor .ce-text-button { min-height: 44px; border: 0; color: #0757c5; background: transparent; padding-inline: .4rem; font-size: .85rem; }

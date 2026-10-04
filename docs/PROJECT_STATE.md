@@ -1,5 +1,11 @@
 # 프로젝트 상태
 
+## 방문·수집·동행·놀이 통합 (Issue #363, 2026-10-04)
+
+`feat/connected-play-collection`은 최신 `origin/main 237d5471`에서 공통 고객 앱/웹, API·DB, 점주/운영자 웹을 확장했다. 서로 다른 게임4종은 시작·조작·끝·기록·재도전·장면해금까지 구현됐고 방문 마일리지/쿠폰과 분리된다. 실제 보유품과 동행을 서버 공간에 저장해 친구·피드/스토리 이미지로 연결한다. 주간 탐험·현재 캠페인 수집 목표, 배지 실루엣과 뽑기 대상/활용, 실제 점주 메뉴의 제작 시작점, 익명 흐름 집계를 추가했다. 기존 권리·방문/운영 권한을 보존한다.
+
+코드·로컬 검증과 공개 반영은 별개다. 새 기능의 운영/시연 배포와 공개 APK는 아직 없다. migration0042와 `privacy-2026-10-04`에 맞는 API·웹·최신앱을 함께 준비해야 하며, 기존 앱은 업데이트 안내가 필요하다. [전체 구현·근거·제한](evidence/connected-play-2026-10-04/README.md), [검증 결과](TEST_STATUS.md)를 따른다.
+
 ## 하늘 동네 테마에서 빠졌던 화면 통일 ([Issue #338](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/338), 2026-10-03)
 
 브랜치 `feat/sky-theme-unify-screens`(main `5a0465ed` 기준, 미커밋 작업 중이면 로컬 변경). #142(파란 UI 일관화)가 통일했지만 #224(하늘 동네 재설계) 화면 목록에서 빠져 구세대 단색 스타일로 남았던 화면을 월드 테마로 옮겼다. **옮긴 화면:** `wallet-link`·`wallet-link/configuration-required`(스택 머리글을 숨기고 `BackHeader`), `auth-required`(네이티브·웹), `consent`(`SkyBanner` 머리글), `demo-configuration-required`(카드). 카드는 `FloatingCard`로 바꿨고 새 공통 조각 `src/ui/sky-banner.tsx`를 더했다. **옮기지 않은 화면:** `merchant-claim`(개발용 점주 발급 화면 `merchant` 라우트). 같은 스타일 파일을 `merchant-home/status.tsx`·직원 방문 확인·되돌리기 화면이 공유하고 이 화면들은 머리글 없는 시연 점주 루트에서 열리므로, 시연 점주 앱 쪽 영향을 함께 확인하는 별도 변경으로 남긴다. 지갑 요청 정책(`personal_sign`만 허용)·SIWE 흐름·API·DB·권한은 바꾸지 않았다. 화면은 두 앱(운영·시연)이 공유하는 고객 코드다. 소유자가 수정본을 직접 실행해 바뀐 디자인을 눈으로 확인했다고 알렸으나(사용자 보고, 기기·빌드·화면 범위 미기록) 저장된 캡처·라이트/다크/글자 200%/TalkBack·두 설치본 각각의 확인은 `NOT_RUN`이다. 검증은 [TEST_STATUS](TEST_STATUS.md)를 따른다.

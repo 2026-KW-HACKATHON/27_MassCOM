@@ -8,7 +8,9 @@ test('the consent screen is asked for before the showcase merchant screen and be
   const gate = layout.indexOf('<ConsentScreen');
   assert.ok(gate > 0, 'the root layout renders the consent screen');
   assert.ok(gate < layout.indexOf("destination === 'merchant' && auth.accountId"), 'before the showcase merchant screen');
-  assert.ok(gate < layout.indexOf('if (!auth.appKit) return <Routes />;'), 'before the main routes');
+  assert.ok(gate < layout.indexOf('if (!auth.appKit) return <ConsentRecheckProvider'), 'before the main routes');
+  assert.match(layout, /if \(!auth\.appKit\) return <ConsentRecheckProvider[^>]*><Routes \/><\/ConsentRecheckProvider>/);
+  assert.match(layout, /<AppKitProvider[\s\S]*<ConsentRecheckProvider[^>]*><Routes \/><\/ConsentRecheckProvider>/);
   assert.ok(gate < layout.indexOf('<AppKitProvider'), 'before the wallet provider and the tabs it wraps');
   // One shared code path: no package check decides who is asked (D-038: 공통 기능은 공통 코드).
   const block = layout.slice(layout.indexOf('// 첫 로그인 동의'), layout.indexOf("destination === 'merchant' && auth.accountId"));

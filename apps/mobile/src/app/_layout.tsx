@@ -12,6 +12,7 @@ import { AuthRequiredScreen } from '@/screens/auth-required';
 import { ConsentScreen } from '@/screens/consent';
 import { publicApiConfig } from '@/config/public-api-runtime';
 import { shouldAskConsent } from '@/privacy/consent-flow';
+import { ConsentRecheckProvider } from '@/privacy/consent-recheck';
 import { hasPendingFriendLink } from '@/friends/pending-friend-link';
 import { initializeUiSounds } from '@/sound/ui-sounds';
 import { consumeMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, type ShowcaseRoleState } from '@/navigation/showcase-entry';
@@ -46,6 +47,9 @@ function Routes() {
       <Stack.Screen name="showcase-tour" options={{ title: '체험용 다섯 공간' }} />
       <Stack.Screen name="merchants/[merchantId]" options={{ headerShown: false }} />
       <Stack.Screen name="friends/[friendshipId]" options={{ headerShown: false }} />
+      <Stack.Screen name="friends/[friendshipId]/studio" options={{ headerShown: false }} />
+      <Stack.Screen name="studio" options={{ headerShown: false }} />
+      <Stack.Screen name="play" options={{ headerShown: false }} />
       <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
       <Stack.Screen name="merchant-art" options={{ headerShown: false }} />
       <Stack.Screen name="recommendations" options={{ headerShown: false }} />
@@ -73,6 +77,7 @@ function AuthenticatedRoot() {
   // 이 실행에서 서버가 "이미 동의했다"고 답한 계정. 기기에는 저장하지 않고 실행마다 서버에 다시 묻는다(D-059).
   const [consentedAccountId, setConsentedAccountId] = useState<string>();
   const acceptConsent = useCallback(() => setConsentedAccountId(auth.accountId), [auth.accountId]);
+  const recheckConsent = useCallback(() => setConsentedAccountId(undefined), []);
   const activeEntry = reconcileShowcaseAccount(entry, auth.accountId);
   if (activeEntry !== entry) {
     setEntry(activeEntry);
@@ -132,12 +137,12 @@ function AuthenticatedRoot() {
     />;
   }
 
-  if (!auth.appKit) return <Routes />;
+  if (!auth.appKit) return <ConsentRecheckProvider onRecheck={recheckConsent}><Routes /></ConsentRecheckProvider>;
 
   return (
     <AppKitProvider key={auth.accountId} instance={auth.appKit}>
       <WalletThemeSynchronizer themeMode={themeMode} />
-      <Routes />
+      <ConsentRecheckProvider onRecheck={recheckConsent}><Routes /></ConsentRecheckProvider>
       <View pointerEvents="box-none" style={{ position: 'absolute', width: '100%', height: '100%' }}>
         <AppKit />
       </View>

@@ -9,10 +9,15 @@ const usage = 'RETENTION_USAGE: run | report | purge-deleted-consents';
 type RetentionCommandService = Pick<PostgresRetentionService, 'run' | 'report' | 'purgeConsentsOfDeletedAccounts'>;
 export type RetentionCommandResult = { lines: string[]; failed: RetentionStepName[] };
 
-const countLines = (counts: RetentionCount[]): string[] => counts.map(({ step, count }) => `${step}\t${count}`);
+const countLines = (counts: RetentionCount[]): string[] => counts.flatMap(({ step, count, capHit, scanCapHit }) => [
+  `${step}\t${count}`, ...(capHit ? [`${step}_cap_hit\t1`] : []),
+  ...(scanCapHit ? [`${step}_scan_cap_hit\t1`] : []),
+]);
 
 /**
  * 보관 기간이 지난 기록을 지운다(`run`) 또는 지울 개수만 센다(`report`). 출력은 `단계<TAB>개수`뿐이며
+ * 놀이 삭제가 실행 상한에 도달하면 `단계_cap_hit<TAB>1`도 출력해 다음 일일 실행이 이어서 정리하도록 알린다.
+ * 후보 조회가 페이지 상한에 도달하면 `단계_scan_cap_hit<TAB>1`을 출력한다. 다음 실행은 저장된 sweep 위치에서 이어간다.
  * 계정 식별자·행 식별자·접수번호는 어디에도 나오지 않는다.
  */
 export async function runRetentionCommand(
@@ -29,7 +34,7 @@ export async function runRetentionCommand(
     return { lines: ['RETENTION_REPORT (nothing deleted)', ...countLines(await service.report())], failed: [] };
   }
   if (args.length === 1 && action === 'run') {
-    // 비밀은 삭제된 계정의 감사 대상 ID 비식별화 단계가 쓴다. 없으면 그 단계만 실패로 보고되고 지우기 단계는 그대로 끝난다.
+    // 삭제된 계정의 놀이·공간 삭제와 감사 대상 비식별화가 비밀을 쓴다. 없으면 두 단계만 실패로 보고한다.
     const { counts, failed } = await service.run({ hmacSecret });
     return { lines: ['RETENTION_RUN', ...countLines(counts)], failed };
   }

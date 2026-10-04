@@ -59,7 +59,7 @@ function seasonTiles(name) {
 }
 
 /** Reuses the editor's controls and canvases; navigation never copies project state. */
-export function createCollectibleStudio(container, { effectNames, listen, merchantArtUrl = '' }) {
+export function createCollectibleStudio(container, { effectNames, listen, merchantArtUrl = '', merchantName = '', menuNames = [] }) {
   const controlsByName = new Map([...container.querySelectorAll('[data-control]')].map(value => [value.dataset.control, value]));
   const viewsByName = new Map([...container.querySelectorAll('[data-view]')].map(value => [value.dataset.view, value]));
   const control = name => controlsByName.get(name) || container.querySelector(`[data-control="${name}"]`);
@@ -77,6 +77,24 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   const create = action('', 'new', undefined, 'ce-create-card'); create.append(node('span', 'ce-camera-icon', '＋'), node('strong', '', '새 수집품 만들기'), node('span', '', '사진으로 쉽게 시작해요 →'));
   const mascot = node('img', 'ce-hero-mascot'); mascot.src = '/assets/mascot-stamp.png'; mascot.alt = ''; mascot.width = 140; mascot.height = 140;
   hero.append(heroText, mascot, create); home.append(hero);
+  {
+    const starters = section('가게에서 시작하기');
+    const choices = node('div', 'ce-starter-grid');
+    const options = [['store', merchantName || '우리 가게', merchantArtUrl ? '가게 그림' : '사진 추가', '1회 브론즈 · 3회 실버 · 5회 골드'],
+      ...menuNames.map((name, index) => [String(index), name, '등록된 메뉴', '가게 그림 또는 직접 올린 사진으로 시작'])];
+    for (const [id, title, source, detail] of options) {
+      const tile = action('', 'starter', id, 'ce-starter-choice');
+      const visual = node('span', 'ce-starter-visual');
+      if (id === 'store' && merchantArtUrl) { const art = node('img'); art.src = merchantArtUrl; art.alt = ''; art.loading = 'lazy'; visual.append(art); }
+      else visual.append(node('span', 'ce-starter-menu-title', id === 'store' ? merchantName || '우리 가게' : title));
+      const stages = node('span', 'ce-starter-stages');
+      for (const [grade, label] of [['bronze', '1회'], ['silver', '3회'], ['gold', '5회']]) stages.append(node('span', `ce-starter-${grade}`, label));
+      visual.append(stages);
+      tile.append(visual, node('span', 'ce-starter-source', source), node('strong', '', title), node('span', 'ce-starter-detail', detail));
+      choices.append(tile);
+    }
+    starters.append(choices); home.append(starters);
+  }
   const resume = node('div', 'ce-resume'); resume.hidden = true;
   const resumeText = node('p', 'ce-resume-text'); resume.append(resumeText, action('이어서 편집하기 →', 'resume', undefined, 'ce-resume-button')); home.append(resume);
   const saved = section('나의 제작물', '저장한 초안과 게시 버전을 다시 열어 이어서 만들 수 있어요.');

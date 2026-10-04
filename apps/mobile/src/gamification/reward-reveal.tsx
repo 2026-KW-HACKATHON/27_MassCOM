@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View, type ImageSourcePropType } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -12,7 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { focusForAccessibility } from '@/accessibility/focus-component';
-import { Mascot } from '@/ui/mascot';
+import { Companion } from '@/ui/companion';
 import { playUiSound } from '@/sound/ui-sounds';
 
 import type { Coupon, OpenedReward } from './badge-api';
@@ -24,19 +24,20 @@ import { FullScreenModal } from './full-screen-modal';
 import { useGamificationTheme } from './theme';
 
 /** The coupon that came out of a box, sliding up out of a burst of sparkles. */
-export function RewardReveal({ result, onClose, onUse }: {
+export function RewardReveal({ result, onClose, onUse, companionArt }: {
   result: OpenedReward | undefined;
   onClose: () => void;
   onUse: (coupon: Coupon) => void;
+  companionArt?: ImageSourcePropType;
 }) {
   return (
     <FullScreenModal visible={result !== undefined} animationType="fade" onRequestClose={onClose}>
-        {result ? <RevealBody result={result} onClose={onClose} onUse={onUse} /> : null}
+        {result ? <RevealBody result={result} onClose={onClose} onUse={onUse} companionArt={companionArt} /> : null}
       </FullScreenModal>
   );
 }
 
-function RevealBody({ result, onClose, onUse }: { result: OpenedReward; onClose: () => void; onUse: (coupon: Coupon) => void }) {
+function RevealBody({ result, onClose, onUse, companionArt }: { result: OpenedReward; onClose: () => void; onUse: (coupon: Coupon) => void; companionArt?: ImageSourcePropType }) {
   const { styles, medal } = useGamificationTheme();
   const reduceMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
@@ -82,7 +83,7 @@ function RevealBody({ result, onClose, onUse }: { result: OpenedReward; onClose:
             </Animated.View>
           </View>
           <View style={{ alignItems: 'center' }}>
-            <Mascot pose="gift" size={112} />
+            <Companion art={companionArt} celebrate size={112} />
           </View>
           <Text ref={title} accessibilityRole="header" style={styles.revealTitle}>
             {result.replayed ? '이미 받은 쿠폰이에요' : '쿠폰이 나왔어요!'}

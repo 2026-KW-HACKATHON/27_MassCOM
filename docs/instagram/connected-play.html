@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>MassCOM 피드와 스토리 홍보 이미지</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e8edef; font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif; color: #163b38; }
+    .artboard { position: relative; width: 1080px; height: 1350px; margin: 24px; background: #fff; overflow: hidden; }
+    .story { height: 1920px; }
+    .header { position: absolute; left: 70px; right: 70px; top: 52px; z-index: 4; }
+    .eyebrow { margin: 0 0 14px; font-size: 25px; font-weight: 800; color: #438474; }
+    h1 { font-size: 100px; line-height: 1; margin: 0 0 20px; font-weight: 900; letter-spacing: 0; }
+    .lead { font-size: 39px; line-height: 1.3; margin: 0; font-weight: 700; }
+    .scene { position: absolute; width: 1080px; height: 660px; top: 335px; overflow: hidden; }
+    .room { position: absolute; width: 1080px; height: 1080px; left: 0; top: -150px; }
+    .friend { position: absolute; width: 345px; height: 345px; object-fit: contain; left: 355px; bottom: 18px; }
+    .collectible { position: absolute; width: 180px; height: 220px; object-fit: contain; }
+    .one { left: 95px; top: 110px; transform: rotate(-6deg); }
+    .two { right: 93px; top: 105px; transform: rotate(7deg); }
+    .three { right: 95px; top: 355px; transform: rotate(-3deg); }
+    .ribbon { position: absolute; top: 1010px; left: 55px; right: 55px; padding: 22px 30px; background: #def3ed; color: #174f44; font-size: 31px; font-weight: 800; text-align: center; z-index: 5; }
+    .footer { position: absolute; bottom: 35px; left: 70px; right: 70px; display: flex; align-items: center; gap: 26px; }
+    .qr { width: 156px; height: 156px; flex-shrink: 0; }
+    .footer-copy { flex: 1; }
+    .footer-title { font-size: 31px; font-weight: 800; margin: 0 0 9px; }
+    .url { font-size: 27px; margin: 0 0 14px; }
+    .note { font-size: 23px; color: #536763; line-height: 1.4; margin: 0; }
+    .story .header { top: 100px; }
+    .story h1 { font-size: 112px; }
+    .story .lead { font-size: 46px; line-height: 1.45; }
+    .story .scene { top: 505px; height: 1010px; }
+    .story .room { top: 0; }
+    .story .friend { width: 430px; height: 430px; left: 310px; bottom: 135px; }
+    .story .one { top: 235px; }
+    .story .two { top: 230px; }
+    .story .three { top: 455px; }
+    .story .ribbon { top: 1535px; font-size: 35px; padding: 26px; }
+    .story .footer { bottom: 80px; }
+  </style>
+</head>
+<body>
+  <main class="artboard" id="feed">
+    <header class="header"><p class="eyebrow">동네 탐험과 수집 · 새 경험 미리보기</p><h1>MassCOM</h1><p class="lead">가게에서 만난 친구를<br>나의 공간으로 데려와요.</p></header>
+    <div class="scene">
+      <img class="room" src="../../apps/mobile/assets/images/play/room-daylight.png" alt="동네 수집 공간">
+      <img class="friend" src="../../apps/mobile/assets/images/shop/friend-cook-cat.png" alt="선택한 동행">
+      <img class="collectible one" src="../../apps/mobile/assets/images/collectibles/showcase-a.png" alt="시연 가게 A 수집품">
+      <img class="collectible two" src="../../apps/mobile/assets/images/collectibles/showcase-b.png" alt="시연 가게 B 수집품">
+      <img class="collectible three" src="../../apps/mobile/assets/images/collectibles/showcase-c.png" alt="시연 가게 C 수집품">
+    </div>
+    <p class="ribbon">가게 발견 · 방문 수집 · 동행 꾸미기 · 네 가지 놀이</p>
+    <footer class="footer"><img class="qr" src="install-qr.png" alt="MassCOM 설치 안내 QR"><div class="footer-copy"><p class="footer-title">MassCOM 체험과 설치 안내</p><p class="url">www.masscom.kr/open</p><p class="note">시연 그림 예시입니다. 실제 가게·방문 혜택과 별개입니다.<br>새 놀이·공간은 개발 미리보기이며 공개 설치본 반영 전입니다.</p></div></footer>
+  </main>
+  <main class="artboard story" id="story">
+    <header class="header"><p class="eyebrow">동네 탐험과 수집 · 새 경험 미리보기</p><h1>MassCOM</h1><p class="lead">새 가게를 발견하고,<br>특별한 수집품을 만나고,<br>내 동행과 함께 놀아요.</p></header>
+    <div class="scene">
+      <img class="room" src="../../apps/mobile/assets/images/play/room-garden.png" alt="해금한 정원 공간">
+      <img class="friend" src="../../apps/mobile/assets/images/shop/friend-cook-cat.png" alt="선택한 동행">
+      <img class="collectible one" src="../../apps/mobile/assets/images/collectibles/showcase-a.png" alt="시연 가게 A 수집품">
+      <img class="collectible two" src="../../apps/mobile/assets/images/collectibles/showcase-b.png" alt="시연 가게 B 수집품">
+      <img class="collectible three" src="../../apps/mobile/assets/images/collectibles/showcase-c.png" alt="시연 가게 C 수집품">
+    </div>
+    <p class="ribbon">방문은 수집으로, 놀이는 나만의 공간으로</p>
+    <footer class="footer"><img class="qr" src="install-qr.png" alt="MassCOM 설치 안내 QR"><div class="footer-copy"><p class="footer-title">MassCOM 체험과 설치 안내</p><p class="url">www.masscom.kr/open</p><p class="note">시연 그림 예시 · 실제 가게·방문 혜택과 별개<br>새 놀이·공간은 개발 미리보기입니다.</p></div></footer>
+  </main>
+</body>
+</html>
