@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type { Pool } from 'pg';
 
 import { PostgresAccountLifecycle } from './account-lifecycle.js';
@@ -20,10 +22,18 @@ export type RetentionStepName =
   | 'deleted_play_data'
   | 'admin_audit_deleted_targets';
 
-export type RetentionCount = { step: RetentionStepName; count: number; capHit?: boolean };
+export type RetentionCount = { step: RetentionStepName; count: number; capHit?: boolean; scanCapHit?: boolean };
 export type RetentionRun = { counts: RetentionCount[]; failed: RetentionStepName[] };
 
-export const playRetentionLimits = { batchSize: 500, maxBatches: 10 } as const;
+export const playRetentionLimits = { batchSize: 500, maxBatches: 10, maxCandidatePages: 100 } as const;
+
+// Spread daily starts through the whole acct_<UUID> key space, including crowded identical-prefix ranges.
+// Hash only the injected UTC day: retries that day are deterministic and no account cursor is persisted.
+const candidateStart = (now: Date): string => {
+  const day = Math.floor(now.getTime() / 86_400_000);
+  const hex = createHash('sha256').update(String(day)).digest('hex').slice(0, 32);
+  return `acct_${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
 
 // 보관 기간(D-059). 처리·감사 기록은 1년(개인정보의 안전성 확보조치 기준 제8조의 접속기록 최소 보관 기간)이지만
 // 접근권한을 부여·변경·말소한 기록은 제5조 제3항에 따라 **최소 3년**이라 3년 뒤에 지운다.
@@ -175,7 +185,7 @@ export class PostgresRetentionService {
     if (options.hmacSecret !== undefined) {
       const progress: RetentionCount = { step: deletedPlayDataStep, count: 0 };
       try {
-        await this.purgeDeletedPlayData(options.hmacSecret, progress);
+        await this.purgeDeletedPlayData(options.hmacSecret, now, progress);
         counts.push(progress);
       } catch {
         if (progress.count > 0) counts.push(progress);
@@ -215,28 +225,41 @@ export class PostgresRetentionService {
   /**
    * Rollback repair for 0042: older API images still insert the deletion ledger but do not know the play tables.
    * Keyset-page candidate IDs, including live-only pages. Each deletion transaction shares one row budget across
-   * all three tables; even a single account's run backlog cannot exceed the daily deletion cap. The next daily
-   * invocation starts from the beginning so partially purged accounts are retried without a persisted ID cursor.
+   * all three tables; even a single account's run backlog cannot exceed the daily deletion cap. Candidate pages
+   * have their own fixed budget. The injected UTC day rotates the start without persisting identifiers; a single
+   * wrap stops at that start so no candidate is visited twice. Partially purged accounts remain eligible next run.
    */
-  private async purgeDeletedPlayData(hmacSecret: string, progress: RetentionCount): Promise<void> {
+  private async purgeDeletedPlayData(hmacSecret: string, now: Date, progress: RetentionCount): Promise<void> {
     const lifecycle = new PostgresAccountLifecycle({ hmacSecret });
-    let cursor: string | null = null;
+    const start = candidateStart(now);
+    let cursor: string | null = start;
+    let wrapped = false;
+    let pages = 0;
     let batches = 0;
-    while (batches < this.playMaxBatches) {
+    while (pages < playRetentionLimits.maxCandidatePages) {
       const accounts: string[] = (await this.pool.query<{ account_id: string }>(
         `SELECT account_id FROM (
            (SELECT DISTINCT account_id FROM play_runs WHERE ($1::text IS NULL OR account_id > $1)
+            AND ($3::text IS NULL OR account_id <= $3)
             ORDER BY account_id LIMIT $2)
            UNION
            (SELECT account_id FROM play_records WHERE ($1::text IS NULL OR account_id > $1)
+            AND ($3::text IS NULL OR account_id <= $3)
             GROUP BY account_id ORDER BY account_id LIMIT $2)
            UNION
            (SELECT account_id FROM studios WHERE ($1::text IS NULL OR account_id > $1)
+            AND ($3::text IS NULL OR account_id <= $3)
             ORDER BY account_id LIMIT $2)
          ) candidates ORDER BY account_id LIMIT $2`,
-        [cursor, this.playBatchSize],
+        [cursor, this.playBatchSize, wrapped ? start : null],
       )).rows.map((row) => row.account_id);
-      if (accounts.length === 0) return;
+      pages++;
+      if (accounts.length === 0) {
+        if (wrapped) return;
+        wrapped = true;
+        cursor = null;
+        continue;
+      }
       const hashes = accounts.map((accountId) => lifecycle.referenceHash(accountId));
       const known = await this.pool.query<{ account_reference_hash: Buffer }>(
         `SELECT account_reference_hash FROM account_deletion_requests
@@ -244,11 +267,12 @@ export class PostgresRetentionService {
       );
       const gone = new Set(known.rows.map((row) => row.account_reference_hash.toString('hex')));
       const goneAccounts = accounts.filter((_, index) => gone.has(hashes[index]!.toString('hex')));
-      if (goneAccounts.length === 0) {
-        cursor = accounts.at(-1)!;
-        continue;
+      if (goneAccounts.length > 0 && batches === this.playMaxBatches) {
+        progress.capHit = true;
+        if (pages === playRetentionLimits.maxCandidatePages) progress.scanCapHit = true;
+        return;
       }
-      while (batches < this.playMaxBatches) {
+      while (goneAccounts.length > 0 && batches < this.playMaxBatches) {
         const client = await this.pool.connect();
         let deleted = 0;
         try {
@@ -274,14 +298,24 @@ export class PostgresRetentionService {
           client.release();
         }
         if (deleted < this.playBatchSize) {
-          // A short candidate page and a short delete batch exhaust this scan naturally, even on the last batch.
-          if (accounts.length < this.playBatchSize) return;
+          // A short wrapped page and a short delete batch exhaust the scan even on the last delete batch.
+          if (wrapped && accounts.length < this.playBatchSize) return;
           break;
+        }
+        if (batches === this.playMaxBatches) {
+          progress.capHit = true;
+          if (pages === playRetentionLimits.maxCandidatePages) progress.scanCapHit = true;
+          return;
         }
       }
       cursor = accounts.at(-1)!;
+      if (accounts.length < this.playBatchSize) {
+        if (wrapped) return;
+        wrapped = true;
+        cursor = null;
+      }
     }
-    progress.capHit = true;
+    progress.scanCapHit = true;
   }
 
   /**

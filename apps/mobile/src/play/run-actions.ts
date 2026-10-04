@@ -16,9 +16,8 @@ export function appendAction(actions: readonly GameAction[], choice: number, ela
 }
 
 export function finalizeDeliveryActions(actions: readonly GameAction[], lane: number, elapsedMs: number, durationMs: number,
-  previousElapsedMs = actions.at(-1)?.at): readonly GameAction[] {
+  _previousElapsedMs = actions.at(-1)?.at): readonly GameAction[] {
   if (actions.length >= 20 || !Number.isInteger(lane) || lane < 0 || lane > 2) return actions;
-  if (previousElapsedMs !== undefined && Math.min(elapsedMs, durationMs) - previousElapsedMs < 1) return actions;
   const at = Math.floor(Math.min(elapsedMs, durationMs));
   const previous = actions.at(-1);
   // A final sample observes the accepted lane; it must not smuggle in a move.

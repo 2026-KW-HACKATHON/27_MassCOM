@@ -50,6 +50,19 @@ const counts = (rows: RetentionCount[]) => Object.fromEntries(rows.map(({ step, 
 const idsOf = async (pool: Pool, sql: string) =>
   (await pool.query<{ id: string }>(sql)).rows.map((row) => row.id).sort();
 
+function observeCandidatePages(pool: Pool) {
+  const pages: string[][] = [];
+  const observed = {
+    connect: () => pool.connect(),
+    query: async (sql: string, values?: unknown[]) => {
+      const result = await pool.query(sql, values);
+      if (sql.includes(') candidates ORDER BY account_id')) pages.push(result.rows.map((row) => row.account_id));
+      return result;
+    },
+  } as unknown as Pool;
+  return { observed, pages };
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // seeds: each returns the ids that must be gone after the run and the ids that must stay.
 // ---------------------------------------------------------------------------------------------------------------------
@@ -488,6 +501,68 @@ test('deleted play data pages past live accounts and obeys the row cap across al
     [{ account_id: liveAccounts[0], best_score: 20, plays: 4 }]);
   assert.deepEqual((await pool.query('SELECT account_id FROM studios')).rows, [{ account_id: liveAccounts[1] }]);
   assert.equal(counts((await service.run({ hmacSecret: secret })).counts).deleted_play_data, 0);
+});
+
+test('live-only pages stop at the scan budget and the next UTC day reaches deleted data with the same UUID prefix', async (t) => {
+  const { pool } = await setup(t);
+  const { observed, pages } = observeCandidatePages(pool);
+  let clock = new Date('1970-01-01T12:00:00.000Z');
+  const service = new PostgresRetentionService(observed, { now: () => clock, playBatchSize: 2, playMaxBatches: 2 });
+  const secret = 'test-only-account-deletion-secret-at-least-32-bytes';
+  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+  const live = Array.from({ length: 240 }, (_, i) => `acct_6b86b273-0000-4000-8000-${String(i).padStart(12, '0')}`);
+  const gone = 'acct_6b86b273-ffff-4000-8000-000000000001';
+  await pool.query(
+    `INSERT INTO play_records (account_id, kind, best_score, plays)
+     SELECT account_id, 'stack', 42, 7 FROM unnest($1::text[]) AS accounts(account_id)`, [[...live, gone]],
+  );
+  await pool.query(
+    `INSERT INTO account_deletion_requests (
+       id, account_reference_hash, deleted_account_alias, status, policy_version, cancelled_mint_jobs,
+       pending_mint_jobs, retained_finalized_nfts, requested_at, completed_at, updated_at
+     ) VALUES ($1, $2, $3, 'COMPLETED', 'account-deletion-v1', 0, 0, 0, $4, $4, $4)`,
+    [randomUUID(), lifecycle.referenceHash(gone), `deleted:${lifecycle.referenceHash(gone).toString('hex')}`, clock],
+  );
+
+  const first = await service.run({ hmacSecret: secret });
+  assert.deepEqual(first.failed, []);
+  assert.deepEqual(first.counts.find(({ step }) => step === 'deleted_play_data'),
+    { step: 'deleted_play_data', count: 0, scanCapHit: true });
+  assert.equal(pages.length, 100);
+  assert.equal(pages.flat().includes(gone), false);
+  assert.equal((await pool.query('SELECT 1 FROM play_records WHERE account_id = $1', [gone])).rowCount, 1);
+
+  clock = new Date('1970-01-02T12:00:00.000Z');
+  pages.length = 0;
+  const second = await service.run({ hmacSecret: secret });
+  assert.deepEqual(second.failed, []);
+  assert.equal(counts(second.counts).deleted_play_data, 1);
+  assert.equal((await pool.query('SELECT 1 FROM play_records WHERE account_id = $1', [gone])).rowCount, 0);
+  assert.ok(pages.length <= 100);
+  assert.equal(new Set(pages.flat()).size, pages.flat().length, 'wraparound does not revisit a candidate');
+  assert.deepEqual((await pool.query('SELECT account_id, best_score, plays FROM play_records ORDER BY account_id')).rows,
+    live.map((account_id) => ({ account_id, best_score: 42, plays: 7 })));
+});
+
+test('a complete scan wraps once, visits every candidate once, and reports no cap', async (t) => {
+  const { pool } = await setup(t);
+  const { observed, pages } = observeCandidatePages(pool);
+  const live = ['acct_10000000-live', 'acct_6b86b273-ff34-fce1-9d6b-804eff5a3f57', 'acct_90000000-live', 'acct_f0000000-live'];
+  await pool.query(
+    `INSERT INTO play_records (account_id, kind, best_score, plays)
+     SELECT account_id, 'stack', 42, 7 FROM unnest($1::text[]) AS accounts(account_id)`, [live],
+  );
+  const service = new PostgresRetentionService(observed, {
+    now: () => new Date('1970-01-02T12:00:00.000Z'), playBatchSize: 2, playMaxBatches: 2,
+  });
+  const result = await service.run({ hmacSecret: 'test-only-account-deletion-secret-at-least-32-bytes' });
+  assert.deepEqual(result.failed, []);
+  assert.deepEqual(result.counts.find(({ step }) => step === 'deleted_play_data'),
+    { step: 'deleted_play_data', count: 0 });
+  assert.deepEqual(pages[0], live.slice(2), 'the day rotates the start into the upper half');
+  assert.deepEqual(pages.flat().sort(), live);
+  assert.equal(new Set(pages.flat()).size, live.length);
+  assert.equal((await pool.query('SELECT 1 FROM play_records')).rowCount, live.length);
 });
 
 test('access-right records live three years while other handling records live one year', async (t) => {

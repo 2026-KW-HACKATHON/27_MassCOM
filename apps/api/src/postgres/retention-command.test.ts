@@ -52,6 +52,15 @@ test('run reports daily play deletion caps without exposing candidate identifier
   assert.deepEqual(result.failed, []);
 });
 
+test('run reports a live-only candidate scan cap separately from the deletion cap', async () => {
+  const { service: fake } = service(async () => ({ counts: [
+    { step: 'deleted_play_data', count: 0, scanCapHit: true },
+  ], failed: [] }));
+  const result = await runRetentionCommand(fake, ['run']);
+  assert.deepEqual(result.lines, ['RETENTION_RUN', 'deleted_play_data\t0', 'deleted_play_data_scan_cap_hit\t1']);
+  assert.deepEqual(result.failed, []);
+});
+
 test('report never calls run, and a failed step is reported by name while the others still print', async () => {
   const { service: fake, calls } = service(async () => ({
     counts: counts(0).filter((row) => row.step !== 'web_sessions'), failed: ['web_sessions'],

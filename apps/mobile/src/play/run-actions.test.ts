@@ -42,6 +42,22 @@ test('delivery finish keeps the final sample valid after lane changes and at the
   assert.equal(finalizeDeliveryActions([{ at: 30_000, choice: 1 }], 1, 30_000, 30_000).length, 1);
 });
 
+test('delivery manual finish scores a safe 4000 tick after a 3999.9 lane change', () => {
+  const seed = 123;
+  const board = getGameBoard('delivery', seed);
+  if (board.kind !== 'delivery') throw new Error('unexpected board');
+  assert.deepEqual(board.ticks[1], { at: 4_000, blockedLane: 1, bonusLane: 0 });
+  const moveAt = 3_999.9;
+  const actions = appendAction([], 0, moveAt, 30_000, 'delivery')!;
+  assert.equal(scoreRun('delivery', seed, actions).score, 0);
+  const intervalSample = finalizeDeliveryActions(actions, 0, 4_000.1, 30_000, moveAt);
+  assert.equal(scoreRun('delivery', seed, intervalSample).score, 100);
+  const finished = finalizeDeliveryActions(actions, 0, 4_000.2, 30_000, moveAt);
+  assert.deepEqual(finished, [{ at: 3_999, choice: 0 }, { at: 4_000, choice: 0 }]);
+  assert.equal(scoreRun('delivery', seed, finished).score, 100);
+  assert.equal(scoreRunAtElapsed('delivery', seed, finished, 4_000.2).score, 100);
+});
+
 test('a mismatched second card stays visible with reduced motion', () => {
   assert.equal(memoryRevealDelay(false, true), 750);
   assert.equal(memoryRevealDelay(false, false), 750);
@@ -131,20 +147,23 @@ test('delivery: rapid lane changes are dropped and manual/auto finish preserve t
   assert.doesNotThrow(() => scoreRunAtElapsed('delivery', 123, duration, 30_050));
 });
 
-test('delivery final sampling also waits for a real millisecond without moving a timestamp forward', () => {
+test('delivery final sampling uses the observed integer millisecond without moving past it', () => {
   const actions = appendAction([], 0, 4_999.9, 30_000, 'delivery')!;
-  assert.equal(finalizeDeliveryActions(actions, 0, 5_000.1, 30_000, 4_999.9), actions);
+  assert.deepEqual(finalizeDeliveryActions(actions, 0, 5_000.1, 30_000, 4_999.9),
+    [...actions, { at: 5_000, choice: 0 }]);
+  assert.equal(finalizeDeliveryActions(actions, 0, 4_999.95, 30_000, 4_999.9), actions);
   const final = finalizeDeliveryActions(actions, 0, 5_000.9, 30_000, 4_999.9);
   assert.deepEqual(final, [...actions, { at: 5_000, choice: 0 }]);
   assert.doesNotThrow(() => scoreRun('delivery', 17, final));
 });
 
-test('delivery auto finish waits for a real final sample after a move just before the last tick', () => {
+test('delivery auto finish accepts the last tick after a sub-millisecond gap', () => {
   const moveAt = 23_999.9;
   const actions = appendAction([], 0, moveAt, 30_000, 'delivery')!;
   const early = finalizeDeliveryActions(actions, 0, 24_000.1, 30_000, moveAt);
-  assert.equal(early, actions);
-  assert.equal(shouldWaitForDeliverySample(early, 24_000.1, 30_000, 24_000), true);
+  assert.deepEqual(early, [...actions, { at: 24_000, choice: 0 }]);
+  assert.equal(shouldWaitForDeliverySample(early, 24_000.1, 30_000, 24_000), false);
+  assert.equal(scoreRunAtElapsed('delivery', 17, early, 24_000.1).completed, true);
   const ready = finalizeDeliveryActions(actions, 0, 24_001, 30_000, moveAt);
   assert.equal(shouldWaitForDeliverySample(ready, 24_001, 30_000, 24_000), false);
   assert.equal(scoreRun('delivery', 17, ready).completed, true);
@@ -152,4 +171,11 @@ test('delivery auto finish waits for a real final sample after a move just befor
   // An earlier manual finish and the hard duration boundary never wait.
   assert.equal(shouldWaitForDeliverySample([{ at: 4_999, choice: 0 }], 5_000, 30_000, 24_000), false);
   assert.equal(shouldWaitForDeliverySample(early, 30_000, 30_000, 24_000), false);
+});
+
+test('delivery keeps an equal integer timestamp that already scores its tick', () => {
+  const actions = appendAction([], 0, 4_000.1, 30_000, 'delivery')!;
+  const finished = finalizeDeliveryActions(actions, 0, 4_000.2, 30_000, 4_000.1);
+  assert.equal(finished, actions);
+  assert.equal(scoreRunAtElapsed('delivery', 123, finished, 4_000.2).score, 100);
 });
