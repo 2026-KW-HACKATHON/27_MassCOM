@@ -28,11 +28,13 @@
 
 ## 병렬 작업과 소유권
 
-- [ ] 서버: `apps/api/src/play*.ts`, `src/postgres/play*.ts`, 새 migration, server route/wiring, 계정 삭제. 실행 발급→입력 재검증→기록/해금, 공간 소유권과 친구 열람, 익명 흐름 집계. 단위와 DB 통합 시험.
-- [ ] 게임: `apps/mobile/src/play/`, `src/screens/play/`, `src/app/play.tsx`. 네 조작을 실제 플레이와 결과/재도전/기록/장식 해금으로 연결. 서버 규칙을 재사용.
-- [ ] 공간: `apps/mobile/src/studio/`, `src/screens/studio/`, `src/app/studio.tsx`, `src/app/friends/[friendshipId]/studio.tsx`. 실제 보유 그림·동행·배경·배치·색·진열 편집, 목표 선택, 피드/스토리 capture/share.
-- [ ] 점주: 제작기/점주/운영자 web asset 및 해당 사이트 시험. 실제 메뉴와 사진으로 시작, 방문 단계별 시각 템플릿, 체크리스트 후속 동작과 측정 정의.
-- [ ] 리더: 계약 통합, 실제 자산 제작/검사, 홈·도감·친구·뽑기·방문 결과 연결, 개인/서비스 공유 결과물, 최종 QA와 문서·PR.
+- [x] 서버: `apps/api/src/play*.ts`, `src/postgres/play*.ts`, 새 migration, server route/wiring, 계정 삭제. 실행 발급→입력 재검증→기록/해금, 공간 소유권과 친구 열람, 익명 흐름 집계. 단위와 DB 통합 시험.
+- [x] 게임: `apps/mobile/src/play/`, `src/screens/play/`, `src/app/play.tsx`. 네 조작을 실제 플레이와 결과/재도전/기록/장식 해금으로 연결. 서버 규칙을 재사용.
+- [x] 공간: `apps/mobile/src/studio/`, `src/screens/studio/`, `src/app/studio.tsx`, `src/app/friends/[friendshipId]/studio.tsx`. 실제 보유 그림·동행·배경·배치·색·진열 편집, 목표 선택, 피드/스토리 capture/share.
+- [x] 점주: 제작기/점주/운영자 web asset 및 해당 사이트 시험. 실제 메뉴와 사진으로 시작, 방문 단계별 시각 템플릿, 체크리스트 후속 동작과 측정 정의.
+- [x] 리더: 계약 통합, 실제 자산 제작/검사, 홈·도감·친구·뽑기·방문 결과 연결, 개인/서비스 공유 결과물, 최종 QA와 문서·PR.
+
+완료 근거: [통합 검증과 실제 결과물](../../evidence/connected-play-2026-10-04/README.md), [PR #364](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/364). 구현 커밋은 `779d15d7`, 환경 복구 기록은 `3604be5b`다. 공개 배포와 실제 기기·점포에서 확인하지 못한 항목은 검증 문서의 `NOT_RUN`으로 구분한다.
 
 ## 검증 순서
 

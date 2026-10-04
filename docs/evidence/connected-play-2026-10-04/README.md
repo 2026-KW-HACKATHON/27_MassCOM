@@ -1,6 +1,6 @@
 # 방문·수집·동행·놀이 통합 검증
 
-대상: [Issue #363](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/363), `feat/connected-play-collection`, 기준 `origin/main 237d5471`, 2026-10-04 KST. 공통 Expo 고객 소스, Node API·PostgreSQL, 점주/운영자 웹을 변경한다. 공개 API·설치본에는 아직 반영하지 않았다.
+대상: [Issue #363](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/363), [PR #364](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/364), `feat/connected-play-collection`, 기준 `origin/main 237d5471`, 2026-10-04 KST. 구현 `779d15d7`와 환경 복구 기록 `3604be5b`를 push했다. 공통 Expo 고객 소스, Node API·PostgreSQL, 점주/운영자 웹을 변경한다. 공개 API·설치본에는 아직 반영하지 않았다.
 
 ## 구현과 유지
 

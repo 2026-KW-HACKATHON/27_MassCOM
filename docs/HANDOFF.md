@@ -2,11 +2,13 @@
 
 ## 2026-10-04 방문·동행·공간·네 게임 (Issue #363)
 
-- 브랜치 `feat/connected-play-collection`, 기준 `origin/main 237d5471`. 최신 원격을 다시 fetch해 동일 기준을 확인했다. 새게임4종/서버검증/공간·친구·공유/주간목표/점주제작기/운영집계를 통합했고 기존 보유권·마일리지·쿠폰·방문 규칙을 유지했다.
-- 검증은 [TEST_STATUS](TEST_STATUS.md)와 [전용 증거](evidence/connected-play-2026-10-04/README.md). API403/403·모바일1395/1395·사이트467/467, PostgreSQL400 PASS/3 SKIP, 타입/lint/build 및 실제Chrome·개발APK/에뮬레이터를 구분한다. 독립핵심재검토APPROVE. 공개서버/새공개설치본/실제점포QR/Samsung새기능/TalkBack은 NOT_RUN이다.
-- 미리보기: 로컬8095 Node게이트웨이 → 로컬API4310 → 별도Docker `masscom-connected-play-qa` 55542의 `masscom_showcase_test`; 실제운영DB/계정은 건드리지 않았다. `/play`, `/studio`, 기존방문·도감·상점에서 연결된다. 게이트웨이스크립트/QA로그는 ignored `.tmp`에 있다.
+- 브랜치 `feat/connected-play-collection`, 기준 `origin/main 237d5471`. 최신 원격을 다시 fetch해 동일 기준을 확인했다. 새 게임 4종, 서버 검증, 공간·친구·공유, 주간 목표, 점주 제작기, 운영 집계를 통합했고 기존 보유권·마일리지·쿠폰·방문 규칙을 유지했다.
+- 구현 `779d15d7`, 환경 복구 기록 `3604be5b`를 push했고 [PR #364](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/364)를 생성했다. GitHub CI 완료나 공개 배포를 PR 생성으로 대신 주장하지 않는다.
+- 검증은 [TEST_STATUS](TEST_STATUS.md)와 [전용 증거](evidence/connected-play-2026-10-04/README.md). API 403/403·모바일 1395/1395·사이트 467/467, PostgreSQL 400 PASS/3 SKIP, 타입/lint/build 및 실제 Chrome·개발 APK/에뮬레이터를 구분한다. 독립 핵심 재검토 APPROVE. 공개 서버/새 공개 설치본/실제 점포 QR/Samsung 새 기능/TalkBack은 NOT_RUN이다.
+- 미리보기: 로컬 8095 Node 게이트웨이 → 로컬 API 4310 → 별도 Docker `masscom-connected-play-qa` 55542의 `masscom_showcase_test`; 실제 운영 DB/계정은 건드리지 않았다. `/play`, `/studio`, 기존 방문·도감·상점에서 연결된다. 게이트웨이 스크립트/QA 로그는 ignored `.tmp`에 있다.
 - Expo57의 `expo/virtual/env`가 기존 ignored `.env.local`을 합쳐 테스트 설정을 덮어쓰는 것을 확인했다. 변형별 번들 검증 동안만 격리했고, 완료 뒤 SHA-256·권한·원래 mtime을 확인해 복구했다. 에뮬레이터 font_scale 2.0과 transition scale 1.0도 원상 복구했다. Metro8094는 종료했고 미리보기8095/API4310은 유지한다. 원본값이나 키는 로그·커밋에 넣지 않았다.
 - 공개반영전 migration0042·개인정보04 문서/동의·최신앱을 함께 배포하고 새그림/게임/공간을 실기최종확인한다. 코드롤백때새사용자기록표를 DROP하지 않는다. 기존공개 test.9/Preview18이 새기능을 포함한다고 기록하지 않는다.
+- 다음 확인 명령: `gh pr checks 364`, `bash tests/site/verify_project_site_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh`. 공개 반영은 별도 출시 결정 범위다.
 
 ## 2026-10-04 `cb8030a` 운영 test.9·시연 Preview 18 공개 (Issue #360)
 
