@@ -1,5 +1,15 @@
 # 프로젝트 상태
 
+## `db28003` 운영·시연 배포와 운영 test.10·시연 Preview 19 공개 (Issue #369, 2026-10-05)
+
+[Issue #369](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/369), 브랜치 `docs/release-db28003`, 기준 main `db280032a97eee1d9cd50b504d84bc66e2beafda`(PR #362·#364·#368·#366 병합, 열린 PR 없음). PR #368은 모바일 접근성 의미 검사에서 상태 live region의 공통 로그인 컴포넌트 이동을 처음 반영하지 못해 한 번 실패했고 검사 위치 수정 뒤 12m15s에 PASS했다. PR #364·#366·#362도 각각 11m59s·12m27s·11m50s PASS했다.
+
+운영은 `237d5471f38a8900ec52c755bff3627625b38612`에서, 시연 API는 `0fcdfe8cc5da500c308d9b2c92404777ef5b5fdc`에서 `db28003`으로 배포했다([배포 증거](evidence/deployment-db28003-2026-10-05.json)). 두 서버 모두 migration 41→43을 적용해 마지막이 `0043_campaign_extended_audit.sql`이다. 배포 전 mode 600 백업을 만들었으나 실제 복원은 `NOT_RUN`이다. 운영 API·웹 컨테이너는 healthy, Caddy는 실행 중이며 `/health`·`/app/`·`/merchant/`·`/admin/`·`/open`은 200이다. 공개 점포는 0곳이고 익명 `/me/play`는 401이며, 운영 API에 시험용 쓰기 요청은 보내지 않았다. 시연 API 컨테이너는 healthy, host seed 뒤 A·B는 `{bronze,gold,silver}`, C는 `{bronze,prism,silver}`이고 세 캠페인은 2026-11-03 23:01 UTC에 끝난다. 일일 정리·seed 작업은 설치·수동 실행·검증까지 PASS했다. 시연 웹 체험 번들은 같은 커밋에서 다시 빌드해 `current`로 전환했고 공개 `/play/` 200과 entry 파일 일치를 확인했다. 브라우저에서 웹 체험 사용은 `NOT_RUN`이다.
+
+공개 사전 릴리스 [운영 test.10](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.10)·[시연 Preview 19](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.19)은 `db28003` 대상이다([운영 증거](evidence/operating-android-test10-2026-10-05.json), [시연 증거](evidence/showcase-preview19-release-2026-10-05.json)). 서명·빌드 검사와 익명 APK 다운로드 재해시는 PASS다. 시연 Preview 19는 720×1280·글자 100% 에뮬레이터에서 공개 시연 서버에 연결해 설치·임시 체험 진입·사용자 선택 후 첫 동의 화면·동의 거부 뒤 정상 로그아웃까지 확인했다([화면](evidence/demo-ready-2026-10-05/emulator-preview19-guest-trial-on-showcase-server.jpg)). 공개 서버에서 동의는 수락하지 않았으므로 이후 홈·점포 C 프리즘·테스트 방문·“체험 처음부터 다시”는 `NOT_RUN`이다. 운영 test.10의 실폰 설치·실행과 두 앱의 실폰 전체 흐름, 실제 점주·운영자 Google 웹 세션, TalkBack·실제 QR·Google Play도 `NOT_RUN`이다. 새 `/open` 링크는 이 문서 변경의 운영 웹 배포 후 별도 확인이 필요하다.
+
+다음 단계: 운영 test.10·시연 Preview 19 실폰 확인(임시 체험으로 점포 C 프리즘·“체험 처음부터 다시”·체험 가게 점주 화면), 점주 정보 편집기·포스터와 운영자 캠페인 연장의 실제 Google 세션, 시연 웹 체험 브라우저, TalkBack, DB 복원 훈련. `braces`·`node-forge` 감사 예외는 2026-10-31 만료 전에 다시 확인한다.
+
 ## 시연 준비와 점포 운영 보완 (Issue #365, 2026-10-05)
 
 `feat/365-demo-ready`는 main `f1013b7f` 기준이며 문서 수정 전 HEAD는 `fb5d8c54`다. PR #362의 지갑·로그인·동의 하늘 테마와 PR #364의 동행 공간·네 게임·migration 0042·처리방침 04 및 리뷰 수정은 이미 main에 병합됐다. 이번 변경은 시연 점포 C의 5회 프리즘(A·B의 브론즈·실버·골드와 목표 1·3·5 유지), 시연 일일 보관 기간 정리 뒤 host seed, 네이티브 시연의 “로그인 없이 바로 체험”·24시간 임시 계정·전용 체험 가게/점주 화면·“체험 처음부터 다시”를 추가했다. 운영 앱에는 임시 체험을 표시하거나 호출하지 않으며, 계정을 주입한 로컬 개발 빌드는 DEMO로 시작한다. [5분 발표 안내](DEMO_RUNBOOK.md)와 D-073…D-079에 경계를 기록했다.
@@ -10,7 +20,7 @@
 
 Issue #365 브랜치의 로컬 시험 합계(2026-10-05 KST, 문서 수정 전 `fb5d8c54`): API 단위 462/462 · PostgreSQL 통합 413 PASS/기존 조건부 3 SKIP · 모바일 1502/1502 · 사이트 339/339 · 관련 웹 186/186.
 
-다음 순서는 병합 → 운영·시연 새 APK 빌드와 서버 배포 준비(migration 0042·0043 포함) → 서버 배포와 새 APK 게시를 함께 진행 → 시연 재시드·일일 host seed 작업 설치/실행 확인 → 시연 웹 체험 번들 재빌드 → 두 설치본 실폰 확인이다. 처리방침 `privacy-2026-10-04`를 요구하는 서버는 이전 설치본을 업데이트 안내로 막는다. 이 브랜치의 공개 서버 배포·새 공개 APK·웹 체험 번들 재빌드·시연 호스트 작업 설치는 `NOT_RUN`이다. 점포 C 프리즘은 C를 아직 완료하지 않은 계정에서 확인해야 하며 재시드는 점주 게시물·발급 보상을 바꾸지 않는다. fixture 문구 변경 시 일일 seed는 오류로 실패하므로 로그 확인이 필요하다.
+당시 다음 순서는 병합 → 운영·시연 새 APK 빌드와 서버 배포 준비(migration 0042·0043 포함) → 서버 배포와 새 APK 게시를 함께 진행 → 시연 재시드·일일 host seed 작업 설치/실행 확인 → 시연 웹 체험 번들 재빌드 → 두 설치본 실폰 확인이었다. 처리방침 `privacy-2026-10-04`를 요구하는 서버는 이전 설치본을 업데이트 안내로 막는다. 당시 이 브랜치의 공개 서버 배포·새 공개 APK·웹 체험 번들 재빌드·시연 호스트 작업 설치는 `NOT_RUN`이었으며, 이후 `db28003` 배포로 완료했다(위 Issue #369 기록). 점포 C 프리즘은 C를 아직 완료하지 않은 계정에서 확인해야 하며 재시드는 점주 게시물·발급 보상을 바꾸지 않는다. fixture 문구 변경 시 일일 seed는 오류로 실패하므로 로그 확인이 필요하다.
 
 **NOT_RUN:** 이 빌드의 Samsung·TalkBack·물리 기울임, 실제 시연 서버의 “체험 처음부터 다시” 성공(로컬은 세션 회수 불가 사유와 로그아웃·새 체험 안내까지, 순서는 단위 시험), 기기의 점주 현황 캠페인 안내·점주 홈(단위 시험만), 운영 로그인·실제 QR·지갑, 새 기능의 실제 점주/운영자 Google 웹 세션·종이 인쇄, DB 복원 훈련.
 
