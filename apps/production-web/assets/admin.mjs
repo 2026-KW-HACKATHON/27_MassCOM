@@ -77,6 +77,7 @@ export function campaignExtensionMessage(error) {
   if (error?.code === 'ADMIN_CAMPAIGN_EXTENSION_LIMIT') {
     return '종료일은 오늘부터 365일을 넘길 수 없어요.';
   }
+  if (error?.code === 'ADMIN_CAMPAIGN_NOT_EXTENDABLE') return '초안이거나 이미 종료 처리된 캠페인은 연장할 수 없어요.';
   if (error?.code === 'ADMIN_CAMPAIGN_ACTIVE_EXISTS') return '이 점포에는 이미 공개 중인 캠페인이 있어요. 먼저 그 캠페인을 중지해 주세요.';
   return goLiveMessage(error, '캠페인을 연장하지 못했습니다. 잠시 후 다시 시도해 주세요.');
 }
