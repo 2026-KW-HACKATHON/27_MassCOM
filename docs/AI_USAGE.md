@@ -1,5 +1,7 @@
 # AI 사용 기록
 
+2026-10-05 — Issue #369: Claude Opus 5.5가 `db28003` 운영·시연 배포, 운영 test.10·시연 Preview 19 빌드·게시와 검증을 지휘했다. Codex Sol 6.1 Medium은 오케스트레이터가 제공한 검증 사실과 이전 기록 커밋 `a37b70b2`의 형식을 근거로 배포·APK 증거 및 현재 다운로드·프로젝트 상태·인수인계·시험 문서를 작성했다. 운영 API는 읽기 전용으로 확인했으며 에뮬레이터의 동의 거부까지와 실폰·실제 Google 웹 세션·웹 체험 브라우저·DB 복원 `NOT_RUN` 범위는 [TEST_STATUS](TEST_STATUS.md)에 구분한다. 검증: 사이트·증거 일관성·운영 문서 회귀와 `tools/gate.sh` 종료 0, JSON 및 고정 합계 줄·diff 검사. 이 문서 작업은 커밋하지 않는다.
+
 2026-10-05 — Issue #365: Claude Opus 5.5가 메인 스레드에서 시연 준비·점포 운영 보완을 지휘했다. 구현과 독립 검토는 Codex `gpt-6.1-sol`이 맡았으며 구현은 Medium/High, 검토는 High/XHigh(서버 XHigh·웹 High·모바일 High·임시 체험 XHigh·시연 시드/호스트 작업 XHigh)로 진행했다. 조회는 Codex `gpt-6-luna`, PR #364 서버 부분 검토 1회는 Claude Opus, 에뮬레이터 화면 점검 1회는 Claude Sonnet이 맡았다. 모든 독립 검토 지적을 수정하고 재검토해 Critical 0 / Important 0을 확인했다. 이 문서 작업은 제공된 검증 사실과 현재 파일 형식을 근거로 README·시험 상태·인수인계·프로젝트 상태·모바일 안내·증거 색인을 갱신한다. 자동 시험·로컬 에뮬레이터·mock API 웹 확인과 `NOT_RUN`인 공개 배포·새 공개 APK·실폰·실제 웹 세션을 [TEST_STATUS](TEST_STATUS.md)에 구분한다. 소유자의 지시에 따라 병합·출시 결정은 사람이 맡는다. 이번 문서 작업에서는 커밋하지 않는다.
 
 2026-10-04 — Issue #363: Codex가 최신 origin/main `237d5471`에서 전체 요청을 설계·구현·통합했다. native subagents는 고객/서버/점주 구조 탐색, 게임 서버와 공통 규칙, 네 가지 게임 UI, 동행 공간·공유, 점주 제작기, 실제 bitmap 자산, Android 빌드·시각 QA를 독립 범위로 맡았다. 별도 code-reviewer가 실행 소유권·완료 재시도·취소된 진열·친구 공개·계정 삭제·공유 실패를 검토했고 지적을 수정했다. 이미지 자산은 built-in image_gen으로 제작하고 SOURCES에 프롬프트를 기록했다. 검증·배포 경계는 TEST_STATUS와 전용 증거 문서에 기록하며 운영 키·실제 계정·공개 출시를 변경하지 않았다.

@@ -1,0 +1,71 @@
+{
+  "status": "PASS",
+  "releaseReadiness": "BLOCKED; 실제 휴대전화 설치·실행·로그인 흐름과 Google Play는 NOT_RUN이다.",
+  "verifiedAt": "2026-10-05",
+  "sourceCommit": "db280032a97eee1d9cd50b504d84bc66e2beafda",
+  "pullRequests": [
+    362,
+    364,
+    368,
+    366
+  ],
+  "issues": [
+    338,
+    363,
+    365,
+    369
+  ],
+  "checks": {
+    "aab": "PASS; Automated gates: PASS, release wallet surface verified.",
+    "recordAudioPermission": "PASS; RECORD_AUDIO 권한이 없다.",
+    "apkSignature": "PASS; upload cert SHA-256은 test.3–test.9와 같다."
+  },
+  "acceptedArtifact": {
+    "aab": "app-release-db28003.aab",
+    "aabSha256": "2794be63572c9f5a063f546ccf353e14eaef8b4c3caa23f0721cc63548b20588",
+    "apk": "MassCOM-operating-android-db28003.apk",
+    "apkSha256": "642d03dd2abff5267c70c400d0da4e4e7dcefbdc677d79bae8cbfea115f3fe23",
+    "apkBytes": 162754226,
+    "apkOrigin": "업로드 인증서 SHA-256은 test.3–test.9와 동일",
+    "package": "kr.masscom.wolgye",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256": "5E5ED3C31971E5A88EA752B3A2AE50772FEA1C956B9D97A82DD5CA7130CFA395",
+    "signingCertificate": "test.3–test.9와 동일한 upload 인증서"
+  },
+  "githubRelease": {
+    "tag": "android-v0.1.0-test.10",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.10",
+    "kind": "GitHub prerelease",
+    "target": "db28003",
+    "assets": [
+      {
+        "name": "MassCOM-operating-android-db28003.apk",
+        "sha256": "642d03dd2abff5267c70c400d0da4e4e7dcefbdc677d79bae8cbfea115f3fe23"
+      },
+      {
+        "name": "app-release-db28003.provenance.json",
+        "sha256": "87d0f21b0dcc3856e57e8ae55e964e1b661812225eedbe8bc8b016f8b8156362"
+      },
+      {
+        "name": "SHA256SUMS.txt"
+      }
+    ],
+    "anonymousDownload": "PASS; 익명 다운로드한 APK의 SHA-256이 642d03dd2abff5267c70c400d0da4e4e7dcefbdc677d79bae8cbfea115f3fe23과 일치한다."
+  },
+  "physicalAndroid": {
+    "device": "NOT_RUN; 연결된 휴대전화 없음",
+    "apkInstall": "NOT_RUN",
+    "launch": "NOT_RUN",
+    "usage": "NOT_RUN",
+    "login": "NOT_RUN"
+  },
+  "notRun": [
+    "실제 휴대전화 설치·실행",
+    "로그인 흐름",
+    "지갑",
+    "실제 QR",
+    "TalkBack",
+    "글자 200%",
+    "Google Play 업로드·심사·배포"
+  ]
+}

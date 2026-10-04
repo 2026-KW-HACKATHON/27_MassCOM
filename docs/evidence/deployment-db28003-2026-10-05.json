@@ -1,0 +1,109 @@
+{
+  "observedAt": "2026-10-05 KST",
+  "sourceCommit": "db280032a97eee1d9cd50b504d84bc66e2beafda",
+  "sourceBranch": "main (PR #362·#364·#368·#366 병합; 열린 PR 없음)",
+  "previousCommits": {
+    "operatingApiAndWebBefore": "237d5471f38a8900ec52c755bff3627625b38612",
+    "showcaseBefore": "0fcdfe8cc5da500c308d9b2c92404777ef5b5fdc"
+  },
+  "issues": [
+    338,
+    363,
+    365,
+    369
+  ],
+  "scope": "운영 Lightsail API·웹, 시연 API·호스트 시드·웹 체험 번들을 db28003으로 배포했다. 운영 test.10과 시연 Preview 19는 별도 증거를 참조한다.",
+  "migrationNote": "migration 0042·0043 적용으로 41 → 43. 배포 호환성 증거 파일 backward_compatible=yes. 추가 호환성 판정 내용 NOT_RUN.",
+  "showcase": {
+    "release": "추가 API 릴리스 디렉터리 크기 NOT_RUN",
+    "backup": "/opt/masscom-showcase/backups/pre-db28003-20261005.dump: mode 600, 3411495바이트, pg_restore 348항목; 실제 복원 NOT_RUN",
+    "image": "masscom-showcase-api:db28003를 서버에서 빌드했다 (371MB).",
+    "schemaMigrationsBefore": 41,
+    "schemaMigrationsAfter": 43,
+    "migration": "PASS: database migrations applied",
+    "apiContainer": "healthy; 2026-10-04T23:00:59Z 시작",
+    "aiStoreArt": "NOT_RUN",
+    "seed": "SHOWCASE_HOST_SEEDED; A {bronze,gold,silver}, B {bronze,gold,silver}, C {bronze,prism,silver}; 세 캠페인은 2026-11-03 23:01 UTC 종료.",
+    "retentionTimer": "이 릴리스의 infra/showcase-host/host-jobs/install.sh 설치. systemd-analyze verify 출력 없음; 수동 실행 Result=success; journal SHOWCASE_SEED_STEP_SUCCEEDED 및 BACKUPS_DELETED 0; install.sh --verify: verified: masscom-showcase-retention.timer is enabled and matches this release; 다음 실행 2026-10-05 19:36 UTC.",
+    "knownQuirk": "NOT_RUN",
+    "webTrialBundle": "PASS: npm run export:web:showcase (22M); /opt/masscom-showcase/web/releases/db280032a97eee1d9cd50b504d84bc66e2beafda (23M), current가 이전 a39b983… 대신 새 릴리스를 가리킴. edge Caddy 컨테이너 재시작으로 새 mount 반영. /play/ 200, 로컬 export와 같은 entry-1c2b3a3bfe1a4e765585ea1438d35e11.js 제공. 재빌드 이후 브라우저 체험 NOT_RUN.",
+    "public": {
+      "https://demo-api.masscom.kr/health": 200,
+      "https://demo-api.masscom.kr/play/": 200,
+      "https://demo-api.masscom.kr/merchants/showcase-local-merchant-c/collectible-preview": "PASS; 목표 1 bronze, 3 silver, 5 prism(프리즘)"
+    }
+  },
+  "operating": {
+    "backup": "/opt/masscom/backups/pre-db28003-20261005.dump: mode 600, 179846바이트, pg_restore 348항목; 실제 복원 NOT_RUN",
+    "migrationCompatibility": "배포 호환성 증거 파일 backward_compatible=yes",
+    "dryRun": "PASS: scripts/deploy-lightsail.sh --dry-run exit 0",
+    "deploy": "PASS: scripts/deploy-lightsail.sh --deploy exit 0 → Lightsail deployment completed: db280032a97eee1d9cd50b504d84bc66e2beafda",
+    "retentionTimer": "배포 스크립트가 운영 보관 타이머를 재설치했다 (first run success).",
+    "images": "masscom-api-1, masscom-production-web-1, masscom-postgres-1 healthy; caddy up",
+    "deployedCommitFiles": {
+      "/opt/masscom/DEPLOYED_COMMIT": "db280032a97eee1d9cd50b504d84bc66e2beafda"
+    },
+    "databaseAfter": {
+      "schemaMigrations": 43,
+      "lastMigration": "0043_campaign_extended_audit.sql"
+    },
+    "readOnlyRoutes": {
+      "https://api.masscom.kr/merchants": "GET → {\"merchants\":[]} (공개 점포 0곳)",
+      "https://api.masscom.kr/me/play": "인증 없는 GET 401"
+    },
+    "productionViewsPost": "NOT_RUN; 운영 API에는 읽기 전용 GET만 사용했으며 테스트 호출을 보내지 않았다."
+  },
+  "externalHttps": {
+    "status200": [
+      "https://api.masscom.kr/health",
+      "https://www.masscom.kr/app/",
+      "https://www.masscom.kr/merchant/",
+      "https://www.masscom.kr/admin/",
+      "https://www.masscom.kr/open",
+      "https://demo-api.masscom.kr/health",
+      "https://demo-api.masscom.kr/play/"
+    ],
+    "servedFiles": {
+      "/merchant/assets/merchant.mjs": "저장소 db28003과 SHA-256 일치 (앞자리 d08610a34343dfc9)",
+      "/admin/assets/admin.mjs": "저장소 db28003과 SHA-256 일치 (앞자리 b14c3cdb736c806a)",
+      "/merchant/assets/merchant-profile.mjs": "저장소 db28003과 SHA-256 일치 (앞자리 798c464a5c8cd167)",
+      "/merchant/assets/install-qr.png": "저장소 db28003과 SHA-256 일치 (앞자리 d66050287bb85b59)",
+      "/app/assets/production.css": "저장소 db28003과 SHA-256 일치 (앞자리 c2f8ebe618610750)"
+    },
+    "openPage": {
+      "links": "NOT_RUN; 배포 당시 링크 내용은 제공된 사실에 없음",
+      "note": "/open 200. 이 문서 변경의 test.10·Preview 19 링크는 병합 뒤 운영 웹 재배포가 필요하다."
+    }
+  },
+  "notRun": [
+    "두 DB 백업의 실제 복원",
+    "운영 API 테스트 호출(읽기 전용 GET만 수행)",
+    "새 웹 기능의 실제 점주·운영자 Google 세션",
+    "재빌드 이후 브라우저 웹 체험",
+    "실제 휴대전화 test.10·Preview 19",
+    "TalkBack"
+  ],
+  "migrations": [
+    "0042_connected_play.sql",
+    "0043_campaign_extended_audit.sql"
+  ],
+  "mergedPullRequestsSincePrevious": [
+    362,
+    364,
+    368,
+    366
+  ],
+  "contentSincePrevious": [
+    "PR #362 (Issue #338): 지갑·로그인·동의 화면 하늘 테마",
+    "PR #364 (Issue #363): 동반자 공간·미니게임 4종, migration 0042, 개인정보 처리방침 04",
+    "PR #368 (Issue #365): 점포 C 프리즘·일일 시연 시드·네이티브 손님 체험·운영자 캠페인 연장·점주 가게 정보 편집과 인쇄 포스터·쿠폰/캠페인 안내·큰 글자 수정·migration 0043",
+    "PR #366: 이미 사용 중인 지갑 주소 안내 문구"
+  ],
+  "ci": {
+    "368": "접근성 semantics 검사 1회 실패: status live region이 공통 로그인 컴포넌트로 이동해 검사 대상을 그곳으로 수정한 뒤 12m15s PASS",
+    "364": "11m59s PASS",
+    "366": "12m27s PASS",
+    "362": "11m50s PASS"
+  },
+  "rollbackRule": "이번 배포의 추가 롤백 검증 NOT_RUN; 기존 결정은 docs/DECISIONS.md 참조"
+}
