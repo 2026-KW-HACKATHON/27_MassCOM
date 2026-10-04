@@ -2,6 +2,13 @@
 
 `node apps/production-web/server.mjs`로 로컬 서버를 실행하면 `http://127.0.0.1:4173`에서 웹을 볼 수 있습니다. 공개 음식점은 같은 출처의 `GET /merchants`를 거쳐 `https://api.masscom.kr/merchants`에서 읽습니다. API 연결이 없으면 이용 불가 안내를 표시하며 예시 점포를 만들지 않습니다.
 
+
+Issue #365 운영 화면: `/admin/`의 캠페인 목록은 서버 `generatedAt` 기준으로 남은 일수와 14일 이내 종료·이미 종료된 캠페인을 먼저 안내합니다. 30일·90일 연장은 가게 이름과 예정 종료일을 확인한 뒤 원본 `expectedEndsAt`을 보내며, 성공 안내에는 서버가 반환한 종료일을 사용합니다. 서버 계약에 365일 상한 오류 코드가 명시되지 않아 `ADMIN_CAMPAIGN_EXTENSION_LIMIT`로 안내 문구를 연결했습니다. 서버 병행 작업과 이 코드의 일치 확인이 필요합니다.
+
+점주 가게 현황에는 종료 안내와 가게 정보 편집을 추가했습니다. 소개·영업시간·메뉴만 `expectedVersion`과 함께 저장하고, 권한·공용 시연 점포 여부는 서버 `canEdit`·`readOnlyReason`을 따릅니다. 저장하지 않은 변경은 화면에서 안내하며 저장 중 입력을 잠급니다. 매장 안내문 인쇄는 선택된 가게 이름과 기존 설치 QR을 사용하고, 자체 CSS의 인쇄 규칙으로 A4 포스터만 표시합니다. 정적 서버는 PNG와 신규 ESM을 허용하며 Docker의 기존 `COPY assets`로 포함됩니다. 실제 브라우저·API 통합·A4 출력은 별도로 검증해야 합니다.
+
+추가 회귀 검사: `node --test tests/site/commercial-*.test.mjs`. 기존 전체 사이트 검사: `node --test tests/site/*.test.mjs`, CI의 별도 `*_test.mjs` 및 `tests/site/*.sh`. 소켓 바인딩이 제한된 환경에서 HTTP 시험의 `listen EPERM`은 실행 환경 차단으로 기록하고 실제 통과로 간주하지 않습니다.
+
 개인 도감 UI와 API는 `GET /api/web/collection`의 웹 전용 HttpOnly 세션 쿠키로만 연결됩니다. 브라우저에는 모바일 Bearer 토큰을 저장하지 않습니다. 로그인은 `/api/web/auth/start` → Google → `/api/web/auth/callback`, 로그아웃은 같은 출처의 `POST /api/web/logout`입니다. 대표 운영 웹은 [https://www.masscom.kr/app/](https://www.masscom.kr/app/)이며 기존 `https://masscom.kr/app/`도 호환 경로로 유지합니다. Samsung Android Chrome에서 www의 기존 Google 계정 1개로 본인 빈 도감·URL 재열기 유지·로그아웃, www 로그아웃 후 apex 세션 유지를 확인했습니다. www의 두 번째 계정과 실제 기록이 있는 도감 격리는 아직 실증하지 않았습니다. 이 페이지에는 방문 코드 발급·QR 인증·지갑 연결·NFT 발행 동작이 없습니다.
 
 첫 로그인 동의(Issue #253, D-059): 로그인한 계정이 도감을 읽기 전에 `GET /api/web/consent`로 동의 여부를 먼저 확인한다. `required`이면 도감 요청을 하지 않고 같은 동의 화면(필수 세 개·개인정보 수집·이용 안내 네 가지·`/terms`·`/privacy` 링크, `<label>`·`role="status"`·비활성 버튼)을 보이며, 동의하면 `POST /api/web/consent`(같은 출처·JSON, 폼 없음)로 기록한 뒤 도감을 읽는다. 확인하지 못하면 다시 시도를 보이고, 서버가 이 화면의 문구와 다른 버전을 요구하면 새로 열도록 안내한다. 꺼진 "동의하고 시작" 버튼 위에는 보이는 안내가 있고(버튼의 `aria-describedby`), 새 탭 링크에는 "(새 탭)"이 붙으며, 동의 안내 줄은 비어 있어도 접근성 트리에 남고, 화면이 나타나면 초점이 머리글로·사라지면 본문으로 간다. 약관을 새 탭에서 읽고 돌아오면(`visibilitychange`) 눌러 둔 체크가 남지만 다른 탭의 로그인·로그아웃 알림(`BroadcastChannel`)에는 지워진다. 푸터에 이용약관·개인정보 처리방침·계정 삭제 안내 링크가 있다. Caddy는 `/api/web/consent`를 API로 넘기고 캐시하지 않는다(`tests/ops/verify_web_session_proxy_test.mjs`). 서버는 아직 쓰기 요청을 막지 않는다.

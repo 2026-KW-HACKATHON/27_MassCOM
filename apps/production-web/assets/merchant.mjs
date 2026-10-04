@@ -1,4 +1,6 @@
 import { clearCollectibleDrafts } from './collectible-assist.mjs';
+import { campaignEndingNotice } from './commercial-operation.mjs';
+import { profileReadOnlyReason, serializeMerchantProfile } from './merchant-profile.mjs';
 
 const merchantRequests = new WeakMap();
 const merchantClaimResolutions = new WeakMap();
@@ -7,6 +9,8 @@ const merchantClaimSlots = new WeakMap();
 const reversalRefreshers = new WeakMap();
 // bindMerchant이 둔 가게 현황 읽기 함수(#330). loadMerchant가 구역을 연 뒤 최근 목록과 함께 부른다.
 const overviewRefreshers = new WeakMap();
+const profileRefreshers = new WeakMap();
+const profileResetters = new WeakMap();
 const feedbackRefreshers = new WeakMap();
 const creators = new WeakMap();
 const creatorScopes = new WeakMap();
@@ -344,6 +348,7 @@ export async function loadMerchant(fetcher, doc) {
   const overviewPicker = doc.getElementById('merchant-overview-picker');
   const overviewSelect = doc.getElementById('merchant-overview-merchant');
   if (overviewPanel) overviewPanel.hidden = true;
+  profileResetters.get(doc)?.();
   overviewSelect?.replaceChildren();
   for (const id of ['merchant-overview-cards', 'merchant-readiness-list']) doc.getElementById(id)?.replaceChildren();
   for (const id of ['merchant-overview-status', 'merchant-readiness-message']) {
@@ -391,6 +396,8 @@ export async function loadMerchant(fetcher, doc) {
     }
     if (reversalPanel) reversalPanel.hidden = mine.merchants.length === 0;
     if (overviewPanel) overviewPanel.hidden = mine.merchants.length === 0;
+    const profilePanel = doc.getElementById('merchant-profile');
+    if (profilePanel) profilePanel.hidden = mine.merchants.length === 0;
     if (feedbackPanel) feedbackPanel.hidden = mine.merchants.length === 0;
     // 점포가 하나뿐이면 점포 고르기는 보이지 않아도 된다.
     if (overviewPicker) overviewPicker.hidden = mine.merchants.length <= 1;
@@ -411,7 +418,7 @@ export async function loadMerchant(fetcher, doc) {
     status.textContent = '점포 권한을 확인했습니다.';
     // 구역이 열리면 가게 현황과 최근 방문·쿠폰 사용을 바로 읽는다(실패해도 점포 화면은 그대로다).
     if (mine.merchants.length > 0) await Promise.all([
-      overviewRefreshers.get(doc)?.(), feedbackRefreshers.get(doc)?.(), reversalRefreshers.get(doc)?.(),
+      overviewRefreshers.get(doc)?.(), profileRefreshers.get(doc)?.(), feedbackRefreshers.get(doc)?.(), reversalRefreshers.get(doc)?.(),
     ]);
   } catch (error) {
     if (merchantRequests.get(doc) !== requestId) return;
@@ -915,10 +922,188 @@ export function bindMerchant(fetcher, doc) {
   };
   reversalRefresh?.addEventListener('click', () => refreshReversal());
 
+  // 가게 정보는 현황 점포 선택을 공유한다. 서버 응답의 canEdit가 최종 권한이다.
+  const profilePanel = doc.getElementById('merchant-profile');
+  const profileStatus = doc.getElementById('merchant-profile-status');
+  const profileRetry = doc.getElementById('merchant-profile-retry');
+  const profileReason = doc.getElementById('merchant-profile-read-only');
+  const profileDirty = doc.getElementById('merchant-profile-dirty');
+  const profileForm = doc.getElementById('merchant-profile-form');
+  const profileStory = doc.getElementById('merchant-profile-story');
+  const profileHours = doc.getElementById('merchant-profile-hours');
+  const profileMenu = doc.getElementById('merchant-profile-menu');
+  const profileAdd = doc.getElementById('merchant-profile-add-menu');
+  const profileSave = doc.getElementById('merchant-profile-save');
+  const profilePrint = doc.getElementById('merchant-profile-print');
+  const hasProfile = !!(profilePanel && profileStatus && profileRetry && profileReason && profileDirty && profileForm
+    && profileStory && profileHours && profileMenu && profileAdd && profileSave && profilePrint);
+  let profileGeneration = 0;
+  let profileData;
+  let profileSnapshot = '';
+  let profileBusy = false;
+  const profileFields = () => ({
+    story: profileStory.value, businessHours: profileHours.value,
+    menuItems: [...profileMenu.children].map(row => ({ name: row.querySelectorAll('input')[0].value,
+      price: row.querySelectorAll('input')[1].value })),
+    version: profileData?.version,
+  });
+  const profileSignature = () => JSON.stringify(profileFields());
+  const syncProfileDirty = () => {
+    doc.getElementById('merchant-profile-story-count').textContent = String(profileStory.value.length);
+    doc.getElementById('merchant-profile-hours-count').textContent = String(profileHours.value.length);
+    profileDirty.textContent = profileData?.canEdit && profileSignature() !== profileSnapshot
+      ? '저장하지 않은 변경이 있어요' : '';
+    profileAdd.disabled = profileBusy || profileMenu.children.length >= 30;
+  };
+  const clearProfileErrors = () => {
+    for (const field of ['story', 'hours', 'menu']) doc.getElementById(`merchant-profile-${field}-error`).textContent = '';
+    profileStory.removeAttribute('aria-invalid'); profileHours.removeAttribute('aria-invalid');
+  };
+  const setProfileBusy = busy => {
+    profileBusy = busy;
+    profileSave.disabled = busy;
+    profileStory.readOnly = busy || !profileData?.canEdit;
+    profileHours.readOnly = busy || !profileData?.canEdit;
+    for (const row of profileMenu.children) {
+      for (const input of row.querySelectorAll('input')) input.readOnly = busy || !profileData?.canEdit;
+      const remove = row.querySelector('button');
+      if (remove) remove.disabled = busy;
+    }
+    syncProfileDirty();
+  };
+  const addProfileRow = (item = { name: '', priceWon: '' }, editable = true) => {
+    const index = profileMenu.children.length + 1;
+    const row = doc.createElement('div'); row.className = 'merchant-menu-row';
+    const nameLabel = doc.createElement('label'); nameLabel.textContent = `메뉴 ${index} 이름`;
+    const name = doc.createElement('input'); name.name = 'name'; name.setAttribute('name', 'name'); name.type = 'text'; name.maxLength = 200;
+    name.value = item.name ?? ''; name.readOnly = !editable; nameLabel.append(name);
+    const priceLabel = doc.createElement('label'); priceLabel.textContent = `메뉴 ${index} 가격(원)`;
+    const price = doc.createElement('input'); price.name = 'priceWon'; price.setAttribute('name', 'priceWon'); price.type = 'text';
+    price.inputMode = 'numeric'; price.pattern = '[0-9]*'; price.value = item.priceWon == null ? '' : String(item.priceWon);
+    price.readOnly = !editable; priceLabel.append(price);
+    row.append(nameLabel, priceLabel);
+    if (editable) {
+      const remove = doc.createElement('button'); remove.type = 'button'; remove.textContent = '메뉴 삭제';
+      remove.addEventListener('click', () => { row.remove(); syncProfileDirty(); });
+      row.append(remove);
+    }
+    profileMenu.append(row);
+    syncProfileDirty();
+  };
+  const resetProfile = () => {
+    if (!hasProfile) return;
+    profileGeneration += 1; profileData = undefined; profileSnapshot = '';
+    profileBusy = false;
+    profilePanel.hidden = true; profileStatus.textContent = ''; profileReason.textContent = '';
+    profileRetry.hidden = true;
+    profileDirty.textContent = ''; clearProfileErrors();
+    profileStory.value = ''; profileHours.value = ''; profileMenu.replaceChildren();
+    profileSave.disabled = false;
+    doc.getElementById('merchant-profile-name').textContent = '';
+    doc.getElementById('merchant-profile-address').textContent = '';
+    doc.getElementById('merchant-poster-name').textContent = '';
+    profilePrint.disabled = true;
+  };
+  const renderProfile = value => {
+    profileData = value;
+    doc.getElementById('merchant-profile-name').textContent = value.name;
+    doc.getElementById('merchant-profile-address').textContent = value.roadAddress ?? '';
+    doc.getElementById('merchant-poster-name').textContent = value.name;
+    profilePrint.disabled = false;
+    profileStory.value = value.story ?? ''; profileHours.value = value.businessHours ?? '';
+    profileStory.readOnly = !value.canEdit; profileHours.readOnly = !value.canEdit;
+    profileMenu.replaceChildren();
+    for (const item of value.menuItems ?? []) addProfileRow(item, value.canEdit);
+    profileAdd.hidden = !value.canEdit; profileSave.hidden = !value.canEdit;
+    setProfileBusy(false);
+    profileReason.textContent = value.canEdit ? '' : profileReadOnlyReason(value.readOnlyReason);
+    clearProfileErrors(); profileSnapshot = profileSignature(); syncProfileDirty();
+  };
+  const refreshProfile = async () => {
+    if (!hasProfile) return false;
+    const merchantId = doc.getElementById('merchant-overview-merchant')?.value;
+    if (!merchantId) return false;
+    resetProfile();
+    const generation = profileGeneration;
+    const requestId = merchantRequests.get(doc);
+    const stale = () => generation !== profileGeneration || requestId !== merchantRequests.get(doc)
+      || doc.getElementById('merchant-overview-merchant')?.value !== merchantId;
+    profilePanel.hidden = false; profileStatus.textContent = '가게 정보를 불러오는 중이에요.';
+    profileRetry.hidden = true;
+    try {
+      const value = await request(fetcher, `${reversalBase(merchantId)}/profile`);
+      if (stale()) return false;
+      if (value?.merchantId !== merchantId || typeof value.name !== 'string' || !Array.isArray(value.menuItems)) throw new Error('invalid profile');
+      renderProfile(value); profileStatus.textContent = '';
+      return true;
+    } catch (error) {
+      if (stale()) return false;
+      profileStatus.textContent = error.status === 403 ? '이 가게 정보를 볼 권한이 없어요.' : '가게 정보를 불러오지 못했어요. 다시 시도해 주세요.';
+      profileRetry.hidden = false;
+      return false;
+    }
+  };
+  profileStory?.addEventListener('input', syncProfileDirty);
+  profileHours?.addEventListener('input', syncProfileDirty);
+  profileMenu?.addEventListener('input', event => {
+    if (event.target?.name === 'priceWon') event.target.value = event.target.value.replace(/\D/g, '');
+    syncProfileDirty();
+  });
+  profileAdd?.addEventListener('click', () => { if (profileData?.canEdit && profileMenu.children.length < 30) addProfileRow(); });
+  profilePrint?.addEventListener('click', () => {
+    if (profileData?.merchantId === doc.getElementById('merchant-overview-merchant')?.value) doc.defaultView?.print?.();
+  });
+  profileRetry?.addEventListener('click', () => { void refreshProfile(); });
+  profileForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!profileData?.canEdit || profileSave.disabled) return;
+    const merchantId = profileData.merchantId;
+    const { body, errors } = serializeMerchantProfile(profileFields());
+    clearProfileErrors();
+    doc.getElementById('merchant-profile-story-error').textContent = errors.story;
+    doc.getElementById('merchant-profile-hours-error').textContent = errors.businessHours;
+    doc.getElementById('merchant-profile-menu-error').textContent = errors.menuItems;
+    if (errors.story) profileStory.setAttribute('aria-invalid', 'true');
+    if (errors.businessHours) profileHours.setAttribute('aria-invalid', 'true');
+    if (Object.values(errors).some(Boolean)) { profileStatus.textContent = '입력 내용을 확인해 주세요.'; return; }
+    const generation = profileGeneration;
+    const requestId = merchantRequests.get(doc);
+    const stale = () => generation !== profileGeneration || requestId !== merchantRequests.get(doc)
+      || doc.getElementById('merchant-overview-merchant')?.value !== merchantId;
+    setProfileBusy(true); profileStatus.textContent = '가게 정보를 저장하는 중이에요.';
+    try {
+      const value = await request(fetcher, `${reversalBase(merchantId)}/profile`, 'PUT', body);
+      if (stale()) return;
+      renderProfile(value); profileStatus.textContent = '가게 정보를 저장했어요.';
+    } catch (error) {
+      if (stale()) return;
+      if (error.status === 409) {
+        const loaded = await refreshProfile();
+        if (loaded && requestId === merchantRequests.get(doc) && doc.getElementById('merchant-overview-merchant')?.value === merchantId) {
+          profileStatus.textContent = '다른 곳에서 먼저 바뀌었어요. 최신 내용을 불러왔어요.';
+        }
+      } else if (error.status === 400) {
+        doc.getElementById('merchant-profile-story-error').textContent = '소개는 4000자 이하인지 확인해 주세요.';
+        doc.getElementById('merchant-profile-hours-error').textContent = '영업시간은 1000자 이하인지 확인해 주세요.';
+        doc.getElementById('merchant-profile-menu-error').textContent = '메뉴 이름과 가격, 30개 한도를 확인해 주세요.';
+        profileStory.setAttribute('aria-invalid', 'true'); profileHours.setAttribute('aria-invalid', 'true');
+        profileStatus.textContent = '입력 내용을 확인해 주세요.';
+      } else if (error.status === 403 && error.code === 'MERCHANT_PROFILE_READ_ONLY') {
+        if (await refreshProfile()) profileStatus.textContent = profileReadOnlyReason('SHARED_DEMO_STORE');
+      } else if (error.status === 403 && error.code === 'MERCHANT_PROFILE_FORBIDDEN') {
+        if (await refreshProfile()) profileStatus.textContent = profileReadOnlyReason('ROLE');
+      } else profileStatus.textContent = error.status === 429 ? '요청이 너무 많아요. 잠시 뒤 다시 시도해 주세요.'
+        : error.status === 403 ? '이 가게 정보를 고칠 권한이 없어요.' : '가게 정보를 저장하지 못했어요. 다시 시도해 주세요.';
+    } finally { if (!stale()) setProfileBusy(false); }
+  });
+  profileResetters.set(doc, hasProfile ? resetProfile : () => {});
+  profileRefreshers.set(doc, hasProfile ? refreshProfile : () => {});
+
   // ---- 가게 현황(#330): 선택한 점포의 요약 카드와 오픈 준비 체크리스트. 점포 선택은 최근 방문 목록과 같은 값을 쓴다. ----
   const overviewSelect = doc.getElementById('merchant-overview-merchant');
   const overviewRefresh = doc.getElementById('merchant-overview-refresh');
   const overviewStatus = doc.getElementById('merchant-overview-status');
+  const campaignEnding = doc.getElementById('merchant-campaign-ending');
   const overviewCards = doc.getElementById('merchant-overview-cards');
   const readinessMessage = doc.getElementById('merchant-readiness-message');
   const readinessList = doc.getElementById('merchant-readiness-list');
@@ -929,6 +1114,7 @@ export function bindMerchant(fetcher, doc) {
     readinessList?.replaceChildren();
     if (readinessMessage) readinessMessage.textContent = '';
     if (overviewStatus) overviewStatus.textContent = '';
+    if (campaignEnding) campaignEnding.textContent = '';
     if (overviewRefresh) overviewRefresh.disabled = false;
   };
   const textNode = (tag, className, text) => {
@@ -1008,6 +1194,7 @@ export function bindMerchant(fetcher, doc) {
   const visitLink = { target: '#merchant-visit-title', text: '방문 기록 보기', distinguishBy: true };
   const renderOverview = overview => {
     const { visits, comparison, campaign, readiness } = overview;
+    if (campaignEnding) campaignEnding.textContent = campaignEndingNotice(campaign, overview.generatedAt);
     const max = Math.max(...visits.last7Days.map(day => day.count));
     const days = doc.createElement('ol');
     days.className = 'overview-days';
@@ -1153,6 +1340,7 @@ export function bindMerchant(fetcher, doc) {
       overviewCards.replaceChildren();
       readinessList.replaceChildren();
       readinessMessage.textContent = '';
+      if (campaignEnding) campaignEnding.textContent = '';
       overviewStatus.textContent = error.status === 403 || error.status === 401
         ? '이 점포의 현황을 볼 권한이 없어요.' : '가게 현황을 불러오지 못했어요. 다시 시도해 주세요.';
     } finally {
@@ -1166,6 +1354,8 @@ export function bindMerchant(fetcher, doc) {
   // 점포를 바꾸면 이전 점포 현황을 지우고 새 점포 현황을 바로 읽는다. 최근 방문 목록의 점포도 같은 값으로 맞춘다.
   overviewSelect?.addEventListener('change', () => {
     resetOverview();
+    resetProfile();
+    void refreshProfile();
     resetFeedback();
     void refreshFeedback();
     if (reversalSelect) {
@@ -1182,6 +1372,8 @@ export function bindMerchant(fetcher, doc) {
     if (overviewSelect) {
       overviewSelect.value = reversalSelect.value;
       resetOverview();
+      resetProfile();
+      void refreshProfile();
       resetFeedback();
       void refreshFeedback();
       void refreshOverview();
@@ -1292,6 +1484,7 @@ export function bindMerchant(fetcher, doc) {
     clearSlot();
     resetReversal();
     resetOverview();
+    resetProfile();
     resetFeedback();
     setIssuing(false);
     try {
@@ -1312,6 +1505,7 @@ export function bindMerchant(fetcher, doc) {
     clearSlot();
     resetReversal();
     resetOverview();
+    resetProfile();
     resetFeedback();
     setIssuing(false);
   };
