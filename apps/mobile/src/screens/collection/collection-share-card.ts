@@ -45,6 +45,7 @@ export type CollectionShareCardModel = {
   subtitle: string;
   footer: string;
   visitedStoreCount: number;
+  collectedCount: number;
   items: readonly CollectionShareCardItem[];
   medals: readonly CollectionShareCardMedal[];
   /** 시연 앱에서만 "체험용 가상 기록"을 붙인다(배지 공유 카드와 같은 규칙). */
@@ -56,9 +57,15 @@ const medalKindOrder: readonly MedalKind[] = ['explorer', 'regular', 'steady'];
 const gradeByGoal: Record<1 | 3 | 5, ShareCardGrade> = { 1: 'BRONZE', 3: 'SILVER', 5: 'GOLD' };
 const gradeRank: Record<ShareCardGrade, number> = { BRONZE: 0, SILVER: 1, GOLD: 2 };
 
+export function collectionShareColumns(items: readonly Pick<CollectionShareCardItem, 'title' | 'storeName'>[]): 1 | 2 | 3 {
+  if (items.some((item) => item.title.length > 40 || item.storeName.length > 55)) return 1;
+  if (items.some((item) => item.title.length > 20 || item.storeName.length > 32)) return 2;
+  return 3;
+}
+
 /**
- * 대표 수집품은 등급이 높은 것부터, 같은 등급이면 최근에 받은 것부터 최대 6장이다. 같은 게시 그림을 여러 번 받았으면
- * (도감의 묶음 규칙과 같은 기준) 가장 앞선 한 장만 보인다. 등급은 보상 목표(1·3·5회) 그대로 브론즈·실버·골드다.
+ * Highest grade first, then newest: one representative per published picture, regardless of how many
+ * grades or copies were earned. The total owned count remains separate from the six visible cells.
  */
 export function buildCollectionShareCard(input: CollectionShareCardInput, variant: ShareVariant = 'production'): CollectionShareCardModel {
   const storeIds = new Set([...input.visits.map((visit) => visit.merchantId), ...input.collectibles.map((item) => item.merchantId)]);
@@ -72,7 +79,7 @@ export function buildCollectionShareCard(input: CollectionShareCardInput, varian
   for (const item of ranked) {
     if (items.length >= collectionShareCardSlots) break;
     if (item.artwork) {
-      const pictureKey = `${item.artwork.publicationId}:${item.artwork.gradeId}`;
+      const pictureKey = item.artwork.publicationId;
       if (seenPictures.has(pictureKey)) continue;
       seenPictures.add(pictureKey);
     }
@@ -84,12 +91,14 @@ export function buildCollectionShareCard(input: CollectionShareCardInput, varian
     });
   }
 
+  const columns = collectionShareColumns(items);
   return {
     title: collectionShareCardTitle,
-    subtitle: `${storeIds.size}곳의 가게를 모았어요`,
+    subtitle: `${storeIds.size}곳 방문 · 수집품 ${input.collectibles.length}개`,
     footer: collectionShareCardFooter,
     visitedStoreCount: storeIds.size,
-    items,
+    collectedCount: input.collectibles.length,
+    items: items.slice(0, columns * 2),
     medals: medalKindOrder.flatMap((kind) => {
       const tier = input.medals.find((medal) => medal.kind === kind)?.tier ?? 0;
       return tier > 0 ? [{ kind, label: medalCopy(kind).name, tier, tierLabel: tierName(tier) }] : [];

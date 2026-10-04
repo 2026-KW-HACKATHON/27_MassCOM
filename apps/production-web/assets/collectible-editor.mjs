@@ -88,7 +88,7 @@ export function validatePublish(project, campaigns) {
 }
 
 /** Editing is local until the merchant explicitly saves or publishes a version. */
-export function mountCollectibleEditor(container, { merchantId, merchantName = '', merchantArtUrl = '', preferredCampaignId = '', campaigns: initialCampaigns = [], loadCampaigns, request, onNotice = () => {}, onAccessDenied, confirm = message => globalThis.confirm?.(message) === true, accountScope = '', autosaveDelayMs = 1500 }) {
+export function mountCollectibleEditor(container, { merchantId, merchantName = '', merchantArtUrl = '', merchantMenuItems = [], preferredCampaignId = '', campaigns: initialCampaigns = [], loadCampaigns, request, onNotice = () => {}, onAccessDenied, confirm = message => globalThis.confirm?.(message) === true, accountScope = '', autosaveDelayMs = 1500 }) {
   if (!container || typeof request !== 'function') return () => {};
   let campaigns = initialCampaigns;
   let campaignSequence = 0;
@@ -106,6 +106,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const controller = new AbortController();
   const signal = controller.signal;
   const artUrl = /^\/merchant-art\/[0-9a-f]{64}\.webp$/.test(merchantArtUrl) ? merchantArtUrl : '';
+  const menuNames = Array.isArray(merchantMenuItems) ? [...new Set(merchantMenuItems.map(item => typeof item?.name === 'string' ? item.name.trim() : '').filter(Boolean))].slice(0, 3) : [];
   let campaignSelectionTouched = false;
   let project = createMerchantStarterProject({ merchantName, campaigns, preferredCampaignId });
   let wrapper = null, selectedGrade = project.grades[0].id, selectedSticker = '', selectedTemplate = 'rotate', stickerSide = 'front';
@@ -255,7 +256,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const view = name => container.querySelector(`[data-view="${name}"]`);
   const output = name => container.querySelector(`[data-value="${name}"]`);
   const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
-  studio = createCollectibleStudio(container, { effectNames, listen, merchantArtUrl: artUrl });
+  studio = createCollectibleStudio(container, { effectNames, listen, merchantArtUrl: artUrl, merchantName, menuNames });
   const waveform = attachWaveform(view('audio'), view('waveform'), { signal });
   const previewCanvas = view('preview'), cropCanvas = view('crop'), storyCanvas = view('story');
   for (const [name, label] of [['zoom', '사진 확대'], ['angle', '회전 각도'], ['thickness', '두께']]) control(name).setAttribute('aria-label', label);
@@ -906,8 +907,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (accepted) clearDraftStorage();
     return accepted;
   }
-  function resetToNewDraft() {
-    stopHiddenMedia(); project = createMerchantStarterProject({ merchantName, campaigns, preferredCampaignId }); project.theme.name = studio.newTheme;
+  function resetToNewDraft(menuName = '', suggested = false) {
+    stopHiddenMedia(); project = createMerchantStarterProject({ merchantName, menuName, suggested, campaigns, preferredCampaignId }); project.theme.name = studio.newTheme;
     campaignSelectionTouched = false;
     wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; clearCollectibleRenderCache(); syncValues();
   }
@@ -980,6 +981,14 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       } catch (error) {
         if (active && sequence === uploadSequence && project === sourceProject) notice(error.message || '가게 그림을 가져오지 못했어요. 사진을 직접 올려 계속해 주세요.', true);
       } finally { pendingFiles.delete(pending); updateMediaLocks(); }
+      return;
+    }
+    if (action === 'starter') {
+      if (!confirmDiscardIfDirty()) return;
+      resetToNewDraft(id === 'store' ? '' : menuNames[Number(id)] || '', true);
+      studio.showStep(1); await drawCrop(); schedulePreview();
+      if (artUrl) await act('art-photo');
+      else control('photo').click();
       return;
     }
     if (action === 'draft' || action === 'publish') { await save(action === 'publish'); return; }

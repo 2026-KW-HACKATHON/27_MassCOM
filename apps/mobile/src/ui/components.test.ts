@@ -53,7 +53,7 @@ test('screen copy fits its space and does not repeat the heading below it', () =
   assert.doesNotMatch(list, /도감에서 내 도장 보기/);
   const collection = readSource('screens/collection/index.tsx');
   // #296 Option A: a compact passport strip now sits in the header as a child (replacing the self-closing tag).
-  assert.match(collection, /<AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요">/);
+  assert.match(collection, /<AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" avatarArt=\{companionArt\}>/);
   // The passport hero under the header already says "나의 탐험 여권".
   assert.doesNotMatch(collection, /<AppHeader title="나의 탐험 여권"/);
 });
@@ -133,7 +133,7 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
       assert.match(control, /progressViewOffset=\{insets\.top\}/, `${file} RefreshControl`);
     }
   }
-  assert.equal(controls, 10, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport, shop, merchant status, merchant claim');
+  assert.equal(controls, 12, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport, shop, merchant status, merchant claim, studio, friend studio');
   assert.equal((readSource('screens/merchant-home/status.tsx').match(/<RefreshControl/g) ?? []).length, 1, '점주 현황에 하나의 당겨서 새로 고침을 둔다');
   assert.equal((readSource('screens/merchant-claim/staff.tsx').match(/<RefreshControl/g) ?? []).length, 1, '방문 확인에 발급 상태 새로 고침을 둔다');
   // PR #312 QA: Android의 elevation은 JSX 순서와 별개로 Z 스택을 정한다. 카드류(ui/styles.ts의 card)가 쓰는
@@ -407,9 +407,10 @@ test('the role screen greets with the waving mascot and the logo badge instead o
   assert.match(foundation, /onChooseRole\(nextRole\)/);
 });
 
-test('celebration cheers with the mascot and the reward reveal shows the gift pose', () => {
-  assert.match(readSource('gamification/celebration.tsx'), /pose="cheer"/);
-  assert.match(readSource('gamification/reward-reveal.tsx'), /pose="gift"/);
+test('celebration and reward reveal use the chosen companion with a cheering fallback', () => {
+  assert.match(readSource('gamification/celebration.tsx'), /<Companion art=\{companionArt\} celebrate/);
+  assert.match(readSource('gamification/reward-reveal.tsx'), /<Companion art=\{companionArt\} celebrate/);
+  assert.match(read('companion.tsx'), /<Mascot pose=\{celebrate \? 'cheer' : 'wave'\}/);
 });
 
 test('the account page can always be left: a back button sits on every state of the settings route', () => {

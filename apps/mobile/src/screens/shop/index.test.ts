@@ -23,7 +23,7 @@ test('PR #312 리뷰 2번: 새로고침이 서버 결과를 보여줬을 때만 
 test('PR #312 리뷰 라운드 6: 상점 탭이 다시 포커스를 받을 때마다 조용히 새로고침한다 — 다른 화면에서 번 마일리지가 돌아왔을 때 옛 잔액으로 남지 않는다', () => {
   // 기기 QA: 방문으로 마일리지를 번 뒤 상점 탭으로 돌아와도(탭은 마운트된 채로 남는다) 다시 포커스를 받을
   // 때까지는 처음 불러온 잔액이 그대로 보였다. use-shop-avatar-art.ts의 useFocusEffect와 같은 모양.
-  assert.match(screen, /import \{ useFocusEffect \} from 'expo-router';/);
+  assert.match(screen, /import \{ useFocusEffect, useRouter \} from 'expo-router';/);
   assert.match(screen, /useFocusEffect\(useCallback\(\(\) => \{ void quietRefresh\(\); \}, \[quietRefresh\]\)\);/);
 });
 
@@ -57,7 +57,7 @@ test('PR #312 "대표 해제": 가진 친구는(대표든 아니든) 탭할 수 
   const confirmFn = screen.slice(screen.indexOf('function confirmAvatar('), screen.indexOf('const header ='));
   assert.match(confirmFn, /if \(!cell\.owned \|\| avatarBusy\) return;/);
   assert.match(confirmFn, /if \(cell\.isAvatar\) \{/);
-  assert.match(confirmFn, /'대표 해제'/);
+  assert.match(confirmFn, /'동행 해제'/);
   assert.match(confirmFn, /onPress: \(\) => void chooseAvatar\(null\)/);
   assert.match(confirmFn, /onPress: \(\) => void chooseAvatar\(cell\.id\)/);
   assert.match(screen, /async function chooseAvatar\(itemId: string \| null, targetReveal\?: ShopRerollResult\)/);

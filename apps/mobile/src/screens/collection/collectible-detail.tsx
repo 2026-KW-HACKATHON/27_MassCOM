@@ -35,6 +35,7 @@ type Props = {
   load: (entitlementId: string) => Promise<PublishedCollectible>;
   localDetail?: LegacyCollectibleDetail;
   onClose: () => void;
+  onPlaceInStudio?: () => void;
   /** 게시 사진이 내려가 상세가 없었다면(404) 닫을 때 불러, 목록이 같은 수집품을 사진 없는 기존 카드로 다시 그리게 한다. */
   onUnavailable?: () => void;
   /** 방문 수령 직후 열렸는지(#283 reveal → "상세 보기"). true면 once 모션을 먼저 보여준 뒤 loop로 넘어가고, 그 외엔 loop만 자동재생한다. */
@@ -87,7 +88,7 @@ function LivingOverlay({ living, cell, faceSize }: { living: CollectibleLiving; 
 }
 
 /** Mounted for one acquired entitlement; closing it discards pending reads and playback. */
-export function CollectibleDetail({ entitlementId, merchantId, merchantName, load, onClose, onUnavailable, localDetail, intro = false }: Props) {
+export function CollectibleDetail({ entitlementId, merchantId, merchantName, load, onClose, onUnavailable, localDetail, intro = false, onPlaceInStudio }: Props) {
   const [snapshot, setSnapshot] = useState<PublishedCollectible>();
   const [failure, setFailure] = useState<CollectibleDetailFailure>();
   const [retry, setRetry] = useState(0);
@@ -108,7 +109,7 @@ export function CollectibleDetail({ entitlementId, merchantId, merchantName, loa
   const shown = localDetail ?? snapshot;
   return (
     <FullScreenModal visible animationType="fade" onRequestClose={close}>
-      {shown ? <DetailBody key={entitlementId} snapshot={shown} merchantId={merchantId} merchantName={merchantName} intro={intro} onClose={onClose} /> : (
+      {shown ? <DetailBody key={entitlementId} snapshot={shown} merchantId={merchantId} merchantName={merchantName} intro={intro} onClose={onClose} onPlaceInStudio={onPlaceInStudio} /> : (
         <DetailFrame>
           <StateScene kind={failure ? (failure.removed ? 'empty' : 'error') : 'loading'} title={failure ? failure.title : '가게 수집품을 펼치는 중'} body={failure?.body}
             action={failure && !failure.removed ? { label: '다시 불러오기', onPress: () => { setFailure(undefined); setRetry((value) => value + 1); } } : undefined} />
@@ -137,7 +138,7 @@ function Control({ label, onPress, disabled = false }: { label: string; onPress:
   </Pressable>;
 }
 
-function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose }: { snapshot: CollectibleDetailInput; merchantId?: string; merchantName: string; intro?: boolean; onClose: () => void }) {
+function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose, onPlaceInStudio }: { snapshot: CollectibleDetailInput; merchantId?: string; merchantName: string; intro?: boolean; onClose: () => void; onPlaceInStudio?: () => void }) {
   const router = useRouter();
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
@@ -526,6 +527,7 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
         {scene ? <Control label="장면 건너뛰기" onPress={pause} /> : null}
       </View> : null}
       <Text style={[styles.meta, { color: palette.secondaryLabel }]}>이 수집품은 도감에 보관되어 있어요.</Text>
+      {onPlaceInStudio ? <Control label="내 공간에 놓기" onPress={() => { pause(); onPlaceInStudio(); }} /> : null}
       {merchantId ? <Pressable accessibilityRole="link" accessibilityLabel={`${merchantName} 보기`}
         onPress={() => { close(); router.push({ pathname: '/merchants/[merchantId]', params: { merchantId, from: 'collection' } }); }}
         style={styles.merchantLink}><Text style={[styles.controlText, { color: palette.primary }]}>{merchantName} 보기 →</Text></Pressable> : null}

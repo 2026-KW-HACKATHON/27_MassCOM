@@ -91,11 +91,11 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
     <View style={{ gap: 16 }}>
       {favoriteGroups.length > 0 ? (
         <View style={{ gap: 8 }}>
-          <Text style={[styles.subtitle, { color: world.skyInk }]}>대표 진열</Text>
+          <Text style={[styles.subtitle, { color: world.skyInk }]}>앨범 즐겨찾기</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={16}
             onScroll={(event) => favoriteScrollX.set(event.nativeEvent.contentOffset.x)} contentContainerStyle={{ gap: 10 }}>
             {favoriteGroups.map((group) => (
-              <Pressable key={group.key} accessibilityRole="button" accessibilityLabel={`대표로 놓은 ${group.artwork.name} 상세 보기`}
+              <Pressable key={group.key} accessibilityRole="button" accessibilityLabel={`앨범 즐겨찾기의 ${group.artwork.name} 상세 보기`}
                 onPress={() => onOpenDetail(group.entitlementIds[0]!, group.merchantName)} style={[styles.favoriteCard, { backgroundColor: world.card }]}>
                 <MaterialThumbnail material={gradeMaterialFor(group.artwork.gradeId, group.artwork.gradeName)}
                   size={80} faceUri={group.artwork.thumbnailDataUrl} shape={group.artwork.shape}
@@ -243,9 +243,9 @@ function GroupCard({ group, favorites, sharing, mint, materialClock, materialScr
         {group.count > 1 ? `받은 날짜 ${group.earnedDates.map(earnedDateLabel).join(', ')}` : `받은 날짜 ${earnedDateLabel(group.earnedDates[0]!)}`}
       </Text>
       <View style={styles.groupActions}>
-        <Pressable accessibilityRole="button" accessibilityLabel={favorites.includes(group.key) ? '대표 진열에서 빼기' : '대표 진열에 놓기'}
+        <Pressable accessibilityRole="button" accessibilityLabel={favorites.includes(group.key) ? '앨범 즐겨찾기에서 빼기' : '앨범 즐겨찾기에 추가'}
           onPress={() => onToggleFavorite(group.key)} style={[styles.groupActionButton, { borderColor: palette.primary }]}>
-          <Text style={[styles.groupActionText, { color: palette.primary }]}>{favorites.includes(group.key) ? '대표 해제' : '대표로 놓기'}</Text>
+          <Text style={[styles.groupActionText, { color: palette.primary }]}>{favorites.includes(group.key) ? '즐겨찾기 해제' : '즐겨찾기'}</Text>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`${group.artwork.name} 공유하기`} disabled={sharing}
           onPress={() => onShare(group)} style={[styles.groupActionButton, { borderColor: palette.primary }, sharing && { opacity: 0.5 }]}>

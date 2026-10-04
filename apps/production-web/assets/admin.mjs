@@ -4,6 +4,7 @@ const offerEndpoint = '/api/web/admin/reward-offers';
 const campaignEndpoint = '/api/web/admin/campaigns';
 const adminRequests = new WeakMap();
 const funnelRequests = new WeakMap();
+const playMetricRequests = new WeakMap();
 
 // 점포 공개·점주·보상 혜택·캠페인(Issue #246). 참조 번호는 서버(store-go-live-rules.ts)와 같은 규칙을 먼저 알려 주고
 // 최종 판단은 서버가 한다. 동의서·확인 기록 자체와 사업자등록번호·이름·전화번호는 받지 않는다.
@@ -171,6 +172,62 @@ const funnelColumns = [
 ];
 const countText = value => new Intl.NumberFormat('ko-KR').format(value);
 const validCount = value => Number.isSafeInteger(value) && value >= 0;
+const playEventLabels = [
+  ['game_started', '놀이 시작'], ['game_completed', '놀이 완료'], ['studio_saved', '내 공간 저장'],
+  ['share_opened', '공유 화면 완료 알림'], ['image_created', '이미지 생성 완료 알림'],
+];
+const playGameLabels = [
+  ['stack', '타이밍 쌓기'], ['memory', '짝 찾기'], ['delivery', '세 갈래 배달'], ['orders', '주문 맞추기'],
+];
+
+function ensurePlayMetricsPanel(doc) {
+  const funnel = doc.getElementById('admin-funnel');
+  if (!funnel || doc.getElementById('admin-play-metrics')) return;
+  const section = doc.createElement('section'); section.id = 'admin-play-metrics';
+  const heading = doc.createElement('h4'); heading.textContent = '놀이·공유 이용';
+  const help = doc.createElement('p'); help.textContent = '선택한 기간의 익명 처리 횟수예요. 방문·쿠폰 집계와 별개이며, 공유와 이미지 생성은 앱이 보낸 완료 알림이에요. 외부 게시나 매출을 뜻하지 않아요.';
+  const status = doc.createElement('p'); status.id = 'admin-play-status'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+  const events = doc.createElement('dl'); events.id = 'admin-play-events'; events.className = 'admin-funnel-totals';
+  const games = doc.createElement('div'); games.id = 'admin-play-games';
+  section.append(heading, help, status, events, games); funnel.append(section);
+}
+
+export async function loadAdminPlayMetrics(fetcher, doc, current = () => true) {
+  const days = doc.getElementById('admin-funnel-days')?.value;
+  const status = doc.getElementById('admin-play-status');
+  const events = doc.getElementById('admin-play-events');
+  const games = doc.getElementById('admin-play-games');
+  if (!days || !status || !events || !games) return;
+  const requestId = (playMetricRequests.get(doc) ?? 0) + 1;
+  playMetricRequests.set(doc, requestId);
+  const latest = () => current() && playMetricRequests.get(doc) === requestId;
+  events.replaceChildren(); games.replaceChildren(); status.textContent = '놀이 이용을 불러오는 중이에요.';
+  try {
+    const payload = await jsonRequest(fetcher, `/api/web/admin/play/metrics?days=${days}`);
+    if (!latest()) return;
+    if (payload?.days !== Number(days) || !Array.isArray(payload.events) || !Array.isArray(payload.games)
+      || !payload.events.every(item => playEventLabels.some(([event]) => event === item?.event) && validCount(item.count))
+      || !payload.games.every(item => playGameLabels.some(([kind]) => kind === item?.kind)
+        && validCount(item.started) && validCount(item.completed))) throw new Error('invalid play metrics');
+    for (const [event, label] of playEventLabels) {
+      const row = doc.createElement('div'), term = doc.createElement('dt'), count = doc.createElement('dd');
+      term.textContent = label; count.textContent = countText(payload.events.find(item => item.event === event)?.count ?? 0);
+      row.append(term, count); events.append(row);
+    }
+    for (const [kind, label] of playGameLabels) {
+      const item = payload.games.find(game => game.kind === kind);
+      const line = doc.createElement('p'); line.textContent = `${label}: 시작 ${countText(item?.started ?? 0)}회 · 완료 ${countText(item?.completed ?? 0)}회`;
+      games.append(line);
+    }
+    status.textContent = `최근 ${days}일의 기록된 사건입니다.`;
+  } catch (error) {
+    if (!latest()) return;
+    events.replaceChildren(); games.replaceChildren();
+    status.textContent = error.status === 401 || error.status === 403
+      ? '관리자 권한을 확인하지 못했어요. 다시 로그인해 주세요.' : '놀이 이용을 불러오지 못했어요.';
+    if (error.status === 401 || error.status === 403) throw error;
+  }
+}
 
 // 관리자 본문을 읽은 뒤에만 호출한다. 기간 선택과 전체 새로고침은 서로의 늦은 응답을 무효화한다.
 export async function loadAdminFunnel(fetcher, doc, current = () => true) {
@@ -653,6 +710,7 @@ function campaignButton(fetcher, doc, act, campaign, action, text) {
 }
 
 export async function loadAdmin(fetcher, doc) {
+  ensurePlayMetricsPanel(doc);
   const requestId = (adminRequests.get(doc) ?? 0) + 1;
   adminRequests.set(doc, requestId);
   const status = doc.getElementById('admin-status');
@@ -686,9 +744,14 @@ export async function loadAdmin(fetcher, doc) {
   offerMerchant?.replaceChildren();
   campaignList?.replaceChildren();
   funnelRequests.set(doc, (funnelRequests.get(doc) ?? 0) + 1);
+  playMetricRequests.set(doc, (playMetricRequests.get(doc) ?? 0) + 1);
   funnelTotalsNode?.replaceChildren();
   funnelTable?.replaceChildren();
   if (funnelStatus) funnelStatus.textContent = '';
+  doc.getElementById('admin-play-events')?.replaceChildren();
+  doc.getElementById('admin-play-games')?.replaceChildren();
+  const playStatus = doc.getElementById('admin-play-status');
+  if (playStatus) playStatus.textContent = '';
   if (draftForm) draftForm.hidden = true;
   if (offerForm) offerForm.hidden = true;
   const current = () => adminRequests.get(doc) === requestId;
@@ -1047,6 +1110,7 @@ export async function loadAdmin(fetcher, doc) {
       }
     }
     await loadAdminFunnel(fetcher, doc, current);
+    await loadAdminPlayMetrics(fetcher, doc, current);
     if (draftList) {
       try {
         const campaigns = await jsonRequest(fetcher, '/api/web/admin/campaign-drafts');
@@ -1169,6 +1233,7 @@ export function bindAdmin(fetcher, doc) {
   const clear = () => {
     adminRequests.set(doc, (adminRequests.get(doc) ?? 0) + 1);
     funnelRequests.set(doc, (funnelRequests.get(doc) ?? 0) + 1);
+    playMetricRequests.set(doc, (playMetricRequests.get(doc) ?? 0) + 1);
     openOwnerPanels.delete(doc);
     doc.getElementById('admin-merchants')?.replaceChildren();
     doc.getElementById('admin-operations')?.replaceChildren();
@@ -1178,6 +1243,10 @@ export function bindAdmin(fetcher, doc) {
     doc.getElementById('admin-campaigns')?.replaceChildren();
     doc.getElementById('admin-funnel-totals')?.replaceChildren();
     doc.getElementById('admin-funnel-table')?.replaceChildren();
+    doc.getElementById('admin-play-events')?.replaceChildren();
+    doc.getElementById('admin-play-games')?.replaceChildren();
+    const playStatus = doc.getElementById('admin-play-status');
+    if (playStatus) playStatus.textContent = '';
     const funnelStatus = doc.getElementById('admin-funnel-status');
     if (funnelStatus) funnelStatus.textContent = '';
     const draftForm = doc.getElementById('admin-campaign-draft');
@@ -1194,6 +1263,7 @@ export function bindAdmin(fetcher, doc) {
     const requestId = adminRequests.get(doc);
     try {
       await loadAdminFunnel(fetcher, doc, () => adminRequests.get(doc) === requestId);
+      await loadAdminPlayMetrics(fetcher, doc, () => adminRequests.get(doc) === requestId);
     } catch (error) {
       if (adminRequests.get(doc) === requestId && (error.status === 401 || error.status === 403)) {
         await loadAdmin(fetcher, doc);

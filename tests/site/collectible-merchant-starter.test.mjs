@@ -42,6 +42,29 @@ test('대상 캠페인이 여러 개면 선택을 남기고, 명시된 캠페인
   assert.equal(createMerchantStarterProject({ merchantName: '월계 식당', campaigns: [fakeCampaigns()[0]] }).campaignId, 'campaign-a');
 });
 
+test('등록 메뉴 시작점은 가게와 메뉴를 표시하고 방문 단계마다 다른 연출을 제안한다', async () => {
+  const project = createMerchantStarterProject({ merchantName: '월계 식당', menuName: '국수', suggested: true, campaigns: [fakeCampaigns()[0]] });
+  assert.equal(project.name, '국수 방문 수집품');
+  assert.deepEqual(project.back.stickers.map(item => item.text), ['월계 식당', '국수']);
+  assert.deepEqual(project.effects.map(item => [item.gradeIds[0], item.type, item.target]), [
+    ['bronze', 'matte', 'surface'], ['silver', 'pearl', 'surface'], ['gold', 'metallic', 'border'],
+  ]);
+  assert.deepEqual(project.motion.map(item => [item.gradeIds[0], item.type]), [
+    ['bronze', 'stamp'], ['silver', 'float'], ['gold', 'shine'],
+  ]);
+  assert.equal(project.back.mode, 'custom');
+  assert.deepEqual(project.stickers.slice(0, 3).map(item => [item.text,
+    item.layouts.bronze.size, item.layouts.silver.size, item.layouts.gold.size]), [
+    ['⌂', 110, 20, 20], ['◯', 8, 110, 24], ['✦', 8, 8, 120],
+  ]);
+  const ui = await mount(createFakeApi(), { merchantMenuItems: [{ name: '국수', priceWon: 7000 }] });
+  const choice = ui.host.querySelector('[data-action="starter"][data-id="0"]');
+  assert.ok(choice);
+  assert.match(choice.textContent, /국수/);
+  choice.dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.control('name').value, '국수 방문 수집품');
+});
+
 test('가게 그림 버튼은 허용된 같은 출처 경로에서만 보이고 기존 사진 검사를 거쳐 편집에 반영한다', async () => {
   const artUrl = `/merchant-art/${'a'.repeat(64)}.webp`;
   const requested = [];
@@ -60,4 +83,12 @@ test('가게 그림 버튼은 허용된 같은 출처 경로에서만 보이고 
   assert.equal(api.calls.find(call => call.method === 'POST')?.body.project.photo.originalDataUrl, 'data:image/webp;base64,AAAA');
   const bad = await mount(createFakeApi(), { merchantArtUrl: 'https://example.com/image.webp' });
   assert.equal(bad.host.querySelector('[data-action="art-photo"]'), null);
+});
+
+test('시작점 선택을 거절하면 현재 수동 편집을 보존한다', async () => {
+  const ui = await mount(createFakeApi(), { merchantMenuItems: [{ name: '국수' }], confirm: () => false });
+  ui.control('name').value = '수동 편집';
+  ui.control('name').dispatchEvent({ type: 'input' }); await settle();
+  ui.host.querySelector('[data-action="starter"][data-id="0"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.control('name').value, '수동 편집');
 });

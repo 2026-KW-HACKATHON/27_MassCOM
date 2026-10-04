@@ -29,8 +29,9 @@ test('registration code is account and merchant bound, single use, and its audit
       VALUES ('google', $1, $2, now()), ('google', $3, $4, now())`,
       [`admin-sub-${randomUUID()}`, adminId, `staff-sub-${randomUUID()}`, accountId]);
     await pool.query('INSERT INTO platform_admins(account_id) VALUES ($1)', [adminId]);
-    await pool.query(`INSERT INTO merchants(id, name, story, road_address, minimum_spend_won, status)
-      VALUES ($1, '실제 상점', '', '서울', 0, 'ACTIVE'), ($2, '다른 상점', '', '서울', 0, 'ACTIVE')`,
+    await pool.query(`INSERT INTO merchants(id, name, story, road_address, minimum_spend_won, menu_items, status)
+      VALUES ($1, '실제 상점', '', '서울', 0, '[{"name":"대표 메뉴","priceWon":9000}]', 'ACTIVE'),
+             ($2, '다른 상점', '', '서울', 0, '[{"name":"다른 메뉴","priceWon":5000}]', 'ACTIVE')`,
       [merchantId, otherMerchantId]);
     const issued = await staff.request(accountId, merchantId);
     assert.equal(issued.code.length, 22);
@@ -51,13 +52,15 @@ test('registration code is account and merchant bound, single use, and its audit
     }
     await staff.approve(adminId, merchantId, issued.code);
     assert.deepEqual(await staff.mine(accountId), [
-      { id: merchantId, name: '실제 상점', role: 'STAFF', artUrl: null },
+      { id: merchantId, name: '실제 상점', role: 'STAFF', artUrl: null,
+        menuItems: [{ name: '대표 메뉴', priceWon: 9000 }] },
     ]);
     const artSha = 'a'.repeat(64);
     await pool.query('INSERT INTO merchant_art (merchant_id, image, sha256) VALUES ($1, $2, $3)',
       [merchantId, Buffer.from('art'), artSha]);
     assert.deepEqual(await staff.mine(accountId), [
-      { id: merchantId, name: '실제 상점', role: 'STAFF', artUrl: `/merchant-art/${artSha}.webp` },
+      { id: merchantId, name: '실제 상점', role: 'STAFF', artUrl: `/merchant-art/${artSha}.webp`,
+        menuItems: [{ name: '대표 메뉴', priceWon: 9000 }] },
     ]);
     await assert.rejects(staff.approve(adminId, merchantId, issued.code), { code: 'STAFF_CODE_INVALID' });
     assert.equal((await pool.query(`SELECT role FROM merchant_members WHERE merchant_id = $1 AND account_id = $2`,

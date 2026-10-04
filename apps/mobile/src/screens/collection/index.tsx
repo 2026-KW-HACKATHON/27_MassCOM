@@ -29,6 +29,8 @@ import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
 import { AppHeader } from '@/ui/app-header';
+import { ExperienceEntry } from '@/ui/experience-entry';
+import { useShopAvatarArt } from '@/shop/use-shop-avatar-art';
 import { Fold } from '@/ui/fold';
 import { FloatingCard } from '@/ui/floating-card';
 import { PassportStampPage } from '@/ui/passport-stamp-page';
@@ -101,6 +103,7 @@ export function CollectionScreen({
   const variant: ShareVariant = isShowcase ? 'showcase' : 'production';
   const palette = colorsForScheme(useColorScheme());
   const styles = useCollectionStyles();
+  const companionArt = useShopAvatarArt(apiUrl, credential);
   const { width, fontScale } = useWindowDimensions();
   const stackCounts = shouldStackCounts(width, fontScale);
   const stackTrio = shouldStackTrio(width, fontScale);
@@ -413,7 +416,8 @@ export function CollectionScreen({
   async function shareCollectionCard() {
     if (!collection || sharingCollection) return;
     setShareNotice(undefined);
-    const card = buildCollectionShareCard({ visits: collection.visits, collectibles: collection.collectibles, medals: badges.book?.medals ?? [] }, variant);
+    const shareVariant = isShowcase || credential.kind === 'demo' || getAppPackageId() === 'kr.masscom.wolgye.dev' ? 'showcase' : variant;
+    const card = buildCollectionShareCard({ visits: collection.visits, collectibles: collection.collectibles, medals: badges.book?.medals ?? [] }, shareVariant);
     const notice = collectionShareNotice(await shareCollection(card));
     if (notice) setShareNotice(notice);
   }
@@ -503,7 +507,7 @@ export function CollectionScreen({
   // Option A(#296): the full PassportHero no longer opens the screen; a one-line strip takes its place here, and the
   // full card moves into the "메달·배지 더보기" fold below.
   const header = (
-    <AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요">
+    <AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" avatarArt={companionArt}>
       {badges.book ? <CompactPassportStrip book={badges.book} /> : null}
     </AppHeader>
   );
@@ -559,18 +563,19 @@ export function CollectionScreen({
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >
-        <Section title="내 수집 앨범" note="가게·시즌·등급으로 찾아보고, 좋아하는 수집품을 대표로 놓아요.">
+        <Section title="내 수집 앨범" note="가게·시즌·등급으로 찾아보고, 즐겨찾는 수집품을 모아요.">
+          <ExperienceEntry />
           {collection.collectibles.length > 0 ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="인스타에 자랑하기"
-              accessibilityHint="내 도감을 한 장의 카드 이미지로 만들어 공유 창을 엽니다. 자동으로 게시되지 않아요."
+              accessibilityLabel="도감 이미지"
+              accessibilityHint="방문과 소장품 요약을 이미지로 저장하거나 공유 창으로 내보냅니다. 자동으로 게시되지 않아요."
               accessibilityState={{ disabled: sharingCollection || sharing, busy: sharingCollection }}
               disabled={sharingCollection || sharing}
               onPress={() => void shareCollectionCard()}
-              style={[styles.primaryButton, { backgroundColor: palette.primary }, (sharingCollection || sharing) && styles.disabled]}
+              style={[styles.primaryButton, { backgroundColor: palette.primaryContainer }, (sharingCollection || sharing) && styles.disabled]}
             >
-              <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>{sharingCollection ? '카드 만드는 중…' : '인스타에 자랑하기'}</Text>
+              <Text style={[styles.primaryButtonText, { color: palette.onPrimaryContainer }]}>{sharingCollection ? '카드 만드는 중…' : '도감 이미지'}</Text>
             </Pressable>
           ) : null}
           {shareNotice ? <Text accessibilityLiveRegion="polite" style={styles.inlineMessage}>{shareNotice}</Text> : null}
@@ -717,7 +722,12 @@ export function CollectionScreen({
       <MedalDetail medal={detailMedal} variant={variant} onClose={() => setDetailKind(undefined)} />
       {collectibleDetail?.client === api ? <CollectibleDetail key={collectibleDetail.entitlementId} entitlementId={collectibleDetail.entitlementId}
         merchantId={collection?.collectibles.find((item) => item.entitlementId === collectibleDetail.entitlementId)?.merchantId}
-        merchantName={collectibleDetail.merchantName} intro={collectibleDetail.intro === true} localDetail={collectibleDetail.localDetail} load={loadCollectible} onClose={() => setCollectibleDetail(undefined)} onUnavailable={() => void refresh()} /> : null}
+        merchantName={collectibleDetail.merchantName} intro={collectibleDetail.intro === true} localDetail={collectibleDetail.localDetail} load={loadCollectible} onClose={() => setCollectibleDetail(undefined)} onUnavailable={() => void refresh()}
+        onPlaceInStudio={() => {
+          const entitlement = collectibleDetail.entitlementId;
+          setCollectibleDetail(undefined);
+          router.push({ pathname: '/studio', params: { entitlement } });
+        }} /> : null}
       {revealEntitlement ? (
         <CollectibleReveal
           key={revealEntitlement.entitlementIds.join(',')}
@@ -741,6 +751,7 @@ export function CollectionScreen({
       <MascotReactionToast event={reactionEvent} onClose={handleDismissReaction} />
       <RewardReveal
         result={revealed}
+        companionArt={companionArt}
         onClose={() => setRevealed(undefined)}
         onUse={(coupon) => {
           setRevealed(undefined);

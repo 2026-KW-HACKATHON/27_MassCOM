@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { Image, StyleSheet, View, useColorScheme, useWindowDimensions } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Easing,
   useAnimatedStyle,
   useSharedValue,
@@ -83,22 +85,24 @@ type CloudProps = { enabled: boolean; dark: boolean; screenWidth: number; top: n
 
 function Cloud({ enabled, dark, screenWidth, top, startX }: CloudProps) {
   const x = useSharedValue(startX);
-  useEffect(() => {
-    if (!enabled) { x.set(startX); return; }
-    // Finish the current pass from where the cloud rests, then loop off-screen to off-screen.
-    const firstPassMs = ((screenWidth - startX) / (screenWidth + CLOUD_WIDTH)) * motion.cloudMs;
-    x.set(withSequence(
-      withTiming(screenWidth, { duration: firstPassMs, easing: Easing.linear }),
-      withRepeat(
-        withSequence(
-          withTiming(-CLOUD_WIDTH, { duration: 0 }),
-          withTiming(screenWidth, { duration: motion.cloudMs, easing: Easing.linear }),
+  useFocusEffect(useCallback(() => {
+    if (enabled) {
+      // Finish the current pass from where the cloud rests, then loop off-screen to off-screen.
+      const firstPassMs = ((screenWidth - startX) / (screenWidth + CLOUD_WIDTH)) * motion.cloudMs;
+      x.set(withSequence(
+        withTiming(screenWidth, { duration: firstPassMs, easing: Easing.linear }),
+        withRepeat(
+          withSequence(
+            withTiming(-CLOUD_WIDTH, { duration: 0 }),
+            withTiming(screenWidth, { duration: motion.cloudMs, easing: Easing.linear }),
+          ),
+          -1,
+          false,
         ),
-        -1,
-        false,
-      ),
-    ));
-  }, [enabled, screenWidth, startX, x]);
+      ));
+    }
+    return () => { cancelAnimation(x); x.set(startX); };
+  }, [enabled, screenWidth, startX, x]));
   const animated = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
   return (
     <Animated.View style={[styles.cloud, { top }, animated]}>

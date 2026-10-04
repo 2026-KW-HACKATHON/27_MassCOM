@@ -11,13 +11,13 @@ import { makeCollectionStyles } from './styles';
 const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
 const share = readFileSync(new URL('./collection-share.tsx', import.meta.url), 'utf8');
 
-test('"인스타에 자랑하기"는 수집품이 하나 이상일 때만 보이고, 라벨·역할·44pt 이상 터치 영역을 갖는다', () => {
+test('도감 요약 이미지 버튼은 수집품이 있을 때 라벨과 충분한 터치 영역을 제공한다', () => {
   const button = screen.slice(screen.indexOf('{collection.collectibles.length > 0 ? ('), screen.indexOf('<CollectibleBrowser'));
   assert.match(button, /accessibilityRole="button"/);
-  assert.match(button, /accessibilityLabel="인스타에 자랑하기"/);
+  assert.match(button, /accessibilityLabel="도감 이미지"/);
   assert.match(button, /accessibilityHint="[^"]+"/);
   assert.match(button, /disabled=\{sharingCollection \|\| sharing\}/);
-  assert.match(button, /\{sharingCollection \? '카드 만드는 중…' : '인스타에 자랑하기'\}/);
+  assert.match(button, /\{sharingCollection \? '카드 만드는 중…' : '도감 이미지'\}/);
   // 삼항의 거짓 가지는 null이다: 수집품이 없으면 버튼 자체가 없다.
   assert.match(button, /\) : null\}/);
   assert.ok((makeCollectionStyles(lightColors, lightWorld).primaryButton.minHeight as number) >= uiMetrics.minTouch);
@@ -25,7 +25,8 @@ test('"인스타에 자랑하기"는 수집품이 하나 이상일 때만 보이
 
 test('버튼은 도감 응답에서 만든 카드 모델을 공유 훅에 넘기고, 시연 앱 여부(variant)를 함께 넘긴다', () => {
   const handler = screen.slice(screen.indexOf('async function shareCollectionCard'), screen.indexOf('async function refreshBinding'));
-  assert.match(handler, /buildCollectionShareCard\(\{ visits: collection\.visits, collectibles: collection\.collectibles, medals: badges\.book\?\.medals \?\? \[\] \}, variant\)/);
+  assert.match(handler, /buildCollectionShareCard\(\{ visits: collection\.visits, collectibles: collection\.collectibles, medals: badges\.book\?\.medals \?\? \[\] \}, shareVariant\)/);
+  assert.match(handler, /credential\.kind === 'demo'/);
   assert.match(handler, /collectionShareNotice\(await shareCollection\(card\)\)/);
   assert.match(handler, /if \(notice\) setShareNotice\(notice\);/);
   // 만드는 중에는 두 번째 탭을 막는다.
@@ -39,9 +40,9 @@ test('공유 불가·실패 안내는 버튼 바로 아래에 보이고, 오프�
   assert.match(screen, /sharing=\{sharing \|\| sharingCollection\}/);
 });
 
-test('공유 훅은 카드를 1080×1350으로 찍어 "도감 공유" 시트로만 내보내고, 화면이 사라지면 멈춘다', () => {
+test('도감은 1080×1350 이미지 저장과 공유를 지원하고 화면이 사라지면 멈춘다', () => {
   assert.match(share, /captureViewAsPng\(card\.current, \{ \.\.\.collectionShareCaptureSize, fileName: 'masscom-collection' \}\)/);
-  assert.match(share, /shareImageFile\(uri, '도감 공유', isAlive\)/);
+  assert.match(share, /exportImageFile\(uri, 'masscom-collection', '도감 공유', isAlive\)/);
   assert.match(share, /isAlive: \(\) => alive\.current/);
   assert.match(share, /useEffect\(\(\) => \{\s*alive\.current = true;\s*return \(\) => \{ alive\.current = false; \};/);
   // 자동 게시나 텍스트 폴백은 없다: 시트를 못 열면 한국어 안내만 낸다.
@@ -77,7 +78,7 @@ test('카드의 모든 <Text> 내용은 model·item·medal의 값이거나 상�
   assert.deepEqual(sources, ['item.imageUri']);
 });
 
-test('웹처럼 캡처·공유를 지원하지 않는 곳에서는 캡처 실패를 "지원하지 않음"으로 알린다', () => {
-  assert.match(share, /import \{ Image, Platform, StyleSheet, Text, View \} from 'react-native';/);
-  assert.match(share, /captureUnsupported: Platform\.OS === 'web'/);
+test('웹도 실제 이미지 촬영과 파일 내보내기를 사용한다', () => {
+  assert.match(share, /exportImageFile/);
+  assert.doesNotMatch(share, /captureUnsupported: Platform\.OS === 'web'/);
 });

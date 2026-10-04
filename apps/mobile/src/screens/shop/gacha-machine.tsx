@@ -1,7 +1,8 @@
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
 import { ConfettiBurst } from '@/gamification/confetti';
@@ -29,6 +30,7 @@ type Props = {
   onSetAvatar: () => void;
   onClose: () => void;
   onRefresh?: () => void;
+  onOpenStudio?: () => void;
 };
 
 const gradeStyle: Record<MileageGrade, { name: string; color: string; pale: string }> = {
@@ -40,7 +42,7 @@ const stages: GachaStage[] = ['crank', 'shake', 'drop', 'wobble', 'split', 'burs
 
 /** The same full-screen purchase experience opens from the shop and the visit reward reel. */
 export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refreshing, avatarBusy, avatarError, isAvatar,
-  onDraw, onSetAvatar, onClose, onRefresh }: Props) {
+  onDraw, onSetAvatar, onClose, onRefresh, onOpenStudio }: Props) {
   const insets = useSafeAreaInsets();
   const motionAllowed = useMotionEnabled();
   const [phase, setPhase] = useState<GachaPhase>('picker');
@@ -49,6 +51,7 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
   const activeResult = useRef<ShopRerollResult | undefined>(undefined);
   const skipRequested = useRef(false);
   const [drawing, setDrawing] = useState<ShopGradeView>();
+  const [wishId, setWishId] = useState<string>();
   const timelineTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const advancePhase = useCallback((next: typeof phase) => { phaseRef.current = next; setPhase(next); }, []);
   const bob = useSharedValue(0);
@@ -71,11 +74,10 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
   const grade = result?.item.grade ?? drawing?.grade ?? 'BRONZE';
   const tone = gradeStyle[grade];
 
-  useEffect(() => {
-    if (!motionAllowed) return;
-    bob.set(withRepeat(withSequence(withTiming(-5, { duration: 1100 }), withTiming(0, { duration: 1100 })), -1));
-    return () => { bob.set(0); };
-  }, [bob, motionAllowed]);
+  useFocusEffect(useCallback(() => {
+    if (motionAllowed) bob.set(withRepeat(withSequence(withTiming(-5, { duration: 1100 }), withTiming(0, { duration: 1100 })), -1));
+    return () => { cancelAnimation(bob); bob.set(0); };
+  }, [bob, motionAllowed]));
 
   useEffect(() => {
     if (!result) return;
@@ -172,6 +174,18 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
             <>
               <Text accessibilityRole="header" style={styles.heading}>어떤 친구를 만날까요?</Text>
               <Text style={styles.description}>등급을 고르고 뽑기 기계를 돌려 보세요.</Text>
+              <View style={styles.catalog}>
+                {snapshot.items.map((item) => <Pressable key={item.id} accessibilityRole="button"
+                  accessibilityLabel={`${item.name}, ${gradeStyle[item.grade].name}, ${item.owned ? '소유 중' : wishId === item.id ? '내 목표' : '목표로 보기'}`}
+                  accessibilityState={{ selected: wishId === item.id, disabled: item.owned }} disabled={item.owned}
+                  onPress={() => setWishId(wishId === item.id ? undefined : item.id)}
+                  style={[styles.catalogItem, { borderColor: wishId === item.id ? '#FFCE70' : 'transparent' }]}>
+                  {friendArt[item.id] ? <Image source={friendArt[item.id]} resizeMode="contain" style={styles.catalogArt} accessible={false} /> : null}
+                  <Text style={styles.catalogName}>{item.name}</Text>
+                  <Text style={styles.catalogStatus}>{item.owned ? '함께해요' : wishId === item.id ? '내 목표' : gradeStyle[item.grade].name}</Text>
+                </Pressable>)}
+              </View>
+              {wishId ? <Text accessibilityLiveRegion="polite" style={styles.description}>목표로 표시했어요. 뽑기 확률은 같은 등급의 미보유 친구에게 동일해요.</Text> : null}
               <Machine tone={tone} machineStyle={machineStyle} crankStyle={crankStyle} jiggle={jiggle} />
               <View style={styles.tickets}>
                 {snapshot.grades.map((item) => {
@@ -213,12 +227,14 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
                 {isNewDraw(result.item, ownedBefore) ? <Text style={styles.newBadge}>NEW</Text> : null}
                 {friendArt[result.item.id] ? <Image source={friendArt[result.item.id]} style={styles.character} resizeMode="contain" accessible={false} /> : <Text style={styles.missingCharacter}>?</Text>}
                 <Text style={styles.characterName}>{result.item.name}</Text>
+                <Text style={styles.description}>{wishId === result.item.id ? '기다리던 동행을 만났어요!' : '내 공간에서 함께 놀고, 가게를 탐험해요.'}</Text>
                 <Text style={styles.resultBalance}>남은 마일리지 {result.balance.toLocaleString('ko-KR')}P</Text>
                 </Animated.View>
               </View>}
               {displayPhase === 'result' ? <View style={styles.actions}>
                 {avatarError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{avatarError}</Text> : null}
                 <Control label={isAvatar ? '대표 캐릭터예요' : avatarBusy ? '설정 중…' : '대표 캐릭터로'} primary disabled={isAvatar || avatarBusy} onPress={onSetAvatar} />
+                {onOpenStudio ? <Control label="내 공간에서 만나기" disabled={avatarBusy} onPress={onOpenStudio} /> : null}
                 {canRepeat ? <Control label="한 번 더 뽑기" disabled={avatarBusy} onPress={() => { activeResult.current = undefined; advancePhase('picker'); }} /> : null}
                 <Control label="닫기" onPress={onClose} />
               </View> : null}
@@ -269,17 +285,22 @@ function Control({ label, onPress, primary, disabled }: { label: string; onPress
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#101C35', paddingHorizontal: 22 },
+  root: { flex: 1, backgroundColor: '#142724', paddingHorizontal: 22 },
   topBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   balance: { color: '#FFE5A4', fontSize: 15, fontWeight: '800' },
   content: { alignItems: 'center', paddingBottom: 24, gap: 14 },
   heading: { color: '#FFFFFF', fontSize: 25, fontWeight: '900', textAlign: 'center', marginTop: 12 },
   description: { color: '#D9E7FA', fontSize: 15, textAlign: 'center' },
+  catalog: { alignSelf: 'stretch', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+  catalogItem: { width: '30%', minWidth: 80, alignItems: 'center', gap: 3, padding: 4, borderWidth: 2, borderRadius: 8 },
+  catalogArt: { width: 64, height: 70 },
+  catalogName: { color: '#FFFFFF', fontSize: 12, textAlign: 'center', lineHeight: 17 },
+  catalogStatus: { color: '#FFE5A4', fontSize: 11, textAlign: 'center' },
   machine: { width: 240, height: 270, alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
   innerCapsule: { position: 'absolute', width: 38, height: 38, borderRadius: 19, borderColor: '#FFFFFF', borderWidth: 3 },
   crank: { position: 'absolute', left: 93, top: 145, width: 54, height: 54 },
   tickets: { alignSelf: 'stretch', gap: 10 },
-  ticketButton: { minHeight: 72, paddingVertical: 8, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#263958', borderRadius: 18, borderWidth: 1, borderColor: '#4B6484' },
+  ticketButton: { minHeight: 72, paddingVertical: 8, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#29473F', borderRadius: 8, borderWidth: 1, borderColor: '#718C77' },
   ticketArt: { width: 64, height: 54 },
   ticketCopy: { flex: 1 },
   ticketName: { color: '#FFFFFF', fontSize: 17, fontWeight: '900' },
@@ -290,17 +311,17 @@ const styles = StyleSheet.create({
   capsuleBottom: { position: 'absolute', top: 30, width: 68, height: 38, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, borderWidth: 3, borderColor: '#FFFFFF' },
   capsuleTop: { position: 'absolute', top: 0, width: 68, height: 38, borderTopLeftRadius: 34, borderTopRightRadius: 34, borderWidth: 3, borderColor: '#FFFFFF' },
   rays: { position: 'absolute', top: 62, left: 20 },
-  resultCard: { width: '100%', minHeight: 340, alignItems: 'center', justifyContent: 'center', backgroundColor: '#263958', borderRadius: 25, borderWidth: 3, padding: 18, gap: 8 },
+  resultCard: { width: '100%', minHeight: 390, alignItems: 'center', justifyContent: 'center', padding: 8, gap: 8 },
   resultWrap: { alignSelf: 'stretch', minHeight: 340, alignItems: 'center', justifyContent: 'center' },
   resultRays: { position: 'absolute', top: 45, left: '50%', marginLeft: -120 },
   gradePill: { color: '#18304B', fontWeight: '900', overflow: 'hidden', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 5, alignSelf: 'flex-start' },
   newBadge: { position: 'absolute', right: 18, top: 20, color: '#FFFFFF', backgroundColor: '#F25B73', borderRadius: 999, overflow: 'hidden', paddingHorizontal: 12, paddingVertical: 5, fontWeight: '900' },
-  character: { width: 200, height: 210 },
+  character: { width: 250, height: 260, maxWidth: '100%' },
   missingCharacter: { color: '#FFFFFF', fontSize: 90, fontWeight: '900' },
-  characterName: { color: '#FFFFFF', fontSize: 26, fontWeight: '900' },
+  characterName: { color: '#FFFFFF', fontSize: 26, fontWeight: '900', textAlign: 'center', flexShrink: 1 },
   resultBalance: { color: '#D9E7FA', fontSize: 14 },
   actions: { alignSelf: 'stretch', gap: 10, marginTop: 8 },
-  control: { minHeight: 48, minWidth: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#324766' },
+  control: { minHeight: 48, minWidth: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#29473F' },
   primary: { backgroundColor: '#FFD579' },
   controlText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
   primaryText: { color: '#182942' },

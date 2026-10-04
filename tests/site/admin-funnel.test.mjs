@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { loadAdmin, loadAdminFunnel } from '../../apps/production-web/assets/admin.mjs';
+import { loadAdmin, loadAdminFunnel, loadAdminPlayMetrics } from '../../apps/production-web/assets/admin.mjs';
 import { installMiniDom } from '../fixtures/mini-dom.mjs';
 
 const response = body => ({ ok: true, json: async () => body });
@@ -66,6 +66,30 @@ test('기간 변경 중 늦은 응답은 새 지표를 덮지 않는다', async 
     assert.match(dom.document.getElementById('admin-funnel-status').textContent, /표시할 실제 점포가 없습니다/);
     assert.equal(dom.document.getElementById('admin-funnel-table').children.length, 0);
     assert.equal(dom.document.getElementById('admin-funnel-totals').querySelectorAll('dd').length, 5);
+  } finally { dom.restore(); }
+});
+
+test('놀이 사건은 방문 지표와 별도로 횟수와 게임별 시작·완료를 표시한다', async () => {
+  const dom = installMiniDom();
+  try {
+    page(dom.document);
+    for (const [tag, id] of [['p', 'admin-play-status'], ['dl', 'admin-play-events'], ['div', 'admin-play-games']]) {
+      const node = dom.document.createElement(tag); node.id = id; dom.document.body.append(node);
+    }
+    const paths = [];
+    await loadAdminPlayMetrics(async path => {
+      paths.push(path);
+      return response({ days: 30, events: [
+        { event: 'game_started', count: 12 }, { event: 'game_completed', count: 9 },
+        { event: 'studio_saved', count: 3 }, { event: 'share_opened', count: 4 }, { event: 'image_created', count: 2 },
+      ], games: [{ kind: 'stack', started: 5, completed: 3 }] });
+    }, dom.document);
+    assert.deepEqual(paths, ['/api/web/admin/play/metrics?days=30']);
+    assert.deepEqual(dom.document.getElementById('admin-play-events').querySelectorAll('dd').map(node => node.textContent), ['12', '9', '3', '4', '2']);
+    assert.match(dom.document.getElementById('admin-play-games').textContent, /타이밍 쌓기: 시작 5회 · 완료 3회/);
+    await loadAdminPlayMetrics(async () => response({ days: 30, events: [{ event: 'sale', count: 10 }], games: [] }), dom.document);
+    assert.equal(dom.document.getElementById('admin-play-events').children.length, 0);
+    assert.match(dom.document.getElementById('admin-play-status').textContent, /불러오지 못했어요/);
   } finally { dom.restore(); }
 });
 

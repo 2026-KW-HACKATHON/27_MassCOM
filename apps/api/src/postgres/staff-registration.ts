@@ -4,6 +4,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import { artUrlFor } from '../ai-art-rules.js';
 import { AccountLifecycleError, PostgresAccountLifecycle } from './account-lifecycle.js';
+import type { AdminMerchant } from './admin.js';
 
 export class StaffRegistrationError extends Error {
   constructor(readonly code: 'STAFF_FORBIDDEN' | 'STAFF_MERCHANT_NOT_FOUND' |
@@ -156,17 +157,19 @@ export class PostgresStaffRegistration {
     });
   }
 
-  async mine(accountId: string): Promise<{ id: string; name: string; role: 'OWNER' | 'STAFF'; artUrl: string | null }[]> {
+  async mine(accountId: string): Promise<{ id: string; name: string; role: 'OWNER' | 'STAFF'; artUrl: string | null;
+    menuItems: AdminMerchant['menuItems'] }[]> {
     return this.transaction(async client => {
       await this.active(client, accountId);
-      const result = await client.query<{ id: string; name: string; role: 'OWNER' | 'STAFF'; art_sha256: string | null }>(
-        `SELECT merchant.id, merchant.name, member.role, art.sha256 AS art_sha256
+      const result = await client.query<{ id: string; name: string; role: 'OWNER' | 'STAFF'; art_sha256: string | null;
+        menu_items: AdminMerchant['menuItems'] }>(
+        `SELECT merchant.id, merchant.name, merchant.menu_items, member.role, art.sha256 AS art_sha256
          FROM merchant_members AS member JOIN merchants AS merchant ON merchant.id = member.merchant_id
          LEFT JOIN merchant_art AS art ON art.merchant_id = merchant.id
          WHERE member.account_id = $1 AND member.status = 'ACTIVE' AND merchant.is_demo = false
          ORDER BY merchant.name, merchant.id`, [accountId]);
       return result.rows.map(row => ({ id: row.id, name: row.name, role: row.role,
-        artUrl: artUrlFor(row.art_sha256) }));
+        artUrl: artUrlFor(row.art_sha256), menuItems: row.menu_items ?? [] }));
     });
   }
 
