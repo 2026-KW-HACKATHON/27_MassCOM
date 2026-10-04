@@ -7,7 +7,10 @@ import { AuthControllerError } from '@/auth/auth-controller';
 import { statusAnnouncement } from '@/accessibility/status-copy';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
+import { FloatingCard } from '@/ui/floating-card';
 import { Mascot } from '@/ui/mascot';
+import { SkyBackdrop } from '@/ui/sky-backdrop';
+import { SkyBanner } from '@/ui/sky-banner';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import type { Props } from './index';
 import { makeAuthRequiredStyles } from './styles';
@@ -50,9 +53,10 @@ export function AuthRequiredScreen({ state, canStartGuestTrial, onGuestSignIn, o
     : error ?? (state.status === 'signedOut' && state.reason ? reasonMessage(state) : undefined);
 
   return (
+    <SkyBackdrop>
     <SkyScrollView
-      header={header}
-      contentContainerStyle={[styles.content, header ? { backgroundColor: 'transparent' } : null, { paddingBottom: Math.max(40 + insets.bottom, clearance) }]}
+      header={header ?? <SkyBanner />}
+      contentContainerStyle={[styles.content, { paddingBottom: Math.max(40 + insets.bottom, clearance) }]}
     >
       <Text style={styles.eyebrow}>웹 체험</Text>
       <Mascot pose="wave" size={96} accessibilityLabel="손을 흔드는 마스코트" />
@@ -63,9 +67,11 @@ export function AuthRequiredScreen({ state, canStartGuestTrial, onGuestSignIn, o
       </Text>
 
       {statusText ? (
-        <View accessibilityLiveRegion="polite" style={styles.statusCard}>
-          {restoring || busy ? <ActivityIndicator color={palette.primary} /> : null}
-          <Text selectable style={styles.statusTitle}>{statusText}</Text>
+        <View accessibilityLiveRegion="polite">
+          <FloatingCard style={styles.statusCard}>
+            {restoring || busy ? <ActivityIndicator color={palette.primary} /> : null}
+            <Text selectable style={styles.statusTitle}>{statusText}</Text>
+          </FloatingCard>
         </View>
       ) : null}
 
@@ -87,6 +93,7 @@ export function AuthRequiredScreen({ state, canStartGuestTrial, onGuestSignIn, o
         <Text style={{ color: palette.primary, fontSize: 16, fontWeight: '700' }}>음식점으로 돌아가기</Text>
       </Pressable> : null}
     </SkyScrollView>
+    </SkyBackdrop>
   );
 }
 
