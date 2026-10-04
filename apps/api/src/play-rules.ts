@@ -61,7 +61,8 @@ export function stackCursor(round: { periodMs: number; phase: number }, at: numb
   return Math.round((progress <= 0.5 ? progress * 2 : (1 - progress) * 2) * 100);
 }
 
-const minimumActionGapMs: Record<GameKind, number> = { stack: 150, memory: 80, delivery: 150, orders: 100 };
+// 모바일 입력 수락 간격과 같은 값이어야 한다(모바일 계약 시험이 이 상수를 읽는다).
+export const minimumActionGapMs: Readonly<Record<GameKind, number>> = { stack: 150, memory: 80, delivery: 150, orders: 100 };
 
 export function minimumCompletedElapsedMs(kind: GameKind, seed: number): number {
   const board = getGameBoard(kind, seed);
