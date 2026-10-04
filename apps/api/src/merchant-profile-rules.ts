@@ -23,3 +23,28 @@ export function normalizeCategory(raw: unknown): MerchantCategory | null | undef
   if (!value) return null;
   return (merchantCategories as readonly string[]).includes(value) ? value as MerchantCategory : undefined;
 }
+
+export type MerchantProfileFields = {
+  story: string;
+  businessHours?: string;
+  menuItems?: { name: string; priceWon: number }[];
+};
+
+// 운영자 입력은 영업시간·메뉴를 생략할 수 있다. 점주 수정 요청은 경로에서 두 필드를 필수로 검사한다.
+export function normalizeMerchantProfileFields(raw: {
+  story: unknown; businessHours?: unknown; menuItems?: unknown;
+}): MerchantProfileFields | undefined {
+  if (typeof raw.story !== 'string' || raw.story.length > 4000 ||
+      (raw.businessHours !== undefined && (typeof raw.businessHours !== 'string' || raw.businessHours.length > 1000)) ||
+      (raw.menuItems !== undefined && (!Array.isArray(raw.menuItems) || raw.menuItems.length > 30 ||
+        raw.menuItems.some(item => !item || typeof item.name !== 'string' || !item.name.trim() ||
+          item.name.length > 200 || !Number.isSafeInteger(item.priceWon) || item.priceWon < 0 ||
+          item.priceWon > 1_000_000_000)))) return undefined;
+  return {
+    story: raw.story.trim(),
+    ...(raw.businessHours === undefined ? {} : { businessHours: raw.businessHours.trim() }),
+    ...(raw.menuItems === undefined ? {} : {
+      menuItems: raw.menuItems.map(item => ({ name: item.name.trim(), priceWon: item.priceWon })),
+    }),
+  };
+}
