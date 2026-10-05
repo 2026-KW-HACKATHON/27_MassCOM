@@ -1,5 +1,9 @@
 # AI 사용 기록
 
+## 2026-10-06 실기 음악 로드 복구 (Issue #376)
+
+Codex는 실제 Samsung SM-S928N(Android 16)의 개발 앱을 로컬 합성 계정으로 검증했다. 사용자의 소리·진동 미체감 보고를 FAIL로 유지하고, 별도로 재현한 음악 미로드 경합을 공통 컨트롤러에서 수정했다. 구현 담당과 독립 검토를 분리했으며 지연 인트로·반복 음악·화면 이탈·음소거·백그라운드·종료 회귀는 수정 전 실패와 수정 후 통과를 확인했다. 컨트롤러 18/18, 전체 모바일 1,678/1,678, 타입 검사·린트·운영/시연 Android export PASS; 독립 검토 P1/P2 차단 결함 0건과 두 파일 TypeScript 진단 0건이다. export는 기존 환경 파일 없이 구문 검사용 시연 OAuth placeholder를 사용한 오프라인 번들 검사다. USB 연결이 끊겨 수정 후 실제 청음·진동 체감은 재검증하지 못했다. APK의 모듈 등록과 실제 감각 검증을 구분한다. 오디오 무음 정책·진동·보상·인증·운영 데이터·공개 배포는 변경하지 않았다.
+
 ## 2026-10-06 PR #374 병합 복구 (Issue #367)
 
 Codex는 PR #374 검토와 PR #375/main 통합을 조율했다. 병렬 구현 범위는 서버 gift/reply/date/stale-session 401, 상점 응답 유실 구매복구, #374 의상·#375 artwork 통합이다. 통합 뒤 API 513·모바일 1673·PostgreSQL 494 PASS/3 SKIP·site 508, type/build/lint, CodeReviewer·Architect·75파일 TypeScript Language Service 결과를 확인했다. 실제 390px synthetic browser에서 6 draw와 마지막 silver의 server-commit/response-drop 자동 recovery/no-duplicate debit을 확인했다. 11개 충돌을 해결했고 네 문서의 #374/#375 역사를 함께 보존했다.

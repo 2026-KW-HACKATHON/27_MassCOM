@@ -35,7 +35,7 @@ export type SoundPlayer = {
   play(): void;
   pause(): void;
   remove(): void;
-  addListener?: (event: 'playbackStatusUpdate', listener: (status: { didJustFinish?: boolean }) => void) => { remove(): void };
+  addListener?: (event: 'playbackStatusUpdate', listener: (status: { didJustFinish?: boolean; isLoaded?: boolean }) => void) => { remove(): void };
 };
 
 export type SoundBackend = {
@@ -125,6 +125,7 @@ export function createUiSoundController({ backend, storage, now = Date.now }: De
   let drawMusicFocused = false;
   let musicActivated = false;
   let musicState: 'idle' | 'intro' | 'loop' = 'idle';
+  let pendingMusic: MusicSoundName | undefined;
 
   function publish(next: typeof settings) {
     settings = { ...next, enabled: next.soundEffectsEnabled };
@@ -153,6 +154,7 @@ export function createUiSoundController({ backend, storage, now = Date.now }: De
   }
 
   function pauseMusic() {
+    pendingMusic = undefined;
     musicSeeking.clear();
     for (const player of musicPlayers.values()) {
       try { player.pause(); } catch { /* Audio is optional. */ }
@@ -284,12 +286,12 @@ export function createUiSoundController({ backend, storage, now = Date.now }: De
             removePlayer(player);
             return;
           }
-          if (name === 'drawIntro') {
-            const subscription = player.addListener?.('playbackStatusUpdate', (status) => {
-              if (status.didJustFinish) handleIntroFinished(epoch);
-            });
-            if (subscription) musicSubscriptions.push(subscription);
-          }
+          const subscription = player.addListener?.('playbackStatusUpdate', (status) => {
+            if (!mounted || lifecycle !== epoch || musicPlayers.get(name) !== player) return;
+            if (name === 'drawIntro' && status.didJustFinish) handleIntroFinished(epoch);
+            if (status.isLoaded && pendingMusic === name) applyMusicIntent(true);
+          });
+          if (subscription) musicSubscriptions.push(subscription);
           musicPlayers.set(name, player);
         } catch { /* BGM is optional. */ }
       }
@@ -304,7 +306,13 @@ export function createUiSoundController({ backend, storage, now = Date.now }: De
   function playMusic(name: MusicSoundName, restart: boolean) {
     if (!canPlayMusic() || musicSeeking.has(name)) return;
     const player = musicPlayers.get(name);
-    if (!player?.isLoaded) return;
+    if (!player) return;
+    if (!player.isLoaded) {
+      pauseMusic();
+      musicState = name === 'drawIntro' ? 'intro' : 'loop';
+      pendingMusic = name;
+      return;
+    }
     const epoch = generation;
     const startedAt = now();
     pauseMusic();

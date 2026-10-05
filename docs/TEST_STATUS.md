@@ -1,5 +1,11 @@
 # 테스트 상태
 
+## 2026-10-06 Samsung 실기와 음악 로드 복구 (Issue #376)
+
+**PASS — 코드:** 공통 음악 컨트롤러의 지연 로드 재생 복구(`a1b87245`), 수정 전 실패→수정 후 컨트롤러 18/18·모바일 전체 1,678/1,678, `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`, 독립 검토 차단 결함 0건·두 파일 TypeScript 진단 0건. **PASS — 운영·시연 Android export:** 같은 소스 커밋에서 환경 파일을 읽지 않고 각 API origin으로 `expo export --platform android`를 실행했다. 시연 OAuth 값은 구문 검사용 비실사용 placeholder이며 실제 로그인은 아니다. 처음 production export는 source commit 환경 값 누락으로 설정 검사에서 종료됐고, 실제 소스 커밋을 넣어 두 variant 모두 종료 0을 확인했다. APK/AAB 재빌드·공개 배포는 없다.
+
+**PASS — 실기 일부:** Samsung SM-S928N(Android 16)의 개발 APK 업데이트·실행, 로컬 합성 계정의 첫 브론즈 구매 950−100+48=898P, 앞치마를 입은 결과 곰, 하단 버튼 접근·대표 곰/모자 홈 반영. **FAIL:** 사용자의 효과음/BGM·진동 미체감 보고. **BLOCKED:** USB 연결이 끊겨 앱 설정·진동 요청 처리·수정 후 실제 청음 재검증. 진동 모드에서 현재 오디오 정책이 재생을 막는 조건은 확인했으나 진동 원인은 미확정이다. 마지막 항목 구매의 명시적 복구·전역 의상 저장/친구 공간·네 게임·PNG/MP4·실제 기울임·큰 글자·TalkBack은 **NOT_RUN**이다. [설치 파일 해시·JS 커밋·사진·한계](PHYSICAL_QA_2026-10-06.md)를 따른다. 자동 시험과 부분 실기 결과를 전체 실기 PASS로 기록하지 않는다.
+
 ## 2026-10-06 PR #374 병합 복구 (Issue #367)
 
 브랜치 `fix/pr374-review`, PR #374 SHA `dbe8f09e0ac347d0aa08fde80817078648674cd2`, `origin/main` SHA `57e7746ff8586c60bc5555f731b93ddc789dcbc6`. PR #375와 11개 충돌을 통합했다(소스/시험 7, 문서 4; 두 PR의 문서 이력 모두 유지).
