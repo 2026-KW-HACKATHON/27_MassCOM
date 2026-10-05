@@ -4,7 +4,7 @@
 ALTER TABLE notification_outbox
   ADD COLUMN IF NOT EXISTS lease_generation integer NOT NULL DEFAULT 0 CHECK (lease_generation >= 0);
 
-CREATE TABLE notification_deliveries (
+CREATE TABLE social_notification_deliveries (
   id uuid PRIMARY KEY,
   outbox_id uuid NOT NULL REFERENCES notification_outbox(id) ON DELETE CASCADE,
   account_id text NOT NULL CHECK (length(btrim(account_id)) > 0),
@@ -23,13 +23,13 @@ CREATE TABLE notification_deliveries (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX notification_deliveries_outbox_status_idx
-  ON notification_deliveries (outbox_id, status, next_attempt_at);
-CREATE INDEX notification_deliveries_receipt_idx
-  ON notification_deliveries (status, expo_ticket_id, updated_at)
+CREATE INDEX social_notification_deliveries_outbox_status_idx
+  ON social_notification_deliveries (outbox_id, status, next_attempt_at);
+CREATE INDEX social_notification_deliveries_receipt_idx
+  ON social_notification_deliveries (status, expo_ticket_id, updated_at)
   WHERE expo_ticket_id IS NOT NULL;
-CREATE INDEX notification_deliveries_account_token_idx
-  ON notification_deliveries (account_id, app_variant, token, created_at);
+CREATE INDEX social_notification_deliveries_account_token_idx
+  ON social_notification_deliveries (account_id, app_variant, token, created_at);
 
 WITH ranked_active_tokens AS (
   SELECT id,
@@ -48,7 +48,7 @@ CREATE UNIQUE INDEX push_tokens_active_variant_token_unique
 
 -- Forward-upgrade existing social outbox rows into safe per-token legacy rows.
 -- The legacy token is intentionally synthetic, so old receipt dead-token results cannot revoke every account token.
-INSERT INTO notification_deliveries (
+INSERT INTO social_notification_deliveries (
   id, outbox_id, account_id, app_variant, token, status, attempts, next_attempt_at,
   lease_id, lease_generation, lease_expires_at, expo_ticket_id, last_error_code,
   authorized_at, created_at, updated_at
@@ -85,5 +85,5 @@ SELECT
 FROM notification_outbox outbox
 WHERE outbox.status IN ('PROCESSING', 'AWAITING_RECEIPT', 'RETRY', 'SENT', 'DEAD', 'CANCELLED')
   AND NOT EXISTS (
-    SELECT 1 FROM notification_deliveries delivery WHERE delivery.outbox_id = outbox.id
+    SELECT 1 FROM social_notification_deliveries delivery WHERE delivery.outbox_id = outbox.id
   );

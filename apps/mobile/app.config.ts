@@ -15,6 +15,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const showcase = variant === 'showcase';
   const releaseLike = production || showcase;
   const buildSourceCommit = process.env.MASSCOM_BUILD_SOURCE_COMMIT;
+  const firebaseServicesFile = process.env.MASSCOM_FIREBASE_GOOGLE_SERVICES_FILE?.trim();
   const webBaseUrl = process.env.MASSCOM_WEB_BASE_URL?.trim();
   const notificationProjectId = process.env.MASSCOM_NOTIFICATION_PROJECT_ID?.trim();
   if (notificationProjectId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(notificationProjectId)) {
@@ -48,7 +49,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       enableBackgroundPlayback: false,
       enableBackgroundRecording: false,
     }] satisfies [string, Record<string, unknown>],
-    ['expo-notifications', { defaultChannel: 'mail' }] satisfies [string, Record<string, unknown>],
+    ['expo-notifications', { defaultChannel: 'masscom-updates' }] satisfies [string, Record<string, unknown>],
   ];
   return {
     ...config,
@@ -83,8 +84,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       ...config.android,
-      ...(process.env.MASSCOM_FIREBASE_ANDROID_CONFIG?.trim()
-        ? { googleServicesFile: process.env.MASSCOM_FIREBASE_ANDROID_CONFIG.trim() } : {}),
+      ...(firebaseServicesFile ? { googleServicesFile: firebaseServicesFile } : {}),
       package: production ? PRODUCTION_PACKAGE
         : showcase ? `${PRODUCTION_PACKAGE}.demo` : `${PRODUCTION_PACKAGE}.dev`,
       // The development client library declares the overlay permission; the store app never uses it.

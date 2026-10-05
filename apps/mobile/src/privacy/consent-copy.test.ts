@@ -30,7 +30,7 @@ test('three required boxes, no optional consent, and the four notice items Issue
   assert.match(consentNotice[1]!.body, /이메일·이름은 저장하지 않아요/);
   assert.match(consentNotice[1]!.body, /\(자세한 항목은 개인정보 처리방침\)\.$/, 'the item list is a summary and says where the full list is');
   assert.match(consentNotice[1]!.body, /쪽지·식사 가게와 날짜·시간/);
-  assert.match(consentNotice[1]!.body, /알림을 켜면 푸시 토큰/);
+  assert.match(consentNotice[1]!.body, /알림 설정과 선택적 기기 토큰/);
   assert.match(consentNotice[2]!.body, /계정을 삭제할 때까지/);
   assert.match(consentNotice[3]!.body, /동의하지 않으면/);
 });

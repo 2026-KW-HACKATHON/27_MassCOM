@@ -6,11 +6,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
 import { createBadgeApiClient, type BadgeApiClient, type BadgeBook, type OpenedReward } from '@/gamification/badge-api';
+import { HomeCollectionDisplay } from '@/experience/home-collection-display';
+import { useExperience } from '@/experience/use-experience';
 import { shouldRefreshBadgesQuietly } from '@/gamification/badge-refresh';
 import { couponExpiryNotice } from '@/gamification/coupon-expiry';
 import { HomeRewardCard } from '@/gamification/home-reward-card';
 import { RewardReveal } from '@/gamification/reward-reveal';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
+import { createShopApiClient } from '@/shop/shop-api';
+import { useShop } from '@/shop/use-shop';
 import { useShopAvatarAppearance } from '@/shop/use-shop-avatar-art';
 import { createStoreTicketApiClient, type StoreTicket } from '@/store-tickets/store-ticket-api';
 import { useDrawMusic } from '@/sound/ui-sounds';
@@ -55,6 +59,12 @@ export function HomeScreen({ apiUrl, accountId, credential, onSessionInvalid }: 
   const avatar = useShopAvatarAppearance(apiUrl, credential, avatarRefreshToken);
   const avatarArt = avatar?.art;
   const avatarClothing = avatar?.clothing ?? null;
+  const experience = useExperience(apiUrl, credential, onSessionInvalid, avatarRefreshToken);
+  const shopApi = useMemo(
+    () => createShopApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
+  const shop = useShop(shopApi);
   const ticketApi = useMemo(
     () => createStoreTicketApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
@@ -160,6 +170,8 @@ export function HomeScreen({ apiUrl, accountId, credential, onSessionInvalid }: 
             {avatarArt ? <Companion art={avatarArt} clothing={avatarClothing} interactive size={heroMascotSize(fontScale, 96)} /> : <Mascot interactive pose="stamp" size={heroMascotSize(fontScale, 96)} />}
           </View>
         </AppHeader>
+
+        {experience.snapshot ? <HomeCollectionDisplay experience={experience.snapshot} collection={collection} shop={shop.snapshot} avatarArt={avatarArt} apiUrl={apiUrl} /> : null}
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>

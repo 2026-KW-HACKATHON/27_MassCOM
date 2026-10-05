@@ -793,7 +793,7 @@ export class PostgresSocialService implements SocialService {
     const leaseId = this.nextId();
     const now = this.now();
     await this.pool.query(
-      `UPDATE notification_deliveries
+      `UPDATE social_notification_deliveries
        SET status = 'AWAITING_RECEIPT', lease_id = NULL, lease_expires_at = NULL, updated_at = $1
        WHERE status = 'PROCESSING' AND expo_ticket_id IS NOT NULL AND lease_expires_at <= $1`,
       [now],
@@ -801,7 +801,7 @@ export class PostgresSocialService implements SocialService {
     const candidates = (await this.pool.query<DeliveryRow>(
       `SELECT id, outbox_id, account_id, app_variant, token, status, attempts,
               lease_id, lease_generation, expo_ticket_id, push_token_id, binding_revision
-       FROM notification_deliveries
+       FROM social_notification_deliveries
        WHERE status = 'AWAITING_RECEIPT' AND expo_ticket_id IS NOT NULL
        ORDER BY updated_at, id
        LIMIT $1`,
@@ -825,7 +825,7 @@ export class PostgresSocialService implements SocialService {
         );
       }
       rows = (await client.query<DeliveryRow>(
-        `UPDATE notification_deliveries delivery
+        `UPDATE social_notification_deliveries delivery
          SET status = 'PROCESSING', lease_id = $2, lease_expires_at = $3, updated_at = $4
          WHERE delivery.id = ANY($1::uuid[]) AND delivery.status = 'AWAITING_RECEIPT' AND delivery.expo_ticket_id IS NOT NULL
          RETURNING id, outbox_id, account_id, app_variant, token, status, attempts, lease_id, lease_generation, expo_ticket_id, push_token_id, binding_revision`,
@@ -873,7 +873,7 @@ export class PostgresSocialService implements SocialService {
            AND (status <> 'PROCESSING' OR lease_expires_at <= $1))
          OR
          (status = 'AWAITING_RECEIPT' AND EXISTS (
-           SELECT 1 FROM notification_deliveries delivery
+           SELECT 1 FROM social_notification_deliveries delivery
            WHERE delivery.outbox_id = notification_outbox.id
              AND delivery.status = 'RETRY'
              AND delivery.next_attempt_at <= $1
@@ -886,7 +886,7 @@ export class PostgresSocialService implements SocialService {
     if (!candidate) return null;
 
     const existingBefore = await this.pool.query<{ n: number }>(
-      'SELECT count(*)::integer AS n FROM notification_deliveries WHERE outbox_id = $1',
+      'SELECT count(*)::integer AS n FROM social_notification_deliveries WHERE outbox_id = $1',
       [candidate.id],
     );
     const hasExistingDeliveries = (existingBefore.rows[0]?.n ?? 0) > 0;
@@ -902,7 +902,7 @@ export class PostgresSocialService implements SocialService {
       ? (await this.pool.query<DeliveryRow>(
         `SELECT id, outbox_id, account_id, app_variant, token, status, attempts,
                 lease_id, lease_generation, expo_ticket_id, push_token_id, binding_revision
-         FROM notification_deliveries
+         FROM social_notification_deliveries
          WHERE outbox_id = $1 AND (
            (status = 'RETRY' AND next_attempt_at <= $2)
            OR (status = 'PROCESSING' AND expo_ticket_id IS NULL AND lease_expires_at <= $2)
@@ -929,7 +929,7 @@ export class PostgresSocialService implements SocialService {
                AND (status <> 'PROCESSING' OR lease_expires_at <= $1))
              OR
              (status = 'AWAITING_RECEIPT' AND EXISTS (
-               SELECT 1 FROM notification_deliveries delivery
+               SELECT 1 FROM social_notification_deliveries delivery
                WHERE delivery.outbox_id = outbox.id
                  AND delivery.status = 'RETRY'
                  AND delivery.next_attempt_at <= $1
@@ -985,7 +985,7 @@ export class PostgresSocialService implements SocialService {
              AND (status <> 'PROCESSING' OR lease_expires_at <= $1))
            OR
            (status = 'AWAITING_RECEIPT' AND EXISTS (
-             SELECT 1 FROM notification_deliveries delivery
+             SELECT 1 FROM social_notification_deliveries delivery
              WHERE delivery.outbox_id = outbox.id
                AND delivery.status = 'RETRY'
                AND delivery.next_attempt_at <= $1
@@ -1000,7 +1000,7 @@ export class PostgresSocialService implements SocialService {
         return null;
       }
       await client.query(
-        `UPDATE notification_deliveries
+        `UPDATE social_notification_deliveries
          SET status = 'RETRY', lease_id = NULL, lease_expires_at = NULL, updated_at = $2, last_error_code = 'STALE_PROCESSING'
          WHERE outbox_id = $1 AND status = 'PROCESSING' AND expo_ticket_id IS NULL AND lease_expires_at <= $2`,
         [outbox.id, now],
@@ -1009,7 +1009,7 @@ export class PostgresSocialService implements SocialService {
       let deliveries: DeliveryRow[];
       if (hasExistingDeliveries) {
         await client.query(
-          `UPDATE notification_deliveries delivery
+          `UPDATE social_notification_deliveries delivery
            SET status = 'CANCELLED', lease_id = NULL, lease_expires_at = NULL,
                updated_at = $2, last_error_code = 'TOKEN_REVOKED'
            WHERE delivery.outbox_id = $1 AND delivery.status = 'RETRY'
@@ -1025,7 +1025,7 @@ export class PostgresSocialService implements SocialService {
           [outbox.id, now],
         );
         const retryRows = await client.query<DeliveryRow>(
-          `UPDATE notification_deliveries delivery
+          `UPDATE social_notification_deliveries delivery
            SET status = 'PROCESSING', lease_id = $2, lease_generation = $3,
                lease_expires_at = $4, authorized_at = $5, updated_at = $5
            WHERE delivery.outbox_id = $1 AND delivery.status = 'RETRY' AND delivery.next_attempt_at <= $5
@@ -1056,7 +1056,7 @@ export class PostgresSocialService implements SocialService {
         deliveries = [];
         for (const tokenRow of tokenRows.rows) {
           const inserted = await client.query<DeliveryRow>(
-            `INSERT INTO notification_deliveries (
+            `INSERT INTO social_notification_deliveries (
                id, outbox_id, account_id, app_variant, token, status, attempts,
                next_attempt_at, lease_id, lease_generation, lease_expires_at, authorized_at,
                push_token_id, binding_revision, created_at, updated_at
@@ -1117,7 +1117,7 @@ export class PostgresSocialService implements SocialService {
   ): Promise<'sent' | 'retry' | 'dead' | 'stale'> {
     if (ticket.status === 'ok') {
       const updated = await this.pool.query(
-        `UPDATE notification_deliveries delivery
+        `UPDATE social_notification_deliveries delivery
          SET status = 'AWAITING_RECEIPT', attempts = attempts + 1, expo_ticket_id = $4,
              lease_id = NULL, lease_expires_at = NULL, updated_at = $5, last_error_code = NULL
          WHERE delivery.id = $1 AND delivery.status = 'PROCESSING'
@@ -1182,7 +1182,7 @@ export class PostgresSocialService implements SocialService {
       const current = (await client.query<DeliveryRow>(
         `SELECT id, outbox_id, account_id, app_variant, token, status, attempts,
                 lease_id, lease_generation, expo_ticket_id, push_token_id, binding_revision
-         FROM notification_deliveries
+         FROM social_notification_deliveries
          WHERE id = $1 AND status = 'PROCESSING' AND lease_id = $2 AND lease_generation = $3
            AND expo_ticket_id = $4
          FOR UPDATE`,
@@ -1226,7 +1226,7 @@ export class PostgresSocialService implements SocialService {
 
   private async markDeliverySent(delivery: DeliveryRow, leaseId: string): Promise<boolean> {
     const updated = await this.pool.query(
-      `UPDATE notification_deliveries
+      `UPDATE social_notification_deliveries
        SET status = 'SENT', lease_id = NULL, lease_expires_at = NULL, updated_at = $3, last_error_code = NULL
        WHERE id = $1 AND status = 'PROCESSING' AND lease_id = $2 AND lease_generation = $4`,
       [delivery.id, leaseId, this.now(), delivery.lease_generation],
@@ -1236,7 +1236,7 @@ export class PostgresSocialService implements SocialService {
 
   private async markDeliveryDead(delivery: DeliveryRow, errorCode: string, leaseId: string): Promise<boolean> {
     const updated = await this.pool.query(
-      `UPDATE notification_deliveries
+      `UPDATE social_notification_deliveries
        SET status = 'DEAD', lease_id = NULL, lease_expires_at = NULL, updated_at = $4, last_error_code = $3
        WHERE id = $1 AND status = 'PROCESSING' AND lease_id = $2 AND lease_generation = $5`,
       [delivery.id, leaseId, errorCode, this.now(), delivery.lease_generation],
@@ -1246,7 +1246,7 @@ export class PostgresSocialService implements SocialService {
 
   private async returnMissingReceipt(delivery: DeliveryRow, leaseId: string): Promise<void> {
     await this.pool.query(
-      `UPDATE notification_deliveries
+      `UPDATE social_notification_deliveries
        SET status = 'AWAITING_RECEIPT', lease_id = NULL, lease_expires_at = NULL, updated_at = $3
        WHERE id = $1 AND status = 'PROCESSING' AND lease_id = $2 AND lease_generation = $4`,
       [delivery.id, leaseId, this.now(), delivery.lease_generation],
@@ -1255,7 +1255,7 @@ export class PostgresSocialService implements SocialService {
 
   private async markDeliverySentInTransaction(client: Queryable, delivery: DeliveryRow, leaseId: string): Promise<boolean> {
     const updated = await client.query(
-      `UPDATE notification_deliveries
+      `UPDATE social_notification_deliveries
        SET status = 'SENT', lease_id = NULL, lease_expires_at = NULL, updated_at = $3, last_error_code = NULL
        WHERE id = $1 AND status = 'PROCESSING' AND lease_id = $2 AND lease_generation = $4`,
       [delivery.id, leaseId, this.now(), delivery.lease_generation],
@@ -1265,7 +1265,7 @@ export class PostgresSocialService implements SocialService {
 
   private async markDeliveryDeadInTransaction(client: Queryable, delivery: DeliveryRow, errorCode: string, leaseId: string): Promise<boolean> {
     const updated = await client.query(
-      `UPDATE notification_deliveries
+      `UPDATE social_notification_deliveries
        SET status = 'DEAD', lease_id = NULL, lease_expires_at = NULL, updated_at = $4, last_error_code = $3
        WHERE id = $1 AND status = 'PROCESSING' AND lease_id = $2 AND lease_generation = $5`,
       [delivery.id, leaseId, errorCode, this.now(), delivery.lease_generation],
@@ -1275,7 +1275,7 @@ export class PostgresSocialService implements SocialService {
 
   private async returnMissingReceiptInTransaction(client: Queryable, delivery: DeliveryRow, leaseId: string): Promise<void> {
     await client.query(
-      `UPDATE notification_deliveries
+      `UPDATE social_notification_deliveries
        SET status = 'AWAITING_RECEIPT', lease_id = NULL, lease_expires_at = NULL, updated_at = $3
        WHERE id = $1 AND status = 'PROCESSING' AND lease_id = $2 AND lease_generation = $4`,
       [delivery.id, leaseId, this.now(), delivery.lease_generation],
@@ -1294,7 +1294,7 @@ export class PostgresSocialService implements SocialService {
     const now = this.now();
     const delayMs = Math.min(60 * 60 * 1000, 2 ** Math.max(0, attempts - 1) * 30_000);
     const updated = await client.query(
-      `UPDATE notification_deliveries
+      `UPDATE social_notification_deliveries
        SET status = 'RETRY', attempts = $4, next_attempt_at = $5, lease_id = NULL, lease_expires_at = NULL,
            last_error_code = $6, updated_at = $7
        WHERE id = $1 AND status = 'PROCESSING' AND lease_id = $2 AND lease_generation = $3`,
@@ -1496,7 +1496,7 @@ export class PostgresSocialService implements SocialService {
     const now = this.now();
     const delayMs = Math.min(60 * 60 * 1000, 2 ** Math.max(0, attempts - 1) * 30_000);
     const updated = await this.pool.query(
-      `UPDATE notification_deliveries
+      `UPDATE social_notification_deliveries
        SET status = 'RETRY', attempts = $4, next_attempt_at = $5, lease_id = NULL, lease_expires_at = NULL,
            last_error_code = $6, updated_at = $7
        WHERE id = $1 AND status = 'PROCESSING' AND lease_id = $2 AND lease_generation = $3`,
@@ -1563,7 +1563,7 @@ export class PostgresSocialService implements SocialService {
          count(*) FILTER (WHERE status = 'CANCELLED')::integer AS cancelled,
          min(next_attempt_at) FILTER (WHERE status = 'RETRY') AS next_attempt_at,
          max(last_error_code) FILTER (WHERE status IN ('RETRY', 'DEAD', 'CANCELLED')) AS last_error_code
-       FROM notification_deliveries
+       FROM social_notification_deliveries
        WHERE outbox_id = $1`,
       [outboxId],
     );

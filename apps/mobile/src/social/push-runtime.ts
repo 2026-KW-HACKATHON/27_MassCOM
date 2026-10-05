@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { getAppPackageId } from '@/config/app-identity';
+import { clearLastNotificationResponseIfCurrent, notificationResponseIdentity, notificationResponseIdentityKey } from '@/notifications/response-identity';
 
 import { createSocialApiClient, type AppVariant } from './social-api';
 import { canOpenMailForBinding, pushBindingMatchesInput } from './push-runtime-rules';
@@ -15,10 +16,10 @@ type ExpoNotificationsModule = {
   getPermissionsAsync: () => Promise<{ status?: string; granted?: boolean; canAskAgain?: boolean }>;
   requestPermissionsAsync: () => Promise<{ status?: string; granted?: boolean; canAskAgain?: boolean }>;
   getExpoPushTokenAsync: (options: { projectId?: string; devicePushToken?: unknown }) => Promise<{ data: string }>;
-  clearLastNotificationResponseAsync?: () => Promise<unknown>;
+  getLastNotificationResponse?: () => unknown;
+  clearLastNotificationResponse?: () => void;
   addPushTokenListener?: (listener: (token: unknown) => void) => { remove(): void };
   addNotificationResponseReceivedListener?: (listener: (response: unknown) => void) => { remove(): void };
-  getLastNotificationResponseAsync?: () => Promise<unknown>;
   setNotificationHandler?: (handler: Record<string, unknown>) => void;
 };
 
@@ -38,7 +39,6 @@ export type SocialPushBindingState = {
   message: string;
 };
 
-const mailIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const defaultState: SocialPushBindingState = {
   status: Platform.OS === 'web' ? 'web-unavailable' : 'signed-out',
   canAskPermission: false,
@@ -105,10 +105,11 @@ export function useSocialPushBinding(params: SocialPushBindingParams) {
         return;
       }
       installForegroundHandler(Notifications);
-      const lastResponse = await Notifications.getLastNotificationResponseAsync?.();
-      if (lastResponse && !disposed && generation.current === ticket && socialPushRevocationGeneration === revocationTicket) {
+      const lastResponse = typeof Notifications.getLastNotificationResponse === 'function' ? Notifications.getLastNotificationResponse() : null;
+      const lastIdentity = notificationResponseIdentity(lastResponse, 'social');
+      if (lastResponse && lastIdentity && !disposed && generation.current === ticket && socialPushRevocationGeneration === revocationTicket) {
         const opened = await handleNotificationResponse(lastResponse, ticket, revocationTicket);
-        if (opened) await Notifications.clearLastNotificationResponseAsync?.();
+        if (opened && !disposed && generation.current === ticket && socialPushRevocationGeneration === revocationTicket) clearLastNotificationResponseIfCurrent(Notifications, lastIdentity);
       }
       responseSubscription = Notifications.addNotificationResponseReceivedListener?.((response) => {
         if (generation.current !== ticket || socialPushRevocationGeneration !== revocationTicket) return;
@@ -133,15 +134,18 @@ export function useSocialPushBinding(params: SocialPushBindingParams) {
 
     async function handleNotificationResponse(response: unknown, ticket: number, revocationTicket: number): Promise<boolean> {
       if (generation.current !== ticket || socialPushRevocationGeneration !== revocationTicket) return false;
+      const identity = notificationResponseIdentity(response, 'social');
+      if (!identity) return false;
+      const binding = await readBinding();
+      if (generation.current !== ticket || socialPushRevocationGeneration !== revocationTicket) return false;
       const latest = paramsRef.current;
       const currentVariant = latest.appVariant ?? appVariantForPackage(getAppPackageId());
-      if (!canOpenMailForBinding(await readBinding(), { apiUrl: latest.apiUrl, accountId: latest.accountId, appVariant: currentVariant })) return false;
-      const mailId = mailIdFromResponse(response);
-      if (!mailId) return false;
-      const responseKey = notificationResponseKey(response, mailId);
+      if (!canOpenMailForBinding(binding, { apiUrl: latest.apiUrl, accountId: latest.accountId, appVariant: currentVariant })) return false;
+      const responseKey = notificationResponseIdentityKey(identity);
       if (handledResponseKeys.current.has(responseKey)) return false;
       handledResponseKeys.current.add(responseKey);
-      paramsRef.current.onOpenMail?.(mailId);
+      if (generation.current !== ticket || socialPushRevocationGeneration !== revocationTicket) return false;
+      paramsRef.current.onOpenMail?.(identity.payloadId);
       return true;
     }
 
@@ -299,24 +303,4 @@ async function ensureAndroidChannel(Notifications: ExpoNotificationsModule): Pro
 
 function permissionGranted(permission: { status?: string; granted?: boolean }): boolean {
   return permission.granted === true || permission.status === 'granted';
-}
-
-function notificationResponseKey(response: unknown, mailId: string): string {
-  if (!isRecord(response)) return mailId;
-  const notification = isRecord(response.notification) ? response.notification : undefined;
-  const request = notification && isRecord(notification.request) ? notification.request : undefined;
-  return typeof request?.identifier === 'string' && request.identifier.length > 0 ? request.identifier : mailId;
-}
-
-function mailIdFromResponse(response: unknown): string | null {
-  if (!isRecord(response)) return null;
-  const notification = isRecord(response.notification) ? response.notification : undefined;
-  const request = notification && isRecord(notification.request) ? notification.request : undefined;
-  const content = request && isRecord(request.content) ? request.content : undefined;
-  const data = content && isRecord(content.data) ? content.data : undefined;
-  return typeof data?.mailId === 'string' && mailIdPattern.test(data.mailId) ? data.mailId : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

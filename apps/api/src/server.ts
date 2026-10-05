@@ -26,6 +26,13 @@ import { handleSocialHttp, SocialHttpError } from './social-http.js';
 import { PostgresSocialService } from './postgres/social.js';
 import { ExpoPushGateway } from './expo-push-gateway.js';
 import { PlayError, type PlayService, type Studio } from './play.js';
+import { ExperienceError, type CollectionExperienceService, type Equipment } from './collection-experience.js';
+import { MerchantOperationError, type MerchantOperations } from './merchant-operations.js';
+import { NotificationError, type NotificationService, type NotificationPreferences } from './notifications.js';
+import { PostgresCollectionExperienceService } from './postgres/collection-experience.js';
+import { PostgresMerchantOperations } from './postgres/merchant-operations.js';
+import { PostgresNotificationService, fcmConfigFromEnv } from './postgres/notifications.js';
+import { startNotificationScheduler } from './notification-scheduler.js';
 import { isGameKind, type GameAction } from './play-rules.js';
 import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js';
 import { WebAuthError, WebAuthService, resolveWebAuthConfig, type WebAuthHandler } from './web-auth.js';
@@ -207,6 +214,12 @@ export const developmentHeaderReauthenticationGuard: ReauthenticationGuard = (
   }
 };
 
+export type ExperienceServices = {
+  collectionExperience?: CollectionExperienceService | undefined;
+  merchantOperations?: MerchantOperations | undefined;
+  notifications?: NotificationService | undefined;
+};
+
 export function createApiServer(
   service: WalletChallengeService,
   baseAccountResolver: AccountResolver,
@@ -251,9 +264,19 @@ export function createApiServer(
   adminFunnel?: AdminFunnelReader,
   play?: PlayService,
   merchantProfile?: MerchantProfileService,
+  experienceServices: ExperienceServices = {},
   storeTickets?: StoreTicketService,
   social?: SocialService,
 ) {
+  const { collectionExperience, merchantOperations, notifications } = experienceServices;
+  const requireCustomerScan = async (accountId: string, merchantId: string): Promise<void> => {
+    if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+    try { await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' }); }
+    catch (error) {
+      if (!(error instanceof MerchantAccessError)) throw error;
+      await merchantAccess.requirePermission({ accountId, merchantId, permission: 'REDEEM_COUPON' });
+    }
+  };
   // 로컬 시연(DEMO 헤더) 배치에서는 체험 세션 Bearer도 받는다(#309). Authorization이 없으면 기존 헤더 해석 그대로이고,
   // 운영·hosted 해석기(Bearer 세션)는 이미 같은 auth_sessions 행으로 체험 세션을 푼다.
   const resolveAccountId: AccountResolver = guestTrials && baseAccountResolver === developmentHeaderAccountResolver
@@ -276,6 +299,8 @@ export function createApiServer(
   // 점포 정보 저장은 점포 수와 무관하게 계정당 30회/시간으로 제한한다(#365).
   const merchantProfileWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 30, windowMs: 60 * 60 * 1000 });
   const playFlowWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 120, windowMs: 60 * 60 * 1000 });
+  const experienceWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 120, windowMs: 60_000 });
+  const merchantOperationLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 120, windowMs: 60 * 60 * 1000 });
   // 실행별 멱등 재시도도 본문·DB 진입 전에 계정별로 센다. 분당 60회는 정상 완료·재시도에 여유를 둔다.
   const playFinishLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60_000 });
   const socialWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60_000 });
@@ -694,6 +719,62 @@ export function createApiServer(
           throw new RequestError(403, 'MERCHANT_CSRF_FORBIDDEN');
         }
         const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+        const operationMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/(campaigns|staff|visits\.csv)(?:\/([^/]+)(?:\/(extend))?)?$/);
+        if (operationMatch) {
+          if (!merchantOperations) throw new RequestError(503, 'MERCHANT_OPERATIONS_NOT_CONFIGURED');
+          if (request.method !== 'GET' || operationMatch[2] === 'visits.csv') {
+            const decision = merchantOperationLimiter.consume(accountId);
+            if (!decision.allowed) {
+              response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+              throw new RequestError(429, 'MERCHANT_OPERATIONS_RATE_LIMITED');
+            }
+          }
+          const merchantId = decodePathParameter(operationMatch[1]!);
+          const kind = operationMatch[2];
+          const target = operationMatch[3] && decodePathParameter(operationMatch[3]);
+          if (kind === 'campaigns' && !target && request.method === 'GET') {
+            sendJson(response, 200, { campaigns: await merchantOperations.listCampaigns(accountId, merchantId) });
+          } else if (kind === 'campaigns' && target && operationMatch[4] === 'extend' && request.method === 'POST') {
+            const body = await readJson(request);
+            if (Object.keys(body).some(key => !['days','expectedEndsAt','consentAccepted','requestId'].includes(key)) ||
+                (body.days !== 30 && body.days !== 90) || body.consentAccepted !== true) {
+              throw new RequestError(400, 'INVALID_REQUEST');
+            }
+            sendJson(response, 200, await merchantOperations.extendCampaign({ accountId, merchantId, campaignId: target,
+              days: body.days, expectedEndsAt: requireString(body, 'expectedEndsAt'), consentAccepted: true,
+              requestId: requireString(body, 'requestId') }));
+          } else if (kind === 'staff' && !target && request.method === 'GET') {
+            sendJson(response, 200, { staff: await merchantOperations.listStaff(accountId, merchantId) });
+          } else if (kind === 'staff' && target === 'approve' && request.method === 'POST') {
+            const body = await readJson(request);
+            if (Object.keys(body).some(key => key !== 'code')) throw new RequestError(400, 'INVALID_REQUEST');
+            sendJson(response, 200, await merchantOperations.approveStaff({ accountId, merchantId, code: requireString(body, 'code') }));
+          } else if (kind === 'staff' && target && request.method === 'PATCH') {
+            const body = await readJson(request);
+            if (Object.keys(body).some(key => !['confirmVisit','redeemCoupon'].includes(key)) ||
+                typeof body.confirmVisit !== 'boolean' || typeof body.redeemCoupon !== 'boolean') {
+              throw new RequestError(400, 'INVALID_REQUEST');
+            }
+            sendJson(response, 200, await merchantOperations.updateStaffPermissions({ accountId, merchantId, targetAccountId: target,
+              confirmVisit: body.confirmVisit, redeemCoupon: body.redeemCoupon }));
+          } else if (kind === 'staff' && target && request.method === 'DELETE') {
+            await merchantOperations.revokeStaff({ accountId, merchantId, targetAccountId: target });
+            response.writeHead(204).end();
+          } else if (kind === 'visits.csv' && !target && request.method === 'GET') {
+            const query = new URL(request.url!, 'http://localhost').searchParams;
+            if ([...query.keys()].some(key => key !== 'from' && key !== 'to') ||
+                query.getAll('from').length !== 1 || query.getAll('to').length !== 1) {
+              throw new RequestError(400, 'INVALID_REQUEST');
+            }
+            const result = await merchantOperations.exportVisits({ accountId, merchantId,
+              fromDate: query.get('from')!, toDate: query.get('to')! });
+            response.setHeader('content-type', 'text/csv; charset=utf-8');
+            response.setHeader('content-disposition', `attachment; filename="${result.filename}"`);
+            response.setHeader('x-visit-count', String(result.count));
+            response.writeHead(200).end(result.csv);
+          } else throw new RequestError(404, 'NOT_FOUND');
+          return;
+        }
         if (profileMatch && (request.method === 'GET' || request.method === 'PUT')) {
           if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
           // 저장 제한은 멤버십 조회보다 먼저 센다: 멤버가 아닌 계정의 반복 요청도 DB에 닿기 전에 막는다.
@@ -769,7 +850,7 @@ export function createApiServer(
           if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
           if (!reversals) throw new RequestError(503, 'REVERSALS_NOT_CONFIGURED');
           const merchantId = decodePathParameter(webReversal.merchantId);
-          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: webReversal.kind === 'recent-coupons' || webReversal.kind === 'undo-coupon' ? 'REDEEM_COUPON' : 'CONFIRM_VISIT' });
           if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) {
             throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
           }
@@ -830,7 +911,7 @@ export function createApiServer(
           if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
           if (!badges) throw new RequestError(503, 'BADGE_REWARDS_NOT_CONFIGURED');
           const merchantId = decodePathParameter((couponLookupMatch ?? couponRedeemMatch)![1]!);
-          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'REDEEM_COUPON' });
           if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) {
             throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
           }
@@ -850,7 +931,8 @@ export function createApiServer(
         if (claimMatch && request.method === 'POST') {
           if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
           const merchantId = decodePathParameter(claimMatch[1]!);
-          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
+          if (claimMatch[2] === 'customer-identities/resolve') await requireCustomerScan(accountId, merchantId);
+          else await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
           if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) {
             throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
           }
@@ -1042,6 +1124,71 @@ export function createApiServer(
         return;
       }
 
+      const friendExperienceMatch = path.match(/^\/me\/friends\/([^/]+)\/experience$/);
+      if (path.startsWith('/me/experience') || friendExperienceMatch) {
+        if (!collectionExperience) throw new RequestError(503, 'EXPERIENCE_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
+        if (path === '/me/experience' && request.method === 'GET') {
+          sendJson(response, 200, await collectionExperience.getSnapshot(accountId));
+        } else if (friendExperienceMatch && request.method === 'GET') {
+          sendJson(response, 200, await collectionExperience.getFriend({ accountId,
+            friendshipId: decodePathParameter(friendExperienceMatch[1]!) }));
+        } else if ((path === '/me/experience/equipment' || path === '/me/experience/wishlist') && request.method === 'PATCH') {
+          const decision = experienceWriteLimiter.consume(accountId);
+          if (!decision.allowed) {
+            response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+            throw new RequestError(429, 'EXPERIENCE_RATE_LIMITED');
+          }
+          const body = await readJson(request);
+          if (path.endsWith('/wishlist')) {
+            if (Object.keys(body).length !== 1 || !('itemId' in body) ||
+                (body.itemId !== null && typeof body.itemId !== 'string')) throw new ExperienceError('EXPERIENCE_INVALID');
+            sendJson(response, 200, await collectionExperience.setWishlist({ accountId, itemId: body.itemId as string | null }));
+          } else {
+            if (!Object.keys(body).length || Object.keys(body).some(key => !['badgeId','cosmetics','coinEntitlementId'].includes(key))) {
+              throw new ExperienceError('EXPERIENCE_INVALID');
+            }
+            sendJson(response, 200, await collectionExperience.setEquipment({ accountId,
+              ...body as { badgeId?: string | null; cosmetics?: Partial<Equipment>; coinEntitlementId?: string | null } }));
+          }
+        } else throw new RequestError(404, 'NOT_FOUND');
+        return;
+      }
+      if (path.startsWith('/api/notifications')) {
+        if (!notifications) throw new RequestError(503, 'NOTIFICATIONS_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const readMatch = path.match(/^\/api\/notifications\/([^/]+)\/read$/);
+        if (request.method === 'GET' && path === '/api/notifications') {
+          sendJson(response, 200, { items: await notifications.list(accountId), preferences: await notifications.preferences(accountId) });
+        } else if (request.method === 'GET' && path === '/api/notifications/preferences') {
+          sendJson(response, 200, { preferences: await notifications.preferences(accountId) });
+        } else if (request.method === 'PATCH' && path === '/api/notifications/preferences') {
+          await requireCurrentPlayConsent(accountId);
+          const body = await readJson(request);
+          if (!Object.keys(body).length || Object.keys(body).some(key =>
+            !['pushEnabled','rewardAvailable','couponExpiring','campaignExpiring'].includes(key) || typeof body[key] !== 'boolean')) {
+            throw new NotificationError('INVALID_NOTIFICATION');
+          }
+          sendJson(response, 200, { preferences: await notifications.updatePreferences(accountId, body as Partial<NotificationPreferences>) });
+        } else if (path === '/api/notifications/devices' && (request.method === 'POST' || request.method === 'DELETE')) {
+          if (request.method === 'POST') await requireCurrentPlayConsent(accountId);
+          const body = await readJson(request);
+          if (Object.keys(body).some(key => !(request.method === 'POST' ? ['deviceId','token','platform'] : ['deviceId']).includes(key))) {
+            throw new NotificationError('INVALID_NOTIFICATION');
+          }
+          const deviceId = requireString(body, 'deviceId');
+          if (request.method === 'POST') {
+            if (body.platform !== 'android') throw new NotificationError('INVALID_NOTIFICATION');
+            await notifications.registerDevice(accountId, deviceId, requireString(body, 'token'), body.platform, requireBearerToken(request));
+          } else await notifications.unregisterDevice(accountId, deviceId);
+          response.writeHead(204).end();
+        } else if (readMatch && request.method === 'POST') {
+          await notifications.markRead(accountId, decodePathParameter(readMatch[1]!));
+          response.writeHead(204).end();
+        } else throw new RequestError(404, 'NOT_FOUND');
+        return;
+      }
       if (request.method === 'GET' && request.url === '/me/play') {
         if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
         const accountId = await resolveAccountId(request);
@@ -1411,7 +1558,7 @@ export function createApiServer(
         if (!customerIdentities) throw new RequestError(503, 'CUSTOMER_IDENTITY_NOT_CONFIGURED');
         const staffAccountId = await resolveAccountId(request);
         const merchantId = decodePathParameter(identityResolveMatch[1]!);
-        await merchantAccess.requirePermission({ accountId: staffAccountId, merchantId, permission: 'CONFIRM_VISIT' });
+        await requireCustomerScan(staffAccountId, merchantId);
         const body = await readJson(request);
         sendJson(response, 200, await customerIdentities.resolve({
           token: requireString(body, 'customerIdentityToken'), merchantId, staffAccountId,
@@ -1426,7 +1573,7 @@ export function createApiServer(
         if (!badges) throw new RequestError(503, 'BADGE_REWARDS_NOT_CONFIGURED');
         const staffAccountId = await resolveAccountId(request);
         const merchantId = decodePathParameter((couponLookupMatch ?? couponRedeemMatch)![1]!);
-        await merchantAccess.requirePermission({ accountId: staffAccountId, merchantId, permission: 'CONFIRM_VISIT' });
+        await merchantAccess.requirePermission({ accountId: staffAccountId, merchantId, permission: 'REDEEM_COUPON' });
         const customerIdentityToken = requireIdentityTokenBody(await readJson(request));
         if (couponLookupMatch) {
           sendJson(response, 200, await badges.lookupCoupons({
@@ -1447,7 +1594,7 @@ export function createApiServer(
         if (!reversals) throw new RequestError(503, 'REVERSALS_NOT_CONFIGURED');
         const staffAccountId = await resolveAccountId(request);
         const merchantId = decodePathParameter(mobileReversal.merchantId);
-        await merchantAccess.requirePermission({ accountId: staffAccountId, merchantId, permission: 'CONFIRM_VISIT' });
+        await merchantAccess.requirePermission({ accountId: staffAccountId, merchantId, permission: mobileReversal.kind === 'recent-coupons' || mobileReversal.kind === 'undo-coupon' ? 'REDEEM_COUPON' : 'CONFIRM_VISIT' });
         sendJson(response, 200, await runReversalRoute(reversals, mobileReversal, merchantId, staffAccountId, request));
         return;
       }
@@ -1781,6 +1928,21 @@ export function createApiServer(
 
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
+      if (error instanceof ExperienceError) {
+        sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'EXPERIENCE_FRIEND_NOT_FOUND' ? 404
+          : error.code === 'EXPERIENCE_LOCKED' ? 403 : 400, { code: error.code });
+        return;
+      }
+      if (error instanceof NotificationError) {
+        sendJson(response, error.code === 'NOT_FOUND' ? 404 : 400, { code: error.code });
+        return;
+      }
+      if (error instanceof MerchantOperationError) {
+        sendJson(response, error.code === 'MERCHANT_OPERATION_FORBIDDEN' ? 403
+          : error.code === 'MERCHANT_OPERATION_NOT_FOUND' || error.code === 'MERCHANT_OPERATION_STAFF_NOT_FOUND' ? 404
+          : error.code === 'MERCHANT_OPERATION_CONFLICT' ? 409 : 400, { code: error.code });
+        return;
+      }
       if (error instanceof PlayError) {
         const status = error.code === 'ACCOUNT_DELETED' ? 410
           : error.code === 'PLAY_RUN_NOT_FOUND' || error.code === 'FRIEND_STUDIO_NOT_FOUND' ? 404
@@ -2716,6 +2878,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ? developmentHeaderReauthenticationGuard
       : undefined;
 
+  const fcmConfig = fcmConfigFromEnv();
+  const notifications = pool && accountLifecycle
+    ? new PostgresNotificationService(pool, { accountLifecycle, ...(fcmConfig ? { fcm: fcmConfig } : {}) }) : undefined;
   const server = createApiServer(
     configuredService(bindingStore, challengeStore),
     accountResolver,
@@ -2775,10 +2940,21 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       staffMayManageArt: aiArtConfig.staffMayManage,
       ...(accountLifecycle ? { accountLifecycle } : {}),
     }) : undefined,
+    {
+      collectionExperience: pool && accountLifecycle ? new PostgresCollectionExperienceService(pool, accountLifecycle) : undefined,
+      merchantOperations: pool && accountLifecycle ? new PostgresMerchantOperations(pool, { accountLifecycle }) : undefined,
+      notifications,
+    },
     pool && accountLifecycle && collection
       ? new PostgresStoreTicketService(pool, collection, accountLifecycle) : undefined,
     social,
-  ).listen(port, bindHost, () => {
+  );
+  let stopNotifications: (() => void) | undefined;
+  server.once('close', () => stopNotifications?.());
+  server.listen(port, bindHost, () => {
+    if (notifications) stopNotifications = startNotificationScheduler(notifications, {
+      onError: () => console.error('NOTIFICATION_SCHEDULER_FAILED'),
+    });
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });
   const notificationsRunner = social ? startNotificationsRunner(social, {

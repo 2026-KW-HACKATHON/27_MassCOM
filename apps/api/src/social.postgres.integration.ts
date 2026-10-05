@@ -105,9 +105,10 @@ async function setup(t: TestContext) {
   });
   await runMigrations(pool);
   await pool.query(
-    `TRUNCATE notification_outbox, push_tokens, social_mail, meal_invitations,
+    `TRUNCATE notification_deliveries, notification_items, notification_devices, notification_preferences,
+              notification_outbox, push_tokens, social_mail, meal_invitations,
               friendship_gifts, mileage_credits, friendships, explorer_profiles,
-              account_consents, account_deletion_requests, merchants CASCADE`,
+              auth_sessions, account_consents, account_deletion_requests, merchants CASCADE`,
   );
   const state = { now: new Date('2026-10-04T15:00:00.000Z') };
   const gateway = new StubGateway();
@@ -169,28 +170,28 @@ async function waitForAsync(condition: () => Promise<boolean>): Promise<void> {
   throw new Error('async condition was not reached');
 }
 
-test('migration 0044 creates social, mail, push, and credit tables with the required credit contract', async (t) => {
+test('migration 0050 creates social, mail, push, and credit tables with the required credit contract', async (t) => {
   const { pool } = await setup(t);
   await runMigrations(pool);
   const migrated = await pool.query<{ filename: string }>(
     `SELECT filename FROM schema_migrations
-     WHERE filename IN ('0043_campaign_extended_audit.sql', '0044_social_mail.sql',
-                        '0045_shop_draw_rewards.sql', '0046_store_ticket_openings.sql', '0047_notification_deliveries.sql',
-                        '0048_push_token_binding_revision.sql', '0049_notification_delivery_token_version.sql')
+     WHERE filename IN ('0043_campaign_extended_audit.sql', '0050_social_mail.sql',
+                        '0051_shop_draw_rewards.sql', '0052_store_ticket_openings.sql', '0053_social_notification_deliveries.sql',
+                        '0054_push_token_binding_revision.sql', '0055_notification_delivery_token_version.sql')
      ORDER BY filename`,
   );
   assert.deepEqual(migrated.rows.map((row) => row.filename), [
     '0043_campaign_extended_audit.sql',
-    '0044_social_mail.sql',
-    '0045_shop_draw_rewards.sql',
-    '0046_store_ticket_openings.sql',
-    '0047_notification_deliveries.sql',
-    '0048_push_token_binding_revision.sql',
-    '0049_notification_delivery_token_version.sql',
+    '0050_social_mail.sql',
+    '0051_shop_draw_rewards.sql',
+    '0052_store_ticket_openings.sql',
+    '0053_social_notification_deliveries.sql',
+    '0054_push_token_binding_revision.sql',
+    '0055_notification_delivery_token_version.sql',
   ]);
   for (const table of [
     'mileage_credits', 'friendship_gifts', 'social_mail', 'meal_invitations', 'push_tokens', 'notification_outbox',
-    'notification_deliveries',
+    'social_notification_deliveries',
   ]) {
     assert.equal((await pool.query(
       `SELECT count(*)::integer AS n FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1`,
@@ -200,7 +201,7 @@ test('migration 0044 creates social, mail, push, and credit tables with the requ
 
   const deliveryColumns = await pool.query<{ column_name: string }>(
     `SELECT column_name FROM information_schema.columns
-     WHERE table_schema = 'public' AND table_name = 'notification_deliveries'
+     WHERE table_schema = 'public' AND table_name = 'social_notification_deliveries'
        AND column_name IN ('authorized_at', 'push_token_id', 'binding_revision')
      ORDER BY column_name`,
   );
@@ -292,7 +293,7 @@ test('migration 0047 upgrades legacy outbox statuses and duplicate active tokens
       );
     }
 
-    await client.query(await readFile(new URL('../migrations/0047_notification_deliveries.sql', import.meta.url), 'utf8'));
+    await client.query(await readFile(new URL('../migrations/0053_social_notification_deliveries.sql', import.meta.url), 'utf8'));
 
     assert.deepEqual((await client.query<{ account_id: string; revoked: boolean }>(
       `SELECT account_id, revoked_at IS NOT NULL AS revoked FROM push_tokens ORDER BY account_id`,
@@ -303,7 +304,7 @@ test('migration 0047 upgrades legacy outbox statuses and duplicate active tokens
     const upgraded = await client.query<{ outbox_status: string; delivery_status: string; lease_id: string | null }>(
       `SELECT outbox.status AS outbox_status, delivery.status AS delivery_status, delivery.lease_id
        FROM notification_outbox outbox
-       LEFT JOIN notification_deliveries delivery ON delivery.outbox_id = outbox.id
+       LEFT JOIN social_notification_deliveries delivery ON delivery.outbox_id = outbox.id
        ORDER BY outbox.created_at, outbox.id`,
     );
     assert.equal(upgraded.rows.filter((row) => row.outbox_status === 'PENDING' && row.delivery_status === null).length, 1);
@@ -319,7 +320,7 @@ test('migration 0047 upgrades legacy outbox statuses and duplicate active tokens
 });
 
 
-test('migration 0048 upgrades duplicate active device rows before the unique binding index', async (t) => {
+test('migration 0054 upgrades duplicate active device rows before the unique binding index', async (t) => {
   const { pool, state } = await setup(t);
   const schema = `social_migration_${randomUUID().replaceAll('-', '_')}`;
   const client = await pool.connect();
@@ -346,7 +347,7 @@ test('migration 0048 upgrades duplicate active device rows before the unique bin
       [randomUUID(), randomUUID(), new Date(state.now.getTime() - 1_000), state.now],
     );
 
-    const sql = await readFile(new URL('../migrations/0048_push_token_binding_revision.sql', import.meta.url), 'utf8');
+    const sql = await readFile(new URL('../migrations/0054_push_token_binding_revision.sql', import.meta.url), 'utf8');
     await client.query(sql);
     await client.query(sql);
 
@@ -1255,7 +1256,7 @@ async function runReceiptRetryOverlapCase(t: TestContext, releaseReceiptFirst: b
   setupGateway.tickets.push({ status: 'ok', id: 'ticket-receipt-overlap' }, { status: 'ok', id: 'ticket-retry-overlap-old' });
   assert.equal((await setupSocial.flushNotifications({ limit: 1 })).sent, 2);
   await pool.query(
-    `UPDATE notification_deliveries
+    `UPDATE social_notification_deliveries
      SET status = 'RETRY', next_attempt_at = $2, lease_id = NULL, lease_expires_at = NULL, last_error_code = 'MessageRateExceeded'
      WHERE outbox_id = $1 AND token = 'ExpoPushToken[retry-overlap]'`,
     [outboxId, state.now],
@@ -1297,7 +1298,7 @@ async function runReceiptRetryOverlapCase(t: TestContext, releaseReceiptFirst: b
   }
 
   assert.deepEqual((await pool.query<{ token: string; status: string; expo_ticket_id: string | null }>(
-    `SELECT token, status, expo_ticket_id FROM notification_deliveries
+    `SELECT token, status, expo_ticket_id FROM social_notification_deliveries
      WHERE outbox_id = $1
      ORDER BY token`,
     [outboxId],
@@ -1357,7 +1358,7 @@ test('receipt terminal rollback keeps token active and receipt recoverable witho
   await assert.rejects(failing.reconcileReceipts({ limit: 1 }), /TEST_RECEIPT_COMPLETION_AFTER_TERMINAL/);
   assert.deepEqual((await pool.query<{ status: string; active: boolean }>(
     `SELECT delivery.status, token.revoked_at IS NULL AS active
-     FROM notification_deliveries delivery JOIN push_tokens token ON token.id = delivery.push_token_id
+     FROM social_notification_deliveries delivery JOIN push_tokens token ON token.id = delivery.push_token_id
      WHERE delivery.expo_ticket_id = 'ticket-rollback'`,
   )).rows, [{ status: 'PROCESSING', active: true }]);
 
@@ -1366,7 +1367,7 @@ test('receipt terminal rollback keeps token active and receipt recoverable witho
   assert.equal(gateway.messages.length, 1, 'receipt recovery does not resend through gateway');
   assert.deepEqual((await pool.query<{ status: string; active: boolean }>(
     `SELECT delivery.status, token.revoked_at IS NULL AS active
-     FROM notification_deliveries delivery JOIN push_tokens token ON token.id = delivery.push_token_id
+     FROM social_notification_deliveries delivery JOIN push_tokens token ON token.id = delivery.push_token_id
      WHERE delivery.expo_ticket_id = 'ticket-rollback'`,
   )).rows, [{ status: 'DEAD', active: false }]);
   assert.deepEqual((await pool.query<{
@@ -1385,7 +1386,7 @@ test('receipt completion waits with parent lock while retry dispatch blocks at S
   const setupSocial = new PostgresSocialService(pool, { accountLifecycle: lifecycle, appVariant: 'ANDROID', gateway: setupGateway, now: () => state.now });
   const outboxId = await seedTwoDeliveryOutbox(pool, setupSocial, setupGateway, state, 'alice', 'lock-boundary');
   await pool.query(
-    `UPDATE notification_deliveries SET status = 'RETRY', next_attempt_at = $2, lease_id = NULL, lease_expires_at = NULL
+    `UPDATE social_notification_deliveries SET status = 'RETRY', next_attempt_at = $2, lease_id = NULL, lease_expires_at = NULL
      WHERE outbox_id = $1 AND token = 'ExpoPushToken[lock-boundary-b]'`,
     [outboxId, state.now],
   );
@@ -1436,7 +1437,7 @@ test('receipt completion waits with parent lock while retry dispatch blocks at S
   sendGateway.resolveNext([{ status: 'ok', id: 'lock-boundary-ticket-b-new' }]);
   assert.deepEqual(await sendWork, { claimed: 1, sent: 1, retry: 0, dead: 0, skipped: 0 });
   assert.deepEqual((await pool.query<{ token: string; status: string; expo_ticket_id: string | null }>(
-    `SELECT token, status, expo_ticket_id FROM notification_deliveries WHERE outbox_id = $1 ORDER BY token`, [outboxId],
+    `SELECT token, status, expo_ticket_id FROM social_notification_deliveries WHERE outbox_id = $1 ORDER BY token`, [outboxId],
   )).rows, [
     { token: 'ExpoPushToken[lock-boundary-a]', status: 'SENT', expo_ticket_id: 'lock-boundary-ticket-a' },
     { token: 'ExpoPushToken[lock-boundary-b]', status: 'AWAITING_RECEIPT', expo_ticket_id: 'lock-boundary-ticket-b-new' },
@@ -1502,7 +1503,7 @@ test('unexpired live parent dispatch lease blocks later due retry until owner co
   const firstDue = state.now;
   const secondDue = new Date(state.now.getTime() + 10_000);
   await pool.query(
-    `UPDATE notification_deliveries
+    `UPDATE social_notification_deliveries
      SET status = 'RETRY', next_attempt_at = CASE WHEN token = 'ExpoPushToken[staggered-a]' THEN $2::timestamptz ELSE $3::timestamptz END,
          lease_id = NULL, lease_expires_at = NULL, expo_ticket_id = NULL
      WHERE outbox_id = $1`, [outboxId, firstDue, secondDue],
@@ -1532,7 +1533,7 @@ test('unexpired live parent dispatch lease blocks later due retry until owner co
   secondGateway.tickets.push({ status: 'ok', id: 'staggered-ticket-b-new' });
   assert.deepEqual(await secondSocial.flushNotifications({ limit: 1 }), { claimed: 1, sent: 1, retry: 0, dead: 0, skipped: 0 });
   assert.deepEqual((await pool.query<{ token: string; expo_ticket_id: string | null }>(
-    `SELECT token, expo_ticket_id FROM notification_deliveries WHERE outbox_id = $1 ORDER BY token`, [outboxId],
+    `SELECT token, expo_ticket_id FROM social_notification_deliveries WHERE outbox_id = $1 ORDER BY token`, [outboxId],
   )).rows, [
     { token: 'ExpoPushToken[staggered-a]', expo_ticket_id: 'staggered-ticket-a-new' },
     { token: 'ExpoPushToken[staggered-b]', expo_ticket_id: 'staggered-ticket-b-new' },
@@ -1574,7 +1575,7 @@ test('dispatch rechecks token revocation after preparation before authorization'
   assert.deepEqual(await flush, { claimed: 1, sent: 0, retry: 0, dead: 1, skipped: 1 });
   assert.equal(gateway.messages.length, 0);
   assert.deepEqual((await pool.query<{ n: number }>(
-    `SELECT count(*)::integer AS n FROM notification_deliveries
+    `SELECT count(*)::integer AS n FROM social_notification_deliveries
      WHERE token = 'ExpoPushToken[before-auth]' AND authorized_at IS NOT NULL`,
   )).rows[0]!.n, 0);
 });
@@ -1615,7 +1616,7 @@ test('dispatch authorization boundary distinguishes before-recheck revokes from 
   assert.deepEqual(await before.flushNotifications({ limit: 1 }), { claimed: 1, sent: 1, retry: 0, dead: 0, skipped: 0 });
   assert.deepEqual(beforeGateway.messages.map((message) => message.to), ['ExpoPushToken[after]']);
   assert.equal((await pool.query<{ n: number }>(
-    `SELECT count(*)::integer AS n FROM notification_deliveries
+    `SELECT count(*)::integer AS n FROM social_notification_deliveries
      WHERE token = 'ExpoPushToken[after]' AND authorized_at IS NOT NULL AND push_token_id IS NOT NULL`,
   )).rows[0]!.n, 1);
 });
@@ -1683,12 +1684,42 @@ test('account deletion removes push bindings and queued notification private sta
     deviceId: 'install-delete',
     bindingRevision: 2,
   });
+  const socialOutboxId = randomUUID();
   await pool.query(
     `INSERT INTO notification_outbox (id, account_id, event_type, payload, status, next_attempt_at)
      VALUES ($1, 'delete-social', 'MESSAGE',
        '{"title":"새 우편이 도착했어요","body":"친구 소식이 있어요","data":{"mailId":"delete","type":"MESSAGE"}}',
-       'PENDING', $2)`,
-    [randomUUID(), state.now],
+       'RETRY', $2)`,
+    [socialOutboxId, state.now],
+  );
+  await pool.query(
+    `INSERT INTO social_notification_deliveries (
+       id, outbox_id, account_id, app_variant, token, status, attempts, next_attempt_at, lease_generation
+     ) VALUES ($1, $2, 'delete-social', 'ANDROID', 'ExpoPushToken[delete-social]', 'RETRY', 1, $3, 0)`,
+    [randomUUID(), socialOutboxId, state.now],
+  );
+  const upstreamDeviceId = randomUUID();
+  const upstreamNotificationId = randomUUID();
+  await pool.query(
+    `INSERT INTO auth_sessions (id, account_id, token_hash, created_at, expires_at, last_authenticated_at)
+     VALUES ($1, 'delete-social', $2, $3, $4, $3)`,
+    [randomUUID(), Buffer.alloc(32, 7), state.now, new Date(state.now.getTime() + 86_400_000)],
+  );
+  await pool.query(`INSERT INTO notification_preferences (account_id, push_enabled) VALUES ('delete-social', true)`);
+  await pool.query(
+    `INSERT INTO notification_devices (device_id, account_id, session_id, token, platform)
+     SELECT $1, 'delete-social', id, 'fcm-delete-social', 'android' FROM auth_sessions WHERE account_id = 'delete-social'`,
+    [upstreamDeviceId],
+  );
+  await pool.query(
+    `INSERT INTO notification_items (id, account_id, category, dedupe_key, title, body, target_path)
+     VALUES ($1, 'delete-social', 'REWARD_AVAILABLE', 'delete-dual', '보상', '확인해 주세요', '/collection')`,
+    [upstreamNotificationId],
+  );
+  await pool.query(
+    `INSERT INTO notification_deliveries (id, notification_id, device_id, status)
+     VALUES ($1, $2, $3, 'PENDING')`,
+    [randomUUID(), upstreamNotificationId, upstreamDeviceId],
   );
 
   const deletion = new PostgresAccountDeletionService(pool, {
@@ -1699,7 +1730,18 @@ test('account deletion removes push bindings and queued notification private sta
   });
   await deletion.requestDeletion({ accountId: 'delete-social', confirmation: 'DELETE MY ACCOUNT' });
 
-  for (const table of ['push_tokens', 'notification_deliveries', 'notification_outbox']) {
+  for (const table of ['push_tokens', 'social_notification_deliveries', 'notification_outbox']) {
+    assert.deepEqual((await pool.query<{ n: number }>(
+      `SELECT count(*)::integer AS n FROM ${table} WHERE account_id = 'delete-social'`,
+    )).rows, [{ n: 0 }], table);
+  }
+  assert.deepEqual((await pool.query<{ n: number }>(
+    `SELECT count(*)::integer AS n
+     FROM notification_deliveries delivery
+     JOIN notification_items item ON item.id = delivery.notification_id
+     WHERE item.account_id = 'delete-social'`,
+  )).rows, [{ n: 0 }], 'notification_deliveries');
+  for (const table of ['notification_items', 'notification_devices', 'notification_preferences']) {
     assert.deepEqual((await pool.query<{ n: number }>(
       `SELECT count(*)::integer AS n FROM ${table} WHERE account_id = 'delete-social'`,
     )).rows, [{ n: 0 }], table);
@@ -1725,7 +1767,7 @@ test('receipt reconciliation keeps missing receipts waiting and retries retryabl
   gateway.receipts.set('ticket-retry', { status: 'error', code: 'MessageRateExceeded', retryable: true });
   assert.deepEqual(await social.reconcileReceipts({ limit: 10 }), { checked: 2, delivered: 0, retry: 1, dead: 0 });
   const rows = await pool.query<{ status: string; expo_ticket_id: string }>(
-    `SELECT status, expo_ticket_id FROM notification_deliveries ORDER BY expo_ticket_id`,
+    `SELECT status, expo_ticket_id FROM social_notification_deliveries ORDER BY expo_ticket_id`,
   );
   assert.deepEqual(rows.rows, [
     { status: 'AWAITING_RECEIPT', expo_ticket_id: 'ticket-missing' },
@@ -1753,7 +1795,7 @@ test('dead receipts only revoke the exact authorized token binding version', asy
   gateway.tickets.push({ status: 'ok', id: 'ticket-old-binding' });
   assert.equal((await social.flushNotifications({ limit: 10 })).sent, 1);
   assert.deepEqual((await pool.query<{ token: string; push_token_id: string | null; binding_revision: number | null }>(
-    `SELECT token, push_token_id, binding_revision FROM notification_deliveries WHERE expo_ticket_id = 'ticket-old-binding'`,
+    `SELECT token, push_token_id, binding_revision FROM social_notification_deliveries WHERE expo_ticket_id = 'ticket-old-binding'`,
   )).rows, [{ token: 'ExpoPushToken[reuse]', push_token_id: (await pool.query<{ id: string }>(
     `SELECT id FROM push_tokens WHERE token = 'ExpoPushToken[reuse]'`,
   )).rows[0]!.id, binding_revision: 1 }]);
@@ -1797,10 +1839,10 @@ test('stale receipt lease cannot mutate delivery state or revoke its token', asy
   const pending = social.reconcileReceipts({ limit: 10 });
   await waitFor(() => gateway.requestedTicketIds.includes('ticket-stale-receipt'));
   const claimed = await pool.query<{ lease_id: string; lease_generation: number }>(
-    `SELECT lease_id, lease_generation FROM notification_deliveries WHERE expo_ticket_id = 'ticket-stale-receipt'`,
+    `SELECT lease_id, lease_generation FROM social_notification_deliveries WHERE expo_ticket_id = 'ticket-stale-receipt'`,
   );
   await pool.query(
-    `UPDATE notification_deliveries
+    `UPDATE social_notification_deliveries
      SET lease_id = 'newer-receipt-lease', lease_generation = lease_generation + 1
      WHERE expo_ticket_id = 'ticket-stale-receipt'`,
   );
@@ -1809,7 +1851,7 @@ test('stale receipt lease cannot mutate delivery state or revoke its token', asy
   assert.notEqual(claimed.rows[0]!.lease_id, 'newer-receipt-lease');
   assert.deepEqual((await pool.query<{ status: string; lease_id: string; active: boolean }>(
     `SELECT delivery.status, delivery.lease_id, token.revoked_at IS NULL AS active
-     FROM notification_deliveries delivery
+     FROM social_notification_deliveries delivery
      JOIN push_tokens token ON token.id = delivery.push_token_id
      WHERE delivery.expo_ticket_id = 'ticket-stale-receipt'`,
   )).rows, [{ status: 'PROCESSING', lease_id: 'newer-receipt-lease', active: true }]);
@@ -1828,7 +1870,7 @@ test('legacy synthetic receipt evidence never revokes current real tokens', asyn
     [outboxId, state.now],
   );
   await pool.query(
-    `INSERT INTO notification_deliveries (
+    `INSERT INTO social_notification_deliveries (
        id, outbox_id, account_id, app_variant, token, status, attempts, next_attempt_at,
        lease_generation, expo_ticket_id, created_at, updated_at
      ) VALUES ($1, $2, 'alice', 'ANDROID', $3, 'AWAITING_RECEIPT', 0, $4, 0, 'ticket-legacy', $4, $4)`,
@@ -1878,7 +1920,7 @@ test('slow gateway completion is fenced after lease expiry and second runner rec
   blockingGateway.resolveNext([{ status: 'ok', id: 'ticket-first-stale' }]);
   assert.deepEqual(await firstFlush, { claimed: 1, sent: 0, retry: 0, dead: 0, skipped: 0 });
   const tickets = await pool.query<{ expo_ticket_id: string | null; status: string }>(
-    `SELECT expo_ticket_id, status FROM notification_deliveries ORDER BY updated_at DESC LIMIT 1`,
+    `SELECT expo_ticket_id, status FROM social_notification_deliveries ORDER BY updated_at DESC LIMIT 1`,
   );
   assert.deepEqual(tickets.rows[0], { expo_ticket_id: 'ticket-second', status: 'AWAITING_RECEIPT' });
 });
@@ -1902,6 +1944,6 @@ test('outbox leases recover after restart and stop new duplicate claims while a 
   assert.equal(retried.retry, 1);
   const row = await pool.query<{ status: string }>('SELECT status FROM notification_outbox');
   assert.deepEqual(row.rows[0], { status: 'RETRY' });
-  const delivery = await pool.query<{ status: string; attempts: number }>('SELECT status, attempts FROM notification_deliveries');
+  const delivery = await pool.query<{ status: string; attempts: number }>('SELECT status, attempts FROM social_notification_deliveries');
   assert.deepEqual(delivery.rows[0], { status: 'RETRY', attempts: 1 });
 });

@@ -69,7 +69,7 @@ test('a new account is asked, agreeing records versions, time and source, and a 
   const [first] = await rows(pool, 'customer-1');
   assert.deepEqual(
     { terms: first!.terms_version, privacy: first!.privacy_version, source: first!.source, at: first!.agreed_at.toISOString() },
-    { terms: 'terms-2026-09-30', privacy: CURRENT_PRIVACY_VERSION, source: 'ANDROID', at: '2026-10-04T01:00:00.000Z' },
+    { terms: CURRENT_TERMS_VERSION, privacy: CURRENT_PRIVACY_VERSION, source: 'ANDROID', at: '2026-10-04T01:00:00.000Z' },
   );
 
   // Agreeing again, even through another route later, keeps the first time and route (idempotent).

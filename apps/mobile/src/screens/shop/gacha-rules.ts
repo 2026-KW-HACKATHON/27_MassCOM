@@ -57,3 +57,8 @@ export function gachaTimeline(reduceMotion: boolean): Readonly<Record<GachaStage
   if (!reduceMotion) return stageDurations;
   return { crank: 0, shake: 0, drop: 0, wobble: 0, split: 0, burst: 0, pop: 0 };
 }
+
+export function themePackName(grade: MileageGrade): string {
+  return { BRONZE: '카페 산책 팩', SILVER: '빵집 골목 팩', GOLD: '밤시장 탐험 팩' }[grade];
+}
+export const cosmeticSequenceDisclosure = '미보유 꾸미기 1개 확정 · 모자 → 소품 → 장식 순서로 받아요.';

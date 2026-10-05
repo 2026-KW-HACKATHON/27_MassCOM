@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { gameDurationMs, getGameBoard, minimumActionGapMs, minimumCompletedElapsedMs, scoreRun, scoreRunAtElapsed, stackCursor } from './play-rules.js';
+import { evaluateGameSkill, gameDurationMs, getGameBoard, legacyGameAchievementScore, minimumActionGapMs, minimumCompletedElapsedMs, scoreRun, scoreRunAtElapsed, stackCursor } from './play-rules.js';
 
 test('boards are deterministic and each game has its own input model', () => {
   for (const kind of ['stack', 'memory', 'delivery', 'orders'] as const) {
@@ -134,4 +134,43 @@ test('delivery final sample may repeat the current lane immediately after a move
   assert.throws(() => scoreRunAtElapsed('delivery', 17,
     [{ at: 1000, choice: 2 }, { at: 23999, choice: 0 }, { at: 24000, choice: 1 }], 24000),
   /INVALID_GAME_ACTIONS/);
+});
+
+test('four skill achievements depend on distinct server-scored actions', () => {
+  const seed = 17;
+  const stack = getGameBoard('stack', seed);
+  if (stack.kind !== 'stack') throw new Error('wrong board');
+  const stackActions = stack.rounds.map((round, index) => {
+    const start = index * 3000;
+    for (let at = start; at <= gameDurationMs; at++) {
+      if (Math.abs(stackCursor(round, at) - round.target) <= 4) return { at, choice: 0 };
+    }
+    throw new Error('missing target');
+  });
+  assert.equal(evaluateGameSkill('stack', seed, stackActions).achieved, true);
+  assert.equal(evaluateGameSkill('stack', seed, stackActions.slice(0, 2)).achieved, false);
+
+  const memory = getGameBoard('memory', seed);
+  if (memory.kind !== 'memory') throw new Error('wrong board');
+  const pairs = [...new Set(memory.cards)].flatMap((symbol) => memory.cards.flatMap((card, index) =>
+    card === symbol ? [index] : []));
+  const memoryActions = pairs.map((choice, index) => ({ at: index * 100, choice }));
+  assert.equal(evaluateGameSkill('memory', seed, memoryActions).achieved, true);
+  const withTwoMisses = [pairs[0]!, pairs[2]!, pairs[0]!, pairs[4]!, ...pairs].map((choice, index) => ({ at: index * 100, choice }));
+  assert.equal(evaluateGameSkill('memory', seed, withTwoMisses).achieved, false);
+
+  const delivery = getGameBoard('delivery', seed);
+  if (delivery.kind !== 'delivery') throw new Error('wrong board');
+  const safe = delivery.ticks.map((tick) => ({ at: tick.at, choice: tick.bonusLane }));
+  assert.equal(evaluateGameSkill('delivery', seed, safe).achieved, true);
+  const collided = safe.map((action, index) => index === 5 ? { ...action, choice: delivery.ticks[index]!.blockedLane } : action);
+  assert.equal(evaluateGameSkill('delivery', seed, collided).achieved, false);
+
+  const orders = getGameBoard('orders', seed);
+  if (orders.kind !== 'orders') throw new Error('wrong board');
+  const correct = orders.orders.flat().map((choice, index) => ({ at: index * 150, choice }));
+  assert.equal(evaluateGameSkill('orders', seed, correct).achieved, true);
+  const broken = correct.map((action, index) => index === 5 ? { ...action, choice: (action.choice + 1) % 4 } : action);
+  assert.equal(evaluateGameSkill('orders', seed, broken).achieved, false);
+  assert.deepEqual(legacyGameAchievementScore, { stack: 600, memory: 600, delivery: 1200, orders: 1125 });
 });

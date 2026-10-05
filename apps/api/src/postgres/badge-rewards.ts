@@ -29,6 +29,7 @@ import {
 import { CustomerIdentityError } from '../customer-identity.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { isCustomerIdentityToken, resolveBoundCustomerIdentity } from './customer-identity.js';
+import { requireActiveMerchantMember } from './merchant-membership.js';
 
 type OfferRow = {
   id: string;
@@ -339,6 +340,7 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
       await client.query('BEGIN');
       const now = this.now();
       const identity = await this.resolveIdentity(client, input, now);
+      await requireActiveMerchantMember(client, input.merchantId, input.staffAccountId, 'REDEEM_COUPON');
       if (!uuidPattern.test(input.couponId)) throw new BadgeRewardError('COUPON_NOT_FOUND');
       // 다른 고객·다른 점포·없는 쿠폰은 조건에 맞는 행이 없어 구분 없이 같은 404가 된다.
       const found = await client.query<CouponRow>(

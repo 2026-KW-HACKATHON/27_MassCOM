@@ -268,6 +268,10 @@ async function pseudonymizeAccount(
   await client.query('DELETE FROM play_runs WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM play_records WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM studios WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM collection_experience_profiles WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM notification_items WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM notification_devices WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM notification_preferences WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM wallet_challenges WHERE account_id = $1', [accountId]);
   // Sessions are deleted, not just revoked: a revoked row would keep the raw account id. A leaked token then finds no
   // row and fails as SESSION_INVALID / WEB_SESSION_INVALID, and the account tombstone still refuses anything that
@@ -283,6 +287,15 @@ async function pseudonymizeAccount(
   await client.query(`UPDATE staff_registration_audit SET actor_account_id = $1
     WHERE actor_account_id = $2`, [deletedAlias, accountId]);
   await client.query(`UPDATE staff_registration_audit SET target_account_id = $1
+    WHERE target_account_id = $2`, [deletedAlias, accountId]);
+  // Keep the merchant action trail, but remove the deleted identity from both scalar fields and JSON snapshots.
+  await client.query(`UPDATE merchant_campaign_extension_audit SET actor_account_id = $1
+    WHERE actor_account_id = $2`, [deletedAlias, accountId]);
+  await client.query(`UPDATE merchant_staff_action_audit SET actor_account_id = $1
+    WHERE actor_account_id = $2`, [deletedAlias, accountId]);
+  await client.query(`UPDATE merchant_staff_action_audit SET target_account_id = $1,
+    before_permissions = before_permissions - 'accountId',
+    after_permissions = after_permissions - 'accountId'
     WHERE target_account_id = $2`, [deletedAlias, accountId]);
   await client.query(
     'UPDATE platform_admin_role_audit SET target_account_id = $1 WHERE target_account_id = $2',
@@ -385,7 +398,7 @@ async function pseudonymizeAccount(
   // 친구 데이터는 가명으로 남기지 않고 지운다: 이 계정의 코드·별명·코드 입력 실패 기록과 양쪽 친구 관계·차단.
   // 친구 추가는 같은 계정 잠금을 잡으므로(assertAllActive) 이 거래와 직렬화되어 삭제 뒤에 관계가 생기지 않는다.
   // 우편 상대방의 복사본과 발송 대기도 함께 지운다. 본문·정확한 식사 시각·토큰을 삭제 계정에 남기지 않는다.
-  await client.query('DELETE FROM notification_deliveries WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM social_notification_deliveries WHERE account_id = $1', [accountId]);
   await client.query(`DELETE FROM notification_outbox WHERE account_id = $1 OR mail_id IN
     (SELECT id FROM social_mail WHERE sender_account_id = $1 OR receiver_account_id = $1)`, [accountId]);
   await client.query('DELETE FROM social_mail WHERE sender_account_id = $1 OR receiver_account_id = $1', [accountId]);

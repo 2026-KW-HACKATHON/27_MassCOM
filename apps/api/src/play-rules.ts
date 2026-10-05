@@ -1,6 +1,17 @@
 export const gameKinds = ['stack', 'memory', 'delivery', 'orders'] as const;
 export type GameKind = (typeof gameKinds)[number];
 export type GameAction = { at: number; choice: number };
+export const gameSkills = {
+  stack: { id: 'stack-precision', target: 3 },
+  memory: { id: 'match-efficient', target: 6 },
+  delivery: { id: 'delivery-clean', target: 12 },
+  orders: { id: 'order-streak', target: 8 },
+} as const;
+export type GameSkill = { id: (typeof gameSkills)[GameKind]['id']; progress: number; target: number; achieved: boolean };
+// These scores prove the skill even for runs saved before skill details existed.
+export const legacyGameAchievementScore: Readonly<Record<GameKind, number>> = {
+  stack: 600, memory: 600, delivery: 1200, orders: 1125,
+};
 export type PlayRun = { id: string; kind: GameKind; seed: number; startedAt: string; expiresAt: string; durationMs: number; rulesVersion: 1 };
 
 export const gameDurationMs = 30_000;
@@ -152,4 +163,32 @@ export function scoreRunAtElapsed(kind: GameKind, seed: number, actions: readonl
     throw new Error('INVALID_GAME_ACTIONS');
   }
   return score;
+}
+
+export function evaluateGameSkill(kind: GameKind, seed: number, actions: readonly GameAction[],
+  scored = scoreRun(kind, seed, actions)): GameSkill {
+  const board = getGameBoard(kind, seed);
+  let progress = 0;
+  if (board.kind === 'stack') {
+    let streak = 0;
+    actions.forEach((action, index) => {
+      streak = Math.abs(stackCursor(board.rounds[index]!, action.at) - board.rounds[index]!.target) <= 4 ? streak + 1 : 0;
+      progress = Math.max(progress, streak);
+    });
+  } else if (board.kind === 'memory') {
+    const misses = (actions.length / 2) - scored.correct;
+    progress = Math.max(0, scored.correct - Math.max(0, misses - 1));
+  } else if (board.kind === 'delivery') {
+    progress = scored.correct;
+  } else {
+    let streak = 0;
+    const targets = board.orders.flat();
+    actions.forEach((action, index) => {
+      streak = action.choice === targets[index] ? streak + 1 : 0;
+      progress = Math.max(progress, streak);
+    });
+  }
+  const definition = gameSkills[kind];
+  return { id: definition.id, progress: Math.min(progress, definition.target), target: definition.target,
+    achieved: scored.completed && progress >= definition.target };
 }

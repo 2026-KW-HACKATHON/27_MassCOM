@@ -34,10 +34,10 @@ test('push binding protects account and token rotation with stored binding and g
   assert.match(source, /addPushTokenListener/);
   assert.match(source, /registerNativeToken\(token, ticket, revocationTicket\)/);
   assert.match(source, /getExpoPushTokenAsync\(\{ projectId: latest\.projectId, devicePushToken \}\)/);
-  assert.match(source, /getLastNotificationResponseAsync/);
-  assert.match(source, /mailIdPattern\.test\(data\.mailId\)/);
-  assert.match(source, /clearLastNotificationResponseAsync\?\.\(\)/);
-  assert.match(source, /notificationResponseKey\(response, mailId\)/);
+  assert.match(source, /getLastNotificationResponse/);
+  assert.match(source, /notificationResponseIdentity\(lastResponse, 'social'\)/);
+  assert.match(source, /clearLastNotificationResponseIfCurrent\(Notifications, lastIdentity\)/);
+  assert.match(source, /notificationResponseIdentityKey\(identity\)/);
   assert.match(source, /handledResponseKeys\.current\.has\(responseKey\)/);
   assert.match(source, /revokeSocialPushBindings/);
   assert.match(source, /beginSocialPushBindingRevocation/);

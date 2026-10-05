@@ -15,7 +15,7 @@ import { friendArt, ticketArt } from '@/shop/shop-art';
 import { AvatarWardrobe, equippedClothingArt } from '@/shop/wardrobe';
 import { drawRewardDisclosure, rerollDisclosure } from '@/shop/shop-rules';
 
-import { gachaAffordability, gachaNextRewardPhase, gachaPhaseAfter, gachaRewardDelayMs, gachaTimeline, isNewDraw, type GachaPhase, type GachaRewardPhase, type GachaStage } from './gacha-rules';
+import { cosmeticSequenceDisclosure, gachaAffordability, gachaNextRewardPhase, gachaPhaseAfter, gachaRewardDelayMs, gachaTimeline, isNewDraw, type GachaPhase, type GachaRewardPhase, type GachaStage } from './gacha-rules';
 
 type Props = {
   snapshot: ShopSnapshot;
@@ -28,6 +28,8 @@ type Props = {
   avatarBusy: boolean;
   avatarError?: string;
   isAvatar?: boolean;
+  wishId?: string | null;
+  onWish?: (itemId: string | null) => void;
   onDraw: (grade: ShopGradeView) => Promise<boolean>;
   onSetAvatar: () => void;
   onClose: () => void;
@@ -44,7 +46,7 @@ const stages: GachaStage[] = ['crank', 'shake', 'drop', 'wobble', 'split', 'burs
 
 /** The same full-screen purchase experience opens from the shop and the visit reward reel. */
 export function GachaMachine({ snapshot, result, selectedGrade, ownedBefore, busy, error, refreshing, avatarBusy, avatarError, isAvatar,
-  onDraw, onSetAvatar, onClose, onRefresh, onOpenStudio }: Props) {
+  wishId, onWish, onDraw, onSetAvatar, onClose, onRefresh, onOpenStudio }: Props) {
   const insets = useSafeAreaInsets();
   const motionAllowed = useMotionEnabled();
   useDrawMusic();
@@ -76,6 +78,7 @@ export function GachaMachine({ snapshot, result, selectedGrade, ownedBefore, bus
   const availability = gachaAffordability(snapshot.mileage.balance, snapshot.grades, ownedByGrade);
   const canRepeat = availability.some((entry) => entry.enabled);
   const selected = snapshot.grades.find((item) => item.grade === selectedGrade) ?? snapshot.grades[0]!;
+  void onWish;
   const selectedAvailability = availability.find((entry) => entry.grade === selected.grade)!;
   const grade = result?.item.grade ?? drawing?.grade ?? selected.grade;
   const tone = gradeStyle[grade];
@@ -223,9 +226,12 @@ export function GachaMachine({ snapshot, result, selectedGrade, ownedBefore, bus
                 <Text style={styles.rewardLine}>마일리지 {snapshot.drawRewards.bonusMileage.min}-{snapshot.drawRewards.bonusMileage.max}P</Text>
                 <Text style={styles.rewardLine}>아바타 옷 0-1개</Text>
                 <Text style={styles.rewardLine}>캐릭터 1명</Text>
+                <Text style={styles.rewardLine}>추가 꾸미기 별도 보너스</Text>
               </View>
+              {wishId ? <Text accessibilityLiveRegion="polite" style={styles.description}>목표 친구를 표시했어요. 뽑기 확률은 같은 등급의 미보유 친구에게 동일해요.</Text> : null}
               <Text style={styles.description}>{rerollDisclosure(selected)}</Text>
               <Text style={styles.description}>{drawRewardDisclosure(snapshot)}</Text>
+              <Text style={styles.description}>{cosmeticSequenceDisclosure}</Text>
               {selectedAvailability.reason ? <Text style={styles.error}>{selectedAvailability.reason}</Text> : null}
               <Control
                 label={`${selected.price.toLocaleString('ko-KR')} 마일리지`}
@@ -262,7 +268,7 @@ export function GachaMachine({ snapshot, result, selectedGrade, ownedBefore, bus
                   {isNewDraw(result.item, ownedBefore) && (displayPhase === 'reward-character' || displayPhase === 'result') ? <Text style={styles.newBadge}>NEW</Text> : null}
                   {displayPhase === 'reward-mileage' ? <MileageReward amount={result.rewards.mileage.amount} onNext={revealNext} /> : null}
                   {displayPhase === 'reward-clothing' ? <ClothingReward result={result} onNext={revealNext} /> : null}
-                  {displayPhase === 'reward-character' ? <CharacterReward result={result} onNext={revealNext} /> : null}
+                  {displayPhase === 'reward-character' ? <CharacterReward result={result} wished={wishId === result.item.id} onNext={revealNext} /> : null}
                   {displayPhase === 'result' ? <ResultSummary result={result} tone={tone} ownedBefore={ownedBefore} /> : null}
                 </Animated.View>
               </View>}
@@ -322,13 +328,13 @@ function ClothingReward({ result, onNext }: { result: ShopRerollResult; onNext: 
   </>;
 }
 
-function CharacterReward({ result, onNext }: { result: ShopRerollResult; onNext: () => void }) {
+function CharacterReward({ result, wished, onNext }: { result: ShopRerollResult; wished?: boolean; onNext: () => void }) {
   return <>
     <Text style={styles.rewardKicker}>3 / 3</Text>
     <Text style={styles.rewardTitle}>새 친구</Text>
     {friendArt[result.item.id] ? <Image source={friendArt[result.item.id]} style={styles.character} resizeMode="contain" accessible={false} /> : <Text style={styles.missingCharacter}>?</Text>}
     <Text style={styles.characterName}>{result.item.name}</Text>
-    <Text style={styles.description}>내 공간에서 함께 놀고, 가게를 탐험해요.</Text>
+    <Text style={styles.description}>{wished ? '기다리던 동행을 만났어요!' : '내 공간에서 함께 놀고, 가게를 탐험해요.'}</Text>
     <Control label="최종 결과 보기" primary onPress={onNext} />
   </>;
 }
@@ -340,6 +346,7 @@ function ResultSummary({ result, tone, ownedBefore }: { result: ShopRerollResult
     <Text style={styles.rewardStep}>1. 마일리지 +{result.rewards.mileage.amount}P</Text>
     <Text style={styles.rewardStep}>2. 옷 {result.rewards.clothing.item ? `${result.rewards.clothing.item.name}${result.rewards.clothing.duplicate ? ' (이미 보유)' : ''}` : '이번에는 없음'}</Text>
     <Text style={styles.rewardStep}>3. 캐릭터 {result.item.name}</Text>
+    {result.bonus ? <Text style={styles.rewardStep}>추가 꾸미기 {result.bonus.name}</Text> : null}
     {friendArt[result.item.id] ? <Image source={friendArt[result.item.id]} style={styles.summaryCharacter} resizeMode="contain" accessible={false} /> : <Text style={styles.missingCharacter}>?</Text>}
     <Text style={[styles.characterName, { color: tone.color }]}>{result.item.name}</Text>
     <Text style={styles.resultBalance}>남은 마일리지 {result.balance.toLocaleString('ko-KR')}P</Text>

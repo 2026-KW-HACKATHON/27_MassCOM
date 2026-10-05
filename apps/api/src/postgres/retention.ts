@@ -10,6 +10,8 @@ export type RetentionStepName =
   | 'admin_owner_audit'
   | 'admin_role_audit'
   | 'staff_registration_audit'
+  | 'merchant_campaign_extension_audit'
+  | 'merchant_staff_action_audit'
   | 'coupon_audit'
   | 'customer_identity_tokens'
   | 'wallet_challenges'
@@ -65,6 +67,8 @@ const steps: readonly Step[] = [
   },
   { name: 'admin_role_audit', table: 'platform_admin_role_audit', where: `created_at < ${threeYearsAgo}` },
   { name: 'staff_registration_audit', table: 'staff_registration_audit', where: `created_at < ${threeYearsAgo}` },
+  { name: 'merchant_campaign_extension_audit', table: 'merchant_campaign_extension_audit', where: `created_at < ${oneYearAgo}` },
+  { name: 'merchant_staff_action_audit', table: 'merchant_staff_action_audit', where: `created_at < ${threeYearsAgo}` },
   // 읽는 곳은 쿠폰 사용 되돌리기의 멱등 재시도 한 곳(10분 창)뿐이라 1년 지난 행은 필요 없다.
   { name: 'coupon_audit', table: 'badge_coupon_audit', where: `created_at < ${oneYearAgo}` },
   // 계정 식별자를 가질 수 있는 일회용 행. 모두 몇 분~15분 안에 쓰이고 만료되며, 만료 뒤에는 읽는 곳이 없다(만료 행을 쓰는 쪽은

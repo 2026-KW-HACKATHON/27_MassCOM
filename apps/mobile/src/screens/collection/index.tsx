@@ -78,7 +78,7 @@ import { useCollectionStyles } from './use-collection-styles';
  * live readiness outside of a render, so this catches its own documented failure instead of guessing beforehand.
  * The params are only being cleared as tidy-up here; if the navigator is gone there is nothing left to clear.
  */
-function clearCollectionFocusParams(router: ReturnType<typeof useRouter>, params: { focus: undefined; entitlement?: undefined }): void {
+function clearCollectionFocusParams(router: ReturnType<typeof useRouter>, params: { focus?: undefined; entitlement?: undefined; coupon?: undefined }): void {
   try {
     router.setParams(params);
   } catch (caught) {
@@ -121,7 +121,7 @@ export function CollectionScreen({
   );
   const badges = useBadgeBook(badgeApi);
   const router = useRouter();
-  const { focus, entitlement } = useLocalSearchParams<{ focus?: string; entitlement?: string | string[] }>();
+  const { focus, entitlement, coupon } = useLocalSearchParams<{ focus?: string; entitlement?: string | string[]; coupon?: string | string[] }>();
   const scrollView = useRef<ScrollView>(null);
   const materialScrollY = useSharedValue(0);
   // #314: only sky()'s loading/error scene uses this (the loaded album below uses `scrollView` above).
@@ -294,6 +294,18 @@ export function CollectionScreen({
   const legacyCollectibles = useMemo(() => ungroupedCollectibles(collection?.collectibles ?? []), [collection]);
   const detailMedal = badges.book?.medals.find((medal) => medal.kind === detailKind);
   const coupons = couponsOf(badges.book);
+
+  // Notification links open only a coupon returned by this account's own badge book.
+  useEffect(() => {
+    if (!badges.book || coupon === undefined) return;
+    const selected = typeof coupon === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(coupon)
+      ? couponsOf(badges.book).find(item => item.couponId === coupon) : undefined;
+    const frame = requestAnimationFrame(() => {
+      clearCollectionFocusParams(router, { coupon: undefined });
+      if (selected) setUsingCoupon(selected);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [badges.book, coupon, router]);
 
   useEffect(() => {
     let active = true;

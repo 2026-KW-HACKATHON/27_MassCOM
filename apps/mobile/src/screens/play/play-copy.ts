@@ -8,3 +8,10 @@ export const gameCopy: Record<GameKind, { title: string; tag: string; rule: stri
 };
 
 export const themeNames: Record<string, string> = { daylight: '햇살 방', evening: '노을 방', garden: '정원 방' };
+
+export const skillCopy: Record<GameKind, { badge: string; goal: string; reward: string; metric: string }> = {
+  stack: { badge: '균형의 달인', goal: '중앙에서 4칸 이내로 3번 연속 놓기', reward: '균형의 달인 포즈', metric: '연속 정밀 배치' },
+  memory: { badge: '기억의 달인', goal: '틀린 짝 1번 이하로 6쌍 맞히기', reward: '기억의 달인 카드 소품', metric: '효율적인 짝' },
+  delivery: { badge: '배달의 달인', goal: '12구간 모두 충돌 없이 완주하기', reward: '배달의 달인 가방', metric: '충돌 없는 구간' },
+  orders: { badge: '주문 박사', goal: '8개 메뉴를 연속으로 정확히 고르기', reward: '주문 박사 장식', metric: '연속 정답' },
+};

@@ -6,6 +6,7 @@ import { Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View, us
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { useExperience } from '@/experience/use-experience';
 import type { StoredAuthSessionV1 } from '@/auth/session-store';
 import { guestTrialAccountLabel, guestTrialRestartLabel, guestTrialRestartConfirmation } from '@/auth/guest-trial-copy';
 import { accountContextLabel } from '@/config/app-context';
@@ -53,6 +54,7 @@ export function AccountSettingsScreen({
   apiUrl,
   accountId,
   credential,
+  onSessionInvalid,
   destructiveReauthentication,
   canSwitchAccount,
   onLogout,
@@ -65,6 +67,7 @@ export function AccountSettingsScreen({
   apiUrl: string;
   accountId: string;
   credential: AccountCredential;
+  onSessionInvalid: () => Promise<void>;
   destructiveReauthentication: DestructiveReauthentication;
   canSwitchAccount: boolean;
   onLogout: () => Promise<void>;
@@ -81,6 +84,7 @@ export function AccountSettingsScreen({
   const world = worldForScheme(scheme);
   const styles = StyleSheet.create(makeAccountSettingsStyles(palette, world, StyleSheet.hairlineWidth));
   const soundSettings = useUiSoundSettings();
+  const experience = useExperience(apiUrl, credential, onSessionInvalid);
   const capability = deletionCapability(credential, destructiveReauthentication);
   const client = useMemo(
     () => capability.allowed ? new AccountDeletionApiClient({ apiUrl, credential }) : undefined,
@@ -304,6 +308,8 @@ export function AccountSettingsScreen({
                 ? `${accountContextLabel(getAppPackageId())} 세션` : '개발 DEMO'}
             </Text>
             {session?.guest ? <Text selectable style={styles.intro}>{guestTrialAccountLabel(session.expiresAt)}</Text> : null}
+            {experience.snapshot ? <Text style={styles.intro}>대표 배지 {experience.snapshot.catalog.badges.find((badge) => badge.id === experience.snapshot?.profile.badgeId)?.name ?? '미장착'} · 대표 코인 {experience.snapshot.profile.coinEntitlementId ? '설정됨' : '미설정'}</Text> : null}
+            <Link href="/studio" asChild><Pressable accessibilityRole="button"><Text style={styles.intro}>아바타와 배지 꾸미기 ›</Text></Pressable></Link>
           </View>
           {credential.kind === 'bearer' ? <View style={styles.sessionActions}>
             <Host matchContents seedColor={palette.primary} style={styles.sessionButtonHost}>
@@ -354,6 +360,11 @@ export function AccountSettingsScreen({
       <FloatingCard style={styles.groupCard}>
         <Text style={styles.sectionTitle}>친구</Text>
         <Text selectable style={styles.intro}>친구 코드를 주고받고 순위를 봐요.</Text>
+        <Link href={'/notifications' as never} asChild>
+          <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.secondaryLink, { borderColor: palette.primary }])}>
+            <Text style={[styles.secondaryLinkText, { color: palette.primary }]}>알림함·푸시 설정 →</Text>
+          </Pressable>
+        </Link>
         <Link href="/friends" asChild>
           <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.secondaryLink, { borderColor: palette.primary }])}>
             <Text style={[styles.secondaryLinkText, { color: palette.primary }]}>친구 코드·순위 보기 →</Text>

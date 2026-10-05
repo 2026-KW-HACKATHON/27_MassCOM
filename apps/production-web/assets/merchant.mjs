@@ -17,6 +17,7 @@ const creatorScopes = new WeakMap();
 // 지금 제작기가 열려 있는 점포 ID.
 const creatorStores = new WeakMap();
 const merchantMemberships = new WeakMap();
+const operationBindings = new WeakMap();
 
 // reason은 제작기의 dispose(reason)에 그대로 전달된다: 'discard'(사용자가 지금 초안을 명시적으로 버림),
 // 생략(평범한 이동 — 미디어 없는 편집 값만 기기에 남겨 둔다). 로그아웃·계정 전환으로 그 계정의 모든 점포 보관본을
@@ -299,6 +300,164 @@ async function request(fetcher, path, method = 'GET', body) {
   return response.status === 204 ? undefined : response.json();
 }
 
+const operationsBase = merchantId => `/api/web/merchant/merchants/${encodeURIComponent(merchantId)}`;
+
+export function configureMerchantOperations(fetcher, doc, merchants, onCampaignChanged = () => {}) {
+  const panel = doc.getElementById('merchant-operations');
+  const select = doc.getElementById('merchant-operations-merchant');
+  if (!panel || !select) return;
+  if (operationBindings.has(doc)) {
+    operationBindings.get(doc).configure(merchants);
+    return;
+  }
+  const configure = members => {
+    const owners = members.filter(merchant => merchant.role === 'OWNER');
+    panel.hidden = owners.length === 0;
+    const old = select.value;
+    select.replaceChildren();
+    for (const merchant of owners) {
+      const option = doc.createElement('option'); option.value = merchant.id; option.textContent = merchant.name;
+      select.append(option);
+    }
+    if (owners.some(merchant => merchant.id === old)) select.value = old;
+  };
+  configure(merchants);
+  const campaignSelect = doc.getElementById('merchant-extension-campaign');
+  const campaignStatus = doc.getElementById('merchant-extension-status');
+  const current = doc.getElementById('merchant-extension-current');
+  const staffList = doc.getElementById('merchant-staff-list');
+  const staffStatus = doc.getElementById('merchant-staff-status');
+  const exportStatus = doc.getElementById('merchant-export-status');
+  const state = { campaigns: [], generation: 0 };
+  operationBindings.set(doc, state);
+  const active = generation => operationBindings.get(doc) === state && state.generation === generation;
+  const refresh = async () => {
+    const generation = ++state.generation;
+    campaignSelect?.replaceChildren(); staffList?.replaceChildren();
+    if (current) current.textContent = '';
+    if (campaignStatus) campaignStatus.textContent = '';
+    if (staffStatus) staffStatus.textContent = '';
+    if (!select.value) return;
+    const merchantId = select.value;
+    try {
+      const [campaigns, staff] = await Promise.all([
+        request(fetcher, `${operationsBase(merchantId)}/campaigns`),
+        request(fetcher, `${operationsBase(merchantId)}/staff`),
+      ]);
+      if (!active(generation) || select.value !== merchantId) return;
+      state.campaigns = campaigns.campaigns;
+      if (!Array.isArray(state.campaigns) || !Array.isArray(staff.staff)) throw new Error('invalid operations data');
+      for (const campaign of state.campaigns) {
+        const option = doc.createElement('option'); option.value = campaign.id;
+        option.textContent = `${campaign.title} · ${new Date(campaign.endsAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}`;
+        campaignSelect.append(option);
+      }
+      showCampaign();
+      for (const member of staff.staff) {
+        const item = doc.createElement('li');
+        const label = doc.createElement('span'); label.textContent = `직원 ${member.accountId}`;
+        const visit = doc.createElement('label');
+        const visitCheckbox = doc.createElement('input'); visitCheckbox.type = 'checkbox'; visitCheckbox.checked = member.confirmVisit;
+        visit.append(visitCheckbox, doc.createTextNode?.(' 방문 확인') ?? ' 방문 확인');
+        const coupon = doc.createElement('label');
+        const couponCheckbox = doc.createElement('input'); couponCheckbox.type = 'checkbox'; couponCheckbox.checked = member.redeemCoupon;
+        coupon.append(couponCheckbox, doc.createTextNode?.(' 쿠폰 사용') ?? ' 쿠폰 사용');
+        const save = doc.createElement('button'); save.type = 'button'; save.textContent = '권한 저장';
+        const revoke = doc.createElement('button'); revoke.type = 'button'; revoke.textContent = '접근 해제';
+        save.onclick = async () => {
+          save.disabled = true;
+          try {
+            await request(fetcher, `${operationsBase(merchantId)}/staff/${encodeURIComponent(member.accountId)}`,
+              'PATCH', { confirmVisit: visitCheckbox.checked, redeemCoupon: couponCheckbox.checked });
+            if (active(generation)) staffStatus.textContent = '직원 권한을 저장했습니다.';
+          } catch { if (active(generation)) staffStatus.textContent = '권한을 저장하지 못했습니다. 다시 확인해 주세요.'; }
+          finally { save.disabled = false; }
+        };
+        revoke.onclick = async () => {
+          revoke.disabled = true;
+          try {
+            await request(fetcher, `${operationsBase(merchantId)}/staff/${encodeURIComponent(member.accountId)}`, 'DELETE');
+            if (active(generation)) { await refresh(); staffStatus.textContent = '직원 접근을 해제했습니다.'; }
+          } catch { if (active(generation)) staffStatus.textContent = '접근을 해제하지 못했습니다.'; }
+          finally { revoke.disabled = false; }
+        };
+        item.append(label, visit, coupon, save, revoke); staffList.append(item);
+      }
+    } catch {
+      if (active(generation)) {
+        campaignStatus.textContent = '캠페인을 불러오지 못했습니다.';
+        staffStatus.textContent = '직원 목록을 불러오지 못했습니다.';
+      }
+    }
+  };
+  const showCampaign = () => {
+    const campaign = state.campaigns.find(item => item.id === campaignSelect?.value);
+    if (!current) return;
+    const days = Number(doc.getElementById('merchant-extension-form')?.elements?.days?.value ?? 30);
+    const old = campaign && new Date(campaign.endsAt);
+    const next = old && new Date(Math.max(Date.now(), old.getTime()) + days * 86_400_000);
+    current.textContent = campaign
+      ? `현재 종료: ${old.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}. ${days}일 연장 후 예상 종료: ${next.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}. 확정 시각은 서버 기준입니다.`
+      : '연장할 캠페인이 없습니다.';
+  };
+  state.configure = members => { configure(members); if (!panel.hidden) void refresh(); };
+  if (!panel.hidden) void refresh();
+  select.addEventListener('change', () => { void refresh(); });
+  campaignSelect?.addEventListener('change', showCampaign);
+  doc.getElementById('merchant-extension-form')?.elements?.days?.addEventListener?.('change', showCampaign);
+  doc.getElementById('merchant-extension-form')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const campaign = state.campaigns.find(item => item.id === campaignSelect.value);
+    if (!campaign || !select.value) return;
+    const button = form.querySelector('button'); button.disabled = true;
+    const requestId = globalThis.crypto?.randomUUID?.();
+    try {
+      await request(fetcher, `${operationsBase(select.value)}/campaigns/${encodeURIComponent(campaign.id)}/extend`, 'POST', {
+        days: Number(form.elements.days.value), expectedEndsAt: campaign.endsAt,
+        consentAccepted: form.elements.consent.checked, requestId,
+      });
+      form.elements.consent.checked = false;
+      await refresh(); campaignStatus.textContent = '기간 연장을 완료했습니다.'; onCampaignChanged(select.value);
+    } catch (error) {
+      campaignStatus.textContent = error.status === 409 ? '종료일이 변경됐습니다. 최신 값을 확인해 주세요.'
+        : error.status === 403 ? '점주 권한 또는 연장 조건을 확인해 주세요.' : '연장 결과를 확인하지 못했습니다. 새로 고침해 확인해 주세요.';
+      await refresh();
+    } finally { button.disabled = false; }
+  });
+  doc.getElementById('merchant-staff-approve')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector('button'); button.disabled = true;
+    try {
+      await request(fetcher, `${operationsBase(select.value)}/staff/approve`, 'POST', { code: form.elements.code.value.trim() });
+      form.elements.code.value = '';
+      await refresh(); staffStatus.textContent = '직원 등록을 승인했습니다.';
+    } catch { staffStatus.textContent = '등록 코드를 승인하지 못했습니다. 코드와 만료 시간을 확인해 주세요.'; }
+    finally { button.disabled = false; }
+  });
+  doc.getElementById('merchant-export-form')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector('button'); button.disabled = true;
+    exportStatus.textContent = '방문 자료를 준비하는 중입니다.';
+    try {
+      const query = new URLSearchParams({ from: form.elements.from.value, to: form.elements.to.value });
+      const response = await fetcher(`${operationsBase(select.value)}/visits.csv?${query}`, {
+        method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/csv' },
+      });
+      if (!response.ok) throw new Error('download failed');
+      const blob = await response.blob();
+      const href = URL.createObjectURL(blob);
+      const link = doc.createElement('a'); link.href = href;
+      link.download = `masscom-visits-${form.elements.from.value}-${form.elements.to.value}.csv`;
+      doc.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(href);
+      exportStatus.textContent = 'CSV를 내려받았습니다.';
+    } catch { exportStatus.textContent = 'CSV를 내려받지 못했습니다. 날짜나 권한을 확인해 주세요.'; }
+    finally { button.disabled = false; }
+  });
+}
+
 export async function loadMerchant(fetcher, doc) {
   const requestId = (merchantRequests.get(doc) ?? 0) + 1;
   merchantRequests.set(doc, requestId);
@@ -373,6 +532,11 @@ export async function loadMerchant(fetcher, doc) {
     if (!Array.isArray(mine.merchants) || !Array.isArray(eligible.merchants)) throw new Error('invalid merchant data');
     merchantMemberships.set(doc, mine.merchants);
     configureCreator(fetcher, doc, mine);
+    configureMerchantOperations(fetcher, doc, mine.merchants, merchantId => {
+      const overview = doc.getElementById('merchant-overview-merchant');
+      if (overview) overview.value = merchantId;
+      return overviewRefreshers.get(doc)?.();
+    });
     for (const merchant of mine.merchants) {
       const item = doc.createElement('p');
       item.textContent = `${merchant.name} · ${merchant.role === 'OWNER' ? '점주' : '직원'}`;

@@ -21,6 +21,7 @@ type Props = {
   avatarArt?: ImageSourcePropType;
   /** The equipped shop clothing drawn over the account avatar when available. */
   avatarClothing?: EquippedClothingArt | null;
+  avatarContent?: ReactNode;
   /** Adds a second pill linking to `/friends` (design-298.md: 친구 moved out of the tab bar into the home header). */
   showFriendsEntry?: boolean;
   /** Adds the home mailbox entry; the mailbox route is provided by the social/mail lane. */
@@ -31,7 +32,7 @@ type Props = {
  * Top of a tab screen's scroll content: the sky art, the title on a frosted panel, and the account avatar with its "내 정보" label (outside the panel).
  * `/settings` (계정 삭제·로그아웃) stays one tap away. Put it first inside the ScrollView / list so it scrolls away with the page.
  */
-export function AppHeader({ title, subtitle, children, avatarArt, avatarClothing, showFriendsEntry, showMailEntry }: Props) {
+export function AppHeader({ title, subtitle, children, avatarArt, avatarClothing, avatarContent, showFriendsEntry, showMailEntry }: Props) {
   const styles = useUiStyles();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -82,12 +83,12 @@ export function AppHeader({ title, subtitle, children, avatarArt, avatarClothing
             hitSlop={{ left: 8, right: 8 }}
             style={styles.avatarButton}
           >
-            <View style={{ position: 'relative', width: 44, height: 44 }}>
+            {avatarContent ?? <View style={{ position: 'relative', width: 44, height: 44 }}>
               <Image source={avatarArt ?? mascotArt['logo-badge']} style={{ width: 44, height: 44 }} accessible={false} />
               <View pointerEvents="none" style={{ position: 'absolute', left: 8, top: 17 }}>
                 <AvatarWardrobe clothing={avatarClothing ?? null} size={28} />
               </View>
-            </View>
+            </View>}
             {/* The avatar alone does not say "your account"; the label sits on its own frosted pill so it reads over the art. */}
             <View accessible={false} style={styles.avatarLabelPill}>
               <Text maxFontSizeMultiplier={1.3} style={styles.avatarLabel}>내 정보</Text>

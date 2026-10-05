@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, ImageBackground, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { gameKinds, type GameAction, type GameKind, type PlayRun } from '../../../../api/src/play-rules';
+import { gameKinds, gameSkills, type GameAction, type GameKind, type PlayRun } from '../../../../api/src/play-rules';
 import type { AccountCredential } from '@/auth/account-credential';
+import { useExperience } from '@/experience/use-experience';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
@@ -16,7 +17,7 @@ import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
 import { Companion, ownedGameArt, type OwnedArt } from './play-art';
-import { gameCopy, themeNames } from './play-copy';
+import { gameCopy, skillCopy, themeNames } from './play-copy';
 import { GameSession } from './game-session';
 
 const roomGoals = [
@@ -47,6 +48,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
 }) {
   const palette = colorsForScheme(useColorScheme());
   const recheckConsent = useConsentRecheck();
+  const experience = useExperience(apiUrl, credential, onSessionInvalid);
   const insets = useSafeAreaInsets();
   const playApi = useMemo(() => createPlayApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const shopApi = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
@@ -123,7 +125,11 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
     setSnapshot((current) => {
       const records = current?.records.filter((entry) => entry.kind !== result.kind) ?? [];
       const hadRecord = current?.records.some((entry) => entry.kind === result.kind);
-      return { records: result.completed || hadRecord ? [...records, { kind: result.kind, bestScore: result.bestScore, plays: result.plays }] : records, unlockedThemes: result.unlockedThemes };
+      const achievements = current?.achievements?.map((entry) => result.skill && entry.id === result.skill.id ?
+        { ...entry, progress: Math.max(entry.progress, result.skill.progress), achieved: entry.achieved || result.skill.achieved } : entry) ??
+        (result.skill ? [result.skill] : undefined);
+      return { records: result.completed || hadRecord ? [...records, { kind: result.kind, bestScore: result.bestScore, plays: result.plays }] : records,
+        unlockedThemes: result.unlockedThemes, achievements };
     });
   }
 
@@ -139,7 +145,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
     <Text style={[styles.activeHeaderTitle, { color: palette.label }]}>놀이 마당</Text>
   </View> : <BackHeader title="놀이 마당" />;
   return <SkyBackdrop><SkyScrollView ref={scrollRef} header={header} contentContainerStyle={styles.content}>
-    {run ? <GameSession key={run.id} run={run} art={art} avatar={avatar} previousBest={record?.bestScore}
+    {run ? <GameSession key={run.id} run={run} art={art} avatar={avatar} equipment={experience.snapshot?.profile} previousBest={record?.bestScore}
       onFinish={(issued, actions: readonly GameAction[], signal) => playApi.finish(issued, actions, signal)}
       onResult={applyResult} onRetry={() => { setRun(undefined); void start(run.kind); }}
       onExit={exitToHub} /> : selection ? <>
@@ -148,7 +154,14 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
         <Text style={[styles.prepTitle, { color: palette.label }]}>{gameCopy[selection].title}</Text>
         <Text style={[styles.rule, { color: palette.secondaryLabel }]}>{gameCopy[selection].rule}</Text>
       </View>
-      <View style={styles.prepCompanion}><Companion avatar={avatar} /><Text style={[styles.prepMeta, { color: palette.secondaryLabel }]}>{avatar ? '선택한 동행과 함께' : avatarLoaded ? '동행은 상점에서 고를 수 있어요' : '동행 정보를 확인하지 못했어요'}{record ? ` · 최고 ${record.bestScore.toLocaleString()}점` : ''}</Text></View>
+      <View style={styles.prepCompanion}><Companion avatar={avatar} equipment={experience.snapshot?.profile} /><Text style={[styles.prepMeta, { color: palette.secondaryLabel }]}>{avatar ? '선택한 동행과 함께' : avatarLoaded ? '동행은 상점에서 고를 수 있어요' : '동행 정보를 확인하지 못했어요'}{record ? ` · 최고 ${record.bestScore.toLocaleString()}점` : ''}</Text></View>
+      <View style={[styles.skillPreview, { backgroundColor: palette.surface, borderColor: gameCopy[selection].color }]}>
+        <Text style={[styles.unlockTitle, { color: palette.label }]}>✦ {skillCopy[selection].badge} 배지</Text>
+        <Text style={[styles.rule, { color: palette.secondaryLabel }]}>{skillCopy[selection].goal}</Text>
+        <Text style={[styles.rewardNote, { color: palette.label }]}>해금 미리보기 · {skillCopy[selection].reward}</Text>
+        <Text style={[styles.roomRequirement, { color: palette.secondaryLabel }]}>{snapshot?.achievements?.find((entry) => entry.id === gameSkills[selection].id)?.achieved ? '획득 완료' :
+          `${snapshot?.achievements?.find((entry) => entry.id === gameSkills[selection].id)?.progress ?? 0}/${gameSkills[selection].target} 최고 진행`}</Text>
+      </View>
       <UnlockPreview snapshot={snapshot} label={palette.label} muted={palette.secondaryLabel} />
       {startError ? <Text style={[styles.error, { color: palette.error }]}>{startError}</Text> : null}
       {startNeedsConsent ? <BounceButton label={consentRecheckLabel} variant="secondary" onPress={recheckConsent} /> : null}
@@ -156,22 +169,23 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
       <BounceButton label="다른 게임" variant="secondary" onPress={() => setSelection(undefined)} />
     </> : <>
       <ImageBackground source={require('../../../assets/images/play/room-daylight.png')} resizeMode="cover" style={styles.hero} imageStyle={styles.heroImage}>
-        <View style={styles.heroShade}><Companion avatar={avatar} /><Text style={styles.heroTitle}>오늘은 뭘 해볼까요?</Text></View>
+        <View style={styles.heroShade}><Companion avatar={avatar} equipment={experience.snapshot?.profile} /><Text style={styles.heroTitle}>오늘은 뭘 해볼까요?</Text></View>
       </ImageBackground>
       {loading && !snapshot ? <StateScene kind="loading" title="놀이 기록을 불러오는 중" /> : null}
       {loadError ? <View style={styles.loadIssue}><Text style={[styles.error, { color: palette.error }]}>{loadError}</Text><BounceButton label={loadNeedsConsent ? consentRecheckLabel : '기록 다시 불러오기'} variant="secondary" onPress={loadNeedsConsent ? recheckConsent : () => void load()} /></View> : null}
       <View style={styles.gameList}>{gameKinds.map((kind) => {
         const copy = gameCopy[kind];
         const best = snapshot?.records.find((entry) => entry.kind === kind);
+        const achievement = snapshot?.achievements?.find((entry) => entry.id === gameSkills[kind].id);
         return <Pressable key={kind} accessibilityRole="button" accessibilityLabel={`${copy.title} 준비하기`} onPress={() => setSelection(kind)} style={[styles.gameCard, { borderColor: copy.color, backgroundColor: palette.surface }]}>
           <View style={[styles.gameMark, { backgroundColor: copy.color }]}><Text style={styles.gameMarkText}>{kind === 'stack' ? '▥' : kind === 'memory' ? '◇' : kind === 'delivery' ? '➜' : '☷'}</Text></View>
-          <View style={styles.gameDetail}><Text style={[styles.gameTitle, { color: palette.label }]}>{copy.title}</Text><Text style={[styles.gameTag, { color: palette.secondaryLabel }]}>{copy.tag} · {best ? `최고 ${best.bestScore.toLocaleString()}점` : snapshot ? '첫 기록에 도전' : '기록 확인 전'}</Text></View>
+          <View style={styles.gameDetail}><Text style={[styles.gameTitle, { color: palette.label }]}>{copy.title}</Text><Text style={[styles.gameTag, { color: palette.secondaryLabel }]}>{copy.tag} · {best ? `최고 ${best.bestScore.toLocaleString()}점` : snapshot ? '첫 기록에 도전' : '기록 확인 전'}</Text><Text style={[styles.gameTag, { color: palette.secondaryLabel }]}>{skillCopy[kind].badge} · {achievement?.achieved ? '획득' : `${achievement?.progress ?? 0}/${achievement?.target ?? 1}`}</Text></View>
           <Text style={[styles.chevron, { color: palette.secondaryLabel }]}>›</Text>
         </Pressable>;
       })}</View>
       <UnlockPreview snapshot={snapshot} label={palette.label} muted={palette.secondaryLabel} />
       {art.length ? <Text style={[styles.ownedNote, { color: palette.secondaryLabel }]}>짝 찾기에 내 수집품 그림 {art.length}개가 나와요.</Text> : <Text style={[styles.ownedNote, { color: palette.secondaryLabel }]}>{artLoaded ? '수집품이 생기면 짝 찾기 카드에 내 그림이 나와요.' : '수집품 그림을 확인하지 못했어요.'}</Text>}
-      <Text style={[styles.rewardNote, { color: palette.secondaryLabel }]}>놀이 기록은 공간 장식을 해금해요. 방문 보상이나 마일리지는 가게에서 받아요.</Text>
+      <Text style={[styles.rewardNote, { color: palette.secondaryLabel }]}>게임별 실력 배지로 동행 꾸미기를 해금하고, 완주 기록으로 공간 배경을 열어요.</Text>
     </>}
   </SkyScrollView></SkyBackdrop>;
 }
@@ -195,4 +209,5 @@ const styles = StyleSheet.create({
   ownedNote: { fontSize: 13 }, rewardNote: { fontSize: 13, lineHeight: 19 },
   prepHead: { gap: 12, paddingTop: 14, paddingBottom: 10 }, eyebrow: { fontSize: 14, fontWeight: '800' }, prepTitle: { fontSize: 29, fontWeight: '900' }, rule: { fontSize: 16, lineHeight: 24 },
   prepCompanion: { minHeight: 90, flexDirection: 'row', alignItems: 'center', gap: 12 }, prepMeta: { flex: 1, fontSize: 14 }, error: { fontSize: 14, lineHeight: 20 }, loadIssue: { gap: 10 },
+  skillPreview: { gap: 6, borderWidth: 2, borderRadius: 8, padding: 14 },
 });

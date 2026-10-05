@@ -31,6 +31,7 @@ import {
 } from '../mileage-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { countedVisitFilterSql, countedVisitFromSql } from './badge-rewards.js';
+import { nextCosmeticBonus, EXPERIENCE_COSMETICS } from '../collection-experience.js';
 
 // 적립 공식의 두 항(센 방문·서로 다른 점포)은 배지 집계(badge-rewards.ts)와 완전히 같은 방문 집합을 쓴다:
 // countedVisitFromSql/countedVisitFilterSql을 그대로 가져와 다시 만들지 않는다(design-298.md 4번).
@@ -157,6 +158,11 @@ function drawRewardPayload(input: {
     },
     sequence: ['MILEAGE', 'CLOTHING', 'CHARACTER'],
   };
+}
+
+function cosmeticBonus(id: string): MileageRerollResult['bonus'] {
+  const item = EXPERIENCE_COSMETICS.find((candidate) => candidate.id === id)!;
+  return { id, name: item.name, slot: item.slot };
 }
 
 const historyCursorPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -309,11 +315,12 @@ export class PostgresMileageShopService implements MileageShopService {
       const existingResult = await client.query<{
         grade: MileageGrade;
         item_id: string;
+        cosmetic_bonus_id: string;
         bonus_mileage_amount: number;
         clothing_item_id: string | null;
         clothing_duplicate: boolean;
       }>(
-        `SELECT grade, item_id, bonus_mileage_amount, clothing_item_id, clothing_duplicate
+        `SELECT grade, item_id, cosmetic_bonus_id, bonus_mileage_amount, clothing_item_id, clothing_duplicate
          FROM mileage_spends WHERE account_id = $1 AND request_id = $2`,
         [input.accountId, input.requestId],
       );
@@ -348,6 +355,7 @@ export class PostgresMileageShopService implements MileageShopService {
         await client.query('COMMIT');
         return {
           item,
+          bonus: cosmeticBonus(previous!.cosmetic_bonus_id),
           balance,
           replayed: true,
           rewards: drawRewardPayload({
@@ -365,6 +373,11 @@ export class PostgresMileageShopService implements MileageShopService {
       if (decision.kind === 'GRADE_COMPLETE') throw new MileageShopError('SHOP_GRADE_COMPLETE');
       if (decision.kind === 'INSUFFICIENT_MILEAGE') throw new MileageShopError('SHOP_INSUFFICIENT_MILEAGE');
 
+      const bonuses = await client.query<{ cosmetic_bonus_id: string }>(
+        'SELECT cosmetic_bonus_id FROM mileage_spends WHERE account_id = $1 AND grade = $2',
+        [input.accountId, input.grade],
+      );
+      const bonusId = nextCosmeticBonus(input.grade, new Set(bonuses.rows.map((row) => row.cosmetic_bonus_id)));
       const chosen = chooseUniform(unowned, this.randomInt);
       const rewards = decideDrawRewards(this.randomInt);
       const clothingDuplicate = rewards.clothingItem !== null && clothingOwned.has(rewards.clothingItem.id);
@@ -384,12 +397,12 @@ export class PostgresMileageShopService implements MileageShopService {
       }
       await client.query(
         `INSERT INTO mileage_spends (
-           id, account_id, amount, reason, grade, item_id, request_id, created_at,
+           id, account_id, amount, reason, grade, item_id, request_id, created_at, cosmetic_bonus_id,
            bonus_mileage_amount, clothing_item_id, clothing_awarded, clothing_duplicate
          )
-         VALUES ($1, $2, $3, 'REROLL', $4, $5, $6, $7, $8, $9, $10, $11)`,
+         VALUES ($1, $2, $3, 'REROLL', $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [
-          spendId, input.accountId, price, input.grade, chosen.id, input.requestId, now,
+          spendId, input.accountId, price, input.grade, chosen.id, input.requestId, now, bonusId,
           rewards.bonusMileage, rewards.clothingItem?.id ?? null, rewards.clothingItem !== null, clothingDuplicate,
         ],
       );
@@ -401,6 +414,7 @@ export class PostgresMileageShopService implements MileageShopService {
       await client.query('COMMIT');
       return {
         item: chosen,
+        bonus: cosmeticBonus(bonusId),
         balance: balance - price + rewards.bonusMileage,
         replayed: false,
         rewards: drawRewardPayload({

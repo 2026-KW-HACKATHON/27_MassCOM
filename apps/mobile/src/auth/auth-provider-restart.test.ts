@@ -226,6 +226,9 @@ before(async () => {
     if (request === 'expo-application') return { applicationId: 'kr.masscom.wolgye.dev' };
     if (request === 'expo-constants') return { default: { expoConfig: { scheme: 'masscom-dev', extra: {} } } };
     if (request === 'expo-secure-store') return secureStore;
+    if (request === 'expo-crypto') return { randomUUID: () => 'notification-device-1' };
+    if (request === 'expo-device') return { isDevice: true };
+    if (request === '@/notifications/native') return { unregisterCurrentNotificationDevice: async () => undefined };
     if (request === 'react-native-nitro-google-signin') return { GoogleOneTapSignIn: {} };
     if (request === '@/wallet/appkit') return { createAccountScopedAppKit: () => null, walletRuntimeConfig: { available: false } };
     if (request === '@/wallet/appkit-storage') return { listAppKitStorageKeys: async () => [], removeAppKitStorageKeys: async () => undefined };
