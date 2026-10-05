@@ -201,7 +201,13 @@ export class PostgresSocialService implements SocialService {
       this.friendshipRewardEarned(this.pool, accountId, today),
       this.sendCount(this.pool, accountId, today),
     ]);
-    const pendingByFriendship = new Map(pendingRows.rows.map((row) => [row.friendship_id, row]));
+    const pendingByFriendship = new Map<string, GiftRow>();
+    for (const row of pendingRows.rows) {
+      // 양방향 대기 선물이 함께 있어도 받을 선물을 우선 표시한다.
+      if (row.receiver_account_id === accountId || !pendingByFriendship.has(row.friendship_id)) {
+        pendingByFriendship.set(row.friendship_id, row);
+      }
+    }
     const unreadByFriendship = new Map(unreadRows.rows.map((row) => [row.friendship_id, row.n]));
     const unreadMailCount = unreadRows.rows.reduce((sum, row) => sum + row.n, 0);
     return {
@@ -498,7 +504,7 @@ export class PostgresSocialService implements SocialService {
       if (fresh.status !== 'PENDING') {
         if (fresh.response_request_id === requestId) {
           const mail = await this.responseMailForInvitation(client, fresh.sender_account_id, fresh.id);
-          return { invitation: serializeInvitation(fresh), mail: detailFromRow(mail, fresh.sender_account_id), replayed: true };
+          return { invitation: serializeInvitation(fresh), mail: await this.mailDetail(input.accountId, mail.id, client), replayed: true };
         }
         throw new SocialError('SOCIAL_INVITATION_TERMINAL');
       }
@@ -524,7 +530,7 @@ export class PostgresSocialService implements SocialService {
         payload: { invitationId: row.id },
       });
       await this.enqueueNotification(client, row.sender_account_id, mailId, 'MEAL_RESPONSE');
-      const mail = await this.mailDetail(row.sender_account_id, mailId, client);
+      const mail = await this.mailDetail(input.accountId, mailId, client);
       return { invitation: serializeInvitation(row), mail, replayed: false };
     });
   }
@@ -1101,11 +1107,20 @@ export class PostgresSocialService implements SocialService {
     );
     if (consent.rowCount === 0) return 'CONSENT_REQUIRED';
     if (outbox.mail_id) {
-      const mail = await client.query(
-        'SELECT 1 FROM social_mail WHERE id = $1 AND receiver_account_id = $2',
+      const mail = await client.query<{ friendship_id: string | null; sender_account_id: string | null }>(
+        'SELECT friendship_id, sender_account_id FROM social_mail WHERE id = $1 AND receiver_account_id = $2',
         [outbox.mail_id, outbox.account_id],
       );
       if (mail.rowCount === 0) return 'MAIL_NOT_FOUND';
+      const row = mail.rows[0]!;
+      // remove()도 수신 계정 잠금을 잡으므로 이 검사부터 발송 승인 commit까지 관계 해제와 직렬화된다.
+      const friendship = await client.query(
+        `SELECT 1 FROM friendships WHERE id = $1
+         AND ((account_low = $2 AND account_high = $3) OR (account_low = $3 AND account_high = $2))
+         FOR KEY SHARE`,
+        [row.friendship_id, row.sender_account_id, outbox.account_id],
+      );
+      if (friendship.rowCount === 0) return 'FRIENDSHIP_REMOVED';
     }
     return null;
   }

@@ -19,6 +19,16 @@ test('friend studio drops accidental entitlement IDs even if present in response
   assert.equal('entitlementId' in parsed.items[0], false);
 });
 
+test('friend clothing accepts only a bounded optional public item id', () => {
+  const base = { nickname: '친구', studio, items: [], avatar: 'cook-cat' };
+  assert.equal(parseFriendStudioSnapshot(base).avatarClothingId, undefined);
+  assert.equal(parseFriendStudioSnapshot({ ...base, avatarClothingId: null }).avatarClothingId, null);
+  assert.equal(parseFriendStudioSnapshot({ ...base, avatarClothingId: 'green-apron' }).avatarClothingId, 'green-apron');
+  for (const id of ['', 42, {}, 'x'.repeat(81)]) {
+    assert.throws(() => parseFriendStudioSnapshot({ ...base, avatarClothingId: id }));
+  }
+});
+
 test('studio rejects duplicate or excessive owned slots', () => {
   assert.throws(() => parseStudioSnapshot({ studio: { ...studio, slots: ['owned-1', 'owned-1'] }, items: [], avatar: null, records: [], unlockedThemes: ['daylight'] }));
   assert.throws(() => parseStudioSnapshot({ studio: { ...studio, slots: Array.from({ length: 7 }, (_, index) => `${index}`) }, items: [], avatar: null, records: [], unlockedThemes: ['daylight'] }));
@@ -33,4 +43,16 @@ test('studio retains 403 CONSENT_REQUIRED on own and friend reads and explains r
       && error.status === 403 && error.code === 'CONSENT_REQUIRED'
       && studioErrorMessage(error) === '개인정보 처리방침이 바뀌어 다시 동의가 필요해요.');
   }
+});
+
+
+test('studio keeps version two records separate and rejects malformed counts', () => {
+  const payload = { studio, items: [item], avatar: null, records: [{ kind: 'stack', bestScore: 999, plays: 12, version2BestScore: 20, version2Plays: 1 }], unlockedThemes: ['daylight'] };
+  assert.deepEqual(parseStudioSnapshot(payload).records, payload.records);
+  assert.throws(() => parseStudioSnapshot({ ...payload, records: [{ ...payload.records[0], version2Plays: -1 }] }));
+  for (const version2BestScore of [Infinity, -1, .5, Number.MAX_SAFE_INTEGER + 1, null]) {
+    assert.throws(() => parseStudioSnapshot({ ...payload, records: [{ ...payload.records[0], version2BestScore }] }));
+  }
+  assert.throws(() => parseStudioSnapshot({ ...payload, records: [{ ...payload.records[0], version2Plays: 13 }] }));
+  assert.throws(() => parseStudioSnapshot({ ...payload, records: [{ kind: 'stack', bestScore: 0, plays: 0, version2BestScore: 0 }] }));
 });

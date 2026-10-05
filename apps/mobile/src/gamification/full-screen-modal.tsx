@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Dimensions, Modal, View } from 'react-native';
+import { Dimensions, Modal, Platform, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 /**
@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
  * modal's root view can come out shorter than the window (seen on a 3-button-navigation Galaxy),
  * leaving the tab bar showing below it, so the content is pinned to the physical screen height.
  * The modal is its own window: children measure insets from this SafeAreaProvider.
+ * On web, bound the provider to the viewport so long results scroll inside the dialog.
  */
 export function FullScreenModal({ visible, animationType, onRequestClose, children }: {
   visible: boolean;
@@ -14,6 +15,8 @@ export function FullScreenModal({ visible, animationType, onRequestClose, childr
   onRequestClose: () => void;
   children: ReactNode;
 }) {
+  const { height } = useWindowDimensions();
+  const web = Platform.OS === 'web';
   return (
     <Modal
       visible={visible}
@@ -23,8 +26,8 @@ export function FullScreenModal({ visible, animationType, onRequestClose, childr
       navigationBarTranslucent
       onRequestClose={onRequestClose}
     >
-      <SafeAreaProvider>
-        <View style={{ flex: 1, minHeight: Dimensions.get('screen').height }}>{children}</View>
+      <SafeAreaProvider style={web ? { height, maxHeight: height, minHeight: 0 } : undefined}>
+        <View style={{ flex: 1, minHeight: web ? 0 : Dimensions.get('screen').height, height: web ? height : undefined }}>{children}</View>
       </SafeAreaProvider>
     </Modal>
   );

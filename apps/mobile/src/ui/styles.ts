@@ -20,13 +20,13 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
     cardBody: { color: world.cardMuted, fontSize: 15, lineHeight: 22 },
     primaryButton: {
       backgroundColor: palette.primary, borderRadius: 16, minHeight: uiMetrics.minTouch,
-      paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center',
+      paddingHorizontal: 20, paddingVertical: 10, alignItems: 'center', justifyContent: 'center',
     },
     primaryButtonPressed: { backgroundColor: pressedFill(palette.primary, palette.onPrimary) },
     primaryButtonText: { color: palette.onPrimary, fontSize: 16, fontWeight: '800' },
     secondaryButton: {
       backgroundColor: palette.primaryContainer, borderRadius: 16, minHeight: uiMetrics.minTouch,
-      paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center',
+      paddingHorizontal: 20, paddingVertical: 10, alignItems: 'center', justifyContent: 'center',
     },
     secondaryButtonPressed: { backgroundColor: blend(palette.primary, palette.primaryContainer, 0.2) },
     secondaryButtonText: { color: palette.onPrimaryContainer, fontSize: 16, fontWeight: '800' },

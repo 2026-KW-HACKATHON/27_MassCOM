@@ -11,6 +11,7 @@ import { mascotArt } from './mascot-art';
 import { SkyArt } from './sky-art';
 import { skyArtHeight } from './sky-art-size';
 import { useUiStyles } from './use-ui-styles';
+import { isLargeText } from './large-text';
 
 type Props = {
   title: string;
@@ -35,22 +36,22 @@ type Props = {
 export function AppHeader({ title, subtitle, children, avatarArt, avatarClothing, avatarContent, showFriendsEntry, showMailEntry }: Props) {
   const styles = useUiStyles();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
+  const largeText = isLargeText(fontScale);
+  const stackedHeader = largeText || (showFriendsEntry && width < 360);
   const world = worldForScheme(useColorScheme());
   return (
     <View style={{ minHeight: skyArtHeight(width), marginBottom: 8 }}>
       <SkyArt />
       <View
         style={{
-          flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+          flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12,
           paddingHorizontal: uiMetrics.pageInset, paddingTop: insets.top + 8, paddingBottom: 12,
         }}
       >
-        <View style={[styles.headerPanel, { flex: 1 }]}>
-          <Text accessibilityRole="header" maxFontSizeMultiplier={1.6} style={styles.headerTitle}>{title}</Text>
-          {/* 큰 글자에서도 부제를 숨기지 않는다 — 대신 줄바꿈한다(PR #312 QA: 2.0배에서 사라지던 문제). 줄 수를
-              제한하지 않아 Text가 원래 하듯 자유롭게 줄바꿈하고, 제목과 같은 1.6배로만 더 커지는 것을 막는다. */}
-          {subtitle ? <Text maxFontSizeMultiplier={1.6} style={styles.headerSubtitle}>{subtitle}</Text> : null}
+        <View style={[styles.headerPanel, { flex: 1 }, stackedHeader && { flexBasis: '100%' }]}>
+          <Text accessibilityRole="header" style={styles.headerTitle}>{title}</Text>
+          {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
         </View>
         {showMailEntry ? (
           <Link href="/mail" asChild>
@@ -70,8 +71,8 @@ export function AppHeader({ title, subtitle, children, avatarArt, avatarClothing
               <View style={styles.avatarIconPill}>
                 <TabGlyph name="friends" color={world.skyInk} size={26} />
               </View>
-              <View accessible={false} style={styles.avatarLabelPill}>
-                <Text maxFontSizeMultiplier={1.3} style={styles.avatarLabel}>친구</Text>
+              <View accessible={false} style={[styles.avatarLabelPill, largeText && { marginHorizontal: 0 }]}>
+                <Text style={styles.avatarLabel}>친구</Text>
               </View>
             </Pressable>
           </Link>
@@ -90,8 +91,8 @@ export function AppHeader({ title, subtitle, children, avatarArt, avatarClothing
               </View>
             </View>}
             {/* The avatar alone does not say "your account"; the label sits on its own frosted pill so it reads over the art. */}
-            <View accessible={false} style={styles.avatarLabelPill}>
-              <Text maxFontSizeMultiplier={1.3} style={styles.avatarLabel}>내 정보</Text>
+            <View accessible={false} style={[styles.avatarLabelPill, largeText && { marginHorizontal: 0 }]}>
+              <Text style={styles.avatarLabel}>내 정보</Text>
             </View>
           </Pressable>
         </Link>

@@ -10,6 +10,7 @@ import { SocialError } from './social.js';
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from './account-consent.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
+import { PostgresFriendService } from './postgres/friends.js';
 import { runMigrations } from './postgres/migrate.js';
 import { PostgresSocialService } from './postgres/social.js';
 import { mailPageSize } from './social-rules.js';
@@ -435,6 +436,26 @@ test('receiving gifts is unlimited, clears pending, and caps receiver rewards at
   assert.deepEqual(total.rows[0], { total: 25, pending: 0 });
 });
 
+test('simultaneous gifts in both directions preserve each incoming gift and the current send policy', async t => {
+  const { pool, social } = await setup(t);
+  const friendshipId = await addFriendship(pool, 'alice', 'bob');
+  const [fromAlice, fromBob] = await Promise.all([
+    social.sendFriendshipGift({ accountId: 'alice', friendshipId, requestId: 'both-alice' }),
+    social.sendFriendshipGift({ accountId: 'bob', friendshipId, requestId: 'both-bob' }),
+  ]);
+  const [alice, bob] = await Promise.all([social.getSocial('alice'), social.getSocial('bob')]);
+  assert.deepEqual(alice.friends[0]!.gift, { pendingGiftId: fromBob.giftId,
+    pendingDirection: 'RECEIVED', canSend: false, canReceive: true });
+  assert.deepEqual(bob.friends[0]!.gift, { pendingGiftId: fromAlice.giftId,
+    pendingDirection: 'RECEIVED', canSend: false, canReceive: true });
+  await social.receiveFriendshipGift({ accountId: 'alice', giftId: alice.friends[0]!.gift.pendingGiftId!, requestId: 'both-receive-alice' });
+  assert.deepEqual((await social.getSocial('alice')).friends[0]!.gift, { pendingGiftId: fromAlice.giftId,
+    pendingDirection: 'SENT', canSend: false, canReceive: false });
+  await social.receiveFriendshipGift({ accountId: 'bob', giftId: bob.friends[0]!.gift.pendingGiftId!, requestId: 'both-receive-bob' });
+  assert.deepEqual((await social.getSocial('alice')).friends[0]!.gift, { pendingGiftId: null,
+    pendingDirection: null, canSend: true, canReceive: false });
+});
+
 test('KST reset restores send count and reward cap while an old pending gift still blocks the same friend', async (t) => {
   const { pool, social, state } = await setup(t);
   const friendshipId = await addFriendship(pool, 'alice', 'bob');
@@ -580,6 +601,49 @@ test('meal invitations snapshot merchant data, validate range responses, and cre
   assert.equal((await pool.query(
     `SELECT count(*)::integer AS n FROM notification_outbox WHERE event_type = 'MEAL_RESPONSE'`,
   )).rows[0]!.n, 1);
+});
+
+test('meal response and replay keep the authenticated responder perspective and full invitation detail', async t => {
+  const { pool, social } = await setup(t);
+  await addMerchant(pool);
+  const friendshipId = await addFriendship(pool, 'alice', 'bob');
+  for (const decision of ['ACCEPT', 'DECLINE'] as const) {
+    const sent = await social.createMealInvitation({ accountId: 'alice', friendshipId,
+      requestId: `perspective-invite-${decision}`, merchantId: 'shop-a', date: '2026-10-05',
+      kind: 'RANGE', startTime: '12:00', endTime: '14:00' });
+    const input = { accountId: 'bob', invitationId: sent.mealInvitation!.invitationId,
+      requestId: `perspective-response-${decision}`, decision, ...(decision === 'ACCEPT' ? { selectedTime: '12:40' } : {}) };
+    const response = await social.respondToMealInvitation(input);
+    const replay = await social.respondToMealInvitation(input);
+    assert.equal(response.replayed, false);
+    assert.equal(replay.replayed, true);
+    const expectedDetail = await social.getMail({ accountId: 'bob', mailId: response.mail.id });
+    for (const result of [response, replay]) {
+      assert.equal(result.mail.direction, 'SENT');
+      assert.equal(result.mail.fromNickname, '별명-bob');
+      assert.equal(result.mail.toNickname, '별명-alice');
+      assert.deepEqual(result.mail, expectedDetail);
+      assert.deepEqual(result.mail.mealInvitation, result.invitation);
+      assert.equal(result.invitation.status, decision === 'ACCEPT' ? 'ACCEPTED' : 'DECLINED');
+      assert.equal(result.invitation.selectedTime, decision === 'ACCEPT' ? '12:40' : null);
+    }
+    assert.equal((await social.getMail({ accountId: 'alice', mailId: response.mail.id })).direction, 'INBOX');
+    assert.equal((await pool.query("SELECT count(*)::integer AS count FROM social_mail WHERE type='MEAL_RESPONSE' AND payload->>'invitationId'=$1", [input.invitationId])).rows[0].count, 1);
+  }
+});
+
+test('impossible meal dates fail as INVALID_REQUEST before reaching PostgreSQL date casts', async t => {
+  const { pool, social } = await setup(t);
+  await addMerchant(pool);
+  const friendshipId = await addFriendship(pool, 'alice', 'bob');
+  for (const date of ['2027-02-29', '2027-02-30', '2028-02-30', '2027-04-31', '2027-13-01', '2100-02-29']) {
+    await assert.rejects(social.createMealInvitation({ accountId: 'alice', friendshipId,
+      requestId: `calendar-${date}`, merchantId: 'shop-a', date, kind: 'CONFIRMED', time: '12:00' }), rejectsWith('INVALID_REQUEST'));
+  }
+  const leapDay = await social.createMealInvitation({ accountId: 'alice', friendshipId,
+    requestId: 'calendar-leap', merchantId: 'shop-a', date: '2028-02-29', kind: 'CONFIRMED', time: '12:00' });
+  assert.equal(leapDay.mealInvitation!.date, '2028-02-29');
+  assert.equal((await pool.query('SELECT count(*)::integer AS count FROM meal_invitations')).rows[0].count, 1);
 });
 
 test('meal invitation responses reject previous-date and same-day past-time pending invitations as expired', async (t) => {
@@ -1538,6 +1602,80 @@ test('unexpired live parent dispatch lease blocks later due retry until owner co
     { token: 'ExpoPushToken[staggered-a]', expo_ticket_id: 'staggered-ticket-a-new' },
     { token: 'ExpoPushToken[staggered-b]', expo_ticket_id: 'staggered-ticket-b-new' },
   ]);
+});
+
+test('removed friends lose queued gift and message pushes while historical mail, rewards and valid friend pushes remain', async t => {
+  const { pool, social, gateway, lifecycle, state } = await setup(t);
+  const removed = await addFriendship(pool, 'alice', 'bob');
+  const valid = await addFriendship(pool, 'alice', 'charlie');
+  for (const accountId of ['bob', 'charlie']) {
+    await addConsent(pool, accountId);
+    await social.registerPushToken({ accountId, appVariant: 'ANDROID', token: `ExpoPushToken[relation-${accountId}]` });
+  }
+  const message = await social.sendMessage({ accountId: 'alice', friendshipId: removed, requestId: 'relation-message', body: '보관할 쪽지' });
+  const gift = await social.sendFriendshipGift({ accountId: 'alice', friendshipId: removed, requestId: 'relation-gift' });
+  const kept = await social.sendMessage({ accountId: 'alice', friendshipId: valid, requestId: 'relation-valid', body: '유효한 친구 쪽지' });
+  const creditsBefore = (await pool.query('SELECT * FROM mileage_credits ORDER BY id')).rows;
+  await new PostgresFriendService(pool, { accountLifecycle: lifecycle, now: () => state.now }).remove({ accountId: 'bob', friendshipId: removed });
+  assert.deepEqual(await social.flushNotifications({ limit: 10 }), { claimed: 3, sent: 1, retry: 0, dead: 2, skipped: 2 });
+  assert.deepEqual(gateway.messages.map(item => item.to), ['ExpoPushToken[relation-charlie]']);
+  assert.equal((await social.getMail({ accountId: 'bob', mailId: message.id })).body, '보관할 쪽지');
+  assert.equal((await social.listMail({ accountId: 'bob' })).mail.length, 2);
+  assert.deepEqual((await pool.query('SELECT * FROM mileage_credits ORDER BY id')).rows, creditsBefore);
+  assert.deepEqual(await social.sendFriendshipGift({ accountId: 'alice', friendshipId: removed, requestId: 'relation-gift' }), { ...gift, replayed: true });
+  assert.deepEqual((await pool.query('SELECT status,last_error_code FROM notification_outbox WHERE mail_id=$1', [message.id])).rows,
+    [{ status: 'DEAD', last_error_code: 'FRIENDSHIP_REMOVED' }]);
+  assert.equal((await pool.query('SELECT status FROM notification_outbox WHERE mail_id=$1', [kept.id])).rows[0].status, 'AWAITING_RECEIPT');
+});
+
+test('dispatch rejects missing and mismatched mail friendship references', async t => {
+  const { pool, social, gateway } = await setup(t);
+  const friendshipId = await addFriendship(pool, 'alice', 'bob');
+  const other = await addFriendship(pool, 'alice', 'charlie');
+  await addConsent(pool, 'bob');
+  await social.registerPushToken({ accountId: 'bob', appVariant: 'ANDROID', token: 'ExpoPushToken[relation-reference]' });
+  for (const [index, reference] of [null, other].entries()) {
+    const mail = await social.sendMessage({ accountId: 'alice', friendshipId, requestId: `relation-reference-${index}`, body: '과거 쪽지' });
+    await pool.query('UPDATE social_mail SET friendship_id=$2 WHERE id=$1', [mail.id, reference]);
+  }
+  assert.deepEqual(await social.flushNotifications({ limit: 10 }), { claimed: 2, sent: 0, retry: 0, dead: 2, skipped: 2 });
+  assert.equal(gateway.messages.length, 0);
+  assert.equal((await social.listMail({ accountId: 'bob' })).mail.length, 2);
+});
+
+test('friend removal after dispatch preparation is rechecked before authorization', async t => {
+  const { pool, lifecycle, state } = await setup(t);
+  const friendshipId = await addFriendship(pool, 'alice', 'bob');
+  await addConsent(pool, 'bob');
+  const gateway = new StubGateway();
+  let reached!: () => void; let resume!: () => void;
+  const prepared = new Promise<void>(resolve => { reached = resolve; });
+  const removed = new Promise<void>(resolve => { resume = resolve; });
+  const social = new PostgresSocialService(pool, { accountLifecycle: lifecycle, appVariant: 'ANDROID', gateway,
+    now: () => state.now, beforeDispatchAuthorization: async () => { reached(); await removed; } });
+  await social.registerPushToken({ accountId: 'bob', appVariant: 'ANDROID', token: 'ExpoPushToken[relation-race]' });
+  await social.sendMessage({ accountId: 'alice', friendshipId, requestId: 'relation-race', body: '발송 전 관계 확인' });
+  const flush = social.flushNotifications({ limit: 1 });
+  await prepared;
+  await new PostgresFriendService(pool, { accountLifecycle: lifecycle, now: () => state.now }).remove({ accountId: 'alice', friendshipId });
+  resume();
+  assert.deepEqual(await flush, { claimed: 1, sent: 0, retry: 0, dead: 1, skipped: 1 });
+  assert.equal(gateway.messages.length, 0);
+  assert.equal((await pool.query('SELECT count(*)::integer AS n FROM social_notification_deliveries WHERE authorized_at IS NOT NULL')).rows[0].n, 0);
+});
+
+test('friend removal after authorization commit preserves the already authorized generic push boundary', async t => {
+  const { pool, lifecycle, state } = await setup(t);
+  const friendshipId = await addFriendship(pool, 'alice', 'bob');
+  await addConsent(pool, 'bob');
+  const gateway = new HookGateway();
+  const social = new PostgresSocialService(pool, { accountLifecycle: lifecycle, appVariant: 'ANDROID', gateway, now: () => state.now });
+  await social.registerPushToken({ accountId: 'bob', appVariant: 'ANDROID', token: 'ExpoPushToken[relation-authorized]' });
+  const mail = await social.sendMessage({ accountId: 'alice', friendshipId, requestId: 'relation-authorized', body: '발송 승인 뒤 경계' });
+  gateway.beforeSend = () => new PostgresFriendService(pool, { accountLifecycle: lifecycle, now: () => state.now }).remove({ accountId: 'bob', friendshipId });
+  assert.deepEqual(await social.flushNotifications({ limit: 1 }), { claimed: 1, sent: 1, retry: 0, dead: 0, skipped: 0 });
+  assert.equal(gateway.messages.length, 1);
+  assert.equal((await social.getMail({ accountId: 'bob', mailId: mail.id })).body, '발송 승인 뒤 경계');
 });
 
 test('dispatch rechecks token revocation after preparation before authorization', async (t) => {

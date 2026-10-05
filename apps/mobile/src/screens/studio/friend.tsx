@@ -8,6 +8,7 @@ import { createExperienceApiClient, type DisplayExperienceProfile } from '@/expe
 import { consentRequiredMessage, consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { createStudioApiClient, type FriendStudioSnapshot, type StudioApiError } from '@/studio/studio-api';
+import { clothingArtForId } from '@/shop/wardrobe';
 import { StudioScene } from '@/studio/studio-scene';
 import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
@@ -69,7 +70,7 @@ export function FriendStudioScreen({ apiUrl, credential, onSessionInvalid, frien
     try {
       const mine = await client.getMine();
       await client.save({ ...mine.studio, goal: { kind: 'discover', merchantId } });
-      if (active.current) setGoalNotice(`${merchantName}을 내 다음 방문 목표로 저장했어요.`);
+      if (active.current) setGoalNotice(`${merchantName} 방문을 다음 목표로 저장했어요.`);
     } catch {
       if (active.current) setGoalNotice('방문 목표를 저장하지 못했어요. 다시 시도해 주세요.');
     } finally { if (active.current) setGoalSaving(undefined); }
@@ -83,7 +84,8 @@ export function FriendStudioScreen({ apiUrl, credential, onSessionInvalid, frien
     {snapshot ? <>
       <Text accessibilityRole="header" style={[styles.title, { color: palette.label }]} numberOfLines={2}>{snapshot.nickname}의 공간</Text>
       <View style={styles.sceneFrame}>
-        <StudioScene studio={snapshot.studio} items={snapshot.items} avatar={snapshot.avatar} apiUrl={apiUrl}
+        <StudioScene studio={snapshot.studio} items={snapshot.items} avatar={snapshot.avatar}
+          clothing={clothingArtForId(snapshot.avatarClothingId)} apiUrl={apiUrl}
           experienceProfile={friendExperience} badgeName={friendExperience?.badgeName ?? undefined}
           width={sceneWidth} height={Math.round(sceneWidth * 0.92)}
           onItemPress={(item) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } })} />

@@ -43,7 +43,7 @@ export function BounceButton({ label, onPress, variant = 'primary', disabled }: 
             animated,
           ]}
         >
-          <Text maxFontSizeMultiplier={1.6} style={text}>{label}</Text>
+          <Text style={[text, { textAlign: 'center' }]}>{label}</Text>
         </Animated.View>
       )}
     </Pressable>

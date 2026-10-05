@@ -8,7 +8,7 @@ test('home loads real unopened store tickets from the authenticated server contr
   assert.match(screen, /createStoreTicketApiClient\(\{ apiUrl, credential, onSessionInvalid \}\)/);
   assert.match(screen, /ticketApi\.listStoreTickets\(\)/);
   assert.doesNotMatch(screen, /AsyncStorage|presentedCollectibleIds|fixture/i);
-  assert.match(screen, /방문해서 받은 가게권을 여기서 바로 열 수 있어요\./);
+  assert.match(screen, /오늘 받은 가게권과 미션을 확인해요/);
   assert.doesNotMatch(screen, /열어도 새 NFT나 보상을 만들지 않아요/);
   assert.match(screen, /아직 가게 뽑기권이 없어요/);
   assert.match(screen, /방문 인증 열기/);
@@ -31,26 +31,23 @@ test('home has mail/settings in the header, QR and friends quick actions, and no
   assert.doesNotMatch(screen, /href="\/map"/);
 });
 
-test('home uses the shared avatar appearance so the header and hero show the equipped clothing', () => {
+test('home refreshes one shop snapshot and shows the equipped companion in one exhibit', () => {
   assert.match(screen, /import \{ useShopAvatarAppearance \} from '@\/shop\/use-shop-avatar-art';/);
-  assert.match(screen, /const \[avatarRefreshToken, setAvatarRefreshToken\] = useState\(0\);/);
-  assert.match(screen, /const avatar = useShopAvatarAppearance\(apiUrl, credential, avatarRefreshToken\);/);
-  assert.match(screen, /const avatarArt = avatar\?\.art;/);
-  assert.match(screen, /const avatarClothing = avatar\?\.clothing \?\? null;/);
-  assert.match(screen, /setAvatarRefreshToken\(\(value\) => value \+ 1\); void load\(true\);/);
-  assert.match(screen, /<AppHeader title="홈" subtitle="오늘 받은 가게권과 미션을 확인해요" avatarArt=\{avatarArt\} avatarClothing=\{avatarClothing\} showMailEntry>/);
-  assert.match(screen, /<Companion art=\{avatarArt\} clothing=\{avatarClothing\} interactive size=\{heroMascotSize\(fontScale, 96\)\} \/>/);
-  assert.doesNotMatch(screen, /useShopAvatarArt\(/);
+  assert.match(screen, /const shop = useShop\(shopApi\);/);
+  assert.match(screen, /const refreshShop = shop\.refreshQuietly;/);
+  assert.match(screen, /void refreshShop\(\);/);
+  assert.match(screen, /<AppHeader title="홈" subtitle="오늘 받은 가게권과 미션을 확인해요" showFriendsEntry showMailEntry \/>/);
+  assert.equal((screen.match(/<HomeCollectionDisplay/g) ?? []).length, 1);
+  assert.doesNotMatch(screen, /heroMascotSize|<Mascot|<Companion /);
 });
 
-test('home scrolls under the status scrim, clears the tab bar, and scales the hero art for large text', () => {
+test('home scrolls under the status scrim, clears the tab bar, and keeps one exhibit', () => {
   assert.match(screen, /const clearance = useTabBarClearance\(\);/);
   assert.match(screen, /const scrim = useStatusBarScrim\(\);/);
   assert.match(screen, /onScroll=\{scrim\.onScroll\}/);
   assert.match(screen, /contentContainerStyle=\{\[styles\.content, \{ paddingBottom: clearance \}\]\}/);
   assert.match(screen, /<StatusBarScrim scrollY=\{scrim\.scrollY\} \/>/);
-  assert.match(screen, /<Companion art=\{avatarArt\} clothing=\{avatarClothing\} interactive size=\{heroMascotSize\(fontScale, 96\)\} \/>/);
-  assert.match(screen, /<Mascot interactive pose="stamp" size=\{heroMascotSize\(fontScale, 96\)\} \/>/);
+  assert.equal((screen.match(/<HomeCollectionDisplay/g) ?? []).length, 1);
 });
 
 test('home drops stale async loads after focus cleanup or a newer request', () => {

@@ -133,7 +133,7 @@ test('PR #312 리뷰 4번: SHOP_STATE_CHANGED는 새로고침이 끝날 때까�
 });
 
 test('PR #312 리뷰 8번: 한 등급을 구매하는 동안 다른 등급 버튼도 모두 비활성화된다(조용히 무시되는 탭 방지)', () => {
-  assert.match(screen, /purchaseBusy=\{Boolean\(busyGrade\) \|\| avatarBusy\}/);
+  assert.match(screen, /purchaseBusy=\{Boolean\(busyGrade\) \|\| avatarBusy \|\| experience\.saving\}/);
   const gradeRow = screen.slice(screen.indexOf('function GradeRow('), screen.indexOf('function FriendCell('));
   assert.match(gradeRow, /purchaseBusy: boolean/);
   assert.match(gradeRow, /const disabled = button\.disabled \|\| purchaseBusy;/);
@@ -142,7 +142,7 @@ test('PR #312 리뷰 8번: 한 등급을 구매하는 동안 다른 등급 버�
 
 test('PR #312 리뷰 라운드 4: avatarBusy 동안에도 새 뽑기를 막는다 — 닫힌 모달의 대표 설정 실패가 새로 연 뽑기 모달 뒤에 숨지 않는다', () => {
   const buyFn = screen.slice(screen.indexOf('async function buy('), screen.indexOf('async function chooseAvatar('));
-  assert.match(buyFn, /if \(busyGrade \|\| avatarBusy\) return false;/);
+  assert.match(buyFn, /if \(busyGrade \|\| avatarBusy \|\| experience\.saving\) return false;/);
 });
 
 test('PR #312 "대표 해제": 가진 친구는(대표든 아니든) 탭할 수 있고, 이미 대표면 해제를, 아니면 설정을 묻는다', () => {
@@ -261,7 +261,7 @@ test('shop recovery is scoped by stable account/API/app variant and does not dep
   const recoveryEffect = screen.slice(screen.indexOf('const lease = enterShopPurchaseScope(pendingScope)'), screen.indexOf('async function refresh()'));
   assert.match(recoveryEffect, /scope: pendingScope/);
   assert.match(recoveryEffect, /reroll: \(input\) => apiRef\.current\.reroll\(input\)/);
-  assert.match(recoveryEffect, /findGrade: \(grade\) => shopRef\.current\.snapshot\?\.grades/);
+  assert.doesNotMatch(recoveryEffect, /findGrade|rerollButtonState|gachaAffordability/);
   assert.match(recoveryEffect, /\.finally\(\(\) => \{ leaveShopPurchaseScope\(lease\); \}\)/);
   assert.match(recoveryEffect, /subscribeShopPurchaseScope\(pendingScope/);
   assert.match(recoveryEffect, /return \(\) => \{ mounted = false; recoveryGeneration\.current \+= 1; \};/);
@@ -271,4 +271,20 @@ test('shop recovery is scoped by stable account/API/app variant and does not dep
   assert.match(buyFn, /try \{[\s\S]*const storedAttempt = await readPendingPurchase\(pendingScope\)/);
   assert.match(buyFn, /if \(!storedAttempt\) await writePendingPurchase\(pendingScope/);
   assert.match(buyFn, /finally \{[\s\S]*leaveShopPurchaseScope\(lease\)/);
+});
+
+
+test('failed purchase exposes a recovery action independently of the disabled new-purchase control', () => {
+  assert.match(screen, /onRecoverPending=\{pending \? requestRecovery : undefined\}/);
+  assert.match(machine, /onRecoverPending && displayPhase === 'detail' \? <Control[^>]*disabled=\{busy \|\| refreshing\}[^>]*onPress=\{onRecoverPending\}/);
+  const definition = screen.match(/const requestRecovery = useCallback\((\(\) => \{[^}]*\}), \[\]\);/)?.[1];
+  assert.ok(definition);
+  const recoveryStarted = { current: true };
+  let wake = 7;
+  const retry = new Function('recoveryStarted', 'setRecoveryWake', `return (${definition});`)(
+    recoveryStarted, (update: (value: number) => number) => { wake = update(wake); },
+  ) as () => void;
+  retry();
+  assert.equal(recoveryStarted.current, false, 'the old one-shot mount latch must reopen');
+  assert.equal(wake, 8, 'the mounted recovery effect is scheduled without a new purchase');
 });

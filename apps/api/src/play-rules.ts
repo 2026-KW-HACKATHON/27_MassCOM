@@ -12,7 +12,7 @@ export type GameSkill = { id: (typeof gameSkills)[GameKind]['id']; progress: num
 export const legacyGameAchievementScore: Readonly<Record<GameKind, number>> = {
   stack: 600, memory: 600, delivery: 1200, orders: 1125,
 };
-export type PlayRun = { id: string; kind: GameKind; seed: number; startedAt: string; expiresAt: string; durationMs: number; rulesVersion: 1 };
+export type PlayRun = { id: string; kind: GameKind; seed: number; startedAt: string; expiresAt: string; durationMs: number; rulesVersion: 1 | 2 };
 
 export const gameDurationMs = 30_000;
 export type GameBoard =

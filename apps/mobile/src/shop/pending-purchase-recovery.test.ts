@@ -27,7 +27,6 @@ test('pending recovery replays one stored request across slow state updates and 
     scope,
     readPending: async () => pending,
     clearPending: async () => { events.push('clear'); },
-    findGrade: (grade) => grade === 'SILVER',
     reroll: async (input) => { rerollCalls += 1; events.push(`post:${input.grade}:${input.requestId}:${input.expectedRemaining}`); return replay; },
     isCurrent: () => true,
     onStart: (stored) => { events.push(`busy:${stored.grade}`); },
@@ -49,7 +48,6 @@ test('pending recovery reports errors without clearing storage and still release
     scope,
     readPending: async () => pending,
     clearPending: async () => { events.push('clear'); },
-    findGrade: () => true,
     reroll: async () => { throw new Error('network'); },
     isCurrent: () => true,
     onStart: () => { events.push('busy'); },
@@ -67,7 +65,6 @@ test('pending recovery ignores stale account switches before POST', async () => 
     scope,
     readPending: async () => pending,
     clearPending: async () => { events.push('clear'); },
-    findGrade: () => true,
     reroll: async () => { events.push('post'); return result; },
     isCurrent: () => false,
     onStart: () => { events.push('busy'); },
@@ -85,7 +82,6 @@ test('pending recovery reports storage read failures without posting and release
     scope,
     readPending: async () => { throw new Error('storage unavailable'); },
     clearPending: async () => { events.push('clear'); },
-    findGrade: () => true,
     reroll: async () => { events.push('post'); return result; },
     isCurrent: () => true,
     onStart: () => { events.push('busy'); },
@@ -95,4 +91,75 @@ test('pending recovery reports storage read failures without posting and release
   });
   assert.equal(status, 'error');
   assert.deepEqual(events, ['storage unavailable']);
+});
+test('a lost response for the last item is replayed from storage even when refreshed purchases are unavailable', async () => {
+  let stored: StoredPendingPurchase | null = pending;
+  const posts: string[] = [];
+  let successes = 0;
+  const cached = { balance: 0, grades: [], lastItemOwned: true };
+  assert.equal(cached.balance < 200 && cached.lastItemOwned, true);
+  const deps = {
+    scope, readPending: async () => stored,
+    clearPending: async () => { stored = null; },
+    reroll: async (input: { requestId: string }) => { posts.push(input.requestId); return result; },
+    isCurrent: () => true, onStart: () => {}, onSuccess: () => { successes += 1; }, onError: () => {}, onFinish: () => {},
+  };
+  assert.equal(await recoverPendingPurchase(deps), 'success');
+  assert.equal(await recoverPendingPurchase(deps), 'empty');
+  assert.deepEqual(posts, ['request-1']);
+  assert.equal(successes, 1);
+});
+
+test('an account switch while clearing a recovered request cannot publish its result to the next account', async () => {
+  let current = true;
+  let applied = false;
+  const status = await recoverPendingPurchase({
+    scope, readPending: async () => pending,
+    clearPending: async () => { current = false; },
+    reroll: async () => result,
+    isCurrent: () => current, onStart: () => {}, onSuccess: () => { applied = true; }, onError: () => {}, onFinish: () => {},
+  });
+  assert.equal(status, 'stale');
+  assert.equal(applied, false);
+});
+
+
+test('recovery uses the stored request for a cached last-owned item and an insufficient balance without debiting again', async () => {
+  let stored: StoredPendingPurchase | null = pending;
+  let balance = 0;
+  let applied = 0;
+  const ledger = new Map([[pending.requestId, result]]);
+  const cachedGrade = { remaining: 0, owned: 3, total: 3, price: 200 };
+  assert.equal(balance >= cachedGrade.price && cachedGrade.remaining > 0, false);
+  const deps = {
+    scope, readPending: async () => stored,
+    clearPending: async () => { stored = null; },
+    reroll: async (input: { requestId: string; expectedRemaining: number }) => {
+      assert.equal(input.requestId, pending.requestId);
+      assert.equal(input.expectedRemaining, pending.expectedRemaining, 'replay keeps original optimistic state');
+      const replay = ledger.get(input.requestId);
+      if (replay) return replay;
+      balance -= cachedGrade.price;
+      throw new Error('unexpected fresh purchase');
+    },
+    isCurrent: () => true, onStart: () => {}, onSuccess: () => { applied += 1; }, onError: () => {}, onFinish: () => {},
+  };
+  assert.equal(await recoverPendingPurchase(deps), 'success');
+  assert.equal(await recoverPendingPurchase(deps), 'empty');
+  assert.equal(balance, 0, 'the replay adds no second debit');
+  assert.equal(applied, 1, 'the recovered result is published once');
+});
+
+test('a response arriving after account switch keeps the old request recoverable without changing the new view', async () => {
+  let current = true;
+  const events: string[] = [];
+  const status = await recoverPendingPurchase({
+    scope, readPending: async () => pending,
+    clearPending: async () => { events.push('clear'); },
+    reroll: async () => { current = false; return result; },
+    isCurrent: () => current, onStart: () => { events.push('start'); },
+    onSuccess: () => { events.push('success'); }, onError: () => { events.push('error'); }, onFinish: () => { events.push('finish'); },
+  });
+  assert.equal(status, 'stale');
+  assert.deepEqual(events, ['start']);
 });

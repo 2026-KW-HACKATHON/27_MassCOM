@@ -1,0 +1,15 @@
+{
+  "width": 1080,
+  "height": 1350,
+  "duration": 4,
+  "bytes": 1374915,
+  "avc1": true,
+  "decodedFrames": 3,
+  "frameChanges": true,
+  "file": "final-feed.mp4",
+  "decodedFrameFiles": [
+    "final-feed.mp4-frame0.png",
+    "final-feed.mp4-frame1.png",
+    "final-feed.mp4-frame2.png"
+  ]
+}

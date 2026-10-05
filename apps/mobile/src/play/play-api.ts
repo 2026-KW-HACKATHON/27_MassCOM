@@ -3,9 +3,12 @@ import { shouldInvalidateSession } from '@/auth/session-invalid';
 import { consentRequiredMessage, needsConsentRecheck } from '@/privacy/consent-flow';
 import { gameSkills, type GameAction, type GameKind, type GameSkill, type PlayRun } from '../../../api/src/play-rules';
 
-export type PlayRecord = { kind: GameKind; bestScore: number; plays: number };
+export type PlayRecord = { kind: GameKind; bestScore: number; plays: number;
+  version2BestScore?: number; version2Plays?: number };
 export type PlaySnapshot = { records: PlayRecord[]; unlockedThemes: string[]; achievements?: GameSkill[] };
-export type PlayFinish = { kind: GameKind; score: number; bestScore: number; plays: number; completed: boolean; correct: number; total: number; unlockedThemes: string[]; skill?: GameSkill; newlyEarned?: boolean };
+export type PlayFinish = { kind: GameKind; rulesVersion?: 1 | 2; score: number; bestScore: number; plays: number;
+  version2BestScore?: number; version2Plays?: number;
+  completed: boolean; correct: number; total: number; unlockedThemes: string[]; skill?: GameSkill; newlyEarned?: boolean };
 
 export class PlayApiError extends Error {
   constructor(readonly status: number, readonly code: string) {
@@ -58,26 +61,37 @@ export function createPlayApiClient({ apiUrl, credential, onSessionInvalid, fetc
       const value = await request('/me/play', { signal });
       if (!record(value) || !Array.isArray(value.records) || !strings(value.unlockedThemes)) throw invalid();
       const records = value.records.map((entry) => {
-        if (!record(entry) || !kind(entry.kind) || !integer(entry.bestScore) || !integer(entry.plays)) throw invalid();
-        return { kind: entry.kind, bestScore: entry.bestScore, plays: entry.plays };
+        if (!record(entry) || !kind(entry.kind) || !integer(entry.bestScore) || !integer(entry.plays) ||
+          (entry.version2BestScore !== undefined && !integer(entry.version2BestScore)) ||
+          (entry.version2Plays !== undefined && (!integer(entry.version2Plays) || entry.version2Plays > entry.plays)) ||
+          (entry.version2BestScore === undefined) !== (entry.version2Plays === undefined)) throw invalid();
+        return { kind: entry.kind, bestScore: entry.bestScore, plays: entry.plays,
+          ...(entry.version2BestScore !== undefined ? { version2BestScore: entry.version2BestScore } : {}),
+          ...(entry.version2Plays !== undefined ? { version2Plays: entry.version2Plays } : {}) };
       });
       if (value.achievements !== undefined && (!Array.isArray(value.achievements) || !value.achievements.every(skill))) throw invalid();
       return { records, unlockedThemes: value.unlockedThemes,
         ...(value.achievements ? { achievements: value.achievements } : {}) };
     },
     async start(kind: GameKind, signal?: AbortSignal): Promise<PlayRun> {
-      const value = await request('/me/play/runs', post({ kind }, signal));
+      const value = await request('/me/play/runs', post({ kind, rulesVersion: 2 }, signal));
       if (!record(value) || typeof value.id !== 'string' || !value.id || value.kind !== kind || !integer(value.seed) || value.seed > 0x7fffffff
         || typeof value.startedAt !== 'string' || Number.isNaN(Date.parse(value.startedAt))
         || typeof value.expiresAt !== 'string' || Number.isNaN(Date.parse(value.expiresAt))
-        || !integer(value.durationMs) || value.durationMs === 0 || value.rulesVersion !== 1) throw invalid();
+        || !integer(value.durationMs) || value.durationMs === 0 || (value.rulesVersion !== 1 && value.rulesVersion !== 2)) throw invalid();
       return value as PlayRun;
     },
     async finish(run: PlayRun, actions: readonly GameAction[], signal?: AbortSignal): Promise<PlayFinish> {
       const value = await request(`/me/play/runs/${encodeURIComponent(run.id)}/finish`, post({ actions }, signal));
       if (!record(value) || value.kind !== run.kind || !integer(value.score) || !integer(value.bestScore)
         || !integer(value.plays) || typeof value.completed !== 'boolean' || !integer(value.correct)
-        || !integer(value.total) || !strings(value.unlockedThemes)) throw invalid();
+        || !integer(value.total) || !strings(value.unlockedThemes) ||
+        (value.rulesVersion !== undefined && value.rulesVersion !== run.rulesVersion) ||
+        (value.version2BestScore !== undefined && !integer(value.version2BestScore)) ||
+        (value.version2Plays !== undefined && (!integer(value.version2Plays) || value.version2Plays > value.plays)) ||
+        value.correct > value.total ||
+        (run.rulesVersion === 2 && (value.rulesVersion !== 2 || !integer(value.version2BestScore) ||
+          !integer(value.version2Plays)))) throw invalid();
       if ((value.skill !== undefined && (!skill(value.skill) || value.skill.id !== gameSkills[run.kind].id)) ||
         (value.newlyEarned !== undefined && typeof value.newlyEarned !== 'boolean')) throw invalid();
       return value as PlayFinish;

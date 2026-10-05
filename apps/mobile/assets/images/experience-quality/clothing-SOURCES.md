@@ -1,0 +1,10 @@
+# Clothing atlas provenance
+
+- Asset: `clothing-atlas.png`
+- Generated: 2026-10-06 with Codex built-in `image_gen`, `transparent_background: true`; project PNG is an unmodified copy of `/Users/choi/.codex/generated_images/01a10cbc-5cf9-7830-a4cd-fccaa18ef3d7/exec-932d93f3-e69f-43c9-941d-b820e7a52129.png`.
+- Format: 1254 × 1254 PNG with alpha; exact 2 × 2 grid, 627 × 627 pixels per cell. Row-major zero-based indices: 0 green apron, 1 sky-blue hoodie, 2 red scarf with yellow stripes, 3 empty.
+- Visual inspection: three isolated garment cutouts, no grid or visible content in cell 3. Read-only alpha check: cells 0/1/2 contain 166697/192866/150172 pixels above 1% alpha, cell 3 contains 0; no such pixels within 20 pixels of any cell boundary.
+
+Prompt (verbatim):
+
+> Create ONE production-ready transparent PNG sprite atlas for a cozy children's mobile game. Square canvas, exact evenly divided 2×2 grid of equal square cells, no visible grid lines. Match the supplied project's existing equipment and animal-pose artwork style: hand-painted warm watercolor/gouache texture, soft volume, fine dark brown clean outlines, subtle stitching, gentle folds, polished storybook game asset. Four cells, row-major: TOP LEFT a standalone front-facing leafy GREEN apron for a round chubby animal torso, neck loop, central bib, curved lower panel and short waist ties; TOP RIGHT a standalone front-facing soft SKY-BLUE hoodie garment with body, two short sleeves, visible front zipper and a folded hood behind neckline; BOTTOM LEFT a standalone front-facing RED market scarf, neck loop and two short hanging drapes, clear warm YELLOW stripe; BOTTOM RIGHT COMPLETELY EMPTY TRANSPARENT PIXELS. Garments sized similarly, optically centered within their own cells, with generous fully transparent gutters from all cell boundaries so cropping each cell never cuts cloth and nothing bleeds between cells. Actual transparent RGBA canvas. No person, animal, body part, face, head silhouette, mannequin, text, letters, numbers, icons, props, borders, backdrop, floor, or cast shadows. Only three garment cutouts. Avoid detached fragments or anything in the unused cell.

@@ -1,6 +1,18 @@
 # AI 사용 기록
 
+## 2026-10-06 PR #374 병합 복구 (Issue #367)
+
+Codex는 PR #374 검토와 PR #375/main 통합을 조율했다. 병렬 구현 범위는 서버 gift/reply/date/stale-session 401, 상점 응답 유실 구매복구, #374 의상·#375 artwork 통합이다. 통합 뒤 API 513·모바일 1673·PostgreSQL 494 PASS/3 SKIP·site 508, type/build/lint, CodeReviewer·Architect·75파일 TypeScript Language Service 결과를 확인했다. 실제 390px synthetic browser에서 6 draw와 마지막 silver의 server-commit/response-drop 자동 recovery/no-duplicate debit을 확인했다. 11개 충돌을 해결했고 네 문서의 #374/#375 역사를 함께 보존했다.
+
+친구 제거는 authorization commit 이전의 push를 막으며 이미 승인된 일반 push는 회수할 수 없다. 검증 계정은 private local fixture(mode 0600), Google login은 사용하지 않았다. 실기기, Expo FCM receipt, 실제 오디오/햅틱, production APK·공개 배포는 검증하지 않았다. PR CI·merge는 현재 PR 기록을 따른다. 공통 36개 회귀 ID는 그대로 유지한다.
+
 2026-10-05 — Issue #367: Codex/autopilot 흐름으로 앱 내 상점·홈·우정/우편 개편을 설계·구현·문서화했다. 사용자 확정 규칙(하단 탭은 `상점 · 도감 · 홈 · 검색 · 상점`, 친구는 홈 빠른 버튼, `코인`은 캐릭터, 우정 보내기 5회/받기 무제한/마일리지 25P 상한)을 기준으로 migration 0050~0055와 `social_notification_deliveries` namespace, `privacy-2026-10-05`, Expo push 환경 변수, BGM/SE/진동 설정, Kenney CC0 효과음·사용자 제공 BGM 자산 출처를 기록했다. Final cycle8 검증은 API 502/502·mobile 1633/1633·PostgreSQL 190/190·site 340/340, 총 2665개 distinct full-suite PASS와 typecheck/lint/build, 55개 migration idempotent, 세 export/guard PASS다. CodeReviewer APPROVE 0 issues, Architect CLEAR 0 blockers, live QA baseline 14 PASS·UltraQA 15 PASS/1 NOT_RUN·findings 0, final `tools/gate.sh` exit 0을 기록했다. Draft PR #374 생성과 현재 PR body/SHA-linked body 한국어 checker PASS는 기록했다. 이 항목은 공개 배포·merge·실제 Android push/BGM/진동/hardware back, media-less ACK, unsupported runtime class 완료를 주장하지 않는다.
+
+## 2026-10-05 Issue #373 전체 경험 품질 개선
+
+Codex는 기준 `0ce3114c`와 최신 로컬 구현을 확인하고 게임·아트·화면·서버 경계별 네이티브 하위 에이전트의 결과를 조율했다. 표준 `gpt-6-sol` executor 실행이 용량 제한에 막힌 일부 범위는 사용 가능한 GPT-6.1 기본 실행으로 이어 갔다. 이 기록은 오케스트레이터의 모델을 특정하지 않는다. 독립 Astra 검토의 중간 중요 지적 3건을 수정했고 최종 3개 영역에서 구체적 발견은 없었다. 검토 후 추가 회귀 시험 12개가 통과했다.
+
+이미지 자산은 내장 imagegen으로 만들고 원본 프롬프트·출처 기록을 `apps/mobile/assets/images/experience-quality/SOURCES.md`에 보관했다. Codex는 CUA 게임·빈 계정의 기존 API 첫 방문과 뽑기, 320×640 라이트/줄인 동작 설정에서 장착·재시도 UI, 친구 공간/완료 목표 갱신, 최종 홈 제목 배치, Android 캡처, 웹과 네이티브 PNG/H.264 결과를 확인했다. 브라우저의 두 번째 합성 계정은 localhost 전용 세션 fixture(mode 0600)이며 실제 Google 로그인은 하지 않았다. 모바일 전체 1,545개 통과; 최종 타입 검사·린트, 원격 CI 결과와 외부 환경 검증은 확인 중이다. 자동 검토·로컬 화면·에뮬레이터는 실제 사용자·실기·공개 서비스 검증을 뜻하지 않는다. 시험 결과와 미실행 범위는 [TEST_STATUS](TEST_STATUS.md) 및 [경험 품질 보고서](EXPERIENCE_QUALITY.md)에 기록한다.
 
 ## 2026-10-05 Issue #371
 

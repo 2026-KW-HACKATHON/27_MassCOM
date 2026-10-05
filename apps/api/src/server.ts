@@ -1201,10 +1201,11 @@ export function createApiServer(
         const accountId = await resolveAccountId(request);
         await requireCurrentPlayConsent(accountId);
         const body = await readJson(request);
-        if (Object.keys(body).join(',') !== 'kind' || !isGameKind(body.kind)) {
+        if (Object.keys(body).some(key => key !== 'kind' && key !== 'rulesVersion') || !isGameKind(body.kind) ||
+            (body.rulesVersion !== undefined && body.rulesVersion !== 1 && body.rulesVersion !== 2)) {
           throw new RequestError(400, 'PLAY_KIND_INVALID');
         }
-        sendJson(response, 201, await play.start({ accountId, kind: body.kind }));
+        sendJson(response, 201, await play.start({ accountId, kind: body.kind, rulesVersion: body.rulesVersion ?? 1 }));
         return;
       }
       const finishPlayMatch = request.url?.match(/^\/me\/play\/runs\/([^/]+)\/finish$/);

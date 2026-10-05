@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import { type AddressInfo } from 'node:net';
 import { test, type TestContext } from 'node:test';
+import type { Pool } from 'pg';
 
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, type ConsentService } from './account-consent.js';
 import { createApiServer, developmentHeaderAccountResolver } from './server.js';
 import { SocialError, type MailDetail, type MailList, type SocialService, type SocialSnapshot } from './social.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
+import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
+import { PostgresSocialService } from './postgres/social.js';
 
 type JsonResponse = {
   status: number;
@@ -298,6 +301,28 @@ test('social HTTP validates decisions and encoded path syntax at the route bound
   assert.equal(badPath.status, 400);
   assert.deepEqual(badPath.body, { code: 'INVALID_PATH_PARAMETER' });
   assert.deepEqual(calls, []);
+});
+
+test('social HTTP returns 400 for impossible calendar dates without PostgreSQL access', async t => {
+  let databaseAttempts = 0;
+  const social = new PostgresSocialService({ connect: async () => {
+    databaseAttempts++;
+    throw new Error('invalid calendar date reached PostgreSQL');
+  } } as unknown as Pool, {
+    accountLifecycle: new PostgresAccountLifecycle({ hmacSecret: 'social-calendar-test-secret-at-least-32-bytes' }),
+    appVariant: 'ANDROID', now: () => new Date('2026-01-01T00:00:00Z'),
+    gateway: { send: async () => [], getReceipts: async () => new Map() },
+  });
+  const { baseUrl } = await fixture(t, { social: () => social });
+  for (const date of ['2027-02-29', '2027-04-31', '2027-13-01', '2100-02-29']) {
+    const response = await request(baseUrl, 'POST', '/me/friends/friend-1/meal-invitations', {
+      accountId: 'alice', body: json({ requestId: `invalid-calendar-${date}`, merchantId: 'shop-a',
+        date, kind: 'CONFIRMED', time: '12:00' }),
+    });
+    assert.equal(response.status, 400, date);
+    assert.deepEqual(response.body, { code: 'INVALID_REQUEST' });
+  }
+  assert.equal(databaseAttempts, 0);
 });
 
 test('DELETE /me/push-tokens stays available when renewed consent is required', async (t) => {

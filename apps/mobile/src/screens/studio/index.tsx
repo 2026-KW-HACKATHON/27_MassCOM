@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
+import type { ExperienceProfile } from '@/experience/experience-api';
 import { ExperienceWardrobe } from '@/experience/experience-wardrobe';
 import { useExperience } from '@/experience/use-experience';
 import { getAppPackageId } from '@/config/app-identity';
@@ -13,7 +14,7 @@ import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
 import { createShopApiClient, type ShopSnapshot } from '@/shop/shop-api';
 import { friendArt } from '@/shop/shop-art';
-import { useEquippedClothingArt } from '@/shop/wardrobe';
+import { AvatarWardrobe, clothingArtForId, equippedClothingArt, useEquippedClothingArt } from '@/shop/wardrobe';
 import { StudioScene } from '@/studio/studio-scene';
 import { ShareFormatButtons, useStudioShare } from '@/studio/studio-share';
 import { createStudioApiClient, studioErrorMessage, type Studio, type StudioGoal, type StudioItem, type StudioSnapshot, type StudioTheme } from '@/studio/studio-api';
@@ -69,13 +70,17 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   const [errorNeedsConsent, setErrorNeedsConsent] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [shareStatus, setShareStatus] = useState<string>();
+  const [shareTone, setShareTone] = useState<'success' | 'neutral' | 'error'>('neutral');
+  const [preview, setPreview] = useState<{ profile: ExperienceProfile; source: ExperienceProfile; avatar: string | null; client: typeof client } | null>(null);
+  const previewProfile = preview?.client === client && preview.source === experience.snapshot?.profile && preview.avatar === avatarChoice ? preview.profile : null;
   const [collectionPage, setCollectionPage] = useState(0);
   const mounted = useRef(false);
   const active = useRef(false);
   const generation = useRef(0);
   const share = useStudioShare(apiUrl, useCallback(() => active.current, []),
     appId === 'kr.masscom.wolgye.demo' || appId === 'kr.masscom.wolgye.dev' || credential.kind === 'demo',
-    useCallback((event) => { if (active.current) void client.trackShare(event).catch(() => {}); }, [client]));
+    useCallback((event) => { if (active.current) void client.trackShare(event).catch(() => {}); }, [client]),
+    useCallback(() => generation.current, []));
 
   useEffect(() => {
     mounted.current = true;
@@ -94,7 +99,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
           .catch(() => ({ items: [] as readonly PublicMerchant[], failed: true as const })),
       ]);
       if (!active.current || request !== generation.current) return;
-      setSnapshot(studio); setCollection(owned); setShop(shopSnapshot); setMerchants(catalog.items);
+      setPreview(null); setSnapshot(studio); setCollection(owned); setShop(shopSnapshot); setMerchants(catalog.items);
       setMerchantError(catalog.failed);
       const requestedIndex = owned.collectibles.findIndex((item) => item.entitlementId === requestedEntitlement);
       setCollectionPage(Math.floor(Math.max(0, requestedIndex) / ownedPageSize));
@@ -217,7 +222,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} progressViewOffset={insets.top} />}>
       <View style={styles.sceneFrame}>
         <StudioScene studio={draft} items={selected} avatar={avatarChoice} clothing={clothingArt} apiUrl={apiUrl} width={sceneWidth} height={Math.round(sceneWidth * 0.92)}
-          experienceProfile={experience.snapshot?.profile}
+          experienceProfile={previewProfile ?? experience.snapshot?.profile}
           representativeCoin={representativeCoin ? itemFromCollection(representativeCoin) : undefined}
           badgeName={experience.snapshot?.catalog.badges.find((badge) => badge.id === experience.snapshot?.profile.badgeId)?.name}
           onItemPress={(item) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } })} />
@@ -225,8 +230,10 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
       <Text style={[styles.hint, { color: palette.secondaryLabel }]}>{selected.length}/6개 전시 · 동행 {shop.items.find((item) => item.id === avatarChoice)?.name ?? '기본 마스코트'} · 옷 {shop.clothing.items.find((item) => item.id === clothingChoice)?.name ?? '없음'}</Text>
       <Text style={[styles.visibilityNote, { color: palette.secondaryLabel }]}>저장한 동행과 수집품은 친구 공간에 바로 보여요.</Text>
       {experience.error ? <Pressable accessibilityRole="button" onPress={() => void experience.refresh()}><Text style={styles.rowMeta}>{experience.error} · 다시 확인</Text></Pressable> : null}
-      {experience.snapshot ? <ExperienceWardrobe snapshot={experience.snapshot} saving={experience.saving}
-        onEquip={(equipment) => void experience.save(equipment)} onWish={(itemId) => void experience.wish(itemId)} /> : null}
+      {previewProfile ? <Text accessibilityLiveRegion="polite" style={[styles.hint, { color: palette.secondaryLabel }]}>착용 미리보기 · 아직 저장하지 않았어요. 공유에는 저장된 장비가 보여요.</Text> : null}
+      {experience.snapshot ? <ExperienceWardrobe snapshot={experience.snapshot} saving={experience.saving} avatar={avatarChoice} clothing={clothingArt}
+        onPreview={(profile) => setPreview(profile && experience.snapshot ? { profile, source: experience.snapshot.profile, avatar: avatarChoice, client } : null)}
+        onEquip={(equipment) => void experience.save(equipment).then((saved) => { if (saved) setPreview(null); })} onWish={(itemId) => void experience.wish(itemId)} /> : null}
       {experience.snapshot && owned.length ? <View style={styles.section}>
         <Text style={[styles.heading, { color: palette.label }]}>대표 수집 코인</Text>
         <View style={styles.choices}>{page.items.map((item) => <Pressable key={item.entitlementId}
@@ -260,7 +267,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
             key={item.id} accessibilityRole="radio" accessibilityLabel={`${item.name} 착용 선택`}
             accessibilityState={{ selected: clothingChoice === item.id }} onPress={() => setClothingChoice(item.id)}
             style={[styles.clothingOption, clothingChoice === item.id && styles.rowSelected]}>
-            <View style={styles.clothingBadge}><Text style={styles.clothingBadgeText}>{item.name.slice(0, 1)}</Text></View>
+            <View style={styles.clothingBadge}><AvatarWardrobe clothing={clothingArtForId(item.id)} size={42} /></View>
             <Text numberOfLines={2} style={styles.avatarName}>{item.name}</Text>
           </Pressable>)}
         </View>
@@ -346,18 +353,20 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
       <View style={styles.section}>
         <Text style={[styles.heading, { color: palette.label }]}>공유 이미지·영상</Text>
         <ShareFormatButtons disabled={share.sharing} onShare={(format, media) => {
+          const request = generation.current;
           setShareStatus(undefined);
           void share.share(draft, selected, avatarChoice, format, media, experience.snapshot?.profile,
             experience.snapshot?.catalog.badges.find((badge) => badge.id === experience.snapshot?.profile.badgeId)?.name,
-            representativeCoin ? itemFromCollection(representativeCoin) : undefined)
+            representativeCoin ? itemFromCollection(representativeCoin) : undefined, equippedClothingArt(shop))
             .then((outcome) => {
-              if (!active.current) return;
+              if (!active.current || request !== generation.current) return;
+              setShareTone(outcome === 'saved' ? 'success' : 'neutral');
               setShareStatus({ shared: '공유 창을 열었어요.', saved: `${media === 'video' ? '영상을' : '이미지를'} 저장했어요.`,
                 cancelled: '공유가 취소됐어요.', unavailable: `이 기기에서는 ${media === 'video' ? '영상' : '이미지'} 내보내기를 사용할 수 없어요.` }[outcome]);
             })
-            .catch(() => { if (active.current) setShareStatus('내보내지 못했어요. 다시 시도해 주세요.'); });
+            .catch(() => { if (active.current && request === generation.current) { setShareTone('error'); setShareStatus('내보내지 못했어요. 다시 시도해 주세요.'); } });
         }} />
-        {shareStatus ? <Text accessibilityRole="alert" style={[styles.notice, { color: palette.success }]}>{shareStatus}</Text> : null}
+        {shareStatus ? <Text accessibilityRole="alert" style={[styles.notice, { color: shareTone === 'success' ? palette.success : shareTone === 'error' ? palette.error : palette.secondaryLabel }]}>{shareStatus}</Text> : null}
       </View>
       {share.host}
     </SkyScrollView>
@@ -371,8 +380,7 @@ const styles = StyleSheet.create({
   avatarOption: { width: 91, minHeight: 103, alignItems: 'center', justifyContent: 'center', padding: 5, borderWidth: 1, borderColor: '#DBE3EC', borderRadius: 6, backgroundColor: '#FFFFFF' },
   avatarImage: { width: 62, height: 62 }, avatarName: { color: '#263A52', fontSize: 11, fontWeight: '700', textAlign: 'center' },
   clothingOption: { width: 91, minHeight: 84, alignItems: 'center', justifyContent: 'center', padding: 5, borderWidth: 1, borderColor: '#DBE3EC', borderRadius: 6, backgroundColor: '#FFFFFF' },
-  clothingBadge: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2E8B57', borderColor: '#D9F8D7', borderWidth: 2 },
-  clothingBadgeText: { color: '#FFFFFF', fontWeight: '900', fontSize: 17 },
+  clothingBadge: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   noClothingBadge: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F5F9', borderColor: '#DCE5EF', borderWidth: 1 },
   noClothingText: { color: '#6B7A8F', fontWeight: '900', fontSize: 20 },
   avatarSave: { minHeight: 44, justifyContent: 'center', alignItems: 'center', backgroundColor: '#EAF1FF', borderRadius: 6 },

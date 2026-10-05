@@ -18,10 +18,11 @@ test('PR #312 리뷰 5번: 홈 탭이 다시 포커스를 받으면 대표 캐�
   assert.match(source, /return useShopAvatarAppearance\(apiUrl, credential, refreshToken\)\?\.art;/);
   const effect = source.slice(source.indexOf('useEffect(() => {'));
   assert.match(effect, /\}, \[apiUrl, credential, refreshToken, focusToken\]\);/);
-  assert.match(home, /useShopAvatarAppearance\(apiUrl, credential, avatarRefreshToken\)/);
-  assert.match(home, /avatarClothing=\{avatarClothing\}/);
-  assert.match(home, /<Companion art=\{avatarArt\} clothing=\{avatarClothing\}/);
-  assert.doesNotMatch(home, /useShopAvatarArt\(/);
+  assert.match(home, /const shop = useShop\(shopApi\)/);
+  assert.match(home, /const refreshShop = shop\.refreshQuietly/);
+  assert.match(home, /void refreshShop\(\)/);
+  assert.match(readFileSync(fileURLToPath(new URL('../experience/home-collection-display.tsx', import.meta.url)), 'utf8'),
+    /clothing=\{equippedClothingArt\(shop\)\}/);
 });
 
 test('equipped clothing art is available as a pure converter for non-studio surfaces', () => {

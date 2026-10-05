@@ -76,6 +76,20 @@ test('meal response validation requires selected time for ranges and keeps it in
   assert.equal(parseMealResponse({ decision: 'ACCEPT', selectedTime: '13:00' }, confirmed), null);
 });
 
+test('meal invitation dates must exist on the calendar, including month lengths and leap years', () => {
+  const now = new Date('2026-01-01T00:00:00Z');
+  for (const date of ['2026-02-29', '2026-02-30', '2028-02-30', '2026-04-31', '2026-06-31',
+    '2026-00-10', '2026-13-01', '2026-12-00', '2026-12-32', '2100-02-29']) {
+    for (const schedule of [{ kind: 'CONFIRMED', time: '12:00' },
+      { kind: 'RANGE', startTime: '12:00', endTime: '13:00' }] as const) {
+      assert.equal(parseMealInvitation({ merchantId: 'shop-a', date, ...schedule }, now), null, date);
+    }
+  }
+  for (const date of ['2026-02-28', '2026-04-30', '2026-12-31', '2028-02-29', '2400-02-29']) {
+    assert.equal(parseMealInvitation({ merchantId: 'shop-a', date, kind: 'CONFIRMED', time: '12:00' }, now)?.date, date);
+  }
+});
+
 test('generic push payload contains only notification routing data', () => {
   assert.deepEqual(buildGenericPushPayload({ mailId: 'mail-1', type: 'MEAL_RESPONSE' }), {
     title: '새 우편이 도착했어요',

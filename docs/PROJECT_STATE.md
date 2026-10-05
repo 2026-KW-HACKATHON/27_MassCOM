@@ -1,5 +1,11 @@
 # 프로젝트 상태
 
+## 현재 작업: PR #374 병합 복구 (Issue #367, 2026-10-06)
+
+브랜치 `fix/pr374-review`에서 PR #374 SHA `dbe8f09e0ac347d0aa08fde80817078648674cd2`와 `origin/main` SHA `57e7746ff8586c60bc5555f731b93ddc789dcbc6`을 통합했다. 리뷰 결함 5건과 PR #375 병합의 충돌 11개를 해결해 소스·시험·양쪽 문서 이력을 함께 보존했다. 자세한 수용 기준과 CUA 증거는 [복구 보고서](PR374_REPAIR.md)에 있다.
+
+검증: API 513/typecheck/build, 모바일 1,673/typecheck/lint, PostgreSQL 494 PASS·3 SKIP·0 FAIL/183초, site 508; focused social 46과 friend/play 6 RED→GREEN. CodeReviewer must-fix 0, TypeScript Language Service 75 files/0 diagnostics, Architect 29 focused/0 blockers. 합성 브라우저 계정(mode 0600)으로 구매 응답 유실 자동 복구·원장 6건/no duplicate debit 및 의상·공유 결과를 확인했다. 실제 Google·실기·Expo push·오디오/진동·production APK는 검증하지 않았다. 공통 36개 시험 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN` 행은 유지한다. 원격 CI/merge 상태는 PR 기록, 공개 배포·Play는 별도 `NOT_RUN`이다.
+
 ## 앱 내 상점·홈·우정/우편 개편 (Issue #367, 2026-10-05)
 
 브랜치 `feat/shop-home-social`은 사용자가 보낸 상점 상세 그림과 홈 구성 그림을 기준으로 고객 앱 흐름을 재배치하는 로컬 작업이다. 아직 공개 앱, 운영/시연 서버, `/open`, GitHub Release에는 반영하지 않았다. 기존 최신 공개 설치본은 운영 test.10·시연 Preview 19 그대로이며, 이 항목은 그 출시 증거를 대체하지 않는다. Cycle8 source repair는 알림 응답 교체 중 오래된 처리기가 최신 다른 영역 응답을 지울 수 있던 문제를 고쳤고 source frozen 상태다. Final 검증은 API 502/502, mobile 1633/1633, PostgreSQL 190/190, site 340/340로 총 2665개 distinct full-suite PASS다. Typecheck·lint·build, production Android·showcase Android·development web exports, variant asset/API origin/accessibility/privacy guard, 55개 migration 두 DB idempotent도 PASS다. CodeReviewer는 APPROVE 0 issues, Architect는 CLEAR 0 blockers이고 final gate는 exit 0 PASS다. Live QA는 baseline 14 PASS·0 findings·cleanup 0, UltraQA 15 PASS·1 NOT_RUN·0 findings·cleanup 0이다. 현재 `npm audit --omit=dev`는 35건(12 moderate, 23 high, critical 0)이고 package-lock은 origin/main `0ce3114c`와 byte-equal이라 branch 신규 dependency advisory는 0건이다. Draft PR #374가 생성됐고 현재 PR body와 SHA-linked body 한국어 checker는 `.omx/pr-korean-final.log` 기준 PASS다.
@@ -9,6 +15,18 @@
 소셜 범위는 친구 우정 보내기/받기, 친구 정보·쪽지, 우편, 같이 밥 먹기 초대다. 우정 보내기는 하루 5회, 받기는 무제한이지만 계정당 하루 우정 마일리지 총액은 25P가 상한이다. Fresh cycle8 브라우저에서 새 게스트 동의→홈 빈 상태 0개→가상 점포 A 테스트 방문→홈 1/9 배지와 가게권 1장, QR 화면의 숨겨진 하단 탭과 홈 복귀, 실버 1탭 직접 모달, 실제 구매 잔액 100,150→99,973·+23P·하늘 후드·빵집 다람쥐·upstream 빵집 골목 모자 보너스, BGM/SE OFF와 비활성 슬라이더→reset ON 30%, 진동 3선택을 확인했다. Historical cycle6 브라우저 증거는 친구 추가→프로필→우정 5P 보내기, 하루 남은 보내기 4/5와 보상 20P, pending 수신 전 재전송 차단, A 가게 2026-10-06 12~14시 식사 초대에 B가 12:40을 고른 뒤 보낸 사람 우편 상세에 확정 시간이 표시되는 흐름을 보존한다. Fresh search/filter/map/friends browser smoke도 PASS다. 같은 친구에게 보낸 우정은 상대가 받을 때까지 다시 보낼 수 없다. 식사 초대는 확정 시간 또는 날짜+시간 범위로 보내고, 범위 초대의 수신자가 정확한 시간을 골라 답하면 보낸 사람에게 우편과 앱 푸시로 돌아간다. 메시지·식사 시간·푸시 토큰은 온체인/IPFS/로그에 남기지 않는 개인정보 경계로 문서화했다.
 
 스키마는 upstream `0043_campaign_extended_audit.sql`과 새 main의 `0044_collection_experience.sql`~`0049_notification_sources.sql`을 보존하고, Issue #367 migration `0050_social_mail.sql`, `0051_shop_draw_rewards.sql`, `0052_store_ticket_openings.sql`, `0053_social_notification_deliveries.sql`, `0054_push_token_binding_revision.sql`, `0055_notification_delivery_token_version.sql`을 추가하는 형태다. 0050은 소셜 우편·우정·social push outbox, 0051은 뽑기 보너스 마일리지와 옷장, 0052는 열린 보상권 ACK 표식이다. 0053은 upstream `notification_deliveries`와 분리된 `social_notification_deliveries` token별 push delivery와 lease generation을 추가하고, 0054는 device binding revision으로 계정 전환·logout·token rotation의 늦은 요청을 fencing한다. 0055는 receipt 효과를 dispatch 때 authorization된 push token id와 binding revision에 묶는 token-version fence다. Cycle7 migration 0055 포함 55개 migration from-scratch와 rerun idempotent 검증은 두 owned DB에서 PASS다. 처리방침 동의판은 `privacy-2026-10-05`로 올렸고, 푸시 빌드 변수는 `EXPO_PUSH_ACCESS_TOKEN`(서버), `MASSCOM_NOTIFICATION_PROJECT_ID`(Expo project UUID), `MASSCOM_FIREBASE_ANDROID_CONFIG`(Android Firebase 설정 파일 경로)로 나뉜다. Store ticket의 브라우저 QA는 fixture media fallback 때문에 실제 표시/ACK 증거가 없고, API 시험이 ACK authorization을 덮으며 UI는 티켓이 유지되는 것까지만 확인했다. Mounted shop focus는 idle 약 62초 동안 shop GET 4328→4328이고 재포커스에서 bounded +2였다. 실제 Android 푸시 수신, native BGM/SE 청음, haptic 체감, hardware back, media-less seed 실제 display ACK, unsupported runtime cancel/resume/hung CLI class, 공개 배포, merge는 아직 `NOT_RUN`이다. 검증 세부 결과는 [TEST_STATUS](TEST_STATUS.md)의 Issue #367 항목을 따른다.
+
+## 현재 작업: 전체 경험 품질 개선 (Issue #373, 2026-10-05)
+
+기준 커밋 `0ce3114c`, 브랜치 `feat/experience-quality`. 통합 상태는 이 브랜치의 PR 검사·병합 기록에 따른다. 공개 서버와 공개 설치본은 변경하지 않았다. 전체 품질 변경과 한계는 [보고서](EXPERIENCE_QUALITY.md), 캡처와 합성 증거는 [로컬 증거](evidence/experience-quality-2026-10-05/)를 따른다.
+
+최신 자동화 CUA 플레이는 쌓기 510점·6층·폭 20% 잔여, 기억 600점·6쌍, 배달 1,200점·소포 1개·건강도 3·충돌 0, 주문 1,090점·4건·12개다. 배달 재시도는 165점·12구간 중 2구간에서 끝났고 건강도 3·충돌 0이며, 기존 최고 1,200점·완주 1회·획득 배지를 보존했다. 기억 시간초과는 별도로 185점·6쌍 중 2쌍이었다.
+
+별도 합성 빈 계정(방문/코인/마일리지 0)에서 게임 허브 연습 화면 뒤 기존 API 첫 방문으로 코인 1개·마일리지 150을 받고, 브라우저 UI의 100 마일리지 브론즈 뽑기에서 카페 곰·브론즈 모자를 얻어 잔액 50을 확인했다. 미보유 골드 미리보기는 닫아도 적용/저장되지 않았고, 보유 카페 테마 3칸은 명시적으로 한 번 적용해 장착 표시 3개를 바꿨다. 친구 공간에서 같은 호랑이/카페 모자·소품·커피 트레이를 확인했다. 테스트 전용 완료 목표 A fixture는 소유/방문 기록을 만들지 않는다. 홈에서 완료 목표 두 개와 다음 목표를 확인하고 선택해 공간으로 이동, 목표 B를 저장해 안내 문구를 확인했다. 홈으로 돌아와 곰·코인을 봤고 이전 목표가 활성 상태로 남지 않았다. 320px 라이트·줄인 동작 설정의 최종 홈 제목 줄바꿈도 확인했다. 웹 PNG/MP4 저장도 확인했다(MP4 1,469,576바이트, AVC1 1080×1350, 4.104초, 19.003fps, 서로 다른 디코드 프레임 3개).
+
+390×844에서 발견한 뽑기 결과 모달 하단 접근 결함은 공통 모달 높이를 조정해 수정했다. 320×640 라이트·줄인 동작 설정에서 애니메이션 생략, 결과 모달 스크롤, 장착 완료와 대표 버튼 닫기를 재확인했다. 상점 API 요청을 차단해 한국어 연결 실패·재시도 안내를 확인한 뒤 다시 불러오기로 잔액 50과 소유 곰이 복원됐다. 관련 소스 시험 70개 통과.
+
+**검증:** API 482, PostgreSQL 443 PASS·3 SKIP·0 FAIL, 사이트 508, 모바일 전체 1,545개 PASS. 최종 모바일 타입 검사·린트도 통과했다. Astra 검토의 중간 중요 지적 3건 수정, 최종 3개 검토 영역 지적 0건, 추가 회귀 시험 12개 PASS. CUA는 localhost 전용 합성 계정 세션 fixture로 진행했으며 실제 Google 로그인을 하지 않았다. 실기·TalkBack·효과음/진동 체감·실사용자·공개 배포, 실수신 FCM, Android 네이티브 구매/다른 장르/스탬프·톱니 코인, Chrome WebM fallback은 `NOT_RUN`이다.
 
 ## 수집·게임·점주 운영 전체 연결 (Issue #371, 2026-10-05)
 

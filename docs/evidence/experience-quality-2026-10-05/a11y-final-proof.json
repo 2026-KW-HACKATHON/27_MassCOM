@@ -1,0 +1,57 @@
+{
+  "fontScale": 2,
+  "device": {
+    "width": 720,
+    "height": 1280,
+    "density": 320,
+    "emulator": "emulator-5554"
+  },
+  "shortViewport": {
+    "width": 720,
+    "height": 1000
+  },
+  "themes": [
+    "dark",
+    "light"
+  ],
+  "checks": {
+    "homeHeaderAndAccountControls": "PASS",
+    "shopHeaderDisclosureAndDrawButtonScrollReachable": "PASS_NO_PURCHASE",
+    "wardrobeBadgeLabelsAndState": "PASS",
+    "gamePreparationStartAndOtherControls": "PASS",
+    "actualStackTimeoutResultRetryAndOtherControls": "PASS",
+    "otherGameButtonActuallyNavigates": "PASS",
+    "shortLightResultControls": "PASS",
+    "shortLightHomeHeaderAndMapLinkScrollReachable": "PASS"
+  },
+  "limits": {
+    "newNativeShopResult": "NOT_RUN_NO_UI_BUY",
+    "talkBack": "NOT_RUN",
+    "physicalDevice": "NOT_RUN",
+    "nativeOtherGenresResults": "NOT_RUN_ROOT_WEB_OWNS_GENRE_PLAY"
+  },
+  "newSourceChanges": false,
+  "concreteCoreClipping": [],
+  "evidence": [
+    "a11y-home-dark-font2.png",
+    "a11y-shop-button-font2.png",
+    "a11y-wardrobe-badges-font2.png",
+    "a11y-game-prep-buttons-font2.png",
+    "a11y-game-result-buttons-font2.png",
+    "a11y-game-results-short-scroll.png",
+    "a11y-other-game-light-short.png",
+    "a11y-home-light-short-font2.png",
+    "a11y-home-light-short-scroll.png"
+  ],
+  "restoration": {
+    "fontScale": 2,
+    "nightMode": "yes",
+    "wmSize": "physical720x1280_noOverride",
+    "environment": {
+      "content": true,
+      "mode": true,
+      "mtime": true
+    },
+    "ownMetroStopped": true
+  }
+}

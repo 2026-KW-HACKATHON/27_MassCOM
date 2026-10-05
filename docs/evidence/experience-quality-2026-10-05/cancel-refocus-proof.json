@@ -1,0 +1,11 @@
+{
+  "finalAfterCompositionCorrection": {
+    "before": 11,
+    "after": 11,
+    "noNewExport": true
+  },
+  "iteration1NavigationRecording": "cancel-refocus-iteration1-recording.mp4",
+  "recordingScope": "First iteration after share lifetime repair; earlier hat position, not final composition evidence.",
+  "comparisonScope": "Final before/after comparison excludes the separate UI screen recording and counts MassCOM exports only.",
+  "observedNavigation": "studio → home → studio"
+}

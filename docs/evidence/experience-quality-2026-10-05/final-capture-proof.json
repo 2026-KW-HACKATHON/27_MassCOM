@@ -1,0 +1,119 @@
+{
+  "nativeBundle": "fresh development bundle after character composition correction",
+  "pngFeed": {
+    "file": "final-feed.png",
+    "width": 1080,
+    "height": 1350
+  },
+  "pngStory": {
+    "file": "final-story.png",
+    "width": 1080,
+    "height": 1920
+  },
+  "cachedFeed": {
+    "firstFile": "final-feed.png",
+    "cachedFile": "final-feed-cached.png",
+    "firstHash": "82287c46ab82c3f3edb2d528a16c85a0b28f473f98f37be7484f753529726c37",
+    "cachedHash": "82287c46ab82c3f3edb2d528a16c85a0b28f473f98f37be7484f753529726c37",
+    "byteIdentical": true
+  },
+  "cancelRefocus": {
+    "before": 11,
+    "after": 11,
+    "noNewExport": true,
+    "proof": "cancel-refocus-proof.json"
+  },
+  "feedVideo": {
+    "width": 1080,
+    "height": 1350,
+    "duration": 4,
+    "bytes": 1374915,
+    "avc1": true,
+    "decodedFrames": 3,
+    "frameChanges": true,
+    "file": "final-feed.mp4",
+    "decodedFrameFiles": [
+      "final-feed.mp4-frame0.png",
+      "final-feed.mp4-frame1.png",
+      "final-feed.mp4-frame2.png"
+    ],
+    "decodedFrameHashes": [
+      "d0e91795991f2a6f85a982f03fc65070b5561313139c8cf7272f89a182561b24",
+      "bdb4c590d85e447941fb81955db918da7d01b0f53d90bfb6b3d9a6e4038c3f7f",
+      "494f679e219fa6070214cb82a695cd270f424d8dca68149193fc5134e1c4d1c9"
+    ],
+    "codecProof": "final-feed.mp4.metadata.json"
+  },
+  "storyVideo": {
+    "width": 1080,
+    "height": 1920,
+    "duration": 4,
+    "bytes": 1407623,
+    "avc1": true,
+    "decodedFrames": 3,
+    "frameChanges": true,
+    "file": "final-story.mp4",
+    "decodedFrameFiles": [
+      "final-story.mp4-frame0.png",
+      "final-story.mp4-frame1.png",
+      "final-story.mp4-frame2.png"
+    ],
+    "decodedFrameHashes": [
+      "566aa74e336c7b50e31ecb24c65aa2a04ef733221fbc1e837a8623c02aabd122",
+      "9e12ad693e35ecdca2dd9f615b6b5b717185fc4d1abf2644c8de4593fc74b6e4",
+      "40db5154682fb7dd20274c2fd85fea197992a60c297ec173facd3817cdeaa327"
+    ],
+    "codecProof": "final-story.mp4.metadata.json"
+  },
+  "physicalDevice": "NOT_RUN",
+  "instagramPosting": "NOT_RUN",
+  "shapeData": {
+    "actualNativeOwnedData": "circle",
+    "actualNativeStampSerrated": "NOT_RUN"
+  },
+  "gallery": {
+    "visible": true,
+    "evidence": "final-story-gallery-loaded.png"
+  },
+  "fontScaleRestored": 2,
+  "environmentRestoration": {
+    "content": true,
+    "mode": true,
+    "mtime": true
+  },
+  "ownMetroStopped": true,
+  "nativeApkSha256": "7d64c700227dd99eb32af021f22d4b779f439d84c3461fb758c7d398ad76f339",
+  "visualVerdict": {
+    "score": 95,
+    "verdict": "pass",
+    "category_match": true,
+    "differences": [
+      "H264 손실 압축과 의도된 작은 움직임에 따른 미세한 프레임 차이"
+    ],
+    "suggestions": [],
+    "reasoning": "보정된 네 동행의 눈과 장비 위치가 유지되며 PNG와 H264에서 같은 코인·배지·장식·문구가 잘림이나 중복 없이 합성된다."
+  },
+  "avatarEvidence": [
+    {
+      "avatar": "cook-cat",
+      "home": "final-cook-cat-home.png",
+      "studio": "final-cook-cat-studio.png"
+    },
+    {
+      "avatar": "walk-rabbit",
+      "home": "final-walk-rabbit-home.png",
+      "studio": "final-walk-rabbit-studio.png"
+    },
+    {
+      "avatar": "book-owl",
+      "home": "final-book-owl-home.png",
+      "studio": "final-book-owl-studio.png"
+    },
+    {
+      "avatar": "tteok-tiger",
+      "home": "final-tteok-tiger-home.png",
+      "studio": "final-tteok-tiger-studio.png"
+    }
+  ],
+  "a11yProof": "a11y-final-proof.json"
+}

@@ -1,26 +1,28 @@
 import { useRouter, type Href } from 'expo-router';
-import { Image, Pressable, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
-import { merchantArtSource } from '@/screens/collection/merchant-art';
 import type { ShopSnapshot } from '@/shop/shop-api';
-import type { StudioGoal } from '@/studio/studio-api';
-import { CompanionScene } from '@/studio/studio-scene';
+import { equippedClothingArt } from '@/shop/wardrobe';
+import type { resolveStudioGoal } from '@/studio/studio-goals';
+import { CompanionScene, StudioCoin } from '@/studio/studio-scene';
+import { BadgeArt, PackArt } from '@/illustration/artwork';
+import { colorsForScheme } from '@/theme/palette';
+import { worldForScheme } from '@/theme/world';
 import type { ExperienceSnapshot } from './experience-api';
 
-export function HomeCollectionDisplay({ experience, collection, shop, avatarArt, visitGoal, apiUrl }: {
+export function HomeCollectionDisplay({ experience, collection, shop, visitGoal, apiUrl }: {
   experience: ExperienceSnapshot;
   collection?: CollectionSnapshot;
   shop?: ShopSnapshot;
-  avatarArt?: ImageSourcePropType;
-  visitGoal?: { goal: StudioGoal; merchantName?: string };
+  visitGoal?: ReturnType<typeof resolveStudioGoal>;
   apiUrl: string;
 }) {
   const router = useRouter();
+  const scheme = useColorScheme();
+  const styles = makeStyles(colorsForScheme(scheme), worldForScheme(scheme));
   const badge = experience.catalog.badges.find((item) => item.id === experience.profile.badgeId);
   const coin = collection?.collectibles.find((item) => item.entitlementId === experience.profile.coinEntitlementId);
-  const coinArt = coin?.artwork?.thumbnailDataUrl ? { uri: coin.artwork.thumbnailDataUrl }
-    : coin ? merchantArtSource({ id: coin.merchantId }, apiUrl) : undefined;
   const availablePacks = experience.catalog.packs.filter((pack) => !shop ||
     (shop.grades.find((grade) => grade.grade === pack.grade)?.remaining ?? 0) > 0);
   const nextPack = availablePacks.find((pack) => shop && shop.mileage.balance >= pack.price) ?? availablePacks[0];
@@ -31,16 +33,15 @@ export function HomeCollectionDisplay({ experience, collection, shop, avatarArt,
     <View style={styles.titleRow}><Text accessibilityRole="header" style={styles.title}>나의 탐험 전시</Text>
       <Pressable accessibilityRole="button" onPress={() => router.push('/studio')}><Text style={styles.link}>꾸미기 ›</Text></Pressable></View>
     <View style={styles.showcase}>
-      {shop?.avatar ? <CompanionScene avatar={shop.avatar} experienceProfile={experience.profile} size={74} />
-        : avatarArt ? <Image source={avatarArt} resizeMode="contain" style={styles.avatar} accessibilityLabel="대표 동행" /> : null}
+      <CompanionScene avatar={shop?.avatar ?? null} clothing={equippedClothingArt(shop)} experienceProfile={experience.profile} interactive size={132} />
       <View style={styles.details}>
-        <Text style={styles.detail}>{badge ? `✦ ${badge.name}` : '장착한 배지가 없어요'}</Text>
-        <View style={styles.coinLine}>{coinArt ? <Image source={coinArt} resizeMode="contain" style={styles.coinArt} accessible={false} /> : null}
-          <Text style={styles.detail}>{coin ? coin.displayName : '대표 코인을 골라 보세요'}</Text></View>
+        {badge ? <View style={styles.badgeLine}><BadgeArt id={badge.id} size={42} /><Text style={styles.detail}>{badge.name}</Text></View> : null}
+        <Pressable accessibilityRole="button" accessibilityLabel={coin ? `${coin.displayName} 도감에서 보기` : "대표 코인 고르기"} onPress={() => router.push('/collection')} style={styles.coinLine}>{coin ? <StudioCoin item={coin} apiUrl={apiUrl} size={108} /> : null}
+          <Text style={styles.detail}>{coin ? coin.displayName : '대표 코인을 골라 보세요'}</Text></Pressable>
       </View>
     </View>
     {nextPack ? <Pressable accessibilityRole="button" onPress={() => router.push('/shop')} style={styles.pack}>
-      <View style={styles.packCopy}><Text style={styles.packTitle}>{nextPack.name}</Text>
+      <PackArt grade={nextPack.grade} size={64} /><View style={styles.packCopy}><Text style={styles.packTitle}>{nextPack.name}</Text>
         <Text style={styles.packHint}>{nextPack.theme} · 꾸미기 {packProgress?.ownedBonuses ?? 0}/{packProgress?.totalBonuses ?? nextPack.bonusItemIds.length}</Text>
         <Text style={styles.packHint}>{shop ? `${nextPack.price} 마일리지 · 보유 ${shop.mileage.balance}` : `${nextPack.price} 마일리지`}</Text></View>
       <Text style={styles.packArrow}>열어보기 ›</Text>
@@ -49,8 +50,9 @@ export function HomeCollectionDisplay({ experience, collection, shop, avatarArt,
       <Text style={styles.inboxText}>갖고 싶은 것 · {wantedCharacter?.name ?? wantedCosmetic?.name} {wantedCharacter?.owned || experience.progress.cosmetics.find((item) => item.id === wantedCosmetic?.id)?.owned ? '소장 완료' : '획득 방법 보기'} ›</Text>
     </Pressable> : null}
     {visitGoal?.goal?.merchantId ? <Pressable accessibilityRole="button"
-      onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: visitGoal.goal!.merchantId! } })} style={styles.inbox}>
-      <Text style={styles.inboxText}>다음 방문 목표 · {visitGoal.merchantName ?? '저장한 가게'} 보기 ›</Text>
+      onPress={() => visitGoal.status === 'active' ? router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: visitGoal.goal.merchantId! } }) : router.push('/studio')} style={styles.inbox}>
+      <Text style={styles.inboxText}>{visitGoal.status === 'active' ? `다음 방문 목표 · ${visitGoal.label}` : `${visitGoal.status === 'completed' ? '목표 달성' : '목표 다시 고르기'} · ${visitGoal.label}`}</Text>
+      {visitGoal.status !== 'active' ? <Text style={styles.inboxText}>{visitGoal.next ? `${visitGoal.next.label} · 새 목표 고르기` : '새 목표 고르기'} ›</Text> : null}
     </Pressable> : null}
     <Pressable accessibilityRole="button" onPress={() => router.push('/notifications' as Href)} style={styles.inbox}>
       <Text style={styles.inboxText}>방문·쿠폰 알림함 보기 ›</Text>
@@ -58,18 +60,18 @@ export function HomeCollectionDisplay({ experience, collection, shop, avatarArt,
   </View>;
 }
 
-const styles = StyleSheet.create({
-  card: { marginHorizontal: 14, padding: 14, gap: 10, backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#D9E6F0' },
+const makeStyles = (palette: ReturnType<typeof colorsForScheme>, world: ReturnType<typeof worldForScheme>) => StyleSheet.create({
+  card: { marginHorizontal: 14, padding: 14, gap: 10, backgroundColor: world.card, borderRadius: 14, borderWidth: 1, borderColor: palette.separator },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: '#192331', fontWeight: '900', fontSize: 17 },
-  link: { color: '#2456D6', fontWeight: '800', fontSize: 12 },
-  showcase: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 75 },
-  avatar: { width: 74, height: 74 },
-  details: { flex: 1, gap: 6 },
-  detail: { color: '#304762', fontWeight: '700', fontSize: 12 },
-  coinLine: { flexDirection: 'row', alignItems: 'center', gap: 4 }, coinArt: { width: 28, height: 28 },
-  pack: { borderRadius: 11, padding: 11, backgroundColor: '#FFF2D3', borderWidth: 1, borderColor: '#ECC67F', flexDirection: 'row', alignItems: 'center', gap: 8 },
-  packCopy: { flex: 1 }, packTitle: { color: '#6D4315', fontWeight: '900', fontSize: 13 },
-  packHint: { color: '#765D41', fontSize: 11, marginTop: 2 }, packArrow: { color: '#8D5014', fontSize: 11, fontWeight: '900' },
-  inbox: { alignSelf: 'flex-start', paddingVertical: 4 }, inboxText: { color: '#2456D6', fontSize: 12, fontWeight: '800' },
+  title: { color: world.cardInk, fontWeight: '900', fontSize: 17 },
+  link: { color: palette.primary, fontWeight: '800', fontSize: 12 },
+  showcase: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 156 },
+  details: { flex: 1, minWidth: 124, gap: 6 },
+  detail: { color: world.cardInk, fontWeight: '700', fontSize: 12 },
+  badgeLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  coinLine: { alignItems: 'center', gap: 4 },
+  pack: { flexWrap: 'wrap', borderRadius: 11, padding: 11, backgroundColor: world.paper, borderWidth: 1, borderColor: world.paperLine, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  packCopy: { flex: 1 }, packTitle: { color: world.paperInk, fontWeight: '900', fontSize: 13 },
+  packHint: { color: world.paperInk, fontSize: 11, marginTop: 2 }, packArrow: { color: world.paperInk, fontSize: 11, fontWeight: '900' },
+  inbox: { alignSelf: 'flex-start', paddingVertical: 4 }, inboxText: { color: palette.primary, fontSize: 12, fontWeight: '800' },
 });

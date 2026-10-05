@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { getAppPackageId } from '@/config/app-identity';
+import { CharacterArt } from '@/illustration/character-art';
+import { PackArt } from '@/illustration/artwork';
 import { ThemePackBoard } from '@/experience/theme-pack-board';
 import { useExperience } from '@/experience/use-experience';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
@@ -20,7 +22,7 @@ import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
 
 import { ShopApiError, createShopApiClient, shopErrorMessage, type MileageGrade, type ShopGradeView, type ShopRerollResult } from '@/shop/shop-api';
-import { friendArt, mileageCoinArt, ticketArt } from '@/shop/shop-art';
+import { mileageCoinArt } from '@/shop/shop-art';
 import {
   buildFriendGrid, earnRulesText, formatMileage, rerollDisclosure, rerollButtonState, resumeOrStartPurchase, showcaseBonusLabel,
   type FriendGridCell, type PendingPurchase,
@@ -71,6 +73,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   const apiRef = useRef(api);
   useEffect(() => { apiRef.current = api; }, [api]);
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
+  const refreshExperience = experience.refresh;
   // 방문 진입을 다시 열 때 최신 적립분을 읽되, 응답을 놓친 구매의 requestId/소유 스냅샷은 유지한다.
   const refreshGachaSnapshot = shop.refreshQuietly;
   useEffect(() => {
@@ -113,6 +116,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   const snapshotReady = Boolean(shop.snapshot);
   const [recoveryWake, setRecoveryWake] = useState(0);
   const recoveryGeneration = useRef(0);
+  const requestRecovery = useCallback(() => { recoveryStarted.current = false; setRecoveryWake((value) => value + 1); }, []);
   useEffect(() => {
     recoveryStarted.current = false;
     recoveryGeneration.current += 1;
@@ -135,7 +139,6 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       scope: pendingScope,
       readPending: readPendingPurchase,
       clearPending: clearPendingPurchase,
-      findGrade: (grade) => shopRef.current.snapshot?.grades.find((candidate) => candidate.grade === grade),
       reroll: (input) => apiRef.current.reroll(input),
       isCurrent: () => mounted && recoveryGeneration.current === generation && pendingScopeKey === `${pendingScope.appVariant}:${pendingScope.apiUrl}:${pendingScope.accountId}`,
       onStart: (stored) => {
@@ -150,12 +153,13 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
         shopRef.current.applyReroll(result);
         setReveal(result);
         setHistoryRefreshToken((value) => value + 1);
+        void refreshExperience();
       },
       onError: (error) => { setNotice({ tone: 'error', text: shopErrorMessage(error) }); },
       onFinish: () => { setBusyGrade(undefined); },
     }).finally(() => { leaveShopPurchaseScope(lease); });
     return () => { mounted = false; recoveryGeneration.current += 1; };
-  }, [pendingScope, pendingScopeKey, recoveryWake, snapshotReady]);
+  }, [pendingScope, pendingScopeKey, recoveryWake, snapshotReady, refreshExperience]);
 
 
   async function refresh() {
@@ -163,16 +167,19 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     setHistoryRefreshToken((value) => value + 1);
     try {
       const refreshed = await quietRefresh();
-      if (refreshed) setNotice(undefined);
+      if (refreshed) { setNotice(undefined); requestRecovery(); }
     } finally {
       setRefreshing(false);
     }
   }
 
   async function buy(grade: ShopGradeView): Promise<boolean> {
-    // 대표 설정 요청이 끝나기 전에는 새 뽑기를 막아 실패 알림이 닫힌 모달 뒤에 남지 않게 한다.
-    if (busyGrade || avatarBusy) return false;
+    // avatarBusy 동안에도 새 뽑기를 막는다 — 안 그러면 닫힌 모달에서 아직 날아가고 있는 대표 설정 요청이
+    // 실패했을 때 그 알림이 방금 연 새 뽑기 모달 뒤에 깔려 아무도 못 본다(PR #312 리뷰 라운드 4).
+    if (busyGrade || avatarBusy || experience.saving) return false;
     if (refreshing) return false;
+    const generation = recoveryGeneration.current;
+    const isCurrent = () => recoveryGeneration.current === generation && apiRef.current === api;
     const lease = enterShopPurchaseScope(pendingScope);
     if (!lease) {
       setNotice({ tone: 'error', text: '이전 구매 확인 중이에요. 결과를 받은 뒤 다시 시도해 주세요.' });
@@ -180,6 +187,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     }
     try {
       const storedAttempt = await readPendingPurchase(pendingScope);
+      if (!isCurrent()) return false;
       const attempt = storedAttempt ?? resumeOrStartPurchase(pending, grade.grade);
       if (!storedAttempt && attempt !== pending) purchaseOwnership.current = shop.snapshot?.items.filter((item) => item.owned).map((item) => item.id) ?? [];
       if (storedAttempt) setSelectedGrade(storedAttempt.grade);
@@ -189,21 +197,27 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       setBusyGrade(attempt.grade);
       setNotice(undefined);
       if (!storedAttempt) await writePendingPurchase(pendingScope, { grade: attempt.grade, requestId: attempt.requestId, expectedRemaining: grade.remaining });
+      if (!isCurrent()) return false;
       const expectedRemaining = storedAttempt?.expectedRemaining ?? grade.remaining;
       const result = await api.reroll({ grade: attempt.grade, requestId: attempt.requestId, expectedRemaining });
-      setPending(undefined);
+      if (!isCurrent()) return false;
       await clearPendingPurchase(pendingScope).catch(() => undefined);
+      if (!isCurrent()) return false;
+      setPending(undefined);
       shop.applyReroll(result);
       setReveal(result);
-      void experience.refresh();
+      void refreshExperience();
       setHistoryRefreshToken((value) => value + 1);
       return true;
     } catch (error) {
+      if (!isCurrent()) return false;
       if (error instanceof ShopApiError && error.code === 'SHOP_STATE_CHANGED') {
         // 요금은 빠지지 않았으므로 이 requestId는 버리고, 새 공개 문구를 실제로 불러온 뒤에만 다시 구매하게 한다.
         setPending(undefined);
         await clearPendingPurchase(pendingScope).catch(() => undefined);
+        if (!isCurrent()) return false;
         const refreshed = await shop.refreshQuietly();
+        if (!isCurrent()) return false;
         setNotice({
           tone: 'error',
           text: refreshed ? shopErrorMessage(error) : '상품 정보를 다시 불러오지 못했어요. 상점 다시 불러오기를 누른 뒤 다시 시도해 주세요.',
@@ -213,7 +227,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       }
       return false;
     } finally {
-      setBusyGrade(undefined);
+      if (isCurrent()) setBusyGrade(undefined);
       leaveShopPurchaseScope(lease);
     }
   }
@@ -302,10 +316,13 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   const { snapshot } = shop;
   const grid = buildFriendGrid(snapshot.items, snapshot.avatar);
   const machine = (gachaOnly ? gachaVisible : machineOpen) ? <GachaMachine
-    snapshot={snapshot} result={reveal} selectedGrade={selectedGrade} ownedBefore={ownedBefore} isAvatar={snapshot.avatar === reveal?.item.id}
-    busy={Boolean(busyGrade) || avatarBusy} error={notice?.tone === 'error' ? notice.text : undefined}
+    snapshot={snapshot} profile={experience.snapshot?.profile} bonusSaving={experience.saving} bonusError={experience.error}
+    onEquipBonus={reveal?.bonus ? () => { if (reveal.bonus) void experience.save({ cosmetics: { [reveal.bonus.slot]: reveal.bonus.id } }); } : undefined}
+    result={reveal} selectedGrade={selectedGrade} ownedBefore={ownedBefore} isAvatar={snapshot.avatar === reveal?.item.id}
+    busy={Boolean(busyGrade) || avatarBusy || experience.saving} error={notice?.tone === 'error' ? notice.text : undefined}
     avatarBusy={avatarBusy} avatarError={avatarError}
     wishId={experience.snapshot?.profile.wishlist} onWish={(itemId) => { void experience.wish(itemId); }}
+    onRecoverPending={pending ? requestRecovery : undefined}
     refreshing={refreshing} onRefresh={() => { void refresh(); }}
     onDraw={buy}
     onSetAvatar={() => { if (reveal) void chooseAvatar(reveal.item.id, reveal); }}
@@ -328,9 +345,11 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
             <Image source={mileageCoinArt} style={styles.coin} accessible={false} accessibilityIgnoresInvertColors />
             <Text accessibilityLabel={`마일리지 ${snapshot.mileage.balance}포인트`} style={styles.balance}>{formatMileage(snapshot.mileage.balance)}</Text>
           </View>
+          {pending ? <BounceButton label="이전 구매 결과 다시 확인" disabled={Boolean(busyGrade) || avatarBusy || experience.saving || refreshing} onPress={requestRecovery} /> : null}
           {bonusLabel ? <Text style={styles.rulesText}>{bonusLabel}</Text> : null}
           <Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text>
           <View accessibilityLiveRegion="polite">
+            {experience.error ? <Text style={styles.errorMessage}>{experience.error}</Text> : null}
             {notice ? <Text style={notice.tone === 'success' ? styles.successMessage : styles.errorMessage}>{notice.text}</Text> : null}
           </View>
         </FloatingCard>
@@ -349,8 +368,9 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
               key={grade.grade}
               grade={grade}
               balance={snapshot.mileage.balance}
+              friends={snapshot.items.filter((item) => item.grade === grade.grade && !item.owned)}
               busy={busyGrade === grade.grade}
-              purchaseBusy={Boolean(busyGrade) || avatarBusy}
+              purchaseBusy={Boolean(busyGrade) || avatarBusy || experience.saving}
               onBuy={() => { setSelectedGrade(grade.grade); setReveal(undefined); setNotice(undefined); setMachineOpen(true); }}
               styles={styles}
             />
@@ -373,8 +393,9 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   );
 }
 
-function GradeRow({ grade, balance, busy, purchaseBusy, onBuy, styles }: {
+function GradeRow({ grade, balance, friends, busy, purchaseBusy, onBuy, styles }: {
   grade: ShopGradeView; balance: number; busy: boolean; purchaseBusy: boolean; onBuy: () => void;
+  friends: readonly { id: string; name: string }[];
   styles: ReturnType<typeof useShopStyles>;
 }) {
   const button = rerollButtonState(grade, balance);
@@ -383,12 +404,15 @@ function GradeRow({ grade, balance, busy, purchaseBusy, onBuy, styles }: {
   return (
     <FloatingCard style={styles.card}>
       <View style={styles.gradeHeader}>
-        <Image source={ticketArt[grade.grade]} style={styles.ticket} accessible={false} accessibilityIgnoresInvertColors />
+        <PackArt grade={grade.grade} size={100} />
         <View style={styles.gradeCopy}>
           <Text style={styles.gradeName}>{themePackName(grade.grade)} · {gradeLabel(grade.grade)} 캐릭터</Text>
           <Text style={styles.gradePrice}>{formatMileage(grade.price)} · 가진 친구 {grade.owned}/{grade.total}</Text>
         </View>
       </View>
+      {friends.length ? <View style={styles.grid}>{friends.map((friend) => <View key={friend.id} style={styles.cell}>
+        <CharacterArt avatar={friend.id} frame="calm" size={72} /><Text style={styles.cellName}>{friend.name}</Text>
+      </View>)}</View> : null}
       <Text style={styles.disclosure}>{rerollDisclosure(grade)}</Text>
       <Text style={styles.disclosure}>{cosmeticSequenceDisclosure}</Text>
       {button.reason ? <Text style={styles.disabledReason}>{button.reason}</Text> : null}
@@ -417,11 +441,10 @@ function FriendCell({ cell, onPress, styles }: {
       style={styles.cell}
     >
       <View style={[styles.cellRing, cell.isAvatar && styles.cellRingAvatar]}>
-        {cell.owned
-          ? <Image source={friendArt[cell.id]} style={styles.cellArt} accessible={false} accessibilityIgnoresInvertColors />
-          : <Text style={styles.cellSilhouette}>?</Text>}
+        <CharacterArt avatar={cell.id} frame="calm" size={64} />
       </View>
-      <Text numberOfLines={1} style={[styles.cellName, !cell.owned && styles.cellNameUnowned]}>{cell.owned ? cell.name : '???'}</Text>
+      <Text numberOfLines={1} style={[styles.cellName, !cell.owned && styles.cellNameUnowned]}>{cell.name}</Text>
+      {!cell.owned ? <Text style={styles.cellNameUnowned}>미보유</Text> : null}
       {cell.isAvatar ? <View style={styles.avatarChip}><Text style={styles.avatarChipText}>대표</Text></View> : null}
     </Pressable>
   );

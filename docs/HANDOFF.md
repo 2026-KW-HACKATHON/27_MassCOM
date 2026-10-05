@@ -1,5 +1,13 @@
 # HANDOFF
 
+## 2026-10-06 PR #374 병합 복구 (Issue #367)
+
+- `fix/pr374-review`에서 PR #374 SHA `dbe8f09e0ac347d0aa08fde80817078648674cd2`와 `origin/main` `57e7746ff8586c60bc5555f731b93ddc789dcbc6`을 통합했다. 다섯 리뷰 결함이 수정됐고 PR #375와 발견된 11개 충돌을 해결해 양쪽 기능·문서 기록을 보존했다. 최신 PR 검사/병합 상태는 PR 자체 기록에 따른다. 공개 배포·Play는 별도다.
+- 수용 기준은 [복구 보고서](PR374_REPAIR.md)에 있다. pending gift는 수신함 우선, 수령 후 발신 선물 접근이며 양쪽을 동시에 요구하지 않는다. 친구 해제는 authorization transaction commit 전에 대기 push를 막는다. 이미 authorization을 통과한 일반 push는 회수할 수 없다.
+- 검증 PASS: API 513개·typecheck·build; 모바일 1,673개·typecheck·lint; PostgreSQL 497개 중 494 PASS/3 SKIP/0 FAIL(183초); site 508개. Focused social 46개와 friend/play 6개도 별도 RED→GREEN. 독립 code review 필수 수정 0, TypeScript Language Service 75개 파일 진단 0, Architect 집중 29개 blocker 0.
+- 390px synthetic QA에서 여섯 구매(브론즈 3·실버 3) 총 900P, 잔액 246·획득 1,146·원장 6건을 확인했다. 마지막 실버 책방 부엉이의 서버 commit 뒤 TCP 응답을 끊은 뒤 `afterServerCommit=true`인 증거에서 캐시된 기존 결과를 자동 복구했고 중복 차감이 없었다. 첫 fault 경로는 활성화되지 않아 증거로 세지 않았고, 별도 수동 재시도 버튼은 주장하지 않는다.
+- 합성 내 공간/친구 공간의 책방 부엉이·후드·금화 외형과 웹 공유 PNG를 확인했다. CUA 브라우저는 로컬 private fixture(mode 0600)를 써 실제 Google 로그인은 없었다. 실기기, Expo FCM receipt, 오디오/진동 체감, production APK 및 운영·Play 공개는 `NOT_RUN`이다. 공통 36개 회귀 원장 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 그대로다.
+
 ## 2026-10-05 앱 내 상점·홈·우정/우편 개편 (Issue #367)
 
 - 브랜치 `feat/shop-home-social`. Cycle8 source repair는 source frozen 상태이고 최종 자동·리뷰·QA·gate 검증은 완료됐다. 기존 운영 test.10·시연 Preview 19 공개 증거와 링크는 이번 항목으로 바꾸지 않는다. Draft PR [#374](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/374)는 생성됐고, 현재 PR body와 SHA-linked body 한국어 checker는 `.omx/pr-korean-final.log` 기준 PASS다.
@@ -10,6 +18,20 @@
 - fresh8 브라우저 증거는 새 게스트 동의, 홈 빈 상태 0개, 테스트 방문 A 뒤 홈 가게권 1개와 1/9 배지, QR 화면의 숨겨진 하단 탭과 홈 복귀, 실버 직접 상세 모달, 실제 구매 잔액 100,150→99,973·+23P·하늘 후드·빵집 다람쥐·upstream 빵집 골목 모자 bonus, BGM/SE OFF와 비활성 슬라이더→reset ON 30%, 진동 3선택, 검색/필터/지도(A visited, B/C unvisited)→홈, 친구 빈 목록·코드·추가 UI와 remaining 5/reward 25 표시, media-less ticket skip 뒤 미개봉 1장 유지, 설정→홈 복귀를 확인했다. Historical cycle6 증거는 실제 친구 추가→프로필→우정 5P 보내기, 하루 남은 보내기 4/5와 보상 20P, pending 수신 전 재전송 차단, 식사 초대 12:40 응답을 보존한다.
 - 실제 remote push/device BGM/SE/진동/hardware back, media-less seed의 실제 표시 ACK, unsupported runtime cancel/resume/hung CLI class, 공개 배포, merge는 계속 `NOT_RUN`이다. Draft PR #374 생성과 현재 PR body 기준 한국어 checker PASS는 문서화했다.
 - 현재 PR body와 SHA-linked body의 한국어 checker는 `.omx/pr-korean-final.log` 기준 PASS다. Draft PR #374 head는 `e4138fc7a2f2c0e93360e3377488bda586441eda`, base는 `0ce3114c`다. main merge와 deploy는 하지 않았다.
+
+## 2026-10-05 전체 경험 품질 개선 (Issue #373)
+
+- 기준 커밋 `0ce3114c`, 브랜치 `feat/experience-quality`. 통합 상태는 이 브랜치의 PR 검사·병합 기록에 따른다. 공개 서버·공개 설치본은 변경하지 않았다. 상세 품질 보고는 [EXPERIENCE_QUALITY](EXPERIENCE_QUALITY.md), 캡처·영상은 [증거 폴더](evidence/experience-quality-2026-10-05/)를 참조한다.
+- 최신 CUA 게임 플레이: 쌓기 510점·6층·폭 20% 잔여, 기억 600점·6쌍, 배달 1,200점·소포 1개·건강도 3·충돌 0, 주문 1,090점·4건·12개. 배달 재시도는 165점·12구간 중 2구간에서 끝났고 화물 건강도 3·충돌 0이었다. 기존 배달 최고 1,200점·완주 1회·획득 배지는 보존됐다. 기억의 별도 시간초과는 185점·6쌍 중 2쌍이었다.
+- 별도 로컬 합성 빈 계정은 방문 0·코인 0·마일리지 0에서 시작했다. 게임 허브 연습 진입 뒤 기존 API 방문 1회로 코인 1개·마일리지 150을 받고, 브라우저 UI에서 100 마일리지 브론즈 뽑기로 카페 곰과 브론즈 모자를 얻어 잔액 50이 됐다. 미보유 골드 미리보기는 닫아도 적용/저장되지 않았고, 보유 카페 테마는 세 슬롯 미리보기 뒤 한 번 명시적으로 적용해 장착 표시 3개를 확인했다.
+- 320×640 라이트·`prefers-reduced-motion: reduce`에서 결과 모달 애니메이션은 생략됐다. 높이 560px·스크롤 콘텐츠 955px인 모달을 내려 “장착”을 누르고 “장착완료”를 확인했으며 대표 버튼으로 닫았다. 친구 공간에서 동일 호랑이·카페 모자/소품·커피 트레이를 확인했다. 테스트 전용 완료 목표 A fixture는 소유권/실제 방문을 만들지 않는다. 홈에서 완료 목표 두 개와 다음 목표를 확인하고 “선택”으로 공간에 이동해 목표 B를 저장, 안내 문구와 홈의 곰·코인 표시를 확인했다. 이전 방문 목표가 활성 목표로 남지 않았다. 320px 홈 제목도 단어 전체가 자연스럽게 줄바꿈되는 최종 화면을 확인했다.
+- 점포 화면 전환 중 상점 GET을 차단하자 한국어 연결 실패·재시도 안내가 나왔다. 차단 해제 뒤 다시 불러오기로 잔액 50과 보유 곰이 복원됐다. [경험 품질 증거 폴더](evidence/experience-quality-2026-10-05/)에 캡처가 있다.
+- 웹 공유 UI에서 PNG·MP4 저장 안내와 실제 파일을 확인했다. MP4는 1,469,576바이트, AVC1 1080×1350, 4.104초, 19.003fps이며 서로 다른 3개 프레임을 디코드했다. Android 네이티브 미디어 시험은 별도 근거로 유지한다.
+- 390×844에서 발견한 뽑기 결과 모달 하단 접근 문제를 공통 모달 높이 수정으로 해결했고, 320×640·줄인 동작 설정에서 최종 상점 결과와 320px 홈 제목 줄바꿈을 확인했다. 관련 소스 시험 70개가 통과했다. 상점 요청 실패·재시도와 완료 목표의 다음 목표 제시도 CUA에서 실행했다.
+- 검증: API 482, PostgreSQL 443 PASS·3 SKIP·0 FAIL, 사이트 508 PASS, 모바일 전체 1,545개 PASS. 최종 타입 검사·린트도 통과했다. Astra 검토의 중간 중요 지적 3건을 수정했고 최종 3개 영역은 구체적 지적 0건, 관련 추가 시험 12개 통과.
+- 남은 범위는 외부 검증이다: 실기·TalkBack·효과음/진동 체감·실제 Google 로그인·실수신 FCM·실사용자 재미·공개 배포, Android 네이티브 구매와 다른 게임 장르/코인 형태(스탬프·톱니), Chrome WebM 대체 경로는 `NOT_RUN`이다.
+
+버전 협상 보완: 이전 HTTP 요청은 규칙 1, 새 앱의 명시적 요청은 규칙 2다. API 482개·모바일 계약 15개·실제 PostgreSQL 5개와 캐시 불변을 재검증했다. 모든 대상 API를 먼저 배포한 뒤 새 앱·웹을 배포한다.
 
 ## 2026-10-05 수집·게임·점주 운영 전체 연결 (Issue #371)
 

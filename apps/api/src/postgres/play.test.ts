@@ -9,6 +9,16 @@ import { PostgresPlayService } from './play.js';
 
 const secret = 'studio-test-account-secret-at-least-32-bytes';
 
+test('play rejects unsupported rules versions before database access', async () => {
+  const pool = { connect: async () => { throw new Error('invalid version reached database'); } } as unknown as Pool;
+  const play = new PostgresPlayService(pool, new PostgresAccountLifecycle({ hmacSecret: secret }));
+  for (const rulesVersion of [0, 3, 1.5, '2', null, false]) {
+    await assert.rejects(() => play.start({ accountId: 'viewer', kind: 'orders', rulesVersion } as
+      Parameters<PostgresPlayService['start']>[0]),
+    error => error instanceof PlayError && error.code === 'PLAY_KIND_INVALID');
+  }
+});
+
 test('studio rejects non-string goal kinds and exact-type violations before database access', async () => {
   const pool = { connect: async () => { throw new Error('invalid studio reached database'); } } as unknown as Pool;
   const play = new PostgresPlayService(pool, new PostgresAccountLifecycle({ hmacSecret: secret }));

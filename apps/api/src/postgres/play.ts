@@ -7,13 +7,16 @@ import { defaultStudio, PlayError, type FriendStudioSnapshot, type PlayEvent, ty
   type PlayResult, type PlayService, type PlaySnapshot, type Studio, type StudioItem,
   type StudioSnapshot } from '../play.js';
 import { evaluateGameSkill, gameDurationMs, gameKinds, gameSkills, isGameKind, legacyGameAchievementScore,
-  scoreRunAtElapsed, type GameAction, type GameKind, type GameSkill, type PlayRun } from '../play-rules.js';
+  minimumActionGapMs, scoreRunAtElapsed, type GameAction, type GameKind, type GameSkill, type PlayRun } from '../play-rules.js';
+import { evaluateQualityGameSkill, getQualityGameState } from '../play-rules-quality.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { publicCampaignGoalsHaving, publicCampaignPredicate } from './merchant-catalog.js';
+import { findClothingItem } from '../mileage-rules.js';
 
 type RunRow = { id: string; kind: GameKind; seed: number; started_at: Date; expires_at: Date;
-  result: PlayResult | null };
-type RecordRow = { kind: GameKind; best_score: number; plays: number };
+  rules_version: 1 | 2; result: PlayResult | null };
+type RecordRow = { kind: GameKind; best_score: number; plays: number;
+  version2_best_score: number; version2_plays: number };
 type SkillRow = { kind: GameKind; progress: number | null; achieved: boolean | null };
 type ItemRow = StudioItem & { entitlement_id: string; artwork: StudioItem['artwork'] | null };
 
@@ -55,8 +58,10 @@ export class PostgresPlayService implements PlayService {
     this.now = options.now ?? (() => new Date());
   }
 
-  async start(input: { accountId: string; kind: GameKind }): Promise<PlayRun> {
-    if (!isGameKind(input.kind)) throw new PlayError('PLAY_KIND_INVALID');
+  async start(input: { accountId: string; kind: GameKind; rulesVersion?: 1 | 2 }): Promise<PlayRun> {
+    if (!isGameKind(input.kind) || (input.rulesVersion !== undefined && input.rulesVersion !== 1 && input.rulesVersion !== 2)) {
+      throw new PlayError('PLAY_KIND_INVALID');
+    }
     return this.transaction(async (client) => {
       await this.accountLifecycle.assertActive(client, input.accountId);
       const now = this.now();
@@ -67,10 +72,10 @@ export class PostgresPlayService implements PlayService {
       if (recent.rows[0]!.count >= 30) throw new PlayError('PLAY_RATE_LIMITED');
       const run: PlayRun = { id: randomUUID(), kind: input.kind, seed: randomInt(0, 0x80000000),
         startedAt: now.toISOString(), expiresAt: new Date(now.getTime() + gameDurationMs + 15_000).toISOString(),
-        durationMs: gameDurationMs, rulesVersion: 1 };
+        durationMs: gameDurationMs, rulesVersion: input.rulesVersion ?? 2 };
       await client.query(`INSERT INTO play_runs (id, account_id, kind, seed, started_at, expires_at, rules_version)
-        VALUES ($1,$2,$3,$4,$5,$6,1)`,
-      [run.id, input.accountId, run.kind, run.seed, run.startedAt, run.expiresAt]);
+        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [run.id, input.accountId, run.kind, run.seed, run.startedAt, run.expiresAt, run.rulesVersion]);
       await this.count(client, 'start', input.kind, now);
       return run;
     });
@@ -80,7 +85,7 @@ export class PostgresPlayService implements PlayService {
     if (!uuidPattern.test(input.runId)) throw new PlayError('PLAY_RUN_NOT_FOUND');
     return this.transaction(async (client) => {
       await this.accountLifecycle.assertActive(client, input.accountId);
-      const run = (await client.query<RunRow>(`SELECT id, kind, seed, started_at, expires_at, result
+      const run = (await client.query<RunRow>(`SELECT id, kind, seed, started_at, expires_at, rules_version, result
         FROM play_runs WHERE id = $1 AND account_id = $2 FOR UPDATE`, [input.runId, input.accountId])).rows[0];
       if (!run) throw new PlayError('PLAY_RUN_NOT_FOUND');
       if (run.result) return run.result;
@@ -88,17 +93,41 @@ export class PostgresPlayService implements PlayService {
       if (now > run.expires_at) throw new PlayError('PLAY_RUN_EXPIRED');
       const elapsed = now.getTime() - run.started_at.getTime();
       let score: ReturnType<typeof scoreRunAtElapsed>;
-      try { score = scoreRunAtElapsed(run.kind, run.seed, input.actions, elapsed); }
+      let quality: ReturnType<typeof getQualityGameState> | undefined;
+      try {
+        if (run.rules_version === 1) score = scoreRunAtElapsed(run.kind, run.seed, input.actions, elapsed);
+        else if (run.rules_version === 2) {
+          if (elapsed < 0 || input.actions.some(action => action.at > elapsed + 2000)) {
+            throw new Error('INVALID_GAME_ACTIONS');
+          }
+          // The final delivery sample fixes the stop time even if the request arrives late.
+          quality = getQualityGameState(run.kind, run.seed, input.actions, run.kind === 'delivery' ?
+            input.actions.at(-1)?.at ?? 0 : elapsed);
+          score = { score: quality.score, completed: quality.completed,
+            correct: quality.correct, total: quality.total };
+          if (score.completed && (elapsed < (run.kind === 'delivery' ? 24_000 :
+            (input.actions.length - 1) * minimumActionGapMs[run.kind]))) {
+            throw new Error('INVALID_GAME_ACTIONS');
+          }
+        } else throw new Error('INVALID_GAME_VERSION');
+      }
       catch { throw new PlayError('PLAY_ACTIONS_INVALID'); }
       const priorRecords = await this.records(client, input.accountId);
       const priorSkills = await this.achievements(client, input.accountId, priorRecords);
-      const skill = evaluateGameSkill(run.kind, run.seed, input.actions, score);
+      const skill = quality ? { ...gameSkills[run.kind], ...evaluateQualityGameSkill(quality) } :
+        evaluateGameSkill(run.kind, run.seed, input.actions, score);
       let record: PlayRecord | undefined;
       if (score.completed) {
-        const updated = await client.query<RecordRow>(`INSERT INTO play_records (account_id, kind, best_score, plays)
-          VALUES ($1,$2,$3,1) ON CONFLICT (account_id,kind) DO UPDATE SET
-          best_score = greatest(play_records.best_score, excluded.best_score), plays = play_records.plays + 1
-          RETURNING kind,best_score,plays`, [input.accountId, run.kind, score.score]);
+        const updated = await client.query<RecordRow>(`INSERT INTO play_records
+          (account_id, kind, best_score, plays, version2_best_score, version2_plays)
+          VALUES ($1,$2,$3,1,$4,$5) ON CONFLICT (account_id,kind) DO UPDATE SET
+          best_score = greatest(play_records.best_score, excluded.best_score),
+          plays = play_records.plays + 1,
+          version2_best_score = greatest(play_records.version2_best_score, excluded.version2_best_score),
+          version2_plays = play_records.version2_plays + excluded.version2_plays
+          RETURNING kind,best_score,plays,version2_best_score,version2_plays`,
+        [input.accountId, run.kind, run.rules_version === 1 ? score.score : 0,
+          run.rules_version === 2 ? score.score : 0, run.rules_version === 2 ? 1 : 0]);
         record = this.mapRecord(updated.rows[0]!);
         await this.count(client, 'complete', run.kind, now);
       }
@@ -110,8 +139,11 @@ export class PostgresPlayService implements PlayService {
       [input.accountId, run.kind, skill.progress, skill.achieved]);
       const records = await this.records(client, input.accountId);
       const currentRecord = record ?? records.find((candidate) => candidate.kind === run.kind);
-      const result: PlayResult = { kind: run.kind, ...score, bestScore: currentRecord?.bestScore ?? 0,
+      const result: PlayResult = { kind: run.kind, rulesVersion: run.rules_version, ...score,
+        bestScore: currentRecord?.bestScore ?? 0,
         plays: currentRecord?.plays ?? 0, unlockedThemes: unlocked(records), skill,
+        version2BestScore: currentRecord?.version2BestScore ?? 0,
+        version2Plays: currentRecord?.version2Plays ?? 0,
         newlyEarned: skill.achieved && !priorSkills.some((candidate) => candidate.id === skill.id && candidate.achieved) };
       await client.query(`UPDATE play_runs SET finished_at = $2, result = $3 WHERE id = $1`,
         [input.runId, now, JSON.stringify(result)]);
@@ -182,15 +214,20 @@ export class PostgresPlayService implements PlayService {
           SELECT 1 FROM account_consents WHERE account_id=$1 AND terms_version=$2 AND privacy_version=$3)`,
         [friendId, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION])).rows[0];
       if (!saved) return { nickname, studio: { theme: defaultStudio.theme, layout: defaultStudio.layout,
-        accent: defaultStudio.accent, goal: null }, items: [], avatar: null };
+        accent: defaultStudio.accent, goal: null }, items: [], avatar: null, avatarClothingId: null };
       const studio = saved.studio;
       const goal = studio.goal?.kind !== 'play' && studio.goal &&
         !(await this.publicMerchant(client, studio.goal.merchantId)) ? null : studio.goal;
       const items = await this.items(client, friendId, studio.slots);
+      const clothing = (await client.query<{ item_id: string }>(
+        `SELECT clothing.item_id FROM account_profile profile
+         JOIN account_clothing clothing ON clothing.account_id = profile.account_id
+           AND clothing.item_id = profile.equipped_clothing_item_id
+         WHERE profile.account_id = $1`, [friendId])).rows[0];
       return { nickname, studio: { theme: studio.theme, layout: studio.layout, accent: studio.accent, goal },
         items: items.map(({ merchantId, merchantName, campaignTitle, displayName, artwork }) => ({
           merchantId, merchantName, campaignTitle, displayName, ...(artwork ? { artwork } : {}),
-        })), avatar: await this.avatar(client, friendId) };
+        })), avatar: await this.avatar(client, friendId), avatarClothingId: findClothingItem(clothing?.item_id ?? '')?.id ?? null };
     });
   }
 
@@ -235,12 +272,14 @@ export class PostgresPlayService implements PlayService {
   }
 
   private async records(client: PoolClient, accountId: string): Promise<PlayRecord[]> {
-    return (await client.query<RecordRow>(`SELECT kind,best_score,plays FROM play_records WHERE account_id=$1 ORDER BY kind`,
+    return (await client.query<RecordRow>(`SELECT kind,best_score,plays,version2_best_score,version2_plays
+      FROM play_records WHERE account_id=$1 ORDER BY kind`,
       [accountId])).rows.map(this.mapRecord);
   }
 
   private mapRecord(row: RecordRow): PlayRecord {
-    return { kind: row.kind, bestScore: row.best_score, plays: row.plays };
+    return { kind: row.kind, bestScore: row.best_score, plays: row.plays,
+      version2BestScore: row.version2_best_score, version2Plays: row.version2_plays };
   }
 
   private async achievements(client: PoolClient, accountId: string, records: readonly PlayRecord[]): Promise<GameSkill[]> {

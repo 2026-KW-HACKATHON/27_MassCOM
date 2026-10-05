@@ -1,24 +1,33 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
+import { ThemeOutfitPreview } from '@/experience/theme-pack-board';
+import type { DisplayExperienceProfile, ExperienceProfile } from '@/experience/experience-api';
+import { CosmeticArt, PackArt } from '@/illustration/artwork';
+import { AvatarPortrait } from '@/illustration/avatar-portrait';
 import { ConfettiBurst } from '@/gamification/confetti';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
 import { drawHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { playUiSound, useDrawMusic } from '@/sound/ui-sounds';
 import type { MileageGrade, ShopGradeView, ShopRerollResult, ShopSnapshot } from '@/shop/shop-api';
-import { friendArt, ticketArt } from '@/shop/shop-art';
-import { AvatarWardrobe, equippedClothingArt } from '@/shop/wardrobe';
+import { CharacterArt } from '@/illustration/character-art';
+import { AvatarWardrobe, equippedClothingArt, type EquippedClothingArt } from '@/shop/wardrobe';
 import { drawRewardDisclosure, rerollDisclosure } from '@/shop/shop-rules';
 
 import { cosmeticSequenceDisclosure, gachaAffordability, gachaNextRewardPhase, gachaPhaseAfter, gachaRewardDelayMs, gachaTimeline, isNewDraw, type GachaPhase, type GachaRewardPhase, type GachaStage } from './gacha-rules';
 
 type Props = {
   snapshot: ShopSnapshot;
+  profile?: ExperienceProfile;
+  bonusSaving?: boolean;
+  bonusError?: string;
+  onEquipBonus?: () => void;
+  onRecoverPending?: () => void;
   result?: ShopRerollResult;
   selectedGrade: MileageGrade;
   ownedBefore: readonly string[];
@@ -45,8 +54,8 @@ const gradeStyle: Record<MileageGrade, { name: string; color: string; pale: stri
 const stages: GachaStage[] = ['crank', 'shake', 'drop', 'wobble', 'split', 'burst', 'pop'];
 
 /** The same full-screen purchase experience opens from the shop and the visit reward reel. */
-export function GachaMachine({ snapshot, result, selectedGrade, ownedBefore, busy, error, refreshing, avatarBusy, avatarError, isAvatar,
-  wishId, onWish, onDraw, onSetAvatar, onClose, onRefresh, onOpenStudio }: Props) {
+export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEquipBonus, result, selectedGrade, ownedBefore, busy, error, refreshing, avatarBusy, avatarError, isAvatar,
+  wishId, onWish, onRecoverPending, onDraw, onSetAvatar, onClose, onRefresh, onOpenStudio }: Props) {
   const insets = useSafeAreaInsets();
   const motionAllowed = useMotionEnabled();
   useDrawMusic();
@@ -78,10 +87,17 @@ export function GachaMachine({ snapshot, result, selectedGrade, ownedBefore, bus
   const availability = gachaAffordability(snapshot.mileage.balance, snapshot.grades, ownedByGrade);
   const canRepeat = availability.some((entry) => entry.enabled);
   const selected = snapshot.grades.find((item) => item.grade === selectedGrade) ?? snapshot.grades[0]!;
-  void onWish;
   const selectedAvailability = availability.find((entry) => entry.grade === selected.grade)!;
   const grade = result?.item.grade ?? drawing?.grade ?? selected.grade;
+  const baseProfile = profile ?? { badgeId: null, cosmetics: { hat: null, bag: null, prop: null, pose: null, decor: null } };
+  const bonusProfile = result?.bonus ? { ...baseProfile, cosmetics: { ...baseProfile.cosmetics, [result.bonus.slot]: result.bonus.id } } : profile;
+  const bonusEquipped = !!result?.bonus && profile?.cosmetics[result.bonus.slot] === result.bonus.id;
   const tone = gradeStyle[grade];
+  const currentClothing = equippedClothingArt(snapshot);
+  const previewClothing = result?.rewards.clothing.item ? equippedClothingArt({ clothing: {
+    equipped: result.rewards.clothing.item.id, draw: { probability: result.rewards.clothing.probability },
+    items: [{ ...result.rewards.clothing.item, owned: true, equipped: false }],
+  } }) : currentClothing;
 
   const clearRewardTimer = useCallback(() => {
     if (rewardTimer.current) clearTimeout(rewardTimer.current);
@@ -217,11 +233,18 @@ export function GachaMachine({ snapshot, result, selectedGrade, ownedBefore, bus
             ? <Control label="구매 확인 중" disabled onPress={() => {}} />
             : <Control label="닫기" onPress={onClose} />}
         </View>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {displayPhase === 'detail' ? (
             <>
               <Text accessibilityRole="header" style={styles.heading}>{gradeStyle[selected.grade].name} 재뽑기권</Text>
-              <Image source={ticketArt[selected.grade]} style={styles.detailTicketArt} resizeMode="contain" accessible={false} />
+              <PackArt grade={selected.grade} size={180} />
+              <View style={styles.catalog}>{snapshot.items.filter((item) => item.grade === selected.grade).map((item) => <Pressable
+                key={item.id} accessibilityRole="button" disabled={item.owned || busy}
+                accessibilityState={{ disabled: item.owned || busy, selected: wishId === item.id }}
+                accessibilityLabel={`${item.name}, ${item.owned ? '소장' : '미보유'}, 목표로 보기`}
+                onPress={() => onWish?.(wishId === item.id ? null : item.id)} style={styles.catalogItem}>
+                <CharacterArt avatar={item.id} frame="calm" size={68} /><Text style={styles.catalogName}>{item.name}</Text>
+              </Pressable>)}</View>
               <View style={styles.rewardList}>
                 <Text style={styles.rewardLine}>마일리지 {snapshot.drawRewards.bonusMileage.min}-{snapshot.drawRewards.bonusMileage.max}P</Text>
                 <Text style={styles.rewardLine}>아바타 옷 0-1개</Text>
@@ -267,20 +290,31 @@ export function GachaMachine({ snapshot, result, selectedGrade, ownedBefore, bus
                   <Text style={[styles.gradePill, { backgroundColor: tone.color }]}>{tone.name}</Text>
                   {isNewDraw(result.item, ownedBefore) && (displayPhase === 'reward-character' || displayPhase === 'result') ? <Text style={styles.newBadge}>NEW</Text> : null}
                   {displayPhase === 'reward-mileage' ? <MileageReward amount={result.rewards.mileage.amount} onNext={revealNext} /> : null}
-                  {displayPhase === 'reward-clothing' ? <ClothingReward result={result} onNext={revealNext} /> : null}
-                  {displayPhase === 'reward-character' ? <CharacterReward result={result} wished={wishId === result.item.id} onNext={revealNext} /> : null}
-                  {displayPhase === 'result' ? <ResultSummary result={result} tone={tone} ownedBefore={ownedBefore} /> : null}
+                  {displayPhase === 'reward-clothing' ? <ClothingReward result={result} clothing={previewClothing} profile={bonusProfile} onNext={revealNext} /> : null}
+                  {displayPhase === 'reward-character' ? <CharacterReward result={result} clothing={previewClothing} profile={bonusProfile} wished={wishId === result.item.id} onNext={revealNext} /> : null}
+                  {displayPhase === 'result' ? <ResultSummary result={result} tone={tone} ownedBefore={ownedBefore} clothing={previewClothing} bonusProfile={bonusProfile} /> : null}
                 </Animated.View>
               </View>}
               {displayPhase === 'result' ? <View style={styles.actions}>
                 {avatarError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{avatarError}</Text> : null}
-                <Control label={isAvatar ? '대표 캐릭터예요' : avatarBusy ? '설정 중…' : '대표 캐릭터로'} primary disabled={isAvatar || avatarBusy} onPress={onSetAvatar} />
-                {onOpenStudio ? <Control label="내 공간에서 만나기" disabled={avatarBusy} onPress={onOpenStudio} /> : null}
-                {canRepeat ? <Control label="한 번 더 뽑기" disabled={avatarBusy} onPress={() => { clearRewardTimer(); activeResult.current = undefined; advancePhase('detail'); }} /> : null}
+                {result.bonus?.slot === 'decor' ? <View style={{ alignItems: 'center', gap: 8 }}>
+                  <ThemeOutfitPreview avatar={snapshot.avatar} profile={bonusProfile} />
+                  <Text style={styles.description}>참고용 배치 미리보기 · 실제 배치는 내 공간에서 확인해요</Text>
+                </View> : null}
+                {result.bonus && result.bonus.slot !== 'decor' && profile ? <View style={styles.bonusReveal}>
+                  <AvatarPortrait avatar={snapshot.avatar} profile={bonusProfile} clothing={currentClothing} size={104} reaction="idle" />
+                  <Text style={[styles.description, styles.ticketCopy]}>지금 동행에게 입혀 본 모습{bonusEquipped ? ' · 장착 완료' : ''}</Text>
+                </View> : null}
+                {bonusError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{bonusError}</Text> : null}
+                {result.bonus && onEquipBonus ? <Control label={bonusSaving ? '꾸미기 저장 중…' : bonusEquipped ? result.bonus?.slot === 'decor' ? '장식 배치 완료' : '꾸미기 장착 완료' : result.bonus?.slot === 'decor' ? '내 공간에 이 장식 배치' : '지금 동행에게 꾸미기 장착'} disabled={avatarBusy || bonusSaving || bonusEquipped} onPress={onEquipBonus} /> : null}
+                <Control label={isAvatar ? '대표 캐릭터예요' : avatarBusy ? '설정 중…' : '대표 캐릭터로'} primary disabled={isAvatar || avatarBusy || bonusSaving} onPress={onSetAvatar} />
+                {onOpenStudio ? <Control label={result.bonus?.slot === 'decor' ? '내 공간에 놓으러 가기' : '내 공간에서 만나기'} disabled={avatarBusy || bonusSaving} onPress={onOpenStudio} /> : null}
+                {canRepeat ? <Control label="한 번 더 뽑기" disabled={avatarBusy || bonusSaving} onPress={() => { clearRewardTimer(); activeResult.current = undefined; advancePhase('detail'); }} /> : null}
                 <Control label="닫기" onPress={onClose} />
               </View> : null}
             </>
           ) : null}
+          {onRecoverPending && displayPhase === 'detail' ? <Control label="이전 구매 결과 다시 확인" disabled={busy || refreshing} onPress={onRecoverPending} /> : null}
           {error ? <View style={styles.errorArea}><Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>
             {onRefresh ? <Control label={refreshing ? '다시 불러오는 중…' : '상점 다시 불러오기'} disabled={busy || refreshing} onPress={onRefresh} /> : null}
           </View> : null}
@@ -314,40 +348,38 @@ function MileageReward({ amount, onNext }: { amount: number; onNext: () => void 
   </>;
 }
 
-function ClothingReward({ result, onNext }: { result: ShopRerollResult; onNext: () => void }) {
-  const clothing = result.rewards.clothing.item
-    ? equippedClothingArt({ clothing: { equipped: result.rewards.clothing.item.id, draw: { probability: result.rewards.clothing.probability }, items: [{ ...result.rewards.clothing.item, owned: true, equipped: true }] } })
-    : null;
+function ClothingReward({ result, clothing, profile, onNext }: { result: ShopRerollResult; clothing: EquippedClothingArt | null; profile?: DisplayExperienceProfile; onNext: () => void }) {
   return <>
     <Text style={styles.rewardKicker}>2 / 3</Text>
     <Text style={styles.rewardTitle}>아바타 옷</Text>
-    <View style={styles.clothingPrize}>{clothing ? <AvatarWardrobe clothing={clothing} size={118} /> : <Text style={styles.noPrize}>이번에는 없음</Text>}</View>
+    <View style={styles.clothingPrize}>{result.rewards.clothing.item && clothing ? <AvatarWardrobe clothing={clothing} size={118} /> : <Text style={styles.noPrize}>이번에는 없음</Text>}</View>
     <Text style={styles.characterName}>{result.rewards.clothing.item ? result.rewards.clothing.item.name : '옷 없음'}</Text>
+    {result.rewards.clothing.item ? <><AvatarPortrait avatar={result.item.id} profile={profile} clothing={clothing} size={150} reaction="idle" /><Text style={styles.description}>이번 옷 착용 미리보기 · 장착은 내 공간에서 선택해요</Text></> : null}
     {result.rewards.clothing.duplicate ? <Text style={styles.description}>이미 가지고 있어요. 보유 옷은 그대로 유지돼요.</Text> : null}
     <Control label="다음 보상 보기" primary onPress={onNext} />
   </>;
 }
 
-function CharacterReward({ result, wished, onNext }: { result: ShopRerollResult; wished?: boolean; onNext: () => void }) {
+function CharacterReward({ result, clothing, profile, wished, onNext }: { result: ShopRerollResult; clothing: EquippedClothingArt | null; profile?: DisplayExperienceProfile; wished?: boolean; onNext: () => void }) {
   return <>
     <Text style={styles.rewardKicker}>3 / 3</Text>
     <Text style={styles.rewardTitle}>새 친구</Text>
-    {friendArt[result.item.id] ? <Image source={friendArt[result.item.id]} style={styles.character} resizeMode="contain" accessible={false} /> : <Text style={styles.missingCharacter}>?</Text>}
+    <AvatarPortrait avatar={result.item.id} profile={profile} clothing={clothing} size={240} reaction="cheer" />
     <Text style={styles.characterName}>{result.item.name}</Text>
     <Text style={styles.description}>{wished ? '기다리던 동행을 만났어요!' : '내 공간에서 함께 놀고, 가게를 탐험해요.'}</Text>
     <Control label="최종 결과 보기" primary onPress={onNext} />
   </>;
 }
 
-function ResultSummary({ result, tone, ownedBefore }: { result: ShopRerollResult; tone: { color: string }; ownedBefore: readonly string[] }) {
+function ResultSummary({ result, tone, ownedBefore, clothing, bonusProfile }: { result: ShopRerollResult; tone: { color: string }; ownedBefore: readonly string[]; clothing: EquippedClothingArt | null; bonusProfile?: DisplayExperienceProfile }) {
   return <>
     {isNewDraw(result.item, ownedBefore) ? <Text style={styles.newBadge}>NEW</Text> : null}
     <Text style={styles.rewardTitle}>최종 결과</Text>
     <Text style={styles.rewardStep}>1. 마일리지 +{result.rewards.mileage.amount}P</Text>
     <Text style={styles.rewardStep}>2. 옷 {result.rewards.clothing.item ? `${result.rewards.clothing.item.name}${result.rewards.clothing.duplicate ? ' (이미 보유)' : ''}` : '이번에는 없음'}</Text>
     <Text style={styles.rewardStep}>3. 캐릭터 {result.item.name}</Text>
-    {result.bonus ? <Text style={styles.rewardStep}>추가 꾸미기 {result.bonus.name}</Text> : null}
-    {friendArt[result.item.id] ? <Image source={friendArt[result.item.id]} style={styles.summaryCharacter} resizeMode="contain" accessible={false} /> : <Text style={styles.missingCharacter}>?</Text>}
+    {result.bonus ? <View style={styles.bonusReveal}><CosmeticArt id={result.bonus.id} size={82} /><Text style={styles.rewardStep}>추가 꾸미기 {result.bonus.name}</Text></View> : null}
+    <AvatarPortrait avatar={result.item.id} profile={bonusProfile} clothing={clothing} size={150} reaction="cheer" />
     <Text style={[styles.characterName, { color: tone.color }]}>{result.item.name}</Text>
     <Text style={styles.resultBalance}>남은 마일리지 {result.balance.toLocaleString('ko-KR')}P</Text>
   </>;
@@ -385,17 +417,22 @@ function BurstRays({ color }: { color: string }) {
 }
 
 function Control({ label, onPress, primary, purchase, disabled }: { label: string; onPress: () => void; primary?: boolean; purchase?: boolean; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} style={[styles.control, primary && styles.primary, purchase && styles.purchase, disabled && styles.disabled]}><Text style={[styles.controlText, (primary || purchase) && styles.primaryText]}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} style={[styles.control, primary && styles.primary, purchase && styles.purchase, disabled && styles.disabled]}><Text style={[styles.controlText, primary && styles.primaryText, purchase && styles.purchaseText]}>{label}</Text></Pressable>;
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#142724', paddingHorizontal: 22 },
+  root: { flex: 1, minHeight: 0, backgroundColor: '#142724', paddingHorizontal: 22 },
   topBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   balance: { color: '#FFE5A4', fontSize: 15, fontWeight: '800' },
+  scroll: { flex: 1, minHeight: 0 },
   content: { alignItems: 'center', paddingBottom: 24, gap: 14 },
   heading: { color: '#FFFFFF', fontSize: 25, fontWeight: '900', textAlign: 'center', marginTop: 12 },
   description: { color: '#D9E7FA', fontSize: 15, textAlign: 'center' },
-  detailTicketArt: { width: 190, height: 150 },
+  catalog: { alignSelf: 'stretch', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
+  catalogItem: { minWidth: 80, alignItems: 'center', padding: 6 },
+  catalogName: { color: '#FFFFFF', fontSize: 12, textAlign: 'center' },
+  ticketCopy: { flex: 1 },
+  ticketNote: { color: '#BED0E6', fontSize: 13 },
   rewardList: { alignSelf: 'stretch', gap: 8, marginVertical: 4 },
   rewardLine: { color: '#FFFFFF', fontSize: 17, fontWeight: '800', textAlign: 'center' },
   rewardStep: { color: '#FFE5A4', fontSize: 14, fontWeight: '800', textAlign: 'center' },
@@ -421,13 +458,14 @@ const styles = StyleSheet.create({
   character: { width: 250, height: 260, maxWidth: '100%' },
   missingCharacter: { color: '#FFFFFF', fontSize: 90, fontWeight: '900' },
   characterName: { color: '#FFFFFF', fontSize: 26, fontWeight: '900', textAlign: 'center', flexShrink: 1 },
-  summaryCharacter: { width: 150, height: 150, maxWidth: '100%' },
+  bonusReveal: { alignSelf: 'stretch', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: 10, borderRadius: 14, backgroundColor: '#29473F' },
   resultBalance: { color: '#D9E7FA', fontSize: 14 },
   actions: { alignSelf: 'stretch', gap: 10, marginTop: 8 },
   control: { minHeight: 48, minWidth: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#29473F' },
   primary: { backgroundColor: '#FFD579' },
   purchase: { alignSelf: 'stretch', backgroundColor: '#2E8B57', marginTop: 4 },
   controlText: { color: '#FFFFFF', fontWeight: '800', fontSize: 15 },
+  purchaseText: { color: '#FFFFFF', fontSize: 20 },
   primaryText: { color: '#182942' },
   error: { color: '#FFD1D1', fontSize: 14, textAlign: 'center', marginTop: 4 },
   errorArea: { alignSelf: 'stretch', gap: 8 },

@@ -173,3 +173,13 @@ test('회전·카드 끌기·중력 조명은 합쳐지며 카드 뒤집기 자�
   assert.ok(combineMaterialTilt(0, { x: 0, y: 0 }, { x: -.6, y: -.3 }).y < 0);
   assert.deepEqual(combineMaterialTilt(NaN, { x: Infinity, y: Infinity }, { x: Infinity, y: Infinity }), { x: 1, y: 1 });
 });
+
+
+test('physical tilt holds metal reflections still while input remains unchanged', () => {
+  for (const preset of Object.values(gradeMaterialPresets)) {
+    const input = { tiltX: .3, tiltY: -.2, ambient: false };
+    assert.deepEqual(reflectionAt({ ...input, timeMs: 0 }, preset), reflectionAt({ ...input, timeMs: 40000 }, preset));
+    assert.notEqual(reflectionAt({ ...input, timeMs: 40000 }, preset).bandOffset,
+      reflectionAt({ ...input, tiltX: -.5, timeMs: 40000 }, preset).bandOffset);
+  }
+});

@@ -61,6 +61,8 @@ export function computeReward(earnedToday: number): number {
 export function parseMealInvitation(input: CreateMealInvitationInput, now: Date): ParsedMealInvitation | null {
   if (typeof input.merchantId !== 'string' || input.merchantId.trim().length < 1) return null;
   if (typeof input.date !== 'string' || !datePattern.test(input.date)) return null;
+  const date = new Date(`${input.date}T00:00:00Z`);
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== input.date) return null;
   if (input.date < kstBusinessDate(now)) return null;
   if (input.kind === 'CONFIRMED') {
     if (typeof input.time !== 'string' || !isHHmm(input.time)) return null;

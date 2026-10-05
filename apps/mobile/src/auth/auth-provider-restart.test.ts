@@ -34,6 +34,20 @@ let pendingEffects: (() => void | (() => void))[] = [];
 let providerValue: AuthSessionContextValue | undefined;
 let providerModule: typeof import('./auth-provider');
 let storageModule: typeof import('../social/push-runtime-storage');
+let pushRuntimeModule: typeof import('../social/push-runtime');
+let friendLinkModule: typeof import('../friends/pending-friend-link');
+const platform = { OS: 'web' };
+let pushTokenListener: ((token: unknown) => void) | undefined;
+let notificationResponseListener: ((response: unknown) => void) | undefined;
+const notifications = {
+  getPermissionsAsync: async () => ({ granted: true, status: 'granted' }),
+  requestPermissionsAsync: async () => ({ granted: true, status: 'granted' }),
+  getExpoPushTokenAsync: async ({ devicePushToken }: { devicePushToken?: unknown }) => ({ data: devicePushToken ? 'ExponentPushToken[B-next]' : 'ExponentPushToken[B]' }),
+  getLastNotificationResponse: () => null,
+  addPushTokenListener: (listener: (token: unknown) => void) => { pushTokenListener = listener; return { remove() {} }; },
+  addNotificationResponseReceivedListener: (listener: (response: unknown) => void) => { notificationResponseListener = listener; return { remove() {} }; },
+  setNotificationHandler: () => undefined,
+};
 
 const oldSession: StoredAuthSessionV1 = {
   version: 1,
@@ -204,6 +218,7 @@ function installProviderFetch(options: { pushDeleteFailure?: boolean; holdPushDe
       if (options.pushDeleteFailure) return jsonResponse({ code: 'NETWORK_ERROR' }, 503);
       return jsonResponse({ status: 'REMOVED' });
     }
+    if (call.path === '/me/push-tokens' && call.method === 'POST') return jsonResponse({ status: 'REGISTERED' });
     if (call.path === '/auth/logout' && call.method === 'POST') return jsonResponse({ status: 'LOGGED_OUT' });
     if (call.path === '/auth/guest-trial' && call.method === 'POST') return jsonResponse(newSession);
     return jsonResponse({ code: 'UNEXPECTED_REQUEST' }, 500);
@@ -221,7 +236,7 @@ before(async () => {
   moduleWithLoad._load = function patchedLoad(request: string, parent: NodeModule | null | undefined, isMain: boolean) {
     if (request === 'react') return fakeReact;
     if (request === 'react/jsx-runtime') return fakeJsxRuntime;
-    if (request === 'react-native') return { Platform: { OS: 'web' } };
+    if (request === 'react-native') return { Platform: platform };
     if (request === '@react-native-async-storage/async-storage') return asyncStore;
     if (request === 'expo-application') return { applicationId: 'kr.masscom.wolgye.dev' };
     if (request === 'expo-constants') return { default: { expoConfig: { scheme: 'masscom-dev', extra: {} } } };
@@ -240,21 +255,74 @@ before(async () => {
   };
   providerModule = await import('./auth-provider') as typeof import('./auth-provider');
   storageModule = await import('../social/push-runtime-storage') as typeof import('../social/push-runtime-storage');
+  pushRuntimeModule = await import('../social/push-runtime') as typeof import('../social/push-runtime');
+  friendLinkModule = await import('../friends/pending-friend-link') as typeof import('../friends/pending-friend-link');
 });
 
 beforeEach(() => {
   resetRenderer();
   secureStorage.clear();
   asyncStorage.clear();
+  platform.OS = 'web';
+  pushTokenListener = undefined;
+  notificationResponseListener = undefined;
+  friendLinkModule.clearPendingFriendLink();
   storageModule.resetSocialPushStorageMutationQueueForTest();
 });
 
 afterEach(() => {
   mock.restoreAll();
+  delete (globalThis as typeof globalThis & { __masscomSocialPushNotifications?: typeof notifications }).__masscomSocialPushNotifications;
 });
 
 after(() => {
   moduleWithLoad._load = originalLoad;
+});
+
+test('stale A 401 after B signs in preserves B push taps and token refresh', async () => {
+  seedAuthSession(oldSession);
+  const fetcher = installProviderFetch();
+  const oldValue = await renderUntilSignedIn();
+  await oldValue.restartGuestTrial();
+  const currentValue = renderProvider();
+  assert.equal(currentValue?.session?.sessionToken, newSession.sessionToken);
+
+  resetRenderer();
+  platform.OS = 'ios';
+  (globalThis as typeof globalThis & { __masscomSocialPushNotifications?: typeof notifications }).__masscomSocialPushNotifications = notifications;
+  const opened: string[] = [];
+  pushRuntimeModule.useSocialPushBinding({
+    apiUrl: 'http://127.0.0.1:8787',
+    accountId: newSession.accountId,
+    credential: { kind: 'bearer', sessionToken: newSession.sessionToken },
+    appVariant: 'ANDROID',
+    onOpenMail: (mailId) => opened.push(mailId),
+  });
+  runPendingEffects();
+  await waitFor(() => readPushBinding()?.status === 'REGISTERED' && readPushBinding()?.accountId === newSession.accountId);
+  assert.ok(notificationResponseListener);
+  assert.ok(pushTokenListener);
+
+  friendLinkModule.rememberPendingFriendCode('friend-link-for-b');
+  const deletesBeforeStale401 = fetcher.calls.filter((call) => call.path === '/me/push-tokens' && call.method === 'DELETE').length;
+  await oldValue.invalidateSession();
+  assert.equal(friendLinkModule.peekPendingFriendCode(), 'friend-link-for-b');
+  assert.equal(fetcher.calls.filter((call) => call.path === '/me/push-tokens' && call.method === 'DELETE').length, deletesBeforeStale401);
+  const mailId = '11111111-1111-4111-8111-111111111111';
+  notificationResponseListener({ notification: { request: { identifier: 'mail-b', content: { data: { mailId } } } } });
+  await waitFor(() => opened.length === 1);
+  pushTokenListener({ type: 'native-next' });
+  await waitFor(() => readPushBinding()?.token === 'ExponentPushToken[B-next]' && readPushBinding()?.status === 'REGISTERED');
+
+  assert.deepEqual(opened, [mailId]);
+  assert.equal(readAuthSession()?.sessionToken, newSession.sessionToken);
+  assert.deepEqual(fetcher.calls.filter((call) => call.path === '/me/push-tokens').map((call) => call.method), ['POST', 'POST']);
+
+  await currentValue?.invalidateSession();
+  assert.equal(friendLinkModule.hasPendingFriendLink(), false);
+  assert.equal(readPushBinding(), null);
+  assert.equal(readAuthSession(), undefined);
+  assert.ok(fetcher.calls.some((call) => call.path === '/me/push-tokens' && call.method === 'DELETE' && call.authorization === 'Bearer new-trial'));
 });
 
 test('provider restart serializes deferred push cleanup before one guest replacement', async () => {

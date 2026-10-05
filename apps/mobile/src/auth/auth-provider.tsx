@@ -237,12 +237,15 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       await controllerRef.current.switchAccount();
     },
     async invalidateSession() {
+      const controller = controllerRef.current;
+      if (!session || !controller) return;
+      const current = controller.getState();
+      if (current.status !== 'signedIn' || current.session.sessionToken !== session.sessionToken) return;
       clearPendingFriendLink();
       const previousAccountId = accountId;
       const previousCredential = credential;
       await revokeSocialPushBindingForAuthSession(previousAccountId, previousCredential);
-      if (!session || !controllerRef.current) return;
-      await controllerRef.current.invalidateSession(session.sessionToken);
+      await controller.invalidateSession(session.sessionToken);
     },
   }), [accountId, appKit, credential, session, state]);
 

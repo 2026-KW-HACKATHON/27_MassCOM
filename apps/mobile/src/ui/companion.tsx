@@ -8,8 +8,10 @@ import { useMotionEnabled } from '@/motion/use-motion';
 import { AvatarWardrobe, type EquippedClothingArt } from '@/shop/wardrobe';
 import { playUiSound } from '@/sound/ui-sounds';
 import { Mascot } from './mascot';
+import { friendArt } from '@/shop/shop-art';
+import { AvatarPortrait } from '@/illustration/avatar-portrait';
 
-export function Companion({ art, clothing, size = 120, celebrate = false, interactive = false, characterId, poseId, children }: {
+type Props = {
   art?: ImageSourcePropType;
   clothing?: EquippedClothingArt | null;
   size?: number;
@@ -18,7 +20,17 @@ export function Companion({ art, clothing, size = 120, celebrate = false, intera
   characterId?: string | null;
   poseId?: string | null;
   children?: ReactNode;
-}) {
+};
+
+export function Companion(props: Props) {
+  const avatar = props.characterId ?? Object.keys(friendArt).find(id => friendArt[id] === props.art);
+  const size = props.size ?? 120;
+  return avatar ? <View style={{ width: size, height: size }}><AvatarPortrait avatar={avatar} clothing={props.clothing} size={size}
+    reaction={props.celebrate || props.poseId === 'stack-cheer' ? 'cheer' : 'idle'} interactive={props.interactive} />{props.children}</View>
+    : <LegacyCompanion {...props} />;
+}
+
+function LegacyCompanion({ art, clothing, size = 120, celebrate = false, interactive = false, characterId, poseId, children }: Props) {
   const motion = useMotionEnabled();
   const lift = useSharedValue(0);
   const scale = useSharedValue(1);

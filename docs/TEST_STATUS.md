@@ -1,6 +1,38 @@
 # 테스트 상태
 
+## 2026-10-06 PR #374 병합 복구 (Issue #367)
+
+브랜치 `fix/pr374-review`, PR #374 SHA `dbe8f09e0ac347d0aa08fde80817078648674cd2`, `origin/main` SHA `57e7746ff8586c60bc5555f731b93ddc789dcbc6`. PR #375와 11개 충돌을 통합했다(소스/시험 7, 문서 4; 두 PR의 문서 이력 모두 유지).
+
+**PASS:** API 513/513·typecheck·build; 모바일 1673/1673·typecheck·lint; PostgreSQL 전체 497 중 494 PASS/3 SKIP/0 FAIL(183초); site 508/508. Focused social 46개와 friend/play 6개는 RED→GREEN이며 전체 합계에 중복해 더하지 않는다. CodeReviewer 필수 수정 0, TypeScript Language Service 75파일 진단 0, Architect 29 focused blocker 0.
+
+**다섯 리뷰 조건:** (1) 오래된 A의 401이 B 계정의 push generation·listener·token refresh·등록을 건드리지 않음. (2) 받은 pending gift를 먼저 표시하고 수령 후 보낸 pending gift에 접근 가능; `canReceive`와 수령 ID 유지, 동시 표시를 요구하지 않음. (3) commit됐으나 응답이 유실된 구매는 새 affordability/last-owned 검사에 막히지 않고 같은 request ID로 자동 복구, 중복 차감 없음. (4) 식사 수락/재시도는 인증된 응답자의 SENT 관점과 식사 초대 보존. (5) 잘못된 월/일·윤년 날짜는 DB 전에 HTTP 400.
+
+**브라우저/기록 확인:** 로컬 390px synthetic 계정에서 일반 draw 6회(브론즈 3·실버 3), 최종 책방 부엉이 실버 결과를 봤다. 해당 마지막 요청은 서버 commit 직후 TCP 응답을 드롭했고, `afterServerCommit=true`인 최종 시도에서 3/3 소유 상태로 새 구매가 불가해도 캐시된 기존 결과를 자동 복구했다. 첫 fault 경로는 활성화되지 않아 성공 근거로 세지 않았다. 별도 수동 retry 버튼은 검증하지 않았다. 정확히 6개 원장 행·900P 차감·잔액 246·획득 합계 1,146이며 중복 차감은 없다([화면](evidence/pr374-repair-2026-10-06/lost-response-recovered.png), [commit 후 응답 드롭 증거](evidence/pr374-repair-2026-10-06/lost-response-proof.json), [원장](evidence/pr374-repair-2026-10-06/recovery-ledger-proof.json)).
+
+합성 내 공간과 빈 합성 친구 공간은 책방 부엉이·후드·금화를 동일하게 보여주고 웹 UI PNG(1,482,228 bytes)를 저장했다([내 공간](evidence/pr374-repair-2026-10-06/hoodie-studio.png), [친구 공간](evidence/pr374-repair-2026-10-06/hoodie-friend-studio.png), [PNG](evidence/pr374-repair-2026-10-06/hoodie-feed.png)). 의상은 글자 기호 대신 3개 래스터 옷 자산을 atlas에서 합성한다.
+
+**경계:** 로컬 browser fixture는 private mode 0600, 실제 Google 로그인 없음. 실기기·Expo FCM receipt·실제 오디오/햅틱·production APK는 `NOT_RUN`. 친구 해제 뒤 새 push는 authorization commit 이전에 차단하지만 이미 authorization 이후 전송이 시작된 generic push는 회수할 수 없다. 공통 36개 제품 회귀 원장 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 그대로다. 원격 PR CI/merge 결과는 PR 기록에, 공개 배포·Play는 별도 상태로 기록한다.
+
 2026-10-05 [Issue #367](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/367) **앱 내 상점·홈·우정/우편 개편 최종 로컬 검증 상태**(`feat/shop-home-social`, Windows 11 작업트리): 문서 기준 실제 구현 범위는 상점 직접 상세 진입, 캐릭터+마일리지+옷 보상, 하단 탭 `상점 · 도감 · 홈 · 검색 · 상점`과 홈 친구 빠른 버튼, 우정/우편/식사 초대, Expo push outbox, BGM/SE/진동 설정, store ticket opening ACK, 개인정보 동의 `privacy-2026-10-05`다. Cycle8 source repair는 알림 응답 교체 중 오래된 처리기가 최신 다른 영역 응답을 지울 수 있던 문제를 고쳤다. **PASS — full suites:** API 502/502, mobile 1633/1633, PostgreSQL 190/190, site 340/340으로 총 2665개 distinct full-suite PASS; API typecheck·build, mobile typecheck·lint, 55개 migration from-scratch·rerun idempotent, production Android·showcase Android·development web exports, variant asset/API origin/accessibility/privacy guard PASS. **PASS — reviews/QA/gate:** CodeReviewer APPROVE 0 issues(`.omx/reviews/code-review-final-cycle8.md`), Architect CLEAR 0 blockers(`.omx/reviews/architect-final-cycle8.md`), final review gate clean(`.omx/reviews/code-review-final-gate-cycle8.json`), live QA baseline 14 PASS·0 findings·cleanup remainingTotal 0, UltraQA 15 PASS·1 NOT_RUN·0 findings·cleanup 0(`.omx/qa-ultraqa-report-cycle8.md`), final `tools/gate.sh` exit 0(`.omx/gate-final-cycle8.log`) with legacy public status rows 31 PASS / 2 BLOCKED / 3 NOT_RUN preserved. **PASS — browser/visual:** fresh cycle8 browser covered new guest consent→empty home 0→test visit A→home 1/9 badge and 1 ticket, QR hidden bottom tabs/Home back, search/filter/map A visited and B/C unvisited, friend empty/list code/add UI and remaining 5/reward 25 display, direct silver modal and actual buy 100,150→99,973 with +23P·하늘 후드·빵집 다람쥐·upstream 빵집 골목 모자 bonus, media-less ticket skip with 1 unopened retained, settings reset back Home(`.omx/qa-browser-final.md`). Latest visual review PASS88/100 with no blockers; the non-blocking note is green button visual prominence, plus a capture-only sound/vibration scroll cutoff(`.omx/reviews/visual-final-cycle8.md`). Historical `meal-response.png` still covers the full 12:40 meal invitation response flow. **Migration plan:** upstream `0043_campaign_extended_audit.sql` and `0044_collection_experience.sql`~`0049_notification_sources.sql` are preserved. Issue #367 migration is `0050_social_mail.sql`, `0051_shop_draw_rewards.sql`, `0052_store_ticket_openings.sql`, `0053_social_notification_deliveries.sql`, `0054_push_token_binding_revision.sql`, `0055_notification_delivery_token_version.sql`; upstream `notification_deliveries` remains for notification inbox/FCM while social push delivery uses `social_notification_deliveries`. **NOT_RUN:** remote push delivery, actual Android push UX, native BGM/SE listening, haptic/silent-mode feel, hardware back, media-less seed actual display ACK, unsupported runtime cancel/resume/hung CLI class, public server deployment, new public APK/Release, merge. Draft PR #374 is created, and the current PR body plus SHA-linked body Korean checker passed in `.omx/pr-korean-final.log`. Tracked screenshots and provenance are in [shop-home-social validation](evidence/shop-home-social-2026-10-05/validation.md).
+
+## 2026-10-05 Issue #373 전체 경험 품질 개선
+
+기준 커밋 `0ce3114c`, 브랜치 `feat/experience-quality`; 통합 상태는 이 브랜치의 PR 검사·병합 기록에 따른다. 공개 배포는 별도다. 캡처·실제 PNG/영상 및 QA 범위는 [경험 품질 증거](evidence/experience-quality-2026-10-05/)와 [보고서](EXPERIENCE_QUALITY.md)를 따른다.
+
+**PASS:** API 482/482, PostgreSQL 443 PASS·3 SKIP·0 FAIL, 사이트 508/508, 모바일 1,545/1,545. 최종 모바일 타입 검사·린트도 통과했다. Astra 검토에서 중간 중요 지적 3건 수정; 최종 3개 영역에서 구체적 발견 0건. 수정 뒤 회귀 시험 12개 PASS.
+
+**실제 로컬 UI 관찰:** 쌓기 510점·6층·폭 20% 잔여, 기억 600점·6쌍, 배달 1,200점·소포 1개·건강도 3·충돌 0, 주문 1,090점·4건·12개. 별도 배달 재시도는 165점·12구간 중 2구간에서 종료됐고 건강도 3·충돌 0이었다. 기존 배달 최고 1,200점·완주 1회·획득 배지는 그대로였다. 기억의 시간초과는 185점·6쌍 중 2쌍이었다.
+
+별도 합성 빈 계정은 방문·코인·마일리지 0에서 시작했다. 게임 허브 연습 화면 후 기존 API 첫 방문을 완료해 코인 1개·마일리지 150을 받았다. 로컬 브라우저 UI의 100 마일리지 브론즈 뽑기로 카페 곰과 브론즈 모자를 받아 잔액 50을 확인했다. 미보유 골드 팩은 전체 미리보기가 열렸고 적용 버튼 없이 닫혀 소유/장착이 바뀌지 않았다. 보유 카페 테마 3칸은 확인 동작으로 한 번 적용해 장착 표시 3개를 확인했다. 친구 공간에 같은 호랑이·카페 모자·소품·커피 트레이를 확인했다. 테스트용 A 완료 목표 fixture는 소유/방문 기록을 추가하지 않는다. 홈에 완료 목표 둘과 다음 목표가 보이며 “선택”은 공간으로 이동한다. 목표 B를 저장하고 안내 문구 및 홈의 곰·코인을 확인했다. 이전 목표는 활성 상태로 남지 않았다.
+
+웹 UI PNG·MP4 저장 안내를 확인하고 파일을 받았다. MP4는 1,469,576바이트·AVC1·1080×1350·4.104초·19.003fps이며 서로 다른 프레임 3개가 디코드됐다. 이 브라우저 검증은 localhost의 두 번째 합성 계정 세션 fixture(mode 0600)를 사용했으며 Google 로그인은 아니다. 이 구매 결과는 브라우저 UI 검증이며 Android 네이티브 구매를 의미하지 않는다.
+
+390×844에서 뽑기 결과 모달 하단이 닿지 않는 결함을 찾아 공통 모달 높이를 조정했다. 320×640 라이트 테마·`prefers-reduced-motion: reduce`에서 애니메이션 생략, 560px 높이·955px 스크롤 콘텐츠, “장착완료” 상태와 대표 버튼으로 닫기를 확인했다. 320px 홈 제목도 단어 단위로 자연스럽게 줄바꿈됐다. 상점 GET 차단 시 한국어 연결 실패·재시도, 차단 해제 후 다시 불러오기로 잔액 50·보유 곰 복원, 완료 목표 fixture에서 다음 목표 선택→공간 이동→B 저장 안내도 확인했다. 관련 소스 시험 70개 통과.
+
+**미검증:** 실기·TalkBack·효과음/진동 체감·실사용자 시험·실제 Google 로그인·FCM 실수신·공개 서버/설치본 배포, Android 네이티브 구매·다른 게임 장르·스탬프/톱니 코인·Chrome WebM fallback. 타입 검사·린트 최종 결과는 통과했고 원격 CI는 PR 기록으로 확인하며 로컬 QA를 공개 환경 결과로 해석하지 않는다.
+
+버전 협상 보완: 이전 HTTP 요청은 규칙 1, 새 앱의 명시적 요청은 규칙 2다. API 482개·모바일 계약 15개·실제 PostgreSQL 5개와 캐시 불변을 재검증했다. 모든 대상 API를 먼저 배포한 뒤 새 앱·웹을 배포한다.
 
 ## 2026-10-05 Issue #371 전체 통합
 

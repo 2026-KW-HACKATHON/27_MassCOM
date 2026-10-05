@@ -1,6 +1,6 @@
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, type ImageStyle, type TextStyle, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -8,14 +8,18 @@ import { createCommerceApiClient, type CollectionSnapshot } from '@/commerce/com
 import { createBadgeApiClient, type BadgeApiClient, type BadgeBook, type OpenedReward } from '@/gamification/badge-api';
 import { HomeCollectionDisplay } from '@/experience/home-collection-display';
 import { useExperience } from '@/experience/use-experience';
+import { createMerchantApiClient } from '@/merchant/merchant-api';
 import { shouldRefreshBadgesQuietly } from '@/gamification/badge-refresh';
 import { couponExpiryNotice } from '@/gamification/coupon-expiry';
 import { HomeRewardCard } from '@/gamification/home-reward-card';
 import { RewardReveal } from '@/gamification/reward-reveal';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { createShopApiClient } from '@/shop/shop-api';
+import { friendArt } from '@/shop/shop-art';
 import { useShop } from '@/shop/use-shop';
 import { useShopAvatarAppearance } from '@/shop/use-shop-avatar-art';
+import { createStudioApiClient } from '@/studio/studio-api';
+import { resolveStudioGoal } from '@/studio/studio-goals';
 import { createStoreTicketApiClient, type StoreTicket } from '@/store-tickets/store-ticket-api';
 import { useDrawMusic } from '@/sound/ui-sounds';
 import { colorsForScheme } from '@/theme/palette';
@@ -23,9 +27,6 @@ import { uiMetrics } from '@/theme/ui-metrics';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
 import { FloatingCard } from '@/ui/floating-card';
-import { Companion } from '@/ui/companion';
-import { heroMascotSize } from '@/ui/large-text';
-import { Mascot } from '@/ui/mascot';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { StateScene } from '@/ui/state-scene';
 import { StatusBarScrim, useStatusBarScrim } from '@/ui/status-bar-scrim';
@@ -53,18 +54,17 @@ export function HomeScreen({ apiUrl, accountId, credential, onSessionInvalid }: 
   const insets = useSafeAreaInsets();
   const clearance = useTabBarClearance();
   const scrim = useStatusBarScrim();
-  const { fontScale } = useWindowDimensions();
   const router = useRouter();
-  const [avatarRefreshToken, setAvatarRefreshToken] = useState(0);
-  const avatar = useShopAvatarAppearance(apiUrl, credential, avatarRefreshToken);
-  const avatarArt = avatar?.art;
-  const avatarClothing = avatar?.clothing ?? null;
-  const experience = useExperience(apiUrl, credential, onSessionInvalid, avatarRefreshToken);
+  const experience = useExperience(apiUrl, credential, onSessionInvalid);
   const shopApi = useMemo(
     () => createShopApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
   );
   const shop = useShop(shopApi);
+  const avatarArt = shop.snapshot?.avatar ? friendArt[shop.snapshot.avatar] : undefined;
+  const refreshShop = shop.refreshQuietly;
+  const studioApi = useMemo(() => createStudioApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
+  const merchantApi = useMemo(() => createMerchantApiClient(apiUrl), [apiUrl]);
   const ticketApi = useMemo(
     () => createStoreTicketApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
@@ -79,6 +79,7 @@ export function HomeScreen({ apiUrl, accountId, credential, onSessionInvalid }: 
   );
   const [tickets, setTickets] = useState<TicketState>({ status: 'loading', tickets: [] });
   const [collection, setCollection] = useState<CollectionSnapshot>();
+  const [visitGoal, setVisitGoal] = useState<ReturnType<typeof resolveStudioGoal>>();
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState<StoreTicket>();
   const [ackError, setAckError] = useState<string>();
@@ -90,6 +91,8 @@ export function HomeScreen({ apiUrl, accountId, credential, onSessionInvalid }: 
     if (refresh) setRefreshing(true);
     else setTickets((current) => ({ status: 'loading', tickets: current.tickets }));
     setAckError(undefined);
+    setVisitGoal(undefined);
+    const goalData = Promise.all([studioApi.getMine(), merchantApi.listMerchants()]).catch(() => undefined);
     try {
       const [nextTickets, nextCollection] = await Promise.all([
         ticketApi.listStoreTickets(),
@@ -98,21 +101,26 @@ export function HomeScreen({ apiUrl, accountId, credential, onSessionInvalid }: 
       if (generation !== loadGeneration.current) return;
       setTickets({ status: 'ready', tickets: nextTickets });
       if (nextCollection) setCollection(nextCollection);
+      void goalData.then((data) => {
+        if (generation === loadGeneration.current && nextCollection && data)
+          setVisitGoal(resolveStudioGoal(data[0].studio.goal, data[1], nextCollection));
+      });
     } catch {
       if (generation !== loadGeneration.current) return;
       setTickets((current) => ({ status: 'error', tickets: current.tickets, message: '가게권을 불러오지 못했어요. 다시 시도해 주세요.' }));
     } finally {
       if (generation === loadGeneration.current) setRefreshing(false);
     }
-  }, [commerceApi, ticketApi]);
+  }, [commerceApi, merchantApi, studioApi, ticketApi]);
 
   useFocusEffect(useCallback(() => {
     const generation = ++loadGeneration.current;
     void load(false, generation);
+    void refreshShop();
     return () => {
       if (generation === loadGeneration.current) loadGeneration.current += 1;
     };
-  }, [load]));
+  }, [load, refreshShop]));
 
   const openTicket = useCallback((ticket: StoreTicket) => {
     acknowledged.current.delete(ticket.entitlementId);
@@ -152,7 +160,7 @@ export function HomeScreen({ apiUrl, accountId, credential, onSessionInvalid }: 
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => { setAvatarRefreshToken((value) => value + 1); void load(true); }}
+            onRefresh={() => { void refreshShop(); void experience.refresh(); void load(true); }}
             tintColor={palette.primary}
             colors={[palette.primary]}
             progressBackgroundColor={world.card}
@@ -161,17 +169,10 @@ export function HomeScreen({ apiUrl, accountId, credential, onSessionInvalid }: 
         }
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
       >
-        <AppHeader title="홈" subtitle="오늘 받은 가게권과 미션을 확인해요" avatarArt={avatarArt} avatarClothing={avatarClothing} showMailEntry>
-          <View style={styles.heroRow}>
-            <View style={styles.heroText}>
-              <Text style={styles.heroTitle}>가게권을 열어 오늘의 도장을 확인해요</Text>
-              <Text style={styles.heroBody}>방문해서 받은 가게권을 여기서 바로 열 수 있어요.</Text>
-            </View>
-            {avatarArt ? <Companion art={avatarArt} clothing={avatarClothing} interactive size={heroMascotSize(fontScale, 96)} /> : <Mascot interactive pose="stamp" size={heroMascotSize(fontScale, 96)} />}
-          </View>
-        </AppHeader>
+        <AppHeader title="홈" subtitle="오늘 받은 가게권과 미션을 확인해요" showFriendsEntry showMailEntry />
 
-        {experience.snapshot ? <HomeCollectionDisplay experience={experience.snapshot} collection={collection} shop={shop.snapshot} avatarArt={avatarArt} apiUrl={apiUrl} /> : null}
+        {experience.snapshot ? <HomeCollectionDisplay experience={experience.snapshot} collection={collection} shop={shop.snapshot}
+          visitGoal={visitGoal} apiUrl={apiUrl} /> : null}
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -260,7 +261,6 @@ export function HomeScreen({ apiUrl, accountId, credential, onSessionInvalid }: 
 export function HomeMissionsScreen({ apiUrl, credential, onSessionInvalid }: Omit<Props, 'accountId'>) {
   const avatar = useShopAvatarAppearance(apiUrl, credential);
   const avatarArt = avatar?.art;
-  const avatarClothing = avatar?.clothing ?? null;
   const badgeApi = useMemo(
     () => createBadgeApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
@@ -271,7 +271,7 @@ export function HomeMissionsScreen({ apiUrl, credential, onSessionInvalid }: Omi
   return (
     <SkyBackdrop>
       <ScrollView contentContainerStyle={styles.content}>
-        <AppHeader title="미션" subtitle="1·3·5회 방문 목표와 상자를 확인해요" avatarArt={avatarArt} avatarClothing={avatarClothing} />
+        <AppHeader title="미션" subtitle="1·3·5회 방문 목표와 상자를 확인해요" />
         <HomeMissionsPanel badgeApi={badgeApi} companionArt={avatarArt} />
       </ScrollView>
     </SkyBackdrop>
@@ -359,10 +359,6 @@ function HomeMissionsPanel({ badgeApi, companionArt, onOpenMissions }: {
 function makeHomeStyles(palette: ReturnType<typeof colorsForScheme>, world: ReturnType<typeof worldForScheme>, hairlineWidth: number) {
   return {
     content: { flexGrow: 1 },
-    heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-    heroText: { flex: 1, minWidth: 180, gap: 6 },
-    heroTitle: { color: world.skyInk, fontSize: 18, lineHeight: 25, fontWeight: '900' },
-    heroBody: { color: world.skyMuted, fontSize: 13, lineHeight: 20, fontWeight: '700' },
     section: { paddingHorizontal: uiMetrics.pageInset, gap: 12, marginBottom: 18 },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
     sectionTitle: { color: world.skyInk, fontSize: 20, lineHeight: 28, fontWeight: '900' },

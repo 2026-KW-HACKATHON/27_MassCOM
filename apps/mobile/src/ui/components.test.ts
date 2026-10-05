@@ -54,8 +54,7 @@ test('screen copy fits its space and does not repeat the heading below it', () =
   assert.doesNotMatch(list, /어디로 탐험할까요|내 탐험 여권 보기|도감에서 내 도장 보기/);
   const home = readSource('screens/home/index.tsx');
   assert.match(home, /title="홈" subtitle="오늘 받은 가게권과 미션을 확인해요"/);
-  assert.match(home, /가게권을 열어 오늘의 도장을 확인해요/);
-  assert.match(home, /방문해서 받은 가게권을 여기서 바로 열 수 있어요\./);
+  assert.equal((home.match(/<HomeCollectionDisplay/g) ?? []).length, 1);
   const collection = readSource('screens/collection/index.tsx');
   // #296 Option A: a compact passport strip now sits in the header as a child (replacing the self-closing tag).
   assert.match(collection, /<AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" avatarArt=\{companionArt\}>/);
@@ -70,19 +69,23 @@ test('the header keeps account tools one tap away, and says so under the avatar'
   // A visible "내 정보" label on its own frosted pill sits under the avatar; the 48dp target is the Pressable around both.
   assert.match(header, /styles\.avatarLabelPill[\s\S]*?styles\.avatarLabel[^>]*>내 정보</);
   const home = readSource('screens/home/index.tsx');
-  assert.match(home, /<AppHeader title="홈" subtitle="오늘 받은 가게권과 미션을 확인해요" avatarArt=\{avatarArt\} avatarClothing=\{avatarClothing\} showMailEntry>/);
-  assert.match(home, /<Companion art=\{avatarArt\} clothing=\{avatarClothing\} interactive size=\{heroMascotSize\(fontScale, 96\)\} \/>/);
+  assert.match(home, /<AppHeader title="홈" subtitle="오늘 받은 가게권과 미션을 확인해요"/);
+  assert.match(home, /showFriendsEntry showMailEntry/);
 });
 
-test('at 150% text and up the header keeps a capped title and a small hero; the subtitle wraps instead of disappearing', () => {
+test('large text grows freely with reflow while home keeps one exhibit and claim decoration shrinks', () => {
   const header = read('app-header.tsx');
-  assert.match(header, /maxFontSizeMultiplier=\{1\.6\}[^>]*>\{title\}/);
-  // PR #312 QA: at 2.0x the subtitle used to vanish outright instead of wrapping. It always renders now (capped at the
-  // same 1.6x as the title) and is never given numberOfLines/a fixed height, so Text wraps it freely and the header's
-  // own minHeight (not a fixed height) grows to fit.
-  assert.match(header, /\{subtitle \? <Text maxFontSizeMultiplier=\{1\.6\}[^>]*>\{subtitle\}<\/Text> : null\}/);
-  assert.doesNotMatch(header, /isLargeText|numberOfLines/);
-  assert.match(readSource('screens/home/index.tsx'), /size=\{heroMascotSize\(fontScale, 96\)\}/);
+  assert.doesNotMatch(header, /styles\.headerTitle[^>]*maxFontSizeMultiplier|styles\.headerSubtitle[^>]*numberOfLines/);
+  assert.match(header, /\{subtitle \? <Text style=\{styles\.headerSubtitle\}>\{subtitle\}<\/Text> : null\}/);
+  assert.match(header, /stackedHeader && \{ flexBasis: '100%' \}/);
+  assert.match(header, /flexWrap: 'wrap'/);
+  assert.doesNotMatch(read('bounce-button.tsx'), /maxFontSizeMultiplier|numberOfLines/);
+  const home = readSource('screens/home/index.tsx');
+  const exhibit = readSource('experience/home-collection-display.tsx');
+  assert.doesNotMatch(home, /heroMascotSize|<Mascot|<CompanionScene/);
+  assert.equal((home.match(/<HomeCollectionDisplay/g) ?? []).length, 1);
+  assert.equal((exhibit.match(/<CompanionScene/g) ?? []).length, 1);
+  assert.match(exhibit, /showcase: \{[^}]*flexWrap: 'wrap'/);
   assert.match(readSource('screens/claim-redeem/index.tsx'), /size=\{heroMascotSize\(fontScale, 112\)\}/);
 });
 
@@ -266,19 +269,26 @@ test('state scenes map to the right mascot', () => {
   assert.match(scene, /loading: 'search'/);
 });
 
-test('mascots are plain images unless asked to be interactive, and only standalone heroes are', () => {
+test('mascots are plain images unless asked to be interactive, and home has one accessible exhibit greeting', () => {
   const mascot = read('mascot.tsx');
   assert.match(mascot, /interactive = false/);
   assert.match(mascot, /mascotAccessibility\(accessibilityLabel, interactive\)/);
   // Without `interactive` the mascot is a bare Animated.Image: no Pressable, no wiggle handler.
   assert.match(mascot, /if \(!interactive\) return <Animated\.Image \{\.\.\.picture\} \{\.\.\.a11y\} \/>;/);
   assert.match(mascot, /<Pressable onPress=\{wiggle\} \{\.\.\.a11y\}>/);
-  // Heroes that stand on the sky wiggle; mascots inside cards and modals do not.
-  assert.match(readSource('screens/home/index.tsx'), /<Mascot interactive pose="stamp"/);
+  // Home has one equipped greeting target in its exhibit; the header no longer repeats it.
+  const home = readSource('screens/home/index.tsx');
+  const exhibit = readSource('experience/home-collection-display.tsx');
+  assert.doesNotMatch(home, /<Mascot|<CompanionScene|<AvatarPortrait/);
+  assert.equal((exhibit.match(/<CompanionScene/g) ?? []).length, 1);
+  assert.match(exhibit, /<CompanionScene[^>]*interactive/);
+  const portrait = readSource('illustration/avatar-portrait.tsx');
+  assert.match(portrait, /interactive \? <Pressable accessibilityRole="button" accessibilityLabel="동행과 인사하기"/);
+  // Standalone foundation/claim heroes retain their original interaction contracts.
   assert.match(readSource('screens/foundation/index.tsx'), /<Mascot interactive pose="wave"/);
   assert.match(readSource('screens/claim-redeem/index.tsx'), /<Mascot interactive pose="stamp"/);
-  // Home and claim heroes are decorative (no label, so no extra focus stop); only the role screen's wave is announced as a button.
-  for (const file of ['screens/home/index.tsx', 'screens/claim-redeem/index.tsx']) {
+  // Claim remains decorative; home's explicit greeting and the role screen's wave are announced buttons.
+  for (const file of ['screens/claim-redeem/index.tsx']) {
     const hero = readSource(file).match(/<Mascot\s+interactive[\s\S]*?\/>/)?.[0];
     assert.ok(hero, `${file} hero mascot`);
     assert.doesNotMatch(hero, /accessibilityLabel/, `${file} hero mascot is decorative`);

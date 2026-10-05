@@ -11,7 +11,8 @@ export type Studio = {
   slots: string[];
   goal: StudioGoal | null;
 };
-export type PlayRecord = { kind: GameKind; bestScore: number; plays: number };
+export type PlayRecord = { kind: GameKind; bestScore: number; plays: number;
+  version2BestScore: number; version2Plays: number };
 export type StudioItem = {
   entitlementId?: string;
   merchantId: string;
@@ -27,8 +28,10 @@ export type FriendStudioSnapshot = {
   studio: Omit<Studio, 'slots'>;
   items: Omit<StudioItem, 'entitlementId'>[];
   avatar: string | null;
+  avatarClothingId?: string | null;
 };
-export type PlayResult = { kind: GameKind; score: number; bestScore: number; plays: number;
+export type PlayResult = { kind: GameKind; rulesVersion?: 1 | 2; score: number; bestScore: number; plays: number;
+  version2BestScore?: number; version2Plays?: number;
   completed: boolean; correct: number; total: number; unlockedThemes: string[];
   skill?: GameSkill; newlyEarned?: boolean };
 
@@ -41,7 +44,7 @@ export type PlayMetrics = { days: number; events: { event: string; count: number
   games: { kind: GameKind; started: number; completed: number }[] };
 
 export interface PlayService {
-  start(input: { accountId: string; kind: GameKind }): Promise<PlayRun>;
+  start(input: { accountId: string; kind: GameKind; rulesVersion?: 1 | 2 }): Promise<PlayRun>;
   finish(input: { accountId: string; runId: string; actions: GameAction[] }): Promise<PlayResult>;
   getPlay(accountId: string): Promise<PlaySnapshot>;
   getStudio(accountId: string): Promise<StudioSnapshot>;

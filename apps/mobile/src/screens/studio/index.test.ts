@@ -19,4 +19,6 @@ test('studio only offers owned clothing and saves through the shop clothing endp
   assert.match(source, /shopClient\.setClothing\(clothingChoice\)/);
   assert.match(source, /items: current\.clothing\.items\.map\(\(item\) => \(\{ \.\.\.item, equipped: item\.id === result\.equippedClothing \}\)\)/);
   assert.match(source, /accessibilityLabel="옷 입히지 않기"/);
+  assert.match(source, /<AvatarWardrobe clothing=\{clothingArtForId\(item\.id\)\} size=\{42\} \/>/);
+  assert.doesNotMatch(source, /item\.name\.slice\(0, 1\)/);
 });
